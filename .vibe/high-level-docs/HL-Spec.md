@@ -1,0 +1,306 @@
+# Zhiju Business Core 基准规格与 Agent 入口
+
+版本：v0.1
+日期：2026-08-12
+状态：`CURRENT DESIGN BASELINE / IMPLEMENTATION NOT STARTED / USER REVIEWED 2026-08-12`
+
+本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
+
+---
+
+## 1. Agent 启动协议
+
+任何设计或实现任务开始前，Agent 必须：
+
+1. 先完整读取本文；
+2. 根据第 3 节选择任务所需的最小权威文档集；
+3. 检查用户请求是否改变冻结决定、模块所有权、Contract 或持久化边界；
+4. 检查工作区实际文件、Git 状态和已有改动，不假设对话中的结果已经落盘；
+5. 在修改实现前同步更新受影响的基准文档和验证场景；
+6. 只修改与当前任务直接相关的内容；
+7. 明确区分“设计验证通过”“自动测试通过”“外部集成通过”和“人工验收通过”；
+8. 未经用户明确要求，不执行 Git Commit。
+
+如果用户请求与本文或其他权威文档冲突，Agent 不得静默选择一方。应指出冲突、影响和建议的正式变更位置；用户的新明确指令优先，并应同步更新基准。
+
+---
+
+## 2. 基准文档包
+
+当前只有 `.vibe/high-level-docs/` 下的以下文档属于持续维护的设计基准：
+
+| 顺序 | 文档                                                                                                                 | 唯一权威范围                                                              | 典型读取者                                 |
+| ---: | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------ |
+|    0 | `HL-Spec.md`                                                                                                         | 产品目标、冻结规则、文档路由、当前阶段、变更纪律                          | 所有 Agent，必读                           |
+|    1 | [`01-customer-field-findings.md`](./01-customer-field-findings.md)                                                   | 客户现场证据、业务动因、风险原则、MVP 业务约束                            | 产品、业务、UX、Channel 任务               |
+|    2 | [`02-zhiju-core-architecture.md`](./02-zhiju-core-architecture.md)                                                   | 总体架构、七模块职责/所有权/端口/依赖、权限边界、ADR、实施边界            | 所有跨模块或实现任务                       |
+|    3 | [`03-core-contracts.md`](./03-core-contracts.md)                                                                     | Project Context、WorkOrder、AgentResult、Artifact + Quality Gate Contract | Runtime、执行、Artifact、Quality、API 任务 |
+|    4 | [`04-domain-model-v0.1.md`](./04-domain-model-v0.1.md)                                                               | Aggregate、Entity、Value Object、状态机、命令、事件、不变量               | 领域实现与业务规则任务                     |
+|    5 | [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md) | Reference Project、跨 Aggregate 流程、事务/Saga、并发、幂等、补偿         | Application Service、流程和可靠消息任务    |
+|    6 | [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)                     | Typed Reference、Envelope、兼容性、200 个公开 Command/Query/Event 名称    | API、事件、跨模块集成任务                  |
+|    7 | [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md)                                       | Schema 所有权、逻辑表、约束、RLS、Outbox/Inbox、对象存储边界              | 数据库、Repository、Migration 任务         |
+|    8 | [`08-verification-baseline.md`](./08-verification-baseline.md)                                                       | 验证策略、跨模块验收场景、文档/实现/人工 Gate、测试结果口径               | 所有修改和审查任务                         |
+
+### 2.1 文档优先级
+
+同一问题出现差异时，按以下规则处理：
+
+1. 用户最新明确决定；
+2. 本文中的产品和工程冻结规则；
+3. `02-zhiju-core-architecture.md` 中的架构决定与模块所有权；
+4. 专题文档在其“唯一权威范围”内的详细定义；
+5. 示例、历史说明和待确认问题。
+
+专题文档之间不存在整体高低关系。例如，Command 名称以 `06` 为准，数据库表归属以 `07` 为准，Aggregate 不变量以 `04` 为准。Agent 不得用数据库便利性覆盖 Domain 不变量，也不得用示例覆盖 Contract。
+
+---
+
+## 3. 按任务读取
+
+Agent 应使用最小充分上下文，避免每次把全部约 1.5 万行文档注入 Prompt。
+
+| 任务                              | 必读                                    | 需要时追加         |
+| --------------------------------- | --------------------------------------- | ------------------ |
+| 产品原则、范围或路线              | `HL-Spec`、`01`、`02`                   | `08`               |
+| Aggregate/状态机/业务规则         | `HL-Spec`、`02`、`04`、`08`             | `05`、`03`         |
+| 跨模块流程、Saga、幂等            | `HL-Spec`、`02`、`05`、`06`、`08`       | `04`、`07`         |
+| Command/Query/Event API           | `HL-Spec`、`02`、`03`、`06`、`08`       | `04`、`05`、`07`   |
+| PostgreSQL/Repository/Migration   | `HL-Spec`、`02`、`04`、`07`、`08`       | `03`、`05`、`06`   |
+| 飞书 Channel                      | `HL-Spec`、`01`、`02`、`03`、`06`、`08` | `05`、`07`         |
+| Runtime Adapter                   | `HL-Spec`、`02`、`03`、`06`、`08`       | `04`、`05`、`07`   |
+| Artifact/Quality/Approval/Release | `HL-Spec`、`02`、`03`、`04`、`05`、`08` | `06`、`07`         |
+| 安全、权限、客户隔离              | `HL-Spec`、`02`、`06`、`07`、`08`       | `03`、`04`         |
+| 架构或代码 Review                 | `HL-Spec`、`02`、`08`、实际代码/差异    | 所有受影响专题文档 |
+
+---
+
+## 4. 产品目标
+
+Zhiju Business Core 是制巨质量管理体系服务的业务内核。它要把咨询工作的长期企业知识、项目承诺、受控成果、证据、审查、批准、发布和审计变成独立于任何模型、Agent Harness、聊天会话和办公文件格式的正式业务世界。
+
+成功标准：
+
+- 企业知识可以跨项目、员工、Agent、模型和 Harness 长期继承；
+- 客户数据严格隔离，正式业务状态只能通过 Core 规则改变；
+- Agent 生成内容不等于正式成果；
+- Human 最终批准和发布授权不可被 Agent、Prompt 或 `actingFor` 绕过；
+- 法规、企业事实、项目输入、文件版本、Evidence、Gate、Approval 和 Release 可精确追溯；
+- 没有 Agent 时，Human 仍可通过相同业务能力完成工作；
+- MVP 通过完整双向飞书 Agent Channel 支持消息、文件、会话、任务状态和交互回传；
+- 飞书、Runtime、Renderer 和对象存储只承担适配/基础设施职责，不拥有业务完成解释权。
+
+---
+
+## 5. 已冻结的产品与架构规则
+
+### 5.1 产品边界
+
+- Zhiju Core 是 Business Domain Platform，不是通用 Agent Framework；
+- QM 已弃用，不属于目标架构、实现依赖、Runtime Adapter 或评估候选；
+- 架构必须 Harness-neutral；
+- MVP 必须实现完整双向飞书 Agent Channel；
+- v0.1 是模块化单体，不提前拆微服务；
+- v0.1 不建设通用 Workflow Engine、完整 Knowledge Graph 或自研通用 Agent Harness；
+- Enterprise 是长期业务边界，也是 MVP 客户数据隔离边界；
+- Project 是 Enterprise 下的阶段性工作边界，不等于 Session、Thread、Workspace 或文件夹；
+- Product 是 EnterpriseProject 拥有的独立版本化 Aggregate；
+- 不为数据库便利提前引入 CustomerAccount/Tenant 业务 Aggregate。
+
+### 5.2 事实与版本
+
+- Harness Memory、飞书消息和文件系统不是 Business Memory；
+- DOCX/XLSX/PDF 是 Representation 或交换格式，不是唯一 Source of Truth；
+- Agent 可以提议 Fact、Evidence、Decision 和内容，不能默认确认为正式事实；
+- Artifact 是长期成果身份，ArtifactRevision 是不可变内容版本；
+- `aggregateVersion` 只用于 optimistic concurrency；
+- 业务历史使用独立 versionId/revisionId/snapshotId 和必要 Hash；
+- 审批、发布和可重放 Contract 禁止 `latest`；
+- 历史失效通过 Revocation、Invalidation、Supersession、Recall 或 Impact Assessment 表达，不改写过去。
+
+### 5.3 执行与完成
+
+- Task、WorkOrder、Run、AgentResult 和 InformationRequest 是不同概念；
+- WorkOrder READY 后 Specification 冻结；Prompt/Skill/AGENTS.md/CLAUDE.md 只是 Runtime Materialization；
+- AgentResult 是不可变执行收据，不拥有 WorkOrder/Task/DeliveryItem 完成解释权；
+- 一个 Run 只接受一个 final AgentResult；
+- final `BLOCKED_INPUT` 解决后创建新 ContextSnapshot 和新 Run，不恢复 terminal Run；
+- Completion 只能由 owning Core Evaluator 根据精确标准和引用派生；
+- Runtime/Provider Usage 优先于 Agent 自报。
+
+### 5.4 Artifact、质量与发布
+
+- Artifact、Revision、Evidence、QualityProfile、GateResult、ReviewIssue、Approval、Release 和 EffectiveBinding 分别建模；
+- Revision SEALED 后内容、Hash、Parent 和 Provenance 不可修改；
+- GateResult 不可从 FAIL 原地改为 PASS；重跑或复用产生新 Result；
+- AgentPrincipal 永远不能执行 Human Approval 或 Release Authorization；
+- Human Approval 不能覆盖 Mandatory Gate 失败；
+- Revision Acceptance、Approval Bundle、Release Readiness 是三个不可变阶段 Snapshot；
+- Render Gate 属于精确冻结 Package 的 Release Readiness；
+- `DRAFT != APPROVED != RELEASED != EFFECTIVE`；
+- 飞书普通文件发送不是正式 Release；
+- CUSTOMER_DELIVERY Release 不自动建立 INTERNAL_EFFECTIVE_USE Binding。
+
+### 5.5 模块与一致性
+
+- 七个逻辑模块及其所有权以架构基准为唯一权威；
+- 一个公开写 Command 只有一个 owning module；
+- 默认一个 Aggregate Root 一个同步事务；
+- 跨模块流程通过已提交 Domain Event、Inbox、幂等 Command 和特定 Process Manager；
+- 模块不得共享 Repository 或直接修改他方 Aggregate；
+- 外部副作用只能在业务提交后执行，并保存 Attempt、稳定幂等键和真实 Receipt；
+- 至少一次投递不等于 exactly-once；Replay 安全由 Inbox、Command Receipt 和业务幂等共同实现；
+- Projection 可以延迟或重建，不能作为 Command 成功、Approval、Release 或 Completion 的判据。
+
+### 5.6 持久化与安全
+
+- v0.1 使用一个 PostgreSQL Database、七个权威 Schema 和一个可重建 Projection Schema；
+- 模块内使用强外键/唯一/检查约束，跨模块使用 Typed Reference，不建立跨 Schema 外键；
+- Enterprise-owned Row 显式保存 `enterprise_id`；Project-owned Row同时保存 `enterprise_id + project_id`；
+- Enterprise 数据强制 RLS，但 RLS 不替代 IdentityPolicy；
+- Canonical Contract 使用 JSONB + Hash，大内容和二进制进入受控对象存储；
+- 对象存储与 PostgreSQL 不使用分布式事务，采用 Staging、Link Commit 和受审计 Orphan Cleanup；
+- 受控历史不级联删除；
+- 数据库不保存长期 Provider Token、共享 Human Credential、模型密钥或 Chain of Thought。
+
+---
+
+## 6. 逻辑模块全景
+
+```text
+BusinessCore
+├── IdentityPolicy
+├── EnterpriseProject
+├── TaskExecution
+├── Artifact
+├── QualityGovernance
+├── ReleasePublication
+└── IntegrationGateway
+```
+
+模块不是部署单元承诺，而是业务所有权、Repository、Schema 和公开 Contract 的边界。详细职责、非职责、端口、依赖和持久化要求只在 `02-zhiju-core-architecture.md` 中维护；完整公开 Contract 名称只在 `06-typed-references-contract-catalog-v0.1.md` 中维护；逻辑表只在 `07-postgresql-logical-model-v0.1.md` 中维护。
+
+---
+
+## 7. 当前基准状态
+
+已纳入当前基准：
+
+- 产品与现场业务约束；
+- 总体架构和七模块边界；
+- Enterprise/Project、Task/Execution、Artifact/Quality 三条 Domain 链；
+- 跨 Aggregate Reference Project、一致性、Saga、并发和幂等；
+- 四个 Core Contract；
+- Typed Reference、统一 Envelope、兼容性和 200 个公开 Catalog 条目；
+- PostgreSQL Logical Model、Schema 所有权、RLS、Outbox/Inbox 和对象存储边界；
+- 设计验证场景与统一验证口径。
+
+尚未完成：
+
+- Command / Query / Event API Payload 的字段级 Contract；
+- 飞书 Channel Contract；
+- Runtime Adapter Contract；
+- Canonical Document/Workbook 最小实现 Schema；
+- 可执行 DDL、Migration、Repository 和业务代码；
+- Renderer、部署、监控和运行手册；
+- 自动测试、外部服务验证和人工验收。
+
+建议的下一阶段：
+
+```text
+Command / Query / Event API Contract v0.1
+    ↓
+Feishu Channel Contract v0.1
+    ↓
+Runtime Adapter Contract v0.1
+    ↓
+Implementation Milestone Plan
+    ↓
+DDL / Migration / Repository / Application Code
+```
+
+---
+
+## 8. 变更纪律
+
+### 8.1 修改前
+
+- 找到唯一权威文档，不在非权威摘要中发明新语义；
+- 列出受影响的 Aggregate、Module、Contract、Schema、Event 和验证场景；
+- 确认是向后兼容 Minor 变化、破坏性 Major 变化，还是仅实现细节；
+- 对安全、审批、发布、隔离、不可变性和幂等变化优先写失败场景。
+
+### 8.2 修改时
+
+- 文档、Contract、验证场景先于实现同步；
+- 不复制完整定义到第二份文档；使用链接和明确所有权；
+- 新 Command/Query/Event 必须进入公开 Catalog并指定唯一 Owner；
+- 新表必须进入 owning Schema，不创建共享业务表；
+- 新跨模块引用必须选择明确 Typed Reference 强度；
+- 新外部副作用必须具备 Attempt、稳定幂等键、UNKNOWN 和真实 Receipt 语义；
+- 新 Human 高风险动作必须保存 ActorSnapshot 与 AuthorizationDecision。
+
+### 8.3 修改后
+
+- 执行 `08-verification-baseline.md` 中适用 Gate；
+- 运行受影响的 Unit、Contract、Persistence 和 E2E 测试；
+- 再运行全项目静态检查和回归；
+- 未执行的真实飞书、Runtime、Renderer、数据库负载或人工业务验收必须列为剩余风险；
+- 向用户报告变更文件、验证证据、未验证项和 Git 状态；
+- 用户确认后才提交。
+
+---
+
+## 9. 决策变更位置
+
+| 变化                    | 必须更新                                  |
+| ----------------------- | ----------------------------------------- |
+| 产品目标、MVP、冻结原则 | `HL-Spec`、`01`、`02`、`08`               |
+| 模块职责/所有权/依赖    | `02`、`05`、`06`、`07`、`08`              |
+| Aggregate/状态/不变量   | `04`、`02`、`05`、`08`                    |
+| Core Contract 字段/语义 | `03`、`06`、`07`、`08`                    |
+| Command/Query/Event     | `06`、对应 Domain/Architecture、`08`      |
+| 事务、Saga、幂等、补偿  | `05`、`02`、`07`、`08`                    |
+| Schema/表/约束/RLS      | `07`、`02`、`08`                          |
+| 飞书或 Runtime 映射     | `02`、`03`、`06`、未来专项 Contract、`08` |
+| 测试策略或验收口径      | `08` 和对应专题文档中的设计场景           |
+
+---
+
+## 10. 事实状态标签
+
+Agent 的文档和报告必须使用以下含义：
+
+```text
+BASELINE
+    当前设计 Source of Truth；仍可经正式决定修改
+
+DESIGN VERIFIED
+    文档结构和语义一致性已检查；不代表实现存在
+
+NOT RUN
+    测试/外部验证/人工验收未执行
+
+PASS
+    已执行并有当前证据
+
+BLOCKED
+    已达到明确阻塞条件，不能继续取得有意义进展
+```
+
+不得把“文档中存在测试用例”写成“测试通过”，不得把静态检索写成运行时安全验证，也不得把 Agent 自报成功写成业务完成。
+
+---
+
+## 11. Coding Agent 最小交付格式
+
+完成一次任务时至少报告：
+
+1. 结果和用户可见影响；
+2. 修改的权威文档与实现文件；
+3. 冻结决定是否发生变化；
+4. 执行的验证命令和结果；
+5. 未执行的外部/人工验证；
+6. 工作区与 Commit 状态；
+7. 下一步只在确有价值时给出。
+
+本项目当前仍处于设计基准阶段，所有实现相关验证均为 `NOT RUN`，Git Commit 尚未执行。
