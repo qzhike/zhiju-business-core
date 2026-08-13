@@ -1,10 +1,10 @@
 # Zhiju Business Core 验证基准
 
 版本：v0.1
-日期：2026-08-12
-状态：`CURRENT VERIFICATION BASELINE / IMPLEMENTATION NOT STARTED`
+日期：2026-08-13
+状态：`CURRENT VERIFICATION BASELINE / API CONTRACT USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
 
-文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。本项目不再维护独立的 Module Test/Test Spec 文档；领域专属场景继续靠近其唯一权威设计，本文负责总索引、跨模块覆盖和结果真实性。
+文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
 ---
 
@@ -73,7 +73,8 @@
 | Typed Reference/Envelope 场景 | [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md) | 12 | `NOT RUN` |
 | PostgreSQL Logical Model 场景 | [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md) | 24 | `NOT RUN` |
 | 跨模块验收场景 | 本文第 5 节 | 57 | `NOT RUN` |
-| 合计 |  | 235 | 尚未实现 |
+| API Module Test 场景 | [七份 Module Test](../module-tests/) | 63 | 7 个 Design Gate `DESIGN VERIFIED`；其余 56 个 `NOT RUN` |
+| 合计 |  | 298 | 尚未实现；静态设计检查不代表运行测试 |
 
 数量用于发现遗漏，不代表覆盖率或通过率。后续实现可以拆分出更多测试，但不得删除业务语义等价的失败路径。
 
@@ -83,7 +84,7 @@
 
 | ID | 检查 | 通过条件 |
 |---|---|---|
-| V-DOC-001 | 文档集合 | `.vibe/high-level-docs/` 只包含一个入口 `HL-Spec` 和 `01`—`08` 八份专题基准，共九份；`.vibe` 其他位置不存在 Module-Spec、Module-Test/Test-Spec 或工作日志 |
+| V-DOC-001 | 文档集合 | `.vibe/high-level-docs/` 仍只包含一个入口 `HL-Spec` 和 `01`—`08` 八份专题高层基准，共九份；阶段文档只位于 `api-contract-v0.1/`、`module-specs/` 和 `module-tests/` |
 | V-DOC-002 | Agent 入口 | `HL-Spec` 明确阅读路由、冻结规则、状态口径、变更纪律和下一阶段 |
 | V-DOC-003 | 唯一权威 | 每份基准声明权威范围；同一模块职责不由第二份文档维护 |
 | V-DOC-004 | 模块边界 | 七模块在架构基准中都有职责、所有权、非职责、端口类别、依赖、持久化边界和验收锚点 |
@@ -98,6 +99,11 @@
 | V-DOC-013 | QM 弃用 | QM 只可作为明确弃用说明出现，不得成为 Runtime、Adapter、Scope、Task 或依赖 |
 | V-DOC-014 | 链接与格式 | Markdown 链接可达、代码块闭合、编号唯一、无冲突标记或过期状态 |
 | V-DOC-015 | 状态真实性 | 所有未执行实现/外部/人工用例保持 `NOT RUN`，不得因静态审计改为 PASS |
+| V-DOC-016 | Module 文档集合 | 七个逻辑模块各有且只有一份 `Module-Spec` 和一份 `Module-Test`，ID/ModuleName 一致；测试文档含 Unit、Contract、E2E、Manual 的输入、预期、实际和结果 |
+| V-DOC-017 | API Catalog 覆盖 | `06` 的 200 个公开 `name@1.0` 在七份 Module Spec 中各出现一次，集合差异为零，namespace 与 Owner 一致 |
+| V-DOC-018 | API 字段完整性 | 每个 Command 有 target/mode、payload、authorization/拒绝语义；每个 Query 有 payload/result/consistency；每个 Event 有最小已发生事实 payload |
+| V-DOC-019 | API 安全边界 | Agent/actingFor 不能 Approval/Release Authorization；Sensitive External ID 不进入 Event/普通错误；latest/workspace/session/message 不冒充强引用 |
+| V-DOC-020 | API 文档链接 | HL、共享 API、七份 Module Spec 与七份 Module Test 的相对链接可达，无冲突标记或未闭合代码块 |
 
 ---
 
@@ -306,10 +312,11 @@ remaining risk
 
 ## 9. 当前状态
 
-截至 2026-08-12：
+截至 2026-08-13：
 
-- 设计基准的静态一致性曾完成检查；
+- 高层设计基准已由用户审核通过；字段级 API Contract、七份 Module Spec 与七份 Module Test 已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；
 - 本文中的 235 个实现前场景均仍为 `NOT RUN`；
+- API Module Test 新增 63 个场景：7 个 Design Gate 已有当前静态证据并标记 `DESIGN VERIFIED`，其余 56 个 Unit/Contract/E2E/Manual 均为 `NOT RUN`；证据见 [`../api-contract-v0.1/Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)；
 - 尚无 DDL、Migration、Repository、业务代码、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
 - 尚无真实 PostgreSQL、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；
 - 不得从设计文档推断任何运行时 Gate 已通过。

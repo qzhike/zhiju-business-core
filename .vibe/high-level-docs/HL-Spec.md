@@ -1,8 +1,8 @@
 # Zhiju Business Core 基准规格与 Agent 入口
 
 版本：v0.1
-日期：2026-08-12
-状态：`CURRENT DESIGN BASELINE / IMPLEMENTATION NOT STARTED / USER REVIEWED 2026-08-12`
+日期：2026-08-13
+状态：`CURRENT DESIGN BASELINE / HIGH-LEVEL USER REVIEWED 2026-08-12 / API CONTRACT BASELINE USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -27,7 +27,7 @@
 
 ## 2. 基准文档包
 
-当前只有 `.vibe/high-level-docs/` 下的以下文档属于持续维护的设计基准：
+`.vibe/high-level-docs/` 下的以下文档构成已经用户审核通过的高层设计基准：
 
 | 顺序 | 文档                                                                                                                 | 唯一权威范围                                                              | 典型读取者                                 |
 | ---: | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------ |
@@ -53,6 +53,20 @@
 
 专题文档之间不存在整体高低关系。例如，Command 名称以 `06` 为准，数据库表归属以 `07` 为准，Aggregate 不变量以 `04` 为准。Agent 不得用数据库便利性覆盖 Domain 不变量，也不得用示例覆盖 Contract。
 
+### 2.2 API Contract 阶段文档
+
+高层基准通过后，字段级 API 设计在以下位置持续维护：
+
+| 文档 | 唯一权威范围 |
+|---|---|
+| [`../api-contract-v0.1/API-Contract-v0.1.md`](../api-contract-v0.1/API-Contract-v0.1.md) | Command/Query/Event 共享类型、执行语义、错误、兼容、安全与 Registry |
+| [`../module-specs/`](../module-specs/) 下七份 `Module-Spec-[ID]-[ModuleName].md` | 对应模块公开操作的 payload/result/event 字段、授权和模块错误 |
+| [`../module-tests/`](../module-tests/) 下七份 `Module-Test-[ID]-[ModuleName].md` | 对应模块 Unit/Contract/E2E/Manual 用例、输入、预期、实际和结果 |
+| [`../api-contract-v0.1/Task-Plan.md`](../api-contract-v0.1/Task-Plan.md) | 本阶段里程碑、任务分配、执行状态和人工审核 Gate |
+| [`../api-contract-v0.1/Verification-Report.md`](../api-contract-v0.1/Verification-Report.md) | API 阶段 Catalog、字段、测试文档、Markdown 和 diff 静态验证证据 |
+
+模块职责仍只由 `02` 冻结，公开名称/Owner 仍只由 `06` 冻结；Module Spec 不得重新划分所有权。API 阶段文档已于 2026-08-13 通过用户审核并构成当前字段级 API 基准，但不能覆盖已审核高层基准。
+
 ---
 
 ## 3. 按任务读取
@@ -71,6 +85,7 @@ Agent 应使用最小充分上下文，避免每次把全部约 1.5 万行文档
 | Artifact/Quality/Approval/Release | `HL-Spec`、`02`、`03`、`04`、`05`、`08` | `06`、`07`         |
 | 安全、权限、客户隔离              | `HL-Spec`、`02`、`06`、`07`、`08`       | `03`、`04`         |
 | 架构或代码 Review                 | `HL-Spec`、`02`、`08`、实际代码/差异    | 所有受影响专题文档 |
+| 字段级 Command/Query/Event API    | `HL-Spec`、`02`、`03`、`06`、`08`、共享 API Contract、对应 Module Spec/Test | `04`、`05`、`07` |
 
 ---
 
@@ -194,9 +209,20 @@ BusinessCore
 - PostgreSQL Logical Model、Schema 所有权、RLS、Outbox/Inbox 和对象存储边界；
 - 设计验证场景与统一验证口径。
 
+高层基准审核状态：
+
+- 用户已于 2026-08-12 确认当前高层文档包审核通过；
+- 产品目标、架构规则、七模块所有权、核心 Contract、Typed Reference、Catalog 与 PostgreSQL 逻辑边界保持冻结；
+- API 阶段不得静默改变上述决定。
+
+已审核并纳入当前 API v0.1 基准：
+
+- Command / Query / Event API Contract v0.1；
+- 七个 Module Spec 与七个 Module Test；
+- 200 个公开 Catalog 条目的字段级覆盖；用户于 2026-08-13 确认审核通过，静态 Gate 已 `DESIGN VERIFIED`，不代表实现或运行时验收通过。
+
 尚未完成：
 
-- Command / Query / Event API Payload 的字段级 Contract；
 - 飞书 Channel Contract；
 - Runtime Adapter Contract；
 - Canonical Document/Workbook 最小实现 Schema；
@@ -207,9 +233,9 @@ BusinessCore
 建议的下一阶段：
 
 ```text
-Command / Query / Event API Contract v0.1
+Command / Query / Event API Contract v0.1  （BASELINE / USER REVIEWED 2026-08-13）
     ↓
-Feishu Channel Contract v0.1
+Feishu Channel Contract v0.1  （NOT STARTED）
     ↓
 Runtime Adapter Contract v0.1
     ↓
@@ -259,6 +285,7 @@ DDL / Migration / Repository / Application Code
 | Aggregate/状态/不变量   | `04`、`02`、`05`、`08`                    |
 | Core Contract 字段/语义 | `03`、`06`、`07`、`08`                    |
 | Command/Query/Event     | `06`、对应 Domain/Architecture、`08`      |
+| 字段级 API Payload/Result/Event | 共享 API Contract、对应 Module Spec/Test、`06`、`08` |
 | 事务、Saga、幂等、补偿  | `05`、`02`、`07`、`08`                    |
 | Schema/表/约束/RLS      | `07`、`02`、`08`                          |
 | 飞书或 Runtime 映射     | `02`、`03`、`06`、未来专项 Contract、`08` |
@@ -303,4 +330,4 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目当前仍处于设计基准阶段，所有实现相关验证均为 `NOT RUN`，Git Commit 尚未执行。
+本项目当前处于字段级 API 设计阶段。高层基准已获用户确认，API Contract/Module Spec/Test 尚待用户审核；所有实现、外部和人工运行验证均为 `NOT RUN`，Git Commit 未经本轮用户确认不会执行。
