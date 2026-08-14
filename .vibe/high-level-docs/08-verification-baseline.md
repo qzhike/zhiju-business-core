@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT VERIFICATION BASELINE / API CONTRACT USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT VERIFICATION BASELINE / FEISHU CHANNEL DRAFT DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -74,7 +74,8 @@
 | PostgreSQL Logical Model 场景 | [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md) | 24 | `NOT RUN` |
 | 跨模块验收场景 | 本文第 5 节 | 57 | `NOT RUN` |
 | API Module Test 场景 | [七份 Module Test](../module-tests/) | 63 | 7 个 Design Gate `DESIGN VERIFIED`；其余 56 个 `NOT RUN` |
-| 合计 |  | 298 | 尚未实现；静态设计检查不代表运行测试 |
+| Feishu Channel 专项场景 | [`Feishu-Channel-Test-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md) | 32 | 4 个 Design Gate `DESIGN VERIFIED`；其余 28 个 `NOT RUN`；用户审核待定 |
+| 合计 |  | 330 | 尚未实现；静态设计检查不代表运行测试 |
 
 数量用于发现遗漏，不代表覆盖率或通过率。后续实现可以拆分出更多测试，但不得删除业务语义等价的失败路径。
 
@@ -104,6 +105,10 @@
 | V-DOC-018 | API 字段完整性 | 每个 Command 有 target/mode、payload、authorization/拒绝语义；每个 Query 有 payload/result/consistency；每个 Event 有最小已发生事实 payload |
 | V-DOC-019 | API 安全边界 | Agent/actingFor 不能 Approval/Release Authorization；Sensitive External ID 不进入 Event/普通错误；latest/workspace/session/message 不冒充强引用 |
 | V-DOC-020 | API 文档链接 | HL、共享 API、七份 Module Spec 与七份 Module Test 的相对链接可达，无冲突标记或未闭合代码块 |
+| V-DOC-021 | Feishu Channel 文档集合 | 专项 Contract、Test、Task Plan、Verification Report 各一份，均位于 `feishu-channel-contract-v0.1/` 并由 HL 与 IntegrationGateway Spec/Test 路由 |
+| V-DOC-022 | 飞书协议映射 | 允许的飞书事件/API、外部幂等键、原始字段、Core API 目标和未知协议处置均明确，且不新增业务 Owner |
+| V-DOC-023 | 飞书安全边界 | Webhook/长连接认证边界、身份映射、最小权限、敏感标识、卡片 nonce、附件 Staging 和 Credential 禁存规则明确 |
+| V-DOC-024 | 飞书业务边界 | 普通消息/附件/卡片/发送回执不冒充 Fact、Answer、Approval、Release、Task Completion 或 EffectiveBinding |
 
 ---
 
@@ -317,6 +322,7 @@ remaining risk
 - 高层设计基准已由用户审核通过；字段级 API Contract、七份 Module Spec 与七份 Module Test 已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；
 - 本文中的 235 个实现前场景均仍为 `NOT RUN`；
 - API Module Test 新增 63 个场景：7 个 Design Gate 已有当前静态证据并标记 `DESIGN VERIFIED`，其余 56 个 Unit/Contract/E2E/Manual 均为 `NOT RUN`；证据见 [`../api-contract-v0.1/Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)；
+- Feishu Channel 新增 32 个专项场景：4 个 Design Gate 已完成静态 `DESIGN VERIFIED`，其余 28 个 Unit/Contract/E2E/Manual 均为 `NOT RUN`；草稿保持 `USER REVIEW PENDING`，证据见 [`../feishu-channel-contract-v0.1/Verification-Report.md`](../feishu-channel-contract-v0.1/Verification-Report.md)；
 - 尚无 DDL、Migration、Repository、业务代码、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
 - 尚无真实 PostgreSQL、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；
 - 不得从设计文档推断任何运行时 Gate 已通过。

@@ -177,7 +177,7 @@ activate_customer_baseline_version
 
 ### 4.3 重复和冲突
 
-- 相同飞书 eventId 重复投递：IntegrationGateway 只发起一次 `register_source_material`。
+- 相同飞书消息重复投递：`im.message.receive_v1` 按 `app + tenant + messageId` Claim，IntegrationGateway 只发起一次 `register_source_material`；`eventId` 只保留为投递观察，不作为该消息事件的业务去重键。
 - 相同字节来自不同消息：保留不同 SourceMaterial 来源，使用 `duplicateOf` 关联，不吞掉保管链。
 - 同一客户文件被提出两个冲突分类：CustomerMaterial 进入 DISPUTED，等待 Human 解决。
 - 文件消息撤回：记录来源撤回，不物理删除已接收内容；是否继续使用由保留 Policy 决定。
@@ -979,8 +979,9 @@ payloadHash
 
 | 场景 | 建议稳定键 |
 |---|---|
-| 飞书入站事件 | `feishu:{tenant}:{eventId}` |
-| 飞书卡片动作 | `feishu:{tenant}:{actionId}:{userId}` |
+| 飞书消息接收 | `feishu:message:{app}:{tenant}:{messageId}` |
+| 飞书其他入站事件 | `feishu:event:{app}:{tenant}:{eventId}` |
+| 飞书卡片动作 | `feishu:card:{app}:{tenant}:{eventId}`；operator/nonce/target 继续参与 payloadHash 与授权校验 |
 | SourceMaterial 注册 | `{channelSourceRef}:{attachmentRef}:{checksum}` |
 | Human Command | `{principalId}:{clientRequestId}` |
 | WorkOrder Dispatch | `{workOrderId}:{attemptNumber}` |

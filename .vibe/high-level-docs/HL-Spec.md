@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT DESIGN BASELINE / HIGH-LEVEL USER REVIEWED 2026-08-12 / API CONTRACT BASELINE USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT DESIGN BASELINE / API CONTRACT BASELINE USER REVIEWED 2026-08-13 / FEISHU CHANNEL DRAFT DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -64,6 +64,17 @@
 | [`../module-tests/`](../module-tests/) 下七份 `Module-Test-[ID]-[ModuleName].md` | 对应模块 Unit/Contract/E2E/Manual 用例、输入、预期、实际和结果 |
 | [`../api-contract-v0.1/Task-Plan.md`](../api-contract-v0.1/Task-Plan.md) | 本阶段里程碑、任务分配、执行状态和人工审核 Gate |
 | [`../api-contract-v0.1/Verification-Report.md`](../api-contract-v0.1/Verification-Report.md) | API 阶段 Catalog、字段、测试文档、Markdown 和 diff 静态验证证据 |
+
+### 2.3 Feishu Channel Contract 阶段文档
+
+Feishu Channel v0.1 的专项协议固定维护在 `.vibe/feishu-channel-contract-v0.1/`；该目录只拥有飞书原始事件/API 到现有 Core Contract 的 Anti-Corruption 映射，不创建第八个业务模块，也不改变 200 项公开 Catalog 的 Owner。
+
+| 文档 | 唯一权威范围 |
+|---|---|
+| [`../feishu-channel-contract-v0.1/Feishu-Channel-Contract-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Contract-v0.1.md) | 飞书事件接收、身份/Binding、消息/文件/卡片、出站投递、回执、撤回、重试、安全和 Core API 映射 |
+| [`../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md) | Feishu Channel Unit/Contract/E2E/Manual 场景、输入、预期、实际和结果 |
+| [`../feishu-channel-contract-v0.1/Task-Plan.md`](../feishu-channel-contract-v0.1/Task-Plan.md) | 本阶段里程碑、执行顺序、人工审核 Gate 与状态 |
+| [`../feishu-channel-contract-v0.1/Verification-Report.md`](../feishu-channel-contract-v0.1/Verification-Report.md) | 官方协议证据、映射覆盖、安全边界、Markdown 和 diff 静态验证结果 |
 
 模块职责仍只由 `02` 冻结，公开名称/Owner 仍只由 `06` 冻结；Module Spec 不得重新划分所有权。API 阶段文档已于 2026-08-13 通过用户审核并构成当前字段级 API 基准，但不能覆盖已审核高层基准。
 
@@ -221,9 +232,15 @@ BusinessCore
 - 七个 Module Spec 与七个 Module Test；
 - 200 个公开 Catalog 条目的字段级覆盖；用户于 2026-08-13 确认审核通过，静态 Gate 已 `DESIGN VERIFIED`，不代表实现或运行时验收通过。
 
+已完成草稿并待用户审核：
+
+- Feishu Channel Contract v0.1；
+- Feishu Channel Test v0.1 的 32 个场景；
+- 8 个允许入站事件、6 个核心 Provider API 和 11 类 Channel Intent 映射；
+- 4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个运行/真实飞书/人工场景仍为 `NOT RUN`。
+
 尚未完成：
 
-- 飞书 Channel Contract；
 - Runtime Adapter Contract；
 - Canonical Document/Workbook 最小实现 Schema；
 - 可执行 DDL、Migration、Repository 和业务代码；
@@ -235,7 +252,7 @@ BusinessCore
 ```text
 Command / Query / Event API Contract v0.1  （BASELINE / USER REVIEWED 2026-08-13）
     ↓
-Feishu Channel Contract v0.1  （NOT STARTED）
+Feishu Channel Contract v0.1  （DRAFT DESIGN VERIFIED / USER REVIEW PENDING）
     ↓
 Runtime Adapter Contract v0.1
     ↓

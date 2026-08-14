@@ -1202,6 +1202,8 @@ Inbound 唯一 Claim：
 (adapter_code, account_lookup_hash, external_event_lookup_hash)
 ```
 
+`external_event_lookup_hash` 是 Provider 语义幂等标识的通用列名，不强制等于事件头 eventId。飞书 `im.message.receive_v1` 使用 `app + tenant + message_id` 归一化后计算该 Hash；其他 v0.1 飞书事件使用 `app + tenant + header.event_id`。原始 eventId/messageId 只以 HMAC Lookup Hash 和必要的字段级加密 ExternalRef 保存。
+
 Payload Hash 冲突必须 Quarantine；不能更新首个 Envelope。
 
 ### 15.2 Outbound/Adapter Attempt

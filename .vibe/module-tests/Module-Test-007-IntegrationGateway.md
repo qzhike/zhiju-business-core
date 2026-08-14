@@ -6,6 +6,10 @@
 
 对应规格：[`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md)。
 
+Feishu Channel 原始协议与现有 IntegrationGateway API 的专项映射测试见 [`Feishu-Channel-Test-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md)。专项测试覆盖 32 个场景；4 个 Design Gate 已完成静态 `DESIGN VERIFIED`，其余 28 个真实飞书、Unit、Contract、E2E 与 Manual 均保持 `NOT RUN`。
+
+Feishu 专项必须独立验证 `businessContextRefs/runtimeContextExternalRef` 的强弱引用边界，以及 `deliveryMode/replyToExternalRef` 的同 Binding 约束；这四个 optional minor 字段在用户审核专项 Contract 前不改变 API 基准结论。
+
 ## 测试用例与结果
 
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
@@ -24,4 +28,5 @@
 
 - Unit/Contract/E2E/Manual：`NOT RUN`，原因是实现、Schema 与 Fixture 尚不存在。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
+- Feishu Channel 专项：`DESIGN VERIFIED / USER REVIEW PENDING`；不得据此更改本文件 9 个 API 基准用例的历史状态。
 - 测试遗留：未创建临时脚本或测试文件。
