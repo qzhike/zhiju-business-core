@@ -198,6 +198,65 @@ describe('contract registry', () => {
     });
   });
 
+  it('rejects parent counts that do not match the Artifact revision command', () => {
+    const ordinary = fixture('artifact-seal-revision-command-valid.json');
+    const ordinaryRevision = (ordinary.payload as Record<string, unknown>).revision as {
+      parentRevisionRefs: Record<string, unknown>[];
+    };
+    const secondParent = structuredClone(ordinaryRevision.parentRevisionRefs[0] ?? {});
+    secondParent.objectId = '018f22e2-7c15-7b2e-8d86-2de956a9d414';
+    ordinaryRevision.parentRevisionRefs.push(secondParent);
+
+    const ordinaryResult = registry.validateOperation(
+      'artifact.create_and_seal_revision',
+      '1.0',
+      ordinary,
+    );
+    expect(ordinaryResult.valid).toBe(false);
+    expect(ordinaryResult.errors.some((error) => error.keyword === 'maxItems')).toBe(true);
+
+    const merge = fixture('artifact-seal-revision-command-valid.json');
+    const mergeRevision = (merge.payload as Record<string, unknown>).revision;
+    merge.commandType = 'artifact.create_merge_revision';
+    merge.payload = {
+      merge: {
+        revision: mergeRevision,
+        mergeStrategy: 'manual',
+        conflictSet: [],
+        conflictResolutionRefs: [],
+        resolvedBy: merge.actor,
+      },
+    };
+
+    const mergeResult = registry.validateOperation('artifact.create_merge_revision', '1.0', merge);
+    expect(mergeResult.valid).toBe(false);
+    expect(mergeResult.errors.some((error) => error.keyword === 'minItems')).toBe(true);
+  });
+
+  it('rejects unresolved Artifact merge conflicts', () => {
+    const input = fixture('artifact-seal-revision-command-valid.json');
+    const revision = (input.payload as Record<string, unknown>).revision as {
+      parentRevisionRefs: Record<string, unknown>[];
+    };
+    const secondParent = structuredClone(revision.parentRevisionRefs[0] ?? {});
+    secondParent.objectId = '018f22e2-7c15-7b2e-8d86-2de956a9d414';
+    revision.parentRevisionRefs.push(secondParent);
+    input.commandType = 'artifact.create_merge_revision';
+    input.payload = {
+      merge: {
+        revision,
+        mergeStrategy: 'manual',
+        conflictSet: [{ locator: 'section.4.2' }],
+        conflictResolutionRefs: [],
+        resolvedBy: input.actor,
+      },
+    };
+
+    const result = registry.validateOperation('artifact.create_merge_revision', '1.0', input);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.keyword === 'minItems')).toBe(true);
+  });
+
   it('rejects file bytes and temporary render paths in Artifact commands', () => {
     const input = fixture('artifact-seal-revision-command-content-leak.json');
     const result = registry.validateOperation('artifact.create_and_seal_revision', '1.0', input);

@@ -157,16 +157,42 @@ const namedDefinitions = {
       provenance: localRef('revisionProvenance'),
     },
   ),
-  mergeDefinition: object(
-    ['revision', 'mergeStrategy', 'conflictSet', 'conflictResolutionRefs', 'resolvedBy'],
-    {
-      revision: localRef('revisionContent'),
-      mergeStrategy: namespace,
-      conflictSet: array(canonicalJson),
-      conflictResolutionRefs: array(typedReference),
-      resolvedBy: objectReference,
-    },
-  ),
+  initialOrOrdinaryRevisionContent: {
+    allOf: [
+      localRef('revisionContent'),
+      { type: 'object', properties: { parentRevisionRefs: { type: 'array', maxItems: 1 } } },
+    ],
+  },
+  mergeRevisionContent: {
+    allOf: [
+      localRef('revisionContent'),
+      { type: 'object', properties: { parentRevisionRefs: { type: 'array', minItems: 2 } } },
+    ],
+  },
+  mergeDefinition: {
+    ...object(
+      ['revision', 'mergeStrategy', 'conflictSet', 'conflictResolutionRefs', 'resolvedBy'],
+      {
+        revision: localRef('mergeRevisionContent'),
+        mergeStrategy: namespace,
+        conflictSet: array(canonicalJson),
+        conflictResolutionRefs: array(typedReference),
+        resolvedBy: objectReference,
+      },
+    ),
+    allOf: [
+      {
+        if: {
+          type: 'object',
+          properties: { conflictSet: { type: 'array', minItems: 1 } },
+        },
+        then: {
+          type: 'object',
+          properties: { conflictResolutionRefs: { type: 'array', minItems: 1 } },
+        },
+      },
+    ],
+  },
   representationRegistration: object(
     [
       'revisionRef',
@@ -301,7 +327,7 @@ const operationSchemas = {
   },
   'artifact.create_and_seal_revision': {
     payload: object(['revision'], {
-      revision: localRef('revisionContent'),
+      revision: localRef('initialOrOrdinaryRevisionContent'),
       creationCommandRef: contentAddressedReference,
     }),
   },

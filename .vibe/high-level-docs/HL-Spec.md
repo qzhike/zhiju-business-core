@@ -386,4 +386,4 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 顶层 Schema、200 个 API Envelope、33 个测试、架构/Catalog Gate 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个与 Artifact 26 个操作已具有字段级 Payload/Event Schema 和 Query Result Schema，其余 122 个操作仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。
+本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 顶层 Schema、200 个 API Envelope、35 个测试、架构/Catalog Gate 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个与 Artifact 26 个操作已具有字段级 Payload/Event Schema 和 Query Result Schema，其余 122 个操作仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。PR #12 Review 确认的 Artifact Revision parent 数量与 Merge 冲突解决约束缺口已修复，新增两条 Contract 回归并通过全量 Gate；用户检查与 Git 提交仍待完成。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。

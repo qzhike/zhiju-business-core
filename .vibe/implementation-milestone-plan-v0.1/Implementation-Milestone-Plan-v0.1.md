@@ -239,4 +239,4 @@ IM-09 Reference Project E2E + Operations Hardening
 - IM-01 已开始：pnpm/TypeScript workspace、NestJS/Fastify skeleton、七模块边界、共享 Value Type、Core 顶层 Schema 与 200 个 API Envelope Registry 已通过当前切片验证。
 - IdentityPolicy 20 个、EnterpriseProject 32 个与 Artifact 26 个公开操作已完成字段级 Payload/Event Schema 和 Query Result Schema；其余 122 个操作仍为 `ENVELOPE_ONLY`，因此 IM-01 尚未退出。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环。
-- IM-01 当前执行了 format/lint/type/build、33 个 Unit/Contract 测试、架构与 Catalog Gate、HTTP health smoke；数据库和外部验收仍为 `NOT RUN`。
+- IM-01 当前执行了 format/lint/type/build、35 个 Unit/Contract 测试、架构与 Catalog Gate、HTTP health smoke；数据库和外部验收仍为 `NOT RUN`。

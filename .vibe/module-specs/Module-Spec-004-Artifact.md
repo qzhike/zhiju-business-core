@@ -1,8 +1,8 @@
 # Module-Spec-004-Artifact
 
 版本：v0.1
-日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+日期：2026-08-17
+状态：`CURRENT MODULE CONTRACT BASELINE / EXECUTABLE SCHEMA IMPLEMENTED / PR #12 REMEDIATION VERIFIED / BUSINESS IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -45,7 +45,7 @@ RevisionProvenance
 RevisionContent
 ├── artifactRef: ObjectRef<Artifact>
 ├── branchId: UuidV7
-├── parentRevisionRefs: Set<ContentAddressedRef<ArtifactRevision>>
+├── parentRevisionRefs: Set<ContentAddressedRef<ArtifactRevision>>  # Initial=0; ordinary=1; merge>=2
 ├── contentType: ContentType
 ├── contentRef: ObjectLocator
 ├── contentHash: ContentHash
@@ -81,6 +81,8 @@ EffectiveBindingDefinition
 ├── effectiveFrom: UtcInstant
 └── effectiveTo?: UtcInstant
 ```
+
+可执行 Schema 必须按 Command 区分 `RevisionContent.parentRevisionRefs` 的数量：`create_and_seal_revision` 仅允许 0 或 1 个 parent，`create_merge_revision` 必须至少 2 个 parent。当 `MergeDefinition.conflictSet` 非空时，`conflictResolutionRefs` 必须非空；否则必须在 Contract 层拒绝，不得等待 Handler 猜测或补全。
 
 ## 3. Command Payload Contract
 
@@ -214,7 +216,8 @@ ARTIFACT_EFFECTIVE_BINDING_OVERLAP
 
 ## 9. 当前状态
 
-- 26 个公开 Contract 已定义字段级 payload/result/event 结构；
+- 26 个公开 Contract 已定义字段级 payload/result/event 结构，并实现可执行 JSON Schema；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- Canonical Content Schema、Repository、Object Storage、Renderer、Diff 与测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- PR #12 Review 确认的 parent 数量与未解决 Merge 冲突缺口已修复，两条 Contract 回归已 `PASS`；
+- Canonical Content Schema、Repository、Object Storage、Renderer、Diff 与业务实现均不存在；
+- 除已明确记录的 Schema Contract 回归外，Unit、E2E 与人工验收均为 `NOT RUN`。

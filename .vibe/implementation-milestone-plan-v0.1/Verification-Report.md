@@ -1,7 +1,7 @@
 # Implementation Milestone Plan v0.1 验证报告
 
 日期：2026-08-17
-环境：`C:\Users\galen\Repo\zhiju-business-core`，Windows/PowerShell，本地工作树
+环境：原切片为 `C:\Users\galen\Repo\zhiju-business-core` Windows/PowerShell；PR #12 修复在 macOS/zsh 工作树上验证，Node.js `v24.13.0`、pnpm `11.19.0`
 状态：`BASELINE / IM-00 COMPLETE / IM-01 IN PROGRESS / CURRENT SLICE VERIFIED`
 
 ## 1. 验证范围
@@ -23,14 +23,14 @@
 | IMP-TST-001 | 既有 Test Spec 与里程碑退出条件 | 复用既有测试，不重复计算场景 | 未新增功能 Test ID；按里程碑选择既有场景 | `DESIGN VERIFIED` |
 | IM01-BUILD-001 | clean TypeScript Project References | 无缓存构建 10 个 workspace package | `tsc -b --clean` 后 `tsc -b` exit 0 | `PASS` |
 | IM01-STYLE-001 | 全部代码与配置 | format/lint 无问题 | `prettier --check`、`eslint .` exit 0 | `PASS` |
-| IM01-TEST-001 | Canonical JSON/Hash、UUIDv7、Scope、Registry | Unit/Contract fixtures 通过 | `test_files=4 tests=33 passed=33` | `PASS` |
+| IM01-TEST-001 | Canonical JSON/Hash、UUIDv7、Scope、Registry | Unit/Contract fixtures 通过 | `test_files=4 tests=35 passed=35` | `PASS` |
 | IM01-ARCH-001 | 共享内核、Contract、七模块与 API imports/manifests | 禁止跨模块/internal/framework 反向依赖 | `source_roots=10 policy_self_test=PASS violations=0` | `PASS` |
 | IM01-CAT-001 | 200 项 Catalog、Module Spec 与 Registry | 集合相等，proposal 隔离，生成文件无漂移 | `catalog=200 module_specs=200 registry=200 generation=PASS schema_status={FULL:78,ENVELOPE_ONLY:122}` | `PARTIAL PASS` |
 | IM01-IDP-001 | IdentityPolicy 7 Command、6 Query、7 Event | Payload/Event 严格字段校验；Query 有 Result Schema；敏感 External ID 不进入 Event | `operations=20 payload_schema=20 query_result_schema=6 unknown_field=REJECT sensitive_event_field=REJECT` | `PASS` |
 | IM01-PROJ-001 | EnterpriseProject 18 Command、6 Query、8 Event | Payload/Event 严格字段校验；Query 有 Result Schema；分页嵌套字段关闭；客户原文不进入 Event | `operations=32 payload_schema=32 query_result_schema=6 nested_unknown=REJECT customer_text_event=REJECT` | `PASS` |
-| IM01-ART-001 | Artifact 12 Command、7 Query、7 Event | Payload/Event 严格字段校验；Query 有 Result Schema；精确 ContentAddressedRef/Hash 强制；bytes、临时路径与公开 URL 被拒 | `operations=26 payload_schema=26 query_result_schema=7 content_bytes=REJECT temp_path=REJECT public_url_event=REJECT weak_ref=REJECT` | `PASS` |
+| IM01-ART-001 | Artifact 12 Command、7 Query、7 Event | Payload/Event 严格字段校验；Query 有 Result Schema；精确 ContentAddressedRef/Hash 强制；bytes、临时路径、公开 URL、错误 parent 数量与未解决冲突被拒 | `operations=26 payload_schema=26 query_result_schema=7 content_bytes=REJECT temp_path=REJECT public_url_event=REJECT weak_ref=REJECT parent_cardinality=REJECT unresolved_conflict=REJECT` | `PASS` |
 | IM01-HTTP-001 | 编译后 NestJS/Fastify ESM API | 真实进程启动并响应 health | `GET /health -> {"status":"ok"}` | `PASS` |
-| IMP-GIT-001 | 当前 diff 与工作树 | EnterpriseProject 切片已提交；本轮边界可定位 | `base=064b15b modified_entries=11 untracked_entries=10 diff_check=0` | `PASS` |
+| IMP-GIT-001 | 当前 diff 与工作树 | PR #12 原切片与 Review 修复边界可定位 | `pr_head=6a24128 review=4952410160 remediation_paths=9 diff_check=0` | `PASS` |
 
 ## 3. 关键静态检查
 
@@ -44,7 +44,7 @@ runtime_tests=32 runtime_unique=32
 implementation_milestones=10 decision_gates=6 approved=4 pending=2
 obsolete_status_hits=0
 workspace_packages=10 source_ts=30 fixtures=20
-test_files=4 tests=33 passed=33
+test_files=4 tests=35 passed=35
 architecture_source_roots=10 violations=0
 registry_operations=200 schema_status={FULL:78,ENVELOPE_ONLY:122}
 public_api_generation=PASS
@@ -72,4 +72,4 @@ git_diff_check=0
 
 ## 6. Git 状态
 
-EnterpriseProject 字段级契约已提交为 `064b15b`。本轮新增 Artifact 26 个字段级 Schema、7 个 Query Result Schema 和 9 个 Contract Fixture，并同步当前状态；工作树尚未提交。
+EnterpriseProject 字段级契约已提交为 `064b15b`，PR #12 head 为 `6a24128`。本轮对 Artifact 26 个字段级 Schema 的 Review 修复新增 2 个 Contract regression，并同步相关 Spec/Test/验证文档；工作树尚未提交。
