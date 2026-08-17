@@ -2,6 +2,12 @@ import type { JsonSchema } from '../schema-types.js';
 
 const schemaId = 'https://schemas.zhiju.local/modules/task-execution/1.0';
 const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
+const workOrderTypes = 'https://schemas.zhiju.local/core/work-order-types/1.0#/$defs/';
+const projectContextContract = {
+  $ref: 'https://schemas.zhiju.local/core/project-context/1.0',
+} as const;
+const workOrderContract = { $ref: 'https://schemas.zhiju.local/core/work-order/1.0' } as const;
+const agentResultContract = { $ref: 'https://schemas.zhiju.local/core/agent-result/1.0' } as const;
 
 type SchemaProperties = Readonly<Record<string, unknown>>;
 
@@ -33,6 +39,10 @@ function array(
 
 function localRef(name: string) {
   return { $ref: `${schemaId}#/$defs/${name}` } as const;
+}
+
+function workOrderTypeRef(name: string) {
+  return { $ref: `${workOrderTypes}${name}` } as const;
 }
 
 const uuid = { $ref: `${common}uuidV7` } as const;
@@ -101,6 +111,18 @@ const runStatus = {
   ],
 } as const;
 
+const terminalRunStatus = {
+  enum: [
+    'SUCCEEDED',
+    'INVALID_RESULT',
+    'FAILED',
+    'TIMED_OUT',
+    'CANCELLED',
+    'ABANDONED',
+    'INVALIDATED',
+  ],
+} as const;
+
 const executionOutcome = {
   enum: [
     'COMPLETED',
@@ -136,12 +158,12 @@ const namedDefinitions = {
   taskStatus,
   workOrderStatus,
   runStatus,
+  terminalRunStatus,
   executionOutcome,
   informationRequestStatus,
   authoritativeSource,
   taskDefinition: object(
     [
-      'deliveryItemRef',
       'taskType',
       'title',
       'objective',
@@ -167,65 +189,6 @@ const namedDefinitions = {
       dueConstraint: canonicalJson,
     },
   ),
-  objective: object(['summary'], {
-    summary: text,
-    successMetrics: canonicalJson,
-    outOfScope: array(text),
-  }),
-  targetScope: object(['taskRef'], {
-    taskRef: objectReference,
-    subScopes: array(canonicalJson),
-    excludedSelectors: array(canonicalJson),
-  }),
-  inputRef: object(['ref'], {
-    ref: typedReference,
-    role: namespace,
-    required: { type: 'boolean' },
-  }),
-  expectedOutput: object(['outputType', 'binding'], {
-    outputType: namespace,
-    binding: typedReference,
-    expectedShape: canonicalJson,
-  }),
-  completionCriterion: object(['criterionType', 'expression'], {
-    criterionType: namespace,
-    expression: canonicalJson,
-    evaluatorRef: versionedReference,
-  }),
-  riskAndQuality: object(['riskLevel', 'qualityProfileRef'], {
-    riskLevel: namespace,
-    qualityProfileRef: versionedReference,
-    regulatoryApplicability: array(canonicalJson),
-  }),
-  executionPolicy: object(['policyType', 'policyRef'], {
-    policyType: namespace,
-    policyRef: versionedReference,
-    resumePolicy: canonicalJson,
-    cancellationPolicy: canonicalJson,
-  }),
-  executionBudget: object(['maxAttempts', 'tokenBudget'], {
-    maxAttempts: positiveInt,
-    tokenBudget: { type: 'integer', minimum: 0 },
-    wallClockBudgetSeconds: { type: 'integer', minimum: 0 },
-    costBudget: { type: 'integer', minimum: 0 },
-  }),
-  harnessPolicy: object(['harnessId'], {
-    harnessId: namespace,
-    harnessVersion: text,
-    harnessProfileRef: versionedReference,
-  }),
-  modelPolicy: object(['provider', 'modelId'], {
-    provider: namespace,
-    modelId: text,
-    fallback: array(canonicalJson),
-    constraints: canonicalJson,
-  }),
-  versionPins: object([], {
-    workOrderContractFormatVersion: { const: '1.0' },
-    capabilityGrantFormatVersion: { const: '1.0' },
-    contextSnapshotFormatVersion: { const: '1.0' },
-    agentResultFormatVersion: { const: '1.0' },
-  }),
   workOrderDraft: object(
     [
       'taskRef',
@@ -247,24 +210,24 @@ const namedDefinitions = {
     ],
     {
       taskRef: objectReference,
-      requestedBy: typedReference,
-      objective: localRef('objective'),
-      targetScope: localRef('targetScope'),
-      inputRefs: array(localRef('inputRef'), { unique: true }),
+      requestedBy: objectReference,
+      objective: workOrderTypeRef('objective'),
+      targetScope: workOrderTypeRef('targetScope'),
+      inputRefs: array(workOrderTypeRef('inputRef'), { unique: true }),
       constraints: array(canonicalJson),
-      allowedCapabilities: array(canonicalJson, { unique: true }),
-      deniedCapabilities: array(canonicalJson, { unique: true }),
-      expectedOutputs: array(localRef('expectedOutput'), { nonEmpty: true, unique: true }),
-      completionCriteria: array(localRef('completionCriterion'), {
+      allowedCapabilities: array(workOrderTypeRef('capabilityGrant'), { unique: true }),
+      deniedCapabilities: array(workOrderTypeRef('capabilityGrant'), { unique: true }),
+      expectedOutputs: array(workOrderTypeRef('expectedOutput'), { nonEmpty: true, unique: true }),
+      completionCriteria: array(workOrderTypeRef('completionCriterion'), {
         nonEmpty: true,
         unique: true,
       }),
-      riskAndQuality: localRef('riskAndQuality'),
-      executionPolicy: localRef('executionPolicy'),
-      budget: localRef('executionBudget'),
-      harnessPolicy: localRef('harnessPolicy'),
-      modelPolicy: localRef('modelPolicy'),
-      versionPins: localRef('versionPins'),
+      riskAndQuality: workOrderTypeRef('riskAndQuality'),
+      executionPolicy: workOrderTypeRef('executionPolicy'),
+      budget: workOrderTypeRef('executionBudget'),
+      harnessPolicy: workOrderTypeRef('harnessPolicy'),
+      modelPolicy: workOrderTypeRef('modelPolicy'),
+      versionPins: workOrderTypeRef('versionPins'),
     },
   ),
   contextBuildRequest: object(
@@ -309,6 +272,26 @@ const namedDefinitions = {
       modelId: text,
       modelConfigHash: payloadHash,
       executionNodeRef: externalReference,
+    },
+  ),
+  runtimeBindingSummary: object(
+    [
+      'adapterCode',
+      'adapterVersion',
+      'harnessId',
+      'harnessVersion',
+      'provider',
+      'modelId',
+      'modelConfigHash',
+    ],
+    {
+      adapterCode: namespace,
+      adapterVersion: text,
+      harnessId: namespace,
+      harnessVersion: text,
+      provider: namespace,
+      modelId: text,
+      modelConfigHash: payloadHash,
     },
   ),
   runCreation: object(
@@ -388,7 +371,7 @@ const namedDefinitions = {
       criteriaHash: payloadHash,
       factRefs: array(typedReference, { nonEmpty: true, unique: true }),
       blockingRefs: array(typedReference, { unique: true }),
-      sourceWatermarks: array(typedReference),
+      sourceWatermarks: array(localRef('sourceWatermark')),
       evaluatorRef: versionedReference,
       evaluatedAt: instant,
     },
@@ -443,10 +426,7 @@ const namedDefinitions = {
     {
       runRef: objectReference,
       runtimeUsageRef: contentAddressedReference,
-      agentDeclaredUsage: object(['presence'], {
-        presence: { enum: ['PRESENT', 'UNKNOWN', 'REDACTED', 'NOT_APPLICABLE', 'UNAVAILABLE'] },
-        value: canonicalJson,
-      }),
+      agentDeclaredUsage: localRef('valueEnvelopeCanonicalJson'),
       authoritativeSource,
       provenance: canonicalJson,
       reconciliationStatus: namespace,
@@ -465,10 +445,11 @@ const namedDefinitions = {
       completionEvaluationRef: contentAddressedReference,
     },
   ),
-  taskBoardPage: object(['items'], {
+  taskBoardPage: object(['items', 'snapshotAt', 'sourceWatermarks'], {
     items: array(localRef('taskBoardItem')),
     nextCursor: text,
     snapshotAt: instant,
+    sourceWatermarks: array(localRef('sourceWatermark')),
   }),
   sourceWatermark: object(['sourceModule', 'sequence', 'observedAt'], {
     sourceModule: namespace,
@@ -476,6 +457,29 @@ const namedDefinitions = {
     sequence: nonNegativeInt,
     observedAt: instant,
   }),
+  valueEnvelopeCanonicalJson: {
+    oneOf: [
+      object(['presence', 'value', 'evidenceRefs'], {
+        presence: { const: 'PRESENT' },
+        value: canonicalJson,
+        reasonCode,
+        evidenceRefs: array(typedReference, { unique: true }),
+        lastVerifiedAt: instant,
+      }),
+      object(['presence', 'reasonCode', 'evidenceRefs'], {
+        presence: { const: 'REDACTED' },
+        reasonCode,
+        evidenceRefs: array(typedReference, { unique: true }),
+        lastVerifiedAt: instant,
+      }),
+      object(['presence', 'evidenceRefs'], {
+        presence: { enum: ['UNKNOWN', 'NOT_APPLICABLE', 'UNAVAILABLE'] },
+        reasonCode,
+        evidenceRefs: array(typedReference, { unique: true }),
+        lastVerifiedAt: instant,
+      }),
+    ],
+  },
   acceptanceDisposition: { enum: ['ACCEPTED', 'REJECTED', 'QUARANTINED'] },
   deliveryOutcome: { enum: ['DELIVERED', 'FAILED', 'UNKNOWN'] },
   justification: object(['reasonCode', 'summary', 'evidenceRefs'], {
@@ -508,7 +512,7 @@ const operationSchemas = {
   },
   'execution.freeze_work_order': {
     payload: object(['workOrderContract', 'validationSnapshotRef', 'specificationHash'], {
-      workOrderContract: canonicalJson,
+      workOrderContract,
       validationSnapshotRef: snapshotReference,
       specificationHash: payloadHash,
     }),
@@ -552,7 +556,7 @@ const operationSchemas = {
   },
   'execution.submit_agent_result': {
     payload: object(['agentResultContract', 'runFencingToken', 'runtimeSubmissionRef'], {
-      agentResultContract: canonicalJson,
+      agentResultContract,
       runFencingToken: nonNegativeInt,
       runtimeSubmissionRef: externalReference,
     }),
@@ -647,7 +651,7 @@ const operationSchemas = {
     }),
     result: object(['workOrderRef', 'workOrderContract', 'contractRef'], {
       workOrderRef: objectReference,
-      workOrderContract: canonicalJson,
+      workOrderContract,
       contractRef: contentAddressedReference,
     }),
   },
@@ -657,7 +661,7 @@ const operationSchemas = {
     }),
     result: object(['contextSnapshotRef', 'projectContextContract', 'contractRef'], {
       contextSnapshotRef: snapshotReference,
-      projectContextContract: canonicalJson,
+      projectContextContract,
       contractRef: contentAddressedReference,
     }),
   },
@@ -673,7 +677,7 @@ const operationSchemas = {
     }),
     result: object(['agentResultRef', 'agentResultContract', 'acceptanceRecordRef'], {
       agentResultRef: contentAddressedReference,
-      agentResultContract: canonicalJson,
+      agentResultContract,
       acceptanceRecordRef: contentAddressedReference,
     }),
   },
@@ -739,7 +743,7 @@ const operationSchemas = {
         runRef: objectReference,
         workOrderRef: objectReference,
         attemptNumber: positiveInt,
-        runtimeBindingSummary: canonicalJson,
+        runtimeBindingSummary: localRef('runtimeBindingSummary'),
         contextSnapshotRef: snapshotReference,
       },
     ),
@@ -748,7 +752,7 @@ const operationSchemas = {
     payload: object(['runRef', 'workOrderRef', 'terminalStatus', 'terminationReason', 'endedAt'], {
       runRef: objectReference,
       workOrderRef: objectReference,
-      terminalStatus: runStatus,
+      terminalStatus: terminalRunStatus,
       terminationReason: reasonCode,
       agentResultRef: contentAddressedReference,
       endedAt: instant,

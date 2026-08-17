@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PAYLOAD + RESULT SCHEMA IMPLEMENTED 2026-08-17 / HANDLER IMPLEMENTATION NOT STARTED`
+状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATED 2026-08-17 / USER REVIEW PENDING / HANDLER IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -20,6 +20,7 @@ WorkOrderStatus = Closed<DRAFT | READY | QUEUED | RUNNING | WAITING_INPUT | COMP
 RunStatus = Closed<CREATED | STARTING | RUNNING | SUSPENDED | CANCELLING | RESULT_RECORDED | SUCCEEDED | INVALID_RESULT | FAILED | TIMED_OUT | CANCELLED | ABANDONED | INVALIDATED>
 ExecutionOutcome = Closed<COMPLETED | PARTIAL | BLOCKED_INPUT | BLOCKED_POLICY | FAILED_EXECUTION | CANCELLED_BY_RUNTIME>
 InformationRequestStatus = Closed<OPEN | DELIVERY_PENDING | DELIVERED | ANSWERED | UNDER_VALIDATION | CLARIFICATION_REQUIRED | ANSWER_REJECTED | RESOLVED | DELIVERY_FAILED | EXPIRED | CANCELLED>
+TerminalRunStatus = Closed<SUCCEEDED | INVALID_RESULT | FAILED | TIMED_OUT | CANCELLED | ABANDONED | INVALIDATED>
 
 TaskDefinition
 ├── deliveryItemRef?: VersionedRef<DeliveryItem>
@@ -74,6 +75,15 @@ RuntimeBinding
 ├── modelConfigHash: PayloadHash
 └── executionNodeRef?: ExternalRef
 
+RuntimeBindingSummary
+├── adapterCode: NamespaceCode
+├── adapterVersion: NonEmptyString
+├── harnessId: NamespaceCode
+├── harnessVersion: NonEmptyString
+├── provider: NamespaceCode
+├── modelId: NonEmptyString
+└── modelConfigHash: PayloadHash
+
 RunCreation
 ├── workOrderRef: ObjectRef<WorkOrder>
 ├── workOrderContractRef: ContentAddressedRef<WorkOrderContract>
@@ -126,7 +136,7 @@ CompletionEvaluationInput
 └── evaluatedAt: UtcInstant
 ```
 
-`Objective`、`TargetScope`、`InputRef`、`ExpectedOutput`、`CompletionCriterion`、`RiskAndQuality`、`ExecutionPolicy`、`ExecutionBudget`、`HarnessPolicy`、`ModelPolicy`、`VersionPins` 和 `AgentResultContract` 的字段以 `03-core-contracts.md` 为唯一权威，不在本文件复制。
+`Objective`、`TargetScope`、`InputRef`、`CapabilityGrant`、`ExpectedOutput`、`CompletionCriterion`、`RiskAndQuality`、`ExecutionPolicy`、`ExecutionBudget`、`HarnessPolicy`、`ModelPolicy`、`VersionPins`、`WorkOrderContract`、`ProjectContextContract` 和 `AgentResultContract` 的字段以 `03-core-contracts.md` 为唯一权威，不在本文件复制。可执行 Schema 必须直接引用或逐字段等价实现该权威结构，不得把这些 Core Contract 降级为开放 `CanonicalJson`。
 
 ## 3. Command Payload Contract
 
@@ -215,8 +225,8 @@ TaskBoardItem
 | `execution.WorkOrderBecameReady@1.0` | `workOrderRef: ObjectRef<WorkOrder>; taskRef: ObjectRef<Task>; workOrderContractRef: ContentAddressedRef<WorkOrderContract>; expiresAt?: UtcInstant` |
 | `execution.WorkOrderQueued@1.0` | `workOrderRef: ObjectRef<WorkOrder>; queuePolicyRef: VersionedRef<Policy>; notBefore?: UtcInstant` |
 | `execution.ContextSnapshotBuilt@1.0` | `contextSnapshotRef: SnapshotRef<ProjectContext>; workOrderRef: ObjectRef<WorkOrder>; projectionType: NamespaceCode; coverageStatus: NamespaceCode` |
-| `execution.RunStarted@1.0` | `runRef: ObjectRef<Run>; workOrderRef: ObjectRef<WorkOrder>; attemptNumber: PositiveInt; runtimeBindingSummary: CanonicalJson; contextSnapshotRef: SnapshotRef<ProjectContext>` |
-| `execution.RunTerminated@1.0` | `runRef: ObjectRef<Run>; workOrderRef: ObjectRef<WorkOrder>; terminalStatus: RunStatus; terminationReason: ReasonCode; agentResultRef?: ContentAddressedRef<AgentResult>; endedAt: UtcInstant` |
+| `execution.RunStarted@1.0` | `runRef: ObjectRef<Run>; workOrderRef: ObjectRef<WorkOrder>; attemptNumber: PositiveInt; runtimeBindingSummary: RuntimeBindingSummary; contextSnapshotRef: SnapshotRef<ProjectContext>` |
+| `execution.RunTerminated@1.0` | `runRef: ObjectRef<Run>; workOrderRef: ObjectRef<WorkOrder>; terminalStatus: TerminalRunStatus; terminationReason: ReasonCode; agentResultRef?: ContentAddressedRef<AgentResult>; endedAt: UtcInstant` |
 | `execution.AgentResultAccepted@1.0` | `agentResultRef: ContentAddressedRef<AgentResult>; acceptanceRecordRef: ContentAddressedRef<AgentResultAcceptanceRecord>; runRef: ObjectRef<Run>; workOrderRef: ObjectRef<WorkOrder>; businessOutputRefs: TypedReference[]` |
 | `execution.InformationRequestOpened@1.0` | `informationRequestRef: ObjectRef<InformationRequest>; workOrderRef?: ObjectRef<WorkOrder>; blocking: boolean; requestedResponder: CanonicalJson; deliveryPurpose: NamespaceCode` |
 | `execution.InformationRequestResolved@1.0` | `informationRequestRef: ObjectRef<InformationRequest>; acceptedAnswerRef: ContentAddressedRef<InformationAnswer>; resolutionRef: ContentAddressedRef<RequestResolution>; affectedWorkRefs: TypedReference[]` |
@@ -280,8 +290,9 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 
 - 37 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已由用户审核；Runtime Adapter v0.1 已获用户推进确认并进入 Implementation Milestone Plan，同时保留 6 个尚未纳入基准的 additive Command；
-- `contracts/src/operations/task-execution.schema.ts` 已实现所有 37 个操作的 strict JSON Schema（19 Command Payload、7 Query Payload + 7 Query Result、11 Event Payload）；
+- `contracts/src/operations/task-execution.schema.ts` 已注册所有 37 个操作；PR #10 Review 识别的 8 类 strict Schema 偏差均已修复，`TE-API-S-009` 至 `TE-API-S-016` 回归为 `PASSED`；
+- WorkOrder 子类型已抽取到 Core 共享 Schema，WorkOrder Core Contract 与 `create_work_order` 使用同一组 `$defs`；Core Contract 不再被开放 `CanonicalJson` 降级；
 - 注册到 `ContractRegistry` 后所有 37 项 `schemaStatus` 从 `ENVELOPE_ONLY` 提升到 `FULL`；总 Catalog 仍为 200 项；
 - 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与 200 项 Registry，等待用户审核通过后单独补齐；
 - Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与 Handler 实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收中，Schema 层 Contract fixture 已实现，Runtime/DB E2E 仍为 `NOT RUN`。
+- 对应 Unit、Contract、E2E 与人工验收中，Schema fixture 与 Review 修复回归已执行；Handler、Runtime/DB E2E 和人工验收仍为 `NOT RUN`。

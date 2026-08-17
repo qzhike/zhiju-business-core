@@ -1,6 +1,7 @@
 import type { JsonSchema } from './schema-types.js';
 
 const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
+const workOrderTypesId = 'https://schemas.zhiju.local/core/work-order-types/1.0';
 
 function strictContractSchema(
   id: string,
@@ -21,10 +22,282 @@ function strictContractSchema(
 }
 
 const ref = { $ref: `${common}typedReference` } as const;
+const objectRef = { $ref: `${common}objectRef` } as const;
+const versionedRef = { $ref: `${common}versionedRef` } as const;
+const contentAddressedRef = { $ref: `${common}contentAddressedRef` } as const;
 const instant = { $ref: `${common}utcInstant` } as const;
 const uuid = { $ref: `${common}uuidV7` } as const;
+const namespace = { $ref: `${common}namespaceCode` } as const;
+const text = { $ref: `${common}nonEmptyString` } as const;
+const nonNegativeInt = { $ref: `${common}nonNegativeInteger` } as const;
 const objects = { type: 'array', items: { type: 'object' } } as const;
 const refs = { type: 'array', items: ref } as const;
+const canonicalJson = {} as const;
+
+function strictObject(required: readonly string[], properties: Readonly<Record<string, unknown>>) {
+  return { type: 'object', additionalProperties: false, required, properties } as const;
+}
+
+function array(
+  items: unknown,
+  options: { readonly nonEmpty?: boolean; readonly unique?: boolean } = {},
+) {
+  return {
+    type: 'array',
+    items,
+    ...(options.nonEmpty === true ? { minItems: 1 } : {}),
+    ...(options.unique === true ? { uniqueItems: true } : {}),
+  } as const;
+}
+
+function workOrderTypeRef(name: string) {
+  return { $ref: `${workOrderTypesId}#/$defs/${name}` } as const;
+}
+
+export const workOrderTypesSchema = {
+  $id: workOrderTypesId,
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  $defs: {
+    objective: strictObject(
+      [
+        'objectiveType',
+        'humanReadableStatement',
+        'successIntent',
+        'relatedIssueRefs',
+        'deliveryItemRefs',
+      ],
+      {
+        objectiveType: namespace,
+        humanReadableStatement: text,
+        successIntent: text,
+        relatedIssueRefs: array(ref, { unique: true }),
+        deliveryItemRefs: array(versionedRef, { unique: true }),
+        outOfScopeStatement: text,
+      },
+    ),
+    targetScope: strictObject(
+      [
+        'targetObjectRefs',
+        'baseContentRefs',
+        'allowedUnitRefs',
+        'forbiddenUnitRefs',
+        'allowedCreateTypes',
+        'crossObjectReferencesAllowed',
+        'scopePolicyRef',
+      ],
+      {
+        targetObjectRefs: array(ref, { unique: true }),
+        baseContentRefs: array(contentAddressedRef, { unique: true }),
+        allowedUnitRefs: array(ref, { unique: true }),
+        forbiddenUnitRefs: array(ref, { unique: true }),
+        allowedCreateTypes: array(namespace, { unique: true }),
+        crossObjectReferencesAllowed: array(canonicalJson, { unique: true }),
+        scopePolicyRef: versionedRef,
+      },
+    ),
+    inputRef: strictObject(
+      ['inputRole', 'ref', 'required', 'permittedUse', 'contentAccessMode', 'integrityRequired'],
+      {
+        inputRole: namespace,
+        ref,
+        required: { type: 'boolean' },
+        permittedUse: namespace,
+        epistemicExpectation: canonicalJson,
+        contentAccessMode: { enum: ['REFERENCE_ONLY', 'INLINE_FRAGMENT', 'AUTHORIZED_FETCH'] },
+        integrityRequired: { type: 'boolean' },
+      },
+    ),
+    capabilityGrant: strictObject(
+      [
+        'capabilityType',
+        'actions',
+        'resourceSelectors',
+        'constraints',
+        'expiresAt',
+        'grantPolicyRef',
+      ],
+      {
+        capabilityType: namespace,
+        actions: array(namespace, { unique: true }),
+        resourceSelectors: array(canonicalJson, { unique: true }),
+        constraints: array(canonicalJson),
+        expiresAt: instant,
+        maxUses: { type: 'integer', minimum: 1 },
+        grantPolicyRef: versionedRef,
+      },
+    ),
+    expectedOutput: strictObject(
+      [
+        'outputSlot',
+        'allowedObjectTypes',
+        'cardinality',
+        'requiredReferenceStrength',
+        'creationRequired',
+        'acceptancePolicyRef',
+      ],
+      {
+        outputSlot: namespace,
+        allowedObjectTypes: array(namespace, { nonEmpty: true, unique: true }),
+        cardinality: text,
+        requiredReferenceStrength: {
+          enum: [
+            'OBJECT',
+            'VERSIONED',
+            'CONTENT_ADDRESSED',
+            'SNAPSHOT',
+            'EVIDENCE',
+            'REPRESENTATION',
+            'RELEASE_PACKAGE',
+          ],
+        },
+        creationRequired: { type: 'boolean' },
+        requiredTargetRelation: namespace,
+        schemaRef: ref,
+        qualityStageRequired: text,
+        acceptancePolicyRef: versionedRef,
+      },
+    ),
+    completionCriterion: strictObject(
+      [
+        'criterionId',
+        'criterionType',
+        'evaluatorRef',
+        'required',
+        'inputBindings',
+        'expectedCondition',
+        'failureDisposition',
+      ],
+      {
+        criterionId: uuid,
+        criterionType: {
+          enum: [
+            'EXPECTED_OUTPUT_PRESENT',
+            'OUTPUT_REF_VALID',
+            'OUTPUT_CREATED_BY_WORK_ORDER',
+            'NO_BLOCKING_INFORMATION_REQUEST',
+            'OUTPUT_SCHEMA_VALID',
+            'OUTPUT_WITHIN_TARGET_SCOPE',
+            'REQUIRED_PROPOSAL_PROCESSED',
+          ],
+        },
+        evaluatorRef: versionedRef,
+        required: { type: 'boolean' },
+        inputBindings: array(canonicalJson),
+        expectedCondition: canonicalJson,
+        failureDisposition: text,
+      },
+    ),
+    riskAndQuality: strictObject(
+      ['riskProfileRef', 'dataHandlingPolicyRef', 'humanReviewRequired', 'escalationPolicyRef'],
+      {
+        riskProfileRef: versionedRef,
+        qualityProfileRef: versionedRef,
+        dataHandlingPolicyRef: versionedRef,
+        humanReviewRequired: { type: 'boolean' },
+        escalationPolicyRef: versionedRef,
+      },
+    ),
+    executionPolicy: strictObject(
+      [
+        'maxAttempts',
+        'retryableOutcomes',
+        'resumePolicy',
+        'fallbackPolicy',
+        'leasePolicyRef',
+        'cancellationPolicyRef',
+      ],
+      {
+        maxAttempts: { type: 'integer', minimum: 1 },
+        retryableOutcomes: array(
+          {
+            enum: [
+              'COMPLETED',
+              'PARTIAL',
+              'BLOCKED_INPUT',
+              'BLOCKED_POLICY',
+              'FAILED_EXECUTION',
+              'CANCELLED_BY_RUNTIME',
+            ],
+          },
+          { unique: true },
+        ),
+        resumePolicy: canonicalJson,
+        fallbackPolicy: canonicalJson,
+        leasePolicyRef: versionedRef,
+        cancellationPolicyRef: versionedRef,
+      },
+    ),
+    executionBudget: strictObject(['budgetPolicyRef'], {
+      tokenLimit: nonNegativeInt,
+      monetaryLimit: strictObject(['amountDecimal', 'currency'], {
+        amountDecimal: { type: 'string', pattern: '^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$' },
+        currency: { type: 'string', pattern: '^[A-Z]{3}$' },
+      }),
+      wallClockLimit: text,
+      toolCallLimit: nonNegativeInt,
+      budgetPolicyRef: versionedRef,
+    }),
+    harnessPolicy: strictObject(
+      ['preferredHarnesses', 'fallbackAllowed', 'fallbackRequiresHuman', 'selectionPolicyRef'],
+      {
+        requiredHarness: namespace,
+        preferredHarnesses: array(namespace, { unique: true }),
+        fallbackAllowed: { type: 'boolean' },
+        fallbackRequiresHuman: { type: 'boolean' },
+        selectionPolicyRef: versionedRef,
+      },
+    ),
+    modelPolicy: strictObject(
+      [
+        'allowedProviders',
+        'allowedModels',
+        'prohibitedDataClasses',
+        'minimumCapabilities',
+        'selectionPolicyRef',
+      ],
+      {
+        allowedProviders: array(namespace, { nonEmpty: true, unique: true }),
+        allowedModels: array(text, { nonEmpty: true, unique: true }),
+        prohibitedDataClasses: array(
+          {
+            enum: [
+              'PUBLIC_AUTHORITY',
+              'INTERNAL',
+              'CUSTOMER_CONFIDENTIAL',
+              'RESTRICTED_PERSONAL',
+              'REGULATED',
+            ],
+          },
+          { unique: true },
+        ),
+        minimumCapabilities: array(namespace, { unique: true }),
+        selectionPolicyRef: versionedRef,
+      },
+    ),
+    versionPins: strictObject(
+      [
+        'projectContextContractRef',
+        'contextBuilderPolicyRef',
+        'workOrderSchemaRef',
+        'skillRefs',
+        'templateRefs',
+        'capabilityPolicyRef',
+        'runtimeAdapterContractRef',
+      ],
+      {
+        projectContextContractRef: versionedRef,
+        contextBuilderPolicyRef: versionedRef,
+        workOrderSchemaRef: versionedRef,
+        skillRefs: array(versionedRef, { unique: true }),
+        templateRefs: array(versionedRef, { unique: true }),
+        regulatoryProfileRef: versionedRef,
+        qualityProfileRef: versionedRef,
+        capabilityPolicyRef: versionedRef,
+        runtimeAdapterContractRef: versionedRef,
+      },
+    ),
+  },
+} as const satisfies JsonSchema;
 
 export const projectContextSchema = strictContractSchema(
   'https://schemas.zhiju.local/core/project-context/1.0',
@@ -116,22 +389,25 @@ export const workOrderSchema = strictContractSchema(
     workOrderRef: ref,
     taskRef: ref,
     projectRef: ref,
-    requestedBy: ref,
-    objective: { type: 'object' },
-    targetScope: { type: 'object' },
-    inputRefs: objects,
+    requestedBy: objectRef,
+    objective: workOrderTypeRef('objective'),
+    targetScope: workOrderTypeRef('targetScope'),
+    inputRefs: array(workOrderTypeRef('inputRef')),
     contextSnapshotRef: ref,
-    constraints: objects,
-    allowedCapabilities: objects,
-    deniedCapabilities: objects,
-    expectedOutputs: objects,
-    completionCriteria: objects,
-    riskAndQuality: { type: 'object' },
-    executionPolicy: { type: 'object' },
-    budget: { type: 'object' },
-    harnessPolicy: { type: 'object' },
-    modelPolicy: { type: 'object' },
-    versionPins: { type: 'object' },
+    constraints: array(canonicalJson),
+    allowedCapabilities: array(workOrderTypeRef('capabilityGrant')),
+    deniedCapabilities: array(workOrderTypeRef('capabilityGrant')),
+    expectedOutputs: array(workOrderTypeRef('expectedOutput'), { nonEmpty: true, unique: true }),
+    completionCriteria: array(workOrderTypeRef('completionCriterion'), {
+      nonEmpty: true,
+      unique: true,
+    }),
+    riskAndQuality: workOrderTypeRef('riskAndQuality'),
+    executionPolicy: workOrderTypeRef('executionPolicy'),
+    budget: workOrderTypeRef('executionBudget'),
+    harnessPolicy: workOrderTypeRef('harnessPolicy'),
+    modelPolicy: workOrderTypeRef('modelPolicy'),
+    versionPins: workOrderTypeRef('versionPins'),
     issuedAt: instant,
     expiresAt: instant,
     specificationHash: { $ref: `${common}contentHash` },
@@ -314,6 +590,7 @@ export const releaseReadinessSchema = strictContractSchema(
 );
 
 export const coreContractSchemas = [
+  workOrderTypesSchema,
   projectContextSchema,
   workOrderSchema,
   agentResultSchema,

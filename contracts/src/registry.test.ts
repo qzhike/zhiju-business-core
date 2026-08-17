@@ -38,6 +38,108 @@ function validCommand(): Record<string, unknown> {
   };
 }
 
+function validTaskExecutionWorkOrderDraft(): {
+  readonly command: Record<string, unknown>;
+  readonly runCommand: Record<string, unknown>;
+  readonly draft: Record<string, unknown>;
+} {
+  const command = fixture('execution-create-task-command-valid.json');
+  const runCommand = fixture('execution-create-run-command-valid.json');
+  const definition = (command.payload as Record<string, unknown>).definition as Record<
+    string,
+    unknown
+  >;
+  const creation = (runCommand.payload as Record<string, unknown>).creation as Record<
+    string,
+    unknown
+  >;
+  const versionedRef = definition.deliveryItemRef;
+  const contentRef = creation.workOrderContractRef;
+  const draft = {
+    taskRef: command.targetRef,
+    requestedBy: command.actor,
+    objective: {
+      objectiveType: 'document.draft',
+      humanReadableStatement: 'Draft a controlled procedure',
+      successIntent: 'Produce one controlled artifact revision',
+      relatedIssueRefs: [],
+      deliveryItemRefs: [versionedRef],
+    },
+    targetScope: {
+      targetObjectRefs: [command.targetRef],
+      baseContentRefs: [contentRef],
+      allowedUnitRefs: [],
+      forbiddenUnitRefs: [],
+      allowedCreateTypes: ['artifact.revision'],
+      crossObjectReferencesAllowed: [],
+      scopePolicyRef: versionedRef,
+    },
+    inputRefs: [],
+    constraints: [],
+    allowedCapabilities: [],
+    deniedCapabilities: [],
+    expectedOutputs: [
+      {
+        outputSlot: 'artifact.revision',
+        allowedObjectTypes: ['artifact.revision'],
+        cardinality: 'EXACTLY_ONE',
+        requiredReferenceStrength: 'CONTENT_ADDRESSED',
+        creationRequired: true,
+        acceptancePolicyRef: versionedRef,
+      },
+    ],
+    completionCriteria: [
+      {
+        criterionId: uuid,
+        criterionType: 'EXPECTED_OUTPUT_PRESENT',
+        evaluatorRef: versionedRef,
+        required: true,
+        inputBindings: [],
+        expectedCondition: { outputSlot: 'artifact.revision' },
+        failureDisposition: 'BLOCK',
+      },
+    ],
+    riskAndQuality: {
+      riskProfileRef: versionedRef,
+      dataHandlingPolicyRef: versionedRef,
+      humanReviewRequired: true,
+      escalationPolicyRef: versionedRef,
+    },
+    executionPolicy: {
+      maxAttempts: 2,
+      retryableOutcomes: ['FAILED_EXECUTION'],
+      resumePolicy: { allowed: false },
+      fallbackPolicy: { allowed: true },
+      leasePolicyRef: versionedRef,
+      cancellationPolicyRef: versionedRef,
+    },
+    budget: { tokenLimit: 1000, budgetPolicyRef: versionedRef },
+    harnessPolicy: {
+      preferredHarnesses: ['harness.coordinator'],
+      fallbackAllowed: true,
+      fallbackRequiresHuman: false,
+      selectionPolicyRef: versionedRef,
+    },
+    modelPolicy: {
+      allowedProviders: ['provider.test'],
+      allowedModels: ['model-fixture-001'],
+      prohibitedDataClasses: ['RESTRICTED_PERSONAL'],
+      minimumCapabilities: [],
+      selectionPolicyRef: versionedRef,
+    },
+    versionPins: {
+      projectContextContractRef: versionedRef,
+      contextBuilderPolicyRef: versionedRef,
+      workOrderSchemaRef: versionedRef,
+      skillRefs: [],
+      templateRefs: [],
+      capabilityPolicyRef: versionedRef,
+      runtimeAdapterContractRef: versionedRef,
+    },
+  };
+  return { command, runCommand, draft };
+}
+
 describe('contract registry', () => {
   const registry = new ContractRegistry();
 
@@ -294,5 +396,281 @@ describe('contract registry', () => {
       expect(operation?.schemaStatus).toBe('FULL');
     }
     expect(full).toHaveLength(37);
+  });
+
+  it('validates embedded TaskExecution Core Contracts through their registered schemas', () => {
+    const { command, runCommand, draft } = validTaskExecutionWorkOrderDraft();
+    const projectRef = (command.payload as Record<string, unknown>).projectRef;
+    const actor = command.actor;
+    const contextSnapshotRef = (
+      (runCommand.payload as Record<string, unknown>).creation as Record<string, unknown>
+    ).contextSnapshotRef;
+    const hash = (command.integrity as Record<string, unknown>).payloadHash;
+    const header = {
+      contractId: uuid,
+      contractType: 'zhiju.contract.work_order',
+      contractVersion: '1.0',
+      schemaRef: projectRef,
+      scopeRef: command.scopeRef,
+      issuedAt: '2026-08-17T00:00:00Z',
+      issuedBy: actor,
+      correlationId: uuid,
+      dataClassification: 'INTERNAL',
+      canonicalizationVersion: '1',
+      payloadHash: hash,
+    };
+    const workOrderContract = {
+      header,
+      workOrderRef: command.targetRef,
+      projectRef,
+      contextSnapshotRef,
+      ...draft,
+      issuedAt: '2026-08-17T00:00:00Z',
+      specificationHash: hash,
+    };
+    const freezeCommand = {
+      ...command,
+      commandType: 'execution.freeze_work_order',
+      payload: {
+        workOrderContract,
+        validationSnapshotRef: contextSnapshotRef,
+        specificationHash: hash,
+      },
+    };
+
+    expect(registry.validateOperation('execution.freeze_work_order', '1.0', freezeCommand)).toEqual(
+      {
+        valid: true,
+        errors: [],
+      },
+    );
+
+    const invalidFreeze = {
+      ...freezeCommand,
+      payload: { ...freezeCommand.payload, workOrderContract: 'not-a-contract' },
+    };
+    expect(
+      registry.validateOperation('execution.freeze_work_order', '1.0', invalidFreeze).valid,
+    ).toBe(false);
+
+    const invalidSubmit = {
+      ...command,
+      commandType: 'execution.submit_agent_result',
+      payload: {
+        agentResultContract: {},
+        runFencingToken: 0,
+        runtimeSubmissionRef: {
+          system: 'runtime.test',
+          resourceType: 'runtime.submission',
+          externalId: 'submission-1',
+          observedAt: '2026-08-17T00:00:00Z',
+        },
+      },
+    };
+    expect(
+      registry.validateOperation('execution.submit_agent_result', '1.0', invalidSubmit).valid,
+    ).toBe(false);
+    expect(
+      registry.validateOperationResult('execution.get_work_order_contract', '1.0', {
+        workOrderRef: command.targetRef,
+        workOrderContract: {},
+        contractRef: (
+          (runCommand.payload as Record<string, unknown>).creation as Record<string, unknown>
+        ).workOrderContractRef,
+      }).valid,
+    ).toBe(false);
+    expect(
+      registry.validateOperationResult('execution.get_context_snapshot', '1.0', {
+        contextSnapshotRef,
+        projectContextContract: {},
+        contractRef: (
+          (runCommand.payload as Record<string, unknown>).creation as Record<string, unknown>
+        ).workOrderContractRef,
+      }).valid,
+    ).toBe(false);
+    expect(
+      registry.validateOperationResult('execution.get_agent_result', '1.0', {
+        agentResultRef: (
+          (runCommand.payload as Record<string, unknown>).creation as Record<string, unknown>
+        ).workOrderContractRef,
+        agentResultContract: {},
+        acceptanceRecordRef: (
+          (runCommand.payload as Record<string, unknown>).creation as Record<string, unknown>
+        ).workOrderContractRef,
+      }).valid,
+    ).toBe(false);
+  });
+
+  it('uses the authoritative WorkOrder field names in create_work_order', () => {
+    const { command, draft } = validTaskExecutionWorkOrderDraft();
+    const createWorkOrder = {
+      ...command,
+      commandType: 'execution.create_work_order',
+      payload: { draft },
+    };
+
+    expect(
+      registry.validateOperation('execution.create_work_order', '1.0', createWorkOrder),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+
+    const obsoleteObjective = {
+      ...createWorkOrder,
+      payload: { draft: { ...draft, objective: { summary: 'obsolete shorthand' } } },
+    };
+    expect(
+      registry.validateOperation('execution.create_work_order', '1.0', obsoleteObjective).valid,
+    ).toBe(false);
+  });
+
+  it('validates CompletionEvaluationInput source watermarks instead of references', () => {
+    const command = fixture('execution-create-task-command-valid.json');
+    const runCommand = fixture('execution-create-run-command-valid.json');
+    const creation = (runCommand.payload as Record<string, unknown>).creation as Record<
+      string,
+      unknown
+    >;
+    const completionCommand = {
+      ...command,
+      commandType: 'execution.evaluate_task_completion',
+      payload: {
+        input: {
+          criteriaHash: (command.integrity as Record<string, unknown>).payloadHash,
+          factRefs: [command.targetRef],
+          blockingRefs: [],
+          sourceWatermarks: [
+            {
+              sourceModule: 'enterprise_project',
+              partition: 'project-1',
+              sequence: 3,
+              observedAt: '2026-08-17T00:00:00Z',
+            },
+          ],
+          evaluatorRef: creation.leasePolicyRef,
+          evaluatedAt: '2026-08-17T00:00:00Z',
+        },
+      },
+    };
+
+    expect(
+      registry.validateOperation('execution.evaluate_task_completion', '1.0', completionCommand),
+    ).toEqual({ valid: true, errors: [] });
+
+    const referenceWatermark = structuredClone(completionCommand) as Record<string, unknown>;
+    (((referenceWatermark.payload as Record<string, unknown>).input as Record<string, unknown>)
+      .sourceWatermarks as unknown[]) = [command.targetRef];
+    expect(
+      registry.validateOperation('execution.evaluate_task_completion', '1.0', referenceWatermark)
+        .valid,
+    ).toBe(false);
+  });
+
+  it('requires Task Board result snapshot and source watermark metadata', () => {
+    const completePage = {
+      items: [],
+      snapshotAt: '2026-08-17T00:00:00Z',
+      sourceWatermarks: [
+        { sourceModule: 'task_execution', sequence: 1, observedAt: '2026-08-17T00:00:00Z' },
+      ],
+    };
+
+    expect(
+      registry.validateOperationResult('execution.get_task_board_slice', '1.0', completePage),
+    ).toEqual({ valid: true, errors: [] });
+    expect(
+      registry.validateOperationResult('execution.get_task_board_slice', '1.0', { items: [] })
+        .valid,
+    ).toBe(false);
+  });
+
+  it('enforces ValueEnvelope presence and value invariants for usage', () => {
+    const unknownUsage = fixture('execution-get-usage-and-provenance-result-valid.json');
+    expect(
+      registry.validateOperationResult('execution.get_usage_and_provenance', '1.0', unknownUsage),
+    ).toEqual({ valid: true, errors: [] });
+
+    const unknownWithValue = structuredClone(unknownUsage);
+    (unknownWithValue.agentDeclaredUsage as Record<string, unknown>).value = { inputTokens: 1 };
+    expect(
+      registry.validateOperationResult(
+        'execution.get_usage_and_provenance',
+        '1.0',
+        unknownWithValue,
+      ).valid,
+    ).toBe(false);
+
+    const presentWithoutValue = structuredClone(unknownUsage);
+    (presentWithoutValue.agentDeclaredUsage as Record<string, unknown>).presence = 'PRESENT';
+    expect(
+      registry.validateOperationResult(
+        'execution.get_usage_and_provenance',
+        '1.0',
+        presentWithoutValue,
+      ).valid,
+    ).toBe(false);
+
+    const presentWithValue = structuredClone(presentWithoutValue);
+    (presentWithValue.agentDeclaredUsage as Record<string, unknown>).value = { inputTokens: 1 };
+    expect(
+      registry.validateOperationResult(
+        'execution.get_usage_and_provenance',
+        '1.0',
+        presentWithValue,
+      ),
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it('rejects sensitive fields nested in RunStarted runtime binding summaries', () => {
+    const event = fixture('execution-run-started-event-sensitive-runtime-field.json');
+    const payload = event.payload as Record<string, unknown>;
+    delete payload.leaseId;
+    delete payload.sessionToken;
+    const runCommand = fixture('execution-create-run-command-valid.json');
+    payload.runtimeBindingSummary = (
+      (runCommand.payload as Record<string, unknown>).creation as Record<string, unknown>
+    ).runtimeBinding;
+
+    expect(registry.validateOperation('execution.RunStarted', '1.0', event)).toEqual({
+      valid: true,
+      errors: [],
+    });
+
+    const sensitiveEvent = structuredClone(event);
+    (
+      (sensitiveEvent.payload as Record<string, unknown>).runtimeBindingSummary as Record<
+        string,
+        unknown
+      >
+    ).sessionToken = 'must-not-leak';
+    expect(registry.validateOperation('execution.RunStarted', '1.0', sensitiveEvent).valid).toBe(
+      false,
+    );
+  });
+
+  it('rejects non-terminal states in RunTerminated events', () => {
+    const event = fixture('execution-run-terminated-event-valid.json');
+    const runningEvent = structuredClone(event);
+    (runningEvent.payload as Record<string, unknown>).terminalStatus = 'RUNNING';
+
+    expect(registry.validateOperation('execution.RunTerminated', '1.0', event)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(registry.validateOperation('execution.RunTerminated', '1.0', runningEvent).valid).toBe(
+      false,
+    );
+  });
+
+  it('accepts create_task without the optional delivery item reference', () => {
+    const command = fixture('execution-create-task-command-valid.json');
+    delete ((command.payload as Record<string, unknown>).definition as Record<string, unknown>)
+      .deliveryItemRef;
+
+    expect(registry.validateOperation('execution.create_task', '1.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
   });
 });

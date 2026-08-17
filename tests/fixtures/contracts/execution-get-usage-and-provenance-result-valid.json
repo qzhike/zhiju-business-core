@@ -9,7 +9,8 @@
     }
   },
   "agentDeclaredUsage": {
-    "presence": "UNKNOWN"
+    "presence": "UNKNOWN",
+    "evidenceRefs": []
   },
   "authoritativeSource": "RUNTIME_ADAPTER",
   "provenance": {
