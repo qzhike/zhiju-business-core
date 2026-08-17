@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT CORE CONTRACT FIELD-LEVEL SCHEMA BASELINE / IMPLEMENTATION VERIFIED`
+状态：`CURRENT CORE CONTRACT FIELD-LEVEL SCHEMA BASELINE / IMPLEMENTATION VERIFIED / USER REVIEW PENDING`
 
 ## 1. 模块责任
 
@@ -49,6 +49,14 @@ evaluationStage                = REVISION_ACCEPTANCE | APPROVAL | RELEASE_READIN
 separationOfDutiesOutcome      = SATISFIED | VIOLATED | INDETERMINATE
 ```
 
+共享 Header 与集合规则：
+
+- `ContractHeader.schemaRef` 固定为 `VersionedRef<ContractSchema>`，`issuedBy` 固定为 `PrincipalRef`；
+- `ContractHeader.extensions[].payload` 是必填 `CanonicalJson`，开放的是 payload 内容，不是字段是否存在；
+- `Set<T>` 使用 `uniqueItems: true` 且允许空数组表达“已知集合为空”；
+- `NonEmptySet<T>` 同时使用 `uniqueItems: true` 与 `minItems: 1`，只用于权威规格明确要求非空的字段；
+- `ValueEnvelope.value` 的类型参数保持开放 JSON，但 Schema 必须直接强制 `presence=PRESENT` 时存在 `value`，其他 Presence 时禁止 `value`。
+
 ## 3. ProjectContextContract 字段级实现
 
 来源：`03 §3`。
@@ -60,7 +68,7 @@ separationOfDutiesOutcome      = SATISFIED | VIOLATED | INDETERMINATE
 | `projectRef`, `enterpriseRef` | `common.objectRef` | 强制 ObjectRef（不允许 latest） |
 | `projection` | `{projectionType, purpose, audience, builderPolicyRef, requestedByWorkOrderRef?}` | projectionType 是 closed enum |
 | `asOf` | `common.utcInstant` | |
-| `sourceManifest` | `{enterpriseProfileSnapshotRef, qmsConfigurationRef, customerBaselineRef?, templateBaselineRef?, regulatoryProfileRef?, gapAnalysisRef?, deliveryPlanRef?, policyRefs[], schemaRefs[], externalAuthoritySnapshotRefs[]}` | policyRefs/schemaRefs/externalAuthoritySnapshotRefs 强制 Set 唯一性 |
+| `sourceManifest` | `{enterpriseProfileSnapshotRef, qmsConfigurationRef, customerBaselineRef?, templateBaselineRef?, regulatoryProfileRef?, gapAnalysisRef?, deliveryPlanRef?, policyRefs[], schemaRefs[], externalAuthoritySnapshotRefs[]}` | 三个数组字段均必填并强制 Set 唯一性；允许空数组表达本 Snapshot 未使用对应来源 |
 | `contextItems[]` | ordered list of `ContextItem` | 见 §3.6 |
 | `artifactContext[]` | ordered list of `ArtifactContext` | 见 §3.7 |
 | `workContext` | `WorkContext` | 见 §3.8 |
@@ -70,7 +78,7 @@ separationOfDutiesOutcome      = SATISFIED | VIOLATED | INDETERMINATE
 | `coverage` | `{requestedScopes[], includedScopes[], excludedScopes[], completeness}` | completeness closed enum |
 | `sourceWatermarks[]` | NonEmptySet(`SourceWatermark`) | |
 
-`ContextItem.value` 采用 tagged union：`ValueEnvelope` 或 `ContentAddressedRef`，后者用于只暴露内容指纹的场景（受权限保护）。`ContextItem.kind` 与 `ContextItem.epistemicState` 都是 closed enum。
+`ContextItem.value` 是必填字段并采用 tagged union：`ValueEnvelope` 或 `ContentAddressedRef`，后者用于只暴露内容指纹的场景（受权限保护）。`ContextItem.kind` 与 `ContextItem.epistemicState` 都是 closed enum。
 
 ## 4. WorkOrderContract 字段级实现
 
@@ -82,7 +90,7 @@ separationOfDutiesOutcome      = SATISFIED | VIOLATED | INDETERMINATE
 | `workOrderRef` | `common.objectRef` | |
 | `taskRef`, `projectRef` | `common.objectRef` | |
 | `requestedBy` | `common.principalRef` | |
-| `objective` | `{objectiveType, humanReadableStatement, successIntent, relatedIssueRefs[], deliveryItemRefs[], outOfScopeStatement?}` | |
+| `objective` | `{objectiveType, humanReadableStatement, successIntent, relatedIssueRefs[], deliveryItemRefs[], outOfScopeStatement?}` | 两个数组字段均必填；空数组表示已知没有关联对象 |
 | `targetScope` | `{targetObjectRefs[], baseContentRefs[], allowedUnitRefs[], forbiddenUnitRefs[], allowedCreateTypes[], crossObjectReferencesAllowed[], scopePolicyRef}` | `baseContentRefs` 强制 `ContentAddressedRef`，从 Schema 层拒绝 Object/Versioned/Latest |
 | `inputRefs` | NonEmptySet of `InputRef` | `InputRef.contentAccessMode` closed enum |
 | `contextSnapshotRef` | `common.snapshotRef` | |
@@ -132,17 +140,17 @@ separationOfDutiesOutcome      = SATISFIED | VIOLATED | INDETERMINATE
 | 顶层字段 | RevisionAcceptance | ApprovalBundle | ReleaseReadiness |
 |---|---|---|---|
 | `evaluationStage` | `const 'REVISION_ACCEPTANCE'` | n/a | n/a |
-| `requiredGateSpecs[]` | NonEmptySet(`GateSpecRef`) | n/a | NonEmptySet(`GateSpecRef`) |
-| `gateResultRefs[]` | NonEmptySet(`GateResultRef`) 含 `revisionContentHash` | n/a | NonEmptySet(`GateResultRef`) |
+| `requiredGateSpecs[]` | Set(`GateSpecRef`) | n/a | Set(`GateSpecRef`) |
+| `gateResultRefs[]` | Set(`ContentAddressedRef<GateResult>`)；相同 revision hash 由跨字段 Validator 校验 | n/a | Set(`ContentAddressedRef<GateResult>`)；相同 revision/package 绑定由跨字段 Validator 校验 |
 | `reviewIssueSnapshot` | `{openBlockingIssueRefs, openNonBlockingIssueRefs, closedIssueRefs, dismissedIssueRefs}` | n/a | n/a |
 | `approvalRequirements[]` | n/a | NonEmptySet(`ApprovalRequirement`) | n/a |
-| `approvalRefs[]` | n/a | NonEmptySet of `contentAddressedRef`（强制 ContentAddressedRef，不允许 ObjectRef） | n/a |
+| `approvalRefs[]` | n/a | Set of `contentAddressedRef`（强制 ContentAddressedRef，不允许 ObjectRef；`NOT_APPROVED` 可为空） | n/a |
 | `separationOfDutiesResult` | n/a | `{outcome, violatedRules[], checkedAt}` | n/a |
 | `completeness` / `readiness` | `Readiness {status, reasons}` | `ApprovalCompleteness {status, reasons}` | `ReleaseReadiness {status, reasons}` |
 | `releasePackageRef` | n/a | n/a | `common.releasePackageRef`（包含 `packageSnapshotRef` + `packageHash`） |
 | `recipientScopeSnapshotRef` / `destinationRefs[]` / `releaseRequirements[]` | n/a | n/a | 按 §6.5 |
 
-三个 Snapshot 共享 `readiness.{status, reasons}` 的形态：`status` 引用各自 closed enum（ReadinessStatus、ApprovalCompletenessStatus、ReleaseReadinessStatus），`reasons` 是 NonEmptySet of NonEmptyString。
+三个 Snapshot 共享 `readiness.{status, reasons}` 的形态：`status` 引用各自 closed enum（ReadinessStatus、ApprovalCompletenessStatus、ReleaseReadinessStatus），`reasons` 是 Set of NonEmptyString；READY 状态允许空 reasons。
 
 ## 7. 仍开放的 CanonicalJson 节点
 
@@ -150,7 +158,7 @@ separationOfDutiesOutcome      = SATISFIED | VIOLATED | INDETERMINATE
 
 | 位置 | 开放理由 | 替代强制约束 |
 |---|---|---|
-| `common.valueEnvelope.value` | `ValueEnvelope<T>` 通用 T 必须为 CanonicalJson；`presence=PRESENT` 与否的语义由应用层 Validator 强制 | 由 Validator 在 presence=PRESENT 时要求 value 非空、其他状态要求为空（06 §6.2） |
+| `common.valueEnvelope.value` | `ValueEnvelope<T>` 通用 T 必须为 CanonicalJson | JSON Schema 直接强制 PRESENT 时字段存在、其他 Presence 时字段不存在；T 的具体结构由外围 Schema/Validator 补充 |
 | `common.page.items` | `Page<T>` 中 T 由外围 schema 决定；Schema 2020 不支持 `$ref` 参数化 | 模块级 Result schema 自行复用 `Page<T>` 时将 T 替换为具体 `$defs` |
 | `common.extension.payload` | 06 §7 Header.extensions.payload 留给注册的 Extension Type schema 决定 | Extension Type 注册表强制结构 |
 | `workOrder.constraints[]` items | 03 §4.3 仅声明 `constraints: CanonicalJson[]` 而未冻结结构 | 应用层按 Policy 注册 |
@@ -166,5 +174,5 @@ separationOfDutiesOutcome      = SATISFIED | VIOLATED | INDETERMINATE
 ## 9. 实现与验证
 
 - Ajv 2020 strict mode 编译通过：6 个 Core Contract schema + common + envelope + module schemas。
-- 6 个正向 fixture + 24 个负向 fixture 覆盖未知字段、缺 required、非法 enum、非法 ReferenceStrength、object ↔ contentAddressed 误用。
+- 6 个正向 fixture + review 回归覆盖未知字段、缺 required、Presence/value 条件、Set/NonEmptySet 基数、非法 enum、非法 ReferenceStrength、object ↔ contentAddressed 误用；fixture builder 与 6 个 committed golden JSON 逐项比较。
 - Persistence、E2E、Renderer、Runtime 与 Operational Batch 测试：`NOT RUN`，仅 schema/contract 字段级。

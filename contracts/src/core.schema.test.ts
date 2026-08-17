@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { coreContractSchemas } from './core.schema.js';
@@ -39,7 +41,6 @@ const U_RRS = '018f22e2-7c15-7b92-8d86-2de956a9d20f';
 const U_REL = '018f22e2-7c15-7ba2-8d86-2de956a9d210';
 const U_PKG = '018f22e2-7c15-7bb2-8d86-2de956a9d211';
 const U_RCP = '018f22e2-7c15-7bc2-8d86-2de956a9d212';
-const U_DEST = '018f22e2-7c15-7bd2-8d86-2de956a9d213';
 const U_EV = '018f22e2-7c15-7be2-8d86-2de956a9d214';
 const U_GATE = '018f22e2-7c15-7c02-8d86-2de956a9d216';
 const U_GRES = '018f22e2-7c15-7c12-8d86-2de956a9d217';
@@ -74,9 +75,10 @@ const CONTRACT_SCOPE = { enterpriseId: U_ENT, projectId: U_PRJ };
 
 function schemaRef(contractType: string): Record<string, unknown> {
   return {
-    kind: 'OBJECT',
+    kind: 'VERSIONED',
     objectType: `zhiju.contract.${contractType}`,
     objectId: U_CTX,
+    versionId: U_CC,
     scope: SCOPE,
   };
 }
@@ -89,7 +91,7 @@ function baseHeader(contractType: string): Record<string, unknown> {
     schemaRef: schemaRef('schema'),
     scopeRef: SCOPE,
     issuedAt: '2026-08-17T00:00:00Z',
-    issuedBy: schemaRef('issued_by'),
+    issuedBy: { principalKind: 'SERVICE', principalId: U_HUM },
     correlationId: U_RUN,
     dataClassification: 'INTERNAL',
     canonicalizationVersion: '1',
@@ -600,16 +602,7 @@ export function revisionAcceptancePositive(): Record<string, unknown> {
         evaluationStage: 'REVISION_ACCEPTANCE',
       },
     ],
-    gateResultRefs: [
-      {
-        objectType: 'zhiju.quality.gate_result',
-        gateSpecId: U_GATE,
-        gateResultId: U_GRES,
-        qualityProfileVersionId: U_QPV,
-        evaluationStage: 'REVISION_ACCEPTANCE',
-        revisionContentHash: CONTENT_HASH,
-      },
-    ],
+    gateResultRefs: [contentRef('zhiju.quality.gate_result', U_GRES)],
     evidenceStatusSnapshotRef: snapshotRef('zhiju.quality.evidence_status_snapshot', U_EV, U_SNAP),
     reviewIssueSnapshot: {
       openBlockingIssueRefs: [],
@@ -680,7 +673,14 @@ export function releaseReadinessPositive(): Record<string, unknown> {
     },
     purpose: 'CUSTOMER_DELIVERY',
     recipientScopeSnapshotRef: snapshotRef('zhiju.release.recipient_scope_snapshot', U_RCP, U_SNAP),
-    destinationRefs: [contentRef('zhiju.integration.destination', U_DEST)],
+    destinationRefs: [
+      {
+        system: 'feishu',
+        resourceType: 'chat',
+        externalId: 'oc_release_destination',
+        observedAt: '2026-08-17T00:00:00Z',
+      },
+    ],
     releaseRequirements: [
       {
         requirementId: U_RR,
@@ -698,26 +698,16 @@ export function releaseReadinessPositive(): Record<string, unknown> {
         evaluationStage: 'RELEASE_READINESS',
       },
     ],
-    releaseGateResultRefs: [
-      {
-        objectType: 'zhiju.quality.gate_result',
-        gateSpecId: U_GATE,
-        gateResultId: U_GRES,
-        qualityProfileVersionId: U_QPV,
-        evaluationStage: 'RELEASE_READINESS',
-        revisionContentHash: CONTENT_HASH,
-      },
-    ],
+    releaseGateResultRefs: [contentRef('zhiju.quality.gate_result', U_GRES)],
     readiness: { status: 'READY_FOR_AUTHORIZATION', reasons: [] },
     evaluatedAt: '2026-08-17T00:00:00Z',
   };
 }
 
 // =============================================================================
-// Positive fixtures — JSON kept in sync via dedicated `core.contract.build`
-// helper script under `tools/contracts/`. The Ajv tests below are the
-// authoritative gate; the JSON files exist for golden review and are not
-// re-written on every test invocation.
+// Positive fixtures are committed JSON review artifacts. Every builder is
+// compared with its golden file so schema tests cannot pass while the files
+// consumed by downstream implementers drift.
 // =============================================================================
 
 const POSITIVES: readonly [string, () => Record<string, unknown>][] = [
@@ -743,6 +733,11 @@ function schemaIdFor(payload: Record<string, unknown>): string {
   const id = CONTRACT_TYPE_TO_SCHEMA_ID[contractType];
   if (id === undefined) throw new Error(`unknown contract type ${contractType}`);
   return id;
+}
+
+function loadGoldenFixture(name: string): Record<string, unknown> {
+  const fixtureUrl = new URL(`../../tests/fixtures/contracts/core/${name}.json`, import.meta.url);
+  return JSON.parse(readFileSync(fixtureUrl, 'utf8')) as Record<string, unknown>;
 }
 
 // =============================================================================
@@ -780,6 +775,10 @@ describe('core contract schemas', () => {
       const result = registry.validateCoreContract(schemaIdFor(positive), positive);
       expect(result.valid).toBe(true);
       expect(result.errors).toEqual([]);
+    });
+
+    it('matches the committed golden fixture', () => {
+      expect(loadGoldenFixture(_name)).toEqual(positive);
     });
 
     it('rejects unknown top-level fields', () => {
@@ -839,11 +838,29 @@ describe('core contract schemas', () => {
     it('rejects a contextItem missing the REQUIRED `kind` field', () => {
       const mutated = deletePath(positive, 'contextItems.0.kind');
       const result = registry.validateCoreContract(schemaId, mutated);
-      if (!result.valid) {
-        console.error('DEBUG ERRORS:', JSON.stringify(result.errors.slice(0, 3)));
-      }
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.keyword === 'required')).toBe(true);
+    });
+
+    it('rejects a sourceManifest missing externalAuthoritySnapshotRefs', () => {
+      const mutated = deletePath(positive, 'sourceManifest.externalAuthoritySnapshotRefs');
+      const result = registry.validateCoreContract(schemaId, mutated);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.keyword === 'required')).toBe(true);
+    });
+
+    it('rejects a contextItem missing value', () => {
+      const mutated = deletePath(positive, 'contextItems.0.value');
+      const result = registry.validateCoreContract(schemaId, mutated);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.keyword === 'required')).toBe(true);
+    });
+
+    it('rejects PRESENT without value and non-PRESENT with value', () => {
+      const missingPresentValue = deletePath(positive, 'contextItems.0.value.value');
+      const leakedUnknownValue = setPath(positive, 'contextItems.0.value.presence', 'UNKNOWN');
+      expect(registry.validateCoreContract(schemaId, missingPresentValue).valid).toBe(false);
+      expect(registry.validateCoreContract(schemaId, leakedUnknownValue).valid).toBe(false);
     });
   });
 
@@ -891,6 +908,20 @@ describe('core contract schemas', () => {
       const result = registry.validateCoreContract(schemaId, mutated);
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.keyword === 'enum')).toBe(true);
+    });
+
+    it('rejects an objective missing either required reference set', () => {
+      const missingIssues = deletePath(positive, 'objective.relatedIssueRefs');
+      const missingDeliveries = deletePath(positive, 'objective.deliveryItemRefs');
+      expect(registry.validateCoreContract(schemaId, missingIssues).valid).toBe(false);
+      expect(registry.validateCoreContract(schemaId, missingDeliveries).valid).toBe(false);
+    });
+
+    it('rejects an empty NonEmptySet', () => {
+      const mutated = setPath(positive, 'expectedOutputs', []);
+      const result = registry.validateCoreContract(schemaId, mutated);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.keyword === 'minItems')).toBe(true);
     });
   });
 
@@ -953,6 +984,24 @@ describe('core contract schemas', () => {
       const result = registry.validateCoreContract(schemaId, mutated);
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.keyword === 'enum')).toBe(true);
+    });
+
+    it('rejects an OBJECT GateResult reference', () => {
+      const mutated = setArrayElement(
+        positive,
+        'gateResultRefs',
+        objectRef('zhiju.quality.gate_result', U_GRES),
+      );
+      const result = registry.validateCoreContract(schemaId, mutated);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.keyword === 'const')).toBe(true);
+    });
+
+    it('rejects a ContentAddressed GateResult missing contentHash', () => {
+      const mutated = deletePath(positive, 'gateResultRefs.0.contentHash');
+      const result = registry.validateCoreContract(schemaId, mutated);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.keyword === 'required')).toBe(true);
     });
   });
 
@@ -1019,6 +1068,71 @@ describe('core contract schemas', () => {
       const result = registry.validateCoreContract(schemaId, mutated);
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.keyword === 'enum')).toBe(true);
+    });
+
+    it('rejects an empty destination NonEmptySet', () => {
+      const mutated = setPath(positive, 'destinationRefs', []);
+      const result = registry.validateCoreContract(schemaId, mutated);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.keyword === 'minItems')).toBe(true);
+    });
+
+    it('rejects an OBJECT release GateResult reference', () => {
+      const mutated = setArrayElement(
+        positive,
+        'releaseGateResultRefs',
+        objectRef('zhiju.quality.gate_result', U_GRES),
+      );
+      const result = registry.validateCoreContract(schemaId, mutated);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.keyword === 'const')).toBe(true);
+    });
+  });
+
+  describe('shared ContractHeader rejections', () => {
+    const schemaId = 'https://schemas.zhiju.local/core/project-context/1.0';
+    const positive = projectContextPositive();
+
+    it('accepts a required extension with an arbitrary CanonicalJson payload', () => {
+      const mutated = setPath(positive, 'header.extensions', [
+        {
+          extensionType: 'zhiju.contract.trace',
+          extensionVersion: '1.0',
+          required: true,
+          payload: { traceFlags: ['review', 11], nested: { enabled: true } },
+        },
+      ]);
+      const result = registry.validateCoreContract(schemaId, mutated);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('requires extension payload even though its CanonicalJson value is open', () => {
+      const mutated = setPath(positive, 'header.extensions', [
+        {
+          extensionType: 'zhiju.contract.trace',
+          extensionVersion: '1.0',
+          required: false,
+        },
+      ]);
+      const result = registry.validateCoreContract(schemaId, mutated);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.keyword === 'required')).toBe(true);
+    });
+
+    it('rejects ObjectRef for schemaRef and issuedBy', () => {
+      const objectSchemaRef = setPath(
+        positive,
+        'header.schemaRef',
+        objectRef('zhiju.contract.schema', U_CTX),
+      );
+      const objectIssuer = setPath(
+        positive,
+        'header.issuedBy',
+        objectRef('zhiju.identity.principal', U_HUM),
+      );
+      expect(registry.validateCoreContract(schemaId, objectSchemaRef).valid).toBe(false);
+      expect(registry.validateCoreContract(schemaId, objectIssuer).valid).toBe(false);
     });
   });
 });

@@ -355,13 +355,9 @@ export const commonSchema = {
     // payloads per the same catalog entry. Producers must tag the runtime
     // contract via `dataClassification` upstream rather than via `value` typing.
     //
-    // The `presence=PRESENT ⇒ value required` rule (06 §6.2) is enforced
-    // outside JSON Schema because `if/then/required` triggers Ajv's strict mode
-    // `strictRequired` complaint when `value` is not declared in the outer
-    // `required` array. Implementing parties MUST validate this rule at the
-    // structural Validator stage and reject payloads where `presence=PRESENT`
-    // omits `value`, or where `presence ∈ {UNKNOWN|REDACTED|NOT_APPLICABLE}`
-    // carries a non-empty `value`.
+    // The `presence=PRESENT ⇒ value required` rule and its inverse are part of
+    // structural validation. The conditional repeats the `value` property in
+    // `then` so Ajv strictRequired can prove that the required key is declared.
     valueEnvelope: {
       type: 'object',
       additionalProperties: false,
@@ -381,6 +377,23 @@ export const commonSchema = {
         },
         lastVerifiedAt: { $ref: '#/$defs/utcInstant' },
       },
+      allOf: [
+        {
+          if: {
+            properties: { presence: { const: 'PRESENT' } },
+            required: ['presence'],
+          },
+          then: {
+            properties: {
+              value: openJson('ValueEnvelope<T> generic argument per 06 §6.2.'),
+            },
+            required: ['value'],
+          },
+          else: {
+            properties: { value: false },
+          },
+        },
+      ],
     },
 
     // --- Integrality of envelope-level integrity --------------------------
@@ -397,7 +410,7 @@ export const commonSchema = {
     extension: {
       type: 'object',
       additionalProperties: false,
-      required: ['extensionType', 'extensionVersion', 'required'],
+      required: ['extensionType', 'extensionVersion', 'required', 'payload'],
       properties: {
         extensionType: { $ref: '#/$defs/namespaceCode' },
         extensionVersion: { type: 'string', pattern: '^\\d+\\.\\d+$' },
@@ -431,10 +444,10 @@ export const commonSchema = {
         contractId: { $ref: '#/$defs/uuidV7' },
         contractType: { $ref: '#/$defs/namespaceCode' },
         contractVersion: { const: '1.0' },
-        schemaRef: { $ref: '#/$defs/typedReference' },
+        schemaRef: { $ref: '#/$defs/versionedRef' },
         scopeRef: { $ref: '#/$defs/scopeRef' },
         issuedAt: { $ref: '#/$defs/utcInstant' },
-        issuedBy: { $ref: '#/$defs/typedReference' },
+        issuedBy: { $ref: '#/$defs/principalRef' },
         correlationId: { $ref: '#/$defs/uuidV7' },
         causationId: { $ref: '#/$defs/uuidV7' },
         dataClassification: {

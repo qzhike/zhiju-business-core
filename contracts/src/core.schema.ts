@@ -44,10 +44,14 @@ const positiveIntRef = { $ref: `${common}positiveInteger` } as const;
 const mediaTypeRef = { $ref: `${common}mediaType` } as const;
 const contentHashRef = { $ref: `${common}contentHash` } as const;
 const uuidRef = { $ref: `${common}uuidV7` } as const;
-const nonEmptySet = (ref: JsonSchema): JsonSchema => ({
+const uniqueSet = (ref: JsonSchema): JsonSchema => ({
   type: 'array',
   items: ref,
   uniqueItems: true,
+});
+const nonEmptySet = (ref: JsonSchema): JsonSchema => ({
+  ...uniqueSet(ref),
+  minItems: 1,
 });
 const orderedList = (ref: JsonSchema): JsonSchema => ({ type: 'array', items: ref });
 
@@ -113,7 +117,13 @@ const projection = {
 const sourceManifest = {
   type: 'object',
   additionalProperties: false,
-  required: ['enterpriseProfileSnapshotRef', 'qmsConfigurationRef', 'policyRefs', 'schemaRefs'],
+  required: [
+    'enterpriseProfileSnapshotRef',
+    'qmsConfigurationRef',
+    'policyRefs',
+    'schemaRefs',
+    'externalAuthoritySnapshotRefs',
+  ],
   properties: {
     enterpriseProfileSnapshotRef: snapshotRefRef,
     qmsConfigurationRef: versionedRefRef,
@@ -122,9 +132,9 @@ const sourceManifest = {
     regulatoryProfileRef: versionedRefRef,
     gapAnalysisRef: versionedRefRef,
     deliveryPlanRef: versionedRefRef,
-    policyRefs: nonEmptySet(typedReferenceRef),
-    schemaRefs: nonEmptySet(typedReferenceRef),
-    externalAuthoritySnapshotRefs: nonEmptySet(snapshotRefRef),
+    policyRefs: uniqueSet(typedReferenceRef),
+    schemaRefs: uniqueSet(typedReferenceRef),
+    externalAuthoritySnapshotRefs: uniqueSet(snapshotRefRef),
   },
 } as const satisfies JsonSchema;
 
@@ -136,6 +146,7 @@ const contextItem = {
     'kind',
     'subjectRef',
     'epistemicState',
+    'value',
     'evidenceRefs',
     'provenanceRefs',
     'recordedTime',
@@ -152,11 +163,11 @@ const contextItem = {
     value: {
       oneOf: [valueEnvelopeRef, contentAddressedRefRef],
     },
-    evidenceRefs: nonEmptySet(evidenceRefRef),
-    provenanceRefs: nonEmptySet(typedReferenceRef),
+    evidenceRefs: uniqueSet(evidenceRefRef),
+    provenanceRefs: uniqueSet(typedReferenceRef),
     validTime: effectivePeriodRef,
     recordedTime: utcInstantRef,
-    permittedUses: nonEmptySet(namespaceCodeRef),
+    permittedUses: uniqueSet(namespaceCodeRef),
     sensitivity: {
       enum: [
         'PUBLIC_AUTHORITY',
@@ -183,12 +194,12 @@ const artifactContext = {
     artifactRef: typedReferenceRef,
     baseRevisionRef: contentAddressedRefRef,
     branchRef: typedReferenceRef,
-    allowedSectionRefs: nonEmptySet(typedReferenceRef),
-    relevantEvidenceRefs: nonEmptySet(evidenceRefRef),
-    openReviewIssueRefs: nonEmptySet(typedReferenceRef),
+    allowedSectionRefs: uniqueSet(typedReferenceRef),
+    relevantEvidenceRefs: uniqueSet(evidenceRefRef),
+    openReviewIssueRefs: uniqueSet(typedReferenceRef),
     acceptanceSnapshotRef: snapshotRefRef,
     currentEffectiveBindingRef: typedReferenceRef,
-    representationRefs: nonEmptySet({ $ref: `${common}representationRef` }),
+    representationRefs: uniqueSet({ $ref: `${common}representationRef` }),
   },
 } as const satisfies JsonSchema;
 
@@ -202,12 +213,12 @@ const workContext = {
     'relatedCompletionCriteriaRefs',
   ],
   properties: {
-    deliveryItemRefs: nonEmptySet(typedReferenceRef),
+    deliveryItemRefs: uniqueSet(typedReferenceRef),
     taskRef: objectRefRef,
     workOrderRef: objectRefRef,
-    informationRequestRefs: nonEmptySet(objectRefRef),
-    blockers: nonEmptySet(typedReferenceRef),
-    relatedCompletionCriteriaRefs: nonEmptySet(typedReferenceRef),
+    informationRequestRefs: uniqueSet(objectRefRef),
+    blockers: uniqueSet(typedReferenceRef),
+    relatedCompletionCriteriaRefs: uniqueSet(typedReferenceRef),
   },
 } as const satisfies JsonSchema;
 
@@ -251,9 +262,9 @@ const coverage = {
   additionalProperties: false,
   required: ['requestedScopes', 'includedScopes', 'excludedScopes', 'completeness'],
   properties: {
-    requestedScopes: nonEmptySet(nonEmptyStringRef),
-    includedScopes: nonEmptySet(nonEmptyStringRef),
-    excludedScopes: nonEmptySet(nonEmptyStringRef),
+    requestedScopes: uniqueSet(nonEmptyStringRef),
+    includedScopes: uniqueSet(nonEmptyStringRef),
+    excludedScopes: uniqueSet(nonEmptyStringRef),
     completeness: { $ref: `${common}coverageCompleteness` },
   },
 } as const satisfies JsonSchema;
@@ -263,13 +274,19 @@ const coverage = {
 const objective = {
   type: 'object',
   additionalProperties: false,
-  required: ['objectiveType', 'humanReadableStatement', 'successIntent'],
+  required: [
+    'objectiveType',
+    'humanReadableStatement',
+    'successIntent',
+    'relatedIssueRefs',
+    'deliveryItemRefs',
+  ],
   properties: {
     objectiveType: namespaceCodeRef,
     humanReadableStatement: safeSummaryRef,
     successIntent: safeSummaryRef,
-    relatedIssueRefs: nonEmptySet(typedReferenceRef),
-    deliveryItemRefs: nonEmptySet(typedReferenceRef),
+    relatedIssueRefs: uniqueSet(typedReferenceRef),
+    deliveryItemRefs: uniqueSet(typedReferenceRef),
     outOfScopeStatement: safeSummaryRef,
   },
 } as const satisfies JsonSchema;
@@ -287,15 +304,15 @@ const targetScope = {
     'scopePolicyRef',
   ],
   properties: {
-    targetObjectRefs: nonEmptySet(typedReferenceRef),
+    targetObjectRefs: uniqueSet(typedReferenceRef),
     // Spec §4.5 — `baseContentRefs` must be ContentAddressedRef. Modeling
     // `items` as the content-addressed kind prevents accidentally using
     // object/latest references against immutable base revisions.
-    baseContentRefs: nonEmptySet(contentAddressedRefRef),
-    allowedUnitRefs: nonEmptySet(nonEmptyStringRef),
-    forbiddenUnitRefs: nonEmptySet(nonEmptyStringRef),
-    allowedCreateTypes: nonEmptySet(namespaceCodeRef),
-    crossObjectReferencesAllowed: nonEmptySet(nonEmptyStringRef),
+    baseContentRefs: uniqueSet(contentAddressedRefRef),
+    allowedUnitRefs: uniqueSet(nonEmptyStringRef),
+    forbiddenUnitRefs: uniqueSet(nonEmptyStringRef),
+    allowedCreateTypes: uniqueSet(namespaceCodeRef),
+    crossObjectReferencesAllowed: uniqueSet(nonEmptyStringRef),
     scopePolicyRef: versionedRefRef,
   },
 } as const satisfies JsonSchema;
@@ -329,7 +346,7 @@ const capabilityGrant = {
     capabilityType: namespaceCodeRef,
     actions: nonEmptySet(namespaceCodeRef),
     resourceSelectors: nonEmptySet(nonEmptyStringRef),
-    constraints: nonEmptySet(constraint),
+    constraints: uniqueSet(constraint),
     expiresAt: utcInstantRef,
     maxUses: positiveIntRef,
     grantPolicyRef: versionedRefRef,
@@ -409,7 +426,7 @@ const completionCriterion = {
     },
     evaluatorRef: versionedRefRef,
     required: { type: 'boolean' },
-    inputBindings: nonEmptySet(nonEmptyStringRef),
+    inputBindings: uniqueSet(nonEmptyStringRef),
     expectedCondition: nonEmptyStringRef,
     failureDisposition: namespaceCodeRef,
   },
@@ -446,7 +463,7 @@ const executionPolicy = {
   ],
   properties: {
     maxAttempts: positiveIntRef,
-    retryableOutcomes: nonEmptySet({ $ref: `${common}executionOutcome` }),
+    retryableOutcomes: uniqueSet({ $ref: `${common}executionOutcome` }),
     resumePolicy: nonEmptyStringRef,
     fallbackPolicy: nonEmptyStringRef,
     leasePolicyRef: versionedRefRef,
@@ -478,7 +495,7 @@ const harnessPolicy = {
   ],
   properties: {
     requiredHarness: namespaceCodeRef,
-    preferredHarnesses: nonEmptySet(namespaceCodeRef),
+    preferredHarnesses: uniqueSet(namespaceCodeRef),
     fallbackAllowed: { type: 'boolean' },
     fallbackRequiresHuman: { type: 'boolean' },
     selectionPolicyRef: versionedRefRef,
@@ -496,9 +513,9 @@ const modelPolicy = {
     'selectionPolicyRef',
   ],
   properties: {
-    allowedProviders: nonEmptySet(namespaceCodeRef),
-    allowedModels: nonEmptySet(nonEmptyStringRef),
-    prohibitedDataClasses: nonEmptySet({
+    allowedProviders: uniqueSet(namespaceCodeRef),
+    allowedModels: uniqueSet(nonEmptyStringRef),
+    prohibitedDataClasses: uniqueSet({
       enum: [
         'PUBLIC_AUTHORITY',
         'INTERNAL',
@@ -507,7 +524,7 @@ const modelPolicy = {
         'REGULATED',
       ],
     }),
-    minimumCapabilities: nonEmptySet(namespaceCodeRef),
+    minimumCapabilities: uniqueSet(namespaceCodeRef),
     selectionPolicyRef: versionedRefRef,
   },
 } as const satisfies JsonSchema;
@@ -528,8 +545,8 @@ const versionPins = {
     projectContextContractRef: snapshotRefRef,
     contextBuilderPolicyRef: versionedRefRef,
     workOrderSchemaRef: versionedRefRef,
-    skillRefs: nonEmptySet(versionedRefRef),
-    templateRefs: nonEmptySet(versionedRefRef),
+    skillRefs: uniqueSet(versionedRefRef),
+    templateRefs: uniqueSet(versionedRefRef),
     regulatoryProfileRef: versionedRefRef,
     qualityProfileRef: versionedRefRef,
     capabilityPolicyRef: versionedRefRef,
@@ -577,8 +594,8 @@ const finding = {
     type: namespaceCodeRef,
     severity: { $ref: `${common}findingSeverity` },
     statement: safeSummaryRef,
-    targetRefs: nonEmptySet(typedReferenceRef),
-    evidenceRefs: nonEmptySet(evidenceRefRef),
+    targetRefs: uniqueSet(typedReferenceRef),
+    evidenceRefs: uniqueSet(evidenceRefRef),
     suggestedDisposition: { $ref: `${common}findingDisposition` },
   },
 } as const satisfies JsonSchema;
@@ -591,7 +608,7 @@ const knowledgeProposal = {
     proposalId: uuidRef,
     proposalType: namespaceCodeRef,
     statement: safeSummaryRef,
-    targetRefs: nonEmptySet(typedReferenceRef),
+    targetRefs: uniqueSet(typedReferenceRef),
     suggestedAction: nonEmptyStringRef,
   },
 } as const satisfies JsonSchema;
@@ -613,7 +630,7 @@ const inputRequestProposal = {
     requestType: namespaceCodeRef,
     question: safeSummaryRef,
     reason: safeSummaryRef,
-    targetRefs: nonEmptySet(typedReferenceRef),
+    targetRefs: uniqueSet(typedReferenceRef),
     expectedAnswerSpec: openJson(
       'Free-format CanonicalJson per 03-core-contracts §5.7 expectedAnswerSpec.',
     ),
@@ -630,7 +647,7 @@ const followUpProposal = {
     proposalId: uuidRef,
     followUpType: namespaceCodeRef,
     summary: safeSummaryRef,
-    targetRefs: nonEmptySet(typedReferenceRef),
+    targetRefs: uniqueSet(typedReferenceRef),
     suggestedWorkOrderHint: nonEmptyStringRef,
   },
 } as const satisfies JsonSchema;
@@ -692,9 +709,9 @@ const resultProvenance = {
     harness: harnessBinding,
     provider: namespaceCodeRef,
     model: modelBinding,
-    skillRefs: nonEmptySet(versionedRefRef),
-    policyRefs: nonEmptySet(versionedRefRef),
-    templateRefs: nonEmptySet(versionedRefRef),
+    skillRefs: uniqueSet(versionedRefRef),
+    policyRefs: uniqueSet(versionedRefRef),
+    templateRefs: uniqueSet(versionedRefRef),
     regulatoryProfileRef: versionedRefRef,
     executionNodeRef: externalRefRef,
     runtimeSessionExternalRef: externalRefRef,
@@ -725,10 +742,10 @@ const reviewIssueSnapshot = {
     'dismissedIssueRefs',
   ],
   properties: {
-    openBlockingIssueRefs: nonEmptySet(typedReferenceRef),
-    openNonBlockingIssueRefs: nonEmptySet(typedReferenceRef),
-    closedIssueRefs: nonEmptySet(typedReferenceRef),
-    dismissedIssueRefs: nonEmptySet(typedReferenceRef),
+    openBlockingIssueRefs: uniqueSet(typedReferenceRef),
+    openNonBlockingIssueRefs: uniqueSet(typedReferenceRef),
+    closedIssueRefs: uniqueSet(typedReferenceRef),
+    dismissedIssueRefs: uniqueSet(typedReferenceRef),
   },
 } as const satisfies JsonSchema;
 
@@ -751,27 +768,6 @@ const gateSpecRef = {
   },
 } as const satisfies JsonSchema;
 
-const gateResultRef = {
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'objectType',
-    'gateSpecId',
-    'gateResultId',
-    'qualityProfileVersionId',
-    'evaluationStage',
-    'revisionContentHash',
-  ],
-  properties: {
-    objectType: namespaceCodeRef,
-    gateSpecId: uuidRef,
-    gateResultId: uuidRef,
-    qualityProfileVersionId: uuidRef,
-    evaluationStage: { $ref: `${common}evaluationStage` },
-    revisionContentHash: contentHashRef,
-  },
-} as const satisfies JsonSchema;
-
 const evaluatorVersion = {
   type: 'object',
   additionalProperties: false,
@@ -788,7 +784,7 @@ const readinessSummary = {
   required: ['status', 'reasons'],
   properties: {
     status: { $ref: `${common}readinessStatus` },
-    reasons: nonEmptySet(nonEmptyStringRef),
+    reasons: uniqueSet(nonEmptyStringRef),
   },
 } as const satisfies JsonSchema;
 
@@ -820,7 +816,7 @@ const separationOfDutiesResult = {
   required: ['outcome', 'checkedAt'],
   properties: {
     outcome: { $ref: `${common}separationOfDutiesOutcome` },
-    violatedRules: nonEmptySet(nonEmptyStringRef),
+    violatedRules: uniqueSet(nonEmptyStringRef),
     checkedAt: utcInstantRef,
   },
 } as const satisfies JsonSchema;
@@ -831,7 +827,7 @@ const approvalCompleteness = {
   required: ['status', 'reasons'],
   properties: {
     status: { $ref: `${common}approvalCompletenessStatus` },
-    reasons: nonEmptySet(nonEmptyStringRef),
+    reasons: uniqueSet(nonEmptyStringRef),
   },
 } as const satisfies JsonSchema;
 
@@ -853,7 +849,7 @@ const releaseReadinessSummary = {
   required: ['status', 'reasons'],
   properties: {
     status: { $ref: `${common}releaseReadinessStatus` },
-    reasons: nonEmptySet(nonEmptyStringRef),
+    reasons: uniqueSet(nonEmptyStringRef),
   },
 } as const satisfies JsonSchema;
 
@@ -1062,18 +1058,17 @@ export const revisionAcceptanceSchema = strictContractSchema(
     qualityProfileRef: versionedRefRef,
     riskProfileRef: versionedRefRef,
     evaluationStage: { const: 'REVISION_ACCEPTANCE' },
-    requiredGateSpecs: nonEmptySet(gateSpecRef),
-    gateResultRefs: nonEmptySet(gateResultRef),
+    requiredGateSpecs: uniqueSet(gateSpecRef),
+    gateResultRefs: uniqueSet(contentAddressedRefRef),
     evidenceStatusSnapshotRef: snapshotRefRef,
     reviewIssueSnapshot,
-    evaluatorVersions: nonEmptySet(evaluatorVersion),
+    evaluatorVersions: uniqueSet(evaluatorVersion),
     readiness: readinessSummary,
     evaluatedAt: utcInstantRef,
   },
   {
     reviewIssueSnapshot,
     gateSpecRef,
-    gateResultRef,
     evaluatorVersion,
     readinessSummary,
   },
@@ -1102,9 +1097,9 @@ export const approvalBundleSchema = strictContractSchema(
     revisionAcceptanceSnapshotRef: snapshotRefRef,
     qualityProfileRef: versionedRefRef,
     approvalRequirements: nonEmptySet(approvalRequirement),
-    approvalRefs: nonEmptySet(contentAddressedRefRef),
+    approvalRefs: uniqueSet(contentAddressedRefRef),
     separationOfDutiesResult,
-    authorizationSnapshotRefs: nonEmptySet(snapshotRefRef),
+    authorizationSnapshotRefs: uniqueSet(snapshotRefRef),
     completeness: approvalCompleteness,
     evaluatedAt: utcInstantRef,
   },
@@ -1144,10 +1139,10 @@ export const releaseReadinessSchema = strictContractSchema(
     releasePackageRef: { $ref: `${common}releasePackageRef` },
     purpose: safeSummaryRef,
     recipientScopeSnapshotRef: snapshotRefRef,
-    destinationRefs: nonEmptySet(typedReferenceRef),
-    releaseRequirements: nonEmptySet(releaseRequirement),
-    requiredReleaseGateSpecs: nonEmptySet(gateSpecRef),
-    releaseGateResultRefs: nonEmptySet(gateResultRef),
+    destinationRefs: nonEmptySet(externalRefRef),
+    releaseRequirements: uniqueSet(releaseRequirement),
+    requiredReleaseGateSpecs: uniqueSet(gateSpecRef),
+    releaseGateResultRefs: uniqueSet(contentAddressedRefRef),
     readiness: releaseReadinessSummary,
     evaluatedAt: utcInstantRef,
   },

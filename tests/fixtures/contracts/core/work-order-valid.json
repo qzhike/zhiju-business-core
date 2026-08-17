@@ -4,9 +4,10 @@
     "contractType": "zhiju.contract.work_order",
     "contractVersion": "1.0",
     "schemaRef": {
-      "kind": "OBJECT",
+      "kind": "VERSIONED",
       "objectType": "zhiju.contract.schema",
       "objectId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
+      "versionId": "018f22e2-7c15-7d42-8d86-2de956a9d22a",
       "scope": {
         "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
       }
@@ -16,12 +17,8 @@
     },
     "issuedAt": "2026-08-17T00:00:00Z",
     "issuedBy": {
-      "kind": "OBJECT",
-      "objectType": "zhiju.contract.issued_by",
-      "objectId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
-      "scope": {
-        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
-      }
+      "principalKind": "SERVICE",
+      "principalId": "018f22e2-7c15-7d52-8d86-2de956a9d22b"
     },
     "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
     "dataClassification": "INTERNAL",

@@ -4,9 +4,10 @@
     "contractType": "zhiju.contract.release_readiness",
     "contractVersion": "1.0",
     "schemaRef": {
-      "kind": "OBJECT",
+      "kind": "VERSIONED",
       "objectType": "zhiju.contract.schema",
       "objectId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
+      "versionId": "018f22e2-7c15-7d42-8d86-2de956a9d22a",
       "scope": {
         "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
       }
@@ -16,12 +17,8 @@
     },
     "issuedAt": "2026-08-17T00:00:00Z",
     "issuedBy": {
-      "kind": "OBJECT",
-      "objectType": "zhiju.contract.issued_by",
-      "objectId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
-      "scope": {
-        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
-      }
+      "principalKind": "SERVICE",
+      "principalId": "018f22e2-7c15-7d52-8d86-2de956a9d22b"
     },
     "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
     "dataClassification": "INTERNAL",
@@ -129,18 +126,10 @@
   },
   "destinationRefs": [
     {
-      "kind": "CONTENT_ADDRESSED",
-      "objectType": "zhiju.integration.destination",
-      "objectId": "018f22e2-7c15-7bd2-8d86-2de956a9d213",
-      "scope": {
-        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
-        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
-      },
-      "contentHash": {
-        "algorithm": "SHA-256",
-        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
-        "canonicalizationVersion": "1"
-      }
+      "system": "feishu",
+      "resourceType": "chat",
+      "externalId": "oc_release_destination",
+      "observedAt": "2026-08-17T00:00:00Z"
     }
   ],
   "releaseRequirements": [
@@ -171,12 +160,14 @@
   ],
   "releaseGateResultRefs": [
     {
+      "kind": "CONTENT_ADDRESSED",
       "objectType": "zhiju.quality.gate_result",
-      "gateSpecId": "018f22e2-7c15-7c02-8d86-2de956a9d216",
-      "gateResultId": "018f22e2-7c15-7c12-8d86-2de956a9d217",
-      "qualityProfileVersionId": "018f22e2-7c15-7c22-8d86-2de956a9d218",
-      "evaluationStage": "RELEASE_READINESS",
-      "revisionContentHash": {
+      "objectId": "018f22e2-7c15-7c12-8d86-2de956a9d217",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
         "algorithm": "SHA-256",
         "digest": "0000000000000000000000000000000000000000000000000000000000000000",
         "canonicalizationVersion": "1"

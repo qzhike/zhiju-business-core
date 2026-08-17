@@ -3,7 +3,7 @@
 日期：2026-08-17
 环境：`C:\Users\galen\Repo\zhiju-business-core`，Windows/PowerShell，本地工作树
 状态：`BASELINE / IM-00 COMPLETE / IM-01 IN PROGRESS / CURRENT SLICE VERIFIED`
-最新切片：[Issue #1] 完成 Core Contract 嵌套字段级 Schema。
+最新切片：PR #11 Core Contract Schema review 修复。
 
 ## 1. 验证范围
 
@@ -32,6 +32,7 @@
 | IM01-HTTP-001 | 编译后 NestJS/Fastify ESM API | 真实进程启动并响应 health | `GET /health -> {"status":"ok"}` | `PASS` |
 | IMP-GIT-001 | 当前 diff 与工作树 | IdentityPolicy 切片已提交；本轮边界可定位 | `base=45743d7 modified_entries=11 untracked_entries=4 diff_check=0` | `PASS` |
 | IM01-CC-001 | Issue #1 六个 Core Contract 嵌套字段级 Schema | 全部 Nest 结构落地、$defs 抽取、unknown/referencestrength/enum/缺 required 负向拒绝、AJV strict 通过 | `contracts=6 fixture_positives=6 negative_tests=24 registry=200 tests=68 PASS` | `PASS` |
+| IM01-CC-RF-001 | PR #11 review 修复：Set 基数、ValueEnvelope、required/引用强度、GateResult、golden fixture | Ajv strict 编译；错误输入拒绝；允许的空 Set 保持合法；fixture 无漂移；全量 Gate 通过 | `focused=63/63 full=86/86 fixtures=6 format=PASS lint=PASS typecheck=PASS architecture=PASS catalog=200 registry=200` | `PASS` |
 
 ## 3. 关键静态检查
 
@@ -61,7 +62,7 @@ git_diff_check=0
 - Persistence 与业务 E2E；
 - PostgreSQL、MicroCeph/Ceph RGW、OpenBao、Keycloak、飞书、三个 CLI、Renderer、备份恢复、负载和人工验收；
 - 6 个 Runtime additive Command 的 Catalog/API/Module 变更；
-- Issue #1 仍开放的 CanonicalJson 节点：`common.valueEnvelope.value`、`common.page.items`、`common.extension.payload`、`workOrder.constraints[] items`、`agentResult.inputRequestProposals[].expectedAnswerSpec`。这些节点在文档 `Module-Spec-IM01-CoreContracts.md §7` 标注了替代强制路径，运行期由 Contract Validator 落实。
+- Issue #1 仍开放的 CanonicalJson 节点：`common.valueEnvelope.value`、`common.page.items`、`common.extension.payload`、`workOrder.constraints[] items`、`agentResult.inputRequestProposals[].expectedAnswerSpec`。这些节点在文档 `Module-Spec-IM01-CoreContracts.md §7` 标注了替代强制路径；其中 `ValueEnvelope` 的 presence/value 结构条件已由 Schema 强制，具体 T 与其他业务不变量仍由 Contract Validator 落实。
 
 ## 5. 剩余风险
 
