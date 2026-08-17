@@ -1,8 +1,8 @@
 # Zhiju Business Core 基准规格与 Agent 入口
 
 版本：v0.1
-日期：2026-08-13
-状态：`CURRENT DESIGN BASELINE / API CONTRACT BASELINE USER REVIEWED 2026-08-13 / FEISHU CHANNEL DRAFT DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
+日期：2026-08-16
+状态：`CURRENT DESIGN BASELINE / API USER REVIEWED / FEISHU USER PROGRESSION CONFIRMED / RUNTIME ADAPTER DRAFT DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -75,6 +75,17 @@ Feishu Channel v0.1 的专项协议固定维护在 `.vibe/feishu-channel-contrac
 | [`../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md) | Feishu Channel Unit/Contract/E2E/Manual 场景、输入、预期、实际和结果 |
 | [`../feishu-channel-contract-v0.1/Task-Plan.md`](../feishu-channel-contract-v0.1/Task-Plan.md) | 本阶段里程碑、执行顺序、人工审核 Gate 与状态 |
 | [`../feishu-channel-contract-v0.1/Verification-Report.md`](../feishu-channel-contract-v0.1/Verification-Report.md) | 官方协议证据、映射覆盖、安全边界、Markdown 和 diff 静态验证结果 |
+
+### 2.4 Runtime Adapter Contract 阶段文档
+
+Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contract-v0.1/`；该目录只拥有 WorkOrder/Run/AgentResult 与外部 Harness 协议之间的 Anti-Corruption 映射，不拥有 TaskExecution 业务状态，也不把 Runtime Session、文件或自报完成提升为 Core 事实。
+
+| 文档 | 唯一权威范围 |
+|---|---|
+| [`../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md) | Execution Package、Adapter Port、本地 CLI Process Driver、标准事件、Lease/Fencing、Result/Usage、Resume/Retry、CLI Profile 与安全边界 |
+| [`../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md) | Runtime Adapter Unit/Contract/E2E/Manual 场景、输入、预期、实际和结果 |
+| [`../runtime-adapter-contract-v0.1/Task-Plan.md`](../runtime-adapter-contract-v0.1/Task-Plan.md) | 本阶段范围、里程碑、执行顺序、审核与提交 Gate |
+| [`../runtime-adapter-contract-v0.1/Verification-Report.md`](../runtime-adapter-contract-v0.1/Verification-Report.md) | Provider 资料、API 映射、proposal、安全、Markdown 和 diff 静态证据 |
 
 模块职责仍只由 `02` 冻结，公开名称/Owner 仍只由 `06` 冻结；Module Spec 不得重新划分所有权。API 阶段文档已于 2026-08-13 通过用户审核并构成当前字段级 API 基准，但不能覆盖已审核高层基准。
 
@@ -232,16 +243,22 @@ BusinessCore
 - 七个 Module Spec 与七个 Module Test；
 - 200 个公开 Catalog 条目的字段级覆盖；用户于 2026-08-13 确认审核通过，静态 Gate 已 `DESIGN VERIFIED`，不代表实现或运行时验收通过。
 
-已完成草稿并待用户审核：
+已审核并授权进入下一阶段：
 
 - Feishu Channel Contract v0.1；
 - Feishu Channel Test v0.1 的 32 个场景；
 - 8 个允许入站事件、6 个核心 Provider API 和 11 类 Channel Intent 映射；
-- 4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个运行/真实飞书/人工场景仍为 `NOT RUN`。
+- 4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个运行/真实飞书/人工场景仍为 `NOT RUN`；用户于 2026-08-16 指示继续下一阶段，四个向后兼容 optional minor 字段纳入 API v0.1 基准。
+
+当前进行中：
+
+- Runtime Adapter Contract v0.1，草稿已完成静态 `DESIGN VERIFIED`；
+- Runtime Adapter Test v0.1 的 32 个场景；
+- Codex CLI、Claude Code CLI、OpenClaw CLI Capability Profile；
+- 6 个 additive TaskExecution Command proposal，用户审核前不写入 200 项 Catalog 基准。
 
 尚未完成：
 
-- Runtime Adapter Contract；
 - Canonical Document/Workbook 最小实现 Schema；
 - 可执行 DDL、Migration、Repository 和业务代码；
 - Renderer、部署、监控和运行手册；
@@ -252,9 +269,9 @@ BusinessCore
 ```text
 Command / Query / Event API Contract v0.1  （BASELINE / USER REVIEWED 2026-08-13）
     ↓
-Feishu Channel Contract v0.1  （DRAFT DESIGN VERIFIED / USER REVIEW PENDING）
+Feishu Channel Contract v0.1  （BASELINE / USER PROGRESSION CONFIRMED 2026-08-16）
     ↓
-Runtime Adapter Contract v0.1
+Runtime Adapter Contract v0.1  （DRAFT DESIGN VERIFIED / USER REVIEW PENDING）
     ↓
 Implementation Milestone Plan
     ↓
@@ -347,4 +364,4 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目当前处于字段级 API 设计阶段。高层基准已获用户确认，API Contract/Module Spec/Test 尚待用户审核；所有实现、外部和人工运行验证均为 `NOT RUN`，Git Commit 未经本轮用户确认不会执行。
+本项目当前处于 Runtime Adapter Contract v0.1 设计阶段。高层、API 与 Feishu Channel 基准已获用户推进确认；Runtime 专项草稿与新增 API proposal 尚待审核。所有实现、外部和人工运行验证均为 `NOT RUN`，Git Commit 未经本轮用户确认不会执行。

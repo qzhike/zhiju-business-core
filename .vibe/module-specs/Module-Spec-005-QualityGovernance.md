@@ -290,6 +290,6 @@ QUALITY_RELEASE_READINESS_NOT_READY
 ## 9. 当前状态
 
 - 37 个公开 Contract 已定义字段级 payload/result/event 结构；
-- 设计稿待用户审核；
+- API v0.1 已于 2026-08-13 通过用户审核；
 - Gate Evaluator、Profile Registry、Readiness Evaluator、Persistence 与测试实现均不存在；
 - 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。

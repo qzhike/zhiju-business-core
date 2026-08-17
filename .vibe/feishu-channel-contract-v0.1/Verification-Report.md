@@ -2,7 +2,7 @@
 
 日期：2026-08-13
 环境：`/Users/galendai/repo/zhiju-business-core`，macOS/zsh，本地工作树
-状态：`DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
+状态：`DESIGN VERIFIED / USER PROGRESSION CONFIRMED 2026-08-16 / IMPLEMENTATION NOT STARTED`
 
 ## 1. 验证范围
 
@@ -104,7 +104,7 @@ git diff --no-index --check /dev/null <each-untracked-markdown-file>
 1. 旧高层示例把所有飞书入站统一写成 `tenant + eventId`；官方消息事件要求按 `message_id` 去重。本阶段已把消息和其他事件的 Provider 语义幂等键分开，并同步 `05`、`07` 和 IntegrationGateway Spec。
 2. 已审核的 `ChannelBindingDefinition` 只有 Enterprise/Project，不能表达已冻结的话题到 Task/WorkOrder/InformationRequest 上下文；提出 optional `businessContextRefs/runtimeContextExternalRef`。
 3. 已审核的 `FeishuDeliveryRequest` 不能区分新消息、回复和话题回复；提出 optional `deliveryMode/replyToExternalRef`。
-4. 四个字段均明确保持 `USER REVIEW PENDING`，未静默覆盖 API v0.1 基准。
+4. 四个字段在本报告形成时保持 `USER REVIEW PENDING`；用户于 2026-08-16 指示进入下一阶段后，已显式同步纳入 API v0.1 基准。
 
 ## 6. 未执行项与剩余风险
 
@@ -126,4 +126,4 @@ git diff --no-index --check /dev/null <each-untracked-markdown-file>
 
 ## 7. Git 状态
 
-本阶段文档和同步修改位于工作树，尚未暂存、未 Commit。用户审核 Feishu Channel v0.1 并确认更改前，不提交，也不进入 Runtime Adapter Contract。
+本报告形成时文档尚未提交；随后已形成提交 `c2d7355`。用户于 2026-08-16 指示进入 Runtime Adapter Contract，阶段进入 Gate 已满足；所有真实飞书和运行验证仍保持 `NOT RUN`。

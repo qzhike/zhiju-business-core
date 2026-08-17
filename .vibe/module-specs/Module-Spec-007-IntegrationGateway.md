@@ -1,8 +1,8 @@
 # Module-Spec-007-IntegrationGateway
 
 版本：v0.1
-日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / FEISHU OPTIONAL MINOR PROPOSAL DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
+日期：2026-08-16
+状态：`CURRENT MODULE CONTRACT BASELINE / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME ADAPTER DRAFT DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -10,7 +10,7 @@
 
 IntegrationGateway 是 InboundEnvelope、ChannelBinding、Channel/Runtime/Render Attempt、RawExternalReceipt、Quarantine 和 AdapterHealth Observation 的唯一写入 Owner。它是飞书、Runtime、Renderer 与 Core 之间的 Anti-Corruption Layer，只记录外部协议事实与尝试，不拥有 Project/Task/Artifact/Quality/Release 规则或任何业务完成语义。
 
-本模块位于同步依赖最外层，可调用业务模块公开 Application Port；业务 Domain 不依赖本模块 SDK/DTO，只通过 Port/Event 协作。API 测试规格见 [`Module-Test-007-IntegrationGateway.md`](../module-tests/Module-Test-007-IntegrationGateway.md)。飞书原始协议字段、幂等键、Binding、消息/文件/卡片、投递回执和安全映射由 [`Feishu-Channel-Contract-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Contract-v0.1.md) 专项维护；该专项不得改变本模块或其他模块的业务所有权。Runtime 原始协议仍留给后续 Runtime Adapter Contract。
+本模块位于同步依赖最外层，可调用业务模块公开 Application Port；业务 Domain 不依赖本模块 SDK/DTO，只通过 Port/Event 协作。API 测试规格见 [`Module-Test-007-IntegrationGateway.md`](../module-tests/Module-Test-007-IntegrationGateway.md)。飞书原始协议字段、幂等键、Binding、消息/文件/卡片、投递回执和安全映射由 [`Feishu-Channel-Contract-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Contract-v0.1.md) 专项维护；Runtime 原始协议、Execution Package、本地 CLI Process Driver、标准事件、Result/Usage、Resume/Retry 和 CLI Profile 由 [`Runtime-Adapter-Contract-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md) 专项维护。两个专项均不得改变本模块或其他模块的业务所有权。
 
 ## 2. 模块类型
 
@@ -108,12 +108,12 @@ QuarantineDefinition
 └── quarantinedAt: UtcInstant
 ```
 
-`businessContextRefs`、`runtimeContextExternalRef`、`deliveryMode` 和 `replyToExternalRef` 是 Feishu Channel v0.1 提出的向后兼容 optional minor 字段，当前保持 `USER REVIEW PENDING`：
+`businessContextRefs`、`runtimeContextExternalRef`、`deliveryMode` 和 `replyToExternalRef` 是 Feishu Channel v0.1 提出的向后兼容 optional minor 字段，已随用户 2026-08-16 推进确认纳入 API v0.1 基准：
 
 - `businessContextRefs` 只允许同一 Project 下的 Task、WorkOrder、InformationRequest、ApprovalRequest 或 Release 等已注册 Typed Reference；不得放入飞书消息、Runtime Session 或 workspace path；
 - `runtimeContextExternalRef` 只用于可观测路由，永远不参与身份、权限或业务对象相等性；
 - `deliveryMode` 缺省为 `NEW_MESSAGE`；`REPLY/REPLY_IN_THREAD` 必须同时给出属于同一 Binding 的 `replyToExternalRef`；
-- 这些字段在 Feishu Channel 用户审核通过前不视为已批准 API v0.1 基准变更。
+- 这些字段 absent 时保持旧 Consumer 语义，属于向后兼容 Minor；不得借此扩大身份或权限。
 
 `externalEventRef` 表示 Provider 的语义幂等标识，不保证等于传输事件头 ID。飞书 `im.message.receive_v1` 必须使用 `app + tenant + message_id`；其他当前允许的飞书事件使用 `app + tenant + header.event_id`。Provider 原始投递 ID 仍保存在认证/传输元数据中用于审计。
 
@@ -230,5 +230,5 @@ INTEGRATION_QUARANTINE_REQUIRED
 
 - 23 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核并成为字段级基准；
-- Feishu Channel Contract v0.1 已完成本轮静态 `DESIGN VERIFIED`，并提出四个 optional minor 字段，整体保持 `USER REVIEW PENDING`；Runtime Adapter Contract、Renderer Adapter、Credentials、Persistence 与测试实现均不存在；
+- Feishu Channel Contract v0.1 已完成静态 `DESIGN VERIFIED`，四个 optional minor 字段已随用户推进确认纳入基准；Runtime Adapter Contract v0.1 草稿也已完成静态 `DESIGN VERIFIED`，Renderer Adapter、Credentials、Persistence 与测试实现均不存在；
 - 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。

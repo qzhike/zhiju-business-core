@@ -1,6 +1,6 @@
 # Feishu Channel Contract v0.1 工作计划
 
-状态：`DESIGN VERIFIED / AWAITING USER REVIEW / IMPLEMENTATION NOT STARTED`
+状态：`DESIGN VERIFIED / USER PROGRESSION CONFIRMED 2026-08-16 / IMPLEMENTATION NOT STARTED`
 日期：2026-08-13
 执行者：Codex（主 Agent）
 
@@ -60,7 +60,7 @@
 | FC-M2 入站与 Binding | 身份、会话、话题、附件、卡片映射 | 用脱敏 Fixture 判断消息是否能越权改变 Core | `DESIGN VERIFIED` |
 | FC-M3 出站与回执 | 通知、回复、正式 Release、重试/UNKNOWN | 区分普通发送回执与 Formal PublicationReceipt | `DESIGN VERIFIED` |
 | FC-M4 测试与静态 Gate | 32 个测试、验证报告 | 检查输入/预期/实际/结果与静态证据 | `DESIGN VERIFIED` |
-| FC-M5 用户审核 | 审核结论和修订意见 | 确认第 16 节设计选择及 optional minor 字段 | 待审核 |
+| FC-M5 用户审核 | 审核结论和修订意见 | 确认第 16 节设计选择及 optional minor 字段 | 用户已指示进入下一阶段 |
 
 ## 6. 人工审核产出
 
@@ -75,7 +75,7 @@
 
 ## 7. 提交 Gate
 
-用户确认 Feishu Channel v0.1 文档更改前：
+用户已于 2026-08-16 指示进入下一阶段；本 Gate 已满足。历史约束为：
 
 - 不执行 `git add`；
 - 不执行 Git Commit；

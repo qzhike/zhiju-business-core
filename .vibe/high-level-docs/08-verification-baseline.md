@@ -1,8 +1,8 @@
 # Zhiju Business Core 验证基准
 
 版本：v0.1
-日期：2026-08-13
-状态：`CURRENT VERIFICATION BASELINE / FEISHU CHANNEL DRAFT DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
+日期：2026-08-16
+状态：`CURRENT VERIFICATION BASELINE / FEISHU USER PROGRESSION CONFIRMED / RUNTIME ADAPTER DRAFT DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -74,8 +74,9 @@
 | PostgreSQL Logical Model 场景 | [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md) | 24 | `NOT RUN` |
 | 跨模块验收场景 | 本文第 5 节 | 57 | `NOT RUN` |
 | API Module Test 场景 | [七份 Module Test](../module-tests/) | 63 | 7 个 Design Gate `DESIGN VERIFIED`；其余 56 个 `NOT RUN` |
-| Feishu Channel 专项场景 | [`Feishu-Channel-Test-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md) | 32 | 4 个 Design Gate `DESIGN VERIFIED`；其余 28 个 `NOT RUN`；用户审核待定 |
-| 合计 |  | 330 | 尚未实现；静态设计检查不代表运行测试 |
+| Feishu Channel 专项场景 | [`Feishu-Channel-Test-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md) | 32 | 4 个 Design Gate `DESIGN VERIFIED`；其余 28 个 `NOT RUN`；用户已指示进入下一阶段 |
+| Runtime Adapter 专项场景 | [`Runtime-Adapter-Test-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md) | 32 | 4 个 Design Gate `DESIGN VERIFIED`；其余 28 个 `NOT RUN`；用户审核待定 |
+| 合计 |  | 362 | 尚未实现；静态设计检查不代表运行测试 |
 
 数量用于发现遗漏，不代表覆盖率或通过率。后续实现可以拆分出更多测试，但不得删除业务语义等价的失败路径。
 
@@ -85,7 +86,7 @@
 
 | ID | 检查 | 通过条件 |
 |---|---|---|
-| V-DOC-001 | 文档集合 | `.vibe/high-level-docs/` 仍只包含一个入口 `HL-Spec` 和 `01`—`08` 八份专题高层基准，共九份；阶段文档只位于 `api-contract-v0.1/`、`module-specs/` 和 `module-tests/` |
+| V-DOC-001 | 文档集合 | `.vibe/high-level-docs/` 仍只包含一个入口 `HL-Spec` 和 `01`—`08` 八份专题高层基准，共九份；阶段文档位于明确的 API、Feishu、Runtime、Module Spec/Test 目录 |
 | V-DOC-002 | Agent 入口 | `HL-Spec` 明确阅读路由、冻结规则、状态口径、变更纪律和下一阶段 |
 | V-DOC-003 | 唯一权威 | 每份基准声明权威范围；同一模块职责不由第二份文档维护 |
 | V-DOC-004 | 模块边界 | 七模块在架构基准中都有职责、所有权、非职责、端口类别、依赖、持久化边界和验收锚点 |
@@ -109,6 +110,10 @@
 | V-DOC-022 | 飞书协议映射 | 允许的飞书事件/API、外部幂等键、原始字段、Core API 目标和未知协议处置均明确，且不新增业务 Owner |
 | V-DOC-023 | 飞书安全边界 | Webhook/长连接认证边界、身份映射、最小权限、敏感标识、卡片 nonce、附件 Staging 和 Credential 禁存规则明确 |
 | V-DOC-024 | 飞书业务边界 | 普通消息/附件/卡片/发送回执不冒充 Fact、Answer、Approval、Release、Task Completion 或 EffectiveBinding |
+| V-DOC-025 | Runtime Adapter 文档集合 | 专项 Contract、Test、Task Plan、Verification Report 各一份，位于 `runtime-adapter-contract-v0.1/` 并由 HL、TaskExecution/IntegrationGateway Spec/Test 路由 |
+| V-DOC-026 | Runtime 映射 | Execution Package、Dispatch、Event、Result、Usage、Cancel、Resume/Retry 与现有 Core API 目标明确，不新增业务 Owner |
+| V-DOC-027 | Runtime 安全边界 | 单 Run Capability、Workspace/Sandbox、Secret、Network/Tool、Lease/Fencing、late result、Chain of Thought 禁存规则明确 |
+| V-DOC-028 | Runtime API proposal 隔离 | 6 个 additive Command 在审核前不进入 200 项 Catalog/Module 基准，也不允许实现绕过 public port 直写 Repository |
 
 ---
 
@@ -317,12 +322,13 @@ remaining risk
 
 ## 9. 当前状态
 
-截至 2026-08-13：
+截至 2026-08-17：
 
 - 高层设计基准已由用户审核通过；字段级 API Contract、七份 Module Spec 与七份 Module Test 已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；
 - 本文中的 235 个实现前场景均仍为 `NOT RUN`；
 - API Module Test 新增 63 个场景：7 个 Design Gate 已有当前静态证据并标记 `DESIGN VERIFIED`，其余 56 个 Unit/Contract/E2E/Manual 均为 `NOT RUN`；证据见 [`../api-contract-v0.1/Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)；
-- Feishu Channel 新增 32 个专项场景：4 个 Design Gate 已完成静态 `DESIGN VERIFIED`，其余 28 个 Unit/Contract/E2E/Manual 均为 `NOT RUN`；草稿保持 `USER REVIEW PENDING`，证据见 [`../feishu-channel-contract-v0.1/Verification-Report.md`](../feishu-channel-contract-v0.1/Verification-Report.md)；
+- Feishu Channel 新增 32 个专项场景：4 个 Design Gate 已完成静态 `DESIGN VERIFIED`，其余 28 个 Unit/Contract/E2E/Manual 均为 `NOT RUN`；用户于 2026-08-16 指示继续 Runtime 阶段，证据见 [`../feishu-channel-contract-v0.1/Verification-Report.md`](../feishu-channel-contract-v0.1/Verification-Report.md)；
+- Runtime Adapter 新增 32 个专项场景：4 个 Design Gate 已完成静态 `DESIGN VERIFIED`，其余 28 个 Unit/Contract/E2E/Manual 均为 `NOT RUN`；用户已澄清 v0.1 直接调用预安装的 Codex CLI、Claude Code CLI、OpenClaw CLI，不采用 SDK/App Server/API 直连；不得从官方 CLI 文档推断本地或生产验证通过；
 - 尚无 DDL、Migration、Repository、业务代码、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
 - 尚无真实 PostgreSQL、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；
 - 不得从设计文档推断任何运行时 Gate 已通过。

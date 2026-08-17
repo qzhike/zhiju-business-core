@@ -10,7 +10,7 @@
 
 TaskExecution 是 Task、WorkOrder、ContextSnapshot、Run、AgentResult、InformationRequest、Usage 与 Completion/Recovery Process 的唯一写入 Owner。它拥有“谁被授权尝试做什么、在什么上下文中发生了哪次执行”，但不拥有 Project Fact、ArtifactRevision 内容、Gate、Approval、Release 或 Harness Session 内部状态。
 
-同步读取 IdentityPolicy Decision 与 EnterpriseProject/Artifact/QualityGovernance/ReleasePublication 的权限裁剪 Query；Runtime 外部副作用只能通过 IntegrationGateway Port。测试规格：[`Module-Test-003-TaskExecution.md`](../module-tests/Module-Test-003-TaskExecution.md)。
+同步读取 IdentityPolicy Decision 与 EnterpriseProject/Artifact/QualityGovernance/ReleasePublication 的权限裁剪 Query；Runtime 外部副作用只能通过 IntegrationGateway Port。测试规格：[`Module-Test-003-TaskExecution.md`](../module-tests/Module-Test-003-TaskExecution.md)。Runtime 原始协议、Execution Package、本地 CLI Process Driver、标准事件、Result/Usage 和 CLI Profile 由 [`Runtime-Adapter-Contract-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md) 专项维护；该专项不得改变本模块的业务所有权。
 
 ## 2. 模块类型
 
@@ -268,9 +268,17 @@ EXECUTION_COMPLETION_CRITERIA_UNSATISFIED
 
 里程碑 `API-TE-01` 的人工产出是可审阅 Fixture：一个冻结 WorkOrder 产生 Run-1，final BLOCKED_INPUT 后经授权答案形成新 ContextSnapshot 和 Run-2；Run-1、Usage、AgentResult 不变；AgentResult 的 scratch DOCX 不满足正式输出，Agent 也不能完成 Task。这里只验证 Contract 链，不代表 Runtime 或飞书闭环已运行。
 
+### 8.1 Runtime Adapter additive proposal
+
+Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
+
+提案覆盖 heartbeat、runtime progress、run suspension、same-run resume、authoritative usage 和 cancellation acknowledgement 六类写操作；完整候选名称与版本只在 Runtime 专项 Contract 第 15.1 节维护，避免审核前被机械计入正式 Catalog。
+
+这些操作是 `USER REVIEW PENDING` 的 additive proposal，不属于本文件当前已审核的 19 Command，也未进入 200 项 Catalog。审核通过后必须统一补齐 payload、授权、并发、错误、Catalog 和测试；审核前不得通过直接写 TaskExecution Repository 绕过 public port。
+
 ## 9. 当前状态
 
 - 37 个公开 Contract 已定义字段级 payload/result/event 结构；
-- 设计稿待用户审核；
+- API v0.1 已由用户审核；Runtime Adapter v0.1 草稿已完成静态 `DESIGN VERIFIED`，并提出 6 个尚未纳入基准的 additive Command；
 - Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与测试实现均不存在；
 - 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。

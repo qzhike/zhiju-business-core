@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT FEISHU CHANNEL DRAFT / DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT FEISHU CHANNEL BASELINE / DESIGN VERIFIED / USER PROGRESSION CONFIRMED 2026-08-16 / IMPLEMENTATION NOT STARTED`
 
 文档角色：飞书原始事件、消息/文件/卡片 API 与 Zhiju Core 之间 Anti-Corruption 映射的唯一权威。IntegrationGateway 的业务所有权和公开 Command/Query/Event 仍由 [`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md) 与 API v0.1 基准维护；本文不得创建第二套 Task、Approval、Release 或业务完成语义。
 
@@ -351,7 +351,7 @@ integration.ChannelDeliverySucceeded/Failed
 - `NEW_MESSAGE`：目标由 active ChannelBinding 决定；不得用用户回传的任意 chat/open_id。
 - `REPLY`：`replyToExternalRef` 必须属于同一 account/chat Binding。
 - `REPLY_IN_THREAD`：除上述约束外，Provider 返回的 root/parent/thread 必须与预期会话一致；不一致进入 Quarantine。
-- `deliveryMode/replyToExternalRef` 是本阶段提出的 optional minor 字段，用户审核前不视为 API 基准既成变更。
+- `deliveryMode/replyToExternalRef` 是本阶段提出并随用户 2026-08-16 推进确认纳入 API v0.1 基准的向后兼容 optional minor 字段。
 
 ### 9.3 Provider 幂等
 
@@ -533,9 +533,9 @@ Runtime/Render 的 Integration API 不在本专项展开；仍由后续 Adapter 
 11. Markdown 链接、代码围栏、表格、冲突标记和 tracked/untracked whitespace 检查通过；
 12. HL、08、IntegrationGateway Spec/Test 的路由与状态同步。
 
-## 16. 当前待用户审核的选择
+## 16. 用户推进确认的选择
 
-以下选择在用户审核通过前保持可逆：
+用户于 2026-08-16 指示继续 Runtime Adapter 下一阶段；按本阶段 Gate，以下选择纳入当前设计基准：
 
 1. v0.1 使用企业自建飞书应用和 Bot，不使用共享 Human Credential；
 2. 生产事件接收基准为 Webhook v2.0 + Encrypt Key，长连接仅作为同 Contract Adapter Variant；
@@ -552,7 +552,7 @@ Runtime/Render 的 Integration API 不在本专项展开；仍由后续 Adapter 
 
 - 官方协议 Surface、身份/Binding、消息/文件/卡片、出站和正式 Release 映射已形成草稿；
 - 现有 200 项公开 Catalog 名称未变；IntegrationGateway 仍是唯一 Channel Owner；
-- 提出四个 optional minor API 字段，尚未通过用户审核；
+- 四个 optional minor API 字段已随用户推进确认纳入 API v0.1 基准；
 - 32 个专项测试已定义；4 个 Design Gate 已完成静态 `DESIGN VERIFIED`，其余 28 个运行场景保持 `NOT RUN`；
 - Webhook、飞书应用、权限、Schema、Fixture、Adapter、Persistence、对象存储和业务实现均不存在；
 - 所有 Unit、Contract、E2E、真实飞书和 Manual 验证均为 `NOT RUN`。

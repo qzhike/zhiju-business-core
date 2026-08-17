@@ -1215,15 +1215,15 @@ Runtime Adapter 不负责：
 
 ### 14.2 Runtime 实施边界
 
-QM 已弃用，不再进入实现选型。Runtime 层采用 Zhiju 自己定义的最小 Adapter Contract，只封装 WorkOrder 投递、Run 生命周期、Usage/Provenance 收集和 AgentResult 回传。
+QM 已弃用，不再进入实现选型。Runtime 层采用 Zhiju 自己定义的最小 Adapter Contract，只封装 WorkOrder 投递、Run 生命周期、Usage/Provenance 收集和 AgentResult 回传。目标用户或服务器预先安装三个客户端；Zhiju 通过受控本地进程调用 CLI，不引入 SDK、App Server 或 Provider API 直连。
 
 ```text
 Zhiju Core
     ↓ Runtime Interface
-Thin Runtime Adapter
-    ├── Claude Code
-    ├── Codex
-    ├── OpenClaw
+CLI Runtime Adapter Host
+    ├── ClaudeCodeCliDriver ──> installed `claude`
+    ├── CodexCliDriver       ──> installed `codex`
+    ├── OpenClawCliDriver    ──> installed `openclaw`
     └── Future Runtime
 ```
 
@@ -1465,7 +1465,7 @@ executionNode
 - AgentResult；
 - InformationRequest；
 - AgentPrincipal；
-- 一个 Runtime Adapter。
+- 一个 CLI Runtime Adapter Host 与三个 Driver Profile。
 
 手动验收：同一个采购程序修订任务可由 Human 发起，经 Agent 产生 REV；Run、Usage、Context 和输出引用完整可查；缺少输入时通过飞书 InformationRequest 闭环后恢复；Agent 不能完成 Human Approval。
 
@@ -1994,7 +1994,7 @@ Core 采用状态模型加不可变版本/事实，不把 Outbox Event 当成完
 14. Human Approval 已确定为独立 Human 决策；后续需冻结各 ArtifactType 的单人、多角色、多级与职责分离规则；
 15. ChangeImpact 已确定为增量 Gate 的强制不可变输入；后续需冻结确定性算法边界；
 16. Canonical Document Model 和 WorkbookSpec 的 v0.1 最小范围；
-17. 第一阶段优先实现 Claude Code、Codex、OpenClaw 中的哪个 Runtime Adapter；
+17. 三种 CLI 的最低兼容版本、认证健康探测和默认路由顺序；
 18. 飞书群、话题、Task、WorkOrder 和 Runtime Session 的默认绑定策略；
 19. 飞书消息撤回、用户离职、群解散和跨项目转发的保留与审计规则；
 20. 企业敏感信息进入外部模型的策略；

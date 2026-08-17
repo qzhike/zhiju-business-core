@@ -1252,7 +1252,7 @@ stalenessStatus
 | Artifact | Artifact、不可变 Revision、线性 lineage + 显式 Merge 边界、Canonical Content 引用、基本 Diff |
 | QualityGovernance | 基础 QualityProfile、Revision Acceptance Gate、Release Readiness Render Gate、Issue、Human Approval |
 | ReleasePublication | Customer Delivery Release、冻结 Package、飞书发布、逐项 Receipt、基本 Recall 标记 |
-| IntegrationGateway | 完整双向飞书 Channel、一个 Runtime Adapter、Renderer Adapter 最小闭环 |
+| IntegrationGateway | 完整双向飞书 Channel、一个 CLI Runtime Adapter Host、三个 Driver Profile、Renderer Adapter 最小闭环 |
 | Consistency | Optimistic concurrency、Command/Event 幂等、Outbox/Inbox 语义、Process Manager 状态与审计 |
 | Workspace | Human 查看 Context、Diff、Issue、Gate、Approval、Release；复杂操作使用 Deep Link |
 
@@ -1328,7 +1328,7 @@ stalenessStatus
 2. SourceMaterial 二进制保留、消息撤回和客户删除请求的具体 Policy；
 3. DeliveryItem 激活后由 Coordinator 自动创建 DRAFT Task 的风险上限；
 4. WorkOrder Run Lease 默认期限、Heartbeat 和 fencingToken 续期规则；
-5. 第一版唯一 Runtime Adapter 选择 Claude Code、Codex 或 OpenClaw 中哪一个；
+5. Codex CLI、Claude Code CLI、OpenClaw CLI 的最低兼容版本、认证健康探测和默认路由顺序；
 6. Canonical Document 最小 Schema 和 Revision 封存时机；
 7. Branch 是否在 MVP UI 暴露，还是只在冲突时由 Workspace 展示；
 8. QualityProfile `QMS_PROCEDURE_HIGH` 的真实 GateSpec、角色和职责分离配置；
