@@ -1,0 +1,20 @@
+{
+  "runRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.run",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "agentDeclaredUsage": {
+    "presence": "UNKNOWN"
+  },
+  "authoritativeSource": "RUNTIME_ADAPTER",
+  "provenance": {
+    "reconciled": false,
+    "note": "agent declared usage is unavailable; runtime adapter did not produce a usage record"
+  },
+  "reconciliationStatus": "execution.usage.unknown"
+}

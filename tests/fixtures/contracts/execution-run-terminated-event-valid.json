@@ -1,0 +1,72 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9d430",
+  "eventType": "execution.RunTerminated",
+  "eventVersion": "1.0",
+  "producerModule": "task-execution",
+  "aggregateType": "execution.run",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+  "aggregateVersion": 4,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d431",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9d432",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d433",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:30:00Z",
+  "dataClassification": "INTERNAL",
+  "payload": {
+    "runRef": {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "workOrderRef": {
+      "kind": "OBJECT",
+      "objectType": "execution.work_order",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "terminalStatus": "SUCCEEDED",
+    "terminationReason": "EXECUTION_BLOCKED_INPUT",
+    "agentResultRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "execution.agent_result",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d434",
+      "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d435",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "6060606060606060606060606060606060606060606060606060606060606060",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "endedAt": "2026-08-17T00:30:00Z"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "7070707070707070707070707070707070707070707070707070707070707070",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

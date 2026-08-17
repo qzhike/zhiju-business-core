@@ -1,0 +1,53 @@
+{
+  "runRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.run",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "aggregateVersion": 3,
+  "workOrderRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.work_order",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "attemptNumber": 1,
+  "status": "RUNNING",
+  "runtimeBinding": {
+    "adapterCode": "runtime.local_cli",
+    "adapterVersion": "0.1.0",
+    "harnessId": "harness.coordinator",
+    "harnessVersion": "0.1.0",
+    "provider": "provider.test",
+    "modelId": "model-fixture-001",
+    "modelConfigHash": {
+      "algorithm": "SHA-256",
+      "digest": "1010101010101010101010101010101010101010101010101010101010101010",
+      "canonicalizationVersion": "1"
+    },
+    "executionSecret": "must-not-leak-in-state-view"
+  },
+  "contextSnapshotRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "project.context_snapshot",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d417",
+    "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d418",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "2020202020202020202020202020202020202020202020202020202020202020",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "currentFencingToken": 2
+}

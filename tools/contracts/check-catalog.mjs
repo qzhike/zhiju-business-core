@@ -34,7 +34,7 @@ const invalid = registry.operations.filter(
     !['ENVELOPE_ONLY', 'FULL'].includes(operation.schemaStatus),
 );
 
-const implementedOwners = new Set(['identity-policy', 'enterprise-project']);
+const implementedOwners = new Set(['identity-policy', 'enterprise-project', 'task-execution']);
 const invalidFullOperations = registry.operations.filter(
   (operation) => operation.schemaStatus === 'FULL' && !implementedOwners.has(operation.owner),
 );

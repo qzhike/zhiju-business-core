@@ -1,0 +1,69 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d450",
+  "commandType": "execution.start_run",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.run",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d451",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "execution-start-run-illegal-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d452",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "leaseId": "018f22e2-7c15-7b2e-8d86-2de956a9d453",
+    "fencingToken": -3,
+    "runtimeAttemptRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "runtime.runtime_attempt",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d454",
+      "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d455",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "startedAt": "2026-08-17T00:01:00Z"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

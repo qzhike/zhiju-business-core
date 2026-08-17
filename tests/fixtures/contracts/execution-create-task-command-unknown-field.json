@@ -1,0 +1,83 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d440",
+  "commandType": "execution.create_task",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.task",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d441",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d442",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "8080808080808080808080808080808080808080808080808080808080808080",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "execution-create-task-unknown-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d443",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "projectRef": {
+      "kind": "OBJECT",
+      "objectType": "project.project",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "definition": {
+      "deliveryItemRef": {
+        "kind": "VERSIONED",
+        "objectType": "project.delivery_item",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d405",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d406",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        }
+      },
+      "taskType": "document.draft",
+      "title": "Draft quality procedure SOP-001",
+      "objective": "Produce a draft quality procedure mapped to delivery item SOP-001",
+      "priority": "high",
+      "riskLevel": "moderate",
+      "dependencyTaskRefs": [],
+      "inputRefs": [],
+      "expectedOutputSpec": { "kind": "document" },
+      "completionCriteria": { "satisfiedBy": "businessOutput" },
+      "skipPolicyCheck": true
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "9090909090909090909090909090909090909090909090909090909090909090",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

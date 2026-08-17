@@ -1,0 +1,73 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9d470",
+  "eventType": "execution.RunStarted",
+  "eventVersion": "1.0",
+  "producerModule": "task-execution",
+  "aggregateType": "execution.run",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+  "aggregateVersion": 1,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d471",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9d472",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d473",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:01:00Z",
+  "dataClassification": "RESTRICTED_PERSONAL",
+  "payload": {
+    "runRef": {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "workOrderRef": {
+      "kind": "OBJECT",
+      "objectType": "execution.work_order",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "attemptNumber": 1,
+    "runtimeBindingSummary": { "adapterCode": "runtime.local_cli", "modelId": "model-fixture-001" },
+    "contextSnapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "project.context_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d417",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d418",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "2020202020202020202020202020202020202020202020202020202020202020",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "leaseId": "018f22e2-7c15-7b2e-8d86-2de956a9d474",
+    "sessionToken": "must-not-leak-in-event"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

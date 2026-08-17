@@ -1,8 +1,8 @@
 # Module-Spec-003-TaskExecution
 
-版本：v0.1
-日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+版本：v0.2
+日期：2026-08-17
+状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PAYLOAD + RESULT SCHEMA IMPLEMENTED 2026-08-17 / HANDLER IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -280,5 +280,8 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 
 - 37 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已由用户审核；Runtime Adapter v0.1 已获用户推进确认并进入 Implementation Milestone Plan，同时保留 6 个尚未纳入基准的 additive Command；
-- Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- `contracts/src/operations/task-execution.schema.ts` 已实现所有 37 个操作的 strict JSON Schema（19 Command Payload、7 Query Payload + 7 Query Result、11 Event Payload）；
+- 注册到 `ContractRegistry` 后所有 37 项 `schemaStatus` 从 `ENVELOPE_ONLY` 提升到 `FULL`；总 Catalog 仍为 200 项；
+- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与 200 项 Registry，等待用户审核通过后单独补齐；
+- Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与 Handler 实现均不存在；
+- 对应 Unit、Contract、E2E 与人工验收中，Schema 层 Contract fixture 已实现，Runtime/DB E2E 仍为 `NOT RUN`。
