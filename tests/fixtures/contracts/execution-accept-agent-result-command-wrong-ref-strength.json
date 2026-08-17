@@ -1,0 +1,138 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d460",
+  "commandType": "execution.accept_agent_result",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.agent_result_acceptance",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d461",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d462",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "execution-accept-agent-result-wrong-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d463",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "agentResultRef": {
+      "kind": "OBJECT",
+      "objectType": "execution.agent_result",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d464",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "schemaValidationRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "validation.schema",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d465",
+      "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d466",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "identityValidationRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "validation.identity",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d467",
+      "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d468",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "runBindingValidationRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "validation.run_binding",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d469",
+      "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d46a",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "scopeValidationRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "validation.scope",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d46b",
+      "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d46c",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "businessOutputValidationRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "validation.business_output",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d46d",
+      "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d46e",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "disposition": "ACCEPTED",
+    "reasons": ["VALIDATION_PASSED"]
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

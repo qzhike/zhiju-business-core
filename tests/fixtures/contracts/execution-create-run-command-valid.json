@@ -1,0 +1,132 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d410",
+  "commandType": "execution.create_run",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.run",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d412",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "8888888888888888888888888888888888888888888888888888888888888888",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "execution-create-run-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d413",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "creation": {
+      "workOrderRef": {
+        "kind": "OBJECT",
+        "objectType": "execution.work_order",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        }
+      },
+      "workOrderContractRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "execution.work_order_contract",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d415",
+        "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d416",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "attemptNumber": 1,
+      "runtimeBinding": {
+        "adapterCode": "runtime.local_cli",
+        "adapterVersion": "0.1.0",
+        "harnessId": "harness.coordinator",
+        "harnessVersion": "0.1.0",
+        "provider": "provider.test",
+        "modelId": "model-fixture-001",
+        "modelConfigHash": {
+          "algorithm": "SHA-256",
+          "digest": "1010101010101010101010101010101010101010101010101010101010101010",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "contextSnapshotRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "project.context_snapshot",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d417",
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d418",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "2020202020202020202020202020202020202020202020202020202020202020",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "capabilityGrantRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "execution.capability_grant_bundle",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d419",
+        "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d41a",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "3030303030303030303030303030303030303030303030303030303030303030",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "leasePolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "policy.lease",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d41b",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d41c",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+        }
+      },
+      "executionDeadline": "2026-08-17T01:00:00Z"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "4040404040404040404040404040404040404040404040404040404040404040",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

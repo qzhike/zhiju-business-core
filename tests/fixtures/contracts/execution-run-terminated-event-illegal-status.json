@@ -1,0 +1,57 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9d480",
+  "eventType": "execution.RunTerminated",
+  "eventVersion": "1.0",
+  "producerModule": "task-execution",
+  "aggregateType": "execution.run",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+  "aggregateVersion": 4,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d481",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9d482",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d483",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:30:00Z",
+  "dataClassification": "INTERNAL",
+  "payload": {
+    "runRef": {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "workOrderRef": {
+      "kind": "OBJECT",
+      "objectType": "execution.work_order",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "terminalStatus": "WHATEVER",
+    "terminationReason": "EXECUTION_BLOCKED_INPUT",
+    "endedAt": "2026-08-17T00:30:00Z"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

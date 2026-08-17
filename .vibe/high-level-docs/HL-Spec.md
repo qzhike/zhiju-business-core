@@ -277,12 +277,18 @@ BusinessCore
 - 对象存储采用 MicroCeph/Ceph RGW，Secret/KMS 采用 OpenBao，认证入口采用 Keycloak OIDC；MinIO 因官方仓库归档被否决；
 - IM-DG-005、IM-DG-006 仍待决，不阻塞 IM-01。
 
+当前 IM-01 TaskExecution 修复 Gate：
+
+- PR #10 已把 37 个 TaskExecution 操作注册为 `FULL`，但代码审查发现 Core Contract 引用、WorkOrder 子结构、SourceWatermark、分页、ValueEnvelope、公开 Event 最小化、终态枚举和 optional 字段共 8 类 Schema 偏差；
+- 修复必须以已审核的 `03-core-contracts.md`、共享 API Contract 和 `Module-Spec-003-TaskExecution.md` 为准，不得通过修改 Fixture 迁就错误 Schema；
+- 8 类偏差已修复并于 2026-08-17 获用户确认；修复已提交并推送。与 `main` 中 PR #11 Core Schema 集成后，`TE-API-S-009` 至 `TE-API-S-017`、全量 106 个自动测试、架构与 Catalog Gate 均为 `PASS`；这不代表 Handler、数据库、Runtime 或人工验收通过。
+
 尚未完成：
 
 - Canonical Document/Workbook 最小实现 Schema；
 - 可执行 DDL、Migration、Repository 和业务代码；
 - Renderer、部署、监控和运行手册；
-- 自动测试、外部服务验证和人工验收。
+- 未覆盖模块的自动测试、外部服务验证和人工验收。
 
 建议的下一阶段：
 
@@ -295,7 +301,7 @@ Runtime Adapter Contract v0.1  （BASELINE / USER PROGRESSION CONFIRMED 2026-08-
     ↓
 Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
     ↓
-IM-01 Repository + Executable Contracts  （IN PROGRESS / FULL 78 + ENVELOPE_ONLY 122）
+IM-01 Repository + Executable Contracts  （IN PROGRESS / FULL 115 + ENVELOPE_ONLY 85 / TASKEXECUTION + ARTIFACT INTEGRATION GATE PASS）
     ↓
 DDL / Migration / Repository / Application Code
 ```
@@ -386,6 +392,6 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。IdentityPolicy 20 个、EnterpriseProject 32 个与 Artifact 26 个操作已具有字段级 Payload/Event Schema 和 Query Result Schema，其余 122 个操作仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。PR #12 Review 确认的 Artifact Revision parent 数量与 Merge 冲突解决约束缺口已修复、提交并推送；与已合并 PR #11 的 `main@d5fb60a` 组合后全量 Gate 已通过，当前证据为 5 个测试文件、98/98 测试通过。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。
+本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个与 Artifact 26 个操作已具有字段级 Payload/Event Schema 和 Query Result Schema，其余 85 个操作仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。PR #10 与 PR #12 的 Schema review 修复均已保留；6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。
 
-PR #11 的 Core Contract 字段级 Schema review 修复已合并至 `main`：该切片恢复既有 `required`、Typed Reference 强度、Set 基数和 `ValueEnvelope` 条件约束，不改变冻结的 Core Contract 业务语义，也不扩大 IM-01 范围。修复记录见 [`../im-01-core-contract-review-fix/Task-Plan.md`](../im-01-core-contract-review-fix/Task-Plan.md)。
+PR #11 的 Core Contract 字段级 Schema review 修复已合并至 `main`：该切片恢复既有 `required`、Typed Reference 强度、Set 基数和 `ValueEnvelope` 条件约束，不改变冻结的 Core Contract 业务语义，也不扩大 IM-01 范围。修复记录见 [`../im-01-core-contract-review-fix/Task-Plan.md`](../im-01-core-contract-review-fix/Task-Plan.md)。TaskExecution 直接复用该权威 WorkOrder Schema 的共享 `$defs`，不得维护第二套 WorkOrder 子结构。
