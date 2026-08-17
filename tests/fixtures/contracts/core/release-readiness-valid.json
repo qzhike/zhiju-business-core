@@ -1,0 +1,182 @@
+{
+  "header": {
+    "contractId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
+    "contractType": "zhiju.contract.release_readiness",
+    "contractVersion": "1.0",
+    "schemaRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.contract.schema",
+      "objectId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
+      "versionId": "018f22e2-7c15-7d42-8d86-2de956a9d22a",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "scopeRef": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "issuedAt": "2026-08-17T00:00:00Z",
+    "issuedBy": {
+      "principalKind": "SERVICE",
+      "principalId": "018f22e2-7c15-7d52-8d86-2de956a9d22b"
+    },
+    "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
+    "dataClassification": "INTERNAL",
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "snapshotId": "018f22e2-7c15-7b92-8d86-2de956a9d20f",
+  "releaseRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.release.release",
+    "objectId": "018f22e2-7c15-7ba2-8d86-2de956a9d210",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "artifactRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.artifact.artifact",
+    "objectId": "018f22e2-7c15-7b32-8d86-2de956a9d209",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "revisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.artifact.artifact_revision",
+    "objectId": "018f22e2-7c15-7b42-8d86-2de956a9d20a",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "approvalBundleSnapshotRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.quality.approval_bundle_snapshot",
+    "objectId": "018f22e2-7c15-7b32-8d86-2de956a9d209",
+    "snapshotId": "018f22e2-7c15-7b82-8d86-2de956a9d20e",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "releasePackageRef": {
+    "releaseRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.release.release",
+      "objectId": "018f22e2-7c15-7ba2-8d86-2de956a9d210",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "packageSnapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.release.release_package",
+      "objectId": "018f22e2-7c15-7bb2-8d86-2de956a9d211",
+      "snapshotId": "018f22e2-7c15-7b22-8d86-2de956a9d208",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "packageHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "purpose": "CUSTOMER_DELIVERY",
+  "recipientScopeSnapshotRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.release.recipient_scope_snapshot",
+    "objectId": "018f22e2-7c15-7bc2-8d86-2de956a9d212",
+    "snapshotId": "018f22e2-7c15-7b22-8d86-2de956a9d208",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "destinationRefs": [
+    {
+      "system": "feishu",
+      "resourceType": "chat",
+      "externalId": "oc_release_destination",
+      "observedAt": "2026-08-17T00:00:00Z"
+    }
+  ],
+  "releaseRequirements": [
+    {
+      "requirementId": "018f22e2-7c15-7d72-8d86-2de956a9d22d",
+      "requirementType": "profile_compliance",
+      "profileRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.quality.quality_profile",
+        "objectId": "018f22e2-7c15-7b52-8d86-2de956a9d20b",
+        "versionId": "018f22e2-7c15-7b52-8d86-2de956a9d20b",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "satisfied": true
+    }
+  ],
+  "requiredReleaseGateSpecs": [
+    {
+      "objectType": "zhiju.quality.gate_spec",
+      "gateSpecId": "018f22e2-7c15-7c02-8d86-2de956a9d216",
+      "gateVersion": "1",
+      "qualityProfileVersionId": "018f22e2-7c15-7c22-8d86-2de956a9d218",
+      "evaluationStage": "RELEASE_READINESS"
+    }
+  ],
+  "releaseGateResultRefs": [
+    {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.quality.gate_result",
+      "objectId": "018f22e2-7c15-7c12-8d86-2de956a9d217",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    }
+  ],
+  "readiness": {
+    "status": "READY_FOR_AUTHORIZATION",
+    "reasons": []
+  },
+  "evaluatedAt": "2026-08-17T00:00:00Z"
+}
