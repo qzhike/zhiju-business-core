@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-16
-状态：`CURRENT MODULE CONTRACT BASELINE / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME ADAPTER DRAFT DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / IMPLEMENTATION PLAN DRAFT / APPLICATION CODE NOT STARTED`
 
 ## 1. 模块责任
 
@@ -230,5 +230,5 @@ INTEGRATION_QUARANTINE_REQUIRED
 
 - 23 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核并成为字段级基准；
-- Feishu Channel Contract v0.1 已完成静态 `DESIGN VERIFIED`，四个 optional minor 字段已随用户推进确认纳入基准；Runtime Adapter Contract v0.1 草稿也已完成静态 `DESIGN VERIFIED`，Renderer Adapter、Credentials、Persistence 与测试实现均不存在；
+- Feishu Channel Contract v0.1 已完成静态 `DESIGN VERIFIED`，四个 optional minor 字段已随用户推进确认纳入基准；Runtime Adapter Contract v0.1 已获用户推进确认并进入 Implementation Milestone Plan，Renderer Adapter、Credentials、Persistence 与测试实现均不存在；
 - 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。

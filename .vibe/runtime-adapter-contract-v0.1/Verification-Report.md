@@ -2,7 +2,7 @@
 
 日期：2026-08-17
 环境：`C:\Users\galen\Repo\zhiju-business-core`，Windows/PowerShell，本地工作树
-状态：`DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
+状态：`DESIGN VERIFIED / USER PROGRESSION CONFIRMED / IMPLEMENTATION NOT STARTED`
 
 ## 1. 验证范围
 
@@ -49,7 +49,7 @@ markdown_files=34 markdown_issues=0
 
 ## 5. API 缺口
 
-当前草稿识别 6 个 additive TaskExecution Command proposal。用户审核前：
+当前基线识别 6 个 additive TaskExecution Command proposal。用户明确批准前：
 
 - 不写入 200 项 Catalog；
 - 不改变 Module Spec 的已审核 Command 数；
@@ -67,4 +67,4 @@ markdown_files=34 markdown_issues=0
 
 ## 7. Git 状态
 
-草稿与同步修改位于工作树，未暂存、未 Commit。用户审核 Runtime Adapter v0.1、CLI 调用边界和 6 个 additive proposal 前不提交，也不进入实现阶段。
+Runtime Adapter CLI-first 文档与同步修改已由用户要求提交，基线 Commit 为 `c3e379c`。6 个 additive proposal 和默认 Policy 未随阶段推进自动获批。

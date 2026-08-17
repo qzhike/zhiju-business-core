@@ -2010,7 +2010,7 @@ Core 采用状态模型加不可变版本/事实，不把 Outbox Event 当成完
 30. 哪些 Query 强制 AUTHORITATIVE，哪些允许 Projection；
 31. v0.1 不强制服务端数字签名；后续哪些监管/客户场景需要独立签名扩展；
 32. Contract Payload Guard、数组上限和 Snapshot 正式保留期限；
-33. PostgreSQL 精确版本、允许扩展、RLS Context 实现和 Migration Tool；
+33. 已冻结：PostgreSQL 18.6、`btree_gist`/`pg_stat_statements`、Flyway CLI 手写 SQL；RLS Context 具体实现仍待 IM-02 spike；
 34. 对象存储/KMS、HMAC Lookup Key、Legal Hold 和 Orphan Cleanup 参数；
 35. Outbox Transport、分区阈值、PITR/归档与真实性能基准。
 

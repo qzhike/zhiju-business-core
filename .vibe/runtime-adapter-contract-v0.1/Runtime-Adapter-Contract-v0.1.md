@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`DRAFT / DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
+状态：`BASELINE / DESIGN VERIFIED / USER PROGRESSION CONFIRMED / IMPLEMENTATION NOT STARTED`
 
 文档角色：Runtime/Harness 原始协议与 Zhiju Core WorkOrder、Run、AgentResult 之间 Anti-Corruption 映射的唯一权威。业务对象、公开 API 名称和数据库所有权仍分别由高层基准、API v0.1/Module Spec 和 PostgreSQL Logical Model 维护；本文不得创建第二套 Task、Run、Completion、Approval 或 Release 语义。
 

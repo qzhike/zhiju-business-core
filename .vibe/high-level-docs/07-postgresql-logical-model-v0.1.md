@@ -1849,10 +1849,10 @@ CTX-302 hash
 
 以下项目不改变本逻辑模型，但必须在 DDL/Migration 阶段确定：
 
-1. PostgreSQL 精确版本与允许扩展；
+1. 已冻结：PostgreSQL 18.6；允许 `btree_gist` 与运维用 `pg_stat_statements`，`pgcrypto` 暂不启用；
 2. UUIDv7 的应用库、时钟回退和跨语言 Fixture；
 3. Canonicalization v1 实现库与 Hash Fixture；
-4. Migration Tool、命名规范和 Expand/Contract 发布流程；
+4. 已冻结：Flyway CLI + 手写版本化 SQL、Forward-only Expand/Contract；精确文件命名在 IM-02 固定；
 5. 每个 Schema Role、连接池和凭证轮换方式；
 6. RLS Transaction Context 的具体实现和防伪测试；
 7. HMAC Lookup Key、字段级加密与 KMS 集成；
@@ -1868,6 +1868,8 @@ CTX-302 hash
 17. 实际 Query Plan、索引与负载基准。
 
 不应在 API 或 Repository 中先行硬编码这些参数；它们必须进入对应实施任务和可执行测试。
+
+数据访问同步冻结为 Node.js `pg` + Kysely；Kysely 只提供类型安全 SQL，不拥有 Schema/Migration/Domain。Migration 由部署 Job 使用 Migration Owner 执行，不由应用启动或 Runtime Role 执行。完整技术记录见 [`../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md`](../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md)。
 
 ---
 

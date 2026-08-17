@@ -1,6 +1,6 @@
 # Runtime Adapter Contract v0.1 工作计划
 
-状态：`DESIGN VERIFIED / AWAITING USER REVIEW / IMPLEMENTATION NOT STARTED`
+状态：`DESIGN VERIFIED / USER PROGRESSION CONFIRMED / IMPLEMENTATION NOT STARTED`
 日期：2026-08-17
 执行者：Codex（主 Agent）
 
@@ -55,13 +55,10 @@ Provider 事实只采用各 CLI 官方文档；CLI 参数、输出字段和 sess
 | RA-M2 生命周期 | Dispatch/Event/Cancel/Resume/Result | Lease、Fencing、UNKNOWN、late result | `DESIGN VERIFIED` |
 | RA-M3 CLI Profile | 三个已安装 CLI 的官方能力证据 | 命令模板、版本与认证探测边界 | `DESIGN VERIFIED` |
 | RA-M4 API 映射 | 现有 API 与 6 个 additive proposal | 是否接受 Catalog 扩展 | `DESIGN VERIFIED` |
-| RA-M5 测试与报告 | 32 个场景、静态验证报告 | 证据口径和剩余风险 | 待用户审核 |
+| RA-M5 测试与报告 | 32 个场景、静态验证报告 | 证据口径和剩余风险 | `USER PROGRESSION CONFIRMED` |
 
-## 6. 提交 Gate
+## 6. 阶段退出记录
 
-用户审核 Runtime Adapter v0.1 前：
-
-- 不执行 `git add` 或 Git Commit；
-- 不把 additive proposal 写入 200 项 Catalog 基准；
-- 不实现真实 Runtime Adapter 或 CLI Process Driver；
-- 不把官方文档能力声明为本地/生产验证 `PASS`。
+- 用户于 2026-08-17 要求提交当前文档并继续 Implementation Milestone Plan；Runtime CLI-first 基线已提交为 `c3e379c`。
+- 该推进确认不等于批准 6 个 additive proposal 或第 20 节其他默认 Policy；它们继续保持显式待决。
+- 未实现真实 Runtime Adapter 或 CLI Process Driver；官方文档能力仍不是本地/生产验证 `PASS`。

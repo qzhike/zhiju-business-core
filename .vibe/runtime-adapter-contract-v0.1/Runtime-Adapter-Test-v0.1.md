@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`DRAFT TEST SPEC / DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
+状态：`BASELINE TEST SPEC / DESIGN VERIFIED / USER PROGRESSION CONFIRMED / IMPLEMENTATION NOT STARTED`
 
 对应规格：[`Runtime-Adapter-Contract-v0.1.md`](./Runtime-Adapter-Contract-v0.1.md)。对应模块：[`Module-Spec-003-TaskExecution.md`](../module-specs/Module-Spec-003-TaskExecution.md) 与 [`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md)。
 

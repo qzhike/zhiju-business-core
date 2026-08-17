@@ -1,8 +1,8 @@
 # Zhiju Business Core 基准规格与 Agent 入口
 
 版本：v0.1
-日期：2026-08-16
-状态：`CURRENT DESIGN BASELINE / API USER REVIEWED / FEISHU USER PROGRESSION CONFIRMED / RUNTIME ADAPTER DRAFT DESIGN VERIFIED / USER REVIEW PENDING / IMPLEMENTATION NOT STARTED`
+日期：2026-08-17
+状态：`CURRENT DESIGN BASELINE / RUNTIME USER PROGRESSION CONFIRMED / IMPLEMENTATION MILESTONE PLAN DRAFT / APPLICATION CODE NOT STARTED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -87,6 +87,17 @@ Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contr
 | [`../runtime-adapter-contract-v0.1/Task-Plan.md`](../runtime-adapter-contract-v0.1/Task-Plan.md) | 本阶段范围、里程碑、执行顺序、审核与提交 Gate |
 | [`../runtime-adapter-contract-v0.1/Verification-Report.md`](../runtime-adapter-contract-v0.1/Verification-Report.md) | Provider 资料、API 映射、proposal、安全、Markdown 和 diff 静态证据 |
 
+### 2.5 Implementation Milestone Plan 阶段文档
+
+实施里程碑计划固定维护在 `.vibe/implementation-milestone-plan-v0.1/`；它只定义实施顺序、决策 Gate、交付物和退出条件，不拥有 Domain、API、数据库或 Adapter 语义。
+
+| 文档 | 唯一权威范围 |
+|---|---|
+| [`../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md`](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md) | IM-DG-001 至 006、IM-00 至 09、目标代码边界与 Definition of Done |
+| [`../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md`](../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md) | 已批准 Node.js/TypeScript/NestJS/Fastify/PostgreSQL/Kysely/Flyway/Test 技术基线与升级边界 |
+| [`../implementation-milestone-plan-v0.1/Task-Plan.md`](../implementation-milestone-plan-v0.1/Task-Plan.md) | 本阶段范围、输入、步骤和提交 Gate |
+| [`../implementation-milestone-plan-v0.1/Verification-Report.md`](../implementation-milestone-plan-v0.1/Verification-Report.md) | 路线、依赖、决策隔离、静态验证和剩余风险 |
+
 模块职责仍只由 `02` 冻结，公开名称/Owner 仍只由 `06` 冻结；Module Spec 不得重新划分所有权。API 阶段文档已于 2026-08-13 通过用户审核并构成当前字段级 API 基准，但不能覆盖已审核高层基准。
 
 ---
@@ -104,6 +115,7 @@ Agent 应使用最小充分上下文，避免每次把全部约 1.5 万行文档
 | PostgreSQL/Repository/Migration   | `HL-Spec`、`02`、`04`、`07`、`08`       | `03`、`05`、`06`   |
 | 飞书 Channel                      | `HL-Spec`、`01`、`02`、`03`、`06`、`08` | `05`、`07`         |
 | Runtime Adapter                   | `HL-Spec`、`02`、`03`、`06`、`08`       | `04`、`05`、`07`   |
+| Implementation Milestone/代码脚手架 | `HL-Spec`、`02`、`05`、`07`、`08`、Implementation Plan | API、Module、Feishu、Runtime 专项 |
 | Artifact/Quality/Approval/Release | `HL-Spec`、`02`、`03`、`04`、`05`、`08` | `06`、`07`         |
 | 安全、权限、客户隔离              | `HL-Spec`、`02`、`06`、`07`、`08`       | `03`、`04`         |
 | 架构或代码 Review                 | `HL-Spec`、`02`、`08`、实际代码/差异    | 所有受影响专题文档 |
@@ -250,12 +262,19 @@ BusinessCore
 - 8 个允许入站事件、6 个核心 Provider API 和 11 类 Channel Intent 映射；
 - 4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个运行/真实飞书/人工场景仍为 `NOT RUN`；用户于 2026-08-16 指示继续下一阶段，四个向后兼容 optional minor 字段纳入 API v0.1 基准。
 
-当前进行中：
+已获用户推进确认：
 
-- Runtime Adapter Contract v0.1，草稿已完成静态 `DESIGN VERIFIED`；
+- Runtime Adapter Contract v0.1，已完成静态 `DESIGN VERIFIED` 并提交为 `c3e379c`；
 - Runtime Adapter Test v0.1 的 32 个场景；
 - Codex CLI、Claude Code CLI、OpenClaw CLI Capability Profile；
-- 6 个 additive TaskExecution Command proposal，用户审核前不写入 200 项 Catalog 基准。
+- 用户于 2026-08-17 要求提交当前文档并进入 Implementation Milestone Plan；该推进不自动批准 6 个 additive TaskExecution Command proposal。
+
+当前进行中：
+
+- Implementation Milestone Plan v0.1；
+- IM-DG-001/002 已于 2026-08-17 获用户批准；IM-DG-004 的 NestJS/Fastify HTTP 部分已确认，认证/UI 仍待决；
+- IM-DG-003、IM-DG-005、IM-DG-006 仍待决；
+- IM-00 至 IM-09 的实施顺序和退出条件。
 
 尚未完成：
 
@@ -271,9 +290,9 @@ Command / Query / Event API Contract v0.1  （BASELINE / USER REVIEWED 2026-08-1
     ↓
 Feishu Channel Contract v0.1  （BASELINE / USER PROGRESSION CONFIRMED 2026-08-16）
     ↓
-Runtime Adapter Contract v0.1  （DRAFT DESIGN VERIFIED / USER REVIEW PENDING）
+Runtime Adapter Contract v0.1  （BASELINE / USER PROGRESSION CONFIRMED 2026-08-17）
     ↓
-Implementation Milestone Plan
+Implementation Milestone Plan v0.1  （DRAFT / IM-DG-001-002 USER APPROVED）
     ↓
 DDL / Migration / Repository / Application Code
 ```
@@ -364,4 +383,4 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目当前处于 Runtime Adapter Contract v0.1 设计阶段。高层、API 与 Feishu Channel 基准已获用户推进确认；Runtime 专项草稿与新增 API proposal 尚待审核。所有实现、外部和人工运行验证均为 `NOT RUN`，Git Commit 未经本轮用户确认不会执行。
+本项目当前处于 Implementation Milestone Plan v0.1 阶段。Runtime CLI-first 基线已获用户推进确认并提交为 `c3e379c`；6 个 Runtime additive proposal 与实施技术栈仍待独立审核。所有应用实现、外部和人工运行验证均为 `NOT RUN`；本阶段计划未经用户确认不会提交。

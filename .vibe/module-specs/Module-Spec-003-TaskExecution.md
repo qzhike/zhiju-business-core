@@ -279,6 +279,6 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 ## 9. 当前状态
 
 - 37 个公开 Contract 已定义字段级 payload/result/event 结构；
-- API v0.1 已由用户审核；Runtime Adapter v0.1 草稿已完成静态 `DESIGN VERIFIED`，并提出 6 个尚未纳入基准的 additive Command；
+- API v0.1 已由用户审核；Runtime Adapter v0.1 已获用户推进确认并进入 Implementation Milestone Plan，同时保留 6 个尚未纳入基准的 additive Command；
 - Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与测试实现均不存在；
 - 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
