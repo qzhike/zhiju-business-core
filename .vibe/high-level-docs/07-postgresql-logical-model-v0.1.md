@@ -1855,8 +1855,8 @@ CTX-302 hash
 4. 已冻结：Flyway CLI + 手写版本化 SQL、Forward-only Expand/Contract；精确文件命名在 IM-02 固定；
 5. 每个 Schema Role、连接池和凭证轮换方式；
 6. RLS Transaction Context 的具体实现和防伪测试；
-7. HMAC Lookup Key、字段级加密与 KMS 集成；
-8. 对象存储 Provider、Bucket/Prefix、Versioning、WORM/Legal Hold 与 Orphan 宽限期；
+7. 已冻结 OpenBao KV v2/Transit、独立 HMAC Lookup Key 与字段级加密边界；Ceph RGW 的 Vault-compatible Transit 集成仍须 IM-04 spike；
+8. 已冻结 MicroCeph/Ceph RGW Provider 与 S3/versioning/object-lock 边界；Bucket/Prefix、WORM/Legal Hold 与 Orphan 宽限期在 IM-04 固定；
 9. text CHECK、静态 Registry Table 或生成约束的具体方式；
 10. EffectiveBinding 非重叠使用 exclusion constraint 还是受控 Claim；
 11. JSONB promoted field 使用 generated column、trigger 还是唯一 Writer Function；

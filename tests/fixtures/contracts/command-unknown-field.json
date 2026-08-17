@@ -1,0 +1,8 @@
+{
+  "fixtureBase": "command-valid.json",
+  "mutation": {
+    "path": "/unexpected",
+    "value": true
+  },
+  "expectedError": "API_UNKNOWN_FIELD"
+}

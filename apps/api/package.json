@@ -1,0 +1,19 @@
+{
+  "name": "@zhiju/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-fastify": "catalog:",
+    "@zhiju/contracts": "workspace:*",
+    "fastify": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:"
+  }
+}

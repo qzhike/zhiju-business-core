@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`DRAFT / DESIGN VERIFIED / IM-DG-001-002 USER APPROVED / APPLICATION CODE NOT STARTED`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 IN PROGRESS / CURRENT SLICE VERIFIED`
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -38,6 +38,7 @@
 - 当前公开 Catalog 为 200 项，API 与 Module Spec 集合一致；
 - v0.1 为单进程模块化单体、一个 PostgreSQL Database、七个权威 Schema、一个可重建 Projection Schema；
 - 目标环境预安装 Codex CLI、Claude Code CLI、OpenClaw CLI，智举只通过本地 Process Driver 调用。
+- 生产部署为客户私有 Ubuntu 单服务器；首期 API-first；对象存储、Secret/KMS 与 OIDC 认证基准见 [`Deployment-Security-Baseline-v0.1.md`](./Deployment-Security-Baseline-v0.1.md)。
 
 仍未确认的 proposal 不得被“先写代码”事实化：
 
@@ -68,12 +69,12 @@
 |---|---|---|---|
 | IM-DG-001 | 后端语言、运行时、构建工具、模块边界检查和测试框架 | IM-01 及以后 | `USER APPROVED 2026-08-17` |
 | IM-DG-002 | PostgreSQL 精确版本、允许扩展、Migration Tool、Expand/Contract 规则 | IM-02 及以后 | `USER APPROVED 2026-08-17` |
-| IM-DG-003 | 对象存储、Secret/KMS、开发环境替身和生产边界 | 涉及二进制、加密和 Release 的里程碑 | `USER DECISION REQUIRED` |
-| IM-DG-004 | 首个交付 API Transport、认证入口和 Workspace UI 边界 | 首个可操作应用入口 | `PARTIAL: NestJS/Fastify HTTP APPROVED` |
+| IM-DG-003 | 对象存储、Secret/KMS、开发环境替身和生产边界 | 涉及二进制、加密和 Release 的里程碑 | `USER APPROVED 2026-08-17` |
+| IM-DG-004 | 首个交付 API Transport、认证入口和 Workspace UI 边界 | 首个可操作应用入口 | `USER APPROVED 2026-08-17` |
 | IM-DG-005 | Canonical Document/Workbook 最小 Schema 与 Renderer 技术路线 | IM-04/IM-05 | `USER DECISION REQUIRED` |
 | IM-DG-006 | 6 个 Runtime Command 与 Runtime 默认 Policy | IM-08 | `USER DECISION REQUIRED` |
 
-IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](./Technology-Baseline-v0.1.md)。其余决策必须记录选项、理由、兼容边界、迁移成本、拒绝的替代项和验证方式。选择具体库不会改变已冻结 Domain/API 语义。
+IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](./Technology-Baseline-v0.1.md)，IM-DG-003/004 见 [`Deployment-Security-Baseline-v0.1.md`](./Deployment-Security-Baseline-v0.1.md)。IM-DG-005/006 仍必须记录选项、理由、兼容边界、迁移成本、拒绝的替代项和验证方式。选择具体库不会改变已冻结 Domain/API 语义。
 
 ---
 
@@ -147,7 +148,7 @@ IM-09 Reference Project E2E + Operations Hardening
 - 记录本地开发、CI、测试容器和生产部署的差异；
 - 固定版本锁定、依赖升级和安全扫描策略。
 
-退出 Gate：技术决策可复现且不会引入共享业务模型；未决 IM-DG-005/006 有明确最晚决策点。
+退出 Gate：技术决策可复现且不会引入共享业务模型；未决 IM-DG-005/006 有明确最晚决策点。`COMPLETE 2026-08-17`。
 
 ### IM-01 Repository + Executable Contracts
 
@@ -234,7 +235,8 @@ IM-09 Reference Project E2E + Operations Hardening
 
 ## 9. 当前结论
 
-- IM-DG-001/002 已完成用户确认；下一步补齐 IM-DG-003 与 IM-DG-004 的最小范围，完成 IM-00。
-- 首个编码里程碑是 IM-01；首个业务纵向切片是 IM-02 IdentityPolicy。
+- IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 已退出；MinIO 因官方仓库归档被否决，私有化基准采用 MicroCeph/Ceph RGW、OpenBao 与 Keycloak OIDC。
+- IM-01 已开始：pnpm/TypeScript workspace、NestJS/Fastify skeleton、七模块边界、共享 Value Type、Core 顶层 Schema 与 200 个 API Envelope Registry 已通过当前切片验证。
+- 200 个业务 Payload/Query Result/Event Payload Schema 仍为 `ENVELOPE_ONLY`，因此 IM-01 尚未退出；首个业务纵向切片仍是 IM-02 IdentityPolicy。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环。
-- 当前无 Implementation Test 被执行，所有代码、数据库和外部验收仍为 `NOT RUN`。
+- IM-01 当前执行了 format/lint/type/build、13 个 Unit/Contract 测试、架构与 Catalog Gate、HTTP health smoke；数据库和外部验收仍为 `NOT RUN`。

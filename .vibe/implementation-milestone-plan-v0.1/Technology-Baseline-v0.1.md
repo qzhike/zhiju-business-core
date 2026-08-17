@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`BASELINE / USER APPROVED / IMPLEMENTATION NOT STARTED`
+状态：`BASELINE / USER APPROVED / IM-01 TOOLCHAIN VERIFIED / DATABASE NOT STARTED`
 
 文档角色：Implementation Milestone Plan 的技术选型记录，冻结 IM-DG-001 与 IM-DG-002。它只约束实现技术，不改变 Domain、API、Module、PostgreSQL Logical Model、Feishu 或 Runtime Contract 语义。
 
@@ -10,7 +10,7 @@
 
 ## 1. 用户决定
 
-用户于 2026-08-17 确认团队熟悉 Node.js，并明确同意本技术建议。以下选择进入实现基线；依赖尚未安装，兼容性测试尚未运行。
+用户于 2026-08-17 确认团队熟悉 Node.js，并明确同意本技术建议。IM-01 已锁定并验证 Node.js 24.19.0、pnpm 11.19.0、TypeScript 6.0.3、NestJS 11.2.1、Fastify 5.12.0、Ajv 8.20.0、Vitest 4.1.10；PostgreSQL/Kysely/Flyway/Testcontainers 尚未安装或运行。
 
 ---
 
@@ -97,13 +97,12 @@ Migration 文件按 owning Schema 分目录；平台 Role/Schema bootstrap 与�
 2. Node/PostgreSQL 安全 minor 可通过兼容测试升级，不改变业务 Contract。
 3. NestJS/Fastify/Kysely/Flyway/Ajv/Vitest 的 major 升级是独立技术变更，必须运行全量 Gate。
 4. TypeScript 7 采用新原生工具链，作为单独 Migration Milestone，不在 IM-01 静默升级。
-5. 依赖选择不授权联网安装；IM-01 开始时按用户授权创建并锁定依赖。
+5. 用户已于 2026-08-17 授权 IM-01 依赖联网安装；当前精确版本由 manifest 与 `pnpm-lock.yaml` 锁定。后续新增依赖或 major 升级仍需独立审核。
 
 ---
 
-## 6. 尚未冻结
+## 6. 后续决策路由
 
-- IM-DG-003：对象存储、Secret/KMS、字段加密和开发替身；
-- IM-DG-004：认证入口、Workspace UI；HTTP Transport 已确定为 NestJS/Fastify；
+- IM-DG-003/004 已于 2026-08-17 冻结，见 [`Deployment-Security-Baseline-v0.1.md`](./Deployment-Security-Baseline-v0.1.md)；
 - IM-DG-005：Canonical Document/Workbook Schema 与 Renderer；
 - IM-DG-006：6 个 Runtime Command 与默认 Policy。

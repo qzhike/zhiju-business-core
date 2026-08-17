@@ -1,0 +1,8 @@
+{
+  "fixtureBase": "command-valid.json",
+  "mutation": {
+    "path": "/commandVersion",
+    "value": "2.0"
+  },
+  "expectedError": "API_CONTRACT_MAJOR_UNSUPPORTED"
+}

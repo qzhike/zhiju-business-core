@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/shared-kernel" },
+    { "path": "contracts" },
+    { "path": "modules/identity-policy" },
+    { "path": "modules/enterprise-project" },
+    { "path": "modules/task-execution" },
+    { "path": "modules/artifact" },
+    { "path": "modules/quality-governance" },
+    { "path": "modules/release-publication" },
+    { "path": "modules/integration-gateway" },
+    { "path": "apps/api" }
+  ]
+}

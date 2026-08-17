@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT DESIGN BASELINE / RUNTIME USER PROGRESSION CONFIRMED / IMPLEMENTATION MILESTONE PLAN DRAFT / APPLICATION CODE NOT STARTED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 IN PROGRESS / CURRENT SLICE VERIFIED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -95,6 +95,7 @@ Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contr
 |---|---|
 | [`../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md`](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md) | IM-DG-001 至 006、IM-00 至 09、目标代码边界与 Definition of Done |
 | [`../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md`](../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md) | 已批准 Node.js/TypeScript/NestJS/Fastify/PostgreSQL/Kysely/Flyway/Test 技术基线与升级边界 |
+| [`../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md`](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md) | 已批准 Ubuntu 私有化、MicroCeph/Ceph RGW、OpenBao、Keycloak OIDC 与 Workspace UI 边界 |
 | [`../implementation-milestone-plan-v0.1/Task-Plan.md`](../implementation-milestone-plan-v0.1/Task-Plan.md) | 本阶段范围、输入、步骤和提交 Gate |
 | [`../implementation-milestone-plan-v0.1/Verification-Report.md`](../implementation-milestone-plan-v0.1/Verification-Report.md) | 路线、依赖、决策隔离、静态验证和剩余风险 |
 
@@ -269,12 +270,12 @@ BusinessCore
 - Codex CLI、Claude Code CLI、OpenClaw CLI Capability Profile；
 - 用户于 2026-08-17 要求提交当前文档并进入 Implementation Milestone Plan；该推进不自动批准 6 个 additive TaskExecution Command proposal。
 
-当前进行中：
+已完成实施入口决策：
 
-- Implementation Milestone Plan v0.1；
-- IM-DG-001/002 已于 2026-08-17 获用户批准；IM-DG-004 的 NestJS/Fastify HTTP 部分已确认，认证/UI 仍待决；
-- IM-DG-003、IM-DG-005、IM-DG-006 仍待决；
-- IM-00 至 IM-09 的实施顺序和退出条件。
+- Implementation Milestone Plan v0.1 与 IM-00；
+- IM-DG-001 至 IM-DG-004 已于 2026-08-17 获用户批准；生产目标为 Ubuntu 私有单服务器，首期 API-first；
+- 对象存储采用 MicroCeph/Ceph RGW，Secret/KMS 采用 OpenBao，认证入口采用 Keycloak OIDC；MinIO 因官方仓库归档被否决；
+- IM-DG-005、IM-DG-006 仍待决，不阻塞 IM-01。
 
 尚未完成：
 
@@ -292,7 +293,9 @@ Feishu Channel Contract v0.1  （BASELINE / USER PROGRESSION CONFIRMED 2026-08-1
     ↓
 Runtime Adapter Contract v0.1  （BASELINE / USER PROGRESSION CONFIRMED 2026-08-17）
     ↓
-Implementation Milestone Plan v0.1  （DRAFT / IM-DG-001-002 USER APPROVED）
+Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
+    ↓
+IM-01 Repository + Executable Contracts  （IN PROGRESS / ENVELOPE_ONLY）
     ↓
 DDL / Migration / Repository / Application Code
 ```
@@ -383,4 +386,4 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目当前处于 Implementation Milestone Plan v0.1 阶段。Runtime CLI-first 基线已获用户推进确认并提交为 `c3e379c`；6 个 Runtime additive proposal 与实施技术栈仍待独立审核。所有应用实现、外部和人工运行验证均为 `NOT RUN`；本阶段计划未经用户确认不会提交。
+本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 顶层 Schema、200 个 API Envelope、13 个测试、架构/Catalog Gate 与 HTTP health smoke 已通过；业务 Payload/Query Result/Event Payload 仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。

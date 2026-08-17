@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - contracts
+  - modules/*
+  - packages/*
+
+catalog:
+  '@nestjs/common': 11.2.1
+  '@nestjs/core': 11.2.1
+  '@nestjs/platform-fastify': 11.2.1
+  ajv: 8.20.0
+  fastify: 5.12.0
+  reflect-metadata: 0.2.2
+  rxjs: 7.8.2
+  uuid: 14.0.1
