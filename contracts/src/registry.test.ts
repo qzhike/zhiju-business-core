@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { publicApiOperations } from './generated/public-api.js';
+import { artifactOperationContracts } from './operations/artifact.schema.js';
 import { enterpriseProjectOperationContracts } from './operations/enterprise-project.schema.js';
 import { identityPolicyOperationContracts } from './operations/identity-policy.schema.js';
 import { ContractRegistry } from './registry.js';
@@ -48,16 +49,37 @@ describe('contract registry', () => {
     const full = publicApiOperations.filter((operation) => operation.schemaStatus === 'FULL');
     const identity = full.filter((operation) => operation.owner === 'identity-policy');
     const project = full.filter((operation) => operation.owner === 'enterprise-project');
+    const artifact = full.filter((operation) => operation.owner === 'artifact');
 
-    expect(full).toHaveLength(52);
+    expect(full).toHaveLength(78);
     expect(identity).toHaveLength(20);
     expect(project).toHaveLength(32);
+    expect(artifact).toHaveLength(26);
     expect(Object.keys(identityPolicyOperationContracts).sort()).toEqual(
       identity.map((operation) => operation.type).sort(),
     );
     expect(Object.keys(enterpriseProjectOperationContracts).sort()).toEqual(
       project.map((operation) => operation.type).sort(),
     );
+    expect(Object.keys(artifactOperationContracts).sort()).toEqual(
+      artifact.map((operation) => operation.type).sort(),
+    );
+  });
+
+  it('exposes the approved Artifact operation kind distribution', () => {
+    const artifact = publicApiOperations.filter((operation) => operation.owner === 'artifact');
+    const kinds = artifact.map((operation) => operation.kind);
+
+    expect(kinds.filter((kind) => kind === 'COMMAND')).toHaveLength(12);
+    expect(kinds.filter((kind) => kind === 'QUERY')).toHaveLength(7);
+    expect(kinds.filter((kind) => kind === 'EVENT')).toHaveLength(7);
+    expect(
+      artifact
+        .filter((operation) => operation.kind === 'QUERY')
+        .every(
+          (operation) => artifactOperationContracts[operation.type]?.resultSchemaRef !== undefined,
+        ),
+    ).toBe(true);
   });
 
   it('validates a registered command envelope', () => {
@@ -166,6 +188,164 @@ describe('contract registry', () => {
     const result = registry.validateOperation('project.create_enterprise', '1.0', input);
     expect(result.valid).toBe(false);
     expect(result.errors.some((error) => error.instancePath === '/payload')).toBe(true);
+  });
+
+  it('validates a field-level Artifact revision seal command', () => {
+    const input = fixture('artifact-seal-revision-command-valid.json');
+    expect(registry.validateOperation('artifact.create_and_seal_revision', '1.0', input)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects parent counts that do not match the Artifact revision command', () => {
+    const ordinary = fixture('artifact-seal-revision-command-valid.json');
+    const ordinaryRevision = (ordinary.payload as Record<string, unknown>).revision as {
+      parentRevisionRefs: Record<string, unknown>[];
+    };
+    const secondParent = structuredClone(ordinaryRevision.parentRevisionRefs[0] ?? {});
+    secondParent.objectId = '018f22e2-7c15-7b2e-8d86-2de956a9d414';
+    ordinaryRevision.parentRevisionRefs.push(secondParent);
+
+    const ordinaryResult = registry.validateOperation(
+      'artifact.create_and_seal_revision',
+      '1.0',
+      ordinary,
+    );
+    expect(ordinaryResult.valid).toBe(false);
+    expect(ordinaryResult.errors.some((error) => error.keyword === 'maxItems')).toBe(true);
+
+    const merge = fixture('artifact-seal-revision-command-valid.json');
+    const mergeRevision = (merge.payload as Record<string, unknown>).revision;
+    merge.commandType = 'artifact.create_merge_revision';
+    merge.payload = {
+      merge: {
+        revision: mergeRevision,
+        mergeStrategy: 'manual',
+        conflictSet: [],
+        conflictResolutionRefs: [],
+        resolvedBy: merge.actor,
+      },
+    };
+
+    const mergeResult = registry.validateOperation('artifact.create_merge_revision', '1.0', merge);
+    expect(mergeResult.valid).toBe(false);
+    expect(mergeResult.errors.some((error) => error.keyword === 'minItems')).toBe(true);
+  });
+
+  it('rejects unresolved Artifact merge conflicts', () => {
+    const input = fixture('artifact-seal-revision-command-valid.json');
+    const revision = (input.payload as Record<string, unknown>).revision as {
+      parentRevisionRefs: Record<string, unknown>[];
+    };
+    const secondParent = structuredClone(revision.parentRevisionRefs[0] ?? {});
+    secondParent.objectId = '018f22e2-7c15-7b2e-8d86-2de956a9d414';
+    revision.parentRevisionRefs.push(secondParent);
+    input.commandType = 'artifact.create_merge_revision';
+    input.payload = {
+      merge: {
+        revision,
+        mergeStrategy: 'manual',
+        conflictSet: [{ locator: 'section.4.2' }],
+        conflictResolutionRefs: [],
+        resolvedBy: input.actor,
+      },
+    };
+
+    const result = registry.validateOperation('artifact.create_merge_revision', '1.0', input);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.keyword === 'minItems')).toBe(true);
+  });
+
+  it('rejects file bytes and temporary render paths in Artifact commands', () => {
+    const input = fixture('artifact-seal-revision-command-content-leak.json');
+    const result = registry.validateOperation('artifact.create_and_seal_revision', '1.0', input);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.keyword === 'additionalProperties')).toBe(true);
+    expect(
+      result.errors.some((error) => error.instancePath === '/payload/revision/contentRef'),
+    ).toBe(true);
+  });
+
+  it('validates an exact Artifact revision query and its snapshot result', () => {
+    const query = fixture('artifact-revision-snapshot-query-valid.json');
+    const resultData = fixture('artifact-revision-snapshot-result-valid.json');
+
+    expect(registry.validateOperation('artifact.get_revision_snapshot', '1.0', query)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(
+      registry.validateOperationResult('artifact.get_revision_snapshot', '1.0', resultData),
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it('rejects latest-style references instead of exact Artifact revision references', () => {
+    const query = fixture('artifact-revision-snapshot-query-weak-ref.json');
+    const result = registry.validateOperation('artifact.get_revision_snapshot', '1.0', query);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some((error) => error.instancePath.startsWith('/payload/revisionRef')),
+    ).toBe(true);
+  });
+
+  it('rejects malformed Artifact content hashes', () => {
+    const query = fixture('artifact-revision-snapshot-query-valid.json');
+    const payload = query.payload as { revisionRef: Record<string, unknown> };
+    payload.revisionRef = {
+      ...payload.revisionRef,
+      contentHash: { ...(payload.revisionRef.contentHash as object), digest: 'latest' },
+    };
+
+    const result = registry.validateOperation('artifact.get_revision_snapshot', '1.0', query);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.keyword === 'pattern')).toBe(true);
+  });
+
+  it('validates a registered Artifact representation event', () => {
+    const event = fixture('artifact-representation-registered-event-valid.json');
+    expect(registry.validateOperation('artifact.RepresentationRegistered', '1.0', event)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects public download URLs in Artifact representation events', () => {
+    const event = fixture('artifact-representation-registered-event-public-url.json');
+    const result = registry.validateOperation('artifact.RepresentationRegistered', '1.0', event);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) => error.instancePath === '/payload/representationRef/objectStorageRef',
+      ),
+    ).toBe(true);
+  });
+
+  it('validates an Artifact effective binding query and its as-of view', () => {
+    const query = fixture('artifact-effective-binding-query-valid.json');
+    const resultData = fixture('artifact-effective-binding-result-valid.json');
+
+    expect(registry.validateOperation('artifact.get_effective_binding', '1.0', query)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(
+      registry.validateOperationResult('artifact.get_effective_binding', '1.0', resultData),
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it('rejects unknown fields in Artifact effective binding result data', () => {
+    const resultData = {
+      ...fixture('artifact-effective-binding-result-valid.json'),
+      approvedDocumentBody: 'must-not-leak',
+    };
+    const result = registry.validateOperationResult(
+      'artifact.get_effective_binding',
+      '1.0',
+      resultData,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.keyword === 'additionalProperties')).toBe(true);
   });
 
   it('does not claim executable result schemas for unfinished modules', () => {

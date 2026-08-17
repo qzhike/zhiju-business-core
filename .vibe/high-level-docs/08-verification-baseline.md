@@ -336,8 +336,8 @@ remaining risk
 - 用户于 2026-08-17 批准 Node.js 24 LTS、TypeScript、NestJS/Fastify、PostgreSQL 18、Kysely/pg、Flyway SQL、Vitest/Testcontainers 技术建议；IM-DG-001/002 已冻结但尚未安装或运行；
 - 用户于 2026-08-17 确认 Ubuntu 私有本地服务器与 API-first；IM-DG-003/004 已冻结为 MicroCeph/Ceph RGW、OpenBao、Keycloak OIDC，单机明确不等于 HA；MinIO 因官方仓库归档被否决；
 - IM-00 已完成，当前进入 IM-01 Repository + Executable Contracts；依赖与 lockfile 已按用户授权安装并锁定；
-- IM-01 当前已通过 format/lint/type/build、23 个 Unit/Contract 测试、10 个源码边界、200 项 Catalog/Envelope Registry 对账和 NestJS/Fastify HTTP health smoke；
-- IdentityPolicy 20 个、EnterpriseProject 32 个公开操作已提升为字段级 `FULL` Schema；其余 148 个操作仍为 `ENVELOPE_ONLY`，IM-01 未退出；
+- IM-01 当前已通过 format/lint/type/build、98 个 Unit/Contract 测试、10 个源码边界、200 项 Catalog/Envelope Registry 对账和 NestJS/Fastify HTTP health smoke；
+- IdentityPolicy 20 个、EnterpriseProject 32 个、Artifact 26 个公开操作已提升为字段级 `FULL` Schema；其余 122 个操作仍为 `ENVELOPE_ONLY`，IM-01 未退出；
 - 尚无 DDL、Migration、Repository、业务代码、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
 - 尚无真实 PostgreSQL、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；
 - 不得从设计文档推断任何运行时 Gate 已通过。
