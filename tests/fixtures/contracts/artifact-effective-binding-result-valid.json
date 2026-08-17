@@ -1,0 +1,48 @@
+{
+  "artifactRef": {
+    "kind": "OBJECT",
+    "objectType": "artifact.artifact",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d401",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "purpose": "customer.delivery",
+  "bindingRef": {
+    "kind": "OBJECT",
+    "objectType": "artifact.effective_binding",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d450",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "revisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "artifact.artifact_revision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d402",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "releaseRef": {
+    "kind": "OBJECT",
+    "objectType": "release.release",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d451",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "effectivePeriod": {
+    "validFrom": "2026-08-16T00:00:00Z"
+  },
+  "asOf": "2026-08-17T00:00:00Z"
+}

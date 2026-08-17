@@ -1,0 +1,98 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9d430",
+  "eventType": "artifact.RepresentationRegistered",
+  "eventVersion": "1.0",
+  "producerModule": "artifact",
+  "aggregateType": "artifact.representation",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9d401",
+  "aggregateVersion": 2,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d431",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9d432",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d410",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:00:00Z",
+  "dataClassification": "CUSTOMER_CONFIDENTIAL",
+  "payload": {
+    "artifactRef": {
+      "kind": "OBJECT",
+      "objectType": "artifact.artifact",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d401",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "revisionRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "artifact.artifact_revision",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d402",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "representationRef": {
+      "representationId": "018f22e2-7c15-7b2e-8d86-2de956a9d440",
+      "revision": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "artifact.artifact_revision",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d402",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "objectStorageRef": "artifact-representation/018f22e2/revision-002.pdf",
+      "checksum": {
+        "algorithm": "SHA-256",
+        "digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "canonicalizationVersion": "1"
+      },
+      "renderer": {
+        "rendererId": "zhiju.renderer.pdf",
+        "rendererVersion": "0.1.0"
+      },
+      "createdAt": "2026-08-17T00:00:00Z"
+    },
+    "renderAttemptRef": {
+      "kind": "OBJECT",
+      "objectType": "artifact.render_attempt",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d441",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "7777777777777777777777777777777777777777777777777777777777777777",
+      "canonicalizationVersion": "1"
+    }
+  }
+}
