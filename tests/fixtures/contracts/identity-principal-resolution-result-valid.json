@@ -1,0 +1,18 @@
+{
+  "principalRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "principalKind": "HUMAN",
+  "status": "ACTIVE",
+  "displayName": {
+    "presence": "PRESENT",
+    "value": "Fixture Human",
+    "evidenceRefs": [],
+    "lastVerifiedAt": "2026-08-17T00:00:00Z"
+  }
+}

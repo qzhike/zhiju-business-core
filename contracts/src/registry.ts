@@ -5,7 +5,12 @@ import { commonSchema } from './common.schema.js';
 import { coreContractSchemas } from './core.schema.js';
 import { operationEnvelopeSchema } from './envelopes.schema.js';
 import { publicApiOperations } from './generated/public-api.js';
-import type { PublicOperationDefinition } from './schema-types.js';
+import { executableOperationSchemas } from './operations/index.js';
+import {
+  operationPayloadSchemaRef,
+  operationResultSchemaRef,
+  type PublicOperationDefinition,
+} from './schema-types.js';
 
 export interface ContractValidationResult {
   readonly valid: boolean;
@@ -27,11 +32,13 @@ export class ContractRegistry {
     this.#ajv = new Ajv2020({ allErrors: true, strict: true });
     this.#ajv.addSchema(commonSchema);
     for (const schema of coreContractSchemas) this.#ajv.addSchema(schema);
+    for (const schema of executableOperationSchemas) this.#ajv.addSchema(schema);
 
     const operations = new Map<string, PublicOperationDefinition>();
     for (const operation of publicApiOperations) {
       const key = ContractRegistry.operationKey(operation.type, operation.version);
       if (operations.has(key)) throw new Error(`duplicate public operation ${key}`);
+      this.#assertExecutableSchemas(operation);
       operations.set(key, operation);
       this.#ajv.addSchema(operationEnvelopeSchema(operation));
     }
@@ -72,6 +79,66 @@ export class ContractRegistry {
 
   validateCoreContract(schemaId: string, input: unknown): ContractValidationResult {
     return this.#run(this.#ajv.getSchema(schemaId), input);
+  }
+
+  validateOperationResult(type: string, version: string, input: unknown): ContractValidationResult {
+    const operation = this.getOperation(type, version);
+    if (operation === undefined) return this.#unknownOperation(type, version);
+
+    const resultSchemaRef = operationResultSchemaRef(operation);
+    if (resultSchemaRef === undefined) {
+      return {
+        valid: false,
+        errors: [
+          {
+            instancePath: '',
+            schemaPath: '',
+            keyword: 'operationResultRegistry',
+            params: { type, version },
+            message: 'operation has no executable result schema',
+          },
+        ],
+      };
+    }
+    return this.#run(this.#ajv.getSchema(resultSchemaRef), input);
+  }
+
+  #assertExecutableSchemas(operation: PublicOperationDefinition): void {
+    const payloadRef = operationPayloadSchemaRef(operation);
+    if (
+      operation.schemaStatus === 'FULL' &&
+      (payloadRef === undefined || this.#ajv.getSchema(payloadRef) === undefined)
+    ) {
+      throw new Error(
+        `missing executable payload schema for ${operation.type}@${operation.version}`,
+      );
+    }
+
+    const resultRef = operationResultSchemaRef(operation);
+    if (
+      operation.schemaStatus === 'FULL' &&
+      operation.kind === 'QUERY' &&
+      (resultRef === undefined || this.#ajv.getSchema(resultRef) === undefined)
+    ) {
+      throw new Error(
+        `missing executable result schema for ${operation.type}@${operation.version}`,
+      );
+    }
+  }
+
+  #unknownOperation(type: string, version: string): ContractValidationResult {
+    return {
+      valid: false,
+      errors: [
+        {
+          instancePath: '',
+          schemaPath: '',
+          keyword: 'operationRegistry',
+          params: { type, version },
+          message: 'unknown operation type or major version',
+        },
+      ],
+    };
   }
 
   #run(validate: ValidateFunction | undefined, input: unknown): ContractValidationResult {

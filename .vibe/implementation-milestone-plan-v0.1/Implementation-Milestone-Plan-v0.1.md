@@ -18,10 +18,10 @@
 4. DDL、Migration、Repository、Application、Adapter、Renderer 和 Operations 的统一顺序；
 5. 已批准基准与待审核 proposal 的隔离方式。
 
-本阶段不创建：
+里程碑计划本身不重新创建或定义：
 
-- 业务代码、DDL、Migration、容器、CI 或部署资源；
-- 未经选择的语言/框架脚手架；
+- 未经 Module Spec 授权的业务语义；
+- 未经决策 Gate 选择的语言、框架或部署组件；
 - 6 个尚未批准的 TaskExecution Command；
 - 真实飞书、CLI Runtime、Renderer、数据库或对象存储资源；
 - 第二套业务模型、共享 Repository 或跨 Schema 业务外键。
@@ -237,6 +237,6 @@ IM-09 Reference Project E2E + Operations Hardening
 
 - IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 已退出；MinIO 因官方仓库归档被否决，私有化基准采用 MicroCeph/Ceph RGW、OpenBao 与 Keycloak OIDC。
 - IM-01 已开始：pnpm/TypeScript workspace、NestJS/Fastify skeleton、七模块边界、共享 Value Type、Core 顶层 Schema 与 200 个 API Envelope Registry 已通过当前切片验证。
-- 200 个业务 Payload/Query Result/Event Payload Schema 仍为 `ENVELOPE_ONLY`，因此 IM-01 尚未退出；首个业务纵向切片仍是 IM-02 IdentityPolicy。
+- IdentityPolicy 的 20 个公开操作已完成字段级 Payload/Event Schema 和 Query Result Schema；其余 180 个操作仍为 `ENVELOPE_ONLY`，因此 IM-01 尚未退出。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环。
-- IM-01 当前执行了 format/lint/type/build、13 个 Unit/Contract 测试、架构与 Catalog Gate、HTTP health smoke；数据库和外部验收仍为 `NOT RUN`。
+- IM-01 当前执行了 format/lint/type/build、19 个 Unit/Contract 测试、架构与 Catalog Gate、HTTP health smoke；数据库和外部验收仍为 `NOT RUN`。

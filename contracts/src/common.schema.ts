@@ -10,6 +10,7 @@ export const commonSchema = {
   $defs: {
     uuidV7: { type: 'string', pattern: uuidV7Pattern },
     namespaceCode: { type: 'string', pattern: namespacePattern },
+    reasonCode: { type: 'string', pattern: '^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$' },
     nonEmptyString: { type: 'string', minLength: 1, pattern: '.*\\S.*' },
     utcInstant: { type: 'string', pattern: utcInstantPattern },
     positiveInteger: { type: 'integer', minimum: 1 },
@@ -44,17 +45,66 @@ export const commonSchema = {
         scope: { $ref: '#/$defs/scopeRef' },
       },
     },
-    typedReference: {
+    versionedRef: {
       type: 'object',
-      required: ['kind', 'objectType', 'objectId', 'scope'],
+      additionalProperties: false,
+      required: ['kind', 'objectType', 'objectId', 'versionId', 'scope'],
       properties: {
-        kind: {
-          enum: ['OBJECT', 'VERSIONED', 'CONTENT_ADDRESSED', 'SNAPSHOT', 'EXTERNAL', 'SCHEMA'],
-        },
+        kind: { const: 'VERSIONED' },
         objectType: { $ref: '#/$defs/namespaceCode' },
         objectId: { $ref: '#/$defs/uuidV7' },
+        versionId: { $ref: '#/$defs/uuidV7' },
         scope: { $ref: '#/$defs/scopeRef' },
       },
+    },
+    contentAddressedRef: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['kind', 'objectType', 'objectId', 'scope', 'contentHash'],
+      properties: {
+        kind: { const: 'CONTENT_ADDRESSED' },
+        objectType: { $ref: '#/$defs/namespaceCode' },
+        objectId: { $ref: '#/$defs/uuidV7' },
+        immutableVersionId: { $ref: '#/$defs/uuidV7' },
+        scope: { $ref: '#/$defs/scopeRef' },
+        contentHash: { $ref: '#/$defs/contentHash' },
+      },
+    },
+    snapshotRef: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['kind', 'objectType', 'objectId', 'snapshotId', 'scope', 'contentHash'],
+      properties: {
+        kind: { const: 'SNAPSHOT' },
+        objectType: { $ref: '#/$defs/namespaceCode' },
+        objectId: { $ref: '#/$defs/uuidV7' },
+        snapshotId: { $ref: '#/$defs/uuidV7' },
+        scope: { $ref: '#/$defs/scopeRef' },
+        contentHash: { $ref: '#/$defs/contentHash' },
+      },
+    },
+    externalRef: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['system', 'resourceType', 'externalId', 'observedAt'],
+      properties: {
+        system: { $ref: '#/$defs/namespaceCode' },
+        tenantOrAccountRef: { $ref: '#/$defs/objectRef' },
+        resourceType: { $ref: '#/$defs/namespaceCode' },
+        externalId: { $ref: '#/$defs/nonEmptyString' },
+        observedAt: { $ref: '#/$defs/utcInstant' },
+        payloadHash: { $ref: '#/$defs/contentHash' },
+        adapterVersion: { $ref: '#/$defs/nonEmptyString' },
+      },
+    },
+    typedReference: {
+      oneOf: [
+        { $ref: '#/$defs/objectRef' },
+        { $ref: '#/$defs/versionedRef' },
+        { $ref: '#/$defs/contentAddressedRef' },
+        { $ref: '#/$defs/snapshotRef' },
+        { $ref: '#/$defs/externalRef' },
+      ],
     },
     integrity: {
       type: 'object',

@@ -1,8 +1,15 @@
-import type { JsonSchema, PublicOperationDefinition } from './schema-types.js';
+import {
+  operationPayloadSchemaRef,
+  type JsonSchema,
+  type PublicOperationDefinition,
+} from './schema-types.js';
 
 const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
 
-const payloadSchema = { type: 'object' } as const;
+function payloadSchema(operation: PublicOperationDefinition): JsonSchema {
+  const schemaRef = operationPayloadSchemaRef(operation);
+  return schemaRef === undefined ? { type: 'object' } : { $ref: schemaRef };
+}
 
 function commandSchema(operation: PublicOperationDefinition): JsonSchema {
   return {
@@ -38,7 +45,7 @@ function commandSchema(operation: PublicOperationDefinition): JsonSchema {
       causationId: { $ref: `${common}uuidV7` },
       requestedAt: { $ref: `${common}utcInstant` },
       deadline: { $ref: `${common}utcInstant` },
-      payload: payloadSchema,
+      payload: payloadSchema(operation),
       integrity: { $ref: `${common}integrity` },
     },
   };
@@ -78,7 +85,7 @@ function querySchema(operation: PublicOperationDefinition): JsonSchema {
       pagination: { type: 'object' },
       correlationId: { $ref: `${common}uuidV7` },
       requestedAt: { $ref: `${common}utcInstant` },
-      payload: payloadSchema,
+      payload: payloadSchema(operation),
     },
   };
 }
@@ -130,7 +137,7 @@ function eventSchema(operation: PublicOperationDefinition): JsonSchema {
           'REGULATED',
         ],
       },
-      payload: payloadSchema,
+      payload: payloadSchema(operation),
       integrity: { $ref: `${common}integrity` },
     },
   };

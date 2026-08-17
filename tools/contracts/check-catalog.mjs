@@ -30,7 +30,15 @@ const invalid = registry.operations.filter(
   (operation) =>
     operation.version !== '1.0' ||
     !['COMMAND', 'QUERY', 'EVENT'].includes(operation.kind) ||
-    typeof operation.owner !== 'string',
+    typeof operation.owner !== 'string' ||
+    !['ENVELOPE_ONLY', 'FULL'].includes(operation.schemaStatus),
+);
+
+const invalidFullOperations = registry.operations.filter(
+  (operation) => operation.schemaStatus === 'FULL' && operation.owner !== 'identity-policy',
+);
+const incompleteIdentityOperations = registry.operations.filter(
+  (operation) => operation.owner === 'identity-policy' && operation.schemaStatus !== 'FULL',
 );
 
 const issues = [
@@ -39,6 +47,12 @@ const issues = [
   ...missing.map((name) => `missing registry operation: ${name}`),
   ...extra.map((name) => `unexpected registry operation: ${name}`),
   ...invalid.map((operation) => `invalid registry metadata: ${operation.type}`),
+  ...invalidFullOperations.map(
+    (operation) => `operation marked FULL without an implemented module schema: ${operation.type}`,
+  ),
+  ...incompleteIdentityOperations.map(
+    (operation) => `IdentityPolicy operation is missing its FULL schema: ${operation.type}`,
+  ),
 ];
 
 if (catalogNames.length !== 200)

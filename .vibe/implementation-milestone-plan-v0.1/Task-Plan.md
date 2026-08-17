@@ -8,7 +8,7 @@
 
 - 用户已于 2026-08-17 要求提交 Runtime Adapter 文档并继续下一阶段；基线提交为 `c3e379c`。
 - `HL-Spec` 指定下一阶段为 Implementation Milestone Plan，之后才进入 DDL/Migration/Repository/Application Code。
-- 本阶段只定义实施顺序、决策 Gate、交付物和退出条件；用户已确认 IM-DG-001 至 004，IM-00 已完成，但尚不创建代码。
+- 用户已确认 IM-DG-001 至 004，IM-00 已完成；当前按实施顺序执行 IM-01，不提前创建 DDL、Migration 或业务 Handler。
 - 200 项 Catalog 保持不变；Runtime Contract 中 6 个 additive Command 继续隔离为 proposal。
 
 ## 2. 权威输入
@@ -55,4 +55,5 @@
 - MinIO 初始建议因官方仓库已归档被否决；不会进入生产、开发 Conformance 或 CI 基准。
 - 用户已授权 IM-01 依赖安装；精确 `pnpm-lock.yaml`、workspace、API skeleton、共享内核、Core 顶层 Schema 与 200 个 Envelope Registry 已创建。
 - 当前未创建 DDL、Migration 或模块业务 Handler，也未把 Runtime proposal 纳入 Catalog。
-- IM-01 下一切片是把 200 个业务 Payload/Query Result/Event Payload 从 `ENVELOPE_ONLY` 提升为字段级可执行 Schema。
+- IdentityPolicy 20 个操作已从 `ENVELOPE_ONLY` 提升为字段级 `FULL` Schema，并由 Registry 验证 Payload 与 Query Result；其余 180 个操作保持 `ENVELOPE_ONLY`。
+- IM-01 下一切片是 EnterpriseProject 的字段级 Payload/Query Result/Event Payload 与 Schema-derived Type。
