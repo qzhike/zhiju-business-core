@@ -42,102 +42,20 @@ function validTaskExecutionWorkOrderDraft(): {
   readonly command: Record<string, unknown>;
   readonly runCommand: Record<string, unknown>;
   readonly draft: Record<string, unknown>;
+  readonly workOrderContract: Record<string, unknown>;
 } {
   const command = fixture('execution-create-task-command-valid.json');
   const runCommand = fixture('execution-create-run-command-valid.json');
-  const definition = (command.payload as Record<string, unknown>).definition as Record<
-    string,
-    unknown
-  >;
-  const creation = (runCommand.payload as Record<string, unknown>).creation as Record<
-    string,
-    unknown
-  >;
-  const versionedRef = definition.deliveryItemRef;
-  const contentRef = creation.workOrderContractRef;
-  const draft = {
-    taskRef: command.targetRef,
-    requestedBy: command.actor,
-    objective: {
-      objectiveType: 'document.draft',
-      humanReadableStatement: 'Draft a controlled procedure',
-      successIntent: 'Produce one controlled artifact revision',
-      relatedIssueRefs: [],
-      deliveryItemRefs: [versionedRef],
-    },
-    targetScope: {
-      targetObjectRefs: [command.targetRef],
-      baseContentRefs: [contentRef],
-      allowedUnitRefs: [],
-      forbiddenUnitRefs: [],
-      allowedCreateTypes: ['artifact.revision'],
-      crossObjectReferencesAllowed: [],
-      scopePolicyRef: versionedRef,
-    },
-    inputRefs: [],
-    constraints: [],
-    allowedCapabilities: [],
-    deniedCapabilities: [],
-    expectedOutputs: [
-      {
-        outputSlot: 'artifact.revision',
-        allowedObjectTypes: ['artifact.revision'],
-        cardinality: 'EXACTLY_ONE',
-        requiredReferenceStrength: 'CONTENT_ADDRESSED',
-        creationRequired: true,
-        acceptancePolicyRef: versionedRef,
-      },
-    ],
-    completionCriteria: [
-      {
-        criterionId: uuid,
-        criterionType: 'EXPECTED_OUTPUT_PRESENT',
-        evaluatorRef: versionedRef,
-        required: true,
-        inputBindings: [],
-        expectedCondition: { outputSlot: 'artifact.revision' },
-        failureDisposition: 'BLOCK',
-      },
-    ],
-    riskAndQuality: {
-      riskProfileRef: versionedRef,
-      dataHandlingPolicyRef: versionedRef,
-      humanReviewRequired: true,
-      escalationPolicyRef: versionedRef,
-    },
-    executionPolicy: {
-      maxAttempts: 2,
-      retryableOutcomes: ['FAILED_EXECUTION'],
-      resumePolicy: { allowed: false },
-      fallbackPolicy: { allowed: true },
-      leasePolicyRef: versionedRef,
-      cancellationPolicyRef: versionedRef,
-    },
-    budget: { tokenLimit: 1000, budgetPolicyRef: versionedRef },
-    harnessPolicy: {
-      preferredHarnesses: ['harness.coordinator'],
-      fallbackAllowed: true,
-      fallbackRequiresHuman: false,
-      selectionPolicyRef: versionedRef,
-    },
-    modelPolicy: {
-      allowedProviders: ['provider.test'],
-      allowedModels: ['model-fixture-001'],
-      prohibitedDataClasses: ['RESTRICTED_PERSONAL'],
-      minimumCapabilities: [],
-      selectionPolicyRef: versionedRef,
-    },
-    versionPins: {
-      projectContextContractRef: versionedRef,
-      contextBuilderPolicyRef: versionedRef,
-      workOrderSchemaRef: versionedRef,
-      skillRefs: [],
-      templateRefs: [],
-      capabilityPolicyRef: versionedRef,
-      runtimeAdapterContractRef: versionedRef,
-    },
-  };
-  return { command, runCommand, draft };
+  const workOrderContract = fixture('core/work-order-valid.json');
+  const draft = { ...workOrderContract };
+  delete draft.header;
+  delete draft.workOrderRef;
+  delete draft.projectRef;
+  delete draft.contextSnapshotRef;
+  delete draft.issuedAt;
+  delete draft.expiresAt;
+  delete draft.specificationHash;
+  return { command, runCommand, draft, workOrderContract };
 }
 
 describe('contract registry', () => {
@@ -399,35 +317,11 @@ describe('contract registry', () => {
   });
 
   it('validates embedded TaskExecution Core Contracts through their registered schemas', () => {
-    const { command, runCommand, draft } = validTaskExecutionWorkOrderDraft();
-    const projectRef = (command.payload as Record<string, unknown>).projectRef;
-    const actor = command.actor;
+    const { command, runCommand, workOrderContract } = validTaskExecutionWorkOrderDraft();
     const contextSnapshotRef = (
       (runCommand.payload as Record<string, unknown>).creation as Record<string, unknown>
     ).contextSnapshotRef;
     const hash = (command.integrity as Record<string, unknown>).payloadHash;
-    const header = {
-      contractId: uuid,
-      contractType: 'zhiju.contract.work_order',
-      contractVersion: '1.0',
-      schemaRef: projectRef,
-      scopeRef: command.scopeRef,
-      issuedAt: '2026-08-17T00:00:00Z',
-      issuedBy: actor,
-      correlationId: uuid,
-      dataClassification: 'INTERNAL',
-      canonicalizationVersion: '1',
-      payloadHash: hash,
-    };
-    const workOrderContract = {
-      header,
-      workOrderRef: command.targetRef,
-      projectRef,
-      contextSnapshotRef,
-      ...draft,
-      issuedAt: '2026-08-17T00:00:00Z',
-      specificationHash: hash,
-    };
     const freezeCommand = {
       ...command,
       commandType: 'execution.freeze_work_order',

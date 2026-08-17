@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-审查完成；用户已授权的 8 条意见均已在本地修复，自动回归为 `PASS`；用户已确认修改并于 2026-08-17 明确授权执行 Commit，Push 未授权。
+审查完成；用户已授权的 8 条意见均已修复，自动回归为 `PASS`；用户已确认修改并于 2026-08-17 明确授权执行 Commit、Push 和合并 PR #10。修复提交已推送，当前处理最新 `main` 的集成 Gate。
 
 ## 主要结论
 
@@ -59,4 +59,11 @@
 - Core Contract 入口改为已注册 Schema 引用；WorkOrder 子类型抽取为 Core 共享 `$defs`。
 - SourceWatermark、Page、ValueEnvelope、RuntimeBindingSummary、TerminalRunStatus 和 optional 字段均已修正。
 - `registry.test.ts` 新增 8 个正反向回归，focused 35/35；全项目 `pnpm verify` 为 43/43。
-- Handler、数据库、Runtime、外部集成和人工验收仍为 `NOT RUN`；Commit 已获用户授权，Push 未授权。
+- Handler、数据库、Runtime、外部集成和人工验收仍为 `NOT RUN`；Commit、Push 和合并 PR #10 已获用户授权。
+
+## Main 集成
+
+- Push 后 PR #10 Head 为 `a7bc30844d60511f19c41af1495806c54f76a145`；同期 PR #11 已合入 `main`，GitHub 因此报告两个共同修改文件存在冲突。
+- 集成策略：完整保留 PR #11 的权威 Core 字段级 Schema；TaskExecution 的 WorkOrderDraft 直接复用 `core/work-order/1.0#/$defs/*`，不恢复本分支的平行 WorkOrder 子结构。
+- 初次集成 Gate：5 个 Test Files 中 104/106 通过；2 个失败均来自本分支旧合法数据 builder 不满足 PR #11 已收紧的 Principal、Reference 与 NonEmptySet 约束。Schema 不放宽，测试改为复用 PR #11 的合法 Core WorkOrder fixture。
+- 最终集成 Gate：TaskExecution focused 35/35、全仓 5 个 Test Files 共 106/106；Architecture、Public API generation 与 Catalog Registry 均为 `PASS`。Handler、数据库、Runtime、外部集成和人工验收仍为 `NOT RUN`。

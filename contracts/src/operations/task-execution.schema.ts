@@ -2,7 +2,7 @@ import type { JsonSchema } from '../schema-types.js';
 
 const schemaId = 'https://schemas.zhiju.local/modules/task-execution/1.0';
 const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
-const workOrderTypes = 'https://schemas.zhiju.local/core/work-order-types/1.0#/$defs/';
+const workOrderTypes = 'https://schemas.zhiju.local/core/work-order/1.0#/$defs/';
 const projectContextContract = {
   $ref: 'https://schemas.zhiju.local/core/project-context/1.0',
 } as const;
@@ -58,6 +58,7 @@ const versionedReference = { $ref: `${common}versionedRef` } as const;
 const typedReference = { $ref: `${common}typedReference` } as const;
 const contentAddressedReference = { $ref: `${common}contentAddressedRef` } as const;
 const snapshotReference = { $ref: `${common}snapshotRef` } as const;
+const principalReference = { $ref: `${common}principalRef` } as const;
 const externalReference = { $ref: `${common}externalRef` } as const;
 const canonicalJson = {} as const;
 
@@ -210,7 +211,7 @@ const namedDefinitions = {
     ],
     {
       taskRef: objectReference,
-      requestedBy: objectReference,
+      requestedBy: principalReference,
       objective: workOrderTypeRef('objective'),
       targetScope: workOrderTypeRef('targetScope'),
       inputRefs: array(workOrderTypeRef('inputRef'), { unique: true }),
