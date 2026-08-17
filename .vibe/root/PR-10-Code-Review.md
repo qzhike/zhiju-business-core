@@ -67,3 +67,5 @@
 - 集成策略：完整保留 PR #11 的权威 Core 字段级 Schema；TaskExecution 的 WorkOrderDraft 直接复用 `core/work-order/1.0#/$defs/*`，不恢复本分支的平行 WorkOrder 子结构。
 - 初次集成 Gate：5 个 Test Files 中 104/106 通过；2 个失败均来自本分支旧合法数据 builder 不满足 PR #11 已收紧的 Principal、Reference 与 NonEmptySet 约束。Schema 不放宽，测试改为复用 PR #11 的合法 Core WorkOrder fixture。
 - 最终集成 Gate：TaskExecution focused 35/35、全仓 5 个 Test Files 共 106/106；Architecture、Public API generation 与 Catalog Registry 均为 `PASS`。Handler、数据库、Runtime、外部集成和人工验收仍为 `NOT RUN`。
+- `50b3b5d` 的 GitHub `verify` 通过后，PR #12 同期合入 `main@9acfd9d`，GitHub 在最终合并前正确阻止了过期 Head；第二次集成同时保留 TaskExecution 37 个与 Artifact 26 个 FULL 操作，预期聚合状态为 FULL=115、ENVELOPE_ONLY=85。
+- 第二次最终集成 Gate：5 个 Test Files 共 118/118；Architecture、Public API generation 与 Catalog Registry 均为 `PASS`，聚合状态 FULL=115、ENVELOPE_ONLY=85。

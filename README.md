@@ -12,9 +12,10 @@ Zhiju Business Core 是面向企业交付、质量治理与发布控制的模块
 - 200 个已批准公开 API 的严格 Envelope Registry；
 - IdentityPolicy 20 个操作的字段级 Payload/Event Schema，以及 6 个 Query Result Schema；
 - EnterpriseProject 32 个操作的字段级 Payload/Event Schema，以及 6 个 Query Result Schema；
+- Artifact 26 个操作的字段级 Payload/Event Schema，以及 7 个 Query Result Schema；
 - format、lint、typecheck、Vitest、架构依赖和 Catalog 对账 Gate。
 
-Registry 当前为 `FULL:52 / ENVELOPE_ONLY:148`。TaskExecution 等其余五个模块仍需补齐字段级 Payload/Query Result/Event Payload 和 Schema-derived Type，因此 IM-01 尚未完成。
+Registry 当前为 `FULL:78 / ENVELOPE_ONLY:122`。TaskExecution 等其余四个模块仍需补齐字段级 Payload/Query Result/Event Payload 和 Schema-derived Type，因此 IM-01 尚未完成。
 
 ## 验证
 

@@ -1,0 +1,95 @@
+{
+  "revisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "artifact.artifact_revision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d402",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "revisionNumber": 2,
+  "disposition": "ACTIVE",
+  "contentType": "STRUCTURED_DOCUMENT",
+  "contentRef": "artifact-content/018f22e2/revision-002.canonical.json",
+  "parentRevisionRefs": [
+    {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "artifact.artifact_revision",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d403",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "canonicalizationVersion": "1"
+      }
+    }
+  ],
+  "changedUnits": ["section.4.2", "section.5.1"],
+  "semanticMetadata": {
+    "unitCount": 12
+  },
+  "provenance": {
+    "principal": {
+      "kind": "OBJECT",
+      "objectType": "identity.principal",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "taskRef": {
+      "kind": "OBJECT",
+      "objectType": "execution.task",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d404",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "agentResultRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "execution.agent_result",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d405",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "sourceMaterialRefs": [
+      {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "project.source_material",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d406",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "canonicalizationVersion": "1"
+        }
+      }
+    ],
+    "toolchainVersions": [
+      {
+        "toolId": "zhiju.docgen",
+        "version": "0.1.0"
+      }
+    ]
+  }
+}
