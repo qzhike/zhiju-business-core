@@ -295,7 +295,7 @@ Runtime Adapter Contract v0.1  （BASELINE / USER PROGRESSION CONFIRMED 2026-08-
     ↓
 Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
     ↓
-IM-01 Repository + Executable Contracts  （IN PROGRESS / FULL 20 + ENVELOPE_ONLY 180）
+IM-01 Repository + Executable Contracts  （IN PROGRESS / FULL 52 + ENVELOPE_ONLY 148）
     ↓
 DDL / Migration / Repository / Application Code
 ```
@@ -386,4 +386,4 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 顶层 Schema、200 个 API Envelope、19 个测试、架构/Catalog Gate 与 HTTP health smoke 已通过；IdentityPolicy 20 个操作已具有字段级 Payload/Event Schema 和 Query Result Schema，其余 180 个操作仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。
+本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 顶层 Schema、200 个 API Envelope、23 个测试、架构/Catalog Gate 与 HTTP health smoke 已通过；IdentityPolicy 20 个与 EnterpriseProject 32 个操作已具有字段级 Payload/Event Schema 和 Query Result Schema，其余 148 个操作仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。

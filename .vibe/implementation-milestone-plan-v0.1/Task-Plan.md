@@ -55,5 +55,5 @@
 - MinIO 初始建议因官方仓库已归档被否决；不会进入生产、开发 Conformance 或 CI 基准。
 - 用户已授权 IM-01 依赖安装；精确 `pnpm-lock.yaml`、workspace、API skeleton、共享内核、Core 顶层 Schema 与 200 个 Envelope Registry 已创建。
 - 当前未创建 DDL、Migration 或模块业务 Handler，也未把 Runtime proposal 纳入 Catalog。
-- IdentityPolicy 20 个操作已从 `ENVELOPE_ONLY` 提升为字段级 `FULL` Schema，并由 Registry 验证 Payload 与 Query Result；其余 180 个操作保持 `ENVELOPE_ONLY`。
-- IM-01 下一切片是 EnterpriseProject 的字段级 Payload/Query Result/Event Payload 与 Schema-derived Type。
+- IdentityPolicy 20 个与 EnterpriseProject 32 个操作已从 `ENVELOPE_ONLY` 提升为字段级 `FULL` Schema，并由 Registry 验证 Payload 与 Query Result；其余 148 个操作保持 `ENVELOPE_ONLY`。
+- IM-01 下一切片是 TaskExecution 的字段级 Payload/Query Result/Event Payload 与 Schema-derived Type。

@@ -23,12 +23,13 @@
 | IMP-TST-001 | 既有 Test Spec 与里程碑退出条件 | 复用既有测试，不重复计算场景 | 未新增功能 Test ID；按里程碑选择既有场景 | `DESIGN VERIFIED` |
 | IM01-BUILD-001 | clean TypeScript Project References | 无缓存构建 10 个 workspace package | `tsc -b --clean` 后 `tsc -b` exit 0 | `PASS` |
 | IM01-STYLE-001 | 全部代码与配置 | format/lint 无问题 | `prettier --check`、`eslint .` exit 0 | `PASS` |
-| IM01-TEST-001 | Canonical JSON/Hash、UUIDv7、Scope、Registry | Unit/Contract fixtures 通过 | `test_files=4 tests=19 passed=19` | `PASS` |
+| IM01-TEST-001 | Canonical JSON/Hash、UUIDv7、Scope、Registry | Unit/Contract fixtures 通过 | `test_files=4 tests=23 passed=23` | `PASS` |
 | IM01-ARCH-001 | 共享内核、Contract、七模块与 API imports/manifests | 禁止跨模块/internal/framework 反向依赖 | `source_roots=10 policy_self_test=PASS violations=0` | `PASS` |
-| IM01-CAT-001 | 200 项 Catalog、Module Spec 与 Registry | 集合相等，proposal 隔离，生成文件无漂移 | `catalog=200 module_specs=200 registry=200 generation=PASS schema_status={FULL:20,ENVELOPE_ONLY:180}` | `PARTIAL PASS` |
+| IM01-CAT-001 | 200 项 Catalog、Module Spec 与 Registry | 集合相等，proposal 隔离，生成文件无漂移 | `catalog=200 module_specs=200 registry=200 generation=PASS schema_status={FULL:52,ENVELOPE_ONLY:148}` | `PARTIAL PASS` |
 | IM01-IDP-001 | IdentityPolicy 7 Command、6 Query、7 Event | Payload/Event 严格字段校验；Query 有 Result Schema；敏感 External ID 不进入 Event | `operations=20 payload_schema=20 query_result_schema=6 unknown_field=REJECT sensitive_event_field=REJECT` | `PASS` |
+| IM01-PROJ-001 | EnterpriseProject 18 Command、6 Query、8 Event | Payload/Event 严格字段校验；Query 有 Result Schema；分页嵌套字段关闭；客户原文不进入 Event | `operations=32 payload_schema=32 query_result_schema=6 nested_unknown=REJECT customer_text_event=REJECT` | `PASS` |
 | IM01-HTTP-001 | 编译后 NestJS/Fastify ESM API | 真实进程启动并响应 health | `GET /health -> {"status":"ok"}` | `PASS` |
-| IMP-GIT-001 | 当前 diff 与工作树 | 上一实现基线已提交；本轮边界可定位 | `base=91a0295 modified_entries=16 untracked_entries=5 diff_check=0` | `PASS` |
+| IMP-GIT-001 | 当前 diff 与工作树 | IdentityPolicy 切片已提交；本轮边界可定位 | `base=45743d7 modified_entries=11 untracked_entries=4 diff_check=0` | `PASS` |
 
 ## 3. 关键静态检查
 
@@ -41,10 +42,10 @@ module_spec_occurrences=200 module_spec_unique=200 catalog_diff=0
 runtime_tests=32 runtime_unique=32
 implementation_milestones=10 decision_gates=6 approved=4 pending=2
 obsolete_status_hits=0
-workspace_packages=10 source_ts=28 fixtures=8
-test_files=4 tests=19 passed=19
+workspace_packages=10 source_ts=29 fixtures=11
+test_files=4 tests=23 passed=23
 architecture_source_roots=10 violations=0
-registry_operations=200 schema_status={FULL:20,ENVELOPE_ONLY:180}
+registry_operations=200 schema_status={FULL:52,ENVELOPE_ONLY:148}
 public_api_generation=PASS
 http_health={"status":"ok"}
 git_diff_check=0
@@ -53,7 +54,7 @@ git_diff_check=0
 ## 4. 未执行项
 
 - IM-DG-005 与 IM-DG-006；
-- IM-01 剩余 180 个字段级 Payload/Query Result/Event Payload Schema、全部 Schema-derived Type 与跨版本 compatibility fixtures；
+- IM-01 剩余 148 个字段级 Payload/Query Result/Event Payload Schema、全部 Schema-derived Type 与跨版本 compatibility fixtures；
 - IM-01 全量退出 Gate，以及 IM-02 至 IM-09；
 - Persistence 与业务 E2E；
 - PostgreSQL、MicroCeph/Ceph RGW、OpenBao、Keycloak、飞书、三个 CLI、Renderer、备份恢复、负载和人工验收；
@@ -61,7 +62,7 @@ git_diff_check=0
 
 ## 5. 剩余风险
 
-1. IdentityPolicy 20 个 operation 已可按字段拒绝未知 Payload/Result/Event 字段，但其余 180 个 operation 仍是 `ENVELOPE_ONLY`；IM-01 不得退出。
+1. IdentityPolicy 20 个与 EnterpriseProject 32 个 operation 已可按字段拒绝未知 Payload/Result/Event 字段，但其余 148 个 operation 仍是 `ENVELOPE_ONLY`；IM-01 不得退出。
 2. 单台 Ubuntu 主机、单节点 MicroCeph/OpenBao/Keycloak 的主机故障容忍度为 0；独立备份与恢复演练是 Formal Release 前置条件。
 3. Ceph RGW 官方声明 Vault Transit 集成，OpenBao 只承诺 Vault API compatibility；二者组合必须在 IM-04 实测，失败时重开 IM-DG-003，不能降级明文。
 4. Canonical Document/Workbook Schema 未冻结，Artifact/Renderer 里程碑只能定义边界，不能实现内容模型。
@@ -70,4 +71,4 @@ git_diff_check=0
 
 ## 6. Git 状态
 
-上一实现基线已提交为 `91a0295`。本轮新增 IdentityPolicy 字段级 Schema、生成防漂移检查和 3 个 Contract Fixture，并同步当前状态；工作树尚未提交。
+IdentityPolicy 字段级契约已提交为 `45743d7`。本轮新增 EnterpriseProject 32 个字段级 Schema 和 3 个 Contract Fixture，并同步当前状态；工作树尚未提交。

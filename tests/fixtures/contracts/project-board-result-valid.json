@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "deliveryItemId": "018f22e2-7c15-7b2e-8d86-2de956a9d305",
+      "itemKey": "SOP-001",
+      "title": "Quality procedure",
+      "commitmentStatus": "APPROVED",
+      "executionStatus": "READY",
+      "blockerRefs": []
+    }
+  ],
+  "snapshotAt": "2026-08-17T00:00:00Z",
+  "sourceWatermarks": [
+    {
+      "sourceModule": "project",
+      "sequence": 1,
+      "observedAt": "2026-08-17T00:00:00Z"
+    }
+  ]
+}

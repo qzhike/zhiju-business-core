@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { publicApiOperations } from './generated/public-api.js';
+import { enterpriseProjectOperationContracts } from './operations/enterprise-project.schema.js';
 import { identityPolicyOperationContracts } from './operations/identity-policy.schema.js';
 import { ContractRegistry } from './registry.js';
 
@@ -43,12 +44,19 @@ describe('contract registry', () => {
     expect(registry.operationCount).toBe(200);
   });
 
-  it('exposes exactly the 20 IdentityPolicy operations as FULL schemas', () => {
+  it('exposes implemented module operations as matching FULL schemas', () => {
     const full = publicApiOperations.filter((operation) => operation.schemaStatus === 'FULL');
-    expect(full).toHaveLength(20);
-    expect(new Set(full.map((operation) => operation.owner))).toEqual(new Set(['identity-policy']));
+    const identity = full.filter((operation) => operation.owner === 'identity-policy');
+    const project = full.filter((operation) => operation.owner === 'enterprise-project');
+
+    expect(full).toHaveLength(52);
+    expect(identity).toHaveLength(20);
+    expect(project).toHaveLength(32);
     expect(Object.keys(identityPolicyOperationContracts).sort()).toEqual(
-      full.map((operation) => operation.type).sort(),
+      identity.map((operation) => operation.type).sort(),
+    );
+    expect(Object.keys(enterpriseProjectOperationContracts).sort()).toEqual(
+      project.map((operation) => operation.type).sort(),
     );
   });
 
@@ -110,12 +118,58 @@ describe('contract registry', () => {
     expect(result.errors.some((error) => error.instancePath === '/payload')).toBe(true);
   });
 
-  it('does not claim executable result schemas for unfinished modules', () => {
+  it('validates a field-level EnterpriseProject board query and result page', () => {
+    const query = fixture('project-board-query-valid.json');
+    const resultData = fixture('project-board-result-valid.json');
+
+    expect(registry.validateOperation('project.get_project_board_slice', '1.0', query)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(
+      registry.validateOperationResult('project.get_project_board_slice', '1.0', resultData),
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it('rejects unknown nested fields in EnterpriseProject result items', () => {
+    const resultData = fixture('project-board-result-valid.json');
+    const items = resultData.items as Record<string, unknown>[];
+    items[0] = { ...items[0], customerDocumentText: 'must-not-leak' };
+
     const result = registry.validateOperationResult(
-      'project.get_enterprise_profile_snapshot',
+      'project.get_project_board_slice',
       '1.0',
-      {},
+      resultData,
     );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.instancePath === '/items/0')).toBe(true);
+  });
+
+  it('rejects customer document content in EnterpriseProject public events', () => {
+    const event = fixture('project-customer-material-event-sensitive-field.json');
+    const result = registry.validateOperation('project.CustomerMaterialConfirmed', '1.0', event);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.instancePath === '/payload')).toBe(true);
+  });
+
+  it('rejects unknown EnterpriseProject command payload fields', () => {
+    const input = {
+      ...validCommand(),
+      commandType: 'project.create_enterprise',
+      payload: {
+        displayCode: 'ENT-001',
+        displayName: 'Fixture Enterprise',
+        initialStatus: 'ACTIVE',
+        unknownLifecycleShortcut: true,
+      },
+    };
+    const result = registry.validateOperation('project.create_enterprise', '1.0', input);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.instancePath === '/payload')).toBe(true);
+  });
+
+  it('does not claim executable result schemas for unfinished modules', () => {
+    const result = registry.validateOperationResult('execution.get_run_state', '1.0', {});
     expect(result.valid).toBe(false);
     expect(result.errors[0]?.keyword).toBe('operationResultRegistry');
   });

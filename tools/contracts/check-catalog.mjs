@@ -34,11 +34,12 @@ const invalid = registry.operations.filter(
     !['ENVELOPE_ONLY', 'FULL'].includes(operation.schemaStatus),
 );
 
+const implementedOwners = new Set(['identity-policy', 'enterprise-project']);
 const invalidFullOperations = registry.operations.filter(
-  (operation) => operation.schemaStatus === 'FULL' && operation.owner !== 'identity-policy',
+  (operation) => operation.schemaStatus === 'FULL' && !implementedOwners.has(operation.owner),
 );
-const incompleteIdentityOperations = registry.operations.filter(
-  (operation) => operation.owner === 'identity-policy' && operation.schemaStatus !== 'FULL',
+const incompleteImplementedOperations = registry.operations.filter(
+  (operation) => implementedOwners.has(operation.owner) && operation.schemaStatus !== 'FULL',
 );
 
 const issues = [
@@ -50,8 +51,8 @@ const issues = [
   ...invalidFullOperations.map(
     (operation) => `operation marked FULL without an implemented module schema: ${operation.type}`,
   ),
-  ...incompleteIdentityOperations.map(
-    (operation) => `IdentityPolicy operation is missing its FULL schema: ${operation.type}`,
+  ...incompleteImplementedOperations.map(
+    (operation) => `implemented module operation is missing its FULL schema: ${operation.type}`,
   ),
 ];
 
