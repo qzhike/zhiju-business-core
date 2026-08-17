@@ -1,7 +1,7 @@
 # PR #12 Code Review 与修复任务计划
 
 日期：2026-08-17
-状态：`REVIEW SUBMITTED / REMEDIATION VERIFIED / USER REVIEW PENDING`
+状态：`REVIEW SUBMITTED / REMEDIATION VERIFIED / COMMITTED / PUSHED / PR MERGE INTEGRATION VERIFIED`
 
 ## 1. 范围
 
@@ -20,7 +20,7 @@ GitHub Review：`https://github.com/qzhike/zhiju-business-core/pull/12#pullreque
 2. 增加失败回归用例，证明修复前输入被错误接收。
 3. 为普通 Revision 与 Merge Revision 分别施加 parent 数量约束，并为非空冲突施加非空解决引用约束。
 4. 运行 focused Contract tests、全量 `pnpm verify` 与 `git diff --check`。
-5. 用户检查修改后再决定是否 commit；本任务不自动 commit 或 push。
+5. 用户已授权 commit、push 与合并 PR；合入最新 `main` 后重跑全量 Gate，再执行 GitHub 合并。
 
 ## 4. 人工可验收产出
 
@@ -30,6 +30,7 @@ GitHub Review：`https://github.com/qzhike/zhiju-business-core/pull/12#pullreque
 
 - 修复前 focused regression：25 通过、2 失败，证明两项 Review 问题可复现。
 - 修复后 focused regression：27/27 通过。
-- 全量 `pnpm verify`：4 个测试文件、35/35 测试通过；format、lint、typecheck、architecture 与 Catalog Gate 通过。
+- 修复切片全量 `pnpm verify`：4 个测试文件、35/35 测试通过。
+- 合入 `origin/main@d5fb60a` 后：5 个测试文件、98/98 测试通过；format、lint、typecheck、architecture 与 Catalog Gate 通过。
 - `git diff --check`：通过。
 - 当前 Node.js 为 `v24.13.0`，低于仓库锁定的 `24.19.0`；pnpm 为 `11.19.0`。Node engine 警告保留为验证边界。

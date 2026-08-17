@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`API CONTRACT TEST BASELINE / PR #12 REMEDIATION VERIFIED / USER REVIEW PENDING`
+状态：`API CONTRACT TEST BASELINE / PR #12 REMEDIATION VERIFIED / PR MERGE AUTHORIZED`
 
 对应规格：[`Module-Spec-004-Artifact.md`](../module-specs/Module-Spec-004-Artifact.md)。
 
@@ -24,7 +24,7 @@
 
 ## 本阶段结果
 
-- PR #12 Review 已用当前 `ContractRegistry` 运行确认 AF-API-C-003/004 修复前失败；修复后 focused regression 27/27、全量测试 35/35 通过。
+- PR #12 Review 已用当前 `ContractRegistry` 运行确认 AF-API-C-003/004 修复前失败；修复后 focused regression 27/27、独立切片 35/35、合入最新 `main` 后全量测试 98/98 通过。
 - 其他 Unit/Contract/E2E/Manual 仍按表中证据保持 `NOT RUN`。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - 测试遗留：未创建临时脚本或测试文件。

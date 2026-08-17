@@ -386,4 +386,6 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 顶层 Schema、200 个 API Envelope、35 个测试、架构/Catalog Gate 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个与 Artifact 26 个操作已具有字段级 Payload/Event Schema 和 Query Result Schema，其余 122 个操作仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。PR #12 Review 确认的 Artifact Revision parent 数量与 Merge 冲突解决约束缺口已修复，新增两条 Contract 回归并通过全量 Gate；用户检查与 Git 提交仍待完成。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。
+本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。IdentityPolicy 20 个、EnterpriseProject 32 个与 Artifact 26 个操作已具有字段级 Payload/Event Schema 和 Query Result Schema，其余 122 个操作仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。PR #12 Review 确认的 Artifact Revision parent 数量与 Merge 冲突解决约束缺口已修复、提交并推送；与已合并 PR #11 的 `main@d5fb60a` 组合后全量 Gate 已通过，当前证据为 5 个测试文件、98/98 测试通过。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。
+
+PR #11 的 Core Contract 字段级 Schema review 修复已合并至 `main`：该切片恢复既有 `required`、Typed Reference 强度、Set 基数和 `ValueEnvelope` 条件约束，不改变冻结的 Core Contract 业务语义，也不扩大 IM-01 范围。修复记录见 [`../im-01-core-contract-review-fix/Task-Plan.md`](../im-01-core-contract-review-fix/Task-Plan.md)。
