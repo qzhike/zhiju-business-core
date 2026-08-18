@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-16
-状态：`CURRENT MODULE CONTRACT BASELINE / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / IMPLEMENTATION PLAN DRAFT / APPLICATION CODE NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / APPLICATION CODE NOT STARTED`
 
 ## 1. 模块责任
 
@@ -231,4 +231,5 @@ INTEGRATION_QUARANTINE_REQUIRED
 - 23 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核并成为字段级基准；
 - Feishu Channel Contract v0.1 已完成静态 `DESIGN VERIFIED`，四个 optional minor 字段已随用户推进确认纳入基准；Runtime Adapter Contract v0.1 已获用户推进确认并进入 Implementation Milestone Plan，Renderer Adapter、Credentials、Persistence 与测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- 字段级 Schema 已落地：`contracts/src/operations/integration-gateway.schema.ts` 已实现 9 Command + 5 Query + 9 Event Payload Schema，5 个 Query Result Schema（`ChannelBindingView` / `AdapterAttemptView` × 3 / `Page<AdapterHealthView>`）；Registry 中 23 个 operation 已于 2026-08-18 由 `ENVELOPE_ONLY` 升级为 `FULL`；
+- 对应 Handler、Repository、Database、Migration、Feishu Adapter、Runtime Adapter、Renderer Adapter、Credentials、E2E 与人工业务验收仍为 `NOT RUN`；Schema 已通过 `pnpm verify` 中 format / lint / typecheck / Vitest 204 个测试 / 架构边界 / Catalog 对账共 6 项 Gate。

@@ -1,0 +1,59 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9db30",
+  "eventType": "integration.InboundEnvelopeAccepted",
+  "eventVersion": "1.0",
+  "producerModule": "integration-gateway",
+  "aggregateType": "integration.adapter_attempt",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9db31",
+  "aggregateVersion": 1,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9db32",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9db33",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9db34",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db35",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:00:00Z",
+  "dataClassification": "INTERNAL",
+  "payload": {
+    "inboundEnvelopeRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "integration.inbound_envelope",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db31",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "adapterCode": "feishu.channel",
+    "externalEventRef": {
+      "system": "feishu",
+      "resourceType": "message",
+      "externalId": "om_token_leak_001",
+      "observedAt": "2026-08-17T00:00:00Z"
+    },
+    "accessToken": "t-cf2f3b4e5d6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t",
+    "appSecret": "must-not-leak"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

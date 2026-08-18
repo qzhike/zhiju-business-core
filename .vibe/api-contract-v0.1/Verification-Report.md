@@ -1,8 +1,8 @@
 # Command / Query / Event API Contract v0.1 验证报告
 
-日期：2026-08-13
+日期：2026-08-13（IntegrationGateway 字段级 Schema 落地增补于 2026-08-18）
 环境：`/Users/galendai/repo/zhiju-business-core`，macOS/zsh，本地工作树
-状态：`DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+状态：`DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED FOR ALL 7 MODULES 2026-08-18 / HANDLER + DB + EXTERNAL GATES REMAINING`
 
 ## 1. 验证范围
 
@@ -13,6 +13,7 @@
 | Gate | 输入 | 预期输出 | 实际输出 | 结果 |
 |---|---|---|---|---|
 | API-DOC-001 文档集合 | `.vibe/high-level-docs`、`module-specs`、`module-tests` | 高层 9 份；Module Spec/Test 各 7 份；ID/名称成对 | `high_level_docs=9`；`module_specs=7`；`module_tests=7`；`pair_diff=0` | `DESIGN VERIFIED` |
+| API-IG-SCHEMA-001 IntegrationGateway 字段级 Schema | `contracts/src/operations/integration-gateway.schema.ts` + 6 个负向 Fixture | 23 个 operation 全部 `FULL`；9 Command + 5 Query + 9 Event + 5 Result Schema；Registry 总数 200；`pnpm verify` 6 项 Gate 全过 | `registry=200 FULL=200`；Vitest 204/204；Catalog 对账 PASS | `PASS 2026-08-18` |
 | API-CAT-001 Catalog 唯一性 | `06` 与七份 Module Spec 中的 `namespace.name@1.0` | 两侧各 200 个唯一名称、无重复、集合差 0 | Catalog `occurrences=200 unique=200 duplicates=0`；Specs 同值；`set_diff=0` | `DESIGN VERIFIED` |
 | API-FLD-001 字段表完整性 | Module Spec 第 3—5 节 | Command 有 target/mode/payload/auth；Query 有 consistency/payload/result；Event 有 payload | `commands=95 queries=44 events=61 issues=0` | `DESIGN VERIFIED` |
 | API-TST-001 测试文档 | 七份 Module Test | 每份 1 Design、3 Unit、2 Contract、2 E2E、1 Manual；ID 唯一 | `files=7 cases=63 unique=63 duplicates=0 issues=0` | `DESIGN VERIFIED` |

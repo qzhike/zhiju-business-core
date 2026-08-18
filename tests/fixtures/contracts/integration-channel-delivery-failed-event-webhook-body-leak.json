@@ -1,0 +1,61 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9db10",
+  "eventType": "integration.ChannelDeliveryFailed",
+  "eventVersion": "1.0",
+  "producerModule": "integration-gateway",
+  "aggregateType": "integration.adapter_attempt",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9db11",
+  "aggregateVersion": 1,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9db12",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9db13",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9db14",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db15",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:00:00Z",
+  "dataClassification": "INTERNAL",
+  "payload": {
+    "attemptRef": {
+      "kind": "OBJECT",
+      "objectType": "integration.channel_delivery_attempt",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db11",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "sourceBusinessRef": {
+      "kind": "OBJECT",
+      "objectType": "release.release",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db16",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "outcome": "UNKNOWN",
+    "reasonCode": "INTEGRATION_EXTERNAL_OUTCOME_UNKNOWN",
+    "rawWebhookBody": {
+      "challenge": "must-not-leak",
+      "tenant_key": "t-1",
+      "message": "raw provider payload"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

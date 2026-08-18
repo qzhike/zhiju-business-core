@@ -1,0 +1,96 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9da01",
+  "commandType": "integration.accept_inbound_envelope",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "integration.inbound_envelope",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9da02",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9da03",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9da04",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-duplicate-hash-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9da05",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "submission": {
+      "adapterCode": "feishu.channel",
+      "adapterVersion": "1.0.0",
+      "accountExternalRef": {
+        "system": "feishu",
+        "resourceType": "tenant",
+        "externalId": "tenant_dup_001",
+        "observedAt": "2026-08-17T00:00:00Z"
+      },
+      "externalEventRef": {
+        "system": "feishu",
+        "resourceType": "message",
+        "externalId": "om_dup_001",
+        "observedAt": "2026-08-17T00:00:00Z"
+      },
+      "externalEventType": "im.message.receive_v1",
+      "receivedAt": "2026-08-17T00:00:00Z",
+      "authenticationMetadataRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "integration.authentication_metadata",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9da06",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "payloadRef": "integration/inbound/feishu/raw-payload",
+      "payloadHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      },
+      "dataClassification": "INTERNAL",
+      "transportMetadata": {
+        "headerEventId": "om_dup_001"
+      },
+      "duplicateOfSubmissionRef": "018f22e2-7c15-7b2e-8d86-2de956a9da07"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  }
+}
