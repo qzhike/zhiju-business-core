@@ -1,0 +1,75 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d550",
+  "commandType": "quality.propose_issue_resolution",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "quality.review_issue",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d551",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d552",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d553",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-quality-issue-resolution-no-content-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d554",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "resolution": {
+      "targetRevisionRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "artifact.artifact_revision",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d555",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "cbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcb",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "changedClaimRefs": [],
+      "explanation": "Resolution only acknowledges the governance request; no content claims were modified in this Revision.",
+      "proposedAt": "2026-08-17T00:00:00Z"
+    },
+    "proposedBy": {
+      "principalKind": "HUMAN",
+      "principalId": "018f22e2-7c15-7b2e-8d86-2de956a9d556"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "bdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

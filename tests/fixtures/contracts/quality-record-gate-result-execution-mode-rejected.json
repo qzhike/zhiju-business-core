@@ -1,0 +1,122 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d510",
+  "commandType": "quality.record_gate_result",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "quality.gate_result",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d511",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d512",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d513",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-quality-gate-execution-mode-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d514",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "submission": {
+      "artifactRef": {
+        "kind": "OBJECT",
+        "objectType": "artifact.artifact",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d515",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "gateTarget": {
+        "kind": "REVISION",
+        "revisionRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "artifact.artifact_revision",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d516",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "canonicalizationVersion": "1"
+          }
+        }
+      },
+      "evaluationStage": "REVISION_ACCEPTANCE",
+      "executionMode": "REUSED_BY_IMPACT_ANALYSIS",
+      "qualityProfileRef": {
+        "kind": "VERSIONED",
+        "objectType": "quality.quality_profile",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d517",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d518",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "gateSpecId": "018f22e2-7c15-7b2e-8d86-2de956a9d519",
+      "gateVersion": "1.0.0",
+      "evaluationAttempt": 1,
+      "evaluatedScope": {
+        "scope": "section.4.2..section.5.1"
+      },
+      "inputSnapshotRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "quality.gate_input",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d51a",
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d51b",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "evaluator": {
+        "evaluatorId": "quality.gate.automated",
+        "evaluatorVersion": "1.0.0"
+      },
+      "outcome": "PASS",
+      "findings": [],
+      "evidenceRefs": [],
+      "startedAt": "2026-08-17T00:00:00Z",
+      "completedAt": "2026-08-17T00:01:00Z"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "abababababababababababababababababababababababababababababababab",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

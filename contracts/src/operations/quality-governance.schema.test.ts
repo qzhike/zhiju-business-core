@@ -358,4 +358,74 @@ describe('quality-governance schema', () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some((error) => error.keyword === 'required')).toBe(true);
   });
+
+  // ===========================================================================
+  // Second-round P1 / P2 remediation tests
+  // ===========================================================================
+
+  it('rejects record_gate_result carrying an unauthorized executionMode field', () => {
+    const command = fixture('quality-record-gate-result-execution-mode-rejected.json');
+    const result = registry.validateOperation('quality.record_gate_result', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'additionalProperties' && error.instancePath.includes('submission'),
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts a record_reused_gate_result command carrying source Result and ChangeImpact', () => {
+    const command = fixture('quality-record-reused-gate-result-command-valid.json');
+    expect(registry.validateOperation('quality.record_reused_gate_result', '1.0', command)).toEqual(
+      {
+        valid: true,
+        errors: [],
+      },
+    );
+  });
+
+  it('rejects record_reused_gate_result missing the source GateResult reference', () => {
+    const command = fixture('quality-record-reused-gate-result-missing-source-ref.json');
+    const result = registry.validateOperation('quality.record_reused_gate_result', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'required' &&
+          error.instancePath === '/payload/reuse' &&
+          (error.params as { missingProperty?: string }).missingProperty === 'sourceGateResultRef',
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects record_reused_gate_result missing the ChangeImpact reference', () => {
+    const command = fixture('quality-record-reused-gate-result-missing-change-impact.json');
+    const result = registry.validateOperation('quality.record_reused_gate_result', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'required' &&
+          error.instancePath === '/payload/reuse' &&
+          (error.params as { missingProperty?: string }).missingProperty === 'changeImpactRef',
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts get_gate_results with empty Set filter collections to return the full target history', () => {
+    const query = fixture('quality-get-gate-results-query-empty-filters-valid.json');
+    expect(registry.validateOperation('quality.get_gate_results', '1.0', query)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('accepts propose_issue_resolution whose changedClaimRefs is an empty plain array', () => {
+    const command = fixture('quality-propose-issue-resolution-no-content-changes-valid.json');
+    expect(registry.validateOperation('quality.propose_issue_resolution', '1.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
 });
