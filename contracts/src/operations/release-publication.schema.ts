@@ -256,7 +256,15 @@ const namedDefinitions = {
     },
   ),
   publicationFailureSubmission: object(
-    ['attemptRef', 'destinationId', 'packageRef', 'classification', 'retryable', 'outcome'],
+    [
+      'attemptRef',
+      'destinationId',
+      'packageRef',
+      'classification',
+      'retryable',
+      'outcome',
+      'occurredAt',
+    ],
     {
       attemptRef: objectReference,
       destinationId: uuid,
@@ -281,8 +289,8 @@ const namedDefinitions = {
       packageRef: releasePackageRef,
       releaseReadinessSnapshotRef: snapshotReference,
       authorizationRef: contentAddressedReference,
-      attemptRefs: array(objectReference, { unique: true }),
-      receiptRefs: array(contentAddressedReference, { unique: true }),
+      attemptRefs: array(objectReference),
+      receiptRefs: array(contentAddressedReference),
       recallRef: contentAddressedReference,
     },
   ),
@@ -311,10 +319,10 @@ const namedDefinitions = {
     ],
     {
       releaseRef: objectReference,
-      triggeringRefs: array(typedReference, { unique: true }),
-      affectedDestinations: array(uuid, { unique: true }),
+      triggeringRefs: array(typedReference),
+      affectedDestinations: array(uuid),
       riskClassification: namespace,
-      requiredActions: array(namespace, { unique: true }),
+      requiredActions: array(namespace),
       humanInterventionRequired: { type: 'boolean' },
     },
   ),
@@ -324,13 +332,13 @@ const namedDefinitions = {
     items: array(localRef('publicationAttemptView')),
     nextCursor: opaqueCursor,
     snapshotAt: instant,
-    sourceWatermarks: array({ $ref: `${common}sourceWatermark` }, { unique: true }),
+    sourceWatermarks: array({ $ref: `${common}sourceWatermark` }),
   }),
   publicationReceiptPage: object(['items', 'snapshotAt', 'sourceWatermarks'], {
     items: array(contentAddressedReference),
     nextCursor: opaqueCursor,
     snapshotAt: instant,
-    sourceWatermarks: array({ $ref: `${common}sourceWatermark` }, { unique: true }),
+    sourceWatermarks: array({ $ref: `${common}sourceWatermark` }),
   }),
 } as const satisfies Readonly<Record<string, JsonSchema>>;
 

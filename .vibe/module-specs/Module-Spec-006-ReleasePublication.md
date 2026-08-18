@@ -83,7 +83,7 @@ PublicationFailureSubmission
 ├── outcome: Closed<FAILED | UNKNOWN>
 ├── providerRef?: ExternalRef
 ├── diagnosticRef?: ExternalRef
-└── occurredAt: UtcInstant
+└── occurredAt: UtcInstant  *(required — fixed in v0.2; field-level schema required list)*
 ```
 
 ## 3. Command Payload Contract

@@ -1091,7 +1091,10 @@ describe('release-publication schema', () => {
   // Negative / forbidden scenarios (using disk fixtures)
   // ===========================================================================
 
-  it('rejects Agent / actingFor impersonation in authorize_release', () => {
+  it('rejects Agent principalKind in authorize_release.authorizingHumanRef (schema-level HUMAN_ONLY guard)', () => {
+    // Schema layer: payload.authorizingHumanRef.principalKind must equal HUMAN.
+    // The full Agent/actingFor authorization invariant (ActorSnapshot + actor envelope)
+    // is enforced at runtime; see RP-API-C-001 in Module-Test-006 for the runtime TODO.
     const command = fixture('release-authorize-release-command-agent-forbidden.json');
     const result = registry.validateOperation('release.authorize_release', '1.0', command);
     expect(result.valid).toBe(false);
@@ -1102,7 +1105,10 @@ describe('release-publication schema', () => {
     ).toBe(true);
   });
 
-  it('rejects Agent / actingFor impersonation in recall_release', () => {
+  it('rejects Agent principalKind in recall_release.authorizingHumanRef (schema-level HUMAN_ONLY guard)', () => {
+    // Schema layer: payload.authorizingHumanRef.principalKind must equal HUMAN.
+    // The full Agent/actingFor authorization invariant is enforced at runtime;
+    // see RP-API-C-001 in Module-Test-006 for the runtime TODO.
     const command = fixture('release-recall-release-command-agent-forbidden.json');
     const result = registry.validateOperation('release.recall_release', '1.0', command);
     expect(result.valid).toBe(false);
@@ -1120,6 +1126,22 @@ describe('release-publication schema', () => {
     expect(
       result.errors.some(
         (error) => error.keyword === 'enum' && error.instancePath.includes('outcome'),
+      ),
+    ).toBe(true);
+  });
+
+  it('requires publication failure submissions to carry an occurredAt timestamp', () => {
+    // Regression for review P1: Module-Spec-006 §2 declares occurredAt as required;
+    // ensure the schema rejects submissions that omit it.
+    const command = fixture('release-record-publication-failure-command-missing-occurred-at.json');
+    const result = registry.validateOperation('release.record_publication_failure', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'required' &&
+          error.instancePath === '/payload/failure' &&
+          (error.params as { missingProperty?: string }).missingProperty === 'occurredAt',
       ),
     ).toBe(true);
   });
@@ -1142,7 +1164,11 @@ describe('release-publication schema', () => {
     expect(result.errors.some((error) => error.keyword === 'additionalProperties')).toBe(true);
   });
 
-  it('rejects sensitive recipient details leaking through a Formal Receipt submission', () => {
+  it('enforces additionalProperties closure on the receipt envelope (recipient details leak)', () => {
+    // Schema layer: `formalReceiptSubmission` rejects unknown fields placed at the
+    // receipt top level. providerResult itself remains CanonicalJson by Module-Spec-006 §2;
+    // deeper providerResult-level minimization (e.g. recipient PII inside providerResult)
+    // is a runtime concern. See RP-API-C-005 in Module-Test-006 for the runtime TODO.
     const command = fixture(
       'release-record-publication-receipt-command-recipient-details-leak.json',
     );
@@ -1158,7 +1184,11 @@ describe('release-publication schema', () => {
     expect(result.errors.some((error) => error.keyword === 'additionalProperties')).toBe(true);
   });
 
-  it('rejects a plain feishu file send that lacks an authorize_release authorization reference', () => {
+  it('enforces additionalProperties closure on PublicationSucceeded (unknown-field rejection)', () => {
+    // Schema layer: PublicationSucceeded rejects any unknown field placed at the
+    // event payload top level. The plain Feishu send vs. formal Release provenance
+    // check (proving that an unauthorized integration-gateway message cannot impersonate
+    // a Formal Receipt) is a runtime concern; see RP-API-E-002 in Module-Test-006.
     const event = fixture('release-publication-succeeded-event-plain-feishu-send.json');
     const result = registry.validateOperation('release.PublicationSucceeded', '1.0', event);
     expect(result.valid).toBe(false);
