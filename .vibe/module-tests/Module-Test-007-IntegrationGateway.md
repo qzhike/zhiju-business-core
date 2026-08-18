@@ -12,7 +12,7 @@ Feishu 专项必须独立验证 `businessContextRefs/runtimeContextExternalRef` 
 
 Runtime 原始协议与 IntegrationGateway API 的专项映射测试见 [`Runtime-Adapter-Test-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md)。专项覆盖本地 CLI Process Driver、Dispatch、Event、Result、Usage、Cancel、Resume/Retry、Lease/Fencing 和 CLI Profile；4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景保持 `NOT RUN`。
 
-## Schema 级测试用例与结果（2026-08-18 落地，2026-08-18 review 第一/二轮修复）
+## Schema 级测试用例与结果（2026-08-18 落地，2026-08-18 review 第一至四轮修复）
 
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
@@ -39,7 +39,7 @@ Runtime 原始协议与 IntegrationGateway API 的专项映射测试见 [`Runtim
 | IG-API-S-020 | Schema | get_adapter_health adapterCodes 为空数组（review P2 第三轮） | Set 允许空（语义由 Handler 维护） | empty list 后 valid=true | `PASS` |
 | IG-API-S-021 | Schema | get_adapter_health adapterCodes 含重复项（review P2 第三轮） | Set 唯一性强制 uniqueItems | `['feishu.channel','feishu.channel']` 触发 `uniqueItems` 错误 | `PASS` |
 
-23 个 Schema 维度 Happy-path（9 Command + 5 Query Payload + 5 Query Result + 9 Event）与 11 个 Schema 维度负向 fixture（含 review P1 三类修复）已在 [`contracts/src/operations/integration-gateway.schema.test.ts`](../../contracts/src/operations/integration-gateway.schema.test.ts) 中覆盖；`pnpm test` 全量 210 个测试通过。
+[`contracts/src/operations/integration-gateway.schema.test.ts`](../../contracts/src/operations/integration-gateway.schema.test.ts) 当前共 35 个 focused tests，覆盖 23 个 operation 的 Happy-path、5 个 Query Result、Schema 维度负向 fixture 与 review 边界；`pnpm test` 全量 216 个测试通过。
 
 review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成：
 
@@ -62,9 +62,9 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 
 ## 本阶段结果
 
-- Schema 维度：`PASS`，`pnpm verify` 中 format / lint / typecheck / Vitest 214 个测试 / 架构边界 / Catalog 对账共 6 项 Gate 全部通过；2026-08-18 review 第一轮 3 个 P1 inline（Resume required `continuationRef` / `replyToExternalRef` conditional / `businessContextRefs` no ExternalRef）已修复；第二轮 4 个 P1（`ChannelBindingView.status` 用错 enum / `latency` 未收紧为 `ValueEnvelope<Duration>` / `businessContextRefs` 缺 objectType 白名单 / duplicate 用例不构成验收）与 2 个 P2（`attachmentRefs`/`conflictRefs` 过紧 uniqueItems / `adapterCodes` 过紧 NonEmptySet）已修复并断言回归；duplicate fixture 已重命名为闭包测试，duplicate 验收仍维持 `NOT RUN`。
-- Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Handler、Repository、Adapter、Database 与人工业务验收尚未实现；review 两轮均明确本次修复未声称 Issue #6 全部 8 条验收完成，PR #16 不再 `Closes #6`，运行/外部/撤回/权限等剩余项已在 [Issue #17](https://github.com/qzhike/zhiju-business-core/issues/17) 追踪。
+- Schema 维度：`PASS`，`pnpm verify` 中 format / lint / typecheck / Vitest 216 个测试 / 架构边界 / Catalog 对账共 6 项 Gate 全部通过；2026-08-18 review 第一轮 3 个 P1 inline（Resume required `continuationRef` / `replyToExternalRef` conditional / `businessContextRefs` no ExternalRef）已修复；第二轮 4 个 P1（`ChannelBindingView.status` 用错 enum / `latency` 未收紧为 `ValueEnvelope<Duration>` / `businessContextRefs` 缺 objectType 白名单 / duplicate 用例不构成验收）与 2 个 P2（`attachmentRefs`/`conflictRefs` 过紧 uniqueItems / `adapterCodes` 过紧 NonEmptySet）已修复；第三轮恢复 `adapterCodes` 的 Set 唯一性并通过 S-020/S-021 成对回归；第四轮已同步设计计划与本测试文档的契约及验证证据。duplicate fixture 仍仅为闭包测试，duplicate 运行时验收维持 `NOT RUN`。
+- Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Handler、Repository、Adapter、Database 与人工业务验收尚未实现；review 已明确本次修复未声称 Issue #6 全部 8 条验收完成，PR #16 不再 `Closes #6`，运行/外部/撤回/权限等剩余项已在 [Issue #17](https://github.com/qzhike/zhiju-business-core/issues/17) 追踪。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - Feishu Channel 专项：`DESIGN VERIFIED / USER PROGRESSION CONFIRMED 2026-08-16`；不得据此更改本文件 9 个 API 基准用例的历史状态。
 - Runtime Adapter 专项：4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景为 `NOT RUN`；6 个 additive TaskExecution Command proposal 未进入 Catalog。
-- 测试遗留：本次新增 12 个负向 Fixture（含 review P1 三类 + 第二轮 1 个 result 模板）与 23 个 Schema 测试；2026-08-18 review 修复期间新增的临时调试文件 `tests/integration-debug.test.ts` 已删除；本地无遗留脚本。
+- 测试遗留：IntegrationGateway focused tests 当前为 35/35；2026-08-18 review 修复期间新增的临时调试文件 `tests/integration-debug.test.ts` 已删除；本地无遗留脚本或测试文件。

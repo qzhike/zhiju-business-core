@@ -81,7 +81,7 @@ Object Locator：复用 artifact / quality 模式 `^[a-z0-9][a-z0-9._-]*(?:/[A-Z
 | `get_delivery_attempt` | `attemptRef` | `AdapterAttemptView` |
 | `get_runtime_attempt` | `attemptRef` | `AdapterAttemptView` |
 | `get_render_attempt` | `attemptRef` | `AdapterAttemptView` |
-| `get_adapter_health` | `adapterCodes: NonEmptySet<NamespaceCode>; observedAfter?; page` | `Page<AdapterHealthView>`（含 `ValueEnvelope<Duration>` latency） |
+| `get_adapter_health` | `adapterCodes: Set<NamespaceCode>; observedAfter?; page` | `Page<AdapterHealthView>`（含 `ValueEnvelope<Duration>` latency） |
 
 ### 4.3 Event Payload
 
