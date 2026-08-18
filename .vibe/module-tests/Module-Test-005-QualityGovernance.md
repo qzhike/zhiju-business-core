@@ -59,8 +59,3 @@
 - Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Gate Evaluator、Profile Registry、Readiness Evaluator、Persistence 与 Handler 实现均不存在；本阶段未声明 CLI 或 DB E2E 已运行。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - 测试遗留：未创建临时脚本或临时测试文件；永久 Fixture 位于 `tests/fixtures/contracts/quality-*.json` 与 `tests/fixtures/contracts/core/*.json`，与生产代码同源管理。
-- 25 个 Quality Schema 用例覆盖：Human Approval 接受、Agent 冒充拒绝、Target hash 校验、Evaluation Stage 枚举、Gate Result Event 校验、敏感字段泄漏、Result `additionalProperties` 拒绝、Gate/Approval 形态差异、owner/producerModule 一致性、envelope 字段约束、Common `representationRef` 正反例、Common `principalRef` 正反例、三个 revoke/invalidate Command 直接字段、required `releaseRequirements`、Common `pageRequest`/`opaqueCursor` 正反例、三个 Snapshot Query Result 复用 Core Contract golden fixture + 截断拒绝。
-- Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Gate Evaluator、Profile Registry、Readiness Evaluator、Persistence 与 Handler 实现均不存在；本阶段未声明 CLI 或 DB E2E 已运行。
-- 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
-- PR #13 review 修复（P1.1 `representationRef`、P1.2 Core Contract Result、P1.3 PrincipalRef、P1.4 撤销字段、P2.1 releaseRequirements、P2.2 opaqueCursor、P2.3 HL-Spec）均已在 Schema、Fixture、Registry 与本测试文档中同步。
-- 测试遗留：未创建临时脚本或临时测试文件；永久 Fixture 位于 `tests/fixtures/contracts/quality-*.json` 与 `tests/fixtures/contracts/core/*.json`，与生产代码同源管理。
