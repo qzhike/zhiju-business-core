@@ -301,7 +301,7 @@ Runtime Adapter Contract v0.1  （BASELINE / USER PROGRESSION CONFIRMED 2026-08-
     ↓
 Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
     ↓
-IM-01 Repository + Executable Contracts  （IN PROGRESS / FULL 115 + ENVELOPE_ONLY 85 / TASKEXECUTION + ARTIFACT INTEGRATION GATE PASS）
+IM-01 Repository + Executable Contracts  （IN PROGRESS / FULL 152 + ENVELOPE_ONLY 48 / TASKEXECUTION + ARTIFACT + QUALITYGOVERNANCE INTEGRATION GATE PENDING）
     ↓
 DDL / Migration / Repository / Application Code
 ```
@@ -392,6 +392,6 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个与 Artifact 26 个操作已具有字段级 Payload/Event Schema 和 Query Result Schema，其余 85 个操作仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。PR #10 与 PR #12 的 Schema review 修复均已保留；6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。
+本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个与 QualityGovernance 37 个操作已具有字段级 Payload/Event Schema 和 Query Result Schema，其余 48 个 Release/Integration 操作仍为 `ENVELOPE_ONLY`，不得标记 IM-01 完成。PR #10、PR #12 与 PR #13 的 Schema review 修复均已保留；6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`。
 
-PR #11 的 Core Contract 字段级 Schema review 修复已合并至 `main`：该切片恢复既有 `required`、Typed Reference 强度、Set 基数和 `ValueEnvelope` 条件约束，不改变冻结的 Core Contract 业务语义，也不扩大 IM-01 范围。修复记录见 [`../im-01-core-contract-review-fix/Task-Plan.md`](../im-01-core-contract-review-fix/Task-Plan.md)。TaskExecution 直接复用该权威 WorkOrder Schema 的共享 `$defs`，不得维护第二套 WorkOrder 子结构。
+PR #11 的 Core Contract 字段级 Schema review 修复已合并至 `main`：该切片恢复既有 `required`、Typed Reference 强度、Set 基数和 `ValueEnvelope` 条件约束，不改变冻结的 Core Contract 业务语义，也不扩大 IM-01 范围。修复记录见 [`../im-01-core-contract-review-fix/Task-Plan.md`](../im-01-core-contract-review-fix/Task-Plan.md)。TaskExecution 直接复用该权威 WorkOrder Schema 的共享 `$defs`，不得维护第二套 WorkOrder 子结构。QualityGovernance PR #13 的 review 修复同样要求 Result Schema 直接引用已注册的 Core Contract ID（`revision-acceptance/1.0`、`approval-bundle/1.0`、`release-readiness/1.0`），不得维护第二套截断视图。

@@ -1,0 +1,60 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9d350",
+  "eventType": "quality.EvidenceVerified",
+  "eventVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d351",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d352",
+  "occurredAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "evidenceRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "quality.evidence",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d353",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "verificationRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "quality.evidence_verification",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d354",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "authority": "regulatory.nmpa",
+    "verifiedAt": "2026-08-17T00:00:00Z",
+    "capturedEvidenceBody": "Full text of the regulatory document must not leak into public events."
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "abababababababababababababababababababababababababababababababab",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

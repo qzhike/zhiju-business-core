@@ -6,6 +6,7 @@ import { publicApiOperations } from './generated/public-api.js';
 import { artifactOperationContracts } from './operations/artifact.schema.js';
 import { enterpriseProjectOperationContracts } from './operations/enterprise-project.schema.js';
 import { identityPolicyOperationContracts } from './operations/identity-policy.schema.js';
+import { qualityGovernanceOperationContracts } from './operations/quality-governance.schema.js';
 import { taskExecutionOperationContracts } from './operations/task-execution.schema.js';
 import { ContractRegistry } from './registry.js';
 
@@ -72,12 +73,14 @@ describe('contract registry', () => {
     const project = full.filter((operation) => operation.owner === 'enterprise-project');
     const execution = full.filter((operation) => operation.owner === 'task-execution');
     const artifact = full.filter((operation) => operation.owner === 'artifact');
+    const quality = full.filter((operation) => operation.owner === 'quality-governance');
 
-    expect(full).toHaveLength(115);
+    expect(full).toHaveLength(152);
     expect(identity).toHaveLength(20);
     expect(project).toHaveLength(32);
     expect(execution).toHaveLength(37);
     expect(artifact).toHaveLength(26);
+    expect(quality).toHaveLength(37);
     expect(Object.keys(identityPolicyOperationContracts).sort()).toEqual(
       identity.map((operation) => operation.type).sort(),
     );
@@ -90,20 +93,26 @@ describe('contract registry', () => {
     expect(Object.keys(artifactOperationContracts).sort()).toEqual(
       artifact.map((operation) => operation.type).sort(),
     );
+    expect(Object.keys(qualityGovernanceOperationContracts).sort()).toEqual(
+      quality.map((operation) => operation.type).sort(),
+    );
   });
 
-  it('exposes the approved Artifact operation kind distribution', () => {
-    const artifact = publicApiOperations.filter((operation) => operation.owner === 'artifact');
-    const kinds = artifact.map((operation) => operation.kind);
+  it('exposes the approved QualityGovernance operation kind distribution', () => {
+    const quality = publicApiOperations.filter(
+      (operation) => operation.owner === 'quality-governance',
+    );
+    const kinds = quality.map((operation) => operation.kind);
 
-    expect(kinds.filter((kind) => kind === 'COMMAND')).toHaveLength(12);
-    expect(kinds.filter((kind) => kind === 'QUERY')).toHaveLength(7);
-    expect(kinds.filter((kind) => kind === 'EVENT')).toHaveLength(7);
+    expect(kinds.filter((kind) => kind === 'COMMAND')).toHaveLength(18);
+    expect(kinds.filter((kind) => kind === 'QUERY')).toHaveLength(8);
+    expect(kinds.filter((kind) => kind === 'EVENT')).toHaveLength(11);
     expect(
-      artifact
+      quality
         .filter((operation) => operation.kind === 'QUERY')
         .every(
-          (operation) => artifactOperationContracts[operation.type]?.resultSchemaRef !== undefined,
+          (operation) =>
+            qualityGovernanceOperationContracts[operation.type]?.resultSchemaRef !== undefined,
         ),
     ).toBe(true);
   });
@@ -375,7 +384,7 @@ describe('contract registry', () => {
   });
 
   it('does not claim executable result schemas for unfinished modules', () => {
-    const result = registry.validateOperationResult('quality.get_evidence', '1.0', {});
+    const result = registry.validateOperationResult('release.get_release', '1.0', {});
     expect(result.valid).toBe(false);
     expect(result.errors[0]?.keyword).toBe('operationResultRegistry');
   });
