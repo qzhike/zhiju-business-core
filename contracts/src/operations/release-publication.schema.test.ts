@@ -1146,6 +1146,28 @@ describe('release-publication schema', () => {
     ).toBe(true);
   });
 
+  it('requires formal receipt submissions to carry a rawReceiptRef pointer (duplicate / late raw-observation prerequisite)', () => {
+    // Schema layer prerequisite for duplicate / late receipt detection: the
+    // payload must reference the raw external observation via rawReceiptRef, so
+    // the runtime Receipt Validator can deduplicate by rawReceiptRef content
+    // hash and reject late resubmissions against an already-recorded attempt.
+    // Cross-aggregate dedup is a runtime concern (see RP-API-U-003 / IM-RP-001);
+    // the schema only guarantees the structural hook is mandatory.
+    const command = fixture(
+      'release-record-publication-receipt-command-missing-raw-receipt-ref.json',
+    );
+    const result = registry.validateOperation('release.record_publication_receipt', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'required' &&
+          error.instancePath === '/payload/receipt' &&
+          (error.params as { missingProperty?: string }).missingProperty === 'rawReceiptRef',
+      ),
+    ).toBe(true);
+  });
+
   it('rejects PublicationFailed events whose outcome carries a non-FAILED / non-UNKNOWN value', () => {
     const event = fixture('release-publication-failed-event-illegal-outcome.json');
     const result = registry.validateOperation('release.PublicationFailed', '1.0', event);

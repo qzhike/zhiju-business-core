@@ -1,7 +1,7 @@
 # PR #14 Code Review 记录
 
 日期：2026-08-18
-状态：`REVIEW SUBMITTED / NOT APPROVED`
+状态：`SECOND REVIEW SUBMITTED / NOT APPROVED`
 
 ## 审查目标
 
@@ -34,6 +34,13 @@
 - 自动化、静态检查与最小反例按实际执行结果记录。
 - Handler、数据库、Runtime、外部集成和人工验收若未执行，保持 `NOT RUN`。
 
+## 第二轮复审计划
+
+1. 以 GitHub 最新 Head 为准，逐条验证第一轮 5 条意见的修复和回归覆盖。
+2. 对修复 diff 执行契约、数组类型、授权边界、数据最小化和验证状态复审。
+3. 重跑 focused tests、全量 `pnpm verify`、`git diff --check` 和最小注册器反例。
+4. 未通过则向原始 PR 追加行级评论；通过则绑定已验证 Head 合并 PR，并关闭其原始 Issue #5。
+
 ## 审查结论
 
 PR #14 当前未通过审查，共发布 5 条行级意见：
@@ -64,3 +71,35 @@ PR #14 当前未通过审查，共发布 5 条行级意见：
 - Human-only 验证状态失真：<https://github.com/qzhike/zhiju-business-core/pull/14#discussion_r3803142535>
 - `providerResult` 敏感数据绕过：<https://github.com/qzhike/zhiju-business-core/pull/14#discussion_r3803142539>
 - 普通飞书发送用例未验证来源链：<https://github.com/qzhike/zhiju-business-core/pull/14#discussion_r3803142547>
+
+## 第二轮复审结论
+
+最新 Head `9833cea44417e6a4f1fc6d92c07f3f9259421b11` 已正确修复第一轮 5 条意见中的代码、Schema 和验证状态问题：
+
+1. `PublicationFailureSubmission.occurredAt` 已加入 `required`，并新增缺失字段负向回归。
+2. 7 个普通 `T[]` 已移除 `uniqueItems`，Set / NonEmptySet 约束保持不变。
+3. Human-only 用例已限定为 `authorizingHumanRef.principalKind` 的 Schema Guard；ActorSnapshot / actingFor 明确保持 Runtime TODO。
+4. Receipt 顶层闭合与 `providerResult` PII 最小化已区分，后者明确保持 Runtime TODO。
+5. `PublicationSucceeded` 未知字段闭合与普通飞书发送来源链已区分，后者明确保持 E2E `NOT RUN`。
+
+自动验证结果：
+
+- focused ReleasePublication tests：30/30 通过。
+- 全量 `pnpm verify`：7 个测试文件、180/180 通过；format、lint、typecheck、architecture、public API generation 和 Catalog Registry 通过。
+- `git diff --check Base...Head`：通过。
+- Node.js 仍为 `v24.13.0`，低于声明的 `24.19.0`；仅产生 engine warning。
+
+第二轮仍未通过合并/关闭 Gate，原因是 PR 与原始 Issue #5 的验收状态不一致：
+
+- Issue #5 明确要求 fixtures 覆盖 duplicate/late receipt；Module Test 中相同 stable key / 不同 packageHash 场景仍为 `NOT RUN`，PR 中没有对应 fixture 或回归。
+- PR 描述仍声明 Agent/actingFor 已在 Schema 层拒绝、敏感/来源链保证均已完成，并把全部验收项标为完成；这与修复后的 Module Test `PARTIAL / RUNTIME TODO / NOT RUN` 冲突。
+- PR 描述仍记录 179 个测试，而最新实际结果为 180 个。
+- PR 使用 `Closes #5`；在上述验收未完成或未拆分到明确关联的后续 Issue 前，合并会错误关闭未完成的 Issue。
+
+第二轮 GitHub 发布：
+
+- Review：<https://github.com/qzhike/zhiju-business-core/pull/14#pullrequestreview-4960006116>
+- Duplicate/late receipt 验收缺口：<https://github.com/qzhike/zhiju-business-core/pull/14#discussion_r3803226796>
+- Review 状态：`COMMENTED`，正文明确 `NOT APPROVED for merge/Issue closure`。
+- PR #14：保持 `OPEN`，未合并。
+- Issue #5：保持 `OPEN`，未关闭。
