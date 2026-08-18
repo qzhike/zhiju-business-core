@@ -125,7 +125,7 @@ const objectLocator = {
 const uniqueRecipientRefs = array(externalReference, { unique: true });
 const attachmentRefsArray = array(representationReference);
 const conflictRefsArray = array(typedReference);
-const adapterCodesArray = array(namespace);
+const adapterCodesArray = array(namespace, { unique: true });
 const uniqueObservedHashes = array(contentHash, { nonEmpty: true, unique: true });
 
 // =============================================================================

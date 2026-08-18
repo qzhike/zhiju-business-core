@@ -36,6 +36,8 @@ Runtime 原始协议与 IntegrationGateway API 的专项映射测试见 [`Runtim
 | IG-API-S-017 | Schema | bind_channel_context `businessContextRefs` 携带 `release.release` 等白名单 objectType | 同上白名单接受 | 同 fixture 改 objectType 后 valid=true | `PASS` |
 | IG-API-S-018 | Schema | get_adapter_health result.latency.value 为 number 而非 ISO 8601 Duration（review P1 第二轮） | `valueEnvelopeDuration` 拒绝非 Duration | 改为 `value:42` 后 valid=false | `PASS` |
 | IG-API-S-019 | Schema | get_adapter_health result.latency.value 为非法 ISO 8601 Duration | 同上拒绝 | 改为 `value:"not-a-duration"` 后 valid=false | `PASS` |
+| IG-API-S-020 | Schema | get_adapter_health adapterCodes 为空数组（review P2 第三轮） | Set 允许空（语义由 Handler 维护） | empty list 后 valid=true | `PASS` |
+| IG-API-S-021 | Schema | get_adapter_health adapterCodes 含重复项（review P2 第三轮） | Set 唯一性强制 uniqueItems | `['feishu.channel','feishu.channel']` 触发 `uniqueItems` 错误 | `PASS` |
 
 23 个 Schema 维度 Happy-path（9 Command + 5 Query Payload + 5 Query Result + 9 Event）与 11 个 Schema 维度负向 fixture（含 review P1 三类修复）已在 [`contracts/src/operations/integration-gateway.schema.test.ts`](../../contracts/src/operations/integration-gateway.schema.test.ts) 中覆盖；`pnpm test` 全量 210 个测试通过。
 

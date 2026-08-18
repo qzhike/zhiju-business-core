@@ -1118,4 +1118,37 @@ describe('integration-gateway schema', () => {
     );
     expect(validation.valid).toBe(false);
   });
+
+  it('accepts get_adapter_health with an empty adapterCodes list (Set allows empty)', () => {
+    // Review (P2 round 3): the previous round-2 fix dropped both `unique` and
+    // `minItems`; Module-Spec-007 §4 only mandates Set uniqueness, not
+    // NonEmptySet. Empty list = "no filter" semantics maintained by Handler.
+    const query = queryEnvelope(
+      'integration.get_adapter_health',
+      {
+        adapterCodes: [],
+        page: { pageSize: 50, cursor: 'cursor-health-empty-001' },
+      },
+      'PROJECTION_OK',
+    );
+    expect(registry.validateOperation('integration.get_adapter_health', '1.0', query)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects get_adapter_health whose adapterCodes contain a duplicate entry (Set uniqueness)', () => {
+    // Review (P2 round 3): Set<NamespaceCode> mandates uniqueItems.
+    const query = queryEnvelope(
+      'integration.get_adapter_health',
+      {
+        adapterCodes: ['feishu.channel', 'feishu.channel'],
+        page: { pageSize: 50, cursor: 'cursor-health-dup-001' },
+      },
+      'PROJECTION_OK',
+    );
+    const result = registry.validateOperation('integration.get_adapter_health', '1.0', query);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.keyword === 'uniqueItems')).toBe(true);
+  });
 });
