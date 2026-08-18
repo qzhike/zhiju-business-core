@@ -45,6 +45,7 @@ function localRef(name: string) {
   return { $ref: `${schemaId}#/$defs/${name}` } as const;
 }
 
+const uuid = { $ref: `${common}uuidV7` } as const;
 const namespace = { $ref: `${common}namespaceCode` } as const;
 const reasonCode = { $ref: `${common}reasonCode` } as const;
 const text = { $ref: `${common}nonEmptyString` } as const;
@@ -53,7 +54,8 @@ const instant = { $ref: `${common}utcInstant` } as const;
 const contentHash = { $ref: `${common}contentHash` } as const;
 const opaqueCursor = { $ref: `${common}opaqueCursor` } as const;
 const pageRequest = { $ref: `${common}pageRequest` } as const;
-const valueEnvelope = { $ref: `${common}valueEnvelope` } as const;
+const duration = { $ref: `${common}duration` } as const;
+const evidenceRef = { $ref: `${common}evidenceRef` } as const;
 const objectReference = { $ref: `${common}objectRef` } as const;
 const versionedReference = { $ref: `${common}versionedRef` } as const;
 const typedReference = { $ref: `${common}typedReference` } as const;
@@ -121,9 +123,9 @@ const objectLocator = {
 // =============================================================================
 
 const uniqueRecipientRefs = array(externalReference, { unique: true });
-const uniqueAttachmentRefs = array(representationReference, { unique: true });
-const uniqueConflictRefs = array(typedReference, { unique: true });
-const uniqueAdapterCodes = array(namespace, { nonEmpty: true, unique: true });
+const attachmentRefsArray = array(representationReference);
+const conflictRefsArray = array(typedReference);
+const adapterCodesArray = array(namespace);
 const uniqueObservedHashes = array(contentHash, { nonEmpty: true, unique: true });
 
 // =============================================================================
@@ -140,14 +142,127 @@ const namedDefinitions = {
   failureOutcome,
   objectLocator,
 
+  // Module-Spec-007 §2 (line 113) limits businessContextRefs to Project-scoped
+  // Task / WorkOrder / InformationRequest / ApprovalRequest / Release. The
+  // four per-kind schemas below restate the common typedReference family with
+  // an objectType whitelist so the Registry rejects identities that are not
+  // approved business types. Same-Project ownership is verified at runtime.
+  businessContextObjectRef: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['kind', 'objectType', 'objectId', 'scope'],
+    properties: {
+      kind: { const: 'OBJECT' },
+      objectType: {
+        enum: [
+          'execution.task',
+          'execution.work_order',
+          'execution.information_request',
+          'quality.approval_request',
+          'release.release',
+        ],
+      },
+      objectId: uuid,
+      scope: { $ref: `${common}scopeRef` },
+    },
+  },
+  businessContextVersionedRef: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['kind', 'objectType', 'objectId', 'versionId', 'scope'],
+    properties: {
+      kind: { const: 'VERSIONED' },
+      objectType: {
+        enum: [
+          'execution.task',
+          'execution.work_order',
+          'quality.approval_request',
+          'release.release',
+        ],
+      },
+      objectId: uuid,
+      versionId: uuid,
+      scope: { $ref: `${common}scopeRef` },
+    },
+  },
+  businessContextContentAddressedRef: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['kind', 'objectType', 'objectId', 'scope', 'contentHash'],
+    properties: {
+      kind: { const: 'CONTENT_ADDRESSED' },
+      objectType: { enum: ['release.release'] },
+      objectId: uuid,
+      immutableVersionId: uuid,
+      scope: { $ref: `${common}scopeRef` },
+      contentHash: contentHash,
+    },
+  },
+  businessContextSnapshotRef: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['kind', 'objectType', 'objectId', 'snapshotId', 'scope', 'contentHash'],
+    properties: {
+      kind: { const: 'SNAPSHOT' },
+      objectType: { enum: ['execution.work_order', 'quality.approval_request'] },
+      objectId: uuid,
+      snapshotId: uuid,
+      scope: { $ref: `${common}scopeRef` },
+      contentHash: contentHash,
+    },
+  },
+
+  // ValueEnvelope<Duration>: mirrors common `valueEnvelope` but narrows the
+  // generic argument to ISO 8601 Duration. Module-Spec-007 §4 declares
+  // AdapterHealthView.latency as ValueEnvelope<Duration>; the common value
+  // envelope intentionally keeps `value` open, so we restate the structure
+  // locally with `duration` enforced only in the PRESENT branch. Other
+  // presence states forbid `value` entirely.
+  valueEnvelopeDuration: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['presence'],
+    properties: {
+      presence: {
+        enum: ['PRESENT', 'UNKNOWN', 'REDACTED', 'NOT_APPLICABLE', 'UNAVAILABLE'],
+      },
+      value: duration,
+      reasonCode,
+      evidenceRefs: array(evidenceRef, { unique: true }),
+      lastVerifiedAt: instant,
+    },
+    allOf: [
+      {
+        if: {
+          properties: { presence: { const: 'PRESENT' } },
+          required: ['presence'],
+        },
+        then: {
+          required: ['value'],
+          properties: { value: duration },
+        },
+        else: {
+          properties: { value: false },
+        },
+      },
+    ],
+  },
+
   // --- Command submissions -------------------------------------------------
   // Module-Spec-007 §2 (line 113) limits businessContextRefs to Project-scoped
   // Task / WorkOrder / InformationRequest / ApprovalRequest / Release
   // references. ExternalRef, Runtime Session and workspace path are forbidden
   // because they would otherwise be promoted from routing / observation into
   // business context. Same-Project ownership is verified at runtime.
+  // The common typedReference schemas accept any `objectType`, so we restate
+  // each allowed kind locally with the whitelist of approved objectTypes.
   businessContextReference: {
-    oneOf: [objectReference, versionedReference, contentAddressedReference, snapshotReference],
+    oneOf: [
+      localRef('businessContextObjectRef'),
+      localRef('businessContextVersionedRef'),
+      localRef('businessContextContentAddressedRef'),
+      localRef('businessContextSnapshotRef'),
+    ],
   } as const,
   inboundEnvelopeSubmission: object(
     [
@@ -229,7 +344,7 @@ const namedDefinitions = {
       replyToExternalRef: externalReference,
       recipientRefs: uniqueRecipientRefs,
       contentContractRef: contentAddressedReference,
-      attachmentRefs: uniqueAttachmentRefs,
+      attachmentRefs: attachmentRefsArray,
       interactionContractRef: contentAddressedReference,
       stableIdempotencyKey: text,
       requestedAt: instant,
@@ -352,7 +467,7 @@ const namedDefinitions = {
     {
       inboundEnvelopeRef: contentAddressedReference,
       attemptRef: objectReference,
-      conflictRefs: uniqueConflictRefs,
+      conflictRefs: conflictRefsArray,
       reasonCode,
       observedHashes: uniqueObservedHashes,
       safeDiagnostic: safeSummary,
@@ -367,7 +482,11 @@ const namedDefinitions = {
       channelBindingRef: objectReference,
       aggregateVersion: { type: 'integer', minimum: 0 },
       definition: localRef('channelBindingDefinition'),
-      status: localRef('inboundStatus'),
+      // Module-Spec-007 §4 declares ChannelBindingView.status as NamespaceCode;
+      // the actual binding lifecycle (Feishu Channel Contract §5.3 ACTIVE /
+      // SUSPENDED / REVOKED) is a runtime narrowing and is enforced by the
+      // owning Adapter, not by this Query Result schema.
+      status: namespace,
       resolvedPurpose: namespace,
     },
   ),
@@ -409,7 +528,7 @@ const namedDefinitions = {
       observedStatus: localRef('adapterObservedStatus'),
       capabilityCodes: array(namespace, { unique: true }),
       observedAt: instant,
-      latency: valueEnvelope,
+      latency: localRef('valueEnvelopeDuration'),
       safeErrorCode: reasonCode,
       observationRef: contentAddressedReference,
     },
@@ -623,7 +742,7 @@ const operationSchemas = {
   },
   'integration.get_adapter_health': {
     payload: object(['adapterCodes', 'page'], {
-      adapterCodes: uniqueAdapterCodes,
+      adapterCodes: adapterCodesArray,
       observedAfter: instant,
       page: pageRequest,
     }),

@@ -485,7 +485,7 @@ describe('integration-gateway schema', () => {
       ),
       aggregateVersion: 1,
       definition: channelBindingDefinition('090'),
-      status: 'ACCEPTED',
+      status: 'integration.channel_binding.active',
       resolvedPurpose: 'integration.channel.binding',
     };
     expect(registry.validateOperation('integration.get_channel_binding', '1.0', query)).toEqual({
@@ -854,11 +854,13 @@ describe('integration-gateway schema', () => {
   // Negative scenarios using disk fixtures
   // ===========================================================================
 
-  it('rejects duplicate inbound envelope submissions with the same external event id + payload hash (idempotency hook)', () => {
-    // Schema layer: the InboundEnvelopeSubmission object is closed with
-    // additionalProperties=false so that any extra field that would let a
-    // duplicate submission impersonate a fresh attempt is rejected. The
-    // idempotency + dedup decision itself is a runtime concern (see IG-API-U-001).
+  it('rejects an inbound envelope submission that smuggles a duplicate-impersonation field through closure)', () => {
+    // Closure test only: InboundEnvelopeSubmission carries additionalProperties=false,
+    // so the Schema layer refuses a `duplicateOfSubmissionRef` smuggling attempt.
+    // The authoritative same-id + same-hash idempotent acceptance and same-id +
+    // different-hash Quarantine judgement are runtime concerns (IG-API-U-001 /
+    // IG-API-U-002) and remain NOT RUN until the Handler + Repository are
+    // implemented. This fixture must not be cited as duplicate acceptance.
     const command = fixture('integration-accept-inbound-envelope-command-duplicate-hash.json');
     const result = registry.validateOperation(
       'integration.accept_inbound_envelope',
@@ -1036,5 +1038,84 @@ describe('integration-gateway schema', () => {
         (error) => error.keyword === 'oneOf' && error.instancePath.includes('businessContextRefs'),
       ),
     ).toBe(true);
+  });
+
+  it('rejects a bind_channel_context submission whose businessContextRefs carries a non-whitelisted objectType', () => {
+    // Review (P1 round 2): the previous TypedReference-level fix only removed
+    // ExternalRef; the four common typedReference schemas still accept any
+    // objectType. Minimum input: an ObjectRef<identity.principal> must be
+    // rejected because identity.principal is not an approved business type.
+    const command = fixture('integration-bind-channel-context-command-external-ref-leak.json');
+    const refs = (command.payload as { definition: { businessContextRefs: unknown } }).definition
+      .businessContextRefs as Record<string, unknown>[];
+    refs[0] = {
+      kind: 'OBJECT',
+      objectType: 'identity.principal',
+      objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d201',
+      scope: { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201' },
+    };
+    const result = registry.validateOperation('integration.bind_channel_context', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.instancePath.includes('businessContextRefs') &&
+          (error.keyword === 'oneOf' || error.keyword === 'enum' || error.keyword === 'const'),
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts a bind_channel_context submission whose businessContextRefs carries an approved release.release objectType', () => {
+    const command = fixture('integration-bind-channel-context-command-external-ref-leak.json');
+    const refs = (command.payload as { definition: { businessContextRefs: unknown } }).definition
+      .businessContextRefs as Record<string, unknown>[];
+    refs[0] = {
+      kind: 'OBJECT',
+      objectType: 'release.release',
+      objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d201',
+      scope: { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201' },
+    };
+    const result = registry.validateOperation('integration.bind_channel_context', '1.0', command);
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects a get_adapter_health result whose latency.value is a number instead of ISO 8601 Duration', () => {
+    // Review (P1 round 2): the previous latency reference used the common
+    // valueEnvelope whose `value` field is intentionally open JSON. Module-
+    // Spec-007 §4 demands ValueEnvelope<Duration>; minimum input: 42 must be
+    // rejected at the Schema layer.
+    const result = fixture('integration-get-adapter-health-result-data-valid.json') as {
+      items: Record<string, Record<string, unknown>>[];
+    };
+    const item = result.items[0];
+    if (item === undefined) throw new Error('fixture missing items[0]');
+    item.latency = {
+      presence: 'PRESENT',
+      value: 42,
+    };
+    const validation = registry.validateOperationResult(
+      'integration.get_adapter_health',
+      '1.0',
+      result,
+    );
+    expect(validation.valid).toBe(false);
+  });
+
+  it('rejects a get_adapter_health result whose latency.value is not a valid ISO 8601 Duration', () => {
+    const result = fixture('integration-get-adapter-health-result-data-valid.json') as {
+      items: Record<string, Record<string, unknown>>[];
+    };
+    const item = result.items[0];
+    if (item === undefined) throw new Error('fixture missing items[0]');
+    item.latency = {
+      presence: 'PRESENT',
+      value: 'not-a-duration',
+    };
+    const validation = registry.validateOperationResult(
+      'integration.get_adapter_health',
+      '1.0',
+      result,
+    );
+    expect(validation.valid).toBe(false);
   });
 });
