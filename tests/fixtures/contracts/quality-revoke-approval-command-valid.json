@@ -1,0 +1,72 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d420",
+  "commandType": "quality.revoke_approval",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "quality.approval",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d421",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d422",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d423",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-quality-revoke-approval-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d424",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "revocationReason": {
+      "reasonCode": "QUALITY_APPROVAL_REVOKED",
+      "summary": "Approver separation of duties has been violated; approval must be revoked.",
+      "evidenceRefs": []
+    },
+    "impactAssessmentRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "quality.impact_assessment",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d425",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "6666666666666666666666666666666666666666666666666666666666666666",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "revokedAt": "2026-08-17T00:00:00Z"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "7777777777777777777777777777777777777777777777777777777777777777",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

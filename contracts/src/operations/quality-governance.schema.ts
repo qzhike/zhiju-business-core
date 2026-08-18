@@ -51,6 +51,18 @@ const snapshotReference = { $ref: `${common}snapshotRef` } as const;
 const externalReference = { $ref: `${common}externalRef` } as const;
 const evidenceRef = { $ref: `${common}evidenceRef` } as const;
 const releasePackageRef = { $ref: `${common}releasePackageRef` } as const;
+const representationReference = { $ref: `${common}representationRef` } as const;
+const principalReference = { $ref: `${common}principalRef` } as const;
+const opaqueCursor = { $ref: `${common}opaqueCursor` } as const;
+const coreRevisionAcceptanceContract = {
+  $ref: 'https://schemas.zhiju.local/core/revision-acceptance/1.0',
+} as const;
+const coreApprovalBundleContract = {
+  $ref: 'https://schemas.zhiju.local/core/approval-bundle/1.0',
+} as const;
+const coreReleaseReadinessContract = {
+  $ref: 'https://schemas.zhiju.local/core/release-readiness/1.0',
+} as const;
 const canonicalJson = {} as const;
 
 const evidenceStatus = {
@@ -151,7 +163,7 @@ const namedDefinitions = {
     ],
     {
       method: namespace,
-      verifier: objectReference,
+      verifier: principalReference,
       verificationPolicyRef: versionedReference,
       outcome: { enum: ['VERIFIED', 'DISPUTED'] },
       evidenceRefs: array(evidenceRef, { nonEmpty: true, unique: true }),
@@ -191,6 +203,7 @@ const namedDefinitions = {
       'issuePolicy',
       'separationOfDutiesPolicy',
       'approvalRequirements',
+      'releaseRequirements',
     ],
     {
       name: text,
@@ -213,13 +226,7 @@ const namedDefinitions = {
   gateTargetRepresentation: object(['kind', 'revisionRef', 'representationRef'], {
     kind: { const: 'REPRESENTATION' },
     revisionRef: contentAddressedReference,
-    representationRef: objectReference,
-    renderer: object(['rendererId', 'rendererVersion'], {
-      rendererId: namespace,
-      rendererVersion: text,
-    }),
-    mediaType: localRef('mediaType'),
-    checksum: contentHash,
+    representationRef: representationReference,
   }),
   gateTargetReleasePackage: object(['kind', 'revisionRef', 'releasePackageRef'], {
     kind: { const: 'RELEASE_PACKAGE' },
@@ -332,7 +339,7 @@ const namedDefinitions = {
     ],
     {
       targetRevisionRef: contentAddressedReference,
-      verifier: objectReference,
+      verifier: principalReference,
       verificationMethod: namespace,
       supportingGateResultRefs: array(contentAddressedReference, { nonEmpty: true, unique: true }),
       outcome: { enum: ['VERIFIED', 'REJECTED'] },
@@ -450,7 +457,7 @@ const namedDefinitions = {
       severity: namespace,
       blockingClassification: namespace,
       status: localRef('issueStatus'),
-      ownerRef: objectReference,
+      ownerRef: principalReference,
     },
   ),
   sourceWatermark: object(['sourceModule', 'sequence', 'observedAt'], {
@@ -459,67 +466,15 @@ const namedDefinitions = {
     sequence: { type: 'integer', minimum: 0 },
     observedAt: instant,
   }),
-  pageRequest: object(['pageSize'], {
-    pageSize: positiveInt,
-    cursor: text,
-  }),
   gateResultPage: object(['items', 'snapshotAt', 'sourceWatermarks'], {
     items: array(localRef('gateResultView')),
-    nextCursor: text,
+    nextCursor: opaqueCursor,
     snapshotAt: instant,
     sourceWatermarks: array(localRef('sourceWatermark')),
   }),
-  revisionAcceptanceResult: object(
-    ['revisionAcceptanceSnapshotRef', 'revisionRef', 'qualityProfileRef', 'evaluationStage'],
-    {
-      revisionAcceptanceSnapshotRef: snapshotReference,
-      revisionRef: contentAddressedReference,
-      qualityProfileRef: versionedReference,
-      evaluationStage: { const: 'REVISION_ACCEPTANCE' },
-    },
-  ),
-  approvalBundleResult: object(
-    [
-      'approvalBundleSnapshotRef',
-      'revisionRef',
-      'approvalRefs',
-      'separationOfDutiesResult',
-      'completeness',
-    ],
-    {
-      approvalBundleSnapshotRef: snapshotReference,
-      revisionRef: contentAddressedReference,
-      approvalRefs: array(contentAddressedReference, { nonEmpty: true, unique: true }),
-      separationOfDutiesResult: object(['outcome', 'checkedAt'], {
-        outcome: { enum: ['SATISFIED', 'VIOLATED', 'INDETERMINATE'] },
-        checkedAt: instant,
-      }),
-      completeness: object(['status', 'reasons'], {
-        status: {
-          enum: ['FULLY_APPROVED', 'PARTIALLY_APPROVED', 'NOT_APPROVED', 'STALE'],
-        },
-        reasons: array(text, { unique: true }),
-      }),
-    },
-  ),
-  releaseReadinessResult: object(
-    ['releaseReadinessSnapshotRef', 'releasePackageRef', 'readiness', 'evaluatedAt'],
-    {
-      releaseReadinessSnapshotRef: snapshotReference,
-      releasePackageRef,
-      approvalBundleSnapshotRef: snapshotReference,
-      readiness: object(['status', 'reasons'], {
-        status: { enum: ['READY_FOR_AUTHORIZATION', 'NOT_READY', 'STALE'] },
-        reasons: array(text, { unique: true }),
-      }),
-      evaluatedAt: instant,
-    },
-  ),
-  revocationJustification: object(['revocationReason', 'impactAssessmentRef', 'revokedAt'], {
-    revocationReason: localRef('justification'),
-    impactAssessmentRef: contentAddressedReference,
-    revokedAt: instant,
-  }),
+  revisionAcceptanceResult: coreRevisionAcceptanceContract,
+  approvalBundleResult: coreApprovalBundleContract,
+  releaseReadinessResult: coreReleaseReadinessContract,
 } as const satisfies Readonly<Record<string, JsonSchema>>;
 
 const operationSchemas = {
@@ -534,8 +489,10 @@ const operationSchemas = {
     }),
   },
   'quality.revoke_evidence': {
-    payload: object(['revocation'], {
-      revocation: localRef('revocationJustification'),
+    payload: object(['revocationReason', 'impactAssessmentRef', 'revokedAt'], {
+      revocationReason: localRef('justification'),
+      impactAssessmentRef: contentAddressedReference,
+      revokedAt: instant,
     }),
   },
   'quality.create_evidence_link': {
@@ -570,8 +527,10 @@ const operationSchemas = {
     }),
   },
   'quality.invalidate_gate_result': {
-    payload: object(['invalidation'], {
-      invalidation: localRef('revocationJustification'),
+    payload: object(['invalidationReason', 'impactAssessmentRef', 'invalidatedAt'], {
+      invalidationReason: localRef('justification'),
+      impactAssessmentRef: contentAddressedReference,
+      invalidatedAt: instant,
     }),
   },
   'quality.raise_review_issue': {
@@ -582,7 +541,7 @@ const operationSchemas = {
   'quality.propose_issue_resolution': {
     payload: object(['resolution', 'proposedBy'], {
       resolution: localRef('issueResolution'),
-      proposedBy: objectReference,
+      proposedBy: principalReference,
     }),
   },
   'quality.verify_issue_resolution': {
@@ -608,8 +567,10 @@ const operationSchemas = {
     }),
   },
   'quality.revoke_approval': {
-    payload: object(['revocation'], {
-      revocation: localRef('revocationJustification'),
+    payload: object(['revocationReason', 'impactAssessmentRef', 'revokedAt'], {
+      revocationReason: localRef('justification'),
+      impactAssessmentRef: contentAddressedReference,
+      revokedAt: instant,
     }),
   },
   'quality.evaluate_revision_readiness': {
@@ -681,7 +642,7 @@ const operationSchemas = {
       gateSpecIds: array(uuid, { nonEmpty: true, unique: true }),
       outcomes: array(localRef('gateOutcome'), { nonEmpty: true, unique: true }),
       validOnly: { type: 'boolean' },
-      page: localRef('pageRequest'),
+      page: { $ref: `${common}pageRequest` },
     }),
     result: localRef('gateResultPage'),
   },

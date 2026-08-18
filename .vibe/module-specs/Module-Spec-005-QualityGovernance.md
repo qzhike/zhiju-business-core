@@ -1,8 +1,8 @@
 # Module-Spec-005-QualityGovernance
 
-版本：v0.2
+版本：v0.3
 日期：2026-08-18
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTED 2026-08-18`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTED 2026-08-18 / PR #13 REVIEW REMEDIATION APPLIED 2026-08-18`
 
 ## 1. 模块责任
 
@@ -293,5 +293,6 @@ QUALITY_RELEASE_READINESS_NOT_READY
 - API v0.1 已于 2026-08-13 通过用户审核；
 - 字段级 Payload / Result Schema 已于 2026-08-18 实现并注册到 `contracts/src/operations/quality-governance.schema.ts`；18 Command、8 Query 与 11 Event 全部由 `ENVELOPE_ONLY` 升级为 `FULL`；8 Query Result Schema 均载入 Registry；
 - Schema Contract 用例（`quality-governance.schema.test.ts`）已 PASSED：覆盖 Human Approval、Agent 冒充、Target hash、Evaluation Stage、敏感字段泄漏、Gate vs Approval 形态差异等正反例；
+- PR #13 Code Review 修复已于 2026-08-18 完成：REPRESENTATION GateTarget 改用 Common `representationRef`；三个 Snapshot Query Result 改为 `$ref` Core Contract ID（不再维护截断视图）；`evidenceVerification.verifier` / `issueVerification.verifier` / `blockingIssueView.ownerRef` / `propose_issue_resolution.proposedBy` 改用 Common `principalRef`；`revoke_evidence` / `invalidate_gate_result` / `revoke_approval` 三个 Command 去除未授权 `revocation`/`invalidation` 包装，恢复 Module Spec 第 3 节直接字段；`QualityProfileDefinition.releaseRequirements` 由 optional 改为 required；`get_gate_results` 复用 Common `pageRequest` / `opaqueCursor`；
 - Gate Evaluator、Profile Registry、Readiness Evaluator、Persistence 与测试实现均不存在；
 - 字段级以上的 Unit、Contract、E2E 与人工验收仍为 `NOT RUN`，与 Handler/State/Evaluator/E2E 缺失对应。

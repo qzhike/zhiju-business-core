@@ -1,0 +1,76 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d460",
+  "commandType": "quality.verify_evidence",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "quality.evidence",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d461",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d462",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d463",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-quality-verify-evidence-object-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d464",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "verification": {
+      "method": "regulatory.cross_reference",
+      "verifier": {
+        "kind": "OBJECT",
+        "objectType": "identity.principal",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d465",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+        }
+      },
+      "verificationPolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "quality.verification_policy",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d466",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d467",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+        }
+      },
+      "outcome": "VERIFIED",
+      "evidenceRefs": [],
+      "reasons": ["QUALITY_EVIDENCE_VERIFIED"],
+      "verifiedAt": "2026-08-17T00:00:00Z"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "9999999999999999999999999999999999999999999999999999999999999999",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

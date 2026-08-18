@@ -1,0 +1,72 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d410",
+  "commandType": "quality.invalidate_gate_result",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "quality.gate_result",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d412",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d413",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-quality-invalidate-gate-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "invalidationReason": {
+      "reasonCode": "QUALITY_GATE_RESULT_INVALID",
+      "summary": "Source evidence has been revoked; gate result must be invalidated.",
+      "evidenceRefs": []
+    },
+    "impactAssessmentRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "quality.impact_assessment",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d415",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "invalidatedAt": "2026-08-17T00:00:00Z"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "5555555555555555555555555555555555555555555555555555555555555555",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

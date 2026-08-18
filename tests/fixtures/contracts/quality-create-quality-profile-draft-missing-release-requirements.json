@@ -1,0 +1,66 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d470",
+  "commandType": "quality.create_quality_profile_draft",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "quality.quality_profile",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d471",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d472",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d473",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-quality-profile-missing-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d474",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "definition": {
+      "name": "Sterilization Validation Profile",
+      "profileVersion": "1.0.0",
+      "applicableArtifactTypes": ["artifact.dhf_section"],
+      "riskApplicability": {
+        "riskLevels": ["HIGH"]
+      },
+      "gateSpecs": [{ "gateSpecId": "018f22e2-7c15-7b2e-8d86-2de956a9d475" }],
+      "gateDependencies": [],
+      "rerunPolicy": { "rerunOnChange": false },
+      "issuePolicy": { "blockingLevels": ["CRITICAL", "MAJOR"] },
+      "separationOfDutiesPolicy": { "author": "must_not_verify_own_work" },
+      "approvalRequirements": [{ "requiredRole": "quality.reviewer", "requiredCount": 2 }]
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

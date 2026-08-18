@@ -148,4 +148,214 @@ describe('quality-governance schema', () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some((error) => error.keyword === 'additionalProperties')).toBe(true);
   });
+
+  // ===========================================================================
+  // Code-review P1 / P2 remediation tests
+  // ===========================================================================
+
+  it('accepts a REPRESENTATION GateTarget carrying the full Common representationRef', () => {
+    const command = fixture('quality-record-gate-result-representation-target-valid.json');
+    expect(registry.validateOperation('quality.record_gate_result', '1.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects a REPRESENTATION GateTarget missing checksum and renderer metadata', () => {
+    const command = fixture(
+      'quality-record-gate-result-representation-target-missing-checksum.json',
+    );
+    const result = registry.validateOperation('quality.record_gate_result', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) => error.keyword === 'required' && error.instancePath.includes('representationRef'),
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts a PrincipalRef in verify_evidence.verifier', () => {
+    const command = fixture('quality-verify-evidence-principal-ref-valid.json');
+    expect(registry.validateOperation('quality.verify_evidence', '1.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects an ObjectRef substitute in verify_evidence.verifier', () => {
+    const command = fixture('quality-verify-evidence-object-ref-rejected.json');
+    const result = registry.validateOperation('quality.verify_evidence', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) => error.keyword === 'required' && error.instancePath.includes('verifier'),
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts revoke_evidence with top-level revocationReason / impactAssessmentRef / revokedAt', () => {
+    const command = fixture('quality-revoke-evidence-command-valid.json');
+    expect(registry.validateOperation('quality.revoke_evidence', '1.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('accepts invalidate_gate_result with top-level invalidationReason / impactAssessmentRef / invalidatedAt', () => {
+    const command = fixture('quality-invalidate-gate-result-command-valid.json');
+    expect(registry.validateOperation('quality.invalidate_gate_result', '1.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('accepts revoke_approval with top-level revocationReason / impactAssessmentRef / revokedAt', () => {
+    const command = fixture('quality-revoke-approval-command-valid.json');
+    expect(registry.validateOperation('quality.revoke_approval', '1.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects create_quality_profile_draft without the required releaseRequirements', () => {
+    const command = fixture(
+      'quality-create-quality-profile-draft-missing-release-requirements.json',
+    );
+    const result = registry.validateOperation(
+      'quality.create_quality_profile_draft',
+      '1.0',
+      command,
+    );
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'required' &&
+          (error.params as { missingProperty?: string }).missingProperty === 'releaseRequirements',
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts get_gate_results with an opaque cursor that matches the shared PageRequest', () => {
+    const query = fixture('quality-get-gate-results-query-valid.json');
+    expect(registry.validateOperation('quality.get_gate_results', '1.0', query)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects get_gate_results whose cursor is shorter than the shared opaqueCursor minimum', () => {
+    const query = fixture('quality-get-gate-results-query-short-cursor-rejected.json');
+    const result = registry.validateOperation('quality.get_gate_results', '1.0', query);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) => error.keyword === 'pattern' && error.instancePath.includes('cursor'),
+      ),
+    ).toBe(true);
+  });
+
+  it('returns full RevisionAcceptanceSnapshot Core Contract for get_revision_acceptance_snapshot', () => {
+    const query = fixture('quality-get-revision-acceptance-snapshot-query-valid.json');
+    const resultData = fixture('core/revision-acceptance-valid.json');
+
+    expect(
+      registry.validateOperation('quality.get_revision_acceptance_snapshot', '1.0', query),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(
+      registry.validateOperationResult(
+        'quality.get_revision_acceptance_snapshot',
+        '1.0',
+        resultData,
+      ),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('returns full ApprovalBundleSnapshot Core Contract for get_approval_bundle_snapshot', () => {
+    const query = fixture('quality-get-approval-bundle-snapshot-query-valid.json');
+    const resultData = fixture('core/approval-bundle-valid.json');
+
+    expect(
+      registry.validateOperation('quality.get_approval_bundle_snapshot', '1.0', query),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(
+      registry.validateOperationResult('quality.get_approval_bundle_snapshot', '1.0', resultData),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('returns full ReleaseReadinessSnapshot Core Contract for get_release_readiness_snapshot', () => {
+    const query = fixture('quality-get-release-readiness-snapshot-query-valid.json');
+    const resultData = fixture('core/release-readiness-valid.json');
+
+    expect(
+      registry.validateOperation('quality.get_release_readiness_snapshot', '1.0', query),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(
+      registry.validateOperationResult('quality.get_release_readiness_snapshot', '1.0', resultData),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects a truncated Snapshot View that omits Core Contract fields', () => {
+    const query = fixture('quality-get-revision-acceptance-snapshot-query-valid.json');
+    const truncated = {
+      revisionAcceptanceSnapshotRef: {
+        kind: 'SNAPSHOT',
+        objectType: 'quality.revision_acceptance_snapshot',
+        objectId: '018f22e2-7c15-7b72-8d86-2de956a9d20d',
+        snapshotId: '018f22e2-7c15-7b72-8d86-2de956a9d20d',
+        scope: {
+          enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201',
+          projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d202',
+        },
+        contentHash: {
+          algorithm: 'SHA-256',
+          digest: '0000000000000000000000000000000000000000000000000000000000000000',
+          canonicalizationVersion: '1',
+        },
+      },
+      revisionRef: {
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'artifact.artifact_revision',
+        objectId: '018f22e2-7c15-7b42-8d86-2de956a9d20a',
+        scope: {
+          enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201',
+          projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d202',
+        },
+        contentHash: {
+          algorithm: 'SHA-256',
+          digest: '0000000000000000000000000000000000000000000000000000000000000000',
+          canonicalizationVersion: '1',
+        },
+      },
+    };
+
+    expect(
+      registry.validateOperation('quality.get_revision_acceptance_snapshot', '1.0', query).valid,
+    ).toBe(true);
+    const result = registry.validateOperationResult(
+      'quality.get_revision_acceptance_snapshot',
+      '1.0',
+      truncated,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.keyword === 'required')).toBe(true);
+  });
 });

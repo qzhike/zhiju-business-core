@@ -1,0 +1,50 @@
+{
+  "queryId": "018f22e2-7c15-7b2e-8d86-2de956a9d3d0",
+  "queryType": "quality.get_approval_bundle_snapshot",
+  "queryVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "requester": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d3d1",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authenticationContextRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authentication_context",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d3d2",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "consistencyRequirement": "AUTHORITATIVE",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d3d3",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "snapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "quality.approval_bundle_snapshot",
+      "objectId": "018f22e2-7c15-7b82-8d86-2de956a9d20e",
+      "snapshotId": "018f22e2-7c15-7b82-8d86-2de956a9d20e",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    }
+  }
+}
