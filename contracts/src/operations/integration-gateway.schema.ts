@@ -15,8 +15,18 @@ export interface ExecutableIntegrationGatewayOperationContract {
   readonly resultSchemaRef?: string;
 }
 
-function object(required: readonly string[], properties: SchemaProperties): JsonSchema {
-  return { type: 'object', additionalProperties: false, required, properties };
+function object(
+  required: readonly string[],
+  properties: SchemaProperties,
+  allOf?: readonly unknown[],
+): JsonSchema {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required,
+    properties,
+    ...(allOf === undefined ? {} : { allOf: allOf as unknown[] }),
+  };
 }
 
 function array(
@@ -131,6 +141,14 @@ const namedDefinitions = {
   objectLocator,
 
   // --- Command submissions -------------------------------------------------
+  // Module-Spec-007 §2 (line 113) limits businessContextRefs to Project-scoped
+  // Task / WorkOrder / InformationRequest / ApprovalRequest / Release
+  // references. ExternalRef, Runtime Session and workspace path are forbidden
+  // because they would otherwise be promoted from routing / observation into
+  // business context. Same-Project ownership is verified at runtime.
+  businessContextReference: {
+    oneOf: [objectReference, versionedReference, contentAddressedReference, snapshotReference],
+  } as const,
   inboundEnvelopeSubmission: object(
     [
       'adapterCode',
@@ -186,7 +204,7 @@ const namedDefinitions = {
       threadOrTopicExternalRef: externalReference,
       projectRef: objectReference,
       enterpriseRef: objectReference,
-      businessContextRefs: array(typedReference, { unique: true }),
+      businessContextRefs: array(localRef('businessContextReference'), { unique: true }),
       runtimeContextExternalRef: externalReference,
       purpose: namespace,
       bindingPolicyRef: versionedReference,
@@ -217,6 +235,25 @@ const namedDefinitions = {
       requestedAt: instant,
       deliveryPolicyRef: versionedReference,
     },
+    [
+      // Module-Spec-007 §2 (line 115) and Feishu Channel Contract §9.2 require
+      // that REPLY and REPLY_IN_THREAD always carry a `replyToExternalRef`
+      // referencing the originating message of the same ChannelBinding. The
+      // same-Binding invariant is enforced at runtime; the Schema layer only
+      // guarantees the structural hook is mandatory.
+      {
+        if: {
+          properties: { deliveryMode: { enum: ['REPLY', 'REPLY_IN_THREAD'] } },
+          required: ['deliveryMode'],
+        },
+        then: {
+          required: ['replyToExternalRef'],
+          properties: {
+            replyToExternalRef: externalReference,
+          },
+        },
+      },
+    ],
   ),
   runtimeDispatchRequest: object(
     [
@@ -251,6 +288,20 @@ const namedDefinitions = {
       requestedAt: instant,
     },
   ),
+  // Resume is structurally distinct from cancel: Module-Spec-007 §3 requires
+  // continuationRef for resume but allows cancel to omit the field. Reusing
+  // `runtimeControlRequest` as an optional shape would let a no-continuation
+  // resume slip past the Registry, so resume gets an operation-specific overlay.
+  runtimeResumeRequest: {
+    allOf: [
+      localRef('runtimeControlRequest'),
+      {
+        type: 'object',
+        required: ['continuationRef'],
+        properties: { continuationRef: externalReference },
+      },
+    ],
+  } as const,
   renderRequest: object(
     [
       'revisionRef',
@@ -429,7 +480,6 @@ const namedDefinitions = {
     {
       attemptRef: objectReference,
       sourceBusinessRef: typedReference,
-      destinationBindingRef: objectReference,
       outcome: localRef('failureOutcome'),
       reasonCode,
       rawReceiptRef: contentAddressedReference,
@@ -522,7 +572,7 @@ const operationSchemas = {
   },
   'integration.request_runtime_resume': {
     payload: object(['request'], {
-      request: localRef('runtimeControlRequest'),
+      request: localRef('runtimeResumeRequest'),
     }),
   },
   'integration.request_render': {
@@ -635,7 +685,6 @@ const operationSchemas = {
     payload: object(['attemptRef', 'sourceBusinessRef', 'outcome', 'reasonCode'], {
       attemptRef: objectReference,
       sourceBusinessRef: typedReference,
-      destinationBindingRef: objectReference,
       outcome: localRef('failureOutcome'),
       reasonCode,
       rawReceiptRef: contentAddressedReference,

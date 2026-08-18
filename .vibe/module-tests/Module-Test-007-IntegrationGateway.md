@@ -1,8 +1,8 @@
 # Module-Test-007-IntegrationGateway
 
 版本：v0.1
-日期：2026-08-13（字段级 Schema 增补于 2026-08-18）
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / HANDLER + ADAPTER + DB STILL NOT RUN`
+日期：2026-08-13（字段级 Schema 增补于 2026-08-18，2026-08-18 review 修复）
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / 3-CLASS P1 INLINE REVIEW FIXES APPLIED 2026-08-18 / HANDLER + ADAPTER + DB STILL NOT RUN`
 
 对应规格：[`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md)。
 
@@ -12,7 +12,7 @@ Feishu 专项必须独立验证 `businessContextRefs/runtimeContextExternalRef` 
 
 Runtime 原始协议与 IntegrationGateway API 的专项映射测试见 [`Runtime-Adapter-Test-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md)。专项覆盖本地 CLI Process Driver、Dispatch、Event、Result、Usage、Cancel、Resume/Retry、Lease/Fencing 和 CLI Profile；4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景保持 `NOT RUN`。
 
-## Schema 级测试用例与结果（2026-08-18 落地）
+## Schema 级测试用例与结果（2026-08-18 落地，2026-08-18 review 修复）
 
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
@@ -26,8 +26,20 @@ Runtime 原始协议与 IntegrationGateway API 的专项映射测试见 [`Runtim
 | IG-API-S-007 | Schema | InboundEnvelopeAccepted 携带 access token / app secret | Event Payload 闭合拒绝 | `integration-inbound-envelope-accepted-event-access-token-leak.json` 触发 `additionalProperties` 错误 | `PASS` |
 | IG-API-S-008 | Schema | record_external_receipt.observedOutcome 非法值 | Ajv enum 拒绝非 `SUCCEEDED/FAILED/UNKNOWN` | `integration-record-external-receipt-command-illegal-observed-outcome.json` 触发 `enum` 错误 | `PASS` |
 | IG-API-S-009 | Schema | quarantine_external_event 缺失 `observedHashes` | Ajv required 拒绝 | `integration-quarantine-external-event-command-missing-observed-hashes.json` 触发 `required` 错误 | `PASS` |
+| IG-API-S-010 | Schema | request_runtime_resume 缺失 `continuationRef`（review P1） | Ajv allOf overlay 强制 `continuationRef` required | `integration-request-runtime-resume-command-missing-continuation.json` 触发 `required/continuationRef` | `PASS` |
+| IG-API-S-011 | Schema | request_runtime_cancel 缺失 `continuationRef`（review P1 对照） | 取消允许省略，复用同一 fixture 时必须 valid | 同 fixture 改 `commandType` 后在 `request_runtime_cancel` 下 valid=true | `PASS` |
+| IG-API-S-012 | Schema | request_feishu_delivery `deliveryMode=REPLY` 但缺 `replyToExternalRef`（review P1） | if/then 约束 REPLY/REPLY_IN_THREAD 必须携带 | `integration-request-feishu-delivery-command-reply-missing-reply-to.json` 触发 `required/replyToExternalRef` | `PASS` |
+| IG-API-S-013 | Schema | request_feishu_delivery `deliveryMode=REPLY_IN_THREAD` 但缺 `replyToExternalRef`（review P1） | 同上，REPLY_IN_THREAD 也被覆盖 | `integration-request-feishu-delivery-command-reply-in-thread-missing-reply-to.json` 触发 `required/replyToExternalRef` | `PASS` |
+| IG-API-S-014 | Schema | request_feishu_delivery `deliveryMode=NEW_MESSAGE` 缺 `replyToExternalRef`（review P1 对照） | NEW_MESSAGE 仍允许省略 | 同 fixture 改 `deliveryMode` 后 valid=true | `PASS` |
+| IG-API-S-015 | Schema | bind_channel_context `businessContextRefs` 包含飞书 message ExternalRef（review P1） | 专用 union 禁止 ExternalRef / Runtime Session / workspace path | `integration-bind-channel-context-command-external-ref-leak.json` 触发 `oneOf` + `additionalProperties` 错误 | `PASS` |
 
-23 个 Schema 维度 Happy-path（9 Command + 5 Query Payload + 5 Query Result + 9 Event）已在 [`contracts/src/operations/integration-gateway.schema.test.ts`](../../contracts/src/operations/integration-gateway.schema.test.ts) 中覆盖；`pnpm test` 全量 204 个测试通过。
+23 个 Schema 维度 Happy-path（9 Command + 5 Query Payload + 5 Query Result + 9 Event）与 11 个 Schema 维度负向 fixture（含 review P1 三类修复）已在 [`contracts/src/operations/integration-gateway.schema.test.ts`](../../contracts/src/operations/integration-gateway.schema.test.ts) 中覆盖；`pnpm test` 全量 210 个测试通过。
+
+review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成：
+
+- 第 3 条（Inbound/Outbound/Attempt/Receipt 字段语义）通过 `IG-API-S-001..S-015` 的 Schema 闭合证明，但运行时 `stableIdempotencyKey` dedup、`observedAt` 时序、`replyToExternalRef` 同 Binding 归属仍为 `NOT RUN`；
+- 第 4 条（fixtures 覆盖重复、撤回、权限失败、UNKNOWN delivery outcome）中**撤回 / 权限失败的端到端判定仍属 `NOT RUN`**（撤回属于 Release 模块而非本模块；权限失败的 runtime 判定需要 Authz Adapter），Schema 闭合不等于业务事实保护已运行；
+- 第 5 条（敏感字段负向）在 Schema 层 11 个 fixture 全部通过，但敏感字段泄漏的运行时防御（Audit / Masking）仍为 `NOT RUN`。
 
 ## API Test 维度结果（不变更）
 
@@ -44,9 +56,9 @@ Runtime 原始协议与 IntegrationGateway API 的专项映射测试见 [`Runtim
 
 ## 本阶段结果
 
-- Schema 维度：`PASS`，`pnpm verify` 中 format / lint / typecheck / Vitest 204 个测试 / 架构边界 / Catalog 对账共 6 项 Gate 全部通过。
-- Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Handler、Repository、Adapter、Database 与人工业务验收尚未实现。
+- Schema 维度：`PASS`，`pnpm verify` 中 format / lint / typecheck / Vitest 210 个测试 / 架构边界 / Catalog 对账共 6 项 Gate 全部通过；review body 标注的 3 个 P1 inline 字段级契约偏差（Resume required `continuationRef` / `replyToExternalRef` conditional / `businessContextRefs` no ExternalRef）已修复并断言回归；4 类未明确展开的偏差（`ChannelDeliveryFailed` 多余 `destinationBindingRef` 等）已通过 Schema 闭合审计移除。
+- Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Handler、Repository、Adapter、Database 与人工业务验收尚未实现；review 同时明确本次修复未声称 Issue #6 全部 8 条验收完成。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - Feishu Channel 专项：`DESIGN VERIFIED / USER PROGRESSION CONFIRMED 2026-08-16`；不得据此更改本文件 9 个 API 基准用例的历史状态。
 - Runtime Adapter 专项：4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景为 `NOT RUN`；6 个 additive TaskExecution Command proposal 未进入 Catalog。
-- 测试遗留：本次新增 6 个负向 Fixture 与 23 个 Schema 测试，本地无遗留脚本。
+- 测试遗留：本次新增 11 个负向 Fixture（含 review P1 三类）与 23 个 Schema 测试；2026-08-18 review 修复期间新增的临时调试文件 `tests/integration-debug.test.ts` 已删除；本地无遗留脚本。

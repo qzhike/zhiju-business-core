@@ -926,4 +926,115 @@ describe('integration-gateway schema', () => {
       ),
     ).toBe(true);
   });
+
+  it('rejects a request_runtime_resume submission whose continuationRef is absent', () => {
+    // Module-Spec-007 §3 requires resume to carry continuationRef; cancel is
+    // intentionally allowed to omit it. The Schema overlay keeps cancel loose.
+    const command = fixture('integration-request-runtime-resume-command-missing-continuation.json');
+    const result = registry.validateOperation('integration.request_runtime_resume', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'required' &&
+          error.instancePath === '/payload/request' &&
+          (error.params as { missingProperty?: string }).missingProperty === 'continuationRef',
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts a request_runtime_cancel submission without continuationRef', () => {
+    // Module-Spec-007 §3 makes cancel optional; the same payload shape must
+    // pass validation here but fail when used as the resume request above.
+    const command = fixture('integration-request-runtime-resume-command-missing-continuation.json');
+    // rewrite target so the same fixture is replayed under the cancel operation
+    command.commandType = 'integration.request_runtime_cancel';
+    command.targetRef = {
+      kind: 'OBJECT',
+      objectType: 'integration.runtime_control_attempt',
+      objectId: '018f22e2-7c15-7b2e-8d86-2de956a9dc02',
+      scope: {
+        enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201',
+        projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d202',
+      },
+    };
+    const result = registry.validateOperation('integration.request_runtime_cancel', '1.0', command);
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects a request_feishu_delivery submission with deliveryMode=REPLY but missing replyToExternalRef', () => {
+    // Module-Spec-007 §2 (line 115) and Feishu Channel Contract §9.2 require
+    // REPLY and REPLY_IN_THREAD to always carry a replyToExternalRef. The
+    // same-Binding invariant is verified by the runtime adapter.
+    const command = fixture(
+      'integration-request-feishu-delivery-command-reply-missing-reply-to.json',
+    );
+    const result = registry.validateOperation(
+      'integration.request_feishu_delivery',
+      '1.0',
+      command,
+    );
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'required' &&
+          error.instancePath === '/payload/request' &&
+          (error.params as { missingProperty?: string }).missingProperty === 'replyToExternalRef',
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a request_feishu_delivery submission with deliveryMode=REPLY_IN_THREAD but missing replyToExternalRef', () => {
+    const command = fixture(
+      'integration-request-feishu-delivery-command-reply-in-thread-missing-reply-to.json',
+    );
+    const result = registry.validateOperation(
+      'integration.request_feishu_delivery',
+      '1.0',
+      command,
+    );
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'required' &&
+          error.instancePath === '/payload/request' &&
+          (error.params as { missingProperty?: string }).missingProperty === 'replyToExternalRef',
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts a request_feishu_delivery submission with deliveryMode=NEW_MESSAGE without replyToExternalRef', () => {
+    // The if/then overlay must only constrain REPLY / REPLY_IN_THREAD;
+    // NEW_MESSAGE is allowed to omit replyToExternalRef.
+    const command = fixture(
+      'integration-request-feishu-delivery-command-reply-missing-reply-to.json',
+    );
+    const payload = command.payload as {
+      request: { deliveryMode: string };
+    };
+    payload.request.deliveryMode = 'NEW_MESSAGE';
+    const result = registry.validateOperation(
+      'integration.request_feishu_delivery',
+      '1.0',
+      command,
+    );
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects a bind_channel_context submission whose businessContextRefs carries a Feishu message ExternalRef', () => {
+    // Module-Spec-007 §2 (line 113) limits businessContextRefs to same-Project
+    // business references; ExternalRef, Runtime Session and workspace paths
+    // are forbidden because they would otherwise be promoted from routing /
+    // observation into business context.
+    const command = fixture('integration-bind-channel-context-command-external-ref-leak.json');
+    const result = registry.validateOperation('integration.bind_channel_context', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) => error.keyword === 'oneOf' && error.instancePath.includes('businessContextRefs'),
+      ),
+    ).toBe(true);
+  });
 });
