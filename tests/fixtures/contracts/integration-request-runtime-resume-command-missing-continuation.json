@@ -1,0 +1,76 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9dc01",
+  "commandType": "integration.request_runtime_resume",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "integration.runtime_control_attempt",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9dc02",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9dc03",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9dc04",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-resume-missing-continuation-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9dc05",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "request": {
+      "runRef": {
+        "kind": "OBJECT",
+        "objectType": "execution.run",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9dc06",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "runtimeAttemptRef": {
+        "kind": "OBJECT",
+        "objectType": "integration.runtime_attempt",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9dc07",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "reasonCode": "EXECUTION_RUNTIME_RESUME_REQUIRED",
+      "stableIdempotencyKey": "runtime-control-resume-missing-001",
+      "requestedAt": "2026-08-17T00:00:00Z"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

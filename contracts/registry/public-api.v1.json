@@ -1247,161 +1247,161 @@
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.bind_channel_context",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.request_feishu_delivery",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.request_runtime_dispatch",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.request_runtime_cancel",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.request_runtime_resume",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.request_render",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.record_external_receipt",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.quarantine_external_event",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.get_channel_binding",
       "version": "1.0",
       "kind": "QUERY",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.get_delivery_attempt",
       "version": "1.0",
       "kind": "QUERY",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.get_runtime_attempt",
       "version": "1.0",
       "kind": "QUERY",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.get_render_attempt",
       "version": "1.0",
       "kind": "QUERY",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.get_adapter_health",
       "version": "1.0",
       "kind": "QUERY",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.InboundEnvelopeAccepted",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.InboundEnvelopeRejected",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.ChannelAnswerReceived",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.ChannelDeliverySucceeded",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.ChannelDeliveryFailed",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.RuntimeDispatchSucceeded",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.RuntimeDispatchFailed",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.RenderSucceeded",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.RenderFailed",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "integration-gateway",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     }
   ]
 }

@@ -1,0 +1,79 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9db40",
+  "commandType": "integration.record_external_receipt",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "integration.raw_external_receipt",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db41",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db42",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db43",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-illegal-observed-outcome-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9db44",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "receipt": {
+      "attemptKind": "FEISHU_CHANNEL",
+      "attemptRef": {
+        "kind": "OBJECT",
+        "objectType": "integration.channel_delivery_attempt",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db45",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "providerReceiptRef": {
+        "system": "feishu",
+        "resourceType": "message_receipt",
+        "externalId": "om_receipt_illegal_001",
+        "observedAt": "2026-08-17T00:00:00Z"
+      },
+      "receiptPayloadRef": "integration/feishu/receipts/raw",
+      "receiptPayloadHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      },
+      "observedOutcome": "PARTIAL",
+      "recordedAt": "2026-08-17T00:00:00Z"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

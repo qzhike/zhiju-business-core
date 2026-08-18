@@ -1,0 +1,88 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9db50",
+  "commandType": "integration.quarantine_external_event",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "integration.quarantine_record",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db51",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db52",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db53",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-quarantine-missing-hash-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9db54",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "definition": {
+      "inboundEnvelopeRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "integration.inbound_envelope",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db55",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "conflictRefs": [
+        {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "integration.inbound_envelope",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db55",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+            "canonicalizationVersion": "1"
+          }
+        }
+      ],
+      "reasonCode": "INTEGRATION_INBOUND_PAYLOAD_HASH_MISMATCH",
+      "safeDiagnostic": "Inbound hash mismatch observed; payload quarantined for triage.",
+      "quarantinedAt": "2026-08-17T00:00:00Z"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

@@ -3,9 +3,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { publicApiOperations } from './generated/public-api.js';
+import type { PublicOperationDefinition } from './schema-types.js';
 import { artifactOperationContracts } from './operations/artifact.schema.js';
 import { enterpriseProjectOperationContracts } from './operations/enterprise-project.schema.js';
 import { identityPolicyOperationContracts } from './operations/identity-policy.schema.js';
+import { integrationGatewayOperationContracts } from './operations/integration-gateway.schema.js';
 import { qualityGovernanceOperationContracts } from './operations/quality-governance.schema.js';
 import { releasePublicationOperationContracts } from './operations/release-publication.schema.js';
 import { taskExecutionOperationContracts } from './operations/task-execution.schema.js';
@@ -69,21 +71,24 @@ describe('contract registry', () => {
   });
 
   it('exposes implemented module operations as matching FULL schemas', () => {
-    const full = publicApiOperations.filter((operation) => operation.schemaStatus === 'FULL');
+    const operations = publicApiOperations as readonly PublicOperationDefinition[];
+    const full = operations.filter((operation) => operation.schemaStatus === 'FULL');
     const identity = full.filter((operation) => operation.owner === 'identity-policy');
     const project = full.filter((operation) => operation.owner === 'enterprise-project');
     const execution = full.filter((operation) => operation.owner === 'task-execution');
     const artifact = full.filter((operation) => operation.owner === 'artifact');
     const quality = full.filter((operation) => operation.owner === 'quality-governance');
     const release = full.filter((operation) => operation.owner === 'release-publication');
+    const integration = full.filter((operation) => operation.owner === 'integration-gateway');
 
-    expect(full).toHaveLength(177);
+    expect(full).toHaveLength(200);
     expect(identity).toHaveLength(20);
     expect(project).toHaveLength(32);
     expect(execution).toHaveLength(37);
     expect(artifact).toHaveLength(26);
     expect(quality).toHaveLength(37);
     expect(release).toHaveLength(25);
+    expect(integration).toHaveLength(23);
     expect(Object.keys(identityPolicyOperationContracts).sort()).toEqual(
       identity.map((operation) => operation.type).sort(),
     );
@@ -101,6 +106,9 @@ describe('contract registry', () => {
     );
     expect(Object.keys(releasePublicationOperationContracts).sort()).toEqual(
       release.map((operation) => operation.type).sort(),
+    );
+    expect(Object.keys(integrationGatewayOperationContracts).sort()).toEqual(
+      integration.map((operation) => operation.type).sort(),
     );
   });
 
@@ -389,10 +397,10 @@ describe('contract registry', () => {
     expect(result.errors.some((error) => error.keyword === 'additionalProperties')).toBe(true);
   });
 
-  it('does not claim executable result schemas for unfinished modules', () => {
-    const result = registry.validateOperationResult('integration.get_channel_binding', '1.0', {});
+  it('rejects operation result validation for unknown operation types', () => {
+    const result = registry.validateOperationResult('integration.not_a_real_query', '1.0', {});
     expect(result.valid).toBe(false);
-    expect(result.errors[0]?.keyword).toBe('operationResultRegistry');
+    expect(result.errors[0]?.keyword).toBe('operationRegistry');
   });
 
   it('rejects an unknown major version', () => {
