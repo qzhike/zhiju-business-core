@@ -1,8 +1,8 @@
 # Module-Spec-005-QualityGovernance
 
-版本：v0.1
-日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+版本：v0.2
+日期：2026-08-18
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTED 2026-08-18`
 
 ## 1. 模块责任
 
@@ -291,5 +291,7 @@ QUALITY_RELEASE_READINESS_NOT_READY
 
 - 37 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核；
+- 字段级 Payload / Result Schema 已于 2026-08-18 实现并注册到 `contracts/src/operations/quality-governance.schema.ts`；18 Command、8 Query 与 11 Event 全部由 `ENVELOPE_ONLY` 升级为 `FULL`；8 Query Result Schema 均载入 Registry；
+- Schema Contract 用例（`quality-governance.schema.test.ts`）已 PASSED：覆盖 Human Approval、Agent 冒充、Target hash、Evaluation Stage、敏感字段泄漏、Gate vs Approval 形态差异等正反例；
 - Gate Evaluator、Profile Registry、Readiness Evaluator、Persistence 与测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- 字段级以上的 Unit、Contract、E2E 与人工验收仍为 `NOT RUN`，与 Handler/State/Evaluator/E2E 缺失对应。

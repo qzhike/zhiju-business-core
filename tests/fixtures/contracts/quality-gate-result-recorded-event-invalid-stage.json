@@ -1,0 +1,71 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9d390",
+  "eventType": "quality.GateResultRecorded",
+  "eventVersion": "1.0",
+  "producerModule": "quality-governance",
+  "aggregateType": "quality.gate_result",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9d391",
+  "aggregateVersion": 1,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d392",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9d393",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d394",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d395",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:00:00Z",
+  "dataClassification": "INTERNAL",
+  "payload": {
+    "gateResultRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "quality.gate_result",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d396",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "6666666666666666666666666666666666666666666666666666666666666666",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "target": {
+      "kind": "REVISION",
+      "revisionRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "artifact.artifact_revision",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d397",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "canonicalizationVersion": "1"
+        }
+      }
+    },
+    "evaluationStage": "APPROVAL",
+    "gateSpecId": "018f22e2-7c15-7b2e-8d86-2de956a9d398",
+    "outcome": "PASS",
+    "validityStatus": "VALID"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "8888888888888888888888888888888888888888888888888888888888888888",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

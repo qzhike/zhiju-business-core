@@ -1,0 +1,80 @@
+{
+  "evidenceRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "quality.evidence",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d364",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "status": "VERIFIED",
+  "candidate": {
+    "sourceType": "regulatory.canonical",
+    "sourceObjectRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "regulatory.canonical_text",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d365",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "sourceSnapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "regulatory.canonical_text",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d366",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d367",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "sourceVersion": "1.0.0",
+    "locator": "regulatory.canonical/2024.10/iso13485.4.2.4",
+    "capturedContentRef": "quality-evidence/018f22e2/iso-13485-section-4.2.4.txt",
+    "capturedContentHash": {
+      "algorithm": "SHA-256",
+      "digest": "5555555555555555555555555555555555555555555555555555555555555555",
+      "canonicalizationVersion": "1"
+    },
+    "authority": "regulatory.iso",
+    "jurisdiction": "regulatory.cn.nmpa",
+    "validPeriod": {
+      "validFrom": "2026-01-01T00:00:00Z",
+      "validTo": "2027-01-01T00:00:00Z"
+    },
+    "accessClassification": "regulatory.confidential",
+    "capturedAt": "2026-08-17T00:00:00Z"
+  },
+  "latestVerificationRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "quality.evidence_verification",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d368",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "impactStatus": "evidence.impact.live"
+}
