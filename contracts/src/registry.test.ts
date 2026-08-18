@@ -7,6 +7,7 @@ import { artifactOperationContracts } from './operations/artifact.schema.js';
 import { enterpriseProjectOperationContracts } from './operations/enterprise-project.schema.js';
 import { identityPolicyOperationContracts } from './operations/identity-policy.schema.js';
 import { qualityGovernanceOperationContracts } from './operations/quality-governance.schema.js';
+import { releasePublicationOperationContracts } from './operations/release-publication.schema.js';
 import { taskExecutionOperationContracts } from './operations/task-execution.schema.js';
 import { ContractRegistry } from './registry.js';
 
@@ -74,13 +75,15 @@ describe('contract registry', () => {
     const execution = full.filter((operation) => operation.owner === 'task-execution');
     const artifact = full.filter((operation) => operation.owner === 'artifact');
     const quality = full.filter((operation) => operation.owner === 'quality-governance');
+    const release = full.filter((operation) => operation.owner === 'release-publication');
 
-    expect(full).toHaveLength(152);
+    expect(full).toHaveLength(177);
     expect(identity).toHaveLength(20);
     expect(project).toHaveLength(32);
     expect(execution).toHaveLength(37);
     expect(artifact).toHaveLength(26);
     expect(quality).toHaveLength(37);
+    expect(release).toHaveLength(25);
     expect(Object.keys(identityPolicyOperationContracts).sort()).toEqual(
       identity.map((operation) => operation.type).sort(),
     );
@@ -95,6 +98,9 @@ describe('contract registry', () => {
     );
     expect(Object.keys(qualityGovernanceOperationContracts).sort()).toEqual(
       quality.map((operation) => operation.type).sort(),
+    );
+    expect(Object.keys(releasePublicationOperationContracts).sort()).toEqual(
+      release.map((operation) => operation.type).sort(),
     );
   });
 
@@ -384,7 +390,7 @@ describe('contract registry', () => {
   });
 
   it('does not claim executable result schemas for unfinished modules', () => {
-    const result = registry.validateOperationResult('release.get_release', '1.0', {});
+    const result = registry.validateOperationResult('integration.get_channel_binding', '1.0', {});
     expect(result.valid).toBe(false);
     expect(result.errors[0]?.keyword).toBe('operationResultRegistry');
   });

@@ -1,8 +1,8 @@
 # Module-Spec-006-ReleasePublication
 
-版本：v0.1
-日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+版本：v0.2
+日期：2026-08-18
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTATION COMPLETE 2026-08-18`
 
 ## 1. 模块责任
 
@@ -206,5 +206,10 @@ RELEASE_CANCEL_NOT_ALLOWED
 
 - 25 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- Package Hash、Publisher、Receipt Validator、Persistence 与测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- 25 个操作的字段级 Schema 已落地，详见 `contracts/src/operations/release-publication.schema.ts`；
+- `contracts/registry/public-api.v1.json` 中 25 个 `release.*` 操作 `schemaStatus` 已切换为 `FULL`；
+- `tools/contracts/check-catalog.mjs` 已把 `release-publication` 加入 `implementedOwners`；
+- 字段级 Payload / Result Schema 与 `Module-Spec-006` §2–§5 完全一致：Release / ReleasePackage / RecipientScopeSnapshot / Destination / PublicationAttempt / Receipt / Recall / Readiness 引用精确、状态枚举闭合、`authorizingHumanRef` 强制 `principalKind: HUMAN`、`publicationFailureSubmission.outcome` 仅允许 `FAILED|UNKNOWN`、事件 payload 严格闭合；
+- Unit / Contract 级 Schema 测试已在 `contracts/src/operations/release-publication.schema.test.ts` 中实现并通过；
+- Package Hash 计算、Publisher、Receipt Validator、Persistence 与 E2E / 人工验收实现仍不存在；
+- 对应 Unit / Contract / E2E / Manual 验收结果见 [`Module-Test-006-ReleasePublication.md`](../module-tests/Module-Test-006-ReleasePublication.md)。

@@ -1,0 +1,102 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9db01",
+  "eventType": "release.PublicationSucceeded",
+  "eventVersion": "1.0",
+  "producerModule": "release-publication",
+  "aggregateType": "release.release",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9db02",
+  "aggregateVersion": 1,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9db03",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9db04",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9db05",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db06",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:00:00Z",
+  "dataClassification": "INTERNAL",
+  "payload": {
+    "releaseRef": {
+      "kind": "OBJECT",
+      "objectType": "release.release",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db02",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "packageRef": {
+      "releaseRef": {
+        "kind": "OBJECT",
+        "objectType": "release.release",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db02",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "packageSnapshotRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "release.release_package",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db07",
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9db08",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "packageHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "attemptRef": {
+      "kind": "OBJECT",
+      "objectType": "release.publication_attempt",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db09",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9db0a",
+    "receiptRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "release.publication_receipt",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9db0b",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "occurredAt": "2026-08-17T00:00:00Z",
+    "deliveredDocumentBody": "This text must not leak through the public PublicationSucceeded event."
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

@@ -1072,175 +1072,175 @@
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.select_representations",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.set_destinations",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.prepare_release",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.validate_release_readiness",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.authorize_release",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.start_publication_attempt",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.record_publication_receipt",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.record_publication_failure",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.complete_release",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.recall_release",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.cancel_release",
       "version": "1.0",
       "kind": "COMMAND",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.get_release",
       "version": "1.0",
       "kind": "QUERY",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.get_frozen_package",
       "version": "1.0",
       "kind": "QUERY",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.get_publication_attempts",
       "version": "1.0",
       "kind": "QUERY",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.get_release_receipts",
       "version": "1.0",
       "kind": "QUERY",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.get_release_impact",
       "version": "1.0",
       "kind": "QUERY",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.ReleasePrepared",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.ReleaseAuthorized",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.PublicationAttemptRequested",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.PublicationSucceeded",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.PublicationFailed",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.ReleasePartiallyCompleted",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.ReleaseCompleted",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "release.ReleaseRecalled",
       "version": "1.0",
       "kind": "EVENT",
       "owner": "release-publication",
-      "schemaStatus": "ENVELOPE_ONLY"
+      "schemaStatus": "FULL"
     },
     {
       "type": "integration.accept_inbound_envelope",
