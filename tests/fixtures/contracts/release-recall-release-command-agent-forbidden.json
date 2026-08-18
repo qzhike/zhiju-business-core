@@ -1,0 +1,88 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d601",
+  "commandType": "release.recall_release",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "release.recall",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d602",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d603",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d604",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-release-recall-agent-forbidden",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d605",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "recallScope": {
+      "reason": "INCORRECT_RELEASE_CONTENT"
+    },
+    "recallReason": {
+      "reasonCode": "RELEASE_RECALL_CONTENT_INCORRECT",
+      "summary": "Agent-impersonated recall must be rejected."
+    },
+    "authorizingHumanRef": {
+      "principalKind": "AGENT",
+      "principalId": "018f22e2-7c15-7b2e-8d86-2de956a9d606"
+    },
+    "authorizationDecisionRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "identity.authorization_decision",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d607",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "notificationPolicyRef": {
+      "kind": "VERSIONED",
+      "objectType": "policy.notification",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d608",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d609",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "recalledAt": "2026-08-17T00:00:00Z"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "8888888888888888888888888888888888888888888888888888888888888888",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

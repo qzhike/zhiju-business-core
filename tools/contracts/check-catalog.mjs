@@ -40,6 +40,7 @@ const implementedOwners = new Set([
   'task-execution',
   'artifact',
   'quality-governance',
+  'release-publication',
 ]);
 const invalidFullOperations = registry.operations.filter(
   (operation) => operation.schemaStatus === 'FULL' && !implementedOwners.has(operation.owner),
