@@ -1,0 +1,1712 @@
+{
+  "$defs": {
+    "activeBaselineRefsView": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateVersions": {},
+        "customerBaselineRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "deliveryPlanRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "gapAnalysisRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "regulatoryProfileRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "templateBaselineRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        }
+      },
+      "required": [
+        "aggregateVersions"
+      ],
+      "type": "object"
+    },
+    "baselineExpectation": {
+      "additionalProperties": false,
+      "properties": {
+        "customerMaterialRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+          },
+          "type": "array"
+        },
+        "decisionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "expectationId": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+        },
+        "expectedMaterialKey": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "expectedTitleOrRole": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "materialType": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "reason": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        },
+        "status": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/materialStatus"
+        }
+      },
+      "required": [
+        "expectationId",
+        "expectedMaterialKey",
+        "materialType",
+        "expectedTitleOrRole",
+        "status",
+        "customerMaterialRefs",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "completionEvaluationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "criteriaHash": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentHash"
+        },
+        "deliveryItemId": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+        },
+        "deliveryPlanRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "evaluatedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "evaluatorRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "factRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "sourceWatermarks": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/sourceWatermark"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "deliveryPlanRef",
+        "deliveryItemId",
+        "criteriaHash",
+        "factRefs",
+        "sourceWatermarks",
+        "evaluatorRef",
+        "evaluatedAt"
+      ],
+      "type": "object"
+    },
+    "customerMaterialProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "classificationRationale": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        },
+        "completeness": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/materialCompleteness"
+        },
+        "customerDocumentNumber": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "customerVersionLabel": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "effectiveDate": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string"
+        },
+        "language": {
+          "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$",
+          "type": "string"
+        },
+        "materialType": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "sourceSelections": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/materialSourceSelection"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "title": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "materialType",
+        "title",
+        "completeness",
+        "sourceSelections",
+        "language",
+        "classificationRationale"
+      ],
+      "type": "object"
+    },
+    "deliveryCommitmentStatus": {
+      "enum": [
+        "PROPOSED",
+        "APPROVED",
+        "CANCELLED",
+        "REPLACED"
+      ]
+    },
+    "deliveryExecutionStatus": {
+      "enum": [
+        "NOT_READY",
+        "READY",
+        "IN_PROGRESS",
+        "BLOCKED",
+        "IN_REVIEW",
+        "APPROVED_OUTPUT",
+        "RELEASED",
+        "COMPLETED"
+      ]
+    },
+    "deliveryItemCriteriaView": {
+      "additionalProperties": false,
+      "properties": {
+        "criteriaHash": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentHash"
+        },
+        "currentEvaluationRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "definition": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/deliveryItemDefinition"
+        },
+        "deliveryItemId": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+        },
+        "deliveryPlanRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "executionStatus": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/deliveryExecutionStatus"
+        }
+      },
+      "required": [
+        "deliveryPlanRef",
+        "deliveryItemId",
+        "definition",
+        "criteriaHash",
+        "executionStatus"
+      ],
+      "type": "object"
+    },
+    "deliveryItemDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "commitmentStatus": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/deliveryCommitmentStatus"
+        },
+        "completionCriteria": {},
+        "dependencyItemIds": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "dueConstraint": {},
+        "itemId": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+        },
+        "itemKey": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "itemType": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "objective": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "qualityProfileRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "sourceGapItemRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "targetArtifactTypes": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "title": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "itemId",
+        "itemKey",
+        "itemType",
+        "title",
+        "objective",
+        "sourceGapItemRefs",
+        "dependencyItemIds",
+        "targetArtifactTypes",
+        "qualityProfileRef",
+        "completionCriteria",
+        "commitmentStatus"
+      ],
+      "type": "object"
+    },
+    "effectivePeriod": {
+      "additionalProperties": false,
+      "properties": {
+        "validFrom": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "validTo": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "enterpriseProfileSnapshotResult": {
+      "additionalProperties": false,
+      "properties": {
+        "payload": {},
+        "snapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        }
+      },
+      "required": [
+        "snapshotRef",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "enterpriseStatus": {
+      "enum": [
+        "ACTIVE",
+        "SUSPENDED",
+        "ARCHIVED"
+      ]
+    },
+    "evidenceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "applicabilityScopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        },
+        "evidence": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "evidenceLinkRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "relation": {
+          "enum": [
+            "SUPPORTS",
+            "CONTRADICTS",
+            "CONTEXT_ONLY"
+          ]
+        },
+        "targetClaimRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+        }
+      },
+      "required": [
+        "evidence",
+        "relation"
+      ],
+      "type": "object"
+    },
+    "factProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "factType": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "proposalReason": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        },
+        "riskLevel": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "sourceRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "validPeriod": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/effectivePeriod"
+        },
+        "value": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/valueEnvelopeCanonicalJson"
+        }
+      },
+      "required": [
+        "factType",
+        "value",
+        "sourceRefs",
+        "riskLevel",
+        "proposalReason"
+      ],
+      "type": "object"
+    },
+    "factStatus": {
+      "enum": [
+        "PROPOSED",
+        "CONFIRMED",
+        "DISPUTED",
+        "SUPERSEDED"
+      ]
+    },
+    "gapInputSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "analysisPolicyRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "customerBaselineRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "enterpriseProfileSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "productScopeSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "qmsConfigurationRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "regulatoryProfileRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "templateBaselineRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        }
+      },
+      "required": [
+        "customerBaselineRef",
+        "templateBaselineRef",
+        "regulatoryProfileRef",
+        "enterpriseProfileSnapshotRef",
+        "qmsConfigurationRef",
+        "productScopeSnapshotRef",
+        "analysisPolicyRef"
+      ],
+      "type": "object"
+    },
+    "gapStatus": {
+      "enum": [
+        "MATCH",
+        "MINOR_GAP",
+        "MAJOR_GAP",
+        "MISSING",
+        "EXTRA",
+        "UNKNOWN",
+        "NOT_APPLICABLE"
+      ]
+    },
+    "justification": {
+      "additionalProperties": false,
+      "properties": {
+        "evidenceRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/evidenceRef"
+          },
+          "type": "array"
+        },
+        "policyRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "reasonCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+        },
+        "summary": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "reasonCode",
+        "summary",
+        "evidenceRefs"
+      ],
+      "type": "object"
+    },
+    "materialCompleteness": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "UNKNOWN",
+        "UNREADABLE"
+      ]
+    },
+    "materialSourceSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "extractionSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "locator": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "role": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "sourceMaterialRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        }
+      },
+      "required": [
+        "sourceMaterialRef",
+        "role"
+      ],
+      "type": "object"
+    },
+    "materialStatus": {
+      "enum": [
+        "PRESENT",
+        "PARTIAL",
+        "MISSING_CONFIRMED",
+        "NOT_PROVIDED",
+        "UNKNOWN",
+        "NOT_APPLICABLE"
+      ]
+    },
+    "objectScopeValidation": {
+      "additionalProperties": false,
+      "properties": {
+        "authoritativeScopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        },
+        "lifecycle": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+          },
+          "type": "array"
+        },
+        "resolvedRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+        },
+        "valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "valid",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "pageRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "pageSize": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pageSize"
+      ],
+      "type": "object"
+    },
+    "projectBoardPage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/projectBoardSliceItem"
+          },
+          "type": "array"
+        },
+        "nextCursor": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "snapshotAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "sourceWatermarks": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/sourceWatermark"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "items",
+        "snapshotAt",
+        "sourceWatermarks"
+      ],
+      "type": "object"
+    },
+    "projectBoardSliceItem": {
+      "additionalProperties": false,
+      "properties": {
+        "blockerRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+          },
+          "type": "array"
+        },
+        "commitmentStatus": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/deliveryCommitmentStatus"
+        },
+        "completionEvaluationRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "deliveryItemId": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+        },
+        "executionStatus": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/deliveryExecutionStatus"
+        },
+        "itemKey": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "title": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "deliveryItemId",
+        "itemKey",
+        "title",
+        "commitmentStatus",
+        "executionStatus",
+        "blockerRefs"
+      ],
+      "type": "object"
+    },
+    "projectContextSourceSlice": {
+      "additionalProperties": false,
+      "properties": {
+        "activeBaselineRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+          },
+          "type": "array"
+        },
+        "enterpriseProfileSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "factItems": {
+          "items": {},
+          "type": "array"
+        },
+        "omissions": {
+          "items": {},
+          "type": "array"
+        },
+        "productScopeSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "qmsConfigurationRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "redactions": {
+          "items": {},
+          "type": "array"
+        },
+        "sourceWatermark": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/sourceWatermark"
+        }
+      },
+      "required": [
+        "projectRef",
+        "enterpriseProfileSnapshotRef",
+        "qmsConfigurationRef",
+        "productScopeSnapshotRef",
+        "activeBaselineRefs",
+        "factItems",
+        "omissions",
+        "redactions",
+        "sourceWatermark"
+      ],
+      "type": "object"
+    },
+    "projectStartSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "enterpriseProfileSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "initialCustomerBaselineRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "productScopeSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "qmsConfigurationRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "regulatoryProfileRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "templateBaselineRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        }
+      },
+      "required": [
+        "enterpriseProfileSnapshotRef",
+        "qmsConfigurationRef",
+        "productScopeSnapshotRef"
+      ],
+      "type": "object"
+    },
+    "project_CustomerBaselineVersionActivated_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "customerBaselineRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "impactPolicyRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "previousActiveRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "customerBaselineRef",
+        "projectRef",
+        "impactPolicyRef"
+      ],
+      "type": "object"
+    },
+    "project_CustomerMaterialConfirmed_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "completeness": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/materialCompleteness"
+        },
+        "confirmationDecisionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "customerMaterialRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "materialType": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "customerMaterialRef",
+        "projectRef",
+        "materialType",
+        "completeness",
+        "confirmationDecisionRef"
+      ],
+      "type": "object"
+    },
+    "project_DeliveryItemActivated_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "criteriaHash": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentHash"
+        },
+        "deliveryItemRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "deliveryPlanRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "qualityProfileRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        }
+      },
+      "required": [
+        "deliveryPlanRef",
+        "deliveryItemRef",
+        "criteriaHash",
+        "qualityProfileRef"
+      ],
+      "type": "object"
+    },
+    "project_DeliveryItemCompletionSatisfied_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "deliveryItemRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "evaluationRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "satisfiedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "satisfiedFactRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "deliveryItemRef",
+        "evaluationRef",
+        "satisfiedFactRefs",
+        "satisfiedAt"
+      ],
+      "type": "object"
+    },
+    "project_DeliveryItemImpactReviewRequested_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "deliveryItemRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "impactReason": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+        },
+        "priorEvaluationRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "triggeringRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+        }
+      },
+      "required": [
+        "deliveryItemRef",
+        "triggeringRef",
+        "impactReason"
+      ],
+      "type": "object"
+    },
+    "project_DeliveryPlanActivated_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "deliveryPlanRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "itemRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "previousActiveRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "deliveryPlanRef",
+        "projectRef",
+        "itemRefs"
+      ],
+      "type": "object"
+    },
+    "project_GapAnalysisAccepted_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceDecisionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "gapAnalysisRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "inputSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "gapAnalysisRef",
+        "projectRef",
+        "inputSnapshotRef",
+        "acceptanceDecisionRef"
+      ],
+      "type": "object"
+    },
+    "project_SourceMaterialAccepted_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "originRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/externalRef"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "sourceMaterialRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        }
+      },
+      "required": [
+        "sourceMaterialRef",
+        "projectRef",
+        "originRef",
+        "acceptedAt"
+      ],
+      "type": "object"
+    },
+    "project_accept_gap_analysis_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "enum": [
+            "ACCEPT",
+            "REJECT",
+            "CHANGES_REQUIRED"
+          ]
+        },
+        "gapAnalysisVersionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "justification": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        },
+        "reviewSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        }
+      },
+      "required": [
+        "gapAnalysisVersionRef",
+        "reviewSnapshotRef",
+        "disposition",
+        "justification"
+      ],
+      "type": "object"
+    },
+    "project_accept_source_material_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "acceptedObjectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "integrityValidationRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "securityValidationRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "securityValidationRefs",
+        "integrityValidationRef",
+        "acceptedObjectRef",
+        "acceptedAt"
+      ],
+      "type": "object"
+    },
+    "project_activate_customer_baseline_version_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "baselineVersionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "impactPolicyRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "justification": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        },
+        "reviewSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        }
+      },
+      "required": [
+        "baselineVersionRef",
+        "reviewSnapshotRef",
+        "impactPolicyRef",
+        "justification"
+      ],
+      "type": "object"
+    },
+    "project_activate_delivery_plan_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "activatedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "approvalDecisionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "deliveryPlanVersionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "impactPolicyRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        }
+      },
+      "required": [
+        "deliveryPlanVersionRef",
+        "approvalDecisionRef",
+        "activatedAt",
+        "impactPolicyRef"
+      ],
+      "type": "object"
+    },
+    "project_activate_regulatory_profile_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "applicabilityItems": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/regulatoryApplicability"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "jurisdiction": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "productScopeSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "regulatoryProfileVersionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "reviewSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        }
+      },
+      "required": [
+        "regulatoryProfileVersionRef",
+        "jurisdiction",
+        "productScopeSnapshotRef",
+        "applicabilityItems",
+        "reviewSnapshotRef"
+      ],
+      "type": "object"
+    },
+    "project_approve_delivery_plan_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "APPROVE",
+            "CHANGES_REQUIRED",
+            "REJECT"
+          ]
+        },
+        "deliveryPlanVersionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "justification": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        },
+        "reviewSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        }
+      },
+      "required": [
+        "deliveryPlanVersionRef",
+        "reviewSnapshotRef",
+        "decision",
+        "justification"
+      ],
+      "type": "object"
+    },
+    "project_confirm_customer_material_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "candidateVersionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "completeness": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/materialCompleteness"
+        },
+        "declaredStatus": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "evidenceRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/evidenceRef"
+          },
+          "type": "array"
+        },
+        "justification": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        }
+      },
+      "required": [
+        "candidateVersionRef",
+        "completeness",
+        "declaredStatus",
+        "evidenceRefs",
+        "justification"
+      ],
+      "type": "object"
+    },
+    "project_confirm_enterprise_fact_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmedValue": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/valueEnvelopeCanonicalJson"
+        },
+        "effectivePeriod": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/effectivePeriod"
+        },
+        "evidenceRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/evidenceRef"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "justification": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        },
+        "proposalVersionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        }
+      },
+      "required": [
+        "proposalVersionRef",
+        "confirmedValue",
+        "evidenceRefs",
+        "justification"
+      ],
+      "type": "object"
+    },
+    "project_create_customer_baseline_draft_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "baselinePolicyRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "expectations": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/baselineExpectation"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "previousVersionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "projectRef",
+        "expectations",
+        "baselinePolicyRef"
+      ],
+      "type": "object"
+    },
+    "project_create_delivery_plan_draft_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedGapAnalysisRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "assumptions": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+          },
+          "type": "array"
+        },
+        "baselineRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "exclusions": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+          },
+          "type": "array"
+        },
+        "items": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/deliveryItemDefinition"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "planQualityPolicyRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "projectRef",
+        "acceptedGapAnalysisRef",
+        "baselineRefs",
+        "items",
+        "assumptions",
+        "exclusions",
+        "planQualityPolicyRef"
+      ],
+      "type": "object"
+    },
+    "project_create_enterprise_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "displayCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "displayName": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "initialStatus": {
+          "const": "ACTIVE"
+        }
+      },
+      "required": [
+        "displayCode",
+        "displayName",
+        "initialStatus"
+      ],
+      "type": "object"
+    },
+    "project_create_project_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "displayCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "enterpriseRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "memberPolicyRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "objective": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "startSnapshot": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/projectStartSnapshot"
+        },
+        "title": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "enterpriseRef",
+        "displayCode",
+        "title",
+        "objective",
+        "startSnapshot",
+        "memberPolicyRef"
+      ],
+      "type": "object"
+    },
+    "project_evaluate_delivery_item_completion_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/completionEvaluationInput"
+        }
+      },
+      "required": [
+        "input"
+      ],
+      "type": "object"
+    },
+    "project_freeze_template_baseline_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "reviewSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "selectionRationale": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        },
+        "selections": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/templateSelection"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "templateBaselineVersionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        }
+      },
+      "required": [
+        "templateBaselineVersionRef",
+        "selections",
+        "reviewSnapshotRef",
+        "selectionRationale"
+      ],
+      "type": "object"
+    },
+    "project_get_active_baseline_refs_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "projectRef"
+      ],
+      "type": "object"
+    },
+    "project_get_active_baseline_refs_result": {
+      "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/activeBaselineRefsView"
+    },
+    "project_get_delivery_item_criteria_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "deliveryItemId": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+        },
+        "deliveryPlanRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        }
+      },
+      "required": [
+        "deliveryPlanRef",
+        "deliveryItemId"
+      ],
+      "type": "object"
+    },
+    "project_get_delivery_item_criteria_result": {
+      "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/deliveryItemCriteriaView"
+    },
+    "project_get_enterprise_profile_snapshot_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "enterpriseProfileSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        }
+      },
+      "required": [
+        "enterpriseProfileSnapshotRef"
+      ],
+      "type": "object"
+    },
+    "project_get_enterprise_profile_snapshot_result": {
+      "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/enterpriseProfileSnapshotResult"
+    },
+    "project_get_project_board_slice_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "itemTypes": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "page": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/pageRequest"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "statuses": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/deliveryExecutionStatus"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "projectRef",
+        "statuses",
+        "itemTypes",
+        "page"
+      ],
+      "type": "object"
+    },
+    "project_get_project_board_slice_result": {
+      "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/projectBoardPage"
+    },
+    "project_get_project_context_source_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "asOf": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "audience": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "purpose": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "requestedKinds": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "projectRef",
+        "purpose",
+        "audience",
+        "requestedKinds"
+      ],
+      "type": "object"
+    },
+    "project_get_project_context_source_result": {
+      "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/projectContextSourceSlice"
+    },
+    "project_propose_customer_material_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "proposal": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/customerMaterialProposal"
+        }
+      },
+      "required": [
+        "projectRef",
+        "proposal"
+      ],
+      "type": "object"
+    },
+    "project_propose_enterprise_fact_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "enterpriseRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "proposal": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/factProposal"
+        }
+      },
+      "required": [
+        "enterpriseRef",
+        "proposal"
+      ],
+      "type": "object"
+    },
+    "project_register_source_material_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "descriptor": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/sourceMaterialDescriptor"
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "projectRef",
+        "descriptor"
+      ],
+      "type": "object"
+    },
+    "project_start_gap_analysis_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "inputSnapshot": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/gapInputSnapshot"
+        },
+        "mode": {
+          "enum": [
+            "FORMAL",
+            "EXPLORATORY"
+          ]
+        },
+        "projectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "requestedScope": {}
+      },
+      "required": [
+        "projectRef",
+        "inputSnapshot",
+        "mode",
+        "requestedScope"
+      ],
+      "type": "object"
+    },
+    "project_validate_object_scope_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedScopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        },
+        "objectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+        },
+        "purpose": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        }
+      },
+      "required": [
+        "objectRef",
+        "expectedScopeRef",
+        "purpose"
+      ],
+      "type": "object"
+    },
+    "project_validate_object_scope_result": {
+      "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/objectScopeValidation"
+    },
+    "recommendedAction": {
+      "enum": [
+        "KEEP",
+        "REVISE",
+        "REPLACE",
+        "CREATE",
+        "REMOVE",
+        "NEED_INFORMATION",
+        "HUMAN_REVIEW"
+      ]
+    },
+    "regulatoryApplicability": {
+      "additionalProperties": false,
+      "properties": {
+        "applicability": {
+          "enum": [
+            "APPLICABLE",
+            "NOT_APPLICABLE",
+            "PENDING_DETERMINATION"
+          ]
+        },
+        "evidenceRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/evidenceRef"
+          },
+          "type": "array"
+        },
+        "rationale": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        },
+        "regulatoryReferenceRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "riskLevel": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        }
+      },
+      "required": [
+        "regulatoryReferenceRef",
+        "applicability",
+        "rationale",
+        "evidenceRefs",
+        "riskLevel"
+      ],
+      "type": "object"
+    },
+    "sourceMaterialDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "byteLength": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "checksum": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentHash"
+        },
+        "mediaType": {
+          "pattern": "^[^/\\s]+/[^/\\s]+$",
+          "type": "string"
+        },
+        "originRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/externalRef"
+        },
+        "originalName": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "receivedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "retentionClass": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "stagedObjectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "submittedBy": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "originRef",
+        "submittedBy",
+        "receivedAt",
+        "originalName",
+        "mediaType",
+        "byteLength",
+        "checksum",
+        "stagedObjectRef",
+        "retentionClass"
+      ],
+      "type": "object"
+    },
+    "sourceWatermark": {
+      "additionalProperties": false,
+      "properties": {
+        "observedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "partition": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "sequence": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sourceModule": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        }
+      },
+      "required": [
+        "sourceModule",
+        "sequence",
+        "observedAt"
+      ],
+      "type": "object"
+    },
+    "templateSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "applicabilityScope": {},
+        "deliveryCategory": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "replacementFor": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "selectionReason": {
+          "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/justification"
+        },
+        "templateRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        }
+      },
+      "required": [
+        "deliveryCategory",
+        "templateRef",
+        "applicabilityScope",
+        "selectionReason"
+      ],
+      "type": "object"
+    },
+    "valueEnvelopeCanonicalJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceRefs": {
+              "items": {
+                "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/evidenceRef"
+              },
+              "type": "array"
+            },
+            "lastVerifiedAt": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+            },
+            "presence": {
+              "const": "PRESENT"
+            },
+            "reasonCode": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+            },
+            "value": {}
+          },
+          "required": [
+            "presence",
+            "value",
+            "evidenceRefs"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceRefs": {
+              "items": {
+                "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/evidenceRef"
+              },
+              "type": "array"
+            },
+            "lastVerifiedAt": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+            },
+            "presence": {
+              "enum": [
+                "UNKNOWN",
+                "REDACTED",
+                "NOT_APPLICABLE",
+                "UNAVAILABLE"
+              ]
+            },
+            "reasonCode": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+            }
+          },
+          "required": [
+            "presence",
+            "evidenceRefs"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://schemas.zhiju.local/modules/enterprise-project/1.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

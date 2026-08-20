@@ -1,8 +1,8 @@
 # Module-Test-IM01-CoreContracts
 
-版本：v0.1
-日期：2026-08-17
-状态：`CORE CONTRACT FIELD-LEVEL TESTS BASELINE / AUTOMATED PASS / USER REVIEW PENDING`
+版本：v0.2
+日期：2026-08-20
+状态：`CORE CONTRACT FIELD-LEVEL TESTS BASELINE / V1.0 COMPATIBILITY TESTS PASS / USER REVIEW PENDING`
 
 对应规格：[`Module-Spec-IM01-CoreContracts.md`](../module-specs/Module-Spec-IM01-CoreContracts.md)。本文件记录六个 Core Contract 与共享 Value Object 的字段级 Schema 测试用例和实际结果。Persistence、E2E、人工验收不在本 Issue 范围内。
 
@@ -115,12 +115,28 @@
 | CC-TC-001 | `pnpm typecheck` | 通过 | 通过 | `PASS` |
 | CC-FIX-001 | 6 个 builder 与 `tests/fixtures/contracts/core/*.json` | golden fixture 无漂移且分别通过 Schema | `fixtures=6 equality=PASS validation=PASS` | `PASS` |
 
-## 10. 未执行项
+## 10. v1.0 Schema 兼容性（Issue #8）
+
+测试入口：`tools/contracts/lib/schema-compatibility.test.ts`、`contracts/src/compatibility.fixture.test.ts`、`pnpm contracts:check`（含 `check-compatibility.mts`）。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| CC-COMPAT-001 | Gate | `contracts/baselines/v1.0/manifest.json` | operationCount=200、coreContractCount=6 | `operationCount=200 coreContractCount=6 schemas=14` | `PASS` |
+| CC-COMPAT-002 | Unit | required 字段新增/删除、字段删除、closed enum 变化、类型收窄、additionalProperties 翻转、`$ref` 变化夹具 | 全部 `BREAKING` | `schema-compatibility.test.ts` 10/10；keywords 含 required-added/property-removed/enum-changed/type-narrowed/additionalProperties-closed/ref-changed | `PASS` |
+| CC-COMPAT-003 | Unit | 新增 optional 非 required 字段夹具 | `COMPATIBLE_MINOR`，旧 payload 仍 valid | failingFindings=[]；keyword=optional-property-added；WorkOrder 历史正向 valid | `PASS` |
+| CC-COMPAT-004 | Contract | 每 owner 历史正向 fixture | 当前 Schema `valid=true` | 7 owner 均有 positive；Ajv/Registry 全 valid | `PASS` |
+| CC-COMPAT-005 | Contract | Core 六类历史正向 fixture | 当前 Schema `valid=true` | core positives=6 | `PASS` |
+| CC-COMPAT-006 | Negative | 每 owner 历史负向 + 未知 Major | 拒绝（含 Registry unknown major） | 7 owner negative + unknownMajor keyword=operationRegistry | `PASS` |
+| CC-COMPAT-007 | Unit | Canonical JSON / Hash 冻结期望 | digest 与期望一致，不改算法迁就 | `fixtures.index.json` canonicalHashes=3 全部匹配 | `PASS` |
+| CC-COMPAT-008 | Unit | `manualReviewFingerprint` 变化且无 APPROVED | `MANUAL_REVIEW_REQUIRED` 且 Gate FAIL | 无 approval FAIL；APPROVED 后仅放行人工项 | `PASS` |
+| CC-COMPAT-009 | Gate | `pnpm clean && pnpm verify` | 全绿；错误可定位 operation/version/path | format/lint/typecheck/test(270)/architecture/contracts:check 全 PASS；`compatibility=PASS` | `PASS` |
+
+## 11. 未执行项
 
 - Runtime Connection、E2E、Persistence、WebSocket/Feishu、Renderer、对象存储、备份恢复、负载与人工验收：`NOT RUN`，原因与既有 `Module-Test-001..007` 一致（IM-01 阶段业务 Handler 尚未实现）。
 - `ValueEnvelope<T>.value` 的具体 T 结构与 REDACTED Policy reason 等跨字段业务规则仍由后续 Contract Validator 落地；`presence` 与 `value` 的结构完整性已纳入本轮 Schema review 回归。
-- 跨版本 compatibility fixture 与 Schema-derived Type 派生仍属 IM-01 后续切片（148 个 ENVELOPE_ONLY operation）。
+- `allOf` / `if`+`then`+`else` / `dependentRequired` 的完整语义子集证明不在本切片自动判定范围内（结构差异按 BREAKING）。
 
-## 11. 测试遗留清理
+## 12. 测试遗留清理
 
-测试过程中创建的临时 helper 文件已在合并前删除（`pnpm clean` 后 `pnpm verify` 全套通过验证）。无残留脚本或调试 fixture。
+测试过程中创建的临时 helper 文件必须在合并前删除（`pnpm clean` 后 `pnpm verify` 全套通过验证）。无残留脚本或调试 fixture。

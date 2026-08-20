@@ -1,0 +1,8 @@
+{
+  "baseline": {
+    "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+  },
+  "current": {
+    "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+  }
+}

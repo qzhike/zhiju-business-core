@@ -1,0 +1,20 @@
+{
+  "baseline": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "a": {
+        "type": "string"
+      }
+    }
+  },
+  "current": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "a": {
+        "type": "string"
+      }
+    }
+  }
+}

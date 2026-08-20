@@ -1,0 +1,2067 @@
+{
+  "approvals": [],
+  "baselineId": "v1.0",
+  "canonicalizationVersion": "1",
+  "coreContractCount": 6,
+  "coreContracts": [
+    {
+      "name": "ProjectContextContract",
+      "schemaId": "https://schemas.zhiju.local/core/project-context/1.0",
+      "snapshot": "schemas/core/project-context.schema.json"
+    },
+    {
+      "name": "WorkOrderContract",
+      "schemaId": "https://schemas.zhiju.local/core/work-order/1.0",
+      "snapshot": "schemas/core/work-order.schema.json"
+    },
+    {
+      "name": "AgentResultContract",
+      "schemaId": "https://schemas.zhiju.local/core/agent-result/1.0",
+      "snapshot": "schemas/core/agent-result.schema.json"
+    },
+    {
+      "name": "RevisionAcceptanceSnapshot",
+      "schemaId": "https://schemas.zhiju.local/core/revision-acceptance/1.0",
+      "snapshot": "schemas/core/revision-acceptance.schema.json"
+    },
+    {
+      "name": "ApprovalBundleSnapshot",
+      "schemaId": "https://schemas.zhiju.local/core/approval-bundle/1.0",
+      "snapshot": "schemas/core/approval-bundle.schema.json"
+    },
+    {
+      "name": "ReleaseReadinessSnapshot",
+      "schemaId": "https://schemas.zhiju.local/core/release-readiness/1.0",
+      "snapshot": "schemas/core/release-readiness.schema.json"
+    }
+  ],
+  "fixturesIndex": "fixtures.index.json",
+  "manualReviewPolicy": {
+    "defaultOnAmbiguous": "FAIL",
+    "requireApprovalFor": [
+      "AUTHORIZATION_METADATA_CHANGE",
+      "DATA_CLASSIFICATION_CHANGE",
+      "SEMANTIC_CHANGE_DECLARATION"
+    ]
+  },
+  "operationCount": 200,
+  "operations": [
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_register_principal_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.register_principal",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_link_external_identity_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.link_external_identity",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_assign_role_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.assign_role",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_revoke_role_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.revoke_role",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_grant_capability_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.grant_capability",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_revoke_capability_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.revoke_capability",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_record_policy_snapshot_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.record_policy_snapshot",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_resolve_principal_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_resolve_principal_result",
+      "schemaStatus": "FULL",
+      "type": "identity.resolve_principal",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_authorize_command_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_authorize_command_result",
+      "schemaStatus": "FULL",
+      "type": "identity.authorize_command",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_check_enterprise_access_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_check_enterprise_access_result",
+      "schemaStatus": "FULL",
+      "type": "identity.check_enterprise_access",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_check_project_access_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_check_project_access_result",
+      "schemaStatus": "FULL",
+      "type": "identity.check_project_access",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_check_human_only_capability_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_check_human_only_capability_result",
+      "schemaStatus": "FULL",
+      "type": "identity.check_human_only_capability",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_get_policy_snapshot_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_get_policy_snapshot_result",
+      "schemaStatus": "FULL",
+      "type": "identity.get_policy_snapshot",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_PrincipalRegistered_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.PrincipalRegistered",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_ExternalIdentityLinked_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.ExternalIdentityLinked",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_RoleAssigned_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.RoleAssigned",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_RoleRevoked_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.RoleRevoked",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_CapabilityGranted_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.CapabilityGranted",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_CapabilityRevoked_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.CapabilityRevoked",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "identity-policy",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_PolicySnapshotRecorded_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "identity.PolicySnapshotRecorded",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_create_enterprise_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.create_enterprise",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_propose_enterprise_fact_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.propose_enterprise_fact",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_confirm_enterprise_fact_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.confirm_enterprise_fact",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_create_project_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.create_project",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_register_source_material_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.register_source_material",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_accept_source_material_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.accept_source_material",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_propose_customer_material_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.propose_customer_material",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_confirm_customer_material_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.confirm_customer_material",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_create_customer_baseline_draft_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.create_customer_baseline_draft",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_activate_customer_baseline_version_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.activate_customer_baseline_version",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_freeze_template_baseline_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.freeze_template_baseline",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_activate_regulatory_profile_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.activate_regulatory_profile",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_start_gap_analysis_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.start_gap_analysis",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_accept_gap_analysis_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.accept_gap_analysis",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_create_delivery_plan_draft_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.create_delivery_plan_draft",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_approve_delivery_plan_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.approve_delivery_plan",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_activate_delivery_plan_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.activate_delivery_plan",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_evaluate_delivery_item_completion_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.evaluate_delivery_item_completion",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_project_context_source_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_project_context_source_result",
+      "schemaStatus": "FULL",
+      "type": "project.get_project_context_source",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_enterprise_profile_snapshot_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_enterprise_profile_snapshot_result",
+      "schemaStatus": "FULL",
+      "type": "project.get_enterprise_profile_snapshot",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_active_baseline_refs_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_active_baseline_refs_result",
+      "schemaStatus": "FULL",
+      "type": "project.get_active_baseline_refs",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_delivery_item_criteria_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_delivery_item_criteria_result",
+      "schemaStatus": "FULL",
+      "type": "project.get_delivery_item_criteria",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_validate_object_scope_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_validate_object_scope_result",
+      "schemaStatus": "FULL",
+      "type": "project.validate_object_scope",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_project_board_slice_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_project_board_slice_result",
+      "schemaStatus": "FULL",
+      "type": "project.get_project_board_slice",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_SourceMaterialAccepted_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.SourceMaterialAccepted",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_CustomerMaterialConfirmed_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.CustomerMaterialConfirmed",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_CustomerBaselineVersionActivated_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.CustomerBaselineVersionActivated",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_GapAnalysisAccepted_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.GapAnalysisAccepted",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_DeliveryPlanActivated_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.DeliveryPlanActivated",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_DeliveryItemActivated_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.DeliveryItemActivated",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_DeliveryItemCompletionSatisfied_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.DeliveryItemCompletionSatisfied",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "enterprise-project",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_DeliveryItemImpactReviewRequested_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "project.DeliveryItemImpactReviewRequested",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_create_task_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.create_task",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_mark_task_ready_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.mark_task_ready",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_create_work_order_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.create_work_order",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_freeze_work_order_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.freeze_work_order",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_queue_work_order_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.queue_work_order",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_build_context_snapshot_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.build_context_snapshot",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_create_run_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.create_run",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_start_run_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.start_run",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_request_run_cancel_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.request_run_cancel",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_record_runtime_input_required_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.record_runtime_input_required",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_submit_agent_result_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.submit_agent_result",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_accept_agent_result_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.accept_agent_result",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_open_information_request_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.open_information_request",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_record_information_delivery_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.record_information_delivery",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_submit_information_answer_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.submit_information_answer",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_resolve_information_request_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.resolve_information_request",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_schedule_work_order_retry_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.schedule_work_order_retry",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_evaluate_work_order_completion_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.evaluate_work_order_completion",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_evaluate_task_completion_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.evaluate_task_completion",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_work_order_contract_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_work_order_contract_result",
+      "schemaStatus": "FULL",
+      "type": "execution.get_work_order_contract",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_context_snapshot_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_context_snapshot_result",
+      "schemaStatus": "FULL",
+      "type": "execution.get_context_snapshot",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_run_state_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_run_state_result",
+      "schemaStatus": "FULL",
+      "type": "execution.get_run_state",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_agent_result_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_agent_result_result",
+      "schemaStatus": "FULL",
+      "type": "execution.get_agent_result",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_information_request_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_information_request_result",
+      "schemaStatus": "FULL",
+      "type": "execution.get_information_request",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_usage_and_provenance_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_usage_and_provenance_result",
+      "schemaStatus": "FULL",
+      "type": "execution.get_usage_and_provenance",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_task_board_slice_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_task_board_slice_result",
+      "schemaStatus": "FULL",
+      "type": "execution.get_task_board_slice",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_TaskReady_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.TaskReady",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_WorkOrderBecameReady_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.WorkOrderBecameReady",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_WorkOrderQueued_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.WorkOrderQueued",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_ContextSnapshotBuilt_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.ContextSnapshotBuilt",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_RunStarted_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.RunStarted",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_RunTerminated_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.RunTerminated",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_AgentResultAccepted_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.AgentResultAccepted",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_InformationRequestOpened_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.InformationRequestOpened",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_InformationRequestResolved_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.InformationRequestResolved",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_WorkOrderCompleted_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.WorkOrderCompleted",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "task-execution",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_TaskCompleted_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "execution.TaskCompleted",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_create_artifact_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.create_artifact",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_update_artifact_metadata_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.update_artifact_metadata",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_create_and_seal_revision_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.create_and_seal_revision",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_create_merge_revision_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.create_merge_revision",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_move_working_head_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.move_working_head",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_register_representation_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.register_representation",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_withdraw_revision_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.withdraw_revision",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_invalidate_revision_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.invalidate_revision",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_record_approved_revision_binding_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.record_approved_revision_binding",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_record_effective_binding_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.record_effective_binding",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_supersede_effective_binding_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.supersede_effective_binding",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_archive_artifact_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.archive_artifact",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_artifact_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_artifact_result",
+      "schemaStatus": "FULL",
+      "type": "artifact.get_artifact",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_revision_snapshot_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_revision_snapshot_result",
+      "schemaStatus": "FULL",
+      "type": "artifact.get_revision_snapshot",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_revision_lineage_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_revision_lineage_result",
+      "schemaStatus": "FULL",
+      "type": "artifact.get_revision_lineage",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_revision_diff_inputs_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_revision_diff_inputs_result",
+      "schemaStatus": "FULL",
+      "type": "artifact.get_revision_diff_inputs",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_validate_revision_ref_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_validate_revision_ref_result",
+      "schemaStatus": "FULL",
+      "type": "artifact.validate_revision_ref",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_representation_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_representation_result",
+      "schemaStatus": "FULL",
+      "type": "artifact.get_representation",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_effective_binding_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_get_effective_binding_result",
+      "schemaStatus": "FULL",
+      "type": "artifact.get_effective_binding",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_ArtifactCreated_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.ArtifactCreated",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_ArtifactRevisionSealed_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.ArtifactRevisionSealed",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_MergeRevisionCreated_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.MergeRevisionCreated",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_RevisionInvalidated_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.RevisionInvalidated",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_RepresentationRegistered_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.RepresentationRegistered",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_ApprovedRevisionBindingRecorded_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.ApprovedRevisionBindingRecorded",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "artifact",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_EffectiveBindingChanged_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "artifact.EffectiveBindingChanged",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_capture_evidence_candidate_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.capture_evidence_candidate",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_verify_evidence_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.verify_evidence",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_revoke_evidence_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.revoke_evidence",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_create_evidence_link_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.create_evidence_link",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_create_quality_profile_draft_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.create_quality_profile_draft",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_activate_quality_profile_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.activate_quality_profile",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_record_gate_result_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.record_gate_result",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_record_reused_gate_result_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.record_reused_gate_result",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_invalidate_gate_result_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.invalidate_gate_result",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_raise_review_issue_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.raise_review_issue",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_propose_issue_resolution_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.propose_issue_resolution",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_verify_issue_resolution_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.verify_issue_resolution",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_close_review_issue_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.close_review_issue",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_request_approval_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.request_approval",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_submit_approval_decision_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.submit_approval_decision",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_revoke_approval_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.revoke_approval",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_evaluate_revision_readiness_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.evaluate_revision_readiness",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_evaluate_release_gate_readiness_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.evaluate_release_gate_readiness",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_evidence_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_evidence_result",
+      "schemaStatus": "FULL",
+      "type": "quality.get_evidence",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_quality_profile_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_quality_profile_result",
+      "schemaStatus": "FULL",
+      "type": "quality.get_quality_profile",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_gate_plan_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_gate_plan_result",
+      "schemaStatus": "FULL",
+      "type": "quality.get_gate_plan",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_gate_results_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_gate_results_result",
+      "schemaStatus": "FULL",
+      "type": "quality.get_gate_results",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_open_blocking_issues_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_open_blocking_issues_result",
+      "schemaStatus": "FULL",
+      "type": "quality.get_open_blocking_issues",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_revision_acceptance_snapshot_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_revision_acceptance_snapshot_result",
+      "schemaStatus": "FULL",
+      "type": "quality.get_revision_acceptance_snapshot",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_approval_bundle_snapshot_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_approval_bundle_snapshot_result",
+      "schemaStatus": "FULL",
+      "type": "quality.get_approval_bundle_snapshot",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_release_readiness_snapshot_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_release_readiness_snapshot_result",
+      "schemaStatus": "FULL",
+      "type": "quality.get_release_readiness_snapshot",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_EvidenceVerified_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.EvidenceVerified",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_EvidenceRevoked_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.EvidenceRevoked",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_QualityProfileActivated_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.QualityProfileActivated",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_GateResultRecorded_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.GateResultRecorded",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_BlockingReviewIssueRaised_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.BlockingReviewIssueRaised",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_ReviewIssueClosed_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.ReviewIssueClosed",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_RevisionQualityReady_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.RevisionQualityReady",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_RevisionFullyApproved_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.RevisionFullyApproved",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_RevisionApprovalLost_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.RevisionApprovalLost",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_ReleaseGateReady_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.ReleaseGateReady",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "quality-governance",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_ReleaseGateReadinessLost_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "quality.ReleaseGateReadinessLost",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_create_release_draft_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.create_release_draft",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_select_representations_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.select_representations",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_set_destinations_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.set_destinations",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_prepare_release_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.prepare_release",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_validate_release_readiness_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.validate_release_readiness",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_authorize_release_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.authorize_release",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_start_publication_attempt_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.start_publication_attempt",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_record_publication_receipt_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.record_publication_receipt",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_record_publication_failure_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.record_publication_failure",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_complete_release_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.complete_release",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_recall_release_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.recall_release",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_cancel_release_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.cancel_release",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_release_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_release_result",
+      "schemaStatus": "FULL",
+      "type": "release.get_release",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_frozen_package_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_frozen_package_result",
+      "schemaStatus": "FULL",
+      "type": "release.get_frozen_package",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_publication_attempts_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_publication_attempts_result",
+      "schemaStatus": "FULL",
+      "type": "release.get_publication_attempts",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_release_receipts_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_release_receipts_result",
+      "schemaStatus": "FULL",
+      "type": "release.get_release_receipts",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_release_impact_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_release_impact_result",
+      "schemaStatus": "FULL",
+      "type": "release.get_release_impact",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_ReleasePrepared_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.ReleasePrepared",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_ReleaseAuthorized_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.ReleaseAuthorized",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_PublicationAttemptRequested_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.PublicationAttemptRequested",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_PublicationSucceeded_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.PublicationSucceeded",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_PublicationFailed_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.PublicationFailed",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_ReleasePartiallyCompleted_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.ReleasePartiallyCompleted",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_ReleaseCompleted_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.ReleaseCompleted",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "release-publication",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_ReleaseRecalled_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "release.ReleaseRecalled",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_accept_inbound_envelope_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.accept_inbound_envelope",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_bind_channel_context_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.bind_channel_context",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_request_feishu_delivery_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.request_feishu_delivery",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_request_runtime_dispatch_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.request_runtime_dispatch",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_request_runtime_cancel_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.request_runtime_cancel",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_request_runtime_resume_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.request_runtime_resume",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_request_render_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.request_render",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_record_external_receipt_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.record_external_receipt",
+      "version": "1.0"
+    },
+    {
+      "kind": "COMMAND",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_quarantine_external_event_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.quarantine_external_event",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_channel_binding_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_channel_binding_result",
+      "schemaStatus": "FULL",
+      "type": "integration.get_channel_binding",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_delivery_attempt_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_delivery_attempt_result",
+      "schemaStatus": "FULL",
+      "type": "integration.get_delivery_attempt",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_runtime_attempt_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_runtime_attempt_result",
+      "schemaStatus": "FULL",
+      "type": "integration.get_runtime_attempt",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_render_attempt_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_render_attempt_result",
+      "schemaStatus": "FULL",
+      "type": "integration.get_render_attempt",
+      "version": "1.0"
+    },
+    {
+      "kind": "QUERY",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_adapter_health_payload",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_adapter_health_result",
+      "schemaStatus": "FULL",
+      "type": "integration.get_adapter_health",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_InboundEnvelopeAccepted_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.InboundEnvelopeAccepted",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_InboundEnvelopeRejected_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.InboundEnvelopeRejected",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_ChannelAnswerReceived_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.ChannelAnswerReceived",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_ChannelDeliverySucceeded_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.ChannelDeliverySucceeded",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_ChannelDeliveryFailed_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.ChannelDeliveryFailed",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_RuntimeDispatchSucceeded_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.RuntimeDispatchSucceeded",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_RuntimeDispatchFailed_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.RuntimeDispatchFailed",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_RenderSucceeded_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.RenderSucceeded",
+      "version": "1.0"
+    },
+    {
+      "kind": "EVENT",
+      "manualReviewFingerprint": null,
+      "owner": "integration-gateway",
+      "payloadSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_RenderFailed_payload",
+      "resultSchemaRef": null,
+      "schemaStatus": "FULL",
+      "type": "integration.RenderFailed",
+      "version": "1.0"
+    }
+  ],
+  "registryVersion": "1.0",
+  "schemaDocuments": [
+    "schemas/common.schema.json",
+    "schemas/core/project-context.schema.json",
+    "schemas/core/work-order.schema.json",
+    "schemas/core/agent-result.schema.json",
+    "schemas/core/revision-acceptance.schema.json",
+    "schemas/core/approval-bundle.schema.json",
+    "schemas/core/release-readiness.schema.json",
+    "schemas/modules/identity-policy.schema.json",
+    "schemas/modules/enterprise-project.schema.json",
+    "schemas/modules/task-execution.schema.json",
+    "schemas/modules/artifact.schema.json",
+    "schemas/modules/quality-governance.schema.json",
+    "schemas/modules/release-publication.schema.json",
+    "schemas/modules/integration-gateway.schema.json"
+  ]
+}

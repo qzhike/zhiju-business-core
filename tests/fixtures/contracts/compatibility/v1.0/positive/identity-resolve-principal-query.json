@@ -1,0 +1,46 @@
+{
+  "queryId": "018f22e2-7c15-7b2e-8d86-2de956a9d211",
+  "queryType": "identity.resolve_principal",
+  "queryVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+  },
+  "requester": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authenticationContextRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authentication_context",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d212",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "consistencyRequirement": "AUTHORITATIVE",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d213",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "lookup": {
+      "kind": "EXTERNAL_IDENTITY",
+      "identityKey": {
+        "providerCode": "feishu",
+        "accountExternalId": "tenant-001",
+        "subjectExternalId": "user-001"
+      }
+    },
+    "requiredScopeRef": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "purpose": "identity.resolve"
+  }
+}

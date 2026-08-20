@@ -1,0 +1,48 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+  "commandType": "identity.register_principal",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "idempotencyKey": "fixture-register-principal-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "principalKind": "HUMAN",
+    "displayName": "Fixture Human",
+    "initialStatus": "ACTIVE"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

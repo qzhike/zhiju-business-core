@@ -1,0 +1,299 @@
+{
+  "header": {
+    "contractId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
+    "contractType": "zhiju.contract.agent_result",
+    "contractVersion": "1.0",
+    "schemaRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.contract.schema",
+      "objectId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
+      "versionId": "018f22e2-7c15-7d42-8d86-2de956a9d22a",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "scopeRef": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "issuedAt": "2026-08-17T00:00:00Z",
+    "issuedBy": {
+      "principalKind": "SERVICE",
+      "principalId": "018f22e2-7c15-7d52-8d86-2de956a9d22b"
+    },
+    "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
+    "dataClassification": "INTERNAL",
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "agentResultId": "018f22e2-7c15-7b2e-8d86-2de956a9d206",
+  "runRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.run",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "workOrderRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.work_order",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "taskRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.task",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "projectRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.project",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "submissionKind": "FINAL",
+  "executionOutcome": "COMPLETED",
+  "businessOutputs": [
+    {
+      "outputSlot": "revisedProcedure",
+      "ref": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.artifact.artifact_revision",
+        "objectId": "018f22e2-7c15-7b42-8d86-2de956a9d20a",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "objectType": "zhiju.artifact.artifact_revision",
+      "createdByRunRef": {
+        "kind": "OBJECT",
+        "objectType": "zhiju.execution.run",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "relationToTarget": "updates ART-2026-014",
+      "declaredPurpose": "frozen revision ready for Review"
+    }
+  ],
+  "workspaceOutputs": [
+    {
+      "outputType": "diagnostic.markdown",
+      "externalRef": {
+        "system": "feishu",
+        "resourceType": "message",
+        "externalId": "om_workspace_diag",
+        "observedAt": "2026-08-17T00:05:00Z"
+      },
+      "retentionClass": "OPERATIONS_30D",
+      "diagnosticOnly": true
+    }
+  ],
+  "findings": [
+    {
+      "findingId": "018f22e2-7c15-7c62-8d86-2de956a9d21c",
+      "type": "policy.gap",
+      "severity": "HIGH",
+      "statement": "采购控制程序未明确年度复审节奏",
+      "targetRefs": [
+        {
+          "kind": "OBJECT",
+          "objectType": "zhiju.artifact.artifact",
+          "objectId": "018f22e2-7c15-7b32-8d86-2de956a9d209",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        }
+      ],
+      "evidenceRefs": [
+        {
+          "evidence": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.quality.evidence",
+            "objectId": "018f22e2-7c15-7be2-8d86-2de956a9d214",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+              "canonicalizationVersion": "1"
+            }
+          },
+          "relation": "SUPPORTS"
+        }
+      ],
+      "suggestedDisposition": "INVESTIGATE"
+    }
+  ],
+  "knowledgeProposals": [
+    {
+      "proposalId": "018f22e2-7c15-7c72-8d86-2de956a9d21d",
+      "proposalType": "memory.commit",
+      "statement": "...",
+      "targetRefs": [],
+      "suggestedAction": "queue for memory.commit command"
+    }
+  ],
+  "inputRequestProposals": [
+    {
+      "proposalId": "018f22e2-7c15-7c82-8d86-2de956a9d21e",
+      "requestType": "clarify",
+      "question": "复审周期如何与第三方审核对接？",
+      "reason": "...",
+      "targetRefs": [],
+      "expectedAnswerSpec": {
+        "kind": "freeform"
+      },
+      "blocking": false
+    }
+  ],
+  "followUpProposals": [
+    {
+      "proposalId": "018f22e2-7c15-7c92-8d86-2de956a9d21f",
+      "followUpType": "draft.task",
+      "summary": "为复审节奏创建草稿任务",
+      "targetRefs": []
+    }
+  ],
+  "provenance": {
+    "contextSnapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.context_snapshot",
+      "objectId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
+      "snapshotId": "018f22e2-7c15-7b22-8d86-2de956a9d208",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "workOrderContractRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.contract.work_order",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "capabilityGrantRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.identity.capability_grant",
+      "objectId": "018f22e2-7c15-7d12-8d86-2de956a9d227",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "runtimeAdapterRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.runtime.adapter_contract",
+      "objectId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+      "versionId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "harness": {
+      "harnessId": "zhiju.runtime.adapters.claude",
+      "harnessVersion": "24.19.0"
+    },
+    "provider": "anthropic",
+    "model": {
+      "modelId": "claude-fable-5",
+      "modelConfigHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "skillRefs": [
+      {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.skill.skill",
+        "objectId": "018f22e2-7c15-7cb2-8d86-2de956a9d221",
+        "versionId": "018f22e2-7c15-7cb2-8d86-2de956a9d221",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    ],
+    "policyRefs": [
+      {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.context.policy",
+        "objectId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+        "versionId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    ],
+    "templateRefs": [
+      {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.template.template",
+        "objectId": "018f22e2-7c15-7cc2-8d86-2de956a9d222",
+        "versionId": "018f22e2-7c15-7cc2-8d86-2de956a9d222",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    ]
+  },
+  "humanSummary": "已完成采购控制程序第二版修订并请求评审。",
+  "submittedAt": "2026-08-17T00:10:00Z",
+  "submittedByRuntime": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.runtime.runtime",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "queryId": "018f22e2-7c15-7b2e-8d86-2de956a9d301",
+  "queryType": "project.get_project_board_slice",
+  "queryVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "requester": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authenticationContextRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authentication_context",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d303",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "consistencyRequirement": "PROJECTION_OK",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d304",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "projectRef": {
+      "kind": "OBJECT",
+      "objectType": "project.project",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "statuses": ["READY", "IN_PROGRESS"],
+    "itemTypes": ["document"],
+    "page": {
+      "pageSize": 25
+    }
+  }
+}

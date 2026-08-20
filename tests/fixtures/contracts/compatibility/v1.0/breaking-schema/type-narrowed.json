@@ -1,0 +1,8 @@
+{
+  "baseline": {
+    "type": ["string", "null"]
+  },
+  "current": {
+    "type": "string"
+  }
+}

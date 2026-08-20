@@ -1,8 +1,8 @@
 # Module-Spec-IM01-CoreContracts
 
-版本：v0.1
-日期：2026-08-17
-状态：`CURRENT CORE CONTRACT FIELD-LEVEL SCHEMA BASELINE / IMPLEMENTATION VERIFIED / USER REVIEW PENDING`
+版本：v0.2
+日期：2026-08-20
+状态：`CURRENT CORE CONTRACT FIELD-LEVEL SCHEMA BASELINE / V1.0 COMPATIBILITY BASELINE LANDED / USER REVIEW PENDING`
 
 ## 1. 模块责任
 
@@ -171,8 +171,28 @@ separationOfDutiesOutcome      = SATISFIED | VIOLATED | INDETERMINATE
 - 所有顶层对象：`additionalProperties: false`
 - 集合（policyRefs、schemaRefs、sourceWatermarks、approvalRequirements、requiredGateSpecs 等）使用 `uniqueItems: true`
 
-## 9. 实现与验证
+## 9. v1.0 兼容性基线（Issue #8）
+
+权威兼容性规则仍以 `API-Contract-v0.1.md §9` 与 `06 §9` 为准。本切片把机器可执行基线落在仓库内，禁止用 Git 历史临时读取代替：
+
+| 产物 | 路径 | 约束 |
+|---|---|---|
+| 冻结 Schema 快照 | `contracts/baselines/v1.0/schemas/**` | 含 common、6 个 Core、7 个 module；规范化 JSON；不可静默重写 |
+| 操作索引 | `contracts/baselines/v1.0/operations.index.json` | 200 条 type/version/kind/owner/schemaStatus/schema ref/`manualReviewFingerprint` |
+| 总清单 | `contracts/baselines/v1.0/manifest.json` | operationCount=200、coreContractCount=6、approvals[]、manualReviewPolicy |
+| Fixture 索引 | `contracts/baselines/v1.0/fixtures.index.json` | 历史正/负向路径、期望、源文件 sha256 |
+| 历史 fixtures | `tests/fixtures/contracts/compatibility/v1.0/**` | 每 owner ≥1 正+1 负；Core 六类均有正向 |
+
+构建期检查（`tools/contracts/check-compatibility.mts`，接入 `pnpm contracts:check` / `pnpm verify`）：
+
+- 自动识别 required 增删、字段删除、closed enum 变化、类型/引用/pattern/范围收窄、additionalProperties 不兼容翻转、union variant/`$ref` 变化、operation 元数据变化 → `BREAKING`；
+- 新增非 required optional 字段或约束放宽 → `COMPATIBLE_MINOR`；
+- `manualReviewFingerprint` 变化且无 `approvals[]` 中 `APPROVED` 记录 → `MANUAL_REVIEW_REQUIRED`（默认 FAIL，不得静默 PASS）；
+- 结构性 `BREAKING` 不能靠 approval 消除；错误必须定位 operation/version 与 schema path。
+
+## 10. 实现与验证
 
 - Ajv 2020 strict mode 编译通过：6 个 Core Contract schema + common + envelope + module schemas。
 - 6 个正向 fixture + review 回归覆盖未知字段、缺 required、Presence/value 条件、Set/NonEmptySet 基数、非法 enum、非法 ReferenceStrength、object ↔ contentAddressed 误用；fixture builder 与 6 个 committed golden JSON 逐项比较。
+- v1.0 compatibility baseline/manifest、structural diff、历史 fixtures 与 Canonical/Hash 稳定性：见 `.vibe/im-01-v1.0-schema-fixtures/` 与 `Module-Test-IM01-CoreContracts` 兼容性用例表。
 - Persistence、E2E、Renderer、Runtime 与 Operational Batch 测试：`NOT RUN`，仅 schema/contract 字段级。
