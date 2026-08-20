@@ -61,4 +61,19 @@ export default tseslint.config(
       '@typescript-eslint/no-extraneous-class': 'off',
     },
   },
+  {
+    // Generated TypeScript types live under `contracts/src/generated/types/`
+    // and use the `namespace` keyword deliberately so that every contract
+    // family can disambiguate shared scalar names without prefixing each
+    // reference. The generator cannot satisfy `consistent-type-definitions`
+    // for closed-enum string unions or for the `CanonicalJson` recursive
+    // alias without losing human readability, so we relax those rules here.
+    files: ['contracts/src/generated/types/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-namespace': 'off',
+      '@typescript-eslint/consistent-type-definitions': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-imports': 'off',
+    },
+  },
 );
