@@ -221,7 +221,7 @@ export namespace TaskExecution {
 }
   /** Payload of `execution.freeze_work_order` (COMMAND). */
   export interface ExecutionFreezeWorkOrderPayload {
-  readonly workOrderContract: Common.ContractHeader;
+  readonly workOrderContract: Core.WorkOrderContract;
   readonly validationSnapshotRef: Common.SnapshotRef;
   readonly specificationHash: Common.ContentHash;
 }
@@ -258,7 +258,7 @@ export namespace TaskExecution {
 }
   /** Payload of `execution.submit_agent_result` (COMMAND). */
   export interface ExecutionSubmitAgentResultPayload {
-  readonly agentResultContract: Common.ContractHeader;
+  readonly agentResultContract: Core.AgentResultContract;
   readonly runFencingToken: Common.NonNegativeInteger;
   readonly runtimeSubmissionRef: Common.ExternalRef;
 }
@@ -323,7 +323,7 @@ export namespace TaskExecution {
   /** Result of `execution.get_work_order_contract` (QUERY). */
   export interface ExecutionGetWorkOrderContractResult {
   readonly workOrderRef: Common.ObjectRef;
-  readonly workOrderContract: Common.ContractHeader;
+  readonly workOrderContract: Core.WorkOrderContract;
   readonly contractRef: Common.ContentAddressedRef;
 }
   /** Payload of `execution.get_context_snapshot` (QUERY). */
@@ -333,7 +333,7 @@ export namespace TaskExecution {
   /** Result of `execution.get_context_snapshot` (QUERY). */
   export interface ExecutionGetContextSnapshotResult {
   readonly contextSnapshotRef: Common.SnapshotRef;
-  readonly projectContextContract: Common.ContractHeader;
+  readonly projectContextContract: Core.ProjectContextContract;
   readonly contractRef: Common.ContentAddressedRef;
 }
   /** Payload of `execution.get_run_state` (QUERY). */
@@ -349,7 +349,7 @@ export namespace TaskExecution {
   /** Result of `execution.get_agent_result` (QUERY). */
   export interface ExecutionGetAgentResultResult {
   readonly agentResultRef: Common.ContentAddressedRef;
-  readonly agentResultContract: Common.ContractHeader;
+  readonly agentResultContract: Core.AgentResultContract;
   readonly acceptanceRecordRef: Common.ContentAddressedRef;
 }
   /** Payload of `execution.get_information_request` (QUERY). */

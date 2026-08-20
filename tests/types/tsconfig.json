@@ -3,8 +3,11 @@
   "compilerOptions": {
     "composite": true,
     "noEmit": true,
+    "paths": {
+      "@zhiju/contracts": ["../../contracts/src/index.ts"]
+    },
     "tsBuildInfoFile": "./.tsbuildinfo"
   },
-  "include": ["./**/*.ts", "../../contracts/src/generated/types/**/*.ts"],
+  "include": ["./**/*.ts", "../../contracts/src/**/*.ts"],
   "exclude": ["../../dist-tests", "../../node_modules", ".tsbuildinfo"]
 }

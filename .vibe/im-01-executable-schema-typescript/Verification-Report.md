@@ -26,7 +26,9 @@
 | IM01-EXE-004 | `contracts:check` 包含三道 Gate | public_api + typescript_types + catalog_registry 全部 PASS | `public_api_generation=PASS operations=200` `typescript_types=PASS ...` `catalog_registry=PASS catalog=200 registry=200 schema_status={"FULL":200}` | `PASS` |
 | IM01-EXE-005 | fixture 正负向 | `@ts-expect-error` 全部触发，正向无错 | `pnpm typecheck` exit 0，错误数 0 | `PASS` |
 | IM01-EXE-006 | HL-Spec 第 7 节当前阶段状态 | 同步说明 IM-01-executable-schema 子切片已完成 | `README.md`、`HL-Spec` 第 7 节已更新 | `PASS` |
-| IM01-EXE-007 | 模块内部路径不外泄 | 业务模块只能从 `contracts/src/generated/types/index.js` 入口消费 | generator 不输出 cross-module `import`；消费侧 fixture 只引用 `index.js`/`common.js`/`core.js` | `PASS` |
+| IM01-EXE-007 | 模块内部路径不外泄 | 业务模块只能从 `contracts/src/generated/types/index.js` 入口消费 | generator 不输出 cross-module `import`；消费侧 fixture 只通过 `@zhiju/contracts` 入口断言（`import type { ... } from '@zhiju/contracts'`），未直接读取 `generated/types/*.ts` 内部路径 | `PASS` |
+| IM01-EXE-008 | 整 Core Contract 引用不被折叠为 `ContractHeader` | `ExecutionFreezeWorkOrderPayload.workOrderContract` 等字段映射到 `Core.WorkOrderContract` 等顶层类型 | `task-execution.ts` 中 `workOrderContract: Core.WorkOrderContract`；`quality-governance.ts` 中 `RevisionAcceptanceResult = Core.RevisionAcceptanceSnapshot`、`ApprovalBundleResult = Core.ApprovalBundleSnapshot`、`ReleaseReadinessResult = Core.ReleaseReadinessSnapshot`；fixture 包含正负向探针 | `PASS` |
+| IM01-EXE-009 | `dependentRequired` 不静默丢失 | `Common.ScopeRef` 在 `projectId` 存在时强制 `enterpriseId` 同时存在 | fixture 中 `{ projectId: uuid }` 触发 `@ts-expect-error` | `PASS` |
 
 ## 3. 关键命令与输出
 
@@ -62,11 +64,13 @@ typescript_types=UPDATED payloads=200 query_results=44 core_contracts=6
 - `enum` → string literal union；
 - `const` → 字面量类型；
 - `oneOf` 中同一字段有 `const` 的不同值 → discriminated union；
-- `array` + `uniqueItems` → `ReadonlyArray<T>`（保留 Set 语义）；
+- `array` + `uniqueItems` → `readonly T[]`（Set 语义由运行时 Ajv 维持）；
 - `array` → `readonly T[]`；
 - 开放 JSON 通过 `{ description: ... }` 或 `{}` 表达 → 受控递归 `CanonicalJson`；
 - `$ref` 跨 `common`/`core`/module 命名空间正确解析；
-- 6 个 Core Contract 顶层类型作为 `Core.ProjectContextContract` 等命名空间导出。
+- 6 个 Core Contract 顶层类型作为 `Core.ProjectContextContract` 等命名空间导出；
+- 整 Core Contract 引用（如 `ExecutionFreezeWorkOrderPayload.workOrderContract`）映射到 `Core.WorkOrderContract` 等顶层类型而非折叠为 `Common.ContractHeader`；
+- `dependentRequired` 通过 discriminated union 变体表达：`Common.ScopeRef` 在 `projectId` 存在时强制 `enterpriseId` 同时存在。
 
 ### 4.2 已知生成限制（由运行时承担）
 

@@ -4,14 +4,20 @@
 // verify that:
 //   - positive fixtures compile without errors;
 //   - every `@ts-expect-error` annotation actually fires.
+//
+// All imports come from the public `@zhiju/contracts` package entry so the
+// fixture also proves that the root package export wires the generated
+// namespaces correctly.
 
-import type { CanonicalJson } from '../../contracts/src/generated/types/common.js';
-import type { Common } from '../../contracts/src/generated/types/common.js';
-import type { Core } from '../../contracts/src/generated/types/core.js';
-import type { IdentityPolicy } from '../../contracts/src/generated/types/identity-policy.js';
-import type { EnterpriseProject } from '../../contracts/src/generated/types/enterprise-project.js';
-import type { TaskExecution } from '../../contracts/src/generated/types/task-execution.js';
-import type { ReleasePublication } from '../../contracts/src/generated/types/release-publication.js';
+import type {
+  CanonicalJson,
+  Common,
+  Core,
+  EnterpriseProject,
+  IdentityPolicy,
+  ReleasePublication,
+  TaskExecution,
+} from '@zhiju/contracts';
 
 // =============================================================================
 // Constants shared by every fixture
@@ -414,6 +420,171 @@ expectType<Core.ProjectContextContract>(projectContextContract);
     },
   };
   void badClassification;
+}
+
+// =============================================================================
+// Whole Core Contract references — modules embed `Core.WorkOrderContract`,
+// `Core.RevisionAcceptanceSnapshot` etc. as typed fields. The generator must
+// preserve the full body rather than collapsing to `Common.ContractHeader`.
+// =============================================================================
+
+const workOrderContract: Core.WorkOrderContract = {
+  ...projectContextContract,
+  header: { ...projectContextContract.header, contractType: 'zhiju.contract.work_order' },
+  workOrderRef: objectReference,
+  taskRef: objectReference,
+  projectRef: objectReference,
+  requestedBy: { principalKind: 'HUMAN', principalId: uuid },
+  objective: {
+    objectiveType: 'procurement.review',
+    humanReadableStatement: 'Review supplier evaluation procedure.',
+    successIntent: 'Approved updated procedure.',
+    relatedIssueRefs: [],
+    deliveryItemRefs: [],
+  },
+  targetScope: {
+    targetObjectRefs: [],
+    baseContentRefs: [],
+    allowedUnitRefs: [],
+    forbiddenUnitRefs: [],
+    allowedCreateTypes: [],
+    crossObjectReferencesAllowed: [],
+    scopePolicyRef: {
+      ...versionedReference,
+      objectType: 'project.scope_policy',
+      scope: projectScope,
+    },
+  },
+  inputRefs: [],
+  contextSnapshotRef: snapshotReference,
+  constraints: [],
+  allowedCapabilities: [],
+  deniedCapabilities: [],
+  expectedOutputs: [],
+  completionCriteria: [],
+  riskAndQuality: {
+    riskProfileRef: { ...versionedReference, objectType: 'risk.profile', scope: projectScope },
+    dataHandlingPolicyRef: {
+      ...versionedReference,
+      objectType: 'policy.data_handling',
+      scope: projectScope,
+    },
+    humanReviewRequired: false,
+    escalationPolicyRef: {
+      ...versionedReference,
+      objectType: 'policy.escalation',
+      scope: projectScope,
+    },
+  },
+  executionPolicy: {
+    maxAttempts: 3,
+    retryableOutcomes: [],
+    resumePolicy: 'RESET',
+    fallbackPolicy: 'HUMAN',
+    cancellationPolicyRef: {
+      ...versionedReference,
+      objectType: 'policy.cancellation',
+      scope: projectScope,
+    },
+    leasePolicyRef: { ...versionedReference, objectType: 'policy.lease', scope: projectScope },
+  },
+  budget: {
+    budgetPolicyRef: { ...versionedReference, objectType: 'policy.budget', scope: projectScope },
+  },
+  harnessPolicy: {
+    fallbackAllowed: false,
+    fallbackRequiresHuman: true,
+    preferredHarnesses: [],
+    selectionPolicyRef: {
+      ...versionedReference,
+      objectType: 'policy.harness_selection',
+      scope: projectScope,
+    },
+  },
+  modelPolicy: {
+    allowedProviders: [],
+    allowedModels: [],
+    prohibitedDataClasses: [],
+    minimumCapabilities: [],
+    selectionPolicyRef: {
+      ...versionedReference,
+      objectType: 'policy.model_selection',
+      scope: projectScope,
+    },
+  },
+  versionPins: {
+    projectContextContractRef: snapshotReference,
+    contextBuilderPolicyRef: {
+      ...versionedReference,
+      objectType: 'policy.context_builder',
+      scope: projectScope,
+    },
+    workOrderSchemaRef: {
+      ...versionedReference,
+      objectType: 'core.work_order_schema',
+      scope: projectScope,
+    },
+    capabilityPolicyRef: {
+      ...versionedReference,
+      objectType: 'policy.capability',
+      scope: projectScope,
+    },
+    runtimeAdapterContractRef: {
+      ...versionedReference,
+      objectType: 'runtime.adapter_contract',
+      scope: projectScope,
+    },
+    skillRefs: [],
+    templateRefs: [],
+  },
+  issuedAt: '2026-08-17T00:00:00Z',
+  specificationHash: payloadHash,
+};
+expectType<Core.WorkOrderContract>(workOrderContract);
+
+const freezePayload: TaskExecution.ExecutionFreezeWorkOrderPayload = {
+  workOrderContract,
+  validationSnapshotRef: snapshotReference,
+  specificationHash: payloadHash,
+};
+expectType<TaskExecution.ExecutionFreezeWorkOrderPayload>(freezePayload);
+
+// Negative case — `workOrderContract` MUST keep the WorkOrder body. An
+// Ajv-rejected `ContractHeader`-only value (header + nothing else) must
+// therefore also be rejected by the static type.
+{
+  const headerOnly = projectContextContract.header;
+  const badFreeze: TaskExecution.ExecutionFreezeWorkOrderPayload = {
+    // @ts-expect-error — `ContractHeader` is not assignable to `WorkOrderContract`.
+    workOrderContract: headerOnly,
+    validationSnapshotRef: snapshotReference,
+    specificationHash: payloadHash,
+  };
+  void badFreeze;
+}
+
+// =============================================================================
+// Common.ScopeRef — `dependentRequired: { projectId: ['enterpriseId'] }` is
+// expressed as a discriminated union: when `projectId` is present,
+// `enterpriseId` must also be present.
+// =============================================================================
+
+const enterpriseOnlyScope: Common.ScopeRef = { enterpriseId: uuid };
+const fullScope: Common.ScopeRef = { enterpriseId: uuid, projectId: uuid };
+expectType<Common.ScopeRef>(enterpriseOnlyScope);
+expectType<Common.ScopeRef>(fullScope);
+
+// Positive case — neither key set is also allowed (matches the schema which
+// leaves both as optional, with dependentRequired only firing on projectId).
+const emptyScope: Common.ScopeRef = {};
+expectType<Common.ScopeRef>(emptyScope);
+
+// Negative case — `projectId` without `enterpriseId` is rejected both by
+// Ajv (`dependentRequired`) and now by the static type union.
+{
+  // @ts-expect-error — `projectId` requires `enterpriseId` (dependentRequired).
+  const projectOnly: Common.ScopeRef = { projectId: uuid };
+  void projectOnly;
 }
 
 // =============================================================================

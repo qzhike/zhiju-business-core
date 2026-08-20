@@ -30,10 +30,13 @@ export namespace Common {
   readonly digest: string;
   readonly canonicalizationVersion: "1";
 }
-  export interface ScopeRef {
+  export type ScopeRef = ({
   readonly enterpriseId?: UuidV7;
-  readonly projectId?: UuidV7;
-}
+  readonly projectId?: undefined;
+} | {
+  readonly enterpriseId: UuidV7;
+  readonly projectId: UuidV7;
+});
   export interface ObjectRef {
   readonly kind: "OBJECT";
   readonly objectType: NamespaceCode;

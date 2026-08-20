@@ -196,6 +196,11 @@ interface EmitContext {
   readonly localRefs: ReadonlyMap<string, string>;
   readonly commonRefs: ReadonlyMap<string, string>;
   readonly coreRefs: ReadonlyMap<string, string>;
+  // Map `core/<contract>/<version>` -> `Core.<TopLevelTypeName>`. Whole-schema
+  // references (e.g. `https://schemas.zhiju.local/core/work-order/1.0`)
+  // resolve through this map so modules embedding a Core Contract keep the
+  // full body, not just the header.
+  readonly coreFullRefs: ReadonlyMap<string, string>;
   // Map relative `#/$defs/<name>` -> generated interface name for the schema
   // currently being rendered. Populated only by renderCommonFile / renderCoreFile
   // / renderModuleFile; module emission passes an empty map because cross-module
@@ -309,18 +314,22 @@ function resolveRef(ref: string, context: EmitContext): string {
   }
   if (ref.startsWith('https://schemas.zhiju.local/core/')) {
     // Forms used by the codebase:
-    //   https://schemas.zhiju.local/core/work-order/1.0#/$defs/workOrderContract
-    //   https://schemas.zhiju.local/core/contract-header  (whole schema $id ref)
+    //   https://schemas.zhiju.local/core/work-order/1.0#/$defs/workOrderContract  (named def)
+    //   https://schemas.zhiju.local/core/work-order/1.0                            (whole schema)
     const tail = ref.slice('https://schemas.zhiju.local/core/'.length);
-    const [contractPart, rest] = tail.split('#/$defs/');
+    const [contractId, rest] = tail.split('#/$defs/');
     if (rest === undefined) {
-      // Whole-schema reference such as the contractHeader $id. Modules embed
-      // the header as `common.contractHeader`, so collapse to that name.
-      return context.commonRefs.get('contractHeader') ?? 'Common.ContractHeader';
+      // Whole-schema reference. Map the schema id to its top-level Core
+      // Contract type so fields like `workOrderContract` keep the full body
+      // shape rather than collapsing to the bare `ContractHeader`.
+      const fullTsName = context.coreFullRefs.get(contractId ?? '');
+      if (fullTsName === undefined) {
+        throw new Error(`unresolved core contract ref: ${ref}`);
+      }
+      return fullTsName;
     }
-    void contractPart;
     const tsName = context.coreRefs.get(rest);
-    if (tsName === undefined) throw new Error(`unresolved core ref: ${ref}`);
+    if (tsName === undefined) throw new Error(`unresolved core def ref: ${ref}`);
     return tsName;
   }
   throw new Error(`unsupported ref: ${ref}`);
@@ -350,6 +359,23 @@ function renderObject(schema: SchemaObject, context: EmitContext): string {
     ? schema.required.filter((v): v is string => typeof v === 'string')
     : [];
   const requiredSet = new Set(required);
+  const dependentRequired = isObject(schema.dependentRequired)
+    ? (schema.dependentRequired as Readonly<Record<string, unknown>>)
+    : undefined;
+
+  // `dependentRequired: { X: [Y, Z] }` says "when X is present, Y and Z must
+  // also be present". A flat interface cannot express this without giving up
+  // the helpful optional-vs-required distinction, so when the rule applies
+  // we emit a discriminated union of variants:
+  //   1. base — X is absent (and any of its transitive deps remain optional);
+  //   2. with-X — X is present and all of its transitive deps are required.
+  // Multiple keys may have dependent rules; we emit one variant per key.
+  if (dependentRequired !== undefined) {
+    const keys = Object.keys(dependentRequired);
+    if (keys.length > 0) {
+      return renderDependentRequiredUnion(props, requiredSet, dependentRequired, context);
+    }
+  }
 
   const lines: string[] = [];
   for (const [name, propSchema] of Object.entries(props)) {
@@ -360,6 +386,87 @@ function renderObject(schema: SchemaObject, context: EmitContext): string {
     lines.push(`  readonly ${name}${optionalMark}: ${expr};`);
   }
   return `{${lines.length === 0 ? '' : '\n'}${lines.join('\n')}\n}`;
+}
+
+// Build the `readonly <key>: undefined` marker we use to *exclude* a key
+// from a given variant of the dependentRequired union. Combining
+// `<key>: undefined` with `exactOptionalPropertyTypes` keeps the property
+// key in the type while forbidding the populated value.
+function renderVariant(
+  props: SchemaObject,
+  requiredSet: ReadonlySet<string>,
+  forbiddenKeys: ReadonlySet<string>,
+  context: EmitContext,
+): string {
+  const lines: string[] = [];
+  for (const [name, propSchema] of Object.entries(props)) {
+    if (!isObject(propSchema)) continue;
+    const expr = schemaExpression(propSchema, context);
+    if (forbiddenKeys.has(name)) {
+      lines.push(`  readonly ${name}?: undefined;`);
+      continue;
+    }
+    const optional = !requiredSet.has(name);
+    const optionalMark = optional ? '?' : '';
+    lines.push(`  readonly ${name}${optionalMark}: ${expr};`);
+  }
+  return `{${lines.length === 0 ? '' : '\n'}${lines.join('\n')}\n}`;
+}
+
+// Returns the transitive closure of `dependentRequired` keys: the set of
+// properties that, when any of them is present, must also be present.
+// `dependentRequired: { X: [Y, Z], Y: [W] }` and an object that carries `X`
+// therefore requires `X`, `Y`, `Z`, `W` to be present together.
+function expandDependentRequired(
+  dependentRequired: Readonly<Record<string, unknown>>,
+): ReadonlyMap<string, ReadonlySet<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const [key, deps] of Object.entries(dependentRequired)) {
+    const depList = Array.isArray(deps)
+      ? deps.filter((d): d is string => typeof d === 'string')
+      : [];
+    out.set(key, new Set(depList));
+  }
+  return out;
+}
+
+function renderDependentRequiredUnion(
+  props: SchemaObject,
+  requiredSet: ReadonlySet<string>,
+  dependentRequired: Readonly<Record<string, unknown>>,
+  context: EmitContext,
+): string {
+  const expanded = expandDependentRequired(dependentRequired);
+  const variants: string[] = [];
+
+  // Base variant — none of the dependentRequired keys are present.
+  const baseForbidden = new Set<string>(expanded.keys());
+  variants.push(renderVariant(props, requiredSet, baseForbidden, context));
+
+  // One variant per dependentRequired key — that key is present (and every
+  // transitive dependency is required alongside it). Other dependent keys are
+  // explicitly forbidden in this variant so the discriminated union stays
+  // disjoint.
+  for (const [trigger, deps] of expanded) {
+    const variantRequired = new Set<string>(requiredSet);
+    variantRequired.add(trigger);
+    for (const dep of deps) variantRequired.add(dep);
+
+    const variantForbidden = new Set<string>();
+    for (const other of expanded.keys()) {
+      if (other === trigger) continue;
+      variantForbidden.add(other);
+    }
+
+    const variantProps: SchemaObject = {};
+    for (const [name, propSchema] of Object.entries(props)) {
+      if (variantForbidden.has(name)) continue;
+      variantProps[name] = propSchema;
+    }
+    variants.push(renderVariant(variantProps, variantRequired, new Set<string>(), context));
+  }
+
+  return `(${variants.join(' | ')})`;
 }
 
 function renderOneOf(
@@ -437,6 +544,20 @@ function buildCoreRefs(): ReadonlyMap<string, string> {
     for (const name of Object.keys(defs)) {
       refs.set(name, `Core.${pascalFromSnake(name)}`);
     }
+  }
+  return refs;
+}
+
+// Map a Core Contract `$id` such as `project-context/1.0` to the top-level
+// TypeScript type (e.g. `Core.ProjectContextContract`). Used by `resolveRef`
+// when a `$ref` points at the whole schema rather than a named `$defs/`
+// entry — for example, `ExecutionFreezeWorkOrderPayload.workOrderContract`
+// must keep the full WorkOrder body, not collapse to the bare
+// `ContractHeader`.
+function buildCoreFullRefs(): ReadonlyMap<string, string> {
+  const refs = new Map<string, string>();
+  for (const meta of coreContractMeta) {
+    refs.set(meta.id, `Core.${meta.typeName}`);
   }
   return refs;
 }
@@ -523,6 +644,7 @@ function renderModule(
     localRefs,
     commonRefs: buildCommonRefs(),
     coreRefs: buildCoreRefs(),
+    coreFullRefs: buildCoreFullRefs(),
     inSchemaRefs: new Map<string, string>(),
   };
 
@@ -598,6 +720,7 @@ function renderCommonFile(commonRefs: ReadonlyMap<string, string>): string {
       localRefs: new Map<string, string>(),
       commonRefs,
       coreRefs: new Map<string, string>(),
+      coreFullRefs: buildCoreFullRefs(),
       inSchemaRefs,
     };
     const expr = schemaExpression(schema, context);
@@ -637,6 +760,7 @@ function renderCoreFile(coreRefs: ReadonlyMap<string, string>): string {
       localRefs: new Map<string, string>(),
       commonRefs: buildCommonRefs(),
       coreRefs,
+      coreFullRefs: buildCoreFullRefs(),
       inSchemaRefs,
     };
     // Emit the six top-level Core Contract types from each schema's own
@@ -739,11 +863,17 @@ function renderIndexFile(): string {
   const lines: string[] = [];
   lines.push('// AUTO-GENERATED by tools/contracts/generate-typescript-types.mts — DO NOT EDIT.');
   lines.push('');
-  lines.push("export * as Common from './common.js';");
-  lines.push("export * as Core from './core.js';");
+  lines.push('// Re-export each contract namespace directly so consumers reach the full');
+  lines.push('// namespace through the contracts package entry without an extra');
+  lines.push('// `Common.Common.ScopeRef`-style prefix. Each module file below declares');
+  lines.push('// `export namespace X { ... }`; the namespace itself is the named');
+  lines.push('// export we forward. `export type` is required by `verbatimModuleSyntax`');
+  lines.push('// because TypeScript namespaces do not carry a runtime value.');
+  lines.push("export type { Common } from './common.js';");
+  lines.push("export type { Core } from './core.js';");
   for (const owner of Object.keys(operationsByOwner).sort()) {
     const moduleNs = moduleNsFor(owner);
-    lines.push(`export * as ${moduleNs} from './${owner}.js';`);
+    lines.push(`export type { ${moduleNs} } from './${owner}.js';`);
   }
   lines.push('');
   return lines.join('\n');

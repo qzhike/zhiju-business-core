@@ -211,9 +211,9 @@ export namespace QualityGovernance {
   readonly snapshotAt: Common.UtcInstant;
   readonly sourceWatermarks: readonly QualityGovernance.SourceWatermark[];
 }
-  export type RevisionAcceptanceResult = Common.ContractHeader;
-  export type ApprovalBundleResult = Common.ContractHeader;
-  export type ReleaseReadinessResult = Common.ContractHeader;
+  export type RevisionAcceptanceResult = Core.RevisionAcceptanceSnapshot;
+  export type ApprovalBundleResult = Core.ApprovalBundleSnapshot;
+  export type ReleaseReadinessResult = Core.ReleaseReadinessSnapshot;
   /** Payload of `quality.capture_evidence_candidate` (COMMAND). */
   export interface QualityCaptureEvidenceCandidatePayload {
   readonly candidate: QualityGovernance.EvidenceCandidate;
