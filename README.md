@@ -17,9 +17,10 @@ Zhiju Business Core 是面向企业交付、质量治理与发布控制的模块
 - QualityGovernance 37 个操作的字段级 Payload/Event Schema，以及 7 个 Query Result Schema；
 - ReleasePublication 25 个操作的字段级 Payload/Event Schema，以及 5 个 Query Result Schema；
 - IntegrationGateway 23 个操作的字段级 Payload/Event Schema，以及 5 个 Query Result Schema；
-- format、lint、typecheck、Vitest、架构依赖和 Catalog 对账 Gate。
+- 200 个 operation payload + 44 个 query result + 6 个 Core Contract 的字段级 TypeScript 类型（`contracts/src/generated/types/`），由 `tools/contracts/generate-typescript-types.mts` 从已注册 JSON Schema 确定性生成；
+- format、lint、typecheck、Vitest、架构依赖、Catalog 对账和生成 diff Gate。
 
-Registry 当前为 `FULL:200 / ENVELOPE_ONLY:0`。七模块字段级 Schema 已全部落地，IM-01 等待 Handler / Database / Runtime / Feishu / Renderer / 人工业务验收。
+Registry 当前为 `FULL:200 / ENVELOPE_ONLY:0`。七模块字段级 Schema 与对应 TypeScript 类型已全部落地，IM-01 等待 Handler / Database / Runtime / Feishu / Renderer / 人工业务验收。
 
 ## 验证
 

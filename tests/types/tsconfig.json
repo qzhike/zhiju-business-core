@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@zhiju/contracts": ["../../contracts/src/index.ts"]
+    },
+    "tsBuildInfoFile": "./.tsbuildinfo"
+  },
+  "include": ["./**/*.ts", "../../contracts/src/**/*.ts", "../../tools/contracts/lib/**/*.ts"],
+  "exclude": ["../../dist-tests", "../../node_modules", ".tsbuildinfo"]
+}

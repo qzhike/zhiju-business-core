@@ -8,7 +8,16 @@ const typedConfigs = [
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      // The emitter library is consumed by the `.mts` generator via Node 24
+      // --experimental-strip-types and by vitest fixtures via the same flag.
+      // It is deliberately TypeScript-only and is not part of the compiled
+      // workspace, so we exclude it from the typed project service.
+      'tools/contracts/lib/**',
+    ],
   },
   eslint.configs.recommended,
   ...typedConfigs,
@@ -59,6 +68,21 @@ export default tseslint.config(
     files: ['apps/api/src/**/*.module.ts'],
     rules: {
       '@typescript-eslint/no-extraneous-class': 'off',
+    },
+  },
+  {
+    // Generated TypeScript types live under `contracts/src/generated/types/`
+    // and use the `namespace` keyword deliberately so that every contract
+    // family can disambiguate shared scalar names without prefixing each
+    // reference. The generator cannot satisfy `consistent-type-definitions`
+    // for closed-enum string unions or for the `CanonicalJson` recursive
+    // alias without losing human readability, so we relax those rules here.
+    files: ['contracts/src/generated/types/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-namespace': 'off',
+      '@typescript-eslint/consistent-type-definitions': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-imports': 'off',
     },
   },
 );

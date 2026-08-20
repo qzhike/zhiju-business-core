@@ -3,4 +3,6 @@ dist/
 coverage/
 node_modules/
 pnpm-lock.yaml
+contracts/src/generated/types/
+tests/types/.tsbuildinfo
 

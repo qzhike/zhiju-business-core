@@ -10,6 +10,7 @@
     { "path": "modules/quality-governance" },
     { "path": "modules/release-publication" },
     { "path": "modules/integration-gateway" },
-    { "path": "apps/api" }
+    { "path": "apps/api" },
+    { "path": "tests/types" }
   ]
 }

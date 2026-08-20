@@ -301,7 +301,7 @@ Runtime Adapter Contract v0.1  （BASELINE / USER PROGRESSION CONFIRMED 2026-08-
     ↓
 Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
     ↓
-IM-01 Repository + Executable Contracts  （IN PROGRESS / FULL 200 + ENVELOPE_ONLY 0 / FIELD-LEVEL SCHEMAS LANDED / HANDLER + DB + EXTERNAL GATES REMAINING / PR #16 SCHEMA SUB-SLICE NOT CLOSING ISSUE #6 / ISSUE #17 TRACKS RUNTIME GAPS）
+IM-01 Repository + Executable Contracts  （IN PROGRESS / FULL 200 + ENVELOPE_ONLY 0 / FIELD-LEVEL SCHEMAS LANDED / SCHEMA-DERIVED TYPES LANDED (ISSUE #7) / HANDLER + DB + EXTERNAL GATES REMAINING / PR #16 SCHEMA SUB-SLICE NOT CLOSING ISSUE #6 / ISSUE #17 TRACKS RUNTIME GAPS）
     ↓
 DDL / Migration / Repository / Application Code
 ```
@@ -392,6 +392,6 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个、QualityGovernance 37 个、ReleasePublication 25 个与 IntegrationGateway 23 个操作均已具有字段级 Payload/Event Schema 和 Query Result Schema；Registry 现状 `FULL:200 / ENVELOPE_ONLY:0`。PR #10、PR #12、PR #13 与 PR #14 的 Schema review 修复均已保留；6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`，IM-01 退出验收尚未完成。
+本项目已完成 IM-00，当前执行 IM-01 Repository + Executable Contracts。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个、QualityGovernance 37 个、ReleasePublication 25 个与 IntegrationGateway 23 个操作均已具有字段级 Payload/Event Schema 和 Query Result Schema；Registry 现状 `FULL:200 / ENVELOPE_ONLY:0`。Schema 衍生的 TypeScript 类型（200 payload + 44 query result + 6 Core Contract + 共享 enum/Value/Reference）已由 `tools/contracts/generate-typescript-types.mts` 确定性生成并并入 `contracts:generate`/`contracts:check` Gate；详见 `.vibe/im-01-executable-schema-typescript/`。PR #10、PR #12、PR #13 与 PR #14 的 Schema review 修复均已保留；6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`，IM-01 退出验收尚未完成。
 
 PR #11 的 Core Contract 字段级 Schema review 修复已合并至 `main`：该切片恢复既有 `required`、Typed Reference 强度、Set 基数和 `ValueEnvelope` 条件约束，不改变冻结的 Core Contract 业务语义，也不扩大 IM-01 范围。修复记录见 [`../im-01-core-contract-review-fix/Task-Plan.md`](../im-01-core-contract-review-fix/Task-Plan.md)。TaskExecution 直接复用该权威 WorkOrder Schema 的共享 `$defs`，不得维护第二套 WorkOrder 子结构。QualityGovernance PR #13 的 review 修复同样要求 Result Schema 直接引用已注册的 Core Contract ID（`revision-acceptance/1.0`、`approval-bundle/1.0`、`release-readiness/1.0`），不得维护第二套截断视图。
