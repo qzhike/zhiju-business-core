@@ -13,9 +13,9 @@ export default tseslint.config(
       '**/coverage/**',
       '**/node_modules/**',
       // The emitter library is consumed by the `.mts` generator via Node 24
-      // --experimental-strip-types and by `.test-d.ts` fixtures via the same
-      // flag. It is deliberately TypeScript-only and is not part of the
-      // compiled workspace, so we exclude it from the typed project service.
+      // --experimental-strip-types and by vitest fixtures via the same flag.
+      // It is deliberately TypeScript-only and is not part of the compiled
+      // workspace, so we exclude it from the typed project service.
       'tools/contracts/lib/**',
     ],
   },

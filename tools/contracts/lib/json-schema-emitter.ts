@@ -1,13 +1,12 @@
 // Pure JSON Schema → TypeScript type emitter used by
 // `tools/contracts/generate-typescript-types.mts` and the dependentRequired
-// generator tests in `tests/types/generator-dependent-required.test-d.ts`.
+// generator tests in `tests/types/generator-dependent-required.test.ts`.
 //
 // This module deliberately contains no I/O and no schema imports so that the
-// `.test-d.ts` fixture can exercise the exact same code path the generator
-// takes when running `pnpm contracts:generate`. Pulling the emitters out of
-// the executable `.mts` script avoids both a second copy of the algorithm
-// and the risk of subtle drift between the test fixture and the production
-// generator.
+// vitest fixture can exercise the exact same code path the generator takes
+// when running `pnpm contracts:generate`. Pulling the emitters out of the
+// executable `.mts` script avoids both a second copy of the algorithm and the
+// risk of subtle drift between the test fixture and the production generator.
 //
 // Functions exported here are pure: given the same JSON Schema input and the
 // same emitter context, they always return the same TypeScript expression.
@@ -321,10 +320,13 @@ export function renderDependentRequiredUnion(
   variants.push(renderVariantBody(props, requiredSet, baseForbidden, context));
 
   // One variant for every non-empty subset of the trigger keys. The subset
-  // keys themselves plus every transitive dependency are required; sibling
-  // properties remain optional. Two independent triggers (e.g. `A -> B` and
-  // `C -> D`) therefore produce one `with {A,C}` subset variant that
-  // requires `A, B, C, D` together, alongside the single-trigger variants.
+  // keys themselves plus every transitive dependency are required. Any other
+  // trigger that is neither selected nor pulled in as a dependency is
+  // forbidden (`key?: undefined`) so a partial sibling such as `{A,B,C}`
+  // under `{A:[B], C:[D]}` cannot slip through the single-A branch — Ajv
+  // rejects that input because C is present without D. Triggers that appear
+  // only as transitive deps of the subset (chain case `{A:[B], B:[C]}` with
+  // subset `{A}`) stay present because they are already in variantRequired.
   for (const subset of nonEmptySubsets(triggerKeys)) {
     const variantRequired = new Set<string>(requiredSet);
     for (const trigger of subset) {
@@ -334,7 +336,13 @@ export function renderDependentRequiredUnion(
         for (const dep of deps) variantRequired.add(dep);
       }
     }
-    variants.push(renderVariantBody(props, variantRequired, new Set<string>(), context));
+    const forbiddenKeys = new Set<string>();
+    for (const trigger of triggerKeys) {
+      if (subset.includes(trigger)) continue;
+      if (variantRequired.has(trigger)) continue;
+      forbiddenKeys.add(trigger);
+    }
+    variants.push(renderVariantBody(props, variantRequired, forbiddenKeys, context));
   }
 
   return `(${variants.join(' | ')})`;

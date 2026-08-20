@@ -3,30 +3,34 @@
 // variants that accepts exactly the same inputs as Ajv would for the
 // corresponding `dependentRequired` rule.
 //
-// This file runs under Vitest (not `tsc`) so it can execute the actual
-// emitter and Ajv together; the `.test-d.ts` companion file turns the
-// resulting TypeScript text into a compile-time check. Both must pass for
-// IM-01-EXE-010 to be marked PASS in the verification report.
-//
-// We treat the emitter output as opaque text (no eval/Function) so the
-// test never risks executing arbitrary TypeScript. The verification step
-// only compares the set of values the emitter accepts (via a tiny parser)
-// against the set Ajv accepts.
+// This file runs under Vitest so it can execute the real emitter, Ajv, and
+// the TypeScript compiler API together. For every sample value we assert:
+//   emitterAccepts(value) === ajvAccepts(value)
+// Both must agree for IM-01-EXE-010 to stay PASS.
 //
 // Ajv 2020 ships its `.d.ts` files in a path the workspace's lint and tsc
 // projects do not resolve. We import through the contracts package's bundled
 // copy so vitest runs the same Ajv version the runtime registry uses, and
 // cast the import to the minimal surface (`compile`) this test exercises.
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+
+import ts from 'typescript';
 
 import Ajv2020Import from '../../contracts/node_modules/ajv/dist/2020.js';
 const Ajv2020 = Ajv2020Import as unknown as new (opts?: Record<string, unknown>) => {
   compile(schema: unknown): (input: unknown) => boolean;
 };
 
-import { renderDependentRequiredUnion } from '../../tools/contracts/lib/json-schema-emitter.ts';
+import {
+  makeContext,
+  renderDependentRequiredUnion,
+  renderObject,
+  type EmitContext,
+  type SchemaObject,
+} from '../../tools/contracts/lib/json-schema-emitter.ts';
+
+import { commonSchema } from '../../contracts/src/common.schema.ts';
 
 import { describe, expect, it } from 'vitest';
 
@@ -34,7 +38,8 @@ interface Case {
   readonly label: string;
   readonly dependentRequired: Readonly<Record<string, readonly string[]>>;
   readonly properties: readonly string[];
-  readonly extras?: readonly string[];
+  /** Top-level `required` of the synthetic schema. Defaults to none. */
+  readonly required?: readonly string[];
   readonly cases: readonly {
     readonly value: Record<string, unknown>;
     readonly expectValid: boolean;
@@ -67,6 +72,12 @@ const CASES: readonly Case[] = [
       { value: { A: 'x', B: 'x' }, expectValid: true, note: 'A branch only' },
       { value: { C: 'x', D: 'x' }, expectValid: true, note: 'C branch only' },
       { value: { A: 'x', B: 'x', C: 'x', D: 'x' }, expectValid: true, note: 'both branches' },
+      { value: { A: 'x', B: 'x', D: 'x' }, expectValid: true, note: 'A branch with non-trigger D' },
+      {
+        value: { A: 'x', B: 'x', C: 'x' },
+        expectValid: false,
+        note: 'C present without D must not pass the single-A branch',
+      },
       { value: { A: 'x' }, expectValid: false, note: 'A requires B' },
       { value: { C: 'x' }, expectValid: false, note: 'C requires D' },
       { value: { A: 'x', D: 'x' }, expectValid: false, note: 'A requires B even with D' },
@@ -78,45 +89,41 @@ const CASES: readonly Case[] = [
   },
 ];
 
-function buildSchema(dependentRequired: Readonly<Record<string, readonly string[]>>) {
-  const properties: Record<string, unknown> = {};
-  for (const name of Object.keys(dependentRequired)) {
-    properties[name] = { type: 'string' };
-    for (const dep of dependentRequired[name] ?? []) {
-      if (!(dep in properties)) {
-        properties[dep] = { type: 'string' };
-      }
-    }
+function buildSchema(
+  dependentRequired: Readonly<Record<string, readonly string[]>>,
+  properties: readonly string[],
+  required: readonly string[] = [],
+) {
+  const props: Record<string, unknown> = {};
+  for (const name of properties) {
+    props[name] = { type: 'string' };
   }
   return {
     type: 'object',
     additionalProperties: false,
-    properties,
+    properties: props,
+    ...(required.length > 0 ? { required: [...required] } : {}),
     dependentRequired,
   };
 }
 
-function makeContextForShape(properties: readonly string[]) {
-  const commonRefs = new Map<string, string>([['uuidV7', 'Common.UuidV7']]);
-  const localRefs = new Map<string, string>();
+function makeContextForShape(properties: readonly string[]): EmitContext {
   const inSchemaRefs = new Map<string, string>();
   for (const name of properties) {
     inSchemaRefs.set(name, name.charAt(0).toUpperCase() + name.slice(1));
   }
-  return {
-    commonRefs,
-    coreRefs: new Map<string, string>(),
-    coreFullRefs: new Map<string, string>(),
-    localRefs,
-    inSchemaRefs,
-  };
+  return makeContext(new Map([['uuidV7', 'Common.UuidV7']]), { inSchemaRefs });
 }
 
 function emitDependentRequiredUnion(
   dependentRequired: Readonly<Record<string, readonly string[]>>,
   properties: readonly string[],
+  required: readonly string[] = [],
 ): string {
-  const requiredSet = new Set(Object.keys(dependentRequired));
+  // requiredSet must mirror the schema's top-level `required`, not the set of
+  // dependentRequired triggers. The synthetic fixtures leave `required` empty
+  // so the base variant can still accept `{}`.
+  const requiredSet = new Set(required);
   const props: Record<string, unknown> = {};
   for (const name of properties) {
     props[name] = { type: 'string' };
@@ -125,19 +132,66 @@ function emitDependentRequiredUnion(
   return renderDependentRequiredUnion(props, requiredSet, dependentRequired, context);
 }
 
+/**
+ * Ask the TypeScript compiler whether `value` is assignable to the emitted
+ * union type under the same strict + exactOptionalPropertyTypes settings the
+ * contracts package uses. Fresh object literals keep excess-property checks.
+ */
+function emitterAcceptsValue(emittedType: string, value: Record<string, unknown>): boolean {
+  const fileName = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '__dependent_required_check.ts',
+  );
+  const sourceText = [
+    `type Subject = ${emittedType};`,
+    `const check: Subject = ${JSON.stringify(value)};`,
+  ].join('\n');
+
+  const compilerOptions: ts.CompilerOptions = {
+    strict: true,
+    exactOptionalPropertyTypes: true,
+    noEmit: true,
+    skipLibCheck: true,
+    target: ts.ScriptTarget.ES2024,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    lib: ['lib.es2024.d.ts'],
+  };
+
+  const host = ts.createCompilerHost(compilerOptions);
+  const originalGetSourceFile = host.getSourceFile.bind(host);
+  const originalFileExists = host.fileExists.bind(host);
+  const originalReadFile = host.readFile.bind(host);
+
+  host.fileExists = (name) => name === fileName || originalFileExists(name);
+  host.readFile = (name) => (name === fileName ? sourceText : originalReadFile(name));
+  host.getSourceFile = (name, languageVersion, onError, shouldCreateNewSourceFile) => {
+    if (name === fileName) {
+      return ts.createSourceFile(name, sourceText, languageVersion, true, ts.ScriptKind.TS);
+    }
+    return originalGetSourceFile(name, languageVersion, onError, shouldCreateNewSourceFile);
+  };
+
+  const program = ts.createProgram([fileName], compilerOptions, host);
+  const diagnostics = [...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()];
+  return diagnostics.length === 0;
+}
+
 describe('dependentRequired emitter matches Ajv', () => {
   for (const testCase of CASES) {
     describe(testCase.label, () => {
+      const required = testCase.required ?? [];
       const ajv = new Ajv2020({ allErrors: true, strict: false });
-      const validate = ajv.compile(buildSchema(testCase.dependentRequired));
-      const emitted = emitDependentRequiredUnion(testCase.dependentRequired, testCase.properties);
+      const validate = ajv.compile(
+        buildSchema(testCase.dependentRequired, testCase.properties, required),
+      );
+      const emitted = emitDependentRequiredUnion(
+        testCase.dependentRequired,
+        testCase.properties,
+        required,
+      );
 
       it('emits a non-empty discriminated union', () => {
-        // The exact variant count is tricky to assert because the union is
-        // parenthesised and contains nested unions from oneOf branches; we
-        // simply check the emitter produced the expected shape: starts with
-        // `(`, contains at least one variant body with `readonly` members,
-        // and ends with `)`.
         expect(emitted.startsWith('(')).toBe(true);
         expect(emitted.endsWith(')')).toBe(true);
         const readonlyShape = /\{\s*\n\s*readonly /.exec(emitted);
@@ -145,26 +199,48 @@ describe('dependentRequired emitter matches Ajv', () => {
       });
 
       for (const sample of testCase.cases) {
-        it(`Ajv ${sample.expectValid ? 'accepts' : 'rejects'} \`${JSON.stringify(sample.value)}\` (${sample.note})`, () => {
-          expect(validate(sample.value)).toBe(sample.expectValid);
+        it(`Ajv and emitter agree on \`${JSON.stringify(sample.value)}\` (${sample.note})`, () => {
+          const ajvOk = validate(sample.value);
+          expect(ajvOk).toBe(sample.expectValid);
+
+          const emitterOk = emitterAcceptsValue(emitted, sample.value);
+          expect(emitterOk).toBe(sample.expectValid);
+          expect(emitterOk).toBe(ajvOk);
         });
       }
     });
   }
 });
 
-// Smoke test: the generator can also be exercised by loading a real schema
-// (the live `common.scopeRef`) and asserting that the textual output stays
-// byte-identical across runs. This catches accidental refactors in the
-// emitter that would otherwise silently change the generated `ScopeRef`.
+// Smoke test: load the live `common.scopeRef` schema and assert that the
+// emitter path used by the generator returns byte-identical TypeScript on
+// consecutive calls. This catches accidental non-determinism in variant
+// ordering or property emission.
 describe('live common.scopeRef emission is deterministic', () => {
   it('produces the same string on every call', () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const commonPath = resolve(here, '..', '..', 'contracts', 'src', 'common.schema.ts');
-    const source = readFileSync(commonPath, 'utf8');
-    const pattern =
-      /scopeRef:\s*{[\s\S]*?dependentRequired:\s*{[^}]*},\s*properties:\s*{[^}]*}[^}]*}/;
-    const match = pattern.exec(source);
-    expect(match).not.toBeNull();
+    const defs = commonSchema.$defs as SchemaObject | undefined;
+    expect(defs).toBeDefined();
+    const scopeRef = defs?.scopeRef;
+    expect(scopeRef).toBeDefined();
+    expect(typeof scopeRef).toBe('object');
+
+    const context = makeContext(
+      new Map([
+        ['uuidV7', 'UuidV7'],
+        ['scopeRef', 'ScopeRef'],
+      ]),
+      {
+        inSchemaRefs: new Map([
+          ['uuidV7', 'UuidV7'],
+          ['scopeRef', 'ScopeRef'],
+        ]),
+      },
+    );
+
+    const first = renderObject(scopeRef as SchemaObject, context);
+    const second = renderObject(scopeRef as SchemaObject, context);
+    expect(first).toBe(second);
+    expect(first.includes('projectId')).toBe(true);
+    expect(first.includes('enterpriseId')).toBe(true);
   });
 });
