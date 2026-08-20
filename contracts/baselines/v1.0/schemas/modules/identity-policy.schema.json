@@ -1,0 +1,1020 @@
+{
+  "$defs": {
+    "accessCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "asOf": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "purpose": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "resourceRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "scopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        }
+      },
+      "required": [
+        "principalRef",
+        "scopeRef",
+        "action",
+        "purpose",
+        "asOf"
+      ],
+      "type": "object"
+    },
+    "accessDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "authorizationDecisionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "effectiveCapabilities": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+          },
+          "type": "array"
+        },
+        "effectiveRoles": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+          },
+          "type": "array"
+        },
+        "expiresAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "outcome": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/authorizationOutcome"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "outcome",
+        "authorizationDecisionRef",
+        "reasons",
+        "effectiveRoles",
+        "effectiveCapabilities",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
+    "authorizationDecisionView": {
+      "additionalProperties": false,
+      "properties": {
+        "authorizationDecisionRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "effectiveScopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        },
+        "expiresAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "outcome": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/authorizationOutcome"
+        },
+        "policySnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "authorizationDecisionRef",
+        "outcome",
+        "reasons",
+        "policySnapshotRef",
+        "effectiveScopeRef",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
+    "authorizationOutcome": {
+      "enum": [
+        "ALLOW",
+        "DENY"
+      ]
+    },
+    "commandIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "commandType": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "commandVersion": {
+          "const": "1.0"
+        },
+        "highRiskAction": {
+          "type": "boolean"
+        },
+        "payloadHash": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentHash"
+        },
+        "requestedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "requestedCapability": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "scopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        },
+        "targetRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "commandType",
+        "commandVersion",
+        "scopeRef",
+        "targetRef",
+        "requestedCapability",
+        "payloadHash",
+        "requestedAt",
+        "highRiskAction"
+      ],
+      "type": "object"
+    },
+    "effectivePeriod": {
+      "additionalProperties": false,
+      "properties": {
+        "validFrom": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "validTo": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "enterpriseAccessCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "asOf": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "purpose": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "resourceRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "scopeRef": {
+          "additionalProperties": false,
+          "properties": {
+            "enterpriseId": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+            }
+          },
+          "required": [
+            "enterpriseId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "principalRef",
+        "scopeRef",
+        "action",
+        "purpose",
+        "asOf"
+      ],
+      "type": "object"
+    },
+    "evidenceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "applicabilityScopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        },
+        "evidence": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "evidenceLinkRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "relation": {
+          "enum": [
+            "SUPPORTS",
+            "CONTRADICTS",
+            "CONTEXT_ONLY"
+          ]
+        },
+        "targetClaimRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+        }
+      },
+      "required": [
+        "evidence",
+        "relation"
+      ],
+      "type": "object"
+    },
+    "externalIdentityKey": {
+      "additionalProperties": false,
+      "properties": {
+        "accountExternalId": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "providerCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "subjectExternalId": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "providerCode",
+        "accountExternalId",
+        "subjectExternalId"
+      ],
+      "type": "object"
+    },
+    "identity_CapabilityGranted_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilityCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "capabilityGrantRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "effectivePeriod": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/effectivePeriod"
+        },
+        "grantedScopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "capabilityGrantRef",
+        "principalRef",
+        "capabilityCode",
+        "grantedScopeRef",
+        "effectivePeriod"
+      ],
+      "type": "object"
+    },
+    "identity_CapabilityRevoked_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilityGrantRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "reasonCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+        },
+        "revokedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        }
+      },
+      "required": [
+        "capabilityGrantRef",
+        "principalRef",
+        "revokedAt",
+        "reasonCode"
+      ],
+      "type": "object"
+    },
+    "identity_ExternalIdentityLinked_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "externalIdentityLinkRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "externalIdentityLookupHashRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "providerCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        }
+      },
+      "required": [
+        "externalIdentityLinkRef",
+        "principalRef",
+        "providerCode",
+        "externalIdentityLookupHashRef"
+      ],
+      "type": "object"
+    },
+    "identity_PolicySnapshotRecorded_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "effectiveFrom": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "policySetVersion": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "policySnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        }
+      },
+      "required": [
+        "policySnapshotRef",
+        "policySetVersion",
+        "effectiveFrom"
+      ],
+      "type": "object"
+    },
+    "identity_PrincipalRegistered_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "principalKind": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/principalKind"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "status": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/principalStatus"
+        }
+      },
+      "required": [
+        "principalRef",
+        "principalKind",
+        "status"
+      ],
+      "type": "object"
+    },
+    "identity_RoleAssigned_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "assignedScopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        },
+        "effectivePeriod": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/effectivePeriod"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "roleAssignmentRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "roleCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        }
+      },
+      "required": [
+        "roleAssignmentRef",
+        "principalRef",
+        "roleCode",
+        "assignedScopeRef",
+        "effectivePeriod"
+      ],
+      "type": "object"
+    },
+    "identity_RoleRevoked_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "reasonCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+        },
+        "revokedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "roleAssignmentRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "roleAssignmentRef",
+        "principalRef",
+        "revokedAt",
+        "reasonCode"
+      ],
+      "type": "object"
+    },
+    "identity_assign_role_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "justification": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/justification"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "role": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/scopedRole"
+        }
+      },
+      "required": [
+        "principalRef",
+        "role",
+        "justification"
+      ],
+      "type": "object"
+    },
+    "identity_authorize_command_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "actorSnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "authenticationContextRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+        },
+        "intent": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/commandIntent"
+        }
+      },
+      "required": [
+        "actorSnapshotRef",
+        "intent",
+        "authenticationContextRef"
+      ],
+      "type": "object"
+    },
+    "identity_authorize_command_result": {
+      "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/authorizationDecisionView"
+    },
+    "identity_check_enterprise_access_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "check": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/enterpriseAccessCheck"
+        }
+      },
+      "required": [
+        "check"
+      ],
+      "type": "object"
+    },
+    "identity_check_enterprise_access_result": {
+      "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/accessDecision"
+    },
+    "identity_check_human_only_capability_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "actionAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "capabilityCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "scopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        }
+      },
+      "required": [
+        "principalRef",
+        "capabilityCode",
+        "scopeRef",
+        "actionAt"
+      ],
+      "type": "object"
+    },
+    "identity_check_human_only_capability_result": {
+      "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/accessDecision"
+    },
+    "identity_check_project_access_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "check": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/projectAccessCheck"
+        }
+      },
+      "required": [
+        "check"
+      ],
+      "type": "object"
+    },
+    "identity_check_project_access_result": {
+      "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/accessDecision"
+    },
+    "identity_get_policy_snapshot_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "policySnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        }
+      },
+      "required": [
+        "policySnapshotRef"
+      ],
+      "type": "object"
+    },
+    "identity_get_policy_snapshot_result": {
+      "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/policySnapshotView"
+    },
+    "identity_grant_capability_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/scopedCapability"
+        },
+        "justification": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/justification"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "principalRef",
+        "capability",
+        "justification"
+      ],
+      "type": "object"
+    },
+    "identity_link_external_identity_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "displayHint": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "evidenceRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/evidenceRef"
+          },
+          "type": "array"
+        },
+        "identityKey": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/externalIdentityKey"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "verificationMethod": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "verifiedAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        }
+      },
+      "required": [
+        "principalRef",
+        "identityKey",
+        "verifiedAt",
+        "verificationMethod",
+        "evidenceRefs"
+      ],
+      "type": "object"
+    },
+    "identity_record_policy_snapshot_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "effectiveFrom": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "policyDocument": {},
+        "policySchemaRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "policySetVersion": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "sourceRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "policySetVersion",
+        "policySchemaRefs",
+        "policyDocument",
+        "effectiveFrom",
+        "sourceRefs"
+      ],
+      "type": "object"
+    },
+    "identity_register_principal_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "initialStatus": {
+          "const": "ACTIVE"
+        },
+        "principalKind": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/principalKind"
+        }
+      },
+      "required": [
+        "principalKind",
+        "displayName",
+        "initialStatus"
+      ],
+      "type": "object"
+    },
+    "identity_resolve_principal_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "lookup": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/principalLookup"
+        },
+        "purpose": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "requiredScopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        }
+      },
+      "required": [
+        "lookup",
+        "purpose"
+      ],
+      "type": "object"
+    },
+    "identity_resolve_principal_result": {
+      "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/principalResolutionView"
+    },
+    "identity_revoke_capability_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "effectiveAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "justification": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/justification"
+        }
+      },
+      "required": [
+        "effectiveAt",
+        "justification"
+      ],
+      "type": "object"
+    },
+    "identity_revoke_role_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "effectiveAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "justification": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/justification"
+        }
+      },
+      "required": [
+        "effectiveAt",
+        "justification"
+      ],
+      "type": "object"
+    },
+    "justification": {
+      "additionalProperties": false,
+      "properties": {
+        "evidenceRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/evidenceRef"
+          },
+          "type": "array"
+        },
+        "policyRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+        },
+        "reasonCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+        },
+        "summary": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "reasonCode",
+        "summary",
+        "evidenceRefs"
+      ],
+      "type": "object"
+    },
+    "policySnapshotView": {
+      "additionalProperties": false,
+      "properties": {
+        "effectiveFrom": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "payload": {},
+        "policySchemaRefs": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+          },
+          "type": "array"
+        },
+        "policySetVersion": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+        },
+        "policySnapshotRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+        },
+        "supersededAt": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        }
+      },
+      "required": [
+        "policySnapshotRef",
+        "policySetVersion",
+        "policySchemaRefs",
+        "effectiveFrom",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "principalKind": {
+      "enum": [
+        "HUMAN",
+        "AGENT",
+        "SERVICE",
+        "RUNTIME",
+        "EXTERNAL_PARTY"
+      ]
+    },
+    "principalLookup": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "PRINCIPAL_REF"
+            },
+            "principalRef": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+            }
+          },
+          "required": [
+            "kind",
+            "principalRef"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identityKey": {
+              "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/externalIdentityKey"
+            },
+            "kind": {
+              "const": "EXTERNAL_IDENTITY"
+            }
+          },
+          "required": [
+            "kind",
+            "identityKey"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "principalResolutionView": {
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/valueEnvelopeString"
+        },
+        "principalKind": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/principalKind"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "resolvedByLinkRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "status": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/principalStatus"
+        }
+      },
+      "required": [
+        "principalRef",
+        "principalKind",
+        "status",
+        "displayName"
+      ],
+      "type": "object"
+    },
+    "principalStatus": {
+      "enum": [
+        "ACTIVE",
+        "SUSPENDED",
+        "REVOKED",
+        "ARCHIVED"
+      ]
+    },
+    "projectAccessCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "asOf": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+        },
+        "principalRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "purpose": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "resourceRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "scopeRef": {
+          "additionalProperties": false,
+          "properties": {
+            "enterpriseId": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+            },
+            "projectId": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+            }
+          },
+          "required": [
+            "enterpriseId",
+            "projectId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "principalRef",
+        "scopeRef",
+        "action",
+        "purpose",
+        "asOf"
+      ],
+      "type": "object"
+    },
+    "scopedCapability": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "capabilityCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "constraints": {},
+        "effectivePeriod": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/effectivePeriod"
+        },
+        "grantPolicyRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+        },
+        "maxUses": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "resourceSelectors": {
+          "items": {},
+          "type": "array"
+        },
+        "scopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        }
+      },
+      "required": [
+        "capabilityCode",
+        "scopeRef",
+        "resourceSelectors",
+        "actions",
+        "constraints",
+        "effectivePeriod",
+        "grantPolicyRef"
+      ],
+      "type": "object"
+    },
+    "scopedRole": {
+      "additionalProperties": false,
+      "properties": {
+        "constraints": {},
+        "effectivePeriod": {
+          "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/effectivePeriod"
+        },
+        "objectRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+        },
+        "roleCode": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "scopeRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+        }
+      },
+      "required": [
+        "roleCode",
+        "scopeRef",
+        "effectivePeriod",
+        "constraints"
+      ],
+      "type": "object"
+    },
+    "valueEnvelopeString": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceRefs": {
+              "items": {
+                "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/evidenceRef"
+              },
+              "type": "array"
+            },
+            "lastVerifiedAt": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+            },
+            "presence": {
+              "const": "PRESENT"
+            },
+            "reasonCode": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+            },
+            "value": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+            }
+          },
+          "required": [
+            "presence",
+            "value",
+            "evidenceRefs"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceRefs": {
+              "items": {
+                "$ref": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/evidenceRef"
+              },
+              "type": "array"
+            },
+            "lastVerifiedAt": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+            },
+            "presence": {
+              "enum": [
+                "UNKNOWN",
+                "REDACTED",
+                "NOT_APPLICABLE",
+                "UNAVAILABLE"
+              ]
+            },
+            "reasonCode": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/reasonCode"
+            }
+          },
+          "required": [
+            "presence",
+            "evidenceRefs"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://schemas.zhiju.local/modules/identity-policy/1.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

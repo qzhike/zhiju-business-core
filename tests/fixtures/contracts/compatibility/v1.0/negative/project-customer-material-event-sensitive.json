@@ -1,0 +1,72 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9d311",
+  "eventType": "project.CustomerMaterialConfirmed",
+  "eventVersion": "1.0",
+  "producerModule": "enterprise-project",
+  "aggregateType": "project.customer_material",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9d312",
+  "aggregateVersion": 1,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d313",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9d314",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d315",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:00:00Z",
+  "dataClassification": "CUSTOMER_CONFIDENTIAL",
+  "payload": {
+    "customerMaterialRef": {
+      "kind": "VERSIONED",
+      "objectType": "project.customer_material",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d312",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d316",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "projectRef": {
+      "kind": "OBJECT",
+      "objectType": "project.project",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      }
+    },
+    "materialType": "customer.procedure",
+    "completeness": "COMPLETE",
+    "confirmationDecisionRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "project.business_decision",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d317",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "customerDocumentText": "must-not-appear-in-event"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

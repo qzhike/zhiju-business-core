@@ -1,0 +1,123 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9df01",
+  "commandType": "integration.bind_channel_context",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "integration.channel_binding",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9df02",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9df03",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9df04",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-binding-external-ref-leak-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9df05",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "definition": {
+      "adapterCode": "feishu.channel",
+      "accountExternalRef": {
+        "system": "feishu",
+        "resourceType": "tenant",
+        "externalId": "tenant_df01",
+        "observedAt": "2026-08-17T00:00:00Z"
+      },
+      "channelExternalRef": {
+        "system": "feishu",
+        "resourceType": "chat",
+        "externalId": "oc_df01",
+        "observedAt": "2026-08-17T00:00:00Z"
+      },
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "project.project",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9df06",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "enterpriseRef": {
+        "kind": "OBJECT",
+        "objectType": "enterprise.enterprise",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9df07",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "businessContextRefs": [
+        {
+          "system": "feishu",
+          "resourceType": "message",
+          "externalId": "om_df01",
+          "observedAt": "2026-08-17T00:00:00Z"
+        }
+      ],
+      "purpose": "integration.channel.binding",
+      "bindingPolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "policy.binding",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9df08",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9df09",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "effectivePeriod": {
+        "validFrom": "2026-08-17T00:00:00Z",
+        "validTo": "2027-08-17T00:00:00Z"
+      }
+    },
+    "bindingDecisionRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "identity.business_decision",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9df0a",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

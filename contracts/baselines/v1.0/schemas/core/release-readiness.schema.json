@@ -1,0 +1,197 @@
+{
+  "$defs": {
+    "releaseReadinessSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "reasons": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "status": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/releaseReadinessStatus"
+        }
+      },
+      "required": [
+        "status",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "releaseRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "profileRef": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+        },
+        "requirementId": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+        },
+        "requirementType": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+        },
+        "satisfied": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "requirementId",
+        "requirementType",
+        "profileRef",
+        "satisfied"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.zhiju.local/core/release-readiness/1.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "ReleaseReadinessSnapshot per 03-core-contracts §6.5.",
+  "properties": {
+    "approvalBundleSnapshotRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+    },
+    "artifactRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+    },
+    "destinationRefs": {
+      "items": {
+        "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/externalRef"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "evaluatedAt": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+    },
+    "header": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contractHeader"
+    },
+    "purpose": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/safeSummary"
+    },
+    "readiness": {
+      "additionalProperties": false,
+      "properties": {
+        "reasons": {
+          "items": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "status": {
+          "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/releaseReadinessStatus"
+        }
+      },
+      "required": [
+        "status",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "recipientScopeSnapshotRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef"
+    },
+    "releaseGateResultRefs": {
+      "items": {
+        "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "releasePackageRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/releasePackageRef"
+    },
+    "releaseRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+    },
+    "releaseRequirements": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "profileRef": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+          },
+          "requirementId": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+          },
+          "requirementType": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+          },
+          "satisfied": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requirementId",
+          "requirementType",
+          "profileRef",
+          "satisfied"
+        ],
+        "type": "object"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "requiredReleaseGateSpecs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "evaluationStage": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/evaluationStage"
+          },
+          "gateSpecId": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+          },
+          "gateVersion": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+          },
+          "objectType": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+          },
+          "qualityProfileVersionId": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+          }
+        },
+        "required": [
+          "objectType",
+          "gateSpecId",
+          "gateVersion",
+          "qualityProfileVersionId",
+          "evaluationStage"
+        ],
+        "type": "object"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "revisionRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef"
+    },
+    "snapshotId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    }
+  },
+  "required": [
+    "header",
+    "snapshotId",
+    "releaseRef",
+    "artifactRef",
+    "revisionRef",
+    "approvalBundleSnapshotRef",
+    "releasePackageRef",
+    "purpose",
+    "recipientScopeSnapshotRef",
+    "destinationRefs",
+    "releaseRequirements",
+    "requiredReleaseGateSpecs",
+    "releaseGateResultRefs",
+    "readiness",
+    "evaluatedAt"
+  ],
+  "type": "object"
+}

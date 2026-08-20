@@ -1,0 +1,81 @@
+{
+  "$id": "https://schemas.zhiju.local/api/1.0/artifact.RevisionInvalidated",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actorRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+    },
+    "aggregateId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    },
+    "aggregateType": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+    },
+    "aggregateVersion": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "causationId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    },
+    "commandId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    },
+    "correlationId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    },
+    "dataClassification": {
+      "enum": [
+        "PUBLIC_AUTHORITY",
+        "INTERNAL",
+        "CUSTOMER_CONFIDENTIAL",
+        "RESTRICTED_PERSONAL",
+        "REGULATED"
+      ]
+    },
+    "eventId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    },
+    "eventType": {
+      "const": "artifact.RevisionInvalidated"
+    },
+    "eventVersion": {
+      "const": "1.0"
+    },
+    "integrity": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/integrity"
+    },
+    "occurredAt": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+    },
+    "payload": {
+      "$ref": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_RevisionInvalidated_payload"
+    },
+    "producerModule": {
+      "const": "artifact"
+    },
+    "scopeRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+    }
+  },
+  "required": [
+    "eventId",
+    "eventType",
+    "eventVersion",
+    "producerModule",
+    "aggregateType",
+    "aggregateId",
+    "aggregateVersion",
+    "scopeRef",
+    "correlationId",
+    "causationId",
+    "commandId",
+    "actorRef",
+    "occurredAt",
+    "dataClassification",
+    "payload",
+    "integrity"
+  ],
+  "type": "object"
+}

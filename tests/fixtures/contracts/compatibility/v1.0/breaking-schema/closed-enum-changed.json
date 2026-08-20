@@ -1,0 +1,10 @@
+{
+  "baseline": {
+    "type": "string",
+    "enum": ["ACTIVE", "SUSPENDED"]
+  },
+  "current": {
+    "type": "string",
+    "enum": ["ACTIVE", "SUSPENDED", "ARCHIVED"]
+  }
+}

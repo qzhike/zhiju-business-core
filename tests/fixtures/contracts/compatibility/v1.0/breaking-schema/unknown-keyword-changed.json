@@ -1,0 +1,11 @@
+{
+  "baseline": {
+    "type": "string"
+  },
+  "current": {
+    "type": "string",
+    "xCustomAssertion": {
+      "mode": "strict"
+    }
+  }
+}

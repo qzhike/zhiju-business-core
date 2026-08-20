@@ -1,0 +1,25 @@
+{
+  "baseline": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["a"],
+    "properties": {
+      "a": {
+        "type": "string"
+      }
+    }
+  },
+  "current": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["a"],
+    "properties": {
+      "a": {
+        "type": "string"
+      },
+      "note": {
+        "type": "string"
+      }
+    }
+  }
+}

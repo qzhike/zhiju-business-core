@@ -1,0 +1,859 @@
+{
+  "$defs": {
+    "actorSnapshotRef": {
+      "additionalProperties": false,
+      "properties": {
+        "actingForRef": {
+          "$ref": "#/$defs/principalRef"
+        },
+        "principalRef": {
+          "$ref": "#/$defs/principalRef"
+        },
+        "roleSnapshotRef": {
+          "$ref": "#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "principalRef"
+      ],
+      "type": "object"
+    },
+    "approvalCompletenessStatus": {
+      "enum": [
+        "FULLY_APPROVED",
+        "PARTIALLY_APPROVED",
+        "NOT_APPROVED",
+        "STALE"
+      ]
+    },
+    "contentAddressedRef": {
+      "additionalProperties": false,
+      "properties": {
+        "contentHash": {
+          "$ref": "#/$defs/contentHash"
+        },
+        "immutableVersionId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "kind": {
+          "const": "CONTENT_ADDRESSED"
+        },
+        "objectId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "objectType": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "scope": {
+          "$ref": "#/$defs/scopeRef"
+        }
+      },
+      "required": [
+        "kind",
+        "objectType",
+        "objectId",
+        "scope",
+        "contentHash"
+      ],
+      "type": "object"
+    },
+    "contentHash": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "const": "SHA-256"
+        },
+        "canonicalizationVersion": {
+          "const": "1"
+        },
+        "digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "digest",
+        "canonicalizationVersion"
+      ],
+      "type": "object"
+    },
+    "contextItemKind": {
+      "enum": [
+        "FACT",
+        "DECISION",
+        "MATERIAL",
+        "REQUIREMENT",
+        "EVIDENCE",
+        "DELIVERY_COMMITMENT",
+        "BLOCKER",
+        "MEMORY"
+      ]
+    },
+    "contractHeader": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalizationVersion": {
+          "const": "1"
+        },
+        "causationId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "contractId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "contractType": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "contractVersion": {
+          "const": "1.0"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "dataClassification": {
+          "enum": [
+            "PUBLIC_AUTHORITY",
+            "INTERNAL",
+            "CUSTOMER_CONFIDENTIAL",
+            "RESTRICTED_PERSONAL",
+            "REGULATED"
+          ]
+        },
+        "extensions": {
+          "items": {
+            "$ref": "#/$defs/extension"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "issuedAt": {
+          "$ref": "#/$defs/utcInstant"
+        },
+        "issuedBy": {
+          "$ref": "#/$defs/principalRef"
+        },
+        "payloadHash": {
+          "$ref": "#/$defs/contentHash"
+        },
+        "schemaRef": {
+          "$ref": "#/$defs/versionedRef"
+        },
+        "scopeRef": {
+          "$ref": "#/$defs/scopeRef"
+        }
+      },
+      "required": [
+        "contractId",
+        "contractType",
+        "contractVersion",
+        "schemaRef",
+        "scopeRef",
+        "issuedAt",
+        "issuedBy",
+        "correlationId",
+        "dataClassification",
+        "canonicalizationVersion",
+        "payloadHash"
+      ],
+      "type": "object"
+    },
+    "coverageCompleteness": {
+      "enum": [
+        "COMPLETE_FOR_PURPOSE",
+        "PARTIAL",
+        "BLOCKED"
+      ]
+    },
+    "currencyCode": {
+      "pattern": "^[A-Z]{3}$",
+      "type": "string"
+    },
+    "decimalString": {
+      "pattern": "^-?\\d+(?:\\.\\d+)?$",
+      "type": "string"
+    },
+    "duration": {
+      "pattern": "^P(?:\\d+D|\\d+W)?(?:T(?:\\d+H|\\d+M|\\d+(?:\\.\\d+)?S))?$",
+      "type": "string"
+    },
+    "effectivePeriod": {
+      "additionalProperties": false,
+      "properties": {
+        "validFrom": {
+          "$ref": "#/$defs/utcInstant"
+        },
+        "validTo": {
+          "$ref": "#/$defs/utcInstant"
+        }
+      },
+      "type": "object"
+    },
+    "epistemicState": {
+      "enum": [
+        "CONFIRMED",
+        "INFERRED",
+        "UNKNOWN",
+        "DISPUTED",
+        "SUPERSEDED"
+      ]
+    },
+    "evaluationStage": {
+      "enum": [
+        "REVISION_ACCEPTANCE",
+        "APPROVAL",
+        "RELEASE_READINESS"
+      ]
+    },
+    "evidenceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "applicabilityScopeRef": {
+          "$ref": "#/$defs/scopeRef"
+        },
+        "evidence": {
+          "$ref": "#/$defs/contentAddressedRef"
+        },
+        "evidenceLinkRef": {
+          "$ref": "#/$defs/objectRef"
+        },
+        "relation": {
+          "enum": [
+            "SUPPORTS",
+            "CONTRADICTS",
+            "CONTEXT_ONLY"
+          ]
+        },
+        "targetClaimRef": {
+          "additionalProperties": false,
+          "properties": {
+            "claimHash": {
+              "$ref": "#/$defs/contentHash"
+            },
+            "claimLocator": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "target": {
+              "$ref": "#/$defs/contentAddressedRef"
+            }
+          },
+          "required": [
+            "target",
+            "claimLocator",
+            "claimHash"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "evidence",
+        "relation"
+      ],
+      "type": "object"
+    },
+    "executionOutcome": {
+      "enum": [
+        "COMPLETED",
+        "PARTIAL",
+        "BLOCKED_INPUT",
+        "BLOCKED_POLICY",
+        "FAILED_EXECUTION",
+        "CANCELLED_BY_RUNTIME"
+      ]
+    },
+    "extension": {
+      "additionalProperties": false,
+      "properties": {
+        "extensionType": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "extensionVersion": {
+          "pattern": "^\\d+\\.\\d+$",
+          "type": "string"
+        },
+        "payload": {
+          "description": "Open CanonicalJson per 06 §7 (extensions.payload); schema enforced by Extension Type registry."
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "extensionType",
+        "extensionVersion",
+        "required",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "externalRef": {
+      "additionalProperties": false,
+      "properties": {
+        "adapterVersion": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "externalId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "observedAt": {
+          "$ref": "#/$defs/utcInstant"
+        },
+        "payloadHash": {
+          "$ref": "#/$defs/contentHash"
+        },
+        "resourceType": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "system": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "tenantOrAccountRef": {
+          "$ref": "#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "system",
+        "resourceType",
+        "externalId",
+        "observedAt"
+      ],
+      "type": "object"
+    },
+    "fieldViolation": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "fieldPath": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "safeDetail": {
+          "$ref": "#/$defs/safeSummary"
+        },
+        "targetRef": {
+          "$ref": "#/$defs/typedReference"
+        },
+        "violatedRule": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "code",
+        "violatedRule"
+      ],
+      "type": "object"
+    },
+    "findingDisposition": {
+      "enum": [
+        "ACCEPT",
+        "INVESTIGATE",
+        "DEFER",
+        "REJECT"
+      ]
+    },
+    "findingSeverity": {
+      "enum": [
+        "INFO",
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    "inputContentAccessMode": {
+      "enum": [
+        "REFERENCE_ONLY",
+        "INLINE_FRAGMENT",
+        "AUTHORIZED_FETCH"
+      ]
+    },
+    "integrity": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalizationVersion": {
+          "const": "1"
+        },
+        "payloadHash": {
+          "$ref": "#/$defs/contentHash"
+        }
+      },
+      "required": [
+        "canonicalizationVersion",
+        "payloadHash"
+      ],
+      "type": "object"
+    },
+    "justification": {
+      "additionalProperties": false,
+      "properties": {
+        "evidenceRefs": {
+          "items": {
+            "$ref": "#/$defs/evidenceRef"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "policyRef": {
+          "$ref": "#/$defs/versionedRef"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "summary": {
+          "$ref": "#/$defs/safeSummary"
+        }
+      },
+      "required": [
+        "reasonCode",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "localDate": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "type": "string"
+    },
+    "localeTag": {
+      "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+      "type": "string"
+    },
+    "mediaType": {
+      "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+(?:;\\s*.+=.+)?$",
+      "type": "string"
+    },
+    "namespaceCode": {
+      "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$",
+      "type": "string"
+    },
+    "nonEmptyString": {
+      "minLength": 1,
+      "pattern": ".*\\S.*",
+      "type": "string"
+    },
+    "nonNegativeInteger": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "objectRef": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "OBJECT"
+        },
+        "objectId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "objectType": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "scope": {
+          "$ref": "#/$defs/scopeRef"
+        }
+      },
+      "required": [
+        "kind",
+        "objectType",
+        "objectId",
+        "scope"
+      ],
+      "type": "object"
+    },
+    "opaqueCursor": {
+      "pattern": "^[A-Za-z0-9_-]{16,512}$",
+      "type": "string"
+    },
+    "outputCardinality": {
+      "enum": [
+        "EXACTLY_ONE",
+        "ZERO_OR_ONE",
+        "AT_LEAST_ONE",
+        "ANY"
+      ]
+    },
+    "page": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "description": "Page items = T (CanonicalJson per 06 §8.4)"
+          },
+          "type": "array"
+        },
+        "nextCursor": {
+          "$ref": "#/$defs/opaqueCursor"
+        },
+        "snapshotAt": {
+          "$ref": "#/$defs/utcInstant"
+        },
+        "sourceWatermarks": {
+          "items": {
+            "$ref": "#/$defs/sourceWatermark"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "items",
+        "snapshotAt",
+        "sourceWatermarks"
+      ],
+      "type": "object"
+    },
+    "pageRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "$ref": "#/$defs/opaqueCursor"
+        },
+        "pageSize": {
+          "$ref": "#/$defs/positiveInteger"
+        }
+      },
+      "required": [
+        "pageSize"
+      ],
+      "type": "object"
+    },
+    "positiveInteger": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "principalRef": {
+      "additionalProperties": false,
+      "properties": {
+        "principalId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "principalKind": {
+          "enum": [
+            "HUMAN",
+            "AGENT",
+            "SERVICE",
+            "RUNTIME",
+            "EXTERNAL_PARTY"
+          ]
+        }
+      },
+      "required": [
+        "principalKind",
+        "principalId"
+      ],
+      "type": "object"
+    },
+    "projectionType": {
+      "enum": [
+        "COORDINATOR",
+        "DOCUMENT_WRITER",
+        "REVIEWER",
+        "RECORD_FORM_BUILDER",
+        "FEISHU_SUMMARY",
+        "HUMAN_WORKSPACE"
+      ]
+    },
+    "readinessStatus": {
+      "enum": [
+        "READY",
+        "NOT_READY",
+        "STALE"
+      ]
+    },
+    "reasonCode": {
+      "pattern": "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$",
+      "type": "string"
+    },
+    "referenceStrength": {
+      "enum": [
+        "OBJECT",
+        "VERSIONED",
+        "CONTENT_ADDRESSED",
+        "SNAPSHOT"
+      ]
+    },
+    "releasePackageRef": {
+      "additionalProperties": false,
+      "properties": {
+        "packageHash": {
+          "$ref": "#/$defs/contentHash"
+        },
+        "packageSnapshotRef": {
+          "$ref": "#/$defs/snapshotRef"
+        },
+        "releaseRef": {
+          "$ref": "#/$defs/objectRef"
+        }
+      },
+      "required": [
+        "releaseRef",
+        "packageSnapshotRef",
+        "packageHash"
+      ],
+      "type": "object"
+    },
+    "releaseReadinessStatus": {
+      "enum": [
+        "READY_FOR_AUTHORIZATION",
+        "NOT_READY",
+        "STALE"
+      ]
+    },
+    "representationRef": {
+      "additionalProperties": false,
+      "properties": {
+        "checksum": {
+          "$ref": "#/$defs/contentHash"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/utcInstant"
+        },
+        "format": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "mediaType": {
+          "$ref": "#/$defs/mediaType"
+        },
+        "objectStorageRef": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "renderer": {
+          "additionalProperties": false,
+          "properties": {
+            "rendererId": {
+              "$ref": "#/$defs/namespaceCode"
+            },
+            "rendererVersion": {
+              "$ref": "#/$defs/nonEmptyString"
+            }
+          },
+          "required": [
+            "rendererId",
+            "rendererVersion"
+          ],
+          "type": "object"
+        },
+        "representationId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "revision": {
+          "$ref": "#/$defs/contentAddressedRef"
+        }
+      },
+      "required": [
+        "representationId",
+        "revision",
+        "format",
+        "mediaType",
+        "objectStorageRef",
+        "checksum",
+        "renderer",
+        "createdAt"
+      ],
+      "type": "object"
+    },
+    "safeSummary": {
+      "minLength": 1,
+      "pattern": ".*\\S.*",
+      "type": "string"
+    },
+    "scopeRef": {
+      "additionalProperties": false,
+      "dependentRequired": {
+        "projectId": [
+          "enterpriseId"
+        ]
+      },
+      "properties": {
+        "enterpriseId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "projectId": {
+          "$ref": "#/$defs/uuidV7"
+        }
+      },
+      "type": "object"
+    },
+    "separationOfDutiesOutcome": {
+      "enum": [
+        "SATISFIED",
+        "VIOLATED",
+        "INDETERMINATE"
+      ]
+    },
+    "snapshotRef": {
+      "additionalProperties": false,
+      "properties": {
+        "contentHash": {
+          "$ref": "#/$defs/contentHash"
+        },
+        "kind": {
+          "const": "SNAPSHOT"
+        },
+        "objectId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "objectType": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "scope": {
+          "$ref": "#/$defs/scopeRef"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/uuidV7"
+        }
+      },
+      "required": [
+        "kind",
+        "objectType",
+        "objectId",
+        "snapshotId",
+        "scope",
+        "contentHash"
+      ],
+      "type": "object"
+    },
+    "sourceWatermark": {
+      "additionalProperties": false,
+      "properties": {
+        "observedAt": {
+          "$ref": "#/$defs/utcInstant"
+        },
+        "partition": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "sequence": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "sourceModule": {
+          "$ref": "#/$defs/namespaceCode"
+        }
+      },
+      "required": [
+        "sourceModule",
+        "sequence",
+        "observedAt"
+      ],
+      "type": "object"
+    },
+    "typedReference": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/objectRef"
+        },
+        {
+          "$ref": "#/$defs/versionedRef"
+        },
+        {
+          "$ref": "#/$defs/contentAddressedRef"
+        },
+        {
+          "$ref": "#/$defs/snapshotRef"
+        },
+        {
+          "$ref": "#/$defs/externalRef"
+        }
+      ]
+    },
+    "utcInstant": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+      "type": "string"
+    },
+    "uuidV7": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
+    },
+    "valueEnvelope": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "value": false
+            }
+          },
+          "if": {
+            "properties": {
+              "presence": {
+                "const": "PRESENT"
+              }
+            },
+            "required": [
+              "presence"
+            ]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "description": "ValueEnvelope<T> generic argument per 06 §6.2."
+              }
+            },
+            "required": [
+              "value"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "evidenceRefs": {
+          "items": {
+            "$ref": "#/$defs/evidenceRef"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "lastVerifiedAt": {
+          "$ref": "#/$defs/utcInstant"
+        },
+        "presence": {
+          "enum": [
+            "PRESENT",
+            "UNKNOWN",
+            "REDACTED",
+            "NOT_APPLICABLE",
+            "UNAVAILABLE"
+          ]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "value": {
+          "description": "Open JSON per 06 §6.2 ValueEnvelope<T> generic argument. Application layer must require value when presence=PRESENT and forbid non-empty value for other Presence states."
+        }
+      },
+      "required": [
+        "presence"
+      ],
+      "type": "object"
+    },
+    "versionedRef": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "VERSIONED"
+        },
+        "objectId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "objectType": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "scope": {
+          "$ref": "#/$defs/scopeRef"
+        },
+        "versionId": {
+          "$ref": "#/$defs/uuidV7"
+        }
+      },
+      "required": [
+        "kind",
+        "objectType",
+        "objectId",
+        "versionId",
+        "scope"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.zhiju.local/common/1.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

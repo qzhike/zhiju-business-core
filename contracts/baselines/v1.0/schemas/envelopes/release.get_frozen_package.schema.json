@@ -1,0 +1,67 @@
+{
+  "$id": "https://schemas.zhiju.local/api/1.0/release.get_frozen_package",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "asOf": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+    },
+    "authenticationContextRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+    },
+    "authorizationDecisionRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+    },
+    "consistencyRequirement": {
+      "enum": [
+        "AUTHORITATIVE",
+        "SNAPSHOT_AT_LEAST",
+        "PROJECTION_OK"
+      ]
+    },
+    "correlationId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    },
+    "minimumWatermark": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "pagination": {
+      "type": "object"
+    },
+    "payload": {
+      "$ref": "https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/release_get_frozen_package_payload"
+    },
+    "queryId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    },
+    "queryType": {
+      "const": "release.get_frozen_package"
+    },
+    "queryVersion": {
+      "const": "1.0"
+    },
+    "requestedAt": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+    },
+    "requester": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+    },
+    "scopeRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+    }
+  },
+  "required": [
+    "queryId",
+    "queryType",
+    "queryVersion",
+    "scopeRef",
+    "requester",
+    "authenticationContextRef",
+    "consistencyRequirement",
+    "correlationId",
+    "requestedAt",
+    "payload"
+  ],
+  "type": "object"
+}

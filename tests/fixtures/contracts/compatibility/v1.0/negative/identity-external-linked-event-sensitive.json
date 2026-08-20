@@ -1,0 +1,66 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9d221",
+  "eventType": "identity.ExternalIdentityLinked",
+  "eventVersion": "1.0",
+  "producerModule": "identity-policy",
+  "aggregateType": "identity.external_identity_link",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9d222",
+  "aggregateVersion": 1,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d223",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9d224",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d225",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:00:00Z",
+  "dataClassification": "RESTRICTED_PERSONAL",
+  "payload": {
+    "externalIdentityLinkRef": {
+      "kind": "OBJECT",
+      "objectType": "identity.external_identity_link",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d222",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "principalRef": {
+      "kind": "OBJECT",
+      "objectType": "identity.principal",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "providerCode": "feishu",
+    "externalIdentityLookupHashRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "identity.external_identity_lookup",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d226",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "accountExternalId": "must-not-appear-in-event"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

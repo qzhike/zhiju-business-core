@@ -1,0 +1,1408 @@
+{
+  "registryVersion": "1.0",
+  "canonicalizationVersion": "1",
+  "source": "contracts/registry/operation-compatibility-metadata.v1.json",
+  "description": "Versioned authorization/data-classification/semantic declarations used to compute manualReviewFingerprint for Issue #8 compatibility gates. Structural schema changes remain separate BREAKING checks.",
+  "operations": [
+    {
+      "type": "identity.register_principal",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.register_principal",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.link_external_identity",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.link_external_identity",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.assign_role",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.assign_role",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.revoke_role",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.revoke_role",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.grant_capability",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.grant_capability",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.revoke_capability",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.revoke_capability",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.record_policy_snapshot",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.record_policy_snapshot",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.resolve_principal",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.resolve_principal",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.authorize_command",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.authorize_command",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.check_enterprise_access",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.check_enterprise_access",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.check_project_access",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.check_project_access",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.check_human_only_capability",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.check_human_only_capability",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.get_policy_snapshot",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.get_policy_snapshot",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.PrincipalRegistered",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.PrincipalRegistered",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.ExternalIdentityLinked",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.ExternalIdentityLinked",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.RoleAssigned",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.RoleAssigned",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.RoleRevoked",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.RoleRevoked",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.CapabilityGranted",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.CapabilityGranted",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.CapabilityRevoked",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.CapabilityRevoked",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.PolicySnapshotRecorded",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.PolicySnapshotRecorded",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.create_enterprise",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.create_enterprise",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.propose_enterprise_fact",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.propose_enterprise_fact",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.confirm_enterprise_fact",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.confirm_enterprise_fact",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.create_project",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.create_project",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.register_source_material",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.register_source_material",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.accept_source_material",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.accept_source_material",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.propose_customer_material",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.propose_customer_material",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.confirm_customer_material",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.confirm_customer_material",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.create_customer_baseline_draft",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.create_customer_baseline_draft",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.activate_customer_baseline_version",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.activate_customer_baseline_version",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.freeze_template_baseline",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.freeze_template_baseline",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.activate_regulatory_profile",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.activate_regulatory_profile",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.start_gap_analysis",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.start_gap_analysis",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.accept_gap_analysis",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.accept_gap_analysis",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.create_delivery_plan_draft",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.create_delivery_plan_draft",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.approve_delivery_plan",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.approve_delivery_plan",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.activate_delivery_plan",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.activate_delivery_plan",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.evaluate_delivery_item_completion",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.evaluate_delivery_item_completion",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.get_project_context_source",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.get_project_context_source",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.get_enterprise_profile_snapshot",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.get_enterprise_profile_snapshot",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.get_active_baseline_refs",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.get_active_baseline_refs",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.get_delivery_item_criteria",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.get_delivery_item_criteria",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.validate_object_scope",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.validate_object_scope",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.get_project_board_slice",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.get_project_board_slice",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.SourceMaterialAccepted",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.SourceMaterialAccepted",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.CustomerMaterialConfirmed",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.CustomerMaterialConfirmed",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.CustomerBaselineVersionActivated",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.CustomerBaselineVersionActivated",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.GapAnalysisAccepted",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.GapAnalysisAccepted",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.DeliveryPlanActivated",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.DeliveryPlanActivated",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.DeliveryItemActivated",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.DeliveryItemActivated",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.DeliveryItemCompletionSatisfied",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.DeliveryItemCompletionSatisfied",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.DeliveryItemImpactReviewRequested",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.DeliveryItemImpactReviewRequested",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.create_task",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.create_task",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.mark_task_ready",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.mark_task_ready",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.create_work_order",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.create_work_order",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.freeze_work_order",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.freeze_work_order",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.queue_work_order",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.queue_work_order",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.build_context_snapshot",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.build_context_snapshot",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.create_run",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.create_run",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.start_run",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.start_run",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.request_run_cancel",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.request_run_cancel",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.record_runtime_input_required",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.record_runtime_input_required",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.submit_agent_result",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.submit_agent_result",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.accept_agent_result",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.accept_agent_result",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.open_information_request",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.open_information_request",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.record_information_delivery",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.record_information_delivery",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.submit_information_answer",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.submit_information_answer",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.resolve_information_request",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.resolve_information_request",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.schedule_work_order_retry",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.schedule_work_order_retry",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.evaluate_work_order_completion",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.evaluate_work_order_completion",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.evaluate_task_completion",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.evaluate_task_completion",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.get_work_order_contract",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.get_work_order_contract",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.get_context_snapshot",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.get_context_snapshot",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.get_run_state",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.get_run_state",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.get_agent_result",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.get_agent_result",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.get_information_request",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.get_information_request",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.get_usage_and_provenance",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.get_usage_and_provenance",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.get_task_board_slice",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.get_task_board_slice",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.TaskReady",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.TaskReady",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.WorkOrderBecameReady",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.WorkOrderBecameReady",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.WorkOrderQueued",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.WorkOrderQueued",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.ContextSnapshotBuilt",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.ContextSnapshotBuilt",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.RunStarted",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.RunStarted",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.RunTerminated",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.RunTerminated",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.AgentResultAccepted",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.AgentResultAccepted",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.InformationRequestOpened",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.InformationRequestOpened",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.InformationRequestResolved",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.InformationRequestResolved",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.WorkOrderCompleted",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.WorkOrderCompleted",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.TaskCompleted",
+      "version": "1.0",
+      "authorizationPurpose": "task.execution.TaskCompleted",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.create_artifact",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.create_artifact",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.update_artifact_metadata",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.update_artifact_metadata",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.create_and_seal_revision",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.create_and_seal_revision",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.create_merge_revision",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.create_merge_revision",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.move_working_head",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.move_working_head",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.register_representation",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.register_representation",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.withdraw_revision",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.withdraw_revision",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.invalidate_revision",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.invalidate_revision",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.record_approved_revision_binding",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.record_approved_revision_binding",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.record_effective_binding",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.record_effective_binding",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.supersede_effective_binding",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.supersede_effective_binding",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.archive_artifact",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.archive_artifact",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.get_artifact",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.get_artifact",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.get_revision_snapshot",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.get_revision_snapshot",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.get_revision_lineage",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.get_revision_lineage",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.get_revision_diff_inputs",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.get_revision_diff_inputs",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.validate_revision_ref",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.validate_revision_ref",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.get_representation",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.get_representation",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.get_effective_binding",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.get_effective_binding",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.ArtifactCreated",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.ArtifactCreated",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.ArtifactRevisionSealed",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.ArtifactRevisionSealed",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.MergeRevisionCreated",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.MergeRevisionCreated",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.RevisionInvalidated",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.RevisionInvalidated",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.RepresentationRegistered",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.RepresentationRegistered",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.ApprovedRevisionBindingRecorded",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.ApprovedRevisionBindingRecorded",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "artifact.EffectiveBindingChanged",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.EffectiveBindingChanged",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.capture_evidence_candidate",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.capture_evidence_candidate",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.verify_evidence",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.verify_evidence",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.revoke_evidence",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.revoke_evidence",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.create_evidence_link",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.create_evidence_link",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.create_quality_profile_draft",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.create_quality_profile_draft",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.activate_quality_profile",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.activate_quality_profile",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.record_gate_result",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.record_gate_result",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.record_reused_gate_result",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.record_reused_gate_result",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.invalidate_gate_result",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.invalidate_gate_result",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.raise_review_issue",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.raise_review_issue",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.propose_issue_resolution",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.propose_issue_resolution",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.verify_issue_resolution",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.verify_issue_resolution",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.close_review_issue",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.close_review_issue",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.request_approval",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.request_approval",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.submit_approval_decision",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.submit_approval_decision",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.revoke_approval",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.revoke_approval",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.evaluate_revision_readiness",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.evaluate_revision_readiness",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.evaluate_release_gate_readiness",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.evaluate_release_gate_readiness",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.get_evidence",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.get_evidence",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.get_quality_profile",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.get_quality_profile",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.get_gate_plan",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.get_gate_plan",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.get_gate_results",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.get_gate_results",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.get_open_blocking_issues",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.get_open_blocking_issues",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.get_revision_acceptance_snapshot",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.get_revision_acceptance_snapshot",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.get_approval_bundle_snapshot",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.get_approval_bundle_snapshot",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.get_release_readiness_snapshot",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.get_release_readiness_snapshot",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.EvidenceVerified",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.EvidenceVerified",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.EvidenceRevoked",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.EvidenceRevoked",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.QualityProfileActivated",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.QualityProfileActivated",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.GateResultRecorded",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.GateResultRecorded",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.BlockingReviewIssueRaised",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.BlockingReviewIssueRaised",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.ReviewIssueClosed",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.ReviewIssueClosed",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.RevisionQualityReady",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.RevisionQualityReady",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.RevisionFullyApproved",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.RevisionFullyApproved",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.RevisionApprovalLost",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.RevisionApprovalLost",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.ReleaseGateReady",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.ReleaseGateReady",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "quality.ReleaseGateReadinessLost",
+      "version": "1.0",
+      "authorizationPurpose": "quality.governance.ReleaseGateReadinessLost",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.create_release_draft",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.create_release_draft",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.select_representations",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.select_representations",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.set_destinations",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.set_destinations",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.prepare_release",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.prepare_release",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.validate_release_readiness",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.validate_release_readiness",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.authorize_release",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.authorize_release",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.start_publication_attempt",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.start_publication_attempt",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.record_publication_receipt",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.record_publication_receipt",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.record_publication_failure",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.record_publication_failure",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.complete_release",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.complete_release",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.recall_release",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.recall_release",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.cancel_release",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.cancel_release",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.get_release",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.get_release",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.get_frozen_package",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.get_frozen_package",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.get_publication_attempts",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.get_publication_attempts",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.get_release_receipts",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.get_release_receipts",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.get_release_impact",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.get_release_impact",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.ReleasePrepared",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.ReleasePrepared",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.ReleaseAuthorized",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.ReleaseAuthorized",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.PublicationAttemptRequested",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.PublicationAttemptRequested",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.PublicationSucceeded",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.PublicationSucceeded",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.PublicationFailed",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.PublicationFailed",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.ReleasePartiallyCompleted",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.ReleasePartiallyCompleted",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.ReleaseCompleted",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.ReleaseCompleted",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "release.ReleaseRecalled",
+      "version": "1.0",
+      "authorizationPurpose": "release.publication.ReleaseRecalled",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.accept_inbound_envelope",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.accept_inbound_envelope",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.bind_channel_context",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.bind_channel_context",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.request_feishu_delivery",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.request_feishu_delivery",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.request_runtime_dispatch",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.request_runtime_dispatch",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.request_runtime_cancel",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.request_runtime_cancel",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.request_runtime_resume",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.request_runtime_resume",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.request_render",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.request_render",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.record_external_receipt",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.record_external_receipt",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.quarantine_external_event",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.quarantine_external_event",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.get_channel_binding",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.get_channel_binding",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.get_delivery_attempt",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.get_delivery_attempt",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.get_runtime_attempt",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.get_runtime_attempt",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.get_render_attempt",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.get_render_attempt",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.get_adapter_health",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.get_adapter_health",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.InboundEnvelopeAccepted",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.InboundEnvelopeAccepted",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.InboundEnvelopeRejected",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.InboundEnvelopeRejected",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.ChannelAnswerReceived",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.ChannelAnswerReceived",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.ChannelDeliverySucceeded",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.ChannelDeliverySucceeded",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.ChannelDeliveryFailed",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.ChannelDeliveryFailed",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.RuntimeDispatchSucceeded",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.RuntimeDispatchSucceeded",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.RuntimeDispatchFailed",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.RuntimeDispatchFailed",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.RenderSucceeded",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.RenderSucceeded",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.RenderFailed",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.RenderFailed",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-baseline"
+    }
+  ]
+}

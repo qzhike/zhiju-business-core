@@ -1,13 +1,18 @@
-import {
-  operationPayloadSchemaRef,
-  type JsonSchema,
-  type PublicOperationDefinition,
-} from './schema-types.js';
+import type { JsonSchema, PublicOperationDefinition } from './schema-types.js';
 
 const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
 
+// Keep this helper local and type-import-only so tooling can load this module
+// under Node `--experimental-strip-types` without resolving compiled `.js`
+// value imports. Behavior must match `operationPayloadSchemaRef` in
+// `schema-types.ts` (enforced by contracts envelope parity tests).
+function payloadSchemaRef(operation: PublicOperationDefinition): string | undefined {
+  if (operation.schemaStatus !== 'FULL') return undefined;
+  return `https://schemas.zhiju.local/modules/${operation.owner}/1.0#/$defs/${operation.type.replaceAll('.', '_')}_payload`;
+}
+
 function payloadSchema(operation: PublicOperationDefinition): JsonSchema {
-  const schemaRef = operationPayloadSchemaRef(operation);
+  const schemaRef = payloadSchemaRef(operation);
   return schemaRef === undefined ? { type: 'object' } : { $ref: schemaRef };
 }
 

@@ -1,0 +1,409 @@
+{
+  "header": {
+    "contractId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
+    "contractType": "zhiju.contract.project_context",
+    "contractVersion": "1.0",
+    "schemaRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.contract.schema",
+      "objectId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
+      "versionId": "018f22e2-7c15-7d42-8d86-2de956a9d22a",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "scopeRef": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "issuedAt": "2026-08-17T00:00:00Z",
+    "issuedBy": {
+      "principalKind": "SERVICE",
+      "principalId": "018f22e2-7c15-7d52-8d86-2de956a9d22b"
+    },
+    "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
+    "dataClassification": "INTERNAL",
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "contextSnapshotId": "018f22e2-7c15-7b12-8d86-2de956a9d207",
+  "projectRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.project",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "enterpriseRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.enterprise",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "projection": {
+    "projectionType": "DOCUMENT_WRITER",
+    "purpose": "采购控制程序正文撰写",
+    "audience": "DOCUMENT_REVIEWER",
+    "builderPolicyRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.context.policy",
+      "objectId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+      "versionId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    }
+  },
+  "asOf": "2026-08-17T00:00:00Z",
+  "sourceManifest": {
+    "enterpriseProfileSnapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.enterprise_profile",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "snapshotId": "018f22e2-7c15-7b22-8d86-2de956a9d208",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "qmsConfigurationRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.project.qms_configuration",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "versionId": "018f22e2-7c15-7c22-8d86-2de956a9d218",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "customerBaselineRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.project.customer_baseline",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "versionId": "018f22e2-7c15-7c22-8d86-2de956a9d218",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "templateBaselineRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.project.template_baseline",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "versionId": "018f22e2-7c15-7c22-8d86-2de956a9d218",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "regulatoryProfileRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.project.regulatory_profile",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "versionId": "018f22e2-7c15-7b62-8d86-2de956a9d20c",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "gapAnalysisRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.project.gap_analysis",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "versionId": "018f22e2-7c15-7c22-8d86-2de956a9d218",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "deliveryPlanRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.project.delivery_plan",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "versionId": "018f22e2-7c15-7c22-8d86-2de956a9d218",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "policyRefs": [
+      {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.context.policy",
+        "objectId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+        "versionId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    ],
+    "schemaRefs": [
+      {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.contract.work_order_schema",
+        "objectId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+        "versionId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    ],
+    "externalAuthoritySnapshotRefs": []
+  },
+  "contextItems": [
+    {
+      "contextItemId": "018f22e2-7c15-7c42-8d86-2de956a9d21a",
+      "kind": "REQUIREMENT",
+      "subjectRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.artifact.artifact",
+        "objectId": "018f22e2-7c15-7b32-8d86-2de956a9d209",
+        "versionId": "018f22e2-7c15-7b42-8d86-2de956a9d20a",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "epistemicState": "CONFIRMED",
+      "value": {
+        "presence": "PRESENT",
+        "value": "供应商评价年度复审"
+      },
+      "evidenceRefs": [
+        {
+          "evidence": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.quality.evidence",
+            "objectId": "018f22e2-7c15-7be2-8d86-2de956a9d214",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+              "canonicalizationVersion": "1"
+            }
+          },
+          "relation": "SUPPORTS"
+        }
+      ],
+      "provenanceRefs": [
+        {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.project.customer_baseline",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "versionId": "018f22e2-7c15-7c22-8d86-2de956a9d218",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        }
+      ],
+      "recordedTime": "2026-08-01T00:00:00Z",
+      "permittedUses": ["context.snapshot.read"],
+      "sensitivity": "INTERNAL"
+    }
+  ],
+  "artifactContext": [
+    {
+      "artifactRef": {
+        "kind": "OBJECT",
+        "objectType": "zhiju.artifact.artifact",
+        "objectId": "018f22e2-7c15-7b32-8d86-2de956a9d209",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "baseRevisionRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.artifact.artifact_revision",
+        "objectId": "018f22e2-7c15-7b42-8d86-2de956a9d20a",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "allowedSectionRefs": [
+        {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.artifact.artifact_section",
+          "objectId": "018f22e2-7c15-7b32-8d86-2de956a9d209",
+          "versionId": "018f22e2-7c15-7b42-8d86-2de956a9d20a",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        }
+      ],
+      "relevantEvidenceRefs": [
+        {
+          "evidence": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.quality.evidence",
+            "objectId": "018f22e2-7c15-7be2-8d86-2de956a9d214",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+              "canonicalizationVersion": "1"
+            }
+          },
+          "relation": "CONTEXT_ONLY"
+        }
+      ],
+      "openReviewIssueRefs": [],
+      "representationRefs": [
+        {
+          "representationId": "018f22e2-7c15-7d22-8d86-2de956a9d228",
+          "revision": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.artifact.artifact_revision",
+            "objectId": "018f22e2-7c15-7b42-8d86-2de956a9d20a",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+              "canonicalizationVersion": "1"
+            }
+          },
+          "format": "docx",
+          "mediaType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "objectStorageRef": "s3://bucket/key",
+          "checksum": {
+            "algorithm": "SHA-256",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+            "canonicalizationVersion": "1"
+          },
+          "renderer": {
+            "rendererId": "zhiju.artifact.renderer.docx",
+            "rendererVersion": "1.4.0"
+          },
+          "createdAt": "2026-08-17T00:00:00Z"
+        }
+      ]
+    }
+  ],
+  "workContext": {
+    "deliveryItemRefs": [
+      {
+        "kind": "OBJECT",
+        "objectType": "zhiju.project.delivery_item",
+        "objectId": "018f22e2-7c15-7d32-8d86-2de956a9d229",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    ],
+    "taskRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.execution.task",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "workOrderRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.execution.work_order",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "informationRequestRefs": [],
+    "blockers": [],
+    "relatedCompletionCriteriaRefs": [
+      {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.completion_criterion",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+        "versionId": "018f22e2-7c15-7d42-8d86-2de956a9d22a",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    ]
+  },
+  "unresolvedItems": [],
+  "omissions": [
+    {
+      "category": "customer-confidential-financial",
+      "reasonCode": "POLICY_REDACTION_APPLIES",
+      "sourceRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.project.customer_baseline",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "versionId": "018f22e2-7c15-7c22-8d86-2de956a9d218",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "effectOnTask": "不影响正文撰写，但下游审计需要原始财务数据"
+    }
+  ],
+  "redactions": [
+    {
+      "fieldPath": "/financials/revenue",
+      "policyRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.context.policy",
+        "objectId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+        "versionId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "reasonCode": "CUSTOMER_CONFIDENTIAL",
+      "substituteSummary": "略去精确金额，仅保留量级"
+    }
+  ],
+  "coverage": {
+    "requestedScopes": ["procurement.procedure"],
+    "includedScopes": ["procurement.procedure"],
+    "excludedScopes": ["customer.financials"],
+    "completeness": "COMPLETE_FOR_PURPOSE"
+  },
+  "sourceWatermarks": [
+    {
+      "sourceModule": "zhiju.enterprise_project",
+      "sequence": 42,
+      "observedAt": "2026-08-17T00:00:00Z"
+    }
+  ],
+  "expiresAt": "2026-09-17T00:00:00Z"
+}

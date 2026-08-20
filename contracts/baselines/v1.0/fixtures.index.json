@@ -1,0 +1,298 @@
+{
+  "baselineId": "v1.0",
+  "canonicalHashes": [
+    {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "ca3872736304dfb87860ede272a6f9dbdb9c04751f85f713ad4fdfe77821eb04",
+      "mode": "hashContractPayload",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/core/work-order.json"
+    },
+    {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "96341923d4a7afbb29c0b7d4362e5509a1b60e27330dfe665051c006593dc360",
+      "mode": "hashContractPayload",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/execution-run-terminated-event.json"
+    },
+    {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "9e8c11ea1aacfbbbb83e8040b2ed2af5f63b4f3f34836487cefa38d93fd44e05",
+      "mode": "hashContractPayload",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/quality-evidence-verified-event.json"
+    }
+  ],
+  "fixtures": [
+    {
+      "expect": "valid",
+      "id": "positive__identity-resolve-principal-query",
+      "owner": "identity-policy",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/identity-resolve-principal-query.json",
+      "polarity": "positive",
+      "sha256": "d0ccd63c967bf32deba6341601914a893d8d6741919e304830ddd3e2f1c63d0d",
+      "source": "tests/fixtures/contracts/identity-resolve-principal-query-valid.json",
+      "type": "identity.resolve_principal",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__project-board-query",
+      "owner": "enterprise-project",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/project-board-query.json",
+      "polarity": "positive",
+      "sha256": "db193d3620a31a111a15844ab608f660f7a0ce29e1cba0e255d285cadc51a477",
+      "source": "tests/fixtures/contracts/project-board-query-valid.json",
+      "type": "project.get_project_board_slice",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__execution-create-task-command",
+      "owner": "task-execution",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/execution-create-task-command.json",
+      "polarity": "positive",
+      "sha256": "67d0ce0e65f900daec06f567b6799021bbc928f3779605f53008e618c4e82897",
+      "source": "tests/fixtures/contracts/execution-create-task-command-valid.json",
+      "type": "execution.create_task",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__artifact-seal-revision-command",
+      "owner": "artifact",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/artifact-seal-revision-command.json",
+      "polarity": "positive",
+      "sha256": "0220852f0e7d10767dfe211e3d4daf551b27eab421a85017c0626446fc9a4615",
+      "source": "tests/fixtures/contracts/artifact-seal-revision-command-valid.json",
+      "type": "artifact.create_and_seal_revision",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__quality-submit-approval-decision-command",
+      "owner": "quality-governance",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/quality-submit-approval-decision-command.json",
+      "polarity": "positive",
+      "sha256": "7112782df8d0f1edc550769309f2e65e13bdeae5fdde547d5f35a3a7bc88defc",
+      "source": "tests/fixtures/contracts/quality-submit-approval-decision-command-valid.json",
+      "type": "quality.submit_approval_decision",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__release-get-release-result",
+      "owner": "release-publication",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/release-get-release-result.json",
+      "polarity": "positive",
+      "sha256": "02a4d31c47ce625ac9ec7dcd56c2ed168dce2760be353d9dd59ae46b9bb4216a",
+      "source": "tests/fixtures/contracts/release-get-release-result-valid.json",
+      "type": "release.get_release",
+      "validation": "operationResult",
+      "version": "1.0"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__integration-get-adapter-health-result",
+      "owner": "integration-gateway",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/integration-get-adapter-health-result.json",
+      "polarity": "positive",
+      "sha256": "d07719194de6eeda2f2799cd46fc289146a6b2169438265cdba7155fbb830b80",
+      "source": "tests/fixtures/contracts/integration-get-adapter-health-result-data-valid.json",
+      "type": "integration.get_adapter_health",
+      "validation": "operationResult",
+      "version": "1.0"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__execution-run-terminated-event",
+      "owner": "task-execution",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/execution-run-terminated-event.json",
+      "polarity": "positive",
+      "sha256": "ac28c1498370db34b16d57b28ccb3c123b5b287d3008e603d6e6f7a31eb428e0",
+      "source": "tests/fixtures/contracts/execution-run-terminated-event-valid.json",
+      "type": "execution.RunTerminated",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__quality-evidence-verified-event",
+      "owner": "quality-governance",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/quality-evidence-verified-event.json",
+      "polarity": "positive",
+      "sha256": "0aae76c67bd6b101bcdf436bca67468e5845514ea58fe3d792e2d80745020b9f",
+      "source": "tests/fixtures/contracts/quality-evidence-verified-event-valid.json",
+      "type": "quality.EvidenceVerified",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__core__project-context",
+      "owner": "core",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/core/project-context.json",
+      "polarity": "positive",
+      "schemaId": "https://schemas.zhiju.local/core/project-context/1.0",
+      "sha256": "5beabe7f99d1ab68cb4a72f8c4149eac7de6848cf154b17867b1bbf385df5104",
+      "source": "tests/fixtures/contracts/core/project-context-valid.json",
+      "validation": "core"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__core__work-order",
+      "owner": "core",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/core/work-order.json",
+      "polarity": "positive",
+      "schemaId": "https://schemas.zhiju.local/core/work-order/1.0",
+      "sha256": "2b7369577e7c75804aff91a6d9638895d80267f4f2b24106f6d2ff393097abf3",
+      "source": "tests/fixtures/contracts/core/work-order-valid.json",
+      "validation": "core"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__core__agent-result",
+      "owner": "core",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/core/agent-result.json",
+      "polarity": "positive",
+      "schemaId": "https://schemas.zhiju.local/core/agent-result/1.0",
+      "sha256": "60a4f1c888ab57644beb0a51f4e322f48a51513def768dd0bb2208685e87dc08",
+      "source": "tests/fixtures/contracts/core/agent-result-valid.json",
+      "validation": "core"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__core__revision-acceptance",
+      "owner": "core",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/core/revision-acceptance.json",
+      "polarity": "positive",
+      "schemaId": "https://schemas.zhiju.local/core/revision-acceptance/1.0",
+      "sha256": "39b44db1197ac323b40672a2a275f09e3e3ebf7a6cdd45a8d901239be9c5811b",
+      "source": "tests/fixtures/contracts/core/revision-acceptance-valid.json",
+      "validation": "core"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__core__approval-bundle",
+      "owner": "core",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/core/approval-bundle.json",
+      "polarity": "positive",
+      "schemaId": "https://schemas.zhiju.local/core/approval-bundle/1.0",
+      "sha256": "efd6810f68b9600403617a61a2442f23841a0e6a531a25cd3ba94d268ae90f69",
+      "source": "tests/fixtures/contracts/core/approval-bundle-valid.json",
+      "validation": "core"
+    },
+    {
+      "expect": "valid",
+      "id": "positive__core__release-readiness",
+      "owner": "core",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/positive/core/release-readiness.json",
+      "polarity": "positive",
+      "schemaId": "https://schemas.zhiju.local/core/release-readiness/1.0",
+      "sha256": "e4cf06136313a9d8e32f184db22c2e70a440541550fc2895445b897f5498636a",
+      "source": "tests/fixtures/contracts/core/release-readiness-valid.json",
+      "validation": "core"
+    },
+    {
+      "expect": "invalid",
+      "id": "negative__identity-external-linked-event-sensitive",
+      "owner": "identity-policy",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/negative/identity-external-linked-event-sensitive.json",
+      "polarity": "negative",
+      "sha256": "2d4daec8057c6bd2c2346f4d5282d438aacd697801c65e65a8163b0a9cfc70bc",
+      "source": "tests/fixtures/contracts/identity-external-linked-event-sensitive-field.json",
+      "type": "identity.ExternalIdentityLinked",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "invalid",
+      "id": "negative__project-customer-material-event-sensitive",
+      "owner": "enterprise-project",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/negative/project-customer-material-event-sensitive.json",
+      "polarity": "negative",
+      "sha256": "60a9e896e5b79f7151266c079fd749aced4edeea0108d6cd26599bda01bbcb98",
+      "source": "tests/fixtures/contracts/project-customer-material-event-sensitive-field.json",
+      "type": "project.CustomerMaterialConfirmed",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "invalid",
+      "id": "negative__execution-create-task-command-unknown-field",
+      "owner": "task-execution",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/negative/execution-create-task-command-unknown-field.json",
+      "polarity": "negative",
+      "sha256": "9e4f54cdaa590e325becdfcfdb722ff1c54438106b71c592df87d42d81502fad",
+      "source": "tests/fixtures/contracts/execution-create-task-command-unknown-field.json",
+      "type": "execution.create_task",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "invalid",
+      "id": "negative__artifact-revision-snapshot-query-weak-ref",
+      "owner": "artifact",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/negative/artifact-revision-snapshot-query-weak-ref.json",
+      "polarity": "negative",
+      "sha256": "6c5e5762be6cf8842fa859c87a241a412d27f985b9f982b28c1e58287d4e8136",
+      "source": "tests/fixtures/contracts/artifact-revision-snapshot-query-weak-ref.json",
+      "type": "artifact.get_revision_snapshot",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "invalid",
+      "id": "negative__quality-verify-evidence-object-ref-rejected",
+      "owner": "quality-governance",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/negative/quality-verify-evidence-object-ref-rejected.json",
+      "polarity": "negative",
+      "sha256": "d7d6bab82fd9582378269867b55fbf3b8a2d9c44d3b12acbbaaad5cbd1572e24",
+      "source": "tests/fixtures/contracts/quality-verify-evidence-object-ref-rejected.json",
+      "type": "quality.verify_evidence",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "invalid",
+      "id": "negative__release-publication-failed-event-illegal-outcome",
+      "owner": "release-publication",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/negative/release-publication-failed-event-illegal-outcome.json",
+      "polarity": "negative",
+      "sha256": "bf27af3be39d609e750fa6d625c137e03e37e0191ed7d32679f21fd7c8f56173",
+      "source": "tests/fixtures/contracts/release-publication-failed-event-illegal-outcome.json",
+      "type": "release.PublicationFailed",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "invalid",
+      "id": "negative__integration-bind-channel-context-command-external-ref-leak",
+      "owner": "integration-gateway",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/negative/integration-bind-channel-context-command-external-ref-leak.json",
+      "polarity": "negative",
+      "sha256": "589cbc111f8c47fb6f1e541e684fb04f86d5f2de436b38a8cbcc24062c71caba",
+      "source": "tests/fixtures/contracts/integration-bind-channel-context-command-external-ref-leak.json",
+      "type": "integration.bind_channel_context",
+      "validation": "operation",
+      "version": "1.0"
+    },
+    {
+      "expect": "invalid",
+      "id": "negative__command-unknown-major",
+      "owner": "registry",
+      "path": "tests/fixtures/contracts/compatibility/v1.0/negative/command-unknown-major.json",
+      "polarity": "negative",
+      "sha256": "737378c96ef219342826658e2f42c3d52cc54bb47eb69154cd6a6926b3df7b0f",
+      "source": "tests/fixtures/contracts/command-valid.json",
+      "type": "identity.register_principal",
+      "validation": "unknownMajor",
+      "version": "2.0"
+    }
+  ]
+}
