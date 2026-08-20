@@ -22,7 +22,7 @@ import {
   type PublicOperationDefinition,
 } from '../../../contracts/src/schema-types.ts';
 
-import { operationEnvelopeSchema } from './live-envelopes.ts';
+import { operationEnvelopeSchema } from '../../../contracts/src/envelopes.schema.ts';
 import {
   isObject,
   stableStringify,

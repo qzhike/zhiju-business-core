@@ -126,7 +126,7 @@ describe('historical baseline event schema validation', () => {
     expect(result.errors[0]?.keyword).toBe('operationRegistry');
   });
 
-  it('does not import the live envelope builder module', () => {
+  it('does not import any live envelope builder; only frozen envelope JSON', () => {
     const source = readFileSync(
       join(repositoryRoot, 'tools/contracts/lib/historical-baseline.ts'),
       'utf8',

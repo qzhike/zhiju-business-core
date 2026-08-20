@@ -129,8 +129,9 @@
 | CC-COMPAT-006 | Negative | 每 owner 历史负向 + 未知 Major | 拒绝（含 Registry unknown major） | 7 owner negative + unknownMajor keyword=operationRegistry | `PASS` |
 | CC-COMPAT-007 | Unit | Canonical JSON / Hash 冻结期望 | digest 与期望一致，不改算法迁就 | `fixtures.index.json` canonicalHashes=3 全部匹配 | `PASS` |
 | CC-COMPAT-008 | Unit | 生产 metadata fingerprint 变化且无 APPROVED | `MANUAL_REVIEW_REQUIRED` 且 Gate FAIL | 200 非空 fingerprint；修改 authorizationPurpose 后 FAIL；APPROVED 后仅放行人工项 | `PASS` |
-| CC-COMPAT-009 | Gate | `pnpm clean && pnpm verify` | 全绿；错误可定位 operation/version/path | format/lint/typecheck/test(283)/architecture/contracts:check 全 PASS；`compatibility=PASS envelopes=200` | `PASS` |
+| CC-COMPAT-009 | Gate | `pnpm clean && pnpm verify` | 全绿；错误可定位 operation/version/path | format/lint/typecheck/test(287)/architecture/contracts:check 全 PASS；`compatibility=PASS envelopes=200` | `PASS` |
 | CC-COMPAT-010 | Contract | 历史 Event 用冻结 v1.0 Schema+envelope 验证；mutated envelope/payload 隔离 | 冻结路径 valid；mutated envelope/payload invalid；再走冻结仍 valid；不 import live envelope builder | `historical-baseline.test.ts` 5/5 | `PASS` |
+| CC-COMPAT-011 | Gate | Gate 当前 envelope 必须来自生产 `envelopes.schema.ts` | 无 live-envelopes 副本；200 条与生产 builder 一致；生产收窄相对基线 BREAKING | `production-envelope-source.test.ts` 4/4 | `PASS` |
 
 ## 11. 未执行项
 
