@@ -419,15 +419,45 @@ function renderVariant(
 // therefore requires `X`, `Y`, `Z`, `W` to be present together.
 function expandDependentRequired(
   dependentRequired: Readonly<Record<string, unknown>>,
+  knownProperties: ReadonlySet<string>,
 ): ReadonlyMap<string, ReadonlySet<string>> {
-  const out = new Map<string, Set<string>>();
+  // Resolve the raw schema rule into a property-key map first, dropping
+  // entries that name properties the object doesn't actually declare — Ajv
+  // would never trigger them, so generating variants around them would be
+  // dead code.
+  const raw = new Map<string, Set<string>>();
   for (const [key, deps] of Object.entries(dependentRequired)) {
+    if (!knownProperties.has(key)) continue;
     const depList = Array.isArray(deps)
-      ? deps.filter((d): d is string => typeof d === 'string')
+      ? deps.filter((d): d is string => typeof d === 'string' && knownProperties.has(d))
       : [];
-    out.set(key, new Set(depList));
+    raw.set(key, new Set(depList));
   }
-  return out;
+
+  // Compute the transitive closure: when `A` requires `B` and `B` requires
+  // `C`, a variant that has `A` must also carry `C`. We walk each key until
+  // no new dependency is added, guarding against cycles by recording the
+  // in-flight path.
+  const closure = new Map<string, Set<string>>();
+  const visiting = new Set<string>();
+  const visit = (key: string, acc: Set<string>): void => {
+    const direct = raw.get(key);
+    if (direct === undefined) return;
+    for (const dep of direct) {
+      if (acc.has(dep)) continue;
+      acc.add(dep);
+      if (visiting.has(dep)) continue;
+      visiting.add(key);
+      visit(dep, acc);
+      visiting.delete(key);
+    }
+  };
+  for (const key of raw.keys()) {
+    const acc = new Set<string>(raw.get(key));
+    visit(key, acc);
+    closure.set(key, acc);
+  }
+  return closure;
 }
 
 function renderDependentRequiredUnion(
@@ -436,34 +466,26 @@ function renderDependentRequiredUnion(
   dependentRequired: Readonly<Record<string, unknown>>,
   context: EmitContext,
 ): string {
-  const expanded = expandDependentRequired(dependentRequired);
+  const knownProperties = new Set(Object.keys(props));
+  const closure = expandDependentRequired(dependentRequired, knownProperties);
   const variants: string[] = [];
 
-  // Base variant — none of the dependentRequired keys are present.
-  const baseForbidden = new Set<string>(expanded.keys());
+  // Base variant — none of the dependentRequired trigger keys are present.
+  // All trigger keys are listed as `key?: undefined` so the variant is
+  // disjoint from any "trigger present" branch.
+  const baseForbidden = new Set<string>(closure.keys());
   variants.push(renderVariant(props, requiredSet, baseForbidden, context));
 
-  // One variant per dependentRequired key — that key is present (and every
-  // transitive dependency is required alongside it). Other dependent keys are
-  // explicitly forbidden in this variant so the discriminated union stays
-  // disjoint.
-  for (const [trigger, deps] of expanded) {
+  // One variant per dependentRequired trigger key. The trigger itself and
+  // every transitive dependency are required; sibling trigger keys are NOT
+  // forbidden, so two independent triggers (e.g. `A -> B` and `C -> D`) can
+  // coexist in a single object that matches either or both variants.
+  for (const [trigger, deps] of closure) {
     const variantRequired = new Set<string>(requiredSet);
     variantRequired.add(trigger);
     for (const dep of deps) variantRequired.add(dep);
 
-    const variantForbidden = new Set<string>();
-    for (const other of expanded.keys()) {
-      if (other === trigger) continue;
-      variantForbidden.add(other);
-    }
-
-    const variantProps: SchemaObject = {};
-    for (const [name, propSchema] of Object.entries(props)) {
-      if (variantForbidden.has(name)) continue;
-      variantProps[name] = propSchema;
-    }
-    variants.push(renderVariant(variantProps, variantRequired, new Set<string>(), context));
+    variants.push(renderVariant(props, variantRequired, new Set<string>(), context));
   }
 
   return `(${variants.join(' | ')})`;

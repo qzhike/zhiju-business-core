@@ -1,8 +1,8 @@
 # IM-01 Executable Schema → TypeScript 类型生成 验证报告
 
-日期：2026-08-20
+日期：2026-08-20（初版），2026-08-20（PR #18 第二轮 review 修订）
 环境：macOS/zsh，Node.js v24.19.0，pnpm 11.19.0
-状态：`SLICE IMPLEMENTED / DESIGN VERIFIED / STATIC GATE PASS / USER REVIEW PENDING`
+状态：`SLICE IMPLEMENTED / DESIGN VERIFIED / STATIC GATE PASS / PR #18 ROUND 2 REVIEW REMEDIATED / USER REVIEW PENDING`
 
 ## 1. 验证范围
 
@@ -29,6 +29,8 @@
 | IM01-EXE-007 | 模块内部路径不外泄 | 业务模块只能从 `contracts/src/generated/types/index.js` 入口消费 | generator 不输出 cross-module `import`；消费侧 fixture 只通过 `@zhiju/contracts` 入口断言（`import type { ... } from '@zhiju/contracts'`），未直接读取 `generated/types/*.ts` 内部路径 | `PASS` |
 | IM01-EXE-008 | 整 Core Contract 引用不被折叠为 `ContractHeader` | `ExecutionFreezeWorkOrderPayload.workOrderContract` 等字段映射到 `Core.WorkOrderContract` 等顶层类型 | `task-execution.ts` 中 `workOrderContract: Core.WorkOrderContract`；`quality-governance.ts` 中 `RevisionAcceptanceResult = Core.RevisionAcceptanceSnapshot`、`ApprovalBundleResult = Core.ApprovalBundleSnapshot`、`ReleaseReadinessResult = Core.ReleaseReadinessSnapshot`；fixture 包含正负向探针 | `PASS` |
 | IM01-EXE-009 | `dependentRequired` 不静默丢失 | `Common.ScopeRef` 在 `projectId` 存在时强制 `enterpriseId` 同时存在 | fixture 中 `{ projectId: uuid }` 触发 `@ts-expect-error` | `PASS` |
+| IM01-EXE-010 | `dependentRequired` 传递闭包与独立 trigger 同时存在 | 链式 `{ A: [B], B: [C] }` 与独立 `{ A: [B], C: [D] }` 都能正确表达 | `tests/types/generator-dependent-required.test-d.ts` 中 `Chain` 与 `Independent` 两个 discriminated union 全部通过 `pnpm typecheck` 与每个 `@ts-expect-error` | `PASS` |
+| IM01-EXE-011 | `dependentRequired` 中无意义条目（指向未声明属性） | 静默忽略，不产生死代码变体 | `expandDependentRequired` 过滤 `knownProperties` 之外的 key | `PASS` |
 
 ## 3. 关键命令与输出
 
@@ -52,7 +54,9 @@ typescript_types=UPDATED payloads=200 query_results=44 core_contracts=6
 - `contracts/src/generated/types/core.ts`：6 个 Core Contract 顶层 + 50+ 内部结构
 - `contracts/src/generated/types/{artifact,enterprise-project,identity-policy,integration-gateway,quality-governance,release-publication,task-execution}.ts`：每个 module 的共享类型 + 200 payload + 44 result
 - `contracts/src/generated/types/index.ts`：公开入口
-- `tests/types/generated-types.test-d.ts`：正负向 fixture
+- `contracts/src/index.ts`：根包入口，重导出 `CanonicalJson` 与 8 个 namespace
+- `tests/types/generated-types.test-d.ts`：代表性正负向 fixture（Command/Query/Event/Core Contract/ScopeRef）
+- `tests/types/generator-dependent-required.test-d.ts`：生成器 discriminated union 矩阵测试（链式 + 独立 trigger）
 - `tests/types/tsconfig.json`：独立 typecheck 项目
 
 ## 4. 生成规则与限制
@@ -70,7 +74,9 @@ typescript_types=UPDATED payloads=200 query_results=44 core_contracts=6
 - `$ref` 跨 `common`/`core`/module 命名空间正确解析；
 - 6 个 Core Contract 顶层类型作为 `Core.ProjectContextContract` 等命名空间导出；
 - 整 Core Contract 引用（如 `ExecutionFreezeWorkOrderPayload.workOrderContract`）映射到 `Core.WorkOrderContract` 等顶层类型而非折叠为 `Common.ContractHeader`；
-- `dependentRequired` 通过 discriminated union 变体表达：`Common.ScopeRef` 在 `projectId` 存在时强制 `enterpriseId` 同时存在。
+- `dependentRequired` 通过 discriminated union 变体表达：`Common.ScopeRef` 在 `projectId` 存在时强制 `enterpriseId` 同时存在；
+- `dependentRequired` 计算传递闭包：链式 `{ A: [B], B: [C] }` 生成 `base | withA(A,B,C) | withB(B,C)`；独立 `{ A: [B], C: [D] }` 生成 `base | withA(A,B,C?,D?) | withC(A?,B?,C,D)`，两个独立 trigger 可同时存在；
+- `dependentRequired` 中指向未声明属性的条目被静默忽略（不生成死代码变体）。
 
 ### 4.2 已知生成限制（由运行时承担）
 
@@ -97,17 +103,22 @@ typescript_types=UPDATED payloads=200 query_results=44 core_contracts=6
 1. 生成器是项目内手写实现；若未来 JSON Schema 引入新关键字（如 `prefixItems`、`$dynamicRef`），需要扩展 `schemaExpression` 才能保持兼容；提交前需在契约评审中确认。
 2. `noUncheckedIndexedAccess` 启用时，TypeScript 测试 fixture 在引用 `activeBaselineResult.templateBaselineRef` 时需要显式解构或 `!`，因为 `string|undefined` 是合法索引访问结果。生成器本身不受影响。
 3. 生成类型采用命名空间 `Common.*` / `Core.*` / `<Module>.*` 分组；这是公开 API 设计决策，业务侧导入 `index.ts` 后即可使用全部类型，无需深路径。如果未来需要放宽（如允许 ESM tree-shaking），需要重新审视。
-4. fixture 仅覆盖代表性 5 个 operation 类型（Command/Query/Event 各 1）、1 个 Core Contract 与 `CanonicalJson`；其余 195 个 operation 类型未单独测试，但都被相同生成规则覆盖，且每个 module 的 namespace 在 fixture 中至少被引用一次以保证不会因命名漂移被静默删除。
+4. 当前 fixture 覆盖代表性 7 个 operation 类型（5 个在 `generated-types.test-d.ts`：Command `register_principal`、Query `resolve_principal`、Query `get_active_baseline_refs`、Command `create_task`、Command `record_information_delivery`、Command `start_publication_attempt`、Event `PrincipalRegistered`）+ 2 个 Core Contract（`ProjectContextContract`、`WorkOrderContract`）+ `Common.ScopeRef` + 生成器 dependentRequired discriminated union 矩阵（链式 / 独立 trigger）。每个 module namespace 在 fixture 中至少被引用一次以保证不会因命名漂移被静默删除。其余 193 个 operation payload 类型未单独 fixture 覆盖，但都通过相同的生成规则派生。
 
-## 7. Git 状态
+## 7. Git / PR 状态
 
-当前分支 `galendai/im-01-executable-schema-typescript` 已包含：
+PR：`https://github.com/qzhike/zhiju-business-core/pull/18`
+分支：`galendai/im-01-executable-schema-typescript`
 
-- 新增 `tools/contracts/generate-typescript-types.mts`
-- 新增 `contracts/src/generated/types/{common,core,artifact,enterprise-project,identity-policy,integration-gateway,quality-governance,release-publication,task-execution,index}.ts`
-- 新增 `tests/types/{generated-types.test-d.ts,tsconfig.json}`
-- 修改 `package.json` (`contracts:generate`/`contracts:check`)
-- 修改 `tsconfig.json` (新增 tests/types project reference)
-- 新增 `.vibe/im-01-executable-schema-typescript/{Task-Plan.md,Verification-Report.md}`
+提交历史：
 
-未提交，等待用户确认后由 Claude Code 执行 `git commit` 与 `gh pr create`。
+1. `efb0309 feat(contracts): generate stable TypeScript types from executable schemas (issue #7)` — 初版实现（200 payload + 44 result + 6 Core Contract + 共享 enum/Value/Reference + 编译级 fixture）。
+2. `1d1e471 fix(contracts): remediate PR #18 review (whole Core Contracts, dependentRequired, public entry)` — 第一轮 review 修复（P1×2 + P2×1）。
+3. 当前提交 `fix(contracts): remediate PR #18 round 2 (dependentRequired closure + independent triggers)` — 第二轮 review 修复：计算 `dependentRequired` 传递闭包、支持独立 trigger 共存、新增 `tests/types/generator-dependent-required.test-d.ts` 覆盖链式/独立两种 shape、更新本验证报告。
+
+合并前用户验收项：
+
+- fixture 中每条 `@ts-expect-error` 都触发；
+- `pnpm verify` 全绿（format/lint/typecheck/test/architecture/contracts:check）；
+- `pnpm contracts:generate` 两次输出字节相同；
+- HL-Spec §7 / README 反映 IM-01-executable-schema 子切片已完成。
