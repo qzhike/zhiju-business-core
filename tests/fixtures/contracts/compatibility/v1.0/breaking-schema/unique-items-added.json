@@ -1,0 +1,15 @@
+{
+  "baseline": {
+    "type": "array",
+    "items": {
+      "type": "string"
+    }
+  },
+  "current": {
+    "type": "array",
+    "items": {
+      "type": "string"
+    },
+    "uniqueItems": true
+  }
+}

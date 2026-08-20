@@ -1,8 +1,8 @@
 # IM-01 v1.0 Schema 兼容性基线 Verification Report
 
-日期：2026-08-20
+日期：2026-08-21
 对应 Issue：[#8](https://github.com/qzhike/zhiju-business-core/issues/8)
-状态：`AUTOMATED PASS / USER REVIEW PENDING`
+状态：`AUTOMATED PASS / PR #19 ROUND-1 REMEDIATED / USER REVIEW PENDING`
 
 ## 1. 覆盖范围
 
@@ -12,9 +12,11 @@
 | Core Contract 快照 | 6（`schemas/core/*.schema.json`） | `PASS` |
 | Schema 文档快照 | 14（common + 6 core + 7 modules） | `PASS` |
 | Structural compatibility Gate | `tools/contracts/check-compatibility.mts` | `compatibility=PASS ... findings=0` |
-| 规则矩阵单测 | `tools/contracts/lib/schema-compatibility.test.ts`（10） | `PASS` |
+| 规则矩阵单测 | `tools/contracts/lib/schema-compatibility.test.ts`（16） | `PASS` |
 | 历史 fixture 回归 | `contracts/src/compatibility.fixture.test.ts`（6） | `PASS` |
-| 全量 Vitest | 11 files / 270 tests | `PASS` |
+| 冻结 Event Schema | `tools/contracts/lib/historical-baseline.test.ts`（3） | `PASS` |
+| 人工审查元数据 | `contracts/registry/operation-compatibility-metadata.v1.json`（200 非空 fingerprint） | `PASS` |
+| 全量 Vitest | 12 files / 279 tests | `PASS` |
 | `pnpm clean && pnpm verify` | format/lint/typecheck/test/architecture/contracts:check | `PASS` |
 
 ## 2. 验收对照（Issue #8）
@@ -42,6 +44,8 @@
 ```text
 compatibility=PASS baseline=v1.0 operations=200 schemas=14 minor=0 findings=0
 catalog_registry=PASS catalog=200 registry=200 schema_status={"FULL":200}
-Test Files  11 passed (11)
-Tests  270 passed (270)
+Test Files  12 passed (12)
+Tests  279 passed (279)
 ```
+
+PR #19 round-1 审查修复见 [`Round1-Remediation.md`](./Round1-Remediation.md)。

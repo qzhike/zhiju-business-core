@@ -1,6 +1,11 @@
 // Shared schema loading helpers for baseline generation and compatibility checks.
 // Imports the same TypeScript schema sources as generate-typescript-types.mts.
 
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { commonSchema } from '../../../contracts/src/common.schema.ts';
 import { coreContractSchemas } from '../../../contracts/src/core.schema.ts';
 import { publicApiOperations } from '../../../contracts/src/generated/public-api.ts';
@@ -17,7 +22,31 @@ import {
   type PublicOperationDefinition,
 } from '../../../contracts/src/schema-types.ts';
 
-import { isObject, type OperationCompatibilityRecord } from './schema-compatibility.ts';
+import {
+  isObject,
+  stableStringify,
+  type OperationCompatibilityRecord,
+} from './schema-compatibility.ts';
+
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const manualReviewMetadataPath = join(
+  repositoryRoot,
+  'contracts',
+  'registry',
+  'operation-compatibility-metadata.v1.json',
+);
+
+export interface OperationManualReviewMetadata {
+  readonly type: string;
+  readonly version: string;
+  readonly authorizationPurpose: string;
+  readonly dataClassification: string;
+  readonly semanticDeclaration: string;
+}
+
+interface ManualReviewMetadataFile {
+  readonly operations: readonly OperationManualReviewMetadata[];
+}
 
 export interface NamedSchemaDocument {
   readonly key: string;
@@ -131,19 +160,52 @@ export function loadCurrentSchemaDocuments(): readonly NamedSchemaDocument[] {
   return documents;
 }
 
+export function computeManualReviewFingerprint(
+  metadata: Pick<
+    OperationManualReviewMetadata,
+    'authorizationPurpose' | 'dataClassification' | 'semanticDeclaration'
+  >,
+): string {
+  const payload = {
+    authorizationPurpose: metadata.authorizationPurpose,
+    dataClassification: metadata.dataClassification,
+    semanticDeclaration: metadata.semanticDeclaration,
+  };
+  return createHash('sha256').update(stableStringify(payload).trimEnd(), 'utf8').digest('hex');
+}
+
+export function loadManualReviewMetadata(): ReadonlyMap<string, OperationManualReviewMetadata> {
+  const file = JSON.parse(
+    readFileSync(manualReviewMetadataPath, 'utf8'),
+  ) as ManualReviewMetadataFile;
+  const map = new Map<string, OperationManualReviewMetadata>();
+  for (const entry of file.operations) {
+    const key = `${entry.type}@${entry.version}`;
+    if (map.has(key)) throw new Error(`duplicate manual-review metadata for ${key}`);
+    map.set(key, entry);
+  }
+  return map;
+}
+
 export function loadCurrentOperationRecords(): readonly OperationCompatibilityRecord[] {
-  return (publicApiOperations as readonly PublicOperationDefinition[]).map((operation) => ({
-    type: operation.type,
-    version: operation.version,
-    kind: operation.kind,
-    owner: operation.owner,
-    schemaStatus: operation.schemaStatus,
-    payloadSchemaRef: operationPayloadSchemaRef(operation) ?? null,
-    resultSchemaRef: operationResultSchemaRef(operation) ?? null,
-    // Registry does not yet expose authorizationPurpose/dataClassification.
-    // Null fingerprints stay compatible; any future non-null value requires approval.
-    manualReviewFingerprint: null,
-  }));
+  const metadataByKey = loadManualReviewMetadata();
+  return (publicApiOperations as readonly PublicOperationDefinition[]).map((operation) => {
+    const key = `${operation.type}@${operation.version}`;
+    const metadata = metadataByKey.get(key);
+    if (metadata === undefined) {
+      throw new Error(`missing manual-review metadata for ${key}`);
+    }
+    return {
+      type: operation.type,
+      version: operation.version,
+      kind: operation.kind,
+      owner: operation.owner,
+      schemaStatus: operation.schemaStatus,
+      payloadSchemaRef: operationPayloadSchemaRef(operation) ?? null,
+      resultSchemaRef: operationResultSchemaRef(operation) ?? null,
+      manualReviewFingerprint: computeManualReviewFingerprint(metadata),
+    };
+  });
 }
 
 export function loadCoreContractManifestEntries(): ReadonlyArray<{

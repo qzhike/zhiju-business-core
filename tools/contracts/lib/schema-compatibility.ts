@@ -110,6 +110,141 @@ function constraintNumber(schema: SchemaObject, key: string): number | undefined
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+/** Metadata-only keys that never change the acceptance set by themselves. */
+const IGNORABLE_SCHEMA_KEYS = new Set([
+  '$comment',
+  '$id',
+  '$schema',
+  'default',
+  'deprecated',
+  'description',
+  'examples',
+  'readOnly',
+  'title',
+  'writeOnly',
+]);
+
+/**
+ * Keywords that compareSchemaNodes already inspects explicitly. Any other key
+ * that differs is treated as an unknown assertion and fails closed.
+ */
+const HANDLED_SCHEMA_KEYS = new Set([
+  '$defs',
+  '$ref',
+  'additionalProperties',
+  'allOf',
+  'anyOf',
+  'const',
+  'contains',
+  'dependentRequired',
+  'dependentSchemas',
+  'else',
+  'enum',
+  'exclusiveMaximum',
+  'exclusiveMinimum',
+  'format',
+  'if',
+  'items',
+  'maxContains',
+  'maximum',
+  'maxItems',
+  'maxLength',
+  'maxProperties',
+  'minContains',
+  'minimum',
+  'minItems',
+  'minLength',
+  'minProperties',
+  'multipleOf',
+  'not',
+  'oneOf',
+  'pattern',
+  'patternProperties',
+  'prefixItems',
+  'properties',
+  'propertyNames',
+  'required',
+  'then',
+  'type',
+  'unevaluatedItems',
+  'unevaluatedProperties',
+  'uniqueItems',
+]);
+
+function compareBooleanConstraint(
+  baseline: SchemaObject,
+  current: SchemaObject,
+  key: 'uniqueItems',
+  target: string,
+  path: string,
+): CompatibilityFinding[] {
+  const baselineValue = baseline[key];
+  const currentValue = current[key];
+  if (baselineValue === currentValue) return [];
+  if (baselineValue !== true && currentValue === true) {
+    return [
+      finding(
+        'BREAKING',
+        target,
+        path,
+        `${key}-added`,
+        `${key} tightened from ${String(baselineValue)} to true`,
+      ),
+    ];
+  }
+  if (baselineValue === true && currentValue !== true) {
+    return [
+      finding(
+        'COMPATIBLE_MINOR',
+        target,
+        path,
+        `${key}-removed`,
+        `${key} relaxed from true to ${String(currentValue)}`,
+      ),
+    ];
+  }
+  return [
+    finding(
+      'BREAKING',
+      target,
+      path,
+      `${key}-changed`,
+      `${key} changed from ${String(baselineValue)} to ${String(currentValue)}`,
+    ),
+  ];
+}
+
+function compareAssertionObject(
+  baseline: SchemaObject,
+  current: SchemaObject,
+  key: string,
+  target: string,
+  path: string,
+): CompatibilityFinding[] {
+  const baselineValue = baseline[key];
+  const currentValue = current[key];
+  if (deepEqualStable(baselineValue, currentValue)) return [];
+  if (baselineValue === undefined && currentValue !== undefined) {
+    return [
+      finding('BREAKING', target, `${path}/${key}`, `${key}-added`, `${key} assertion added`),
+    ];
+  }
+  if (baselineValue !== undefined && currentValue === undefined) {
+    return [
+      finding(
+        'COMPATIBLE_MINOR',
+        target,
+        `${path}/${key}`,
+        `${key}-removed`,
+        `${key} assertion removed`,
+      ),
+    ];
+  }
+  return [
+    finding('BREAKING', target, `${path}/${key}`, `${key}-changed`, `${key} assertion changed`),
+  ];
+}
+
 /**
  * Compare two JSON Schema nodes. `baseline` is the frozen consumer contract;
  * `current` must remain backward-compatible with it for Minor changes.
@@ -291,13 +426,46 @@ export function compareSchemaNodes(
     }
   }
 
+  findings.push(...compareBooleanConstraint(baseline, current, 'uniqueItems', target, path));
+
+  if (baseline.format !== current.format) {
+    findings.push(
+      finding(
+        'BREAKING',
+        target,
+        path,
+        'format-changed',
+        `format changed from ${String(baseline.format)} to ${String(current.format)}`,
+      ),
+    );
+  }
+
+  for (const key of [
+    'not',
+    'propertyNames',
+    'contains',
+    'prefixItems',
+    'patternProperties',
+    'dependentSchemas',
+    'unevaluatedItems',
+  ] as const) {
+    findings.push(...compareAssertionObject(baseline, current, key, target, path));
+  }
+
   for (const [key, direction] of [
     ['minimum', 'min'],
     ['minLength', 'min'],
     ['minItems', 'min'],
+    ['minProperties', 'min'],
+    ['minContains', 'min'],
+    ['multipleOf', 'min'],
+    ['exclusiveMinimum', 'min'],
     ['maximum', 'max'],
     ['maxLength', 'max'],
     ['maxItems', 'max'],
+    ['maxProperties', 'max'],
+    ['maxContains', 'max'],
+    ['exclusiveMaximum', 'max'],
   ] as const) {
     const baselineValue = constraintNumber(baseline, key);
     const currentValue = constraintNumber(current, key);
@@ -526,6 +694,23 @@ export function compareSchemaNodes(
           currentDefs?.[name],
           target,
           `${path}/$defs/${name}`,
+        ),
+      );
+    }
+  }
+
+  // Fail closed on any assertion keyword this function does not model yet.
+  const undeclaredKeys = new Set([...Object.keys(baseline), ...Object.keys(current)]);
+  for (const key of undeclaredKeys) {
+    if (HANDLED_SCHEMA_KEYS.has(key) || IGNORABLE_SCHEMA_KEYS.has(key)) continue;
+    if (!deepEqualStable(baseline[key], current[key])) {
+      findings.push(
+        finding(
+          'BREAKING',
+          target,
+          `${path}/${key}`,
+          'unknown-keyword-changed',
+          `unmodeled schema keyword "${key}" changed; treated as breaking`,
         ),
       );
     }

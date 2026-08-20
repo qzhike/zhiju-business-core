@@ -122,14 +122,15 @@
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
 | CC-COMPAT-001 | Gate | `contracts/baselines/v1.0/manifest.json` | operationCount=200、coreContractCount=6 | `operationCount=200 coreContractCount=6 schemas=14` | `PASS` |
-| CC-COMPAT-002 | Unit | required 字段新增/删除、字段删除、closed enum 变化、类型收窄、additionalProperties 翻转、`$ref` 变化夹具 | 全部 `BREAKING` | `schema-compatibility.test.ts` 10/10；keywords 含 required-added/property-removed/enum-changed/type-narrowed/additionalProperties-closed/ref-changed | `PASS` |
+| CC-COMPAT-002 | Unit | required 字段新增/删除、字段删除、closed enum 变化、类型收窄、additionalProperties 翻转、`$ref`/uniqueItems/format/propertyNames/not/未知关键字变化夹具 | 全部 `BREAKING` | `schema-compatibility.test.ts` 16/16；含 uniqueItems-added/format-changed/propertyNames-added/not-added/unknown-keyword-changed | `PASS` |
 | CC-COMPAT-003 | Unit | 新增 optional 非 required 字段夹具 | `COMPATIBLE_MINOR`，旧 payload 仍 valid | failingFindings=[]；keyword=optional-property-added；WorkOrder 历史正向 valid | `PASS` |
 | CC-COMPAT-004 | Contract | 每 owner 历史正向 fixture | 当前 Schema `valid=true` | 7 owner 均有 positive；Ajv/Registry 全 valid | `PASS` |
 | CC-COMPAT-005 | Contract | Core 六类历史正向 fixture | 当前 Schema `valid=true` | core positives=6 | `PASS` |
 | CC-COMPAT-006 | Negative | 每 owner 历史负向 + 未知 Major | 拒绝（含 Registry unknown major） | 7 owner negative + unknownMajor keyword=operationRegistry | `PASS` |
 | CC-COMPAT-007 | Unit | Canonical JSON / Hash 冻结期望 | digest 与期望一致，不改算法迁就 | `fixtures.index.json` canonicalHashes=3 全部匹配 | `PASS` |
-| CC-COMPAT-008 | Unit | `manualReviewFingerprint` 变化且无 APPROVED | `MANUAL_REVIEW_REQUIRED` 且 Gate FAIL | 无 approval FAIL；APPROVED 后仅放行人工项 | `PASS` |
-| CC-COMPAT-009 | Gate | `pnpm clean && pnpm verify` | 全绿；错误可定位 operation/version/path | format/lint/typecheck/test(270)/architecture/contracts:check 全 PASS；`compatibility=PASS` | `PASS` |
+| CC-COMPAT-008 | Unit | 生产 metadata fingerprint 变化且无 APPROVED | `MANUAL_REVIEW_REQUIRED` 且 Gate FAIL | 200 非空 fingerprint；修改 authorizationPurpose 后 FAIL；APPROVED 后仅放行人工项 | `PASS` |
+| CC-COMPAT-009 | Gate | `pnpm clean && pnpm verify` | 全绿；错误可定位 operation/version/path | format/lint/typecheck/test(279)/architecture/contracts:check 全 PASS；`compatibility=PASS` | `PASS` |
+| CC-COMPAT-010 | Contract | 历史 Event 用冻结 v1.0 Schema 验证 + 与 mutated 图对照 | 冻结路径 valid；mutated required 注入 invalid；再走冻结仍 valid | `historical-baseline.test.ts` 3/3 | `PASS` |
 
 ## 11. 未执行项
 

@@ -5,6 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
+  computeManualReviewFingerprint,
+  loadCurrentOperationRecords,
+  loadManualReviewMetadata,
+} from './load-contract-schemas.ts';
+import {
   applyApprovals,
   compareOperationRecords,
   compareSchemaDocuments,
@@ -102,22 +107,81 @@ describe('schema compatibility structural diff', () => {
     expect(keywords(findings)).toContain('optional-property-added');
   });
 
-  it('requires manual approval for fingerprint changes', () => {
-    const baseline: OperationCompatibilityRecord = {
-      type: 'release.authorize_release',
-      version: '1.0',
-      kind: 'COMMAND',
-      owner: 'release-publication',
-      schemaStatus: 'FULL',
-      payloadSchemaRef: 'https://schemas.zhiju.local/modules/release-publication/1.0#/$defs/x',
-      resultSchemaRef: null,
-      manualReviewFingerprint: null,
-    };
-    const current = {
+  it('flags uniqueItems tightening as BREAKING', () => {
+    const fixture = loadCase('unique-items-added.json');
+    const findings = failingFindings(
+      compareSchemaDocuments(fixture.baseline, fixture.current, 'fixture=unique-items-added'),
+    );
+    expect(keywords(findings)).toContain('uniqueItems-added');
+  });
+
+  it('flags format changes as BREAKING', () => {
+    const fixture = loadCase('format-changed.json');
+    const findings = failingFindings(
+      compareSchemaDocuments(fixture.baseline, fixture.current, 'fixture=format-changed'),
+    );
+    expect(keywords(findings)).toContain('format-changed');
+  });
+
+  it('flags propertyNames additions as BREAKING', () => {
+    const fixture = loadCase('property-names-added.json');
+    const findings = failingFindings(
+      compareSchemaDocuments(fixture.baseline, fixture.current, 'fixture=property-names-added'),
+    );
+    expect(keywords(findings)).toContain('propertyNames-added');
+  });
+
+  it('flags not-constraint additions as BREAKING', () => {
+    const fixture = loadCase('not-constraint-added.json');
+    const findings = failingFindings(
+      compareSchemaDocuments(fixture.baseline, fixture.current, 'fixture=not-constraint-added'),
+    );
+    expect(keywords(findings)).toContain('not-added');
+  });
+
+  it('fails closed on unmodeled assertion keywords', () => {
+    const fixture = loadCase('unknown-keyword-changed.json');
+    const findings = failingFindings(
+      compareSchemaDocuments(fixture.baseline, fixture.current, 'fixture=unknown-keyword-changed'),
+    );
+    expect(keywords(findings)).toContain('unknown-keyword-changed');
+  });
+
+  it('loads non-null manualReviewFingerprint values from versioned metadata for all 200 operations', () => {
+    const metadata = loadManualReviewMetadata();
+    const records = loadCurrentOperationRecords();
+    expect(metadata.size).toBe(200);
+    expect(records).toHaveLength(200);
+    expect(
+      records.every(
+        (record) =>
+          typeof record.manualReviewFingerprint === 'string' &&
+          /^[a-f0-9]{64}$/.test(record.manualReviewFingerprint),
+      ),
+    ).toBe(true);
+  });
+
+  it('requires manual approval when production metadata fingerprint changes', () => {
+    const records = loadCurrentOperationRecords();
+    const baseline = records.find((record) => record.type === 'release.authorize_release');
+    expect(baseline).toBeDefined();
+    if (baseline === undefined) return;
+
+    const metadata = loadManualReviewMetadata().get('release.authorize_release@1.0');
+    expect(metadata).toBeDefined();
+    if (metadata === undefined) return;
+
+    const mutatedFingerprint = computeManualReviewFingerprint({
+      authorizationPurpose: `${metadata.authorizationPurpose}.mutated`,
+      dataClassification: metadata.dataClassification,
+      semanticDeclaration: metadata.semanticDeclaration,
+    });
+    expect(mutatedFingerprint).not.toBe(baseline.manualReviewFingerprint);
+
+    const raw = compareOperationRecords(baseline, {
       ...baseline,
-      manualReviewFingerprint: 'authz:purpose=release.authorize#v2',
-    };
-    const raw = compareOperationRecords(baseline, current);
+      manualReviewFingerprint: mutatedFingerprint,
+    });
     expect(failingFindings(raw).some((item) => item.severity === 'MANUAL_REVIEW_REQUIRED')).toBe(
       true,
     );
@@ -136,24 +200,21 @@ describe('schema compatibility structural diff', () => {
   });
 
   it('never lets approvals cancel structural BREAKING findings', () => {
-    const baseline: OperationCompatibilityRecord = {
-      type: 'identity.register_principal',
-      version: '1.0',
-      kind: 'COMMAND',
-      owner: 'identity-policy',
-      schemaStatus: 'FULL',
-      payloadSchemaRef: 'ref-a',
-      resultSchemaRef: null,
-      manualReviewFingerprint: null,
-    };
-    const current = { ...baseline, owner: 'enterprise-project' };
-    const findings = applyApprovals(compareOperationRecords(baseline, current), [
-      {
-        kind: 'operation-metadata-changed',
-        target: 'operation=identity.register_principal@1.0',
-        status: 'APPROVED',
-      },
-    ]);
+    const records = loadCurrentOperationRecords();
+    const baseline = records.find((record) => record.type === 'identity.register_principal');
+    expect(baseline).toBeDefined();
+    if (baseline === undefined) return;
+
+    const findings = applyApprovals(
+      compareOperationRecords(baseline, { ...baseline, owner: 'enterprise-project' }),
+      [
+        {
+          kind: 'operation-metadata-changed',
+          target: 'operation=identity.register_principal@1.0',
+          status: 'APPROVED',
+        },
+      ],
+    );
     expect(failingFindings(findings).some((item) => item.severity === 'BREAKING')).toBe(true);
   });
 });

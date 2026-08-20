@@ -52,13 +52,14 @@ if (existsSync(join(baselineRoot, 'manifest.json')) && !force) {
     operations,
   });
 
-  // fixtures.index.json is generated empty here and filled by the fixture
-  // freeze step / check harness once historical fixtures are copied.
+  // fixtures.index.json is authored/frozen separately (historical fixtures +
+  // canonical hashes). Never wipe it on FORCE_BASELINE_REWRITE.
   const fixturesIndexPath = join(baselineRoot, 'fixtures.index.json');
-  if (!existsSync(fixturesIndexPath) || force) {
+  if (!existsSync(fixturesIndexPath)) {
     writeJson('fixtures.index.json', {
       baselineId: 'v1.0',
       fixtures: [],
+      canonicalHashes: [],
     });
   }
 

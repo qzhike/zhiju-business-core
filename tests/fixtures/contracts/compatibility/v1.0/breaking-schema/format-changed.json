@@ -1,0 +1,10 @@
+{
+  "baseline": {
+    "type": "string",
+    "format": "date-time"
+  },
+  "current": {
+    "type": "string",
+    "format": "email"
+  }
+}
