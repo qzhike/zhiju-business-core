@@ -147,6 +147,26 @@ describe('schema compatibility structural diff', () => {
     expect(keywords(findings)).toContain('unknown-keyword-changed');
   });
 
+  it('flags multipleOf divisor changes as BREAKING even when the number decreases', () => {
+    const fixture = loadCase('multiple-of-changed.json');
+    const findings = failingFindings(
+      compareSchemaDocuments(fixture.baseline, fixture.current, 'fixture=multiple-of-changed'),
+    );
+    expect(keywords(findings)).toContain('multipleOf-changed');
+  });
+
+  it('flags patternProperties removal as BREAKING when acceptance impact is context-sensitive', () => {
+    const fixture = loadCase('pattern-properties-removed.json');
+    const findings = failingFindings(
+      compareSchemaDocuments(
+        fixture.baseline,
+        fixture.current,
+        'fixture=pattern-properties-removed',
+      ),
+    );
+    expect(keywords(findings)).toContain('patternProperties-changed');
+  });
+
   it('loads non-null manualReviewFingerprint values from versioned metadata for all 200 operations', () => {
     const metadata = loadManualReviewMetadata();
     const records = loadCurrentOperationRecords();

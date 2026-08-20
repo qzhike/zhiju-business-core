@@ -214,7 +214,11 @@ function compareBooleanConstraint(
   ];
 }
 
-function compareAssertionObject(
+/**
+ * Assertion keywords whose removal is safely widening on its own (they only
+ * subtract from the acceptance set while present).
+ */
+function compareRemovableWideningAssertion(
   baseline: SchemaObject,
   current: SchemaObject,
   key: string,
@@ -242,6 +246,74 @@ function compareAssertionObject(
   }
   return [
     finding('BREAKING', target, `${path}/${key}`, `${key}-changed`, `${key} assertion changed`),
+  ];
+}
+
+/**
+ * Keywords whose add/remove/change interacts with siblings (e.g. additionalProperties)
+ * so acceptance-set impact cannot be inferred from presence alone. Fail closed.
+ */
+function compareContextSensitiveAssertion(
+  baseline: SchemaObject,
+  current: SchemaObject,
+  key: string,
+  target: string,
+  path: string,
+): CompatibilityFinding[] {
+  const baselineValue = baseline[key];
+  const currentValue = current[key];
+  if (deepEqualStable(baselineValue, currentValue)) return [];
+  return [
+    finding(
+      'BREAKING',
+      target,
+      `${path}/${key}`,
+      `${key}-changed`,
+      `${key} changed; acceptance-set impact is context-sensitive and treated as breaking`,
+    ),
+  ];
+}
+
+function compareMultipleOf(
+  baseline: SchemaObject,
+  current: SchemaObject,
+  target: string,
+  path: string,
+): CompatibilityFinding[] {
+  const baselineValue = constraintNumber(baseline, 'multipleOf');
+  const currentValue = constraintNumber(current, 'multipleOf');
+  if (baselineValue === currentValue) return [];
+  if (baselineValue === undefined && currentValue !== undefined) {
+    return [
+      finding(
+        'BREAKING',
+        target,
+        path,
+        'multipleOf-added',
+        `multipleOf constraint added with value ${currentValue}`,
+      ),
+    ];
+  }
+  if (baselineValue !== undefined && currentValue === undefined) {
+    return [
+      finding(
+        'COMPATIBLE_MINOR',
+        target,
+        path,
+        'multipleOf-removed',
+        'multipleOf constraint removed',
+      ),
+    ];
+  }
+  // Divisor changes are not ordered by numeric magnitude (2 → 1.5 rejects 2).
+  return [
+    finding(
+      'BREAKING',
+      target,
+      path,
+      'multipleOf-changed',
+      `multipleOf changed from ${String(baselineValue)} to ${String(currentValue)}`,
+    ),
   ];
 }
 
@@ -440,17 +512,21 @@ export function compareSchemaNodes(
     );
   }
 
+  for (const key of ['not', 'propertyNames'] as const) {
+    findings.push(...compareRemovableWideningAssertion(baseline, current, key, target, path));
+  }
+
   for (const key of [
-    'not',
-    'propertyNames',
     'contains',
     'prefixItems',
     'patternProperties',
     'dependentSchemas',
     'unevaluatedItems',
   ] as const) {
-    findings.push(...compareAssertionObject(baseline, current, key, target, path));
+    findings.push(...compareContextSensitiveAssertion(baseline, current, key, target, path));
   }
+
+  findings.push(...compareMultipleOf(baseline, current, target, path));
 
   for (const [key, direction] of [
     ['minimum', 'min'],
@@ -458,7 +534,6 @@ export function compareSchemaNodes(
     ['minItems', 'min'],
     ['minProperties', 'min'],
     ['minContains', 'min'],
-    ['multipleOf', 'min'],
     ['exclusiveMinimum', 'min'],
     ['maximum', 'max'],
     ['maxLength', 'max'],

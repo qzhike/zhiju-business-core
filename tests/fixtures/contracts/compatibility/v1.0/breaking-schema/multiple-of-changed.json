@@ -1,0 +1,10 @@
+{
+  "baseline": {
+    "type": "number",
+    "multipleOf": 2
+  },
+  "current": {
+    "type": "number",
+    "multipleOf": 1.5
+  }
+}

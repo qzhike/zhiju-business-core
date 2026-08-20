@@ -47,7 +47,7 @@ describe('historical baseline event schema validation', () => {
     }
   });
 
-  it('selects frozen historical Event schemas independently of a mutated schema graph', () => {
+  it('keeps historical Event validation on frozen envelopes when a mutated envelope rejects the payload', () => {
     const type = 'execution.RunTerminated';
     const version = '1.0';
     const payload = loadFixture(
@@ -58,7 +58,38 @@ describe('historical baseline event schema validation', () => {
     expect(historical.valid).toBe(true);
     expect(historical.schemaSource).toBe('baseline-v1.0');
 
-    const mutated = historicalRegistry.validateWithMutatedPayloadSchema({
+    const mutatedEnvelope = historicalRegistry.validateWithMutatedFrozenEnvelope({
+      type,
+      version,
+      input: payload,
+      mutate: (envelopeSchema) => {
+        const required = Array.isArray(envelopeSchema.required) ? [...envelopeSchema.required] : [];
+        required.push('compatibilityProbeEnvelopeField');
+        envelopeSchema.required = required;
+        const properties =
+          envelopeSchema.properties !== null &&
+          typeof envelopeSchema.properties === 'object' &&
+          !Array.isArray(envelopeSchema.properties)
+            ? { ...(envelopeSchema.properties as Record<string, unknown>) }
+            : {};
+        properties.compatibilityProbeEnvelopeField = { type: 'string' };
+        envelopeSchema.properties = properties;
+      },
+    });
+    expect(mutatedEnvelope.valid).toBe(false);
+
+    const historicalAgain = historicalRegistry.validateOperation(type, version, payload);
+    expect(historicalAgain.valid).toBe(true);
+  });
+
+  it('keeps historical Event validation on frozen module payloads when a mutated payload def rejects', () => {
+    const type = 'execution.RunTerminated';
+    const version = '1.0';
+    const payload = loadFixture(
+      'tests/fixtures/contracts/compatibility/v1.0/positive/execution-run-terminated-event.json',
+    );
+
+    const mutatedPayload = historicalRegistry.validateWithMutatedPayloadSchema({
       type,
       version,
       input: payload,
@@ -76,10 +107,10 @@ describe('historical baseline event schema validation', () => {
         payloadSchema.properties = properties;
       },
     });
-    expect(mutated.valid).toBe(false);
+    expect(mutatedPayload.valid).toBe(false);
 
-    const historicalAgain = historicalRegistry.validateOperation(type, version, payload);
-    expect(historicalAgain.valid).toBe(true);
+    const historical = historicalRegistry.validateOperation(type, version, payload);
+    expect(historical.valid).toBe(true);
   });
 
   it('rejects unknown majors against the frozen operation index', () => {
@@ -93,5 +124,15 @@ describe('historical baseline event schema validation', () => {
     );
     expect(result.valid).toBe(false);
     expect(result.errors[0]?.keyword).toBe('operationRegistry');
+  });
+
+  it('does not import the live envelope builder module', () => {
+    const source = readFileSync(
+      join(repositoryRoot, 'tools/contracts/lib/historical-baseline.ts'),
+      'utf8',
+    );
+    expect(source).not.toMatch(/from ['"].*envelopes\.schema/);
+    expect(source).not.toMatch(/from ['"].*live-envelopes/);
+    expect(source).not.toMatch(/import\s*\{[^}]*operationEnvelopeSchema/);
   });
 });

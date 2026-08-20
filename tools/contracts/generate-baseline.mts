@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   loadCoreContractManifestEntries,
+  loadCurrentEnvelopeDocuments,
   loadCurrentOperationRecords,
   loadCurrentSchemaDocuments,
 } from './lib/load-contract-schemas.ts';
@@ -32,6 +33,7 @@ if (existsSync(join(baselineRoot, 'manifest.json')) && !force) {
   process.exitCode = 1;
 } else {
   const documents = loadCurrentSchemaDocuments();
+  const envelopes = loadCurrentEnvelopeDocuments();
   const operations = loadCurrentOperationRecords();
   const coreContracts = loadCoreContractManifestEntries();
 
@@ -41,9 +43,15 @@ if (existsSync(join(baselineRoot, 'manifest.json')) && !force) {
   if (coreContracts.length !== 6) {
     throw new Error(`expected 6 core contracts, got ${coreContracts.length}`);
   }
+  if (envelopes.length !== 200) {
+    throw new Error(`expected 200 envelope schemas, got ${envelopes.length}`);
+  }
 
   for (const document of documents) {
     writeJson(document.relativePath, document.schema);
+  }
+  for (const envelope of envelopes) {
+    writeJson(envelope.relativePath, envelope.schema);
   }
 
   writeJson('operations.index.json', {
@@ -70,6 +78,7 @@ if (existsSync(join(baselineRoot, 'manifest.json')) && !force) {
     operationCount: operations.length,
     coreContractCount: coreContracts.length,
     schemaDocuments: documents.map((document) => document.relativePath),
+    envelopeDocuments: envelopes.map((envelope) => envelope.relativePath),
     operations,
     coreContracts,
     manualReviewPolicy: {
@@ -84,6 +93,6 @@ if (existsSync(join(baselineRoot, 'manifest.json')) && !force) {
   });
 
   console.log(
-    `baseline_generate=PASS baseline=v1.0 operations=${operations.length} core=${coreContracts.length} schemas=${documents.length}`,
+    `baseline_generate=PASS baseline=v1.0 operations=${operations.length} core=${coreContracts.length} schemas=${documents.length} envelopes=${envelopes.length}`,
   );
 }

@@ -1,0 +1,15 @@
+{
+  "baseline": {
+    "type": "object",
+    "patternProperties": {
+      "^x": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false
+  },
+  "current": {
+    "type": "object",
+    "additionalProperties": false
+  }
+}

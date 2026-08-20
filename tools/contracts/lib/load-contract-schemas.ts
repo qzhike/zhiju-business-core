@@ -22,6 +22,7 @@ import {
   type PublicOperationDefinition,
 } from '../../../contracts/src/schema-types.ts';
 
+import { operationEnvelopeSchema } from './live-envelopes.ts';
 import {
   isObject,
   stableStringify,
@@ -217,5 +218,18 @@ export function loadCoreContractManifestEntries(): ReadonlyArray<{
     name: core.name,
     schemaId: core.schemaId,
     snapshot: `schemas/core/${core.fileBase}.schema.json`,
+  }));
+}
+
+export function envelopeSchemaRelativePath(type: string): string {
+  return `schemas/envelopes/${type}.schema.json`;
+}
+
+export function loadCurrentEnvelopeDocuments(): readonly NamedSchemaDocument[] {
+  return (publicApiOperations as readonly PublicOperationDefinition[]).map((operation) => ({
+    key: `envelope:${operation.type}@${operation.version}`,
+    relativePath: envelopeSchemaRelativePath(operation.type),
+    schemaId: `https://schemas.zhiju.local/api/1.0/${operation.type}`,
+    schema: operationEnvelopeSchema(operation),
   }));
 }

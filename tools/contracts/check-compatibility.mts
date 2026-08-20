@@ -8,6 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  loadCurrentEnvelopeDocuments,
   loadCurrentOperationRecords,
   loadCurrentSchemaDocuments,
 } from './lib/load-contract-schemas.ts';
@@ -34,6 +35,7 @@ interface BaselineManifest {
   readonly operationCount: number;
   readonly coreContractCount: number;
   readonly schemaDocuments: readonly string[];
+  readonly envelopeDocuments?: readonly string[];
   readonly operations: readonly OperationCompatibilityRecord[];
   readonly coreContracts: ReadonlyArray<{
     readonly name: string;
@@ -69,6 +71,17 @@ if (manifest.coreContractCount !== 6) {
   });
 }
 
+const envelopeDocuments = manifest.envelopeDocuments ?? [];
+if (envelopeDocuments.length !== 200) {
+  findings.push({
+    severity: 'BREAKING',
+    target: 'baseline=v1.0',
+    path: '/envelopeDocuments',
+    keyword: 'baseline-count',
+    detail: `baseline envelopeDocuments must be 200, got ${envelopeDocuments.length}`,
+  });
+}
+
 const currentDocuments = new Map(
   loadCurrentSchemaDocuments().map((document) => [document.relativePath, document] as const),
 );
@@ -91,6 +104,28 @@ for (const relativePath of manifest.schemaDocuments) {
   );
 }
 
+const currentEnvelopes = new Map(
+  loadCurrentEnvelopeDocuments().map((document) => [document.relativePath, document] as const),
+);
+
+for (const relativePath of envelopeDocuments) {
+  const baselineSchema = readJson<unknown>(relativePath);
+  const current = currentEnvelopes.get(relativePath);
+  if (current === undefined) {
+    findings.push({
+      severity: 'BREAKING',
+      target: `envelope=${relativePath}`,
+      path: '',
+      keyword: 'envelope-document-missing',
+      detail: 'envelope schema missing from current sources',
+    });
+    continue;
+  }
+  findings.push(
+    ...compareSchemaDocuments(baselineSchema, current.schema, `envelope=${relativePath}`),
+  );
+}
+
 const currentOperations = new Map(
   loadCurrentOperationRecords().map(
     (operation) => [`${operation.type}@${operation.version}`, operation] as const,
@@ -102,7 +137,7 @@ for (const baseline of baselineOperations) {
   findings.push(...compareOperationRecords(baseline, currentOperations.get(key)));
 }
 
-for (const [key, current] of currentOperations) {
+for (const [key] of currentOperations) {
   if (!baselineOperations.some((operation) => `${operation.type}@${operation.version}` === key)) {
     findings.push({
       severity: 'BREAKING',
@@ -123,6 +158,6 @@ if (unresolved.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `compatibility=PASS baseline=v1.0 operations=${baselineOperations.length} schemas=${manifest.schemaDocuments.length} minor=${minorCount} findings=${findings.length}`,
+    `compatibility=PASS baseline=v1.0 operations=${baselineOperations.length} schemas=${manifest.schemaDocuments.length} envelopes=${envelopeDocuments.length} minor=${minorCount} findings=${findings.length}`,
   );
 }

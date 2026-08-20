@@ -1,0 +1,68 @@
+{
+  "$id": "https://schemas.zhiju.local/api/1.0/project.activate_customer_baseline_version",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actor": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+    },
+    "authorizationDecisionRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/typedReference"
+    },
+    "causationId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    },
+    "commandId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    },
+    "commandType": {
+      "const": "project.activate_customer_baseline_version"
+    },
+    "commandVersion": {
+      "const": "1.0"
+    },
+    "correlationId": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/uuidV7"
+    },
+    "deadline": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+    },
+    "expectedAggregateVersion": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "idempotencyKey": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString"
+    },
+    "integrity": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/integrity"
+    },
+    "payload": {
+      "$ref": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_activate_customer_baseline_version_payload"
+    },
+    "requestedAt": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/utcInstant"
+    },
+    "scopeRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/scopeRef"
+    },
+    "targetRef": {
+      "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/objectRef"
+    }
+  },
+  "required": [
+    "commandId",
+    "commandType",
+    "commandVersion",
+    "scopeRef",
+    "targetRef",
+    "actor",
+    "authorizationDecisionRef",
+    "idempotencyKey",
+    "correlationId",
+    "requestedAt",
+    "payload",
+    "integrity"
+  ],
+  "type": "object"
+}

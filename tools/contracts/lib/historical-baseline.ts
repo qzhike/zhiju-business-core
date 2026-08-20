@@ -1,7 +1,6 @@
-// Load frozen contracts/baselines/v1.0 schemas and validate payloads against
-// historical operation envelopes. Used by compatibility fixture tests so that
-// historical Events are checked with the frozen Schema graph, not only the
-// live ContractRegistry.
+// Load frozen contracts/baselines/v1.0 schemas (including frozen operation
+// envelopes) and validate payloads against that historical graph only.
+// Deliberately does NOT import the live operationEnvelopeSchema builder.
 
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -9,10 +8,11 @@ import { fileURLToPath } from 'node:url';
 
 import Ajv2020Import from '../../../contracts/node_modules/ajv/dist/2020.js';
 
-import { operationEnvelopeSchema } from '../../../contracts/src/envelopes.schema.ts';
-import type { PublicOperationDefinition } from '../../../contracts/src/schema-types.ts';
-
 import type { OperationCompatibilityRecord } from './schema-compatibility.ts';
+
+function envelopeSchemaRelativePath(type: string): string {
+  return `schemas/envelopes/${type}.schema.json`;
+}
 
 export interface HistoricalValidationResult {
   readonly valid: boolean;
@@ -37,31 +37,31 @@ function readJson<T>(absolutePath: string): T {
   return JSON.parse(readFileSync(absolutePath, 'utf8')) as T;
 }
 
-function toPublicOperation(record: OperationCompatibilityRecord): PublicOperationDefinition {
-  return {
-    type: record.type,
-    version: record.version as '1.0',
-    kind: record.kind as PublicOperationDefinition['kind'],
-    owner: record.owner,
-    schemaStatus: record.schemaStatus as PublicOperationDefinition['schemaStatus'],
-  };
+interface BaselineManifest {
+  readonly schemaDocuments: readonly string[];
+  readonly envelopeDocuments?: readonly string[];
 }
 
 export class HistoricalBaselineRegistry {
   readonly #ajv: AjvRuntime;
   readonly #operations: ReadonlyMap<string, OperationCompatibilityRecord>;
   readonly #baselineRoot: string;
+  readonly #schemaDocuments: readonly string[];
+  readonly #envelopeDocuments: readonly string[];
 
   constructor(baselineRoot: string = defaultBaselineRoot) {
     this.#baselineRoot = baselineRoot;
     this.#ajv = new Ajv2020({ allErrors: true, strict: true });
 
-    const manifest = readJson<{ readonly schemaDocuments: readonly string[] }>(
-      join(baselineRoot, 'manifest.json'),
-    );
-    for (const relativePath of manifest.schemaDocuments) {
-      const schema = readJson<object>(join(baselineRoot, relativePath));
-      this.#ajv.addSchema(schema);
+    const manifest = readJson<BaselineManifest>(join(baselineRoot, 'manifest.json'));
+    this.#schemaDocuments = manifest.schemaDocuments;
+    this.#envelopeDocuments = manifest.envelopeDocuments ?? [];
+    if (this.#envelopeDocuments.length === 0) {
+      throw new Error('frozen baseline is missing envelopeDocuments');
+    }
+
+    for (const relativePath of [...this.#schemaDocuments, ...this.#envelopeDocuments]) {
+      this.#ajv.addSchema(readJson<object>(join(baselineRoot, relativePath)));
     }
 
     const operationsIndex = readJson<{
@@ -70,9 +70,7 @@ export class HistoricalBaselineRegistry {
 
     const operations = new Map<string, OperationCompatibilityRecord>();
     for (const operation of operationsIndex.operations) {
-      const key = `${operation.type}@${operation.version}`;
-      operations.set(key, operation);
-      this.#ajv.addSchema(operationEnvelopeSchema(toPublicOperation(operation)));
+      operations.set(`${operation.type}@${operation.version}`, operation);
     }
     this.#operations = operations;
   }
@@ -83,6 +81,10 @@ export class HistoricalBaselineRegistry {
 
   getOperation(type: string, version: string): OperationCompatibilityRecord | undefined {
     return this.#operations.get(`${type}@${version}`);
+  }
+
+  envelopePathFor(type: string): string {
+    return envelopeSchemaRelativePath(type);
   }
 
   validateOperation(type: string, version: string, input: unknown): HistoricalValidationResult {
@@ -119,9 +121,49 @@ export class HistoricalBaselineRegistry {
   }
 
   /**
-   * Build a throwaway Ajv graph from the same frozen documents, but with one
-   * module $defs payload schema mutated. Used to prove historical validation
-   * does not depend on an alternate/current schema graph.
+   * Throwaway Ajv graph using frozen common/module docs + a mutated copy of the
+   * frozen envelope. Proves historical validation does not depend on the live
+   * envelope builder or on a mutated envelope graph.
+   */
+  validateWithMutatedFrozenEnvelope(options: {
+    readonly type: string;
+    readonly version: string;
+    readonly input: unknown;
+    readonly mutate: (envelopeSchema: Record<string, unknown>) => void;
+  }): HistoricalValidationResult {
+    const operation = this.getOperation(options.type, options.version);
+    if (operation === undefined) {
+      throw new Error(`operation ${options.type}@${options.version} missing from frozen index`);
+    }
+
+    const ajv = new Ajv2020({ allErrors: true, strict: true });
+    for (const relativePath of this.#schemaDocuments) {
+      ajv.addSchema(
+        structuredClone(readJson<Record<string, unknown>>(join(this.#baselineRoot, relativePath))),
+      );
+    }
+
+    const envelopePath = this.envelopePathFor(options.type);
+    const envelope = structuredClone(
+      readJson<Record<string, unknown>>(join(this.#baselineRoot, envelopePath)),
+    );
+    options.mutate(envelope);
+    ajv.addSchema(envelope);
+
+    const schemaId = `https://schemas.zhiju.local/api/1.0/${options.type}`;
+    const validate = ajv.getSchema(schemaId);
+    if (validate === undefined) throw new Error(`mutated envelope unavailable for ${schemaId}`);
+    const valid = validate(options.input);
+    return {
+      valid: Boolean(valid),
+      errors: valid ? [] : ((validate.errors ?? []) as HistoricalValidationResult['errors']),
+      schemaSource: 'baseline-v1.0',
+      schemaId,
+    };
+  }
+
+  /**
+   * Throwaway Ajv graph using frozen envelopes + a mutated module payload $def.
    */
   validateWithMutatedPayloadSchema(options: {
     readonly type: string;
@@ -135,11 +177,7 @@ export class HistoricalBaselineRegistry {
     }
 
     const ajv = new Ajv2020({ allErrors: true, strict: true });
-    const manifest = readJson<{ readonly schemaDocuments: readonly string[] }>(
-      join(this.#baselineRoot, 'manifest.json'),
-    );
-
-    for (const relativePath of manifest.schemaDocuments) {
+    for (const relativePath of this.#schemaDocuments) {
       const schema = structuredClone(
         readJson<Record<string, unknown>>(join(this.#baselineRoot, relativePath)),
       );
@@ -162,7 +200,10 @@ export class HistoricalBaselineRegistry {
       ajv.addSchema(schema);
     }
 
-    ajv.addSchema(operationEnvelopeSchema(toPublicOperation(operation)));
+    for (const relativePath of this.#envelopeDocuments) {
+      ajv.addSchema(readJson<object>(join(this.#baselineRoot, relativePath)));
+    }
+
     const schemaId = `https://schemas.zhiju.local/api/1.0/${options.type}`;
     const validate = ajv.getSchema(schemaId);
     if (validate === undefined) throw new Error(`mutated schema unavailable for ${schemaId}`);

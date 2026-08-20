@@ -177,7 +177,7 @@ separationOfDutiesOutcome      = SATISFIED | VIOLATED | INDETERMINATE
 
 | 产物 | 路径 | 约束 |
 |---|---|---|
-| 冻结 Schema 快照 | `contracts/baselines/v1.0/schemas/**` | 含 common、6 个 Core、7 个 module；规范化 JSON；不可静默重写 |
+| 冻结 Schema 快照 | `contracts/baselines/v1.0/schemas/**` | 含 common、6 个 Core、7 个 module、200 个 operation envelope；规范化 JSON；不可静默重写 |
 | 操作索引 | `contracts/baselines/v1.0/operations.index.json` | 200 条 type/version/kind/owner/schemaStatus/schema ref/`manualReviewFingerprint` |
 | 人工审查元数据 | `contracts/registry/operation-compatibility-metadata.v1.json` | 每操作 authorizationPurpose/dataClassification/semanticDeclaration；用于计算 fingerprint |
 | 总清单 | `contracts/baselines/v1.0/manifest.json` | operationCount=200、coreContractCount=6、approvals[]、manualReviewPolicy |
