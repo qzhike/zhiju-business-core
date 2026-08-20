@@ -87,6 +87,42 @@ const CASES: readonly Case[] = [
       { value: { B: 'x', D: 'x' }, expectValid: true, note: 'B+D is fine (no triggers)' },
     ],
   },
+  {
+    label: 'required trigger: required:[A] + { A: [B] } over { A, B }',
+    dependentRequired: { A: ['B'] },
+    properties: ['A', 'B'],
+    required: ['A'],
+    cases: [
+      { value: {}, expectValid: false, note: 'top-level required A forbids empty object' },
+      { value: { A: 'x' }, expectValid: false, note: 'A requires B' },
+      { value: { B: 'x' }, expectValid: false, note: 'A is still required' },
+      { value: { A: 'x', B: 'x' }, expectValid: true, note: 'required A with its dependency' },
+    ],
+  },
+  {
+    label: 'required independent: required:[A] + { A: [B], C: [D] } over { A, B, C, D }',
+    dependentRequired: { A: ['B'], C: ['D'] },
+    properties: ['A', 'B', 'C', 'D'],
+    required: ['A'],
+    cases: [
+      { value: {}, expectValid: false, note: 'required A forbids empty object' },
+      { value: { A: 'x', B: 'x' }, expectValid: true, note: 'required A branch only' },
+      { value: { A: 'x' }, expectValid: false, note: 'A requires B' },
+      { value: { C: 'x', D: 'x' }, expectValid: false, note: 'A remains required' },
+      {
+        value: { A: 'x', C: 'x', D: 'x' },
+        expectValid: false,
+        note: 'required A still needs B even when C is selected',
+      },
+      {
+        value: { A: 'x', B: 'x', C: 'x' },
+        expectValid: false,
+        note: 'C present without D',
+      },
+      { value: { A: 'x', B: 'x', C: 'x', D: 'x' }, expectValid: true, note: 'both branches' },
+      { value: { A: 'x', B: 'x', D: 'x' }, expectValid: true, note: 'A branch with non-trigger D' },
+    ],
+  },
 ];
 
 function buildSchema(
@@ -121,8 +157,9 @@ function emitDependentRequiredUnion(
   required: readonly string[] = [],
 ): string {
   // requiredSet must mirror the schema's top-level `required`, not the set of
-  // dependentRequired triggers. The synthetic fixtures leave `required` empty
-  // so the base variant can still accept `{}`.
+  // dependentRequired triggers. Fixtures that omit `required` pass an empty
+  // set so the base variant can still accept `{}`; fixtures that set
+  // `required` must pass the same keys to both Ajv and the emitter.
   const requiredSet = new Set(required);
   const props: Record<string, unknown> = {};
   for (const name of properties) {

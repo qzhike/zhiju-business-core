@@ -221,15 +221,12 @@ export function renderObject(schema: SchemaObject, context: EmitContext): string
   // `dependentRequired: { X: [Y, Z] }` says "when X is present, Y and Z must
   // also be present". A flat interface cannot express this without giving
   // up the helpful optional-vs-required distinction, so when the rule
-  // applies we emit a discriminated union of one base variant plus one
-  // variant for every non-empty subset of the trigger keys:
-  //   - base — every trigger key absent (and any of its transitive deps
-  //     remain optional);
-  //   - subset-T — every key in `T` is present together, and every
-  //     transitive dependency of every member of `T` is required. The
-  //     subset approach makes sure any combination of independent
-  //     triggers (e.g. `A -> B`, `C -> D`, accepting `{ A, B, C, D }`) is
-  //     covered by at least one variant.
+  // applies we emit a discriminated union:
+  //   - required triggers (those also listed in schema `required`) are
+  //     present on every variant, together with their transitive deps;
+  //   - optional triggers are enumerated as a power set, including the
+  //     empty set only when no trigger is top-level required (the true
+  //     "all triggers absent" base).
   if (dependentRequired !== undefined) {
     const keys = Object.keys(dependentRequired);
     if (keys.length > 0) {
@@ -286,14 +283,14 @@ export function expandDependentRequired(
   return closure;
 }
 
-// Enumerate every non-empty subset of `keys`. For 1 trigger the call yields
-// 1 subset; for N independent triggers it yields 2^N - 1 subsets. The cost
-// is bounded by the number of trigger keys, not the number of property
-// names. In practice dependentRequired rules carry at most a handful of
-// triggers (the live schema uses 1), so the union stays compact.
-function* nonEmptySubsets<T>(keys: readonly T[]): Generator<T[]> {
+// Enumerate every subset of `keys`, including the empty set. For N optional
+// triggers this yields 2^N subsets. The cost is bounded by the number of
+// trigger keys, not the number of property names. In practice
+// dependentRequired rules carry at most a handful of triggers (the live
+// schema uses 1), so the union stays compact.
+function* powerSet<T>(keys: readonly T[]): Generator<T[]> {
   const n = keys.length;
-  for (let mask = 1; mask < 1 << n; mask++) {
+  for (let mask = 0; mask < 1 << n; mask++) {
     const subset: T[] = [];
     for (let i = 0; i < n; i++) {
       if ((mask >> i) & 1) subset.push(keys[i] as T);
@@ -311,25 +308,18 @@ export function renderDependentRequiredUnion(
   const knownProperties = new Set(Object.keys(props));
   const closure = expandDependentRequired(dependentRequired, knownProperties);
   const triggerKeys = [...closure.keys()];
+  // Triggers listed in schema `required` are present on every legal object,
+  // so they (and their closures) must be active on every variant. Forbidding
+  // them on a "base" branch would accept `{}` for `{required:['A'], A:[B]}`,
+  // which Ajv rejects.
+  const requiredTriggers = triggerKeys.filter((key) => requiredSet.has(key));
+  const optionalTriggers = triggerKeys.filter((key) => !requiredSet.has(key));
   const variants: string[] = [];
 
-  // Base variant — none of the dependentRequired trigger keys are present.
-  // All trigger keys are listed as `key?: undefined` so the variant is
-  // disjoint from any "trigger present" branch.
-  const baseForbidden = new Set<string>(triggerKeys);
-  variants.push(renderVariantBody(props, requiredSet, baseForbidden, context));
-
-  // One variant for every non-empty subset of the trigger keys. The subset
-  // keys themselves plus every transitive dependency are required. Any other
-  // trigger that is neither selected nor pulled in as a dependency is
-  // forbidden (`key?: undefined`) so a partial sibling such as `{A,B,C}`
-  // under `{A:[B], C:[D]}` cannot slip through the single-A branch — Ajv
-  // rejects that input because C is present without D. Triggers that appear
-  // only as transitive deps of the subset (chain case `{A:[B], B:[C]}` with
-  // subset `{A}`) stay present because they are already in variantRequired.
-  for (const subset of nonEmptySubsets(triggerKeys)) {
+  for (const optionalSubset of powerSet(optionalTriggers)) {
+    const present = [...requiredTriggers, ...optionalSubset];
     const variantRequired = new Set<string>(requiredSet);
-    for (const trigger of subset) {
+    for (const trigger of present) {
       variantRequired.add(trigger);
       const deps = closure.get(trigger);
       if (deps !== undefined) {
@@ -338,7 +328,7 @@ export function renderDependentRequiredUnion(
     }
     const forbiddenKeys = new Set<string>();
     for (const trigger of triggerKeys) {
-      if (subset.includes(trigger)) continue;
+      if (present.includes(trigger)) continue;
       if (variantRequired.has(trigger)) continue;
       forbiddenKeys.add(trigger);
     }
