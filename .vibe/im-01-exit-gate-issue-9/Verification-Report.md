@@ -29,9 +29,14 @@
 | #7 Schema-derived TypeScript 类型 | CLOSED | PR #18 |
 | #8 v1.0 Schema 兼容性基线 | CLOSED | PR #19 |
 
-### #5 例外说明
+### #5 / #9 口径（用户批准修订）
 
-Issue #9 硬依赖写明 #1–#8 全部关闭。#5 的字段级 Schema 已由 PR #14 合入默认分支；Issue 因 Runtime 验收拆分（#15）按既有决策保持 OPEN。IM-01 Schema 退出 Gate **不阻塞于 #5/#15 Runtime**，也**不得宣称 #5 已关闭**。该模式与 #6 CLOSED + #17 Runtime 追踪一致。
+2026-08-21 用户在 PR #20 review 中批准路径 A，并已同步修订 Issue #9 正文：
+
+- IM-01 Schema 退出 Gate 的硬依赖改为：#1–#8 的 **Schema / Contract 子切片**均已合入默认分支；
+- `#5` **允许**因 Runtime（#15）保持 OPEN；**不得**把 #15 完成当作本 Gate 前置；
+- `#5` 关闭前提仍是 #15 完成（既有交付决策不变）；
+- 本报告**不得宣称 #5 已关闭**，也不得把 Runtime 验收写成 PASS。
 
 ## 3. 数量对账
 
@@ -113,10 +118,11 @@ $ curl -s http://127.0.0.1:3000/health
 3. Ceph RGW ↔ OpenBao Transit 兼容性必须在后续里程碑实测。
 4. Canonical Document/Workbook 与 Renderer 未决（IM-DG-005）。
 5. Runtime 6 个 additive Command 与默认 Policy 未审核（IM-DG-006）；不得通过私有 API 或直写库绕过。
-6. #5 仍 OPEN 仅因 Runtime(#15)；若审阅方要求字面满足“#1–#8 全部关闭”，需先按 #6/#17 模式关闭 #5 Schema 验收并保留 #15。
+6. #5 仍 OPEN 仅因 Runtime(#15)；按 2026-08-21 批准的 Issue #9 修订口径，这不阻塞 IM-01 Schema 退出 Gate，但 #5 本身要等 #15 完成后才关闭。
 
 ## 8. 退出判定
 
 - 自动化 Gate：`PASS`
 - 文档收口：随本 PR 同步为 `IM-01 EXIT GATE READY / AWAITING USER REVIEW`
-- 正式 `IM-01 COMPLETE`：**仅在用户审核本报告后**更新；随后才允许进入 IM-02。
+- 本 PR **不**使用 `Closes #9`：合并只沉淀证据与口径修订，Issue #9 保持开放
+- 正式 `IM-01 COMPLETE`：**仅在用户审核本报告后**另开原子提交更新全部权威状态；那时再关闭 #9，随后才允许进入 IM-02。

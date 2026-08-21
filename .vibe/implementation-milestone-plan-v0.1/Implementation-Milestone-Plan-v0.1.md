@@ -241,6 +241,6 @@ IM-09 Reference Project E2E + Operations Hardening
 - IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 已退出；MinIO 因官方仓库归档被否决，私有化基准采用 MicroCeph/Ceph RGW、OpenBao 与 Keycloak OIDC。
 - IM-01 自动化退出 Gate 已就绪：七模块 200 个公开操作全部为字段级 `FULL` Schema；Registry 精确 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。
 - Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；干净 verify 为 13 files / 287 tests PASS。
-- #5 Schema 已由 PR #14 合入，Issue 因 Runtime(#15) 保持 OPEN；#17 追踪 IntegrationGateway Runtime 缺口。二者不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
+- #5 Schema 已由 PR #14 合入，Issue 因 Runtime(#15) 保持 OPEN；#17 追踪 IntegrationGateway Runtime 缺口。2026-08-21 用户批准修订 Issue #9 后，二者不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005/006 仍待决。
-- 数据库、对象存储、Keycloak、OpenBao、飞书、CLI、Renderer 与人工验收仍为 `NOT RUN`；用户审核 Issue #9 证据后才可将 IM-01 标记为 `COMPLETE` 并进入 IM-02。
+- 数据库、对象存储、Keycloak、OpenBao、飞书、CLI、Renderer 与人工验收仍为 `NOT RUN`；用户审核 Issue #9 证据后才可将 IM-01 标记为 `COMPLETE` 并进入 IM-02。PR #20 不自动关闭 #9。

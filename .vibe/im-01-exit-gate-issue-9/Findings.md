@@ -25,11 +25,10 @@
 - architecture: source_roots=10, violations=0
 - HTTP health: `{"status":"ok"}`
 
-## Decision on #5
+## Decision on #5 / #9
 
-Proceed with Schema exit despite #5 remaining OPEN, because:
+2026-08-21 user approved Path A on PR #20:
 
-1. Issue #9 non-goals exclude Handler/DB/external E2E.
-2. #5 body already split Runtime acceptance to #15.
-3. #6 was closed with #17 tracking remaining Runtime gaps — same pattern.
-4. Verification report records the exception explicitly.
+1. Issue #9 hard dependency revised to Schema/Contract sub-slices of #1–#8 merged.
+2. #5 may remain OPEN for Runtime #15; #15 is not an IM-01 Schema exit prerequisite.
+3. PR #20 removes `Closes #9`; formal `IM-01 COMPLETE` still requires a later atomic status update after user review.

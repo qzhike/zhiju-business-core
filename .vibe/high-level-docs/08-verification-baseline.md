@@ -337,6 +337,7 @@ remaining risk
 - 200 payload + 44 query result + 6 Core Contract 的 Schema-derived Type 与 v1.0 compatibility baseline 已接入 `contracts:check`；
 - 架构禁止依赖负向探针与 compatibility breaking 负向 fixtures 均实际失败（拒绝非法变更）；
 - #1–#4、#6–#8 已关闭并合入；#5 Schema 由 PR #14 合入但 Issue 因 Runtime(#15) 保持 OPEN；#17 追踪 IntegrationGateway Runtime 缺口；
+- 2026-08-21 用户批准修订 Issue #9：IM-01 Schema 退出硬依赖改为“#1–#8 Schema 子切片均已合入”，#5 可因 #15 保持 OPEN；
 - 尚无 DDL、Migration、Repository、业务 Handler、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
 - 尚无真实 PostgreSQL、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；
-- 正式 `IM-01 COMPLETE` 仅在用户审核 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md) 后更新；此前不得进入 IM-02。
+- 正式 `IM-01 COMPLETE` 仅在用户审核 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md) 后更新；PR #20 不自动 `Closes #9`；此前不得进入 IM-02。

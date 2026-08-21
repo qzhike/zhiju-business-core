@@ -22,9 +22,9 @@
 - 不批准 Runtime proposal，不决定 IM-DG-005/006。
 - 不关闭 #15 / #17 Runtime 追踪 Issue。
 
-## #5 例外
+## #5 / #9 口径
 
-Issue #5 Schema 由 PR #14 合入；Issue 因 Runtime(#15) 保持 OPEN。IM-01 Schema 退出不阻塞于该 Runtime 追踪项，但不得宣称 #5 已关闭。
+2026-08-21 用户批准路径 A：Issue #9 硬依赖改为“#1–#8 Schema 子切片均已合入”；#5 可因 #15 保持 OPEN。本 PR 移除 `Closes #9`，正式 COMPLETE 仍待用户审核后的原子更新。
 
 ## 阶段
 

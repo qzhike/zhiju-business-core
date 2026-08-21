@@ -60,7 +60,7 @@ runtime_proposals=6 isolated
 ## 5. 剩余风险
 
 1. IM-01 自动化 Gate 已就绪，但正式 `COMPLETE` 需用户审核 Issue #9 证据；此前不得进入 IM-02。
-2. #5 仍 OPEN，仅因 Runtime(#15)；Schema 子切片已由 PR #14 合入。不得将该 OPEN 状态解释为 Schema 未完成，也不得解释为 Runtime 已 PASS。
+2. #5 仍 OPEN，仅因 Runtime(#15)；Schema 子切片已由 PR #14 合入。2026-08-21 用户批准修订 Issue #9：Schema 子切片合入即可满足 IM-01 退出硬依赖，#5 可因 #15 保持 OPEN。不得将该 OPEN 状态解释为 Schema 未完成，也不得解释为 Runtime 已 PASS。
 3. 单台 Ubuntu 主机、单节点 MicroCeph/OpenBao/Keycloak 的主机故障容忍度为 0；独立备份与恢复演练是 Formal Release 前置条件。
 4. Ceph RGW 官方声明 Vault Transit 集成，OpenBao 只承诺 Vault API compatibility；二者组合必须在后续里程碑实测，失败时重开 IM-DG-003，不能降级明文。
 5. Canonical Document/Workbook Schema 未冻结，Artifact/Renderer 里程碑只能定义边界，不能实现内容模型。
@@ -79,4 +79,4 @@ runtime_proposals=6 isolated
 | #6 | CLOSED | PR #16；Runtime → #17 |
 | #7 | CLOSED | PR #18 |
 | #8 | CLOSED | PR #19 |
-| #9 | OPEN → 本 PR 收口 | 本报告 + Issue #9 Verification Report |
+| #9 | OPEN（本 PR 不自动关闭） | 本报告 + Issue #9 Verification Report；`Closes #9` 已移除，待用户审核后原子更新 `COMPLETE` |
