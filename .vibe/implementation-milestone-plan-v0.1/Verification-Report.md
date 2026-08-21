@@ -2,7 +2,7 @@
 
 日期：2026-08-21（Issue #9 退出 Gate 汇总；历史切片证据自 2026-08-17 起累积）
 环境：macOS/zsh；Node.js `v24.19.0`、pnpm `11.19.0`、TypeScript `6.0.3`
-状态：`BASELINE / IM-00 COMPLETE / IM-01 EXIT GATE READY / AWAITING USER REVIEW`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
 权威退出证据：[`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)
 
 ## 1. 验证范围
@@ -29,7 +29,7 @@
 | IM01-TYPE-001 | Schema-derived TypeScript | payloads/query results/core 与 Registry 一致 | `payloads=200 query_results=44 core_contracts=6` | `PASS` |
 | IM01-COMPAT-001 | v1.0 baseline + structural check | 200 ops + 6 core；breaking 负向失败 | `compatibility=PASS ... findings=0`；breaking fixtures PASS | `PASS` |
 | IM01-HTTP-001 | 编译后 NestJS/Fastify ESM API | 真实进程启动并响应 health | `GET /health -> {"status":"ok"}` | `PASS` |
-| IM01-EXIT-001 | Issue #9 干净 checkout 全套验证 | install/clean/verify 全过；文档数量一致 | 见 Issue #9 Verification Report | `PASS / AWAITING USER REVIEW` |
+| IM01-EXIT-001 | Issue #9 干净 checkout 全套验证 | install/clean/verify 全过；文档数量一致；权威状态原子更新为 COMPLETE | 见 Issue #9 Verification Report | `PASS` |
 
 ## 3. 关键静态检查
 
@@ -59,7 +59,7 @@ runtime_proposals=6 isolated
 
 ## 5. 剩余风险
 
-1. IM-01 自动化 Gate 已就绪，但正式 `COMPLETE` 需用户审核 Issue #9 证据；此前不得进入 IM-02。
+1. IM-01 已标记 `COMPLETE`；IM-02 可开始，但 Handler/DB/外部验收仍为后续里程碑范围。
 2. #5 仍 OPEN，仅因 Runtime(#15)；Schema 子切片已由 PR #14 合入。2026-08-21 用户批准修订 Issue #9：Schema 子切片合入即可满足 IM-01 退出硬依赖，#5 可因 #15 保持 OPEN。不得将该 OPEN 状态解释为 Schema 未完成，也不得解释为 Runtime 已 PASS。
 3. 单台 Ubuntu 主机、单节点 MicroCeph/OpenBao/Keycloak 的主机故障容忍度为 0；独立备份与恢复演练是 Formal Release 前置条件。
 4. Ceph RGW 官方声明 Vault Transit 集成，OpenBao 只承诺 Vault API compatibility；二者组合必须在后续里程碑实测，失败时重开 IM-DG-003，不能降级明文。
@@ -79,4 +79,4 @@ runtime_proposals=6 isolated
 | #6 | CLOSED | PR #16；Runtime → #17 |
 | #7 | CLOSED | PR #18 |
 | #8 | CLOSED | PR #19 |
-| #9 | OPEN（本 PR 不自动关闭） | 本报告 + Issue #9 Verification Report；`Closes #9` 已移除，待用户审核后原子更新 `COMPLETE` |
+| #9 | CLOSED by PR #20 | 本报告 + Issue #9 Verification Report；权威状态已原子更新为 `IM-01 COMPLETE` |

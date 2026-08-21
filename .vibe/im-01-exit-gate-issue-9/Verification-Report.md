@@ -3,7 +3,7 @@
 日期：2026-08-21
 环境：macOS/zsh，Node.js v24.19.0，pnpm 11.19.0，TypeScript 6.0.3
 对应 Issue：[#9](https://github.com/qzhike/zhiju-business-core/issues/9)
-状态：`IM-01 EXIT GATE READY / AWAITING USER REVIEW`
+状态：`IM-01 COMPLETE`
 
 ## 1. 范围与非目标
 
@@ -123,6 +123,6 @@ $ curl -s http://127.0.0.1:3000/health
 ## 8. 退出判定
 
 - 自动化 Gate：`PASS`
-- 文档收口：随本 PR 同步为 `IM-01 EXIT GATE READY / AWAITING USER REVIEW`
-- 本 PR **不**使用 `Closes #9`：合并只沉淀证据与口径修订，Issue #9 保持开放
-- 正式 `IM-01 COMPLETE`：**仅在用户审核本报告后**另开原子提交更新全部权威状态；那时再关闭 #9，随后才允许进入 IM-02。
+- 权威状态：README / HL-Spec / Verification Baseline / Milestone Plan / 本报告已原子更新为 `IM-01 COMPLETE`
+- PR #20 使用 `Closes #9`，与 GitHub `closingIssuesReferences` 及关闭语义一致
+- IM-02 不再因“等待用户标记 IM-01 COMPLETE”而阻塞；Handler/DB/外部验收仍属后续里程碑 `NOT RUN`

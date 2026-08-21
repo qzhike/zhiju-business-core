@@ -31,4 +31,4 @@
 
 1. Issue #9 hard dependency revised to Schema/Contract sub-slices of #1–#8 merged.
 2. #5 may remain OPEN for Runtime #15; #15 is not an IM-01 Schema exit prerequisite.
-3. PR #20 removes `Closes #9`; formal `IM-01 COMPLETE` still requires a later atomic status update after user review.
+3. Round-2 delivery requires atomic `IM-01 COMPLETE` in this PR plus consistent `Closes #9`.

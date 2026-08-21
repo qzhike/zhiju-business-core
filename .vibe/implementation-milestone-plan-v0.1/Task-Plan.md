@@ -1,6 +1,6 @@
 # Implementation Milestone Plan v0.1 工作计划
 
-状态：`BASELINE / IM-00 COMPLETE / IM-01 EXIT GATE READY / AWAITING USER REVIEW`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
 日期：2026-08-21（初版 2026-08-17；Issue #9 退出 Gate 同步）
 执行者：Grok（Issue #9）/ 历史切片由既有 Agent 完成
 
@@ -59,4 +59,4 @@
 - Schema-derived Type（Issue #7 / PR #18）与 v1.0 compatibility baseline（Issue #8 / PR #19）已合入并接入 `contracts:check`。
 - Issue #9 干净 verify：13 files / 287 tests PASS；架构负向自测与 breaking compatibility 负向证据齐全。
 - #5 Schema 由 PR #14 合入，Issue 因 Runtime(#15) 保持 OPEN；#17 追踪 IntegrationGateway Runtime 缺口。
-- IM-01 正式 `COMPLETE` 待用户审核 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md) 后更新。
+- IM-01 正式 `COMPLETE` 已由 PR #20 原子更新；证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)。

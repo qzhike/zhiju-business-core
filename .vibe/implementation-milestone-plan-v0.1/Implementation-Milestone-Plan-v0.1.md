@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`BASELINE / IM-00 COMPLETE / IM-01 EXIT GATE READY / AWAITING USER REVIEW`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -162,7 +162,7 @@ IM-09 Reference Project E2E + Operations Hardening
 
 退出 Gate：空仓库可一条命令完成 build/test；Catalog 与可执行 Schema 可自动比对；禁止的跨模块依赖会让构建失败；`FULL=200`、`ENVELOPE_ONLY=0`；类型生成与兼容性 Gate 无漂移。
 
-当前状态：`EXIT GATE READY / AWAITING USER REVIEW`（Issue #9；证据见 [`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)）。用户审核前不得进入 IM-02。
+当前状态：`COMPLETE`（Issue #9 / PR #20；证据见 [`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)）。下一里程碑为 IM-02。
 
 ### IM-02 PostgreSQL Foundation + IdentityPolicy
 
@@ -243,4 +243,4 @@ IM-09 Reference Project E2E + Operations Hardening
 - Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；干净 verify 为 13 files / 287 tests PASS。
 - #5 Schema 已由 PR #14 合入，Issue 因 Runtime(#15) 保持 OPEN；#17 追踪 IntegrationGateway Runtime 缺口。2026-08-21 用户批准修订 Issue #9 后，二者不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005/006 仍待决。
-- 数据库、对象存储、Keycloak、OpenBao、飞书、CLI、Renderer 与人工验收仍为 `NOT RUN`；用户审核 Issue #9 证据后才可将 IM-01 标记为 `COMPLETE` 并进入 IM-02。PR #20 不自动关闭 #9。
+- 数据库、对象存储、Keycloak、OpenBao、飞书、CLI、Renderer 与人工验收仍为 `NOT RUN`；IM-01 已由 PR #20 标记为 `COMPLETE`，下一里程碑为 IM-02。

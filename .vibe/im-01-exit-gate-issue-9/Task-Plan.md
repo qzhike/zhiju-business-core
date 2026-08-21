@@ -1,12 +1,12 @@
 # IM-01 Exit Gate Task Plan（Issue #9）
 
 日期：2026-08-21
-状态：`EXIT GATE READY / AWAITING USER REVIEW`
+状态：`IM-01 COMPLETE`
 对应 Issue：[#9](https://github.com/qzhike/zhiju-business-core/issues/9)
 
 ## 目标
 
-汇总验收并关闭 IM-01 `Repository + Executable Contracts`。本切片不承载新业务语义；在可复现验证证据齐全后，将 IM-01 标记为 `EXIT GATE READY`，待用户审核后更新为 `COMPLETE`，再进入 IM-02。
+汇总验收并关闭 IM-01 `Repository + Executable Contracts`。本切片不承载新业务语义；在可复现验证证据齐全后，将 IM-01 标记为 `COMPLETE`，随后进入 IM-02。
 
 ## 范围
 
@@ -24,7 +24,7 @@
 
 ## #5 / #9 口径
 
-2026-08-21 用户批准路径 A：Issue #9 硬依赖改为“#1–#8 Schema 子切片均已合入”；#5 可因 #15 保持 OPEN。本 PR 移除 `Closes #9`，正式 COMPLETE 仍待用户审核后的原子更新。
+2026-08-21 用户批准路径 A：Issue #9 硬依赖改为“#1–#8 Schema 子切片均已合入”；#5 可因 #15 保持 OPEN。PR #20 以 `Closes #9` 关闭本 Issue，并原子更新权威状态为 `IM-01 COMPLETE`。
 
 ## 阶段
 
@@ -34,4 +34,5 @@
 | 2 | 数量/集合对账 | `DONE` |
 | 3 | 干净 verify + 负向自测 | `DONE` |
 | 4 | 文档收口 | `DONE` |
-| 5 | 用户确认后 PR | `DONE` (PR #20) |
+| 5 | Round-1 remediation（Path A + evidence） | `DONE` |
+| 6 | Round-2 remediation（原子 COMPLETE + Closes #9） | `DONE` |

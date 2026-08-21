@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 EXIT GATE READY / AWAITING USER REVIEW`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -340,4 +340,4 @@ remaining risk
 - 2026-08-21 用户批准修订 Issue #9：IM-01 Schema 退出硬依赖改为“#1–#8 Schema 子切片均已合入”，#5 可因 #15 保持 OPEN；
 - 尚无 DDL、Migration、Repository、业务 Handler、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
 - 尚无真实 PostgreSQL、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；
-- 正式 `IM-01 COMPLETE` 仅在用户审核 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md) 后更新；PR #20 不自动 `Closes #9`；此前不得进入 IM-02。
+- 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)）；下一里程碑为 IM-02。
