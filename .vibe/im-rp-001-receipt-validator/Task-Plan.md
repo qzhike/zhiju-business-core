@@ -44,6 +44,7 @@
 | 4 | REL-801 Manual Fixture（attempt → rawReceipt → late submission 时间线 JSON） | `DONE` |
 | 5 | `pnpm verify` 全绿 + Verification Report | `DONE` |
 | 6 | PR #21 review remediation：package 绑定、Raw provenance、原子落账、验收重定范围 | `DONE` |
+| 7 | 最新 head 复审修复：Raw outcome/payload/time 权威性、Attempt 原子注册与完整 scope 绑定 | `DONE` |
 
 ## 修改清单
 

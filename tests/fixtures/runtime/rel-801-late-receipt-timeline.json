@@ -34,8 +34,14 @@
           "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
         }
       },
+      "receiptPayloadHash": {
+        "algorithm": "SHA-256",
+        "digest": "dd01000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      },
       "observedOutcome": "SUCCEEDED",
-      "occurredAt": "2026-08-21T00:00:05Z"
+      "occurredAt": "2026-08-21T00:00:05Z",
+      "recordedAt": "2026-08-21T00:00:06Z"
     },
     {
       "rawReceiptRef": {
@@ -65,8 +71,14 @@
           "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
         }
       },
+      "receiptPayloadHash": {
+        "algorithm": "SHA-256",
+        "digest": "dd02000000000000000000000000000000000000000000000000000000000000",
+        "canonicalizationVersion": "1"
+      },
       "observedOutcome": "SUCCEEDED",
-      "occurredAt": "2026-08-21T00:01:30Z"
+      "occurredAt": "2026-08-21T00:01:30Z",
+      "recordedAt": "2026-08-21T00:01:31Z"
     }
   ],
   "release": {

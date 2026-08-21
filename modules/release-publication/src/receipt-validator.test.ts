@@ -110,6 +110,11 @@ interface ReceiptOptions {
   readonly rawReceiptObjectType?: string;
   readonly packageDigest?: string;
   readonly occurredAt?: string;
+  readonly receiptPayloadDigest?: string;
+  readonly rawObservedOutcome?: 'SUCCEEDED' | 'FAILED' | 'UNKNOWN';
+  readonly rawOccurredAt?: string | undefined;
+  readonly rawRecordedAt?: string;
+  readonly rawReceiptPayloadDigest?: string;
 }
 
 function receiptSubmission(options: ReceiptOptions): ReleasePublication.FormalReceiptSubmission {
@@ -126,7 +131,7 @@ function receiptSubmission(options: ReceiptOptions): ReleasePublication.FormalRe
     occurredAt: options.occurredAt ?? '2026-08-21T00:00:05Z',
     receiptPayloadHash: {
       algorithm: 'SHA-256',
-      digest: digest('dd'),
+      digest: options.receiptPayloadDigest ?? digest('dd'),
       canonicalizationVersion: '1',
     },
   };
@@ -145,8 +150,16 @@ function rawFact(options: ReceiptOptions): RawExternalReceiptFact {
     packageHashDigest: packageDigest,
     publicationAttemptId: options.attemptId,
     adapterAttemptRef: objectRef('integration.adapter_attempt', options.attemptId),
-    observedOutcome: 'SUCCEEDED',
-    occurredAt: options.occurredAt ?? '2026-08-21T00:00:05Z',
+    receiptPayloadHash: {
+      algorithm: 'SHA-256',
+      digest: options.rawReceiptPayloadDigest ?? options.receiptPayloadDigest ?? digest('dd'),
+      canonicalizationVersion: '1',
+    },
+    observedOutcome: options.rawObservedOutcome ?? 'SUCCEEDED',
+    ...(options.rawOccurredAt === undefined
+      ? { occurredAt: options.occurredAt ?? '2026-08-21T00:00:05Z' }
+      : { occurredAt: options.rawOccurredAt }),
+    recordedAt: options.rawRecordedAt ?? '2026-08-21T00:00:06Z',
   };
 }
 
@@ -496,6 +509,32 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
         label: 'publicationAttemptId',
         mutate: (fact) => ({ ...fact, publicationAttemptId: ATTEMPT_B }),
       },
+      {
+        label: 'rawReceiptRef scope',
+        mutate: (fact) => ({
+          ...fact,
+          rawReceiptRef: {
+            ...fact.rawReceiptRef,
+            scope: {
+              enterpriseId: ENTERPRISE_ID,
+              projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d299',
+            },
+          },
+        }),
+      },
+      {
+        label: 'adapterAttemptRef scope',
+        mutate: (fact) => ({
+          ...fact,
+          adapterAttemptRef: {
+            ...fact.adapterAttemptRef,
+            scope: {
+              enterpriseId: ENTERPRISE_ID,
+              projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d299',
+            },
+          },
+        }),
+      },
     ];
 
     for (const [index, probe] of cases.entries()) {
@@ -555,5 +594,170 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
       ledger.findReceiptByStableKey('rel-801-dest-a-attempt-001')?.submission.rawReceiptRef
         .contentHash.digest,
     ).toBe(digest('cc'));
+  });
+
+  it('compareAndSaveAttempt atomically rejects a stable key rebound to a different package', () => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const first = registerPublicationAttempt(ledger, {
+      attemptRef: objectRef('release.publication_attempt', ATTEMPT_A),
+      definition: attemptDefinition({
+        attemptId: ATTEMPT_A,
+        destinationId: DESTINATION_A,
+        stableKey: 'rel-801-atomic-attempt-key',
+        packageDigest: digest('ab'),
+      }),
+      correlationId: CORRELATION_ID,
+    });
+    expect(first.ok).toBe(true);
+
+    const conflicting = registerPublicationAttempt(ledger, {
+      attemptRef: objectRef('release.publication_attempt', ATTEMPT_B),
+      definition: attemptDefinition({
+        attemptId: ATTEMPT_B,
+        destinationId: DESTINATION_A,
+        stableKey: 'rel-801-atomic-attempt-key',
+        packageDigest: digest('ef'),
+      }),
+      correlationId: CORRELATION_ID,
+    });
+    expect(conflicting.ok).toBe(false);
+    if (!conflicting.ok) {
+      expect(conflicting.error.code).toBe(RELEASE_ATTEMPT_IDEMPOTENCY_CONFLICT);
+    }
+    expect(ledger.findAttempt(ATTEMPT_B)).toBeUndefined();
+    expect(ledger.findAttemptsByStableKey('rel-801-atomic-attempt-key')).toHaveLength(1);
+  });
+
+  it('RP-API-C-002: rejects FAILED or UNKNOWN raw observations as formal success receipts', () => {
+    for (const observedOutcome of ['FAILED', 'UNKNOWN'] as const) {
+      const ledger = new InMemoryReleaseReceiptLedger();
+      const rawReceipts = new InMemoryRawExternalReceiptRepository();
+      registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-outcome-key');
+      const result = record(ledger, rawReceipts, {
+        attemptId: ATTEMPT_A,
+        destinationId: DESTINATION_A,
+        rawReceiptDigest: observedOutcome === 'FAILED' ? digest('c5') : digest('c6'),
+        rawObservedOutcome: observedOutcome,
+      });
+      expect(result.ok, observedOutcome).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code, observedOutcome).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+      }
+      expect(ledger.findReceiptByStableKey('rel-801-outcome-key')).toBeUndefined();
+    }
+  });
+
+  it('RP-API-C-002: rejects a formal receipt whose payload hash differs from the raw fact', () => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-payload-key');
+    const result = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('c7'),
+      receiptPayloadDigest: digest('dd'),
+      rawReceiptPayloadDigest: digest('de'),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+    }
+    expect(ledger.findReceiptByStableKey('rel-801-payload-key')).toBeUndefined();
+  });
+
+  it('RP-API-C-002: rejects a caller that rewrites the raw authoritative occurrence time', () => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-time-key');
+    const result = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('c8'),
+      occurredAt: '2026-08-21T00:00:05Z',
+      rawOccurredAt: '2026-08-21T00:01:30Z',
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+    }
+    expect(ledger.findReceiptByStableKey('rel-801-time-key')).toBeUndefined();
+  });
+
+  it('RP-API-C-002: rejects attempt and receipt refs with the wrong object type or scope', () => {
+    const wrongAttemptType = registerPublicationAttempt(new InMemoryReleaseReceiptLedger(), {
+      attemptRef: objectRef('artifact.revision', ATTEMPT_A),
+      definition: attemptDefinition({
+        attemptId: ATTEMPT_A,
+        destinationId: DESTINATION_A,
+        stableKey: 'rel-801-ref-key',
+      }),
+      correlationId: CORRELATION_ID,
+    });
+    expect(wrongAttemptType.ok).toBe(false);
+    if (!wrongAttemptType.ok) {
+      expect(wrongAttemptType.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+    }
+
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-ref-key');
+    const options = {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('c9'),
+    };
+    rawReceipts.save(rawFact(options));
+    const validSubmission = receiptSubmission(options);
+    const wrongScope = recordFormalReceipt(ledger, rawReceipts, {
+      submission: {
+        ...validSubmission,
+        attemptRef: {
+          ...validSubmission.attemptRef,
+          scope: {
+            enterpriseId: ENTERPRISE_ID,
+            projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d299',
+          },
+        },
+      },
+      receiptRef: contentAddressedRef('release.publication_receipt', ATTEMPT_A, digest('ff')),
+      deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
+      correlationId: CORRELATION_ID,
+    });
+    expect(wrongScope.ok).toBe(false);
+    if (!wrongScope.ok) {
+      expect(wrongScope.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+      expect(wrongScope.error.fieldViolations[0]?.fieldPath).toBe('/payload/receipt/attemptRef');
+    }
+
+    const wrongReceiptType = recordFormalReceipt(ledger, rawReceipts, {
+      submission: validSubmission,
+      receiptRef: contentAddressedRef('artifact.revision', ATTEMPT_A, digest('ff')),
+      deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
+      correlationId: CORRELATION_ID,
+    });
+    expect(wrongReceiptType.ok).toBe(false);
+    if (!wrongReceiptType.ok) {
+      expect(wrongReceiptType.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+      expect(wrongReceiptType.error.fieldViolations[0]?.fieldPath).toBe('/receiptRef/objectType');
+    }
+
+    const wrongReceiptScope = recordFormalReceipt(ledger, rawReceipts, {
+      submission: validSubmission,
+      receiptRef: {
+        ...contentAddressedRef('release.publication_receipt', ATTEMPT_A, digest('ff')),
+        scope: {
+          enterpriseId: ENTERPRISE_ID,
+          projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d299',
+        },
+      },
+      deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
+      correlationId: CORRELATION_ID,
+    });
+    expect(wrongReceiptScope.ok).toBe(false);
+    if (!wrongReceiptScope.ok) {
+      expect(wrongReceiptScope.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+      expect(wrongReceiptScope.error.fieldViolations[0]?.fieldPath).toBe('/receiptRef/scope');
+    }
+    expect(ledger.findReceiptByStableKey('rel-801-ref-key')).toBeUndefined();
   });
 });

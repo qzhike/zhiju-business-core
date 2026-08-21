@@ -14,6 +14,9 @@
 | P1-3 | validate 与 save 非原子，并发可双写 | Ledger 增加 `compareAndSaveReceipt`；Runtime 只走原子落账；测试连续/竞争提交 |
 | P1-4 | E2E 直接调 Runtime，未过 IntegrationGateway | **重定范围**：该项移出 #15 验收，归属 #17；文档删除「等价覆盖」表述；E2E 仍标注为 Runtime 受控 fixture |
 | P1-5 | 声称合并 #15 即可关闭 #5 | 修正 Verification-Report / HL-Spec / PR 描述；#5 保留 ActorSnapshot、providerResult PII、普通飞书发送来源链三项 Runtime TODO |
+| P1-6 | Raw Receipt outcome / payload hash / 权威时间未参与判定，可把 FAILED 或迟到观测改写为早到成功 | Raw fact 增加 `receiptPayloadHash` / `recordedAt`；仅 `SUCCEEDED` 可升级；Formal hash/time 必须匹配 Raw fact；迟到判定使用权威时间；加负例 |
+| P1-7 | Attempt stable-key 检查仍为非原子 find-then-save | Ledger 增加 `compareAndSaveAttempt`；注册只走原子条件写；加冲突回归 |
+| P1-8 | Release/Attempt 状态仅按 objectId 命中，完整 scope/objectType 未比较 | Release state 使用完整强引用 key；Attempt/Receipt/Raw ref 比较完整 identity；加跨 Project scope 负例 |
 
 ## 成功标准
 

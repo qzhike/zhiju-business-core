@@ -11,7 +11,7 @@
 | `pnpm format:check` | `PASS` |
 | `pnpm lint` | `PASS`（0 error / 0 warning） |
 | `pnpm typecheck` | `PASS` |
-| `pnpm test` | `PASS` — 15 test files / **302 tests**（基线 287 + 本切片 15） |
+| `pnpm test` | `PASS` — 15 test files / **308 tests**（基线 287 + 本切片 21） |
 | `pnpm architecture` | `PASS` — `architecture_boundaries=PASS source_roots=10` |
 | `pnpm contracts:check` | `PASS` — `schema_status={"FULL":200}`、compatibility `baseline=v1.0 findings=0` |
 
@@ -26,6 +26,9 @@
 | P1-3 原子落账 | Ledger `compareAndSaveReceipt`；Runtime 只走 `recordFormalReceipt` | `receipt-validator.test.ts` compareAndSave 竞争用例 |
 | P1-4 Integration Provider fixture | **重定范围**：该项归属 #17 / `NOT RUN`；删除「等价覆盖」表述 | 本报告 NOT RUN；Issue #15 评论 |
 | P1-5 Issue #5 关闭结论 | **不关闭 #5**；保留 ActorSnapshot / providerResult PII / 普通飞书来源链 Runtime TODO | HL-Spec / Module-Test-006 / 本结论 |
+| P1-6 Raw outcome/payload/time 权威性 | 仅 `SUCCEEDED` 可升级；Formal payload hash/time 必须匹配 Raw fact；stale 使用 `occurredAt ?? recordedAt` | `receipt-validator.test.ts` outcome/hash/time 负例 |
+| P1-7 Attempt 原子注册 | Ledger `compareAndSaveAttempt`；Attempt ref/stable key 冲突在同一条件写内判定 | `receipt-validator.test.ts` atomic attempt 回归 |
+| P1-8 完整强引用 identity | Release state 使用 objectType/objectId/scope key；Attempt/Raw/Receipt/Package 比较完整 ref | Unit + E2E cross-project scope 负例 |
 
 ## 新增 / 更新测试清单
 
@@ -36,6 +39,9 @@
 | RP-API-U-003a–e 及注册/重试 | 同前：冲突 / 重复 / stale / target mismatch / 接受 |
 | RP-API-C-002 Raw provenance | 非 `integration.raw_external_receipt` objectType、未加载事实、或 release/destination/packageHash/attempt 溯源字段不匹配 → `RELEASE_RECEIPT_TARGET_MISMATCH`，不落账 |
 | compareAndSave 竞争 | 同 stable key 二次 insert → `RELEASE_RECEIPT_ALREADY_RECORDED`，原 digest 保留 |
+| Raw outcome/hash/time | FAILED/UNKNOWN、payload hash 不一致、改写 Raw 权威发生时间均拒绝且不落账 |
+| 强引用 scope/objectType | 错误 Attempt/Receipt type、Raw/Adapter/Release/Attempt 跨 Project scope 均拒绝 |
+| compareAndSaveAttempt | 同 stable key 重绑不同 package 原子拒绝，第二 Attempt 不落账 |
 
 E2E（`modules/release-publication/src/release-publication-runtime.e2e.test.ts`）：
 
@@ -45,6 +51,7 @@ E2E（`modules/release-publication/src/release-publication-runtime.e2e.test.ts`�
 | Stale 拒绝不改账 | 仅 Step 4：PUBLISHING / receiptRefs=0 |
 | Foreign package 负例 | 外 Release 的 packageRef 拒 attempt 与 receipt；状态保持 AUTHORIZED |
 | Start-after-partial | 早到 Receipt 后启动另一 Destination attempt / 幂等重入，不降级 `PARTIALLY_RELEASED` |
+| Cross-project scope | 同 objectId 的另一 Project Release 不可见、不可启动 Attempt；Attempt scope 不匹配拒绝 |
 
 ## 人工验收口径（REL-801 / RP-API-M-001）
 

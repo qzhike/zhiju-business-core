@@ -20,6 +20,7 @@ import {
   buildApiRejection,
   sameObjectRef,
   samePackageRef,
+  sameScopeRef,
   RELEASE_RECEIPT_TARGET_MISMATCH,
   type ReceiptValidationResult,
   type RawExternalReceiptFact,
@@ -117,6 +118,9 @@ export class ReleasePublicationRuntime {
   }
 
   openReleaseForPublication(request: OpenReleaseRequest): void {
+    if (request.releaseRef.objectType !== 'release.release') {
+      throw new Error('releaseRef must address a release.release object');
+    }
     const destinations = new Map<string, ReleaseDestinationPolicy>();
     for (const destination of request.destinations) {
       destinations.set(destination.destinationId, destination);
@@ -127,7 +131,7 @@ export class ReleasePublicationRuntime {
     ) {
       throw new Error('frozenPackageRef.releaseRef must equal the opened releaseRef');
     }
-    this.releases.set(request.releaseRef.objectId, {
+    this.releases.set(objectRefKey(request.releaseRef), {
       releaseRef: request.releaseRef,
       destinations,
       receiptsByDestination: new Map(),
@@ -140,7 +144,7 @@ export class ReleasePublicationRuntime {
     request: StartAttemptRequest,
   ): { readonly ok: true } | { readonly ok: false; readonly error: ApiError } {
     const correlationId = request.correlationId ?? '';
-    const release = this.releases.get(request.releaseRef.objectId);
+    const release = this.releases.get(objectRefKey(request.releaseRef));
     if (release === undefined) {
       return { ok: false, error: unknownReleaseError(request.releaseRef, correlationId) };
     }
@@ -154,6 +158,22 @@ export class ReleasePublicationRuntime {
           safeMessage: 'publication attempt references a destination outside the release',
           fieldPath: '/payload/attempt/destinationId',
           violatedRule: 'attempt destination must belong to the release',
+          correlationId,
+          targetRef: request.attemptRef,
+        }),
+      };
+    }
+
+    if (!sameScopeRef(request.attemptRef.scope, request.releaseRef.scope)) {
+      return {
+        ok: false,
+        error: buildApiRejection({
+          code: RELEASE_RECEIPT_TARGET_MISMATCH,
+          category: 'VALIDATION',
+          retryDisposition: 'DO_NOT_RETRY',
+          safeMessage: 'publication attempt scope does not match the target release',
+          fieldPath: '/payload/attemptRef/scope',
+          violatedRule: 'publication attempts must share the release scope',
           correlationId,
           targetRef: request.attemptRef,
         }),
@@ -213,7 +233,7 @@ export class ReleasePublicationRuntime {
   }
 
   recordPublicationReceipt(request: RecordReceiptRequest): ReceiptValidationResult {
-    const release = this.releases.get(request.releaseRef.objectId);
+    const release = this.releases.get(objectRefKey(request.releaseRef));
     if (release === undefined) {
       return {
         ok: false,
@@ -292,7 +312,7 @@ export class ReleasePublicationRuntime {
   }
 
   getReleaseOutcome(releaseRef: ObjectRef): ReleasePublicationOutcomeView | undefined {
-    const release = this.releases.get(releaseRef.objectId);
+    const release = this.releases.get(objectRefKey(releaseRef));
     if (release === undefined) {
       return undefined;
     }
@@ -309,9 +329,18 @@ export class ReleasePublicationRuntime {
 
   /** Late window configured for a destination; exposed for timeline audits. */
   getDeliveryTimeoutMs(releaseRef: ObjectRef, destinationId: string): number | undefined {
-    return this.releases.get(releaseRef.objectId)?.destinations.get(destinationId)
+    return this.releases.get(objectRefKey(releaseRef))?.destinations.get(destinationId)
       ?.deliveryTimeoutMs;
   }
+}
+
+function objectRefKey(ref: ObjectRef): string {
+  return [
+    ref.objectType,
+    ref.objectId,
+    ref.scope.enterpriseId ?? '',
+    ref.scope.projectId ?? '',
+  ].join('\u0000');
 }
 
 function evaluateCompletion(release: ReleaseState): ReleaseStatus {

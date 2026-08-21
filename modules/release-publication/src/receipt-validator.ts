@@ -46,6 +46,8 @@ export const RELEASE_RECEIPT_STALE = 'RELEASE_RECEIPT_STALE';
 
 /** Object type required on FormalReceiptSubmission.rawReceiptRef. */
 export const RAW_EXTERNAL_RECEIPT_OBJECT_TYPE = 'integration.raw_external_receipt';
+export const PUBLICATION_ATTEMPT_OBJECT_TYPE = 'release.publication_attempt';
+export const PUBLICATION_RECEIPT_OBJECT_TYPE = 'release.publication_receipt';
 
 // =============================================================================
 // Ledger records and stable-key index
@@ -78,7 +80,22 @@ export interface ReleaseReceiptLedger {
   findAttemptsByStableKey(stableIdempotencyKey: string): readonly PublicationAttemptRecord[];
   findReceiptByStableKey(stableIdempotencyKey: string): PublicationReceiptRecord | undefined;
   findReceiptByRawReceiptDigest(rawReceiptDigest: string): PublicationReceiptRecord | undefined;
-  saveAttempt(record: PublicationAttemptRecord): void;
+  /**
+   * Atomically insert an attempt while enforcing attemptRef immutability and
+   * stable-key destination/package binding. Identical retries return the
+   * existing record as a successful no-op.
+   */
+  compareAndSaveAttempt(record: PublicationAttemptRecord):
+    | {
+        readonly ok: true;
+        readonly record: PublicationAttemptRecord;
+        readonly inserted: boolean;
+      }
+    | {
+        readonly ok: false;
+        readonly existing: PublicationAttemptRecord;
+        readonly conflictOn: 'ATTEMPT_REF' | 'STABLE_KEY';
+      };
   /**
    * Atomically insert `record` if neither `stableKey` nor the raw digest is
    * occupied. Returns the conflicting existing receipt otherwise.
@@ -117,11 +134,40 @@ export class InMemoryReleaseReceiptLedger implements ReleaseReceiptLedger {
     return this.receiptsByRawDigest.get(rawReceiptDigest);
   }
 
-  saveAttempt(record: PublicationAttemptRecord): void {
+  compareAndSaveAttempt(record: PublicationAttemptRecord):
+    | {
+        readonly ok: true;
+        readonly record: PublicationAttemptRecord;
+        readonly inserted: boolean;
+      }
+    | {
+        readonly ok: false;
+        readonly existing: PublicationAttemptRecord;
+        readonly conflictOn: 'ATTEMPT_REF' | 'STABLE_KEY';
+      } {
+    const existingById = this.attemptsById.get(record.attemptRef.objectId);
+    if (existingById !== undefined) {
+      if (sameAttemptDefinition(existingById.definition, record.definition)) {
+        return { ok: true, record: existingById, inserted: false };
+      }
+      return { ok: false, existing: existingById, conflictOn: 'ATTEMPT_REF' };
+    }
+
+    const stableKey = record.definition.stableIdempotencyKey;
+    const bucket = this.attemptsByStableKey.get(stableKey) ?? [];
+    const conflicting = bucket.find(
+      (other) =>
+        other.definition.destinationId !== record.definition.destinationId ||
+        !samePackageRef(other.definition.packageRef, record.definition.packageRef),
+    );
+    if (conflicting !== undefined) {
+      return { ok: false, existing: conflicting, conflictOn: 'STABLE_KEY' };
+    }
+
     this.attemptsById.set(record.attemptRef.objectId, record);
-    const bucket = this.attemptsByStableKey.get(record.definition.stableIdempotencyKey) ?? [];
     bucket.push(record);
-    this.attemptsByStableKey.set(record.definition.stableIdempotencyKey, bucket);
+    this.attemptsByStableKey.set(stableKey, bucket);
+    return { ok: true, record, inserted: true };
   }
 
   compareAndSaveReceipt(
@@ -168,8 +214,10 @@ export interface RawExternalReceiptFact {
   readonly packageHashDigest: string;
   readonly publicationAttemptId: string;
   readonly adapterAttemptRef: ObjectRef;
+  readonly receiptPayloadHash: Common.ContentHash;
   readonly observedOutcome: 'SUCCEEDED' | 'FAILED' | 'UNKNOWN';
   readonly occurredAt?: string;
+  readonly recordedAt: string;
 }
 
 export interface RawExternalReceiptRepository {
@@ -188,7 +236,7 @@ export class InMemoryRawExternalReceiptRepository implements RawExternalReceiptR
     if (found === undefined) {
       return undefined;
     }
-    if (found.rawReceiptRef.objectId !== rawReceiptRef.objectId) {
+    if (!sameContentAddressedRef(found.rawReceiptRef, rawReceiptRef)) {
       return undefined;
     }
     return found;
@@ -219,56 +267,48 @@ export function registerPublicationAttempt(
   ledger: ReleaseReceiptLedger,
   request: AttemptRegistrationRequest,
 ): AttemptRegistrationResult {
-  const existingById = ledger.findAttempt(request.attemptRef.objectId);
-  if (existingById !== undefined) {
-    if (sameAttemptDefinition(existingById.definition, request.definition)) {
-      return { ok: true, record: existingById };
-    }
+  if (request.attemptRef.objectType !== PUBLICATION_ATTEMPT_OBJECT_TYPE) {
     return {
       ok: false,
       error: rejection({
-        code: RELEASE_ATTEMPT_IDEMPOTENCY_CONFLICT,
-        category: 'CONFLICT',
-        retryDisposition: 'RELOAD_AND_REEVALUATE',
-        safeMessage:
-          'publication attempt already registered under this attemptRef with a different definition',
-        fieldPath: '/payload/attempt',
-        violatedRule: 'attempt definitions are immutable once registered',
+        code: RELEASE_RECEIPT_TARGET_MISMATCH,
+        category: 'VALIDATION',
+        retryDisposition: 'DO_NOT_RETRY',
+        safeMessage: 'attemptRef must address a release.publication_attempt object',
+        fieldPath: '/payload/attemptRef/objectType',
+        violatedRule: 'publication attempts require the registered attempt object type',
         correlationId: request.correlationId,
         targetRef: request.attemptRef,
       }),
     };
   }
-
-  for (const other of ledger.findAttemptsByStableKey(request.definition.stableIdempotencyKey)) {
-    const sameDestination = other.definition.destinationId === request.definition.destinationId;
-    if (
-      !sameDestination ||
-      !samePackageRef(other.definition.packageRef, request.definition.packageRef)
-    ) {
-      return {
-        ok: false,
-        error: rejection({
-          code: RELEASE_ATTEMPT_IDEMPOTENCY_CONFLICT,
-          category: 'CONFLICT',
-          retryDisposition: 'RELOAD_AND_REEVALUATE',
-          safeMessage:
-            'stable idempotency key already bound to a different destination or packageHash',
-          fieldPath: '/payload/attempt/stableIdempotencyKey',
-          violatedRule: 'one stable key maps to exactly one destination/package pair',
-          correlationId: request.correlationId,
-          targetRef: request.attemptRef,
-        }),
-      };
-    }
-  }
-
   const record: PublicationAttemptRecord = {
     attemptRef: request.attemptRef,
     definition: request.definition,
   };
-  ledger.saveAttempt(record);
-  return { ok: true, record };
+  const saved = ledger.compareAndSaveAttempt(record);
+  if (saved.ok) {
+    return { ok: true, record: saved.record };
+  }
+
+  const attemptRefConflict = saved.conflictOn === 'ATTEMPT_REF';
+  return {
+    ok: false,
+    error: rejection({
+      code: RELEASE_ATTEMPT_IDEMPOTENCY_CONFLICT,
+      category: 'CONFLICT',
+      retryDisposition: 'RELOAD_AND_REEVALUATE',
+      safeMessage: attemptRefConflict
+        ? 'publication attempt already registered under this attemptRef with a different definition'
+        : 'stable idempotency key already bound to a different destination or packageHash',
+      fieldPath: attemptRefConflict ? '/payload/attempt' : '/payload/attempt/stableIdempotencyKey',
+      violatedRule: attemptRefConflict
+        ? 'attempt definitions are immutable once registered'
+        : 'one stable key maps to exactly one destination/package pair',
+      correlationId: request.correlationId,
+      targetRef: request.attemptRef,
+    }),
+  };
 }
 
 // =============================================================================
@@ -327,6 +367,23 @@ export function recordFormalReceipt(
         safeMessage: 'receipt references an unregistered publication attempt',
         fieldPath: '/payload/receipt/attemptRef',
         violatedRule: 'formal receipts require a registered publication attempt',
+        correlationId: request.correlationId,
+        targetRef: submission.attemptRef,
+      }),
+    };
+  }
+
+  if (!sameObjectRef(attempt.attemptRef, submission.attemptRef)) {
+    return {
+      ok: false,
+      error: rejection({
+        code: RELEASE_RECEIPT_TARGET_MISMATCH,
+        category: 'VALIDATION',
+        retryDisposition: 'DO_NOT_RETRY',
+        safeMessage:
+          'receipt attemptRef does not match the registered publication attempt identity',
+        fieldPath: '/payload/receipt/attemptRef',
+        violatedRule: 'receipt attemptRef must match objectType, objectId and scope of the attempt',
         correlationId: request.correlationId,
         targetRef: submission.attemptRef,
       }),
@@ -407,14 +464,14 @@ export function recordFormalReceipt(
 
   // 5. Raw observation must be a loaded RawExternalReceipt with matching
   //    release / destination / packageHash / publication attempt provenance.
-  const provenanceError = validateRawReceiptProvenance(
+  const provenance = validateRawReceiptProvenance(
     rawReceipts,
     submission,
     attempt,
     request.correlationId,
   );
-  if (provenanceError !== undefined) {
-    return { ok: false, error: provenanceError };
+  if (!provenance.ok) {
+    return { ok: false, error: provenance.error };
   }
 
   // 6. Raw observation dedup by content hash (defense in depth before insert).
@@ -436,7 +493,9 @@ export function recordFormalReceipt(
   }
 
   // 7. Late window: occurredAt must fall within requestedAt + deliveryTimeout.
-  const elapsedMs = Date.parse(submission.occurredAt) - Date.parse(attempt.definition.requestedAt);
+  const authoritativeOccurredAt = provenance.fact.occurredAt ?? provenance.fact.recordedAt;
+  const elapsedMs =
+    Date.parse(authoritativeOccurredAt) - Date.parse(attempt.definition.requestedAt);
   if (elapsedMs > request.deliveryTimeoutMs) {
     return {
       ok: false,
@@ -457,6 +516,37 @@ export function recordFormalReceipt(
     receiptRef: request.receiptRef,
     submission,
   };
+
+  if (request.receiptRef.objectType !== PUBLICATION_RECEIPT_OBJECT_TYPE) {
+    return {
+      ok: false,
+      error: rejection({
+        code: RELEASE_RECEIPT_TARGET_MISMATCH,
+        category: 'VALIDATION',
+        retryDisposition: 'DO_NOT_RETRY',
+        safeMessage: 'receiptRef must address a release.publication_receipt fact',
+        fieldPath: '/receiptRef/objectType',
+        violatedRule: 'formal receipt facts require the registered receipt object type',
+        correlationId: request.correlationId,
+        targetRef: submission.attemptRef,
+      }),
+    };
+  }
+  if (!sameScopeRef(request.receiptRef.scope, submission.packageRef.releaseRef.scope)) {
+    return {
+      ok: false,
+      error: rejection({
+        code: RELEASE_RECEIPT_TARGET_MISMATCH,
+        category: 'VALIDATION',
+        retryDisposition: 'DO_NOT_RETRY',
+        safeMessage: 'receiptRef scope does not match the target release scope',
+        fieldPath: '/receiptRef/scope',
+        violatedRule: 'formal receipt facts must share the release scope',
+        correlationId: request.correlationId,
+        targetRef: submission.attemptRef,
+      }),
+    };
+  }
 
   // 8. Atomic compare-and-save — uniqueness is enforced here, not via a
   //    separate validate-then-save pair that can race.
@@ -500,89 +590,133 @@ export function recordFormalReceipt(
   return { ok: true, record: saved.record };
 }
 
+type RawReceiptProvenanceResult =
+  | { readonly ok: true; readonly fact: RawExternalReceiptFact }
+  | { readonly ok: false; readonly error: ApiError };
+
 function validateRawReceiptProvenance(
   rawReceipts: RawExternalReceiptRepository,
   submission: FormalReceiptSubmission,
   attempt: PublicationAttemptRecord,
   correlationId: string,
-): ApiError | undefined {
+): RawReceiptProvenanceResult {
   const rawRef = submission.rawReceiptRef;
   if (rawRef.objectType !== RAW_EXTERNAL_RECEIPT_OBJECT_TYPE) {
-    return rejection({
-      code: RELEASE_RECEIPT_TARGET_MISMATCH,
-      category: 'VALIDATION',
-      retryDisposition: 'DO_NOT_RETRY',
-      safeMessage: 'rawReceiptRef must address an integration.raw_external_receipt fact',
-      fieldPath: '/payload/receipt/rawReceiptRef/objectType',
-      violatedRule: 'formal receipts require a RawExternalReceipt content-addressed ref',
-      correlationId,
-      targetRef: submission.attemptRef,
-    });
+    return {
+      ok: false,
+      error: rejection({
+        code: RELEASE_RECEIPT_TARGET_MISMATCH,
+        category: 'VALIDATION',
+        retryDisposition: 'DO_NOT_RETRY',
+        safeMessage: 'rawReceiptRef must address an integration.raw_external_receipt fact',
+        fieldPath: '/payload/receipt/rawReceiptRef/objectType',
+        violatedRule: 'formal receipts require a RawExternalReceipt content-addressed ref',
+        correlationId,
+        targetRef: submission.attemptRef,
+      }),
+    };
   }
 
   const fact = rawReceipts.findByRef(rawRef);
   if (fact === undefined) {
-    return rejection({
-      code: RELEASE_RECEIPT_TARGET_MISMATCH,
-      category: 'VALIDATION',
-      retryDisposition: 'DO_NOT_RETRY',
-      safeMessage: 'rawReceiptRef does not resolve to a loaded RawExternalReceipt fact',
-      fieldPath: '/payload/receipt/rawReceiptRef',
-      violatedRule: 'formal receipts require a previously recorded raw observation',
+    return rawProvenanceRejection(
+      submission,
       correlationId,
-      targetRef: submission.attemptRef,
-    });
+      'rawReceiptRef does not resolve to a loaded RawExternalReceipt fact',
+      'formal receipts require a previously recorded raw observation',
+    );
   }
 
   if (fact.releaseId !== attempt.definition.packageRef.releaseRef.objectId) {
-    return rejection({
-      code: RELEASE_RECEIPT_TARGET_MISMATCH,
-      category: 'VALIDATION',
-      retryDisposition: 'DO_NOT_RETRY',
-      safeMessage: 'raw external receipt release does not match the publication attempt release',
-      fieldPath: '/payload/receipt/rawReceiptRef',
-      violatedRule: 'RawExternalReceipt.releaseId must equal attempt.packageRef.releaseRef',
+    return rawProvenanceRejection(
+      submission,
       correlationId,
-      targetRef: submission.attemptRef,
-    });
+      'raw external receipt release does not match the publication attempt release',
+      'RawExternalReceipt.releaseId must equal attempt.packageRef.releaseRef',
+    );
+  }
+  if (
+    !sameScopeRef(rawRef.scope, attempt.definition.packageRef.releaseRef.scope) ||
+    !sameScopeRef(fact.adapterAttemptRef.scope, attempt.definition.packageRef.releaseRef.scope)
+  ) {
+    return rawProvenanceRejection(
+      submission,
+      correlationId,
+      'raw external receipt scope does not match the publication attempt release',
+      'RawExternalReceipt and adapter attempt must share the release scope',
+    );
   }
   if (fact.destinationId !== submission.destinationId) {
-    return rejection({
-      code: RELEASE_RECEIPT_TARGET_MISMATCH,
-      category: 'VALIDATION',
-      retryDisposition: 'DO_NOT_RETRY',
-      safeMessage: 'raw external receipt destination does not match the formal receipt',
-      fieldPath: '/payload/receipt/rawReceiptRef',
-      violatedRule: 'RawExternalReceipt.destinationId must equal receipt.destinationId',
+    return rawProvenanceRejection(
+      submission,
       correlationId,
-      targetRef: submission.attemptRef,
-    });
+      'raw external receipt destination does not match the formal receipt',
+      'RawExternalReceipt.destinationId must equal receipt.destinationId',
+    );
   }
   if (fact.packageHashDigest !== submission.packageRef.packageHash.digest) {
-    return rejection({
-      code: RELEASE_RECEIPT_TARGET_MISMATCH,
-      category: 'VALIDATION',
-      retryDisposition: 'DO_NOT_RETRY',
-      safeMessage: 'raw external receipt packageHash does not match the formal receipt',
-      fieldPath: '/payload/receipt/rawReceiptRef',
-      violatedRule: 'RawExternalReceipt.packageHash must equal receipt.packageRef.packageHash',
+    return rawProvenanceRejection(
+      submission,
       correlationId,
-      targetRef: submission.attemptRef,
-    });
+      'raw external receipt packageHash does not match the formal receipt',
+      'RawExternalReceipt.packageHash must equal receipt.packageRef.packageHash',
+    );
   }
   if (fact.publicationAttemptId !== submission.attemptRef.objectId) {
-    return rejection({
+    return rawProvenanceRejection(
+      submission,
+      correlationId,
+      'raw external receipt attempt does not match the formal receipt attempt',
+      'RawExternalReceipt.publicationAttemptId must equal receipt.attemptRef',
+    );
+  }
+  if (fact.observedOutcome !== 'SUCCEEDED') {
+    return rawProvenanceRejection(
+      submission,
+      correlationId,
+      'raw external receipt does not report a successful delivery',
+      'only a SUCCEEDED RawExternalReceipt may become a Formal PublicationReceipt',
+    );
+  }
+  if (!sameContentHash(fact.receiptPayloadHash, submission.receiptPayloadHash)) {
+    return rawProvenanceRejection(
+      submission,
+      correlationId,
+      'formal receipt payload hash does not match the raw external receipt',
+      'receipt.receiptPayloadHash must equal RawExternalReceipt.receiptPayloadHash',
+    );
+  }
+  const authoritativeOccurredAt = fact.occurredAt ?? fact.recordedAt;
+  if (submission.occurredAt !== authoritativeOccurredAt) {
+    return rawProvenanceRejection(
+      submission,
+      correlationId,
+      'formal receipt occurrence time does not match the raw external receipt',
+      'receipt.occurredAt must equal RawExternalReceipt.occurredAt or recordedAt fallback',
+    );
+  }
+  return { ok: true, fact };
+}
+
+function rawProvenanceRejection(
+  submission: FormalReceiptSubmission,
+  correlationId: string,
+  safeMessage: string,
+  violatedRule: string,
+): RawReceiptProvenanceResult {
+  return {
+    ok: false,
+    error: rejection({
       code: RELEASE_RECEIPT_TARGET_MISMATCH,
       category: 'VALIDATION',
       retryDisposition: 'DO_NOT_RETRY',
-      safeMessage: 'raw external receipt attempt does not match the formal receipt attempt',
+      safeMessage,
       fieldPath: '/payload/receipt/rawReceiptRef',
-      violatedRule: 'RawExternalReceipt.publicationAttemptId must equal receipt.attemptRef',
+      violatedRule,
       correlationId,
       targetRef: submission.attemptRef,
-    });
-  }
-  return undefined;
+    }),
+  };
 }
 
 // =============================================================================
@@ -592,10 +726,8 @@ function validateRawReceiptProvenance(
 export function samePackageRef(left: ReleasePackageRef, right: ReleasePackageRef): boolean {
   return (
     sameObjectRef(left.releaseRef, right.releaseRef) &&
-    left.packageSnapshotRef.snapshotId === right.packageSnapshotRef.snapshotId &&
-    left.packageSnapshotRef.objectId === right.packageSnapshotRef.objectId &&
-    left.packageSnapshotRef.contentHash.digest === right.packageSnapshotRef.contentHash.digest &&
-    left.packageHash.digest === right.packageHash.digest
+    sameSnapshotRef(left.packageSnapshotRef, right.packageSnapshotRef) &&
+    sameContentHash(left.packageHash, right.packageHash)
   );
 }
 
@@ -603,9 +735,43 @@ export function sameObjectRef(left: ObjectRef, right: ObjectRef): boolean {
   return (
     left.objectType === right.objectType &&
     left.objectId === right.objectId &&
-    left.scope.enterpriseId === right.scope.enterpriseId &&
-    left.scope.projectId === right.scope.projectId
+    sameScopeRef(left.scope, right.scope)
   );
+}
+
+export function sameScopeRef(left: Common.ScopeRef, right: Common.ScopeRef): boolean {
+  return left.enterpriseId === right.enterpriseId && left.projectId === right.projectId;
+}
+
+function sameSnapshotRef(left: Common.SnapshotRef, right: Common.SnapshotRef): boolean {
+  return (
+    left.objectType === right.objectType &&
+    left.objectId === right.objectId &&
+    left.snapshotId === right.snapshotId &&
+    left.scope.enterpriseId === right.scope.enterpriseId &&
+    left.scope.projectId === right.scope.projectId &&
+    sameContentHash(left.contentHash, right.contentHash)
+  );
+}
+
+function sameContentAddressedRef(
+  left: Common.ContentAddressedRef,
+  right: Common.ContentAddressedRef,
+): boolean {
+  return (
+    left.objectType === right.objectType &&
+    left.objectId === right.objectId &&
+    left.immutableVersionId === right.immutableVersionId &&
+    left.scope.enterpriseId === right.scope.enterpriseId &&
+    left.scope.projectId === right.scope.projectId &&
+    sameContentHash(left.contentHash, right.contentHash)
+  );
+}
+
+function sameContentHash(left: Common.ContentHash, right: Common.ContentHash): boolean {
+  // The generated contract type fixes algorithm=SHA-256 and
+  // canonicalizationVersion=1, so digest is the only varying identity field.
+  return left.digest === right.digest;
 }
 
 function sameAttemptDefinition(
@@ -618,9 +784,7 @@ function sameAttemptDefinition(
     left.stableIdempotencyKey === right.stableIdempotencyKey &&
     left.requestedAt === right.requestedAt &&
     samePackageRef(left.packageRef, right.packageRef) &&
-    left.externalDeliveryRequestRef.objectId === right.externalDeliveryRequestRef.objectId &&
-    left.externalDeliveryRequestRef.contentHash.digest ===
-      right.externalDeliveryRequestRef.contentHash.digest
+    sameContentAddressedRef(left.externalDeliveryRequestRef, right.externalDeliveryRequestRef)
   );
 }
 

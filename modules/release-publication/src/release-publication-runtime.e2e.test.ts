@@ -325,4 +325,59 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe('AUTHORIZED');
     expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.receiptRefs).toHaveLength(0);
   });
+
+  it('does not expose or mutate a release through the same objectId in another project scope', () => {
+    const fixture = loadFixture();
+    const runtime = openRuntime(fixture);
+    const firstStep = fixture.timeline[0];
+    if (firstStep === undefined) {
+      throw new Error('fixture timeline is empty');
+    }
+    const { attemptRef, definition } = requireAttemptFields(firstStep);
+    const foreignScopeRelease: Common.ObjectRef = {
+      ...fixture.release.releaseRef,
+      scope: {
+        enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201',
+        projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d299',
+      },
+    };
+    const foreignScopeDefinition: ReleasePublication.PublicationAttemptDefinition = {
+      ...definition,
+      packageRef: {
+        ...definition.packageRef,
+        releaseRef: foreignScopeRelease,
+      },
+    };
+
+    const result = runtime.startPublicationAttempt({
+      releaseRef: foreignScopeRelease,
+      attemptRef,
+      definition: foreignScopeDefinition,
+      correlationId: 'foreign-scope-probe',
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+    }
+    expect(runtime.getReleaseOutcome(foreignScopeRelease)).toBeUndefined();
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe('AUTHORIZED');
+
+    const foreignScopeAttemptRef: Common.ObjectRef = {
+      ...attemptRef,
+      scope: foreignScopeRelease.scope,
+    };
+    const attemptScopeResult = runtime.startPublicationAttempt({
+      releaseRef: fixture.release.releaseRef,
+      attemptRef: foreignScopeAttemptRef,
+      definition,
+      correlationId: 'foreign-attempt-scope-probe',
+    });
+    expect(attemptScopeResult.ok).toBe(false);
+    if (!attemptScopeResult.ok) {
+      expect(attemptScopeResult.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+      expect(attemptScopeResult.error.fieldViolations[0]?.fieldPath).toBe(
+        '/payload/attemptRef/scope',
+      );
+    }
+  });
 });
