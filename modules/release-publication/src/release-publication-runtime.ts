@@ -204,7 +204,11 @@ export class ReleasePublicationRuntime {
       return registration;
     }
     release.frozenPackageRef ??= request.definition.packageRef;
-    release.status = 'PUBLISHING';
+    // Promote only AUTHORIZED → PUBLISHING. Later/idempotent starts must not
+    // downgrade an earned PARTIALLY_RELEASED / RELEASED outcome.
+    if (release.status === 'AUTHORIZED') {
+      release.status = 'PUBLISHING';
+    }
     return { ok: true };
   }
 

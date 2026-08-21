@@ -203,6 +203,65 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     expect(outcome?.receiptRefs).toHaveLength(0);
   });
 
+  it('preserves PARTIALLY_RELEASED when a later destination attempt starts after an early receipt', () => {
+    const fixture = loadFixture();
+    const runtime = openRuntime(fixture);
+    const step1 = fixture.timeline[0];
+    const step2 = fixture.timeline[1];
+    const step3 = fixture.timeline.find((entry) => entry.step === 3);
+    if (step1 === undefined || step2 === undefined || step3 === undefined) {
+      throw new Error('fixture is missing steps 1-3');
+    }
+
+    const first = requireAttemptFields(step1);
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: first.attemptRef,
+        definition: first.definition,
+        correlationId: 'start-after-partial-1',
+      }).ok,
+    ).toBe(true);
+
+    expect(
+      runtime.recordPublicationReceipt({
+        releaseRef: fixture.release.releaseRef,
+        submission: resolveSubmission(step3, undefined),
+        receiptRef: resolveReceiptRef(step3, undefined),
+        correlationId: 'start-after-partial-receipt',
+      }).ok,
+    ).toBe(true);
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe(
+      'PARTIALLY_RELEASED',
+    );
+
+    const second = requireAttemptFields(step2);
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: second.attemptRef,
+        definition: second.definition,
+        correlationId: 'start-after-partial-2',
+      }).ok,
+    ).toBe(true);
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe(
+      'PARTIALLY_RELEASED',
+    );
+
+    // Idempotent re-start of the first attempt must also keep PARTIAL.
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: first.attemptRef,
+        definition: first.definition,
+        correlationId: 'start-after-partial-reentry',
+      }).ok,
+    ).toBe(true);
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe(
+      'PARTIALLY_RELEASED',
+    );
+  });
+
   it('rejects a publication attempt whose package belongs to a foreign release', () => {
     const fixture = loadFixture();
     const runtime = openRuntime(fixture);

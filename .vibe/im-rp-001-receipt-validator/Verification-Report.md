@@ -11,7 +11,7 @@
 | `pnpm format:check` | `PASS` |
 | `pnpm lint` | `PASS`（0 error / 0 warning） |
 | `pnpm typecheck` | `PASS` |
-| `pnpm test` | `PASS` — 15 test files / **301 tests**（基线 287 + 本切片 14） |
+| `pnpm test` | `PASS` — 15 test files / **302 tests**（基线 287 + 本切片 15） |
 | `pnpm architecture` | `PASS` — `architecture_boundaries=PASS source_roots=10` |
 | `pnpm contracts:check` | `PASS` — `schema_status={"FULL":200}`、compatibility `baseline=v1.0 findings=0` |
 
@@ -44,6 +44,7 @@ E2E（`modules/release-publication/src/release-publication-runtime.e2e.test.ts`�
 | RP-API-E-003 主时间线 | 早到接受、迟到 STALE、重放 ALREADY_RECORDED、终态 PARTIALLY_RELEASED；fixture 预置 RawExternalReceipt 事实 |
 | Stale 拒绝不改账 | 仅 Step 4：PUBLISHING / receiptRefs=0 |
 | Foreign package 负例 | 外 Release 的 packageRef 拒 attempt 与 receipt；状态保持 AUTHORIZED |
+| Start-after-partial | 早到 Receipt 后启动另一 Destination attempt / 幂等重入，不降级 `PARTIALLY_RELEASED` |
 
 ## 人工验收口径（REL-801 / RP-API-M-001）
 
