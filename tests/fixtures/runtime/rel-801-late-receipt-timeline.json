@@ -1,0 +1,352 @@
+{
+  "fixtureId": "REL-801-late-receipt-timeline",
+  "description": "REL-801 simulated late receipt timeline (Issue #15 / IM-RP-001). One frozen package published to two required destinations: destination A returns an early success receipt, destination B returns a receipt beyond the delivery timeout window. Reviewers can trace the attempt -> rawReceipt -> late submission sequence and verify that the early success receipt is preserved while the late submission is rejected as RELEASE_RECEIPT_STALE and the release settles at PARTIALLY_RELEASED. This is a controlled runtime fixture: no real Feishu/mail provider or database participates.",
+  "policy": {
+    "deliveryTimeoutMs": 60000,
+    "note": "policy.delivery.deliveryTimeout injected per destination until the Policy domain confirms the field-level contract"
+  },
+  "release": {
+    "releaseRef": {
+      "kind": "OBJECT",
+      "objectType": "release.release",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d801",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "destinations": [
+      {
+        "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d810",
+        "required": true,
+        "deliveryTimeoutMs": 60000
+      },
+      {
+        "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d811",
+        "required": true,
+        "deliveryTimeoutMs": 60000
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "step": 1,
+      "action": "start_publication_attempt",
+      "attemptRef": {
+        "kind": "OBJECT",
+        "objectType": "release.publication_attempt",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d820",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "definition": {
+        "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d810",
+        "packageRef": {
+          "releaseRef": {
+            "kind": "OBJECT",
+            "objectType": "release.release",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d801",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "packageSnapshotRef": {
+            "kind": "SNAPSHOT",
+            "objectType": "release.release_package",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d830",
+            "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d831",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "digest": "aa01000000000000000000000000000000000000000000000000000000000000",
+              "canonicalizationVersion": "1"
+            }
+          },
+          "packageHash": {
+            "algorithm": "SHA-256",
+            "digest": "ab01000000000000000000000000000000000000000000000000000000000000",
+            "canonicalizationVersion": "1"
+          }
+        },
+        "attemptNumber": 1,
+        "stableIdempotencyKey": "rel-801-dest-a-attempt-001",
+        "requestedAt": "2026-08-21T00:00:00Z",
+        "externalDeliveryRequestRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "integration.external_delivery_request",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d840",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "ee01000000000000000000000000000000000000000000000000000000000000",
+            "canonicalizationVersion": "1"
+          }
+        }
+      },
+      "expect": { "outcome": "ACCEPTED" }
+    },
+    {
+      "step": 2,
+      "action": "start_publication_attempt",
+      "attemptRef": {
+        "kind": "OBJECT",
+        "objectType": "release.publication_attempt",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d821",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "definition": {
+        "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d811",
+        "packageRef": {
+          "releaseRef": {
+            "kind": "OBJECT",
+            "objectType": "release.release",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d801",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "packageSnapshotRef": {
+            "kind": "SNAPSHOT",
+            "objectType": "release.release_package",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d830",
+            "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d831",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "digest": "aa01000000000000000000000000000000000000000000000000000000000000",
+              "canonicalizationVersion": "1"
+            }
+          },
+          "packageHash": {
+            "algorithm": "SHA-256",
+            "digest": "ab01000000000000000000000000000000000000000000000000000000000000",
+            "canonicalizationVersion": "1"
+          }
+        },
+        "attemptNumber": 1,
+        "stableIdempotencyKey": "rel-801-dest-b-attempt-001",
+        "requestedAt": "2026-08-21T00:00:00Z",
+        "externalDeliveryRequestRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "integration.external_delivery_request",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d841",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "ee02000000000000000000000000000000000000000000000000000000000000",
+            "canonicalizationVersion": "1"
+          }
+        }
+      },
+      "expect": { "outcome": "ACCEPTED" }
+    },
+    {
+      "step": 3,
+      "action": "record_publication_receipt",
+      "submission": {
+        "attemptRef": {
+          "kind": "OBJECT",
+          "objectType": "release.publication_attempt",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d820",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        },
+        "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d810",
+        "packageRef": {
+          "releaseRef": {
+            "kind": "OBJECT",
+            "objectType": "release.release",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d801",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "packageSnapshotRef": {
+            "kind": "SNAPSHOT",
+            "objectType": "release.release_package",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d830",
+            "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d831",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "digest": "aa01000000000000000000000000000000000000000000000000000000000000",
+              "canonicalizationVersion": "1"
+            }
+          },
+          "packageHash": {
+            "algorithm": "SHA-256",
+            "digest": "ab01000000000000000000000000000000000000000000000000000000000000",
+            "canonicalizationVersion": "1"
+          }
+        },
+        "rawReceiptRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "integration.raw_external_receipt",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d850",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "cc01000000000000000000000000000000000000000000000000000000000000",
+            "canonicalizationVersion": "1"
+          }
+        },
+        "providerResult": {
+          "messageId": "om_rel_801_destination_a_message_001"
+        },
+        "occurredAt": "2026-08-21T00:00:05Z",
+        "receiptPayloadHash": {
+          "algorithm": "SHA-256",
+          "digest": "dd01000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "receiptRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "release.publication_receipt",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d860",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ff01000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "expect": { "outcome": "ACCEPTED" }
+    },
+    {
+      "step": 4,
+      "action": "record_publication_receipt",
+      "submission": {
+        "attemptRef": {
+          "kind": "OBJECT",
+          "objectType": "release.publication_attempt",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d821",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        },
+        "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d811",
+        "packageRef": {
+          "releaseRef": {
+            "kind": "OBJECT",
+            "objectType": "release.release",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d801",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "packageSnapshotRef": {
+            "kind": "SNAPSHOT",
+            "objectType": "release.release_package",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d830",
+            "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d831",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "digest": "aa01000000000000000000000000000000000000000000000000000000000000",
+              "canonicalizationVersion": "1"
+            }
+          },
+          "packageHash": {
+            "algorithm": "SHA-256",
+            "digest": "ab01000000000000000000000000000000000000000000000000000000000000",
+            "canonicalizationVersion": "1"
+          }
+        },
+        "rawReceiptRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "integration.raw_external_receipt",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d851",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "cc02000000000000000000000000000000000000000000000000000000000000",
+            "canonicalizationVersion": "1"
+          }
+        },
+        "providerResult": {
+          "messageId": "om_rel_801_destination_b_message_late_001"
+        },
+        "occurredAt": "2026-08-21T00:01:30Z",
+        "receiptPayloadHash": {
+          "algorithm": "SHA-256",
+          "digest": "dd02000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "receiptRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "release.publication_receipt",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d861",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ff02000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "expect": {
+        "outcome": "RELEASE_RECEIPT_STALE",
+        "note": "occurredAt is 90s after requestedAt (2026-08-21T00:00:00Z) with a 60s delivery timeout window"
+      }
+    },
+    {
+      "step": 5,
+      "action": "record_publication_receipt",
+      "submission": "duplicate-of-step-3",
+      "receiptRef": "duplicate-of-step-3",
+      "expect": {
+        "outcome": "RELEASE_RECEIPT_ALREADY_RECORDED",
+        "note": "exact resubmission of step 3; the recorded fact must not be overwritten or duplicated"
+      }
+    }
+  ],
+  "expectedFinalState": {
+    "status": "PARTIALLY_RELEASED",
+    "succeededDestinationIds": ["018f22e2-7c15-7b2e-8d86-2de956a9d810"],
+    "pendingDestinationIds": ["018f22e2-7c15-7b2e-8d86-2de956a9d811"],
+    "recordedReceiptCount": 1
+  }
+}
