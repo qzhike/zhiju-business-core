@@ -24,7 +24,7 @@
 | #2 TaskExecution 37 | CLOSED | PR #10 |
 | #3 Artifact 26 | CLOSED | PR #12 |
 | #4 QualityGovernance 37 | CLOSED | PR #13 |
-| #5 ReleasePublication 25 | OPEN（Schema 已合入） | Schema：PR #14；Runtime 追踪：#15 |
+| #5 ReleasePublication 25 | FIELD-SCHEMA COMPLETE / CLOSE-READY | Schema：PR #14；duplicate/late：已关闭 #15；其余 Runtime：#22–#24 |
 | #6 IntegrationGateway 23 | CLOSED | PR #16；Runtime 追踪：#17 |
 | #7 Schema-derived TypeScript 类型 | CLOSED | PR #18 |
 | #8 v1.0 Schema 兼容性基线 | CLOSED | PR #19 |
@@ -34,9 +34,9 @@
 2026-08-21 用户在 PR #20 review 中批准路径 A，并已同步修订 Issue #9 正文：
 
 - IM-01 Schema 退出 Gate 的硬依赖改为：#1–#8 的 **Schema / Contract 子切片**均已合入默认分支；
-- `#5` **允许**因 Runtime（#15）保持 OPEN；**不得**把 #15 完成当作本 Gate 前置；
-- `#5` 关闭前提仍是 #15 完成（既有交付决策不变）；
-- 本报告**不得宣称 #5 已关闭**，也不得把 Runtime 验收写成 PASS。
+- 当时 `#5` **允许**因 Runtime（#15）保持 OPEN，且 #15 不作为本 Gate 前置；
+- #15 后续已完成并关闭；用户进一步批准将 #5 收敛为字段 Schema 边界，其余 Runtime Owner 迁移至 #22–#24；
+- #5 可在范围迁移文档合入后关闭，但本报告不得把 #22–#24 的 Runtime 验收写成 `PASS`。
 
 ## 3. 数量对账
 
@@ -118,7 +118,7 @@ $ curl -s http://127.0.0.1:3000/health
 3. Ceph RGW ↔ OpenBao Transit 兼容性必须在后续里程碑实测。
 4. Canonical Document/Workbook 与 Renderer 未决（IM-DG-005）。
 5. Runtime 6 个 additive Command 与默认 Policy 未审核（IM-DG-006）；不得通过私有 API 或直写库绕过。
-6. #5 仍 OPEN 仅因 Runtime(#15)；按 2026-08-21 批准的 Issue #9 修订口径，这不阻塞 IM-01 Schema 退出 Gate，但 #5 本身要等 #15 完成后才关闭。
+6. #5 字段 Schema 已由 PR #14 完成，#15 也已完成并关闭；其余 Runtime 边界已迁移至 #22–#24。#5 按字段 Schema 边界关闭不影响这些 Runtime 风险状态。
 
 ## 8. 退出判定
 
