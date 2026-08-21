@@ -1,6 +1,6 @@
 # Zhiju Business Core
 
-Zhiju Business Core 是面向企业交付、质量治理与发布控制的模块化单体。当前处于 `IM-01 Repository + Executable Contracts` 实施阶段。
+Zhiju Business Core 是面向企业交付、质量治理与发布控制的模块化单体。`IM-01 Repository + Executable Contracts` 自动化退出 Gate 已就绪，等待用户审核后标记 `COMPLETE` 并进入 IM-02。
 
 ## 当前实现范围
 
@@ -21,7 +21,7 @@ Zhiju Business Core 是面向企业交付、质量治理与发布控制的模块
 - v1.0 Schema 兼容性基线（`contracts/baselines/v1.0/`）与构建期 structural compatibility 检查（`tools/contracts/check-compatibility.mts`），含历史正/负向 fixtures、冻结 Event Schema 校验，以及 `operation-compatibility-metadata.v1.json` 人工审查 fingerprint；
 - format、lint、typecheck、Vitest、架构依赖、Catalog 对账、生成 diff 与 compatibility Gate。
 
-Registry 当前为 `FULL:200 / ENVELOPE_ONLY:0`。七模块字段级 Schema、Schema-derived Type 与 v1.0 兼容性基线已落地，IM-01 等待 Handler / Database / Runtime / Feishu / Renderer / 人工业务验收。
+Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。七模块字段级 Schema、Schema-derived Type 与 v1.0 兼容性基线已落地；干净 checkout 下 `pnpm install --frozen-lockfile`、`pnpm clean`、`pnpm verify` 全过。Handler / Database / Runtime / Feishu / Renderer / 人工业务验收仍为后续里程碑 `NOT RUN`，详见 [Issue #9 退出 Gate 报告](.vibe/im-01-exit-gate-issue-9/Verification-Report.md)。
 
 ## 验证
 

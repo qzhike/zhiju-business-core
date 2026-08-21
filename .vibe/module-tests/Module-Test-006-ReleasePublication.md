@@ -29,7 +29,7 @@
 
 - 设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - 字段级 Schema 测试：RP-API-C-002 / C-003 / C-004 / C-007 全部 `PASS`；RP-API-C-001 / C-005 / C-006 由 Schema 层部分 `PASS`，其余不变量（ActorSnapshot / actingFor 完整检查、FormalReceipt.providerResult PII 最小化、普通飞书发送冒充 Formal Release 的来源链）由 Runtime Handler / Publisher / Receipt Validator 共同保证，本 Issue 不假装覆盖。
-- `pnpm clean && pnpm verify` 输出：`catalog=200 registry=200 schema_status={"FULL":177,"ENVELOPE_ONLY":23}`，release-publication 模块 25 个操作全部 `FULL`。
+- 当时切片 `pnpm clean && pnpm verify` 输出：`catalog=200 registry=200 schema_status={"FULL":177,"ENVELOPE_ONLY":23}`，release-publication 模块 25 个操作全部 `FULL`。Issue #9 退出 Gate 时全仓已为 `schema_status={"FULL":200}`（无 `ENVELOPE_ONLY`）。
 - PR #14 review remediation（v0.3）：
   - P1：`PublicationFailureSubmission.occurredAt` 现作为 required，新增 `release-record-publication-failure-command-missing-occurred-at.json` 回归测试。
   - P2：把 7 个普通数组（`attemptRefs / receiptRefs / triggeringRefs / affectedDestinations / requiredActions / publicationAttemptPage.sourceWatermarks / publicationReceiptPage.sourceWatermarks`）的 `uniqueItems` 移除，恢复 API-Contract v0.1 §3 的 `T[]` 语义；保留 `Set<T>` / `NonEmptySet<T>` 上的 `uniqueItems`。
