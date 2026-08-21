@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-16
-状态：`CURRENT MODULE CONTRACT BASELINE / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / APPLICATION CODE NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / ISSUE #17 RUNTIME SLICE LANDED 2026-08-22 / REAL PROVIDER AND DATABASE NOT RUN`
 
 ## 1. 模块责任
 
@@ -209,6 +209,7 @@ INTEGRATION_RENDER_INPUT_MISMATCH
 INTEGRATION_RECEIPT_ATTEMPT_MISMATCH
 INTEGRATION_EXTERNAL_OUTCOME_UNKNOWN
 INTEGRATION_QUARANTINE_REQUIRED
+INTEGRATION_SENSITIVE_DATA_REJECTED
 ```
 
 ## 7. 不变量与持久化边界
@@ -222,6 +223,18 @@ INTEGRATION_QUARANTINE_REQUIRED
 7. Runtime Session/Continuation 只是受控 ExternalRef，不是 Project/Task/Run 身份或授权凭据。
 8. Adapter 不保存长期 Capability Token、模型密钥或共享 Human Credential。
 
+### 7.1 Issue #17 可离线验证的运行时切片
+
+Issue #17 允许先在模块内部验证不依赖真实 Provider、数据库或 HTTP 的纯运行时边界。该切片使用内存 Ledger 和显式 Port，不新增公开 Contract：
+
+1. InboundEnvelope 按 adapter/account/event identity 与 Payload Hash 幂等；同 ID 不同 Hash 保留首个事实并创建 Quarantine。
+2. 外部 Attempt 以稳定键和请求 Hash 绑定；调用超时进入 `UNKNOWN`，稳定键重放复用已记录状态；不得将 timeout 猜测为成功或失败。
+3. Adapter Contract 检查未知 Provider Major 或 required extension 时拒绝映射并进入 Quarantine；Render 结果的 input Hash、完整内容寻址 Revision（包括 `immutableVersionId` 与 `contentHash`）、Renderer 与 Request 不一致时拒绝登记。
+4. 撤回只把 Origin 标记为 `WITHDRAWN` 并保留已有 Envelope；每个 Binding 动作必须经过显式 Authorization Port，Binding 本身不授予成员 Project 权限。
+5. Audit 入口只保存安全诊断字段；access token、app secret 和原始 webhook body 一旦进入候选审计输入即拒绝，并返回 `INTEGRATION_SENSITIVE_DATA_REJECTED`。
+
+这是实现与 Unit/Contract 测试的最小验收切片，不等于跨进程幂等、真实 Adapter Conformance、PostgreSQL 事务、外部 E2E 或人工安全审查已经完成。
+
 ## 8. 可人工验收的模块产出
 
 里程碑 `API-IG-01` 的人工产出是三组脱敏 Fixture：同一飞书事件重复三次只形成一个 Envelope/Command；相同 event ID 不同 Hash 进入 Quarantine；InformationRequest 卡片回答形成规范化 Answer Candidate，但未授权成员与普通“可以”不会形成 Approval；外部 timeout 保持 UNKNOWN。这里只验证 Anti-Corruption Contract，不代表真实飞书、Runtime 或 Renderer 已运行。
@@ -230,10 +243,11 @@ INTEGRATION_QUARANTINE_REQUIRED
 
 - 23 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核并成为字段级基准；
-- Feishu Channel Contract v0.1 已完成静态 `DESIGN VERIFIED`，四个 optional minor 字段已随用户推进确认纳入基准；Runtime Adapter Contract v0.1 已获用户推进确认并进入 Implementation Milestone Plan，Renderer Adapter、Credentials、Persistence 与测试实现均不存在；
+- Feishu Channel Contract v0.1 已完成静态 `DESIGN VERIFIED`，四个 optional minor 字段已随用户推进确认纳入基准；Runtime Adapter Contract v0.1 已获用户推进确认并进入 Implementation Milestone Plan；真实 Renderer Adapter、Credentials、Persistence 与 Provider Conformance 仍不存在，Issue #17 的内存运行时切片及其 Unit/Contract 测试已落地；
 - 字段级 Schema 已落地：`contracts/src/operations/integration-gateway.schema.ts` 已实现 9 Command + 5 Query + 9 Event Payload Schema，5 个 Query Result Schema（`ChannelBindingView` / `AdapterAttemptView` × 3 / `Page<AdapterHealthView>`）；Registry 中 23 个 operation 已于 2026-08-18 由 `ENVELOPE_ONLY` 升级为 `FULL`；
 - 2026-08-18 review 修复：Resume 操作通过 `runtimeResumeRequest` overlay 单独要求 `continuationRef`；`feishuDeliveryRequest` 通过 `if/then` 约束 `REPLY/REPLY_IN_THREAD` 必须携带 `replyToExternalRef`；`businessContextRefs` 改用专用 union 禁止 `ExternalRef`、`Runtime Session` 与 workspace path；`ChannelDeliveryFailed` 移除 spec 未声明的 `destinationBindingRef` 字段。
 - 2026-08-18 review 第二轮修复：`ChannelBindingView.status` 改回 Module-Spec §4 定义的 `NamespaceCode`（不再窄化为 `InboundStatus`）；`AdapterHealthView.latency` 由 `common.valueEnvelope` 替换为本地 `valueEnvelopeDuration`，仅在 `presence=PRESENT` 时要求 `value` 为 common `duration`；`businessContextRefs` 在 per-kind 引用 schema 上叠加 objectType 白名单（`execution.task` / `execution.work_order` / `execution.information_request` / `quality.approval_request` / `release.release`），并补 `identity.principal` 等非白名单负向回归；`attachmentRefs` / `conflictRefs` 移除过度收紧的 `uniqueItems` 保留普通数组语义；`adapterCodes` 移除 `minItems=1` 但恢复 `uniqueItems`，与 Module-Spec §4 `Set<NamespaceCode>` 一致。
 - 2026-08-18 review 第三轮修复：`adapterCodes` 在保留 Set 唯一性的前提下重新接受空数组；新增 `IG-API-S-020`（空数组 valid）与 `IG-API-S-021`（重复项 `uniqueItems` 错误）成对回归，纠正第二轮修复文档中"P2 已断言回归"的失真。
 - 静态设计 / Schema 维度 Gate：`pnpm verify` 6 项（format / lint / typecheck / Vitest / architecture / contracts:check）全部通过；23 个 Happy-path Schema 测试与 11 个 Schema 维度负向 fixture 全部断言 PASS。
-- Handler、Repository、Database、Migration、Feishu Adapter、Runtime Adapter、Renderer Adapter、Credentials、E2E 与人工业务验收仍为 `NOT RUN`；Schema 闭合不等于去重 / 撤销 / 权限 / UNKNOWN / 撤回判定语义已运行；review body 中标注的 7 类字段级契约偏差已修复，但 review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成，模块仍按 IM-01 退出前 `NOT RUN` 处理。
+- Issue #17 的可离线验证运行时切片已于 2026-08-22 落地，覆盖 Inbound 幂等/Hash 冲突、timeout `UNKNOWN`、未知协议拒绝、Render 绑定、撤回 Origin、显式授权和 Audit/Masking；9 个 focused tests 全部 `PASS`，完整验证结果见 `.vibe/issue-17-integrationgateway-runtime-acceptance-gaps/Verification-Report.md`。
+- Handler、Repository、Database、Migration、Feishu Adapter、Runtime Adapter、Renderer Adapter、Credentials、E2E 与人工业务验收仍为 `NOT RUN`；Schema 闭合或内存运行时切片不等于跨进程去重 / 真实撤回 / 真实权限 / Provider UNKNOWN / 业务撤回判定已运行；review body 中标注的 7 类字段级契约偏差已修复，模块不得据此声称 Issue #6 全部 8 条验收完成。
