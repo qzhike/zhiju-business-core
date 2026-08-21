@@ -6,6 +6,7 @@ import {
   INTEGRATION_SENSITIVE_DATA_REJECTED,
   IntegrationGatewayRuntime,
   type ExternalCallOutcome,
+  type MessageOriginIdentity,
 } from './integration-gateway-runtime.js';
 
 const ENTERPRISE_ID = '018f22e2-7c15-7b2e-8d86-2de956a9d201';
@@ -56,11 +57,12 @@ function externalRef(
 function inboundSubmission(
   eventId = 'om_runtime_001',
   payloadDigest = ZERO_DIGEST,
+  accountId = 'tenant_runtime_001',
 ): IntegrationGateway.InboundEnvelopeSubmission {
   return {
     adapterCode: 'feishu.channel',
     adapterVersion: '1.0.0',
-    accountExternalRef: externalRef('tenant', 'tenant_runtime_001'),
+    accountExternalRef: externalRef('tenant', accountId),
     externalEventRef: externalRef('message', eventId),
     externalEventType: 'im.message.receive_v1',
     receivedAt: '2026-08-21T00:00:00Z',
@@ -72,6 +74,17 @@ function inboundSubmission(
     payloadHash: hash(payloadDigest),
     dataClassification: 'INTERNAL',
     transportMetadata: { providerEventId: eventId },
+  };
+}
+
+function originIdentity(
+  messageRef: Common.ExternalRef,
+  accountId = 'tenant_runtime_001',
+): MessageOriginIdentity {
+  return {
+    adapterCode: 'feishu.channel',
+    accountExternalRef: externalRef('tenant', accountId),
+    messageRef,
   };
 }
 
@@ -244,6 +257,50 @@ describe('IntegrationGateway Issue #17 runtime slice', () => {
     expect(callCount).toBe(1);
   });
 
+  it('IG-API-U-003: late rejection after timeout stays UNKNOWN and is not unhandled', async () => {
+    const runtime = new IntegrationGatewayRuntime();
+    const attemptRef = objectRef(
+      'integration.runtime_attempt',
+      '018f22e2-7c15-7b2e-8d86-2de956a9d241',
+    );
+    let rejectCall: (reason: Error) => void = () => undefined;
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const first = await runtime.executeExternalAttempt({
+        attemptRef,
+        adapterKind: 'RUNTIME',
+        stableIdempotencyKey: 'runtime-timeout-late-reject',
+        requestPayloadHash: hash(ZERO_DIGEST),
+        timeoutMs: 5,
+        correlationId: 'ig-u-003-late-reject',
+        call: () =>
+          new Promise<ExternalCallOutcome>((_resolve, reject) => {
+            rejectCall = reject;
+          }),
+      });
+
+      expect(first.ok).toBe(true);
+      if (first.ok) {
+        expect(first.attempt.status).toBe('UNKNOWN');
+      }
+
+      rejectCall(new Error('late adapter failure'));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 20);
+      });
+
+      expect(unhandled).toHaveLength(0);
+      expect(runtime.getAttempt(attemptRef)?.status).toBe('UNKNOWN');
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
   it.each([
     ['unknown Provider Major', { providerSchemaMajor: 3, requiredExtensions: [] }],
     [
@@ -281,7 +338,6 @@ describe('IntegrationGateway Issue #17 runtime slice', () => {
   it('IG-API-C-002: rejects a RenderSucceeded observation whose input does not match the request', () => {
     const runtime = new IntegrationGatewayRuntime();
     const request = renderRequest();
-    let representationRegistrationCount = 0;
     const result = runtime.validateRenderResult({
       request,
       result: {
@@ -293,15 +349,11 @@ describe('IntegrationGateway Issue #17 runtime slice', () => {
       correlationId: 'ig-c-002-mismatch',
     });
 
-    if (result.ok) {
-      representationRegistrationCount += 1;
-    }
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('INTEGRATION_RENDER_INPUT_MISMATCH');
       expect(result.error.fieldViolations[0]?.fieldPath).toBe('/result/inputHash');
     }
-    expect(representationRegistrationCount).toBe(0);
     for (const revisionRef of [
       { ...request.revisionRef, contentHash: hash(ONE_DIGEST) },
       {
@@ -323,6 +375,21 @@ describe('IntegrationGateway Issue #17 runtime slice', () => {
       if (!revisionMismatch.ok) {
         expect(revisionMismatch.error.code).toBe('INTEGRATION_RENDER_INPUT_MISMATCH');
       }
+    }
+    const rendererMismatch = runtime.validateRenderResult({
+      request,
+      result: {
+        revisionRef: request.revisionRef,
+        inputHash: request.inputHash,
+        rendererId: 'renderer.other',
+        rendererVersion: request.rendererVersion,
+      },
+      correlationId: 'ig-c-002-renderer-mismatch',
+    });
+    expect(rendererMismatch.ok).toBe(false);
+    if (!rendererMismatch.ok) {
+      expect(rendererMismatch.error.code).toBe('INTEGRATION_RENDER_INPUT_MISMATCH');
+      expect(rendererMismatch.error.fieldViolations[0]?.fieldPath).toBe('/result/renderer');
     }
     expect(
       runtime.validateRenderResult({
@@ -367,17 +434,123 @@ describe('IntegrationGateway Issue #17 runtime slice', () => {
       recalledMessageRef: messageRef,
       correlationId: 'ig-u-004-recall',
     });
-    const afterLateReceive = runtime.recordMessageReceived(messageRef, receiveEnvelope);
+    const identity = originIdentity(messageRef);
+    const afterLateReceive = runtime.recordMessageReceived(identity, receiveEnvelope);
 
     expect(receive.ok).toBe(true);
     expect(recall.ok).toBe(true);
 
-    const origin = runtime.getMessageOrigin(messageRef);
+    const origin = runtime.getMessageOrigin(identity);
     expect(origin?.status).toBe('WITHDRAWN');
     expect(origin?.sourceEnvelopeRefs).toEqual([receiveEnvelope, recallEnvelope]);
     expect(afterLateReceive.status).toBe('WITHDRAWN');
     expect(afterLateReceive.sourceEnvelopeRefs).toEqual([receiveEnvelope, recallEnvelope]);
     expect(origin?.sourceEnvelopeRefs).toContain(receiveEnvelope);
+  });
+
+  it('IG-API-U-004: recall in one account does not withdraw another account message', () => {
+    const runtime = new IntegrationGatewayRuntime();
+    const messageRef = externalRef('message', 'om_shared_message');
+    const receiveEnvelope = contentRef(
+      'integration.inbound_envelope',
+      '018f22e2-7c15-7b2e-8d86-2de956a9d262',
+    );
+    const recallEnvelope = contentRef(
+      'integration.inbound_envelope',
+      '018f22e2-7c15-7b2e-8d86-2de956a9d263',
+    );
+
+    const receive = runtime.acceptInboundEnvelope({
+      inboundEnvelopeRef: receiveEnvelope,
+      submission: inboundSubmission('om_shared_message', ZERO_DIGEST, 'tenant_runtime_a'),
+      correlationId: 'ig-u-004-tenant-a-receive',
+    });
+    const recallSubmission: IntegrationGateway.InboundEnvelopeSubmission = {
+      ...inboundSubmission('evt_shared_recall', ZERO_DIGEST, 'tenant_runtime_b'),
+      externalEventType: 'im.message.recalled_v1',
+      occurredAt: '2026-08-21T00:01:00Z',
+      externalEventRef: externalRef('event', 'evt_shared_recall'),
+    };
+    const recall = runtime.acceptInboundEnvelope({
+      inboundEnvelopeRef: recallEnvelope,
+      submission: recallSubmission,
+      recalledMessageRef: messageRef,
+      correlationId: 'ig-u-004-tenant-b-recall',
+    });
+
+    expect(receive.ok).toBe(true);
+    expect(recall.ok).toBe(true);
+    expect(runtime.getMessageOrigin(originIdentity(messageRef, 'tenant_runtime_a'))?.status).toBe(
+      'ACTIVE',
+    );
+    expect(runtime.getMessageOrigin(originIdentity(messageRef, 'tenant_runtime_b'))?.status).toBe(
+      'WITHDRAWN',
+    );
+  });
+
+  it('quarantines a recall event that omits recalledMessageRef', () => {
+    const runtime = new IntegrationGatewayRuntime();
+    let dispatchCount = 0;
+    const result = runtime.acceptInboundEnvelope({
+      inboundEnvelopeRef: contentRef(
+        'integration.inbound_envelope',
+        '018f22e2-7c15-7b2e-8d86-2de956a9d264',
+      ),
+      submission: {
+        ...inboundSubmission('evt_missing_recall'),
+        externalEventType: 'im.message.recalled_v1',
+      },
+      correlationId: 'ig-recall-missing-message-ref',
+      dispatchCommand: () => {
+        dispatchCount += 1;
+        return undefined;
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('INTEGRATION_INBOUND_CONTRACT_UNSUPPORTED');
+    }
+    expect(dispatchCount).toBe(0);
+    expect(runtime.getQuarantines()).toHaveLength(1);
+  });
+
+  it('claims inbound identity before dispatch so a throwing command is not retried', () => {
+    const runtime = new IntegrationGatewayRuntime();
+    const submission = inboundSubmission('om_dispatch_throw');
+    let dispatchCount = 0;
+    const dispatchCommand = () => {
+      dispatchCount += 1;
+      throw new Error('downstream mapping failed');
+    };
+
+    expect(() =>
+      runtime.acceptInboundEnvelope({
+        inboundEnvelopeRef: contentRef(
+          'integration.inbound_envelope',
+          '018f22e2-7c15-7b2e-8d86-2de956a9d265',
+        ),
+        submission,
+        correlationId: 'ig-claim-before-dispatch',
+        dispatchCommand,
+      }),
+    ).toThrow('downstream mapping failed');
+
+    const replay = runtime.acceptInboundEnvelope({
+      inboundEnvelopeRef: contentRef(
+        'integration.inbound_envelope',
+        '018f22e2-7c15-7b2e-8d86-2de956a9d266',
+      ),
+      submission,
+      correlationId: 'ig-claim-before-dispatch-replay',
+      dispatchCommand,
+    });
+
+    expect(replay.ok).toBe(true);
+    if (replay.ok) {
+      expect(replay.disposition).toBe('IDEMPOTENT_REPLAY');
+    }
+    expect(dispatchCount).toBe(1);
   });
 
   it('IG-API-U-005: requires explicit authorization after binding scope resolution', () => {

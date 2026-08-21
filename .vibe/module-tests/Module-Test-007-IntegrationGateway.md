@@ -53,7 +53,7 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
-| IG-API-U-004 | Unit | 已接收消息随后收到撤回事件 | Origin 为 `WITHDRAWN`；原 InboundEnvelope/字节引用保留 | receive envelope 与 recall envelope 均保留；late receive 不恢复 `ACTIVE` | `PASS` |
+| IG-API-U-004 | Unit | 已接收消息随后收到撤回事件 | Origin 为 `WITHDRAWN`；原 InboundEnvelope/字节引用保留 | receive envelope 与 recall envelope 均保留；late receive 不恢复 `ACTIVE`；同 message `externalId` 的另一 account recall 不撤回本 account Origin | `PASS` |
 | IG-API-U-005 | Unit | 已绑定 Project A 的成员请求 Project B，显式 Authorization Port 返回 DENY | 在 IntegrationGateway 入口拒绝；Binding 不产生权限 | 同 Scope 进入 `INTEGRATION_CHANNEL_MEMBER_NOT_AUTHORIZED`；跨 Project 进入 `INTEGRATION_CHANNEL_BINDING_SCOPE_MISMATCH`；未调用跨 Scope Authz Port | `PASS` |
 | IG-API-U-006 | Unit | Audit 候选输入分别携带 access token、app secret、webhook body | 三类敏感输入均被拒绝；安全诊断不保存原值 | 三类输入均为 `INTEGRATION_SENSITIVE_DATA_REJECTED`；安全 metadata 可记录且不落原 metadata | `PASS` |
 
@@ -61,11 +61,11 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
-| IG-API-U-001 | Unit | same external event ID + same Hash 三次 | 返回同一 Envelope/处理结果；只调用一次等价业务 Command | dispatch callback 仅执行 1 次；三次结果复用首个 Envelope | `PASS` |
+| IG-API-U-001 | Unit | same external event ID + same Hash 三次 | 返回同一 Envelope/处理结果；只调用一次等价业务 Command | dispatch callback 仅执行 1 次；三次结果复用首个 Envelope；dispatch 抛错后 identity 已 Claim，重放不再 dispatch | `PASS` |
 | IG-API-U-002 | Unit | same external event ID + different Hash | 首个 Envelope 不变；新事件 Quarantine | 首个 Envelope 保留；Hash 冲突生成 1 条 Quarantine；后续同 Hash 重放仍返回首个 Envelope | `PASS` |
-| IG-API-U-003 | Unit | Runtime/Channel external call timeout | Attempt 为 UNKNOWN，不报告 FAILED/SUCCEEDED | timeout 后为 `UNKNOWN` + `INTEGRATION_EXTERNAL_OUTCOME_UNKNOWN`；稳定键重放不再次调用 Provider | `PASS` |
+| IG-API-U-003 | Unit | Runtime/Channel external call timeout | Attempt 为 UNKNOWN，不报告 FAILED/SUCCEEDED | timeout 后为 `UNKNOWN` + `INTEGRATION_EXTERNAL_OUTCOME_UNKNOWN`；稳定键重放不再次调用 Provider；timeout 后迟到 rejection 不改写状态且无 unhandled rejection | `PASS` |
 | IG-API-C-001 | Contract | Inbound 未知 Major 或未知 required extension | Quarantine，不猜测映射，不写业务状态 | 未知 Major 与未知 required extension 均 Quarantine；dispatch callback 为 0 次 | `PASS` |
-| IG-API-C-002 | Contract | RenderSucceeded 的 inputHash、完整内容寻址 revision 或 renderer 不匹配 Request | Artifact 不登记 Representation，记录 mismatch | inputHash、revision contentHash/immutableVersionId 或 renderer mismatch 均为 `INTEGRATION_RENDER_INPUT_MISMATCH`，Representation registration 为 0；匹配输入通过 | `PASS` |
+| IG-API-C-002 | Contract | RenderSucceeded 的 inputHash、完整内容寻址 revision 或 renderer 不匹配 Request | 拒绝 mismatch，不把结果当作已登记 Representation | inputHash、revision contentHash/immutableVersionId、rendererId mismatch 均为 `INTEGRATION_RENDER_INPUT_MISMATCH`；匹配输入通过。本切片无 Artifact 登记 Port，不把本地计数当作 Representation 不变量 | `PASS` |
 | IG-API-E-001 | E2E | InformationRequest 卡片发出、授权回答、重复回调 | 一个 Answer Candidate/Submission；未授权成员被拒绝；不重复恢复 WorkOrder | 无飞书实现 | `NOT RUN` |
 | IG-API-E-002 | E2E | Attempt 提交后进程崩溃并重放 | 复用稳定 key；不重复不可控副作用；Receipt 可补记 | 无 Adapter/Persistence | `NOT RUN` |
 | IG-API-M-001 | Manual | 飞书/Runtime/Render 脱敏协议 Fixture | 审核者能看到 ExternalRef→Envelope/Attempt→Raw Receipt→业务 Command 的边界 | 未准备可执行 Fixture | `NOT RUN` |
@@ -73,9 +73,9 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 ## 本阶段结果
 
 - Schema 维度：`PASS`，`pnpm verify` 中 format / lint / typecheck / Vitest 317 个测试 / 架构边界 / Catalog 对账共 6 项 Gate 全部通过；2026-08-18 review 第一轮 3 个 P1 inline（Resume required `continuationRef` / `replyToExternalRef` conditional / `businessContextRefs` no ExternalRef）已修复；第二轮 4 个 P1（`ChannelBindingView.status` 用错 enum / `latency` 未收紧为 `ValueEnvelope<Duration>` / `businessContextRefs` 缺 objectType 白名单 / duplicate 用例不构成验收）与 2 个 P2（`attachmentRefs`/`conflictRefs` 过紧 uniqueItems / `adapterCodes` 过紧 NonEmptySet）已修复；第三轮恢复 `adapterCodes` 的 Set 唯一性并通过 S-020/S-021 成对回归；第四轮已同步设计计划与本测试文档的契约及验证证据。duplicate fixture 仍仅作为 Schema 闭包回归，U-002 已在 runtime focused test 中证明运行时首事实保留与 Quarantine。
-- Issue #17 运行时切片：U-001/U-002/U-003/U-004/U-005/U-006、C-001/C-002 均为 `PASS`；focused file 共 9 个测试（C-001 参数化为两个 Provider 拒绝场景），覆盖幂等、Hash 冲突、UNKNOWN、协议拒绝、Render 绑定、撤回、显式权限拒绝和 Audit/Masking。
-- 真实 Handler、Repository、Adapter、Database、E2E、External、Manual：继续 `NOT RUN`；本次实现不声称 Issue #6 全部 8 条验收完成，PR #16 不再 `Closes #6`，未覆盖边界由 [Issue #17](https://github.com/qzhike/zhiju-business-core/issues/17) 追踪。
+- Issue #17 运行时切片：U-001/U-002/U-003/U-004/U-005/U-006、C-001/C-002 均为 `PASS`；focused file 共 13 个测试（C-001 参数化为两个 Provider 拒绝场景），覆盖幂等、Hash 冲突、UNKNOWN、迟到 rejection 观察、协议拒绝、Render 绑定含 renderer mismatch、撤回、跨 account Origin 隔离、recall 缺消息引用 Quarantine、Claim-before-dispatch、显式权限拒绝和 Audit/Masking。
+- 真实 Handler、Repository、Adapter、Database、E2E、External、Manual：继续 `NOT RUN`；本次实现不声称 Issue #6 全部 8 条验收完成，PR #16 不再 `Closes #6`，未覆盖边界由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - Feishu Channel 专项：`DESIGN VERIFIED / USER PROGRESSION CONFIRMED 2026-08-16`；不得据此更改本文件 9 个 API 基准用例的历史状态。
 - Runtime Adapter 专项：4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景为 `NOT RUN`；6 个 additive TaskExecution Command proposal 未进入 Catalog。
-- 测试遗留：Schema focused tests 当前为 35/35，Issue #17 runtime focused tests 为 9/9；2026-08-18 review 修复期间新增的临时调试文件 `tests/integration-debug.test.ts` 已删除；本地无临时测试脚本或测试文件。
+- 测试遗留：Schema focused tests 当前为 35/35，Issue #17 runtime focused tests 为 13/13；2026-08-18 review 修复期间新增的临时调试文件 `tests/integration-debug.test.ts` 已删除；本地无临时测试脚本或测试文件。

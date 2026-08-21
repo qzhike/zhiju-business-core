@@ -7,7 +7,7 @@
 // transport or persistence beyond the ReleaseReceiptLedger /
 // RawExternalReceiptRepository abstractions — those layers remain future
 // work (see Module-Spec-006 §9). IntegrationGateway provider injection is
-// tracked by Issue #17 and is NOT claimed by this slice.
+// tracked by Issue #27 and is NOT claimed by this slice.
 
 import type { ApiError } from '@zhiju/shared-kernel';
 import type { Common, ReleasePublication } from '@zhiju/contracts';

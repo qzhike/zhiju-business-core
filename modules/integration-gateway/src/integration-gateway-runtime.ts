@@ -78,7 +78,7 @@ export interface ExecuteExternalAttemptRequest {
   readonly requestPayloadHash: ContentHash;
   readonly timeoutMs: number;
   readonly correlationId: string;
-  readonly call: () => Promise<ExternalCallOutcome>;
+  readonly call: (signal: AbortSignal) => Promise<ExternalCallOutcome>;
 }
 
 export interface AdapterAttemptRecord {
@@ -123,8 +123,13 @@ export interface AuthorizeChannelActionRequest {
 export type AuthorizeChannelActionResult =
   { readonly ok: true } | { readonly ok: false; readonly error: ApiError };
 
-export interface RecordMessageRecallRequest {
+export interface MessageOriginIdentity {
+  readonly adapterCode: Common.NamespaceCode;
+  readonly accountExternalRef: Common.ExternalRef;
   readonly messageRef: Common.ExternalRef;
+}
+
+export interface RecordMessageRecallRequest extends MessageOriginIdentity {
   readonly recallEnvelopeRef: ContentAddressedRef;
   readonly recalledAt: Common.UtcInstant;
 }
@@ -181,14 +186,7 @@ export interface IntegrationGatewayRuntimeOptions {
   readonly now?: () => Common.UtcInstant;
 }
 
-/**
- * Pure runtime boundary for the Issue #17 acceptance slice.
- *
- * The maps in this class deliberately stand in for repository ports. They
- * make idempotency, quarantine, timeout, authorization, withdrawal, render
- * binding and audit rejection executable without claiming database or
- * external-provider conformance.
- */
+/** Process-local stand-in for IntegrationGateway runtime facts; not durable persistence. */
 export class IntegrationGatewayRuntime {
   private readonly inboundByIdentity = new Map<string, InboundEnvelopeRecord>();
 
@@ -258,6 +256,33 @@ export class IntegrationGatewayRuntime {
       }
     }
 
+    if (
+      request.submission.externalEventType === 'im.message.recalled_v1' &&
+      request.recalledMessageRef === undefined
+    ) {
+      return {
+        ok: false,
+        error: rejection({
+          code: 'INTEGRATION_INBOUND_CONTRACT_UNSUPPORTED',
+          category: 'VALIDATION',
+          retryDisposition: 'DO_NOT_RETRY',
+          safeMessage: 'recall events require the recalled message reference',
+          fieldPath: '/recalledMessageRef',
+          violatedRule: 'im.message.recalled_v1 must name the withdrawn origin message',
+          correlationId: request.correlationId,
+          targetRef: request.inboundEnvelopeRef,
+        }),
+        quarantine: this.quarantine({
+          inboundEnvelopeRef: request.inboundEnvelopeRef,
+          conflictRefs: [request.inboundEnvelopeRef],
+          observedHashes: [request.submission.payloadHash],
+          reasonCode: 'INTEGRATION_INBOUND_CONTRACT_UNSUPPORTED',
+          safeDiagnostic: 'Recall event omitted the recalled message reference.',
+          quarantinedAt: this.now(),
+        }),
+      };
+    }
+
     const identity = inboundIdentityKey(request.submission);
     const existing = this.inboundByIdentity.get(identity);
     if (existing !== undefined) {
@@ -289,28 +314,42 @@ export class IntegrationGatewayRuntime {
       };
     }
 
-    const targetCommandRef = request.dispatchCommand?.();
-    const record: InboundEnvelopeRecord = {
+    const claimed: InboundEnvelopeRecord = Object.freeze({
       inboundEnvelopeRef: request.inboundEnvelopeRef,
       externalEventRef: request.submission.externalEventRef,
       payloadHash: request.submission.payloadHash,
       status: 'ACCEPTED',
-      ...(targetCommandRef === undefined ? {} : { targetCommandRef }),
-    };
-    this.inboundByIdentity.set(identity, Object.freeze(record));
+    });
+    this.inboundByIdentity.set(identity, claimed);
 
     if (request.submission.externalEventType === 'im.message.receive_v1') {
-      this.recordMessageReceived(request.submission.externalEventRef, request.inboundEnvelopeRef);
+      this.recordMessageReceived(
+        {
+          adapterCode: request.submission.adapterCode,
+          accountExternalRef: request.submission.accountExternalRef,
+          messageRef: request.submission.externalEventRef,
+        },
+        request.inboundEnvelopeRef,
+      );
     }
     if (
       request.submission.externalEventType === 'im.message.recalled_v1' &&
       request.recalledMessageRef !== undefined
     ) {
       this.recordMessageRecall({
+        adapterCode: request.submission.adapterCode,
+        accountExternalRef: request.submission.accountExternalRef,
         messageRef: request.recalledMessageRef,
         recallEnvelopeRef: request.inboundEnvelopeRef,
         recalledAt: request.submission.occurredAt ?? request.submission.receivedAt,
       });
+    }
+
+    const targetCommandRef = request.dispatchCommand?.();
+    const record: InboundEnvelopeRecord =
+      targetCommandRef === undefined ? claimed : Object.freeze({ ...claimed, targetCommandRef });
+    if (targetCommandRef !== undefined) {
+      this.inboundByIdentity.set(identity, record);
     }
 
     return { ok: true, disposition: 'ACCEPTED', record };
@@ -411,6 +450,7 @@ export class IntegrationGatewayRuntime {
     this.attemptsByStableKeyHash.set(stableKeyHash, initial);
     this.attemptsByRef.set(objectRefKey(request.attemptRef), initial);
 
+    const abort = new AbortController();
     const timeoutMarker = Symbol('external-call-timeout');
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<typeof timeoutMarker>((resolve) => {
@@ -418,7 +458,7 @@ export class IntegrationGatewayRuntime {
         resolve(timeoutMarker);
       }, request.timeoutMs);
     });
-    const call = Promise.resolve().then(() => request.call());
+    const call = Promise.resolve().then(() => request.call(abort.signal));
 
     let outcome: ExternalCallOutcome | typeof timeoutMarker;
     try {
@@ -428,6 +468,13 @@ export class IntegrationGatewayRuntime {
     }
     if (timer !== undefined) {
       clearTimeout(timer);
+    }
+    if (outcome === timeoutMarker) {
+      abort.abort();
+      void call.then(
+        () => undefined,
+        () => undefined,
+      );
     }
 
     const finalStatus: IntegrationGateway.AttemptStatus =
@@ -525,14 +572,14 @@ export class IntegrationGatewayRuntime {
   }
 
   recordMessageReceived(
-    messageRef: Common.ExternalRef,
+    identity: MessageOriginIdentity,
     envelopeRef: ContentAddressedRef,
   ): MessageOriginRecord {
-    const key = externalRefKey(messageRef);
+    const key = messageOriginKey(identity);
     const existing = this.originsByMessage.get(key);
     const sourceEnvelopeRefs = appendUniqueRef(existing?.sourceEnvelopeRefs ?? [], envelopeRef);
     const record: MessageOriginRecord = Object.freeze({
-      messageRef,
+      messageRef: identity.messageRef,
       sourceEnvelopeRefs,
       status: existing?.status ?? 'ACTIVE',
       ...(existing?.recalledAt === undefined ? {} : { recalledAt: existing.recalledAt }),
@@ -542,7 +589,7 @@ export class IntegrationGatewayRuntime {
   }
 
   recordMessageRecall(request: RecordMessageRecallRequest): MessageOriginRecord {
-    const key = externalRefKey(request.messageRef);
+    const key = messageOriginKey(request);
     const existing = this.originsByMessage.get(key);
     const sourceEnvelopeRefs = appendUniqueRef(
       existing?.sourceEnvelopeRefs ?? [],
@@ -558,8 +605,8 @@ export class IntegrationGatewayRuntime {
     return record;
   }
 
-  getMessageOrigin(messageRef: Common.ExternalRef): MessageOriginRecord | undefined {
-    return this.originsByMessage.get(externalRefKey(messageRef));
+  getMessageOrigin(identity: MessageOriginIdentity): MessageOriginRecord | undefined {
+    return this.originsByMessage.get(messageOriginKey(identity));
   }
 
   validateRenderResult(request: ValidateRenderResultRequest): ValidateRenderResultResult {
@@ -770,6 +817,14 @@ function inboundIdentityKey(submission: IntegrationGateway.InboundEnvelopeSubmis
     submission.adapterCode,
     externalRefKey(submission.accountExternalRef),
     externalRefKey(submission.externalEventRef),
+  ].join('\u0000');
+}
+
+function messageOriginKey(identity: MessageOriginIdentity): string {
+  return [
+    identity.adapterCode,
+    externalRefKey(identity.accountExternalRef),
+    externalRefKey(identity.messageRef),
   ].join('\u0000');
 }
 

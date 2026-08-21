@@ -227,10 +227,10 @@ INTEGRATION_SENSITIVE_DATA_REJECTED
 
 Issue #17 允许先在模块内部验证不依赖真实 Provider、数据库或 HTTP 的纯运行时边界。该切片使用内存 Ledger 和显式 Port，不新增公开 Contract：
 
-1. InboundEnvelope 按 adapter/account/event identity 与 Payload Hash 幂等；同 ID 不同 Hash 保留首个事实并创建 Quarantine。
-2. 外部 Attempt 以稳定键和请求 Hash 绑定；调用超时进入 `UNKNOWN`，稳定键重放复用已记录状态；不得将 timeout 猜测为成功或失败。
+1. InboundEnvelope 按 adapter/account/event identity 与 Payload Hash 幂等；先 Claim 该 identity 再映射 Core Command；同 ID 不同 Hash 保留首个事实并创建 Quarantine。
+2. 外部 Attempt 以稳定键和请求 Hash 绑定；调用超时进入 `UNKNOWN`，稳定键重放复用已记录状态；timeout 之后迟到的成功或失败不得改写 `UNKNOWN`，也必须被观察以免 unhandled rejection。
 3. Adapter Contract 检查未知 Provider Major 或 required extension 时拒绝映射并进入 Quarantine；Render 结果的 input Hash、完整内容寻址 Revision（包括 `immutableVersionId` 与 `contentHash`）、Renderer 与 Request 不一致时拒绝登记。
-4. 撤回只把 Origin 标记为 `WITHDRAWN` 并保留已有 Envelope；每个 Binding 动作必须经过显式 Authorization Port，Binding 本身不授予成员 Project 权限。
+4. 撤回只把 Origin 标记为 `WITHDRAWN` 并保留已有 Envelope；Origin 身份与入站事实相同，为 adapter + account + message；`im.message.recalled_v1` 必须携带被撤回消息引用，否则 Quarantine。每个 Binding 动作必须经过显式 Authorization Port，Binding 本身不授予成员 Project 权限。
 5. Audit 入口只保存安全诊断字段；access token、app secret 和原始 webhook body 一旦进入候选审计输入即拒绝，并返回 `INTEGRATION_SENSITIVE_DATA_REJECTED`。
 
 这是实现与 Unit/Contract 测试的最小验收切片，不等于跨进程幂等、真实 Adapter Conformance、PostgreSQL 事务、外部 E2E 或人工安全审查已经完成。
@@ -249,5 +249,5 @@ Issue #17 允许先在模块内部验证不依赖真实 Provider、数据库或 
 - 2026-08-18 review 第二轮修复：`ChannelBindingView.status` 改回 Module-Spec §4 定义的 `NamespaceCode`（不再窄化为 `InboundStatus`）；`AdapterHealthView.latency` 由 `common.valueEnvelope` 替换为本地 `valueEnvelopeDuration`，仅在 `presence=PRESENT` 时要求 `value` 为 common `duration`；`businessContextRefs` 在 per-kind 引用 schema 上叠加 objectType 白名单（`execution.task` / `execution.work_order` / `execution.information_request` / `quality.approval_request` / `release.release`），并补 `identity.principal` 等非白名单负向回归；`attachmentRefs` / `conflictRefs` 移除过度收紧的 `uniqueItems` 保留普通数组语义；`adapterCodes` 移除 `minItems=1` 但恢复 `uniqueItems`，与 Module-Spec §4 `Set<NamespaceCode>` 一致。
 - 2026-08-18 review 第三轮修复：`adapterCodes` 在保留 Set 唯一性的前提下重新接受空数组；新增 `IG-API-S-020`（空数组 valid）与 `IG-API-S-021`（重复项 `uniqueItems` 错误）成对回归，纠正第二轮修复文档中"P2 已断言回归"的失真。
 - 静态设计 / Schema 维度 Gate：`pnpm verify` 6 项（format / lint / typecheck / Vitest / architecture / contracts:check）全部通过；23 个 Happy-path Schema 测试与 11 个 Schema 维度负向 fixture 全部断言 PASS。
-- Issue #17 的可离线验证运行时切片已于 2026-08-22 落地，覆盖 Inbound 幂等/Hash 冲突、timeout `UNKNOWN`、未知协议拒绝、Render 绑定、撤回 Origin、显式授权和 Audit/Masking；9 个 focused tests 全部 `PASS`，完整验证结果见 `.vibe/issue-17-integrationgateway-runtime-acceptance-gaps/Verification-Report.md`。
-- Handler、Repository、Database、Migration、Feishu Adapter、Runtime Adapter、Renderer Adapter、Credentials、E2E 与人工业务验收仍为 `NOT RUN`；Schema 闭合或内存运行时切片不等于跨进程去重 / 真实撤回 / 真实权限 / Provider UNKNOWN / 业务撤回判定已运行；review body 中标注的 7 类字段级契约偏差已修复，模块不得据此声称 Issue #6 全部 8 条验收完成。
+- Issue #17 的可离线验证运行时切片已于 2026-08-22 落地，覆盖 Inbound 幂等/Hash 冲突、timeout `UNKNOWN`、未知协议拒绝、Render 绑定、撤回 Origin、显式授权和 Audit/Masking；PR #26 review 补强 Claim-before-dispatch、timeout 迟到 rejection 观察、Origin 的 adapter/account 身份、recall 必填消息引用和 renderer mismatch 回归；focused tests 全部 `PASS`，完整验证结果见 `.vibe/issue-17-integrationgateway-runtime-acceptance-gaps/Verification-Report.md`。
+- Handler、Repository、Database、Migration、Feishu Adapter、Runtime Adapter、Renderer Adapter、Credentials、E2E 与人工业务验收仍为 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪；Schema 闭合或内存运行时切片不等于跨进程去重 / 真实撤回 / 真实权限 / Provider UNKNOWN / 业务撤回判定已运行；review body 中标注的 7 类字段级契约偏差已修复，模块不得据此声称 Issue #6 全部 8 条验收完成。
