@@ -194,9 +194,9 @@ RELEASE_CANCEL_NOT_ALLOWED
 2. PREPARED 后 Package 全冻结；任何内容、收件人或 Destination 变化必须新建 Release。
 3. Agent/actingFor 永远不能 Release Authorization；授权事务重验所有上游有效性。
 4. 外部发布只由已提交 Authorization 驱动；网络调用不在业务事务内。
-5. Raw Receipt 是外部观测；本模块验证后才形成 Formal PublicationReceipt。
-6. Timeout/不确定外部状态保持 UNKNOWN；相同稳定幂等键查询/补记，不盲目重发。Formal Receipt 的迟到窗口由 Runtime Receipt Validator 判定：`occurredAt` 晚于 `attempt.requestedAt + deliveryTimeout` 即拒绝 `RELEASE_RECEIPT_STALE`；`deliveryTimeout` 取值来自 Destination 的 DeliveryPolicy，由调用方注入 Validator（Policy 域字段扩展待 Policy 域所有者确认，见 Issue #15 依赖项）。
-7. 多 Destination 部分成功保留真实 Receipt，不伪造业务回滚。
+5. Raw Receipt 是外部观测；本模块必须先经 `RawExternalReceiptRepository` 加载事实，校验 `rawReceiptRef.objectType = integration.raw_external_receipt` 以及 releaseId / destinationId / packageHash / publicationAttemptId 与 Attempt/Submission 一致后，才可形成 Formal PublicationReceipt（RP-API-C-002）。
+6. Timeout/不确定外部状态保持 UNKNOWN；相同稳定幂等键查询/补记，不盲目重发。Formal Receipt 的迟到窗口由 Runtime Receipt Validator 判定：`occurredAt` 晚于 `attempt.requestedAt + deliveryTimeout` 即拒绝 `RELEASE_RECEIPT_STALE`；`deliveryTimeout` 取值来自 Destination 的 DeliveryPolicy，由调用方注入 Validator（Policy 域字段扩展待 Policy 域所有者确认，见 Issue #15 依赖项）。正式回执写入必须经 Ledger `compareAndSaveReceipt`（或等价唯一约束事务），禁止非原子的 validate-then-save。
+7. 多 Destination 部分成功保留真实 Receipt，不伪造业务回滚。Publication Attempt / Formal Receipt 的 `packageRef` 必须绑定当前 Release，并与该 Release 冻结的 `ReleasePackageRef` 完全一致。
 8. Recall 不删除外部事实；CUSTOMER_DELIVERY Completion 不自动建立 INTERNAL_EFFECTIVE_USE。
 
 ## 8. 可人工验收的模块产出
@@ -212,6 +212,6 @@ RELEASE_CANCEL_NOT_ALLOWED
 - `tools/contracts/check-catalog.mjs` 已把 `release-publication` 加入 `implementedOwners`；
 - 字段级 Payload / Result Schema 与 `Module-Spec-006` §2–§5 完全一致：Release / ReleasePackage / RecipientScopeSnapshot / Destination / PublicationAttempt / Receipt / Recall / Readiness 引用精确、状态枚举闭合、`authorizingHumanRef` 强制 `principalKind: HUMAN`、`publicationFailureSubmission.outcome` 仅允许 `FAILED|UNKNOWN`、事件 payload 严格闭合；
 - Unit / Contract 级 Schema 测试已在 `contracts/src/operations/release-publication.schema.test.ts` 中实现并通过；
-- Runtime Receipt Validator 已于 2026-08-21（Issue #15 / IM-RP-001）在 `modules/release-publication/src/receipt-validator.ts` 落地：按 `attemptRef` + `rawReceiptRef.contentHash` + `stableIdempotencyKey` 维护稳定键索引；同 stable key 不同 packageHash 拒绝 `RELEASE_ATTEMPT_IDEMPOTENCY_CONFLICT` 且不覆盖原 Receipt；同 `rawReceiptRef` 重复提交拒绝 `RELEASE_RECEIPT_ALREADY_RECORDED`；迟到窗口拒绝 `RELEASE_RECEIPT_STALE`；attempt 不存在或 destination/package 不匹配拒绝 `RELEASE_RECEIPT_TARGET_MISMATCH`。持久化载体为 `ReleaseReceiptLedger` 接口 + In-Memory 实现，DDL / 真实 Repository 仍不存在；
+- Runtime Receipt Validator 已于 2026-08-21（Issue #15 / IM-RP-001）在 `modules/release-publication/src/receipt-validator.ts` 落地，并经 PR #21 review remediation 补强：按 `attemptRef` + `rawReceiptRef.contentHash` + `stableIdempotencyKey` 维护稳定键索引；正式回执仅经 `compareAndSaveReceipt` 原子落账；同 stable key 不同 packageHash 拒绝 `RELEASE_ATTEMPT_IDEMPOTENCY_CONFLICT` 且不覆盖原 Receipt；同 `rawReceiptRef` 重复提交拒绝 `RELEASE_RECEIPT_ALREADY_RECORDED`；迟到窗口拒绝 `RELEASE_RECEIPT_STALE`；attempt 不存在、destination/package 不匹配、`packageRef.releaseRef` 与当前 Release / 冻结 Package 不一致、或 `rawReceiptRef` 非已加载 `RawExternalReceipt`（objectType / 溯源字段不匹配）均拒绝 `RELEASE_RECEIPT_TARGET_MISMATCH`。持久化载体为 `ReleaseReceiptLedger` + `RawExternalReceiptRepository` 接口与 In-Memory 实现，DDL / 真实 Repository / Integration Provider 注入仍不存在（后者归属 #17）；
 - Package Hash 计算、Publisher、完整 Persistence 与人工验收实现仍不存在；
 - 对应 Unit / Contract / E2E / Manual 验收结果见 [`Module-Test-006-ReleasePublication.md`](../module-tests/Module-Test-006-ReleasePublication.md)。

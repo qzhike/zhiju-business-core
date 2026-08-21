@@ -1,10 +1,74 @@
 {
   "fixtureId": "REL-801-late-receipt-timeline",
-  "description": "REL-801 simulated late receipt timeline (Issue #15 / IM-RP-001). One frozen package published to two required destinations: destination A returns an early success receipt, destination B returns a receipt beyond the delivery timeout window. Reviewers can trace the attempt -> rawReceipt -> late submission sequence and verify that the early success receipt is preserved while the late submission is rejected as RELEASE_RECEIPT_STALE and the release settles at PARTIALLY_RELEASED. This is a controlled runtime fixture: no real Feishu/mail provider or database participates.",
+  "description": "REL-801 simulated late receipt timeline (Issue #15 / IM-RP-001). One frozen package published to two required destinations: destination A returns an early success receipt, destination B returns a receipt beyond the delivery timeout window. Reviewers can trace the attempt -> rawReceipt -> late submission sequence and verify that the early success receipt is preserved while the late submission is rejected as RELEASE_RECEIPT_STALE and the release settles at PARTIALLY_RELEASED. This is a controlled ReleasePublication runtime fixture with seeded RawExternalReceipt facts: no real Feishu/mail provider, IntegrationGateway adapter, or database participates. Integration-layer provider injection remains Issue #17 / NOT RUN.",
   "policy": {
     "deliveryTimeoutMs": 60000,
     "note": "policy.delivery.deliveryTimeout injected per destination until the Policy domain confirms the field-level contract"
   },
+  "rawExternalReceipts": [
+    {
+      "rawReceiptRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "integration.raw_external_receipt",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d850",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "cc01000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "releaseId": "018f22e2-7c15-7b2e-8d86-2de956a9d801",
+      "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d810",
+      "packageHashDigest": "ab01000000000000000000000000000000000000000000000000000000000000",
+      "publicationAttemptId": "018f22e2-7c15-7b2e-8d86-2de956a9d820",
+      "adapterAttemptRef": {
+        "kind": "OBJECT",
+        "objectType": "integration.adapter_attempt",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d840",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "observedOutcome": "SUCCEEDED",
+      "occurredAt": "2026-08-21T00:00:05Z"
+    },
+    {
+      "rawReceiptRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "integration.raw_external_receipt",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d851",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "cc02000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "releaseId": "018f22e2-7c15-7b2e-8d86-2de956a9d801",
+      "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d811",
+      "packageHashDigest": "ab01000000000000000000000000000000000000000000000000000000000000",
+      "publicationAttemptId": "018f22e2-7c15-7b2e-8d86-2de956a9d821",
+      "adapterAttemptRef": {
+        "kind": "OBJECT",
+        "objectType": "integration.adapter_attempt",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d841",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "observedOutcome": "SUCCEEDED",
+      "occurredAt": "2026-08-21T00:01:30Z"
+    }
+  ],
   "release": {
     "releaseRef": {
       "kind": "OBJECT",

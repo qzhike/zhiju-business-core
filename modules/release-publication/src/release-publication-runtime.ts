@@ -4,23 +4,31 @@
 // This is a domain-service level orchestrator: it owns the release-level
 // destination outcomes and delegates fact-level validation to the Receipt
 // Validator. It intentionally does not handle command envelopes, HTTP
-// transport or persistence beyond the ReleaseReceiptLedger abstraction —
-// those layers remain future work (see Module-Spec-006 §9).
+// transport or persistence beyond the ReleaseReceiptLedger /
+// RawExternalReceiptRepository abstractions — those layers remain future
+// work (see Module-Spec-006 §9). IntegrationGateway provider injection is
+// tracked by Issue #17 and is NOT claimed by this slice.
 
 import type { ApiError } from '@zhiju/shared-kernel';
 import type { Common, ReleasePublication } from '@zhiju/contracts';
 
 import {
+  InMemoryRawExternalReceiptRepository,
   InMemoryReleaseReceiptLedger,
   registerPublicationAttempt,
-  validateFormalReceipt,
+  recordFormalReceipt,
   buildApiRejection,
+  sameObjectRef,
+  samePackageRef,
   RELEASE_RECEIPT_TARGET_MISMATCH,
   type ReceiptValidationResult,
+  type RawExternalReceiptFact,
+  type RawExternalReceiptRepository,
   type ReleaseReceiptLedger,
 } from './receipt-validator.js';
 
 type ObjectRef = Common.ObjectRef;
+type ReleasePackageRef = Common.ReleasePackageRef;
 
 type PublicationAttemptDefinition = ReleasePublication.PublicationAttemptDefinition;
 type FormalReceiptSubmission = ReleasePublication.FormalReceiptSubmission;
@@ -49,12 +57,16 @@ interface ReleaseState {
   readonly releaseRef: ObjectRef;
   readonly destinations: ReadonlyMap<string, ReleaseDestinationPolicy>;
   readonly receiptsByDestination: Map<string, Common.ContentAddressedRef>;
+  /** Frozen on the first accepted publication attempt for this release. */
+  frozenPackageRef: ReleasePackageRef | undefined;
   status: ReleaseStatus;
 }
 
 export interface OpenReleaseRequest {
   readonly releaseRef: ObjectRef;
   readonly destinations: readonly ReleaseDestinationPolicy[];
+  /** Optional pre-frozen package identity; otherwise frozen on first attempt. */
+  readonly frozenPackageRef?: ReleasePackageRef;
 }
 
 export interface StartAttemptRequest {
@@ -71,6 +83,11 @@ export interface RecordReceiptRequest {
   readonly correlationId: string;
 }
 
+export interface ReleasePublicationRuntimeOptions {
+  readonly ledger?: ReleaseReceiptLedger;
+  readonly rawReceipts?: RawExternalReceiptRepository;
+}
+
 /**
  * Domain-service runtime for ReleasePublication publication facts.
  *
@@ -81,10 +98,21 @@ export interface RecordReceiptRequest {
  */
 export class ReleasePublicationRuntime {
   private readonly ledger: ReleaseReceiptLedger;
+  private readonly rawReceipts: RawExternalReceiptRepository;
   private readonly releases = new Map<string, ReleaseState>();
 
-  constructor(ledger: ReleaseReceiptLedger = new InMemoryReleaseReceiptLedger()) {
-    this.ledger = ledger;
+  constructor(options: ReleasePublicationRuntimeOptions = {}) {
+    this.ledger = options.ledger ?? new InMemoryReleaseReceiptLedger();
+    this.rawReceipts = options.rawReceipts ?? new InMemoryRawExternalReceiptRepository();
+  }
+
+  /** Seeds a RawExternalReceipt fact consumed by formal-receipt provenance checks. */
+  seedRawExternalReceipt(fact: RawExternalReceiptFact): void {
+    const store = this.rawReceipts;
+    if (!(store instanceof InMemoryRawExternalReceiptRepository)) {
+      throw new Error('seedRawExternalReceipt requires an InMemoryRawExternalReceiptRepository');
+    }
+    store.save(fact);
   }
 
   openReleaseForPublication(request: OpenReleaseRequest): void {
@@ -92,10 +120,17 @@ export class ReleasePublicationRuntime {
     for (const destination of request.destinations) {
       destinations.set(destination.destinationId, destination);
     }
+    if (
+      request.frozenPackageRef !== undefined &&
+      !sameObjectRef(request.frozenPackageRef.releaseRef, request.releaseRef)
+    ) {
+      throw new Error('frozenPackageRef.releaseRef must equal the opened releaseRef');
+    }
     this.releases.set(request.releaseRef.objectId, {
       releaseRef: request.releaseRef,
       destinations,
       receiptsByDestination: new Map(),
+      frozenPackageRef: request.frozenPackageRef,
       status: 'AUTHORIZED',
     });
   }
@@ -122,6 +157,42 @@ export class ReleasePublicationRuntime {
         }),
       };
     }
+
+    // Bind the attempt package to this release before any ledger mutation.
+    if (!sameObjectRef(request.definition.packageRef.releaseRef, request.releaseRef)) {
+      return {
+        ok: false,
+        error: buildApiRejection({
+          code: RELEASE_RECEIPT_TARGET_MISMATCH,
+          category: 'VALIDATION',
+          retryDisposition: 'DO_NOT_RETRY',
+          safeMessage: 'publication attempt package belongs to a different release',
+          fieldPath: '/payload/attempt/packageRef/releaseRef',
+          violatedRule: 'attempt.packageRef.releaseRef must equal the target release',
+          correlationId: '',
+          targetRef: request.attemptRef,
+        }),
+      };
+    }
+
+    if (release.frozenPackageRef !== undefined) {
+      if (!samePackageRef(release.frozenPackageRef, request.definition.packageRef)) {
+        return {
+          ok: false,
+          error: buildApiRejection({
+            code: RELEASE_RECEIPT_TARGET_MISMATCH,
+            category: 'VALIDATION',
+            retryDisposition: 'DO_NOT_RETRY',
+            safeMessage: 'publication attempt package does not match the frozen release package',
+            fieldPath: '/payload/attempt/packageRef',
+            violatedRule: 'all attempts for a release share one frozen ReleasePackageRef',
+            correlationId: '',
+            targetRef: request.attemptRef,
+          }),
+        };
+      }
+    }
+
     const registration = registerPublicationAttempt(this.ledger, {
       attemptRef: request.attemptRef,
       definition: request.definition,
@@ -130,6 +201,7 @@ export class ReleasePublicationRuntime {
     if (!registration.ok) {
       return registration;
     }
+    release.frozenPackageRef ??= request.definition.packageRef;
     release.status = 'PUBLISHING';
     return { ok: true };
   }
@@ -155,7 +227,44 @@ export class ReleasePublicationRuntime {
         }),
       };
     }
-    const validation = validateFormalReceipt(this.ledger, {
+
+    if (!sameObjectRef(request.submission.packageRef.releaseRef, request.releaseRef)) {
+      return {
+        ok: false,
+        error: buildApiRejection({
+          code: RELEASE_RECEIPT_TARGET_MISMATCH,
+          category: 'VALIDATION',
+          retryDisposition: 'DO_NOT_RETRY',
+          safeMessage: 'receipt package belongs to a different release',
+          fieldPath: '/payload/receipt/packageRef/releaseRef',
+          violatedRule: 'receipt.packageRef.releaseRef must equal the target release',
+          correlationId: request.correlationId,
+          targetRef: request.submission.attemptRef,
+        }),
+      };
+    }
+
+    if (
+      release.frozenPackageRef !== undefined &&
+      !samePackageRef(release.frozenPackageRef, request.submission.packageRef)
+    ) {
+      return {
+        ok: false,
+        error: buildApiRejection({
+          code: RELEASE_RECEIPT_TARGET_MISMATCH,
+          category: 'VALIDATION',
+          retryDisposition: 'DO_NOT_RETRY',
+          safeMessage: 'receipt package does not match the frozen release package',
+          fieldPath: '/payload/receipt/packageRef',
+          violatedRule: 'formal receipts must target the frozen ReleasePackageRef',
+          correlationId: request.correlationId,
+          targetRef: request.submission.attemptRef,
+        }),
+      };
+    }
+
+    // Validation and insert are a single ledger compare-and-save.
+    const validation = recordFormalReceipt(this.ledger, this.rawReceipts, {
       submission: request.submission,
       receiptRef: request.receiptRef,
       deliveryTimeoutMs: destination.deliveryTimeoutMs,
@@ -165,7 +274,6 @@ export class ReleasePublicationRuntime {
       // Rejected receipts never mutate release state: the original facts stay.
       return validation;
     }
-    this.ledger.saveReceipt(validation.record);
     release.receiptsByDestination.set(
       request.submission.destinationId,
       validation.record.receiptRef,

@@ -1,7 +1,7 @@
 # IM-RP-001 Runtime Receipt Validator Task Plan（Issue #15）
 
 日期：2026-08-21
-状态：`IN PROGRESS`
+状态：`REMEDIATION (PR #21 review)`
 对应 Issue：[#15](https://github.com/qzhike/zhiju-business-core/issues/15)
 分支：`galendai/15-im-rp-001-runtime-duplicate-late-receipt-detecti`
 
@@ -19,18 +19,20 @@
 
 | 决策 | 选择 | 依据 |
 |---|---|---|
-| 持久化载体 | `ReleaseReceiptLedger` 接口 + In-Memory 实现；DDL/Repository 仍 `NOT RUN` | HL-Spec §11 明确数据库验证 `NOT RUN`；IM-01 exit gate 不做 DDL/Migration/Repository |
+| 持久化载体 | `ReleaseReceiptLedger` 接口 + In-Memory 实现；正式回执仅经 `compareAndSaveReceipt`；DDL/Repository 仍 `NOT RUN` | HL-Spec §11 明确数据库验证 `NOT RUN`；真实唯一约束由后续 Repository 兑现 |
 | `policy.delivery.deliveryTimeout` | 不改 contracts Schema；迟到窗口作为 validator 显式入参注入 | Issue #15 依赖项注明"待与 Policy 域所有者确认"，本切片不代替该确认 |
-| 错误码集合 | 三个 Issue 指定码 + 复用 Module-Spec-006 §6 已有 `RELEASE_RECEIPT_TARGET_MISMATCH`（attempt 不存在或 receipt 与 attempt 的 destination/package 不匹配）；新增 `RELEASE_RECEIPT_STALE` 入 §6 | Spec §6 已定义 TARGET_MISMATCH；STALE 为本 Issue 新增 |
+| 错误码集合 | 三个 Issue 指定码 + 复用 Module-Spec-006 §6 已有 `RELEASE_RECEIPT_TARGET_MISMATCH`（含 package↔release 绑定与 RawExternalReceipt provenance）；新增 `RELEASE_RECEIPT_STALE` 入 §6 | Spec §6 已定义 TARGET_MISMATCH；STALE 为本 Issue 新增 |
 | Runtime 形态 | 领域服务层（Validator + 薄编排 Runtime），不引入 Command Envelope / HTTP Handler | 仓库尚无任何 Runtime Handler 基础设施；模块骨架状态 |
-| 与 Issue #5 关系 | PR 不写 `Closes #5`；#5 待本 PR 合并后由维护者关闭 | Issue #15 验收目标最后一条 |
+| Integration Provider fixture | **重定范围到 #17**；本切片只提供 Runtime 受控 fixture + RawExternalReceipt 种子事实 | 用户确认（PR #21 remediation）；不得称「等价覆盖」 |
+| 与 Issue #5 关系 | PR 不写 `Closes #5`；#5 因 ActorSnapshot / providerResult PII / 普通飞书来源链仍 OPEN | PR #21 review P1-5 |
 
 ## 非目标
 
 - 不实现 PostgreSQL DDL、Migration、RLS、真实 Repository。
-- 不实现飞书 / 邮件 Provider 的真实注入（IntegrationGateway Runtime 由 #17 追踪）；E2E 用受控 fixture 序列模拟 Provider 回执。
+- 不实现飞书 / 邮件 Provider 的真实注入，也不在本 Issue 验收该项（IntegrationGateway Runtime 由 #17 追踪）。
 - 不改任何 Contract Schema / Registry / compatibility baseline（contracts 保持 FULL:200 不变）。
 - 不实现 Publisher、complete_release 完整命令流、Recall 流程。
+- 不关闭 Issue #5。
 
 ## 阶段
 
@@ -41,6 +43,7 @@
 | 3 | 单元测试 RP-API-U-003 三条 + happy path + target mismatch；E2E 测试回放 REL-801 fixture | `DONE` |
 | 4 | REL-801 Manual Fixture（attempt → rawReceipt → late submission 时间线 JSON） | `DONE` |
 | 5 | `pnpm verify` 全绿 + Verification Report | `DONE` |
+| 6 | PR #21 review remediation：package 绑定、Raw provenance、原子落账、验收重定范围 | `DONE` |
 
 ## 修改清单
 

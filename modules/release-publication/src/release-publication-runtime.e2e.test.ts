@@ -8,7 +8,11 @@ import {
   ReleasePublicationRuntime,
   type ReleaseDestinationPolicy,
 } from './release-publication-runtime.js';
-import { RELEASE_RECEIPT_STALE } from './receipt-validator.js';
+import {
+  RELEASE_RECEIPT_STALE,
+  RELEASE_RECEIPT_TARGET_MISMATCH,
+  type RawExternalReceiptFact,
+} from './receipt-validator.js';
 
 // =============================================================================
 // REL-801 late-receipt timeline fixture (RP-API-E-003 / RP-API-M-001)
@@ -32,6 +36,7 @@ interface TimelineEntry {
 interface TimelineFixture {
   readonly fixtureId: string;
   readonly policy: { readonly deliveryTimeoutMs: number };
+  readonly rawExternalReceipts: readonly RawExternalReceiptFact[];
   readonly release: {
     readonly releaseRef: Common.ObjectRef;
     readonly destinations: readonly ReleaseDestinationPolicy[];
@@ -51,6 +56,18 @@ function loadFixture(): TimelineFixture {
     import.meta.url,
   );
   return JSON.parse(readFileSync(url, 'utf8')) as TimelineFixture;
+}
+
+function openRuntime(fixture: TimelineFixture): ReleasePublicationRuntime {
+  const runtime = new ReleasePublicationRuntime();
+  runtime.openReleaseForPublication({
+    releaseRef: fixture.release.releaseRef,
+    destinations: fixture.release.destinations,
+  });
+  for (const fact of fixture.rawExternalReceipts) {
+    runtime.seedRawExternalReceipt(fact);
+  }
+  return runtime;
 }
 
 // Fixture guards: a malformed timeline must fail loudly instead of silently
@@ -97,12 +114,7 @@ function resolveReceiptRef(
 describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
   it('preserves the early success receipt, rejects the late submission as stale, and settles at PARTIALLY_RELEASED', () => {
     const fixture = loadFixture();
-    const runtime = new ReleasePublicationRuntime();
-
-    runtime.openReleaseForPublication({
-      releaseRef: fixture.release.releaseRef,
-      destinations: fixture.release.destinations,
-    });
+    const runtime = openRuntime(fixture);
 
     // Step 3 is the only accepted receipt; step 5 replays it verbatim.
     let acceptedSubmission: ReleasePublication.FormalReceiptSubmission | undefined;
@@ -158,11 +170,7 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
 
   it('keeps the stale rejection from mutating the ledger on replay', () => {
     const fixture = loadFixture();
-    const runtime = new ReleasePublicationRuntime();
-    runtime.openReleaseForPublication({
-      releaseRef: fixture.release.releaseRef,
-      destinations: fixture.release.destinations,
-    });
+    const runtime = openRuntime(fixture);
 
     for (const entry of fixture.timeline) {
       if (entry.action === 'start_publication_attempt') {
@@ -193,5 +201,69 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     const outcome = runtime.getReleaseOutcome(fixture.release.releaseRef);
     expect(outcome?.status).toBe('PUBLISHING');
     expect(outcome?.receiptRefs).toHaveLength(0);
+  });
+
+  it('rejects a publication attempt whose package belongs to a foreign release', () => {
+    const fixture = loadFixture();
+    const runtime = openRuntime(fixture);
+    const firstStep = fixture.timeline[0];
+    if (firstStep === undefined) {
+      throw new Error('fixture timeline is empty');
+    }
+    const { attemptRef, definition } = requireAttemptFields(firstStep);
+    const foreignDefinition: ReleasePublication.PublicationAttemptDefinition = {
+      ...definition,
+      packageRef: {
+        ...definition.packageRef,
+        releaseRef: {
+          ...definition.packageRef.releaseRef,
+          objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d899',
+        },
+      },
+    };
+
+    const attempt = runtime.startPublicationAttempt({
+      releaseRef: fixture.release.releaseRef,
+      attemptRef,
+      definition: foreignDefinition,
+    });
+    expect(attempt.ok).toBe(false);
+    if (!attempt.ok) {
+      expect(attempt.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+      expect(attempt.error.fieldViolations[0]?.fieldPath).toBe(
+        '/payload/attempt/packageRef/releaseRef',
+      );
+    }
+
+    // Even if a caller forged a matching receipt submission, no formal fact lands.
+    const step3 = fixture.timeline.find((entry) => entry.step === 3);
+    if (step3 === undefined) {
+      throw new Error('fixture is missing step 3');
+    }
+    const seededRaw = fixture.rawExternalReceipts[0];
+    if (seededRaw === undefined) {
+      throw new Error('fixture is missing rawExternalReceipts[0]');
+    }
+    const forgedSubmission: ReleasePublication.FormalReceiptSubmission = {
+      ...resolveSubmission(step3, undefined),
+      packageRef: foreignDefinition.packageRef,
+    };
+    runtime.seedRawExternalReceipt({
+      ...seededRaw,
+      releaseId: '018f22e2-7c15-7b2e-8d86-2de956a9d899',
+      packageHashDigest: foreignDefinition.packageRef.packageHash.digest,
+    });
+    const receipt = runtime.recordPublicationReceipt({
+      releaseRef: fixture.release.releaseRef,
+      submission: forgedSubmission,
+      receiptRef: resolveReceiptRef(step3, undefined),
+      correlationId: 'foreign-package-probe',
+    });
+    expect(receipt.ok).toBe(false);
+    if (!receipt.ok) {
+      expect(receipt.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+    }
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe('AUTHORIZED');
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.receiptRefs).toHaveLength(0);
   });
 });

@@ -3,14 +3,17 @@ import { describe, expect, it } from 'vitest';
 import type { Common, ReleasePublication } from '@zhiju/contracts';
 
 import {
+  InMemoryRawExternalReceiptRepository,
   InMemoryReleaseReceiptLedger,
   registerPublicationAttempt,
-  validateFormalReceipt,
+  recordFormalReceipt,
   RELEASE_ATTEMPT_IDEMPOTENCY_CONFLICT,
   RELEASE_RECEIPT_ALREADY_RECORDED,
   RELEASE_RECEIPT_STALE,
   RELEASE_RECEIPT_TARGET_MISMATCH,
+  RAW_EXTERNAL_RECEIPT_OBJECT_TYPE,
   type PublicationAttemptRecord,
+  type RawExternalReceiptFact,
   type ReceiptValidationResult,
   type ReleaseReceiptLedger,
 } from './receipt-validator.js';
@@ -103,6 +106,8 @@ interface ReceiptOptions {
   readonly attemptId: string;
   readonly destinationId: string;
   readonly rawReceiptDigest: string;
+  readonly rawReceiptObjectId?: string;
+  readonly rawReceiptObjectType?: string;
   readonly packageDigest?: string;
   readonly occurredAt?: string;
 }
@@ -113,8 +118,8 @@ function receiptSubmission(options: ReceiptOptions): ReleasePublication.FormalRe
     destinationId: options.destinationId,
     packageRef: packageRef(options.packageDigest ?? digest('ab')),
     rawReceiptRef: contentAddressedRef(
-      'integration.raw_external_receipt',
-      options.attemptId,
+      options.rawReceiptObjectType ?? RAW_EXTERNAL_RECEIPT_OBJECT_TYPE,
+      options.rawReceiptObjectId ?? options.attemptId,
       options.rawReceiptDigest,
     ),
     providerResult: { messageId: `om_${options.attemptId}` },
@@ -124,6 +129,24 @@ function receiptSubmission(options: ReceiptOptions): ReleasePublication.FormalRe
       digest: digest('dd'),
       canonicalizationVersion: '1',
     },
+  };
+}
+
+function rawFact(options: ReceiptOptions): RawExternalReceiptFact {
+  const packageDigest = options.packageDigest ?? digest('ab');
+  return {
+    rawReceiptRef: contentAddressedRef(
+      RAW_EXTERNAL_RECEIPT_OBJECT_TYPE,
+      options.rawReceiptObjectId ?? options.attemptId,
+      options.rawReceiptDigest,
+    ),
+    releaseId: RELEASE_ID,
+    destinationId: options.destinationId,
+    packageHashDigest: packageDigest,
+    publicationAttemptId: options.attemptId,
+    adapterAttemptRef: objectRef('integration.adapter_attempt', options.attemptId),
+    observedOutcome: 'SUCCEEDED',
+    occurredAt: options.occurredAt ?? '2026-08-21T00:00:05Z',
   };
 }
 
@@ -151,24 +174,18 @@ function registerAttempt(
   return result.record;
 }
 
-function validateAndSave(
+function record(
   ledger: ReleaseReceiptLedger,
-  submission: ReleasePublication.FormalReceiptSubmission,
+  rawReceipts: InMemoryRawExternalReceiptRepository,
+  options: ReceiptOptions,
 ): ReceiptValidationResult {
-  const result = validateFormalReceipt(ledger, {
-    submission,
-    receiptRef: contentAddressedRef(
-      'release.publication_receipt',
-      submission.attemptRef.objectId,
-      digest('ff'),
-    ),
+  rawReceipts.save(rawFact(options));
+  return recordFormalReceipt(ledger, rawReceipts, {
+    submission: receiptSubmission(options),
+    receiptRef: contentAddressedRef('release.publication_receipt', options.attemptId, digest('ff')),
     deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
     correlationId: CORRELATION_ID,
   });
-  if (result.ok) {
-    ledger.saveReceipt(result.record);
-  }
-  return result;
 }
 
 // =============================================================================
@@ -178,29 +195,24 @@ function validateAndSave(
 describe('release-publication receipt validator (RP-API-U-003)', () => {
   it('RP-API-U-003a: rejects a same-stable-key receipt with a different packageHash and preserves the original fact', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
     registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001', digest('ab'));
-    const first = validateAndSave(
-      ledger,
-      receiptSubmission({
-        attemptId: ATTEMPT_A,
-        destinationId: DESTINATION_A,
-        rawReceiptDigest: digest('cc'),
-        packageDigest: digest('ab'),
-      }),
-    );
+    const first = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('cc'),
+      packageDigest: digest('ab'),
+    });
     expect(first.ok).toBe(true);
 
     // Same stable key (via the registered attempt), different packageHash.
-    const conflicting = validateFormalReceipt(ledger, {
-      submission: receiptSubmission({
-        attemptId: ATTEMPT_A,
-        destinationId: DESTINATION_A,
-        rawReceiptDigest: digest('cd'),
-        packageDigest: digest('ef'),
-      }),
-      receiptRef: contentAddressedRef('release.publication_receipt', ATTEMPT_B, digest('fe')),
-      deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
-      correlationId: CORRELATION_ID,
+    // Seed a raw fact that matches the conflicting submission so the failure
+    // class is the idempotency conflict, not a missing raw observation.
+    const conflicting = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('cd'),
+      packageDigest: digest('ef'),
     });
     expect(conflicting.ok).toBe(false);
     if (!conflicting.ok) {
@@ -220,15 +232,16 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
 
   it('RP-API-U-003b: rejects a duplicate submission of the same rawReceiptRef', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
     registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
-    const submission = receiptSubmission({
+    const options = {
       attemptId: ATTEMPT_A,
       destinationId: DESTINATION_A,
       rawReceiptDigest: digest('cc'),
-    });
-    expect(validateAndSave(ledger, submission).ok).toBe(true);
+    };
+    expect(record(ledger, rawReceipts, options).ok).toBe(true);
 
-    const duplicate = validateAndSave(ledger, submission);
+    const duplicate = record(ledger, rawReceipts, options);
     expect(duplicate.ok).toBe(false);
     if (!duplicate.ok) {
       expect(duplicate.error.code).toBe(RELEASE_RECEIPT_ALREADY_RECORDED);
@@ -238,17 +251,15 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
 
   it('RP-API-U-003c: rejects a receipt whose occurredAt is beyond requestedAt + deliveryTimeout', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
     registerAttempt(ledger, ATTEMPT_B, DESTINATION_B, 'rel-801-dest-b-attempt-001');
 
-    const late = validateAndSave(
-      ledger,
-      receiptSubmission({
-        attemptId: ATTEMPT_B,
-        destinationId: DESTINATION_B,
-        rawReceiptDigest: digest('ce'),
-        occurredAt: '2026-08-21T00:01:30Z',
-      }),
-    );
+    const late = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_B,
+      destinationId: DESTINATION_B,
+      rawReceiptDigest: digest('ce'),
+      occurredAt: '2026-08-21T00:01:30Z',
+    });
     expect(late.ok).toBe(false);
     if (!late.ok) {
       expect(late.error.code).toBe(RELEASE_RECEIPT_STALE);
@@ -261,58 +272,48 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
 
   it('RP-API-U-003c boundary: accepts a receipt exactly at the delivery timeout window edge', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
     registerAttempt(ledger, ATTEMPT_B, DESTINATION_B, 'rel-801-dest-b-attempt-001');
-    const atEdge = validateAndSave(
-      ledger,
-      receiptSubmission({
-        attemptId: ATTEMPT_B,
-        destinationId: DESTINATION_B,
-        rawReceiptDigest: digest('cf'),
-        occurredAt: '2026-08-21T00:01:00Z',
-      }),
-    );
+    const atEdge = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_B,
+      destinationId: DESTINATION_B,
+      rawReceiptDigest: digest('cf'),
+      occurredAt: '2026-08-21T00:01:00Z',
+    });
     expect(atEdge.ok).toBe(true);
   });
 
   it('RP-API-U-003d: rejects receipts referencing an unknown attempt or mismatched target fields', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
     registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
 
-    const unknownAttempt = validateAndSave(
-      ledger,
-      receiptSubmission({
-        attemptId: ATTEMPT_B,
-        destinationId: DESTINATION_B,
-        rawReceiptDigest: digest('c1'),
-      }),
-    );
+    const unknownAttempt = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_B,
+      destinationId: DESTINATION_B,
+      rawReceiptDigest: digest('c1'),
+    });
     expect(unknownAttempt.ok).toBe(false);
     if (!unknownAttempt.ok) {
       expect(unknownAttempt.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
     }
 
-    const wrongDestination = validateAndSave(
-      ledger,
-      receiptSubmission({
-        attemptId: ATTEMPT_A,
-        destinationId: DESTINATION_B,
-        rawReceiptDigest: digest('c2'),
-      }),
-    );
+    const wrongDestination = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_B,
+      rawReceiptDigest: digest('c2'),
+    });
     expect(wrongDestination.ok).toBe(false);
     if (!wrongDestination.ok) {
       expect(wrongDestination.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
     }
 
-    const wrongPackage = validateAndSave(
-      ledger,
-      receiptSubmission({
-        attemptId: ATTEMPT_A,
-        destinationId: DESTINATION_A,
-        rawReceiptDigest: digest('c3'),
-        packageDigest: digest('ef'),
-      }),
-    );
+    const wrongPackage = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('c3'),
+      packageDigest: digest('ef'),
+    });
     expect(wrongPackage.ok).toBe(false);
     if (!wrongPackage.ok) {
       expect(wrongPackage.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
@@ -321,21 +322,19 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
 
   it('RP-API-U-003e: accepts a legitimate early receipt as a formal publication fact', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
-    const record = registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
-    const accepted = validateAndSave(
-      ledger,
-      receiptSubmission({
-        attemptId: ATTEMPT_A,
-        destinationId: DESTINATION_A,
-        rawReceiptDigest: digest('cc'),
-      }),
-    );
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    const attempt = registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
+    const accepted = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('cc'),
+    });
     expect(accepted.ok).toBe(true);
     if (accepted.ok) {
       expect(accepted.record.receiptRef.objectType).toBe('release.publication_receipt');
       expect(accepted.record.submission.occurredAt).toBe('2026-08-21T00:00:05Z');
     }
-    expect(ledger.findAttempt(ATTEMPT_A)).toEqual(record);
+    expect(ledger.findAttempt(ATTEMPT_A)).toEqual(attempt);
 
     // Idempotent re-registration of the identical attempt is a no-op success.
     const reregistration = registerPublicationAttempt(ledger, {
@@ -386,6 +385,7 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
 
   it('keeps retry attempts sharing one stable key registrable while only one receipt wins', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
     registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-retry-key', digest('ab'));
     // Retry of the same destination/package legitimately shares the key.
     const retry = registerPublicationAttempt(ledger, {
@@ -404,29 +404,100 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
     expect(retry.ok).toBe(true);
 
     expect(
-      validateAndSave(
-        ledger,
-        receiptSubmission({
-          attemptId: ATTEMPT_A,
-          destinationId: DESTINATION_A,
-          rawReceiptDigest: digest('cc'),
-        }),
-      ).ok,
+      record(ledger, rawReceipts, {
+        attemptId: ATTEMPT_A,
+        destinationId: DESTINATION_A,
+        rawReceiptDigest: digest('cc'),
+      }).ok,
     ).toBe(true);
     // A second formal receipt under the same stable key never lands.
-    const second = validateAndSave(
-      ledger,
-      receiptSubmission({
-        attemptId: ATTEMPT_B,
-        destinationId: DESTINATION_A,
-        rawReceiptDigest: digest('cd'),
-      }),
-    );
+    const second = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_B,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('cd'),
+    });
     expect(second.ok).toBe(false);
     if (!second.ok) {
       expect(second.error.code).toBe(RELEASE_RECEIPT_ALREADY_RECORDED);
     }
     expect(ledger.findAttemptsByStableKey('rel-801-retry-key')).toHaveLength(2);
     expect(ledger.findReceiptByRawReceiptDigest(digest('cd'))).toBeUndefined();
+  });
+
+  it('RP-API-C-002: rejects a rawReceiptRef that is not a loaded RawExternalReceipt fact', () => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
+
+    // Wrong object type and no fact seeded — must not mint a formal receipt.
+    const wrongType = recordFormalReceipt(ledger, rawReceipts, {
+      submission: receiptSubmission({
+        attemptId: ATTEMPT_A,
+        destinationId: DESTINATION_A,
+        rawReceiptDigest: digest('cc'),
+        rawReceiptObjectType: 'artifact.revision',
+        rawReceiptObjectId: '018f22e2-7c15-7b2e-8d86-2de956a9d999',
+      }),
+      receiptRef: contentAddressedRef('release.publication_receipt', ATTEMPT_A, digest('ff')),
+      deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
+      correlationId: CORRELATION_ID,
+    });
+    expect(wrongType.ok).toBe(false);
+    if (!wrongType.ok) {
+      expect(wrongType.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+      expect(wrongType.error.fieldViolations[0]?.fieldPath).toBe(
+        '/payload/receipt/rawReceiptRef/objectType',
+      );
+    }
+    expect(ledger.findReceiptByStableKey('rel-801-dest-a-attempt-001')).toBeUndefined();
+
+    // Correct type but missing fact.
+    const missingFact = recordFormalReceipt(ledger, rawReceipts, {
+      submission: receiptSubmission({
+        attemptId: ATTEMPT_A,
+        destinationId: DESTINATION_A,
+        rawReceiptDigest: digest('cc'),
+      }),
+      receiptRef: contentAddressedRef('release.publication_receipt', ATTEMPT_A, digest('ff')),
+      deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
+      correlationId: CORRELATION_ID,
+    });
+    expect(missingFact.ok).toBe(false);
+    if (!missingFact.ok) {
+      expect(missingFact.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+      expect(missingFact.error.fieldViolations[0]?.fieldPath).toBe(
+        '/payload/receipt/rawReceiptRef',
+      );
+    }
+  });
+
+  it('compareAndSaveReceipt rejects a second insert for the same stable key without a separate validate step', () => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
+    const options = {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('cc'),
+    };
+    expect(record(ledger, rawReceipts, options).ok).toBe(true);
+
+    // Competing submission with a different raw digest under the same key:
+    // compare-and-save must lose atomically (ALREADY_RECORDED).
+    const competing = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('cd'),
+      rawReceiptObjectId: '018f22e2-7c15-7b2e-8d86-2de956a9d851',
+    });
+    expect(competing.ok).toBe(false);
+    if (!competing.ok) {
+      expect(competing.error.code).toBe(RELEASE_RECEIPT_ALREADY_RECORDED);
+    }
+    expect(ledger.findReceiptByRawReceiptDigest(digest('cd'))).toBeUndefined();
+    expect(
+      ledger.findReceiptByStableKey('rel-801-dest-a-attempt-001')?.submission.rawReceiptRef
+        .contentHash.digest,
+    ).toBe(digest('cc'));
   });
 });
