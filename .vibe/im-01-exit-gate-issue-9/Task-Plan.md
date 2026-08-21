@@ -34,4 +34,4 @@ Issue #5 Schema 由 PR #14 合入；Issue 因 Runtime(#15) 保持 OPEN。IM-01 S
 | 2 | 数量/集合对账 | `DONE` |
 | 3 | 干净 verify + 负向自测 | `DONE` |
 | 4 | 文档收口 | `DONE` |
-| 5 | 用户确认后 PR | `PENDING` |
+| 5 | 用户确认后 PR | `DONE` (PR #20) |
