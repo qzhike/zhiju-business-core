@@ -24,7 +24,7 @@
 | 错误码集合 | 三个 Issue 指定码 + 复用 Module-Spec-006 §6 已有 `RELEASE_RECEIPT_TARGET_MISMATCH`（含 package↔release 绑定与 RawExternalReceipt provenance）；新增 `RELEASE_RECEIPT_STALE` 入 §6 | Spec §6 已定义 TARGET_MISMATCH；STALE 为本 Issue 新增 |
 | Runtime 形态 | 领域服务层（Validator + 薄编排 Runtime），不引入 Command Envelope / HTTP Handler | 仓库尚无任何 Runtime Handler 基础设施；模块骨架状态 |
 | Integration Provider fixture | **重定范围到 #17**；本切片只提供 Runtime 受控 fixture + RawExternalReceipt 种子事实 | 用户确认（PR #21 remediation）；不得称「等价覆盖」 |
-| 与 Issue #5 关系 | PR 不写 `Closes #5`；#5 因 ActorSnapshot / providerResult PII / 普通飞书来源链仍 OPEN | PR #21 review P1-5 |
+| 与 Issue #5 关系 | PR #21 不写 `Closes #5`；后续按用户批准的字段 Schema 边界，三项 Runtime 工作迁移至 #22 / #23 / #24 | PR #21 review P1-5；Issue #5 范围迁移决策 |
 
 ## 非目标
 

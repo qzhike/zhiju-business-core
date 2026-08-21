@@ -53,14 +53,15 @@ runtime_proposals=6 isolated
 - Persistence 与业务 E2E；
 - PostgreSQL、MicroCeph/Ceph RGW、OpenBao、Keycloak、飞书、三个 CLI、Renderer、备份恢复、负载和人工验收；
 - 6 个 Runtime additive Command 的 Catalog/API/Module 变更；
-- #15 ReleasePublication Runtime duplicate/late receipt；
+- #15 ReleasePublication Runtime duplicate/late receipt（已完成并关闭）；
+- #22–#24 ReleasePublication 授权主体、Provider Result PII、Formal Release 来源链 Runtime 边界；
 - #17 IntegrationGateway Runtime / acceptance gaps；
 - Issue #1 文档标注的开放 JSON 节点仍由运行时 validator 兜底（不扩大本 Gate）。
 
 ## 5. 剩余风险
 
 1. IM-01 已标记 `COMPLETE`；IM-02 可开始，但 Handler/DB/外部验收仍为后续里程碑范围。
-2. #5 仍 OPEN，仅因 Runtime(#15)；Schema 子切片已由 PR #14 合入。2026-08-21 用户批准修订 Issue #9：Schema 子切片合入即可满足 IM-01 退出硬依赖，#5 可因 #15 保持 OPEN。不得将该 OPEN 状态解释为 Schema 未完成，也不得解释为 Runtime 已 PASS。
+2. #5 的字段 Schema 子切片已由 PR #14 完成；用户后续批准将其余 Runtime Owner 迁移至 #22–#24，并按字段 Schema 边界关闭 #5。该范围迁移不得解释为 Runtime 已 `PASS`。
 3. 单台 Ubuntu 主机、单节点 MicroCeph/OpenBao/Keycloak 的主机故障容忍度为 0；独立备份与恢复演练是 Formal Release 前置条件。
 4. Ceph RGW 官方声明 Vault Transit 集成，OpenBao 只承诺 Vault API compatibility；二者组合必须在后续里程碑实测，失败时重开 IM-DG-003，不能降级明文。
 5. Canonical Document/Workbook Schema 未冻结，Artifact/Renderer 里程碑只能定义边界，不能实现内容模型。
@@ -75,7 +76,7 @@ runtime_proposals=6 isolated
 | #2 | CLOSED | PR #10 |
 | #3 | CLOSED | PR #12 |
 | #4 | CLOSED | PR #13 |
-| #5 | OPEN（Schema 已合入） | PR #14；Runtime → #15 |
+| #5 | FIELD-SCHEMA COMPLETE / CLOSE-READY | PR #14；duplicate/late → 已关闭 #15；其余 Runtime → #22–#24 |
 | #6 | CLOSED | PR #16；Runtime → #17 |
 | #7 | CLOSED | PR #18 |
 | #8 | CLOSED | PR #19 |

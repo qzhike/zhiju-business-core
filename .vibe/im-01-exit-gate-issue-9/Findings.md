@@ -8,7 +8,7 @@
 | #2 | PR #10 | CLOSED |
 | #3 | PR #12 | CLOSED |
 | #4 | PR #13 | CLOSED |
-| #5 | PR #14 Schema；Runtime → #15 | OPEN |
+| #5 | PR #14 Schema；duplicate/late → 已关闭 #15；其余 Runtime → #22–#24 | FIELD-SCHEMA COMPLETE / CLOSE-READY |
 | #6 | PR #16；Runtime → #17 | CLOSED |
 | #7 | PR #18 | CLOSED |
 | #8 | PR #19 | CLOSED |
@@ -32,3 +32,5 @@
 1. Issue #9 hard dependency revised to Schema/Contract sub-slices of #1–#8 merged.
 2. #5 may remain OPEN for Runtime #15; #15 is not an IM-01 Schema exit prerequisite.
 3. Round-2 delivery requires atomic `IM-01 COMPLETE` in this PR plus consistent `Closes #9`.
+
+后续状态：#15 已完成并关闭；用户批准将 #5 收敛为字段 Schema 边界，未完成 Runtime 验收分别迁移至 #22–#24。该迁移不改变其 `PARTIAL` / `NOT RUN` 状态。

@@ -21,6 +21,6 @@
 ## 成功标准
 
 1. 上述三个 Runtime 契约缺口有实现与负例测试。
-2. 文档诚实：Integration Provider / DDL / Handler / #5 Runtime TODO 均为 `NOT RUN` 或未关闭。
+2. 文档诚实：Integration Provider / DDL / Handler / 当时由 #5 保留的 Runtime TODO 均为 `NOT RUN`；后续 Owner 迁移至 #22–#24 不改变测试结果。
 3. `pnpm verify` 全绿。
 4. 推送后对最新 head 重新提交 review。

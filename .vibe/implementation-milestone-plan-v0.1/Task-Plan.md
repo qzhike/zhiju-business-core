@@ -58,5 +58,5 @@
 - 七模块 200 个公开操作已全部提升为字段级 `FULL` Schema；Registry 精确 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。
 - Schema-derived Type（Issue #7 / PR #18）与 v1.0 compatibility baseline（Issue #8 / PR #19）已合入并接入 `contracts:check`。
 - Issue #9 干净 verify：13 files / 287 tests PASS；架构负向自测与 breaking compatibility 负向证据齐全。
-- #5 Schema 由 PR #14 合入，Issue 因 Runtime(#15) 保持 OPEN；#17 追踪 IntegrationGateway Runtime 缺口。
+- #5 字段 Schema 由 PR #14 合入并完成；#15 已完成重复/迟到 Runtime，#22–#24 承接其余 ReleasePublication Runtime 边界；#17 追踪 IntegrationGateway Runtime 缺口。
 - IM-01 正式 `COMPLETE` 已由 PR #20 原子更新；证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)。

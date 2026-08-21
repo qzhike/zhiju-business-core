@@ -25,7 +25,7 @@
 | P1-2 RawExternalReceipt provenance | `RawExternalReceiptRepository` + objectType/存在性/release/destination/packageHash/attempt 校验 | `receipt-validator.test.ts` RP-API-C-002 |
 | P1-3 原子落账 | Ledger `compareAndSaveReceipt`；Runtime 只走 `recordFormalReceipt` | `receipt-validator.test.ts` compareAndSave 竞争用例 |
 | P1-4 Integration Provider fixture | **重定范围**：该项归属 #17 / `NOT RUN`；删除「等价覆盖」表述 | 本报告 NOT RUN；Issue #15 评论 |
-| P1-5 Issue #5 关闭结论 | **不关闭 #5**；保留 ActorSnapshot / providerResult PII / 普通飞书来源链 Runtime TODO | HL-Spec / Module-Test-006 / 本结论 |
+| P1-5 Issue #5 关闭结论 | PR #21 合并时不关闭 #5；后续经用户批准按字段 Schema 边界关闭，三项 Runtime TODO 分别迁移至 #22 / #23 / #24 | HL-Spec / Module-Test-006 / Issue #5 范围迁移记录 |
 | P1-6 Raw outcome/payload/time 权威性 | 仅 `SUCCEEDED` 可升级；Formal payload hash/time 必须匹配 Raw fact；stale 使用 `occurredAt ?? recordedAt` | `receipt-validator.test.ts` outcome/hash/time 负例 |
 | P1-7 Attempt 原子注册 | Ledger `compareAndSaveAttempt`；Attempt ref/stable key 冲突在同一条件写内判定 | `receipt-validator.test.ts` atomic attempt 回归 |
 | P1-8 完整强引用 identity | Release state 使用 objectType/objectId/scope key；Attempt/Raw/Receipt/Package 比较完整 ref | Unit + E2E cross-project scope 负例 |
@@ -63,12 +63,12 @@ E2E（`modules/release-publication/src/release-publication-runtime.e2e.test.ts`�
 - Integration 层飞书 / 邮件 Provider 注入 late receipt（明确归属 **Issue #17**，已从 #15 验收剔除）；
 - HTTP Handler / Command Envelope 层接入；
 - 完整 REL-801 冻结 Package 人工走查（Revision / ABS / RRS Hash 链核对）；
-- Issue #5 剩余 Runtime 项：ActorSnapshot/actingFor、providerResult PII 最小化、普通飞书发送 Formal Release 来源链。
+- 原由 Issue #5 保留的 Runtime 项已明确迁移：ActorSnapshot/actingFor → #22、providerResult PII 最小化 → #23、普通飞书发送 Formal Release 来源链 → #24；本报告继续将其标记为 `NOT RUN`，不因 Owner 迁移而视为已实现。
 
 ## 结论
 
 在用户确认将 Integration Provider fixture 重定范围到 #17 之后，Issue #15 的 Runtime Receipt Validator 目标（单元、Runtime E2E fixture、package 绑定、Raw Receipt provenance、原子落账、`pnpm verify`）由本 PR 承担。
 
 - **可以**在上述验证通过后关闭 Issue #15（不再要求本 PR 交付真实 Provider 注入）。
-- **不可以**因本 PR 关闭 Issue #5；#5 仍有三项 Runtime 验收未完成。
+- PR #21 合并时**不可以**关闭 Issue #5；后续按用户批准的字段 Schema 边界，#5 可在权威文档完成 Owner 迁移后关闭，三项 Runtime 验收继续由 #22–#24 跟踪。
 - **不可以**将 Runtime 受控 fixture 描述为 Integration/Provider 等价覆盖。
