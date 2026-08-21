@@ -11,7 +11,7 @@
 | `pnpm format:check` | `PASS` |
 | `pnpm lint` | `PASS`（0 error / 0 warning） |
 | `pnpm typecheck` | `PASS` |
-| `pnpm test` | `PASS` — 15 test files / **300 tests**（基线 287 + 本切片 13） |
+| `pnpm test` | `PASS` — 15 test files / **301 tests**（基线 287 + 本切片 14） |
 | `pnpm architecture` | `PASS` — `architecture_boundaries=PASS source_roots=10` |
 | `pnpm contracts:check` | `PASS` — `schema_status={"FULL":200}`、compatibility `baseline=v1.0 findings=0` |
 
@@ -34,7 +34,7 @@
 | 测试 | 断言要点 |
 |---|---|
 | RP-API-U-003a–e 及注册/重试 | 同前：冲突 / 重复 / stale / target mismatch / 接受 |
-| RP-API-C-002 Raw provenance | 非 `integration.raw_external_receipt` objectType 或未加载事实 → `RELEASE_RECEIPT_TARGET_MISMATCH`，不落账 |
+| RP-API-C-002 Raw provenance | 非 `integration.raw_external_receipt` objectType、未加载事实、或 release/destination/packageHash/attempt 溯源字段不匹配 → `RELEASE_RECEIPT_TARGET_MISMATCH`，不落账 |
 | compareAndSave 竞争 | 同 stable key 二次 insert → `RELEASE_RECEIPT_ALREADY_RECORDED`，原 digest 保留 |
 
 E2E（`modules/release-publication/src/release-publication-runtime.e2e.test.ts`）：

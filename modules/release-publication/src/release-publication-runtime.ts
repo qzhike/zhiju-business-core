@@ -73,6 +73,7 @@ export interface StartAttemptRequest {
   readonly releaseRef: ObjectRef;
   readonly attemptRef: ObjectRef;
   readonly definition: PublicationAttemptDefinition;
+  readonly correlationId?: string;
 }
 
 export interface RecordReceiptRequest {
@@ -138,9 +139,10 @@ export class ReleasePublicationRuntime {
   startPublicationAttempt(
     request: StartAttemptRequest,
   ): { readonly ok: true } | { readonly ok: false; readonly error: ApiError } {
+    const correlationId = request.correlationId ?? '';
     const release = this.releases.get(request.releaseRef.objectId);
     if (release === undefined) {
-      return { ok: false, error: unknownReleaseError(request.releaseRef) };
+      return { ok: false, error: unknownReleaseError(request.releaseRef, correlationId) };
     }
     if (!release.destinations.has(request.definition.destinationId)) {
       return {
@@ -152,7 +154,7 @@ export class ReleasePublicationRuntime {
           safeMessage: 'publication attempt references a destination outside the release',
           fieldPath: '/payload/attempt/destinationId',
           violatedRule: 'attempt destination must belong to the release',
-          correlationId: '',
+          correlationId,
           targetRef: request.attemptRef,
         }),
       };
@@ -169,7 +171,7 @@ export class ReleasePublicationRuntime {
           safeMessage: 'publication attempt package belongs to a different release',
           fieldPath: '/payload/attempt/packageRef/releaseRef',
           violatedRule: 'attempt.packageRef.releaseRef must equal the target release',
-          correlationId: '',
+          correlationId,
           targetRef: request.attemptRef,
         }),
       };
@@ -186,7 +188,7 @@ export class ReleasePublicationRuntime {
             safeMessage: 'publication attempt package does not match the frozen release package',
             fieldPath: '/payload/attempt/packageRef',
             violatedRule: 'all attempts for a release share one frozen ReleasePackageRef',
-            correlationId: '',
+            correlationId,
             targetRef: request.attemptRef,
           }),
         };
@@ -196,7 +198,7 @@ export class ReleasePublicationRuntime {
     const registration = registerPublicationAttempt(this.ledger, {
       attemptRef: request.attemptRef,
       definition: request.definition,
-      correlationId: '',
+      correlationId,
     });
     if (!registration.ok) {
       return registration;
@@ -209,7 +211,10 @@ export class ReleasePublicationRuntime {
   recordPublicationReceipt(request: RecordReceiptRequest): ReceiptValidationResult {
     const release = this.releases.get(request.releaseRef.objectId);
     if (release === undefined) {
-      return { ok: false, error: unknownReleaseError(request.releaseRef) };
+      return {
+        ok: false,
+        error: unknownReleaseError(request.releaseRef, request.correlationId),
+      };
     }
     const destination = release.destinations.get(request.submission.destinationId);
     if (destination === undefined) {
@@ -326,7 +331,7 @@ function evaluateCompletion(release: ReleaseState): ReleaseStatus {
   return release.status === 'AUTHORIZED' ? 'AUTHORIZED' : 'PUBLISHING';
 }
 
-function unknownReleaseError(releaseRef: ObjectRef): ApiError {
+function unknownReleaseError(releaseRef: ObjectRef, correlationId = ''): ApiError {
   return buildApiRejection({
     code: RELEASE_RECEIPT_TARGET_MISMATCH,
     category: 'VALIDATION',
@@ -334,7 +339,7 @@ function unknownReleaseError(releaseRef: ObjectRef): ApiError {
     safeMessage: 'release is not open for publication',
     fieldPath: '/targetRef',
     violatedRule: 'release must be opened for publication first',
-    correlationId: '',
+    correlationId,
     targetRef: releaseRef,
   });
 }

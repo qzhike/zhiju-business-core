@@ -471,6 +471,62 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
     }
   });
 
+  it('RP-API-C-002: rejects loaded RawExternalReceipt facts with mismatched provenance fields', () => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
+
+    const cases: readonly {
+      readonly label: string;
+      readonly mutate: (fact: RawExternalReceiptFact) => RawExternalReceiptFact;
+    }[] = [
+      {
+        label: 'releaseId',
+        mutate: (fact) => ({ ...fact, releaseId: '018f22e2-7c15-7b2e-8d86-2de956a9d899' }),
+      },
+      {
+        label: 'destinationId',
+        mutate: (fact) => ({ ...fact, destinationId: DESTINATION_B }),
+      },
+      {
+        label: 'packageHashDigest',
+        mutate: (fact) => ({ ...fact, packageHashDigest: digest('ef') }),
+      },
+      {
+        label: 'publicationAttemptId',
+        mutate: (fact) => ({ ...fact, publicationAttemptId: ATTEMPT_B }),
+      },
+    ];
+
+    for (const [index, probe] of cases.entries()) {
+      const options = {
+        attemptId: ATTEMPT_A,
+        destinationId: DESTINATION_A,
+        rawReceiptDigest: digest(`c${String(index)}`),
+        rawReceiptObjectId: `018f22e2-7c15-7b2e-8d86-2de956a9d85${String(index)}`,
+      };
+      rawReceipts.save(probe.mutate(rawFact(options)));
+      const rejected = recordFormalReceipt(ledger, rawReceipts, {
+        submission: receiptSubmission(options),
+        receiptRef: contentAddressedRef(
+          'release.publication_receipt',
+          options.rawReceiptObjectId,
+          digest('ff'),
+        ),
+        deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
+        correlationId: CORRELATION_ID,
+      });
+      expect(rejected.ok, probe.label).toBe(false);
+      if (!rejected.ok) {
+        expect(rejected.error.code, probe.label).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+        expect(rejected.error.fieldViolations[0]?.fieldPath, probe.label).toBe(
+          '/payload/receipt/rawReceiptRef',
+        );
+      }
+    }
+    expect(ledger.findReceiptByStableKey('rel-801-dest-a-attempt-001')).toBeUndefined();
+  });
+
   it('compareAndSaveReceipt rejects a second insert for the same stable key without a separate validate step', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
     const rawReceipts = new InMemoryRawExternalReceiptRepository();
