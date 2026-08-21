@@ -1,8 +1,8 @@
 # Implementation Milestone Plan v0.1 工作计划
 
-状态：`BASELINE / IM-00 COMPLETE / IM-01 IN PROGRESS / CURRENT SLICE VERIFIED`
-日期：2026-08-17
-执行者：Codex（主 Agent）
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
+日期：2026-08-21（初版 2026-08-17；Issue #9 退出 Gate 同步）
+执行者：Grok（Issue #9）/ 历史切片由既有 Agent 完成
 
 ## 1. 前提与范围
 
@@ -53,7 +53,10 @@
 
 - 用户于 2026-08-17 确认 Ubuntu 私有本地服务器与 API-first，IM-DG-003/004 已冻结，IM-00 完成。
 - MinIO 初始建议因官方仓库已归档被否决；不会进入生产、开发 Conformance 或 CI 基准。
-- 用户已授权 IM-01 依赖安装；精确 `pnpm-lock.yaml`、workspace、API skeleton、共享内核、Core 顶层 Schema 与 200 个 Envelope Registry 已创建。
+- 用户已授权 IM-01 依赖安装；精确 `pnpm-lock.yaml`、workspace、API skeleton、共享内核、Core 字段级 Schema 与 200 个 Envelope Registry 已创建。
 - 当前未创建 DDL、Migration 或模块业务 Handler，也未把 Runtime proposal 纳入 Catalog。
-- IdentityPolicy 20 个、EnterpriseProject 32 个与 Artifact 26 个操作已从 `ENVELOPE_ONLY` 提升为字段级 `FULL` Schema，并由 Registry 验证 Payload 与 Query Result；其余 122 个操作保持 `ENVELOPE_ONLY`。
-- IM-01 下一切片是 TaskExecution 的字段级 Payload/Query Result/Event Payload 与 Schema-derived Type。
+- 七模块 200 个公开操作已全部提升为字段级 `FULL` Schema；Registry 精确 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。
+- Schema-derived Type（Issue #7 / PR #18）与 v1.0 compatibility baseline（Issue #8 / PR #19）已合入并接入 `contracts:check`。
+- Issue #9 干净 verify：13 files / 287 tests PASS；架构负向自测与 breaking compatibility 负向证据齐全。
+- #5 Schema 由 PR #14 合入，Issue 因 Runtime(#15) 保持 OPEN；#17 追踪 IntegrationGateway Runtime 缺口。
+- IM-01 正式 `COMPLETE` 已由 PR #20 原子更新；证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)。

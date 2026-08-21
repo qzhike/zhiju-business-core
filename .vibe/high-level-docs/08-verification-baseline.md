@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 IN PROGRESS / CURRENT SLICE VERIFIED`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -325,19 +325,19 @@ remaining risk
 
 ## 9. 当前状态
 
-截至 2026-08-17：
+截至 2026-08-21（Issue #9 退出 Gate）：
 
 - 高层设计基准已由用户审核通过；字段级 API Contract、七份 Module Spec 与七份 Module Test 已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；
-- 本文中的 235 个实现前场景均仍为 `NOT RUN`；
-- API Module Test 新增 63 个场景：7 个 Design Gate 已有当前静态证据并标记 `DESIGN VERIFIED`，其余 56 个 Unit/Contract/E2E/Manual 均为 `NOT RUN`；证据见 [`../api-contract-v0.1/Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)；
-- Feishu Channel 新增 32 个专项场景：4 个 Design Gate 已完成静态 `DESIGN VERIFIED`，其余 28 个 Unit/Contract/E2E/Manual 均为 `NOT RUN`；用户于 2026-08-16 指示继续 Runtime 阶段，证据见 [`../feishu-channel-contract-v0.1/Verification-Report.md`](../feishu-channel-contract-v0.1/Verification-Report.md)；
-- Runtime Adapter 新增 32 个专项场景：4 个 Design Gate 已完成静态 `DESIGN VERIFIED`，其余 28 个 Unit/Contract/E2E/Manual 均为 `NOT RUN`；用户已澄清 v0.1 直接调用预安装的 Codex CLI、Claude Code CLI、OpenClaw CLI，不采用 SDK/App Server/API 直连；不得从官方 CLI 文档推断本地或生产验证通过；
-- Runtime CLI-first 文档已按用户要求提交为 `c3e379c`，当前进入 Implementation Milestone Plan v0.1；该推进不自动批准 6 个 Runtime additive Command；
-- 用户于 2026-08-17 批准 Node.js 24 LTS、TypeScript、NestJS/Fastify、PostgreSQL 18、Kysely/pg、Flyway SQL、Vitest/Testcontainers 技术建议；IM-DG-001/002 已冻结但尚未安装或运行；
-- 用户于 2026-08-17 确认 Ubuntu 私有本地服务器与 API-first；IM-DG-003/004 已冻结为 MicroCeph/Ceph RGW、OpenBao、Keycloak OIDC，单机明确不等于 HA；MinIO 因官方仓库归档被否决；
-- IM-00 已完成，当前进入 IM-01 Repository + Executable Contracts；依赖与 lockfile 已按用户授权安装并锁定；
-- IM-01 当前已通过 format/lint/type/build、98 个 Unit/Contract 测试、10 个源码边界、200 项 Catalog/Envelope Registry 对账和 NestJS/Fastify HTTP health smoke；
-- IdentityPolicy 20 个、EnterpriseProject 32 个、Artifact 26 个公开操作已提升为字段级 `FULL` Schema；其余 122 个操作仍为 `ENVELOPE_ONLY`，IM-01 未退出；
-- 尚无 DDL、Migration、Repository、业务代码、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
+- 本文中的 235 个实现前业务/外部场景仍主要为 `NOT RUN`（不得用 IM-01 静态证据冒充）；
+- API Module Test、Feishu Channel、Runtime Adapter 的 Design Gate 仍为 `DESIGN VERIFIED`，其 Unit/Contract/E2E/Manual 运行时项保持 `NOT RUN`；
+- IM-00 已完成；IM-DG-001 至 IM-DG-004 已冻结；IM-DG-005/006 仍为 `USER DECISION REQUIRED`；
+- IM-01 已 `COMPLETE`：干净 checkout 下 `pnpm install --frozen-lockfile`、`pnpm clean`、`pnpm verify` 全过；
+- 当前自动验证规模为 `Test Files 13 / Tests 287`；架构边界 `source_roots=10`；HTTP health smoke `{"status":"ok"}`；
+- Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`，分类为 Command=95、Query=44、Event=61；Catalog/Module Spec/Registry 集合 diff=0；
+- 200 payload + 44 query result + 6 Core Contract 的 Schema-derived Type 与 v1.0 compatibility baseline 已接入 `contracts:check`；
+- 架构禁止依赖负向探针与 compatibility breaking 负向 fixtures 均实际失败（拒绝非法变更）；
+- #1–#4、#6–#8 已关闭并合入；#5 Schema 由 PR #14 合入但 Issue 因 Runtime(#15) 保持 OPEN；#17 追踪 IntegrationGateway Runtime 缺口；
+- 2026-08-21 用户批准修订 Issue #9：IM-01 Schema 退出硬依赖改为“#1–#8 Schema 子切片均已合入”，#5 可因 #15 保持 OPEN；
+- 尚无 DDL、Migration、Repository、业务 Handler、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
 - 尚无真实 PostgreSQL、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；
-- 不得从设计文档推断任何运行时 Gate 已通过。
+- 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)）；下一里程碑为 IM-02。

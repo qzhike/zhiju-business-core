@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`BASELINE / IM-00 COMPLETE / IM-01 IN PROGRESS / CURRENT SLICE VERIFIED`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -155,11 +155,14 @@ IM-09 Reference Project E2E + Operations Hardening
 产出：
 
 - 构建、格式化、静态分析、单元测试、依赖边界检查和 CI 骨架；
-- 四个 Core Contract 与已批准公开 API 的机器可执行 Schema；
+- 六个 Core Contract 与已批准公开 API 的机器可执行字段级 Schema；
 - Canonical JSON/Hash、UUIDv7、Typed Reference 和 ApiError 的跨模块共享 Value Type；
-- 正向、未知字段、未知 Major、Hash 冲突和 Reference Scope Fixture。
+- 200 个 operation 的 Schema-derived TypeScript 类型与 v1.0 compatibility baseline；
+- 正向、未知字段、未知 Major、Hash 冲突、Reference Scope 与 breaking-change 负向 Fixture。
 
-退出 Gate：空仓库可一条命令完成 build/test；Catalog 与可执行 Schema 可自动比对；禁止的跨模块依赖会让构建失败。
+退出 Gate：空仓库可一条命令完成 build/test；Catalog 与可执行 Schema 可自动比对；禁止的跨模块依赖会让构建失败；`FULL=200`、`ENVELOPE_ONLY=0`；类型生成与兼容性 Gate 无漂移。
+
+当前状态：`COMPLETE`（Issue #9 / PR #20；证据见 [`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)）。下一里程碑为 IM-02。
 
 ### IM-02 PostgreSQL Foundation + IdentityPolicy
 
@@ -236,7 +239,8 @@ IM-09 Reference Project E2E + Operations Hardening
 ## 9. 当前结论
 
 - IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 已退出；MinIO 因官方仓库归档被否决，私有化基准采用 MicroCeph/Ceph RGW、OpenBao 与 Keycloak OIDC。
-- IM-01 已开始：pnpm/TypeScript workspace、NestJS/Fastify skeleton、七模块边界、共享 Value Type、Core 顶层 Schema 与 200 个 API Envelope Registry 已通过当前切片验证。
-- IdentityPolicy 20 个、EnterpriseProject 32 个与 Artifact 26 个公开操作已完成字段级 Payload/Event Schema 和 Query Result Schema；其余 122 个操作仍为 `ENVELOPE_ONLY`，因此 IM-01 尚未退出。
-- Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环。
-- IM-01 当前执行了 format/lint/type/build、98 个 Unit/Contract 测试、架构与 Catalog Gate、HTTP health smoke；数据库和外部验收仍为 `NOT RUN`。
+- IM-01 已 `COMPLETE`：七模块 200 个公开操作全部为字段级 `FULL` Schema；Registry 精确 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。
+- Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；干净 verify 为 13 files / 287 tests PASS。
+- #5 Schema 已由 PR #14 合入，Issue 因 Runtime(#15) 保持 OPEN；#17 追踪 IntegrationGateway Runtime 缺口。2026-08-21 用户批准修订 Issue #9 后，二者不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
+- Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005/006 仍待决。
+- 数据库、对象存储、Keycloak、OpenBao、飞书、CLI、Renderer 与人工验收仍为 `NOT RUN`；IM-01 已由 PR #20 标记为 `COMPLETE`，下一里程碑为 IM-02。
