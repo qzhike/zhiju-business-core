@@ -336,8 +336,8 @@ remaining risk
 - Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`，分类为 Command=95、Query=44、Event=61；Catalog/Module Spec/Registry 集合 diff=0；
 - 200 payload + 44 query result + 6 Core Contract 的 Schema-derived Type 与 v1.0 compatibility baseline 已接入 `contracts:check`；
 - 架构禁止依赖负向探针与 compatibility breaking 负向 fixtures 均实际失败（拒绝非法变更）；
-- #1–#4、#6–#8 已关闭并合入；#5 字段 Schema 由 PR #14 完成，duplicate/late Runtime 由已关闭的 #15 完成，其余 Runtime 分别由 #22–#24 追踪；#17 追踪 IntegrationGateway Runtime 缺口；
-- 2026-08-21 用户先批准修订 Issue #9 的 Schema 退出硬依赖，随后批准将 #5 收敛为字段 Schema 边界；关闭 #5 不会把 #22–#24 或 #17 的 Runtime/外部验收改写为 `PASS`；
+- #1–#4、#6–#8 已关闭并合入；#5 字段 Schema 由 PR #14 完成，duplicate/late Runtime 由已关闭的 #15 完成，其余 Runtime 分别由 #22–#24 追踪；#17 的本地 IntegrationGateway Runtime 切片已落地，Handler/Adapter/DB/外部验收改由 #27 追踪；
+- 2026-08-21 用户先批准修订 Issue #9 的 Schema 退出硬依赖，随后批准将 #5 收敛为字段 Schema 边界；关闭 #5 不会把 #22–#24 或 #27 的 Runtime/外部验收改写为 `PASS`；
 - 尚无 DDL、Migration、Repository、业务 Handler、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
 - 尚无真实 PostgreSQL、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；
 - 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)）；下一里程碑为 IM-02。
