@@ -331,7 +331,7 @@ remaining risk
 - 本文中的 235 个实现前业务/外部场景仍主要为 `NOT RUN`（不得用 IM-01 静态证据冒充）；
 - API Module Test、Feishu Channel、Runtime Adapter 的 Design Gate 仍为 `DESIGN VERIFIED`，其 Unit/Contract/E2E/Manual 运行时项保持 `NOT RUN`；
 - IM-00 已完成；IM-DG-001 至 IM-DG-004 已冻结；IM-DG-005/006 仍为 `USER DECISION REQUIRED`；
-- IM-01 自动化退出 Gate 已就绪：干净 checkout 下 `pnpm install --frozen-lockfile`、`pnpm clean`、`pnpm verify` 全过；
+- IM-01 已 `COMPLETE`：干净 checkout 下 `pnpm install --frozen-lockfile`、`pnpm clean`、`pnpm verify` 全过；
 - 当前自动验证规模为 `Test Files 13 / Tests 287`；架构边界 `source_roots=10`；HTTP health smoke `{"status":"ok"}`；
 - Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`，分类为 Command=95、Query=44、Event=61；Catalog/Module Spec/Registry 集合 diff=0；
 - 200 payload + 44 query result + 6 Core Contract 的 Schema-derived Type 与 v1.0 compatibility baseline 已接入 `contracts:check`；
