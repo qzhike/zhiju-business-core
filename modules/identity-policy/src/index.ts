@@ -149,3 +149,28 @@ export {
   IDENTITY_POLICY_SNAPSHOT_NOT_FOUND,
 } from './commands/queries.js';
 export type { AccessCheckInput, AccessDecision, PolicySnapshotView } from './commands/queries.js';
+export {
+  claimOutboxEvents,
+  confirmPublished,
+  markDeliveryFailure,
+  resumeDeadLetterEvent,
+  DISPATCH_DEFAULTS,
+  DispatcherError,
+  DISPATCHER_STALE_LEASE,
+  DISPATCHER_EVENT_NOT_FOUND,
+} from './messaging/dispatcher.js';
+export type { ClaimedOutboxEvent } from './messaging/dispatcher.js';
+export {
+  consumeEvent,
+  INBOX_QUARANTINE_HASH_CONFLICT,
+  INBOX_QUARANTINE_UNKNOWN_MAJOR,
+  INBOX_QUARANTINE_MISSING_EXTENSION,
+  INBOX_SCOPE_CONFLICT,
+  INBOX_RACE_LOST,
+} from './messaging/inbox.js';
+export type {
+  ConsumedEvent,
+  InboxConsumerContract,
+  ConsumeEventDeps,
+  ConsumeEventOutcome,
+} from './messaging/inbox.js';

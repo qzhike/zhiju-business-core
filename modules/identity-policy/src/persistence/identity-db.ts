@@ -381,6 +381,42 @@ export interface BootstrapClaimTable {
   created_at: Generated<Date>;
 }
 
+export interface InboxMessageTable {
+  consumer_name: string;
+  event_id: string;
+  event_type: string;
+  event_version: string;
+  payload_hash: Buffer;
+  source_module: string;
+  enterprise_id: string;
+  project_id?: string | null;
+  status: 'PENDING' | 'PROCESSED' | 'QUARANTINED' | 'FAILED';
+  first_seen_at: Generated<Date>;
+  processed_at?: Date | null;
+  result_command_id?: string | null;
+  failure_code?: string | null;
+  safe_error_summary?: string | null;
+  correlation_id: string;
+  created_by_principal_id: string;
+}
+
+export interface ContractViolationTable {
+  violation_id: string;
+  violation_kind: string;
+  contract_type?: string | null;
+  contract_version?: string | null;
+  enterprise_id: string;
+  project_id?: string | null;
+  observed_payload_hash?: Buffer | null;
+  schema_error_path?: string | null;
+  safe_summary?: string | null;
+  source_event_id?: string | null;
+  consumer_name?: string | null;
+  correlation_id?: string | null;
+  recorded_at: Generated<Date>;
+  created_by_principal_id: string;
+}
+
 export interface IdentityPolicyDb {
   'identity_policy.principal': PrincipalTable;
   'identity_policy.principal_state_transition': PrincipalStateTransitionTable;
@@ -399,6 +435,8 @@ export interface IdentityPolicyDb {
   'identity_policy.platform_outbox_event': PlatformOutboxEventTable;
   'identity_policy.platform_audit_record': PlatformAuditRecordTable;
   'identity_policy.bootstrap_claim': BootstrapClaimTable;
+  'identity_policy.inbox_message': InboxMessageTable;
+  'identity_policy.contract_violation': ContractViolationTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';
