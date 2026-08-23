@@ -216,3 +216,7 @@ RELEASE_CANCEL_NOT_ALLOWED
 - Issue #5 仅负责上述 25 个字段级 Contract；其余 Runtime Owner 已明确迁移：授权主体 ActorSnapshot/actingFor 与 Envelope 一致性归属 #22，`providerResult` PII 最小化归属 #23，普通飞书发送与 Formal Release 来源链归属 #24。三项均未因 Owner 迁移而变为 `PASS`；
 - Package Hash 计算、Publisher、完整 Persistence 与人工验收实现仍不存在；
 - 对应 Unit / Contract / E2E / Manual 验收结果见 [`Module-Test-006-ReleasePublication.md`](../module-tests/Module-Test-006-ReleasePublication.md)。
+
+## 10. IM-02 WI-04 持久化切片
+
+ReleasePublication owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。当前 Runtime Receipt Validator 仍使用 In-Memory Ledger；Canonical payload↔hash 强校验、真实 PostgreSQL Repository、Publisher 与 Provider 注入均为 `NOT RUN`。

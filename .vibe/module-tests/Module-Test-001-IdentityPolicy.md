@@ -25,3 +25,13 @@
 - Unit/Contract/E2E/Manual：`NOT RUN`，原因是实现、Schema 与 Fixture 尚不存在。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - 测试遗留：未创建临时脚本或测试文件。
+
+## IM-02 WI-04 PostgreSQL 用例
+
+| ID | 层级 | 输入 | 预期输出 | 修复前实际输出 | 当前结果 |
+|---|---|---|---|---|---|
+| IP-PG-001 | Integration | Context 仅允许 Project A1，写同 Enterprise 的 Project A2 技术行 | RLS 拒绝 `42501` | 七模块 policy catalog 含 Project helper；代表性真实写入返回 `42501` | `PASS` |
+| IP-PG-002 | Integration | 已提交 Audit 行后以 audit_reader 查询 masked view | 返回目标 audit_id；底表整体/敏感列仍拒绝 | masked view 返回目标行；底表 count/敏感列为 `42501` | `PASS` |
+| IP-PG-003 | Integration | 不同 owner version 写同路径/同 target Reference Edge | 两行成功；同精确版本重复为 `23505` | 两版本成功；精确重复为 `23505` | `PASS` |
+
+业务 Handler、真实身份 Provider 与 payload↔hash Repository Gate 仍为 `NOT RUN`。
