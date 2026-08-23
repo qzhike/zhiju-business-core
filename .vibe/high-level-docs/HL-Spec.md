@@ -306,8 +306,18 @@ Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
     ↓
 IM-01 Repository + Executable Contracts  （COMPLETE / FULL 200 + ENVELOPE_ONLY 0 / FIELD-LEVEL SCHEMAS + SCHEMA-DERIVED TYPES + V1.0 COMPATIBILITY BASELINE LANDED / ISSUE #9 CLOSED BY PR #20 / ISSUE #5 FIELD-SCHEMA SCOPE COMPLETE VIA PR #14 / RELEASE RUNTIME GAPS TRACKED BY #22–#24 / ISSUE #17 LOCAL IG RUNTIME SLICE LANDED / HANDLER + ADAPTER + DB TRACKED BY #27 / HANDLER + DB + EXTERNAL GATES REMAIN NOT RUN）
     ↓
-IM-02 PostgreSQL Foundation + IdentityPolicy  （NEXT）
+IM-02 PostgreSQL Foundation + IdentityPolicy  （IN PROGRESS / WI-01、WI-02 COMPLETE / WI-03 AUTOMATED GATE PASS / MANUAL NOT RUN）
 ```
+
+IM-02 的 RLS Context 物理机制已经进入 WI-03：上下文存放于
+`platform_security.tx_context`，以 backend pid 与事务 ID 键控，不使用可由调用方任意
+`SET` 的自定义 GUC。普通七模块 Runtime Role 与 `projection_app` 只能调用只读 RLS
+helper，不能建立或清理 Context；唯一写入口只授予 NOLOGIN 的
+`platform_context_establisher`，由受信事务协调器先建立 Context、再切换到目标 Runtime
+Role。详细威胁模型与测试边界以
+[`../im-02-workitem-issues/rls-context-design-wi-03.md`](../im-02-workitem-issues/rls-context-design-wi-03.md)
+为准。IdentityPolicy 对 AuthorizationDecision 业务真实性、Scope、Purpose 与 Intent 的完整
+校验仍由 WI-09 负责，不能因 WI-03 数据库 Gate 通过而声明授权链完成。
 
 ---
 

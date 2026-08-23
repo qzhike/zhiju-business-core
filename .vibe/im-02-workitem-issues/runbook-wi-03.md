@@ -31,8 +31,8 @@ docker exec zju-wi03-probe sh -c '
 
 ```sql
 -- 受信应用登录（生产中 credential 由部署侧签发，这里仅本地探测）
-CREATE ROLE wi03_manual_app LOGIN PASSWORD 'probe' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-GRANT enterprise_project_app TO wi03_manual_app;
+CREATE ROLE wi03_manual_app LOGIN PASSWORD 'probe' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+GRANT platform_context_establisher, enterprise_project_app TO wi03_manual_app;
 
 -- 按 WI-03 Policy 模式建立 Enterprise-owned 探针表并灌入 A/B 数据
 SET ROLE enterprise_project_owner;
@@ -58,13 +58,20 @@ docker exec -it zju-wi03-probe psql -U wi03_manual_app -d zhiju_core
 ```
 
 ```sql
+SET ROLE enterprise_project_app;
 SELECT count(*) FROM enterprise_project.manual_enterprise_probe;   -- 0 行（无 Context）
 
-SET LOCAL app.zju.enterprise_id = '22222222-2222-7222-8222-2222222222b2';
+SET app.zju.enterprise_id = '22222222-2222-7222-8222-2222222222b2';
 SELECT count(*) FROM enterprise_project.manual_enterprise_probe;   -- 仍 0 行（GUC 不是凭证）
 
 SELECT count(*) FROM platform_security.tx_context;                 -- DENY 42501（直接伪造表行）
 INSERT INTO platform_security.tx_context DEFAULT VALUES;           -- DENY 42501
+
+SELECT platform_security.establish_transaction_context(
+  'REQUEST', gen_random_uuid(), gen_random_uuid(), gen_random_uuid(),
+  decode(repeat('ab', 16), 'hex'), now() + interval '1 hour',
+  '22222222-2222-7222-8222-2222222222b2', ARRAY[]::uuid[], gen_random_uuid(), NULL);
+-- DENY 42501（普通 App Role 没有 establish EXECUTE）
 ```
 
 ## 探测 2：受控 Context 下观察允许行集合
@@ -73,6 +80,7 @@ INSERT INTO platform_security.tx_context DEFAULT VALUES;           -- DENY 42501
 
 ```sql
 BEGIN;
+SET LOCAL ROLE platform_context_establisher;
 SELECT platform_security.establish_transaction_context(
   'REQUEST',
   '55555555-5555-7555-8555-5555555555e1',            -- principal_id
@@ -84,6 +92,7 @@ SELECT platform_security.establish_transaction_context(
   ARRAY['33333333-3333-7333-8333-3333333333c1']::uuid[], -- 允许 Project A1
   '88888888-8888-7888-8888-8888888888a1',            -- correlation_id
   NULL);
+SET LOCAL ROLE enterprise_project_app;
 SELECT display_code FROM enterprise_project.manual_enterprise_probe;  -- 只见 ENT-A-ROW
 COMMIT;
 SELECT count(*) FROM enterprise_project.manual_enterprise_probe;      -- COMMIT 后回到 0 行（池复用不泄漏）
@@ -95,6 +104,7 @@ SELECT count(*) FROM enterprise_project.manual_enterprise_probe;      -- COMMIT 
 
 ```sql
 BEGIN;
+SET LOCAL ROLE platform_context_establisher;
 SELECT platform_security.establish_transaction_context(
   'REQUEST', gen_random_uuid(), gen_random_uuid(), gen_random_uuid(),
   decode(repeat('ab', 16), 'hex'), now() - interval '1 minute',
@@ -114,5 +124,6 @@ docker rm -f zju-wi03-probe
 ## NOT RUN 声明
 
 - 生产 break-glass、Keycloak token 验证、真实 OpenBao HMAC/加密与 IdentityPolicy Decision Port 落表比对均为 `NOT RUN`（WI-05/WI-09 接入）；
+- `platform_context_establisher` 的生产 Login/Credential、连接池与事务协调器接入为 `NOT RUN`；本地 probe 只验证数据库角色边界；
 - Background Consumer 的 Event Scope 数据源交叉校验（outbox/inbox 落表后由 WI-04/WI-10 补齐）为 `NOT RUN`；
 - 本 Runbook 只证明数据库层拒绝，不宣称应用层授权链完成。
