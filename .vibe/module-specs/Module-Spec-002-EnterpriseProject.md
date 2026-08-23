@@ -272,3 +272,7 @@ PROJECT_COMPLETION_IS_DERIVED
 - API v0.1 已于 2026-08-13 通过用户审核；
 - DDL、Schema Registry、Handler、Evaluator、Projection 与测试实现均不存在；
 - 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+
+## 10. IM-02 WI-04 持久化切片
+
+EnterpriseProject owning Schema 独立拥有八张标准事务技术表。nullable Project Scope 按行选择 Enterprise/Project RLS；Process Step 不得跨 Project 关联父 Process；Reference Edge 的 owner version 属于唯一身份；masked audit surface 必须可读已提交行且不暴露底表敏感列。Canonical payload↔hash 强校验由 #34 Repository 写入事务承接，当前为 `NOT RUN`；模块业务 Handler、Evaluator 与 Projection 不在本切片。

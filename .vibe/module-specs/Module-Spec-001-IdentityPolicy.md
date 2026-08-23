@@ -182,3 +182,7 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 - API v0.1 已于 2026-08-13 通过用户审核；
 - Schema、Registry、Handler、Persistence 和测试实现均不存在；
 - 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+
+## 10. IM-02 WI-04 持久化切片
+
+IdentityPolicy owning Schema 拥有八张 Enterprise 技术表，并额外以三张独立 Platform 技术表隔离全局事实。Enterprise 表的非空 Project Scope 必须经过 Project Context 校验；Process Step 与父 Process Scope 一致；Reference Edge 判重包含 owner version；audit_reader 仅能读取可实际返回已提交行的 masked surface。Canonical payload↔hash 强校验归属 #33/#34 Repository Gate，当前为 `NOT RUN`；业务 Handler 与真实身份 Provider 不在本切片。

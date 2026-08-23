@@ -506,7 +506,7 @@ source_command_id
 规则：
 
 - Canonical Payload/业务 Row 是 Ref Source of Truth；`reference_edge` 是同事务生成的派生索引；
-- `owner + reference_path + target` 唯一；
+- 精确 `owner（含 owner_version_id）+ reference_path + target` 唯一；不同不可变 owner version 的合法 Edge 不互相冲突；
 - 不允许手工编辑；可从 Canonical Payload 重建；
 - 用于 Impact 查找、Traceability 和数据保留检查；
 - 写入时索引与 Payload 不一致则整个事务失败；
@@ -604,6 +604,8 @@ created_at/updated_at
 
 `process_step` 是不可变步骤事实，保存输入 EventRef、发出 CommandRef、结果、失败与人工介入。相同 `process_type + correlation_key` 只能有一个 active instance。
 
+`process_step.enterprise_id/project_id` 必须与父 `process_instance` 完全一致；只按 `process_id` 建立 FK 不足以防止同一事务允许多个 Project 时形成跨 Scope 关联。
+
 ### 7.5 `audit_record`
 
 保存：
@@ -617,6 +619,8 @@ created_at/updated_at
 
 Audit 是追加记录，不允许普通应用角色更新/删除。
 
+`audit_reader` 是跨模块受控审计读取角色：只能通过 masked surface 读取明确列出的非敏感字段。masked surface 必须能返回已提交行；其默认 security-definer owner 是对应 NOLOGIN module owner，底表只为该 owner 配置审计读取策略。`audit_reader` 自身不获得底表或列权限，因此不能绕过 view 执行 `count(*)`、读取敏感列或写入。
+
 ### 7.6 `reference_edge`
 
 用于本模块的 Typed Reference 反向查找，规则见第 6.5 节。
@@ -624,6 +628,12 @@ Audit 是追加记录，不允许普通应用角色更新/删除。
 ### 7.7 `contract_violation`
 
 保存未知 Major、未知 Required Extension、Canonical Hash 不匹配、Scope 冲突、自引用 Hash、Payload 超限等拒绝事实。敏感 Payload 默认只保存 Hash、Schema Error Path 和安全摘要。
+
+### 7.8 nullable Project Scope 的统一 RLS
+
+七模块标准技术表同时容纳 Enterprise-owned 与 Project-owned 行时，策略逐行选择边界：`project_id IS NULL` 只校验当前 Enterprise；`project_id IS NOT NULL` 必须调用 Project helper，同时匹配 Enterprise 与允许的 Project 集合。不得用仅校验 Enterprise 的策略读取或写入 Project-owned 行。
+
+数据库在 WI-04 校验 promoted Scope 镜像、hash 形状和不可变写面。Canonical JSON 与 SHA-256 的重算/比对依赖 owning Repository 的 canonicalizer，由 WI-05/WI-06 在同一事务写入路径实现并验证；在该 Gate 运行前保持 `NOT RUN`。
 
 ---
 
