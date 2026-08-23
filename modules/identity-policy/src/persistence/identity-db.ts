@@ -364,6 +364,23 @@ export interface PlatformAuditRecordTable {
   retention_class: string;
 }
 
+export interface BootstrapClaimTable {
+  claim_id: string;
+  purpose: string;
+  operator_description: string;
+  operator_actor_snapshot_id: string;
+  operator_authorization_decision_id: string;
+  reason: string;
+  evidence_refs: Json;
+  expires_at: Date;
+  consumed_at?: Date | null;
+  consumed_by_command_id?: string | null;
+  consumed_result?: Json;
+  closed_at?: Date | null;
+  closed_reason?: string | null;
+  created_at: Generated<Date>;
+}
+
 export interface IdentityPolicyDb {
   'identity_policy.principal': PrincipalTable;
   'identity_policy.principal_state_transition': PrincipalStateTransitionTable;
@@ -381,6 +398,7 @@ export interface IdentityPolicyDb {
   'identity_policy.platform_command_receipt': PlatformCommandReceiptTable;
   'identity_policy.platform_outbox_event': PlatformOutboxEventTable;
   'identity_policy.platform_audit_record': PlatformAuditRecordTable;
+  'identity_policy.bootstrap_claim': BootstrapClaimTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';

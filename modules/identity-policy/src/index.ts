@@ -61,3 +61,31 @@ export type {
   CommandAuditInput,
   OutboxEventInput,
 } from './persistence/command-runner.js';
+export {
+  createBootstrapClaim,
+  registerPrincipal,
+  IDENTITY_BOOTSTRAP_REQUIRED,
+  IDENTITY_BOOTSTRAP_CLAIM_INVALID,
+  IDENTITY_BOOTSTRAP_CLAIM_CONSUMED,
+  IDENTITY_BOOTSTRAP_CLAIM_EXPIRED,
+  IDENTITY_BOOTSTRAP_CLAIM_CLOSED,
+  IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS,
+} from './commands/register-principal.js';
+export type {
+  RegisterPrincipalInput,
+  RegisterPrincipalDeps,
+  PrincipalKind,
+} from './commands/register-principal.js';
+export {
+  linkExternalIdentity,
+  resolvePrincipal,
+  IDENTITY_EXTERNAL_IDENTITY_NOT_VERIFIED,
+  IDENTITY_PRINCIPAL_NOT_FOUND,
+} from './commands/link-external-identity.js';
+export type {
+  LinkExternalIdentityInput,
+  IdentityCommandDeps,
+  ResolvePrincipalInput,
+  PrincipalResolutionView,
+} from './commands/link-external-identity.js';
+export { principalRegisteredPayload, externalIdentityLinkedPayload } from './commands/events.js';

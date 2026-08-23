@@ -48,7 +48,7 @@ export interface ExternalIdentityInput {
   /** Sensitive: raw account / subject external identifiers, never persisted. */
   accountExternalId: string;
   subjectExternalId: string;
-  displayHint?: string;
+  displayHint?: string | undefined;
   principalId: string;
   verifiedAt: Date;
   verificationMethod: string;
