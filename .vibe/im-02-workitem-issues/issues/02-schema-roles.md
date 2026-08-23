@@ -8,7 +8,7 @@ PostgreSQL Logical Model 要求一个 Core Database、七个 owning Schema、一
 
 - 创建 `identity_policy`、`enterprise_project`、`task_execution`、`artifact`、`quality_governance`、`release_publication`、`integration_gateway` 与 `projection` Schema。
 - 为每个 owning Schema 创建 NOLOGIN Owner、受限 App Role 和受限 Dispatcher Role；创建 `projection_app`、`audit_reader`、`migration_runner`。
-- 固定 `btree_gist` 与运维用 `pg_stat_statements` 的安装/权限边界，保持 `pgcrypto` 不启用。
+- 固定 `btree_gist` 与运维用 `pg_stat_statements` 的安装/权限边界：PUBLIC 与全部业务基线 Role 无访问权，预定义 `pg_read_all_stats` 只可读取 View、执行只读查询函数，不可执行统计重置；保持 `pgcrypto` 不启用。
 - 配置默认权限，确保未来表/序列不会因遗漏 Grant 自动暴露；Runtime Role 不是 Owner、无 `BYPASSRLS`、默认无 DELETE/DDL/跨 Schema 权限。
 - Migration runner 只能在受控 Migration 流程中切换到指定 Owner，应用进程不能获得 Owner credential。
 
@@ -18,6 +18,7 @@ PostgreSQL Logical Model 要求一个 Core Database、七个 owning Schema、一
 - [ ] 每个 App Role 只能访问本 Schema 明确授权对象；跨 Schema INSERT/UPDATE、DROP/ALTER、普通 DELETE 和 `SET ROLE <module>_owner` 均被拒绝。
 - [ ] Dispatcher Role 只能 claim/update 本模块 Outbox delivery metadata，不能修改业务表或 Event payload。
 - [ ] `audit_reader` 只能读取后续提供的脱敏 View，不能读取 Canonical Payload 或敏感 External ID 列。
+- [ ] `pg_stat_statements` 的 View/函数不向 PUBLIC 或业务基线 Role 暴露；`pg_read_all_stats` 可执行只读观测，但不能调用统计重置函数。
 - [ ] 权限负向测试在真实 PostgreSQL 执行，并能证明拒绝来自数据库而非应用层 mock。
 - [ ] 重复 Migration、focused tests 与 `pnpm clean && pnpm verify` 通过。
 

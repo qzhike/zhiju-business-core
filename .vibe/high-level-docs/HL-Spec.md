@@ -206,6 +206,7 @@ Zhiju Business Core 是制巨质量管理体系服务的业务内核。它要把
 ### 5.6 持久化与安全
 
 - v0.1 使用一个 PostgreSQL Database、七个权威 Schema 和一个可重建 Projection Schema；
+- `pg_stat_statements` 只向预定义 `pg_read_all_stats` 暴露只读 View 与查询函数；Runtime/Dispatcher/Audit/Projection Role 无权访问，统计重置函数不授予观测角色；
 - 模块内使用强外键/唯一/检查约束，跨模块使用 Typed Reference，不建立跨 Schema 外键；
 - Enterprise-owned Row 显式保存 `enterprise_id`；Project-owned Row同时保存 `enterprise_id + project_id`；
 - Enterprise 数据强制 RLS，但 RLS 不替代 IdentityPolicy；

@@ -1849,7 +1849,7 @@ CTX-302 hash
 
 以下项目不改变本逻辑模型，但必须在 DDL/Migration 阶段确定：
 
-1. 已冻结：PostgreSQL 18.6；允许 `btree_gist` 与运维用 `pg_stat_statements`，`pgcrypto` 暂不启用；
+1. 已冻结：PostgreSQL 18.6；允许 `btree_gist` 与运维用 `pg_stat_statements`，`pgcrypto` 暂不启用；`pg_stat_statements` 的 View 与只读查询函数只授予预定义 `pg_read_all_stats`，统计重置函数不授予该观测角色；
 2. UUIDv7 的应用库、时钟回退和跨语言 Fixture；
 3. Canonicalization v1 实现库与 Hash Fixture；
 4. 已冻结：Flyway CLI + 手写版本化 SQL、Forward-only Expand/Contract；精确文件命名在 IM-02 固定；
