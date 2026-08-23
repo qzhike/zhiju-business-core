@@ -45,3 +45,19 @@ export type {
   ActorSnapshotInsert,
   AuthorizationDecisionInsert,
 } from './persistence/identity-policy-repository.js';
+export {
+  executeIdentityCommand,
+  CommandExecutionError,
+  IDEMPOTENCY_PAYLOAD_CONFLICT,
+  CONCURRENCY_CONFLICT,
+  COMMAND_IN_PROGRESS,
+  PAYLOAD_HASH_MISMATCH,
+} from './persistence/command-runner.js';
+export type {
+  CommandEnvelope,
+  CommandBodyResult,
+  CommandExecution,
+  CommandResult,
+  CommandAuditInput,
+  OutboxEventInput,
+} from './persistence/command-runner.js';

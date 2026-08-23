@@ -10,14 +10,16 @@ import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 // pg returns int8 as string and jsonb as parsed objects; inserts pass
 // JSON strings for jsonb and string|number for bigint. ColumnType keeps
 // the runtime truth visible instead of lying to the type system.
-type Int8 = ColumnType<string, string | number>;
+type Int8 = ColumnType<string, string | number, string | number>;
+// DB-defaulted int8 columns: value optional on insert/update, string on read.
+type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
 type Json = ColumnType<unknown, string>;
 
 export interface PrincipalTable {
   id: string;
   principal_kind: 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
   status: Generated<'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'ARCHIVED'>;
-  aggregate_version: Generated<Int8>;
+  aggregate_version: Int8Default;
   display_name: string;
   created_at: Generated<Date>;
   created_by_principal_id: string;
@@ -57,7 +59,7 @@ export interface ExternalIdentityLinkTable {
   verification_method: string;
   evidence_refs: Json;
   status: Generated<'ACTIVE' | 'REVOKED'>;
-  aggregate_version: Generated<Int8>;
+  aggregate_version: Int8Default;
   created_at: Generated<Date>;
   created_by_principal_id: string;
   created_by_actor_snapshot_id: string;
@@ -78,7 +80,7 @@ export interface RoleAssignmentTable {
   constraints: Generated<Json>;
   justification: string;
   status: Generated<'ACTIVE' | 'REVOKED'>;
-  aggregate_version: Generated<Int8>;
+  aggregate_version: Int8Default;
   created_at: Generated<Date>;
   created_by_principal_id: string;
   created_by_actor_snapshot_id: string;
@@ -116,7 +118,7 @@ export interface CapabilityGrantTable {
   grant_policy_snapshot_hash: Buffer;
   justification: string;
   status: Generated<'ACTIVE' | 'REVOKED'>;
-  aggregate_version: Generated<Int8>;
+  aggregate_version: Int8Default;
   created_at: Generated<Date>;
   created_by_principal_id: string;
   created_by_actor_snapshot_id: string;
@@ -215,6 +217,153 @@ export interface AuthorizationDecisionTable {
   retention_class: string;
 }
 
+export interface CommandReceiptTable {
+  command_id: string;
+  command_type: string;
+  command_version: string;
+  idempotency_scope: string;
+  idempotency_key: string;
+  request_payload_hash: Buffer;
+  enterprise_id: string;
+  project_id?: string | null;
+  target_type: string;
+  target_id: string;
+  expected_aggregate_version?: string | null;
+  outcome: 'PENDING' | 'COMMITTED' | 'REJECTED' | 'DUPLICATE';
+  result_payload?: Json;
+  result_payload_hash?: Buffer | null;
+  first_seen_at: Generated<Date>;
+  completed_at?: Date | null;
+  correlation_id: string;
+  causation_id?: string | null;
+  created_by_principal_id: string;
+  actor_snapshot_id: string;
+  authorization_decision_id: string;
+}
+
+export interface OutboxEventTable {
+  event_id: string;
+  event_type: string;
+  event_version: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  aggregate_version: string;
+  enterprise_id: string;
+  project_id?: string | null;
+  correlation_id: string;
+  causation_id?: string | null;
+  payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  occurred_at: Date;
+  recorded_at: Generated<Date>;
+  delivery_state: Generated<'PENDING' | 'LEASED' | 'PUBLISHED' | 'UNKNOWN' | 'DEAD'>;
+  available_at: Generated<Date>;
+  attempt_count: Generated<number>;
+  lease_owner?: string | null;
+  lease_until?: Date | null;
+  lease_token?: ColumnType<string, string | number> | null;
+  last_error_code?: string | null;
+  published_at?: Date | null;
+  created_by_principal_id: string;
+  source_command_id: string;
+}
+
+export interface AuditRecordTable {
+  audit_id: string;
+  enterprise_id: string;
+  project_id?: string | null;
+  principal_id: string;
+  actor_snapshot_id: string;
+  authorization_decision_id: string;
+  command_id?: string | null;
+  command_type?: string | null;
+  outcome: 'ALLOWED' | 'DENIED' | 'COMMITTED' | 'REJECTED' | 'INFO';
+  error_code?: string | null;
+  request_payload_hash?: Buffer | null;
+  result_payload_hash?: Buffer | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  target_aggregate_version?: string | null;
+  correlation_id: string;
+  causation_id?: string | null;
+  channel_ref?: Json;
+  runtime_ref?: Json;
+  break_glass_reason?: string | null;
+  approval_ref?: Json;
+  safe_summary?: string | null;
+  recorded_at: Generated<Date>;
+  retention_class: string;
+}
+
+export interface PlatformCommandReceiptTable {
+  command_id: string;
+  command_type: string;
+  command_version: string;
+  idempotency_scope: string;
+  idempotency_key: string;
+  request_payload_hash: Buffer;
+  target_type: string;
+  target_id: string;
+  expected_aggregate_version?: string | null;
+  outcome: 'PENDING' | 'COMMITTED' | 'REJECTED' | 'DUPLICATE';
+  result_payload?: Json;
+  result_payload_hash?: Buffer | null;
+  first_seen_at: Generated<Date>;
+  completed_at?: Date | null;
+  correlation_id: string;
+  causation_id?: string | null;
+  created_by_principal_id: string;
+  actor_snapshot_id: string;
+  authorization_decision_id: string;
+}
+
+export interface PlatformOutboxEventTable {
+  event_id: string;
+  event_type: string;
+  event_version: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  aggregate_version: string;
+  correlation_id: string;
+  causation_id?: string | null;
+  payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  occurred_at: Date;
+  recorded_at: Generated<Date>;
+  delivery_state: Generated<'PENDING' | 'LEASED' | 'PUBLISHED' | 'UNKNOWN' | 'DEAD'>;
+  available_at: Generated<Date>;
+  attempt_count: Generated<number>;
+  lease_owner?: string | null;
+  lease_until?: Date | null;
+  lease_token?: ColumnType<string, string | number> | null;
+  last_error_code?: string | null;
+  published_at?: Date | null;
+  created_by_principal_id: string;
+  source_command_id: string;
+}
+
+export interface PlatformAuditRecordTable {
+  audit_id: string;
+  principal_id: string;
+  actor_snapshot_id: string;
+  authorization_decision_id: string;
+  command_id?: string | null;
+  command_type?: string | null;
+  outcome: 'ALLOWED' | 'DENIED' | 'COMMITTED' | 'REJECTED' | 'INFO';
+  error_code?: string | null;
+  request_payload_hash?: Buffer | null;
+  result_payload_hash?: Buffer | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  correlation_id: string;
+  causation_id?: string | null;
+  safe_summary?: string | null;
+  recorded_at: Generated<Date>;
+  retention_class: string;
+}
+
 export interface IdentityPolicyDb {
   'identity_policy.principal': PrincipalTable;
   'identity_policy.principal_state_transition': PrincipalStateTransitionTable;
@@ -226,6 +375,12 @@ export interface IdentityPolicyDb {
   'identity_policy.policy_snapshot': PolicySnapshotTable;
   'identity_policy.actor_snapshot': ActorSnapshotTable;
   'identity_policy.authorization_decision': AuthorizationDecisionTable;
+  'identity_policy.command_receipt': CommandReceiptTable;
+  'identity_policy.outbox_event': OutboxEventTable;
+  'identity_policy.audit_record': AuditRecordTable;
+  'identity_policy.platform_command_receipt': PlatformCommandReceiptTable;
+  'identity_policy.platform_outbox_event': PlatformOutboxEventTable;
+  'identity_policy.platform_audit_record': PlatformAuditRecordTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';
