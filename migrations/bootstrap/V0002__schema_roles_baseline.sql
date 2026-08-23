@@ -21,9 +21,10 @@ CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 -- pg_stat_statements installs its views and functions with `=r` ACLs (PUBLIC
 -- SELECT/EXECUTE) in the public schema, so every role would reach the query
 -- statistics once the server preloads the extension in production. Close that
--- surface explicitly: PUBLIC gets nothing, and the only grant goes to the
--- predefined pg_read_all_stats role, which is the agreed ops observation
--- boundary (membership in it is managed out-of-band by operators).
+-- surface explicitly: PUBLIC gets nothing, and the predefined
+-- pg_read_all_stats role receives only the view and read-only function access
+-- needed for observation. It never receives the statistics reset function.
+-- Membership in the predefined role is managed out-of-band by operators.
 DO $statsrevoke$
 DECLARE
     obj RECORD;
@@ -52,6 +53,13 @@ BEGIN
     END LOOP;
 END
 $statsrevoke$;
+
+-- The views invoke these functions as the querying role. Grant the two
+-- read-only entry points so pg_read_all_stats can actually use the views after
+-- PUBLIC EXECUTE is revoked; deliberately leave pg_stat_statements_reset
+-- ungranted so the observation role cannot mutate the statistics baseline.
+GRANT EXECUTE ON FUNCTION public.pg_stat_statements(boolean) TO pg_read_all_stats;
+GRANT EXECUTE ON FUNCTION public.pg_stat_statements_info() TO pg_read_all_stats;
 
 -- ---------------------------------------------------------------------------
 -- Roles. All roles are NOLOGIN: credentials are issued out-of-band (WI-03)

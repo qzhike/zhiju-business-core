@@ -11,7 +11,7 @@
 - `projection_app` — projection Schema USAGE。
 - `audit_reader` — 仅可读后续显式授权的脱敏 View。
 - `migration_runner` — 唯一可以 `SET ROLE <module>_owner` 的角色；对 owner 的成员关系为 SET-only（`WITH INHERIT FALSE SET TRUE`），不显式切换就没有任何 owner DDL 权限。
-- 扩展：仅 `btree_gist`、`pg_stat_statements`（运维观测）；`pg_stat_statements` 的视图/函数已显式 REVOKE PUBLIC，观测入口只授予预定义 `pg_read_all_stats` 角色；`pgcrypto` 不启用。
+- 扩展：仅 `btree_gist`、`pg_stat_statements`（运维观测）；`pg_stat_statements` 的视图/函数已显式 REVOKE PUBLIC，预定义 `pg_read_all_stats` 只获得 View 与只读查询函数权限，不能执行统计重置；`pgcrypto` 不启用。
 - `public` Schema 与 Database 的 CREATE 对 PUBLIC 与所有基线 Role 均为 REVOKE。
 
 ## 启动探测环境
@@ -28,7 +28,14 @@ docker run --rm -d --name zju-wi02-probe \
   -e POSTGRES_DB=zhiju_core -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=zhiju-gate-test \
   -v "$PWD/migrations:/sql:ro" \
   docker.io/library/postgres:18.6@sha256:06cad38a5d9f5d24b4d83d86def30795d5e4b757fedbf5281172b576dedcd941
-docker exec -i zju-wi02-probe \
+docker exec zju-wi02-probe sh -c '
+  attempts=0
+  until pg_isready -U postgres -d zhiju_core; do
+    attempts=$((attempts + 1))
+    [ "$attempts" -lt 30 ] || exit 1
+    sleep 1
+  done
+' && docker exec -i zju-wi02-probe \
   psql -U postgres -d zhiju_core -v ON_ERROR_STOP=1 \
   -f /sql/bootstrap/V0001__platform_bootstrap.sql \
   -f /sql/bootstrap/V0002__schema_roles_baseline.sql
@@ -62,9 +69,12 @@ WHERE owner_role.rolname LIKE '%\_owner';
 -- 扩展集合精确等于 btree_gist + pg_stat_statements（pgcrypto 不在）
 SELECT extname FROM pg_extension ORDER BY extname;
 
--- pg_stat_statements 观测入口对基线 Role 全部 DENY，仅 pg_read_all_stats 可读
+-- pg_stat_statements 对基线 Role 全部 DENY；pg_read_all_stats 可读 View/调用只读函数，但不可 reset
 SELECT has_table_privilege('identity_policy_app', 'public.pg_stat_statements', 'SELECT') AS app_can_read,
-       has_table_privilege('pg_read_all_stats', 'public.pg_stat_statements', 'SELECT') AS ops_can_read;
+       has_table_privilege('pg_read_all_stats', 'public.pg_stat_statements', 'SELECT') AS ops_can_read,
+       has_function_privilege('pg_read_all_stats', 'public.pg_stat_statements(boolean)', 'EXECUTE') AS ops_can_query,
+       has_function_privilege('pg_read_all_stats', 'public.pg_stat_statements_info()', 'EXECUTE') AS ops_can_read_info,
+       has_function_privilege('pg_read_all_stats', 'public.pg_stat_statements_reset(oid,oid,bigint,boolean)', 'EXECUTE') AS ops_can_reset;
 
 -- public Schema / Database 无 CREATE
 SELECT has_schema_privilege('identity_policy_app', 'public', 'CREATE') AS public_create,

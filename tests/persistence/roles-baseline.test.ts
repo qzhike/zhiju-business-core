@@ -255,14 +255,11 @@ describe.skipIf(!gateEnabled)('schema and role least-privilege baseline (real Po
     expect(result.rows.map((row) => row.extname)).toEqual(['btree_gist', 'pg_stat_statements']);
   });
 
-  it('closes the pg_stat_statements observation surface to every baseline role', async () => {
+  it('closes pg_stat_statements to baseline roles and preserves read-only ops access', async () => {
     // The extension's views/functions ship with PUBLIC ACLs; V0002 must have
-    // revoked them so no runtime/dispatcher/audit/projection role can read
-    // query statistics once the extension is preloaded in production.
-    const roles = MODULES.flatMap((module) => [`${module}_app`, `${module}_dispatcher`]).concat([
-      'projection_app',
-      'audit_reader',
-    ]);
+    // revoked them so no baseline role can read query statistics once the
+    // extension is preloaded in production.
+    const roles = EXPECTED_ROLES;
     const result = await client.query<{
       rolname: string;
       view_select: boolean;
@@ -280,6 +277,27 @@ describe.skipIf(!gateEnabled)('schema and role least-privilege baseline (real Po
       expect(row.info_select, `${row.rolname} SELECT on pg_stat_statements_info`).toBe(false);
     }
 
+    const functionResult = await client.query<{
+      rolname: string;
+      function_name: string;
+      can_execute: boolean;
+    }>(
+      `SELECT role.rolname, p.oid::regprocedure::text AS function_name,
+              has_function_privilege(role.rolname, p.oid, 'EXECUTE') AS can_execute
+       FROM pg_roles role
+       CROSS JOIN pg_proc p
+       JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE role.rolname = ANY ($1::text[])
+         AND n.nspname = 'public'
+         AND p.proname LIKE 'pg_stat_statements%'
+       ORDER BY role.rolname, function_name`,
+      [roles],
+    );
+    expect(functionResult.rows).toHaveLength(roles.length * 3);
+    for (const row of functionResult.rows) {
+      expect(row.can_execute, `${row.rolname} EXECUTE ${row.function_name}`).toBe(false);
+    }
+
     expectDeniedByDatabase(
       await asRole('identity_policy_app', 'SELECT count(*) FROM public.pg_stat_statements'),
     );
@@ -289,12 +307,24 @@ describe.skipIf(!gateEnabled)('schema and role least-privilege baseline (real Po
 
     // The ops observation boundary: the predefined pg_read_all_stats role is
     // the only grantee besides superusers.
-    const ops = await client.query<{ view_select: boolean; info_select: boolean }>(
+    const ops = await client.query<{
+      view_select: boolean;
+      info_select: boolean;
+      query_execute: boolean;
+      info_execute: boolean;
+      reset_execute: boolean;
+    }>(
       `SELECT has_table_privilege('pg_read_all_stats', 'public.pg_stat_statements', 'SELECT') AS view_select,
-              has_table_privilege('pg_read_all_stats', 'public.pg_stat_statements_info', 'SELECT') AS info_select`,
+              has_table_privilege('pg_read_all_stats', 'public.pg_stat_statements_info', 'SELECT') AS info_select,
+              has_function_privilege('pg_read_all_stats', 'public.pg_stat_statements(boolean)', 'EXECUTE') AS query_execute,
+              has_function_privilege('pg_read_all_stats', 'public.pg_stat_statements_info()', 'EXECUTE') AS info_execute,
+              has_function_privilege('pg_read_all_stats', 'public.pg_stat_statements_reset(oid,oid,bigint,boolean)', 'EXECUTE') AS reset_execute`,
     );
     expect(ops.rows[0]?.view_select).toBe(true);
     expect(ops.rows[0]?.info_select).toBe(true);
+    expect(ops.rows[0]?.query_execute).toBe(true);
+    expect(ops.rows[0]?.info_execute).toBe(true);
+    expect(ops.rows[0]?.reset_execute).toBe(false);
   });
 
   it('grants no CREATE on the public schema or the database to any baseline role', async () => {
