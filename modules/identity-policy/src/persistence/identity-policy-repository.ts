@@ -117,13 +117,13 @@ export interface ActorSnapshotInsert {
   actorSnapshotId: string;
   principalId: string;
   principalKind: 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
-  actingForPrincipalId?: string;
-  actingForKind?: 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
-  channelCode?: string;
-  runtimeSource?: string;
+  actingForPrincipalId?: string | undefined;
+  actingForKind?: 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY' | undefined;
+  channelCode?: string | undefined;
+  runtimeSource?: string | undefined;
   authenticationContextHash: Buffer;
   enterpriseId: string;
-  projectId?: string;
+  projectId?: string | undefined;
   contractVersion: string;
   /** Snapshot body; must embed principalKind / enterpriseId. */
   snapshotPayload: CanonicalJsonObject;
@@ -142,7 +142,7 @@ export interface AuthorizationDecisionInsert {
   commandVersion: string;
   scopeKind: 'ENTERPRISE' | 'PROJECT';
   enterpriseId: string;
-  projectId?: string;
+  projectId?: string | undefined;
   purpose: string;
   requestedCapability: string;
   commandPayloadHash: Buffer;

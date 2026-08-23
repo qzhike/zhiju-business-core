@@ -122,3 +122,30 @@ export {
   POLICY_SCHEMA_REGISTRY_VERSION,
   isResolvablePolicySchemaRef,
 } from './commands/static-registry.js';
+export {
+  createActorSnapshot,
+  authorizeCommand,
+  validateAuthorizationDecision,
+  SnapshotBoundaryError,
+  DECISION_DEFAULT_TTL_SECONDS,
+  IDENTITY_ACTOR_SNAPSHOT_INVALID,
+  IDENTITY_DECISION_INPUT_INVALID,
+} from './commands/actor-snapshot.js';
+export type {
+  CreateActorSnapshotInput,
+  ActorSnapshotRef,
+  CommandIntent,
+  AuthorizeCommandInput,
+  AuthorizationDecisionView,
+  DecisionValidationInput,
+  DecisionValidationResult,
+} from './commands/actor-snapshot.js';
+export {
+  checkEnterpriseAccess,
+  checkProjectAccess,
+  checkHumanOnlyCapability,
+  getPolicySnapshot,
+  IDENTITY_POLICY_SNAPSHOT_HASH_MISMATCH,
+  IDENTITY_POLICY_SNAPSHOT_NOT_FOUND,
+} from './commands/queries.js';
+export type { AccessCheckInput, AccessDecision, PolicySnapshotView } from './commands/queries.js';
