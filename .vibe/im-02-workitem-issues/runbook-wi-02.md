@@ -10,8 +10,8 @@
   - `<module>_dispatcher` — 仅本模块 Outbox delivery metadata 的 SELECT + 列级 UPDATE（列级授权随 WI-04 的 outbox 表落地，bootstrap 只给 Schema USAGE）。
 - `projection_app` — projection Schema USAGE。
 - `audit_reader` — 仅可读后续显式授权的脱敏 View。
-- `migration_runner` — 唯一可以 `SET ROLE <module>_owner` 的角色（成员关系仅存在于 migration 流程）。
-- 扩展：仅 `btree_gist`、`pg_stat_statements`（运维观测，视图仅 superuser/pg_read_all_stats）；`pgcrypto` 不启用。
+- `migration_runner` — 唯一可以 `SET ROLE <module>_owner` 的角色；对 owner 的成员关系为 SET-only（`WITH INHERIT FALSE SET TRUE`），不显式切换就没有任何 owner DDL 权限。
+- 扩展：仅 `btree_gist`、`pg_stat_statements`（运维观测）；`pg_stat_statements` 的视图/函数已显式 REVOKE PUBLIC，观测入口只授予预定义 `pg_read_all_stats` 角色；`pgcrypto` 不启用。
 - `public` Schema 与 Database 的 CREATE 对 PUBLIC 与所有基线 Role 均为 REVOKE。
 
 ## 启动探测环境
@@ -21,15 +21,17 @@ pnpm install
 pnpm persistence:gate   # 会先空库 migrate + 跑完自动化矩阵，再复跑 no-op migrate
 ```
 
-如需交互式探测，手动起一个一次性容器（与 Gate 等价，仅本地）：
+如需交互式探测，手动起一个一次性容器（与 Gate 等价，仅本地；migrations 在 `docker run` 时挂载，`docker exec` 不支持 `-v`）：
 
 ```bash
 docker run --rm -d --name zju-wi02-probe \
   -e POSTGRES_DB=zhiju_core -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=zhiju-gate-test \
+  -v "$PWD/migrations:/sql:ro" \
   docker.io/library/postgres:18.6@sha256:06cad38a5d9f5d24b4d83d86def30795d5e4b757fedbf5281172b576dedcd941
-docker exec -w /sql -v "$PWD/migrations:/sql:ro" zju-wi02-probe \
+docker exec -i zju-wi02-probe \
   psql -U postgres -d zhiju_core -v ON_ERROR_STOP=1 \
-  -c "$(cat migrations/bootstrap/V0001__platform_bootstrap.sql migrations/bootstrap/V0002__schema_roles_baseline.sql)"
+  -f /sql/bootstrap/V0001__platform_bootstrap.sql \
+  -f /sql/bootstrap/V0002__schema_roles_baseline.sql
 ```
 
 ## 探测模板
@@ -49,14 +51,20 @@ FROM pg_roles WHERE rolname LIKE '%\_owner' OR rolname LIKE '%\_app'
    OR rolname LIKE '%\_dispatcher' OR rolname IN ('projection_app','audit_reader','migration_runner')
 ORDER BY rolname;
 
--- owner 成员只有 migration_runner；app 角色没有任何成员关系
-SELECT member.rolname AS member, owner_role.rolname AS owner FROM pg_auth_members
-JOIN pg_roles member ON member.oid = pg_auth_members.member
-JOIN pg_roles owner_role ON owner_role.oid = pg_auth_members.roleid
+-- owner 成员只有 migration_runner 且为 SET-only（inherit_option=false, set_option=true）；app 角色没有任何成员关系
+SELECT member.rolname AS member, owner_role.rolname AS owner,
+       am.inherit_option, am.set_option
+FROM pg_auth_members am
+JOIN pg_roles member ON member.oid = am.member
+JOIN pg_roles owner_role ON owner_role.oid = am.roleid
 WHERE owner_role.rolname LIKE '%\_owner';
 
 -- 扩展集合精确等于 btree_gist + pg_stat_statements（pgcrypto 不在）
 SELECT extname FROM pg_extension ORDER BY extname;
+
+-- pg_stat_statements 观测入口对基线 Role 全部 DENY，仅 pg_read_all_stats 可读
+SELECT has_table_privilege('identity_policy_app', 'public.pg_stat_statements', 'SELECT') AS app_can_read,
+       has_table_privilege('pg_read_all_stats', 'public.pg_stat_statements', 'SELECT') AS ops_can_read;
 
 -- public Schema / Database 无 CREATE
 SELECT has_schema_privilege('identity_policy_app', 'public', 'CREATE') AS public_create,

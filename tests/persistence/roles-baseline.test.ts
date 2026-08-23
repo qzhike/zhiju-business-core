@@ -216,16 +216,26 @@ describe.skipIf(!gateEnabled)('schema and role least-privilege baseline (real Po
     }
   });
 
-  it('only migration_runner is a member of owner roles', async () => {
-    const result = await client.query<{ member: string; owner: string }>(
-      `SELECT member.rolname AS member, owner_role.rolname AS owner
+  it('only migration_runner is a member of owner roles, with SET-only membership', async () => {
+    const result = await client.query<{
+      member: string;
+      owner: string;
+      inherit_option: boolean;
+      set_option: boolean;
+    }>(
+      `SELECT member.rolname AS member, owner_role.rolname AS owner,
+              inherit_option, set_option
        FROM pg_auth_members
        JOIN pg_roles member ON member.oid = pg_auth_members.member
        JOIN pg_roles owner_role ON owner_role.oid = pg_auth_members.roleid
        WHERE owner_role.rolname LIKE '%_owner' ORDER BY member, owner`,
     );
     expect(result.rows).toHaveLength(MODULES.length);
-    expect(result.rows.every((row) => row.member === 'migration_runner')).toBe(true);
+    for (const row of result.rows) {
+      expect(row.member).toBe('migration_runner');
+      expect(row.inherit_option, `${row.owner} inherit_option`).toBe(false);
+      expect(row.set_option, `${row.owner} set_option`).toBe(true);
+    }
 
     // Application roles are not members of anything, so they can never become
     // an owner through group membership.
@@ -243,6 +253,48 @@ describe.skipIf(!gateEnabled)('schema and role least-privilege baseline (real Po
       [['btree_gist', 'pg_stat_statements', 'pgcrypto']],
     );
     expect(result.rows.map((row) => row.extname)).toEqual(['btree_gist', 'pg_stat_statements']);
+  });
+
+  it('closes the pg_stat_statements observation surface to every baseline role', async () => {
+    // The extension's views/functions ship with PUBLIC ACLs; V0002 must have
+    // revoked them so no runtime/dispatcher/audit/projection role can read
+    // query statistics once the extension is preloaded in production.
+    const roles = MODULES.flatMap((module) => [`${module}_app`, `${module}_dispatcher`]).concat([
+      'projection_app',
+      'audit_reader',
+    ]);
+    const result = await client.query<{
+      rolname: string;
+      view_select: boolean;
+      info_select: boolean;
+    }>(
+      `SELECT rolname,
+              has_table_privilege(rolname, 'public.pg_stat_statements', 'SELECT') AS view_select,
+              has_table_privilege(rolname, 'public.pg_stat_statements_info', 'SELECT') AS info_select
+       FROM pg_roles WHERE rolname = ANY ($1::text[])`,
+      [roles],
+    );
+    expect(result.rows).toHaveLength(roles.length);
+    for (const row of result.rows) {
+      expect(row.view_select, `${row.rolname} SELECT on pg_stat_statements`).toBe(false);
+      expect(row.info_select, `${row.rolname} SELECT on pg_stat_statements_info`).toBe(false);
+    }
+
+    expectDeniedByDatabase(
+      await asRole('identity_policy_app', 'SELECT count(*) FROM public.pg_stat_statements'),
+    );
+    expectDeniedByDatabase(
+      await asRole('audit_reader', 'SELECT * FROM public.pg_stat_statements_info'),
+    );
+
+    // The ops observation boundary: the predefined pg_read_all_stats role is
+    // the only grantee besides superusers.
+    const ops = await client.query<{ view_select: boolean; info_select: boolean }>(
+      `SELECT has_table_privilege('pg_read_all_stats', 'public.pg_stat_statements', 'SELECT') AS view_select,
+              has_table_privilege('pg_read_all_stats', 'public.pg_stat_statements_info', 'SELECT') AS info_select`,
+    );
+    expect(ops.rows[0]?.view_select).toBe(true);
+    expect(ops.rows[0]?.info_select).toBe(true);
   });
 
   it('grants no CREATE on the public schema or the database to any baseline role', async () => {
@@ -383,6 +435,45 @@ describe.skipIf(!gateEnabled)('schema and role least-privilege baseline (real Po
       });
       await migrationProbe.query('RESET ROLE');
     }
+  });
+
+  it('migration login inherits no owner DDL; only SET ROLE produces owner-owned objects', async () => {
+    // Regression for the inheritable-membership gap: with a plain grant of the
+    // owner roles to migration_runner, a migration login could DDL directly as
+    // itself (table owner = the login, default ACLs bypassed). The membership
+    // must be SET-only, so DDL is denied until the explicit owner switch, and
+    // objects created after the switch are owned by the module owner with the
+    // owner's default privileges applied.
+    await migrationProbe.query('SET ROLE migration_runner');
+    const beforeSwitch = await tryQuery(
+      migrationProbe,
+      'CREATE TABLE identity_policy.migration_inherited_probe (id int)',
+    );
+    expect(beforeSwitch.allowed).toBe(false);
+    expect(beforeSwitch.code).toBe('42501');
+    await migrationProbe.query('RESET ROLE');
+
+    await migrationProbe.query('SET ROLE identity_policy_owner');
+    const created = await tryQuery(
+      migrationProbe,
+      'CREATE TABLE identity_policy.migration_owner_probe (id int)',
+    );
+    expect(created).toMatchObject({ allowed: true });
+    await migrationProbe.query('RESET ROLE');
+
+    const owner = await client.query<{ tableowner: string }>(
+      `SELECT tableowner FROM pg_tables
+       WHERE schemaname = 'identity_policy' AND tablename = 'migration_owner_probe'`,
+    );
+    expect(owner.rows[0]?.tableowner).toBe('identity_policy_owner');
+
+    // Default privileges of the owner applied to the migrated object.
+    await expect(
+      asRole('identity_policy_app', 'SELECT count(*) FROM identity_policy.migration_owner_probe'),
+    ).resolves.toMatchObject({ allowed: true });
+    expectDeniedByDatabase(
+      await asRole('identity_policy_app', 'DELETE FROM identity_policy.migration_owner_probe'),
+    );
   });
 
   it('projection_app has USAGE on projection but no owning-schema access', async () => {

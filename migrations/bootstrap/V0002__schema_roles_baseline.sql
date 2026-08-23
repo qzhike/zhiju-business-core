@@ -9,14 +9,49 @@
 
 -- ---------------------------------------------------------------------------
 -- Extensions (Technology-Baseline §3): btree_gist for exclusion constraints,
--- pg_stat_statements for ops observation only. pg_stat_statements lives in
--- public but its views are restricted to superuser/pg_read_all_stats members
--- by default; no app/dispatcher role is added there, which is the intended
--- ops boundary. No other extension may be installed here.
+-- pg_stat_statements for ops observation only. pg_stat_statements installs
+-- its views/functions with PUBLIC ACLs, which are explicitly revoked below;
+-- observation access is granted only to the predefined pg_read_all_stats
+-- role. No other extension may be installed here.
 -- ---------------------------------------------------------------------------
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+-- pg_stat_statements installs its views and functions with `=r` ACLs (PUBLIC
+-- SELECT/EXECUTE) in the public schema, so every role would reach the query
+-- statistics once the server preloads the extension in production. Close that
+-- surface explicitly: PUBLIC gets nothing, and the only grant goes to the
+-- predefined pg_read_all_stats role, which is the agreed ops observation
+-- boundary (membership in it is managed out-of-band by operators).
+DO $statsrevoke$
+DECLARE
+    obj RECORD;
+BEGIN
+    FOR obj IN
+        SELECT c.relname AS name, 'TABLE' AS kind
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relname IN ('pg_stat_statements', 'pg_stat_statements_info')
+    LOOP
+        EXECUTE format('REVOKE SELECT ON public.%I FROM PUBLIC', obj.name);
+        EXECUTE format('GRANT SELECT ON public.%I TO pg_read_all_stats', obj.name);
+    END LOOP;
+
+    FOR obj IN
+        SELECT p.oid
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND p.proname LIKE 'pg_stat_statements%'
+    LOOP
+        -- regprocedure text renders the full signature, e.g.
+        -- pg_stat_statements_reset(oid, oid, bigint).
+        EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', obj.oid::regprocedure);
+    END LOOP;
+END
+$statsrevoke$;
 
 -- ---------------------------------------------------------------------------
 -- Roles. All roles are NOLOGIN: credentials are issued out-of-band (WI-03)
@@ -112,7 +147,16 @@ DECLARE
     ];
 BEGIN
     FOREACH module IN ARRAY modules LOOP
-        EXECUTE format('GRANT %I TO migration_runner', module || '_owner');
+        -- SET-only membership (PG16+ membership options): migration_runner may
+        -- explicitly SET ROLE to the owner inside the controlled migration
+        -- flow, but never inherits owner privileges. With a plain inheritable
+        -- grant, any login that is a member of migration_runner could create
+        -- objects directly as itself, bypassing the owner switch and the
+        -- owner's default privileges.
+        EXECUTE format(
+            'GRANT %I TO migration_runner WITH INHERIT FALSE, SET TRUE',
+            module || '_owner'
+        );
     END LOOP;
 END
 $membership$;
