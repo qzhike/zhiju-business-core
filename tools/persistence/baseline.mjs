@@ -65,6 +65,21 @@ export function assertRepoDigestMatches(inspectOutput, repository, tag, digest) 
   return true;
 }
 
+/**
+ * Assert that a tag's currently resolved manifest digest equals the pinned
+ * digest. This is the tag↔digest binding check: pulling `tag@digest` always
+ * succeeds regardless of what the tag itself points to, so the tag must be
+ * resolved independently and compared.
+ */
+export function assertTagMatchesDigest(tag, resolvedDigest, pinnedDigest) {
+  if (resolvedDigest !== pinnedDigest) {
+    throw new Error(
+      `image tag ${tag} currently resolves to ${resolvedDigest} but the pinned digest is ${pinnedDigest}`,
+    );
+  }
+  return true;
+}
+
 /** Expected `server_version_num` baseline, e.g. `180006` for 18.6 (MMmmpp scheme). */
 export function expectedServerVersionNum() {
   return String(POSTGRESQL_MAJOR * 10000 + POSTGRESQL_MINOR);

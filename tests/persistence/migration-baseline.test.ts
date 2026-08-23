@@ -81,6 +81,18 @@ describe.skipIf(!gateEnabled)('persistence migration baseline (real PostgreSQL)'
     expect(result.rows.map((row) => row.schema_name)).toEqual(EXPECTED_SCHEMAS);
   });
 
+  it('has the Technology-Baseline-approved extensions available in the locked image', async () => {
+    // Technology-Baseline §2/§3: `btree_gist` and `pg_stat_statements` are the
+    // approved extensions; `pgcrypto` is deferred (IM-DG-003) and must not be
+    // required. Availability is asserted against pg_available_extensions on
+    // the real locked PostgreSQL 18.6 image.
+    const result = await pool.query<{ name: string }>(
+      'SELECT name FROM pg_available_extensions WHERE name = ANY ($1::text[]) ORDER BY name',
+      [['btree_gist', 'pg_stat_statements']],
+    );
+    expect(result.rows.map((row) => row.name)).toEqual(['btree_gist', 'pg_stat_statements']);
+  });
+
   it('provides the PG18 uuidv7() function used for availability checks', async () => {
     const result = await pool.query<{ id: string }>('SELECT uuidv7()::text AS id');
     expect(result.rows[0]?.id ?? '').toMatch(

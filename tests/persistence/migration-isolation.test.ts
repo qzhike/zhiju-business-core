@@ -5,20 +5,26 @@ import { describe, expect, it } from 'vitest';
 // PG-020 / Technology-Baseline §3: migrations run only from the deployment job
 // (tools/persistence). Application startup, modules and Runtime Roles must
 // never reference Flyway or the migration tooling, so no code path can start
-// migrating at boot.
+// migrating at boot. The layout test enforces the migrations/ directory
+// contract from migrations/README.md: allowed directories, version ranges,
+// file types and `Vdddd__snake_case.sql` naming.
 
 const repoRoot = join(import.meta.dirname, '../..');
 const appSourceRoots = ['apps', 'modules', 'packages'].map((dir) => join(repoRoot, dir));
 
-function tsFiles(dir: string): string[] {
+function walk(dir: string): string[] {
   const entries = readdirSync(dir, { withFileTypes: true });
   return entries.flatMap((entry) => {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
-      return entry.name === 'node_modules' || entry.name === 'dist' ? [] : tsFiles(path);
+      return entry.name === 'node_modules' || entry.name === 'dist' ? [] : walk(path);
     }
-    return entry.name.endsWith('.ts') ? [path] : [];
+    return [path];
   });
+}
+
+function tsFiles(dir: string): string[] {
+  return walk(dir).filter((file) => file.endsWith('.ts'));
 }
 
 function appSourceFiles(): string[] {
@@ -32,6 +38,69 @@ const FORBIDDEN_PATTERNS: { pattern: RegExp; reason: string }[] = [
   { pattern: /tools\/persistence/, reason: 'persistence gate harness import' },
   { pattern: /migration[s]?\s*\(/i, reason: 'migration execution call' },
 ];
+
+// migrations/README.md contract: directory -> allowed version range.
+const MIGRATION_VERSION_RANGES: Record<string, [number, number]> = {
+  bootstrap: [0, 999],
+  identity_policy: [1000, 1999],
+  enterprise_project: [2000, 2999],
+  task_execution: [3000, 3999],
+  artifact: [4000, 4999],
+  quality_governance: [5000, 5999],
+  release_publication: [6000, 6999],
+  integration_gateway: [7000, 7999],
+};
+
+const MIGRATION_NAME_PATTERN = /^V(\d{4})__[a-z][a-z0-9_]*\.sql$/;
+const MIGRATION_ROOT_FILES = new Set(['README.md']);
+
+/**
+ * Validate one migrations/ entry. Returns violation messages; empty means valid.
+ * Pure function so negative cases can be regression-tested without touching
+ * the real directory.
+ */
+export function validateMigrationEntry(directory: string, fileName: string): string[] {
+  const violations: string[] = [];
+  if (!(directory in MIGRATION_VERSION_RANGES)) {
+    violations.push(`unknown migration directory '${directory}'`);
+    return violations;
+  }
+  if (fileName === '.gitkeep') {
+    return violations;
+  }
+  const match = MIGRATION_NAME_PATTERN.exec(fileName);
+  if (!match) {
+    violations.push(`'${directory}/${fileName}': expected Vdddd__snake_case.sql or .gitkeep`);
+    return violations;
+  }
+  const version = Number(match[1]);
+  const range = MIGRATION_VERSION_RANGES[directory] ?? [0, 0];
+  const [min, max] = range;
+  if (version < min || version > max) {
+    violations.push(
+      `'${directory}/${fileName}': version ${version} outside ${directory} range ${min}-${max}`,
+    );
+  }
+  return violations;
+}
+
+function migrationViolations(): string[] {
+  const violations: string[] = [];
+  const migrationsRoot = join(repoRoot, 'migrations');
+  for (const entry of readdirSync(migrationsRoot, { withFileTypes: true })) {
+    const path = join(migrationsRoot, entry.name);
+    if (!entry.isDirectory()) {
+      if (!MIGRATION_ROOT_FILES.has(entry.name)) {
+        violations.push(`unexpected file in migrations/: ${entry.name}`);
+      }
+      continue;
+    }
+    for (const file of walk(path)) {
+      violations.push(...validateMigrationEntry(entry.name, file.slice(path.length + 1)));
+    }
+  }
+  return violations;
+}
 
 describe('migration execution is isolated from application code', () => {
   it('has application/module sources to check', () => {
@@ -66,14 +135,41 @@ describe('migration execution is isolated from application code', () => {
     }
     expect(offenders).toEqual([]);
   });
+});
 
-  it('only ships migrations under migrations/ with the agreed naming', () => {
+describe('migration layout follows the frozen directory/version contract', () => {
+  it('enumerates real migration files, not an empty .ts-only list', () => {
     expect(statSync(join(repoRoot, 'migrations')).isDirectory()).toBe(true);
-    for (const file of tsFiles(join(repoRoot, 'migrations'))) {
-      expect(file.endsWith('.sql') || file.endsWith('.gitkeep')).toBe(true);
-      if (file.endsWith('.sql')) {
-        expect(/V\d{4}__[a-z0-9_]+\.sql$/.exec(file)).not.toBeNull();
-      }
-    }
+    const sqlFiles = walk(join(repoRoot, 'migrations')).filter((file) => file.endsWith('.sql'));
+    expect(sqlFiles.length).toBeGreaterThan(0);
+  });
+
+  it('has no violations in the shipped migrations/ tree', () => {
+    expect(migrationViolations()).toEqual([]);
+  });
+
+  it('rejects each class of layout violation (negative regressions)', () => {
+    expect(validateMigrationEntry('bootstrap', 'V0001__platform_bootstrap.sql')).toEqual([]);
+    expect(validateMigrationEntry('bootstrap', '.gitkeep')).toEqual([]);
+    expect(validateMigrationEntry('identity_policy', '.gitkeep')).toEqual([]);
+
+    expect(validateMigrationEntry('not_a_schema', 'V8001__x.sql')).toEqual([
+      "unknown migration directory 'not_a_schema'",
+    ]);
+    expect(validateMigrationEntry('bootstrap', 'schema.sql')).toEqual([
+      "'bootstrap/schema.sql': expected Vdddd__snake_case.sql or .gitkeep",
+    ]);
+    expect(validateMigrationEntry('bootstrap', 'V1__too_short.sql')).toEqual([
+      "'bootstrap/V1__too_short.sql': expected Vdddd__snake_case.sql or .gitkeep",
+    ]);
+    expect(validateMigrationEntry('bootstrap', 'V0002__BadCase.sql')).toEqual([
+      "'bootstrap/V0002__BadCase.sql': expected Vdddd__snake_case.sql or .gitkeep",
+    ]);
+    expect(validateMigrationEntry('identity_policy', 'V0002__wrong_range.sql')).toEqual([
+      "'identity_policy/V0002__wrong_range.sql': version 2 outside identity_policy range 1000-1999",
+    ]);
+    expect(validateMigrationEntry('integration_gateway', 'V8000__wrong_range.sql')).toEqual([
+      "'integration_gateway/V8000__wrong_range.sql': version 8000 outside integration_gateway range 7000-7999",
+    ]);
   });
 });

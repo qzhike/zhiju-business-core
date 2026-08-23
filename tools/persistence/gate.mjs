@@ -16,7 +16,7 @@ import {
 } from './baseline.mjs';
 import { flywayVersion, runFlyway } from './flyway.mjs';
 import { startPostgres, stopPostgres } from './postgres.mjs';
-import { docker } from './docker.mjs';
+import { docker, dockerInspectImage } from './docker.mjs';
 
 function log(message) {
   process.stdout.write(`[persistence-gate] ${message}\n`);
@@ -62,7 +62,15 @@ async function pullWithRetry(reference, attempts = 3) {
       log(`pull attempt ${attempt} for ${reference} failed: ${error.message}`);
     }
   }
-  throw lastError;
+  // Digest-pinned references are content-addressed: if the exact image is
+  // already cached locally, a transient registry outage must not fail the gate.
+  try {
+    await dockerInspectImage(reference);
+    log(`using locally cached image for ${reference}`);
+    return;
+  } catch {
+    throw lastError;
+  }
 }
 
 async function main() {
@@ -107,6 +115,23 @@ async function main() {
       ZJU_PERSISTENCE_IMAGE_DIGEST: POSTGRES_IMAGE_DIGEST,
       ZJU_PERSISTENCE_FLYWAY_TAG: FLYWAY_IMAGE_TAG,
     });
+
+    // Second migrate run: must be a no-op. The normalized no-pending line is
+    // printed as manual-acceptance evidence (runbook), without credentials.
+    const secondMigrate = await runFlyway(pg.containerId, {
+      command: 'migrate',
+      database: pg.database,
+      username: pg.username,
+      password: pg.password,
+    });
+    const noPendingLine = secondMigrate
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => /up to date|no pending migrations|No migration necessary/i.test(line));
+    if (!noPendingLine) {
+      throw new Error(`second flyway migrate was not a no-op:\n${secondMigrate}`);
+    }
+    log(`second migrate: ${noPendingLine}`);
 
     const info = await runFlyway(pg.containerId, {
       command: 'info',

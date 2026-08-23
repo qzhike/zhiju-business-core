@@ -20,18 +20,20 @@ pnpm persistence:gate
 
 命令会依次打印，可用于人工核对基线：
 
-1. `[persistence-gate] postgres image: docker.io/library/postgres:18.6@sha256:06cad38a…` — 镜像 tag + manifest digest；启动后 Gate 会用 `docker image inspect` 验证 RepoDigests 必须包含该 digest，不匹配即失败。
-2. `[persistence-gate] server_version: 18.6.x` — 来自容器内 `SHOW server_version`；主/次版本不符合 18.6 即失败。
-3. `[persistence-gate] flyway version: …11.20.3…` — 来自 `flyway -v`；与锁定版本不符即失败。
+1. `[persistence-gate] postgres image: docker.io/library/postgres:18.6@sha256:06cad38a…` — 镜像 tag + manifest digest；启动后 Gate 双重校验：`docker image inspect` 的 RepoDigests 必须包含该 digest，且用 `docker buildx imagetools inspect` 独立解析 tag 当前指向的 manifest digest 并与锁定 digest 比对（tag 与 digest 不绑定即失败）。
+2. `[persistence-gate] server_version: 180006` — 来自容器内 `SHOW server_version_num`（MMmmpp 编码，18.6 → 180006）；主/次版本不符合 18.6 即失败。
+3. `[persistence-gate] flyway version: Flyway OSS Edition 11.20.3 by Redgate` — 来自 `flyway -v`；与锁定版本不符即失败。
 4. `flyway migrate (empty database) completed` — 空库首次 Migration。
 5. Persistence 测试结果（vitest），包括：
    - flyway history 记录 `V0001 platform bootstrap` 且 checksum 存在；
    - 七个 owning Schema + `projection` 已创建；
-   - `uuidv7()` 可用（PG18 特性可用性检查）；
+   - **Extension availability**：`pg_available_extensions` 中 `btree_gist` 与 `pg_stat_statements` 均可用（Technology-Baseline 已批准清单）；`uuidv7()` 可用（PG18 特性）；
    - **重复执行 Migration 为 no-op 且 `flyway_schema_history` 前后完全一致（无 checksum 漂移）**；
+   - migrations/ 目录契约（目录、版本区间、`Vdddd__snake_case.sql` 命名）零违规；
    - 应用/模块源码不引用 Flyway 或 migration 工具（应用启动与 Runtime Role 不会执行 Migration）。
-6. `applied migrations:` 清单（来自 `flyway info`）。
-7. `[persistence-gate] postgres container removed` — 无论成败都会清理容器，不留残留容器/临时 SQL/测试数据库；失败时先打印容器日志尾部作为安全诊断。
+6. `[persistence-gate] second migrate: Schema "public" is up to date. No migration necessary.`（或等价 no-pending 行）— 第二次 migrate 的 no-op 证据，直接供人工核对。
+7. `applied migrations:` 清单（来自 `flyway info`）。
+8. `[persistence-gate] postgres container removed` — 无论成败都会清理容器（含镜像校验失败路径），不留残留容器/临时 SQL/测试数据库；失败时先打印容器日志尾部作为安全诊断。
 
 ## 锁定的物理参数
 

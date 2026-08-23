@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertRepoDigestMatches,
   assertServerVersion,
+  assertTagMatchesDigest,
   imageReference,
   POSTGRES_IMAGE_TAG,
   postgresImageReference,
@@ -52,6 +53,19 @@ describe('pinned image baseline', () => {
         'sha256:' + 'a'.repeat(64),
       ),
     ).toBe(true);
+  });
+
+  it('fails when the tag resolves to a different manifest digest than pinned', () => {
+    const pinned = 'sha256:' + 'a'.repeat(64);
+    const drifted = 'sha256:' + 'b'.repeat(64);
+    // Negative regression for the tag↔digest binding: a `tag@digest` pull
+    // succeeds even when the tag itself drifted, so the resolved digest must
+    // be compared independently (e.g. 18.5 tag still resolving to its own
+    // manifest while 18.6 is pinned).
+    expect(() => assertTagMatchesDigest('18.6', drifted, pinned)).toThrow(
+      /currently resolves to .* but the pinned digest is/,
+    );
+    expect(assertTagMatchesDigest('18.6', pinned, pinned)).toBe(true);
   });
 
   it('fails server versions outside the pinned major.minor', () => {

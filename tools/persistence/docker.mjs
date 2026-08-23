@@ -19,3 +19,24 @@ export async function dockerInspectImage(reference) {
   }
   return parsed[0];
 }
+
+/**
+ * Resolve the manifest digest a tag currently points to in the registry.
+ * Independent of any local pull, so a tag whose content drifted away from
+ * the pinned digest is detected even though `tag@digest` pulls still succeed.
+ */
+export async function resolveTagDigest(repository, tag) {
+  const stdout = await docker([
+    'buildx',
+    'imagetools',
+    'inspect',
+    `${repository}:${tag}`,
+    '--format',
+    '{{.Manifest.Digest}}',
+  ]);
+  const digest = stdout.trim();
+  if (!/^sha256:[0-9a-f]{64}$/.test(digest)) {
+    throw new Error(`could not resolve manifest digest for ${repository}:${tag}: ${digest}`);
+  }
+  return digest;
+}

@@ -19,5 +19,10 @@ export declare function assertRepoDigestMatches(
   tag: string,
   digest: string,
 ): boolean;
+export declare function assertTagMatchesDigest(
+  tag: string,
+  resolvedDigest: string,
+  pinnedDigest: string,
+): boolean;
 export declare function expectedServerVersionNum(): string;
 export declare function assertServerVersion(serverVersionNum: string): boolean;
