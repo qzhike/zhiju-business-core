@@ -37,6 +37,15 @@ const FORBIDDEN_PATTERNS: { pattern: RegExp; reason: string }[] = [
   { pattern: /\bflyway\b/i, reason: 'Flyway usage' },
   { pattern: /tools\/persistence/, reason: 'persistence gate harness import' },
   { pattern: /migration[s]?\s*\(/i, reason: 'migration execution call' },
+  // Kysely's real migration entry points: the Migrator/MigrationProvider API
+  // and its migrateToLatest/migrateTo/migrateUp/migrateDown commands. Kysely
+  // is frozen as a SQL builder only and must not own migrations.
+  { pattern: /\bMigrator\b/, reason: 'Kysely Migrator usage' },
+  { pattern: /\bMigrationProvider\b/, reason: 'Kysely MigrationProvider usage' },
+  { pattern: /\bmigrateToLatest\b/, reason: 'Kysely migrateToLatest call' },
+  { pattern: /\bmigrateTo\s*\(/, reason: 'Kysely migrateTo call' },
+  { pattern: /\bmigrateUp\b/, reason: 'Kysely migrateUp call' },
+  { pattern: /\bmigrateDown\b/, reason: 'Kysely migrateDown call' },
 ];
 
 // migrations/README.md contract: directory -> allowed version range.
@@ -118,6 +127,38 @@ describe('migration execution is isolated from application code', () => {
       }
     }
     expect(violations).toEqual([]);
+  });
+
+  it('flags the Kysely migration API as a violation (negative fixture)', () => {
+    // Minimal runtime-migration code that must fail closed: none of the
+    // generic patterns below catch it, the dedicated Kysely patterns must.
+    const kyselyViolation = `import { Migrator } from 'kysely';
+const migrator = new Migrator({ provider });
+await migrator.migrateToLatest();`;
+    const matched = FORBIDDEN_PATTERNS.filter(({ pattern }) => pattern.test(kyselyViolation));
+    expect(matched.map(({ reason }) => reason)).toEqual(
+      expect.arrayContaining(['Kysely Migrator usage', 'Kysely migrateToLatest call']),
+    );
+
+    const kyselyDowngrade =
+      'await migrator.migrateDown();\nawait migrator.migrateTo(2);\nawait migrator.migrateUp();';
+    const downgradeMatched = FORBIDDEN_PATTERNS.filter(({ pattern }) =>
+      pattern.test(kyselyDowngrade),
+    );
+    expect(downgradeMatched.map(({ reason }) => reason)).toEqual(
+      expect.arrayContaining([
+        'Kysely migrateDown call',
+        'Kysely migrateTo call',
+        'Kysely migrateUp call',
+      ]),
+    );
+
+    // Plain Kysely query-builder usage stays allowed.
+    const legitimateKysely = "import { Kysely, PostgresDialect } from 'kysely';";
+    const falsePositives = FORBIDDEN_PATTERNS.filter(({ pattern }) =>
+      pattern.test(legitimateKysely),
+    );
+    expect(falsePositives).toEqual([]);
   });
 
   it('keeps migration SQL outside of application source trees', () => {
