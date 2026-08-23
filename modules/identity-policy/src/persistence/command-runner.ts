@@ -46,12 +46,12 @@ export interface CommandEnvelope {
   /** Platform commands use the platform_* technical tables (no scope mix). */
   platform: boolean;
   enterpriseId: string;
-  projectId?: string;
+  projectId?: string | undefined;
   targetType: string;
   targetId: string;
-  expectedAggregateVersion?: string;
+  expectedAggregateVersion?: string | undefined;
   correlationId: string;
-  causationId?: string;
+  causationId?: string | undefined;
   principalId: string;
   actorSnapshotId: string;
   authorizationDecisionId: string;
@@ -102,6 +102,16 @@ export interface CommandExecution {
     id: string,
     expectedVersion: string,
     patch: { status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'ARCHIVED'; lastCommandId?: string },
+  ): Promise<'OK' | 'NOT_FOUND' | 'CONFLICT'>;
+  /**
+   * Single-statement compare-and-set on the scoped assignment/grant
+   * aggregates (WI-08 revocations). Same semantics as casPrincipalStatus.
+   */
+  casScopedAssignmentStatus(
+    table: 'role_assignment' | 'capability_grant',
+    id: string,
+    expectedVersion: string,
+    patch: { status: 'ACTIVE' | 'REVOKED'; lastCommandId?: string },
   ): Promise<'OK' | 'NOT_FOUND' | 'CONFLICT'>;
   appendOutbox(event: OutboxEventInput): Promise<void>;
   appendAudit(audit: CommandAuditInput): Promise<void>;
@@ -374,6 +384,49 @@ function createExecution(
         return 'NOT_FOUND';
       }
       return 'CONFLICT';
+    },
+    async casScopedAssignmentStatus(table, id, expectedVersion, patch) {
+      const nextVersion = Number(expectedVersion) + 1;
+      const updated =
+        table === 'role_assignment'
+          ? await trx
+              .updateTable('identity_policy.role_assignment')
+              .set({
+                status: patch.status,
+                aggregate_version: nextVersion,
+                updated_at: new Date(),
+                last_command_id: patch.lastCommandId ?? envelope.commandId,
+              })
+              .where('id', '=', id)
+              .where('aggregate_version', '=', expectedVersion)
+              .executeTakeFirst()
+          : await trx
+              .updateTable('identity_policy.capability_grant')
+              .set({
+                status: patch.status,
+                aggregate_version: nextVersion,
+                updated_at: new Date(),
+                last_command_id: patch.lastCommandId ?? envelope.commandId,
+              })
+              .where('id', '=', id)
+              .where('aggregate_version', '=', expectedVersion)
+              .executeTakeFirst();
+      if (Number(updated.numUpdatedRows) === 1) {
+        return 'OK';
+      }
+      const visible =
+        table === 'role_assignment'
+          ? await trx
+              .selectFrom('identity_policy.role_assignment')
+              .select(['aggregate_version'])
+              .where('id', '=', id)
+              .executeTakeFirst()
+          : await trx
+              .selectFrom('identity_policy.capability_grant')
+              .select(['aggregate_version'])
+              .where('id', '=', id)
+              .executeTakeFirst();
+      return visible ? 'CONFLICT' : 'NOT_FOUND';
     },
     async appendOutbox(event) {
       // Promoted scope mirror: enterprise events must embed their scope

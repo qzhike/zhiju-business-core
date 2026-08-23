@@ -89,3 +89,36 @@ export type {
   PrincipalResolutionView,
 } from './commands/link-external-identity.js';
 export { principalRegisteredPayload, externalIdentityLinkedPayload } from './commands/events.js';
+export {
+  assignRole,
+  revokeRole,
+  grantCapability,
+  revokeCapability,
+  recordPolicySnapshot,
+  bootstrapMinimalAdminRole,
+  IDENTITY_ROLE_SCOPE_INVALID,
+  IDENTITY_ROLE_ALREADY_ACTIVE,
+  IDENTITY_ROLE_NOT_ACTIVE,
+  IDENTITY_CAPABILITY_HUMAN_ONLY,
+  IDENTITY_CAPABILITY_SCOPE_INVALID,
+  IDENTITY_CAPABILITY_ALREADY_ACTIVE,
+  IDENTITY_CAPABILITY_NOT_ACTIVE,
+  IDENTITY_POLICY_SNAPSHOT_INVALID,
+  IDENTITY_POLICY_VERSION_UNKNOWN,
+  IDENTITY_BOOTSTRAP_ROLE_INVALID,
+} from './commands/role-capability-handlers.js';
+export type {
+  AssignRoleInput,
+  RevokeScopedInput,
+  GrantCapabilityInput,
+  RecordPolicySnapshotInput,
+  BootstrapRoleInput,
+} from './commands/role-capability-handlers.js';
+export {
+  HUMAN_ONLY_CAPABILITIES,
+  HUMAN_ONLY_CAPABILITY_REGISTRY_VERSION,
+  isHumanOnlyCapability,
+  POLICY_SCHEMA_REGISTRY,
+  POLICY_SCHEMA_REGISTRY_VERSION,
+  isResolvablePolicySchemaRef,
+} from './commands/static-registry.js';

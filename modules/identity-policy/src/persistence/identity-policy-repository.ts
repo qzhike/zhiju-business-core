@@ -79,9 +79,9 @@ export interface ScopedAssignmentInsert {
   code: string;
   scopeKind: 'ENTERPRISE' | 'PROJECT';
   enterpriseId: string;
-  projectId?: string;
+  projectId?: string | undefined;
   validFrom: Date;
-  validTo?: Date;
+  validTo?: Date | undefined;
   justification: string;
   createdByPrincipalId: string;
   createdByActorSnapshotId: string;
@@ -413,7 +413,7 @@ export class IdentityPolicyRepository {
     insert: ScopedAssignmentInsert & {
       resourceSelectors: CanonicalJsonObject[];
       actions: string[];
-      maxUses?: number;
+      maxUses?: number | undefined;
       grantPolicySnapshotId: string;
       grantPolicySnapshotHash: Buffer;
     },
