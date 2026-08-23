@@ -106,3 +106,19 @@ Migration 文件按 owning Schema 分目录；平台 Role/Schema bootstrap 与�
 - IM-DG-003/004 已于 2026-08-17 冻结，见 [`Deployment-Security-Baseline-v0.1.md`](./Deployment-Security-Baseline-v0.1.md)；
 - IM-DG-005：Canonical Document/Workbook Schema 与 Renderer；
 - IM-DG-006：6 个 Runtime Command 与默认 Policy。
+
+---
+
+## 7. WI-01 已锁定的物理参数（2026-08-23，Issue #29）
+
+IM-DG-002 的物理版本与 digest 已落地，权威定义在 `tools/persistence/baseline.mjs` 与根 `package.json`：
+
+| 组件 | 锁定值 |
+|---|---|
+| PostgreSQL 镜像 | `docker.io/library/postgres:18.6@sha256:06cad38a5d9f5d24b4d83d86def30795d5e4b757fedbf5281172b576dedcd941` |
+| Flyway CLI 镜像 | `docker.io/flyway/flyway:11.20.3@sha256:01605f443e1a891b3762f66e66d92403c33b6e0c29099ad550af94b6c1cbc3c1` |
+| `pg` | 8.23.0 |
+| Kysely | 0.29.5 |
+| testcontainers / `@testcontainers/postgresql` | 12.1.0 |
+
+Migration 目录布局、版本区间与命名规则见 `migrations/README.md`。单一 Gate 命令为 `pnpm persistence:gate`（已并入 `pnpm verify`），本地操作说明见 [`../im-02-workitem-issues/runbook-wi-01.md`](../im-02-workitem-issues/runbook-wi-01.md)。Testcontainers 通过只证明测试容器行为；生产 PostgreSQL 仍为 `NOT RUN`。

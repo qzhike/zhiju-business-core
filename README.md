@@ -30,6 +30,8 @@ pnpm install --frozen-lockfile
 pnpm verify
 ```
 
+`pnpm verify` 末尾包含真实 PostgreSQL Persistence Gate（`pnpm persistence:gate`）：以 tag+digest 锁定的 PostgreSQL 18.6 与 Flyway 11.20.3 容器执行 Migration 与 Persistence 测试，需要本地 Docker。操作说明见 [IM-02 WI-01 Runbook](.vibe/im-02-workitem-issues/runbook-wi-01.md)。
+
 本地启动 API：
 
 ```shell
