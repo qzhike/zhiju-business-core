@@ -33,7 +33,7 @@ IM-02 的 IdentityPolicy 最小切片首先需要可创建 Human/Agent/Service P
 
 - `PASS`：Principal/ExternalIdentity Handler、幂等冲突、一次性 claim 并发消费、真实 PostgreSQL receipt/audit/outbox 与原始标识不泄漏检查。
 - `PASS`：`ContractRegistry` 接受 `PrincipalRegistered`、`ExternalIdentityLinked` 和 `resolve_principal` Result 的完整 Typed Reference/ValueEnvelope 结构。
-- `PASS`：`pnpm verify`；其中 Vitest 为 `341 passed / 125 skipped`，Persistence gate 为 `9 files / 138 passed`，二次迁移为 no-op。
+- `PASS`：合并最新 WI-06 base 后的 `pnpm verify`；其中 Vitest 为 `341 passed / 137 skipped`，Persistence gate 为 `9 files / 150 passed`，V1002/V1003 均成功，二次迁移为 no-op。
 - `NOT RUN`：真实 Keycloak/OIDC、飞书 Provider、OpenBao 生产加密、跨系统 E2E 和人工验收；这些仍是本 PR 非目标，不由本地替身测试升级为业务运行通过。
 
 ## 非目标

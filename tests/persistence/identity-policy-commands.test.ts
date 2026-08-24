@@ -90,9 +90,9 @@ describe.skipIf(!gateEnabled)('identity command handlers (real PostgreSQL)', () 
     admin = new pg.Client({ connectionString: databaseUrl });
     await admin.connect();
     await admin.query(
-      `CREATE ROLE wi07_probe_ip LOGIN PASSWORD 'wi07-probe-ip' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+      `CREATE ROLE wi07_probe_ip LOGIN PASSWORD 'wi07-probe-ip' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
-    await admin.query(`GRANT identity_policy_app TO wi07_probe_ip`);
+    await admin.query(`GRANT platform_context_establisher, identity_policy_app TO wi07_probe_ip`);
     const url = new URL(databaseUrl ?? '');
     url.username = 'wi07_probe_ip';
     url.password = 'wi07-probe-ip';

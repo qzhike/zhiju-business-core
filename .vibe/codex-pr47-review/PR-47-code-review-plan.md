@@ -9,7 +9,7 @@
 - 审查状态：已完成第一轮独立语义审查，确认 6 项合并阻塞项
 - 修复状态：已完成最小代码、测试、规格和模块测试文档修复
 - 验证状态：`pnpm verify`、ContractRegistry 直接探针和真实 PostgreSQL gate 均 `PASS`
-- GitHub 交付状态：等待用户检查工作区差异；尚未 commit/push/comment/merge/close
+- GitHub 交付状态：用户已确认提交；最新 WI-06 base 合并冲突已解析，最终本地 gate 已通过，待完成 merge commit、push、comment、merge/close
 
 ## 第一轮审查发现
 
@@ -28,11 +28,13 @@
 - bootstrap claim 已使用 `FOR UPDATE`、条件更新和 `RETURNING`，真实 PostgreSQL 并发仅一个成功者。
 - ExternalIdentity 唯一冲突已使用 `ON CONFLICT DO NOTHING`，竞争失败仍能在活事务内写拒绝 receipt/audit。
 - 闭集值和前置拒绝已移入 command runner，新增 `IDENTITY_PRINCIPAL_INVALID_KIND` 并验证拒绝证据。
+- 合并最新 WI-06 base 时保留其 `V1002`；WI-07 bootstrap claim migration 顺延为 forward-only `V1003`，并补齐真实命令测试登录的 `platform_context_establisher` membership。
 
 ## 验证结果
 
 - `pnpm verify`：`PASS`。
-- Vitest：全项目 `20 passed | 7 skipped`，`341 passed | 125 skipped`；Persistence gate `9 files / 138 passed`。
+- Vitest：全项目 `20 passed | 7 skipped`，`341 passed | 137 skipped`；Persistence gate `9 files / 150 passed`。
+- Flyway 空库迁移：`V1002` 与 `V1003` 均 `Success`，二次迁移为 no-op。
 - ContractRegistry 直接探针：PrincipalRegistered Event、ExternalIdentityLinked Event、resolve_principal Result 均 `valid: true, errors: []`。
 - Flyway 二次迁移：`Schema "public" is up to date. No migration necessary.`；临时 PostgreSQL 容器已由 gate 清理。
 - 真实 Keycloak/OIDC、飞书 Provider、OpenBao 生产密钥、跨系统 E2E 和人工验收保持 `NOT RUN`。
@@ -50,4 +52,4 @@
 2. 建立 PR head 的契约与实现差异，形成带位置和复现证据的 review 结论。
 3. 若存在问题，先更新相关规格及测试文档，再实现最小修复和回归测试。`PASS`
 4. 执行分层验证，明确 `PASS`、`NOT RUN` 和人工验收边界。`PASS`
-5. 用户检查差异并确认后，提交 review/修复记录，推送新 head；重新审查精确 head 后评论 PR，使用精确 head 合并 PR 并核对/关闭关联 Issue。`PENDING USER CONFIRMATION`
+5. 用户已确认提交；完成 merge commit 与非强制 push，重新审查精确 head 后评论 PR，使用精确 head 合并 PR 并核对/关闭关联 Issue。`IN PROGRESS`

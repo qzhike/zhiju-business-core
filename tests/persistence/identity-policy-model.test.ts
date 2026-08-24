@@ -5,6 +5,7 @@ import {
   createIdentityPolicyDatabase,
   withIdentityTransaction,
   IdentityPolicyRepository,
+  IDENTITY_SENSITIVE_EXTERNAL_IDENTIFIER_FORBIDDEN,
   type IdentityCryptoPorts,
   type IdentityTransactionContext,
 } from '@zhiju/identity-policy';
@@ -38,6 +39,7 @@ const ROLE_ASSIGNMENT_B = '90909090-9090-7090-8090-9090909090d4';
 const CAPABILITY_GRANT_A = '91919191-9191-7191-8191-9191919191e1';
 const POLICY_SNAPSHOT_ID = '92929292-9292-7292-8292-9292929292f1';
 const ACTOR_SNAPSHOT_ID = '93939393-9393-7393-8393-9393939393a1';
+const PROJECT_ACTOR_SNAPSHOT_ID = '93939393-9393-7393-8393-9393939393a2';
 const DECISION_ID = '94949494-9494-7494-8494-9494949494b1';
 const ACTOR_HASH_INPUT = Buffer.alloc(32, 0x11);
 const CMD_HASH = Buffer.alloc(32, 0x22);
@@ -102,9 +104,9 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
     admin = new pg.Client({ connectionString: databaseUrl });
     await admin.connect();
     await admin.query(
-      `CREATE ROLE wi05_probe_ip LOGIN PASSWORD 'wi05-probe-ip' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+      `CREATE ROLE wi05_probe_ip LOGIN PASSWORD 'wi05-probe-ip' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
-    await admin.query(`GRANT identity_policy_app TO wi05_probe_ip`);
+    await admin.query(`GRANT platform_context_establisher, identity_policy_app TO wi05_probe_ip`);
     await admin.query(
       `CREATE ROLE wi05_probe_ep LOGIN PASSWORD 'wi05-probe-ep' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
@@ -305,6 +307,47 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
     expect(count.rows[0]?.count).toBe('1');
   });
 
+  it('rejects raw identifiers in persisted metadata and excludes revoked links from lookup', async () => {
+    const unsafeMetadata = [
+      { displayHint: RAW_ACCOUNT, verificationMethod: 'wi05.safe', evidenceRefs: {} },
+      { displayHint: 'redacted', verificationMethod: RAW_SUBJECT, evidenceRefs: {} },
+      {
+        displayHint: 'redacted',
+        verificationMethod: 'wi05.safe',
+        evidenceRefs: { raw: RAW_ACCOUNT },
+      },
+    ];
+    for (const [index, metadata] of unsafeMetadata.entries()) {
+      await expect(
+        withIdentityTransaction(db, CONTEXT_A, (trx) =>
+          repo.insertExternalIdentityLink(trx, {
+            id: `a1a1a1a1-0000-7000-8000-${String(index + 10).padStart(12, '0')}`,
+            providerCode: 'FEISHU',
+            accountExternalId: RAW_ACCOUNT,
+            subjectExternalId: RAW_SUBJECT,
+            ...metadata,
+            principalId: HUMAN_PRINCIPAL,
+            verifiedAt: new Date(),
+            createdByPrincipalId: OPERATOR,
+            createdByActorSnapshotId: OPERATOR_ACTOR,
+          }),
+        ),
+      ).rejects.toMatchObject({ code: IDENTITY_SENSITIVE_EXTERNAL_IDENTIFIER_FORBIDDEN });
+    }
+
+    await withIdentityTransaction(db, CONTEXT_A, async (trx) => {
+      await trx
+        .updateTable('identity_policy.external_identity_link')
+        .set({ status: 'REVOKED' })
+        .where('principal_id', '=', HUMAN_PRINCIPAL)
+        .execute();
+    });
+    const revoked = await withIdentityTransaction(db, CONTEXT_A, (trx) =>
+      repo.findExternalIdentityLinkByLookup(trx, 'feishu', RAW_ACCOUNT, RAW_SUBJECT),
+    );
+    expect(revoked).toBeUndefined();
+  });
+
   it('records and resolves policy snapshots, actor snapshots and decisions by exact id+hash', async () => {
     await withIdentityTransaction(db, CONTEXT_A, async (trx) => {
       await repo.insertPolicySnapshot(trx, {
@@ -344,6 +387,7 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
         actorSnapshotId: ACTOR_SNAPSHOT_ID,
         principalId: HUMAN_PRINCIPAL,
         principalKind: 'HUMAN',
+        scopeKind: 'ENTERPRISE',
         authenticationContextHash: ACTOR_HASH_INPUT,
         enterpriseId: ENTERPRISE_A,
         contractVersion: '1.0',
@@ -363,23 +407,55 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
       repo.getActorSnapshotByIdAndHash(trx, ACTOR_SNAPSHOT_ID, Buffer.alloc(32, 0x00)),
     );
     expect(actor?.hashMatched).toBe(false);
-    const actorByRow = await admin.query<{ payload_hash: Buffer }>(
-      `SELECT payload_hash FROM identity_policy.actor_snapshot WHERE actor_snapshot_id = $1`,
+    const actorByRow = await admin.query<{ payload_hash: Buffer; canonical_payload: unknown }>(
+      `SELECT payload_hash, canonical_payload
+       FROM identity_policy.actor_snapshot WHERE actor_snapshot_id = $1`,
       [ACTOR_SNAPSHOT_ID],
     );
     const actorRow = actorByRow.rows.at(0);
     if (!actorRow) {
       throw new Error('actor snapshot fixture missing');
     }
+    expect(actorRow.canonical_payload).toMatchObject({ note: 'wi05 human actor' });
     const actorOk = await withIdentityTransaction(db, CONTEXT_A, (trx) =>
       repo.getActorSnapshotByIdAndHash(trx, ACTOR_SNAPSHOT_ID, actorRow.payload_hash),
     );
     expect(actorOk?.hashMatched).toBe(true);
 
     await withIdentityTransaction(db, CONTEXT_A, async (trx) => {
+      await repo.insertActorSnapshot(trx, {
+        actorSnapshotId: PROJECT_ACTOR_SNAPSHOT_ID,
+        principalId: HUMAN_PRINCIPAL,
+        principalKind: 'HUMAN',
+        scopeKind: 'PROJECT',
+        authenticationContextHash: ACTOR_HASH_INPUT,
+        enterpriseId: ENTERPRISE_A,
+        projectId: PROJECT_A1,
+        contractVersion: '1.0',
+        snapshotPayload: {
+          note: 'wi05 project actor',
+          principalKind: 'HUMAN',
+          enterpriseId: ENTERPRISE_A,
+        },
+        createdByPrincipalId: OPERATOR,
+        sourceCommandId: 'b1b1b1b1-0000-7000-8000-000000000004',
+      });
+    });
+
+    const projectActorResult = await admin.query<{ payload_hash: Buffer }>(
+      `SELECT payload_hash FROM identity_policy.actor_snapshot WHERE actor_snapshot_id = $1`,
+      [PROJECT_ACTOR_SNAPSHOT_ID],
+    );
+    const projectActor = projectActorResult.rows.at(0);
+    if (!projectActor) {
+      throw new Error('project actor snapshot fixture missing');
+    }
+
+    await withIdentityTransaction(db, CONTEXT_A, async (trx) => {
       await repo.insertAuthorizationDecision(trx, {
         authorizationDecisionId: DECISION_ID,
-        actorSnapshotId: ACTOR_SNAPSHOT_ID,
+        actorSnapshotId: PROJECT_ACTOR_SNAPSHOT_ID,
+        actorSnapshotPayloadHash: projectActor.payload_hash,
         principalId: HUMAN_PRINCIPAL,
         principalKind: 'HUMAN',
         outcome: 'ALLOW',
@@ -408,8 +484,8 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
       });
     });
 
-    const decisionRow = await admin.query<{ payload_hash: Buffer }>(
-      `SELECT payload_hash FROM identity_policy.authorization_decision
+    const decisionRow = await admin.query<{ payload_hash: Buffer; canonical_payload: unknown }>(
+      `SELECT payload_hash, canonical_payload FROM identity_policy.authorization_decision
        WHERE authorization_decision_id = $1`,
       [DECISION_ID],
     );
@@ -417,6 +493,7 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
     if (!decisionHashRow) {
       throw new Error('decision fixture missing');
     }
+    expect(decisionHashRow.canonical_payload).toMatchObject({ note: 'wi05 decision body' });
     const decision = await withIdentityTransaction(db, CONTEXT_A, (trx) =>
       repo.getAuthorizationDecisionByIdAndHash(trx, DECISION_ID, decisionHashRow.payload_hash),
     );
@@ -481,6 +558,7 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
       await repo.insertRoleRevocation(trx, {
         revocationId: 'b2b2b2b2-0000-7000-8000-000000000002',
         targetId: ROLE_ASSIGNMENT_A,
+        scopeKind: 'ENTERPRISE',
         enterpriseId: ENTERPRISE_A,
         revokedByPrincipalId: OPERATOR,
         reasonCode: 'wi05.rotate',
@@ -568,7 +646,9 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
       await repo.insertCapabilityRevocation(trx, {
         revocationId: 'b3b3b3b3-0000-7000-8000-000000000002',
         targetId: CAPABILITY_GRANT_A,
+        scopeKind: 'PROJECT',
         enterpriseId: ENTERPRISE_A,
+        projectId: PROJECT_A1,
         revokedByPrincipalId: OPERATOR,
         reasonCode: 'wi05.offboard',
         effectiveAt: now,
@@ -636,14 +716,15 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
     await expect(
       admin.query(
         `INSERT INTO identity_policy.authorization_decision (
-           authorization_decision_id, actor_snapshot_id, principal_id, principal_kind, outcome,
+           authorization_decision_id, actor_snapshot_id, actor_snapshot_payload_hash,
+           principal_id, principal_kind, outcome,
            reason_codes, command_type, command_version, scope_kind, enterprise_id, purpose,
            requested_capability, command_payload_hash, policy_snapshot_id,
            policy_snapshot_payload_hash, authentication_context_hash, expires_at,
            contract_type, contract_version, canonicalization_version, payload_hash_algorithm,
            payload_hash, payload_size_bytes, canonical_payload, created_by_principal_id,
            source_command_id, retention_class)
-         VALUES ('c4c4c4c4-0000-7000-8000-000000000002', $1, $2, 'HUMAN', 'DENY', '{r}',
+         VALUES ('c4c4c4c4-0000-7000-8000-000000000002', $1, $4, $2, 'HUMAN', 'DENY', '{r}',
                  'wi05.cmd', '1.0', 'ENTERPRISE', $3, 'p', 'c', $4, $5, $4, $4, now() + interval '1 hour',
                  'identity.AuthorizationDecision', '1.0', '1', 'SHA-256', $4, 10,
                  '{"outcome": "ALLOW", "enterpriseId": "x", "commandType": "wi05.cmd"}'::jsonb,
@@ -694,6 +775,136 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
           .execute();
       }),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('enforces project membership and closed scope shapes under RLS', async () => {
+    const contextWithoutProjects: IdentityTransactionContext = {
+      ...CONTEXT_A,
+      allowedProjectIds: [],
+    };
+    const visible = await withIdentityTransaction(db, contextWithoutProjects, async (trx) => ({
+      roles: await trx
+        .selectFrom('identity_policy.role_assignment')
+        .select('id')
+        .where('project_id', 'is not', null)
+        .execute(),
+      grants: await trx
+        .selectFrom('identity_policy.capability_grant')
+        .select('id')
+        .where('project_id', 'is not', null)
+        .execute(),
+      actors: await trx
+        .selectFrom('identity_policy.actor_snapshot')
+        .select('actor_snapshot_id')
+        .where('project_id', 'is not', null)
+        .execute(),
+      decisions: await trx
+        .selectFrom('identity_policy.authorization_decision')
+        .select('authorization_decision_id')
+        .where('project_id', 'is not', null)
+        .execute(),
+    }));
+    expect(visible).toEqual({ roles: [], grants: [], actors: [], decisions: [] });
+
+    await expect(
+      admin.query(
+        `INSERT INTO identity_policy.role_assignment (
+           id, principal_id, role_code, scope_kind, enterprise_id, project_id,
+           valid_from, justification, created_by_principal_id, created_by_actor_snapshot_id)
+         VALUES ('d1d1d1d1-0000-7000-8000-000000000001', $1, 'wi05.invalid-scope',
+                 'PROJECT', $2, NULL, now(), 'invalid scope', $3, $4)`,
+        [HUMAN_PRINCIPAL, ENTERPRISE_A, OPERATOR, OPERATOR_ACTOR],
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
+  });
+
+  it('rejects cross-scope revocations and non-exact policy or actor references', async () => {
+    await expect(
+      withIdentityTransaction(db, CONTEXT_A, (trx) =>
+        repo.insertActorSnapshot(trx, {
+          actorSnapshotId: 'd2d2d2d2-0000-7000-8000-000000000000',
+          principalId: AGENT_PRINCIPAL,
+          principalKind: 'HUMAN',
+          scopeKind: 'ENTERPRISE',
+          authenticationContextHash: ACTOR_HASH_INPUT,
+          enterpriseId: ENTERPRISE_A,
+          contractVersion: '1.0',
+          snapshotPayload: {
+            principalKind: 'HUMAN',
+            enterpriseId: ENTERPRISE_A,
+          },
+          createdByPrincipalId: OPERATOR,
+          sourceCommandId: 'd2d2d2d2-0000-7000-8000-000000000009',
+        }),
+      ),
+    ).rejects.toMatchObject({ code: '23503' });
+
+    await expect(
+      admin.query(
+        `INSERT INTO identity_policy.role_revocation (
+           revocation_id, role_assignment_id, scope_kind, enterprise_id, project_id,
+           revoked_by_principal_id, reason_code, effective_at, actor_snapshot_id,
+           source_command_id)
+         VALUES ('d2d2d2d2-0000-7000-8000-000000000001', $1, 'ENTERPRISE', $2, NULL,
+                 $3, 'wi05.cross-scope', now(), $4,
+                 'd2d2d2d2-0000-7000-8000-000000000002')`,
+        [ROLE_ASSIGNMENT_B, ENTERPRISE_A, OPERATOR, OPERATOR_ACTOR],
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
+
+    await expect(
+      withIdentityTransaction(db, CONTEXT_A, async (trx) => {
+        await repo.insertCapabilityGrant(trx, {
+          id: 'd2d2d2d2-0000-7000-8000-000000000003',
+          principalId: HUMAN_PRINCIPAL,
+          code: 'wi05.wrong-policy-hash',
+          scopeKind: 'PROJECT',
+          enterpriseId: ENTERPRISE_A,
+          projectId: PROJECT_A1,
+          resourceSelectors: [],
+          actions: ['wi05.read'],
+          validFrom: new Date(),
+          justification: 'wrong policy hash',
+          grantPolicySnapshotId: POLICY_SNAPSHOT_ID,
+          grantPolicySnapshotHash: Buffer.alloc(32, 0xff),
+          createdByPrincipalId: OPERATOR,
+          createdByActorSnapshotId: OPERATOR_ACTOR,
+        });
+      }),
+    ).rejects.toMatchObject({ code: '23514' });
+
+    await expect(
+      withIdentityTransaction(db, CONTEXT_A, async (trx) => {
+        await repo.insertAuthorizationDecision(trx, {
+          authorizationDecisionId: 'd2d2d2d2-0000-7000-8000-000000000004',
+          actorSnapshotId: ACTOR_SNAPSHOT_ID,
+          actorSnapshotPayloadHash: Buffer.alloc(32, 0xdd),
+          principalId: AGENT_PRINCIPAL,
+          principalKind: 'AGENT',
+          outcome: 'DENY',
+          reasonCodes: ['wi05.invalid-actor-binding'],
+          commandType: 'wi05.demo.command',
+          commandVersion: '1.0',
+          scopeKind: 'ENTERPRISE',
+          enterpriseId: ENTERPRISE_A,
+          purpose: 'wi05.test',
+          requestedCapability: 'wi05.capability',
+          commandPayloadHash: CMD_HASH,
+          policySnapshotId: POLICY_SNAPSHOT_ID,
+          policySnapshotPayloadHash: Buffer.alloc(32, 0xff),
+          authenticationContextHash: Buffer.alloc(32, 0xee),
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+          contractVersion: '1.0',
+          decisionPayload: {
+            outcome: 'DENY',
+            enterpriseId: ENTERPRISE_A,
+            commandType: 'wi05.demo.command',
+          },
+          createdByPrincipalId: OPERATOR,
+          sourceCommandId: 'd2d2d2d2-0000-7000-8000-000000000005',
+        });
+      }),
+    ).rejects.toMatchObject({ code: '23514' });
   });
 
   it('denies other module runtime roles direct reads of identity authoritative tables', async () => {

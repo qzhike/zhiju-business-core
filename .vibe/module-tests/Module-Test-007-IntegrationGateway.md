@@ -79,3 +79,12 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 - Feishu Channel 专项：`DESIGN VERIFIED / USER PROGRESSION CONFIRMED 2026-08-16`；不得据此更改本文件 9 个 API 基准用例的历史状态。
 - Runtime Adapter 专项：4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景为 `NOT RUN`；6 个 additive TaskExecution Command proposal 未进入 Catalog。
 - 测试遗留：Schema focused tests 当前为 35/35，Issue #17 runtime focused tests 为 13/13；2026-08-18 review 修复期间新增的临时调试文件 `tests/integration-debug.test.ts` 已删除；本地无临时测试脚本或测试文件。
+
+## IM-02 WI-04 PostgreSQL 用例
+
+| ID | 输入 | 预期输出 | 修复前实际输出 | 当前结果 |
+|---|---|---|---|---|
+| IG-PG-001 | 七模块 catalog policy + EnterpriseProject 真实 Project 越权探针 | 非空 Project 行使用 Project helper，越权写入 `42501` | 七模块 policy 对账通过，代表写入 `42501` | `PASS` |
+| IG-PG-002 | Process Scope、masked audit、Reference owner version 矩阵 | 跨 Scope 拒绝、masked row 可读、多 owner version 可共存 | 分别为 `23514`、目标 row、两版本成功/精确重复 `23505` | `PASS` |
+
+#27 的业务 Migration/Repository、Provider、跨进程验证与 payload↔hash Gate 仍为 `NOT RUN`。

@@ -9,7 +9,7 @@
 | 审查基线 | PR #47 head `553431c26ea0b5d08b6a602f7ed17b987c205d4d` |
 | Base | `galendai/34-im-02-wi-06-command-transaction-runner`，`7c8ea1a36b222e3c3407a86f81fe023a7bb7bce1` |
 | 审查日期 | 2026-08-24 |
-| 当前交付状态 | 本地修复和验证已完成；等待用户检查后再 commit/push/comment/merge/close |
+| 当前交付状态 | 用户已确认提交；最新 WI-06 base 合并冲突已解析，最终本地 gate 已通过，待完成 merge commit、push、comment、merge/close |
 
 本轮先独立读取 PR 的精确 head、关联 Issue、HL-Spec、IdentityPolicy Module Spec/Module Test、API Contract、数据库模型、实际 diff 和当前工作区状态，再执行实现修复。PR 原始 head 的自动检查是绿色，但语义审查仍发现以下合并阻塞项。
 
@@ -69,6 +69,7 @@
 - Bootstrap claim 由数据库行锁和条件更新共同裁决；同一 claim 的并发请求只有一个 `COMMITTED`。
 - ExternalIdentity lookup 唯一冲突使用 `ON CONFLICT DO NOTHING`，避免在 aborted transaction 中继续写 receipt/audit。
 - 所有本轮检查的业务拒绝均通过 command runner 持久化 receipt/audit；原始 account/subject 不进入 receipt payload、outbox payload 或安全摘要。
+- 合并最新 WI-06 base 时保留其 `V1002` 平台 Receipt migration；WI-07 bootstrap claim migration 顺延为 forward-only `V1003`，并为真实命令测试登录补齐 `platform_context_establisher` membership。
 - 按项目流程先更新了 [`HL-Spec.md`](../../.vibe/high-level-docs/HL-Spec.md)、[`Module-Spec-001-IdentityPolicy.md`](../../.vibe/module-specs/Module-Spec-001-IdentityPolicy.md)、[`Module-Test-001-IdentityPolicy.md`](../../.vibe/module-tests/Module-Test-001-IdentityPolicy.md) 与 WI-07 Issue 文档，再修改实现。
 
 ## 4. 验证证据
@@ -78,10 +79,10 @@
 | `pnpm format:check` | `PASS` |
 | `pnpm lint` | `PASS` |
 | `pnpm typecheck` | `PASS` |
-| `pnpm test` | `20 passed / 7 skipped`；`341 passed / 125 skipped` |
+| `pnpm test` | `20 passed / 7 skipped`；`341 passed / 137 skipped` |
 | `pnpm architecture` | `PASS`，`source_roots=10` |
 | `pnpm contracts:check` | `PASS`，public API `200`、Registry `FULL=200`、compatibility findings `0` |
-| `pnpm persistence:gate` | `PASS`；真实 PostgreSQL `9 files / 138 passed`、V1002 applied、二次 migrate no-op、临时容器已清理 |
+| `pnpm persistence:gate` | `PASS`；真实 PostgreSQL `9 files / 150 passed`、V1002/V1003 均 applied、二次 migrate no-op、临时容器已清理 |
 | `pnpm verify` | `PASS`，上述检查完整串联执行 |
 | `ContractRegistry` 直接探针 | `PrincipalRegistered Event`、`ExternalIdentityLinked Event`、`resolve_principal Result` 均 `valid: true, errors: []` |
 
@@ -106,4 +107,4 @@
 
 ## 6. 交付状态
 
-本地修复和文档已完成，当前工作区尚未 commit、push、发表评论、合并 PR 或关闭 Issue。依据项目流程，待用户检查差异并明确确认后，才执行提交；提交后再以新的精确 PR head 重新检查、评论修复记录、使用 `--match-head-commit` 合并 PR #47，并核对/关闭 Issue #35。
+用户已确认提交。本地修复、最新 WI-06 base 合并解析和最终验证已完成；接下来以新的精确 PR head 重新检查、发表评论修复记录，使用 `--match-head-commit` 合并 PR #47，并核对/关闭 Issue #35。

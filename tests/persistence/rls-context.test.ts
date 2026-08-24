@@ -46,20 +46,27 @@ describe.skipIf(!gateEnabled)(
       admin = new pg.Client({ connectionString: databaseUrl });
       await admin.connect();
 
-      // Dedicated LOGIN sessions mirror the production boundary: the runtime
-      // process connects with its own login and holds only the runtime role
-      // membership. Context behavior must be demonstrated from these sessions,
-      // not from the superuser.
+      // Dedicated NOINHERIT LOGIN sessions mirror the transaction coordinator:
+      // they must explicitly select the context-establisher role and then the
+      // target runtime role. A runtime role by itself cannot establish context.
       await admin.query(
-        `CREATE ROLE wi03_probe_ep LOGIN PASSWORD 'wi03-ep-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+        `CREATE ROLE wi03_probe_ep LOGIN PASSWORD 'wi03-ep-app' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
       );
-      await admin.query(`GRANT enterprise_project_app TO wi03_probe_ep`);
       await admin.query(
-        `CREATE ROLE wi03_probe_projection LOGIN PASSWORD 'wi03-projection' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+        `GRANT platform_context_establisher, enterprise_project_app TO wi03_probe_ep`,
       );
-      await admin.query(`GRANT projection_app TO wi03_probe_projection`);
-      epProbe = await connectAs('wi03_probe_ep', 'wi03-ep-app');
-      projectionProbe = await connectAs('wi03_probe_projection', 'wi03-projection');
+      await admin.query(
+        `CREATE ROLE wi03_probe_projection LOGIN PASSWORD 'wi03-projection' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+      );
+      await admin.query(
+        `GRANT platform_context_establisher, projection_app TO wi03_probe_projection`,
+      );
+      epProbe = await connectAs('wi03_probe_ep', 'wi03-ep-app', 'enterprise_project_app');
+      projectionProbe = await connectAs(
+        'wi03_probe_projection',
+        'wi03-projection',
+        'projection_app',
+      );
 
       // Enterprise-owned and project-owned probe tables owned by the module
       // owner, following the WI-03 policy pattern. Default privileges from the
@@ -173,12 +180,17 @@ describe.skipIf(!gateEnabled)(
       await admin.end();
     });
 
-    async function connectAs(user: string, password: string): Promise<pg.Client> {
+    async function connectAs(
+      user: string,
+      password: string,
+      runtimeRole: string,
+    ): Promise<pg.Client> {
       const url = new URL(databaseUrl ?? '');
       url.username = user;
       url.password = password;
       const connection = new pg.Client({ connectionString: url.toString() });
       await connection.connect();
+      await connection.query(`SET ROLE ${runtimeRole}`);
       return connection;
     }
 
@@ -201,13 +213,14 @@ describe.skipIf(!gateEnabled)(
       overrides: Partial<{
         contextKind: string;
         enterpriseId: string;
-        allowedProjects: string[];
+        allowedProjects: (string | null)[];
         decisionId: string;
         decisionHash: Buffer;
         decisionExpiresInSeconds: number;
         correlationId: string;
         sourceEventId: string | null;
       }> = {},
+      runtimeRole = 'enterprise_project_app',
     ): Promise<StatementOutcome> {
       const options = {
         contextKind: 'REQUEST',
@@ -220,7 +233,8 @@ describe.skipIf(!gateEnabled)(
         sourceEventId: null,
         ...overrides,
       };
-      return tryQuery(
+      await connection.query('SET LOCAL ROLE platform_context_establisher');
+      const outcome = await tryQuery(
         connection,
         `SELECT platform_security.establish_transaction_context(
          $1, $2, $3, $4, $5, now() + make_interval(secs => $6), $7, $8, $9, $10)`,
@@ -237,6 +251,10 @@ describe.skipIf(!gateEnabled)(
           options.sourceEventId,
         ],
       );
+      if (outcome.allowed) {
+        await connection.query(`SET LOCAL ROLE ${runtimeRole}`);
+      }
+      return outcome;
     }
 
     it('records the RLS context migration in flyway history', async () => {
@@ -266,12 +284,9 @@ describe.skipIf(!gateEnabled)(
         rolcreaterole: false,
       });
 
-      // Exactly the seven module app roles plus projection_app may use the
-      // schema; PUBLIC, dispatchers, audit_reader and migration_runner hold
-      // nothing. Module owners get USAGE plus read-helper EXECUTE only (needed
-      // for policy DDL and FORCE RLS owner queries), never the write entry
-      // points.
-      const trusted = [
+      // Runtime roles can resolve read helpers but cannot establish or clear a
+      // context. Only the NOLOGIN establisher owns the write entry points.
+      const runtimeRoles = [
         'identity_policy_app',
         'enterprise_project_app',
         'task_execution_app',
@@ -298,18 +313,41 @@ describe.skipIf(!gateEnabled)(
       ];
       const establishSignature =
         'platform_security.establish_transaction_context(text,uuid,uuid,uuid,bytea,timestamptz,uuid,uuid[],uuid,uuid)';
-      for (const role_ of trusted) {
+      for (const role_ of runtimeRoles) {
         const usage = await admin.query<{ usage: boolean }>(
           `SELECT has_schema_privilege($1, 'platform_security', 'USAGE') AS usage`,
           [role_],
         );
         expect(usage.rows[0]?.usage, `${role_} USAGE`).toBe(true);
+        const readHelper = await admin.query<{ can: boolean }>(
+          `SELECT has_function_privilege($1, 'platform_security.context_allows_enterprise(uuid)', 'EXECUTE') AS can`,
+          [role_],
+        );
+        expect(readHelper.rows[0]?.can, `${role_} read helper EXECUTE`).toBe(true);
         const establishGrant = await admin.query<{ can: boolean }>(
           `SELECT has_function_privilege($1, $2, 'EXECUTE') AS can`,
           [role_, establishSignature],
         );
-        expect(establishGrant.rows[0]?.can, `${role_} establish EXECUTE`).toBe(true);
+        expect(establishGrant.rows[0]?.can, `${role_} establish EXECUTE`).toBe(false);
       }
+      const establisher = await admin.query<{
+        rolcanlogin: boolean;
+        rolsuper: boolean;
+        rolbypassrls: boolean;
+        rolcreaterole: boolean;
+      }>(
+        `SELECT rolcanlogin, rolsuper, rolbypassrls, rolcreaterole
+         FROM pg_roles WHERE rolname = 'platform_context_establisher'`,
+      );
+      expect(establisher.rows).toEqual([
+        { rolcanlogin: false, rolsuper: false, rolbypassrls: false, rolcreaterole: false },
+      ]);
+      const establisherUsage = await admin.query<{ usage: boolean; can_establish: boolean }>(
+        `SELECT has_schema_privilege('platform_context_establisher', 'platform_security', 'USAGE') AS usage,
+                has_function_privilege('platform_context_establisher', $1, 'EXECUTE') AS can_establish`,
+        [establishSignature],
+      );
+      expect(establisherUsage.rows[0]).toEqual({ usage: true, can_establish: true });
       for (const role_ of owners) {
         const usage = await admin.query<{ usage: boolean }>(
           `SELECT has_schema_privilege($1, 'platform_security', 'USAGE') AS usage`,
@@ -433,6 +471,31 @@ describe.skipIf(!gateEnabled)(
       }
     });
 
+    it('denies direct context establishment from an ordinary runtime role', async () => {
+      await epProbe.query('BEGIN');
+      const forged = await tryQuery(
+        epProbe,
+        `SELECT platform_security.establish_transaction_context(
+         'REQUEST', $1, $2, $3, $4, now() + interval '1 hour',
+         $5, ARRAY[$6]::uuid[], $7, NULL)`,
+        [
+          PRINCIPAL,
+          ACTOR_SNAPSHOT,
+          DECISION_B,
+          DECISION_HASH,
+          ENTERPRISE_B,
+          PROJECT_B1,
+          CORRELATION,
+        ],
+      );
+      expect(forged.allowed).toBe(false);
+      expect(forged.code).toBe('42501');
+      expect(forged.message).toMatch(
+        /permission denied for function establish_transaction_context/,
+      );
+      await epProbe.query('ROLLBACK');
+    });
+
     it('rejects establishment with expired decision, bad hash or wrong consumer shape', async () => {
       // Each rejected attempt runs in its own transaction: the failure aborts
       // the transaction, and the next probe must start from a clean state.
@@ -440,6 +503,22 @@ describe.skipIf(!gateEnabled)(
         { overrides: { decisionExpiresInSeconds: -60 }, message: /expired/ },
         { overrides: { decisionHash: Buffer.alloc(31, 0x01) }, message: /32 bytes/ },
         { overrides: { contextKind: 'EVENT_CONSUMER' }, message: /source_event_id/ },
+        {
+          overrides: {
+            contextKind: 'EVENT_CONSUMER',
+            allowedProjects: [],
+            sourceEventId: SOURCE_EVENT,
+          },
+          message: /project scope/,
+        },
+        {
+          overrides: {
+            contextKind: 'EVENT_CONSUMER',
+            allowedProjects: [null],
+            sourceEventId: SOURCE_EVENT,
+          },
+          message: /null project scope/,
+        },
         { overrides: { sourceEventId: SOURCE_EVENT }, message: /source_event_id/ },
       ];
       for (const { overrides, message } of rejected) {
@@ -621,6 +700,7 @@ describe.skipIf(!gateEnabled)(
       await epProbe.query('COMMIT');
 
       await epProbe.query('BEGIN');
+      await epProbe.query('SET LOCAL ROLE platform_context_establisher');
       await epProbe.query('SELECT platform_security.clear_transaction_context()');
       await epProbe.query('COMMIT');
 
@@ -632,7 +712,7 @@ describe.skipIf(!gateEnabled)(
     });
 
     it('isolates concurrent connections with different contexts', async () => {
-      const second = await connectAs('wi03_probe_ep', 'wi03-ep-app');
+      const second = await connectAs('wi03_probe_ep', 'wi03-ep-app', 'enterprise_project_app');
       try {
         await epProbe.query('BEGIN');
         await second.query('BEGIN');
@@ -678,48 +758,38 @@ describe.skipIf(!gateEnabled)(
         }),
       ).resolves.toMatchObject({ allowed: true });
 
-      const kind = await epProbe.query<{ kind: string; event_id: string | null }>(
+      const kind = await epProbe.query<{
+        kind: string;
+        event_id: string | null;
+        established_by: string;
+      }>(
         `SELECT platform_security.context_kind() AS kind,
-              (SELECT source_event_id FROM platform_security.current_context()) AS event_id`,
+              (SELECT source_event_id FROM platform_security.current_context()) AS event_id,
+              (SELECT established_by FROM platform_security.current_context()) AS established_by`,
       );
       expect(kind.rows[0]?.kind).toBe('EVENT_CONSUMER');
       expect(kind.rows[0]?.event_id).toBe(SOURCE_EVENT);
+      expect(kind.rows[0]?.established_by).toBe('platform_context_establisher');
       await epProbe.query('ROLLBACK');
     });
 
-    it('re-checks decision expiry on every policy evaluation (defense in depth)', async () => {
-      // Inject an already-expired context row directly as the table owner
-      // (possible only for platform_security itself, never a runtime role) and
-      // prove the read helpers still fold to "no context".
-      await admin.query('SET ROLE platform_security');
-      try {
-        await admin.query('BEGIN');
-        await admin.query(
-          `INSERT INTO platform_security.tx_context (
-           backend_pid, xact_id, context_kind, principal_id, actor_snapshot_id,
-           authorization_decision_id, authorization_decision_hash,
-           authorization_decision_expires_at, enterprise_id, allowed_project_ids,
-           correlation_id, established_by, session_user_name)
-         VALUES (pg_backend_pid(), txid_current(), 'REQUEST', $1, $1, $1,
-                 decode(repeat('ab', 32), 'hex'), now() - interval '1 minute', $2, '{}',
-                 $1, 'platform_security', 'postgres')`,
-          [PRINCIPAL, ENTERPRISE_A],
-        );
-        const helpers = await admin.query<{
-          valid: boolean;
-          enterprise: string | null;
-          allows: boolean;
-        }>(
-          `SELECT platform_security.context_is_valid() AS valid,
-                platform_security.context_enterprise_id() AS enterprise,
-                platform_security.context_allows_enterprise($1) AS allows`,
-          [ENTERPRISE_A],
-        );
-        expect(helpers.rows[0]).toEqual({ valid: false, enterprise: null, allows: false });
-      } finally {
-        await admin.query('ROLLBACK');
-        await admin.query('RESET ROLE');
-      }
+    it('re-checks decision expiry on later statements in the same transaction', async () => {
+      await epProbe.query('BEGIN');
+      await expect(establish(epProbe, { decisionExpiresInSeconds: 0.25 })).resolves.toMatchObject({
+        allowed: true,
+      });
+
+      const beforeExpiry = await epProbe.query<{ count: string }>(
+        `SELECT count(*) AS count FROM enterprise_project.wi03_enterprise_probe`,
+      );
+      expect(beforeExpiry.rows[0]?.count).toBe('1');
+
+      await epProbe.query('SELECT pg_sleep(0.4)');
+      const afterExpiry = await epProbe.query<{ count: string }>(
+        `SELECT count(*) AS count FROM enterprise_project.wi03_enterprise_probe`,
+      );
+      expect(afterExpiry.rows[0]?.count).toBe('0');
+      await epProbe.query('ROLLBACK');
     });
 
     it('binds the schema owner to FORCE ROW LEVEL SECURITY', async () => {
@@ -742,7 +812,11 @@ describe.skipIf(!gateEnabled)(
 
       await projectionProbe.query('BEGIN');
       await expect(
-        establish(projectionProbe, { enterpriseId: ENTERPRISE_A, allowedProjects: [] }),
+        establish(
+          projectionProbe,
+          { enterpriseId: ENTERPRISE_A, allowedProjects: [] },
+          'projection_app',
+        ),
       ).resolves.toMatchObject({ allowed: true });
       const visible = await projectionProbe.query<{ payload: string }>(
         `SELECT payload FROM projection.wi03_probe_projection_probe`,
