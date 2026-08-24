@@ -103,7 +103,7 @@ ORDER BY 1, 2, 3;
 -- 任意模块：app 不得 DELETE/改 outbox payload；dispatcher 不得读业务表
 SET ROLE enterprise_project_app;
 DELETE FROM enterprise_project.audit_record;          -- DENY 42501
-UPDATE enterprise_project.outbox_event SET payload='x';-- DENY 42501
+UPDATE enterprise_project.outbox_event SET payload='{"tampered":true}'::jsonb; -- DENY 42501（使用合法 JSON，避免先触发 22P02 类型解析错误）
 RESET ROLE;
 SET ROLE enterprise_project_dispatcher;
 SELECT count(*) FROM enterprise_project.command_receipt; -- DENY 42501

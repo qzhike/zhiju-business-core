@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-24
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 CLOSEOUT BLOCKED / FOLLOW-UP REPAIR VERIFIED / PR #51 MERGED / ISSUE #28 OPEN`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 CLOSEOUT PENDING / PR #51+#52 MERGED / DOC PR #53 OPEN / ISSUE #28 OPEN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -441,11 +441,11 @@ WI-07 本地手工 Probe 的 AES-256-GCM 测试 Port 必须先完成 `cipher.upd
 
 ## IM-02 远端交付快照（2026-08-24）
 
-PR #51 的实现复审基准为 `47a2a9d`，其后只增加 `.vibe` 文档同步；各文档同步 head 的 GitHub Actions `verify` 均已 `SUCCESS`，exact-head 复审记录为无新增语义发现，PR 当前仍为 `OPEN`。本地真实 PostgreSQL、全量自动化和 WI-06/WI-07/WI-10 Probe 已通过；PR merge、真实 Provider、跨模块 E2E、生产环境和用户人工验收仍未完成，Issue #28 保持 `PARTIAL / OPEN`。
+PR #51 的实现复审基准为 `47a2a9d`，PR #51 已合并；PR #52 的 Gate 隔离修复也已 exact-head review、CI 验证并合并。最终 main 的直接 digest Persistence、Migration/no-op、WI-02/03/04/09 Agent-executed local Runbook 和 WI-06/07/10 Probe 均有证据；文档跟进 PR #53 只修订两处可执行 Runbook 口径。真实 Provider、跨模块 E2E、生产环境和外部人工业务验收仍保持 `NOT RUN`，Issue #28 在 PR #53 合并和最终状态回读前保持 `PARTIAL / OPEN`。
 
 ## 14. IM-02 合并后干净 main 复验阻塞（2026-08-24）
 
-PR #51 已使用 `--match-head-commit` 合并，合并提交为 `8f5c0701ace93ce88ec55acde753e5abcd07fa2c`。从该提交创建的干净 `main` 首次 `pnpm clean && pnpm verify` 通过，但随后独立 `pnpm typecheck && pnpm persistence:gate` 在 WI-09 `IP-API-U-001` 的 DENY Audit 写入处观察到 `permission denied for table audit_record`。根因是 WI-10 失败注入测试与 WI-09 测试并行共享 `identity_policy_app` 的全局 INSERT ACL；详细证据见 [Main-Closeout-Failure-2026-08-24.md](../im-02-acceptance-issue-28/Main-Closeout-Failure-2026-08-24.md)。跟进修复分支已通过两次独立 Persistence Gate 和三个 local Probe，但修复尚未合并回默认分支；当前保持 `IM-02 CLOSEOUT BLOCKED / ISSUE #28 OPEN`。
+PR #51 已使用 `--match-head-commit` 合并，合并提交为 `8f5c0701ace93ce88ec55acde753e5abcd07fa2c`；PR #52 的 Gate 隔离修复也已使用精确 head 合并，合并提交为 `64e3040b58093548a477021595d3c2f554b07e45`。从最终 `main` checkout 取得了静态/常规验证、直接 digest Persistence `12 files / 177 tests PASS`、二次 migrate no-op 和 WI-02/03/04/09 Runbook 级本地探测；Runbook 发现的 `plpgsql` 与合法 JSON ACL 口径修订由新的文档跟进 PR #53 处理。详细失败与修复证据见 [Main-Closeout-Failure-2026-08-24.md](../im-02-acceptance-issue-28/Main-Closeout-Failure-2026-08-24.md) 和 [Runbook-Manual-Acceptance-2026-08-24.md](../im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)。在文档修订合并和最终状态回读前，保持 `IM-02 CLOSEOUT PENDING / ISSUE #28 OPEN`。
 
 ## 12. IM-02 WI-04 标准事务技术表边界
 

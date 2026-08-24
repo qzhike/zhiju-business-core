@@ -11,7 +11,7 @@
 - `projection_app` — projection Schema USAGE。
 - `audit_reader` — 仅可读后续显式授权的脱敏 View。
 - `migration_runner` — 唯一可以 `SET ROLE <module>_owner` 的角色；对 owner 的成员关系为 SET-only（`WITH INHERIT FALSE SET TRUE`），不显式切换就没有任何 owner DDL 权限。
-- 扩展：仅 `btree_gist`、`pg_stat_statements`（运维观测）；`pg_stat_statements` 的视图/函数已显式 REVOKE PUBLIC，预定义 `pg_read_all_stats` 只获得 View 与只读查询函数权限，不能执行统计重置；`pgcrypto` 不启用。
+- 扩展：业务扩展集合仅为 `btree_gist`、`pg_stat_statements`（运维观测）；PostgreSQL 默认的 `plpgsql` 保留，不把它作为新增业务扩展；`pg_stat_statements` 的视图/函数已显式 REVOKE PUBLIC，预定义 `pg_read_all_stats` 只获得 View 与只读查询函数权限，不能执行统计重置；`pgcrypto` 不启用。
 - `public` Schema 与 Database 的 CREATE 对 PUBLIC 与所有基线 Role 均为 REVOKE。
 
 ## 启动探测环境
@@ -66,7 +66,7 @@ JOIN pg_roles member ON member.oid = am.member
 JOIN pg_roles owner_role ON owner_role.oid = am.roleid
 WHERE owner_role.rolname LIKE '%\_owner';
 
--- 扩展集合精确等于 btree_gist + pg_stat_statements（pgcrypto 不在）
+-- 业务扩展集合精确等于 btree_gist + pg_stat_statements；默认 plpgsql 保留，pgcrypto 不在
 SELECT extname FROM pg_extension ORDER BY extname;
 
 -- pg_stat_statements 对基线 Role 全部 DENY；pg_read_all_stats 可读 View/调用只读函数，但不可 reset

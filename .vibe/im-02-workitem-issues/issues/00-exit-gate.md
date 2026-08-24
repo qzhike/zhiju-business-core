@@ -5,10 +5,10 @@
 ## 当前进度快照（2026-08-24）
 
 - #29–#38 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`。
-- PR #46–#50 已在连续的 stacked feature branch 合并，但其实现尚未进入 `main`；当前集成提交 `47a2a9d` 已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 作为跟进交付 PR 提交到 `main`。
-- 本地真实 PostgreSQL Gate、`pnpm clean && pnpm verify`、WI-06/WI-07/WI-10 disposable Probe 均为 `PASS (LOCAL INTEGRATION)`；PR #51 exact-head CI 已 `SUCCESS`，复审无新增语义发现，但 PR 尚未 merge。
+- PR #46–#50 的 stacked 实现已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 进入 `main`；合并后发现的 Persistence Gate 文件级竞态已由 [PR #52](https://github.com/qzhike/zhiju-business-core/pull/52) 修复并合入 `main@64e3040`。
+- 最终 `main` 直接 digest Persistence Gate、空库/重复 Migration、WI-06/WI-07/WI-10 disposable Probe 和 WI-02/WI-03/WI-04/WI-09 Agent-executed local Runbook 均有 `PASS` 输出；PR #52 exact-head CI 已 `SUCCESS`。
 - Keycloak/OIDC、OpenBao、Ceph、飞书、生产 Broker/Provider、跨模块 HTTP/E2E、生产负载和用户人工 Runbook 验收保持 `NOT RUN`。
-- Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 当前为 `PARTIAL / OPEN`；本 Exit Gate 的勾选项不得因子 Issue 关闭或 PR #51 创建而提前完成。
+- Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 当前为 `PARTIAL / OPEN`；PR #53 文档跟进合并、最终状态回读和关闭动作完成前，本 Exit Gate 不标记 `COMPLETE`。
 
 ## 权威输入
 

@@ -2,7 +2,7 @@
 
 日期：2026-08-24  
 仓库：`qzhike/zhiju-business-core`  
-PR：[ #52 ](https://github.com/qzhike/zhiju-business-core/pull/52)  
+PR：[#52](https://github.com/qzhike/zhiju-business-core/pull/52)
 审查 head：`70ad21c59d6580c37e6ef0a5032d3fb24a88fb62`  
 审查 base：`main`，base head `8f5c0701ace93ce88ec55acde753e5abcd07fa2c`  
 结论：`PASS / NO NEW SEMANTIC FINDINGS / MERGE-READY AFTER DOCUMENTATION COMMIT`

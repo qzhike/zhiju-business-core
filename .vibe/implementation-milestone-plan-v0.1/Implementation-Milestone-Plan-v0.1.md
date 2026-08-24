@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-24
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 PARTIAL / DELIVERY PR #51 OPEN`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 CLOSEOUT PENDING / PR #51+#52 MERGED / DOC PR #53 OPEN`
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -174,7 +174,7 @@ IM-09 Reference Project E2E + Operations Hardening
 
 退出 Gate：空库迁移、重复迁移、最小权限、跨 Schema 写拒绝、无/伪造 RLS Context、CAS 和 Inbox/Outbox replay 在真实 PostgreSQL 通过。
 
-当前状态：`PARTIAL`（2026-08-24）。#29–#38 子 Issue 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`；PR #46–#50 已在连续的 stacked feature branch 合并，但尚未进入 `main`。当前集成代码、验收修复和 `.vibe` 交付记录已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 提交到 `main`；实现复审基准为 `47a2a9d`，其后的文档同步 head 的 GitHub Actions `verify` 均 `SUCCESS`，复审无新增语义发现。真实 Provider、跨模块 HTTP/E2E、生产环境和用户人工 Runbook 验收仍为 `NOT RUN`；Issue #28 继续保持 `OPEN`，不得提前标记 IM-02 `COMPLETE`。
+当前状态：`CLOSEOUT PENDING`（2026-08-24）。#29–#38 子 Issue 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`；PR #46–#50 的 stacked 实现已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 进入 `main`，合并后暴露的 Persistence Gate 文件级竞态由 [PR #52](https://github.com/qzhike/zhiju-business-core/pull/52) 修复并合入 `main@64e3040`。最终 main 直接 digest Persistence `12/177`、Migration/no-op、WI-02/03/04/09 Agent-executed local Runbook 和 WI-06/07/10 Probe 均有输出；文档跟进 [PR #53](https://github.com/qzhike/zhiju-business-core/pull/53) 只修订默认 `plpgsql` 与合法 JSON ACL 负例，不改运行时代码。真实 Provider、跨模块 HTTP/E2E、生产环境和外部系统验收仍为 `NOT RUN`；PR #53 合并和最终状态回读前，Issue #28 保持 `OPEN`。
 
 ### IM-03 EnterpriseProject Reference Foundation
 
@@ -245,4 +245,4 @@ IM-09 Reference Project E2E + Operations Hardening
 - Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；干净 verify 为 13 files / 287 tests PASS。
 - #5 字段 Schema 已由 PR #14 合入并完成；重复/迟到 Runtime 由已关闭的 #15 完成，剩余 Runtime 分别由 #22–#24 跟踪。#17 追踪 IntegrationGateway Runtime 缺口。这些 Runtime Issue 不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005/006 仍待决。
-- IM-02 当前为 `PARTIAL`：本地集成的真实 PostgreSQL、全量自动化和 WI-06/WI-07/WI-10 脱敏 Probe 已通过，交付由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 承载；exact-head CI 已 `SUCCESS` 且复审无新增语义发现，用户人工 Runbook、真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 尚未关闭；只有完成其退出 Gate 后才进入 IM-03。
+- IM-02 当前为 `CLOSEOUT PENDING`：PR #51/#52 已合入 `main`，最终 main 直接 digest Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过；PR #53 负责两处 Runbook 文档口径修订。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 尚未关闭；完成 PR #53、最终状态回读后进入 `COMPLETE`，再进入 IM-03。
