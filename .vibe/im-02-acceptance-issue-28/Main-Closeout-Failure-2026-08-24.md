@@ -2,7 +2,7 @@
 
 日期：2026-08-24  
 范围：PR #51 合并后的默认分支验收  
-状态：`HISTORICAL BLOCKER RESOLVED / RUNBOOK DOC FOLLOW-UP PENDING / ISSUE #28 OPEN`
+状态：`HISTORICAL BLOCKER RESOLVED / PR #53 MERGED / IM-02 COMPLETE / ISSUE #28 CLOSE PENDING`
 
 ## 1. 事实结论
 
@@ -64,6 +64,13 @@ Keycloak/OIDC、OpenBao、Ceph、飞书、生产 Broker/Provider、跨模块生�
 
 ## 7. PR #52 合并后的最终 main 证据
 
-PR #52 已合并为 `64e3040b58093548a477021595d3c2f554b07e45`。新的 clean-main 直接 digest 验证取得 `12 files / 177 tests PASS`、14 个 Migration 成功、二次 migrate no-op；WI-02/03/04/09 Runbook 级探测和 WI-06/07/10 local Probe 均通过。探测过程中发现并已在文档跟进 PR 修正两处 Runbook 口径：默认 `plpgsql` 不应被当作业务扩展遗漏，outbox payload 负例必须使用合法 JSON 才能证明 `42501` ACL 拒绝。Issue #28 在该文档修复合并和最终回读完成前保持 OPEN。
+PR #52 已合并为 `64e3040b58093548a477021595d3c2f554b07e45`，PR #53 已合并为 `36825118c6b2483dd365879179b390205549dab7`。新的 clean-main 直接 digest 验证与 PR #53 合并后的完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify` 均取得 `12 files / 177 tests PASS`、14 个 Migration 成功、二次 migrate no-op；WI-02/03/04/09 Runbook 级探测和 WI-06/07/10 local Probe 均通过。探测过程中发现并已由 PR #53 修正两处 Runbook 口径：默认 `plpgsql` 不应被当作业务扩展遗漏，outbox payload 负例必须使用合法 JSON 才能证明 `42501` ACL 拒绝。IM-02 已完成，Issue #28 仅待关闭动作。
 
-当前文档跟进由 PR #53 承载；它只更新 Runbook 和验收记录，不改运行时代码、Migration 或权限边界。该 PR 合并并完成最终 GitHub 状态回读后，才能解除本记录对 Issue #28 的剩余关闭前置。
+PR #53 只更新 Runbook 和验收记录，不改运行时代码、Migration 或权限边界；其 exact-head review、CI、merge、最终 main 完整 verify 和祖先关系均已回读。本记录不再阻塞 IM-02，Issue #28 仅保留显式关闭动作。
+
+## 8. PR #53 合并后的最终 main 完整验证
+
+- `origin/main@36825118c6b2483dd365879179b390205549dab7`：`pnpm install --frozen-lockfile`、`pnpm clean && pnpm verify` 均返回 `0`。
+- 常规 Vitest：`341 passed / 164 skipped`；Persistence Gate：`12 files / 177 tests`。
+- Migration：V0001–V7000 全部 `Success`；二次 migrate：`Schema "public" is up to date. No migration necessary.`。
+- 临时 PostgreSQL 容器和 detached worktree 已清理；既有 `qm-dev-postgres` 未触碰。

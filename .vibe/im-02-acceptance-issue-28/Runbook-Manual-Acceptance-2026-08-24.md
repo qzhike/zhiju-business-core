@@ -1,7 +1,7 @@
 # IM-02 本地 Runbook 人工探测记录
 
 日期：2026-08-24
-验收对象：合并后的 `main`，commit `64e3040b58093548a477021595d3c2f554b07e45`
+验收对象：PR #52 合并后的代码基准 `main@64e3040b58093548a477021595d3c2f554b07e45`；PR #53 为文档-only 跟进，最终主线 merge 为 `36825118c6b2483dd365879179b390205549dab7`
 执行方式：用户已明确授权 Codex 继续操作至 IM-02 关闭；以下为 Agent 在一次性本地 PostgreSQL 容器中执行的 Runbook 级探测，不冒充生产或外部系统验收。
 结果：`PASS (AGENT-EXECUTED LOCAL) / EXTERNAL NOT RUN`
 
