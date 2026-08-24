@@ -49,6 +49,17 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'outbox_probe',
     'business_probe_masked',
     'migration_owner_probe',
+    // WI-05 (issue #33) core model tables, owned by the same schema.
+    'principal',
+    'principal_state_transition',
+    'external_identity_link',
+    'role_assignment',
+    'role_revocation',
+    'capability_grant',
+    'capability_revocation',
+    'policy_snapshot',
+    'actor_snapshot',
+    'authorization_decision',
   ],
   enterprise_project: [
     'business_probe',

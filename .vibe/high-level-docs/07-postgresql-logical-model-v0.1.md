@@ -814,6 +814,9 @@ IdentityPolicy 的 Principal 可以服务多个 Enterprise，但业务授权永�
 
 - `principal` 和 `external_identity_link` 是 IdentityPolicy 内部 Platform Security Data，不直接暴露给企业业务查询；
 - `role_assignment`、`capability_grant`、`actor_snapshot`、`authorization_decision` 保存精确 enterprise/project Scope；
+- Enterprise Scope 行的 `project_id` 必须为空；Project Scope 行的 `project_id` 必须非空，且 RLS 使用 `context_allows_project(enterprise_id, project_id)`，不得退化为仅校验 Enterprise；
+- `role_revocation`、`capability_revocation` 保存并校验父 Assignment/Grant 的 `scope_kind + enterprise_id + project_id` 镜像，防止跨 Scope 伪造撤销事实；
+- `actor_snapshot` 的 actor/actingFor Principal Kind 必须与 Principal 记录一致；`capability_grant` 的 grant-policy 引用和 `authorization_decision` 的 Actor/Policy 引用按 id + payload hash 精确绑定；Decision 的 Principal、Kind、认证上下文与 Scope 必须与 ActorSnapshot 的 promoted 列一致；
 - Enterprise 用户不能枚举 Principal Directory；只能通过 Identity Query 获取授权后的最小显示信息；
 - 平台运维访问使用独立受审计角色，不通过 `enterprise_id IS NULL` 绕过 RLS。
 
