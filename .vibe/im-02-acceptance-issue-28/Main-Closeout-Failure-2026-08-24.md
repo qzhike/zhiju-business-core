@@ -2,7 +2,7 @@
 
 日期：2026-08-24  
 范围：PR #51 合并后的默认分支验收  
-状态：`FOLLOW-UP REPAIR VERIFIED / DEFAULT MAIN RECHECK PENDING / ISSUE #28 OPEN`
+状态：`HISTORICAL BLOCKER RESOLVED / RUNBOOK DOC FOLLOW-UP PENDING / ISSUE #28 OPEN`
 
 ## 1. 事实结论
 
@@ -18,7 +18,7 @@ Test Files  1 failed | 11 passed (12)
 Tests       176 passed | 1 failed (177)
 ```
 
-因此，Issue #28 继续保持 `OPEN`，IM-02 不能记录为 `COMPLETE`。
+因此当时 Issue #28 保持 `OPEN`，IM-02 不能记录为 `COMPLETE`。该历史阻塞已由 PR #52 修复并在最终 `main` 上复验通过。
 
 ## 2. 可复核命令与结果
 
@@ -60,4 +60,10 @@ Keycloak/OIDC、OpenBao、Ceph、飞书、生产 Broker/Provider、跨模块生�
 - `pnpm clean && pnpm verify` 的 format、lint、typecheck、常规 Vitest（`20 passed | 10 skipped`、`341 passed | 164 skipped`）、architecture、Public API、generated types、Catalog/Registry 和 compatibility 全部通过；内嵌 Gate 的另一次尝试在 Docker Registry tag-digest 网络校验处被 `EOF` 阻断，未进入测试，不能把该次编排记为完整 PASS。
 - 使用同一锁定 PostgreSQL 18.6/Flyway 11.20.3 镜像的临时容器串行执行三个 local Probe：WI-06 `COMMITTED → DUPLICATE → IDEMPOTENCY_PAYLOAD_CONFLICT`；WI-07 三类 Principal 注册、External Identity 绑定/解析通过且 `raw identifiers leaked: false`；WI-10 `PROCESSED → DUPLICATE → QUARANTINED`，target outbox/receipt/violation 各为 1，业务事实只执行一次。临时容器已清理。
 
-这些结果证明修复分支的测试隔离修复有效；仍需创建跟进 PR、完成 exact-head review、合并后从全新 `main` 重跑，才能解除本记录的默认分支阻塞。
+这些结果证明修复分支的测试隔离修复有效；PR #52 已完成 exact-head review、合并，并从全新 `main` 取得直接 digest 等价 Gate 的 `12 files / 177 tests PASS`、Migration/no-op 和容器清理证据。
+
+## 7. PR #52 合并后的最终 main 证据
+
+PR #52 已合并为 `64e3040b58093548a477021595d3c2f554b07e45`。新的 clean-main 直接 digest 验证取得 `12 files / 177 tests PASS`、14 个 Migration 成功、二次 migrate no-op；WI-02/03/04/09 Runbook 级探测和 WI-06/07/10 local Probe 均通过。探测过程中发现并已在文档跟进 PR 修正两处 Runbook 口径：默认 `plpgsql` 不应被当作业务扩展遗漏，outbox payload 负例必须使用合法 JSON 才能证明 `42501` ACL 拒绝。Issue #28 在该文档修复合并和最终回读完成前保持 OPEN。
+
+当前文档跟进由 PR #53 承载；它只更新 Runbook 和验收记录，不改运行时代码、Migration 或权限边界。该 PR 合并并完成最终 GitHub 状态回读后，才能解除本记录对 Issue #28 的剩余关闭前置。

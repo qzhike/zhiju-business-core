@@ -4,7 +4,7 @@
 
 依据 GitHub Issue #28，对 IM-02 PostgreSQL Foundation + IdentityPolicy 的当前集成工作树执行可复核验收；定位并修复阻塞 WI-06 至 WI-10 核心验收的最小代码/测试问题，保留默认分支交付、exact-head review、外部系统和用户人工验收的独立边界。
 
-本轮已获得用户对远端交付和进度同步的明确授权；允许非 force push、创建跟进 PR 和更新 PR/Issue/进度文档，但不自动 merge PR 或关闭 Issue #28。
+本轮已获得用户授权继续远端操作直至 IM-02 关闭；允许非 force push、创建跟进 PR、更新 PR/Issue/进度文档、合并修复 PR 和在退出条件满足后关闭 Issue #28。
 
 ## 验收原则
 
@@ -17,7 +17,7 @@
 
 ## 已执行步骤
 
-1. **GitHub 与默认分支核对**：确认 #29–#38 为 CLOSED，PR #39/#41/#43/#44/#45 已进入 `main`；PR #46–#50 虽显示 MERGED，但仍是连续 stacked feature branch，相关提交不在 `origin/main`。
+1. **GitHub 与默认分支核对**：确认 #29–#38 为 CLOSED，PR #39/#41/#43/#44/#45 已进入 `main`；PR #51 已将 stacked 集成结果带入 `main`，PR #52 已修复合并后 Gate 竞态并合入 `main`。
 2. **本地集成**：在当前工作树执行 no-commit/no-ff 集成，保留 WI-06–WI-10 代码、Migration、Review、Runbook 和 Persistence 测试；随后由用户确认并提交为 `47a2a9d`。
 3. **语义修复**：
    - 授权 Grant 覆盖改为精确匹配 Intent 的 `scopeKind + enterpriseId + projectId`；Enterprise Grant 不再覆盖 Project Intent，Access effective lists 同步采用精确 Scope。
@@ -33,9 +33,9 @@
 
 - WI-06–WI-10 的本地核心实现、迁移、Persistence 回归、Scope/ACL 负例和可重复 Probe 均有实际输出：已满足。
 - 规格、模块测试、WI Runbook 和 Issue #28 验收报告反映当前本地工作树实际结果：已同步。
-- Issue #28 的默认分支交付、外部 Provider/Broker/跨模块 E2E 和用户最终人工验收：尚未满足；PR #51 exact-head CI 已通过且复审无新增语义发现，整体仍保持 `PARTIAL`，不能关闭 Issue。
+- Issue #28 的默认分支交付、合并后数据库证据和 Agent-executed local Runbook 已完成；外部 Provider/Broker/跨模块 E2E 仍为 `NOT RUN`，Runbook 文档口径修订与最终状态回读完成前保持 `PARTIAL / OPEN`。
 
 ## 交付边界
 
-- 当前远端跟踪分支 `galendai/28-im-02-postgresql-foundation-identitypolicy` 指向 `47a2a9d`，`origin/main` 仍为 `505a702`；PR #51 负责将集成结果带入 `main`，不能把 PR 创建或本地结果写成默认分支已经完成。
-- 本轮已完成 commit/push、PR/Issue/进度文档同步和 PR #51 exact-head CI/复审回读；PR 尚未 merge，外部系统和用户人工验收仍需独立完成，Issue #28 保持 `PARTIAL / OPEN`。
+- `origin/main` 当前为 PR #52 merge commit `64e3040`；PR #51/#52 exact-head CI、复审记录、合并祖先关系均已回读。
+- 当前工作是文档跟进 PR：修订 WI-02 默认 `plpgsql` 与 WI-04 合法 JSON ACL 负例，并在合并后再次回读 Issue #28；外部系统仍保持 `NOT RUN`。

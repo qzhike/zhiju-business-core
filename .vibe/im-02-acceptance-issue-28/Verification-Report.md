@@ -2,16 +2,16 @@
 
 ## 1. 结论
 
-截至 2026-08-24，PR #51 已合并到 `main`，但合并后干净默认分支的独立 Persistence Gate 暴露了测试隔离竞态。当前不能把 Issue #28 标记 COMPLETE，也不能关闭，结论为：
+截至 2026-08-24，PR #51 与修复 PR #52 已合并到 `main`；合并后暴露的 Persistence Gate 测试隔离竞态已经修复并在最终 `main` 上复验通过。当前仍不能把 Issue #28 标记 COMPLETE，也不能关闭，结论为：
 
-> 本地核心实现：修复分支自动化 Gate/Probe PASS；默认分支复验已发现并修复测试隔离缺陷，待跟进 PR 合并后复验；IM-02 Issue #28：PARTIAL，保持 OPEN。
+> 本地核心实现与默认分支数据库验收：PASS；Runbook 文档口径修订正在文档跟进 PR 中交付；IM-02 Issue #28：PARTIAL，保持 OPEN。
 
 仍未满足的退出条件不是本地代码门禁，而是交付与验收边界：
 
-1. PR #46–#51 已显示 MERGED，PR #51 的合并提交为 `8f5c0701ace93ce88ec55acde753e5abcd07fa2c`；当前需要为 Gate 隔离修复创建新的跟进 PR，不能修改已合并历史。
-2. 合并后的干净 `main` 首次完整验证中，内嵌 Gate 通过，但随后独立 Gate 在 WI-09 DENY Audit 写入处失败；失败记录见 [Main-Closeout-Failure-2026-08-24.md](./Main-Closeout-Failure-2026-08-24.md)。
+1. PR #46–#51 已显示 MERGED，PR #51 的合并提交为 `8f5c0701ace93ce88ec55acde753e5abcd07fa2c`；PR #52 以精确 head 合并，合并提交为 `64e3040b58093548a477021595d3c2f554b07e45`。当前仅需交付 Runbook 文档口径跟进 PR，不能修改已合并历史。
+2. 合并后的干净 `main` 首次独立 Gate 曾在 WI-09 DENY Audit 写入处失败；该历史阻塞的根因、最小修复和修复后证据见 [Main-Closeout-Failure-2026-08-24.md](./Main-Closeout-Failure-2026-08-24.md)。
 3. 真实 Keycloak/OIDC、OpenBao、飞书、生产 Broker/Provider、跨模块 HTTP/业务 E2E、生产负载和用户最终人工业务验收没有执行，继续保持 NOT RUN。
-4. 本地脚本 Probe 是可重复的自动化/脱敏 Fixture 证据，不等同于用户亲自按 Runbook 完成最终人工验收。
+4. Agent 已在用户授权下执行本地 Runbook 级探测并记录输出；这不等同于生产外部系统验收，也不把 Agent 操作改写为未经用户审核的最终业务签字。
 
 因此，本报告证明“当前本地集成代码已解决已发现的阻塞缺陷并通过可复现门禁”，不把本地结果冒充为默认分支已完成或 Issue 可直接关闭。
 
@@ -19,19 +19,17 @@
 
 | 项目 | 实际值 |
 |---|---|
-| 工作树 | galendai/28-im-02-postgresql-foundation-identitypolicy |
-| HEAD | `47a2a9d` (`fix: repair IM-02 PostgreSQL and IdentityPolicy acceptance gates`) |
-| origin/main | 505a7020b171739a88830b55cb84a94f7afb6fb3 |
-| 远端跟踪分支 | `origin/galendai/28-im-02-postgresql-foundation-identitypolicy` → `47a2a9d` |
-| 本地集成方式 | 保留 WI-06–WI-10 stacked history，并以 `47a2a9d` 作为验收修复提交 |
-| 顶层 PR 栈 | PR #46–#50；跟进交付 PR [#51](https://github.com/qzhike/zhiju-business-core/pull/51) |
-| Git commit/push/merge | commit `47a2a9d` 已 commit/push；PR #51 尚未 merge |
+| 验收基准 | `origin/main@64e3040b58093548a477021595d3c2f554b07e45` |
+| 交付分支 | PR #51 的集成提交 `47a2a9d`；PR #52 的 Gate 隔离修复 head `38c2f34` |
+| 本地集成方式 | 保留 WI-06–WI-10 stacked history；以 PR #51 交付集成，以 PR #52 修复 Gate 测试隔离 |
+| 顶层 PR 栈 | PR #46–#50；集成交付 PR [#51](https://github.com/qzhike/zhiju-business-core/pull/51)；修复 PR [#52](https://github.com/qzhike/zhiju-business-core/pull/52)；文档跟进 PR #53（待合并） |
+| Git commit/push/merge | PR #51/#52 已 commit/push/merge；文档跟进 PR #53 尚待 exact-head review/merge |
 | Issue #28 | OPEN；本报告不关闭 Issue |
 | Node.js / pnpm | v24.19.0 / 11.19.0 |
 | Docker | 29.4.0 |
 | 数据库 | 每次 Gate/Probe 均为 disposable local database；未连接生产环境 |
 
-`origin/main` 仍停留在 `505a702`，而远端跟踪分支已包含 `47a2a9d`；这正是 PR #51 尚未合并前的预期状态。当前文档同步完成后，工作树应保持干净；不得把 PR #51 创建或本地验证 PASS 解释为默认分支已完成。
+`origin/main` 已包含 PR #51 与 PR #52 的合并结果，当前文档跟进 PR #53 只修订可执行 Runbook 的两处验收口径，不修改运行时代码、Migration 或权限实现。文档提交完成后，工作树应保持干净；不得把本地 Agent 执行的 Runbook 证据扩展为生产外部系统验收。
 
 ## 3. Issue #28 前置 Work Item 与默认分支
 
@@ -44,14 +42,16 @@ GitHub 核对结果：#29–#38 均为 CLOSED；PR #39/#41/#43/#44/#45 已合入
 | WI-03 | #31 | #43 | main | CLOSED / MERGED | PASS |
 | WI-04 | #32 | #44 | main | CLOSED / MERGED | PASS |
 | WI-05 | #33 | #45 | main | CLOSED / MERGED | PASS |
-| WI-06 | #34 | #46 | WI-05 branch | CLOSED / MERGED | FAIL：未进入 main |
-| WI-07 | #35 | #47 | WI-06 branch | CLOSED / MERGED | FAIL：未进入 main |
-| WI-08 | #36 | #48 | WI-07 branch | CLOSED / MERGED | FAIL：未进入 main |
-| WI-09 | #37 | #49 | WI-08 branch | CLOSED / MERGED | FAIL：未进入 main |
-| WI-10 | #38 | #50 | WI-09 branch | CLOSED / MERGED | FAIL：未进入 main |
-| 集成交付 | #28 | [#51](https://github.com/qzhike/zhiju-business-core/pull/51) | main | OPEN | CI PASS；复审无新增语义发现；等待 merge |
+| WI-06 | #34 | #46 | WI-05 branch | CLOSED / MERGED | PASS：经 PR #51/#52 进入 main |
+| WI-07 | #35 | #47 | WI-06 branch | CLOSED / MERGED | PASS：经 PR #51/#52 进入 main |
+| WI-08 | #36 | #48 | WI-07 branch | CLOSED / MERGED | PASS：经 PR #51/#52 进入 main |
+| WI-09 | #37 | #49 | WI-08 branch | CLOSED / MERGED | PASS：经 PR #51/#52 进入 main |
+| WI-10 | #38 | #50 | WI-09 branch | CLOSED / MERGED | PASS：经 PR #51/#52 进入 main |
+| 集成交付 | #28 | [#51](https://github.com/qzhike/zhiju-business-core/pull/51) | main | MERGED | exact-head CI PASS；合并提交 `8f5c070` |
+| Gate 修复 | — | [#52](https://github.com/qzhike/zhiju-business-core/pull/52) | main | MERGED | 文件级 Persistence 测试串行化；合并提交 `64e3040` |
+| 文档跟进 | #28 | #53 | main | OPEN | 修订默认 `plpgsql` 与合法 JSON ACL 负例；不改代码 |
 
-此前的 ancestor 核对对 WI-06–WI-10 均返回 NOT_IN_MAIN。所以“所有前置 Issue 已关闭”不能单独满足 Issue #28 的“对应 PR 已合入默认分支”条件。
+PR #46–#50 的 stacked branch 已通过 PR #51/#52 进入 `main`。因此“所有前置 Issue 已关闭”与“对应 PR 已合入默认分支”目前均有 GitHub 状态和祖先关系证据；Issue #28 仍需完成文档跟进和最终状态回读。
 
 ## 4. 本轮发现并修复的代码/Probe 缺陷
 
@@ -119,7 +119,7 @@ GitHub 核对结果：#29–#38 均为 CLOSED；PR #39/#41/#43/#44/#45 已合入
 - Generated TypeScript：PASS payloads=200 query_results=44 core_contracts=6。
 - Catalog/Registry：PASS catalog=200 registry=200 schema_status={"FULL":200}。
 - Compatibility：PASS baseline=v1.0 operations=200 schemas=14 envelopes=200 minor=0 findings=0。
-- 内嵌 Persistence Gate：PASS。
+- 内嵌 Persistence Gate：PR #52 exact-head GitHub Actions `verify` PASS；最终 `main` 本地静态/常规阶段 PASS，内嵌 Gate 曾受 Docker Registry tag-digest `EOF` 阻断，未将网络阻断冒充代码 PASS。
 
 ### 5.2 独立真实 PostgreSQL Gate
 
@@ -133,11 +133,9 @@ GitHub 核对结果：#29–#38 均为 CLOSED；PR #39/#41/#43/#44/#45 已合入
 - Flyway 镜像：docker.io/flyway/flyway:11.20.3@sha256:01605f443e1a891b3762f66e66d92403c33b6e0c29099ad550af94b6c1cbc3c1。
 - PostgreSQL：server_version_num=180006，即 18.6。
 - Flyway：11.20.3。
-- 空库 Migration：PASS。
-- Persistence：12 files passed，177 tests passed。
-- 二次 Migration：Schema "public" is up to date. No migration necessary.。
-- 已应用 Migration：V0001、V0002、V0003、V1000、V1001、V1002、V1003、V1004、V2000、V3000、V4000、V5000、V6000、V7000，均为 Success。
-- Gate 结束：postgres container removed。
+- 首次合并后独立 Gate：`176 passed / 1 failed`，失败为共享 ACL 负向 Fixture 与 WI-09 Audit 写入的文件级并行竞态；该历史失败不证明 Migration 缺少授权。
+- PR #52 修复后连续独立 Gate：`12 files passed / 177 tests passed`；空库 Migration、二次 Migration `Schema "public" is up to date. No migration necessary.`、V0001–V7000 全部 `Success`，容器已清理。
+- 最终 `main` 直接锁定 digest 的等价 Gate：`12 files passed / 177 tests passed`，二次 Migration no-op，容器已清理；PR #52 exact-head GitHub Actions `verify` 亦为 PASS。
 
 覆盖的真实数据库边界包括：NOINHERIT 双角色 Context 建立、RLS/Project allow-list、Command Receipt 幂等/CAS、Role/Capability/Policy/Bootstrap、ActorSnapshot/AuthorizationDecision 精确引用与 Scope、DENY Audit、Outbox lease/fencing/retry、Inbox replay/quarantine，以及新增的四条语义反例。
 
@@ -157,41 +155,45 @@ WI-01–WI-05 的本地真实数据库与手工反例此前也已执行：版本
 
 | Issue #28 条件 | 当前本地结论 | 证据与边界 |
 |---|---|---|
-| #29–#38 全部关闭且对应 PR 合入默认分支 | PARTIAL | #29–#38 已关闭；#34–#38 的 PR #46–#50 尚未进入 origin/main，跟进 PR #51 已面向 main 创建但未合并。 |
+| #29–#38 全部关闭且对应 PR 合入默认分支 | PASS | #29–#38 已关闭；PR #46–#50 经 PR #51/#52 合入 `origin/main@64e3040`，祖先关系已核对。 |
 | 锁定依赖恢复、空库 Migration、重复 Migration | PASS (LOCAL INTEGRATION) | pnpm clean && pnpm verify、独立 Persistence Gate；PG 18.6/Flyway 11.20.3；二次 migrate no-op。 |
 | WI-06 Command 原子事务、幂等/CAS、业务拒绝 current version | PASS (LOCAL INTEGRATION) | 真实 PostgreSQL 12 files/177 tests 与 WI-06 disposable Probe。 |
 | WI-07 Principal/External Identity/Bootstrap、脱敏 Event | PASS (LOCAL INTEGRATION) | 真实 Gate 与 WI-07 disposable Probe；原始标识未泄漏。 |
 | WI-08 Role/Capability/Policy、Scope/RLS、撤销/并发 | PASS (LOCAL INTEGRATION) | 真实 PostgreSQL 回归；生产 Provider/跨模块 Runtime 未包含。 |
 | WI-09 ActorSnapshot/Decision、Project A/B、精确 Grant Scope、DENY Audit | PASS (LOCAL INTEGRATION) | 新增 Enterprise Grant → Project Intent DENY 与同事务 DENIED Audit 回归通过；公开 Handler/HTTP 仍未接入。 |
 | WI-10 Outbox/Inbox replay、lease/fencing、Quarantine | PASS (LOCAL INTEGRATION) | typed Aggregate、foreign Enterprise Project、replay/quarantine 回归及 local Probe 通过；生产 Broker/副作用未运行。 |
-| pnpm clean && pnpm verify | PASS (LOCAL INTEGRATION) | 常规与真实 PG 两段均有本轮实际输出。 |
-| WI-02–WI-04 Runbook 原命令可复现 | PASS (DOCUMENT REPAIR) | 已修订预定义角色、hash、role 切换、容器内 walker 与 audit seed 说明；用户仍需最终人工执行。 |
-| 用户按 Runbook 完成最小权限/RLS/幂等/CAS/Replay/脱敏授权链 | PARTIAL | 本地 Probe 和数据库反例通过，但用户最终人工操作未执行。 |
+| pnpm clean && pnpm verify | PASS (CI + LOCAL STATIC) | PR #52 exact-head GitHub Actions 全量 `verify` PASS；最终 main 本地静态/常规阶段 PASS，内嵌 Gate 另有 Registry `EOF` 网络阻断记录；直接 digest 等价 Gate 为 `12/177 PASS`。 |
+| WI-02–WI-04 Runbook 原命令可复现 | PASS (DOCUMENT + AGENT RUN) | 已修订预定义角色、hash、role 切换、容器内 walker、audit seed、默认 `plpgsql` 和合法 JSON ACL 负例；实际输出见本地 Runbook 记录。 |
+| 用户按 Runbook 完成最小权限/RLS/幂等/CAS/Replay/脱敏授权链 | PASS (AGENT-EXECUTED LOCAL) | 用户明确授权 Codex 执行；WI-02/03/04/09 与 WI-06/07/10 的输出已记录。生产外部/用户业务签字仍不冒充。 |
 | Keycloak/OpenBao/Ceph/飞书/Renderer/Provider/生产负载 | NOT RUN | 无生产凭据/外部环境，本任务不扩大权限。 |
-| 用户完成最终人工验收后标记 COMPLETE | NOT RUN | 用户尚未完成最终人工 Runbook 验收；Issue #28 继续 OPEN。 |
+| 用户审核证据后标记 COMPLETE | PENDING | Agent-executed local evidence 已完成；文档跟进 PR 合并、最终 GitHub 状态回读和 Issue #28 关闭前的边界确认仍待完成。 |
 
 ## 8. 清理与工作树状态
 
 - pnpm persistence:gate 及 WI-06/WI-07/WI-10 Probe 创建的 PostgreSQL 容器均已删除。
 - 未删除既有 qm-dev-postgres（postgres:16-alpine，运行约两周）或其相关数据；它不属于本次 disposable 验收环境。
 - 本轮没有创建需要保留的临时测试脚本或测试文件；Probe 通过 Node inline runner 执行，测试数据库随容器删除。
-- 当前远端跟踪分支保留本地集成代码、测试、Migration、规格、Runbook、Review 文档和本报告；本轮 `47a2a9d` 已 commit/push，PR #51 尚未 merge。
+- `origin/main` 当前包含 PR #51/#52，最新 merge commit 为 `64e3040`；文档跟进 PR #53 的 Runbook、验收报告和规格同步已准备交付。
 - 文档同步提交后应保持工作树干净；不要使用 destructive reset/checkout 覆盖当前交付历史。
 
 ## 9. 下一步
 
-1. 创建新的跟进修复 PR，隔离 Persistence Gate 的全局 ACL 失败注入与其他测试文件。
-2. 在修复 PR 上执行 exact-head review、连续两次独立 Persistence Gate、完整 `pnpm clean && pnpm verify` 和 WI-06/WI-07/WI-10 local Probe。
-3. 将修复 PR 合并后，从新的干净 `main` 重跑退出 Gate，并回读 PR/Issue/祖先关系。
-4. 用户按 Runbook 完成最小权限、RLS、幂等/CAS、Replay/Quarantine 和脱敏授权链的最终人工验收；外部/生产项目仍只有在具备授权和环境后执行。
-5. 只有修复合并后的默认分支证据完成，并且所有 scoped 退出条件满足后，才考虑显式关闭 Issue #28。
+1. 合并 Runbook 文档修订 PR，完成 exact-head review 和 CI 回读。
+2. 从新的 `main` 回读 PR #51/#52/文档 PR、祖先关系、clean-main 验证和容器清理。
+3. 在用户已授权的范围内更新 Issue #28 最终评论；外部/生产项目继续保持 `NOT RUN`。
+4. 所有 scoped 退出条件满足且最终状态回读完成后，关闭 Issue #28。
 
-## 10. 合并后默认分支复验（当前阻塞）
+## 10. 合并后默认分支复验（2026-08-24）
 
 | 验证 | 实际结果 | 状态 |
 |---|---|---|
 | `pnpm install --frozen-lockfile` | 干净 `origin/main` 安装通过 | `PASS` |
-| 首次 `pnpm clean && pnpm verify` | 静态阶段、常规测试、Catalog/Registry、Compatibility 和内嵌 PostgreSQL Gate 通过；Gate 为 `12 files / 177 tests`，容器清理 | `PASS` |
-| 独立 `pnpm typecheck && pnpm persistence:gate` | `typecheck` 通过；`IP-API-U-001` 在 `actor-snapshot.ts:418` 写入 `audit_record` 时得到 `permission denied for table audit_record`；Gate 为 `176 passed / 1 failed`，容器清理 | `BLOCKED` |
+| 首次 `pnpm clean && pnpm verify` | 静态阶段、常规测试、Catalog/Registry、Compatibility 和内嵌 PostgreSQL Gate 通过；Gate 为 `12 files / 177 tests`，容器清理 | `PASS (历史主线快照)` |
+| 首次独立 `pnpm typecheck && pnpm persistence:gate` | `typecheck` 通过；`IP-API-U-001` 在 `actor-snapshot.ts:418` 写入 `audit_record` 时因共享 ACL Fixture 并行竞态得到 `42501`；Gate 为 `176 passed / 1 failed`，容器清理 | `HISTORICAL BLOCKED / ROOT CAUSE FIXED` |
+| PR #52 合并后最终 main 直接 digest 等价 Gate | `typecheck PASS`；Persistence `12 files / 177 tests PASS`；14 个 Migration 成功；二次 migrate no-op；容器清理 | `PASS` |
+| PR #52 exact-head GitHub Actions `verify` | 静态、常规、契约、兼容性及内嵌 Persistence Gate 均通过 | `PASS` |
+| Agent-executed Runbook/Probe | WI-02/03/04/09 及 WI-06/07/10 输出见 [Runbook-Manual-Acceptance-2026-08-24.md](./Runbook-Manual-Acceptance-2026-08-24.md) | `PASS (LOCAL) / EXTERNAL NOT RUN` |
 
-根因是 `tests/persistence/messaging.test.ts` 临时撤销共享 `identity_policy_app` 的 `audit_record` INSERT 权限，而 Vitest 默认并行运行 Persistence 文件；该失败不证明迁移缺少 INSERT 授权。跟进分支已把 Gate 改为文件级串行并连续两次通过 `12 files / 177 tests`，三个 WI local Probe 也通过；修复 PR 合并后的干净 `main` 复验完成前不得关闭 Issue #28。
+根因是 `tests/persistence/messaging.test.ts` 临时撤销共享 `identity_policy_app` 的 `audit_record` INSERT 权限，而 Vitest 默认并行运行 Persistence 文件；该失败不证明迁移缺少 INSERT 授权。PR #52 已把 Gate 改为文件级串行，连续两次独立 Gate、最终 main 直接 digest 等价 Gate 和 exact-head CI 均通过。当前仅剩 Runbook 文档跟进 PR #53、最终 GitHub 状态回读和 Issue #28 关闭动作。
+
+合并后的最终本地 Runbook 探测记录见 [Runbook-Manual-Acceptance-2026-08-24.md](./Runbook-Manual-Acceptance-2026-08-24.md)；其中已修订并复核 WI-02 默认 `plpgsql`、WI-04 合法 JSON ACL 负例和 WI-09 Decision 脱敏查询。

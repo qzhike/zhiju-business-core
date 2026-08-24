@@ -22,3 +22,4 @@
 - Keycloak/OIDC、OpenBao、Ceph、飞书、生产 Broker/Provider、跨模块生产 E2E、生产负载和真实用户外部环境继续记录为 `NOT RUN`，它们不是本次 IM-02 scoped closeout 的伪前置。
 - 只有在合并后默认分支和退出证据回读完成后，才允许关闭 Issue #28。
 - 合并后独立 Persistence Gate 曾因 WI-10 全局 ACL 失败注入与 WI-09 并行竞态失败；修复 PR 合并并从新的干净 `main` 连续复验通过前，Issue #28 保持 OPEN。
+- PR #52 已合并并完成默认分支数据库复验；Runbook 发现的默认 `plpgsql` 与合法 JSON ACL 负例口径已进入新的文档跟进 PR，文档合并和最终 GitHub 状态回读完成前仍保持 OPEN。
