@@ -2,14 +2,14 @@
 
 ## 1. 结论
 
-截至 2026-08-24，已确认的 WI-06–WI-10 集成代码、核心修复、真实 PostgreSQL 回归、disposable local Probe 和验收文档已提交为 `47a2a9d` 并推送到远端跟进分支；面向 `main` 的交付 PR 为 [#51](https://github.com/qzhike/zhiju-business-core/pull/51)。当前集成验证结果为 PASS，但 Issue #28 仍不能标记 COMPLETE，也不能现在关闭，结论为：
+截至 2026-08-24，PR #51 已合并到 `main`，但合并后干净默认分支的独立 Persistence Gate 暴露了测试隔离竞态。当前不能把 Issue #28 标记 COMPLETE，也不能关闭，结论为：
 
-> 本地核心实现：PASS；IM-02 Issue #28：PARTIAL，保持 OPEN。
+> 本地核心实现：修复分支自动化 Gate/Probe PASS；默认分支复验已发现并修复测试隔离缺陷，待跟进 PR 合并后复验；IM-02 Issue #28：PARTIAL，保持 OPEN。
 
 仍未满足的退出条件不是本地代码门禁，而是交付与验收边界：
 
-1. PR #46–#50 虽在 GitHub 显示 MERGED，但它们是连续 stacked feature branch；对应提交尚未进入当前 origin/main。PR #51 已创建并以 `main` 为 base，等待完成交付。
-2. 本轮修复已经 commit/push；PR #51 实现复审基准为 `47a2a9d`，其后的文档同步 head CI 均为 `SUCCESS`，复审记录为无新增语义发现，但 PR 尚未 merge。
+1. PR #46–#51 已显示 MERGED，PR #51 的合并提交为 `8f5c0701ace93ce88ec55acde753e5abcd07fa2c`；当前需要为 Gate 隔离修复创建新的跟进 PR，不能修改已合并历史。
+2. 合并后的干净 `main` 首次完整验证中，内嵌 Gate 通过，但随后独立 Gate 在 WI-09 DENY Audit 写入处失败；失败记录见 [Main-Closeout-Failure-2026-08-24.md](./Main-Closeout-Failure-2026-08-24.md)。
 3. 真实 Keycloak/OIDC、OpenBao、飞书、生产 Broker/Provider、跨模块 HTTP/业务 E2E、生产负载和用户最终人工业务验收没有执行，继续保持 NOT RUN。
 4. 本地脚本 Probe 是可重复的自动化/脱敏 Fixture 证据，不等同于用户亲自按 Runbook 完成最终人工验收。
 
@@ -180,6 +180,18 @@ WI-01–WI-05 的本地真实数据库与手工反例此前也已执行：版本
 
 ## 9. 下一步
 
-1. 在用户另行授权后，将 PR #51 合入 `main`，并以合并后的默认分支重新核对 #29–#38。
-2. 用户按 Runbook 完成最小权限、RLS、幂等/CAS、Replay/Quarantine 和脱敏授权链的最终人工验收；外部/生产项目仍只有在具备授权和环境后执行。
-3. 只有默认分支交付、exact-head 证据和用户最终人工验收都完成后，才考虑显式关闭 Issue #28。
+1. 创建新的跟进修复 PR，隔离 Persistence Gate 的全局 ACL 失败注入与其他测试文件。
+2. 在修复 PR 上执行 exact-head review、连续两次独立 Persistence Gate、完整 `pnpm clean && pnpm verify` 和 WI-06/WI-07/WI-10 local Probe。
+3. 将修复 PR 合并后，从新的干净 `main` 重跑退出 Gate，并回读 PR/Issue/祖先关系。
+4. 用户按 Runbook 完成最小权限、RLS、幂等/CAS、Replay/Quarantine 和脱敏授权链的最终人工验收；外部/生产项目仍只有在具备授权和环境后执行。
+5. 只有修复合并后的默认分支证据完成，并且所有 scoped 退出条件满足后，才考虑显式关闭 Issue #28。
+
+## 10. 合并后默认分支复验（当前阻塞）
+
+| 验证 | 实际结果 | 状态 |
+|---|---|---|
+| `pnpm install --frozen-lockfile` | 干净 `origin/main` 安装通过 | `PASS` |
+| 首次 `pnpm clean && pnpm verify` | 静态阶段、常规测试、Catalog/Registry、Compatibility 和内嵌 PostgreSQL Gate 通过；Gate 为 `12 files / 177 tests`，容器清理 | `PASS` |
+| 独立 `pnpm typecheck && pnpm persistence:gate` | `typecheck` 通过；`IP-API-U-001` 在 `actor-snapshot.ts:418` 写入 `audit_record` 时得到 `permission denied for table audit_record`；Gate 为 `176 passed / 1 failed`，容器清理 | `BLOCKED` |
+
+根因是 `tests/persistence/messaging.test.ts` 临时撤销共享 `identity_policy_app` 的 `audit_record` INSERT 权限，而 Vitest 默认并行运行 Persistence 文件；该失败不证明迁移缺少 INSERT 授权。跟进分支已把 Gate 改为文件级串行并连续两次通过 `12 files / 177 tests`，三个 WI local Probe 也通过；修复 PR 合并后的干净 `main` 复验完成前不得关闭 Issue #28。

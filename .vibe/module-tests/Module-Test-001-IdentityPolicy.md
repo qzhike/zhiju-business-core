@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / INTEGRATED FULL VERIFY PASS / EXACT-HEAD RECHECK PASS PR #51 / EXTERNAL NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / POST-MERGE GATE ISOLATION REPAIR VERIFIED ON FOLLOW-UP BRANCH / DEFAULT MAIN RECHECK PENDING / PR #51 MERGED / EXTERNAL NOT RUN`
 
 对应规格：[`Module-Spec-001-IdentityPolicy.md`](../module-specs/Module-Spec-001-IdentityPolicy.md)。本文件记录 IdentityPolicy 的 API 层 Unit、Contract、E2E 与人工验收用例和真实结果；高层跨模块场景仍见 `08-verification-baseline.md`。
 
@@ -120,5 +120,13 @@ WI-10 的生产 Broker/Provider、跨模块业务 E2E 和人工验收保持 `NOT
 | IP-WI10-R-001 | Persistence Integration | 在当前本地集成工作树执行 `pnpm typecheck` 后运行 `pnpm persistence:gate`，WI-10 使用真实 PostgreSQL 事务 fixture | `withIdentityTransaction` 能以 `platform_context_establisher → identity_policy_app` 建立 Context 并使 12 个 persistence 文件全部通过 | PostgreSQL 18.6 / Flyway 11.20.3：12 files / 177 tests PASS；空库迁移、二次 migrate no-op 和容器清理均通过 | `PASS` |
 
 WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FALSE, SET TRUE` 同时授予 `platform_context_establisher` 与 `identity_policy_app`；该配置只修复测试对当前 WI-03 权限契约的建模，不扩大生产角色权限。
+
+## 合并后默认分支复验（2026-08-24）
+
+| ID | 层级 | 输入 | 预期输出 | 实际输出 | 结果 |
+|---|---|---|---|---|---|
+| IP-PG-RACE-001 | Persistence Gate | 从合并后的干净 `main` 先运行 `pnpm clean && pnpm verify`，再独立运行 `pnpm typecheck && pnpm persistence:gate` | WI-09 DENY Audit 与 WI-10 Audit INSERT 失败场景互不干扰；两次 Gate 均为 `12 files / 177 tests PASS` | 合并后首轮内嵌 Gate `PASS`，独立 Gate 在 `IP-API-U-001` 报 `permission denied for table audit_record`；跟进分支加入 `--no-file-parallelism` 后连续两次独立 Gate 均为 `12 files / 177 tests PASS` | `FOLLOW-UP PASS / MAIN RECHECK PENDING` |
+
+修复要求：Gate 必须隔离文件级 Persistence 测试执行，保留 `IP-WI10-U-006` 的真实权限失败反例；修复后至少连续两次独立 Gate 和一次完整 `pnpm clean && pnpm verify` 均通过，才能把本项更新为 `PASS`。
 
 | IP-WI10-R-002 | Persistence Integration | Project B 不在 Context allow-list 的 Event 进入 Enterprise A consumer | 结果为 `SCOPE_CONFLICT`；未经验证的 Project 不进入 Command Envelope 或 RLS Scope，Inbox/Violation 以当前 Enterprise 的 `project_id=NULL` 安全记录 | PostgreSQL gate 断言结果为 `SCOPE_CONFLICT`；Inbox 与 Violation 均保存 `project_id=NULL`，target 未执行 | `PASS` |

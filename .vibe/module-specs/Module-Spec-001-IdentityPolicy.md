@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / INTEGRATED FULL VERIFY PASS / EXACT-HEAD REVIEW PASS PR #51 / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / POST-MERGE GATE ISOLATION REPAIR VERIFIED ON FOLLOW-UP BRANCH / DEFAULT MAIN RECHECK PENDING / PR #51 MERGED / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -239,3 +239,11 @@ IdentityPolicy owning Schema 拥有八张 Enterprise 技术表，并额外以三
 4. CAS 只能使用 Envelope 的 `targetId` 与 `expectedAggregateVersion`；版本计算必须保持 PostgreSQL `bigint` 精度，不得通过 `Number` 转换。
 5. REJECTED receipt 的 canonical result 必须保存稳定错误码、安全摘要与 `currentAggregateVersion`，重放返回同一结果。
 6. 已应用的 Flyway Migration 不得修改；平台 Receipt 新列通过后续 forward-only IdentityPolicy Migration 增加。
+
+## 12. 合并后 Persistence Gate 的测试隔离约束（2026-08-24）
+
+IdentityPolicy 的业务与审计权限边界保持不变：`identity_policy_app` 必须能够在有效 Context 中追加 `audit_record`，但不能 UPDATE/DELETE；RLS 仍必须拒绝越界 Scope。测试不得通过永久修改生产角色 ACL 来制造失败证据。
+
+WI-10 的 `Audit INSERT` 失败场景需要临时撤销共享角色权限，而 WI-09 的 DENY Decision 也会在同一表写 Audit。因此，运行 `tests/persistence` 的 Gate 必须隔离文件级执行，避免全局 ACL 撤销窗口与其他事务测试重叠。该约束只修复测试编排，不新增角色权限、不修改已应用 Migration，也不改变运行时事务语义。
+
+跟进分支已按该约束运行两次独立 Gate，均为 `12 files / 177 tests PASS`；默认分支仍需在修复 PR 合并后重新验证。
