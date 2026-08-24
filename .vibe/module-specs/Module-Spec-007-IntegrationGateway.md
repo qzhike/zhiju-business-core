@@ -251,3 +251,7 @@ Issue #17 允许先在模块内部验证不依赖真实 Provider、数据库或 
 - 静态设计 / Schema 维度 Gate：`pnpm verify` 6 项（format / lint / typecheck / Vitest / architecture / contracts:check）全部通过；23 个 Happy-path Schema 测试与 11 个 Schema 维度负向 fixture 全部断言 PASS。
 - Issue #17 的可离线验证运行时切片已于 2026-08-22 落地，覆盖 Inbound 幂等/Hash 冲突、timeout `UNKNOWN`、未知协议拒绝、Render 绑定、撤回 Origin、显式授权和 Audit/Masking；PR #26 review 补强 Claim-before-dispatch、timeout 迟到 rejection 观察、Origin 的 adapter/account 身份、recall 必填消息引用和 renderer mismatch 回归；focused tests 全部 `PASS`，完整验证结果见 `.vibe/issue-17-integrationgateway-runtime-acceptance-gaps/Verification-Report.md`。
 - Handler、Repository、Database、Migration、Feishu Adapter、Runtime Adapter、Renderer Adapter、Credentials、E2E 与人工业务验收仍为 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪；Schema 闭合或内存运行时切片不等于跨进程去重 / 真实撤回 / 真实权限 / Provider UNKNOWN / 业务撤回判定已运行；review body 中标注的 7 类字段级契约偏差已修复，模块不得据此声称 Issue #6 全部 8 条验收完成。
+
+## 10. IM-02 WI-04 持久化切片
+
+IntegrationGateway owning Schema 在 #32 中仅获得八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。#27 继续拥有业务 Migration/Repository、Provider、跨进程幂等与外部 E2E；Canonical payload↔hash 强校验及这些运行时验收均为 `NOT RUN`。

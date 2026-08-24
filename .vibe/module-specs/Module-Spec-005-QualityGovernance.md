@@ -297,3 +297,7 @@ QUALITY_RELEASE_READINESS_NOT_READY
 - PR #13 第二轮 Code Review 修复已于 2026-08-18 完成：`GateResultSubmission` 删除未授权 `executionMode` 字段；`record_reused_gate_result` 路径独立为 `GateReuseSubmission`，`sourceGateResultRef` / `changeImpactRef` 强制 required；数组类型按 Module Spec `Set<T>` / `NonEmptySet<T>` / `T[]` 精确分类 — 仅 NonEmptySet 保留 `minItems: 1`，Set 仅保留 `uniqueItems`，普通 `T[]` 不附加额外约束；空过滤集合与无内容变更 IssueResolution 接受正向回归。
 - Gate Evaluator、Profile Registry、Readiness Evaluator、Persistence 与测试实现均不存在；
 - 字段级以上的 Unit、Contract、E2E 与人工验收仍为 `NOT RUN`，与 Handler/State/Evaluator/E2E 缺失对应。
+
+## 10. IM-02 WI-04 持久化切片
+
+QualityGovernance owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。Canonical payload↔hash 强校验、Gate Evaluator、Profile Registry、业务 Repository 与 Handler 仍为 `NOT RUN`。

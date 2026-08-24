@@ -506,7 +506,7 @@ source_command_id
 规则：
 
 - Canonical Payload/业务 Row 是 Ref Source of Truth；`reference_edge` 是同事务生成的派生索引；
-- `owner + reference_path + target` 唯一；
+- 精确 `owner（含 owner_version_id）+ reference_path + target` 唯一；不同不可变 owner version 的合法 Edge 不互相冲突；
 - 不允许手工编辑；可从 Canonical Payload 重建；
 - 用于 Impact 查找、Traceability 和数据保留检查；
 - 写入时索引与 Payload 不一致则整个事务失败；
@@ -604,6 +604,8 @@ created_at/updated_at
 
 `process_step` 是不可变步骤事实，保存输入 EventRef、发出 CommandRef、结果、失败与人工介入。相同 `process_type + correlation_key` 只能有一个 active instance。
 
+`process_step.enterprise_id/project_id` 必须与父 `process_instance` 完全一致；只按 `process_id` 建立 FK 不足以防止同一事务允许多个 Project 时形成跨 Scope 关联。
+
 ### 7.5 `audit_record`
 
 保存：
@@ -617,6 +619,8 @@ created_at/updated_at
 
 Audit 是追加记录，不允许普通应用角色更新/删除。
 
+`audit_reader` 是跨模块受控审计读取角色：只能通过 masked surface 读取明确列出的非敏感字段。masked surface 必须能返回已提交行；其默认 security-definer owner 是对应 NOLOGIN module owner，底表只为该 owner 配置审计读取策略。`audit_reader` 自身不获得底表或列权限，因此不能绕过 view 执行 `count(*)`、读取敏感列或写入。
+
 ### 7.6 `reference_edge`
 
 用于本模块的 Typed Reference 反向查找，规则见第 6.5 节。
@@ -624,6 +628,12 @@ Audit 是追加记录，不允许普通应用角色更新/删除。
 ### 7.7 `contract_violation`
 
 保存未知 Major、未知 Required Extension、Canonical Hash 不匹配、Scope 冲突、自引用 Hash、Payload 超限等拒绝事实。敏感 Payload 默认只保存 Hash、Schema Error Path 和安全摘要。
+
+### 7.8 nullable Project Scope 的统一 RLS
+
+七模块标准技术表同时容纳 Enterprise-owned 与 Project-owned 行时，策略逐行选择边界：`project_id IS NULL` 只校验当前 Enterprise；`project_id IS NOT NULL` 必须调用 Project helper，同时匹配 Enterprise 与允许的 Project 集合。不得用仅校验 Enterprise 的策略读取或写入 Project-owned 行。
+
+数据库在 WI-04 校验 promoted Scope 镜像、hash 形状和不可变写面。Canonical JSON 与 SHA-256 的重算/比对依赖 owning Repository 的 canonicalizer，由 WI-05/WI-06 在同一事务写入路径实现并验证；在该 Gate 运行前保持 `NOT RUN`。
 
 ---
 
@@ -1526,7 +1536,19 @@ allowed_project_scope
 correlation_id
 ```
 
-具体上下文传递机制在 DDL/API 阶段确定。若使用 transaction-local database settings，必须注意自定义 setting 本身不是不可伪造凭证；只有受信服务器角色可连接数据库，并且应用仍需先验证 AuthorizationDecision。最终 RLS 设计必须包含伪造 Context 的安全测试。
+WI-03 将物理机制固定为 `platform_security.tx_context` 事务事实行，以
+`(pg_backend_pid(), txid_current())` 键控，不使用 transaction-local 自定义 setting 作为凭证。
+普通七模块 `<module>_app` 与 `projection_app` 只能调用只读 RLS helper，不能建立或清理
+Context；唯一写入口仅授予 NOLOGIN 的 `platform_context_establisher`。受信事务协调器须先以
+该角色建立 Context，再切换为目标 Runtime Role 执行业务 SQL；直接以普通 App Role 调用
+写入口必须被数据库权限拒绝。`EVENT_CONSUMER` 必须同时携带 `source_event_id` 和至少一个
+Project，空数组不能利用 SQL `CHECK UNKNOWN` 绕过。
+
+具体函数、权限、清理机制与威胁模型以
+[`../im-02-workitem-issues/rls-context-design-wi-03.md`](../im-02-workitem-issues/rls-context-design-wi-03.md)
+为唯一权威。WI-03 校验 Decision 引用形状、hash 长度、有效期和同事务一致性；
+AuthorizationDecision 的业务真实性、Scope/Purpose/Intent 与持久化事实比对仍由 WI-09 的
+IdentityPolicy Decision Port 负责，在其落地前保持 `NOT RUN`。
 
 ### 19.3 RLS 基本策略
 
@@ -1821,8 +1843,8 @@ CTX-302 hash
 
 | 用例 | 类型 | 输入 | 预期输出 | 实际输出 |
 |---|---|---|---|---|
-| PG-U-001 | Unit | Project Row enterprise_id 与本地 Scope Claim 不一致 | 组合关系/写入验证拒绝 | NOT RUN：设计阶段 |
-| PG-U-002 | Unit | Enterprise A RLS Context 读取 Enterprise B Row | 返回零行或安全拒绝；不泄漏对象存在性 | NOT RUN：设计阶段 |
+| PG-U-001 | Unit | Project Row enterprise_id 与本地 Scope Claim 不一致 | 组合关系/写入验证拒绝 | PASS：WI-03 真实 PostgreSQL Project-owned RLS 写入拒绝子场景（2026-08-24） |
+| PG-U-002 | Unit | Enterprise A RLS Context 读取 Enterprise B Row | 返回零行或安全拒绝；不泄漏对象存在性 | PASS：WI-03 真实 PostgreSQL A/B 隔离与空结果（2026-08-24） |
 | PG-U-003 | Unit | 使用 aggregateVersion 作为 Baseline versionId | 类型/Contract 验证拒绝 | NOT RUN：设计阶段 |
 | PG-U-004 | Unit | 两个事务以相同 expectedVersion 更新 Aggregate | 仅一个提交，另一返回 CONCURRENCY_CONFLICT | NOT RUN：设计阶段 |
 | PG-U-005 | Unit | UPDATE/DELETE immutable Contract Snapshot | 数据库权限/不可变保护拒绝 | NOT RUN：设计阶段 |
@@ -1843,7 +1865,7 @@ CTX-302 hash
 | PG-E-002 | E2E | BLOCKED_INPUT 经飞书回答并恢复 | 原 Run terminal；新 Answer/Resolution、ContextSnapshot、Run 全部可追溯 | NOT RUN：设计阶段 |
 | PG-E-003 | E2E | REV-003 通过 Gate、Human Approval、Package Render 和 Release | RAS/ABS/RRS 分表且精确 Hash 链完整 | NOT RUN：设计阶段 |
 | PG-E-004 | E2E | Consumer 提交目标状态后 Transport 未收到 ACK 并重放 | Inbox/Command Receipt 吸收重复，不产生第二业务事实/外部副作用 | NOT RUN：设计阶段 |
-| PG-E-005 | E2E | Enterprise A/B 同 Object Display Code 与相似 ExternalId | RLS、Scope Key、HMAC Lookup 均不串租户 | NOT RUN：设计阶段 |
+| PG-E-005 | E2E | Enterprise A/B 同 Object Display Code 与相似 ExternalId | RLS、Scope Key、HMAC Lookup 均不串租户 | PARTIAL：WI-03 真实 PostgreSQL 同 Display Code 的 RLS 子场景 PASS；ExternalId/HMAC Lookup 等待 WI-05，NOT RUN（2026-08-24） |
 | PG-E-006 | E2E | 对象上传成功但数据库 Link 事务失败 | 业务对象不存在；Staging Object 仅在安全宽限和零引用检查后清理并审计 | NOT RUN：设计阶段 |
 
 ---

@@ -30,15 +30,18 @@
 4. Repository 的 `insertActorSnapshot` 与 `insertAuthorizationDecision` 忽略调用者提供的 `snapshotPayload`/`decisionPayload`，只保存重新拼出的 promoted 字段，导致不可变 Contract 正文（例如测试中的 `note`）被静默丢弃，payload hash 也没有覆盖原始正文。
 5. External Identity 的负面测试只使用安全 `displayHint/evidenceRefs`；调用者把原始 account/subject 放进 `displayHint`、`verificationMethod` 或 `evidenceRefs` 时，Repository 会原样写入数据库，违反“原始标识不落库”。此外名为“active lookup”的查询未过滤 `status='ACTIVE'`，会解析已撤销映射。
 6. PR base 仍是已合并的 PR #44 功能分支，`closingIssuesReferences` 为空；必须在修复后改基 `main`、重新验证最新 head 与 CI，才能完成默认分支交付及 Issue #33 关闭。
+7. 普通合并最新 `origin/main` 后，PR #44 已收紧的 WI-03 权限模型暴露兼容性回归：`withIdentityTransaction` 仍以 `identity_policy_app` 直接调用 Context 写入口，集成测试 11 项以 `42501` 失败。事务协调器必须先 `SET LOCAL ROLE platform_context_establisher` 建立 Context，再切换到 `identity_policy_app` 执行业务 SQL；数据库登录同时只持有这两个 NOINHERIT 角色。
 
 ## 验证记录
 
 - `pnpm typecheck`：`PASS`。
 - focused Unit：`1 file / 5 tests PASS`。
 - 一次性 PostgreSQL 18.6（缓存的精确 digest）+ Flyway 11.20.3：11 个 Migration 成功；`7 files / 125 tests PASS`；容器已清除。该证据不包含 registry 侧 tag↔digest 在线解析。
+- 普通合并最新 `origin/main` 后首次 persistence 复审复现 WI-03 角色兼容问题（11 项 `42501`）；修复 establisher→app 事务内角色切换后，集成 head 为 `7 files / 130 tests PASS`，第二次 Flyway migrate 输出 `Schema "public" is up to date. No migration necessary.`，容器已清除。
 - `pnpm clean && pnpm verify`：format、ESLint、TypeScript、`19 files passed / 5 skipped`、`339 passed / 112 skipped`、architecture、200-operation public API/类型/Catalog 与 compatibility 全部通过；最终 persistence gate 在项目测试开始前被 Docker Hub HTTP 429 限流，因此本次本地全命令结果为 `NOT PASS`，不得冒充完整 PASS。
+- 集成提交 `80a912f` 最终重跑 `pnpm clean && pnpm verify`：`PASS`。format、ESLint、TypeScript、`19 files passed / 5 skipped`、`339 passed / 117 skipped`、architecture、200-operation public API/类型/Catalog、compatibility 均通过；在线 tag↔digest 校验、PostgreSQL 18.6/Flyway 11.20.3、`7 files / 130 persistence tests`、11 个 Migration 与第二次 no-op migrate 全部通过，容器已清除。此前 HTTP 429 边界已由成功重试消除。
 - 真实 OpenBao Transit、Keycloak/OIDC、飞书 Adapter、20 个公开 Handler、外部 E2E 与用户手动 probe：`NOT RUN`。
 
 ## 最终结论
 
-六项初始阻塞问题已完成文档先行的回归与最小修复；待提交、推送、将 PR base 更新为 `main`，并以最新精确 head 的 GitHub CI 复审后给出最终 `PASS` 或继续修复。
+七项阻塞问题（含主线集成后发现的 WI-03 角色兼容回归）已完成文档先行的回归与最小修复；最新 `origin/main` 已普通合并且双方 RLS/技术表测试均保留。本地结论为 `PASS / MERGE PENDING EXACT-HEAD CI`；真实 OpenBao/Keycloak/飞书 Adapter、公开 Handler、外部 E2E 与用户手动 probe 保持 `NOT RUN`，不属于 Issue #33 的关闭证据。

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 PERSISTENCE IN REVIEW`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 PERSISTENCE AUTOMATED PASS / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -182,5 +182,9 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 
 - 20 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- 20 个字段级 Schema/Registry 已落地；WI-05 PostgreSQL 关系模型、低层 Repository 与 focused persistence tests 正在 PR #45 审查；
+- 20 个字段级 Schema/Registry 已落地；WI-05 PostgreSQL 关系模型、低层 Repository 与 focused persistence tests 已在 PR #45 集成 head 自动验证通过；
 - 公开 Handler、真实 OpenBao/Keycloak/飞书 Adapter、业务 E2E 与人工验收仍为 `NOT RUN`。
+
+## 10. IM-02 WI-04 持久化切片
+
+IdentityPolicy owning Schema 拥有八张 Enterprise 技术表，并额外以三张独立 Platform 技术表隔离全局事实。Enterprise 表的非空 Project Scope 必须经过 Project Context 校验；Process Step 与父 Process Scope 一致；Reference Edge 判重包含 owner version；audit_reader 仅能读取可实际返回已提交行的 masked surface。Canonical payload↔hash 强校验归属 #33/#34 Repository Gate；#33 的 IdentityPolicy 低层 Repository 已用共享 canonical JSON v1 计算并验证，#34 Command Transaction 仍为 `NOT RUN`。业务 Handler 与真实身份 Provider不在本切片。

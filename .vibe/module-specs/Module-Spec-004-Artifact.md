@@ -221,3 +221,7 @@ ARTIFACT_EFFECTIVE_BINDING_OVERLAP
 - PR #12 Review 确认的 parent 数量与未解决 Merge 冲突缺口已修复，两条 Contract 回归已 `PASS`；
 - Canonical Content Schema、Repository、Object Storage、Renderer、Diff 与业务实现均不存在；
 - 除已明确记录的 Schema Contract 回归外，Unit、E2E 与人工验收均为 `NOT RUN`。
+
+## 10. IM-02 WI-04 持久化切片
+
+Artifact owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。Canonical Content Repository、对象存储、payload↔hash 强校验、Renderer 与业务 Handler 仍为 `NOT RUN`。

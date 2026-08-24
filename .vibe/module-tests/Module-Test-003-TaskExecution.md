@@ -47,3 +47,12 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - Runtime Adapter 专项：4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景为 `NOT RUN`；6 个 API proposal 尚未进入 Catalog 与本模块 Schema。
 - 测试遗留：未创建临时脚本或临时测试文件；永久 Fixture 位于 `tests/fixtures/contracts/`，与生产代码同源管理。
+
+## IM-02 WI-04 PostgreSQL 用例
+
+| ID | 输入 | 预期输出 | 修复前实际输出 | 当前结果 |
+|---|---|---|---|---|
+| TE-PG-001 | 七模块 catalog policy + EnterpriseProject 真实 Project 越权探针 | 非空 Project 行使用 Project helper，越权写入 `42501` | 七模块 policy 对账通过，代表写入 `42501` | `PASS` |
+| TE-PG-002 | Process Scope、masked audit、Reference owner version 矩阵 | 跨 Scope 拒绝、masked row 可读、多 owner version 可共存 | 分别为 `23514`、目标 row、两版本成功/精确重复 `23505` | `PASS` |
+
+Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍为 `NOT RUN`。

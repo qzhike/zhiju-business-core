@@ -308,8 +308,18 @@ Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
     ↓
 IM-01 Repository + Executable Contracts  （COMPLETE / FULL 200 + ENVELOPE_ONLY 0 / FIELD-LEVEL SCHEMAS + SCHEMA-DERIVED TYPES + V1.0 COMPATIBILITY BASELINE LANDED / ISSUE #9 CLOSED BY PR #20 / ISSUE #5 FIELD-SCHEMA SCOPE COMPLETE VIA PR #14 / RELEASE RUNTIME GAPS TRACKED BY #22–#24 / ISSUE #17 LOCAL IG RUNTIME SLICE LANDED / HANDLER + ADAPTER + DB TRACKED BY #27 / HANDLER + DB + EXTERNAL GATES REMAIN NOT RUN）
     ↓
-IM-02 PostgreSQL Foundation + IdentityPolicy  （NEXT）
+IM-02 PostgreSQL Foundation + IdentityPolicy  （IN PROGRESS / WI-01、WI-02 COMPLETE / WI-03 AUTOMATED GATE PASS / MANUAL NOT RUN）
 ```
+
+IM-02 的 RLS Context 物理机制已经进入 WI-03：上下文存放于
+`platform_security.tx_context`，以 backend pid 与事务 ID 键控，不使用可由调用方任意
+`SET` 的自定义 GUC。普通七模块 Runtime Role 与 `projection_app` 只能调用只读 RLS
+helper，不能建立或清理 Context；唯一写入口只授予 NOLOGIN 的
+`platform_context_establisher`，由受信事务协调器先建立 Context、再切换到目标 Runtime
+Role。详细威胁模型与测试边界以
+[`../im-02-workitem-issues/rls-context-design-wi-03.md`](../im-02-workitem-issues/rls-context-design-wi-03.md)
+为准。IdentityPolicy 对 AuthorizationDecision 业务真实性、Scope、Purpose 与 Intent 的完整
+校验仍由 WI-09 负责，不能因 WI-03 数据库 Gate 通过而声明授权链完成。
 
 ---
 
@@ -400,3 +410,13 @@ BLOCKED
 本项目已完成 IM-00 与 IM-01 Repository + Executable Contracts（Issue #9 / PR #20）。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate、Schema-derived Type、v1.0 compatibility baseline 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个、QualityGovernance 37 个、ReleasePublication 25 个与 IntegrationGateway 23 个操作均已具有字段级 Payload/Event Schema 和 Query Result Schema；Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。干净 checkout 证据见 [`.vibe/im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)。Schema 衍生类型见 `.vibe/im-01-executable-schema-typescript/`；兼容性基线见 `.vibe/im-01-v1.0-schema-fixtures/`。PR #10–#14、#16、#18、#19 的 Schema/类型/兼容性实现与 review 修复均已保留。2026-08-21 用户批准修订 Issue #9：硬依赖改为 #1–#8 的 Schema 子切片均已合入，#5 的 Runtime 状态不阻塞本 Gate；随后用户批准将 #5 收敛为字段 Schema 边界。Issue #5 的字段级目标已由 PR #14 完成，重复 / 迟到回执由已关闭的 #15 完成；未实现的 Release Authorization ActorSnapshot/actingFor、`providerResult` PII 最小化、普通飞书发送 Formal Release 来源链分别由 #22、#23、#24 承接，不能因 #5 关闭而视为 Runtime `PASS`。#17 的本地 IntegrationGateway Runtime 切片已在 `modules/integration-gateway` 落地：幂等、Quarantine、UNKNOWN、协议/完整 Revision 绑定、撤回 Origin（adapter/account/message）、显式授权和 Audit/Masking focused tests 全部通过；timeout 后迟到的 Adapter rejection 不得改写 `UNKNOWN`，也不得成为 unhandled rejection。真实 Provider、数据库、HTTP Handler、外部和人工验收仍保持 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪。下一阶段为 IM-02。IM-RP-001（Issue #15）在 `modules/release-publication` 落地 Runtime Receipt Validator（重复 / 迟到回执检测、RawExternalReceipt outcome/payload/time provenance、package↔release 与完整 scope 绑定、Ledger `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账）；持久化载体仍为 In-Memory Ledger。数据库 DDL/真实 Repository、IntegrationGateway 飞书/邮件 Provider 注入（#27）与 HTTP Handler 仍 `NOT RUN`，不得冒充业务 E2E。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`，不得冒充业务 E2E。
 
 PR #11 的 Core Contract 字段级 Schema review 修复已合并至 `main`：该切片恢复既有 `required`、Typed Reference 强度、Set 基数和 `ValueEnvelope` 条件约束，不改变冻结的 Core Contract 业务语义，也不扩大 IM-01 范围。修复记录见 [`../im-01-core-contract-review-fix/Task-Plan.md`](../im-01-core-contract-review-fix/Task-Plan.md)。TaskExecution 直接复用该权威 WorkOrder Schema 的共享 `$defs`，不得维护第二套 WorkOrder 子结构。QualityGovernance PR #13 的 review 修复同样要求 Result Schema 直接引用已注册的 Core Contract ID（`revision-acceptance/1.0`、`approval-bundle/1.0`、`release-readiness/1.0`），不得维护第二套截断视图。
+
+## 12. IM-02 WI-04 标准事务技术表边界
+
+七个 owning Schema 分别拥有 `command_receipt`、`outbox_event`、`inbox_message`、`process_instance`、`process_step`、`audit_record`、`reference_edge`、`contract_violation`，不得建立跨模块共享写入的超级技术 Schema。IdentityPolicy 的 Platform 事实使用独立表，不与 Enterprise 数据通过 nullable Scope 混表。
+
+- nullable `project_id` 的 RLS 必须按行裁决：NULL 行校验 Enterprise Context，非 NULL 行同时校验 Enterprise 与允许的 Project 集合；同 Enterprise 不代表可访问任意 Project。
+- `process_step` 的 Enterprise/Project Scope 必须与父 `process_instance` 完全一致，不能仅凭 `process_id` 建立跨 Scope 事实。
+- `reference_edge` 的 owner 精确身份包含可选 `owner_version_id`；不同不可变 owner version 可以保存同路径到同 target 的 Edge，同一精确 owner/path/target 才判重。
+- `audit_reader` 只能读取 masked 列，但 masked view 必须返回已提交的权威 Audit 行；底表整体读取、敏感列、UPDATE 与 DELETE 仍拒绝。
+- 数据库层负责 promoted Scope 镜像、hash 长度与不可变写面；Canonical Payload 与 SHA-256 的强一致性由 WI-05/WI-06 owning Repository 在同一事务写入路径完成。在对应 Repository Gate 通过前，该项保持 `NOT RUN`，不能作为 WI-04 数据库 PASS。

@@ -18,17 +18,16 @@
 -- ---------------------------------------------------------------------------
 
 CREATE ROLE platform_security NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+CREATE ROLE platform_context_establisher NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
 
 CREATE SCHEMA platform_security AUTHORIZATION platform_security;
 REVOKE ALL ON SCHEMA platform_security FROM PUBLIC;
 
--- Trusted application paths only: the seven module runtime roles and the
--- projection consumer. Dispatchers, audit_reader, owners and PUBLIC get no
--- entry point at all. Module owners additionally need USAGE plus EXECUTE on
--- the read helpers only: they must be able to author RLS policies that call
--- the helpers, and with FORCE ROW LEVEL SECURITY their own DML evaluates the
--- policy expressions too. Owners never receive the write entry points.
+-- The NOLOGIN establisher is the only context writer. Runtime roles and module
+-- owners receive schema access for read helpers only. Dispatchers,
+-- audit_reader, migration_runner and PUBLIC receive no access.
 GRANT USAGE ON SCHEMA platform_security TO
+    platform_context_establisher,
     identity_policy_app,
     enterprise_project_app,
     task_execution_app,
@@ -66,15 +65,18 @@ CREATE TABLE platform_security.tx_context (
     allowed_project_ids uuid[] NOT NULL,
     correlation_id uuid NOT NULL,
     source_event_id uuid,
-    established_at timestamptz NOT NULL DEFAULT now(),
+    established_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     established_by text NOT NULL,
     session_user_name text NOT NULL,
     CONSTRAINT tx_context_pk PRIMARY KEY (backend_pid, xact_id),
     CONSTRAINT tx_context_kind_closed CHECK (context_kind IN ('REQUEST', 'EVENT_CONSUMER')),
     CONSTRAINT tx_context_decision_hash_len CHECK (octet_length(authorization_decision_hash) = 32),
+    CONSTRAINT tx_context_project_scope_elements CHECK (
+        array_position(allowed_project_ids, NULL) IS NULL
+    ),
     CONSTRAINT tx_context_consumer_shape CHECK (
         context_kind <> 'EVENT_CONSUMER'
-        OR (source_event_id IS NOT NULL AND array_length(allowed_project_ids, 1) >= 1)
+        OR (source_event_id IS NOT NULL AND cardinality(allowed_project_ids) >= 1)
     ),
     CONSTRAINT tx_context_request_shape CHECK (
         context_kind <> 'REQUEST' OR source_event_id IS NULL
@@ -132,12 +134,20 @@ BEGIN
             USING ERRCODE = '22023';
     END IF;
     IF p_authorization_decision_expires_at IS NULL
-       OR p_authorization_decision_expires_at <= now() THEN
+       OR p_authorization_decision_expires_at <= clock_timestamp() THEN
         RAISE EXCEPTION 'authorization decision is expired or has no expiry'
             USING ERRCODE = '22023';
     END IF;
     IF p_context_kind = 'EVENT_CONSUMER' AND p_source_event_id IS NULL THEN
         RAISE EXCEPTION 'event consumer context requires source_event_id'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_context_kind = 'EVENT_CONSUMER' AND cardinality(p_allowed_project_ids) < 1 THEN
+        RAISE EXCEPTION 'event consumer context requires at least one project scope'
+            USING ERRCODE = '22023';
+    END IF;
+    IF array_position(p_allowed_project_ids, NULL) IS NOT NULL THEN
+        RAISE EXCEPTION 'transaction context must not contain a null project scope'
             USING ERRCODE = '22023';
     END IF;
     IF p_context_kind = 'REQUEST' AND p_source_event_id IS NOT NULL THEN
@@ -188,7 +198,7 @@ BEGIN
         p_authorization_decision_id, p_authorization_decision_hash,
         p_authorization_decision_expires_at,
         p_enterprise_id, p_allowed_project_ids, p_correlation_id, p_source_event_id,
-        current_user, session_user
+        current_setting('role'), session_user
     );
 END
 $establish$;
@@ -232,7 +242,7 @@ AS $context$
     FROM platform_security.tx_context c
     WHERE c.backend_pid = pg_backend_pid()
       AND c.xact_id = txid_current()
-      AND c.authorization_decision_expires_at > now()
+      AND c.authorization_decision_expires_at > statement_timestamp()
 $context$;
 
 CREATE OR REPLACE FUNCTION platform_security.context_is_valid() RETURNS boolean
@@ -242,7 +252,7 @@ AS $fn$
         SELECT 1 FROM platform_security.tx_context c
         WHERE c.backend_pid = pg_backend_pid()
           AND c.xact_id = txid_current()
-          AND c.authorization_decision_expires_at > now()
+          AND c.authorization_decision_expires_at > statement_timestamp()
     )
 $fn$;
 
@@ -253,7 +263,7 @@ AS $fn$
     FROM platform_security.tx_context c
     WHERE c.backend_pid = pg_backend_pid()
       AND c.xact_id = txid_current()
-      AND c.authorization_decision_expires_at > now()
+      AND c.authorization_decision_expires_at > statement_timestamp()
 $fn$;
 
 CREATE OR REPLACE FUNCTION platform_security.context_allows_enterprise(p_enterprise_id uuid)
@@ -264,7 +274,7 @@ AS $fn$
         SELECT 1 FROM platform_security.tx_context c
         WHERE c.backend_pid = pg_backend_pid()
           AND c.xact_id = txid_current()
-          AND c.authorization_decision_expires_at > now()
+          AND c.authorization_decision_expires_at > statement_timestamp()
           AND c.enterprise_id = p_enterprise_id
     )
 $fn$;
@@ -279,7 +289,7 @@ AS $fn$
         SELECT 1 FROM platform_security.tx_context c
         WHERE c.backend_pid = pg_backend_pid()
           AND c.xact_id = txid_current()
-          AND c.authorization_decision_expires_at > now()
+          AND c.authorization_decision_expires_at > statement_timestamp()
           AND c.enterprise_id = p_enterprise_id
           AND p_project_id = ANY (c.allowed_project_ids)
     )
@@ -292,7 +302,7 @@ AS $fn$
     FROM platform_security.tx_context c
     WHERE c.backend_pid = pg_backend_pid()
       AND c.xact_id = txid_current()
-      AND c.authorization_decision_expires_at > now()
+      AND c.authorization_decision_expires_at > statement_timestamp()
 $fn$;
 
 CREATE OR REPLACE FUNCTION platform_security.context_actor_snapshot_id() RETURNS uuid
@@ -302,7 +312,7 @@ AS $fn$
     FROM platform_security.tx_context c
     WHERE c.backend_pid = pg_backend_pid()
       AND c.xact_id = txid_current()
-      AND c.authorization_decision_expires_at > now()
+      AND c.authorization_decision_expires_at > statement_timestamp()
 $fn$;
 
 CREATE OR REPLACE FUNCTION platform_security.context_correlation_id() RETURNS uuid
@@ -312,7 +322,7 @@ AS $fn$
     FROM platform_security.tx_context c
     WHERE c.backend_pid = pg_backend_pid()
       AND c.xact_id = txid_current()
-      AND c.authorization_decision_expires_at > now()
+      AND c.authorization_decision_expires_at > statement_timestamp()
 $fn$;
 
 CREATE OR REPLACE FUNCTION platform_security.context_kind() RETURNS text
@@ -322,7 +332,7 @@ AS $fn$
     FROM platform_security.tx_context c
     WHERE c.backend_pid = pg_backend_pid()
       AND c.xact_id = txid_current()
-      AND c.authorization_decision_expires_at > now()
+      AND c.authorization_decision_expires_at > statement_timestamp()
 $fn$;
 
 CREATE OR REPLACE FUNCTION platform_security.context_authorization_decision_ref()
@@ -333,7 +343,7 @@ AS $fn$
     FROM platform_security.tx_context c
     WHERE c.backend_pid = pg_backend_pid()
       AND c.xact_id = txid_current()
-      AND c.authorization_decision_expires_at > now()
+      AND c.authorization_decision_expires_at > statement_timestamp()
 $fn$;
 
 -- Explicit teardown for applications that want to clear residual rows of
@@ -365,59 +375,34 @@ ALTER FUNCTION platform_security.clear_transaction_context() OWNER TO platform_s
 
 -- ---------------------------------------------------------------------------
 -- Function surface: PUBLIC gets nothing (default privileges of the migration
--- superuser would otherwise grant EXECUTE to PUBLIC). The trusted application
--- roles get every entry point; module owners get the read helpers only (for
--- policy DDL and FORCE RLS owner queries). No dispatcher, audit_reader or
--- migration role receives context access.
+-- superuser would otherwise grant EXECUTE to PUBLIC). Only the NOLOGIN
+-- establisher can write or clear context. Runtime roles and owners can execute
+-- the read helpers used by RLS policy expressions.
 -- ---------------------------------------------------------------------------
 
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA platform_security FROM PUBLIC;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA platform_security TO
+GRANT EXECUTE ON FUNCTION platform_security.establish_transaction_context(
+    text, uuid, uuid, uuid, bytea, timestamptz, uuid, uuid[], uuid, uuid
+), platform_security.clear_transaction_context() TO platform_context_establisher;
+GRANT EXECUTE ON FUNCTION
+    platform_security.current_context(),
+    platform_security.context_is_valid(),
+    platform_security.context_enterprise_id(),
+    platform_security.context_allows_enterprise(uuid),
+    platform_security.context_allows_project(uuid, uuid),
+    platform_security.context_principal_id(),
+    platform_security.context_actor_snapshot_id(),
+    platform_security.context_correlation_id(),
+    platform_security.context_kind(),
+    platform_security.context_authorization_decision_ref()
+TO
     identity_policy_app,
     enterprise_project_app,
     task_execution_app,
     artifact_app,
     quality_governance_app,
     release_publication_app,
-    integration_gateway_app,
-    projection_app;
-GRANT EXECUTE ON FUNCTION platform_security.current_context() TO
-    identity_policy_owner, enterprise_project_owner, task_execution_owner,
-    artifact_owner, quality_governance_owner, release_publication_owner,
-    integration_gateway_owner;
-GRANT EXECUTE ON FUNCTION platform_security.context_is_valid() TO
-    identity_policy_owner, enterprise_project_owner, task_execution_owner,
-    artifact_owner, quality_governance_owner, release_publication_owner,
-    integration_gateway_owner;
-GRANT EXECUTE ON FUNCTION platform_security.context_enterprise_id() TO
-    identity_policy_owner, enterprise_project_owner, task_execution_owner,
-    artifact_owner, quality_governance_owner, release_publication_owner,
-    integration_gateway_owner;
-GRANT EXECUTE ON FUNCTION platform_security.context_allows_enterprise(uuid) TO
-    identity_policy_owner, enterprise_project_owner, task_execution_owner,
-    artifact_owner, quality_governance_owner, release_publication_owner,
-    integration_gateway_owner;
-GRANT EXECUTE ON FUNCTION platform_security.context_allows_project(uuid, uuid) TO
-    identity_policy_owner, enterprise_project_owner, task_execution_owner,
-    artifact_owner, quality_governance_owner, release_publication_owner,
-    integration_gateway_owner;
-GRANT EXECUTE ON FUNCTION platform_security.context_principal_id() TO
-    identity_policy_owner, enterprise_project_owner, task_execution_owner,
-    artifact_owner, quality_governance_owner, release_publication_owner,
-    integration_gateway_owner;
-GRANT EXECUTE ON FUNCTION platform_security.context_actor_snapshot_id() TO
-    identity_policy_owner, enterprise_project_owner, task_execution_owner,
-    artifact_owner, quality_governance_owner, release_publication_owner,
-    integration_gateway_owner;
-GRANT EXECUTE ON FUNCTION platform_security.context_correlation_id() TO
-    identity_policy_owner, enterprise_project_owner, task_execution_owner,
-    artifact_owner, quality_governance_owner, release_publication_owner,
-    integration_gateway_owner;
-GRANT EXECUTE ON FUNCTION platform_security.context_kind() TO
-    identity_policy_owner, enterprise_project_owner, task_execution_owner,
-    artifact_owner, quality_governance_owner, release_publication_owner,
-    integration_gateway_owner;
-GRANT EXECUTE ON FUNCTION platform_security.context_authorization_decision_ref() TO
+    integration_gateway_app, projection_app,
     identity_policy_owner, enterprise_project_owner, task_execution_owner,
     artifact_owner, quality_governance_owner, release_publication_owner,
     integration_gateway_owner;

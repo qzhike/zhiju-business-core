@@ -296,3 +296,7 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 - 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与 200 项 Registry，等待用户审核通过后单独补齐；
 - Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与 Handler 实现均不存在；
 - 对应 Unit、Contract、E2E 与人工验收中，Schema fixture 与 Review 修复回归已执行；Handler、Runtime/DB E2E 和人工验收仍为 `NOT RUN`。
+
+## 10. IM-02 WI-04 持久化切片
+
+TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。Canonical payload↔hash 强校验、Task Handler、Runtime Dispatcher 与业务 Repository 仍为 `NOT RUN`，不得由 DDL Gate 代替。

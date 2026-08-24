@@ -294,6 +294,7 @@ export async function withIdentityTransaction<T>(
 ): Promise<T> {
   return db.connection().execute(async (connection) =>
     connection.transaction().execute(async (trx) => {
+      await sql.raw('SET LOCAL ROLE platform_context_establisher').execute(trx);
       await sql`SELECT platform_security.establish_transaction_context(
           ${context.kind},
           ${context.principalId},
@@ -305,6 +306,7 @@ export async function withIdentityTransaction<T>(
           ${[...context.allowedProjectIds]},
           ${context.correlationId},
           ${context.sourceEventId ?? null})`.execute(trx);
+      await sql.raw('SET LOCAL ROLE identity_policy_app').execute(trx);
       return fn(trx);
     }),
   );

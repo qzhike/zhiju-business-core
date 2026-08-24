@@ -105,9 +105,9 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
     admin = new pg.Client({ connectionString: databaseUrl });
     await admin.connect();
     await admin.query(
-      `CREATE ROLE wi05_probe_ip LOGIN PASSWORD 'wi05-probe-ip' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+      `CREATE ROLE wi05_probe_ip LOGIN PASSWORD 'wi05-probe-ip' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
-    await admin.query(`GRANT identity_policy_app TO wi05_probe_ip`);
+    await admin.query(`GRANT platform_context_establisher, identity_policy_app TO wi05_probe_ip`);
     await admin.query(
       `CREATE ROLE wi05_probe_ep LOGIN PASSWORD 'wi05-probe-ep' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
