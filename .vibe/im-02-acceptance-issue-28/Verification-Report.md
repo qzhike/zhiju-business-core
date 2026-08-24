@@ -9,7 +9,7 @@
 仍未满足的退出条件不是本地代码门禁，而是交付与验收边界：
 
 1. PR #46–#50 虽在 GitHub 显示 MERGED，但它们是连续 stacked feature branch；对应提交尚未进入当前 origin/main。PR #51 已创建并以 `main` 为 base，等待完成交付。
-2. 本轮修复已经 commit/push，但 PR #51 的最新 exact head 尚未完成独立语义复审与 CI。
+2. 本轮修复已经 commit/push；PR #51 最新 exact head `8fcdb92` 的 CI 已 `SUCCESS`，复审记录为无新增语义发现，但 PR 尚未 merge。
 3. 真实 Keycloak/OIDC、OpenBao、飞书、生产 Broker/Provider、跨模块 HTTP/业务 E2E、生产负载和用户最终人工业务验收没有执行，继续保持 NOT RUN。
 4. 本地脚本 Probe 是可重复的自动化/脱敏 Fixture 证据，不等同于用户亲自按 Runbook 完成最终人工验收。
 
@@ -49,7 +49,7 @@ GitHub 核对结果：#29–#38 均为 CLOSED；PR #39/#41/#43/#44/#45 已合入
 | WI-08 | #36 | #48 | WI-07 branch | CLOSED / MERGED | FAIL：未进入 main |
 | WI-09 | #37 | #49 | WI-08 branch | CLOSED / MERGED | FAIL：未进入 main |
 | WI-10 | #38 | #50 | WI-09 branch | CLOSED / MERGED | FAIL：未进入 main |
-| 集成交付 | #28 | [#51](https://github.com/qzhike/zhiju-business-core/pull/51) | main | OPEN | 等待 exact-head review/CI |
+| 集成交付 | #28 | [#51](https://github.com/qzhike/zhiju-business-core/pull/51) | main | OPEN | CI PASS；复审无新增语义发现；等待 merge |
 
 此前的 ancestor 核对对 WI-06–WI-10 均返回 NOT_IN_MAIN。所以“所有前置 Issue 已关闭”不能单独满足 Issue #28 的“对应 PR 已合入默认分支”条件。
 
@@ -180,7 +180,6 @@ WI-01–WI-05 的本地真实数据库与手工反例此前也已执行：版本
 
 ## 9. 下一步
 
-1. 在 PR #51 的最新 exact head 上完成独立 semantic review、CI 和真实 PostgreSQL Gate 回读。
-2. 按 Issue #28 从新的 `main` checkout 重新核对 #29–#38、Runbook 与人工证据；外部/生产项目仍只有在具备授权和环境后执行。
-3. 用户按 Runbook 完成最小权限、RLS、幂等/CAS、Replay/Quarantine 和脱敏授权链的最终人工验收。
-4. 只有默认分支交付、exact-head 证据和用户最终人工验收都完成后，才考虑显式关闭 Issue #28。
+1. 在用户另行授权后，将 PR #51 合入 `main`，并以合并后的默认分支重新核对 #29–#38。
+2. 用户按 Runbook 完成最小权限、RLS、幂等/CAS、Replay/Quarantine 和脱敏授权链的最终人工验收；外部/生产项目仍只有在具备授权和环境后执行。
+3. 只有默认分支交付、exact-head 证据和用户最终人工验收都完成后，才考虑显式关闭 Issue #28。

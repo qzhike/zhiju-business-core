@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / INTEGRATED FULL VERIFY PASS / EXACT-HEAD RECHECK PENDING / EXTERNAL NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / INTEGRATED FULL VERIFY PASS / EXACT-HEAD RECHECK PASS PR #51 / EXTERNAL NOT RUN`
 
 对应规格：[`Module-Spec-001-IdentityPolicy.md`](../module-specs/Module-Spec-001-IdentityPolicy.md)。本文件记录 IdentityPolicy 的 API 层 Unit、Contract、E2E 与人工验收用例和真实结果；高层跨模块场景仍见 `08-verification-baseline.md`。
 
@@ -71,7 +71,7 @@
 - WI-05 Persistence：集成此前 `origin/main` 后，`pnpm clean && pnpm verify` 完整通过；PostgreSQL 18.6 下 7 files / 130 tests `PASS`。
 - WI-06 修复前基线：8 files / 129 tests `PASS`，但未覆盖并发 Claim、Context 绑定、精确 CAS 与升级路径；修复后 8 files / 133 tests `PASS`。本次最新 base 集成后的最终数字以重新执行结果为准。
 - 首次 WI-08 base 集成曾因 WI-08 probe 缺少 `platform_context_establisher` membership 导致 suite setup 失败；补齐 `INHERIT FALSE, SET TRUE` 双角色 fixture、顺延 WI-07 migration 后，该历史回归基线通过。WI-09 最终验证以本文件下方的审查修复结果为准。
-- 外部 Provider、HTTP/E2E、跨模块业务 E2E 与人工验收保持 `NOT RUN`；WI-10 初始本地 Outbox/Inbox persistence gate 已通过，最新 base 集成后的 ACL/Scope 修正也已在提交 `47a2a9d` 通过完整 Gate，并由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 推送到远端；exact-head recheck、CI 和用户人工验收仍待完成。
+- 外部 Provider、HTTP/E2E、跨模块业务 E2E 与人工验收保持 `NOT RUN`；WI-10 初始本地 Outbox/Inbox persistence gate 已通过，最新 base 集成后的 ACL/Scope 修正也已在提交 `47a2a9d` 通过完整 Gate，并由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 推送到远端；exact-head recheck 与 CI 已通过，复审无新增语义发现，用户人工验收仍待完成。
 - 最新 base `0fc8e464…` 集成后的首次 `pnpm clean && pnpm verify`：格式、Lint、TypeScript、Vitest、architecture、Catalog/Registry/compatibility 均通过；真实 PostgreSQL gate 曾因 `wi10_probe_ip` 缺少 `platform_context_establisher` 导致 9 个 messaging 用例出现 `42501`。该 fixture、Enterprise Grant 覆盖 Project Intent、typed Aggregate ordering 与未经验证 Event Scope 问题以及 WI-07/WI-10 manual Probe Fixture 问题均已修复；最终 `pnpm clean && pnpm verify` 为 `PASS`，Vitest `20 passed | 10 skipped`、`341 passed | 164 skipped`，architecture、Public API、generated types、Catalog/Registry、compatibility 均通过；独立 PostgreSQL gate 为 PostgreSQL 18.6 / Flyway 11.20.3 的 `12 files / 177 tests PASS`，二次 migrate no-op，容器已清理；WI-06/WI-07/WI-10 disposable local Probe 全部通过。外部 Provider、HTTP/E2E、跨模块业务 E2E 与用户人工验收保持 `NOT RUN`。
 - Scope conflict 回归要求：未经验证的 Event `projectId` 不得进入 Command Envelope 或 RLS 写入 Scope；不在 Context allow-list 的 Project 必须以 `NULL` 记录在当前 Enterprise 的 Quarantine Inbox/Violation 中，结果仍为 `SCOPE_CONFLICT`。
 - WI-09 的新增用例已在下方审查修复 Gate 中取得对应结果；不以旧 PR head 的绿色 CI 或数据库层约束代替公开 Handler、外部运行时和人工验收。

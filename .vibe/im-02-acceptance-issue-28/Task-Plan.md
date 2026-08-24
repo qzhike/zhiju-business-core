@@ -33,9 +33,9 @@
 
 - WI-06–WI-10 的本地核心实现、迁移、Persistence 回归、Scope/ACL 负例和可重复 Probe 均有实际输出：已满足。
 - 规格、模块测试、WI Runbook 和 Issue #28 验收报告反映当前本地工作树实际结果：已同步。
-- Issue #28 的默认分支交付、PR exact-head semantic review/CI、外部 Provider/Broker/跨模块 E2E 和用户最终人工验收：尚未满足，保持 `PARTIAL`，不能关闭 Issue。
+- Issue #28 的默认分支交付、外部 Provider/Broker/跨模块 E2E 和用户最终人工验收：尚未满足；PR #51 exact-head CI 已通过且复审无新增语义发现，整体仍保持 `PARTIAL`，不能关闭 Issue。
 
 ## 交付边界
 
 - 当前远端跟踪分支 `galendai/28-im-02-postgresql-foundation-identitypolicy` 指向 `47a2a9d`，`origin/main` 仍为 `505a702`；PR #51 负责将集成结果带入 `main`，不能把 PR 创建或本地结果写成默认分支已经完成。
-- 本轮已完成 commit/push 和 PR/Issue/进度文档同步；PR #51 的 exact-head review/CI、外部系统和用户人工验收仍需独立完成，Issue #28 保持 `PARTIAL / OPEN`。
+- 本轮已完成 commit/push、PR/Issue/进度文档同步和 PR #51 exact-head CI/复审回读；PR 尚未 merge，外部系统和用户人工验收仍需独立完成，Issue #28 保持 `PARTIAL / OPEN`。

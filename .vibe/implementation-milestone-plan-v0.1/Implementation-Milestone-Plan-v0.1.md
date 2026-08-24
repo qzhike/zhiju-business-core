@@ -174,7 +174,7 @@ IM-09 Reference Project E2E + Operations Hardening
 
 退出 Gate：空库迁移、重复迁移、最小权限、跨 Schema 写拒绝、无/伪造 RLS Context、CAS 和 Inbox/Outbox replay 在真实 PostgreSQL 通过。
 
-当前状态：`PARTIAL`（2026-08-24）。#29–#38 子 Issue 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`；PR #46–#50 已在连续的 stacked feature branch 合并，但尚未进入 `main`。当前集成代码、验收修复和 `.vibe` 交付记录已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 提交到 `main`，等待 exact-head 语义复审与 CI。真实 Provider、跨模块 HTTP/E2E、生产环境和用户人工 Runbook 验收仍为 `NOT RUN`；Issue #28 继续保持 `OPEN`，不得提前标记 IM-02 `COMPLETE`。
+当前状态：`PARTIAL`（2026-08-24）。#29–#38 子 Issue 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`；PR #46–#50 已在连续的 stacked feature branch 合并，但尚未进入 `main`。当前集成代码、验收修复和 `.vibe` 交付记录已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 提交到 `main`；exact head `8fcdb92` 的 CI 已 `SUCCESS`，复审记录为无新增语义发现。真实 Provider、跨模块 HTTP/E2E、生产环境和用户人工 Runbook 验收仍为 `NOT RUN`；Issue #28 继续保持 `OPEN`，不得提前标记 IM-02 `COMPLETE`。
 
 ### IM-03 EnterpriseProject Reference Foundation
 
@@ -245,4 +245,4 @@ IM-09 Reference Project E2E + Operations Hardening
 - Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；干净 verify 为 13 files / 287 tests PASS。
 - #5 字段 Schema 已由 PR #14 合入并完成；重复/迟到 Runtime 由已关闭的 #15 完成，剩余 Runtime 分别由 #22–#24 跟踪。#17 追踪 IntegrationGateway Runtime 缺口。这些 Runtime Issue 不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005/006 仍待决。
-- IM-02 当前为 `PARTIAL`：本地集成的真实 PostgreSQL、全量自动化和 WI-06/WI-07/WI-10 脱敏 Probe 已通过，交付由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 承载；默认分支 exact-head review/CI、用户人工 Runbook、真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 尚未关闭；只有完成其退出 Gate 后才进入 IM-03。
+- IM-02 当前为 `PARTIAL`：本地集成的真实 PostgreSQL、全量自动化和 WI-06/WI-07/WI-10 脱敏 Probe 已通过，交付由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 承载；exact-head CI 已 `SUCCESS` 且复审无新增语义发现，用户人工 Runbook、真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 尚未关闭；只有完成其退出 Gate 后才进入 IM-03。
