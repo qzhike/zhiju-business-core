@@ -23,6 +23,8 @@ export const IDEMPOTENCY_PAYLOAD_CONFLICT = 'IDEMPOTENCY_PAYLOAD_CONFLICT';
 export const CONCURRENCY_CONFLICT = 'CONCURRENCY_CONFLICT';
 export const COMMAND_IN_PROGRESS = 'COMMAND_IN_PROGRESS';
 export const PAYLOAD_HASH_MISMATCH = 'PAYLOAD_HASH_MISMATCH';
+export const COMMAND_CONTEXT_MISMATCH = 'COMMAND_CONTEXT_MISMATCH';
+export const COMMAND_TARGET_MISMATCH = 'COMMAND_TARGET_MISMATCH';
 
 /** Typed failure with a stable, safe code (never carries raw payloads). */
 export class CommandExecutionError extends Error {
@@ -121,7 +123,12 @@ export interface CommandExecution {
 
 export type CommandResult =
   | { status: 'COMMITTED'; resultPayload: CanonicalJsonObject; resultPayloadHash: Buffer }
-  | { status: 'REJECTED'; errorCode: string; safeSummary: string }
+  | {
+      status: 'REJECTED';
+      errorCode: string;
+      safeSummary: string;
+      currentAggregateVersion: string | null;
+    }
   | {
       status: 'DUPLICATE';
       originalOutcome: 'COMMITTED' | 'REJECTED';
@@ -141,17 +148,23 @@ export async function executeIdentityCommand(
   envelope: CommandEnvelope,
   body: (execution: CommandExecution) => Promise<CommandBodyResult>,
 ): Promise<CommandResult> {
+  validateEnvelopeContext(context, envelope);
   const requestDigest = digestCanonicalPayload(envelope.requestPayload);
 
-  // 1) Idempotency claim. A duplicate is adjudicated by the unique
-  //    constraint; the existing receipt decides between replay and conflict.
-  const existing = await readReceipt(db, context, envelope);
-  if (existing) {
-    if (!existing.request_payload_hash.equals(requestDigest.hash)) {
-      // Different payload under the same business key: a security conflict.
-      // Persist the denial audit in its own short transaction, then fail
-      // with a stable code that never echoes the original payload.
-      await withIdentityTransaction(db, context, async (trx) => {
+  const outcome = await withIdentityTransaction(db, context, async (trx) => {
+    // 1) Atomically claim through the database uniqueness constraint. A
+    // concurrent loser waits for the winner, observes no inserted row and
+    // adjudicates the now-committed receipt in this same transaction.
+    const claimed = await claimReceipt(trx, envelope, requestDigest.hash);
+    if (!claimed) {
+      const existing = await readReceipt(trx, envelope);
+      if (!existing) {
+        throw new CommandExecutionError(
+          COMMAND_IN_PROGRESS,
+          'the command claim could not be resolved after a concurrent attempt',
+        );
+      }
+      if (!existing.request_payload_hash.equals(requestDigest.hash)) {
         await insertAuditRow(trx, envelope, context, {
           outcome: 'DENIED',
           errorCode: IDEMPOTENCY_PAYLOAD_CONFLICT,
@@ -161,76 +174,24 @@ export async function executeIdentityCommand(
           safeSummary: 'same idempotency key replayed with a different request hash',
           requestHash: requestDigest.hash,
         });
-      });
-      throw new CommandExecutionError(
-        IDEMPOTENCY_PAYLOAD_CONFLICT,
-        'the same idempotency key was already used with a different request payload',
-      );
-    }
-    if (existing.outcome === 'PENDING') {
-      throw new CommandExecutionError(
-        COMMAND_IN_PROGRESS,
-        'a command with the same idempotency key is still in flight',
-      );
-    }
-    return {
-      status: 'DUPLICATE',
-      originalOutcome: existing.outcome,
-      resultPayload: (existing.result_payload as CanonicalJsonObject | null) ?? null,
-      resultPayloadHash: existing.result_payload_hash ?? null,
-      errorCode: rejectionErrorCode(existing),
-    };
-  }
-
-  return withIdentityTransaction(db, context, async (trx) => {
-    // 2) Claim the receipt inside the owning transaction.
-    if (envelope.platform) {
-      await trx
-        .insertInto('identity_policy.platform_command_receipt')
-        .values({
-          command_id: envelope.commandId,
-          command_type: envelope.commandType,
-          command_version: envelope.commandVersion,
-          idempotency_scope: envelope.idempotencyScope,
-          idempotency_key: envelope.idempotencyKey,
-          request_payload_hash: requestDigest.hash,
-          target_type: envelope.targetType,
-          target_id: envelope.targetId,
-          expected_aggregate_version: envelope.expectedAggregateVersion ?? null,
-          outcome: 'PENDING',
-          correlation_id: envelope.correlationId,
-          causation_id: envelope.causationId ?? null,
-          created_by_principal_id: envelope.principalId,
-          actor_snapshot_id: envelope.actorSnapshotId,
-          authorization_decision_id: envelope.authorizationDecisionId,
-        })
-        .execute();
-    } else {
-      await trx
-        .insertInto('identity_policy.command_receipt')
-        .values({
-          command_id: envelope.commandId,
-          command_type: envelope.commandType,
-          command_version: envelope.commandVersion,
-          idempotency_scope: envelope.idempotencyScope,
-          idempotency_key: envelope.idempotencyKey,
-          request_payload_hash: requestDigest.hash,
-          enterprise_id: envelope.enterpriseId,
-          project_id: envelope.projectId ?? null,
-          target_type: envelope.targetType,
-          target_id: envelope.targetId,
-          expected_aggregate_version: envelope.expectedAggregateVersion ?? null,
-          outcome: 'PENDING',
-          correlation_id: envelope.correlationId,
-          causation_id: envelope.causationId ?? null,
-          created_by_principal_id: envelope.principalId,
-          actor_snapshot_id: envelope.actorSnapshotId,
-          authorization_decision_id: envelope.authorizationDecisionId,
-        })
-        .execute();
+        return { kind: 'PAYLOAD_CONFLICT' } as const;
+      }
+      if (existing.outcome === 'PENDING') {
+        return { kind: 'IN_PROGRESS' } as const;
+      }
+      return {
+        kind: 'RESULT',
+        result: {
+          status: 'DUPLICATE',
+          originalOutcome: existing.outcome,
+          resultPayload: (existing.result_payload as CanonicalJsonObject | null) ?? null,
+          resultPayloadHash: existing.result_payload_hash ?? null,
+          errorCode: rejectionErrorCode(existing),
+        } satisfies CommandResult,
+      } as const;
     }
 
-    // 3) Execute the command body with the constrained execution handle.
+    // 2) Execute the command body with the constrained execution handle.
     // Any body failure (including injected faults) rolls the whole
     // transaction back — receipt included (PG-U-012).
     const bodyResult = await body(createExecution(trx, envelope, context));
@@ -240,7 +201,11 @@ export async function executeIdentityCommand(
       // receipt + audit still commit as the record of the denial.
       await finalizeReceipt(trx, envelope, {
         outcome: 'REJECTED',
-        resultPayload: { errorCode: bodyResult.errorCode, safeSummary: bodyResult.safeSummary },
+        resultPayload: {
+          errorCode: bodyResult.errorCode,
+          safeSummary: bodyResult.safeSummary,
+          currentAggregateVersion: bodyResult.currentAggregateVersion ?? null,
+        },
         errorCode: bodyResult.errorCode,
       });
       await insertAuditRow(trx, envelope, context, {
@@ -253,10 +218,14 @@ export async function executeIdentityCommand(
         requestHash: requestDigest.hash,
       });
       return {
-        status: 'REJECTED',
-        errorCode: bodyResult.errorCode,
-        safeSummary: bodyResult.safeSummary,
-      };
+        kind: 'RESULT',
+        result: {
+          status: 'REJECTED',
+          errorCode: bodyResult.errorCode,
+          safeSummary: bodyResult.safeSummary,
+          currentAggregateVersion: bodyResult.currentAggregateVersion ?? null,
+        } satisfies CommandResult,
+      } as const;
     }
 
     // 4b) Commit path: finalize the receipt with the stable result digest.
@@ -273,11 +242,28 @@ export async function executeIdentityCommand(
       resultHash: resultDigest.hash,
     });
     return {
-      status: 'COMMITTED',
-      resultPayload: bodyResult.resultPayload,
-      resultPayloadHash: resultDigest.hash,
-    };
+      kind: 'RESULT',
+      result: {
+        status: 'COMMITTED',
+        resultPayload: bodyResult.resultPayload,
+        resultPayloadHash: resultDigest.hash,
+      } satisfies CommandResult,
+    } as const;
   });
+
+  if (outcome.kind === 'PAYLOAD_CONFLICT') {
+    throw new CommandExecutionError(
+      IDEMPOTENCY_PAYLOAD_CONFLICT,
+      'the same idempotency key was already used with a different request payload',
+    );
+  }
+  if (outcome.kind === 'IN_PROGRESS') {
+    throw new CommandExecutionError(
+      COMMAND_IN_PROGRESS,
+      'a command with the same idempotency key is still in flight',
+    );
+  }
+  return outcome.result;
 }
 
 interface ReceiptFacts {
@@ -294,26 +280,84 @@ interface ReceiptFacts {
  * the canonical result payload (no raw payloads are ever echoed).
  */
 async function readReceipt(
-  db: Kysely<IdentityPolicyDb>,
-  context: IdentityTransactionContext,
+  trx: IdentityTransaction,
   envelope: CommandEnvelope,
 ): Promise<ReceiptFacts | undefined> {
-  return withIdentityTransaction(db, context, async (trx) => {
-    if (envelope.platform) {
-      return (await trx
-        .selectFrom('identity_policy.platform_command_receipt')
-        .selectAll()
-        .where('idempotency_scope', '=', envelope.idempotencyScope)
-        .where('idempotency_key', '=', envelope.idempotencyKey)
-        .executeTakeFirst()) as ReceiptFacts | undefined;
-    }
+  if (envelope.platform) {
     return (await trx
-      .selectFrom('identity_policy.command_receipt')
+      .selectFrom('identity_policy.platform_command_receipt')
       .selectAll()
       .where('idempotency_scope', '=', envelope.idempotencyScope)
       .where('idempotency_key', '=', envelope.idempotencyKey)
       .executeTakeFirst()) as ReceiptFacts | undefined;
-  });
+  }
+  return (await trx
+    .selectFrom('identity_policy.command_receipt')
+    .selectAll()
+    .where('idempotency_scope', '=', envelope.idempotencyScope)
+    .where('idempotency_key', '=', envelope.idempotencyKey)
+    .executeTakeFirst()) as ReceiptFacts | undefined;
+}
+
+async function claimReceipt(
+  trx: IdentityTransaction,
+  envelope: CommandEnvelope,
+  requestHash: Buffer,
+): Promise<boolean> {
+  if (envelope.platform) {
+    const inserted = await trx
+      .insertInto('identity_policy.platform_command_receipt')
+      .values({
+        command_id: envelope.commandId,
+        command_type: envelope.commandType,
+        command_version: envelope.commandVersion,
+        idempotency_scope: envelope.idempotencyScope,
+        idempotency_key: envelope.idempotencyKey,
+        request_payload_hash: requestHash,
+        target_type: envelope.targetType,
+        target_id: envelope.targetId,
+        expected_aggregate_version: envelope.expectedAggregateVersion ?? null,
+        outcome: 'PENDING',
+        correlation_id: envelope.correlationId,
+        causation_id: envelope.causationId ?? null,
+        created_by_principal_id: envelope.principalId,
+        actor_snapshot_id: envelope.actorSnapshotId,
+        authorization_decision_id: envelope.authorizationDecisionId,
+      })
+      .onConflict((conflict) =>
+        conflict.columns(['idempotency_scope', 'idempotency_key']).doNothing(),
+      )
+      .returning('command_id')
+      .executeTakeFirst();
+    return inserted !== undefined;
+  }
+  const inserted = await trx
+    .insertInto('identity_policy.command_receipt')
+    .values({
+      command_id: envelope.commandId,
+      command_type: envelope.commandType,
+      command_version: envelope.commandVersion,
+      idempotency_scope: envelope.idempotencyScope,
+      idempotency_key: envelope.idempotencyKey,
+      request_payload_hash: requestHash,
+      enterprise_id: envelope.enterpriseId,
+      project_id: envelope.projectId ?? null,
+      target_type: envelope.targetType,
+      target_id: envelope.targetId,
+      expected_aggregate_version: envelope.expectedAggregateVersion ?? null,
+      outcome: 'PENDING',
+      correlation_id: envelope.correlationId,
+      causation_id: envelope.causationId ?? null,
+      created_by_principal_id: envelope.principalId,
+      actor_snapshot_id: envelope.actorSnapshotId,
+      authorization_decision_id: envelope.authorizationDecisionId,
+    })
+    .onConflict((conflict) =>
+      conflict.columns(['idempotency_scope', 'idempotency_key']).doNothing(),
+    )
+    .returning('command_id')
+    .executeTakeFirst();
+  return inserted !== undefined;
 }
 
 async function finalizeReceipt(
@@ -359,11 +403,30 @@ function createExecution(
   return {
     trx,
     async casPrincipalStatus(id, expectedVersion, patch) {
+      if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {
+        throw new CommandExecutionError(
+          COMMAND_TARGET_MISMATCH,
+          'CAS target and expected version must match the command envelope',
+        );
+      }
+      let nextVersion: string;
+      try {
+        const parsed = BigInt(expectedVersion);
+        if (parsed < 1n) {
+          throw new Error('aggregate version must be positive');
+        }
+        nextVersion = (parsed + 1n).toString();
+      } catch {
+        throw new CommandExecutionError(
+          COMMAND_TARGET_MISMATCH,
+          'expected aggregate version must be a positive bigint',
+        );
+      }
       const updated = await trx
         .updateTable('identity_policy.principal')
         .set({
           status: patch.status,
-          aggregate_version: Number(expectedVersion) + 1,
+          aggregate_version: nextVersion,
           updated_at: new Date(),
           last_command_id: patch.lastCommandId ?? envelope.commandId,
         })
@@ -500,6 +563,27 @@ function createExecution(
       throw new CommandExecutionError('INJECTED_FAULT', 'controlled fault after outbox write');
     },
   };
+}
+
+function validateEnvelopeContext(
+  context: IdentityTransactionContext,
+  envelope: CommandEnvelope,
+): void {
+  const projectAllowed =
+    envelope.projectId === undefined || context.allowedProjectIds.includes(envelope.projectId);
+  if (
+    envelope.principalId !== context.principalId ||
+    envelope.actorSnapshotId !== context.actorSnapshotId ||
+    envelope.authorizationDecisionId !== context.authorizationDecisionId ||
+    envelope.enterpriseId !== context.enterpriseId ||
+    envelope.correlationId !== context.correlationId ||
+    !projectAllowed
+  ) {
+    throw new CommandExecutionError(
+      COMMAND_CONTEXT_MISMATCH,
+      'command envelope does not match the trusted transaction context',
+    );
+  }
 }
 
 async function insertAuditRow(

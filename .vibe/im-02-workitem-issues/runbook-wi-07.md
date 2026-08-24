@@ -1,6 +1,6 @@
 # IM-02 WI-07 本地 Runbook：脱敏身份 Fixture 与安全解析
 
-对应 Issue #35。自动验收入口 `pnpm persistence:gate`（新增 `tests/persistence/identity-policy-commands.test.ts` + `modules/identity-policy/src/commands/events.test.ts`）。
+对应 Issue #35。自动验收入口 `pnpm persistence:gate`（新增 `tests/persistence/identity-policy-commands.test.ts` + `modules/identity-policy/src/commands/events.test.ts`）。WI-06 已占用 `V1002` 增加平台 Receipt expected version；WI-07 的 `bootstrap_claim` 使用后续 forward-only `V1003`，不得复用已定义版本。
 
 ## 手动验收
 

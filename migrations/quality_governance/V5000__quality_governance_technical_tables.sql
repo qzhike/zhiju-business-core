@@ -218,6 +218,34 @@ CREATE TABLE quality_governance.process_step (
     CONSTRAINT process_step_unique UNIQUE (process_id, step_no)
 );
 
+CREATE FUNCTION quality_governance.guard_process_step_scope() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+DECLARE
+    parent_enterprise_id uuid;
+    parent_project_id uuid;
+BEGIN
+    SELECT p.enterprise_id, p.project_id
+      INTO parent_enterprise_id, parent_project_id
+      FROM quality_governance.process_instance p
+     WHERE p.process_id = NEW.process_id;
+    IF NOT FOUND
+       OR parent_enterprise_id IS DISTINCT FROM NEW.enterprise_id
+       OR parent_project_id IS DISTINCT FROM NEW.project_id THEN
+        RAISE EXCEPTION 'process step scope mismatch'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$guard$;
+
+REVOKE ALL ON FUNCTION quality_governance.guard_process_step_scope() FROM PUBLIC;
+
+CREATE TRIGGER process_step_scope_guard
+    BEFORE INSERT ON quality_governance.process_step
+    FOR EACH ROW EXECUTE FUNCTION quality_governance.guard_process_step_scope();
+
 CREATE INDEX process_step_enterprise_idx ON quality_governance.process_step (enterprise_id, recorded_at DESC);
 
 -- Immutable step history: no UPDATE path for the app role.
@@ -303,7 +331,7 @@ CREATE TABLE quality_governance.reference_edge (
     CONSTRAINT reference_edge_target_hash_len CHECK (
         target_payload_hash IS NULL OR octet_length(target_payload_hash) = 32),
     CONSTRAINT reference_edge_unique UNIQUE NULLS NOT DISTINCT
-        (owner_object_type, owner_object_id, reference_path,
+        (owner_object_type, owner_object_id, owner_version_id, reference_path,
          target_module, target_object_type, target_object_id, target_version_id)
 );
 
@@ -359,19 +387,19 @@ REVOKE UPDATE ON quality_governance.contract_violation FROM quality_governance_a
 ALTER TABLE quality_governance.command_receipt ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quality_governance.command_receipt FORCE ROW LEVEL SECURITY;
 CREATE POLICY command_receipt_select ON quality_governance.command_receipt FOR SELECT TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY command_receipt_insert ON quality_governance.command_receipt FOR INSERT TO quality_governance_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY command_receipt_update ON quality_governance.command_receipt FOR UPDATE TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id))
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)))
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 ALTER TABLE quality_governance.outbox_event ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quality_governance.outbox_event FORCE ROW LEVEL SECURITY;
 CREATE POLICY outbox_event_select ON quality_governance.outbox_event FOR SELECT TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY outbox_event_insert ON quality_governance.outbox_event FOR INSERT TO quality_governance_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY outbox_event_dispatcher_select ON quality_governance.outbox_event
     FOR SELECT TO quality_governance_dispatcher USING (true);
 CREATE POLICY outbox_event_dispatcher_update ON quality_governance.outbox_event
@@ -380,49 +408,51 @@ CREATE POLICY outbox_event_dispatcher_update ON quality_governance.outbox_event
 ALTER TABLE quality_governance.inbox_message ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quality_governance.inbox_message FORCE ROW LEVEL SECURITY;
 CREATE POLICY inbox_message_select ON quality_governance.inbox_message FOR SELECT TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY inbox_message_insert ON quality_governance.inbox_message FOR INSERT TO quality_governance_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY inbox_message_update ON quality_governance.inbox_message FOR UPDATE TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id))
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)))
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 ALTER TABLE quality_governance.process_instance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quality_governance.process_instance FORCE ROW LEVEL SECURITY;
 CREATE POLICY process_instance_select ON quality_governance.process_instance FOR SELECT TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY process_instance_insert ON quality_governance.process_instance FOR INSERT TO quality_governance_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY process_instance_update ON quality_governance.process_instance FOR UPDATE TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id))
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)))
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 ALTER TABLE quality_governance.process_step ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quality_governance.process_step FORCE ROW LEVEL SECURITY;
 CREATE POLICY process_step_select ON quality_governance.process_step FOR SELECT TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY process_step_insert ON quality_governance.process_step FOR INSERT TO quality_governance_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 ALTER TABLE quality_governance.audit_record ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quality_governance.audit_record FORCE ROW LEVEL SECURITY;
 CREATE POLICY audit_record_select ON quality_governance.audit_record FOR SELECT TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY audit_record_insert ON quality_governance.audit_record FOR INSERT TO quality_governance_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
+CREATE POLICY audit_record_view_owner_select ON quality_governance.audit_record FOR SELECT TO quality_governance_owner
+    USING (true);
 
 ALTER TABLE quality_governance.reference_edge ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quality_governance.reference_edge FORCE ROW LEVEL SECURITY;
 CREATE POLICY reference_edge_select ON quality_governance.reference_edge FOR SELECT TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY reference_edge_insert ON quality_governance.reference_edge FOR INSERT TO quality_governance_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 ALTER TABLE quality_governance.contract_violation ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quality_governance.contract_violation FORCE ROW LEVEL SECURITY;
 CREATE POLICY contract_violation_select ON quality_governance.contract_violation FOR SELECT TO quality_governance_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY contract_violation_insert ON quality_governance.contract_violation FOR INSERT TO quality_governance_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 RESET ROLE;

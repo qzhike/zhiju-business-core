@@ -20,8 +20,17 @@ export const IDENTITY_BOOTSTRAP_CLAIM_EXPIRED = 'IDENTITY_BOOTSTRAP_CLAIM_EXPIRE
 export const IDENTITY_BOOTSTRAP_CLAIM_CLOSED = 'IDENTITY_BOOTSTRAP_CLAIM_CLOSED';
 export const IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS =
   'IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS';
+export const IDENTITY_PRINCIPAL_INVALID_KIND = 'IDENTITY_PRINCIPAL_INVALID_KIND';
 
 export type PrincipalKind = 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
+
+const PRINCIPAL_KINDS: ReadonlySet<string> = new Set([
+  'HUMAN',
+  'AGENT',
+  'SERVICE',
+  'RUNTIME',
+  'EXTERNAL_PARTY',
+]);
 
 export interface RegisterPrincipalInput {
   /** Pre-allocated PrincipalRef id (UUIDv7). */
@@ -83,21 +92,6 @@ export async function registerPrincipal(
   deps: RegisterPrincipalDeps,
   input: RegisterPrincipalInput,
 ): Promise<CommandResult> {
-  if (input.initialStatus !== 'ACTIVE') {
-    return {
-      status: 'REJECTED',
-      errorCode: IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS,
-      safeSummary: 'initialStatus must be ACTIVE',
-    };
-  }
-  if (!input.displayName.trim()) {
-    return {
-      status: 'REJECTED',
-      errorCode: IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS,
-      safeSummary: 'displayName must not be empty',
-    };
-  }
-
   const commandId = newUuidV7();
   return executeIdentityCommand(
     deps.db,
@@ -127,6 +121,30 @@ export async function registerPrincipal(
       authorizationDecisionId: deps.context.authorizationDecisionId,
     },
     async (execution) => {
+      // Validation stays inside the command runner so invalid requests still
+      // receive the same receipt and audit treatment as other rejections.
+      if (!PRINCIPAL_KINDS.has(input.principalKind)) {
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_PRINCIPAL_INVALID_KIND,
+          safeSummary: 'principalKind is not a supported closed value',
+        };
+      }
+      if (input.initialStatus !== 'ACTIVE') {
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS,
+          safeSummary: 'initialStatus must be ACTIVE',
+        };
+      }
+      if (!input.displayName.trim()) {
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS,
+          safeSummary: 'displayName must not be empty',
+        };
+      }
+
       const hasPrincipals = await execution.trx
         .selectFrom('identity_policy.principal')
         .select('id')
@@ -150,6 +168,7 @@ export async function registerPrincipal(
           .selectFrom('identity_policy.bootstrap_claim')
           .selectAll()
           .where('claim_id', '=', input.bootstrapClaimId)
+          .forUpdate()
           .executeTakeFirst();
         if (!claim) {
           return {
@@ -172,25 +191,42 @@ export async function registerPrincipal(
             safeSummary: 'bootstrap claim was already used',
           };
         }
-        if (claim.expires_at <= new Date()) {
+        const now = new Date();
+        if (claim.expires_at <= now) {
           return {
             kind: 'REJECTED',
             errorCode: IDENTITY_BOOTSTRAP_CLAIM_EXPIRED,
             safeSummary: 'bootstrap claim expired',
           };
         }
-        await execution.trx
+        const consumed = await execution.trx
           .updateTable('identity_policy.bootstrap_claim')
           .set({
-            consumed_at: new Date(),
+            consumed_at: now,
             consumed_by_command_id: commandId,
             consumed_result: JSON.stringify({
-              principalRef: { objectType: 'Principal', objectId: input.principalId },
+              principalRef: {
+                kind: 'OBJECT',
+                objectType: 'identity.principal',
+                objectId: input.principalId,
+                scope: { enterpriseId: deps.context.enterpriseId },
+              },
             }),
           })
           .where('claim_id', '=', input.bootstrapClaimId)
-          .execute();
-        consumedClaim = input.bootstrapClaimId;
+          .where('consumed_at', 'is', null)
+          .where('closed_at', 'is', null)
+          .where('expires_at', '>', now)
+          .returning('claim_id')
+          .executeTakeFirst();
+        if (!consumed) {
+          return {
+            kind: 'REJECTED',
+            errorCode: IDENTITY_BOOTSTRAP_CLAIM_CONSUMED,
+            safeSummary: 'bootstrap claim was already used',
+          };
+        }
+        consumedClaim = consumed.claim_id;
       }
 
       await deps.repo.insertPrincipal(execution.trx, {
@@ -204,20 +240,26 @@ export async function registerPrincipal(
         eventId: newUuidV7(),
         eventType: 'identity.PrincipalRegistered',
         eventVersion: '1.0',
-        aggregateType: 'Principal',
+        aggregateType: 'identity.principal',
         aggregateId: input.principalId,
         aggregateVersion: '1',
         payload: principalRegisteredPayload({
           principalId: input.principalId,
           principalKind: input.principalKind,
           status: 'ACTIVE',
+          scope: { enterpriseId: deps.context.enterpriseId },
         }),
         occurredAt: new Date(),
       });
       return {
         kind: 'COMMITTED',
         resultPayload: {
-          principalRef: { objectType: 'Principal', objectId: input.principalId },
+          principalRef: {
+            kind: 'OBJECT',
+            objectType: 'identity.principal',
+            objectId: input.principalId,
+            scope: { enterpriseId: deps.context.enterpriseId },
+          },
           status: 'ACTIVE',
           ...(consumedClaim !== null ? { bootstrapClaimConsumed: consumedClaim } : {}),
         },

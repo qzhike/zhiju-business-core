@@ -19,4 +19,9 @@ Forward-only Expand/Contract；一个业务 migration 只允许改一个 owning 
 
 命名规则：`V<4位版本>__<snake_case_description>.sql`。projection 的可重建对象随各模块区间发布，不单独拥有版本区间。
 
+`V0003` 的 Context 写入口只授予 NOLOGIN 的 `platform_context_establisher`；七模块
+`<module>_app` 与 `projection_app` 只能执行只读 RLS helper。生产事务协调器的 Login、
+Credential 与连接池接入由后续实现配置，本地 Gate 使用 NOINHERIT probe 显式切换角色验证
+该权限边界。
+
 Flyway history 表为 `public.flyway_schema_history`。已应用的 migration 不允许修改（checksum drift 会让 Gate 失败）。

@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import {
   CommandExecutionError,
+  COMMAND_CONTEXT_MISMATCH,
+  COMMAND_TARGET_MISMATCH,
   CONCURRENCY_CONFLICT,
   executeIdentityCommand,
   IDEMPOTENCY_PAYLOAD_CONFLICT,
@@ -36,6 +38,7 @@ const PRINCIPAL_A = '5e5e5e5e-5e5e-75e5-85e5-5e5e5e5e5ec1';
 const PRINCIPAL_REJECT = '5e5e5e5e-5e5e-75e5-85e5-5e5e5e5e5ec2';
 const PRINCIPAL_FAULT = '5e5e5e5e-5e5e-75e5-85e5-5e5e5e5e5ec3';
 const PRINCIPAL_CONCURRENCY = '5e5e5e5e-5e5e-75e5-85e5-5e5e5e5e5ec4';
+const PRINCIPAL_BIGINT = '5e5e5e5e-5e5e-75e5-85e5-5e5e5e5e5ec5';
 
 function testCrypto(): IdentityCryptoPorts {
   const key = Buffer.alloc(32, 0x64);
@@ -106,7 +109,7 @@ describe.skipIf(!gateEnabled)('command transaction runner (real PostgreSQL)', ()
     await admin.query(
       `CREATE ROLE wi06_probe_ip LOGIN PASSWORD 'wi06-probe-ip' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
-    await admin.query(`GRANT identity_policy_app TO wi06_probe_ip`);
+    await admin.query(`GRANT platform_context_establisher, identity_policy_app TO wi06_probe_ip`);
     const url = new URL(databaseUrl ?? '');
     url.username = 'wi06_probe_ip';
     url.password = 'wi06-probe-ip';
@@ -129,6 +132,39 @@ describe.skipIf(!gateEnabled)('command transaction runner (real PostgreSQL)', ()
     );
     return result.rows[0]?.count ?? '-1';
   }
+
+  async function waitForBlockedProbeSession(): Promise<void> {
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      const blocked = await admin.query<{ count: string }>(
+        `SELECT count(*) AS count
+           FROM pg_stat_activity
+          WHERE usename = 'wi06_probe_ip' AND wait_event_type = 'Lock'`,
+      );
+      if (Number(blocked.rows[0]?.count ?? '0') > 0) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error('concurrent command did not reach the database claim lock');
+  }
+
+  it('applies the WI-06 platform receipt expansion as forward-only V1002', async () => {
+    const history = await admin.query<{ description: string; success: boolean }>(
+      `SELECT description, success FROM public.flyway_schema_history WHERE version = '1002'`,
+    );
+    expect(history.rows[0]).toEqual({
+      description: 'platform command receipt expected version',
+      success: true,
+    });
+    const column = await admin.query<{ data_type: string }>(
+      `SELECT data_type FROM information_schema.columns
+        WHERE table_schema = 'identity_policy'
+          AND table_name = 'platform_command_receipt'
+          AND column_name = 'expected_aggregate_version'`,
+    );
+    expect(column.rows[0]?.data_type).toBe('bigint');
+  });
 
   it('commits receipt, aggregate, audit and outbox atomically, then replays idempotently (PG-U-009)', async () => {
     const first = await executeIdentityCommand(
@@ -248,6 +284,107 @@ describe.skipIf(!gateEnabled)('command transaction runner (real PostgreSQL)', ()
     ).toBe('1');
   });
 
+  it('returns the saved result for concurrent same-key/same-hash claims (PG-U-009)', async () => {
+    let bodyExecutions = 0;
+    let signalBodyStarted: (() => void) | undefined;
+    let releaseBody: (() => void) | undefined;
+    const bodyStarted = new Promise<void>((resolve) => {
+      signalBodyStarted = resolve;
+    });
+    const bodyHold = new Promise<void>((resolve) => {
+      releaseBody = resolve;
+    });
+    const first = executeIdentityCommand(
+      db,
+      contextFor(ENTERPRISE_A),
+      envelope({
+        commandId: '6f6f6f6f-6f6f-76f6-86f6-6f6f6f6f6f11',
+        idempotencyKey: 'wi06-concurrent-idempotency',
+        commandType: 'wi06.concurrent-idempotency',
+        requestPayload: { op: 'concurrent-idempotency' },
+      }),
+      async () => {
+        bodyExecutions += 1;
+        signalBodyStarted?.();
+        await bodyHold;
+        return { kind: 'COMMITTED', resultPayload: { winner: true } };
+      },
+    );
+    await bodyStarted;
+
+    const second = executeIdentityCommand(
+      db,
+      contextFor(ENTERPRISE_A),
+      envelope({
+        commandId: '6f6f6f6f-6f6f-76f6-86f6-6f6f6f6f6f12',
+        idempotencyKey: 'wi06-concurrent-idempotency',
+        commandType: 'wi06.concurrent-idempotency',
+        requestPayload: { op: 'concurrent-idempotency' },
+      }),
+      () => {
+        bodyExecutions += 1;
+        return Promise.resolve({
+          kind: 'COMMITTED' as const,
+          resultPayload: { winner: false },
+        });
+      },
+    );
+
+    try {
+      await waitForBlockedProbeSession();
+    } finally {
+      releaseBody?.();
+    }
+    const results = await Promise.all([first, second]);
+    expect(results.map((result) => result.status).sort()).toEqual(['COMMITTED', 'DUPLICATE']);
+    expect(results.find((result) => result.status === 'DUPLICATE')).toMatchObject({
+      originalOutcome: 'COMMITTED',
+      resultPayload: { winner: true },
+    });
+    expect(bodyExecutions).toBe(1);
+    expect(
+      await platformCount(
+        'platform_command_receipt',
+        "WHERE idempotency_key = 'wi06-concurrent-idempotency'",
+      ),
+    ).toBe('1');
+  });
+
+  it('rejects envelope attribution that differs from the trusted transaction context', async () => {
+    const mismatches: Partial<CommandEnvelope>[] = [
+      { principalId: '00000000-0000-7000-8000-000000000101' },
+      { actorSnapshotId: '00000000-0000-7000-8000-000000000102' },
+      { authorizationDecisionId: '00000000-0000-7000-8000-000000000103' },
+      { enterpriseId: ENTERPRISE_B },
+      { projectId: '00000000-0000-7000-8000-000000000104' },
+      { correlationId: '00000000-0000-7000-8000-000000000105' },
+    ];
+    for (const [index, mismatch] of mismatches.entries()) {
+      await expect(
+        executeIdentityCommand(
+          db,
+          contextFor(ENTERPRISE_A),
+          envelope({
+            commandId: `80808080-8080-7080-8080-80808080810${index}`,
+            idempotencyKey: `wi06-context-mismatch-${index}`,
+            commandType: 'wi06.context-mismatch',
+            ...mismatch,
+          }),
+          () => Promise.resolve({ kind: 'COMMITTED', resultPayload: { invalid: true } }),
+        ),
+      ).rejects.toMatchObject({ code: COMMAND_CONTEXT_MISMATCH });
+    }
+    expect(
+      await platformCount(
+        'platform_command_receipt',
+        "WHERE command_type = 'wi06.context-mismatch'",
+      ),
+    ).toBe('0');
+    expect(
+      await platformCount('platform_audit_record', "WHERE command_type = 'wi06.context-mismatch'"),
+    ).toBe('0');
+  });
+
   it('adjudicates concurrent same-version CAS with one winner and a stable conflict (PG-U-004)', async () => {
     await executeIdentityCommand(
       db,
@@ -333,6 +470,85 @@ describe.skipIf(!gateEnabled)('command transaction runner (real PostgreSQL)', ()
     ).toBe('1');
   });
 
+  it('binds CAS to the envelope and increments bigint versions without precision loss', async () => {
+    await executeIdentityCommand(
+      db,
+      contextFor(ENTERPRISE_A),
+      envelope({
+        commandId: '81818181-8181-7181-8181-818181818101',
+        idempotencyKey: 'wi06-bigint-setup',
+        targetId: PRINCIPAL_BIGINT,
+        requestPayload: { op: 'bigint-setup' },
+      }),
+      async (execution) => {
+        await repo.insertPrincipal(execution.trx, {
+          id: PRINCIPAL_BIGINT,
+          principalKind: 'SERVICE',
+          displayName: 'WI-06 Bigint Fixture',
+          createdByPrincipalId: OPERATOR,
+          createdByActorSnapshotId: OPERATOR_ACTOR,
+        });
+        return { kind: 'COMMITTED', resultPayload: { principalId: PRINCIPAL_BIGINT } };
+      },
+    );
+    await admin.query(
+      `UPDATE identity_policy.principal SET aggregate_version = 9007199254740993 WHERE id = $1`,
+      [PRINCIPAL_BIGINT],
+    );
+
+    const mismatchedCasArguments = [
+      [PRINCIPAL_A, '9007199254740993'],
+      [PRINCIPAL_BIGINT, '9007199254740992'],
+    ] as const satisfies readonly (readonly [string, string])[];
+    for (const [index, [targetId, expectedVersion]] of mismatchedCasArguments.entries()) {
+      await expect(
+        executeIdentityCommand(
+          db,
+          contextFor(ENTERPRISE_A),
+          envelope({
+            commandId: `81818181-8181-7181-8181-81818181811${index}`,
+            idempotencyKey: `wi06-cas-envelope-mismatch-${index}`,
+            commandType: 'wi06.cas-envelope-mismatch',
+            targetId: PRINCIPAL_BIGINT,
+            expectedAggregateVersion: '9007199254740993',
+            requestPayload: { op: 'cas-envelope-mismatch', index },
+          }),
+          async (execution) => {
+            await execution.casPrincipalStatus(targetId, expectedVersion, {
+              status: 'SUSPENDED',
+            });
+            return { kind: 'COMMITTED', resultPayload: { invalid: true } };
+          },
+        ),
+      ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
+    }
+
+    const committed = await executeIdentityCommand(
+      db,
+      contextFor(ENTERPRISE_A),
+      envelope({
+        commandId: '81818181-8181-7181-8181-818181818121',
+        idempotencyKey: 'wi06-bigint-cas',
+        commandType: 'wi06.bigint-cas',
+        targetId: PRINCIPAL_BIGINT,
+        expectedAggregateVersion: '9007199254740993',
+        requestPayload: { op: 'bigint-cas' },
+      }),
+      async (execution) => {
+        const cas = await execution.casPrincipalStatus(PRINCIPAL_BIGINT, '9007199254740993', {
+          status: 'SUSPENDED',
+        });
+        return { kind: 'COMMITTED', resultPayload: { cas } };
+      },
+    );
+    expect(committed).toMatchObject({ status: 'COMMITTED', resultPayload: { cas: 'OK' } });
+    const version = await admin.query<{ aggregate_version: string }>(
+      `SELECT aggregate_version::text FROM identity_policy.principal WHERE id = $1`,
+      [PRINCIPAL_BIGINT],
+    );
+    expect(version.rows[0]?.aggregate_version).toBe('9007199254740994');
+  });
+
   it('rolls back receipt, aggregate, audit and outbox when a fault hits after the outbox write (PG-U-012)', async () => {
     await expect(
       executeIdentityCommand(
@@ -352,6 +568,21 @@ describe.skipIf(!gateEnabled)('command transaction runner (real PostgreSQL)', ()
             createdByPrincipalId: OPERATOR,
             createdByActorSnapshotId: OPERATOR_ACTOR,
           });
+          await execution.trx
+            .insertInto('identity_policy.reference_edge')
+            .values({
+              owner_object_type: 'Principal',
+              owner_object_id: PRINCIPAL_FAULT,
+              reference_path: '/fixtureRef',
+              target_module: 'IdentityPolicy',
+              target_object_type: 'Principal',
+              target_object_id: PRINCIPAL_A,
+              reference_purpose: 'WI06_FAULT_PROBE',
+              enterprise_id: ENTERPRISE_A,
+              project_id: null,
+              source_command_id: '73737373-7373-7737-8737-737373737301',
+            })
+            .execute();
           await execution.appendOutbox({
             eventId: '74747474-7474-7747-8747-747474747401',
             eventType: 'identity.PrincipalRegistered',
@@ -383,6 +614,11 @@ describe.skipIf(!gateEnabled)('command transaction runner (real PostgreSQL)', ()
         "WHERE command_id = '73737373-7373-7737-8737-737373737301'",
       ),
     ).toBe('0');
+    const references = await admin.query<{ count: string }>(
+      `SELECT count(*) AS count FROM identity_policy.reference_edge
+        WHERE source_command_id = '73737373-7373-7737-8737-737373737301'`,
+    );
+    expect(references.rows[0]?.count).toBe('0');
     expect(
       await platformCount(
         'platform_outbox_event',
@@ -414,10 +650,15 @@ describe.skipIf(!gateEnabled)('command transaction runner (real PostgreSQL)', ()
     );
     expect(rejected).toMatchObject({ status: 'REJECTED', errorCode: 'WI06_INVALID_TRANSITION' });
 
-    const receipt = await admin.query<{ outcome: string }>(
-      `SELECT outcome FROM identity_policy.platform_command_receipt WHERE idempotency_key = 'wi06-reject'`,
+    const receipt = await admin.query<{ outcome: string; result_payload: unknown }>(
+      `SELECT outcome, result_payload FROM identity_policy.platform_command_receipt WHERE idempotency_key = 'wi06-reject'`,
     );
     expect(receipt.rows[0]?.outcome).toBe('REJECTED');
+    expect(receipt.rows[0]?.result_payload).toMatchObject({
+      errorCode: 'WI06_INVALID_TRANSITION',
+      currentAggregateVersion: '1',
+    });
+    expect(rejected).toMatchObject({ currentAggregateVersion: '1' });
     const audits = await admin.query<{ count: string }>(
       `SELECT count(*) AS count FROM identity_policy.platform_audit_record
        WHERE outcome = 'REJECTED' AND error_code = 'WI06_INVALID_TRANSITION'`,
@@ -440,6 +681,7 @@ describe.skipIf(!gateEnabled)('command transaction runner (real PostgreSQL)', ()
       status: 'DUPLICATE',
       originalOutcome: 'REJECTED',
       errorCode: 'WI06_INVALID_TRANSITION',
+      resultPayload: { currentAggregateVersion: '1' },
     });
   });
 
@@ -452,6 +694,7 @@ describe.skipIf(!gateEnabled)('command transaction runner (real PostgreSQL)', ()
         commandId: '76767676-7676-7776-8776-767676767601',
         idempotencyKey: 'wi06-notfound',
         commandType: 'wi06.suspend-missing',
+        enterpriseId: ENTERPRISE_B,
         targetId: '00000000-0000-7000-8000-00000000de01',
         expectedAggregateVersion: '1',
         requestPayload: { op: 'suspend-missing' },

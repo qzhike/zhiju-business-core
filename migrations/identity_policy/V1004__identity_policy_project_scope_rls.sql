@@ -1,41 +1,275 @@
 -- IM-02 WI-08 review remediation: enforce Project scope in the IdentityPolicy
 -- RLS boundary and retain the promoted project scope on revocation facts.
+--
+-- V1001 already contains these objects for a new database. This migration is
+-- still required because an older database may have applied the original
+-- V1001 before the Project shape and revocation scope were introduced. Every
+-- schema change below is therefore forward-only and conditional.
 
 SET ROLE identity_policy_owner;
 
 ALTER TABLE identity_policy.role_revocation
-    ADD COLUMN project_id uuid;
+    ADD COLUMN IF NOT EXISTS scope_kind text;
+ALTER TABLE identity_policy.role_revocation
+    ADD COLUMN IF NOT EXISTS project_id uuid;
 ALTER TABLE identity_policy.role_revocation NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE identity_policy.role_assignment NO FORCE ROW LEVEL SECURITY;
 UPDATE identity_policy.role_revocation r
 SET project_id = a.project_id
 FROM identity_policy.role_assignment a
 WHERE a.id = r.role_assignment_id;
+UPDATE identity_policy.role_revocation r
+SET scope_kind = a.scope_kind,
+    enterprise_id = a.enterprise_id
+FROM identity_policy.role_assignment a
+WHERE a.id = r.role_assignment_id;
+ALTER TABLE identity_policy.role_revocation
+    ALTER COLUMN scope_kind SET NOT NULL;
 ALTER TABLE identity_policy.role_revocation FORCE ROW LEVEL SECURITY;
 ALTER TABLE identity_policy.role_assignment FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE identity_policy.capability_revocation
-    ADD COLUMN project_id uuid;
+    ADD COLUMN IF NOT EXISTS scope_kind text;
+ALTER TABLE identity_policy.capability_revocation
+    ADD COLUMN IF NOT EXISTS project_id uuid;
 ALTER TABLE identity_policy.capability_revocation NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE identity_policy.capability_grant NO FORCE ROW LEVEL SECURITY;
 UPDATE identity_policy.capability_revocation r
 SET project_id = g.project_id
 FROM identity_policy.capability_grant g
 WHERE g.id = r.capability_grant_id;
+UPDATE identity_policy.capability_revocation r
+SET scope_kind = g.scope_kind,
+    enterprise_id = g.enterprise_id
+FROM identity_policy.capability_grant g
+WHERE g.id = r.capability_grant_id;
+ALTER TABLE identity_policy.capability_revocation
+    ALTER COLUMN scope_kind SET NOT NULL;
 ALTER TABLE identity_policy.capability_revocation FORCE ROW LEVEL SECURITY;
 ALTER TABLE identity_policy.capability_grant FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE identity_policy.role_assignment
-    ADD CONSTRAINT role_assignment_scope_shape CHECK (
-        (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
-        OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL)
-    );
+-- Add the composite keys before adding the revocation foreign keys. The
+-- conditional checks keep this migration valid when V1001 has already
+-- supplied the current definitions.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.role_assignment'::regclass
+          AND conname = 'role_assignment_scope_shape'
+    ) THEN
+        ALTER TABLE identity_policy.role_assignment
+            ADD CONSTRAINT role_assignment_scope_shape CHECK (
+                (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
+                OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL));
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.capability_grant'::regclass
+          AND conname = 'capability_grant_scope_shape'
+    ) THEN
+        ALTER TABLE identity_policy.capability_grant
+            ADD CONSTRAINT capability_grant_scope_shape CHECK (
+                (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
+                OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL));
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.role_assignment'::regclass
+          AND conname = 'role_assignment_scope_ref_unique'
+    ) THEN
+        ALTER TABLE identity_policy.role_assignment
+            ADD CONSTRAINT role_assignment_scope_ref_unique
+            UNIQUE (id, scope_kind, enterprise_id);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.role_assignment'::regclass
+          AND conname = 'role_assignment_project_ref_unique'
+    ) THEN
+        ALTER TABLE identity_policy.role_assignment
+            ADD CONSTRAINT role_assignment_project_ref_unique
+            UNIQUE NULLS NOT DISTINCT (id, project_id);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.capability_grant'::regclass
+          AND conname = 'capability_grant_scope_ref_unique'
+    ) THEN
+        ALTER TABLE identity_policy.capability_grant
+            ADD CONSTRAINT capability_grant_scope_ref_unique
+            UNIQUE (id, scope_kind, enterprise_id);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.capability_grant'::regclass
+          AND conname = 'capability_grant_project_ref_unique'
+    ) THEN
+        ALTER TABLE identity_policy.capability_grant
+            ADD CONSTRAINT capability_grant_project_ref_unique
+            UNIQUE NULLS NOT DISTINCT (id, project_id);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.role_revocation'::regclass
+          AND conname = 'role_revocation_scope_fk'
+    ) THEN
+        ALTER TABLE identity_policy.role_revocation
+            ADD CONSTRAINT role_revocation_scope_fk FOREIGN KEY
+            (role_assignment_id, scope_kind, enterprise_id)
+            REFERENCES identity_policy.role_assignment (id, scope_kind, enterprise_id)
+            ON DELETE RESTRICT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.role_revocation'::regclass
+          AND conname = 'role_revocation_project_fk'
+    ) THEN
+        ALTER TABLE identity_policy.role_revocation
+            ADD CONSTRAINT role_revocation_project_fk FOREIGN KEY
+            (role_assignment_id, project_id)
+            REFERENCES identity_policy.role_assignment (id, project_id)
+            ON DELETE RESTRICT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.role_revocation'::regclass
+          AND conname = 'role_revocation_scope_closed'
+    ) THEN
+        ALTER TABLE identity_policy.role_revocation
+            ADD CONSTRAINT role_revocation_scope_closed
+            CHECK (scope_kind IN ('ENTERPRISE', 'PROJECT'));
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.role_revocation'::regclass
+          AND conname = 'role_revocation_scope_shape'
+    ) THEN
+        ALTER TABLE identity_policy.role_revocation
+            ADD CONSTRAINT role_revocation_scope_shape CHECK (
+                (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
+                OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL));
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.capability_revocation'::regclass
+          AND conname = 'capability_revocation_scope_fk'
+    ) THEN
+        ALTER TABLE identity_policy.capability_revocation
+            ADD CONSTRAINT capability_revocation_scope_fk FOREIGN KEY
+            (capability_grant_id, scope_kind, enterprise_id)
+            REFERENCES identity_policy.capability_grant (id, scope_kind, enterprise_id)
+            ON DELETE RESTRICT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.capability_revocation'::regclass
+          AND conname = 'capability_revocation_project_fk'
+    ) THEN
+        ALTER TABLE identity_policy.capability_revocation
+            ADD CONSTRAINT capability_revocation_project_fk FOREIGN KEY
+            (capability_grant_id, project_id)
+            REFERENCES identity_policy.capability_grant (id, project_id)
+            ON DELETE RESTRICT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.capability_revocation'::regclass
+          AND conname = 'capability_revocation_scope_closed'
+    ) THEN
+        ALTER TABLE identity_policy.capability_revocation
+            ADD CONSTRAINT capability_revocation_scope_closed
+            CHECK (scope_kind IN ('ENTERPRISE', 'PROJECT'));
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'identity_policy.capability_revocation'::regclass
+          AND conname = 'capability_revocation_scope_shape'
+    ) THEN
+        ALTER TABLE identity_policy.capability_revocation
+            ADD CONSTRAINT capability_revocation_scope_shape CHECK (
+                (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
+                OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL));
+    END IF;
+END
+$$;
 
-ALTER TABLE identity_policy.capability_grant
-    ADD CONSTRAINT capability_grant_scope_shape CHECK (
-        (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
-        OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL)
-    );
+CREATE OR REPLACE FUNCTION identity_policy.guard_role_revocation_scope() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+DECLARE
+    v_scope_kind text;
+    v_enterprise_id uuid;
+    v_project_id uuid;
+BEGIN
+    SELECT scope_kind, enterprise_id, project_id
+      INTO v_scope_kind, v_enterprise_id, v_project_id
+      FROM identity_policy.role_assignment
+     WHERE id = NEW.role_assignment_id;
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.scope_kind IS DISTINCT FROM v_scope_kind
+       OR NEW.enterprise_id IS DISTINCT FROM v_enterprise_id
+       OR NEW.project_id IS DISTINCT FROM v_project_id THEN
+        RAISE EXCEPTION 'role revocation scope does not match assignment'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$guard$;
+
+CREATE OR REPLACE FUNCTION identity_policy.guard_capability_revocation_scope() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+DECLARE
+    v_scope_kind text;
+    v_enterprise_id uuid;
+    v_project_id uuid;
+BEGIN
+    SELECT scope_kind, enterprise_id, project_id
+      INTO v_scope_kind, v_enterprise_id, v_project_id
+      FROM identity_policy.capability_grant
+     WHERE id = NEW.capability_grant_id;
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.scope_kind IS DISTINCT FROM v_scope_kind
+       OR NEW.enterprise_id IS DISTINCT FROM v_enterprise_id
+       OR NEW.project_id IS DISTINCT FROM v_project_id THEN
+        RAISE EXCEPTION 'capability revocation scope does not match grant'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$guard$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_trigger
+        WHERE tgrelid = 'identity_policy.role_revocation'::regclass
+          AND tgname = 'role_revocation_scope_guard'
+          AND NOT tgisinternal
+    ) THEN
+        CREATE TRIGGER role_revocation_scope_guard
+            BEFORE INSERT ON identity_policy.role_revocation
+            FOR EACH ROW EXECUTE FUNCTION identity_policy.guard_role_revocation_scope();
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_trigger
+        WHERE tgrelid = 'identity_policy.capability_revocation'::regclass
+          AND tgname = 'capability_revocation_scope_guard'
+          AND NOT tgisinternal
+    ) THEN
+        CREATE TRIGGER capability_revocation_scope_guard
+            BEFORE INSERT ON identity_policy.capability_revocation
+            FOR EACH ROW EXECUTE FUNCTION identity_policy.guard_capability_revocation_scope();
+    END IF;
+END
+$$;
 
 DROP POLICY role_assignment_select ON identity_policy.role_assignment;
 CREATE POLICY role_assignment_select ON identity_policy.role_assignment
@@ -71,15 +305,15 @@ DROP POLICY role_revocation_select ON identity_policy.role_revocation;
 CREATE POLICY role_revocation_select ON identity_policy.role_revocation
     FOR SELECT TO identity_policy_app
     USING (
-        platform_security.context_allows_enterprise(enterprise_id)
-        AND (project_id IS NULL OR platform_security.context_allows_project(enterprise_id, project_id))
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id))
     );
 DROP POLICY role_revocation_insert ON identity_policy.role_revocation;
 CREATE POLICY role_revocation_insert ON identity_policy.role_revocation
     FOR INSERT TO identity_policy_app
     WITH CHECK (
-        platform_security.context_allows_enterprise(enterprise_id)
-        AND (project_id IS NULL OR platform_security.context_allows_project(enterprise_id, project_id))
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id))
     );
 
 DROP POLICY capability_grant_select ON identity_policy.capability_grant;
@@ -116,15 +350,15 @@ DROP POLICY capability_revocation_select ON identity_policy.capability_revocatio
 CREATE POLICY capability_revocation_select ON identity_policy.capability_revocation
     FOR SELECT TO identity_policy_app
     USING (
-        platform_security.context_allows_enterprise(enterprise_id)
-        AND (project_id IS NULL OR platform_security.context_allows_project(enterprise_id, project_id))
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id))
     );
 DROP POLICY capability_revocation_insert ON identity_policy.capability_revocation;
 CREATE POLICY capability_revocation_insert ON identity_policy.capability_revocation
     FOR INSERT TO identity_policy_app
     WITH CHECK (
-        platform_security.context_allows_enterprise(enterprise_id)
-        AND (project_id IS NULL OR platform_security.context_allows_project(enterprise_id, project_id))
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id))
     );
 
 -- The command receipt, audit and event rows are part of the same scoped

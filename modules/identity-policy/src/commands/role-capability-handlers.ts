@@ -151,6 +151,7 @@ export async function assignRole(
       status: 'REJECTED',
       errorCode: IDENTITY_ROLE_SCOPE_INVALID,
       safeSummary: 'scope invalid for role assignment',
+      currentAggregateVersion: null,
     };
   }
   if (validatePeriod(input.validFrom, input.validTo) !== null) {
@@ -158,6 +159,7 @@ export async function assignRole(
       status: 'REJECTED',
       errorCode: IDENTITY_ROLE_SCOPE_INVALID,
       safeSummary: 'effective period invalid',
+      currentAggregateVersion: null,
     };
   }
   if (!input.justification.trim()) {
@@ -165,6 +167,7 @@ export async function assignRole(
       status: 'REJECTED',
       errorCode: IDENTITY_ROLE_SCOPE_INVALID,
       safeSummary: 'justification required',
+      currentAggregateVersion: null,
     };
   }
 
@@ -309,6 +312,7 @@ export async function revokeRole(
       status: 'REJECTED',
       errorCode: IDENTITY_ROLE_SCOPE_INVALID,
       safeSummary: 'scope invalid for role revocation',
+      currentAggregateVersion: null,
     };
   }
   if (!input.reasonCode.trim() || Number.isNaN(input.effectiveAt.getTime())) {
@@ -316,6 +320,7 @@ export async function revokeRole(
       status: 'REJECTED',
       errorCode: IDENTITY_ROLE_SCOPE_INVALID,
       safeSummary: 'revocation reason and effectiveAt are required',
+      currentAggregateVersion: null,
     };
   }
   const commandId = newUuidV7();
@@ -393,6 +398,7 @@ export async function revokeRole(
       await deps.repo.insertRoleRevocation(execution.trx, {
         revocationId: newUuidV7(),
         targetId: input.targetId,
+        scopeKind: input.scope.scopeKind,
         enterpriseId: input.scope.enterpriseId,
         projectId: input.scope.projectId,
         revokedByPrincipalId: deps.context.principalId,
@@ -454,6 +460,7 @@ export async function grantCapability(
       status: 'REJECTED',
       errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
       safeSummary: 'scope invalid for capability grant',
+      currentAggregateVersion: null,
     };
   }
   if (validatePeriod(input.validFrom, input.validTo) !== null) {
@@ -461,6 +468,7 @@ export async function grantCapability(
       status: 'REJECTED',
       errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
       safeSummary: 'effective period invalid',
+      currentAggregateVersion: null,
     };
   }
   if (!input.justification.trim()) {
@@ -468,6 +476,7 @@ export async function grantCapability(
       status: 'REJECTED',
       errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
       safeSummary: 'justification required',
+      currentAggregateVersion: null,
     };
   }
   if (input.actions.length === 0 || (input.maxUses !== undefined && input.maxUses < 1)) {
@@ -475,6 +484,7 @@ export async function grantCapability(
       status: 'REJECTED',
       errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
       safeSummary: 'actions must be non-empty and maxUses must be positive',
+      currentAggregateVersion: null,
     };
   }
 
@@ -644,6 +654,7 @@ export async function revokeCapability(
       status: 'REJECTED',
       errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
       safeSummary: 'scope invalid for capability revocation',
+      currentAggregateVersion: null,
     };
   }
   if (!input.reasonCode.trim() || Number.isNaN(input.effectiveAt.getTime())) {
@@ -651,6 +662,7 @@ export async function revokeCapability(
       status: 'REJECTED',
       errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
       safeSummary: 'revocation reason and effectiveAt are required',
+      currentAggregateVersion: null,
     };
   }
   const commandId = newUuidV7();
@@ -714,6 +726,7 @@ export async function revokeCapability(
       await deps.repo.insertCapabilityRevocation(execution.trx, {
         revocationId: newUuidV7(),
         targetId: input.targetId,
+        scopeKind: input.scope.scopeKind,
         enterpriseId: input.scope.enterpriseId,
         projectId: input.scope.projectId,
         revokedByPrincipalId: deps.context.principalId,
@@ -772,6 +785,7 @@ export async function recordPolicySnapshot(
       status: 'REJECTED',
       errorCode: IDENTITY_POLICY_SNAPSHOT_INVALID,
       safeSummary: 'policy version, schema refs and effectiveFrom are required',
+      currentAggregateVersion: null,
     };
   }
   for (const ref of input.policySchemaRefs) {
@@ -780,6 +794,7 @@ export async function recordPolicySnapshot(
         status: 'REJECTED',
         errorCode: IDENTITY_POLICY_VERSION_UNKNOWN,
         safeSummary: `schema ref not resolvable by static registry ${POLICY_SCHEMA_REGISTRY_VERSION}`,
+        currentAggregateVersion: null,
       };
     }
   }
@@ -894,6 +909,7 @@ export async function bootstrapMinimalAdminRole(
       status: 'REJECTED',
       errorCode: IDENTITY_BOOTSTRAP_ROLE_INVALID,
       safeSummary: 'roleCode and justification are required',
+      currentAggregateVersion: null,
     };
   }
   const commandId = newUuidV7();

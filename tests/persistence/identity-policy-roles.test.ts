@@ -87,7 +87,10 @@ describe.skipIf(!gateEnabled)(
       await admin.query(
         `CREATE ROLE wi08_probe_ip LOGIN PASSWORD 'wi08-probe-ip' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
       );
-      await admin.query(`GRANT identity_policy_app TO wi08_probe_ip`);
+      await admin.query(
+        `GRANT platform_context_establisher TO wi08_probe_ip WITH INHERIT FALSE, SET TRUE`,
+      );
+      await admin.query(`GRANT identity_policy_app TO wi08_probe_ip WITH INHERIT FALSE, SET TRUE`);
       const url = new URL(databaseUrl ?? '');
       url.username = 'wi08_probe_ip';
       url.password = 'wi08-probe-ip';

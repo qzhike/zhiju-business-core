@@ -1,6 +1,6 @@
 # IM-02 WI-08 本地 Runbook：Role/Capability/PolicySnapshot 手动验收
 
-对应 Issue #36。自动验收入口 `pnpm persistence:gate`（新增 `tests/persistence/identity-policy-roles.test.ts`：重复 active 拒绝、Human-only Registry、Scope/有效期/policy 精确引用、expectedVersion 撤销追加事实、首角色 bootstrap 永久关闭、事件脱敏、Project RLS、并发唯一裁决和幂等冲突）。迁移必须包含 V1003 Project scope RLS，并在第二次 migrate 中保持 no-op。
+对应 Issue #36。自动验收入口 `pnpm persistence:gate`（新增 `tests/persistence/identity-policy-roles.test.ts`：重复 active 拒绝、Human-only Registry、Scope/有效期/policy 精确引用、expectedVersion 撤销追加事实、首角色 bootstrap 永久关闭、事件脱敏、Project RLS、并发唯一裁决和幂等冲突）。迁移必须保留 WI-07 的 V1003 bootstrap claim，并通过后续 V1004 Project scope/RLS 增量；第二次 migrate 必须保持 no-op。
 
 ## 手动验收（复用 gate 数据面）
 
@@ -43,4 +43,4 @@ WHERE event_type LIKE 'identity.%';
 
 ## NOT RUN 声明
 
-Keycloak Realm Role 映射、Release/Approval 业务模块 Human-only Handler(#22–#24)保持 `NOT RUN`。从包含既有 Project Revocation 的旧库升级至 V1003 的非空迁移探针已在一次性 PostgreSQL 容器中执行通过；临时探针已清理。
+Keycloak Realm Role 映射、Release/Approval 业务模块 Human-only Handler(#22–#24)保持 `NOT RUN`。从包含既有 Project Revocation 的旧库升级至 V1004 的非空迁移探针已在一次性 PostgreSQL 容器中执行通过；临时探针已清理。
