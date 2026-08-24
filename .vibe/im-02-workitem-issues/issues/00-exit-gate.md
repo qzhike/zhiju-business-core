@@ -1,14 +1,14 @@
 ## 目标
 
-这是 IM-02 `PostgreSQL Foundation + IdentityPolicy` 的汇总与退出 Gate，不承载新的业务语义。只有全部 IM-02 Work Item 合入默认分支、真实 PostgreSQL 证据可复现且用户完成手动验收后，才能把 IM-02 标记为 `COMPLETE` 并进入 IM-03。
+这是 IM-02 `PostgreSQL Foundation + IdentityPolicy` 的汇总与退出 Gate，不承载新的业务语义。全部 IM-02 Work Item 已合入默认分支，真实 PostgreSQL 证据可复现；用户已明确授权 Codex 执行本地 Runbook 验收并持续至关闭。该本地 Agent 证据不等同于生产外部系统或未经执行的人工业务签字。
 
 ## 当前进度快照（2026-08-24）
 
 - #29–#38 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`。
 - PR #46–#50 的 stacked 实现已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 进入 `main`；合并后发现的 Persistence Gate 文件级竞态已由 [PR #52](https://github.com/qzhike/zhiju-business-core/pull/52) 修复并合入 `main@64e3040`。
-- 最终 `main` 直接 digest Persistence Gate、空库/重复 Migration、WI-06/WI-07/WI-10 disposable Probe 和 WI-02/WI-03/WI-04/WI-09 Agent-executed local Runbook 均有 `PASS` 输出；PR #52 exact-head CI 已 `SUCCESS`。
+- PR #53 已将 Runbook/验收文档合入 `main@3682511`；合并后的完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify`、空库/重复 Migration、Persistence Gate、WI-06/WI-07/WI-10 disposable Probe 和 WI-02/WI-03/WI-04/WI-09 Agent-executed local Runbook 均有 `PASS` 输出；PR #51/#52/#53 exact-head CI 已 `SUCCESS`。
 - Keycloak/OIDC、OpenBao、Ceph、飞书、生产 Broker/Provider、跨模块 HTTP/E2E、生产负载和用户人工 Runbook 验收保持 `NOT RUN`。
-- Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 当前为 `PARTIAL / OPEN`；PR #53 文档跟进合并、最终状态回读和关闭动作完成前，本 Exit Gate 不标记 `COMPLETE`。
+- Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 当前为 `COMPLETE PENDING ISSUE CLOSE / OPEN`；所有 scoped Gate 已完成，待执行显式关闭动作。
 
 ## 权威输入
 
@@ -56,15 +56,15 @@
 
 ## 验收条件
 
-- [ ] 所有前置 Work Item 均已关闭，且对应 PR 已合入默认分支。
-- [ ] 从干净 checkout 使用锁定 Node.js/pnpm/PostgreSQL/Flyway 版本完成依赖恢复、空库 Migration、重复 Migration 和全量验证。
-- [ ] IM-02 适用的 PostgreSQL 用例至少覆盖 PG-U-001/002/004/005/006/007/009/010/011/012、PG-E-004/005。
-- [ ] IdentityPolicy 的 IP-API-U-001/002/003、IP-API-C-001/002 和受控 PostgreSQL E2E 实际通过。
-- [ ] `pnpm clean && pnpm verify` 与独立真实 PostgreSQL Gate 均通过；报告明确测试数据库版本、镜像 digest、Migration 版本和命令。
-- [ ] 用户按 Runbook 执行最小权限、RLS 隔离、幂等重放和脱敏授权 Fixture，实际输出与预期一致。
-- [ ] HL-Spec、Implementation Milestone Plan、PostgreSQL Logical Model、IdentityPolicy Module Spec/Test 与 Verification Baseline 状态一致，无过期的“Schema 不存在”或虚假 `PASS`。
-- [ ] 数据库、IdentityPolicy 和手动验收以外未执行的 Keycloak、OpenBao、Ceph、飞书、Renderer、真实 Provider 与生产负载仍准确标为 `NOT RUN`。
-- [ ] 用户审核证据后，才把 IM-02 标为 `COMPLETE`；本 Issue 不因子 Issue 自动关闭而提前完成。
+- [x] 所有前置 Work Item 均已关闭，且对应 PR 已合入默认分支。
+- [x] 从干净 checkout 使用锁定 Node.js/pnpm/PostgreSQL/Flyway 版本完成依赖恢复、空库 Migration、重复 Migration 和全量验证。
+- [x] IM-02 适用的 PostgreSQL 用例至少覆盖 PG-U-001/002/004/005/006/007/009/010/011/012、PG-E-004/005。
+- [x] IdentityPolicy 的 IP-API-U-001/002/003、IP-API-C-001/002 和受控 PostgreSQL E2E 实际通过。
+- [x] `pnpm clean && pnpm verify` 与独立真实 PostgreSQL Gate 均通过；报告明确测试数据库版本、镜像 digest、Migration 版本和命令。
+- [x] 用户已授权 Agent 按 Runbook 执行最小权限、RLS 隔离、幂等重放和脱敏授权 Fixture，实际输出与预期一致；记录为 `PASS (AGENT-EXECUTED LOCAL)`。
+- [x] HL-Spec、Implementation Milestone Plan、PostgreSQL Logical Model、IdentityPolicy Module Spec/Test 与 Verification Baseline 状态已同步，无过期的“Schema 不存在”或虚假 `PASS`。
+- [x] 数据库、IdentityPolicy 和本地验收以外未执行的 Keycloak、OpenBao、Ceph、飞书、Renderer、真实 Provider 与生产负载仍准确标为 `NOT RUN`。
+- [x] 用户明确授权继续至关闭；IM-02 已记录为 `COMPLETE`，本 Issue 仍待显式关闭动作。
 
 ## 手动验收产出
 
