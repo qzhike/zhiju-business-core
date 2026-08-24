@@ -86,6 +86,15 @@ function hasScopeConflict(event: ConsumedEvent, context: IdentityTransactionCont
   );
 }
 
+function safeProjectIdForContext(
+  event: ConsumedEvent,
+  context: IdentityTransactionContext,
+): string | undefined {
+  return event.projectId !== undefined && context.allowedProjectIds.includes(event.projectId)
+    ? event.projectId
+    : undefined;
+}
+
 async function readInbox(
   deps: ConsumeEventDeps,
   contract: InboxConsumerContract,
@@ -122,7 +131,7 @@ async function recordViolation(
         contract_type: event.eventType,
         contract_version: event.eventVersion,
         enterprise_id: deps.context.enterpriseId,
-        project_id: event.projectId ?? null,
+        project_id: safeProjectIdForContext(event, deps.context) ?? null,
         observed_payload_hash: event.payloadHash,
         source_event_id: event.eventId,
         consumer_name: contract.consumerName,
@@ -234,6 +243,7 @@ export async function consumeEvent(
 ): Promise<ConsumeEventOutcome> {
   const canonicalHash = canonicalPayloadHash(event.payload);
   const quarantine = determineQuarantine(event, contract, deps.context, canonicalHash);
+  const persistedProjectId = safeProjectIdForContext(event, deps.context);
 
   // Replay adjudication first: an existing claim for this consumer+event is
   // either the saved success (same hash) or a quarantine case (different
@@ -265,7 +275,7 @@ export async function consumeEvent(
         },
         platform: false,
         enterpriseId: deps.context.enterpriseId,
-        projectId: event.projectId,
+        projectId: persistedProjectId,
         targetType: 'InboxMessage',
         targetId: event.eventId,
         correlationId: deps.context.correlationId,
@@ -287,7 +297,7 @@ export async function consumeEvent(
               payload_hash: event.payloadHash,
               source_module: event.sourceModule,
               enterprise_id: deps.context.enterpriseId,
-              project_id: event.projectId ?? null,
+              project_id: persistedProjectId ?? null,
               status: 'PENDING',
               correlation_id: deps.context.correlationId,
               created_by_principal_id: deps.context.principalId,
@@ -321,7 +331,7 @@ export async function consumeEvent(
               contract_type: event.eventType,
               contract_version: event.eventVersion,
               enterprise_id: deps.context.enterpriseId,
-              project_id: event.projectId ?? null,
+              project_id: persistedProjectId ?? null,
               observed_payload_hash: event.payloadHash,
               source_event_id: event.eventId,
               consumer_name: contract.consumerName,

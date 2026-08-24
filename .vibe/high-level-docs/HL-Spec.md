@@ -455,6 +455,8 @@ WI-10 在 IdentityPolicy owning schema 内提供受限 Outbox Dispatcher 与 Inb
 - Inbox 的目标状态、目标 Outbox、Audit、Command Receipt 与 `PROCESSED` 标记在同一 owning-module transaction 中提交。输入 payload 必须按 canonicalization v1 重新计算 SHA-256；Enterprise/Project Scope 必须与 Event mirror 和 transaction context 精确一致。
 - 同 consumer + EventId + 同 payload hash 重放读取原结果并返回 `DUPLICATE`；同 EventId 不同 hash、Hash 校验失败、未知 Major、缺少 Required Extension 或 Scope 冲突必须 Quarantine/Violation，不能执行 target Command。
 - 并发 Inbox claim 的唯一键竞态必须在应用边界内 adjudicate，胜者结果提交后败者读取原结果，不得把 PostgreSQL 唯一键异常暴露为业务失败。
+- 真实 PostgreSQL 的事务协调器 fixture 必须使用 `NOINHERIT` 登录，并以 `INHERIT FALSE, SET TRUE` 同时持有 `platform_context_establisher` 与目标 module app role；事务内必须按 `establisher → establish context → app role` 顺序切换。仅持有 app role 的 fixture 不得被记录为 WI-10 persistence PASS。
+- Scope conflict 的 Quarantine 不能把未经验证的 Event Scope 放入 Command Envelope 或 RLS 行 Scope；持久化时只使用受信 transaction Context 的 Enterprise，Project 仅在属于 `allowedProjectIds` 时保留，否则以 `NULL` 作为当前 Enterprise 下的安全 Quarantine Scope，并保留 Violation 类型/摘要用于调查。
 - DEAD 人工 resume 必须记录不可变、脱敏且包含 operator reason 的 Audit；生产 broker、Provider、外部副作用和人工业务验收不因本地 PostgreSQL gate 自动变成 `PASS`。
 
-WI-10 修正已提交并推送至 PR #50；最新 base 整合、exact-head CI 和语义复审仍待完成。本节不将未完成的交付动作或未执行的生产 Broker、Provider、外部副作用和人工业务验收写成完成状态。
+WI-10 初始修正已提交并推送至 PR #50；最新 base 集成暴露的 messaging fixture ACL 与未经验证 Event Scope 回归已在当前工作树修复，重新编译 workspace 包后真实 PostgreSQL gate 和集成工作树的完整 verify 已通过。后续修正尚待提交、推送并完成 exact-head CI/语义复审；本节不将未完成的交付动作或未执行的生产 Broker、Provider、外部副作用和人工业务验收写成完成状态。

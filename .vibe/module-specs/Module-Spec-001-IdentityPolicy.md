@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 REVIEW REPAIR VERIFIED 2026-08-24 / WI-10 PERSISTENCE SLICE PUSHED / BASE INTEGRATION AND EXACT-HEAD REVIEW PENDING / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 REVIEW REPAIR VERIFIED 2026-08-24 / WI-10 BASE-INTEGRATION ACL+SCOPE REPAIR VERIFIED / INTEGRATED FULL VERIFY PASS / EXACT-HEAD REVIEW PENDING / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -201,6 +201,8 @@ IdentityPolicy owning schema 的 WI-10 实现只负责本模块技术表上的 O
 - 消费事务按 `claim → canonical hash 校验 → Major/Required Extension 校验 → Enterprise/Project Scope 校验 → idempotent target Command → target state/outbox/audit → PROCESSED` 执行。
 - canonical payload hash 必须使用共享 canonicalization v1 + SHA-256；Enterprise 与 payload/Event 的 Project mirror 必须精确匹配，Project 还必须属于 transaction context 的允许集合。
 - 同 consumer/EventId/同 hash 重放返回原结果；不同 hash、canonical hash mismatch、未知 Major、缺少 Required Extension 或 Scope conflict 写 Quarantine/Violation，不执行 target。并发唯一键竞态返回已提交结果或明确的可重试状态，不泄漏数据库异常。
+- 真实 PostgreSQL fixture 必须使用 `NOINHERIT` 登录，并以 `INHERIT FALSE, SET TRUE` 同时持有 `platform_context_establisher` 与 `identity_policy_app`；`withIdentityTransaction` 依次 `SET LOCAL ROLE platform_context_establisher`、建立 Context、再 `SET LOCAL ROLE identity_policy_app`。缺少 establisher membership 的 fixture 属于测试配置错误，不得作为实现通过证据。
+- Scope conflict 的 Quarantine 不得把未经验证的 Event `projectId` 作为 Command Envelope 或 RLS Scope；持久化的 Enterprise 使用受信 Context，Project 仅在属于 `allowedProjectIds` 时保留，否则存为 `NULL`，并通过 Violation 类型与安全摘要保留调查信号。
 
 本节不新增公开 API Catalog 条目；导出的 Dispatcher/Inbox 函数是实现端口，业务 Command 仍由各 owning module 的公开 Contract 和 AuthorizationDecision 约束。
 
@@ -220,7 +222,7 @@ IdentityPolicy owning schema 的 WI-10 实现只负责本模块技术表上的 O
 - Schema、Registry 与公开 Catalog 已存在；WI-05 PostgreSQL 关系模型、低层 Repository 与 focused persistence tests 已自动验证通过；
 - WI-06 真实 PostgreSQL Command transaction runner 的原子 Claim、Context 绑定、精确 CAS、REJECTED current version 与 Reference Edge/Outbox 回滚已自动验证通过；
 - WI-07 Handler、Persistence 和回归测试已按本规格接入，并通过完整静态/契约/真实 PostgreSQL gate；
-- 公开 Handler 的外部 Provider 接入、真实 OpenBao/Keycloak/飞书 Adapter、业务 E2E 与人工验收仍为 `NOT RUN`；WI-10 Outbox/Inbox 持久化切片已在 PR #50 提交并推送，当前 base 整合、exact-head CI 与语义复审仍待完成。
+- 公开 Handler 的外部 Provider 接入、真实 OpenBao/Keycloak/飞书 Adapter、业务 E2E 与人工验收仍为 `NOT RUN`；WI-10 初始 Outbox/Inbox 持久化切片已在 PR #50 提交并推送。最新 base `0fc8e464…` 已正常合并；messaging fixture 的 `platform_context_establisher` membership 与未经验证 Event Scope 回归均已在当前工作树修复，重新编译后真实 PostgreSQL gate 为 `12 files / 176 tests PASS`，空库迁移与二次 migrate no-op 通过，容器已清理；集成工作树的完整 `pnpm clean && pnpm verify` 也已通过。后续修正尚待提交、推送并完成 exact-head CI 与语义复审。
 
 ## 10. IM-02 WI-04 持久化切片
 

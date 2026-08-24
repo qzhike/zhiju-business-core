@@ -1,6 +1,6 @@
 # PR #50 WI-10 Review 与修正计划
 
-状态：`IN PROGRESS / INITIAL REVIEW COMMENTED / LOCAL REMEDIATION VERIFIED / EXACT-HEAD DELIVERY PENDING`
+状态：`IN PROGRESS / INITIAL REVIEW COMMENTED / BASE-INTEGRATION ACL+SCOPE REPAIR VERIFIED / INTEGRATED FULL VERIFY PASS / EXACT-HEAD DELIVERY PENDING`
 
 ## 1. 范围与权威
 
@@ -16,6 +16,7 @@
 4. `LEASED` 且 `lease_until` 已过期的 Outbox 事件必须可由新 owner 回收；旧 token 仍不能 ACK 或写入失败状态。
 5. retry/dead-letter 判断必须使用数据库 `attempt_count`，不能由调用方伪造 attempt；第一次 claim 不能直接进入 `DEAD`。
 6. DEAD 恢复成功操作必须有不可变 Audit；operator reason 必须被记录，Audit 失败不能留下未审计的已恢复状态。
+7. Scope conflict 的 Event `projectId` 未经 Context allow-list 验证前，不得进入 Command Envelope 或 RLS 写入 Scope；不允许的 Project 必须以当前 Enterprise、`project_id=NULL` 的安全 Quarantine 记录落库。
 
 ## 3. 修正顺序
 
@@ -27,7 +28,9 @@
 ## 4. 当前证据
 
 - PR #50 initial review：`COMMENTED`，review ID `5006783981`，绑定 head `f2e24f6b467f586e6a438fa0a6dd1eb1cc5e6831`。
-- 当前工作区 `pnpm typecheck && pnpm persistence:gate`：真实 PostgreSQL 18.6 + Flyway 11.20.3 下 12 个测试文件、161 个测试通过，二次 migrate 为 no-op；测试已改用 canonicalization v1 + SHA-256，并覆盖 canonical hash、Project Scope、并发 replay、过期 lease、服务端 attempt_count 和 Audit failure 反例。
+- 初始修正提交在未集成最新 base 时的 `pnpm typecheck && pnpm persistence:gate`：真实 PostgreSQL 18.6 + Flyway 11.20.3 下 12 个测试文件、161 个测试通过，二次 migrate 为 no-op；测试已改用 canonicalization v1 + SHA-256，并覆盖 canonical hash、Project Scope、并发 replay、过期 lease、服务端 attempt_count 和 Audit failure 反例。
 - 真实 PostgreSQL 反例已确认：非法 hash 被 `PROCESSED`、foreign Project 被 `PROCESSED`、并发 replay 一方泄漏 `23505 command_receipt_idem_unique`、过期 lease 无法重新 claim。
-- 当前 `pnpm clean && pnpm verify` 已通过：格式、Lint、TypeScript、341 个自动测试、架构边界、200 条公开契约/兼容性检查，以及真实 PostgreSQL persistence gate（161 tests、二次 migrate no-op）均通过，容器已清理。
-- 当前修正尚未提交或推送；新 exact-head CI、修正后的 review comment、`.vibe` 交付文档提交和 PR/Issue 状态核对仍待完成。
+- 最新 base `0fc8e464…` 已通过正常 merge 集成到本地 HEAD `fa0ef010…`；首次完整 verify 的静态阶段通过，但真实 PostgreSQL gate 因 `wi10_probe_ip` 缺少 `platform_context_establisher` membership 失败 9 个 messaging 用例，错误为 `42501 permission denied to set role`。该失败属于 WI-03 角色 fixture 与实现路径不一致。
+- 修复 fixture 后，第二次 gate 暴露并修复了未经验证 Event `projectId` 进入 WI-09 Command Envelope 的问题；当前已用安全 Quarantine Scope（不允许的 Project 以 `NULL` 落库）覆盖。
+- 重新执行 `pnpm typecheck` 后，`pnpm persistence:gate` 已通过：PostgreSQL 18.6 / Flyway 11.20.3、`12 files / 176 tests PASS`、空库迁移、二次 migrate no-op、容器清理均通过。exact-head CI、最终 review comment、PR 合并和 Issue close 仍待完成。
+- 随后执行 `pnpm clean && pnpm verify` 已通过：Prettier、ESLint、TypeScript、Vitest `20 passed | 10 skipped` / `341 passed | 163 skipped`、architecture `source_roots=10`、public API/generated types/Catalog `200/200`、compatibility `findings=0`，以及 PostgreSQL 18.6 / Flyway 11.20.3 persistence `12 files / 176 tests PASS`；二次 migrate no-op，容器已清理。

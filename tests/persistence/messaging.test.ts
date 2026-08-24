@@ -88,9 +88,12 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
     admin = new pg.Client({ connectionString: databaseUrl });
     await admin.connect();
     await admin.query(
-      `CREATE ROLE wi10_probe_ip LOGIN PASSWORD 'wi10-probe-ip' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+      `CREATE ROLE wi10_probe_ip LOGIN PASSWORD 'wi10-probe-ip' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
-    await admin.query(`GRANT identity_policy_app TO wi10_probe_ip`);
+    await admin.query(
+      `GRANT platform_context_establisher TO wi10_probe_ip WITH INHERIT FALSE, SET TRUE`,
+    );
+    await admin.query(`GRANT identity_policy_app TO wi10_probe_ip WITH INHERIT FALSE, SET TRUE`);
     await admin.query(
       `CREATE ROLE wi10_probe_disp LOGIN PASSWORD 'wi10-probe-disp' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
@@ -439,6 +442,22 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
       neverRuns,
     );
     expect(projectScopeConflict).toMatchObject({ status: 'SCOPE_CONFLICT' });
+    const projectScopeInbox = await admin.query<{ project_id: string | null }>(
+      `SELECT project_id::text FROM identity_policy.inbox_message WHERE consumer_name = $1 AND event_id = $2`,
+      ['wi10-consumer-2', '50505050-5050-7505-8505-505050505004'],
+    );
+    expect(projectScopeInbox.rows[0]).toEqual({ project_id: null });
+    const projectScopeViolation = await admin.query<{
+      violation_kind: string;
+      project_id: string | null;
+    }>(
+      `SELECT violation_kind, project_id::text FROM identity_policy.contract_violation WHERE consumer_name = $1 AND source_event_id = $2`,
+      ['wi10-consumer-2', '50505050-5050-7505-8505-505050505004'],
+    );
+    expect(projectScopeViolation.rows[0]).toEqual({
+      violation_kind: 'SCOPE_CONFLICT',
+      project_id: null,
+    });
 
     const projectMirrorConflict = await consumeEvent(
       deps(),
