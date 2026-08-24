@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / EXTERNAL NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / EXTERNAL NOT RUN`
 
 对应规格：[`Module-Spec-001-IdentityPolicy.md`](../module-specs/Module-Spec-001-IdentityPolicy.md)。本文件记录 IdentityPolicy 的 API 层 Unit、Contract、E2E 与人工验收用例和真实结果；高层跨模块场景仍见 `08-verification-baseline.md`。
 
@@ -127,7 +127,7 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 | ID | 层级 | 输入 | 预期输出 | 实际输出 | 结果 |
 |---|---|---|---|---|---|
-| IP-PG-RACE-001 | Persistence Gate | 从合并后的干净 `main` 先运行 `pnpm clean && pnpm verify`，再独立运行 `pnpm typecheck && pnpm persistence:gate` | WI-09 DENY Audit 与 WI-10 Audit INSERT 失败场景互不干扰；Gate 为 `12 files / 177 tests PASS` | 合并后首轮独立 Gate 的历史 `42501` 竞态已由 PR #52 的 `--no-file-parallelism` 修复；PR #53 合并后的最终 main 完整 verify 为 `12 files / 177 tests PASS`，Migration/no-op、容器清理和 exact-head CI 均通过 | `PASS / IM-02 COMPLETE` |
+| IP-PG-RACE-001 | Persistence Gate | 从合并后的干净 `main` 先运行 `pnpm clean && pnpm verify`，再独立运行 `pnpm typecheck && pnpm persistence:gate` | WI-09 DENY Audit 与 WI-10 Audit INSERT 失败场景互不干扰；Gate 为 `12 files / 177 tests PASS` | 合并后首轮独立 Gate 的历史 `42501` 竞态已由 PR #52 的 `--no-file-parallelism` 修复；PR #53 合并后的最终 main 完整 verify 为 `12 files / 177 tests PASS`，Migration/no-op、容器清理和 exact-head CI 均通过 | `PASS / IM-02 COMPLETE / ISSUE #28 CLOSED` |
 
 修复要求：Gate 必须隔离文件级 Persistence 测试执行，保留 `IP-WI10-U-006` 的真实权限失败反例；PR #52 已满足连续独立 Gate、直接 digest main Gate 和 exact-head CI 条件。Runbook 文档口径修订不改变本项运行时结论。
 

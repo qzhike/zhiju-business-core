@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-24
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE PENDING ISSUE CLOSE / PR #51+#52+#53 MERGED / ISSUE #28 OPEN`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -174,7 +174,7 @@ IM-09 Reference Project E2E + Operations Hardening
 
 退出 Gate：空库迁移、重复迁移、最小权限、跨 Schema 写拒绝、无/伪造 RLS Context、CAS 和 Inbox/Outbox replay 在真实 PostgreSQL 通过。
 
-当前状态：`COMPLETE PENDING ISSUE CLOSE`（2026-08-24）。#29–#38 子 Issue 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`；PR #46–#50 的 stacked 实现由 PR #51 进入 `main`，Gate 修复由 PR #52 合入，Runbook/验收文档由 PR #53 合入 `main@3682511`。合并后的完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify` 通过：Persistence `12/177`、14 个 Migration `Success`、二次 migrate no-op、Runbook 和 Probe 证据均已记录。真实 Provider、跨模块 HTTP/E2E、生产环境和外部系统验收仍为 `NOT RUN`；IM-02 已完成，Issue #28 待关闭动作。
+当前状态：`COMPLETE`（2026-08-24）。#29–#38 子 Issue 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`；PR #46–#50 的 stacked 实现由 PR #51 进入 `main`，Gate 修复由 PR #52 合入，Runbook/验收文档和 COMPLETE 状态由 PR #53/#54/#55 合入 `main@47d1b57`。合并后的完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify` 通过：Persistence `12/177`、14 个 Migration `Success`、二次 migrate no-op、Runbook 和 Probe 证据均已记录。真实 Provider、跨模块 HTTP/E2E、生产环境和外部系统验收仍为 `NOT RUN`；IM-02 已完成，Issue #28 已关闭。
 
 ### IM-03 EnterpriseProject Reference Foundation
 
@@ -245,4 +245,4 @@ IM-09 Reference Project E2E + Operations Hardening
 - Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；干净 verify 为 13 files / 287 tests PASS。
 - #5 字段 Schema 已由 PR #14 合入并完成；重复/迟到 Runtime 由已关闭的 #15 完成，剩余 Runtime 分别由 #22–#24 跟踪。#17 追踪 IntegrationGateway Runtime 缺口。这些 Runtime Issue 不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005/006 仍待决。
-- IM-02 当前为 `COMPLETE PENDING ISSUE CLOSE`：PR #51/#52/#53 已合入 `main@3682511`，最终 main 完整 verify 为 PASS，Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 仅待关闭动作，关闭后再进入 IM-03。
+- IM-02 当前为 `COMPLETE`：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify 为 PASS，Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 已关闭；IM-03 可在后续用户明确启动后进入。
