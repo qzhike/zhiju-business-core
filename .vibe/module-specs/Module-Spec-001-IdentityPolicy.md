@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 PERSISTENCE IN REVIEW`
 
 ## 1. 模块责任
 
@@ -171,6 +171,8 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 6. AuthorizationDecision 是不可变 Contract；所有业务 Handler 重新验证其完整性和时效。
 7. 本模块不存 Provider Token、共享 Human Credential 或长期 Runtime Capability Token。
 8. 其他模块只保存 PrincipalRef、ActorSnapshotRef、AuthorizationDecisionRef，不建立跨 Schema 外键。
+9. Enterprise Scope 不携带 Project；Project Scope 必须携带 Project，且数据库 RLS 同时校验事务上下文允许的 Enterprise 与 Project。
+10. Role/Capability 撤销事实保存父记录的完整 Scope 镜像；CapabilityGrant 与 AuthorizationDecision 分别按精确 PolicySnapshot/ActorSnapshot id + payload hash 绑定，并拒绝引用对象的 Principal、Kind、认证上下文或 Scope 不一致。
 
 ## 8. 可人工验收的模块产出
 
@@ -180,5 +182,5 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 
 - 20 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- Schema、Registry、Handler、Persistence 和测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- 20 个字段级 Schema/Registry 已落地；WI-05 PostgreSQL 关系模型、低层 Repository 与 focused persistence tests 正在 PR #45 审查；
+- 公开 Handler、真实 OpenBao/Keycloak/飞书 Adapter、业务 E2E 与人工验收仍为 `NOT RUN`。

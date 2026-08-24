@@ -32,7 +32,8 @@ CREATE TABLE identity_policy.principal (
         principal_kind IN ('HUMAN', 'AGENT', 'SERVICE', 'RUNTIME', 'EXTERNAL_PARTY')),
     CONSTRAINT principal_status_closed CHECK (
         status IN ('ACTIVE', 'SUSPENDED', 'REVOKED', 'ARCHIVED')),
-    CONSTRAINT principal_version_positive CHECK (aggregate_version >= 1)
+    CONSTRAINT principal_version_positive CHECK (aggregate_version >= 1),
+    CONSTRAINT principal_kind_ref_unique UNIQUE (id, principal_kind)
 );
 
 CREATE INDEX principal_status_idx ON identity_policy.principal (status, updated_at DESC);
@@ -63,7 +64,12 @@ BEGIN
     IF TG_TABLE_NAME IN ('role_assignment', 'capability_grant')
        AND (v_new->>'enterprise_id' IS DISTINCT FROM v_old->>'enterprise_id'
             OR v_new->>'project_id' IS DISTINCT FROM v_old->>'project_id'
-            OR v_new->>'principal_id' IS DISTINCT FROM v_old->>'principal_id') THEN
+            OR v_new->>'principal_id' IS DISTINCT FROM v_old->>'principal_id'
+            OR v_new->>'scope_kind' IS DISTINCT FROM v_old->>'scope_kind'
+            OR (TG_TABLE_NAME = 'role_assignment'
+                AND v_new->>'role_code' IS DISTINCT FROM v_old->>'role_code')
+            OR (TG_TABLE_NAME = 'capability_grant'
+                AND v_new->>'capability_code' IS DISTINCT FROM v_old->>'capability_code')) THEN
         RAISE EXCEPTION 'scope columns are immutable'
             USING ERRCODE = '23514';
     END IF;
@@ -206,9 +212,14 @@ CREATE TABLE identity_policy.role_assignment (
     last_command_id uuid,
     retention_class text NOT NULL DEFAULT 'CUSTOMER_RECORD',
     CONSTRAINT role_assignment_scope_closed CHECK (scope_kind IN ('ENTERPRISE', 'PROJECT')),
+    CONSTRAINT role_assignment_scope_shape CHECK (
+        (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
+        OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL)),
     CONSTRAINT role_assignment_status_closed CHECK (status IN ('ACTIVE', 'REVOKED')),
     CONSTRAINT role_assignment_period CHECK (valid_to IS NULL OR valid_to > valid_from),
     CONSTRAINT role_assignment_version_positive CHECK (aggregate_version >= 1),
+    CONSTRAINT role_assignment_scope_ref_unique UNIQUE (id, scope_kind, enterprise_id),
+    CONSTRAINT role_assignment_project_ref_unique UNIQUE NULLS NOT DISTINCT (id, project_id),
     CONSTRAINT role_assignment_principal_fk FOREIGN KEY (principal_id)
         REFERENCES identity_policy.principal (id) ON DELETE RESTRICT
 );
@@ -230,19 +241,29 @@ ALTER TABLE identity_policy.role_assignment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identity_policy.role_assignment FORCE ROW LEVEL SECURITY;
 CREATE POLICY role_assignment_select ON identity_policy.role_assignment
     FOR SELECT TO identity_policy_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY role_assignment_insert ON identity_policy.role_assignment
     FOR INSERT TO identity_policy_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY role_assignment_update ON identity_policy.role_assignment
     FOR UPDATE TO identity_policy_app
-    USING (platform_security.context_allows_enterprise(enterprise_id))
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    USING (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)))
+    WITH CHECK (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 
 CREATE TABLE identity_policy.role_revocation (
     revocation_id uuid PRIMARY KEY,
     role_assignment_id uuid NOT NULL,
+    scope_kind text NOT NULL,
     enterprise_id uuid NOT NULL,
+    project_id uuid,
     revoked_by_principal_id uuid NOT NULL,
     reason_code text NOT NULL,
     effective_at timestamptz NOT NULL,
@@ -251,8 +272,48 @@ CREATE TABLE identity_policy.role_revocation (
     recorded_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT role_revocation_assignment_fk FOREIGN KEY (role_assignment_id)
         REFERENCES identity_policy.role_assignment (id) ON DELETE RESTRICT,
+    CONSTRAINT role_revocation_scope_fk FOREIGN KEY
+        (role_assignment_id, scope_kind, enterprise_id)
+        REFERENCES identity_policy.role_assignment (id, scope_kind, enterprise_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT role_revocation_project_fk FOREIGN KEY (role_assignment_id, project_id)
+        REFERENCES identity_policy.role_assignment (id, project_id) ON DELETE RESTRICT,
+    CONSTRAINT role_revocation_scope_closed CHECK (scope_kind IN ('ENTERPRISE', 'PROJECT')),
+    CONSTRAINT role_revocation_scope_shape CHECK (
+        (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
+        OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL)),
     CONSTRAINT role_revocation_once UNIQUE (role_assignment_id)
 );
+
+CREATE FUNCTION identity_policy.guard_role_revocation_scope() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+DECLARE
+    v_scope_kind text;
+    v_enterprise_id uuid;
+    v_project_id uuid;
+BEGIN
+    SELECT scope_kind, enterprise_id, project_id
+      INTO v_scope_kind, v_enterprise_id, v_project_id
+      FROM identity_policy.role_assignment
+     WHERE id = NEW.role_assignment_id;
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.scope_kind IS DISTINCT FROM v_scope_kind
+       OR NEW.enterprise_id IS DISTINCT FROM v_enterprise_id
+       OR NEW.project_id IS DISTINCT FROM v_project_id THEN
+        RAISE EXCEPTION 'role revocation scope does not match assignment'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$guard$;
+
+CREATE TRIGGER role_revocation_scope_guard
+    BEFORE INSERT ON identity_policy.role_revocation
+    FOR EACH ROW EXECUTE FUNCTION identity_policy.guard_role_revocation_scope();
 
 REVOKE UPDATE ON identity_policy.role_revocation FROM identity_policy_app;
 
@@ -260,10 +321,14 @@ ALTER TABLE identity_policy.role_revocation ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identity_policy.role_revocation FORCE ROW LEVEL SECURITY;
 CREATE POLICY role_revocation_select ON identity_policy.role_revocation
     FOR SELECT TO identity_policy_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY role_revocation_insert ON identity_policy.role_revocation
     FOR INSERT TO identity_policy_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 
 -- ---------------------------------------------------------------------------
 -- capability_grant: enterprise Aggregate Root. Human-only enforcement is a
@@ -296,9 +361,14 @@ CREATE TABLE identity_policy.capability_grant (
     last_command_id uuid,
     retention_class text NOT NULL DEFAULT 'CUSTOMER_RECORD',
     CONSTRAINT capability_grant_scope_closed CHECK (scope_kind IN ('ENTERPRISE', 'PROJECT')),
+    CONSTRAINT capability_grant_scope_shape CHECK (
+        (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
+        OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL)),
     CONSTRAINT capability_grant_status_closed CHECK (status IN ('ACTIVE', 'REVOKED')),
     CONSTRAINT capability_grant_period CHECK (valid_to IS NULL OR valid_to > valid_from),
     CONSTRAINT capability_grant_version_positive CHECK (aggregate_version >= 1),
+    CONSTRAINT capability_grant_scope_ref_unique UNIQUE (id, scope_kind, enterprise_id),
+    CONSTRAINT capability_grant_project_ref_unique UNIQUE NULLS NOT DISTINCT (id, project_id),
     CONSTRAINT capability_grant_actions_nonempty CHECK (array_length(actions, 1) >= 1),
     CONSTRAINT capability_grant_policy_hash_len CHECK (octet_length(grant_policy_snapshot_hash) = 32),
     CONSTRAINT capability_grant_max_uses CHECK (max_uses IS NULL OR max_uses >= 1),
@@ -319,23 +389,55 @@ CREATE TRIGGER capability_grant_identity_guard
     BEFORE UPDATE ON identity_policy.capability_grant
     FOR EACH ROW EXECUTE FUNCTION identity_policy.guard_identity_roots_immutable();
 
+CREATE FUNCTION identity_policy.guard_capability_policy_ref() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+DECLARE
+    v_payload_hash bytea;
+BEGIN
+    SELECT payload_hash INTO v_payload_hash
+      FROM identity_policy.policy_snapshot
+     WHERE policy_snapshot_id = NEW.grant_policy_snapshot_id;
+    IF FOUND AND NEW.grant_policy_snapshot_hash IS DISTINCT FROM v_payload_hash THEN
+        RAISE EXCEPTION 'capability grant policy hash does not match snapshot'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$guard$;
+
+CREATE TRIGGER capability_grant_policy_ref_guard
+    BEFORE INSERT OR UPDATE ON identity_policy.capability_grant
+    FOR EACH ROW EXECUTE FUNCTION identity_policy.guard_capability_policy_ref();
+
 ALTER TABLE identity_policy.capability_grant ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identity_policy.capability_grant FORCE ROW LEVEL SECURITY;
 CREATE POLICY capability_grant_select ON identity_policy.capability_grant
     FOR SELECT TO identity_policy_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY capability_grant_insert ON identity_policy.capability_grant
     FOR INSERT TO identity_policy_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY capability_grant_update ON identity_policy.capability_grant
     FOR UPDATE TO identity_policy_app
-    USING (platform_security.context_allows_enterprise(enterprise_id))
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    USING (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)))
+    WITH CHECK (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 
 CREATE TABLE identity_policy.capability_revocation (
     revocation_id uuid PRIMARY KEY,
     capability_grant_id uuid NOT NULL,
+    scope_kind text NOT NULL,
     enterprise_id uuid NOT NULL,
+    project_id uuid,
     revoked_by_principal_id uuid NOT NULL,
     reason_code text NOT NULL,
     effective_at timestamptz NOT NULL,
@@ -344,8 +446,48 @@ CREATE TABLE identity_policy.capability_revocation (
     recorded_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT capability_revocation_grant_fk FOREIGN KEY (capability_grant_id)
         REFERENCES identity_policy.capability_grant (id) ON DELETE RESTRICT,
+    CONSTRAINT capability_revocation_scope_fk FOREIGN KEY
+        (capability_grant_id, scope_kind, enterprise_id)
+        REFERENCES identity_policy.capability_grant (id, scope_kind, enterprise_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT capability_revocation_project_fk FOREIGN KEY (capability_grant_id, project_id)
+        REFERENCES identity_policy.capability_grant (id, project_id) ON DELETE RESTRICT,
+    CONSTRAINT capability_revocation_scope_closed CHECK (scope_kind IN ('ENTERPRISE', 'PROJECT')),
+    CONSTRAINT capability_revocation_scope_shape CHECK (
+        (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
+        OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL)),
     CONSTRAINT capability_revocation_once UNIQUE (capability_grant_id)
 );
+
+CREATE FUNCTION identity_policy.guard_capability_revocation_scope() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+DECLARE
+    v_scope_kind text;
+    v_enterprise_id uuid;
+    v_project_id uuid;
+BEGIN
+    SELECT scope_kind, enterprise_id, project_id
+      INTO v_scope_kind, v_enterprise_id, v_project_id
+      FROM identity_policy.capability_grant
+     WHERE id = NEW.capability_grant_id;
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.scope_kind IS DISTINCT FROM v_scope_kind
+       OR NEW.enterprise_id IS DISTINCT FROM v_enterprise_id
+       OR NEW.project_id IS DISTINCT FROM v_project_id THEN
+        RAISE EXCEPTION 'capability revocation scope does not match grant'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$guard$;
+
+CREATE TRIGGER capability_revocation_scope_guard
+    BEFORE INSERT ON identity_policy.capability_revocation
+    FOR EACH ROW EXECUTE FUNCTION identity_policy.guard_capability_revocation_scope();
 
 REVOKE UPDATE ON identity_policy.capability_revocation FROM identity_policy_app;
 
@@ -353,10 +495,14 @@ ALTER TABLE identity_policy.capability_revocation ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identity_policy.capability_revocation FORCE ROW LEVEL SECURITY;
 CREATE POLICY capability_revocation_select ON identity_policy.capability_revocation
     FOR SELECT TO identity_policy_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY capability_revocation_insert ON identity_policy.capability_revocation
     FOR INSERT TO identity_policy_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 
 -- ---------------------------------------------------------------------------
 -- policy_snapshot: platform Immutable Contract (§8.1 header). Build-time
@@ -386,7 +532,8 @@ CREATE TABLE identity_policy.policy_snapshot (
     retention_class text NOT NULL,
     CONSTRAINT policy_snapshot_hash_len CHECK (octet_length(payload_hash) = 32),
     CONSTRAINT policy_snapshot_size_nonnegative CHECK (payload_size_bytes >= 0),
-    CONSTRAINT policy_snapshot_set_unique UNIQUE (policy_set_version)
+    CONSTRAINT policy_snapshot_set_unique UNIQUE (policy_set_version),
+    CONSTRAINT policy_snapshot_content_ref_unique UNIQUE (policy_snapshot_id, payload_hash)
 );
 
 CREATE INDEX policy_snapshot_effective_idx
@@ -398,6 +545,11 @@ CREATE INDEX policy_snapshot_effective_idx
 ALTER TABLE identity_policy.capability_grant
     ADD CONSTRAINT capability_grant_policy_fk FOREIGN KEY (grant_policy_snapshot_id)
     REFERENCES identity_policy.policy_snapshot (policy_snapshot_id) ON DELETE RESTRICT;
+ALTER TABLE identity_policy.capability_grant
+    ADD CONSTRAINT capability_grant_policy_content_fk FOREIGN KEY
+    (grant_policy_snapshot_id, grant_policy_snapshot_hash)
+    REFERENCES identity_policy.policy_snapshot (policy_snapshot_id, payload_hash)
+    ON DELETE RESTRICT;
 
 CREATE FUNCTION identity_policy.guard_policy_snapshot_mirror() RETURNS trigger
 LANGUAGE plpgsql
@@ -410,6 +562,10 @@ BEGIN
     END IF;
     IF (NEW.canonical_payload->>'effectiveFrom')::timestamptz IS DISTINCT FROM NEW.effective_from THEN
         RAISE EXCEPTION 'policy snapshot promoted mirror mismatch: effectiveFrom'
+            USING ERRCODE = '22023';
+    END IF;
+    IF NEW.canonical_payload->'policySchemaRefs' IS DISTINCT FROM NEW.policy_schema_refs THEN
+        RAISE EXCEPTION 'policy snapshot promoted mirror mismatch: policySchemaRefs'
             USING ERRCODE = '22023';
     END IF;
     RETURN NEW;
@@ -438,6 +594,7 @@ CREATE TABLE identity_policy.actor_snapshot (
     actor_snapshot_id uuid PRIMARY KEY,
     principal_id uuid NOT NULL,
     principal_kind text NOT NULL,
+    scope_kind text NOT NULL,
     acting_for_principal_id uuid,
     acting_for_kind text,
     channel_code text,
@@ -458,13 +615,27 @@ CREATE TABLE identity_policy.actor_snapshot (
     retention_class text NOT NULL,
     CONSTRAINT actor_snapshot_kind_closed CHECK (
         principal_kind IN ('HUMAN', 'AGENT', 'SERVICE', 'RUNTIME', 'EXTERNAL_PARTY')),
+    CONSTRAINT actor_snapshot_scope_closed CHECK (scope_kind IN ('ENTERPRISE', 'PROJECT')),
+    CONSTRAINT actor_snapshot_scope_shape CHECK (
+        (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
+        OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL)),
     CONSTRAINT actor_snapshot_acting_for_shape CHECK (
         (acting_for_principal_id IS NULL AND acting_for_kind IS NULL)
         OR (acting_for_principal_id IS NOT NULL AND acting_for_kind IS NOT NULL)),
     CONSTRAINT actor_snapshot_hash_len CHECK (octet_length(payload_hash) = 32),
     CONSTRAINT actor_snapshot_auth_hash_len CHECK (octet_length(authentication_context_hash) = 32),
+    CONSTRAINT actor_snapshot_binding_unique UNIQUE
+        (actor_snapshot_id, payload_hash, principal_id, principal_kind,
+         authentication_context_hash, scope_kind, enterprise_id),
+    CONSTRAINT actor_snapshot_project_ref_unique UNIQUE NULLS NOT DISTINCT
+        (actor_snapshot_id, project_id),
     CONSTRAINT actor_snapshot_principal_fk FOREIGN KEY (principal_id)
-        REFERENCES identity_policy.principal (id) ON DELETE RESTRICT
+        REFERENCES identity_policy.principal (id) ON DELETE RESTRICT,
+    CONSTRAINT actor_snapshot_principal_kind_fk FOREIGN KEY (principal_id, principal_kind)
+        REFERENCES identity_policy.principal (id, principal_kind) ON DELETE RESTRICT,
+    CONSTRAINT actor_snapshot_acting_for_kind_fk FOREIGN KEY
+        (acting_for_principal_id, acting_for_kind)
+        REFERENCES identity_policy.principal (id, principal_kind) ON DELETE RESTRICT
 );
 
 CREATE INDEX actor_snapshot_principal_idx ON identity_policy.actor_snapshot (principal_id);
@@ -484,6 +655,20 @@ BEGIN
         RAISE EXCEPTION 'actor snapshot promoted mirror mismatch: enterpriseId'
             USING ERRCODE = '22023';
     END IF;
+    IF NEW.canonical_payload->>'principalId' IS DISTINCT FROM NEW.principal_id::text
+       OR NEW.canonical_payload->>'scopeKind' IS DISTINCT FROM NEW.scope_kind
+       OR NEW.canonical_payload->>'projectId' IS DISTINCT FROM NEW.project_id::text
+       OR NEW.canonical_payload->>'authenticationContextHash'
+          IS DISTINCT FROM encode(NEW.authentication_context_hash, 'hex')
+       OR NEW.canonical_payload->>'channelCode' IS DISTINCT FROM NEW.channel_code
+       OR NEW.canonical_payload->>'runtimeSource' IS DISTINCT FROM NEW.runtime_source
+       OR NEW.canonical_payload->'actingFor'->>'principalId'
+          IS DISTINCT FROM NEW.acting_for_principal_id::text
+       OR NEW.canonical_payload->'actingFor'->>'principalKind'
+          IS DISTINCT FROM NEW.acting_for_kind THEN
+        RAISE EXCEPTION 'actor snapshot promoted mirror mismatch: identity or context'
+            USING ERRCODE = '22023';
+    END IF;
     RETURN NEW;
 END
 $mirror$;
@@ -498,10 +683,14 @@ ALTER TABLE identity_policy.actor_snapshot ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identity_policy.actor_snapshot FORCE ROW LEVEL SECURITY;
 CREATE POLICY actor_snapshot_select ON identity_policy.actor_snapshot
     FOR SELECT TO identity_policy_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (
+        (project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (project_id IS NOT NULL AND platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY actor_snapshot_insert ON identity_policy.actor_snapshot
     FOR INSERT TO identity_policy_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (
+        (project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (project_id IS NOT NULL AND platform_security.context_allows_project(enterprise_id, project_id)));
 
 -- ---------------------------------------------------------------------------
 -- authorization_decision: enterprise Immutable Contract, ALLOW/DENY, bound
@@ -512,6 +701,7 @@ CREATE POLICY actor_snapshot_insert ON identity_policy.actor_snapshot
 CREATE TABLE identity_policy.authorization_decision (
     authorization_decision_id uuid PRIMARY KEY,
     actor_snapshot_id uuid NOT NULL,
+    actor_snapshot_payload_hash bytea NOT NULL,
     principal_id uuid NOT NULL,
     principal_kind text NOT NULL,
     outcome text NOT NULL,
@@ -544,7 +734,12 @@ CREATE TABLE identity_policy.authorization_decision (
         principal_kind IN ('HUMAN', 'AGENT', 'SERVICE', 'RUNTIME', 'EXTERNAL_PARTY')),
     CONSTRAINT authorization_decision_scope_closed CHECK (
         scope_kind IN ('ENTERPRISE', 'PROJECT')),
+    CONSTRAINT authorization_decision_scope_shape CHECK (
+        (scope_kind = 'ENTERPRISE' AND project_id IS NULL)
+        OR (scope_kind = 'PROJECT' AND project_id IS NOT NULL)),
     CONSTRAINT authorization_decision_hash_len CHECK (octet_length(payload_hash) = 32),
+    CONSTRAINT authorization_decision_actor_hash_len CHECK (
+        octet_length(actor_snapshot_payload_hash) = 32),
     CONSTRAINT authorization_decision_command_hash_len CHECK (
         octet_length(command_payload_hash) = 32),
     CONSTRAINT authorization_decision_policy_hash_len CHECK (
@@ -553,8 +748,23 @@ CREATE TABLE identity_policy.authorization_decision (
         octet_length(authentication_context_hash) = 32),
     CONSTRAINT authorization_decision_actor_fk FOREIGN KEY (actor_snapshot_id)
         REFERENCES identity_policy.actor_snapshot (actor_snapshot_id) ON DELETE RESTRICT,
+    CONSTRAINT authorization_decision_actor_binding_fk FOREIGN KEY
+        (actor_snapshot_id, actor_snapshot_payload_hash, principal_id, principal_kind,
+         authentication_context_hash, scope_kind, enterprise_id)
+        REFERENCES identity_policy.actor_snapshot
+        (actor_snapshot_id, payload_hash, principal_id, principal_kind,
+         authentication_context_hash, scope_kind, enterprise_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT authorization_decision_actor_project_fk FOREIGN KEY
+        (actor_snapshot_id, project_id)
+        REFERENCES identity_policy.actor_snapshot (actor_snapshot_id, project_id)
+        ON DELETE RESTRICT,
     CONSTRAINT authorization_decision_policy_fk FOREIGN KEY (policy_snapshot_id)
         REFERENCES identity_policy.policy_snapshot (policy_snapshot_id) ON DELETE RESTRICT,
+    CONSTRAINT authorization_decision_policy_content_fk FOREIGN KEY
+        (policy_snapshot_id, policy_snapshot_payload_hash)
+        REFERENCES identity_policy.policy_snapshot (policy_snapshot_id, payload_hash)
+        ON DELETE RESTRICT,
     CONSTRAINT authorization_decision_principal_fk FOREIGN KEY (principal_id)
         REFERENCES identity_policy.principal (id) ON DELETE RESTRICT
 );
@@ -572,6 +782,9 @@ CREATE FUNCTION identity_policy.guard_authorization_decision_mirror() RETURNS tr
 LANGUAGE plpgsql
 SET search_path = pg_catalog
 AS $mirror$
+DECLARE
+    v_actor identity_policy.actor_snapshot%ROWTYPE;
+    v_policy_hash bytea;
 BEGIN
     IF NEW.canonical_payload->>'outcome' IS DISTINCT FROM NEW.outcome THEN
         RAISE EXCEPTION 'authorization decision promoted mirror mismatch: outcome'
@@ -584,6 +797,53 @@ BEGIN
     IF NEW.canonical_payload->>'commandType' IS DISTINCT FROM NEW.command_type THEN
         RAISE EXCEPTION 'authorization decision promoted mirror mismatch: commandType'
             USING ERRCODE = '22023';
+    END IF;
+    IF NEW.canonical_payload->>'actorSnapshotId' IS DISTINCT FROM NEW.actor_snapshot_id::text
+       OR NEW.canonical_payload->>'actorSnapshotPayloadHash'
+          IS DISTINCT FROM encode(NEW.actor_snapshot_payload_hash, 'hex')
+       OR NEW.canonical_payload->>'policySnapshotId' IS DISTINCT FROM NEW.policy_snapshot_id::text
+       OR NEW.canonical_payload->>'policySnapshotPayloadHash'
+          IS DISTINCT FROM encode(NEW.policy_snapshot_payload_hash, 'hex') THEN
+        RAISE EXCEPTION 'authorization decision promoted mirror mismatch: snapshot reference'
+            USING ERRCODE = '22023';
+    END IF;
+    IF NEW.canonical_payload->>'principalId' IS DISTINCT FROM NEW.principal_id::text
+       OR NEW.canonical_payload->>'principalKind' IS DISTINCT FROM NEW.principal_kind
+       OR NEW.canonical_payload->>'commandVersion' IS DISTINCT FROM NEW.command_version
+       OR NEW.canonical_payload->>'scopeKind' IS DISTINCT FROM NEW.scope_kind
+       OR NEW.canonical_payload->>'projectId' IS DISTINCT FROM NEW.project_id::text
+       OR NEW.canonical_payload->>'purpose' IS DISTINCT FROM NEW.purpose
+       OR NEW.canonical_payload->>'requestedCapability' IS DISTINCT FROM NEW.requested_capability
+       OR NEW.canonical_payload->>'commandPayloadHash'
+          IS DISTINCT FROM encode(NEW.command_payload_hash, 'hex')
+       OR NEW.canonical_payload->>'authenticationContextHash'
+          IS DISTINCT FROM encode(NEW.authentication_context_hash, 'hex')
+       OR (NEW.canonical_payload->>'expiresAt')::timestamptz IS DISTINCT FROM NEW.expires_at THEN
+        RAISE EXCEPTION 'authorization decision promoted mirror mismatch: intent or scope'
+            USING ERRCODE = '22023';
+    END IF;
+
+    SELECT * INTO v_actor
+      FROM identity_policy.actor_snapshot
+     WHERE actor_snapshot_id = NEW.actor_snapshot_id;
+    IF FOUND AND (
+        NEW.actor_snapshot_payload_hash IS DISTINCT FROM v_actor.payload_hash
+        OR NEW.principal_id IS DISTINCT FROM v_actor.principal_id
+        OR NEW.principal_kind IS DISTINCT FROM v_actor.principal_kind
+        OR NEW.authentication_context_hash IS DISTINCT FROM v_actor.authentication_context_hash
+        OR NEW.enterprise_id IS DISTINCT FROM v_actor.enterprise_id
+        OR (v_actor.project_id IS NOT NULL AND NEW.project_id IS DISTINCT FROM v_actor.project_id)
+    ) THEN
+        RAISE EXCEPTION 'authorization decision does not match actor snapshot'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT payload_hash INTO v_policy_hash
+      FROM identity_policy.policy_snapshot
+     WHERE policy_snapshot_id = NEW.policy_snapshot_id;
+    IF FOUND AND NEW.policy_snapshot_payload_hash IS DISTINCT FROM v_policy_hash THEN
+        RAISE EXCEPTION 'authorization decision policy hash does not match snapshot'
+            USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
 END
@@ -599,9 +859,13 @@ ALTER TABLE identity_policy.authorization_decision ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identity_policy.authorization_decision FORCE ROW LEVEL SECURITY;
 CREATE POLICY authorization_decision_select ON identity_policy.authorization_decision
     FOR SELECT TO identity_policy_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY authorization_decision_insert ON identity_policy.authorization_decision
     FOR INSERT TO identity_policy_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (
+        (scope_kind = 'ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id))
+        OR (scope_kind = 'PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id)));
 
 RESET ROLE;

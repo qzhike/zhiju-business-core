@@ -17,8 +17,11 @@ IdentityPolicy 已有 20 个字段级 Contract Schema，但缺少真实 PostgreS
 - [ ] 数据库 catalog 与 PostgreSQL Logical Model §9 表清单和关键约束一致。
 - [ ] Principal kind 不可互换；撤销/状态转换追加事实，不删除或改写历史 Snapshot/Decision。
 - [ ] provider/account/external identity lookup 唯一冲突不覆盖原映射；原始敏感标识不会出现在 SQL 参数日志、ApiError、Event 或测试报告。
+- [ ] Repository 在加密前拒绝 `displayHint`、`verificationMethod`、`evidenceRefs` 等可持久化元数据携带原始 account/subject；active lookup 不返回已撤销 Link。
 - [ ] Role/Capability/Actor/Authorization 行保存精确 Enterprise/Project Scope，并受 RLS；跨模块引用只保存 Typed Reference 列组。
-- [ ] immutable Contract 的 UPDATE/DELETE、payload/hash 不一致和 promoted Scope 不一致在真实 PostgreSQL 被拒绝。
+- [ ] Enterprise Scope 不携带 Project；Project Scope 必须携带 Project，且 RLS 使用事务上下文允许的 Project 集合，不能只验证 Enterprise。
+- [ ] 撤销事实与父 Assignment/Grant 的完整 Scope 一致；CapabilityGrant/AuthorizationDecision 对 PolicySnapshot/ActorSnapshot 使用精确 id + payload hash，并校验 Actor 的 Principal/Kind/认证上下文/Scope 镜像。
+- [ ] immutable Contract 的 UPDATE/DELETE 被权限拒绝；Repository 在真实 PostgreSQL 事务写入前以共享 canonical JSON v1 重算 payload/hash，数据库拒绝 promoted Scope、Actor/Policy 精确引用不一致。`pgcrypto` 未启用时不得宣称数据库自行重算 canonical hash。
 - [ ] focused persistence tests、Migration replay 与 `pnpm clean && pnpm verify` 通过。
 
 ## 手动验收产出

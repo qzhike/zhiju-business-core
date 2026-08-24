@@ -11,6 +11,8 @@ import type { IdentityCryptoPorts } from './ports.js';
 
 /** Stable error codes surfaced by the repository (safe, no raw payloads). */
 export const IDENTITY_EXTERNAL_LINK_CONFLICT = 'IDENTITY_EXTERNAL_LINK_CONFLICT';
+export const IDENTITY_SENSITIVE_EXTERNAL_IDENTIFIER_FORBIDDEN =
+  'IDENTITY_SENSITIVE_EXTERNAL_IDENTIFIER_FORBIDDEN';
 export const IDENTITY_PAYLOAD_HASH_MISMATCH = 'IDENTITY_PAYLOAD_HASH_MISMATCH';
 export const IDENTITY_PROMOTED_MIRROR_MISMATCH = 'IDENTITY_PROMOTED_MIRROR_MISMATCH';
 
@@ -90,7 +92,9 @@ export interface ScopedAssignmentInsert {
 export interface RevocationInsert {
   revocationId: string;
   targetId: string;
+  scopeKind: 'ENTERPRISE' | 'PROJECT';
   enterpriseId: string;
+  projectId?: string;
   revokedByPrincipalId: string;
   reasonCode: string;
   effectiveAt: Date;
@@ -117,6 +121,7 @@ export interface ActorSnapshotInsert {
   actorSnapshotId: string;
   principalId: string;
   principalKind: 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
+  scopeKind: 'ENTERPRISE' | 'PROJECT';
   actingForPrincipalId?: string;
   actingForKind?: 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
   channelCode?: string;
@@ -134,6 +139,7 @@ export interface ActorSnapshotInsert {
 export interface AuthorizationDecisionInsert {
   authorizationDecisionId: string;
   actorSnapshotId: string;
+  actorSnapshotPayloadHash: Buffer;
   principalId: string;
   principalKind: 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
   outcome: 'ALLOW' | 'DENY';
@@ -265,6 +271,7 @@ export class IdentityPolicyRepository {
    * via FieldEncryptionPort and never stored, returned or logged in clear.
    */
   async insertExternalIdentityLink(trx: IdentityTransaction, input: ExternalIdentityInput) {
+    assertExternalIdentityMetadataSafe(input);
     const provider = input.providerCode.trim().toLowerCase();
     const accountHash = this.crypto.lookupHash.computeKeyedLookupHash(
       `${provider}:${input.accountExternalId.trim().toLowerCase()}`,
@@ -332,6 +339,7 @@ export class IdentityPolicyRepository {
       .where('provider_code', '=', provider)
       .where('account_lookup_hash', '=', accountHash.hash)
       .where('external_id_lookup_hash', '=', subjectHash.hash)
+      .where('status', '=', 'ACTIVE')
       .executeTakeFirst();
     return row ? toExternalLinkView(row) : undefined;
   }
@@ -396,7 +404,9 @@ export class IdentityPolicyRepository {
       .values({
         revocation_id: insert.revocationId,
         role_assignment_id: insert.targetId,
+        scope_kind: insert.scopeKind,
         enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId ?? null,
         revoked_by_principal_id: insert.revokedByPrincipalId,
         reason_code: insert.reasonCode,
         effective_at: insert.effectiveAt,
@@ -480,7 +490,9 @@ export class IdentityPolicyRepository {
       .values({
         revocation_id: insert.revocationId,
         capability_grant_id: insert.targetId,
+        scope_kind: insert.scopeKind,
         enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId ?? null,
         revoked_by_principal_id: insert.revokedByPrincipalId,
         reason_code: insert.reasonCode,
         effective_at: insert.effectiveAt,
@@ -557,10 +569,17 @@ export class IdentityPolicyRepository {
   // -- actor snapshot --------------------------------------------------------
 
   async insertActorSnapshot(trx: IdentityTransaction, insert: ActorSnapshotInsert) {
-    const payload: Record<string, CanonicalJsonObject[string]> = {
-      principalId: insert.principalId,
+    validatePromotedMirror(insert.snapshotPayload, {
       principalKind: insert.principalKind,
       enterpriseId: insert.enterpriseId,
+    });
+    const payload: Record<string, CanonicalJsonObject[string]> = {
+      ...insert.snapshotPayload,
+      principalId: insert.principalId,
+      principalKind: insert.principalKind,
+      scopeKind: insert.scopeKind,
+      enterpriseId: insert.enterpriseId,
+      authenticationContextHash: insert.authenticationContextHash.toString('hex'),
     };
     if (insert.projectId !== undefined) {
       payload.projectId = insert.projectId;
@@ -577,10 +596,6 @@ export class IdentityPolicyRepository {
     if (insert.runtimeSource !== undefined) {
       payload.runtimeSource = insert.runtimeSource;
     }
-    validatePromotedMirror(payload, {
-      principalKind: insert.principalKind,
-      enterpriseId: insert.enterpriseId,
-    });
     const digest = digestCanonicalPayload(payload);
     await trx
       .insertInto('identity_policy.actor_snapshot')
@@ -588,6 +603,7 @@ export class IdentityPolicyRepository {
         actor_snapshot_id: insert.actorSnapshotId,
         principal_id: insert.principalId,
         principal_kind: insert.principalKind,
+        scope_kind: insert.scopeKind,
         acting_for_principal_id: insert.actingForPrincipalId ?? null,
         acting_for_kind: insert.actingForKind ?? null,
         channel_code: insert.channelCode ?? null,
@@ -624,9 +640,16 @@ export class IdentityPolicyRepository {
   // -- authorization decision -------------------------------------------------
 
   async insertAuthorizationDecision(trx: IdentityTransaction, insert: AuthorizationDecisionInsert) {
+    validatePromotedMirror(insert.decisionPayload, {
+      outcome: insert.outcome,
+      enterpriseId: insert.enterpriseId,
+      commandType: insert.commandType,
+    });
     const payload: CanonicalJsonObject = {
+      ...insert.decisionPayload,
       authorizationDecisionId: insert.authorizationDecisionId,
       actorSnapshotId: insert.actorSnapshotId,
+      actorSnapshotPayloadHash: insert.actorSnapshotPayloadHash.toString('hex'),
       principalId: insert.principalId,
       principalKind: insert.principalKind,
       outcome: insert.outcome,
@@ -644,17 +667,13 @@ export class IdentityPolicyRepository {
       authenticationContextHash: insert.authenticationContextHash.toString('hex'),
       expiresAt: insert.expiresAt.toISOString(),
     };
-    validatePromotedMirror(payload, {
-      outcome: insert.outcome,
-      enterpriseId: insert.enterpriseId,
-      commandType: insert.commandType,
-    });
     const digest = digestCanonicalPayload(payload);
     await trx
       .insertInto('identity_policy.authorization_decision')
       .values({
         authorization_decision_id: insert.authorizationDecisionId,
         actor_snapshot_id: insert.actorSnapshotId,
+        actor_snapshot_payload_hash: insert.actorSnapshotPayloadHash,
         principal_id: insert.principalId,
         principal_kind: insert.principalKind,
         outcome: insert.outcome,
@@ -699,6 +718,27 @@ export class IdentityPolicyRepository {
       return undefined;
     }
     return { row, hashMatched: row.payload_hash.equals(expectedHash) };
+  }
+}
+
+function assertExternalIdentityMetadataSafe(input: ExternalIdentityInput): void {
+  const account = input.accountExternalId.trim().toLowerCase();
+  const subject = input.subjectExternalId.trim().toLowerCase();
+  const metadata = JSON.stringify({
+    displayHint: input.displayHint ?? null,
+    verificationMethod: input.verificationMethod,
+    evidenceRefs: input.evidenceRefs,
+  }).toLowerCase();
+  if (
+    account.length === 0 ||
+    subject.length === 0 ||
+    metadata.includes(account) ||
+    metadata.includes(subject)
+  ) {
+    throw new IdentityPersistenceError(
+      IDENTITY_SENSITIVE_EXTERNAL_IDENTIFIER_FORBIDDEN,
+      'external identity metadata must not contain raw identifiers',
+    );
   }
 }
 
