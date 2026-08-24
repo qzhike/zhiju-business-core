@@ -1,8 +1,8 @@
 # Zhiju Business Core 基准规格与 Agent 入口
 
 版本：v0.1
-日期：2026-08-17
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
+日期：2026-08-24
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 PARTIAL / DELIVERY PR #51 OPEN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -238,6 +238,24 @@ BusinessCore
 
 ## 7. 当前基准状态
 
+### 7.1 IM-02 WI-08 实现审查基线（2026-08-24）
+
+IdentityPolicy 的 WI-08 代码已进入实现与审查阶段，当前涉及 RoleAssignment、CapabilityGrant、PolicySnapshot、首角色 bootstrap、真实 PostgreSQL persistence gate 及其 Command Handler。PR #48 的 R1-R6 修复已在当前工作区验证通过，但在最新精确 PR head 完成 review、合并及 Issue #36 状态核验前，本实现尚不代表 IM-02 完成，也不能把尚未接入的 ActorSnapshot、AuthorizationDecision、真实外部身份/Keycloak、业务 Approval/Release Handler 或人工验收标记为 `PASS`。
+
+本阶段强制保持以下失败场景可验证：命令请求 Hash 覆盖全部业务输入；Project-owned 行同时受 Enterprise 与允许 Project scope 约束；并发唯一冲突返回稳定业务结果；bootstrap claim 原子且只产生一个首角色事实；撤销审计主体来自受信事务 Context；过期有效期被拒绝；正式 Role/Capability 变化产生完整的脱敏 Outbox Event。
+
+当前实现验证证据：`pnpm persistence:gate` 在 PostgreSQL 18.6 / Flyway 11.20.3 上执行 10 个 persistence 测试文件、156 个测试并通过；空库迁移包含 V1003 bootstrap claim 与 V1004 Project scope/RLS 增量，第二次 migrate 为 no-op；旧库形状的非空 V1004 升级探针也已确认保留 Project Revocation scope。真实 Provider、Keycloak、跨业务模块 Approval/Release、外部 E2E 和人工验收仍为 `NOT RUN`。
+
+### 7.2 IM-02 WI-09 ActorSnapshot 与 AuthorizationDecision 审查基线（2026-08-24）
+
+PR #49 的审查必须以当前 `galendai/36-im-02-wi-08-roles-capabilities-policy-snapshots` 分支为 base，并在集成该 base 后重新检查精确 PR head。WI-09 只有在以下事实均由实现和失败回归证明后，才能把相应子 Gate 标记为 `PASS`：ActorSnapshot 与 AuthorizationDecision 的 Enterprise/Project Scope shape 闭合；Project 必须属于受信事务 Context 的允许集合；ActorSnapshot Scope 必须与 Command Intent Scope 精确一致；ActorSnapshot 与 PolicySnapshot 均按精确 `id + payloadHash` 绑定；canonical payload 保留并覆盖完整的 actor、authentication context 和 Command Intent 事实；每个 AuthorizationDecision 都经唯一 Decision Port 持久化，包含 ALLOW/DENY、Purpose、Scope、command type/version、payload hash、认证上下文和过期时间。
+
+WI-09 的公开 Query 输入、`AccessDecision`、`AuthorizationDecisionView` 与 `PolicySnapshotView` 必须直接遵循 IdentityPolicy Module Spec、生成 Schema 和 `ContractRegistry`，不得用只在内部成立的扁平引用冒充 Typed Reference。真实 PostgreSQL persistence gate、公开 Handler/HTTP、真实 Keycloak/Feishu Provider、跨模块 Runtime、外部 E2E 和人工脱敏追踪仍分别记录为 `PASS` 或 `NOT RUN`；静态 Registry 通过不等同于业务运行时验收。
+
+WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enterprise Scope 的 Role/Capability Grant 只能覆盖 Enterprise Intent，不能因 enterprise_id 相同而覆盖任意 Project Intent；Project Intent 必须由同一 Project 的 Grant/Role 事实覆盖。Project A/B 的隔离回归必须包含“仅有 Enterprise Grant、请求 Project Intent”的负例。
+
+2026-08-24 审查修复基线已完成：以 base `0a3349eed0e4bb943a7a39b86f58a69888d8201a` 集成原 PR head `31c9c1061029b57722cae80c7b4b8da45496d522` 后，WI-09 的 Scope shape/allow-list、Actor/Intent Scope 精确一致、Actor/Policy/Decision 引用元数据与 `id + payloadHash`、完整 canonical facts、公开结果和 Registry 正负边界均有回归。静态/类型/架构/Catalog/兼容性检查通过；独立 `pnpm persistence:gate` 在 PostgreSQL 18.6 / Flyway 11.20.3 上为 `11 files / 166 tests PASS`，含双角色事务登录、二次迁移 no-op 和容器清理。最新 `pnpm verify` 编排在静态阶段全部通过后，因 Docker Hub 未认证拉取限流 `429` 未进入 Gate；不能把该次编排记为完整 PASS。公开 HTTP/Handler adapter、真实 Provider、跨模块 Runtime、外部 E2E 和人工验收仍为 `NOT RUN`。
+
 已纳入当前基准：
 
 - 产品与现场业务约束；
@@ -308,7 +326,7 @@ Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
     ↓
 IM-01 Repository + Executable Contracts  （COMPLETE / FULL 200 + ENVELOPE_ONLY 0 / FIELD-LEVEL SCHEMAS + SCHEMA-DERIVED TYPES + V1.0 COMPATIBILITY BASELINE LANDED / ISSUE #9 CLOSED BY PR #20 / ISSUE #5 FIELD-SCHEMA SCOPE COMPLETE VIA PR #14 / RELEASE RUNTIME GAPS TRACKED BY #22–#24 / ISSUE #17 LOCAL IG RUNTIME SLICE LANDED / HANDLER + ADAPTER + DB TRACKED BY #27 / HANDLER + DB + EXTERNAL GATES REMAIN NOT RUN）
     ↓
-IM-02 PostgreSQL Foundation + IdentityPolicy  （IN PROGRESS / WI-01、WI-02 COMPLETE / WI-03 AUTOMATED GATE PASS / MANUAL NOT RUN）
+    IM-02 PostgreSQL Foundation + IdentityPolicy  （LOCAL INTEGRATION REPAIR VERIFIED / WI-01–WI-10 AUTOMATED CORE GATES PASS IN CURRENT WORKTREE / DEFAULT-BRANCH DELIVERY + EXACT-HEAD REVIEW PENDING / EXTERNAL + MANUAL NOT RUN）
 ```
 
 IM-02 的 RLS Context 物理机制已经进入 WI-03：上下文存放于
@@ -407,9 +425,23 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目已完成 IM-00 与 IM-01 Repository + Executable Contracts（Issue #9 / PR #20）。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate、Schema-derived Type、v1.0 compatibility baseline 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个、QualityGovernance 37 个、ReleasePublication 25 个与 IntegrationGateway 23 个操作均已具有字段级 Payload/Event Schema 和 Query Result Schema；Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。干净 checkout 证据见 [`.vibe/im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)。Schema 衍生类型见 `.vibe/im-01-executable-schema-typescript/`；兼容性基线见 `.vibe/im-01-v1.0-schema-fixtures/`。PR #10–#14、#16、#18、#19 的 Schema/类型/兼容性实现与 review 修复均已保留。2026-08-21 用户批准修订 Issue #9：硬依赖改为 #1–#8 的 Schema 子切片均已合入，#5 的 Runtime 状态不阻塞本 Gate；随后用户批准将 #5 收敛为字段 Schema 边界。Issue #5 的字段级目标已由 PR #14 完成，重复 / 迟到回执由已关闭的 #15 完成；未实现的 Release Authorization ActorSnapshot/actingFor、`providerResult` PII 最小化、普通飞书发送 Formal Release 来源链分别由 #22、#23、#24 承接，不能因 #5 关闭而视为 Runtime `PASS`。#17 的本地 IntegrationGateway Runtime 切片已在 `modules/integration-gateway` 落地：幂等、Quarantine、UNKNOWN、协议/完整 Revision 绑定、撤回 Origin（adapter/account/message）、显式授权和 Audit/Masking focused tests 全部通过；timeout 后迟到的 Adapter rejection 不得改写 `UNKNOWN`，也不得成为 unhandled rejection。真实 Provider、数据库、HTTP Handler、外部和人工验收仍保持 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪。下一阶段为 IM-02。IM-RP-001（Issue #15）在 `modules/release-publication` 落地 Runtime Receipt Validator（重复 / 迟到回执检测、RawExternalReceipt outcome/payload/time provenance、package↔release 与完整 scope 绑定、Ledger `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账）；持久化载体仍为 In-Memory Ledger。数据库 DDL/真实 Repository、IntegrationGateway 飞书/邮件 Provider 注入（#27）与 HTTP Handler 仍 `NOT RUN`，不得冒充业务 E2E。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`，不得冒充业务 E2E。
+本项目已完成 IM-00 与 IM-01 Repository + Executable Contracts（Issue #9 / PR #20）。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate、Schema-derived Type、v1.0 compatibility baseline 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个、QualityGovernance 37 个、ReleasePublication 25 个与 IntegrationGateway 23 个操作均已具有字段级 Payload/Event Schema 和 Query Result Schema；Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。干净 checkout 证据见 [`.vibe/im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)。Schema 衍生类型见 `.vibe/im-01-executable-schema-typescript/`；兼容性基线见 `.vibe/im-01-v1.0-schema-fixtures/`。PR #10–#14、#16、#18、#19 的 Schema/类型/兼容性实现与 review 修复均已保留。2026-08-21 用户批准修订 Issue #9：硬依赖改为 #1–#8 的 Schema 子切片均已合入，#5 的 Runtime 状态不阻塞本 Gate；随后用户批准将 #5 收敛为字段 Schema 边界。Issue #5 的字段级目标已由 PR #14 完成，重复 / 迟到回执由已关闭的 #15 完成；未实现的 Release Authorization ActorSnapshot/actingFor、`providerResult` PII 最小化、普通飞书发送 Formal Release 来源链分别由 #22、#23、#24 承接，不能因 #5 关闭而视为 Runtime `PASS`。#17 的本地 IntegrationGateway Runtime 切片已在 `modules/integration-gateway` 落地：幂等、Quarantine、UNKNOWN、协议/完整 Revision 绑定、撤回 Origin（adapter/account/message）、显式授权和 Audit/Masking focused tests 全部通过；timeout 后迟到的 Adapter rejection 不得改写 `UNKNOWN`，也不得成为 unhandled rejection。真实 Provider、数据库、HTTP Handler、外部和人工验收仍保持 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪。IM-02 已进入实现与交付阶段，当前为 `PARTIAL`；远端跟进交付由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 承载，exact-head CI 已 `SUCCESS`，复审无新增语义发现，Issue #28 保持 OPEN；merge、外部 Provider 和人工验收仍保持 `NOT RUN`。IM-RP-001（Issue #15）在 `modules/release-publication` 落地 Runtime Receipt Validator（重复 / 迟到回执检测、RawExternalReceipt outcome/payload/time provenance、package↔release 与完整 scope 绑定、Ledger `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账）；持久化载体仍为 In-Memory Ledger。数据库 DDL/真实 Repository、IntegrationGateway 飞书/邮件 Provider 注入（#27）与 HTTP Handler 仍 `NOT RUN`，不得冒充业务 E2E。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`，不得冒充业务 E2E。
+
+IM-02 WI-06 的 IdentityPolicy Command transaction runner 必须以数据库唯一约束执行原子幂等 Claim；并发同 key/hash 的 loser 必须返回首个已提交结果，不能泄漏 `unique_violation`。受信事务上下文的 Principal、ActorSnapshot、AuthorizationDecision、Enterprise、Project 与 Correlation 必须和待持久化 Envelope 一致；CAS 只能操作 Envelope 指定的 target 与 expected version，并保持 PostgreSQL `bigint` 精度。业务拒绝的稳定结果必须包含 `currentAggregateVersion`。已应用的 Flyway 版本化 Migration 不得原地改写，新增列只能由后续 forward-only Migration 追加。
 
 PR #11 的 Core Contract 字段级 Schema review 修复已合并至 `main`：该切片恢复既有 `required`、Typed Reference 强度、Set 基数和 `ValueEnvelope` 条件约束，不改变冻结的 Core Contract 业务语义，也不扩大 IM-01 范围。修复记录见 [`../im-01-core-contract-review-fix/Task-Plan.md`](../im-01-core-contract-review-fix/Task-Plan.md)。TaskExecution 直接复用该权威 WorkOrder Schema 的共享 `$defs`，不得维护第二套 WorkOrder 子结构。QualityGovernance PR #13 的 review 修复同样要求 Result Schema 直接引用已注册的 Core Contract ID（`revision-acceptance/1.0`、`approval-bundle/1.0`、`release-readiness/1.0`），不得维护第二套截断视图。
+
+### IM-02 WI-07 实现审查约束（2026-08-24）
+
+IdentityPolicy 的 WI-07 实现必须继续服从已经审核通过的字段级 Contract，不得用内部简化对象替代公开 Schema：公开 Event/Query Result 中的 `ObjectRef`、`ContentAddressedRef` 和 `ValueEnvelope` 必须保留完整结构；ExternalIdentity 的 account 与 subject 两个组成部分必须共同参与幂等摘要和事件引用；bootstrap claim 的消费必须在数据库事务内锁定并由条件更新裁决，同一 claim 的并发争用只能产生一个成功结果；非法闭集值和业务拒绝必须经过 Command receipt/audit 边界。WI-07 的 bootstrap claim 表必须使用不与 WI-06 冲突的后续 forward-only Migration（当前为 `V1003`），不得复用 `V1002`。真实 Keycloak/OIDC、飞书 Adapter、OpenBao 生产加密和人工验收仍保持 `NOT RUN`，不得因本地实现或测试替身而升级状态。
+
+本轮 PR #47 修复已通过完整 `pnpm verify`、ContractRegistry 直接探针和真实 PostgreSQL persistence gate；上述外部 Provider、生产密钥、跨系统 E2E 与人工验收边界仍保持 `NOT RUN`。
+
+WI-07 本地手工 Probe 的 AES-256-GCM 测试 Port 必须先完成 `cipher.update()` 与 `cipher.final()`，再调用 `getAuthTag()` 并组装脱敏 Fixture；测试替身的调用顺序错误不得被记录为生产加密或 IdentityPolicy Repository 失败。修订后的 Probe 结果仍只能证明本地脱敏 Fixture，不能升级真实 OpenBao、Keycloak/OIDC、飞书 Adapter 或人工验收状态。
+
+## IM-02 远端交付快照（2026-08-24）
+
+PR #51 的实现复审基准为 `47a2a9d`，其后只增加 `.vibe` 文档同步；各文档同步 head 的 GitHub Actions `verify` 均已 `SUCCESS`，exact-head 复审记录为无新增语义发现，PR 当前仍为 `OPEN`。本地真实 PostgreSQL、全量自动化和 WI-06/WI-07/WI-10 Probe 已通过；PR merge、真实 Provider、跨模块 E2E、生产环境和用户人工验收仍未完成，Issue #28 保持 `PARTIAL / OPEN`。
 
 ## 12. IM-02 WI-04 标准事务技术表边界
 
@@ -420,3 +452,22 @@ PR #11 的 Core Contract 字段级 Schema review 修复已合并至 `main`：该
 - `reference_edge` 的 owner 精确身份包含可选 `owner_version_id`；不同不可变 owner version 可以保存同路径到同 target 的 Edge，同一精确 owner/path/target 才判重。
 - `audit_reader` 只能读取 masked 列，但 masked view 必须返回已提交的权威 Audit 行；底表整体读取、敏感列、UPDATE 与 DELETE 仍拒绝。
 - 数据库层负责 promoted Scope 镜像、hash 长度与不可变写面；Canonical Payload 与 SHA-256 的强一致性由 WI-05/WI-06 owning Repository 在同一事务写入路径完成。在对应 Repository Gate 通过前，该项保持 `NOT RUN`，不能作为 WI-04 数据库 PASS。
+
+## 13. IM-02 WI-10 Outbox/Inbox 实现约束
+
+WI-10 在 IdentityPolicy owning schema 内提供受限 Outbox Dispatcher 与 Inbox Consumer 的持久化切片。它遵循至少一次投递：不能生成新 EventId 掩盖重试，也不能宣称 exactly-once。
+
+- Outbox Dispatcher 只能更新 delivery metadata；业务 payload、EventId、Event 类型/版本、Aggregate 标识和 Aggregate Version 不可由 Dispatcher 改写。
+- Dispatcher 使用 `owner + lease_until + fencing token`。`PENDING/UNKNOWN` 到期事件和已过期 `LEASED` 事件都可 claim；同 Aggregate（`aggregate_type + aggregate_id`）的 earliest unpublished event 阻塞后续版本，不同 Aggregate Type 即使 ID 相同也不得互相阻塞。旧 token 的 ACK/失败回写必须拒绝。
+- retry/dead-letter 的状态转移依据数据库 `attempt_count` 原子决定，调用方不得通过自报 attempt 绕过阈值。超时保留原 EventId，进入 `UNKNOWN` 和指数退避；超过策略阈值进入 `DEAD`。
+- Inbox 的目标状态、目标 Outbox、Audit、Command Receipt 与 `PROCESSED` 标记在同一 owning-module transaction 中提交。输入 payload 必须按 canonicalization v1 重新计算 SHA-256；Enterprise/Project Scope 必须与 Event mirror 和 transaction context 精确一致。
+- 同 consumer + EventId + 同 payload hash 重放读取原结果并返回 `DUPLICATE`；同 EventId 不同 hash、Hash 校验失败、未知 Major、缺少 Required Extension 或 Scope 冲突必须 Quarantine/Violation，不能执行 target Command。
+- 并发 Inbox claim 的唯一键竞态必须在应用边界内 adjudicate，胜者结果提交后败者读取原结果，不得把 PostgreSQL 唯一键异常暴露为业务失败。
+- 真实 PostgreSQL 的事务协调器 fixture 必须使用 `NOINHERIT` 登录，并以 `INHERIT FALSE, SET TRUE` 同时持有 `platform_context_establisher` 与目标 module app role；事务内必须按 `establisher → establish context → app role` 顺序切换。仅持有 app role 的 fixture 不得被记录为 WI-10 persistence PASS。
+- WI-09 Decision Port 产生 `DENY` 时，必须在保存不可变 AuthorizationDecision 的同一 IdentityPolicy 事务中写入安全 `AuditRecord`；Audit 只能保存 reason code、hash 和脱敏摘要，不得写入原始命令 Payload 或 External Identity。
+- Scope conflict 的 Quarantine 不能把未经验证的 Event Scope 放入 Command Envelope 或 RLS 行 Scope；持久化时只使用受信 transaction Context 的 Enterprise，只有在 Event Enterprise 与 Context Enterprise 相同且 Project 属于 `allowedProjectIds` 时才保留 Project，否则以 `NULL` 作为当前 Enterprise 下的安全 Quarantine Scope，并保留 Violation 类型/摘要用于调查。
+- 2026-08-24 Runbook 可复现性修订：WI-02 排除 PostgreSQL `pg_` 预定义角色；WI-03 的 SHA-256 fixture 使用 32 字节输入并在 `COMMIT` 后重新切回 app role；WI-04 的 migration walker 在容器内执行，并补充 privileged audit seed 后的 masked-view 验收。上述修订只改善本地人工验收命令，不扩大生产权限或外部系统验收范围。
+- DEAD 人工 resume 必须记录不可变、脱敏且包含 operator reason 的 Audit；生产 broker、Provider、外部副作用和人工业务验收不因本地 PostgreSQL gate 自动变成 `PASS`。
+- WI-10 本地 ACK-loss Probe 的初始 Principal Fixture 必须显式写入 `status='ACTIVE'`；Probe 不得依赖技术表存在未定义的 status 默认值，也不得用放宽数据库约束掩盖 Fixture 错误。
+
+WI-10 初始修正已提交并推送至 PR #50；最新 base 集成暴露的 messaging fixture ACL、Enterprise Grant 覆盖 Project Intent、typed Aggregate ordering 与未经验证 Event Scope 回归已在提交 `47a2a9d` 修复，并由跟进 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 交付到 `main`。重新编译 workspace 包后，真实 PostgreSQL gate 为 `12 files / 177 tests PASS`，空库迁移、二次 migrate no-op 和容器清理通过；最终 `pnpm clean && pnpm verify` 亦通过：Vitest `20 passed | 10 skipped`、`341 passed | 164 skipped`，architecture、Public API、generated types、Catalog/Registry 与 compatibility 全部通过。PR #51 的 exact-head CI/语义复审、生产 Broker、Provider、外部副作用和人工业务验收仍未完成，本节不将这些边界写成完成状态。

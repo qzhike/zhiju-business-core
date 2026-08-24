@@ -21,11 +21,13 @@ docker exec zju-wi04-probe sh -c '
   until pg_isready -U postgres -d zhiju_core; do
     attempts=$((attempts + 1)); [ "$attempts" -lt 30 ] || exit 1; sleep 1
   done
-' && for f in /sql/bootstrap/*.sql /sql/identity_policy/*.sql /sql/enterprise_project/*.sql \
-            /sql/task_execution/*.sql /sql/artifact/*.sql /sql/quality_governance/*.sql \
-            /sql/release_publication/*.sql /sql/integration_gateway/*.sql; do
-  docker exec -i zju-wi04-probe psql -U postgres -d zhiju_core -v ON_ERROR_STOP=1 -f "$f" >/dev/null || exit 1
-done
+' && docker exec zju-wi04-probe sh -c '
+  for f in /sql/bootstrap/*.sql /sql/identity_policy/*.sql /sql/enterprise_project/*.sql \
+           /sql/task_execution/*.sql /sql/artifact/*.sql /sql/quality_governance/*.sql \
+           /sql/release_publication/*.sql /sql/integration_gateway/*.sql; do
+    psql -U postgres -d zhiju_core -v ON_ERROR_STOP=1 -f "$f" >/dev/null || exit 1
+  done
+'
 ```
 
 ## Catalog 报告（每个 owning module 一行一表）
@@ -109,6 +111,27 @@ RESET ROLE;
 ```
 
 masked audit view 的验收不能只检查“不报错”，必须先写入已提交 audit fixture，再确认 `audit_reader` 能读到其 `audit_id`，同时底表 `count(*)`、`SELECT *` 与敏感列查询仍为 `42501`。view 由受控 NOLOGIN module owner 定义，底表审计读取策略只授予该 owner，不授予 audit_reader。
+
+可在本地 superuser 会话中先写入一个不含敏感正文的 Platform audit fixture，再从 masked view 读取：
+
+```sql
+INSERT INTO identity_policy.platform_audit_record (
+  audit_id, principal_id, actor_snapshot_id, authorization_decision_id,
+  command_type, outcome, correlation_id, retention_class)
+VALUES (
+  '12345678-1234-7123-8123-444444444442',
+  '12345678-1234-7123-8123-444444444441',
+  '12345678-1234-7123-8123-444444444441',
+  '12345678-1234-7123-8123-444444444441',
+  'manual.platform.audit', 'COMMITTED',
+  '12345678-1234-7123-8123-444444444443', 'REGULATED_AUDIT');
+
+SET ROLE audit_reader;
+SELECT audit_id FROM identity_policy.platform_audit_record_masked
+WHERE audit_id = '12345678-1234-7123-8123-444444444442'; -- 返回 1 行
+SELECT count(*) FROM identity_policy.platform_audit_record; -- DENY 42501
+RESET ROLE;
+```
 
 ## 清理
 

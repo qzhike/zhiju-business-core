@@ -21,9 +21,20 @@ IM-02 的 IdentityPolicy 最小切片首先需要可创建 Human/Agent/Service P
 - [ ] 无目录枚举路径；按未知 External Identity 查询不泄漏已存在 Principal 的其他 Scope。
 - [ ] Unit/Contract/真实 PostgreSQL persistence tests 与 `pnpm clean && pnpm verify` 通过。
 
+## PR #47 审查修复约束
+
+本轮实现审查要求在上述验收前补齐四项可复现边界：公开 Event/Query Result 必须通过现有 `ContractRegistry`；account 与 subject 必须共同参与 ExternalIdentity 的幂等和 lookup 引用；bootstrap claim 并发消费必须只有一个成功者；所有非法闭集值和业务拒绝必须留下同事务的 receipt/audit 证据。真实 Provider、OpenBao 和人工验收仍按“非目标”保持 `NOT RUN`。
+
 ## 手动验收产出
 
 使用脱敏身份 Fixture 注册 Human/Agent/Service，并将一个测试 external identity 解析回 Human；用户可查看安全 Event/Audit 且无法从输出恢复原始标识。
+
+## 本轮实现验证（2026-08-24）
+
+- `PASS`：Principal/ExternalIdentity Handler、幂等冲突、一次性 claim 并发消费、真实 PostgreSQL receipt/audit/outbox 与原始标识不泄漏检查。
+- `PASS`：`ContractRegistry` 接受 `PrincipalRegistered`、`ExternalIdentityLinked` 和 `resolve_principal` Result 的完整 Typed Reference/ValueEnvelope 结构。
+- `PASS`：合并最新 WI-06 base 后的 `pnpm verify`；其中 Vitest 为 `341 passed / 137 skipped`，Persistence gate 为 `9 files / 150 passed`，V1002/V1003 均成功，二次迁移为 no-op。
+- `NOT RUN`：真实 Keycloak/OIDC、飞书 Provider、OpenBao 生产加密、跨系统 E2E 和人工验收；这些仍是本 PR 非目标，不由本地替身测试升级为业务运行通过。
 
 ## 非目标
 

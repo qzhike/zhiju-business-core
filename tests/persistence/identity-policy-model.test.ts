@@ -5,7 +5,6 @@ import {
   createIdentityPolicyDatabase,
   withIdentityTransaction,
   IdentityPolicyRepository,
-  IDENTITY_EXTERNAL_LINK_CONFLICT,
   IDENTITY_SENSITIVE_EXTERNAL_IDENTIFIER_FORBIDDEN,
   type IdentityCryptoPorts,
   type IdentityTransactionContext,
@@ -280,22 +279,21 @@ describe.skipIf(!gateEnabled)('identity policy model and repository (real Postgr
   });
 
   it('refuses a conflicting external identity mapping without overwriting the first', async () => {
-    await expect(
-      withIdentityTransaction(db, CONTEXT_A, async (trx) => {
-        await repo.insertExternalIdentityLink(trx, {
-          id: 'a1a1a1a1-0000-7000-8000-000000000002',
-          providerCode: 'feishu',
-          accountExternalId: RAW_ACCOUNT,
-          subjectExternalId: RAW_SUBJECT,
-          principalId: AGENT_PRINCIPAL,
-          verifiedAt: new Date(),
-          verificationMethod: 'wi05.conflict',
-          evidenceRefs: {},
-          createdByPrincipalId: OPERATOR,
-          createdByActorSnapshotId: OPERATOR_ACTOR,
-        });
+    const inserted = await withIdentityTransaction(db, CONTEXT_A, async (trx) =>
+      repo.insertExternalIdentityLink(trx, {
+        id: 'a1a1a1a1-0000-7000-8000-000000000002',
+        providerCode: 'feishu',
+        accountExternalId: RAW_ACCOUNT,
+        subjectExternalId: RAW_SUBJECT,
+        principalId: AGENT_PRINCIPAL,
+        verifiedAt: new Date(),
+        verificationMethod: 'wi05.conflict',
+        evidenceRefs: {},
+        createdByPrincipalId: OPERATOR,
+        createdByActorSnapshotId: OPERATOR_ACTOR,
       }),
-    ).rejects.toMatchObject({ code: IDENTITY_EXTERNAL_LINK_CONFLICT });
+    );
+    expect(inserted).toBe(false);
 
     const link = await withIdentityTransaction(db, CONTEXT_A, (trx) =>
       repo.findExternalIdentityLinkByLookup(trx, 'feishu', RAW_ACCOUNT, RAW_SUBJECT),

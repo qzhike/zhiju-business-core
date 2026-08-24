@@ -2,6 +2,14 @@
 
 这是 IM-02 `PostgreSQL Foundation + IdentityPolicy` 的汇总与退出 Gate，不承载新的业务语义。只有全部 IM-02 Work Item 合入默认分支、真实 PostgreSQL 证据可复现且用户完成手动验收后，才能把 IM-02 标记为 `COMPLETE` 并进入 IM-03。
 
+## 当前进度快照（2026-08-24）
+
+- #29–#38 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`。
+- PR #46–#50 已在连续的 stacked feature branch 合并，但其实现尚未进入 `main`；当前集成提交 `47a2a9d` 已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 作为跟进交付 PR 提交到 `main`。
+- 本地真实 PostgreSQL Gate、`pnpm clean && pnpm verify`、WI-06/WI-07/WI-10 disposable Probe 均为 `PASS (LOCAL INTEGRATION)`；PR #51 exact-head CI 已 `SUCCESS`，复审无新增语义发现，但 PR 尚未 merge。
+- Keycloak/OIDC、OpenBao、Ceph、飞书、生产 Broker/Provider、跨模块 HTTP/E2E、生产负载和用户人工 Runbook 验收保持 `NOT RUN`。
+- Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 当前为 `PARTIAL / OPEN`；本 Exit Gate 的勾选项不得因子 Issue 关闭或 PR #51 创建而提前完成。
+
 ## 权威输入
 
 - `.vibe/high-level-docs/HL-Spec.md`

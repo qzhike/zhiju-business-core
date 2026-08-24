@@ -340,4 +340,4 @@ remaining risk
 - 2026-08-21 用户先批准修订 Issue #9 的 Schema 退出硬依赖，随后批准将 #5 收敛为字段 Schema 边界；关闭 #5 不会把 #22–#24 或 #27 的 Runtime/外部验收改写为 `PASS`；
 - 尚无 DDL、Migration、Repository、业务 Handler、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
 - 尚无真实 PostgreSQL、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；
-- 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)）；下一里程碑为 IM-02。
+- 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)）；IM-02 已进入 `PARTIAL` 交付阶段，当前集成由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 面向 `main` 提交，exact-head CI 已 `SUCCESS`，复审无新增语义发现，Issue #28 保持 OPEN；merge、外部系统和人工验收仍未完成。

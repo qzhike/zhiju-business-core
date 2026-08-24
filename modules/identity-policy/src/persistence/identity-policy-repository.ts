@@ -50,7 +50,7 @@ export interface ExternalIdentityInput {
   /** Sensitive: raw account / subject external identifiers, never persisted. */
   accountExternalId: string;
   subjectExternalId: string;
-  displayHint?: string;
+  displayHint?: string | undefined;
   principalId: string;
   verifiedAt: Date;
   verificationMethod: string;
@@ -81,9 +81,9 @@ export interface ScopedAssignmentInsert {
   code: string;
   scopeKind: 'ENTERPRISE' | 'PROJECT';
   enterpriseId: string;
-  projectId?: string;
+  projectId?: string | undefined;
   validFrom: Date;
-  validTo?: Date;
+  validTo?: Date | undefined;
   justification: string;
   createdByPrincipalId: string;
   createdByActorSnapshotId: string;
@@ -94,7 +94,7 @@ export interface RevocationInsert {
   targetId: string;
   scopeKind: 'ENTERPRISE' | 'PROJECT';
   enterpriseId: string;
-  projectId?: string;
+  projectId?: string | undefined;
   revokedByPrincipalId: string;
   reasonCode: string;
   effectiveAt: Date;
@@ -270,7 +270,10 @@ export class IdentityPolicyRepository {
    * LookupHashPort; the raw account/subject values are envelope-encrypted
    * via FieldEncryptionPort and never stored, returned or logged in clear.
    */
-  async insertExternalIdentityLink(trx: IdentityTransaction, input: ExternalIdentityInput) {
+  async insertExternalIdentityLink(
+    trx: IdentityTransaction,
+    input: ExternalIdentityInput,
+  ): Promise<boolean> {
     assertExternalIdentityMetadataSafe(input);
     const provider = input.providerCode.trim().toLowerCase();
     const accountHash = this.crypto.lookupHash.computeKeyedLookupHash(
@@ -281,42 +284,36 @@ export class IdentityPolicyRepository {
     );
     const accountCipher = this.crypto.fieldEncryption.encryptField(input.accountExternalId);
     const subjectCipher = this.crypto.fieldEncryption.encryptField(input.subjectExternalId);
-    try {
-      await trx
-        .insertInto('identity_policy.external_identity_link')
-        .values({
-          id: input.id,
-          provider_code: provider,
-          account_lookup_hash: accountHash.hash,
-          external_id_lookup_hash: subjectHash.hash,
-          lookup_hash_algorithm: accountHash.algorithm,
-          lookup_key_version: accountHash.keyVersion,
-          account_ciphertext: accountCipher.ciphertext,
-          account_ciphertext_algorithm: accountCipher.algorithm,
-          account_ciphertext_key_version: accountCipher.keyVersion,
-          subject_ciphertext: subjectCipher.ciphertext,
-          subject_ciphertext_algorithm: subjectCipher.algorithm,
-          subject_ciphertext_key_version: subjectCipher.keyVersion,
-          display_hint: input.displayHint ?? null,
-          principal_id: input.principalId,
-          verified_at: input.verifiedAt,
-          verification_method: input.verificationMethod,
-          evidence_refs: JSON.stringify(input.evidenceRefs),
-          created_by_principal_id: input.createdByPrincipalId,
-          created_by_actor_snapshot_id: input.createdByActorSnapshotId,
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow();
-    } catch (error) {
-      if ((error as { code?: string }).code === '23505') {
-        // Never include the raw identifiers or hashes in the message.
-        throw new IdentityPersistenceError(
-          IDENTITY_EXTERNAL_LINK_CONFLICT,
-          'external identity is already linked to another principal; the existing mapping is kept',
-        );
-      }
-      throw error;
-    }
+    const inserted = await trx
+      .insertInto('identity_policy.external_identity_link')
+      .values({
+        id: input.id,
+        provider_code: provider,
+        account_lookup_hash: accountHash.hash,
+        external_id_lookup_hash: subjectHash.hash,
+        lookup_hash_algorithm: accountHash.algorithm,
+        lookup_key_version: accountHash.keyVersion,
+        account_ciphertext: accountCipher.ciphertext,
+        account_ciphertext_algorithm: accountCipher.algorithm,
+        account_ciphertext_key_version: accountCipher.keyVersion,
+        subject_ciphertext: subjectCipher.ciphertext,
+        subject_ciphertext_algorithm: subjectCipher.algorithm,
+        subject_ciphertext_key_version: subjectCipher.keyVersion,
+        display_hint: input.displayHint ?? null,
+        principal_id: input.principalId,
+        verified_at: input.verifiedAt,
+        verification_method: input.verificationMethod,
+        evidence_refs: JSON.stringify(input.evidenceRefs),
+        created_by_principal_id: input.createdByPrincipalId,
+        created_by_actor_snapshot_id: input.createdByActorSnapshotId,
+      })
+      .onConflict((conflict) => conflict.constraint('external_link_lookup_unique').doNothing())
+      .returning('id')
+      .executeTakeFirst();
+
+    // ON CONFLICT DO NOTHING keeps the transaction live so the command
+    // runner can persist the stable conflict receipt and audit row.
+    return inserted !== undefined;
   }
 
   /** Resolves the active link for provider+account+subject keyed hashes. */
@@ -423,7 +420,7 @@ export class IdentityPolicyRepository {
     insert: ScopedAssignmentInsert & {
       resourceSelectors: CanonicalJsonObject[];
       actions: string[];
-      maxUses?: number;
+      maxUses?: number | undefined;
       grantPolicySnapshotId: string;
       grantPolicySnapshotHash: Buffer;
     },

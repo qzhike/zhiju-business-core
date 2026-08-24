@@ -1,13 +1,13 @@
 # Implementation Milestone Plan v0.1 验证报告
 
-日期：2026-08-21（Issue #9 退出 Gate 汇总；历史切片证据自 2026-08-17 起累积）
+日期：2026-08-24（Issue #9 退出 Gate 汇总；IM-02 远端交付快照）
 环境：macOS/zsh；Node.js `v24.19.0`、pnpm `11.19.0`、TypeScript `6.0.3`
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 PARTIAL / DELIVERY PR #51 OPEN`
 权威退出证据：[`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)
 
 ## 1. 验证范围
 
-本报告验证 Implementation Milestone Plan 与现有高层路线、模块依赖、PostgreSQL 物理决策、API/Catalog、Feishu/Runtime 专项，以及 IM-01 退出 Gate。它不证明 Migration、数据库或外部服务已经实现或运行。
+本报告验证 Implementation Milestone Plan 与现有高层路线、模块依赖、PostgreSQL 物理决策、API/Catalog、Feishu/Runtime 专项，以及 IM-01 退出 Gate；同时记录 IM-02 当前远端交付快照。IM-02 的详细验收以 [`../im-02-acceptance-issue-28/Verification-Report.md`](../im-02-acceptance-issue-28/Verification-Report.md) 为准；本报告不把本地 PASS 扩展为外部或人工验收 PASS。
 
 ## 2. Gate 结果
 
@@ -49,7 +49,7 @@ runtime_proposals=6 isolated
 ## 4. 未执行项
 
 - IM-DG-005 与 IM-DG-006；
-- IM-02 至 IM-09；
+- IM-03 至 IM-09；IM-02 的 PR #51 merge、用户人工 Runbook、外部 Provider、跨模块业务 E2E 和生产验收；PR #51 exact-head CI 已通过，复审无新增语义发现；
 - Persistence 与业务 E2E；
 - PostgreSQL、MicroCeph/Ceph RGW、OpenBao、Keycloak、飞书、三个 CLI、Renderer、备份恢复、负载和人工验收；
 - 6 个 Runtime additive Command 的 Catalog/API/Module 变更；
@@ -60,7 +60,7 @@ runtime_proposals=6 isolated
 
 ## 5. 剩余风险
 
-1. IM-01 已标记 `COMPLETE`；IM-02 可开始，但 Handler/DB/外部验收仍为后续里程碑范围。
+1. IM-01 已标记 `COMPLETE`；IM-02 已进入 `PARTIAL` 交付状态。PR #51 exact-head CI 已 `SUCCESS`，复审无新增语义发现；用户人工 Runbook、真实 Provider、跨模块业务 E2E 和生产验收仍未运行，PR 也尚未 merge。
 2. #5 的字段 Schema 子切片已由 PR #14 完成；用户后续批准将其余 Runtime Owner 迁移至 #22–#24，并按字段 Schema 边界关闭 #5。该范围迁移不得解释为 Runtime 已 `PASS`。
 3. 单台 Ubuntu 主机、单节点 MicroCeph/OpenBao/Keycloak 的主机故障容忍度为 0；独立备份与恢复演练是 Formal Release 前置条件。
 4. Ceph RGW 官方声明 Vault Transit 集成，OpenBao 只承诺 Vault API compatibility；二者组合必须在后续里程碑实测，失败时重开 IM-DG-003，不能降级明文。
@@ -81,3 +81,12 @@ runtime_proposals=6 isolated
 | #7 | CLOSED | PR #18 |
 | #8 | CLOSED | PR #19 |
 | #9 | CLOSED by PR #20 | 本报告 + Issue #9 Verification Report；权威状态已原子更新为 `IM-01 COMPLETE` |
+
+## 7. 当前整体进度快照（2026-08-24）
+
+| 里程碑 | 状态 | 当前证据与剩余边界 |
+|---|---|---|
+| IM-00 Decision Baseline | `COMPLETE` | IM-DG-001 至 IM-DG-004 已完成用户确认。 |
+| IM-01 Repository + Executable Contracts | `COMPLETE` | Issue #9 / PR #20；本报告第 2–3 节及专项 Verification Report。 |
+| IM-02 PostgreSQL Foundation + IdentityPolicy | `PARTIAL` | 本地真实 PostgreSQL、全量自动化、WI-06/WI-07/WI-10 Probe 已通过；交付 PR [#51](https://github.com/qzhike/zhiju-business-core/pull/51) 面向 `main`，exact-head CI 已 `SUCCESS` 且复审无新增语义发现；merge、人工/外部边界未完成；Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 保持 OPEN。 |
+| IM-03–IM-09 | `NOT STARTED / DEFERRED` | 依赖 IM-02 退出 Gate；不因 PR #51 的创建或本地 PASS 提前开始。 |
