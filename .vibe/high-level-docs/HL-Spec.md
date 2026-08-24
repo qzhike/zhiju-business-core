@@ -441,7 +441,7 @@ WI-07 本地手工 Probe 的 AES-256-GCM 测试 Port 必须先完成 `cipher.upd
 
 ## IM-02 远端交付快照（2026-08-24）
 
-PR #51 的 exact head 为 `8fcdb92`，相对实现复审基准 `47a2a9d` 仅增加 `.vibe` 文档同步；GitHub Actions `verify` 已 `SUCCESS`，exact-head 复审记录为无新增语义发现，PR 当前仍为 `OPEN`。本地真实 PostgreSQL、全量自动化和 WI-06/WI-07/WI-10 Probe 已通过；PR merge、真实 Provider、跨模块 E2E、生产环境和用户人工验收仍未完成，Issue #28 保持 `PARTIAL / OPEN`。
+PR #51 的实现复审基准为 `47a2a9d`，其后只增加 `.vibe` 文档同步；各文档同步 head 的 GitHub Actions `verify` 均已 `SUCCESS`，exact-head 复审记录为无新增语义发现，PR 当前仍为 `OPEN`。本地真实 PostgreSQL、全量自动化和 WI-06/WI-07/WI-10 Probe 已通过；PR merge、真实 Provider、跨模块 E2E、生产环境和用户人工验收仍未完成，Issue #28 保持 `PARTIAL / OPEN`。
 
 ## 12. IM-02 WI-04 标准事务技术表边界
 

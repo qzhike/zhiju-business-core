@@ -174,7 +174,7 @@ IM-09 Reference Project E2E + Operations Hardening
 
 退出 Gate：空库迁移、重复迁移、最小权限、跨 Schema 写拒绝、无/伪造 RLS Context、CAS 和 Inbox/Outbox replay 在真实 PostgreSQL 通过。
 
-当前状态：`PARTIAL`（2026-08-24）。#29–#38 子 Issue 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`；PR #46–#50 已在连续的 stacked feature branch 合并，但尚未进入 `main`。当前集成代码、验收修复和 `.vibe` 交付记录已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 提交到 `main`；exact head `8fcdb92` 的 CI 已 `SUCCESS`，复审记录为无新增语义发现。真实 Provider、跨模块 HTTP/E2E、生产环境和用户人工 Runbook 验收仍为 `NOT RUN`；Issue #28 继续保持 `OPEN`，不得提前标记 IM-02 `COMPLETE`。
+当前状态：`PARTIAL`（2026-08-24）。#29–#38 子 Issue 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`；PR #46–#50 已在连续的 stacked feature branch 合并，但尚未进入 `main`。当前集成代码、验收修复和 `.vibe` 交付记录已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 提交到 `main`；实现复审基准为 `47a2a9d`，其后的文档同步 head 的 GitHub Actions `verify` 均 `SUCCESS`，复审无新增语义发现。真实 Provider、跨模块 HTTP/E2E、生产环境和用户人工 Runbook 验收仍为 `NOT RUN`；Issue #28 继续保持 `OPEN`，不得提前标记 IM-02 `COMPLETE`。
 
 ### IM-03 EnterpriseProject Reference Foundation
 

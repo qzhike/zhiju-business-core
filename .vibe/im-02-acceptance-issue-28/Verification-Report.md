@@ -9,7 +9,7 @@
 仍未满足的退出条件不是本地代码门禁，而是交付与验收边界：
 
 1. PR #46–#50 虽在 GitHub 显示 MERGED，但它们是连续 stacked feature branch；对应提交尚未进入当前 origin/main。PR #51 已创建并以 `main` 为 base，等待完成交付。
-2. 本轮修复已经 commit/push；PR #51 最新 exact head `8fcdb92` 的 CI 已 `SUCCESS`，复审记录为无新增语义发现，但 PR 尚未 merge。
+2. 本轮修复已经 commit/push；PR #51 实现复审基准为 `47a2a9d`，其后的文档同步 head CI 均为 `SUCCESS`，复审记录为无新增语义发现，但 PR 尚未 merge。
 3. 真实 Keycloak/OIDC、OpenBao、飞书、生产 Broker/Provider、跨模块 HTTP/业务 E2E、生产负载和用户最终人工业务验收没有执行，继续保持 NOT RUN。
 4. 本地脚本 Probe 是可重复的自动化/脱敏 Fixture 证据，不等同于用户亲自按 Runbook 完成最终人工验收。
 
