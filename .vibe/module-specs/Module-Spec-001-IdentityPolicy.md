@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-08 IMPLEMENTATION UNDER REVIEW 2026-08-24`
 
 ## 1. 模块责任
 
@@ -171,6 +171,13 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 6. AuthorizationDecision 是不可变 Contract；所有业务 Handler 重新验证其完整性和时效。
 7. 本模块不存 Provider Token、共享 Human Credential 或长期 Runtime Capability Token。
 8. 其他模块只保存 PrincipalRef、ActorSnapshotRef、AuthorizationDecisionRef，不建立跨 Schema 外键。
+9. 每个 Command 的 canonical request Hash 必须覆盖所有会改变结果的 payload 字段；同一 idempotency key 的不同 Hash 必须拒绝，不能返回原结果。
+10. Project-owned RoleAssignment、CapabilityGrant 及其技术记录必须同时满足 Enterprise 与允许 Project scope；撤销不得仅凭 target ID 绕过 Project scope。
+11. 并发 active Assignment/Grant 的数据库唯一裁决必须转换为稳定模块错误；原始 PostgreSQL unique violation 不得穿透公开 Handler。
+12. 首角色 bootstrap claim 只能原子消费一次，并且产生与普通 RoleAssignment 相同的脱敏 `identity.RoleAssigned` Event。
+13. 撤销事实的执行主体必须来自受信事务 Context；调用者输入不得伪造 `revoked_by_principal_id`。
+14. 已过期的 EffectivePeriod 不得创建 ACTIVE Assignment 或 Grant。
+15. `V1003` 升级既有数据时必须保留 Role/Capability Revocation 的 Project scope；迁移阶段不得因 RLS 使历史 scope 回填静默失效。
 
 ## 8. 可人工验收的模块产出
 
@@ -180,5 +187,6 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 
 - 20 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- Schema、Registry、Handler、Persistence 和测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- WI-08 已有 Schema、Registry、Handler、Persistence 和真实 PostgreSQL gate 测试；PR #48 的 R1-R6 语义修复与回归测试处于审查中；
+- WI-08 focused persistence gate 已在 PostgreSQL 18.6 上执行通过，包含 V1003 空库迁移、第二次 no-op、幂等冲突、Project RLS、并发唯一裁决、bootstrap 原子消费、撤销事实和 Event 脱敏回归；本模块的真实 Provider、Keycloak、跨业务模块 Approval/Release、外部 E2E 与人工验收仍为 `NOT RUN`；
+- 只有在最新精确 PR head 完成 semantic review 后，才能将本轮实现标记为 `PASS`，不能用静态设计 Gate 替代运行时或人工验收。

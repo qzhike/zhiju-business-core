@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 IN PROGRESS`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -236,6 +236,14 @@ BusinessCore
 
 ## 7. 当前基准状态
 
+### 7.1 IM-02 WI-08 实现审查基线（2026-08-24）
+
+IdentityPolicy 的 WI-08 代码已进入实现与审查阶段，当前涉及 RoleAssignment、CapabilityGrant、PolicySnapshot、首角色 bootstrap、真实 PostgreSQL persistence gate 及其 Command Handler。PR #48 的 R1-R6 修复已在当前工作区验证通过，但在最新精确 PR head 完成 review、合并及 Issue #36 状态核验前，本实现尚不代表 IM-02 完成，也不能把尚未接入的 ActorSnapshot、AuthorizationDecision、真实外部身份/Keycloak、业务 Approval/Release Handler 或人工验收标记为 `PASS`。
+
+本阶段强制保持以下失败场景可验证：命令请求 Hash 覆盖全部业务输入；Project-owned 行同时受 Enterprise 与允许 Project scope 约束；并发唯一冲突返回稳定业务结果；bootstrap claim 原子且只产生一个首角色事实；撤销审计主体来自受信事务 Context；过期有效期被拒绝；正式 Role/Capability 变化产生完整的脱敏 Outbox Event。
+
+当前实现验证证据：`pnpm persistence:gate` 在 PostgreSQL 18.6 / Flyway 11.20.3 上执行 10 个 persistence 测试文件、142 个测试并通过；空库迁移包含 V1003，第二次 migrate 为 no-op。真实 Provider、Keycloak、跨业务模块 Approval/Release、外部 E2E、非空旧库升级探针和人工验收仍为 `NOT RUN`。
+
 已纳入当前基准：
 
 - 产品与现场业务约束；
@@ -306,7 +314,7 @@ Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
     ↓
 IM-01 Repository + Executable Contracts  （COMPLETE / FULL 200 + ENVELOPE_ONLY 0 / FIELD-LEVEL SCHEMAS + SCHEMA-DERIVED TYPES + V1.0 COMPATIBILITY BASELINE LANDED / ISSUE #9 CLOSED BY PR #20 / ISSUE #5 FIELD-SCHEMA SCOPE COMPLETE VIA PR #14 / RELEASE RUNTIME GAPS TRACKED BY #22–#24 / ISSUE #17 LOCAL IG RUNTIME SLICE LANDED / HANDLER + ADAPTER + DB TRACKED BY #27 / HANDLER + DB + EXTERNAL GATES REMAIN NOT RUN）
     ↓
-IM-02 PostgreSQL Foundation + IdentityPolicy  （NEXT）
+    IM-02 PostgreSQL Foundation + IdentityPolicy  （IN PROGRESS / WI-08 IMPLEMENTATION REVIEW）
 ```
 
 ---

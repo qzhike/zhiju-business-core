@@ -150,6 +150,12 @@ describe.skipIf(!gateEnabled)(
     });
 
     const deps = () => ({ db, repo, crypto, context });
+    const depsFor = (testContext: IdentityTransactionContext) => ({
+      db,
+      repo,
+      crypto,
+      context: testContext,
+    });
 
     it('validates policy snapshot schema refs and set-version uniqueness', async () => {
       const unknown = await recordPolicySnapshot(deps(), {
@@ -188,6 +194,17 @@ describe.skipIf(!gateEnabled)(
         idempotencyKey: 'wi08:policy:1',
       });
       expect(replay).toMatchObject({ status: 'DUPLICATE', originalOutcome: 'COMMITTED' });
+
+      await expect(
+        recordPolicySnapshot(deps(), {
+          policySnapshotId: POLICY_ID,
+          policySetVersion: 'wi08-policy-set-1',
+          policySchemaRefs: ['identity.PolicySnapshot@1.0', 'identity.CapabilityPolicy@1.0'],
+          effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+          policyDocument: { rules: ['tampered'], version: 1 },
+          idempotencyKey: 'wi08:policy:1',
+        }),
+      ).rejects.toMatchObject({ code: IDEMPOTENCY_PAYLOAD_CONFLICT });
     });
 
     it('assigns roles with exact scope and rejects duplicates/invalid scopes deterministically', async () => {
@@ -256,6 +273,48 @@ describe.skipIf(!gateEnabled)(
       });
       expect(allowedProject).toMatchObject({ status: 'COMMITTED' });
 
+      const scopedTechnicalRows = await admin.query<{
+        receipt_project_id: string | null;
+        audit_project_id: string | null;
+        event_project_id: string | null;
+      }>(
+        `SELECT
+           (SELECT project_id FROM identity_policy.command_receipt
+            WHERE idempotency_key = 'wi08:assign:5') AS receipt_project_id,
+           (SELECT project_id FROM identity_policy.audit_record
+            WHERE target_id = $1 AND outcome = 'COMMITTED') AS audit_project_id,
+           (SELECT project_id FROM identity_policy.outbox_event
+            WHERE aggregate_id = $1 AND event_type = 'identity.RoleAssigned') AS event_project_id`,
+        ['b2b2b2b2-b2b2-72b2-82b2-b2b2b2b2b215'],
+      );
+      expect(scopedTechnicalRows.rows[0]).toEqual({
+        receipt_project_id: PROJECT_A1,
+        audit_project_id: PROJECT_A1,
+        event_project_id: PROJECT_A1,
+      });
+
+      const projectA2Context: IdentityTransactionContext = {
+        ...context,
+        allowedProjectIds: [PROJECT_A2],
+      };
+      const hiddenFromProjectA2 = await withIdentityTransaction(db, projectA2Context, (trx) =>
+        repo.getRoleAssignmentById(trx, 'b2b2b2b2-b2b2-72b2-82b2-b2b2b2b2b215'),
+      );
+      expect(hiddenFromProjectA2).toBeUndefined();
+
+      const crossProjectRevoke = await revokeRole(depsFor(projectA2Context), {
+        targetId: 'b2b2b2b2-b2b2-72b2-82b2-b2b2b2b2b215',
+        expectedAggregateVersion: '1',
+        scope: { scopeKind: 'PROJECT', enterpriseId: ENTERPRISE_A, projectId: PROJECT_A2 },
+        reasonCode: 'wi08.cross-project-revoke',
+        effectiveAt: new Date(),
+        idempotencyKey: 'wi08:revoke:cross-project',
+      });
+      expect(crossProjectRevoke).toMatchObject({
+        status: 'REJECTED',
+        errorCode: IDENTITY_ROLE_NOT_ACTIVE,
+      });
+
       const badPeriod = await assignRole(deps(), {
         assignmentId: 'b2b2b2b2-b2b2-72b2-82b2-b2b2b2b2b216',
         principalId: HUMAN,
@@ -267,6 +326,21 @@ describe.skipIf(!gateEnabled)(
         idempotencyKey: 'wi08:assign:6',
       });
       expect(badPeriod).toMatchObject({
+        status: 'REJECTED',
+        errorCode: IDENTITY_ROLE_SCOPE_INVALID,
+      });
+
+      const expiredPeriod = await assignRole(deps(), {
+        assignmentId: 'b2b2b2b2-b2b2-72b2-82b2-b2b2b2b2b217',
+        principalId: HUMAN,
+        roleCode: 'wi08.expired-role',
+        scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
+        validFrom: new Date(Date.now() - 7_200_000),
+        validTo: new Date(Date.now() - 3_600_000),
+        justification: 'already expired',
+        idempotencyKey: 'wi08:assign:expired',
+      });
+      expect(expiredPeriod).toMatchObject({
         status: 'REJECTED',
         errorCode: IDENTITY_ROLE_SCOPE_INVALID,
       });
@@ -290,6 +364,39 @@ describe.skipIf(!gateEnabled)(
         [IDEMPOTENCY_PAYLOAD_CONFLICT],
       );
       expect(Number(denialAudit.rows[0]?.count)).toBeGreaterThanOrEqual(1);
+
+      const concurrentRoleInputs = [
+        {
+          assignmentId: 'b6b6b6b6-b6b6-76b6-86b6-b6b6b6b6b611',
+          idempotencyKey: 'wi08:assign:concurrent:1',
+        },
+        {
+          assignmentId: 'b6b6b6b6-b6b6-76b6-86b6-b6b6b6b6b612',
+          idempotencyKey: 'wi08:assign:concurrent:2',
+        },
+      ];
+      const concurrentRoleResults = await Promise.all(
+        concurrentRoleInputs.map(({ assignmentId, idempotencyKey }) =>
+          assignRole(deps(), {
+            assignmentId,
+            principalId: HUMAN,
+            roleCode: 'wi08.concurrent-role',
+            scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
+            validFrom: new Date(),
+            justification: 'concurrent duplicate fixture',
+            idempotencyKey,
+          }),
+        ),
+      );
+      expect(concurrentRoleResults.filter((result) => result.status === 'COMMITTED')).toHaveLength(
+        1,
+      );
+      expect(concurrentRoleResults.filter((result) => result.status === 'REJECTED')).toHaveLength(
+        1,
+      );
+      expect(concurrentRoleResults.find((result) => result.status === 'REJECTED')).toMatchObject({
+        errorCode: IDENTITY_ROLE_ALREADY_ACTIVE,
+      });
     });
 
     it('grants capabilities from the exact policy snapshot and enforces the human-only registry', async () => {
@@ -307,6 +414,23 @@ describe.skipIf(!gateEnabled)(
         idempotencyKey: 'wi08:grant:human',
       });
       expect(humanGrant).toMatchObject({ status: 'COMMITTED' });
+
+      await expect(
+        grantCapability(deps(), {
+          grantId: 'b3b3b3b3-b3b3-73b3-83b3-b3b3b3b3b311',
+          principalId: HUMAN,
+          capabilityCode: 'wi08.document.review',
+          scope: { scopeKind: 'PROJECT', enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 },
+          resourceSelectors: [{ type: 'TamperedArtifact' }],
+          actions: ['wi08.tampered'],
+          validFrom: new Date(),
+          maxUses: 3,
+          grantPolicySnapshotId: POLICY_ID,
+          grantPolicySnapshotHash: policyHash,
+          justification: 'tampered replay',
+          idempotencyKey: 'wi08:grant:human',
+        }),
+      ).rejects.toMatchObject({ code: IDEMPOTENCY_PAYLOAD_CONFLICT });
 
       // Human-only capability to a HUMAN is fine.
       const humanOnlyForHuman = await grantCapability(deps(), {
@@ -397,13 +521,69 @@ describe.skipIf(!gateEnabled)(
         status: 'REJECTED',
         errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
       });
+
+      const expiredPeriod = await grantCapability(deps(), {
+        grantId: 'b3b3b3b3-b3b3-73b3-83b3-b3b3b3b3b317',
+        principalId: HUMAN,
+        capabilityCode: 'wi08.expired-capability',
+        scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
+        resourceSelectors: [],
+        actions: ['wi08.expired'],
+        validFrom: new Date(Date.now() - 7_200_000),
+        validTo: new Date(Date.now() - 3_600_000),
+        grantPolicySnapshotId: POLICY_ID,
+        grantPolicySnapshotHash: policyHash,
+        justification: 'already expired',
+        idempotencyKey: 'wi08:grant:expired',
+      });
+      expect(expiredPeriod).toMatchObject({
+        status: 'REJECTED',
+        errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
+      });
+
+      const concurrentCapabilityInputs = [
+        {
+          grantId: 'b7b7b7b7-b7b7-77b7-87b7-b7b7b7b7b711',
+          idempotencyKey: 'wi08:grant:concurrent:1',
+        },
+        {
+          grantId: 'b7b7b7b7-b7b7-77b7-87b7-b7b7b7b7b712',
+          idempotencyKey: 'wi08:grant:concurrent:2',
+        },
+      ];
+      const concurrentCapabilityResults = await Promise.all(
+        concurrentCapabilityInputs.map(({ grantId, idempotencyKey }) =>
+          grantCapability(deps(), {
+            grantId,
+            principalId: HUMAN,
+            capabilityCode: 'wi08.concurrent-capability',
+            scope: { scopeKind: 'PROJECT', enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 },
+            resourceSelectors: [{ type: 'Artifact' }],
+            actions: ['wi08.concurrent'],
+            validFrom: new Date(),
+            grantPolicySnapshotId: POLICY_ID,
+            grantPolicySnapshotHash: policyHash,
+            justification: 'concurrent duplicate fixture',
+            idempotencyKey,
+          }),
+        ),
+      );
+      expect(
+        concurrentCapabilityResults.filter((result) => result.status === 'COMMITTED'),
+      ).toHaveLength(1);
+      expect(
+        concurrentCapabilityResults.filter((result) => result.status === 'REJECTED'),
+      ).toHaveLength(1);
+      expect(
+        concurrentCapabilityResults.find((result) => result.status === 'REJECTED'),
+      ).toMatchObject({ errorCode: IDENTITY_CAPABILITY_ALREADY_ACTIVE });
     });
 
     it('revokes by expected version, appends facts and keeps history readable (IP-API-U-003)', async () => {
       const wrongVersion = await revokeRole(deps(), {
         targetId: assignmentId,
         expectedAggregateVersion: '42',
-        revokedByPrincipalId: OPERATOR,
+        scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
         reasonCode: 'wi08.rotate',
         effectiveAt: new Date(),
         idempotencyKey: 'wi08:revoke:wrong-version',
@@ -416,12 +596,23 @@ describe.skipIf(!gateEnabled)(
       const revoked = await revokeRole(deps(), {
         targetId: assignmentId,
         expectedAggregateVersion: '1',
-        revokedByPrincipalId: OPERATOR,
+        scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
         reasonCode: 'wi08.rotate',
         effectiveAt: new Date(),
         idempotencyKey: 'wi08:revoke:1',
       });
       expect(revoked).toMatchObject({ status: 'COMMITTED' });
+
+      await expect(
+        revokeRole(deps(), {
+          targetId: assignmentId,
+          expectedAggregateVersion: '1',
+          scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
+          reasonCode: 'wi08.rotate',
+          effectiveAt: new Date(Date.now() + 1_000),
+          idempotencyKey: 'wi08:revoke:1',
+        }),
+      ).rejects.toMatchObject({ code: IDEMPOTENCY_PAYLOAD_CONFLICT });
 
       // History: the assignment row is still readable, now REVOKED with an
       // appended revocation fact; a re-revoke is rejected.
@@ -430,16 +621,26 @@ describe.skipIf(!gateEnabled)(
         [assignmentId],
       );
       expect(row.rows[0]).toEqual({ status: 'REVOKED', aggregate_version: '2' });
-      const facts = await admin.query<{ count: string }>(
-        `SELECT count(*) AS count FROM identity_policy.role_revocation WHERE role_assignment_id = $1`,
+      const facts = await admin.query<{
+        count: string;
+        project_id: string | null;
+        revoked_by_principal_id: string;
+      }>(
+        `SELECT count(*) AS count, project_id, revoked_by_principal_id
+         FROM identity_policy.role_revocation WHERE role_assignment_id = $1
+         GROUP BY project_id, revoked_by_principal_id`,
         [assignmentId],
       );
-      expect(facts.rows[0]?.count).toBe('1');
+      expect(facts.rows[0]).toEqual({
+        count: '1',
+        project_id: null,
+        revoked_by_principal_id: OPERATOR,
+      });
 
       const reRevoke = await revokeRole(deps(), {
         targetId: assignmentId,
         expectedAggregateVersion: '2',
-        revokedByPrincipalId: OPERATOR,
+        scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
         reasonCode: 'wi08.re-revoke',
         effectiveAt: new Date(),
         idempotencyKey: 'wi08:revoke:2',
@@ -462,20 +663,33 @@ describe.skipIf(!gateEnabled)(
       const grantRevoked = await revokeCapability(deps(), {
         targetId: 'b3b3b3b3-b3b3-73b3-83b3-b3b3b3b3b311',
         expectedAggregateVersion: '1',
-        revokedByPrincipalId: OPERATOR,
+        scope: { scopeKind: 'PROJECT', enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 },
         reasonCode: 'wi08.offboard',
         effectiveAt: new Date(),
         idempotencyKey: 'wi08:revoke-capability:1',
       });
       expect(grantRevoked).toMatchObject({ status: 'COMMITTED' });
-      const grantRow = await admin.query<{ status: string }>(
-        `SELECT status FROM identity_policy.capability_grant WHERE id = 'b3b3b3b3-b3b3-73b3-83b3-b3b3b3b3b311'`,
+      const grantRow = await admin.query<{ status: string; project_id: string | null }>(
+        `SELECT status, project_id FROM identity_policy.capability_grant
+         WHERE id = 'b3b3b3b3-b3b3-73b3-83b3-b3b3b3b3b311'`,
       );
-      expect(grantRow.rows[0]?.status).toBe('REVOKED');
+      expect(grantRow.rows[0]).toEqual({ status: 'REVOKED', project_id: PROJECT_A1 });
+      const capabilityFacts = await admin.query<{
+        project_id: string | null;
+        revoked_by_principal_id: string;
+      }>(
+        `SELECT project_id, revoked_by_principal_id
+         FROM identity_policy.capability_revocation
+         WHERE capability_grant_id = 'b3b3b3b3-b3b3-73b3-83b3-b3b3b3b3b311'`,
+      );
+      expect(capabilityFacts.rows[0]).toEqual({
+        project_id: PROJECT_A1,
+        revoked_by_principal_id: OPERATOR,
+      });
       const reRevokeGrant = await revokeCapability(deps(), {
         targetId: 'b3b3b3b3-b3b3-73b3-83b3-b3b3b3b3b311',
         expectedAggregateVersion: '2',
-        revokedByPrincipalId: OPERATOR,
+        scope: { scopeKind: 'PROJECT', enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 },
         reasonCode: 'wi08.re-revoke',
         effectiveAt: new Date(),
         idempotencyKey: 'wi08:revoke-capability:2',
@@ -497,15 +711,50 @@ describe.skipIf(!gateEnabled)(
         expiresAt: new Date(Date.now() + 3_600_000),
       });
 
-      const bootstrapped = await bootstrapMinimalAdminRole(deps(), {
-        bootstrapClaimId: claim.claimId,
-        assignmentId: 'b5b5b5b5-b5b5-75b5-85b5-b5b5b5b5b511',
-        principalId: HUMAN,
-        roleCode: 'wi08.platform-admin',
-        justification: 'first admin role',
-        idempotencyKey: 'wi08:bootstrap-role:1',
+      const bootstrapInputs = [
+        {
+          assignmentId: 'b5b5b5b5-b5b5-75b5-85b5-b5b5b5b5b511',
+          principalId: HUMAN,
+          roleCode: 'wi08.platform-admin',
+          justification: 'first admin role',
+          idempotencyKey: 'wi08:bootstrap-role:1',
+        },
+        {
+          assignmentId: 'b5b5b5b5-b5b5-75b5-85b5-b5b5b5b5b512',
+          principalId: HUMAN,
+          roleCode: 'wi08.platform-admin-secondary',
+          justification: 'concurrent losing bootstrap',
+          idempotencyKey: 'wi08:bootstrap-role:concurrent',
+        },
+      ] as const;
+      const bootstrapResults = await Promise.all(
+        bootstrapInputs.map((input) =>
+          bootstrapMinimalAdminRole(deps(), {
+            bootstrapClaimId: claim.claimId,
+            ...input,
+          }),
+        ),
+      );
+      expect(bootstrapResults.filter((result) => result.status === 'COMMITTED')).toHaveLength(1);
+      expect(bootstrapResults.filter((result) => result.status === 'REJECTED')).toHaveLength(1);
+      expect(bootstrapResults.find((result) => result.status === 'REJECTED')).toMatchObject({
+        errorCode: IDENTITY_BOOTSTRAP_ROLE_INVALID,
       });
-      expect(bootstrapped).toMatchObject({ status: 'COMMITTED' });
+      const committedBootstrapIndex = bootstrapResults.findIndex(
+        (result) => result.status === 'COMMITTED',
+      );
+      const committedBootstrap = bootstrapInputs[committedBootstrapIndex];
+      if (!committedBootstrap) {
+        throw new Error('bootstrap concurrency fixture did not commit');
+      }
+
+      await expect(
+        bootstrapMinimalAdminRole(deps(), {
+          bootstrapClaimId: claim.claimId,
+          ...committedBootstrap,
+          justification: 'tampered bootstrap replay',
+        }),
+      ).rejects.toMatchObject({ code: IDEMPOTENCY_PAYLOAD_CONFLICT });
 
       const claimRow = await admin.query<{
         consumed_at: Date | null;
@@ -519,21 +768,24 @@ describe.skipIf(!gateEnabled)(
       expect(claimRow.rows[0]?.closed_at).not.toBeNull();
       expect(claimRow.rows[0]?.closed_reason).toContain('permanently closed');
 
+      const bootstrapEvents = await admin.query<{ count: string }>(
+        `SELECT count(*) AS count FROM identity_policy.outbox_event
+         WHERE event_type = 'identity.RoleAssigned' AND aggregate_id = $1`,
+        [committedBootstrap.assignmentId],
+      );
+      expect(bootstrapEvents.rows[0]?.count).toBe('1');
+
       // Replay is idempotent and does not resurrect anything.
       const replay = await bootstrapMinimalAdminRole(deps(), {
         bootstrapClaimId: claim.claimId,
-        assignmentId: 'b5b5b5b5-b5b5-75b5-85b5-b5b5b5b5b511',
-        principalId: HUMAN,
-        roleCode: 'wi08.platform-admin',
-        justification: 'first admin role',
-        idempotencyKey: 'wi08:bootstrap-role:1',
+        ...committedBootstrap,
       });
       expect(replay).toMatchObject({ status: 'DUPLICATE', originalOutcome: 'COMMITTED' });
 
       // Any further bootstrap execution is rejected after the close.
       const again = await bootstrapMinimalAdminRole(deps(), {
         bootstrapClaimId: claim.claimId,
-        assignmentId: 'b5b5b5b5-b5b5-75b5-85b5-b5b5b5b5b512',
+        assignmentId: 'b5b5b5b5-b5b5-75b5-85b5-b5b5b5b5b513',
         principalId: AGENT,
         roleCode: 'wi08.platform-admin',
         justification: 'attempt after close',

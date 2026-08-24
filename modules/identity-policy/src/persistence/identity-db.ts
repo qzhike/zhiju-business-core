@@ -4,7 +4,14 @@
 
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
-import { Kysely, PostgresDialect, sql, type ColumnType, type Generated } from 'kysely';
+import {
+  Kysely,
+  PostgresDialect,
+  sql,
+  type ColumnType,
+  type Generated,
+  type Transaction,
+} from 'kysely';
 import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 
 // pg returns int8 as string and jsonb as parsed objects; inserts pass
@@ -93,6 +100,7 @@ export interface RoleRevocationTable {
   revocation_id: string;
   role_assignment_id: string;
   enterprise_id: string;
+  project_id: string | null;
   revoked_by_principal_id: string;
   reason_code: string;
   effective_at: Date;
@@ -131,6 +139,7 @@ export interface CapabilityRevocationTable {
   revocation_id: string;
   capability_grant_id: string;
   enterprise_id: string;
+  project_id: string | null;
   revoked_by_principal_id: string;
   reason_code: string;
   effective_at: Date;
@@ -441,7 +450,7 @@ export interface IdentityTransactionContext {
   readonly sourceEventId?: string;
 }
 
-export type IdentityTransaction = Kysely<IdentityPolicyDb>;
+export type IdentityTransaction = Transaction<IdentityPolicyDb>;
 
 /** Creates the Kysely SQL builder over an application-owned pg pool. */
 export function createIdentityPolicyDatabase(pool: Pool): Kysely<IdentityPolicyDb> {

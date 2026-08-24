@@ -91,6 +91,7 @@ export interface RevocationInsert {
   revocationId: string;
   targetId: string;
   enterpriseId: string;
+  projectId?: string | undefined;
   revokedByPrincipalId: string;
   reasonCode: string;
   effectiveAt: Date;
@@ -397,6 +398,7 @@ export class IdentityPolicyRepository {
         revocation_id: insert.revocationId,
         role_assignment_id: insert.targetId,
         enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId ?? null,
         revoked_by_principal_id: insert.revokedByPrincipalId,
         reason_code: insert.reasonCode,
         effective_at: insert.effectiveAt,
@@ -481,6 +483,7 @@ export class IdentityPolicyRepository {
         revocation_id: insert.revocationId,
         capability_grant_id: insert.targetId,
         enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId ?? null,
         revoked_by_principal_id: insert.revokedByPrincipalId,
         reason_code: insert.reasonCode,
         effective_at: insert.effectiveAt,

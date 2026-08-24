@@ -7,12 +7,15 @@
 // capability tokens, external ids or contact channels.
 
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
-import type { Kysely } from 'kysely';
-import type { IdentityPolicyDb } from '../persistence/identity-db.js';
+import { sql, type Kysely } from 'kysely';
+import type {
+  IdentityPolicyDb,
+  IdentityTransaction,
+  IdentityTransactionContext,
+} from '../persistence/identity-db.js';
 import { executeIdentityCommand, type CommandResult } from '../persistence/command-runner.js';
 import type { IdentityPolicyRepository } from '../persistence/identity-policy-repository.js';
 import type { IdentityCryptoPorts } from '../persistence/ports.js';
-import type { IdentityTransactionContext } from '../persistence/identity-db.js';
 import {
   HUMAN_ONLY_CAPABILITY_REGISTRY_VERSION,
   isHumanOnlyCapability,
@@ -48,30 +51,83 @@ export interface ScopedRef {
 function validateScope(
   scope: ScopedRef,
   context: IdentityTransactionContext,
-  roleCode: string,
+  errorCode: string,
 ): string | null {
   if (scope.enterpriseId !== context.enterpriseId) {
-    return IDENTITY_ROLE_SCOPE_INVALID;
+    return errorCode;
   }
   if (scope.scopeKind === 'PROJECT') {
     if (scope.projectId === undefined) {
-      return IDENTITY_ROLE_SCOPE_INVALID;
+      return errorCode;
     }
     if (!context.allowedProjectIds.includes(scope.projectId)) {
-      return IDENTITY_ROLE_SCOPE_INVALID;
+      return errorCode;
     }
   } else if (scope.projectId !== undefined) {
-    return IDENTITY_ROLE_SCOPE_INVALID;
+    return errorCode;
   }
-  void roleCode;
   return null;
 }
 
 function validatePeriod(validFrom: Date, validTo?: Date): string | null {
-  if (validTo !== undefined && validTo <= validFrom) {
+  const now = new Date();
+  if (
+    Number.isNaN(validFrom.getTime()) ||
+    (validTo !== undefined &&
+      (Number.isNaN(validTo.getTime()) || validTo <= validFrom || validTo <= now))
+  ) {
     return IDENTITY_POLICY_SNAPSHOT_INVALID;
   }
   return null;
+}
+
+function sameScope(
+  row: { scope_kind: 'ENTERPRISE' | 'PROJECT'; enterprise_id: string; project_id: string | null },
+  scope: ScopedRef,
+): boolean {
+  return (
+    row.scope_kind === scope.scopeKind &&
+    row.enterprise_id === scope.enterpriseId &&
+    row.project_id === (scope.projectId ?? null)
+  );
+}
+
+function scopePayload(scope: ScopedRef): CanonicalJsonObject {
+  return {
+    scopeKind: scope.scopeKind,
+    enterpriseId: scope.enterpriseId,
+    ...(scope.projectId !== undefined ? { projectId: scope.projectId } : {}),
+  };
+}
+
+function isUniqueConstraintViolation(error: unknown, constraint: string): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  const candidate = error as { code?: unknown; constraint?: unknown };
+  return candidate.code === '23505' && candidate.constraint === constraint;
+}
+
+async function insertWithUniqueGuard(
+  trx: IdentityTransaction,
+  constraint: string,
+  insert: (trx: IdentityTransaction) => Promise<void>,
+): Promise<boolean> {
+  // PostgreSQL aborts the current transaction after a constraint violation;
+  // isolate the expected race loser in a savepoint before continuing.
+  await sql.raw('SAVEPOINT wi08_unique_insert').execute(trx);
+  try {
+    await insert(trx);
+    await sql.raw('RELEASE SAVEPOINT wi08_unique_insert').execute(trx);
+    return true;
+  } catch (error) {
+    if (isUniqueConstraintViolation(error, constraint)) {
+      await sql.raw('ROLLBACK TO SAVEPOINT wi08_unique_insert').execute(trx);
+      await sql.raw('RELEASE SAVEPOINT wi08_unique_insert').execute(trx);
+      return false;
+    }
+    throw error;
+  }
 }
 
 export interface AssignRoleInput {
@@ -89,8 +145,8 @@ export async function assignRole(
   deps: IdentityCommandDeps,
   input: AssignRoleInput,
 ): Promise<CommandResult> {
-  const scopeError = validateScope(input.scope, deps.context, input.roleCode);
-  if (scopeError !== null && scopeError === IDENTITY_ROLE_SCOPE_INVALID) {
+  const scopeError = validateScope(input.scope, deps.context, IDENTITY_ROLE_SCOPE_INVALID);
+  if (scopeError !== null) {
     return {
       status: 'REJECTED',
       errorCode: IDENTITY_ROLE_SCOPE_INVALID,
@@ -128,6 +184,10 @@ export async function assignRole(
         scopeKind: input.scope.scopeKind,
         enterpriseId: input.scope.enterpriseId,
         ...(input.scope.projectId !== undefined ? { projectId: input.scope.projectId } : {}),
+        effectivePeriod: {
+          from: input.validFrom.toISOString(),
+          ...(input.validTo !== undefined ? { to: input.validTo.toISOString() } : {}),
+        },
         justification: input.justification,
       },
       platform: false,
@@ -169,19 +229,31 @@ export async function assignRole(
           safeSummary: 'active assignment exists',
         };
       }
-      await deps.repo.insertRoleAssignment(execution.trx, {
-        id: input.assignmentId,
-        principalId: input.principalId,
-        code: input.roleCode,
-        scopeKind: input.scope.scopeKind,
-        enterpriseId: input.scope.enterpriseId,
-        projectId: input.scope.projectId,
-        validFrom: input.validFrom,
-        validTo: input.validTo,
-        justification: input.justification,
-        createdByPrincipalId: deps.context.principalId,
-        createdByActorSnapshotId: deps.context.actorSnapshotId,
-      });
+      const inserted = await insertWithUniqueGuard(
+        execution.trx,
+        'role_assignment_active_unique',
+        (trx) =>
+          deps.repo.insertRoleAssignment(trx, {
+            id: input.assignmentId,
+            principalId: input.principalId,
+            code: input.roleCode,
+            scopeKind: input.scope.scopeKind,
+            enterpriseId: input.scope.enterpriseId,
+            projectId: input.scope.projectId,
+            validFrom: input.validFrom,
+            validTo: input.validTo,
+            justification: input.justification,
+            createdByPrincipalId: deps.context.principalId,
+            createdByActorSnapshotId: deps.context.actorSnapshotId,
+          }),
+      );
+      if (!inserted) {
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_ROLE_ALREADY_ACTIVE,
+          safeSummary: 'active assignment exists',
+        };
+      }
       await execution.appendOutbox({
         eventId: newUuidV7(),
         eventType: 'identity.RoleAssigned',
@@ -222,7 +294,7 @@ export async function assignRole(
 export interface RevokeScopedInput {
   targetId: string;
   expectedAggregateVersion: string;
-  revokedByPrincipalId: string;
+  scope: ScopedRef;
   reasonCode: string;
   effectiveAt: Date;
   idempotencyKey: string;
@@ -232,6 +304,20 @@ export async function revokeRole(
   deps: IdentityCommandDeps,
   input: RevokeScopedInput,
 ): Promise<CommandResult> {
+  if (validateScope(input.scope, deps.context, IDENTITY_ROLE_SCOPE_INVALID) !== null) {
+    return {
+      status: 'REJECTED',
+      errorCode: IDENTITY_ROLE_SCOPE_INVALID,
+      safeSummary: 'scope invalid for role revocation',
+    };
+  }
+  if (!input.reasonCode.trim() || Number.isNaN(input.effectiveAt.getTime())) {
+    return {
+      status: 'REJECTED',
+      errorCode: IDENTITY_ROLE_SCOPE_INVALID,
+      safeSummary: 'revocation reason and effectiveAt are required',
+    };
+  }
   const commandId = newUuidV7();
   return executeIdentityCommand(
     deps.db,
@@ -244,11 +330,13 @@ export async function revokeRole(
       idempotencyKey: input.idempotencyKey,
       requestPayload: {
         targetRef: { objectType: 'RoleAssignment', objectId: input.targetId },
-        expectedAggregateVersion: input.expectedAggregateVersion,
+        ...scopePayload(input.scope),
         reasonCode: input.reasonCode,
+        effectiveAt: input.effectiveAt.toISOString(),
       },
       platform: false,
-      enterpriseId: deps.context.enterpriseId,
+      enterpriseId: input.scope.enterpriseId,
+      projectId: input.scope.projectId ?? undefined,
       targetType: 'RoleAssignment',
       targetId: input.targetId,
       expectedAggregateVersion: input.expectedAggregateVersion,
@@ -264,6 +352,13 @@ export async function revokeRole(
           kind: 'REJECTED',
           errorCode: IDENTITY_ROLE_NOT_ACTIVE,
           safeSummary: 'assignment not found',
+        };
+      }
+      if (!sameScope(assignment, input.scope)) {
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_ROLE_SCOPE_INVALID,
+          safeSummary: 'assignment scope does not match the command scope',
         };
       }
       if (assignment.status !== 'ACTIVE') {
@@ -298,8 +393,9 @@ export async function revokeRole(
       await deps.repo.insertRoleRevocation(execution.trx, {
         revocationId: newUuidV7(),
         targetId: input.targetId,
-        enterpriseId: deps.context.enterpriseId,
-        revokedByPrincipalId: input.revokedByPrincipalId,
+        enterpriseId: input.scope.enterpriseId,
+        projectId: input.scope.projectId,
+        revokedByPrincipalId: deps.context.principalId,
         reasonCode: input.reasonCode,
         effectiveAt: input.effectiveAt,
         actorSnapshotId: deps.context.actorSnapshotId,
@@ -313,7 +409,8 @@ export async function revokeRole(
         aggregateId: input.targetId,
         aggregateVersion: String(Number(input.expectedAggregateVersion) + 1),
         payload: {
-          enterpriseId: deps.context.enterpriseId,
+          enterpriseId: input.scope.enterpriseId,
+          ...(input.scope.projectId !== undefined ? { projectId: input.scope.projectId } : {}),
           roleAssignmentRef: { objectType: 'RoleAssignment', objectId: input.targetId },
           principalRef: { objectType: 'Principal', objectId: assignment.principal_id },
           revokedAt: input.effectiveAt.toISOString(),
@@ -352,7 +449,7 @@ export async function grantCapability(
   deps: IdentityCommandDeps,
   input: GrantCapabilityInput,
 ): Promise<CommandResult> {
-  if (validateScope(input.scope, deps.context, input.capabilityCode) !== null) {
+  if (validateScope(input.scope, deps.context, IDENTITY_CAPABILITY_SCOPE_INVALID) !== null) {
     return {
       status: 'REJECTED',
       errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
@@ -373,6 +470,13 @@ export async function grantCapability(
       safeSummary: 'justification required',
     };
   }
+  if (input.actions.length === 0 || (input.maxUses !== undefined && input.maxUses < 1)) {
+    return {
+      status: 'REJECTED',
+      errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
+      safeSummary: 'actions must be non-empty and maxUses must be positive',
+    };
+  }
 
   const commandId = newUuidV7();
   return executeIdentityCommand(
@@ -390,11 +494,19 @@ export async function grantCapability(
         scopeKind: input.scope.scopeKind,
         enterpriseId: input.scope.enterpriseId,
         ...(input.scope.projectId !== undefined ? { projectId: input.scope.projectId } : {}),
+        resourceSelectors: input.resourceSelectors,
+        actions: input.actions,
+        effectivePeriod: {
+          from: input.validFrom.toISOString(),
+          ...(input.validTo !== undefined ? { to: input.validTo.toISOString() } : {}),
+        },
+        ...(input.maxUses !== undefined ? { maxUses: input.maxUses } : {}),
         grantPolicySnapshotRef: {
           snapshotType: 'PolicySnapshot',
           snapshotId: input.grantPolicySnapshotId,
           payloadHashDigest: input.grantPolicySnapshotHash.toString('hex'),
         },
+        justification: input.justification,
       },
       platform: false,
       enterpriseId: input.scope.enterpriseId,
@@ -456,24 +568,36 @@ export async function grantCapability(
           safeSummary: 'active grant exists',
         };
       }
-      await deps.repo.insertCapabilityGrant(execution.trx, {
-        id: input.grantId,
-        principalId: input.principalId,
-        code: input.capabilityCode,
-        scopeKind: input.scope.scopeKind,
-        enterpriseId: input.scope.enterpriseId,
-        projectId: input.scope.projectId,
-        resourceSelectors: input.resourceSelectors,
-        actions: input.actions,
-        validFrom: input.validFrom,
-        validTo: input.validTo,
-        maxUses: input.maxUses,
-        grantPolicySnapshotId: input.grantPolicySnapshotId,
-        grantPolicySnapshotHash: input.grantPolicySnapshotHash,
-        justification: input.justification,
-        createdByPrincipalId: deps.context.principalId,
-        createdByActorSnapshotId: deps.context.actorSnapshotId,
-      });
+      const inserted = await insertWithUniqueGuard(
+        execution.trx,
+        'capability_grant_active_unique',
+        (trx) =>
+          deps.repo.insertCapabilityGrant(trx, {
+            id: input.grantId,
+            principalId: input.principalId,
+            code: input.capabilityCode,
+            scopeKind: input.scope.scopeKind,
+            enterpriseId: input.scope.enterpriseId,
+            projectId: input.scope.projectId,
+            resourceSelectors: input.resourceSelectors,
+            actions: input.actions,
+            validFrom: input.validFrom,
+            validTo: input.validTo,
+            maxUses: input.maxUses,
+            grantPolicySnapshotId: input.grantPolicySnapshotId,
+            grantPolicySnapshotHash: input.grantPolicySnapshotHash,
+            justification: input.justification,
+            createdByPrincipalId: deps.context.principalId,
+            createdByActorSnapshotId: deps.context.actorSnapshotId,
+          }),
+      );
+      if (!inserted) {
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_CAPABILITY_ALREADY_ACTIVE,
+          safeSummary: 'active grant exists',
+        };
+      }
       await execution.appendOutbox({
         eventId: newUuidV7(),
         eventType: 'identity.CapabilityGranted',
@@ -515,6 +639,20 @@ export async function revokeCapability(
   deps: IdentityCommandDeps,
   input: RevokeScopedInput,
 ): Promise<CommandResult> {
+  if (validateScope(input.scope, deps.context, IDENTITY_CAPABILITY_SCOPE_INVALID) !== null) {
+    return {
+      status: 'REJECTED',
+      errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
+      safeSummary: 'scope invalid for capability revocation',
+    };
+  }
+  if (!input.reasonCode.trim() || Number.isNaN(input.effectiveAt.getTime())) {
+    return {
+      status: 'REJECTED',
+      errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
+      safeSummary: 'revocation reason and effectiveAt are required',
+    };
+  }
   const commandId = newUuidV7();
   return executeIdentityCommand(
     deps.db,
@@ -527,11 +665,13 @@ export async function revokeCapability(
       idempotencyKey: input.idempotencyKey,
       requestPayload: {
         targetRef: { objectType: 'CapabilityGrant', objectId: input.targetId },
-        expectedAggregateVersion: input.expectedAggregateVersion,
+        ...scopePayload(input.scope),
         reasonCode: input.reasonCode,
+        effectiveAt: input.effectiveAt.toISOString(),
       },
       platform: false,
-      enterpriseId: deps.context.enterpriseId,
+      enterpriseId: input.scope.enterpriseId,
+      projectId: input.scope.projectId ?? undefined,
       targetType: 'CapabilityGrant',
       targetId: input.targetId,
       expectedAggregateVersion: input.expectedAggregateVersion,
@@ -547,6 +687,13 @@ export async function revokeCapability(
           kind: 'REJECTED',
           errorCode: IDENTITY_CAPABILITY_NOT_ACTIVE,
           safeSummary: 'grant not active',
+        };
+      }
+      if (!sameScope(grant, input.scope)) {
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_CAPABILITY_SCOPE_INVALID,
+          safeSummary: 'grant scope does not match the command scope',
         };
       }
       const cas = await execution.casScopedAssignmentStatus(
@@ -567,8 +714,9 @@ export async function revokeCapability(
       await deps.repo.insertCapabilityRevocation(execution.trx, {
         revocationId: newUuidV7(),
         targetId: input.targetId,
-        enterpriseId: deps.context.enterpriseId,
-        revokedByPrincipalId: input.revokedByPrincipalId,
+        enterpriseId: input.scope.enterpriseId,
+        projectId: input.scope.projectId,
+        revokedByPrincipalId: deps.context.principalId,
         reasonCode: input.reasonCode,
         effectiveAt: input.effectiveAt,
         actorSnapshotId: deps.context.actorSnapshotId,
@@ -582,7 +730,8 @@ export async function revokeCapability(
         aggregateId: input.targetId,
         aggregateVersion: String(Number(input.expectedAggregateVersion) + 1),
         payload: {
-          enterpriseId: deps.context.enterpriseId,
+          enterpriseId: input.scope.enterpriseId,
+          ...(input.scope.projectId !== undefined ? { projectId: input.scope.projectId } : {}),
           capabilityGrantRef: { objectType: 'CapabilityGrant', objectId: input.targetId },
           principalRef: { objectType: 'Principal', objectId: grant.principal_id },
           revokedAt: input.effectiveAt.toISOString(),
@@ -614,6 +763,17 @@ export async function recordPolicySnapshot(
   deps: IdentityCommandDeps,
   input: RecordPolicySnapshotInput,
 ): Promise<CommandResult> {
+  if (
+    !input.policySetVersion.trim() ||
+    input.policySchemaRefs.length === 0 ||
+    Number.isNaN(input.effectiveFrom.getTime())
+  ) {
+    return {
+      status: 'REJECTED',
+      errorCode: IDENTITY_POLICY_SNAPSHOT_INVALID,
+      safeSummary: 'policy version, schema refs and effectiveFrom are required',
+    };
+  }
   for (const ref of input.policySchemaRefs) {
     if (!isResolvablePolicySchemaRef(ref)) {
       return {
@@ -637,6 +797,7 @@ export async function recordPolicySnapshot(
         policySetVersion: input.policySetVersion,
         policySchemaRefs: input.policySchemaRefs,
         effectiveFrom: input.effectiveFrom.toISOString(),
+        policyDocument: input.policyDocument,
       },
       platform: true,
       enterpriseId: deps.context.enterpriseId,
@@ -728,6 +889,13 @@ export async function bootstrapMinimalAdminRole(
   deps: IdentityCommandDeps,
   input: BootstrapRoleInput,
 ): Promise<CommandResult> {
+  if (!input.roleCode.trim() || !input.justification.trim()) {
+    return {
+      status: 'REJECTED',
+      errorCode: IDENTITY_BOOTSTRAP_ROLE_INVALID,
+      safeSummary: 'roleCode and justification are required',
+    };
+  }
   const commandId = newUuidV7();
   return executeIdentityCommand(
     deps.db,
@@ -743,6 +911,7 @@ export async function bootstrapMinimalAdminRole(
         assignmentId: input.assignmentId,
         principalRef: { objectType: 'Principal', objectId: input.principalId },
         roleCode: input.roleCode,
+        justification: input.justification,
       },
       platform: false,
       enterpriseId: deps.context.enterpriseId,
@@ -758,6 +927,7 @@ export async function bootstrapMinimalAdminRole(
         .selectFrom('identity_policy.bootstrap_claim')
         .selectAll()
         .where('claim_id', '=', input.bootstrapClaimId)
+        .forUpdate()
         .executeTakeFirst();
       if (claim?.purpose !== 'FIRST_ADMIN_ROLE') {
         return {
@@ -787,16 +957,57 @@ export async function bootstrapMinimalAdminRole(
           safeSummary: 'bootstrap expired',
         };
       }
-      await deps.repo.insertRoleAssignment(execution.trx, {
-        id: input.assignmentId,
-        principalId: input.principalId,
-        code: input.roleCode,
-        scopeKind: 'ENTERPRISE',
-        enterpriseId: deps.context.enterpriseId,
-        validFrom: new Date(),
-        justification: input.justification,
-        createdByPrincipalId: deps.context.principalId,
-        createdByActorSnapshotId: deps.context.actorSnapshotId,
+      const principal = await deps.repo.getPrincipalById(execution.trx, input.principalId);
+      if (principal?.status !== 'ACTIVE') {
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_PRINCIPAL_NOT_ACTIVE,
+          safeSummary: 'bootstrap principal not active',
+        };
+      }
+      const validFrom = new Date();
+      const inserted = await insertWithUniqueGuard(
+        execution.trx,
+        'role_assignment_active_unique',
+        (trx) =>
+          deps.repo.insertRoleAssignment(trx, {
+            id: input.assignmentId,
+            principalId: input.principalId,
+            code: input.roleCode,
+            scopeKind: 'ENTERPRISE',
+            enterpriseId: deps.context.enterpriseId,
+            validFrom,
+            justification: input.justification,
+            createdByPrincipalId: deps.context.principalId,
+            createdByActorSnapshotId: deps.context.actorSnapshotId,
+          }),
+      );
+      if (!inserted) {
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_ROLE_ALREADY_ACTIVE,
+          safeSummary: 'active bootstrap assignment exists',
+        };
+      }
+      await execution.appendOutbox({
+        eventId: newUuidV7(),
+        eventType: 'identity.RoleAssigned',
+        eventVersion: '1.0',
+        aggregateType: 'RoleAssignment',
+        aggregateId: input.assignmentId,
+        aggregateVersion: '1',
+        payload: {
+          enterpriseId: deps.context.enterpriseId,
+          roleAssignmentRef: { objectType: 'RoleAssignment', objectId: input.assignmentId },
+          principalRef: { objectType: 'Principal', objectId: input.principalId },
+          roleCode: input.roleCode,
+          assignedScopeRef: {
+            scopeKind: 'ENTERPRISE',
+            enterpriseRef: { objectType: 'Enterprise', objectId: deps.context.enterpriseId },
+          },
+          effectivePeriod: { from: validFrom.toISOString() },
+        },
+        occurredAt: new Date(),
       });
       // Permanently close: consumed AND closed in one atomic step.
       await execution.trx

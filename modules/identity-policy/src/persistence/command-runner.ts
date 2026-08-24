@@ -432,7 +432,10 @@ function createExecution(
       // Promoted scope mirror: enterprise events must embed their scope
       // exactly; the database trigger re-checks the same invariant.
       if (!envelope.platform) {
-        if (event.payload.enterpriseId !== envelope.enterpriseId) {
+        if (
+          event.payload.enterpriseId !== envelope.enterpriseId ||
+          (event.payload.projectId ?? null) !== (envelope.projectId ?? null)
+        ) {
           throw new CommandExecutionError(
             PAYLOAD_HASH_MISMATCH,
             'event payload scope mirror does not match the command scope',
