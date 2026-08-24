@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ContractRegistry } from '../../contracts/src/registry.js';
 import pg from 'pg';
 import {
   authorizeCommand,
@@ -36,6 +37,7 @@ const gateEnabled = Boolean(databaseUrl);
 const ENTERPRISE_A = 'b0b0b0b0-b0b0-70b0-80b0-b0b0b0b0b0a1';
 const PROJECT_A1 = 'b1b1b1b1-b1b1-71b1-81b1-b1b1b1b1b1c1';
 const PROJECT_A2 = 'b1b1b1b1-b1b1-71b1-81b1-b1b1b1b1b1c2';
+const PROJECT_A3 = 'b1b1b1b1-b1b1-71b1-81b1-b1b1b1b1b1c3';
 const OPERATOR = 'b2b2b2b2-b2b2-72b2-82b2-b2b2b2b2b2d1';
 const OPERATOR_ACTOR = 'b3b3b3b3-b3b3-73b3-83b3-b3b3b3b3b3e1';
 const DECISION = 'b4b4b4b4-b4b4-74b4-84b4-b4b4b4b4b4f1';
@@ -77,14 +79,18 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
   let policyHash: Buffer;
   let humanActorRef: Awaited<ReturnType<typeof createActorSnapshot>>;
   let agentActorRef: Awaited<ReturnType<typeof createActorSnapshot>>;
+  let agentProjectActorRef: Awaited<ReturnType<typeof createActorSnapshot>>;
 
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: databaseUrl });
     await admin.connect();
     await admin.query(
-      `CREATE ROLE wi09_probe_ip LOGIN PASSWORD 'wi09-probe-ip' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+      `CREATE ROLE wi09_probe_ip LOGIN PASSWORD 'wi09-probe-ip' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
-    await admin.query(`GRANT identity_policy_app TO wi09_probe_ip`);
+    await admin.query(
+      `GRANT platform_context_establisher TO wi09_probe_ip WITH INHERIT FALSE, SET TRUE`,
+    );
+    await admin.query(`GRANT identity_policy_app TO wi09_probe_ip WITH INHERIT FALSE, SET TRUE`);
     const url = new URL(databaseUrl ?? '');
     url.username = 'wi09_probe_ip';
     url.password = 'wi09-probe-ip';
@@ -157,6 +163,7 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
       principalId: HUMAN,
       declaredPrincipalKind: 'HUMAN',
       authenticationContextHash: AUTH_HASH,
+      scopeKind: 'PROJECT',
       enterpriseId: ENTERPRISE_A,
       projectId: PROJECT_A1,
     });
@@ -167,7 +174,19 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
       actingForPrincipalId: HUMAN,
       actingForKind: 'HUMAN',
       authenticationContextHash: AUTH_HASH,
+      scopeKind: 'ENTERPRISE',
       enterpriseId: ENTERPRISE_A,
+    });
+    agentProjectActorRef = await createActorSnapshot(deps, {
+      actorSnapshotId: 'b9b9b9b9-b9b9-79b9-89b9-b9b9b9b9b914',
+      principalId: AGENT,
+      declaredPrincipalKind: 'AGENT',
+      actingForPrincipalId: HUMAN,
+      actingForKind: 'HUMAN',
+      authenticationContextHash: AUTH_HASH,
+      scopeKind: 'PROJECT',
+      enterpriseId: ENTERPRISE_A,
+      projectId: PROJECT_A1,
     });
   });
 
@@ -177,6 +196,23 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
   });
 
   const deps = () => ({ db, repo, crypto, context });
+
+  const policyRef = () => ({
+    kind: 'SNAPSHOT' as const,
+    objectType: 'identity.policy_snapshot',
+    objectId: POLICY_ID,
+    snapshotId: POLICY_ID,
+    scope: {},
+    contentHash: {
+      algorithm: 'SHA-256' as const,
+      digest: policyHash.toString('hex'),
+      canonicalizationVersion: '1' as const,
+    },
+  });
+
+  const decisionId = (ref: { objectId: string }) => ref.objectId;
+  const refHash = (ref: { contentHash: { digest: string } }) =>
+    Buffer.from(ref.contentHash.digest, 'hex');
 
   const intentFor = (
     overrides: Partial<Parameters<typeof authorizeCommand>[1]['intent']> = {},
@@ -201,10 +237,10 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
         principalId: AGENT,
         declaredPrincipalKind: 'HUMAN',
         authenticationContextHash: AUTH_HASH,
+        scopeKind: 'ENTERPRISE',
         enterpriseId: ENTERPRISE_A,
       }),
     ).rejects.toMatchObject({ code: IDENTITY_ACTOR_SNAPSHOT_INVALID });
-
     await expect(
       createActorSnapshot(deps(), {
         actorSnapshotId: 'babababa-baba-7aba-8aba-bababababa02',
@@ -212,9 +248,70 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
         declaredPrincipalKind: 'HUMAN',
         actingForPrincipalId: AGENT,
         authenticationContextHash: AUTH_HASH,
+        scopeKind: 'ENTERPRISE',
         enterpriseId: ENTERPRISE_A,
       }),
     ).rejects.toMatchObject({ code: IDENTITY_ACTOR_SNAPSHOT_INVALID });
+
+    await expect(
+      createActorSnapshot(deps(), {
+        actorSnapshotId: 'babababa-baba-7aba-8aba-bababababa03',
+        principalId: HUMAN,
+        declaredPrincipalKind: 'HUMAN',
+        authenticationContextHash: AUTH_HASH,
+        scopeKind: 'PROJECT',
+        enterpriseId: ENTERPRISE_A,
+        projectId: PROJECT_A3,
+      }),
+    ).rejects.toMatchObject({ code: IDENTITY_ACTOR_SNAPSHOT_INVALID });
+  });
+
+  it('closes ActorSnapshot and Intent scope before grant evaluation', async () => {
+    const enterpriseGrant = await grantCapability(deps(), {
+      grantId: 'b8b8b8b8-b8b8-78b8-88b8-b8b8b8b8b812',
+      principalId: HUMAN,
+      capabilityCode: 'wi09.enterprise.review',
+      scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
+      resourceSelectors: [],
+      actions: ['wi09.review'],
+      validFrom: new Date(),
+      grantPolicySnapshotId: POLICY_ID,
+      grantPolicySnapshotHash: policyHash,
+      justification: 'wi09 enterprise scope fixture',
+      idempotencyKey: 'wi09:grant:human-enterprise',
+    });
+    expect(enterpriseGrant).toMatchObject({ status: 'COMMITTED' });
+
+    const enterpriseActor = await createActorSnapshot(deps(), {
+      actorSnapshotId: 'b9b9b9b9-b9b9-79b9-89b9-b9b9b9b9b913',
+      principalId: HUMAN,
+      declaredPrincipalKind: 'HUMAN',
+      authenticationContextHash: AUTH_HASH,
+      scopeKind: 'ENTERPRISE',
+      enterpriseId: ENTERPRISE_A,
+    });
+
+    await expect(
+      authorizeCommand(deps(), {
+        actorSnapshotRef: enterpriseActor,
+        intent: intentFor({
+          requestedCapability: 'wi09.enterprise.review',
+          scopeKind: 'PROJECT',
+          projectId: PROJECT_A2,
+        }),
+        authenticationContextHash: AUTH_HASH,
+        policySnapshotRef: policyRef(),
+      }),
+    ).rejects.toMatchObject({ code: 'IDENTITY_DECISION_INPUT_INVALID' });
+
+    await expect(
+      authorizeCommand(deps(), {
+        actorSnapshotRef: humanActorRef,
+        intent: intentFor({ scopeKind: 'ENTERPRISE', projectId: PROJECT_A1 }),
+        authenticationContextHash: AUTH_HASH,
+        policySnapshotRef: policyRef(),
+      }),
+    ).rejects.toMatchObject({ code: 'IDENTITY_DECISION_INPUT_INVALID' });
   });
 
   it('allows Project A and denies Project B for the same human (IP-API-U-001 context)', async () => {
@@ -222,25 +319,26 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
       actorSnapshotRef: humanActorRef,
       intent: intentFor(),
       authenticationContextHash: AUTH_HASH,
-      policySnapshotRef: {
-        snapshotType: 'PolicySnapshot',
-        snapshotId: POLICY_ID,
-        payloadHash: policyHash,
-      },
+      policySnapshotRef: policyRef(),
     });
     expect(allowed.outcome).toBe('ALLOW');
     expect(allowed.reasons).toContain('ALLOWED_BY_GRANT');
-    expect(allowed.expiresAt.getTime()).toBeGreaterThan(Date.now());
+    expect(new Date(allowed.expiresAt).getTime()).toBeGreaterThan(Date.now());
 
+    const humanProjectBActorRef = await createActorSnapshot(deps(), {
+      actorSnapshotId: 'b9b9b9b9-b9b9-79b9-89b9-b9b9b9b9b915',
+      principalId: HUMAN,
+      declaredPrincipalKind: 'HUMAN',
+      authenticationContextHash: AUTH_HASH,
+      scopeKind: 'PROJECT',
+      enterpriseId: ENTERPRISE_A,
+      projectId: PROJECT_A2,
+    });
     const denied = await authorizeCommand(deps(), {
-      actorSnapshotRef: humanActorRef,
+      actorSnapshotRef: humanProjectBActorRef,
       intent: intentFor({ projectId: PROJECT_A2, commandPayloadHash: Buffer.alloc(32, 0x55) }),
       authenticationContextHash: AUTH_HASH,
-      policySnapshotRef: {
-        snapshotType: 'PolicySnapshot',
-        snapshotId: POLICY_ID,
-        payloadHash: policyHash,
-      },
+      policySnapshotRef: policyRef(),
     });
     expect(denied.outcome).toBe('DENY');
     expect(denied.reasons).toContain('NO_ACTIVE_GRANT');
@@ -256,10 +354,118 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
       `SELECT outcome, command_type, enterprise_id::text, project_id::text, principal_kind
        FROM identity_policy.authorization_decision
        WHERE authorization_decision_id = ANY ($1::uuid[])`,
-      [[allowed.authorizationDecisionRef.decisionId, denied.authorizationDecisionRef.decisionId]],
+      [[decisionId(allowed.authorizationDecisionRef), decisionId(denied.authorizationDecisionRef)]],
     );
     expect(rows.rows.map((r) => r.outcome).sort()).toEqual(['ALLOW', 'DENY']);
     expect(rows.rows.every((r) => r.principal_kind === 'HUMAN')).toBe(true);
+
+    const canonical = await admin.query<{
+      actor_snapshot_payload_hash: Buffer;
+      policy_snapshot_payload_hash: Buffer;
+      decision_actor_hash: string;
+      decision_command_hash: string;
+      decision_purpose: string;
+      snapshot_auth_hash: string;
+      snapshot_scope_kind: string;
+      snapshot_note: string;
+    }>(
+      `SELECT
+         ad.actor_snapshot_payload_hash,
+         ad.policy_snapshot_payload_hash,
+         ad.canonical_payload->>'actorSnapshotPayloadHash' AS decision_actor_hash,
+         ad.canonical_payload->>'commandPayloadHash' AS decision_command_hash,
+         ad.canonical_payload->>'purpose' AS decision_purpose,
+         a.canonical_payload->>'authenticationContextHash' AS snapshot_auth_hash,
+         a.canonical_payload->>'scopeKind' AS snapshot_scope_kind,
+         a.canonical_payload->>'note' AS snapshot_note
+       FROM identity_policy.authorization_decision ad
+       JOIN identity_policy.actor_snapshot a ON a.actor_snapshot_id = ad.actor_snapshot_id
+       WHERE ad.authorization_decision_id = $1`,
+      [decisionId(allowed.authorizationDecisionRef)],
+    );
+    const canonicalRow = canonical.rows[0];
+    expect(canonicalRow).toBeDefined();
+    expect(canonicalRow?.actor_snapshot_payload_hash.equals(refHash(humanActorRef))).toBe(true);
+    expect(canonicalRow?.policy_snapshot_payload_hash.equals(policyHash)).toBe(true);
+    expect(canonicalRow?.decision_actor_hash).toBe(humanActorRef.contentHash.digest);
+    expect(canonicalRow?.decision_command_hash).toBe(CMD_HASH.toString('hex'));
+    expect(canonicalRow?.decision_purpose).toBe('wi09.test');
+    expect(canonicalRow?.snapshot_auth_hash).toBe(AUTH_HASH.toString('hex'));
+    expect(canonicalRow?.snapshot_scope_kind).toBe('PROJECT');
+    expect(canonicalRow?.snapshot_note).toBe('wi09 actor snapshot');
+
+    const registry = new ContractRegistry();
+    expect(registry.validateOperationResult('identity.authorize_command', '1.0', allowed)).toEqual({
+      valid: true,
+      errors: [],
+    });
+
+    const authenticationContextRef = {
+      kind: 'CONTENT_ADDRESSED' as const,
+      objectType: 'identity.authentication_context',
+      objectId: DECISION,
+      scope: { enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 },
+      contentHash: {
+        algorithm: 'SHA-256' as const,
+        digest: AUTH_HASH.toString('hex'),
+        canonicalizationVersion: '1' as const,
+      },
+    };
+    const publicAuthorizeQuery = {
+      queryId: CORRELATION,
+      queryType: 'identity.authorize_command',
+      queryVersion: '1.0',
+      scopeRef: { enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 },
+      requester: {
+        kind: 'OBJECT' as const,
+        objectType: 'identity.principal',
+        objectId: HUMAN,
+        scope: { enterpriseId: ENTERPRISE_A },
+      },
+      authenticationContextRef,
+      consistencyRequirement: 'AUTHORITATIVE',
+      correlationId: CORRELATION,
+      requestedAt: new Date().toISOString(),
+      payload: {
+        actorSnapshotRef: humanActorRef,
+        intent: {
+          commandType: 'wi09.demo.command',
+          commandVersion: '1.0',
+          scopeRef: { enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 },
+          targetRef: {
+            kind: 'OBJECT' as const,
+            objectType: 'identity.command_target',
+            objectId: DECISION,
+            scope: { enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 },
+          },
+          requestedCapability: 'wi09.document.review',
+          payloadHash: {
+            algorithm: 'SHA-256' as const,
+            digest: CMD_HASH.toString('hex'),
+            canonicalizationVersion: '1' as const,
+          },
+          requestedAt: new Date().toISOString(),
+          highRiskAction: false,
+        },
+        authenticationContextRef,
+      },
+    };
+    expect(
+      registry.validateOperation('identity.authorize_command', '1.0', publicAuthorizeQuery),
+    ).toEqual({ valid: true, errors: [] });
+    expect(
+      registry.validateOperation('identity.authorize_command', '1.0', {
+        ...publicAuthorizeQuery,
+        payload: {
+          ...publicAuthorizeQuery.payload,
+          actorSnapshotRef: {
+            snapshotType: 'ActorSnapshot',
+            snapshotId: humanActorRef.snapshotId,
+            payloadHash: humanActorRef.contentHash.digest,
+          },
+        },
+      }).valid,
+    ).toBe(false);
   });
 
   it('keeps the agent kind on actingFor and denies human-only requests (IP-API-U-001)', async () => {
@@ -272,11 +478,7 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
         commandPayloadHash: Buffer.alloc(32, 0x66),
       }),
       authenticationContextHash: AUTH_HASH,
-      policySnapshotRef: {
-        snapshotType: 'PolicySnapshot',
-        snapshotId: POLICY_ID,
-        payloadHash: policyHash,
-      },
+      policySnapshotRef: policyRef(),
     });
     expect(denied.outcome).toBe('DENY');
     expect(denied.reasons).toContain('CAPABILITY_HUMAN_ONLY');
@@ -286,21 +488,17 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
        FROM identity_policy.authorization_decision ad
        JOIN identity_policy.actor_snapshot a ON a.actor_snapshot_id = ad.actor_snapshot_id
        WHERE ad.authorization_decision_id = $1`,
-      [denied.authorizationDecisionRef.decisionId],
+      [decisionId(denied.authorizationDecisionRef)],
     );
     // actingFor points at the human, but the decision keeps AGENT.
     expect(row.rows[0]).toEqual({ principal_kind: 'AGENT', acting_for_kind: 'HUMAN' });
 
     // The same agent also cannot get the project capability via actingFor.
     const projectDenied = await authorizeCommand(deps(), {
-      actorSnapshotRef: agentActorRef,
+      actorSnapshotRef: agentProjectActorRef,
       intent: intentFor({ commandPayloadHash: Buffer.alloc(32, 0x77) }),
       authenticationContextHash: AUTH_HASH,
-      policySnapshotRef: {
-        snapshotType: 'PolicySnapshot',
-        snapshotId: POLICY_ID,
-        payloadHash: policyHash,
-      },
+      policySnapshotRef: policyRef(),
     });
     expect(projectDenied.outcome).toBe('DENY');
     expect(projectDenied.reasons).toContain('NO_ACTIVE_GRANT');
@@ -312,14 +510,27 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
     );
     await expect(
       authorizeCommand(deps(), {
-        actorSnapshotRef: { ...humanActorRef, payloadHash: Buffer.alloc(32, 0x00) },
+        actorSnapshotRef: {
+          ...humanActorRef,
+          contentHash: {
+            ...humanActorRef.contentHash,
+            digest: Buffer.alloc(32, 0x00).toString('hex'),
+          },
+        },
         intent: intentFor(),
         authenticationContextHash: AUTH_HASH,
-        policySnapshotRef: {
-          snapshotType: 'PolicySnapshot',
-          snapshotId: POLICY_ID,
-          payloadHash: policyHash,
+        policySnapshotRef: policyRef(),
+      }),
+    ).rejects.toMatchObject({ code: IDENTITY_ACTOR_SNAPSHOT_INVALID });
+    await expect(
+      authorizeCommand(deps(), {
+        actorSnapshotRef: {
+          ...humanActorRef,
+          objectId: '00000000-0000-7000-8000-0000000000ff',
         },
+        intent: intentFor(),
+        authenticationContextHash: AUTH_HASH,
+        policySnapshotRef: policyRef(),
       }),
     ).rejects.toMatchObject({ code: IDENTITY_ACTOR_SNAPSHOT_INVALID });
     await expect(
@@ -327,11 +538,7 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
         actorSnapshotRef: humanActorRef,
         intent: intentFor(),
         authenticationContextHash: Buffer.alloc(32, 0x99),
-        policySnapshotRef: {
-          snapshotType: 'PolicySnapshot',
-          snapshotId: POLICY_ID,
-          payloadHash: policyHash,
-        },
+        policySnapshotRef: policyRef(),
       }),
     ).rejects.toBeInstanceOf(SnapshotBoundaryError);
     await expect(
@@ -339,10 +546,45 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
         actorSnapshotRef: humanActorRef,
         intent: intentFor(),
         authenticationContextHash: AUTH_HASH,
+        policySnapshotRef: { ...policyRef(), objectType: 'identity.wrong_snapshot' },
+      }),
+    ).rejects.toMatchObject({ code: 'IDENTITY_DECISION_INPUT_INVALID' });
+    await expect(
+      authorizeCommand(deps(), {
+        actorSnapshotRef: humanActorRef,
+        intent: intentFor({ commandVersion: '2.0' }),
+        authenticationContextHash: AUTH_HASH,
+        policySnapshotRef: policyRef(),
+      }),
+    ).rejects.toMatchObject({ code: 'IDENTITY_DECISION_INPUT_INVALID' });
+    await expect(
+      authorizeCommand(deps(), {
+        actorSnapshotRef: humanActorRef,
+        intent: intentFor({ requestedAt: new Date('invalid') }),
+        authenticationContextHash: AUTH_HASH,
+        policySnapshotRef: policyRef(),
+      }),
+    ).rejects.toMatchObject({ code: 'IDENTITY_DECISION_INPUT_INVALID' });
+    await expect(
+      authorizeCommand(deps(), {
+        actorSnapshotRef: humanActorRef,
+        intent: intentFor(),
+        authenticationContextHash: AUTH_HASH,
+        ttlSeconds: 0,
+        policySnapshotRef: policyRef(),
+      }),
+    ).rejects.toMatchObject({ code: 'IDENTITY_DECISION_INPUT_INVALID' });
+    await expect(
+      authorizeCommand(deps(), {
+        actorSnapshotRef: humanActorRef,
+        intent: intentFor(),
+        authenticationContextHash: AUTH_HASH,
         policySnapshotRef: {
-          snapshotType: 'PolicySnapshot',
-          snapshotId: POLICY_ID,
-          payloadHash: Buffer.alloc(32, 0x01),
+          ...policyRef(),
+          contentHash: {
+            ...policyRef().contentHash,
+            digest: Buffer.alloc(32, 0x01).toString('hex'),
+          },
         },
       }),
     ).rejects.toBeInstanceOf(SnapshotBoundaryError);
@@ -357,18 +599,14 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
       actorSnapshotRef: humanActorRef,
       intent: intentFor({ commandPayloadHash: Buffer.alloc(32, 0xa1) }),
       authenticationContextHash: AUTH_HASH,
-      policySnapshotRef: {
-        snapshotType: 'PolicySnapshot',
-        snapshotId: POLICY_ID,
-        payloadHash: policyHash,
-      },
+      policySnapshotRef: policyRef(),
     });
     expect(before.outcome).toBe('ALLOW');
 
     const revoked = await revokeCapability(deps(), {
       targetId: 'b8b8b8b8-b8b8-78b8-88b8-b8b8b8b8b811',
       expectedAggregateVersion: '1',
-      revokedByPrincipalId: OPERATOR,
+      scope: { scopeKind: 'PROJECT', enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 },
       reasonCode: 'wi09.offboard',
       effectiveAt: new Date(),
       idempotencyKey: 'wi09:revoke-capability:1',
@@ -379,11 +617,7 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
       actorSnapshotRef: humanActorRef,
       intent: intentFor({ commandPayloadHash: Buffer.alloc(32, 0xa2) }),
       authenticationContextHash: AUTH_HASH,
-      policySnapshotRef: {
-        snapshotType: 'PolicySnapshot',
-        snapshotId: POLICY_ID,
-        payloadHash: policyHash,
-      },
+      policySnapshotRef: policyRef(),
     });
     expect(afterRevoke.outcome).toBe('DENY');
     expect(afterRevoke.reasons).toContain('NO_ACTIVE_GRANT');
@@ -392,7 +626,7 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
     const history = await admin.query<{ outcome: string }>(
       `SELECT outcome FROM identity_policy.authorization_decision
        WHERE authorization_decision_id = $1 AND payload_hash = $2`,
-      [before.authorizationDecisionRef.decisionId, before.authorizationDecisionRef.payloadHash],
+      [decisionId(before.authorizationDecisionRef), refHash(before.authorizationDecisionRef)],
     );
     expect(history.rows[0]?.outcome).toBe('ALLOW');
   });
@@ -420,11 +654,7 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
         requestedCapability: 'wi09.validation.capability',
       }),
       authenticationContextHash: AUTH_HASH,
-      policySnapshotRef: {
-        snapshotType: 'PolicySnapshot',
-        snapshotId: POLICY_ID,
-        payloadHash: policyHash,
-      },
+      policySnapshotRef: policyRef(),
     });
     const base = {
       decisionRef: decision.authorizationDecisionRef,
@@ -469,22 +699,32 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
       validateAuthorizationDecision(deps(), { ...base, now: new Date(Date.now() + 3_600_000) }),
     ).resolves.toMatchObject({ valid: false, reason: 'EXPIRED' });
     await expect(
+      validateAuthorizationDecision(deps(), { ...base, now: new Date('invalid') }),
+    ).rejects.toMatchObject({ code: 'IDENTITY_DECISION_INPUT_INVALID' });
+    await expect(
       validateAuthorizationDecision(deps(), {
         ...base,
         decisionRef: {
-          decisionId: decision.authorizationDecisionRef.decisionId,
-          payloadHash: Buffer.alloc(32, 0x02),
+          ...decision.authorizationDecisionRef,
+          contentHash: {
+            ...decision.authorizationDecisionRef.contentHash,
+            digest: Buffer.alloc(32, 0x02).toString('hex'),
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ valid: false, reason: 'HASH_MISMATCH' });
+    await expect(
+      validateAuthorizationDecision(deps(), {
+        ...base,
+        decisionRef: {
+          ...decision.authorizationDecisionRef,
+          objectType: 'identity.wrong_decision',
         },
       }),
     ).resolves.toMatchObject({ valid: false, reason: 'HASH_MISMATCH' });
   });
 
-  it('serves the access queries with saved decisions (6/6 public queries reachable)', async () => {
-    const policyRef = {
-      snapshotType: 'PolicySnapshot' as const,
-      snapshotId: POLICY_ID,
-      payloadHash: policyHash,
-    };
+  it('serves access queries with saved decisions', async () => {
     const enterprise = await checkEnterpriseAccess(deps(), {
       principalId: HUMAN,
       scopeKind: 'ENTERPRISE',
@@ -493,10 +733,10 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
       purpose: 'wi09.check',
       asOf: new Date(),
       authenticationContextHash: AUTH_HASH,
-      policySnapshotRef: policyRef,
+      policySnapshotRef: policyRef(),
     });
     expect(enterprise.outcome).toBe('DENY');
-    expect(enterprise.authorizationDecisionRef.decisionId).toBeTruthy();
+    expect(enterprise.authorizationDecisionRef.objectId).toBeTruthy();
 
     const project = await checkProjectAccess(deps(), {
       principalId: HUMAN,
@@ -507,15 +747,31 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
       purpose: 'wi09.check',
       asOf: new Date(),
       authenticationContextHash: AUTH_HASH,
-      policySnapshotRef: policyRef,
+      policySnapshotRef: policyRef(),
     });
     // The wi09.document.review grant was revoked earlier: the check denies,
     // while the effective lists show only the still-active validation grant
     // from the previous test (history facts are not "effective").
     expect(project.outcome).toBe('DENY');
     expect(project.effectiveCapabilities).toEqual([
-      { objectType: 'CapabilityGrant', objectId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbb011' },
+      {
+        kind: 'OBJECT',
+        objectType: 'identity.capability_grant',
+        objectId: 'b8b8b8b8-b8b8-78b8-88b8-b8b8b8b8b812',
+        scope: { enterpriseId: ENTERPRISE_A },
+      },
+      {
+        kind: 'OBJECT',
+        objectType: 'identity.capability_grant',
+        objectId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbb011',
+        scope: { enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 },
+      },
     ]);
+
+    const registry = new ContractRegistry();
+    expect(
+      registry.validateOperationResult('identity.check_project_access', '1.0', project),
+    ).toEqual({ valid: true, errors: [] });
 
     const humanOnly = await checkHumanOnlyCapability(deps(), {
       principalId: AGENT,
@@ -525,29 +781,41 @@ describe.skipIf(!gateEnabled)('actor snapshot and decision port (real PostgreSQL
       purpose: 'wi09.human-only',
       asOf: new Date(),
       authenticationContextHash: AUTH_HASH,
-      policySnapshotRef: policyRef,
+      policySnapshotRef: policyRef(),
     });
     expect(humanOnly.outcome).toBe('DENY');
     expect(humanOnly.reasons).toContain('CAPABILITY_HUMAN_ONLY');
   });
 
   it('resolves policy snapshots only by exact id+hash (no latest)', async () => {
-    const view = await getPolicySnapshot(deps(), {
-      snapshotId: POLICY_ID,
-      payloadHash: policyHash,
-    });
+    const view = await getPolicySnapshot(deps(), policyRef());
     expect(view.policySetVersion).toBe('wi09-policy-set-1');
     expect(view.policySnapshotRef.snapshotId).toBe(POLICY_ID);
+    const registry = new ContractRegistry();
+    expect(registry.validateOperationResult('identity.get_policy_snapshot', '1.0', view)).toEqual({
+      valid: true,
+      errors: [],
+    });
 
     await expect(
-      getPolicySnapshot(deps(), { snapshotId: POLICY_ID, payloadHash: Buffer.alloc(32, 0x03) }),
+      getPolicySnapshot(deps(), {
+        ...policyRef(),
+        contentHash: {
+          ...policyRef().contentHash,
+          digest: Buffer.alloc(32, 0x03).toString('hex'),
+        },
+      }),
     ).rejects.toMatchObject({ code: IDENTITY_POLICY_SNAPSHOT_HASH_MISMATCH });
     await expect(
       getPolicySnapshot(deps(), {
+        ...policyRef(),
+        objectId: '00000000-0000-7000-8000-0000000000ff',
         snapshotId: '00000000-0000-7000-8000-0000000000ff',
-        payloadHash: policyHash,
       }),
     ).rejects.toMatchObject({ code: IDENTITY_POLICY_SNAPSHOT_NOT_FOUND });
+    await expect(
+      getPolicySnapshot(deps(), { ...policyRef(), objectType: 'identity.wrong_snapshot' }),
+    ).rejects.toMatchObject({ code: IDENTITY_POLICY_SNAPSHOT_HASH_MISMATCH });
   });
 
   it('keeps decisions immutable for the app role', async () => {

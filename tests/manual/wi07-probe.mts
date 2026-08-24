@@ -130,9 +130,11 @@ try {
   const resolved = await resolvePrincipal(deps, {
     lookup: {
       kind: 'EXTERNAL_IDENTITY',
-      providerCode: 'feishu',
-      accountExternalId: RAW_ACCOUNT,
-      subjectExternalId: RAW_SUBJECT,
+      identityKey: {
+        providerCode: 'feishu',
+        accountExternalId: RAW_ACCOUNT,
+        subjectExternalId: RAW_SUBJECT,
+      },
     },
     purpose: 'wi07.manual.resolve',
   });

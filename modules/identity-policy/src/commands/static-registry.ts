@@ -3,6 +3,8 @@
 // declared at build time; the database only records which registry version
 // was used. There is no online dynamic semantics change path.
 
+import type { Common } from '@zhiju/contracts';
+
 /** Registry identity recorded with every grant/snapshot. */
 export const HUMAN_ONLY_CAPABILITY_REGISTRY_VERSION = 'im02-static-v1';
 
@@ -31,4 +33,38 @@ export const POLICY_SCHEMA_REGISTRY: ReadonlySet<string> = new Set<string>([
 
 export function isResolvablePolicySchemaRef(ref: string): boolean {
   return POLICY_SCHEMA_REGISTRY.has(ref);
+}
+
+/**
+ * Public typed references for the static schema names stored by WI-08.
+ * Persistence keeps the registry key for compatibility with the existing
+ * command payload, while public PolicySnapshotView exposes the contract-level
+ * VersionedRef required by the IdentityPolicy schema.
+ */
+const POLICY_SCHEMA_TYPED_REFS: Readonly<Record<string, Common.VersionedRef>> = {
+  'identity.PolicySnapshot@1.0': {
+    kind: 'VERSIONED',
+    objectType: 'identity.contract_schema',
+    objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d401',
+    versionId: '018f22e2-7c15-7b2e-8d86-2de956a9d411',
+    scope: {},
+  },
+  'identity.RolePolicy@1.0': {
+    kind: 'VERSIONED',
+    objectType: 'identity.contract_schema',
+    objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d402',
+    versionId: '018f22e2-7c15-7b2e-8d86-2de956a9d412',
+    scope: {},
+  },
+  'identity.CapabilityPolicy@1.0': {
+    kind: 'VERSIONED',
+    objectType: 'identity.contract_schema',
+    objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d403',
+    versionId: '018f22e2-7c15-7b2e-8d86-2de956a9d413',
+    scope: {},
+  },
+};
+
+export function policySchemaReference(ref: string): Common.VersionedRef | undefined {
+  return POLICY_SCHEMA_TYPED_REFS[ref];
 }

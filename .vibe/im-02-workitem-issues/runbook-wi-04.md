@@ -83,6 +83,16 @@ SELECT grantee, table_name, column_name, privilege_type
 FROM information_schema.column_privileges
 WHERE table_schema = 'enterprise_project' AND table_name = 'outbox_event'
   AND grantee = 'enterprise_project_dispatcher';
+
+-- 4. Project-owned 行必须使用 Project helper；Enterprise-owned 行允许 project_id IS NULL。
+SELECT schemaname, tablename, policyname, qual, with_check
+FROM pg_policies
+WHERE schemaname IN (
+  'identity_policy','enterprise_project','task_execution','artifact',
+  'quality_governance','release_publication','integration_gateway')
+  AND tablename IN ('command_receipt','outbox_event','inbox_message','process_instance',
+                    'process_step','audit_record','reference_edge','contract_violation')
+ORDER BY 1, 2, 3;
 ```
 
 ## 快速越权抽查
@@ -98,6 +108,8 @@ SELECT count(*) FROM enterprise_project.command_receipt; -- DENY 42501
 RESET ROLE;
 ```
 
+masked audit view 的验收不能只检查“不报错”，必须先写入已提交 audit fixture，再确认 `audit_reader` 能读到其 `audit_id`，同时底表 `count(*)`、`SELECT *` 与敏感列查询仍为 `42501`。view 由受控 NOLOGIN module owner 定义，底表审计读取策略只授予该 owner，不授予 audit_reader。
+
 ## 清理
 
 ```bash
@@ -106,5 +118,5 @@ docker rm -f zju-wi04-probe
 
 ## NOT RUN 声明
 
-- Canonical payload↔hash 的强校验在应用写入路径（Kysely Repository，WI-05/WI-06）落地并测试；数据库层无法在禁用 pgcrypto 的情况下重算 SHA-256，本 WI 只固化 scope 镜像 trigger 与 hash 长度/字节约束；
+- Canonical payload↔hash 的强校验在应用写入路径（Kysely Repository，#33/#34）落地并测试；数据库层无法在禁用 pgcrypto 的情况下用项目 canonicalizer 重算 SHA-256，本 WI 只固化 scope 镜像 trigger 与 hash 长度/字节约束，该强校验当前为 `NOT RUN`；
 - 各模块业务 Handler、Outbox 发布/Inbox 消费循环（WI-10）、IntegrationGateway 业务 Migration（#27）均 `NOT RUN`。

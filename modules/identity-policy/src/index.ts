@@ -29,6 +29,7 @@ export {
   IdentityPolicyRepository,
   IdentityPersistenceError,
   IDENTITY_EXTERNAL_LINK_CONFLICT,
+  IDENTITY_SENSITIVE_EXTERNAL_IDENTIFIER_FORBIDDEN,
   IDENTITY_PAYLOAD_HASH_MISMATCH,
   IDENTITY_PROMOTED_MIRROR_MISMATCH,
   validatePromotedMirror,
@@ -51,6 +52,8 @@ export {
   IDEMPOTENCY_PAYLOAD_CONFLICT,
   CONCURRENCY_CONFLICT,
   COMMAND_IN_PROGRESS,
+  COMMAND_CONTEXT_MISMATCH,
+  COMMAND_TARGET_MISMATCH,
   PAYLOAD_HASH_MISMATCH,
 } from './persistence/command-runner.js';
 export type {
@@ -70,6 +73,7 @@ export {
   IDENTITY_BOOTSTRAP_CLAIM_EXPIRED,
   IDENTITY_BOOTSTRAP_CLAIM_CLOSED,
   IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS,
+  IDENTITY_PRINCIPAL_INVALID_KIND,
 } from './commands/register-principal.js';
 export type {
   RegisterPrincipalInput,
@@ -121,6 +125,7 @@ export {
   POLICY_SCHEMA_REGISTRY,
   POLICY_SCHEMA_REGISTRY_VERSION,
   isResolvablePolicySchemaRef,
+  policySchemaReference,
 } from './commands/static-registry.js';
 export {
   createActorSnapshot,
@@ -134,6 +139,7 @@ export {
 export type {
   CreateActorSnapshotInput,
   ActorSnapshotRef,
+  ScopeKind,
   CommandIntent,
   AuthorizeCommandInput,
   AuthorizationDecisionView,
