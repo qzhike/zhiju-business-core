@@ -68,3 +68,7 @@ Issue #34 要求 Aggregate、Receipt、Audit、Reference Edge 与 Outbox 的成�
 ## 最新 Base 集成
 
 修复 push 后，PR base 从 `a47b742` 前进到 `848c1e0`，包含 WI-03、WI-04 与 WI-05 的 review 修复及其 `main` 集成。只读 `git merge-tree --write-tree` 确认实现可以自动合并，仅 IdentityPolicy Module Spec/Test 存在内容冲突。集成必须保留 base 的 Scope/Snapshot/RLS 权限修复与验证证据，同时保留本 PR 的 WI-06 原子 Claim、Context 绑定、精确 CAS、REJECTED current version、forward-only V1002 和回归记录；合并后重新执行 `pnpm clean && pnpm verify`，并等待新 exact-head CI。
+
+首次组合树验证复现兼容回归：Unit/Contract 339 tests `PASS`，Persistence 141 tests 中 WI-06 runner 有 9 项因 probe 登录缺少 `platform_context_establisher` membership 返回 `42501`，并发用例因首请求未进入 body 随之超时。base 的双角色事务模型是安全修复，不能回退；WI-06 fixture/runbook 必须同步为 NOINHERIT 双角色 membership，再重跑全量 Gate。
+
+已将 WI-06 probe 修订为同时持有 `platform_context_establisher` 与 `identity_policy_app` membership；未扩大 app role 权限。修复后 `pnpm clean && pnpm verify` 完整 `PASS`：Unit/Contract 339 tests、Persistence 8 files / 141 tests、architecture、public API/types、Catalog/Registry 200/200 与 compatibility 全部通过；V1002 成功且第二次 migrate no-op。Docker Hub 首次 pull 曾返回一次 `EOF`，自动重试后成功，不降低最终 Gate 结论。

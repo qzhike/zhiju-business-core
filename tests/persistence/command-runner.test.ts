@@ -109,7 +109,7 @@ describe.skipIf(!gateEnabled)('command transaction runner (real PostgreSQL)', ()
     await admin.query(
       `CREATE ROLE wi06_probe_ip LOGIN PASSWORD 'wi06-probe-ip' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
-    await admin.query(`GRANT identity_policy_app TO wi06_probe_ip`);
+    await admin.query(`GRANT platform_context_establisher, identity_policy_app TO wi06_probe_ip`);
     const url = new URL(databaseUrl ?? '');
     url.username = 'wi06_probe_ip';
     url.password = 'wi06-probe-ip';

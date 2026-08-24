@@ -4,7 +4,7 @@
 
 ## 手动验收（脱敏三次探测 + 行数核对）
 
-1. 启动一次性容器并应用全部 migration（同 runbook-wi-04，容器名 `zju-wi06-probe`），确认端口：`docker port zju-wi06-probe 5432`。
+1. 启动一次性容器并应用全部 migration（同 runbook-wi-04，容器名 `zju-wi06-probe`），确认端口：`docker port zju-wi06-probe 5432`。执行脚本的 NOINHERIT 登录必须同时拥有 `platform_context_establisher` 与 `identity_policy_app` membership；事务代码先显式切换前者建立 Context，再切换后者执行 RLS 受限业务 SQL。只授予 app role 会稳定返回 `42501`，不得通过扩大 app role 权限绕过。
 2. 执行内置演示脚本（同一 Command 的首次提交 / 同 key+hash 重放 / 同 key 不同 hash 冲突）：
 
 ```bash

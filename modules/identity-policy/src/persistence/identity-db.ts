@@ -92,7 +92,9 @@ export interface RoleAssignmentTable {
 export interface RoleRevocationTable {
   revocation_id: string;
   role_assignment_id: string;
+  scope_kind: 'ENTERPRISE' | 'PROJECT';
   enterprise_id: string;
+  project_id: string | null;
   revoked_by_principal_id: string;
   reason_code: string;
   effective_at: Date;
@@ -130,7 +132,9 @@ export interface CapabilityGrantTable {
 export interface CapabilityRevocationTable {
   revocation_id: string;
   capability_grant_id: string;
+  scope_kind: 'ENTERPRISE' | 'PROJECT';
   enterprise_id: string;
+  project_id: string | null;
   revoked_by_principal_id: string;
   reason_code: string;
   effective_at: Date;
@@ -165,6 +169,7 @@ export interface ActorSnapshotTable {
   actor_snapshot_id: string;
   principal_id: string;
   principal_kind: 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
+  scope_kind: 'ENTERPRISE' | 'PROJECT';
   acting_for_principal_id: string | null;
   acting_for_kind: string | null;
   channel_code: string | null;
@@ -188,6 +193,7 @@ export interface ActorSnapshotTable {
 export interface AuthorizationDecisionTable {
   authorization_decision_id: string;
   actor_snapshot_id: string;
+  actor_snapshot_payload_hash: Buffer;
   principal_id: string;
   principal_kind: string;
   outcome: 'ALLOW' | 'DENY';
@@ -462,6 +468,7 @@ export async function withIdentityTransaction<T>(
 ): Promise<T> {
   return db.connection().execute(async (connection) =>
     connection.transaction().execute(async (trx) => {
+      await sql.raw('SET LOCAL ROLE platform_context_establisher').execute(trx);
       await sql`SELECT platform_security.establish_transaction_context(
           ${context.kind},
           ${context.principalId},
@@ -473,6 +480,7 @@ export async function withIdentityTransaction<T>(
           ${[...context.allowedProjectIds]},
           ${context.correlationId},
           ${context.sourceEventId ?? null})`.execute(trx);
+      await sql.raw('SET LOCAL ROLE identity_policy_app').execute(trx);
       return fn(trx);
     }),
   );

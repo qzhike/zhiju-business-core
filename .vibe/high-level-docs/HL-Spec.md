@@ -210,6 +210,8 @@ Zhiju Business Core 是制巨质量管理体系服务的业务内核。它要把
 - 模块内使用强外键/唯一/检查约束，跨模块使用 Typed Reference，不建立跨 Schema 外键；
 - Enterprise-owned Row 显式保存 `enterprise_id`；Project-owned Row同时保存 `enterprise_id + project_id`；
 - Enterprise 数据强制 RLS，但 RLS 不替代 IdentityPolicy；
+- IdentityPolicy 的 Enterprise/Project Scope 必须闭合：Enterprise 行不得携带 `project_id`，Project 行必须携带 `project_id`；Project 行的 RLS 必须同时验证 Enterprise 与事务上下文允许的 Project，不能只按 Enterprise 放行；
+- Role/Capability 撤销事实必须与父 Assignment/Grant 的完整 Scope 一致；CapabilityGrant、AuthorizationDecision 对 PolicySnapshot/ActorSnapshot 的引用必须校验精确 id + payload hash 及 promoted identity/scope，不能只依赖 id 外键；
 - Canonical Contract 使用 JSONB + Hash，大内容和二进制进入受控对象存储；
 - 对象存储与 PostgreSQL 不使用分布式事务，采用 Staging、Link Commit 和受审计 Orphan Cleanup；
 - 受控历史不级联删除；
@@ -306,8 +308,18 @@ Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
     ↓
 IM-01 Repository + Executable Contracts  （COMPLETE / FULL 200 + ENVELOPE_ONLY 0 / FIELD-LEVEL SCHEMAS + SCHEMA-DERIVED TYPES + V1.0 COMPATIBILITY BASELINE LANDED / ISSUE #9 CLOSED BY PR #20 / ISSUE #5 FIELD-SCHEMA SCOPE COMPLETE VIA PR #14 / RELEASE RUNTIME GAPS TRACKED BY #22–#24 / ISSUE #17 LOCAL IG RUNTIME SLICE LANDED / HANDLER + ADAPTER + DB TRACKED BY #27 / HANDLER + DB + EXTERNAL GATES REMAIN NOT RUN）
     ↓
-IM-02 PostgreSQL Foundation + IdentityPolicy  （NEXT）
+IM-02 PostgreSQL Foundation + IdentityPolicy  （IN PROGRESS / WI-01、WI-02 COMPLETE / WI-03 AUTOMATED GATE PASS / MANUAL NOT RUN）
 ```
+
+IM-02 的 RLS Context 物理机制已经进入 WI-03：上下文存放于
+`platform_security.tx_context`，以 backend pid 与事务 ID 键控，不使用可由调用方任意
+`SET` 的自定义 GUC。普通七模块 Runtime Role 与 `projection_app` 只能调用只读 RLS
+helper，不能建立或清理 Context；唯一写入口只授予 NOLOGIN 的
+`platform_context_establisher`，由受信事务协调器先建立 Context、再切换到目标 Runtime
+Role。详细威胁模型与测试边界以
+[`../im-02-workitem-issues/rls-context-design-wi-03.md`](../im-02-workitem-issues/rls-context-design-wi-03.md)
+为准。IdentityPolicy 对 AuthorizationDecision 业务真实性、Scope、Purpose 与 Intent 的完整
+校验仍由 WI-09 负责，不能因 WI-03 数据库 Gate 通过而声明授权链完成。
 
 ---
 
@@ -400,3 +412,13 @@ BLOCKED
 IM-02 WI-06 的 IdentityPolicy Command transaction runner 必须以数据库唯一约束执行原子幂等 Claim；并发同 key/hash 的 loser 必须返回首个已提交结果，不能泄漏 `unique_violation`。受信事务上下文的 Principal、ActorSnapshot、AuthorizationDecision、Enterprise、Project 与 Correlation 必须和待持久化 Envelope 一致；CAS 只能操作 Envelope 指定的 target 与 expected version，并保持 PostgreSQL `bigint` 精度。业务拒绝的稳定结果必须包含 `currentAggregateVersion`。已应用的 Flyway 版本化 Migration 不得原地改写，新增列只能由后续 forward-only Migration 追加。
 
 PR #11 的 Core Contract 字段级 Schema review 修复已合并至 `main`：该切片恢复既有 `required`、Typed Reference 强度、Set 基数和 `ValueEnvelope` 条件约束，不改变冻结的 Core Contract 业务语义，也不扩大 IM-01 范围。修复记录见 [`../im-01-core-contract-review-fix/Task-Plan.md`](../im-01-core-contract-review-fix/Task-Plan.md)。TaskExecution 直接复用该权威 WorkOrder Schema 的共享 `$defs`，不得维护第二套 WorkOrder 子结构。QualityGovernance PR #13 的 review 修复同样要求 Result Schema 直接引用已注册的 Core Contract ID（`revision-acceptance/1.0`、`approval-bundle/1.0`、`release-readiness/1.0`），不得维护第二套截断视图。
+
+## 12. IM-02 WI-04 标准事务技术表边界
+
+七个 owning Schema 分别拥有 `command_receipt`、`outbox_event`、`inbox_message`、`process_instance`、`process_step`、`audit_record`、`reference_edge`、`contract_violation`，不得建立跨模块共享写入的超级技术 Schema。IdentityPolicy 的 Platform 事实使用独立表，不与 Enterprise 数据通过 nullable Scope 混表。
+
+- nullable `project_id` 的 RLS 必须按行裁决：NULL 行校验 Enterprise Context，非 NULL 行同时校验 Enterprise 与允许的 Project 集合；同 Enterprise 不代表可访问任意 Project。
+- `process_step` 的 Enterprise/Project Scope 必须与父 `process_instance` 完全一致，不能仅凭 `process_id` 建立跨 Scope 事实。
+- `reference_edge` 的 owner 精确身份包含可选 `owner_version_id`；不同不可变 owner version 可以保存同路径到同 target 的 Edge，同一精确 owner/path/target 才判重。
+- `audit_reader` 只能读取 masked 列，但 masked view 必须返回已提交的权威 Audit 行；底表整体读取、敏感列、UPDATE 与 DELETE 仍拒绝。
+- 数据库层负责 promoted Scope 镜像、hash 长度与不可变写面；Canonical Payload 与 SHA-256 的强一致性由 WI-05/WI-06 owning Repository 在同一事务写入路径完成。在对应 Repository Gate 通过前，该项保持 `NOT RUN`，不能作为 WI-04 数据库 PASS。
