@@ -296,6 +296,24 @@ export interface AuditRecordTable {
   retention_class: string;
 }
 
+export interface ReferenceEdgeTable {
+  owner_object_type: string;
+  owner_object_id: string;
+  owner_version_id?: string | null;
+  owner_payload_hash?: Buffer | null;
+  reference_path: string;
+  target_module: string;
+  target_object_type: string;
+  target_object_id: string;
+  target_version_id?: string | null;
+  target_payload_hash?: Buffer | null;
+  reference_purpose: string;
+  enterprise_id: string;
+  project_id?: string | null;
+  created_at: Generated<Date>;
+  source_command_id: string;
+}
+
 export interface PlatformCommandReceiptTable {
   command_id: string;
   command_type: string;
@@ -378,6 +396,7 @@ export interface IdentityPolicyDb {
   'identity_policy.command_receipt': CommandReceiptTable;
   'identity_policy.outbox_event': OutboxEventTable;
   'identity_policy.audit_record': AuditRecordTable;
+  'identity_policy.reference_edge': ReferenceEdgeTable;
   'identity_policy.platform_command_receipt': PlatformCommandReceiptTable;
   'identity_policy.platform_outbox_event': PlatformOutboxEventTable;
   'identity_policy.platform_audit_record': PlatformAuditRecordTable;

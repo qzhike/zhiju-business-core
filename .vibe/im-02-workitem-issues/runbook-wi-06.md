@@ -1,6 +1,6 @@
 # IM-02 WI-06 本地 Runbook：同一 Command 三次探测
 
-对应 Issue #34。自动验收入口 `pnpm persistence:gate`（新增 `tests/persistence/command-runner.test.ts`：PG-U-004/006/009/010/012 全部子场景、REJECTED 持久化、并发 CAS、企业/平台表路由）。
+对应 Issue #34。自动验收入口 `pnpm persistence:gate`（`tests/persistence/command-runner.test.ts`：PG-U-004/006/009/010/012、并发同键 Claim、事务上下文绑定、精确 CAS、REJECTED current version、企业/平台表路由）。平台 Receipt 的 `expected_aggregate_version` 由 forward-only `V1002` 增加，不修改已应用的 `V1000`。
 
 ## 手动验收（脱敏三次探测 + 行数核对）
 

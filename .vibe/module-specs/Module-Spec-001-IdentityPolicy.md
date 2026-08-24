@@ -1,8 +1,8 @@
 # Module-Spec-001-IdentityPolicy
 
-版本：v0.1
-日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+版本：v0.2
+日期：2026-08-24
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / IM-02 WI-06 AUTOMATED VERIFIED`
 
 ## 1. 模块责任
 
@@ -180,5 +180,14 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 
 - 20 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- Schema、Registry、Handler、Persistence 和测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- Schema、Registry 与 IM-02 WI-05 关系模型/Repository 已存在；完整业务 Handler 尚未实现；
+- IM-02 WI-06 的真实 PostgreSQL Command transaction runner 已通过本地自动验证；外部 Provider、HTTP Handler、Outbox 发布/Inbox 消费与人工验收仍为 `NOT RUN`。
+
+## 10. IM-02 Command 事务持久化约束
+
+1. `idempotency_scope + idempotency_key` 必须通过数据库唯一约束原子 Claim；并发同 key/hash 请求只执行一次 body，loser 等待 winner 提交后返回稳定 `DUPLICATE` 结果。
+2. 同 key/不同 hash 必须拒绝 `IDEMPOTENCY_PAYLOAD_CONFLICT` 并在独立可提交边界保存安全审计，不得回显任一原始 Payload。
+3. Envelope 的 Principal、ActorSnapshot、AuthorizationDecision、Enterprise、Project 与 Correlation 必须和受信事务上下文完全一致；不一致时在任何 Receipt/Audit/Aggregate 写入前拒绝。
+4. CAS 只能使用 Envelope 的 `targetId` 与 `expectedAggregateVersion`；版本计算必须保持 PostgreSQL `bigint` 精度，不得通过 `Number` 转换。
+5. REJECTED receipt 的 canonical result 必须保存稳定错误码、安全摘要与 `currentAggregateVersion`，重放返回同一结果。
+6. 已应用的 Flyway Migration 不得修改；平台 Receipt 新列通过后续 forward-only IdentityPolicy Migration 增加。

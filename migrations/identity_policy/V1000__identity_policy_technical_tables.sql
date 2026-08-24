@@ -446,7 +446,6 @@ CREATE TABLE identity_policy.platform_command_receipt (
     request_payload_hash bytea NOT NULL,
     target_type text NOT NULL,
     target_id uuid NOT NULL,
-    expected_aggregate_version bigint,
     outcome text NOT NULL,
     result_payload jsonb,
     result_payload_hash bytea,
