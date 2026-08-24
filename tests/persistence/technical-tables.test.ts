@@ -49,6 +49,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'outbox_probe',
     'business_probe_masked',
     'migration_owner_probe',
+    // WI-05 (issue #33) core model + WI-07 (issue #35) bootstrap claim.
+    'bootstrap_claim',
     // WI-05 (issue #33) core model tables, owned by the same schema.
     'principal',
     'principal_state_transition',

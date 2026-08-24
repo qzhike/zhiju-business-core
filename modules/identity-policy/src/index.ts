@@ -46,3 +46,138 @@ export type {
   ActorSnapshotInsert,
   AuthorizationDecisionInsert,
 } from './persistence/identity-policy-repository.js';
+export {
+  executeIdentityCommand,
+  CommandExecutionError,
+  IDEMPOTENCY_PAYLOAD_CONFLICT,
+  CONCURRENCY_CONFLICT,
+  COMMAND_IN_PROGRESS,
+  COMMAND_CONTEXT_MISMATCH,
+  COMMAND_TARGET_MISMATCH,
+  PAYLOAD_HASH_MISMATCH,
+} from './persistence/command-runner.js';
+export type {
+  CommandEnvelope,
+  CommandBodyResult,
+  CommandExecution,
+  CommandResult,
+  CommandAuditInput,
+  OutboxEventInput,
+} from './persistence/command-runner.js';
+export {
+  createBootstrapClaim,
+  registerPrincipal,
+  IDENTITY_BOOTSTRAP_REQUIRED,
+  IDENTITY_BOOTSTRAP_CLAIM_INVALID,
+  IDENTITY_BOOTSTRAP_CLAIM_CONSUMED,
+  IDENTITY_BOOTSTRAP_CLAIM_EXPIRED,
+  IDENTITY_BOOTSTRAP_CLAIM_CLOSED,
+  IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS,
+  IDENTITY_PRINCIPAL_INVALID_KIND,
+} from './commands/register-principal.js';
+export type {
+  RegisterPrincipalInput,
+  RegisterPrincipalDeps,
+  PrincipalKind,
+} from './commands/register-principal.js';
+export {
+  linkExternalIdentity,
+  resolvePrincipal,
+  IDENTITY_EXTERNAL_IDENTITY_NOT_VERIFIED,
+  IDENTITY_PRINCIPAL_NOT_FOUND,
+} from './commands/link-external-identity.js';
+export type {
+  LinkExternalIdentityInput,
+  IdentityCommandDeps,
+  ResolvePrincipalInput,
+  PrincipalResolutionView,
+} from './commands/link-external-identity.js';
+export { principalRegisteredPayload, externalIdentityLinkedPayload } from './commands/events.js';
+export {
+  assignRole,
+  revokeRole,
+  grantCapability,
+  revokeCapability,
+  recordPolicySnapshot,
+  bootstrapMinimalAdminRole,
+  IDENTITY_ROLE_SCOPE_INVALID,
+  IDENTITY_ROLE_ALREADY_ACTIVE,
+  IDENTITY_ROLE_NOT_ACTIVE,
+  IDENTITY_CAPABILITY_HUMAN_ONLY,
+  IDENTITY_CAPABILITY_SCOPE_INVALID,
+  IDENTITY_CAPABILITY_ALREADY_ACTIVE,
+  IDENTITY_CAPABILITY_NOT_ACTIVE,
+  IDENTITY_POLICY_SNAPSHOT_INVALID,
+  IDENTITY_POLICY_VERSION_UNKNOWN,
+  IDENTITY_BOOTSTRAP_ROLE_INVALID,
+} from './commands/role-capability-handlers.js';
+export type {
+  AssignRoleInput,
+  RevokeScopedInput,
+  GrantCapabilityInput,
+  RecordPolicySnapshotInput,
+  BootstrapRoleInput,
+} from './commands/role-capability-handlers.js';
+export {
+  HUMAN_ONLY_CAPABILITIES,
+  HUMAN_ONLY_CAPABILITY_REGISTRY_VERSION,
+  isHumanOnlyCapability,
+  POLICY_SCHEMA_REGISTRY,
+  POLICY_SCHEMA_REGISTRY_VERSION,
+  isResolvablePolicySchemaRef,
+  policySchemaReference,
+} from './commands/static-registry.js';
+export {
+  createActorSnapshot,
+  authorizeCommand,
+  validateAuthorizationDecision,
+  SnapshotBoundaryError,
+  DECISION_DEFAULT_TTL_SECONDS,
+  IDENTITY_ACTOR_SNAPSHOT_INVALID,
+  IDENTITY_DECISION_INPUT_INVALID,
+} from './commands/actor-snapshot.js';
+export type {
+  CreateActorSnapshotInput,
+  ActorSnapshotRef,
+  ScopeKind,
+  CommandIntent,
+  AuthorizeCommandInput,
+  AuthorizationDecisionView,
+  DecisionValidationInput,
+  DecisionValidationResult,
+} from './commands/actor-snapshot.js';
+export {
+  checkEnterpriseAccess,
+  checkProjectAccess,
+  checkHumanOnlyCapability,
+  getPolicySnapshot,
+  IDENTITY_POLICY_SNAPSHOT_HASH_MISMATCH,
+  IDENTITY_POLICY_SNAPSHOT_NOT_FOUND,
+} from './commands/queries.js';
+export type { AccessCheckInput, AccessDecision, PolicySnapshotView } from './commands/queries.js';
+export {
+  claimOutboxEvents,
+  confirmPublished,
+  markDeliveryFailure,
+  resumeDeadLetterEvent,
+  DISPATCH_DEFAULTS,
+  DispatcherError,
+  DISPATCHER_STALE_LEASE,
+  DISPATCHER_EVENT_NOT_FOUND,
+} from './messaging/dispatcher.js';
+export type { ClaimedOutboxEvent } from './messaging/dispatcher.js';
+export {
+  consumeEvent,
+  INBOX_QUARANTINE_HASH_CONFLICT,
+  INBOX_QUARANTINE_HASH_MISMATCH,
+  INBOX_QUARANTINE_UNKNOWN_MAJOR,
+  INBOX_QUARANTINE_MISSING_EXTENSION,
+  INBOX_SCOPE_CONFLICT,
+  INBOX_RACE_LOST,
+} from './messaging/inbox.js';
+export type {
+  ConsumedEvent,
+  InboxConsumerContract,
+  ConsumeEventDeps,
+  ConsumeEventOutcome,
+} from './messaging/inbox.js';

@@ -50,6 +50,9 @@ importers:
       '@zhiju/identity-policy':
         specifier: workspace:*
         version: link:modules/identity-policy
+      '@zhiju/shared-kernel':
+        specifier: workspace:*
+        version: link:packages/shared-kernel
       eslint:
         specifier: 10.8.1
         version: 10.8.1

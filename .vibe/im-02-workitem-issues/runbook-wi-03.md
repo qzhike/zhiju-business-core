@@ -69,7 +69,7 @@ INSERT INTO platform_security.tx_context DEFAULT VALUES;           -- DENY 42501
 
 SELECT platform_security.establish_transaction_context(
   'REQUEST', gen_random_uuid(), gen_random_uuid(), gen_random_uuid(),
-  decode(repeat('ab', 16), 'hex'), now() + interval '1 hour',
+  decode(repeat('ab', 32), 'hex'), now() + interval '1 hour',
   '22222222-2222-7222-8222-2222222222b2', ARRAY[]::uuid[], gen_random_uuid(), NULL);
 -- DENY 42501（普通 App Role 没有 establish EXECUTE）
 ```
@@ -86,7 +86,7 @@ SELECT platform_security.establish_transaction_context(
   '55555555-5555-7555-8555-5555555555e1',            -- principal_id
   '66666666-6666-7666-8666-6666666666f1',            -- actor_snapshot_id
   '77777777-7777-7777-8777-7777777777a1',            -- authorization_decision_id
-  decode(repeat('ab', 16), 'hex'),                   -- decision payload hash (32B)
+  decode(repeat('ab', 32), 'hex'),                   -- decision payload hash (32B)
   now() + interval '1 hour',                         -- decision expires_at
   '11111111-1111-7111-8111-1111111111a1',            -- Enterprise A
   ARRAY['33333333-3333-7333-8333-3333333333c1']::uuid[], -- 允许 Project A1
@@ -95,7 +95,9 @@ SELECT platform_security.establish_transaction_context(
 SET LOCAL ROLE enterprise_project_app;
 SELECT display_code FROM enterprise_project.manual_enterprise_probe;  -- 只见 ENT-A-ROW
 COMMIT;
+SET ROLE enterprise_project_app;
 SELECT count(*) FROM enterprise_project.manual_enterprise_probe;      -- COMMIT 后回到 0 行（池复用不泄漏）
+RESET ROLE;
 ```
 
 把 enterprise 参数换成 B 重复一次，则只见 `ENT-B-ROW`。换成过期 `expires_at`（`now() - interval '1 minute'`）则 establish 直接异常，不产生任何可见行。
@@ -107,7 +109,7 @@ BEGIN;
 SET LOCAL ROLE platform_context_establisher;
 SELECT platform_security.establish_transaction_context(
   'REQUEST', gen_random_uuid(), gen_random_uuid(), gen_random_uuid(),
-  decode(repeat('ab', 16), 'hex'), now() - interval '1 minute',
+  decode(repeat('ab', 32), 'hex'), now() - interval '1 minute',
   '11111111-1111-7111-8111-1111111111a1', ARRAY[]::uuid[], gen_random_uuid(), NULL);
 -- ERROR: authorization decision is expired or has no expiry（事务内无 Context 产生）
 

@@ -6,9 +6,9 @@ Domain Event 采用至少一次投递。IM-02 必须在真实 PostgreSQL 证明 
 
 ## 工作范围
 
-- 实现受限 Dispatcher 对已提交 Outbox 的 claim/lease/fencing、同 Aggregate 顺序、重试、UNKNOWN 与 delivery metadata 更新。
+- 实现受限 Dispatcher 对已提交 Outbox 的 claim/lease/fencing、同 Aggregate 顺序、重试、UNKNOWN 与 delivery metadata 更新；同 Aggregate 的顺序键是 typed identity（`aggregate_type + aggregate_id`），不同 Aggregate Type 即使 UUID 相同也独立排序。
 - 实现目标模块 Inbox transaction：claim → hash/major/Scope 校验 → idempotent target command → target state/outbox/audit → `PROCESSED` 原子提交。
-- 相同 consumer/event id + 相同 hash 重放读取原结果；不同 hash 或 Scope 冲突进入 Quarantine/Violation，不执行目标 Command。
+- 相同 consumer/event id + 相同 hash 重放读取原结果；不同 hash 或 Scope 冲突进入 Quarantine/Violation，不执行目标 Command。Scope Quarantine 只能保存受信 Context Enterprise；只有 Event Enterprise 一致且 Project 属于 allow-list 时才保留 Project，否则使用 `project_id=NULL`。
 - 使用 IdentityPolicy 的受控 Event/consumer fixture 证明 transport ACK 丢失后的 replay；不调用真实 broker/飞书/邮件。
 - 明确归档、retry threshold 和 dead-letter/resume 参数的 IM-02 默认值；人工 replay/resume 写不可变 Audit。
 

@@ -54,8 +54,8 @@ docker exec -it zju-wi02-probe psql -U postgres -d zhiju_core
 ```sql
 -- 全部 24 个基线 Role 均 NOLOGIN、非 superuser、无 BYPASSRLS/CREATEDB/CREATEROLE
 SELECT rolname, rolcanlogin, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole
-FROM pg_roles WHERE rolname LIKE '%\_owner' OR rolname LIKE '%\_app'
-   OR rolname LIKE '%\_dispatcher' OR rolname IN ('projection_app','audit_reader','migration_runner')
+FROM pg_roles WHERE rolname !~ '^pg_' AND (rolname LIKE '%\_owner' OR rolname LIKE '%\_app'
+   OR rolname LIKE '%\_dispatcher' OR rolname IN ('projection_app','audit_reader','migration_runner'))
 ORDER BY rolname;
 
 -- owner 成员只有 migration_runner 且为 SET-only（inherit_option=false, set_option=true）；app 角色没有任何成员关系

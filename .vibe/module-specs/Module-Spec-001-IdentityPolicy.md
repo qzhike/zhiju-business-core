@@ -1,8 +1,8 @@
 # Module-Spec-001-IdentityPolicy
 
-版本：v0.1
-日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 PERSISTENCE AUTOMATED PASS / EXTERNAL NOT RUN`
+版本：v0.3
+日期：2026-08-24
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / INTEGRATED FULL VERIFY PASS / EXACT-HEAD REVIEW PENDING / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -139,12 +139,13 @@ PolicySnapshotView
 | `identity.CapabilityRevoked@1.0` | `capabilityGrantRef: ObjectRef<CapabilityGrant>; principalRef: ObjectRef<Principal>; revokedAt: UtcInstant; reasonCode: ReasonCode` |
 | `identity.PolicySnapshotRecorded@1.0` | `policySnapshotRef: SnapshotRef<PolicySnapshot>; policySetVersion: NonEmptyString; effectiveFrom: UtcInstant` |
 
-授权拒绝默认只写安全审计，不作为公开跨模块业务事件；任何 Event 均不得携带 Role 条件全文、Capability Token、External ID 原值或个人联系方式。
+授权拒绝默认只写安全审计，不作为公开跨模块业务事件；Decision Port 的 `DENY` 必须与安全 `AuditRecord` 在同一事务内提交；Audit 只保存 reason code、hash 和脱敏摘要。任何 Event/Audit 均不得携带 Role 条件全文、Capability Token、External ID 原值或个人联系方式。
 
 ## 6. 模块错误码
 
 ```text
 IDENTITY_PRINCIPAL_KIND_IMMUTABLE
+IDENTITY_PRINCIPAL_INVALID_KIND
 IDENTITY_PRINCIPAL_NOT_ACTIVE
 IDENTITY_EXTERNAL_LINK_CONFLICT
 IDENTITY_EXTERNAL_IDENTITY_NOT_VERIFIED
@@ -173,6 +174,40 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 8. 其他模块只保存 PrincipalRef、ActorSnapshotRef、AuthorizationDecisionRef，不建立跨 Schema 外键。
 9. Enterprise Scope 不携带 Project；Project Scope 必须携带 Project，且数据库 RLS 同时校验事务上下文允许的 Enterprise 与 Project。
 10. Role/Capability 撤销事实保存父记录的完整 Scope 镜像；CapabilityGrant 与 AuthorizationDecision 分别按精确 PolicySnapshot/ActorSnapshot id + payload hash 绑定，并拒绝引用对象的 Principal、Kind、认证上下文或 Scope 不一致。
+11. 每个 Command 的 canonical request Hash 必须覆盖所有会改变结果的 payload 字段；同一 idempotency key 的不同 Hash 必须拒绝，不能返回原结果。
+12. Project-owned RoleAssignment、CapabilityGrant 及其技术记录必须同时满足 Enterprise 与允许 Project scope；撤销不得仅凭 target ID 绕过 Project scope。
+13. 并发 active Assignment/Grant 的数据库唯一裁决必须转换为稳定模块错误；原始 PostgreSQL unique violation 不得穿透公开 Handler。
+14. 首角色 bootstrap claim 只能原子消费一次，并且产生与普通 RoleAssignment 相同的脱敏 `identity.RoleAssigned` Event。
+15. 撤销事实的执行主体必须来自受信事务 Context；调用者输入不得伪造 `revoked_by_principal_id`。
+16. 已过期的 EffectivePeriod 不得创建 ACTIVE Assignment 或 Grant。
+17. `V1004` 迁移/补强既有数据时必须保留 Role/Capability Revocation 的 Project scope；迁移阶段不得因 RLS 使历史 scope 回填静默失效。
+
+WI-07 实现补充约束：公开 Event 与 Query Result 必须直接满足本模块对应的可执行 Schema；ExternalIdentity 的 account/subject lookup hash 共同构成幂等和内容寻址身份；bootstrap claim 的消费必须由同一事务中的行锁或等价条件更新保护；闭集值、验证失败和其他业务拒绝仍需落入 Command receipt/audit 事务边界。WI-07 的 bootstrap claim 表使用不与 WI-06 冲突的后续 forward-only Migration（当前为 `V1003`），不得复用 `V1002`。
+
+WI-09 实现补充约束：ActorSnapshot 和 AuthorizationDecision 的 Scope 必须先通过 Enterprise/Project shape 及受信事务 Context 的 Project allow-list 校验；Decision 的 ActorSnapshot Scope 必须与 Intent 精确一致；ActorSnapshot、PolicySnapshot 和 Decision 必须按精确 `id + payloadHash` 绑定；canonical payload 必须保留认证上下文、Scope、Purpose、Command Intent 和 promoted facts；公开 Query 输入与结果必须使用本节定义的 `ScopeRef`、`ObjectRef`、`SnapshotRef` 和 `ContentAddressedRef`，由 `ContractRegistry` 直接验证。Capability/Role 的授权覆盖也必须与 Intent 的 `scopeKind + enterpriseId + projectId` 精确匹配：Enterprise Grant 不得覆盖 Project Intent，Project Intent 只能由同一 Project 的事实覆盖。Agent 的 `actingFor` 只能记录关系，不能改变权威 PrincipalKind。
+
+WI-09 Decision Port 的每个业务性 `DENY` 必须在同一事务写入当前受信 Enterprise/Project Scope 的安全 Audit；Audit 的 `command_id` 与 Decision 的 source command 绑定，`request_payload_hash` 只能保存已验证的 hash，`safe_summary` 只能保存稳定 reason code，不得回显原始输入。
+
+## 8.1 IM-02 WI-10 Persistence Slice
+
+IdentityPolicy owning schema 的 WI-10 实现只负责本模块技术表上的 Outbox/Inbox 持久化切片，不能替代其他业务模块的 Command Owner，也不能接入生产 Broker/Provider。
+
+### Outbox Dispatcher
+
+- `claimOutboxEvents` 只读取已提交 Outbox，并按 typed Aggregate identity（`aggregate_type + aggregate_id`）的 `aggregate_version` 保持 earliest-unpublished 顺序；不同 Aggregate Type 即使复用同一 UUID 也不互相阻塞；`PENDING/UNKNOWN` 到期行和已过期 `LEASED` 行可被新 owner 回收。
+- claim 写入 `lease_owner`、`lease_until`、单调 fencing token 和服务端 `attempt_count`。`confirmPublished` 与失败回写必须验证当前 token；业务 payload/hash/事件身份列不属于 Dispatcher 写权限。
+- `markDeliveryFailure` 使用持久化 `attempt_count` 决定 `UNKNOWN`/`DEAD` 与 backoff；外部调用方不能传入一个伪造 attempt 改写阈值。`resumeDeadLetterEvent` 必须保留 EventId、写带 reason 的不可变 Audit，并避免成功恢复没有 Audit。
+- WI-10 本地 ACK-loss Probe 的 Principal Fixture 必须显式使用 `status='ACTIVE'`，以真实验证 Inbox 逻辑而不是依赖不存在的数据库默认值。
+
+### Inbox Consumer
+
+- 消费事务按 `claim → canonical hash 校验 → Major/Required Extension 校验 → Enterprise/Project Scope 校验 → idempotent target Command → target state/outbox/audit → PROCESSED` 执行。
+- canonical payload hash 必须使用共享 canonicalization v1 + SHA-256；Enterprise 与 payload/Event 的 Project mirror 必须精确匹配，Project 还必须属于 transaction context 的允许集合。
+- 同 consumer/EventId/同 hash 重放返回原结果；不同 hash、canonical hash mismatch、未知 Major、缺少 Required Extension 或 Scope conflict 写 Quarantine/Violation，不执行 target。并发唯一键竞态返回已提交结果或明确的可重试状态，不泄漏数据库异常。
+- 真实 PostgreSQL fixture 必须使用 `NOINHERIT` 登录，并以 `INHERIT FALSE, SET TRUE` 同时持有 `platform_context_establisher` 与 `identity_policy_app`；`withIdentityTransaction` 依次 `SET LOCAL ROLE platform_context_establisher`、建立 Context、再 `SET LOCAL ROLE identity_policy_app`。缺少 establisher membership 的 fixture 属于测试配置错误，不得作为实现通过证据。
+- Scope conflict 的 Quarantine 不得把未经验证的 Event `projectId` 作为 Command Envelope 或 RLS Scope；持久化的 Enterprise 使用受信 Context，只有 Event Enterprise 与 Context Enterprise 一致且 Project 属于 `allowedProjectIds` 时才保留，否则存为 `NULL`，并通过 Violation 类型与安全摘要保留调查信号。
+
+本节不新增公开 API Catalog 条目；导出的 Dispatcher/Inbox 函数是实现端口，业务 Command 仍由各 owning module 的公开 Contract 和 AuthorizationDecision 约束。
 
 ## 8. 可人工验收的模块产出
 
@@ -182,9 +217,25 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 
 - 20 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- 20 个字段级 Schema/Registry 已落地；WI-05 PostgreSQL 关系模型、低层 Repository 与 focused persistence tests 已在 PR #45 集成 head 自动验证通过；
-- 公开 Handler、真实 OpenBao/Keycloak/飞书 Adapter、业务 E2E 与人工验收仍为 `NOT RUN`。
+- WI-08 已有 Schema、Registry、Handler、Persistence 和真实 PostgreSQL gate 测试；PR #48 的 R1-R6 语义修复与回归测试已在本工作区验证，等待最新精确 head 的最终 review；
+- WI-09 已有 ActorSnapshot、AuthorizationDecision、四个访问 Query 与 PolicySnapshot Query 的实现入口；PR #49 review 已以最新 WI-08 base 为准补齐 Scope、精确内容寻址引用、完整 canonical facts、引用元数据和公开 Contract 正负边界，当前 scoped core 为 `REVIEW REPAIR VERIFIED`；
+- WI-09 最终本地证据：静态/类型/架构/Catalog/兼容性检查通过；独立 PostgreSQL 18.6 / Flyway 11.20.3 gate 为 `11 files / 166 tests PASS`，包含双角色事务 fixture 与二次迁移 no-op。最新 `pnpm verify` 编排在静态阶段通过后受 Docker Hub 未认证拉取 `429` 阻断，不能记为该次编排完整 `PASS`；公开 Handler/HTTP adapter、真实 Provider、跨模块 Runtime、外部 E2E 和人工验收保持 `NOT RUN`；
+- WI-08 focused persistence gate 已在 PostgreSQL 18.6 上执行通过，包含 V1004 Project scope 迁移、第二次 no-op、幂等冲突、Project RLS、并发唯一裁决、bootstrap 原子消费、撤销事实和 Event 脱敏回归；本模块的真实 Provider、Keycloak、跨业务模块 Approval/Release、外部 E2E 与人工验收仍为 `NOT RUN`；
+- scoped WI-09 core 已完成最新精确 PR head 的 semantic review 和失败回归；当前本地集成又补齐 Enterprise Grant/Project Intent 精确 Scope 与 DENY Audit 同事务回归；不能用静态设计 Gate 或低层 Gate 冒充尚未执行的公开 Handler、外部运行时或人工验收。
+- Schema、Registry 与公开 Catalog 已存在；WI-05 PostgreSQL 关系模型、低层 Repository 与 focused persistence tests 已自动验证通过；
+- WI-06 真实 PostgreSQL Command transaction runner 的原子 Claim、Context 绑定、精确 CAS、REJECTED current version 与 Reference Edge/Outbox 回滚已自动验证通过；
+- WI-07 Handler、Persistence 和回归测试已按本规格接入，并通过完整静态/契约/真实 PostgreSQL gate；本地手工 Probe 的 AES-256-GCM 测试 Port 必须在 `cipher.final()` 后读取 authentication tag，避免测试替身自身的状态错误混入生产实现结论；
+- 公开 Handler 的外部 Provider 接入、真实 OpenBao/Keycloak/飞书 Adapter、业务 E2E 与人工验收仍为 `NOT RUN`；WI-10 初始 Outbox/Inbox 持久化切片已在 PR #50 提交并推送。最新 base `0fc8e464…` 已正常合并；messaging fixture 的 `platform_context_establisher` membership、Enterprise Grant 覆盖 Project Intent、typed Aggregate ordering 与未经验证 Event Scope 回归均已在当前工作树修复，重新编译后真实 PostgreSQL gate 为 `12 files / 177 tests PASS`，空库迁移与二次 migrate no-op 通过，容器已清理；最终 `pnpm clean && pnpm verify` 通过，Vitest 为 `20 passed | 10 skipped`、`341 passed | 164 skipped`，架构、Catalog/Registry 与兼容性检查通过；WI-06/WI-07/WI-10 disposable local Probe 也全部通过。后续修正尚待提交、推送并完成 exact-head CI 与语义复审。
 
 ## 10. IM-02 WI-04 持久化切片
 
-IdentityPolicy owning Schema 拥有八张 Enterprise 技术表，并额外以三张独立 Platform 技术表隔离全局事实。Enterprise 表的非空 Project Scope 必须经过 Project Context 校验；Process Step 与父 Process Scope 一致；Reference Edge 判重包含 owner version；audit_reader 仅能读取可实际返回已提交行的 masked surface。Canonical payload↔hash 强校验归属 #33/#34 Repository Gate；#33 的 IdentityPolicy 低层 Repository 已用共享 canonical JSON v1 计算并验证，#34 Command Transaction 仍为 `NOT RUN`。业务 Handler 与真实身份 Provider不在本切片。
+IdentityPolicy owning Schema 拥有八张 Enterprise 技术表，并额外以三张独立 Platform 技术表隔离全局事实。Enterprise 表的非空 Project Scope 必须经过 Project Context 校验；Process Step 与父 Process Scope 一致；Reference Edge 判重包含 owner version；audit_reader 仅能读取可实际返回已提交行的 masked surface。Canonical payload↔hash 强校验归属 #33/#34 Repository Gate；#33 的 IdentityPolicy 低层 Repository已用共享 canonical JSON v1 计算并验证，#34 Command Transaction 已完成同事务写入与回滚 Gate。业务 Handler 与真实身份 Provider 不在本切片。
+
+## 11. IM-02 Command 事务持久化约束
+
+1. `idempotency_scope + idempotency_key` 必须通过数据库唯一约束原子 Claim；并发同 key/hash 请求只执行一次 body，loser 等待 winner 提交后返回稳定 `DUPLICATE` 结果。
+2. 同 key/不同 hash 必须拒绝 `IDEMPOTENCY_PAYLOAD_CONFLICT` 并在独立可提交边界保存安全审计，不得回显任一原始 Payload。
+3. Envelope 的 Principal、ActorSnapshot、AuthorizationDecision、Enterprise、Project 与 Correlation 必须和受信事务上下文完全一致；不一致时在任何 Receipt/Audit/Aggregate 写入前拒绝。
+4. CAS 只能使用 Envelope 的 `targetId` 与 `expectedAggregateVersion`；版本计算必须保持 PostgreSQL `bigint` 精度，不得通过 `Number` 转换。
+5. REJECTED receipt 的 canonical result 必须保存稳定错误码、安全摘要与 `currentAggregateVersion`，重放返回同一结果。
+6. 已应用的 Flyway Migration 不得修改；平台 Receipt 新列通过后续 forward-only IdentityPolicy Migration 增加。
