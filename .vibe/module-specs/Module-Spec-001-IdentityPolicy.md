@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-10 PERSISTENCE SLICE LOCALLY REPAIRED / EXACT-HEAD REVIEW PENDING`
 
 ## 1. 模块责任
 
@@ -172,13 +172,31 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 7. 本模块不存 Provider Token、共享 Human Credential 或长期 Runtime Capability Token。
 8. 其他模块只保存 PrincipalRef、ActorSnapshotRef、AuthorizationDecisionRef，不建立跨 Schema 外键。
 
-## 8. 可人工验收的模块产出
+## 8.1 IM-02 WI-10 Persistence Slice
+
+IdentityPolicy owning schema 的 WI-10 实现只负责本模块技术表上的 Outbox/Inbox 持久化切片，不能替代其他业务模块的 Command Owner，也不能接入生产 Broker/Provider。
+
+### Outbox Dispatcher
+
+- `claimOutboxEvents` 只读取已提交 Outbox，并按同 Aggregate 的 `aggregate_version` 保持 earliest-unpublished 顺序；`PENDING/UNKNOWN` 到期行和已过期 `LEASED` 行可被新 owner 回收。
+- claim 写入 `lease_owner`、`lease_until`、单调 fencing token 和服务端 `attempt_count`。`confirmPublished` 与失败回写必须验证当前 token；业务 payload/hash/事件身份列不属于 Dispatcher 写权限。
+- `markDeliveryFailure` 使用持久化 `attempt_count` 决定 `UNKNOWN`/`DEAD` 与 backoff；外部调用方不能传入一个伪造 attempt 改写阈值。`resumeDeadLetterEvent` 必须保留 EventId、写带 reason 的不可变 Audit，并避免成功恢复没有 Audit。
+
+### Inbox Consumer
+
+- 消费事务按 `claim → canonical hash 校验 → Major/Required Extension 校验 → Enterprise/Project Scope 校验 → idempotent target Command → target state/outbox/audit → PROCESSED` 执行。
+- canonical payload hash 必须使用共享 canonicalization v1 + SHA-256；Enterprise 与 payload/Event 的 Project mirror 必须精确匹配，Project 还必须属于 transaction context 的允许集合。
+- 同 consumer/EventId/同 hash 重放返回原结果；不同 hash、canonical hash mismatch、未知 Major、缺少 Required Extension 或 Scope conflict 写 Quarantine/Violation，不执行 target。并发唯一键竞态返回已提交结果或明确的可重试状态，不泄漏数据库异常。
+
+本节不新增公开 API Catalog 条目；导出的 Dispatcher/Inbox 函数是实现端口，业务 Command 仍由各 owning module 的公开 Contract 和 AuthorizationDecision 约束。
+
+## 9. 可人工验收的模块产出
 
 里程碑 `API-IP-01` 的人工产出是：用一组脱敏 Fixture 展示同一飞书用户被解析为 HumanPrincipal、仅获 Project A 权限、访问 Project B 被拒绝；同一 Agent 带 actingFor 仍无法获得 Approval/Release Authorization。审核只验证 Contract 设计，不代表真实飞书、RLS 或权限实现通过。
 
-## 9. 当前状态
+## 10. 当前状态
 
 - 20 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- Schema、Registry、Handler、Persistence 和测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- API Schema、Registry 与公开 Handler 基线保持不变；WI-10 Persistence 实现切片已在当前工作区完成修正，PR #50 exact-head review/交付仍待完成；
+- 当前工作区的真实 PostgreSQL focused tests 为 `PASS`；生产 Broker、Provider、跨模块业务 E2E 与人工验收保持 `NOT RUN`，不得由本地 gate 代替。

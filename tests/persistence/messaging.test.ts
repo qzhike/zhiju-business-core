@@ -6,7 +6,10 @@ import {
   claimOutboxEvents,
   confirmPublished,
   consumeEvent,
+  digestCanonicalPayload,
   DispatcherError,
+  DISPATCH_DEFAULTS,
+  INBOX_QUARANTINE_HASH_MISMATCH,
   markDeliveryFailure,
   resumeDeadLetterEvent,
   createIdentityPolicyDatabase,
@@ -14,6 +17,7 @@ import {
   withIdentityTransaction,
   type IdentityCryptoPorts,
   type IdentityTransactionContext,
+  type ConsumeEventOutcome,
 } from '@zhiju/identity-policy';
 
 // IM-02 WI-10 (issue #38): Outbox/Inbox replay, dispatcher and quarantine on
@@ -30,6 +34,7 @@ const gateEnabled = Boolean(databaseUrl);
 const ENTERPRISE_A = 'cccccccc-cccc-7ccc-8ccc-ccccccccccca';
 const ENTERPRISE_B = 'dddddddd-dddd-7ddd-8ddd-ddddddddddb2';
 const PROJECT_A1 = 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeee1';
+const PROJECT_B1 = 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeee2';
 const OPERATOR = 'ffffffff-ffff-7fff-8fff-fffffffffff1';
 const OPERATOR_ACTOR = 'ffffffff-ffff-7fff-8fff-fffffffffff2';
 const DECISION = 'ffffffff-ffff-7fff-8fff-fffffffffff3';
@@ -40,6 +45,7 @@ const EVENT_1 = '10101010-1010-7101-8101-101010101001';
 const EVENT_2 = '10101010-1010-7101-8101-101010101002';
 const AGG_1 = '20202020-2020-7202-8202-202020202001';
 const AGG_2 = '20202020-2020-7202-8202-202020202002';
+const AGG_3 = '20202020-2020-7202-8202-202020202003';
 
 const crypto: IdentityCryptoPorts = {
   lookupHash: {
@@ -65,8 +71,8 @@ function payloadFor(enterpriseId: string, note: string) {
   return { enterpriseId, note };
 }
 
-function hashOf(payload: unknown): Buffer {
-  return createHmac('sha256', Buffer.alloc(32, 0x9c)).update(JSON.stringify(payload)).digest();
+function hashOf(payload: Parameters<typeof digestCanonicalPayload>[0]): Buffer {
+  return digestCanonicalPayload(payload).hash;
 }
 
 describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real PostgreSQL)', () => {
@@ -126,7 +132,7 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
     eventId: string,
     aggregateId: string,
     version: number,
-    payload: unknown,
+    payload: Parameters<typeof digestCanonicalPayload>[0],
   ) {
     await withIdentityTransaction(db, context, async (trx) => {
       await trx
@@ -174,7 +180,6 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
       eventId: EVENT_1,
       leaseToken: token,
       errorCode: 'TIMEOUT',
-      attempt: 1,
       backoffBaseSeconds: 0,
     });
     expect(unknown).toBe('UNKNOWN');
@@ -183,6 +188,11 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
       [EVENT_1],
     );
     expect(row.rows[0]).toEqual({ delivery_state: 'UNKNOWN', event_id: EVENT_1 });
+    const attempts = await admin.query<{ attempt_count: number }>(
+      `SELECT attempt_count FROM identity_policy.outbox_event WHERE event_id = $1`,
+      [EVENT_1],
+    );
+    expect(attempts.rows[0]?.attempt_count).toBe(1);
 
     // Retry with the same id succeeds and unlocks v2.
     const retry = await claimOutboxEvents(dispatcherPool, {
@@ -203,6 +213,45 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
       eventId: EVENT_2,
       leaseToken: second[0]?.leaseToken ?? '',
     });
+  });
+
+  it('reclaims an expired lease with a new fencing token', async () => {
+    const eventId = '80808080-8080-7808-8808-808080808001';
+    await seedOutboxEvent(eventId, AGG_3, 1, payloadFor(ENTERPRISE_A, 'expired lease'));
+
+    const first = await claimOutboxEvents(dispatcherPool, {
+      owner: 'wi10-dispatcher-expired-a',
+      aggregateIds: [AGG_3],
+      leaseSeconds: 60,
+    });
+    expect(first).toHaveLength(1);
+    await admin.query(
+      `UPDATE identity_policy.outbox_event SET lease_until = now() - interval '1 second' WHERE event_id = $1`,
+      [eventId],
+    );
+    await expect(
+      confirmPublished(dispatcherPool, { eventId, leaseToken: first[0]?.leaseToken ?? '' }),
+    ).rejects.toMatchObject({ code: 'DISPATCHER_STALE_LEASE' });
+
+    const second = await claimOutboxEvents(dispatcherPool, {
+      owner: 'wi10-dispatcher-expired-b',
+      aggregateIds: [AGG_3],
+      leaseSeconds: 60,
+    });
+    expect(second).toHaveLength(1);
+    expect(second[0]?.leaseToken).not.toBe(first[0]?.leaseToken);
+    await expect(
+      confirmPublished(dispatcherPool, { eventId, leaseToken: first[0]?.leaseToken ?? '' }),
+    ).rejects.toMatchObject({ code: 'DISPATCHER_STALE_LEASE' });
+    await expect(
+      markDeliveryFailure(dispatcherPool, {
+        eventId,
+        leaseToken: first[0]?.leaseToken ?? '',
+        errorCode: 'STALE_FAILURE',
+        backoffBaseSeconds: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'DISPATCHER_STALE_LEASE' });
+    await confirmPublished(dispatcherPool, { eventId, leaseToken: second[0]?.leaseToken ?? '' });
   });
 
   it('processes, replays and quarantines inbox events without double effects (PG-E-004 / PG-U-011)', async () => {
@@ -324,6 +373,22 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
       status: 'QUARANTINED',
       reason: 'INBOX_QUARANTINE_UNKNOWN_MAJOR',
     });
+    const unknownMajorReplay = await consumeEvent(
+      deps(),
+      contract,
+      {
+        ...base,
+        eventId: '50505050-5050-7505-8505-505050505001',
+        eventVersion: '9.0',
+        payloadHash: hashOf(payloadFor(ENTERPRISE_A, 'x')),
+        payload: payloadFor(ENTERPRISE_A, 'x'),
+      },
+      neverRuns,
+    );
+    expect(unknownMajorReplay).toMatchObject({
+      status: 'QUARANTINED',
+      reason: 'INBOX_QUARANTINE_UNKNOWN_MAJOR',
+    });
 
     const missingExtension = await consumeEvent(
       deps(),
@@ -356,6 +421,48 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
     );
     expect(scopeConflict).toMatchObject({ status: 'SCOPE_CONFLICT' });
 
+    const projectScopeConflict = await consumeEvent(
+      deps(),
+      contract,
+      {
+        ...base,
+        eventId: '50505050-5050-7505-8505-505050505004',
+        eventVersion: '1.0',
+        payloadHash: hashOf({
+          enterpriseId: ENTERPRISE_A,
+          projectId: PROJECT_B1,
+          note: 'foreign project',
+        }),
+        payload: { enterpriseId: ENTERPRISE_A, projectId: PROJECT_B1, note: 'foreign project' },
+        projectId: PROJECT_B1,
+      },
+      neverRuns,
+    );
+    expect(projectScopeConflict).toMatchObject({ status: 'SCOPE_CONFLICT' });
+
+    const projectMirrorConflict = await consumeEvent(
+      deps(),
+      contract,
+      {
+        ...base,
+        eventId: '50505050-5050-7505-8505-505050505005',
+        eventVersion: '1.0',
+        payloadHash: hashOf({
+          enterpriseId: ENTERPRISE_A,
+          projectId: PROJECT_B1,
+          note: 'project mirror mismatch',
+        }),
+        payload: {
+          enterpriseId: ENTERPRISE_A,
+          projectId: PROJECT_B1,
+          note: 'project mirror mismatch',
+        },
+        projectId: PROJECT_A1,
+      },
+      neverRuns,
+    );
+    expect(projectMirrorConflict).toMatchObject({ status: 'SCOPE_CONFLICT' });
+
     // None of the quarantined cases produced target effects or duplicates.
     const inboxRows = await admin.query<{ status: string }>(
       `SELECT status FROM identity_policy.inbox_message WHERE consumer_name = 'wi10-consumer-2'`,
@@ -364,8 +471,81 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
       'QUARANTINED',
       'QUARANTINED',
       'QUARANTINED',
+      'QUARANTINED',
+      'QUARANTINED',
     ]);
     expect(targetEffects).toHaveLength(1);
+  });
+
+  it('quarantines an event whose supplied hash is not its canonical payload hash', async () => {
+    const payload = payloadFor(ENTERPRISE_A, 'invalid canonical hash');
+    const result = await consumeEvent(
+      deps(),
+      {
+        consumerName: 'wi10-consumer-hash-mismatch',
+        supportedMajors: ['1'],
+        requiredExtensionKeys: ['note'],
+      },
+      {
+        eventId: '90909090-9090-7909-8909-909090909001',
+        eventType: 'wi10.SourceEvent',
+        eventVersion: '1.0',
+        payloadHash: Buffer.alloc(32, 0x42),
+        sourceModule: 'identity_policy',
+        payload,
+        occurredAt: new Date(),
+      },
+      neverRuns,
+    );
+    expect(result).toMatchObject({ status: 'QUARANTINED', reason: INBOX_QUARANTINE_HASH_MISMATCH });
+    const inbox = await admin.query<{ status: string }>(
+      `SELECT status FROM identity_policy.inbox_message WHERE consumer_name = 'wi10-consumer-hash-mismatch'`,
+    );
+    expect(inbox.rows[0]?.status).toBe('QUARANTINED');
+    const violation = await admin.query<{ violation_kind: string }>(
+      `SELECT violation_kind FROM identity_policy.contract_violation WHERE source_event_id = $1`,
+      ['90909090-9090-7909-8909-909090909001'],
+    );
+    expect(violation.rows[0]?.violation_kind).toBe('HASH_MISMATCH');
+    expect(targetEffects).toHaveLength(1);
+  });
+
+  it('adjudicates concurrent same-hash replay as one processed result and one duplicate', async () => {
+    const payload = payloadFor(ENTERPRISE_A, 'concurrent replay');
+    const event = {
+      eventId: 'a0a0a0a0-a0a0-7a0a-8a0a-a0a0a0a0a001',
+      eventType: 'wi10.SourceEvent',
+      eventVersion: '1.0',
+      payloadHash: hashOf(payload),
+      sourceModule: 'identity_policy',
+      payload,
+      occurredAt: new Date(),
+    };
+    const contract = {
+      consumerName: 'wi10-consumer-race',
+      supportedMajors: ['1'],
+      requiredExtensionKeys: ['note'],
+    };
+    let targetRuns = 0;
+    const target = async () => {
+      targetRuns += 1;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return { kind: 'COMMITTED' as const, resultPayload: { replay: 'committed' } };
+    };
+    const first = consumeEvent(deps(), contract, event, target);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const second = consumeEvent(deps(), contract, event, target);
+    const outcomes = await Promise.allSettled([first, second]);
+    expect(outcomes.every((outcome) => outcome.status === 'fulfilled')).toBe(true);
+    const statuses = outcomes
+      .filter(
+        (outcome): outcome is PromiseFulfilledResult<ConsumeEventOutcome> =>
+          outcome.status === 'fulfilled',
+      )
+      .map((outcome) => outcome.value.status)
+      .sort();
+    expect(statuses).toEqual(['DUPLICATE', 'PROCESSED']);
+    expect(targetRuns).toBe(1);
   });
 
   it('rolls back the whole consumption on an injected fault and replays safely', async () => {
@@ -452,17 +632,27 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
       1,
       payloadFor(ENTERPRISE_A, 'dead'),
     );
-    const claimed = await claimOutboxEvents(dispatcherPool, {
+    let claimed = await claimOutboxEvents(dispatcherPool, {
       owner: 'wi10-dispatcher-b',
       aggregateIds: [AGG_2],
     });
     expect(claimed.map((e) => e.eventId)).toEqual(['70707070-7070-7707-8707-707070707001']);
-    const dead = await markDeliveryFailure(dispatcherPool, {
-      eventId: '70707070-7070-7707-8707-707070707001',
-      leaseToken: claimed[0]?.leaseToken ?? '1',
-      errorCode: 'TIMEOUT',
-      attempt: 5,
-    });
+    let dead: 'UNKNOWN' | 'DEAD' = 'UNKNOWN';
+    for (let attempt = 1; attempt <= DISPATCH_DEFAULTS.maxAttempts; attempt += 1) {
+      dead = await markDeliveryFailure(dispatcherPool, {
+        eventId: '70707070-7070-7707-8707-707070707001',
+        leaseToken: claimed[0]?.leaseToken ?? '1',
+        errorCode: 'TIMEOUT',
+        backoffBaseSeconds: 0,
+      });
+      if (attempt < DISPATCH_DEFAULTS.maxAttempts) {
+        claimed = await claimOutboxEvents(dispatcherPool, {
+          owner: 'wi10-dispatcher-b',
+          aggregateIds: [AGG_2],
+        });
+        expect(claimed).toHaveLength(1);
+      }
+    }
     expect(dead).toBe('DEAD');
 
     await resumeDeadLetterEvent(dispatcherPool, deps(), {
@@ -474,11 +664,52 @@ describe.skipIf(!gateEnabled)('outbox dispatcher and inbox consumer (real Postgr
       ['70707070-7070-7707-8707-707070707001'],
     );
     expect(resumed.rows[0]?.delivery_state).toBe('PENDING');
-    const audit = await admin.query<{ count: string }>(
-      `SELECT count(*) AS count FROM identity_policy.audit_record
+    const audit = await admin.query<{ safe_summary: string }>(
+      `SELECT safe_summary FROM identity_policy.audit_record
        WHERE command_type = 'identity.internal.resume_dead_letter'`,
     );
-    expect(Number(audit.rows[0]?.count)).toBeGreaterThanOrEqual(1);
+    expect(audit.rows.some((row) => row.safe_summary.includes('wi10 manual resume fixture'))).toBe(
+      true,
+    );
+  });
+
+  it('does not leave a DEAD event resumed when the immutable audit insert fails', async () => {
+    const eventId = '70707070-7070-7707-8707-707070707002';
+    await seedOutboxEvent(eventId, AGG_3, 2, payloadFor(ENTERPRISE_A, 'audit failure'));
+    let claimed = await claimOutboxEvents(dispatcherPool, {
+      owner: 'wi10-dispatcher-audit-failure',
+      aggregateIds: [AGG_3],
+    });
+    for (let attempt = 1; attempt <= DISPATCH_DEFAULTS.maxAttempts; attempt += 1) {
+      await markDeliveryFailure(dispatcherPool, {
+        eventId,
+        leaseToken: claimed[0]?.leaseToken ?? '1',
+        errorCode: 'TIMEOUT',
+        backoffBaseSeconds: 0,
+      });
+      if (attempt < DISPATCH_DEFAULTS.maxAttempts) {
+        claimed = await claimOutboxEvents(dispatcherPool, {
+          owner: 'wi10-dispatcher-audit-failure',
+          aggregateIds: [AGG_3],
+        });
+      }
+    }
+    await admin.query(`REVOKE INSERT ON identity_policy.audit_record FROM identity_policy_app`);
+    try {
+      await expect(
+        resumeDeadLetterEvent(dispatcherPool, deps(), {
+          eventId,
+          reason: 'audit insert must fail',
+        }),
+      ).rejects.toMatchObject({ code: '42501' });
+    } finally {
+      await admin.query(`GRANT INSERT ON identity_policy.audit_record TO identity_policy_app`);
+    }
+    const state = await admin.query<{ delivery_state: string }>(
+      `SELECT delivery_state FROM identity_policy.outbox_event WHERE event_id = $1`,
+      [eventId],
+    );
+    expect(state.rows[0]?.delivery_state).toBe('DEAD');
   });
 
   it('keeps the dispatcher away from business payloads', async () => {

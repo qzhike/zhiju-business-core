@@ -83,8 +83,10 @@ export async function claimOutboxEvents(
       `SELECT event_id, event_type, event_version, aggregate_type, aggregate_id,
               aggregate_version::text, payload, payload_hash
        FROM identity_policy.${table} e
-       WHERE e.delivery_state IN ('PENDING', 'UNKNOWN')
-         AND e.available_at <= now()
+       WHERE (
+           (e.delivery_state IN ('PENDING', 'UNKNOWN') AND e.available_at <= now())
+           OR (e.delivery_state = 'LEASED' AND e.lease_until < now())
+       )
          ${shard}
          AND NOT EXISTS (
            SELECT 1 FROM identity_policy.${table} earlier
@@ -103,6 +105,10 @@ export async function claimOutboxEvents(
          SET delivery_state = 'LEASED', lease_owner = $2, lease_until = now() + make_interval(secs => $3),
              lease_token = attempt_count + 1, attempt_count = attempt_count + 1
          WHERE event_id = $1
+           AND (
+             (delivery_state IN ('PENDING', 'UNKNOWN') AND available_at <= now())
+             OR (delivery_state = 'LEASED' AND lease_until < now())
+           )
          RETURNING lease_token::text AS token`,
         [row.event_id, options.owner, leaseSeconds],
       );
@@ -145,7 +151,8 @@ export async function confirmPublished(
     const updated = await client.query(
       `UPDATE identity_policy.${table}
        SET delivery_state = 'PUBLISHED', published_at = now(), lease_owner = NULL, lease_until = NULL
-       WHERE event_id = $1 AND lease_token = $2 AND delivery_state = 'LEASED'`,
+       WHERE event_id = $1 AND lease_token = $2 AND delivery_state = 'LEASED'
+         AND lease_until > now()`,
       [input.eventId, input.leaseToken],
     );
     if (updated.rowCount === 0) {
@@ -169,7 +176,6 @@ export async function markDeliveryFailure(
     eventId: string;
     leaseToken: string;
     errorCode: string;
-    attempt: number;
     platform?: boolean;
     backoffBaseSeconds?: number;
     maxAttempts?: number;
@@ -178,28 +184,34 @@ export async function markDeliveryFailure(
   const table = input.platform ? 'platform_outbox_event' : 'outbox_event';
   const base = input.backoffBaseSeconds ?? DISPATCH_DEFAULTS.retryBackoffBaseSeconds;
   const maxAttempts = input.maxAttempts ?? DISPATCH_DEFAULTS.maxAttempts;
+  if (!Number.isFinite(base) || base < 0) {
+    throw new TypeError('backoffBaseSeconds must be a non-negative finite number');
+  }
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+    throw new TypeError('maxAttempts must be a positive integer');
+  }
   const client = await dispatcherPool.connect();
   try {
-    const backoff = base * 2 ** Math.max(0, input.attempt - 1);
-    const dead = input.attempt >= maxAttempts;
-    const updated = await client.query(
+    const updated = await client.query<{ delivery_state: 'UNKNOWN' | 'DEAD' }>(
       `UPDATE identity_policy.${table}
-       SET delivery_state = $3, last_error_code = $4,
-           available_at = now() + make_interval(secs => $5),
+       SET delivery_state = CASE WHEN attempt_count >= $3 THEN 'DEAD' ELSE 'UNKNOWN' END,
+           last_error_code = $4,
+           available_at = CASE
+             WHEN attempt_count >= $3 THEN now()
+             ELSE now() + make_interval(
+               secs => $5 * power(2::double precision, GREATEST(0, attempt_count - 1)::double precision))
+           END,
            lease_owner = NULL, lease_until = NULL
-       WHERE event_id = $1 AND lease_token = $2 AND delivery_state = 'LEASED'`,
-      [
-        input.eventId,
-        input.leaseToken,
-        dead ? 'DEAD' : 'UNKNOWN',
-        input.errorCode,
-        dead ? 0 : backoff,
-      ],
+       WHERE event_id = $1 AND lease_token = $2 AND delivery_state = 'LEASED'
+         AND lease_until > now()
+       RETURNING delivery_state`,
+      [input.eventId, input.leaseToken, maxAttempts, input.errorCode, base],
     );
-    if (updated.rowCount === 0) {
+    const state = updated.rows[0]?.delivery_state;
+    if (state === undefined) {
       throw new DispatcherError(DISPATCHER_STALE_LEASE, 'stale lease token; failure mark rejected');
     }
-    return dead ? 'DEAD' : 'UNKNOWN';
+    return state;
   } finally {
     client.release();
   }
@@ -217,6 +229,49 @@ export async function resumeDeadLetterEvent(
   input: { eventId: string; reason: string; platform?: boolean },
 ): Promise<void> {
   const table = input.platform ? 'platform_outbox_event' : 'outbox_event';
+  const reason = input.reason.trim();
+  if (reason.length === 0 || reason.length > 256) {
+    throw new TypeError('resume reason must contain 1 to 256 characters');
+  }
+
+  // Record the operator action before changing the delivery state. This keeps
+  // an audit failure from leaving an already-resumed event without evidence.
+  await withIdentityTransaction(deps.db, deps.context, async (trx) => {
+    const safeSummary = `resume dead-letter event ${input.eventId}; reason: ${reason}; payload untouched`;
+    if (input.platform) {
+      await trx
+        .insertInto('identity_policy.platform_audit_record')
+        .values({
+          audit_id: newUuidV7(),
+          principal_id: deps.context.principalId,
+          actor_snapshot_id: deps.context.actorSnapshotId,
+          authorization_decision_id: deps.context.authorizationDecisionId,
+          command_type: 'identity.internal.resume_dead_letter',
+          outcome: 'INFO',
+          safe_summary: safeSummary,
+          correlation_id: deps.context.correlationId,
+          retention_class: 'OPERATIONAL',
+        })
+        .execute();
+      return;
+    }
+    await trx
+      .insertInto('identity_policy.audit_record')
+      .values({
+        audit_id: newUuidV7(),
+        enterprise_id: deps.context.enterpriseId,
+        principal_id: deps.context.principalId,
+        actor_snapshot_id: deps.context.actorSnapshotId,
+        authorization_decision_id: deps.context.authorizationDecisionId,
+        command_type: 'identity.internal.resume_dead_letter',
+        outcome: 'INFO',
+        safe_summary: safeSummary,
+        correlation_id: deps.context.correlationId,
+        retention_class: 'OPERATIONAL',
+      })
+      .execute();
+  });
+
   const client = await dispatcherPool.connect();
   try {
     const updated = await client.query(
@@ -231,23 +286,4 @@ export async function resumeDeadLetterEvent(
   } finally {
     client.release();
   }
-  // Immutable audit through the application transaction context
-  // (append-only table under RLS); the summary never carries the payload.
-  await withIdentityTransaction(deps.db, deps.context, async (trx) => {
-    await trx
-      .insertInto('identity_policy.audit_record')
-      .values({
-        audit_id: newUuidV7(),
-        enterprise_id: deps.context.enterpriseId,
-        principal_id: deps.context.principalId,
-        actor_snapshot_id: deps.context.actorSnapshotId,
-        authorization_decision_id: deps.context.authorizationDecisionId,
-        command_type: 'identity.internal.resume_dead_letter',
-        outcome: 'INFO',
-        safe_summary: `resume dead-letter event ${input.eventId}; reason recorded; payload untouched`,
-        correlation_id: newUuidV7(),
-        retention_class: 'OPERATIONAL',
-      })
-      .execute();
-  });
 }

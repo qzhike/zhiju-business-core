@@ -10,6 +10,7 @@ import pg from 'pg';
 import {
   consumeEvent,
   createIdentityPolicyDatabase,
+  digestCanonicalPayload,
   IdentityPolicyRepository,
   type IdentityCryptoPorts,
   type IdentityTransactionContext,
@@ -65,9 +66,7 @@ const db = createIdentityPolicyDatabase(pool);
 const deps = { db, repo: new IdentityPolicyRepository(crypto), crypto, context };
 
 const payload = { enterpriseId: ENTERPRISE, note: 'wi10 manual fixture' };
-const payloadHash = createHmac('sha256', Buffer.alloc(32, 0x9c))
-  .update(JSON.stringify(payload))
-  .digest();
+const payloadHash = digestCanonicalPayload(payload).hash;
 const targetEffects: string[] = [];
 
 const contract = {
@@ -140,9 +139,7 @@ try {
   );
 
   // 3) Same id, different hash: quarantine + violation, no execution.
-  const conflictHash = createHmac('sha256', Buffer.alloc(32, 0x9c))
-    .update(JSON.stringify({ ...payload, note: 'tampered' }))
-    .digest();
+  const conflictHash = digestCanonicalPayload({ ...payload, note: 'tampered' }).hash;
   const conflict = await consume(conflictHash, { ...payload, note: 'tampered' });
   console.log(
     '[3] replay same id + different hash →',

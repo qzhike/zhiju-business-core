@@ -163,6 +163,7 @@ export type { ClaimedOutboxEvent } from './messaging/dispatcher.js';
 export {
   consumeEvent,
   INBOX_QUARANTINE_HASH_CONFLICT,
+  INBOX_QUARANTINE_HASH_MISMATCH,
   INBOX_QUARANTINE_UNKNOWN_MAJOR,
   INBOX_QUARANTINE_MISSING_EXTENSION,
   INBOX_SCOPE_CONFLICT,
