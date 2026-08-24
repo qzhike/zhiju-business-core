@@ -4,14 +4,17 @@
 // immutable AuthorizationDecision exists for every outcome (ALLOW or DENY).
 
 import { newUuidV7 } from '@zhiju/shared-kernel';
+import type { CanonicalJson, Common } from '@zhiju/contracts';
 import { withIdentityTransaction } from '../persistence/identity-db.js';
 import {
   authorizeCommand,
   createActorSnapshot,
+  assertSnapshotReference,
   SnapshotBoundaryError,
   type AuthorizationDecisionView,
   type IdentityCommandDeps,
 } from './actor-snapshot.js';
+import { policySchemaReference } from './static-registry.js';
 
 export const IDENTITY_POLICY_SNAPSHOT_HASH_MISMATCH = 'IDENTITY_POLICY_SNAPSHOT_HASH_MISMATCH';
 export const IDENTITY_POLICY_SNAPSHOT_NOT_FOUND = 'IDENTITY_POLICY_SNAPSHOT_NOT_FOUND';
@@ -26,16 +29,16 @@ export interface AccessCheckInput {
   purpose: string;
   asOf: Date;
   authenticationContextHash: Buffer;
-  policySnapshotRef: { snapshotType: 'PolicySnapshot'; snapshotId: string; payloadHash: Buffer };
+  policySnapshotRef: Common.SnapshotRef;
 }
 
 export interface AccessDecision {
   outcome: 'ALLOW' | 'DENY';
   authorizationDecisionRef: AuthorizationDecisionView['authorizationDecisionRef'];
   reasons: string[];
-  effectiveRoles: { objectType: 'RoleAssignment'; objectId: string }[];
-  effectiveCapabilities: { objectType: 'CapabilityGrant'; objectId: string }[];
-  expiresAt: Date;
+  effectiveRoles: Common.ObjectRef[];
+  effectiveCapabilities: Common.ObjectRef[];
+  expiresAt: Common.UtcInstant;
 }
 
 async function evaluateAccess(
@@ -49,6 +52,7 @@ async function evaluateAccess(
     principalId: input.principalId,
     declaredPrincipalKind: await authoritativeKind(deps, input.principalId),
     authenticationContextHash: input.authenticationContextHash,
+    scopeKind: input.scopeKind,
     enterpriseId: input.enterpriseId,
     projectId: input.projectId,
   });
@@ -85,10 +89,26 @@ async function evaluateAccess(
     return {
       roles: roles
         .filter((r) => r.scope_kind === 'ENTERPRISE' || r.project_id === (input.projectId ?? null))
-        .map((r) => ({ objectType: 'RoleAssignment' as const, objectId: r.id })),
+        .map((r) =>
+          objectReference(
+            'identity.role_assignment',
+            r.id,
+            r.scope_kind,
+            r.enterprise_id,
+            r.project_id,
+          ),
+        ),
       grants: grants
         .filter((g) => g.scope_kind === 'ENTERPRISE' || g.project_id === (input.projectId ?? null))
-        .map((g) => ({ objectType: 'CapabilityGrant' as const, objectId: g.id })),
+        .map((g) =>
+          objectReference(
+            'identity.capability_grant',
+            g.id,
+            g.scope_kind,
+            g.enterprise_id,
+            g.project_id,
+          ),
+        ),
     };
   });
   return {
@@ -146,11 +166,11 @@ export async function checkHumanOnlyCapability(
 }
 
 export interface PolicySnapshotView {
-  policySnapshotRef: { snapshotType: 'PolicySnapshot'; snapshotId: string; payloadHash: Buffer };
+  policySnapshotRef: Common.SnapshotRef;
   policySetVersion: string;
-  policySchemaRefs: string[];
-  effectiveFrom: Date;
-  supersededAt?: Date | undefined;
+  policySchemaRefs: Common.TypedReference[];
+  effectiveFrom: Common.UtcInstant;
+  supersededAt?: Common.UtcInstant | undefined;
   payload: unknown;
 }
 
@@ -160,10 +180,26 @@ export interface PolicySnapshotView {
  */
 export async function getPolicySnapshot(
   deps: IdentityCommandDeps,
-  ref: { snapshotId: string; payloadHash: Buffer },
+  ref: Common.SnapshotRef,
 ): Promise<PolicySnapshotView> {
+  assertSnapshotReference(
+    ref,
+    'identity.policy_snapshot',
+    IDENTITY_POLICY_SNAPSHOT_HASH_MISMATCH,
+    'policy snapshot',
+  );
+  if (Object.keys(ref.scope).length !== 0) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_POLICY_SNAPSHOT_HASH_MISMATCH,
+      'policy snapshot scope must be empty',
+    );
+  }
   const resolved = await withIdentityTransaction(deps.db, deps.context, async (trx) =>
-    deps.repo.getPolicySnapshotByIdAndHash(trx, ref.snapshotId, ref.payloadHash),
+    deps.repo.getPolicySnapshotByIdAndHash(
+      trx,
+      ref.snapshotId,
+      contentHashToBuffer(ref.contentHash),
+    ),
   );
   if (!resolved) {
     throw new SnapshotBoundaryError(
@@ -184,18 +220,74 @@ export async function getPolicySnapshot(
       'policy snapshot not found',
     );
   }
+  const storedSchemaRefs = Array.isArray(row.policy_schema_refs) ? row.policy_schema_refs : [];
+  const policySchemaRefs = storedSchemaRefs.map((schemaRef) => {
+    if (typeof schemaRef !== 'string') {
+      throw new SnapshotBoundaryError(
+        IDENTITY_POLICY_SNAPSHOT_NOT_FOUND,
+        'policy snapshot schema reference is invalid',
+      );
+    }
+    const typedRef = policySchemaReference(schemaRef);
+    if (!typedRef) {
+      throw new SnapshotBoundaryError(
+        IDENTITY_POLICY_SNAPSHOT_NOT_FOUND,
+        'policy snapshot schema reference is not resolvable',
+      );
+    }
+    return typedRef;
+  });
   return {
     policySnapshotRef: {
-      snapshotType: 'PolicySnapshot',
+      kind: 'SNAPSHOT',
+      objectType: 'identity.policy_snapshot',
+      objectId: row.policy_snapshot_id,
       snapshotId: row.policy_snapshot_id,
-      payloadHash: row.payload_hash,
+      scope: {},
+      contentHash: {
+        algorithm: 'SHA-256',
+        digest: row.payload_hash.toString('hex'),
+        canonicalizationVersion: '1',
+      },
     },
     policySetVersion: row.policy_set_version,
-    policySchemaRefs: Array.isArray(row.policy_schema_refs)
-      ? (row.policy_schema_refs as string[])
-      : [],
-    effectiveFrom: row.effective_from,
-    supersededAt: row.superseded_at ?? undefined,
-    payload: row.canonical_payload,
+    policySchemaRefs,
+    effectiveFrom: row.effective_from.toISOString(),
+    ...(row.superseded_at === null || row.superseded_at === undefined
+      ? {}
+      : { supersededAt: row.superseded_at.toISOString() }),
+    payload: row.canonical_payload as CanonicalJson,
   };
+}
+
+function objectReference(
+  objectType: string,
+  objectId: string,
+  scopeKind: 'ENTERPRISE' | 'PROJECT',
+  enterpriseId: string,
+  projectId: string | null,
+): Common.ObjectRef {
+  const scope =
+    scopeKind === 'PROJECT' && projectId !== null ? { enterpriseId, projectId } : { enterpriseId };
+  return {
+    kind: 'OBJECT',
+    objectType,
+    objectId,
+    scope,
+  };
+}
+
+function contentHashToBuffer(value: Common.ContentHash): Buffer {
+  const candidate: { algorithm: string; canonicalizationVersion: string; digest: string } = value;
+  if (
+    candidate.algorithm !== 'SHA-256' ||
+    candidate.canonicalizationVersion !== '1' ||
+    !/^[0-9a-f]{64}$/.test(candidate.digest)
+  ) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_POLICY_SNAPSHOT_HASH_MISMATCH,
+      'policy snapshot hash must be a SHA-256 digest',
+    );
+  }
+  return Buffer.from(candidate.digest, 'hex');
 }

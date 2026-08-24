@@ -45,3 +45,12 @@
   - 飞书 / 邮件 Provider 真实注入的 late receipt 仍 `NOT RUN`，并已从 #15 验收重定范围到 #17；不得称 Runtime fixture 为等价覆盖；
   - Issue #5 的字段 Schema 边界已完成；后续经用户批准将 ActorSnapshot/actingFor、providerResult PII、普通飞书来源链分别迁移到 #22、#23、#24。#5 的关闭不改变这些用例的 `PARTIAL` / `NOT RUN` 状态。
 - 测试遗留：未创建临时脚本或测试文件；所有 25 个 happy-path / negative-path 场景在测试文件中以确定性方式构造。
+
+## IM-02 WI-04 PostgreSQL 用例
+
+| ID | 输入 | 预期输出 | 修复前实际输出 | 当前结果 |
+|---|---|---|---|---|
+| RP-PG-001 | 七模块 catalog policy + EnterpriseProject 真实 Project 越权探针 | 非空 Project 行使用 Project helper，越权写入 `42501` | 七模块 policy 对账通过，代表写入 `42501` | `PASS` |
+| RP-PG-002 | Process Scope、masked audit、Reference owner version 矩阵 | 跨 Scope 拒绝、masked row 可读、多 owner version 可共存 | 分别为 `23514`、目标 row、两版本成功/精确重复 `23505` | `PASS` |
+
+真实 PostgreSQL Receipt Repository、Publisher/Provider 与 payload↔hash Gate 仍为 `NOT RUN`。

@@ -218,6 +218,34 @@ CREATE TABLE release_publication.process_step (
     CONSTRAINT process_step_unique UNIQUE (process_id, step_no)
 );
 
+CREATE FUNCTION release_publication.guard_process_step_scope() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+DECLARE
+    parent_enterprise_id uuid;
+    parent_project_id uuid;
+BEGIN
+    SELECT p.enterprise_id, p.project_id
+      INTO parent_enterprise_id, parent_project_id
+      FROM release_publication.process_instance p
+     WHERE p.process_id = NEW.process_id;
+    IF NOT FOUND
+       OR parent_enterprise_id IS DISTINCT FROM NEW.enterprise_id
+       OR parent_project_id IS DISTINCT FROM NEW.project_id THEN
+        RAISE EXCEPTION 'process step scope mismatch'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$guard$;
+
+REVOKE ALL ON FUNCTION release_publication.guard_process_step_scope() FROM PUBLIC;
+
+CREATE TRIGGER process_step_scope_guard
+    BEFORE INSERT ON release_publication.process_step
+    FOR EACH ROW EXECUTE FUNCTION release_publication.guard_process_step_scope();
+
 CREATE INDEX process_step_enterprise_idx ON release_publication.process_step (enterprise_id, recorded_at DESC);
 
 -- Immutable step history: no UPDATE path for the app role.
@@ -303,7 +331,7 @@ CREATE TABLE release_publication.reference_edge (
     CONSTRAINT reference_edge_target_hash_len CHECK (
         target_payload_hash IS NULL OR octet_length(target_payload_hash) = 32),
     CONSTRAINT reference_edge_unique UNIQUE NULLS NOT DISTINCT
-        (owner_object_type, owner_object_id, reference_path,
+        (owner_object_type, owner_object_id, owner_version_id, reference_path,
          target_module, target_object_type, target_object_id, target_version_id)
 );
 
@@ -359,19 +387,19 @@ REVOKE UPDATE ON release_publication.contract_violation FROM release_publication
 ALTER TABLE release_publication.command_receipt ENABLE ROW LEVEL SECURITY;
 ALTER TABLE release_publication.command_receipt FORCE ROW LEVEL SECURITY;
 CREATE POLICY command_receipt_select ON release_publication.command_receipt FOR SELECT TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY command_receipt_insert ON release_publication.command_receipt FOR INSERT TO release_publication_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY command_receipt_update ON release_publication.command_receipt FOR UPDATE TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id))
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)))
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 ALTER TABLE release_publication.outbox_event ENABLE ROW LEVEL SECURITY;
 ALTER TABLE release_publication.outbox_event FORCE ROW LEVEL SECURITY;
 CREATE POLICY outbox_event_select ON release_publication.outbox_event FOR SELECT TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY outbox_event_insert ON release_publication.outbox_event FOR INSERT TO release_publication_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY outbox_event_dispatcher_select ON release_publication.outbox_event
     FOR SELECT TO release_publication_dispatcher USING (true);
 CREATE POLICY outbox_event_dispatcher_update ON release_publication.outbox_event
@@ -380,49 +408,51 @@ CREATE POLICY outbox_event_dispatcher_update ON release_publication.outbox_event
 ALTER TABLE release_publication.inbox_message ENABLE ROW LEVEL SECURITY;
 ALTER TABLE release_publication.inbox_message FORCE ROW LEVEL SECURITY;
 CREATE POLICY inbox_message_select ON release_publication.inbox_message FOR SELECT TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY inbox_message_insert ON release_publication.inbox_message FOR INSERT TO release_publication_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY inbox_message_update ON release_publication.inbox_message FOR UPDATE TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id))
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)))
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 ALTER TABLE release_publication.process_instance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE release_publication.process_instance FORCE ROW LEVEL SECURITY;
 CREATE POLICY process_instance_select ON release_publication.process_instance FOR SELECT TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY process_instance_insert ON release_publication.process_instance FOR INSERT TO release_publication_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY process_instance_update ON release_publication.process_instance FOR UPDATE TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id))
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)))
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 ALTER TABLE release_publication.process_step ENABLE ROW LEVEL SECURITY;
 ALTER TABLE release_publication.process_step FORCE ROW LEVEL SECURITY;
 CREATE POLICY process_step_select ON release_publication.process_step FOR SELECT TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY process_step_insert ON release_publication.process_step FOR INSERT TO release_publication_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 ALTER TABLE release_publication.audit_record ENABLE ROW LEVEL SECURITY;
 ALTER TABLE release_publication.audit_record FORCE ROW LEVEL SECURITY;
 CREATE POLICY audit_record_select ON release_publication.audit_record FOR SELECT TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY audit_record_insert ON release_publication.audit_record FOR INSERT TO release_publication_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
+CREATE POLICY audit_record_view_owner_select ON release_publication.audit_record FOR SELECT TO release_publication_owner
+    USING (true);
 
 ALTER TABLE release_publication.reference_edge ENABLE ROW LEVEL SECURITY;
 ALTER TABLE release_publication.reference_edge FORCE ROW LEVEL SECURITY;
 CREATE POLICY reference_edge_select ON release_publication.reference_edge FOR SELECT TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY reference_edge_insert ON release_publication.reference_edge FOR INSERT TO release_publication_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 ALTER TABLE release_publication.contract_violation ENABLE ROW LEVEL SECURITY;
 ALTER TABLE release_publication.contract_violation FORCE ROW LEVEL SECURITY;
 CREATE POLICY contract_violation_select ON release_publication.contract_violation FOR SELECT TO release_publication_app
-    USING (platform_security.context_allows_enterprise(enterprise_id));
+    USING (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 CREATE POLICY contract_violation_insert ON release_publication.contract_violation FOR INSERT TO release_publication_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (((project_id IS NULL AND platform_security.context_allows_enterprise(enterprise_id)) OR platform_security.context_allows_project(enterprise_id, project_id)));
 
 RESET ROLE;

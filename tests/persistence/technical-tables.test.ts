@@ -78,6 +78,7 @@ const FIXTURE_TABLES: Record<string, string[]> = {
 
 const ENTERPRISE_A = '11111111-1111-7111-8111-1111111111a1';
 const PROJECT_A1 = '33333333-3333-7333-8333-3333333333c1';
+const PROJECT_A2 = '44444444-4444-7444-8444-4444444444d2';
 const PRINCIPAL = '55555555-5555-7555-8555-5555555555e1';
 const ACTOR_SNAPSHOT = '66666666-6666-7666-8666-6666666666f1';
 const DECISION = '77777777-7777-7777-8777-7777777777a1';
@@ -108,11 +109,13 @@ describe.skipIf(!gateEnabled)(
       await admin.query(
         `CREATE ROLE wi04_probe_ep LOGIN PASSWORD 'wi04-probe-ep' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
       );
-      await admin.query(`GRANT enterprise_project_app TO wi04_probe_ep`);
+      await admin.query(
+        `GRANT platform_context_establisher, enterprise_project_app TO wi04_probe_ep`,
+      );
       await admin.query(
         `CREATE ROLE wi04_probe_ip LOGIN PASSWORD 'wi04-probe-ip' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
       );
-      await admin.query(`GRANT identity_policy_app TO wi04_probe_ip`);
+      await admin.query(`GRANT platform_context_establisher, identity_policy_app TO wi04_probe_ip`);
       await admin.query(
         `CREATE ROLE wi04_probe_disp LOGIN PASSWORD 'wi04-probe-disp' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
       );
@@ -159,7 +162,12 @@ describe.skipIf(!gateEnabled)(
       }
     }
 
-    async function establishContext(connection: pg.Client): Promise<void> {
+    async function establishContext(
+      connection: pg.Client,
+      allowedProjectIds: string[] = [PROJECT_A1],
+      runtimeRole: 'enterprise_project_app' | 'identity_policy_app' = 'enterprise_project_app',
+    ): Promise<void> {
+      await connection.query('SET LOCAL ROLE platform_context_establisher');
       const outcome = await tryQuery(
         connection,
         `SELECT platform_security.establish_transaction_context(
@@ -170,11 +178,12 @@ describe.skipIf(!gateEnabled)(
           DECISION,
           DECISION_HASH,
           ENTERPRISE_A,
-          [PROJECT_A1],
+          allowedProjectIds,
           CORRELATION,
         ],
       );
       expect(outcome).toMatchObject({ allowed: true });
+      await connection.query(`SET LOCAL ROLE ${runtimeRole}`);
     }
 
     // -------------------------------------------------------------------------
@@ -240,6 +249,30 @@ describe.skipIf(!gateEnabled)(
           expect(result.rows[0]?.owner, `${module}.${table} owner`).toBe(`${module}_owner`);
           expect(result.rows[0]?.rls, `${module}.${table} RLS`).toBe(true);
           expect(result.rows[0]?.force, `${module}.${table} FORCE RLS`).toBe(true);
+        }
+      }
+    });
+
+    it('uses project-aware RLS for every nullable-scope technical table', async () => {
+      for (const module of MODULES) {
+        const app = `${module}_app`;
+        for (const table of TECHNICAL_TABLES) {
+          const policies = await admin.query<{ qual: string | null; with_check: string | null }>(
+            `SELECT qual, with_check
+               FROM pg_policies
+              WHERE schemaname = $1 AND tablename = $2 AND $3 = ANY (roles)`,
+            [module, table, app],
+          );
+          expect(policies.rows.length, `${module}.${table} app policies`).toBeGreaterThan(0);
+          for (const expression of policies.rows.flatMap((row) => [row.qual, row.with_check])) {
+            if (expression === null) continue;
+            expect(expression, `${module}.${table} nullable project branch`).toContain(
+              'project_id IS NULL',
+            );
+            expect(expression, `${module}.${table} project helper`).toContain(
+              'context_allows_project',
+            );
+          }
         }
       }
     });
@@ -385,16 +418,49 @@ describe.skipIf(!gateEnabled)(
       );
       expect(platformMasked.rows[0]?.can).toBe(true);
 
-      // Live: the reader sees the masked view but never the authoritative row.
-      await expect(
-        auditReader.query(`SELECT count(*) FROM enterprise_project.audit_record_masked`),
-      ).resolves.toBeTruthy();
+      const auditId = '12345678-1234-7123-8123-444444444441';
+      const platformAuditId = '12345678-1234-7123-8123-444444444442';
+      await admin.query(
+        `INSERT INTO enterprise_project.audit_record (
+           audit_id, enterprise_id, project_id, principal_id, actor_snapshot_id,
+           authorization_decision_id, command_type, outcome, correlation_id, retention_class)
+         VALUES ($1, $2, $3, $4, $4, $4, 'demo.audit', 'COMMITTED', $5, 'REGULATED_AUDIT')`,
+        [auditId, ENTERPRISE_A, PROJECT_A1, PRINCIPAL, CORRELATION],
+      );
+      await admin.query(
+        `INSERT INTO identity_policy.platform_audit_record (
+           audit_id, principal_id, actor_snapshot_id, authorization_decision_id,
+           command_type, outcome, correlation_id, retention_class)
+         VALUES ($1, $2, $2, $2, 'demo.platform.audit', 'COMMITTED', $3, 'REGULATED_AUDIT')`,
+        [platformAuditId, PRINCIPAL, CORRELATION],
+      );
+
+      // Live: committed rows are visible through the masked surfaces.
+      const maskedRow = await auditReader.query<{ audit_id: string }>(
+        `SELECT audit_id FROM enterprise_project.audit_record_masked WHERE audit_id = $1`,
+        [auditId],
+      );
+      expect(maskedRow.rows).toEqual([{ audit_id: auditId }]);
+      const platformRow = await auditReader.query<{ audit_id: string }>(
+        `SELECT audit_id FROM identity_policy.platform_audit_record_masked WHERE audit_id = $1`,
+        [platformAuditId],
+      );
+      expect(platformRow.rows).toEqual([{ audit_id: platformAuditId }]);
+
+      // The reader still has no table-level or sensitive-column access.
       const direct = await tryQuery(
         auditReader,
         `SELECT count(*) FROM enterprise_project.audit_record`,
       );
       expect(direct.allowed).toBe(false);
       expect(direct.code).toBe('42501');
+      const sensitive = await tryQuery(
+        auditReader,
+        `SELECT safe_summary FROM enterprise_project.audit_record WHERE audit_id = $1`,
+        [auditId],
+      );
+      expect(sensitive.allowed).toBe(false);
+      expect(sensitive.code).toBe('42501');
     });
 
     // -------------------------------------------------------------------------
@@ -415,6 +481,44 @@ describe.skipIf(!gateEnabled)(
       expect(outcome.allowed).toBe(false);
       expect(outcome.code).toBe('42501');
       expect(outcome.message).toMatch(/row-level security/);
+    });
+
+    it('rejects same-enterprise rows outside the allowed project scope', async () => {
+      const hiddenCommandId = '12345678-1234-7123-8123-444444444443';
+      await admin.query(
+        `INSERT INTO enterprise_project.command_receipt (
+           command_id, command_type, command_version, idempotency_scope, idempotency_key,
+           request_payload_hash, enterprise_id, project_id, target_type, target_id, outcome,
+           correlation_id, created_by_principal_id, actor_snapshot_id, authorization_decision_id)
+         VALUES ($1, 'demo.command', '1.0', 'scope-probe', 'hidden-a2', $2, $3, $4,
+                 'Demo', uuidv7(), 'PENDING', $5, $6, $6, $6)`,
+        [hiddenCommandId, HASH32, ENTERPRISE_A, PROJECT_A2, CORRELATION, PRINCIPAL],
+      );
+
+      await epApp.query('BEGIN');
+      try {
+        await establishContext(epApp, [PROJECT_A1]);
+        const hidden = await epApp.query<{ count: string }>(
+          `SELECT count(*) AS count FROM enterprise_project.command_receipt WHERE command_id = $1`,
+          [hiddenCommandId],
+        );
+        expect(hidden.rows[0]?.count).toBe('0');
+
+        const denied = await tryQuery(
+          epApp,
+          `INSERT INTO enterprise_project.command_receipt (
+             command_id, command_type, command_version, idempotency_scope, idempotency_key,
+             request_payload_hash, enterprise_id, project_id, target_type, target_id, outcome,
+             correlation_id, created_by_principal_id, actor_snapshot_id, authorization_decision_id)
+           VALUES (uuidv7(), 'demo.command', '1.0', 'scope-probe', 'write-a2', $1, $2, $3,
+                   'Demo', uuidv7(), 'PENDING', $4, $5, $5, $5)`,
+          [HASH32, ENTERPRISE_A, PROJECT_A2, CORRELATION, PRINCIPAL],
+        );
+        expect(denied.allowed).toBe(false);
+        expect(denied.code).toBe('42501');
+      } finally {
+        await epApp.query('ROLLBACK');
+      }
     });
 
     it('adjudicates duplicate idempotency keys with the unique constraint', async () => {
@@ -534,6 +638,68 @@ describe.skipIf(!gateEnabled)(
           insertProcess('12345678-1234-7123-8123-222222222224', 'ACTIVE'),
         ).resolves.toMatchObject({ allowed: true });
       });
+    });
+
+    it('requires process steps to mirror the parent process scope', async () => {
+      await epApp.query('BEGIN');
+      try {
+        await establishContext(epApp, [PROJECT_A1, PROJECT_A2]);
+        const processId = '12345678-1234-7123-8123-444444444444';
+        await epApp.query(
+          `INSERT INTO enterprise_project.process_instance (
+             process_id, process_type, process_version, correlation_key,
+             enterprise_id, project_id, state, created_by_principal_id)
+           VALUES ($1, 'demo.process', '1.0', 'scope-mirror', $2, $3, 'ACTIVE', $4)`,
+          [processId, ENTERPRISE_A, PROJECT_A1, PRINCIPAL],
+        );
+        const mismatched = await tryQuery(
+          epApp,
+          `INSERT INTO enterprise_project.process_step (
+             process_step_id, process_id, step_no, enterprise_id, project_id,
+             outcome, created_by_principal_id)
+           VALUES (uuidv7(), $1, 1, $2, $3, 'STARTED', $4)`,
+          [processId, ENTERPRISE_A, PROJECT_A2, PRINCIPAL],
+        );
+        expect(mismatched.allowed).toBe(false);
+        expect(mismatched.code).toBe('23514');
+        expect(mismatched.message).toMatch(/process step scope mismatch/);
+      } finally {
+        await epApp.query('ROLLBACK');
+      }
+    });
+
+    it('distinguishes reference edges from different owner versions', async () => {
+      await epApp.query('BEGIN');
+      try {
+        await establishContext(epApp);
+        const insertEdge = (ownerVersionId: string) =>
+          tryQuery(
+            epApp,
+            `INSERT INTO enterprise_project.reference_edge (
+               owner_object_type, owner_object_id, owner_version_id, reference_path,
+               target_module, target_object_type, target_object_id, target_version_id,
+               reference_purpose, enterprise_id, source_command_id)
+             VALUES ('Demo', $1, $2, '/target', 'artifact', 'Artifact', $3, $4,
+                     'TRACE', $5, $6)`,
+            [
+              '12345678-1234-7123-8123-444444444445',
+              ownerVersionId,
+              '12345678-1234-7123-8123-444444444446',
+              '12345678-1234-7123-8123-444444444447',
+              ENTERPRISE_A,
+              '12345678-1234-7123-8123-444444444448',
+            ],
+          );
+        const versionA = '12345678-1234-7123-8123-444444444449';
+        const versionB = '12345678-1234-7123-8123-444444444450';
+        await expect(insertEdge(versionA)).resolves.toMatchObject({ allowed: true });
+        await expect(insertEdge(versionB)).resolves.toMatchObject({ allowed: true });
+        const exactDuplicate = await insertEdge(versionA);
+        expect(exactDuplicate.allowed).toBe(false);
+        expect(exactDuplicate.code).toBe('23505');
+      } finally {
+        await epApp.query('ROLLBACK');
+      }
     });
 
     it('rejects outbox writes whose payload scope mirror does not match', async () => {
@@ -750,7 +916,7 @@ describe.skipIf(!gateEnabled)(
       expect(denied.code).toBe('42501');
 
       await ipApp.query('BEGIN');
-      await establishContext(ipApp);
+      await establishContext(ipApp, [PROJECT_A1], 'identity_policy_app');
       await expect(
         tryQuery(
           ipApp,

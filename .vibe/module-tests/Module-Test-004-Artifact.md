@@ -28,3 +28,12 @@
 - 其他 Unit/Contract/E2E/Manual 仍按表中证据保持 `NOT RUN`。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - 测试遗留：未创建临时脚本或测试文件。
+
+## IM-02 WI-04 PostgreSQL 用例
+
+| ID | 输入 | 预期输出 | 修复前实际输出 | 当前结果 |
+|---|---|---|---|---|
+| AF-PG-001 | 七模块 catalog policy + EnterpriseProject 真实 Project 越权探针 | 非空 Project 行使用 Project helper，越权写入 `42501` | 七模块 policy 对账通过，代表写入 `42501` | `PASS` |
+| AF-PG-002 | Process Scope、masked audit、Reference owner version 矩阵 | 跨 Scope 拒绝、masked row 可读、多 owner version 可共存 | 分别为 `23514`、目标 row、两版本成功/精确重复 `23505` | `PASS` |
+
+对象存储、Renderer、业务 Repository 与 payload↔hash Gate 仍为 `NOT RUN`。

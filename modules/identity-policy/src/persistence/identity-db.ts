@@ -4,7 +4,14 @@
 
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
-import { Kysely, PostgresDialect, sql, type ColumnType, type Generated } from 'kysely';
+import {
+  Kysely,
+  PostgresDialect,
+  sql,
+  type ColumnType,
+  type Generated,
+  type Transaction,
+} from 'kysely';
 import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 
 // pg returns int8 as string and jsonb as parsed objects; inserts pass
@@ -92,7 +99,9 @@ export interface RoleAssignmentTable {
 export interface RoleRevocationTable {
   revocation_id: string;
   role_assignment_id: string;
+  scope_kind: 'ENTERPRISE' | 'PROJECT';
   enterprise_id: string;
+  project_id: string | null;
   revoked_by_principal_id: string;
   reason_code: string;
   effective_at: Date;
@@ -130,7 +139,9 @@ export interface CapabilityGrantTable {
 export interface CapabilityRevocationTable {
   revocation_id: string;
   capability_grant_id: string;
+  scope_kind: 'ENTERPRISE' | 'PROJECT';
   enterprise_id: string;
+  project_id: string | null;
   revoked_by_principal_id: string;
   reason_code: string;
   effective_at: Date;
@@ -165,6 +176,7 @@ export interface ActorSnapshotTable {
   actor_snapshot_id: string;
   principal_id: string;
   principal_kind: 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
+  scope_kind: 'ENTERPRISE' | 'PROJECT';
   acting_for_principal_id: string | null;
   acting_for_kind: string | null;
   channel_code: string | null;
@@ -188,6 +200,7 @@ export interface ActorSnapshotTable {
 export interface AuthorizationDecisionTable {
   authorization_decision_id: string;
   actor_snapshot_id: string;
+  actor_snapshot_payload_hash: Buffer;
   principal_id: string;
   principal_kind: string;
   outcome: 'ALLOW' | 'DENY';
@@ -294,6 +307,24 @@ export interface AuditRecordTable {
   safe_summary?: string | null;
   recorded_at: Generated<Date>;
   retention_class: string;
+}
+
+export interface ReferenceEdgeTable {
+  owner_object_type: string;
+  owner_object_id: string;
+  owner_version_id?: string | null;
+  owner_payload_hash?: Buffer | null;
+  reference_path: string;
+  target_module: string;
+  target_object_type: string;
+  target_object_id: string;
+  target_version_id?: string | null;
+  target_payload_hash?: Buffer | null;
+  reference_purpose: string;
+  enterprise_id: string;
+  project_id?: string | null;
+  created_at: Generated<Date>;
+  source_command_id: string;
 }
 
 export interface PlatformCommandReceiptTable {
@@ -431,6 +462,7 @@ export interface IdentityPolicyDb {
   'identity_policy.command_receipt': CommandReceiptTable;
   'identity_policy.outbox_event': OutboxEventTable;
   'identity_policy.audit_record': AuditRecordTable;
+  'identity_policy.reference_edge': ReferenceEdgeTable;
   'identity_policy.platform_command_receipt': PlatformCommandReceiptTable;
   'identity_policy.platform_outbox_event': PlatformOutboxEventTable;
   'identity_policy.platform_audit_record': PlatformAuditRecordTable;
@@ -479,7 +511,7 @@ export interface IdentityTransactionContext {
   readonly sourceEventId?: string;
 }
 
-export type IdentityTransaction = Kysely<IdentityPolicyDb>;
+export type IdentityTransaction = Transaction<IdentityPolicyDb>;
 
 /** Creates the Kysely SQL builder over an application-owned pg pool. */
 export function createIdentityPolicyDatabase(pool: Pool): Kysely<IdentityPolicyDb> {
@@ -499,6 +531,7 @@ export async function withIdentityTransaction<T>(
 ): Promise<T> {
   return db.connection().execute(async (connection) =>
     connection.transaction().execute(async (trx) => {
+      await sql.raw('SET LOCAL ROLE platform_context_establisher').execute(trx);
       await sql`SELECT platform_security.establish_transaction_context(
           ${context.kind},
           ${context.principalId},
@@ -510,6 +543,7 @@ export async function withIdentityTransaction<T>(
           ${[...context.allowedProjectIds]},
           ${context.correlationId},
           ${context.sourceEventId ?? null})`.execute(trx);
+      await sql.raw('SET LOCAL ROLE identity_policy_app').execute(trx);
       return fn(trx);
     }),
   );

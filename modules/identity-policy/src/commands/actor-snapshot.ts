@@ -5,9 +5,9 @@
 // upgraded by the acting_for reference.
 
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import type { Common } from '@zhiju/contracts';
 import type { Kysely } from 'kysely';
 import {
-  digestCanonicalPayload,
   withIdentityTransaction,
   type IdentityPolicyDb,
   type IdentityTransactionContext,
@@ -29,6 +29,7 @@ export interface IdentityCommandDeps {
 }
 
 export type PrincipalKind = 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
+export type ScopeKind = 'ENTERPRISE' | 'PROJECT';
 
 export interface CreateActorSnapshotInput {
   actorSnapshotId: string;
@@ -40,17 +41,12 @@ export interface CreateActorSnapshotInput {
   channelCode?: string | undefined;
   runtimeSource?: string | undefined;
   authenticationContextHash: Buffer;
+  scopeKind: ScopeKind;
   enterpriseId: string;
   projectId?: string | undefined;
 }
 
-export interface ActorSnapshotRef {
-  snapshotType: 'ActorSnapshot';
-  snapshotId: string;
-  payloadHash: Buffer;
-  payloadHashAlgorithm: string;
-  canonicalizationVersion: string;
-}
+export type ActorSnapshotRef = Common.SnapshotRef;
 
 /**
  * Controlled creation boundary for ActorSnapshot: the declared kind is
@@ -62,16 +58,23 @@ export async function createActorSnapshot(
   deps: IdentityCommandDeps,
   input: CreateActorSnapshotInput,
 ): Promise<ActorSnapshotRef> {
-  if (input.enterpriseId !== deps.context.enterpriseId) {
-    throw new SnapshotBoundaryError(
-      IDENTITY_ACTOR_SNAPSHOT_INVALID,
-      'actor snapshot scope must match the transaction context',
-    );
-  }
+  validateHash(
+    input.authenticationContextHash,
+    IDENTITY_ACTOR_SNAPSHOT_INVALID,
+    'authentication context hash',
+  );
+  validateScope(
+    input.scopeKind,
+    input.enterpriseId,
+    input.projectId,
+    deps.context,
+    IDENTITY_ACTOR_SNAPSHOT_INVALID,
+    'actor snapshot',
+  );
   if ((input.actingForPrincipalId === undefined) !== (input.actingForKind === undefined)) {
     throw new SnapshotBoundaryError(IDENTITY_ACTOR_SNAPSHOT_INVALID, 'actingFor must be complete');
   }
-  const snapshot = await withIdentityTransaction(deps.db, deps.context, async (trx) => {
+  await withIdentityTransaction(deps.db, deps.context, async (trx) => {
     const principal = await deps.repo.getPrincipalById(trx, input.principalId);
     if (!principal) {
       throw new SnapshotBoundaryError(
@@ -98,23 +101,41 @@ export async function createActorSnapshot(
       actorSnapshotId: input.actorSnapshotId,
       principalId: input.principalId,
       principalKind: principal.principal_kind,
-      actingForPrincipalId: input.actingForPrincipalId,
-      actingForKind: input.actingForKind,
-      channelCode: input.channelCode,
-      runtimeSource: input.runtimeSource,
+      ...(input.actingForPrincipalId !== undefined && input.actingForKind !== undefined
+        ? {
+            actingForPrincipalId: input.actingForPrincipalId,
+            actingForKind: input.actingForKind,
+          }
+        : {}),
+      ...(input.channelCode !== undefined ? { channelCode: input.channelCode } : {}),
+      ...(input.runtimeSource !== undefined ? { runtimeSource: input.runtimeSource } : {}),
       authenticationContextHash: input.authenticationContextHash,
       enterpriseId: input.enterpriseId,
-      projectId: input.projectId,
+      scopeKind: input.scopeKind,
+      ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
       contractVersion: '1.0',
       snapshotPayload: {
         note: 'wi09 actor snapshot',
+        principalId: input.principalId,
         principalKind: principal.principal_kind,
+        scopeKind: input.scopeKind,
         enterpriseId: input.enterpriseId,
+        ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+        authenticationContextHash: input.authenticationContextHash.toString('hex'),
+        ...(input.actingForPrincipalId !== undefined && input.actingForKind !== undefined
+          ? {
+              actingFor: {
+                principalId: input.actingForPrincipalId,
+                principalKind: input.actingForKind,
+              },
+            }
+          : {}),
+        ...(input.channelCode !== undefined ? { channelCode: input.channelCode } : {}),
+        ...(input.runtimeSource !== undefined ? { runtimeSource: input.runtimeSource } : {}),
       },
       createdByPrincipalId: deps.context.principalId,
       sourceCommandId: newUuidV7(),
     });
-    return deps.repo.getActorSnapshotByIdAndHash(trx, input.actorSnapshotId, Buffer.alloc(0));
   });
   // Re-read with the real hash for the returned precise ref.
   const row = await withIdentityTransaction(deps.db, deps.context, async (trx) => {
@@ -125,16 +146,16 @@ export async function createActorSnapshot(
       .executeTakeFirst();
     return found;
   });
-  void snapshot;
   if (!row) {
     throw new SnapshotBoundaryError(IDENTITY_ACTOR_SNAPSHOT_INVALID, 'snapshot creation failed');
   }
   return {
-    snapshotType: 'ActorSnapshot',
+    kind: 'SNAPSHOT',
+    objectType: 'identity.actor_snapshot',
+    objectId: row.actor_snapshot_id,
     snapshotId: row.actor_snapshot_id,
-    payloadHash: row.payload_hash,
-    payloadHashAlgorithm: row.payload_hash_algorithm,
-    canonicalizationVersion: row.canonicalization_version,
+    scope: scopeRef(row.scope_kind, row.enterprise_id, row.project_id ?? undefined),
+    contentHash: contentHash(row.payload_hash),
   };
 }
 
@@ -151,7 +172,7 @@ export class SnapshotBoundaryError extends Error {
 export interface CommandIntent {
   commandType: string;
   commandVersion: string;
-  scopeKind: 'ENTERPRISE' | 'PROJECT';
+  scopeKind: ScopeKind;
   enterpriseId: string;
   projectId?: string | undefined;
   purpose: string;
@@ -165,26 +186,17 @@ export interface AuthorizeCommandInput {
   actorSnapshotRef: ActorSnapshotRef;
   intent: CommandIntent;
   authenticationContextHash: Buffer;
-  policySnapshotRef: { snapshotType: 'PolicySnapshot'; snapshotId: string; payloadHash: Buffer };
+  policySnapshotRef: Common.SnapshotRef;
   ttlSeconds?: number | undefined;
 }
 
 export interface AuthorizationDecisionView {
-  authorizationDecisionRef: {
-    decisionId: string;
-    payloadHash: Buffer;
-    payloadHashAlgorithm: string;
-    canonicalizationVersion: string;
-  };
+  authorizationDecisionRef: Common.ContentAddressedRef;
   outcome: 'ALLOW' | 'DENY';
   reasons: string[];
-  policySnapshotRef: { snapshotType: 'PolicySnapshot'; snapshotId: string; payloadHash: Buffer };
-  effectiveScopeRef: {
-    scopeKind: 'ENTERPRISE' | 'PROJECT';
-    enterpriseId: string;
-    projectId?: string | undefined;
-  };
-  expiresAt: Date;
+  policySnapshotRef: Common.SnapshotRef;
+  effectiveScopeRef: Common.ScopeRef;
+  expiresAt: Common.UtcInstant;
 }
 
 /**
@@ -197,28 +209,109 @@ export async function authorizeCommand(
   deps: IdentityCommandDeps,
   input: AuthorizeCommandInput,
 ): Promise<AuthorizationDecisionView> {
-  if (input.intent.enterpriseId !== deps.context.enterpriseId) {
+  assertSnapshotReference(
+    input.actorSnapshotRef,
+    'identity.actor_snapshot',
+    IDENTITY_ACTOR_SNAPSHOT_INVALID,
+    'actor snapshot',
+  );
+  assertSnapshotReference(
+    input.policySnapshotRef,
+    'identity.policy_snapshot',
+    IDENTITY_DECISION_INPUT_INVALID,
+    'policy snapshot',
+  );
+  if (Object.keys(input.policySnapshotRef.scope).length !== 0) {
     throw new SnapshotBoundaryError(
       IDENTITY_DECISION_INPUT_INVALID,
-      'intent scope must match the transaction context',
+      'policy snapshot scope must be empty',
+    );
+  }
+  const actorSnapshotPayloadHash = contentHashToBuffer(
+    input.actorSnapshotRef.contentHash,
+    IDENTITY_ACTOR_SNAPSHOT_INVALID,
+    'actor snapshot payload hash',
+  );
+  const policySnapshotPayloadHash = contentHashToBuffer(
+    input.policySnapshotRef.contentHash,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'policy snapshot payload hash',
+  );
+  validateHash(
+    input.authenticationContextHash,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'authentication context hash',
+  );
+  validateHash(
+    input.intent.commandPayloadHash,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'command payload hash',
+  );
+  validateScope(
+    input.intent.scopeKind,
+    input.intent.enterpriseId,
+    input.intent.projectId,
+    deps.context,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'command intent',
+  );
+  if (
+    !(input.intent.requestedAt instanceof Date) ||
+    !Number.isFinite(input.intent.requestedAt.getTime())
+  ) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_DECISION_INPUT_INVALID,
+      'command intent requestedAt is invalid',
+    );
+  }
+  if (input.intent.commandVersion !== '1.0') {
+    throw new SnapshotBoundaryError(
+      IDENTITY_DECISION_INPUT_INVALID,
+      'command intent version must be 1.0',
+    );
+  }
+  const ttlSeconds = input.ttlSeconds ?? DECISION_DEFAULT_TTL_SECONDS;
+  if (!Number.isFinite(ttlSeconds) || ttlSeconds <= 0) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_DECISION_INPUT_INVALID,
+      'decision ttl must be positive',
     );
   }
   const decisionId = newUuidV7();
-  const expiresAt = new Date(
-    Date.now() + (input.ttlSeconds ?? DECISION_DEFAULT_TTL_SECONDS) * 1000,
-  );
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
   const view = await withIdentityTransaction(deps.db, deps.context, async (trx) => {
     // Exact actor snapshot ref: id + payload hash must both match.
     const actor = await deps.repo.getActorSnapshotByIdAndHash(
       trx,
       input.actorSnapshotRef.snapshotId,
-      input.actorSnapshotRef.payloadHash,
+      actorSnapshotPayloadHash,
     );
     if (!actor?.hashMatched) {
       throw new SnapshotBoundaryError(
         IDENTITY_ACTOR_SNAPSHOT_INVALID,
         'actor snapshot ref does not match',
+      );
+    }
+    if (
+      actor.row.scope_kind !== input.intent.scopeKind ||
+      actor.row.enterprise_id !== input.intent.enterpriseId ||
+      actor.row.project_id !== (input.intent.projectId ?? null)
+    ) {
+      throw new SnapshotBoundaryError(
+        IDENTITY_DECISION_INPUT_INVALID,
+        'actor snapshot scope must match the command intent scope',
+      );
+    }
+    if (
+      !sameScope(
+        input.actorSnapshotRef.scope,
+        scopeRef(actor.row.scope_kind, actor.row.enterprise_id, actor.row.project_id ?? undefined),
+      )
+    ) {
+      throw new SnapshotBoundaryError(
+        IDENTITY_ACTOR_SNAPSHOT_INVALID,
+        'actor snapshot reference scope does not match the stored snapshot',
       );
     }
     if (!actor.row.authentication_context_hash.equals(input.authenticationContextHash)) {
@@ -230,7 +323,7 @@ export async function authorizeCommand(
     const policy = await deps.repo.getPolicySnapshotByIdAndHash(
       trx,
       input.policySnapshotRef.snapshotId,
-      input.policySnapshotRef.payloadHash,
+      policySnapshotPayloadHash,
     );
     if (!policy?.hashMatched) {
       throw new SnapshotBoundaryError(
@@ -274,15 +367,29 @@ export async function authorizeCommand(
     }
 
     const decisionPayload: CanonicalJsonObject = {
+      actorSnapshotId: actor.row.actor_snapshot_id,
+      actorSnapshotPayloadHash: actor.row.payload_hash.toString('hex'),
+      authenticationContextHash: input.authenticationContextHash.toString('hex'),
       outcome,
       enterpriseId: input.intent.enterpriseId,
+      ...(input.intent.projectId !== undefined ? { projectId: input.intent.projectId } : {}),
+      scopeKind: input.intent.scopeKind,
       commandType: input.intent.commandType,
+      commandVersion: input.intent.commandVersion,
+      purpose: input.intent.purpose,
+      requestedCapability: input.intent.requestedCapability,
+      commandPayloadHash: input.intent.commandPayloadHash.toString('hex'),
+      requestedAt: input.intent.requestedAt.toISOString(),
+      highRiskAction: input.intent.highRiskAction,
+      policySnapshotId: input.policySnapshotRef.snapshotId,
+      policySnapshotPayloadHash: policySnapshotPayloadHash.toString('hex'),
       principalKind: principal?.principal_kind ?? actor.row.principal_kind,
       reasons,
     };
     await deps.repo.insertAuthorizationDecision(trx, {
       authorizationDecisionId: decisionId,
       actorSnapshotId: actor.row.actor_snapshot_id,
+      actorSnapshotPayloadHash: actor.row.payload_hash,
       principalId: actor.row.principal_id,
       principalKind: principal?.principal_kind ?? actor.row.principal_kind,
       outcome,
@@ -291,12 +398,12 @@ export async function authorizeCommand(
       commandVersion: input.intent.commandVersion,
       scopeKind: input.intent.scopeKind,
       enterpriseId: input.intent.enterpriseId,
-      projectId: input.intent.projectId,
+      ...(input.intent.projectId !== undefined ? { projectId: input.intent.projectId } : {}),
       purpose: input.intent.purpose,
       requestedCapability: input.intent.requestedCapability,
       commandPayloadHash: input.intent.commandPayloadHash,
       policySnapshotId: input.policySnapshotRef.snapshotId,
-      policySnapshotPayloadHash: input.policySnapshotRef.payloadHash,
+      policySnapshotPayloadHash,
       authenticationContextHash: input.authenticationContextHash,
       expiresAt,
       contractVersion: '1.0',
@@ -307,12 +414,6 @@ export async function authorizeCommand(
     return { outcome, reasons };
   });
 
-  const digest = digestCanonicalPayload({
-    outcome: view.outcome,
-    enterpriseId: input.intent.enterpriseId,
-    commandType: input.intent.commandType,
-    reasons: view.reasons,
-  });
   // The stored canonical payload is authoritative; re-read the exact hash.
   const stored = await withIdentityTransaction(deps.db, deps.context, async (trx) => {
     const found = await trx
@@ -325,28 +426,28 @@ export async function authorizeCommand(
   if (!stored) {
     throw new SnapshotBoundaryError(IDENTITY_DECISION_INPUT_INVALID, 'decision persistence failed');
   }
-  void digest;
   return {
     authorizationDecisionRef: {
-      decisionId,
-      payloadHash: stored.payload_hash,
-      payloadHashAlgorithm: stored.payload_hash_algorithm,
-      canonicalizationVersion: stored.canonicalization_version,
+      kind: 'CONTENT_ADDRESSED',
+      objectType: 'identity.authorization_decision',
+      objectId: stored.authorization_decision_id,
+      scope: scopeRef(input.intent.scopeKind, input.intent.enterpriseId, input.intent.projectId),
+      contentHash: contentHash(stored.payload_hash),
     },
     outcome: view.outcome,
     reasons: view.reasons,
     policySnapshotRef: input.policySnapshotRef,
-    effectiveScopeRef: {
-      scopeKind: input.intent.scopeKind,
-      enterpriseId: input.intent.enterpriseId,
-      projectId: input.intent.projectId,
-    },
-    expiresAt,
+    effectiveScopeRef: scopeRef(
+      input.intent.scopeKind,
+      input.intent.enterpriseId,
+      input.intent.projectId,
+    ),
+    expiresAt: expiresAt.toISOString(),
   };
 }
 
 export interface DecisionValidationInput {
-  decisionRef: { decisionId: string; payloadHash: Buffer };
+  decisionRef: Common.ContentAddressedRef;
   expectedCommandType: string;
   expectedCommandVersion: string;
   expectedScope: {
@@ -385,11 +486,35 @@ export async function validateAuthorizationDecision(
   deps: IdentityCommandDeps,
   input: DecisionValidationInput,
 ): Promise<DecisionValidationResult> {
+  if (!isContentAddressedDecisionReference(input.decisionRef)) {
+    return { valid: false, reason: 'HASH_MISMATCH' };
+  }
+  const decisionPayloadHash = contentHashToBuffer(
+    input.decisionRef.contentHash,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'decision payload hash',
+  );
+  validateHash(
+    input.expectedCommandPayloadHash,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'expected command payload hash',
+  );
+  validateHash(
+    input.expectedAuthenticationContextHash,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'expected authentication context hash',
+  );
+  if (!(input.now instanceof Date) || !Number.isFinite(input.now.getTime())) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_DECISION_INPUT_INVALID,
+      'decision validation time is invalid',
+    );
+  }
   return withIdentityTransaction(deps.db, deps.context, async (trx) => {
     const found = await deps.repo.getAuthorizationDecisionByIdAndHash(
       trx,
-      input.decisionRef.decisionId,
-      input.decisionRef.payloadHash,
+      input.decisionRef.objectId,
+      decisionPayloadHash,
     );
     if (!found) {
       return { valid: false, reason: 'NOT_FOUND' };
@@ -398,6 +523,14 @@ export async function validateAuthorizationDecision(
       return { valid: false, reason: 'HASH_MISMATCH' };
     }
     const row = found.row;
+    if (
+      !sameScope(
+        input.decisionRef.scope,
+        scopeRef(row.scope_kind, row.enterprise_id, row.project_id ?? undefined),
+      )
+    ) {
+      return { valid: false, reason: 'SCOPE_MISMATCH', outcome: row.outcome };
+    }
     if (row.command_type !== input.expectedCommandType) {
       return { valid: false, reason: 'COMMAND_TYPE_MISMATCH', outcome: row.outcome };
     }
@@ -425,4 +558,143 @@ export async function validateAuthorizationDecision(
     }
     return { valid: true, outcome: row.outcome };
   });
+}
+
+function validateHash(value: Buffer, code: string, field: string): void {
+  if (!Buffer.isBuffer(value) || value.length !== 32) {
+    throw new SnapshotBoundaryError(code, `${field} must be a SHA-256 digest`);
+  }
+}
+
+function contentHash(value: Buffer): Common.ContentHash {
+  return {
+    algorithm: 'SHA-256',
+    digest: value.toString('hex'),
+    canonicalizationVersion: '1',
+  };
+}
+
+function contentHashToBuffer(value: unknown, code: string, field: string): Buffer {
+  const candidate = value as
+    | {
+        algorithm?: unknown;
+        canonicalizationVersion?: unknown;
+        digest?: unknown;
+      }
+    | null
+    | undefined;
+  if (
+    candidate === null ||
+    candidate === undefined ||
+    typeof candidate !== 'object' ||
+    candidate.algorithm !== 'SHA-256' ||
+    candidate.canonicalizationVersion !== '1' ||
+    typeof candidate.digest !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(candidate.digest)
+  ) {
+    throw new SnapshotBoundaryError(code, `${field} must be a SHA-256 digest`);
+  }
+  return Buffer.from(candidate.digest, 'hex');
+}
+
+function isContentAddressedDecisionReference(value: unknown): value is Common.ContentAddressedRef {
+  if (value === null || typeof value !== 'object') return false;
+  const candidate = value as {
+    kind?: unknown;
+    objectType?: unknown;
+    objectId?: unknown;
+    scope?: unknown;
+  };
+  return (
+    candidate.kind === 'CONTENT_ADDRESSED' &&
+    candidate.objectType === 'identity.authorization_decision' &&
+    typeof candidate.objectId === 'string' &&
+    isScope(candidate.scope)
+  );
+}
+
+export function assertSnapshotReference(
+  ref: Common.SnapshotRef,
+  expectedObjectType: string,
+  code: string,
+  subject: string,
+): void {
+  const candidate = ref as unknown as
+    | {
+        kind?: unknown;
+        objectType?: unknown;
+        objectId?: unknown;
+        snapshotId?: unknown;
+        scope?: unknown;
+      }
+    | null
+    | undefined;
+  if (
+    candidate === null ||
+    typeof candidate !== 'object' ||
+    candidate.kind !== 'SNAPSHOT' ||
+    candidate.objectType !== expectedObjectType ||
+    typeof candidate.objectId !== 'string' ||
+    candidate.objectId !== candidate.snapshotId ||
+    !isScope(candidate.scope)
+  ) {
+    throw new SnapshotBoundaryError(code, `${subject} reference metadata is invalid`);
+  }
+}
+
+function isScope(value: unknown): value is Common.ScopeRef {
+  if (value === null || typeof value !== 'object') return false;
+  const candidate = value as { enterpriseId?: unknown; projectId?: unknown };
+  return (
+    Object.keys(candidate).every((key) => key === 'enterpriseId' || key === 'projectId') &&
+    (candidate.enterpriseId === undefined || typeof candidate.enterpriseId === 'string') &&
+    (candidate.projectId === undefined || typeof candidate.projectId === 'string') &&
+    (candidate.projectId === undefined || candidate.enterpriseId !== undefined)
+  );
+}
+
+function sameScope(left: unknown, right: unknown): boolean {
+  if (!isScope(left) || !isScope(right)) return false;
+  return left.enterpriseId === right.enterpriseId && left.projectId === right.projectId;
+}
+
+function scopeRef(
+  scopeKind: ScopeKind,
+  enterpriseId: string,
+  projectId: string | undefined,
+): Common.ScopeRef {
+  if (scopeKind === 'PROJECT' && projectId !== undefined) {
+    return { enterpriseId, projectId };
+  }
+  return { enterpriseId };
+}
+
+function validateScope(
+  scopeKind: ScopeKind,
+  enterpriseId: string,
+  projectId: string | undefined,
+  context: IdentityTransactionContext,
+  code: string,
+  subject: string,
+): void {
+  const candidateScopeKind: string = scopeKind;
+  if (enterpriseId !== context.enterpriseId) {
+    throw new SnapshotBoundaryError(
+      code,
+      `${subject} enterprise scope must match the transaction context`,
+    );
+  }
+  if (scopeKind === 'ENTERPRISE') {
+    if (projectId !== undefined) {
+      throw new SnapshotBoundaryError(code, `${subject} enterprise scope must not carry a project`);
+    }
+    return;
+  }
+  if (
+    candidateScopeKind !== 'PROJECT' ||
+    projectId === undefined ||
+    !context.allowedProjectIds.includes(projectId)
+  ) {
+    throw new SnapshotBoundaryError(code, `${subject} project scope must carry an allowed project`);
+  }
 }
