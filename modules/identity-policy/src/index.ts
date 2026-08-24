@@ -70,6 +70,7 @@ export {
   IDENTITY_BOOTSTRAP_CLAIM_EXPIRED,
   IDENTITY_BOOTSTRAP_CLAIM_CLOSED,
   IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS,
+  IDENTITY_PRINCIPAL_INVALID_KIND,
 } from './commands/register-principal.js';
 export type {
   RegisterPrincipalInput,

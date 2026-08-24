@@ -5,6 +5,7 @@
 // metadata exclusively (IP-API-C-001); there is no directory enumeration.
 
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import type { Common, IdentityPolicy } from '@zhiju/contracts';
 import type { Kysely } from 'kysely';
 import {
   withIdentityTransaction,
@@ -14,7 +15,6 @@ import {
 import { executeIdentityCommand, type CommandResult } from '../persistence/command-runner.js';
 import {
   IDENTITY_EXTERNAL_LINK_CONFLICT,
-  IdentityPersistenceError,
   type ExternalIdentityLinkView,
   type IdentityPolicyRepository,
 } from '../persistence/identity-policy-repository.js';
@@ -50,17 +50,21 @@ export async function linkExternalIdentity(
   deps: IdentityCommandDeps,
   input: LinkExternalIdentityInput,
 ): Promise<CommandResult> {
-  if (!input.verificationMethod.trim() || input.verifiedAt.getTime() > Date.now() + 60_000) {
-    return {
-      status: 'REJECTED',
-      errorCode: IDENTITY_EXTERNAL_IDENTITY_NOT_VERIFIED,
-      safeSummary:
-        'external identity must carry a verification method and a past verification time',
-    };
-  }
-
   const commandId = newUuidV7();
   const linkId = input.linkId ?? newUuidV7();
+  const providerCode = input.providerCode.trim().toLowerCase();
+  const accountExternalId = input.accountExternalId.trim().toLowerCase();
+  const subjectExternalId = input.subjectExternalId.trim().toLowerCase();
+  const accountLookup = deps.crypto.lookupHash.computeKeyedLookupHash(
+    `${providerCode}:${accountExternalId}`,
+  );
+  const subjectLookup = deps.crypto.lookupHash.computeKeyedLookupHash(
+    `${providerCode}:${subjectExternalId}`,
+  );
+  const verifiedAtMs = input.verifiedAt.getTime();
+  const verifiedAt = Number.isFinite(verifiedAtMs)
+    ? input.verifiedAt.toISOString()
+    : 'INVALID_DATE';
   return executeIdentityCommand(
     deps.db,
     deps.context,
@@ -72,16 +76,20 @@ export async function linkExternalIdentity(
       idempotencyKey: input.idempotencyKey,
       requestPayload: {
         principalRef: { objectType: 'Principal', objectId: input.principalId },
-        providerCode: input.providerCode,
-        verifiedAt: input.verifiedAt.toISOString(),
-        verificationMethod: input.verificationMethod,
+        providerCode,
+        verifiedAt,
+        verificationMethod: input.verificationMethod.trim(),
         // requestPayload carries hashes only; raw identifiers are never
         // persisted anywhere, including receipts.
-        accountLookupHash: deps.crypto.lookupHash
-          .computeKeyedLookupHash(
-            `${input.providerCode.trim().toLowerCase()}:${input.accountExternalId.trim().toLowerCase()}`,
-          )
-          .hash.toString('hex'),
+        accountLookupHash: accountLookup.hash.toString('hex'),
+        accountLookupHashAlgorithm: accountLookup.algorithm,
+        accountLookupKeyVersion: accountLookup.keyVersion,
+        subjectLookupHash: subjectLookup.hash.toString('hex'),
+        subjectLookupHashAlgorithm: subjectLookup.algorithm,
+        subjectLookupKeyVersion: subjectLookup.keyVersion,
+        evidenceRefs: input.evidenceRefs,
+        ...(input.displayHint !== undefined ? { displayHint: input.displayHint } : {}),
+        ...(input.linkId !== undefined ? { linkId: input.linkId } : {}),
       },
       platform: true,
       enterpriseId: deps.context.enterpriseId,
@@ -93,6 +101,20 @@ export async function linkExternalIdentity(
       authorizationDecisionId: deps.context.authorizationDecisionId,
     },
     async (execution) => {
+      // Validation stays inside the command runner so the rejection receives
+      // a durable receipt and audit record.
+      if (
+        !input.verificationMethod.trim() ||
+        !Number.isFinite(verifiedAtMs) ||
+        verifiedAtMs > Date.now() + 60_000
+      ) {
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_EXTERNAL_IDENTITY_NOT_VERIFIED,
+          safeSummary:
+            'external identity must carry a verification method and a past verification time',
+        };
+      }
       const principal = await deps.repo.getPrincipalById(execution.trx, input.principalId);
       if (!principal) {
         return {
@@ -117,51 +139,46 @@ export async function linkExternalIdentity(
           safeSummary: 'external identity already linked; the first mapping is kept',
         };
       }
-      try {
-        await deps.repo.insertExternalIdentityLink(execution.trx, {
-          id: linkId,
-          providerCode: input.providerCode,
-          accountExternalId: input.accountExternalId,
-          subjectExternalId: input.subjectExternalId,
-          displayHint: input.displayHint,
-          principalId: input.principalId,
-          verifiedAt: input.verifiedAt,
-          verificationMethod: input.verificationMethod,
-          evidenceRefs: input.evidenceRefs,
-          createdByPrincipalId: deps.context.principalId,
-          createdByActorSnapshotId: deps.context.actorSnapshotId,
-        });
-      } catch (error) {
-        if (
-          error instanceof IdentityPersistenceError &&
-          error.code === IDENTITY_EXTERNAL_LINK_CONFLICT
-        ) {
-          // Provider/account/subject already mapped: keep the first mapping.
-          return {
-            kind: 'REJECTED',
-            errorCode: IDENTITY_EXTERNAL_LINK_CONFLICT,
-            safeSummary: 'external identity already linked; the first mapping is kept',
-          };
-        }
-        throw error;
+      const inserted = await deps.repo.insertExternalIdentityLink(execution.trx, {
+        id: linkId,
+        providerCode,
+        accountExternalId: input.accountExternalId,
+        subjectExternalId: input.subjectExternalId,
+        displayHint: input.displayHint,
+        principalId: input.principalId,
+        verifiedAt: input.verifiedAt,
+        verificationMethod: input.verificationMethod.trim(),
+        evidenceRefs: input.evidenceRefs,
+        createdByPrincipalId: deps.context.principalId,
+        createdByActorSnapshotId: deps.context.actorSnapshotId,
+      });
+      if (!inserted) {
+        // ON CONFLICT DO NOTHING keeps the transaction usable for the
+        // durable business rejection and its receipt/audit rows.
+        return {
+          kind: 'REJECTED',
+          errorCode: IDENTITY_EXTERNAL_LINK_CONFLICT,
+          safeSummary: 'external identity already linked; the first mapping is kept',
+        };
       }
-      const lookupHash = deps.crypto.lookupHash.computeKeyedLookupHash(
-        `${input.providerCode.trim().toLowerCase()}:${input.accountExternalId.trim().toLowerCase()}`,
-      );
       await execution.appendOutbox({
         eventId: newUuidV7(),
         eventType: 'identity.ExternalIdentityLinked',
         eventVersion: '1.0',
-        aggregateType: 'ExternalIdentityLink',
+        aggregateType: 'identity.external_identity_link',
         aggregateId: linkId,
         aggregateVersion: '1',
         payload: externalIdentityLinkedPayload({
           linkId,
           principalId: input.principalId,
-          providerCode: input.providerCode.trim().toLowerCase(),
-          lookupHash: lookupHash.hash,
-          lookupHashAlgorithm: lookupHash.algorithm,
-          canonicalizationVersion: '1',
+          providerCode,
+          accountLookupHash: accountLookup.hash,
+          accountLookupHashAlgorithm: accountLookup.algorithm,
+          accountLookupKeyVersion: accountLookup.keyVersion,
+          subjectLookupHash: subjectLookup.hash,
+          subjectLookupHashAlgorithm: subjectLookup.algorithm,
+          subjectLookupKeyVersion: subjectLookup.keyVersion,
+          scope: { enterpriseId: deps.context.enterpriseId },
         }),
         occurredAt: new Date(),
       });
@@ -169,8 +186,10 @@ export async function linkExternalIdentity(
         kind: 'COMMITTED',
         resultPayload: {
           externalIdentityLinkRef: {
-            objectType: 'ExternalIdentityLink',
+            kind: 'OBJECT',
+            objectType: 'identity.external_identity_link',
             objectId: linkId,
+            scope: { enterpriseId: deps.context.enterpriseId },
           },
         },
       };
@@ -180,25 +199,48 @@ export async function linkExternalIdentity(
 
 export interface ResolvePrincipalInput {
   lookup:
-    | { kind: 'PRINCIPAL_REF'; principalId: string }
+    | { kind: 'PRINCIPAL_REF'; principalRef: Common.ObjectRef }
     | {
         kind: 'EXTERNAL_IDENTITY';
-        providerCode: string;
-        /** Sensitive: only hashed for lookup, never persisted or logged. */
-        accountExternalId: string;
-        subjectExternalId: string;
+        identityKey: IdentityPolicy.ExternalIdentityKey;
       };
   /** When set, a mismatching scope folds the result to NOT_RESOLVED. */
-  requiredEnterpriseId?: string | undefined;
+  requiredScopeRef?: Common.ScopeRef | undefined;
   purpose: string;
 }
 
-export interface PrincipalResolutionView {
-  principalRef: { objectType: 'Principal'; objectId: string };
-  principalKind: string;
-  status: string;
-  displayName: string;
-  resolvedByLinkRef?: { objectType: 'ExternalIdentityLink'; objectId: string };
+export type PrincipalResolutionView = IdentityPolicy.PrincipalResolutionView;
+
+function scopeMatches(
+  scope: Common.ScopeRef | undefined,
+  context: IdentityTransactionContext,
+): boolean {
+  if (scope?.enterpriseId !== undefined && scope.enterpriseId !== context.enterpriseId) {
+    return false;
+  }
+  return scope?.projectId === undefined || context.allowedProjectIds.includes(scope.projectId);
+}
+
+function principalReference(id: string, enterpriseId: string): Common.ObjectRef {
+  return {
+    kind: 'OBJECT',
+    objectType: 'identity.principal',
+    objectId: id,
+    scope: { enterpriseId },
+  };
+}
+
+function externalIdentityLinkReference(id: string, enterpriseId: string): Common.ObjectRef {
+  return {
+    kind: 'OBJECT',
+    objectType: 'identity.external_identity_link',
+    objectId: id,
+    scope: { enterpriseId },
+  };
+}
+
+function presentDisplayName(value: string): IdentityPolicy.ValueEnvelopeString {
+  return { presence: 'PRESENT', value, evidenceRefs: [] };
 }
 
 /**
@@ -210,30 +252,30 @@ export async function resolvePrincipal(
   deps: IdentityCommandDeps,
   input: ResolvePrincipalInput,
 ): Promise<PrincipalResolutionView | undefined> {
-  if (
-    input.requiredEnterpriseId !== undefined &&
-    input.requiredEnterpriseId !== deps.context.enterpriseId
-  ) {
+  if (!scopeMatches(input.requiredScopeRef, deps.context)) {
     return undefined;
   }
   return withIdentityTransaction(deps.db, deps.context, async (trx) => {
     if (input.lookup.kind === 'PRINCIPAL_REF') {
-      const principal = await deps.repo.getPrincipalById(trx, input.lookup.principalId);
+      if (!scopeMatches(input.lookup.principalRef.scope, deps.context)) {
+        return undefined;
+      }
+      const principal = await deps.repo.getPrincipalById(trx, input.lookup.principalRef.objectId);
       return principal
         ? {
-            principalRef: { objectType: 'Principal', objectId: principal.id },
+            principalRef: principalReference(principal.id, deps.context.enterpriseId),
             principalKind: principal.principal_kind,
             status: principal.status,
-            displayName: principal.display_name,
+            displayName: presentDisplayName(principal.display_name),
           }
         : undefined;
     }
     const link: ExternalIdentityLinkView | undefined =
       await deps.repo.findExternalIdentityLinkByLookup(
         trx,
-        input.lookup.providerCode,
-        input.lookup.accountExternalId,
-        input.lookup.subjectExternalId,
+        input.lookup.identityKey.providerCode,
+        input.lookup.identityKey.accountExternalId,
+        input.lookup.identityKey.subjectExternalId,
       );
     if (link?.status !== 'ACTIVE') {
       return undefined;
@@ -243,11 +285,11 @@ export async function resolvePrincipal(
       return undefined;
     }
     return {
-      principalRef: { objectType: 'Principal', objectId: principal.id },
+      principalRef: principalReference(principal.id, deps.context.enterpriseId),
       principalKind: principal.principal_kind,
       status: principal.status,
-      displayName: principal.display_name,
-      resolvedByLinkRef: { objectType: 'ExternalIdentityLink', objectId: link.id },
+      displayName: presentDisplayName(principal.display_name),
+      resolvedByLinkRef: externalIdentityLinkReference(link.id, deps.context.enterpriseId),
     };
   });
 }

@@ -1,8 +1,8 @@
 # Module-Spec-001-IdentityPolicy
 
 版本：v0.1
-日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+日期：2026-08-24
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-07 REVIEW REPAIR VERIFIED 2026-08-24`
 
 ## 1. 模块责任
 
@@ -145,6 +145,7 @@ PolicySnapshotView
 
 ```text
 IDENTITY_PRINCIPAL_KIND_IMMUTABLE
+IDENTITY_PRINCIPAL_INVALID_KIND
 IDENTITY_PRINCIPAL_NOT_ACTIVE
 IDENTITY_EXTERNAL_LINK_CONFLICT
 IDENTITY_EXTERNAL_IDENTITY_NOT_VERIFIED
@@ -172,6 +173,8 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 7. 本模块不存 Provider Token、共享 Human Credential 或长期 Runtime Capability Token。
 8. 其他模块只保存 PrincipalRef、ActorSnapshotRef、AuthorizationDecisionRef，不建立跨 Schema 外键。
 
+WI-07 实现补充约束：公开 Event 与 Query Result 必须直接满足本模块对应的可执行 Schema；ExternalIdentity 的 account/subject lookup hash 共同构成幂等和内容寻址身份；bootstrap claim 的消费必须由同一事务中的行锁或等价条件更新保护；闭集值、验证失败和其他业务拒绝仍需落入 Command receipt/audit 事务边界。
+
 ## 8. 可人工验收的模块产出
 
 里程碑 `API-IP-01` 的人工产出是：用一组脱敏 Fixture 展示同一飞书用户被解析为 HumanPrincipal、仅获 Project A 权限、访问 Project B 被拒绝；同一 Agent 带 actingFor 仍无法获得 Approval/Release Authorization。审核只验证 Contract 设计，不代表真实飞书、RLS 或权限实现通过。
@@ -180,5 +183,5 @@ IDENTITY_DIRECTORY_ENUMERATION_FORBIDDEN
 
 - 20 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- Schema、Registry、Handler、Persistence 和测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- Schema、Registry 与公开 Catalog 已存在；WI-07 Handler、Persistence 和回归测试已按本规格接入，并通过完整静态/契约/真实 PostgreSQL gate；
+- 真实 Keycloak/OIDC、飞书 Adapter、OpenBao 生产加密、外部 E2E 与人工验收保持 `NOT RUN`。

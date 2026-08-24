@@ -10,12 +10,15 @@ import {
   IDENTITY_EXTERNAL_LINK_CONFLICT,
   IDENTITY_EXTERNAL_IDENTITY_NOT_VERIFIED,
   IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS,
+  IDENTITY_PRINCIPAL_INVALID_KIND,
+  IDEMPOTENCY_PAYLOAD_CONFLICT,
   IdentityPolicyRepository,
   linkExternalIdentity,
   registerPrincipal,
   resolvePrincipal,
   type IdentityCryptoPorts,
   type IdentityTransactionContext,
+  type CommandExecutionError,
 } from '@zhiju/identity-policy';
 
 // IM-02 WI-07 (issue #35): register_principal / link_external_identity /
@@ -191,6 +194,42 @@ describe.skipIf(!gateEnabled)('identity command handlers (real PostgreSQL)', () 
       status: 'REJECTED',
       errorCode: IDENTITY_PRINCIPAL_INVALID_INITIAL_STATUS,
     });
+    const receipt = await admin.query<{ outcome: string }>(
+      `SELECT outcome FROM identity_policy.platform_command_receipt
+       WHERE idempotency_key = $1`,
+      ['wi07:register:bad-status'],
+    );
+    expect(receipt.rows[0]?.outcome).toBe('REJECTED');
+  });
+
+  it('rejects an invalid principal kind with a stable code and receipt', async () => {
+    const result = await registerPrincipal(deps(), {
+      principalId: '88888888-8888-7888-8888-888888888806',
+      principalKind: 'INVALID_KIND' as never,
+      displayName: 'Bad kind fixture',
+      initialStatus: 'ACTIVE',
+      idempotencyKey: 'wi07:register:bad-kind',
+    });
+    expect(result).toMatchObject({
+      status: 'REJECTED',
+      errorCode: IDENTITY_PRINCIPAL_INVALID_KIND,
+    });
+    const receipt = await admin.query<{
+      outcome: string;
+      result_payload: { errorCode?: string } | null;
+      error_code: string | null;
+    }>(
+      `SELECT r.outcome, r.result_payload, a.error_code
+       FROM identity_policy.platform_command_receipt r
+       LEFT JOIN identity_policy.platform_audit_record a ON a.command_id = r.command_id
+       WHERE r.idempotency_key = $1`,
+      ['wi07:register:bad-kind'],
+    );
+    expect(receipt.rows[0]).toMatchObject({
+      outcome: 'REJECTED',
+      result_payload: { errorCode: IDENTITY_PRINCIPAL_INVALID_KIND },
+      error_code: IDENTITY_PRINCIPAL_INVALID_KIND,
+    });
   });
 
   it('gates, consumes and audits the one-time bootstrap claim deterministically', async () => {
@@ -273,6 +312,44 @@ describe.skipIf(!gateEnabled)('identity command handlers (real PostgreSQL)', () 
       errorCode: IDENTITY_BOOTSTRAP_CLAIM_CONSUMED,
     });
 
+    // Concurrent claim consumers must have exactly one winner. The row lock
+    // is the database-level adjudicator; both commands still finish with a
+    // durable receipt instead of one overwriting the claim.
+    const concurrentClaim = await createBootstrapClaim(deps(), {
+      purpose: 'wi07.concurrent-claim',
+      operatorDescription: 'wi07 concurrent operator fixture',
+      operatorActorSnapshotId: OPERATOR_ACTOR,
+      operatorAuthorizationDecisionId: DECISION,
+      reason: 'concurrent claim fixture',
+      evidenceRefs: {},
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
+    const concurrentResults = await Promise.all([
+      registerPrincipal(deps(), {
+        principalId: '88888888-8888-7888-8888-888888888807',
+        principalKind: 'HUMAN',
+        displayName: 'Concurrent winner A',
+        initialStatus: 'ACTIVE',
+        bootstrapClaimId: concurrentClaim.claimId,
+        idempotencyKey: 'wi07:register:concurrent-a',
+      }),
+      registerPrincipal(deps(), {
+        principalId: '88888888-8888-7888-8888-888888888808',
+        principalKind: 'AGENT',
+        displayName: 'Concurrent loser B',
+        initialStatus: 'ACTIVE',
+        bootstrapClaimId: concurrentClaim.claimId,
+        idempotencyKey: 'wi07:register:concurrent-b',
+      }),
+    ]);
+    expect(concurrentResults.map((result) => result.status).sort()).toEqual([
+      'COMMITTED',
+      'REJECTED',
+    ]);
+    expect(concurrentResults.find((result) => result.status === 'REJECTED')).toMatchObject({
+      errorCode: IDENTITY_BOOTSTRAP_CLAIM_CONSUMED,
+    });
+
     // A permanently closed claim can never be used again (closed by WI-08
     // in production; here closed directly to pin the behavior).
     const closed = await createBootstrapClaim(deps(), {
@@ -337,22 +414,59 @@ describe.skipIf(!gateEnabled)('identity command handlers (real PostgreSQL)', () 
       verifiedAt,
       verificationMethod: 'wi07.manual-check',
       evidenceRefs: { ticket: 'WI-07' },
+      displayHint: 'feishu user (redacted)',
       idempotencyKey: 'wi07:link:human-feishu',
     });
     expect(replay).toMatchObject({ status: 'DUPLICATE', originalOutcome: 'COMMITTED' });
 
+    // The subject participates in the idempotency request hash. Reusing the
+    // same key for a different subject is a payload conflict, not a duplicate.
+    await expect(
+      linkExternalIdentity(deps(), {
+        principalId: HUMAN,
+        providerCode: 'FEISHU',
+        accountExternalId: RAW_ACCOUNT,
+        subjectExternalId: 'om_wi07-different-subject@example.com',
+        verifiedAt,
+        verificationMethod: 'wi07.manual-check',
+        evidenceRefs: { ticket: 'WI-07' },
+        idempotencyKey: 'wi07:link:human-feishu',
+      }),
+    ).rejects.toMatchObject({
+      code: IDEMPOTENCY_PAYLOAD_CONFLICT,
+    } satisfies Partial<CommandExecutionError>);
+
     const resolved = await resolvePrincipal(deps(), {
       lookup: {
         kind: 'EXTERNAL_IDENTITY',
-        providerCode: 'feishu',
-        accountExternalId: RAW_ACCOUNT,
-        subjectExternalId: RAW_SUBJECT,
+        identityKey: {
+          providerCode: 'feishu',
+          accountExternalId: RAW_ACCOUNT,
+          subjectExternalId: RAW_SUBJECT,
+        },
       },
       purpose: 'wi07.resolve',
     });
-    expect(resolved?.principalRef.objectId).toBe(HUMAN);
-    expect(resolved?.principalKind).toBe('HUMAN');
-    expect(resolved?.resolvedByLinkRef?.objectType).toBe('ExternalIdentityLink');
+    expect(resolved).toMatchObject({
+      principalRef: {
+        kind: 'OBJECT',
+        objectType: 'identity.principal',
+        objectId: HUMAN,
+        scope: { enterpriseId: ENTERPRISE_A },
+      },
+      principalKind: 'HUMAN',
+      status: 'ACTIVE',
+      displayName: {
+        presence: 'PRESENT',
+        value: 'WI-07 HUMAN fixture',
+        evidenceRefs: [],
+      },
+      resolvedByLinkRef: {
+        kind: 'OBJECT',
+        objectType: 'identity.external_identity_link',
+        scope: { enterpriseId: ENTERPRISE_A },
+      },
+    });
 
     // Scope-folded lookup: another enterprise context must not resolve.
     const foldedContext = { ...context, enterpriseId: ENTERPRISE_B };
@@ -361,11 +475,13 @@ describe.skipIf(!gateEnabled)('identity command handlers (real PostgreSQL)', () 
       {
         lookup: {
           kind: 'EXTERNAL_IDENTITY',
-          providerCode: 'feishu',
-          accountExternalId: RAW_ACCOUNT,
-          subjectExternalId: RAW_SUBJECT,
+          identityKey: {
+            providerCode: 'feishu',
+            accountExternalId: RAW_ACCOUNT,
+            subjectExternalId: RAW_SUBJECT,
+          },
         },
-        requiredEnterpriseId: ENTERPRISE_A,
+        requiredScopeRef: { enterpriseId: ENTERPRISE_A },
         purpose: 'wi07.cross-scope-probe',
       },
     );
@@ -375,9 +491,11 @@ describe.skipIf(!gateEnabled)('identity command handlers (real PostgreSQL)', () 
     const unknown = await resolvePrincipal(deps(), {
       lookup: {
         kind: 'EXTERNAL_IDENTITY',
-        providerCode: 'feishu',
-        accountExternalId: 'ou_unknown@example.com',
-        subjectExternalId: 'om_unknown@example.com',
+        identityKey: {
+          providerCode: 'feishu',
+          accountExternalId: 'ou_unknown@example.com',
+          subjectExternalId: 'om_unknown@example.com',
+        },
       },
       purpose: 'wi07.unknown',
     });
@@ -416,13 +534,50 @@ describe.skipIf(!gateEnabled)('identity command handlers (real PostgreSQL)', () 
     const stillHuman = await resolvePrincipal(deps(), {
       lookup: {
         kind: 'EXTERNAL_IDENTITY',
-        providerCode: 'feishu',
-        accountExternalId: RAW_ACCOUNT,
-        subjectExternalId: RAW_SUBJECT,
+        identityKey: {
+          providerCode: 'feishu',
+          accountExternalId: RAW_ACCOUNT,
+          subjectExternalId: RAW_SUBJECT,
+        },
       },
       purpose: 'wi07.post-conflict',
     });
     expect(stillHuman?.principalRef.objectId).toBe(HUMAN);
+  });
+
+  it('adjudicates concurrent external identity conflicts inside live transactions', async () => {
+    const concurrentInputs = [
+      {
+        principalId: AGENT,
+        idempotencyKey: 'wi07:link:concurrent-agent',
+      },
+      {
+        principalId: SERVICE,
+        idempotencyKey: 'wi07:link:concurrent-service',
+      },
+    ] as const;
+    const outcomes = await Promise.allSettled(
+      concurrentInputs.map(({ principalId, idempotencyKey }) =>
+        linkExternalIdentity(deps(), {
+          principalId,
+          providerCode: 'FEISHU',
+          accountExternalId: 'ou_wi07-concurrent@example.com',
+          subjectExternalId: 'om_wi07-concurrent@example.com',
+          verifiedAt: new Date(Date.now() - 60_000),
+          verificationMethod: 'wi07.concurrent-check',
+          evidenceRefs: { ticket: 'WI-07' },
+          idempotencyKey,
+        }),
+      ),
+    );
+    expect(outcomes.every((outcome) => outcome.status === 'fulfilled')).toBe(true);
+    const results = outcomes.map((outcome) =>
+      outcome.status === 'fulfilled' ? outcome.value : undefined,
+    );
+    expect(results.map((result) => result?.status).sort()).toEqual(['COMMITTED', 'REJECTED']);
+    expect(results.find((result) => result?.status === 'REJECTED')).toMatchObject({
+      errorCode: IDENTITY_EXTERNAL_LINK_CONFLICT,
+    });
   });
 
   it('rejects unverified external identities', async () => {
@@ -439,6 +594,22 @@ describe.skipIf(!gateEnabled)('identity command handlers (real PostgreSQL)', () 
     expect(result).toMatchObject({
       status: 'REJECTED',
       errorCode: IDENTITY_EXTERNAL_IDENTITY_NOT_VERIFIED,
+    });
+    const receipt = await admin.query<{
+      outcome: string;
+      result_payload: { errorCode?: string } | null;
+      error_code: string | null;
+    }>(
+      `SELECT r.outcome, r.result_payload, a.error_code
+       FROM identity_policy.platform_command_receipt r
+       LEFT JOIN identity_policy.platform_audit_record a ON a.command_id = r.command_id
+       WHERE r.idempotency_key = $1`,
+      ['wi07:link:unverified'],
+    );
+    expect(receipt.rows[0]).toMatchObject({
+      outcome: 'REJECTED',
+      result_payload: { errorCode: IDENTITY_EXTERNAL_IDENTITY_NOT_VERIFIED },
+      error_code: IDENTITY_EXTERNAL_IDENTITY_NOT_VERIFIED,
     });
   });
 });
