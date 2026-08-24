@@ -40,10 +40,17 @@ async function query(containerId, sql) {
 
 function runVitest(env) {
   return new Promise((resolve, reject) => {
-    const child = spawn('pnpm', ['exec', 'vitest', 'run', 'tests/persistence'], {
-      env: { ...process.env, ...env },
-      stdio: 'inherit',
-    });
+    // Persistence fixtures share one disposable database. Some negative ACL
+    // cases temporarily revoke a role privilege, so file-level parallelism
+    // could make an unrelated transaction observe that deliberate failure.
+    const child = spawn(
+      'pnpm',
+      ['exec', 'vitest', 'run', 'tests/persistence', '--no-file-parallelism'],
+      {
+        env: { ...process.env, ...env },
+        stdio: 'inherit',
+      },
+    );
     child.on('exit', (code) =>
       code === 0 ? resolve() : reject(new Error(`vitest exited with ${code}`)),
     );

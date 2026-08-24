@@ -2,7 +2,7 @@
 
 日期：2026-08-24（Issue #9 退出 Gate 汇总；IM-02 远端交付快照）
 环境：macOS/zsh；Node.js `v24.19.0`、pnpm `11.19.0`、TypeScript `6.0.3`
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 PARTIAL / DELIVERY PR #51 OPEN`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 CLOSEOUT BLOCKED / FOLLOW-UP REPAIR VERIFIED / PR #51 MERGED / ISSUE #28 OPEN`
 权威退出证据：[`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)
 
 ## 1. 验证范围
@@ -60,7 +60,7 @@ runtime_proposals=6 isolated
 
 ## 5. 剩余风险
 
-1. IM-01 已标记 `COMPLETE`；IM-02 已进入 `PARTIAL` 交付状态。PR #51 exact-head CI 已 `SUCCESS`，复审无新增语义发现；用户人工 Runbook、真实 Provider、跨模块业务 E2E 和生产验收仍未运行，PR 也尚未 merge。
+1. IM-01 已标记 `COMPLETE`；IM-02 已进入 `CLOSEOUT BLOCKED` 状态。PR #51 已合并，合并后独立 Persistence Gate 在 WI-09 DENY Audit 处暴露测试文件并行共享 ACL 竞态；跟进修复分支已连续两次通过 Persistence Gate 和三个 local Probe，但修复 PR 尚未合并回默认分支；用户人工 Runbook、真实 Provider、跨模块业务 E2E 和生产验收仍未运行。
 2. #5 的字段 Schema 子切片已由 PR #14 完成；用户后续批准将其余 Runtime Owner 迁移至 #22–#24，并按字段 Schema 边界关闭 #5。该范围迁移不得解释为 Runtime 已 `PASS`。
 3. 单台 Ubuntu 主机、单节点 MicroCeph/OpenBao/Keycloak 的主机故障容忍度为 0；独立备份与恢复演练是 Formal Release 前置条件。
 4. Ceph RGW 官方声明 Vault Transit 集成，OpenBao 只承诺 Vault API compatibility；二者组合必须在后续里程碑实测，失败时重开 IM-DG-003，不能降级明文。
@@ -88,5 +88,5 @@ runtime_proposals=6 isolated
 |---|---|---|
 | IM-00 Decision Baseline | `COMPLETE` | IM-DG-001 至 IM-DG-004 已完成用户确认。 |
 | IM-01 Repository + Executable Contracts | `COMPLETE` | Issue #9 / PR #20；本报告第 2–3 节及专项 Verification Report。 |
-| IM-02 PostgreSQL Foundation + IdentityPolicy | `PARTIAL` | 本地真实 PostgreSQL、全量自动化、WI-06/WI-07/WI-10 Probe 已通过；交付 PR [#51](https://github.com/qzhike/zhiju-business-core/pull/51) 面向 `main`，exact-head CI 已 `SUCCESS` 且复审无新增语义发现；merge、人工/外部边界未完成；Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 保持 OPEN。 |
+| IM-02 PostgreSQL Foundation + IdentityPolicy | `CLOSEOUT BLOCKED` | PR [#51](https://github.com/qzhike/zhiju-business-core/pull/51) 已合入 `main`；合并后干净默认分支独立 Gate 受到 WI-10 全局 ACL 失败注入竞态影响，跟进分支的隔离修复已通过两次独立 Gate 与三个 local Probe；需先合并修复并重跑默认分支证据；Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 保持 OPEN。 |
 | IM-03–IM-09 | `NOT STARTED / DEFERRED` | 依赖 IM-02 退出 Gate；不因 PR #51 的创建或本地 PASS 提前开始。 |
