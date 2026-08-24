@@ -413,7 +413,7 @@ export async function revokeRole(
         eventVersion: '1.0',
         aggregateType: 'RoleAssignment',
         aggregateId: input.targetId,
-        aggregateVersion: String(Number(input.expectedAggregateVersion) + 1),
+        aggregateVersion: (BigInt(input.expectedAggregateVersion) + 1n).toString(),
         payload: {
           enterpriseId: input.scope.enterpriseId,
           ...(input.scope.projectId !== undefined ? { projectId: input.scope.projectId } : {}),
@@ -741,7 +741,7 @@ export async function revokeCapability(
         eventVersion: '1.0',
         aggregateType: 'CapabilityGrant',
         aggregateId: input.targetId,
-        aggregateVersion: String(Number(input.expectedAggregateVersion) + 1),
+        aggregateVersion: (BigInt(input.expectedAggregateVersion) + 1n).toString(),
         payload: {
           enterpriseId: input.scope.enterpriseId,
           ...(input.scope.projectId !== undefined ? { projectId: input.scope.projectId } : {}),

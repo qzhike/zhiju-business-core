@@ -37,6 +37,21 @@ export class CommandExecutionError extends Error {
   }
 }
 
+function nextAggregateVersion(expectedVersion: string): string {
+  try {
+    const parsed = BigInt(expectedVersion);
+    if (parsed < 1n) {
+      throw new Error('aggregate version must be positive');
+    }
+    return (parsed + 1n).toString();
+  } catch {
+    throw new CommandExecutionError(
+      COMMAND_TARGET_MISMATCH,
+      'expected aggregate version must be a positive bigint',
+    );
+  }
+}
+
 export interface CommandEnvelope {
   commandId: string;
   commandType: string;
@@ -409,19 +424,7 @@ function createExecution(
           'CAS target and expected version must match the command envelope',
         );
       }
-      let nextVersion: string;
-      try {
-        const parsed = BigInt(expectedVersion);
-        if (parsed < 1n) {
-          throw new Error('aggregate version must be positive');
-        }
-        nextVersion = (parsed + 1n).toString();
-      } catch {
-        throw new CommandExecutionError(
-          COMMAND_TARGET_MISMATCH,
-          'expected aggregate version must be a positive bigint',
-        );
-      }
+      const nextVersion = nextAggregateVersion(expectedVersion);
       const updated = await trx
         .updateTable('identity_policy.principal')
         .set({
@@ -449,7 +452,13 @@ function createExecution(
       return 'CONFLICT';
     },
     async casScopedAssignmentStatus(table, id, expectedVersion, patch) {
-      const nextVersion = Number(expectedVersion) + 1;
+      if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {
+        throw new CommandExecutionError(
+          COMMAND_TARGET_MISMATCH,
+          'CAS target and expected version must match the command envelope',
+        );
+      }
+      const nextVersion = nextAggregateVersion(expectedVersion);
       const updated =
         table === 'role_assignment'
           ? await trx

@@ -701,6 +701,50 @@ describe.skipIf(!gateEnabled)(
         status: 'REJECTED',
         errorCode: IDENTITY_CAPABILITY_NOT_ACTIVE,
       });
+
+      // Scoped CAS and the corresponding event must preserve PostgreSQL
+      // bigint precision beyond JavaScript's safe integer range.
+      const highVersionAssignmentId = 'b4b4b4b4-b4b4-74b4-84b4-b4b4b4b4b412';
+      const highVersion = '9007199254740993';
+      const highVersionAssignment = await assignRole(deps(), {
+        assignmentId: highVersionAssignmentId,
+        principalId: HUMAN,
+        roleCode: 'wi08.high-version',
+        scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
+        validFrom: new Date(),
+        justification: 'bigint precision fixture',
+        idempotencyKey: 'wi08:assign:high-version',
+      });
+      expect(highVersionAssignment).toMatchObject({ status: 'COMMITTED' });
+      await admin.query(
+        `UPDATE identity_policy.role_assignment
+            SET aggregate_version = $1
+          WHERE id = $2`,
+        [highVersion, highVersionAssignmentId],
+      );
+      const highVersionRevoke = await revokeRole(deps(), {
+        targetId: highVersionAssignmentId,
+        expectedAggregateVersion: highVersion,
+        scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
+        reasonCode: 'wi08.high-version-revoke',
+        effectiveAt: new Date(),
+        idempotencyKey: 'wi08:revoke:high-version',
+      });
+      expect(highVersionRevoke).toMatchObject({ status: 'COMMITTED' });
+      const highVersionRow = await admin.query<{ aggregate_version: string }>(
+        `SELECT aggregate_version::text
+           FROM identity_policy.role_assignment
+          WHERE id = $1`,
+        [highVersionAssignmentId],
+      );
+      expect(highVersionRow.rows[0]?.aggregate_version).toBe('9007199254740994');
+      const highVersionEvent = await admin.query<{ aggregate_version: string }>(
+        `SELECT aggregate_version::text
+           FROM identity_policy.outbox_event
+          WHERE aggregate_id = $1 AND event_type = 'identity.RoleRevoked'`,
+        [highVersionAssignmentId],
+      );
+      expect(highVersionEvent.rows[0]?.aggregate_version).toBe('9007199254740994');
     });
 
     it('bootstraps the first admin role and permanently closes the bootstrap claim', async () => {
