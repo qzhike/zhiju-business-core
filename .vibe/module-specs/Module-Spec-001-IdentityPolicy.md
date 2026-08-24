@@ -225,7 +225,7 @@ IdentityPolicy owning schema 的 WI-10 实现只负责本模块技术表上的 O
 - Schema、Registry 与公开 Catalog 已存在；WI-05 PostgreSQL 关系模型、低层 Repository 与 focused persistence tests 已自动验证通过；
 - WI-06 真实 PostgreSQL Command transaction runner 的原子 Claim、Context 绑定、精确 CAS、REJECTED current version 与 Reference Edge/Outbox 回滚已自动验证通过；
 - WI-07 Handler、Persistence 和回归测试已按本规格接入，并通过完整静态/契约/真实 PostgreSQL gate；本地手工 Probe 的 AES-256-GCM 测试 Port 必须在 `cipher.final()` 后读取 authentication tag，避免测试替身自身的状态错误混入生产实现结论；
-- 公开 Handler 的外部 Provider 接入、真实 OpenBao/Keycloak/飞书 Adapter、业务 E2E 与人工验收仍为 `NOT RUN`；WI-10 初始 Outbox/Inbox 持久化切片已在 PR #50 提交并推送。最新 base `0fc8e464…` 已正常合并；messaging fixture 的 `platform_context_establisher` membership、Enterprise Grant 覆盖 Project Intent、typed Aggregate ordering 与未经验证 Event Scope 回归均已在当前工作树修复，重新编译后真实 PostgreSQL gate 为 `12 files / 177 tests PASS`，空库迁移与二次 migrate no-op 通过，容器已清理；最终 `pnpm clean && pnpm verify` 通过，Vitest 为 `20 passed | 10 skipped`、`341 passed | 164 skipped`，架构、Catalog/Registry 与兼容性检查通过；WI-06/WI-07/WI-10 disposable local Probe 也全部通过。后续修正尚待提交、推送并完成 exact-head CI 与语义复审。
+- 公开 Handler 的外部 Provider 接入、真实 OpenBao/Keycloak/飞书 Adapter、业务 E2E 与人工验收仍为 `NOT RUN`；WI-10 初始 Outbox/Inbox 持久化切片已在 PR #50 提交并推送。最新 base `0fc8e464…` 已正常合并；messaging fixture 的 `platform_context_establisher` membership、Enterprise Grant 覆盖 Project Intent、typed Aggregate ordering 与未经验证 Event Scope 回归均已在提交 `47a2a9d` 修复，重新编译后真实 PostgreSQL gate 为 `12 files / 177 tests PASS`，空库迁移与二次 migrate no-op 通过，容器已清理；最终 `pnpm clean && pnpm verify` 通过，Vitest 为 `20 passed | 10 skipped`、`341 passed | 164 skipped`，架构、Catalog/Registry 与兼容性检查通过；WI-06/WI-07/WI-10 disposable local Probe 也全部通过。修复已由跟进 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 推送到远端，exact-head CI 与语义复审仍待完成。
 
 ## 10. IM-02 WI-04 持久化切片
 

@@ -4,7 +4,7 @@
 
 依据 GitHub Issue #28，对 IM-02 PostgreSQL Foundation + IdentityPolicy 的当前集成工作树执行可复核验收；定位并修复阻塞 WI-06 至 WI-10 核心验收的最小代码/测试问题，保留默认分支交付、exact-head review、外部系统和用户人工验收的独立边界。
 
-除用户另行授权外，本任务不执行 commit、push、PR merge 或 Issue 关闭。代码和文档均先保留在当前工作树，等待用户检查。
+本轮已获得用户对远端交付和进度同步的明确授权；允许非 force push、创建跟进 PR 和更新 PR/Issue/进度文档，但不自动 merge PR 或关闭 Issue #28。
 
 ## 验收原则
 
@@ -18,7 +18,7 @@
 ## 已执行步骤
 
 1. **GitHub 与默认分支核对**：确认 #29–#38 为 CLOSED，PR #39/#41/#43/#44/#45 已进入 `main`；PR #46–#50 虽显示 MERGED，但仍是连续 stacked feature branch，相关提交不在 `origin/main`。
-2. **本地集成**：在当前工作树执行 no-commit/no-ff 集成，保留 WI-06–WI-10 代码、Migration、Review、Runbook 和 Persistence 测试；未创建 commit。
+2. **本地集成**：在当前工作树执行 no-commit/no-ff 集成，保留 WI-06–WI-10 代码、Migration、Review、Runbook 和 Persistence 测试；随后由用户确认并提交为 `47a2a9d`。
 3. **语义修复**：
    - 授权 Grant 覆盖改为精确匹配 Intent 的 `scopeKind + enterpriseId + projectId`；Enterprise Grant 不再覆盖 Project Intent，Access effective lists 同步采用精确 Scope。
    - Decision Port 的业务性 `DENY` 与同 Scope 安全 Audit 在同一事务内提交，Audit 只保存 reason code、hash 和脱敏摘要。
@@ -37,5 +37,5 @@
 
 ## 交付边界
 
-- 当前工作树是本地 no-commit 集成结果，`HEAD` 与 `origin/main` 仍为 `505a7020b171739a88830b55cb84a94f7afb6fb3`；不能把本地工作树结果写成默认分支已经完成。
-- 本任务结束时只交付可检查的代码、测试、规格、Runbook 和验收报告；用户检查并确认后，才进入独立的 commit/push/merge/Issue 关闭流程。
+- 当前远端跟踪分支 `galendai/28-im-02-postgresql-foundation-identitypolicy` 指向 `47a2a9d`，`origin/main` 仍为 `505a702`；PR #51 负责将集成结果带入 `main`，不能把 PR 创建或本地结果写成默认分支已经完成。
+- 本轮已完成 commit/push 和 PR/Issue/进度文档同步；PR #51 的 exact-head review/CI、外部系统和用户人工验收仍需独立完成，Issue #28 保持 `PARTIAL / OPEN`。

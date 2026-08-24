@@ -2,14 +2,14 @@
 
 ## 1. 结论
 
-截至 2026-08-24，本地 no-commit 集成工作树已经完成 WI-06–WI-10 的核心代码修复、真实 PostgreSQL 回归和 disposable local Probe。当前工作树的核心自动化验收结果为 PASS，但 Issue #28 仍不能标记 COMPLETE，也不能现在关闭，结论为：
+截至 2026-08-24，已确认的 WI-06–WI-10 集成代码、核心修复、真实 PostgreSQL 回归、disposable local Probe 和验收文档已提交为 `47a2a9d` 并推送到远端跟进分支；面向 `main` 的交付 PR 为 [#51](https://github.com/qzhike/zhiju-business-core/pull/51)。当前集成验证结果为 PASS，但 Issue #28 仍不能标记 COMPLETE，也不能现在关闭，结论为：
 
 > 本地核心实现：PASS；IM-02 Issue #28：PARTIAL，保持 OPEN。
 
 仍未满足的退出条件不是本地代码门禁，而是交付与验收边界：
 
-1. PR #46–#50 虽在 GitHub 显示 MERGED，但它们是连续 stacked feature branch；对应提交尚未进入当前 origin/main。
-2. 本轮修复尚未 commit/push，未在远端最新 exact head 上重新完成 CI 与独立语义复审。
+1. PR #46–#50 虽在 GitHub 显示 MERGED，但它们是连续 stacked feature branch；对应提交尚未进入当前 origin/main。PR #51 已创建并以 `main` 为 base，等待完成交付。
+2. 本轮修复已经 commit/push，但 PR #51 的最新 exact head 尚未完成独立语义复审与 CI。
 3. 真实 Keycloak/OIDC、OpenBao、飞书、生产 Broker/Provider、跨模块 HTTP/业务 E2E、生产负载和用户最终人工业务验收没有执行，继续保持 NOT RUN。
 4. 本地脚本 Probe 是可重复的自动化/脱敏 Fixture 证据，不等同于用户亲自按 Runbook 完成最终人工验收。
 
@@ -20,21 +20,22 @@
 | 项目 | 实际值 |
 |---|---|
 | 工作树 | galendai/28-im-02-postgresql-foundation-identitypolicy |
-| HEAD | 505a7020b171739a88830b55cb84a94f7afb6fb3 |
+| HEAD | `47a2a9d` (`fix: repair IM-02 PostgreSQL and IdentityPolicy acceptance gates`) |
 | origin/main | 505a7020b171739a88830b55cb84a94f7afb6fb3 |
-| 本地集成方式 | no-commit / no-ff；WI-06–WI-10 及本轮修复保留在 index/worktree |
-| 顶层 PR 栈 | PR #46–#50；PR #50 原始 head 10a28d7… |
-| Git commit/push/merge | 本轮均未执行 |
+| 远端跟踪分支 | `origin/galendai/28-im-02-postgresql-foundation-identitypolicy` → `47a2a9d` |
+| 本地集成方式 | 保留 WI-06–WI-10 stacked history，并以 `47a2a9d` 作为验收修复提交 |
+| 顶层 PR 栈 | PR #46–#50；跟进交付 PR [#51](https://github.com/qzhike/zhiju-business-core/pull/51) |
+| Git commit/push/merge | commit `47a2a9d` 已 commit/push；PR #51 尚未 merge |
 | Issue #28 | OPEN；本报告不关闭 Issue |
 | Node.js / pnpm | v24.19.0 / 11.19.0 |
 | Docker | 29.4.0 |
 | 数据库 | 每次 Gate/Probe 均为 disposable local database；未连接生产环境 |
 
-HEAD 与 origin/main 相同不代表当前工作树为空：本次 no-commit 集成的文件处于 staged/unstaged working-tree 状态。必须在用户检查并确认后，才可进入独立 commit/push/merge 流程。
+`origin/main` 仍停留在 `505a702`，而远端跟踪分支已包含 `47a2a9d`；这正是 PR #51 尚未合并前的预期状态。当前文档同步完成后，工作树应保持干净；不得把 PR #51 创建或本地验证 PASS 解释为默认分支已完成。
 
 ## 3. Issue #28 前置 Work Item 与默认分支
 
-GitHub 核对结果：#29–#38 均为 CLOSED；PR #39/#41/#43/#44/#45 已合入 main。PR #46–#50 的代码在当前本地集成工作树可用，但其 base 是前一个功能分支，而不是 main。
+GitHub 核对结果：#29–#38 均为 CLOSED；PR #39/#41/#43/#44/#45 已合入 main。PR #46–#50 的代码已在各自前序 feature branch 合并；PR #51 是把当前集成结果带入 main 的跟进交付入口。
 
 | Work Item | Issue | PR | PR base | GitHub 状态 | 当前 origin/main 结论 |
 |---|---:|---:|---|---|---|
@@ -48,6 +49,7 @@ GitHub 核对结果：#29–#38 均为 CLOSED；PR #39/#41/#43/#44/#45 已合入
 | WI-08 | #36 | #48 | WI-07 branch | CLOSED / MERGED | FAIL：未进入 main |
 | WI-09 | #37 | #49 | WI-08 branch | CLOSED / MERGED | FAIL：未进入 main |
 | WI-10 | #38 | #50 | WI-09 branch | CLOSED / MERGED | FAIL：未进入 main |
+| 集成交付 | #28 | [#51](https://github.com/qzhike/zhiju-business-core/pull/51) | main | OPEN | 等待 exact-head review/CI |
 
 此前的 ancestor 核对对 WI-06–WI-10 均返回 NOT_IN_MAIN。所以“所有前置 Issue 已关闭”不能单独满足 Issue #28 的“对应 PR 已合入默认分支”条件。
 
@@ -155,7 +157,7 @@ WI-01–WI-05 的本地真实数据库与手工反例此前也已执行：版本
 
 | Issue #28 条件 | 当前本地结论 | 证据与边界 |
 |---|---|---|
-| #29–#38 全部关闭且对应 PR 合入默认分支 | FAIL | #34–#38 的 PR #46–#50 尚未进入 origin/main。 |
+| #29–#38 全部关闭且对应 PR 合入默认分支 | PARTIAL | #29–#38 已关闭；#34–#38 的 PR #46–#50 尚未进入 origin/main，跟进 PR #51 已面向 main 创建但未合并。 |
 | 锁定依赖恢复、空库 Migration、重复 Migration | PASS (LOCAL INTEGRATION) | pnpm clean && pnpm verify、独立 Persistence Gate；PG 18.6/Flyway 11.20.3；二次 migrate no-op。 |
 | WI-06 Command 原子事务、幂等/CAS、业务拒绝 current version | PASS (LOCAL INTEGRATION) | 真实 PostgreSQL 12 files/177 tests 与 WI-06 disposable Probe。 |
 | WI-07 Principal/External Identity/Bootstrap、脱敏 Event | PASS (LOCAL INTEGRATION) | 真实 Gate 与 WI-07 disposable Probe；原始标识未泄漏。 |
@@ -166,20 +168,19 @@ WI-01–WI-05 的本地真实数据库与手工反例此前也已执行：版本
 | WI-02–WI-04 Runbook 原命令可复现 | PASS (DOCUMENT REPAIR) | 已修订预定义角色、hash、role 切换、容器内 walker 与 audit seed 说明；用户仍需最终人工执行。 |
 | 用户按 Runbook 完成最小权限/RLS/幂等/CAS/Replay/脱敏授权链 | PARTIAL | 本地 Probe 和数据库反例通过，但用户最终人工操作未执行。 |
 | Keycloak/OpenBao/Ceph/飞书/Renderer/Provider/生产负载 | NOT RUN | 无生产凭据/外部环境，本任务不扩大权限。 |
-| 用户审核证据后标记 COMPLETE | NOT RUN | 用户尚未检查并确认；Issue #28 继续 OPEN。 |
+| 用户完成最终人工验收后标记 COMPLETE | NOT RUN | 用户尚未完成最终人工 Runbook 验收；Issue #28 继续 OPEN。 |
 
 ## 8. 清理与工作树状态
 
 - pnpm persistence:gate 及 WI-06/WI-07/WI-10 Probe 创建的 PostgreSQL 容器均已删除。
 - 未删除既有 qm-dev-postgres（postgres:16-alpine，运行约两周）或其相关数据；它不属于本次 disposable 验收环境。
 - 本轮没有创建需要保留的临时测试脚本或测试文件；Probe 通过 Node inline runner 执行，测试数据库随容器删除。
-- 当前工作树保留本地集成代码、测试、Migration、规格、Runbook、Review 文档和本报告；没有 commit/push/merge。
-- Git 状态应继续由用户检查；不要使用 destructive reset/checkout 覆盖这些待审变更。
+- 当前远端跟踪分支保留本地集成代码、测试、Migration、规格、Runbook、Review 文档和本报告；本轮 `47a2a9d` 已 commit/push，PR #51 尚未 merge。
+- 文档同步提交后应保持工作树干净；不要使用 destructive reset/checkout 覆盖当前交付历史。
 
 ## 9. 下一步
 
-1. 用户先检查当前工作树代码、规格、Module-Test、Runbook 和本报告。
-2. 用户确认后，另行授权并执行针对明确路径的 commit；随后 push 到非 force 分支。
-3. 在新的远端 exact PR head 上重新执行 semantic review、CI 和真实 PostgreSQL Gate。
-4. 按 Issue #28 从新的 main checkout 重新核对 #29–#38、Runbook 与人工证据；外部/生产项目仍只有在具备授权和环境后执行。
-5. 只有默认分支交付、exact-head 证据和用户最终人工验收都完成后，才考虑显式关闭 Issue #28。
+1. 在 PR #51 的最新 exact head 上完成独立 semantic review、CI 和真实 PostgreSQL Gate 回读。
+2. 按 Issue #28 从新的 `main` checkout 重新核对 #29–#38、Runbook 与人工证据；外部/生产项目仍只有在具备授权和环境后执行。
+3. 用户按 Runbook 完成最小权限、RLS、幂等/CAS、Replay/Quarantine 和脱敏授权链的最终人工验收。
+4. 只有默认分支交付、exact-head 证据和用户最终人工验收都完成后，才考虑显式关闭 Issue #28。
