@@ -33,9 +33,9 @@
 
 - WI-06–WI-10 的本地核心实现、迁移、Persistence 回归、Scope/ACL 负例和可重复 Probe 均有实际输出：已满足。
 - 规格、模块测试、WI Runbook 和 Issue #28 验收报告反映当前本地工作树实际结果：已同步。
-- Issue #28 的默认分支交付、合并后数据库证据、PR #53 文档收口、最终 main 完整 verify 和 Agent-executed local Runbook 已完成；外部 Provider/Broker/跨模块 E2E 仍为 `NOT RUN`，IM-02 已记录 `COMPLETE`，Issue 仅待关闭。
+- Issue #28 的默认分支交付、合并后数据库证据、PR #53/#54/#55 文档收口、最终 main 完整 verify、Agent-executed local Runbook 和 Issue CLOSED 动作已完成；外部 Provider/Broker/跨模块 E2E 仍为 `NOT RUN`，IM-02 已记录 `COMPLETE`。
 
 ## 交付边界
 
-- `origin/main` 当前为 PR #53 merge commit `3682511`；PR #51/#52/#53 exact-head CI、复审记录、合并祖先关系、最终完整 verify 和容器清理均已回读。
-- 当前工作已完成；外部系统仍保持 `NOT RUN`，剩余远端动作仅为关闭 Issue #28。
+- `origin/main` 当前为 PR #54 merge commit `47d1b57`；PR #51/#52/#53/#54 exact-head CI、复审记录、合并祖先关系、最终完整 verify、容器清理和 Issue #28 CLOSED 状态均已回读。
+- 当前 IM-02 工作已完成；外部系统仍保持 `NOT RUN`，后续 IM-03 需用户明确启动。

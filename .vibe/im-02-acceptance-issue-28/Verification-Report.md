@@ -2,13 +2,13 @@
 
 ## 1. 结论
 
-截至 2026-08-24，PR #51、PR #52 和文档跟进 PR #53 已合并到 `main@3682511`；合并后暴露的 Persistence Gate 测试隔离竞态已经修复，合并后的干净 `main` 完整验证通过。IM-02 已满足 scoped COMPLETE 条件，Issue #28 仅待执行关闭动作，结论为：
+截至 2026-08-24，PR #51、PR #52、PR #53 和 PR #54 已合并到 `main@47d1b57`；合并后暴露的 Persistence Gate 测试隔离竞态已经修复，合并后的干净 `main` 完整验证通过，Issue #28 已按授权关闭。IM-02 scoped COMPLETE，结论为：
 
-> IM-02 代码、数据库、Runbook 文档和默认分支完整验证：PASS；外部 Provider/生产/跨模块人工验收保持 NOT RUN；IM-02：COMPLETE，Issue #28：OPEN，待关闭动作。
+> IM-02 代码、数据库、Runbook 文档和默认分支完整验证：PASS；外部 Provider/生产/跨模块人工验收保持 NOT RUN；IM-02：COMPLETE，Issue #28：CLOSED。
 
 仍未满足的退出条件不是本地代码门禁，而是交付与验收边界：
 
-1. PR #46–#53 均已显示 MERGED；PR #51/#52 交付代码与 Gate 修复，PR #53 交付 Runbook 和验收文档，最终 merge commit 为 `36825118c6b2483dd365879179b390205549dab7`。
+1. PR #46–#54 均已显示 MERGED；PR #51/#52 交付代码与 Gate 修复，PR #53/#54 交付 Runbook、验收和 COMPLETE 状态文档，最终 merge commit 为 `47d1b57a2a51e2d4c458406de8af0eecd0a2ed8a`。
 2. 合并后的干净 `main` 首次独立 Gate 曾在 WI-09 DENY Audit 写入处失败；历史阻塞的根因、最小修复和最终完整验证证据见 [Main-Closeout-Failure-2026-08-24.md](./Main-Closeout-Failure-2026-08-24.md)。
 3. 真实 Keycloak/OIDC、OpenBao、飞书、生产 Broker/Provider、跨模块 HTTP/业务 E2E、生产负载和用户最终人工业务验收没有执行，继续保持 NOT RUN。
 4. Agent 已在用户授权下执行本地 Runbook 级探测并记录输出；这不等同于生产外部系统验收，也不把 Agent 操作改写为未经用户审核的最终业务签字。
@@ -19,17 +19,17 @@
 
 | 项目 | 实际值 |
 |---|---|
-| 验收基准 | `origin/main@36825118c6b2483dd365879179b390205549dab7` |
+| 验收基准 | `origin/main@47d1b57a2a51e2d4c458406de8af0eecd0a2ed8a` |
 | 交付分支 | PR #51 的集成提交 `47a2a9d`；PR #52 的 Gate 隔离修复 head `38c2f34` |
 | 本地集成方式 | 保留 WI-06–WI-10 stacked history；以 PR #51 交付集成，以 PR #52 修复 Gate 测试隔离 |
-| 顶层 PR 栈 | PR #46–#50；集成交付 PR [#51](https://github.com/qzhike/zhiju-business-core/pull/51)；修复 PR [#52](https://github.com/qzhike/zhiju-business-core/pull/52)；文档跟进 PR [#53](https://github.com/qzhike/zhiju-business-core/pull/53) |
-| Git commit/push/merge | PR #51/#52/#53 已完成 exact-head review、CI、merge；最终 merge commit `3682511` |
-| Issue #28 | OPEN；本报告记录 COMPLETE，关闭动作单独执行 |
+| 顶层 PR 栈 | PR #46–#50；集成交付 PR [#51](https://github.com/qzhike/zhiju-business-core/pull/51)；修复 PR [#52](https://github.com/qzhike/zhiju-business-core/pull/52)；文档/状态 PR [#53](https://github.com/qzhike/zhiju-business-core/pull/53)、[#54](https://github.com/qzhike/zhiju-business-core/pull/54)、#55 |
+| Git commit/push/merge | PR #51/#52/#53/#54 已完成 exact-head review、CI、merge；PR #55 负责本次 CLOSED 状态同步 |
+| Issue #28 | CLOSED；本报告记录 IM-02 COMPLETE |
 | Node.js / pnpm | v24.19.0 / 11.19.0 |
 | Docker | 29.4.0 |
 | 数据库 | 每次 Gate/Probe 均为 disposable local database；未连接生产环境 |
 
-`origin/main` 已包含 PR #51、PR #52 和 PR #53 的合并结果。PR #53 只修订可执行 Runbook 的两处验收口径，不修改运行时代码、Migration 或权限实现；合并后的干净 main 完整 verify 已通过。不得把本地 Agent 执行的 Runbook 证据扩展为生产外部系统验收。
+`origin/main` 已包含 PR #51、PR #52、PR #53 和 PR #54 的合并结果；Issue #28 已关闭，PR #55 只同步本报告与其他权威文档的 CLOSED 状态。PR #53/#54 不修改运行时代码、Migration 或权限实现；合并后的干净 main 完整 verify 已通过。不得把本地 Agent 执行的 Runbook 证据扩展为生产外部系统验收。
 
 ## 3. Issue #28 前置 Work Item 与默认分支
 
@@ -50,8 +50,10 @@ GitHub 核对结果：#29–#38 均为 CLOSED；PR #39/#41/#43/#44/#45 已合入
 | 集成交付 | #28 | [#51](https://github.com/qzhike/zhiju-business-core/pull/51) | main | MERGED | exact-head CI PASS；合并提交 `8f5c070` |
 | Gate 修复 | — | [#52](https://github.com/qzhike/zhiju-business-core/pull/52) | main | MERGED | 文件级 Persistence 测试串行化；合并提交 `64e3040` |
 | 文档跟进 | #28 | #53 | main | MERGED | 修订默认 `plpgsql` 与合法 JSON ACL 负例；merge `3682511` |
+| COMPLETE 状态 | #28 | #54 | main | MERGED | 同步 COMPLETE/Exit Gate；merge `47d1b57` |
+| CLOSED 状态 | #28 | #55 | main | OPEN | 同步 Issue #28 CLOSED 状态；待本 PR 合并 |
 
-PR #46–#50 的 stacked branch 已通过 PR #51/#52 进入 `main`，PR #53 的文档跟进也已合入。所有 scoped 退出条件均有 GitHub 状态、祖先关系和最终 main 验证证据；Issue #28 仅剩关闭动作。
+PR #46–#50 的 stacked branch 已通过 PR #51/#52 进入 `main`，PR #53/#54 的文档和 COMPLETE 状态也已合入；Issue #28 已关闭，PR #55 只负责将 CLOSED 状态写入最终权威文档。
 
 ## 4. 本轮发现并修复的代码/Probe 缺陷
 
@@ -173,14 +175,14 @@ WI-01–WI-05 的本地真实数据库与手工反例此前也已执行：版本
 - pnpm persistence:gate 及 WI-06/WI-07/WI-10 Probe 创建的 PostgreSQL 容器均已删除。
 - 未删除既有 qm-dev-postgres（postgres:16-alpine，运行约两周）或其相关数据；它不属于本次 disposable 验收环境。
 - 本轮没有创建需要保留的临时测试脚本或测试文件；Probe 通过 Node inline runner 执行，测试数据库随容器删除。
-- `origin/main` 当前包含 PR #51/#52/#53，最新 merge commit 为 `3682511`；最终 main 完整 verify 和容器清理均已完成。
+- `origin/main` 当前包含 PR #51/#52/#53/#54，最新 merge commit 为 `47d1b57`；最终 main 完整 verify、容器清理和 Issue #28 CLOSED 回读均已完成。
 - 文档同步提交后应保持工作树干净；不要使用 destructive reset/checkout 覆盖当前交付历史。
 
 ## 9. 下一步
 
-1. 已合并 Runbook 文档修订 PR #53，完成 exact-head review 和 CI 回读。
-2. 已从新的 `main@3682511` 回读 PR #51/#52/#53、祖先关系、clean-main 验证和容器清理。
-3. 在用户已授权的范围内执行 Issue #28 最终评论和关闭动作；外部/生产项目继续保持 `NOT RUN`。
+1. 已合并 Runbook 文档修订 PR #53 和 COMPLETE 状态 PR #54，完成 exact-head review 和 CI 回读。
+2. 已从新的 `main@47d1b57` 回读 PR #51/#52/#53/#54、祖先关系、clean-main 验证和容器清理。
+3. 已在用户授权范围内执行 Issue #28 最终评论和关闭动作；外部/生产项目继续保持 `NOT RUN`。
 
 ## 10. 合并后默认分支复验（2026-08-24）
 

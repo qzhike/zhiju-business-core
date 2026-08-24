@@ -2,7 +2,7 @@
 
 日期：2026-08-24  
 范围：PR #51 合并后的默认分支验收  
-状态：`HISTORICAL BLOCKER RESOLVED / PR #53 MERGED / IM-02 COMPLETE / ISSUE #28 CLOSE PENDING`
+状态：`HISTORICAL BLOCKER RESOLVED / PR #53+#54 MERGED / IM-02 COMPLETE / ISSUE #28 CLOSED / PR #55 DOC SYNC PENDING`
 
 ## 1. 事实结论
 
@@ -64,9 +64,9 @@ Keycloak/OIDC、OpenBao、Ceph、飞书、生产 Broker/Provider、跨模块生�
 
 ## 7. PR #52 合并后的最终 main 证据
 
-PR #52 已合并为 `64e3040b58093548a477021595d3c2f554b07e45`，PR #53 已合并为 `36825118c6b2483dd365879179b390205549dab7`。新的 clean-main 直接 digest 验证与 PR #53 合并后的完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify` 均取得 `12 files / 177 tests PASS`、14 个 Migration 成功、二次 migrate no-op；WI-02/03/04/09 Runbook 级探测和 WI-06/07/10 local Probe 均通过。探测过程中发现并已由 PR #53 修正两处 Runbook 口径：默认 `plpgsql` 不应被当作业务扩展遗漏，outbox payload 负例必须使用合法 JSON 才能证明 `42501` ACL 拒绝。IM-02 已完成，Issue #28 仅待关闭动作。
+PR #52 已合并为 `64e3040b58093548a477021595d3c2f554b07e45`，PR #53 已合并为 `36825118c6b2483dd365879179b390205549dab7`，PR #54 已合并为 `47d1b57a2a51e2d4c458406de8af0eecd0a2ed8a`。新的 clean-main 直接 digest 验证与 PR #53 合并后的完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify` 均取得 `12 files / 177 tests PASS`、14 个 Migration 成功、二次 migrate no-op；WI-02/03/04/09 Runbook 级探测和 WI-06/07/10 local Probe 均通过。探测过程中发现并已由 PR #53 修正两处 Runbook 口径：默认 `plpgsql` 不应被当作业务扩展遗漏，outbox payload 负例必须使用合法 JSON 才能证明 `42501` ACL 拒绝。IM-02 已完成，Issue #28 已关闭；PR #55 只同步最终 CLOSED 状态。
 
-PR #53 只更新 Runbook 和验收记录，不改运行时代码、Migration 或权限边界；其 exact-head review、CI、merge、最终 main 完整 verify 和祖先关系均已回读。本记录不再阻塞 IM-02，Issue #28 仅保留显式关闭动作。
+PR #53/#54 只更新 Runbook、验收记录和状态文档，不改运行时代码、Migration 或权限边界；其 exact-head review、CI、merge、最终 main 完整 verify、祖先关系和 Issue #28 CLOSED 状态均已回读。本记录不再阻塞 IM-02；PR #55 只同步最终 CLOSED 状态。
 
 ## 8. PR #53 合并后的最终 main 完整验证
 

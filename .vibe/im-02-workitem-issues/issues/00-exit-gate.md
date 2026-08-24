@@ -6,9 +6,9 @@
 
 - #29–#38 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`。
 - PR #46–#50 的 stacked 实现已由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 进入 `main`；合并后发现的 Persistence Gate 文件级竞态已由 [PR #52](https://github.com/qzhike/zhiju-business-core/pull/52) 修复并合入 `main@64e3040`。
-- PR #53 已将 Runbook/验收文档合入 `main@3682511`；合并后的完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify`、空库/重复 Migration、Persistence Gate、WI-06/WI-07/WI-10 disposable Probe 和 WI-02/WI-03/WI-04/WI-09 Agent-executed local Runbook 均有 `PASS` 输出；PR #51/#52/#53 exact-head CI 已 `SUCCESS`。
+- PR #53/#54 已将 Runbook、验收和 COMPLETE 状态文档合入 `main@47d1b57`；合并后的完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify`、空库/重复 Migration、Persistence Gate、WI-06/WI-07/WI-10 disposable Probe 和 WI-02/WI-03/WI-04/WI-09 Agent-executed local Runbook 均有 `PASS` 输出；PR #51/#52/#53/#54 exact-head CI 已 `SUCCESS`。
 - Keycloak/OIDC、OpenBao、Ceph、飞书、生产 Broker/Provider、跨模块 HTTP/E2E、生产负载和用户人工 Runbook 验收保持 `NOT RUN`。
-- Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 当前为 `COMPLETE PENDING ISSUE CLOSE / OPEN`；所有 scoped Gate 已完成，待执行显式关闭动作。
+- Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 当前为 `CLOSED`；所有 scoped Gate 已完成，IM-02 已标记 `COMPLETE`。
 
 ## 权威输入
 

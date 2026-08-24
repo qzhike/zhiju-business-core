@@ -2,7 +2,7 @@
 
 日期：2026-08-24（Issue #9 退出 Gate 汇总；IM-02 远端交付快照）
 环境：macOS/zsh；Node.js `v24.19.0`、pnpm `11.19.0`、TypeScript `6.0.3`
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE PENDING ISSUE CLOSE / PR #51+#52+#53 MERGED / ISSUE #28 OPEN`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 权威退出证据：[`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)
 
 ## 1. 验证范围
@@ -49,7 +49,7 @@ runtime_proposals=6 isolated
 ## 4. 未执行项
 
 - IM-DG-005 与 IM-DG-006；
-- IM-03 至 IM-09；IM-02 的外部 Provider、跨模块业务 E2E 和生产验收；PR #51/#52/#53 merge、exact-head CI 和合并后完整 main verify 已通过；
+- IM-03 至 IM-09；IM-02 的外部 Provider、跨模块业务 E2E 和生产验收；PR #51/#52/#53/#54/#55 merge、exact-head CI 和合并后完整 main verify 已通过；
 - Persistence 与业务 E2E；
 - PostgreSQL、MicroCeph/Ceph RGW、OpenBao、Keycloak、飞书、三个 CLI、Renderer、备份恢复、负载和人工验收；
 - 6 个 Runtime additive Command 的 Catalog/API/Module 变更；
@@ -60,7 +60,7 @@ runtime_proposals=6 isolated
 
 ## 5. 剩余风险
 
-1. IM-01 已标记 `COMPLETE`；IM-02 为 `COMPLETE PENDING ISSUE CLOSE`，PR #53 已合并，最终 `main@3682511` 已取得完整 verify、Persistence `12 files / 177 tests PASS`、二次 migrate no-op 和 Agent-executed local Runbook 证据；当前只剩 Issue #28 关闭动作；真实 Provider、跨模块业务 E2E 和生产环境仍未运行。
+1. IM-01 已标记 `COMPLETE`；IM-02 为 `COMPLETE`，PR #54 已合并，最终 `main@47d1b57` 已取得完整 verify、Persistence `12 files / 177 tests PASS`、二次 migrate no-op 和 Agent-executed local Runbook 证据，Issue #28 已关闭；真实 Provider、跨模块业务 E2E 和生产环境仍未运行。
 2. #5 的字段 Schema 子切片已由 PR #14 完成；用户后续批准将其余 Runtime Owner 迁移至 #22–#24，并按字段 Schema 边界关闭 #5。该范围迁移不得解释为 Runtime 已 `PASS`。
 3. 单台 Ubuntu 主机、单节点 MicroCeph/OpenBao/Keycloak 的主机故障容忍度为 0；独立备份与恢复演练是 Formal Release 前置条件。
 4. Ceph RGW 官方声明 Vault Transit 集成，OpenBao 只承诺 Vault API compatibility；二者组合必须在后续里程碑实测，失败时重开 IM-DG-003，不能降级明文。
@@ -88,5 +88,5 @@ runtime_proposals=6 isolated
 |---|---|---|
 | IM-00 Decision Baseline | `COMPLETE` | IM-DG-001 至 IM-DG-004 已完成用户确认。 |
 | IM-01 Repository + Executable Contracts | `COMPLETE` | Issue #9 / PR #20；本报告第 2–3 节及专项 Verification Report。 |
-| IM-02 PostgreSQL Foundation + IdentityPolicy | `COMPLETE PENDING ISSUE CLOSE` | PR [#51](https://github.com/qzhike/zhiju-business-core/pull/51)、[#52](https://github.com/qzhike/zhiju-business-core/pull/52)、[#53](https://github.com/qzhike/zhiju-business-core/pull/53) 已合入 `main@3682511`；最终 main 完整 verify、Persistence `12/177`、Migration/no-op、WI-02/03/04/09 Runbook 探测已通过；Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 待关闭动作。 |
+| IM-02 PostgreSQL Foundation + IdentityPolicy | `COMPLETE` | PR [#51](https://github.com/qzhike/zhiju-business-core/pull/51)、[#52](https://github.com/qzhike/zhiju-business-core/pull/52)、[#53](https://github.com/qzhike/zhiju-business-core/pull/53)、[#54](https://github.com/qzhike/zhiju-business-core/pull/54)、#55 已合入 `main@47d1b57`；最终 main 完整 verify、Persistence `12/177`、Migration/no-op、WI-02/03/04/09 Runbook 探测已通过；Issue [#28](https://github.com/qzhike/zhiju-business-core/issues/28) 已关闭。 |
 | IM-03–IM-09 | `NOT STARTED / DEFERRED` | 依赖 IM-02 退出 Gate；不因 PR #51 的创建或本地 PASS 提前开始。 |
