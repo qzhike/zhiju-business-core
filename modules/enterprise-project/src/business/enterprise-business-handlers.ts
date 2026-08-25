@@ -862,17 +862,6 @@ export async function handleEnterpriseProductActivateVersion(
     },
     async (execution) => {
       const product = await repo.getProductById(execution.trx, productId);
-      // eslint-disable-next-line no-console
-      console.error('[product activate] entry', {
-        productId,
-        hasProduct: !!product,
-        agg: product?.aggregate_version,
-        currentRev: product?.current_version_id,
-        expectedVersion,
-        targetVersionId,
-      });
-      if (!product) {
-      const product = await repo.getProductById(execution.trx, productId);
       if (!product) {
         return {
           kind: 'REJECTED',
