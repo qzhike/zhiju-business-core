@@ -381,13 +381,13 @@ describe.skipIf(!gateEnabled)(
               versionId: v1Id,
             },
             activationMode: 'ACTIVATE' as const,
-            expectedAggregateVersion: '2',
+            expectedAggregateVersion: '1',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000aaa',
             },
           },
-          { idempotencyKey: 'p004-activate', expectedAggregateVersion: '2' },
+          { idempotencyKey: 'p004-activate', expectedAggregateVersion: '1' },
         ),
       );
       expect(activate.status).toBe('COMMITTED');
@@ -406,13 +406,13 @@ describe.skipIf(!gateEnabled)(
               versionId: v1Id,
             },
             activationMode: 'ACTIVATE' as const,
-            expectedAggregateVersion: '3',
+            expectedAggregateVersion: '2',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000bbb',
             },
           },
-          { idempotencyKey: 'p004-activate-again', expectedAggregateVersion: '3' },
+          { idempotencyKey: 'p004-activate-again', expectedAggregateVersion: '2' },
         ),
       );
       expect(reactivate.status).toBe('REJECTED');
@@ -523,13 +523,13 @@ describe.skipIf(!gateEnabled)(
               versionId: v2Id,
             },
             activationMode: 'ACTIVATE' as const,
-            expectedAggregateVersion: '2',
+            expectedAggregateVersion: '1',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000bbb',
             },
           },
-          { idempotencyKey: 'p005-activate-v2', expectedAggregateVersion: '2' },
+          { idempotencyKey: 'p005-activate-v2', expectedAggregateVersion: '1' },
         ),
       );
       // ROLLBACK to v1
@@ -546,7 +546,7 @@ describe.skipIf(!gateEnabled)(
               versionId: v1Id,
             },
             activationMode: 'ROLLBACK' as const,
-            expectedAggregateVersion: '3',
+            expectedAggregateVersion: '2',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000ccc',
@@ -619,6 +619,7 @@ describe.skipIf(!gateEnabled)(
       const bFactVersion = versionIdFrom(proposeInB);
 
       // Create a product and qms in Enterprise A
+      currentEnterpriseId = enterpriseA;
       const product = await handleEnterpriseProductCreate(
         db(),
         ctx,

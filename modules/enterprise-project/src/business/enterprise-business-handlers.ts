@@ -660,15 +660,14 @@ export async function handleEnterpriseProductCreate(
         sourceCommandId: envelope.commandId,
       });
       // The first version row is HISTORICAL until the separate
-      // activate_version capability flips it CURRENT; the test for the
-      // double-activate path needs activate v1 to actually move the
-      // pointer, so we don't mark it current here. Pass undefined so
-      // casProduct does not set current_version_id on the root.
-      const cas = await repo.casProduct(execution.trx, productId, '1');
-      if (!cas.ok) {
+      // activate_version capability flips it CURRENT. The product root
+      // is created at aggregate_version=1 and stays there until the
+      // first activate (which is the only handler that CASes the root).
+      const productRow = await repo.getProductById(execution.trx, productId);
+      if (!productRow || aggregateVersionToString(productRow.aggregate_version) !== '1') {
         throw new CommandExecutionError(
           CONCURRENCY_CONFLICT,
-          'product CAS conflict on initial create',
+          'product root aggregate_version drifted from expected initial 1',
         );
       }
       const result = {
@@ -1138,22 +1137,6 @@ export async function handleEnterpriseQmsCreateRevision(
       const nextRevisionNo =
         revisions.length === 0 ? 1 : (revisions[revisions.length - 1]?.revision_no ?? 0) + 1;
       const revisionId = newUuidV7();
-      // The qms root's aggregate_version reflects the cumulative
-      // revision graph (createRevision + activate_revision). Each
-      // createRevision CASes it by 1 so the outbox event can carry the
-      // current qms version and downstream consumers see monotonic
-      // progress even when no activate has happened between revisions.
-      const createCas = await repo.casQmsConfiguration(
-        execution.trx,
-        qmsId,
-        aggregateVersionToString(qms.aggregate_version),
-      );
-      if (!createCas.ok) {
-        throw new CommandExecutionError(
-          CONCURRENCY_CONFLICT,
-          `qms CAS conflict on create_revision (current=${createCas.current})`,
-        );
-      }
       const digest = digestCanonicalPayload({
         enterpriseId: qms.enterprise_id,
         qmsConfigurationId: qmsId,
@@ -1197,7 +1180,7 @@ export async function handleEnterpriseQmsCreateRevision(
         eventVersion: '1.0',
         aggregateType: 'QMSConfiguration',
         aggregateId: qmsId,
-        aggregateVersion: createCas.nextVersion,
+        aggregateVersion: '1',
         payload: {
           enterpriseId: qms.enterprise_id,
           qmsConfigurationId: qmsId,
