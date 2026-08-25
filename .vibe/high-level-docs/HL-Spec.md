@@ -449,6 +449,11 @@ WI-07 本地手工 Probe 的 AES-256-GCM 测试 Port 必须先完成 `cipher.upd
 - Gap 输入版本变化只产生 `STALE`/Impact Review 事实，不改写旧 Gap、Context、Plan 或 Artifact；`NOT_PROVIDED`、`UNKNOWN` 和 `MISSING_CONFIRMED` 保持区分。
 - 本决策仍需用户审核；后续业务 DDL、Repository、Handler、真实 PostgreSQL 业务链和“采购控制程序”人工验收保持 `NOT RUN`。
 
+## PR #69 审查状态（2026-08-25）
+
+- 审查基准为精确 head `9c02ac80491b3d60c59685c2ea1ac33ce875981c`；该 head 没有业务运行时代码差异，exact-head CI 的 `verify` 已通过。
+- 当前本地复跑 persistence gate 因 Docker Hub manifest 查询返回 `EOF` 被环境阻塞；这不构成业务测试失败，也不能把业务实现从 `NOT RUN` 提升为 `PASS`。
+
 ## IM-02 远端交付快照（2026-08-24）
 
 PR #51 的实现复审基准为 `47a2a9d`，PR #51 已合并；PR #52 的 Gate 隔离修复、PR #53 的 Runbook/验收文档修订、PR #54 的 COMPLETE 状态同步和 PR #55 的关闭状态同步均已 exact-head review、CI 验证并合并。最终 main@47d1b57 的完整 `pnpm clean && pnpm verify` 证据已由前一主线提交复核，Persistence 为 `12 files / 177 tests`，14 个 Migration 成功且二次 migrate no-op；WI-02/03/04/09 Agent-executed local Runbook 和 WI-06/07/10 Probe 均有证据。真实 Provider、跨模块 E2E、生产环境和外部人工业务验收仍保持 `NOT RUN`；Issue #28 已关闭。

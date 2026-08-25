@@ -280,6 +280,7 @@ ProjectStartSnapshot 的三个必需输入是同一 Enterprise Scope 下的 `Ent
 - API v0.1 已于 2026-08-13 通过用户审核；
 - IM-02 标准技术表已落地并有独立验证；IM-03 业务 DDL、Repository、Handler、Evaluator、Projection 与受控 Capability 实现均不存在；
 - 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`；本 Issue 的决策矩阵为 `DESIGN VERIFIED / USER REVIEW REQUIRED`。
+- PR #69 的精确审查 head 为 `9c02ac80491b3d60c59685c2ea1ac33ce875981c`，未包含业务运行时代码；该 head 的 exact-head CI `verify` 已通过。当前本地 persistence gate 复跑受 Docker Hub manifest 查询 EOF 阻塞，不能替代 CI 证据或提升业务实现状态。
 
 ## 10. IM-02 WI-04 持久化切片
 
