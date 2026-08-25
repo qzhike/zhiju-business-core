@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / USER REVIEW REQUIRED / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED`
 
 ## 1. 模块责任
 
@@ -278,8 +278,8 @@ ProjectStartSnapshot 的三个必需输入是同一 Enterprise Scope 下的 `Ent
 
 - 32 个公开 Contract 已定义字段级 payload/result/event 结构；Issue #57 另行冻结受控前置 Capability，但没有扩展公共 Registry；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- IM-02 标准技术表已落地并有独立验证；IM-03 WI-02 已提供模块内 Application/Persistence 事务基础（Command Receipt、Audit、Outbox、Reference Edge、RLS Context 绑定与 CAS），但仍不存在业务 DDL、业务 Handler、Evaluator、Projection 与受控 Capability 实现；
-- 对应业务 Unit、Contract、E2E 与人工验收均为 `NOT RUN`；本 Issue 的决策矩阵为 `DESIGN VERIFIED / USER REVIEW REQUIRED`。
+- IM-02 标准技术表已落地并有独立验证；IM-03 WI-02 已提供模块内 Application/Persistence 事务基础，PR #72 已在其上落地并完成本次审查修正；业务 DDL、Repository、Handler 的本地自动化边界已由 `pnpm verify` 证明。
+- 真实 Provider、HTTP、跨模块业务 E2E 与人工验收仍为 `NOT RUN`；用户确认修正工作区前，不宣称 PR/Issue 已完成 Git 交付。
 - PR #69 的精确审查 head 为 `9c02ac80491b3d60c59685c2ea1ac33ce875981c`，未包含业务运行时代码；该 head 的 exact-head CI `verify` 已通过。当前本地 persistence gate 复跑受 Docker Hub manifest 查询 EOF 阻塞，不能替代 CI 证据或提升业务实现状态。
 
 ## 10. IM-02 WI-04 持久化切片
@@ -301,3 +301,37 @@ Issue #58 在模块内建立最小写入事务路径，供后续业务切片复�
 9. technical Repository 写入的 `created_by_principal_id` 必须等于受信事务 Context Principal；主体漂移以稳定持久化错误拒绝，且不提交 Receipt 或技术行。
 
 失败码：`IDEMPOTENCY_PAYLOAD_CONFLICT`、`CONCURRENCY_CONFLICT`、`COMMAND_CONTEXT_MISMATCH`、`COMMAND_CONTEXT_EXPIRED`、`COMMAND_CONTEXT_REJECTED`、`COMMAND_TARGET_MISMATCH`、`PAYLOAD_HASH_MISMATCH`。模块业务 Handler、Evaluator 与 Projection 不在本切片。
+
+## 12. IM-03 WI-03 业务纵向切片
+
+Issue #59 在 WI-02 Application/Persistence 事务基础上落地业务 Aggregate：Enterprise、EnterpriseFact（含不可变 Version）、EnterpriseProfileSnapshot、Product（含不可变 ProductVersion 与 ProductScopeSnapshot）、QMSConfiguration（含不可变 QMSConfigurationRevision）。Migration 文件 `V2001__enterprise_project_business_aggregates.sql`，所有业务表启用 RLS FORCE 并使用与 V2000 相同的 `platform_security.context_allows_enterprise(...)` Policy；不可变 version/snapshot 行通过 `REVOKE UPDATE` + BEFORE UPDATE trigger 双层保护。
+
+业务 Aggregate Root 自带 `aggregate_version` 列；CAS 直接作用在 Root，不再借道 `process_instance.aggregate_version`。`product_version.lifecycle ∈ {CURRENT, HISTORICAL}` 与 `qms_configuration_revision.lifecycle` 配合 partial unique index `(product_id) WHERE lifecycle='CURRENT'` 实现 "同根只有一个 CURRENT 指针"；Profile Snapshot / Product Scope Snapshot 没有 active 指针，由 Project 启动引用精确 ID。
+
+WI-03 业务失败码（含审查修正新增的冲突与 QMS NOOP 码，共 19 个）：
+
+```
+PROJECT_ENTERPRISE_NOT_ACTIVE
+PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT
+PROJECT_PRODUCT_DISPLAY_CODE_CONFLICT
+PROJECT_FACT_SOURCE_REQUIRED
+PROJECT_FACT_CONFIRMATION_FORBIDDEN
+PROJECT_FACT_CONFLICT_UNRESOLVED
+PROJECT_PROFILE_SOURCE_MISMATCH
+PROJECT_PROFILE_SNAPSHOT_IMMUTABLE
+PROJECT_PRODUCT_VERSION_NOT_FOUND
+PROJECT_PRODUCT_VERSION_IMMUTABLE
+PROJECT_PRODUCT_ACTIVATION_HUMAN_REQUIRED
+PROJECT_PRODUCT_ACTIVATION_NOOP
+PROJECT_PRODUCT_SCOPE_SNAPSHOT_INVALID
+PROJECT_QMS_DECISION_SOURCE_REQUIRED
+PROJECT_QMS_REVISION_IMMUTABLE
+PROJECT_QMS_ACTIVATION_HUMAN_REQUIRED
+PROJECT_QMS_VERSION_NOT_FOUND
+PROJECT_QMS_ACTIVATION_NOOP
+PROJECT_HUMAN_ONLY_DENIED
+```
+
+Human-only 边界由受信 transaction context 与 Command Envelope 中一致且必填的 `principalKind` 决定；缺失或非 HUMAN 主体均走 `PROJECT_HUMAN_ONLY_DENIED` 短路。Product 与 QMS 重复激活分别返回 `PROJECT_PRODUCT_ACTIVATION_NOOP` / `PROJECT_QMS_ACTIVATION_NOOP`，再叠加 V2001 partial unique index 的 DB 防御。所有 `ObjectRef`、`VersionedRef`、`SnapshotRef` 必须校验 objectType、objectId、version/snapshotId、Scope 和 contentHash；不能只使用 versionId。
+
+`enterprise.display_code` `UNIQUE`、CAS 跨 Enterprise Ref 拒绝、hash mismatch、旧 expectedVersion 等负向路径由 `tests/persistence/enterprise-project-business-aggregates.test.ts` 在真实 PostgreSQL 上覆盖；用户手动 Probe 在 WI-04 补齐之前保持 `NOT RUN`。

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / USER REVIEW REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -330,7 +330,7 @@ IM-01 Repository + Executable Contracts  （COMPLETE / FULL 200 + ENVELOPE_ONLY 
     ↓
     IM-02 PostgreSQL Foundation + IdentityPolicy  （COMPLETE / ISSUE #28 CLOSED / PR #51+#52+#53+#54+#55 MERGED / WI-01–WI-10 CORE GATES + AGENT-EXECUTED LOCAL RUNBOOK PASS / EXTERNAL PROVIDER NOT RUN）
     ↓
-IM-03 EnterpriseProject Reference Foundation  （IN PROGRESS / WI-01 DESIGN DECISION RECORDED / WI-02 APPLICATION+PERSISTENCE FOUNDATION / BUSINESS DDL+HANDLERS NOT STARTED）
+IM-03 EnterpriseProject Reference Foundation  （IN PROGRESS / WI-01 DESIGN DECISION RECORDED / WI-02 APPLICATION+PERSISTENCE FOUNDATION / PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED）
 ```
 
 IM-02 的 RLS Context 物理机制已经进入 WI-03：上下文存放于
@@ -455,6 +455,14 @@ WI-07 本地手工 Probe 的 AES-256-GCM 测试 Port 必须先完成 `cipher.upd
 
 - 审查基准为精确 head `9c02ac80491b3d60c59685c2ea1ac33ce875981c`；该 head 没有业务运行时代码差异，exact-head CI 的 `verify` 已通过。
 - 当前本地复跑 persistence gate 因 Docker Hub manifest 查询返回 `EOF` 被环境阻塞；这不构成业务测试失败，也不能把业务实现从 `NOT RUN` 提升为 `PASS`。
+
+## PR #72 审查修正状态（2026-08-25）
+
+- 审查基准为精确 head `9037185967329c7e024bdef9b75f99f1653c8554`，base 为 `a34c72503c842f0d81d7bded28a3fa344dd886ca`；PR 仍为 OPEN，Issue #59 未由 GitHub 自动关联关闭。
+- 已发现并进入修正范围：业务公开 Handler 与生成 Contract 的 Typed Reference/ValueEnvelope/SnapshotResult 不一致；Human-only 不能把缺失 `principalKind` 当作 HUMAN；Fact 首次 Root CAS 造成聚合版本与 Outbox 版本错位；Product/QMS/Profile 多处精确引用只校验 versionId 而忽略 objectId；重复 Product displayCode 的异常路径会在 PostgreSQL 事务中止后继续写 Receipt/Audit；QMS 初始指针使用伪造 UUID 且未验证 Enterprise ACTIVE；Product/QMS 后续版本创建未推进 Root aggregate version；Profile 未保存完整 Product/QMS 精确版本内容。
+- 本地第一次 `pnpm persistence:gate` 已完成 PostgreSQL 18.6 / Flyway 11.20.3 空库迁移，但 Vitest 因 workspace 包尚未先 build 而出现 8 个包入口解析失败；该次只作为基线失败证据，不能记为业务 PASS。修正后先完成 workspace build，门禁复跑为 `14` 个 Persistence 文件、`202` 个测试通过，二次 migrate 为 no-op，容器已清理。
+- 修正后的本地 `pnpm verify` 已通过：Format、Lint、Typecheck、Unit Test（`21 passed / 12 skipped`，`348 passed / 189 skipped`）、Architecture、Contracts（200 operations）和 PostgreSQL Persistence Gate 均通过。业务实现仅证明上述本地自动化边界；真实 Provider、HTTP、跨模块 E2E 和人工业务验收继续保持 `NOT RUN`。
+- 修正文件仍需用户检查；在用户确认前不宣称已 Commit、Push、PR Merge 或 Issue Close。
 
 ## IM-03 WI-02 审查修正约束（2026-08-25）
 

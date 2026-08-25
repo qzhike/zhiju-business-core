@@ -15,6 +15,17 @@ import {
   type Transaction,
 } from 'kysely';
 import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import type {
+  EnterpriseTable,
+  EnterpriseFactTable,
+  EnterpriseFactVersionTable,
+  EnterpriseProfileSnapshotTable,
+  ProductTable,
+  ProductVersionTable,
+  ProductScopeSnapshotTable,
+  QmsConfigurationTable,
+  QmsConfigurationRevisionTable,
+} from './enterprise-business-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
 type Json = ColumnType<unknown, string>;
@@ -140,10 +151,25 @@ export interface EnterpriseProjectDb {
   'enterprise_project.audit_record': AuditRecordTable;
   'enterprise_project.reference_edge': ReferenceEdgeTable;
   'enterprise_project.process_instance': ProcessInstanceTable;
+  // IM-03 WI-03 (issue #59): business aggregates landed by V2001. The
+  // tables live under the same owning schema; the technical receipt/outbox/
+  // audit/reference_edge/process_instance tables above remain owned by the
+  // WI-02 Application/Persistence foundation.
+  'enterprise_project.enterprise': EnterpriseTable;
+  'enterprise_project.enterprise_fact': EnterpriseFactTable;
+  'enterprise_project.enterprise_fact_version': EnterpriseFactVersionTable;
+  'enterprise_project.enterprise_profile_snapshot': EnterpriseProfileSnapshotTable;
+  'enterprise_project.product': ProductTable;
+  'enterprise_project.product_version': ProductVersionTable;
+  'enterprise_project.product_scope_snapshot': ProductScopeSnapshotTable;
+  'enterprise_project.qms_configuration': QmsConfigurationTable;
+  'enterprise_project.qms_configuration_revision': QmsConfigurationRevisionTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';
 export const PAYLOAD_HASH_ALGORITHM = 'SHA-256';
+
+export type EnterprisePrincipalKind = 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
 
 export interface CanonicalPayloadDigest {
   readonly canonicalJson: string;
@@ -173,6 +199,8 @@ export function digestCanonicalPayload(payload: CanonicalJsonObject): CanonicalP
 export interface EnterpriseProjectTransactionContext {
   readonly kind: 'REQUEST' | 'EVENT_CONSUMER';
   readonly principalId: string;
+  /** Principal kind is part of the trusted IdentityPolicy snapshot. */
+  readonly principalKind: EnterprisePrincipalKind;
   readonly actorSnapshotId: string;
   readonly authorizationDecisionId: string;
   readonly authorizationDecisionHash: Buffer;

@@ -47,6 +47,9 @@ importers:
       '@types/pg':
         specifier: 8.15.5
         version: 8.15.5
+      '@zhiju/contracts':
+        specifier: workspace:*
+        version: link:contracts
       '@zhiju/enterprise-project':
         specifier: workspace:*
         version: link:modules/enterprise-project
