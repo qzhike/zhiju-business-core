@@ -182,7 +182,7 @@ IM-09 Reference Project E2E + Operations Hardening
 
 产出：Enterprise、EnterpriseFact、Profile Snapshot、Product、QMSConfiguration、Project、Source/Customer Material、Baseline、Gap、DeliveryPlan/Item 的最小链；所有业务前置对象必须通过唯一 Owner 的 Application 入口创建，不能由测试或 Migration 直写。
 
-退出 Gate：先由用户审核 WI-01 决策矩阵和被拒绝的公共 Catalog 扩展方案；后续实现阶段再验证脱敏企业与“采购控制程序”Reference Project 可创建、新事实不改写旧 Snapshot、NOT_PROVIDED/UNKNOWN/确认缺失保持区分。WI-01 本身不报告业务 DDL 或运行时 `PASS`。
+退出 Gate：先由用户审核 WI-01 决策矩阵和被拒绝的公共 Catalog 扩展方案；WI-02 交付模块内 Application/Persistence 事务基础（Receipt/CAS/RLS/hash），不创建业务表；后续实现阶段再验证脱敏企业与“采购控制程序”Reference Project 可创建、新事实不改写旧 Snapshot、NOT_PROVIDED/UNKNOWN/确认缺失保持区分。WI-01 本身不报告业务 DDL 或运行时 `PASS`。
 
 ### IM-04 Artifact + Canonical Content
 
@@ -247,4 +247,4 @@ IM-09 Reference Project E2E + Operations Hardening
 - Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；当前 `pnpm verify` 的仓库测试为 20 个文件通过、10 个跳过，341 个测试通过、164 个跳过。
 - #5 字段 Schema 已由 PR #14 合入并完成；重复/迟到 Runtime 由已关闭的 #15 完成，剩余 Runtime 分别由 #22–#24 跟踪。#17 追踪 IntegrationGateway Runtime 缺口。这些 Runtime Issue 不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005/006 仍待决。
-- IM-02 当前为 `COMPLETE`：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify 为 PASS，Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 已关闭；IM-03 已进入 WI-01 设计决策审阅，业务实现仍未开始。
+- IM-02 当前为 `COMPLETE`：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify 为 PASS，Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 已关闭；IM-03 WI-01 设计决策已记录，WI-02 正在建立 EnterpriseProject Application/Persistence 事务基础，业务 DDL/Handler 仍未开始。

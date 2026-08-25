@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / USER REVIEW REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / USER REVIEW REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -329,6 +329,8 @@ Implementation Milestone Plan v0.1  （BASELINE / IM-00 COMPLETE）
 IM-01 Repository + Executable Contracts  （COMPLETE / FULL 200 + ENVELOPE_ONLY 0 / FIELD-LEVEL SCHEMAS + SCHEMA-DERIVED TYPES + V1.0 COMPATIBILITY BASELINE LANDED / ISSUE #9 CLOSED BY PR #20 / ISSUE #5 FIELD-SCHEMA SCOPE COMPLETE VIA PR #14 / RELEASE RUNTIME GAPS TRACKED BY #22–#24 / ISSUE #17 LOCAL IG RUNTIME SLICE LANDED / HANDLER + ADAPTER + DB TRACKED BY #27 / HANDLER + DB + EXTERNAL GATES REMAIN NOT RUN）
     ↓
     IM-02 PostgreSQL Foundation + IdentityPolicy  （COMPLETE / ISSUE #28 CLOSED / PR #51+#52+#53+#54+#55 MERGED / WI-01–WI-10 CORE GATES + AGENT-EXECUTED LOCAL RUNBOOK PASS / EXTERNAL PROVIDER NOT RUN）
+    ↓
+IM-03 EnterpriseProject Reference Foundation  （IN PROGRESS / WI-01 DESIGN DECISION RECORDED / WI-02 APPLICATION+PERSISTENCE FOUNDATION / BUSINESS DDL+HANDLERS NOT STARTED）
 ```
 
 IM-02 的 RLS Context 物理机制已经进入 WI-03：上下文存放于
@@ -453,6 +455,13 @@ WI-07 本地手工 Probe 的 AES-256-GCM 测试 Port 必须先完成 `cipher.upd
 
 - 审查基准为精确 head `9c02ac80491b3d60c59685c2ea1ac33ce875981c`；该 head 没有业务运行时代码差异，exact-head CI 的 `verify` 已通过。
 - 当前本地复跑 persistence gate 因 Docker Hub manifest 查询返回 `EOF` 被环境阻塞；这不构成业务测试失败，也不能把业务实现从 `NOT RUN` 提升为 `PASS`。
+
+## IM-03 WI-02 审查修正约束（2026-08-25）
+
+- Command write boundary 必须执行 target/reference/scope/purpose 校验：Outbox 的 `aggregateType + aggregateId` 必须与当前 Command Envelope target 完全一致；Reference Edge 的 owner 必须与同一 target 完全一致。
+- Outbox 的 `aggregateVersion` 必须是当前 Command 产生的精确版本：CREATE/无 expected version 使用 `1`，CAS 使用 `expectedAggregateVersion + 1`；所有 PostgreSQL `bigint` 版本保持字符串/BigInt 精度，禁止写入任意版本制造事件间隙。
+- 技术 Repository 的 `created_by_principal_id` 必须绑定当前受信事务 Context 的 Principal；调用者提供不一致的主体必须在事务内以稳定错误拒绝，不能让 RLS 只保护 Scope 而留下审计主体漂移。
+- 以上拒绝必须发生在 Receipt/业务技术表/Outbox/Reference Edge 提交前，并由回归测试证明失败事务不遗留行；真实 Provider、公开 HTTP、业务 Handler 和人工 Reference Project 仍保持 `NOT RUN`。
 
 ## IM-02 远端交付快照（2026-08-24）
 

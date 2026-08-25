@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01 BUSINESS DECISION RECORDED / BUSINESS MODEL IMPLEMENTATION NOT STARTED`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01 BUSINESS DECISION RECORDED / IM-03 WI-02 APPLICATION WRITE PATH LANDED / BUSINESS MODEL IMPLEMENTATION NOT STARTED`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -194,6 +194,8 @@ retention_class            text
 4. `created_by_principal_id` 是 PrincipalRef 的 ID 镜像，不建立 IdentityPolicy 外键；
 5. Enterprise/Project Scope 创建后不可改变；需要转移时创建新业务对象和显式迁移事实；
 6. 不增加通用 `deleted_at` 来掩盖不同业务删除语义。
+7. Command 写入的 Outbox Event 与 Reference Edge 必须绑定该 Command 的目标 Aggregate；事件版本必须由 CREATE 初始版本或 CAS 的 expected version 推导，不能由 body 任意声明。
+8. `created_by_principal_id` 必须来自当前受信事务 Context 的 Principal，不能由调用者把另一主体写入技术事实。
 
 ### 4.2 不可变 Version / Snapshot / Fact
 
