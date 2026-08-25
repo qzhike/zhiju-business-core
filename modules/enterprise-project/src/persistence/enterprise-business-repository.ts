@@ -179,9 +179,13 @@ export class EnterpriseBusinessRepository extends EnterpriseProjectRepository {
   async insertEnterprise(
     trx: EnterpriseProjectTransaction,
     insert: EnterpriseInsert,
-  ): Promise<void> {
+  ): Promise<boolean> {
     await this.assertContextPrincipal(trx, insert.createdByPrincipalId);
-    await trx
+    // Use ON CONFLICT DO NOTHING so a duplicate displayCode does not abort
+    // the transaction; the handler converts the empty RETURNING into a
+    // REJECTED PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT. RLS hides rows
+    // belonging to other enterprises, so a SELECT pre-check is unreliable.
+    const inserted = await trx
       .insertInto('enterprise_project.enterprise')
       .values({
         enterprise_id: insert.enterpriseId,
@@ -195,7 +199,10 @@ export class EnterpriseBusinessRepository extends EnterpriseProjectRepository {
         updated_at: new Date(),
         retention_class: 'CUSTOMER_RECORD',
       })
-      .execute();
+      .onConflict((oc) => oc.column('display_code').doNothing())
+      .returning('enterprise_id')
+      .executeTakeFirst();
+    return inserted !== undefined;
   }
 
   async getEnterpriseById(

@@ -121,24 +121,13 @@ export async function handleCreateEnterprise(
       targetId: enterpriseId,
     },
     async (execution) => {
-      // Pre-check displayCode uniqueness so a duplicate returns REJECTED
-      // without aborting the transaction. PostgreSQL aborts the transaction
-      // on any constraint violation, and finalizeReceipt in the REJECTED
-      // branch would otherwise see the aborted state and fail.
-      const existing = await execution.trx
-        .selectFrom('enterprise_project.enterprise')
-        .select('enterprise_id')
-        .where('display_code', '=', envelope.payload.displayCode)
-        .executeTakeFirst();
-      if (existing) {
-        return {
-          kind: 'REJECTED',
-          errorCode: PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT,
-          safeSummary: 'another Enterprise already uses this displayCode',
-          currentAggregateVersion: undefined,
-        };
-      }
-      await repo.insertEnterprise(execution.trx, {
+      // Insert with ON CONFLICT DO NOTHING. The handler treats an empty
+      // RETURNING (no row inserted) as a displayCode conflict; the WI-02
+      // appendOutbox / finalizeReceipt path then records REJECTED on the
+      // original transaction. A naive SELECT pre-check would be defeated
+      // by the Enterprise RLS policy because the duplicate row belongs to
+      // a different enterprise than the trusted transaction context.
+      const inserted = await repo.insertEnterprise(execution.trx, {
         enterpriseId,
         displayCode: envelope.payload.displayCode,
         displayName: envelope.payload.displayName,
@@ -146,6 +135,14 @@ export async function handleCreateEnterprise(
         createdByActorSnapshotId: envelope.actorSnapshotId,
         sourceCommandId: envelope.commandId,
       });
+      if (!inserted) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT,
+          safeSummary: 'another Enterprise already uses this displayCode',
+          currentAggregateVersion: undefined,
+        };
+      }
       const result = {
         kind: 'COMMITTED' as const,
         resultPayload: {
