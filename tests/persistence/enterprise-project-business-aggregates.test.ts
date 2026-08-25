@@ -67,6 +67,7 @@ function contextFor(
 }
 
 let envelopeCounter = 0;
+let currentEnterpriseId = ENTERPRISE_A;
 function envelope(overrides: Partial<CommandEnvelope> = {}): CommandEnvelope {
   envelopeCounter += 1;
   // Each envelope needs a unique command_id because command_receipt uses
@@ -81,9 +82,9 @@ function envelope(overrides: Partial<CommandEnvelope> = {}): CommandEnvelope {
     idempotencyScope: 'wi03',
     idempotencyKey: 'wi03-key-1',
     requestPayload: { op: 'manual' },
-    enterpriseId: ENTERPRISE_A,
+    enterpriseId: currentEnterpriseId,
     targetType: 'Enterprise',
-    targetId: ENTERPRISE_A,
+    targetId: currentEnterpriseId,
     correlationId: CORRELATION,
     principalId: HUMAN_PRINCIPAL,
     actorSnapshotId: ACTOR_HUMAN,
@@ -194,20 +195,22 @@ describe.skipIf(!gateEnabled)(
     it('EP-WI03-P-001 rejects duplicate displayCode', async () => {
       const enterpriseA1 = newUuidV7();
       const enterpriseA2 = newUuidV7();
+      currentEnterpriseId = enterpriseA1;
       const ctx = contextFor(enterpriseA1, HUMAN_PRINCIPAL);
       const env1 = payloadEnvelope(
         'p001-a',
         { displayCode: 'WI03-P001', displayName: 'P001-A', initialStatus: 'ACTIVE' as const },
-        { idempotencyKey: 'p001-a' },
+        { idempotencyKey: 'p001-a', enterpriseId: enterpriseA1 },
       );
       const first = await handleCreateEnterprise(db(), ctx, env1);
       expect(first.status).toBe('COMMITTED');
 
       const ctx2 = contextFor(enterpriseA2, HUMAN_PRINCIPAL);
+      currentEnterpriseId = enterpriseA2;
       const env2 = payloadEnvelope(
         'p001-b',
         { displayCode: 'WI03-P001', displayName: 'P001-B', initialStatus: 'ACTIVE' as const },
-        { idempotencyKey: 'p001-b', enterpriseId: enterpriseA2 },
+        { idempotencyKey: 'p001-b' },
       );
       const second = await handleCreateEnterprise(db(), ctx2, env2);
       expect(second.status).toBe('REJECTED');
@@ -221,6 +224,7 @@ describe.skipIf(!gateEnabled)(
     // ============================================================
     it('EP-WI03-P-002 propose + confirm keeps additive history', async () => {
       const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
       const ctx = contextFor(enterpriseId, HUMAN_PRINCIPAL);
       const seedEnv = payloadEnvelope(
         'p002-seed',
@@ -323,6 +327,7 @@ describe.skipIf(!gateEnabled)(
     // ============================================================
     it('EP-WI03-P-004 product activation rejects re-activation as NOOP', async () => {
       const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
       const ctx = contextFor(enterpriseId, HUMAN_PRINCIPAL);
       const seedEnv = payloadEnvelope(
         'p004-seed',
@@ -419,6 +424,7 @@ describe.skipIf(!gateEnabled)(
     // ============================================================
     it('EP-WI03-P-005 QMS rollback keeps both revisions', async () => {
       const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
       const ctx = contextFor(enterpriseId, HUMAN_PRINCIPAL);
       const seedEnv = payloadEnvelope(
         'p005-seed',
@@ -560,6 +566,7 @@ describe.skipIf(!gateEnabled)(
     // ============================================================
     it('EP-WI03-P-006 profile snapshot rejects cross-Enterprise factRef', async () => {
       const enterpriseA = newUuidV7();
+      currentEnterpriseId = enterpriseA;
       const ctx = contextFor(enterpriseA, HUMAN_PRINCIPAL);
       await handleCreateEnterprise(
         db(),
@@ -571,6 +578,7 @@ describe.skipIf(!gateEnabled)(
         ),
       );
       const enterpriseB = newUuidV7();
+      currentEnterpriseId = enterpriseB;
       const ctxB = contextFor(enterpriseB, HUMAN_PRINCIPAL);
       await handleCreateEnterprise(
         db(),
@@ -705,6 +713,7 @@ describe.skipIf(!gateEnabled)(
     // ============================================================
     it('EP-WI03-P-007 get_enterprise_profile_snapshot reads immutable snapshot', async () => {
       const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
       const ctx = contextFor(enterpriseId, HUMAN_PRINCIPAL);
       const seed = await handleCreateEnterprise(
         db(),
@@ -850,6 +859,7 @@ describe.skipIf(!gateEnabled)(
     // ============================================================
     it('EP-WI03-P-010 empty product scope snapshot rejected', async () => {
       const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
       const ctx = contextFor(enterpriseId, HUMAN_PRINCIPAL);
       const seed = await handleCreateEnterprise(
         db(),
