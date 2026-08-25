@@ -173,3 +173,85 @@ export interface QmsConfigurationRevisionTable {
   source_command_id: string;
   previous_revision_id: string | null;
 }
+
+// IM-03 WI-04 (issue #60): Project Aggregate, ProjectScopeClaim and
+// ProjectSnapshotBinding rows. The Project row owns the (enterprise_id,
+// project_id) tuple; both columns are immutable once written (PG-007,
+// Issue #60 #1). The ScopeClaim is the authoritative source of that
+// pair used by other modules. The SnapshotBinding is INSERT-only and
+// records the exact StartSnapshot consumed at create time.
+export type ProjectStatus = 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED';
+export type ProjectScopeClaimStatus = 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
+export type ProjectSnapshotBindingPurpose = 'PROJECT_START';
+
+export interface ProjectTable {
+  project_id: string;
+  enterprise_id: string;
+  display_code: string;
+  title: string;
+  objective: string;
+  status: ProjectStatus;
+  member_policy_ref: Json;
+  member_policy_version_id: string;
+  member_policy_payload_hash: Buffer;
+  aggregate_version: Int8Default;
+  created_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  updated_at: Date;
+  last_command_id: string | null;
+  retention_class: string;
+}
+
+export interface ProjectScopeClaimTable {
+  claim_id: string;
+  enterprise_id: string;
+  project_id: string;
+  scope_version: Int8Default;
+  status: ProjectScopeClaimStatus;
+  claimed_by_principal_id: string;
+  claimed_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  payload: Json;
+  source_command_id: string;
+  claimed_at: Date;
+  updated_at: Date;
+}
+
+export interface ProjectSnapshotBindingTable {
+  binding_id: string;
+  enterprise_id: string;
+  project_id: string;
+  binding_purpose: ProjectSnapshotBindingPurpose;
+  enterprise_profile_snapshot_ref: Json;
+  enterprise_profile_snapshot_id: string;
+  enterprise_profile_payload_hash: Buffer;
+  qms_configuration_ref: Json;
+  qms_configuration_id: string;
+  qms_configuration_revision_id: string;
+  qms_configuration_revision_hash: Buffer;
+  product_scope_snapshot_ref: Json;
+  product_scope_snapshot_id: string;
+  product_scope_payload_hash: Buffer;
+  initial_customer_baseline_ref: Json | null;
+  initial_customer_baseline_version_id: string | null;
+  initial_customer_baseline_version_hash: Buffer | null;
+  template_baseline_ref: Json | null;
+  template_baseline_version_id: string | null;
+  template_baseline_version_hash: Buffer | null;
+  regulatory_profile_ref: Json | null;
+  regulatory_profile_version_id: string | null;
+  regulatory_profile_version_hash: Buffer | null;
+  member_policy_ref: Json;
+  member_policy_version_id: string;
+  member_policy_payload_hash: Buffer;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  bound_at: Date;
+  bound_by_principal_id: string;
+  bound_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  source_command_id: string;
+}

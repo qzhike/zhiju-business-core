@@ -68,6 +68,7 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'outbox_probe',
     'wi03_enterprise_probe',
     'wi03_project_probe',
+    'wi04_project_probe',
     // IM-03 WI-03 (issue #59) business aggregates landed by V2001; they live
     // under the same owning schema as the WI-02 technical tables but the
     // technical-tables catalog test only enumerates the WI-02 set.
@@ -80,6 +81,13 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'product_scope_snapshot',
     'qms_configuration',
     'qms_configuration_revision',
+    // IM-03 WI-04 (issue #60): Project Aggregate, ProjectScopeClaim and
+    // ProjectSnapshotBinding tables. They are Project-owned business tables
+    // and must be listed here so the technical-tables catalog does not flag
+    // them as unexpected shared tables.
+    'project',
+    'project_scope_claim',
+    'project_snapshot_binding',
   ],
   task_execution: ['business_probe', 'outbox_probe'],
   artifact: ['business_probe', 'outbox_probe'],

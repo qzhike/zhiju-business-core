@@ -22,6 +22,9 @@ import type {
   ProductScopeSnapshotTable,
   QmsConfigurationTable,
   QmsConfigurationRevisionTable,
+  ProjectTable,
+  ProjectScopeClaimTable,
+  ProjectSnapshotBindingTable,
 } from './enterprise-business-types.js';
 
 export interface EnterpriseInsert {
@@ -143,6 +146,72 @@ export interface QmsConfigurationRevisionInsert {
   authorizationDecisionId: string;
   sourceCommandId: string;
   previousRevisionId?: string | undefined;
+}
+
+// IM-03 WI-04 (issue #60): Project Aggregate and the
+// ProjectScopeClaim / ProjectSnapshotBinding rows that freeze its start
+// snapshot. The Project root owns the (enterprise_id, project_id) tuple;
+// the ScopeClaim publishes that tuple to other modules; the
+// SnapshotBinding records the exact StartSnapshot consumed by the
+// `project.create_project` handler.
+export interface ProjectInsert {
+  projectId: string;
+  enterpriseId: string;
+  displayCode: string;
+  title: string;
+  objective: string;
+  memberPolicyRef: unknown;
+  memberPolicyVersionId: string;
+  memberPolicyPayloadHash: Buffer;
+  createdByPrincipalId: string;
+  createdByActorSnapshotId: string;
+  sourceCommandId: string;
+}
+
+export interface ProjectScopeClaimInsert {
+  claimId: string;
+  enterpriseId: string;
+  projectId: string;
+  claimedByPrincipalId: string;
+  claimedByActorSnapshotId: string;
+  authorizationDecisionId: string;
+  payloadHash: Buffer;
+  payload: unknown;
+  sourceCommandId: string;
+}
+
+export interface ProjectSnapshotBindingInsert {
+  bindingId: string;
+  enterpriseId: string;
+  projectId: string;
+  bindingPurpose: 'PROJECT_START';
+  enterpriseProfileSnapshotRef: unknown;
+  enterpriseProfileSnapshotId: string;
+  enterpriseProfilePayloadHash: Buffer;
+  qmsConfigurationRef: unknown;
+  qmsConfigurationId: string;
+  qmsConfigurationRevisionId: string;
+  qmsConfigurationRevisionHash: Buffer;
+  productScopeSnapshotRef: unknown;
+  productScopeSnapshotId: string;
+  productScopePayloadHash: Buffer;
+  initialCustomerBaselineRef?: unknown;
+  initialCustomerBaselineVersionId?: string;
+  initialCustomerBaselineVersionHash?: Buffer;
+  templateBaselineRef?: unknown;
+  templateBaselineVersionId?: string;
+  templateBaselineVersionHash?: Buffer;
+  regulatoryProfileRef?: unknown;
+  regulatoryProfileVersionId?: string;
+  regulatoryProfileVersionHash?: Buffer;
+  memberPolicyRef: unknown;
+  memberPolicyVersionId: string;
+  memberPolicyPayloadHash: Buffer;
+  payloadHash: Buffer;
+  boundByPrincipalId: string;
+  boundByActorSnapshotId: string;
+  authorizationDecisionId: string;
+  sourceCommandId: string;
 }
 
 export type CasResult<T> =
@@ -751,5 +820,188 @@ export class EnterpriseBusinessRepository extends EnterpriseProjectRepository {
       .where('qms_configuration_id', '=', qmsConfigurationId)
       .orderBy('revision_no', 'asc')
       .execute()) as unknown as QmsConfigurationRevisionTable[];
+  }
+
+  // IM-03 WI-04 (issue #60): Project Aggregate root + Scope Claim +
+  // Project Start Snapshot Binding. The Project row owns the
+  // (enterprise_id, project_id) tuple; both columns are immutable once
+  // written (PG-007 / Issue #60 #1). The ScopeClaim publishes that pair to
+  // other modules. The SnapshotBinding freezes the exact StartSnapshot
+  // inputs at create time.
+
+  async insertProject(trx: EnterpriseProjectTransaction, insert: ProjectInsert): Promise<boolean> {
+    await this.assertContextPrincipal(trx, insert.createdByPrincipalId);
+    // UNIQUE (enterprise_id, display_code) is the only allow-listed duplicate
+    // path; Project ID is application-minted (UUIDv7) so PK collisions are
+    // a programmer error and must abort the transaction.
+    const inserted = await trx
+      .insertInto('enterprise_project.project')
+      .values({
+        project_id: insert.projectId,
+        enterprise_id: insert.enterpriseId,
+        display_code: insert.displayCode,
+        title: insert.title,
+        objective: insert.objective,
+        status: 'ACTIVE',
+        member_policy_ref: JSON.stringify(insert.memberPolicyRef),
+        member_policy_version_id: insert.memberPolicyVersionId,
+        member_policy_payload_hash: insert.memberPolicyPayloadHash,
+        created_by_principal_id: insert.createdByPrincipalId,
+        created_by_actor_snapshot_id: insert.createdByActorSnapshotId,
+        last_command_id: insert.sourceCommandId,
+        created_at: new Date(),
+        updated_at: new Date(),
+        retention_class: 'CUSTOMER_RECORD',
+      })
+      .onConflict((oc) => oc.columns(['enterprise_id', 'display_code']).doNothing())
+      .returning('project_id')
+      .executeTakeFirst();
+    return inserted !== undefined;
+  }
+
+  async getProjectById(
+    trx: EnterpriseProjectTransaction,
+    projectId: string,
+  ): Promise<ProjectTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.project')
+      .selectAll()
+      .where('project_id', '=', projectId)
+      .executeTakeFirst()) as unknown as ProjectTable | undefined;
+  }
+
+  async casProject(
+    trx: EnterpriseProjectTransaction,
+    projectId: string,
+    expectedVersion: string,
+  ): Promise<CasResult<ProjectTable>> {
+    const expected = BigInt(expectedVersion);
+    const next = (expected + 1n).toString();
+    const updated = await trx
+      .updateTable('enterprise_project.project')
+      .set({
+        aggregate_version: next,
+        updated_at: new Date(),
+      })
+      .where('project_id', '=', projectId)
+      .where('aggregate_version', '=', expectedVersion)
+      .executeTakeFirst();
+    if (Number(updated.numUpdatedRows) === 1) {
+      const row = await this.getProjectById(trx, projectId);
+      if (!row) throw new Error('casProject: row disappeared after CAS');
+      return { ok: true, nextVersion: next, row };
+    }
+    const current = await this.getProjectById(trx, projectId);
+    if (!current) {
+      throw new EnterprisePersistenceError(
+        ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH,
+        'casProject: target not found',
+      );
+    }
+    return { ok: false, current: asAggregateVersion(current.aggregate_version) };
+  }
+
+  async insertProjectScopeClaim(
+    trx: EnterpriseProjectTransaction,
+    insert: ProjectScopeClaimInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.claimedByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.project_scope_claim')
+      .values({
+        claim_id: insert.claimId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        scope_version: '1',
+        status: 'ACTIVE',
+        claimed_by_principal_id: insert.claimedByPrincipalId,
+        claimed_by_actor_snapshot_id: insert.claimedByActorSnapshotId,
+        authorization_decision_id: insert.authorizationDecisionId,
+        payload_hash: insert.payloadHash,
+        canonicalization_version: '1',
+        payload: JSON.stringify(insert.payload),
+        source_command_id: insert.sourceCommandId,
+        claimed_at: new Date(),
+        updated_at: new Date(),
+      })
+      .execute();
+  }
+
+  async getProjectScopeClaimByProjectId(
+    trx: EnterpriseProjectTransaction,
+    projectId: string,
+  ): Promise<ProjectScopeClaimTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.project_scope_claim')
+      .selectAll()
+      .where('project_id', '=', projectId)
+      .executeTakeFirst()) as unknown as ProjectScopeClaimTable | undefined;
+  }
+
+  async insertProjectSnapshotBinding(
+    trx: EnterpriseProjectTransaction,
+    insert: ProjectSnapshotBindingInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.boundByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.project_snapshot_binding')
+      .values({
+        binding_id: insert.bindingId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        binding_purpose: insert.bindingPurpose,
+        enterprise_profile_snapshot_ref: JSON.stringify(insert.enterpriseProfileSnapshotRef),
+        enterprise_profile_snapshot_id: insert.enterpriseProfileSnapshotId,
+        enterprise_profile_payload_hash: insert.enterpriseProfilePayloadHash,
+        qms_configuration_ref: JSON.stringify(insert.qmsConfigurationRef),
+        qms_configuration_id: insert.qmsConfigurationId,
+        qms_configuration_revision_id: insert.qmsConfigurationRevisionId,
+        qms_configuration_revision_hash: insert.qmsConfigurationRevisionHash,
+        product_scope_snapshot_ref: JSON.stringify(insert.productScopeSnapshotRef),
+        product_scope_snapshot_id: insert.productScopeSnapshotId,
+        product_scope_payload_hash: insert.productScopePayloadHash,
+        initial_customer_baseline_ref:
+          insert.initialCustomerBaselineRef === undefined
+            ? null
+            : JSON.stringify(insert.initialCustomerBaselineRef),
+        initial_customer_baseline_version_id: insert.initialCustomerBaselineVersionId ?? null,
+        initial_customer_baseline_version_hash: insert.initialCustomerBaselineVersionHash ?? null,
+        template_baseline_ref:
+          insert.templateBaselineRef === undefined
+            ? null
+            : JSON.stringify(insert.templateBaselineRef),
+        template_baseline_version_id: insert.templateBaselineVersionId ?? null,
+        template_baseline_version_hash: insert.templateBaselineVersionHash ?? null,
+        regulatory_profile_ref:
+          insert.regulatoryProfileRef === undefined
+            ? null
+            : JSON.stringify(insert.regulatoryProfileRef),
+        regulatory_profile_version_id: insert.regulatoryProfileVersionId ?? null,
+        regulatory_profile_version_hash: insert.regulatoryProfileVersionHash ?? null,
+        member_policy_ref: JSON.stringify(insert.memberPolicyRef),
+        member_policy_version_id: insert.memberPolicyVersionId,
+        member_policy_payload_hash: insert.memberPolicyPayloadHash,
+        payload_hash: insert.payloadHash,
+        canonicalization_version: '1',
+        bound_at: new Date(),
+        bound_by_principal_id: insert.boundByPrincipalId,
+        bound_by_actor_snapshot_id: insert.boundByActorSnapshotId,
+        authorization_decision_id: insert.authorizationDecisionId,
+        source_command_id: insert.sourceCommandId,
+      })
+      .execute();
+  }
+
+  async getProjectSnapshotBinding(
+    trx: EnterpriseProjectTransaction,
+    projectId: string,
+    bindingPurpose: 'PROJECT_START',
+  ): Promise<ProjectSnapshotBindingTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.project_snapshot_binding')
+      .selectAll()
+      .where('project_id', '=', projectId)
+      .where('binding_purpose', '=', bindingPurpose)
+      .executeTakeFirst()) as unknown as ProjectSnapshotBindingTable | undefined;
   }
 }

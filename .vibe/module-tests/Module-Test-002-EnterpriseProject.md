@@ -1,8 +1,8 @@
 # Module-Test-002-EnterpriseProject
 
-版本：v0.2
+版本：v0.3
 日期：2026-08-25
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / LOCAL VERIFY PASS / USER CONFIRMATION REQUIRED`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / LOCAL VERIFY PASS / USER CONFIRMATION REQUIRED`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -81,3 +81,21 @@
 | `EP-WI03-P-012` | Unit | canonical JSON hash 顺序无关 | `digest.equals` 为 `true` | `digestCanonicalPayload` 顺序无关断言通过 | `PASS` |
 
 WI-03 业务 Handler、业务 DDL 和 Disposable PostgreSQL 的修正结果已由本次 exact-head 工作区复验；真实 Provider、HTTP、跨模块 E2E 和人工业务验收仍为 `NOT RUN`。原始 PR 的自报测试结果不作为本次修正后的 PASS 证据。
+
+## IM-03 WI-04 Project 启动快照、Scope 与对象验证用例
+
+| ID | 层级 | 输入 | 预期输出 | 实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI04-P-001` | Persistence | 同 Enterprise 内 Project A happy path | 提交 Project + ScopeClaim + SnapshotBinding 三张表；aggregate_version=1；Outbox/Reference Edge 同步 | Project/ScopeClaim/Binding 各 1 行；Root aggregate_version=1；memberPolicy 版本与 payload 一致 | `PASS` |
+| `EP-WI04-P-002` | Persistence | 同 Enterprise 内重复 displayCode | 拒绝 `PROJECT_PROJECT_DISPLAY_CODE_CONFLICT`；事务不留下 Project / ScopeClaim / Binding | 第二条 Project REJECTED；后置连接可正常提交不同 displayCode | `PASS` |
+| `EP-WI04-P-003` | Persistence | StartSnapshot 引用跨 Enterprise 的 Profile 或错误 enterprise_id | 拒绝 `PROJECT_START_SNAPSHOT_SCOPE_MISMATCH`；Scope mirror trigger 与 handler 二次校验均触发 | up-front shape 校验通过，但 Repository lookup 失败并返回 Scope Mismatch | `PASS` |
+| `EP-WI04-P-004` | Persistence | StartSnapshot 任意 ref 使用 `latest` / `current` | 拒绝 `PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN` | snapshotId=latest 直接短路拒绝 | `PASS` |
+| `EP-WI04-P-005` | Persistence | StartSnapshot Profile ref 指向不存在 / 错误 hash 的 snapshot | 拒绝 `PROJECT_START_SNAPSHOT_SCOPE_MISMATCH`；事务回滚 | 错误 hash 触发 Scope Mismatch；Project/ScopeClaim/Binding 均为 0 行 | `PASS` |
+| `EP-WI04-P-006` | Persistence | memberPolicyRef 不是 VERSIONED 或缺 contentHash | 拒绝 `PROJECT_MEMBER_POLICY_REF_INVALID` | OBJECT 形态或缺 contentHash 均拒绝 | `PASS` |
+| `EP-WI04-P-007` | Persistence | ProjectScopeClaim 在创建后可被权威 SQL 查询 | `(enterprise_id, project_id, status)` 与事务 Context Enterprise 相同；status=ACTIVE | admin 查询匹配；唯一约束与 enterprise 镜像一致 | `PASS` |
+| `EP-WI04-P-008` | Persistence | `project.validate_object_scope` 同 Project / 跨 Project probe | 同 Project 返回 `valid=true` 与正确 Scope；跨 Project 抛 `PROJECT_OBJECT_SCOPE_MISMATCH`；不返回替代对象 | Project A valid=true；Project B probe 拒绝 | `PASS` |
+| `EP-WI04-P-009` | Persistence | 两个 Enterprise 同 displayCode | 两个 Project 均 COMMITTED；`(enterprise_id, display_code)` UNIQUE 不冲突 | Enterprise A/B 各提交一条 Project | `PASS` |
+| `EP-WI04-P-010` | Persistence | memberPolicyRef 缺 contentHash | 拒绝 `PROJECT_MEMBER_POLICY_REF_INVALID` | 形态校验失败短路 | `PASS` |
+| `EP-WI04-DB-011` | Persistence | `enterprise_project_app` 对 `project_snapshot_binding` UPDATE 权限 | `has_table_privilege(... 'UPDATE') = false` | V2003 `REVOKE UPDATE, DELETE` 生效 | `PASS` |
+
+WI-04 业务 Handler、业务 DDL 和 Disposable PostgreSQL 的实现结果已由本次 exact-head 工作区复验；真实 Provider、HTTP、跨模块 E2E 和人工业务验收仍为 `NOT RUN`。原始 PR 的自报测试结果不作为本次修正后的 PASS 证据。

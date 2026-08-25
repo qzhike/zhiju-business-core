@@ -1,8 +1,8 @@
 # Module-Spec-002-EnterpriseProject
 
-版本：v0.1
+版本：v0.2
 日期：2026-08-25
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / USER CONFIRMATION REQUIRED`
 
 ## 1. 模块责任
 
@@ -335,3 +335,27 @@ PROJECT_HUMAN_ONLY_DENIED
 Human-only 边界由受信 transaction context 与 Command Envelope 中一致且必填的 `principalKind` 决定；缺失或非 HUMAN 主体均走 `PROJECT_HUMAN_ONLY_DENIED` 短路。Product 与 QMS 重复激活分别返回 `PROJECT_PRODUCT_ACTIVATION_NOOP` / `PROJECT_QMS_ACTIVATION_NOOP`，再叠加 V2001 partial unique index 的 DB 防御。所有 `ObjectRef`、`VersionedRef`、`SnapshotRef` 必须校验 objectType、objectId、version/snapshotId、Scope 和 contentHash；不能只使用 versionId。
 
 `enterprise.display_code` `UNIQUE`、CAS 跨 Enterprise Ref 拒绝、hash mismatch、旧 expectedVersion 等负向路径由 `tests/persistence/enterprise-project-business-aggregates.test.ts` 在真实 PostgreSQL 上覆盖；用户手动 Probe 在 WI-04 补齐之前保持 `NOT RUN`。
+
+## 13. IM-03 WI-04 Project 启动快照、Scope 与对象验证
+
+Issue #60 在 WI-02 事务基础和 WI-03 业务纵向切片之上落地 Project Aggregate、ProjectScopeClaim 和 ProjectSnapshotBinding 三张业务表，并落地 `project.create_project` Handler 与 `project.validate_object_scope` 权威 Query。该切片为所有 Project-owned 切片建立不可迁移的 Enterprise/Project 边界。
+
+1. Project Aggregate Root 写入 V2003 `enterprise_project.project`：`(enterprise_id, project_id)` 为复合不可变 Scope；`memberPolicyRef` 在创建时固化，后续更新路径无法 rebind；`display_code` 在同一 Enterprise 内 `UNIQUE`，跨 Enterprise 允许相同字符串。
+2. ProjectScopeClaim（V2003 `enterprise_project.project_scope_claim`）是其他模块查询 `(enterprise_id, project_id)` 复合关系的唯一权威；`(project_id)` 与 `(enterprise_id, project_id)` 双唯一约束，scope mirror trigger 在写入前拒绝 payload 与列不一致。
+3. ProjectSnapshotBinding（V2003 `enterprise_project.project_snapshot_binding`）是 Project 启动时冻结的精确 `ProjectStartSnapshot`：EnterpriseProfileSnapshotRef、QMSConfigurationRef、ProductScopeSnapshotRef、可选 CustomerBaseline/TemplateBaseline/RegulatoryProfile refs，以及 memberPolicyRef 全部固化；binding purpose 封闭为 `PROJECT_START`，整表 `REVOKE UPDATE, DELETE` 给 app role；`(project_id, binding_purpose)` `UNIQUE` 保证同 Project 不会被替换 binding。
+4. RLS 三表均 `FORCE ROW LEVEL SECURITY`：project 与 binding 使用 `context_allows_project(enterprise_id, project_id)`；Scope Claim 同时校验 Enterprise 与 Project helper。Enterprise-only Context 不能看到 Project-owned 行；Project 行不能跨 Project 枚举。
+5. `project.create_project` Handler 在同一事务内执行：(a) 校验 StartSnapshot 三必填 ref 与可选 ref 的 shape（objectType/scope/contentHash），拒绝 `latest` / `current` 与跨 Enterprise Scope；(b) 重新读取持久化快照行二次校验 hash；(c) 写入 Project Root、ProjectScopeClaim、ProjectSnapshotBinding；(d) 写一条 Outbox `Enterprise.ProjectCreated` 事件；(e) 写 Reference Edge 链接 StartSnapshot 与 memberPolicy。失败码见下方。
+6. `project.validate_object_scope` Query 是权威 scope 校验：仅接受 `OBJECT`/`VERSIONED`/`CONTENT_ADDRESSED`/`SNAPSHOT` 类型 Ref；按 `expectedScopeRef` 走 RLS helper 在数据库内查 `(enterprise_id, project_id)`；不允许在 Enterprise/Project 间搜索替代对象。
+
+WI-04 失败码（5 个）：
+
+```
+PROJECT_PROJECT_DISPLAY_CODE_CONFLICT
+PROJECT_START_SNAPSHOT_INCOMPLETE
+PROJECT_START_SNAPSHOT_SCOPE_MISMATCH
+PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN
+PROJECT_MEMBER_POLICY_REF_INVALID
+PROJECT_OBJECT_SCOPE_MISMATCH
+```
+
+`Project` 表通过 BEFORE UPDATE trigger 阻止任何对 `enterprise_id` / `project_id` / `member_policy_*` 列的写；`ProjectSnapshotBinding` 通过 `REVOKE UPDATE, DELETE` 给 app role 实现不可写。Project Aggregate CAS 通过 `casProject` 仅作用 `aggregate_version`，不接受任何对 Scope 列的"迁移"语义。WI-04 业务 DDL、Repository、Handler 由 `tests/persistence/enterprise-project-scope.test.ts` 在真实 PostgreSQL 上覆盖；用户手动 Probe 在 WI-05/06 之前保持 `NOT RUN`，业务实现可由 Issue #60 评审决定进入下一步 PR。

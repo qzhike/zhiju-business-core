@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -330,7 +330,7 @@ IM-01 Repository + Executable Contracts  （COMPLETE / FULL 200 + ENVELOPE_ONLY 
     ↓
     IM-02 PostgreSQL Foundation + IdentityPolicy  （COMPLETE / ISSUE #28 CLOSED / PR #51+#52+#53+#54+#55 MERGED / WI-01–WI-10 CORE GATES + AGENT-EXECUTED LOCAL RUNBOOK PASS / EXTERNAL PROVIDER NOT RUN）
     ↓
-IM-03 EnterpriseProject Reference Foundation  （IN PROGRESS / WI-01 DESIGN DECISION RECORDED / WI-02 APPLICATION+PERSISTENCE FOUNDATION / PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED）
+IM-03 EnterpriseProject Reference Foundation  （IN PROGRESS / WI-01 DESIGN DECISION RECORDED / WI-02 APPLICATION+PERSISTENCE FOUNDATION / WI-03 BUSINESS VERTICAL SLICE LANDED / WI-04 PROJECT START SNAPSHOT LANDED / USER CONFIRMATION REQUIRED）
 ```
 
 IM-02 的 RLS Context 物理机制已经进入 WI-03：上下文存放于
@@ -463,6 +463,17 @@ WI-07 本地手工 Probe 的 AES-256-GCM 测试 Port 必须先完成 `cipher.upd
 - 本地第一次 `pnpm persistence:gate` 已完成 PostgreSQL 18.6 / Flyway 11.20.3 空库迁移，但 Vitest 因 workspace 包尚未先 build 而出现 8 个包入口解析失败；该次只作为基线失败证据，不能记为业务 PASS。修正后先完成 workspace build，门禁复跑为 `14` 个 Persistence 文件、`202` 个测试通过，二次 migrate 为 no-op，容器已清理。
 - 修正后的本地 `pnpm verify` 已通过：Format、Lint、Typecheck、Unit Test（`21 passed / 12 skipped`，`348 passed / 189 skipped`）、Architecture、Contracts（200 operations）和 PostgreSQL Persistence Gate 均通过。业务实现仅证明上述本地自动化边界；真实 Provider、HTTP、跨模块 E2E 和人工业务验收继续保持 `NOT RUN`。
 - 修正文件仍需用户检查；在用户确认前不宣称已 Commit、Push、PR Merge 或 Issue Close。
+
+## IM-03 WI-04 Project 启动快照、Scope 与对象验证（2026-08-25）
+
+Issue #60 在 WI-02 事务基础和 WI-03 业务纵向切片之上落地 Project Aggregate、ProjectScopeClaim 与 ProjectSnapshotBinding 三张业务表，并落地 `project.create_project` Handler 与 `project.validate_object_scope` 权威 Query。该切片为所有 Project-owned 切片建立不可迁移的 Enterprise/Project 边界。
+
+- V2003 migration 新增 `enterprise_project.project`、`project_scope_claim`、`project_snapshot_binding` 三表。Project Root 的 `(enterprise_id, project_id)` 与 `member_policy_*` 列通过 BEFORE UPDATE trigger 双层保护，跨 Enterprise / 跨 Project / 跨 MemberPolicyRef 变更均拒绝。ProjectSnapshotBinding 表 `REVOKE UPDATE, DELETE` 给 app role；`(project_id, binding_purpose)` `UNIQUE` 保证同 Project 不被替换 binding。
+- 所有 Project-owned 表启用 RLS FORCE：`project` 与 `project_snapshot_binding` 通过 `context_allows_project(enterprise_id, project_id)`；`project_scope_claim` 同时校验 Enterprise helper。Enterprise-only Context 不能读取 Project-owned 行；Project 行不能跨 Project 枚举。
+- `project.create_project` Handler 在同一事务内：(1) 校验 `ProjectStartSnapshot` 三必填 ref（Profile/QMS/ProductScope）与可选 ref 的 shape、scope、contentHash；(2) 拒绝 `latest` / `current` 与跨 Enterprise scope；(3) 重新读取持久化快照行二次校验 hash；(4) 写入 Project Root、ScopeClaim、SnapshotBinding；(5) 写 Outbox `Enterprise.ProjectCreated`；(6) 写 Reference Edge 链接 StartSnapshot 与 memberPolicy。失败码：`PROJECT_PROJECT_DISPLAY_CODE_CONFLICT`、`PROJECT_START_SNAPSHOT_INCOMPLETE`、`PROJECT_START_SNAPSHOT_SCOPE_MISMATCH`、`PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN`、`PROJECT_MEMBER_POLICY_REF_INVALID`。
+- `project.validate_object_scope` 权威 Query 仅接受 `OBJECT` / `VERSIONED` / `CONTENT_ADDRESSED` / `SNAPSHOT` 类型 Ref；按 `expectedScopeRef` 走 RLS helper 在数据库内查 `(enterprise_id, project_id)`；不允许在 Enterprise/Project 间搜索替代对象。失败码：`PROJECT_OBJECT_SCOPE_MISMATCH`。
+- Repository 与 Handler 已扩展：`EnterpriseBusinessRepository` 新增 `insertProject / getProjectById / casProject / insertProjectScopeClaim / getProjectScopeClaimByProjectId / insertProjectSnapshotBinding / getProjectSnapshotBinding`；`EnterpriseBusinessError` 新增 5 个失败码。
+- 业务实现可由 Issue #60 评审决定进入下一步 PR；本切片只证明当前工作区和 Disposable PostgreSQL 边界。真实 Provider、HTTP、跨模块 E2E 和人工业务验收仍为 `NOT RUN`。
 
 ## IM-03 WI-02 审查修正约束（2026-08-25）
 

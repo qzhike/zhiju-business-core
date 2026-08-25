@@ -1,7 +1,9 @@
 // IM-03 WI-03 (issue #59): business failure codes for the EnterpriseProject
 // vertical slice. Each code matches the failure surface declared in
 // Module-Spec-002 §6 and the WI-01 decision matrix. New codes introduced by
-// V2001 business tables are marked `# NEW`.
+// V2001 business tables are marked `# NEW`. New codes introduced by
+// IM-03 WI-04 (issue #60) Project Aggregate / Scope Claim / Snapshot
+// Binding are marked `# WI04`.
 
 export const PROJECT_ENTERPRISE_NOT_ACTIVE = 'PROJECT_ENTERPRISE_NOT_ACTIVE';
 export const PROJECT_FACT_SOURCE_REQUIRED = 'PROJECT_FACT_SOURCE_REQUIRED';
@@ -23,6 +25,22 @@ export const PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT = 'PROJECT_ENTERPRISE_DISP
 export const PROJECT_PRODUCT_DISPLAY_CODE_CONFLICT = 'PROJECT_PRODUCT_DISPLAY_CODE_CONFLICT'; // # NEW
 export const PROJECT_PRODUCT_ACTIVATION_NOOP = 'PROJECT_PRODUCT_ACTIVATION_NOOP'; // # NEW
 export const PROJECT_QMS_ACTIVATION_NOOP = 'PROJECT_QMS_ACTIVATION_NOOP'; // # NEW
+// IM-03 WI-04 (issue #60): Project Aggregate, ProjectScopeClaim and
+// ProjectSnapshotBinding failure surface. PROJECT_START_SNAPSHOT_INCOMPLETE
+// covers missing required Profile/QMS/ProductScope refs;
+// PROJECT_START_SNAPSHOT_SCOPE_MISMATCH covers cross-Enterprise refs and
+// the (enterprise_id, project_id) scope mirror; PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN
+// forbids `latest` / `current` pointer resolution (Issue #60 #2);
+// PROJECT_MEMBER_POLICY_REF_INVALID covers missing/incorrect
+// memberPolicyRef (objectType, versionId, scope, contentHash);
+// PROJECT_OBJECT_SCOPE_MISMATCH is the authoritative scope-validation
+// query outcome for `project.validate_object_scope`.
+export const PROJECT_PROJECT_DISPLAY_CODE_CONFLICT = 'PROJECT_PROJECT_DISPLAY_CODE_CONFLICT'; // # WI04
+export const PROJECT_START_SNAPSHOT_INCOMPLETE = 'PROJECT_START_SNAPSHOT_INCOMPLETE'; // # WI04
+export const PROJECT_START_SNAPSHOT_SCOPE_MISMATCH = 'PROJECT_START_SNAPSHOT_SCOPE_MISMATCH'; // # WI04
+export const PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN = 'PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN'; // # WI04
+export const PROJECT_MEMBER_POLICY_REF_INVALID = 'PROJECT_MEMBER_POLICY_REF_INVALID'; // # WI04
+export const PROJECT_OBJECT_SCOPE_MISMATCH = 'PROJECT_OBJECT_SCOPE_MISMATCH'; // # WI04
 
 /**
  * Stable, safe business failure code. Never carries the offending payload.
@@ -60,4 +78,10 @@ export type EnterpriseBusinessErrorCode =
   | typeof PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT
   | typeof PROJECT_PRODUCT_DISPLAY_CODE_CONFLICT
   | typeof PROJECT_PRODUCT_ACTIVATION_NOOP
-  | typeof PROJECT_QMS_ACTIVATION_NOOP;
+  | typeof PROJECT_QMS_ACTIVATION_NOOP
+  | typeof PROJECT_PROJECT_DISPLAY_CODE_CONFLICT
+  | typeof PROJECT_START_SNAPSHOT_INCOMPLETE
+  | typeof PROJECT_START_SNAPSHOT_SCOPE_MISMATCH
+  | typeof PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN
+  | typeof PROJECT_MEMBER_POLICY_REF_INVALID
+  | typeof PROJECT_OBJECT_SCOPE_MISMATCH;
