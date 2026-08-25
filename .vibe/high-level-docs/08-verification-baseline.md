@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / USER REVIEW REQUIRED`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / USER REVIEW REQUIRED`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -340,7 +340,7 @@ remaining risk
 - 2026-08-21 用户先批准修订 Issue #9 的 Schema 退出硬依赖，随后批准将 #5 收敛为字段 Schema 边界；关闭 #5 不会把 #22–#24 或 #27 的 Runtime/外部验收改写为 `PASS`；
 - 尚无 IM-03 EnterpriseProject 业务 DDL、Repository、业务 Handler、飞书 Adapter、Runtime Adapter 或 Renderer 实现；IM-02 标准事务技术表已落地并有独立验证，但不能写成 IM-03 业务实现 `PASS`；
 - 尚无 IM-03 业务 PostgreSQL 事务链、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；IM-02 技术表的 PostgreSQL/Flyway persistence gate 已通过，但不等于业务链完成；
-- 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)）；IM-02 已完成技术基础和文档收口，PR #51–#55 已合入，Issue #28 已关闭；真实业务 Handler、外部系统和人工验收仍未完成。IM-03 当前处于 WI-01 设计决策审阅阶段。
+- 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)）；IM-02 已完成技术基础和文档收口，PR #51–#55 已合入，Issue #28 已关闭；真实业务 Handler、外部系统和人工验收仍未完成。IM-03 WI-01 设计决策已记录；WI-02 正在落地 EnterpriseProject Application/Persistence 事务基础，业务 DDL/Handler 仍为 `NOT RUN`。
 
 ## 10. IM-03 WI-01 设计验证边界
 
@@ -352,3 +352,13 @@ Issue #57 的决策矩阵提供了 Product/QMS/Profile/Platform Reference 的唯
 - IM-05 QualityProfile/Evidence 真实来源与跨模块验证、对象存储、外部 Provider 和人工“采购控制程序”验收。
 
 本轮唯一可验证的自动范围是现有 200 项公开 Contract、文档链接/格式和 Catalog/Registry 一致性；这些 Gate 通过也不能提升上述业务项状态。
+
+## 11. IM-03 WI-02 Application/Persistence 验证边界
+
+Issue #58 验证 EnterpriseProject 模块内技术表写入路径，而不是业务 Aggregate：
+
+- 相同幂等键/相同 Hash 重放、不同 Hash 冲突、并发 CAS、故障回滚必须在真实 PostgreSQL 证明；
+- 无 Context、伪造 GUC、过期 AuthorizationDecision、跨 Project Scope 与连接池 Context 泄漏必须安全拒绝；
+- Canonical payload/hash 与提升 Scope 列不一致必须在写入边界拒绝；
+- 授权只允许绑定 IdentityPolicy 公开 Decision/Query Port 给出的可信快照，禁止模块 import `@zhiju/identity-policy` 或共享其 Repository；
+- 空库 Migration / 二次 no-op 继续由 persistence gate 证明。业务 Handler、业务 DDL、公开 HTTP 和人工“采购控制程序”仍为 `NOT RUN`。
