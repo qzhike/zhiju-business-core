@@ -66,9 +66,16 @@ function contextFor(
   };
 }
 
+let envelopeCounter = 0;
 function envelope(overrides: Partial<CommandEnvelope> = {}): CommandEnvelope {
+  envelopeCounter += 1;
+  // Each envelope needs a unique command_id because command_receipt uses
+  // command_id as PRIMARY KEY; reusing the same literal across calls makes
+  // the second insert collide with the first. The 13th nibble must be 7
+  // (UUIDv7) so the value parses as a UUID.
+  const tail = envelopeCounter.toString(16).padStart(12, '0');
   return {
-    commandId: 'f3f3f3f3-f3f3-73f3-83f3-f3f3f3f3f303',
+    commandId: `f3f3f3f3-f3f3-73f3-83f3-${tail}`,
     commandType: 'wi03.manual.command',
     commandVersion: '1.0',
     idempotencyScope: 'wi03',
