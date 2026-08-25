@@ -304,7 +304,11 @@ CREATE TRIGGER product_version_immutable_guard
     BEFORE UPDATE ON enterprise_project.product_version
     FOR EACH ROW EXECUTE FUNCTION enterprise_project.guard_product_version_immutable();
 
-REVOKE UPDATE, DELETE ON enterprise_project.product_version FROM enterprise_project_app;
+-- product_version keeps the active-pointer CURRENT/HISTORICAL lifecycle; the
+-- Application Repository updates only that column via this column-level grant
+-- while the BEFORE UPDATE trigger still rejects any other column change.
+GRANT UPDATE (lifecycle) ON enterprise_project.product_version TO enterprise_project_app;
+REVOKE DELETE ON enterprise_project.product_version FROM enterprise_project_app;
 
 -- ---------------------------------------------------------------------------
 -- product_scope_snapshot: immutable Scope Snapshot for ProjectStartSnapshot
@@ -456,7 +460,8 @@ CREATE TRIGGER qms_configuration_revision_immutable_guard
     BEFORE UPDATE ON enterprise_project.qms_configuration_revision
     FOR EACH ROW EXECUTE FUNCTION enterprise_project.guard_qms_configuration_revision_immutable();
 
-REVOKE UPDATE, DELETE ON enterprise_project.qms_configuration_revision FROM enterprise_project_app;
+REVOKE DELETE ON enterprise_project.qms_configuration_revision FROM enterprise_project_app;
+GRANT UPDATE (lifecycle) ON enterprise_project.qms_configuration_revision TO enterprise_project_app;
 
 -- ---------------------------------------------------------------------------
 -- RLS: every business table is Enterprise-scoped (project_id IS NULL) and

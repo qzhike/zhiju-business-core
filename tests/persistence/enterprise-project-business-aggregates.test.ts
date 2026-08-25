@@ -442,7 +442,7 @@ describe.skipIf(!gateEnabled)(
           {
             qmsConfigurationRef: {
               objectType: 'QMSConfiguration' as const,
-              objectId: 'placeholder',
+              objectId: newUuidV7(),
             },
             applicabilityDecisions: [{ requirementRef: 'req-1', outcome: 'APPLICABLE' }],
             managementChoices: [{ choiceKey: 'review-cycle', selectedOption: 'quarterly' }],
@@ -652,7 +652,7 @@ describe.skipIf(!gateEnabled)(
           {
             qmsConfigurationRef: {
               objectType: 'QMSConfiguration' as const,
-              objectId: 'placeholder',
+              objectId: newUuidV7(),
             },
             applicabilityDecisions: [],
             managementChoices: [],
@@ -759,7 +759,7 @@ describe.skipIf(!gateEnabled)(
           {
             qmsConfigurationRef: {
               objectType: 'QMSConfiguration' as const,
-              objectId: 'placeholder',
+              objectId: newUuidV7(),
             },
             applicabilityDecisions: [],
             managementChoices: [],

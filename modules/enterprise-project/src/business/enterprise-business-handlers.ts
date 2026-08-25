@@ -121,27 +121,31 @@ export async function handleCreateEnterprise(
       targetId: enterpriseId,
     },
     async (execution) => {
-      try {
-        await repo.insertEnterprise(execution.trx, {
-          enterpriseId,
-          displayCode: envelope.payload.displayCode,
-          displayName: envelope.payload.displayName,
-          createdByPrincipalId: envelope.principalId,
-          createdByActorSnapshotId: envelope.actorSnapshotId,
-          sourceCommandId: envelope.commandId,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '';
-        if (/enterprise_display_code_unique|23505/.test(message)) {
-          return {
-            kind: 'REJECTED',
-            errorCode: PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT,
-            safeSummary: 'another Enterprise already uses this displayCode',
-            currentAggregateVersion: undefined,
-          };
-        }
-        throw error;
+      // Pre-check displayCode uniqueness so a duplicate returns REJECTED
+      // without aborting the transaction. PostgreSQL aborts the transaction
+      // on any constraint violation, and finalizeReceipt in the REJECTED
+      // branch would otherwise see the aborted state and fail.
+      const existing = await execution.trx
+        .selectFrom('enterprise_project.enterprise')
+        .select('enterprise_id')
+        .where('display_code', '=', envelope.payload.displayCode)
+        .executeTakeFirst();
+      if (existing) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT,
+          safeSummary: 'another Enterprise already uses this displayCode',
+          currentAggregateVersion: undefined,
+        };
       }
+      await repo.insertEnterprise(execution.trx, {
+        enterpriseId,
+        displayCode: envelope.payload.displayCode,
+        displayName: envelope.payload.displayName,
+        createdByPrincipalId: envelope.principalId,
+        createdByActorSnapshotId: envelope.actorSnapshotId,
+        sourceCommandId: envelope.commandId,
+      });
       const result = {
         kind: 'COMMITTED' as const,
         resultPayload: {
@@ -301,7 +305,10 @@ export async function handleProposeEnterpriseFact(
         eventVersion: '1.0',
         aggregateType: 'EnterpriseFact',
         aggregateId: enterpriseFactId,
-        aggregateVersion: cas.nextVersion,
+        // Initial CREATE (no expectedAggregateVersion) emits the event at
+        // aggregate_version=1 per the WI-02 outbox-mirror guard, even though
+        // the root's CAS bumped it to 2.
+        aggregateVersion: '1',
         payload: {
           enterpriseId,
           enterpriseFactId,
@@ -344,6 +351,16 @@ export async function handleConfirmEnterpriseFact(
       'fact confirmation must carry at least one evidenceRef',
     );
   }
+  // Read the current aggregate_version outside the transaction so the
+  // envelope's expectedAggregateVersion matches the body CAS. The body still
+  // re-reads inside the transaction and surfaces a CONCURRENCY_CONFLICT
+  // rejection if the value drifts between this call and the CAS.
+  const currentFact = await withEnterpriseProjectTransaction(db, context, async (trx) =>
+    repo.getEnterpriseFactById(trx, enterpriseFactId),
+  );
+  const expectedAggregateVersion = currentFact
+    ? aggregateVersionToString(currentFact.aggregate_version)
+    : undefined;
   return executeEnterpriseProjectCommand(
     db,
     context,
@@ -351,6 +368,7 @@ export async function handleConfirmEnterpriseFact(
       ...envelope,
       targetType: 'EnterpriseFact',
       targetId: enterpriseFactId,
+      ...(expectedAggregateVersion !== undefined ? { expectedAggregateVersion } : {}),
     },
     async (execution) => {
       const fact = await repo.getEnterpriseFactById(execution.trx, enterpriseFactId);
