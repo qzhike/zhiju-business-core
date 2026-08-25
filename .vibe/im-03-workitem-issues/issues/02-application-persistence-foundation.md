@@ -15,11 +15,11 @@
 
 ## 验收条件
 
-- [ ] 相同幂等键/相同 Hash 返回稳定结果；不同 Hash 拒绝且不改写首个 Receipt。
-- [ ] CAS 竞争只有一个成功；失败事务不遗留业务行、Audit 或 Outbox。
-- [ ] 无/伪造/过期 Context、跨 Project Scope 与连接池 Context 泄漏安全拒绝。
-- [ ] Canonical payload/hash 与提升列不一致被写入边界拒绝。
-- [ ] 空库 Migration、重复 Migration 和真实 PostgreSQL focused tests 通过。
+- [x] 相同幂等键/相同 Hash 返回稳定结果；不同 Hash 拒绝且不改写首个 Receipt。
+- [x] CAS 竞争只有一个成功；失败事务不遗留业务行、Audit 或 Outbox。
+- [x] 无/伪造/过期 Context、跨 Project Scope 与连接池 Context 泄漏安全拒绝。
+- [x] Canonical payload/hash 与提升列不一致被写入边界拒绝。
+- [x] 空库 Migration、重复 Migration 和真实 PostgreSQL focused tests 通过。
 - [ ] 用户可运行一个 probe，看到成功、replay、hash conflict、CAS conflict 和 rollback 的逐项输出。
 
 ## 非目标与 `NOT RUN` 边界

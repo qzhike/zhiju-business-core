@@ -11,6 +11,9 @@
   "references": [
     {
       "path": "../../modules/identity-policy"
+    },
+    {
+      "path": "../../modules/enterprise-project"
     }
   ]
 }

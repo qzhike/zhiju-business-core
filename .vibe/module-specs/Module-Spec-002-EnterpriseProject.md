@@ -1,8 +1,8 @@
 # Module-Spec-002-EnterpriseProject
 
 版本：v0.1
-日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / USER REVIEW REQUIRED / BUSINESS IMPLEMENTATION NOT STARTED`
+日期：2026-08-25
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / USER REVIEW REQUIRED / BUSINESS IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -278,9 +278,22 @@ ProjectStartSnapshot 的三个必需输入是同一 Enterprise Scope 下的 `Ent
 
 - 32 个公开 Contract 已定义字段级 payload/result/event 结构；Issue #57 另行冻结受控前置 Capability，但没有扩展公共 Registry；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- IM-02 标准技术表已落地并有独立验证；IM-03 业务 DDL、Repository、Handler、Evaluator、Projection 与受控 Capability 实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`；本 Issue 的决策矩阵为 `DESIGN VERIFIED / USER REVIEW REQUIRED`。
+- IM-02 标准技术表已落地并有独立验证；IM-03 WI-02 已提供模块内 Application/Persistence 事务基础（Command Receipt、Audit、Outbox、Reference Edge、RLS Context 绑定与 CAS），但仍不存在业务 DDL、业务 Handler、Evaluator、Projection 与受控 Capability 实现；
+- 对应业务 Unit、Contract、E2E 与人工验收均为 `NOT RUN`；本 Issue 的决策矩阵为 `DESIGN VERIFIED / USER REVIEW REQUIRED`。
 
 ## 10. IM-02 WI-04 持久化切片
 
-EnterpriseProject owning Schema 独立拥有八张标准事务技术表。nullable Project Scope 按行选择 Enterprise/Project RLS；Process Step 不得跨 Project 关联父 Process；Reference Edge 的 owner version 属于唯一身份；masked audit surface 必须可读已提交行且不暴露底表敏感列。Canonical payload↔hash 强校验由 #34 Repository 写入事务承接，当前为 `NOT RUN`；模块业务 Handler、Evaluator 与 Projection 不在本切片。
+EnterpriseProject owning Schema 独立拥有八张标准事务技术表。nullable Project Scope 按行选择 Enterprise/Project RLS；Process Step 不得跨 Project 关联父 Process；Reference Edge 的 owner version 属于唯一身份；masked audit surface 必须可读已提交行且不暴露底表敏感列。
+
+## 11. IM-03 WI-02 Application/Persistence 事务基础
+
+Issue #58 在模块内建立最小写入事务路径，供后续业务切片复用，且不创建业务表：
+
+1. `withEnterpriseProjectTransaction` 在同一连接上先以 `platform_context_establisher` 建立 WI-03 RLS Context，再切换 `enterprise_project_app`。Context 随事务提交/回滚消失，连接池不得泄漏。
+2. Command Envelope 必须绑定可信 `principalId`、`actorSnapshotId`、`authorizationDecisionId` 与 `policySnapshotId`。本模块不 import IdentityPolicy，也不复制其 Repository；组成层必须先走 IdentityPolicy 公开 Decision/Query Port。
+3. `(idempotency_scope, idempotency_key)` 由数据库裁决：相同 Hash 返回稳定结果；不同 Hash 拒绝且不改写首个 Receipt。
+4. 一个 Aggregate Root 一个事务：Receipt、技术 CAS、Audit、Outbox 与 Reference Edge 同事务提交；body 失败则全部回滚。
+5. Canonical JSONB ↔ SHA-256 Hash 与提升 `enterpriseId`/`projectId` 列必须一致，否则写入边界拒绝。
+6. CAS 目前作用在已有 `process_instance.aggregate_version` 技术表；WI-03 业务 Aggregate 落地前不得把该 CAS 写成业务状态机 `PASS`。
+
+失败码：`IDEMPOTENCY_PAYLOAD_CONFLICT`、`CONCURRENCY_CONFLICT`、`COMMAND_CONTEXT_MISMATCH`、`COMMAND_CONTEXT_EXPIRED`、`COMMAND_CONTEXT_REJECTED`、`COMMAND_TARGET_MISMATCH`、`PAYLOAD_HASH_MISMATCH`。模块业务 Handler、Evaluator 与 Projection 不在本切片。
