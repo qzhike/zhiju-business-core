@@ -38,6 +38,7 @@ const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const gateEnabled = Boolean(databaseUrl);
 
 const ENTERPRISE_A = 'a1a1a1a1-a1a1-71a1-81a1-a1a1a1a1a1a1';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ENTERPRISE_B = 'b2b2b2b2-b2b2-72b2-82b2-b2b2b2b2b2b2';
 const HUMAN_PRINCIPAL = 'd1d1d1d1-d1d1-71d1-81d1-d1d1d1d1d1d1';
 const AGENT_PRINCIPAL = 'd2d2d2d2-d2d2-72d2-82d2-d2d2d2d2d2d2';
@@ -114,7 +115,7 @@ interface CommittedPayload {
   productRef?: { objectId: UuidV7 };
   currentVersionRef?: { versionId: UuidV7 };
   qmsConfigurationRef?: { objectId: UuidV7 };
-  qmsConfigurationRevisionRef?: { versionId: UuidV7 };
+  qmsConfigurationRevisionRef?: { objectId: UuidV7; versionId: UuidV7 };
   enterpriseProfileSnapshotRef?: { objectId: UuidV7 };
   productScopeSnapshotRef?: { objectId: UuidV7 };
 }
@@ -129,6 +130,7 @@ function objectIdFrom(result: CommandResult): UuidV7 {
     payload.enterpriseFactRef?.objectId ??
     payload.productRef?.objectId ??
     payload.qmsConfigurationRef?.objectId ??
+    payload.qmsConfigurationRevisionRef?.objectId ??
     payload.enterpriseProfileSnapshotRef?.objectId ??
     payload.productScopeSnapshotRef?.objectId ??
     (() => {
@@ -379,13 +381,13 @@ describe.skipIf(!gateEnabled)(
               versionId: v1Id,
             },
             activationMode: 'ACTIVATE' as const,
-            expectedAggregateVersion: '1',
+            expectedAggregateVersion: '2',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000aaa',
             },
           },
-          { idempotencyKey: 'p004-activate', expectedAggregateVersion: '1' },
+          { idempotencyKey: 'p004-activate', expectedAggregateVersion: '2' },
         ),
       );
       expect(activate.status).toBe('COMMITTED');
@@ -404,13 +406,13 @@ describe.skipIf(!gateEnabled)(
               versionId: v1Id,
             },
             activationMode: 'ACTIVATE' as const,
-            expectedAggregateVersion: '2',
+            expectedAggregateVersion: '3',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000bbb',
             },
           },
-          { idempotencyKey: 'p004-activate-again', expectedAggregateVersion: '2' },
+          { idempotencyKey: 'p004-activate-again', expectedAggregateVersion: '3' },
         ),
       );
       expect(reactivate.status).toBe('REJECTED');
@@ -610,7 +612,7 @@ describe.skipIf(!gateEnabled)(
               proposalReason: 'b fact',
             },
           },
-          { idempotencyKey: 'p006-fact-b', enterpriseId: ENTERPRISE_B },
+          { idempotencyKey: 'p006-fact-b', enterpriseId: enterpriseB },
         ),
       );
       const bFactId = objectIdFrom(proposeInB);
