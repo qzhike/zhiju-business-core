@@ -6,6 +6,7 @@ import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
 
 export const ENTERPRISE_PAYLOAD_HASH_MISMATCH = 'ENTERPRISE_PAYLOAD_HASH_MISMATCH';
 export const ENTERPRISE_PROMOTED_MIRROR_MISMATCH = 'ENTERPRISE_PROMOTED_MIRROR_MISMATCH';
+export const ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH = 'ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH';
 
 export class EnterprisePersistenceError extends Error {
   constructor(

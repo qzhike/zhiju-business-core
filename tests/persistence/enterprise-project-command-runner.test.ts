@@ -7,6 +7,7 @@ import {
   COMMAND_TARGET_MISMATCH,
   CONCURRENCY_CONFLICT,
   executeEnterpriseProjectCommand,
+  ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH,
   EnterpriseProjectRepository,
   IDEMPOTENCY_PAYLOAD_CONFLICT,
   PAYLOAD_HASH_MISMATCH,
@@ -41,6 +42,8 @@ const PROCESS_CONCURRENCY = 'e4e4e4e4-e4e4-74e4-84e4-e4e4e4e4e4e4';
 const PROCESS_BIGINT = 'e5e5e5e5-e5e5-75e5-85e5-e5e5e5e5e5e5';
 const PROCESS_PROJECT = 'e6e6e6e6-e6e6-76e6-86e6-e6e6e6e6e6e6';
 const PROCESS_B = 'e7e7e7e7-e7e7-77e7-87e7-e7e7e7e7e7e7';
+const PROCESS_TARGET_BIND = 'e8e8e8e8-e8e8-78e8-88e8-e8e8e8e8e8e8';
+const PROCESS_PRINCIPAL_BIND = 'e9e9e9e9-e9e9-79e9-89e9-e9e9e9e9e9e9';
 
 function contextFor(
   enterpriseId: string,
@@ -715,6 +718,157 @@ describe.skipIf(!gateEnabled)(
       expect(
         await count('command_receipt', "WHERE idempotency_key = 'wi02-cross-project-write'"),
       ).toBe('0');
+    });
+
+    it('binds Outbox aggregate identity/version and Reference Edge owner to the command target', async () => {
+      await executeEnterpriseProjectCommand(
+        db,
+        contextFor(ENTERPRISE_A),
+        envelope({
+          commandId: 'a8a8a8a8-a8a8-78a8-88a8-a8a8a8a8a801',
+          idempotencyKey: 'wi02-target-bind-setup',
+          targetId: PROCESS_TARGET_BIND,
+          requestPayload: { op: 'target-bind-setup' },
+        }),
+        async (execution) => {
+          await repo.insertProcessInstance(execution.trx, processInsert(PROCESS_TARGET_BIND));
+          return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_TARGET_BIND } };
+        },
+      );
+
+      await expect(
+        executeEnterpriseProjectCommand(
+          db,
+          contextFor(ENTERPRISE_A),
+          envelope({
+            commandId: 'a8a8a8a8-a8a8-78a8-88a8-a8a8a8a8a804',
+            idempotencyKey: 'wi02-target-bind-aggregate',
+            commandType: 'wi02.target-bind-aggregate',
+            targetId: PROCESS_TARGET_BIND,
+            requestPayload: { op: 'target-bind-aggregate' },
+          }),
+          async (execution) => {
+            await execution.appendOutbox({
+              eventId: 'a8a8a8a8-a8a8-78a8-88a8-a8a8a8a8a814',
+              eventType: 'wi02.TargetBindAggregate',
+              eventVersion: '1.0',
+              aggregateType: 'ProcessInstance',
+              aggregateId: PROCESS_A,
+              aggregateVersion: '1',
+              payload: { enterpriseId: ENTERPRISE_A, note: 'wrong aggregate' },
+              occurredAt: new Date(),
+            });
+            return { kind: 'COMMITTED', resultPayload: { invalid: true } };
+          },
+        ),
+      ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
+      expect(
+        await count('command_receipt', "WHERE idempotency_key = 'wi02-target-bind-aggregate'"),
+      ).toBe('0');
+      expect(await count('outbox_event', "WHERE event_type = 'wi02.TargetBindAggregate'")).toBe(
+        '0',
+      );
+
+      await expect(
+        executeEnterpriseProjectCommand(
+          db,
+          contextFor(ENTERPRISE_A),
+          envelope({
+            commandId: 'a8a8a8a8-a8a8-78a8-88a8-a8a8a8a8a802',
+            idempotencyKey: 'wi02-target-bind-cas',
+            commandType: 'wi02.target-bind-cas',
+            targetId: PROCESS_TARGET_BIND,
+            expectedAggregateVersion: '1',
+            requestPayload: { op: 'target-bind-cas' },
+          }),
+          async (execution) => {
+            await expect(execution.casProcessInstance(PROCESS_TARGET_BIND, '1')).resolves.toBe(
+              'OK',
+            );
+            await execution.appendOutbox({
+              eventId: 'a8a8a8a8-a8a8-78a8-88a8-a8a8a8a8a812',
+              eventType: 'wi02.TargetBindCas',
+              eventVersion: '1.0',
+              aggregateType: 'ProcessInstance',
+              aggregateId: PROCESS_TARGET_BIND,
+              aggregateVersion: '3',
+              payload: { enterpriseId: ENTERPRISE_A, note: 'wrong version' },
+              occurredAt: new Date(),
+            });
+            return { kind: 'COMMITTED', resultPayload: { invalid: true } };
+          },
+        ),
+      ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
+      const rolledBackCas = await admin.query<{ aggregate_version: string }>(
+        `SELECT aggregate_version::text FROM enterprise_project.process_instance WHERE process_id = $1`,
+        [PROCESS_TARGET_BIND],
+      );
+      expect(rolledBackCas.rows[0]?.aggregate_version).toBe('1');
+      expect(await count('command_receipt', "WHERE idempotency_key = 'wi02-target-bind-cas'")).toBe(
+        '0',
+      );
+      expect(await count('outbox_event', "WHERE event_type = 'wi02.TargetBindCas'")).toBe('0');
+
+      await expect(
+        executeEnterpriseProjectCommand(
+          db,
+          contextFor(ENTERPRISE_A),
+          envelope({
+            commandId: 'a8a8a8a8-a8a8-78a8-88a8-a8a8a8a8a803',
+            idempotencyKey: 'wi02-target-bind-edge',
+            commandType: 'wi02.target-bind-edge',
+            targetId: PROCESS_TARGET_BIND,
+            requestPayload: { op: 'target-bind-edge' },
+          }),
+          async (execution) => {
+            await execution.appendReferenceEdge({
+              ownerObjectType: 'ProcessInstance',
+              ownerObjectId: PROCESS_A,
+              referencePath: '/wrongOwner',
+              targetModule: 'EnterpriseProject',
+              targetObjectType: 'ProcessInstance',
+              targetObjectId: PROCESS_TARGET_BIND,
+              referencePurpose: 'WI02_TARGET_BIND',
+            });
+            return { kind: 'COMMITTED', resultPayload: { invalid: true } };
+          },
+        ),
+      ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
+      expect(
+        await count('command_receipt', "WHERE idempotency_key = 'wi02-target-bind-edge'"),
+      ).toBe('0');
+      expect(await count('reference_edge', "WHERE reference_purpose = 'WI02_TARGET_BIND'")).toBe(
+        '0',
+      );
+    });
+
+    it('rejects a forged process creator principal and rolls back the technical row', async () => {
+      await expect(
+        executeEnterpriseProjectCommand(
+          db,
+          contextFor(ENTERPRISE_A),
+          envelope({
+            commandId: 'a9a9a9a9-a9a9-79a9-89a9-a9a9a9a9a901',
+            idempotencyKey: 'wi02-principal-bind',
+            commandType: 'wi02.principal-bind',
+            targetId: PROCESS_PRINCIPAL_BIND,
+            requestPayload: { op: 'principal-bind' },
+          }),
+          async (execution) => {
+            await repo.insertProcessInstance(execution.trx, {
+              ...processInsert(PROCESS_PRINCIPAL_BIND),
+              createdByPrincipalId: '00000000-0000-7000-8000-000000000099',
+            });
+            return { kind: 'COMMITTED', resultPayload: { invalid: true } };
+          },
+        ),
+      ).rejects.toMatchObject({ code: ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH });
+      expect(
+        await count('process_instance', `WHERE process_id = '${PROCESS_PRINCIPAL_BIND}'`),
+      ).toBe('0');
+      expect(await count('command_receipt', "WHERE idempotency_key = 'wi02-principal-bind'")).toBe(
+        '0',
+      );
     });
 
     it('rejects missing, forged and expired context and does not leak context across pool checkouts', async () => {

@@ -280,6 +280,7 @@ ProjectStartSnapshot 的三个必需输入是同一 Enterprise Scope 下的 `Ent
 - API v0.1 已于 2026-08-13 通过用户审核；
 - IM-02 标准技术表已落地并有独立验证；IM-03 WI-02 已提供模块内 Application/Persistence 事务基础（Command Receipt、Audit、Outbox、Reference Edge、RLS Context 绑定与 CAS），但仍不存在业务 DDL、业务 Handler、Evaluator、Projection 与受控 Capability 实现；
 - 对应业务 Unit、Contract、E2E 与人工验收均为 `NOT RUN`；本 Issue 的决策矩阵为 `DESIGN VERIFIED / USER REVIEW REQUIRED`。
+- PR #69 的精确审查 head 为 `9c02ac80491b3d60c59685c2ea1ac33ce875981c`，未包含业务运行时代码；该 head 的 exact-head CI `verify` 已通过。当前本地 persistence gate 复跑受 Docker Hub manifest 查询 EOF 阻塞，不能替代 CI 证据或提升业务实现状态。
 
 ## 10. IM-02 WI-04 持久化切片
 
@@ -295,5 +296,8 @@ Issue #58 在模块内建立最小写入事务路径，供后续业务切片复�
 4. 一个 Aggregate Root 一个事务：Receipt、技术 CAS、Audit、Outbox 与 Reference Edge 同事务提交；body 失败则全部回滚。
 5. Canonical JSONB ↔ SHA-256 Hash 与提升 `enterpriseId`/`projectId` 列必须一致，否则写入边界拒绝。
 6. CAS 目前作用在已有 `process_instance.aggregate_version` 技术表；WI-03 业务 Aggregate 落地前不得把该 CAS 写成业务状态机 `PASS`。
+7. Outbox Event 的 `aggregateType + aggregateId` 必须等于 Command Envelope target；CREATE/无 expected version 的事件版本必须为 `1`，CAS 事件版本必须为 `expectedAggregateVersion + 1`，否则拒绝 `COMMAND_TARGET_MISMATCH`。
+8. Reference Edge 的 owner type/id 必须等于 Command Envelope target；不能借同一事务为另一个 Aggregate 建立派生引用索引。
+9. technical Repository 写入的 `created_by_principal_id` 必须等于受信事务 Context Principal；主体漂移以稳定持久化错误拒绝，且不提交 Receipt 或技术行。
 
 失败码：`IDEMPOTENCY_PAYLOAD_CONFLICT`、`CONCURRENCY_CONFLICT`、`COMMAND_CONTEXT_MISMATCH`、`COMMAND_CONTEXT_EXPIRED`、`COMMAND_CONTEXT_REJECTED`、`COMMAND_TARGET_MISMATCH`、`PAYLOAD_HASH_MISMATCH`。模块业务 Handler、Evaluator 与 Projection 不在本切片。

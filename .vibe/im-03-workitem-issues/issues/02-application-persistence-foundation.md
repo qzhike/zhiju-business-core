@@ -19,6 +19,8 @@
 - [x] CAS 竞争只有一个成功；失败事务不遗留业务行、Audit 或 Outbox。
 - [x] 无/伪造/过期 Context、跨 Project Scope 与连接池 Context 泄漏安全拒绝。
 - [x] Canonical payload/hash 与提升列不一致被写入边界拒绝。
+- [x] Outbox Aggregate identity/version、Reference Edge owner 与 Command target 绑定；禁止写入不相干对象或任意版本。
+- [x] Technical process 的 `created_by_principal_id` 与受信 Context Principal 绑定。
 - [x] 空库 Migration、重复 Migration 和真实 PostgreSQL focused tests 通过。
 - [ ] 用户可运行一个 probe，看到成功、replay、hash conflict、CAS conflict 和 rollback 的逐项输出。
 

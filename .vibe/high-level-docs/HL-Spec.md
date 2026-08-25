@@ -451,6 +451,18 @@ WI-07 本地手工 Probe 的 AES-256-GCM 测试 Port 必须先完成 `cipher.upd
 - Gap 输入版本变化只产生 `STALE`/Impact Review 事实，不改写旧 Gap、Context、Plan 或 Artifact；`NOT_PROVIDED`、`UNKNOWN` 和 `MISSING_CONFIRMED` 保持区分。
 - 本决策仍需用户审核；后续业务 DDL、Repository、Handler、真实 PostgreSQL 业务链和“采购控制程序”人工验收保持 `NOT RUN`。
 
+## PR #69 审查状态（2026-08-25）
+
+- 审查基准为精确 head `9c02ac80491b3d60c59685c2ea1ac33ce875981c`；该 head 没有业务运行时代码差异，exact-head CI 的 `verify` 已通过。
+- 当前本地复跑 persistence gate 因 Docker Hub manifest 查询返回 `EOF` 被环境阻塞；这不构成业务测试失败，也不能把业务实现从 `NOT RUN` 提升为 `PASS`。
+
+## IM-03 WI-02 审查修正约束（2026-08-25）
+
+- Command write boundary 必须执行 target/reference/scope/purpose 校验：Outbox 的 `aggregateType + aggregateId` 必须与当前 Command Envelope target 完全一致；Reference Edge 的 owner 必须与同一 target 完全一致。
+- Outbox 的 `aggregateVersion` 必须是当前 Command 产生的精确版本：CREATE/无 expected version 使用 `1`，CAS 使用 `expectedAggregateVersion + 1`；所有 PostgreSQL `bigint` 版本保持字符串/BigInt 精度，禁止写入任意版本制造事件间隙。
+- 技术 Repository 的 `created_by_principal_id` 必须绑定当前受信事务 Context 的 Principal；调用者提供不一致的主体必须在事务内以稳定错误拒绝，不能让 RLS 只保护 Scope 而留下审计主体漂移。
+- 以上拒绝必须发生在 Receipt/业务技术表/Outbox/Reference Edge 提交前，并由回归测试证明失败事务不遗留行；真实 Provider、公开 HTTP、业务 Handler 和人工 Reference Project 仍保持 `NOT RUN`。
+
 ## IM-02 远端交付快照（2026-08-24）
 
 PR #51 的实现复审基准为 `47a2a9d`，PR #51 已合并；PR #52 的 Gate 隔离修复、PR #53 的 Runbook/验收文档修订、PR #54 的 COMPLETE 状态同步和 PR #55 的关闭状态同步均已 exact-head review、CI 验证并合并。最终 main@47d1b57 的完整 `pnpm clean && pnpm verify` 证据已由前一主线提交复核，Persistence 为 `12 files / 177 tests`，14 个 Migration 成功且二次 migrate no-op；WI-02/03/04/09 Agent-executed local Runbook 和 WI-06/07/10 Probe 均有证据。真实 Provider、跨模块 E2E、生产环境和外部人工业务验收仍保持 `NOT RUN`；Issue #28 已关闭。

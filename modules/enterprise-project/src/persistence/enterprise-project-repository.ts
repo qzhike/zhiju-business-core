@@ -3,7 +3,12 @@
 // until WI-03 business tables exist. This type never reaches across into
 // identity_policy.
 
+import { sql } from 'kysely';
 import type { EnterpriseProjectTransaction } from './enterprise-db.js';
+import {
+  EnterprisePersistenceError,
+  ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH,
+} from './write-guards.js';
 
 export interface ProcessInstanceInsert {
   processId: string;
@@ -18,6 +23,15 @@ export interface ProcessInstanceInsert {
 
 export class EnterpriseProjectRepository {
   async insertProcessInstance(trx: EnterpriseProjectTransaction, insert: ProcessInstanceInsert) {
+    const context = await sql<{ principal_id: string | null }>`
+      SELECT platform_security.context_principal_id() AS principal_id
+    `.execute(trx);
+    if (context.rows[0]?.principal_id !== insert.createdByPrincipalId) {
+      throw new EnterprisePersistenceError(
+        ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH,
+        'created-by principal does not match the trusted transaction context',
+      );
+    }
     await trx
       .insertInto('enterprise_project.process_instance')
       .values({

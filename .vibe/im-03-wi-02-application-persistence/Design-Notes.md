@@ -20,5 +20,7 @@
 - Same key + same hash returns the saved result.
 - Same key + different hash writes a `DENIED` audit, leaves the original receipt untouched, then throws `IDEMPOTENCY_PAYLOAD_CONFLICT`.
 - Outbox payload must embed `enterpriseId` / `projectId` mirrors and a canonical SHA-256 hash.
+- Outbox aggregate identity/version and Reference Edge owner identity must be derived from the Command Envelope target; a body cannot emit an event or edge for an unrelated Aggregate or invent a version.
+- Technical process inserts must use the current transaction Context Principal as `created_by_principal_id`.
 - CAS uses `process_instance.aggregate_version` as the technical stand-in until WI-03 business aggregates exist.
 - Body exceptions roll back receipt, audit, outbox, reference edge, and process rows together.

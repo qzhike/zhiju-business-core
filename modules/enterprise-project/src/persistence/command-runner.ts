@@ -418,6 +418,20 @@ function createExecution(
       return visible ? 'CONFLICT' : 'NOT_FOUND';
     },
     async appendOutbox(event) {
+      const expectedEventVersion =
+        envelope.expectedAggregateVersion === undefined
+          ? '1'
+          : nextAggregateVersion(envelope.expectedAggregateVersion);
+      if (
+        event.aggregateType !== envelope.targetType ||
+        event.aggregateId !== envelope.targetId ||
+        event.aggregateVersion !== expectedEventVersion
+      ) {
+        throw new CommandExecutionError(
+          COMMAND_TARGET_MISMATCH,
+          'event aggregate identity and version must match the command target',
+        );
+      }
       if (
         event.payload.enterpriseId !== envelope.enterpriseId ||
         (event.payload.projectId ?? null) !== (envelope.projectId ?? null)
@@ -457,6 +471,15 @@ function createExecution(
         .execute();
     },
     async appendReferenceEdge(edge) {
+      if (
+        edge.ownerObjectType !== envelope.targetType ||
+        edge.ownerObjectId !== envelope.targetId
+      ) {
+        throw new CommandExecutionError(
+          COMMAND_TARGET_MISMATCH,
+          'reference edge owner must match the command target',
+        );
+      }
       if (edge.ownerPayloadHash !== undefined && edge.ownerPayloadHash.length !== 32) {
         throw new CommandExecutionError(
           PAYLOAD_HASH_MISMATCH,

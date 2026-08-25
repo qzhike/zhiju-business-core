@@ -10,9 +10,9 @@
 | `pnpm format:check` | PASS |
 | `pnpm lint` | PASS |
 | `pnpm typecheck` | PASS |
-| `pnpm test` | 21 files passed / 11 skipped；348 tests passed / 175 skipped |
+| `pnpm test` | 21 files passed / 11 skipped；348 tests passed / 177 skipped |
 | `pnpm architecture` | `architecture_boundaries=PASS source_roots=10`；`@zhiju/enterprise-project` 未引用 `@zhiju/identity-policy` |
-| `pnpm persistence:gate` | 13 files / 188 tests PASS；空库 migrate Success；二次 migrate no-op；容器已清理 |
+| `pnpm persistence:gate` | 13 files / 190 tests PASS；含 target/owner/version 与 trusted principal 负向回归；空库 migrate Success；二次 migrate no-op；容器已清理 |
 
 ## Probe
 

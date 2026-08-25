@@ -16,11 +16,11 @@ Issue #57 / branch `galendai/57-im-03-wi-01-enterpriseproject` (merged into this
 
 ## Stages
 
-1. Module DB port, RLS transaction helper, canonical digest.
-2. Command runner: receipt claim, envelope binding, audit/outbox/reference-edge, CAS, rollback.
-3. Real PostgreSQL tests (enterprise + project fixtures) and manual probe/runbook.
-4. Spec/Test/HL document sync.
-5. `pnpm verify` and PR against the WI-01 base.
+1. Module DB port, RLS transaction helper, canonical digest. `PASS`
+2. Command runner: receipt claim, envelope binding, audit/outbox/reference-edge, CAS, rollback. `PASS`；本轮 review 另补 target/version/owner/principal 负向约束。
+3. Real PostgreSQL tests (enterprise + project fixtures) and manual probe/runbook. PostgreSQL focused gate `PASS`；用户亲自运行 probe `NOT RUN`。
+4. Spec/Test/HL document sync. `PASS`
+5. `pnpm verify` and PR against the WI-01 base. 本地集成 base 后 `PASS`；远端 exact-head checks、PR comment、合并和 Issue 收尾待完成。
 
 ## Non-goals
 

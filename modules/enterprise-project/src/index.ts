@@ -21,6 +21,7 @@ export {
   EnterprisePersistenceError,
   ENTERPRISE_PAYLOAD_HASH_MISMATCH,
   ENTERPRISE_PROMOTED_MIRROR_MISMATCH,
+  ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH,
   validatePromotedMirror,
   assertHashMatches,
 } from './persistence/write-guards.js';

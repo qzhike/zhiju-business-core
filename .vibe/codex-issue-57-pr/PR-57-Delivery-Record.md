@@ -1,16 +1,16 @@
 # Issue #57 PR 交付记录
 
 日期：2026-08-25
-状态：`READY FOR USER REVIEW / COMMIT NOT AUTHORIZED / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`PR #69 OPEN / EXACT-HEAD REVIEW IN PROGRESS / BUSINESS IMPLEMENTATION NOT STARTED`
 
 ## 1. 当前 Git 边界
 
 - Issue：`#57 [IM-03][WI-01] 冻结 EnterpriseProject 公共能力与实施决策`。
 - 分支：`galendai/57-im-03-wi-01-enterpriseproject`。
-- 当前本地 HEAD：`df0809e7e4efad7c5ada5de92375dbc2bc47e661`。
+- PR #69 当前本地/远端 HEAD：`9c02ac80491b3d60c59685c2ea1ac33ce875981c`。
 - PR base 当前远端 `origin/main`：`fde4d8bbd3a8fbacb8f452072d93aeb4e1a14ba7`。
-- 当前工作树尚未 commit 本轮变更；未执行 push、PR 创建、merge 或 Issue 关闭。
-- 当前 HEAD 已包含用户此前在本地 `main` 上的 `df0809e docs: add IM-03 work item issue plan`，该提交相对 `origin/main` 新增 14 份 IM-03 Work Item 计划文档。本轮不重写或删除该既有提交；创建 PR 时需在描述中明确这部分基线差异。
+- 原始 PR 提交已完成 push；当前 review 工作树另有未提交的 `.vibe` 审查/证据修订，尚未执行本轮 merge 或 Issue #57 关闭。
+- 当前 HEAD 包含用户此前在本地 `main` 上的 `df0809e docs: add IM-03 work item issue plan`，以及 `9c02ac8 docs(im-03): freeze EnterpriseProject prerequisite capabilities`；本轮不重写或删除既有提交。
 
 ## 2. 本轮决策交付
 
@@ -45,6 +45,8 @@
 
 上述自动化结果只证明现有代码和技术基础的实际覆盖范围；它们没有将业务切片、业务 Handler、业务 DDL 或人工审阅标记为完成。
 
+本次 exact-head 复核：GitHub Actions run `32795729365` 在 head `9c02ac80491b3d60c59685c2ea1ac33ce875981c` 上 `verify=success`。当前本地复跑已完成 format/lint/typecheck/test/architecture/contracts，但 persistence gate 在 Docker Hub manifest 查询处因 `EOF` 阻塞；该环境结果不替代 exact-head CI，也不改变业务实现 `NOT RUN`。
+
 ## 5. 用户确认项
 
 用户需要确认以下设计选择后，才允许进入 commit：
@@ -54,4 +56,4 @@
 - 接受业务实现、真实业务 PostgreSQL、E2E 和人工审阅继续保持 `NOT RUN`，由后续 WI 实现。
 - 接受当前分支已有的 IM-03 Work Item 计划提交随本分支进入 PR，不对既有历史做重写。
 
-确认后流程为：只暂存本 Issue 范围文件 → 检查 staged diff → 使用英文 commit message 提交 → 非强制 push → 创建引用 Issue #57 的 PR（不在本次自动 merge 或关闭 Issue）→ 按精确 head 核验 PR 和 checks。
+确认后流程为：只暂存本次审查范围文件 → 检查 staged diff → 使用英文 commit message 提交 → 非强制 push → 按精确 head 复核 PR #69 和 checks → 合并 PR → 同步并复核 Issue #57 body → 关闭并回读 Issue #57。
