@@ -390,7 +390,7 @@ describe.skipIf(!gateEnabled)(
           { idempotencyKey: 'p004-activate', expectedAggregateVersion: '1' },
         ),
       );
-      expect(activate.status, JSON.stringify(activate)).toBe('COMMITTED');
+      expect(activate.status).toBe('COMMITTED');
 
       // Re-activate the same v1 -> NOOP
       const reactivate = await handleEnterpriseProductActivateVersion(

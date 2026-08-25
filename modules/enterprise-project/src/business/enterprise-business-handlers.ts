@@ -626,7 +626,11 @@ export async function handleEnterpriseProductCreate(
           enterpriseId,
           displayCode: envelope.payload.displayCode,
           displayName: envelope.payload.initialVersion.displayName,
-          initialVersionId: versionId,
+          // Pass null for the initial pointer so the subsequent
+          // activate_version is not a NOOP; the create capability
+          // brings the product root into existence but leaves the
+          // CURRENT/HISTORICAL decision to the separate activate path.
+          initialVersionId: null,
           createdByPrincipalId: envelope.principalId,
           createdByActorSnapshotId: envelope.actorSnapshotId,
           sourceCommandId: envelope.commandId,

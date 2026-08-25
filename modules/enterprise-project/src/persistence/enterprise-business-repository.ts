@@ -77,7 +77,7 @@ export interface ProductInsert {
   enterpriseId: string;
   displayCode: string;
   displayName: string;
-  initialVersionId: string;
+  initialVersionId: string | null;
   createdByPrincipalId: string;
   createdByActorSnapshotId: string;
   sourceCommandId: string;
