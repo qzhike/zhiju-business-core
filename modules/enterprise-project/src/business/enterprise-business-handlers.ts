@@ -106,7 +106,12 @@ export async function handleCreateEnterprise(
       'displayCode and displayName must be non-empty',
     );
   }
-  const enterpriseId = newUuidV7();
+  // The new Enterprise root uses envelope.enterpriseId (the UUIDv7 the
+  // composition layer minted for the target) so the receipt, audit row and
+  // outbox payload all share the same scope as the trusted transaction
+  // context. Generating a fresh UUID inside the handler would diverge from
+  // the context and fail the WI-02 outbox scope-mirror guard.
+  const enterpriseId = envelope.enterpriseId;
   return executeEnterpriseProjectCommand(
     db,
     context,
