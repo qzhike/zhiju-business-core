@@ -81,6 +81,10 @@ function aggregateVersionToString(value: unknown): string {
   return String(value);
 }
 
+function outboxDigest(payload: unknown): Buffer {
+  return digestCanonicalPayload(payload as Parameters<typeof digestCanonicalPayload>[0]).hash;
+}
+
 function asNonEmptyArray<T>(value: readonly T[] | undefined): T[] {
   return value === undefined ? [] : [...value];
 }
@@ -314,7 +318,14 @@ export async function handleProposeEnterpriseFact(
           status: 'PROPOSED',
           payloadHash: digest.hash.toString('hex'),
         },
-        declaredHash: digest.hash,
+        declaredHash: digestCanonicalPayload({
+          enterpriseId,
+          enterpriseFactId,
+          versionId,
+          versionNo: 1,
+          status: 'PROPOSED',
+          payloadHash: digest.hash.toString('hex'),
+        }).hash,
         occurredAt: new Date(),
       });
       return result;
@@ -457,7 +468,14 @@ export async function handleConfirmEnterpriseFact(
           status: 'CONFIRMED',
           payloadHash: digest.hash.toString('hex'),
         },
-        declaredHash: digest.hash,
+        declaredHash: digestCanonicalPayload({
+          enterpriseId: fact.enterprise_id,
+          enterpriseFactId,
+          versionId: newVersionId,
+          versionNo: newVersionNo,
+          status: 'CONFIRMED',
+          payloadHash: digest.hash.toString('hex'),
+        }).hash,
         occurredAt: new Date(),
       });
       return result;
@@ -668,9 +686,11 @@ export async function handleEnterpriseProductCreate(
         eventVersion: '1.0',
         aggregateType: 'Product',
         aggregateId: productId,
-        aggregateVersion: cas.nextVersion,
+        // Initial CREATE (no expectedAggregateVersion) emits the event at
+        // aggregate_version=1 per the WI-02 outbox-mirror guard.
+        aggregateVersion: '1',
         payload: { enterpriseId, productId, versionId },
-        declaredHash: versionDigest.hash,
+        declaredHash: outboxDigest({ enterpriseId, productId, versionId }),
         occurredAt: new Date(),
       });
       return result;
@@ -792,7 +812,14 @@ export async function handleEnterpriseProductCreateVersion(
           previousVersionId,
           payloadHash: versionDigest.hash.toString('hex'),
         },
-        declaredHash: versionDigest.hash,
+        declaredHash: outboxDigest({
+          enterpriseId: product.enterprise_id,
+          productId,
+          versionId,
+          versionNo: nextVersionNo,
+          previousVersionId,
+          payloadHash: versionDigest.hash.toString('hex'),
+        }),
         occurredAt: new Date(),
       });
       return result;
@@ -1014,7 +1041,12 @@ export async function handleEnterpriseProductCreateScopeSnapshot(
           snapshotId,
           payloadHash: digest.hash.toString('hex'),
         },
-        declaredHash: digest.hash,
+        declaredHash: outboxDigest({
+          enterpriseId: product.enterprise_id,
+          productId,
+          snapshotId,
+          payloadHash: digest.hash.toString('hex'),
+        }),
         occurredAt: new Date(),
       });
       return result;
@@ -1056,14 +1088,34 @@ export async function handleEnterpriseQmsCreateRevision(
     context,
     { ...envelope, targetType: 'QMSConfiguration', targetId: qmsId },
     async (execution) => {
-      const qms = await repo.getQmsConfigurationById(execution.trx, qmsId);
+      let qms = await repo.getQmsConfigurationById(execution.trx, qmsId);
       if (!qms) {
-        return {
-          kind: 'REJECTED',
-          errorCode: PROJECT_QMS_VERSION_NOT_FOUND,
-          safeSummary: 'qms_configuration not found',
-          currentAggregateVersion: undefined,
-        };
+        // First revision brings the qms_configuration root into existence.
+        if (envelope.payload.previousRevisionRef !== undefined) {
+          return {
+            kind: 'REJECTED',
+            errorCode: PROJECT_QMS_REVISION_IMMUTABLE,
+            safeSummary: 'previousRevisionRef provided but qms_configuration does not exist',
+            currentAggregateVersion: undefined,
+          };
+        }
+        await repo.insertQmsConfiguration(execution.trx, {
+          qmsConfigurationId: qmsId,
+          enterpriseId: envelope.enterpriseId,
+          displayCode: `QMS-${qmsId}`,
+          displayName: `QMS configuration ${qmsId}`,
+          initialRevisionId: '00000000-0000-0000-0000-000000000000',
+          createdByPrincipalId: envelope.principalId,
+          createdByActorSnapshotId: envelope.actorSnapshotId,
+          sourceCommandId: envelope.commandId,
+        });
+        qms = await repo.getQmsConfigurationById(execution.trx, qmsId);
+        if (!qms) {
+          throw new EnterpriseBusinessError(
+            PROJECT_QMS_VERSION_NOT_FOUND,
+            'qms_configuration root insert did not persist',
+          );
+        }
       }
       if (envelope.payload.previousRevisionRef !== undefined) {
         if (
@@ -1133,7 +1185,13 @@ export async function handleEnterpriseQmsCreateRevision(
           revisionNo: nextRevisionNo,
           payloadHash: digest.hash.toString('hex'),
         },
-        declaredHash: digest.hash,
+        declaredHash: outboxDigest({
+          enterpriseId: qms.enterprise_id,
+          qmsConfigurationId: qmsId,
+          revisionId,
+          revisionNo: nextRevisionNo,
+          payloadHash: digest.hash.toString('hex'),
+        }),
         occurredAt: new Date(),
       });
       return result;
@@ -1414,7 +1472,11 @@ export async function handleEnterpriseProfileCreateSnapshot(
           snapshotId,
           payloadHash: digest.hash.toString('hex'),
         },
-        declaredHash: digest.hash,
+        declaredHash: outboxDigest({
+          enterpriseId,
+          snapshotId,
+          payloadHash: digest.hash.toString('hex'),
+        }),
         occurredAt: new Date(),
       });
       return result;
