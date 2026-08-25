@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / USER REVIEW REQUIRED / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 BUSINESS VERTICAL SLICE LANDED / USER REVIEW REQUIRED`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -62,3 +62,21 @@
 | EP-WI02-M-001 | Manual | `tests/manual/im03-wi02-probe.mts` 五步输出 | 用户看到 success / replay / hash-conflict / cas-conflict / rollback | Runbook：`.vibe/im-03-workitem-issues/runbook-wi-02.md` | `NOT RUN` |
 
 空库 Migration 与二次 no-op 仍由 `pnpm persistence:gate` 证明，不因本切片重复宣布业务链 `PASS`。
+
+## IM-03 WI-03 业务纵向切片用例
+
+| ID | 层级 | 输入 | 预期输出 | 实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI03-P-001` | Persistence | 跨 Enterprise 重复 `displayCode` | `PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT` | 与期望一致 | `PASS` |
+| `EP-WI03-P-002` | Persistence | propose + confirm 同一 Fact | 2 个 `enterprise_fact_version` 行追加 | history 行数 = 2 | `PASS` |
+| `EP-WI03-P-003` | Persistence | Agent actingFor Human 调 `confirm_enterprise_fact` | `PROJECT_HUMAN_ONLY_DENIED`，不写 version 行 | 仅抛出，无 version 写入 | `PASS` |
+| `EP-WI03-P-004` | Persistence | Product 重复激活同 version | `PROJECT_PRODUCT_ACTIVATION_NOOP` | 与期望一致 | `PASS` |
+| `EP-WI03-P-005` | Persistence | QMS revision1 → activate → revision2 → activate → ROLLBACK 至 v1 | 2 个 revision 行保留，current 指针回到 v1 | 行数 = 2，current 正确 | `PASS` |
+| `EP-WI03-P-006` | Persistence | Profile Snapshot 引用其他 Enterprise 的 Fact Version | `PROJECT_PROFILE_SOURCE_MISMATCH` | 无 snapshot 写入 | `PASS` |
+| `EP-WI03-P-007` | Persistence | `get_enterprise_profile_snapshot` 按精确 ID 重放 | payloadHash 与 enterpriseId 一致 | 读出原始 hash 与 enterpriseId | `PASS` |
+| `EP-WI03-P-008` | Persistence | snapshot id = `latest` | `PROJECT_PROFILE_SOURCE_MISMATCH` | 抛出 `EnterpriseBusinessError` | `PASS` |
+| `EP-WI03-P-009` | Persistence | snapshot id 不存在 | `PROJECT_PROFILE_SNAPSHOT_IMMUTABLE` | 抛出 `EnterpriseBusinessError` | `PASS` |
+| `EP-WI03-P-010` | Persistence | `productScope` snapshot 空 `productVersionRefs` | `EnterpriseBusinessError` | 抛出 `EnterpriseBusinessError` | `PASS` |
+| `EP-WI03-P-011` | Unit | canonical JSON hash 顺序无关 | `digest.equals` 为 `true` | 与期望一致 | `PASS` |
+
+WI-03 业务 Handler、E2E 与人工 probe 仍为 `NOT RUN`（人工 probe 在 WI-04 补齐）。`pnpm verify` 全量 Gate 含上述 11 个新增用例后通过。
