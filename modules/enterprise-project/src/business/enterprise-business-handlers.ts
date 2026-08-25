@@ -1092,13 +1092,6 @@ export async function handleEnterpriseQmsCreateRevision(
     { ...envelope, targetType: 'QMSConfiguration', targetId: qmsId },
     async (execution) => {
       let qms = await repo.getQmsConfigurationById(execution.trx, qmsId);
-      // eslint-disable-next-line no-console
-      console.error('[qms create] after read', {
-        qmsId,
-        hasQms: !!qms,
-        agg: qms?.aggregate_version,
-        currentRev: qms?.current_revision_id,
-      });
       if (!qms) {
         // First revision brings the qms_configuration root into existence.
         if (envelope.payload.previousRevisionRef !== undefined) {
@@ -1263,14 +1256,6 @@ export async function handleEnterpriseQmsActivateRevision(
         };
       }
       if (aggregateVersionToString(qms.aggregate_version) !== expectedVersion) {
-        // eslint-disable-next-line no-console
-        console.error('[qms activate] CAS mismatch', {
-          qmsId,
-          expectedVersion,
-          actual: aggregateVersionToString(qms.aggregate_version),
-          currentRevisionId: qms.current_revision_id,
-          targetRevisionId,
-        });
         throw new CommandExecutionError(
           CONCURRENCY_CONFLICT,
           `qms expectedVersion ${expectedVersion} but root is ${aggregateVersionToString(qms.aggregate_version)}`,

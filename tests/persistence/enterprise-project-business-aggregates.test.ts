@@ -523,7 +523,7 @@ describe.skipIf(!gateEnabled)(
               versionId: v2Id,
             },
             activationMode: 'ACTIVATE' as const,
-            expectedAggregateVersion: '1',
+            expectedAggregateVersion: '2',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000bbb',
