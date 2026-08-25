@@ -1260,6 +1260,8 @@ export async function handleEnterpriseQmsActivateRevision(
         };
       }
       if (aggregateVersionToString(qms.aggregate_version) !== expectedVersion) {
+        // eslint-disable-next-line no-console
+        console.error('[qms activate] CAS mismatch', { qmsId, expectedVersion, actual: aggregateVersionToString(qms.aggregate_version), currentRev: qms.current_revision_id, targetRev: targetRevisionId });
         throw new CommandExecutionError(
           CONCURRENCY_CONFLICT,
           `qms expectedVersion ${expectedVersion} but root is ${aggregateVersionToString(qms.aggregate_version)}`,
