@@ -779,6 +779,32 @@ describe.skipIf(!gateEnabled)(
       );
       const qmsId = objectIdFrom(qms);
       const qmsVersion = versionIdFrom(qms);
+      // Activate the first revision so the profile snapshot can reference
+      // it as the current QMS pointer (qms_create_revision leaves the
+      // root's current_revision_id at the placeholder until activate
+      // moves it to the real revision).
+      await handleEnterpriseQmsActivateRevision(
+        db(),
+        ctx,
+        payloadEnvelope(
+          'p007-activate-qms',
+          {
+            qmsConfigurationRef: { objectType: 'QMSConfiguration' as const, objectId: qmsId },
+            qmsConfigurationRevisionRef: {
+              objectType: 'QMSConfigurationRevision' as const,
+              objectId: qmsId,
+              versionId: qmsVersion,
+            },
+            activationMode: 'ACTIVATE' as const,
+            expectedAggregateVersion: '1',
+            humanDecisionRef: {
+              objectType: 'BusinessDecision' as const,
+              objectId: '00000000-0000-7000-8000-000000000aaa',
+            },
+          },
+          { idempotencyKey: 'p007-activate-qms', expectedAggregateVersion: '1' },
+        ),
+      );
       const snapshot = await handleEnterpriseProfileCreateSnapshot(
         db(),
         ctx,
