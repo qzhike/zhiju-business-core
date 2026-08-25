@@ -145,6 +145,7 @@ CREATE TRIGGER enterprise_fact_version_immutable_guard
     FOR EACH ROW EXECUTE FUNCTION enterprise_project.guard_enterprise_fact_version_immutable();
 
 REVOKE UPDATE ON enterprise_project.enterprise_fact_version FROM enterprise_project_app;
+REVOKE DELETE ON enterprise_project.enterprise_fact_version FROM enterprise_project_app;
 
 -- ---------------------------------------------------------------------------
 -- enterprise_profile_snapshot: immutable Profile Snapshot. Payload is
@@ -462,6 +463,44 @@ CREATE TRIGGER qms_configuration_revision_immutable_guard
 
 REVOKE DELETE ON enterprise_project.qms_configuration_revision FROM enterprise_project_app;
 GRANT UPDATE (lifecycle) ON enterprise_project.qms_configuration_revision TO enterprise_project_app;
+
+-- ---------------------------------------------------------------------------
+-- Exact current-pointer integrity. Application CAS remains the authority for
+-- lifecycle and aggregate-version transitions, while these composite keys
+-- prevent a direct app-role write from binding a root to another Enterprise's
+-- version row or to a different aggregate. NULL pointers are valid during
+-- initial creation and before the first explicit activation.
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE enterprise_project.enterprise_fact_version
+    ADD CONSTRAINT enterprise_fact_version_scope_unique
+    UNIQUE (enterprise_id, enterprise_fact_id, version_id);
+
+ALTER TABLE enterprise_project.enterprise_fact
+    ADD CONSTRAINT enterprise_fact_current_version_fk
+    FOREIGN KEY (enterprise_id, enterprise_fact_id, current_version_id)
+    REFERENCES enterprise_project.enterprise_fact_version (enterprise_id, enterprise_fact_id, version_id)
+    DEFERRABLE INITIALLY DEFERRED;
+
+ALTER TABLE enterprise_project.product_version
+    ADD CONSTRAINT product_version_scope_unique
+    UNIQUE (enterprise_id, product_id, version_id);
+
+ALTER TABLE enterprise_project.product
+    ADD CONSTRAINT product_current_version_fk
+    FOREIGN KEY (enterprise_id, product_id, current_version_id)
+    REFERENCES enterprise_project.product_version (enterprise_id, product_id, version_id)
+    DEFERRABLE INITIALLY DEFERRED;
+
+ALTER TABLE enterprise_project.qms_configuration_revision
+    ADD CONSTRAINT qms_revision_scope_unique
+    UNIQUE (enterprise_id, qms_configuration_id, revision_id);
+
+ALTER TABLE enterprise_project.qms_configuration
+    ADD CONSTRAINT qms_current_revision_fk
+    FOREIGN KEY (enterprise_id, qms_configuration_id, current_revision_id)
+    REFERENCES enterprise_project.qms_configuration_revision (enterprise_id, qms_configuration_id, revision_id)
+    DEFERRABLE INITIALLY DEFERRED;
 
 -- ---------------------------------------------------------------------------
 -- RLS: every business table is Enterprise-scoped (project_id IS NULL) and

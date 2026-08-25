@@ -95,6 +95,7 @@ describe('trusted authorization snapshot binding', () => {
   const context: EnterpriseProjectTransactionContext = {
     kind: 'REQUEST',
     principalId: '14141414-1414-7141-8141-1414141414c1',
+    principalKind: 'HUMAN',
     actorSnapshotId: '15151515-1515-7151-8151-1515151515d1',
     authorizationDecisionId: '16161616-1616-7161-8161-1616161616e1',
     authorizationDecisionHash: Buffer.alloc(32, 0x21),
@@ -118,6 +119,7 @@ describe('trusted authorization snapshot binding', () => {
     targetId: '1c1c1c1c-1c1c-71c1-81c1-1c1c1c1c1ce1',
     correlationId: context.correlationId,
     principalId: context.principalId,
+    principalKind: context.principalKind,
     actorSnapshotId: context.actorSnapshotId,
     authorizationDecisionId: context.authorizationDecisionId,
     policySnapshotId: context.policySnapshotId,

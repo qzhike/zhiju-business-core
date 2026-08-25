@@ -38,6 +38,8 @@ export interface EnterpriseFactInsert {
   enterpriseId: string;
   factType: string;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  currentVersionId?: string | null;
+  currentStatus?: 'PROPOSED' | 'CONFIRMED' | 'DISPUTED' | 'SUPERSEDED';
   createdByPrincipalId: string;
   sourceCommandId: string;
 }
@@ -120,7 +122,7 @@ export interface QmsConfigurationInsert {
   enterpriseId: string;
   displayCode: string;
   displayName: string;
-  initialRevisionId: string;
+  initialRevisionId: string | null;
   createdByPrincipalId: string;
   createdByActorSnapshotId: string;
   sourceCommandId: string;
@@ -277,7 +279,8 @@ export class EnterpriseBusinessRepository extends EnterpriseProjectRepository {
         enterprise_id: insert.enterpriseId,
         fact_type: insert.factType,
         risk_level: insert.riskLevel,
-        current_status: 'PROPOSED',
+        current_version_id: insert.currentVersionId ?? null,
+        current_status: insert.currentStatus ?? 'PROPOSED',
         created_by_principal_id: insert.createdByPrincipalId,
         last_command_id: insert.sourceCommandId,
         created_at: new Date(),
@@ -425,9 +428,9 @@ export class EnterpriseBusinessRepository extends EnterpriseProjectRepository {
 
   // -------------------- product --------------------
 
-  async insertProduct(trx: EnterpriseProjectTransaction, insert: ProductInsert): Promise<void> {
+  async insertProduct(trx: EnterpriseProjectTransaction, insert: ProductInsert): Promise<boolean> {
     await this.assertContextPrincipal(trx, insert.createdByPrincipalId);
-    await trx
+    const inserted = await trx
       .insertInto('enterprise_project.product')
       .values({
         product_id: insert.productId,
@@ -443,7 +446,10 @@ export class EnterpriseBusinessRepository extends EnterpriseProjectRepository {
         updated_at: new Date(),
         retention_class: 'CUSTOMER_RECORD',
       })
-      .execute();
+      .onConflict((oc) => oc.columns(['enterprise_id', 'display_code']).doNothing())
+      .returning('product_id')
+      .executeTakeFirst();
+    return inserted !== undefined;
   }
 
   async getProductById(

@@ -32,6 +32,7 @@ const PROCESS_FAULT = 'abababab-0000-7000-8000-0000000000e3';
 const context: EnterpriseProjectTransactionContext = {
   kind: 'REQUEST',
   principalId: OPERATOR,
+  principalKind: 'HUMAN',
   actorSnapshotId: OPERATOR_ACTOR,
   authorizationDecisionId: DECISION,
   authorizationDecisionHash: DECISION_HASH,
@@ -63,6 +64,7 @@ const envelope = (
   targetId,
   correlationId: CORRELATION,
   principalId: OPERATOR,
+  principalKind: 'HUMAN',
   actorSnapshotId: OPERATOR_ACTOR,
   authorizationDecisionId: DECISION,
   policySnapshotId: POLICY,

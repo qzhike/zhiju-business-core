@@ -64,6 +64,7 @@ export interface CommandEnvelope {
   correlationId: string;
   causationId?: string | undefined;
   principalId: string;
+  principalKind: EnterpriseProjectTransactionContext['principalKind'];
   actorSnapshotId: string;
   authorizationDecisionId: string;
   policySnapshotId: string;
@@ -160,6 +161,7 @@ export function assertEnvelopeMatchesContext(
     envelope.projectId === undefined || context.allowedProjectIds.includes(envelope.projectId);
   if (
     envelope.principalId !== context.principalId ||
+    envelope.principalKind !== context.principalKind ||
     envelope.actorSnapshotId !== context.actorSnapshotId ||
     envelope.authorizationDecisionId !== context.authorizationDecisionId ||
     envelope.policySnapshotId !== context.policySnapshotId ||

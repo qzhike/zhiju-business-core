@@ -169,6 +169,8 @@ export interface EnterpriseProjectDb {
 export const CANONICALIZATION_VERSION = '1';
 export const PAYLOAD_HASH_ALGORITHM = 'SHA-256';
 
+export type EnterprisePrincipalKind = 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
+
 export interface CanonicalPayloadDigest {
   readonly canonicalJson: string;
   readonly hash: Buffer;
@@ -197,6 +199,8 @@ export function digestCanonicalPayload(payload: CanonicalJsonObject): CanonicalP
 export interface EnterpriseProjectTransactionContext {
   readonly kind: 'REQUEST' | 'EVENT_CONSUMER';
   readonly principalId: string;
+  /** Principal kind is part of the trusted IdentityPolicy snapshot. */
+  readonly principalKind: EnterprisePrincipalKind;
   readonly actorSnapshotId: string;
   readonly authorizationDecisionId: string;
   readonly authorizationDecisionHash: Buffer;

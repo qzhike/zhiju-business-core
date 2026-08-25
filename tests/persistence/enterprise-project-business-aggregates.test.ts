@@ -17,6 +17,7 @@ import {
   handleCreateEnterprise,
   handleEnterpriseProductActivateVersion,
   handleEnterpriseProductCreate,
+  handleEnterpriseProductCreateVersion,
   handleEnterpriseProductCreateScopeSnapshot,
   handleEnterpriseProfileCreateSnapshot,
   handleEnterpriseQmsActivateRevision,
@@ -25,14 +26,18 @@ import {
   handleProposeEnterpriseFact,
   PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT,
   PROJECT_HUMAN_ONLY_DENIED,
+  PROJECT_PRODUCT_DISPLAY_CODE_CONFLICT,
   PROJECT_PRODUCT_ACTIVATION_NOOP,
+  PROJECT_PRODUCT_VERSION_NOT_FOUND,
   PROJECT_PROFILE_SOURCE_MISMATCH,
   PROJECT_PROFILE_SNAPSHOT_IMMUTABLE,
+  PROJECT_QMS_REVISION_IMMUTABLE,
   type CommandEnvelope,
   type CommandResult,
   type EnterpriseProjectTransactionContext,
 } from '@zhiju/enterprise-project';
 import { newUuidV7, type CanonicalJsonObject, type UuidV7 } from '@zhiju/shared-kernel';
+import type { CanonicalJson, Common, EnterpriseProject } from '@zhiju/contracts';
 
 const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const gateEnabled = Boolean(databaseUrl);
@@ -48,6 +53,11 @@ const DECISION = 'd5d5d5d5-d5d5-75d5-85d5-d5d5d5d5d5d5';
 const POLICY = 'd6d6d6d6-d6d6-76d6-86d6-d6d6d6d6d6d6';
 const DECISION_HASH = Buffer.alloc(32, 0x42);
 const CORRELATION = 'd7d7d7d7-d7d7-77d7-87d7-d7d7d7d7d7d7';
+const TEST_CONTENT_HASH: Common.ContentHash = {
+  algorithm: 'SHA-256',
+  digest: 'a'.repeat(64),
+  canonicalizationVersion: '1',
+};
 
 function contextFor(
   enterpriseId: string,
@@ -56,6 +66,7 @@ function contextFor(
   return {
     kind: 'REQUEST',
     principalId,
+    principalKind: principalId === HUMAN_PRINCIPAL ? 'HUMAN' : 'AGENT',
     actorSnapshotId: principalId === HUMAN_PRINCIPAL ? ACTOR_HUMAN : ACTOR_AGENT,
     authorizationDecisionId: DECISION,
     authorizationDecisionHash: DECISION_HASH,
@@ -88,6 +99,7 @@ function envelope(overrides: Partial<CommandEnvelope> = {}): CommandEnvelope {
     targetId: currentEnterpriseId,
     correlationId: CORRELATION,
     principalId: HUMAN_PRINCIPAL,
+    principalKind: 'HUMAN',
     actorSnapshotId: ACTOR_HUMAN,
     authorizationDecisionId: DECISION,
     policySnapshotId: POLICY,
@@ -109,15 +121,105 @@ function payloadEnvelope<TPayload extends object>(
   };
 }
 
+function objectRef(
+  objectType: string,
+  objectId: string,
+  enterpriseId = currentEnterpriseId,
+): Common.ObjectRef {
+  return {
+    kind: 'OBJECT',
+    objectType,
+    objectId,
+    scope: { enterpriseId },
+  };
+}
+
+function versionedRef(
+  objectType: string,
+  objectId: string,
+  versionId: string,
+  enterpriseId = currentEnterpriseId,
+): Common.VersionedRef {
+  return {
+    kind: 'VERSIONED',
+    objectType,
+    objectId,
+    versionId,
+    scope: { enterpriseId },
+  };
+}
+
+function contentRef(
+  objectType: string,
+  objectId: string,
+  enterpriseId = currentEnterpriseId,
+): Common.ContentAddressedRef {
+  return {
+    kind: 'CONTENT_ADDRESSED',
+    objectType,
+    objectId,
+    scope: { enterpriseId },
+    contentHash: TEST_CONTENT_HASH,
+  };
+}
+
+function evidenceRef(
+  objectId: string,
+  enterpriseId = currentEnterpriseId,
+): EnterpriseProject.EvidenceRef {
+  return {
+    evidence: contentRef('SourceMaterial', objectId, enterpriseId),
+    relation: 'SUPPORTS',
+  };
+}
+
+function presentValue(value: CanonicalJson): EnterpriseProject.ValueEnvelopeCanonicalJson {
+  return {
+    presence: 'PRESENT',
+    value,
+    evidenceRefs: [evidenceRef('00000000-0000-7000-8000-0000000000f1')],
+  };
+}
+
+function justification(summary: string): EnterpriseProject.Justification {
+  return {
+    reasonCode: 'TEST_JUSTIFICATION',
+    summary,
+    evidenceRefs: [evidenceRef('00000000-0000-7000-8000-0000000000f2')],
+  };
+}
+
+function snapshotRef(
+  snapshotId: string,
+  digest: string,
+  enterpriseId = currentEnterpriseId,
+): Common.SnapshotRef {
+  return {
+    kind: 'SNAPSHOT',
+    objectType: 'EnterpriseProfileSnapshot',
+    objectId: snapshotId,
+    snapshotId,
+    scope: { enterpriseId },
+    contentHash: {
+      algorithm: 'SHA-256',
+      digest,
+      canonicalizationVersion: '1',
+    },
+  };
+}
+
 interface CommittedPayload {
   enterpriseRef?: { objectId: UuidV7 };
   enterpriseFactRef?: { objectId: UuidV7; versionId: UuidV7 };
   productRef?: { objectId: UuidV7 };
   currentVersionRef?: { versionId: UuidV7 };
+  productVersionRef?: { versionId: UuidV7 };
+  aggregateVersion?: string;
   qmsConfigurationRef?: { objectId: UuidV7 };
   qmsConfigurationRevisionRef?: { objectId: UuidV7; versionId: UuidV7 };
   enterpriseProfileSnapshotRef?: { objectId: UuidV7 };
   productScopeSnapshotRef?: { objectId: UuidV7 };
+  payloadHash?: string;
 }
 
 function objectIdFrom(result: CommandResult): UuidV7 {
@@ -147,11 +249,21 @@ function versionIdFrom(result: CommandResult): UuidV7 {
   return (
     payload.enterpriseFactRef?.versionId ??
     payload.currentVersionRef?.versionId ??
+    payload.productVersionRef?.versionId ??
     payload.qmsConfigurationRevisionRef?.versionId ??
     (() => {
       throw new Error('no versionId in resultPayload');
     })()
   );
+}
+
+function payloadHashFrom(result: CommandResult): string {
+  if (result.status !== 'COMMITTED') {
+    throw new Error(`expected COMMITTED, got ${result.status} ${result.errorCode ?? ''}`);
+  }
+  const payload = result.resultPayload as CommittedPayload;
+  if (!payload.payloadHash) throw new Error('no payloadHash in resultPayload');
+  return payload.payloadHash;
 }
 
 describe.skipIf(!gateEnabled)(
@@ -239,18 +351,13 @@ describe.skipIf(!gateEnabled)(
       const proposeEnv = payloadEnvelope(
         'p002-propose',
         {
-          enterpriseRef: { objectType: 'Enterprise' as const, objectId: enterpriseId },
+          enterpriseRef: objectRef('Enterprise', enterpriseId),
           proposal: {
             factType: 'enterprise.industry',
-            value: { code: 'manufacturing' },
-            sourceRefs: [
-              {
-                objectType: 'SourceMaterial' as const,
-                objectId: '00000000-0000-7000-8000-000000000001',
-              },
-            ],
-            riskLevel: 'LOW' as const,
-            proposalReason: 'initial',
+            value: presentValue({ code: 'manufacturing' }),
+            sourceRefs: [objectRef('SourceMaterial', '00000000-0000-7000-8000-000000000001')],
+            riskLevel: 'LOW',
+            proposalReason: justification('initial'),
           },
         },
         { idempotencyKey: 'p002-propose' },
@@ -259,23 +366,37 @@ describe.skipIf(!gateEnabled)(
       expect(propose.status).toBe('COMMITTED');
       const factId = objectIdFrom(propose);
       const versionId = versionIdFrom(propose);
+      const proposedRoot = await admin.query<{
+        aggregate_version: string;
+        current_version_id: string;
+      }>(
+        `SELECT aggregate_version::text, current_version_id::text
+           FROM enterprise_project.enterprise_fact
+          WHERE enterprise_fact_id = $1::uuid`,
+        [factId],
+      );
+      expect(proposedRoot.rows[0]).toEqual({
+        aggregate_version: '1',
+        current_version_id: versionId,
+      });
+      const proposedEvents = await admin.query<{ aggregate_version: string }>(
+        `SELECT aggregate_version::text
+           FROM enterprise_project.outbox_event
+          WHERE source_command_id = $1::uuid
+          ORDER BY recorded_at ASC`,
+        [proposeEnv.commandId],
+      );
+      expect(proposedEvents.rows.map((row) => row.aggregate_version)).toEqual(['1']);
 
       const confirmEnv = payloadEnvelope(
         'p002-confirm',
         {
           proposalVersionRef: {
-            objectType: 'EnterpriseFact' as const,
-            objectId: factId,
-            versionId,
+            ...versionedRef('EnterpriseFact', factId, versionId),
           },
-          confirmedValue: { code: 'manufacturing', audited: true },
-          evidenceRefs: [
-            {
-              objectType: 'SourceMaterial' as const,
-              objectId: '00000000-0000-7000-8000-000000000002',
-            },
-          ],
-          justification: 'human audit',
+          confirmedValue: presentValue({ code: 'manufacturing', audited: true }),
+          evidenceRefs: [evidenceRef('00000000-0000-7000-8000-000000000002')],
+          justification: justification('human audit'),
         },
         { idempotencyKey: 'p002-confirm' },
       );
@@ -286,6 +407,30 @@ describe.skipIf(!gateEnabled)(
         `WHERE enterprise_id = '${enterpriseId}'::uuid`,
       );
       expect(versionRows).toBe(2);
+      const confirmedRoot = await admin.query<{
+        aggregate_version: string;
+        current_version_id: string;
+      }>(
+        `SELECT aggregate_version::text, current_version_id::text
+           FROM enterprise_project.enterprise_fact
+          WHERE enterprise_fact_id = $1::uuid`,
+        [factId],
+      );
+      expect(confirmedRoot.rows[0]?.aggregate_version).toBe('2');
+      expect(confirmedRoot.rows[0]?.current_version_id).not.toBe(versionId);
+      const factEvents = await admin.query<{ aggregate_version: string }>(
+        `SELECT aggregate_version::text
+           FROM enterprise_project.outbox_event
+          WHERE aggregate_type = 'EnterpriseFact' AND aggregate_id = $1::uuid
+          ORDER BY aggregate_version::bigint`,
+        [factId],
+      );
+      expect(factEvents.rows.map((row) => row.aggregate_version)).toEqual(['1', '2']);
+      const factEdges = await countRows(
+        'reference_edge',
+        `WHERE owner_object_type = 'EnterpriseFact' AND owner_object_id = '${factId}'::uuid`,
+      );
+      expect(factEdges).toBe(2);
     });
 
     // ============================================================
@@ -293,27 +438,27 @@ describe.skipIf(!gateEnabled)(
     // ============================================================
     it('EP-WI03-P-003 Agent actingFor Human is rejected with HUMAN_ONLY_DENIED', async () => {
       const ctx = contextFor(ENTERPRISE_A, AGENT_PRINCIPAL);
-      (ctx as { principalKind?: string }).principalKind = 'AGENT';
       const env = payloadEnvelope(
         'p003-agent-confirm',
         {
           proposalVersionRef: {
-            objectType: 'EnterpriseFact' as const,
-            objectId: '00000000-0000-7000-8000-000000000aaa',
-            versionId: '00000000-0000-7000-8000-000000000bbb',
+            ...versionedRef(
+              'EnterpriseFact',
+              '00000000-0000-7000-8000-000000000aaa',
+              '00000000-0000-7000-8000-000000000bbb',
+              ENTERPRISE_A,
+            ),
           },
-          confirmedValue: { x: 1 },
-          evidenceRefs: [
-            {
-              objectType: 'SourceMaterial' as const,
-              objectId: '00000000-0000-7000-8000-000000000004',
-            },
-          ],
-          justification: 'agent attempt',
+          confirmedValue: presentValue({ x: 1 }),
+          evidenceRefs: [evidenceRef('00000000-0000-7000-8000-000000000004', ENTERPRISE_A)],
+          justification: justification('agent attempt'),
         },
-        { idempotencyKey: 'p003-agent-confirm', principalId: AGENT_PRINCIPAL },
+        {
+          idempotencyKey: 'p003-agent-confirm',
+          principalId: AGENT_PRINCIPAL,
+          principalKind: 'AGENT',
+        },
       );
-      (env as { principalKind?: string }).principalKind = 'AGENT';
       let caught: unknown = null;
       try {
         await handleConfirmEnterpriseFact(db(), ctx, env);
@@ -322,6 +467,30 @@ describe.skipIf(!gateEnabled)(
       }
       expect(caught).toBeInstanceOf(EnterpriseBusinessError);
       expect((caught as EnterpriseBusinessError).code).toBe(PROJECT_HUMAN_ONLY_DENIED);
+
+      const missingPrincipalKind = payloadEnvelope(
+        'p003-missing-principal-kind',
+        {
+          proposalVersionRef: versionedRef(
+            'EnterpriseFact',
+            '00000000-0000-7000-8000-000000000aaa',
+            '00000000-0000-7000-8000-000000000bbb',
+            ENTERPRISE_A,
+          ),
+          confirmedValue: presentValue({ x: 2 }),
+          evidenceRefs: [evidenceRef('00000000-0000-7000-8000-000000000005', ENTERPRISE_A)],
+          justification: justification('missing principal kind'),
+        },
+        { idempotencyKey: 'p003-missing-principal-kind', enterpriseId: ENTERPRISE_A },
+      );
+      Reflect.deleteProperty(missingPrincipalKind, 'principalKind');
+      await expect(
+        handleConfirmEnterpriseFact(
+          db(),
+          contextFor(ENTERPRISE_A, HUMAN_PRINCIPAL),
+          missingPrincipalKind,
+        ),
+      ).rejects.toMatchObject({ code: PROJECT_HUMAN_ONLY_DENIED });
     });
 
     // ============================================================
@@ -367,6 +536,85 @@ describe.skipIf(!gateEnabled)(
       const productId = objectIdFrom(productCreate);
       const v1Id = versionIdFrom(productCreate);
 
+      const duplicateProduct = await handleEnterpriseProductCreate(
+        db(),
+        ctx,
+        payloadEnvelope(
+          'p004-prod-duplicate',
+          {
+            enterpriseRef: { objectType: 'Enterprise' as const, objectId: enterpriseId },
+            displayCode: 'WIDGET',
+            initialVersion: {
+              productType: 'manufactured.widget.duplicate',
+              displayName: 'Duplicate Widget',
+              intendedUse: 'duplicate test',
+              productScope: { productFamily: 'widget', variants: ['duplicate'], markets: ['CN'] },
+              sourceRefs: [
+                {
+                  objectType: 'SourceMaterial' as const,
+                  objectId: '00000000-0000-7000-8000-000000000011',
+                },
+              ],
+            },
+          },
+          { idempotencyKey: 'p004-prod-duplicate' },
+        ),
+      );
+      expect(duplicateProduct.status).toBe('REJECTED');
+      if (duplicateProduct.status === 'REJECTED') {
+        expect(duplicateProduct.errorCode).toBe(PROJECT_PRODUCT_DISPLAY_CODE_CONFLICT);
+      }
+      const afterDuplicate = await handleEnterpriseProductCreate(
+        db(),
+        ctx,
+        payloadEnvelope(
+          'p004-prod-after-duplicate',
+          {
+            enterpriseRef: { objectType: 'Enterprise' as const, objectId: enterpriseId },
+            displayCode: 'WIDGET-2',
+            initialVersion: {
+              productType: 'manufactured.widget',
+              displayName: 'Widget 2',
+              intendedUse: 'duplicate continuation',
+              productScope: { productFamily: 'widget', variants: ['b'], markets: ['CN'] },
+              sourceRefs: [
+                {
+                  objectType: 'SourceMaterial' as const,
+                  objectId: '00000000-0000-7000-8000-000000000012',
+                },
+              ],
+            },
+          },
+          { idempotencyKey: 'p004-prod-after-duplicate' },
+        ),
+      );
+      expect(afterDuplicate.status).toBe('COMMITTED');
+
+      await expect(
+        handleEnterpriseProductActivateVersion(
+          db(),
+          ctx,
+          payloadEnvelope(
+            'p004-activate-wrong-object',
+            {
+              productRef: { objectType: 'Product' as const, objectId: productId },
+              productVersionRef: {
+                objectType: 'ProductVersion' as const,
+                objectId: newUuidV7(),
+                versionId: v1Id,
+              },
+              activationMode: 'ACTIVATE' as const,
+              expectedAggregateVersion: '1',
+              humanDecisionRef: {
+                objectType: 'BusinessDecision' as const,
+                objectId: '00000000-0000-7000-8000-000000000aac',
+              },
+            },
+            { idempotencyKey: 'p004-activate-wrong-object' },
+          ),
+        ),
+      ).rejects.toMatchObject({ code: PROJECT_PRODUCT_VERSION_NOT_FOUND });
+
       // Activate v1 (current pointer)
       const activate = await handleEnterpriseProductActivateVersion(
         db(),
@@ -392,6 +640,50 @@ describe.skipIf(!gateEnabled)(
       );
       expect(activate.status).toBe('COMMITTED');
 
+      const productV2 = await handleEnterpriseProductCreateVersion(
+        db(),
+        ctx,
+        payloadEnvelope(
+          'p004-prod-v2',
+          {
+            productRef: { objectType: 'Product' as const, objectId: productId },
+            previousVersionRef: {
+              objectType: 'ProductVersion' as const,
+              objectId: productId,
+              versionId: v1Id,
+            },
+            productType: 'manufactured.widget.v2',
+            displayName: 'Widget v2',
+            intendedUse: 'version continuity',
+            productScope: { productFamily: 'widget', variants: ['v2'], markets: ['CN'] },
+            sourceRefs: [
+              {
+                objectType: 'SourceMaterial' as const,
+                objectId: '00000000-0000-7000-8000-000000000013',
+              },
+            ],
+          },
+          { idempotencyKey: 'p004-prod-v2' },
+        ),
+      );
+      expect(productV2.status).toBe('COMMITTED');
+      if (productV2.status === 'COMMITTED') {
+        expect((productV2.resultPayload as CommittedPayload).aggregateVersion).toBe('3');
+      }
+      const productEvents = await admin.query<{ aggregate_version: string }>(
+        `SELECT aggregate_version::text
+           FROM enterprise_project.outbox_event
+          WHERE aggregate_type = 'Product' AND aggregate_id = $1::uuid
+          ORDER BY aggregate_version::bigint`,
+        [productId],
+      );
+      expect(productEvents.rows.map((row) => row.aggregate_version)).toEqual(['1', '2', '3']);
+      const productEdges = await countRows(
+        'reference_edge',
+        `WHERE owner_object_type = 'Product' AND owner_object_id = '${productId}'::uuid`,
+      );
+      expect(productEdges).toBe(3);
+
       // Re-activate the same v1 -> NOOP
       const reactivate = await handleEnterpriseProductActivateVersion(
         db(),
@@ -406,13 +698,13 @@ describe.skipIf(!gateEnabled)(
               versionId: v1Id,
             },
             activationMode: 'ACTIVATE' as const,
-            expectedAggregateVersion: '2',
+            expectedAggregateVersion: '3',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000bbb',
             },
           },
-          { idempotencyKey: 'p004-activate-again', expectedAggregateVersion: '2' },
+          { idempotencyKey: 'p004-activate-again', expectedAggregateVersion: '3' },
         ),
       );
       expect(reactivate.status).toBe('REJECTED');
@@ -484,6 +776,36 @@ describe.skipIf(!gateEnabled)(
         ),
       );
 
+      const wrongPreviousQmsRevision = await handleEnterpriseQmsCreateRevision(
+        db(),
+        ctx,
+        payloadEnvelope(
+          'p005-qms-wrong-previous-object',
+          {
+            qmsConfigurationRef: { objectType: 'QMSConfiguration' as const, objectId: qmsId },
+            previousRevisionRef: {
+              objectType: 'QMSConfigurationRevision' as const,
+              objectId: newUuidV7(),
+              versionId: v1Id,
+            },
+            applicabilityDecisions: [{ requirementRef: 'req-1', outcome: 'APPLICABLE' }],
+            managementChoices: [{ choiceKey: 'review-cycle', selectedOption: 'monthly' }],
+            professionalDecisions: [{ decisionType: 'risk-method', outcome: 'apply' }],
+            sourceRefs: [
+              {
+                objectType: 'SourceMaterial' as const,
+                objectId: '00000000-0000-7000-8000-000000000022',
+              },
+            ],
+          },
+          { idempotencyKey: 'p005-qms-wrong-previous-object' },
+        ),
+      );
+      expect(wrongPreviousQmsRevision.status).toBe('REJECTED');
+      if (wrongPreviousQmsRevision.status === 'REJECTED') {
+        expect(wrongPreviousQmsRevision.errorCode).toBe(PROJECT_QMS_REVISION_IMMUTABLE);
+      }
+
       const qms2 = await handleEnterpriseQmsCreateRevision(
         db(),
         ctx,
@@ -523,13 +845,13 @@ describe.skipIf(!gateEnabled)(
               versionId: v2Id,
             },
             activationMode: 'ACTIVATE' as const,
-            expectedAggregateVersion: '2',
+            expectedAggregateVersion: '3',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000bbb',
             },
           },
-          { idempotencyKey: 'p005-activate-v2', expectedAggregateVersion: '2' },
+          { idempotencyKey: 'p005-activate-v2', expectedAggregateVersion: '3' },
         ),
       );
       // ROLLBACK to v1
@@ -546,13 +868,13 @@ describe.skipIf(!gateEnabled)(
               versionId: v1Id,
             },
             activationMode: 'ROLLBACK' as const,
-            expectedAggregateVersion: '3',
+            expectedAggregateVersion: '4',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000ccc',
             },
           },
-          { idempotencyKey: 'p005-rollback-v1', expectedAggregateVersion: '3' },
+          { idempotencyKey: 'p005-rollback-v1', expectedAggregateVersion: '4' },
         ),
       );
       expect(rollback.status).toBe('COMMITTED');
@@ -561,6 +883,26 @@ describe.skipIf(!gateEnabled)(
         `WHERE qms_configuration_id = '${qmsId}'::uuid`,
       );
       expect(revisionRows).toBe(2);
+      const qmsRoot = await admin.query<{ aggregate_version: string; current_revision_id: string }>(
+        `SELECT aggregate_version::text, current_revision_id::text
+           FROM enterprise_project.qms_configuration
+          WHERE qms_configuration_id = $1::uuid`,
+        [qmsId],
+      );
+      expect(qmsRoot.rows[0]).toEqual({ aggregate_version: '5', current_revision_id: v1Id });
+      const qmsEvents = await admin.query<{ aggregate_version: string }>(
+        `SELECT aggregate_version::text
+           FROM enterprise_project.outbox_event
+          WHERE aggregate_type = 'QMSConfiguration' AND aggregate_id = $1::uuid
+          ORDER BY aggregate_version::bigint`,
+        [qmsId],
+      );
+      expect(qmsEvents.rows.map((row) => row.aggregate_version)).toEqual(['1', '2', '3', '4', '5']);
+      const qmsEdges = await countRows(
+        'reference_edge',
+        `WHERE owner_object_type = 'QMSConfiguration' AND owner_object_id = '${qmsId}'::uuid`,
+      );
+      expect(qmsEdges).toBe(5);
     });
 
     // ============================================================
@@ -598,18 +940,15 @@ describe.skipIf(!gateEnabled)(
         payloadEnvelope(
           'p006-fact-b',
           {
-            enterpriseRef: { objectType: 'Enterprise' as const, objectId: enterpriseB },
+            enterpriseRef: objectRef('Enterprise', enterpriseB, enterpriseB),
             proposal: {
               factType: 'enterprise.size',
-              value: { headcount: 50 },
+              value: presentValue({ headcount: 50 }),
               sourceRefs: [
-                {
-                  objectType: 'SourceMaterial' as const,
-                  objectId: '00000000-0000-7000-8000-000000000030',
-                },
+                objectRef('SourceMaterial', '00000000-0000-7000-8000-000000000030', enterpriseB),
               ],
-              riskLevel: 'LOW' as const,
-              proposalReason: 'b fact',
+              riskLevel: 'LOW',
+              proposalReason: justification('b fact'),
             },
           },
           { idempotencyKey: 'p006-fact-b', enterpriseId: enterpriseB },
@@ -657,9 +996,9 @@ describe.skipIf(!gateEnabled)(
               objectType: 'QMSConfiguration' as const,
               objectId: newUuidV7(),
             },
-            applicabilityDecisions: [],
-            managementChoices: [],
-            professionalDecisions: [],
+            applicabilityDecisions: [{ requirementRef: 'req-cross', outcome: 'APPLICABLE' }],
+            managementChoices: [{ choiceKey: 'review-cycle', selectedOption: 'quarterly' }],
+            professionalDecisions: [{ decisionType: 'risk-method', outcome: 'apply' }],
             sourceRefs: [
               {
                 objectType: 'SourceMaterial' as const,
@@ -764,9 +1103,9 @@ describe.skipIf(!gateEnabled)(
               objectType: 'QMSConfiguration' as const,
               objectId: newUuidV7(),
             },
-            applicabilityDecisions: [],
-            managementChoices: [],
-            professionalDecisions: [],
+            applicabilityDecisions: [{ requirementRef: 'req-replay', outcome: 'APPLICABLE' }],
+            managementChoices: [{ choiceKey: 'review-cycle', selectedOption: 'quarterly' }],
+            professionalDecisions: [{ decisionType: 'risk-method', outcome: 'apply' }],
             sourceRefs: [
               {
                 objectType: 'SourceMaterial' as const,
@@ -781,8 +1120,8 @@ describe.skipIf(!gateEnabled)(
       const qmsVersion = versionIdFrom(qms);
       // Activate the first revision so the profile snapshot can reference
       // it as the current QMS pointer (qms_create_revision leaves the
-      // root's current_revision_id at the placeholder until activate
-      // moves it to the real revision).
+      // root's current_revision_id at NULL until activate moves it to the
+      // real revision).
       await handleEnterpriseQmsActivateRevision(
         db(),
         ctx,
@@ -831,16 +1170,55 @@ describe.skipIf(!gateEnabled)(
           { idempotencyKey: 'p007-snapshot' },
         ),
       );
+      const wrongProductObjectSnapshot = await handleEnterpriseProfileCreateSnapshot(
+        db(),
+        ctx,
+        payloadEnvelope(
+          'p007-snapshot-wrong-product-object',
+          {
+            enterpriseRef: { objectType: 'Enterprise' as const, objectId: enterpriseId },
+            enterpriseFactVersionRefs: [],
+            productVersionRefs: [
+              {
+                objectType: 'ProductVersion' as const,
+                objectId: newUuidV7(),
+                versionId: productVersion,
+              },
+            ],
+            qmsConfigurationRef: { objectType: 'QMSConfiguration' as const, objectId: qmsId },
+            qmsConfigurationRevisionRef: {
+              objectType: 'QMSConfigurationRevision' as const,
+              objectId: qmsId,
+              versionId: qmsVersion,
+            },
+            purpose: 'wrong product object id',
+          },
+          { idempotencyKey: 'p007-snapshot-wrong-product-object' },
+        ),
+      );
+      expect(wrongProductObjectSnapshot.status).toBe('REJECTED');
+      if (wrongProductObjectSnapshot.status === 'REJECTED') {
+        expect(wrongProductObjectSnapshot.errorCode).toBe(PROJECT_PROFILE_SOURCE_MISMATCH);
+      }
       expect(snapshot.status).toBe('COMMITTED');
       const snapshotId = objectIdFrom(snapshot);
+      const snapshotHash = payloadHashFrom(snapshot);
+      const snapshotEdges = await countRows(
+        'reference_edge',
+        `WHERE owner_object_type = 'EnterpriseProfileSnapshot' AND owner_object_id = '${snapshotId}'::uuid`,
+      );
+      expect(snapshotEdges).toBe(3);
       const read = await handleGetEnterpriseProfileSnapshot(db(), ctx, {
-        enterpriseProfileSnapshotRef: {
-          objectType: 'EnterpriseProfileSnapshot' as const,
-          objectId: snapshotId,
-        },
+        enterpriseProfileSnapshotRef: snapshotRef(snapshotId, snapshotHash, enterpriseId),
       });
-      expect(read.enterpriseId).toBe(enterpriseId);
-      expect(read.payloadHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(read.snapshotRef.snapshotId).toBe(snapshotId);
+      expect(read.snapshotRef.scope).toEqual({ enterpriseId });
+      expect(read.snapshotRef.contentHash.digest).toMatch(/^[0-9a-f]{64}$/);
+      await expect(
+        handleGetEnterpriseProfileSnapshot(db(), ctx, {
+          enterpriseProfileSnapshotRef: snapshotRef(snapshotId, 'b'.repeat(64), enterpriseId),
+        }),
+      ).rejects.toMatchObject({ code: PROJECT_PROFILE_SOURCE_MISMATCH });
     });
 
     // ============================================================
@@ -851,10 +1229,11 @@ describe.skipIf(!gateEnabled)(
       let caught: unknown = null;
       try {
         await handleGetEnterpriseProfileSnapshot(db(), ctx, {
-          enterpriseProfileSnapshotRef: {
-            objectType: 'EnterpriseProfileSnapshot' as const,
-            objectId: 'latest',
-          },
+          enterpriseProfileSnapshotRef: snapshotRef(
+            'latest',
+            TEST_CONTENT_HASH.digest,
+            ENTERPRISE_A,
+          ),
         });
       } catch (error) {
         caught = error;
@@ -871,10 +1250,11 @@ describe.skipIf(!gateEnabled)(
       let caught: unknown = null;
       try {
         await handleGetEnterpriseProfileSnapshot(db(), ctx, {
-          enterpriseProfileSnapshotRef: {
-            objectType: 'EnterpriseProfileSnapshot' as const,
-            objectId: '00000000-0000-7000-8000-000000000999',
-          },
+          enterpriseProfileSnapshotRef: snapshotRef(
+            '00000000-0000-7000-8000-000000000999',
+            TEST_CONTENT_HASH.digest,
+            ENTERPRISE_A,
+          ),
         });
       } catch (error) {
         caught = error;

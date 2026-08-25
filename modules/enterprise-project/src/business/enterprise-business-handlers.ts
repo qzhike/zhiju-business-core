@@ -19,7 +19,8 @@
 //     purpose binding at the composition layer.
 
 import type { Kysely } from 'kysely';
-import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import type { Common, EnterpriseProject } from '@zhiju/contracts';
+import { newUuidV7, type CanonicalJsonObject, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 import {
   withEnterpriseProjectTransaction,
   digestCanonicalPayload,
@@ -32,6 +33,7 @@ import {
   CONCURRENCY_CONFLICT,
   executeEnterpriseProjectCommand,
   type CommandEnvelope,
+  type CommandExecution,
   type CommandResult,
 } from '../persistence/command-runner.js';
 import { ENTERPRISE_PAYLOAD_HASH_MISMATCH } from '../persistence/write-guards.js';
@@ -43,6 +45,7 @@ import {
   PROJECT_FACT_CONFLICT_UNRESOLVED,
   PROJECT_FACT_SOURCE_REQUIRED,
   PROJECT_HUMAN_ONLY_DENIED,
+  PROJECT_PRODUCT_DISPLAY_CODE_CONFLICT,
   PROJECT_PRODUCT_ACTIVATION_NOOP,
   PROJECT_PRODUCT_SCOPE_SNAPSHOT_INVALID,
   PROJECT_PRODUCT_VERSION_IMMUTABLE,
@@ -51,6 +54,7 @@ import {
   PROJECT_PROFILE_SOURCE_MISMATCH,
   PROJECT_QMS_DECISION_SOURCE_REQUIRED,
   PROJECT_QMS_REVISION_IMMUTABLE,
+  PROJECT_QMS_ACTIVATION_NOOP,
   PROJECT_QMS_VERSION_NOT_FOUND,
 } from './enterprise-business-errors.js';
 
@@ -60,16 +64,11 @@ const repo = new EnterpriseBusinessRepository();
 // Shared helpers
 // =====================================================================
 
-function ensureHumanPrincipal(envelope: CommandEnvelope): void {
-  // actingFor requires Human actingFor semantics; for confirmation/activation
-  // we treat any non-empty `actingFor` as a delegation attempt. WI-02 does
-  // not model actingFor in the envelope (it is a Trusted Context flag), so
-  // we expose the principal_kind through the envelope's `principalKind`
-  // property (added below in CommandEnvelope extension). When principalKind
-  // is missing we default to "HUMAN" for the public APIs because the
-  // composition layer must already have decided this from IdentityPolicy.
-  const kind = (envelope as CommandEnvelope & { principalKind?: string }).principalKind;
-  if (kind !== undefined && kind !== 'HUMAN') {
+function ensureHumanPrincipal(
+  context: EnterpriseProjectTransactionContext,
+  envelope: CommandEnvelope,
+): void {
+  if (context.principalKind !== 'HUMAN' || envelope.principalKind !== 'HUMAN') {
     throw new EnterpriseBusinessError(
       PROJECT_HUMAN_ONLY_DENIED,
       'Human-only operation invoked by a non-HUMAN principal',
@@ -89,15 +88,200 @@ function asNonEmptyArray<T>(value: readonly T[] | undefined): T[] {
   return value === undefined ? [] : [...value];
 }
 
+interface ReferenceLike {
+  readonly kind?: unknown;
+  readonly objectType?: unknown;
+  readonly objectId?: unknown;
+  readonly versionId?: unknown;
+  readonly snapshotId?: unknown;
+  readonly scope?: unknown;
+  readonly contentHash?: unknown;
+  readonly evidence?: unknown;
+  readonly evidenceLinkRef?: unknown;
+  readonly targetClaimRef?: unknown;
+  readonly target?: unknown;
+  readonly digest?: unknown;
+  readonly algorithm?: unknown;
+  readonly canonicalizationVersion?: unknown;
+}
+
+function asReferenceLike(value: unknown): ReferenceLike {
+  return value !== null && typeof value === 'object' ? value : {};
+}
+
+function asCanonicalJson(value: unknown): CanonicalJsonValue {
+  return JSON.parse(JSON.stringify(value)) as CanonicalJsonValue;
+}
+
+function asFactRiskLevel(value: string): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
+  if (value === 'LOW' || value === 'MEDIUM' || value === 'HIGH' || value === 'CRITICAL') {
+    return value;
+  }
+  throw new EnterpriseBusinessError(
+    PROJECT_FACT_SOURCE_REQUIRED,
+    'riskLevel must be one of LOW, MEDIUM, HIGH or CRITICAL',
+  );
+}
+
+function scopedEnterpriseId(reference: unknown): string | undefined {
+  const scope = asReferenceLike(reference).scope;
+  if (scope === null || typeof scope !== 'object') return undefined;
+  const enterpriseId = (scope as { enterpriseId?: unknown }).enterpriseId;
+  return typeof enterpriseId === 'string' ? enterpriseId : undefined;
+}
+
+function hasProjectScope(reference: unknown): boolean {
+  const scope = asReferenceLike(reference).scope;
+  return (
+    scope !== null &&
+    typeof scope === 'object' &&
+    'projectId' in scope &&
+    (scope as { projectId?: unknown }).projectId !== undefined
+  );
+}
+
+function requiresEnterpriseScope(reference: unknown): boolean {
+  const kind = asReferenceLike(reference).kind;
+  return (
+    kind === 'OBJECT' || kind === 'VERSIONED' || kind === 'CONTENT_ADDRESSED' || kind === 'SNAPSHOT'
+  );
+}
+
+function assertEnterpriseObjectRef(
+  reference: Common.ObjectRef,
+  enterpriseId: string,
+  label: string,
+): void {
+  const facts = asReferenceLike(reference);
+  if (
+    facts.kind !== 'OBJECT' ||
+    facts.objectType !== 'Enterprise' ||
+    facts.objectId !== enterpriseId ||
+    scopedEnterpriseId(reference) !== enterpriseId ||
+    hasProjectScope(reference)
+  ) {
+    throw new CommandExecutionError(
+      'COMMAND_TARGET_MISMATCH',
+      `${label} must identify the trusted Enterprise scope exactly`,
+    );
+  }
+}
+
+function validateReferenceSet(
+  references: readonly unknown[],
+  enterpriseId: string,
+  label: string,
+): void {
+  const keys = new Set<string>();
+  for (const reference of references) {
+    const ref = asReferenceLike(reference);
+    const candidates =
+      ref.evidence !== undefined
+        ? [ref.evidence, ref.evidenceLinkRef, asReferenceLike(ref.targetClaimRef).target]
+        : [reference];
+    for (const candidate of candidates) {
+      if (candidate === undefined) continue;
+      const candidateRef = asReferenceLike(candidate);
+      const objectType = typeof candidateRef.objectType === 'string' ? candidateRef.objectType : '';
+      const objectId = typeof candidateRef.objectId === 'string' ? candidateRef.objectId : '';
+      const versionId = typeof candidateRef.versionId === 'string' ? candidateRef.versionId : '';
+      const snapshotId = typeof candidateRef.snapshotId === 'string' ? candidateRef.snapshotId : '';
+      const key = candidateRef.kind
+        ? JSON.stringify([candidateRef.kind, objectType, objectId, versionId, snapshotId])
+        : JSON.stringify(candidate);
+      if (keys.has(key)) {
+        throw new EnterpriseBusinessError(
+          PROJECT_PROFILE_SOURCE_MISMATCH,
+          `${label} must not contain duplicate exact references`,
+        );
+      }
+      keys.add(key);
+      const referencedEnterpriseId = scopedEnterpriseId(candidate);
+      if (
+        (requiresEnterpriseScope(candidate) && referencedEnterpriseId !== enterpriseId) ||
+        (referencedEnterpriseId !== undefined && referencedEnterpriseId !== enterpriseId) ||
+        hasProjectScope(candidate)
+      ) {
+        throw new EnterpriseBusinessError(
+          PROJECT_PROFILE_SOURCE_MISMATCH,
+          `${label} crosses the trusted Enterprise scope`,
+        );
+      }
+    }
+  }
+}
+
+function assertExactReference(
+  reference: unknown,
+  objectType: string,
+  objectId: string,
+  errorCode: string,
+  label: string,
+): void {
+  const ref = asReferenceLike(reference);
+  if (ref.objectType !== objectType || ref.objectId !== objectId) {
+    throw new EnterpriseBusinessError(errorCode, `${label} does not identify the exact object`);
+  }
+}
+
+function parseOptionalInstant(value: string | undefined, label: string): Date | undefined {
+  if (value === undefined) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new EnterpriseBusinessError(
+      PROJECT_PROFILE_SOURCE_MISMATCH,
+      `${label} is not a valid UTC instant`,
+    );
+  }
+  return parsed;
+}
+
+async function appendReferenceEdges(
+  execution: Pick<CommandExecution, 'appendReferenceEdge'>,
+  ownerObjectType: string,
+  ownerObjectId: string,
+  ownerVersionId: string | undefined,
+  ownerPayloadHash: Buffer | undefined,
+  references: readonly unknown[],
+  purpose: string,
+): Promise<void> {
+  for (const [index, referenceValue] of references.entries()) {
+    const reference = asReferenceLike(referenceValue);
+    if (typeof reference.objectId !== 'string' || typeof reference.objectType !== 'string') {
+      continue;
+    }
+    const targetVersionId =
+      typeof reference.versionId === 'string'
+        ? reference.versionId
+        : typeof reference.snapshotId === 'string'
+          ? reference.snapshotId
+          : undefined;
+    const contentHash = asReferenceLike(reference.contentHash);
+    const targetPayloadHash =
+      typeof contentHash.digest === 'string' && /^[0-9a-f]{64}$/i.test(contentHash.digest)
+        ? Buffer.from(contentHash.digest, 'hex')
+        : undefined;
+    await execution.appendReferenceEdge({
+      ownerObjectType,
+      ownerObjectId,
+      ...(ownerVersionId === undefined ? {} : { ownerVersionId }),
+      ...(ownerPayloadHash === undefined ? {} : { ownerPayloadHash }),
+      referencePath: `/references/${index}`,
+      targetModule: 'EnterpriseProject',
+      targetObjectType: reference.objectType,
+      targetObjectId: reference.objectId,
+      ...(targetVersionId === undefined ? {} : { targetVersionId }),
+      ...(targetPayloadHash === undefined ? {} : { targetPayloadHash }),
+      referencePurpose: purpose,
+    });
+  }
+}
+
 // =====================================================================
 // Public Contract: project.create_enterprise
 // =====================================================================
 
-export interface CreateEnterprisePayload {
-  displayCode: string;
-  displayName: string;
-  initialStatus: 'ACTIVE';
-}
+export type CreateEnterprisePayload = EnterpriseProject.ProjectCreateEnterprisePayload;
 
 export async function handleCreateEnterprise(
   db: Kysely<EnterpriseProjectDb>,
@@ -183,47 +367,39 @@ export async function handleCreateEnterprise(
 // Public Contract: project.propose_enterprise_fact
 // =====================================================================
 
-export interface ProposeEnterpriseFactPayload {
-  enterpriseRef: { objectType: 'Enterprise'; objectId: string };
-  proposal: {
-    factType: string;
-    value: CanonicalJsonObject;
-    sourceRefs: readonly { objectType: string; objectId: string; versionId?: string }[];
-    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-    proposalReason: string;
-    validPeriod?: { from?: string; to?: string };
-  };
-}
+export type ProposeEnterpriseFactPayload = EnterpriseProject.ProjectProposeEnterpriseFactPayload;
 
 export async function handleProposeEnterpriseFact(
   db: Kysely<EnterpriseProjectDb>,
   context: EnterpriseProjectTransactionContext,
   envelope: CommandEnvelope & { payload: ProposeEnterpriseFactPayload },
 ): Promise<CommandResult> {
-  // objectType is typed as the literal 'Enterprise' so the runtime check is
-  // intentionally omitted; callers passing any other object type would fail
-  // to compile, leaving the database as the source of truth.
-  if (
-    !Array.isArray(envelope.payload.proposal.sourceRefs) ||
-    envelope.payload.proposal.sourceRefs.length === 0
-  ) {
+  assertEnterpriseObjectRef(envelope.payload.enterpriseRef, envelope.enterpriseId, 'enterpriseRef');
+  if (!Array.isArray(envelope.payload.proposal.sourceRefs)) {
     throw new EnterpriseBusinessError(
       PROJECT_FACT_SOURCE_REQUIRED,
       'fact proposal must carry at least one sourceRef',
     );
   }
-  const enterpriseId = envelope.payload.enterpriseRef.objectId;
+  const enterpriseId = envelope.enterpriseId;
+  validateReferenceSet(envelope.payload.proposal.sourceRefs, enterpriseId, 'fact sourceRefs');
+  if (envelope.payload.proposal.sourceRefs.length === 0) {
+    throw new EnterpriseBusinessError(
+      PROJECT_FACT_SOURCE_REQUIRED,
+      'fact proposal must carry at least one sourceRef',
+    );
+  }
   const enterpriseFactId = newUuidV7();
   const versionId = newUuidV7();
-  const valueWithScope = {
-    enterpriseId,
-    value: envelope.payload.proposal.value,
-  };
   const digest = digestCanonicalPayload({
     enterpriseId,
     enterpriseFactId,
-    value: envelope.payload.proposal.value,
-    sourceRefs: envelope.payload.proposal.sourceRefs,
+    factType: envelope.payload.proposal.factType,
+    value: asCanonicalJson(envelope.payload.proposal.value),
+    sourceRefs: asCanonicalJson(envelope.payload.proposal.sourceRefs),
+    riskLevel: envelope.payload.proposal.riskLevel,
+    proposalReason: asCanonicalJson(envelope.payload.proposal.proposalReason),
+    validPeriod: asCanonicalJson(envelope.payload.proposal.validPeriod ?? null),
     status: 'PROPOSED',
   });
   return executeEnterpriseProjectCommand(
@@ -256,7 +432,9 @@ export async function handleProposeEnterpriseFact(
         enterpriseFactId,
         enterpriseId,
         factType: envelope.payload.proposal.factType,
-        riskLevel: envelope.payload.proposal.riskLevel,
+        riskLevel: asFactRiskLevel(envelope.payload.proposal.riskLevel),
+        currentVersionId: versionId,
+        currentStatus: 'PROPOSED',
         createdByPrincipalId: envelope.principalId,
         sourceCommandId: envelope.commandId,
       });
@@ -266,7 +444,12 @@ export async function handleProposeEnterpriseFact(
         enterpriseId,
         versionNo: 1,
         status: 'PROPOSED',
-        value: valueWithScope,
+        value: {
+          enterpriseId,
+          value: asCanonicalJson(envelope.payload.proposal.value),
+          proposalReason: asCanonicalJson(envelope.payload.proposal.proposalReason),
+          validPeriod: asCanonicalJson(envelope.payload.proposal.validPeriod ?? null),
+        },
         sourceRefs: asNonEmptyArray(envelope.payload.proposal.sourceRefs),
         payloadHash: digest.hash,
         proposedByPrincipalId: envelope.principalId,
@@ -274,19 +457,6 @@ export async function handleProposeEnterpriseFact(
         authorizationDecisionId: envelope.authorizationDecisionId,
         sourceCommandId: envelope.commandId,
       });
-      const cas = await repo.casEnterpriseFact(
-        execution.trx,
-        enterpriseFactId,
-        '1',
-        versionId,
-        'PROPOSED',
-      );
-      if (!cas.ok) {
-        throw new CommandExecutionError(
-          CONCURRENCY_CONFLICT,
-          'enterprise_fact CAS conflict on initial propose',
-        );
-      }
       const result = {
         kind: 'COMMITTED' as const,
         resultPayload: {
@@ -307,8 +477,7 @@ export async function handleProposeEnterpriseFact(
         aggregateType: 'EnterpriseFact',
         aggregateId: enterpriseFactId,
         // Initial CREATE (no expectedAggregateVersion) emits the event at
-        // aggregate_version=1 per the WI-02 outbox-mirror guard, even though
-        // the root's CAS bumped it to 2.
+        // aggregate_version=1 and the root is created with the same version.
         aggregateVersion: '1',
         payload: {
           enterpriseId,
@@ -328,6 +497,15 @@ export async function handleProposeEnterpriseFact(
         }).hash,
         occurredAt: new Date(),
       });
+      await appendReferenceEdges(
+        execution,
+        'EnterpriseFact',
+        enterpriseFactId,
+        versionId,
+        digest.hash,
+        envelope.payload.proposal.sourceRefs,
+        'ENTERPRISE_FACT_SOURCE',
+      );
       return result;
     },
   );
@@ -337,20 +515,28 @@ export async function handleProposeEnterpriseFact(
 // Public Contract: project.confirm_enterprise_fact (Human-only)
 // =====================================================================
 
-export interface ConfirmEnterpriseFactPayload {
-  proposalVersionRef: { objectType: 'EnterpriseFact'; objectId: string; versionId: string };
-  confirmedValue: CanonicalJsonObject;
-  evidenceRefs: readonly { objectType: string; objectId: string; versionId?: string }[];
-  justification: string;
-  effectivePeriod?: { from?: string; to?: string };
-}
+export type ConfirmEnterpriseFactPayload = EnterpriseProject.ProjectConfirmEnterpriseFactPayload;
 
 export async function handleConfirmEnterpriseFact(
   db: Kysely<EnterpriseProjectDb>,
   context: EnterpriseProjectTransactionContext,
   envelope: CommandEnvelope & { payload: ConfirmEnterpriseFactPayload },
 ): Promise<CommandResult> {
-  ensureHumanPrincipal(envelope);
+  ensureHumanPrincipal(context, envelope);
+  const proposalRef = envelope.payload.proposalVersionRef;
+  const proposalRefFacts = asReferenceLike(proposalRef);
+  if (
+    proposalRefFacts.kind !== 'VERSIONED' ||
+    proposalRefFacts.objectType !== 'EnterpriseFact' ||
+    hasProjectScope(proposalRef) ||
+    scopedEnterpriseId(proposalRef) !== context.enterpriseId
+  ) {
+    throw new CommandExecutionError(
+      'COMMAND_TARGET_MISMATCH',
+      'proposalVersionRef must be a VERSIONED EnterpriseFact reference in the trusted scope',
+    );
+  }
+  validateReferenceSet(envelope.payload.evidenceRefs, context.enterpriseId, 'fact evidenceRefs');
   const enterpriseFactId = envelope.payload.proposalVersionRef.objectId;
   const previousVersionId = envelope.payload.proposalVersionRef.versionId;
   if (envelope.payload.evidenceRefs.length === 0) {
@@ -396,6 +582,26 @@ export async function handleConfirmEnterpriseFact(
           currentAggregateVersion: aggregateVersionToString(fact.aggregate_version),
         };
       }
+      const previousVersion = await repo.getEnterpriseFactVersion(execution.trx, previousVersionId);
+      if (
+        previousVersion?.enterprise_fact_id !== enterpriseFactId ||
+        previousVersion.enterprise_id !== fact.enterprise_id
+      ) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_FACT_CONFLICT_UNRESOLVED,
+          safeSummary: 'proposalVersionRef does not identify the exact current Fact version',
+          currentAggregateVersion: aggregateVersionToString(fact.aggregate_version),
+        };
+      }
+      if (fact.current_status !== 'PROPOSED' && fact.current_status !== 'DISPUTED') {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_FACT_CONFLICT_UNRESOLVED,
+          safeSummary: `Fact status ${fact.current_status} cannot be confirmed again`,
+          currentAggregateVersion: aggregateVersionToString(fact.aggregate_version),
+        };
+      }
       const expected = aggregateVersionToString(fact.aggregate_version);
       const newVersionId = newUuidV7();
       const newVersionNo =
@@ -404,13 +610,17 @@ export async function handleConfirmEnterpriseFact(
           : await nextFactVersionNo(execution.trx, enterpriseFactId);
       const valueWithScope = {
         enterpriseId: fact.enterprise_id,
-        value: envelope.payload.confirmedValue,
+        value: asCanonicalJson(envelope.payload.confirmedValue),
+        effectivePeriod: asCanonicalJson(envelope.payload.effectivePeriod ?? null),
+        justification: asCanonicalJson(envelope.payload.justification),
       };
       const digest = digestCanonicalPayload({
         enterpriseId: fact.enterprise_id,
         enterpriseFactId,
-        value: envelope.payload.confirmedValue,
-        sourceRefs: envelope.payload.evidenceRefs,
+        value: asCanonicalJson(envelope.payload.confirmedValue),
+        sourceRefs: asCanonicalJson(envelope.payload.evidenceRefs),
+        effectivePeriod: asCanonicalJson(envelope.payload.effectivePeriod ?? null),
+        justification: asCanonicalJson(envelope.payload.justification),
         status: 'CONFIRMED',
       });
       await repo.insertEnterpriseFactVersion(execution.trx, {
@@ -426,6 +636,14 @@ export async function handleConfirmEnterpriseFact(
         proposedByActorSnapshotId: envelope.actorSnapshotId,
         authorizationDecisionId: envelope.authorizationDecisionId,
         sourceCommandId: envelope.commandId,
+        effectiveFrom: parseOptionalInstant(
+          envelope.payload.effectivePeriod?.validFrom,
+          'effectivePeriod.validFrom',
+        ),
+        effectiveTo: parseOptionalInstant(
+          envelope.payload.effectivePeriod?.validTo,
+          'effectivePeriod.validTo',
+        ),
       });
       const cas = await repo.casEnterpriseFact(
         execution.trx,
@@ -478,6 +696,15 @@ export async function handleConfirmEnterpriseFact(
         }).hash,
         occurredAt: new Date(),
       });
+      await appendReferenceEdges(
+        execution,
+        'EnterpriseFact',
+        enterpriseFactId,
+        newVersionId,
+        digest.hash,
+        envelope.payload.evidenceRefs.map((ref) => ref.evidence),
+        'ENTERPRISE_FACT_CONFIRMATION_EVIDENCE',
+      );
       return result;
     },
   );
@@ -495,20 +722,11 @@ async function nextFactVersionNo(
 // Public Contract: project.get_enterprise_profile_snapshot (Query)
 // =====================================================================
 
-export interface GetEnterpriseProfileSnapshotPayload {
-  enterpriseProfileSnapshotRef: {
-    objectType: 'EnterpriseProfileSnapshot';
-    objectId: string;
-  };
-}
+export type GetEnterpriseProfileSnapshotPayload =
+  EnterpriseProject.ProjectGetEnterpriseProfileSnapshotPayload;
 
-export interface GetEnterpriseProfileSnapshotResult {
-  snapshotRef: { objectType: 'EnterpriseProfileSnapshot'; objectId: string };
-  payload: unknown;
-  payloadHash: string;
-  enterpriseId: string;
-  recordedAt: string;
-}
+export type GetEnterpriseProfileSnapshotResult =
+  EnterpriseProject.ProjectGetEnterpriseProfileSnapshotResult;
 
 export async function handleGetEnterpriseProfileSnapshot(
   db: Kysely<EnterpriseProjectDb>,
@@ -518,7 +736,18 @@ export async function handleGetEnterpriseProfileSnapshot(
   // Read-only path: no receipt / no audit / no outbox. Exact
   // SnapshotRef resolution; "latest"/"current" are not allowed at this
   // layer (Module-Spec-002 §4).
-  const snapshotId = payload.enterpriseProfileSnapshotRef.objectId;
+  const inputRef = payload.enterpriseProfileSnapshotRef;
+  const inputRefFacts = asReferenceLike(inputRef);
+  if (
+    inputRefFacts.kind !== 'SNAPSHOT' ||
+    inputRefFacts.objectType !== 'EnterpriseProfileSnapshot'
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_PROFILE_SOURCE_MISMATCH,
+      'enterpriseProfileSnapshotRef must be a SNAPSHOT reference',
+    );
+  }
+  const snapshotId = inputRef.snapshotId;
   if (snapshotId === 'latest' || snapshotId === 'current') {
     throw new EnterpriseBusinessError(
       PROJECT_PROFILE_SOURCE_MISMATCH,
@@ -533,15 +762,41 @@ export async function handleGetEnterpriseProfileSnapshot(
         'enterprise_profile_snapshot not found',
       );
     }
-    if (!context.allowedProjectIds.length && row.enterprise_id !== context.enterpriseId) {
+    if (row.enterprise_id !== context.enterpriseId) {
       throw new EnterpriseBusinessError(
         PROJECT_PROFILE_SOURCE_MISMATCH,
         'snapshot does not belong to the transaction context enterprise',
       );
     }
+    if (
+      inputRef.objectId !== row.snapshot_id ||
+      scopedEnterpriseId(inputRef) !== row.enterprise_id ||
+      hasProjectScope(inputRef)
+    ) {
+      throw new EnterpriseBusinessError(
+        PROJECT_PROFILE_SOURCE_MISMATCH,
+        'snapshot reference identity or scope does not match the stored snapshot',
+      );
+    }
+    const inputHash = asReferenceLike(inputRef.contentHash);
+    if (
+      inputHash.algorithm !== 'SHA-256' ||
+      inputHash.canonicalizationVersion !== '1' ||
+      inputHash.digest !== row.payload_hash.toString('hex')
+    ) {
+      throw new EnterpriseBusinessError(
+        PROJECT_PROFILE_SOURCE_MISMATCH,
+        'snapshot contentHash does not match the stored immutable payload',
+      );
+    }
     const payloadText = typeof row.payload === 'string' ? row.payload : JSON.stringify(row.payload);
-    const parsed = JSON.parse(payloadText) as { enterpriseId?: unknown };
-    if (parsed.enterpriseId !== row.enterprise_id) {
+    const parsed = JSON.parse(payloadText) as unknown;
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      Array.isArray(parsed) ||
+      (parsed as { enterpriseId?: unknown }).enterpriseId !== row.enterprise_id
+    ) {
       throw new EnterpriseBusinessError(
         ENTERPRISE_PAYLOAD_HASH_MISMATCH,
         'snapshot payload enterpriseId mirror does not match promoted column',
@@ -549,13 +804,18 @@ export async function handleGetEnterpriseProfileSnapshot(
     }
     return {
       snapshotRef: {
-        objectType: 'EnterpriseProfileSnapshot' as const,
+        kind: 'SNAPSHOT' as const,
+        objectType: 'EnterpriseProfileSnapshot',
         objectId: row.snapshot_id,
+        snapshotId: row.snapshot_id,
+        scope: { enterpriseId: row.enterprise_id },
+        contentHash: {
+          algorithm: 'SHA-256' as const,
+          digest: row.payload_hash.toString('hex'),
+          canonicalizationVersion: '1' as const,
+        },
       },
-      payload: parsed,
-      payloadHash: row.payload_hash.toString('hex'),
-      enterpriseId: row.enterprise_id,
-      recordedAt: row.recorded_at.toISOString(),
+      payload: parsed as EnterpriseProject.EnterpriseProfileSnapshotResult['payload'],
     } satisfies GetEnterpriseProfileSnapshotResult;
   });
 }
@@ -589,7 +849,19 @@ export async function handleEnterpriseProductCreate(
   }
   const productId = newUuidV7();
   const versionId = newUuidV7();
-  const enterpriseId = envelope.payload.enterpriseRef.objectId;
+  assertExactReference(
+    envelope.payload.enterpriseRef,
+    'Enterprise',
+    envelope.enterpriseId,
+    'COMMAND_TARGET_MISMATCH',
+    'enterpriseRef',
+  );
+  const enterpriseId = envelope.enterpriseId;
+  validateReferenceSet(
+    envelope.payload.initialVersion.sourceRefs,
+    enterpriseId,
+    'Product sourceRefs',
+  );
   const versionDigest = digestCanonicalPayload({
     enterpriseId,
     productId,
@@ -620,32 +892,25 @@ export async function handleEnterpriseProductCreate(
               : undefined,
         };
       }
-      try {
-        await repo.insertProduct(execution.trx, {
-          productId,
-          enterpriseId,
-          displayCode: envelope.payload.displayCode,
-          displayName: envelope.payload.initialVersion.displayName,
-          // Pass null for the initial pointer so the subsequent
-          // activate_version is not a NOOP; the create capability
-          // brings the product root into existence but leaves the
-          // CURRENT/HISTORICAL decision to the separate activate path.
-          initialVersionId: null,
-          createdByPrincipalId: envelope.principalId,
-          createdByActorSnapshotId: envelope.actorSnapshotId,
-          sourceCommandId: envelope.commandId,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '';
-        if (/product_display_code_unique|23505/.test(message)) {
-          return {
-            kind: 'REJECTED',
-            errorCode: PROJECT_PRODUCT_VERSION_NOT_FOUND,
-            safeSummary: 'product displayCode already exists in this enterprise',
-            currentAggregateVersion: undefined,
-          };
-        }
-        throw error;
+      const inserted = await repo.insertProduct(execution.trx, {
+        productId,
+        enterpriseId,
+        displayCode: envelope.payload.displayCode,
+        displayName: envelope.payload.initialVersion.displayName,
+        // The first version is intentionally historical until an explicit
+        // Human activation moves the exact pointer to it.
+        initialVersionId: null,
+        createdByPrincipalId: envelope.principalId,
+        createdByActorSnapshotId: envelope.actorSnapshotId,
+        sourceCommandId: envelope.commandId,
+      });
+      if (!inserted) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_PRODUCT_DISPLAY_CODE_CONFLICT,
+          safeSummary: 'product displayCode already exists in this enterprise',
+          currentAggregateVersion: undefined,
+        };
       }
       await repo.insertProductVersion(execution.trx, {
         versionId,
@@ -678,7 +943,7 @@ export async function handleEnterpriseProductCreate(
         kind: 'COMMITTED' as const,
         resultPayload: {
           productRef: { objectType: 'Product', objectId: productId },
-          currentVersionRef: {
+          productVersionRef: {
             objectType: 'ProductVersion',
             objectId: productId,
             versionId,
@@ -700,6 +965,15 @@ export async function handleEnterpriseProductCreate(
         declaredHash: outboxDigest({ enterpriseId, productId, versionId }),
         occurredAt: new Date(),
       });
+      await appendReferenceEdges(
+        execution,
+        'Product',
+        productId,
+        undefined,
+        versionDigest.hash,
+        envelope.payload.initialVersion.sourceRefs,
+        'PRODUCT_VERSION_SOURCE',
+      );
       return result;
     },
   );
@@ -726,10 +1000,35 @@ export async function handleEnterpriseProductCreateVersion(
 ): Promise<CommandResult> {
   const productId = envelope.payload.productRef.objectId;
   const previousVersionId = envelope.payload.previousVersionRef.versionId;
+  assertExactReference(
+    envelope.payload.previousVersionRef,
+    'ProductVersion',
+    productId,
+    PROJECT_PRODUCT_VERSION_NOT_FOUND,
+    'previousVersionRef',
+  );
+  if (envelope.payload.sourceRefs.length === 0) {
+    throw new EnterpriseBusinessError(
+      PROJECT_PRODUCT_VERSION_NOT_FOUND,
+      'product version must carry at least one sourceRef',
+    );
+  }
+  validateReferenceSet(envelope.payload.sourceRefs, envelope.enterpriseId, 'Product sourceRefs');
+  const currentProduct = await withEnterpriseProjectTransaction(db, context, (trx) =>
+    repo.getProductById(trx, productId),
+  );
+  const expectedAggregateVersion = currentProduct
+    ? aggregateVersionToString(currentProduct.aggregate_version)
+    : undefined;
   return executeEnterpriseProjectCommand(
     db,
     context,
-    { ...envelope, targetType: 'Product', targetId: productId },
+    {
+      ...envelope,
+      targetType: 'Product',
+      targetId: productId,
+      ...(expectedAggregateVersion === undefined ? {} : { expectedAggregateVersion }),
+    },
     async (execution) => {
       const product = await repo.getProductById(execution.trx, productId);
       if (!product) {
@@ -749,7 +1048,7 @@ export async function handleEnterpriseProductCreateVersion(
         };
       }
       const previousVersion = await repo.getProductVersion(execution.trx, previousVersionId);
-      if (!previousVersion) {
+      if (previousVersion?.product_id !== productId) {
         return {
           kind: 'REJECTED',
           errorCode: PROJECT_PRODUCT_VERSION_IMMUTABLE,
@@ -788,9 +1087,19 @@ export async function handleEnterpriseProductCreateVersion(
         sourceCommandId: envelope.commandId,
         previousVersionId,
       });
-      // New version row is HISTORICAL by default; activation is the
-      // separate activate_version capability (Human-only). The root's
-      // aggregate_version does not change yet, so we skip the CAS here.
+      // Adding a ProductVersion is an Aggregate mutation. Advance the root
+      // even though the new version remains HISTORICAL until activation.
+      const cas = await repo.casProduct(
+        execution.trx,
+        productId,
+        aggregateVersionToString(product.aggregate_version),
+      );
+      if (!cas.ok) {
+        throw new CommandExecutionError(
+          CONCURRENCY_CONFLICT,
+          `product CAS conflict on version creation (current=${cas.current})`,
+        );
+      }
       const result = {
         kind: 'COMMITTED' as const,
         resultPayload: {
@@ -801,6 +1110,7 @@ export async function handleEnterpriseProductCreateVersion(
           },
           versionNo: nextVersionNo,
           previousVersionId,
+          aggregateVersion: cas.nextVersion,
           payloadHash: versionDigest.hash.toString('hex'),
         },
       };
@@ -810,7 +1120,7 @@ export async function handleEnterpriseProductCreateVersion(
         eventVersion: '1.0',
         aggregateType: 'Product',
         aggregateId: productId,
-        aggregateVersion: aggregateVersionToString(product.aggregate_version),
+        aggregateVersion: cas.nextVersion,
         payload: {
           enterpriseId: product.enterprise_id,
           productId,
@@ -829,6 +1139,15 @@ export async function handleEnterpriseProductCreateVersion(
         }),
         occurredAt: new Date(),
       });
+      await appendReferenceEdges(
+        execution,
+        'Product',
+        productId,
+        versionId,
+        versionDigest.hash,
+        envelope.payload.sourceRefs,
+        'PRODUCT_VERSION_SOURCE',
+      );
       return result;
     },
   );
@@ -851,9 +1170,22 @@ export async function handleEnterpriseProductActivateVersion(
   context: EnterpriseProjectTransactionContext,
   envelope: CommandEnvelope & { payload: EnterpriseProductActivateVersionPayload },
 ): Promise<CommandResult> {
-  ensureHumanPrincipal(envelope);
+  ensureHumanPrincipal(context, envelope);
   const productId = envelope.payload.productRef.objectId;
   const targetVersionId = envelope.payload.productVersionRef.versionId;
+  assertExactReference(
+    envelope.payload.productVersionRef,
+    'ProductVersion',
+    productId,
+    PROJECT_PRODUCT_VERSION_NOT_FOUND,
+    'productVersionRef',
+  );
+  if (asReferenceLike(envelope.payload.humanDecisionRef).objectType !== 'BusinessDecision') {
+    throw new EnterpriseBusinessError(
+      PROJECT_PRODUCT_VERSION_NOT_FOUND,
+      'humanDecisionRef must identify a BusinessDecision',
+    );
+  }
   const expectedVersion = envelope.payload.expectedAggregateVersion;
   return executeEnterpriseProjectCommand(
     db,
@@ -940,6 +1272,15 @@ export async function handleEnterpriseProductActivateVersion(
         },
         occurredAt: new Date(),
       });
+      await appendReferenceEdges(
+        execution,
+        'Product',
+        productId,
+        undefined,
+        undefined,
+        [envelope.payload.humanDecisionRef],
+        'PRODUCT_ACTIVATION_HUMAN_DECISION',
+      );
       return result;
     },
   );
@@ -972,6 +1313,15 @@ export async function handleEnterpriseProductCreateScopeSnapshot(
   }
   const productId = envelope.payload.productRef.objectId;
   const snapshotId = newUuidV7();
+  for (const reference of envelope.payload.productVersionRefs) {
+    assertExactReference(
+      reference,
+      'ProductVersion',
+      productId,
+      PROJECT_PRODUCT_SCOPE_SNAPSHOT_INVALID,
+      'productVersionRef',
+    );
+  }
   return executeEnterpriseProjectCommand(
     db,
     context,
@@ -986,7 +1336,12 @@ export async function handleEnterpriseProductCreateScopeSnapshot(
           currentAggregateVersion: undefined,
         };
       }
-      const versions: { versionId: string; productScope: unknown }[] = [];
+      const versions: {
+        versionId: string;
+        productScope: unknown;
+        payloadHash: string;
+        lifecycle: string;
+      }[] = [];
       for (const ref of envelope.payload.productVersionRefs) {
         const v = await repo.getProductVersion(execution.trx, ref.versionId);
         if (v?.product_id !== productId || v.enterprise_id !== product.enterprise_id) {
@@ -997,13 +1352,18 @@ export async function handleEnterpriseProductCreateScopeSnapshot(
             currentAggregateVersion: aggregateVersionToString(product.aggregate_version),
           };
         }
-        versions.push({ versionId: v.version_id, productScope: v.product_scope });
+        versions.push({
+          versionId: v.version_id,
+          productScope: v.product_scope,
+          payloadHash: v.payload_hash.toString('hex'),
+          lifecycle: v.lifecycle,
+        });
       }
       const payload = {
         enterpriseId: product.enterprise_id,
         productId,
         snapshotId,
-        productVersionRefs: envelope.payload.productVersionRefs.map((r) => r.versionId),
+        productVersionRefs: envelope.payload.productVersionRefs,
         productScopes: versions,
         purpose: envelope.payload.purpose,
         frozenAt: new Date().toISOString(),
@@ -1056,6 +1416,15 @@ export async function handleEnterpriseProductCreateScopeSnapshot(
         }),
         occurredAt: new Date(),
       });
+      await appendReferenceEdges(
+        execution,
+        'ProductScopeSnapshot',
+        snapshotId,
+        undefined,
+        digest.hash,
+        envelope.payload.productVersionRefs,
+        'PRODUCT_SCOPE_VERSION_SOURCE',
+      );
       return result;
     },
   );
@@ -1089,13 +1458,55 @@ export async function handleEnterpriseQmsCreateRevision(
       'QMS revision must carry at least one sourceRef',
     );
   }
+  if (
+    envelope.payload.applicabilityDecisions.length === 0 ||
+    envelope.payload.managementChoices.length === 0 ||
+    envelope.payload.professionalDecisions.length === 0
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_QMS_DECISION_SOURCE_REQUIRED,
+      'QMS revision must include all three non-empty decision groups',
+    );
+  }
+  validateReferenceSet(envelope.payload.sourceRefs, envelope.enterpriseId, 'QMS sourceRefs');
   const qmsId = envelope.payload.qmsConfigurationRef.objectId;
+  assertExactReference(
+    envelope.payload.qmsConfigurationRef,
+    'QMSConfiguration',
+    qmsId,
+    PROJECT_QMS_VERSION_NOT_FOUND,
+    'qmsConfigurationRef',
+  );
+  const existingQms = await withEnterpriseProjectTransaction(db, context, (trx) =>
+    repo.getQmsConfigurationById(trx, qmsId),
+  );
+  const expectedAggregateVersion = existingQms
+    ? aggregateVersionToString(existingQms.aggregate_version)
+    : undefined;
   return executeEnterpriseProjectCommand(
     db,
     context,
-    { ...envelope, targetType: 'QMSConfiguration', targetId: qmsId },
+    {
+      ...envelope,
+      targetType: 'QMSConfiguration',
+      targetId: qmsId,
+      ...(expectedAggregateVersion === undefined ? {} : { expectedAggregateVersion }),
+    },
     async (execution) => {
+      const enterprise = await repo.getEnterpriseById(execution.trx, envelope.enterpriseId);
+      if (enterprise?.status !== 'ACTIVE') {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_ENTERPRISE_NOT_ACTIVE,
+          safeSummary: 'enterprise not found or not active',
+          currentAggregateVersion:
+            enterprise?.aggregate_version === undefined
+              ? undefined
+              : aggregateVersionToString(enterprise.aggregate_version),
+        };
+      }
       let qms = await repo.getQmsConfigurationById(execution.trx, qmsId);
+      const rootWasCreated = qms === undefined;
       if (!qms) {
         // First revision brings the qms_configuration root into existence.
         if (envelope.payload.previousRevisionRef !== undefined) {
@@ -1111,7 +1522,7 @@ export async function handleEnterpriseQmsCreateRevision(
           enterpriseId: envelope.enterpriseId,
           displayCode: `QMS-${qmsId}`,
           displayName: `QMS configuration ${qmsId}`,
-          initialRevisionId: '00000000-0000-0000-0000-000000000000',
+          initialRevisionId: null,
           createdByPrincipalId: envelope.principalId,
           createdByActorSnapshotId: envelope.actorSnapshotId,
           sourceCommandId: envelope.commandId,
@@ -1123,6 +1534,22 @@ export async function handleEnterpriseQmsCreateRevision(
             'qms_configuration root insert did not persist',
           );
         }
+      }
+      if (qms.enterprise_id !== envelope.enterpriseId) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_PROFILE_SOURCE_MISMATCH,
+          safeSummary: 'qms configuration does not belong to the trusted enterprise',
+          currentAggregateVersion: aggregateVersionToString(qms.aggregate_version),
+        };
+      }
+      if (!rootWasCreated && envelope.payload.previousRevisionRef === undefined) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_QMS_REVISION_IMMUTABLE,
+          safeSummary: 'an existing QMSConfiguration requires the exact previousRevisionRef',
+          currentAggregateVersion: aggregateVersionToString(qms.aggregate_version),
+        };
       }
       const revisions = await repo.getQmsConfigurationRevisions(execution.trx, qmsId);
       const nextRevisionNo =
@@ -1166,6 +1593,19 @@ export async function handleEnterpriseQmsCreateRevision(
         sourceCommandId: envelope.commandId,
         previousRevisionId: envelope.payload.previousRevisionRef?.versionId,
       });
+      const cas = rootWasCreated
+        ? { ok: true as const, nextVersion: '1' }
+        : await repo.casQmsConfiguration(
+            execution.trx,
+            qmsId,
+            aggregateVersionToString(qms.aggregate_version),
+          );
+      if (!cas.ok) {
+        throw new CommandExecutionError(
+          CONCURRENCY_CONFLICT,
+          `qms CAS conflict on revision creation (current=${cas.current})`,
+        );
+      }
       const result = {
         kind: 'COMMITTED' as const,
         resultPayload: {
@@ -1175,6 +1615,7 @@ export async function handleEnterpriseQmsCreateRevision(
             versionId: revisionId,
           },
           revisionNo: nextRevisionNo,
+          aggregateVersion: cas.nextVersion,
           payloadHash: digest.hash.toString('hex'),
         },
       };
@@ -1184,7 +1625,7 @@ export async function handleEnterpriseQmsCreateRevision(
         eventVersion: '1.0',
         aggregateType: 'QMSConfiguration',
         aggregateId: qmsId,
-        aggregateVersion: '1',
+        aggregateVersion: cas.nextVersion,
         payload: {
           enterpriseId: qms.enterprise_id,
           qmsConfigurationId: qmsId,
@@ -1201,6 +1642,15 @@ export async function handleEnterpriseQmsCreateRevision(
         }),
         occurredAt: new Date(),
       });
+      await appendReferenceEdges(
+        execution,
+        'QMSConfiguration',
+        qmsId,
+        revisionId,
+        digest.hash,
+        envelope.payload.sourceRefs,
+        'QMS_REVISION_SOURCE',
+      );
       return result;
     },
   );
@@ -1227,9 +1677,22 @@ export async function handleEnterpriseQmsActivateRevision(
   context: EnterpriseProjectTransactionContext,
   envelope: CommandEnvelope & { payload: EnterpriseQmsActivateRevisionPayload },
 ): Promise<CommandResult> {
-  ensureHumanPrincipal(envelope);
+  ensureHumanPrincipal(context, envelope);
   const qmsId = envelope.payload.qmsConfigurationRef.objectId;
   const targetRevisionId = envelope.payload.qmsConfigurationRevisionRef.versionId;
+  assertExactReference(
+    envelope.payload.qmsConfigurationRevisionRef,
+    'QMSConfigurationRevision',
+    qmsId,
+    PROJECT_QMS_VERSION_NOT_FOUND,
+    'qmsConfigurationRevisionRef',
+  );
+  if (asReferenceLike(envelope.payload.humanDecisionRef).objectType !== 'BusinessDecision') {
+    throw new EnterpriseBusinessError(
+      PROJECT_QMS_VERSION_NOT_FOUND,
+      'humanDecisionRef must identify a BusinessDecision',
+    );
+  }
   const expectedVersion = envelope.payload.expectedAggregateVersion;
   return executeEnterpriseProjectCommand(
     db,
@@ -1268,7 +1731,7 @@ export async function handleEnterpriseQmsActivateRevision(
       if (qms.current_revision_id === targetRevisionId) {
         return {
           kind: 'REJECTED',
-          errorCode: PROJECT_PRODUCT_ACTIVATION_NOOP,
+          errorCode: PROJECT_QMS_ACTIVATION_NOOP,
           safeSummary: 'qms current pointer already points to the requested revision',
           currentAggregateVersion: aggregateVersionToString(qms.aggregate_version),
         };
@@ -1318,6 +1781,15 @@ export async function handleEnterpriseQmsActivateRevision(
         },
         occurredAt: new Date(),
       });
+      await appendReferenceEdges(
+        execution,
+        'QMSConfiguration',
+        qmsId,
+        undefined,
+        undefined,
+        [envelope.payload.humanDecisionRef],
+        'QMS_ACTIVATION_HUMAN_DECISION',
+      );
       return result;
     },
   );
@@ -1353,26 +1825,72 @@ export async function handleEnterpriseProfileCreateSnapshot(
   context: EnterpriseProjectTransactionContext,
   envelope: CommandEnvelope & { payload: EnterpriseProfileCreateSnapshotPayload },
 ): Promise<CommandResult> {
-  const enterpriseId = envelope.payload.enterpriseRef.objectId;
+  assertExactReference(
+    envelope.payload.enterpriseRef,
+    'Enterprise',
+    envelope.enterpriseId,
+    'COMMAND_TARGET_MISMATCH',
+    'enterpriseRef',
+  );
+  const enterpriseId = envelope.enterpriseId;
   const snapshotId = newUuidV7();
+  for (const ref of envelope.payload.enterpriseFactVersionRefs) {
+    assertExactReference(
+      ref,
+      'EnterpriseFact',
+      ref.objectId,
+      PROJECT_PROFILE_SOURCE_MISMATCH,
+      'enterpriseFactVersionRef',
+    );
+  }
+  for (const ref of envelope.payload.productVersionRefs) {
+    assertExactReference(
+      ref,
+      'ProductVersion',
+      ref.objectId,
+      PROJECT_PROFILE_SOURCE_MISMATCH,
+      'productVersionRef',
+    );
+  }
+  assertExactReference(
+    envelope.payload.qmsConfigurationRef,
+    'QMSConfiguration',
+    envelope.payload.qmsConfigurationRef.objectId,
+    PROJECT_PROFILE_SOURCE_MISMATCH,
+    'qmsConfigurationRef',
+  );
+  assertExactReference(
+    envelope.payload.qmsConfigurationRevisionRef,
+    'QMSConfigurationRevision',
+    envelope.payload.qmsConfigurationRef.objectId,
+    PROJECT_PROFILE_SOURCE_MISMATCH,
+    'qmsConfigurationRevisionRef',
+  );
   return executeEnterpriseProjectCommand(
     db,
     context,
     { ...envelope, targetType: 'EnterpriseProfileSnapshot', targetId: snapshotId },
     async (execution) => {
       const enterprise = await repo.getEnterpriseById(execution.trx, enterpriseId);
-      if (!enterprise) {
+      if (enterprise?.status !== 'ACTIVE') {
         return {
           kind: 'REJECTED',
           errorCode: PROJECT_PROFILE_SOURCE_MISMATCH,
-          safeSummary: 'enterprise not found',
+          safeSummary: 'enterprise not found or not active',
           currentAggregateVersion: undefined,
         };
       }
-      const facts: { factType: string; status: string; value: unknown; sourceRefs: unknown }[] = [];
+      const facts: {
+        factVersionRef: (typeof envelope.payload.enterpriseFactVersionRefs)[number];
+        factType: string;
+        status: string;
+        value: unknown;
+        sourceRefs: unknown;
+        payloadHash: string;
+      }[] = [];
       for (const ref of envelope.payload.enterpriseFactVersionRefs) {
         const v = await repo.getEnterpriseFactVersion(execution.trx, ref.versionId);
-        if (v?.enterprise_id !== enterpriseId) {
+        if (v?.enterprise_id !== enterpriseId || v.enterprise_fact_id !== ref.objectId) {
           return {
             kind: 'REJECTED',
             errorCode: PROJECT_PROFILE_SOURCE_MISMATCH,
@@ -1390,15 +1908,26 @@ export async function handleEnterpriseProfileCreateSnapshot(
           };
         }
         facts.push({
+          factVersionRef: ref,
           factType: fact.fact_type,
           status: v.status,
           value: v.value,
           sourceRefs: v.source_refs,
+          payloadHash: v.payload_hash.toString('hex'),
         });
       }
+      const products: {
+        productVersionRef: (typeof envelope.payload.productVersionRefs)[number];
+        productType: string;
+        displayName: string;
+        intendedUse: string;
+        productScope: unknown;
+        payloadHash: string;
+        lifecycle: string;
+      }[] = [];
       for (const ref of envelope.payload.productVersionRefs) {
         const v = await repo.getProductVersion(execution.trx, ref.versionId);
-        if (v?.enterprise_id !== enterpriseId) {
+        if (v?.enterprise_id !== enterpriseId || v.product_id !== ref.objectId) {
           return {
             kind: 'REJECTED',
             errorCode: PROJECT_PROFILE_SOURCE_MISMATCH,
@@ -1406,6 +1935,15 @@ export async function handleEnterpriseProfileCreateSnapshot(
             currentAggregateVersion: aggregateVersionToString(enterprise.aggregate_version),
           };
         }
+        products.push({
+          productVersionRef: ref,
+          productType: v.product_type,
+          displayName: v.display_name,
+          intendedUse: v.intended_use,
+          productScope: v.product_scope,
+          payloadHash: v.payload_hash.toString('hex'),
+          lifecycle: v.lifecycle,
+        });
       }
       const qms = await repo.getQmsConfigurationById(
         execution.trx,
@@ -1427,15 +1965,39 @@ export async function handleEnterpriseProfileCreateSnapshot(
           currentAggregateVersion: aggregateVersionToString(qms.aggregate_version),
         };
       }
+      const qmsRevision = await repo.getQmsConfigurationRevision(
+        execution.trx,
+        envelope.payload.qmsConfigurationRevisionRef.versionId,
+      );
+      if (
+        qmsRevision?.qms_configuration_id !== qms.qms_configuration_id ||
+        qmsRevision.enterprise_id !== enterpriseId ||
+        qmsRevision.lifecycle !== 'CURRENT'
+      ) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_PROFILE_SOURCE_MISMATCH,
+          safeSummary: 'qms revision reference is not the exact active revision',
+          currentAggregateVersion: aggregateVersionToString(qms.aggregate_version),
+        };
+      }
       const payload = {
         enterpriseId,
         snapshotId,
         purpose: envelope.payload.purpose,
         frozenAt: new Date().toISOString(),
         facts,
-        productVersionRefs: envelope.payload.productVersionRefs.map((r) => r.versionId),
-        qmsConfigurationRef: envelope.payload.qmsConfigurationRef.objectId,
-        qmsConfigurationRevisionRef: envelope.payload.qmsConfigurationRevisionRef.versionId,
+        products,
+        qmsConfigurationRef: envelope.payload.qmsConfigurationRef,
+        qmsConfigurationRevision: {
+          revisionRef: envelope.payload.qmsConfigurationRevisionRef,
+          applicabilityDecisions: qmsRevision.applicability_decisions,
+          managementChoices: qmsRevision.management_choices,
+          professionalDecisions: qmsRevision.professional_decisions,
+          sourceRefs: qmsRevision.source_refs,
+          payloadHash: qmsRevision.payload_hash.toString('hex'),
+          lifecycle: qmsRevision.lifecycle,
+        },
       };
       const digest = digestCanonicalPayload(
         payload as unknown as Parameters<typeof digestCanonicalPayload>[0],
@@ -1486,6 +2048,20 @@ export async function handleEnterpriseProfileCreateSnapshot(
         }),
         occurredAt: new Date(),
       });
+      await appendReferenceEdges(
+        execution,
+        'EnterpriseProfileSnapshot',
+        snapshotId,
+        undefined,
+        digest.hash,
+        [
+          ...envelope.payload.enterpriseFactVersionRefs,
+          ...envelope.payload.productVersionRefs,
+          envelope.payload.qmsConfigurationRef,
+          envelope.payload.qmsConfigurationRevisionRef,
+        ],
+        'ENTERPRISE_PROFILE_SOURCE',
+      );
       return result;
     },
   );

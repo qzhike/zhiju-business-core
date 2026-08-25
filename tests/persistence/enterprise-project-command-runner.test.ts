@@ -52,6 +52,7 @@ function contextFor(
   return {
     kind: 'REQUEST',
     principalId: OPERATOR,
+    principalKind: 'HUMAN',
     actorSnapshotId: OPERATOR_ACTOR,
     authorizationDecisionId: DECISION,
     authorizationDecisionHash: DECISION_HASH,
@@ -76,6 +77,7 @@ function envelope(overrides: Partial<CommandEnvelope> = {}): CommandEnvelope {
     targetId: PROCESS_A,
     correlationId: CORRELATION,
     principalId: OPERATOR,
+    principalKind: 'HUMAN',
     actorSnapshotId: OPERATOR_ACTOR,
     authorizationDecisionId: DECISION,
     policySnapshotId: POLICY,

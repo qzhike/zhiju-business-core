@@ -14,6 +14,7 @@ export type {
   EnterpriseProjectDb,
   EnterpriseProjectTransaction,
   EnterpriseProjectTransactionContext,
+  EnterprisePrincipalKind,
 } from './persistence/enterprise-db.js';
 export { EnterpriseProjectRepository } from './persistence/enterprise-project-repository.js';
 export type { ProcessInstanceInsert } from './persistence/enterprise-project-repository.js';
@@ -118,6 +119,7 @@ export {
   EnterpriseBusinessError,
   PROJECT_ENTERPRISE_NOT_ACTIVE,
   PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT,
+  PROJECT_PRODUCT_DISPLAY_CODE_CONFLICT,
   PROJECT_FACT_SOURCE_REQUIRED,
   PROJECT_FACT_CONFIRMATION_FORBIDDEN,
   PROJECT_FACT_CONFLICT_UNRESOLVED,
@@ -132,6 +134,7 @@ export {
   PROJECT_QMS_REVISION_IMMUTABLE,
   PROJECT_QMS_ACTIVATION_HUMAN_REQUIRED,
   PROJECT_QMS_VERSION_NOT_FOUND,
+  PROJECT_QMS_ACTIVATION_NOOP,
   PROJECT_HUMAN_ONLY_DENIED,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';
