@@ -546,7 +546,7 @@ describe.skipIf(!gateEnabled)(
               versionId: v1Id,
             },
             activationMode: 'ROLLBACK' as const,
-            expectedAggregateVersion: '2',
+            expectedAggregateVersion: '3',
             humanDecisionRef: {
               objectType: 'BusinessDecision' as const,
               objectId: '00000000-0000-7000-8000-000000000ccc',
