@@ -529,7 +529,7 @@ describe.skipIf(!gateEnabled)(
               objectId: '00000000-0000-7000-8000-000000000bbb',
             },
           },
-          { idempotencyKey: 'p005-activate-v2', expectedAggregateVersion: '1' },
+          { idempotencyKey: 'p005-activate-v2', expectedAggregateVersion: '2' },
         ),
       );
       // ROLLBACK to v1
