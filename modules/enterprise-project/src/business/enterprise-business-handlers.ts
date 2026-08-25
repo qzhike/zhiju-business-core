@@ -662,8 +662,9 @@ export async function handleEnterpriseProductCreate(
       // The first version row is HISTORICAL until the separate
       // activate_version capability flips it CURRENT; the test for the
       // double-activate path needs activate v1 to actually move the
-      // pointer, so we don't mark it current here.
-      const cas = await repo.casProduct(execution.trx, productId, '1', versionId);
+      // pointer, so we don't mark it current here. Pass undefined so
+      // casProduct does not set current_version_id on the root.
+      const cas = await repo.casProduct(execution.trx, productId, '1');
       if (!cas.ok) {
         throw new CommandExecutionError(
           CONCURRENCY_CONFLICT,
