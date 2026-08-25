@@ -68,7 +68,7 @@ function contextFor(
 
 function envelope(overrides: Partial<CommandEnvelope> = {}): CommandEnvelope {
   return {
-    commandId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f101',
+    commandId: 'f3f3f3f3-f3f3-73f3-83f3-f3f3f3f3f303',
     commandType: 'wi03.manual.command',
     commandVersion: '1.0',
     idempotencyScope: 'wi03',
