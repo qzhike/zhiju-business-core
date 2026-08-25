@@ -3,7 +3,7 @@
 版本：v0.1
 设计阶段：Project Domain + Task / Execution Domain + Artifact / Quality Domain
 日期：2026-08-12
-状态：`CURRENT DOMAIN BASELINE / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT DOMAIN BASELINE / IM-03 WI-01 DECISION RECORDED / USER REVIEW REQUIRED / BUSINESS IMPLEMENTATION NOT STARTED`
 
 文档角色：Aggregate、Entity、Value Object、状态机、Command、Domain Event、权限和 Domain Invariant 的唯一权威。跨 Aggregate 协作以 `05` 为准，模块所有权以 `02` 为准，验证总口径以 `08` 为准。
 
@@ -5657,4 +5657,17 @@ Task → WorkOrder → Run → AgentResult
 Artifact → Revision → Evidence/Gates/Issues → Approval → Release
 ```
 
-三条链的跨 Aggregate 一致性、Reference Project、事务/Saga 和并发幂等基准见 [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md)。Typed Reference、四个核心 Contract 和模块公开 Catalog 分别见 [`03-core-contracts.md`](./03-core-contracts.md) 与 [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)；PostgreSQL Schema 所有权、逻辑表、事务、RLS、Outbox/Inbox 和对象存储边界见 [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md)。建议下一步进入 Command/Query/Event API Contract；所有实现和运行测试仍未开始。
+三条链的跨 Aggregate 一致性、Reference Project、事务/Saga 和并发幂等基准见 [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md)。Typed Reference、四个核心 Contract 和模块公开 Catalog 分别见 [`03-core-contracts.md`](./03-core-contracts.md) 与 [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)；PostgreSQL Schema 所有权、逻辑表、事务、RLS、Outbox/Inbox 和对象存储边界见 [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md)。当前实现入口由 IM-03 WI-01 决策矩阵补充；业务实现和运行测试仍未开始。
+
+## 48. IM-03 WI-01 前置对象决策补充
+
+Issue #57 的 [`Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md) 冻结了本 Domain 开始实现前的四组前置对象：
+
+1. Product Root 只保存稳定身份和 current version pointer；ProductVersion 至少包含 ProductType、DisplayName、IntendedUse、结构化 ProductScope、SourceRefs 和 payload Hash。版本只追加，激活与回滚只移动精确指针。
+2. QMSConfiguration Revision 必须同时表达 ApplicabilityDecision、ManagementChoice 和 ProfessionalDecision；Human-only 激活/回滚指向既有精确 Revision，不能改写历史。
+3. EnterpriseProfileSnapshot 和 ProductScopeSnapshot 都由 Application 层从精确输入生成，调用者不得提交任意 Profile/Scope Payload。ProjectStartSnapshot 必须绑定同一 Enterprise 的 Profile Snapshot、QMS Version 和 Product Scope Snapshot。
+4. Platform Template/Regulatory Reference 由独立 Platform Reference 入口导入/发布；Project 只能选用已发布的精确 ContentAddressedRef，模板不等于 Regulatory Evidence。
+
+输入版本、Hash、有效期或适用范围变化时，旧 GapAnalysis 进入 `STALE` 并追加 Impact Review；旧 Gap、Context、Plan 和 Artifact 不原地改写。`NOT_PROVIDED`、`UNKNOWN` 和 `MISSING_CONFIRMED` 不互相推导。QualityProfile/Evidence 等 IM-05 Ref 只做强引用和 Scope/Hash/lifecycle/purpose 验证，不通过跨 Schema Join 或测试假数据取得正文。
+
+本节是设计决策，不是业务实现证据；业务 DDL、Repository、Handler、Evaluator、真实 PostgreSQL 业务链和人工 Reference Project 仍为 `NOT RUN`。

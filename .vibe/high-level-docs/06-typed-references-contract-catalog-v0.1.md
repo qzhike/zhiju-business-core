@@ -1112,3 +1112,9 @@ Evidence/Representation/Package Ref
 ```
 
 统一 Envelope 和公开 Catalog 则保证 Human、Agent、飞书、Runtime、模块内服务和未来 API 使用同一个业务语言，同时不把传输协议、数据库模型或 Harness Session 泄漏进 Domain Contract。
+
+## 16. Issue #57 受控 Capability 不进入 Catalog
+
+Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 冻结 EnterpriseProject Owner 的受控 Application Capability；逻辑名称、输入/输出、授权目的和错误码见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。
+
+这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目，因此当前 Catalog 仍保持 200 个公开 Contract，Module Spec/Registry/生成类型集合不变。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / USER REVIEW REQUIRED`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -332,12 +332,23 @@ remaining risk
 - API Module Test、Feishu Channel、Runtime Adapter 的 Design Gate 仍为 `DESIGN VERIFIED`，其 Unit/Contract/E2E/Manual 运行时项保持 `NOT RUN`；
 - IM-00 已完成；IM-DG-001 至 IM-DG-004 已冻结；IM-DG-005/006 仍为 `USER DECISION REQUIRED`；
 - IM-01 已 `COMPLETE`：干净 checkout 下 `pnpm install --frozen-lockfile`、`pnpm clean`、`pnpm verify` 全过；
-- 当前自动验证规模为 `Test Files 13 / Tests 287`；架构边界 `source_roots=10`；HTTP health smoke `{"status":"ok"}`；
+- 当前仓库自动验证为 `pnpm test` 的 `Test Files 20 passed / 10 skipped`、`Tests 341 passed / 164 skipped`；`pnpm verify` 的 persistence gate 为 `12` 个测试文件、`177` 个测试通过；架构边界 `source_roots=10`；
 - Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`，分类为 Command=95、Query=44、Event=61；Catalog/Module Spec/Registry 集合 diff=0；
 - 200 payload + 44 query result + 6 Core Contract 的 Schema-derived Type 与 v1.0 compatibility baseline 已接入 `contracts:check`；
 - 架构禁止依赖负向探针与 compatibility breaking 负向 fixtures 均实际失败（拒绝非法变更）；
 - #1–#4、#6–#8 已关闭并合入；#5 字段 Schema 由 PR #14 完成，duplicate/late Runtime 由已关闭的 #15 完成，其余 Runtime 分别由 #22–#24 追踪；#17 的本地 IntegrationGateway Runtime 切片已落地，Handler/Adapter/DB/外部验收改由 #27 追踪；
 - 2026-08-21 用户先批准修订 Issue #9 的 Schema 退出硬依赖，随后批准将 #5 收敛为字段 Schema 边界；关闭 #5 不会把 #22–#24 或 #27 的 Runtime/外部验收改写为 `PASS`；
-- 尚无 DDL、Migration、Repository、业务 Handler、飞书 Adapter、Runtime Adapter 或 Renderer 实现；
-- 尚无真实 PostgreSQL、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；
-- 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)）；IM-02 已进入 `PARTIAL` 交付阶段，当前集成由 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 面向 `main` 提交，exact-head CI 已 `SUCCESS`，复审无新增语义发现，Issue #28 保持 OPEN；merge、外部系统和人工验收仍未完成。
+- 尚无 IM-03 EnterpriseProject 业务 DDL、Repository、业务 Handler、飞书 Adapter、Runtime Adapter 或 Renderer 实现；IM-02 标准事务技术表已落地并有独立验证，但不能写成 IM-03 业务实现 `PASS`；
+- 尚无 IM-03 业务 PostgreSQL 事务链、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；IM-02 技术表的 PostgreSQL/Flyway persistence gate 已通过，但不等于业务链完成；
+- 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)）；IM-02 已完成技术基础和文档收口，PR #51–#55 已合入，Issue #28 已关闭；真实业务 Handler、外部系统和人工验收仍未完成。IM-03 当前处于 WI-01 设计决策审阅阶段。
+
+## 10. IM-03 WI-01 设计验证边界
+
+Issue #57 的决策矩阵提供了 Product/QMS/Profile/Platform Reference 的唯一 Owner、受控入口、授权目的、精确版本/Hash 语义、失败码和手测示例。该矩阵可标记为 `DESIGN VERIFIED`，但以下项目仍为 `NOT RUN`：
+
+- 受控 Application Capability 的 Handler、Repository、业务 DDL、真实 PostgreSQL 事务、RLS、CAS、幂等和 Audit/Outbox；
+- 从空库创建 Enterprise、Product、QMS、Profile、ProductScope、Project 并重放旧 Snapshot 的业务 E2E；
+- Platform Reference 导入/发布、TemplateBaseline/RegulatoryProfile 精确引用、Gap stale/Impact Process 的运行验证；
+- IM-05 QualityProfile/Evidence 真实来源与跨模块验证、对象存储、外部 Provider 和人工“采购控制程序”验收。
+
+本轮唯一可验证的自动范围是现有 200 项公开 Contract、文档链接/格式和 Catalog/Registry 一致性；这些 Gate 通过也不能提升上述业务项状态。

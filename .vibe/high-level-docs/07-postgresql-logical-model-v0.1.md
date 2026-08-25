@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01 BUSINESS DECISION RECORDED / BUSINESS MODEL IMPLEMENTATION NOT STARTED`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -1952,3 +1952,12 @@ external side effect
 ```
 
 Enterprise/Project Scope、精确 Version/Hash、不可变 Contract、Human Authorization 和正式 Release 始终由权威模块保存。JSONB、对象存储、Projection、飞书消息、Runtime Session 和 Domain Event 都不能成为绕过业务规则的第二套 Source of Truth。
+
+## 27. IM-03 WI-01 数据边界修正
+
+Issue #57 的决策记录见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。本阶段必须区分两类状态：
+
+- IM-02 已落地并验证的 `enterprise_project` 标准事务技术表（Command Receipt、Outbox、Inbox、Process、Audit、Reference Edge、Contract Violation）是后续业务事务的基础，已有独立 `PASS` 证据；
+- Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot、Platform Reference 及其业务表、Repository、Handler 和 Application Capability 仍未实现，保持 `NOT RUN`。
+
+业务切片不得用 Migration seed、测试 fixture 或跨 Schema Join 直接生成这些前置对象。后续业务 DDL 必须由 EnterpriseProject owning schema 通过唯一 Application 写入口承接版本、Scope、Hash、授权、Audit 和 Outbox 语义；平台参考表无 `enterprise_id`，Enterprise Runtime 只获得已发布版本的受控读取权限。
