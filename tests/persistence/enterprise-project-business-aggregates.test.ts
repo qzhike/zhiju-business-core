@@ -32,7 +32,7 @@ import {
   type CommandResult,
   type EnterpriseProjectTransactionContext,
 } from '@zhiju/enterprise-project';
-import type { CanonicalJsonObject, UuidV7 } from '@zhiju/shared-kernel';
+import { newUuidV7, type CanonicalJsonObject, type UuidV7 } from '@zhiju/shared-kernel';
 
 const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const gateEnabled = Boolean(databaseUrl);
@@ -192,7 +192,9 @@ describe.skipIf(!gateEnabled)(
     // EP-WI03-P-001 — Enterprise displayCode UNIQUE constraint
     // ============================================================
     it('EP-WI03-P-001 rejects duplicate displayCode', async () => {
-      const ctx = contextFor(ENTERPRISE_A, HUMAN_PRINCIPAL);
+      const enterpriseA1 = newUuidV7();
+      const enterpriseA2 = newUuidV7();
+      const ctx = contextFor(enterpriseA1, HUMAN_PRINCIPAL);
       const env1 = payloadEnvelope(
         'p001-a',
         { displayCode: 'WI03-P001', displayName: 'P001-A', initialStatus: 'ACTIVE' as const },
@@ -201,11 +203,11 @@ describe.skipIf(!gateEnabled)(
       const first = await handleCreateEnterprise(db(), ctx, env1);
       expect(first.status).toBe('COMMITTED');
 
-      const ctx2 = contextFor(ENTERPRISE_B, HUMAN_PRINCIPAL);
+      const ctx2 = contextFor(enterpriseA2, HUMAN_PRINCIPAL);
       const env2 = payloadEnvelope(
         'p001-b',
         { displayCode: 'WI03-P001', displayName: 'P001-B', initialStatus: 'ACTIVE' as const },
-        { idempotencyKey: 'p001-b', enterpriseId: ENTERPRISE_B },
+        { idempotencyKey: 'p001-b', enterpriseId: enterpriseA2 },
       );
       const second = await handleCreateEnterprise(db(), ctx2, env2);
       expect(second.status).toBe('REJECTED');
@@ -218,14 +220,15 @@ describe.skipIf(!gateEnabled)(
     // EP-WI03-P-002 — propose + confirm fact; history additive
     // ============================================================
     it('EP-WI03-P-002 propose + confirm keeps additive history', async () => {
-      const ctx = contextFor(ENTERPRISE_A, HUMAN_PRINCIPAL);
+      const enterpriseId = newUuidV7();
+      const ctx = contextFor(enterpriseId, HUMAN_PRINCIPAL);
       const seedEnv = payloadEnvelope(
         'p002-seed',
         { displayCode: 'WI03-P002', displayName: 'P002', initialStatus: 'ACTIVE' as const },
-        { idempotencyKey: 'p002-seed' },
+        { idempotencyKey: 'p002-seed', enterpriseId },
       );
       const seed = await handleCreateEnterprise(db(), ctx, seedEnv);
-      const enterpriseId = objectIdFrom(seed);
+      objectIdFrom(seed);
 
       const proposeEnv = payloadEnvelope(
         'p002-propose',
@@ -319,14 +322,15 @@ describe.skipIf(!gateEnabled)(
     // EP-WI03-P-004 — Product create + duplicate activate -> NOOP
     // ============================================================
     it('EP-WI03-P-004 product activation rejects re-activation as NOOP', async () => {
-      const ctx = contextFor(ENTERPRISE_A, HUMAN_PRINCIPAL);
+      const enterpriseId = newUuidV7();
+      const ctx = contextFor(enterpriseId, HUMAN_PRINCIPAL);
       const seedEnv = payloadEnvelope(
         'p004-seed',
         { displayCode: 'WI03-P004', displayName: 'P004', initialStatus: 'ACTIVE' as const },
-        { idempotencyKey: 'p004-seed' },
+        { idempotencyKey: 'p004-seed', enterpriseId },
       );
       const seed = await handleCreateEnterprise(db(), ctx, seedEnv);
-      const enterpriseId = objectIdFrom(seed);
+      objectIdFrom(seed);
 
       const productCreate = await handleEnterpriseProductCreate(
         db(),
@@ -414,11 +418,12 @@ describe.skipIf(!gateEnabled)(
     // EP-WI03-P-005 — QMS revision1 -> activate -> rollback keeps both revisions
     // ============================================================
     it('EP-WI03-P-005 QMS rollback keeps both revisions', async () => {
-      const ctx = contextFor(ENTERPRISE_A, HUMAN_PRINCIPAL);
+      const enterpriseId = newUuidV7();
+      const ctx = contextFor(enterpriseId, HUMAN_PRINCIPAL);
       const seedEnv = payloadEnvelope(
         'p005-seed',
         { displayCode: 'WI03-P005', displayName: 'P005', initialStatus: 'ACTIVE' as const },
-        { idempotencyKey: 'p005-seed' },
+        { idempotencyKey: 'p005-seed', enterpriseId },
       );
       const seed = await handleCreateEnterprise(db(), ctx, seedEnv);
       objectIdFrom(seed); // warm enterprise seed; not directly used in this test
@@ -554,30 +559,28 @@ describe.skipIf(!gateEnabled)(
     // EP-WI03-P-006 — Profile Snapshot rejects cross-Enterprise factRef
     // ============================================================
     it('EP-WI03-P-006 profile snapshot rejects cross-Enterprise factRef', async () => {
-      const ctx = contextFor(ENTERPRISE_A, HUMAN_PRINCIPAL);
-      const seedA = await handleCreateEnterprise(
+      const enterpriseA = newUuidV7();
+      const ctx = contextFor(enterpriseA, HUMAN_PRINCIPAL);
+      await handleCreateEnterprise(
         db(),
         ctx,
         payloadEnvelope(
           'p006-seed-a',
           { displayCode: 'WI03-P006A', displayName: 'P006A', initialStatus: 'ACTIVE' as const },
-          { idempotencyKey: 'p006-seed-a' },
+          { idempotencyKey: 'p006-seed-a', enterpriseId: enterpriseA },
         ),
       );
-      const enterpriseA = objectIdFrom(seedA);
-
-      const ctxB = contextFor(ENTERPRISE_B, HUMAN_PRINCIPAL);
-      const seedB = await handleCreateEnterprise(
+      const enterpriseB = newUuidV7();
+      const ctxB = contextFor(enterpriseB, HUMAN_PRINCIPAL);
+      await handleCreateEnterprise(
         db(),
         ctxB,
         payloadEnvelope(
           'p006-seed-b',
           { displayCode: 'WI03-P006B', displayName: 'P006B', initialStatus: 'ACTIVE' as const },
-          { idempotencyKey: 'p006-seed-b', enterpriseId: ENTERPRISE_B },
+          { idempotencyKey: 'p006-seed-b', enterpriseId: enterpriseB },
         ),
       );
-      const enterpriseB = objectIdFrom(seedB);
-
       // Propose a fact inside Enterprise B
       const proposeInB = await handleProposeEnterpriseFact(
         db(),
@@ -701,17 +704,18 @@ describe.skipIf(!gateEnabled)(
     // EP-WI03-P-007 — get_enterprise_profile_snapshot replays
     // ============================================================
     it('EP-WI03-P-007 get_enterprise_profile_snapshot reads immutable snapshot', async () => {
-      const ctx = contextFor(ENTERPRISE_A, HUMAN_PRINCIPAL);
+      const enterpriseId = newUuidV7();
+      const ctx = contextFor(enterpriseId, HUMAN_PRINCIPAL);
       const seed = await handleCreateEnterprise(
         db(),
         ctx,
         payloadEnvelope(
           'p007-seed',
           { displayCode: 'WI03-P007', displayName: 'P007', initialStatus: 'ACTIVE' as const },
-          { idempotencyKey: 'p007-seed' },
+          { idempotencyKey: 'p007-seed', enterpriseId },
         ),
       );
-      const enterpriseId = objectIdFrom(seed);
+      objectIdFrom(seed);
       const product = await handleEnterpriseProductCreate(
         db(),
         ctx,
@@ -845,17 +849,18 @@ describe.skipIf(!gateEnabled)(
     // EP-WI03-P-010 — product scope snapshot with empty refs
     // ============================================================
     it('EP-WI03-P-010 empty product scope snapshot rejected', async () => {
-      const ctx = contextFor(ENTERPRISE_A, HUMAN_PRINCIPAL);
+      const enterpriseId = newUuidV7();
+      const ctx = contextFor(enterpriseId, HUMAN_PRINCIPAL);
       const seed = await handleCreateEnterprise(
         db(),
         ctx,
         payloadEnvelope(
           'p010-seed',
           { displayCode: 'WI03-P010', displayName: 'P010', initialStatus: 'ACTIVE' as const },
-          { idempotencyKey: 'p010-seed' },
+          { idempotencyKey: 'p010-seed', enterpriseId },
         ),
       );
-      const enterpriseId = objectIdFrom(seed);
+      objectIdFrom(seed);
       const product = await handleEnterpriseProductCreate(
         db(),
         ctx,
