@@ -2,7 +2,7 @@
 
 版本：v0.2
 重建日期：2026-08-12
-状态：`CURRENT ARCHITECTURE BASELINE / MODULE DESIGN CONSOLIDATED / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT ARCHITECTURE BASELINE / MODULE DESIGN CONSOLIDATED / IM-03 WI-01 DECISION RECORDED / USER REVIEW REQUIRED / BUSINESS IMPLEMENTATION NOT STARTED`
 
 文档角色：总体架构与七个逻辑模块的唯一权威。模块职责、所有权、非职责、公开端口类别、依赖和持久化边界只在本文维护；公开 Contract 精确名称以 `06` 为准，逻辑表以 `07` 为准。
 
@@ -305,7 +305,7 @@ Product 属于 Enterprise 的长期业务对象。产品信息参与：
 - Delivery Plan；
 - Evidence 和受控文档内容。
 
-Product 的详细结构尚未冻结，但不能被简化为单个自由文本字段。
+Product 的 v0.1 最小结构已由 Issue #57 冻结为结构化 ProductVersion：ProductType、DisplayName、IntendedUse、ProductScope、SourceRefs 和内容 Hash；更细的行业字段仍由后续业务切片追加，不得把 Root 简化为单个自由文本字段。
 
 ### 5.6 QMSConfiguration
 
@@ -331,6 +331,7 @@ ProfessionalDecision
 - Agent 可以提议，但不能自行确认高风险适用性和管理决定；
 - Project 应引用明确的配置版本或快照；
 - 新配置生效不能改变历史 Project 当时看到的上下文。
+- `ACTIVATE` 和 `ROLLBACK` 都只移动 current pointer 到同一 Enterprise 的已存在精确 Revision；回滚不复制或修改历史版本。
 
 ### 5.7 Project
 
@@ -1981,12 +1982,12 @@ Core 采用状态模型加不可变版本/事实，不把 Outbox Event 当成完
 1. v0.1 已冻结 Enterprise 作为隔离边界；未来出现集团商业账户/多法人需求时，何时引入 CustomerAccount/Tenant；
 2. 已冻结：Product 在 v0.1 是 EnterpriseProject 拥有的独立版本化 Aggregate；
 3. EnterpriseFact 的类型系统和 Value Schema 如何治理；
-4. QMSConfiguration 的版本激活和回滚语义；
-5. Project 启动时必须冻结哪些 Snapshot；
+4. Issue #57 已冻结 QMSConfiguration 的版本激活和回滚语义；实现前仍需冻结物理字段与事务细节；
+5. Issue #57 已冻结 Project 启动必须包含 EnterpriseProfileSnapshot、QMSConfigurationVersion 和 ProductScopeSnapshot；初始 Baseline/Profile 是否存在仍由后续切片决定；
 6. CustomerBaseline 的确认角色和哪些低风险材料允许自动确认；
-7. TemplateBaseline 变更时默认全量重跑还是先执行 Human Impact Triage；
-8. RegulatoryProfile 的 Evidence 来源、有效性机制与正式确认角色；
-9. GapAnalysis 已确定为版本化 Aggregate；后续需冻结分析 Policy 与 Stale 处理细则；
+7. Issue #57 已冻结 Template/Regulatory 输入变化先形成精确 Impact Review，不自动全量重跑；具体 Triage UI/算法仍由 WI-08/WI-09 冻结；
+8. Issue #57 已冻结 RegulatoryProfile 只能使用精确 Platform Regulatory Reference 和 EvidenceRef，正式确认角色与验证 Provider 由 WI-08 冻结；
+9. Issue #57 已冻结 GapAnalysis 的最小 Stale/Impact Policy；分析算法和影响排序仍由 WI-09 冻结；
 10. DeliveryItem 与 Artifact 默认一对一是否符合主要业务，以及拆分/合并例外规则；
 11. Task、WorkOrder、Run 已完成重试、恢复、取消、超时和过期的模型设计；实现前需冻结默认预算、有效期和重试 Policy；
 12. InformationRequest 已确定为正式 Aggregate；实现前需冻结 ExternalParty 身份和各类答案采纳角色；
@@ -2032,3 +2033,13 @@ Zhiju Core 的核心价值不是让某个 Agent 更聪明，而是建立一个�
 ```
 
 这个业务世界必须独立于聊天、文件夹、Harness Memory 和模型选择，并通过模块所有权、一致性边界和可重放事件保持完整。只有这样，制巨才能在保留员工使用习惯的同时，实现客户隔离、长期企业知识、受控文档、法规追溯、多模型协作、成本治理和持续 QMS 服务。
+
+## 25. IM-03 WI-01 前置对象入口决策
+
+Issue #57 的 [`Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md) 进一步冻结了 EnterpriseProject 在进入业务实现前的入口边界：
+
+- Product、QMSConfiguration、EnterpriseProfileSnapshot 和 ProductScopeSnapshot 由 EnterpriseProject Application 层产生；Root、Revision、Version 和 Snapshot 通过精确引用关联，不能由测试/Migration 直接写业务表。
+- Platform Template/Regulatory Reference 属于独立 Platform Reference 数据面，无 Enterprise Scope；只允许 Reference Admin/Publisher 导入和发布，Enterprise Runtime 只能读取已发布的精确 ContentAddressedRef。
+- ProjectStartSnapshot 必须包含同一 Enterprise 的 EnterpriseProfileSnapshot、QMSConfigurationVersion 和 ProductScopeSnapshot；不得使用 `latest`、display label 或隐式 current pointer 代替业务版本。
+- Gap 输入变化只产生 `STALE` 与 Impact Review 事实，不覆盖旧 Gap、Context、Plan 或 Artifact。QualityProfile/Evidence 等 IM-05 对象只通过强引用验证，EnterpriseProject 不跨 Schema Join 或拥有其正文。
+- 这些入口是受控 Application Capability，暂不增加当前 200 项公开 Catalog；公共化需要单独的 Contract 兼容性和用户审核 Gate。本文的架构决策不等于业务 DDL、Repository 或 Handler 已实现。

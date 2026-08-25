@@ -1,8 +1,8 @@
 # Zhiju Business Core 基准规格与 Agent 入口
 
 版本：v0.1
-日期：2026-08-24
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+日期：2026-08-25
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / USER REVIEW REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -40,6 +40,8 @@
 |    6 | [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)                     | Typed Reference、Envelope、兼容性、200 个公开 Command/Query/Event 名称    | API、事件、跨模块集成任务                  |
 |    7 | [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md)                                       | Schema 所有权、逻辑表、约束、RLS、Outbox/Inbox、对象存储边界              | 数据库、Repository、Migration 任务         |
 |    8 | [`08-verification-baseline.md`](./08-verification-baseline.md)                                                       | 验证策略、跨模块验收场景、文档/实现/人工 Gate、测试结果口径               | 所有修改和审查任务                         |
+
+Issue #57 的前置对象入口和未冻结参数决策记录在 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。该文件是本 Work Item 的决策记录，不扩展当前 200 项公开 Catalog，也不替代 `06`、`Module-Spec` 或 `07` 的既有唯一权威范围。
 
 ### 2.1 文档优先级
 
@@ -438,6 +440,14 @@ IdentityPolicy 的 WI-07 实现必须继续服从已经审核通过的字段级 
 本轮 PR #47 修复已通过完整 `pnpm verify`、ContractRegistry 直接探针和真实 PostgreSQL persistence gate；上述外部 Provider、生产密钥、跨系统 E2E 与人工验收边界仍保持 `NOT RUN`。
 
 WI-07 本地手工 Probe 的 AES-256-GCM 测试 Port 必须先完成 `cipher.update()` 与 `cipher.final()`，再调用 `getAuthTag()` 并组装脱敏 Fixture；测试替身的调用顺序错误不得被记录为生产加密或 IdentityPolicy Repository 失败。修订后的 Probe 结果仍只能证明本地脱敏 Fixture，不能升级真实 OpenBao、Keycloak/OIDC、飞书 Adapter 或人工验收状态。
+
+## IM-03 WI-01 当前决策状态（2026-08-25）
+
+- Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 的唯一 Owner 均为 EnterpriseProject；其入口已冻结为受控 Application Capability，不允许测试、Migration 或跨 Schema Join 直接造业务前置数据。
+- 现有 32 个 EnterpriseProject `@1.0` Contract 和全局 200 项 Catalog 保持不变。受控 Capability 暂不进入公共 Registry；若未来需要跨模块公开，必须另行完成 Schema、生成类型、Catalog、兼容性 baseline 和负向 Fixture 同步。
+- `project.create_project@1.0` 必须接收同一 Enterprise Scope 下的 EnterpriseProfileSnapshot、QMSConfigurationVersion 和 ProductScopeSnapshot；`latest`、Scope 替代和隐式数据库补齐均被拒绝。
+- Gap 输入版本变化只产生 `STALE`/Impact Review 事实，不改写旧 Gap、Context、Plan 或 Artifact；`NOT_PROVIDED`、`UNKNOWN` 和 `MISSING_CONFIRMED` 保持区分。
+- 本决策仍需用户审核；后续业务 DDL、Repository、Handler、真实 PostgreSQL 业务链和“采购控制程序”人工验收保持 `NOT RUN`。
 
 ## IM-02 远端交付快照（2026-08-24）
 

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-24
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DECISION RECORDED / USER REVIEW REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -178,9 +178,11 @@ IM-09 Reference Project E2E + Operations Hardening
 
 ### IM-03 EnterpriseProject Reference Foundation
 
-产出：Enterprise、EnterpriseFact、Profile Snapshot、Product、QMSConfiguration、Project、Source/Customer Material、Baseline、Gap、DeliveryPlan/Item 的最小链。
+前置：Issue #57（WI-01）先冻结 Product/QMS/Profile/Platform Reference 的受控 Application Capability、ProjectStartSnapshot 必需 Ref 和 Gap stale/impact Policy；决策记录见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。
 
-退出 Gate：脱敏企业与“采购控制程序”Reference Project 可创建；新事实不改写旧 Snapshot；NOT_PROVIDED、UNKNOWN 与确认缺失保持区分。
+产出：Enterprise、EnterpriseFact、Profile Snapshot、Product、QMSConfiguration、Project、Source/Customer Material、Baseline、Gap、DeliveryPlan/Item 的最小链；所有业务前置对象必须通过唯一 Owner 的 Application 入口创建，不能由测试或 Migration 直写。
+
+退出 Gate：先由用户审核 WI-01 决策矩阵和被拒绝的公共 Catalog 扩展方案；后续实现阶段再验证脱敏企业与“采购控制程序”Reference Project 可创建、新事实不改写旧 Snapshot、NOT_PROVIDED/UNKNOWN/确认缺失保持区分。WI-01 本身不报告业务 DDL 或运行时 `PASS`。
 
 ### IM-04 Artifact + Canonical Content
 
@@ -242,7 +244,7 @@ IM-09 Reference Project E2E + Operations Hardening
 
 - IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 已退出；MinIO 因官方仓库归档被否决，私有化基准采用 MicroCeph/Ceph RGW、OpenBao 与 Keycloak OIDC。
 - IM-01 已 `COMPLETE`：七模块 200 个公开操作全部为字段级 `FULL` Schema；Registry 精确 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。
-- Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；干净 verify 为 13 files / 287 tests PASS。
+- Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；当前 `pnpm verify` 的仓库测试为 20 个文件通过、10 个跳过，341 个测试通过、164 个跳过。
 - #5 字段 Schema 已由 PR #14 合入并完成；重复/迟到 Runtime 由已关闭的 #15 完成，剩余 Runtime 分别由 #22–#24 跟踪。#17 追踪 IntegrationGateway Runtime 缺口。这些 Runtime Issue 不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005/006 仍待决。
-- IM-02 当前为 `COMPLETE`：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify 为 PASS，Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 已关闭；IM-03 可在后续用户明确启动后进入。
+- IM-02 当前为 `COMPLETE`：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify 为 PASS，Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 已关闭；IM-03 已进入 WI-01 设计决策审阅，业务实现仍未开始。

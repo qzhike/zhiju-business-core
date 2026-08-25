@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / USER REVIEW REQUIRED / BUSINESS IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -266,12 +266,20 @@ PROJECT_COMPLETION_IS_DERIVED
 
 里程碑 `API-EP-01` 的人工产出是脱敏“采购控制程序”Fixture：上传不完整资料后分别形成 SourceMaterial、CustomerMaterial、CustomerBaseline；未收到培训程序保持 NOT_PROVIDED/UNKNOWN；Human 接受 Gap 并批准 DeliveryPlan 后才出现交付承诺；后续新 Baseline 不改写旧版本。该审核不代表对象存储、PostgreSQL、飞书或真实业务流程已运行。
 
+## 8.1 IM-03 WI-01 受控前置 Capability
+
+Issue #57 的字段/语义决策见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。EnterpriseProject 除本文件第 3—5 节的 32 个公开 Contract 外，还必须由 Application 层提供受控入口：Product 根/版本/激活与 ProductScopeSnapshot、QMSConfiguration Revision/激活与回滚、EnterpriseProfileSnapshot，以及 Platform Template/Regulatory Reference 的导入/发布。
+
+这些入口必须保留唯一 Owner、授权 purpose、Human-only 边界、精确 Version/Snapshot/Content Hash、Scope 校验、失败码、Audit 和后续 Outbox 事实；不得由测试 Fixture、Migration seed 或跨 Schema Join 代替。它们暂不进入 200 项公开 Catalog，因此不在本 Module Spec 的公开操作表中增加 `@1.0` 名称；若要公共化，必须先通过用户审核和兼容性同步 Gate。
+
+ProjectStartSnapshot 的三个必需输入是同一 Enterprise Scope 下的 `EnterpriseProfileSnapshotRef`、`QMSConfigurationVersionRef` 和 `ProductScopeSnapshotRef`。输入变化只使旧 Gap 进入 `STALE`/Impact Review，不覆盖旧 Gap、Context、Plan 或 Artifact；QualityProfile/Evidence 等 IM-05 Ref 只验证强引用边界，不跨 Schema Join。
+
 ## 9. 当前状态
 
-- 32 个公开 Contract 已定义字段级 payload/result/event 结构；
+- 32 个公开 Contract 已定义字段级 payload/result/event 结构；Issue #57 另行冻结受控前置 Capability，但没有扩展公共 Registry；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- DDL、Schema Registry、Handler、Evaluator、Projection 与测试实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`。
+- IM-02 标准技术表已落地并有独立验证；IM-03 业务 DDL、Repository、Handler、Evaluator、Projection 与受控 Capability 实现均不存在；
+- 对应 Unit、Contract、E2E 与人工验收均为 `NOT RUN`；本 Issue 的决策矩阵为 `DESIGN VERIFIED / USER REVIEW REQUIRED`。
 
 ## 10. IM-02 WI-04 持久化切片
 

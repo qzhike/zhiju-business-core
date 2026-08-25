@@ -29,3 +29,7 @@
 
 - 本 Work Item 不实现业务 DDL、Repository 或 Handler。
 - PostgreSQL 业务链、对象存储、外部系统和人工 Reference Project 仍为 `NOT RUN`。
+
+## 本分支交付记录
+
+Issue #57 的决策矩阵见 [`../../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。本分支选择先冻结 EnterpriseProject Owner 的受控 Application Capability，不把未经过用户审核的新增入口加入当前 200 项公共 Contract Catalog。
