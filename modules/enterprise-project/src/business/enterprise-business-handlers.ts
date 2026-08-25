@@ -1095,9 +1095,15 @@ export async function handleEnterpriseQmsCreateRevision(
     context,
     { ...envelope, targetType: 'QMSConfiguration', targetId: qmsId },
     async (execution) => {
+      const revisions = await repo.getQmsConfigurationRevisions(execution.trx, qmsId);
+      const nextRevisionNo =
+        revisions.length === 0 ? 1 : (revisions[revisions.length - 1]?.revision_no ?? 0) + 1;
+      const revisionId = newUuidV7();
       let qms = await repo.getQmsConfigurationById(execution.trx, qmsId);
       if (!qms) {
-        // First revision brings the qms_configuration root into existence.
+        // First revision brings the qms_configuration root into existence;
+        // set the initial pointer to the new revision id so subsequent
+        // refs (e.g. profile snapshot) can resolve to it directly.
         if (envelope.payload.previousRevisionRef !== undefined) {
           return {
             kind: 'REJECTED',
@@ -1111,7 +1117,7 @@ export async function handleEnterpriseQmsCreateRevision(
           enterpriseId: envelope.enterpriseId,
           displayCode: `QMS-${qmsId}`,
           displayName: `QMS configuration ${qmsId}`,
-          initialRevisionId: '00000000-0000-0000-0000-000000000000',
+          initialRevisionId: revisionId,
           createdByPrincipalId: envelope.principalId,
           createdByActorSnapshotId: envelope.actorSnapshotId,
           sourceCommandId: envelope.commandId,
@@ -1137,10 +1143,6 @@ export async function handleEnterpriseQmsCreateRevision(
           };
         }
       }
-      const revisions = await repo.getQmsConfigurationRevisions(execution.trx, qmsId);
-      const nextRevisionNo =
-        revisions.length === 0 ? 1 : (revisions[revisions.length - 1]?.revision_no ?? 0) + 1;
-      const revisionId = newUuidV7();
       const digest = digestCanonicalPayload({
         enterpriseId: qms.enterprise_id,
         qmsConfigurationId: qmsId,

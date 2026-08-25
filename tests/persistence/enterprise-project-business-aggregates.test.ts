@@ -805,7 +805,7 @@ describe.skipIf(!gateEnabled)(
           { idempotencyKey: 'p007-snapshot' },
         ),
       );
-      expect(snapshot.status, JSON.stringify(snapshot)).toBe('COMMITTED');
+      expect(snapshot.status).toBe('COMMITTED');
       const snapshotId = objectIdFrom(snapshot);
       const read = await handleGetEnterpriseProfileSnapshot(db(), ctx, {
         enterpriseProfileSnapshotRef: {
