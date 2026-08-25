@@ -68,6 +68,18 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'outbox_probe',
     'wi03_enterprise_probe',
     'wi03_project_probe',
+    // IM-03 WI-03 (issue #59) business aggregates landed by V2001; they live
+    // under the same owning schema as the WI-02 technical tables but the
+    // technical-tables catalog test only enumerates the WI-02 set.
+    'enterprise',
+    'enterprise_fact',
+    'enterprise_fact_version',
+    'enterprise_profile_snapshot',
+    'product',
+    'product_version',
+    'product_scope_snapshot',
+    'qms_configuration',
+    'qms_configuration_revision',
   ],
   task_execution: ['business_probe', 'outbox_probe'],
   artifact: ['business_probe', 'outbox_probe'],
