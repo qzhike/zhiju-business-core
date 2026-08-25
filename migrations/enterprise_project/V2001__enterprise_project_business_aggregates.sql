@@ -468,8 +468,14 @@ ALTER TABLE enterprise_project.enterprise ENABLE ROW LEVEL SECURITY;
 ALTER TABLE enterprise_project.enterprise FORCE ROW LEVEL SECURITY;
 CREATE POLICY enterprise_select ON enterprise_project.enterprise FOR SELECT TO enterprise_project_app
     USING (platform_security.context_allows_enterprise(enterprise_id));
+-- The INSERT policy for the Enterprise root must permit a newly generated
+-- `enterprise_id` UUIDv7 that does not yet exist in any scope; the Application
+-- Repository binds `created_by_principal_id` to the trusted transaction
+-- principal (assertContextPrincipal) so checking that the row's principal
+-- matches the context principal is sufficient here. SELECT/UPDATE keep the
+-- strict enterprise-scope predicate.
 CREATE POLICY enterprise_insert ON enterprise_project.enterprise FOR INSERT TO enterprise_project_app
-    WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
+    WITH CHECK (created_by_principal_id = platform_security.context_principal_id());
 CREATE POLICY enterprise_update ON enterprise_project.enterprise FOR UPDATE TO enterprise_project_app
     USING (platform_security.context_allows_enterprise(enterprise_id))
     WITH CHECK (platform_security.context_allows_enterprise(enterprise_id));
