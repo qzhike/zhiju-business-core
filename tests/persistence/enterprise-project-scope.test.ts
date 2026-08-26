@@ -18,15 +18,22 @@ import {
   createEnterpriseProjectDatabase,
   digestCanonicalPayload,
   EnterpriseBusinessError,
+  EnterpriseBusinessRepository,
   handleCreateEnterprise,
   handleCreateProject,
+  handleAcceptSourceMaterial,
   handleEnterpriseProductCreate,
   handleEnterpriseProductCreateScopeSnapshot,
   handleEnterpriseProfileCreateSnapshot,
   handleEnterpriseQmsCreateRevision,
   handleEnterpriseQmsActivateRevision,
+  handleRegisterSourceMaterial,
   handleValidateObjectScope,
   withEnterpriseProjectTransaction,
+  IDEMPOTENCY_PAYLOAD_CONFLICT,
+  PROJECT_MATERIAL_SOURCE_INVALID,
+  PROJECT_SOURCE_ALREADY_ACCEPTED,
+  PROJECT_SOURCE_NOT_TRUSTED,
   PROJECT_PROJECT_DISPLAY_CODE_CONFLICT,
   PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN,
   PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
@@ -37,7 +44,7 @@ import {
   type EnterpriseProjectTransactionContext,
 } from '@zhiju/enterprise-project';
 import { newUuidV7, type CanonicalJsonObject, type UuidV7 } from '@zhiju/shared-kernel';
-import type { Common } from '@zhiju/contracts';
+import type { Common, EnterpriseProject } from '@zhiju/contracts';
 
 const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const gateEnabled = Boolean(databaseUrl);
@@ -1135,5 +1142,781 @@ describe.skipIf(!gateEnabled)(
       // The app role must NOT be able to UPDATE the Snapshot Binding.
       expect(result.rows[0]?.ok).toBe(false);
     });
+
+    // ============================================================
+    // IM-03 WI-05 helpers and acceptance scenarios (issue #61)
+    // ============================================================
+
+    function projectObjectRef(enterpriseId: string, projectId: string): Common.ObjectRef {
+      return {
+        kind: 'OBJECT',
+        objectType: 'Project',
+        objectId: projectId,
+        scope: { enterpriseId, projectId },
+      };
+    }
+
+    function sourceDescriptor(
+      enterpriseId: string,
+      tag: string,
+      contentDigest = 'a'.repeat(64),
+    ): EnterpriseProject.SourceMaterialDescriptor {
+      return {
+        originRef: {
+          system: 'feishu',
+          resourceType: 'message_attachment',
+          externalId: `wi05-${tag}-origin`,
+          observedAt: '2026-08-26T00:00:00.000Z',
+          tenantOrAccountRef: {
+            kind: 'OBJECT',
+            objectType: 'FeishuTenant',
+            objectId: newUuidV7(),
+            scope: { enterpriseId },
+          },
+        },
+        submittedBy: {
+          kind: 'OBJECT',
+          objectType: 'Principal',
+          objectId: HUMAN_PRINCIPAL,
+          scope: { enterpriseId },
+        },
+        receivedAt: '2026-08-26T00:00:00.000Z',
+        originalName: `${tag}.pdf`,
+        mediaType: 'application/pdf',
+        byteLength: 12,
+        checksum: {
+          algorithm: 'SHA-256',
+          digest: contentDigest,
+          canonicalizationVersion: '1',
+        },
+        stagedObjectRef: `staging://wi05/${tag}`,
+        retentionClass: 'CUSTOMER_RECORD',
+      };
+    }
+
+    function sourceIdFrom(result: CommandResult): string {
+      if (result.status !== 'COMMITTED') {
+        throw new Error(`expected SourceMaterial COMMITTED, got ${result.status}`);
+      }
+      const ref = (result.resultPayload as { sourceMaterialRef?: { objectId?: string } })
+        .sourceMaterialRef;
+      if (ref?.objectId === undefined) throw new Error('SourceMaterial result missing objectId');
+      return ref.objectId;
+    }
+
+    async function createWi05Project(
+      enterpriseId: string,
+      fixtures: Awaited<ReturnType<typeof seedEnterpriseAndStartFixtures>>,
+      tag: string,
+    ): Promise<string> {
+      currentEnterpriseId = enterpriseId;
+      const result = await handleCreateProject(
+        db(),
+        contextFor(enterpriseId),
+        payloadEnvelope(
+          `wi05-project-${tag}`,
+          {
+            enterpriseRef: objectRef('Enterprise' as const, enterpriseId),
+            displayCode: `WI05-${tag}`,
+            title: `WI05 ${tag}`,
+            objective: 'SourceMaterial custody test project',
+            startSnapshot: {
+              enterpriseProfileSnapshotRef: snapshotRef(
+                'EnterpriseProfileSnapshot',
+                fixtures.enterpriseProfileSnapshotId,
+                fixtures.enterpriseProfilePayloadHash,
+                enterpriseId,
+              ),
+              qmsConfigurationRef: versionedRef(
+                'QMSConfiguration',
+                fixtures.qmsConfigurationId,
+                fixtures.qmsConfigurationRevisionId,
+                enterpriseId,
+              ),
+              productScopeSnapshotRef: snapshotRef(
+                'ProductScopeSnapshot',
+                fixtures.productScopeSnapshotId,
+                fixtures.productScopePayloadHash,
+                enterpriseId,
+              ),
+            },
+            memberPolicyRef: versionedRef('Policy', newUuidV7(), newUuidV7(), enterpriseId),
+          },
+          { enterpriseId, idempotencyKey: `wi05-project-${tag}` },
+        ),
+      );
+      return objectIdFrom(result);
+    }
+
+    async function registerSource(
+      enterpriseId: string,
+      projectId: string,
+      tag: string,
+      descriptor: EnterpriseProject.SourceMaterialDescriptor,
+    ): Promise<{ result: CommandResult; sourceMaterialId: string }> {
+      currentEnterpriseId = enterpriseId;
+      const result = await handleRegisterSourceMaterial(
+        db(),
+        contextFor(enterpriseId, [projectId]),
+        payloadEnvelope(
+          `wi05-register-${tag}`,
+          { projectRef: projectObjectRef(enterpriseId, projectId), descriptor },
+          {
+            enterpriseId,
+            projectId,
+            idempotencyScope: 'wi05.register',
+            idempotencyKey: `wi05-register-${tag}`,
+          },
+        ),
+      );
+      return { result, sourceMaterialId: sourceIdFrom(result) };
+    }
+
+    function validationRef(
+      enterpriseId: string,
+      projectId: string,
+      validationId: string,
+      payloadHash: string,
+    ): Common.ContentAddressedRef {
+      return {
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'ValidationResult',
+        objectId: validationId,
+        scope: { enterpriseId, projectId },
+        contentHash: {
+          algorithm: 'SHA-256',
+          digest: payloadHash,
+          canonicalizationVersion: '1',
+        },
+      };
+    }
+
+    async function addValidation(
+      enterpriseId: string,
+      projectId: string,
+      sourceMaterialId: string,
+      descriptor: EnterpriseProject.SourceMaterialDescriptor,
+      validationKind: 'SECURITY' | 'INTEGRITY',
+      outcome: 'PASSED' | 'FAILED',
+      validatedObjectRef: string,
+      validatedContentDigest = descriptor.checksum.digest,
+    ): Promise<Common.ContentAddressedRef> {
+      const validationId = newUuidV7();
+      const payload = {
+        enterpriseId,
+        projectId,
+        sourceMaterialId,
+        validationKind,
+        outcome,
+        validatedObjectRef,
+        validatedContentHash: validatedContentDigest,
+        validatedByteLength: descriptor.byteLength,
+        validatorId: 'wi05-validator',
+        validatorVersion: '1.0.0',
+      } as CanonicalJsonObject;
+      const payloadDigest = digestCanonicalPayload(payload);
+      const sourceRepo = new EnterpriseBusinessRepository();
+      await withEnterpriseProjectTransaction(
+        db(),
+        contextFor(enterpriseId, [projectId]),
+        async (trx) => {
+          await sourceRepo.insertSourceMaterialValidation(trx, {
+            validationId,
+            sourceMaterialId,
+            enterpriseId,
+            projectId,
+            validationKind,
+            outcome,
+            validatedObjectRef,
+            validatedContentHash: Buffer.from(validatedContentDigest, 'hex'),
+            validatedByteLength: descriptor.byteLength,
+            validatorId: 'wi05-validator',
+            validatorVersion: '1.0.0',
+            payload,
+            payloadHash: payloadDigest.hash,
+            recordedByPrincipalId: HUMAN_PRINCIPAL,
+            recordedByActorSnapshotId: ACTOR_HUMAN,
+            authorizationDecisionId: DECISION,
+            sourceCommandId: newUuidV7(),
+          });
+        },
+      );
+      return validationRef(
+        enterpriseId,
+        projectId,
+        validationId,
+        payloadDigest.hash.toString('hex'),
+      );
+    }
+
+    function acceptEnvelope(
+      enterpriseId: string,
+      projectId: string,
+      sourceMaterialId: string,
+      securityValidationRefs: readonly Common.ContentAddressedRef[],
+      integrityValidationRef: Common.ContentAddressedRef,
+      acceptedObjectRef: string,
+      tag: string,
+      expectedAggregateVersion = '1',
+    ): CommandEnvelope & { payload: EnterpriseProject.ProjectAcceptSourceMaterialPayload } {
+      currentEnterpriseId = enterpriseId;
+      return payloadEnvelope(
+        `wi05-accept-${tag}`,
+        {
+          securityValidationRefs,
+          integrityValidationRef,
+          acceptedObjectRef,
+          acceptedAt: '2026-08-26T01:00:00.000Z',
+        },
+        {
+          enterpriseId,
+          projectId,
+          targetType: 'SourceMaterial',
+          targetId: sourceMaterialId,
+          expectedAggregateVersion,
+          idempotencyScope: 'wi05.accept',
+          idempotencyKey: `wi05-accept-${tag}`,
+        },
+      );
+    }
+
+    it('EP-WI05-P-001 same Hash with different origins retains two SourceMaterials', async () => {
+      const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
+      const fixtures = await seedEnterpriseAndStartFixtures(db(), enterpriseId);
+      const projectId = await createWi05Project(enterpriseId, fixtures, 'P001');
+      const first = await registerSource(
+        enterpriseId,
+        projectId,
+        'p001-a',
+        sourceDescriptor(enterpriseId, 'p001-a'),
+      );
+      const second = await registerSource(
+        enterpriseId,
+        projectId,
+        'p001-b',
+        sourceDescriptor(enterpriseId, 'p001-b'),
+      );
+      expect(first.result.status).toBe('COMMITTED');
+      expect(second.result.status).toBe('COMMITTED');
+      expect(second.sourceMaterialId).not.toBe(first.sourceMaterialId);
+      expect(
+        (second.result as Extract<CommandResult, { status: 'COMMITTED' }>).resultPayload,
+      ).toMatchObject({
+        duplicateOfSourceMaterialRef: { objectId: first.sourceMaterialId },
+      });
+      const rows = await admin.query<{
+        source_material_id: string;
+        duplicate_of_source_material_id: string | null;
+      }>(
+        `SELECT source_material_id::text, duplicate_of_source_material_id::text
+           FROM enterprise_project.source_material
+          WHERE project_id = $1::uuid
+          ORDER BY received_at, source_material_id`,
+        [projectId],
+      );
+      expect(rows.rows).toHaveLength(2);
+      expect(rows.rows[0]?.duplicate_of_source_material_id).toBeNull();
+      expect(rows.rows[1]?.duplicate_of_source_material_id).toBe(first.sourceMaterialId);
+      const origins = await admin.query<{ count: string }>(
+        `SELECT count(*)::text AS count
+           FROM enterprise_project.source_material_origin
+          WHERE project_id = $1::uuid`,
+        [projectId],
+      );
+      expect(origins.rows[0]?.count).toBe('2');
+    });
+
+    it('EP-WI05-P-002 passed validations CAS the root and write a minimal Accepted event', async () => {
+      const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
+      const fixtures = await seedEnterpriseAndStartFixtures(db(), enterpriseId);
+      const projectId = await createWi05Project(enterpriseId, fixtures, 'P002');
+      const descriptor = sourceDescriptor(enterpriseId, 'p002');
+      const registered = await registerSource(enterpriseId, projectId, 'p002', descriptor);
+      const acceptedObjectRef = 'object://accepted/wi05-p002';
+      const securityRef = await addValidation(
+        enterpriseId,
+        projectId,
+        registered.sourceMaterialId,
+        descriptor,
+        'SECURITY',
+        'PASSED',
+        acceptedObjectRef,
+      );
+      const integrityRef = await addValidation(
+        enterpriseId,
+        projectId,
+        registered.sourceMaterialId,
+        descriptor,
+        'INTEGRITY',
+        'PASSED',
+        acceptedObjectRef,
+      );
+      const command = acceptEnvelope(
+        enterpriseId,
+        projectId,
+        registered.sourceMaterialId,
+        [securityRef],
+        integrityRef,
+        acceptedObjectRef,
+        'p002',
+      );
+      const accepted = await handleAcceptSourceMaterial(
+        db(),
+        contextFor(enterpriseId, [projectId]),
+        command,
+      );
+      expect(accepted.status).toBe('COMMITTED');
+      const root = await admin.query<{
+        custody_status: string;
+        aggregate_version: string;
+        accepted_object_ref: string;
+        original_name: string;
+      }>(
+        `SELECT custody_status, aggregate_version::text, accepted_object_ref, original_name
+           FROM enterprise_project.source_material
+          WHERE source_material_id = $1::uuid`,
+        [registered.sourceMaterialId],
+      );
+      expect(root.rows[0]).toMatchObject({
+        custody_status: 'ACCEPTED',
+        aggregate_version: '2',
+        accepted_object_ref: acceptedObjectRef,
+        original_name: 'p002.pdf',
+      });
+      const events = await admin.query<{
+        payload: Record<string, unknown>;
+        aggregate_version: string;
+      }>(
+        `SELECT payload, aggregate_version::text
+           FROM enterprise_project.outbox_event
+          WHERE source_command_id = $1::uuid
+            AND event_type = 'project.SourceMaterialAccepted'`,
+        [command.commandId],
+      );
+      expect(events.rows).toHaveLength(1);
+      expect(events.rows[0]?.aggregate_version).toBe('2');
+      const eventPayload = events.rows[0]?.payload;
+      expect(eventPayload).toMatchObject({
+        enterpriseId,
+        projectId,
+        projectRef: { objectId: projectId },
+        sourceMaterialRef: {
+          objectId: registered.sourceMaterialId,
+          contentHash: { digest: descriptor.checksum.digest },
+        },
+      });
+      expect(eventPayload).not.toHaveProperty('originalName');
+      expect(eventPayload).not.toHaveProperty('stagedObjectRef');
+      expect(eventPayload).not.toHaveProperty('acceptedObjectRef');
+      expect(eventPayload).not.toHaveProperty('securityValidationRefs');
+      const edges = await admin.query<{ count: string }>(
+        `SELECT count(*)::text AS count
+           FROM enterprise_project.reference_edge
+          WHERE owner_object_type = 'SourceMaterial'
+            AND owner_object_id = $1::uuid`,
+        [registered.sourceMaterialId],
+      );
+      expect(edges.rows[0]?.count).toBe('3');
+      expect(
+        await countRows('command_receipt', `WHERE command_id = '${command.commandId}'::uuid`),
+      ).toBe(1);
+      expect(
+        await countRows('audit_record', `WHERE command_id = '${command.commandId}'::uuid`),
+      ).toBe(1);
+    });
+
+    it('EP-WI05-P-003 missing, failed and mismatched validations reject without changing the root or emitting an event', async () => {
+      const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
+      const fixtures = await seedEnterpriseAndStartFixtures(db(), enterpriseId);
+      const projectId = await createWi05Project(enterpriseId, fixtures, 'P003');
+      const descriptor = sourceDescriptor(enterpriseId, 'p003');
+      const registered = await registerSource(enterpriseId, projectId, 'p003', descriptor);
+      const acceptedObjectRef = 'object://accepted/wi05-p003';
+      const missingSecurity = validationRef(enterpriseId, projectId, newUuidV7(), 'b'.repeat(64));
+      const missingIntegrity = validationRef(enterpriseId, projectId, newUuidV7(), 'c'.repeat(64));
+      const missing = await handleAcceptSourceMaterial(
+        db(),
+        contextFor(enterpriseId, [projectId]),
+        acceptEnvelope(
+          enterpriseId,
+          projectId,
+          registered.sourceMaterialId,
+          [missingSecurity],
+          missingIntegrity,
+          acceptedObjectRef,
+          'p003-missing',
+        ),
+      );
+      expect(missing).toMatchObject({ status: 'REJECTED', errorCode: PROJECT_SOURCE_NOT_TRUSTED });
+
+      const failedSecurity = await addValidation(
+        enterpriseId,
+        projectId,
+        registered.sourceMaterialId,
+        descriptor,
+        'SECURITY',
+        'FAILED',
+        acceptedObjectRef,
+      );
+      const passedIntegrity = await addValidation(
+        enterpriseId,
+        projectId,
+        registered.sourceMaterialId,
+        descriptor,
+        'INTEGRITY',
+        'PASSED',
+        acceptedObjectRef,
+      );
+      const failed = await handleAcceptSourceMaterial(
+        db(),
+        contextFor(enterpriseId, [projectId]),
+        acceptEnvelope(
+          enterpriseId,
+          projectId,
+          registered.sourceMaterialId,
+          [failedSecurity],
+          passedIntegrity,
+          acceptedObjectRef,
+          'p003-failed',
+        ),
+      );
+      expect(failed).toMatchObject({ status: 'REJECTED', errorCode: PROJECT_SOURCE_NOT_TRUSTED });
+
+      const passedSecurity = await addValidation(
+        enterpriseId,
+        projectId,
+        registered.sourceMaterialId,
+        descriptor,
+        'SECURITY',
+        'PASSED',
+        acceptedObjectRef,
+      );
+      const wrongLocator = await handleAcceptSourceMaterial(
+        db(),
+        contextFor(enterpriseId, [projectId]),
+        acceptEnvelope(
+          enterpriseId,
+          projectId,
+          registered.sourceMaterialId,
+          [passedSecurity],
+          passedIntegrity,
+          'object://accepted/wrong-locator',
+          'p003-locator',
+        ),
+      );
+      expect(wrongLocator).toMatchObject({
+        status: 'REJECTED',
+        errorCode: PROJECT_SOURCE_NOT_TRUSTED,
+      });
+
+      const wrongHashSecurity = {
+        ...passedSecurity,
+        contentHash: {
+          ...passedSecurity.contentHash,
+          digest: 'd'.repeat(64),
+        },
+      };
+      const wrongHash = await handleAcceptSourceMaterial(
+        db(),
+        contextFor(enterpriseId, [projectId]),
+        acceptEnvelope(
+          enterpriseId,
+          projectId,
+          registered.sourceMaterialId,
+          [wrongHashSecurity],
+          passedIntegrity,
+          acceptedObjectRef,
+          'p003-hash',
+        ),
+      );
+      expect(wrongHash).toMatchObject({
+        status: 'REJECTED',
+        errorCode: PROJECT_SOURCE_NOT_TRUSTED,
+      });
+      const root = await admin.query<{ custody_status: string; aggregate_version: string }>(
+        `SELECT custody_status, aggregate_version::text
+           FROM enterprise_project.source_material
+          WHERE source_material_id = $1::uuid`,
+        [registered.sourceMaterialId],
+      );
+      expect(root.rows[0]).toEqual({ custody_status: 'RECEIVED', aggregate_version: '1' });
+      expect(
+        await countRows(
+          'outbox_event',
+          `WHERE aggregate_id = '${registered.sourceMaterialId}'::uuid
+             AND event_type = 'project.SourceMaterialAccepted'`,
+        ),
+      ).toBe(0);
+    });
+
+    it('EP-WI05-P-004 app role cannot update original fields or delete origin/validation history', async () => {
+      const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
+      const fixtures = await seedEnterpriseAndStartFixtures(db(), enterpriseId);
+      const projectId = await createWi05Project(enterpriseId, fixtures, 'P004');
+      const descriptor = sourceDescriptor(enterpriseId, 'p004');
+      const registered = await registerSource(enterpriseId, projectId, 'p004', descriptor);
+      const validationRef = await addValidation(
+        enterpriseId,
+        projectId,
+        registered.sourceMaterialId,
+        descriptor,
+        'SECURITY',
+        'PASSED',
+        'object://accepted/wi05-p004',
+      );
+      const validationId = validationRef.objectId;
+      const privileges = await admin.query<{
+        source_original_update: boolean;
+        source_custody_update: boolean;
+        source_delete: boolean;
+        origin_update: boolean;
+        origin_delete: boolean;
+        validation_update: boolean;
+        validation_delete: boolean;
+      }>(
+        `SELECT has_column_privilege('enterprise_project_app', 'enterprise_project.source_material', 'original_name', 'UPDATE') AS source_original_update,
+                has_column_privilege('enterprise_project_app', 'enterprise_project.source_material', 'custody_status', 'UPDATE') AS source_custody_update,
+                has_table_privilege('enterprise_project_app', 'enterprise_project.source_material', 'DELETE') AS source_delete,
+                has_table_privilege('enterprise_project_app', 'enterprise_project.source_material_origin', 'UPDATE') AS origin_update,
+                has_table_privilege('enterprise_project_app', 'enterprise_project.source_material_origin', 'DELETE') AS origin_delete,
+                has_table_privilege('enterprise_project_app', 'enterprise_project.source_material_validation', 'UPDATE') AS validation_update,
+                has_table_privilege('enterprise_project_app', 'enterprise_project.source_material_validation', 'DELETE') AS validation_delete`,
+      );
+      expect(privileges.rows[0]).toEqual({
+        source_original_update: false,
+        source_custody_update: true,
+        source_delete: false,
+        origin_update: false,
+        origin_delete: false,
+        validation_update: false,
+        validation_delete: false,
+      });
+      await expect(
+        withEnterpriseProjectTransaction(db(), contextFor(enterpriseId, [projectId]), async (trx) =>
+          trx
+            .updateTable('enterprise_project.source_material')
+            .set({ original_name: 'tampered.pdf' })
+            .where('source_material_id', '=', registered.sourceMaterialId)
+            .execute(),
+        ),
+      ).rejects.toMatchObject({ code: '42501' });
+      const originRows = await admin.query<{ source_material_origin_id: string }>(
+        `SELECT source_material_origin_id::text
+           FROM enterprise_project.source_material_origin
+          WHERE source_material_id = $1::uuid`,
+        [registered.sourceMaterialId],
+      );
+      const originId = originRows.rows[0]?.source_material_origin_id;
+      if (originId === undefined) throw new Error('origin row missing');
+      await expect(
+        withEnterpriseProjectTransaction(db(), contextFor(enterpriseId, [projectId]), async (trx) =>
+          trx
+            .deleteFrom('enterprise_project.source_material_origin')
+            .where('source_material_origin_id', '=', originId)
+            .execute(),
+        ),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(
+        withEnterpriseProjectTransaction(db(), contextFor(enterpriseId, [projectId]), async (trx) =>
+          trx
+            .deleteFrom('enterprise_project.source_material_validation')
+            .where('validation_id', '=', validationId)
+            .execute(),
+        ),
+      ).rejects.toMatchObject({ code: '42501' });
+    });
+
+    it('EP-WI05-P-005 same idempotency key replays and altered payload conflicts', async () => {
+      const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
+      const fixtures = await seedEnterpriseAndStartFixtures(db(), enterpriseId);
+      const projectId = await createWi05Project(enterpriseId, fixtures, 'P005');
+      const descriptor = sourceDescriptor(enterpriseId, 'p005');
+      const registered = await registerSource(enterpriseId, projectId, 'p005', descriptor);
+      const acceptedObjectRef = 'object://accepted/wi05-p005';
+      const securityRef = await addValidation(
+        enterpriseId,
+        projectId,
+        registered.sourceMaterialId,
+        descriptor,
+        'SECURITY',
+        'PASSED',
+        acceptedObjectRef,
+      );
+      const integrityRef = await addValidation(
+        enterpriseId,
+        projectId,
+        registered.sourceMaterialId,
+        descriptor,
+        'INTEGRITY',
+        'PASSED',
+        acceptedObjectRef,
+      );
+      const command = acceptEnvelope(
+        enterpriseId,
+        projectId,
+        registered.sourceMaterialId,
+        [securityRef],
+        integrityRef,
+        acceptedObjectRef,
+        'p005',
+      );
+      const first = await handleAcceptSourceMaterial(
+        db(),
+        contextFor(enterpriseId, [projectId]),
+        command,
+      );
+      expect(first.status).toBe('COMMITTED');
+      const replay = await handleAcceptSourceMaterial(
+        db(),
+        contextFor(enterpriseId, [projectId]),
+        command,
+      );
+      expect(replay.status).toBe('DUPLICATE');
+      const alteredPayload = {
+        ...command.payload,
+        acceptedObjectRef: 'object://accepted/altered',
+      };
+      const altered = {
+        ...command,
+        commandId: newUuidV7(),
+        requestPayload: {
+          op: 'wi05-accept-p005',
+          payload: alteredPayload,
+        } as unknown as CanonicalJsonObject,
+        payload: alteredPayload,
+      };
+      await expect(
+        handleAcceptSourceMaterial(db(), contextFor(enterpriseId, [projectId]), altered),
+      ).rejects.toMatchObject({ code: IDEMPOTENCY_PAYLOAD_CONFLICT });
+      const alreadyAccepted = await handleAcceptSourceMaterial(
+        db(),
+        contextFor(enterpriseId, [projectId]),
+        acceptEnvelope(
+          enterpriseId,
+          projectId,
+          registered.sourceMaterialId,
+          [securityRef],
+          integrityRef,
+          acceptedObjectRef,
+          'p005-new-key',
+          '2',
+        ),
+      );
+      expect(alreadyAccepted).toMatchObject({
+        status: 'REJECTED',
+        errorCode: PROJECT_SOURCE_ALREADY_ACCEPTED,
+        currentAggregateVersion: '2',
+      });
+      expect(
+        await countRows(
+          'outbox_event',
+          `WHERE aggregate_id = '${registered.sourceMaterialId}'::uuid
+             AND event_type = 'project.SourceMaterialAccepted'`,
+        ),
+      ).toBe(1);
+    });
+
+    it('EP-WI05-P-006 cross-Project SourceMaterial is invisible and cannot be accepted', async () => {
+      const enterpriseId = newUuidV7();
+      currentEnterpriseId = enterpriseId;
+      const fixtures = await seedEnterpriseAndStartFixtures(db(), enterpriseId);
+      const projectA = await createWi05Project(enterpriseId, fixtures, 'P006-A');
+      const projectB = await createWi05Project(enterpriseId, fixtures, 'P006-B');
+      const descriptor = sourceDescriptor(enterpriseId, 'p006-b');
+      const registered = await registerSource(enterpriseId, projectB, 'p006-b', descriptor);
+      const fakeSecurity = validationRef(enterpriseId, projectA, newUuidV7(), 'e'.repeat(64));
+      const fakeIntegrity = validationRef(enterpriseId, projectA, newUuidV7(), 'f'.repeat(64));
+      const crossProject = await handleAcceptSourceMaterial(
+        db(),
+        contextFor(enterpriseId, [projectA]),
+        acceptEnvelope(
+          enterpriseId,
+          projectA,
+          registered.sourceMaterialId,
+          [fakeSecurity],
+          fakeIntegrity,
+          'object://accepted/wi05-p006',
+          'p006-cross-project',
+        ),
+      );
+      expect(crossProject).toMatchObject({
+        status: 'REJECTED',
+        errorCode: PROJECT_SOURCE_NOT_TRUSTED,
+      });
+      const visible = await withEnterpriseProjectTransaction(
+        db(),
+        contextFor(enterpriseId, [projectA]),
+        async (trx) =>
+          trx
+            .selectFrom('enterprise_project.source_material')
+            .select('source_material_id')
+            .where('source_material_id', '=', registered.sourceMaterialId)
+            .execute(),
+      );
+      expect(visible).toHaveLength(0);
+      expect(
+        await countRows(
+          'outbox_event',
+          `WHERE aggregate_id = '${registered.sourceMaterialId}'::uuid
+             AND event_type = 'project.SourceMaterialAccepted'`,
+        ),
+      ).toBe(0);
+    });
   },
 );
+
+describe('IM-03 WI-05 SourceMaterial unit validation', () => {
+  it('EP-WI05-U-001 rejects an invalid descriptor before opening a database transaction', async () => {
+    const enterpriseId = newUuidV7();
+    const projectId = newUuidV7();
+    currentEnterpriseId = enterpriseId;
+    await expect(
+      handleRegisterSourceMaterial(
+        null as unknown as ReturnType<typeof createEnterpriseProjectDatabase>,
+        contextFor(enterpriseId, [projectId]),
+        payloadEnvelope(
+          'wi05-unit-invalid-descriptor',
+          {
+            projectRef: {
+              kind: 'OBJECT' as const,
+              objectType: 'Project' as const,
+              objectId: projectId,
+              scope: { enterpriseId, projectId },
+            },
+            descriptor: {
+              originRef: {
+                system: 'feishu',
+                resourceType: 'message_attachment',
+                externalId: 'wi05-u001-origin',
+                observedAt: '2026-08-26T00:00:00.000Z',
+              },
+              submittedBy: {
+                kind: 'OBJECT' as const,
+                objectType: 'Principal' as const,
+                objectId: HUMAN_PRINCIPAL,
+                scope: { enterpriseId },
+              },
+              receivedAt: '2026-08-26T00:00:00.000Z',
+              originalName: 'u001.pdf',
+              mediaType: 'application/pdf',
+              byteLength: -1,
+              checksum: {
+                algorithm: 'SHA-256' as const,
+                digest: 'a'.repeat(64),
+                canonicalizationVersion: '1' as const,
+              },
+              stagedObjectRef: 'staging://wi05/u001',
+              retentionClass: 'CUSTOMER_RECORD',
+            },
+          },
+          { enterpriseId, projectId },
+        ),
+      ),
+    ).rejects.toMatchObject({ code: PROJECT_MATERIAL_SOURCE_INVALID });
+  });
+});

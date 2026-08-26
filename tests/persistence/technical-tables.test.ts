@@ -88,6 +88,10 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'project',
     'project_scope_claim',
     'project_snapshot_binding',
+    // IM-03 WI-05 (issue #61): Project-owned SourceMaterial custody tables.
+    'source_material',
+    'source_material_origin',
+    'source_material_validation',
   ],
   task_execution: ['business_probe', 'outbox_probe'],
   artifact: ['business_probe', 'outbox_probe'],

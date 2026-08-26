@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -488,6 +488,14 @@ Issue #60 在 WI-02 事务基础和 WI-03 业务纵向切片之上落地 Project
 - 修复后 `pnpm verify` 全部通过：Format、Lint、Typecheck、Unit（21 个文件通过 / 13 个 skipped，348 passed / 201 skipped）、Architecture、Contract（200 operations）和 PostgreSQL Persistence（15 个文件、214 passed）均为 `PASS`。
 - Persistence 使用 pinned PostgreSQL 18.6 / Flyway 11.20.3；空库迁移包含 V2004、V2005，二次 migrate 为 no-op，gate 容器已清理。WI-04 的 Project 创建、保存点去重、跨 Enterprise RLS 负向、对象精确 Scope、binding 不可更新和 member policy NULL hash 均有真实 PostgreSQL 证据。
 - 以上只证明当前工作区和 Disposable PostgreSQL 边界；真实 Provider、公开 HTTP、跨模块 E2E、生产环境和人工 Reference Project 验收继续保持 `NOT RUN`。PR comment、commit、push、merge、Issue #60 close、远端 branch 删除和 main ancestry 尚待 exact-head 交付步骤完成。
+
+## IM-03 WI-05 SourceMaterial 实现边界（2026-08-26）
+
+Issue #61 的实现必须继续服从 EnterpriseProject 唯一 Owner 和现有公共 Contract，不扩展 200 项 Catalog。SourceMaterial Root 是 Project-owned 原始材料身份；`source_material_origin` 保留每次 ExternalRef 来源；`source_material_validation` 追加 Security/Integrity 通过或失败事实。登记后的原始 ContentHash、ByteLength、MediaType、OriginalName、Staged ObjectLocator、Scope 和 Origin 历史不可原地修改；相同 Hash 的不同来源保留独立 Root，不静默合并。
+
+`project.accept_source_material` 只能消费精确 `expectedAggregateVersion`、Project Scope、ContentHash/长度/ObjectLocator 一致且均为 `PASSED` 的 Security/Integrity Validation Ref。缺失、失败、跨 Project、错误 id/hash 或 Locator 不匹配均安全拒绝且不写 `SourceMaterialAccepted`。接受成功在同一 EnterpriseProject 事务内 CAS Root、写 Audit/Receipt/Reference Edge 与最小 Outbox 事实；Event 不携带 `originalName`、客户原文、bytes、Staged ObjectLocator 或完整 Validation payload，也不自动创建 CustomerMaterial、Baseline、Fact 或 Evidence。
+
+WI-05 的 Module Spec/Test 已同步写入上述不变量、Failure Code、Disposable PostgreSQL 用例和人工验收边界；当前代码、迁移与 Disposable PostgreSQL gate 已通过 221 个测试，Unit/Persistence 为 `PASS`。真实 Feishu 下载、恶意文件扫描、Ceph/OpenBao、Object Staging/Link/Orphan Cleanup、公开 HTTP、跨模块流程和生产验收不因本切片变为 `PASS`，人工 Reference Project 验收仍为 `NOT RUN`。
 
 ## IM-03 WI-02 审查修正约束（2026-08-25）
 

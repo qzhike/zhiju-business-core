@@ -255,3 +255,77 @@ export interface ProjectSnapshotBindingTable {
   authorization_decision_id: string;
   source_command_id: string;
 }
+
+// IM-03 WI-05 (issue #61): SourceMaterial is a Project-owned custody root.
+// Origins and validations are append-only history/fact rows; the root keeps
+// only the exact accepted object locator and its state transition.
+export type SourceMaterialCustodyStatus =
+  'RECEIVED' | 'ACCEPTED' | 'QUARANTINED' | 'REJECTED' | 'ARCHIVED';
+export type SourceMaterialProcessingStatus =
+  'NOT_PROCESSED' | 'PROCESSING' | 'PROCESSED' | 'PARTIALLY_PROCESSED' | 'UNREADABLE';
+export type SourceMaterialValidationKind = 'SECURITY' | 'INTEGRITY';
+export type SourceMaterialValidationOutcome = 'PASSED' | 'FAILED';
+
+export interface SourceMaterialTable {
+  source_material_id: string;
+  enterprise_id: string;
+  project_id: string;
+  submitted_by_principal_id: string;
+  submitted_by_ref: Json;
+  received_at: Date;
+  original_name: string;
+  media_type: string;
+  byte_length: Int8Default;
+  content_hash: Buffer;
+  staged_object_ref: string;
+  descriptor_payload_hash: Buffer;
+  custody_status: SourceMaterialCustodyStatus;
+  processing_status: SourceMaterialProcessingStatus;
+  duplicate_of_source_material_id: string | null;
+  accepted_object_ref: string | null;
+  accepted_at: Date | null;
+  aggregate_version: Int8Default;
+  created_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  updated_at: Date;
+  last_command_id: string | null;
+  retention_class: string;
+}
+
+export interface SourceMaterialOriginTable {
+  source_material_origin_id: string;
+  source_material_id: string;
+  enterprise_id: string;
+  project_id: string;
+  origin_ref: Json;
+  origin_ref_hash: Buffer;
+  received_at: Date;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  source_command_id: string;
+  recorded_at: Date;
+}
+
+export interface SourceMaterialValidationTable {
+  validation_id: string;
+  source_material_id: string;
+  enterprise_id: string;
+  project_id: string;
+  validation_kind: SourceMaterialValidationKind;
+  outcome: SourceMaterialValidationOutcome;
+  validated_object_ref: string;
+  validated_content_hash: Buffer;
+  validated_byte_length: Int8Default;
+  validator_id: string;
+  validator_version: string;
+  payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  source_command_id: string;
+  recorded_at: Date;
+}
