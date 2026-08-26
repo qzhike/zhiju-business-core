@@ -2,7 +2,7 @@
 
 版本：v0.6
 日期：2026-08-26
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / EXACT-HEAD DELIVERY IN PROGRESS`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / PR #75 MERGED / ISSUE #62 CLOSED / EXACT-HEAD DELIVERY COMPLETE`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -163,3 +163,9 @@ WI-03 业务 Handler、业务 DDL 和 Disposable PostgreSQL 的修正结果已�
 - `pnpm persistence:gate`：`PASS`；pinned PostgreSQL `18.6` + Flyway `11.20.3`，空库迁移、二次 migrate no-op 和容器清理通过；16 个 Persistence 文件、`225 passed / 0 failed`。V2007 `customer material proposal confirmation` 成功应用。
 
 以上 PASS 只证明当前 worktree、受控 Handler/Repository、迁移和 Disposable PostgreSQL；Provider、真实 Feishu/Ceph/OpenBao、公开 HTTP、跨模块 E2E、生产环境和人工 Reference Project 验收保持 `NOT RUN`。
+
+## 2026-08-26 exact-head 交付结果
+
+- 实现 commit `3141928df48b3be097ff554bc7b96ee933d727c1` 已通过 PR [#75](https://github.com/qzhike/zhiju-business-core/pull/75) 的 exact-head `verify` CI，并合并到 `main`，merge commit 为 `e7cfee14b699b0574abf6899a0291bc9ea706f90`。
+- Issue [#62](https://github.com/qzhike/zhiju-business-core/issues/62) 已通过 GitHub API 读取为 `closed`；Issue closeout comment 已写入并读回：[issuecomment-5420158225](https://github.com/qzhike/zhiju-business-core/issues/62#issuecomment-5420158225)。
+- `origin/main` 与本地默认分支已同步到 `e7cfee1`；`galendai/im-03-wi-06-customermaterial` 远端和本地 branch 均已删除，并已证明实现 commit 是 `origin/main` 的 ancestor。
