@@ -7,8 +7,8 @@
 ## 当前状态
 
 - 记录时间：2026-08-26
-- 当前阶段：已核对工作树、规格、测试、Issue、PR 与远端分支状态；实现、规格和测试文档已落盘，自动化验证已通过；用户已于 2026-08-27 确认检查并授权提交，当前进入 Git exact-head closeout。
-- 代码与本地验证可宣称完成；commit、push、PR、Issue、分支删除和默认分支同步按步骤执行并分别回读，未完成前不提前宣称完成。
+- 当前阶段：实现、规格、测试文档、commit、非 force push、PR exact-head CI、PR 合并、Issue 关闭、远端/本地分支删除和默认分支同步均已按步骤回读；当前仅进行权威 `.vibe` 文档的 docs-only 主线同步。
+- 代码与本地验证、GitHub exact-head 和 Issue/branch/main closeout 均已完成；Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续保持 `NOT RUN`。
 
 ## 约束
 
@@ -30,14 +30,21 @@
 
 ## Git closeout 进度
 
-- 2026-08-27：实现 commit `de7d54dfba76eca563a561c2d4e4b23a4fd4e0f9` 已创建并非 force push；PR #80 已创建，base 为 `main@8c1165dbf7ff32ea26a4ea64799a695a8beb4c05`，当前 head 为实现 commit；因远端暴露 PostgreSQL tag 漂移，后续需追加 pin 修复 commit。
-- PR #80 的 `closingIssuesReferences` 为空，Issue #65 仍需后续显式关闭；远端 feature branch 当前存在并指向实现 commit。
-- GitHub `ci` workflow 为 active 且声明 `pull_request` trigger，但创建 PR 后轮询未发现 exact-head run；`workflow_dispatch` 触发被 GitHub 以 workflow 未声明该 trigger 拒绝。后续通过必要的交付记录同步触发一次 PR synchronize，再重新读取 exact-head CI。
-- 2026-08-27：PR #80 的 exact-head runs `33021401819`、`33021517085` 均完成了 format/lint/typecheck/unit/architecture/contracts，随后在 persistence gate 因 `postgres:18.6` 当前 manifest digest `sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280` 与旧 pin `sha256:1957b2ff3137e4ef7f3bc813e74fff50b1e1ffddc85c8b9d6f14ade972be8687` 不一致而失败。该失败是 Gate 对 registry 漂移的预期拒绝；需更新 pin 后重新取得 exact-head CI PASS。
-- 2026-08-27：已将 `tools/persistence/baseline.mjs` 的 PostgreSQL pin 更新为当前 registry manifest digest；本地 `pnpm verify` 完整通过，包含 `22 test files passed / 16 skipped`、`351 passed / 224 skipped`、Contract `operations=200` 和 PostgreSQL `19 files / 238 passed`，二次 migrate 为 no-op，容器已清理。修复 commit 尚未创建，新的 exact-head CI 尚未取得。
-- 2026-08-27：PR #81 的 exact-head run `33022297342` 完整通过，但并行 run `33022308826` 在 `gap-analysis.test.ts:1247` 暴露真实竞争窗口：并发接受输家返回 `PROJECT_GAP_DECISION_CONFLICT` 而非规格要求的 `CONCURRENCY_CONFLICT`。接受命令已改为对 Root 使用事务行锁并重新读取最新 aggregate version；修复后的本地 `pnpm persistence:gate` 连续两次通过，完整 `pnpm verify` 也通过，修复 commit 尚待创建和推送。
+- 历史快照（2026-08-27）：实现 commit `de7d54dfba76eca563a561c2d4e4b23a4fd4e0f9` 创建后，PR #80 曾以 base `main@8c1165dbf7ff32ea26a4ea64799a695a8beb4c05` 打开；随后因 PostgreSQL tag 漂移追加 pin 修复 commit。
+- 历史快照（2026-08-27）：PR #80 的 `closingIssuesReferences` 为空，Issue #65 当时尚未关闭，远端 feature branch 当时存在；这些状态已由后续 PR #81 closeout supersede。
+- 历史快照（2026-08-27）：GitHub `ci` workflow 未提供 `workflow_dispatch`，PR #80 的旧 head runs `33021401819`、`33021517085` 因 registry digest 漂移失败；该失败保留为 Gate 的拒绝证据。
+- 历史快照（2026-08-27）：PostgreSQL pin 更新后本地 `pnpm verify` 已通过；随后 PR #81 的旧 exact head run `33022297342` 通过，而 `33022308826` 暴露并发接受返回码窗口，促成 Root 行锁修复。
+- 历史快照（2026-08-27）：并发修复后的本地 `pnpm persistence:gate` 连续两次通过，完整 `pnpm verify` 也通过；后续已创建并推送修复 commit `6de5c96c4ba4fe0938b422606d4632048ac19932`。
 
 ## 已完成的前置文档动作
 
 - 已更新 `HL-Spec.md`、`Module-Spec-002-EnterpriseProject.md`、`Module-Test-002-EnterpriseProject.md`、Domain/Consistency/PostgreSQL/Verification 基准。
 - WI-09 当前本地结果已写入 Module-Test：最终 `pnpm verify` 为 `PASS`，其中 `pnpm test` 为 `351 passed / 224 skipped`，PostgreSQL Gate 为 `19 files / 238 passed`；Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工验收继续为 `NOT RUN`。
+
+## 最终 closeout 证据（2026-08-27）
+
+- corrected implementation head：`6de5c96c4ba4fe0938b422606d4632048ac19932`；PR [#81](https://github.com/qzhike/zhiju-business-core/pull/81) 已合并，merge commit：`2d6afd0cc2889cf0fa6350c0599d514d5917b071`。
+- exact-head CI：[run 33022900309](https://github.com/qzhike/zhiju-business-core/actions/runs/33022900309) 对应 head `6de5c96...`，`verify=PASS`；PR verification comment：[issuecomment-5432252760](https://github.com/qzhike/zhiju-business-core/pull/81#issuecomment-5432252760)。
+- PR #81 `closingIssuesReferences=[]`；Issue [#65](https://github.com/qzhike/zhiju-business-core/issues/65) 已通过 API 读回为 `CLOSED`，关闭评论：[issuecomment-5432258964](https://github.com/qzhike/zhiju-business-core/issues/65#issuecomment-5432258964)。
+- `origin/main=2d6afd0cc2889cf0fa6350c0599d514d5917b071`，已通过 `git merge-base --is-ancestor 6de5c96... origin/main`；远端 feature ref 为空，本地 feature branch 已删除。
+- 本地最终 `pnpm verify`：format/lint/typecheck/architecture/contracts PASS；`pnpm test` 为 `22 test files passed / 16 skipped`、`351 passed / 224 skipped`；PostgreSQL Gate 为 `19 files / 238 passed`，V2010 已应用，二次 migrate 为 no-op，容器已清理。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收为 `NOT RUN`。

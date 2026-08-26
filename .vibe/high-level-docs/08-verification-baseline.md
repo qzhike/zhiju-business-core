@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSEOUT PENDING / USER REVIEW REQUIRED`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #81 MERGED / USER REVIEW REQUIRED`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -376,3 +376,5 @@ WI-09 的最小自动验证必须同时覆盖：七个 Gap InputSnapshot ref 的
 测试结果必须写回 [`Module-Test-002-EnterpriseProject.md`](../module-tests/Module-Test-002-EnterpriseProject.md)，并区分 `PASS (PERSISTENCE)`、`PASS (LOCAL)`、`DESIGN VERIFIED` 和 `NOT RUN`。Disposable PostgreSQL 不代表 Provider、公开 HTTP、跨模块 Process Manager、生产或独立人工 Reference Project 已运行；这些边界继续保持 `NOT RUN`，直到有独立证据。
 
 Persistence Gate 的外部镜像证据还必须记录 tag 与当前 manifest digest 的一致性。若远端 registry 重新解析固定 tag，先更新经核对的 immutable pin，再重新执行本地和 exact-head Gate；tag-digest 检查失败时，不能把此前的静态或 Unit PASS 记作完整验证 PASS。
+
+2026-08-27 的 WI-09 corrected exact head `6de5c96c4ba4fe0938b422606d4632048ac19932` 已通过 GitHub Actions [run 33022900309](https://github.com/qzhike/zhiju-business-core/actions/runs/33022900309)，并以 merge commit `2d6afd0cc2889cf0fa6350c0599d514d5917b071` 合入 `main`。Issue [#65](https://github.com/qzhike/zhiju-business-core/issues/65) 已显式 `CLOSED`；远端和本地 WI-09 feature branch 已删除，`origin/main` 已确认包含实现 head。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`。
