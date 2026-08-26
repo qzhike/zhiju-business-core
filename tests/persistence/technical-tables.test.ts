@@ -102,6 +102,18 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'customer_baseline_version',
     'customer_baseline_item',
     'customer_baseline_impact_review',
+    // IM-03 WI-08 (issue #64): Platform Reference and Project-owned
+    // TemplateBaseline/RegulatoryProfile business tables.
+    'reference_template',
+    'reference_template_version',
+    'regulatory_reference',
+    'regulatory_reference_version',
+    'template_baseline',
+    'template_baseline_version',
+    'template_selection',
+    'regulatory_profile',
+    'regulatory_profile_version',
+    'regulatory_profile_item',
   ],
   task_execution: ['business_probe', 'outbox_probe'],
   artifact: ['business_probe', 'outbox_probe'],

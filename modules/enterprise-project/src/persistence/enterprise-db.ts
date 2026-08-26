@@ -38,6 +38,16 @@ import type {
   CustomerBaselineVersionTable,
   CustomerBaselineItemTable,
   CustomerBaselineImpactReviewTable,
+  ReferenceTemplateTable,
+  ReferenceTemplateVersionTable,
+  RegulatoryReferenceTable,
+  RegulatoryReferenceVersionTable,
+  TemplateBaselineTable,
+  TemplateBaselineVersionTable,
+  TemplateSelectionTable,
+  RegulatoryProfileTable,
+  RegulatoryProfileVersionTable,
+  RegulatoryProfileItemTable,
 } from './enterprise-business-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
@@ -200,12 +210,29 @@ export interface EnterpriseProjectDb {
   'enterprise_project.customer_baseline_version': CustomerBaselineVersionTable;
   'enterprise_project.customer_baseline_item': CustomerBaselineItemTable;
   'enterprise_project.customer_baseline_impact_review': CustomerBaselineImpactReviewTable;
+  // IM-03 WI-08 (issue #64): platform reference facts and Project-owned
+  // frozen TemplateBaseline/RegulatoryProfile chains.
+  'enterprise_project.reference_template': ReferenceTemplateTable;
+  'enterprise_project.reference_template_version': ReferenceTemplateVersionTable;
+  'enterprise_project.regulatory_reference': RegulatoryReferenceTable;
+  'enterprise_project.regulatory_reference_version': RegulatoryReferenceVersionTable;
+  'enterprise_project.template_baseline': TemplateBaselineTable;
+  'enterprise_project.template_baseline_version': TemplateBaselineVersionTable;
+  'enterprise_project.template_selection': TemplateSelectionTable;
+  'enterprise_project.regulatory_profile': RegulatoryProfileTable;
+  'enterprise_project.regulatory_profile_version': RegulatoryProfileVersionTable;
+  'enterprise_project.regulatory_profile_item': RegulatoryProfileItemTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';
 export const PAYLOAD_HASH_ALGORITHM = 'SHA-256';
 
 export type EnterprisePrincipalKind = 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';
+
+export type PlatformReferenceCapability =
+  'PLATFORM_REFERENCE_ADMIN' | 'PLATFORM_REFERENCE_PUBLISHER';
+
+export const PLATFORM_CONTROL_SCOPE_ID = '00000000-0000-7000-8000-000000000000';
 
 export interface CanonicalPayloadDigest {
   readonly canonicalJson: string;
@@ -246,6 +273,8 @@ export interface EnterpriseProjectTransactionContext {
   readonly allowedProjectIds: readonly string[];
   readonly correlationId: string;
   readonly sourceEventId?: string;
+  /** Capabilities are supplied by the trusted composition layer, never by payload. */
+  readonly platformReferenceCapabilities?: readonly PlatformReferenceCapability[];
 }
 
 export type EnterpriseProjectTransaction = Transaction<EnterpriseProjectDb>;
@@ -279,6 +308,42 @@ export async function withEnterpriseProjectTransaction<T>(
           ${context.correlationId},
           ${context.sourceEventId ?? null})`.execute(trx);
       await sql.raw('SET LOCAL ROLE enterprise_project_app').execute(trx);
+      return fn(trx);
+    }),
+  );
+}
+
+/**
+ * Runs a platform-reference command under a dedicated writer role. The
+ * reserved enterprise value is a technical RLS scope for shared transaction
+ * facts only; platform business reference rows have no business scope.
+ */
+export async function withEnterpriseProjectPlatformTransaction<T>(
+  db: Kysely<EnterpriseProjectDb>,
+  context: EnterpriseProjectTransactionContext,
+  fn: (trx: EnterpriseProjectTransaction) => Promise<T>,
+): Promise<T> {
+  if (
+    context.enterpriseId !== PLATFORM_CONTROL_SCOPE_ID ||
+    context.allowedProjectIds.length !== 0
+  ) {
+    throw new Error('platform transaction requires the reserved control scope');
+  }
+  return db.connection().execute(async (connection) =>
+    connection.transaction().execute(async (trx) => {
+      await sql.raw('SET LOCAL ROLE platform_context_establisher').execute(trx);
+      await sql`SELECT platform_security.establish_transaction_context(
+          ${context.kind},
+          ${context.principalId},
+          ${context.actorSnapshotId},
+          ${context.authorizationDecisionId},
+          ${context.authorizationDecisionHash},
+          ${context.authorizationDecisionExpiresAt},
+          ${PLATFORM_CONTROL_SCOPE_ID},
+          ${[]},
+          ${context.correlationId},
+          ${context.sourceEventId ?? null})`.execute(trx);
+      await sql.raw('SET LOCAL ROLE enterprise_project_platform_reference_writer').execute(trx);
       return fn(trx);
     }),
   );

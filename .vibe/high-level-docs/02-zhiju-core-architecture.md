@@ -2,7 +2,7 @@
 
 版本：v0.2
 重建日期：2026-08-12
-状态：`CURRENT ARCHITECTURE BASELINE / MODULE DESIGN CONSOLIDATED / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / USER REVIEW REQUIRED / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`CURRENT ARCHITECTURE BASELINE / MODULE DESIGN CONSOLIDATED / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / USER REVIEW REQUIRED`
 
 文档角色：总体架构与七个逻辑模块的唯一权威。模块职责、所有权、非职责、公开端口类别、依赖和持久化边界只在本文维护；公开 Contract 精确名称以 `06` 为准，逻辑表以 `07` 为准。
 
@@ -2043,3 +2043,9 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Cont
 - ProjectStartSnapshot 必须包含同一 Enterprise 的 EnterpriseProfileSnapshot、QMSConfigurationVersion 和 ProductScopeSnapshot；不得使用 `latest`、display label 或隐式 current pointer 代替业务版本。
 - Gap 输入变化只产生 `STALE` 与 Impact Review 事实，不覆盖旧 Gap、Context、Plan 或 Artifact。QualityProfile/Evidence 等 IM-05 对象只通过强引用验证，EnterpriseProject 不跨 Schema Join 或拥有其正文。
 - 这些入口是受控 Application Capability，暂不增加当前 200 项公开 Catalog；公共化需要单独的 Contract 兼容性和用户审核 Gate。本文的架构决策不等于业务 DDL、Repository 或 Handler 已实现。
+
+## 26. IM-03 WI-08 受控 Platform Reference 与 Project Freeze 边界
+
+WI-08 将 Issue #57 中的 Platform Reference 入口具体化为 EnterpriseProject 内的受控 Application Capability：Reference Admin/Publisher 通过独立 writer role 导入和发布无 Enterprise Scope 的模板/法规版本；Enterprise Runtime 只能读取已发布的精确 hash ref。writer 所使用的保留技术 Scope 仅服务于 RLS Context、Receipt、Audit、Outbox 和 Reference Edge，不代表任何业务 Enterprise。
+
+TemplateBaseline 和 RegulatoryProfile 是 Project-owned immutable version chains。Human 请求必须在可信事务 Context 中完成，Root expected aggregate version CAS 是唯一指针推进机制；新 Platform 版本不会隐式改变旧 Project。模板只能作为 TemplateSelection，不能作为 Regulatory Evidence；监管适用性项目的 Evidence 必须是独立受控引用。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工验收不随本实现自动提升为 `PASS`。

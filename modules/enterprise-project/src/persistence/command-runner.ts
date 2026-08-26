@@ -8,6 +8,8 @@ import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import type { Kysely } from 'kysely';
 import {
   digestCanonicalPayload,
+  PLATFORM_CONTROL_SCOPE_ID,
+  withEnterpriseProjectPlatformTransaction,
   withEnterpriseProjectTransaction,
   type EnterpriseProjectDb,
   type EnterpriseProjectTransaction,
@@ -56,6 +58,8 @@ export interface CommandEnvelope {
   idempotencyScope: string;
   idempotencyKey: string;
   requestPayload: CanonicalJsonObject;
+  /** Platform-reference commands use the same technical facts with control scope. */
+  platform?: boolean | undefined;
   enterpriseId: string;
   projectId?: string | undefined;
   targetType: string;
@@ -157,6 +161,18 @@ export function assertEnvelopeMatchesContext(
   context: EnterpriseProjectTransactionContext,
   envelope: CommandEnvelope,
 ): void {
+  if (
+    envelope.platform === true &&
+    (context.enterpriseId !== PLATFORM_CONTROL_SCOPE_ID ||
+      envelope.enterpriseId !== PLATFORM_CONTROL_SCOPE_ID ||
+      envelope.projectId !== undefined ||
+      context.allowedProjectIds.length !== 0)
+  ) {
+    throw new CommandExecutionError(
+      COMMAND_CONTEXT_MISMATCH,
+      'platform command must use the reserved control scope without a Project scope',
+    );
+  }
   const projectAllowed =
     envelope.projectId === undefined || context.allowedProjectIds.includes(envelope.projectId);
   if (
@@ -219,7 +235,11 @@ async function runCommandTransaction(
   requestHash: Buffer,
   body: (execution: CommandExecution) => Promise<CommandBodyResult>,
 ) {
-  return withEnterpriseProjectTransaction(db, context, async (trx) => {
+  const transaction =
+    envelope.platform === true
+      ? withEnterpriseProjectPlatformTransaction
+      : withEnterpriseProjectTransaction;
+  return transaction(db, context, async (trx) => {
     const claimed = await claimReceipt(trx, envelope, requestHash);
     if (!claimed) {
       const existing = await readReceipt(trx, envelope);

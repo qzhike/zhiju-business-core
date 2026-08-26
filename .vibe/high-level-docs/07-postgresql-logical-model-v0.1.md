@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01 BUSINESS DECISION RECORDED / IM-03 WI-02 APPLICATION WRITE PATH LANDED / BUSINESS MODEL IMPLEMENTATION NOT STARTED`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01 BUSINESS DECISION RECORDED / IM-03 WI-02 APPLICATION WRITE PATH LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -1963,3 +1963,11 @@ Issue #57 的决策记录见 [`../issue-57-enterpriseproject/Contract-Decision-M
 - Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot、Platform Reference 及其业务表、Repository、Handler 和 Application Capability 仍未实现，保持 `NOT RUN`。
 
 业务切片不得用 Migration seed、测试 fixture 或跨 Schema Join 直接生成这些前置对象。后续业务 DDL 必须由 EnterpriseProject owning schema 通过唯一 Application 写入口承接版本、Scope、Hash、授权、Audit 和 Outbox 语义；平台参考表无 `enterprise_id`，Enterprise Runtime 只获得已发布版本的受控读取权限。
+
+## 28. IM-03 WI-08 TemplateBaseline 与 RegulatoryProfile 物理边界
+
+WI-08 新增的 Platform Reference 表属于受控平台数据面，`reference_template`/`reference_template_version` 与 `regulatory_reference`/`regulatory_reference_version` 均不含 `enterprise_id`、`project_id` 或业务 Enterprise Scope。导入版本是 `DRAFT`，发布仅允许精确版本进入 `PUBLISHED`；已发布内容、hash、source、applicability、authority 与 effective period 均不可原地修改。平台写入由独立 Reference Writer 角色承担，普通模块 app role 只读已发布事实。
+
+Project 侧新增 `template_baseline`、`template_baseline_version`、`template_selection`、`regulatory_profile`、`regulatory_profile_version`、`regulatory_profile_item` 六表。Root 是唯一 Project identity，Version/Selection/Item 是不可变事实；Root current/active pointer 只能以 expected aggregate version CAS 推进。所有业务表使用 FORCE RLS、Enterprise/Project Scope mirror、组合外键和 deferred pointer guard；平台保留技术 Scope 只出现在技术 Receipt/Audit/Outbox/Reference Edge 中，不能成为平台业务 Scope。
+
+TemplateSelection 的 `template_ref` 必须精确指向已发布 Platform Template Version；RegulatoryProfileItem 的 `regulatory_reference_ref` 必须精确指向已发布 Platform Regulatory Version。两者都校验 object id、immutable/version id、canonicalization、SHA-256 和 `{}` platform scope。EvidenceRef 只能指向独立 Evidence 对象；数据库 CHECK 与 Handler 共同拒绝模板/法规版本冒充 Evidence、缺 evidence、latest/label-only 和跨 Project 引用。

@@ -1,20 +1,23 @@
 export const enterpriseProjectModule = Object.freeze({
   name: 'enterprise-project',
-  status: 'IM_03_WI07_CUSTOMER_BASELINE_LANDED' as const,
+  status: 'IM_03_WI08_TEMPLATE_REGULATORY_LANDED' as const,
 });
 
 export {
   createEnterpriseProjectDatabase,
   withEnterpriseProjectTransaction,
+  withEnterpriseProjectPlatformTransaction,
   digestCanonicalPayload,
   CANONICALIZATION_VERSION,
   PAYLOAD_HASH_ALGORITHM,
+  PLATFORM_CONTROL_SCOPE_ID,
 } from './persistence/enterprise-db.js';
 export type {
   EnterpriseProjectDb,
   EnterpriseProjectTransaction,
   EnterpriseProjectTransactionContext,
   EnterprisePrincipalKind,
+  PlatformReferenceCapability,
 } from './persistence/enterprise-db.js';
 export { EnterpriseProjectRepository } from './persistence/enterprise-project-repository.js';
 export type { ProcessInstanceInsert } from './persistence/enterprise-project-repository.js';
@@ -77,6 +80,19 @@ export type {
   CustomerBaselineImpactReviewInsert,
   CasResult,
 } from './persistence/enterprise-business-repository.js';
+export { TemplateRegulatoryRepository } from './persistence/template-regulatory-repository.js';
+export type {
+  ReferenceTemplateInsert,
+  ReferenceTemplateVersionInsert,
+  RegulatoryReferenceInsert,
+  RegulatoryReferenceVersionInsert,
+  TemplateBaselineInsert,
+  TemplateBaselineVersionInsert,
+  TemplateSelectionInsert,
+  RegulatoryProfileInsert,
+  RegulatoryProfileVersionInsert,
+  RegulatoryProfileItemInsert,
+} from './persistence/template-regulatory-repository.js';
 export type {
   EnterpriseTable,
   EnterpriseFactTable,
@@ -120,6 +136,19 @@ export type {
   CustomerBaselineVersionStatus,
   CustomerBaselineItemStatus,
   CustomerBaselineImpactStatus,
+  PlatformReferenceStatus,
+  PlatformReferenceLifecycle,
+  ReferenceTemplateTable,
+  ReferenceTemplateVersionTable,
+  RegulatoryReferenceTable,
+  RegulatoryReferenceVersionTable,
+  FrozenVersionStatus,
+  TemplateBaselineTable,
+  TemplateBaselineVersionTable,
+  TemplateSelectionTable,
+  RegulatoryProfileTable,
+  RegulatoryProfileVersionTable,
+  RegulatoryProfileItemTable,
 } from './persistence/enterprise-business-types.js';
 // IM-03 WI-03 (issue #59): business handlers and failure codes for the
 // EnterpriseProject vertical slice. Handlers fall into two groups:
@@ -187,6 +216,20 @@ export type {
   GetActiveBaselineRefsCommandPayload,
 } from './business/customer-baseline-handlers.js';
 export {
+  handlePlatformTemplateImportVersion,
+  handlePlatformTemplatePublishVersion,
+  handlePlatformRegulatoryImportVersion,
+  handlePlatformRegulatoryPublishVersion,
+  handleFreezeTemplateBaseline,
+  handleActivateRegulatoryProfile,
+} from './business/template-regulatory-handlers.js';
+export type {
+  PlatformTemplateImportVersionPayload,
+  PlatformTemplatePublishVersionPayload,
+  PlatformRegulatoryImportVersionPayload,
+  PlatformRegulatoryPublishVersionPayload,
+} from './business/template-regulatory-handlers.js';
+export {
   EnterpriseBusinessError,
   PROJECT_ENTERPRISE_NOT_ACTIVE,
   PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT,
@@ -225,5 +268,17 @@ export {
   PROJECT_BASELINE_VERSION_IMMUTABLE,
   PROJECT_MULTIPLE_ACTIVE_BASELINES,
   PROJECT_BASELINE_VERSION_NOT_FOUND,
+  PROJECT_TEMPLATE_LATEST_FORBIDDEN,
+  PROJECT_TEMPLATE_BASELINE_IMMUTABLE,
+  PROJECT_REGULATORY_EVIDENCE_REQUIRED,
+  PROJECT_REGULATORY_APPLICABILITY_CONFLICT,
+  PROJECT_PLATFORM_REFERENCE_UNPUBLISHED,
+  PROJECT_PLATFORM_REFERENCE_HASH_MISMATCH,
+  PROJECT_PLATFORM_REGULATORY_SOURCE_REQUIRED,
+  PROJECT_PLATFORM_REFERENCE_ROLE_REQUIRED,
+  PROJECT_PLATFORM_REFERENCE_INVALID,
+  PROJECT_TEMPLATE_VERSION_NOT_FOUND,
+  PROJECT_REGULATORY_PROFILE_VERSION_NOT_FOUND,
+  PROJECT_REGULATORY_PROFILE_SCOPE_MISMATCH,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';
