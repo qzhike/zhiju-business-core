@@ -544,7 +544,7 @@ WI-09 新增以下 Project-owned 表：
 
 `start_gap_analysis` 在同一事务中写入 Root/v1、InputSnapshot、Finding、Reference Edge、Receipt、Audit 和内部 `GapAnalysisCompleted` outbox fact。`accept_gap_analysis` 必须携带精确 `VERSIONED<GapAnalysis>`、`SNAPSHOT<GapReview>`、disposition 和 Justification，并绑定当前 Root aggregate version。
 
-接受命令执行前后均以受信事务 Context 的 `principalKind` 为准：Agent、Service、`actingFor`、伪造 request actor 和跨 Project Context 均拒绝。`ACCEPT` 在同一事务中追加不可变 Decision、更新 Version/Root 状态和 accepted pointer，并写入公共 `project.GapAnalysisAccepted@1.0`；Event 只包含精确 Gap、Project、InputSnapshot 和 Decision refs，不复制 finding 或客户正文。`REJECT` 与 `CHANGES_REQUIRED` 追加 Decision 并更新状态，但 accepted pointer 必须保持 NULL。
+接受命令执行前后均以受信事务 Context 的 `principalKind` 为准：Agent、Service、`actingFor`、伪造 request actor 和跨 Project Context 均拒绝。接受命令必须对 Root 使用事务内的行锁并以最新行重新判断 expected aggregate version；并发输家不得因已提交 Version 状态先可见而返回 Decision conflict，必须返回 `CONCURRENCY_CONFLICT`。`ACCEPT` 在同一事务中追加不可变 Decision、更新 Version/Root 状态和 accepted pointer，并写入公共 `project.GapAnalysisAccepted@1.0`；Event 只包含精确 Gap、Project、InputSnapshot 和 Decision refs，不复制 finding 或客户正文。`REJECT` 与 `CHANGES_REQUIRED` 追加 Decision 并更新状态，但 accepted pointer 必须保持 NULL。
 
 ### 18.4 stale 与 Impact 语义
 

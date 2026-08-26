@@ -201,6 +201,18 @@ export class GapAnalysisRepository extends TemplateRegulatoryRepository {
       .executeTakeFirst()) as unknown as GapAnalysisTable | undefined;
   }
 
+  async getGapAnalysisByIdForUpdate(
+    trx: EnterpriseProjectTransaction,
+    gapAnalysisId: string,
+  ): Promise<GapAnalysisTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.gap_analysis')
+      .selectAll()
+      .where('gap_analysis_id', '=', gapAnalysisId)
+      .forUpdate()
+      .executeTakeFirst()) as unknown as GapAnalysisTable | undefined;
+  }
+
   async casGapAnalysis(
     trx: EnterpriseProjectTransaction,
     gapAnalysisId: string,

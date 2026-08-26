@@ -28,8 +28,10 @@
 
 实现和验证后先向用户展示精确变更集、测试结果和未运行边界；用户确认后才执行 commit。随后需要分别取得并读回：非 force push、PR exact head、CI、评论、PR merge、`origin/main` ancestry、Issue #65 显式 CLOSED、远端/本地功能分支删除和权威 `.vibe` 文档无旧的“未完成”状态。Issue/branch/main 的任一状态没有读回证据都不能写成完成。
 
-当前阶段：规格、实现、PostgreSQL pin 修复和 `pnpm verify` 自动化验证已完成；用户已于 2026-08-27 确认检查并授权提交，当前进入修复 commit/push 后的 exact-head CI、PR/Issue/branch/main closeout。
+当前阶段：规格、实现、PostgreSQL pin 修复、并发接受修复和 `pnpm verify` 自动化验证已完成；用户已于 2026-08-27 确认检查并授权提交，当前进入修复 commit/push 后的 corrected exact-head CI、PR/Issue/branch/main closeout。
 
 ## 远端 Gate 漂移处理
 
 2026-08-27 的 GitHub `pull_request` runs `33021401819` 与 `33021517085` 均在 `pnpm persistence:gate` 处发现 PostgreSQL `18.6` tag 的当前 manifest digest 为 `sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280`，而仓库 pin 仍为 `sha256:1957b2ff3137e4ef7f3bc813e74fff50b1e1ffddc85c8b9d6f14ade972be8687`。两次 run 的其余静态、Unit、Architecture、Contract 阶段已通过；这证明了 Gate 的漂移拒绝逻辑正在生效。已更新经核对的 pin，并在本地完整 `pnpm verify` 中取得 PASS；新的 exact-head CI 仍待修复 commit 推送后取得。
+
+同一修复 head 的远端 run `33022308826` 暴露了 GapAnalysis 并发接受的竞争窗口：输家在 Root 旧版本可见、Version 新状态已可见时返回 `PROJECT_GAP_DECISION_CONFLICT`，未满足并发输家统一返回 `CONCURRENCY_CONFLICT` 的规格。接受入口已改为事务内锁定并重新读取 Root；本地连续两次 Persistence Gate 和完整 `pnpm verify` 均通过，下一步是推送修复 commit 并取得 corrected exact-head CI。

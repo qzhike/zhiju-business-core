@@ -1402,7 +1402,7 @@ export async function handleAcceptGapAnalysis(
     targetId: gap.objectId,
   };
   return executeEnterpriseProjectCommand(db, context, normalizedEnvelope, async (execution) => {
-    const root = await repo.getGapAnalysisById(execution.trx, gap.objectId);
+    const root = await repo.getGapAnalysisByIdForUpdate(execution.trx, gap.objectId);
     if (root?.enterprise_id !== context.enterpriseId || root.project_id !== projectId) {
       return {
         kind: 'REJECTED',
