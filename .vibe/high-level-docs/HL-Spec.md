@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / PR #72 REVIEW REPAIRED / PR #75 MERGED / ISSUE #62 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #72 REVIEW REPAIRED / PR #75 MERGED / ISSUE #62 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -554,3 +554,15 @@ Issue #62 在 WI-05 SourceMaterial 接受边界之上实现 CustomerMaterial 的
 - 本切片不实现 OCR/LLM/Provider、Evidence 外部验证、CustomerBaseline、公开 HTTP、真实 Feishu/Ceph/OpenBao 或生产/人工 Reference Project 验收；这些边界保持 `NOT RUN`，具体字段/测试以 Module Spec/Test 和 `.vibe/im-03-wi-06-customermaterial/` 执行记录为准。
 
 WI-06 已通过 [PR #75](https://github.com/qzhike/zhiju-business-core/pull/75) 合并到 `main`。实现 commit `3141928df48b3be097ff554bc7b96ee933d727c1` 已由 merge commit `e7cfee14b699b0574abf6899a0291bc9ea706f90` 纳入默认分支；Issue [#62](https://github.com/qzhike/zhiju-business-core/issues/62) 已关闭，远端和本地 Work Item feature branch 已删除。真实 Provider、生产、公开 HTTP、跨模块 E2E 和独立人工验收仍保持 `NOT RUN`。
+
+## IM-03 WI-07 CustomerBaseline 实现边界（2026-08-26）
+
+Issue #63 在已确认 CustomerMaterial 之上实现 CustomerBaseline 草稿、不可变版本条目、Human-only 激活和 Baseline Impact Review，不扩展公共 Catalog。Issue 文字中的 `KNOWN` 按当前领域闭集解释为 `PRESENT/PARTIAL`；`UNKNOWN`、`NOT_PROVIDED` 和 `MISSING_CONFIRMED` 仍保持三个不可互相推导的认知状态。
+
+- `customer_baseline` 是 Project-owned Root，每个 Project 只有一个 identity；`customer_baseline_version` 保存不可变版本内容和精确 `previousVersionRef`；`customer_baseline_item` 保存每个期望材料的状态、精确已确认 CustomerMaterial refs、Decision Ref 和 Justification。
+- `PRESENT/PARTIAL` 必须引用同一 Project 的已确认 CustomerMaterial Version；`NOT_PROVIDED/UNKNOWN` 不得携带材料或缺失确认 Decision；`MISSING_CONFIRMED/NOT_APPLICABLE` 必须携带精确 Decision Ref。冻结的 v1.0 Contract 负责闭集枚举、引用形状和字段类型；Handler 的精确 Ref 查询与 PostgreSQL CHECK 共同裁决跨字段组合，不静默改写公共兼容基线。
+- Agent 可以创建包含 `NOT_PROVIDED/UNKNOWN` 的草稿，但 Agent 请求 `MISSING_CONFIRMED` 返回 `PROJECT_MISSING_CONFIRMATION_REQUIRED`；只有可信 Context 中的 Human 可以激活版本。Root CAS 保证并发激活只有一个成功，Event 保存精确 previous active ref。
+- 激活新版本只移动 Root 的 active pointer，并追加不可变 `customer_baseline_impact_review` 事实。Impact Review 从旧版本的 Reference Edge 快照出发记录受影响的精确 Context/Gap/Plan refs；本切片不原地修改下游对象，也不自动创建 Gap、DeliveryItem、Artifact 或 InformationRequest。
+- V2008 业务表均 FORCE RLS；Root 只开放受控 pointer/CAS 列更新，Version 只开放 DRAFT→CONFIRMED 的受控状态事实，Item/Impact Review 为 INSERT-only。真实 Gap/Plan Process Manager、Provider、公开 HTTP、跨模块 E2E、生产和独立人工 Reference Project 验收继续保持 `NOT RUN`。
+
+WI-07 工作树验证已完成：Contract/Registry、Handler/Repository、V2008 和 Disposable PostgreSQL 均通过；本地手动 probe 实际输出 Agent 缺失确认被拒绝、CB-003 三态、CB-004 激活后旧 Reference Edge 保留 5 条且 Impact Review 为 `STALE/3`。真实下游 Process Manager、Provider、公开 HTTP、跨模块 E2E、生产和独立人工 Reference Project 验收仍保持 `NOT RUN`，等待精确 Git/Issue 交付边界完成。

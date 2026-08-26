@@ -416,3 +416,92 @@ export interface CustomerMaterialDecisionTable {
   recorded_at: Date;
   source_command_id: string;
 }
+
+// IM-03 WI-07 (issue #63): CustomerBaseline keeps Project-scoped epistemic
+// states separate from CustomerMaterial custody. The Root owns only pointers;
+// Version, Item and ImpactReview rows preserve immutable facts.
+export type CustomerBaselineVersionStatus = 'DRAFT' | 'CONFIRMED';
+export type CustomerBaselineItemStatus =
+  'PRESENT' | 'PARTIAL' | 'MISSING_CONFIRMED' | 'NOT_PROVIDED' | 'UNKNOWN' | 'NOT_APPLICABLE';
+export type CustomerBaselineImpactStatus = 'STALE' | 'NO_PRIOR_ACTIVE';
+
+export interface CustomerBaselineTable {
+  customer_baseline_id: string;
+  enterprise_id: string;
+  project_id: string;
+  current_version_id: string;
+  active_version_id: string | null;
+  aggregate_version: Int8Default;
+  created_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  updated_at: Date;
+  last_command_id: string | null;
+  retention_class: string;
+}
+
+export interface CustomerBaselineVersionTable {
+  version_id: string;
+  customer_baseline_id: string;
+  enterprise_id: string;
+  project_id: string;
+  version_no: number;
+  version_status: CustomerBaselineVersionStatus;
+  previous_version_id: string | null;
+  baseline_policy_ref: Json;
+  expectations_payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  proposed_by_principal_id: string;
+  proposed_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  confirmed_by_principal_id: string | null;
+  confirmed_by_actor_snapshot_id: string | null;
+  confirmed_at: Date | null;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface CustomerBaselineItemTable {
+  expectation_id: string;
+  customer_baseline_id: string;
+  version_id: string;
+  enterprise_id: string;
+  project_id: string;
+  expected_material_key: string;
+  material_type: string;
+  expected_title_or_role: string;
+  status: CustomerBaselineItemStatus;
+  customer_material_refs: Json;
+  decision_ref: Json | null;
+  reason: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface CustomerBaselineImpactReviewTable {
+  impact_review_id: string;
+  customer_baseline_id: string;
+  new_version_id: string;
+  previous_active_version_id: string | null;
+  enterprise_id: string;
+  project_id: string;
+  review_snapshot_ref: Json;
+  impact_policy_ref: Json;
+  justification: Json;
+  affected_references: Json;
+  stale_references: Json;
+  impact_status: CustomerBaselineImpactStatus;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}

@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-25
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / PR #75 MERGED / ISSUE #62 CLOSED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #75 MERGED / ISSUE #62 CLOSED`
 
 ## 1. 模块责任
 
@@ -422,3 +422,48 @@ Issue #62 在已接受 SourceMaterial 之上落地 CustomerMaterial 的最小业
 - [PR #75](https://github.com/qzhike/zhiju-business-core/pull/75) 以 commit `3141928df48b3be097ff554bc7b96ee933d727c1` 为 exact head，目标为 `main`；GitHub Actions `verify` 通过后，以 merge commit `e7cfee14b699b0574abf6899a0291bc9ea706f90` 合并。
 - Issue [#62](https://github.com/qzhike/zhiju-business-core/issues/62) 已由合并动作关闭，并已通过 GitHub API 读取为 `closed`；远端 feature branch 和本地已合并 feature branch 均已删除，`main` 已同步到 merge commit。
 - WI-06 的自动化、Disposable PostgreSQL、Provider/生产/公开 HTTP/跨模块 E2E/独立人工 Reference Project 验收边界仍按本节和 Module-Test 的 `PASS`/`NOT RUN` 记录执行。
+
+## 16. IM-03 WI-07 CustomerBaseline 三态缺失与影响评审
+
+Issue #63 在 CustomerMaterial 确认版本之上落地 CustomerBaseline 的最小可交付闭环，复用已冻结的 `project.create_customer_baseline_draft@1.0`、`project.activate_customer_baseline_version@1.0`、`project.get_active_baseline_refs@1.0` 和 `project.CustomerBaselineVersionActivated@1.0`，不新增公共 Catalog Contract。Issue 验收文字中的 `KNOWN` 不是本模块闭集值；实现将其按领域规范映射为 `PRESENT/PARTIAL`，并保留 `UNKNOWN` 的未知语义。
+
+### 16.1 Root、Version、Item 与 Impact Review
+
+- `customer_baseline` 是 Project-owned Aggregate Root。一个 Project 只能有一个 CustomerBaseline identity；Root 保存 `current_version_id`、可空 `active_version_id` 和字符串化 PostgreSQL `bigint aggregate_version`。Root CAS 只允许推进版本和指针，不允许迁移 Enterprise/Project Scope。
+- `customer_baseline_version` 是不可变版本载体。草稿创建 `DRAFT` 版本；Human 激活在同一事务中把当前版本转为 `CONFIRMED`，不修改 payload、policy ref、previous ref 或任何条目内容。旧 active 版本保留为历史事实，新的 active 状态只由 Root pointer 表达。
+- `customer_baseline_item` 使用 `expectation_id` 作为不可变 Item 身份，保存 `status`、`customer_material_refs`、可选 `decision_ref`、`reason` 和条目 payload hash。`PRESENT/PARTIAL` 需要至少一个同 Project、`CONFIRMED` 的 CustomerMaterial Version；`NOT_PROVIDED/UNKNOWN` 需要空材料 refs 且不带 Decision；`MISSING_CONFIRMED/NOT_APPLICABLE` 需要空材料 refs 和精确 Decision Ref。
+- `customer_baseline_impact_review` 是激活产生的 INSERT-only 事实，保存触发的新版本、旧 active 版本、review snapshot、impact policy、受影响 Reference Edge 的脱敏精确快照、`STALE` 影响标记和 payload hash。它不更新 Gap/Plan/Context，也不伪造尚未实现的下游 Process Manager。
+
+### 16.2 Command、权限与幂等
+
+- `project.create_customer_baseline_draft` 必须携带同 Project Scope 的 `projectRef`、非空且 expectation key 唯一的条目集合和精确 `baselinePolicyRef`。首次创建生成 Root/v1；后续创建必须携带当前 active 的精确 `previousVersionRef` 和 Root expected version。Agent 可创建 `NOT_PROVIDED/UNKNOWN` 草稿。
+- Agent 在任何条目请求 `MISSING_CONFIRMED` 时返回 `PROJECT_MISSING_CONFIRMATION_REQUIRED`，不得通过 `actingFor` 改变可信主体；Human 才能提交此状态。Handler 仍要求 `decisionRef`，以免仅凭“没有上传文件”制造确认缺失。
+- `project.activate_customer_baseline_version` 必须携带精确当前 DRAFT Version、Review Snapshot、Impact Policy 和 Justification；只接受可信 `principalKind=HUMAN`。Root CAS 失败返回 `CONCURRENCY_CONFLICT`，不使用 last-write-wins；成功 Event 的 `previousActiveRef` 只在存在旧 active 时出现。
+- `project.get_active_baseline_refs` 只返回 Root 的精确 active VersionedRef 和 aggregate version；没有 active 版本时省略 CustomerBaseline ref，不把 draft/current 候选冒充 active。
+
+### 16.3 Contract、数据库与事务防线
+
+- 冻结的 `enterprise-project@1.0` Contract 对 BaselineExpectation 负责闭集状态枚举、引用形状、字段类型和 `additionalProperties=false`；跨字段的状态/refs/Decision 组合由 Handler 的精确校验与数据库 CHECK 共同执行，不在本 Issue 中静默重写兼容基线。后续若升级公共 Contract 版本，必须单独记录兼容性审批。
+- `V2008__customer_baseline_impact_review.sql` 新增四张业务表并为 Root/Version/Item/Impact Review 配置 Scope mirror、组合外键、不可变触发器、FORCE RLS 和最小 app-role grants。Version/Item/Impact Review 不允许应用删除历史；Root 不允许删除 identity。
+- Draft/Activation 的 Receipt、Audit、Reference Edge、Root/Version/Item/Impact Review 和 `CustomerBaselineVersionActivated` Outbox Event 在一个 EnterpriseProject 事务中提交。Outbox/Event aggregate version 与 Root CAS 精确一致；旧 Version/旧 Reference Edge 不被重写。
+
+### 16.4 失败码与验收边界
+
+WI-07 复用 `PROJECT_HUMAN_ONLY_DENIED`、`CONCURRENCY_CONFLICT`，并使用以下稳定业务错误：
+
+```text
+PROJECT_BASELINE_STATUS_INVALID
+PROJECT_MISSING_CONFIRMATION_REQUIRED
+PROJECT_BASELINE_VERSION_IMMUTABLE
+PROJECT_MULTIPLE_ACTIVE_BASELINES
+PROJECT_BASELINE_VERSION_NOT_FOUND
+```
+
+自动化必须实际覆盖 EP-API-U-001（Agent 缺失确认）、EP-API-C-002（Activated Event 精确 refs/无正文）、EP-API-E-002（CB-004 激活后 CB-003 旧 refs 保留且只追加 stale/impact 事实），并在真实 PostgreSQL 中覆盖 RLS、CHECK、CAS 并发、幂等、不可变和回滚。真实 Gap/Plan/Context Process Manager、Provider、HTTP、跨模块业务 E2E、生产和独立人工 Reference Project 验收仍为 `NOT RUN`。
+
+### 16.5 WI-07 实际验证结果（2026-08-26）
+
+- `pnpm test`：22 个测试文件通过、14 个 PostgreSQL 条件文件在无数据库 URL 时跳过；`351 passed / 215 skipped`。
+- `pnpm persistence:gate`：PostgreSQL `18.6` / Flyway `11.20.3`；17 个 Persistence 文件、`229 passed / 0 failed`；空库迁移、二次 migrate no-op、V2008 应用和容器清理通过。
+- 独立 disposable probe：Agent `MISSING_CONFIRMED` 返回 `PROJECT_MISSING_CONFIRMATION_REQUIRED`；CB-003 输出 `PRESENT/UNKNOWN/NOT_PROVIDED`；CB-004 激活后旧引用 `5` 条保留，Impact Review 输出 `STALE/3`，active version 切换到 CB-004。
+- `pnpm lint`、`pnpm format:check`、`pnpm typecheck`、`pnpm architecture`、`pnpm contracts:check` 均为 `PASS`；公共 Contract 仍为 `200` operations，未扩展公共 Catalog。

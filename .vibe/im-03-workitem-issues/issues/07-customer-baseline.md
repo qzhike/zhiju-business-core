@@ -22,7 +22,11 @@
 - [ ] EP-API-U-001、EP-API-C-002、EP-API-E-002 有实际自动化证据。
 - [ ] 用户可运行缺资料与新旧 Baseline probe，清楚看到三态区别和旧版本未改写。
 
+工作树实现验证（2026-08-26）已完成：Agent 缺失确认、Contract/Handler/DB 三态约束、Human 激活 CAS、CB-003/CB-004 旧引用与 Impact Review 均有自动化证据；disposable probe 实际输出三态、旧引用保留 5 条、`STALE/3` Impact Review。GitHub comment、Issue close 和 branch 删除仍属于后续精确交付步骤。
+
 ## 非目标与 `NOT RUN` 边界
 
 - 不自动创建 Gap、DeliveryItem、Artifact 或 InformationRequest。
 - 下游真实 Impact E2E 在对应模块实现前保持 `NOT RUN`。
+
+实现口径：Issue 验收文字中的 `KNOWN` 沿用领域规范映射为 `PRESENT/PARTIAL`；不向公共 Contract 添加未经审核的 `KNOWN` 闭集值。`UNKNOWN`、`NOT_PROVIDED` 和 `MISSING_CONFIRMED` 保持互不推导，并由 Contract、Handler 和 PostgreSQL CHECK 共同约束。

@@ -34,6 +34,10 @@ import type {
   CustomerMaterialTable,
   CustomerMaterialVersionTable,
   CustomerMaterialDecisionTable,
+  CustomerBaselineTable,
+  CustomerBaselineVersionTable,
+  CustomerBaselineItemTable,
+  CustomerBaselineImpactReviewTable,
 } from './enterprise-business-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
@@ -190,6 +194,12 @@ export interface EnterpriseProjectDb {
   'enterprise_project.customer_material': CustomerMaterialTable;
   'enterprise_project.customer_material_version': CustomerMaterialVersionTable;
   'enterprise_project.customer_material_decision': CustomerMaterialDecisionTable;
+  // IM-03 WI-07 (issue #63): Project-owned CustomerBaseline pointers,
+  // immutable versions/items and append-only impact review facts.
+  'enterprise_project.customer_baseline': CustomerBaselineTable;
+  'enterprise_project.customer_baseline_version': CustomerBaselineVersionTable;
+  'enterprise_project.customer_baseline_item': CustomerBaselineItemTable;
+  'enterprise_project.customer_baseline_impact_review': CustomerBaselineImpactReviewTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';

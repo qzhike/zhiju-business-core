@@ -96,6 +96,12 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'customer_material',
     'customer_material_version',
     'customer_material_decision',
+    // IM-03 WI-07 (issue #63): Project-owned CustomerBaseline lifecycle and
+    // append-only impact review tables.
+    'customer_baseline',
+    'customer_baseline_version',
+    'customer_baseline_item',
+    'customer_baseline_impact_review',
   ],
   task_execution: ['business_probe', 'outbox_probe'],
   artifact: ['business_probe', 'outbox_probe'],
