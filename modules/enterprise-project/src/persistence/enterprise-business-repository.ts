@@ -25,6 +25,9 @@ import type {
   ProjectTable,
   ProjectScopeClaimTable,
   ProjectSnapshotBindingTable,
+  SourceMaterialTable,
+  SourceMaterialOriginTable,
+  SourceMaterialValidationTable,
 } from './enterprise-business-types.js';
 
 export interface EnterpriseInsert {
@@ -212,6 +215,65 @@ export interface ProjectSnapshotBindingInsert {
   boundByActorSnapshotId: string;
   authorizationDecisionId: string;
   sourceCommandId: string;
+}
+
+// IM-03 WI-05 (issue #61): SourceMaterial custody and append-only history
+// write inputs. The handler supplies canonical payload hashes; the database
+// enforces scope, immutability and the promoted validation mirrors.
+export interface SourceMaterialInsert {
+  sourceMaterialId: string;
+  enterpriseId: string;
+  projectId: string;
+  submittedByPrincipalId: string;
+  submittedByRef: unknown;
+  receivedAt: Date;
+  originalName: string;
+  mediaType: string;
+  byteLength: string | number;
+  contentHash: Buffer;
+  stagedObjectRef: string;
+  descriptorPayloadHash: Buffer;
+  duplicateOfSourceMaterialId?: string;
+  retentionClass: string;
+  createdByPrincipalId: string;
+  createdByActorSnapshotId: string;
+  sourceCommandId: string;
+}
+
+export interface SourceMaterialOriginInsert {
+  sourceMaterialOriginId: string;
+  sourceMaterialId: string;
+  enterpriseId: string;
+  projectId: string;
+  originRef: unknown;
+  originRefHash: Buffer;
+  receivedAt: Date;
+  recordedByPrincipalId: string;
+  recordedByActorSnapshotId: string;
+  authorizationDecisionId: string;
+  sourceCommandId: string;
+  recordedAt?: Date;
+}
+
+export interface SourceMaterialValidationInsert {
+  validationId: string;
+  sourceMaterialId: string;
+  enterpriseId: string;
+  projectId: string;
+  validationKind: 'SECURITY' | 'INTEGRITY';
+  outcome: 'PASSED' | 'FAILED';
+  validatedObjectRef: string;
+  validatedContentHash: Buffer;
+  validatedByteLength: string | number;
+  validatorId: string;
+  validatorVersion: string;
+  payload: unknown;
+  payloadHash: Buffer;
+  recordedByPrincipalId: string;
+  recordedByActorSnapshotId: string;
+  authorizationDecisionId: string;
+  sourceCommandId: string;
+  recordedAt?: Date;
 }
 
 export type CasResult<T> =
@@ -1024,5 +1086,187 @@ export class EnterpriseBusinessRepository extends EnterpriseProjectRepository {
       .where('project_id', '=', projectId)
       .where('binding_purpose', '=', bindingPurpose)
       .executeTakeFirst()) as unknown as ProjectSnapshotBindingTable | undefined;
+  }
+
+  // -------------------- source material --------------------
+
+  async insertSourceMaterial(
+    trx: EnterpriseProjectTransaction,
+    insert: SourceMaterialInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.createdByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.source_material')
+      .values({
+        source_material_id: insert.sourceMaterialId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        submitted_by_principal_id: insert.submittedByPrincipalId,
+        submitted_by_ref: JSON.stringify(insert.submittedByRef),
+        received_at: insert.receivedAt,
+        original_name: insert.originalName,
+        media_type: insert.mediaType,
+        byte_length: insert.byteLength,
+        content_hash: insert.contentHash,
+        staged_object_ref: insert.stagedObjectRef,
+        descriptor_payload_hash: insert.descriptorPayloadHash,
+        custody_status: 'RECEIVED',
+        processing_status: 'NOT_PROCESSED',
+        duplicate_of_source_material_id: insert.duplicateOfSourceMaterialId ?? null,
+        accepted_object_ref: null,
+        accepted_at: null,
+        aggregate_version: '1',
+        created_at: new Date(),
+        created_by_principal_id: insert.createdByPrincipalId,
+        created_by_actor_snapshot_id: insert.createdByActorSnapshotId,
+        updated_at: new Date(),
+        last_command_id: insert.sourceCommandId,
+        retention_class: insert.retentionClass,
+      })
+      .execute();
+  }
+
+  async getSourceMaterialById(
+    trx: EnterpriseProjectTransaction,
+    sourceMaterialId: string,
+  ): Promise<SourceMaterialTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.source_material')
+      .selectAll()
+      .where('source_material_id', '=', sourceMaterialId)
+      .executeTakeFirst()) as unknown as SourceMaterialTable | undefined;
+  }
+
+  async findSourceMaterialsByHash(
+    trx: EnterpriseProjectTransaction,
+    enterpriseId: string,
+    projectId: string,
+    contentHash: Buffer,
+  ): Promise<SourceMaterialTable[]> {
+    return (await trx
+      .selectFrom('enterprise_project.source_material')
+      .selectAll()
+      .where('enterprise_id', '=', enterpriseId)
+      .where('project_id', '=', projectId)
+      .where('content_hash', '=', contentHash)
+      .orderBy('received_at', 'asc')
+      .orderBy('source_material_id', 'asc')
+      .execute()) as unknown as SourceMaterialTable[];
+  }
+
+  async casSourceMaterialAccepted(
+    trx: EnterpriseProjectTransaction,
+    sourceMaterialId: string,
+    expectedVersion: string,
+    acceptedObjectRef: string,
+    acceptedAt: Date,
+  ): Promise<CasResult<SourceMaterialTable>> {
+    const expected = BigInt(expectedVersion);
+    const next = (expected + 1n).toString();
+    const updated = await trx
+      .updateTable('enterprise_project.source_material')
+      .set({
+        custody_status: 'ACCEPTED',
+        accepted_object_ref: acceptedObjectRef,
+        accepted_at: acceptedAt,
+        aggregate_version: next,
+        updated_at: new Date(),
+      })
+      .where('source_material_id', '=', sourceMaterialId)
+      .where('aggregate_version', '=', expectedVersion)
+      .where('custody_status', '=', 'RECEIVED')
+      .executeTakeFirst();
+    if (Number(updated.numUpdatedRows) === 1) {
+      const row = await this.getSourceMaterialById(trx, sourceMaterialId);
+      if (!row) throw new Error('casSourceMaterialAccepted: row disappeared after CAS');
+      return { ok: true, nextVersion: next, row };
+    }
+    const current = await this.getSourceMaterialById(trx, sourceMaterialId);
+    if (!current) {
+      throw new EnterprisePersistenceError(
+        ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH,
+        'casSourceMaterialAccepted: target not found',
+      );
+    }
+    return { ok: false, current: asAggregateVersion(current.aggregate_version) };
+  }
+
+  async insertSourceMaterialOrigin(
+    trx: EnterpriseProjectTransaction,
+    insert: SourceMaterialOriginInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.recordedByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.source_material_origin')
+      .values({
+        source_material_origin_id: insert.sourceMaterialOriginId,
+        source_material_id: insert.sourceMaterialId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        origin_ref: JSON.stringify(insert.originRef),
+        origin_ref_hash: insert.originRefHash,
+        received_at: insert.receivedAt,
+        recorded_by_principal_id: insert.recordedByPrincipalId,
+        recorded_by_actor_snapshot_id: insert.recordedByActorSnapshotId,
+        authorization_decision_id: insert.authorizationDecisionId,
+        source_command_id: insert.sourceCommandId,
+        recorded_at: insert.recordedAt ?? new Date(),
+      })
+      .execute();
+  }
+
+  async getSourceMaterialOriginBySourceMaterialId(
+    trx: EnterpriseProjectTransaction,
+    sourceMaterialId: string,
+  ): Promise<SourceMaterialOriginTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.source_material_origin')
+      .selectAll()
+      .where('source_material_id', '=', sourceMaterialId)
+      .orderBy('recorded_at', 'asc')
+      .orderBy('source_material_origin_id', 'asc')
+      .executeTakeFirst()) as unknown as SourceMaterialOriginTable | undefined;
+  }
+
+  async insertSourceMaterialValidation(
+    trx: EnterpriseProjectTransaction,
+    insert: SourceMaterialValidationInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.recordedByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.source_material_validation')
+      .values({
+        validation_id: insert.validationId,
+        source_material_id: insert.sourceMaterialId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        validation_kind: insert.validationKind,
+        outcome: insert.outcome,
+        validated_object_ref: insert.validatedObjectRef,
+        validated_content_hash: insert.validatedContentHash,
+        validated_byte_length: insert.validatedByteLength,
+        validator_id: insert.validatorId,
+        validator_version: insert.validatorVersion,
+        payload: JSON.stringify(insert.payload),
+        payload_hash: insert.payloadHash,
+        canonicalization_version: '1',
+        recorded_by_principal_id: insert.recordedByPrincipalId,
+        recorded_by_actor_snapshot_id: insert.recordedByActorSnapshotId,
+        authorization_decision_id: insert.authorizationDecisionId,
+        source_command_id: insert.sourceCommandId,
+        recorded_at: insert.recordedAt ?? new Date(),
+      })
+      .execute();
+  }
+
+  async getSourceMaterialValidationById(
+    trx: EnterpriseProjectTransaction,
+    validationId: string,
+  ): Promise<SourceMaterialValidationTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.source_material_validation')
+      .selectAll()
+      .where('validation_id', '=', validationId)
+      .executeTakeFirst()) as unknown as SourceMaterialValidationTable | undefined;
   }
 }

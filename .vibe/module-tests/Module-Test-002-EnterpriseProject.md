@@ -2,7 +2,7 @@
 
 版本：v0.4
 日期：2026-08-26
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / EXACT-HEAD DELIVERY IN PROGRESS`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / EXACT-HEAD DELIVERY IN PROGRESS`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -47,6 +47,21 @@
 | EP-PG-004 | Integration | 不同 owner version 写同路径/同 target Reference Edge | 两行成功；同精确版本重复为 `23505` | 两版本成功；精确重复为 `23505` | `PASS` |
 
 业务 Handler、Projection、受控 Capability 和真实业务 PostgreSQL 仍为 `NOT RUN`；IM-02 技术表与 IM-03 WI-02 事务基础的既有 `PASS` 不提升本模块业务状态。
+
+## IM-03 WI-05 SourceMaterial 登记、验证与接受用例
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI05-P-001` | Persistence | 同一 Project 登记两份相同 bytes/hash、不同 ExternalRef 的材料 | 两个不同 SourceMaterial Root 与 Origin 均保留；第二个可带 `duplicate_of`，不合并/删除第一份 | PostgreSQL 18.6：2 个 Root、2 个 Origin，第二个 duplicate 指向第一个 | `PASS` |
+| `EP-WI05-P-002` | Persistence | 为一份 RECEIVED SourceMaterial 写入通过的 Security/Integrity Validation，再以精确 Ref/Hash/Locator 接受 | Root CAS 到 `ACCEPTED`、aggregate version 连续；Receipt/Audit/Reference Edge/最小 `SourceMaterialAccepted` Outbox 同事务提交 | PostgreSQL 18.6：Root `RECEIVED/1 -> ACCEPTED/2`；1 Receipt、1 Audit、3 Edge、1 最小 Outbox | `PASS` |
+| `EP-WI05-P-003` | Persistence | 缺失、FAILED、跨 Project、错误 validation id/hash、被检 Hash/长度/Locator 不匹配 | 返回稳定拒绝；SourceMaterial 不变；事务不产生 `SourceMaterialAccepted` Event | PostgreSQL 18.6：缺失/FAILED/Locator/Ref Hash 均 `PROJECT_SOURCE_NOT_TRUSTED`；Root 保持 `RECEIVED/1`；Event `0` | `PASS` |
+| `EP-WI05-P-004` | Persistence | 登记后直接 UPDATE Root 的原始字段、Origin 或 Validation；尝试 DELETE 历史 | PostgreSQL/触发器/ACL 拒绝；原始 bytes/hash/origin 与历史行保持不变 | PostgreSQL 18.6：原始列无 UPDATE 权限；Root DELETE、Origin/Validation UPDATE/DELETE 均 `42501` | `PASS` |
+| `EP-WI05-P-005` | Persistence | 同一 accept 幂等键相同 payload 重放；同 key 改变 accepted locator 或 validation ref | 相同 hash 返回 `DUPLICATE` 且不产生第二 Event；不同 hash 返回 `IDEMPOTENCY_PAYLOAD_CONFLICT` 且首个 Receipt 不变 | PostgreSQL 18.6：首个 `COMMITTED`，重放 `DUPLICATE`，改 payload `IDEMPOTENCY_PAYLOAD_CONFLICT`，Event 仍 `1` | `PASS` |
+| `EP-WI05-P-006` | Persistence | Project A Context 使用 Project B 的 `projectRef`/SourceMaterial/Validation Ref，或未被 allowed Project 授权 | Command/Repository/RLS 拒绝，不跨 Project 搜索替代对象，不泄漏 B 的原始字段 | PostgreSQL 18.6：跨 Project Command `PROJECT_SOURCE_NOT_TRUSTED`；A Context 查询 B 返回 `0` 行；Event `0` | `PASS` |
+| `EP-WI05-U-001` | Unit | Descriptor 的 submittedBy、ExternalRef、ContentHash、ObjectLocator 或 acceptedAt 形状非法 | 在写入前以安全错误拒绝，不打开部分写入事务 | `pnpm exec vitest run tests/persistence/enterprise-project-scope.test.ts --no-file-parallelism`：Unit 用例 PASS；非法 byteLength 返回 `PROJECT_MATERIAL_SOURCE_INVALID` | `PASS` |
+| `EP-WI05-M-001` | Manual | 脱敏 Project 中登记两份相同 Hash 的不同来源材料，分别查看 Root/Origin/Validation/Outbox | 用户能确认两份来源均存在，仅一份变为 ACCEPTED；Event 不含 `originalName`/客户原文；真实 Feishu/Ceph/OpenBao 仍标记 `NOT RUN` | 尚未执行 | `NOT RUN` |
+
+本切片的自动化只能证明当前代码、迁移和 Disposable PostgreSQL 的范围；上述 EP-WI05 Unit/Persistence 已在 PostgreSQL 18.6 / Flyway 11.20.3 gate 中通过。真实飞书下载、恶意文件扫描、Ceph/OpenBao、对象 Staging/Link/Orphan Cleanup、公开 HTTP、跨模块 CustomerMaterial 流程和人工 Reference Project 验收继续保持 `NOT RUN`。测试运行后不得保留临时脚本、临时数据或 gate 容器。
 
 ## IM-03 WI-02 Application/Persistence 用例
 

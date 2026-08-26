@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-25
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / USER CONFIRMATION REQUIRED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / USER CONFIRMATION REQUIRED`
 
 ## 1. 模块责任
 
@@ -359,3 +359,32 @@ PROJECT_OBJECT_SCOPE_MISMATCH
 ```
 
 `Project` 表通过 BEFORE UPDATE trigger 阻止任何对 `enterprise_id` / `project_id` / `member_policy_*` 列的写；`ProjectSnapshotBinding` 通过 `REVOKE UPDATE, DELETE` 给 app role 实现不可写。Project Aggregate CAS 通过 `casProject` 仅作用 `aggregate_version`，不接受任何对 Scope 列的"迁移"语义。WI-04 业务 DDL、Repository、Handler 由 `tests/persistence/enterprise-project-scope.test.ts` 在真实 PostgreSQL 上覆盖；用户手动 Probe 在 WI-05/06 之前保持 `NOT RUN`，业务实现可由 Issue #60 评审决定进入下一步 PR。
+
+## 14. IM-03 WI-05 SourceMaterial 登记、验证与接受
+
+Issue #61 在 WI-04 的 Project Scope 基础上落地 SourceMaterial 的最小业务闭环。该切片不新增公共 Catalog Contract；复用第 3、5 节已经冻结的 `project.register_source_material@1.0`、`project.accept_source_material@1.0` 和 `project.SourceMaterialAccepted@1.0`。
+
+### 14.1 状态与持久化形态
+
+- 登记命令创建一个 Project-owned `source_material` Root，初始 `custody_status=RECEIVED`、`processing_status=NOT_PROCESSED`、`aggregate_version=1`；它只表示系统收到了一份原始材料，不表示业务分类或客户事实已经确认。
+- Root 保存 `enterprise_id + project_id`、`original_name`、`media_type`、`byte_length`、原始 bytes 的 `content_hash`、`staged_object_ref`、`retention_class` 和不可变 descriptor payload hash。`original_name` 只留在受控持久化记录中，不进入普通 Result/Event。
+- `source_material_origin` 是每次来源关系的 INSERT-only 历史，保存完整 `ExternalRef`、来源引用的 canonical hash、Project Scope 和接收时间。来源撤回不物理删除该记录或 SourceMaterial。
+- `source_material_validation` 是每次 Security/Integrity 检验的 INSERT-only 事实，保存 `validation_id`、`validation_kind`、`outcome`、被检 ObjectLocator、被检 bytes 的 ContentHash/长度、validator 版本、脱敏 canonical payload 和 payload hash。它不保存客户原文或 bytes。
+- 同一 Project 内相同 `content_hash` 的新登记保留新的 Root 和 Origin；Root 可记录 `duplicate_of_source_material_id` 作为追溯提示，但不合并、覆盖或删除原来源。
+
+### 14.2 接受边界
+
+`project.accept_source_material` 必须携带精确 `expectedAggregateVersion`，并在一个 EnterpriseProject 事务中完成：读取受 RLS 保护的 Root；校验非空 Security Validation Ref 集合和 Integrity Validation Ref；逐一验证 `CONTENT_ADDRESSED<ValidationResult>` Ref 的 object id、Project/Enterprise Scope、SHA-256/1 payload hash；再确认持久化 Validation 属于该 SourceMaterial、结果为 `PASSED`、被检 ObjectLocator 等于 `acceptedObjectRef`、被检 ContentHash/长度等于 Root。只有全部条件满足时才执行 Root CAS 到 `ACCEPTED`，否则返回 `PROJECT_SOURCE_NOT_TRUSTED`/`PROJECT_MATERIAL_SOURCE_INVALID` 的安全拒绝，不能写接受 Event。
+
+已 `ACCEPTED` 的 Root 再次使用新的幂等键接受时返回 `PROJECT_SOURCE_ALREADY_ACCEPTED`；同一幂等键和相同请求 hash 重放由 WI-02 Receipt 返回 `DUPLICATE`，同一幂等键和不同请求 hash 仍返回 `IDEMPOTENCY_PAYLOAD_CONFLICT`。CAS 失败不使用 last-write-wins。
+
+### 14.3 不可变与安全边界
+
+- Root 的 Scope、Origin 关系、原始文件名、MediaType、ByteLength、ContentHash、StagedObjectLocator、RetentionClass 和 Duplicate 关系在登记后不可原地修改；Root 仅开放受控状态/Accepted Locator/AcceptedAt/aggregate version 更新。
+- Origin 与 Validation 表对 `enterprise_project_app` 撤销 UPDATE/DELETE，并由触发器/约束保护 Scope、Hash 长度和枚举值；Root 撤销 DELETE，避免接受链破坏审计历史。
+- 三张业务表均启用 FORCE RLS，所有读写使用 `context_allows_project(enterprise_id, project_id)`；跨 Project Ref、Validation Scope、SourceMaterial Scope 和 RLS 可见性不一致时不得搜索或替代另一个对象。
+- `SourceMaterialAccepted` Outbox payload 仅包含 `sourceMaterialRef`（原始 ContentHash）、`projectRef`、`originRef` 和 `acceptedAt`，另带技术表要求的 promoted Scope；不得包含 `originalName`、客户原文、bytes、Staged ObjectLocator 或完整 Validation payload。该 Event 只触发后续分类，不自动创建 CustomerMaterial、Baseline、Fact 或 Evidence。
+
+### 14.4 WI-05 失败码
+
+本切片复用 `PROJECT_SOURCE_CONTENT_IMMUTABLE`、`PROJECT_SOURCE_NOT_TRUSTED`、`PROJECT_MATERIAL_SOURCE_INVALID`，并新增 `PROJECT_SOURCE_ALREADY_ACCEPTED`。新增错误只用于稳定业务拒绝，不携带原始 payload、ObjectLocator 或敏感文件名。

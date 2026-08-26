@@ -28,6 +28,9 @@ import type {
   ProjectTable,
   ProjectScopeClaimTable,
   ProjectSnapshotBindingTable,
+  SourceMaterialTable,
+  SourceMaterialOriginTable,
+  SourceMaterialValidationTable,
 } from './enterprise-business-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
@@ -174,6 +177,11 @@ export interface EnterpriseProjectDb {
   'enterprise_project.project': ProjectTable;
   'enterprise_project.project_scope_claim': ProjectScopeClaimTable;
   'enterprise_project.project_snapshot_binding': ProjectSnapshotBindingTable;
+  // IM-03 WI-05 (issue #61): Project-owned source custody root and its
+  // append-only origin/validation history.
+  'enterprise_project.source_material': SourceMaterialTable;
+  'enterprise_project.source_material_origin': SourceMaterialOriginTable;
+  'enterprise_project.source_material_validation': SourceMaterialValidationTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';
