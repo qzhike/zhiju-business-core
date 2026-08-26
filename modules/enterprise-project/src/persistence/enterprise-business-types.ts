@@ -193,7 +193,7 @@ export interface ProjectTable {
   status: ProjectStatus;
   member_policy_ref: Json;
   member_policy_version_id: string;
-  member_policy_payload_hash: Buffer;
+  member_policy_payload_hash: Buffer | null;
   aggregate_version: Int8Default;
   created_at: Date;
   created_by_principal_id: string;
@@ -246,7 +246,7 @@ export interface ProjectSnapshotBindingTable {
   regulatory_profile_version_hash: Buffer | null;
   member_policy_ref: Json;
   member_policy_version_id: string;
-  member_policy_payload_hash: Buffer;
+  member_policy_payload_hash: Buffer | null;
   payload_hash: Buffer;
   canonicalization_version: string;
   bound_at: Date;

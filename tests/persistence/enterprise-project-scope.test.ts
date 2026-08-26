@@ -13,6 +13,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { sql } from 'kysely';
 import {
   createEnterpriseProjectDatabase,
   digestCanonicalPayload,
@@ -25,6 +26,7 @@ import {
   handleEnterpriseQmsCreateRevision,
   handleEnterpriseQmsActivateRevision,
   handleValidateObjectScope,
+  withEnterpriseProjectTransaction,
   PROJECT_PROJECT_DISPLAY_CODE_CONFLICT,
   PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN,
   PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
@@ -34,11 +36,7 @@ import {
   type CommandResult,
   type EnterpriseProjectTransactionContext,
 } from '@zhiju/enterprise-project';
-import {
-  newUuidV7,
-  type CanonicalJsonObject,
-  type UuidV7,
-} from '@zhiju/shared-kernel';
+import { newUuidV7, type CanonicalJsonObject, type UuidV7 } from '@zhiju/shared-kernel';
 import type { Common } from '@zhiju/contracts';
 
 const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
@@ -141,7 +139,13 @@ function versionedRef<T extends string>(
   objectId: string,
   versionId: string,
   enterpriseId = currentEnterpriseId,
-): { kind: 'VERSIONED'; objectType: T; objectId: string; versionId: string; scope: Common.ScopeRef } {
+): {
+  kind: 'VERSIONED';
+  objectType: T;
+  objectId: string;
+  versionId: string;
+  scope: Common.ScopeRef;
+} {
   return {
     kind: 'VERSIONED',
     objectType,
@@ -417,8 +421,9 @@ async function seedEnterpriseAndStartFixtures(
   };
 }
 
-describe.skipIf(!gateEnabled).sequential(
+describe.skipIf(!gateEnabled)(
   'EnterpriseProject ProjectScope vertical slice (real PostgreSQL, IM-03 WI-04)',
+  { concurrent: false },
   () => {
     let admin: pg.Client;
     let pool: pg.Pool;
@@ -486,7 +491,11 @@ describe.skipIf(!gateEnabled).sequential(
                 fixtures.enterpriseProfileSnapshotId,
                 fixtures.enterpriseProfilePayloadHash,
               ),
-              qmsConfigurationRef: versionedRef('QMSConfiguration', fixtures.qmsConfigurationId, fixtures.qmsConfigurationRevisionId),
+              qmsConfigurationRef: versionedRef(
+                'QMSConfiguration',
+                fixtures.qmsConfigurationId,
+                fixtures.qmsConfigurationRevisionId,
+              ),
               productScopeSnapshotRef: snapshotRef(
                 'ProductScopeSnapshot',
                 fixtures.productScopeSnapshotId,
@@ -515,8 +524,11 @@ describe.skipIf(!gateEnabled).sequential(
       const root = await admin.query<{
         aggregate_version: string;
         member_policy_version_id: string;
+        member_policy_payload_hash: Buffer | null;
       }>(
-        `SELECT aggregate_version::text, member_policy_version_id::text
+        `SELECT aggregate_version::text,
+                member_policy_version_id::text,
+                member_policy_payload_hash
            FROM enterprise_project.project
           WHERE project_id = $1::uuid`,
         [projectId],
@@ -524,6 +536,7 @@ describe.skipIf(!gateEnabled).sequential(
       expect(root.rows[0]).toMatchObject({
         aggregate_version: '1',
         member_policy_version_id: memberPolicy.versionId,
+        member_policy_payload_hash: null,
       });
     });
 
@@ -536,64 +549,54 @@ describe.skipIf(!gateEnabled).sequential(
       const ctx = contextFor(enterpriseId);
       const fixtures = await seedEnterpriseAndStartFixtures(db(), enterpriseId);
       const memberPolicy = versionedRef('Policy', newUuidV7(), newUuidV7());
-      const base = payloadEnvelope(
-        'p002-create-a',
-        {
-          enterpriseRef: objectRef('Enterprise' as const, enterpriseId),
-          displayCode: 'WI04-P002',
-          title: 'P002-A',
-          objective: 'first',
-          startSnapshot: {
-            enterpriseProfileSnapshotRef: snapshotRef(
-              'EnterpriseProfileSnapshot',
-              fixtures.enterpriseProfileSnapshotId,
-              fixtures.enterpriseProfilePayloadHash,
-            ),
-            qmsConfigurationRef: versionedRef('QMSConfiguration', fixtures.qmsConfigurationId, fixtures.qmsConfigurationRevisionId),
-            productScopeSnapshotRef: snapshotRef(
-              'ProductScopeSnapshot',
-              fixtures.productScopeSnapshotId,
-              fixtures.productScopePayloadHash,
-            ),
-          },
-          memberPolicyRef: memberPolicy,
-        },
-        { idempotencyKey: 'p002-create-a' },
-      );
-      const first = await handleCreateProject(db(), ctx, base);
-      expect(first.status).toBe('COMMITTED');
-      const dup = await handleCreateProject(
-        db(),
-        ctx,
-        payloadEnvelope(
-          'p002-create-b',
-          {
-            enterpriseRef: objectRef('Enterprise' as const, enterpriseId),
-            displayCode: 'WI04-P002',
-            title: 'P002-B',
-            objective: 'second',
-            startSnapshot: {
-              enterpriseProfileSnapshotRef: snapshotRef(
-                'EnterpriseProfileSnapshot',
-                fixtures.enterpriseProfileSnapshotId,
-                fixtures.enterpriseProfilePayloadHash,
-              ),
-              qmsConfigurationRef: versionedRef('QMSConfiguration', fixtures.qmsConfigurationId, fixtures.qmsConfigurationRevisionId),
-              productScopeSnapshotRef: snapshotRef(
-                'ProductScopeSnapshot',
-                fixtures.productScopeSnapshotId,
-                fixtures.productScopePayloadHash,
-              ),
-            },
-            memberPolicyRef: memberPolicy,
-          },
-          { idempotencyKey: 'p002-create-b' },
+      const startSnapshot = {
+        enterpriseProfileSnapshotRef: snapshotRef(
+          'EnterpriseProfileSnapshot',
+          fixtures.enterpriseProfileSnapshotId,
+          fixtures.enterpriseProfilePayloadHash,
         ),
-      );
+        qmsConfigurationRef: versionedRef(
+          'QMSConfiguration',
+          fixtures.qmsConfigurationId,
+          fixtures.qmsConfigurationRevisionId,
+        ),
+        productScopeSnapshotRef: snapshotRef(
+          'ProductScopeSnapshot',
+          fixtures.productScopeSnapshotId,
+          fixtures.productScopePayloadHash,
+        ),
+      };
+      const createProject = (key: string, displayCode: string, title: string, objective: string) =>
+        handleCreateProject(
+          db(),
+          ctx,
+          payloadEnvelope(
+            key,
+            {
+              enterpriseRef: objectRef('Enterprise' as const, enterpriseId),
+              displayCode,
+              title,
+              objective,
+              startSnapshot,
+              memberPolicyRef: memberPolicy,
+            },
+            { idempotencyKey: key },
+          ),
+        );
+      const first = await createProject('p002-create-a', 'WI04-P002', 'P002-A', 'first');
+      expect(first.status).toBe('COMMITTED');
+      const dup = await createProject('p002-create-b', 'WI04-P002', 'P002-B', 'second');
       expect(dup.status).toBe('REJECTED');
       if (dup.status === 'REJECTED') {
         expect(dup.errorCode).toBe(PROJECT_PROJECT_DISPLAY_CODE_CONFLICT);
       }
+      const afterDuplicate = await createProject(
+        'p002-create-c',
+        'WI04-P002-C',
+        'P002-C',
+        'subsequent command can commit after duplicate rejection',
+      );
+      expect(afterDuplicate.status).toBe('COMMITTED');
     });
 
     // ============================================================
@@ -604,16 +607,10 @@ describe.skipIf(!gateEnabled).sequential(
       const ctx = contextFor(ENTERPRISE_A);
       const ownFixtures = await seedEnterpriseAndStartFixtures(db(), ENTERPRISE_A);
       currentEnterpriseId = ENTERPRISE_B;
-      const ctxB = contextFor(ENTERPRISE_B);
-      await seedEnterpriseAndStartFixtures(db(), ENTERPRISE_B);
+      const foreignFixtures = await seedEnterpriseAndStartFixtures(db(), ENTERPRISE_B);
       currentEnterpriseId = ENTERPRISE_A;
       // Reference Enterprise B's profile snapshot from Enterprise A's start:
       const memberPolicy = versionedRef('Policy', newUuidV7(), newUuidV7());
-      // The Profile snapshot of Enterprise B does not exist in this
-      // fixture because we seeded Enterprise B separately. The Repository
-      // helper must still see a different enterprise_id on the row and
-      // reject the startSnapshot scope mismatch. Simulate by passing an
-      // Enterprise B-shaped digest that does not match the stored hash.
       let caught: unknown = null;
       try {
         await handleCreateProject(
@@ -634,14 +631,15 @@ describe.skipIf(!gateEnabled).sequential(
                   // either via the up-front scope mirror or via the
                   // database-mirror trigger; both lead to
                   // PROJECT_START_SNAPSHOT_SCOPE_MISMATCH.
-                  ownFixtures.enterpriseProfileSnapshotId,
-                  ownFixtures.enterpriseProfilePayloadHash,
+                  foreignFixtures.enterpriseProfileSnapshotId,
+                  foreignFixtures.enterpriseProfilePayloadHash,
+                  ENTERPRISE_B,
                 ),
                 qmsConfigurationRef: versionedRef(
                   'QMSConfiguration',
                   ownFixtures.qmsConfigurationId,
                   ownFixtures.qmsConfigurationRevisionId,
-                  ownFixtures.qmsConfigurationRevisionHash,
+                  ENTERPRISE_A,
                 ),
                 productScopeSnapshotRef: snapshotRef(
                   'ProductScopeSnapshot',
@@ -659,9 +657,6 @@ describe.skipIf(!gateEnabled).sequential(
       }
       expect(caught).toBeInstanceOf(EnterpriseBusinessError);
       expect((caught as EnterpriseBusinessError).code).toBe(PROJECT_START_SNAPSHOT_SCOPE_MISMATCH);
-      // Silence unused-context lint while keeping ctxB as the future
-      // extension hook for the cross-Enterprise fixture.
-      expect(ctxB.enterpriseId).toBe(ENTERPRISE_B);
     });
 
     // ============================================================
@@ -694,7 +689,11 @@ describe.skipIf(!gateEnabled).sequential(
                   scope: { enterpriseId },
                   contentHash: TEST_CONTENT_HASH,
                 },
-                qmsConfigurationRef: versionedRef('QMSConfiguration', fixtures.qmsConfigurationId, fixtures.qmsConfigurationRevisionId),
+                qmsConfigurationRef: versionedRef(
+                  'QMSConfiguration',
+                  fixtures.qmsConfigurationId,
+                  fixtures.qmsConfigurationRevisionId,
+                ),
                 productScopeSnapshotRef: snapshotRef(
                   'ProductScopeSnapshot',
                   fixtures.productScopeSnapshotId,
@@ -724,45 +723,44 @@ describe.skipIf(!gateEnabled).sequential(
       const ctx = contextFor(enterpriseId);
       const fixtures = await seedEnterpriseAndStartFixtures(db(), enterpriseId);
       const memberPolicy = versionedRef('Policy', newUuidV7(), newUuidV7());
-      let caught: unknown = null;
-      try {
-        await handleCreateProject(
-          db(),
-          ctx,
-          payloadEnvelope(
-            'p005-incomplete',
-            {
-              enterpriseRef: objectRef('Enterprise' as const, enterpriseId),
-              displayCode: 'WI04-P005',
-              title: 'Incomplete',
-              objective: 'attempt',
-              startSnapshot: {
-                enterpriseProfileSnapshotRef: snapshotRef(
-                  'EnterpriseProfileSnapshot',
-                  // Use a non-existent id so the up-front shape check
-                  // accepts the ref but the handler's Repository lookup
-                  // fails; the handler then routes the rejection through
-                  // PROJECT_START_SNAPSHOT_INCOMPLETE.
-                  '00000000-0000-7000-8000-000000000000',
-                  '0'.repeat(64),
-                ),
-                qmsConfigurationRef: versionedRef('QMSConfiguration', fixtures.qmsConfigurationId, fixtures.qmsConfigurationRevisionId),
-                productScopeSnapshotRef: snapshotRef(
-                  'ProductScopeSnapshot',
-                  fixtures.productScopeSnapshotId,
-                  fixtures.productScopePayloadHash,
-                ),
-              },
-              memberPolicyRef: memberPolicy,
+      const result = await handleCreateProject(
+        db(),
+        ctx,
+        payloadEnvelope(
+          'p005-incomplete',
+          {
+            enterpriseRef: objectRef('Enterprise' as const, enterpriseId),
+            displayCode: 'WI04-P005',
+            title: 'Incomplete',
+            objective: 'attempt',
+            startSnapshot: {
+              enterpriseProfileSnapshotRef: snapshotRef(
+                'EnterpriseProfileSnapshot',
+                // The shape is valid, but no persisted row has this exact
+                // snapshot id/hash pair, so the Command returns REJECTED.
+                '00000000-0000-7000-8000-000000000000',
+                '0'.repeat(64),
+              ),
+              qmsConfigurationRef: versionedRef(
+                'QMSConfiguration',
+                fixtures.qmsConfigurationId,
+                fixtures.qmsConfigurationRevisionId,
+              ),
+              productScopeSnapshotRef: snapshotRef(
+                'ProductScopeSnapshot',
+                fixtures.productScopeSnapshotId,
+                fixtures.productScopePayloadHash,
+              ),
             },
-            { idempotencyKey: 'p005-incomplete' },
-          ),
-        );
-      } catch (error) {
-        caught = error;
+            memberPolicyRef: memberPolicy,
+          },
+          { idempotencyKey: 'p005-incomplete' },
+        ),
+      );
+      expect(result.status).toBe('REJECTED');
+      if (result.status === 'REJECTED') {
+        expect(result.errorCode).toBe(PROJECT_START_SNAPSHOT_SCOPE_MISMATCH);
       }
-      expect(caught).toBeInstanceOf(EnterpriseBusinessError);
-      expect((caught as EnterpriseBusinessError).code).toBe(PROJECT_START_SNAPSHOT_SCOPE_MISMATCH);
     });
 
     // ============================================================
@@ -791,7 +789,11 @@ describe.skipIf(!gateEnabled).sequential(
                   fixtures.enterpriseProfileSnapshotId,
                   fixtures.enterpriseProfilePayloadHash,
                 ),
-                qmsConfigurationRef: versionedRef('QMSConfiguration', fixtures.qmsConfigurationId, fixtures.qmsConfigurationRevisionId),
+                qmsConfigurationRef: versionedRef(
+                  'QMSConfiguration',
+                  fixtures.qmsConfigurationId,
+                  fixtures.qmsConfigurationRevisionId,
+                ),
                 productScopeSnapshotRef: snapshotRef(
                   'ProductScopeSnapshot',
                   fixtures.productScopeSnapshotId,
@@ -840,7 +842,11 @@ describe.skipIf(!gateEnabled).sequential(
                 fixtures.enterpriseProfileSnapshotId,
                 fixtures.enterpriseProfilePayloadHash,
               ),
-              qmsConfigurationRef: versionedRef('QMSConfiguration', fixtures.qmsConfigurationId, fixtures.qmsConfigurationRevisionId),
+              qmsConfigurationRef: versionedRef(
+                'QMSConfiguration',
+                fixtures.qmsConfigurationId,
+                fixtures.qmsConfigurationRevisionId,
+              ),
               productScopeSnapshotRef: snapshotRef(
                 'ProductScopeSnapshot',
                 fixtures.productScopeSnapshotId,
@@ -896,7 +902,11 @@ describe.skipIf(!gateEnabled).sequential(
                 fixtures.enterpriseProfileSnapshotId,
                 fixtures.enterpriseProfilePayloadHash,
               ),
-              qmsConfigurationRef: versionedRef('QMSConfiguration', fixtures.qmsConfigurationId, fixtures.qmsConfigurationRevisionId),
+              qmsConfigurationRef: versionedRef(
+                'QMSConfiguration',
+                fixtures.qmsConfigurationId,
+                fixtures.qmsConfigurationRevisionId,
+              ),
               productScopeSnapshotRef: snapshotRef(
                 'ProductScopeSnapshot',
                 fixtures.productScopeSnapshotId,
@@ -947,7 +957,7 @@ describe.skipIf(!gateEnabled).sequential(
       const fixturesB = await seedEnterpriseAndStartFixtures(db(), enterpriseB);
       currentEnterpriseId = enterpriseA;
       const memberPolicyA = versionedRef('Policy', newUuidV7(), newUuidV7());
-      const memberPolicyB = versionedRef('Policy', newUuidV7(), newUuidV7());
+      const memberPolicyB = versionedRef('Policy', newUuidV7(), newUuidV7(), enterpriseB);
       const first = await handleCreateProject(
         db(),
         ctxA,
@@ -968,7 +978,7 @@ describe.skipIf(!gateEnabled).sequential(
                 'QMSConfiguration',
                 fixturesA.qmsConfigurationId,
                 fixturesA.qmsConfigurationRevisionId,
-                fixturesA.qmsConfigurationRevisionHash,
+                enterpriseA,
               ),
               productScopeSnapshotRef: snapshotRef(
                 'ProductScopeSnapshot',
@@ -982,6 +992,7 @@ describe.skipIf(!gateEnabled).sequential(
         ),
       );
       expect(first.status).toBe('COMMITTED');
+      currentEnterpriseId = enterpriseB;
       const second = await handleCreateProject(
         db(),
         ctxB,
@@ -1002,7 +1013,7 @@ describe.skipIf(!gateEnabled).sequential(
                 'QMSConfiguration',
                 fixturesB.qmsConfigurationId,
                 fixturesB.qmsConfigurationRevisionId,
-                fixturesB.qmsConfigurationRevisionHash,
+                enterpriseB,
               ),
               productScopeSnapshotRef: snapshotRef(
                 'ProductScopeSnapshot',
@@ -1044,7 +1055,11 @@ describe.skipIf(!gateEnabled).sequential(
                   fixtures.enterpriseProfileSnapshotId,
                   fixtures.enterpriseProfilePayloadHash,
                 ),
-                qmsConfigurationRef: versionedRef('QMSConfiguration', fixtures.qmsConfigurationId, fixtures.qmsConfigurationRevisionId),
+                qmsConfigurationRef: versionedRef(
+                  'QMSConfiguration',
+                  fixtures.qmsConfigurationId,
+                  fixtures.qmsConfigurationRevisionId,
+                ),
                 productScopeSnapshotRef: snapshotRef(
                   'ProductScopeSnapshot',
                   fixtures.productScopeSnapshotId,
@@ -1052,13 +1067,14 @@ describe.skipIf(!gateEnabled).sequential(
                 ),
               },
               memberPolicyRef: {
-                // Missing required contentHash
+                // VersionedRef requires an exact versionId; it does not
+                // require a contentHash field.
                 kind: 'VERSIONED' as const,
                 objectType: 'Policy',
                 objectId: newUuidV7(),
-                versionId: newUuidV7(),
+                versionId: undefined,
                 scope: { enterpriseId },
-              },
+              } as unknown as Common.VersionedRef,
             },
             { idempotencyKey: 'p010-incomplete' },
           ),
@@ -1068,6 +1084,43 @@ describe.skipIf(!gateEnabled).sequential(
       }
       expect(caught).toBeInstanceOf(EnterpriseBusinessError);
       expect((caught as EnterpriseBusinessError).code).toBe(PROJECT_MEMBER_POLICY_REF_INVALID);
+    });
+
+    // ============================================================
+    // EP-WI04-DB-012 — Project INSERT cannot cross the trusted Enterprise
+    // ============================================================
+    it('EP-WI04-DB-012 Project INSERT policy binds the Enterprise context', async () => {
+      const trustedEnterpriseId = newUuidV7();
+      const rogueEnterpriseId = newUuidV7();
+      await expect(
+        withEnterpriseProjectTransaction(db(), contextFor(trustedEnterpriseId), async (trx) => {
+          await sql`
+            INSERT INTO enterprise_project.project (
+              project_id,
+              enterprise_id,
+              display_code,
+              title,
+              objective,
+              member_policy_ref,
+              member_policy_version_id,
+              member_policy_payload_hash,
+              created_by_principal_id,
+              created_by_actor_snapshot_id
+            ) VALUES (
+              ${newUuidV7()}::uuid,
+              ${rogueEnterpriseId}::uuid,
+              'WI04-DB-012',
+              'Rogue Project',
+              'RLS negative path',
+              ${JSON.stringify({ kind: 'VERSIONED', objectType: 'Policy' })}::jsonb,
+              ${newUuidV7()}::uuid,
+              NULL,
+              ${HUMAN_PRINCIPAL}::uuid,
+              ${ACTOR_HUMAN}::uuid
+            )
+          `.execute(trx);
+        }),
+      ).rejects.toMatchObject({ code: '42501' });
     });
 
     // Sanity guard so the unit-level "no skipped imports" assertion still

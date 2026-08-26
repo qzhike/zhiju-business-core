@@ -162,7 +162,7 @@ export interface ProjectInsert {
   objective: string;
   memberPolicyRef: unknown;
   memberPolicyVersionId: string;
-  memberPolicyPayloadHash: Buffer;
+  memberPolicyPayloadHash: Buffer | null;
   createdByPrincipalId: string;
   createdByActorSnapshotId: string;
   sourceCommandId: string;
@@ -206,7 +206,7 @@ export interface ProjectSnapshotBindingInsert {
   regulatoryProfileVersionHash?: Buffer;
   memberPolicyRef: unknown;
   memberPolicyVersionId: string;
-  memberPolicyPayloadHash: Buffer;
+  memberPolicyPayloadHash: Buffer | null;
   payloadHash: Buffer;
   boundByPrincipalId: string;
   boundByActorSnapshotId: string;
@@ -219,6 +219,12 @@ export type CasResult<T> =
 
 function asAggregateVersion(value: unknown): string {
   return String(value);
+}
+
+function isProjectDisplayCodeConflict(error: unknown): boolean {
+  if (error === null || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; constraint?: unknown };
+  return candidate.code === '23505' && candidate.constraint === 'project_display_code_unique';
 }
 
 /**
@@ -831,32 +837,47 @@ export class EnterpriseBusinessRepository extends EnterpriseProjectRepository {
 
   async insertProject(trx: EnterpriseProjectTransaction, insert: ProjectInsert): Promise<boolean> {
     await this.assertContextPrincipal(trx, insert.createdByPrincipalId);
-    // UNIQUE (enterprise_id, display_code) is the only allow-listed duplicate
-    // path; Project ID is application-minted (UUIDv7) so PK collisions are
-    // a programmer error and must abort the transaction.
-    const inserted = await trx
-      .insertInto('enterprise_project.project')
-      .values({
-        project_id: insert.projectId,
-        enterprise_id: insert.enterpriseId,
-        display_code: insert.displayCode,
-        title: insert.title,
-        objective: insert.objective,
-        status: 'ACTIVE',
-        member_policy_ref: JSON.stringify(insert.memberPolicyRef),
-        member_policy_version_id: insert.memberPolicyVersionId,
-        member_policy_payload_hash: insert.memberPolicyPayloadHash,
-        created_by_principal_id: insert.createdByPrincipalId,
-        created_by_actor_snapshot_id: insert.createdByActorSnapshotId,
-        last_command_id: insert.sourceCommandId,
-        created_at: new Date(),
-        updated_at: new Date(),
-        retention_class: 'CUSTOMER_RECORD',
-      })
-      .onConflict((oc) => oc.columns(['enterprise_id', 'display_code']).doNothing())
-      .returning('project_id')
-      .executeTakeFirst();
-    return inserted !== undefined;
+    // A new Project is not visible to the Project SELECT policy until its
+    // project_id is added to the trusted allowed-project set. PostgreSQL's
+    // ON CONFLICT arbiter path therefore cannot be used here: it needs to
+    // read the prospective row and raises an RLS error before the duplicate
+    // can be converted into a business rejection. Keep the unique-violation
+    // path inside a savepoint so the surrounding command transaction remains
+    // usable for the receipt and rejection result.
+    const savepoint = 'project_display_code_insert';
+    await sql.raw(`SAVEPOINT ${savepoint}`).execute(trx);
+    try {
+      await trx
+        .insertInto('enterprise_project.project')
+        .values({
+          project_id: insert.projectId,
+          enterprise_id: insert.enterpriseId,
+          display_code: insert.displayCode,
+          title: insert.title,
+          objective: insert.objective,
+          status: 'ACTIVE',
+          member_policy_ref: JSON.stringify(insert.memberPolicyRef),
+          member_policy_version_id: insert.memberPolicyVersionId,
+          member_policy_payload_hash: insert.memberPolicyPayloadHash,
+          created_by_principal_id: insert.createdByPrincipalId,
+          created_by_actor_snapshot_id: insert.createdByActorSnapshotId,
+          last_command_id: insert.sourceCommandId,
+          created_at: new Date(),
+          updated_at: new Date(),
+          retention_class: 'CUSTOMER_RECORD',
+        })
+        // Do not use RETURNING: PostgreSQL applies the Project SELECT RLS
+        // policy to returned rows, and a freshly minted project_id is not
+        // visible through that policy yet.
+        .execute();
+      await sql.raw(`RELEASE SAVEPOINT ${savepoint}`).execute(trx);
+      return true;
+    } catch (error) {
+      await sql.raw(`ROLLBACK TO SAVEPOINT ${savepoint}`).execute(trx);
+      await sql.raw(`RELEASE SAVEPOINT ${savepoint}`).execute(trx);
+      if (isProjectDisplayCodeConflict(error)) return false;
+      throw error;
+    }
   }
 
   async getProjectById(

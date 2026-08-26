@@ -21,7 +21,12 @@
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { Common, EnterpriseProject } from '@zhiju/contracts';
-import { newUuidV7, type CanonicalJsonObject, type CanonicalJsonValue } from '@zhiju/shared-kernel';
+import {
+  isUuidV7,
+  newUuidV7,
+  type CanonicalJsonObject,
+  type CanonicalJsonValue,
+} from '@zhiju/shared-kernel';
 import {
   withEnterpriseProjectTransaction,
   digestCanonicalPayload,
@@ -258,6 +263,98 @@ function asDigest(value: unknown): string | undefined {
   return /^[0-9a-f]{64}$/i.test(value) ? value.toLowerCase() : undefined;
 }
 
+type ObjectScopeReferenceKind = 'OBJECT' | 'VERSIONED' | 'CONTENT_ADDRESSED' | 'SNAPSHOT';
+
+interface ObjectScopeLookup {
+  readonly table: string;
+  readonly objectIdColumn: string;
+  readonly projectIdColumn?: string;
+  readonly versionIdColumn?: string;
+  readonly snapshotIdColumn?: string;
+  readonly payloadHashColumn?: string;
+  readonly kinds: readonly ObjectScopeReferenceKind[];
+}
+
+// The query accepts only this closed, code-owned table/column map. Every
+// identifier is a constant, so user-supplied objectType never becomes SQL.
+const OBJECT_SCOPE_LOOKUPS: Readonly<Record<string, ObjectScopeLookup>> = {
+  Enterprise: {
+    table: 'enterprise_project.enterprise',
+    objectIdColumn: 'enterprise_id',
+    kinds: ['OBJECT'],
+  },
+  EnterpriseFact: {
+    table: 'enterprise_project.enterprise_fact',
+    objectIdColumn: 'enterprise_fact_id',
+    kinds: ['OBJECT'],
+  },
+  EnterpriseFactVersion: {
+    table: 'enterprise_project.enterprise_fact_version',
+    objectIdColumn: 'enterprise_fact_id',
+    versionIdColumn: 'version_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['VERSIONED', 'CONTENT_ADDRESSED'],
+  },
+  EnterpriseProfileSnapshot: {
+    table: 'enterprise_project.enterprise_profile_snapshot',
+    objectIdColumn: 'snapshot_id',
+    snapshotIdColumn: 'snapshot_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['SNAPSHOT', 'CONTENT_ADDRESSED'],
+  },
+  Product: {
+    table: 'enterprise_project.product',
+    objectIdColumn: 'product_id',
+    kinds: ['OBJECT'],
+  },
+  ProductVersion: {
+    table: 'enterprise_project.product_version',
+    objectIdColumn: 'product_id',
+    versionIdColumn: 'version_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['VERSIONED', 'CONTENT_ADDRESSED'],
+  },
+  ProductScopeSnapshot: {
+    table: 'enterprise_project.product_scope_snapshot',
+    objectIdColumn: 'snapshot_id',
+    snapshotIdColumn: 'snapshot_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['SNAPSHOT', 'CONTENT_ADDRESSED'],
+  },
+  QMSConfiguration: {
+    table: 'enterprise_project.qms_configuration',
+    objectIdColumn: 'qms_configuration_id',
+    kinds: ['OBJECT'],
+  },
+  QMSConfigurationRevision: {
+    table: 'enterprise_project.qms_configuration_revision',
+    objectIdColumn: 'qms_configuration_id',
+    versionIdColumn: 'revision_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['VERSIONED', 'CONTENT_ADDRESSED'],
+  },
+  Project: {
+    table: 'enterprise_project.project',
+    objectIdColumn: 'project_id',
+    projectIdColumn: 'project_id',
+    kinds: ['OBJECT'],
+  },
+  ProjectScopeClaim: {
+    table: 'enterprise_project.project_scope_claim',
+    objectIdColumn: 'claim_id',
+    projectIdColumn: 'project_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['OBJECT', 'CONTENT_ADDRESSED'],
+  },
+  ProjectSnapshotBinding: {
+    table: 'enterprise_project.project_snapshot_binding',
+    objectIdColumn: 'binding_id',
+    projectIdColumn: 'project_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['OBJECT', 'CONTENT_ADDRESSED'],
+  },
+};
+
 function ensureSameEnterpriseScope(
   scope: { enterpriseId?: unknown; projectId?: unknown } | undefined,
   enterpriseId: string,
@@ -452,16 +549,14 @@ function validateMemberPolicyRef(
     enterpriseId,
     'memberPolicyRef',
   );
-  // VersionedRef does not carry a contentHash by contract; the handler
-  // records the exact versionId in the project / binding rows. Any future
-  // Policy Repository lookup can populate the binding's payload_hash.
-  const contentHash = asReferenceLike(ref.contentHash);
-  const digest = asDigest(contentHash.digest);
   return {
     objectType: ref.objectType,
     objectId: ref.objectId,
     versionId: ref.versionId,
-    digest: digest ?? null,
+    // VersionedRef has no contentHash field. A Policy Repository can supply
+    // a digest in a future capability, but this handler must not fabricate
+    // one from an absent value.
+    digest: null,
   };
 }
 
@@ -2360,10 +2455,18 @@ export async function handleCreateProject(
   );
   const memberPolicy = validateMemberPolicyRef(envelope.payload.memberPolicyRef, enterpriseId);
   const projectId = newUuidV7();
+  // The create command mints the Project UUID itself. Bind that exact target
+  // to the trusted transaction scope before claiming the technical receipt;
+  // this keeps the Project INSERT path and the Project-scoped outbox/audit
+  // rows inside one precise RLS scope without trusting a caller-supplied ID.
+  const projectContext: EnterpriseProjectTransactionContext = {
+    ...context,
+    allowedProjectIds: [...context.allowedProjectIds, projectId],
+  };
   return executeEnterpriseProjectCommand(
     db,
-    context,
-    { ...envelope, targetType: 'Project', targetId: projectId },
+    projectContext,
+    { ...envelope, projectId, targetType: 'Project', targetId: projectId },
     async (execution) => {
       const enterprise = await repo.getEnterpriseById(execution.trx, enterpriseId);
       if (!enterprise) {
@@ -2445,7 +2548,7 @@ export async function handleCreateProject(
         memberPolicyRef: envelope.payload.memberPolicyRef,
         memberPolicyVersionId: memberPolicy.versionId,
         memberPolicyPayloadHash:
-          memberPolicy.digest === null ? Buffer.alloc(32) : Buffer.from(memberPolicy.digest, 'hex'),
+          memberPolicy.digest === null ? null : Buffer.from(memberPolicy.digest, 'hex'),
         createdByPrincipalId: envelope.principalId,
         createdByActorSnapshotId: envelope.actorSnapshotId,
         sourceCommandId: envelope.commandId,
@@ -2471,9 +2574,7 @@ export async function handleCreateProject(
         claimId,
         claimedAt: new Date().toISOString(),
       };
-      const claimDigest = digestCanonicalPayload(
-        claimPayload,
-      );
+      const claimDigest = digestCanonicalPayload(claimPayload);
       await repo.insertProjectScopeClaim(execution.trx, {
         claimId,
         enterpriseId,
@@ -2489,7 +2590,7 @@ export async function handleCreateProject(
       // Capture the QMSRevision payload hash from the persisted row so the
       // binding records the exact digest even though the inbound VersionedRef
       // does not carry a contentHash by contract.
-      const qmsRevisionPayloadHash = qmsRevisionRow?.payload_hash ?? Buffer.alloc(32);
+      const qmsRevisionPayloadHash = qmsRevisionRow.payload_hash;
       const bindingPayload = {
         enterpriseId,
         projectId,
@@ -2504,9 +2605,11 @@ export async function handleCreateProject(
           qmsConfigurationRevisionHash: qmsRevisionPayloadHash.toString('hex'),
           productScopeSnapshotId: productScope.snapshotId,
           productScopePayloadHash: productScope.digest,
-          initialCustomerBaselineRef: initialCustomerBaseline,
-          templateBaselineRef: templateBaseline,
-          regulatoryProfileRef: regulatoryProfile,
+          ...(initialCustomerBaseline === undefined
+            ? {}
+            : { initialCustomerBaselineRef: initialCustomerBaseline }),
+          ...(templateBaseline === undefined ? {} : { templateBaselineRef: templateBaseline }),
+          ...(regulatoryProfile === undefined ? {} : { regulatoryProfileRef: regulatoryProfile }),
         },
         memberPolicy: {
           objectType: memberPolicy.objectType,
@@ -2515,9 +2618,7 @@ export async function handleCreateProject(
           contentHashDigest: memberPolicy.digest,
         },
       };
-      const bindingDigest = digestCanonicalPayload(
-        bindingPayload as unknown as Parameters<typeof digestCanonicalPayload>[0],
-      );
+      const bindingDigest = digestCanonicalPayload(bindingPayload);
       await repo.insertProjectSnapshotBinding(execution.trx, {
         bindingId,
         enterpriseId,
@@ -2554,7 +2655,7 @@ export async function handleCreateProject(
         memberPolicyRef: envelope.payload.memberPolicyRef,
         memberPolicyVersionId: memberPolicy.versionId,
         memberPolicyPayloadHash:
-          memberPolicy.digest === null ? Buffer.alloc(32) : Buffer.from(memberPolicy.digest, 'hex'),
+          memberPolicy.digest === null ? null : Buffer.from(memberPolicy.digest, 'hex'),
         payloadHash: bindingDigest.hash,
         boundByPrincipalId: envelope.principalId,
         boundByActorSnapshotId: envelope.actorSnapshotId,
@@ -2654,71 +2755,101 @@ export async function handleValidateObjectScope(
       'expectedScopeRef must carry the trusted Enterprise scope',
     );
   }
-  const objectId = asObjectId(objectRefFacts.objectId);
-  if (objectId === undefined) {
-    return {
-      valid: false,
-      reasons: [
-        'PROJECT_OBJECT_IDENTITY_INVALID',
-      ],
-    };
+  const objectType = objectRefFacts.objectType;
+  if (typeof objectType !== 'string') {
+    throw new EnterpriseBusinessError(
+      PROJECT_OBJECT_SCOPE_MISMATCH,
+      'objectRef must carry a registered objectType',
+    );
   }
-  // Walk each owning table that owns a Project-scope row of the same
-  // objectType/objectId and ask the database for the authoritative
-  // (enterprise_id, project_id) mirror. The RLS policy guarantees that an
-  // Enterprise-only context cannot accidentally read a Project row from
-  // another Project, so the union below is exactly the set the transaction
-  // Context is allowed to see.
-  return withEnterpriseProjectTransaction(db, context, async (trx) => {
-    const tableNames = [
-      'enterprise_project.project',
-      'enterprise_project.project_snapshot_binding',
-      'enterprise_project.enterprise_fact',
-      'enterprise_project.product',
-      'enterprise_project.qms_configuration',
-    ] as const;
-    let authoritative: { enterpriseId: string; projectId: string | null } | undefined;
-    for (const table of tableNames) {
-      const rows = (await sql<{
-        enterprise_id: string;
-        project_id: string | null;
-      }>`SELECT enterprise_id::text, project_id::text
-            FROM ${sql.raw(table)}
-           WHERE object_id = ${objectId}::uuid
-           LIMIT 1`.execute(trx)) as unknown as {
-        rows: { enterprise_id: string; project_id: string | null }[];
-      };
-      for (const row of rows.rows) {
-        if (
-          row.enterprise_id === context.enterpriseId &&
-          ((expected.projectId === undefined && row.project_id === null) ||
-            (expected.projectId !== undefined && row.project_id === expected.projectId))
-        ) {
-          authoritative = {
-            enterpriseId: row.enterprise_id,
-            projectId: row.project_id,
-          };
-          break;
-        }
-      }
-      if (authoritative !== undefined) break;
+  const lookup = Object.prototype.hasOwnProperty.call(OBJECT_SCOPE_LOOKUPS, objectType)
+    ? OBJECT_SCOPE_LOOKUPS[objectType]
+    : undefined;
+  if (!lookup?.kinds.includes(kind)) {
+    throw new EnterpriseBusinessError(
+      PROJECT_OBJECT_SCOPE_MISMATCH,
+      `objectType ${objectType} does not support ${kind} scope validation`,
+    );
+  }
+  const objectId = asObjectId(objectRefFacts.objectId);
+  if (objectId === undefined || !isUuidV7(objectId)) {
+    throw new EnterpriseBusinessError(
+      PROJECT_OBJECT_SCOPE_MISMATCH,
+      'objectRef.objectId must be an RFC 9562 UUIDv7',
+    );
+  }
+  let identityPredicate = sql``;
+  if (kind === 'VERSIONED') {
+    const versionId = asObjectId(objectRefFacts.versionId);
+    if (lookup.versionIdColumn === undefined || versionId === undefined || !isUuidV7(versionId)) {
+      throw new EnterpriseBusinessError(
+        PROJECT_OBJECT_SCOPE_MISMATCH,
+        'VERSIONED objectRef must carry an exact versionId',
+      );
     }
-    if (authoritative === undefined) {
-      return {
-        valid: false,
-        reasons: [
-          'PROJECT_OBJECT_NOT_FOUND',
-        ],
-      };
+    identityPredicate = sql`AND ${sql.raw(lookup.versionIdColumn)} = ${versionId}::uuid`;
+  }
+  if (kind === 'SNAPSHOT') {
+    const snapshotId = asObjectId(objectRefFacts.snapshotId);
+    if (
+      lookup.snapshotIdColumn === undefined ||
+      snapshotId === undefined ||
+      !isUuidV7(snapshotId)
+    ) {
+      throw new EnterpriseBusinessError(
+        PROJECT_OBJECT_SCOPE_MISMATCH,
+        'SNAPSHOT objectRef must carry an exact snapshotId',
+      );
+    }
+    identityPredicate = sql`AND ${sql.raw(lookup.snapshotIdColumn)} = ${snapshotId}::uuid`;
+  }
+  if (kind === 'CONTENT_ADDRESSED' || kind === 'SNAPSHOT') {
+    const contentHash = asReferenceLike(objectRefFacts.contentHash);
+    const digest = asDigest(contentHash.digest);
+    if (lookup.payloadHashColumn === undefined || digest === undefined) {
+      throw new EnterpriseBusinessError(
+        PROJECT_OBJECT_SCOPE_MISMATCH,
+        `${kind} objectRef must carry a verifiable SHA-256 contentHash`,
+      );
+    }
+    identityPredicate = sql`${identityPredicate}
+      AND ${sql.raw(lookup.payloadHashColumn)} = decode(${digest}, 'hex')`;
+  }
+  // The RLS policy is intentionally the final authority: a row hidden by a
+  // Project context is indistinguishable from a missing row and produces the
+  // same stable scope-mismatch error. No alternate table or object is tried.
+  return withEnterpriseProjectTransaction(db, context, async (trx) => {
+    const projectIdSelect = lookup.projectIdColumn
+      ? sql.raw(`${lookup.projectIdColumn}::text`)
+      : sql.raw('NULL::text');
+    const rows = await sql<{
+      enterprise_id: string;
+      project_id: string | null;
+    }>`SELECT enterprise_id::text, ${projectIdSelect} AS project_id
+          FROM ${sql.raw(lookup.table)}
+         WHERE enterprise_id = ${context.enterpriseId}::uuid
+           AND ${sql.raw(lookup.objectIdColumn)} = ${objectId}::uuid
+           ${identityPredicate}
+         LIMIT 1`.execute(trx);
+    const authoritative = rows.rows[0];
+    if (
+      authoritative === undefined ||
+      (expected.projectId === undefined && authoritative.project_id !== null) ||
+      (expected.projectId !== undefined && authoritative.project_id !== expected.projectId)
+    ) {
+      throw new EnterpriseBusinessError(
+        PROJECT_OBJECT_SCOPE_MISMATCH,
+        'objectRef is not visible in the exact expected Enterprise/Project scope',
+      );
     }
     return {
       valid: true,
       authoritativeScopeRef:
-        authoritative.projectId === null
-          ? { enterpriseId: authoritative.enterpriseId }
+        authoritative.project_id === null
+          ? { enterpriseId: authoritative.enterprise_id }
           : {
-              enterpriseId: authoritative.enterpriseId,
-              projectId: authoritative.projectId,
+              enterpriseId: authoritative.enterprise_id,
+              projectId: authoritative.project_id,
             },
       resolvedRef: objectRef,
       lifecycle: 'ACTIVE',
