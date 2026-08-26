@@ -28,6 +28,12 @@
 
 - 2026-08-27：用户明确回复“确认检查及提交”，授权对本记录列出的 Issue 65 变更执行提交，并继续原目标要求的远端交付和 closeout。
 
+## Git closeout 进度
+
+- 2026-08-27：实现 commit `de7d54dfba76eca563a561c2d4e4b23a4fd4e0f9` 已创建并非 force push；PR #80 已创建，base 为 `main@8c1165dbf7ff32ea26a4ea64799a695a8beb4c05`，当前 head 为实现 commit。
+- PR #80 的 `closingIssuesReferences` 为空，Issue #65 仍需后续显式关闭；远端 feature branch 当前存在并指向实现 commit。
+- GitHub `ci` workflow 为 active 且声明 `pull_request` trigger，但创建 PR 后轮询未发现 exact-head run；`workflow_dispatch` 触发被 GitHub 以 workflow 未声明该 trigger 拒绝。后续通过必要的交付记录同步触发一次 PR synchronize，再重新读取 exact-head CI。
+
 ## 已完成的前置文档动作
 
 - 已更新 `HL-Spec.md`、`Module-Spec-002-EnterpriseProject.md`、`Module-Test-002-EnterpriseProject.md`、Domain/Consistency/PostgreSQL/Verification 基准。
