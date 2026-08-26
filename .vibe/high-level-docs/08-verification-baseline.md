@@ -374,3 +374,5 @@ Disposable PostgreSQL 与本地 Unit/Contract 通过只证明当前代码、迁�
 WI-09 的最小自动验证必须同时覆盖：七个 Gap InputSnapshot ref 的 exact object/version/snapshot id、Scope、生命周期和 hash；受控 evaluator 的 `UNKNOWN` 保留与 summary 派生；InputSnapshot/Version/Finding/Decision 的 INSERT-only 与完成版本不可变；Human-only ACCEPT 以及 Agent/Service/`actingFor` 拒绝；ACCEPTED pointer、REJECT/CHANGES_REQUIRED 分支和 `GapAnalysisAccepted` 的 exact refs；Command Receipt 幂等、Root CAS 并发和故障回滚；以及旧 Gap 被新 Customer/Template/Regulatory Baseline/Profile 激活标记 `STALE` 后旧 finding/Decision/input 和 Impact trigger 仍可解释。
 
 测试结果必须写回 [`Module-Test-002-EnterpriseProject.md`](../module-tests/Module-Test-002-EnterpriseProject.md)，并区分 `PASS (PERSISTENCE)`、`PASS (LOCAL)`、`DESIGN VERIFIED` 和 `NOT RUN`。Disposable PostgreSQL 不代表 Provider、公开 HTTP、跨模块 Process Manager、生产或独立人工 Reference Project 已运行；这些边界继续保持 `NOT RUN`，直到有独立证据。
+
+Persistence Gate 的外部镜像证据还必须记录 tag 与当前 manifest digest 的一致性。若远端 registry 重新解析固定 tag，先更新经核对的 immutable pin，再重新执行本地和 exact-head Gate；tag-digest 检查失败时，不能把此前的静态或 Unit PASS 记作完整验证 PASS。

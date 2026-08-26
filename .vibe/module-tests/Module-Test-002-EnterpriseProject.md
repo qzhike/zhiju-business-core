@@ -244,3 +244,11 @@ Provider、真实法规来源、公开 HTTP、跨模块 Process Manager、生产
 | `EP-WI09-M-001` | Manual | 脱敏采购程序：七个冻结输入→受控 finding→Human review→接受→新 Baseline→旧 Gap 查询 | 用户能区分 UNKNOWN/MISSING、看到 exact refs/hash/Decision/stale Impact；Provider、公开 HTTP、生产和独立人工验收仍为 `NOT RUN` | 本地自动化已证明 exact refs/hash、UNKNOWN、Human decision、stale/Impact；Provider、公开 HTTP、生产和独立人工验收未执行 | `PASS (LOCAL AUTOMATION); HUMAN NOT RUN` |
 
 WI-09 的结果已补写本表；真实 Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收不能由这些结果推断为 `PASS`。本轮 PostgreSQL 容器已清理，未保留临时数据库、临时脚本或临时测试文件。
+
+## 2026-08-27 PostgreSQL 镜像 pin 漂移与修复记录
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI09-V-002` | Delivery/Persistence | GitHub `pull_request` exact-head run `33021401819`、`33021517085`；PostgreSQL `18.6` tag 与仓库 pinned manifest digest | 静态、Unit、Contract 阶段通过后，Gate 应验证当前 tag 解析结果与 immutable pin 相同；若不同必须拒绝；修复后本地与新的 exact-head CI 均需完整通过 | 两次旧 head run 的静态、Unit、Architecture、Contract 均通过，Gate 拒绝旧 pin `sha256:1957b2ff3137e4ef7f3bc813e74fff50b1e1ffddc85c8b9d6f14ade972be8687`；更新为当前 `postgres:18.6` digest `sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280` 后，本地 `pnpm verify` 完整通过，Flyway `11.20.3` pin 未变 | `PASS (LOCAL PIN REPAIRED; REMOTE CI PENDING)` |
+
+两次旧 head 的失败属于远端 registry tag 与仓库 pin 的物理 baseline 漂移，不是 WI-09 业务实现或测试断言失败。修复后第一次完整本地编排另遇 Docker Hub manifest 查询 `EOF`，随后重试成功；新的 exact-head CI 仍需在推送修复 commit 后取得。Provider、生产和人工边界仍保持 `NOT RUN`。

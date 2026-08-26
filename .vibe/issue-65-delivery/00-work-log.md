@@ -30,9 +30,11 @@
 
 ## Git closeout 进度
 
-- 2026-08-27：实现 commit `de7d54dfba76eca563a561c2d4e4b23a4fd4e0f9` 已创建并非 force push；PR #80 已创建，base 为 `main@8c1165dbf7ff32ea26a4ea64799a695a8beb4c05`，当前 head 为实现 commit。
+- 2026-08-27：实现 commit `de7d54dfba76eca563a561c2d4e4b23a4fd4e0f9` 已创建并非 force push；PR #80 已创建，base 为 `main@8c1165dbf7ff32ea26a4ea64799a695a8beb4c05`，当前 head 为实现 commit；因远端暴露 PostgreSQL tag 漂移，后续需追加 pin 修复 commit。
 - PR #80 的 `closingIssuesReferences` 为空，Issue #65 仍需后续显式关闭；远端 feature branch 当前存在并指向实现 commit。
 - GitHub `ci` workflow 为 active 且声明 `pull_request` trigger，但创建 PR 后轮询未发现 exact-head run；`workflow_dispatch` 触发被 GitHub 以 workflow 未声明该 trigger 拒绝。后续通过必要的交付记录同步触发一次 PR synchronize，再重新读取 exact-head CI。
+- 2026-08-27：PR #80 的 exact-head runs `33021401819`、`33021517085` 均完成了 format/lint/typecheck/unit/architecture/contracts，随后在 persistence gate 因 `postgres:18.6` 当前 manifest digest `sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280` 与旧 pin `sha256:1957b2ff3137e4ef7f3bc813e74fff50b1e1ffddc85c8b9d6f14ade972be8687` 不一致而失败。该失败是 Gate 对 registry 漂移的预期拒绝；需更新 pin 后重新取得 exact-head CI PASS。
+- 2026-08-27：已将 `tools/persistence/baseline.mjs` 的 PostgreSQL pin 更新为当前 registry manifest digest；本地 `pnpm verify` 完整通过，包含 `22 test files passed / 16 skipped`、`351 passed / 224 skipped`、Contract `operations=200` 和 PostgreSQL `19 files / 238 passed`，二次 migrate 为 no-op，容器已清理。修复 commit 尚未创建，新的 exact-head CI 尚未取得。
 
 ## 已完成的前置文档动作
 

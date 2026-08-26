@@ -553,3 +553,5 @@ CustomerBaseline、TemplateBaseline 或 RegulatoryProfile 的新激活版本提�
 ### 18.5 WI-09 稳定错误与测试边界
 
 除既有公共错误外，本切片至少使用以下稳定错误：`PROJECT_GAP_INPUT_INCOMPLETE`、`PROJECT_GAP_EPISTEMIC_CONFLICT`、`PROJECT_GAP_HUMAN_ACCEPTANCE_REQUIRED`、`PROJECT_GAP_VERSION_NOT_FOUND`、`PROJECT_GAP_VERSION_IMMUTABLE`、`PROJECT_GAP_SCOPE_MISMATCH`、`PROJECT_GAP_INPUT_HASH_MISMATCH`、`PROJECT_GAP_STATUS_INVALID`、`PROJECT_GAP_FINDING_IMMUTABLE`、`PROJECT_GAP_DECISION_CONFLICT`。Unit/Contract、Disposable PostgreSQL 和受控本地 E2E 需要覆盖缺输入/latest/scope/hash、UNKNOWN、Finding 不可变、Human/Agent/actingFor、Accepted Event exact refs、REJECT/CHANGES_REQUIRED、幂等、并发 CAS、回滚和新 Baseline 后旧 Gap stale。真实 Provider、公开 HTTP、生产和独立人工验收保持 `NOT RUN`。
+
+Persistence gate 使用 `tag@manifest digest` 的 immutable image reference；除检查容器实际 RepoDigest 外，还必须验证 registry 当前 tag 解析到同一 manifest digest。发现 tag 漂移时，只能更新受核验的 pin 并重新完成本地与远端 exact-head gate，不能删除或放宽一致性检查。

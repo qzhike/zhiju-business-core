@@ -1986,4 +1986,4 @@ WI-09 的 Project-owned Schema 新增以下表，均使用 Enterprise/Project Sc
 
 Root 的 deferred guard 必须确保 current version 属于同一 Scope；accepted pointer 非空时必须指向同一 Root 且 Version 状态为 `ACCEPTED`。Version 的 trigger 只允许 `COMPLETED/UNDER_REVIEW → ACCEPTED|CHANGES_REQUIRED|REJECTED` 以及受控的任意可影响状态 `→ STALE`；已完成内容、Finding、InputSnapshot 和 Decision 不允许 UPDATE/DELETE。Stale metadata 只保存安全的 trigger ref/reason，不保存客户正文。
 
-GapAnalysis 的 InputSnapshot normalized ref 既用于 Reference Edge/Traceability，也用于 Baseline/Profile 激活后的 stale Impact 查询；新版本只插入新 Root/Version，不重写旧行。数据库 Gate 必须覆盖空库迁移、二次 no-op、RLS、ACL、hash/scope/check、CAS、幂等、并发、回滚和旧 finding 保留。
+GapAnalysis 的 InputSnapshot normalized ref 既用于 Reference Edge/Traceability，也用于 Baseline/Profile 激活后的 stale Impact 查询；新版本只插入新 Root/Version，不重写旧行。数据库 Gate 必须覆盖空库迁移、二次 no-op、RLS、ACL、hash/scope/check、CAS、幂等、并发、回滚和旧 finding 保留；PostgreSQL/Flyway 镜像必须以 tag 与 manifest digest 双重固定，并在 Gate 中拒绝 tag 解析结果漂移。

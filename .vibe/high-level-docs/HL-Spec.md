@@ -604,3 +604,4 @@ Issue #65 在既有 CustomerBaseline、TemplateBaseline、RegulatoryProfile、En
 - 只有可信 `principalKind=HUMAN` 可以执行接受命令；Agent、Service、`actingFor` 和伪造 payload actor 都不能改变可信主体。`ACCEPT` 才设置 accepted pointer 并写入精确 `GapAnalysisAccepted` Event；`REJECT`/`CHANGES_REQUIRED` 只保存 Decision，不设置 accepted pointer。
 - 新 Customer/Template/Regulatory Baseline/Profile 版本激活时，只追加受影响 Gap 的 stale/impact fact，将旧 Version 标记 `STALE`；不修改旧 Finding、InputSnapshot、Decision、Context、Plan 或 Artifact。新分析必须通过显式 start command 产生。
 - WI-09 的自动验证范围是 Unit/Contract、真实 PostgreSQL DDL/RLS/CHECK/CAS/幂等/不可变/回滚和受控本地 E2E。真实 Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收仍分别标记 `NOT RUN`，不得由本地 Gate 推断为通过。
+- PostgreSQL persistence gate 的物理 baseline 必须同时固定镜像 tag 与 manifest digest，并独立核对当前 tag 解析结果；若 registry tag 漂移，必须更新 immutable pin 后重新执行本地与 exact-head Gate，不能绕过 tag-digest 一致性检查。
