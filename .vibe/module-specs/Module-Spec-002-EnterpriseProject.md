@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-25
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / USER CONFIRMATION REQUIRED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / PR #75 MERGED / ISSUE #62 CLOSED`
 
 ## 1. 模块责任
 
@@ -416,3 +416,9 @@ Issue #62 在已接受 SourceMaterial 之上落地 CustomerMaterial 的最小业
 ### 15.4 WI-06 可人工验收产出与边界
 
 脱敏 Fixture 必须支持：一份 `ACCEPTED` SourceMaterial 产生 CustomerMaterial `PROPOSED`；Human 确认后只新增不可变确认 Version 并出现最小 `CustomerMaterialConfirmed` Event；尝试 UPDATE/DELETE 确认 Version 或重放旧候选时得到拒绝；Agent 确认得到 Human-only 拒绝；跨 Project/未接受/错误 Hash Source Ref 不泄漏客户数据。真实 Feishu、OCR/LLM、Evidence 验证、对象存储、公开 HTTP、跨模块 E2E 和人工 Reference Project 验收保持 `NOT RUN`。
+
+### 15.5 WI-06 交付闭环
+
+- [PR #75](https://github.com/qzhike/zhiju-business-core/pull/75) 以 commit `3141928df48b3be097ff554bc7b96ee933d727c1` 为 exact head，目标为 `main`；GitHub Actions `verify` 通过后，以 merge commit `e7cfee14b699b0574abf6899a0291bc9ea706f90` 合并。
+- Issue [#62](https://github.com/qzhike/zhiju-business-core/issues/62) 已由合并动作关闭，并已通过 GitHub API 读取为 `closed`；远端 feature branch 和本地已合并 feature branch 均已删除，`main` 已同步到 merge commit。
+- WI-06 的自动化、Disposable PostgreSQL、Provider/生产/公开 HTTP/跨模块 E2E/独立人工 Reference Project 验收边界仍按本节和 Module-Test 的 `PASS`/`NOT RUN` 记录执行。

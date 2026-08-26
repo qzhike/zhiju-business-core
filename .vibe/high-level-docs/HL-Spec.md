@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / PR #72 REVIEW REPAIRED / PR #75 MERGED / ISSUE #62 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -552,3 +552,5 @@ Issue #62 在 WI-05 SourceMaterial 接受边界之上实现 CustomerMaterial 的
 - 确认前发现同一 Project 中共享 SourceMaterial 且分类指纹不同的其他 `PROPOSED` 候选时，返回 `PROJECT_MATERIAL_CONFLICT_UNRESOLVED`，不修改任何候选、不使用 last-write-wins、不产生确认 Event。
 - `customer_material`、`customer_material_version`、`customer_material_decision` 由 EnterpriseProject 唯一拥有；三表 FORCE RLS，Version/Decision 为 INSERT-only，Root 只开放受控状态、指针和 aggregate version 更新。
 - 本切片不实现 OCR/LLM/Provider、Evidence 外部验证、CustomerBaseline、公开 HTTP、真实 Feishu/Ceph/OpenBao 或生产/人工 Reference Project 验收；这些边界保持 `NOT RUN`，具体字段/测试以 Module Spec/Test 和 `.vibe/im-03-wi-06-customermaterial/` 执行记录为准。
+
+WI-06 已通过 [PR #75](https://github.com/qzhike/zhiju-business-core/pull/75) 合并到 `main`。实现 commit `3141928df48b3be097ff554bc7b96ee933d727c1` 已由 merge commit `e7cfee14b699b0574abf6899a0291bc9ea706f90` 纳入默认分支；Issue [#62](https://github.com/qzhike/zhiju-business-core/issues/62) 已关闭，远端和本地 Work Item feature branch 已删除。真实 Provider、生产、公开 HTTP、跨模块 E2E 和独立人工验收仍保持 `NOT RUN`。

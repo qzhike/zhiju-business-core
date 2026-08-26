@@ -1,14 +1,14 @@
-# IM-03 WI-06 CustomerMaterial 提交前审查记录
+# IM-03 WI-06 CustomerMaterial 审查与交付记录
 
 ## 1. 审查范围与结论
 
 - Issue：[#62](https://github.com/qzhike/zhiju-business-core/issues/62)
 - 分支：`galendai/im-03-wi-06-customermaterial`
-- 审查基线：`6f1cd4a`，与当前 `origin/main` 同步
+- 审查基线：`6f1cd4a`，与当时 `origin/main` 同步
 - 审查日期：2026-08-26
-- 当前远端状态：没有为本分支创建 PR；Issue #62 仍为 `OPEN`
+- 最终交付：实现 commit=`3141928df48b3be097ff554bc7b96ee933d727c1`；PR #75 已合并，merge commit=`e7cfee14b699b0574abf6899a0291bc9ea706f90`；Issue #62 已关闭；远端和本地 feature branch 已删除；`main` 已同步。
 
-审查结论：WI-06 的代码、数据库迁移、模块测试和设计文档在当前 Worktree 内形成一致的最小闭环，静态检查、Contract 检查、架构检查和 Disposable PostgreSQL 验证均通过。提交、推送、PR exact-head 审查、合并、Issue 关闭、远端分支删除和默认分支同步仍是独立交付步骤，等待用户检查并确认后执行。
+审查结论：WI-06 的代码、数据库迁移、模块测试和设计文档形成一致的最小闭环；静态检查、Contract 检查、架构检查、Disposable PostgreSQL 和 PR exact-head CI 均通过。PR、Issue、branch 和默认分支状态已分别读取回证。
 
 ## 2. 验收条件映射
 
@@ -49,16 +49,14 @@
 
 以上结果证明当前 Worktree、受控 Handler/Repository、Migration 和 Disposable PostgreSQL 的范围。真实 Feishu/Ceph/OpenBao、Provider/OCR/LLM、公开 HTTP、跨模块 E2E、生产环境、独立人工 Reference Project 和 UI 验收均为 `NOT RUN`。
 
-## 5. 交付状态与下一步
+## 5. GitHub 交付结果
 
-当前没有执行以下具有独立权限边界的操作：
+1. `git commit`：`3141928df48b3be097ff554bc7b96ee933d727c1`
+2. 非强制 `git push`：已完成，远端 feature branch 创建并随后删除
+3. PR：[#75](https://github.com/qzhike/zhiju-business-core/pull/75) 已创建并以 exact head 验证
+4. CI：GitHub Actions `verify` 以该 exact head 通过
+5. 合并：PR #75 已合并到 `main`，merge commit=`e7cfee14b699b0574abf6899a0291bc9ea706f90`
+6. Issue：[#62](https://github.com/qzhike/zhiju-business-core/issues/62) 已读取为 `closed`；closeout comment 已读回：[issuecomment-5420158225](https://github.com/qzhike/zhiju-business-core/issues/62#issuecomment-5420158225)
+7. Branch：远端和本地 `galendai/im-03-wi-06-customermaterial` 均已删除；默认 `main` 已同步并通过 ancestry 检查
 
-1. `git commit`
-2. 非强制 `git push`
-3. 创建并核验本分支的 exact-head PR
-4. 在 PR CI/审查通过后合并
-5. 关闭 Issue #62
-6. 删除远端或本地已合并分支
-7. 将默认分支同步到最终合并结果
-
-用户确认当前变更后，才进入上述 GitHub 交付流程；每一步都将读取回实际远端状态，不从 commit、PR 合并或 `Closes #62` 文案推断 Issue 已关闭。
+以上每一步均以实际 Git/GitHub 状态为准，不从 `Closes #62` 文案单独推断 Issue 已关闭。Provider、生产、公开 HTTP、跨模块 E2E 和独立人工验收仍为 `NOT RUN`。
