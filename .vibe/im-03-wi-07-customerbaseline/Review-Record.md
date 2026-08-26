@@ -5,8 +5,9 @@
 - Issue：[#63](https://github.com/qzhike/zhiju-business-core/issues/63)
 - Worktree：`galendai/im-03-wi-07-customerbaseline`
 - Review base：`a087441`（当时与 `origin/main` 相同）
+- Implementation commit：`fc59c13`（`Implement CustomerBaseline three-state impact review`）
 - Review date：2026-08-26
-- Associated PR：当前无；commit、push、comment、Issue close 和 branch 删除尚未执行。
+- Associated PR：当前无；push、comment、Issue close 和 branch 删除尚未执行。
 
 ## Contract and design decisions
 
@@ -36,8 +37,7 @@
 
 ## Delivery gates still pending
 
-- 用户确认当前工作树变更后，才能执行 Git commit。
-- commit 后必须读取精确 head，创建/更新 PR（如适用），等待并读取 exact-head CI，并发布/读回 Issue comment。
+- implementation commit `fc59c13` 已创建；补充 Review Record 的精确 SHA follow-up commit 后，必须读取最终 head，创建/更新 PR，等待并读取 exact-head CI，并发布/读回 Issue comment。
 - 只有在 comment、ancestry、Issue 状态和 branch 目标均核对后，才关闭 Issue 63 并删除目标 branch；不能把 merge 或 `Refs/Closes` 文本单独当作关闭证据。
 
 ## Review disposition

@@ -33,3 +33,8 @@
 - 2026-08-26：完成初始工作树、远端、Issue 63、Memory 和交付技能核对；确认当前 branch 只是 `origin/main` 同步快照，不是已落地的 WI-07 实现分支。
 - 2026-08-26：完成 CustomerBaseline Root/Version/Item/Impact Review、V2008、Repository、Handler、Contract Registry 回归和 PostgreSQL 门禁；`pnpm test` 为 `351 passed / 215 skipped`，Persistence gate 为 `17 files / 229 passed`。
 - 2026-08-26：disposable local probe 通过：Agent `MISSING_CONFIRMED` → `PROJECT_MISSING_CONFIRMATION_REQUIRED`；CB-003 输出 `PRESENT/UNKNOWN/NOT_PROVIDED`；CB-004 后旧 refs `5` 条保留，Impact `STALE/3`，active 指向 CB-004。真实下游 Process Manager、Provider、HTTP、生产和独立人工验收保持 `NOT RUN`。
+
+## 2026-08-26 提交边界
+
+- 实现 commit：`fc59c13`，commit message：`Implement CustomerBaseline three-state impact review`。
+- Review Record 已随实现 commit 纳入；本次 follow-up 将补齐精确 commit SHA，随后才执行 push、PR、comments、Issue close 和 branch 删除。
