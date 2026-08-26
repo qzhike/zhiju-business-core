@@ -27,6 +27,7 @@ import {
   type CommandResult,
 } from '../persistence/command-runner.js';
 import { TemplateRegulatoryRepository } from '../persistence/template-regulatory-repository.js';
+import { GapAnalysisRepository } from '../persistence/gap-analysis-repository.js';
 import {
   EnterpriseBusinessError,
   PROJECT_HUMAN_ONLY_DENIED,
@@ -45,6 +46,7 @@ import {
 } from './enterprise-business-errors.js';
 
 const repo = new TemplateRegulatoryRepository();
+const gapRepo = new GapAnalysisRepository();
 const TEMPLATE_TARGET_TYPE = 'ReferenceTemplate';
 const REGULATORY_TARGET_TYPE = 'RegulatoryReference';
 const TEMPLATE_REF_TYPE = 'TemplateVersion';
@@ -1833,6 +1835,21 @@ export async function handleFreezeTemplateBaseline(
       declaredHash: digestCanonicalPayload(eventPayload).hash,
       occurredAt: new Date(),
     });
+    await gapRepo.markGapAnalysesStaleForDependency(
+      execution.trx,
+      {
+        kind: 'TemplateBaseline',
+        objectId: baseline.objectId,
+        versionId: baseline.versionId,
+      },
+      context.enterpriseId,
+      projectId,
+      {
+        reasonCode: 'TEMPLATE_BASELINE_VERSION_FROZEN',
+        triggeringRef: eventPayload.templateBaselineVersionRef,
+      },
+      envelope.commandId,
+    );
     return {
       kind: 'COMMITTED',
       resultPayload: {
@@ -2288,6 +2305,21 @@ export async function handleActivateRegulatoryProfile(
       declaredHash: digestCanonicalPayload(eventPayload).hash,
       occurredAt: new Date(),
     });
+    await gapRepo.markGapAnalysesStaleForDependency(
+      execution.trx,
+      {
+        kind: 'RegulatoryProfile',
+        objectId: profile.objectId,
+        versionId: profile.versionId,
+      },
+      context.enterpriseId,
+      projectId,
+      {
+        reasonCode: 'REGULATORY_PROFILE_VERSION_ACTIVATED',
+        triggeringRef: eventPayload.regulatoryProfileVersionRef,
+      },
+      envelope.commandId,
+    );
     return {
       kind: 'COMMITTED',
       resultPayload: {

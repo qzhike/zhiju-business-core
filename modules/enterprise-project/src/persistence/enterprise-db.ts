@@ -48,6 +48,11 @@ import type {
   RegulatoryProfileTable,
   RegulatoryProfileVersionTable,
   RegulatoryProfileItemTable,
+  GapAnalysisTable,
+  GapAnalysisInputSnapshotTable,
+  GapAnalysisVersionTable,
+  GapFindingTable,
+  GapAnalysisDecisionTable,
 } from './enterprise-business-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
@@ -222,6 +227,13 @@ export interface EnterpriseProjectDb {
   'enterprise_project.regulatory_profile': RegulatoryProfileTable;
   'enterprise_project.regulatory_profile_version': RegulatoryProfileVersionTable;
   'enterprise_project.regulatory_profile_item': RegulatoryProfileItemTable;
+  // IM-03 WI-09 (issue #65): Project-owned GapAnalysis root, exact input
+  // snapshots, immutable findings and Human decisions.
+  'enterprise_project.gap_analysis': GapAnalysisTable;
+  'enterprise_project.gap_analysis_input_snapshot': GapAnalysisInputSnapshotTable;
+  'enterprise_project.gap_analysis_version': GapAnalysisVersionTable;
+  'enterprise_project.gap_finding': GapFindingTable;
+  'enterprise_project.gap_analysis_decision': GapAnalysisDecisionTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';

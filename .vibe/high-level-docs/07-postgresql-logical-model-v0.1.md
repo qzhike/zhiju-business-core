@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01 BUSINESS DECISION RECORDED / IM-03 WI-02 APPLICATION WRITE PATH LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01 BUSINESS DECISION RECORDED / IM-03 WI-02 APPLICATION WRITE PATH LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSEOUT PENDING`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -1971,3 +1971,19 @@ WI-08 新增的 Platform Reference 表属于受控平台数据面，`reference_t
 Project 侧新增 `template_baseline`、`template_baseline_version`、`template_selection`、`regulatory_profile`、`regulatory_profile_version`、`regulatory_profile_item` 六表。Root 是唯一 Project identity，Version/Selection/Item 是不可变事实；Root current/active pointer 只能以 expected aggregate version CAS 推进。所有业务表使用 FORCE RLS、Enterprise/Project Scope mirror、组合外键和 deferred pointer guard；平台保留技术 Scope 只出现在技术 Receipt/Audit/Outbox/Reference Edge 中，不能成为平台业务 Scope。
 
 TemplateSelection 的 `template_ref` 必须精确指向已发布 Platform Template Version；RegulatoryProfileItem 的 `regulatory_reference_ref` 必须精确指向已发布 Platform Regulatory Version。两者都校验 object id、immutable/version id、canonicalization、SHA-256 和 `{}` platform scope。EvidenceRef 只能指向独立 Evidence 对象；数据库 CHECK 与 Handler 共同拒绝模板/法规版本冒充 Evidence、缺 evidence、latest/label-only 和跨 Project 引用。
+
+## 29. IM-03 WI-09 GapAnalysis 物理边界
+
+WI-09 的 Project-owned Schema 新增以下表，均使用 Enterprise/Project Scope mirror、组合外键、FORCE RLS 和不可变/受控更新 trigger：
+
+| 表 | 主要列 | 持久化规则 |
+|---|---|---|
+| `gap_analysis` | root id、enterprise/project、current/accepted version pointer、status、aggregate_version | Root identity 不可迁移；pointer/status 只经 expected-version CAS 更新 |
+| `gap_analysis_input_snapshot` | version/root、七个 exact ref JSON、normalized object/version ids、snapshot hash | INSERT-only；作为 `GapInput` Snapshot 的唯一事实 |
+| `gap_analysis_version` | root/version no、mode、input snapshot、requested scope、summary、payload/hash、status、stale metadata | 内容不可变；只允许合法状态迁移和 `STALE` impact metadata |
+| `gap_finding` | version/root、subject、gap status、severity、recommendation、evidence/information refs | INSERT-only；不因输入更新而覆盖 finding |
+| `gap_analysis_decision` | root/version、review snapshot、disposition、justification、Human actor、decision hash | INSERT-only；只有 Human ACCEPT 可以移动 accepted pointer |
+
+Root 的 deferred guard 必须确保 current version 属于同一 Scope；accepted pointer 非空时必须指向同一 Root 且 Version 状态为 `ACCEPTED`。Version 的 trigger 只允许 `COMPLETED/UNDER_REVIEW → ACCEPTED|CHANGES_REQUIRED|REJECTED` 以及受控的任意可影响状态 `→ STALE`；已完成内容、Finding、InputSnapshot 和 Decision 不允许 UPDATE/DELETE。Stale metadata 只保存安全的 trigger ref/reason，不保存客户正文。
+
+GapAnalysis 的 InputSnapshot normalized ref 既用于 Reference Edge/Traceability，也用于 Baseline/Profile 激活后的 stale Impact 查询；新版本只插入新 Root/Version，不重写旧行。数据库 Gate 必须覆盖空库迁移、二次 no-op、RLS、ACL、hash/scope/check、CAS、幂等、并发、回滚和旧 finding 保留；PostgreSQL/Flyway 镜像必须以 tag 与 manifest digest 双重固定，并在 Gate 中拒绝 tag 解析结果漂移。

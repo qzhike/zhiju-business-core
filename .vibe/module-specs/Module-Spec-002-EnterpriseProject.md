@@ -1,8 +1,8 @@
 # Module-Spec-002-EnterpriseProject
 
-版本：v0.4
+版本：v0.5
 日期：2026-08-26
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSEOUT PENDING / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
 
 ## 1. 模块责任
 
@@ -503,3 +503,55 @@ Reference Edge 的 target payload hash 是可选派生字段：Object/Versioned 
 最终实现验证：Platform Template/Regulatory 的 DRAFT→PUBLISHED、Project TemplateBaseline/RegulatoryProfile 的 exact frozen chain、Root CAS/首次 Root race、FORCE RLS、ACL/immutable guards、Receipt/Audit/Outbox/Reference Edge 和既有 active refs query 均由 disposable PostgreSQL 覆盖。静态门禁全部通过；`pnpm persistence:gate` 为 `18 files / 234 passed / 0 failed`。该状态代表实现已验证，仍不代表外部 Provider、公开 HTTP、生产或人工验收已运行。
 
 当前自动化目标是 Unit/Contract、真实 PostgreSQL DDL/RLS/CHECK/CAS/幂等/不可变/回滚和受控本地 E2E；Provider、公开 HTTP、真实法规来源、跨模块 Process Manager、生产和独立人工 Reference Project 继续保持 `NOT RUN`，直到有独立证据。
+
+## 18. IM-03 WI-09 GapAnalysis 冻结输入、Human 接受与 stale
+
+Issue #65 复用当前已冻结的两个 Command 和一个 Accepted Event，不新增公共 Contract。实现必须把 GapAnalysis 作为建议性 Aggregate，不把 finding 或推荐动作直接写成 DeliveryPlan、DeliveryItem 或其他项目承诺。
+
+### 18.1 输入与受控 evaluator
+
+`project.start_gap_analysis@1.0` 的 `inputSnapshot` 必须包含以下七个精确引用：
+
+| 引用 | 业务 Scope | Handler 必须验证的事实 |
+|---|---|---|
+| `customerBaselineRef` | Enterprise + Project | Root/version 精确匹配；Version 为 `CONFIRMED`；不得使用 `latest` |
+| `templateBaselineRef` | Enterprise + Project | Root/version 精确匹配；Version 为 `FROZEN`；不得使用 `latest` |
+| `regulatoryProfileRef` | Enterprise + Project | Root/version 精确匹配；Version 为 `FROZEN`；不得使用 `latest` |
+| `enterpriseProfileSnapshotRef` | Enterprise | `objectId == snapshotId`，且 Snapshot id 和 `contentHash` 与数据库事实一致 |
+| `qmsConfigurationRef` | Enterprise | QMS root/revision 精确匹配；不得用 current/latest 替代显式 version |
+| `productScopeSnapshotRef` | Enterprise | Snapshot id 和 `contentHash` 与数据库事实一致 |
+| `analysisPolicyRef` | Enterprise + Project | `Policy` 的 typed version ref、Scope 和 version id 形状合法 |
+
+输入引用缺失、携带 `latest`/current label、Scope 错误、Snapshot hash 错误、引用对象不属于目标 Project 或冻结版本状态不正确时，必须在创建任何 Gap 事实前拒绝。`mode` 只能取 `FORMAL` 或 `EXPLORATORY`，其他运行时值必须以稳定 `PROJECT_GAP_STATUS_INVALID` 拒绝。`EXPLORATORY` 不代表可以省略 v1.0 Contract 的必填输入；它只允许受控 evaluator 将证据不足的结果保留为 `UNKNOWN`。
+
+v1 evaluator 只接受 `requestedScope` 中的确定性 canonical fixture：可选 `findings` 数组的每个元素必须有稳定 `findingId`、`subjectKey`、`subjectType`、闭集 `gapStatus`、`severity`、`rationale` 和 `recommendedAction`，引用数组必须使用当前 Scope 的合法 Typed Reference。`UNKNOWN` 必须保持 `UNKNOWN`；`MISSING` 不能用来替代未确认的未知事实；高风险或 `MAJOR_GAP` finding 必须携带 Evidence 或明确的信息请求。summary 只能由规范化的 finding 集合派生，不能由调用方提交的数字覆盖。
+
+### 18.2 物理事实与不可变边界
+
+WI-09 新增以下 Project-owned 表：
+
+| 表 | 事实 | 可变边界 |
+|---|---|---|
+| `gap_analysis` | Root、current/accepted pointer、aggregate version、当前状态 | 仅受控 CAS 更新 pointer、状态、审计时间和 last command |
+| `gap_analysis_input_snapshot` | 七个精确输入、规范化引用和 snapshot payload hash | INSERT-only |
+| `gap_analysis_version` | mode、requested scope、派生 summary、version payload/hash、状态 | 内容 INSERT-only；只允许受控状态迁移及 `STALE` impact metadata |
+| `gap_finding` | 不可变 finding 明细、引用集合、状态、严重度、建议 | INSERT-only；禁止 UPDATE/DELETE |
+| `gap_analysis_decision` | review snapshot、disposition、justification、Human actor、decision hash | INSERT-only；禁止 UPDATE/DELETE |
+
+所有表使用 FORCE RLS、Enterprise/Project Scope mirror、组合外键和 deferred Root pointer guard。Version、Finding、InputSnapshot 和 Decision 不得通过 SQL 或 Repository 原地改写；完成版本的任何内容修订都必须产生新 Version。Root CAS 失败返回 `CONCURRENCY_CONFLICT`，不得采用 last-write-wins。
+
+### 18.3 Command、Decision 与 Event
+
+`start_gap_analysis` 在同一事务中写入 Root/v1、InputSnapshot、Finding、Reference Edge、Receipt、Audit 和内部 `GapAnalysisCompleted` outbox fact。`accept_gap_analysis` 必须携带精确 `VERSIONED<GapAnalysis>`、`SNAPSHOT<GapReview>`、disposition 和 Justification，并绑定当前 Root aggregate version。
+
+接受命令执行前后均以受信事务 Context 的 `principalKind` 为准：Agent、Service、`actingFor`、伪造 request actor 和跨 Project Context 均拒绝。接受命令必须对 Root 使用事务内的行锁并以最新行重新判断 expected aggregate version；并发输家不得因已提交 Version 状态先可见而返回 Decision conflict，必须返回 `CONCURRENCY_CONFLICT`。`ACCEPT` 在同一事务中追加不可变 Decision、更新 Version/Root 状态和 accepted pointer，并写入公共 `project.GapAnalysisAccepted@1.0`；Event 只包含精确 Gap、Project、InputSnapshot 和 Decision refs，不复制 finding 或客户正文。`REJECT` 与 `CHANGES_REQUIRED` 追加 Decision 并更新状态，但 accepted pointer 必须保持 NULL。
+
+### 18.4 stale 与 Impact 语义
+
+CustomerBaseline、TemplateBaseline 或 RegulatoryProfile 的新激活版本提交后，EnterpriseProject 内的受控 Impact 过程按 InputSnapshot 的精确 normalized ref 找到依赖 Gap，将旧 Version 标记为 `STALE`，并在 Version 的 stale metadata 与对应 Impact Review/Reference Edge 事实中保存触发对象、旧版本和新版本的安全精确引用。旧 finding、input snapshot、decision、Context、Plan 和 Artifact 不被修改或删除；新分析必须由显式 `start_gap_analysis` 创建。QMS、ProductScope、EnterpriseProfile 和 Policy 的更新遵循同一规则，Provider/跨模块 Process Manager 尚不在本切片范围。
+
+### 18.5 WI-09 稳定错误与测试边界
+
+除既有公共错误外，本切片至少使用以下稳定错误：`PROJECT_GAP_INPUT_INCOMPLETE`、`PROJECT_GAP_EPISTEMIC_CONFLICT`、`PROJECT_GAP_HUMAN_ACCEPTANCE_REQUIRED`、`PROJECT_GAP_VERSION_NOT_FOUND`、`PROJECT_GAP_VERSION_IMMUTABLE`、`PROJECT_GAP_SCOPE_MISMATCH`、`PROJECT_GAP_INPUT_HASH_MISMATCH`、`PROJECT_GAP_STATUS_INVALID`、`PROJECT_GAP_FINDING_IMMUTABLE`、`PROJECT_GAP_DECISION_CONFLICT`。Unit/Contract、Disposable PostgreSQL 和受控本地 E2E 需要覆盖缺输入/latest/scope/hash、UNKNOWN、Finding 不可变、Human/Agent/actingFor、Accepted Event exact refs、REJECT/CHANGES_REQUIRED、幂等、并发 CAS、回滚和新 Baseline 后旧 Gap stale。真实 Provider、公开 HTTP、生产和独立人工验收保持 `NOT RUN`。
+
+Persistence gate 使用 `tag@manifest digest` 的 immutable image reference；除检查容器实际 RepoDigest 外，还必须验证 registry 当前 tag 解析到同一 manifest digest。发现 tag 漂移时，只能更新受核验的 pin 并重新完成本地与远端 exact-head gate，不能删除或放宽一致性检查。

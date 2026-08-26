@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-26
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSEOUT PENDING / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -593,3 +593,15 @@ WI-08 交付门禁还包括 Prettier、ESLint、TypeScript、架构边界和 Con
 最终验证矩阵还补充事务前输入拒绝（缺 source/hash、缺平台 capability）和 Project Service principal 的 Human-only 拒绝，确保这些负向边界不依赖数据库副作用。
 
 最终本地验证已完成：静态门禁 `format/lint/typecheck/architecture/contracts=PASS`；Contract 保持 `200 operations`。`pnpm persistence:gate` 在 PostgreSQL `18.6` / Flyway `11.20.3` 上为 `18 files / 234 passed / 0 failed`，空库迁移、V2009、二次 migrate no-op、平台 v2 后旧 Project exact ref/hash、Reference Edge、首次 Root race 和事务前负向用例均通过。Git commit、push、PR、Issue #64 close、远端/本地 branch 删除和 main ancestry 尚待用户检查确认后的 exact-head 交付。
+
+## IM-03 WI-09 GapAnalysis 冻结输入、Human 接受与 stale 实现边界（2026-08-26）
+
+Issue #65 在既有 CustomerBaseline、TemplateBaseline、RegulatoryProfile、EnterpriseProfileSnapshot、QMSConfiguration、ProductScopeSnapshot 和 Policy 精确引用边界之上落地 GapAnalysis 的最小纵向切片，不扩展公共 Catalog。公共 `project.start_gap_analysis@1.0`、`project.accept_gap_analysis@1.0` 与 `project.GapAnalysisAccepted@1.0` 的字段保持现有 Contract 不变。
+
+- `start_gap_analysis` 必须逐项验证七个冻结输入的 object/version/snapshot id、Scope、生命周期和 Snapshot content hash；`FORMAL` 缺任何输入、使用 `latest`、Scope 不一致或 hash 不一致都在业务写入前返回稳定错误。`EXPLORATORY` 仍使用完整的 v1.0 `GapInputSnapshot`，只允许分析结果保留 `UNKNOWN`，不得把未知推导成 `MISSING`。
+- 本轮只提供受控、确定性的 evaluator fixture：`requestedScope` 可携带闭合的 finding 集合；Handler 规范化该集合、从 finding 明细派生 summary 并保存 payload hash。没有通用 AI 算法、外部法规 Provider 或测试 seed 代替业务输入。
+- `gap_analysis`、`gap_analysis_version`、`gap_analysis_input_snapshot`、`gap_finding` 和 `gap_analysis_decision` 由 EnterpriseProject owning Schema 保存。InputSnapshot、Version、Finding、Decision 都是追加事实；Finding 与已完成 Version 不允许 UPDATE/DELETE。Root 只以 expected aggregate version CAS 移动 current/accepted pointer 和状态。
+- 只有可信 `principalKind=HUMAN` 可以执行接受命令；Agent、Service、`actingFor` 和伪造 payload actor 都不能改变可信主体。接受命令必须在同一事务中锁定并重新读取 GapAnalysis Root 后再判断 expected aggregate version，确保任何并发输家统一返回 `CONCURRENCY_CONFLICT`。`ACCEPT` 才设置 accepted pointer 并写入精确 `GapAnalysisAccepted` Event；`REJECT`/`CHANGES_REQUIRED` 只保存 Decision，不设置 accepted pointer。
+- 新 Customer/Template/Regulatory Baseline/Profile 版本激活时，只追加受影响 Gap 的 stale/impact fact，将旧 Version 标记 `STALE`；不修改旧 Finding、InputSnapshot、Decision、Context、Plan 或 Artifact。新分析必须通过显式 start command 产生。
+- WI-09 的自动验证范围是 Unit/Contract、真实 PostgreSQL DDL/RLS/CHECK/CAS/幂等/不可变/回滚和受控本地 E2E。真实 Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收仍分别标记 `NOT RUN`，不得由本地 Gate 推断为通过。
+- PostgreSQL persistence gate 的物理 baseline 必须同时固定镜像 tag 与 manifest digest，并独立核对当前 tag 解析结果；若 registry tag 漂移，必须更新 immutable pin 后重新执行本地与 exact-head Gate，不能绕过 tag-digest 一致性检查。

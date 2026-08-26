@@ -1,6 +1,6 @@
 export const enterpriseProjectModule = Object.freeze({
   name: 'enterprise-project',
-  status: 'IM_03_WI08_TEMPLATE_REGULATORY_LANDED' as const,
+  status: 'IM_03_WI09_GAP_ANALYSIS_VERIFIED' as const,
 });
 
 export {
@@ -149,6 +149,16 @@ export type {
   RegulatoryProfileTable,
   RegulatoryProfileVersionTable,
   RegulatoryProfileItemTable,
+  GapAnalysisTable,
+  GapAnalysisInputSnapshotTable,
+  GapAnalysisVersionTable,
+  GapFindingTable,
+  GapAnalysisDecisionTable,
+  GapAnalysisStatus,
+  GapAnalysisVersionStatus,
+  GapAnalysisMode,
+  GapAnalysisDisposition,
+  GapFindingSeverity,
 } from './persistence/enterprise-business-types.js';
 // IM-03 WI-03 (issue #59): business handlers and failure codes for the
 // EnterpriseProject vertical slice. Handlers fall into two groups:
@@ -230,6 +240,24 @@ export type {
   PlatformRegulatoryPublishVersionPayload,
 } from './business/template-regulatory-handlers.js';
 export {
+  handleStartGapAnalysis,
+  handleAcceptGapAnalysis,
+} from './business/gap-analysis-handlers.js';
+export type {
+  StartGapAnalysisCommandPayload,
+  AcceptGapAnalysisCommandPayload,
+  ControlledGapFinding,
+} from './business/gap-analysis-handlers.js';
+export { GapAnalysisRepository } from './persistence/gap-analysis-repository.js';
+export type {
+  GapAnalysisInsert,
+  GapAnalysisInputSnapshotInsert,
+  GapAnalysisVersionInsert,
+  GapFindingInsert,
+  GapAnalysisDecisionInsert,
+  GapStaleDependency,
+} from './persistence/gap-analysis-repository.js';
+export {
   EnterpriseBusinessError,
   PROJECT_ENTERPRISE_NOT_ACTIVE,
   PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT,
@@ -280,5 +308,15 @@ export {
   PROJECT_TEMPLATE_VERSION_NOT_FOUND,
   PROJECT_REGULATORY_PROFILE_VERSION_NOT_FOUND,
   PROJECT_REGULATORY_PROFILE_SCOPE_MISMATCH,
+  PROJECT_GAP_INPUT_INCOMPLETE,
+  PROJECT_GAP_EPISTEMIC_CONFLICT,
+  PROJECT_GAP_HUMAN_ACCEPTANCE_REQUIRED,
+  PROJECT_GAP_VERSION_NOT_FOUND,
+  PROJECT_GAP_VERSION_IMMUTABLE,
+  PROJECT_GAP_SCOPE_MISMATCH,
+  PROJECT_GAP_INPUT_HASH_MISMATCH,
+  PROJECT_GAP_STATUS_INVALID,
+  PROJECT_GAP_FINDING_IMMUTABLE,
+  PROJECT_GAP_DECISION_CONFLICT,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';
