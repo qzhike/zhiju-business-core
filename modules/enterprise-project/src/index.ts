@@ -1,6 +1,6 @@
 export const enterpriseProjectModule = Object.freeze({
   name: 'enterprise-project',
-  status: 'IM_03_WI03_BUSINESS_VERTICAL_SLICE_LANDED' as const,
+  status: 'IM_03_WI04_PROJECT_SCOPE_LANDED' as const,
 });
 
 export {
@@ -62,6 +62,9 @@ export type {
   ProductScopeSnapshotInsert,
   QmsConfigurationInsert,
   QmsConfigurationRevisionInsert,
+  ProjectInsert,
+  ProjectScopeClaimInsert,
+  ProjectSnapshotBindingInsert,
   CasResult,
 } from './persistence/enterprise-business-repository.js';
 export type {
@@ -74,12 +77,18 @@ export type {
   ProductScopeSnapshotTable,
   QmsConfigurationTable,
   QmsConfigurationRevisionTable,
+  ProjectTable,
+  ProjectScopeClaimTable,
+  ProjectSnapshotBindingTable,
   EnterpriseStatus,
   EnterpriseFactStatus,
   EnterpriseFactRiskLevel,
   ProductStatus,
   VersionLifecycle,
   QmsConfigurationStatus,
+  ProjectStatus,
+  ProjectScopeClaimStatus,
+  ProjectSnapshotBindingPurpose,
 } from './persistence/enterprise-business-types.js';
 // IM-03 WI-03 (issue #59): business handlers and failure codes for the
 // EnterpriseProject vertical slice. Handlers fall into two groups:
@@ -93,6 +102,8 @@ export {
   handleProposeEnterpriseFact,
   handleConfirmEnterpriseFact,
   handleGetEnterpriseProfileSnapshot,
+  handleCreateProject,
+  handleValidateObjectScope,
   handleEnterpriseProductCreate,
   handleEnterpriseProductCreateVersion,
   handleEnterpriseProductActivateVersion,
@@ -107,6 +118,9 @@ export type {
   ConfirmEnterpriseFactPayload,
   GetEnterpriseProfileSnapshotPayload,
   GetEnterpriseProfileSnapshotResult,
+  CreateProjectPayload,
+  ValidateObjectScopePayload,
+  ValidateObjectScopeResult,
   EnterpriseProductCreatePayload,
   EnterpriseProductCreateVersionPayload,
   EnterpriseProductActivateVersionPayload,
@@ -136,5 +150,11 @@ export {
   PROJECT_QMS_VERSION_NOT_FOUND,
   PROJECT_QMS_ACTIVATION_NOOP,
   PROJECT_HUMAN_ONLY_DENIED,
+  PROJECT_PROJECT_DISPLAY_CODE_CONFLICT,
+  PROJECT_START_SNAPSHOT_INCOMPLETE,
+  PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
+  PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN,
+  PROJECT_MEMBER_POLICY_REF_INVALID,
+  PROJECT_OBJECT_SCOPE_MISMATCH,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';

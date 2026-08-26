@@ -25,6 +25,9 @@ import type {
   ProductScopeSnapshotTable,
   QmsConfigurationTable,
   QmsConfigurationRevisionTable,
+  ProjectTable,
+  ProjectScopeClaimTable,
+  ProjectSnapshotBindingTable,
 } from './enterprise-business-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
@@ -164,6 +167,13 @@ export interface EnterpriseProjectDb {
   'enterprise_project.product_scope_snapshot': ProductScopeSnapshotTable;
   'enterprise_project.qms_configuration': QmsConfigurationTable;
   'enterprise_project.qms_configuration_revision': QmsConfigurationRevisionTable;
+  // IM-03 WI-04 (issue #60): Project Aggregate, ProjectScopeClaim and
+  // ProjectSnapshotBinding. The Project row owns (enterprise_id, project_id);
+  // the Scope Claim publishes that pair to other modules; the Snapshot
+  // Binding freezes the exact StartSnapshot consumed at create time.
+  'enterprise_project.project': ProjectTable;
+  'enterprise_project.project_scope_claim': ProjectScopeClaimTable;
+  'enterprise_project.project_snapshot_binding': ProjectSnapshotBindingTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';

@@ -1,8 +1,8 @@
 # Module-Test-002-EnterpriseProject
 
-版本：v0.2
-日期：2026-08-25
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / LOCAL VERIFY PASS / USER CONFIRMATION REQUIRED`
+版本：v0.4
+日期：2026-08-26
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / EXACT-HEAD DELIVERY IN PROGRESS`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -35,7 +35,7 @@
 - Unit/Contract/E2E/Manual：业务场景保持 `NOT RUN`，原因是业务实现与 Fixture 尚不存在；EP-WI01 的决策矩阵/路由场景为 `DESIGN VERIFIED`，用户审核仍未完成；EP-WI02 技术事务基础已有 focused Unit/Persistence 覆盖，人工 probe 仍为 `NOT RUN`。
 - 现有公开 Contract 的静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - PR #72 修正后的本地 `pnpm verify` 已通过：Persistence 为 14 文件 / 202 测试 PASS；全量 Unit 为 21 文件 PASS、12 文件 skipped，348 个测试 PASS、189 个 skipped。它只证明当前工作区和 Disposable PostgreSQL 边界，不改变真实 Provider、HTTP、跨模块 E2E 和人工验收的 `NOT RUN` 状态。
-- 测试遗留：未创建临时脚本或测试文件。
+- 本次 PR #73 复核发现工作树已有未跟踪 `tmp/` 测试脚本和 Node compile cache；它们不属于交付内容，修复验证完成后必须清理并重新确认工作树。
 
 ## IM-02 WI-04 PostgreSQL 用例
 
@@ -81,3 +81,41 @@
 | `EP-WI03-P-012` | Unit | canonical JSON hash 顺序无关 | `digest.equals` 为 `true` | `digestCanonicalPayload` 顺序无关断言通过 | `PASS` |
 
 WI-03 业务 Handler、业务 DDL 和 Disposable PostgreSQL 的修正结果已由本次 exact-head 工作区复验；真实 Provider、HTTP、跨模块 E2E 和人工业务验收仍为 `NOT RUN`。原始 PR 的自报测试结果不作为本次修正后的 PASS 证据。
+
+## IM-03 WI-04 Project 启动快照、Scope 与对象验证用例（PR #73 修复前基线）
+
+| ID | 层级 | 输入 | 预期输出 | 实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI04-P-001` | Persistence | 同 Enterprise 内 Project A happy path | 提交 Project + ScopeClaim + SnapshotBinding 三张表；aggregate_version=1；Outbox/Reference Edge 同步 | Project 新建在 `project` INSERT 处复现 `42501 new row violates row-level security policy` | `FAIL` |
+| `EP-WI04-P-002` | Persistence | 同 Enterprise 内重复 displayCode | 拒绝 `PROJECT_PROJECT_DISPLAY_CODE_CONFLICT`；事务不留下 Project / ScopeClaim / Binding | 尚未进入重复冲突分支；首次 Project 即因 `ON CONFLICT` + RLS 失败 | `FAIL` |
+| `EP-WI04-P-003` | Persistence | StartSnapshot 引用跨 Enterprise 的 Profile 或错误 enterprise_id | 拒绝 `PROJECT_START_SNAPSHOT_SCOPE_MISMATCH`；Scope mirror trigger 与 handler 二次校验均触发 | 断言结果虽为 Scope Mismatch，但 QMS fixture 把 revision hash 错传为 enterprise_id，无法证明目标路径 | `FAIL` |
+| `EP-WI04-P-004` | Persistence | StartSnapshot 任意 ref 使用 `latest` / `current` | 拒绝 `PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN` | snapshotId=latest 直接短路拒绝 | `PASS` |
+| `EP-WI04-P-005` | Persistence | StartSnapshot Profile ref 指向不存在 / 错误 hash 的 snapshot | 拒绝 `PROJECT_START_SNAPSHOT_SCOPE_MISMATCH`；事务回滚 | Handler 返回 REJECTED Command Result；测试错误等待抛出异常，捕获值为 null | `FAIL` |
+| `EP-WI04-P-006` | Persistence | memberPolicyRef 不是 VERSIONED 或缺 versionId/scope | 拒绝 `PROJECT_MEMBER_POLICY_REF_INVALID` | OBJECT 形态负向路径通过；原测试把不存在的 contentHash 当作 VersionedRef 必填字段 | `NOT ACCEPTED` |
+| `EP-WI04-P-007` | Persistence | ProjectScopeClaim 在创建后可被权威 SQL 查询 | `(enterprise_id, project_id, status)` 与事务 Context Enterprise 相同；status=ACTIVE | Project 新建在 RLS 处失败，未产生可查询 ScopeClaim | `FAIL` |
+| `EP-WI04-P-008` | Persistence | `project.validate_object_scope` 同 Project / 跨 Project probe | 同 Project 返回 `valid=true` 与正确 Scope；跨 Project 抛 `PROJECT_OBJECT_SCOPE_MISMATCH`；不返回替代对象 | Project 新建在 RLS 处失败，尚未到对象验证；静态复核另发现查询使用不存在的通用 `object_id` | `FAIL` |
+| `EP-WI04-P-009` | Persistence | 两个 Enterprise 同 displayCode | 两个 Project 均 COMMITTED；`(enterprise_id, display_code)` UNIQUE 不冲突 | A/B fixture 均在 Project 新建前被 RLS 或错误 QMS enterprise scope 阻断 | `FAIL` |
+| `EP-WI04-P-010` | Persistence | memberPolicyRef 缺 versionId/scope | 拒绝 `PROJECT_MEMBER_POLICY_REF_INVALID` | 当前实现接受该形态并继续写入，随后以 Project RLS 错误失败；没有稳定的 member policy 错误 | `FAIL` |
+| `EP-WI04-DB-011` | Persistence | `enterprise_project_app` 对 `project_snapshot_binding` UPDATE 权限 | `has_table_privilege(... 'UPDATE') = false` | V2003 `REVOKE UPDATE, DELETE` 生效 | `PASS` |
+
+修复前基线：`pnpm typecheck` 为 `PASS`；`pnpm format:check` 因两个 PR 文件失败；`pnpm persistence:gate` 在 PostgreSQL 18.6 / Flyway 11.20.3 上为 `206 passed / 7 failed`（总计 213）。对象验证、Provider、HTTP、跨模块 E2E 和人工业务验收仍为 `NOT RUN`，原始 PR 的自报结果不作为修复后的 PASS 证据。
+
+## PR #73 修复后复验（2026-08-26）
+
+| ID | 层级 | 输入 | 预期输出 | 实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-PR73-P-001` | Persistence | 同 Enterprise 内 Project happy path，memberPolicy 使用无 contentHash 的 VersionedRef | Project/ScopeClaim/Binding/Outbox/Edge 同事务提交；无伪造 hash | Project、ScopeClaim、Binding 各 1 行；aggregate_version=1；member_policy_payload_hash 为 NULL | `PASS` |
+| `EP-PR73-P-002` | Persistence | 重复 `(enterprise_id, display_code)`，随后使用不同 displayCode | 返回 `PROJECT_PROJECT_DISPLAY_CODE_CONFLICT`；重复命令事务可正常结束，后续不同 displayCode 命令可提交 | duplicate REJECTED；后续不同 displayCode COMMITTED | `PASS` |
+| `EP-PR73-P-003` | Persistence | Enterprise A Command 引用 Enterprise B Profile Snapshot | 稳定拒绝 `PROJECT_START_SNAPSHOT_SCOPE_MISMATCH` | Handler 在事务前拒绝跨 Enterprise scope | `PASS` |
+| `EP-PR73-P-004` | Persistence | StartSnapshot 使用 `latest` | 拒绝 `PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN` | 短路返回稳定失败码 | `PASS` |
+| `EP-PR73-P-005` | Persistence | Profile ref 形状正确但 persisted row 不存在/Hash 不匹配 | Command 返回 REJECTED，而不是把业务拒绝当作异常抛出 | `status=REJECTED`，`errorCode=PROJECT_START_SNAPSHOT_SCOPE_MISMATCH` | `PASS` |
+| `EP-PR73-P-006` | Persistence | memberPolicy 使用 OBJECT 或缺失 versionId/scope | 拒绝 `PROJECT_MEMBER_POLICY_REF_INVALID`；VersionedRef 不要求 contentHash | OBJECT 与缺 versionId 的负向用例均返回稳定错误 | `PASS` |
+| `EP-PR73-P-007` | Persistence | 创建后查询 ProjectScopeClaim | 返回精确 `(enterprise_id, project_id, ACTIVE)` | admin 查询匹配 A 的 Project/Enterprise | `PASS` |
+| `EP-PR73-P-008` | Persistence | 同 Project 与跨 Project 的 `validate_object_scope` | 同 Project `valid=true`；跨 Project 抛 `PROJECT_OBJECT_SCOPE_MISMATCH` | 精确 Project 主键映射通过；跨 Project 无替代对象泄漏 | `PASS` |
+| `EP-PR73-P-009` | Persistence | Enterprise A/B 使用相同 displayCode | 两个 Project 均 COMMITTED | A/B 均提交成功，fixture scope 与 envelope 一致 | `PASS` |
+| `EP-PR73-P-010` | Persistence | VersionedRef 无 contentHash | 不写全零 hash；缺 versionId 才拒绝 | valid VersionedRef 持久化 NULL，invalid versionId 稳定拒绝 | `PASS` |
+| `EP-PR73-DB-011` | Persistence | app role UPDATE `project_snapshot_binding` | `has_table_privilege(..., 'UPDATE') = false` | 查询返回 `false` | `PASS` |
+| `EP-PR73-DB-012` | Persistence | 受信 Enterprise A context 直接 INSERT Enterprise B Project | PostgreSQL 返回 `42501` | V2004 policy 拒绝 rogue Enterprise INSERT | `PASS` |
+| `EP-PR73-V-001` | Repository | `pnpm verify` | 所有静态、Unit、Architecture、Contract、Persistence Gate 通过 | Format/Lint/Typecheck 通过；Unit `348 passed / 201 skipped`；Contract `200`；Persistence `214 passed`；V2004/V2005 成功且二次 migrate no-op | `PASS` |
+
+修复后自动化只证明当前工作区、受控代码路径和 Disposable PostgreSQL；真实 Provider、公开 HTTP、跨模块业务 E2E、生产环境和人工 Reference Project 验收继续为 `NOT RUN`。测试脚本、临时文件和 gate 容器已清理。

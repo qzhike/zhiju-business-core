@@ -19,8 +19,14 @@
 //     purpose binding at the composition layer.
 
 import type { Kysely } from 'kysely';
+import { sql } from 'kysely';
 import type { Common, EnterpriseProject } from '@zhiju/contracts';
-import { newUuidV7, type CanonicalJsonObject, type CanonicalJsonValue } from '@zhiju/shared-kernel';
+import {
+  isUuidV7,
+  newUuidV7,
+  type CanonicalJsonObject,
+  type CanonicalJsonValue,
+} from '@zhiju/shared-kernel';
 import {
   withEnterpriseProjectTransaction,
   digestCanonicalPayload,
@@ -45,6 +51,8 @@ import {
   PROJECT_FACT_CONFLICT_UNRESOLVED,
   PROJECT_FACT_SOURCE_REQUIRED,
   PROJECT_HUMAN_ONLY_DENIED,
+  PROJECT_MEMBER_POLICY_REF_INVALID,
+  PROJECT_OBJECT_SCOPE_MISMATCH,
   PROJECT_PRODUCT_DISPLAY_CODE_CONFLICT,
   PROJECT_PRODUCT_ACTIVATION_NOOP,
   PROJECT_PRODUCT_SCOPE_SNAPSHOT_INVALID,
@@ -52,10 +60,14 @@ import {
   PROJECT_PRODUCT_VERSION_NOT_FOUND,
   PROJECT_PROFILE_SNAPSHOT_IMMUTABLE,
   PROJECT_PROFILE_SOURCE_MISMATCH,
+  PROJECT_PROJECT_DISPLAY_CODE_CONFLICT,
   PROJECT_QMS_DECISION_SOURCE_REQUIRED,
   PROJECT_QMS_REVISION_IMMUTABLE,
   PROJECT_QMS_ACTIVATION_NOOP,
   PROJECT_QMS_VERSION_NOT_FOUND,
+  PROJECT_START_SNAPSHOT_INCOMPLETE,
+  PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN,
+  PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
 } from './enterprise-business-errors.js';
 
 const repo = new EnterpriseBusinessRepository();
@@ -234,6 +246,318 @@ function parseOptionalInstant(value: string | undefined, label: string): Date | 
     );
   }
   return parsed;
+}
+
+// IM-03 WI-04 (issue #60): helpers for Project StartSnapshot and
+// `project.validate_object_scope`. `assertExactProjectSnapshotRef` reuses
+// the existing `assertExactReference` style but enforces the closed
+// `kind` set required by the typed Reference registry
+// (SNAPSHOT/VERSIONED for ProjectStartSnapshot, OBJECT/VERSIONED/
+// CONTENT_ADDRESSED/SNAPSHOT for validate_object_scope).
+function asObjectId(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function asDigest(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  return /^[0-9a-f]{64}$/i.test(value) ? value.toLowerCase() : undefined;
+}
+
+type ObjectScopeReferenceKind = 'OBJECT' | 'VERSIONED' | 'CONTENT_ADDRESSED' | 'SNAPSHOT';
+
+interface ObjectScopeLookup {
+  readonly table: string;
+  readonly objectIdColumn: string;
+  readonly projectIdColumn?: string;
+  readonly versionIdColumn?: string;
+  readonly snapshotIdColumn?: string;
+  readonly payloadHashColumn?: string;
+  readonly kinds: readonly ObjectScopeReferenceKind[];
+}
+
+// The query accepts only this closed, code-owned table/column map. Every
+// identifier is a constant, so user-supplied objectType never becomes SQL.
+const OBJECT_SCOPE_LOOKUPS: Readonly<Record<string, ObjectScopeLookup>> = {
+  Enterprise: {
+    table: 'enterprise_project.enterprise',
+    objectIdColumn: 'enterprise_id',
+    kinds: ['OBJECT'],
+  },
+  EnterpriseFact: {
+    table: 'enterprise_project.enterprise_fact',
+    objectIdColumn: 'enterprise_fact_id',
+    kinds: ['OBJECT'],
+  },
+  EnterpriseFactVersion: {
+    table: 'enterprise_project.enterprise_fact_version',
+    objectIdColumn: 'enterprise_fact_id',
+    versionIdColumn: 'version_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['VERSIONED', 'CONTENT_ADDRESSED'],
+  },
+  EnterpriseProfileSnapshot: {
+    table: 'enterprise_project.enterprise_profile_snapshot',
+    objectIdColumn: 'snapshot_id',
+    snapshotIdColumn: 'snapshot_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['SNAPSHOT', 'CONTENT_ADDRESSED'],
+  },
+  Product: {
+    table: 'enterprise_project.product',
+    objectIdColumn: 'product_id',
+    kinds: ['OBJECT'],
+  },
+  ProductVersion: {
+    table: 'enterprise_project.product_version',
+    objectIdColumn: 'product_id',
+    versionIdColumn: 'version_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['VERSIONED', 'CONTENT_ADDRESSED'],
+  },
+  ProductScopeSnapshot: {
+    table: 'enterprise_project.product_scope_snapshot',
+    objectIdColumn: 'snapshot_id',
+    snapshotIdColumn: 'snapshot_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['SNAPSHOT', 'CONTENT_ADDRESSED'],
+  },
+  QMSConfiguration: {
+    table: 'enterprise_project.qms_configuration',
+    objectIdColumn: 'qms_configuration_id',
+    kinds: ['OBJECT'],
+  },
+  QMSConfigurationRevision: {
+    table: 'enterprise_project.qms_configuration_revision',
+    objectIdColumn: 'qms_configuration_id',
+    versionIdColumn: 'revision_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['VERSIONED', 'CONTENT_ADDRESSED'],
+  },
+  Project: {
+    table: 'enterprise_project.project',
+    objectIdColumn: 'project_id',
+    projectIdColumn: 'project_id',
+    kinds: ['OBJECT'],
+  },
+  ProjectScopeClaim: {
+    table: 'enterprise_project.project_scope_claim',
+    objectIdColumn: 'claim_id',
+    projectIdColumn: 'project_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['OBJECT', 'CONTENT_ADDRESSED'],
+  },
+  ProjectSnapshotBinding: {
+    table: 'enterprise_project.project_snapshot_binding',
+    objectIdColumn: 'binding_id',
+    projectIdColumn: 'project_id',
+    payloadHashColumn: 'payload_hash',
+    kinds: ['OBJECT', 'CONTENT_ADDRESSED'],
+  },
+};
+
+function ensureSameEnterpriseScope(
+  scope: { enterpriseId?: unknown; projectId?: unknown } | undefined,
+  enterpriseId: string,
+  label: string,
+): void {
+  if (
+    scope === undefined ||
+    typeof scope.enterpriseId !== 'string' ||
+    scope.enterpriseId !== enterpriseId
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
+      `${label} must carry the trusted Enterprise scope`,
+    );
+  }
+  if (scope.projectId !== undefined) {
+    throw new EnterpriseBusinessError(
+      PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
+      `${label} must not carry a Project scope (Project refs are not valid in a StartSnapshot)`,
+    );
+  }
+}
+
+function rejectLatestPointer(ref: unknown, label: string): void {
+  const candidate = ref as { snapshotId?: unknown; versionId?: unknown };
+  if (
+    candidate.snapshotId === 'latest' ||
+    candidate.snapshotId === 'current' ||
+    candidate.versionId === 'latest' ||
+    candidate.versionId === 'current'
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_START_SNAPSHOT_LATEST_FORBIDDEN,
+      `${label} must resolve an exact id; "latest"/"current" are forbidden`,
+    );
+  }
+}
+
+function validateStartSnapshotProfileRef(
+  reference: unknown,
+  enterpriseId: string,
+): { snapshotId: string; digest: string } {
+  const ref = asReferenceLike(reference);
+  if (
+    ref.kind !== 'SNAPSHOT' ||
+    ref.objectType !== 'EnterpriseProfileSnapshot' ||
+    typeof ref.snapshotId !== 'string'
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_START_SNAPSHOT_INCOMPLETE,
+      'enterpriseProfileSnapshotRef must be a SNAPSHOT reference to an EnterpriseProfileSnapshot',
+    );
+  }
+  rejectLatestPointer(ref, 'enterpriseProfileSnapshotRef');
+  ensureSameEnterpriseScope(
+    ref.scope as { enterpriseId?: unknown } | undefined,
+    enterpriseId,
+    'enterpriseProfileSnapshotRef',
+  );
+  const contentHash = asReferenceLike(ref.contentHash);
+  if (
+    contentHash.algorithm !== 'SHA-256' ||
+    contentHash.canonicalizationVersion !== '1' ||
+    asDigest(contentHash.digest) === undefined
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
+      'enterpriseProfileSnapshotRef.contentHash must be SHA-256/1 with a 32-byte hex digest',
+    );
+  }
+  return { snapshotId: ref.snapshotId, digest: contentHash.digest as string };
+}
+
+function validateStartSnapshotQmsRef(
+  reference: unknown,
+  enterpriseId: string,
+): { qmsId: string; revisionId: string } {
+  const ref = asReferenceLike(reference);
+  if (
+    ref.kind !== 'VERSIONED' ||
+    ref.objectType !== 'QMSConfiguration' ||
+    typeof ref.objectId !== 'string' ||
+    typeof ref.versionId !== 'string'
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_START_SNAPSHOT_INCOMPLETE,
+      'qmsConfigurationRef must be a VERSIONED reference to a QMSConfigurationRevision',
+    );
+  }
+  rejectLatestPointer(ref, 'qmsConfigurationRef');
+  ensureSameEnterpriseScope(
+    ref.scope as { enterpriseId?: unknown } | undefined,
+    enterpriseId,
+    'qmsConfigurationRef',
+  );
+  // VersionedRef does not carry a contentHash by contract; the handler
+  // re-validates the persisted QMSRevision row's payload_hash and lifecycle
+  // against the database, which is the authoritative source of truth.
+  return {
+    qmsId: ref.objectId,
+    revisionId: ref.versionId,
+  };
+}
+
+function validateStartSnapshotProductScopeRef(
+  reference: unknown,
+  enterpriseId: string,
+): { snapshotId: string; digest: string } {
+  const ref = asReferenceLike(reference);
+  if (
+    ref.kind !== 'SNAPSHOT' ||
+    ref.objectType !== 'ProductScopeSnapshot' ||
+    typeof ref.snapshotId !== 'string'
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_START_SNAPSHOT_INCOMPLETE,
+      'productScopeSnapshotRef must be a SNAPSHOT reference to a ProductScopeSnapshot',
+    );
+  }
+  rejectLatestPointer(ref, 'productScopeSnapshotRef');
+  ensureSameEnterpriseScope(
+    ref.scope as { enterpriseId?: unknown } | undefined,
+    enterpriseId,
+    'productScopeSnapshotRef',
+  );
+  const contentHash = asReferenceLike(ref.contentHash);
+  if (
+    contentHash.algorithm !== 'SHA-256' ||
+    contentHash.canonicalizationVersion !== '1' ||
+    asDigest(contentHash.digest) === undefined
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
+      'productScopeSnapshotRef.contentHash must be SHA-256/1 with a 32-byte hex digest',
+    );
+  }
+  return { snapshotId: ref.snapshotId, digest: contentHash.digest as string };
+}
+
+function validateOptionalVersionedRef(
+  reference: unknown,
+  enterpriseId: string,
+  label: string,
+  objectType: string,
+): { objectId: string; versionId: string } | undefined {
+  if (reference === undefined) return undefined;
+  const ref = asReferenceLike(reference);
+  if (
+    ref.kind !== 'VERSIONED' ||
+    ref.objectType !== objectType ||
+    typeof ref.objectId !== 'string' ||
+    typeof ref.versionId !== 'string'
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_START_SNAPSHOT_INCOMPLETE,
+      `${label} must be a VERSIONED reference to a ${objectType}`,
+    );
+  }
+  rejectLatestPointer(ref, label);
+  ensureSameEnterpriseScope(
+    ref.scope as { enterpriseId?: unknown } | undefined,
+    enterpriseId,
+    label,
+  );
+  // VersionedRef does not carry contentHash by contract; the binding row
+  // records the latest known hash from the owning Row's reference edge.
+  return {
+    objectId: ref.objectId,
+    versionId: ref.versionId,
+  };
+}
+
+function validateMemberPolicyRef(
+  reference: unknown,
+  enterpriseId: string,
+): { objectType: string; objectId: string; versionId: string; digest: string | null } {
+  const ref = asReferenceLike(reference);
+  if (
+    ref.kind !== 'VERSIONED' ||
+    typeof ref.objectType !== 'string' ||
+    typeof ref.objectId !== 'string' ||
+    typeof ref.versionId !== 'string'
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_MEMBER_POLICY_REF_INVALID,
+      'memberPolicyRef must be a VERSIONED reference with objectType/objectId/versionId',
+    );
+  }
+  rejectLatestPointer(ref, 'memberPolicyRef');
+  ensureSameEnterpriseScope(
+    ref.scope as { enterpriseId?: unknown } | undefined,
+    enterpriseId,
+    'memberPolicyRef',
+  );
+  return {
+    objectType: ref.objectType,
+    objectId: ref.objectId,
+    versionId: ref.versionId,
+    // VersionedRef has no contentHash field. A Policy Repository can supply
+    // a digest in a future capability, but this handler must not fabricate
+    // one from an absent value.
+    digest: null,
+  };
 }
 
 async function appendReferenceEdges(
@@ -2065,4 +2389,471 @@ export async function handleEnterpriseProfileCreateSnapshot(
       return result;
     },
   );
+}
+
+// =====================================================================
+// Public Contract: project.create_project (IM-03 WI-04 / issue #60)
+// =====================================================================
+
+export type CreateProjectPayload = EnterpriseProject.ProjectCreateProjectPayload;
+
+export async function handleCreateProject(
+  db: Kysely<EnterpriseProjectDb>,
+  context: EnterpriseProjectTransactionContext,
+  envelope: CommandEnvelope & { payload: CreateProjectPayload },
+): Promise<CommandResult> {
+  if (
+    envelope.payload.displayCode === '' ||
+    envelope.payload.title === '' ||
+    envelope.payload.objective === ''
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_START_SNAPSHOT_INCOMPLETE,
+      'displayCode, title and objective must all be non-empty',
+    );
+  }
+  assertExactReference(
+    envelope.payload.enterpriseRef,
+    'Enterprise',
+    envelope.enterpriseId,
+    'COMMAND_TARGET_MISMATCH',
+    'enterpriseRef',
+  );
+  const enterpriseId = envelope.enterpriseId;
+  // Validate every StartSnapshot / memberPolicyRef before opening any
+  // transaction so partial work can never leak. The handler also re-checks
+  // the values inside the transaction against the persisted snapshot rows.
+  const profile = validateStartSnapshotProfileRef(
+    envelope.payload.startSnapshot.enterpriseProfileSnapshotRef,
+    enterpriseId,
+  );
+  const qms = validateStartSnapshotQmsRef(
+    envelope.payload.startSnapshot.qmsConfigurationRef,
+    enterpriseId,
+  );
+  const productScope = validateStartSnapshotProductScopeRef(
+    envelope.payload.startSnapshot.productScopeSnapshotRef,
+    enterpriseId,
+  );
+  const initialCustomerBaseline = validateOptionalVersionedRef(
+    envelope.payload.startSnapshot.initialCustomerBaselineRef,
+    enterpriseId,
+    'initialCustomerBaselineRef',
+    'CustomerBaseline',
+  );
+  const templateBaseline = validateOptionalVersionedRef(
+    envelope.payload.startSnapshot.templateBaselineRef,
+    enterpriseId,
+    'templateBaselineRef',
+    'TemplateBaseline',
+  );
+  const regulatoryProfile = validateOptionalVersionedRef(
+    envelope.payload.startSnapshot.regulatoryProfileRef,
+    enterpriseId,
+    'regulatoryProfileRef',
+    'RegulatoryProfile',
+  );
+  const memberPolicy = validateMemberPolicyRef(envelope.payload.memberPolicyRef, enterpriseId);
+  const projectId = newUuidV7();
+  // The create command mints the Project UUID itself. Bind that exact target
+  // to the trusted transaction scope before claiming the technical receipt;
+  // this keeps the Project INSERT path and the Project-scoped outbox/audit
+  // rows inside one precise RLS scope without trusting a caller-supplied ID.
+  const projectContext: EnterpriseProjectTransactionContext = {
+    ...context,
+    allowedProjectIds: [...context.allowedProjectIds, projectId],
+  };
+  return executeEnterpriseProjectCommand(
+    db,
+    projectContext,
+    { ...envelope, projectId, targetType: 'Project', targetId: projectId },
+    async (execution) => {
+      const enterprise = await repo.getEnterpriseById(execution.trx, enterpriseId);
+      if (!enterprise) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_ENTERPRISE_NOT_ACTIVE,
+          safeSummary: 'enterprise not found',
+          currentAggregateVersion: undefined,
+        };
+      }
+      if (enterprise.status !== 'ACTIVE') {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_ENTERPRISE_NOT_ACTIVE,
+          safeSummary: `enterprise is in status ${enterprise.status}`,
+          currentAggregateVersion: aggregateVersionToString(enterprise.aggregate_version),
+        };
+      }
+      // Re-bind the StartSnapshot against the persisted snapshot rows so a
+      // forged Ref cannot pass the up-front validation and then collide at
+      // the database. The mirror triggers on each row also reject any
+      // Scope mismatch.
+      const profileRow = await repo.getEnterpriseProfileSnapshot(execution.trx, profile.snapshotId);
+      if (
+        profileRow?.enterprise_id !== enterpriseId ||
+        profileRow.payload_hash.toString('hex') !== profile.digest
+      ) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
+          safeSummary: 'enterpriseProfileSnapshotRef does not match the persisted snapshot',
+          currentAggregateVersion: aggregateVersionToString(enterprise.aggregate_version),
+        };
+      }
+      const productScopeRow = await repo.getProductScopeSnapshot(
+        execution.trx,
+        productScope.snapshotId,
+      );
+      if (
+        productScopeRow?.enterprise_id !== enterpriseId ||
+        productScopeRow.payload_hash.toString('hex') !== productScope.digest
+      ) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
+          safeSummary: 'productScopeSnapshotRef does not match the persisted snapshot',
+          currentAggregateVersion: aggregateVersionToString(enterprise.aggregate_version),
+        };
+      }
+      const qmsRow = await repo.getQmsConfigurationById(execution.trx, qms.qmsId);
+      if (qmsRow?.enterprise_id !== enterpriseId) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
+          safeSummary: 'qmsConfigurationRef does not belong to the trusted enterprise',
+          currentAggregateVersion: aggregateVersionToString(enterprise.aggregate_version),
+        };
+      }
+      const qmsRevisionRow = await repo.getQmsConfigurationRevision(execution.trx, qms.revisionId);
+      if (
+        qmsRevisionRow?.qms_configuration_id !== qms.qmsId ||
+        qmsRevisionRow.enterprise_id !== enterpriseId ||
+        qmsRevisionRow.lifecycle !== 'CURRENT' ||
+        qmsRow.current_revision_id !== qms.revisionId
+      ) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_START_SNAPSHOT_SCOPE_MISMATCH,
+          safeSummary: 'qmsConfigurationRef does not identify the current active QMSRevision',
+          currentAggregateVersion: aggregateVersionToString(enterprise.aggregate_version),
+        };
+      }
+      const inserted = await repo.insertProject(execution.trx, {
+        projectId,
+        enterpriseId,
+        displayCode: envelope.payload.displayCode,
+        title: envelope.payload.title,
+        objective: envelope.payload.objective,
+        memberPolicyRef: envelope.payload.memberPolicyRef,
+        memberPolicyVersionId: memberPolicy.versionId,
+        memberPolicyPayloadHash:
+          memberPolicy.digest === null ? null : Buffer.from(memberPolicy.digest, 'hex'),
+        createdByPrincipalId: envelope.principalId,
+        createdByActorSnapshotId: envelope.actorSnapshotId,
+        sourceCommandId: envelope.commandId,
+      });
+      if (!inserted) {
+        return {
+          kind: 'REJECTED',
+          errorCode: PROJECT_PROJECT_DISPLAY_CODE_CONFLICT,
+          safeSummary: 'another Project in this enterprise already uses this displayCode',
+          currentAggregateVersion: undefined,
+        };
+      }
+      // ProjectScopeClaim publishes the (enterprise_id, project_id) pair so
+      // other modules can set RLS scope without any cross-schema FK. The
+      // payload mirror trigger rejects any drift between the row's promoted
+      // columns and the payload.
+      const claimId = newUuidV7();
+      const claimPayload = {
+        enterpriseId,
+        projectId,
+        scopeVersion: 1,
+        status: 'ACTIVE',
+        claimId,
+        claimedAt: new Date().toISOString(),
+      };
+      const claimDigest = digestCanonicalPayload(claimPayload);
+      await repo.insertProjectScopeClaim(execution.trx, {
+        claimId,
+        enterpriseId,
+        projectId,
+        claimedByPrincipalId: envelope.principalId,
+        claimedByActorSnapshotId: envelope.actorSnapshotId,
+        authorizationDecisionId: envelope.authorizationDecisionId,
+        payloadHash: claimDigest.hash,
+        payload: claimPayload,
+        sourceCommandId: envelope.commandId,
+      });
+      const bindingId = newUuidV7();
+      // Capture the QMSRevision payload hash from the persisted row so the
+      // binding records the exact digest even though the inbound VersionedRef
+      // does not carry a contentHash by contract.
+      const qmsRevisionPayloadHash = qmsRevisionRow.payload_hash;
+      const bindingPayload = {
+        enterpriseId,
+        projectId,
+        bindingPurpose: 'PROJECT_START',
+        bindingId,
+        boundAt: new Date().toISOString(),
+        startSnapshot: {
+          enterpriseProfileSnapshotId: profile.snapshotId,
+          enterpriseProfilePayloadHash: profile.digest,
+          qmsConfigurationId: qms.qmsId,
+          qmsConfigurationRevisionId: qms.revisionId,
+          qmsConfigurationRevisionHash: qmsRevisionPayloadHash.toString('hex'),
+          productScopeSnapshotId: productScope.snapshotId,
+          productScopePayloadHash: productScope.digest,
+          ...(initialCustomerBaseline === undefined
+            ? {}
+            : { initialCustomerBaselineRef: initialCustomerBaseline }),
+          ...(templateBaseline === undefined ? {} : { templateBaselineRef: templateBaseline }),
+          ...(regulatoryProfile === undefined ? {} : { regulatoryProfileRef: regulatoryProfile }),
+        },
+        memberPolicy: {
+          objectType: memberPolicy.objectType,
+          objectId: memberPolicy.objectId,
+          versionId: memberPolicy.versionId,
+          contentHashDigest: memberPolicy.digest,
+        },
+      };
+      const bindingDigest = digestCanonicalPayload(bindingPayload);
+      await repo.insertProjectSnapshotBinding(execution.trx, {
+        bindingId,
+        enterpriseId,
+        projectId,
+        bindingPurpose: 'PROJECT_START',
+        enterpriseProfileSnapshotRef: envelope.payload.startSnapshot.enterpriseProfileSnapshotRef,
+        enterpriseProfileSnapshotId: profile.snapshotId,
+        enterpriseProfilePayloadHash: Buffer.from(profile.digest, 'hex'),
+        qmsConfigurationRef: envelope.payload.startSnapshot.qmsConfigurationRef,
+        qmsConfigurationId: qms.qmsId,
+        qmsConfigurationRevisionId: qms.revisionId,
+        qmsConfigurationRevisionHash: qmsRevisionPayloadHash,
+        productScopeSnapshotRef: envelope.payload.startSnapshot.productScopeSnapshotRef,
+        productScopeSnapshotId: productScope.snapshotId,
+        productScopePayloadHash: Buffer.from(productScope.digest, 'hex'),
+        ...(initialCustomerBaseline === undefined
+          ? {}
+          : {
+              initialCustomerBaselineRef: envelope.payload.startSnapshot.initialCustomerBaselineRef,
+              initialCustomerBaselineVersionId: initialCustomerBaseline.versionId,
+            }),
+        ...(templateBaseline === undefined
+          ? {}
+          : {
+              templateBaselineRef: envelope.payload.startSnapshot.templateBaselineRef,
+              templateBaselineVersionId: templateBaseline.versionId,
+            }),
+        ...(regulatoryProfile === undefined
+          ? {}
+          : {
+              regulatoryProfileRef: envelope.payload.startSnapshot.regulatoryProfileRef,
+              regulatoryProfileVersionId: regulatoryProfile.versionId,
+            }),
+        memberPolicyRef: envelope.payload.memberPolicyRef,
+        memberPolicyVersionId: memberPolicy.versionId,
+        memberPolicyPayloadHash:
+          memberPolicy.digest === null ? null : Buffer.from(memberPolicy.digest, 'hex'),
+        payloadHash: bindingDigest.hash,
+        boundByPrincipalId: envelope.principalId,
+        boundByActorSnapshotId: envelope.actorSnapshotId,
+        authorizationDecisionId: envelope.authorizationDecisionId,
+        sourceCommandId: envelope.commandId,
+      });
+      const result = {
+        kind: 'COMMITTED' as const,
+        resultPayload: {
+          projectRef: { objectType: 'Project', objectId: projectId },
+          projectScopeClaimRef: { objectType: 'ProjectScopeClaim', objectId: claimId },
+          projectSnapshotBindingRef: {
+            objectType: 'ProjectSnapshotBinding',
+            objectId: bindingId,
+          },
+          aggregateVersion: '1',
+          payloadHash: bindingDigest.hash.toString('hex'),
+        },
+      };
+      await execution.appendOutbox({
+        eventId: newUuidV7(),
+        eventType: 'Enterprise.ProjectCreated',
+        eventVersion: '1.0',
+        aggregateType: 'Project',
+        aggregateId: projectId,
+        aggregateVersion: '1',
+        payload: {
+          enterpriseId,
+          projectId,
+          scopeClaimId: claimId,
+          snapshotBindingId: bindingId,
+          payloadHash: bindingDigest.hash.toString('hex'),
+        },
+        declaredHash: outboxDigest({
+          enterpriseId,
+          projectId,
+          scopeClaimId: claimId,
+          snapshotBindingId: bindingId,
+          payloadHash: bindingDigest.hash.toString('hex'),
+        }),
+        occurredAt: new Date(),
+      });
+      await appendReferenceEdges(
+        execution,
+        'Project',
+        projectId,
+        undefined,
+        bindingDigest.hash,
+        [
+          envelope.payload.startSnapshot.enterpriseProfileSnapshotRef,
+          envelope.payload.startSnapshot.qmsConfigurationRef,
+          envelope.payload.startSnapshot.productScopeSnapshotRef,
+          envelope.payload.memberPolicyRef,
+        ],
+        'PROJECT_START_SNAPSHOT',
+      );
+      return result;
+    },
+  );
+}
+
+// =====================================================================
+// Public Contract: project.validate_object_scope (Query, IM-03 WI-04)
+// =====================================================================
+
+export type ValidateObjectScopePayload = EnterpriseProject.ProjectValidateObjectScopePayload;
+
+export type ValidateObjectScopeResult = EnterpriseProject.ProjectValidateObjectScopeResult;
+
+export async function handleValidateObjectScope(
+  db: Kysely<EnterpriseProjectDb>,
+  context: EnterpriseProjectTransactionContext,
+  payload: ValidateObjectScopePayload,
+): Promise<ValidateObjectScopeResult> {
+  const objectRef = payload.objectRef;
+  const objectRefFacts = asReferenceLike(objectRef);
+  // The authoritative scope check only accepts the closed set of typed
+  // Reference kinds. We do not fall back to a fuzzy search across the
+  // Enterprise / Project to "find" a replacement object (Issue #60 §3):
+  // a missing object is a stable miss, never a substitute.
+  const kind = objectRefFacts.kind;
+  if (
+    kind !== 'OBJECT' &&
+    kind !== 'VERSIONED' &&
+    kind !== 'CONTENT_ADDRESSED' &&
+    kind !== 'SNAPSHOT'
+  ) {
+    throw new EnterpriseBusinessError(
+      PROJECT_OBJECT_SCOPE_MISMATCH,
+      'objectRef must be an OBJECT/VERSIONED/CONTENT_ADDRESSED/SNAPSHOT reference',
+    );
+  }
+  const expected = payload.expectedScopeRef;
+  if (expected.enterpriseId !== context.enterpriseId) {
+    throw new EnterpriseBusinessError(
+      PROJECT_OBJECT_SCOPE_MISMATCH,
+      'expectedScopeRef must carry the trusted Enterprise scope',
+    );
+  }
+  const objectType = objectRefFacts.objectType;
+  if (typeof objectType !== 'string') {
+    throw new EnterpriseBusinessError(
+      PROJECT_OBJECT_SCOPE_MISMATCH,
+      'objectRef must carry a registered objectType',
+    );
+  }
+  const lookup = Object.prototype.hasOwnProperty.call(OBJECT_SCOPE_LOOKUPS, objectType)
+    ? OBJECT_SCOPE_LOOKUPS[objectType]
+    : undefined;
+  if (!lookup?.kinds.includes(kind)) {
+    throw new EnterpriseBusinessError(
+      PROJECT_OBJECT_SCOPE_MISMATCH,
+      `objectType ${objectType} does not support ${kind} scope validation`,
+    );
+  }
+  const objectId = asObjectId(objectRefFacts.objectId);
+  if (objectId === undefined || !isUuidV7(objectId)) {
+    throw new EnterpriseBusinessError(
+      PROJECT_OBJECT_SCOPE_MISMATCH,
+      'objectRef.objectId must be an RFC 9562 UUIDv7',
+    );
+  }
+  let identityPredicate = sql``;
+  if (kind === 'VERSIONED') {
+    const versionId = asObjectId(objectRefFacts.versionId);
+    if (lookup.versionIdColumn === undefined || versionId === undefined || !isUuidV7(versionId)) {
+      throw new EnterpriseBusinessError(
+        PROJECT_OBJECT_SCOPE_MISMATCH,
+        'VERSIONED objectRef must carry an exact versionId',
+      );
+    }
+    identityPredicate = sql`AND ${sql.raw(lookup.versionIdColumn)} = ${versionId}::uuid`;
+  }
+  if (kind === 'SNAPSHOT') {
+    const snapshotId = asObjectId(objectRefFacts.snapshotId);
+    if (
+      lookup.snapshotIdColumn === undefined ||
+      snapshotId === undefined ||
+      !isUuidV7(snapshotId)
+    ) {
+      throw new EnterpriseBusinessError(
+        PROJECT_OBJECT_SCOPE_MISMATCH,
+        'SNAPSHOT objectRef must carry an exact snapshotId',
+      );
+    }
+    identityPredicate = sql`AND ${sql.raw(lookup.snapshotIdColumn)} = ${snapshotId}::uuid`;
+  }
+  if (kind === 'CONTENT_ADDRESSED' || kind === 'SNAPSHOT') {
+    const contentHash = asReferenceLike(objectRefFacts.contentHash);
+    const digest = asDigest(contentHash.digest);
+    if (lookup.payloadHashColumn === undefined || digest === undefined) {
+      throw new EnterpriseBusinessError(
+        PROJECT_OBJECT_SCOPE_MISMATCH,
+        `${kind} objectRef must carry a verifiable SHA-256 contentHash`,
+      );
+    }
+    identityPredicate = sql`${identityPredicate}
+      AND ${sql.raw(lookup.payloadHashColumn)} = decode(${digest}, 'hex')`;
+  }
+  // The RLS policy is intentionally the final authority: a row hidden by a
+  // Project context is indistinguishable from a missing row and produces the
+  // same stable scope-mismatch error. No alternate table or object is tried.
+  return withEnterpriseProjectTransaction(db, context, async (trx) => {
+    const projectIdSelect = lookup.projectIdColumn
+      ? sql.raw(`${lookup.projectIdColumn}::text`)
+      : sql.raw('NULL::text');
+    const rows = await sql<{
+      enterprise_id: string;
+      project_id: string | null;
+    }>`SELECT enterprise_id::text, ${projectIdSelect} AS project_id
+          FROM ${sql.raw(lookup.table)}
+         WHERE enterprise_id = ${context.enterpriseId}::uuid
+           AND ${sql.raw(lookup.objectIdColumn)} = ${objectId}::uuid
+           ${identityPredicate}
+         LIMIT 1`.execute(trx);
+    const authoritative = rows.rows[0];
+    if (
+      authoritative === undefined ||
+      (expected.projectId === undefined && authoritative.project_id !== null) ||
+      (expected.projectId !== undefined && authoritative.project_id !== expected.projectId)
+    ) {
+      throw new EnterpriseBusinessError(
+        PROJECT_OBJECT_SCOPE_MISMATCH,
+        'objectRef is not visible in the exact expected Enterprise/Project scope',
+      );
+    }
+    return {
+      valid: true,
+      authoritativeScopeRef:
+        authoritative.project_id === null
+          ? { enterpriseId: authoritative.enterprise_id }
+          : {
+              enterpriseId: authoritative.enterprise_id,
+              projectId: authoritative.project_id,
+            },
+      resolvedRef: objectRef,
+      lifecycle: 'ACTIVE',
+      reasons: [],
+    };
+  });
 }
