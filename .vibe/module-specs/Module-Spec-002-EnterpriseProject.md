@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-25
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #75 MERGED / ISSUE #62 CLOSED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
 
 ## 1. 模块责任
 
@@ -467,3 +467,9 @@ PROJECT_BASELINE_VERSION_NOT_FOUND
 - `pnpm persistence:gate`：PostgreSQL `18.6` / Flyway `11.20.3`；17 个 Persistence 文件、`229 passed / 0 failed`；空库迁移、二次 migrate no-op、V2008 应用和容器清理通过。
 - 独立 disposable probe：Agent `MISSING_CONFIRMED` 返回 `PROJECT_MISSING_CONFIRMATION_REQUIRED`；CB-003 输出 `PRESENT/UNKNOWN/NOT_PROVIDED`；CB-004 激活后旧引用 `5` 条保留，Impact Review 输出 `STALE/3`，active version 切换到 CB-004。
 - `pnpm lint`、`pnpm format:check`、`pnpm typecheck`、`pnpm architecture`、`pnpm contracts:check` 均为 `PASS`；公共 Contract 仍为 `200` operations，未扩展公共 Catalog。
+
+### 16.6 WI-07 exact-head closeout（2026-08-26）
+
+- PR [#77](https://github.com/qzhike/zhiju-business-core/pull/77) 以 exact head `e71300055fdd40051dc24d1e8d76003c3f32ccc1` 通过 GitHub `verify` CI，并以 merge commit `f63ae2a373c312790c550957ac3aa51c0cf603dd` 合并到 `main`。
+- PR review comment [#5420888555](https://github.com/qzhike/zhiju-business-core/pull/77#issuecomment-5420888555) 和 Issue closeout comment [#5420896539](https://github.com/qzhike/zhiju-business-core/issues/63#issuecomment-5420896539) 均已通过 API 读回。
+- Issue [#63](https://github.com/qzhike/zhiju-business-core/issues/63) 已读取为 `CLOSED`；`e713000...` 已验证为 `origin/main=f63ae2a...` 的 ancestor；`galendai/im-03-wi-07-customerbaseline` 远端和本地 branch 均已删除。

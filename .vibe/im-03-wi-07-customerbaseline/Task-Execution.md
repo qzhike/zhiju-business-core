@@ -26,7 +26,7 @@
 - [x] CB-004 激活后，引用 CB-003 的旧 Context/Gap/Plan 仍解析原版本，仅产生 stale/impact 事实。
 - [x] EP-API-U-001、EP-API-C-002、EP-API-E-002 有实际自动化证据。
 - [x] 缺资料与新旧 Baseline probe 能清晰展示三态区别和旧版本未改写。
-- [ ] Issue comment 已更新；Issue 63 已关闭；目标 branch 已删除并完成远端回读。
+- [x] Issue comment 已更新；Issue 63 已关闭；目标 branch 已删除并完成远端回读。
 
 ## 工作日志
 
@@ -37,4 +37,10 @@
 ## 2026-08-26 提交边界
 
 - 实现 commit：`fc59c13`，commit message：`Implement CustomerBaseline three-state impact review`。
-- Review Record 已随实现 commit 纳入；本次 follow-up 将补齐精确 commit SHA，随后才执行 push、PR、comments、Issue close 和 branch 删除。
+- Review Record 已随实现 commit 纳入，并由 follow-up commit `e713000` 补齐精确 SHA。
+
+## 2026-08-26 exact-head 交付与 closeout
+
+- 实现 head：`e71300055fdd40051dc24d1e8d76003c3f32ccc1`；PR [#77](https://github.com/qzhike/zhiju-business-core/pull/77) 的 GitHub `verify` CI 通过，并以 merge commit `f63ae2a373c312790c550957ac3aa51c0cf603dd` 合并到 `main`。
+- PR review comment [#5420888555](https://github.com/qzhiju/zhiju-business-core/pull/77#issuecomment-5420888555) 和 Issue closeout comment [#5420896539](https://github.com/qzhiju/zhiju-business-core/issues/63#issuecomment-5420896539) 已写入并通过 API 读回。
+- Issue [#63](https://github.com/qzhiju/zhiju-business-core/issues/63) 已读取为 `CLOSED`；`e713000...` 已验证为 `origin/main=f63ae2a...` 的 ancestor；远端和本地 `galendai/im-03-wi-07-customerbaseline` branch 均已删除。

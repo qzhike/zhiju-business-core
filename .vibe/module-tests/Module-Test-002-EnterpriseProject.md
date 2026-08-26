@@ -2,7 +2,7 @@
 
 版本：v0.7
 日期：2026-08-26
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #75 MERGED / ISSUE #62 CLOSED`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / EXACT-HEAD DELIVERY COMPLETE`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -184,3 +184,9 @@ WI-03 业务 Handler、业务 DDL 和 Disposable PostgreSQL 的修正结果已�
 | `EP-API-M-001` | Manual | 脱敏采购控制程序：材料确认→Baseline 草稿→Human 激活→补资料→新版本→旧 Context/Gap/Plan probe | 用户可区分 `PRESENT/PARTIAL/NOT_PROVIDED/UNKNOWN/MISSING_CONFIRMED`，并看到旧版本未被改写 | disposable local probe 实际输出 Agent rejection、`PRESENT/UNKNOWN/NOT_PROVIDED`、旧 refs `5`、`STALE/3`；真实下游 Process Manager/独立人工验收未运行 | `PASS (LOCAL PROBE); HUMAN NOT RUN` |
 
 本切片的自动化和 disposable local probe 已实际通过，只证明 Contract、当前 Handler/Repository、迁移和 Disposable PostgreSQL；不会把不存在的 Gap/Plan/Context Process Manager、Provider、公开 HTTP、跨模块业务 E2E、生产环境或独立人工 Reference Project 验收写成 `PASS`。每次执行 gate 后必须清理容器、临时数据库、临时脚本和测试数据。
+
+## 2026-08-26 WI-07 exact-head closeout
+
+- PR [#77](https://github.com/qzhike/zhiju-business-core/pull/77) 的 exact head `e71300055fdd40051dc24d1e8d76003c3f32ccc1` 已通过 GitHub `verify` CI，并以 merge commit `f63ae2a373c312790c550957ac3aa51c0cf603dd` 合并到 `main`。
+- PR review comment [#5420888555](https://github.com/qzhike/zhiju-business-core/pull/77#issuecomment-5420888555) 和 Issue comment [#5420896539](https://github.com/qzhike/zhiju-business-core/issues/63#issuecomment-5420896539) 已发布并读回；Issue [#63](https://github.com/qzhike/zhiju-business-core/issues/63) 状态为 `CLOSED`。
+- `origin/main=f63ae2a...` 已确认包含实现 head；`galendai/im-03-wi-07-customerbaseline` 远端和本地 branch 已删除。真实 Provider、公开 HTTP、下游 Process Manager、跨模块 E2E、生产和独立人工验收仍为 `NOT RUN`。
