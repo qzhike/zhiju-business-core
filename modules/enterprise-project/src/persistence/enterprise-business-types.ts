@@ -505,3 +505,195 @@ export interface CustomerBaselineImpactReviewTable {
   recorded_at: Date;
   source_command_id: string;
 }
+
+// IM-03 WI-08 (issue #64): platform-controlled reference facts have no
+// Enterprise or Project business scope. The technical transaction scope is
+// carried only by the shared receipt/audit/outbox/reference-edge tables.
+export type PlatformReferenceStatus = 'ACTIVE' | 'ARCHIVED';
+export type PlatformReferenceLifecycle = 'DRAFT' | 'PUBLISHED';
+
+export interface ReferenceTemplateTable {
+  reference_template_id: string;
+  reference_code: string;
+  template_type: string;
+  status: PlatformReferenceStatus;
+  current_version_id: string | null;
+  aggregate_version: Int8Default;
+  created_at: Date;
+  created_by_principal_id: string;
+  updated_at: Date;
+  last_command_id: string | null;
+}
+
+export interface ReferenceTemplateVersionTable {
+  reference_template_version_id: string;
+  reference_template_id: string;
+  version_no: number;
+  version_label: string;
+  content_ref: Json;
+  content_hash: Buffer;
+  source_ref: Json;
+  applicability: Json;
+  lifecycle: PlatformReferenceLifecycle;
+  published_by_principal_id: string | null;
+  published_at: Date | null;
+  release_decision_ref: Json | null;
+  publish_reason: Json | null;
+  created_by_principal_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface RegulatoryReferenceTable {
+  regulatory_reference_id: string;
+  authority_code: string;
+  jurisdiction: string;
+  reference_code: string;
+  status: PlatformReferenceStatus;
+  current_version_id: string | null;
+  aggregate_version: Int8Default;
+  created_at: Date;
+  created_by_principal_id: string;
+  updated_at: Date;
+  last_command_id: string | null;
+}
+
+export interface RegulatoryReferenceVersionTable {
+  regulatory_reference_version_id: string;
+  regulatory_reference_id: string;
+  version_no: number;
+  version_label: string;
+  citation: string;
+  effective_period: Json;
+  source_ref: Json;
+  content_ref: Json;
+  content_hash: Buffer;
+  verification_refs: Json;
+  lifecycle: PlatformReferenceLifecycle;
+  published_by_principal_id: string | null;
+  published_at: Date | null;
+  release_decision_ref: Json | null;
+  publish_reason: Json | null;
+  created_by_principal_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+// Project-side frozen reference selections. Every row repeats the owning
+// scope so PostgreSQL can enforce cross-row identity with composite FKs.
+export type FrozenVersionStatus = 'FROZEN';
+
+export interface TemplateBaselineTable {
+  template_baseline_id: string;
+  enterprise_id: string;
+  project_id: string;
+  current_version_id: string;
+  active_version_id: string;
+  aggregate_version: Int8Default;
+  created_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  updated_at: Date;
+  last_command_id: string | null;
+}
+
+export interface TemplateBaselineVersionTable {
+  version_id: string;
+  template_baseline_id: string;
+  enterprise_id: string;
+  project_id: string;
+  version_no: number;
+  version_status: FrozenVersionStatus;
+  previous_version_id: string | null;
+  selections_payload: Json;
+  review_snapshot_ref: Json;
+  selection_rationale: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface TemplateSelectionTable {
+  selection_id: string;
+  template_baseline_id: string;
+  version_id: string;
+  enterprise_id: string;
+  project_id: string;
+  delivery_category: string;
+  template_ref: Json;
+  template_id: string;
+  template_version_id: string;
+  applicability_scope: Json;
+  selection_reason: Json;
+  replacement_for: Json | null;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface RegulatoryProfileTable {
+  regulatory_profile_id: string;
+  enterprise_id: string;
+  project_id: string;
+  current_version_id: string;
+  active_version_id: string;
+  aggregate_version: Int8Default;
+  created_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  updated_at: Date;
+  last_command_id: string | null;
+}
+
+export interface RegulatoryProfileVersionTable {
+  version_id: string;
+  regulatory_profile_id: string;
+  enterprise_id: string;
+  project_id: string;
+  version_no: number;
+  version_status: FrozenVersionStatus;
+  jurisdiction: string;
+  product_scope_snapshot_ref: Json;
+  product_scope_snapshot_id: string;
+  product_scope_payload_hash: Buffer;
+  applicability_payload: Json;
+  review_snapshot_ref: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface RegulatoryProfileItemTable {
+  item_id: string;
+  regulatory_profile_id: string;
+  version_id: string;
+  enterprise_id: string;
+  project_id: string;
+  regulatory_reference_ref: Json;
+  regulatory_reference_id: string;
+  regulatory_reference_version_id: string;
+  content_hash: Buffer;
+  applicability: 'APPLICABLE' | 'NOT_APPLICABLE' | 'PENDING_DETERMINATION';
+  rationale: Json;
+  evidence_refs: Json;
+  risk_level: string;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}

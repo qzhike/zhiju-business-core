@@ -1,8 +1,8 @@
 # Module-Test-002-EnterpriseProject
 
-版本：v0.7
+版本：v0.8
 日期：2026-08-26
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / EXACT-HEAD DELIVERY COMPLETE`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / LOCAL IMPLEMENTATION VERIFIED / EXACT-HEAD CLOSEOUT PENDING`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -190,3 +190,40 @@ WI-03 业务 Handler、业务 DDL 和 Disposable PostgreSQL 的修正结果已�
 - PR [#77](https://github.com/qzhike/zhiju-business-core/pull/77) 的 exact head `e71300055fdd40051dc24d1e8d76003c3f32ccc1` 已通过 GitHub `verify` CI，并以 merge commit `f63ae2a373c312790c550957ac3aa51c0cf603dd` 合并到 `main`。
 - PR review comment [#5420888555](https://github.com/qzhike/zhiju-business-core/pull/77#issuecomment-5420888555) 和 Issue comment [#5420896539](https://github.com/qzhike/zhiju-business-core/issues/63#issuecomment-5420896539) 已发布并读回；Issue [#63](https://github.com/qzhike/zhiju-business-core/issues/63) 状态为 `CLOSED`。
 - `origin/main=f63ae2a...` 已确认包含实现 head；`galendai/im-03-wi-07-customerbaseline` 远端和本地 branch 已删除。真实 Provider、公开 HTTP、下游 Process Manager、跨模块 E2E、生产和独立人工验收仍为 `NOT RUN`。
+
+## IM-03 WI-08 TemplateBaseline 与 RegulatoryProfile 用例
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI08-U-001` | Unit/Contract | Platform Template/Regulatory import 缺 source、hash、verificationRefs 或平台 capability | 写入前返回稳定错误，不创建业务版本 | `pnpm persistence:gate`：缺 source=`PROJECT_PLATFORM_REFERENCE_INVALID`，hash=`PROJECT_PLATFORM_REFERENCE_HASH_MISMATCH`，缺 capability=`PROJECT_PLATFORM_REFERENCE_ROLE_REQUIRED`，空 verification=`PROJECT_PLATFORM_REGULATORY_SOURCE_REQUIRED` | `PASS` |
+| `EP-WI08-P-001` | Persistence | Reference Admin 导入同一 Platform Template/Regulatory version，再由 Publisher 发布 | 产生 DRAFT；只有精确版本可 PUBLISHED；发布后正文/hash/version 不可更新；普通 app 只能读已发布事实 | PostgreSQL 用例：DRAFT/app 隔离、Template v1/v2 精确发布、PUBLISHED UPDATE 返回 `42501`；V2009 空库迁移通过 | `PASS` |
+| `EP-WI08-P-002` | Persistence | Project Human 冻结 TemplateBaseline，selection 使用 exact published template ref；尝试 latest、未发布、hash mismatch | 合法请求创建 FROZEN version；非法引用拒绝且无 Root/Version/Item/Event 部分写入 | PostgreSQL 用例：exact TemplateBaseline/FROZEN Selection 通过；`latest`、未发布和 hash mismatch 均拒绝 | `PASS` |
+| `EP-WI08-P-003` | Persistence | Project Human 激活 RegulatoryProfile，包含 exact product scope、applicability、independent evidence refs | 合法请求创建 active FROZEN profile；缺 evidence、模板冒充 evidence、product snapshot 不匹配被拒绝 | PostgreSQL 用例：法规 version/hash、applicability、independent Evidence、ProductScope Snapshot 及模板冒充 Evidence 拒绝均通过 | `PASS` |
+| `EP-WI08-P-004` | Persistence | 两个 Human 以同一 Root expected aggregate version 并发冻结；另测首次 Root 创建并发 | 只有一个 CAS 成功；另一请求返回 `CONCURRENCY_CONFLICT`；不产生孤儿 Version | PostgreSQL 用例：已有 Root 并发为 `1 COMMITTED / 1 CONCURRENCY_CONFLICT`；首次 Root race 仅 1 个 Version，234 tests 全通过 | `PASS` |
+| `EP-WI08-P-005` | Persistence | 直接 UPDATE/DELETE 已发布 Platform Version、FROZEN Project Version、Selection、Profile Item | DB ACL/immutable trigger 拒绝；旧精确 refs、hash、edges 和 active pointer 保持不变 | PostgreSQL 用例：Platform PUBLISHED、TemplateBaseline Version UPDATE 被 `42501` 拒绝；不可变 DDL/ACL 与 active pointer gate 通过 | `PASS` |
+| `EP-WI08-C-001` | Contract/Persistence | 回放同一 command idempotency key 与并发 CAS；检查 receipt、audit、outbox、edges | 同 hash 返回 duplicate；并发只保留一个提交；事实同事务且无正文泄漏 | PostgreSQL 用例：replay=`DUPLICATE`、CAS 单赢家、Receipt/Audit/Outbox/Reference Edge 同事务；Contract baseline 200 operations | `PASS` |
+| `EP-WI08-RLS-001` | Persistence | Platform writer、普通 app、Project Context 读取和写入平台/项目表 | writer 只写平台受控表；普通 app 只读 published；Project context 只能看允许 Project；无 scope 不泄漏 | PostgreSQL 用例：普通 app 读不到 DRAFT、不能 UPDATE PUBLISHED；Project active refs 由受信 Context 返回；FORCE RLS/角色权限通过 | `PASS` |
+| `EP-WI08-E-001` | E2E/Persistence | Platform current pointer 改到新版本后读取旧 Project baseline/profile | 旧 Project 的 exact refs/hash 不变；新版本需显式新 command；不存在 latest 隐式漂移 | PostgreSQL 用例：Platform v2 发布后 active refs 仍为 v1，Selection/Profile Item 的 version/hash 与旧记录一致；v1/v2 内容 Edge 均存在 | `PASS (PERSISTENCE)` |
+| `EP-WI08-M-001` | Manual | 脱敏采购程序：导入→发布→Human 冻结模板→Human 激活法规→读取旧版本 | 用户能看到版本/hash/scope/evidence/审计链；Provider、真实法规来源、公开 HTTP、生产和独立人工验收仍标 `NOT RUN` | 本地 PostgreSQL 自动化已输出 exact version/hash/scope/evidence/Edge；真实 Provider、法规来源、公开 HTTP、生产和独立人工验收未运行 | `PASS (LOCAL); HUMAN NOT RUN` |
+
+### WI-08 active refs convergence
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI08-C-002` | Persistence/Contract | Project 已有 CustomerBaseline、TemplateBaseline、RegulatoryProfile active pointer，调用既有 `project.get_active_baseline_refs@1.0` | 同一 Project Context 返回三个精确 VersionedRef 与各自 aggregate version；未激活 root 不返回；不推导 latest | PostgreSQL 用例返回 TemplateBaseline/RegulatoryProfile exact refs 与 aggregate versions；CustomerBaseline 缺失时省略，仅返回已激活 roots | `PASS` |
+
+CustomerBaseline 既有并发激活用例若先观察到目标 Version 已确认，仍需二次读取 Root；当 Root 已由并发事务从 `1` 推进到 `2` 时，实际结果必须归类为 `CONCURRENCY_CONFLICT`，而不是 `PROJECT_BASELINE_VERSION_IMMUTABLE`。
+
+测试 fixture 的 Platform `referenceCode` 按 root UUID 唯一化；同一 root 的后续版本保持同一 code，以分别覆盖跨用例隔离和 root 内版本唯一性。
+
+TemplateBaseline 的 ProjectRef 与 review SnapshotRef 不携带 target ContentHash 时，Reference Edge 仍应正常提交，且 target payload hash 保持 NULL。
+
+latest/hash/evidence 负向命令仍使用与 payload exact ref 一致的 target identity，确保断言命中业务引用校验而非先被 Command target mismatch 截断。
+
+当前静态检查复核全部通过：`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm architecture`、`pnpm contracts:check` 均为 `PASS`；Contract 保持 `operations=200`。
+
+最终 PostgreSQL Gate：PostgreSQL `18.6` / Flyway `11.20.3`，`18 files / 234 passed / 0 failed`；空库迁移成功，V2009 成功应用，二次 migrate 为 no-op，容器已清理。事务前 source/hash/capability/verification 拒绝、Service principal Human-only 拒绝、后续 Platform 版本 Edge 和首次 Root race 均已包含在上述数字中。
+
+最终 `pnpm verify` 编排为 `PASS`：非数据库阶段 `22 test files passed / 15 skipped`、`351 passed / 220 skipped`，随后静态门禁和上述 `18 files / 234 passed` PostgreSQL Gate 均通过。
+
+Provider、真实法规来源、公开 HTTP、跨模块 Process Manager、生产环境和独立人工 Reference Project 验收继续保持 `NOT RUN`。

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`DESIGN DECIDED / USER REVIEW REQUIRED / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`DESIGN DECIDED / USER REVIEWED BASELINE / IM-03 WI-08 IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING`
 
 ## 1. 目标与结论
 
@@ -181,3 +181,9 @@ project.create_project@1.0
 - 业务实现：Product/QMS/Profile/Platform Reference/Project Handler/Repository/业务 DDL `NOT RUN`。
 - IM-02 技术基础：EnterpriseProject 标准技术表、RLS、Receipt、Outbox、Audit 和 Reference Edge 已有独立验证记录，但不能提升为本 Issue 的业务 `PASS`。
 - 手工验收：用户应审阅本矩阵、拒绝的替代项和 ProjectStartSnapshot 示例；后续 WI-03/WI-04 提供真实 Handler/数据库输出。
+
+## 13. WI-08 实现收敛记录
+
+Issue #64 复用本矩阵的 Platform Reference 入口：Template/Regulatory 业务表不带 Enterprise Scope，导入为 DRAFT、发布为不可变 PUBLISHED，Project 只保存精确 ContentAddressedRef。实现增加独立 writer role 与保留技术 Scope；该技术 Scope 不进入平台业务行。
+
+TemplateBaseline/RegulatoryProfile 的 Project Root 使用 expected aggregate version CAS，Version 与条目 INSERT-only；可信 Human 才能执行冻结/激活。Regulatory EvidenceRef 必须独立于 Template/Regulatory Reference，Applicability 按当前三值 Contract 闭集执行。以下仍是实现后的验证门：真实 PostgreSQL RLS/CHECK/CAS/幂等/回滚、普通 app 与 writer 权限边界、旧 Project exact ref 在 Platform current pointer 变化后的稳定性，以及受控 E2E。

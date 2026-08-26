@@ -1,8 +1,8 @@
 # Module-Spec-002-EnterpriseProject
 
-版本：v0.3
-日期：2026-08-25
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
+版本：v0.4
+日期：2026-08-26
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
 
 ## 1. 模块责任
 
@@ -473,3 +473,33 @@ PROJECT_BASELINE_VERSION_NOT_FOUND
 - PR [#77](https://github.com/qzhike/zhiju-business-core/pull/77) 以 exact head `e71300055fdd40051dc24d1e8d76003c3f32ccc1` 通过 GitHub `verify` CI，并以 merge commit `f63ae2a373c312790c550957ac3aa51c0cf603dd` 合并到 `main`。
 - PR review comment [#5420888555](https://github.com/qzhike/zhiju-business-core/pull/77#issuecomment-5420888555) 和 Issue closeout comment [#5420896539](https://github.com/qzhike/zhiju-business-core/issues/63#issuecomment-5420896539) 均已通过 API 读回。
 - Issue [#63](https://github.com/qzhike/zhiju-business-core/issues/63) 已读取为 `CLOSED`；`e713000...` 已验证为 `origin/main=f63ae2a...` 的 ancestor；`galendai/im-03-wi-07-customerbaseline` 远端和本地 branch 均已删除。
+
+## 17. IM-03 WI-08 TemplateBaseline 与 RegulatoryProfile
+
+Issue #64 的实现边界如下，受控 Capability 不加入公共 Catalog：
+
+- Platform Template/Regulatory Reference 由 `enterprise_project_platform_reference_writer` 写入；普通 `enterprise_project_app` 只读已发布版本。平台业务表没有 `enterprise_id` 或 `project_id`，保留技术 Scope 只用于事务 Context、Audit、Receipt、Outbox 和 RLS。
+- TemplateBaseline 与 RegulatoryProfile 都使用 Project-owned Root、不可变 `FROZEN` Version 和 INSERT-only 条目。Root 仅以 expected aggregate version CAS 推进 current/active pointer；同一 Project 的 identity 唯一。
+- Template Selection 必须是已发布 Platform Template 的精确 `CONTENT_ADDRESSED` ref；Regulatory Profile Item 必须是已发布 Platform Regulatory Reference 的精确 ref。ref 的 object id、immutable/version id、SHA-256、canonicalization 和 scope 必须与数据库事实逐项一致，禁止 `latest`、display label 或跨 Project 替代。
+- Regulatory EvidenceRef 必须引用独立证据对象；`TemplateVersion`、`ReferenceTemplateVersion`、`RegulatoryReferenceVersion` 不能作为 Evidence。非 `PENDING_DETERMINATION` 的 applicability 必须带证据，`PENDING_DETERMINATION` 与高风险组合按稳定错误拒绝。
+- 两个 Project command 都要求可信 Human Context，写入 Version、条目、Reference Edge、Audit、Receipt、Outbox 必须同事务提交；失败必须回滚全部业务事实。
+- 平台导入只创建或追加 `DRAFT`，平台发布只允许精确 DRAFT→PUBLISHED；PUBLISHED 的内容与引用字段不可更新。平台发布和项目冻结/激活均不读取“当前最新”作为业务输入。
+- `PROJECT_TEMPLATE_LATEST_FORBIDDEN`、`PROJECT_TEMPLATE_BASELINE_IMMUTABLE`、`PROJECT_REGULATORY_EVIDENCE_REQUIRED`、`PROJECT_REGULATORY_APPLICABILITY_CONFLICT`、`PROJECT_PLATFORM_REFERENCE_UNPUBLISHED`、`PROJECT_PLATFORM_REFERENCE_HASH_MISMATCH`、`PROJECT_PLATFORM_REGULATORY_SOURCE_REQUIRED`、`PROJECT_PLATFORM_REFERENCE_ROLE_REQUIRED`、`PROJECT_PLATFORM_REFERENCE_INVALID`、`PROJECT_TEMPLATE_VERSION_NOT_FOUND`、`PROJECT_REGULATORY_PROFILE_VERSION_NOT_FOUND`、`PROJECT_REGULATORY_PROFILE_SCOPE_MISMATCH` 为本切片稳定错误。
+
+### 17.1 Active baseline refs convergence
+
+既有 `project.get_active_baseline_refs@1.0` 继续作为读取入口。实现使用同一 `enterprise_project_app` Project Context 事务，读取 CustomerBaseline、TemplateBaseline 和 RegulatoryProfile 的 active pointer，并只返回精确的 `VERSIONED` refs 与 aggregate versions。缺少某个 root 或 active pointer 时省略该可选 ref；不得读取 latest、draft 或仅由平台 root current pointer 推导的替代版本。该收敛不新增 Catalog operation。
+
+并发激活的错误优先级固定为：若目标 Version 状态检查发现已被另一事务改变，必须重新读取 Root；Root aggregate version 已变化时返回 `CONCURRENCY_CONFLICT`，只有 Root 仍为期望版本时才报告目标历史不可变。
+
+本地 PostgreSQL 验收 fixture 为每个测试生成唯一的 Platform Template/Regulatory identity；同一 identity 内的 v1/v2 导入才允许共享 reference code，确保唯一性约束不会造成跨用例假失败。
+
+Reference Edge 的 target payload hash 是可选派生字段：Object/Versioned ref 未携带 ContentHash 时跳过该列；只有格式正确的 SHA-256/1 digest 才可落库。
+
+交付前必须重新通过格式、Lint、类型、架构边界和 Contract baseline 静态检查；静态检查失败时仅记录为未完成，不得宣称 Issue 可关闭。当前静态门禁已全部通过；最终 PostgreSQL 复核必须覆盖每个 Platform 版本的内容/来源 Reference Edge，以及首次 Project Root 并发创建的冲突安全性。
+
+最终测试还必须覆盖事务前的 Platform source/hash/capability 拒绝，以及非 Human Project principal 的 Human-only 拒绝；这些用例不得创建 Receipt、Root 或 Version 副作用。
+
+最终实现验证：Platform Template/Regulatory 的 DRAFT→PUBLISHED、Project TemplateBaseline/RegulatoryProfile 的 exact frozen chain、Root CAS/首次 Root race、FORCE RLS、ACL/immutable guards、Receipt/Audit/Outbox/Reference Edge 和既有 active refs query 均由 disposable PostgreSQL 覆盖。静态门禁全部通过；`pnpm persistence:gate` 为 `18 files / 234 passed / 0 failed`。该状态代表实现已验证，仍不代表外部 Provider、公开 HTTP、生产或人工验收已运行。
+
+当前自动化目标是 Unit/Contract、真实 PostgreSQL DDL/RLS/CHECK/CAS/幂等/不可变/回滚和受控本地 E2E；Provider、公开 HTTP、真实法规来源、跨模块 Process Manager、生产和独立人工 Reference Project 继续保持 `NOT RUN`，直到有独立证据。

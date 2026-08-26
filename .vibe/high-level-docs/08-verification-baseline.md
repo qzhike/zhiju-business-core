@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / USER REVIEW REQUIRED`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / USER REVIEW REQUIRED`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -362,3 +362,9 @@ Issue #58 验证 EnterpriseProject 模块内技术表写入路径，而不是业
 - Canonical payload/hash 与提升 Scope 列不一致必须在写入边界拒绝；
 - 授权只允许绑定 IdentityPolicy 公开 Decision/Query Port 给出的可信快照，禁止模块 import `@zhiju/identity-policy` 或共享其 Repository；
 - 空库 Migration / 二次 no-op 继续由 persistence gate 证明。业务 Handler、业务 DDL、公开 HTTP 和人工“采购控制程序”仍为 `NOT RUN`。
+
+## 12. IM-03 WI-08 验证边界
+
+WI-08 的最小自动验证包括 Platform Reference 的 DRAFT→PUBLISHED lifecycle、published immutability、writer/app role boundary、TemplateBaseline/RegulatoryProfile 的 Project Scope/RLS、精确 Ref/Hash/CAS、Evidence separation、idempotency、Audit/Outbox/Reference Edge 原子提交和失败回滚。测试文档必须同时记录输入、预期输出和实际输出；在测试未执行前所有 WI-08 场景保持 `NOT RUN`。
+
+Disposable PostgreSQL 与本地 Unit/Contract 通过只证明当前代码、迁移和受控入口。Platform Provider、真实外部法规来源、公开 HTTP、跨模块 Process Manager、生产环境和独立人工 Reference Project 验收必须独立取证，不得由本地 Gate 推断为 `PASS`。

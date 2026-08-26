@@ -3,7 +3,7 @@
 版本：v0.1
 设计阶段：Project Domain + Task / Execution Domain + Artifact / Quality Domain
 日期：2026-08-12
-状态：`CURRENT DOMAIN BASELINE / IM-03 WI-01 DECISION RECORDED / USER REVIEW REQUIRED / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`CURRENT DOMAIN BASELINE / IM-03 WI-01 DECISION RECORDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / USER REVIEW REQUIRED`
 
 文档角色：Aggregate、Entity、Value Object、状态机、Command、Domain Event、权限和 Domain Invariant 的唯一权威。跨 Aggregate 协作以 `05` 为准，模块所有权以 `02` 为准，验证总口径以 `08` 为准。
 
@@ -5671,3 +5671,7 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Cont
 输入版本、Hash、有效期或适用范围变化时，旧 GapAnalysis 进入 `STALE` 并追加 Impact Review；旧 Gap、Context、Plan 和 Artifact 不原地改写。`NOT_PROVIDED`、`UNKNOWN` 和 `MISSING_CONFIRMED` 不互相推导。QualityProfile/Evidence 等 IM-05 Ref 只做强引用和 Scope/Hash/lifecycle/purpose 验证，不通过跨 Schema Join 或测试假数据取得正文。
 
 本节是设计决策，不是业务实现证据；业务 DDL、Repository、Handler、Evaluator、真实 PostgreSQL 业务链和人工 Reference Project 仍为 `NOT RUN`。
+
+## 49. IM-03 WI-08 实现对既有 Domain 语义的收敛
+
+Issue #64 的实现保留本 Domain 对 TemplateBaseline/RegulatoryProfile 的版本化、精确引用、Human Gate 与历史不可变语义，并补齐以下可执行边界：Platform Template/Regulatory Reference 没有业务 Enterprise Scope；Project 只接受已发布精确 ContentAddressedRef；`RegulatoryApplicability` 使用当前 Contract 已冻结的 `APPLICABLE`、`NOT_APPLICABLE`、`PENDING_DETERMINATION` 三值闭集；EvidenceRef 与模板/法规版本严格分离。项目 Root pointer 由 CAS 推进，当前 Platform pointer 改变不会改写旧 Project Version。上述业务 DDL、Handler 与真实 PostgreSQL 结果以本轮 Module Test 的实际记录为准，未执行前保持 `NOT RUN`。

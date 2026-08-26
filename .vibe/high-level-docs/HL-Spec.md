@@ -1,8 +1,8 @@
 # Zhiju Business Core 基准规格与 Agent 入口
 
 版本：v0.1
-日期：2026-08-25
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+日期：2026-08-26
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -566,3 +566,30 @@ Issue #63 在已确认 CustomerMaterial 之上实现 CustomerBaseline 草稿、�
 - V2008 业务表均 FORCE RLS；Root 只开放受控 pointer/CAS 列更新，Version 只开放 DRAFT→CONFIRMED 的受控状态事实，Item/Impact Review 为 INSERT-only。真实 Gap/Plan Process Manager、Provider、公开 HTTP、跨模块 E2E、生产和独立人工 Reference Project 验收继续保持 `NOT RUN`。
 
 WI-07 已通过 [PR #77](https://github.com/qzhike/zhiju-business-core/pull/77) 以实现 head `e71300055fdd40051dc24d1e8d76003c3f32ccc1` 合并到 `main`，merge commit 为 `f63ae2a373c312790c550957ac3aa51c0cf603dd`；Issue [#63](https://github.com/qzhike/zhiju-business-core/issues/63) 已显式关闭，closeout comment 已写入并读回：[issuecomment-5420896539](https://github.com/qzhike/zhiju-business-core/issues/63#issuecomment-5420896539)，实现 head 已证明是 `origin/main` ancestor，远端和本地 WI-07 feature branch 均已删除。Contract/Registry、Handler/Repository、V2008、Disposable PostgreSQL 和本地 probe 均按上文结果通过；真实下游 Process Manager、Provider、公开 HTTP、跨模块 E2E、生产和独立人工 Reference Project 验收仍保持 `NOT RUN`。
+
+## IM-03 WI-08 TemplateBaseline 与 RegulatoryProfile 实现边界（2026-08-26）
+
+Issue #64 在现有 Project、ProductScopeSnapshot 与 Platform Reference 决策之上落地两个受控业务入口，不扩展公共 Catalog：
+
+- Platform Template/Regulatory Reference 表不携带 Enterprise/Project 业务 Scope；导入只产生 `DRAFT`，发布只把一个精确版本变成 `PUBLISHED`，已发布内容不可修改，Runtime 只能读取精确已发布引用。
+- 平台写入口使用独立 Reference Writer 数据库角色、Reference Admin/Publisher 能力和仅用于技术审计/Outbox/RLS 的保留技术 Scope；该 Scope 不是业务 Enterprise，不进入平台业务表。
+- TemplateBaseline 与 RegulatoryProfile 都由 Project-owned Root、不可变 `FROZEN` Version 和精确条目组成；Root 指针通过 expected aggregate version CAS 推进，同一 Project 不能产生两个 active identity。
+- TemplateSelection 必须引用精确已发布 Platform Template ContentAddressedRef；RegulatoryApplicability 必须引用精确已发布 Platform Regulatory ContentAddressedRef。所有引用校验 object/version/hash/canonicalization/scope，禁止 `latest`、label-only 或跨 Scope 替代。
+- Regulatory EvidenceRef 必须是独立证据对象，模板和法规版本不能冒充 Evidence；非 `PENDING_DETERMINATION` 的适用性项目必须有证据，风险与适用性组合按闭集规则拒绝。
+- 本轮保留现有公共 Catalog `200` 项，不新增公开 Contract；Platform Provider、公开 HTTP、真实外部法规来源、跨模块 Process Manager、生产和独立人工 Reference Project 验收在实现完成后仍需单独标记 `NOT RUN`。
+
+WI-08 的实现收敛还要求既有 `project.get_active_baseline_refs` 复用同一受信 Project 事务读取 TemplateBaseline 与 RegulatoryProfile 的 active exact VersionedRef；该查询只追加已存在的可选字段，不改变公共 Contract 形状，也不把未激活的 draft/current pointer 暴露为 active。
+
+本轮并发语义还要求在旧版本状态被另一事务先提交、但本事务持有的 Root 快照尚未刷新时，重新读取 Root 并优先报告 `CONCURRENCY_CONFLICT`；不能把并发激活误报成历史版本不可变错误。
+
+WI-08 Disposable PostgreSQL fixture 对每个测试使用唯一的 Platform reference identity，避免跨用例唯一键冲突掩盖业务路径；同一 root 的多版本导入仍复用同一 identity 以验证版本链。
+
+Reference Edge 只在输入引用携带合法 ContentHash 时写入 target payload hash；合法的 Object/Versioned ref 可以没有 ContentHash，不能因可选字段缺失触发运行时异常。
+
+WI-08 交付门禁还包括 Prettier、ESLint、TypeScript、架构边界和 Contract baseline；任一静态门禁未通过时不得进入 Git 提交或远端 closeout。
+
+当前静态门禁已全部通过；最终 PostgreSQL 复核还需覆盖后续 Platform 版本的内容/来源 Reference Edge，以及首次 Project Root 并发创建的冲突安全性。两项均属于 Issue #64 的可追溯与 CAS 交付边界。
+
+最终验证矩阵还补充事务前输入拒绝（缺 source/hash、缺平台 capability）和 Project Service principal 的 Human-only 拒绝，确保这些负向边界不依赖数据库副作用。
+
+最终本地验证已完成：静态门禁 `format/lint/typecheck/architecture/contracts=PASS`；Contract 保持 `200 operations`。`pnpm persistence:gate` 在 PostgreSQL `18.6` / Flyway `11.20.3` 上为 `18 files / 234 passed / 0 failed`，空库迁移、V2009、二次 migrate no-op、平台 v2 后旧 Project exact ref/hash、Reference Edge、首次 Root race 和事务前负向用例均通过。Git commit、push、PR、Issue #64 close、远端/本地 branch 删除和 main ancestry 尚待用户检查确认后的 exact-head 交付。
