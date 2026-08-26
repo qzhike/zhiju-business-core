@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-26
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSEOUT PENDING / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -605,3 +605,9 @@ Issue #65 在既有 CustomerBaseline、TemplateBaseline、RegulatoryProfile、En
 - 新 Customer/Template/Regulatory Baseline/Profile 版本激活时，只追加受影响 Gap 的 stale/impact fact，将旧 Version 标记 `STALE`；不修改旧 Finding、InputSnapshot、Decision、Context、Plan 或 Artifact。新分析必须通过显式 start command 产生。
 - WI-09 的自动验证范围是 Unit/Contract、真实 PostgreSQL DDL/RLS/CHECK/CAS/幂等/不可变/回滚和受控本地 E2E。真实 Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收仍分别标记 `NOT RUN`，不得由本地 Gate 推断为通过。
 - PostgreSQL persistence gate 的物理 baseline 必须同时固定镜像 tag 与 manifest digest，并独立核对当前 tag 解析结果；若 registry tag 漂移，必须更新 immutable pin 后重新执行本地与 exact-head Gate，不能绕过 tag-digest 一致性检查。
+
+### IM-03 WI-09 exact-head closeout（2026-08-27）
+
+实现 commits `de7d54dfba76eca563a561c2d4e4b23a4fd4e0f9`、`08e783f89d29f8566f74ec16f554883e07e55dad` 和 `6de5c96c4ba4fe0938b422606d4632048ac19932` 已通过 [PR #81](https://github.com/qzhike/zhiju-business-core/pull/81) 合并；PR #81 的 base 为 `main@8c1165dbf7ff32ea26a4ea64799a695a8beb4c05`，merge commit 为 `2d6afd0cc2889cf0fa6350c0599d514d5917b071`。corrected exact head 的 GitHub Actions [run 33022900309](https://github.com/qzhike/zhiju-business-core/actions/runs/33022900309) 已通过，PR verification comment 已读回：[issuecomment-5432252760](https://github.com/qzhike/zhiju-business-core/pull/81#issuecomment-5432252760)。因旧 head 无检查而创建的 PR #80 已保持 CLOSED，未自动关闭 Issue。
+
+Issue [#65](https://github.com/qzhike/zhiju-business-core/issues/65) 已显式关闭，closeout comment 已读回：[issuecomment-5432258964](https://github.com/qzhike/zhiju-business-core/issues/65#issuecomment-5432258964)。`origin/main=2d6afd0cc2889cf0fa6350c0599d514d5917b071` 已确认包含 corrected implementation head；`galendai/im-03-wi-09-gapanalysis-human-stale` 的远端 ref 与本地 branch 均已删除。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收仍为 `NOT RUN`。
