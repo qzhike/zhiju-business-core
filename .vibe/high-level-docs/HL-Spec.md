@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / PR #72 REVIEW REPAIRED / USER CONFIRMATION REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -540,3 +540,15 @@ WI-10 在 IdentityPolicy owning schema 内提供受限 Outbox Dispatcher 与 Inb
 - WI-10 本地 ACK-loss Probe 的初始 Principal Fixture 必须显式写入 `status='ACTIVE'`；Probe 不得依赖技术表存在未定义的 status 默认值，也不得用放宽数据库约束掩盖 Fixture 错误。
 
 WI-10 初始修正已提交并推送至 PR #50；最新 base 集成暴露的 messaging fixture ACL、Enterprise Grant 覆盖 Project Intent、typed Aggregate ordering 与未经验证 Event Scope 回归已在提交 `47a2a9d` 修复，并由跟进 [PR #51](https://github.com/qzhike/zhiju-business-core/pull/51) 交付到 `main`。重新编译 workspace 包后，真实 PostgreSQL gate 为 `12 files / 177 tests PASS`，空库迁移、二次 migrate no-op 和容器清理通过；最终 `pnpm clean && pnpm verify` 亦通过：Vitest `20 passed | 10 skipped`、`341 passed | 164 skipped`，architecture、Public API、generated types、Catalog/Registry 与 compatibility 全部通过。PR #51 的 exact-head CI/语义复审、生产 Broker、Provider、外部副作用和人工业务验收仍未完成，本节不将这些边界写成完成状态。
+
+## IM-03 WI-06 CustomerMaterial 设计基线（2026-08-26）
+
+Issue #62 在 WI-05 SourceMaterial 接受边界之上实现 CustomerMaterial 的提议与确认闭环。该切片复用既有 `project.propose_customer_material@1.0`、`project.confirm_customer_material@1.0` 和 `project.CustomerMaterialConfirmed@1.0`，不扩展公共 Catalog。
+
+- 每次提议创建独立 CustomerMaterial Root 与 v1 `PROPOSED` Version；同一已接受 SourceMaterial 可以被多个提议引用，以保留不同解析/分类候选。
+- 确认不原地改变候选 Version，而是追加 v2 `CONFIRMED` Version，Root 以 CAS 推进 aggregate version 并指向 v2；候选和确认版本均不可修改。
+- 所有确认在当前没有低风险自动确认 Policy 输入的前提下执行 Human-only 检查。Agent 或 `actingFor` 不能确认关键材料；可信事务 Context 的 `principalKind` 是唯一权限依据。
+- SourceMaterial Selection 必须是当前 Project 下 `ACCEPTED` SourceMaterial 的精确 ContentAddressedRef，Scope、object id、ContentHash 和 canonicalization version 均需匹配；对当前没有业务 immutable version 的 SourceMaterial，额外携带 `immutableVersionId` 也必须拒绝。Selection 的 `locator` 仅表示源内页码/章节等位置，不冒充受控对象存储 locator；Evidence/Justification 只保存精确 Ref、Hash 和脱敏摘要，不复制客户原文。
+- 确认前发现同一 Project 中共享 SourceMaterial 且分类指纹不同的其他 `PROPOSED` 候选时，返回 `PROJECT_MATERIAL_CONFLICT_UNRESOLVED`，不修改任何候选、不使用 last-write-wins、不产生确认 Event。
+- `customer_material`、`customer_material_version`、`customer_material_decision` 由 EnterpriseProject 唯一拥有；三表 FORCE RLS，Version/Decision 为 INSERT-only，Root 只开放受控状态、指针和 aggregate version 更新。
+- 本切片不实现 OCR/LLM/Provider、Evidence 外部验证、CustomerBaseline、公开 HTTP、真实 Feishu/Ceph/OpenBao 或生产/人工 Reference Project 验收；这些边界保持 `NOT RUN`，具体字段/测试以 Module Spec/Test 和 `.vibe/im-03-wi-06-customermaterial/` 执行记录为准。

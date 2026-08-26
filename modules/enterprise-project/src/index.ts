@@ -1,6 +1,6 @@
 export const enterpriseProjectModule = Object.freeze({
   name: 'enterprise-project',
-  status: 'IM_03_WI05_SOURCE_MATERIAL_LANDED' as const,
+  status: 'IM_03_WI06_CUSTOMER_MATERIAL_LANDED' as const,
 });
 
 export {
@@ -68,6 +68,9 @@ export type {
   SourceMaterialInsert,
   SourceMaterialOriginInsert,
   SourceMaterialValidationInsert,
+  CustomerMaterialInsert,
+  CustomerMaterialVersionInsert,
+  CustomerMaterialDecisionInsert,
   CasResult,
 } from './persistence/enterprise-business-repository.js';
 export type {
@@ -99,6 +102,13 @@ export type {
   SourceMaterialProcessingStatus,
   SourceMaterialValidationKind,
   SourceMaterialValidationOutcome,
+  CustomerMaterialTable,
+  CustomerMaterialVersionTable,
+  CustomerMaterialDecisionTable,
+  CustomerMaterialClassificationStatus,
+  CustomerMaterialVersionStatus,
+  CustomerMaterialDecisionKind,
+  MaterialCompleteness,
 } from './persistence/enterprise-business-types.js';
 // IM-03 WI-03 (issue #59): business handlers and failure codes for the
 // EnterpriseProject vertical slice. Handlers fall into two groups:
@@ -126,6 +136,10 @@ export {
   handleRegisterSourceMaterial,
   handleAcceptSourceMaterial,
 } from './business/source-material-handlers.js';
+export {
+  handleProposeCustomerMaterial,
+  handleConfirmCustomerMaterial,
+} from './business/customer-material-handlers.js';
 export type {
   CreateEnterprisePayload,
   ProposeEnterpriseFactPayload,
@@ -147,6 +161,10 @@ export type {
   RegisterSourceMaterialCommandPayload,
   AcceptSourceMaterialCommandPayload,
 } from './business/source-material-handlers.js';
+export type {
+  ProposeCustomerMaterialCommandPayload,
+  ConfirmCustomerMaterialCommandPayload,
+} from './business/customer-material-handlers.js';
 export {
   EnterpriseBusinessError,
   PROJECT_ENTERPRISE_NOT_ACTIVE,
@@ -178,5 +196,8 @@ export {
   PROJECT_SOURCE_NOT_TRUSTED,
   PROJECT_MATERIAL_SOURCE_INVALID,
   PROJECT_SOURCE_ALREADY_ACCEPTED,
+  PROJECT_MATERIAL_VERSION_NOT_FOUND,
+  PROJECT_MATERIAL_CONFIRMATION_CONFLICT,
+  PROJECT_MATERIAL_CONFLICT_UNRESOLVED,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';

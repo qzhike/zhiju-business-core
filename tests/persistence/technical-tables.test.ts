@@ -92,6 +92,10 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'source_material',
     'source_material_origin',
     'source_material_validation',
+    // IM-03 WI-06 (issue #62): Project-owned CustomerMaterial tables.
+    'customer_material',
+    'customer_material_version',
+    'customer_material_decision',
   ],
   task_execution: ['business_probe', 'outbox_probe'],
   artifact: ['business_probe', 'outbox_probe'],

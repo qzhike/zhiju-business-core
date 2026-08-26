@@ -28,6 +28,9 @@ import type {
   SourceMaterialTable,
   SourceMaterialOriginTable,
   SourceMaterialValidationTable,
+  CustomerMaterialTable,
+  CustomerMaterialVersionTable,
+  CustomerMaterialDecisionTable,
 } from './enterprise-business-types.js';
 
 export interface EnterpriseInsert {
@@ -274,6 +277,77 @@ export interface SourceMaterialValidationInsert {
   authorizationDecisionId: string;
   sourceCommandId: string;
   recordedAt?: Date;
+}
+
+// IM-03 WI-06 (issue #62): CustomerMaterial persistence inputs. The root is
+// updated only through its aggregate CAS; version and decision inputs are
+// append-only and carry the exact canonical payload hash supplied by the
+// handler.
+export interface CustomerMaterialInsert {
+  customerMaterialId: string;
+  enterpriseId: string;
+  projectId: string;
+  materialType: string;
+  title: string;
+  customerDocumentNumber?: string;
+  customerVersionLabel?: string;
+  effectiveDate?: Date;
+  declaredStatus: string;
+  completeness: 'COMPLETE' | 'PARTIAL' | 'UNKNOWN' | 'UNREADABLE';
+  classificationStatus?:
+    | 'PROPOSED'
+    | 'UNDER_REVIEW'
+    | 'CONFIRMED'
+    | 'DISPUTED'
+    | 'REJECTED'
+    | 'NOT_CURRENT'
+    | 'SUPERSEDED';
+  currentVersionId: string;
+  createdByPrincipalId: string;
+  createdByActorSnapshotId: string;
+  sourceCommandId: string;
+}
+
+export interface CustomerMaterialVersionInsert {
+  versionId: string;
+  customerMaterialId: string;
+  enterpriseId: string;
+  projectId: string;
+  versionNo: number;
+  versionStatus: 'PROPOSED' | 'CONFIRMED';
+  materialType: string;
+  title: string;
+  customerDocumentNumber?: string;
+  customerVersionLabel?: string;
+  effectiveDate?: Date;
+  declaredStatus: string;
+  completeness: 'COMPLETE' | 'PARTIAL' | 'UNKNOWN' | 'UNREADABLE';
+  sourceSelections: unknown;
+  language: string;
+  classificationRationale: unknown;
+  payloadHash: Buffer;
+  proposedByPrincipalId: string;
+  proposedByActorSnapshotId: string;
+  authorizationDecisionId: string;
+  sourceCommandId: string;
+  previousVersionId?: string;
+}
+
+export interface CustomerMaterialDecisionInsert {
+  decisionId: string;
+  customerMaterialId: string;
+  versionId: string;
+  enterpriseId: string;
+  projectId: string;
+  decisionKind: 'PROPOSED' | 'CONFIRMED' | 'DISPUTED' | 'REJECTED';
+  evidenceRefs: unknown;
+  justification: unknown;
+  payload: unknown;
+  payloadHash: Buffer;
+  decidedByPrincipalId: string;
+  decidedByActorSnapshotId: string;
+  authorizationDecisionId: string;
+  sourceCommandId: string;
 }
 
 export type CasResult<T> =
@@ -1268,5 +1342,225 @@ export class EnterpriseBusinessRepository extends EnterpriseProjectRepository {
       .selectAll()
       .where('validation_id', '=', validationId)
       .executeTakeFirst()) as unknown as SourceMaterialValidationTable | undefined;
+  }
+
+  // -------------------- customer material --------------------
+
+  async insertCustomerMaterial(
+    trx: EnterpriseProjectTransaction,
+    insert: CustomerMaterialInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.createdByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.customer_material')
+      .values({
+        customer_material_id: insert.customerMaterialId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        material_type: insert.materialType,
+        title: insert.title,
+        customer_document_number: insert.customerDocumentNumber ?? null,
+        customer_version_label: insert.customerVersionLabel ?? null,
+        effective_date: insert.effectiveDate ?? null,
+        declared_status: insert.declaredStatus,
+        completeness: insert.completeness,
+        classification_status: insert.classificationStatus ?? 'PROPOSED',
+        current_version_id: insert.currentVersionId,
+        aggregate_version: '1',
+        created_at: new Date(),
+        created_by_principal_id: insert.createdByPrincipalId,
+        created_by_actor_snapshot_id: insert.createdByActorSnapshotId,
+        confirmed_by_principal_id: null,
+        confirmed_by_actor_snapshot_id: null,
+        confirmed_at: null,
+        updated_at: new Date(),
+        last_command_id: insert.sourceCommandId,
+        retention_class: 'CUSTOMER_RECORD',
+      })
+      .execute();
+  }
+
+  async getCustomerMaterialById(
+    trx: EnterpriseProjectTransaction,
+    customerMaterialId: string,
+  ): Promise<CustomerMaterialTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_material')
+      .selectAll()
+      .where('customer_material_id', '=', customerMaterialId)
+      .executeTakeFirst()) as unknown as CustomerMaterialTable | undefined;
+  }
+
+  async getCustomerMaterialsByProject(
+    trx: EnterpriseProjectTransaction,
+    enterpriseId: string,
+    projectId: string,
+  ): Promise<CustomerMaterialTable[]> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_material')
+      .selectAll()
+      .where('enterprise_id', '=', enterpriseId)
+      .where('project_id', '=', projectId)
+      .orderBy('created_at', 'asc')
+      .orderBy('customer_material_id', 'asc')
+      .execute()) as unknown as CustomerMaterialTable[];
+  }
+
+  async casCustomerMaterial(
+    trx: EnterpriseProjectTransaction,
+    customerMaterialId: string,
+    expectedVersion: string,
+    nextVersionId: string,
+    nextStatus:
+      | 'PROPOSED'
+      | 'UNDER_REVIEW'
+      | 'CONFIRMED'
+      | 'DISPUTED'
+      | 'REJECTED'
+      | 'NOT_CURRENT'
+      | 'SUPERSEDED',
+    patch: {
+      completeness: 'COMPLETE' | 'PARTIAL' | 'UNKNOWN' | 'UNREADABLE';
+      declaredStatus: string;
+      confirmedByPrincipalId?: string | null;
+      confirmedByActorSnapshotId?: string | null;
+      confirmedAt?: Date | null;
+      sourceCommandId: string;
+    },
+  ): Promise<CasResult<CustomerMaterialTable>> {
+    const expected = BigInt(expectedVersion);
+    const next = (expected + 1n).toString();
+    const updated = await trx
+      .updateTable('enterprise_project.customer_material')
+      .set({
+        aggregate_version: next,
+        current_version_id: nextVersionId,
+        classification_status: nextStatus,
+        completeness: patch.completeness,
+        declared_status: patch.declaredStatus,
+        ...(patch.confirmedByPrincipalId === undefined
+          ? {}
+          : { confirmed_by_principal_id: patch.confirmedByPrincipalId }),
+        ...(patch.confirmedByActorSnapshotId === undefined
+          ? {}
+          : { confirmed_by_actor_snapshot_id: patch.confirmedByActorSnapshotId }),
+        ...(patch.confirmedAt === undefined ? {} : { confirmed_at: patch.confirmedAt }),
+        updated_at: new Date(),
+        last_command_id: patch.sourceCommandId,
+      })
+      .where('customer_material_id', '=', customerMaterialId)
+      .where('aggregate_version', '=', expectedVersion)
+      .executeTakeFirst();
+    if (Number(updated.numUpdatedRows) === 1) {
+      const row = await this.getCustomerMaterialById(trx, customerMaterialId);
+      if (!row) throw new Error('casCustomerMaterial: row disappeared after CAS');
+      return { ok: true, nextVersion: next, row };
+    }
+    const current = await this.getCustomerMaterialById(trx, customerMaterialId);
+    if (!current) {
+      throw new EnterprisePersistenceError(
+        ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH,
+        'casCustomerMaterial: target not found',
+      );
+    }
+    return { ok: false, current: asAggregateVersion(current.aggregate_version) };
+  }
+
+  async insertCustomerMaterialVersion(
+    trx: EnterpriseProjectTransaction,
+    insert: CustomerMaterialVersionInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.proposedByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.customer_material_version')
+      .values({
+        version_id: insert.versionId,
+        customer_material_id: insert.customerMaterialId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        version_no: insert.versionNo,
+        version_status: insert.versionStatus,
+        material_type: insert.materialType,
+        title: insert.title,
+        customer_document_number: insert.customerDocumentNumber ?? null,
+        customer_version_label: insert.customerVersionLabel ?? null,
+        effective_date: insert.effectiveDate ?? null,
+        declared_status: insert.declaredStatus,
+        completeness: insert.completeness,
+        source_selections: JSON.stringify(insert.sourceSelections),
+        language: insert.language,
+        classification_rationale: JSON.stringify(insert.classificationRationale),
+        payload_hash: insert.payloadHash,
+        canonicalization_version: '1',
+        proposed_by_principal_id: insert.proposedByPrincipalId,
+        proposed_by_actor_snapshot_id: insert.proposedByActorSnapshotId,
+        authorization_decision_id: insert.authorizationDecisionId,
+        recorded_at: new Date(),
+        source_command_id: insert.sourceCommandId,
+        previous_version_id: insert.previousVersionId ?? null,
+      })
+      .execute();
+  }
+
+  async getCustomerMaterialVersion(
+    trx: EnterpriseProjectTransaction,
+    versionId: string,
+  ): Promise<CustomerMaterialVersionTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_material_version')
+      .selectAll()
+      .where('version_id', '=', versionId)
+      .executeTakeFirst()) as unknown as CustomerMaterialVersionTable | undefined;
+  }
+
+  async getCustomerMaterialVersions(
+    trx: EnterpriseProjectTransaction,
+    customerMaterialId: string,
+  ): Promise<CustomerMaterialVersionTable[]> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_material_version')
+      .selectAll()
+      .where('customer_material_id', '=', customerMaterialId)
+      .orderBy('version_no', 'asc')
+      .execute()) as unknown as CustomerMaterialVersionTable[];
+  }
+
+  async insertCustomerMaterialDecision(
+    trx: EnterpriseProjectTransaction,
+    insert: CustomerMaterialDecisionInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.decidedByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.customer_material_decision')
+      .values({
+        decision_id: insert.decisionId,
+        customer_material_id: insert.customerMaterialId,
+        version_id: insert.versionId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        decision_kind: insert.decisionKind,
+        evidence_refs: JSON.stringify(insert.evidenceRefs),
+        justification: JSON.stringify(insert.justification),
+        payload: JSON.stringify(insert.payload),
+        payload_hash: insert.payloadHash,
+        canonicalization_version: '1',
+        decided_by_principal_id: insert.decidedByPrincipalId,
+        decided_by_actor_snapshot_id: insert.decidedByActorSnapshotId,
+        authorization_decision_id: insert.authorizationDecisionId,
+        recorded_at: new Date(),
+        source_command_id: insert.sourceCommandId,
+      })
+      .execute();
+  }
+
+  async getCustomerMaterialDecisionById(
+    trx: EnterpriseProjectTransaction,
+    decisionId: string,
+  ): Promise<CustomerMaterialDecisionTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_material_decision')
+      .selectAll()
+      .where('decision_id', '=', decisionId)
+      .executeTakeFirst()) as unknown as CustomerMaterialDecisionTable | undefined;
   }
 }
