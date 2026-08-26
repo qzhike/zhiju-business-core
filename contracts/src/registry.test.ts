@@ -223,6 +223,138 @@ describe('contract registry', () => {
     expect(result.errors.some((error) => error.instancePath === '/payload')).toBe(true);
   });
 
+  it('exposes CustomerBaseline status and reference shapes for runtime semantic validation', () => {
+    const projectId = '018f22e2-7c15-7b2e-8d86-2de956a9d302';
+    const versioned = (objectId: string, versionId: string) => ({
+      kind: 'VERSIONED',
+      objectType: 'customer.material',
+      objectId,
+      versionId,
+      scope: { enterpriseId: uuid, projectId },
+    });
+    const decision = {
+      kind: 'CONTENT_ADDRESSED',
+      objectType: 'business.decision',
+      objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d306',
+      scope: { enterpriseId: uuid, projectId },
+      contentHash: {
+        algorithm: 'SHA-256',
+        digest: '1'.repeat(64),
+        canonicalizationVersion: '1',
+      },
+    };
+    const justification = {
+      reasonCode: 'BASELINE_REVIEW',
+      summary: 'The exact CustomerBaseline state was reviewed.',
+      evidenceRefs: [],
+    };
+    const baseExpectation = {
+      expectationId: '018f22e2-7c15-7b2e-8d86-2de956a9d307',
+      expectedMaterialKey: 'training.procedure',
+      materialType: 'quality.procedure',
+      expectedTitleOrRole: 'Training procedure',
+      reason: justification,
+    };
+    const command = (expectation: Record<string, unknown>) => ({
+      ...validCommand(),
+      commandType: 'project.create_customer_baseline_draft',
+      payload: {
+        projectRef: {
+          kind: 'OBJECT',
+          objectType: 'project',
+          objectId: projectId,
+          scope: { enterpriseId: uuid, projectId },
+        },
+        expectations: [expectation],
+        baselinePolicyRef: {
+          kind: 'VERSIONED',
+          objectType: 'policy',
+          objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d308',
+          versionId: '018f22e2-7c15-7b2e-8d86-2de956a9d309',
+          scope: { enterpriseId: uuid, projectId },
+        },
+      },
+    });
+
+    for (const expectation of [
+      {
+        ...baseExpectation,
+        status: 'PRESENT',
+        customerMaterialRefs: [
+          versioned('018f22e2-7c15-7b2e-8d86-2de956a9d310', '018f22e2-7c15-7b2e-8d86-2de956a9d311'),
+        ],
+      },
+      { ...baseExpectation, status: 'UNKNOWN', customerMaterialRefs: [] },
+      { ...baseExpectation, status: 'NOT_PROVIDED', customerMaterialRefs: [] },
+      {
+        ...baseExpectation,
+        status: 'MISSING_CONFIRMED',
+        customerMaterialRefs: [],
+        decisionRef: decision,
+      },
+    ]) {
+      expect(
+        registry.validateOperation(
+          'project.create_customer_baseline_draft',
+          '1.0',
+          command(expectation),
+        ),
+      ).toEqual({
+        valid: true,
+        errors: [],
+      });
+    }
+  });
+
+  it('accepts the minimal CustomerBaseline activation event and rejects customer text', () => {
+    const event = fixture('project-customer-material-event-sensitive-field.json');
+    const projectId = '018f22e2-7c15-7b2e-8d86-2de956a9d302';
+    const baselineRef = {
+      kind: 'VERSIONED',
+      objectType: 'customer.baseline',
+      objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d312',
+      versionId: '018f22e2-7c15-7b2e-8d86-2de956a9d316',
+      scope: { enterpriseId: uuid, projectId },
+    };
+    const activation = {
+      ...event,
+      eventType: 'project.CustomerBaselineVersionActivated',
+      aggregateType: 'project.customer_baseline',
+      payload: {
+        customerBaselineRef: baselineRef,
+        previousActiveRef: {
+          ...baselineRef,
+          versionId: '018f22e2-7c15-7b2e-8d86-2de956a9d317',
+        },
+        projectRef: {
+          kind: 'OBJECT',
+          objectType: 'project',
+          objectId: projectId,
+          scope: { enterpriseId: uuid, projectId },
+        },
+        impactPolicyRef: {
+          kind: 'VERSIONED',
+          objectType: 'policy',
+          objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d318',
+          versionId: '018f22e2-7c15-7b2e-8d86-2de956a9d319',
+          scope: { enterpriseId: uuid, projectId },
+        },
+      },
+    };
+    expect(
+      registry.validateOperation('project.CustomerBaselineVersionActivated', '1.0', activation),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+
+    const leaked = structuredClone(activation) as Record<string, unknown>;
+    (leaked.payload as Record<string, unknown>).customerDocumentText = 'must-not-appear';
+    expect(
+      registry.validateOperation('project.CustomerBaselineVersionActivated', '1.0', leaked).valid,
+    ).toBe(false);
+  });
+
   it('rejects unknown EnterpriseProject command payload fields', () => {
     const input = {
       ...validCommand(),

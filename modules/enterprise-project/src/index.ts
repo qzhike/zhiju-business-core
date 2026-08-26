@@ -1,6 +1,6 @@
 export const enterpriseProjectModule = Object.freeze({
   name: 'enterprise-project',
-  status: 'IM_03_WI06_CUSTOMER_MATERIAL_LANDED' as const,
+  status: 'IM_03_WI07_CUSTOMER_BASELINE_LANDED' as const,
 });
 
 export {
@@ -71,6 +71,10 @@ export type {
   CustomerMaterialInsert,
   CustomerMaterialVersionInsert,
   CustomerMaterialDecisionInsert,
+  CustomerBaselineInsert,
+  CustomerBaselineVersionInsert,
+  CustomerBaselineItemInsert,
+  CustomerBaselineImpactReviewInsert,
   CasResult,
 } from './persistence/enterprise-business-repository.js';
 export type {
@@ -109,6 +113,13 @@ export type {
   CustomerMaterialVersionStatus,
   CustomerMaterialDecisionKind,
   MaterialCompleteness,
+  CustomerBaselineTable,
+  CustomerBaselineVersionTable,
+  CustomerBaselineItemTable,
+  CustomerBaselineImpactReviewTable,
+  CustomerBaselineVersionStatus,
+  CustomerBaselineItemStatus,
+  CustomerBaselineImpactStatus,
 } from './persistence/enterprise-business-types.js';
 // IM-03 WI-03 (issue #59): business handlers and failure codes for the
 // EnterpriseProject vertical slice. Handlers fall into two groups:
@@ -140,6 +151,11 @@ export {
   handleProposeCustomerMaterial,
   handleConfirmCustomerMaterial,
 } from './business/customer-material-handlers.js';
+export {
+  handleCreateCustomerBaselineDraft,
+  handleActivateCustomerBaselineVersion,
+  handleGetActiveBaselineRefs,
+} from './business/customer-baseline-handlers.js';
 export type {
   CreateEnterprisePayload,
   ProposeEnterpriseFactPayload,
@@ -165,6 +181,11 @@ export type {
   ProposeCustomerMaterialCommandPayload,
   ConfirmCustomerMaterialCommandPayload,
 } from './business/customer-material-handlers.js';
+export type {
+  CreateCustomerBaselineDraftCommandPayload,
+  ActivateCustomerBaselineVersionCommandPayload,
+  GetActiveBaselineRefsCommandPayload,
+} from './business/customer-baseline-handlers.js';
 export {
   EnterpriseBusinessError,
   PROJECT_ENTERPRISE_NOT_ACTIVE,
@@ -199,5 +220,10 @@ export {
   PROJECT_MATERIAL_VERSION_NOT_FOUND,
   PROJECT_MATERIAL_CONFIRMATION_CONFLICT,
   PROJECT_MATERIAL_CONFLICT_UNRESOLVED,
+  PROJECT_BASELINE_STATUS_INVALID,
+  PROJECT_MISSING_CONFIRMATION_REQUIRED,
+  PROJECT_BASELINE_VERSION_IMMUTABLE,
+  PROJECT_MULTIPLE_ACTIVE_BASELINES,
+  PROJECT_BASELINE_VERSION_NOT_FOUND,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';

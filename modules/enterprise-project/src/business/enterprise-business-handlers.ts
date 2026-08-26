@@ -353,6 +353,12 @@ const OBJECT_SCOPE_LOOKUPS: Readonly<Record<string, ObjectScopeLookup>> = {
     payloadHashColumn: 'payload_hash',
     kinds: ['OBJECT', 'CONTENT_ADDRESSED'],
   },
+  CustomerBaseline: {
+    table: 'enterprise_project.customer_baseline',
+    objectIdColumn: 'customer_baseline_id',
+    projectIdColumn: 'project_id',
+    kinds: ['OBJECT'],
+  },
 };
 
 function ensureSameEnterpriseScope(

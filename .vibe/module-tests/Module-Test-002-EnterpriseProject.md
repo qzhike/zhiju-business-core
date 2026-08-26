@@ -1,8 +1,8 @@
 # Module-Test-002-EnterpriseProject
 
-版本：v0.6
+版本：v0.7
 日期：2026-08-26
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / PR #75 MERGED / ISSUE #62 CLOSED / EXACT-HEAD DELIVERY COMPLETE`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #75 MERGED / ISSUE #62 CLOSED`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -169,3 +169,18 @@ WI-03 业务 Handler、业务 DDL 和 Disposable PostgreSQL 的修正结果已�
 - 实现 commit `3141928df48b3be097ff554bc7b96ee933d727c1` 已通过 PR [#75](https://github.com/qzhike/zhiju-business-core/pull/75) 的 exact-head `verify` CI，并合并到 `main`，merge commit 为 `e7cfee14b699b0574abf6899a0291bc9ea706f90`。
 - Issue [#62](https://github.com/qzhike/zhiju-business-core/issues/62) 已通过 GitHub API 读取为 `closed`；Issue closeout comment 已写入并读回：[issuecomment-5420158225](https://github.com/qzhike/zhiju-business-core/issues/62#issuecomment-5420158225)。
 - `origin/main` 与本地默认分支已同步到 `e7cfee1`；`galendai/im-03-wi-06-customermaterial` 远端和本地 branch 均已删除，并已证明实现 commit 是 `origin/main` 的 ancestor。
+
+## IM-03 WI-07 CustomerBaseline 三态缺失与影响评审用例
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-API-U-001` | Unit/Persistence | 无培训程序时，Agent 在 CustomerBaseline 草稿中请求 `MISSING_CONFIRMED` | 返回 `PROJECT_MISSING_CONFIRMATION_REQUIRED`；不创建 Root/Version/Item；Agent 仍可提交 `NOT_PROVIDED/UNKNOWN` | `pnpm persistence:gate`：Agent 拒绝且 Root 计数为 `0`；合法 `NOT_PROVIDED/UNKNOWN` 进入 Human baseline 回归 | `PASS` |
+| `EP-API-U-002` | Contract/Persistence | `PRESENT/PARTIAL` 携带已确认 CustomerMaterial refs；`UNKNOWN/NOT_PROVIDED` 携带 refs 或 Decision；`MISSING_CONFIRMED` 缺 Decision | 冻结 v1.0 Contract 拒绝非法字段/引用形状；Handler 和 DB CHECK 拒绝跨字段非法组合；合法三态可持久化 | Registry 49 tests + PostgreSQL runtime CHECK/Handler negative cases；`PRESENT/UNKNOWN/NOT_PROVIDED/MISSING_CONFIRMED` 组合通过边界验证 | `PASS` |
+| `EP-API-C-002` | Contract/Persistence | `CustomerBaselineVersionActivated` Event Fixture，带精确新/旧 VersionedRef、ProjectRef、ImpactPolicyRef，并尝试放入材料正文 | 合法 Event 通过；Event 不接受客户材料正文；旧 active ref 精确保留 | Registry Event fixture 合法/正文泄漏均验证；PostgreSQL Outbox event 带精确 `previousActiveRef` 且不含正文 | `PASS` |
+| `EP-API-P-001` | Persistence | Human 创建 CB-003 草稿并激活；再创建 CB-004，使用错误 previous ref 或错误 expected version | 错误 previous ref/Scope 被拒绝；精确 previous ref 可创建新 DRAFT，旧版本不变 | `pnpm persistence:gate`：CB-003→CB-004、stale previous/expected version rejection、旧版本 confirmed | `PASS` |
+| `EP-API-P-002` | Persistence | 两个 Human 以同一 Root expected version 并发激活同一 DRAFT | 只有一个 `COMMITTED`；另一个 `REJECTED CONCURRENCY_CONFLICT`；只有一个 Event/Impact Review | PostgreSQL CAS concurrency：`1 COMMITTED / 1 REJECTED CONCURRENCY_CONFLICT`，单一 event/impact row | `PASS` |
+| `EP-API-E-002` | E2E/Persistence | CB-004 激活后，旧 Reference Edge 仍指向 CB-003 的 Context/Gap/Plan 版本 | 旧引用解析不变；新增 Impact Review 记录 `STALE`/影响事实；不更新旧下游对象 | PostgreSQL old-edge probe：旧引用 `5` 条保留，Impact Review `STALE` 且受影响下游 refs `3`；真实 Process Manager 未运行 | `PASS (PERSISTENCE)` |
+| `EP-API-P-003` | Persistence | 直接 UPDATE/DELETE CustomerBaseline Version、Item、Impact Review；或重放旧 Version 激活 | app role/不可变触发器拒绝；旧版本、条目、Impact Review 和 active pointer 不被覆盖 | PostgreSQL app-role ACL、immutable triggers、active-pointer deferred guard、stale activation checks 均通过 | `PASS` |
+| `EP-API-M-001` | Manual | 脱敏采购控制程序：材料确认→Baseline 草稿→Human 激活→补资料→新版本→旧 Context/Gap/Plan probe | 用户可区分 `PRESENT/PARTIAL/NOT_PROVIDED/UNKNOWN/MISSING_CONFIRMED`，并看到旧版本未被改写 | disposable local probe 实际输出 Agent rejection、`PRESENT/UNKNOWN/NOT_PROVIDED`、旧 refs `5`、`STALE/3`；真实下游 Process Manager/独立人工验收未运行 | `PASS (LOCAL PROBE); HUMAN NOT RUN` |
+
+本切片的自动化和 disposable local probe 已实际通过，只证明 Contract、当前 Handler/Repository、迁移和 Disposable PostgreSQL；不会把不存在的 Gap/Plan/Context Process Manager、Provider、公开 HTTP、跨模块业务 E2E、生产环境或独立人工 Reference Project 验收写成 `PASS`。每次执行 gate 后必须清理容器、临时数据库、临时脚本和测试数据。

@@ -6,7 +6,7 @@
 // scope mirrors (Issue #59 §1–§4).
 
 import { sql } from 'kysely';
-import type { EnterpriseProjectTransaction } from './enterprise-db.js';
+import type { EnterpriseProjectTransaction, ReferenceEdgeTable } from './enterprise-db.js';
 import { EnterpriseProjectRepository } from './enterprise-project-repository.js';
 import {
   ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH,
@@ -31,6 +31,10 @@ import type {
   CustomerMaterialTable,
   CustomerMaterialVersionTable,
   CustomerMaterialDecisionTable,
+  CustomerBaselineTable,
+  CustomerBaselineVersionTable,
+  CustomerBaselineItemTable,
+  CustomerBaselineImpactReviewTable,
 } from './enterprise-business-types.js';
 
 export interface EnterpriseInsert {
@@ -346,6 +350,76 @@ export interface CustomerMaterialDecisionInsert {
   payloadHash: Buffer;
   decidedByPrincipalId: string;
   decidedByActorSnapshotId: string;
+  authorizationDecisionId: string;
+  sourceCommandId: string;
+}
+
+// IM-03 WI-07 (issue #63): CustomerBaseline persistence inputs. The handler
+// supplies canonical JSON and payload hashes; the migration owns the
+// cross-field CHECK constraints and immutable/controlled update boundary.
+export interface CustomerBaselineInsert {
+  customerBaselineId: string;
+  enterpriseId: string;
+  projectId: string;
+  currentVersionId: string;
+  createdByPrincipalId: string;
+  createdByActorSnapshotId: string;
+  sourceCommandId: string;
+}
+
+export interface CustomerBaselineVersionInsert {
+  versionId: string;
+  customerBaselineId: string;
+  enterpriseId: string;
+  projectId: string;
+  versionNo: number;
+  previousVersionId?: string;
+  baselinePolicyRef: unknown;
+  expectationsPayload: unknown;
+  payloadHash: Buffer;
+  proposedByPrincipalId: string;
+  proposedByActorSnapshotId: string;
+  authorizationDecisionId: string;
+  sourceCommandId: string;
+}
+
+export interface CustomerBaselineItemInsert {
+  expectationId: string;
+  customerBaselineId: string;
+  versionId: string;
+  enterpriseId: string;
+  projectId: string;
+  expectedMaterialKey: string;
+  materialType: string;
+  expectedTitleOrRole: string;
+  status:
+    'PRESENT' | 'PARTIAL' | 'MISSING_CONFIRMED' | 'NOT_PROVIDED' | 'UNKNOWN' | 'NOT_APPLICABLE';
+  customerMaterialRefs: unknown;
+  decisionRef?: unknown;
+  reason: unknown;
+  payloadHash: Buffer;
+  recordedByPrincipalId: string;
+  recordedByActorSnapshotId: string;
+  authorizationDecisionId: string;
+  sourceCommandId: string;
+}
+
+export interface CustomerBaselineImpactReviewInsert {
+  impactReviewId: string;
+  customerBaselineId: string;
+  newVersionId: string;
+  previousActiveVersionId?: string;
+  enterpriseId: string;
+  projectId: string;
+  reviewSnapshotRef: unknown;
+  impactPolicyRef: unknown;
+  justification: unknown;
+  affectedReferences: unknown;
+  staleReferences: unknown;
+  impactStatus: 'STALE' | 'NO_PRIOR_ACTIVE';
+  payloadHash: Buffer;
+  createdByPrincipalId: string;
+  createdByActorSnapshotId: string;
   authorizationDecisionId: string;
   sourceCommandId: string;
 }
@@ -1562,5 +1636,309 @@ export class EnterpriseBusinessRepository extends EnterpriseProjectRepository {
       .selectAll()
       .where('decision_id', '=', decisionId)
       .executeTakeFirst()) as unknown as CustomerMaterialDecisionTable | undefined;
+  }
+
+  // -------------------- customer baseline --------------------
+
+  async insertCustomerBaseline(
+    trx: EnterpriseProjectTransaction,
+    insert: CustomerBaselineInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.createdByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.customer_baseline')
+      .values({
+        customer_baseline_id: insert.customerBaselineId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        current_version_id: insert.currentVersionId,
+        active_version_id: null,
+        aggregate_version: '1',
+        created_at: new Date(),
+        created_by_principal_id: insert.createdByPrincipalId,
+        created_by_actor_snapshot_id: insert.createdByActorSnapshotId,
+        updated_at: new Date(),
+        last_command_id: insert.sourceCommandId,
+        retention_class: 'CUSTOMER_RECORD',
+      })
+      .execute();
+  }
+
+  async getCustomerBaselineById(
+    trx: EnterpriseProjectTransaction,
+    customerBaselineId: string,
+  ): Promise<CustomerBaselineTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_baseline')
+      .selectAll()
+      .where('customer_baseline_id', '=', customerBaselineId)
+      .executeTakeFirst()) as unknown as CustomerBaselineTable | undefined;
+  }
+
+  async getCustomerBaselineByProject(
+    trx: EnterpriseProjectTransaction,
+    enterpriseId: string,
+    projectId: string,
+  ): Promise<CustomerBaselineTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_baseline')
+      .selectAll()
+      .where('enterprise_id', '=', enterpriseId)
+      .where('project_id', '=', projectId)
+      .executeTakeFirst()) as unknown as CustomerBaselineTable | undefined;
+  }
+
+  async casCustomerBaselineDraft(
+    trx: EnterpriseProjectTransaction,
+    customerBaselineId: string,
+    expectedVersion: string,
+    nextVersionId: string,
+    sourceCommandId: string,
+  ): Promise<CasResult<CustomerBaselineTable>> {
+    const next = (BigInt(expectedVersion) + 1n).toString();
+    const updated = await trx
+      .updateTable('enterprise_project.customer_baseline')
+      .set({
+        current_version_id: nextVersionId,
+        aggregate_version: next,
+        updated_at: new Date(),
+        last_command_id: sourceCommandId,
+      })
+      .where('customer_baseline_id', '=', customerBaselineId)
+      .where('aggregate_version', '=', expectedVersion)
+      .executeTakeFirst();
+    if (Number(updated.numUpdatedRows) === 1) {
+      const row = await this.getCustomerBaselineById(trx, customerBaselineId);
+      if (!row) throw new Error('casCustomerBaselineDraft: row disappeared after CAS');
+      return { ok: true, nextVersion: next, row };
+    }
+    const current = await this.getCustomerBaselineById(trx, customerBaselineId);
+    if (!current) {
+      throw new EnterprisePersistenceError(
+        ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH,
+        'casCustomerBaselineDraft: target not found',
+      );
+    }
+    return { ok: false, current: asAggregateVersion(current.aggregate_version) };
+  }
+
+  async casCustomerBaselineActivation(
+    trx: EnterpriseProjectTransaction,
+    customerBaselineId: string,
+    expectedVersion: string,
+    nextVersionId: string,
+    sourceCommandId: string,
+  ): Promise<CasResult<CustomerBaselineTable>> {
+    const next = (BigInt(expectedVersion) + 1n).toString();
+    const updated = await trx
+      .updateTable('enterprise_project.customer_baseline')
+      .set({
+        current_version_id: nextVersionId,
+        active_version_id: nextVersionId,
+        aggregate_version: next,
+        updated_at: new Date(),
+        last_command_id: sourceCommandId,
+      })
+      .where('customer_baseline_id', '=', customerBaselineId)
+      .where('aggregate_version', '=', expectedVersion)
+      .executeTakeFirst();
+    if (Number(updated.numUpdatedRows) === 1) {
+      const row = await this.getCustomerBaselineById(trx, customerBaselineId);
+      if (!row) throw new Error('casCustomerBaselineActivation: row disappeared after CAS');
+      return { ok: true, nextVersion: next, row };
+    }
+    const current = await this.getCustomerBaselineById(trx, customerBaselineId);
+    if (!current) {
+      throw new EnterprisePersistenceError(
+        ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH,
+        'casCustomerBaselineActivation: target not found',
+      );
+    }
+    return { ok: false, current: asAggregateVersion(current.aggregate_version) };
+  }
+
+  async insertCustomerBaselineVersion(
+    trx: EnterpriseProjectTransaction,
+    insert: CustomerBaselineVersionInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.proposedByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.customer_baseline_version')
+      .values({
+        version_id: insert.versionId,
+        customer_baseline_id: insert.customerBaselineId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        version_no: insert.versionNo,
+        version_status: 'DRAFT',
+        previous_version_id: insert.previousVersionId ?? null,
+        baseline_policy_ref: JSON.stringify(insert.baselinePolicyRef),
+        expectations_payload: JSON.stringify(insert.expectationsPayload),
+        payload_hash: insert.payloadHash,
+        canonicalization_version: '1',
+        proposed_by_principal_id: insert.proposedByPrincipalId,
+        proposed_by_actor_snapshot_id: insert.proposedByActorSnapshotId,
+        authorization_decision_id: insert.authorizationDecisionId,
+        confirmed_by_principal_id: null,
+        confirmed_by_actor_snapshot_id: null,
+        confirmed_at: null,
+        recorded_at: new Date(),
+        source_command_id: insert.sourceCommandId,
+      })
+      .execute();
+  }
+
+  async getCustomerBaselineVersion(
+    trx: EnterpriseProjectTransaction,
+    versionId: string,
+  ): Promise<CustomerBaselineVersionTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_baseline_version')
+      .selectAll()
+      .where('version_id', '=', versionId)
+      .executeTakeFirst()) as unknown as CustomerBaselineVersionTable | undefined;
+  }
+
+  async getCustomerBaselineVersions(
+    trx: EnterpriseProjectTransaction,
+    customerBaselineId: string,
+  ): Promise<CustomerBaselineVersionTable[]> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_baseline_version')
+      .selectAll()
+      .where('customer_baseline_id', '=', customerBaselineId)
+      .orderBy('version_no', 'asc')
+      .execute()) as unknown as CustomerBaselineVersionTable[];
+  }
+
+  async confirmCustomerBaselineVersion(
+    trx: EnterpriseProjectTransaction,
+    versionId: string,
+    principalId: string,
+    actorSnapshotId: string,
+    confirmedAt: Date,
+  ): Promise<boolean> {
+    await this.assertContextPrincipal(trx, principalId);
+    const updated = await trx
+      .updateTable('enterprise_project.customer_baseline_version')
+      .set({
+        version_status: 'CONFIRMED',
+        confirmed_by_principal_id: principalId,
+        confirmed_by_actor_snapshot_id: actorSnapshotId,
+        confirmed_at: confirmedAt,
+      })
+      .where('version_id', '=', versionId)
+      .where('version_status', '=', 'DRAFT')
+      .executeTakeFirst();
+    return Number(updated.numUpdatedRows) === 1;
+  }
+
+  async insertCustomerBaselineItem(
+    trx: EnterpriseProjectTransaction,
+    insert: CustomerBaselineItemInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.recordedByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.customer_baseline_item')
+      .values({
+        expectation_id: insert.expectationId,
+        customer_baseline_id: insert.customerBaselineId,
+        version_id: insert.versionId,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        expected_material_key: insert.expectedMaterialKey,
+        material_type: insert.materialType,
+        expected_title_or_role: insert.expectedTitleOrRole,
+        status: insert.status,
+        customer_material_refs: JSON.stringify(insert.customerMaterialRefs),
+        decision_ref: insert.decisionRef === undefined ? null : JSON.stringify(insert.decisionRef),
+        reason: JSON.stringify(insert.reason),
+        payload_hash: insert.payloadHash,
+        canonicalization_version: '1',
+        recorded_by_principal_id: insert.recordedByPrincipalId,
+        recorded_by_actor_snapshot_id: insert.recordedByActorSnapshotId,
+        authorization_decision_id: insert.authorizationDecisionId,
+        recorded_at: new Date(),
+        source_command_id: insert.sourceCommandId,
+      })
+      .execute();
+  }
+
+  async getCustomerBaselineItems(
+    trx: EnterpriseProjectTransaction,
+    versionId: string,
+  ): Promise<CustomerBaselineItemTable[]> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_baseline_item')
+      .selectAll()
+      .where('version_id', '=', versionId)
+      .orderBy('expected_material_key', 'asc')
+      .orderBy('expectation_id', 'asc')
+      .execute()) as unknown as CustomerBaselineItemTable[];
+  }
+
+  async insertCustomerBaselineImpactReview(
+    trx: EnterpriseProjectTransaction,
+    insert: CustomerBaselineImpactReviewInsert,
+  ): Promise<void> {
+    await this.assertContextPrincipal(trx, insert.createdByPrincipalId);
+    await trx
+      .insertInto('enterprise_project.customer_baseline_impact_review')
+      .values({
+        impact_review_id: insert.impactReviewId,
+        customer_baseline_id: insert.customerBaselineId,
+        new_version_id: insert.newVersionId,
+        previous_active_version_id: insert.previousActiveVersionId ?? null,
+        enterprise_id: insert.enterpriseId,
+        project_id: insert.projectId,
+        review_snapshot_ref: JSON.stringify(insert.reviewSnapshotRef),
+        impact_policy_ref: JSON.stringify(insert.impactPolicyRef),
+        justification: JSON.stringify(insert.justification),
+        affected_references: JSON.stringify(insert.affectedReferences),
+        stale_references: JSON.stringify(insert.staleReferences),
+        impact_status: insert.impactStatus,
+        payload_hash: insert.payloadHash,
+        canonicalization_version: '1',
+        created_by_principal_id: insert.createdByPrincipalId,
+        created_by_actor_snapshot_id: insert.createdByActorSnapshotId,
+        authorization_decision_id: insert.authorizationDecisionId,
+        recorded_at: new Date(),
+        source_command_id: insert.sourceCommandId,
+      })
+      .execute();
+  }
+
+  async getCustomerBaselineImpactReviewByVersion(
+    trx: EnterpriseProjectTransaction,
+    customerBaselineId: string,
+    versionId: string,
+  ): Promise<CustomerBaselineImpactReviewTable | undefined> {
+    return (await trx
+      .selectFrom('enterprise_project.customer_baseline_impact_review')
+      .selectAll()
+      .where('customer_baseline_id', '=', customerBaselineId)
+      .where('new_version_id', '=', versionId)
+      .executeTakeFirst()) as unknown as CustomerBaselineImpactReviewTable | undefined;
+  }
+
+  async getReferenceEdgesToCustomerBaselineVersion(
+    trx: EnterpriseProjectTransaction,
+    enterpriseId: string,
+    projectId: string,
+    customerBaselineId: string,
+    versionId: string,
+  ): Promise<ReferenceEdgeTable[]> {
+    return (await trx
+      .selectFrom('enterprise_project.reference_edge')
+      .selectAll()
+      .where('enterprise_id', '=', enterpriseId)
+      .where('project_id', '=', projectId)
+      .where('target_module', '=', 'EnterpriseProject')
+      .where('target_object_type', '=', 'CustomerBaseline')
+      .where('target_object_id', '=', customerBaselineId)
+      .where('target_version_id', '=', versionId)
+      .orderBy('created_at', 'asc')
+      .orderBy('reference_path', 'asc')
+      .execute()) as unknown as ReferenceEdgeTable[];
   }
 }
