@@ -1,8 +1,8 @@
 # Module-Spec-002-EnterpriseProject
 
-版本：v0.2
+版本：v0.3
 日期：2026-08-25
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / USER CONFIRMATION REQUIRED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / USER CONFIRMATION REQUIRED`
 
 ## 1. 模块责任
 
@@ -388,3 +388,31 @@ Issue #61 在 WI-04 的 Project Scope 基础上落地 SourceMaterial 的最小�
 ### 14.4 WI-05 失败码
 
 本切片复用 `PROJECT_SOURCE_CONTENT_IMMUTABLE`、`PROJECT_SOURCE_NOT_TRUSTED`、`PROJECT_MATERIAL_SOURCE_INVALID`，并新增 `PROJECT_SOURCE_ALREADY_ACCEPTED`。新增错误只用于稳定业务拒绝，不携带原始 payload、ObjectLocator 或敏感文件名。
+
+## 15. IM-03 WI-06 CustomerMaterial 提议、确认与不可变版本
+
+Issue #62 在已接受 SourceMaterial 之上落地 CustomerMaterial 的最小业务闭环。该切片复用第 3、5 节已经冻结的 `project.propose_customer_material@1.0`、`project.confirm_customer_material@1.0` 和 `project.CustomerMaterialConfirmed@1.0`，不新增公共 Catalog Contract。
+
+### 15.1 Root、Version 与 Decision
+
+- `project.propose_customer_material` 必须接收同一 Project Scope 的 `projectRef`，并逐一验证 `proposal.sourceSelections`：引用必须是精确 `CONTENT_ADDRESSED<SourceMaterial>`，Enterprise/Project Scope 与事务 Context 一致，ContentHash 为 SHA-256/1 且与数据库 SourceMaterial 完全一致，SourceMaterial 状态必须为 `ACCEPTED`；SourceMaterial 当前不发布业务 `immutableVersionId`，因此携带该可选字段也必须拒绝。Selection 的 `locator` 只表示源内页码/章节等内部位置，不能替代受控 accepted object locator。
+- 提议成功创建 `customer_material` Root 和 v1 `customer_material_version`。Root 的 `classification_status=PROPOSED`、`aggregate_version=1`、`current_version_id=v1`；Version 保存完整分类字段、完整性、Source Selection、语言、理由和 payload hash。多个 Root 可以引用同一个已接受 SourceMaterial，以保留不同解析/分类候选。
+- `project.confirm_customer_material` 必须接收精确 `VERSIONED<CustomerMaterial>` 候选，并确认它仍是 Root 的当前 `PROPOSED` Version。确认不更新 v1，而是追加 v2 `CONFIRMED` Version，Root 使用 CAS 从 1 推进到 2 并指向 v2；v1/v2 的分类、来源和 payload 均不可覆盖。
+- 确认决定写入不可变 `customer_material_decision`，以精确 Decision ContentAddressedRef 进入 `CustomerMaterialConfirmed` Event。Decision 保存 Human actor、Authorization Decision、Evidence Ref、Justification 和 canonical payload hash，不保存客户原文。
+- 当前没有低风险自动确认 Policy 输入，因此所有确认均为 Human-only。Agent 可提议但不能确认；`actingFor` 不能改变可信 Context 中的 `principalKind`。
+
+### 15.2 冲突、证据与失败码
+
+- 确认前必须检查当前 Project 内其他 `PROPOSED` CustomerMaterial 当前 Version。若共享任一 SourceMaterial 且分类指纹（materialType、title、customerDocumentNumber、customerVersionLabel、effectiveDate、completeness、language 及规范化 Source Selection）不同，则返回 `PROJECT_MATERIAL_CONFLICT_UNRESOLVED`；不修改任何候选、不选择 last-write-wins、不产生确认 Event。
+- `evidenceRefs` 以及 `justification.evidenceRefs` 可以为空但若存在必须是当前 Enterprise/Project Scope 的合法精确 Ref；每一条证据通过 Reference Edge 保存 target object/version/hash，理由和决定通过 Decision 行保存。结果和 Event 不复制标题、客户版本号、客户原文、ObjectLocator 或完整 Evidence Payload。
+- 稳定失败码：`PROJECT_MATERIAL_SOURCE_INVALID`（Source 缺失、未接受、跨 Scope、Hash/Ref 不匹配）、`PROJECT_MATERIAL_VERSION_NOT_FOUND`（候选不是精确 CustomerMaterial Version）、`PROJECT_MATERIAL_CONFIRMATION_CONFLICT`（候选不是当前可确认状态或 CAS 目标不一致）、`PROJECT_MATERIAL_CONFLICT_UNRESOLVED`（冲突分类待处理）；Agent/Human-only 拒绝复用 `PROJECT_HUMAN_ONLY_DENIED`。
+
+### 15.3 持久化与事务边界
+
+- `V2007__customer_material_proposal_confirmation.sql` 新增 `customer_material`、`customer_material_version` 和 `customer_material_decision` 三张 Project-owned 表。Root Scope/创建字段由 trigger 保护；Version/Decision 对 `enterprise_project_app` 撤销 UPDATE、DELETE；三表均 FORCE RLS 并使用 `context_allows_project(enterprise_id, project_id)`。
+- 提议事务按“校验 Project 与已接受 Source → Claim Receipt → Root + v1 → Source/Project Reference Edge → Audit/Receipt → Commit”执行；确认事务按“Human-only/精确候选/冲突检查 → Claim Receipt → v2 + Decision → Root CAS → Reference Edge → 最小 CustomerMaterialConfirmed Outbox → Audit/Receipt → Commit”执行。
+- Command Runner 的同 Key/同 Hash Replay 返回原 Result；同 Key/不同 Hash 返回 `IDEMPOTENCY_PAYLOAD_CONFLICT`。业务拒绝不写业务版本或确认 Event，CAS 冲突不使用 last-write-wins。
+
+### 15.4 WI-06 可人工验收产出与边界
+
+脱敏 Fixture 必须支持：一份 `ACCEPTED` SourceMaterial 产生 CustomerMaterial `PROPOSED`；Human 确认后只新增不可变确认 Version 并出现最小 `CustomerMaterialConfirmed` Event；尝试 UPDATE/DELETE 确认 Version 或重放旧候选时得到拒绝；Agent 确认得到 Human-only 拒绝；跨 Project/未接受/错误 Hash Source Ref 不泄漏客户数据。真实 Feishu、OCR/LLM、Evidence 验证、对象存储、公开 HTTP、跨模块 E2E 和人工 Reference Project 验收保持 `NOT RUN`。

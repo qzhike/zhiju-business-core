@@ -31,6 +31,9 @@ import type {
   SourceMaterialTable,
   SourceMaterialOriginTable,
   SourceMaterialValidationTable,
+  CustomerMaterialTable,
+  CustomerMaterialVersionTable,
+  CustomerMaterialDecisionTable,
 } from './enterprise-business-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
@@ -182,6 +185,11 @@ export interface EnterpriseProjectDb {
   'enterprise_project.source_material': SourceMaterialTable;
   'enterprise_project.source_material_origin': SourceMaterialOriginTable;
   'enterprise_project.source_material_validation': SourceMaterialValidationTable;
+  // IM-03 WI-06 (issue #62): Project-owned CustomerMaterial root, immutable
+  // classification versions and immutable proposal/confirmation decisions.
+  'enterprise_project.customer_material': CustomerMaterialTable;
+  'enterprise_project.customer_material_version': CustomerMaterialVersionTable;
+  'enterprise_project.customer_material_decision': CustomerMaterialDecisionTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';

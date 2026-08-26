@@ -329,3 +329,90 @@ export interface SourceMaterialValidationTable {
   source_command_id: string;
   recorded_at: Date;
 }
+
+// IM-03 WI-06 (issue #62): CustomerMaterial is a Project-owned
+// classification aggregate. Its versions and decisions are append-only;
+// source selections stay as exact reference payloads so one SourceMaterial
+// can support multiple candidate classifications without overwriting history.
+export type CustomerMaterialClassificationStatus =
+  | 'PROPOSED'
+  | 'UNDER_REVIEW'
+  | 'CONFIRMED'
+  | 'DISPUTED'
+  | 'REJECTED'
+  | 'NOT_CURRENT'
+  | 'SUPERSEDED';
+export type CustomerMaterialVersionStatus = 'PROPOSED' | 'CONFIRMED';
+export type CustomerMaterialDecisionKind = 'PROPOSED' | 'CONFIRMED' | 'DISPUTED' | 'REJECTED';
+export type MaterialCompleteness = 'COMPLETE' | 'PARTIAL' | 'UNKNOWN' | 'UNREADABLE';
+
+export interface CustomerMaterialTable {
+  customer_material_id: string;
+  enterprise_id: string;
+  project_id: string;
+  material_type: string;
+  title: string;
+  customer_document_number: string | null;
+  customer_version_label: string | null;
+  effective_date: Date | null;
+  declared_status: string;
+  completeness: MaterialCompleteness;
+  classification_status: CustomerMaterialClassificationStatus;
+  current_version_id: string;
+  aggregate_version: Int8Default;
+  created_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  confirmed_by_principal_id: string | null;
+  confirmed_by_actor_snapshot_id: string | null;
+  confirmed_at: Date | null;
+  updated_at: Date;
+  last_command_id: string | null;
+  retention_class: string;
+}
+
+export interface CustomerMaterialVersionTable {
+  version_id: string;
+  customer_material_id: string;
+  enterprise_id: string;
+  project_id: string;
+  version_no: number;
+  version_status: CustomerMaterialVersionStatus;
+  material_type: string;
+  title: string;
+  customer_document_number: string | null;
+  customer_version_label: string | null;
+  effective_date: Date | null;
+  declared_status: string;
+  completeness: MaterialCompleteness;
+  source_selections: Json;
+  language: string;
+  classification_rationale: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  proposed_by_principal_id: string;
+  proposed_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+  previous_version_id: string | null;
+}
+
+export interface CustomerMaterialDecisionTable {
+  decision_id: string;
+  customer_material_id: string;
+  version_id: string;
+  enterprise_id: string;
+  project_id: string;
+  decision_kind: CustomerMaterialDecisionKind;
+  evidence_refs: Json;
+  justification: Json;
+  payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  decided_by_principal_id: string;
+  decided_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}

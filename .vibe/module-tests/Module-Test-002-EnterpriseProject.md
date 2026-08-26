@@ -1,8 +1,8 @@
 # Module-Test-002-EnterpriseProject
 
-版本：v0.4
+版本：v0.6
 日期：2026-08-26
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / EXACT-HEAD DELIVERY IN PROGRESS`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / EXACT-HEAD DELIVERY IN PROGRESS`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -134,3 +134,32 @@ WI-03 业务 Handler、业务 DDL 和 Disposable PostgreSQL 的修正结果已�
 | `EP-PR73-V-001` | Repository | `pnpm verify` | 所有静态、Unit、Architecture、Contract、Persistence Gate 通过 | Format/Lint/Typecheck 通过；Unit `348 passed / 201 skipped`；Contract `200`；Persistence `214 passed`；V2004/V2005 成功且二次 migrate no-op | `PASS` |
 
 修复后自动化只证明当前工作区、受控代码路径和 Disposable PostgreSQL；真实 Provider、公开 HTTP、跨模块业务 E2E、生产环境和人工 Reference Project 验收继续为 `NOT RUN`。测试脚本、临时文件和 gate 容器已清理。
+
+## IM-03 WI-06 CustomerMaterial 提议、确认与不可变版本用例
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI06-P-001` | Persistence | 同一 Project 的 `ACCEPTED` SourceMaterial + 合法 CustomerMaterialProposal；Agent/`actingFor` 确认尝试 | 创建 CustomerMaterial Root/v1，状态 `PROPOSED`、aggregate version `1`；Source Ref 精确落 Edge；不自动确认；非 Human 不得确认 | Disposable PostgreSQL：Root/v1 为 `PROPOSED`/`1`；Agent 与 Human `actingFor` 均返回 `PROJECT_HUMAN_ONLY_DENIED`；同一测试继续完成 Human 确认 | `PASS` |
+| `EP-WI06-P-002` | Persistence | Human 确认当前 `PROPOSED` candidateVersionRef，并以旧 aggregate version 直接验证 CAS | 追加 v2 `CONFIRMED`，v1 不变；Root CAS `1 -> 2`；Decision、Receipt、Audit、Reference Edge 与 `CustomerMaterialConfirmed` Outbox 同事务提交；stale CAS 不更新 Root | Disposable PostgreSQL：v1/v2 均存在且 payload hash 不同；Root 为 `CONFIRMED`/`2` 并指向 v2；Decision 为 `PROPOSED`+`CONFIRMED`；旧 CAS 返回 `{ok:false,current:'2'}` | `PASS` |
+| `EP-WI06-P-003` | Persistence | 未接受、跨 Project、错误 objectId、错误 ContentHash 或带错误 `immutableVersionId` 的 SourceMaterialRef | 稳定拒绝 `PROJECT_MATERIAL_SOURCE_INVALID`；不创建 CustomerMaterial、Version 或确认 Event，不泄漏原始字段 | Disposable PostgreSQL：未接受/错误 Hash 返回 `REJECTED`；跨 Project 与错误 `immutableVersionId` 在写入前抛出 `PROJECT_MATERIAL_SOURCE_INVALID`；CustomerMaterial 行数为 `0` | `PASS` |
+| `EP-WI06-P-004` | Persistence | Agent/`actingFor` 调用 `confirm_customer_material` | 返回 `PROJECT_HUMAN_ONLY_DENIED`；确认 Version、Decision、Event 均为 0 | Disposable PostgreSQL：Agent 和带 `actingFor` 的 Human 调用均被 `PROJECT_HUMAN_ONLY_DENIED` 拒绝，随后仅合法 Human 调用产生确认 Version/Event | `PASS` |
+| `EP-WI06-P-005` | Persistence | 同一 Source 的两个 `PROPOSED` 候选具有不同分类指纹，确认其中一个 | 返回 `PROJECT_MATERIAL_CONFLICT_UNRESOLVED`；两个候选保持原状态，不采用 last-write-wins，不产生 Event | Disposable PostgreSQL：确认返回 `PROJECT_MATERIAL_CONFLICT_UNRESOLVED`；两个候选保持 `PROPOSED`，`CustomerMaterialConfirmed` Event 数量为 `0` | `PASS` |
+| `EP-WI06-P-006` | Persistence | 直接 UPDATE/DELETE 已确认 Version/Decision，或用已确认旧 candidateVersionRef 再次确认 | DB 权限/不可变约束拒绝；旧 v1/v2 与 Root current pointer 保持不变，Receipt/Audit 记录安全拒绝 | Disposable PostgreSQL：Version/Decision 的 UPDATE/DELETE 均返回 PostgreSQL `42501`；旧 candidate 返回 `PROJECT_MATERIAL_CONFIRMATION_CONFLICT`，Root/版本链保持不变 | `PASS` |
+| `EP-WI06-P-007` | Persistence | 同一提议/确认 idempotency key 同 Hash Replay，再改请求 Hash | Replay 返回原 Result 且不新增 Version/Event；改 Hash 返回 `IDEMPOTENCY_PAYLOAD_CONFLICT`，首个 Receipt 不变 | Disposable PostgreSQL：提议与确认同 Hash 均返回 `DUPLICATE`；改 Hash 均返回 `IDEMPOTENCY_PAYLOAD_CONFLICT`，没有新增业务 Version/Event | `PASS` |
+| `EP-WI06-U-001` | Unit | Source Selection 缺 Scope/Hash、proposal 字段为空、Evidence Scope 越界 | 写入前拒绝稳定错误，不打开部分业务写入 | 尚未执行 | `NOT RUN` |
+| `EP-WI06-RLS-001` | Persistence | 已建立 Project Context、空 allowedProjectIds、以及跨 Project Source Ref 的 app-role 查询/写入 | 只可见并可写当前允许 Project；跨 Project/无 Project Context 被拒绝或不可见，不泄漏 CustomerMaterial | Disposable PostgreSQL：允许 Project Context 可读 CustomerMaterial；空 `allowedProjectIds` Context 读不到 Root，按 Project 查询返回 `0` 行 | `PASS` |
+| `EP-WI06-M-001` | Manual | 脱敏采购控制程序：Source → Proposal → Human Confirm → 尝试改写确认版本 | 用户可看到精确 Ref/Decision/Completeness 与版本链，改写被拒绝；真实 Feishu/OCR/LLM/Ceph/OpenBao/生产验收仍为 `NOT RUN` | 尚未执行 | `NOT RUN` |
+
+本切片自动化只覆盖当前实现、迁移和 Disposable PostgreSQL；真实 Source 下载/安全扫描、Evidence 外部验证、OCR/LLM Provider、公开 HTTP、跨模块 Reference Project E2E、生产环境及独立人工验收不因本测试通过而改变状态。执行测试后清理临时脚本、临时数据和 gate 容器。
+
+## 2026-08-26 执行结果
+
+- `pnpm format:check`：`PASS`。
+- `pnpm lint`：`PASS`。
+- `pnpm typecheck`：`PASS`。
+- `pnpm test`（无 `ZJU_PERSISTENCE_DATABASE_URL`，真实 PostgreSQL 用例跳过）：22 个文件通过、13 个文件跳过；`349 passed / 211 skipped`，`PASS`。
+- `pnpm architecture`：`PASS`。
+- `pnpm contracts:check`：`PASS`，公共 Catalog `200`、Registry `200`、Schema 全部 `FULL`，未扩展公共 Contract。
+- `pnpm persistence:gate`：`PASS`；pinned PostgreSQL `18.6` + Flyway `11.20.3`，空库迁移、二次 migrate no-op 和容器清理通过；16 个 Persistence 文件、`225 passed / 0 failed`。V2007 `customer material proposal confirmation` 成功应用。
+
+以上 PASS 只证明当前 worktree、受控 Handler/Repository、迁移和 Disposable PostgreSQL；Provider、真实 Feishu/Ceph/OpenBao、公开 HTTP、跨模块 E2E、生产环境和人工 Reference Project 验收保持 `NOT RUN`。
