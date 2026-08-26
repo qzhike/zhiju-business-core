@@ -7,7 +7,7 @@
 - Review base：`a087441`（当时与 `origin/main` 相同）
 - Implementation commit：`fc59c13`（`Implement CustomerBaseline three-state impact review`）
 - Review date：2026-08-26
-- Associated PR：当前无；push、comment、Issue close 和 branch 删除尚未执行。
+- Associated PR：[#77](https://github.com/qzhike/zhiju-business-core/pull/77)，已合并；Issue 63 已关闭，目标 branch 已删除。
 
 ## Contract and design decisions
 
@@ -35,11 +35,13 @@
 - `pnpm lint`、`pnpm format:check`、`pnpm typecheck`、`pnpm architecture`、`pnpm contracts:check`：均 PASS；公共 Catalog/Registry 为 200，compatibility findings 为 0。
 - Manual probe 输出：Agent `MISSING_CONFIRMED -> REJECTED PROJECT_MISSING_CONFIRMATION_REQUIRED`；CB-003 `PRESENT/UNKNOWN/NOT_PROVIDED`；CB-004 后 old refs `5`、Impact `STALE/3`，active version 为 CB-004。
 
-## Delivery gates still pending
+## Final delivery readback
 
-- implementation commit `fc59c13` 已创建；补充 Review Record 的精确 SHA follow-up commit 后，必须读取最终 head，创建/更新 PR，等待并读取 exact-head CI，并发布/读回 Issue comment。
-- 只有在 comment、ancestry、Issue 状态和 branch 目标均核对后，才关闭 Issue 63 并删除目标 branch；不能把 merge 或 `Refs/Closes` 文本单独当作关闭证据。
+- PR [#77](https://github.com/qzhike/zhiju-business-core/pull/77) 的 exact head 为 `e71300055fdd40051dc24d1e8d76003c3f32ccc1`，base 为 `main` at `a08744158ee7a565499fd31d85f9cced4cf33fbd`，GitHub `verify` CI 为 `PASS`。
+- PR #77 以 merge commit `f63ae2a373c312790c550957ac3aa51c0cf603dd` 合并；`e713000...` 已验证为 `origin/main=f63ae2a...` 的 ancestor。
+- PR review comment [#5420888555](https://github.com/qzhike/zhiju-business-core/pull/77#issuecomment-5420888555) 已发布并读回；Issue closeout comment [#5420896539](https://github.com/qzhike/zhiju-business-core/issues/63#issuecomment-5420896539) 已发布并读回。
+- Issue [#63](https://github.com/qzhike/zhiju-business-core/issues/63) 已通过 API 读取为 `CLOSED`；`galendai/im-03-wi-07-customerbaseline` 远端和本地 branch 均已删除。
 
 ## Review disposition
 
-当前实现与 Issue #63 的自动化和 disposable 验收边界一致，未发现阻塞性代码审查问题。Review record 需要在精确 commit、远端 comment、Issue close 和 branch 删除后补写最终 SHA/状态回读。
+当前实现与 Issue #63 的自动化和 disposable 验收边界一致，未发现阻塞性代码审查问题。PR、CI、comments、merge、ancestry、Issue close 和 branch 删除均已完成并回读；Provider、公开 HTTP、下游 Process Manager、跨模块 E2E、生产和独立人工 Reference Project 验收仍保持 `NOT RUN`。

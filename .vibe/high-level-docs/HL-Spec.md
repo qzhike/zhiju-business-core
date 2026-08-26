@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-25
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #72 REVIEW REPAIRED / PR #75 MERGED / ISSUE #62 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -565,4 +565,4 @@ Issue #63 在已确认 CustomerMaterial 之上实现 CustomerBaseline 草稿、�
 - 激活新版本只移动 Root 的 active pointer，并追加不可变 `customer_baseline_impact_review` 事实。Impact Review 从旧版本的 Reference Edge 快照出发记录受影响的精确 Context/Gap/Plan refs；本切片不原地修改下游对象，也不自动创建 Gap、DeliveryItem、Artifact 或 InformationRequest。
 - V2008 业务表均 FORCE RLS；Root 只开放受控 pointer/CAS 列更新，Version 只开放 DRAFT→CONFIRMED 的受控状态事实，Item/Impact Review 为 INSERT-only。真实 Gap/Plan Process Manager、Provider、公开 HTTP、跨模块 E2E、生产和独立人工 Reference Project 验收继续保持 `NOT RUN`。
 
-WI-07 工作树验证已完成：Contract/Registry、Handler/Repository、V2008 和 Disposable PostgreSQL 均通过；本地手动 probe 实际输出 Agent 缺失确认被拒绝、CB-003 三态、CB-004 激活后旧 Reference Edge 保留 5 条且 Impact Review 为 `STALE/3`。真实下游 Process Manager、Provider、公开 HTTP、跨模块 E2E、生产和独立人工 Reference Project 验收仍保持 `NOT RUN`，等待精确 Git/Issue 交付边界完成。
+WI-07 已通过 [PR #77](https://github.com/qzhike/zhiju-business-core/pull/77) 以实现 head `e71300055fdd40051dc24d1e8d76003c3f32ccc1` 合并到 `main`，merge commit 为 `f63ae2a373c312790c550957ac3aa51c0cf603dd`；Issue [#63](https://github.com/qzhike/zhiju-business-core/issues/63) 已显式关闭，closeout comment 已写入并读回：[issuecomment-5420896539](https://github.com/qzhike/zhiju-business-core/issues/63#issuecomment-5420896539)，实现 head 已证明是 `origin/main` ancestor，远端和本地 WI-07 feature branch 均已删除。Contract/Registry、Handler/Repository、V2008、Disposable PostgreSQL 和本地 probe 均按上文结果通过；真实下游 Process Manager、Provider、公开 HTTP、跨模块 E2E、生产和独立人工 Reference Project 验收仍保持 `NOT RUN`。

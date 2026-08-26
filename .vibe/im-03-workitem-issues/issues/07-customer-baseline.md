@@ -15,14 +15,14 @@
 
 ## 验收条件
 
-- [ ] 没有培训程序时，Agent 请求 `MISSING_CONFIRMED` 返回 `PROJECT_MISSING_CONFIRMATION_REQUIRED`，只允许 `NOT_PROVIDED/UNKNOWN`。
-- [ ] `KNOWN`/未知类 presence 与 value/evidence 组合由 Contract 和数据库约束共同验证。
-- [ ] 只有授权 Human 可激活；并发激活只有一个成功，旧 active ref 保留在事件中。
-- [ ] CB-004 激活后，引用 CB-003 的旧 Context/Gap/Plan 仍解析原版本，仅产生 stale/impact 事实。
-- [ ] EP-API-U-001、EP-API-C-002、EP-API-E-002 有实际自动化证据。
-- [ ] 用户可运行缺资料与新旧 Baseline probe，清楚看到三态区别和旧版本未改写。
+- [x] 没有培训程序时，Agent 请求 `MISSING_CONFIRMED` 返回 `PROJECT_MISSING_CONFIRMATION_REQUIRED`，只允许 `NOT_PROVIDED/UNKNOWN`。
+- [x] `KNOWN`/未知类 presence 与 value/evidence 组合由 Contract 和数据库约束共同验证。
+- [x] 只有授权 Human 可激活；并发激活只有一个成功，旧 active ref 保留在事件中。
+- [x] CB-004 激活后，引用 CB-003 的旧 Context/Gap/Plan 仍解析原版本，仅产生 stale/impact 事实。
+- [x] EP-API-U-001、EP-API-C-002、EP-API-E-002 有实际自动化证据。
+- [x] 用户可运行缺资料与新旧 Baseline probe，清楚看到三态区别和旧版本未改写。
 
-工作树实现验证（2026-08-26）已完成：Agent 缺失确认、Contract/Handler/DB 三态约束、Human 激活 CAS、CB-003/CB-004 旧引用与 Impact Review 均有自动化证据；disposable probe 实际输出三态、旧引用保留 5 条、`STALE/3` Impact Review。GitHub comment、Issue close 和 branch 删除仍属于后续精确交付步骤。
+Issue 63 实现与 exact-head 交付（2026-08-26）已完成：Agent 缺失确认、Contract/Handler/DB 三态约束、Human 激活 CAS、CB-003/CB-004 旧引用与 Impact Review 均有自动化证据；disposable probe 实际输出三态、旧引用保留 5 条、`STALE/3` Impact Review。PR #77 已合并，Issue #63 已关闭，PR review comment 与 Issue closeout comment 已读回，远端和本地目标 branch 已删除。
 
 ## 非目标与 `NOT RUN` 边界
 
