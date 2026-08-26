@@ -3,7 +3,7 @@
 版本：v0.1
 设计阶段：Project Domain + Task / Execution Domain + Artifact / Quality Domain
 日期：2026-08-12
-状态：`CURRENT DOMAIN BASELINE / IM-03 WI-01 DECISION RECORDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / USER REVIEW REQUIRED`
+状态：`CURRENT DOMAIN BASELINE / IM-03 WI-01 DECISION RECORDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSEOUT PENDING / USER REVIEW REQUIRED`
 
 文档角色：Aggregate、Entity、Value Object、状态机、Command、Domain Event、权限和 Domain Invariant 的唯一权威。跨 Aggregate 协作以 `05` 为准，模块所有权以 `02` 为准，验证总口径以 `08` 为准。
 
@@ -5671,6 +5671,12 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Cont
 输入版本、Hash、有效期或适用范围变化时，旧 GapAnalysis 进入 `STALE` 并追加 Impact Review；旧 Gap、Context、Plan 和 Artifact 不原地改写。`NOT_PROVIDED`、`UNKNOWN` 和 `MISSING_CONFIRMED` 不互相推导。QualityProfile/Evidence 等 IM-05 Ref 只做强引用和 Scope/Hash/lifecycle/purpose 验证，不通过跨 Schema Join 或测试假数据取得正文。
 
 本节是设计决策，不是业务实现证据；业务 DDL、Repository、Handler、Evaluator、真实 PostgreSQL 业务链和人工 Reference Project 仍为 `NOT RUN`。
+
+## 48.1 IM-03 WI-09 可执行 GapAnalysis 边界
+
+WI-09 保留本章既有 GapAnalysis 生命周期和三态认识论，并将最小实现收敛为一个可审计的受控 evaluator 入口：`requestedScope` 只能携带确定性 canonical finding fixture，finding 的 `UNKNOWN`、`MISSING`、`NOT_PROVIDED` 和 `NOT_APPLICABLE` 不由 Handler 互相推导；summary 必须从不可变 finding 派生。七个 `GapInputSnapshot` ref 必须逐项绑定当前 Project/Enterprise 的精确版本、snapshot id、Scope、生命周期和 hash，不能使用 `latest` 或隐式 current。
+
+InputSnapshot、GapAnalysisVersion、GapItem 和 Decision 都是追加事实。只有可信 Human 可以 ACCEPT；Agent、Service、`actingFor` 和伪造 actor 不能取得 Human 权限。`GapAnalysisAccepted` Event 只发布 exact Gap/Project/InputSnapshot/Decision refs，不能复制 finding 或客户原文。新 Baseline/Profile 只追加 stale/impact 事实并保留旧 Gap、Finding、Decision、Context、Plan 和 Artifact；新分析需要显式 start command。
 
 ## 49. IM-03 WI-08 实现对既有 Domain 语义的收敛
 

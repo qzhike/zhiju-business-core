@@ -243,6 +243,15 @@ requiredRepresentations = [DOCX, PDF]
 4. 新 Baseline 使 GA-005 STALE 时，DP-002 不被自动撤销；创建 `DeliveryPlanImpactReviewRequested`。
 5. 已批准范围的修改必须形成新 DeliveryPlanVersion。
 
+### 5.4 WI-09 stale 传播边界
+
+WI-09 的 stale 传播只处理“输入事实发生变化”这一影响事实，不回写任何旧分析内容：
+
+- CustomerBaseline、TemplateBaseline 或 RegulatoryProfile 的新激活版本在同一 EnterpriseProject 事务内，根据旧 Gap InputSnapshot 的精确 normalized ref 标记依赖 Gap Version 为 `STALE`，并保存触发对象、旧版本和新版本的脱敏 exact ref；
+- 旧 Gap 的 Finding、InputSnapshot、Decision、Context、Plan 和 Artifact 保持可读、不可变；`accepted_version_id` 只在接受版本本身失效时清除，不能用 stale 过程自动批准或撤销 DeliveryPlan；
+- QMS、ProductScope、EnterpriseProfile 或 Policy 的更新遵循相同的 Impact fact 规则，但 Provider、跨模块 Process Manager 和人工 Reference Project 不属于本切片的运行证据；
+- 只有显式 `start_gap_analysis` 才会创建新分析，`GapAnalysisAccepted` 仍只触发 DeliveryPlan Draft Proposal，不直接形成项目承诺。
+
 ---
 
 ## 6. Phase C：Task、WorkOrder、Run 与 InformationRequest

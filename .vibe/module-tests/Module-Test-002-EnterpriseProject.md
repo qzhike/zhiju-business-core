@@ -1,8 +1,8 @@
 # Module-Test-002-EnterpriseProject
 
-版本：v0.8
+版本：v0.9
 日期：2026-08-26
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / LOCAL IMPLEMENTATION VERIFIED / EXACT-HEAD CLOSEOUT PENDING`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSEOUT PENDING / PR #75 MERGED / PR #77 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / LOCAL IMPLEMENTATION VERIFIED / EXACT-HEAD CLOSEOUT PENDING`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -220,10 +220,27 @@ TemplateBaseline 的 ProjectRef 与 review SnapshotRef 不携带 target ContentH
 
 latest/hash/evidence 负向命令仍使用与 payload exact ref 一致的 target identity，确保断言命中业务引用校验而非先被 Command target mismatch 截断。
 
-当前静态检查复核全部通过：`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm architecture`、`pnpm contracts:check` 均为 `PASS`；Contract 保持 `operations=200`。
+当前静态检查复核全部通过：`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm architecture`、`pnpm contracts:check` 和 `pnpm build` 均为 `PASS`；`pnpm test` 为 `22 test files passed / 16 skipped`、`351 passed / 224 skipped`；Contract 保持 `operations=200`。
 
-最终 PostgreSQL Gate：PostgreSQL `18.6` / Flyway `11.20.3`，`18 files / 234 passed / 0 failed`；空库迁移成功，V2009 成功应用，二次 migrate 为 no-op，容器已清理。事务前 source/hash/capability/verification 拒绝、Service principal Human-only 拒绝、后续 Platform 版本 Edge 和首次 Root race 均已包含在上述数字中。
+最终 PostgreSQL Gate：PostgreSQL `18.6` / Flyway `11.20.3`，`19 files / 238 passed / 0 failed`；空库迁移成功，V2010 成功应用，二次 migrate 为 no-op，容器已清理。WI-09 的 exact input、UNKNOWN/epistemic、immutable、Human-only、Accepted/Reject/Changes、replay、CAS、CustomerBaseline handler stale/Impact 链路均已包含在上述数字中。
 
-最终 `pnpm verify` 编排为 `PASS`：非数据库阶段 `22 test files passed / 15 skipped`、`351 passed / 220 skipped`，随后静态门禁和上述 `18 files / 234 passed` PostgreSQL Gate 均通过。
+最终 `pnpm verify` 编排为 `PASS`：非数据库阶段 `22 test files passed / 16 skipped`、`351 passed / 224 skipped`，随后静态门禁和 PostgreSQL `19 files / 238 passed` Gate 均通过；V2010 二次 migrate 为 no-op，容器已清理。
 
 Provider、真实法规来源、公开 HTTP、跨模块 Process Manager、生产环境和独立人工 Reference Project 验收继续保持 `NOT RUN`。
+
+## IM-03 WI-09 GapAnalysis 冻结输入、Human 接受与 stale 用例
+
+以下结果来自当前工作树的受控实现与测试执行；结果只覆盖本地代码和 Disposable PostgreSQL 边界，不替代 Provider、生产或人工验收证据。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI09-U-001` | Unit/Contract | FORMAL 输入缺一个必需 ref、携带 `latest`、Project/Enterprise Scope 错配、Snapshot hash/identity 错误或非法 mode | 写入前拒绝 `PROJECT_GAP_INPUT_INCOMPLETE`/Scope/Hash/Status 稳定错误；无 Root、Version、Finding、Receipt 副作用 | `pnpm persistence:gate` 覆盖 missing/latest/scope/profile identity/hash/mode；4 个 WI-09 测试文件组内断言通过，拒绝路径无 Root 副作用 | `PASS (PERSISTENCE)` |
+| `EP-WI09-U-002` | Unit | Finding 使用 `UNKNOWN`，或以 `MISSING` 代替未确认事实；高风险 Finding 缺 Evidence/信息请求 | `UNKNOWN` 原样保存；错误 epistemic 组合返回 `PROJECT_GAP_EPISTEMIC_CONFLICT` | `UNKNOWN` 保存并派生 summary；`UNKNOWN→MISSING` 与 CRITICAL 无证据均返回 `PROJECT_GAP_EPISTEMIC_CONFLICT` | `PASS (PERSISTENCE)` |
+| `EP-WI09-P-001` | Persistence | 创建含 finding 的完成版本后直接 UPDATE/DELETE Version、InputSnapshot、Finding | 数据库 ACL/immutable trigger 拒绝；旧 payload/hash/finding 仍可读 | 真实 PostgreSQL 直接 UPDATE InputSnapshot、Version、Finding 均被 immutable trigger 拒绝；旧 input/finding 读取保持一致 | `PASS (PERSISTENCE)` |
+| `EP-WI09-P-002` | Persistence | Agent、Service、`actingFor` 与可信 Human 分别执行 accept；Human 分别提交 ACCEPT、REJECT、CHANGES_REQUIRED | 非 Human 返回 `PROJECT_GAP_HUMAN_ACCEPTANCE_REQUIRED`；仅 ACCEPT 设置 accepted pointer 和 Accepted Event；其余状态不设置 pointer | Agent/Service/actingFor 均拒绝；Human ACCEPT、REJECT、CHANGES_REQUIRED 的 Root/Version/Decision 状态通过 | `PASS (PERSISTENCE)` |
+| `EP-WI09-C-001` | Contract/Persistence | Human ACCEPT 精确 Versioned Gap ref、Review Snapshot、Justification | `GapAnalysisAccepted` 只含 exact Gap/Project/InputSnapshot/Decision refs，不复制 finding/客户正文；Decision、Receipt、Audit、Outbox 同事务提交 | Accepted Event、Decision、Receipt、Audit、Outbox 与 Reference Edge 的 exact refs/同事务事实通过；公共 Contract 仍为 200 operations | `PASS (PERSISTENCE)` |
+| `EP-WI09-P-003` | Persistence | 同一 accept command 重放；两个 Human 以同一 expected aggregate version 并发接受；中途故障 | 同 hash 返回 `DUPLICATE`；CAS 只有一个赢家；失败事务无 Decision/Event/pointer 部分写入 | accept replay 返回 `DUPLICATE`；并发结果为单一提交者和 `CONCURRENCY_CONFLICT`；共享 Command Runner fault-rollback 用例通过，WI-09 未注入独立故障 | `PASS (PERSISTENCE; SHARED ROLLBACK)` |
+| `EP-WI09-E-001` | E2E/Persistence | 接受旧 Gap 后通过 CustomerBaseline 激活 handler 提交新版本，并验证 stale/Impact；Template/Regulatory 复用同一依赖传播边界 | 旧 Gap 与 Finding 保留，旧精确输入和 Decision 不变；旧 Version/Root 变为 `STALE`，Impact/trigger ref 可解释；不自动撤销 Plan/Artifact | 通过真实 `handleCreateCustomerBaselineDraft` + `handleActivateCustomerBaselineVersion` 链路验证：旧 Root/Version=`STALE`，Finding/Input/Decision 保留，Impact Review 含 Gap trigger ref；Template/Regulatory 专项场景未独立执行 | `PASS (CUSTOMER PATH); TEMPLATE/REGULATORY NOT RUN` |
+| `EP-WI09-M-001` | Manual | 脱敏采购程序：七个冻结输入→受控 finding→Human review→接受→新 Baseline→旧 Gap 查询 | 用户能区分 UNKNOWN/MISSING、看到 exact refs/hash/Decision/stale Impact；Provider、公开 HTTP、生产和独立人工验收仍为 `NOT RUN` | 本地自动化已证明 exact refs/hash、UNKNOWN、Human decision、stale/Impact；Provider、公开 HTTP、生产和独立人工验收未执行 | `PASS (LOCAL AUTOMATION); HUMAN NOT RUN` |
+
+WI-09 的结果已补写本表；真实 Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收不能由这些结果推断为 `PASS`。本轮 PostgreSQL 容器已清理，未保留临时数据库、临时脚本或临时测试文件。

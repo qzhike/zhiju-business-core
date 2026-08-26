@@ -114,6 +114,13 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'regulatory_profile',
     'regulatory_profile_version',
     'regulatory_profile_item',
+    // IM-03 WI-09 (issue #65): Project-owned GapAnalysis input, version,
+    // finding and Human decision facts.
+    'gap_analysis',
+    'gap_analysis_input_snapshot',
+    'gap_analysis_version',
+    'gap_finding',
+    'gap_analysis_decision',
   ],
   task_execution: ['business_probe', 'outbox_probe'],
   artifact: ['business_probe', 'outbox_probe'],

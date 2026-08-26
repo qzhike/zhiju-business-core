@@ -697,3 +697,136 @@ export interface RegulatoryProfileItemTable {
   recorded_at: Date;
   source_command_id: string;
 }
+
+// IM-03 WI-09 (issue #65): GapAnalysis preserves the exact input snapshot,
+// immutable findings and Human decision history. Root status and pointers are
+// the only mutable aggregate projection; stale metadata is an impact fact.
+export type GapAnalysisStatus =
+  'COMPLETED' | 'UNDER_REVIEW' | 'ACCEPTED' | 'CHANGES_REQUIRED' | 'REJECTED' | 'STALE';
+export type GapAnalysisVersionStatus = GapAnalysisStatus;
+export type GapAnalysisMode = 'FORMAL' | 'EXPLORATORY';
+export type GapAnalysisDisposition = 'ACCEPT' | 'REJECT' | 'CHANGES_REQUIRED';
+export type GapFindingSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface GapAnalysisTable {
+  gap_analysis_id: string;
+  enterprise_id: string;
+  project_id: string;
+  current_version_id: string;
+  accepted_version_id: string | null;
+  status: GapAnalysisStatus;
+  aggregate_version: Int8Default;
+  created_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  updated_at: Date;
+  last_command_id: string | null;
+  retention_class: string;
+}
+
+export interface GapAnalysisInputSnapshotTable {
+  input_snapshot_id: string;
+  gap_analysis_id: string;
+  version_id: string;
+  enterprise_id: string;
+  project_id: string;
+  customer_baseline_ref: Json;
+  customer_baseline_id: string;
+  customer_baseline_version_id: string;
+  template_baseline_ref: Json;
+  template_baseline_id: string;
+  template_baseline_version_id: string;
+  regulatory_profile_ref: Json;
+  regulatory_profile_id: string;
+  regulatory_profile_version_id: string;
+  enterprise_profile_snapshot_ref: Json;
+  enterprise_profile_snapshot_id: string;
+  enterprise_profile_payload_hash: Buffer;
+  qms_configuration_ref: Json;
+  qms_configuration_id: string;
+  qms_configuration_revision_id: string;
+  qms_configuration_revision_hash: Buffer;
+  product_scope_snapshot_ref: Json;
+  product_scope_snapshot_id: string;
+  product_scope_payload_hash: Buffer;
+  analysis_policy_ref: Json;
+  analysis_policy_id: string;
+  analysis_policy_version_id: string;
+  payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface GapAnalysisVersionTable {
+  version_id: string;
+  gap_analysis_id: string;
+  enterprise_id: string;
+  project_id: string;
+  version_no: number;
+  version_status: GapAnalysisVersionStatus;
+  mode: GapAnalysisMode;
+  input_snapshot_id: string;
+  requested_scope: Json;
+  findings_summary: Json;
+  payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  stale_reason: Json | null;
+  stale_at: Date | null;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface GapFindingTable {
+  finding_id: string;
+  gap_analysis_id: string;
+  version_id: string;
+  enterprise_id: string;
+  project_id: string;
+  subject_key: string;
+  subject_type: string;
+  customer_baseline_item_refs: Json;
+  template_refs: Json;
+  regulatory_item_refs: Json;
+  gap_status: string;
+  severity: GapFindingSeverity;
+  rationale: Json;
+  evidence_refs: Json;
+  recommended_action: string;
+  information_request_refs: Json;
+  review_disposition: string | null;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface GapAnalysisDecisionTable {
+  decision_id: string;
+  gap_analysis_id: string;
+  version_id: string;
+  enterprise_id: string;
+  project_id: string;
+  review_snapshot_ref: Json;
+  disposition: GapAnalysisDisposition;
+  justification: Json;
+  payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  decided_by_principal_id: string;
+  decided_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}

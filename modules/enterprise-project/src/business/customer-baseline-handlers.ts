@@ -27,7 +27,7 @@ import {
   type CommandExecution,
   type CommandResult,
 } from '../persistence/command-runner.js';
-import { TemplateRegulatoryRepository } from '../persistence/template-regulatory-repository.js';
+import { GapAnalysisRepository } from '../persistence/gap-analysis-repository.js';
 import type {
   CustomerBaselineItemStatus,
   CustomerBaselineImpactStatus,
@@ -41,7 +41,7 @@ import {
   PROJECT_MISSING_CONFIRMATION_REQUIRED,
 } from './enterprise-business-errors.js';
 
-const repo = new TemplateRegulatoryRepository();
+const repo = new GapAnalysisRepository();
 const IMPACT_OWNER_OBJECT_TYPES = new Set([
   'Context',
   'ProjectContext',
@@ -1228,6 +1228,23 @@ export async function handleActivateCustomerBaselineVersion(
             root.customer_baseline_id,
             previousActiveVersion.version_id,
           );
+    await repo.markGapAnalysesStaleForDependency(
+      execution.trx,
+      {
+        kind: 'CustomerBaseline',
+        objectId: root.customer_baseline_id,
+        versionId: targetVersion.version_id,
+      },
+      context.enterpriseId,
+      projectId,
+      {
+        reasonCode: 'CUSTOMER_BASELINE_VERSION_ACTIVATED',
+        triggeringRef: activatedRef,
+        ...(previousActiveRef === undefined ? {} : { previousActiveRef }),
+        impactReviewId,
+      },
+      envelope.commandId,
+    );
     const eventPayload = {
       enterpriseId: context.enterpriseId,
       projectId,
