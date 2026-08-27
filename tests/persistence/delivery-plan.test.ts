@@ -10,6 +10,7 @@ import {
   handleActivateDeliveryPlan,
   handleApproveDeliveryPlan,
   handleCreateDeliveryPlanDraft,
+  handleGetActiveBaselineRefs,
   handleGetDeliveryItemCriteria,
   PROJECT_DELIVERY_APPROVAL_DECISION_INVALID,
   PROJECT_DELIVERY_DEPENDENCY_CYCLE,
@@ -1346,6 +1347,46 @@ describe.skipIf(!gateEnabled)('DeliveryPlan WI-10 (real PostgreSQL)', () => {
     expect(asAggregateVersion(state.root?.aggregate_version)).toBe('3');
     expect(state.version?.version_status).toBe('ACTIVE');
     expect(state.version?.approval_decision_id).toBe(approvalDecisionRef.objectId);
+    const activeBaselineRefs = await handleGetActiveBaselineRefs(db, humanContext, {
+      projectRef: objectRef('Project', fixture.projectId, fixture.enterpriseId, fixture.projectId),
+    });
+    expect(activeBaselineRefs.customerBaselineRef).toEqual(
+      projectVersionedRef(
+        'CustomerBaseline',
+        fixture.customerBaselineId,
+        fixture.customerBaselineVersionId,
+        fixture.enterpriseId,
+        fixture.projectId,
+      ),
+    );
+    expect(activeBaselineRefs.templateBaselineRef).toEqual(
+      projectVersionedRef(
+        'TemplateBaseline',
+        fixture.templateBaselineId,
+        fixture.templateBaselineVersionId,
+        fixture.enterpriseId,
+        fixture.projectId,
+      ),
+    );
+    expect(activeBaselineRefs.regulatoryProfileRef).toEqual(
+      projectVersionedRef(
+        'RegulatoryProfile',
+        fixture.regulatoryProfileId,
+        fixture.regulatoryProfileVersionId,
+        fixture.enterpriseId,
+        fixture.projectId,
+      ),
+    );
+    expect(activeBaselineRefs.gapAnalysisRef).toEqual(
+      projectVersionedRef(
+        'GapAnalysis',
+        fixture.gapAnalysisId,
+        fixture.gapVersionId,
+        fixture.enterpriseId,
+        fixture.projectId,
+      ),
+    );
+    expect(activeBaselineRefs.deliveryPlanRef).toEqual(plan.planRef);
 
     const events = await admin.query<{ event_type: string; payload: Record<string, unknown> }>(
       `SELECT event_type, payload

@@ -1,8 +1,8 @@
 # Module-Spec-002-EnterpriseProject
 
-版本：v0.6
+版本：v0.7
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / IM-03 WI-11 DESIGN GATE RECORDED / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
 
 ## 1. 模块责任
 
@@ -609,3 +609,57 @@ WI-10 至少使用以下稳定错误：`PROJECT_DELIVERY_GAP_NOT_ACCEPTED`、`PR
 - 实现 head `054480ebac29cd820e7893df5844ad23a6940f3b` 已通过 [PR #83](https://github.com/qzhike/zhiju-business-core/pull/83) 的 [GitHub Actions verify run 33029833203](https://github.com/qzhike/zhiju-business-core/actions/runs/33029833203)，并以 merge commit `71e527b110b7c65d6a73ba16aca4ed1b334bf89d` 合入 `main`。
 - PR verification comment 已写入并通过 API 读回：[issuecomment-5433162589](https://github.com/qzhike/zhiju-business-core/pull/83#issuecomment-5433162589)。Issue [#66](https://github.com/qzhike/zhiju-business-core/issues/66) 已读回为 `closed`；原始远端和本地 feature branch 均已删除，`origin/main` 已验证包含实现 head。
 - Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`。
+
+## 20. IM-03 WI-11 权威 Query、Source Slice 与 Board Projection
+
+### 20.1 Query 入口与 Scope
+
+本 Work Item 复用现有四个 Query Contract，不新增公共 Operation：
+
+| Query | 数据来源 | 一致性 | 本轮边界 |
+|---|---|---|---|
+| `project.get_project_context_source` | EnterpriseProject owning Schema | `AUTHORITATIVE` | 按 purpose/audience/requestedKinds 生成最小 Source Slice |
+| `project.get_active_baseline_refs` | Project Root active/accepted pointers | `AUTHORITATIVE` | 只返回精确 active refs，不解析 latest/current |
+| `project.get_delivery_item_criteria` | 精确 DeliveryPlan Version/Item | `AUTHORITATIVE` | 返回冻结 definition/hash，execution 保持 `NOT_READY` |
+| `project.get_project_board_slice` | Projection Schema read alias | `PROJECTION` | 稳定 cursor、lag/status、可重建读模型 |
+
+四个入口均要求 Query ProjectRef 为 `OBJECT/Project`、UUIDv7、与可信事务 Context 的 Enterprise 和唯一 allowed Project 完全一致。Audience 必须是同一 Enterprise 的精确 Principal ObjectRef，并且若携带 Project Scope 必须与 Query Project 相同；purpose 使用闭集值，未知 purpose 和未支持 requestedKinds 均 fail-closed。所有 scope、audience、过期授权决策和 cursor 错误只返回稳定 code 与安全 message，不回显敏感 payload。
+
+### 20.2 ProjectContextSourceSlice
+
+`get_project_context_source` 必须先用存在性与 Scope 谓词确认 Project 和 `PROJECT_START` ProjectSnapshotBinding，并在读取字段前完成 binding 的类型收窄，再从 binding 返回 EnterpriseProfile、QMSConfiguration、ProductScope 的精确 Snapshot/Versioned Ref；返回 Ref 必须由 allow-list 重建，不能回显 binding JSON 的额外字段；active baseline 只通过 Project-owned Root 的 active/accepted pointer 读取。返回的 Fact 仅限 `factType`、风险/生命周期元数据和精确 Fact VersionedRef；即使权威 Fact 含敏感 value/source refs，也必须进入 REDACTED 元数据，不得进入结果，客户材料正文和未被 purpose 授权的字段必须进入 `redactions` 或 `omissions`，不得以空值伪装已返回。Fact 的通配 `redactions` 只有在 `ENTERPRISE_FACTS` 被请求且 purpose 允许 Fact 元数据时才加入；未请求或 purpose 禁止时只记录 omission。结果必须携带 SourceWatermark，watermark 是当前权威读取的观测点，不把 Outbox 宣称为完整 Event Sourcing 日志。Project 或 `PROJECT_START` binding 缺失、Scope 不一致或 exact ref mirror 不可验证时必须 fail-closed 返回稳定错误，不能解引用缺失行或继续读取其他事实；Contract 可选字段没有值时省略，不写入显式 `undefined`。
+
+本轮 purpose 最小闭集为 `context.snapshot.read`、`document.write`、`review.read` 和 `record.form.read`。前三级可请求安全 Fact 元数据但不返回原始 value；`record.form.read` 只返回 Project/Enterprise/Profile/QMS/Product 与 active baseline refs。requestedKinds 必须从 `PROJECT`、`ENTERPRISE_PROFILE`、`QMS_CONFIGURATION`、`PRODUCT_SCOPE`、`ACTIVE_BASELINES`、`ENTERPRISE_FACTS` 中选择；未请求的已知 kind 记录 omission，未知 kind 拒绝。
+
+### 20.3 Active Baseline 与 Criteria 精确性
+
+`get_active_baseline_refs` 必须逐项检查 CustomerBaseline、TemplateBaseline、RegulatoryProfile、GapAnalysis accepted version 和 DeliveryPlan active version（存在时）的 Root pointer、Scope、Version 状态和 object/version id；状态分别必须为 `CONFIRMED`、`FROZEN`、`FROZEN`、`ACCEPTED` 和 `ACTIVE`。即使 owning repository 的静态状态类型已闭合，Handler 仍须对数据库读回值执行防御性生命周期校验。Root 没有 active/accepted pointer 时省略该 ref；不得查询“最新版本”替代。`get_delivery_item_criteria` 的 Plan Version ref 和 item id 仍是唯一定位条件，criteriaHash 必须来自持久化的冻结 criteria，projection 或 item 自报状态不能改变 criteria 结果。
+
+### 20.4 Projection 事实模型
+
+V2012 新增 Projection Schema 表：
+
+| 表 | 作用 | 可变边界 |
+|---|---|---|
+| `project_board_projection_version` | 一次构建的版本、source watermark、row count、domain checksum | 只允许构建状态向 READY/FAILED 的受控迁移 |
+| `project_board` | 带 projection version 的安全 Board 行 | INSERT-only；禁止 UPDATE/DELETE |
+| `project_board_read_alias` | 每个 Enterprise/Project 当前读版本 | 仅同一重建事务原子切换 |
+| `projection_source_state` | 权威 source 最新 event/sequence 观测 | 只接受单调推进 |
+| `projection_checkpoint` | consumer/partition 的 last 与 target watermark、状态 | 受控更新；PAUSED/REBUILDING/FAILED 可观测 |
+| `projection_failure` | 安全失败 code、event/partition 和时间 | INSERT-only |
+
+表均保存 Enterprise/Project Scope mirror，checkpoint/failure 的 partition 必须等于其 Project，启用并强制 FORCE RLS；`projection_app` 只获得所需 SELECT/INSERT/UPDATE 权限，source state/checkpoint watermark 由数据库 guard 保证单调；Board 行和失败事实不授予 DELETE。Projection writer 只接收上游已经规范化的 Snapshot Export/Event Delta，source module 固定为 `enterprise_project` namespace 且 Event Delta sequence 从 1 开始，禁止从 EnterpriseProject 表做跨 Schema Join。failure fact 只能写入 event/partition、稳定错误码和安全摘要。
+
+### 20.5 Rebuild、消费与 Alias
+
+Rebuild 在同一 Projection 事务内创建 BUILDING version，将 authoritative Snapshot Export 按固定 UTF-8 字节序的 `itemKey ASC, deliveryItemId ASC` 规范化写入，按 source sequence 严格递增应用 Event Delta，计算 row count 与 domain checksum，并把版本置为 READY。随后更新 source state/checkpoint 并切换 read alias；任何校验、Scope、顺序、重复 item、checksum 或写入失败都不得切换 alias。Snapshot/Result 的可选 event id 等字段无值时省略，不写入显式 `null` 或 `undefined`。旧版本保留，以便审计和故障定位。
+
+正常消费要求事件 Scope、event id、sequence、partition 和 item ref 精确匹配；同一已提交 Event 重放返回 `DUPLICATE`，低于 checkpoint 的消费返回稳定 checkpoint conflict，其他重复或乱序事件不能静默跳过。暂停时 checkpoint 状态为 `PAUSED`，新事件只推进 target watermark，不更新读 alias；恢复消费或完整 rebuild 后才推进 last watermark。单个事件消费的 Projection Version/Board 行记录本次已消费 watermark，只推进 last，不得覆盖已经记录的更高 target watermark 或 source state，直到 target 对应事件也被消费或 rebuild 覆盖。Projection 查询计算 `max(targetSequence-lastSequence, 0)`，返回 `READY`、`STALE`、`REBUILDING` 或 `FAILED` 状态和两个 watermark；任何状态都不改变 authoritative Command、Delivery criteria 或 Completion 的语义。
+
+### 20.6 Board Query 与稳定 Cursor
+
+Board Query 只读取当前 alias 指向的版本，按固定 UTF-8 字节序键分页，不使用 offset；写入、读取和 cursor 使用同一比较规则。Cursor 为带 HMAC 的最小 JSON，绑定 Query Project、Enterprise、Filter Hash、Projection Version、最后一行 `(itemKey, deliveryItemId)`、授权决策 hash 和 expiry；解码失败、过期、Scope/Filter/Version 不匹配统一返回 `PROJECT_QUERY_CURSOR_INVALID`。结果在已有 `ProjectBoardPage` 上以可选字段暴露 `consistency`、`asOfEventId`、`asOfRecordedAt`、`projectionLag` 和 `projectionStatus`，实现始终填充这些诊断，旧 v1.0 fixture 可继续通过兼容性检查。
+
+### 20.7 稳定错误与验证边界
+
+WI-11 至少使用：`PROJECT_QUERY_REF_INVALID`、`PROJECT_QUERY_SCOPE_MISMATCH`、`PROJECT_QUERY_AUDIENCE_INVALID`、`PROJECT_QUERY_PURPOSE_FORBIDDEN`、`PROJECT_QUERY_NOT_FOUND`、`PROJECT_QUERY_CURSOR_INVALID`、`PROJECT_PROJECTION_EVENT_INVALID`、`PROJECT_PROJECTION_CHECKPOINT_CONFLICT`、`PROJECT_PROJECTION_REBUILD_INVALID` 和既有 `CONCURRENCY_CONFLICT`。Unit/Contract 与真实 PostgreSQL 需要覆盖 Source Slice omission/redaction、active exact refs、cross scope/expired auth、stable cursor、RLS/immutable、pause/lag、Snapshot + Delta checksum、atomic alias、乱序/重复事件和 projection 不影响 authoritative criteria。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 继续 `NOT RUN`。

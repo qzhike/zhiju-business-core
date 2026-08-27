@@ -28,6 +28,7 @@ import {
   type CommandResult,
 } from '../persistence/command-runner.js';
 import { GapAnalysisRepository } from '../persistence/gap-analysis-repository.js';
+import { loadActiveBaselineRefs } from './active-baseline-query.js';
 import type {
   CustomerBaselineItemStatus,
   CustomerBaselineImpactStatus,
@@ -508,36 +509,6 @@ function baselineRef(
     kind: 'VERSIONED',
     objectType: 'CustomerBaseline',
     objectId: customerBaselineId,
-    versionId,
-    scope: { enterpriseId, projectId },
-  };
-}
-
-function templateBaselineRef(
-  enterpriseId: string,
-  projectId: string,
-  templateBaselineId: string,
-  versionId: string,
-): Common.VersionedRef {
-  return {
-    kind: 'VERSIONED',
-    objectType: 'TemplateBaseline',
-    objectId: templateBaselineId,
-    versionId,
-    scope: { enterpriseId, projectId },
-  };
-}
-
-function regulatoryProfileRef(
-  enterpriseId: string,
-  projectId: string,
-  regulatoryProfileId: string,
-  versionId: string,
-): Common.VersionedRef {
-  return {
-    kind: 'VERSIONED',
-    objectType: 'RegulatoryProfile',
-    objectId: regulatoryProfileId,
     versionId,
     scope: { enterpriseId, projectId },
   };
@@ -1365,79 +1336,7 @@ export async function handleGetActiveBaselineRefs(
     } as unknown as CommandEnvelope),
   });
   return withEnterpriseProjectTransaction(db, context, async (trx) => {
-    const customerRoot = await repo.getCustomerBaselineByProject(
-      trx,
-      context.enterpriseId,
-      projectId,
-    );
-    const templateRoot = await repo.getTemplateBaselineByProject(
-      trx,
-      context.enterpriseId,
-      projectId,
-    );
-    const regulatoryRoot = await repo.getRegulatoryProfileByProject(
-      trx,
-      context.enterpriseId,
-      projectId,
-    );
-    const result: {
-      customerBaselineRef?: Common.VersionedRef;
-      templateBaselineRef?: Common.VersionedRef;
-      regulatoryProfileRef?: Common.VersionedRef;
-    } = {};
-    const aggregateVersions: Record<string, string> = {};
-    if (customerRoot?.active_version_id !== null && customerRoot !== undefined) {
-      const active = await repo.getCustomerBaselineVersion(trx, customerRoot.active_version_id);
-      if (active?.version_status !== 'CONFIRMED') {
-        throw new EnterpriseBusinessError(
-          PROJECT_BASELINE_STATUS_INVALID,
-          'active CustomerBaseline pointer does not resolve to a confirmed version',
-        );
-      }
-      result.customerBaselineRef = baselineRef(
-        context.enterpriseId,
-        projectId,
-        customerRoot.customer_baseline_id,
-        active.version_id,
-      );
-      aggregateVersions.customerBaseline = aggregateVersion(customerRoot.aggregate_version);
-      aggregateVersions.customerBaselineVersion = String(active.version_no);
-    }
-    if (templateRoot !== undefined) {
-      const active = await repo.getTemplateBaselineVersion(trx, templateRoot.active_version_id);
-      if (active?.version_status !== 'FROZEN') {
-        throw new EnterpriseBusinessError(
-          PROJECT_BASELINE_STATUS_INVALID,
-          'active TemplateBaseline pointer does not resolve to a frozen version',
-        );
-      }
-      result.templateBaselineRef = templateBaselineRef(
-        context.enterpriseId,
-        projectId,
-        templateRoot.template_baseline_id,
-        active.version_id,
-      );
-      aggregateVersions.templateBaseline = aggregateVersion(templateRoot.aggregate_version);
-      aggregateVersions.templateBaselineVersion = String(active.version_no);
-    }
-    if (regulatoryRoot !== undefined) {
-      const active = await repo.getRegulatoryProfileVersion(trx, regulatoryRoot.active_version_id);
-      if (active?.version_status !== 'FROZEN') {
-        throw new EnterpriseBusinessError(
-          PROJECT_BASELINE_STATUS_INVALID,
-          'active RegulatoryProfile pointer does not resolve to a frozen version',
-        );
-      }
-      result.regulatoryProfileRef = regulatoryProfileRef(
-        context.enterpriseId,
-        projectId,
-        regulatoryRoot.regulatory_profile_id,
-        active.version_id,
-      );
-      aggregateVersions.regulatoryProfile = aggregateVersion(regulatoryRoot.aggregate_version);
-      aggregateVersions.regulatoryProfileVersion = String(active.version_no);
-    }
-    return { ...result, aggregateVersions };
+    return loadActiveBaselineRefs(trx, context.enterpriseId, projectId);
   });
 }
 

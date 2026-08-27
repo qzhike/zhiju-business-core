@@ -60,6 +60,14 @@ import type {
   DeliveryItemDependencyTable,
   DeliveryPlanDecisionTable,
 } from './enterprise-business-types.js';
+import type {
+  ProjectBoardProjectionVersionTable,
+  ProjectBoardReadAliasTable,
+  ProjectBoardTable,
+  ProjectionCheckpointTable,
+  ProjectionFailureTable,
+  ProjectionSourceStateTable,
+} from './projection-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
 type Json = ColumnType<unknown, string>;
@@ -248,6 +256,15 @@ export interface EnterpriseProjectDb {
   'enterprise_project.delivery_item_artifact_requirement': DeliveryItemArtifactRequirementTable;
   'enterprise_project.delivery_item_dependency': DeliveryItemDependencyTable;
   'enterprise_project.delivery_plan_decision': DeliveryPlanDecisionTable;
+  // IM-03 WI-11 (issue #67): rebuildable Project Board projection. The
+  // projection transaction is deliberately separate from the authoritative
+  // EnterpriseProject transaction and never reads across schemas.
+  'projection.project_board_projection_version': ProjectBoardProjectionVersionTable;
+  'projection.project_board': ProjectBoardTable;
+  'projection.project_board_read_alias': ProjectBoardReadAliasTable;
+  'projection.projection_source_state': ProjectionSourceStateTable;
+  'projection.projection_checkpoint': ProjectionCheckpointTable;
+  'projection.projection_failure': ProjectionFailureTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';
@@ -370,6 +387,36 @@ export async function withEnterpriseProjectPlatformTransaction<T>(
           ${context.correlationId},
           ${context.sourceEventId ?? null})`.execute(trx);
       await sql.raw('SET LOCAL ROLE enterprise_project_platform_reference_writer').execute(trx);
+      return fn(trx);
+    }),
+  );
+}
+
+/**
+ * Runs a projection read/write operation under the trusted RLS context.
+ * Projection writers receive only the projection_app role and therefore
+ * cannot read or join EnterpriseProject owning tables.
+ */
+export async function withProjectionTransaction<T>(
+  db: Kysely<EnterpriseProjectDb>,
+  context: EnterpriseProjectTransactionContext,
+  fn: (trx: EnterpriseProjectTransaction) => Promise<T>,
+): Promise<T> {
+  return db.connection().execute(async (connection) =>
+    connection.transaction().execute(async (trx) => {
+      await sql.raw('SET LOCAL ROLE platform_context_establisher').execute(trx);
+      await sql`SELECT platform_security.establish_transaction_context(
+          ${context.kind},
+          ${context.principalId},
+          ${context.actorSnapshotId},
+          ${context.authorizationDecisionId},
+          ${context.authorizationDecisionHash},
+          ${context.authorizationDecisionExpiresAt},
+          ${context.enterpriseId},
+          ${[...context.allowedProjectIds]},
+          ${context.correlationId},
+          ${context.sourceEventId ?? null})`.execute(trx);
+      await sql.raw('SET LOCAL ROLE projection_app').execute(trx);
       return fn(trx);
     }),
   );
