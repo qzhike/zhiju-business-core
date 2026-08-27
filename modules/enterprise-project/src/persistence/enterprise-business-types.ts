@@ -830,3 +830,159 @@ export interface GapAnalysisDecisionTable {
   recorded_at: Date;
   source_command_id: string;
 }
+
+// IM-03 WI-10 (issue #66): DeliveryPlan/DeliveryItem preserves the exact
+// accepted Gap input, immutable plan content and Human approval facts. Root
+// pointers are the only mutable aggregate projection; Item execution remains
+// a NOT_READY projection until the later Task/Artifact slices.
+export type DeliveryPlanStatus =
+  'DRAFT' | 'APPROVED' | 'CHANGES_REQUIRED' | 'REJECTED' | 'ACTIVE' | 'SUPERSEDED';
+export type DeliveryPlanVersionStatus = DeliveryPlanStatus;
+export type DeliveryPlanDecision = 'APPROVE' | 'CHANGES_REQUIRED' | 'REJECT';
+export type DeliveryCommitmentStatus = 'PROPOSED' | 'APPROVED' | 'CANCELLED' | 'REPLACED';
+export type DeliveryExecutionStatus =
+  | 'NOT_READY'
+  | 'READY'
+  | 'IN_PROGRESS'
+  | 'BLOCKED'
+  | 'IN_REVIEW'
+  | 'APPROVED_OUTPUT'
+  | 'RELEASED'
+  | 'COMPLETED';
+
+export interface DeliveryPlanTable {
+  delivery_plan_id: string;
+  enterprise_id: string;
+  project_id: string;
+  current_version_id: string;
+  approved_version_id: string | null;
+  active_version_id: string | null;
+  status: DeliveryPlanStatus;
+  aggregate_version: Int8Default;
+  created_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  updated_at: Date;
+  last_command_id: string | null;
+  retention_class: string;
+}
+
+export interface DeliveryPlanVersionTable {
+  version_id: string;
+  delivery_plan_id: string;
+  enterprise_id: string;
+  project_id: string;
+  version_no: number;
+  version_status: DeliveryPlanVersionStatus;
+  accepted_gap_analysis_ref: Json;
+  accepted_gap_analysis_id: string;
+  accepted_gap_analysis_version_id: string;
+  baseline_refs: Json;
+  assumptions: Json;
+  exclusions: Json;
+  plan_quality_policy_ref: Json;
+  plan_quality_policy_id: string;
+  plan_quality_policy_version_id: string;
+  payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  approval_decision_id: string | null;
+  approved_by_principal_id: string | null;
+  approved_by_actor_snapshot_id: string | null;
+  approved_at: Date | null;
+  activated_at: Date | null;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface DeliveryItemTable {
+  delivery_item_id: string;
+  delivery_plan_id: string;
+  version_id: string;
+  enterprise_id: string;
+  project_id: string;
+  item_key: string;
+  item_type: string;
+  title: string;
+  objective: string;
+  source_gap_item_refs: Json;
+  dependency_item_ids: Json;
+  target_artifact_types: Json;
+  quality_profile_ref: Json;
+  quality_profile_id: string;
+  quality_profile_version_id: string;
+  completion_criteria: Json;
+  due_constraint: Json | null;
+  commitment_status: DeliveryCommitmentStatus;
+  execution_status: DeliveryExecutionStatus;
+  criteria_hash: Buffer;
+  payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface DeliveryItemArtifactRequirementTable {
+  requirement_id: string;
+  delivery_plan_id: string;
+  version_id: string;
+  delivery_item_id: string;
+  enterprise_id: string;
+  project_id: string;
+  artifact_type: string;
+  purpose: string;
+  required_cardinality: string;
+  acceptance_criteria: Json;
+  release_criteria: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface DeliveryItemDependencyTable {
+  delivery_plan_id: string;
+  version_id: string;
+  from_item_id: string;
+  to_item_id: string;
+  enterprise_id: string;
+  project_id: string;
+  dependency_type: string;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface DeliveryPlanDecisionTable {
+  decision_id: string;
+  delivery_plan_id: string;
+  version_id: string;
+  enterprise_id: string;
+  project_id: string;
+  review_snapshot_ref: Json;
+  decision: DeliveryPlanDecision;
+  justification: Json;
+  payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: string;
+  decided_by_principal_id: string;
+  decided_by_principal_kind: 'HUMAN';
+  decided_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}

@@ -1,6 +1,6 @@
 export const enterpriseProjectModule = Object.freeze({
   name: 'enterprise-project',
-  status: 'IM_03_WI09_GAP_ANALYSIS_VERIFIED' as const,
+  status: 'IM_03_WI10_DELIVERY_PLAN_VERIFIED' as const,
 });
 
 export {
@@ -159,6 +159,17 @@ export type {
   GapAnalysisMode,
   GapAnalysisDisposition,
   GapFindingSeverity,
+  DeliveryPlanTable,
+  DeliveryPlanVersionTable,
+  DeliveryItemTable,
+  DeliveryItemArtifactRequirementTable,
+  DeliveryItemDependencyTable,
+  DeliveryPlanDecisionTable,
+  DeliveryPlanStatus,
+  DeliveryPlanVersionStatus,
+  DeliveryPlanDecision,
+  DeliveryCommitmentStatus,
+  DeliveryExecutionStatus,
 } from './persistence/enterprise-business-types.js';
 // IM-03 WI-03 (issue #59): business handlers and failure codes for the
 // EnterpriseProject vertical slice. Handlers fall into two groups:
@@ -257,6 +268,29 @@ export type {
   GapAnalysisDecisionInsert,
   GapStaleDependency,
 } from './persistence/gap-analysis-repository.js';
+export { DeliveryPlanRepository } from './persistence/delivery-plan-repository.js';
+export type {
+  DeliveryPlanInsert,
+  DeliveryPlanVersionInsert,
+  DeliveryItemInsert,
+  DeliveryItemArtifactRequirementInsert,
+  DeliveryItemDependencyInsert,
+  DeliveryPlanDecisionInsert,
+  DeliveryPlanCasPatch,
+  DeliveryPlanCasResult,
+} from './persistence/delivery-plan-repository.js';
+export {
+  handleCreateDeliveryPlanDraft,
+  handleApproveDeliveryPlan,
+  handleActivateDeliveryPlan,
+  handleGetDeliveryItemCriteria,
+} from './business/delivery-plan-handlers.js';
+export type {
+  CreateDeliveryPlanDraftCommandPayload,
+  ApproveDeliveryPlanCommandPayload,
+  ActivateDeliveryPlanCommandPayload,
+  GetDeliveryItemCriteriaQueryPayload,
+} from './business/delivery-plan-handlers.js';
 export {
   EnterpriseBusinessError,
   PROJECT_ENTERPRISE_NOT_ACTIVE,
@@ -318,5 +352,14 @@ export {
   PROJECT_GAP_STATUS_INVALID,
   PROJECT_GAP_FINDING_IMMUTABLE,
   PROJECT_GAP_DECISION_CONFLICT,
+  PROJECT_DELIVERY_GAP_NOT_ACCEPTED,
+  PROJECT_DELIVERY_REFERENCE_INVALID,
+  PROJECT_DELIVERY_ITEM_INVALID,
+  PROJECT_DELIVERY_ITEM_KEY_CONFLICT,
+  PROJECT_DELIVERY_DEPENDENCY_CYCLE,
+  PROJECT_DELIVERY_VERSION_NOT_FOUND,
+  PROJECT_DELIVERY_PLAN_IMMUTABLE,
+  PROJECT_DELIVERY_APPROVAL_DECISION_INVALID,
+  PROJECT_DELIVERY_PLAN_HUMAN_APPROVAL_REQUIRED,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';

@@ -53,6 +53,12 @@ import type {
   GapAnalysisVersionTable,
   GapFindingTable,
   GapAnalysisDecisionTable,
+  DeliveryPlanTable,
+  DeliveryPlanVersionTable,
+  DeliveryItemTable,
+  DeliveryItemArtifactRequirementTable,
+  DeliveryItemDependencyTable,
+  DeliveryPlanDecisionTable,
 } from './enterprise-business-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
@@ -234,6 +240,14 @@ export interface EnterpriseProjectDb {
   'enterprise_project.gap_analysis_version': GapAnalysisVersionTable;
   'enterprise_project.gap_finding': GapFindingTable;
   'enterprise_project.gap_analysis_decision': GapAnalysisDecisionTable;
+  // IM-03 WI-10 (issue #66): Project-owned DeliveryPlan/DeliveryItem facts,
+  // Human decisions and immutable criteria/dependency requirements.
+  'enterprise_project.delivery_plan': DeliveryPlanTable;
+  'enterprise_project.delivery_plan_version': DeliveryPlanVersionTable;
+  'enterprise_project.delivery_item': DeliveryItemTable;
+  'enterprise_project.delivery_item_artifact_requirement': DeliveryItemArtifactRequirementTable;
+  'enterprise_project.delivery_item_dependency': DeliveryItemDependencyTable;
+  'enterprise_project.delivery_plan_decision': DeliveryPlanDecisionTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';

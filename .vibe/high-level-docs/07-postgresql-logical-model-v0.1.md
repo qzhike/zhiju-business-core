@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01 BUSINESS DECISION RECORDED / IM-03 WI-02 APPLICATION WRITE PATH LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #81 MERGED`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01 BUSINESS DECISION RECORDED / IM-03 WI-02 APPLICATION WRITE PATH LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED LOCALLY / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #81 MERGED`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -1987,3 +1987,23 @@ WI-09 的 Project-owned Schema 新增以下表，均使用 Enterprise/Project Sc
 Root 的 deferred guard 必须确保 current version 属于同一 Scope；accepted pointer 非空时必须指向同一 Root 且 Version 状态为 `ACCEPTED`。Version 的 trigger 只允许 `COMPLETED/UNDER_REVIEW → ACCEPTED|CHANGES_REQUIRED|REJECTED` 以及受控的任意可影响状态 `→ STALE`；已完成内容、Finding、InputSnapshot 和 Decision 不允许 UPDATE/DELETE。Stale metadata 只保存安全的 trigger ref/reason，不保存客户正文。
 
 GapAnalysis 的 InputSnapshot normalized ref 既用于 Reference Edge/Traceability，也用于 Baseline/Profile 激活后的 stale Impact 查询；新版本只插入新 Root/Version，不重写旧行。数据库 Gate 必须覆盖空库迁移、二次 no-op、RLS、ACL、hash/scope/check、CAS、幂等、并发、回滚和旧 finding 保留；PostgreSQL/Flyway 镜像必须以 tag 与 manifest digest 双重固定，并在 Gate 中拒绝 tag 解析结果漂移。
+## 30. IM-03 WI-10 DeliveryPlan/DeliveryItem 物理边界
+
+WI-10 在 EnterpriseProject owning Schema 新增以下业务事实表。表名、Scope mirror、组合 FK、FORCE RLS 和受控写入能力必须与既有业务表保持一致；不能通过测试 seed、跨 Schema Join 或公共 Contract 生成交付承诺。
+
+| 表 | 主要事实 | 不可变/受控边界 |
+|---|---|---|
+| `delivery_plan` | Plan identity、Project Scope、current/approved/active version pointer、status、aggregate version | identity 不可迁移；pointer/status 只经 expected-version CAS 更新；同一 Project 只允许一个 active pointer |
+| `delivery_plan_version` | exact accepted Gap ref、baseline refs、assumptions/exclusions、Policy ref、payload/hash、version status | 内容 INSERT-only；只允许受控 Draft→Approved/ChangesRequired/Rejected、Approved→Active/Superseded 等状态迁移；Approved/Active 内容不可改 |
+| `delivery_item` | item key/type/title/objective、source GapItem refs、target artifact types、QualityProfile ref、criteria、criteria hash、commitment/execution projection | 同一 Plan Version 内 item id/key 唯一；内容 INSERT-only；criteria/hash 与 version 同事务冻结 |
+| `delivery_item_artifact_requirement` | item 的 artifact purpose/type、cardinality、acceptance/release criteria | INSERT-only；本切片只登记要求，不创建 Artifact |
+| `delivery_item_dependency` | Plan Version 内 from/to item、dependency type | INSERT-only；禁止 self/unknown/cross-version edge；Handler 做环检测，数据库做键与 Scope 约束 |
+| `delivery_plan_decision` | exact Plan Version、Review Snapshot、closed decision、justification、Human actor、decision hash | INSERT-only；Decision ref 必须绑定目标 Plan Version；只有 Human APPROVE 可成为 activation authority |
+
+Plan Version 的 `accepted_gap_analysis_ref` 必须通过精确 `(enterprise_id, project_id, gap_analysis_id, gap_analysis_version_id)` 组合 FK 指向已存在 GapAnalysis Version；Handler 还必须确认该 Version 当前状态为 `ACCEPTED`，并要求 supplied baseline refs 的集合恰好等于该 Version 的 InputSnapshot 五个 normalized baseline refs。Baseline、Policy、QualityProfile、Review Snapshot、Impact Policy、GapItem 和 Artifact type 的 typed ref 必须逐项验证 object/version/hash/canonicalization/scope，禁止 `latest`、`current`、label-only、混用或省略 active baseline 和跨 Project 替代。Repository 不提供模糊查询来补齐缺失引用。
+
+Root deferred guard 必须保证 current/approved/active pointer 与同一 Scope、同一 Plan Root 和对应 Version status 一致；approved pointer 只能指向 `APPROVED` 或当前 `ACTIVE` 版本，active pointer 只能指向 `ACTIVE` 版本。激活旧计划时只把旧 Root/Version 标为 `SUPERSEDED` 并清除其 active/approved pointer，旧 Item、Dependency、Requirement、Decision 和 hash 全部保留。
+
+`project.DeliveryPlanActivated` 只保存精确 Plan/Project/item refs、可选 previous active ref；`project.DeliveryItemActivated` 只保存精确 Plan/Item ref、criteria hash 和 QualityProfile ref。Event payload 不复制 Gap finding、客户材料、baseline 正文或 criteria JSON。Plan Event、Item Events、Receipt、Audit、Reference Edge、Root CAS 和 Version status 必须同事务提交；触发故障时数据库中不得留下半个激活结果。
+
+Persistence Gate 必须覆盖：空库迁移与二次 no-op、Scope/RLS/ACL、输入拒绝无副作用、Gap/Item/baseline exact ref、duplicate item key、unknown/cyclic dependency、Agent/actingFor/伪造 actor、非 APPROVE 无 approved pointer、Human Decision exact match、criteria/hash/版本不可变、单 active CAS race、幂等、event minimality 和 rollback。Provider、公开 HTTP、跨模块 Process Manager、生产与独立人工验收保持 `NOT RUN`。
