@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-24
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / SCOPED TECHNICAL CLOSEOUT AUTHORIZED / ISSUE #57–#68 CLOSED / ISSUE #56 CLOSE PENDING / IM-04 NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-04 ISSUES #89–#98 PLANNED / IM-04 IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -191,6 +191,8 @@ IM-09 Reference Project E2E + Operations Hardening
 产出：先 additive 冻结只读 RenderAttempt Binding Query，再交付 Artifact、不可变 Revision、Content Object Link、Workspace/Application 内部基本 Diff、Human Edit、对象 Staging/Link/Orphan Cleanup。
 
 退出 Gate：Representation Handler 不得在 Binding Query 落地前实现；Revision 不可变；跨 Project 引用、Hash 冲突、路径/对象替换被拒绝；对象成功而 DB 失败不会产生业务对象；不隐式新增公共 Diff Result Operation。
+
+GitHub 任务基线：Parent Exit Gate [#89](https://github.com/qzhike/zhiju-business-core/issues/89)，开发 Work Item [#90](https://github.com/qzhike/zhiju-business-core/issues/90)–[#98](https://github.com/qzhike/zhiju-business-core/issues/98)。以上 Issue 均为 `PLANNED / NOT STARTED`；建档不代表开发分支、Contract、Migration、Repository、Handler、Fixture 或 Renderer 已启动。
 
 ### IM-05 Quality + Release + Renderer
 

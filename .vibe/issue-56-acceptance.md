@@ -2,18 +2,18 @@
 
 - 验收日期：2026-08-27
 - 验收目标：核对 GitHub Issue #56 的 IM-03 开发进度；仅在完成条件和证据充分时关闭 Issue。
-- 当前状态：`USER AUTHORIZED SCOPED TECHNICAL CLOSEOUT / ISSUE #56 CLOSE PENDING`
+- 当前状态：`IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56 CLOSED`
 - 代码验收基线：`origin/main=d256e52148f1ba9807d0eb0f27230ba649d07bb6`；本轮文档分支基于该提交追加合成验证记录与规格复审，合并状态在关闭前另行回读。
 
 ## 远程交付核对
 
 | 项目 | 实际结果 | 结论 |
 |---|---|---|
-| Issue #56 | GitHub API 读回 `OPEN`，无评论；原正文中的汇总验收和手工验收项尚未按本轮 scoped acceptance amendment 更新 | `CLOSE PENDING` |
+| Issue #56 | 最终正文已更新并回读；closeout comment [issuecomment-5441245777](https://github.com/qzhike/zhiju-business-core/issues/56#issuecomment-5441245777) 已回读；状态为 `CLOSED / COMPLETED` | `PASS` |
 | 前置 Work Item #57–#68 | 全部 GitHub API 读回 `CLOSED / COMPLETED` | `PASS（子项交付）` |
 | 有效实现 PR | WI-01 至 WI-12 的有效 PR 已合入 `main`；PR #80 未合并，PR #81 为其修正后的交付 | `PASS（代码交付）` |
 | PR #87 exact head | head `5a74bc0a9420b781df33bb8e101b89f98897b2d0`，base `main@a8eb5153e27d985b1cbdf2c9177b1da335836df9`；CI run `33064770129` 为 success；远程 review comment 结论为无阻断问题 | `PASS（WI-12）` |
-| 当前默认分支 | `origin/main=d256e52148f1ba9807d0eb0f27230ba649d07bb6`，为 PR #87 merge commit；该 commit 的 `verify` check 为 success | `PASS` |
+| 当前默认分支 | 代码验收基线 `d256e52148f1ba9807d0eb0f27230ba649d07bb6` 已由 PR #88 merge commit `4f2eba2b3f6c64c52b35019e56ccbd57c0fed0f0` 后继；PR head 与 merge commit 均已读回为 `origin/main` ancestor | `PASS` |
 
 ## 本地自动化验证
 
@@ -68,4 +68,4 @@
 - `EP-API-E-001/E-002` 的 integrated cross-aggregate execution 仍为 `NOT RUN`；
 - `EP-API-M-001` 的实际人工逐项审阅仍为 `NOT RUN`；
 - 真实业务适用性、Provider、公开 HTTP、生产环境、真实跨模块 Event Bus/Process Manager 仍为 `NOT RUN`；
-- Issue #56 已获用户明确关闭授权；关闭前必须先把本轮规格复审、验收修订和 `.vibe` 证据以 exact-head PR 合入 `main`，并在 GitHub 正文/评论中保留上述 `NOT RUN`。
+- Issue #56 已在本轮规格复审、验收修订和 `.vibe` 证据通过 [PR #88](https://github.com/qzhike/zhiju-business-core/pull/88) 合入 `main` 后关闭；GitHub 正文和评论继续保留上述 `NOT RUN`。
