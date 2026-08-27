@@ -2,7 +2,7 @@
 
 版本：v0.6
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED LOCALLY / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
 
 ## 1. 模块责任
 
@@ -603,3 +603,9 @@ WI-10 至少使用以下稳定错误：`PROJECT_DELIVERY_GAP_NOT_ACCEPTED`、`PR
 - `pnpm persistence:gate`：pinned PostgreSQL `18.6`（server `180006`）与 Flyway `11.20.3`；空库迁移成功，`20 files / 244 passed / 0 failed`；V2011 成功应用，二次 migrate 输出 `Schema "public" is up to date. No migration necessary.`，容器已清理。
 - Gate 实际覆盖 accepted Gap 与五个 baseline normalized refs 的完整/混用校验、DAG/duplicate key、Agent/Service/actingFor、三态 Human Decision、精确 approval hash、CAS 并发、幂等、单 active 收敛、RLS/immutable guards、最小事件和 criteria/hash 查询。
 - WI-10 专用 rollback fault injection、Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收未运行，继续标记为 `NOT RUN`。
+
+### 19.6 WI-10 exact-head closeout（2026-08-27）
+
+- 实现 head `054480ebac29cd820e7893df5844ad23a6940f3b` 已通过 [PR #83](https://github.com/qzhike/zhiju-business-core/pull/83) 的 [GitHub Actions verify run 33029833203](https://github.com/qzhike/zhiju-business-core/actions/runs/33029833203)，并以 merge commit `71e527b110b7c65d6a73ba16aca4ed1b334bf89d` 合入 `main`。
+- PR verification comment 已写入并通过 API 读回：[issuecomment-5433162589](https://github.com/qzhike/zhiju-business-core/pull/83#issuecomment-5433162589)。Issue [#66](https://github.com/qzhike/zhiju-business-core/issues/66) 已读回为 `closed`；原始远端和本地 feature branch 均已删除，`origin/main` 已验证包含实现 head。
+- Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`。
