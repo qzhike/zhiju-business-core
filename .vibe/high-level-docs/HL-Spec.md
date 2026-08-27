@@ -1,8 +1,8 @@
 # Zhiju Business Core 基准规格与 Agent 入口
 
 版本：v0.1
-日期：2026-08-26
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / IM-03 WI-11 IMPLEMENTATION VERIFIED / PR #85 MERGED / ISSUE #67 CLOSED / WI-11 EXACT-HEAD CLOSEOUT COMPLETE / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+日期：2026-08-27
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / IM-03 WI-11 IMPLEMENTATION VERIFIED / IM-03 WI-12 IMPLEMENTATION VERIFIED / ISSUE #68 CLOSEOUT PENDING / PR #85 MERGED / ISSUE #67 CLOSED / WI-11 EXACT-HEAD CLOSEOUT COMPLETE / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -650,3 +650,11 @@ WI-11 自动验证覆盖 Contract/Registry、真实 PostgreSQL migration、Scope
 实现 commit `c8f1a2cc6291ff65824a04e437a99b660fd926aa` 已通过 [PR #85](https://github.com/qzhike/zhiju-business-core/pull/85) 的 [GitHub Actions verify run 33039239177](https://github.com/qzhike/zhiju-business-core/actions/runs/33039239177)，并以 merge commit `43a2f4fcf074e565c10f3db54bd1be9134ef471d` 合入 `main`。PR verification comment 已读回：[issuecomment-5434378070](https://github.com/qzhike/zhiju-business-core/pull/85#issuecomment-5434378070)。
 
 Issue [#67](https://github.com/qzhike/zhiju-business-core/issues/67) 已由合并关联自动关闭，并通过 GitHub API 读回为 `closed`；Issue closeout comment 已读回：[issuecomment-5434387709](https://github.com/qzhike/zhiju-business-core/issues/67#issuecomment-5434387709)。`origin/main=43a2f4fcf074e565c10f3db54bd1be9134ef471d` 已验证包含 implementation head 与 merge commit；`galendai/im-03-wi-11-query-source-slice-board-projection` 的远端和本地 branch 均已删除，执行 worktree 已 detach 到 `origin/main`。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`。
+
+### IM-03 WI-12 DeliveryItem Completion 与 Impact Process 实现边界（2026-08-27）
+
+Issue #68 在既有 DeliveryPlan/DeliveryItem 精确版本之上实现 Completion Evaluator、正式上游事实 Inbox/Process Manager、不可变 Evaluation/Impact Review 历史和受控 current pointer。Completion 只能由冻结 criteria、精确事实引用、source watermark 与受信 evaluator 派生；Task-only 保持 `UNSATISFIED`，补齐 ReleaseCompleted 才能产生最小 `DeliveryItemCompletionSatisfied`。迟到、撤销和上游新版本只追加事实、Evaluation 与 Impact，不改写旧 Plan/Approval/历史。
+
+V2013 的真实 PostgreSQL 主消费/评估链、revoke/new-version、late fact、ACL/RLS、CAS 与故障回滚均已通过本地 Gate；Unit/Contract 也已纳入 TypeScript project service，并通过“非 SATISFIED→SATISFIED”事件状态转移与 Event Consumer `sourceEventId` 绑定断言。`pnpm verify` 最终通过，精确结果记录在 `.vibe/im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md`。TaskExecution、QualityGovernance、ReleasePublication 的真实业务 Handler、公共 HTTP/Event Bus、生产和独立人工 Reference Project 仍保持 `NOT RUN`。
+
+WI-12 的应用角色对完成历史表不授予 `UPDATE/DELETE`；直接历史写入已在 PostgreSQL 表 ACL 层以 `42501` fail-closed，Project RLS 读隔离也已通过受控 Context 验证。

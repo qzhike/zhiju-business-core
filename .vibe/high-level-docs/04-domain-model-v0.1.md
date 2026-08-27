@@ -5681,3 +5681,8 @@ InputSnapshot、GapAnalysisVersion、GapItem 和 Decision 都是追加事实。�
 ## 49. IM-03 WI-08 实现对既有 Domain 语义的收敛
 
 Issue #64 的实现保留本 Domain 对 TemplateBaseline/RegulatoryProfile 的版本化、精确引用、Human Gate 与历史不可变语义，并补齐以下可执行边界：Platform Template/Regulatory Reference 没有业务 Enterprise Scope；Project 只接受已发布精确 ContentAddressedRef；`RegulatoryApplicability` 使用当前 Contract 已冻结的 `APPLICABLE`、`NOT_APPLICABLE`、`PENDING_DETERMINATION` 三值闭集；EvidenceRef 与模板/法规版本严格分离。项目 Root pointer 由 CAS 推进，当前 Platform pointer 改变不会改写旧 Project Version。上述业务 DDL、Handler 与真实 PostgreSQL 结果以本轮 Module Test 的实际记录为准，未执行前保持 `NOT RUN`。
+## 50. IM-03 WI-12 Completion 与 Impact 历史语义
+
+DeliveryItem Completion 是由 EnterpriseProject owning Evaluator 根据冻结 `completionCriteria`、精确事实集合和 evaluator 版本派生的历史结果。Task/Run/Agent 自报、Release 的临时状态或任何 caller 布尔值都不能取得 Completion 权威性。WI-12 v1 的 criteria 只允许由 `allOf` 组成的正式 event type 条件；事实必须先经过受控 Inbox/Process Manager 记录并带有 payload hash、exact TypedReference、SourceWatermark 和 lifecycle。
+
+`TaskCompleted` 单独存在而 criteria 要求 `ReleaseCompleted` 时只能形成 UNSATISFIED Evaluation；只有完整 ACTIVE fact set 才产生 `DeliveryItemCompletionSatisfied`。late、upstream new Version/Hash、RevisionApprovalLost 或 ReleaseRecalled 只追加新的 Fact/Evaluation/Impact Review，历史 Evaluation、已批准 Plan Version、Approval Decision 与旧 Fact 不改写。DeliveryItem Root 只保存 CAS 维护的 `current_completion_evaluation_id`，不复制 outcome 或事实正文；Projection 延迟不改变 Completion 结论。

@@ -12,6 +12,7 @@
     { "path": "modules/integration-gateway" },
     { "path": "apps/api" },
     { "path": "tests/types" },
-    { "path": "tests/persistence" }
+    { "path": "tests/persistence" },
+    { "path": "tests/business" }
   ]
 }

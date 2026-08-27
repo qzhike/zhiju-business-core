@@ -2009,3 +2009,19 @@ Root deferred guard 必须保证 current/approved/active pointer 与同一 Scope
 Persistence Gate 必须覆盖：空库迁移与二次 no-op、Scope/RLS/ACL、输入拒绝无副作用、Gap/Item/baseline exact ref、duplicate item key、unknown/cyclic dependency、Agent/actingFor/伪造 actor、非 APPROVE 无 approved pointer、Human Decision exact match、criteria/hash/版本不可变、单 active CAS race、幂等、event minimality 和 rollback。Provider、公开 HTTP、跨模块 Process Manager、生产与独立人工验收保持 `NOT RUN`。
 
 WI-10 exact-head closeout（2026-08-27）：实现 head `054480ebac29cd820e7893df5844ad23a6940f3b` 已通过 [PR #83](https://github.com/qzhike/zhiju-business-core/pull/83) 的 [GitHub Actions verify run 33029833203](https://github.com/qzhike/zhiju-business-core/actions/runs/33029833203)，并以 merge commit `71e527b110b7c65d6a73ba16aca4ed1b334bf89d` 合入 `main`；Issue [#66](https://github.com/qzhike/zhiju-business-core/issues/66) 已读回为 `closed`，原始远端和本地 feature branch 均已删除，`origin/main` 已验证包含实现 head。Provider、公开 HTTP、跨模块 Process Manager、生产与独立人工验收保持 `NOT RUN`。
+## 31. IM-03 WI-12 Delivery Completion 物理边界
+
+WI-12 在 V2013 只增加 EnterpriseProject owning Schema 的正式事实与派生结果表；V2012 `projection` 不参与 Completion 判定，也不允许通过 Projection 行把 Item 直接改成 `COMPLETED`。
+
+| 表/列 | 主要事实 | 不可变/受控边界 |
+|---|---|---|
+| `delivery_item.current_completion_evaluation_id` | DeliveryItem Root 当前精确 Completion Evaluation pointer；Completion aggregate version 初始为 `1` | 仅同一 Item 的 CAS 指针、aggregate version、更新时间和 last command 可更新；criteria/content/execution status 仍不可变；pointer 必须指向同 Scope 精确 Evaluation |
+| `delivery_item_completion_fact` | Event identity/type/version、source module、aggregate、exact synthetic/fact refs、payload hash、watermark、ACTIVE/REVOKED lifecycle、revocation subjects | INSERT-only；不允许 UPDATE/DELETE；撤销和上游新版本只追加新 fact |
+| `delivery_item_completion_evaluation` | 精确 Plan/Item、criteria hash、evaluator ref/version/hash、fact set/ref hash、watermarks、derived outcome、source command/event、payload hash | INSERT-only；同一 fingerprint 唯一；outcome 不来自 caller；不允许覆盖旧 Evaluation |
+| `delivery_item_impact_review` | exact Item、triggering ref、prior/new Evaluation ref、reason、affected refs/watermarks、payload hash | INSERT-only；Impact 只记录影响，不改写批准 Plan/Item/旧 Evaluation |
+| `inbox_message` (consumer) | `(consumer_name,event_id)`、payload hash、status、source module、result command | 相同 hash/watermark replay 为 `DUPLICATE`；不同 hash/watermark 为 `QUARANTINED` + `contract_violation`，不能覆盖首条 |
+| `process_instance`/`process_step` | completion consumer correlation、last event、ordered processing steps | ProcessInstance 受 scope/CAS 约束；ProcessStep append-only；事实与 Inbox/Process 同事务提交 |
+
+Completion Fact 的 payload 和 promoted Scope mirror 必须由 Application 计算/校验，hash 长度固定 32 bytes；Event Consumer 只接受 `TaskCompleted`、`ReleaseCompleted`、`RevisionFullyApproved`、`RevisionApprovalLost`、`ReleaseRecalled` 的精确 v1.0 Envelope。Producer/source module、event payload integrity hash、Scope、TypedReference kind/version/hash/lifecycle 和 SourceWatermark 必须闭集校验；late watermark 可以保留但不得覆盖更高事实或改写旧 Evaluation。
+
+`delivery_item_completion_evaluation` 与 `delivery_item_impact_review` 的所有事实列使用 FORCE RLS、Enterprise/Project Scope mirror、组合外键/trigger 和 app role 最小 INSERT/SELECT 权限；事实表不授予 UPDATE/DELETE。`delivery_item` 的 V2011 immutable guard 在 V2013 仅允许受控 current pointer 列更新，任何其他列（特别是 `execution_status`）的直接 SQL UPDATE 继续拒绝。Persistence Gate 必须覆盖空库迁移、二次 migrate no-op、RLS/ACL、Inbox replay/hash conflict/quarantine、Process Step、criteria/hash、direct COMPLETED denial、Task-only unsatisfied、Release-complete satisfied、revocation/late/new-version history、CAS 和 rollback；Provider、真实跨模块 Event Bus/Process Manager、生产和人工验收保持 `NOT RUN`。

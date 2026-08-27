@@ -1,6 +1,6 @@
 export const enterpriseProjectModule = Object.freeze({
   name: 'enterprise-project',
-  status: 'IM_03_WI11_QUERY_SOURCE_SLICE_BOARD_PROJECTION_VERIFIED' as const,
+  status: 'IM_03_WI12_DELIVERY_ITEM_COMPLETION_IMPACT_IMPLEMENTATION_IN_PROGRESS' as const,
 });
 
 export {
@@ -181,6 +181,11 @@ export type {
   DeliveryPlanDecision,
   DeliveryCommitmentStatus,
   DeliveryExecutionStatus,
+  DeliveryCompletionFactLifecycle,
+  DeliveryCompletionEvaluationOutcome,
+  DeliveryItemCompletionFactTable,
+  DeliveryItemCompletionEvaluationTable,
+  DeliveryItemImpactReviewTable,
 } from './persistence/enterprise-business-types.js';
 // IM-03 WI-03 (issue #59): business handlers and failure codes for the
 // EnterpriseProject vertical slice. Handlers fall into two groups:
@@ -302,6 +307,24 @@ export type {
   ActivateDeliveryPlanCommandPayload,
   GetDeliveryItemCriteriaQueryPayload,
 } from './business/delivery-plan-handlers.js';
+export { DeliveryItemCompletionRepository } from './persistence/delivery-item-completion-repository.js';
+export type {
+  DeliveryItemCompletionFactInsert,
+  DeliveryItemCompletionEvaluationInsert,
+  DeliveryItemImpactReviewInsert,
+  DeliveryItemCompletionCasInput,
+  DeliveryItemCompletionCasResult,
+} from './persistence/delivery-item-completion-repository.js';
+export {
+  consumeDeliveryItemCompletionEvent,
+  handleEvaluateDeliveryItemCompletion,
+} from './business/delivery-item-completion-handlers.js';
+export type {
+  DeliveryCompletionEventEnvelope,
+  DeliveryCompletionEventInput,
+  DeliveryCompletionEventResult,
+  EvaluateDeliveryItemCompletionCommandPayload,
+} from './business/delivery-item-completion-handlers.js';
 export {
   handleGetProjectContextSource,
   handleGetProjectBoardSlice,
@@ -400,6 +423,13 @@ export {
   PROJECT_DELIVERY_PLAN_IMMUTABLE,
   PROJECT_DELIVERY_APPROVAL_DECISION_INVALID,
   PROJECT_DELIVERY_PLAN_HUMAN_APPROVAL_REQUIRED,
+  PROJECT_DELIVERY_ITEM_CRITERIA_UNSATISFIED,
+  PROJECT_COMPLETION_IS_DERIVED,
+  PROJECT_DELIVERY_COMPLETION_EVENT_INVALID,
+  PROJECT_DELIVERY_COMPLETION_INBOX_CONFLICT,
+  PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+  PROJECT_DELIVERY_COMPLETION_EVALUATOR_INVALID,
+  PROJECT_DELIVERY_COMPLETION_WATERMARK_INVALID,
   PROJECT_QUERY_REF_INVALID,
   PROJECT_QUERY_SCOPE_MISMATCH,
   PROJECT_QUERY_AUDIENCE_INVALID,

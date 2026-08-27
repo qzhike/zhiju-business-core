@@ -918,10 +918,102 @@ export interface DeliveryItemTable {
   due_constraint: Json | null;
   commitment_status: DeliveryCommitmentStatus;
   execution_status: DeliveryExecutionStatus;
+  current_completion_evaluation_id: string | null;
+  completion_aggregate_version: Int8Default;
+  completion_updated_at: Date | null;
+  completion_last_command_id: string | null;
   criteria_hash: Buffer;
   payload: Json;
   payload_hash: Buffer;
   canonicalization_version: string;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+// IM-03 WI-12 (issue #68): formal upstream facts, derived evaluations and
+// impact history are append-only. DeliveryItem owns only the current
+// evaluation pointer; the evaluator owns the outcome.
+export type DeliveryCompletionFactLifecycle = 'ACTIVE' | 'REVOKED';
+export type DeliveryCompletionEvaluationOutcome = 'SATISFIED' | 'UNSATISFIED';
+
+export interface DeliveryItemCompletionFactTable {
+  fact_id: string;
+  consumer_name: string;
+  event_id: string;
+  event_type: string;
+  event_version: string;
+  producer_module: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  aggregate_version: Int8Default;
+  enterprise_id: string;
+  project_id: string;
+  fact_ref: Json;
+  fact_refs: Json;
+  subject_refs: Json;
+  lifecycle: DeliveryCompletionFactLifecycle;
+  payload: Json;
+  payload_hash: Buffer;
+  source_watermark: Json;
+  source_watermark_hash: Buffer;
+  correlation_id: string;
+  causation_id: string | null;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+}
+
+export interface DeliveryItemCompletionEvaluationTable {
+  evaluation_id: string;
+  delivery_plan_id: string;
+  version_id: string;
+  delivery_item_id: string;
+  enterprise_id: string;
+  project_id: string;
+  criteria_hash: Buffer;
+  evaluator_ref: Json;
+  evaluator_ref_hash: Buffer;
+  evaluator_id: string;
+  evaluator_version_id: string;
+  fact_refs: Json;
+  fact_refs_hash: Buffer;
+  source_watermarks: Json;
+  source_watermarks_hash: Buffer;
+  outcome: DeliveryCompletionEvaluationOutcome;
+  payload: Json;
+  payload_hash: Buffer;
+  input_fingerprint: Buffer;
+  evaluated_at: Date;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  recorded_at: Date;
+  source_command_id: string;
+  source_event_id: string | null;
+}
+
+export interface DeliveryItemImpactReviewTable {
+  impact_review_id: string;
+  delivery_plan_id: string;
+  version_id: string;
+  delivery_item_id: string;
+  enterprise_id: string;
+  project_id: string;
+  triggering_ref: Json;
+  prior_evaluation_ref: Json | null;
+  prior_evaluation_id: string | null;
+  new_evaluation_ref: Json;
+  new_evaluation_id: string;
+  impact_reason: string;
+  affected_fact_refs: Json;
+  source_watermarks: Json;
+  payload: Json;
+  payload_hash: Buffer;
   recorded_by_principal_id: string;
   recorded_by_actor_snapshot_id: string;
   authorization_decision_id: string;
