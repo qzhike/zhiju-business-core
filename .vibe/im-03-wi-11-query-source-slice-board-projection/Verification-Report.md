@@ -2,9 +2,9 @@
 
 日期：2026-08-27
 工作目录：`im-03-wi-11-query-source-slice-board-projection`
-实现分支：`galendai/im-03-wi-11-query-source-slice-board-projection`
-验证时 HEAD：`b4982ed309aaafc3ed1a9be4362456f390fe0d1d`
-远端状态：实现分支尚未推送；尚未创建 PR、提交或关闭 Issue #67
+实现 commit：`c8f1a2cc6291ff65824a04e437a99b660fd926aa`
+合并 commit：`43a2f4fcf074e565c10f3db54bd1be9134ef471d`
+远端状态：PR #85 已合并；Issue #67 已关闭；实现远端和本地 feature branch 均已删除
 
 ## 验证命令与结果
 
@@ -34,4 +34,4 @@
 
 ## Git 交付状态
 
-本报告记录的是工作树级验证，不是远端交付证明。用户检查当前变更并明确确认前，不执行 commit；commit、push、PR、CI/comment 回读、merge、Issue close、远端 branch 删除、本地 worktree/branch 清理均为后续独立边界。
+本报告记录的本地验证已绑定实现 commit `c8f1a2cc6291ff65824a04e437a99b660fd926aa`，并与 PR #85 的 exact-head CI、verification comment、merge commit、Issue closeout comment 和 `origin/main` ancestry 共同构成远端交付证明。远端和本地实现 branch 已删除，执行 worktree 已安全 detach 到 `origin/main`。
