@@ -3,7 +3,7 @@
 版本：v0.1
 设计阶段：Project Domain + Task / Execution Domain + Artifact / Quality Domain
 日期：2026-08-12
-状态：`CURRENT DOMAIN BASELINE / IM-03 WI-01 DECISION RECORDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #81 MERGED / USER REVIEW REQUIRED`
+状态：`CURRENT DOMAIN BASELINE / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：Aggregate、Entity、Value Object、状态机、Command、Domain Event、权限和 Domain Invariant 的唯一权威。跨 Aggregate 协作以 `05` 为准，模块所有权以 `02` 为准，验证总口径以 `08` 为准。
 
@@ -5657,7 +5657,7 @@ Task → WorkOrder → Run → AgentResult
 Artifact → Revision → Evidence/Gates/Issues → Approval → Release
 ```
 
-三条链的跨 Aggregate 一致性、Reference Project、事务/Saga 和并发幂等基准见 [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md)。Typed Reference、四个核心 Contract 和模块公开 Catalog 分别见 [`03-core-contracts.md`](./03-core-contracts.md) 与 [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)；PostgreSQL Schema 所有权、逻辑表、事务、RLS、Outbox/Inbox 和对象存储边界见 [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md)。当前实现入口由 IM-03 WI-01 决策矩阵补充；业务实现和运行测试仍未开始。
+三条链的跨 Aggregate 一致性、Reference Project、事务/Saga 和并发幂等基准见 [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md)。Typed Reference、四个核心 Contract 和模块公开 Catalog 分别见 [`03-core-contracts.md`](./03-core-contracts.md) 与 [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)；PostgreSQL Schema 所有权、逻辑表、事务、RLS、Outbox/Inbox 和对象存储边界见 [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md)。当前实现入口由 IM-03 WI-01 决策矩阵补充；WI-03 至 WI-12 的本地业务实现和运行结果以 Module-Test-002 及各 Verification-Record 为准，统一跨 Aggregate E2E 与独立人工验收仍未运行。
 
 ## 48. IM-03 WI-01 前置对象决策补充
 
@@ -5670,7 +5670,13 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Cont
 
 输入版本、Hash、有效期或适用范围变化时，旧 GapAnalysis 进入 `STALE` 并追加 Impact Review；旧 Gap、Context、Plan 和 Artifact 不原地改写。`NOT_PROVIDED`、`UNKNOWN` 和 `MISSING_CONFIRMED` 不互相推导。QualityProfile/Evidence 等 IM-05 Ref 只做强引用和 Scope/Hash/lifecycle/purpose 验证，不通过跨 Schema Join 或测试假数据取得正文。
 
-本节是设计决策，不是业务实现证据；业务 DDL、Repository、Handler、Evaluator、真实 PostgreSQL 业务链和人工 Reference Project 仍为 `NOT RUN`。
+本节是设计决策，不替代业务实现证据；WI-03 至 WI-12 的 DDL、Repository、Handler、Evaluator 和受控 PostgreSQL 结果已记录在 Module-Test-002。统一跨 Aggregate runtime chain、真实业务适用性和人工 Reference Project 仍为 `NOT RUN`。
+
+## 51. IM-03 合成 Reference Project 技术验收边界
+
+用户已确认在没有真实业务场景时采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。现有 WI focused fixtures 已在固定 PostgreSQL 18.6 / Flyway 11.20.3 上组成受控技术 Gate，`21` 个 persistence 测试文件、`256` 个测试通过；该结果只证明精确引用、生命周期、权限、Scope、Replay、CAS、RLS、immutable、stale/impact 和 Completion 技术边界，不证明真实业务适用性。
+
+`EP-API-E-001/E-002` 的统一跨 Aggregate runtime execution、`EP-API-M-001` 的独立人工逐项审阅、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续为 `NOT RUN`。详细执行记录见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。
 
 ## 48.1 IM-03 WI-09 可执行 GapAnalysis 边界
 

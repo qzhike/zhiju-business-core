@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / IM-03 WI-11 IMPLEMENTATION VERIFIED / IM-03 WI-12 IMPLEMENTATION VERIFIED / ISSUE #68 CLOSEOUT PENDING / PR #85 MERGED / ISSUE #67 CLOSED / WI-11 EXACT-HEAD CLOSEOUT COMPLETE / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-03 SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -658,3 +658,9 @@ Issue #68 在既有 DeliveryPlan/DeliveryItem 精确版本之上实现 Completio
 V2013 的真实 PostgreSQL 主消费/评估链、revoke/new-version、late fact、ACL/RLS、CAS 与故障回滚均已通过本地 Gate；Unit/Contract 也已纳入 TypeScript project service，并通过“非 SATISFIED→SATISFIED”事件状态转移与 Event Consumer `sourceEventId` 绑定断言。`pnpm verify` 最终通过，精确结果记录在 `.vibe/im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md`。TaskExecution、QualityGovernance、ReleasePublication 的真实业务 Handler、公共 HTTP/Event Bus、生产和独立人工 Reference Project 仍保持 `NOT RUN`。
 
 WI-12 的应用角色对完成历史表不授予 `UPDATE/DELETE`；直接历史写入已在 PostgreSQL 表 ACL 层以 `42501` fail-closed，Project RLS 读隔离也已通过受控 Context 验证。
+
+### IM-03 合成 Reference Project 技术验收边界（2026-08-27）
+
+用户已确认在没有真实业务场景时采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。合成数据、流程和测试矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md) 与 [`Test-Matrix.md`](../im-03-synthetic-reference-fixture/Test-Matrix.md)。本次 `pnpm persistence:gate` 在固定 PostgreSQL 18.6 / Flyway 11.20.3 上通过 `21` 个 persistence 测试文件、`256` 个测试，空库迁移、V2013、二次 no-op 和容器清理均通过。
+
+该结果是现有 WI focused fixtures 的 composed controlled persistence evidence，不是一个统一的跨 Aggregate Reference Project runtime runner。`EP-API-U-001/U-002/U-003`、`EP-API-C-001/C-002` 和各 WI focused 技术场景可记录为受控本地证据；`EP-API-E-001/E-002` 的 integrated cross-aggregate execution、`EP-API-M-001` 的实际人工逐项审阅、真实业务适用性、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续保持 `NOT RUN`。详见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。

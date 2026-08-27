@@ -2,7 +2,7 @@
 
 版本：v1.1
 日期：2026-08-27
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / IM-03 WI-11 IMPLEMENTATION VERIFIED / IM-03 WI-12 TEST BASELINE RECORDED / IM-03 WI-12 UNIT TESTS ADDED / IM-03 WI-12 PERSISTENCE TESTS ADDED / IM-03 WI-12 RLS AND ROLLBACK TESTS ADDED / ISSUE #68 IMPLEMENTATION IN PROGRESS / PR #85 MERGED / ISSUE #67 CLOSED / WI-11 EXACT-HEAD CLOSEOUT COMPLETE / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / LOCAL IMPLEMENTATION VERIFIED / EXACT-HEAD CLOSEOUT PENDING`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / LOCAL AUTOMATION VERIFIED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -11,14 +11,14 @@
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
 | EP-API-D-001 | Design | EnterpriseProject Module Spec 与 Catalog | 18 Command、6 Query、8 Event 名称/Owner/字段完整且无重复 | `commands=18 queries=6 events=8`；Catalog 集合差 0；字段检查无异常 | `DESIGN VERIFIED` |
-| EP-API-U-001 | Unit | 没有培训程序文件，Agent 请求 MISSING_CONFIRMED | 拒绝 `PROJECT_MISSING_CONFIRMATION_REQUIRED`；只允许 NOT_PROVIDED/UNKNOWN | 无实现 | `NOT RUN` |
-| EP-API-U-002 | Unit | Formal Gap 输入缺 TemplateBaseline 或使用 `latest` | 拒绝 `PROJECT_GAP_INPUT_INCOMPLETE`/Reference latest 错误 | 无实现 | `NOT RUN` |
-| EP-API-U-003 | Unit | TaskCompleted 存在但 Item 要求的 Release 不存在 | Completion Evaluation 为 unsatisfied，不能发 CompletionSatisfied | 无 Evaluator | `NOT RUN` |
-| EP-API-C-001 | Contract | Project A Command 引用 Project B CustomerMaterial | Scope/Reference 验证拒绝，不跨项目搜索替代材料 | 无 Schema/Handler | `NOT RUN` |
-| EP-API-C-002 | Contract | BaselineActivated Event Fixture | 精确 VersionedRef、previous ref 与 impact policy 存在，不携带材料正文 | 无 Fixture | `NOT RUN` |
-| EP-API-E-001 | E2E | 不完整采购程序→材料确认→Baseline→Gap→Human 批准 Plan | 不确定性真实保留；Agent 不接受 Gap/批准 Plan；版本链可追溯 | 无业务实现 | `NOT RUN` |
-| EP-API-E-002 | E2E | 激活 CB-004 后重放引用 CB-003 的旧 Context | 旧 Context 仍解析 CB-003；旧 Gap/Plan 不改写，产生 Impact Review | 无业务实现 | `NOT RUN` |
-| EP-API-M-001 | Manual | 脱敏采购控制程序 Fixture | 审核者能区分 Source/Customer/Baseline/Gap/Plan/Item 和各 Human Gate | 未准备可执行 Fixture | `NOT RUN` |
+| EP-API-U-001 | Unit | 没有培训程序文件，Agent 请求 MISSING_CONFIRMED | 拒绝 `PROJECT_MISSING_CONFIRMATION_REQUIRED`；只允许 NOT_PROVIDED/UNKNOWN | 合成 CustomerBaseline focused fixture 在 `pnpm persistence:gate` 中拒绝 Agent 缺失确认 | `PASS (COMPOSED CONTROLLED PERSISTENCE)` |
+| EP-API-U-002 | Unit | Formal Gap 输入缺 TemplateBaseline 或使用 `latest` | 拒绝 `PROJECT_GAP_INPUT_INCOMPLETE`/Reference latest 错误 | 合成 Gap/Template/Regulatory focused fixtures 的缺失、latest、hash 和 Scope 负向断言通过 | `PASS (COMPOSED CONTROLLED PERSISTENCE)` |
+| EP-API-U-003 | Unit | TaskCompleted 存在但 Item 要求的 Release 不存在 | Completion Evaluation 为 unsatisfied，不能发 CompletionSatisfied | 合成 WI-12 Task-only evaluation=`UNSATISFIED`，Item=`NOT_READY`，无 Completion Event | `PASS (COMPOSED CONTROLLED PERSISTENCE)` |
+| EP-API-C-001 | Contract | Project A Command 引用 Project B CustomerMaterial | Scope/Reference 验证拒绝，不跨项目搜索替代材料 | Project/Source/CustomerMaterial/Plan/Completion cross-scope 与 RLS focused fixtures 通过 | `PASS (COMPOSED CONTROLLED PERSISTENCE)` |
+| EP-API-C-002 | Contract | BaselineActivated Event Fixture | 精确 VersionedRef、previous ref 与 impact policy 存在，不携带材料正文 | CustomerBaseline activated Event 的 exact refs、previous ref、impact policy 和 payload minimality 断言通过 | `PASS (COMPOSED CONTROLLED PERSISTENCE)` |
+| EP-API-E-001 | E2E | 不完整采购程序→材料确认→Baseline→Gap→Human 批准 Plan | 不确定性真实保留；Agent 不接受 Gap/批准 Plan；版本链可追溯 | WI focused fixtures 均通过，但没有统一 runtime runner 串起全部 Aggregate | `PASS (COMPOSED CONTROLLED PERSISTENCE); INTEGRATED E2E NOT RUN` |
+| EP-API-E-002 | E2E | 激活 CB-004 后重放引用 CB-003 的旧 Context | 旧 Context 仍解析 CB-003；旧 Gap/Plan 不改写，产生 Impact Review | CustomerBaseline/Gap stale focused fixtures 通过；统一旧 Context→Gap→Plan replay 未执行 | `PASS (COMPOSED CONTROLLED PERSISTENCE); INTEGRATED E2E NOT RUN` |
+| EP-API-M-001 | Manual | 脱敏采购控制程序 Fixture | 审核者能区分 Source/Customer/Baseline/Gap/Plan/Item 和各 Human Gate | 用户确认技术-only口径；实际人工逐项浏览和输出审阅尚未执行 | `NOT RUN` |
 
 | EP-WI01-D-001 | Design | Issue #57 决策矩阵与 `HL-Spec`、Architecture、Domain、Module Spec、Implementation Plan、Verification Baseline 的路由 | Product/QMS/Profile/ProductScope/Platform Reference 均有唯一 Owner、受控入口、授权 purpose、版本语义和失败码；文档没有把业务实现写成 PASS | 决策矩阵已建立；`markdown_links=PASS files=142 relative_links=195`；`git diff --check` 通过 | `DESIGN VERIFIED` |
 | EP-WI01-D-002 | Design | ProjectStartSnapshot 缺 Profile/QMS/ProductScope、Scope 不一致或使用 `latest` | 拒绝 `PROJECT_START_SNAPSHOT_INCOMPLETE` 或 Scope/Reference 错误；不得从数据库隐式补齐 | 已在决策矩阵冻结负向场景；无 Handler/Schema | `DESIGN VERIFIED` |
@@ -32,7 +32,7 @@
 
 ## 本阶段结果
 
-- Unit/Contract/E2E/Manual：业务场景保持 `NOT RUN`，原因是业务实现与 Fixture 尚不存在；EP-WI01 的决策矩阵/路由场景为 `DESIGN VERIFIED`，用户审核仍未完成；EP-WI02 技术事务基础已有 focused Unit/Persistence 覆盖，人工 probe 仍为 `NOT RUN`。
+- Unit/Contract/E2E/Manual 的历史基线记录了当时业务 Fixture 尚不存在；当前状态由本文后续的 IM-03 合成 Fixture 技术验收章节覆盖。统一跨 Aggregate E2E 和独立人工业务验收仍为 `NOT RUN`。
 - 现有公开 Contract 的静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
 - PR #72 修正后的本地 `pnpm verify` 已通过：Persistence 为 14 文件 / 202 测试 PASS；全量 Unit 为 21 文件 PASS、12 文件 skipped，348 个测试 PASS、189 个 skipped。它只证明当前工作区和 Disposable PostgreSQL 边界，不改变真实 Provider、HTTP、跨模块 E2E 和人工验收的 `NOT RUN` 状态。
 - 本次 PR #73 复核发现工作树已有未跟踪 `tmp/` 测试脚本和 Node compile cache；它们不属于交付内容，修复验证完成后必须清理并重新确认工作树。
@@ -317,3 +317,23 @@ WI-12 的三张 EnterpriseProject owning 表（`delivery_item_completion_fact`�
 | `EP-WI12-M-001` | Manual/Local | 脱敏采购控制程序查看 Task-only、Release-complete、revoke/new-version 的 Evaluation 与 Impact 历史 | 人工能区分 formal fact、派生 Evaluation、current pointer、Impact Review 和未运行的真实上游 Provider/跨模块 Process Manager | 尚未准备人工界面；真实外部链路 `NOT RUN` | `NOT RUN` |
 
 WI-12 测试运行后的真实命令、PostgreSQL/Flyway 版本、测试计数和精确证据已写入 [`Verification-Record.md`](../im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md)；没有运行的 Provider、公开 HTTP、跨模块 Event Bus/Process Manager、生产数据库和独立人工 Reference Project 继续标记 `NOT RUN`。
+
+## IM-03 合成 Reference Project 技术验收（2026-08-27）
+
+用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` 方案。合成数据、流程和矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md)、[`Test-Matrix.md`](../im-03-synthetic-reference-fixture/Test-Matrix.md) 和 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。
+
+本次执行：
+
+```text
+pnpm persistence:gate
+```
+
+实际结果：
+
+- PostgreSQL `18.6`（`server_version=180006`）和 Flyway `11.20.3`：通过；
+- 空库 Migration、V2013、二次 migrate no-op：通过；
+- `21` 个 persistence 测试文件、`256` 个测试：全部通过；
+- PostgreSQL 容器：已移除；测试后执行 `pnpm clean` 清理构建缓存；
+- 该结果是现有 WI focused fixtures 的 `PASS (COMPOSED CONTROLLED PERSISTENCE)`，不是一个统一跨 Aggregate runtime chain。
+
+因此，`EP-API-U-001/U-002/U-003`、`EP-API-C-001/C-002` 和各 `SYN-WI03-001` 至 `SYN-WI12-001` 可以记录受控本地技术证据；`EP-API-E-001/E-002` 的 integrated cross-aggregate execution 和 `EP-API-M-001` 的实际人工逐项审阅继续为 `NOT RUN`。真实 Provider、公开 HTTP、生产环境、真实跨模块 Event Bus/Process Manager 以及真实业务适用性也继续为 `NOT RUN`。

@@ -2,7 +2,7 @@
 
 版本：v0.8
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / IM-03 WI-11 IMPLEMENTATION VERIFIED / IM-03 WI-12 IMPLEMENTATION VERIFIED / ISSUE #68 CLOSEOUT PENDING / PR #85 MERGED / ISSUE #67 CLOSED / WI-11 EXACT-HEAD CLOSEOUT COMPLETE / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -736,3 +736,14 @@ Focused Unit/Contract 覆盖 criteria grammar/hash、typed ref/lifecycle、event
 新增 `tests/business` 必须拥有独立的 composite `tsconfig.json` 并由根 `tsconfig.json` 引用，使 Unit/Contract 夹具同时接受 TypeScript build、ESLint project service 和 Vitest 执行。
 
 ACL/RLS 断言必须区分层次：Fact/Evaluation/Impact 的应用角色 `UPDATE/DELETE` 在表 ACL 处直接拒绝并返回 `42501`；跨 Project `SELECT` 则验证 FORCE RLS 不泄漏其他 Project 行。测试不得把 ACL 拒绝误报成 RLS 零行更新。
+
+## 22. 合成 Reference Project 的技术验证边界
+
+在没有真实业务场景时，EnterpriseProject 可以使用 `SYNTHETIC / TECHNICAL ONLY` Fixture 进行受控验证。该 Fixture 可以复用本模块各 owning Handler、Repository、Migration 和 Disposable PostgreSQL fixture，但必须保持以下边界：
+
+- 合成 Enterprise、Project、Material、Baseline、Gap、Plan 和 Item 只用于验证精确 ID/Version/Hash/Scope、生命周期、Human/Agent 权限、CAS、Replay、RLS、immutable、SourceWatermark、Projection 和 Completion 派生语义；不表达真实客户业务规则。
+- 任何跨 Aggregate 组合结果必须标记为 `PASS (COMPOSED CONTROLLED PERSISTENCE)`，不能写成一个已运行的 integrated E2E；若要标记 integrated E2E，必须另有统一 runtime Fixture Runner 和逐步可回读的对象链证据。
+- `EP-API-E-001`、`EP-API-E-002` 的统一跨 Aggregate runtime chain 和 `EP-API-M-001` 的独立人工审阅不因 focused fixture 通过而变为 `PASS`。
+- 真实 Provider、公开 HTTP、生产数据库、真实跨模块 Event Bus/Process Manager、Artifact/QualityGovernance/ReleasePublication 业务 Handler 和独立业务适用性继续为 `NOT RUN`。
+
+本次执行记录见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)，不扩展公共 Operation Catalog，也不改变各 Command/Query/Event 的 Owner 或 payload contract。
