@@ -72,7 +72,7 @@ pnpm persistence:gate
 - TaskExecution、Artifact、QualityGovernance、ReleasePublication 的真实业务 Handler；
 - 独立人工 Reference Project 验收。
 
-以上均为 `NOT RUN`。Issue #56 不能仅凭本记录关闭。
+以上均为 `NOT RUN`。本记录单独不证明原始人工验收条件通过；用户后续在知悉该边界后明确授权将其与 WI 交付证据共同用于 scoped technical closeout。Issue #56 的关闭不改变这些结果。
 
 ## 6. 清理与后续
 

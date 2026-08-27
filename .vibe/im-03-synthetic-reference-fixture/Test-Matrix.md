@@ -2,7 +2,7 @@
 
 - 版本：v0.1
 - 日期：2026-08-27
-- 状态：`USER CONFIRMED / COMPOSED CONTROLLED PERSISTENCE PASS / INTEGRATED E2E NOT RUN / MANUAL NOT RUN`
+- 状态：`USER CONFIRMED / COMPOSED CONTROLLED PERSISTENCE PASS / SCOPED CLOSEOUT AUTHORIZED / INTEGRATED E2E NOT RUN / MANUAL NOT RUN`
 - Fixture：[`Synthetic-Reference-Project-Fixture.md`](./Synthetic-Reference-Project-Fixture.md)
 
 ## 1. 使用规则
@@ -89,4 +89,4 @@ Remaining risk:
 
 ## 6. 当前结论
 
-本矩阵已由用户确认，并完成一次 composed controlled persistence Gate：`21` 个 persistence 文件、`256` 个测试通过，空库迁移、二次 no-op 和容器清理通过。该结果只覆盖现有 WI focused 合成 fixtures 的技术组合证据；没有一个统一 runtime runner 串起所有 Aggregate，因此 `EP-API-E-001/E-002` 的 integrated cross-aggregate execution 和 `EP-API-M-001` 的人工逐项审阅继续为 `NOT RUN`。结果记录见 [`Verification-Record.md`](./Verification-Record.md)。Issue #56 仍不能仅凭本矩阵关闭。
+本矩阵已由用户确认，并完成一次 composed controlled persistence Gate：`21` 个 persistence 文件、`256` 个测试通过，空库迁移、二次 no-op 和容器清理通过。该结果只覆盖现有 WI focused 合成 fixtures 的技术组合证据；没有一个统一 runtime runner 串起所有 Aggregate，因此 `EP-API-E-001/E-002` 的 integrated cross-aggregate execution 和 `EP-API-M-001` 的人工逐项审阅继续为 `NOT RUN`。结果记录见 [`Verification-Record.md`](./Verification-Record.md)。用户后续已明确授权以该 scoped technical evidence 关闭 Issue #56；这不会把上述 `NOT RUN` 改写为 `PASS`。

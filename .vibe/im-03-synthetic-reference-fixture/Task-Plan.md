@@ -2,7 +2,7 @@
 
 - 日期：2026-08-27
 - 任务：为 IM-03 建立 `SYNTHETIC / TECHNICAL ONLY` Reference Project，用于补齐受控技术验证场景。
-- 当前状态：`USER CONFIRMED / COMPOSED CONTROLLED PERSISTENCE PASS / INTEGRATED E2E NOT RUN / NO CODE CHANGE`
+- 当前状态：`USER CONFIRMED / COMPOSED CONTROLLED PERSISTENCE PASS / SCOPED CLOSEOUT AUTHORIZED / INTEGRATED E2E NOT RUN / NO CODE CHANGE`
 
 ## 范围
 
@@ -16,7 +16,7 @@
 - 本 Fixture 不代表任何真实客户业务规则、采购制度、法规或组织审批流程。
 - 本 Fixture 的通过结果只能写为 `PASS (COMPOSED CONTROLLED PERSISTENCE)` 或 `PASS (CONTROLLED PERSISTENCE)`；组合结果必须明确标注，不得写成已完成的真实业务验收。
 - 真实 Provider、生产数据库、公开 HTTP、真实跨模块 Event Bus/Process Manager 和真实业务人工验收继续保持 `NOT RUN`。
-- 用户已确认场景口径；本次仍不执行 commit、push 或 Issue #56 closeout。集成跨 Aggregate E2E 和人工验收继续保持 `NOT RUN`。
+- 本 Fixture 形成时用户只确认场景口径，未授权 commit、push 或 Issue #56 closeout。2026-08-27 后续指令已明确授权提交文档、合并并以 scoped technical acceptance 关闭 Issue #56；该后续授权不改变集成跨 Aggregate E2E 和人工验收的 `NOT RUN`。
 
 ## 交付物
 

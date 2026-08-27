@@ -141,9 +141,8 @@ Keycloak 只证明认证主体与 token context，不拥有 Enterprise/Project R
 
 ## 5. IM-00 退出与后续 Gate
 
-IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 的最小决策基线完成。以下内容仍不被本决定批准：
+IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 的最小决策基线完成。IM-DG-005 已由独立决策记录于 2026-08-27 获用户批准。以下内容仍不被本决定批准：
 
-- IM-DG-005 Canonical Document/Workbook Schema 与 Renderer；
 - IM-DG-006 6 个 Runtime Command 与默认 Runtime Policy；
 - MicroCeph/OpenBao/Keycloak 的安装、配置或运行结果；
 - 单机 HA、备份恢复、KMS 兼容、Object Lock、OIDC 或安全测试 PASS；

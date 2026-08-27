@@ -1031,12 +1031,21 @@ final `BLOCKED_INPUT` 解决后创建新 ContextSnapshot 与新 Run；不得把�
 
 | 表 | 类型 | 关键列/关系 | 关键约束 |
 |---|---|---|---|
-| `artifact_revision` | Aggregate Root | artifact_id、revision_no、state、canonical object locator、content hash、schema version、provenance、aggregate_version | SEALED 后内容/Hash/Provenance 不改 |
+| `artifact_content_object` | Entity / Object Manifest | content_object_id、enterprise/project、content_type、schema_ref、canonicalization_version、content_hash、object_locator、byte_size、media_type、storage_state、retention/quarantine、aggregate_version | Artifact-owned；`STAGING -> LINKED -> FROZEN`；Hash/Schema/大小/媒体类型复验；未链接对象可审计清理 |
+| `artifact_revision` | Aggregate Root | artifact_id、revision_no、state、content_object_id、frozen locator/content type/content hash/canonicalization/schema version/byte size/media type snapshot、provenance、aggregate_version | 只引用 FROZEN Manifest；SEALED 后内容/Hash/Provenance 不改；Canonical body 不直接写入业务表 |
 | `revision_parent` | Immutable Relation | artifact_id、child_revision_id、parent_revision_id、parent_order/type | parent/child 同 Artifact；child sealed 后不改 |
 | `revision_conflict` | Immutable Fact | base/head/candidate refs、conflict payload/hash、resolution revision ref? | 冲突不 last-write-wins |
 | `revision_invalidation` | Immutable Fact | revision ref/hash、reason、actor/upstream refs | 不删除 Revision |
 
 普通 Revision 至少一个 Parent（Initial 除外）；Merge Revision 至少两个 Parent。DAG 无环由 Command Handler 使用递归查询验证，后续 DDL/测试必须覆盖并发下的重复验证。
+
+IM-DG-005 的 Canonical Content 持久化边界：
+
+1. `STRUCTURED_DOCUMENT` 与 `WORKBOOK_SPEC` 的 Hash 输入固定为 `{schemaRef, contentType, canonicalizationVersion, body}` 的 Canonical JSON bytes，`contentHash = SHA-256(canonicalize(payload))`；Hash 自身、locator、大小、媒体类型和 storage state 不进入 Hash 域。
+2. `artifact_content_object` 保存精确 locator、content type、SchemaRef、Canonicalization Version、SHA-256 content hash、大小、媒体类型和 storage state。Canonical object 在完成 Schema、大小、媒体类型和 Hash 验证后才允许从 `STAGING` 转为 `LINKED/FROZEN`；数据库事务失败时不得创建业务 Link，遗留对象只能进入受审计的 Orphan Cleanup。
+3. `artifact_revision` 只能引用 `FROZEN` Content Object Manifest，并保存其不可变内容身份快照；可变对象 storage state 不写入 SEALED Revision，避免对象生命周期与 Revision 不可变性冲突。
+4. 同一 Artifact lineage 内的 Document Unit、Workbook Sheet/Column/Row/Cell 使用稳定业务 ID；Excel 坐标和 DOCX/OOXML 私有版式只属于 Representation 映射，不作为 Canonical 身份。
+5. Canonical Content Hash、Representation checksum 和 Release packageHash 分域保存；不能使用其中任一 Hash 代替其他 Hash。
 
 ### 12.3 Representation
 

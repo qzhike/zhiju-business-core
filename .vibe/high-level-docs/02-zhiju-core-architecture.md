@@ -181,6 +181,7 @@ Zhiju Core 不理解 Harness 内部 Session
 | AD-051 | Object/Contract/Capability Registry 由构建期静态声明发布；业务状态使用 closed text constraint，不提供在线动态改语义。 |
 | AD-052 | Projection 只能消费已提交事实并可重建；Projection 延迟或失败不能作为 Command、Approval、Release 或 Completion 成功判据。 |
 | AD-053 | Product 在 v0.1 是 EnterpriseProject 拥有的独立版本化 Aggregate，可跨 Project 精确引用；不作为 Enterprise 内必须同事务更新的 Entity。 |
+| AD-054 | IM-DG-005 已批准：Canonical Document 与 Workbook 使用共用不可变封装和独立最小 Schema；结构化内容使用稳定 Unit/Sheet/Row/Cell 身份与 Canonical JSON + SHA-256；Renderer 通过 IntegrationGateway 的精确 Revision Attempt/Adapter/Receipt 路由，成功后由 Artifact 登记 Representation。 |
 
 ---
 
@@ -805,6 +806,15 @@ WorkbookSpec
 ```
 
 然后由 Renderer 生成 DOCX、XLSX 或 PDF。
+
+IM-DG-005 已批准的 v0.1 最小范围如下：
+
+- `STRUCTURED_DOCUMENT` 使用带稳定 `unitId` 的 Section、Paragraph、Table、Table Row 和 Table Cell 结构；
+- `WORKBOOK_SPEC` 使用带稳定 ID 的 Sheet、Column、Row 和 Cell 结构，并承载 value type、formula、validation rule 等表格语义；
+- 两种正文共享 Canonical JSON、SchemaRef、Canonicalization Version、SHA-256 Content Hash 和受控对象存储边界，但不合并为万能 AST；Hash 唯一覆盖 `{schemaRef, contentType, canonicalizationVersion, body}` 的 Canonical JSON bytes，Manifest 元数据不进入 Hash 域；
+- Artifact-owned Content Object Manifest 管理 `STAGING -> LINKED -> FROZEN`，SEALED Revision 只能引用并快照精确 FROZEN Manifest，Revision 自身不承载可变 storage state；
+- Diff 读取两个精确的 ContentAddressed Revision，基于稳定结构身份产生 Workspace/Application 内部可重建的 Added、Removed、Changed、Moved 结果，不修改业务事实；公开边界继续使用 `artifact.get_revision_diff_inputs@1.0`，不在 IM-04 隐式新增公共 Diff Operation；
+- Renderer 只读取精确 Revision，不能读取 `latest` 或直接写 Artifact 业务表；现有通用 RenderAttempt Query 不返回原始请求与成功结果，IM-04 必须先 additive 冻结只读 RenderAttempt Binding Query。该公共边界落地后，Artifact 才能权威核验 Revision、canonical content ref/input Hash、Renderer、输出 locator/checksum 和 Raw Receipt 并登记 Representation。DOCX/XLSX 的实际可打开性和版式人工验收属于 IM-05。
 
 ### 9.4 客户原文件导入
 
@@ -1451,7 +1461,7 @@ executionNode
 - ReviewIssue；
 - Approval；
 - Release；
-- DOCX/XLSX Renderer 最小闭环。
+- Canonical Content、基础 Diff、Human Edit、Renderer Port/Attempt 边界；DOCX/XLSX Renderer 最小输出和版式验收属于 IM-05。
 
 手动验收：从客户“采购控制程序”或制巨模板创建 Artifact，Human 修改产生新 Revision，查看 Diff、批准并导出，能定位正式发布版本。
 
@@ -1994,7 +2004,7 @@ Core 采用状态模型加不可变版本/事实，不把 Outbox Event 当成完
 13. QualityProfile 与 L1—L4 RiskProfile 的映射；
 14. Human Approval 已确定为独立 Human 决策；后续需冻结各 ArtifactType 的单人、多角色、多级与职责分离规则；
 15. ChangeImpact 已确定为增量 Gate 的强制不可变输入；后续需冻结确定性算法边界；
-16. Canonical Document Model 和 WorkbookSpec 的 v0.1 最小范围；
+16. 已解决（2026-08-27）：IM-DG-005 的 Canonical Document/Workbook v0.1 最小范围与 Renderer 路线已批准；具体代码、对象存储参数和人工版式验收仍待对应里程碑实现。
 17. 三种 CLI 的最低兼容版本、认证健康探测和默认路由顺序；
 18. 飞书群、话题、Task、WorkOrder 和 Runtime Session 的默认绑定策略；
 19. 飞书消息撤回、用户离职、群解散和跨项目转发的保留与审计规则；

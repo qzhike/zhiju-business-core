@@ -2,7 +2,7 @@
 
 - 版本：v0.1
 - 日期：2026-08-27
-- 状态：`USER CONFIRMED / COMPOSED CONTROLLED PERSISTENCE PASS / INTEGRATED E2E NOT RUN / MANUAL NOT RUN`
+- 状态：`USER CONFIRMED / COMPOSED CONTROLLED PERSISTENCE PASS / SCOPED CLOSEOUT AUTHORIZED / INTEGRATED E2E NOT RUN / MANUAL NOT RUN`
 - Fixture Key：`IM03-SYNTHETIC-RP-001`
 - 适用范围：EnterpriseProject 的受控技术验证、测试矩阵和用户审阅
 
@@ -223,7 +223,7 @@ remaining risk
 - 本 Fixture 没有新增统一的 runtime runner，因此 `IM03-SYNTHETIC-RP-001` 仍是稳定的人类可读 Fixture Key，而不是可以跨测试文件回读的单一对象链 ID。
 - `EP-API-E-001`、`EP-API-E-002` 的 integrated cross-aggregate execution：`NOT RUN`。
 - 用户人工检查：`NOT RUN`。
-- Issue #56：不能仅凭本 Fixture 关闭；是否将其作为技术验收材料，须保留 `SYNTHETIC / TECHNICAL ONLY` 标识。
+- Issue #56：本 Fixture 单独不证明原始人工验收条件通过；用户在完整知悉边界后已明确授权将其与既有 WI 证据作为 scoped technical closeout 材料。关闭时必须保留 `SYNTHETIC / TECHNICAL ONLY` 与所有 `NOT RUN` 标识。
 
 ## 8. 执行记录
 
