@@ -199,12 +199,17 @@ export namespace EnterpriseProject {
   readonly completionEvaluationRef?: Common.ContentAddressedRef;
   readonly blockerRefs: readonly Common.TypedReference[];
 }
-  export interface ProjectBoardPage {
+  export type ProjectBoardPage = {
   readonly items: readonly EnterpriseProject.ProjectBoardSliceItem[];
   readonly nextCursor?: Common.NonEmptyString;
   readonly snapshotAt: Common.UtcInstant;
   readonly sourceWatermarks: readonly EnterpriseProject.SourceWatermark[];
-}
+  readonly consistency?: "PROJECTION";
+  readonly asOfEventId?: Common.UuidV7;
+  readonly asOfRecordedAt?: Common.UtcInstant;
+  readonly projectionLag?: number;
+  readonly projectionStatus?: "READY" | "STALE" | "REBUILDING" | "FAILED";
+};
   /** Payload of `project.create_enterprise` (COMMAND). */
   export interface ProjectCreateEnterprisePayload {
   readonly displayCode: Common.NonEmptyString;

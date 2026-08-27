@@ -1,12 +1,13 @@
 export const enterpriseProjectModule = Object.freeze({
   name: 'enterprise-project',
-  status: 'IM_03_WI10_DELIVERY_PLAN_VERIFIED' as const,
+  status: 'IM_03_WI11_QUERY_SOURCE_SLICE_BOARD_PROJECTION_VERIFIED' as const,
 });
 
 export {
   createEnterpriseProjectDatabase,
   withEnterpriseProjectTransaction,
   withEnterpriseProjectPlatformTransaction,
+  withProjectionTransaction,
   digestCanonicalPayload,
   CANONICALIZATION_VERSION,
   PAYLOAD_HASH_ALGORITHM,
@@ -19,6 +20,16 @@ export type {
   EnterprisePrincipalKind,
   PlatformReferenceCapability,
 } from './persistence/enterprise-db.js';
+export type {
+  ProjectBoardProjectionVersionTable,
+  ProjectBoardTable,
+  ProjectBoardReadAliasTable,
+  ProjectionSourceStateTable,
+  ProjectionCheckpointTable,
+  ProjectionFailureTable,
+  ProjectionVersionStatus,
+  ProjectionCheckpointStatus,
+} from './persistence/projection-types.js';
 export { EnterpriseProjectRepository } from './persistence/enterprise-project-repository.js';
 export type { ProcessInstanceInsert } from './persistence/enterprise-project-repository.js';
 export {
@@ -292,6 +303,34 @@ export type {
   GetDeliveryItemCriteriaQueryPayload,
 } from './business/delivery-plan-handlers.js';
 export {
+  handleGetProjectContextSource,
+  handleGetProjectBoardSlice,
+} from './business/query-handlers.js';
+export type {
+  GetProjectContextSourceQueryPayload,
+  GetProjectBoardSliceQueryPayload,
+} from './business/query-handlers.js';
+export {
+  PROJECT_BOARD_PROJECTION_CONSUMER,
+  calculateProjectBoardSnapshotHash,
+  rebuildProjectBoardProjection,
+  recordProjectBoardSourceEvent,
+  pauseProjectBoardProjection,
+  recordProjectBoardProjectionFailure,
+  consumeProjectBoardEvent,
+  readProjectBoardProjection,
+} from './persistence/project-board-projection-repository.js';
+export type {
+  ProjectBoardProjectionItemInput,
+  ProjectBoardSnapshotExport,
+  ProjectBoardEventDelta,
+  ProjectBoardProjectionRebuildResult,
+  ProjectionSourceEventResult,
+  ProjectBoardProjectionFailureInput,
+  ProjectBoardProjectionFailureResult,
+  ProjectionReadState,
+} from './persistence/project-board-projection-repository.js';
+export {
   EnterpriseBusinessError,
   PROJECT_ENTERPRISE_NOT_ACTIVE,
   PROJECT_ENTERPRISE_DISPLAY_CODE_CONFLICT,
@@ -361,5 +400,15 @@ export {
   PROJECT_DELIVERY_PLAN_IMMUTABLE,
   PROJECT_DELIVERY_APPROVAL_DECISION_INVALID,
   PROJECT_DELIVERY_PLAN_HUMAN_APPROVAL_REQUIRED,
+  PROJECT_QUERY_REF_INVALID,
+  PROJECT_QUERY_SCOPE_MISMATCH,
+  PROJECT_QUERY_AUDIENCE_INVALID,
+  PROJECT_QUERY_PURPOSE_FORBIDDEN,
+  PROJECT_QUERY_CONTEXT_EXPIRED,
+  PROJECT_QUERY_NOT_FOUND,
+  PROJECT_QUERY_CURSOR_INVALID,
+  PROJECT_PROJECTION_EVENT_INVALID,
+  PROJECT_PROJECTION_CHECKPOINT_CONFLICT,
+  PROJECT_PROJECTION_REBUILD_INVALID,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';

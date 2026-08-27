@@ -371,6 +371,11 @@ const namedDefinitions = {
     nextCursor: text,
     snapshotAt: instant,
     sourceWatermarks: array(localRef('sourceWatermark')),
+    consistency: { const: 'PROJECTION' },
+    asOfEventId: uuid,
+    asOfRecordedAt: instant,
+    projectionLag: { type: 'integer', minimum: 0 },
+    projectionStatus: { enum: ['READY', 'STALE', 'REBUILDING', 'FAILED'] },
   }),
 } as const satisfies Readonly<Record<string, JsonSchema>>;
 
