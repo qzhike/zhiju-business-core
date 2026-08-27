@@ -1,8 +1,8 @@
 # Module-Spec-002-EnterpriseProject
 
-版本：v0.7
+版本：v0.8
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / IM-03 WI-11 IMPLEMENTATION VERIFIED / PR #85 MERGED / ISSUE #67 CLOSED / WI-11 EXACT-HEAD CLOSEOUT COMPLETE / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / IM-03 WI-11 IMPLEMENTATION VERIFIED / IM-03 WI-12 IMPLEMENTATION VERIFIED / ISSUE #68 CLOSEOUT PENDING / PR #85 MERGED / ISSUE #67 CLOSED / WI-11 EXACT-HEAD CLOSEOUT COMPLETE / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
 
 ## 1. 模块责任
 
@@ -667,3 +667,72 @@ WI-11 至少使用：`PROJECT_QUERY_REF_INVALID`、`PROJECT_QUERY_SCOPE_MISMATCH
 ### 20.8 WI-11 exact-head closeout（2026-08-27）
 
 实现 commit `c8f1a2cc6291ff65824a04e437a99b660fd926aa` 已通过 [PR #85](https://github.com/qzhike/zhiju-business-core/pull/85) 的 [GitHub Actions verify run 33039239177](https://github.com/qzhike/zhiju-business-core/actions/runs/33039239177)，并以 merge commit `43a2f4fcf074e565c10f3db54bd1be9134ef471d` 合入 `main`；PR verification comment 已读回：[issuecomment-5434378070](https://github.com/qzhike/zhiju-business-core/pull/85#issuecomment-5434378070)。Issue [#67](https://github.com/qzhike/zhiju-business-core/issues/67) 已读回为 `closed`，closeout comment 已读回：[issuecomment-5434387709](https://github.com/qzhike/zhiju-business-core/issues/67#issuecomment-5434387709)。`origin/main` 已验证包含 implementation head 与 merge commit；原始远端和本地 WI-11 feature branch 均已删除。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`。
+
+## 21. IM-03 WI-12 DeliveryItem Completion 与 Impact Process
+
+Issue #68 复用现有 `project.evaluate_delivery_item_completion@1.0`、`project.DeliveryItemCompletionSatisfied@1.0` 和 `project.DeliveryItemImpactReviewRequested@1.0`，不扩展公共 Operation Catalog。EnterpriseProject 只实现自己的 Completion Evaluator、受控正式事实 Consumer、Inbox/Process Manager 持久化和 Impact Review；TaskExecution、QualityGovernance、ReleasePublication 的上游业务 Handler 不属于本轮。
+
+### 21.1 Criteria 与 Evaluation
+
+DeliveryItem 的 `completionCriteria` 在不可变 DeliveryItem 行中冻结，WI-12 v1 的可执行 grammar 为：
+
+```json
+{
+  "allOf": [
+    { "eventType": "execution.TaskCompleted" },
+    { "eventType": "release.ReleaseCompleted" }
+  ]
+}
+```
+
+每个 criterion 必须是对象，`eventType` 必须属于已注册正式事件；可选 `factRef` 必须是同一 Project 的 exact `TypedReference`。Evaluator 只使用输入 `CompletionEvaluationInput.factRefs` 指定的事实集合，不读取 `latest`/`current`，也不接受 `submittedCompletion`、caller outcome 或直接 `execution_status='COMPLETED'`。输入 `criteriaHash` 必须与持久化 `completion_criteria` 的 canonical SHA-256 相等；不匹配、未知 grammar、空/重复 fact ref、跨 Scope 或未消费事实都在业务写入前稳定拒绝。
+
+每个 Evaluation 保存 immutable `criteria_hash`、精确 DeliveryPlan/Item identity、exact fact set/ref hash、source watermark set、`zhiju.quality.evaluator` 的 evaluator VersionedRef、evaluator payload/version hash、派生 outcome、recorded time、source command/event 和 payload hash。相同 input fingerprint 不产生第二个 Evaluation；不同的 exact fact set、watermark、evaluator version 或上游版本产生新的历史 Evaluation。
+
+### 21.2 Formal Fact Inbox 与 Process Manager
+
+受控 Consumer 的输入是已注册 Event Envelope 加一个受信 `SourceWatermark`，且 Event Consumer Context 必须绑定同一 `sourceEventId`。允许事件和 producer/source module 为：
+
+| Event | Producer module | Lifecycle | 用途 |
+|---|---|---|---|
+| `execution.TaskCompleted@1.0` | `task_execution` | `ACTIVE` | Task formal completion fact |
+| `release.ReleaseCompleted@1.0` | `release_publication` | `ACTIVE` | Release formal completion fact |
+| `quality.RevisionFullyApproved@1.0` | `quality_governance` | `ACTIVE` | exact approved revision fact |
+| `quality.RevisionApprovalLost@1.0` | `quality_governance` | `REVOKED` | revoke matching revision approval |
+| `release.ReleaseRecalled@1.0` | `release_publication` | `REVOKED` | revoke matching release completion |
+
+Consumer 必须检查 event id/type/version、producer module、Envelope scope 与可信事务 Context、payload contract shape、`integrity.payloadHash`、SourceWatermark module/partition/sequence/instant，以及每个 embedded TypedReference 的 Scope 和 exact kind。Source watermark 允许 late event，但不能被静默改写或覆盖。
+
+`inbox_message` 使用固定 consumer name 和 `(consumer_name,event_id)` 主键；相同 event id + payload hash + watermark 返回 `DUPLICATE`，hash 或 watermark 冲突写入 `contract_violation(INBOX_HASH_CONFLICT)` 并返回 `QUARANTINED`，不 UPDATE 原 Inbox、fact 或已提交业务结果。成功消费在同一 EnterpriseProject 事务中 INSERT Inbox `PROCESSED`、immutable `delivery_item_completion_fact`、ProcessInstance 和 immutable ProcessStep；所有写入使用 `principalKind=SERVICE` 的受信 Event Consumer Context。
+
+Fact ledger 至少保存 event identity/type/version、normalized source module、aggregate identity/version、project Scope、synthetic exact fact ref、payload-derived fact refs、payload hash、source watermark、ACTIVE/REVOKED lifecycle、revocation subject refs、canonical payload/hash、causation/correlation 和 source event id。旧 fact 不允许 UPDATE/DELETE；revocation 只追加新 fact。Evaluator 在选择 ACTIVE fact 时排除与当前 project 中 REVOKED subject ref 相交的旧事实。
+
+### 21.3 Root Pointer、Impact 与 Event
+
+V2013 给既有 `delivery_item` 增加 nullable `current_completion_evaluation_id`，并将独立 Completion aggregate version 初始化为 `1`。原有 item content/criteria 继续 immutable；只有该列与受控时间/aggregate version 可由 `enterprise_project_app` 通过 CAS 更新，直接修改 item 内容或把 `execution_status` 写成 `COMPLETED` 仍由 ACL/trigger 拒绝。Pointer 只能指向同一 `(enterprise, project, plan, version, item)` 的 Evaluation；Root 不复制 outcome、criteria 或 fact 正文。
+
+当 Evaluation 因新 fact、late fact、upstream new Version/Hash 或 revoke 而改变 current result 时，追加 `delivery_item_impact_review`，保存 exact triggering ref、prior Evaluation Ref、new Evaluation Ref、reason code、affected fact refs、watermarks 和 payload hash，并只发布最小 `project.DeliveryItemImpactReviewRequested@1.0`。旧 Evaluation、旧 Plan Version、approval decision 和旧 Impact Review 不重写。仅当当前 Evaluation 从非 `SATISFIED` 转为 `SATISFIED` 时发布 `DeliveryItemCompletionSatisfied`；撤销后重新满足允许再次发布，已满足状态下的 late fact 不重复发布。重复 command/event 不产生第二个 business fact/event。
+
+### 21.4 WI-12 稳定错误与验证边界
+
+WI-12 使用既有 `PROJECT_DELIVERY_REFERENCE_INVALID`、`PROJECT_DELIVERY_ITEM_INVALID`、`PROJECT_DELIVERY_PLAN_IMMUTABLE`，并新增：
+
+```text
+PROJECT_DELIVERY_ITEM_CRITERIA_UNSATISFIED
+PROJECT_COMPLETION_IS_DERIVED
+PROJECT_DELIVERY_COMPLETION_EVENT_INVALID
+PROJECT_DELIVERY_COMPLETION_INBOX_CONFLICT
+PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND
+PROJECT_DELIVERY_COMPLETION_EVALUATOR_INVALID
+PROJECT_DELIVERY_COMPLETION_WATERMARK_INVALID
+```
+
+Focused Unit/Contract 覆盖 criteria grammar/hash、typed ref/lifecycle、event envelope/payload hash、sourceEventId 绑定和 safe rejection；真实 PostgreSQL 覆盖 V2013 空库迁移、二次 no-op、RLS、Inbox replay/conflict/quarantine、Process Step、immutable fact/evaluation/impact、root pointer CAS、direct COMPLETED denial、Task-only unsatisfied、Release-complete satisfied、late/revoke/new-version history 和事务回滚，已由 `pnpm verify` 通过。Provider、公共 HTTP/Event Bus、真实跨模块 Process Manager、生产和人工 Reference Project 仍保持 `NOT RUN`。
+
+### 21.5 WI-12 文档与实现状态
+
+本节与 `.vibe/high-level-docs/HL-Spec.md`、`.vibe/high-level-docs/07-postgresql-logical-model-v0.1.md` 和 `.vibe/module-tests/Module-Test-002-EnterpriseProject.md` 同步；主消费/评估链及 revoke/new-version、late fact、ACL/RLS、故障回滚、状态转移与 sourceEventId 的真实断言已由 `pnpm verify` 通过，故 WI-12 的本地实现验证完成。该状态不把 Contract 已存在或 V2011/V2012 既有结果冒充本次 Completion 实现，也不提升 Provider、公共 HTTP/Event Bus、真实跨模块 Process Manager、生产和人工 Reference Project 的状态。
+
+新增 `tests/business` 必须拥有独立的 composite `tsconfig.json` 并由根 `tsconfig.json` 引用，使 Unit/Contract 夹具同时接受 TypeScript build、ESLint project service 和 Vitest 执行。
+
+ACL/RLS 断言必须区分层次：Fact/Evaluation/Impact 的应用角色 `UPDATE/DELETE` 在表 ACL 处直接拒绝并返回 `42501`；跨 Project `SELECT` 则验证 FORCE RLS 不泄漏其他 Project 行。测试不得把 ACL 拒绝误报成 RLS 零行更新。

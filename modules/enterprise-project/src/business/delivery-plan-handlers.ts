@@ -26,6 +26,7 @@ import {
   type CommandResult,
 } from '../persistence/command-runner.js';
 import { DeliveryPlanRepository } from '../persistence/delivery-plan-repository.js';
+import { DeliveryItemCompletionRepository } from '../persistence/delivery-item-completion-repository.js';
 import type {
   DeliveryItemInsert,
   DeliveryPlanCasPatch,
@@ -1130,6 +1131,7 @@ async function appendDraftReferenceEdges(
 }
 
 const repo = new DeliveryPlanRepository();
+const completionRepo = new DeliveryItemCompletionRepository();
 
 export async function handleCreateDeliveryPlanDraft(
   db: Kysely<EnterpriseProjectDb>,
@@ -2025,6 +2027,13 @@ async function withCriteriaTransaction(
       'deliveryItemId does not identify an item in the exact Plan Version',
     );
   }
+  const currentEvaluation =
+    item.current_completion_evaluation_id === null
+      ? undefined
+      : await completionRepo.getCompletionEvaluationById(
+          trx,
+          item.current_completion_evaluation_id,
+        );
   return {
     deliveryPlanRef: deliveryPlanRef(
       context.enterpriseId,
@@ -2051,6 +2060,21 @@ async function withCriteriaTransaction(
       commitmentStatus: item.commitment_status,
     },
     criteriaHash: hashRef(item.criteria_hash),
+    ...(currentEvaluation === undefined
+      ? {}
+      : {
+          currentEvaluationRef: {
+            kind: 'CONTENT_ADDRESSED',
+            objectType: 'CompletionEvaluation',
+            objectId: currentEvaluation.evaluation_id,
+            immutableVersionId: currentEvaluation.evaluation_id,
+            scope: {
+              enterpriseId: context.enterpriseId,
+              projectId,
+            },
+            contentHash: hashRef(currentEvaluation.payload_hash),
+          } satisfies Common.ContentAddressedRef,
+        }),
     executionStatus: item.execution_status,
   };
 }

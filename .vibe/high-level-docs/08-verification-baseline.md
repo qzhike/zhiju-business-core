@@ -378,3 +378,12 @@ WI-09 的最小自动验证必须同时覆盖：七个 Gap InputSnapshot ref 的
 Persistence Gate 的外部镜像证据还必须记录 tag 与当前 manifest digest 的一致性。若远端 registry 重新解析固定 tag，先更新经核对的 immutable pin，再重新执行本地和 exact-head Gate；tag-digest 检查失败时，不能把此前的静态或 Unit PASS 记作完整验证 PASS。
 
 2026-08-27 的 WI-09 corrected exact head `6de5c96c4ba4fe0938b422606d4632048ac19932` 已通过 GitHub Actions [run 33022900309](https://github.com/qzhike/zhiju-business-core/actions/runs/33022900309)，并以 merge commit `2d6afd0cc2889cf0fa6350c0599d514d5917b071` 合入 `main`。Issue [#65](https://github.com/qzhike/zhiju-business-core/issues/65) 已显式 `CLOSED`；远端和本地 WI-09 feature branch 已删除，`origin/main` 已确认包含实现 head。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`。
+## 14. IM-03 WI-12 Completion/Impact 验证边界
+
+WI-12 的验证必须证明一条完整的本地受控链：精确 DeliveryPlan/Item criteria → 正式 Event Envelope 校验 → Inbox 幂等/冲突隔离 → ProcessInstance/Step → immutable Completion Fact → Evaluator → Evaluation/Root CAS → 最小 Completion 或 Impact Event。结果记录必须保留测试输入、期望输出、实际输出、精确 migration/head、环境和清理证据。
+
+最小自动矩阵包括：TaskCompleted 存在但 ReleaseCompleted 缺失时 UNSATISFIED 且无 Completion Event；补入精确 ReleaseCompleted 后才 SATISFIED；同一 event/command 相同 hash replay 为 DUPLICATE；相同 id 不同 hash/watermark 进入 Quarantine 且不产生第二业务事实；late/revoked/upstream new Version 只追加新的 Evaluation/Impact Review；旧 Evaluation/Plan Version/Approval/Fact 保留；直接 SQL `delivery_item.execution_status='COMPLETED'`、跨 Project/无 Context/伪造 Scope 和 immutable UPDATE/DELETE 被拒绝；故障回滚不留下 Inbox/Fact/Evaluation/Impact/Event 半提交。
+
+Disposable PostgreSQL、Unit/Contract 和 controlled fixture 只能标记 `PASS (PERSISTENCE)` 或 `PASS (LOCAL)`；真实 TaskExecution/QualityGovernance/ReleasePublication Provider、跨模块 Event Bus/Process Manager、公开 HTTP、生产和独立人工 Reference Project 继续 `NOT RUN`，不得由本地事实账本模拟成已完成外部链路。
+
+截至 2026-08-27，WI-12 的本地验证记录为 [`Verification-Record.md`](../im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md)：`pnpm verify` 全部通过；完整 Vitest 为 24 个文件通过、17 个受控跳过，356 个测试通过、241 个受控跳过；Persistence Gate 为 21 个文件、256 个测试全部通过。Gate 使用 PostgreSQL 18.6（`server_version=180006`）与 Flyway 11.20.3 的固定镜像 digest，V2013 空库迁移和二次 no-op 均通过，测试容器已清理。Provider、真实跨模块 Event Bus/Process Manager、公开 HTTP、生产数据库和独立人工 Reference Project 仍为 `NOT RUN`。

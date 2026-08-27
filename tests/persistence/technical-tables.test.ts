@@ -125,6 +125,11 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'delivery_plan',
     'delivery_plan_version',
     'delivery_item',
+    // IM-03 WI-12 (issue #68): formal completion facts, derived evaluations
+    // and append-only impact history.
+    'delivery_item_completion_fact',
+    'delivery_item_completion_evaluation',
+    'delivery_item_impact_review',
     'delivery_item_artifact_requirement',
     'delivery_item_dependency',
     'delivery_plan_decision',

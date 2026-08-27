@@ -56,6 +56,9 @@ import type {
   DeliveryPlanTable,
   DeliveryPlanVersionTable,
   DeliveryItemTable,
+  DeliveryItemCompletionFactTable,
+  DeliveryItemCompletionEvaluationTable,
+  DeliveryItemImpactReviewTable,
   DeliveryItemArtifactRequirementTable,
   DeliveryItemDependencyTable,
   DeliveryPlanDecisionTable,
@@ -124,6 +127,59 @@ export interface OutboxEventTable {
   source_command_id: string;
 }
 
+export interface InboxMessageTable {
+  consumer_name: string;
+  event_id: string;
+  event_type: string;
+  event_version: string;
+  payload_hash: Buffer;
+  source_module: string;
+  enterprise_id: string;
+  project_id: string | null;
+  status: 'PENDING' | 'PROCESSED' | 'QUARANTINED' | 'FAILED';
+  first_seen_at: Generated<Date>;
+  processed_at: Date | null;
+  result_command_id: string | null;
+  failure_code: string | null;
+  safe_error_summary: string | null;
+  correlation_id: string;
+  created_by_principal_id: string;
+}
+
+export interface ProcessStepTable {
+  process_step_id: string;
+  process_id: string;
+  step_no: number;
+  enterprise_id: string;
+  project_id: string | null;
+  input_event_id: string | null;
+  input_event_type: string | null;
+  issued_command_id: string | null;
+  issued_command_type: string | null;
+  outcome: 'STARTED' | 'COMPLETED' | 'FAILED' | 'AWAITING_HUMAN' | 'SKIPPED';
+  failure_code: string | null;
+  human_intervention: string | null;
+  recorded_at: Generated<Date>;
+  created_by_principal_id: string;
+}
+
+export interface ContractViolationTable {
+  violation_id: string;
+  violation_kind: string;
+  contract_type: string | null;
+  contract_version: string | null;
+  enterprise_id: string;
+  project_id: string | null;
+  observed_payload_hash: Buffer | null;
+  schema_error_path: string | null;
+  safe_summary: string | null;
+  source_event_id: string | null;
+  consumer_name: string | null;
+  correlation_id: string | null;
+  recorded_at: Generated<Date>;
+  created_by_principal_id: string;
+}
+
 export interface AuditRecordTable {
   audit_id: string;
   enterprise_id: string;
@@ -190,9 +246,12 @@ export interface ProcessInstanceTable {
 export interface EnterpriseProjectDb {
   'enterprise_project.command_receipt': CommandReceiptTable;
   'enterprise_project.outbox_event': OutboxEventTable;
+  'enterprise_project.inbox_message': InboxMessageTable;
+  'enterprise_project.process_step': ProcessStepTable;
   'enterprise_project.audit_record': AuditRecordTable;
   'enterprise_project.reference_edge': ReferenceEdgeTable;
   'enterprise_project.process_instance': ProcessInstanceTable;
+  'enterprise_project.contract_violation': ContractViolationTable;
   // IM-03 WI-03 (issue #59): business aggregates landed by V2001. The
   // tables live under the same owning schema; the technical receipt/outbox/
   // audit/reference_edge/process_instance tables above remain owned by the
@@ -253,6 +312,9 @@ export interface EnterpriseProjectDb {
   'enterprise_project.delivery_plan': DeliveryPlanTable;
   'enterprise_project.delivery_plan_version': DeliveryPlanVersionTable;
   'enterprise_project.delivery_item': DeliveryItemTable;
+  'enterprise_project.delivery_item_completion_fact': DeliveryItemCompletionFactTable;
+  'enterprise_project.delivery_item_completion_evaluation': DeliveryItemCompletionEvaluationTable;
+  'enterprise_project.delivery_item_impact_review': DeliveryItemImpactReviewTable;
   'enterprise_project.delivery_item_artifact_requirement': DeliveryItemArtifactRequirementTable;
   'enterprise_project.delivery_item_dependency': DeliveryItemDependencyTable;
   'enterprise_project.delivery_plan_decision': DeliveryPlanDecisionTable;
