@@ -5,7 +5,7 @@
 - Issue：[qzhike/zhiju-business-core#66](https://github.com/qzhike/zhiju-business-core/issues/66)
 - 目标：实现 DeliveryPlan/DeliveryItem 草案、Human 批准、激活、依赖与 criteria 冻结，并完成原始 Issue 与 branch 的可审计收尾。
 - 当前 worktree：`im-03-wi-10-deliveryplan-item-human`
-- 当前分支：`galendai/im-03-wi-10-deliveryplan-item-human`
+- 原始执行分支：`galendai/im-03-wi-10-deliveryplan-item-human`（已完成合并并删除）
 
 ## 初始证据（2026-08-27）
 
@@ -29,8 +29,8 @@
 | M1 契约与设计对齐 | 规格、数据库边界、命令/事件、测试矩阵和实现缺口 | 已完成（等待用户最终检查） |
 | M2 垂直切片实现 | Migration、类型、Repository、Handler、Registry/生成物和回归测试 | 已完成（本地代码与测试） |
 | M3 验收 | 静态门禁、普通测试、真实 PostgreSQL 负向/并发/幂等/E2E 及边界记录 | 已完成（rollback 专用注入 NOT RUN） |
-| M4 精确交付 | 用户确认后提交、推送、PR exact-head CI、目标分支 ancestry | 已提交并推送（PR #83 CI 待完成） |
-| M5 Issue/branch 收尾 | API 回读 Issue/PR、关闭 Issue、删除远端与本地 branch、最终 clean 状态 | 待开始 |
+| M4 精确交付 | 用户确认后提交、推送、PR exact-head CI、目标分支 ancestry | 已完成（PR #83 exact-head CI、合并、ancestry 已回读） |
+| M5 Issue/branch 收尾 | API 回读 Issue/PR、关闭 Issue、删除远端与本地 branch、最终 clean 状态 | 已完成（Issue #66 closed；原始远端/本地 branch 已删除） |
 
 ## 变更与验证记录
 
@@ -69,10 +69,12 @@
 - `pnpm architecture` 与 `pnpm contracts:check` 已通过，公共 Contract 保持 `operations=200`。
 - 初次静态检查曾报告两个新文件格式不一致和 12 个 Lint 问题；已完成最小修复并复核通过，未保留临时修复文件。
 
-## M4 精确交付记录（进行中，2026-08-27）
+## M4/M5 精确交付与收尾记录（2026-08-27）
 
 - 实现提交：`9491604f2b1133bac718bba6c659fb097fd98029`，提交消息为 `Implement DeliveryPlan Human approval slice`。
 - `pnpm verify` 在该提交上整体 `PASS`；真实 PostgreSQL/Flyway gate 通过，V2011 已应用，二次 migrate 为 no-op。
-- 原始 branch 已推送到 `origin/galendai/im-03-wi-10-deliveryplan-item-human`。
-- PR：[qzhike/zhiju-business-core#83](https://github.com/qzhike/zhiju-business-core/pull/83)，base 为 `main@2c8e85ecdd2f7cd55daa355d7117abba7f6ded4c`，当前 PR head 为上述实现提交。
-- PR body 已声明 `Closes #66`；创建后即时状态为 `OPEN`，`mergeable=true`，`mergeable_state=unstable`，`verify` check 为 `pending`；需以最终 exact head 完成 CI、合并和 ancestry 回读。
+- 原始 branch 已推送到 `origin/galendai/im-03-wi-10-deliveryplan-item-human`，随后在 PR 合并和 ancestry 验证后删除；本地同名 branch 也已安全删除。
+- PR：[qzhike/zhiju-business-core#83](https://github.com/qzhike/zhiju-business-core/pull/83)，base 为 `main@2c8e85ecdd2f7cd55daa355d7117abba7f6ded4c`，最终 PR head 为上述实现提交；PR verification comment 已写入并读回：[issuecomment-5433162589](https://github.com/qzhike/zhiju-business-core/pull/83#issuecomment-5433162589)。
+- GitHub Actions [verify run 33029833203](https://github.com/qzhike/zhiju-business-core/actions/runs/33029833203) 在最终 head 上为 `PASS`；PR 已以 merge commit `71e527b110b7c65d6a73ba16aca4ed1b334bf89d` 合入 `main`，`054480eb...` 已验证为 `origin/main` ancestor。
+- Issue [#66](https://github.com/qzhike/zhiju-business-core/issues/66) 已通过 GitHub API 读回为 `CLOSED`（由合并关联自动关闭）；远端和本地原始 branch 均已删除，`origin/main` 已更新并包含实现 head。
+- Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`；这些边界不因 PR 合并而改变。
