@@ -5,7 +5,7 @@
 
 ## 审查结论
 
-当前实现已完成本地审查和真实 PostgreSQL 语义验证，未发现尚未处理的 P0/P1 级问题。当前结论仅适用于工作树 HEAD `b4982ed309aaafc3ed1a9be4362456f390fe0d1d`，尚未形成 PR 或 exact-head 远端结论。
+当前实现已完成本地审查、真实 PostgreSQL 语义验证和 exact-head 远端交付，未发现尚未处理的 P0/P1 级问题。结论绑定实现 commit `c8f1a2cc6291ff65824a04e437a99b660fd926aa`、PR #85 和 merge commit `43a2f4fcf074e565c10f3db54bd1be9134ef471d`。
 
 ## 审查范围
 
@@ -30,4 +30,4 @@
 
 ## 交付边界
 
-当前没有 commit、push、PR、merge、Issue close 或 branch 删除。用户确认工作树变更后，才进入 commit；之后必须对 exact implementation HEAD 重新检查 CI、PR comment、merge ancestry、Issue state、远端 branch 和本地 worktree/branch 清理。
+commit、push、PR、exact-head CI/comment readback、merge、Issue close、main ancestry 和远端/本地 branch cleanup 已完成并独立读回。Issue #67 已关闭，远端和本地实现 branch 已删除；Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收仍为 `NOT RUN`。

@@ -7,10 +7,10 @@
 ## 当前基线
 
 - 工作目录：`im-03-wi-11-query-source-slice-board-projection`
-- 当前分支：`galendai/im-03-wi-11-query-source-slice-board-projection`
-- 当前 HEAD：`b4982ed`（与 `origin/main` 同头）
-- Issue #67：OPEN，尚未发现关联 PR
-- 已先补齐 WI-11 的 HL-Spec、Module-Spec、Module-Test 基线和 `Design-Notes.md`；实现、回归测试和本地 PostgreSQL gate 已完成，当前仍未提交或推送
+- 实现分支：`galendai/im-03-wi-11-query-source-slice-board-projection`（远端和本地均已删除）
+- 实现 HEAD：`c8f1a2cc6291ff65824a04e437a99b660fd926aa`；merge commit：`43a2f4fcf074e565c10f3db54bd1be9134ef471d`
+- Issue #67：CLOSED；关联 PR：#85
+- 已补齐 WI-11 的 HL-Spec、Module-Spec、Module-Test 基线和 `Design-Notes.md`；实现、回归测试、本地 PostgreSQL gate、PR exact-head CI 与 closeout readback 均已完成
 
 ## 执行边界
 
@@ -23,8 +23,12 @@
 
 | 阶段 | 状态 | 证据/备注 |
 |---|---|---|
-| 读取权威规格、现有实现和远端状态 | 已完成 | Issue #67 OPEN；当前 HEAD `b4982ed` 与 `origin/main` 同头；无关联 PR/远端 Work Item branch |
+| 读取权威规格、现有实现和远端状态 | 已完成 | 初始 Issue #67 为 OPEN，初始 HEAD `b4982ed` 与 `origin/main` 同头；当前已由 PR #85 合并并关闭 |
 | 实现 WI-11 最小纵向切片并同步规格/测试文档 | 已完成 | Contract 可选诊断字段、V2012 Projection 表、Query/Source Slice、active pointer reader、Projection Repository/Handler 和 PostgreSQL 回归用例已完成 |
 | 本地验证与 PostgreSQL 语义负向探针 | 已完成 | 静态门禁、普通测试和 disposable PostgreSQL/Flyway gate 均通过；具体结果见 `Verification-Report.md` |
-| `.vibe` 交付记录与精确 HEAD 审查 | 已完成 | `Verification-Report.md`、`Review-Record.md` 已建立；当前工作树仍等待用户检查 |
-| 用户确认后的 commit/push/merge/Issue close/branch cleanup | 未开始 | 各边界独立回读 |
+| `.vibe` 交付记录与精确 HEAD 审查 | 已完成 | `Verification-Report.md`、`Review-Record.md` 已建立并在 documentation-only closeout 中同步最终状态 |
+| 用户确认后的 commit/push/merge/Issue close/branch cleanup | 已完成 | commit `c8f1a2c`、PR #85、verify run `33039239177`、merge commit `43a2f4f`、Issue #67、ancestry 与远端/本地 branch 删除均已独立回读 |
+
+## exact-head closeout
+
+PR [#85](https://github.com/qzhike/zhiju-business-core/pull/85) 已合并，Issue [#67](https://github.com/qzhike/zhiju-business-core/issues/67) 已关闭；实现 head 已进入 `origin/main`，实现 branch 已删除。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工验收保持 `NOT RUN`。
