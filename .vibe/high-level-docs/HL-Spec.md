@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE IN PROGRESS / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / IM-03 WI-11 IMPLEMENTATION VERIFIED / IM-03 WI-12 IMPLEMENTATION VERIFIED / ISSUE #68 CLOSEOUT PENDING / PR #85 MERGED / ISSUE #67 CLOSED / WI-11 EXACT-HEAD CLOSEOUT COMPLETE / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #72 REVIEW REPAIRED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-03 SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / IM-03 SCOPED TECHNICAL CLOSEOUT AUTHORIZED / IM-DG-005 APPROVED 2026-08-27 / IM-04 NOT STARTED / ISSUE #57–#68 CLOSED / ISSUE #56 CLOSE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -300,7 +300,8 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - Implementation Milestone Plan v0.1 与 IM-00；
 - IM-DG-001 至 IM-DG-004 已于 2026-08-17 获用户批准；生产目标为 Ubuntu 私有单服务器，首期 API-first；
 - 对象存储采用 MicroCeph/Ceph RGW，Secret/KMS 采用 OpenBao，认证入口采用 Keycloak OIDC；MinIO 因官方仓库归档被否决；
-- IM-DG-005、IM-DG-006 仍待决，不阻塞 IM-01。
+- IM-DG-005 已于 2026-08-27 获用户批准：Canonical Document/Workbook 使用共用不可变封装、Document/Workbook 双领域最小 Schema、稳定 Unit/Sheet/Row/Cell 身份、Canonical JSON + SHA-256，以及经 IntegrationGateway Attempt/Adapter/Receipt 的 Renderer 路线；2026-08-27 复审进一步确认现有通用 RenderAttempt Query 不足，IM-04 必须先 additive 冻结只读 RenderAttempt Binding Query，当前 Registry 与公开 Operation 计数未改变；详细记录见 [`../im-04-startup/Review-Record.md`](../im-04-startup/Review-Record.md)；
+- IM-DG-006 仍待决，不阻塞 IM-01，但阻塞 IM-08。
 
 当前 IM-01 TaskExecution 修复 Gate：
 
@@ -310,7 +311,7 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 
 尚未完成：
 
-- Canonical Document/Workbook 最小实现 Schema；
+- RenderAttempt Binding Query、Canonical Document/Workbook 可执行 Schema、Fixture 与 Hash Gate（路线已在规格中冻结，均尚未实现）；
 - 可执行 DDL、Migration、Repository 和业务代码；
 - Renderer、部署、监控和运行手册；
 - 未覆盖模块的自动测试、外部服务验证和人工验收。
@@ -429,7 +430,7 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目已完成 IM-00 与 IM-01 Repository + Executable Contracts（Issue #9 / PR #20）。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate、Schema-derived Type、v1.0 compatibility baseline 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个、QualityGovernance 37 个、ReleasePublication 25 个与 IntegrationGateway 23 个操作均已具有字段级 Payload/Event Schema 和 Query Result Schema；Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。干净 checkout 证据见 [`.vibe/im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)。Schema 衍生类型见 `.vibe/im-01-executable-schema-typescript/`；兼容性基线见 `.vibe/im-01-v1.0-schema-fixtures/`。PR #10–#14、#16、#18、#19 的 Schema/类型/兼容性实现与 review 修复均已保留。2026-08-21 用户批准修订 Issue #9：硬依赖改为 #1–#8 的 Schema 子切片均已合入，#5 的 Runtime 状态不阻塞本 Gate；随后用户批准将 #5 收敛为字段 Schema 边界。Issue #5 的字段级目标已由 PR #14 完成，重复 / 迟到回执由已关闭的 #15 完成；未实现的 Release Authorization ActorSnapshot/actingFor、`providerResult` PII 最小化、普通飞书发送 Formal Release 来源链分别由 #22、#23、#24 承接，不能因 #5 关闭而视为 Runtime `PASS`。#17 的本地 IntegrationGateway Runtime 切片已在 `modules/integration-gateway` 落地：幂等、Quarantine、UNKNOWN、协议/完整 Revision 绑定、撤回 Origin（adapter/account/message）、显式授权和 Audit/Masking focused tests 全部通过；timeout 后迟到的 Adapter rejection 不得改写 `UNKNOWN`，也不得成为 unhandled rejection。真实 Provider、数据库、HTTP Handler、外部和人工验收仍保持 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪。IM-02 已完成代码、数据库和文档验收：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify、Persistence `12/177`、Migration/no-op、Runbook 和 Probe 证据均通过，Issue #28 已关闭。真实 Provider、数据库外部 Adapter、HTTP Handler、跨模块业务 E2E 和生产人工验收仍保持 `NOT RUN`；IM-02 scoped 目标已完成。IM-RP-001（Issue #15）在 `modules/release-publication` 落地 Runtime Receipt Validator（重复 / 迟到回执检测、RawExternalReceipt outcome/payload/time provenance、package↔release 与完整 scope 绑定、Ledger `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账）；持久化载体仍为 In-Memory Ledger。数据库 DDL/真实 Repository、IntegrationGateway 飞书/邮件 Provider 注入（#27）与 HTTP Handler 仍 `NOT RUN`，不得冒充业务 E2E。6 个 Runtime additive proposal、IM-DG-005/006 仍待独立审核；数据库、外部和人工运行验证均为 `NOT RUN`，不得冒充业务 E2E。
+本项目已完成 IM-00 与 IM-01 Repository + Executable Contracts（Issue #9 / PR #20）。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate、Schema-derived Type、v1.0 compatibility baseline 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个、QualityGovernance 37 个、ReleasePublication 25 个与 IntegrationGateway 23 个操作均已具有字段级 Payload/Event Schema 和 Query Result Schema；Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。干净 checkout 证据见 [`.vibe/im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)。Schema 衍生类型见 `.vibe/im-01-executable-schema-typescript/`；兼容性基线见 `.vibe/im-01-v1.0-schema-fixtures/`。PR #10–#14、#16、#18、#19 的 Schema/类型/兼容性实现与 review 修复均已保留。2026-08-21 用户批准修订 Issue #9：硬依赖改为 #1–#8 的 Schema 子切片均已合入，#5 的 Runtime 状态不阻塞本 Gate；随后用户批准将 #5 收敛为字段 Schema 边界。Issue #5 的字段级目标已由 PR #14 完成，重复 / 迟到回执由已关闭的 #15 完成；未实现的 Release Authorization ActorSnapshot/actingFor、`providerResult` PII 最小化、普通飞书发送 Formal Release 来源链分别由 #22、#23、#24 承接，不能因 #5 关闭而视为 Runtime `PASS`。#17 的本地 IntegrationGateway Runtime 切片已在 `modules/integration-gateway` 落地：幂等、Quarantine、UNKNOWN、协议/完整 Revision 绑定、撤回 Origin（adapter/account/message）、显式授权和 Audit/Masking focused tests 全部通过；timeout 后迟到的 Adapter rejection 不得改写 `UNKNOWN`，也不得成为 unhandled rejection。真实 Provider、数据库、HTTP Handler、外部和人工验收仍保持 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪。IM-02 已完成代码、数据库和文档验收：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify、Persistence `12/177`、Migration/no-op、Runbook 和 Probe 证据均通过，Issue #28 已关闭。真实 Provider、数据库外部 Adapter、HTTP Handler、跨模块业务 E2E 和生产人工验收仍保持 `NOT RUN`；IM-02 scoped 目标已完成。IM-RP-001（Issue #15）在 `modules/release-publication` 落地 Runtime Receipt Validator（重复 / 迟到回执检测、RawExternalReceipt outcome/payload/time provenance、package↔release 与完整 scope 绑定、Ledger `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账）；持久化载体仍为 In-Memory Ledger。数据库 DDL/真实 Repository、IntegrationGateway 飞书/邮件 Provider 注入（#27）与 HTTP Handler 仍 `NOT RUN`，不得冒充业务 E2E。6 个 Runtime additive proposal、IM-DG-006 仍待独立审核；IM-DG-005 已于 2026-08-27 独立批准，但其代码、数据库、外部和人工运行验证仍为 `NOT RUN`，不得冒充业务 E2E。
 
 IM-02 WI-06 的 IdentityPolicy Command transaction runner 必须以数据库唯一约束执行原子幂等 Claim；并发同 key/hash 的 loser 必须返回首个已提交结果，不能泄漏 `unique_violation`。受信事务上下文的 Principal、ActorSnapshot、AuthorizationDecision、Enterprise、Project 与 Correlation 必须和待持久化 Envelope 一致；CAS 只能操作 Envelope 指定的 target 与 expected version，并保持 PostgreSQL `bigint` 精度。业务拒绝的稳定结果必须包含 `currentAggregateVersion`。已应用的 Flyway 版本化 Migration 不得原地改写，新增列只能由后续 forward-only Migration 追加。
 
@@ -658,3 +659,9 @@ Issue #68 在既有 DeliveryPlan/DeliveryItem 精确版本之上实现 Completio
 V2013 的真实 PostgreSQL 主消费/评估链、revoke/new-version、late fact、ACL/RLS、CAS 与故障回滚均已通过本地 Gate；Unit/Contract 也已纳入 TypeScript project service，并通过“非 SATISFIED→SATISFIED”事件状态转移与 Event Consumer `sourceEventId` 绑定断言。`pnpm verify` 最终通过，精确结果记录在 `.vibe/im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md`。TaskExecution、QualityGovernance、ReleasePublication 的真实业务 Handler、公共 HTTP/Event Bus、生产和独立人工 Reference Project 仍保持 `NOT RUN`。
 
 WI-12 的应用角色对完成历史表不授予 `UPDATE/DELETE`；直接历史写入已在 PostgreSQL 表 ACL 层以 `42501` fail-closed，Project RLS 读隔离也已通过受控 Context 验证。
+
+### IM-03 合成 Reference Project 技术验收边界（2026-08-27）
+
+用户已确认在没有真实业务场景时采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。合成数据、流程和测试矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md) 与 [`Test-Matrix.md`](../im-03-synthetic-reference-fixture/Test-Matrix.md)。本次 `pnpm persistence:gate` 在固定 PostgreSQL 18.6 / Flyway 11.20.3 上通过 `21` 个 persistence 测试文件、`256` 个测试，空库迁移、V2013、二次 no-op 和容器清理均通过。
+
+该结果是现有 WI focused fixtures 的 composed controlled persistence evidence，不是一个统一的跨 Aggregate Reference Project runtime runner。`EP-API-U-001/U-002/U-003`、`EP-API-C-001/C-002` 和各 WI focused 技术场景可记录为受控本地证据；`EP-API-E-001/E-002` 的 integrated cross-aggregate execution、`EP-API-M-001` 的实际人工逐项审阅、真实业务适用性、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续保持 `NOT RUN`。详见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。

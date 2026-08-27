@@ -172,6 +172,8 @@ AdapterHealthView
 | `integration.get_render_attempt@1.0` | A | `attemptRef: ObjectRef<RenderAttempt>` | `AdapterAttemptView` |
 | `integration.get_adapter_health@1.0` | P | `adapterCodes: Set<NamespaceCode>; observedAfter?: UtcInstant; page: PageRequest` | `Page<AdapterHealthView>`；Health 不代表业务动作成功 |
 
+IM-04 规格复审确认：通用 `AdapterAttemptView` 只提供状态、请求 Payload Hash 和 Receipt Ref，不能让 Artifact 复验原始 Revision/canonical content/input Hash/Renderer 与成功输出的完整绑定。Representation Handler 开发前必须 additive 定义 `integration.get_render_attempt_binding@1.0`，返回只读 `RenderAttemptBindingView={attemptRef,status,request,requestPayloadHash,succeededResult,rawReceiptRef}`；它不得暴露 Provider 凭证、Presigned URL 或跨模块 Repository。该 Operation 当前尚未加入 Registry、公开计数或 Compatibility Baseline，Schema、Handler 和测试均为 `NOT RUN`。
+
 ## 5. Event Payload Contract
 
 | Contract | Payload |

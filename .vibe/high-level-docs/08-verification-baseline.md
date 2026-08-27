@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01 DESIGN DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #81 MERGED / USER REVIEW REQUIRED`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -387,3 +387,9 @@ WI-12 的验证必须证明一条完整的本地受控链：精确 DeliveryPlan/
 Disposable PostgreSQL、Unit/Contract 和 controlled fixture 只能标记 `PASS (PERSISTENCE)` 或 `PASS (LOCAL)`；真实 TaskExecution/QualityGovernance/ReleasePublication Provider、跨模块 Event Bus/Process Manager、公开 HTTP、生产和独立人工 Reference Project 继续 `NOT RUN`，不得由本地事实账本模拟成已完成外部链路。
 
 截至 2026-08-27，WI-12 的本地验证记录为 [`Verification-Record.md`](../im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md)：`pnpm verify` 全部通过；完整 Vitest 为 24 个文件通过、17 个受控跳过，356 个测试通过、241 个受控跳过；Persistence Gate 为 21 个文件、256 个测试全部通过。Gate 使用 PostgreSQL 18.6（`server_version=180006`）与 Flyway 11.20.3 的固定镜像 digest，V2013 空库迁移和二次 no-op 均通过，测试容器已清理。Provider、真实跨模块 Event Bus/Process Manager、公开 HTTP、生产数据库和独立人工 Reference Project 仍为 `NOT RUN`。
+
+## 15. IM-03 合成 Reference Project 验证补充
+
+用户已确认 `SYNTHETIC / TECHNICAL ONLY` 方案。现有 WI focused fixtures 已组成一次受控技术 Gate：`pnpm persistence:gate` 在 PostgreSQL 18.6 / Flyway 11.20.3 上通过 `21` 个 persistence 测试文件、`256` 个测试，空库迁移、V2013、二次 no-op 和容器清理均通过。该结果标记为 `PASS (COMPOSED CONTROLLED PERSISTENCE)`，不标记为统一跨 Aggregate E2E。
+
+`EP-API-E-001/E-002` 的 integrated runtime chain、`EP-API-M-001` 的实际人工逐项审阅、真实业务适用性、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续为 `NOT RUN`。完整矩阵和证据见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。

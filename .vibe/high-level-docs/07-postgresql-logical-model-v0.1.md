@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01 BUSINESS DECISION RECORDED / IM-03 WI-02 APPLICATION WRITE PATH LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED / PR #83 MERGED / ISSUE #66 CLOSED / WI-10 EXACT-HEAD CLOSEOUT COMPLETE / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #81 MERGED`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -1031,12 +1031,21 @@ final `BLOCKED_INPUT` 解决后创建新 ContextSnapshot 与新 Run；不得把�
 
 | 表 | 类型 | 关键列/关系 | 关键约束 |
 |---|---|---|---|
-| `artifact_revision` | Aggregate Root | artifact_id、revision_no、state、canonical object locator、content hash、schema version、provenance、aggregate_version | SEALED 后内容/Hash/Provenance 不改 |
+| `artifact_content_object` | Entity / Object Manifest | content_object_id、enterprise/project、content_type、schema_ref、canonicalization_version、content_hash、object_locator、byte_size、media_type、storage_state、retention/quarantine、aggregate_version | Artifact-owned；`STAGING -> LINKED -> FROZEN`；Hash/Schema/大小/媒体类型复验；未链接对象可审计清理 |
+| `artifact_revision` | Aggregate Root | artifact_id、revision_no、state、content_object_id、frozen locator/content type/content hash/canonicalization/schema version/byte size/media type snapshot、provenance、aggregate_version | 只引用 FROZEN Manifest；SEALED 后内容/Hash/Provenance 不改；Canonical body 不直接写入业务表 |
 | `revision_parent` | Immutable Relation | artifact_id、child_revision_id、parent_revision_id、parent_order/type | parent/child 同 Artifact；child sealed 后不改 |
 | `revision_conflict` | Immutable Fact | base/head/candidate refs、conflict payload/hash、resolution revision ref? | 冲突不 last-write-wins |
 | `revision_invalidation` | Immutable Fact | revision ref/hash、reason、actor/upstream refs | 不删除 Revision |
 
 普通 Revision 至少一个 Parent（Initial 除外）；Merge Revision 至少两个 Parent。DAG 无环由 Command Handler 使用递归查询验证，后续 DDL/测试必须覆盖并发下的重复验证。
+
+IM-DG-005 的 Canonical Content 持久化边界：
+
+1. `STRUCTURED_DOCUMENT` 与 `WORKBOOK_SPEC` 的 Hash 输入固定为 `{schemaRef, contentType, canonicalizationVersion, body}` 的 Canonical JSON bytes，`contentHash = SHA-256(canonicalize(payload))`；Hash 自身、locator、大小、媒体类型和 storage state 不进入 Hash 域。
+2. `artifact_content_object` 保存精确 locator、content type、SchemaRef、Canonicalization Version、SHA-256 content hash、大小、媒体类型和 storage state。Canonical object 在完成 Schema、大小、媒体类型和 Hash 验证后才允许从 `STAGING` 转为 `LINKED/FROZEN`；数据库事务失败时不得创建业务 Link，遗留对象只能进入受审计的 Orphan Cleanup。
+3. `artifact_revision` 只能引用 `FROZEN` Content Object Manifest，并保存其不可变内容身份快照；可变对象 storage state 不写入 SEALED Revision，避免对象生命周期与 Revision 不可变性冲突。
+4. 同一 Artifact lineage 内的 Document Unit、Workbook Sheet/Column/Row/Cell 使用稳定业务 ID；Excel 坐标和 DOCX/OOXML 私有版式只属于 Representation 映射，不作为 Canonical 身份。
+5. Canonical Content Hash、Representation checksum 和 Release packageHash 分域保存；不能使用其中任一 Hash 代替其他 Hash。
 
 ### 12.3 Representation
 
@@ -2007,6 +2016,12 @@ Root deferred guard 必须保证 current/approved/active pointer 与同一 Scope
 `project.DeliveryPlanActivated` 只保存精确 Plan/Project/item refs、可选 previous active ref；`project.DeliveryItemActivated` 只保存精确 Plan/Item ref、criteria hash 和 QualityProfile ref。Event payload 不复制 Gap finding、客户材料、baseline 正文或 criteria JSON。Plan Event、Item Events、Receipt、Audit、Reference Edge、Root CAS 和 Version status 必须同事务提交；触发故障时数据库中不得留下半个激活结果。
 
 Persistence Gate 必须覆盖：空库迁移与二次 no-op、Scope/RLS/ACL、输入拒绝无副作用、Gap/Item/baseline exact ref、duplicate item key、unknown/cyclic dependency、Agent/actingFor/伪造 actor、非 APPROVE 无 approved pointer、Human Decision exact match、criteria/hash/版本不可变、单 active CAS race、幂等、event minimality 和 rollback。Provider、公开 HTTP、跨模块 Process Manager、生产与独立人工验收保持 `NOT RUN`。
+
+## 32. IM-03 合成 Reference Project 技术数据边界
+
+用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。WI-03 至 WI-12 的 owning Schema、Migration、RLS/ACL、不可变保护和受控 PostgreSQL fixture 已通过 composed Gate：`21` 个 persistence 测试文件、`256` 个测试通过，空库迁移、V2013、二次 no-op 和容器清理通过。
+
+该结果不创建或暗示真实客户业务数据；统一跨 Aggregate runtime chain、Provider、公开 HTTP、生产数据库、真实跨模块 Event Bus/Process Manager 和独立人工 Reference Project 仍为 `NOT RUN`。Fixture 记录见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。
 
 WI-10 exact-head closeout（2026-08-27）：实现 head `054480ebac29cd820e7893df5844ad23a6940f3b` 已通过 [PR #83](https://github.com/qzhike/zhiju-business-core/pull/83) 的 [GitHub Actions verify run 33029833203](https://github.com/qzhike/zhiju-business-core/actions/runs/33029833203)，并以 merge commit `71e527b110b7c65d6a73ba16aca4ed1b334bf89d` 合入 `main`；Issue [#66](https://github.com/qzhike/zhiju-business-core/issues/66) 已读回为 `closed`，原始远端和本地 feature branch 均已删除，`origin/main` 已验证包含实现 head。Provider、公开 HTTP、跨模块 Process Manager、生产与独立人工验收保持 `NOT RUN`。
 ## 31. IM-03 WI-12 Delivery Completion 物理边界

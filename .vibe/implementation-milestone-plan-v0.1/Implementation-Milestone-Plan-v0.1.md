@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-24
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01 DECISION RECORDED / USER REVIEW REQUIRED / PR #51+#52+#53+#54+#55 MERGED / ISSUE #28 CLOSED`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / SCOPED TECHNICAL CLOSEOUT AUTHORIZED / ISSUE #57–#68 CLOSED / ISSUE #56 CLOSE PENDING / IM-04 NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -71,10 +71,10 @@
 | IM-DG-002 | PostgreSQL 精确版本、允许扩展、Migration Tool、Expand/Contract 规则 | IM-02 及以后 | `USER APPROVED 2026-08-17` |
 | IM-DG-003 | 对象存储、Secret/KMS、开发环境替身和生产边界 | 涉及二进制、加密和 Release 的里程碑 | `USER APPROVED 2026-08-17` |
 | IM-DG-004 | 首个交付 API Transport、认证入口和 Workspace UI 边界 | 首个可操作应用入口 | `USER APPROVED 2026-08-17` |
-| IM-DG-005 | Canonical Document/Workbook 最小 Schema 与 Renderer 技术路线 | IM-04/IM-05 | `USER DECISION REQUIRED` |
+| IM-DG-005 | Canonical Document/Workbook 最小 Schema 与 Renderer 技术路线 | IM-04/IM-05 | `USER APPROVED 2026-08-27` |
 | IM-DG-006 | 6 个 Runtime Command 与 Runtime 默认 Policy | IM-08 | `USER DECISION REQUIRED` |
 
-IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](./Technology-Baseline-v0.1.md)，IM-DG-003/004 见 [`Deployment-Security-Baseline-v0.1.md`](./Deployment-Security-Baseline-v0.1.md)。IM-DG-005/006 仍必须记录选项、理由、兼容边界、迁移成本、拒绝的替代项和验证方式。选择具体库不会改变已冻结 Domain/API 语义。
+IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](./Technology-Baseline-v0.1.md)，IM-DG-003/004 见 [`Deployment-Security-Baseline-v0.1.md`](./Deployment-Security-Baseline-v0.1.md)。IM-DG-005 已于 2026-08-27 获用户批准，决策记录见 [`../im-04-startup/Review-Record.md`](../im-04-startup/Review-Record.md)；IM-DG-006 仍必须记录选项、理由、兼容边界、迁移成本、拒绝的替代项和验证方式。选择具体库不会改变已冻结 Domain/API 语义。
 
 ---
 
@@ -148,7 +148,7 @@ IM-09 Reference Project E2E + Operations Hardening
 - 记录本地开发、CI、测试容器和生产部署的差异；
 - 固定版本锁定、依赖升级和安全扫描策略。
 
-退出 Gate：技术决策可复现且不会引入共享业务模型；未决 IM-DG-005/006 有明确最晚决策点。`COMPLETE 2026-08-17`。
+退出 Gate：技术决策可复现且不会引入共享业务模型；未决 IM-DG-006 有明确最晚决策点。`COMPLETE 2026-08-17`。
 
 ### IM-01 Repository + Executable Contracts
 
@@ -188,9 +188,9 @@ IM-09 Reference Project E2E + Operations Hardening
 
 前置：IM-DG-003 与 IM-DG-005 至少冻结本里程碑所需范围。
 
-产出：Artifact、不可变 Revision、Content Object Link、基本 Diff、Human Edit、对象 Staging/Link/Orphan Cleanup。
+产出：先 additive 冻结只读 RenderAttempt Binding Query，再交付 Artifact、不可变 Revision、Content Object Link、Workspace/Application 内部基本 Diff、Human Edit、对象 Staging/Link/Orphan Cleanup。
 
-退出 Gate：Revision 不可变；跨 Project 引用、Hash 冲突、路径/对象替换被拒绝；对象成功而 DB 失败不会产生业务对象。
+退出 Gate：Representation Handler 不得在 Binding Query 落地前实现；Revision 不可变；跨 Project 引用、Hash 冲突、路径/对象替换被拒绝；对象成功而 DB 失败不会产生业务对象；不隐式新增公共 Diff Result Operation。
 
 ### IM-05 Quality + Release + Renderer
 
@@ -246,5 +246,9 @@ IM-09 Reference Project E2E + Operations Hardening
 - IM-01 已 `COMPLETE`：七模块 200 个公开操作全部为字段级 `FULL` Schema；Registry 精确 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。
 - Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；当前 `pnpm verify` 的仓库测试为 20 个文件通过、10 个跳过，341 个测试通过、164 个跳过。
 - #5 字段 Schema 已由 PR #14 合入并完成；重复/迟到 Runtime 由已关闭的 #15 完成，剩余 Runtime 分别由 #22–#24 跟踪。#17 追踪 IntegrationGateway Runtime 缺口。这些 Runtime Issue 不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
-- Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005/006 仍待决。
-- IM-02 当前为 `COMPLETE`：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify 为 PASS，Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 已关闭；IM-03 WI-01 设计决策已记录，WI-02 正在建立 EnterpriseProject Application/Persistence 事务基础，业务 DDL/Handler 仍未开始。
+- Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005 已批准，IM-DG-006 仍待决。
+- IM-02 当前为 `COMPLETE`：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify 为 PASS，Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 已关闭；IM-03 WI-01 至 WI-12 的实现已合入默认分支，并由 Module-Test-002 及各 Verification-Record 记录本地受控验证。统一跨 Aggregate E2E、独立人工 Reference Project 和真实外部链路仍为 `NOT RUN`。
+
+### IM-03 合成 Reference Project 当前验证状态（2026-08-27）
+
+用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。`pnpm persistence:gate` 已通过 `21` 个 persistence 测试文件、`256` 个测试，空库迁移、V2013、二次 no-op 和容器清理均通过。该结果是 `PASS (COMPOSED CONTROLLED PERSISTENCE)`，不是统一跨 Aggregate runtime E2E；`EP-API-E-001/E-002` 集成链和 `EP-API-M-001` 人工验收继续为 `NOT RUN`。
