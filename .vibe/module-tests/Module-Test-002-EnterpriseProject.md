@@ -1,8 +1,8 @@
 # Module-Test-002-EnterpriseProject
 
-版本：v0.9
-日期：2026-08-26
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / LOCAL IMPLEMENTATION VERIFIED / EXACT-HEAD CLOSEOUT COMPLETE`
+版本：v1.0
+日期：2026-08-27
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PR #73 REPAIR VERIFIED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED LOCALLY / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED / LOCAL IMPLEMENTATION VERIFIED / EXACT-HEAD CLOSEOUT COMPLETE`
 
 对应规格：[`Module-Spec-002-EnterpriseProject.md`](../module-specs/Module-Spec-002-EnterpriseProject.md)。
 
@@ -256,3 +256,22 @@ WI-09 的结果已补写本表；真实 Provider、公开 HTTP、跨模块 Proce
 同一 exact head 的第二条远端 run `33022308826` 还暴露了并发接受返回码的竞争窗口：一个事务返回 `COMMITTED` 后，另一个事务曾观察到旧 Root aggregate version `1` 但已更新的 Version 状态，返回了 `PROJECT_GAP_DECISION_CONFLICT`，而预期必须是 `CONCURRENCY_CONFLICT`。接受命令已改为以 Root 行锁和最新 Root 读取作为并发判定依据；修复后本地 `pnpm persistence:gate` 连续两次通过，均为 `19 files / 238 passed`，并保持单一提交、单一 Decision/Event 与无部分写入；corrected exact head 的远端 run `33022900309` 已再次通过该用例。
 
 2026-08-27 exact-head closeout：实现 head `6de5c96c4ba4fe0938b422606d4632048ac19932` 已通过 [GitHub Actions run 33022900309](https://github.com/qzhike/zhiju-business-core/actions/runs/33022900309)，并以 merge commit `2d6afd0cc2889cf0fa6350c0599d514d5917b071` 合入 `main`；Issue [#65](https://github.com/qzhike/zhiju-business-core/issues/65) 已 `CLOSED`，closeout comment 为 [issuecomment-5432258964](https://github.com/qzhike/zhiju-business-core/issues/65#issuecomment-5432258964)，远端和本地 WI-09 feature branch 均已删除，`origin/main` 已确认包含 implementation head。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`。
+## IM-03 WI-10 DeliveryPlan/DeliveryItem 测试基线（2026-08-27）
+
+以下用例在实现前登记；`NOT RUN` 表示尚未执行，不是通过。所有实际输出必须写入本表并区分静态、Unit/Contract、Disposable PostgreSQL、受控本地 E2E、Provider、公开 HTTP、生产和人工验收。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI10-U-001` | Unit/Contract | 缺少 accepted Gap、使用 latest/current、跨 Scope/hash 错误、与 Accepted Gap InputSnapshot 不一致或不完整的 active baseline、未 ACCEPTED Gap、未知 GapItem 或缺 QualityProfile 的 draft | 在任何 DeliveryPlan/Item 业务事实写入前拒绝稳定错误；拒绝 receipt 可由共享 Command Runner 记录，但不创建 DeliveryPlan/Item/Outbox 业务事实 | PostgreSQL fixture 覆盖 alternate active ProductScopeSnapshot、缺失 baseline、非 Accepted Gap、Accepted Gap InputSnapshot 五项完整集合和成功 fixture | `PASS (PERSISTENCE)` |
+| `EP-WI10-U-002` | Unit | 重复 item id/key、空 item 字段、self dependency、unknown dependency 或同一 Plan Version 内的有向环 | 拒绝 `PROJECT_DELIVERY_ITEM_INVALID`、`PROJECT_DELIVERY_ITEM_KEY_CONFLICT` 或 `PROJECT_DELIVERY_DEPENDENCY_CYCLE`；不写入部分 Item | PostgreSQL fixture 的 duplicate key、cyclic dependency 和成功 DAG 断言通过 | `PASS (PERSISTENCE)` |
+| `EP-WI10-P-001` | Persistence | Agent 创建 draft；Agent/Service/actingFor/伪造 actor 批准或激活；可信 Human 批准 | Agent 可起草；非 Human/actingFor 不能产生 Decision 或 pointer；Human 才能追加 Decision | WI-10 gate 中 Agent draft 成功，Agent/Service/actingFor approval 与 Agent activation 均返回 Human-only；伪造 envelope actor 由共享 context guard 覆盖 | `PASS (PERSISTENCE)` |
+| `EP-WI10-P-002` | Persistence | Human 对同一 Plan 分别提交 APPROVE、CHANGES_REQUIRED、REJECT；使用 foreign/mismatched/replayed approval Decision 激活 | 只有 APPROVE 设置 approved pointer；其他决定 pointer 为 NULL；激活必须匹配精确 Plan Version、Human Decision hash 和 Impact Policy | 三态 Decision、非 APPROVE pointer、错误 approval hash 和精确 Human APPROVE activation 均通过 | `PASS (PERSISTENCE)` |
+| `EP-WI10-P-003` | Persistence | 直接 UPDATE Approved/Active Plan Version、Item、criteria、Dependency、Requirement 或 Decision；创建变更后的新 Plan | 旧事实 UPDATE/DELETE 被拒绝；新 scope/criteria/依赖通过新 Plan Version/identity 保存，旧 hash/ref 不变 | Version payload、Item 和 Decision 的真实 PostgreSQL immutable trigger/ACL 断言通过；新的 Plan Version command 不在本切片范围 | `PASS (IMMUTABILITY); NEW VERSION COMMAND NOT RUN` |
+| `EP-WI10-P-004` | Persistence | 两个 Human 以同一 expected aggregate version 激活；同一 command 重放；激活事务中注入故障 | 仅一个激活成功，输家为 `CONCURRENCY_CONFLICT`；重放返回 `DUPLICATE`；失败无 pointer/status/Event 半写入 | 同一 Plan activation race 为 `1 COMMITTED / 1 CONCURRENCY_CONFLICT`，winner replay 为 `DUPLICATE`；WI-10 专用 rollback injection 未接入 | `PASS (CONCURRENCY/IDEMPOTENCY); ROLLBACK NOT RUN` |
+| `EP-WI10-P-005` | Persistence | 已有 Active Plan 后激活新 Plan；读取两组 Plan/Item/Dependency/Requirement/Decision | 同一 Project 只保留一个 ACTIVE；旧 Plan/Version 为 `SUPERSEDED` 且所有历史事实与 hash 保留 | 两组真实 Plan/Item/Dependency/Requirement/Decision 读取通过；partial unique index 保证单 ACTIVE，旧 Root/Version 为 `SUPERSEDED` | `PASS (PERSISTENCE)` |
+| `EP-WI10-RLS-001` | Persistence/RLS | Project A context 读取/写入 Project B Plan；无 context 读取；跨 Enterprise 请求 | FORCE RLS 阻断跨 Scope/无 context；Handler 和组合 FK 同时拒绝 | WI-10 六表 FORCE RLS、Scope mirror、组合 FK 已迁移；cross-project exact Plan query 被稳定拒绝 | `PASS (RLS/MIGRATION)` |
+| `EP-WI10-E-001` | E2E/Persistence | Accepted Gap→含依赖 Item 的 draft→先提交环→Human APPROVE→精确 Decision 激活→查询 Item criteria | 环先被拒绝；修正后 Plan/Item 激活；查询返回精确 refs、criteriaHash 和 `NOT_READY`，不返回伪造 completion | 受控 PostgreSQL E2E 依次通过 cycle rejection、DAG draft、Human approval、Service exact-decision activation 和 criteria query | `PASS (PERSISTENCE E2E)` |
+| `EP-WI10-C-001` | Contract/Event | 激活含 2 个 Item 的 Plan，读取 Outbox 事件 payload | 1 个 `DeliveryPlanActivated` + 2 个 `DeliveryItemActivated`；只含精确 refs/hash/previous ref/quality ref，不含 criteria JSON、Gap finding 或客户正文 | 真实 Outbox 返回 1 个 Plan Event + 2 个 Item Events；payload minimality 与现有公共 Event Contract 断言通过 | `PASS (CONTRACT/PERSISTENCE)` |
+| `EP-WI10-M-001` | Manual | 脱敏采购控制程序，从 accepted Gap 到 Human approve/activate 后查看精确 Item refs | 人工能确认 Agent 只能起草、Human gate、依赖环拒绝、criteria/hash 冻结和旧版本保留；Provider、公开 HTTP、生产和独立人工 Reference Project 仍为 `NOT RUN` | 本地自动化已覆盖同一控制链；独立人工验收未执行 | `PASS (LOCAL AUTOMATION); HUMAN NOT RUN` |
+
+WI-10 的本地结果已记录空库迁移、二次 migrate no-op、静态门禁、Unit/Contract、真实 PostgreSQL、受控 E2E 和 cleanup 证据。WI-10 专用 rollback fault injection、Provider、公开 HTTP、跨模块 Process Manager、生产和人工测试仍为 `NOT RUN`，不得被 `pnpm verify` 或 disposable PostgreSQL 结果覆盖。

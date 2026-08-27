@@ -121,6 +121,13 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'gap_analysis_version',
     'gap_finding',
     'gap_analysis_decision',
+    // IM-03 WI-10 (issue #66): Project-owned DeliveryPlan/DeliveryItem facts.
+    'delivery_plan',
+    'delivery_plan_version',
+    'delivery_item',
+    'delivery_item_artifact_requirement',
+    'delivery_item_dependency',
+    'delivery_plan_decision',
   ],
   task_execution: ['business_probe', 'outbox_probe'],
   artifact: ['business_probe', 'outbox_probe'],

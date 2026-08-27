@@ -1,8 +1,8 @@
 # Module-Spec-002-EnterpriseProject
 
-版本：v0.5
-日期：2026-08-26
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
+版本：v0.6
+日期：2026-08-27
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-03 PR #72 REVIEW REPAIRED / IM-03 WI-04 PROJECT START SNAPSHOT LANDED / IM-03 WI-05 SOURCE MATERIAL IMPLEMENTATION LANDED / IM-03 WI-06 CUSTOMER MATERIAL PERSISTENCE VERIFIED / IM-03 WI-07 CUSTOMER BASELINE LANDED / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / IM-03 WI-09 GAP ANALYSIS IMPLEMENTATION VERIFIED / IM-03 WI-10 DELIVERY PLAN IMPLEMENTATION VERIFIED LOCALLY / ISSUE #64 CLOSEOUT PENDING / ISSUE #65 CLOSED / PR #75 MERGED / PR #77 MERGED / PR #81 MERGED / ISSUE #62 CLOSED / ISSUE #63 CLOSED`
 
 ## 1. 模块责任
 
@@ -559,3 +559,47 @@ Persistence gate 使用 `tag@manifest digest` 的 immutable image reference；�
 ### 18.6 WI-09 exact-head closeout
 
 WI-09 已通过 [PR #81](https://github.com/qzhike/zhiju-business-core/pull/81) 的 corrected exact head `6de5c96c4ba4fe0938b422606d4632048ac19932` 合并，merge commit 为 `2d6afd0cc2889cf0fa6350c0599d514d5917b071`；GitHub Actions [run 33022900309](https://github.com/qzhike/zhiju-business-core/actions/runs/33022900309) 的 `verify` 为 `PASS`。Issue [#65](https://github.com/qzhike/zhiju-business-core/issues/65) 已显式关闭；远端和本地 WI-09 feature branch 均已删除，`origin/main` 已验证包含实现 head。真实 Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工验收仍为 `NOT RUN`。
+## 19. IM-03 WI-10 DeliveryPlan/DeliveryItem Human 批准与激活
+
+Issue #66 在已接受的 GapAnalysis 和精确 Baseline/Policy 引用之上，落地 DeliveryPlan/DeliveryItem 的最小纵向切片。公共 `project.create_delivery_plan_draft@1.0`、`project.approve_delivery_plan@1.0`、`project.activate_delivery_plan@1.0`、`project.get_delivery_item_criteria@1.0`、`project.DeliveryPlanActivated@1.0` 和 `project.DeliveryItemActivated@1.0` 的字段不扩展；本模块补齐 owning Schema、Repository、Handler、真实 PostgreSQL 约束和回归测试。
+
+### 19.1 输入与起草
+
+`create_delivery_plan_draft` 允许可信 Agent/Human/Service 起草，但所有引用必须是显式、完整且可解析的 typed ref：
+
+| 输入 | Handler 约束 |
+|---|---|
+| `acceptedGapAnalysisRef` | `VERSIONED<GapAnalysis>`；同一 Project；精确 Version 状态为 `ACCEPTED`；不得用 latest/current 或其他 Gap 替代 |
+| `baselineRefs` | 必须恰好覆盖 Accepted Gap InputSnapshot 的五个 normalized baseline refs，且无重复；只接受同一 Scope 的已激活 CustomerBaseline、TemplateBaseline、RegulatoryProfile，以及 Enterprise Scope 的精确 QMS/Product snapshot refs；逐项校验 object/version/hash/status |
+| `items[].sourceGapItemRefs` | 非空；所有 `GapItem` 属于同一 accepted Gap Version、同一 Project；未知、跨 Scope 或未接受 Gap 一律拒绝 |
+| `items[].qualityProfileRef` | 精确 `VERSIONED<QualityProfile>`，Scope 与 Item/Project 一致；高风险 Item 不得缺失或降级为 label |
+| `items[].dependencyItemIds` | 只能引用同一 Plan Version 的 item；拒绝 self、unknown、duplicate 和有向环 |
+| `planQualityPolicyRef` | 精确 `VERSIONED<Policy>`；Scope、version id 和 canonical ref 逐项验证 |
+
+Item 的 `itemId`、`itemKey`、title、objective、source Gap refs、target artifact types、commitment status、completion criteria 和可选 due constraint 在创建时规范化；同一 Plan Version 内 item id/key 必须唯一，`commitmentStatus` 初始只能是 `PROPOSED`。每个 target artifact type 生成一个不可变 `DeliveryItemArtifactRequirement`，本切片只登记要求，不创建 Artifact、Task 或 Release。
+
+### 19.2 事实模型与不可变边界
+
+EnterpriseProject owning Schema 新增 `delivery_plan`、`delivery_plan_version`、`delivery_item`、`delivery_item_artifact_requirement`、`delivery_item_dependency` 和 `delivery_plan_decision`。Plan Root 保存 current/approved/active pointer 与 aggregate version；Plan Version 保存精确 Gap/Baseline/Policy refs、assumptions/exclusions、规范化 payload/hash 和状态；Item 保存 criteria 与 `criteriaHash`。Version、Item、Requirement、Dependency 和 Decision 均为 INSERT-only 事实，Approved/Active 内容不可原地修改。任何 Scope、criteria、依赖或 artifact requirement 变化都必须创建新的 Plan Version/identity，旧版本及其 hash 保留。
+
+Root 通过 expected aggregate version CAS 更新状态和 pointer；同一 Project 只允许一个 ACTIVE Plan。激活旧 Plan 时旧 Root/Version 仅转为 `SUPERSEDED` 并清除 active/approved pointer，旧 Item、Dependency、Requirement、Decision 和引用边不删除。Root pointer/status deferred guard 必须保证 pointer、Version、Scope 和状态相互一致；组合 FK 和 FORCE RLS 必须阻断跨 Enterprise/Project 读写。
+
+### 19.3 Human Decision、Command 和 Event
+
+`approve_delivery_plan` 必须由可信 Human 执行，并拒绝 Agent、Service、`actingFor`、伪造 request actor 和跨 Project context。`APPROVE` 才设置 approved pointer；`CHANGES_REQUIRED`/`REJECT` 仍追加不可变 Decision，但 approved pointer 必须保持 NULL。Decision ref 绑定精确 Plan Version、Review Snapshot、Justification、Human actor 和 payload hash。
+
+`activate_delivery_plan` 只接受可信 Human，或携带精确且已持久化的 Human `APPROVE` Decision 的受控 Service 执行。Plan Version、approval Decision、Impact Policy、activatedAt 和 expected aggregate version 必须精确匹配；Agent 不能通过 `actingFor` 或 payload actor 提权。激活在同一事务中完成旧 active 收敛、目标 Version/Root CAS、Reference Edge、Receipt、Audit 和最小 Event 写入：`DeliveryPlanActivated` 只携带 Project/Plan/item refs 与 previous active ref；每个 `DeliveryItemActivated` 只携带 Plan/Item ref、criteria hash 和 QualityProfile ref，不复制 Gap finding、客户材料、baseline 正文或 criteria JSON。
+
+### 19.4 查询、稳定错误和验证边界
+
+`project.get_delivery_item_criteria` 只接受精确 Plan Version ref 与 item id，返回 definition、criteriaHash、`NOT_READY` execution projection 和可选 current evaluation ref；不提供 latest/current 模糊解析，也不把 completion 当作 Item 自报状态。
+
+WI-10 至少使用以下稳定错误：`PROJECT_DELIVERY_GAP_NOT_ACCEPTED`、`PROJECT_DELIVERY_REFERENCE_INVALID`、`PROJECT_DELIVERY_ITEM_INVALID`、`PROJECT_DELIVERY_ITEM_KEY_CONFLICT`、`PROJECT_DELIVERY_DEPENDENCY_CYCLE`、`PROJECT_DELIVERY_VERSION_NOT_FOUND`、`PROJECT_DELIVERY_PLAN_IMMUTABLE`、`PROJECT_DELIVERY_APPROVAL_DECISION_INVALID`、`PROJECT_DELIVERY_PLAN_HUMAN_APPROVAL_REQUIRED` 和既有 `CONCURRENCY_CONFLICT`。Unit/Contract、真实 PostgreSQL DDL/RLS/CHECK/CAS/幂等/回滚和受控本地 E2E 必须覆盖输入无副作用、Agent/actingFor、非 APPROVE pointer、精确 Decision、单 active 并发、Event 最小性和 criteria/hash 冻结。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收保持 `NOT RUN`。
+
+### 19.5 WI-10 本地验证结果（2026-08-27）
+
+- `pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm build`、`pnpm architecture` 和 `pnpm contracts:check` 全部通过；公共 Contract 保持 `operations=200`，未新增公共操作或字段。
+- `pnpm test`：`22 test files passed / 17 skipped`，`351 passed / 230 skipped`。
+- `pnpm persistence:gate`：pinned PostgreSQL `18.6`（server `180006`）与 Flyway `11.20.3`；空库迁移成功，`20 files / 244 passed / 0 failed`；V2011 成功应用，二次 migrate 输出 `Schema "public" is up to date. No migration necessary.`，容器已清理。
+- Gate 实际覆盖 accepted Gap 与五个 baseline normalized refs 的完整/混用校验、DAG/duplicate key、Agent/Service/actingFor、三态 Human Decision、精确 approval hash、CAS 并发、幂等、单 active 收敛、RLS/immutable guards、最小事件和 criteria/hash 查询。
+- WI-10 专用 rollback fault injection、Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收未运行，继续标记为 `NOT RUN`。
