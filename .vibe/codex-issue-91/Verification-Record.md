@@ -2,7 +2,7 @@
 
 日期：2026-08-28
 
-状态：`LOCAL IMPLEMENTATION AND PERSISTENCE VERIFIED / GIT DELIVERY SEPARATE`
+状态：`LOCAL IMPLEMENTATION AND PERSISTENCE VERIFIED / PR #102 MERGED / ISSUE #91 CLOSED`
 
 ## 1. 实现结果
 
@@ -65,6 +65,16 @@ postgres container removed
 
 上述 `PASS` 是当前工作区的静态、Unit 和 disposable PostgreSQL 技术证据。以下保持 `NOT RUN`：Artifact 业务 Aggregate/Revision/Content Object/Representation/Binding、公开 HTTP/Handler、对象存储、Renderer、真实 Provider、跨模块业务 Process Manager/Event Bus、生产数据库、负载/恢复和独立人工 Reference Project 验收。
 
-## 4. Git 状态边界
+## 4. Git 交付结果
 
-本记录在用户检查前生成，尚不包含实现 commit、PR number、远端 exact-head CI、merge commit 或 Issue close 状态。用户确认当前变更后，才执行 commit、push、创建 PR、exact-head CI/回读、合并和 Issue 状态核验。
+| 项目 | 实际结果 |
+|---|---|
+| Implementation commit | `76c48f01e1a7c53ca9d2485be34290b4436310fa` |
+| PR | [#102](https://github.com/qzhike/zhiju-business-core/pull/102)，base `main`，head 与 implementation commit 一致 |
+| Exact-head CI | GitHub Actions run `33136348440` / `verify`：PASS |
+| Merge commit | `92ed04c24b8df8c6db9a8836d69106876a0645e5` |
+| Issue | [#91](https://github.com/qzhike/zhiju-business-core/issues/91)：CLOSED |
+| Main ancestry | `76c48f01e1a7c53ca9d2485be34290b4436310fa` 已验证为 `origin/main` ancestor |
+| Feature branch | 远端 branch 保留；本地原实现 branch 仍保留，未执行删除 |
+
+本记录随后由独立文档收口 PR 同步到最新 `main`；该文档 PR 不关联或关闭任何 Issue。

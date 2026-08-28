@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 EXECUTABLE CANONICAL SCHEMA LANDED 2026-08-28 / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE FOUNDATION IMPLEMENTED AND PERSISTENCE VERIFIED 2026-08-28 / WI-02 GIT DELIVERY PENDING USER CONFIRMATION / ISSUES #89–#98 PLANNED / ARTIFACT BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 EXECUTABLE CANONICAL SCHEMA LANDED 2026-08-28 / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE FOUNDATION IMPLEMENTED AND PERSISTENCE VERIFIED 2026-08-28 / WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / ISSUES #89–#98 PLANNED / ARTIFACT BUSINESS IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -310,4 +310,4 @@ ARTIFACT_EFFECTIVE_BINDING_OVERLAP
 
 ## 10. IM-02 WI-04 持久化切片
 
-Artifact owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。WI-02 在这些既有技术表之上实现单连接事务协调、可信 Context 传播、Receipt 幂等、技术 Process CAS、Audit/Outbox/Reference Edge 原子提交与回滚；不修改 V4000、不增加业务表。2026-08-28 的 `pnpm clean && pnpm verify` 在 PostgreSQL 18.6/Flyway 11.20.3 上通过，Persistence 为 22 个文件、268 个测试，空库迁移、二次 no-op 和容器清理均通过；此前的 2 个测试 ESLint 规则问题已修复并复验。Canonical Content Repository、对象存储、Renderer 与业务 Handler 仍为 `NOT RUN`。
+Artifact owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。WI-02 在这些既有技术表之上实现单连接事务协调、可信 Context 传播、Receipt 幂等、技术 Process CAS、Audit/Outbox/Reference Edge 原子提交与回滚；不修改 V4000、不增加业务表。2026-08-28 的 `pnpm clean && pnpm verify` 在 PostgreSQL 18.6/Flyway 11.20.3 上通过，Persistence 为 22 个文件、268 个测试，空库迁移、二次 no-op 和容器清理均通过；此前的 2 个测试 ESLint 规则问题已修复并复验。实现 commit `76c48f01e1a7c53ca9d2485be34290b4436310fa` 已由 PR #102 合入 `main`，Issue #91 已关闭，远端 feature branch 保留。Canonical Content Repository、对象存储、Renderer 与业务 Handler 仍为 `NOT RUN`。
