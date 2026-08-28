@@ -1,6 +1,6 @@
 ## Status
 
-`IMPLEMENTATION COMPLETE IN WORKTREE / PERSISTENCE VERIFIED 2026-08-28 / TEST PLAN FROZEN 2026-08-28 / GIT DELIVERY PENDING USER CHECK`
+`IMPLEMENTATION COMPLETE / PERSISTENCE VERIFIED 2026-08-28 / TEST PLAN FROZEN 2026-08-28 / GIT DELIVERY COMPLETE PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / FEATURE BRANCH DELETED`
 
 Parent exit gate: #89.
 
@@ -58,4 +58,4 @@ Automated Persistence evidence provides a synthetic ART-023 root walkthrough sho
 
 - 最终独立 `pnpm persistence:gate` 已在 PostgreSQL 18.6 / Flyway 11.20.3 上通过 23 个 Persistence 文件、272 个测试；V4001 空库迁移、二次 no-op、Project/Enterprise Controlled Root/Branch、RLS、幂等、CAS、Archive、Rollback、ACL 和 Project Root 空 Origin owner-boundary 拒绝证据均通过，容器已清理。
 - 完整 `pnpm verify` 的 Format、Lint、Typecheck、Unit（27 files / 371 passed / 257 skipped）、Architecture 和 Contracts（201/201 FULL）通过；末尾 Persistence 阶段因 Docker Hub token 请求 `EOF` 未启动，该次不记为完整 PASS，但独立 Persistence Gate 已真实通过。
-- Commit、Push、PR、Issue 关闭、远端/本地 Branch 清理和 Parent #89 Exit Gate 尚未执行，等待用户检查工作树。
+- 实现提交 `5cb4d1b4e97c4062de99ff66d5d357c0d47209e6` 已 non-force push，并通过 PR #104 以 merge commit `9d7cb06128680bc141548115f347884aee813412` 合并到 `main`；Issue #92 已关闭，远端和本地 feature branch 已删除。Parent #89 Exit Gate 仍是独立后续边界，尚未执行。

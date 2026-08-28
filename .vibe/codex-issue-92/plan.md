@@ -3,10 +3,11 @@
 ## 当前范围
 
 - Issue：#92 `[IM-04][WI-03] Implement Artifact root, metadata, branch identity, and archive lifecycle`
-- 状态：OPEN，代码与本地 Persistence 验证已完成，待用户检查后进入 Git 交付
-- 当前工作树：`galendai/im-04-wi-03-implement-artifact-root-metadata-bra`
+- 状态：CLOSED，代码、本地 Persistence 验证与 GitHub 交付已完成；closeout 文档同步待用户检查
+- 当前工作树：`galendai/issue-92-closeout-doc-sync`
 - 当前基线：`734aa24d2d3cfbc875af27011a8dc80148c7035d`
-- 当前阶段：实现、代码审查、独立静态检查与真实 PostgreSQL 验证完成；完整 verify 的静态阶段通过，末尾 Persistence 编排因 Docker Hub token `EOF` 未启动；进入用户检查 Gate
+- 实现提交：`5cb4d1b4e97c4062de99ff66d5d357c0d47209e6`
+- 当前阶段：PR #104 已合并到 `main`，merge commit 为 `9d7cb06128680bc141548115f347884aee813412`，Issue #92 已关闭，原实现远端/本地 feature branch 已删除；当前仅同步 closeout 文档
 
 ## 交付目标
 
@@ -28,10 +29,10 @@ Canonical Content Object、sealed Revision、merge、Diff、Representation、Qua
 1. 核对 Issue、仓库规范、当前代码头、HL-Spec、Artifact Module Spec、模块测试文档和 Issue-91 基础。
 2. 先修订受影响的 Spec/测试文档，再实现最小垂直切片和回归测试。
 3. 执行静态检查、Unit/Contract、真实 PostgreSQL 持久化/RLS/迁移探针及完整门禁，区分 `PASS` 与 `NOT RUN`。
-4. 完成代码审查和差异审查，等待用户检查确认后再执行 commit/push；随后按 exact-head 读取回远端交付状态。
+4. 完成代码审查、差异审查和 exact-head GitHub 交付；合并后同步权威 `.vibe` closeout 状态，等待用户检查确认后再提交文档同步。
 
 ## 当前假设与边界
 
 - 以当前仓库实际 Spec、代码和 PostgreSQL harness 为准，不把 Registry 或已有文档声明当作运行时证明。
 - 所有新文档使用中文；代码注释和 Git commit message 使用英文。
-- 本记录是 Issue #92 的 `.vibe` 交付记录；当前工作树已完成实现和本地验证，但尚未 Commit、Push、创建/更新 PR 或关闭 Issue。
+- 本记录是 Issue #92 的 `.vibe` 交付记录；实现提交已通过 PR #104 合并，Issue #92 已关闭，原实现远端和本地 feature branch 已删除。当前分支只承载合并后的权威文档状态同步，尚未提交该文档同步。

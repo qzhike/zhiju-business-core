@@ -2,14 +2,15 @@
 
 ## 结论
 
-Issue #92 的 Artifact Root、默认 Branch、Metadata CAS、精确 Query 和 Archive 业务切片已在当前工作树实现。最终独立 Persistence Gate 已真实通过，并包含 Enterprise Controlled 双 Scope 与 Project Root 空 Origin owner-boundary 回归。完整 `pnpm verify` 的静态、类型、单元、架构和 Contract 阶段已通过，但其末尾 Persistence 子阶段因 Docker Hub token 请求 `EOF` 未启动，因此不把该次编排记为完整 PASS。
+Issue #92 的 Artifact Root、默认 Branch、Metadata CAS、精确 Query 和 Archive 业务切片已实现并通过 PR #104 合并到 `main`。最终独立 Persistence Gate 已真实通过，并包含 Enterprise Controlled 双 Scope 与 Project Root 空 Origin owner-boundary 回归。完整 `pnpm verify` 的静态、类型、单元、架构和 Contract 阶段已通过，但其末尾 Persistence 子阶段因 Docker Hub token 请求 `EOF` 未启动，因此不把该次编排记为完整 PASS。
 
-当前没有执行 Commit、Push、PR、Issue Close、Branch 删除或 `main` ancestry 交付动作。
+实现提交、non-force push、PR、exact-head CI、`--match-head-commit` 合并、Issue Close、远端/本地 feature branch 删除及 `main` ancestry 回读均已完成；当前只剩本次 closeout 文档同步。
 
 ## 基线与范围
 
 - Issue：#92 `[IM-04][WI-03] Implement Artifact root, metadata, branch identity, and archive lifecycle`
-- 工作树：`galendai/im-04-wi-03-implement-artifact-root-metadata-bra`
+- 实现工作树：`galendai/im-04-wi-03-implement-artifact-root-metadata-bra`（已删除）
+- 当前 closeout 工作树：`galendai/issue-92-closeout-doc-sync`
 - 实现前 HEAD：`734aa24d2d3cfbc875af27011a8dc80148c7035d`
 - Parent：#89；依赖 #91 已合入并关闭
 - 范围：Artifact 长期身份、Project/Enterprise Scope、默认 `main` Branch、元数据 JSON Merge Patch、聚合版本 CAS、精确 Query、Human-only Archive
@@ -52,4 +53,4 @@ Issue #92 的 Artifact Root、默认 Branch、Metadata CAS、精确 Query 和 Ar
 
 - 生产数据库、真实 EnterpriseProject/IdentityPolicy/Provider、对象存储、公开 HTTP、跨模块 Event Bus/Process Manager、Browser E2E、独立人工 ART-023 walkthrough：`NOT RUN`。
 - `artifact.ArtifactMetadataUpdated` 与 `artifact.ArtifactArchived` 当前是 Artifact owning outbox 内部事件；公开 Catalog 未扩展，未来跨模块消费需单独 additive Contract Gate。
-- Git commit/push/PR comment/merge/Issue close/branch cleanup：等待用户检查确认后按独立 exact-head 流程执行。
+- Git commit `5cb4d1b4e97c4062de99ff66d5d357c0d47209e6`、push、PR #104、exact-head CI、merge commit `9d7cb06128680bc141548115f347884aee813412`、Issue #92 close、branch cleanup 和 `origin/main` ancestry 已完成；当前文档同步待用户检查。
