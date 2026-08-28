@@ -1,6 +1,6 @@
 ## Status
 
-`IMPLEMENTATION COMPLETE / CONTRACT AND HASH REGRESSION PASS / GIT DELIVERY PENDING USER REVIEW`
+`IMPLEMENTATION COMPLETE / CONTRACT AND HASH REGRESSION PASS / PR #100 MERGED / ISSUE #90 CLOSED / FEATURE BRANCH DELETED`
 
 Parent exit gate: #89.
 
@@ -48,3 +48,7 @@ Reviewer-readable output is recorded in [Verification-Record.md](../../issue-90/
 - No Artifact business tables, repositories, or handlers in this work item.
 - No renderer process, Office file generation, production object storage, external provider, public HTTP E2E, or real business acceptance.
 - All business runtime, persistence, E2E, external, and manual-business outcomes remain `NOT RUN` unless this issue records direct evidence.
+
+## Git 交付收口
+
+PR [#100](https://github.com/qzhike/zhiju-business-core/pull/100) 的最终精确 head 为 `2fb49e243f6aac3e604190c5f655c0b1980fef69`，GitHub Actions `ci/verify` 已成功，并以 merge commit `bc8c772e2c222d6db59de3872c8f03f39f3541db` 合入 `main`。Issue [#90](https://github.com/qzhike/zhiju-business-core/issues/90) 已关闭；远端和本地 `galendai/im-04-wi-01-freeze-executable-canonical-schemas` branch 已删除，最终 `origin/main` 已确认包含实现 HEAD。
