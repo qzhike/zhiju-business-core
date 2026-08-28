@@ -141,6 +141,11 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     // IM-04 WI-03 (issue #92): Artifact Root and default Branch.
     'artifact',
     'artifact_branch',
+    // IM-04 WI-04 (issue #93): Canonical Content Object lifecycle facts.
+    'artifact_content_object',
+    'artifact_content_object_link',
+    'artifact_content_object_quarantine',
+    'artifact_content_object_orphan',
   ],
   quality_governance: ['business_probe', 'outbox_probe'],
   release_publication: ['business_probe', 'outbox_probe'],
