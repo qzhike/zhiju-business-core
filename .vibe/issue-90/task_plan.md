@@ -22,12 +22,14 @@
 
 ## 状态
 
-`IMPLEMENTATION AND CONTRACT REGRESSION COMPLETE / READY FOR USER REVIEW BEFORE GIT DELIVERY`
+`IMPLEMENTATION COMPLETE / VERIFICATION PASS / PR #100 MERGED / ISSUE #90 CLOSED / FEATURE BRANCH DELETED / MAIN ANCESTRY VERIFIED`
+
+最终交付：实现 commit `9f670cb93e3cc07b34f5786d09b15d08692dc2d5`，同步 main 后的 PR head `2fb49e243f6aac3e604190c5f655c0b1980fef69`，PR #100 merge commit `bc8c772e2c222d6db59de3872c8f03f39f3541db`；GitHub Actions `ci/verify` 已成功，Issue #90 已关闭，远端和本地 feature branch 已删除，`origin/main` 已确认包含该实现。
 
 - [x] Issue/Spec/现有 PR 读取完成
 - [x] 实现与回归完成
 - [x] 聚焦测试与完整验证完成（静态/普通全量 PASS；PostgreSQL/Flyway persistence gate `21 files / 256 tests` PASS）
-- [x] `.vibe` 交付记录已创建，待用户确认后纳入最终提交
-- [ ] PR 已按精确 head 合并到 `main`
-- [ ] Issue #90 已关闭
-- [ ] 远端和本地 branch 已清理并完成最终回读
+- [x] `.vibe` 交付记录已创建并纳入最终提交
+- [x] PR #100 已按精确 head 合并到 `main`
+- [x] Issue #90 已关闭
+- [x] 远端和本地 branch 已清理并完成最终回读

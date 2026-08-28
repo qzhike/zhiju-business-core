@@ -4,11 +4,14 @@
 日期：2026-08-28
 Issue：[#90 Freeze executable canonical schemas](https://github.com/qzhike/zhiju-business-core/issues/90)
 工作区：`im-04-wi-01-freeze-executable-canonical-schemas`
-分支：`galendai/im-04-wi-01-freeze-executable-canonical-schemas`
+分支：`galendai/im-04-wi-01-freeze-executable-canonical-schemas`（已删除）
 初始 HEAD：`89073ab`
-状态：`IMPLEMENTATION COMPLETE / CONTRACT REGRESSION PASS / GIT DELIVERY PENDING USER REVIEW`
+实现 HEAD：`9f670cb93e3cc07b34f5786d09b15d08692dc2d5`
+最终 PR HEAD：`2fb49e243f6aac3e604190c5f655c0b1980fef69`
+PR merge commit：`bc8c772e2c222d6db59de3872c8f03f39f3541db`
+状态：`IMPLEMENTATION COMPLETE / CONTRACT REGRESSION PASS / PR #100 MERGED / ISSUE #90 CLOSED / FEATURE BRANCH DELETED`
 
-本记录是 Issue #90 的本地实现、契约回归和边界验证记录。当前尚未执行 commit、push、创建或合并 PR、关闭 Issue 或删除 branch；这些 Git 交付动作等待用户检查工作区变更并确认。
+本记录是 Issue #90 的本地实现、契约回归、边界验证和 Git 交付记录。PR [#100](https://github.com/qzhike/zhiju-business-core/pull/100) 已以精确 head 合并到 `main`，GitHub Actions `ci/verify` 已成功；Issue [#90](https://github.com/qzhike/zhiju-business-core/issues/90) 已关闭，远端和本地 feature branch 已删除，`origin/main` 已确认包含实现 HEAD。
 
 ## 1. 范围与冻结边界
 
@@ -149,11 +152,11 @@ Binding fixture 中仅保留引用、Hash、renderer 标识、输出对象引用
 
 ## 7. Git 交付状态
 
-当前工作区保留实现、生成物、fixture、测试和 `.vibe` 文档变更；尚未创建提交。用户检查并确认后，后续交付将按以下独立边界执行：
+Git 交付已完成并逐项回读：
 
-1. 仅提交 Issue #90 范围内的文件，并核验 staged diff；
-2. 非强制 push 当前 branch，创建/更新关联 PR；
-3. 以 PR 当前精确 HEAD 等待并回读 CI；
-4. 使用精确 HEAD 约束合并到 `main`；
-5. 回读 PR、`origin/main` 祖先关系和 Issue #90 状态后关闭 Issue；
-6. 删除远端和本地 branch，清理 worktree/prune，并再次回读权威状态。
+1. 实现 commit 为 `9f670cb93e3cc07b34f5786d09b15d08692dc2d5`；为同步最新 `origin/main`，feature branch 上追加合并 commit `2fb49e243f6aac3e604190c5f655c0b1980fef69`；
+2. PR [#100](https://github.com/qzhike/zhiju-business-core/pull/100) 的精确 head 为 `2fb49e243f6aac3e604190c5f655c0b1980fef69`，`ci/verify` 为 `SUCCESS`；
+3. PR #100 已使用 `--match-head-commit` 以 merge commit `bc8c772e2c222d6db59de3872c8f03f39f3541db` 合入 `main`；
+4. Issue #90 已读回为 `CLOSED`；
+5. `git merge-base --is-ancestor` 已确认实现 HEAD 和最终 PR HEAD 均属于 `origin/main`；
+6. 远程 feature branch 已删除，本地 branch 已删除；当前专用 worktree 已脱离 feature branch 并位于 detached `origin/main`。

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / IM-UI-01 DESIGN VERIFIED / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY VERIFIED PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / IM-UI-01 DESIGN VERIFIED / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -388,6 +388,7 @@ Issue #57 的决策矩阵提供了 Product/QMS/Profile/Platform Reference 的唯
 - 当前公开 Registry 为 `FULL:201 / ENVELOPE_ONLY:0`，其中新增的唯一 Operation 是 `integration.get_render_attempt_binding@1.0`；`contracts/baselines/v1.0/` 的历史 200-operation 快照不可改写。
 - 本 WI 的自动 Gate 已覆盖并通过 Canonical Document/Workbook Schema、结构不变量、Canonical JSON/SHA-256 Fixture、Manifest hash-domain 排除、Binding Query payload/result、生成类型、Catalog 对账与兼容性增量；`pnpm test` 为 `25 个测试文件 PASS / 17 个 skipped`、`363 passed / 241 skipped`。
 - `pnpm verify` 的 format、lint、typecheck、test、architecture、contracts:check 和 PostgreSQL persistence gate 均通过；Persistence 使用锁定的 PostgreSQL 18.6 / Flyway 11.20.3，完成 `21` 个测试文件、`256` 个测试、空库迁移、二次 migrate no-op 和容器清理。
+- PR [#100](https://github.com/qzhike/zhiju-business-core/pull/100) 的最终 head `2fb49e243f6aac3e604190c5f655c0b1980fef69` 上 GitHub Actions `ci/verify` 已成功；PR 已合入 `main`，Issue [#90](https://github.com/qzhike/zhiju-business-core/issues/90) 已关闭，远端和本地 feature branch 已删除，`origin/main` ancestry 已验证。
 - 对象存储、Renderer 进程、Artifact 业务 Repository/Handler、真实 Provider/数据库、公开 HTTP、跨模块 E2E、生产和独立人工业务验收继续保持 `NOT RUN`。
 
 ## 11. IM-03 WI-02 Application/Persistence 验证边界

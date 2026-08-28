@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / GIT DELIVERY PENDING USER REVIEW / IM-04 WI-02–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY COMPLETE PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -317,9 +317,11 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - 修复必须以已审核的 `03-core-contracts.md`、共享 API Contract 和 `Module-Spec-003-TaskExecution.md` 为准，不得通过修改 Fixture 迁就错误 Schema；
 - 8 类偏差已修复并于 2026-08-17 获用户确认；修复已提交并推送。与 `main` 中 PR #11 Core Schema 集成后，`TE-API-S-009` 至 `TE-API-S-017`、全量 106 个自动测试、架构与 Catalog Gate 均为 `PASS`；这不代表 Handler、数据库、Runtime 或人工验收通过。
 
-尚未完成：
+已完成：
 
-- RenderAttempt Binding Query、Canonical Document/Workbook 可执行 Schema、Fixture 与 Hash Gate（IM-04 WI-01 已完成本地实现与回归，Git 交付待用户检查）；
+- RenderAttempt Binding Query、Canonical Document/Workbook 可执行 Schema、Fixture 与 Hash Gate（IM-04 WI-01 已完成实现、回归和 Git 交付；PR #100 已合并，Issue #90 已关闭）；
+
+尚未完成：
 - 可执行 DDL、Migration、Repository 和业务代码；
 - Renderer、部署、监控和运行手册；
 - Workspace UI/BFF 工程、OIDC Session、页面、Browser E2E、安全、可访问性和人工验收；
@@ -462,7 +464,7 @@ Issue #90 的本地实现已完成：Artifact 提供 `CanonicalContentPayload`�
 
 本地证据为：`pnpm build`、`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm architecture`、`pnpm contracts:check` 全部 `PASS`；`pnpm test` 为 `25 个测试文件 PASS / 17 个 skipped`、`363 passed / 241 skipped`；`pnpm verify` 完整通过，PostgreSQL/Flyway persistence 为 `21 个测试文件 / 256 个测试 PASS`，空库迁移、二次 migrate no-op 和容器清理均通过。
 
-本 WI 不实现 Artifact 业务表、Repository、Handler、Object Storage Link、Renderer、Provider、公开 HTTP、跨模块 E2E、生产或独立人工业务验收；这些边界继续为 `NOT RUN`。Git commit、push、PR exact-head CI、merge、Issue #90 close、远端/local branch 清理和最终 main ancestry 仍须在用户检查当前变更后分别执行和回读。
+本 WI 不实现 Artifact 业务表、Repository、Handler、Object Storage Link、Renderer、Provider、公开 HTTP、跨模块 E2E、生产或独立人工业务验收；这些边界继续为 `NOT RUN`。Git 交付已完成：实现 HEAD `9f670cb93e3cc07b34f5786d09b15d08692dc2d5` 和最终 PR HEAD `2fb49e243f6aac3e604190c5f655c0b1980fef69` 已确认属于 `origin/main`，PR #100 的 merge commit 为 `bc8c772e2c222d6db59de3872c8f03f39f3541db`，Issue #90 已关闭，远端/local feature branch 已清理。
 
 IM-02 WI-06 的 IdentityPolicy Command transaction runner 必须以数据库唯一约束执行原子幂等 Claim；并发同 key/hash 的 loser 必须返回首个已提交结果，不能泄漏 `unique_violation`。受信事务上下文的 Principal、ActorSnapshot、AuthorizationDecision、Enterprise、Project 与 Correlation 必须和待持久化 Envelope 一致；CAS 只能操作 Envelope 指定的 target 与 expected version，并保持 PostgreSQL `bigint` 精度。业务拒绝的稳定结果必须包含 `currentAggregateVersion`。已应用的 Flyway 版本化 Migration 不得原地改写，新增列只能由后续 forward-only Migration 追加。
 
