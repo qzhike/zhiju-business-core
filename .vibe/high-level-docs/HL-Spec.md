@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY COMPLETE PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY COMPLETE PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY PENDING USER CONFIRMATION / IM-04 WI-03–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -322,7 +322,8 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - RenderAttempt Binding Query、Canonical Document/Workbook 可执行 Schema、Fixture 与 Hash Gate（IM-04 WI-01 已完成实现、回归和 Git 交付；PR #100 已合并，Issue #90 已关闭）；
 
 尚未完成：
-- 可执行 DDL、Migration、Repository 和业务代码；
+- Artifact 业务 DDL、Migration、业务 Repository 和业务代码；
+- Artifact WI-02 Application/Persistence 事务基础的实现与验证已完成，Git 交付待用户确认；
 - Renderer、部署、监控和运行手册；
 - Workspace UI/BFF 工程、OIDC Session、页面、Browser E2E、安全、可访问性和人工验收；
 - 未覆盖模块的自动测试、外部服务验证和人工验收。
@@ -334,6 +335,14 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - `integration.get_render_attempt_binding@1.0` 是唯一新增公开 Operation，返回原始 RenderRequest、request payload hash、成功结果和 raw receipt ref；Binding Result 不允许 Provider 凭证、Presigned URL 或其他秘密字段。
 - `contracts/baselines/v1.0/` 继续作为不可改写的历史 200-operation 基线；当前 201-operation Catalog 中新增的独立 1.0 Contract 由 compatibility gate 记录为 `COMPATIBLE_MINOR`，不伪造新的历史基线。
 - WI-01 自动 Contract/Schema/类型/静态 Gate 可执行；对象存储、Renderer、业务 Persistence、公开 HTTP、Provider、跨模块 E2E、生产和独立人工业务验收仍为 `NOT RUN`。
+
+### 2.3 IM-04 WI-02 Application/Persistence 实现边界（2026-08-28）
+
+- WI-02 只在现有不可变 `migrations/artifact/V4000__artifact_technical_tables.sql` 上实现 Artifact owning module 的事务基础：单连接 RLS Context 建立、可信 Actor/Scope 绑定、Command Receipt 幂等 Claim/Replay/Hash Conflict、技术 `process_instance` 的 PostgreSQL `bigint` CAS、Audit、Outbox 和 Reference Edge 的原子组合。
+- `ArtifactRepository` 只提供技术 `process_instance` 的插入/读取以支撑 CAS 验证；它不创建或读取 Artifact、Branch、Revision、Content Object、Representation 或 Binding 业务表，也不跨 Schema 读取 IdentityPolicy/EnterpriseProject。
+- `artifact_app` 的事务必须先经 `platform_context_establisher` 建立 `(pg_backend_pid(), txid_current())` Context，再切换到 `artifact_app`；无 Context、伪造 GUC/Context、过期 Decision、跨 Enterprise/Project、主体漂移和无权限 DDL/跨 Schema 访问必须拒绝。
+- `V4000` 不原地修改；本 WI 不需要业务 Migration。空库 Migration、二次 no-op 和 pinned PostgreSQL/Flyway 证据继续由 Persistence Gate 提供。
+- WI-02 的代码和真实 PostgreSQL Persistence 测试已完成：`pnpm clean && pnpm verify` 在 pinned PostgreSQL 18.6/Flyway 11.20.3 上通过，静态/类型/全量测试/架构/Contract 全部通过；Persistence 为 22 个文件、268 个测试，空库迁移和二次 no-op 均通过，容器已清理。此前发现的 2 个测试 ESLint 箭头函数规则问题已修复并复验。Git 交付仍待用户检查确认后执行。Artifact 业务 Handler、对象存储、Renderer、Provider、公开 HTTP、跨模块 E2E、生产和独立人工业务验收保持 `NOT RUN`。
 
 建议的下一阶段：
 

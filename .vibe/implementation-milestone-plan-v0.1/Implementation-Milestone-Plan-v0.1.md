@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-24
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-04 ISSUES #89–#98 PLANNED / IM-04 IMPLEMENTATION NOT STARTED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / IM-UI-01 IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-04 WI-01 COMPLETE / IM-04 WI-02 IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY PENDING USER CONFIRMATION / IM-04 WI-03–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / IM-UI-01 IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -199,11 +199,11 @@ IM-UI-01 可在 IM-06 完成后启动，并与 IM-07/IM-08 的交付时间窗并
 
 前置：IM-DG-003 与 IM-DG-005 至少冻结本里程碑所需范围。
 
-产出：先 additive 冻结只读 RenderAttempt Binding Query，再交付 Artifact、不可变 Revision、Content Object Link、Workspace/Application 内部基本 Diff、Human Edit、对象 Staging/Link/Orphan Cleanup。
+产出：先 additive 冻结只读 RenderAttempt Binding Query，再交付 Artifact Application/Persistence 事务基础、Artifact、不可变 Revision、Content Object Link、Workspace/Application 内部基本 Diff、Human Edit、对象 Staging/Link/Orphan Cleanup。
 
 退出 Gate：Representation Handler 不得在 Binding Query 落地前实现；Revision 不可变；跨 Project 引用、Hash 冲突、路径/对象替换被拒绝；对象成功而 DB 失败不会产生业务对象；不隐式新增公共 Diff Result Operation。
 
-GitHub 任务基线：Parent Exit Gate [#89](https://github.com/qzhike/zhiju-business-core/issues/89)，开发 Work Item [#90](https://github.com/qzhike/zhiju-business-core/issues/90)–[#98](https://github.com/qzhike/zhiju-business-core/issues/98)。以上 Issue 均为 `PLANNED / NOT STARTED`；建档不代表开发分支、Contract、Migration、Repository、Handler、Fixture 或 Renderer 已启动。
+GitHub 任务基线：Parent Exit Gate [#89](https://github.com/qzhike/zhiju-business-core/issues/89)，开发 Work Item [#90](https://github.com/qzhike/zhiju-business-core/issues/90)–[#98](https://github.com/qzhike/zhiju-business-core/issues/98)。#90 已完成并关闭；#91 的事务基础实现和本地验证已完成，GitHub 交付待用户确认；#92–#98 仍为 `PLANNED / NOT STARTED`。建档或单个 WI 完成不代表整个 IM-04 的业务表、Renderer、Provider、跨模块 E2E 或人工验收完成。
 
 ### IM-05 Quality + Release + Renderer
 
