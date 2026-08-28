@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / IM-UI-01 DESIGN VERIFIED / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -61,6 +61,10 @@
 
 真实飞书双向消息/文件/卡片、真实 Runtime 调度、Renderer 文件可用性、对象存储权限、人工质量审查、备份恢复和运营故障处理分别记录。它们不能被离线测试代替。
 
+### 2.7 Browser UI
+
+针对真实构建制品与批准浏览器验证：OIDC/BFF Session、CSRF/Origin/Cookie、公开 API mapping、ViewModel 状态真实性、跨 Scope、重复提交、断网/UNKNOWN/reconciliation、XSS/CSP、敏感信息、键盘/焦点/语义和完整 Human 操作路径。组件 Unit/Story 或 Mock API 不能完成 Browser E2E、安全、可访问性或人工 Gate。
+
 ---
 
 ## 3. 设计场景总索引
@@ -76,7 +80,8 @@
 | API Module Test 场景 | [七份 Module Test](../module-tests/) | 63 | 7 个 Design Gate `DESIGN VERIFIED`；其余 56 个 `NOT RUN` |
 | Feishu Channel 专项场景 | [`Feishu-Channel-Test-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md) | 32 | 4 个 Design Gate `DESIGN VERIFIED`；其余 28 个 `NOT RUN`；用户已指示进入下一阶段 |
 | Runtime Adapter 专项场景 | [`Runtime-Adapter-Test-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md) | 32 | 4 个 Design Gate `DESIGN VERIFIED`；其余 28 个 `NOT RUN`；用户已指示进入实施计划阶段 |
-| 合计 |  | 362 | 尚未实现；静态设计检查不代表运行测试 |
+| Workspace UI Experience 场景 | [`Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md) | 15 | 1 个 Design Gate `DESIGN VERIFIED`；其余 14 个 `NOT RUN` |
+| 合计 |  | 377 | Workspace UI 新增里程碑仍未实现；静态设计检查不代表运行测试 |
 
 数量用于发现遗漏，不代表覆盖率或通过率。后续实现可以拆分出更多测试，但不得删除业务语义等价的失败路径。
 
@@ -101,7 +106,7 @@
 | V-DOC-013 | QM 弃用 | QM 只可作为明确弃用说明出现，不得成为 Runtime、Adapter、Scope、Task 或依赖 |
 | V-DOC-014 | 链接与格式 | Markdown 链接可达、代码块闭合、编号唯一、无冲突标记或过期状态 |
 | V-DOC-015 | 状态真实性 | 所有未执行实现/外部/人工用例保持 `NOT RUN`，不得因静态审计改为 PASS |
-| V-DOC-016 | Module 文档集合 | 七个逻辑模块各有且只有一份 `Module-Spec` 和一份 `Module-Test`，ID/ModuleName 一致；测试文档含 Unit、Contract、E2E、Manual 的输入、预期、实际和结果 |
+| V-DOC-016 | Module 文档集合 | 七个 Business Core 模块各有且只有一份 `Module-Spec` 和一份 `Module-Test`；Workspace UI 另有一份 Experience Module Spec/Test，不混入 Business Core Owner/Schema/Catalog；ID/ModuleName 一致，测试含输入、预期、实际和结果 |
 | V-DOC-017 | API Catalog 覆盖 | `06` 的当前 201 个公开 `name@1.0` 在七份 Module Spec 中各出现一次，集合差异为零，namespace 与 Owner 一致 |
 | V-DOC-018 | API 字段完整性 | 每个 Command 有 target/mode、payload、authorization/拒绝语义；每个 Query 有 payload/result/consistency；每个 Event 有最小已发生事实 payload |
 | V-DOC-019 | API 安全边界 | Agent/actingFor 不能 Approval/Release Authorization；Sensitive External ID 不进入 Event/普通错误；latest/workspace/session/message 不冒充强引用 |
@@ -115,8 +120,10 @@
 | V-DOC-027 | Runtime 安全边界 | 单 Run Capability、Workspace/Sandbox、Secret、Network/Tool、Lease/Fencing、late result、Chain of Thought 禁存规则明确 |
 | V-DOC-028 | Runtime API proposal 隔离 | 6 个 additive Command 在审核前不进入 200 项 Catalog/Module 基准，也不允许实现绕过 public port 直写 Repository |
 | V-DOC-029 | Implementation Plan 文档集合 | Milestone Plan、Technology Baseline、Deployment/Security Baseline、Task Plan、Verification Report 各一份，位于 `implementation-milestone-plan-v0.1/` 并由 HL 路由 |
-| V-DOC-030 | Implementation 决策隔离 | 10 个里程碑与 6 个决策 Gate 可定位；未选技术栈、物理参数和 Runtime proposal 不得在代码中被静默事实化 |
+| V-DOC-030 | Implementation 决策隔离 | IM-00 至 IM-09 的 10 个 Core/Adapter/Operations 里程碑与独立 IM-UI-01 共 11 个计划节点可定位；6 个 IM 决策 Gate 与 3 个 UI 决策 Gate 状态分开；未选技术栈、物理参数和 proposal 不得被静默事实化 |
 | V-DOC-031 | 私有化部署与认证边界 | Ubuntu 单机明确非 HA；MicroCeph/OpenBao/Keycloak 责任分离；Authentication 不冒充 IdentityPolicy Authorization；Fake 不完成 Conformance Gate |
+| V-DOC-032 | Workspace UI 非所有权边界 | UI/BFF 只消费公开 API/Projection；不拥有 Business Core Contract、Schema、Repository、Authorization、Approval、Release 或 Completion |
+| V-DOC-033 | Workspace UI 状态与安全真实性 | UNKNOWN/STALE/epistemic state 不被折叠；Human-only 由服务器重验；Session/CSRF/XSS/Scope/敏感信息/Accessibility/Manual Gate 可定位且未运行项为 NOT RUN |
 
 ---
 
@@ -237,7 +244,7 @@
 采购控制程序是 MVP 的纵向验收主线：
 
 ```text
-Feishu SourceMaterial
+Feishu / Workspace UI SourceMaterial
     → CustomerMaterial / CustomerBaseline
     → GapAnalysis / Human-approved DeliveryItem
     → Task / frozen WorkOrder / Run
@@ -260,6 +267,7 @@ E2E 通过必须同时证明：
 - Agent 没有完成 Human Approval/Release Authorization；
 - 飞书消息和文件没有成为第二套业务 Source of Truth；
 - Projection 延迟时权威 Query 仍返回正确结果。
+- Workspace UI 只显示/提交公开 API 结果，Session、页面缓存、乐观更新和 BFF 组合不形成第二套业务事实。
 
 ---
 
@@ -301,6 +309,22 @@ E2E 通过必须同时证明：
 - 外部 Timeout 维持 UNKNOWN；
 - 普通附件发送不产生 Formal Release Receipt。
 
+### 7.4 Workspace UI/BFF
+
+除第 7.1 节外，还必须验证：
+
+- UI-DG-001 至 UI-DG-003 已审核，前端框架、Design System、浏览器/视口、可访问性和 BFF 部署没有被脚手架静默选择；
+- Browser/BFF 只调用公开 API/Projection，无 Business Core internal import、Repository、跨 Schema SQL 或私有业务 Command；
+- OIDC Authorization Code + PKCE、Session Cookie、CSRF、Origin/Host、logout、expiry、revocation 与 reauth；
+- Access/refresh token、External ID、客户正文、短期下载 URL 不进入浏览器持久存储、DOM attribute、日志、analytics、trace 或 screenshot；
+- Human-only、跨 Enterprise/Project Scope、Deep Link、缓存切换和多 Tab 负向路径由服务器拒绝且不泄漏对象存在性；
+- expectedVersion、idempotency、double-click、网络中断、UNKNOWN/reconciliation 和 `CONCURRENCY_CONFLICT` 不制造第二业务事实；
+- Projection freshness、epistemic state、部分成功、Provider UNKNOWN、Run/WorkOrder/Task/DeliveryItem 四层状态真实显示；
+- XSS/CSP、恶意文件名/预览、错误 redaction 和依赖/制品安全；
+- 批准浏览器/视口矩阵、键盘/焦点/name-role-value/错误恢复和用户手动 Reference Project 验收。
+
+组件 Unit Test、Story、静态截图或 Mock API 不能完成 Browser E2E、安全、可访问性或人工 Gate。
+
 ---
 
 ## 8. 结果记录格式
@@ -325,12 +349,18 @@ remaining risk
 
 ## 9. 当前状态
 
-截至 2026-08-21（Issue #9 退出 Gate）：
+状态条目按实际发生日期累计；2026-08-28 最新增量为 IM-UI-01 里程碑与验证基线：
+
+- 用户已批准 IM-UI-01 的依赖、范围和 Exit Gate；它在 IM-06 后启动，可与 IM-07/IM-08 时间窗并行，并成为 IM-09 前置。
+- Workspace UI Spec/Test 的 15 个场景已定义；仅 `UI-D-001` 为 `DESIGN VERIFIED`，其余 14 个 Unit/Contract/Browser/Security/Accessibility/Manual 场景全部为 `NOT RUN`。
+- UI-DG-001/002 为 `USER DECISION REQUIRED`；UI-DG-003 为 `BOUNDARY FROZEN / CONCRETE DESIGN REQUIRED`。不存在 UI 工程、BFF、Browser build 或运行证据。
+
+既有状态记录：
 
 - 高层设计基准已由用户审核通过；字段级 API Contract、七份 Module Spec 与七份 Module Test 已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；
 - 本文中的 235 个实现前业务/外部场景仍主要为 `NOT RUN`（不得用 IM-01 静态证据冒充）；
 - API Module Test、Feishu Channel、Runtime Adapter 的 Design Gate 仍为 `DESIGN VERIFIED`，其 Unit/Contract/E2E/Manual 运行时项保持 `NOT RUN`；
-- IM-00 已完成；IM-DG-001 至 IM-DG-004 已冻结；IM-DG-005/006 仍为 `USER DECISION REQUIRED`；
+- IM-00 已完成；IM-DG-001 至 IM-DG-005 已批准；IM-DG-006 仍为 `USER DECISION REQUIRED`；
 - IM-01 已 `COMPLETE`：干净 checkout 下 `pnpm install --frozen-lockfile`、`pnpm clean`、`pnpm verify` 全过；
 - 当前仓库自动验证为 `pnpm test` 的 `Test Files 20 passed / 10 skipped`、`Tests 341 passed / 164 skipped`；`pnpm verify` 的 persistence gate 为 `12` 个测试文件、`177` 个测试通过；架构边界 `source_roots=10`；
 - Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`，分类为 Command=95、Query=44、Event=61；Catalog/Module Spec/Registry 集合 diff=0；
@@ -400,3 +430,19 @@ Disposable PostgreSQL、Unit/Contract 和 controlled fixture 只能标记 `PASS 
 用户已确认 `SYNTHETIC / TECHNICAL ONLY` 方案。现有 WI focused fixtures 已组成一次受控技术 Gate：`pnpm persistence:gate` 在 PostgreSQL 18.6 / Flyway 11.20.3 上通过 `21` 个 persistence 测试文件、`256` 个测试，空库迁移、V2013、二次 no-op 和容器清理均通过。该结果标记为 `PASS (COMPOSED CONTROLLED PERSISTENCE)`，不标记为统一跨 Aggregate E2E。
 
 `EP-API-E-001/E-002` 的 integrated runtime chain、`EP-API-M-001` 的实际人工逐项审阅、真实业务适用性、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续为 `NOT RUN`。完整矩阵和证据见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。
+
+## 16. IM-UI-01 Workspace UI 验证边界
+
+IM-UI-01 只在 IM-06 Human-operated Core 完成、UI-DG-001 至 UI-DG-003 获得适用审核、公开 API/Projection 语义稳定后进入实现。UI 是 Experience Module，不增加第八个 Business Core Owner，也不修改现有 200 项 Catalog。
+
+最小自动与人工矩阵由 [`Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md) 唯一维护，必须覆盖：
+
+- Projection freshness 与 PRESENT/UNKNOWN/NOT_PROVIDED/MISSING_CONFIRMED 的 ViewModel 真值映射；
+- BFF 只调用公开 API，无 internal import/Repository/SQL/私有 Command；
+- OIDC/Session/CSRF/Origin/Cookie/reauth/logout；
+- Human-only、跨 Scope、Deep Link、缓存、多 Tab 和敏感信息负向场景；
+- expectedVersion/idempotency/double-click/UNKNOWN/reconciliation；
+- Project/Baseline/Gap/Delivery、Artifact/Revision/Diff/Edit、Evidence/Review/Approval/Release、Task/Run/InformationRequest/Audit 的真实浏览器链；
+- XSS/CSP、文件/URL、telemetry redaction、批准浏览器/视口、键盘/焦点/语义和独立用户手动验收。
+
+当前只完成文档结构、依赖和不变量的静态一致性检查，可标记 `UI-D-001 DESIGN VERIFIED`。前端框架、BFF、OIDC 环境、页面、组件、Browser E2E、Security、Accessibility 和 Manual 均不存在或未执行，必须保持 `NOT RUN`。IM-03 的受控 PostgreSQL、IM-07 的飞书卡片或 IM-09 文档中的“Workspace 输入”都不能替代 UI 运行证据。

@@ -2,7 +2,7 @@
 
 版本：v0.2
 重建日期：2026-08-12
-状态：`CURRENT ARCHITECTURE BASELINE / MODULE DESIGN CONSOLIDATED / IM-03 WI-01 DECISION RECORDED / IM-03 WI-02 APPLICATION PERSISTENCE FOUNDATION / IM-03 WI-08 TEMPLATE REGULATORY IMPLEMENTATION VERIFIED / ISSUE #64 CLOSEOUT PENDING / USER REVIEW REQUIRED`
+状态：`CURRENT ARCHITECTURE BASELINE / MODULE DESIGN CONSOLIDATED / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED`
 
 文档角色：总体架构与七个逻辑模块的唯一权威。模块职责、所有权、非职责、公开端口类别、依赖和持久化边界只在本文维护；公开 Contract 精确名称以 `06` 为准，逻辑表以 `07` 为准。
 
@@ -1294,6 +1294,30 @@ Workspace 至少需要：
 
 Human 编辑也必须创建新 Revision，不能直接覆盖正式内容。
 
+#### 15.1.1 Workspace UI 实施边界
+
+`IM-UI-01 Workspace UI MVP` 在 IM-06 Human-operated Core 完成后进入实现，可与 IM-07 Feishu Channel、IM-08 CLI Runtime Automation 的交付时间窗并行，并作为 IM-09 Reference Project E2E 的前置。该顺序确保 UI 消费稳定的 Human-operated Command/Query/Projection，而不是以 Mock 或页面状态提前发明业务语义。
+
+```text
+Browser
+    → Workspace BFF（OIDC Session / CSRF / public API composition）
+        → Public HTTP API / Projection Query
+            → owning Application Port
+                → Business Core
+```
+
+边界：
+
+1. Workspace UI 是 Experience Module，不是第八个 Business Core 模块；不新增 owning Schema、Repository 或公开业务 Contract Owner。
+2. BFF 不是第二套业务 API；它只建立受信认证上下文、调用已批准公开 API、组合权限裁剪的 ViewModel，并传播 correlation/causation。
+3. UI 不重新计算 AuthorizationDecision、Approval/Release Readiness、Task/Delivery Completion 或 EffectiveBinding；必须展示权威结果和精确 Ref/Hash/Version。
+4. Projection `STALE/PAUSED/REBUILDING/FAILED`、外部副作用 `UNKNOWN`、部分成功和未确认 Command 必须真实显示，不能用乐观页面状态冒充成功。
+5. Human-only 操作必须由服务器端 ActorSnapshot/AuthorizationDecision 再验证；隐藏按钮不是授权边界，Agent/Service/`actingFor` 请求仍须被 Core 拒绝。
+6. Browser/BFF 不直接连接 PostgreSQL、OpenBao、Ceph、Renderer 或 Provider SDK；短期下载 URL 由授权 API 即时签发，不进入持久状态、日志或 telemetry。
+7. Human Edit 只能提交创建新 Revision 的公开 Command；浏览器草稿、编辑器 buffer、local cache 或 autosave 不得成为正式 Revision。
+
+具体产品范围、Work Item 和 Exit Gate 见 [`../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md`](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md)；Experience 规格见 [`../module-specs/Module-Spec-UI01-WorkspaceUI.md`](../module-specs/Module-Spec-UI01-WorkspaceUI.md)。
+
 ### 15.2 完整双向 Feishu Agent Channel
 
 完整双向飞书 Agent Channel 是 MVP 的必选组成部分，不是后续可选集成。
@@ -1416,6 +1440,7 @@ executionNode
 
 - 先 Domain、Contract 和 Invariant，后 PostgreSQL、API 和 UI；
 - 先 Human-operated Core，后 Agent automation；
+- Workspace UI 在 IM-06 后以独立 IM-UI-01 进入，可与 Feishu/CLI Experience Adapter 的后续交付并行，但必须在 IM-09 完整 E2E 前完成适用 Gate；
 - 先关键 Traceability reference，后完整 Knowledge Graph；
 - 先确定性规则，后语义 Review 优化；
 - 先一个完整 Reference Project，后通用化；

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`BASELINE / IM-DG-003-004 USER APPROVED / IMPLEMENTATION NOT STARTED`
+状态：`BASELINE / IM-DG-003-004 USER APPROVED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED`
 
 文档角色：Implementation Milestone Plan 的私有化部署、对象存储、Secret/KMS、认证入口与 Workspace UI 边界的唯一技术决策记录，冻结 IM-DG-003/004。本文不改变 Domain、API、Module、PostgreSQL、Feishu 或 Runtime Contract 语义。
 
@@ -15,6 +15,8 @@
 1. 目标生产环境是客户私有本地 Ubuntu 服务器；
 2. 接受 API-first，首期不以 Workspace UI 作为开始编码前提；
 3. 接受 S3-compatible 对象存储、外部 Secret/KMS 与 OIDC 认证的总体边界。
+
+用户于 2026-08-28 进一步确认：在 IM-06 Human-operated Core 完成后新增独立 `IM-UI-01 Workspace UI MVP`；该里程碑可与 IM-07/IM-08 的交付时间窗并行，并作为 IM-09 完整 Reference Project E2E 的前置。该确认只批准里程碑、依赖和边界，不批准尚未选择的前端框架、Design System、浏览器矩阵或具体部署实现。
 
 当前只确认单台服务器这一初始部署约束，未确认磁盘数量、容量、独立备份设备或第二故障域。因此本文不把单机写成 HA；正式 Release 前必须补齐磁盘布局、独立备份目标、恢复演练与容量证据。
 
@@ -102,7 +104,7 @@ backup        prohibited on the same host as the only recovery copy
 | Service | OIDC Client Credentials + asymmetric client authentication | 每服务独立 client/service account；优先 `private_key_jwt`，禁止多个服务共享 client secret |
 | API Session | Stateless access token validation | 校验 issuer、audience、signature、exp、nbf、token type/client；短期缓存 JWKS，key rotation 后可刷新 |
 | 业务身份映射 | `(issuer, subject)` → ExternalIdentityLink → PrincipalRef | email、display name、Keycloak role 不能直接成为业务 Principal/Role/Capability |
-| Workspace UI | 首期不实现 | 后续仅作 API client/BFF；不拥有授权、状态机、Approval、Release 或 Repository |
+| Workspace UI | `IM-UI-01`（IM-06 后） | 仅作公开 API client/BFF；不拥有授权、状态机、Approval、Release、Completion 或 Repository |
 
 官方能力依据：
 
@@ -135,17 +137,27 @@ Keycloak 只证明认证主体与 token context，不拥有 Enterprise/Project R
 3. 初始 Bootstrap Admin 是基础设施身份，不自动成为 Zhiju HumanPrincipal；首个业务 Principal/Role 的受审计 bootstrap 流程在 IM-02 固定。
 4. 单实例 Keycloak 同样不是 HA；正式验收必须记录 IdP 不可用、JWKS rotation、token expiry/revocation 和恢复行为。
 5. 本地/CI 可以使用 Keycloak `start-dev` 与 realm fixture，但任何 dev credential、realm key 和 bootstrap admin 不得进入生产。
-6. 将来增加 Workspace UI 时优先 BFF + Secure/HttpOnly/SameSite Cookie；UI 只消费公开 API，不直接连接 PostgreSQL、OpenBao、Ceph 或模块 Repository。
+6. IM-UI-01 优先 BFF + Secure/HttpOnly/SameSite Cookie；UI 只消费公开 API，不直接连接 PostgreSQL、OpenBao、Ceph 或模块 Repository。
+
+### 4.4 IM-UI-01 浏览器与 BFF 安全边界
+
+1. Browser 只与同源 BFF 或经明确 CORS allowlist 的公开 API 通信；不得访问模块 internal route、数据库或 Provider 管理端点。
+2. Authorization Code + PKCE 的 token exchange、refresh 和 revocation 由 BFF/受信服务边界处理；浏览器不得把 access/refresh token 持久化到 `localStorage`、`sessionStorage`、IndexedDB 或可读 Cookie。
+3. Session Cookie 必须使用 `Secure`、`HttpOnly`、适用的 `SameSite`、明确 Path/Domain 和短生命周期；状态改变请求同时执行 CSRF 与 Origin/Host 校验。
+4. BFF 只做认证上下文、公开 API 组合、ViewModel 映射和安全缓存，不创建第二套业务 Command、授权规则、状态机或 Repository。
+5. CSP、输出编码、Trusted Types 可行性、上传/下载安全、敏感字段最小化和前端错误遥测必须在 UI-DG-003 中具体化并自动验证。
+6. 页面缓存、Service Worker、乐观更新和断线重试不得把未确认 Command 显示为已提交业务事实；必须回读权威 Result 或明确显示 PENDING/UNKNOWN。
+7. 前端日志、analytics、trace、error report 和 screenshot 不得包含 token、External ID 原值、客户正文、短期下载 URL 或未脱敏 Canonical Payload。
 
 ---
 
 ## 5. IM-00 退出与后续 Gate
 
-IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 的最小决策基线完成。IM-DG-005 已由独立决策记录于 2026-08-27 获用户批准。以下内容仍不被本决定批准：
+IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 的最小决策基线完成。IM-DG-005 已由独立决策记录于 2026-08-27 获用户批准。IM-UI-01 的里程碑、依赖和边界已于 2026-08-28 获用户批准。以下内容仍不被本决定批准或尚未取得运行证据：
 
 - IM-DG-006 6 个 Runtime Command 与默认 Runtime Policy；
 - MicroCeph/OpenBao/Keycloak 的安装、配置或运行结果；
 - 单机 HA、备份恢复、KMS 兼容、Object Lock、OIDC 或安全测试 PASS；
-- Workspace UI 实现。
+- Workspace UI 的具体技术栈与实现结果；IM-UI-01 只完成里程碑建档，Browser/BFF/Security/Accessibility/Manual 均为 `NOT RUN`。
 
 下一里程碑是 IM-01 Repository + Executable Contracts。依赖联网安装与精确 lockfile 仍需在开始 IM-01 时单独授权。

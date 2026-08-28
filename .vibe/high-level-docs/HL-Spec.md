@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / GIT DELIVERY PENDING USER REVIEW / IM-04 WI-02–WI-09 PLANNED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / GIT DELIVERY PENDING USER REVIEW / IM-04 WI-02–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -95,11 +95,14 @@ Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contr
 
 | 文档 | 唯一权威范围 |
 |---|---|
-| [`../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md`](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md) | IM-DG-001 至 006、IM-00 至 09、目标代码边界与 Definition of Done |
+| [`../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md`](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md) | IM-DG-001 至 006、IM-00 至 09、IM-UI-01、目标代码边界与 Definition of Done |
 | [`../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md`](../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md) | 已批准 Node.js/TypeScript/NestJS/Fastify/PostgreSQL/Kysely/Flyway/Test 技术基线与升级边界 |
 | [`../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md`](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md) | 已批准 Ubuntu 私有化、MicroCeph/Ceph RGW、OpenBao、Keycloak OIDC 与 Workspace UI 边界 |
 | [`../implementation-milestone-plan-v0.1/Task-Plan.md`](../implementation-milestone-plan-v0.1/Task-Plan.md) | 本阶段范围、输入、步骤和提交 Gate |
 | [`../implementation-milestone-plan-v0.1/Verification-Report.md`](../implementation-milestone-plan-v0.1/Verification-Report.md) | 路线、依赖、决策隔离、静态验证和剩余风险 |
+| [`../module-specs/Module-Spec-UI01-WorkspaceUI.md`](../module-specs/Module-Spec-UI01-WorkspaceUI.md) | Workspace UI Experience Module 的页面能力、BFF/API、状态真实性、安全和非所有权边界 |
+| [`../module-tests/Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md) | Workspace UI Unit/Contract/Browser E2E/Security/Accessibility/Manual 用例和真实结果 |
+| [`../im-ui-01-workspace-ui-milestone/Task-Plan.md`](../im-ui-01-workspace-ui-milestone/Task-Plan.md) | IM-UI-01 建档范围、假设、步骤、验证和非目标 |
 | [`../im-01-exit-gate-issue-9/Task-Plan.md`](../im-01-exit-gate-issue-9/Task-Plan.md) | Issue #9 IM-01 退出 Gate 范围、#5/#9 修订口径与阶段 |
 | [`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md) | Issue #9 干净 verify、数量对账、负向证据与 NOT RUN 清单 |
 
@@ -232,9 +235,13 @@ BusinessCore
 ├── QualityGovernance
 ├── ReleasePublication
 └── IntegrationGateway
+
+ExperienceLayer
+├── WorkspaceUI（IM-UI-01；Browser client）
+└── WorkspaceBFF（OIDC Session / public API composition）
 ```
 
-模块不是部署单元承诺，而是业务所有权、Repository、Schema 和公开 Contract 的边界。详细职责、非职责、端口、依赖和持久化要求只在 `02-zhiju-core-architecture.md` 中维护；完整公开 Contract 名称只在 `06-typed-references-contract-catalog-v0.1.md` 中维护；逻辑表只在 `07-postgresql-logical-model-v0.1.md` 中维护。
+七个 Business Core 模块不是部署单元承诺，而是业务所有权、Repository、Schema 和公开 Contract 的边界。Workspace UI/BFF 是 Experience Module，不成为第八个 Business Core、不拥有 Schema/Repository/公开业务 Contract。详细职责、非职责、端口、依赖和持久化要求只在 `02-zhiju-core-architecture.md` 中维护；完整公开 Contract 名称只在 `06-typed-references-contract-catalog-v0.1.md` 中维护；逻辑表只在 `07-postgresql-logical-model-v0.1.md` 中维护。
 
 ---
 
@@ -302,6 +309,7 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - 对象存储采用 MicroCeph/Ceph RGW，Secret/KMS 采用 OpenBao，认证入口采用 Keycloak OIDC；MinIO 因官方仓库归档被否决；
 - IM-DG-005 已于 2026-08-27 获用户批准：Canonical Document/Workbook 使用共用不可变封装、Document/Workbook 双领域最小 Schema、稳定 Unit/Sheet/Row/Cell 身份、Canonical JSON + SHA-256，以及经 IntegrationGateway Attempt/Adapter/Receipt 的 Renderer 路线；2026-08-27 复审进一步确认现有通用 RenderAttempt Query 不足，IM-04 WI-01 以 additive 方式冻结只读 RenderAttempt Binding Query，当前 Catalog 由 200 项增至 201 项；详细记录见 [`../im-04-startup/Review-Record.md`](../im-04-startup/Review-Record.md)；
 - IM-DG-006 仍待决，不阻塞 IM-01，但阻塞 IM-08。
+- 用户于 2026-08-28 批准新增 `IM-UI-01 Workspace UI MVP`：硬依赖 IM-06，可与 IM-07/IM-08 时间窗并行，并作为 IM-09 前置；UI-DG-001/002 仍待用户决定，UI-DG-003 仅冻结安全边界，所有 UI 实现与 Browser/Manual 测试均为 `NOT RUN`。
 
 当前 IM-01 TaskExecution 修复 Gate：
 
@@ -314,6 +322,7 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - RenderAttempt Binding Query、Canonical Document/Workbook 可执行 Schema、Fixture 与 Hash Gate（IM-04 WI-01 已完成本地实现与回归，Git 交付待用户检查）；
 - 可执行 DDL、Migration、Repository 和业务代码；
 - Renderer、部署、监控和运行手册；
+- Workspace UI/BFF 工程、OIDC Session、页面、Browser E2E、安全、可访问性和人工验收；
 - 未覆盖模块的自动测试、外部服务验证和人工验收。
 
 ### 2.2 IM-04 WI-01 实现边界（2026-08-28）
@@ -339,7 +348,13 @@ IM-01 Repository + Executable Contracts  （COMPLETE / FULL 200 + ENVELOPE_ONLY 
     ↓
     IM-02 PostgreSQL Foundation + IdentityPolicy  （COMPLETE / ISSUE #28 CLOSED / PR #51+#52+#53+#54+#55 MERGED / WI-01–WI-10 CORE GATES + AGENT-EXECUTED LOCAL RUNBOOK PASS / EXTERNAL PROVIDER NOT RUN）
     ↓
-IM-03 EnterpriseProject Reference Foundation  （IN PROGRESS / WI-01 DESIGN DECISION RECORDED / WI-02 APPLICATION+PERSISTENCE FOUNDATION / WI-03 BUSINESS VERTICAL SLICE LANDED / WI-04 PROJECT START SNAPSHOT LANDED / USER CONFIRMATION REQUIRED）
+IM-03 EnterpriseProject Reference Foundation  （COMPLETE / SCOPED TECHNICAL ACCEPTANCE / ISSUE #56–#68 CLOSED）
+    ↓
+IM-04 → IM-05 → IM-06
+                  ├────────→ IM-UI-01 Workspace UI MVP  （MILESTONE APPROVED / IMPLEMENTATION NOT STARTED）
+                  └→ IM-07 → IM-08
+                               ↓
+IM-UI-01 + IM-07 + IM-08 → IM-09 Reference Project E2E
 ```
 
 IM-02 的 RLS Context 物理机制已经进入 WI-03：上下文存放于
@@ -397,6 +412,7 @@ Role。详细威胁模型与测试边界以
 | 事务、Saga、幂等、补偿  | `05`、`02`、`07`、`08`                    |
 | Schema/表/约束/RLS      | `07`、`02`、`08`                          |
 | 飞书或 Runtime 映射     | `02`、`03`、`06`、未来专项 Contract、`08` |
+| Workspace UI/BFF 范围、页面状态或安全边界 | `HL-Spec`、`02`、Deployment/Security Baseline、Workspace UI Spec/Test、`08` |
 | 测试策略或验收口径      | `08` 和对应专题文档中的设计场景           |
 
 ---
