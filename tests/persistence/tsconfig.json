@@ -14,6 +14,9 @@
     },
     {
       "path": "../../modules/enterprise-project"
+    },
+    {
+      "path": "../../modules/artifact"
     }
   ]
 }
