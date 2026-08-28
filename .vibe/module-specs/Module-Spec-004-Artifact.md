@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 EXECUTABLE CANONICAL SCHEMA LANDED 2026-08-28 / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE FOUNDATION IMPLEMENTED AND PERSISTENCE VERIFIED 2026-08-28 / WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / ISSUES #89–#98 PLANNED / ARTIFACT BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 EXECUTABLE CANONICAL SCHEMA LANDED 2026-08-28 / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE FOUNDATION IMPLEMENTED AND PERSISTENCE VERIFIED 2026-08-28 / WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-03 ROOT-METADATA-ARCHIVE DESIGN FROZEN 2026-08-28 / WI-03 IMPLEMENTATION COMPLETE IN WORKTREE 2026-08-28 / WI-03 PERSISTENCE VERIFIED 2026-08-28 / ISSUES #89, #93–#98 PLANNED`
 
 ## 1. 模块责任
 
@@ -276,6 +276,10 @@ ARTIFACT_APPROVAL_BINDING_INVALID
 ARTIFACT_EFFECTIVE_RELEASE_REQUIRED
 ARTIFACT_EFFECTIVE_PURPOSE_INVALID
 ARTIFACT_EFFECTIVE_BINDING_OVERLAP
+ARTIFACT_IDENTITY_CONFLICT
+ARTIFACT_EXPECTED_VERSION_REQUIRED
+ARTIFACT_QUERY_NOT_FOUND
+ARTIFACT_QUERY_SCOPE_MISMATCH
 ```
 
 ## 7. 不变量与持久化边界
@@ -296,6 +300,17 @@ ARTIFACT_EFFECTIVE_BINDING_OVERLAP
 14. Document Unit 的 ID 在同一 Artifact lineage 内唯一，父子引用必须双向一致且无环；同一父级下的 ordinal 必须确定顺序。
 15. Workbook 的 Sheet/Column/Row/Cell ID 只在所属父对象内唯一；Cell 的 `columnId` 必须指向同一 Sheet 的 Column，坐标不能替代业务 ID。
 
+## 7.1 IM-04 WI-03 根实体、Branch 与生命周期实现约束
+
+1. `V4001` 是新增的、forward-only 的 Artifact business migration；`V4000` 技术表不得原地修改。Root 至少保存 `artifact_id`、`enterprise_id`、可选 `project_id`、`business_scope`、`origin_project_ref`、`artifact_type`、`title`、`classification`、`delivery_item_refs`、`metadata`、`lifecycle_status`、`aggregate_version`、`metadata_version`、`default_branch_id`、空的 `approved_revision_refs`/`effective_binding_refs`、创建/更新归因和 `identity_hash`。
+2. 当前公开创建 Contract 没有独立业务键；Handler 以 `businessScope + exact scope + artifactType + initial title` 的 canonical digest 作为创建身份 `identity_hash`，并由 `(enterprise_id, identity_hash)` 唯一约束把同 Scope 的重复身份转换为 `ARTIFACT_IDENTITY_CONFLICT`。标题可被元数据 Command 更新，但不得重算或覆盖已持久化的创建身份。
+3. 创建时固定一个 UUIDv7 `main` Branch，并将 Root 的 `default_branch_id` 指向该 Branch。Branch 保存 `artifact_id`、`branch_id`、`branch_name`、可空 `working_head_ref`、`head_version=0`、状态和创建归因；本切片不创建 Revision，也不实现 `move_working_head`，但 Branch 名称唯一和 head 占位结构必须先冻结。
+4. Project Deliverable 的 `originProjectRef` 必须是与 `enterpriseRef` 同 Enterprise、与 `scope.projectId` 一致且在 trusted Context allow-list 内的 exact Project ObjectRef；其 Root `project_id` 镜像该 Project，且 V4001 数据库约束拒绝空 Origin。Enterprise Controlled Root 的 Root `project_id` 必须为空；可选 Origin Project Ref 若存在仍需通过同样的 Scope 校验，省略时 Repository 必须写入 SQL `NULL`，不能写入 JSONB `null`。DeliveryItem Ref 只做 exact shape、Enterprise/Project Scope 和 trusted Context 校验，不查询其他 owning Schema。
+5. `artifact_app` 对 Root/Branch 只开放 SELECT；创建、Metadata CAS 和 Archive 由 Artifact-owned security-definer 函数执行，函数必须重新检查 trusted Context、Scope 和主体归因。Root/Branch 不授予 `UPDATE/DELETE`，Root Trigger 与函数共同保证直接 SQL 不能改变 Scope、身份指纹、历史 Ref、Approved/Effective 占位、生命周期或聚合版本。
+6. Metadata Update 要求 Envelope 携带正整数 expected aggregate version；CAS 失败返回 `CONCURRENCY_CONFLICT` 与当前版本，不能静默 reload 或 last-write-wins。Root 处于 `ARCHIVED`/`CANCELLED` 时禁止元数据、Branch/head 和后续 Revision 写入；当前切片只实现 `ACTIVE -> ARCHIVED`，不实现恢复。
+7. `artifact.ArtifactCreated@1.0` 是当前唯一公开 Artifact lifecycle event。MetadataUpdated/Archived 是 owning outbox 内部事件，不改变当前公开 Catalog；若未来成为跨模块 Contract，必须 additive 更新 Schema、生成类型、Registry 和负向 Fixture。
+8. Query 必须以 exact Artifact ObjectRef 读取 Root 和全部 Branch；无效 Ref 返回 `ARTIFACT_SCOPE_INVALID`，不存在或不可见行统一返回 `ARTIFACT_QUERY_NOT_FOUND`，不得通过错误差异枚举其他 Enterprise/Project 的 Artifact。
+
 ## 8. 可人工验收的模块产出
 
 里程碑 `API-AF-01` 的人工产出是 ART-023 Fixture：REV-001 后两个并行 Branch 产生 REV-002/REV-003，不互相覆盖；显式 Merge 形成新 Revision；同名 PDF checksum 改变只形成新 Representation；旧批准和 EffectiveBinding 保持不变。该审核不代表 Renderer、对象存储或并发数据库约束已运行。
@@ -305,8 +320,13 @@ ARTIFACT_EFFECTIVE_BINDING_OVERLAP
 - 26 个 Artifact 既有公开 Contract 已定义字段级 payload/result/event 结构，并实现可执行 JSON Schema；WI-01 另行提供 Canonical Content/Manifest 可执行 Schema，不新增 Artifact 业务 Operation；
 - API v0.1 已于 2026-08-13 通过用户审核；
 - PR #12 Review 确认的 parent 数量与未解决 Merge 冲突缺口已修复，两条 Contract 回归已 `PASS`；
-- IM-DG-005 的 Canonical Document/Workbook 最小 Schema 与 Renderer 路线已于 2026-08-27 获用户批准；WI-01 已完成可执行 Canonical Schema、Hash Fixture、Manifest 边界和 additive Binding Query；WI-02 已完成事务基础及真实 PostgreSQL Persistence 验证，Artifact 业务 Repository、Object Storage Link、Renderer、Diff 与业务 Handler 仍未完成；
-- 除本文件已明确记录并通过的 WI-02 技术 Unit/Persistence 用例外，Artifact 业务 Unit、E2E 与人工验收均为 `NOT RUN`。
+- IM-DG-005 的 Canonical Document/Workbook 最小 Schema 与 Renderer 路线已于 2026-08-27 获用户批准；WI-01 已完成可执行 Canonical Schema、Hash Fixture、Manifest 边界和 additive Binding Query；WI-02 已完成事务基础及真实 PostgreSQL Persistence 验证；WI-03 已在当前工作树完成 Artifact Root、默认 Branch、元数据 CAS、精确 Query 和 Archive boundary，并通过真实 PostgreSQL Persistence 验证；Revision、Object Storage Link、Renderer、Diff、跨模块 Binding 与后续业务 Handler 仍未完成；
+- WI-03 完成前，Artifact Root/Branch 的业务 Unit、Persistence、RLS、幂等、CAS、Rollback、E2E 与人工验收仍按测试文档逐项记录，不得用 WI-02 技术表 PASS 代替业务 PASS。纯业务校验由 `artifact-handlers.test.ts` 覆盖，真实数据库行为由 `artifact-business-aggregates.test.ts` 覆盖；测试必须显式收窄 CommandResult 联合类型并保持注入故障回调的返回类型闭合。实现必须在边界处显式收窄 Scope 类型，在公开 Typed Reference 与 canonical JSON hash 输入之间使用显式转换，对 JSON.parse 的动态值先经过 unknown 边界，并通过 canonical JSON 转换读取 JSONB，避免把存储形状或未知值直接当作公开 Typed Reference。
+- 首轮 PostgreSQL Gate 已验证 V4001 空库迁移和既有 Persistence 回归；新增业务夹具发现并记录了公开 View 与 Command result 扩展字段的比较边界，以及 Outbox scope mirror 必须与 Envelope Project 精确一致，修正后才可将业务 Gate 记为 PASS。
+- 第二轮 Gate 进一步确认幂等重放返回 `DUPLICATE` 并复用首个结果；失败点是测试辅助函数只收窄到 `COMMITTED`，不属于业务实现失败，修正后必须保留对 `DUPLICATE` 首个结果的精确比较。
+- 第三轮 Gate 已执行到 Metadata CAS；发现并修正结果扩展字段的 PostgreSQL `bigint` 字符串/公开数值不一致，`metadataVersion` 必须与创建结果及读模型保持安全整数表示。
+- 最终 Persistence Gate 已完成 23 个文件/272 个测试，Project 与 Enterprise Controlled Root/Branch 的 V4001/no-op、business write boundary、RLS、幂等、CAS、Archive、Rollback、直接写 ACL 和 Project Root 空 Origin 的 owner-boundary 拒绝均已在 pinned PostgreSQL/Flyway 上验证；Git commit、push、PR、Issue close 和 branch 清理仍是独立后续边界。
+- 完整 `pnpm verify` 的静态、类型、全量 Unit（27 files、371 passed、257 skipped）、Architecture、201 项 Contract 均通过；其最后 Persistence 子阶段因 Docker Hub token 请求 `EOF` 未启动，不能与最终独立 Persistence Gate 的真实 PASS 混写。
 
 ## 10. IM-02 WI-04 持久化切片
 

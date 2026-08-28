@@ -1,6 +1,6 @@
-// IM-04 WI-02 (issue #91): hand-written Kysely types and transaction boundary
-// for the Artifact owning schema. The database contains only the V4000
-// technical tables in this work item; business Artifact tables arrive later.
+// IM-04 WI-02/WI-03 (issues #91/#92): hand-written Kysely types and
+// transaction boundary for the Artifact owning schema. WI-03 adds the
+// business Root and Branch tables while keeping WI-02 technical facts intact.
 
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
@@ -13,6 +13,7 @@ import {
   type Transaction,
 } from 'kysely';
 import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import type { ArtifactBranchTable, ArtifactTable } from './artifact-business-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
 type Json = ColumnType<unknown, string>;
@@ -186,6 +187,8 @@ export interface ContractViolationTable {
 }
 
 export interface ArtifactDb {
+  'artifact.artifact': ArtifactTable;
+  'artifact.artifact_branch': ArtifactBranchTable;
   'artifact.command_receipt': CommandReceiptTable;
   'artifact.outbox_event': OutboxEventTable;
   'artifact.inbox_message': InboxMessageTable;

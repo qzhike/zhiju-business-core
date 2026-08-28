@@ -1027,6 +1027,20 @@ final `BLOCKED_INPUT` 解决后创建新 ContextSnapshot 与新 Run；不得把�
 | `artifact_branch` | Entity within Artifact | artifact_id、branch_id/name、working_head_revision_id、head_version、status | 同 Artifact branch name 唯一；CAS 移动 head |
 | `approved_revision_binding` | Entity/Fact | artifact_id、purpose、revision ref/hash、approval bundle ref、status | Draft 不改变批准绑定 |
 
+#### 12.1.1 IM-04 WI-03 Artifact Root 物理切片
+
+WI-03 以 `V4001` forward-only 落地 `artifact.artifact` 与 `artifact.artifact_branch`。当前公开 `ArtifactDefinition` 没有独立业务键，因此 Root 额外保存不可变的 `identity_hash`；它由 `businessScope`、精确 Enterprise/Project Scope、`artifactType` 和创建时的 initial `title` 组成的 canonical payload 计算，`(enterprise_id, identity_hash)` 负责同 Scope 重复身份冲突。标题更新不重算该指纹。
+
+`PROJECT_DELIVERABLE` Root 必须保存非空且 shape/Enterprise/Project Scope 一致的 `origin_project_ref`；只有 `ENTERPRISE_CONTROLLED` Root 可以省略 Origin，且省略值在 PostgreSQL 中必须是 SQL `NULL`，不能是 JSONB `null`。该不变量由 Handler/Repository 校验并由 V4001 数据库约束在 owner write boundary 再次承载。
+
+Root 的 `business_scope`、`enterprise_id`、`project_id`、`origin_project_ref`、`artifact_type`、`delivery_item_refs`、`default_branch_id`、approved/effective 占位和 `identity_hash` 不可改变；`title`、`classification`、`metadata` 只能通过 expected `aggregate_version` 更新。Root 同时维护 `metadata_version`，每次成功 Metadata Update 加一；Root 生命周期当前只允许 `ACTIVE -> ARCHIVED`，Archive 时将现有 Branch 标记为历史，保留 Root/Branch/Receipt/Audit/Reference Edge/Outbox 行。
+
+默认 Branch 的 `branch_name` 固定为 `main`，Branch UUIDv7 由创建 Command 生成并只写入一次；没有 Revision 时 `working_head_ref IS NULL`、`head_version=0`。Branch 名称在同一 Artifact 内唯一，Revision/head CAS 留给后续 WI。
+
+`artifact_app` 通过 RLS 读取 Root/Branch，但不拥有业务 Root/Branch 的 `UPDATE/DELETE`；创建、Metadata CAS 和 Archive 经过 Artifact-owned security-definer 函数，并由函数重验 transaction Context、Scope 和归因。Root/Branch 使用 FORCE RLS，`artifact_owner` 仅作为受控函数执行主体。Root 到 Branch 的 `default_branch_id` 外键采用 deferred check，以支持一个创建事务内的双向身份绑定；Branch 到 Root 的外键仍为 `ON DELETE RESTRICT`。Artifact 不对 EnterpriseProject 或其他 owning Schema 建立跨 Schema FK/Join。
+
+Approved Revision 与 Effective Binding 在本切片只保留空 JSONB 指针占位，不创建后续 binding 表，不允许 Root Metadata/Archive Command 修改；后续 WI 必须以 additive migration 创建对应事实表和精确 Ref 校验。
+
 ### 12.2 ArtifactRevision 与 Lineage
 
 | 表 | 类型 | 关键列/关系 | 关键约束 |

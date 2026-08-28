@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY COMPLETE PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / IM-04 WI-03–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY COMPLETE PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / IM-04 WI-03 IMPLEMENTATION COMPLETE IN WORKTREE 2026-08-28 / IM-04 WI-03 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-04–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -343,6 +343,21 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - `artifact_app` 的事务必须先经 `platform_context_establisher` 建立 `(pg_backend_pid(), txid_current())` Context，再切换到 `artifact_app`；无 Context、伪造 GUC/Context、过期 Decision、跨 Enterprise/Project、主体漂移和无权限 DDL/跨 Schema 访问必须拒绝。
 - `V4000` 不原地修改；本 WI 不需要业务 Migration。空库 Migration、二次 no-op 和 pinned PostgreSQL/Flyway 证据继续由 Persistence Gate 提供。
 - WI-02 的代码和真实 PostgreSQL Persistence 测试已完成：`pnpm clean && pnpm verify` 在 pinned PostgreSQL 18.6/Flyway 11.20.3 上通过，静态/类型/全量测试/架构/Contract 全部通过；Persistence 为 22 个文件、268 个测试，空库迁移和二次 no-op 均通过，容器已清理。此前发现的 2 个测试 ESLint 箭头函数规则问题已修复并复验。实现 commit `76c48f01e1a7c53ca9d2485be34290b4436310fa` 已由 PR #102 合入 `main`，Issue #91 已关闭；远端 feature branch 保留，未执行删除。Artifact 业务 Handler、对象存储、Renderer、Provider、公开 HTTP、跨模块 E2E、生产和独立人工业务验收保持 `NOT RUN`。
+
+### 2.4 IM-04 WI-03 Artifact 根、元数据与归档实现边界（2026-08-28）
+
+- WI-03 以 forward-only `V4001` 新增 Artifact owning business root 与 `artifact_branch`；不修改已应用的 `V4000`。Artifact Root 保存长期身份、Enterprise/Project Scope、定义元数据、生命周期、聚合版本、默认 Branch 身份以及空的 Approved/Effective 指针占位；不保存正文、Revision、Representation、Agent 输出或 Release package。
+- 公开 Contract 不新增字段。由于 `artifact.create_artifact@1.0` 当前没有独立 `displayCode`/业务键，创建时由 Handler 依据 `businessScope + exact scope + artifactType + initial title` 计算内部 `identity_hash`，以 `(enterprise_id, identity_hash)` 保证同一 Scope 下的重复身份稳定冲突；后续标题更新不改写该创建身份指纹。
+- 默认 Branch 名称固定为 `main`，其 UUIDv7 在创建时一次生成并通过 Root 的 `default_branch_id` 固定；没有 Revision 时 `working_head_ref` 为空且 `head_version=0`。Branch 名称只在同一 Artifact 内唯一，当前切片不实现 Revision/head 移动。
+- Project Deliverable 必须携带与可信 Context 一致的 exact Project ObjectRef，并将其 Project Scope 镜像到 Root；Enterprise Controlled Root 的 `project_id` 为空。`V4001` 同时在数据库层拒绝 Project Root 的空 Origin，Enterprise Controlled 才允许省略 Origin，且省略值必须以 SQL `NULL` 持久化而不是 JSONB `null`。DeliveryItem/Origin Project Ref 只进行 Contract shape、Enterprise/Project Scope 和 trusted Context 校验，不跨 Schema Join 或读取 EnterpriseProject 表。
+- Root 元数据更新与归档通过 Artifact-owned security-definer write boundary 执行，`artifact_app` 只保留业务 Root/Branch 读取权限，直接 `UPDATE/DELETE` 被拒绝；Root Trigger 继续保护 Scope、身份指纹、历史引用、指针占位和聚合版本。元数据更新使用 expected aggregate version，Archive 只允许 `ACTIVE -> ARCHIVED`，并将 Branch 标记为历史状态，保留所有行。
+- `artifact.ArtifactCreated@1.0` 继续作为公开创建事件；MetadataUpdated/Archived 使用 Artifact owning outbox 中的内部持久化事件类型，当前不扩展 201 项公开 Catalog，未来如需跨模块消费再走 additive Contract/类型/Fixture/兼容性流程。每次成功 Command 仍与 Receipt、Audit、Reference Edge、Outbox 同一事务提交。
+- WI-03 自动验证必须覆盖 Unit/Contract、真实 PostgreSQL migration/no-op、Root/Branch RLS、Scope/直接写拒绝、重复创建、幂等 Replay/Hash Conflict、Metadata CAS、Archive 后拒绝、事务回滚和 synthetic ART-023 walkthrough；纯业务回归位于 `modules/artifact/src/business/artifact-handlers.test.ts`，数据库回归位于 `tests/persistence/artifact-business-aggregates.test.ts`。测试夹具必须在读取联合 CommandResult、构造回滚 Promise 时保持显式类型安全；已校验的公开 Typed Reference 在进入 canonical hash 定义对象时必须经过显式 JSON 值转换，JSON.parse 的动态结果也必须先经过 unknown 边界再收窄。Scope 字段必须在 UUID/context 判断前完成显式类型收窄，存储 JSON 必须经过安全的 canonical read-model 转换。生产数据库、对象存储、Provider、公开 HTTP、跨模块 E2E 和独立人工业务验收保持 `NOT RUN`。
+- 首轮真实 Gate 已确认 V4001 可在空库应用，且既有 22 个 Persistence 文件/269 个测试通过；新增业务测试的首轮失败仅暴露了测试夹具未剥离创建结果扩展字段、回滚 Envelope 未携带 Project scope mirror，修正后才进入完整 no-op/业务证据判定。
+- 第二轮真实 Gate 已确认回滚、RLS 和既有 22 个文件/269 个测试继续通过；新增业务流程仅因测试辅助函数未接受幂等 `DUPLICATE` 返回而失败，业务重放结果本身符合 Receipt 契约，修正比较辅助函数后继续复跑。
+- 第三轮真实 Gate 已将创建、幂等、身份冲突、Scope、RLS、回滚推进至 Metadata CAS；唯一失败是 Handler 将 PostgreSQL `bigint` 字符串直接放入 `metadataVersion` 扩展结果，而创建结果/读模型使用数值，现按读模型安全整数边界修正。
+- 最终独立 Persistence Gate 已通过 23 个 Persistence 文件、272 个测试，并验证 Project/Enterprise Controlled Root/Branch 的 V4001/no-op、RLS、幂等/身份冲突、Metadata CAS、Archive、Rollback、直接写拒绝和 Project 空 Origin owner-boundary 拒绝；临时容器已清理。
+- 完整 `pnpm verify` 的 Format/Lint/Typecheck/全量测试（27 files、371 passed、257 skipped）/Architecture/Contracts（201 operations、全部 FULL）均通过；其末尾 Persistence Gate 因 Docker Hub token 请求 `EOF` 未启动，不能将该次编排记为完整 PASS。前述独立 Persistence Gate 已真实通过，剩余差异是 Docker Hub 外部读取的编排稳定性。
 
 建议的下一阶段：
 

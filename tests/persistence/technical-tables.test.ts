@@ -135,7 +135,13 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'delivery_plan_decision',
   ],
   task_execution: ['business_probe', 'outbox_probe'],
-  artifact: ['business_probe', 'outbox_probe'],
+  artifact: [
+    'business_probe',
+    'outbox_probe',
+    // IM-04 WI-03 (issue #92): Artifact Root and default Branch.
+    'artifact',
+    'artifact_branch',
+  ],
   quality_governance: ['business_probe', 'outbox_probe'],
   release_publication: ['business_probe', 'outbox_probe'],
   integration_gateway: ['business_probe', 'outbox_probe'],
