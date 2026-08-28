@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY COMPLETE PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY PENDING USER CONFIRMATION / IM-04 WI-03–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY COMPLETE PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / IM-04 WI-03–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -323,7 +323,7 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 
 尚未完成：
 - Artifact 业务 DDL、Migration、业务 Repository 和业务代码；
-- Artifact WI-02 Application/Persistence 事务基础的实现与验证已完成，Git 交付待用户确认；
+- Artifact WI-02 Application/Persistence 事务基础的实现、验证和 Git 交付已完成（PR #102 merged，Issue #91 closed）；
 - Renderer、部署、监控和运行手册；
 - Workspace UI/BFF 工程、OIDC Session、页面、Browser E2E、安全、可访问性和人工验收；
 - 未覆盖模块的自动测试、外部服务验证和人工验收。
@@ -342,7 +342,7 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - `ArtifactRepository` 只提供技术 `process_instance` 的插入/读取以支撑 CAS 验证；它不创建或读取 Artifact、Branch、Revision、Content Object、Representation 或 Binding 业务表，也不跨 Schema 读取 IdentityPolicy/EnterpriseProject。
 - `artifact_app` 的事务必须先经 `platform_context_establisher` 建立 `(pg_backend_pid(), txid_current())` Context，再切换到 `artifact_app`；无 Context、伪造 GUC/Context、过期 Decision、跨 Enterprise/Project、主体漂移和无权限 DDL/跨 Schema 访问必须拒绝。
 - `V4000` 不原地修改；本 WI 不需要业务 Migration。空库 Migration、二次 no-op 和 pinned PostgreSQL/Flyway 证据继续由 Persistence Gate 提供。
-- WI-02 的代码和真实 PostgreSQL Persistence 测试已完成：`pnpm clean && pnpm verify` 在 pinned PostgreSQL 18.6/Flyway 11.20.3 上通过，静态/类型/全量测试/架构/Contract 全部通过；Persistence 为 22 个文件、268 个测试，空库迁移和二次 no-op 均通过，容器已清理。此前发现的 2 个测试 ESLint 箭头函数规则问题已修复并复验。Git 交付仍待用户检查确认后执行。Artifact 业务 Handler、对象存储、Renderer、Provider、公开 HTTP、跨模块 E2E、生产和独立人工业务验收保持 `NOT RUN`。
+- WI-02 的代码和真实 PostgreSQL Persistence 测试已完成：`pnpm clean && pnpm verify` 在 pinned PostgreSQL 18.6/Flyway 11.20.3 上通过，静态/类型/全量测试/架构/Contract 全部通过；Persistence 为 22 个文件、268 个测试，空库迁移和二次 no-op 均通过，容器已清理。此前发现的 2 个测试 ESLint 箭头函数规则问题已修复并复验。实现 commit `76c48f01e1a7c53ca9d2485be34290b4436310fa` 已由 PR #102 合入 `main`，Issue #91 已关闭；远端 feature branch 保留，未执行删除。Artifact 业务 Handler、对象存储、Renderer、Provider、公开 HTTP、跨模块 E2E、生产和独立人工业务验收保持 `NOT RUN`。
 
 建议的下一阶段：
 

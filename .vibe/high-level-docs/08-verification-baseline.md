@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY VERIFIED PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY PENDING USER CONFIRMATION / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / IM-UI-01 DESIGN VERIFIED / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY VERIFIED PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / IM-UI-01 DESIGN VERIFIED / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -395,7 +395,7 @@ Issue #57 的决策矩阵提供了 Product/QMS/Profile/Platform Reference 的唯
 
 Issue #91 只实现 Artifact owning Schema 在既有 V4000 技术表上的事务基础。适用 Gate 为：可信 Actor/Scope/Correlation Context 传播；同 key/hash 幂等 Replay 与不同 hash Quarantine/Conflict；技术 Process `bigint` CAS；Receipt、Audit、Outbox、Reference Edge 和技术 Process 的原子提交/回滚；Project 双重 RLS、Process Step Scope mirror、Reference Edge owner-version 唯一性，以及直接 App Role 权限拒绝。
 
-该 WI 不新增 Artifact/Branch/Revision/Content Object/Representation/Binding 业务表，不修改已应用的 V4000，不读取 IdentityPolicy 或 EnterpriseProject Schema，也不实现业务 Handler、对象存储、Renderer、Provider、公开 HTTP 或跨模块业务 E2E。2026-08-28 的 `pnpm clean && pnpm verify` 已通过：静态、类型、全量测试、架构、Contract 和 pinned PostgreSQL/Flyway Persistence Gate 均通过；Persistence 为 22 个文件、268 个测试，空库 Migration、二次 no-op 和容器清理均通过。业务 Artifact、生产数据库和独立人工验收仍为 `NOT RUN`，直到有对应实现和独立证据。
+该 WI 不新增 Artifact/Branch/Revision/Content Object/Representation/Binding 业务表，不修改已应用的 V4000，不读取 IdentityPolicy 或 EnterpriseProject Schema，也不实现业务 Handler、对象存储、Renderer、Provider、公开 HTTP 或跨模块业务 E2E。2026-08-28 的 `pnpm clean && pnpm verify` 已通过：静态、类型、全量测试、架构、Contract 和 pinned PostgreSQL/Flyway Persistence Gate 均通过；Persistence 为 22 个文件、268 个测试，空库 Migration、二次 no-op 和容器清理均通过。实现 commit `76c48f01e1a7c53ca9d2485be34290b4436310fa` 已由 PR #102 合入 `main`，Issue #91 已关闭，远端 feature branch 保留。业务 Artifact、生产数据库和独立人工验收仍为 `NOT RUN`，直到有对应实现和独立证据。
 
 ## 11. IM-03 WI-02 Application/Persistence 验证边界
 
