@@ -26,7 +26,7 @@ Issue：`[IM-04][WI-04] Implement Canonical content-object staging, link, freeze
 3. 增加 Unit/Contract 与真实 PostgreSQL Persistence 用例：生命周期、hash/readback tamper、Scope/RLS/ACL、rollback orphan、finalize gate、cleanup lease/fencing/retry/legal-hold/idempotency。
 4. 顺序执行 format/lint/typecheck/test、pinned PostgreSQL persistence gate、`git diff --check`，并记录每项 PASS 或 NOT RUN。已完成：`pnpm lint`、`pnpm typecheck`、Artifact build、focused Unit 回归、`pnpm persistence:gate` 和 `git diff --check` 均通过。
 5. 已创建 `.vibe/issue-93-delivery/Verification-Report.md`；实现提交 `bd414cec...` 已推送并由 PR #106 以 exact head 合入 `main`。
-6. 已读回 PR #106 `MERGED`、Issue #93 `CLOSED/COMPLETED`、merge commit `599e59d...`、`origin/main` ancestry，以及远端/本地 feature branch 删除结果；docs-only closeout PR #107 已将本报告和权威 Spec 状态同步到最终 `origin/main=1d524f4...`，不改写已发布历史。
+6. 已读回 PR #106 `MERGED`、Issue #93 `CLOSED/COMPLETED`、merge commit `599e59d...`、`origin/main` ancestry，以及远端/本地 feature branch 删除结果；docs-only closeout PR #107 已将本报告和权威 Spec 状态同步到 `main`，PR #108 已修正本报告的未来时态措辞并合入 `main`，不改写已发布历史。
 
 ## 明确不在本次自动验收范围
 
