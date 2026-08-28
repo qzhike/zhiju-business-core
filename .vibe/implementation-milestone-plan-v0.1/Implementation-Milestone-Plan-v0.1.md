@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-24
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-04 ISSUES #89–#98 PLANNED / IM-04 IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-04 ISSUES #89–#98 PLANNED / IM-04 IMPLEMENTATION NOT STARTED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / IM-UI-01 IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -32,7 +32,8 @@
 
 已确认输入：
 
-- 高层设计、PostgreSQL Logical Model、API v0.1、七份 Module Spec/Test；
+- 高层设计、PostgreSQL Logical Model、API v0.1、七份 Business Core Module Spec/Test；
+- Workspace UI Experience Module Spec/Test；该 Experience Module 不拥有 Business Core Contract、Schema 或 Repository；
 - Feishu Channel Contract v0.1；
 - CLI-first Runtime Adapter Contract v0.1；
 - 当前公开 Catalog 为 200 项，API 与 Module Spec 集合一致；
@@ -60,6 +61,7 @@
 6. PostgreSQL 约束、RLS、Role、CAS、Lease/Fencing、Inbox/Outbox 必须用真实 PostgreSQL 验证，不能由内存替身宣布通过。
 7. 外部副作用必须有 Attempt、稳定幂等键、UNKNOWN、reconciliation 和真实 Receipt。
 8. 一次实施变更只跨越一个里程碑内的必要文件；每个里程碑独立可回退、可验证、可审核。
+9. Workspace UI 在 IM-06 Human-operated Core 后进入实现，只消费公开 API/Projection；不得在 BFF、ViewModel 或浏览器状态中复制业务授权、状态机或完成判据。
 
 ---
 
@@ -76,12 +78,23 @@
 
 IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](./Technology-Baseline-v0.1.md)，IM-DG-003/004 见 [`Deployment-Security-Baseline-v0.1.md`](./Deployment-Security-Baseline-v0.1.md)。IM-DG-005 已于 2026-08-27 获用户批准，决策记录见 [`../im-04-startup/Review-Record.md`](../im-04-startup/Review-Record.md)；IM-DG-006 仍必须记录选项、理由、兼容边界、迁移成本、拒绝的替代项和验证方式。选择具体库不会改变已冻结 Domain/API 语义。
 
+`IM-UI-01` 里程碑已于 2026-08-28 获用户批准，但开始写 UI 代码前仍须完成以下 Experience 层决策，不得用默认脚手架静默事实化：
+
+| Gate | 必须冻结 | 当前状态 |
+|---|---|---|
+| UI-DG-001 | 前端框架、构建/包管理、SSR/SPA 边界、版本与升级策略 | `USER DECISION REQUIRED` |
+| UI-DG-002 | Design System、支持浏览器/视口、可访问性目标、国际化与视觉验收方法 | `USER DECISION REQUIRED` |
+| UI-DG-003 | BFF 部署拓扑、OIDC Session、CSRF/CSP、API 代理和前端可观测性 | `BOUNDARY FROZEN / CONCRETE DESIGN REQUIRED` |
+
 ---
 
 ## 5. 目标代码边界（技术中立）
 
 ```text
 repository
+├── apps/
+│   ├── workspace-web/          # Experience-only browser client; no Domain ownership
+│   └── workspace-bff/          # OIDC/session/API composition; no second business API
 ├── contracts/                  # versioned schema, fixtures, compatibility
 ├── modules/
 │   ├── identity-policy/
@@ -126,15 +139,13 @@ IM-04 Artifact + Canonical Content
 IM-05 Quality + Release + Renderer
   ↓
 IM-06 TaskExecution Human-operated Core
-  ↓
-IM-07 Feishu Channel
-  ↓
-IM-08 CLI Runtime Automation
-  ↓
-IM-09 Reference Project E2E + Operations Hardening
+  ├────────────→ IM-UI-01 Workspace UI MVP ────────┐
+  └→ IM-07 Feishu Channel → IM-08 CLI Runtime Automation ─┤
+                                                         ↓
+                       IM-09 Reference Project E2E + Operations Hardening
 ```
 
-后续可以在保持依赖和 Gate 的前提下并行工作，但不得用并行化绕过前置决策、业务所有权或测试失败。
+IM-UI-01 可在 IM-06 完成后启动，并与 IM-07/IM-08 的交付时间窗并行；IM-07 与 IM-08 自身仍保持既有先后依赖。IM-09 必须同时等待 IM-UI-01、IM-07 和 IM-08 的适用 Gate。任何并行化都不得绕过前置决策、业务所有权或测试失败。
 
 ---
 
@@ -206,6 +217,38 @@ GitHub 任务基线：Parent Exit Gate [#89](https://github.com/qzhike/zhiju-bus
 
 退出 Gate：WorkOrder 范围、Run/Result/Completion 四层状态不混淆；BLOCKED_INPUT、新 Run Retry、Cancel request 和 late result 语义可测试；不依赖真实 Agent。
 
+### IM-UI-01 Workspace UI MVP
+
+前置：IM-06 已完成；UI-DG-001 至 UI-DG-003 已审核；IdentityPolicy、EnterpriseProject、Artifact、QualityGovernance、ReleasePublication、TaskExecution 的适用公开 Command/Query、Projection freshness 和错误语义稳定可用。
+
+产出：
+
+- BFF + Browser Shell 的 OIDC 登录、Session、登出、过期和重新认证闭环；
+- Enterprise/Project Overview、Customer Baseline 完整性、GapAnalysis 与 DeliveryPlan；
+- Artifact、Revision、基本 Diff、Human Edit 与不可变新 Revision；
+- Evidence、ReviewIssue、Human Review/Approval、Release 状态与安全确认；
+- Task Board、WorkOrder/Run、Blocker、InformationRequest、Usage 与 Audit Timeline；
+- 对 `UNKNOWN`、`NOT_PROVIDED`、`MISSING_CONFIRMED`、Projection `STALE/REBUILDING/FAILED`、外部 `UNKNOWN` 和部分成功的真实显示；
+- Browser Unit/Contract/E2E、安全、可访问性和人工验收记录。
+
+Work Item 与手动可测产出：
+
+| Work Item | 范围 | 用户可手动测试的产出 |
+|---|---|---|
+| UI-WI-01 | UI-DG 决策、Information Architecture、Route/Capability Matrix、低保真交互稿 | 审核导航、页面状态、角色可见性和关键确认流程，不启动业务写入 |
+| UI-WI-02 | BFF、OIDC Session、App Shell、Enterprise/Project Context | 使用测试 Human 登录、切换授权 Project、登出并验证 Session 过期；跨 Project 访问被安全拒绝 |
+| UI-WI-03 | Project/Baseline/Gap/Delivery 工作区 | 查看 PRESENT/UNKNOWN/NOT_PROVIDED，Human 接受 Gap、批准 DeliveryPlan，Agent/actingFor 操作被拒绝 |
+| UI-WI-04 | Artifact/Revision/Diff/Human Edit | 从精确 Revision 创建新 Revision、查看 Diff；旧 Revision 与已 Release 历史保持不变 |
+| UI-WI-05 | Evidence/Review/Approval/Release | 查看精确 Hash 链，以真实 Human 完成适用 Review/Approval；普通附件发送不能显示为 Formal Release |
+| UI-WI-06 | Task/Run/InformationRequest/Audit | 查看 Task 四层状态、BLOCKED_INPUT、Answer 后新 Run、Usage 和 Audit；Projection 延迟不显示成功完成 |
+| UI-WI-07 | Browser E2E、安全、可访问性和运维交接 | 执行脱敏 Reference Project 浏览器流程、键盘/焦点检查、Session/CSRF/XSS/越权负向场景和故障降级 |
+
+退出 Gate：脱敏 Human 可经浏览器完成授权 Project 的核心 Human-operated 流程；所有写操作只调用公开 API 并携带精确 Ref/expectedVersion；Human-only、跨 Scope、过期 Session、CSRF/XSS 和敏感信息泄漏负向场景通过；Projection/Provider 延迟不会被 UI 冒充成功；适用浏览器 E2E、可访问性检查和用户人工验收有真实证据。
+
+非目标：UI/BFF 不拥有授权、Aggregate 状态机、Approval、Release、Completion、Repository 或跨模块业务事务；不直接连接 PostgreSQL、OpenBao、Ceph 或 Provider SDK；不因页面缓存或乐观更新制造业务事实。
+
+当前状态：`MILESTONE USER APPROVED 2026-08-28 / DESIGN BASELINE / IMPLEMENTATION NOT STARTED / ALL RUNTIME AND MANUAL TESTS NOT RUN`。权威 Experience 规格见 [`../module-specs/Module-Spec-UI01-WorkspaceUI.md`](../module-specs/Module-Spec-UI01-WorkspaceUI.md)，测试基线见 [`../module-tests/Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md)。
+
 ### IM-07 Feishu Channel
 
 产出：Webhook/Callback 验证、Identity/Binding、Inbound Envelope、Outbound Intent、Attempt/Receipt、文件与卡片最小闭环。
@@ -222,9 +265,11 @@ GitHub 任务基线：Parent Exit Gate [#89](https://github.com/qzhike/zhiju-bus
 
 ### IM-09 Reference Project E2E + Operations Hardening
 
-产出：从飞书/Workspace 输入到 Project、Artifact、Gate、Approval、Renderer、Release、Runtime 辅助修订的完整脱敏链；监控、备份恢复、故障演练、运行手册和人工验收记录。
+前置：IM-UI-01、IM-07、IM-08 的适用 Exit Gate 已完成；不能在 IM-09 中一边首次实现整套 UI，一边宣称最终 Reference Project E2E。
 
-退出 Gate：适用自动回归全绿；真实 PostgreSQL/对象存储/飞书/CLI/Renderer 证据齐全；剩余风险、容量边界、RPO/RTO 和回滚路径已审核。
+产出：从飞书/Workspace UI 输入到 Project、Artifact、Gate、Approval、Renderer、Release、Runtime 辅助修订的完整脱敏链；监控、备份恢复、故障演练、运行手册和人工验收记录。
+
+退出 Gate：适用自动回归全绿；真实 PostgreSQL/对象存储/Workspace UI/飞书/CLI/Renderer 证据齐全；剩余风险、容量边界、RPO/RTO 和回滚路径已审核。
 
 ---
 
@@ -239,6 +284,7 @@ GitHub 任务基线：Parent Exit Gate [#89](https://github.com/qzhike/zhiju-bus
 7. 安全敏感变更覆盖跨企业、无 Context、伪造身份、Secret 泄漏和越权负向测试；
 8. 变更可从单一 Commit/PR 说明中定位范围、证据、回退和剩余风险；
 9. 用户确认后才提交并进入下一个里程碑。
+10. Experience 层变更还必须通过适用 Browser E2E、Session/CSRF/XSS/Scope 安全、可访问性和用户手动验收；未运行项保持 `NOT RUN`。
 
 ---
 
@@ -249,6 +295,7 @@ GitHub 任务基线：Parent Exit Gate [#89](https://github.com/qzhike/zhiju-bus
 - Schema-derived Type（200 payload + 44 query result + 6 Core Contract）与 v1.0 compatibility baseline 已接入 `contracts:check`；当前 `pnpm verify` 的仓库测试为 20 个文件通过、10 个跳过，341 个测试通过、164 个跳过。
 - #5 字段 Schema 已由 PR #14 合入并完成；重复/迟到 Runtime 由已关闭的 #15 完成，剩余 Runtime 分别由 #22–#24 跟踪。#17 追踪 IntegrationGateway Runtime 缺口。这些 Runtime Issue 不阻塞 IM-01 Schema 退出，也不构成外部 E2E PASS。
 - Runtime 自动化位于 IM-08，明确晚于 Human-operated Core 和 Feishu 基础闭环；IM-DG-005 已批准，IM-DG-006 仍待决。
+- IM-UI-01 已于 2026-08-28 作为独立 Workspace UI MVP 里程碑获用户批准：硬依赖 IM-06，可与 IM-07/IM-08 时间窗并行，并成为 IM-09 的前置；具体 UI 技术栈仍须通过 UI-DG-001 至 UI-DG-003，当前实现与 Browser/Manual 验收均为 `NOT RUN`。
 - IM-02 当前为 `COMPLETE`：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify 为 PASS，Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 已关闭；IM-03 WI-01 至 WI-12 的实现已合入默认分支，并由 Module-Test-002 及各 Verification-Record 记录本地受控验证。统一跨 Aggregate E2E、独立人工 Reference Project 和真实外部链路仍为 `NOT RUN`。
 
 ### IM-03 合成 Reference Project 当前验证状态（2026-08-27）

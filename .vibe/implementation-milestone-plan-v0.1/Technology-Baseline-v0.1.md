@@ -1,8 +1,8 @@
 # Zhiju Business Core Technology Baseline v0.1
 
 版本：v0.1
-日期：2026-08-17
-状态：`BASELINE / USER APPROVED / IM-01 TOOLCHAIN VERIFIED / DATABASE NOT STARTED`
+日期：2026-08-28（初版 2026-08-17；IM-UI-01 决策路由增量）
+状态：`BASELINE / USER APPROVED / IM-01 TOOLCHAIN VERIFIED / IM-02 PERSISTENCE VERIFIED / IM-UI-01 FRONTEND STACK NOT SELECTED`
 
 文档角色：Implementation Milestone Plan 的技术选型记录，冻结 IM-DG-001 与 IM-DG-002。它只约束实现技术，不改变 Domain、API、Module、PostgreSQL Logical Model、Feishu 或 Runtime Contract 语义。
 
@@ -10,7 +10,7 @@
 
 ## 1. 用户决定
 
-用户于 2026-08-17 确认团队熟悉 Node.js，并明确同意本技术建议。IM-01 已锁定并验证 Node.js 24.19.0、pnpm 11.19.0、TypeScript 6.0.3、NestJS 11.2.1、Fastify 5.12.0、Ajv 8.20.0、Vitest 4.1.10；PostgreSQL/Kysely/Flyway/Testcontainers 尚未安装或运行。
+用户于 2026-08-17 确认团队熟悉 Node.js，并明确同意本技术建议。IM-01 已锁定并验证 Node.js 24.19.0、pnpm 11.19.0、TypeScript 6.0.3、NestJS 11.2.1、Fastify 5.12.0、Ajv 8.20.0、Vitest 4.1.10。PostgreSQL/Kysely/Flyway/Testcontainers 在当时尚未安装或运行，随后已由 IM-02 完成精确版本锁定和受控 Persistence Gate；当前物理参数见第 7 节。
 
 ---
 
@@ -105,7 +105,21 @@ Migration 文件按 owning Schema 分目录；平台 Role/Schema bootstrap 与�
 
 - IM-DG-003/004 已于 2026-08-17 冻结，见 [`Deployment-Security-Baseline-v0.1.md`](./Deployment-Security-Baseline-v0.1.md)；
 - IM-DG-005：Canonical Document/Workbook Schema 与 Renderer；
-- IM-DG-006：6 个 Runtime Command 与默认 Policy。
+- IM-DG-006：6 个 Runtime Command 与默认 Policy；
+- UI-DG-001：前端框架、构建模式、SSR/SPA 边界和版本策略；
+- UI-DG-002：设计系统、浏览器/视口支持矩阵、可访问性、国际化与视觉验收；
+- UI-DG-003：BFF 部署、OIDC Session、CSRF/CSP、API Proxy 与可观测性具体设计。
+
+### 6.1 IM-UI-01 技术选型边界
+
+用户于 2026-08-28 批准新增 `IM-UI-01 Workspace UI MVP` 里程碑，但未批准任何具体前端框架、设计系统或浏览器运行时依赖。本文第 2～5 节冻结的是 Business Core 后端与工程基线，不得被解释为已经为 Workspace UI 选择技术栈。
+
+在 UI-DG-001～003 完成前：
+
+1. 不创建或锁定 React、Vue、Svelte、Next.js、Nuxt、Vite 等框架/构建依赖；
+2. 不以 NestJS/Fastify 已冻结为由默认决定 BFF 与 UI 的部署拓扑；
+3. 可以按 [`Module-Spec-UI01-WorkspaceUI.md`](../module-specs/Module-Spec-UI01-WorkspaceUI.md) 细化产品语义和安全边界，但不得声明 Browser/BFF Runtime 已可用；
+4. 所有 UI Unit、Contract、Browser E2E、Security、Accessibility 与 Manual 场景均以 [`Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md) 为权威，并在实际执行前保持 `NOT RUN`。
 
 ---
 
