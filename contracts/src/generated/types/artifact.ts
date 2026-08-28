@@ -9,6 +9,79 @@ export namespace Artifact {
   export type ArtifactLifecycle = "ACTIVE" | "ARCHIVED" | "CANCELLED";
   export type RevisionDisposition = "ACTIVE" | "SUPERSEDED" | "WITHDRAWN" | "INVALIDATED";
   export type ContentType = "STRUCTURED_DOCUMENT" | "WORKBOOK_SPEC" | "STRUCTURED_REPORT" | "OPAQUE_IMPORTED_CONTENT";
+  export type CanonicalContentType = "STRUCTURED_DOCUMENT" | "WORKBOOK_SPEC";
+  export type CanonicalDocumentUnit = {
+  readonly unitId: Common.NonEmptyString;
+  readonly parentUnitId?: Common.NonEmptyString;
+  readonly unitType: "SECTION" | "PARAGRAPH" | "TABLE" | "TABLE_ROW" | "TABLE_CELL";
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly text?: Common.NonEmptyString;
+  readonly childUnitIds: readonly Common.NonEmptyString[];
+  readonly semanticMetadata?: CanonicalJson;
+  readonly evidenceRefs?: readonly Common.ContentAddressedRef[];
+};
+  export interface CanonicalDocument {
+  readonly documentId: Common.UuidV7;
+  readonly title: Common.NonEmptyString;
+  readonly units: readonly Artifact.CanonicalDocumentUnit[];
+  readonly metadata?: CanonicalJson;
+}
+  export interface CanonicalWorkbookColumn {
+  readonly columnId: Common.NonEmptyString;
+  readonly name: Common.NonEmptyString;
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly valueType: Common.NamespaceCode;
+}
+  export interface CanonicalWorkbookCell {
+  readonly cellId: Common.NonEmptyString;
+  readonly columnId: Common.NonEmptyString;
+  readonly value?: CanonicalJson;
+  readonly valueType: Common.NamespaceCode;
+  readonly formula?: string;
+}
+  export interface CanonicalWorkbookRow {
+  readonly rowId: Common.NonEmptyString;
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly cells: readonly Artifact.CanonicalWorkbookCell[];
+}
+  export interface CanonicalWorkbookSheet {
+  readonly sheetId: Common.NonEmptyString;
+  readonly name: Common.NonEmptyString;
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly columns: readonly Artifact.CanonicalWorkbookColumn[];
+  readonly rows: readonly Artifact.CanonicalWorkbookRow[];
+  readonly validationRules?: readonly CanonicalJson[];
+  readonly crossRecordRules?: readonly CanonicalJson[];
+}
+  export interface CanonicalWorkbookSpec {
+  readonly workbookId: Common.UuidV7;
+  readonly sheets: readonly Artifact.CanonicalWorkbookSheet[];
+  readonly metadata?: CanonicalJson;
+}
+  export interface CanonicalDocumentContent {
+  readonly schemaRef: Common.VersionedRef;
+  readonly contentType: "STRUCTURED_DOCUMENT";
+  readonly canonicalizationVersion: "1";
+  readonly body: Artifact.CanonicalDocument;
+}
+  export interface CanonicalWorkbookContent {
+  readonly schemaRef: Common.VersionedRef;
+  readonly contentType: "WORKBOOK_SPEC";
+  readonly canonicalizationVersion: "1";
+  readonly body: Artifact.CanonicalWorkbookSpec;
+}
+  export type CanonicalContentPayload = (Artifact.CanonicalDocumentContent | Artifact.CanonicalWorkbookContent);
+  export type CanonicalContentManifest = {
+  readonly contentObjectId: Common.UuidV7;
+  readonly payloadSchemaRef: Common.VersionedRef;
+  readonly contentType: Artifact.CanonicalContentType;
+  readonly canonicalizationVersion: "1";
+  readonly contentHash: Common.ContentHash;
+  readonly byteSize: Common.NonNegativeInteger;
+  readonly mediaType: Artifact.MediaType;
+  readonly objectRef: Artifact.ObjectLocator;
+  readonly storageState: "STAGING" | "LINKED" | "FROZEN" | "QUARANTINED";
+};
   export type ObjectLocator = string;
   export type MediaType = string;
   export interface EffectivePeriod {

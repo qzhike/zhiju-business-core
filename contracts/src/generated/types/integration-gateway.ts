@@ -235,6 +235,14 @@ export namespace IntegrationGateway {
   readonly rendererVersion: Common.NonEmptyString;
   readonly rawReceiptRef: Common.ContentAddressedRef;
 }
+  export interface RenderAttemptBindingView {
+  readonly attemptRef: Common.ObjectRef;
+  readonly status: IntegrationGateway.AttemptStatus;
+  readonly request: IntegrationGateway.RenderRequest;
+  readonly requestPayloadHash: Common.ContentHash;
+  readonly succeededResult?: IntegrationGateway.RenderSucceededPayload;
+  readonly rawReceiptRef?: Common.ContentAddressedRef;
+}
   export interface RenderFailedPayload {
   readonly attemptRef: Common.ObjectRef;
   readonly revisionRef: Common.ContentAddressedRef;
@@ -309,6 +317,12 @@ export namespace IntegrationGateway {
 }
   /** Result of `integration.get_render_attempt` (QUERY). */
   export type IntegrationGetRenderAttemptResult = IntegrationGateway.AdapterAttemptView;
+  /** Payload of `integration.get_render_attempt_binding` (QUERY). */
+  export interface IntegrationGetRenderAttemptBindingPayload {
+  readonly attemptRef: Common.ObjectRef;
+}
+  /** Result of `integration.get_render_attempt_binding` (QUERY). */
+  export type IntegrationGetRenderAttemptBindingResult = IntegrationGateway.RenderAttemptBindingView;
   /** Payload of `integration.get_adapter_health` (QUERY). */
   export interface IntegrationGetAdapterHealthPayload {
   readonly adapterCodes: readonly Common.NamespaceCode[];

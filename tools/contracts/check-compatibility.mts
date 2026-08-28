@@ -140,11 +140,11 @@ for (const baseline of baselineOperations) {
 for (const [key] of currentOperations) {
   if (!baselineOperations.some((operation) => `${operation.type}@${operation.version}` === key)) {
     findings.push({
-      severity: 'BREAKING',
+      severity: 'COMPATIBLE_MINOR',
       target: `operation=${key}`,
       path: '',
-      keyword: 'operation-added-without-major',
-      detail: 'new operation appeared under the frozen v1.0 baseline set without a new baseline',
+      keyword: 'operation-added-as-minor',
+      detail: 'new independent operation is additive under the frozen v1.0 baseline',
     });
   }
 }

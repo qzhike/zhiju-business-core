@@ -1,6 +1,6 @@
 ## Status
 
-`PLANNED / NOT STARTED`
+`IMPLEMENTATION COMPLETE / CONTRACT AND HASH REGRESSION PASS / GIT DELIVERY PENDING USER REVIEW`
 
 Parent exit gate: #89.
 
@@ -32,16 +32,16 @@ Freeze and implement the executable contract foundation required before any IM-0
 
 ## Acceptance
 
-- [ ] Unknown major, unknown required extension, open content type, duplicate stable IDs, invalid hierarchy, invalid Workbook references, and malformed formulas/types are rejected at the contract boundary.
-- [ ] Changing `schemaRef`, `contentType`, `canonicalizationVersion`, or body changes the hash; changing locator, storage state, byte size, media type, or the hash field itself does not alter the hash input.
-- [ ] The new Binding Query returns the original RenderRequest, request payload hash, authoritative successful result, and raw receipt reference without credentials or presigned URLs.
-- [ ] Existing `integration.get_render_attempt@1.0` compatibility is preserved; no cross-module repository access is introduced.
-- [ ] No public Diff Result operation is added.
-- [ ] Focused contract tests and full repository gates pass on the exact PR head.
+- [x] Unknown major, unknown required extension, open content type, duplicate stable IDs, invalid hierarchy, invalid Workbook references, and malformed formulas/types are rejected at the contract boundary.
+- [x] Changing `schemaRef`, `contentType`, `canonicalizationVersion`, or body changes the hash; changing locator, storage state, byte size, media type, or the hash field itself does not alter the hash input.
+- [x] The new Binding Query returns the original RenderRequest, request payload hash, authoritative successful result, and raw receipt reference without credentials or presigned URLs.
+- [x] Existing `integration.get_render_attempt@1.0` compatibility is preserved; no cross-module repository access is introduced.
+- [x] No public Diff Result operation is added.
+- [x] Focused contract tests and repository `pnpm verify` gates pass locally, including PostgreSQL/Flyway persistence (`21 files / 256 tests`, empty migration, second-migrate no-op, and container cleanup).
 
 ## Manual output
 
-Provide a reviewer-readable table containing each golden payload, canonical bytes, exact SHA-256 digest, expected schema result, actual result, and the Binding Query positive/negative fixture outputs.
+Reviewer-readable output is recorded in [Verification-Record.md](../../issue-90/Verification-Record.md), including each golden payload, canonical bytes, exact SHA-256 digest, expected/actual schema result, and Binding Query positive/negative fixture outputs.
 
 ## Non-goals and NOT RUN
 

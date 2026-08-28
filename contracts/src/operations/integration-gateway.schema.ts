@@ -644,6 +644,39 @@ const namedDefinitions = {
       rawReceiptRef: contentAddressedReference,
     },
   ),
+  // Binding Query exposes the authoritative RenderRequest and successful
+  // result together, without crossing into another module's repository.
+  renderAttemptBindingView: object(
+    ['attemptRef', 'status', 'request', 'requestPayloadHash'],
+    {
+      attemptRef: objectReference,
+      status: localRef('attemptStatus'),
+      request: localRef('renderRequest'),
+      requestPayloadHash: contentHash,
+      succeededResult: localRef('renderSucceededPayload'),
+      rawReceiptRef: contentAddressedReference,
+    },
+    [
+      {
+        if: {
+          properties: { status: { const: 'SUCCEEDED' } },
+          required: ['status'],
+        },
+        then: {
+          required: ['succeededResult', 'rawReceiptRef'],
+          properties: {
+            succeededResult: localRef('renderSucceededPayload'),
+            rawReceiptRef: contentAddressedReference,
+          },
+        },
+        else: {
+          properties: {
+            succeededResult: false,
+          },
+        },
+      },
+    ],
+  ),
   renderFailedPayload: object(
     ['attemptRef', 'revisionRef', 'outcome', 'reasonCode', 'rendererId', 'rendererVersion'],
     {
@@ -710,7 +743,7 @@ const operationSchemas = {
     }),
   },
 
-  // --- Queries (with 5 result schemas) -------------------------------------
+  // --- Queries (with 6 result schemas) -------------------------------------
   'integration.get_channel_binding': {
     payload: object(['purpose'], {
       bindingRef: objectReference,
@@ -739,6 +772,12 @@ const operationSchemas = {
       attemptRef: objectReference,
     }),
     result: localRef('adapterAttemptView'),
+  },
+  'integration.get_render_attempt_binding': {
+    payload: object(['attemptRef'], {
+      attemptRef: objectReference,
+    }),
+    result: localRef('renderAttemptBindingView'),
   },
   'integration.get_adapter_health': {
     payload: object(['adapterCodes', 'page'], {

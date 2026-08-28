@@ -1,0 +1,119 @@
+{
+  "attemptRef": {
+    "kind": "OBJECT",
+    "objectType": "integration.render_attempt",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d281",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "status": "SUCCEEDED",
+  "request": {
+    "revisionRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "artifact.artifact_revision",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d291",
+      "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d292",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "canonicalContentRef": "artifact/canonical/document-001",
+    "inputHash": {
+      "algorithm": "SHA-256",
+      "digest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "canonicalizationVersion": "1"
+    },
+    "outputFormat": "document.pdf",
+    "rendererId": "renderer.pdf",
+    "rendererVersion": "1.0.0",
+    "renderPolicyRef": {
+      "kind": "VERSIONED",
+      "objectType": "policy.render",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d293",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d294",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "stableIdempotencyKey": "render-binding-fixture-001",
+    "requestedAt": "2026-08-28T00:00:00Z"
+  },
+  "requestPayloadHash": {
+    "algorithm": "SHA-256",
+    "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+    "canonicalizationVersion": "1"
+  },
+  "succeededResult": {
+    "attemptRef": {
+      "kind": "OBJECT",
+      "objectType": "integration.render_attempt",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d281",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "revisionRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "artifact.artifact_revision",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d291",
+      "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d292",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "outputObjectRef": "artifact/rendered/document-001",
+    "outputChecksum": {
+      "algorithm": "SHA-256",
+      "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+      "canonicalizationVersion": "1"
+    },
+    "rendererId": "renderer.pdf",
+    "rendererVersion": "1.0.0",
+    "rawReceiptRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "integration.raw_external_receipt",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d295",
+      "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d296",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "canonicalizationVersion": "1"
+      }
+    }
+  },
+  "rawReceiptRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "integration.raw_external_receipt",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d295",
+    "immutableVersionId": "018f22e2-7c15-7b2e-8d86-2de956a9d296",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "5555555555555555555555555555555555555555555555555555555555555555",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

@@ -3,6 +3,9 @@ import type { JsonSchema } from '../schema-types.js';
 const schemaId = 'https://schemas.zhiju.local/modules/artifact/1.0';
 const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
 
+export const artifactCanonicalContentPayloadSchemaRef = `${schemaId}#/$defs/canonicalContentPayload`;
+export const artifactCanonicalContentManifestSchemaRef = `${schemaId}#/$defs/canonicalContentManifest`;
+
 type SchemaProperties = Readonly<Record<string, unknown>>;
 
 interface OperationContractSchema {
@@ -15,8 +18,18 @@ export interface ExecutableArtifactOperationContract {
   readonly resultSchemaRef?: string;
 }
 
-function object(required: readonly string[], properties: SchemaProperties): JsonSchema {
-  return { type: 'object', additionalProperties: false, required, properties };
+function object(
+  required: readonly string[],
+  properties: SchemaProperties,
+  allOf?: readonly unknown[],
+): JsonSchema {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required,
+    properties,
+    ...(allOf === undefined ? {} : { allOf: allOf as unknown[] }),
+  };
 }
 
 function array(
@@ -58,6 +71,104 @@ const namedDefinitions = {
   contentType: {
     enum: ['STRUCTURED_DOCUMENT', 'WORKBOOK_SPEC', 'STRUCTURED_REPORT', 'OPAQUE_IMPORTED_CONTENT'],
   },
+  canonicalContentType: { enum: ['STRUCTURED_DOCUMENT', 'WORKBOOK_SPEC'] },
+  canonicalDocumentUnit: object(['unitId', 'unitType', 'ordinal', 'childUnitIds'], {
+    unitId: text,
+    parentUnitId: text,
+    unitType: { enum: ['SECTION', 'PARAGRAPH', 'TABLE', 'TABLE_ROW', 'TABLE_CELL'] },
+    ordinal: nonNegativeInteger,
+    text,
+    childUnitIds: array(text, { unique: true }),
+    semanticMetadata: canonicalJson,
+    evidenceRefs: array(contentAddressedReference, { unique: true }),
+  }),
+  canonicalDocument: object(['documentId', 'title', 'units'], {
+    documentId: uuid,
+    title: text,
+    units: array(localRef('canonicalDocumentUnit'), { nonEmpty: true }),
+    metadata: canonicalJson,
+  }),
+  canonicalWorkbookColumn: object(['columnId', 'name', 'ordinal', 'valueType'], {
+    columnId: text,
+    name: text,
+    ordinal: nonNegativeInteger,
+    valueType: namespace,
+  }),
+  canonicalWorkbookCell: object(['cellId', 'columnId', 'valueType'], {
+    cellId: text,
+    columnId: text,
+    value: canonicalJson,
+    valueType: namespace,
+    formula: {
+      type: 'string',
+      minLength: 2,
+      pattern: '^=[^\\u0000-\\u001F\\u007F]+$',
+    },
+  }),
+  canonicalWorkbookRow: object(['rowId', 'ordinal', 'cells'], {
+    rowId: text,
+    ordinal: nonNegativeInteger,
+    cells: array(localRef('canonicalWorkbookCell')),
+  }),
+  canonicalWorkbookSheet: object(['sheetId', 'name', 'ordinal', 'columns', 'rows'], {
+    sheetId: text,
+    name: text,
+    ordinal: nonNegativeInteger,
+    columns: array(localRef('canonicalWorkbookColumn')),
+    rows: array(localRef('canonicalWorkbookRow')),
+    validationRules: array(canonicalJson),
+    crossRecordRules: array(canonicalJson),
+  }),
+  canonicalWorkbookSpec: object(['workbookId', 'sheets'], {
+    workbookId: uuid,
+    sheets: array(localRef('canonicalWorkbookSheet'), { nonEmpty: true }),
+    metadata: canonicalJson,
+  }),
+  canonicalDocumentContent: object(
+    ['schemaRef', 'contentType', 'canonicalizationVersion', 'body'],
+    {
+      schemaRef: versionedReference,
+      contentType: { const: 'STRUCTURED_DOCUMENT' },
+      canonicalizationVersion: { const: '1' },
+      body: localRef('canonicalDocument'),
+    },
+  ),
+  canonicalWorkbookContent: object(
+    ['schemaRef', 'contentType', 'canonicalizationVersion', 'body'],
+    {
+      schemaRef: versionedReference,
+      contentType: { const: 'WORKBOOK_SPEC' },
+      canonicalizationVersion: { const: '1' },
+      body: localRef('canonicalWorkbookSpec'),
+    },
+  ),
+  canonicalContentPayload: {
+    oneOf: [localRef('canonicalDocumentContent'), localRef('canonicalWorkbookContent')],
+  },
+  canonicalContentManifest: object(
+    [
+      'contentObjectId',
+      'payloadSchemaRef',
+      'contentType',
+      'canonicalizationVersion',
+      'contentHash',
+      'byteSize',
+      'mediaType',
+      'objectRef',
+      'storageState',
+    ],
+    {
+      contentObjectId: uuid,
+      payloadSchemaRef: versionedReference,
+      contentType: localRef('canonicalContentType'),
+      canonicalizationVersion: { const: '1' },
+      contentHash,
+      byteSize: nonNegativeInteger,
+      mediaType: localRef('mediaType'),
+      objectRef: localRef('objectLocator'),
+      storageState: { enum: ['STAGING', 'LINKED', 'FROZEN', 'QUARANTINED'] },
+    },
+  ),
   // Opaque controlled-object-storage locator: bucket-or-container plus key segments.
   // A public URL, a scheme prefix and an absolute local path are all rejected.
   objectLocator: {

@@ -1,7 +1,7 @@
 # IM-04 规格复审报告
 
 日期：2026-08-27
-状态：`PASS AFTER DOCUMENT REPAIR / IM-04 IMPLEMENTATION NOT STARTED`
+状态：`PASS AFTER DOCUMENT REPAIR / IM-04 IMPLEMENTATION NOT STARTED AT REVIEW TIME / WI-01 FOLLOW-UP VERIFIED 2026-08-28`
 
 ## 1. 审核范围
 
@@ -11,7 +11,7 @@
 - 现有 Artifact 与 IntegrationGateway 公共 Contract；
 - Issue #56 的 IM-03 关闭条件与已提交合成验证边界。
 
-本次只允许修订规格、测试计划、验收记录和 GitHub 任务。禁止创建 IM-04 开发分支、Worktree、可执行 Schema、迁移、Repository、Handler、Fixture 或 Renderer。
+本次（2026-08-27）只允许修订规格、测试计划、验收记录和 GitHub 任务。禁止创建 IM-04 开发分支、Worktree、可执行 Schema、迁移、Repository、Handler、Fixture 或 Renderer。
 
 ## 2. 首轮发现
 
@@ -58,4 +58,8 @@
 | PostgreSQL / Flyway | PostgreSQL 18.6、Flyway 11.20.3；空库 migrate、`21 files / 256 tests`、二次 no-op、容器移除 | `PASS` |
 | 实现边界 | Git diff 仅含 `.vibe` 文档；无 Contract Registry、Schema、Migration、Repository、Handler、Fixture、Renderer 或 Worktree 变化 | `PASS / IM-04 NOT STARTED` |
 
-该结论确认规格已经具备建立开发 Work Item 的条件，不代表任何 IM-04 代码、数据库、Renderer、E2E 或人工验收已运行。
+该结论确认规格已经具备建立开发 Work Item 的条件；截至该次审阅结束，不代表任何 IM-04 代码、数据库、Renderer、E2E 或人工验收已运行。
+
+## 5. WI-01 后续实现补充（2026-08-28）
+
+上述报告保留 2026-08-27 规格审阅时的历史基线：当时 Registry 未变更，IM-04 实现未开始。Issue #90 后续已完成本地 Contract 实现与回归，当前 Registry 为 `FULL:201`，新增唯一 Operation 为 `integration.get_render_attempt_binding@1.0`；历史 v1.0 200-operation baseline 未改写。随后完整 `pnpm verify` 已通过，PostgreSQL/Flyway persistence 为 `21 files / 256 tests`，空库迁移、二次 no-op 和容器清理均通过。实现文件、golden bytes/digest、正负向输出和 Git 交付状态见 [`Issue #90 Verification-Record.md`](../issue-90/Verification-Record.md)。

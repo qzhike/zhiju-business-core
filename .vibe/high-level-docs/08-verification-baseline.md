@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -93,7 +93,7 @@
 | V-DOC-005 | 无循环写依赖 | 每个公开写 Command 只有一个 Owner；无共享 Repository、跨 Schema 写或跨模块业务外键 |
 | V-DOC-006 | Domain 完整性 | Aggregate、Entity、状态、Command、Event、Invariant、权限和失败场景可定位 |
 | V-DOC-007 | Contract 完整性 | 四个 Core Contract、Typed Reference、Envelope、兼容性和 Canonical Hash 规则可定位且无自引用 Hash |
-| V-DOC-008 | Catalog 唯一性 | 200 个公开 Contract 名称全局唯一，namespace 与模块 Owner 一致 |
+| V-DOC-008 | Catalog 唯一性 | 当前 201 个公开 Contract 名称全局唯一，namespace 与模块 Owner 一致；冻结 v1.0 历史基线仍为 200 |
 | V-DOC-009 | 持久化边界 | 七个权威 Schema + Projection；关系/JSONB/对象存储；RLS/Role；Outbox/Inbox 均只有一个权威定义 |
 | V-DOC-010 | Human/Agent 边界 | Agent/actingFor 不可 Approval 或 Release Authorization；Human 不能绕过 Mandatory Gate |
 | V-DOC-011 | 状态层级 | Run、WorkOrder、Task、DeliveryItem、Revision、Approval、Release、Effective 不相互冒充 |
@@ -102,7 +102,7 @@
 | V-DOC-014 | 链接与格式 | Markdown 链接可达、代码块闭合、编号唯一、无冲突标记或过期状态 |
 | V-DOC-015 | 状态真实性 | 所有未执行实现/外部/人工用例保持 `NOT RUN`，不得因静态审计改为 PASS |
 | V-DOC-016 | Module 文档集合 | 七个逻辑模块各有且只有一份 `Module-Spec` 和一份 `Module-Test`，ID/ModuleName 一致；测试文档含 Unit、Contract、E2E、Manual 的输入、预期、实际和结果 |
-| V-DOC-017 | API Catalog 覆盖 | `06` 的 200 个公开 `name@1.0` 在七份 Module Spec 中各出现一次，集合差异为零，namespace 与 Owner 一致 |
+| V-DOC-017 | API Catalog 覆盖 | `06` 的当前 201 个公开 `name@1.0` 在七份 Module Spec 中各出现一次，集合差异为零，namespace 与 Owner 一致 |
 | V-DOC-018 | API 字段完整性 | 每个 Command 有 target/mode、payload、authorization/拒绝语义；每个 Query 有 payload/result/consistency；每个 Event 有最小已发生事实 payload |
 | V-DOC-019 | API 安全边界 | Agent/actingFor 不能 Approval/Release Authorization；Sensitive External ID 不进入 Event/普通错误；latest/workspace/session/message 不冒充强引用 |
 | V-DOC-020 | API 文档链接 | HL、共享 API、七份 Module Spec 与七份 Module Test 的相对链接可达，无冲突标记或未闭合代码块 |
@@ -351,7 +351,14 @@ Issue #57 的决策矩阵提供了 Product/QMS/Profile/Platform Reference 的唯
 - Platform Reference 导入/发布、TemplateBaseline/RegulatoryProfile 精确引用、Gap stale/Impact Process 的运行验证；
 - IM-05 QualityProfile/Evidence 真实来源与跨模块验证、对象存储、外部 Provider 和人工“采购控制程序”验收。
 
-本轮唯一可验证的自动范围是现有 200 项公开 Contract、文档链接/格式和 Catalog/Registry 一致性；这些 Gate 通过也不能提升上述业务项状态。
+截至 2026-08-21，本轮唯一可验证的自动范围是当时的 200 项公开 Contract、文档链接/格式和 Catalog/Registry 一致性；这些 Gate 通过也不能提升上述业务项状态。
+
+### 9.1 IM-04 WI-01 当前验证边界（2026-08-28）
+
+- 当前公开 Registry 为 `FULL:201 / ENVELOPE_ONLY:0`，其中新增的唯一 Operation 是 `integration.get_render_attempt_binding@1.0`；`contracts/baselines/v1.0/` 的历史 200-operation 快照不可改写。
+- 本 WI 的自动 Gate 已覆盖并通过 Canonical Document/Workbook Schema、结构不变量、Canonical JSON/SHA-256 Fixture、Manifest hash-domain 排除、Binding Query payload/result、生成类型、Catalog 对账与兼容性增量；`pnpm test` 为 `25 个测试文件 PASS / 17 个 skipped`、`363 passed / 241 skipped`。
+- `pnpm verify` 的 format、lint、typecheck、test、architecture、contracts:check 和 PostgreSQL persistence gate 均通过；Persistence 使用锁定的 PostgreSQL 18.6 / Flyway 11.20.3，完成 `21` 个测试文件、`256` 个测试、空库迁移、二次 migrate no-op 和容器清理。
+- 对象存储、Renderer 进程、Artifact 业务 Repository/Handler、真实 Provider/数据库、公开 HTTP、跨模块 E2E、生产和独立人工业务验收继续保持 `NOT RUN`。
 
 ## 11. IM-03 WI-02 Application/Persistence 验证边界
 
