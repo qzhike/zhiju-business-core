@@ -1,0 +1,140 @@
+{
+  "payload": {
+    "schemaRef": {
+      "kind": "VERSIONED",
+      "objectType": "artifact.workbook_spec_schema",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d241",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d251",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "contentType": "WORKBOOK_SPEC",
+    "canonicalizationVersion": "1",
+    "body": {
+      "workbookId": "018f22e2-7c15-7b2e-8d86-2de956a9d261",
+      "sheets": [
+        {
+          "sheetId": "supplier-sheet",
+          "name": "Suppliers",
+          "ordinal": 0,
+          "columns": [
+            {
+              "columnId": "supplier",
+              "name": "Supplier",
+              "ordinal": 0,
+              "valueType": "text"
+            },
+            {
+              "columnId": "amount",
+              "name": "Amount",
+              "ordinal": 1,
+              "valueType": "number"
+            },
+            {
+              "columnId": "total",
+              "name": "Total",
+              "ordinal": 2,
+              "valueType": "number"
+            }
+          ],
+          "rows": [
+            {
+              "rowId": "supplier-row-1",
+              "ordinal": 0,
+              "cells": [
+                {
+                  "cellId": "supplier-row-1-name",
+                  "columnId": "supplier",
+                  "value": "Acme",
+                  "valueType": "text"
+                },
+                {
+                  "cellId": "supplier-row-1-amount",
+                  "columnId": "amount",
+                  "value": 2,
+                  "valueType": "number"
+                },
+                {
+                  "cellId": "supplier-row-1-total",
+                  "columnId": "total",
+                  "value": 2,
+                  "valueType": "number",
+                  "formula": "=SUM(amount)"
+                }
+              ]
+            },
+            {
+              "rowId": "supplier-row-2",
+              "ordinal": 1,
+              "cells": [
+                {
+                  "cellId": "supplier-row-2-name",
+                  "columnId": "supplier",
+                  "value": "Beta",
+                  "valueType": "text"
+                },
+                {
+                  "cellId": "supplier-row-2-amount",
+                  "columnId": "amount",
+                  "value": 3,
+                  "valueType": "number"
+                },
+                {
+                  "cellId": "supplier-row-2-total",
+                  "columnId": "total",
+                  "value": 3,
+                  "valueType": "number",
+                  "formula": "=SUM(amount)"
+                }
+              ]
+            }
+          ],
+          "validationRules": [
+            {
+              "rule": "required",
+              "columnId": "supplier"
+            }
+          ],
+          "crossRecordRules": [
+            {
+              "rule": "unique",
+              "columnId": "supplier"
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "locale": "en-US",
+        "revisionLabel": "golden-1"
+      }
+    }
+  },
+  "manifest": {
+    "contentObjectId": "018f22e2-7c15-7b2e-8d86-2de956a9d271",
+    "payloadSchemaRef": {
+      "kind": "VERSIONED",
+      "objectType": "artifact.workbook_spec_schema",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d241",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d251",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "contentType": "WORKBOOK_SPEC",
+    "canonicalizationVersion": "1",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "e3e0f7357a3fcd6c18063081128913b0cd8983e75d6455d4aa6664284f30a818",
+      "canonicalizationVersion": "1"
+    },
+    "byteSize": 768,
+    "mediaType": "application/json",
+    "objectRef": "artifact/canonical/workbook-001",
+    "storageState": "FROZEN"
+  },
+  "expectedCanonicalBytes": "{\"body\":{\"metadata\":{\"locale\":\"en-US\",\"revisionLabel\":\"golden-1\"},\"sheets\":[{\"columns\":[{\"columnId\":\"supplier\",\"name\":\"Supplier\",\"ordinal\":0,\"valueType\":\"text\"},{\"columnId\":\"amount\",\"name\":\"Amount\",\"ordinal\":1,\"valueType\":\"number\"},{\"columnId\":\"total\",\"name\":\"Total\",\"ordinal\":2,\"valueType\":\"number\"}],\"crossRecordRules\":[{\"columnId\":\"supplier\",\"rule\":\"unique\"}],\"name\":\"Suppliers\",\"ordinal\":0,\"rows\":[{\"cells\":[{\"cellId\":\"supplier-row-1-name\",\"columnId\":\"supplier\",\"value\":\"Acme\",\"valueType\":\"text\"},{\"cellId\":\"supplier-row-1-amount\",\"columnId\":\"amount\",\"value\":2,\"valueType\":\"number\"},{\"cellId\":\"supplier-row-1-total\",\"columnId\":\"total\",\"formula\":\"=SUM(amount)\",\"value\":2,\"valueType\":\"number\"}],\"ordinal\":0,\"rowId\":\"supplier-row-1\"},{\"cells\":[{\"cellId\":\"supplier-row-2-name\",\"columnId\":\"supplier\",\"value\":\"Beta\",\"valueType\":\"text\"},{\"cellId\":\"supplier-row-2-amount\",\"columnId\":\"amount\",\"value\":3,\"valueType\":\"number\"},{\"cellId\":\"supplier-row-2-total\",\"columnId\":\"total\",\"formula\":\"=SUM(amount)\",\"value\":3,\"valueType\":\"number\"}],\"ordinal\":1,\"rowId\":\"supplier-row-2\"}],\"sheetId\":\"supplier-sheet\",\"validationRules\":[{\"columnId\":\"supplier\",\"rule\":\"required\"}]}],\"workbookId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d261\"},\"canonicalizationVersion\":\"1\",\"contentType\":\"WORKBOOK_SPEC\",\"schemaRef\":{\"kind\":\"VERSIONED\",\"objectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d241\",\"objectType\":\"artifact.workbook_spec_schema\",\"scope\":{\"enterpriseId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d201\",\"projectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d202\"},\"versionId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d251\"}}",
+  "expectedDigest": "e3e0f7357a3fcd6c18063081128913b0cd8983e75d6455d4aa6664284f30a818"
+}

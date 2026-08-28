@@ -4,7 +4,7 @@
 
 日期：2026-08-27
 
-状态：`SPEC REVIEW COMPLETE / IM-DG-005 APPROVED 2026-08-27 / USER CONFIRMED DOCUMENT DELIVERY / NO CODE CHANGE`
+状态：`SPEC REVIEW COMPLETE / IM-DG-005 APPROVED 2026-08-27 / USER CONFIRMED DOCUMENT DELIVERY / NO CODE CHANGE AT REVIEW TIME / WI-01 FOLLOW-UP VERIFIED 2026-08-28`
 
 工作树：`galendai/im-03-enterpriseproject-reference-foundation`
 
@@ -35,7 +35,7 @@
 6. Renderer 属于 IntegrationGateway 的适配边界；渲染成功仍需由 Artifact 登记 Representation，不能直接形成 Quality、Approval 或 Release 事实。
 7. 已有 Render Command/Event 必须复用：`integration.request_render@1.0`、`integration.RenderSucceeded@1.0` 和 `integration.RenderFailed@1.0`；通用 `integration.get_render_attempt@1.0` 可用于状态查询，但不能替代 IM-04 所需的完整 Binding Query。
 
-### 2.2 尚未实现的事实
+### 2.2 尚未实现的事实（截至 2026-08-27 审阅时）
 
 1. `modules/artifact/src/index.ts` 仍是 Skeleton。
 2. `migrations/artifact/V4000__artifact_technical_tables.sql` 只包含 IM-02 标准技术表，不包含 Artifact、Branch、Revision、Representation 或 Binding 业务表。
@@ -43,7 +43,7 @@
 4. Artifact 业务 Repository、Application Handler、Canonical payload/hash 强校验、Diff、对象 Link 和 Orphan Cleanup 尚未实现。
 5. Renderer Adapter、真实对象存储、DOCX/XLSX 可打开性与版式人工审阅仍为 `NOT RUN`。
 
-因此，不能把现有 Schema Contract 回归、`V4000` 技术表或 IntegrationGateway 内存运行时切片解释为 IM-04 已完成。
+因此，截至该次审阅时，不能把现有 Schema Contract 回归、`V4000` 技术表或 IntegrationGateway 内存运行时切片解释为 IM-04 已完成。后续 WI-01 的当前实现状态以本记录末尾的补充和 [`Issue #90 Verification-Record`](../issue-90/Verification-Record.md) 为准。
 
 ## 3. IM-DG-005 推荐冻结内容
 
@@ -198,7 +198,7 @@ Artifact.register_representation@1.0
 
 ### 用户后续明确启动实现后才可执行
 
-1. 先完成 additive RenderAttempt Binding Query 的 Contract Gate，再建立独立 IM-04 工作树/分支；当前指令明确禁止启动实现。
+1. 先完成 additive RenderAttempt Binding Query 的 Contract Gate，再建立独立 IM-04 工作树/分支；截至 2026-08-27 当前指令明确禁止启动实现。
 2. 固定合成 Fixture、Schema Fixture 和跨语言 Hash Fixture，并在测试后清理临时文件。
 3. 用户确认文档变更后，才开始第一批 Canonical Schema/Artifact Repository 代码实现。
 
@@ -248,4 +248,8 @@ Artifact.register_representation@1.0
 6. `Module-Spec-004-Artifact.md`：补充 CanonicalContentManifest、Document、WorkbookSpec 和 Renderer 责任边界；
 7. `Module-Test-004-Artifact.md`：补充 Schema、Hash、对象事务、Diff 和 Renderer 验收矩阵。
 
-用户已确认提交本轮文档，并要求本次只在 GitHub 建立 IM-04 Work Item，不开始任何 IM-04 开发。因此下一步只执行文档交付、Issue #56 scoped closeout 和 Work Item 建档；不建立 IM-04 工作树或实现分支。真实业务场景、真实 Provider、生产对象存储、公开 HTTP/E2E 和人工版式验收继续保持明确的 `NOT RUN`。
+用户已确认提交本轮文档，并要求本次只在 GitHub 建立 IM-04 Work Item，不开始任何 IM-04 开发。因此截至 2026-08-27 审阅结束时，下一步只执行文档交付、Issue #56 scoped closeout 和 Work Item 建档；不建立 IM-04 工作树或实现分支。真实业务场景、真实 Provider、生产对象存储、公开 HTTP/E2E 和人工版式验收继续保持明确的 `NOT RUN`。
+
+## 10. WI-01 后续实现补充（2026-08-28）
+
+Issue #90 已在独立工作树中完成 executable Canonical Document/Workbook Schema、Canonical JSON/SHA-256 golden fixture、Manifest Hash Domain 排除、additive RenderAttempt Binding Query 以及对应生成物和负向 Contract 回归。当前 Catalog/Registry 为 `FULL:201`，冻结的 v1.0 历史 baseline 保持 200；技术 PostgreSQL/Flyway persistence gate 已通过 `21 files / 256 tests`，空库迁移、二次 no-op 和容器清理均通过；Artifact 业务 Repository/Handler、对象 Link、Renderer、Provider、跨模块 E2E 和人工验收仍为 `NOT RUN`。精确命令、fixture bytes/digest、预期/实际输出和 Git 交付状态见 [`Issue #90 Verification-Record.md`](../issue-90/Verification-Record.md)。

@@ -1,0 +1,91 @@
+{
+  "payload": {
+    "schemaRef": {
+      "kind": "VERSIONED",
+      "objectType": "artifact.canonical_document_schema",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d211",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "contentType": "STRUCTURED_DOCUMENT",
+    "canonicalizationVersion": "1",
+    "body": {
+      "documentId": "018f22e2-7c15-7b2e-8d86-2de956a9d221",
+      "title": "Supplier review procedure",
+      "units": [
+        {
+          "unitId": "document-root",
+          "unitType": "SECTION",
+          "ordinal": 0,
+          "childUnitIds": ["introduction", "control-table"]
+        },
+        {
+          "unitId": "introduction",
+          "parentUnitId": "document-root",
+          "unitType": "PARAGRAPH",
+          "ordinal": 0,
+          "text": "Review supplier evidence before approval.",
+          "childUnitIds": []
+        },
+        {
+          "unitId": "control-table",
+          "parentUnitId": "document-root",
+          "unitType": "TABLE",
+          "ordinal": 1,
+          "childUnitIds": ["control-row"],
+          "semanticMetadata": {
+            "tablePurpose": "supplier-control"
+          }
+        },
+        {
+          "unitId": "control-row",
+          "parentUnitId": "control-table",
+          "unitType": "TABLE_ROW",
+          "ordinal": 0,
+          "childUnitIds": ["control-cell"]
+        },
+        {
+          "unitId": "control-cell",
+          "parentUnitId": "control-row",
+          "unitType": "TABLE_CELL",
+          "ordinal": 0,
+          "text": "Evidence is traceable.",
+          "childUnitIds": []
+        }
+      ],
+      "metadata": {
+        "locale": "en-US",
+        "revisionLabel": "golden-1"
+      }
+    }
+  },
+  "manifest": {
+    "contentObjectId": "018f22e2-7c15-7b2e-8d86-2de956a9d231",
+    "payloadSchemaRef": {
+      "kind": "VERSIONED",
+      "objectType": "artifact.canonical_document_schema",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d211",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "contentType": "STRUCTURED_DOCUMENT",
+    "canonicalizationVersion": "1",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "902a88d2b1ebfd0614454d0bd6a9e6f4124adba2d94bb7b94189787484a985b7",
+      "canonicalizationVersion": "1"
+    },
+    "byteSize": 512,
+    "mediaType": "application/json",
+    "objectRef": "artifact/canonical/document-001",
+    "storageState": "FROZEN"
+  },
+  "expectedCanonicalBytes": "{\"body\":{\"documentId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d221\",\"metadata\":{\"locale\":\"en-US\",\"revisionLabel\":\"golden-1\"},\"title\":\"Supplier review procedure\",\"units\":[{\"childUnitIds\":[\"introduction\",\"control-table\"],\"ordinal\":0,\"unitId\":\"document-root\",\"unitType\":\"SECTION\"},{\"childUnitIds\":[],\"ordinal\":0,\"parentUnitId\":\"document-root\",\"text\":\"Review supplier evidence before approval.\",\"unitId\":\"introduction\",\"unitType\":\"PARAGRAPH\"},{\"childUnitIds\":[\"control-row\"],\"ordinal\":1,\"parentUnitId\":\"document-root\",\"semanticMetadata\":{\"tablePurpose\":\"supplier-control\"},\"unitId\":\"control-table\",\"unitType\":\"TABLE\"},{\"childUnitIds\":[\"control-cell\"],\"ordinal\":0,\"parentUnitId\":\"control-table\",\"unitId\":\"control-row\",\"unitType\":\"TABLE_ROW\"},{\"childUnitIds\":[],\"ordinal\":0,\"parentUnitId\":\"control-row\",\"text\":\"Evidence is traceable.\",\"unitId\":\"control-cell\",\"unitType\":\"TABLE_CELL\"}]},\"canonicalizationVersion\":\"1\",\"contentType\":\"STRUCTURED_DOCUMENT\",\"schemaRef\":{\"kind\":\"VERSIONED\",\"objectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d201\",\"objectType\":\"artifact.canonical_document_schema\",\"scope\":{\"enterpriseId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d201\",\"projectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d202\"},\"versionId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d211\"}}",
+  "expectedDigest": "902a88d2b1ebfd0614454d0bd6a9e6f4124adba2d94bb7b94189787484a985b7"
+}

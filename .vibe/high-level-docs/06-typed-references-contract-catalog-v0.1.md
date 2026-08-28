@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT CONTRACT CATALOG BASELINE / IMPLEMENTATION NOT STARTED`
+状态：`CURRENT CONTRACT CATALOG BASELINE / IM-04 WI-01 ADDITIVE CONTRACT VERIFIED 2026-08-28 / GIT DELIVERY PENDING USER REVIEW`
 
 文档角色：Typed Reference、统一 Envelope、Contract 兼容性与公开 Command/Query/Event 名称的唯一权威。模块职责以 `02` 为准，Payload 业务语义以 `03/04` 为准，持久化以 `07` 为准。
 
@@ -987,6 +987,7 @@ integration.get_channel_binding@1.0
 integration.get_delivery_attempt@1.0
 integration.get_runtime_attempt@1.0
 integration.get_render_attempt@1.0
+integration.get_render_attempt_binding@1.0
 integration.get_adapter_health@1.0
 ```
 
@@ -1071,7 +1072,7 @@ Consumer 不能因为收到 Event 就直接写本模块以外的 Repository。
 
 ---
 
-## 14. 实现前待确认
+## 14. 实现前待确认（历史基准决策项）
 
 1. Core ID 第一版使用 UUIDv7、ULID 还是带前缀的 opaque ID；
 2. Canonicalization v1 的具体标准库和跨语言 Fixture；
@@ -1117,4 +1118,4 @@ Evidence/Representation/Package Ref
 
 Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 冻结 EnterpriseProject Owner 的受控 Application Capability；逻辑名称、输入/输出、授权目的和错误码见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。
 
-这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目，因此当前 Catalog 仍保持 200 个公开 Contract，Module Spec/Registry/生成类型集合不变。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
+这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；当前 Catalog 已因 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量变更为 201 个公开 Contract，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。

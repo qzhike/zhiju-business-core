@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-16
-状态：`CURRENT MODULE CONTRACT BASELINE / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / ISSUE #17 RUNTIME SLICE LANDED 2026-08-22 / REAL PROVIDER AND DATABASE NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 ADDITIVE BINDING QUERY CONTRACT LANDED 2026-08-28 / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / ISSUE #17 RUNTIME SLICE LANDED 2026-08-22 / REAL PROVIDER AND DATABASE NOT RUN`
 
 ## 1. 模块责任
 
@@ -170,9 +170,10 @@ AdapterHealthView
 | `integration.get_delivery_attempt@1.0` | A | `attemptRef: ObjectRef<ChannelDeliveryAttempt>` | `AdapterAttemptView` |
 | `integration.get_runtime_attempt@1.0` | A | `attemptRef: ObjectRef<RuntimeAttempt>` | `AdapterAttemptView` |
 | `integration.get_render_attempt@1.0` | A | `attemptRef: ObjectRef<RenderAttempt>` | `AdapterAttemptView` |
+| `integration.get_render_attempt_binding@1.0` | A | `attemptRef: ObjectRef<RenderAttempt>` | `RenderAttemptBindingView`；返回原始 RenderRequest、request payload hash、成功结果和 raw receipt ref，不暴露凭证或 Presigned URL |
 | `integration.get_adapter_health@1.0` | P | `adapterCodes: Set<NamespaceCode>; observedAfter?: UtcInstant; page: PageRequest` | `Page<AdapterHealthView>`；Health 不代表业务动作成功 |
 
-IM-04 规格复审确认：通用 `AdapterAttemptView` 只提供状态、请求 Payload Hash 和 Receipt Ref，不能让 Artifact 复验原始 Revision/canonical content/input Hash/Renderer 与成功输出的完整绑定。Representation Handler 开发前必须 additive 定义 `integration.get_render_attempt_binding@1.0`，返回只读 `RenderAttemptBindingView={attemptRef,status,request,requestPayloadHash,succeededResult,rawReceiptRef}`；它不得暴露 Provider 凭证、Presigned URL 或跨模块 Repository。该 Operation 当前尚未加入 Registry、公开计数或 Compatibility Baseline，Schema、Handler 和测试均为 `NOT RUN`。
+IM-04 规格复审确认：通用 `AdapterAttemptView` 只提供状态、请求 Payload Hash 和 Receipt Ref，不能让 Artifact 复验原始 Revision/canonical content/input Hash/Renderer 与成功输出的完整绑定。Representation Handler 开发前必须 additive 定义 `integration.get_render_attempt_binding@1.0`，返回只读 `RenderAttemptBindingView={attemptRef,status,request,requestPayloadHash,succeededResult,rawReceiptRef}`；它不得暴露 Provider 凭证、Presigned URL 或跨模块 Repository。WI-01 已以 additive 方式把该 Operation 加入当前 201 项 Registry；冻结的 v1.0 历史 Compatibility Baseline 仍为 200 项，Handler、真实 Provider、数据库和外部测试仍为 `NOT RUN`。
 
 ## 5. Event Payload Contract
 
@@ -243,14 +244,14 @@ Issue #17 允许先在模块内部验证不依赖真实 Provider、数据库或 
 
 ## 9. 当前状态
 
-- 23 个公开 Contract 已定义字段级 payload/result/event 结构；
+- 24 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核并成为字段级基准；
 - Feishu Channel Contract v0.1 已完成静态 `DESIGN VERIFIED`，四个 optional minor 字段已随用户推进确认纳入基准；Runtime Adapter Contract v0.1 已获用户推进确认并进入 Implementation Milestone Plan；真实 Renderer Adapter、Credentials、Persistence 与 Provider Conformance 仍不存在，Issue #17 的内存运行时切片及其 Unit/Contract 测试已落地；
-- 字段级 Schema 已落地：`contracts/src/operations/integration-gateway.schema.ts` 已实现 9 Command + 5 Query + 9 Event Payload Schema，5 个 Query Result Schema（`ChannelBindingView` / `AdapterAttemptView` × 3 / `Page<AdapterHealthView>`）；Registry 中 23 个 operation 已于 2026-08-18 由 `ENVELOPE_ONLY` 升级为 `FULL`；
+- 字段级 Schema 已落地：`contracts/src/operations/integration-gateway.schema.ts` 已实现 9 Command + 6 Query + 9 Event Payload Schema，6 个 Query Result Schema（新增 `RenderAttemptBindingView`）；Registry 中当前 24 个 operation 均为 `FULL`，历史 23 个 operation 的 2026-08-18 升级记录保持不变；
 - 2026-08-18 review 修复：Resume 操作通过 `runtimeResumeRequest` overlay 单独要求 `continuationRef`；`feishuDeliveryRequest` 通过 `if/then` 约束 `REPLY/REPLY_IN_THREAD` 必须携带 `replyToExternalRef`；`businessContextRefs` 改用专用 union 禁止 `ExternalRef`、`Runtime Session` 与 workspace path；`ChannelDeliveryFailed` 移除 spec 未声明的 `destinationBindingRef` 字段。
 - 2026-08-18 review 第二轮修复：`ChannelBindingView.status` 改回 Module-Spec §4 定义的 `NamespaceCode`（不再窄化为 `InboundStatus`）；`AdapterHealthView.latency` 由 `common.valueEnvelope` 替换为本地 `valueEnvelopeDuration`，仅在 `presence=PRESENT` 时要求 `value` 为 common `duration`；`businessContextRefs` 在 per-kind 引用 schema 上叠加 objectType 白名单（`execution.task` / `execution.work_order` / `execution.information_request` / `quality.approval_request` / `release.release`），并补 `identity.principal` 等非白名单负向回归；`attachmentRefs` / `conflictRefs` 移除过度收紧的 `uniqueItems` 保留普通数组语义；`adapterCodes` 移除 `minItems=1` 但恢复 `uniqueItems`，与 Module-Spec §4 `Set<NamespaceCode>` 一致。
 - 2026-08-18 review 第三轮修复：`adapterCodes` 在保留 Set 唯一性的前提下重新接受空数组；新增 `IG-API-S-020`（空数组 valid）与 `IG-API-S-021`（重复项 `uniqueItems` 错误）成对回归，纠正第二轮修复文档中"P2 已断言回归"的失真。
-- 静态设计 / Schema 维度 Gate：`pnpm verify` 6 项（format / lint / typecheck / Vitest / architecture / contracts:check）全部通过；23 个 Happy-path Schema 测试与 11 个 Schema 维度负向 fixture 全部断言 PASS。
+- 静态设计 / Schema 维度 Gate：WI-01 的 `pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm architecture` 与 `pnpm contracts:check` 全部通过；新增 Binding Query 正向、秘密字段、状态条件和未知 major 负向断言全部 PASS。
 - Issue #17 的可离线验证运行时切片已于 2026-08-22 落地，覆盖 Inbound 幂等/Hash 冲突、timeout `UNKNOWN`、未知协议拒绝、Render 绑定、撤回 Origin、显式授权和 Audit/Masking；PR #26 review 补强 Claim-before-dispatch、timeout 迟到 rejection 观察、Origin 的 adapter/account 身份、recall 必填消息引用和 renderer mismatch 回归；focused tests 全部 `PASS`，完整验证结果见 `.vibe/issue-17-integrationgateway-runtime-acceptance-gaps/Verification-Report.md`。
 - Handler、Repository、Database、Migration、Feishu Adapter、Runtime Adapter、Renderer Adapter、Credentials、E2E 与人工业务验收仍为 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪；Schema 闭合或内存运行时切片不等于跨进程去重 / 真实撤回 / 真实权限 / Provider UNKNOWN / 业务撤回判定已运行；review body 中标注的 7 类字段级契约偏差已修复，模块不得据此声称 Issue #6 全部 8 条验收完成。
 

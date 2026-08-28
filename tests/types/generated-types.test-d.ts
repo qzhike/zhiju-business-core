@@ -11,10 +11,12 @@
 
 import type {
   CanonicalJson,
+  Artifact,
   Common,
   Core,
   EnterpriseProject,
   IdentityPolicy,
+  IntegrationGateway,
   ReleasePublication,
   TaskExecution,
 } from '@zhiju/contracts';
@@ -98,6 +100,122 @@ expectType<IdentityPolicy.IdentityRegisterPrincipalPayload>(registerPrincipal);
     initialStatus: 'SUSPENDED',
   };
   void badInitialStatus;
+}
+
+// =============================================================================
+// IM-04 WI-01 — Canonical Content and RenderAttempt Binding generated types
+// =============================================================================
+
+const canonicalDocument: Artifact.CanonicalDocument = {
+  documentId: uuid,
+  title: 'Generated canonical document',
+  units: [
+    {
+      unitId: 'root',
+      unitType: 'SECTION',
+      ordinal: 0,
+      childUnitIds: [],
+    },
+  ],
+};
+expectType<Artifact.CanonicalDocument>(canonicalDocument);
+
+const canonicalContent: Artifact.CanonicalContentPayload = {
+  schemaRef: versionedReference,
+  contentType: 'STRUCTURED_DOCUMENT',
+  canonicalizationVersion: '1',
+  body: canonicalDocument,
+};
+expectType<Artifact.CanonicalContentPayload>(canonicalContent);
+
+const workbookSpec: Artifact.CanonicalWorkbookSpec = {
+  workbookId: uuid,
+  sheets: [
+    {
+      sheetId: 'sheet-1',
+      name: 'Sheet 1',
+      ordinal: 0,
+      columns: [{ columnId: 'amount', name: 'Amount', ordinal: 0, valueType: 'number' }],
+      rows: [
+        {
+          rowId: 'row-1',
+          ordinal: 0,
+          cells: [
+            {
+              cellId: 'cell-1',
+              columnId: 'amount',
+              value: 1,
+              valueType: 'number',
+              formula: '=SUM(amount)',
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+expectType<Artifact.CanonicalWorkbookSpec>(workbookSpec);
+
+// Negative case — CanonicalContentPayload keeps contentType closed.
+{
+  const badContentType: Artifact.CanonicalContentPayload = {
+    schemaRef: versionedReference,
+    // @ts-expect-error — open STRUCTURED_REPORT content is not a WI-01 payload type.
+    contentType: 'STRUCTURED_REPORT',
+    canonicalizationVersion: '1',
+    body: canonicalDocument,
+  };
+  void badContentType;
+}
+
+// Negative case — generated closed object types reject required extensions.
+{
+  const badDocument: Artifact.CanonicalDocument = {
+    ...canonicalDocument,
+    // @ts-expect-error — unknown required extensions are not part of the schema.
+    requiredExtension: { extensionType: 'artifact.future_required' },
+  };
+  void badDocument;
+}
+
+const renderRequest: IntegrationGateway.RenderRequest = {
+  revisionRef: contentAddressedReference,
+  canonicalContentRef: 'artifact/canonical/document-001',
+  inputHash: payloadHash,
+  outputFormat: 'document.pdf',
+  rendererId: 'renderer.pdf',
+  rendererVersion: '1.0.0',
+  renderPolicyRef: versionedReference,
+  stableIdempotencyKey: 'generated-binding-fixture',
+  requestedAt: '2026-08-28T00:00:00Z',
+};
+const renderSucceeded: IntegrationGateway.RenderSucceededPayload = {
+  attemptRef: objectReference,
+  revisionRef: contentAddressedReference,
+  outputObjectRef: 'artifact/rendered/document-001',
+  outputChecksum: payloadHash,
+  rendererId: 'renderer.pdf',
+  rendererVersion: '1.0.0',
+  rawReceiptRef: contentAddressedReference,
+};
+const renderBinding: IntegrationGateway.RenderAttemptBindingView = {
+  attemptRef: objectReference,
+  status: 'SUCCEEDED',
+  request: renderRequest,
+  requestPayloadHash: payloadHash,
+  succeededResult: renderSucceeded,
+  rawReceiptRef: contentAddressedReference,
+};
+expectType<IntegrationGateway.RenderAttemptBindingView>(renderBinding);
+
+// Negative case — Binding Query results do not expose credentials.
+{
+  const leakedBinding: IntegrationGateway.RenderAttemptBindingView = {
+    ...renderBinding,
+    // @ts-expect-error — provider credentials are outside the public result contract.
+    credentials: 'must-not-leak',
+  };
+  void leakedBinding;
 }
 
 // Negative case — `principalKind` does not allow arbitrary strings.

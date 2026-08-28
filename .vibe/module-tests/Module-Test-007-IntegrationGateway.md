@@ -1,8 +1,8 @@
 # Module-Test-007-IntegrationGateway
 
 版本：v0.1
-日期：2026-08-13（字段级 Schema 增补于 2026-08-18，2026-08-18 review 第一轮修复，2026-08-18 review 第二轮修复，Issue #17 运行时切片设计于 2026-08-21、实现于 2026-08-22）
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / 9-CLASS REVIEW FIXES APPLIED 2026-08-18 / ISSUE #17 RUNTIME SLICE PASS 2026-08-22 / REAL HANDLER + ADAPTER + DB STILL NOT RUN / PR #16 NOT CLAIMING ISSUE #6`
+日期：2026-08-13（字段级 Schema 增补于 2026-08-18，2026-08-18 review 第一轮修复，2026-08-18 review 第二轮修复，Issue #17 运行时切片设计于 2026-08-21、实现于 2026-08-22，WI-01 Binding Query 回归于 2026-08-28）
+状态：`API CONTRACT TEST BASELINE / WI-01 BINDING QUERY CONTRACT REGRESSION PASS / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / 9-CLASS REVIEW FIXES APPLIED 2026-08-18 / ISSUE #17 RUNTIME SLICE PASS 2026-08-22 / REAL HANDLER + ADAPTER + DB STILL NOT RUN / PR #16 NOT CLAIMING ISSUE #6`
 
 对应规格：[`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md)。
 
@@ -16,9 +16,9 @@ Runtime 原始协议与 IntegrationGateway API 的专项映射测试见 [`Runtim
 
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
-| IG-API-D-001 | Design | IntegrationGateway Module Spec 与 Catalog | 9 Command、5 Query、9 Event 名称/Owner/字段完整且无重复 | `commands=9 queries=5 events=9`；Catalog 集合差 0；字段检查无异常 | `DESIGN VERIFIED` |
-| IG-API-S-001 | Schema | 9 个 Command Payload Schema 与 Registry 解析 | 每个 Command 可由 Ajv 解析且必填字段闭合 | `registry.operationCount=200`；23 个 integration-gateway operation 全部标记 `FULL`；`pnpm contracts:check=PASS` | `PASS` |
-| IG-API-S-002 | Schema | 5 个 Query Payload + 5 个 Result Schema 与 Registry 解析 | 每个 Query 的 Payload 与 Result Schema 均可由 Ajv 解析 | 5 个 Result（`channelBindingView` / 3 × `adapterAttemptView` / `adapterHealthPage`）注册；`get_adapter_health` Result 包含 `Page<AdapterHealthView>` 与 `ValueEnvelope<Duration>` latency | `PASS` |
+| IG-API-D-001 | Design | IntegrationGateway Module Spec 与 Catalog | 9 Command、6 Query、9 Event 名称/Owner/字段完整且无重复 | `commands=9 queries=6 events=9`；Catalog 集合差 0；字段检查无异常 | `DESIGN VERIFIED` |
+| IG-API-S-001 | Schema | 9 个 Command Payload Schema 与 Registry 解析 | 每个 Command 可由 Ajv 解析且必填字段闭合 | `registry.operationCount=201`；24 个 integration-gateway operation 全部标记 `FULL` | `PASS` |
+| IG-API-S-002 | Schema | 6 个 Query Payload + 6 个 Result Schema 与 Registry 解析 | 每个 Query 的 Payload 与 Result Schema 均可由 Ajv 解析 | `RenderAttemptBindingView` 已注册；6 个 Query Result 均有可执行 Schema | `PASS` |
 | IG-API-S-003 | Schema | 9 个 Event Payload Schema 与 Registry 解析 | 每个 Event Payload 严格闭合，不接受敏感字段 | 9 个 Event 已注册并通过 Ajv 严格 required + `additionalProperties: false` 校验 | `PASS` |
 | IG-API-S-004 | Schema | inbound envelope 提交携带 `duplicateOfSubmissionRef` 等伪去重字段 | Schema 闭合拒绝额外字段；**仅闭包测试，不构成 duplicate 验收** | `integration-accept-inbound-envelope-command-duplicate-hash.json` 触发 `additionalProperties` 错误 | `PASS` |
 | IG-API-S-005 | Schema | 飞书普通文本 webhook body 泄露到 Event | Event Payload 闭合拒绝 `rawWebhookBody` | `integration-channel-delivery-failed-event-webhook-body-leak.json` 触发 `additionalProperties` 错误 | `PASS` |
@@ -38,8 +38,10 @@ Runtime 原始协议与 IntegrationGateway API 的专项映射测试见 [`Runtim
 | IG-API-S-019 | Schema | get_adapter_health result.latency.value 为非法 ISO 8601 Duration | 同上拒绝 | 改为 `value:"not-a-duration"` 后 valid=false | `PASS` |
 | IG-API-S-020 | Schema | get_adapter_health adapterCodes 为空数组（review P2 第三轮） | Set 允许空（语义由 Handler 维护） | empty list 后 valid=true | `PASS` |
 | IG-API-S-021 | Schema | get_adapter_health adapterCodes 含重复项（review P2 第三轮） | Set 唯一性强制 uniqueItems | `['feishu.channel','feishu.channel']` 触发 `uniqueItems` 错误 | `PASS` |
+| IG-API-S-022 | Schema | `integration.get_render_attempt_binding@1.0` 携带原始 Request、request hash、成功 Result 与 raw receipt | Binding Result 可由 Ajv 解析，成功状态必须携带成功结果和 receipt | `integration-render-attempt-binding-result-valid.json` 与 Query Envelope 均 `valid=true` | `PASS` |
+| IG-API-S-023 | Schema | Binding Result 携带 credentials/Presigned URL、缺少成功结果或 FAILED 状态携带成功结果 | `additionalProperties`、`required` 或 `false schema` 拒绝；未知 Binding major 由 Registry 拒绝 | 4 类负向变体分别触发预期错误；`2.0` 触发 `operationRegistry` | `PASS` |
 
-[`contracts/src/operations/integration-gateway.schema.test.ts`](../../contracts/src/operations/integration-gateway.schema.test.ts) 当前共 35 个 focused tests，覆盖 23 个 operation 的 Happy-path、5 个 Query Result、Schema 维度负向 fixture 与 review 边界；本次 `pnpm verify` 全量为 16 个测试文件、317 个测试通过。
+[`contracts/src/operations/integration-gateway.schema.test.ts`](../../contracts/src/operations/integration-gateway.schema.test.ts) 与 [`contracts/src/canonical-content.test.ts`](../../contracts/src/canonical-content.test.ts) 已覆盖 24 个 operation 的 Registry 对账、6 个 Query Result、Binding Secret/状态负向 fixture 与既有通用 Attempt Query 兼容性；全量 `pnpm test` 为 `25 个测试文件 PASS / 17 个 skipped`、`363 passed / 241 skipped`。
 
 review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成：
 

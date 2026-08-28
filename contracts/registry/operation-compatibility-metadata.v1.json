@@ -1335,6 +1335,13 @@
       "semanticDeclaration": "v1.0-baseline"
     },
     {
+      "type": "integration.get_render_attempt_binding",
+      "version": "1.0",
+      "authorizationPurpose": "integration.gateway.get_render_attempt_binding",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "v1.0-additive-render-binding-query"
+    },
+    {
       "type": "integration.get_adapter_health",
       "version": "1.0",
       "authorizationPurpose": "integration.gateway.get_adapter_health",

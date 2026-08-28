@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / EXECUTABLE SCHEMA IMPLEMENTED / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / ISSUES #89–#98 PLANNED / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 EXECUTABLE CANONICAL SCHEMA LANDED 2026-08-28 / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / ISSUES #89–#98 PLANNED / BUSINESS IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -157,7 +157,9 @@ Document Unit、Workbook Sheet/Column/Row/Cell 的稳定身份用于 Scope 校�
 
 Renderer 不属于本模块的实现所有权。IM-04/IM-05 通过 IntegrationGateway 的 `integration.request_render@1.0`、RenderAttempt、版本化 Renderer Adapter、`integration.RenderSucceeded@1.0`/`integration.RenderFailed@1.0` 和 `artifact.register_representation@1.0` 协作。现有 `integration.get_render_attempt@1.0` 只返回通用 `AdapterAttemptView`，没有原始 RenderRequest 与成功结果，不能证明完整绑定；因此 Representation Handler 开发前必须先以 additive `integration.get_render_attempt_binding@1.0` 冻结只读 `RenderAttemptBindingView`。Artifact 随后按 `renderAttemptRef` 权威读取成功 Binding，并核验精确 Revision、canonical content ref/input Hash、Renderer 身份、输出 locator/checksum 与 Raw Receipt 后登记 Representation，不能跨模块读库或只信任调用方 Registration。
 
-计划中的 `RenderAttemptBindingView` 至少包含 `attemptRef`、`status`、原始 `RenderRequest`、`requestPayloadHash`、成功 `RenderSucceededPayload` 与 `rawReceiptRef`。该 Query 是 IM-04 的 Contract Gate，当前 Registry/公开 Operation 计数保持不变，Schema、Compatibility Baseline、Handler 与测试均为 `NOT RUN`。
+`RenderAttemptBindingView` 包含 `attemptRef`、`status`、原始 `RenderRequest`、`requestPayloadHash`、成功 `RenderSucceededPayload` 与 `rawReceiptRef`。该 Query 是 IM-04 的 Contract Gate；WI-01 已以 additive 方式把当前公开 Operation 从 200 项增至 201 项，冻结 v1.0 历史 Compatibility Baseline 仍保持 200 项，Handler 与业务实现仍为 `NOT RUN`。
+
+WI-01 的可执行边界包含以下 Contract 级验证：Canonical Content Payload 仅允许 `STRUCTURED_DOCUMENT`/`WORKBOOK_SPEC` 与 `canonicalizationVersion=1`；Document 校验 Unit ID 唯一、父子引用双向一致、无环和同父级 ordinal 唯一；Workbook 校验 Sheet/Column/Row/Cell 在所属父对象内唯一、Cell 的 `columnId` 属于同一 Sheet，并拒绝缺失等号或括号不平衡的公式。Schema 与这些结构不变量在 `ContractRegistry.validateCanonicalContent` 入口统一执行。
 
 可执行 Schema 必须按 Command 区分 `RevisionContent.parentRevisionRefs` 的数量：`create_and_seal_revision` 仅允许 0 或 1 个 parent，`create_merge_revision` 必须至少 2 个 parent。当 `MergeDefinition.conflictSet` 非空时，`conflictResolutionRefs` 必须非空；否则必须在 Contract 层拒绝，不得等待 Handler 猜测或补全。
 
@@ -300,10 +302,10 @@ ARTIFACT_EFFECTIVE_BINDING_OVERLAP
 
 ## 9. 当前状态
 
-- 26 个公开 Contract 已定义字段级 payload/result/event 结构，并实现可执行 JSON Schema；
+- 26 个 Artifact 既有公开 Contract 已定义字段级 payload/result/event 结构，并实现可执行 JSON Schema；WI-01 另行提供 Canonical Content/Manifest 可执行 Schema，不新增 Artifact 业务 Operation；
 - API v0.1 已于 2026-08-13 通过用户审核；
 - PR #12 Review 确认的 parent 数量与未解决 Merge 冲突缺口已修复，两条 Contract 回归已 `PASS`；
-- IM-DG-005 的 Canonical Document/Workbook 最小 Schema 与 Renderer 路线已于 2026-08-27 获用户批准；复审确认现有通用 RenderAttempt Query 不足，additive Binding Query 已列为 IM-04 首个 Contract Gate；可执行 Schema、Repository、Object Storage Link、Renderer、Diff 与业务实现均尚未完成；
+- IM-DG-005 的 Canonical Document/Workbook 最小 Schema 与 Renderer 路线已于 2026-08-27 获用户批准；WI-01 已完成可执行 Canonical Schema、Hash Fixture、Manifest 边界和 additive Binding Query；Repository、Object Storage Link、Renderer、Diff 与业务实现均尚未完成；
 - 除已明确记录的 Schema Contract 回归外，Unit、E2E 与人工验收均为 `NOT RUN`。
 
 ## 10. IM-02 WI-04 持久化切片

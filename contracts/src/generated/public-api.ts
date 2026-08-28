@@ -1332,6 +1332,13 @@ export const publicApiOperations = [
     schemaStatus: 'FULL',
   },
   {
+    type: 'integration.get_render_attempt_binding',
+    version: '1.0',
+    kind: 'QUERY',
+    owner: 'integration-gateway',
+    schemaStatus: 'FULL',
+  },
+  {
     type: 'integration.get_adapter_health',
     version: '1.0',
     kind: 'QUERY',

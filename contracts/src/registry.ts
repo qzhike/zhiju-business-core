@@ -5,7 +5,12 @@ import { commonSchema } from './common.schema.js';
 import { coreContractSchemas } from './core.schema.js';
 import { operationEnvelopeSchema } from './envelopes.schema.js';
 import { publicApiOperations } from './generated/public-api.js';
+import {
+  artifactCanonicalContentManifestSchemaRef,
+  artifactCanonicalContentPayloadSchemaRef,
+} from './operations/artifact.schema.js';
 import { executableOperationSchemas } from './operations/index.js';
+import { canonicalContentInvariantErrors } from './canonical-content.validation.js';
 import {
   operationPayloadSchemaRef,
   operationResultSchemaRef,
@@ -79,6 +84,24 @@ export class ContractRegistry {
 
   validateCoreContract(schemaId: string, input: unknown): ContractValidationResult {
     return this.#run(this.#ajv.getSchema(schemaId), input);
+  }
+
+  validateCanonicalContentPayload(input: unknown): ContractValidationResult {
+    const structural = this.#run(
+      this.#ajv.getSchema(artifactCanonicalContentPayloadSchemaRef),
+      input,
+    );
+    if (!structural.valid) return structural;
+    const errors = canonicalContentInvariantErrors(input);
+    return errors.length === 0 ? structural : { valid: false, errors };
+  }
+
+  validateCanonicalContent(input: unknown): ContractValidationResult {
+    return this.validateCanonicalContentPayload(input);
+  }
+
+  validateCanonicalContentManifest(input: unknown): ContractValidationResult {
+    return this.#run(this.#ajv.getSchema(artifactCanonicalContentManifestSchemaRef), input);
   }
 
   validateOperationResult(type: string, version: string, input: unknown): ContractValidationResult {

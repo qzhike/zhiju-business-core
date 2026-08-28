@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 ISSUES #89–#98 PLANNED / IM-04 IMPLEMENTATION NOT STARTED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / GIT DELIVERY PENDING USER REVIEW / IM-04 WI-02–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -37,11 +37,11 @@
 |    3 | [`03-core-contracts.md`](./03-core-contracts.md)                                                                     | Project Context、WorkOrder、AgentResult、Artifact + Quality Gate Contract | Runtime、执行、Artifact、Quality、API 任务 |
 |    4 | [`04-domain-model-v0.1.md`](./04-domain-model-v0.1.md)                                                               | Aggregate、Entity、Value Object、状态机、命令、事件、不变量               | 领域实现与业务规则任务                     |
 |    5 | [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md) | Reference Project、跨 Aggregate 流程、事务/Saga、并发、幂等、补偿         | Application Service、流程和可靠消息任务    |
-|    6 | [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)                     | Typed Reference、Envelope、兼容性、200 个公开 Command/Query/Event 名称    | API、事件、跨模块集成任务                  |
+|    6 | [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)                     | Typed Reference、Envelope、兼容性、201 个公开 Command/Query/Event 名称    | API、事件、跨模块集成任务                  |
 |    7 | [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md)                                       | Schema 所有权、逻辑表、约束、RLS、Outbox/Inbox、对象存储边界              | 数据库、Repository、Migration 任务         |
 |    8 | [`08-verification-baseline.md`](./08-verification-baseline.md)                                                       | 验证策略、跨模块验收场景、文档/实现/人工 Gate、测试结果口径               | 所有修改和审查任务                         |
 
-Issue #57 的前置对象入口和未冻结参数决策记录在 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。该文件是本 Work Item 的决策记录，不扩展当前 200 项公开 Catalog，也不替代 `06`、`Module-Spec` 或 `07` 的既有唯一权威范围。
+Issue #57 的前置对象入口和未冻结参数决策记录在 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。该文件是本 Work Item 的决策记录，不扩展当前 201 项公开 Catalog，也不替代 `06`、`Module-Spec` 或 `07` 的既有唯一权威范围。
 
 ### 2.1 文档优先级
 
@@ -69,7 +69,7 @@ Issue #57 的前置对象入口和未冻结参数决策记录在 [`../issue-57-e
 
 ### 2.3 Feishu Channel Contract 阶段文档
 
-Feishu Channel v0.1 的专项协议固定维护在 `.vibe/feishu-channel-contract-v0.1/`；该目录只拥有飞书原始事件/API 到现有 Core Contract 的 Anti-Corruption 映射，不创建第八个业务模块，也不改变 200 项公开 Catalog 的 Owner。
+Feishu Channel v0.1 的专项协议固定维护在 `.vibe/feishu-channel-contract-v0.1/`；该目录只拥有飞书原始事件/API 到现有 Core Contract 的 Anti-Corruption 映射，不创建第八个业务模块，也不改变 201 项公开 Catalog 的 Owner。
 
 | 文档 | 唯一权威范围 |
 |---|---|
@@ -307,7 +307,7 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - Implementation Milestone Plan v0.1 与 IM-00；
 - IM-DG-001 至 IM-DG-004 已于 2026-08-17 获用户批准；生产目标为 Ubuntu 私有单服务器，首期 API-first；
 - 对象存储采用 MicroCeph/Ceph RGW，Secret/KMS 采用 OpenBao，认证入口采用 Keycloak OIDC；MinIO 因官方仓库归档被否决；
-- IM-DG-005 已于 2026-08-27 获用户批准：Canonical Document/Workbook 使用共用不可变封装、Document/Workbook 双领域最小 Schema、稳定 Unit/Sheet/Row/Cell 身份、Canonical JSON + SHA-256，以及经 IntegrationGateway Attempt/Adapter/Receipt 的 Renderer 路线；2026-08-27 复审进一步确认现有通用 RenderAttempt Query 不足，IM-04 必须先 additive 冻结只读 RenderAttempt Binding Query，当前 Registry 与公开 Operation 计数未改变；详细记录见 [`../im-04-startup/Review-Record.md`](../im-04-startup/Review-Record.md)；
+- IM-DG-005 已于 2026-08-27 获用户批准：Canonical Document/Workbook 使用共用不可变封装、Document/Workbook 双领域最小 Schema、稳定 Unit/Sheet/Row/Cell 身份、Canonical JSON + SHA-256，以及经 IntegrationGateway Attempt/Adapter/Receipt 的 Renderer 路线；2026-08-27 复审进一步确认现有通用 RenderAttempt Query 不足，IM-04 WI-01 以 additive 方式冻结只读 RenderAttempt Binding Query，当前 Catalog 由 200 项增至 201 项；详细记录见 [`../im-04-startup/Review-Record.md`](../im-04-startup/Review-Record.md)；
 - IM-DG-006 仍待决，不阻塞 IM-01，但阻塞 IM-08。
 - 用户于 2026-08-28 批准新增 `IM-UI-01 Workspace UI MVP`：硬依赖 IM-06，可与 IM-07/IM-08 时间窗并行，并作为 IM-09 前置；UI-DG-001/002 仍待用户决定，UI-DG-003 仅冻结安全边界，所有 UI 实现与 Browser/Manual 测试均为 `NOT RUN`。
 
@@ -319,11 +319,19 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 
 尚未完成：
 
-- RenderAttempt Binding Query、Canonical Document/Workbook 可执行 Schema、Fixture 与 Hash Gate（路线已在规格中冻结，均尚未实现）；
+- RenderAttempt Binding Query、Canonical Document/Workbook 可执行 Schema、Fixture 与 Hash Gate（IM-04 WI-01 已完成本地实现与回归，Git 交付待用户检查）；
 - 可执行 DDL、Migration、Repository 和业务代码；
 - Renderer、部署、监控和运行手册；
 - Workspace UI/BFF 工程、OIDC Session、页面、Browser E2E、安全、可访问性和人工验收；
 - 未覆盖模块的自动测试、外部服务验证和人工验收。
+
+### 2.2 IM-04 WI-01 实现边界（2026-08-28）
+
+- WI-01 只新增 `CanonicalContentPayload`、`CanonicalDocument`、`WorkbookSpec`、独立 `CanonicalContentManifest` 的可执行 Schema、确定性 Canonical JSON/SHA-256 helper、生成类型和负向 Contract Fixture；不新增 Artifact 业务表、Repository 或 Handler。
+- Canonical Document 在 Contract 边界拒绝重复 Unit ID、孤儿/不对称父子引用、环和同父级重复 ordinal；Workbook 在 Contract 边界拒绝重复局部身份、跨 Sheet Column 引用和畸形公式。
+- `integration.get_render_attempt_binding@1.0` 是唯一新增公开 Operation，返回原始 RenderRequest、request payload hash、成功结果和 raw receipt ref；Binding Result 不允许 Provider 凭证、Presigned URL 或其他秘密字段。
+- `contracts/baselines/v1.0/` 继续作为不可改写的历史 200-operation 基线；当前 201-operation Catalog 中新增的独立 1.0 Contract 由 compatibility gate 记录为 `COMPATIBLE_MINOR`，不伪造新的历史基线。
+- WI-01 自动 Contract/Schema/类型/静态 Gate 可执行；对象存储、Renderer、业务 Persistence、公开 HTTP、Provider、跨模块 E2E、生产和独立人工业务验收仍为 `NOT RUN`。
 
 建议的下一阶段：
 
@@ -446,7 +454,15 @@ BLOCKED
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
 
-本项目已完成 IM-00 与 IM-01 Repository + Executable Contracts（Issue #9 / PR #20）。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate、Schema-derived Type、v1.0 compatibility baseline 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个、QualityGovernance 37 个、ReleasePublication 25 个与 IntegrationGateway 23 个操作均已具有字段级 Payload/Event Schema 和 Query Result Schema；Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。干净 checkout 证据见 [`.vibe/im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)。Schema 衍生类型见 `.vibe/im-01-executable-schema-typescript/`；兼容性基线见 `.vibe/im-01-v1.0-schema-fixtures/`。PR #10–#14、#16、#18、#19 的 Schema/类型/兼容性实现与 review 修复均已保留。2026-08-21 用户批准修订 Issue #9：硬依赖改为 #1–#8 的 Schema 子切片均已合入，#5 的 Runtime 状态不阻塞本 Gate；随后用户批准将 #5 收敛为字段 Schema 边界。Issue #5 的字段级目标已由 PR #14 完成，重复 / 迟到回执由已关闭的 #15 完成；未实现的 Release Authorization ActorSnapshot/actingFor、`providerResult` PII 最小化、普通飞书发送 Formal Release 来源链分别由 #22、#23、#24 承接，不能因 #5 关闭而视为 Runtime `PASS`。#17 的本地 IntegrationGateway Runtime 切片已在 `modules/integration-gateway` 落地：幂等、Quarantine、UNKNOWN、协议/完整 Revision 绑定、撤回 Origin（adapter/account/message）、显式授权和 Audit/Masking focused tests 全部通过；timeout 后迟到的 Adapter rejection 不得改写 `UNKNOWN`，也不得成为 unhandled rejection。真实 Provider、数据库、HTTP Handler、外部和人工验收仍保持 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪。IM-02 已完成代码、数据库和文档验收：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify、Persistence `12/177`、Migration/no-op、Runbook 和 Probe 证据均通过，Issue #28 已关闭。真实 Provider、数据库外部 Adapter、HTTP Handler、跨模块业务 E2E 和生产人工验收仍保持 `NOT RUN`；IM-02 scoped 目标已完成。IM-RP-001（Issue #15）在 `modules/release-publication` 落地 Runtime Receipt Validator（重复 / 迟到回执检测、RawExternalReceipt outcome/payload/time provenance、package↔release 与完整 scope 绑定、Ledger `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账）；持久化载体仍为 In-Memory Ledger。数据库 DDL/真实 Repository、IntegrationGateway 飞书/邮件 Provider 注入（#27）与 HTTP Handler 仍 `NOT RUN`，不得冒充业务 E2E。6 个 Runtime additive proposal、IM-DG-006 仍待独立审核；IM-DG-005 已于 2026-08-27 独立批准，但其代码、数据库、外部和人工运行验证仍为 `NOT RUN`，不得冒充业务 E2E。
+截至 2026-08-27 的前置基线已完成 IM-00 与 IM-01 Repository + Executable Contracts（Issue #9 / PR #20）。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate、Schema-derived Type、v1.0 compatibility baseline 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个、QualityGovernance 37 个、ReleasePublication 25 个与 IntegrationGateway 23 个操作均已具有字段级 Payload/Event Schema 和 Query Result Schema；Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。干净 checkout 证据见 [`.vibe/im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)。Schema 衍生类型见 `.vibe/im-01-executable-schema-typescript/`；兼容性基线见 `.vibe/im-01-v1.0-schema-fixtures/`。PR #10–#14、#16、#18、#19 的 Schema/类型/兼容性实现与 review 修复均已保留。2026-08-21 用户批准修订 Issue #9：硬依赖改为 #1–#8 的 Schema 子切片均已合入，#5 的 Runtime 状态不阻塞本 Gate；随后用户批准将 #5 收敛为字段 Schema 边界。Issue #5 的字段级目标已由 PR #14 完成，重复 / 迟到回执由已关闭的 #15 完成；未实现的 Release Authorization ActorSnapshot/actingFor、`providerResult` PII 最小化、普通飞书发送 Formal Release 来源链分别由 #22、#23、#24 承接，不能因 #5 关闭而视为 Runtime `PASS`。#17 的本地 IntegrationGateway Runtime 切片已在 `modules/integration-gateway` 落地：幂等、Quarantine、UNKNOWN、协议/完整 Revision 绑定、撤回 Origin（adapter/account/message）、显式授权和 Audit/Masking focused tests 全部通过；timeout 后迟到的 Adapter rejection 不得改写 `UNKNOWN`，也不得成为 unhandled rejection。真实 Provider、数据库、HTTP Handler、外部和人工验收仍保持 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪。IM-02 已完成代码、数据库和文档验收：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify、Persistence `12/177`、Migration/no-op、Runbook 和 Probe 证据均通过，Issue #28 已关闭。真实 Provider、数据库外部 Adapter、HTTP Handler、跨模块业务 E2E 和生产人工验收仍保持 `NOT RUN`；IM-02 scoped 目标已完成。IM-RP-001（Issue #15）在 `modules/release-publication` 落地 Runtime Receipt Validator（重复 / 迟到回执检测、RawExternalReceipt outcome/payload/time provenance、package↔release 与完整 scope 绑定、Ledger `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账）；持久化载体仍为 In-Memory Ledger。数据库 DDL/真实 Repository、IntegrationGateway 飞书/邮件 Provider 注入（#27）与 HTTP Handler 仍 `NOT RUN`，不得冒充业务 E2E。6 个 Runtime additive proposal、IM-DG-006 仍待独立审核；IM-DG-005 已于 2026-08-27 独立批准，但其代码、数据库、外部和人工运行验证仍为 `NOT RUN`，不得冒充业务 E2E。
+
+## IM-04 WI-01 Canonical Schema 与 Binding Query 当前交付状态（2026-08-28）
+
+Issue #90 的本地实现已完成：Artifact 提供 `CanonicalContentPayload`、`CanonicalDocument`、`CanonicalWorkbookSpec`、独立 `CanonicalContentManifest` 的 executable Schema 与结构不变量校验；shared-kernel 提供严格四字段 Canonical JSON/SHA-256 helper；IntegrationGateway 新增唯一的 `integration.get_render_attempt_binding@1.0` Query，并生成 201-operation/45-query-result 类型与 Catalog 元数据。当前 Catalog/Registry 为 `FULL:201 / ENVELOPE_ONLY:0`（Command=95、Query=45、Event=61），`contracts/baselines/v1.0/` 仍不可改写并保持历史 200-operation 快照。
+
+本地证据为：`pnpm build`、`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm architecture`、`pnpm contracts:check` 全部 `PASS`；`pnpm test` 为 `25 个测试文件 PASS / 17 个 skipped`、`363 passed / 241 skipped`；`pnpm verify` 完整通过，PostgreSQL/Flyway persistence 为 `21 个测试文件 / 256 个测试 PASS`，空库迁移、二次 migrate no-op 和容器清理均通过。
+
+本 WI 不实现 Artifact 业务表、Repository、Handler、Object Storage Link、Renderer、Provider、公开 HTTP、跨模块 E2E、生产或独立人工业务验收；这些边界继续为 `NOT RUN`。Git commit、push、PR exact-head CI、merge、Issue #90 close、远端/local branch 清理和最终 main ancestry 仍须在用户检查当前变更后分别执行和回读。
 
 IM-02 WI-06 的 IdentityPolicy Command transaction runner 必须以数据库唯一约束执行原子幂等 Claim；并发同 key/hash 的 loser 必须返回首个已提交结果，不能泄漏 `unique_violation`。受信事务上下文的 Principal、ActorSnapshot、AuthorizationDecision、Enterprise、Project 与 Correlation 必须和待持久化 Envelope 一致；CAS 只能操作 Envelope 指定的 target 与 expected version，并保持 PostgreSQL `bigint` 精度。业务拒绝的稳定结果必须包含 `currentAggregateVersion`。已应用的 Flyway 版本化 Migration 不得原地改写，新增列只能由后续 forward-only Migration 追加。
 
