@@ -76,7 +76,7 @@ Persistence gate 使用的镜像 pin：
 - Merge commit：`599e59ddee353bbd90e1be47ff3a3dc862ab7cc0`；实现 head 已验证为 `origin/main` ancestor。
 - Issue #93 已为 `CLOSED`，reason=`COMPLETED`；远端 feature branch 已删除，当前本地 worktree 已 detach 到 `origin/main` merge commit，本地 feature branch 已删除。
 
-本节是 GitHub 状态的最终回读；docs-only closeout PR [#107](https://github.com/qzhike/zhiju-business-core/pull/107) 已将本报告与权威 Spec 的已发布状态同步到 `main`，不改变实现提交或已合并 PR。
+本节记录的实现 GitHub 状态已由 docs-only closeout PR [#107](https://github.com/qzhike/zhiju-business-core/pull/107) 同步到 `main`；随后 PR [#108](https://github.com/qzhike/zhiju-business-core/pull/108) 修正了本报告的未来时态措辞并已合入 `main`，不改变实现提交或已合并 PR。
 
 ## 6. 安全与边界结论
 
