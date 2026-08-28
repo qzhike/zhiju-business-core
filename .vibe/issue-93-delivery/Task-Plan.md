@@ -25,8 +25,8 @@ Issue：`[IM-04][WI-04] Implement Canonical content-object staging, link, freeze
 2. 实现 Artifact persistence types/repository、Object Storage Port/local adapter、Content Object service、`V4002` migration 与最小导出面。
 3. 增加 Unit/Contract 与真实 PostgreSQL Persistence 用例：生命周期、hash/readback tamper、Scope/RLS/ACL、rollback orphan、finalize gate、cleanup lease/fencing/retry/legal-hold/idempotency。
 4. 顺序执行 format/lint/typecheck/test、pinned PostgreSQL persistence gate、`git diff --check`，并记录每项 PASS 或 NOT RUN。已完成：`pnpm lint`、`pnpm typecheck`、Artifact build、focused Unit 回归、`pnpm persistence:gate` 和 `git diff --check` 均通过。
-5. 已创建 `.vibe/issue-93-delivery/Verification-Report.md`；下一步提交、推送并创建 PR，以 PR exact head 等待 CI，通过后合入 `main`。
-6. 合入后读回 PR/Issue 状态、`origin/main` ancestry、远端与本地 branch/worktree 删除结果，并同步所有已发布 `.vibe` 状态；若合并后状态文档需要写入 merge SHA，使用独立 docs-only follow-up，不改写已发布历史。
+5. 已创建 `.vibe/issue-93-delivery/Verification-Report.md`；实现提交 `bd414cec...` 已推送并由 PR #106 以 exact head 合入 `main`。
+6. 已读回 PR #106 `MERGED`、Issue #93 `CLOSED/COMPLETED`、merge commit `599e59d...`、`origin/main` ancestry，以及远端/本地 feature branch 删除结果；当前文档状态通过本 docs-only follow-up 同步，不改写已发布历史。
 
 ## 明确不在本次自动验收范围
 

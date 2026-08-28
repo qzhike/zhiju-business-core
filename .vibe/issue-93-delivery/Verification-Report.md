@@ -2,7 +2,7 @@
 
 日期：2026-08-28
 
-Issue：[ #93 ](https://github.com/qzhike/zhiju-business-core/issues/93)
+Issue：[#93](https://github.com/qzhike/zhiju-business-core/issues/93)
 
 工作区：`im-04-wi-04-implement-canonical-content-object-s`
 
@@ -69,14 +69,23 @@ Persistence gate 使用的镜像 pin：
 
 实际测试产生的 PostgreSQL `txid_current()` 没有作为长期业务证据保存；表中 transaction marker 明确标注为示例，不能冒充真实 txid。人工逐项 Reference Project、生产对象安全和业务用户验收仍为 `NOT RUN`。
 
-## 5. 安全与边界结论
+## 5. GitHub 交付回读
+
+- 实现提交：`bd414cec464192c2946cff501041e8c8a8b7039d`；非 force push 后远端 feature head 与本地一致，分歧为 `0/0`。
+- PR：[#106](https://github.com/qzhike/zhiju-business-core/pull/106)；base `main` 为 `dd1b85262b96b2ef28c25d4f4ca5b0d1f7306d45`，exact head 为实现提交；GitHub Actions `verify` 成功后以 `--match-head-commit bd414cec464192c2946cff501041e8c8a8b7039d` 合并。
+- Merge commit：`599e59ddee353bbd90e1be47ff3a3dc862ab7cc0`；实现 head 已验证为 `origin/main` ancestor。
+- Issue #93 已为 `CLOSED`，reason=`COMPLETED`；远端 feature branch 已删除，当前本地 worktree 已 detach 到 `origin/main` merge commit，本地 feature branch 已删除。
+
+本节是 GitHub 状态的最终回读；后续 docs-only closeout PR 只同步本报告与权威 Spec 的已发布状态，不改变实现提交或已合并 PR。
+
+## 6. 安全与边界结论
 
 - Audit、Outbox 和 Command receipt 不写入原始 Canonical body；Orphan/Quarantine 业务记录只保存清理所需的受控对象身份，Audit 使用安全摘要和 Hash；报告对 locator 做脱敏。
 - `artifact_app` 对四张新表只有 Scope-filtered SELECT；业务写入、生命周期转移、Orphan claim/complete 经过 Artifact-owned security-definer function。
 - `V4000`、`V4001` 未修改；新建 migration 为 forward-only `V4002`。
 - Local/CI in-memory adapter 与 disposable PostgreSQL 是本次自动验证范围，不代表真实 Ceph RGW、OpenBao、生产 SSE/Object Lock、备份恢复或 scheduler conformance。
 
-## 6. 保持 NOT RUN 的项目
+## 7. 保持 NOT RUN 的项目
 
 - 真实 Ceph RGW/OpenBao、生产加密、Object Lock、对象存储权限/轮换与生产 cleanup scheduler；
 - `artifact_revision`、SEALED consumer、Revision/Representation/Renderer、Diff、Quality、Approval、Release；
