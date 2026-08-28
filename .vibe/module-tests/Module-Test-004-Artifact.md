@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`API CONTRACT TEST BASELINE / WI-01 CONTRACT REGRESSION PASS / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE TESTS VERIFIED 2026-08-28 / WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / ISSUES #89–#98 PLANNED / ARTIFACT BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`API CONTRACT TEST BASELINE / WI-01 CONTRACT REGRESSION PASS / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE TESTS VERIFIED 2026-08-28 / WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-03 TEST PLAN FROZEN 2026-08-28 / WI-03 IMPLEMENTATION COMPLETE IN WORKTREE 2026-08-28 / WI-03 PERSISTENCE VERIFIED 2026-08-28 / ISSUES #89, #93–#98 PLANNED`
 
 对应规格：[`Module-Spec-004-Artifact.md`](../module-specs/Module-Spec-004-Artifact.md)。
 
@@ -46,6 +46,46 @@
 | AF-IM04-M-001 | Manual | 合成 ART-023 Document/Workbook Fixture | 可检查 Revision Hash、稳定 Unit Diff、Branch、Representation 与 Binding | 尚未准备可执行 Fixture | `NOT RUN` |
 | AF-IM05-R-001 | Renderer/Manual | 精确 Revision 请求 DOCX/XLSX Render | Attempt、input Hash、Renderer 版本、输出 checksum 全链一致；可打开性与版式另行验收 | Renderer 尚未实现 | `DEFERRED TO IM-05` |
 
+## IM-04 WI-03 Artifact Root/Metadata/Archive 用例
+
+本节是 Issue #92 的实现前测试合同。所有 PostgreSQL 用例必须使用 pinned PostgreSQL/Flyway disposable gate；所有输入中的 UUID 均为合成 UUIDv7。真实 EnterpriseProject 表不作为 Artifact 测试夹具，Scope 只通过可信 transaction Context 和 Artifact 本地镜像校验。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| AF-IM04-WI03-U-001 | Unit | `PROJECT_DELIVERABLE` 缺失 `originProjectRef`、Enterprise/Project Scope 不一致、delivery ref 跨 Project | 统一拒绝 `ARTIFACT_SCOPE_INVALID`，不产生副作用 | `artifact-handlers.test.ts` 覆盖 exact Project、缺失 Origin、跨 Project ref；3 tests passed | `PASS` |
+| AF-IM04-WI03-U-002 | Unit | Metadata Patch 含 `businessScope`、`originProjectRef`、`artifactType`、`deliveryItemRefs`、生命周期或 pointer 字段 | 拒绝 `ARTIFACT_METADATA_FIELD_FORBIDDEN`；原 Metadata 不变 | `artifact-handlers.test.ts` 覆盖 protected metadata key；3 tests passed | `PASS` |
+| AF-IM04-WI03-U-003 | Unit | RFC 7396 风格 object Metadata Patch，含嵌套覆盖与 null 删除 | 只改变允许的 Metadata 字段，保留未覆盖字段；产生新的 Metadata Version | `artifact-handlers.test.ts` 覆盖嵌套覆盖、null 删除和保留字段；3 tests passed | `PASS` |
+| AF-IM04-WI03-C-001 | Contract | `artifact.create_artifact@1.0` 现有 payload 与生成类型 | 不新增公共字段；创建契约仍拒绝正文、bytes 和额外 identity 字段 | `pnpm contracts:check`：201 operations、201/201 FULL；create payload 保持闭合，无正文/bytes/额外 identity 字段 | `PASS` |
+| AF-IM04-WI03-P-001 | Persistence | 空库执行 `V4001`，再执行第二次 migrate | Root/Branch/约束/函数应用成功；第二次明确 no-op | pinned PostgreSQL 18.6/Flyway 11.20.3：V4001 成功，第二次 `No migration necessary` | `PASS` |
+| AF-IM04-WI03-P-002 | Persistence | 创建 ART-023 Project Deliverable，带 exact Enterprise/Project/DeliveryItem refs | Root 与 `main` Branch 同事务提交；Root version=1、metadataVersion=1、headVersion=0、approved/effective 为空；Artifact 不含正文 | `artifact-business-aggregates.test.ts`：Root/Branch=1，exact Query 返回 main/null/0 与空 pointer；23 文件 Gate 通过 | `PASS` |
+| AF-IM04-WI03-P-002B | Persistence | 创建 Enterprise Controlled Artifact，DeliveryItem 使用 Enterprise Scope，不携带 Project Origin | Root `project_id=NULL`，Enterprise Scope exact Query 可读；默认 `main` Branch、version=1、headVersion=0、pointer 为空；缺省 Origin 持久化为 SQL `NULL` | 最终 pinned PostgreSQL/Flyway Gate：Enterprise Scope exact Query、`main`/null/0、空 pointer 和 SQL `NULL` Origin 均通过 | `PASS` |
+| AF-IM04-WI03-P-003 | Persistence | 同一 Scope、同一 artifactType、同一 initial title 使用不同幂等 key 创建 | 返回稳定 `ARTIFACT_IDENTITY_CONFLICT`；不产生第二 Root/Branch，原历史不变 | 返回 `ARTIFACT_IDENTITY_CONFLICT`，Root 数量保持 1 | `PASS` |
+| AF-IM04-WI03-P-004 | Persistence | 同一 idempotency key/hash 重放创建；同 key/different payload 重放 | Replay 返回首个结果且 body 只执行一次；不同 hash 返回 `IDEMPOTENCY_PAYLOAD_CONFLICT`，原 Receipt 不变 | Replay 返回 `DUPLICATE` 首个结果；不同 hash 返回 `IDEMPOTENCY_PAYLOAD_CONFLICT`；Root/Branch 未重复写入 | `PASS` |
+| AF-IM04-WI03-P-005 | Persistence/CAS | 以 version=1 更新 title/classification/metadata；两个写者均以 version=1 更新 | 一个成功到 version=2/metadataVersion=2；另一个返回 `CONCURRENCY_CONFLICT` 和 current version=2，不 last-write-wins | 成功更新到 version 2/metadataVersion 2；stale writer 返回 `CONCURRENCY_CONFLICT` current=2 | `PASS` |
+| AF-IM04-WI03-P-006 | Persistence | Update 使用未提供 expected version，或目标为 ARCHIVED/CANCELLED | 分别拒绝 `ARTIFACT_EXPECTED_VERSION_REQUIRED` / `ARTIFACT_NOT_ACTIVE`；Root、Branch、历史引用不变 | 缺失 expected version 返回 `ARTIFACT_EXPECTED_VERSION_REQUIRED`；Archive 后 Update 返回 `ARTIFACT_NOT_ACTIVE`；状态不变 | `PASS` |
+| AF-IM04-WI03-P-007 | Security/RLS | 无 Context、Enterprise-only Context 读取 Project Artifact、错误 Project Context 读取/写入另一个 Project；尝试直接 UPDATE/DELETE Root/Branch | 查询返回零行或统一 `ARTIFACT_QUERY_NOT_FOUND`；直接写使用预期 ACL 错误；不枚举跨 Scope 行 | 无 Context/错误 Project SELECT 为 0；Query 为 `ARTIFACT_QUERY_NOT_FOUND`；Root UPDATE/Branch DELETE 为 ACL `42501` | `PASS` |
+| AF-IM04-WI03-P-008 | Persistence | 以 version=2 Archive，随后查询 Root/Branch、尝试 Metadata Update/创建后续 mutable work | Archive 成功到 version=3，Root/Branch/Receipt/Audit/Reference Edge/Outbox 保留；后续变更返回 `ARTIFACT_NOT_ACTIVE` | version 3 Archive 成功；Root/Branch 与 3 Outbox/4 Reference Edge 保留；post-archive Update 返回 `ARTIFACT_NOT_ACTIVE` | `PASS` |
+| AF-IM04-WI03-P-009 | Persistence/Rollback | 在 Root/Branch、Reference Edge、Outbox、Audit 写入后注入故障 | Receipt、Root、Branch、Reference Edge、Outbox、Audit 全部回滚，无半成品 | `INJECTED_FAULT` 后六类行均为 0 | `PASS` |
+| AF-IM04-WI03-P-010 | Persistence | 直接 SQL 尝试改 Scope、identity_hash、delivery refs、pointer 或 aggregate version | Root Trigger/ACL 拒绝；历史和当前 exact read model 不变 | `artifact_app` 直接 Root UPDATE/Branch DELETE 均为 ACL `42501`；业务根写入只经 owner function | `PASS` |
+| AF-IM04-WI03-P-011 | Persistence/Security | `artifact_app` 通过 owner function 提交 Project Scope 但省略 `origin_project_ref` | 数据库 Scope/Origin CHECK 拒绝 `23514`；Root/Branch 不产生 | 最终 pinned PostgreSQL/Flyway Gate：owner function 返回 `23514`，Root/Branch 均为 0 | `PASS` |
+| AF-IM04-WI03-M-001 | Manual | 合成 ART-023 walkthrough：create、exact read、CAS update、stale CAS、cross-project reject、archive、post-archive reject | 展示 Artifact ID、main Branch ID、Root version 1/2/3、metadataVersion/headVersion、稳定错误码和清理结果 | 实现前未运行 | `NOT RUN` |
+
+WI-03 单元夹具还必须通过 TypeScript 的 exact-optional-property 与 Scope 类型收窄边界；读模型夹具必须验证 JSONB 经过 canonical JSON 转换后再映射为公开 Typed Reference。
+
+Persistence 夹具对 `CommandResult` 的 `COMMITTED` 分支和回滚注入回调使用显式类型收窄/不可达返回，避免测试编译成功掩盖结果联合或事务回滚边界错误。
+
+引用夹具还验证：经 Scope 校验的公开 Typed Reference 进入 canonical identity/事件输入时必须显式转换为 JSON 值，不能依赖不安全的结构兼容。
+
+存储 JSON 解析的单元边界还要求 `JSON.parse` 动态结果先经过 `unknown` 再映射为 canonical JSON，避免测试与实现共享不受控的 `any`。
+
+首轮 `pnpm persistence:gate` 已实际完成 V4001 空库迁移；既有 22 个 Persistence 文件/269 个测试通过。新增业务文件首轮为 1 passed、2 failed，失败定位为测试夹具：Command 创建结果的扩展字段不能与 Query View 直接深比较，回滚 Outbox Envelope 必须携带 Project scope mirror；修正后重新执行 Gate。
+
+第二轮 Gate 的新增业务文件为 2 passed、1 failed；失败定位为幂等重放结果辅助函数只接受 `COMMITTED`，实际业务返回预期的 `DUPLICATE` 并带回首个结果。修正辅助函数后重新执行 Gate。
+
+第三轮 Gate 的新增业务文件为 2 passed、1 failed；失败定位为 Handler 返回 `metadataVersion` 的类型为 PostgreSQL `bigint` 字符串，而创建结果/读模型约定为数值。该轮已证明 Metadata CAS 已执行到结果构造，修正结果类型后重新执行 Gate。
+
+最终 `pnpm persistence:gate` 已通过：`23` 个 Persistence 文件、`272 passed / 0 failed`；pinned PostgreSQL 18.6、Flyway 11.20.3、空库 V4001、第二次迁移 no-op、Project/Enterprise Controlled Root/Branch、RLS/ACL、幂等/身份冲突、Metadata CAS、Archive、Rollback、缺失 expected version 拒绝和 Project 空 Origin owner-boundary 拒绝均已覆盖，容器已清理。完整 `pnpm verify` 的 Format、Lint、Typecheck、全量 Unit（27 files / 371 passed / 257 skipped）、Architecture 和 Contract 阶段均通过，但末尾 Persistence 因 Docker Hub token `EOF` 未启动，故该次编排不记为完整 PASS。Manual `M-001`、生产/Provider/公开 HTTP/跨模块 E2E 仍为 `NOT RUN`。
+
 ## IM-04 WI-02 Application/Persistence 用例
 
 以下用例只覆盖 V4000 已存在的标准事务技术表和 Artifact 事务边界，不创建 Artifact 业务表；实现和本地 Persistence Gate 已执行，静态总门禁已在修复测试 ESLint 规则后复跑通过。
@@ -66,9 +106,9 @@
 ## 本阶段结果
 
 - PR #12 Review 已用当前 `ContractRegistry` 运行确认 AF-API-C-003/004 修复前失败；修复后 focused regression 27/27、独立切片 35/35、合入最新 `main` 后全量测试 98/98 通过。
-- IM-DG-005 的 Canonical Document/Workbook 与 Renderer 路线已获用户批准；WI-01 的 Schema、Hash、Binding Query Contract 回归已通过，WI-02 Application/Persistence 用例已在真实 PostgreSQL Gate 中完成，Artifact 业务 Repository/Handler、对象存储、E2E、Renderer 和 Manual 用例仍保持 `NOT RUN`。
-- 2026-08-28 本地 `pnpm clean && pnpm verify`：Format、Lint、Typecheck、全量 Unit Test、Architecture、Contracts 和 PostgreSQL Persistence Gate 全部通过；Persistence 为 PostgreSQL 18.6 / Flyway 11.20.3、22 个文件、268 个测试，空库 Migration、二次 no-op 和临时容器清理均通过。
-- 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
+- IM-DG-005 的 Canonical Document/Workbook 与 Renderer 路线已获用户批准；WI-01 的 Schema、Hash、Binding Query Contract 回归已通过，WI-02 Application/Persistence 用例已在真实 PostgreSQL Gate 中完成，WI-03 Artifact Root/Branch 业务 Repository/Handler、RLS、CAS、Archive 和回滚已在本文件上方的独立 Gate 中完成；Revision 内容、对象存储、E2E、Renderer 和 Manual 用例仍保持 `NOT RUN`。
+- WI-02 的历史 Gate 记录为 PostgreSQL 18.6 / Flyway 11.20.3、22 个文件、268 个测试；WI-03 最终独立 Gate 记录为 23 个文件、272 个测试。最新完整 `pnpm verify` 的静态阶段通过，但 Persistence 子阶段因 Docker Hub token `EOF` 未启动，详见本次 Issue #92 [`Verification-Report.md`](../codex-issue-92/Verification-Report.md)。
+- 静态设计 Gate：`DESIGN VERIFIED`；本次 WI-03 的实现与验证摘要见 [`Verification-Report.md`](../codex-issue-92/Verification-Report.md)。
 - 测试遗留：未创建临时脚本或测试文件。
 
 ## IM-02 WI-04 PostgreSQL 用例
@@ -78,4 +118,4 @@
 | AF-PG-001 | 七模块 catalog policy + EnterpriseProject 真实 Project 越权探针 | 非空 Project 行使用 Project helper，越权写入 `42501` | 七模块 policy 对账通过，代表写入 `42501` | `PASS` |
 | AF-PG-002 | Process Scope、masked audit、Reference owner version 矩阵 | 跨 Scope 拒绝、masked row 可读、多 owner version 可共存 | 分别为 `23514`、目标 row、两版本成功/精确重复 `23505` | `PASS` |
 
-对象存储、Renderer、业务 Repository 与 payload↔hash Gate 仍为 `NOT RUN`。
+Revision/Content Object、对象存储、Renderer、跨模块业务 E2E、人工验收与 payload↔hash 业务 Link Gate 仍为 `NOT RUN`。

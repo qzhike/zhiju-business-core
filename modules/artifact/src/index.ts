@@ -1,6 +1,6 @@
 export const artifactModule = Object.freeze({
   name: 'artifact',
-  status: 'WI_02_PERSISTENCE_FOUNDATION' as const,
+  status: 'WI_03_ROOT_METADATA_ARCHIVE_IMPLEMENTATION_IN_PROGRESS' as const,
 });
 
 export {
@@ -25,8 +25,22 @@ export type {
   ContractViolationTable,
 } from './persistence/artifact-db.js';
 
+export type {
+  ArtifactBusinessScope,
+  ArtifactLifecycle,
+  ArtifactBranchLifecycle,
+  ArtifactTable,
+  ArtifactBranchTable,
+} from './persistence/artifact-business-types.js';
+
 export { ArtifactRepository } from './persistence/artifact-repository.js';
-export type { ProcessInstanceInsert } from './persistence/artifact-repository.js';
+export type {
+  ProcessInstanceInsert,
+  ArtifactInsert,
+  ArtifactMetadataCas,
+  ArtifactArchiveCas,
+  ArtifactCasOutcome,
+} from './persistence/artifact-repository.js';
 
 export {
   ArtifactPersistenceError,
@@ -60,3 +74,30 @@ export type {
   OutboxEventInput,
   ReferenceEdgeInput,
 } from './persistence/command-runner.js';
+
+export {
+  handleCreateArtifact,
+  handleUpdateArtifactMetadata,
+  handleArchiveArtifact,
+  handleGetArtifact,
+  applyArtifactMetadataPatch,
+} from './business/artifact-handlers.js';
+export type {
+  CreateArtifactPayload,
+  UpdateArtifactMetadataPayload,
+  ArchiveArtifactPayload,
+  GetArtifactPayload,
+  ArtifactCommandEnvelope,
+} from './business/artifact-handlers.js';
+
+export {
+  ArtifactBusinessError,
+  ARTIFACT_SCOPE_INVALID,
+  ARTIFACT_NOT_ACTIVE,
+  ARTIFACT_METADATA_FIELD_FORBIDDEN,
+  ARTIFACT_IDENTITY_CONFLICT,
+  ARTIFACT_EXPECTED_VERSION_REQUIRED,
+  ARTIFACT_HUMAN_ONLY_DENIED,
+  ARTIFACT_QUERY_NOT_FOUND,
+  ARTIFACT_QUERY_SCOPE_MISMATCH,
+} from './business/artifact-business-errors.js';
