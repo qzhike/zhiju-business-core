@@ -13,7 +13,14 @@ import {
   type Transaction,
 } from 'kysely';
 import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
-import type { ArtifactBranchTable, ArtifactTable } from './artifact-business-types.js';
+import type {
+  ArtifactBranchTable,
+  ArtifactContentObjectLinkTable,
+  ArtifactContentObjectOrphanTable,
+  ArtifactContentObjectQuarantineTable,
+  ArtifactContentObjectTable,
+  ArtifactTable,
+} from './artifact-business-types.js';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
 type Json = ColumnType<unknown, string>;
@@ -189,6 +196,10 @@ export interface ContractViolationTable {
 export interface ArtifactDb {
   'artifact.artifact': ArtifactTable;
   'artifact.artifact_branch': ArtifactBranchTable;
+  'artifact.artifact_content_object': ArtifactContentObjectTable;
+  'artifact.artifact_content_object_link': ArtifactContentObjectLinkTable;
+  'artifact.artifact_content_object_quarantine': ArtifactContentObjectQuarantineTable;
+  'artifact.artifact_content_object_orphan': ArtifactContentObjectOrphanTable;
   'artifact.command_receipt': CommandReceiptTable;
   'artifact.outbox_event': OutboxEventTable;
   'artifact.inbox_message': InboxMessageTable;

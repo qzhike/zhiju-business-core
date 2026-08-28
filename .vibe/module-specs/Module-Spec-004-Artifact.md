@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 EXECUTABLE CANONICAL SCHEMA LANDED 2026-08-28 / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE FOUNDATION IMPLEMENTED AND PERSISTENCE VERIFIED 2026-08-28 / WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-03 ROOT-METADATA-ARCHIVE DESIGN FROZEN 2026-08-28 / WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / WI-03 PERSISTENCE VERIFIED 2026-08-28 / WI-03 GIT DELIVERY COMPLETE PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / ISSUES #89, #93–#98 PLANNED`
+状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 EXECUTABLE CANONICAL SCHEMA LANDED 2026-08-28 / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE FOUNDATION IMPLEMENTED AND PERSISTENCE VERIFIED 2026-08-28 / WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-03 ROOT-METADATA-ARCHIVE DESIGN FROZEN 2026-08-28 / WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / WI-03 PERSISTENCE VERIFIED 2026-08-28 / WI-03 GIT DELIVERY COMPLETE PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / WI-04 CONTENT OBJECT DESIGN FROZEN 2026-08-28 / WI-04 IMPLEMENTATION COMPLETE 2026-08-28 / WI-04 PERSISTENCE VERIFIED 2026-08-28 / WI-04 GIT DELIVERY IN PROGRESS / ISSUES #94–#98 PLANNED`
 
 ## 1. 模块责任
 
@@ -311,6 +311,16 @@ ARTIFACT_QUERY_SCOPE_MISMATCH
 7. `artifact.ArtifactCreated@1.0` 是当前唯一公开 Artifact lifecycle event。MetadataUpdated/Archived 是 owning outbox 内部事件，不改变当前公开 Catalog；若未来成为跨模块 Contract，必须 additive 更新 Schema、生成类型、Registry 和负向 Fixture。
 8. Query 必须以 exact Artifact ObjectRef 读取 Root 和全部 Branch；无效 Ref 返回 `ARTIFACT_SCOPE_INVALID`，不存在或不可见行统一返回 `ARTIFACT_QUERY_NOT_FOUND`，不得通过错误差异枚举其他 Enterprise/Project 的 Artifact。
 
+## 7.2 IM-04 WI-04 Canonical Content Object 实现约束
+
+1. `V4002` 是新增的、forward-only 的 Artifact business migration；它只新增 `artifact_content_object`、精确 owner link、quarantine 和 orphan cleanup 记录，不修改 `V4000`/`V4001`，不创建 `artifact_revision` 或公开 Artifact Operation。
+2. Content Object Manifest 的 `storage_state` 固定为 `STAGING -> LINKED -> FROZEN`；`STAGING/LINKED -> QUARANTINED` 仅用于验证失败、篡改或安全处置；`FROZEN` 的 Content identity、SchemaRef、Hash、大小、媒体类型、locator、version 和 Scope 不可更新。
+3. Object Storage 只能通过可替换 `ObjectStoragePort` 写入 staging。应用生成 `staging/canonical/<contentObjectId>` locator；上传后必须 authoritative readback bytes、media type、size、provider/version 和 locator，并重新运行 executable Canonical Schema、Canonical JSON 与 SHA-256 验证。Caller hash、filename、path 和 storage metadata 不能替代 readback 事实。
+4. Link Commit 和 external finalize 是两个事务边界。DB link 成功后才允许 finalize；`STAGING` 上直接调用 finalization owner function 必须拒绝。finalize 成功前 Manifest 保持 `LINKED`，finalize unknown/error 使用独立 finalization state 可重试，不能 freeze。DB 事务在对象上传后失败时不得留下业务 link，必须在独立事务写入 masked Orphan 记录。
+5. 本 WI 的 link 只保存未来 `ArtifactRevision` 的精确 owner ref 形状；link 与 `LINKED` 状态迁移在同一 Artifact-owned security-definer transaction 完成；同一精确 owner link 的重放不得重复写 Outbox 或 Reference Edge。未来 SEALED Revision 只能引用同 Scope 且仍为同一 immutable Content Object 的 `FROZEN` Manifest。
+6. Orphan cleanup 使用 24 小时 grace、5 分钟 lease、fencing token、指数重试（5 分钟起、24 小时封顶）和幂等 `DELETED/NOT_FOUND` terminal outcome。存在 reverse link、retention 未到期、legal hold 或 `QUARANTINED` 时禁止删除；claim、fence、retry、unknown、hold/retention 拒绝和 deletion outcome 均写 masked Audit。Quarantine reason code/summary 必须是有界、安全摘要，不能携带原始 payload、URL、locator 或秘密。
+7. `artifact_app` 对新表只保留 Scope-filtered SELECT；所有业务写入和 cleanup state transition 经过 owner function。实现只承诺 local/CI in-memory adapter 与 disposable PostgreSQL；真实 Ceph RGW/OpenBao、生产加密/Object Lock、scheduler、公开 HTTP、跨模块 E2E 和独立人工验收保持 `NOT RUN`。
+
 ## 8. 可人工验收的模块产出
 
 里程碑 `API-AF-01` 的人工产出是 ART-023 Fixture：REV-001 后两个并行 Branch 产生 REV-002/REV-003，不互相覆盖；显式 Merge 形成新 Revision；同名 PDF checksum 改变只形成新 Representation；旧批准和 EffectiveBinding 保持不变。该审核不代表 Renderer、对象存储或并发数据库约束已运行。
@@ -320,13 +330,14 @@ ARTIFACT_QUERY_SCOPE_MISMATCH
 - 26 个 Artifact 既有公开 Contract 已定义字段级 payload/result/event 结构，并实现可执行 JSON Schema；WI-01 另行提供 Canonical Content/Manifest 可执行 Schema，不新增 Artifact 业务 Operation；
 - API v0.1 已于 2026-08-13 通过用户审核；
 - PR #12 Review 确认的 parent 数量与未解决 Merge 冲突缺口已修复，两条 Contract 回归已 `PASS`；
-- IM-DG-005 的 Canonical Document/Workbook 最小 Schema 与 Renderer 路线已于 2026-08-27 获用户批准；WI-01 已完成可执行 Canonical Schema、Hash Fixture、Manifest 边界和 additive Binding Query；WI-02 已完成事务基础及真实 PostgreSQL Persistence 验证；WI-03 已在当前工作树完成 Artifact Root、默认 Branch、元数据 CAS、精确 Query 和 Archive boundary，并通过真实 PostgreSQL Persistence 验证；Revision、Object Storage Link、Renderer、Diff、跨模块 Binding 与后续业务 Handler 仍未完成；
-- WI-03 完成前，Artifact Root/Branch 的业务 Unit、Persistence、RLS、幂等、CAS、Rollback、E2E 与人工验收仍按测试文档逐项记录，不得用 WI-02 技术表 PASS 代替业务 PASS。纯业务校验由 `artifact-handlers.test.ts` 覆盖，真实数据库行为由 `artifact-business-aggregates.test.ts` 覆盖；测试必须显式收窄 CommandResult 联合类型并保持注入故障回调的返回类型闭合。实现必须在边界处显式收窄 Scope 类型，在公开 Typed Reference 与 canonical JSON hash 输入之间使用显式转换，对 JSON.parse 的动态值先经过 unknown 边界，并通过 canonical JSON 转换读取 JSONB，避免把存储形状或未知值直接当作公开 Typed Reference。
+- IM-DG-005 的 Canonical Document/Workbook 最小 Schema 与 Renderer 路线已于 2026-08-27 获用户批准；WI-01 已完成可执行 Canonical Schema、Hash Fixture、Manifest 边界和 additive Binding Query；WI-02 已完成事务基础及真实 PostgreSQL Persistence 验证；WI-03 已完成 Artifact Root、默认 Branch、元数据 CAS、精确 Query 和 Archive boundary；WI-04 已完成 Canonical Content Object staging/readback/link/finalize/freeze/quarantine/orphan cleanup 与真实 PostgreSQL Persistence 验证；Revision、Renderer、Diff、跨模块 Binding 与后续业务 Handler 仍未完成；
+- Artifact Root/Branch 与 WI-04 Content Object 的业务 Unit、Persistence、RLS、幂等、CAS、Rollback、E2E 与人工验收按测试文档逐项记录，不得用技术表 PASS 代替业务 PASS。WI-04 的纯本地 adapter 回归与真实数据库行为已分别写入对应测试证据；测试必须显式收窄 CommandResult 联合类型并保持注入故障回调的返回类型闭合。实现必须在边界处显式收窄 Scope 类型，在公开 Typed Reference 与 canonical JSON hash 输入之间使用显式转换，对 JSON.parse 的动态值先经过 unknown 边界，并通过 canonical JSON 转换读取 JSONB，避免把存储形状或未知值直接当作公开 Typed Reference。
 - 首轮 PostgreSQL Gate 已验证 V4001 空库迁移和既有 Persistence 回归；新增业务夹具发现并记录了公开 View 与 Command result 扩展字段的比较边界，以及 Outbox scope mirror 必须与 Envelope Project 精确一致，修正后才可将业务 Gate 记为 PASS。
 - 第二轮 Gate 进一步确认幂等重放返回 `DUPLICATE` 并复用首个结果；失败点是测试辅助函数只收窄到 `COMMITTED`，不属于业务实现失败，修正后必须保留对 `DUPLICATE` 首个结果的精确比较。
 - 第三轮 Gate 已执行到 Metadata CAS；发现并修正结果扩展字段的 PostgreSQL `bigint` 字符串/公开数值不一致，`metadataVersion` 必须与创建结果及读模型保持安全整数表示。
 - 最终 Persistence Gate 已完成 23 个文件/272 个测试，Project 与 Enterprise Controlled Root/Branch 的 V4001/no-op、business write boundary、RLS、幂等、CAS、Archive、Rollback、直接写 ACL 和 Project Root 空 Origin 的 owner-boundary 拒绝均已在 pinned PostgreSQL/Flyway 上验证；实现提交 `5cb4d1b4e97c4062de99ff66d5d357c0d47209e6` 已通过 PR #104 合并，merge commit 为 `9d7cb06128680bc141548115f347884aee813412`，Issue #92 已关闭，远端和本地 feature branch 已删除。
 - 完整 `pnpm verify` 的静态、类型、全量 Unit（27 files、371 passed、257 skipped）、Architecture、201 项 Contract 均通过；其最后 Persistence 子阶段因 Docker Hub token 请求 `EOF` 未启动，不能与最终独立 Persistence Gate 的真实 PASS 混写。
+- WI-04 的最终本地 Gate 为 `pnpm lint`、`pnpm typecheck`、`pnpm --filter @zhiju/artifact build`、新增 Object Storage Unit 及 Artifact 回归、以及 pinned PostgreSQL 18.6/Flyway 11.20.3 `pnpm persistence:gate`；后者通过 24 个 Persistence 文件/277 个测试，空库 V4002 成功、第二次 migrate 为 `No migration necessary`，并清理测试容器。真实 Ceph RGW/OpenBao、生产对象安全、Revision/Renderer、跨模块 E2E、公开 HTTP 和人工验收仍按测试矩阵保持 `NOT RUN`。
 
 ## 10. IM-02 WI-04 持久化切片
 

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY VERIFIED PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / IM-UI-01 DESIGN VERIFIED / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY VERIFIED PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / IM-04 WI-04 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-04 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-04 GIT DELIVERY IN PROGRESS / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / IM-UI-01 DESIGN VERIFIED / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -349,11 +349,20 @@ remaining risk
 
 ## 9. 当前状态
 
-状态条目按实际发生日期累计；2026-08-28 最新增量为 IM-UI-01 里程碑与验证基线：
+状态条目按实际发生日期累计；2026-08-28 最新增量为 IM-04 WI-04 交付验证与 IM-UI-01 里程碑基线：
 
 - 用户已批准 IM-UI-01 的依赖、范围和 Exit Gate；它在 IM-06 后启动，可与 IM-07/IM-08 时间窗并行，并成为 IM-09 前置。
 - Workspace UI Spec/Test 的 15 个场景已定义；仅 `UI-D-001` 为 `DESIGN VERIFIED`，其余 14 个 Unit/Contract/Browser/Security/Accessibility/Manual 场景全部为 `NOT RUN`。
 - UI-DG-001/002 为 `USER DECISION REQUIRED`；UI-DG-003 为 `BOUNDARY FROZEN / CONCRETE DESIGN REQUIRED`。不存在 UI 工程、BFF、Browser build 或运行证据。
+
+### 9.3 IM-04 WI-04 Canonical Content Object 验证边界（2026-08-28）
+
+Issue #93 的实现和本地自动验证已完成，唯一证据报告为 [`Verification-Report.md`](../issue-93-delivery/Verification-Report.md)。本次实现使用 forward-only `V4002`，不修改 V4000/V4001，不创建 Revision 或公开 Artifact Operation。
+
+- 完整 `pnpm verify` 已通过：format/lint/typecheck、全量 Vitest（28 个文件通过、20 个受控跳过；373 passed、262 skipped）、Architecture、Contract（201 operations、201 schema FULL；历史 compatibility baseline 200）均通过；新增 in-memory Object Storage 与既有 Artifact focused 回归为 3 个文件、10 个测试通过。
+- pinned PostgreSQL 18.6/Flyway 11.20.3 的 `pnpm persistence:gate` 通过 24 个测试文件、277 个测试；V4002 空库迁移成功，第二次 migrate 输出 `No migration necessary`，测试容器已清理。
+- 已验证 Canonical Schema/Scope、caller hash、authoritative readback、media/size/hash、Manifest 生命周期、STAGING direct-finalize 拒绝、finalize unknown/retry、quarantine、DB rollback Orphan、24 小时 grace、5 分钟 lease、fencing、并发 worker、retention/legal-hold、unknown/NOT_FOUND/DELETED cleanup 和 RLS/ACL。
+- SEALED Revision consumer、真实 Ceph RGW/OpenBao、生产加密/Object Lock、生产 scheduler、公开 HTTP、跨模块 E2E、生产数据库和独立人工业务验收仍保持 `NOT RUN`；synthetic walkthrough 只作为后续人工复核输入。
 
 既有状态记录：
 

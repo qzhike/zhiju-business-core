@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`API CONTRACT TEST BASELINE / WI-01 CONTRACT REGRESSION PASS / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE TESTS VERIFIED 2026-08-28 / WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-03 TEST PLAN FROZEN 2026-08-28 / WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / WI-03 PERSISTENCE VERIFIED 2026-08-28 / WI-03 GIT DELIVERY VERIFIED PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / ISSUES #89, #93–#98 PLANNED`
+状态：`API CONTRACT TEST BASELINE / WI-01 CONTRACT REGRESSION PASS / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE TESTS VERIFIED 2026-08-28 / WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-03 TEST PLAN FROZEN 2026-08-28 / WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / WI-03 PERSISTENCE VERIFIED 2026-08-28 / WI-03 GIT DELIVERY VERIFIED PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / WI-04 TEST PLAN FROZEN 2026-08-28 / WI-04 IMPLEMENTATION COMPLETE 2026-08-28 / WI-04 PERSISTENCE VERIFIED 2026-08-28 / WI-04 GIT DELIVERY IN PROGRESS / ISSUES #94–#98 PLANNED`
 
 对应规格：[`Module-Spec-004-Artifact.md`](../module-specs/Module-Spec-004-Artifact.md)。
 
@@ -33,11 +33,13 @@
 | AF-IM04-U-001 | Unit | 修改 SEALED Revision 的 Canonical body、Hash 或 SchemaRef | 拒绝不可变修改，必须创建新 Revision | 尚无业务实现 | `NOT RUN` |
 | AF-IM04-U-002 | Unit | 跨 Artifact/Project 的 Parent 或 Content Ref | 拒绝 Scope/Lineage 不一致 | 尚无业务实现 | `NOT RUN` |
 | AF-IM04-U-003 | Unit | 两个精确 Revision 的稳定 Unit/Sheet/Row/Cell 差异 | 只产生可重建 Added/Removed/Changed/Moved 结果，不写入业务事实 | 尚无 Diff 实现 | `NOT RUN` |
-| AF-IM04-C-001 | Contract | Canonical body 与声明 contentHash 不一致 | 拒绝 Link；不能以 Revision ID 或对象路径替代 Hash | 业务 Link 尚未实现；独立 Hash helper 与 payload fixture 已由 AF-IM04-C-002 覆盖 | `NOT RUN` |
+| AF-IM04-C-001 | Contract | Canonical body 与声明 contentHash 不一致 | 拒绝 Link；不能以 Revision ID 或对象路径替代 Hash | WI-04 persistence probe 在上传前返回 `ARTIFACT_CONTENT_HASH_MISMATCH`；authoritative readback 篡改返回 `ARTIFACT_CONTENT_READBACK_MISMATCH`，不产生 Manifest | `PASS (PERSISTENCE)` |
 | AF-IM04-C-002 | Contract | 仅修改 Payload 的 schemaRef、contentType 或 canonicalizationVersion，body 不变 | 重算 Hash 必须改变；Manifest locator、storageState 或 Hash 自身不得进入 Hash 输入 | 两个 golden fixture 对 schemaRef/contentType/canonicalizationVersion/body 变体均改变 digest；Manifest/self-hash 变体保持 digest | `PASS` |
-| AF-IM04-P-001 | Persistence | Staging object 经 Schema/大小/媒体类型/Hash 校验后 Link | DB 保存精确 manifest；仅允许 `LINKED/FROZEN` 业务引用 | 尚无对象适配器 | `NOT RUN` |
-| AF-IM04-P-002 | Persistence | 对象上传成功、DB 事务失败 | 不产生业务 Link；对象进入可审计 Orphan Cleanup | 尚无业务 Repository | `NOT RUN` |
-| AF-IM04-P-003 | Persistence | SEALED Revision 指向 STAGING/LINKED Manifest，或冻结后改写 Manifest 内容身份 | 前者拒绝封存；后者拒绝更新；必须新建 FROZEN Manifest 和 Revision | 尚无 Artifact Repository | `NOT RUN` |
+| AF-IM04-P-001 | Persistence | Staging object 经 Schema/大小/媒体类型/Hash 校验后 Link | DB 保存精确 manifest；仅允许 `LINKED/FROZEN` 业务引用 | `artifact-content-object.test.ts` lifecycle 场景：STAGING manifest、精确 Link、authoritative readback、finalize 后 freeze 均通过；full gate 24 files/277 tests | `PASS (PERSISTENCE)` |
+| AF-IM04-P-002 | Persistence | 对象上传成功、DB 事务失败 | 不产生业务 Link；对象进入可审计 Orphan Cleanup | 撤销 create owner function 后对象上传仍进入独立 Orphan 记录；Manifest/Link 不存在；24 小时 grace 后可回收 | `PASS (PERSISTENCE)` |
+| AF-IM04-P-003 | Persistence | STAGING/LINKED Manifest 的冻结门禁，或冻结后改写 Manifest 内容身份 | 前者拒绝封存；后者拒绝更新；必须新建 FROZEN Manifest 和 Revision | STAGING 直接 finalization 被 owner function 拒绝；finalize 前 freeze 返回 `ARTIFACT_CONTENT_NOT_FINALIZED`；FROZEN 内容身份的 `artifact_app` 直接 UPDATE 返回 ACL `42501`。未来 SEALED Revision consumer 尚未实现 | `PASS (PERSISTENCE) / NOT RUN (SEALED CONSUMER)` |
+| AF-IM04-P-004 | Persistence | 直接在 `STAGING` 调用 finalization owner function；DB Link 成功后 external finalize 成功、失败或 unknown；尝试在 finalize 前 freeze | `STAGING` 直接 finalize 拒绝；成功 finalize 才可 freeze；失败/unknown 保持 `LINKED` 且可重试；freeze 前拒绝 | `artifact-content-object.test.ts` 覆盖 STAGING direct finalize `INVALID_STATE`、success `FINALIZED`、failure `UNKNOWN`、freeze rejection 与 retry success；Manifest 由 `LINKED` 到 `FROZEN` | `PASS (PERSISTENCE)` |
+| AF-IM04-P-005 | Persistence/Rollback | 对象上传后 DB Link 事务失败；宽限期后由多个 worker cleanup，包含错误 token、retry、NOT_FOUND、legal hold 和 retention | 无业务 Link；Orphan 可审计；lease/fencing 生效；unknown 可重试；`DELETED/NOT_FOUND` 幂等终态；hold/retention 禁止删除 | full gate 覆盖 24 小时 grace、5 分钟 lease、并发 worker `SKIP LOCKED`、错误 token `FENCED`、`UNKNOWN` 退避、`NOT_FOUND`/`DELETED` 幂等、retention `RETRY`、legal hold `HELD` 与对象保留 | `PASS (PERSISTENCE)` |
 | AF-IM04-C-003 | Contract | 请求公开 Diff Result Operation，或 Diff 输入使用 `latest/current` | Catalog 不提供未批准 Operation；既有 Query 只接受两个精确 RevisionRef 并返回 Diff Inputs | 公共 Contract 保持不变；内部 Diff 尚未实现 | `NOT RUN` |
 | AF-IM04-C-004 | Contract | Registration 声明与权威 RenderAttempt 的 Revision/input Hash/Renderer/checksum 任一不一致 | Artifact 拒绝登记，不能只信任调用方 Registration | 规格已明确权威读取；跨模块实现尚未开始 | `NOT RUN` |
 | AF-IM04-C-005 | Contract | 仅调用现有 `integration.get_render_attempt@1.0` 后尝试登记 Representation | 因缺少原始 Request/成功 Result Binding 而禁止 Handler 实现；必须先通过 additive Binding Query | `integration.get_render_attempt_binding@1.0` 已提供完整 Binding Result；Handler 仍未实现 | `PASS` |

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY COMPLETE PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / IM-04 WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-03 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-03 GIT DELIVERY COMPLETE PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / IM-04 WI-04–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY COMPLETE PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / IM-04 WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-03 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-03 GIT DELIVERY COMPLETE PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / IM-04 WI-04 DESIGN FROZEN 2026-08-28 / IM-04 WI-04 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-04 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-04 GIT DELIVERY IN PROGRESS / IM-04 WI-05–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -359,6 +359,17 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - 最终独立 Persistence Gate 已通过 23 个 Persistence 文件、272 个测试，并验证 Project/Enterprise Controlled Root/Branch 的 V4001/no-op、RLS、幂等/身份冲突、Metadata CAS、Archive、Rollback、直接写拒绝和 Project 空 Origin owner-boundary 拒绝；临时容器已清理。
 - 完整 `pnpm verify` 的 Format/Lint/Typecheck/全量测试（27 files、371 passed、257 skipped）/Architecture/Contracts（201 operations、全部 FULL）均通过；其末尾 Persistence Gate 因 Docker Hub token 请求 `EOF` 未启动，不能将该次编排记为完整 PASS。前述独立 Persistence Gate 已真实通过，剩余差异是 Docker Hub 外部读取的编排稳定性。
 
+### 2.5 IM-04 WI-04 Canonical Content Object staging、link、freeze 与 orphan cleanup 实现边界（2026-08-28）
+
+- WI-04 使用 forward-only `V4002` 新增 `artifact_content_object`、精确业务 link、quarantine 记录和 orphan cleanup 记录；不修改已应用的 `V4000`/`V4001`，不创建 `artifact_revision`、Representation 或公开 Artifact Operation。
+- Canonical Content Object Manifest 的生命周期固定为 `STAGING -> LINKED -> FROZEN`；`STAGING/LINKED -> QUARANTINED` 只用于校验失败、恶意/篡改或不可恢复的安全处置；`FROZEN` 的 Content identity、SchemaRef、Hash、大小、媒体类型、locator 和 Scope 永久不可变。
+- Object Storage 通过可替换 `ObjectStoragePort` 接入。上传阶段只接受应用按 `contentObjectId` 生成的 staging locator；应用必须以 authoritative readback 重新读取 bytes、media type、size、provider/version 和 locator，再验证 executable Canonical Schema、Canonical JSON bytes 与 SHA-256。调用方声明的 hash、路径、文件名或 storage metadata 不具权威性。
+- DB Link Commit 与对象存储 finalize 不建立分布式事务。Link 事务提交后才允许 finalize；finalize 未确认或返回 unknown 时 Manifest 保持 `LINKED`，不得进入 `FROZEN`，并通过可重试的 finalization state 记录待处理状态。Link 事务失败时不产生业务 Link；已上传对象必须写入脱敏、可回收的 Orphan 记录。
+- 本 WI 只保存未来 `ArtifactRevision` 的精确 owner ref link 形状，不创建 Revision 行；Link 与 `LINKED` 状态迁移必须在同一 Artifact-owned security-definer DB 事务内完成。未来 SEALED Revision 只能引用同 Scope、同一 immutable Content Object 的 `FROZEN` Manifest。
+- Orphan cleanup 采用 24 小时 grace、5 分钟 lease、fencing token、指数重试（首次 5 分钟、最长 24 小时）和幂等的 `DELETED/NOT_FOUND` terminal outcome；每次 claim、fence、retry、unknown、hold/retention 拒绝和 deletion outcome 都写 masked Audit。存在 reverse link、未到 retention、legal hold 或 `QUARANTINED` 时不得删除。
+- WI-04 自动验证覆盖 Contract/Unit、空库 migration/no-op、真实 PostgreSQL RLS/ACL/Scope、readback tamper、hash/size/media 拒绝、DB rollback orphan、link/finalize/freeze gate、cleanup lease/fencing/retry/legal-hold/idempotency 和 audit。Local in-memory Object Storage 与 disposable PostgreSQL 可记为自动验证 PASS；真实 Ceph RGW/OpenBao、生产加密/Object Lock、scheduler、公开 HTTP、跨模块 E2E 和独立人工业务验收仍为 `NOT RUN`。
+- WI-04 最终验证已通过：`pnpm verify` 的 format/lint/typecheck、全量 Vitest（28 个文件通过、20 个受控跳过；373 passed、262 skipped）、Architecture、Contract（201 operations、201 schema FULL；历史 compatibility baseline 200）和 pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence（24 个测试文件、277 个测试；V4002 空库迁移成功、第二次 migrate no-op、容器清理完成）均通过。调用方 hash、authoritative readback、Scope/RLS/ACL、STAGING direct-finalize 拒绝、finalize unknown、rollback orphan、grace/lease/fencing、并发 worker、retention/legal-hold、NOT_FOUND/DELETED 幂等均有证据；SEALED Revision、真实 Provider、生产对象安全、公开 HTTP、跨模块 E2E 和独立人工验收仍为 `NOT RUN`。
+
 建议的下一阶段：
 
 ```text
@@ -579,7 +590,7 @@ PR #51 已使用 `--match-head-commit` 合并，合并提交为 `8f5c0701ace93ce
 - `process_step` 的 Enterprise/Project Scope 必须与父 `process_instance` 完全一致，不能仅凭 `process_id` 建立跨 Scope 事实。
 - `reference_edge` 的 owner 精确身份包含可选 `owner_version_id`；不同不可变 owner version 可以保存同路径到同 target 的 Edge，同一精确 owner/path/target 才判重。
 - `audit_reader` 只能读取 masked 列，但 masked view 必须返回已提交的权威 Audit 行；底表整体读取、敏感列、UPDATE 与 DELETE 仍拒绝。
-- 数据库层负责 promoted Scope 镜像、hash 长度与不可变写面；Canonical Payload 与 SHA-256 的强一致性由 WI-05/WI-06 owning Repository 在同一事务写入路径完成。在对应 Repository Gate 通过前，该项保持 `NOT RUN`，不能作为 WI-04 数据库 PASS。
+- 数据库层负责 promoted Scope 镜像、hash 长度与不可变写面；WI-04 的 Artifact owning service 已在 Manifest 写入前完成 Canonical Payload 与 SHA-256 的重算/比对，并由独立 V4002 Persistence Gate 验证。后续 Revision/Representation 的跨模块内容绑定仍须由各自 owning Repository Gate 单独证明。
 
 ## 13. IM-02 WI-10 Outbox/Inbox 实现约束
 

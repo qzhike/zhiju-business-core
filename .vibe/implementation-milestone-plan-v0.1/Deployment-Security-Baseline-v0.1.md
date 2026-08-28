@@ -79,7 +79,7 @@ backup        prohibited on the same host as the only recovery copy
 4. 数据库保存 opaque locator、精确 object version、content hash、size、media type、encryption key ref 和 retention class；禁止保存公开 URL。
 5. 下载 URL 短期签发并在签发前重新授权；URL 不进入业务事件、日志或长期记录。
 6. 对象写入继续遵守 Staging → type/size/hash/security validation → DB Link Commit → finalize；PostgreSQL 与对象存储不建立分布式事务。
-7. Orphan Cleanup 必须有宽限期、Lease、审计和 Legal Hold/Retention 检查；精确时长在 IM-04 冻结。
+7. Orphan Cleanup 必须有 24 小时宽限期、5 分钟 Lease、fencing token、masked Audit 和 Legal Hold/Retention/reverse-link 检查；失败重试从 5 分钟指数退避，最长 24 小时，`DELETED/NOT_FOUND` 为幂等终态，unknown deletion outcome 必须保留为可重试状态。
 
 ### 3.3 OpenBao 生产边界
 

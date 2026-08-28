@@ -372,7 +372,8 @@ create immutable object manifest in owning Aggregate transaction
     ↓
 mark object LINKED/FROZEN
     ↓
-later orphan collector considers only unlinked staging objects past grace period
+later orphan collector claims due orphan records; completion rechecks link,
+retention, legal hold and quarantine before deleting
 ```
 
 数据库事务失败后对象可能成为 Orphan；对象写失败时不得提交业务 Link。Cleanup 只能删除：
@@ -635,7 +636,7 @@ Audit 是追加记录，不允许普通应用角色更新/删除。
 
 七模块标准技术表同时容纳 Enterprise-owned 与 Project-owned 行时，策略逐行选择边界：`project_id IS NULL` 只校验当前 Enterprise；`project_id IS NOT NULL` 必须调用 Project helper，同时匹配 Enterprise 与允许的 Project 集合。不得用仅校验 Enterprise 的策略读取或写入 Project-owned 行。
 
-数据库在 WI-04 校验 promoted Scope 镜像、hash 形状和不可变写面。Canonical JSON 与 SHA-256 的重算/比对依赖 owning Repository 的 canonicalizer，由 WI-05/WI-06 在同一事务写入路径实现并验证；在该 Gate 运行前保持 `NOT RUN`。
+数据库在 WI-04 校验 promoted Scope 镜像、hash 形状、生命周期和不可变写面；Artifact owning service 在写入 Manifest 前完成 Canonical JSON 与 SHA-256 的重算/比对，并由 V4002 Persistence Gate 验证。后续 Revision/Representation 的跨模块内容绑定仍按各自 Gate 单独记录，不能由本切片推断为已完成。
 
 ---
 
@@ -1040,6 +1041,14 @@ Root 的 `business_scope`、`enterprise_id`、`project_id`、`origin_project_ref
 `artifact_app` 通过 RLS 读取 Root/Branch，但不拥有业务 Root/Branch 的 `UPDATE/DELETE`；创建、Metadata CAS 和 Archive 经过 Artifact-owned security-definer 函数，并由函数重验 transaction Context、Scope 和归因。Root/Branch 使用 FORCE RLS，`artifact_owner` 仅作为受控函数执行主体。Root 到 Branch 的 `default_branch_id` 外键采用 deferred check，以支持一个创建事务内的双向身份绑定；Branch 到 Root 的外键仍为 `ON DELETE RESTRICT`。Artifact 不对 EnterpriseProject 或其他 owning Schema 建立跨 Schema FK/Join。
 
 Approved Revision 与 Effective Binding 在本切片只保留空 JSONB 指针占位，不创建后续 binding 表，不允许 Root Metadata/Archive Command 修改；后续 WI 必须以 additive migration 创建对应事实表和精确 Ref 校验。
+
+#### 12.1.2 IM-04 WI-04 Canonical Content Object 物理切片
+
+WI-04 以 `V4002` forward-only 新增 `artifact_content_object`、单一精确 owner link、quarantine 记录和 orphan cleanup 记录。`artifact_content_object` 保存 Enterprise/Project Scope、Canonical SchemaRef、closed content type、canonicalization version、SHA-256、byte size、media type、opaque provider/locator/version、`storage_state`、独立 `finalization_state`、retention/legal-hold 和创建/验证归因；数据库不保存 Canonical body、公开 URL 或秘密。
+
+应用先向 Object Storage staging locator 写入对象，再用 provider 的 authoritative readback 重新取得 bytes、media type、size、locator、version 和 provider metadata。Repository 只接受经过 executable Canonical Schema、Canonical JSON bytes、SHA-256、size 和 media type 重算/比对后的 Manifest；调用方声明的 hash、路径、文件名或 storage metadata 不能成为事实来源。`STAGING -> LINKED` 与精确 future `ArtifactRevision` owner link 在同一 Artifact security-definer transaction 中提交；`FROZEN` 只允许在 external finalize 明确成功后由另一个受控写边界推进。
+
+PostgreSQL 与 Object Storage 不建立分布式事务。DB Link Commit 在 finalize 前失败时不得产生业务 link，应用在独立事务写入不含 raw locator 的 masked Orphan Audit/记录；finalize error/unknown 保持 Manifest `LINKED` 并记录可重试的 finalization state。Orphan collector 只领取超过 24 小时 grace 且到达 next-attempt 的 orphan，随后在完成事务中再次检查 reverse link、retention、legal hold 和 `QUARANTINED`；受保护对象不得删除并转为 `HELD/RETRY`。claim lease 为 5 分钟，使用 fencing token，删除 unknown/异常保留为 `UNKNOWN` 并从 5 分钟指数退避至 24 小时封顶。`DELETED` 与 `NOT_FOUND` 是幂等终态，所有 claim、fence、retry、hold/retention 拒绝和删除结果写入 masked Audit。
 
 ### 12.2 ArtifactRevision 与 Lineage
 

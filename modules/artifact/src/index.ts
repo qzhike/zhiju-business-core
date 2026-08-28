@@ -1,6 +1,6 @@
 export const artifactModule = Object.freeze({
   name: 'artifact',
-  status: 'WI_03_ROOT_METADATA_ARCHIVE_IMPLEMENTATION_IN_PROGRESS' as const,
+  status: 'WI_04_CANONICAL_CONTENT_OBJECT_IMPLEMENTATION_IN_PROGRESS' as const,
 });
 
 export {
@@ -31,6 +31,14 @@ export type {
   ArtifactBranchLifecycle,
   ArtifactTable,
   ArtifactBranchTable,
+  ArtifactContentType,
+  ArtifactContentStorageState,
+  ArtifactContentFinalizationState,
+  ArtifactContentOrphanOutcome,
+  ArtifactContentObjectTable,
+  ArtifactContentObjectLinkTable,
+  ArtifactContentObjectQuarantineTable,
+  ArtifactContentObjectOrphanTable,
 } from './persistence/artifact-business-types.js';
 
 export { ArtifactRepository } from './persistence/artifact-repository.js';
@@ -40,7 +48,25 @@ export type {
   ArtifactMetadataCas,
   ArtifactArchiveCas,
   ArtifactCasOutcome,
+  ContentObjectInsert,
+  ContentObjectLinkInput,
+  ContentObjectLinkOutcome,
+  ContentObjectFinalizationInput,
+  ContentObjectFinalizationOutcome,
+  ContentObjectQuarantineInput,
+  ContentObjectStateOutcome,
+  ContentObjectOrphanInsert,
+  ContentObjectOrphanClaim,
+  ContentObjectOrphanCompletion,
+  ContentAuditInsert,
 } from './persistence/artifact-repository.js';
+
+export { InMemoryObjectStorage } from './storage/in-memory-object-storage.js';
+export type {
+  ObjectStoragePort,
+  ObjectStorageReadback,
+  ObjectStorageReference,
+} from './storage/object-storage.js';
 
 export {
   ArtifactPersistenceError,
@@ -82,6 +108,23 @@ export {
   handleGetArtifact,
   applyArtifactMetadataPatch,
 } from './business/artifact-handlers.js';
+
+export {
+  stageCanonicalContent,
+  linkCanonicalContent,
+  finalizeCanonicalContent,
+  freezeCanonicalContent,
+  quarantineCanonicalContent,
+  cleanupCanonicalContentOrphans,
+} from './business/content-object-service.js';
+export type {
+  CanonicalContentCommandEnvelope,
+  StageCanonicalContentPayload,
+  LinkCanonicalContentPayload,
+  ContentObjectView,
+  LinkCanonicalContentResult,
+  OrphanCleanupReport,
+} from './business/content-object-service.js';
 export type {
   CreateArtifactPayload,
   UpdateArtifactMetadataPayload,
@@ -100,4 +143,14 @@ export {
   ARTIFACT_HUMAN_ONLY_DENIED,
   ARTIFACT_QUERY_NOT_FOUND,
   ARTIFACT_QUERY_SCOPE_MISMATCH,
+  ARTIFACT_CONTENT_SCHEMA_INVALID,
+  ARTIFACT_CONTENT_HASH_MISMATCH,
+  ARTIFACT_CONTENT_READBACK_MISMATCH,
+  ARTIFACT_CONTENT_TARGET_INVALID,
+  ARTIFACT_CONTENT_OWNER_INVALID,
+  ARTIFACT_CONTENT_NOT_FINALIZED,
+  ARTIFACT_CONTENT_STATE_INVALID,
+  ARTIFACT_CONTENT_ALREADY_FROZEN,
+  ARTIFACT_CONTENT_ORPHAN_RECORD_FAILED,
+  ARTIFACT_CONTENT_FINALIZATION_UNKNOWN,
 } from './business/artifact-business-errors.js';
