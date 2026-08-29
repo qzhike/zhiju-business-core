@@ -1,8 +1,8 @@
 # Module-Spec-004-Artifact
 
 版本：v0.1
-日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 EXECUTABLE CANONICAL SCHEMA LANDED 2026-08-28 / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE FOUNDATION IMPLEMENTED AND PERSISTENCE VERIFIED 2026-08-28 / WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-03 ROOT-METADATA-ARCHIVE DESIGN FROZEN 2026-08-28 / WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / WI-03 PERSISTENCE VERIFIED 2026-08-28 / WI-03 GIT DELIVERY COMPLETE PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / WI-04 CONTENT OBJECT DESIGN FROZEN 2026-08-28 / WI-04 IMPLEMENTATION COMPLETE 2026-08-28 / WI-04 PERSISTENCE VERIFIED 2026-08-28 / WI-04 GIT DELIVERY COMPLETE PR #106 MERGED 2026-08-28 / ISSUE #93 CLOSED 2026-08-28 / WI-04 FEATURE BRANCH DELETED / WI-05 REVISION-LINEAGE-CAS DESIGN FROZEN 2026-08-28 / WI-05 IMPLEMENTATION COMPLETE 2026-08-29 / WI-05 PERSISTENCE VERIFIED 2026-08-29 / WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / WI-06 STRUCTURED DOCUMENT IMPLEMENTATION COMPLETE 2026-08-29 / WI-06 PERSISTENCE VERIFIED 2026-08-29 / WI-06 RE-VERIFICATION PASS 2026-08-29 / WI-06 GIT DELIVERY COMPLETE PR #113 MERGED 2026-08-29 / ISSUE #95 CLOSED 2026-08-29 / WI-07 WORKBOOK IMPLEMENTATION COMPLETE 2026-08-29 / WI-07 PERSISTENCE VERIFIED 2026-08-29 / WI-07 GIT DELIVERY COMPLETE PR #114 MERGED 2026-08-29 / ISSUE #96 CLOSED 2026-08-29 / WI-07 FEATURE BRANCH DELETED / WI-08 REPRESENTATION BINDING IMPLEMENTATION COMPLETE 2026-08-29 / WI-08 PERSISTENCE VERIFIED 2026-08-29 / WI-08 GIT DELIVERY COMPLETE PR #116 MERGED 2026-08-29 / ISSUE #97 CLOSED 2026-08-29 / WI-09 IMPLEMENTATION COMPLETE 2026-08-29 / WI-09 PERSISTENCE VERIFIED 2026-08-29 / WI-09 GIT DELIVERY COMPLETE PR #117 MERGED 2026-08-29 / ISSUE #98 CLOSED 2026-08-29`
+日期：2026-08-30
+状态：`CURRENT MODULE CONTRACT BASELINE / IM-04 WI-01–WI-09 IMPLEMENTATION, PERSISTENCE AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / PARENT SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / INDEPENDENT MANUAL AND EXTERNAL BOUNDARIES NOT RUN`
 
 ## 1. 模块责任
 
@@ -358,7 +358,7 @@ ARTIFACT_STRUCTURED_DOCUMENT_ID_MISMATCH
 7. 内部 Diff 只能由现有 `artifact.get_revision_diff_inputs@1.0` 的两个 exact Revision Ref 驱动，然后从各自 FROZEN Content Object authoritative readback 重建 Document。Diff 结果是内存中的可重建值，不写入数据库、Outbox、Receipt、Approval、Quality 或 Release 事实；不添加公开 `artifact.get_revision_diff@1.0` 或其他 Diff Result Operation。结果按 `unitId`、kind 固定排序，Added/Removed/Changed/Moved 使用稳定 Unit identity；位置变化比较 `parentUnitId + ordinal`，内容变化比较 Unit 的非位置字段，必要时同一 Unit 可同时产生 Changed 与 Moved。
 8. WI-06 允许使用 local Object Storage 与 disposable PostgreSQL 做自动验证，必须保留 Unit/Contract、Persistence、Rollback、History Replay、Hash Golden、manual synthetic fixture 和 `NOT RUN` 边界；真实 Provider、生产数据库、公开 HTTP、跨模块 E2E、Renderer、Quality/Approval/Release 和独立人工业务验收不因本 WI 自动变为 `PASS`。
 
-当前实现与自动验收已重新核验：聚焦 Unit 为 1 文件/4 passed；全量静态门禁、Contract、全量 Unit（30 个文件/380 passed/265 skipped）和 Persistence（26 个文件/280 passed）均通过，pinned PostgreSQL/Flyway 空库迁移与第二次 migrate no-op 均通过；synthetic procurement-procedure 复核材料见 [`Manual-ART-024.md`](../issue-95-delivery/Manual-ART-024.md)。组合流程中途故障注入仍为 `PARTIAL PASS / INJECTION NOT RUN`，独立人工业务验收及外部边界保持 `NOT RUN`；重新 Git delivery 正在准备。
+当前实现与自动验收已重新核验：聚焦 Unit 为 1 文件/4 passed；全量静态门禁、Contract、全量 Unit（30 个文件/380 passed/265 skipped）和 Persistence（26 个文件/280 passed）均通过，pinned PostgreSQL/Flyway 空库迁移与第二次 migrate no-op 均通过；synthetic procurement-procedure 复核材料见 [`Manual-ART-024.md`](../issue-95-delivery/Manual-ART-024.md)。组合流程中途故障注入仍为 `PARTIAL PASS / INJECTION NOT RUN`，独立人工业务验收及外部边界保持 `NOT RUN`；PR #113 已合入 `main`，Issue #95 已关闭。
 
 ## 7.5 IM-04 WI-08 Representation 与 RenderAttempt Binding 实现约束
 
@@ -386,14 +386,23 @@ ARTIFACT_STRUCTURED_DOCUMENT_ID_MISMATCH
 5. Representation Query 必须逐字段匹配完整 RepresentationRef，并只返回经 `integration.get_render_attempt_binding@1.0` 权威校验后登记的 immutable View。登记新 Representation 不改变 Revision Snapshot、Lineage 或 Diff Inputs。
 6. `artifact.get_effective_binding@1.0` 只在后续正式 Release/EffectiveBinding 写模型落地后实现；IM-04 仅证明新 Draft/Revision/Representation 不产生该事实。该 Query 与独立人工跨模块场景继续记录为 `NOT RUN`。
 7. WI-09 本地自动验证已通过：focused Artifact Unit/Contract 为 6 files/69 passed；普通全量 Vitest 为 32 passed/24 skipped files、390 passed/269 skipped tests；Architecture 与 201-operation FULL Contract/200-operation frozen compatibility baseline 通过；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence 为 28 files/284 passed，空库 V4000–V4004、第二次 migrate no-op 和容器清理通过。`ZJU_ART023_REPORT=1` 可重复输出 exact Query/DAG/Representation UUID、Hash、checksum 与错误码；汇总见 [`../issue-98-delivery/Manual-ART-023.md`](../issue-98-delivery/Manual-ART-023.md)。
-8. WI-09 实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 已通过 PR #117 exact-head CI，并以 merge commit `f4b8704ba766d49c12c4433884d94bce91d50792` 合入 `main`；Issue #98 已关闭，实现 head 是 `origin/main` ancestor。父 Issue #89 不由本工作项自动关闭。
+8. WI-09 实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 已通过 PR #117 exact-head CI，并以 merge commit `f4b8704ba766d49c12c4433884d94bce91d50792` 合入 `main`；Issue #98 已关闭，实现 head 是 `origin/main` ancestor。父 Issue #89 必须由独立父 Gate 复核后关闭。
+
+## 8.2 IM-04 父退出门槛约束
+
+1. #90–#98 必须全部为 `CLOSED / COMPLETED`，有效实现 PR #100、#102、#104、#106、#110、#113、#114、#116、#117 及最终权威同步 PR #118 必须为 `MERGED`，对应 head 必须为 `origin/main` 祖先。
+2. 父 Gate 必须重新运行完整 `pnpm clean && pnpm verify`，并在 pinned PostgreSQL 18.6/Flyway 11.20.3 上证明空库 `V4000`–`V4004`、第二次 no-op、28 个 Persistence 文件、所有负向断言和容器清理；历史成功记录不能替代本轮执行。
+3. `ZJU_ART023_REPORT=1 pnpm persistence:gate` 必须产生可重复、无 Secret 的 Root/Branch/Manifest/Revision/DAG/CAS/Diff/Binding/Representation 与拒绝输出；自动合成技术证据不升级为真实业务或独立人工验收。
+4. 公共 Catalog 固定为 201 项，冻结 v1.0 baseline 固定为 200 项，不增加公共 Diff Result；Required HL-Spec、Module Spec/Test 必须与最终 `main` 一致。
+5. 真实 IntegrationGateway 部署读回、Ceph RGW/OpenBao、Renderer/Provider、Office 文件版式/可打开性、公开 HTTP、生产、后续模块业务 E2E、真实客户适用性和独立人工业务验收保持 `NOT RUN`。
+6. 2026-08-30 父 Gate 已按上述边界重验：focused 6 files/59 tests、完整 Unit 390 passed/269 skipped、Architecture、201/201 FULL Contract、200-operation compatibility baseline、PostgreSQL/Flyway 28 files/284 tests、空库 31 migrations、second no-op 和清理均通过；ART-023 exact report 也在同一 digest-pinned 本地镜像上独立通过 28/284。Docker Hub 鉴权连续三次 `EOF` 仅阻断报告重跑前的远端 manifest 查询，未启动数据库；远端 tag↔digest 已由同轮完整 Gate 先行验证。
 
 ## 9. 当前状态
 
 - 26 个 Artifact 既有公开 Contract 已定义字段级 payload/result/event 结构，并实现可执行 JSON Schema；WI-01 另行提供 Canonical Content/Manifest 可执行 Schema，不新增 Artifact 业务 Operation；
 - API v0.1 已于 2026-08-13 通过用户审核；
 - PR #12 Review 确认的 parent 数量与未解决 Merge 冲突缺口已修复，两条 Contract 回归已 `PASS`；
-- IM-DG-005 的 Canonical Document/Workbook 最小 Schema 与 Renderer 路线已于 2026-08-27 获用户批准；WI-01 已完成可执行 Canonical Schema、Hash Fixture、Manifest 边界和 additive Binding Query；WI-02 已完成事务基础及真实 PostgreSQL Persistence 验证；WI-03 已完成 Artifact Root、默认 Branch、元数据 CAS、精确 Query 和 Archive boundary；WI-04 已完成 Canonical Content Object staging/readback/link/finalize/freeze/quarantine/orphan cleanup 与真实 PostgreSQL Persistence 验证；WI-05 已完成 Immutable Revision、Lineage DAG、Branch CAS、显式 Merge 与治理事实；WI-07 已完成 WorkbookSpec Human Edit 与内部 Diff；WI-08 已完成公开 Binding Query Port 验证、不可变 Representation/Validation Fact、精确 Query、幂等、RLS、rollback 与 event minimality 的本地实现和真实 PostgreSQL 验证。真实 IntegrationGateway 部署读回、Renderer、对象存储、跨模块 E2E、生产与独立人工验收仍为 `NOT RUN`；
+- IM-DG-005 的 Canonical Document/Workbook 最小 Schema 与 Renderer 路线已于 2026-08-27 获用户批准；WI-01–WI-09 已完成 Canonical Schema/Hash/Binding Query、事务基础、Artifact Root/Branch、Content Object、Revision/DAG/CAS/Merge、Structured Document 与 WorkbookSpec Human Edit/内部 Diff、Representation Binding、权威 Query 和合成 ART-023 的实现、自动验证与 Git 交付。真实 IntegrationGateway 部署读回、Renderer、对象存储、跨模块 E2E、生产与独立人工验收仍为 `NOT RUN`；
 - Artifact Root/Branch 与 WI-04 Content Object 的业务 Unit、Persistence、RLS、幂等、CAS、Rollback、E2E 与人工验收按测试文档逐项记录，不得用技术表 PASS 代替业务 PASS。WI-04 的纯本地 adapter 回归与真实数据库行为已分别写入对应测试证据；测试必须显式收窄 CommandResult 联合类型并保持注入故障回调的返回类型闭合。实现必须在边界处显式收窄 Scope 类型，在公开 Typed Reference 与 canonical JSON hash 输入之间使用显式转换，对 JSON.parse 的动态值先经过 unknown 边界，并通过 canonical JSON 转换读取 JSONB，避免把存储形状或未知值直接当作公开 Typed Reference。
 - 首轮 PostgreSQL Gate 已验证 V4001 空库迁移和既有 Persistence 回归；新增业务夹具发现并记录了公开 View 与 Command result 扩展字段的比较边界，以及 Outbox scope mirror 必须与 Envelope Project 精确一致，修正后才可将业务 Gate 记为 PASS。
 - 第二轮 Gate 进一步确认幂等重放返回 `DUPLICATE` 并复用首个结果；失败点是测试辅助函数只收窄到 `COMMITTED`，不属于业务实现失败，修正后必须保留对 `DUPLICATE` 首个结果的精确比较。

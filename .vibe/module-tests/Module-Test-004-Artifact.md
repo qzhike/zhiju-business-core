@@ -1,8 +1,8 @@
 # Module-Test-004-Artifact
 
 版本：v0.1
-日期：2026-08-27
-状态：`API CONTRACT TEST BASELINE / WI-01 CONTRACT REGRESSION PASS / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE TESTS VERIFIED 2026-08-28 / WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-03 TEST PLAN FROZEN 2026-08-28 / WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / WI-03 PERSISTENCE VERIFIED 2026-08-28 / WI-03 GIT DELIVERY VERIFIED PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / WI-04 TEST PLAN FROZEN 2026-08-28 / WI-04 IMPLEMENTATION COMPLETE 2026-08-28 / WI-04 PERSISTENCE VERIFIED 2026-08-28 / WI-04 GIT DELIVERY VERIFIED PR #106 MERGED 2026-08-28 / ISSUE #93 CLOSED 2026-08-28 / WI-04 FEATURE BRANCH DELETED / WI-05 TEST PLAN FROZEN 2026-08-28 / WI-05 IMPLEMENTATION COMPLETE 2026-08-29 / WI-05 PERSISTENCE VERIFIED 2026-08-29 / WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / WI-06 TEST PLAN FROZEN 2026-08-29 / WI-06 IMPLEMENTATION COMPLETE 2026-08-29 / WI-06 PERSISTENCE VERIFIED 2026-08-29 / WI-06 RE-VERIFICATION PASS 2026-08-29 / WI-06 GIT DELIVERY COMPLETE PR #113 MERGED 2026-08-29 / ISSUE #95 CLOSED 2026-08-29 / WI-07 TEST PLAN FROZEN 2026-08-29 / WI-07 IMPLEMENTATION COMPLETE 2026-08-29 / WI-07 PERSISTENCE VERIFIED 2026-08-29 / WI-07 GIT DELIVERY COMPLETE PR #114 MERGED 2026-08-29 / ISSUE #96 CLOSED 2026-08-29 / WI-07 FEATURE BRANCH DELETED / WI-08 TEST PLAN FROZEN 2026-08-29 / WI-08 IMPLEMENTATION COMPLETE 2026-08-29 / WI-08 PERSISTENCE VERIFIED 2026-08-29 / WI-08 GIT DELIVERY COMPLETE PR #116 MERGED 2026-08-29 / ISSUE #97 CLOSED 2026-08-29 / WI-09 QUERY-EXIT REGRESSION PASS 2026-08-29 / WI-09 PERSISTENCE VERIFIED 2026-08-29 / WI-09 GIT DELIVERY COMPLETE PR #117 MERGED 2026-08-29 / ISSUE #98 CLOSED 2026-08-29`
+日期：2026-08-30
+状态：`API CONTRACT TEST BASELINE / IM-04 WI-01–WI-09 AUTOMATED AND PERSISTENCE EVIDENCE PASS / ISSUE #90–#98 CLOSED / PARENT SCOPED TECHNICAL ACCEPTANCE PASS 2026-08-30 / INDEPENDENT MANUAL AND EXTERNAL BOUNDARIES NOT RUN`
 
 对应规格：[`Module-Spec-004-Artifact.md`](../module-specs/Module-Spec-004-Artifact.md)。
 
@@ -26,6 +26,18 @@
 | AF-API-E-002 | E2E | 已发布 REV-003 后创建 REV-004 Draft | 原 Approval/Release/EffectiveBinding 不变 | 无跨模块实现 | `NOT RUN` |
 | AF-API-M-001 | Manual | ART-023 Revision DAG Fixture | 审核者能定位内容 Hash、Parent、Branch、Representation 与 Binding 差异 | [`Manual-ART-023.md`](../issue-98-delivery/Manual-ART-023.md) 已汇总 exact automated output；独立人工复核尚未执行 | `NOT RUN (INDEPENDENT MANUAL)` |
 
+## IM-04 父退出门槛用例
+
+以下用例是 Issue #89 的父 Gate 测试合同。本轮执行前先冻结输入与预期；实际输出必须由当前交付分支重新执行后填写，不能直接复制 WI-09 历史结果。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| AF-IM04-EXIT-G-001 | Git/Remote | GitHub #90–#98、有效实现/权威同步 PR、当前 `origin/main` | 子 Issue 全部 `CLOSED / COMPLETED`；PR 为 `MERGED` 且 exact head 为 `origin/main` ancestor；无未解释的替代实现 | #90–#98 已回读为关闭；PR #100/#102/#104/#106/#110/#113/#114/#116/#117/#118 已合并，对应 head ancestry 已通过 | `PASS` |
+| AF-IM04-EXIT-G-002 | Full Gate | `pnpm clean && pnpm verify` | Format/Lint/Typecheck/Unit/Architecture、201-operation Contract、200-operation frozen compatibility、真实 PostgreSQL Persistence 全部通过 | Format/Lint/Typecheck 通过；32 passed/24 skipped files、390 passed/269 skipped tests；Architecture PASS；Catalog/Registry 201/201 FULL；baseline 200；Persistence 28 files/284 passed | `PASS` |
+| AF-IM04-EXIT-P-001 | PostgreSQL/Migration | pinned PostgreSQL 18.6/Flyway 11.20.3 空库 migrate、second migrate、Artifact 负向矩阵与 cleanup | `V4000`–`V4004` 前向迁移成功；第二次 `No migration necessary`；RLS/ACL/Scope/Hash/CAS/rollback/orphan/immutable/binding 负例通过；容器删除 | 完整 Gate 远端验证 tag↔digest 后执行 server `180006`、空库 31 migrations、28/284；second migrate=`No migration necessary`；container removed | `PASS` |
+| AF-IM04-EXIT-E-001 | Synthetic E2E | `ZJU_ART023_REPORT=1 pnpm persistence:gate` | 输出无 Secret 的 exact Root/Branch/Manifest/Revision/DAG/CAS/Diff/Binding/Representation 与预期拒绝；28 个 Persistence 文件全部通过并清理 | 报告 Gate 的远端 manifest 复核因 Docker Hub 鉴权连续三次 `EOF` 且均未启动 DB；随后复用同轮完整 Gate 已验证的 digest-pinned 本地镜像，独立输出 exact ART023 Query/Representation evidence，28/284、second no-op、container removed | `PASS (COMBINED DIRECT EVIDENCE)` |
+| AF-IM04-EXIT-B-001 | Boundary | Renderer/Provider、Ceph RGW/OpenBao、公开 HTTP、生产、后续模块业务 E2E、真实客户和独立人工验收 | 不由本地自动技术 Gate 推导为通过 | 未执行，保持父 Gate 明示边界 | `NOT RUN` |
+
 ## IM-04 WI-09 权威 Query 与退出证据用例
 
 以下用例记录 Issue #98 的输入、预期与实际输出。所有对象、Hash 与 Binding 均为 synthetic technical fixture；自动技术 PASS 不替代独立人工或真实业务验收。
@@ -41,7 +53,7 @@
 | AF-IM04-WI09-M-001 | Manual/Review | 合成 ART-023 Document/Workbook/Manifest/DAG/Branch/Diff/Binding/Representation/negative 输出 | 单一报告记录 exact IDs、hashes、checksums、输入、预期、实际、命令、环境、时间与 cleanup；标注 `SYNTHETIC / TECHNICAL ONLY` | [`Manual-ART-023.md`](../issue-98-delivery/Manual-ART-023.md) 已记录本次 automated exact output；独立人工业务复核未运行 | `PASS (AUTOMATED SYNTHETIC) / NOT RUN (INDEPENDENT MANUAL)` |
 | AF-IM04-WI09-X-001 | Deferred | `artifact.get_effective_binding@1.0`、真实 Provider/Renderer/object store、公开 HTTP、生产、跨模块与独立业务验收 | 不以 IM-04 本地技术 Gate 冒充实现或通过 | 无正式 Release/EffectiveBinding 事实；保留边界 | `NOT RUN` |
 
-Git 交付回读：实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 的 PR #117 `ci/verify` 为 `SUCCESS`；merge commit 为 `f4b8704ba766d49c12c4433884d94bce91d50792`；Issue #98 为 `CLOSED / COMPLETED`；实现 head 是 `origin/main` ancestor。父 Issue #89 保持 `OPEN`。
+Git 交付回读：实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 的 PR #117 `ci/verify` 为 `SUCCESS`；merge commit 为 `f4b8704ba766d49c12c4433884d94bce91d50792`；Issue #98 为 `CLOSED / COMPLETED`；实现 head 是 `origin/main` ancestor。父 Issue #89 由上方独立父 Gate 复核后关闭。
 
 ## IM-04 WI-08 Representation 权威 Binding 用例
 

@@ -1,8 +1,8 @@
 # Zhiju Business Core 基准规格与 Agent 入口
 
 版本：v0.1
-日期：2026-08-27
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY COMPLETE PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / IM-04 WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-03 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-03 GIT DELIVERY COMPLETE PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / IM-04 WI-04 DESIGN FROZEN 2026-08-28 / IM-04 WI-04 IMPLEMENTATION COMPLETE 2026-08-28 / IM-04 WI-04 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-04 GIT DELIVERY COMPLETE PR #106 MERGED 2026-08-28 / ISSUE #93 CLOSED 2026-08-28 / WI-04 FEATURE BRANCH DELETED / IM-04 WI-05 DESIGN FROZEN 2026-08-28 / IM-04 WI-05 IMPLEMENTATION COMPLETE 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / IM-04 WI-06 IMPLEMENTATION COMPLETE 2026-08-29 / IM-04 WI-06 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-06 RE-VERIFICATION PASS 2026-08-29 / IM-04 WI-06 GIT DELIVERY COMPLETE PR #113 MERGED 2026-08-29 / ISSUE #95 CLOSED 2026-08-29 / IM-04 WI-07 IMPLEMENTATION COMPLETE 2026-08-29 / IM-04 WI-07 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-07 GIT DELIVERY COMPLETE PR #114 MERGED 2026-08-29 / ISSUE #96 CLOSED 2026-08-29 / WI-07 FEATURE BRANCH DELETED / WI-08 DESIGN FROZEN 2026-08-29 / WI-08 IMPLEMENTATION COMPLETE 2026-08-29 / WI-08 PERSISTENCE VERIFIED 2026-08-29 / WI-08 GIT DELIVERY COMPLETE PR #116 MERGED 2026-08-29 / ISSUE #97 CLOSED 2026-08-29 / WI-09 IMPLEMENTATION COMPLETE 2026-08-29 / WI-09 PERSISTENCE VERIFIED 2026-08-29 / WI-09 GIT DELIVERY COMPLETE PR #117 MERGED 2026-08-29 / ISSUE #98 CLOSED 2026-08-29 / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+日期：2026-08-30
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01–WI-09 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -319,12 +319,11 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 
 已完成：
 
-- RenderAttempt Binding Query、Canonical Document/Workbook 可执行 Schema、Fixture 与 Hash Gate（IM-04 WI-01 已完成实现、回归和 Git 交付；PR #100 已合并，Issue #90 已关闭）；
+- IM-04 WI-01–WI-09 的 RenderAttempt Binding Query、Canonical Document/Workbook Schema 与 Hash、事务基础、Artifact Root/Branch、Content Object、Revision/DAG/CAS/Merge、Document/Workbook Human Edit 与内部 Diff、Representation Binding 及权威 Query/ART-023 已实现、验证并通过 PR #100–#118 合入 `main`；Issue #90–#98 已关闭；
 
-尚未完成：
-- Artifact 业务 DDL、Migration、业务 Repository 和业务代码；
-- Artifact WI-02 Application/Persistence 事务基础的实现、验证和 Git 交付已完成（PR #102 merged，Issue #91 closed）；
-- Renderer、部署、监控和运行手册；
+当前阶段边界：
+
+- Renderer、生产部署、监控和运行手册不属于本次 IM-04 scoped technical acceptance；
 - Workspace UI/BFF 工程、OIDC Session、页面、Browser E2E、安全、可访问性和人工验收；
 - 未覆盖模块的自动测试、外部服务验证和人工验收。
 
@@ -391,7 +390,7 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - Human Edit 只接受 Human principal、精确 sealed base Revision Ref、非空且无重复的 `allowedUnitRefs` 和候选 Canonical Document。候选文档必须保持 Document identity、SchemaRef、ContentType 与文档级元数据不变；每个 Added/Removed/Changed/Moved Unit 都必须在显式允许集合内。所有拒绝必须发生在上传或创建新 Revision 之前；成功时通过现有 Content Object staging/link/finalize/freeze 与 Revision create boundary 产生新对象、新 Revision，base Revision、其 Hash、Parent 和 Canonical body 永不改写。
 - Diff 的输入边界固定为现有 `artifact.get_revision_diff_inputs@1.0` 返回的两个 exact Revision Snapshot；不接受 `latest`/`current`/路径定位，不保存结果，不产生 Approval/Quality/Release 事实。结果按 `unitId` 与 Diff kind 确定性排序，独立报告 `ADDED`、`REMOVED`、`CHANGED`、`MOVED`；同一 Unit 可以同时具有内容变化和位置变化，但重排未修改的 Unit 不得被提升为 whole-document replacement。
 - WI-06 测试必须覆盖纯 Unit/Hash golden、非法层级与 evidence Scope、Human actor/base hash/allowed scope 负例、真实 PostgreSQL 的历史 Revision 重放与 base immutability、成功新增 Content Object/Revision、Diff 重建稳定性、rollback 和 cleanup。local Object Storage 与 disposable PostgreSQL 可以记为自动验证 `PASS`；真实 Provider、生产数据库、公开 HTTP、跨模块 E2E、Renderer、Quality/Approval/Release 和独立人工业务验收保持 `NOT RUN`。
-- 当前状态为 `IMPLEMENTATION COMPLETE / PERSISTENCE VERIFIED / RE-VERIFICATION PASS`；实现、聚焦测试、完整 Gate 和用户可复核的合成采购流程输出均已落盘。首轮 PR #112 已关闭且未合并；重新交付从精确提交 `a623320` 创建独立分支，Git delivery 正在准备。
+- 当前状态为 `IMPLEMENTATION COMPLETE / PERSISTENCE VERIFIED / RE-VERIFICATION PASS / GIT DELIVERY COMPLETE`；实现、聚焦测试、完整 Gate 和用户可复核的合成采购流程输出均已落盘。首轮 PR #112 已关闭且未合并；重新交付由 PR #113 exact-head 验证并合入 `main`，Issue #95 已关闭。
 - WI-06 自动证据为：聚焦 `structured-document-service.test.ts` 为 1 文件/4 passed；完整 Gate 的 Unit 为 30 个文件/380 passed/265 skipped，Contract 为 201 operations/201 FULL，Persistence 为 26 个文件/280 passed；pinned PostgreSQL 18.6 与 Flyway 11.20.3 的空库迁移、第二次 migrate no-op 和容器清理均通过。组合流程中途故障注入仍为 `PARTIAL PASS / INJECTION NOT RUN`；synthetic procurement-procedure 的 exact base/after bytes、Hash、Unit tree、allow-list、拒绝矩阵、Diff 与 replay 已写入 `/.vibe/issue-95-delivery/Manual-ART-024.md`。独立人工业务验收、Provider、生产数据库、公开 HTTP、跨模块 E2E、Renderer、Quality/Approval/Release 仍为 `NOT RUN`。
 
 ### 2.8 IM-04 WI-07 WorkbookSpec Human Edit 与确定性内部 Diff 实现边界（2026-08-29）
@@ -424,7 +423,15 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - `integration.get_render_attempt_binding@1.0` 继续只经公开 Query Port 使用；Artifact 不跨模块读库。`artifact.get_effective_binding@1.0` 依赖后续正式 Release/EffectiveBinding 事实，本里程碑不伪造实现并保持 `NOT RUN`。
 - ART-023 输出必须整合 Root/Branch、FROZEN Manifest、Revision DAG/CAS/Merge、Document/Workbook stable Diff、RenderAttempt Binding、Representation 与预期拒绝，记录环境、命令、精确 ID/hash/checksum、预期/实际输出和 cleanup，并明确标注 `SYNTHETIC / TECHNICAL ONLY`。这不代表真实客户适用性、Provider、生产、公开 HTTP、跨模块或独立人工业务验收通过。
 - WI-09 本地实现与验证已完成：focused Artifact Unit/Contract 为 6 files/69 passed；`pnpm clean && pnpm verify` 的 Format、Lint、Typecheck、普通 Vitest（32 passed/24 skipped files，390 passed/269 skipped tests）、Architecture、201-operation FULL Contract 与 frozen 200-operation compatibility baseline 均通过；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence 为 28 files/284 passed，空库迁移、第二次 no-op 与容器清理通过。exact automated output 见 [`../issue-98-delivery/Manual-ART-023.md`](../issue-98-delivery/Manual-ART-023.md)；独立人工与所有外部/生产边界保持 `NOT RUN`。
-- WI-09 实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 已通过 PR #117 的 exact-head `ci/verify` 并以 merge commit `f4b8704ba766d49c12c4433884d94bce91d50792` 合入 `main`；Issue #98 已关闭，实现 head 已验证为 `origin/main` ancestor。父 Issue #89 保持开放，等待单独验收；独立人工与所有外部/生产边界继续保持 `NOT RUN`。
+- WI-09 实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 已通过 PR #117 的 exact-head `ci/verify` 并以 merge commit `f4b8704ba766d49c12c4433884d94bce91d50792` 合入 `main`；Issue #98 已关闭，实现 head 已验证为 `origin/main` ancestor。父 Issue #89 必须由独立父 Gate 复核后关闭；独立人工与所有外部/生产边界继续保持 `NOT RUN`。
+
+### 2.11 IM-04 父退出门槛（Issue #89）
+
+- 父 Gate 只在 #90–#98 全部为 `CLOSED / COMPLETED`、各有效实现 head 为 `origin/main` 祖先、对应 exact-head CI 通过、Required Spec/Test 与当前实现一致后进入关闭流程。
+- 当前实现基线不得新增公共 Diff Result；Catalog 应为 201 项且冻结 v1.0 baseline 仍为 200 项。应用过的 `V4000`–`V4004` 不得原地修改；本轮必须重新证明空库 Migration、第二次 no-op、真实 disposable PostgreSQL 负向行为和容器清理。
+- 合成 ART-023 是 `SYNTHETIC / TECHNICAL ONLY` 的自动技术验收。真实 Ceph RGW/OpenBao、Renderer/Provider、DOCX/XLSX/PDF 版式与可打开性、公开 HTTP、生产、后续模块业务 E2E、真实客户适用性和独立人工业务验收继续为 `NOT RUN`。
+- 最终验收证据直接写入 GitHub Issue #89 与交付 PR；Required HL-Spec、Artifact Module Spec/Test 只维护权威状态，不创建重复的本地 acceptance/delivery log。
+- 2026-08-30 父 Gate 重验通过：focused Artifact/Contract 为 6 files/59 tests；完整 `pnpm clean && pnpm verify` 为 32 passed/24 skipped files、390 passed/269 skipped tests、Architecture PASS、Catalog/Registry 201/201 FULL、frozen baseline 200、PostgreSQL/Flyway Persistence 28 files/284 tests、空库 31 migrations、second no-op 与容器清理。ART-023 报告模式在 Docker Hub 鉴权连续三次 `EOF` 后，使用同轮完整 Gate 已远端验证的本地 digest-pinned 镜像完成独立 28/284、exact evidence、second no-op 和显式清理；该外部瞬时失败未启动数据库，也没有业务断言失败。
 
 建议的下一阶段：
 
