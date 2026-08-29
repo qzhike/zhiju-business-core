@@ -1,5 +1,6 @@
-// IM-04 WI-03/WI-04 (issues #92/#93): Artifact business row contracts.
-// Revision, Representation and Binding rows remain outside this slice.
+// IM-04 WI-05 (issue #94): Artifact business row contracts for immutable
+// Revision snapshots, lineage relations, Branch CAS conflicts and governance
+// facts. Canonical bodies remain outside PostgreSQL.
 
 import type { ColumnType, Generated } from 'kysely';
 
@@ -162,4 +163,113 @@ export interface ArtifactContentObjectOrphanTable {
   source_command_id: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+export type ArtifactRevisionKind = 'INITIAL' | 'ORDINARY' | 'MERGE';
+export type ArtifactRevisionDisposition = 'ACTIVE' | 'SUPERSEDED' | 'WITHDRAWN' | 'INVALIDATED';
+
+export interface ArtifactRevisionTable {
+  revision_id: string;
+  artifact_id: string;
+  branch_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  revision_no: Int8;
+  revision_kind: ArtifactRevisionKind;
+  content_object_id: string;
+  content_type: ArtifactContentType;
+  object_locator: string;
+  content_hash: Buffer;
+  structure_schema_ref: Json;
+  canonicalization_version: string;
+  byte_size: Int8;
+  media_type: string;
+  semantic_metadata: Json;
+  changed_units: Json;
+  change_summary: string;
+  provenance: Json;
+  aggregate_version: Int8;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Generated<Date>;
+  sealed_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export interface RevisionParentTable {
+  artifact_id: string;
+  child_revision_id: string;
+  parent_revision_id: string;
+  parent_order: number;
+  relation_kind: Exclude<ArtifactRevisionKind, 'INITIAL'>;
+  enterprise_id: string;
+  project_id: string | null;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export type RevisionConflictKind = 'BRANCH_HEAD_CAS' | 'MERGE';
+
+export interface RevisionConflictTable {
+  conflict_id: string;
+  artifact_id: string;
+  branch_id: string | null;
+  revision_id: string | null;
+  enterprise_id: string;
+  project_id: string | null;
+  conflict_kind: RevisionConflictKind;
+  base_revision_ref: Json | null;
+  head_revision_ref: Json | null;
+  candidate_revision_ref: Json | null;
+  conflict_set: Json;
+  conflict_payload: Json;
+  conflict_hash: Buffer;
+  resolution_refs: Json;
+  resolved_by_ref: Json | null;
+  resolved_at: Date | null;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export interface RevisionWithdrawalTable {
+  withdrawal_id: string;
+  revision_id: string;
+  artifact_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  revision_ref: Json;
+  revision_hash: Buffer;
+  withdrawal_reason: Json;
+  impact_assessment_ref: Json | null;
+  withdrawn_at: Date;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  recorded_authorization_decision_id: string;
+  recorded_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export interface RevisionInvalidationTable {
+  invalidation_id: string;
+  revision_id: string;
+  artifact_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  revision_ref: Json;
+  revision_hash: Buffer;
+  invalidation_reason: Json;
+  impact_assessment_ref: Json;
+  invalidated_at: Date;
+  recorded_by_principal_id: string;
+  recorded_by_actor_snapshot_id: string;
+  recorded_authorization_decision_id: string;
+  recorded_at: Generated<Date>;
+  source_command_id: string;
 }

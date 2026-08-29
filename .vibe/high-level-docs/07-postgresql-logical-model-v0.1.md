@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / WI-05 GIT DELIVERY IN PROGRESS / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -1049,6 +1049,18 @@ WI-04 以 `V4002` forward-only 新增 `artifact_content_object`、单一精确 o
 应用先向 Object Storage staging locator 写入对象，再用 provider 的 authoritative readback 重新取得 bytes、media type、size、locator、version 和 provider metadata。Repository 只接受经过 executable Canonical Schema、Canonical JSON bytes、SHA-256、size 和 media type 重算/比对后的 Manifest；调用方声明的 hash、路径、文件名或 storage metadata 不能成为事实来源。`STAGING -> LINKED` 与精确 future `ArtifactRevision` owner link 在同一 Artifact security-definer transaction 中提交；`FROZEN` 只允许在 external finalize 明确成功后由另一个受控写边界推进。
 
 PostgreSQL 与 Object Storage 不建立分布式事务。DB Link Commit 在 finalize 前失败时不得产生业务 link，应用在独立事务写入不含 raw locator 的 masked Orphan Audit/记录；finalize error/unknown 保持 Manifest `LINKED` 并记录可重试的 finalization state。Orphan collector 只领取超过 24 小时 grace 且到达 next-attempt 的 orphan，随后在完成事务中再次检查 reverse link、retention、legal hold 和 `QUARANTINED`；受保护对象不得删除并转为 `HELD/RETRY`。claim lease 为 5 分钟，使用 fencing token，删除 unknown/异常保留为 `UNKNOWN` 并从 5 分钟指数退避至 24 小时封顶。`DELETED` 与 `NOT_FOUND` 是幂等终态，所有 claim、fence、retry、hold/retention 拒绝和删除结果写入 masked Audit。
+
+#### 12.1.3 IM-04 WI-05 Revision/Lineage/Branch CAS 物理切片
+
+WI-05 以 `V4003` forward-only 新增 Revision 与治理事实表。`artifact_revision` 保存 Revision identity、Artifact/Branch、单调 revision number、revision kind、`FROZEN` Manifest 的不可变身份快照、Provenance 和创建归因；`revision_parent` 只保存同 Artifact 的有序 parent relation；`revision_conflict` 保存 Branch CAS 或 Merge conflict 的 base/head/candidate、payload hash 和 resolution refs；`revision_withdrawal`、`revision_invalidation` 只追加治理事实。数据库不保存 Canonical body，不创建跨 Schema FK 或 Join。
+
+Revision owner function 在同一事务中锁定 Artifact、验证 Root/Branch Scope 和生命周期，读取精确 `FROZEN` Manifest，验证 Parent 的 ID/Hash/Scope/Artifact、重复和递归 DAG，再插入 immutable Revision/Parent rows。Initial/ordinary/merge 的 Parent cardinality 分别为 0/1/至少 2；创建 Revision 不自动移动 Branch Head。`artifact_app` 只获得 Scope-filtered SELECT，Revision/Parent/Conflict/Governance Fact 的写权限只通过 security-definer owner functions；ACL、immutable trigger 和 relation constraints 共同拒绝 direct UPDATE/DELETE。
+
+Branch Head 是独立的可变 CAS 投影：`artifact_branch.head_version=0` 是合法初始 token，`working_head_ref` 可空。Head owner function 对 Branch 行加锁，同时比较 expected version 和 expected exact head ref；成功时一次更新 head/version，失败时不改 Head，追加 `revision_conflict` 并返回稳定冲突。该函数不修改任何旧 Revision，因而两个并发候选始终可被历史查询发现。
+
+Lineage Query 以 exact RevisionRef 或 ArtifactRef 为起点使用 recursive CTE 返回 ancestor nodes、parent edges 和 root refs；不接受 `latest/current`，Hash 不匹配或 Scope 不匹配统一拒绝。Diff Inputs 只读取并返回两个 exact Revision Snapshot 和可选 common ancestor，不计算或保存 Diff。Snapshot 的 content/parent/provenance 字段从 immutable rows 读取，disposition 由 withdrawal/invalidation append-only facts 派生。
+
+本 WI 的 V4003 已在 pinned PostgreSQL 18.6/Flyway 11.20.3 的 `pnpm persistence:gate` 中通过：全量 30 条迁移成功，二次 migrate 为 no-op，25 个 Persistence 测试文件的 278 个测试通过，容器已清理。应用层 `pnpm verify` 另通过 29 个测试文件、376 个测试；用户已确认 Git 收口，当前正在执行 commit、push、PR、Issue 和 feature branch 生命周期。
 
 ### 12.2 ArtifactRevision 与 Lineage
 

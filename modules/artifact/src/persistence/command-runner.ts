@@ -1,4 +1,4 @@
-// IM-04 WI-02 (issue #91): Artifact command transaction runner.
+// IM-04 WI-02/WI-05 (issues #91/#94): Artifact command transaction runner.
 // One owning-module transaction: claim receipt -> execute -> technical
 // aggregate/CAS + audit + outbox + reference edge -> finalize -> commit.
 // Authorization is supplied as a trusted snapshot; this module never reads
@@ -45,6 +45,21 @@ function nextAggregateVersion(expectedVersion: string): string {
     throw new CommandExecutionError(
       COMMAND_TARGET_MISMATCH,
       'expected aggregate version must be a positive bigint',
+    );
+  }
+}
+
+function nextEventAggregateVersion(expectedVersion: string): string {
+  try {
+    const parsed = BigInt(expectedVersion);
+    if (parsed < 0n) {
+      throw new Error('aggregate version must be non-negative');
+    }
+    return (parsed + 1n).toString();
+  } catch {
+    throw new CommandExecutionError(
+      COMMAND_TARGET_MISMATCH,
+      'expected aggregate version must be a non-negative bigint',
     );
   }
 }
@@ -412,7 +427,7 @@ function createExecution(trx: ArtifactTransaction, envelope: CommandEnvelope): C
       const expectedEventVersion =
         envelope.expectedAggregateVersion === undefined
           ? '1'
-          : nextAggregateVersion(envelope.expectedAggregateVersion);
+          : nextEventAggregateVersion(envelope.expectedAggregateVersion);
       if (
         event.aggregateType !== envelope.targetType ||
         event.aggregateId !== envelope.targetId ||

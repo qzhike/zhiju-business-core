@@ -1,6 +1,6 @@
 export const artifactModule = Object.freeze({
   name: 'artifact',
-  status: 'WI_04_CANONICAL_CONTENT_OBJECT_IMPLEMENTATION_IN_PROGRESS' as const,
+  status: 'WI_05_IMMUTABLE_REVISION_IMPLEMENTATION_COMPLETE' as const,
 });
 
 export {
@@ -39,6 +39,14 @@ export type {
   ArtifactContentObjectLinkTable,
   ArtifactContentObjectQuarantineTable,
   ArtifactContentObjectOrphanTable,
+  ArtifactRevisionKind,
+  ArtifactRevisionDisposition,
+  ArtifactRevisionTable,
+  RevisionParentTable,
+  RevisionConflictKind,
+  RevisionConflictTable,
+  RevisionWithdrawalTable,
+  RevisionInvalidationTable,
 } from './persistence/artifact-business-types.js';
 
 export { ArtifactRepository } from './persistence/artifact-repository.js';
@@ -59,6 +67,14 @@ export type {
   ContentObjectOrphanClaim,
   ContentObjectOrphanCompletion,
   ContentAuditInsert,
+  ArtifactRevisionInsert,
+  ArtifactRevisionCreateOutcome,
+  ArtifactHeadMove,
+  ArtifactHeadMoveOutcome,
+  RevisionGovernanceFact,
+  RevisionGovernanceOutcome,
+  RevisionGovernanceState,
+  RevisionGraph,
 } from './persistence/artifact-repository.js';
 
 export { InMemoryObjectStorage } from './storage/in-memory-object-storage.js';
@@ -110,6 +126,32 @@ export {
 } from './business/artifact-handlers.js';
 
 export {
+  handleCreateAndSealRevision,
+  handleCreateMergeRevision,
+  handleMoveWorkingHead,
+  handleWithdrawRevision,
+  handleInvalidateRevision,
+  handleGetRevisionSnapshot,
+  handleGetRevisionLineage,
+  handleGetRevisionDiffInputs,
+  handleValidateRevisionRef,
+  validateArtifactRevisionContent,
+  validateArtifactMergeDefinition,
+} from './business/revision-service.js';
+export type {
+  RevisionCommandEnvelope,
+  CreateAndSealRevisionPayload,
+  CreateMergeRevisionPayload,
+  MoveWorkingHeadPayload,
+  WithdrawRevisionPayload,
+  InvalidateRevisionPayload,
+  GetRevisionSnapshotPayload,
+  GetRevisionLineagePayload,
+  GetRevisionDiffInputsPayload,
+  ValidateRevisionRefPayload,
+} from './business/revision-service.js';
+
+export {
   stageCanonicalContent,
   linkCanonicalContent,
   finalizeCanonicalContent,
@@ -153,4 +195,11 @@ export {
   ARTIFACT_CONTENT_ALREADY_FROZEN,
   ARTIFACT_CONTENT_ORPHAN_RECORD_FAILED,
   ARTIFACT_CONTENT_FINALIZATION_UNKNOWN,
+  ARTIFACT_REVISION_IMMUTABLE,
+  ARTIFACT_STRUCTURE_SCHEMA_INVALID,
+  ARTIFACT_PARENT_REQUIRED,
+  ARTIFACT_CROSS_ARTIFACT_PARENT,
+  ARTIFACT_LINEAGE_CYCLE,
+  ARTIFACT_MERGE_CONFLICT_UNRESOLVED,
+  ARTIFACT_BRANCH_HEAD_CONFLICT,
 } from './business/artifact-business-errors.js';
