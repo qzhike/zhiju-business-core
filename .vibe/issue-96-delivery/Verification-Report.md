@@ -2,7 +2,7 @@
 
 日期：2026-08-29
 
-状态：`IMPLEMENTATION VERIFIED / USER REVIEW CONFIRMED 2026-08-29`
+状态：`DELIVERED / PR #114 MERGED / ISSUE #96 CLOSED / FEATURE BRANCH DELETED`
 
 ## 1. 交付范围
 
@@ -59,7 +59,7 @@
 - known extension options 已贯穿 validation、canonicalization、Diff 与 Human Edit，避免二次规范化误拒绝已注册 required extension。
 - 未修改 applied migration、frozen compatibility baseline 或生成文件；未新增公共 Operation。
 
-审查结论：`PASS / USER REVIEW CONFIRMED 2026-08-29`。
+审查结论：`PASS / DELIVERED`。
 
 ## 6. NOT RUN
 
@@ -72,3 +72,17 @@
 Git commit、push、PR exact-head CI、merge、Issue closure 和 branch cleanup 不属于上述本地自动 Gate；用户已于 2026-08-29 确认进入 Git 交付，其最终状态必须分别以 GitHub、`origin/main` ancestry 和 branch readback 为准。
 
 上述项目不能由 local adapter、disposable PostgreSQL 或 green CI 推断为通过。
+
+## 7. Git 交付读回
+
+| 边界 | 精确读回 | 结果 |
+|---|---|---|
+| Feature implementation commit | `e98a428` | `DELIVERED` |
+| Integrated PR head | `dbb61d16e807ce97eec8ce70cecf17ec060dac16` | `DELIVERED` |
+| Exact-head CI | [GitHub Actions run 33241741909](https://github.com/qzhike/zhiju-business-core/actions/runs/33241741909) 的 `ci/verify` 成功；[验证评论](https://github.com/qzhike/zhiju-business-core/pull/114#issuecomment-5461160688) 已读回 | `PASS` |
+| Pull Request | [PR #114](https://github.com/qzhike/zhiju-business-core/pull/114) 以 `--match-head-commit` 合并；merge commit `8df7fedf60030f1a74ad8ffa3c8db3614331b820` | `MERGED` |
+| Default-branch ancestry | `dbb61d16e807ce97eec8ce70cecf17ec060dac16` 是 `origin/main@8df7fedf60030f1a74ad8ffa3c8db3614331b820` 的祖先 | `PASS` |
+| Issue | [Issue #96](https://github.com/qzhike/zhiju-business-core/issues/96) 已读回为 `CLOSED / COMPLETED` | `CLOSED` |
+| Feature branch | `galendai/im-04-wi-07-implement-workbookspec-human-edit-an` 的远端 ref 与本地 branch 均已删除；执行工作区已 detach 到合并后的 `origin/main` | `DELETED` |
+
+本节只记录 Git 交付事实，不改变第 6 节的人工、外部、生产与跨模块 `NOT RUN` 边界。
