@@ -10,6 +10,7 @@ import {
   ARTIFACT_HUMAN_ONLY_DENIED,
   ARTIFACT_MERGE_CONFLICT_UNRESOLVED,
   ARTIFACT_QUERY_NOT_FOUND,
+  ARTIFACT_SCOPE_INVALID,
   ArtifactRepository,
   createArtifactDatabase,
   digestCanonicalPayload,
@@ -519,6 +520,24 @@ describe.skipIf(databaseUrl === undefined)(
       expect(firstSnapshot.revisionNumber).toBe(1);
       expect(firstSnapshot.parentRevisionRefs).toEqual([]);
 
+      const wrongHashQueryRef = {
+        ...firstSnapshot.revisionRef,
+        contentHash: {
+          ...firstSnapshot.revisionRef.contentHash,
+          digest: 'ff'.repeat(32),
+        },
+      } satisfies Common.ContentAddressedRef;
+      await expect(
+        handleGetRevisionSnapshot(db, context, { revisionRef: wrongHashQueryRef }),
+      ).rejects.toMatchObject({ code: ARTIFACT_CONTENT_HASH_MISMATCH });
+      const latestQueryRef = {
+        ...firstSnapshot.revisionRef,
+        objectId: 'latest',
+      } as Common.ContentAddressedRef;
+      await expect(
+        handleGetRevisionSnapshot(db, context, { revisionRef: latestQueryRef }),
+      ).rejects.toMatchObject({ code: ARTIFACT_SCOPE_INVALID });
+
       const revisionOneRef = firstSnapshot.revisionRef;
       const revisionTwoId = newUuidV7();
       const manifestTwo = await makeFrozenContent(context, revisionTwoId, 'rev-002');
@@ -842,6 +861,22 @@ describe.skipIf(databaseUrl === undefined)(
       expect(lineage.rootRefs.map((ref) => ref.objectId)).toEqual([revisionOneId]);
       expect(lineage.edges).toHaveLength(4);
       expect(lineage.lineageHash.digest).toMatch(/^[0-9a-f]{64}$/u);
+      await expect(
+        handleGetRevisionLineage(db, context, {
+          artifactRef: artifact.artifactRef,
+          headRef: mergeSnapshot.revisionRef,
+        }),
+      ).resolves.toEqual(lineage);
+      const stableLineageNodes = lineage.nodes.map((node) => ({
+        revisionRef: node.revisionRef,
+        revisionNumber: node.revisionNumber,
+        contentType: node.contentType,
+        contentRef: node.contentRef,
+        parentRevisionRefs: node.parentRevisionRefs,
+        changedUnits: node.changedUnits,
+        semanticMetadata: node.semanticMetadata,
+        provenance: node.provenance,
+      }));
 
       const diffInputs = await handleGetRevisionDiffInputs(db, context, {
         leftRef: secondSnapshot.revisionRef,
@@ -1137,6 +1172,20 @@ describe.skipIf(databaseUrl === undefined)(
         headRef: mergeSnapshot.revisionRef,
       });
       expect(
+        lineageAfterGovernance.nodes.map((node) => ({
+          revisionRef: node.revisionRef,
+          revisionNumber: node.revisionNumber,
+          contentType: node.contentType,
+          contentRef: node.contentRef,
+          parentRevisionRefs: node.parentRevisionRefs,
+          changedUnits: node.changedUnits,
+          semanticMetadata: node.semanticMetadata,
+          provenance: node.provenance,
+        })),
+      ).toEqual(stableLineageNodes);
+      expect(lineageAfterGovernance.edges).toEqual(lineage.edges);
+      expect(lineageAfterGovernance.rootRefs).toEqual(lineage.rootRefs);
+      expect(
         lineageAfterGovernance.nodes.find((node) => node.revisionRef.objectId === revisionOneId),
       ).toMatchObject({
         disposition: 'INVALIDATED',
@@ -1147,6 +1196,62 @@ describe.skipIf(databaseUrl === undefined)(
         digestCanonicalPayload(lineageAfterGovernance as unknown as CanonicalJsonObject).hash
           .length,
       ).toBe(32);
+      const diffInputsAfterGovernance = await handleGetRevisionDiffInputs(db, context, {
+        leftRef: secondSnapshot.revisionRef,
+        rightRef: thirdSnapshot.revisionRef,
+      });
+      expect(diffInputsAfterGovernance.left.revisionRef).toEqual(diffInputs.left.revisionRef);
+      expect(diffInputsAfterGovernance.right.revisionRef).toEqual(diffInputs.right.revisionRef);
+      expect(diffInputsAfterGovernance.commonAncestorRef).toEqual(diffInputs.commonAncestorRef);
+      expect(diffInputsAfterGovernance.comparisonSchemaRef).toEqual(diffInputs.comparisonSchemaRef);
+      if (process.env.ZJU_ART023_REPORT === '1') {
+        process.stdout.write(
+          `ART023_QUERY_EVIDENCE=${JSON.stringify({
+            recordedAt: new Date().toISOString(),
+            artifactId: artifact.artifactId,
+            branchId: artifact.branchId,
+            manifests: [
+              { label: 'REV-001', ...manifestOne },
+              { label: 'REV-002', ...manifestTwo },
+              { label: 'REV-003', ...manifestThree },
+              { label: 'MERGE-REV', ...mergeManifest },
+            ],
+            revisions: [
+              firstSnapshot.revisionRef,
+              secondSnapshot.revisionRef,
+              thirdSnapshot.revisionRef,
+              mergeSnapshot.revisionRef,
+            ],
+            branchRace: {
+              winnerRef,
+              loserRef,
+              rejectedErrorCode: ARTIFACT_BRANCH_HEAD_CONFLICT,
+              headVersions: ['1', '2'],
+            },
+            lineage: {
+              rootRefs: lineage.rootRefs,
+              edges: lineage.edges,
+              initialHash: lineage.lineageHash,
+              afterGovernanceHash: lineageAfterGovernance.lineageHash,
+              stableNodeAndEdgeIdentity: true,
+            },
+            diffInputs: {
+              leftRef: diffInputs.left.revisionRef,
+              rightRef: diffInputs.right.revisionRef,
+              commonAncestorRef: diffInputs.commonAncestorRef,
+              comparisonSchemaRef: diffInputs.comparisonSchemaRef,
+              stableAfterGovernance: true,
+            },
+            negativeErrors: {
+              wrongHash: ARTIFACT_CONTENT_HASH_MISMATCH,
+              latest: ARTIFACT_SCOPE_INVALID,
+              broadScope: 'ARTIFACT_QUERY_SCOPE_MISMATCH',
+              nonFrozen: ARTIFACT_CONTENT_STATE_INVALID,
+              immutableSql: '42501',
+            },
+          })}\n`,
+        );
+      }
     });
   },
 );

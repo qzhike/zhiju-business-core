@@ -17,6 +17,8 @@ import {
   handleCreateAndSealRevision,
   handleCreateArtifact,
   handleGetRepresentation,
+  handleGetRevisionDiffInputs,
+  handleGetRevisionLineage,
   handleRegisterRepresentation,
   InMemoryObjectStorage,
   linkCanonicalContent,
@@ -27,8 +29,9 @@ import {
 } from '@zhiju/artifact';
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 
-// IM-04 WI-08 (issue #97): real PostgreSQL acceptance for authoritative
-// RenderAttempt binding, immutable Representation facts and event minimality.
+// IM-04 WI-08/WI-09 (issues #97/#98): real PostgreSQL acceptance for
+// authoritative RenderAttempt binding, immutable Representation facts,
+// event minimality and stable Revision query outputs.
 
 const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const ENTERPRISE = '018f22e2-7c15-7b2e-8d86-2de956a9d201';
@@ -504,6 +507,14 @@ describe.skipIf(databaseUrl === undefined)(
           revision,
         ),
       ).toMatchObject({ valid: true });
+      const lineageBeforeRepresentation = await handleGetRevisionLineage(db, context, {
+        artifactRef: artifact.artifactRef,
+        headRef: revision.revisionRef,
+      });
+      const diffInputsBeforeRepresentation = await handleGetRevisionDiffInputs(db, context, {
+        leftRef: revision.revisionRef,
+        rightRef: revision.revisionRef,
+      });
       const attemptId = newUuidV7();
       const representationId = newUuidV7();
       const exactRegistration = registration(
@@ -531,6 +542,18 @@ describe.skipIf(databaseUrl === undefined)(
       expect(
         await handleGetRepresentation(db, context, { representationRef: view.representationRef }),
       ).toEqual(view);
+      await expect(
+        handleGetRevisionLineage(db, context, {
+          artifactRef: artifact.artifactRef,
+          headRef: revision.revisionRef,
+        }),
+      ).resolves.toEqual(lineageBeforeRepresentation);
+      await expect(
+        handleGetRevisionDiffInputs(db, context, {
+          leftRef: revision.revisionRef,
+          rightRef: revision.revisionRef,
+        }),
+      ).resolves.toEqual(diffInputsBeforeRepresentation);
       expect(await countRows('representation', 'representation_id = $1', [representationId])).toBe(
         1,
       );
@@ -826,6 +849,56 @@ describe.skipIf(databaseUrl === undefined)(
       ).rejects.toMatchObject({
         code: ARTIFACT_QUERY_NOT_FOUND,
       });
+      const wrongLocatorRef = structuredClone(
+        view.representationRef,
+      ) as DeepMutable<Artifact.RepresentationRef>;
+      wrongLocatorRef.objectStorageRef = 'artifact/rendered/substituted-query.pdf';
+      await expect(
+        handleGetRepresentation(db, context, { representationRef: wrongLocatorRef }),
+      ).rejects.toMatchObject({ code: ARTIFACT_QUERY_NOT_FOUND });
+      const wrongRendererRef = structuredClone(
+        view.representationRef,
+      ) as DeepMutable<Artifact.RepresentationRef>;
+      wrongRendererRef.renderer.rendererVersion = '9.9.9';
+      await expect(
+        handleGetRepresentation(db, context, { representationRef: wrongRendererRef }),
+      ).rejects.toMatchObject({ code: ARTIFACT_QUERY_NOT_FOUND });
+      if (process.env.ZJU_ART023_REPORT === '1') {
+        process.stdout.write(
+          `ART023_REPRESENTATION_EVIDENCE=${JSON.stringify({
+            recordedAt: new Date().toISOString(),
+            artifactId: artifact.artifactId,
+            revisionRef: revision.revisionRef,
+            attemptRef: exactRegistration.renderAttemptRef,
+            representationRef: view.representationRef,
+            registrationRef: view.registrationRef,
+            binding: {
+              status: exactBinding.status,
+              canonicalContentRef: exactBinding.request.canonicalContentRef,
+              inputHash: exactBinding.request.inputHash,
+              outputChecksum: exactBinding.succeededResult?.outputChecksum,
+              rawReceiptRef: exactBinding.rawReceiptRef,
+            },
+            committedRows: {
+              representation: 1,
+              validation: 1,
+              referenceEdges: 3,
+              registeredEvents: 1,
+            },
+            queryStability: {
+              lineageAfterRepresentation: true,
+              diffInputsAfterRepresentation: true,
+            },
+            negativeErrors: {
+              wrongRevisionInputRendererChecksum: ARTIFACT_REPRESENTATION_BINDING_MISMATCH,
+              unknownStatus: ARTIFACT_REPRESENTATION_BINDING_INVALID,
+              sameAttemptConflict: ARTIFACT_REPRESENTATION_IDENTITY_CONFLICT,
+              wrongRepresentationRef: ARTIFACT_QUERY_NOT_FOUND,
+              immutableSql: '42501',
+            },
+          })}\n`,
+        );
+      }
 
       const privileges = await admin.query<{
         can_insert: boolean;
