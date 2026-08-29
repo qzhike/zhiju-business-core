@@ -1,6 +1,6 @@
 export const artifactModule = Object.freeze({
   name: 'artifact',
-  status: 'WI_05_IMMUTABLE_REVISION_IMPLEMENTATION_COMPLETE' as const,
+  status: 'WI_06_STRUCTURED_DOCUMENT_IMPLEMENTATION_COMPLETE' as const,
 });
 
 export {
@@ -176,6 +176,25 @@ export type {
 } from './business/artifact-handlers.js';
 
 export {
+  canonicalizeStructuredDocument,
+  diffStructuredDocuments,
+  handleGetStructuredDocumentDiff,
+  handleHumanStructuredDocumentEdit,
+  validateStructuredDocument,
+} from './business/structured-document-service.js';
+export type {
+  StructuredDocumentCanonicalization,
+  StructuredDocumentDiffKind,
+  StructuredDocumentUnitLocation,
+  StructuredDocumentDiffEntry,
+  StructuredDocumentDiff,
+  StructuredDocumentEditPayload,
+  StructuredDocumentEditCommandEnvelope,
+  StructuredDocumentEditResult,
+  StructuredDocumentDiffResult,
+} from './business/structured-document-service.js';
+
+export {
   ArtifactBusinessError,
   ARTIFACT_SCOPE_INVALID,
   ARTIFACT_NOT_ACTIVE,
@@ -202,4 +221,9 @@ export {
   ARTIFACT_LINEAGE_CYCLE,
   ARTIFACT_MERGE_CONFLICT_UNRESOLVED,
   ARTIFACT_BRANCH_HEAD_CONFLICT,
+  ARTIFACT_STRUCTURED_DOCUMENT_BASE_INVALID,
+  ARTIFACT_STRUCTURED_DOCUMENT_BASE_STALE,
+  ARTIFACT_STRUCTURED_DOCUMENT_EDIT_SCOPE,
+  ARTIFACT_STRUCTURED_DOCUMENT_NOOP,
+  ARTIFACT_STRUCTURED_DOCUMENT_ID_MISMATCH,
 } from './business/artifact-business-errors.js';
