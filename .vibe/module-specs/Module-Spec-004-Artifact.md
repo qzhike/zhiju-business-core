@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 EXECUTABLE CANONICAL SCHEMA LANDED 2026-08-28 / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE FOUNDATION IMPLEMENTED AND PERSISTENCE VERIFIED 2026-08-28 / WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-03 ROOT-METADATA-ARCHIVE DESIGN FROZEN 2026-08-28 / WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / WI-03 PERSISTENCE VERIFIED 2026-08-28 / WI-03 GIT DELIVERY COMPLETE PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / WI-04 CONTENT OBJECT DESIGN FROZEN 2026-08-28 / WI-04 IMPLEMENTATION COMPLETE 2026-08-28 / WI-04 PERSISTENCE VERIFIED 2026-08-28 / WI-04 GIT DELIVERY COMPLETE PR #106 MERGED 2026-08-28 / ISSUE #93 CLOSED 2026-08-28 / WI-04 FEATURE BRANCH DELETED / WI-05 REVISION-LINEAGE-CAS DESIGN FROZEN 2026-08-28 / WI-05 IMPLEMENTATION COMPLETE 2026-08-29 / WI-05 PERSISTENCE VERIFIED 2026-08-29 / WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / ISSUES #95–#98 PLANNED`
+状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 EXECUTABLE CANONICAL SCHEMA LANDED 2026-08-28 / PR #12 REMEDIATION VERIFIED / IM-DG-005 APPROVED / WI-02 APPLICATION-PERSISTENCE FOUNDATION IMPLEMENTED AND PERSISTENCE VERIFIED 2026-08-28 / WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-03 ROOT-METADATA-ARCHIVE DESIGN FROZEN 2026-08-28 / WI-03 IMPLEMENTATION COMPLETE 2026-08-28 / WI-03 PERSISTENCE VERIFIED 2026-08-28 / WI-03 GIT DELIVERY COMPLETE PR #104 MERGED 2026-08-28 / ISSUE #92 CLOSED 2026-08-28 / WI-03 FEATURE BRANCH DELETED / WI-04 CONTENT OBJECT DESIGN FROZEN 2026-08-28 / WI-04 IMPLEMENTATION COMPLETE 2026-08-28 / WI-04 PERSISTENCE VERIFIED 2026-08-28 / WI-04 GIT DELIVERY COMPLETE PR #106 MERGED 2026-08-28 / ISSUE #93 CLOSED 2026-08-28 / WI-04 FEATURE BRANCH DELETED / WI-05 REVISION-LINEAGE-CAS DESIGN FROZEN 2026-08-28 / WI-05 IMPLEMENTATION COMPLETE 2026-08-29 / WI-05 PERSISTENCE VERIFIED 2026-08-29 / WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / WI-06 STRUCTURED DOCUMENT IMPLEMENTATION COMPLETE 2026-08-29 / WI-06 PERSISTENCE VERIFIED 2026-08-29 / WI-06 RE-VERIFICATION PASS 2026-08-29 / WI-06 GIT REDELIVERY PREPARATION / ISSUES #96–#98 PLANNED`
 
 ## 1. 模块责任
 
@@ -280,6 +280,11 @@ ARTIFACT_IDENTITY_CONFLICT
 ARTIFACT_EXPECTED_VERSION_REQUIRED
 ARTIFACT_QUERY_NOT_FOUND
 ARTIFACT_QUERY_SCOPE_MISMATCH
+ARTIFACT_STRUCTURED_DOCUMENT_BASE_INVALID
+ARTIFACT_STRUCTURED_DOCUMENT_BASE_STALE
+ARTIFACT_STRUCTURED_DOCUMENT_EDIT_SCOPE
+ARTIFACT_STRUCTURED_DOCUMENT_NOOP
+ARTIFACT_STRUCTURED_DOCUMENT_ID_MISMATCH
 ```
 
 ## 7. 不变量与持久化边界
@@ -333,6 +338,19 @@ ARTIFACT_QUERY_SCOPE_MISMATCH
 8. WI-05 不新增公共 Operation；既有 `artifact.create_and_seal_revision`、`artifact.create_merge_revision`、`artifact.move_working_head`、治理 Command 和四个 Revision Query 是唯一入口。公共 Catalog 仍保持当前 201 项与历史 200-operation compatibility baseline 的关系。
 9. Branch CAS 的 expected version 只信任 Envelope 的 `expectedAggregateVersion`，payload 不得重复声明或覆盖该值；结构 Schema Version 可以使用同 Enterprise 的 Enterprise Scope，即使 Artifact 本身是 Project Scope。Reference Edge 的 owner version 使用 UUID identity，不能把数值 `head_version` 强制转换为 UUID；Merge 的 conflict set、resolution refs 和 Human `resolvedBy` 必须在任何 Revision/Parent/Conflict 写入前完成校验，校验失败必须整体回滚。
 10. V4003 每个 owner function 的 `REVOKE/GRANT EXECUTE` 必须与定义的完整参数个数和类型一致；任何授权签名不匹配都应使空库迁移失败并回滚全部 WI-05 DDL。Withdrawal 的治理事实与其 Outbox 事件必须复用同一已记录时间值。
+
+## 7.4 IM-04 WI-06 Structured Document Human Edit 与内部 Diff 实现约束
+
+1. WI-06 只在 `modules/artifact/src/business/structured-document-service.ts` 提供 Artifact-owned 内部服务；复用现有 Canonical Schema、Content Object、Revision 和 Command runner，不新增数据库迁移，不在数据库保存 Canonical body，不新增公共 Catalog Operation。
+2. Structured Document Canonicalization 的输入是 `CanonicalDocument` 与权威 `schemaRef`。服务必须先调用现有 executable Canonical Content 校验，再将 roots/siblings 按 `ordinal`、`unitId` 排序，将 `childUnitIds` 按被引用 Unit 的 `ordinal`、`unitId` 排序，并以确定性的层级遍历顺序输出 `units`。所有 Unit 的 `unitId` 必须在同一 Artifact lineage 内唯一；Unit type 必须是闭合集合；父子引用必须双向一致、同父级 ordinal 不重复且 parent graph 无环。
+3. `evidenceRefs` 若存在，必须是合法的精确 Reference/Snapshot 形状，并且 Enterprise/Project Scope 与可信 Command Context 一致；未知 evidence 类型、跨 Scope evidence、宽 Project Scope 和无法验证的引用必须在 canonical bytes 生成前拒绝。Canonical Hash 只覆盖 `{schemaRef, contentType, canonicalizationVersion, body}`，与 WI-01 的 Hash 定义一致。
+4. 内部 Human Edit Payload 固定包含 `baseRevisionRef`、非空且无重复的 `allowedUnitRefs`、候选 `document` 和非空 `changeSummary`。Target Artifact 从 exact base Revision 推导，不信任 payload 中重复的 Artifact/Branch/current/latest 定位字段。base 必须是可见的、同 Scope 的、结构类型为 `STRUCTURED_DOCUMENT` 的 exact sealed Revision；若 Branch 已有不同 exact head，则返回 `ARTIFACT_STRUCTURED_DOCUMENT_BASE_STALE`。
+5. Human Edit 的 principal 必须是可信 Context 中的 Human，并且 Envelope principal 与 Context 一致。候选 Document 必须保持 base 的 `documentId`、title、document metadata 和 structure SchemaRef；候选 Canonical Content 必须重新计算 bytes/Hash。Diff 产生的每个 Unit 变化必须命中 `allowedUnitRefs`，否则返回 `ARTIFACT_STRUCTURED_DOCUMENT_EDIT_SCOPE`；无变化返回 `ARTIFACT_STRUCTURED_DOCUMENT_NOOP`。这些拒绝必须先于 `stageCanonicalContent`，因此不创建新 Content Object、Link 或 Revision。
+6. 成功 Edit 按 `stage -> readback -> link -> finalize -> freeze -> create_and_seal_revision` 的既有边界提交新 Canonical Content Object 与新 Revision，Parent 只有 exact base Revision，`changedUnits` 是 Diff Unit ID 去重后的确定性排序集合。base Revision 的数据库行、Content Object、Canonical bytes、Hash 和治理事实均不可变；外部 finalize 不确认时不得创建 SEALED Revision。
+7. 内部 Diff 只能由现有 `artifact.get_revision_diff_inputs@1.0` 的两个 exact Revision Ref 驱动，然后从各自 FROZEN Content Object authoritative readback 重建 Document。Diff 结果是内存中的可重建值，不写入数据库、Outbox、Receipt、Approval、Quality 或 Release 事实；不添加公开 `artifact.get_revision_diff@1.0` 或其他 Diff Result Operation。结果按 `unitId`、kind 固定排序，Added/Removed/Changed/Moved 使用稳定 Unit identity；位置变化比较 `parentUnitId + ordinal`，内容变化比较 Unit 的非位置字段，必要时同一 Unit 可同时产生 Changed 与 Moved。
+8. WI-06 允许使用 local Object Storage 与 disposable PostgreSQL 做自动验证，必须保留 Unit/Contract、Persistence、Rollback、History Replay、Hash Golden、manual synthetic fixture 和 `NOT RUN` 边界；真实 Provider、生产数据库、公开 HTTP、跨模块 E2E、Renderer、Quality/Approval/Release 和独立人工业务验收不因本 WI 自动变为 `PASS`。
+
+当前实现与自动验收已重新核验：聚焦 Unit 为 1 文件/4 passed；全量静态门禁、Contract、全量 Unit（30 个文件/380 passed/265 skipped）和 Persistence（26 个文件/280 passed）均通过，pinned PostgreSQL/Flyway 空库迁移与第二次 migrate no-op 均通过；synthetic procurement-procedure 复核材料见 [`Manual-ART-024.md`](../issue-95-delivery/Manual-ART-024.md)。组合流程中途故障注入仍为 `PARTIAL PASS / INJECTION NOT RUN`，独立人工业务验收及外部边界保持 `NOT RUN`；重新 Git delivery 正在准备。
 
 ## 8. 可人工验收的模块产出
 
