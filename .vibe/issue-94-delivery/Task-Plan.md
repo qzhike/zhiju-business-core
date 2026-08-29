@@ -24,7 +24,7 @@
 
 ## 当前状态
 
-实现、规格/测试文档和本地自动验证已完成；`Verification-Report.md` 已记录 `pnpm verify`、`pnpm build` 和 pinned PostgreSQL/Flyway Gate 的结果，`Manual-ART-023.md` 已准备人工检查表。用户已确认，Git commit、push、PR、Issue 和 feature branch 收口正在执行。
+实现、规格/测试文档和本地自动验证已完成；`Verification-Report.md` 已记录 `pnpm verify`、`pnpm build` 和 pinned PostgreSQL/Flyway Gate 的结果，`Manual-ART-023.md` 已准备人工检查表。用户已确认，PR #110 已合并、Issue #94 已关闭、原 feature branch 已删除；本文件的最终状态通过不关联 Issue #94 的 docs-only follow-up 同步。
 
 ## 非目标
 
