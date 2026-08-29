@@ -1,6 +1,6 @@
 export const artifactModule = Object.freeze({
   name: 'artifact',
-  status: 'WI_07_WORKBOOK_HUMAN_EDIT_IMPLEMENTATION_COMPLETE' as const,
+  status: 'WI_08_REPRESENTATION_IMPLEMENTATION_COMPLETE' as const,
 });
 
 export {
@@ -47,6 +47,9 @@ export type {
   RevisionConflictTable,
   RevisionWithdrawalTable,
   RevisionInvalidationTable,
+  ArtifactRepresentationFormat,
+  ArtifactRepresentationTable,
+  ArtifactRepresentationValidationTable,
 } from './persistence/artifact-business-types.js';
 
 export { ArtifactRepository } from './persistence/artifact-repository.js';
@@ -75,6 +78,9 @@ export type {
   RevisionGovernanceOutcome,
   RevisionGovernanceState,
   RevisionGraph,
+  ArtifactRepresentationInsert,
+  ArtifactRepresentationCreateOutcome,
+  ArtifactRepresentationCreateResult,
 } from './persistence/artifact-repository.js';
 
 export { InMemoryObjectStorage } from './storage/in-memory-object-storage.js';
@@ -205,6 +211,21 @@ export {
   handleHumanStructuredDocumentEdit,
   validateStructuredDocument,
 } from './business/structured-document-service.js';
+
+export {
+  handleRegisterRepresentation,
+  handleGetRepresentation,
+  validateRepresentationBinding,
+} from './business/representation-service.js';
+export type {
+  RegisterRepresentationPayload,
+  RegisterRepresentationCommandEnvelope,
+  GetRepresentationPayload,
+  RenderAttemptBindingQueryInput,
+  RenderAttemptBindingQueryPort,
+  RegisterRepresentationOptions,
+  ValidatedRepresentationBinding,
+} from './business/representation-service.js';
 export type {
   StructuredDocumentCanonicalization,
   StructuredDocumentDiffKind,
@@ -255,4 +276,8 @@ export {
   ARTIFACT_STRUCTURED_DOCUMENT_EDIT_SCOPE,
   ARTIFACT_STRUCTURED_DOCUMENT_NOOP,
   ARTIFACT_STRUCTURED_DOCUMENT_ID_MISMATCH,
+  ARTIFACT_REPRESENTATION_BINDING_INVALID,
+  ARTIFACT_REPRESENTATION_BINDING_MISMATCH,
+  ARTIFACT_REPRESENTATION_FORMAT_INVALID,
+  ARTIFACT_REPRESENTATION_IDENTITY_CONFLICT,
 } from './business/artifact-business-errors.js';

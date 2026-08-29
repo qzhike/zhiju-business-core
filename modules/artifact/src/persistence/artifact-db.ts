@@ -1,6 +1,5 @@
-// IM-04 WI-02/WI-05 (issues #91/#94): hand-written Kysely types and
-// transaction boundary for the Artifact owning schema. WI-05 adds immutable
-// Revision facts while keeping earlier technical and business facts intact.
+// IM-04 WI-02/WI-05/WI-08 (issues #91/#94/#97): hand-written Kysely types and
+// the transaction boundary for Artifact-owned technical and business facts.
 
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
@@ -19,6 +18,8 @@ import type {
   ArtifactContentObjectOrphanTable,
   ArtifactContentObjectQuarantineTable,
   ArtifactContentObjectTable,
+  ArtifactRepresentationTable,
+  ArtifactRepresentationValidationTable,
   ArtifactRevisionTable,
   RevisionConflictTable,
   RevisionInvalidationTable,
@@ -210,6 +211,8 @@ export interface ArtifactDb {
   'artifact.revision_conflict': RevisionConflictTable;
   'artifact.revision_withdrawal': RevisionWithdrawalTable;
   'artifact.revision_invalidation': RevisionInvalidationTable;
+  'artifact.representation': ArtifactRepresentationTable;
+  'artifact.representation_validation': ArtifactRepresentationValidationTable;
   'artifact.command_receipt': CommandReceiptTable;
   'artifact.outbox_event': OutboxEventTable;
   'artifact.inbox_message': InboxMessageTable;

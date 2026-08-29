@@ -55,6 +55,7 @@ const repo = new ArtifactRepository();
 const ROOT_OBJECT_TYPES = new Set(['Artifact', 'artifact.artifact']);
 const REVISION_OBJECT_TYPES = new Set(['ArtifactRevision', 'artifact.artifact_revision']);
 const REVISION_OBJECT_TYPE = 'ArtifactRevision';
+const REVISION_REF_OBJECT_TYPE = 'artifact.artifact_revision';
 const ROOT_OBJECT_TYPE = 'Artifact';
 const OBJECT_LOCATOR_PATTERN = /^[a-z0-9][a-z0-9._-]*(\/[A-Za-z0-9._-]+)+$/;
 
@@ -349,7 +350,7 @@ function assertRevisionRef(
     hashBytes: hashBytes(normalizedHash),
     ref: {
       kind: 'CONTENT_ADDRESSED',
-      objectType: REVISION_OBJECT_TYPE,
+      objectType: REVISION_REF_OBJECT_TYPE,
       objectId: ref.objectId,
       ...(ref.immutableVersionId === undefined
         ? {}
@@ -930,7 +931,7 @@ function revisionRefForRow(
 ): Common.ContentAddressedRef {
   return {
     kind: 'CONTENT_ADDRESSED',
-    objectType: REVISION_OBJECT_TYPE,
+    objectType: REVISION_REF_OBJECT_TYPE,
     objectId: row.revision_id,
     scope: rootScope(root),
     contentHash: contentHashForBytes(row.content_hash),

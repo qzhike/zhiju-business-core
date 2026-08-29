@@ -1,6 +1,5 @@
-// IM-04 WI-02/WI-05 (issues #91/#94): repository for Artifact technical facts,
-// business Root/Branch facts and immutable Revision boundaries.
-// and the Root/Branch business write boundary. Cross-schema reads remain
+// IM-04 WI-02/WI-05/WI-08 (issues #91/#94/#97): repository for Artifact
+// technical facts and owning business boundaries. Cross-schema reads remain
 // deliberately outside this repository.
 
 import { sql } from 'kysely';
@@ -9,6 +8,8 @@ import type {
   ArtifactBranchTable,
   ArtifactContentObjectLinkTable,
   ArtifactContentObjectTable,
+  ArtifactRepresentationTable,
+  ArtifactRepresentationValidationTable,
   ArtifactRevisionTable,
   RevisionInvalidationTable,
   RevisionParentTable,
@@ -172,6 +173,48 @@ export interface RevisionGovernanceState {
 export interface RevisionGraph {
   readonly revisions: readonly ArtifactRevisionTable[];
   readonly parents: readonly RevisionParentTable[];
+}
+
+export interface ArtifactRepresentationInsert {
+  representationId: string;
+  artifactId: string;
+  revisionId: string;
+  revisionRef: unknown;
+  enterpriseId: string;
+  projectId?: string | undefined;
+  format: string;
+  mediaType: string;
+  objectLocator: string;
+  checksum: Buffer;
+  rendererId: string;
+  rendererVersion: string;
+  renderAttemptRef: unknown;
+  canonicalContentRef: string;
+  requestPayloadHash: Buffer;
+  inputHash: Buffer;
+  rawReceiptRef: unknown;
+  registeredAt: Date;
+  validationId: string;
+  validatorId: string;
+  validatorVersion: string;
+  createdByPrincipalId: string;
+  createdByActorSnapshotId: string;
+  createdAuthorizationDecisionId: string;
+  sourceCommandId: string;
+}
+
+export type ArtifactRepresentationCreateOutcome =
+  | 'OK'
+  | 'ALREADY'
+  | 'CONFLICT'
+  | 'NOT_FOUND'
+  | 'NOT_ACTIVE'
+  | 'REVISION_NOT_ACTIVE'
+  | 'BINDING_MISMATCH';
+
+export interface ArtifactRepresentationCreateResult {
+  readonly outcome: ArtifactRepresentationCreateOutcome;
+  readonly representationId?: string;
 }
 
 export interface ContentObjectInsert {
@@ -500,6 +543,72 @@ export class ArtifactRepository {
       withdrawal: withdrawal as unknown as RevisionWithdrawalTable | undefined,
       invalidation: invalidation as unknown as RevisionInvalidationTable | undefined,
     };
+  }
+
+  async registerRepresentation(
+    trx: ArtifactTransaction,
+    input: ArtifactRepresentationInsert,
+  ): Promise<ArtifactRepresentationCreateResult> {
+    const result = await sql<{
+      outcome: ArtifactRepresentationCreateOutcome;
+      representation_id: string | null;
+    }>`
+      SELECT * FROM artifact.register_representation(
+        CAST(${input.representationId} AS uuid),
+        CAST(${input.artifactId} AS uuid),
+        CAST(${input.revisionId} AS uuid),
+        CAST(${JSON.stringify(input.revisionRef)} AS jsonb),
+        CAST(${input.enterpriseId} AS uuid),
+        CAST(${input.projectId ?? null} AS uuid),
+        ${input.format},
+        ${input.mediaType},
+        ${input.objectLocator},
+        CAST(${input.checksum} AS bytea),
+        ${input.rendererId},
+        ${input.rendererVersion},
+        CAST(${JSON.stringify(input.renderAttemptRef)} AS jsonb),
+        ${input.canonicalContentRef},
+        CAST(${input.requestPayloadHash} AS bytea),
+        CAST(${input.inputHash} AS bytea),
+        CAST(${JSON.stringify(input.rawReceiptRef)} AS jsonb),
+        CAST(${input.registeredAt} AS timestamptz),
+        CAST(${input.validationId} AS uuid),
+        ${input.validatorId},
+        ${input.validatorVersion},
+        CAST(${input.createdByPrincipalId} AS uuid),
+        CAST(${input.createdByActorSnapshotId} AS uuid),
+        CAST(${input.createdAuthorizationDecisionId} AS uuid),
+        CAST(${input.sourceCommandId} AS uuid)
+      )
+    `.execute(trx);
+    const row = result.rows[0];
+    if (row === undefined) return { outcome: 'NOT_FOUND' };
+    return {
+      outcome: row.outcome,
+      ...(row.representation_id === null ? {} : { representationId: row.representation_id }),
+    };
+  }
+
+  async getRepresentationById(
+    trx: ArtifactTransaction,
+    representationId: string,
+  ): Promise<ArtifactRepresentationTable | undefined> {
+    return (await trx
+      .selectFrom('artifact.representation')
+      .selectAll()
+      .where('representation_id', '=', representationId)
+      .executeTakeFirst()) as unknown as ArtifactRepresentationTable | undefined;
+  }
+
+  async getRepresentationValidation(
+    trx: ArtifactTransaction,
+    representationId: string,
+  ): Promise<ArtifactRepresentationValidationTable | undefined> {
+    return (await trx
+      .selectFrom('artifact.representation_validation')
+      .selectAll()
+      .where('representation_id', '=', representationId)
+      .executeTakeFirst()) as unknown as ArtifactRepresentationValidationTable | undefined;
   }
 
   async moveWorkingHead(

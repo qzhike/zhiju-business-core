@@ -1,6 +1,5 @@
-// IM-04 WI-05 (issue #94): Artifact business row contracts for immutable
-// Revision snapshots, lineage relations, Branch CAS conflicts and governance
-// facts. Canonical bodies remain outside PostgreSQL.
+// IM-04 WI-05/WI-08 (issues #94/#97): Artifact business row contracts for
+// immutable Revisions, Representation bindings and append-only facts.
 
 import type { ColumnType, Generated } from 'kysely';
 
@@ -271,5 +270,55 @@ export interface RevisionInvalidationTable {
   recorded_by_actor_snapshot_id: string;
   recorded_authorization_decision_id: string;
   recorded_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export type ArtifactRepresentationFormat = string;
+
+export interface ArtifactRepresentationTable {
+  representation_id: string;
+  artifact_id: string;
+  revision_id: string;
+  revision_ref: Json;
+  enterprise_id: string;
+  project_id: string | null;
+  format: ArtifactRepresentationFormat;
+  media_type: string;
+  object_locator: string;
+  checksum: Buffer;
+  renderer_id: string;
+  renderer_version: string;
+  render_attempt_id: string;
+  render_attempt_ref: Json;
+  request_payload_hash: Buffer;
+  input_hash: Buffer;
+  raw_receipt_ref: Json;
+  registered_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export interface ArtifactRepresentationValidationTable {
+  validation_id: string;
+  representation_id: string;
+  artifact_id: string;
+  revision_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  binding_operation: 'integration.get_render_attempt_binding';
+  validator_id: string;
+  validator_version: string;
+  outcome: 'VERIFIED';
+  request_payload_hash: Buffer;
+  input_hash: Buffer;
+  output_checksum: Buffer;
+  raw_receipt_ref: Json;
+  validated_by_principal_id: string;
+  validated_by_actor_snapshot_id: string;
+  validated_authorization_decision_id: string;
+  validated_at: Generated<Date>;
   source_command_id: string;
 }
