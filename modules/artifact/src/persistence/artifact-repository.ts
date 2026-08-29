@@ -1,4 +1,5 @@
-// IM-04 WI-02/WI-03 (issues #91/#92): repository for Artifact technical facts
+// IM-04 WI-02/WI-05 (issues #91/#94): repository for Artifact technical facts,
+// business Root/Branch facts and immutable Revision boundaries.
 // and the Root/Branch business write boundary. Cross-schema reads remain
 // deliberately outside this repository.
 
@@ -8,6 +9,10 @@ import type {
   ArtifactBranchTable,
   ArtifactContentObjectLinkTable,
   ArtifactContentObjectTable,
+  ArtifactRevisionTable,
+  RevisionInvalidationTable,
+  RevisionParentTable,
+  RevisionWithdrawalTable,
   ArtifactTable,
 } from './artifact-business-types.js';
 import {
@@ -71,6 +76,103 @@ export interface ArtifactArchiveCas {
 }
 
 export type ArtifactCasOutcome = 'OK' | 'NOT_FOUND' | 'CONFLICT' | 'NOT_ACTIVE';
+
+export interface ArtifactRevisionInsert {
+  revisionId: string;
+  artifactId: string;
+  branchId: string;
+  enterpriseId: string;
+  projectId?: string | undefined;
+  revisionKind: 'INITIAL' | 'ORDINARY' | 'MERGE';
+  contentObjectId: string;
+  contentType: 'STRUCTURED_DOCUMENT' | 'WORKBOOK_SPEC';
+  objectLocator: string;
+  contentHash: Buffer;
+  structureSchemaRef: unknown;
+  canonicalizationVersion: string;
+  byteSize: number;
+  mediaType: string;
+  semanticMetadata: unknown;
+  changedUnits: unknown;
+  changeSummary: string;
+  provenance: unknown;
+  parentRefs: unknown;
+  mergeStrategy?: string | undefined;
+  conflictSet?: unknown;
+  conflictResolutionRefs?: unknown;
+  resolvedByRef?: unknown;
+  conflictId?: string | undefined;
+  conflictHash?: Buffer | undefined;
+  createdByPrincipalId: string;
+  createdByActorSnapshotId: string;
+  createdAuthorizationDecisionId: string;
+  sourceCommandId: string;
+}
+
+export type ArtifactRevisionCreateOutcome =
+  | 'OK'
+  | 'NOT_FOUND'
+  | 'NOT_ACTIVE'
+  | 'CONFLICT'
+  | 'CONTENT_NOT_FROZEN'
+  | 'CONTENT_HASH_MISMATCH'
+  | 'CONTENT_LINK_CONFLICT'
+  | 'PARENT_INVALID'
+  | 'PARENT_REQUIRED'
+  | 'PARENT_DUPLICATE'
+  | 'CROSS_ARTIFACT_PARENT'
+  | 'LINEAGE_CYCLE'
+  | 'CONFLICT_INVALID'
+  | 'CONTEXT_REJECTED';
+
+export interface ArtifactHeadMove {
+  artifactId: string;
+  branchId: string;
+  expectedVersion: string;
+  expectedHeadRef?: unknown;
+  newHeadRef: unknown;
+  enterpriseId: string;
+  projectId?: string | undefined;
+  conflictId: string;
+  conflictPayload: unknown;
+  conflictHash: Buffer;
+  updatedByPrincipalId: string;
+  updatedByActorSnapshotId: string;
+  lastAuthorizationDecisionId: string;
+  sourceCommandId: string;
+}
+
+export type ArtifactHeadMoveOutcome =
+  'OK' | 'NOT_FOUND' | 'NOT_ACTIVE' | 'CONFLICT' | 'INVALID_REF' | 'ALREADY';
+
+export interface RevisionGovernanceFact {
+  factId: string;
+  revisionId: string;
+  artifactId: string;
+  enterpriseId: string;
+  projectId?: string | undefined;
+  revisionRef: unknown;
+  revisionHash: Buffer;
+  reason: unknown;
+  impactAssessmentRef?: unknown;
+  occurredAt: Date;
+  recordedByPrincipalId: string;
+  recordedByActorSnapshotId: string;
+  recordedAuthorizationDecisionId: string;
+  sourceCommandId: string;
+}
+
+export type RevisionGovernanceOutcome = 'OK' | 'NOT_FOUND' | 'ALREADY';
+
+export interface RevisionGovernanceState {
+  readonly withdrawal: RevisionWithdrawalTable | undefined;
+  readonly invalidation: RevisionInvalidationTable | undefined;
+}
+
+export interface RevisionGraph {
+  readonly revisions: readonly ArtifactRevisionTable[];
+  readonly parents: readonly RevisionParentTable[];
+}
 
 export interface ContentObjectInsert {
   contentObjectId: string;
@@ -256,6 +358,17 @@ export class ArtifactRepository {
       .execute()) as unknown as ArtifactBranchTable[];
   }
 
+  async getArtifactBranchById(
+    trx: ArtifactTransaction,
+    branchId: string,
+  ): Promise<ArtifactBranchTable | undefined> {
+    return (await trx
+      .selectFrom('artifact.artifact_branch')
+      .selectAll()
+      .where('branch_id', '=', branchId)
+      .executeTakeFirst()) as unknown as ArtifactBranchTable | undefined;
+  }
+
   async casArtifactMetadata(
     trx: ArtifactTransaction,
     input: ArtifactMetadataCas,
@@ -294,6 +407,222 @@ export class ArtifactRepository {
       ) AS outcome
     `.execute(trx);
     return result.rows[0]?.outcome ?? 'NOT_FOUND';
+  }
+
+  async createArtifactRevision(
+    trx: ArtifactTransaction,
+    input: ArtifactRevisionInsert,
+  ): Promise<{ readonly outcome: ArtifactRevisionCreateOutcome; readonly revisionNo?: string }> {
+    const result = await sql<{
+      outcome: ArtifactRevisionCreateOutcome;
+      revision_no: string | null;
+    }>`
+      SELECT * FROM artifact.create_artifact_revision(
+        CAST(${input.revisionId} AS uuid),
+        CAST(${input.artifactId} AS uuid),
+        CAST(${input.branchId} AS uuid),
+        CAST(${input.enterpriseId} AS uuid),
+        CAST(${input.projectId ?? null} AS uuid),
+        ${input.revisionKind},
+        CAST(${input.contentObjectId} AS uuid),
+        ${input.contentType},
+        ${input.objectLocator},
+        CAST(${input.contentHash} AS bytea),
+        CAST(${JSON.stringify(input.structureSchemaRef)} AS jsonb),
+        ${input.canonicalizationVersion},
+        CAST(${input.byteSize} AS bigint),
+        ${input.mediaType},
+        CAST(${JSON.stringify(input.semanticMetadata)} AS jsonb),
+        CAST(${JSON.stringify(input.changedUnits)} AS jsonb),
+        ${input.changeSummary},
+        CAST(${JSON.stringify(input.provenance)} AS jsonb),
+        CAST(${JSON.stringify(input.parentRefs)} AS jsonb),
+        ${input.mergeStrategy ?? null},
+        CAST(${JSON.stringify(input.conflictSet ?? [])} AS jsonb),
+        CAST(${JSON.stringify(input.conflictResolutionRefs ?? [])} AS jsonb),
+        CAST(${input.resolvedByRef === undefined ? null : JSON.stringify(input.resolvedByRef)} AS jsonb),
+        CAST(${input.conflictId ?? null} AS uuid),
+        CAST(${input.conflictHash ?? null} AS bytea),
+        CAST(${input.createdByPrincipalId} AS uuid),
+        CAST(${input.createdByActorSnapshotId} AS uuid),
+        CAST(${input.createdAuthorizationDecisionId} AS uuid),
+        CAST(${input.sourceCommandId} AS uuid)
+      )
+    `.execute(trx);
+    const row = result.rows[0];
+    if (row === undefined) return { outcome: 'NOT_FOUND' };
+    return {
+      outcome: row.outcome,
+      ...(row.revision_no === null ? {} : { revisionNo: row.revision_no }),
+    };
+  }
+
+  async getRevisionById(
+    trx: ArtifactTransaction,
+    revisionId: string,
+  ): Promise<ArtifactRevisionTable | undefined> {
+    return (await trx
+      .selectFrom('artifact.artifact_revision')
+      .selectAll()
+      .where('revision_id', '=', revisionId)
+      .executeTakeFirst()) as unknown as ArtifactRevisionTable | undefined;
+  }
+
+  async getRevisionParents(
+    trx: ArtifactTransaction,
+    childRevisionId: string,
+  ): Promise<RevisionParentTable[]> {
+    return (await trx
+      .selectFrom('artifact.revision_parent')
+      .selectAll()
+      .where('child_revision_id', '=', childRevisionId)
+      .orderBy('parent_order', 'asc')
+      .execute()) as unknown as RevisionParentTable[];
+  }
+
+  async getRevisionGovernance(
+    trx: ArtifactTransaction,
+    revisionId: string,
+  ): Promise<RevisionGovernanceState> {
+    const [withdrawal, invalidation] = await Promise.all([
+      trx
+        .selectFrom('artifact.revision_withdrawal')
+        .selectAll()
+        .where('revision_id', '=', revisionId)
+        .executeTakeFirst(),
+      trx
+        .selectFrom('artifact.revision_invalidation')
+        .selectAll()
+        .where('revision_id', '=', revisionId)
+        .executeTakeFirst(),
+    ]);
+    return {
+      withdrawal: withdrawal as unknown as RevisionWithdrawalTable | undefined,
+      invalidation: invalidation as unknown as RevisionInvalidationTable | undefined,
+    };
+  }
+
+  async moveWorkingHead(
+    trx: ArtifactTransaction,
+    input: ArtifactHeadMove,
+  ): Promise<ArtifactHeadMoveOutcome> {
+    const result = await sql<{ outcome: ArtifactHeadMoveOutcome }>`
+      SELECT artifact.move_working_head(
+        CAST(${input.artifactId} AS uuid),
+        CAST(${input.branchId} AS uuid),
+        CAST(${input.expectedVersion} AS bigint),
+        CAST(${input.expectedHeadRef === undefined ? null : JSON.stringify(input.expectedHeadRef)} AS jsonb),
+        CAST(${JSON.stringify(input.newHeadRef)} AS jsonb),
+        CAST(${input.enterpriseId} AS uuid),
+        CAST(${input.projectId ?? null} AS uuid),
+        CAST(${input.conflictId} AS uuid),
+        CAST(${JSON.stringify(input.conflictPayload)} AS jsonb),
+        CAST(${input.conflictHash} AS bytea),
+        CAST(${input.updatedByPrincipalId} AS uuid),
+        CAST(${input.updatedByActorSnapshotId} AS uuid),
+        CAST(${input.lastAuthorizationDecisionId} AS uuid),
+        CAST(${input.sourceCommandId} AS uuid)
+      ) AS outcome
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'NOT_FOUND';
+  }
+
+  async withdrawRevision(
+    trx: ArtifactTransaction,
+    input: RevisionGovernanceFact,
+  ): Promise<RevisionGovernanceOutcome> {
+    const result = await sql<{ outcome: RevisionGovernanceOutcome }>`
+      SELECT artifact.withdraw_revision(
+        CAST(${input.factId} AS uuid),
+        CAST(${input.revisionId} AS uuid),
+        CAST(${input.artifactId} AS uuid),
+        CAST(${input.enterpriseId} AS uuid),
+        CAST(${input.projectId ?? null} AS uuid),
+        CAST(${JSON.stringify(input.revisionRef)} AS jsonb),
+        CAST(${input.revisionHash} AS bytea),
+        CAST(${JSON.stringify(input.reason)} AS jsonb),
+        CAST(${input.impactAssessmentRef === undefined ? null : JSON.stringify(input.impactAssessmentRef)} AS jsonb),
+        CAST(${input.occurredAt} AS timestamptz),
+        CAST(${input.recordedByPrincipalId} AS uuid),
+        CAST(${input.recordedByActorSnapshotId} AS uuid),
+        CAST(${input.recordedAuthorizationDecisionId} AS uuid),
+        CAST(${input.sourceCommandId} AS uuid)
+      ) AS outcome
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'NOT_FOUND';
+  }
+
+  async invalidateRevision(
+    trx: ArtifactTransaction,
+    input: RevisionGovernanceFact & { readonly impactAssessmentRef: unknown },
+  ): Promise<RevisionGovernanceOutcome> {
+    const result = await sql<{ outcome: RevisionGovernanceOutcome }>`
+      SELECT artifact.invalidate_revision(
+        CAST(${input.factId} AS uuid),
+        CAST(${input.revisionId} AS uuid),
+        CAST(${input.artifactId} AS uuid),
+        CAST(${input.enterpriseId} AS uuid),
+        CAST(${input.projectId ?? null} AS uuid),
+        CAST(${JSON.stringify(input.revisionRef)} AS jsonb),
+        CAST(${input.revisionHash} AS bytea),
+        CAST(${JSON.stringify(input.reason)} AS jsonb),
+        CAST(${JSON.stringify(input.impactAssessmentRef)} AS jsonb),
+        CAST(${input.occurredAt} AS timestamptz),
+        CAST(${input.recordedByPrincipalId} AS uuid),
+        CAST(${input.recordedByActorSnapshotId} AS uuid),
+        CAST(${input.recordedAuthorizationDecisionId} AS uuid),
+        CAST(${input.sourceCommandId} AS uuid)
+      ) AS outcome
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'NOT_FOUND';
+  }
+
+  async getRevisionGraph(
+    trx: ArtifactTransaction,
+    artifactId: string,
+    headRevisionId: string | undefined,
+    maxDepth: number,
+  ): Promise<RevisionGraph> {
+    const revisions =
+      headRevisionId === undefined
+        ? await trx
+            .selectFrom('artifact.artifact_revision')
+            .selectAll()
+            .where('artifact_id', '=', artifactId)
+            .orderBy('revision_no', 'asc')
+            .execute()
+        : await sql<ArtifactRevisionTable>`
+            WITH RECURSIVE visible(revision_id, depth) AS (
+                SELECT r.revision_id, 0
+                  FROM artifact.artifact_revision r
+                 WHERE r.artifact_id = CAST(${artifactId} AS uuid)
+                   AND r.revision_id = CAST(${headRevisionId} AS uuid)
+                UNION
+                SELECT rp.parent_revision_id, visible.depth + 1
+                  FROM visible
+                  JOIN artifact.revision_parent rp
+                    ON rp.child_revision_id = visible.revision_id
+                 WHERE visible.depth < ${maxDepth}
+            )
+            SELECT r.*
+              FROM artifact.artifact_revision r
+              JOIN visible ON visible.revision_id = r.revision_id
+             WHERE r.artifact_id = CAST(${artifactId} AS uuid)
+             ORDER BY r.revision_no ASC
+          `
+            .execute(trx)
+            .then((result) => result.rows);
+    const parents = (await trx
+      .selectFrom('artifact.revision_parent')
+      .selectAll()
+      .where('artifact_id', '=', artifactId)
+      .orderBy('child_revision_id', 'asc')
+      .orderBy('parent_order', 'asc')
+      .execute()) as unknown as RevisionParentTable[];
+    return {
+      revisions: revisions as unknown as ArtifactRevisionTable[],
+      parents,
+    };
   }
 
   async insertContentObject(
@@ -335,6 +664,28 @@ export class ArtifactRepository {
       .selectFrom('artifact.artifact_content_object')
       .selectAll()
       .where('content_object_id', '=', contentObjectId)
+      .executeTakeFirst()) as unknown as ArtifactContentObjectTable | undefined;
+  }
+
+  async getFrozenContentObjectByIdentity(
+    trx: ArtifactTransaction,
+    input: {
+      readonly enterpriseId: string;
+      readonly projectId?: string | undefined;
+      readonly contentType: 'STRUCTURED_DOCUMENT' | 'WORKBOOK_SPEC';
+      readonly objectLocator: string;
+      readonly contentHash: Buffer;
+    },
+  ): Promise<ArtifactContentObjectTable | undefined> {
+    return (await trx
+      .selectFrom('artifact.artifact_content_object')
+      .selectAll()
+      .where('enterprise_id', '=', input.enterpriseId)
+      .where('project_id', '=', input.projectId ?? null)
+      .where('content_type', '=', input.contentType)
+      .where('object_locator', '=', input.objectLocator)
+      .where('content_hash', '=', input.contentHash)
+      .where('storage_state', '=', 'FROZEN')
       .executeTakeFirst()) as unknown as ArtifactContentObjectTable | undefined;
   }
 

@@ -1,6 +1,6 @@
-// IM-04 WI-02/WI-03 (issues #91/#92): hand-written Kysely types and
-// transaction boundary for the Artifact owning schema. WI-03 adds the
-// business Root and Branch tables while keeping WI-02 technical facts intact.
+// IM-04 WI-02/WI-05 (issues #91/#94): hand-written Kysely types and
+// transaction boundary for the Artifact owning schema. WI-05 adds immutable
+// Revision facts while keeping earlier technical and business facts intact.
 
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
@@ -19,6 +19,11 @@ import type {
   ArtifactContentObjectOrphanTable,
   ArtifactContentObjectQuarantineTable,
   ArtifactContentObjectTable,
+  ArtifactRevisionTable,
+  RevisionConflictTable,
+  RevisionInvalidationTable,
+  RevisionParentTable,
+  RevisionWithdrawalTable,
   ArtifactTable,
 } from './artifact-business-types.js';
 
@@ -200,6 +205,11 @@ export interface ArtifactDb {
   'artifact.artifact_content_object_link': ArtifactContentObjectLinkTable;
   'artifact.artifact_content_object_quarantine': ArtifactContentObjectQuarantineTable;
   'artifact.artifact_content_object_orphan': ArtifactContentObjectOrphanTable;
+  'artifact.artifact_revision': ArtifactRevisionTable;
+  'artifact.revision_parent': RevisionParentTable;
+  'artifact.revision_conflict': RevisionConflictTable;
+  'artifact.revision_withdrawal': RevisionWithdrawalTable;
+  'artifact.revision_invalidation': RevisionInvalidationTable;
   'artifact.command_receipt': CommandReceiptTable;
   'artifact.outbox_event': OutboxEventTable;
   'artifact.inbox_message': InboxMessageTable;

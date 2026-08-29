@@ -146,6 +146,13 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'artifact_content_object_link',
     'artifact_content_object_quarantine',
     'artifact_content_object_orphan',
+    // IM-04 WI-05 (issue #94): immutable Revision, lineage, conflict and
+    // append-only governance facts.
+    'artifact_revision',
+    'revision_parent',
+    'revision_conflict',
+    'revision_withdrawal',
+    'revision_invalidation',
   ],
   quality_governance: ['business_probe', 'outbox_probe'],
   release_publication: ['business_probe', 'outbox_probe'],

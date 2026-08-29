@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY VERIFIED PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / IM-04 WI-04 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-04 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-04 GIT DELIVERY VERIFIED PR #106 MERGED 2026-08-28 / ISSUE #93 CLOSED 2026-08-28 / WI-04 FEATURE BRANCH DELETED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / IM-UI-01 DESIGN VERIFIED / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY VERIFIED PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / IM-04 WI-04 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-04 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-04 GIT DELIVERY VERIFIED PR #106 MERGED 2026-08-28 / ISSUE #93 CLOSED 2026-08-28 / WI-04 FEATURE BRANCH DELETED / IM-04 WI-05 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / WI-05 GIT DELIVERY IN PROGRESS / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / IM-UI-01 DESIGN VERIFIED / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -363,6 +363,16 @@ Issue #93 的实现和本地自动验证已完成，唯一证据报告为 [`Veri
 - pinned PostgreSQL 18.6/Flyway 11.20.3 的 `pnpm persistence:gate` 通过 24 个测试文件、277 个测试；V4002 空库迁移成功，第二次 migrate 输出 `No migration necessary`，测试容器已清理。
 - 已验证 Canonical Schema/Scope、caller hash、authoritative readback、media/size/hash、Manifest 生命周期、STAGING direct-finalize 拒绝、finalize unknown/retry、quarantine、DB rollback Orphan、24 小时 grace、5 分钟 lease、fencing、并发 worker、retention/legal-hold、unknown/NOT_FOUND/DELETED cleanup 和 RLS/ACL。
 - SEALED Revision consumer、真实 Ceph RGW/OpenBao、生产加密/Object Lock、生产 scheduler、公开 HTTP、跨模块 E2E、生产数据库和独立人工业务验收仍保持 `NOT RUN`；synthetic walkthrough 只作为后续人工复核输入。
+
+### 9.4 IM-04 WI-05 Revision/Lineage/Branch CAS 验证边界（2026-08-29）
+
+Issue #94 的实现、自动验证和交付记录已同步到 [`Module-Test-004-Artifact.md`](../module-tests/Module-Test-004-Artifact.md) 与 [`Verification-Report.md`](../issue-94-delivery/Verification-Report.md)。WI-05 仍把本地技术证据与外部/人工验收分开记录：
+
+- `PASS` 只用于实际运行的 Unit/Contract、V4003 空库迁移与二次 no-op、FROZEN Manifest 门禁、immutable ACL/Trigger、递归 DAG、Parent 数量、cross Artifact/Project、wrong hash、Branch CAS race、explicit Merge conflict/resolution、幂等、rollback、RLS 和历史 Snapshot/Lineage replay；本轮这些本地/临时 PostgreSQL 证据均已在交付报告中列出；
+- `DESIGN VERIFIED` 只表示 HL-Spec、Module Spec、Module Test 和 PostgreSQL logical model 已同步，不代表 Revision Handler 或业务数据库存在；
+- WI-05 已证明 CAS 版本只来自 Envelope、同 Enterprise 的结构 Schema Scope 可被合法引用、Reference Edge owner version 保持 UUID 形状，以及 Merge 预校验失败时 Revision/Parent/Conflict/Outbox/Edge 一起回滚；这些结论以实际测试命令和结果为准，不能由静态代码检查单独替代。
+- 首轮 V4003 空库迁移曾在 `invalidate_revision` 的 GRANT 参数签名不完整处失败并由 Flyway 回滚；修正后已重新完成全量空库迁移、二次 no-op 和完整 Persistence Gate，首轮失败作为修复历史保留，不计入最终 PASS 计数。
+- 本 WI 的 local/in-memory、disposable PostgreSQL 和 CI 不能代表真实 Ceph/OpenBao、生产 DB、公开 HTTP、跨模块 E2E、Renderer、Quality/Approval/Release、外部 Provider、Browser 或独立人工 ART-023 验收；这些项在证据齐全前保持 `NOT RUN`。
 
 既有状态记录：
 
