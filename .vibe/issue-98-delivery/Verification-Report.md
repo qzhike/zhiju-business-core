@@ -1,13 +1,13 @@
 # Issue #98 验证与退出建议
 
 日期：2026-08-29
-状态：`LOCAL IMPLEMENTATION AND VERIFICATION PASS / USER REVIEW REQUIRED / GIT DELIVERY NOT STARTED`
+状态：`GIT DELIVERY COMPLETE / PR #117 MERGED / ISSUE #98 CLOSED`
 
 ## 结论
 
-Issue #98 的本地技术实现与验证已完成。六个 IM-04 适用 Artifact Query 已在真实 PostgreSQL 上补强精确 Ref、错误 Hash、`latest/current` 禁止、Scope/RLS、治理后历史 identity、Representation 后 Lineage/Diff Input 稳定及完整 RepresentationRef 替换负例；公共 Catalog 仍为 201 项，没有新增 Migration 或公共 Diff Result。
+Issue #98 的技术实现、本地验证与 Git 交付已完成。六个 IM-04 适用 Artifact Query 已在真实 PostgreSQL 上补强精确 Ref、错误 Hash、`latest/current` 禁止、Scope/RLS、治理后历史 identity、Representation 后 Lineage/Diff Input 稳定及完整 RepresentationRef 替换负例；公共 Catalog 仍为 201 项，没有新增 Migration 或公共 Diff Result。
 
-父 Issue #89 当前不应关闭：Issue #98 尚未经过用户检查、commit、PR exact-head CI、merge、`origin/main` ancestry 和 GitHub remote readback。若这些 Git 交付边界全部通过，并且 #89 的 #90–#98 checklist 与权威状态同步，则建议单独验收并关闭 #89；本工作项不自动关闭父 Issue。
+实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 已通过 PR #117 exact-head `ci/verify`，并以 merge commit `f4b8704ba766d49c12c4433884d94bce91d50792` 合入 `main`；Issue #98 已回读为 `CLOSED / COMPLETED`，实现 head 已验证为 `origin/main` ancestor。父 Issue #89 当前保持开放；应在 #90–#98 checklist 与权威状态同步后单独验收，本工作项不自动关闭父 Issue。
 
 ## 变更与证据
 
@@ -33,4 +33,4 @@ Issue #98 的本地技术实现与验证已完成。六个 IM-04 适用 Artifact
 
 - `artifact.get_effective_binding@1.0` 依赖后续 Release/EffectiveBinding 业务事实，保持 `NOT RUN`。
 - 真实 Provider、Renderer、Object Storage、公开 HTTP、生产、跨模块业务 E2E 与独立人工验收保持 `NOT RUN`。
-- 当前只证明 local/disposable PostgreSQL technical acceptance；CI、PR exact head、merge、Issue #98 closure、`origin/main` ancestry 与分支清理尚未执行。
+- 当前证明 local/disposable PostgreSQL technical acceptance 与 PR exact-head Git 交付；任务分支在文档回读后执行清理。真实 Provider、生产、公开 HTTP、跨模块业务 E2E 与独立人工验收不由该交付推导为通过。

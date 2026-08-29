@@ -1,7 +1,7 @@
 # Issue #98 交付任务计划
 
 日期：2026-08-29
-状态：`IMPLEMENTATION COMPLETE / LOCAL VERIFICATION PASS / USER REVIEW REQUIRED`
+状态：`GIT DELIVERY COMPLETE / PR #117 MERGED / ISSUE #98 CLOSED`
 
 ## 目标
 
@@ -26,4 +26,4 @@
 ## 交付边界
 
 - Issue #98 完成后仅给出父 Issue #89 的关闭建议，不在本工作项内自动关闭 #89。
-- 根据仓库 `AGENTS.md`，代码或文档改动完成并验证后先提交给用户检查；用户确认后再执行 commit、push、PR、exact-head CI、merge、Issue #98 关闭与该交付分支清理。
+- 用户已确认变更；实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 通过 PR #117 exact-head CI，以 merge commit `f4b8704ba766d49c12c4433884d94bce91d50792` 合入 `main`，Issue #98 已关闭。父 Issue #89 保持开放；任务分支在文档回读后执行清理。

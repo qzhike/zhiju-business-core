@@ -1,6 +1,6 @@
 ## Status
 
-`IMPLEMENTATION COMPLETE / LOCAL PERSISTENCE VERIFIED / USER REVIEW REQUIRED`
+`GIT DELIVERY COMPLETE / PR #117 MERGED / ISSUE #98 CLOSED`
 
 Parent exit gate: #89.
 
@@ -35,10 +35,10 @@ Complete authoritative Artifact queries, assemble the synthetic ART-023 technica
 - [x] Lineage and exact revision replay remain stable after later branches, merge, withdrawal, invalidation, or new representations；治理后的派生 disposition 可改变 `lineageHash`，但 node/edge/content identity 不变。
 - [x] Diff input query returns only exact snapshots/common ancestor/schema input; internal Diff output is separately computed and never persisted as approval/quality fact.
 - [x] ART-023 shows root, frozen object manifests, divergent revisions, stale-head rejection, explicit merge, Document and Workbook edits/diffs, authoritative RenderAttempt binding, Representation, expected negatives, and cleanup.
-- [ ] Clean/no-op migration, focused Unit/Contract/Persistence tests, scoped local E2E, `pnpm clean && pnpm verify`, exact-head CI, and `.vibe` review records pass.
-- [ ] Parent #89 is closed only after all child PR heads are ancestors of `main` and authority documents match remote state.
+- [x] Clean/no-op migration, focused Unit/Contract/Persistence tests, scoped local E2E, `pnpm clean && pnpm verify`, exact-head CI, and `.vibe` review records pass.
+- [x] Parent #89 is closed only after all child PR heads are ancestors of `main` and authority documents match remote state.
 
-本地 Gate 已完成：focused Artifact Unit/Contract 为 6 files/69 passed；普通 Vitest 为 32 passed/24 skipped files、390 passed/269 skipped tests；Architecture PASS；公开 Contract `FULL=201`、frozen v1.0 baseline=200；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence 为 28 files/284 passed，空库迁移、第二次 no-op 与容器 cleanup 通过。上述第 5 项仍未勾选，仅因为 commit/PR exact-head CI 尚未执行；不得把本地 PASS 预写为 CI PASS。
+本地 Gate 已完成：focused Artifact Unit/Contract 为 6 files/69 passed；普通 Vitest 为 32 passed/24 skipped files、390 passed/269 skipped tests；Architecture PASS；公开 Contract `FULL=201`、frozen v1.0 baseline=200；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence 为 28 files/284 passed，空库迁移、第二次 no-op 与容器 cleanup 通过。实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 已通过 PR #117 exact-head `ci/verify`，并以 merge commit `f4b8704ba766d49c12c4433884d94bce91d50792` 合入 `main`；Issue #98 已关闭，实现 head 是 `origin/main` ancestor。父 Issue #89 保持开放，本工作项不自动关闭它。
 
 ## Manual output
 
