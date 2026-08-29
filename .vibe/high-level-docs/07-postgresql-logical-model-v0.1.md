@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / WI-05 GIT DELIVERY IN PROGRESS / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -1060,7 +1060,7 @@ Branch Head 是独立的可变 CAS 投影：`artifact_branch.head_version=0` 是
 
 Lineage Query 以 exact RevisionRef 或 ArtifactRef 为起点使用 recursive CTE 返回 ancestor nodes、parent edges 和 root refs；不接受 `latest/current`，Hash 不匹配或 Scope 不匹配统一拒绝。Diff Inputs 只读取并返回两个 exact Revision Snapshot 和可选 common ancestor，不计算或保存 Diff。Snapshot 的 content/parent/provenance 字段从 immutable rows 读取，disposition 由 withdrawal/invalidation append-only facts 派生。
 
-本 WI 的 V4003 已在 pinned PostgreSQL 18.6/Flyway 11.20.3 的 `pnpm persistence:gate` 中通过：全量 30 条迁移成功，二次 migrate 为 no-op，25 个 Persistence 测试文件的 278 个测试通过，容器已清理。应用层 `pnpm verify` 另通过 29 个测试文件、376 个测试；用户已确认 Git 收口，当前正在执行 commit、push、PR、Issue 和 feature branch 生命周期。
+本 WI 的 V4003 已在 pinned PostgreSQL 18.6/Flyway 11.20.3 的 `pnpm persistence:gate` 中通过：全量 30 条迁移成功，二次 migrate 为 no-op，25 个 Persistence 测试文件的 278 个测试通过，容器已清理。应用层 `pnpm verify` 另通过 29 个测试文件、376 个测试；PR #110 已合并、Issue #94 已关闭、原 feature branch 已删除。
 
 ### 12.2 ArtifactRevision 与 Lineage
 

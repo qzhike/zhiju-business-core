@@ -2,7 +2,7 @@
 
 日期：2026-08-29
 范围：IM-04 WI-05 Immutable Revision、Lineage DAG、Branch Head CAS、显式 Merge、Withdrawal/Invalidation
-状态：`IMPLEMENTATION VERIFIED / PERSISTENCE VERIFIED / GIT DELIVERY IN PROGRESS`
+状态：`IMPLEMENTATION VERIFIED / PERSISTENCE VERIFIED / GIT DELIVERY COMPLETE / AUTHORITY DOCS SYNC IN PROGRESS`
 
 ## 1. 交付结论
 
@@ -16,7 +16,7 @@ Issue #94 的代码、forward-only 数据库迁移、规格/测试文档和本�
 - Revision Snapshot、Lineage、Diff Inputs、Validation 只接受精确 ID/Scope/Hash；禁止 `latest`、`current` 或宽 Project Scope 替代历史定位。
 - Reference Edge 的 Branch owner version 使用 Branch UUID；Branch 数值 head token 只出现在结果和事件的 aggregate version 中。
 
-本报告不把本地/临时 PostgreSQL 结果扩展为 Provider、生产、公开 HTTP、跨模块或独立人工业务验收。用户已检查并确认本工作区改动，Git commit、push、PR、Issue close、远端 branch 删除和本地 branch 删除现按独立步骤执行。
+本报告不把本地/临时 PostgreSQL 结果扩展为 Provider、生产、公开 HTTP、跨模块或独立人工业务验收。用户已检查并确认本工作区改动；PR #110、Issue #94 及原 feature branch 的 Git 生命周期已完成，本次状态同步通过不关联 Issue #94 的 docs-only follow-up 继续完成。
 
 ## 2. 变更范围
 
@@ -129,13 +129,13 @@ pnpm build
 
 ## 5. Git 收口状态
 
-截至 commit `8355c4318c5ff64c50cdab9f972ba31173d227bd` 的本地回读：
+截至 PR #110 合并后的本地回读：
 
-- 当前 feature branch：`galendai/im-04-wi-05-implement-immutable-revisions-lineag`
-- 当前工作区：实现、测试和 `.vibe` 文档已提交；提交后的 `pnpm verify` 已通过
-- PR：尚未创建
-- Issue #94：仍为 `OPEN`
-- 本地 feature branch：仍保留且指向该 commit；远端同名 branch 当前不存在（`git ls-remote --heads origin <branch>` 无输出），push 前没有可删除的远端 ref
-- `origin/main`：尚未因本次切片发生变化
+- 实现 head：`a0835a8d85adc14e227b978ef3cd7464a2775998`
+- PR #110：`MERGED`，merge commit `92f490c0fc5fb8cf9d6d49c1ee1ac2e695ae3dfa`
+- Issue #94：`CLOSED`，由 PR #110 关闭
+- `origin/main`：已包含实现 head，`git merge-base --is-ancestor a0835a8d... origin/main` 通过
+- 原 feature branch：本地和远端均已删除，`git ls-remote --heads origin <branch>` 与 `git branch --list <branch>` 均无输出
+- 当前工作区：位于 `92f490c` 的 detached `origin/main`；`main` 和其他 worktree 保留
 
-用户已确认本工作区改动，commit 已完成。下一步独立 Git 流程为：以该 exact head push 并核验远端 branch → 创建并核验 PR/Issue 关联 → 等待该 exact head CI → `--match-head-commit` 合并 → 读回 `origin/main` ancestry → 显式关闭 Issue #94 → 删除远端和本地 feature branch → 复核 worktree、远端引用和 `.vibe` 状态。若 push 后远端 branch 已建立，收口时必须再显式删除该 ref。
+PR #110 的 exact-head CI、`--match-head-commit` 合并、Issue #94 状态、`origin/main` ancestry 和原 feature branch 删除均已完成。当前仅需把本报告和权威文档的最终状态通过不关联 Issue #94 的 docs-only follow-up 合入 `main`，不改变已合并历史。
