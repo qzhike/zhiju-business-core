@@ -70,6 +70,7 @@ const ROOT_OBJECT_TYPES = new Set(['Artifact', 'artifact.artifact']);
 const REVISION_OBJECT_TYPES = new Set(['ArtifactRevision', 'artifact.artifact_revision']);
 const ROOT_OBJECT_TYPE = 'Artifact';
 const REVISION_OBJECT_TYPE = 'ArtifactRevision';
+const REVISION_REF_OBJECT_TYPE = 'artifact.artifact_revision';
 const CANONICAL_OBJECT_TYPE = 'CanonicalContentObject';
 const CANONICAL_MEDIA_TYPE = 'application/json';
 const CANONICAL_SCHEMA_OBJECT_TYPE = 'artifact.canonical_document_schema';
@@ -617,7 +618,7 @@ function exactRevisionRef(
   }
   return {
     kind: 'CONTENT_ADDRESSED',
-    objectType: REVISION_OBJECT_TYPE,
+    objectType: REVISION_REF_OBJECT_TYPE,
     objectId: ref.objectId,
     ...(ref.immutableVersionId === undefined ? {} : { immutableVersionId: ref.immutableVersionId }),
     scope: projectId === undefined ? { enterpriseId } : { enterpriseId, projectId },
@@ -1181,7 +1182,7 @@ export async function handleHumanStructuredDocumentEdit(
   );
   const newRevisionRef: Common.ContentAddressedRef = {
     kind: 'CONTENT_ADDRESSED',
-    objectType: REVISION_OBJECT_TYPE,
+    objectType: REVISION_REF_OBJECT_TYPE,
     objectId: revisionId,
     scope: rootScope(facts.root),
     contentHash: candidate.contentHash,

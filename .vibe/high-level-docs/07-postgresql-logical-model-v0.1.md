@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / IM-04 WI-08 V4004 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-08 PERSISTENCE VERIFIED 2026-08-29 / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -1086,10 +1086,12 @@ IM-DG-005 的 Canonical Content 持久化边界：
 
 | 表 | 类型 | 关键列/关系 | 关键约束 |
 |---|---|---|---|
-| `representation` | Immutable Aggregate/Fact | revision_id、format、object locator、checksum、renderer name/version、render input hash、created_at | 同 exact render identity 可幂等复用；文件不改 |
-| `representation_validation` | Immutable Fact | representation ref/checksum、validator/version、outcome、diagnostic object ref | 新验证追加 |
+| `representation` | Immutable Aggregate/Fact | artifact/revision/scope、format/media type、object locator、output checksum、renderer ID/version、render attempt ref、request payload hash、input hash、raw receipt ref、created_at/attribution | 同一 RenderAttempt 只有一个 exact immutable identity；相同事实重放复用，替换字段冲突；文件 bytes 不入库 |
+| `representation_validation` | Immutable Fact | representation id、Binding Query/validator version、outcome、request/result/raw receipt 摘要、validated_at | 每个首个 Representation 只追加一个权威 Binding 验证事实 |
 
 Canonical Content 与 Representation 使用不同 Hash 域。DOCX/PDF Checksum 不能证明 Canonical Revision 内容语义相同；二者通过精确 RevisionRef 关联。
+
+V4004 对两表启用 `FORCE ROW LEVEL SECURITY`；`artifact_app` 只有 Scope-filtered SELECT 与 `artifact.register_representation(...)` owner function EXECUTE，不能直接 INSERT/UPDATE/DELETE。Owner function 在写入前重验可信 Context、Artifact/Revision 生命周期与 Scope、公开 lowercase Revision Ref、Canonical content/input hash、RenderAttempt/Raw Receipt exact ref 和 attribution。Representation、Validation、三条 Reference Edge、Receipt/Audit 与唯一成功 Outbox Event 同事务提交；注入故障全部回滚。
 
 ### 12.4 EffectiveBinding
 

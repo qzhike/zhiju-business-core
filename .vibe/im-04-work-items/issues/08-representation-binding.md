@@ -1,6 +1,6 @@
 ## Status
 
-`PLANNED / NOT STARTED`
+`IMPLEMENTATION COMPLETE / PERSISTENCE VERIFIED`
 
 Parent exit gate: #89.
 
@@ -32,13 +32,13 @@ Implement immutable Representation registration only after authoritative verific
 
 ## Acceptance
 
-- [ ] Representation registration is blocked until #90 provides the authoritative Binding Query; no cross-module database read is used.
-- [ ] Caller Registration mismatching any authoritative request/result field is rejected without a Representation row or success event.
-- [ ] Failed, UNKNOWN, missing, quarantined, or wrong-scope attempts cannot register a Representation.
-- [ ] Same exact render identity replays idempotently; changed input hash, renderer version, output checksum, or object creates a distinct attempt/representation path.
-- [ ] Representation checksum never substitutes for Canonical content hash or Release package hash.
-- [ ] Render success is only a candidate fact and cannot imply Quality PASS, Approval, Release, or effective binding.
-- [ ] Real PostgreSQL negative/rollback/RLS probes, focused tests, full gates, and cleanup pass.
+- [x] Representation registration is blocked until #90 provides the authoritative Binding Query; no cross-module database read is used.
+- [x] Caller Registration mismatching any authoritative request/result field is rejected without a Representation row or success event.
+- [x] Failed, UNKNOWN, missing, quarantined, or wrong-scope attempts cannot register a Representation.
+- [x] Same exact render identity replays idempotently; changed input hash, renderer version, output checksum, or object creates a distinct attempt/representation path.
+- [x] Representation checksum never substitutes for Canonical content hash or Release package hash.
+- [x] Render success is only a candidate fact and cannot imply Quality PASS, Approval, Release, or effective binding.
+- [x] Real PostgreSQL negative/rollback/RLS probes, focused tests, full gates, and cleanup pass.
 
 ## Manual output
 
