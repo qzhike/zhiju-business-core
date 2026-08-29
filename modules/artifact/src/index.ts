@@ -199,6 +199,25 @@ export type {
 } from './business/artifact-handlers.js';
 
 export {
+  canonicalizeStructuredDocument,
+  diffStructuredDocuments,
+  handleGetStructuredDocumentDiff,
+  handleHumanStructuredDocumentEdit,
+  validateStructuredDocument,
+} from './business/structured-document-service.js';
+export type {
+  StructuredDocumentCanonicalization,
+  StructuredDocumentDiffKind,
+  StructuredDocumentUnitLocation,
+  StructuredDocumentDiffEntry,
+  StructuredDocumentDiff,
+  StructuredDocumentEditPayload,
+  StructuredDocumentEditCommandEnvelope,
+  StructuredDocumentEditResult,
+  StructuredDocumentDiffResult,
+} from './business/structured-document-service.js';
+
+export {
   ArtifactBusinessError,
   ARTIFACT_SCOPE_INVALID,
   ARTIFACT_NOT_ACTIVE,
@@ -231,4 +250,9 @@ export {
   ARTIFACT_WORKBOOK_EDIT_SCOPE,
   ARTIFACT_WORKBOOK_ID_MISMATCH,
   ARTIFACT_WORKBOOK_NOOP,
+  ARTIFACT_STRUCTURED_DOCUMENT_BASE_INVALID,
+  ARTIFACT_STRUCTURED_DOCUMENT_BASE_STALE,
+  ARTIFACT_STRUCTURED_DOCUMENT_EDIT_SCOPE,
+  ARTIFACT_STRUCTURED_DOCUMENT_NOOP,
+  ARTIFACT_STRUCTURED_DOCUMENT_ID_MISMATCH,
 } from './business/artifact-business-errors.js';

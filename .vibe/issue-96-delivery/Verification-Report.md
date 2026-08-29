@@ -24,11 +24,11 @@
 | Format | `pnpm format:check` | All matched files use Prettier code style | `PASS` |
 | Lint | `pnpm lint` | 0 errors | `PASS` |
 | TypeScript | `pnpm typecheck` | `tsc -b --pretty false` exit 0 | `PASS` |
-| 普通全量 Vitest | `pnpm test` | `30 passed / 22 skipped files; 382 passed / 266 skipped tests` | `PASS` |
+| 普通全量 Vitest | `pnpm test` | `31 passed / 23 skipped files; 386 passed / 268 skipped tests` | `PASS` |
 | Architecture | `pnpm architecture` | `architecture_boundaries=PASS source_roots=10` | `PASS` |
 | Contract/Catalog | `pnpm contracts:check` | public API 201；types 201 payloads/45 query results；Catalog/Registry 201 FULL | `PASS` |
 | Compatibility | `pnpm contracts:check` | frozen v1.0 200 operations / 14 schemas / 200 envelopes；21 minor findings | `PASS` |
-| PostgreSQL/Flyway | `pnpm persistence:gate` | PostgreSQL 18.6 / Flyway 11.20.3；26 files / 281 passed | `PASS` |
+| PostgreSQL/Flyway | `pnpm persistence:gate` | PostgreSQL 18.6 / Flyway 11.20.3；27 files / 283 passed | `PASS` |
 | Migration | 同上 | 空库应用 30 条现有 migration 至 V4003；无 WI-07 migration | `PASS` |
 | Second migrate | 同上 | `Schema "public" is up to date. No migration necessary.` | `PASS` |
 | Cleanup | 同上 | `postgres container removed` | `PASS` |
