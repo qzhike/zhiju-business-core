@@ -383,6 +383,16 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - V4003 的每个 owner function 都必须以完整参数列表逐项核对其 `REVOKE/GRANT EXECUTE` 签名；空库迁移在授权声明失败时必须整体回滚，不能把部分 DDL 视为可交付。
 - WI-05 最终本地证据已通过：`pnpm verify` 的 format/lint/typecheck、全量 Vitest（29 个文件通过、21 个受控跳过；376 passed、263 skipped）、Architecture、Contract（201 operations、201 schema FULL；历史 compatibility baseline 200）均通过；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence（25 个测试文件、278 个测试；30 条迁移含 V4003、二次 migrate no-op、容器清理）通过。独立人工 ART-023、Provider、生产数据库、公开 HTTP、跨模块 E2E、Renderer、Quality/Approval/Release 仍为 `NOT RUN`；PR #110 已合并、Issue #94 已关闭、原 feature branch 已删除，本次状态同步通过不关联 Issue #94 的 docs-only follow-up 完成。
 
+### 2.8 IM-04 WI-07 WorkbookSpec Human Edit 与确定性内部 Diff 实现边界（2026-08-29）
+
+- WI-07 复用 WI-01 的 `CanonicalWorkbookSpec` executable Schema/四字段 Canonical Hash、WI-04 的 Content Object staging/link/finalize/freeze 和 WI-05 的不可变 Revision/精确 Diff Inputs；不新增 Migration、公开 Command/Query/Event 或公共 Diff Result Operation，当前 Catalog 继续保持 201 项。
+- Workbook canonicalization 按 `sheet.ordinal + sheetId`、`column.ordinal + columnId`、`row.ordinal + rowId` 和 `cell.column ordinal + cellId` 产生确定性顺序。Sheet ID 在 Workbook 内唯一，Column/Row 在 Sheet 内唯一，Cell 在 Row 内唯一；各父级 ordinal 不得重复。Excel `A1` 坐标、外部工作簿、跨 Sheet 引用和布局信息只属于 Representation，不能替代这些稳定业务身份。
+- Cell 的 `valueType` 必须与其同 Sheet Column 声明一致；非公式 value 以及公式的可选 cached value 必须满足 `text/number/boolean/date/datetime/json` 最小类型边界。公式只保存以 `=` 开头、括号/引号平衡且只引用同 Sheet Column ID 的声明语义；Core 不执行 Excel 计算。Validation Rule 的内置闭集为 `required/range/pattern`，Cross-record Rule 为 `unique/compare`；扩展规则必须声明 `extensionId` 与 `required`，未知 required extension 稳定拒绝，未知 optional extension 可以被规范化保留但不执行。
+- Human Edit 只接受可信 Human、精确 ACTIVE base Revision Ref、当前 Branch Head、精确 Artifact/Enterprise/Project Scope，以及显式分层 `SHEET/ROW/CELL` allowed refs。候选 Workbook 不得改写 `workbookId`、Workbook metadata 或 Column 定义；每个 Added/Removed/Changed/Moved Diff 条目必须由同一 stable ref 或其显式祖先 ref 覆盖。越权、stale base、Scope/hash/schema/readback 不一致和 canonical no-op 均在创建新 Content Object/Revision 前拒绝。
+- 合法 Edit 通过确定性子命令 staged、linked、finalized、frozen 新 Canonical Content Object，再创建以 base 为唯一 Parent 的新不可变 Revision；同一外层 command replay 复用相同派生 ID 和 Receipt，不重复对象或 Revision。内部 Diff 只读取两个精确 Revision 的 authoritative bytes，按 `SHEET/COLUMN/ROW/CELL` stable identity 和 `ADDED/REMOVED/CHANGED/MOVED` 固定顺序返回可重建结果，不持久化为业务事实。
+- 自动验证覆盖规则/value/formula/stable identity/canonical bytes/hash、Human-only/Scope/allowed refs/stale/no-op/replay、authoritative readback、真实 PostgreSQL Revision/Object/Receipt/Outbox/RLS/cleanup 和全量 Gate。Excel 计算、宏、外部链接、透视表、XLSX 版式、Renderer、Quality/Approval/Release、Provider、公开 HTTP E2E、生产和独立真实业务验收保持 `NOT RUN`。
+- WI-07 本地实现与验证已完成：Workbook Unit/Hash/Diff focused suite 为 6/6；普通全量测试为 30 个文件通过、22 个受控跳过，382 passed/266 skipped；format、lint、typecheck、architecture、201-operation Contract/Catalog 与 frozen 200-operation compatibility baseline 全部通过；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence 为 26 个文件、281 passed，空库迁移至 V4003、二次 migrate no-op 和容器清理均通过。独立人工验收和所有外部/生产边界仍为 `NOT RUN`；用户已于 2026-08-29 确认进入 Git 交付，远端 exact-head CI、合并和关闭状态仍须独立读回。
+
 建议的下一阶段：
 
 ```text
