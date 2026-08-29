@@ -73,6 +73,24 @@
 | AF-IM04-M-001 | Manual | 合成 ART-023 Document/Workbook Fixture | 可检查 Revision Hash、稳定 Unit Diff、Branch、Representation 与 Binding | [`Manual-ART-023.md`](../issue-94-delivery/Manual-ART-023.md) 已准备 Revision/CAS/Lineage/immutable 检查表；独立人工验收尚未运行 | `NOT RUN` |
 | AF-IM05-R-001 | Renderer/Manual | 精确 Revision 请求 DOCX/XLSX Render | Attempt、input Hash、Renderer 版本、输出 checksum 全链一致；可打开性与版式另行验收 | Renderer 尚未实现 | `DEFERRED TO IM-05` |
 
+## IM-04 WI-07 WorkbookSpec Human Edit 与内部 Diff 用例
+
+以下用例是 Issue #96 的实现前测试合同。所有 Workbook/Revision/Object ID 和内容均为 synthetic technical fixture；真实客户 Workbook、Excel 计算与版式不在本切片验收范围。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| AF-IM04-WI07-U-001 | Unit | Sheet/Column/Row/Cell 重复 stable ID，或各父级内重复 ordinal | 返回 `ARTIFACT_WORKBOOK_SCHEMA_INVALID`；不产生 canonical payload | `workbook-service.test.ts` 对四层身份、Sheet/Column/Row ordinal 与 `A1` identity 直接负向；6 tests passed | `PASS` |
+| AF-IM04-WI07-U-002 | Unit | Cell 引用其他 Sheet Column、cell/column valueType 不一致、value 类型错误、公式使用 `A1`/外部 Sheet/未知 Column/括号不平衡 | 稳定拒绝；公式只保存声明语义且不执行计算 | focused suite 覆盖 unknown Column、type/value mismatch、`A1`、`Other!amount`、`[book]amount`、unknown identifier 与 malformed formula | `PASS` |
+| AF-IM04-WI07-U-003 | Unit | malformed required/range/pattern/unique/compare；未知 required/optional extension | malformed 与未知 required 拒绝；未知 optional 被 canonical 保留但不执行 | 闭合规则、range、known/unknown required extension、unknown optional 及 options 贯穿 validation/Diff/Edit 均通过 | `PASS` |
+| AF-IM04-WI07-U-004 | Unit/Hash | 同一 Workbook 的数组物理顺序不同但 ordinal/stable IDs 相同；metadata/body 语义变化 | 前者 canonical bytes/hash 相同；后者 hash 改变 | Sheet/Column/Row/Cell/rules 数组反转后 bytes/hash 不变；Cell `3 -> 4` digest 由 `e3e0...a818` 变为 `7a84...acb5` | `PASS` |
+| AF-IM04-WI07-U-005 | Unit/Diff | Sheet/Column/Row/Cell 的 add/remove/change/move 与仅物理重排 | 按固定 stable path/kind 顺序返回确定性 Diff；仅物理重排不产生差异 | row add/move、Cell change、重复执行与物理重排直接断言；hierarchical allowed ref 与 Column/metadata 禁止直接断言 | `PASS` |
+| AF-IM04-WI07-P-001 | Persistence | Human 以当前精确 base Revision 编辑显式允许 Cell | 新 Canonical Content Object 依次 FROZEN；创建唯一 Parent 新 Revision；base bytes/hash 不变 | PostgreSQL fixture 创建 revision 2、唯一 base parent、新 hash/bytes；base Snapshot 深比较不变；合并最新 `main` 后 27 files/283 tests | `PASS` |
+| AF-IM04-WI07-P-002 | Unit/Persistence/Authorization | Agent、错误 hash、stale Branch Head、未知/重复 allowed ref、越权 Sheet/Row/Cell、修改 metadata/Column、cross-Sheet 引用、canonical no-op | 在新 Object/Revision 创建前稳定拒绝；原 Revision/Head 保持不变 | Unit + PostgreSQL 逐项稳定错误；每个拒绝后 revision count 不变；显式 Head CAS 后旧 base 返回 `ARTIFACT_WORKBOOK_BASE_STALE` | `PASS` |
+| AF-IM04-WI07-P-003 | Persistence/Replay | 同一外层 command/key/hash 重放；相同 key 不同 payload | 首者复用同一对象/Revision/结果且不重复事实；后者返回 `IDEMPOTENCY_PAYLOAD_CONFLICT` | replay 深比较相等且 Revision 数为 2；conflict 返回预期 code 后仍为 2 | `PASS` |
+| AF-IM04-WI07-P-004 | Persistence/Readback | authoritative bytes 被篡改；Diff 输入不是两个精确 Workbook Revision | fail-closed，不信任调用方 bytes/locator；不返回伪造 Diff | tampered base bytes 返回 `ARTIFACT_CONTENT_READBACK_MISMATCH` 且 Revision 数为 1；Diff 经既有 exact Diff Inputs Query 与双方 FROZEN readback | `PASS` |
+| AF-IM04-WI07-P-005 | PostgreSQL/Security | 空库 migrate、第二次 migrate、RLS/ACL 与拒绝路径行计数 | 不新增 migration；现有 V4000-V4003 完整应用且第二次 no-op；越权不可枚举，拒绝无新 Revision | PostgreSQL 18.6/Flyway 11.20.3：30 条现有 migration、27 files/283 passed、second migrate no-op、非特权 probe、container removed | `PASS` |
+| AF-IM04-WI07-M-001 | Manual | 合成 Workbook 的 exact bytes/hash、stable ID map、合法 Cell Edit、跨 Sheet 拒绝、before/after refs、Diff、replay、cleanup | 审核者可逐项复核；明确标注 `SYNTHETIC / TECHNICAL ONLY` | [`Manual-Workbook-Fixture.md`](../issue-96-delivery/Manual-Workbook-Fixture.md) 已准备自动证据；独立人工复核尚未运行 | `NOT RUN` |
+
 ## IM-04 WI-06 Structured Document Human Edit 与内部 Diff 用例
 
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |

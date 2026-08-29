@@ -1,6 +1,6 @@
 export const artifactModule = Object.freeze({
   name: 'artifact',
-  status: 'WI_06_STRUCTURED_DOCUMENT_IMPLEMENTATION_COMPLETE' as const,
+  status: 'WI_07_WORKBOOK_HUMAN_EDIT_IMPLEMENTATION_COMPLETE' as const,
 });
 
 export {
@@ -152,6 +152,29 @@ export type {
 } from './business/revision-service.js';
 
 export {
+  validateWorkbookSpec,
+  canonicalizeWorkbookSpec,
+  diffWorkbookSpecs,
+  validateWorkbookEditCandidate,
+  handleHumanWorkbookEdit,
+  handleGetWorkbookDiff,
+} from './business/workbook-service.js';
+export type {
+  WorkbookValidationOptions,
+  WorkbookCanonicalization,
+  WorkbookDiffKind,
+  WorkbookEntityType,
+  WorkbookEntityLocation,
+  WorkbookDiffEntry,
+  WorkbookDiff,
+  WorkbookAllowedRef,
+  WorkbookEditPayload,
+  WorkbookEditCommandEnvelope,
+  WorkbookEditResult,
+  WorkbookDiffResult,
+} from './business/workbook-service.js';
+
+export {
   stageCanonicalContent,
   linkCanonicalContent,
   finalizeCanonicalContent,
@@ -221,6 +244,12 @@ export {
   ARTIFACT_LINEAGE_CYCLE,
   ARTIFACT_MERGE_CONFLICT_UNRESOLVED,
   ARTIFACT_BRANCH_HEAD_CONFLICT,
+  ARTIFACT_WORKBOOK_SCHEMA_INVALID,
+  ARTIFACT_WORKBOOK_BASE_INVALID,
+  ARTIFACT_WORKBOOK_BASE_STALE,
+  ARTIFACT_WORKBOOK_EDIT_SCOPE,
+  ARTIFACT_WORKBOOK_ID_MISMATCH,
+  ARTIFACT_WORKBOOK_NOOP,
   ARTIFACT_STRUCTURED_DOCUMENT_BASE_INVALID,
   ARTIFACT_STRUCTURED_DOCUMENT_BASE_STALE,
   ARTIFACT_STRUCTURED_DOCUMENT_EDIT_SCOPE,

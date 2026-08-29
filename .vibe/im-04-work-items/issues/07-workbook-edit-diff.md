@@ -1,6 +1,6 @@
 ## Status
 
-`PLANNED / NOT STARTED`
+`IMPLEMENTED / LOCAL VERIFIED / USER REVIEW CONFIRMED 2026-08-29`
 
 Parent exit gate: #89.
 
@@ -31,16 +31,18 @@ Implement the minimum WorkbookSpec canonical model, scoped Human Edit, stable sh
 
 ## Acceptance
 
-- [ ] Duplicate IDs, duplicate ordinals, cross-sheet column references, invalid value types/formulas, unknown required extensions, and malformed rules are rejected.
-- [ ] Excel coordinates are Representation-only and cannot replace stable business IDs.
-- [ ] An out-of-scope or stale-base edit creates no new revision; a valid Human Edit creates a new immutable payload/object/revision.
-- [ ] Diff uses exact refs and stable IDs, reports deterministic cell/row/sheet changes, and preserves unchanged identities across reorder.
-- [ ] Formula text is stored as declared semantics only; the Core does not pretend to be an Excel calculation engine.
-- [ ] No public Diff Result operation is added; focused tests, full gates, and cleanup pass.
+- [x] Duplicate IDs, duplicate ordinals, cross-sheet column references, invalid value types/formulas, unknown required extensions, and malformed rules are rejected.
+- [x] Excel coordinates are Representation-only and cannot replace stable business IDs.
+- [x] An out-of-scope or stale-base edit creates no new revision; a valid Human Edit creates a new immutable payload/object/revision.
+- [x] Diff uses exact refs and stable IDs, reports deterministic cell/row/sheet changes, and preserves unchanged identities across reorder.
+- [x] Formula text is stored as declared semantics only; the Core does not pretend to be an Excel calculation engine.
+- [x] No public Diff Result operation is added; focused tests, full gates, and cleanup pass.
 
 ## Manual output
 
 Provide a synthetic WorkbookSpec with exact canonical bytes/hash, stable ID map, allowed cell edit, rejected cross-sheet reference, before/after revisions, deterministic diff table, replay output, and cleanup. The data is a technical fixture, not a customer workbook.
+
+Automated synthetic output: [`../../issue-96-delivery/Manual-Workbook-Fixture.md`](../../issue-96-delivery/Manual-Workbook-Fixture.md). Independent Human review remains `NOT RUN`.
 
 ## Non-goals and NOT RUN
 
