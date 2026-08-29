@@ -33,7 +33,13 @@
 - `pnpm persistence:gate`：PASS，pinned PostgreSQL `18.6`、Flyway `11.20.3`，`26 files / 280 passed`；空库 migrate、第二次 `No migration necessary`、应用 migration 对账和容器清理均通过。
 - Issue-95 synthetic procurement fixture：[`Manual-ART-024.md`](./Manual-ART-024.md) 已生成，记录 exact base/after Canonical bytes、SHA-256、Unit tree、allow-list、拒绝矩阵、Diff、replay 与 cleanup；独立人工业务验收保持 `NOT RUN`。
 
-### 当前 Git / GitHub 边界
+### 首轮交付时的 Git / GitHub 边界（历史记录）
 
 - 当前 worktree `HEAD=813dc53`，与 `origin/main` 和本地 `main` 一致；Issue #95 当前仍为 `OPEN`，当前没有已发现的 WI-06 远端分支或 PR。
 - 当前变更均未 commit；按照项目约束，等待用户检查工作区变更并明确确认后，才执行 commit。push、PR、exact-head CI、merge、Issue 关闭、分支/worktree 清理仍分别等待授权。
+
+## 后续重新验证记录（2026-08-29）
+
+- 首轮 PR #112 已按用户授权关闭且未合并；实现提交 `a62332061856eb4457501d4efe93f4fd8241420f` 保留并以该精确提交重新验证。
+- 聚焦 Unit 为 1 文件/4 passed；`pnpm verify` 的 format、lint、typecheck、全量 Unit、architecture、contracts 和 persistence gate 均通过；全量 Unit 为 30 文件/380 passed/265 skipped，Persistence 为 26 文件/280 passed，pinned PostgreSQL 18.6/Flyway 11.20.3 空库迁移、第二次 migrate no-op 和容器清理通过。
+- WI-06 的 Artifact 内部实现关闭条件已满足，重新交付分支为 `galendai/im-04-wi-06-redelivery`。组合流程中途故障注入保持 `PARTIAL PASS / INJECTION NOT RUN`；独立人工、Provider、生产、公开 HTTP、跨模块、Renderer、Quality、Approval 和 Release 仍为 `NOT RUN`。
