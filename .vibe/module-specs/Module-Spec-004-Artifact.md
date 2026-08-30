@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-30
-状态：`CURRENT MODULE CONTRACT BASELINE / IM-04 WI-01–WI-09 IMPLEMENTATION, PERSISTENCE AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / PARENT SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / INDEPENDENT MANUAL AND EXTERNAL BOUNDARIES NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / IM-04 WI-01–WI-09 IMPLEMENTATION, PERSISTENCE AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / PARENT SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / IM-05 WI-05 CONTROLLED RENDERER COMPOSITION VERIFIED 2026-08-30 / INDEPENDENT MANUAL AND EXTERNAL BOUNDARIES NOT RUN`
 
 ## 1. 模块责任
 
@@ -414,3 +414,11 @@ ARTIFACT_STRUCTURED_DOCUMENT_ID_MISMATCH
 ## 10. IM-02 WI-04 持久化切片
 
 Artifact owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。WI-02 在这些既有技术表之上实现单连接事务协调、可信 Context 传播、Receipt 幂等、技术 Process CAS、Audit/Outbox/Reference Edge 原子提交与回滚；不修改 V4000、不增加业务表。2026-08-28 的 `pnpm clean && pnpm verify` 在 PostgreSQL 18.6/Flyway 11.20.3 上通过，Persistence 为 22 个文件、268 个测试，空库迁移、二次 no-op 和容器清理均通过；此前的 2 个测试 ESLint 规则问题已修复并复验。实现 commit `76c48f01e1a7c53ca9d2485be34290b4436310fa` 已由 PR #102 合入 `main`，Issue #91 已关闭，远端 feature branch 保留。Canonical Content Repository、对象存储、Renderer 与业务 Handler 仍为 `NOT RUN`。
+
+## 11. IM-05 WI-05 Renderer/Representation 组合边界（Issue #125）
+
+WI-05 复用已经交付的 `artifact.register_representation@1.0` Handler、`RenderAttemptBindingQueryPort` 和 V4004，不修改 Artifact Migration 或公开 Contract。Artifact 只接受由 IntegrationGateway 公开 Binding Query 返回并经 ContractRegistry 校验的 `RenderAttemptBindingView`；不得依赖 IntegrationGateway package 内部 Repository、直接 SQL 或 `latest/current`。
+
+成功组合仍要求 exact Revision/canonical locator/input hash/format/media type/renderer ID/version/output locator/checksum/Raw Receipt/Scope/时间全部一致，且 Attempt 为 `SUCCEEDED`。`FAILED`、`UNKNOWN`、quarantined、缺 Receipt、契约无效或任一替换都必须 fail closed。登记 Representation 只形成 Artifact 自有 immutable Representation、validation、reference edges 与最小事件；不得推进 Quality、Approval、Release 或 EffectiveBinding。
+
+当前状态：`CONTROLLED PUBLIC-PORT COMPOSITION AND PERSISTENCE VERIFIED / LOCAL COMMIT AUTHORIZED / REMOTE DELIVERY NOT STARTED`。真实外部 Provider、公开 HTTP、生产、真实客户适用性和独立人工业务验收仍为 `NOT RUN`。

@@ -27,7 +27,19 @@ import {
   type CommandEnvelope,
   type RenderAttemptBindingQueryPort,
 } from '@zhiju/artifact';
-import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import {
+  createIntegrationRendererDatabase,
+  DOCX_RENDERER_PROFILE,
+  InMemoryRenderObjectStorage,
+  LocalOoxmlRenderProvider,
+  RenderAttemptService,
+} from '@zhiju/integration-gateway';
+import {
+  canonicalizeCanonicalContentPayload,
+  newUuidV7,
+  type CanonicalContentPayload,
+  type CanonicalJsonObject,
+} from '@zhiju/shared-kernel';
 
 // IM-04 WI-08/WI-09 (issues #97/#98): real PostgreSQL acceptance for
 // authoritative RenderAttempt binding, immutable Representation facts,
@@ -143,6 +155,7 @@ describe.skipIf(databaseUrl === undefined)(
     let probe: pg.Client;
     let pool: pg.Pool;
     let db: ReturnType<typeof createArtifactDatabase>;
+    let integrationDb: ReturnType<typeof createIntegrationRendererDatabase>;
 
     beforeAll(async () => {
       admin = new pg.Client({ connectionString: databaseUrl });
@@ -150,7 +163,9 @@ describe.skipIf(databaseUrl === undefined)(
       await admin.query(
         `CREATE ROLE im04_wi08_probe LOGIN PASSWORD 'im04-wi08-probe' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
       );
-      await admin.query('GRANT platform_context_establisher, artifact_app TO im04_wi08_probe');
+      await admin.query(
+        'GRANT platform_context_establisher, artifact_app, integration_gateway_app TO im04_wi08_probe',
+      );
       const url = new URL(databaseUrl ?? '');
       url.username = 'im04_wi08_probe';
       url.password = 'im04-wi08-probe';
@@ -158,6 +173,7 @@ describe.skipIf(databaseUrl === undefined)(
       await probe.connect();
       pool = new pg.Pool({ connectionString: url.toString(), max: 8 });
       db = createArtifactDatabase(pool);
+      integrationDb = createIntegrationRendererDatabase(pool);
     });
 
     afterAll(async () => {
@@ -517,13 +533,56 @@ describe.skipIf(databaseUrl === undefined)(
       });
       const attemptId = newUuidV7();
       const representationId = newUuidV7();
-      const exactRegistration = registration(
-        revision,
-        attemptId,
-        '44'.repeat(32),
-        'artifact/rendered/art-025.pdf',
-      );
-      const exactBinding = binding(revision, exactRegistration, newUuidV7());
+      const renderStorage = new InMemoryRenderObjectStorage();
+      await renderStorage.putImmutable({
+        locator: revision.contentRef,
+        bytes: Buffer.from(
+          canonicalizeCanonicalContentPayload(
+            fixture.payload as unknown as CanonicalContentPayload,
+          ),
+          'utf8',
+        ),
+        mediaType: 'application/json',
+      });
+      const liveRequest: IntegrationGateway.RenderRequest = {
+        revisionRef: revision.revisionRef,
+        canonicalContentRef: revision.contentRef,
+        inputHash: revision.revisionRef.contentHash,
+        outputFormat: DOCX_RENDERER_PROFILE.outputFormat,
+        rendererId: DOCX_RENDERER_PROFILE.rendererId,
+        rendererVersion: DOCX_RENDERER_PROFILE.rendererVersion,
+        renderPolicyRef: {
+          kind: 'VERSIONED',
+          objectType: 'policy.render',
+          objectId: newUuidV7(),
+          versionId: newUuidV7(),
+          scope: { enterpriseId: ENTERPRISE, projectId: PROJECT_A },
+        },
+        stableIdempotencyKey: `render-${attemptId}`,
+        requestedAt: '2026-08-30T12:00:00Z',
+      };
+      const exactBinding = await new RenderAttemptService(
+        integrationDb,
+        new LocalOoxmlRenderProvider(renderStorage),
+      ).requestRender(context, {
+        attemptRef: attemptRef(attemptId),
+        request: liveRequest,
+        timeoutMs: 1000,
+      });
+      if (exactBinding.succeededResult === undefined) {
+        throw new Error('live Renderer did not return a successful binding');
+      }
+      const exactRegistration: Artifact.RepresentationRegistration = {
+        revisionRef: revision.revisionRef,
+        format: liveRequest.outputFormat,
+        mediaType: DOCX_RENDERER_PROFILE.mediaType,
+        objectRef: exactBinding.succeededResult.outputObjectRef,
+        checksum: exactBinding.succeededResult.outputChecksum,
+        rendererId: liveRequest.rendererId,
+        rendererVersion: liveRequest.rendererVersion,
+        renderAttemptRef: exactBinding.attemptRef,
+        createdAt: new Date().toISOString(),
+      };
       const exactEnvelope = representationEnvelope(
         context,
         exactRegistration,
@@ -876,7 +935,7 @@ describe.skipIf(databaseUrl === undefined)(
               status: exactBinding.status,
               canonicalContentRef: exactBinding.request.canonicalContentRef,
               inputHash: exactBinding.request.inputHash,
-              outputChecksum: exactBinding.succeededResult?.outputChecksum,
+              outputChecksum: exactBinding.succeededResult.outputChecksum,
               rawReceiptRef: exactBinding.rawReceiptRef,
             },
             committedRows: {

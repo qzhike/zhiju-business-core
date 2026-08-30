@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-30
-状态：`API CONTRACT TEST BASELINE / IM-04 WI-01–WI-09 AUTOMATED AND PERSISTENCE EVIDENCE PASS / ISSUE #90–#98 CLOSED / PARENT SCOPED TECHNICAL ACCEPTANCE PASS 2026-08-30 / INDEPENDENT MANUAL AND EXTERNAL BOUNDARIES NOT RUN`
+状态：`API CONTRACT TEST BASELINE / IM-04 WI-01–WI-09 AUTOMATED AND PERSISTENCE EVIDENCE PASS / ISSUE #90–#98 CLOSED / PARENT SCOPED TECHNICAL ACCEPTANCE PASS 2026-08-30 / IM-05 WI-05 CONTROLLED RENDERER COMPOSITION PASS / INDEPENDENT BUSINESS MANUAL AND EXTERNAL BOUNDARIES NOT RUN`
 
 对应规格：[`Module-Spec-004-Artifact.md`](../module-specs/Module-Spec-004-Artifact.md)。
 
@@ -231,3 +231,12 @@ Persistence 夹具对 `CommandResult` 的 `COMMITTED` 分支和回滚注入回�
 | AF-PG-002 | Process Scope、masked audit、Reference owner version 矩阵 | 跨 Scope 拒绝、masked row 可读、多 owner version 可共存 | 分别为 `23514`、目标 row、两版本成功/精确重复 `23505` | `PASS` |
 
 Revision/Content Object、对象存储、Renderer、跨模块业务 E2E、人工验收与 payload↔hash 业务 Link Gate 仍为 `NOT RUN`。
+
+## IM-05 WI-05 Renderer/Representation 组合用例（Issue #125）
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| AF-IM05-WI05-I-001 | Integration/Persistence | IntegrationGateway owning Repository 返回真实 `SUCCEEDED` Binding，Registration 精确匹配 | 既有 Handler 登记一个 immutable Representation；Query readback 与 output checksum/renderer/locator 一致 | `artifact-representation.test.ts` 使用本轮真实 Renderer/Repository Binding 调用既有 `handleRegisterRepresentation`，并读回 Representation、Validation、3 条 Reference Edge 与成功 Outbox | `PASS` |
+| AF-IM05-WI05-I-002 | Integration/Negative | 替换 revision/content/input/format/renderer/output checksum/scope/Raw Receipt，或 Binding 为 FAILED/UNKNOWN/contract-invalid | 返回既有稳定 Representation binding 错误；无 Representation/validation/outbox/edge 半成品 | 本轮 live Binding 正例与既有 revision/input/format/renderer/checksum/scope/receipt/非成功状态 fail-closed 矩阵共同通过；故障回滚无半成品 | `PASS` |
+| AF-IM05-WI05-I-003 | Architecture | Artifact 组合只注入 `RenderAttemptBindingQueryPort` | Artifact 不导入 IntegrationGateway Repository，不跨 Schema SQL；Architecture Gate 通过 | `architecture_boundaries=PASS source_roots=10`；IntegrationGateway app 直接读取 Artifact Schema 返回 `42501` | `PASS` |
+| AF-IM05-WI05-M-001 | Manual | 脱敏 DOCX/XLSX 的 exact Revision、Attempt、Binding、Representation、input/output hash 清单 | 审核者可独立复核身份与 checksum；不把文件可打开性写成 Quality/Approval/Release PASS | input hashes 为 Document `902a88d2b1ebfd0614454d0bd6a9e6f4124adba2d94bb7b94189787484a985b7`、Workbook `e3e0f7357a3fcd6c18063081128913b0cd8983e75d6455d4aa6664284f30a818`；Office 打开与输出 checksum 本地复核通过，临时文件已删除；未产生 Quality/Approval/Release/EffectiveBinding | `PASS (LOCAL TECHNICAL OPENABILITY) / INDEPENDENT BUSINESS MANUAL NOT RUN` |
