@@ -2,7 +2,7 @@
 
 日期：2026-08-30
 初审 PR Head：`e668c5ba18c3bf46be7bc5125ffb9570de475452`
-审查状态：`CR-001–CR-005 REMEDIATED / FINAL EXACT-HEAD EVIDENCE IN PR #135`
+审查状态：`FINAL PASS / CR-001–CR-005 REMEDIATED / PR #135 MERGED / ISSUE #125 CLOSED`
 
 ## 1. 审查范围
 
@@ -42,10 +42,10 @@
 - CR-002：Local Provider 固定 attempt-derived output/receipt locator，校验 Profile media type、完整 ContentHash、Provider Receipt identity/time/payload hash，并重建 canonical Receipt bytes 做逐字节 readback 比较；替换 Receipt 直接负例返回 `INTEGRATION_RENDER_OUTPUT_MISMATCH`。
 - CR-003：`Promise.race` 的 timeout handle 在 success/failure 分支清理；timeout 后迟到 Promise 仍由 rejection observer 消费。
 - CR-004：脱敏 `ART023_REPRESENTATION_EVIDENCE` 已增加 authoritative `requestPayloadHash`。
-- CR-005：首轮 GitHub `verify` run `33320335089` 在 lint 阶段以 41 个 unresolved-type unsafe-call 错误失败；根因是 persistence test project 缺失 IntegrationGateway reference，不是业务测试失败。增加 project reference 后，`pnpm clean && pnpm verify` 已从无 `dist`/`.tsbuildinfo` 状态完整通过；仍须由新 exact-head CI 复验。
+- CR-005：首轮 GitHub `verify` run `33320335089` 在 lint 阶段以 41 个 unresolved-type unsafe-call 错误失败；根因是 persistence test project 缺失 IntegrationGateway reference，不是业务测试失败。增加 project reference 后，`pnpm clean && pnpm verify` 已从无 `dist`/`.tsbuildinfo` 状态完整通过；GitHub `verify` run `33320566486` 随后在 exact head `d3a1394663d3f953e4c686385b0ef9d8d280aefb` 上成功。
 - focused Renderer：`1 file / 4 tests` 通过。
 - 完整 `pnpm verify`：普通测试 `38 passed / 29 skipped` 个文件、`420 passed / 293 skipped` 个测试；Architecture、201/201 FULL Contract 与 200-operation compatibility baseline 通过；PostgreSQL 18.6/Flyway 11.20.3 为 `33 files / 308 tests`，空库 `V7001`、second no-op 和容器清理通过。
 - 报告 Gate：`ZJU_ART023_REPORT=1 pnpm persistence:gate` 为 `33 files / 308 tests`，输出 exact Attempt/Request Hash/Binding/Representation 后完成 second no-op 与容器清理。
 - mutable tag 对照：PostgreSQL `18.6` 与 Flyway `11.20.3` 的远端 manifest digest 分别匹配 Gate 固定的 `sha256:4ef4dbc9...c2280` 与 `sha256:01605f44...c1cbc3c1`。
 
-最终 GitHub PR head、Review comment、CI Check Run、merge/Issue/branch 状态以 PR #135 和 Issue #125 的远端读回为准；本文件不复制 GitHub closeout 日志。
+最终 review `#5061241831` 已绑定 exact head `d3a1394663d3f953e4c686385b0ef9d8d280aefb` 并明确记录 PASS；验收 comment `#5469697944` 已写入 Issue #125 并读回。PR #135 以 merge commit `1ef1303be233901c73a0bcc8f97bce8edf7e93a7` 合入 `main`，Issue #125 为 `CLOSED / COMPLETED`，原本地/远端 feature branch 均已删除。本文件不复制完整 GitHub closeout 日志。
