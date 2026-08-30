@@ -17,6 +17,9 @@
     },
     {
       "path": "../../modules/artifact"
+    },
+    {
+      "path": "../../modules/quality-governance"
     }
   ]
 }

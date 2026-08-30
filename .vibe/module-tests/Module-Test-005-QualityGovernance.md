@@ -1,8 +1,8 @@
 # Module-Test-005-QualityGovernance
 
 版本：v0.3
-日期：2026-08-18
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTED 2026-08-18 / PR #13 REVIEW REMEDIATION APPLIED 2026-08-18 / HANDLER E2E NOT RUN`
+日期：2026-08-30
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 UNIT AND PERSISTENCE PASS / HANDLER E2E NOT RUN`
 
 对应规格：[`Module-Spec-005-QualityGovernance.md`](../module-specs/Module-Spec-005-QualityGovernance.md)。
 
@@ -68,3 +68,19 @@
 | QG-PG-002 | Process Scope、masked audit、Reference owner version 矩阵 | 跨 Scope 拒绝、masked row 可读、多 owner version 可共存 | 分别为 `23514`、目标 row、两版本成功/精确重复 `23505` | `PASS` |
 
 Gate Evaluator、业务 Repository 与 payload↔hash Gate 仍为 `NOT RUN`。
+
+## IM-05 WI-01 Application/Persistence 用例
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| QG-APP-U-001 | Unit | Canonical Payload、promoted mirror、caller-declared hash、伪造 Envelope attribution | Hash 可重算且镜像精确；错误 hash/mirror/attribution 以稳定错误拒绝 | write guards 与 Context 回归通过；新增 Unit 合计 2 files/5 tests | `PASS` |
+| QG-APP-U-002 | Unit | IdentityPolicy/EnterpriseProject/Artifact 精确 Ref Query Port 的匹配与不匹配结果 | 只接受 exact object/scope/version/hash/purpose；失败 fail-closed | 四个公开 operation 名称、exact Ref、过期 Decision 与 cross-project 反例通过 | `PASS` |
+| QG-APP-PG-001 | Persistence | same key/same hash 与 same key/different hash | 首次结果重放；不同 hash 返回 `IDEMPOTENCY_PAYLOAD_CONFLICT` 且不泄漏唯一键异常 | committed result 精确 replay；different hash 返回稳定 code；Receipt 保持一行 | `PASS` |
+| QG-APP-PG-002 | Persistence | 两个 concurrent writer 使用相同 expected BigInt version | 一个提交并精确递增，一个稳定 `CONCURRENCY_CONFLICT`；无丢失更新 | 1 committed/1 conflict；`9007199254740993 → 9007199254740994` 精确 | `PASS` |
+| QG-APP-PG-003 | Persistence | Receipt、callback、Inbox、Process/Step、Audit、Outbox、Reference Edge 后置故障注入 | 正常路径同事务提交；故障路径所有行与 Receipt 全部回滚 | 正常链全部一行且 Inbox=`PROCESSED`；注入故障后七类技术事实与 Receipt 均为 0 | `PASS` |
+| QG-APP-PG-004 | Persistence | 缺失/伪造/过期 Context，跨 Enterprise/Project，直接 app SQL、DDL、guard function、owner SET ROLE、跨 Schema SELECT | PostgreSQL RLS/ACL/Role 拒绝，返回可复核 SQLSTATE；guard direct EXECUTE 为 `42501`；不产生越权事实 | 首轮 guard direct call 为 `0A000`；forward-only V5001 后全部负向复验为预期 `42501`，过期 Context 映射为稳定错误 | `PASS AFTER REMEDIATION` |
+| QG-APP-PG-005 | Persistence | 空数据库迁移、第二次迁移与测试容器清理 | V5000 与 owning roles 成功应用；第二次 `No migration necessary`；容器删除 | PostgreSQL 18.6/Flyway 11.20.3；32 migrations；29 files/293 tests；second no-op；容器删除 | `PASS` |
+
+本阶段不会运行 Evidence、QualityProfile、GateResult、ReviewIssue、Approval、RAS/ABS/RRS 业务 Handler，也不会运行 Renderer、ReleasePublication、Provider、公开 HTTP、生产或独立人工业务验收。
+
+完整 `pnpm clean && pnpm verify`：Format、Lint、Typecheck、普通 Vitest（34 passed/25 skipped files，395 passed/278 skipped tests）、Architecture、201/201 FULL Contract、冻结 200-operation compatibility baseline 与上述 Persistence Gate 全部通过。

@@ -206,6 +206,8 @@
 
 追加覆盖：Gate DAG、ChangeImpact 复用、多角色/多级 Approval、Request 过期、Profile 版本迁移和上游失效传播。
 
+IM-05 WI-01 只补充技术 Application/Persistence 证据：Unit 2 files/5 tests；完整普通 Vitest 34 passed/25 skipped files（395 passed/278 skipped tests）；PostgreSQL 18.6/Flyway 11.20.3 Persistence 29 files/293 tests，32 migrations（含 forward-only V5001）、second no-op 与容器清理通过。Receipt/Inbox/Process/Audit/Outbox/Reference Edge 原子性、BigInt CAS、RLS/ACL 与公开精确 Authority Port 为 `PASS (LOCAL/PERSISTENCE)`；本节既有 Quality 业务 Unit/E2E 仍为 `NOT RUN`。
+
 ### 5.6 ReleasePublication
 
 | ID | 类型 | 输入 | 预期输出 | 当前实际输出 |

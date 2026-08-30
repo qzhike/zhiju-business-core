@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-30
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01–WI-09 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01–WI-09 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / IM-05 WI-01 LOCAL IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-30 / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -432,6 +432,13 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - 合成 ART-023 是 `SYNTHETIC / TECHNICAL ONLY` 的自动技术验收。真实 Ceph RGW/OpenBao、Renderer/Provider、DOCX/XLSX/PDF 版式与可打开性、公开 HTTP、生产、后续模块业务 E2E、真实客户适用性和独立人工业务验收继续为 `NOT RUN`。
 - 最终验收证据直接写入 GitHub Issue #89 与交付 PR；Required HL-Spec、Artifact Module Spec/Test 只维护权威状态，不创建重复的本地 acceptance/delivery log。
 - 2026-08-30 父 Gate 重验通过：focused Artifact/Contract 为 6 files/59 tests；完整 `pnpm clean && pnpm verify` 为 32 passed/24 skipped files、390 passed/269 skipped tests、Architecture PASS、Catalog/Registry 201/201 FULL、frozen baseline 200、PostgreSQL/Flyway Persistence 28 files/284 tests、空库 31 migrations、second no-op 与容器清理。ART-023 报告模式在 Docker Hub 鉴权连续三次 `EOF` 后，使用同轮完整 Gate 已远端验证的本地 digest-pinned 镜像完成独立 28/284、exact evidence、second no-op 和显式清理；该外部瞬时失败未启动数据库，也没有业务断言失败。
+
+### 2.12 IM-05 WI-01 QualityGovernance Application/Persistence 实现边界（2026-08-30）
+
+- WI-01 在既有不可变 `migrations/quality_governance/V5000__quality_governance_technical_tables.sql` 与 owning roles 上实现 QualityGovernance 自有事务基础；不修改已经应用的 Migration。首轮 PostgreSQL 负向探针证明 app role 直接调用 trigger guard 返回 `0A000` 而非权限拒绝，因此新增 forward-only `V5001` 撤销非 owner 的 guard function EXECUTE；不创建 Evidence、QualityProfile、GateResult、ReviewIssue、Approval 或 Readiness Snapshot 业务表。
+- 单连接事务必须先切换 `platform_context_establisher` 建立可信 Actor/Enterprise/Project/Correlation Context，再切换 `quality_governance_app`。Receipt 幂等、Canonical Payload Hash、技术 Process BigInt CAS、Inbox、Audit、Outbox、Reference Edge 与业务 callback 必须原子提交或回滚。
+- QualityGovernance 不跨 Schema 读取其他模块 Repository；IdentityPolicy Actor/Authorization、EnterpriseProject Object Scope 与 Artifact Revision 只经公开、精确、fail-closed Query Port 校验。
+- 本地实现与验证已完成：`pnpm clean && pnpm verify` 的 Format、Lint、Typecheck、普通 Vitest（34 passed/25 skipped files，395 passed/278 skipped tests）、Architecture、201-operation FULL Contract 与 frozen 200-operation compatibility baseline 均通过；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence 为 29 files/293 tests，空库应用 32 条 Migration（含 V5001）、第二次 no-op 与容器清理通过。业务 Handler、Renderer、Release、Provider、公开 HTTP、生产、跨模块业务 E2E 与独立人工验收保持 `NOT RUN`；GitHub 交付状态以 Issue #121 及其 PR 为准。
 
 建议的下一阶段：
 
