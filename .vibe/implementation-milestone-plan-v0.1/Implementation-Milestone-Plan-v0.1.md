@@ -211,7 +211,7 @@ GitHub 任务基线：Parent Exit Gate [#89](https://github.com/qzhike/zhiju-bus
 
 退出 Gate：针对精确 Revision 的 Gate/Approval/Render/Release Hash 链完整；未批准 Revision、普通文件发送或 Agent 行为不能形成 Formal Release。
 
-GitHub 任务基线：Parent Exit Gate [#120](https://github.com/qzhike/zhiju-business-core/issues/120)，开发 Work Item [#121](https://github.com/qzhike/zhiju-business-core/issues/121)–[#128](https://github.com/qzhike/zhiju-business-core/issues/128)。WI-01 的 Application/Persistence 本地实现与完整 Gate 已通过；其远端交付状态以 #121 及关联 PR 为准。WI-02 已依据 #122 完成本地实现与验证（validation 8/8；pinned PostgreSQL/Flyway persistence 30 files/298 tests），GitHub exact-head 交付待用户确认；其后续 WI-03–WI-08 不因 WI-01 或 WI-02 的技术实现而自动开始或完成。
+GitHub 任务基线：Parent Exit Gate [#120](https://github.com/qzhike/zhiju-business-core/issues/120)，开发 Work Item [#121](https://github.com/qzhike/zhiju-business-core/issues/121)–[#128](https://github.com/qzhike/zhiju-business-core/issues/128)。WI-01 的 Application/Persistence 本地实现与完整 Gate 已通过；其远端交付状态以 #121 及关联 PR 为准。WI-02 已依据 #122 完成本地实现、验证与 exact-head 交付（validation 8/8；pinned PostgreSQL/Flyway persistence 30 files/298 tests；PR #130 已合入 `main`，Issue #122 已关闭，本地及远端 feature branch 已删除）；其后续 WI-03–WI-08 不因 WI-01 或 WI-02 的技术实现而自动开始或完成。
 
 ### IM-06 TaskExecution Human-operated Core
 

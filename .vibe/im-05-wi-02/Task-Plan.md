@@ -25,4 +25,4 @@
 - 起始 HEAD：`d7fb591a789d7c2f77a2c1aaec79031a5114b0c6`。
 - 起始工作树：干净。
 - 实现与本地验证：2026-08-30 完成；validation Unit 8/8，pinned PostgreSQL/Flyway persistence gate 30 files/298 tests，完整静态/类型/普通测试/架构/Contract 检查通过。
-- 当前边界：代码与文档待用户检查；用户确认前不执行 commit。确认后再执行 exact-head push、CI/PR/Issue 回读、merge、Issue #122 关闭及本地/远端 feature branch 清理。
+- 交付结果：用户于 2026-08-30 确认提交；commit `f0269ddfac1d16dd3f627818606e8546254f8ef1` 已非强制 push，并由 PR #130 通过 exact-head CI 后合入 `main`，merge commit 为 `7f04f8acea7b32a456316801aa0b5ed75c7230a7`。PR #130 已为 `MERGED`，Issue #122 已为 `CLOSED`，本地及远端 feature branch 已删除；任务 worktree 已安全切换到 `origin/main`，主 worktree 与本地 `main` 保持未改动。
