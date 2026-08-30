@@ -13,6 +13,18 @@ import {
   type Transaction,
 } from 'kysely';
 import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import type {
+  EvidenceLinkTable,
+  EvidenceRevocationTable,
+  EvidenceTable,
+  EvidenceValidationTable,
+  QualityProfileApprovalRequirementTable,
+  QualityProfileGateDependencyTable,
+  QualityProfileGateSpecTable,
+  QualityProfileReleaseRequirementTable,
+  QualityProfileTable,
+  QualityProfileVersionTable,
+} from './quality-business-types.js';
 
 type Int8 = ColumnType<string, string | number, string | number>;
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
@@ -177,6 +189,16 @@ export interface QualityGovernanceDb {
   'quality_governance.process_step': ProcessStepTable;
   'quality_governance.audit_record': AuditRecordTable;
   'quality_governance.reference_edge': ReferenceEdgeTable;
+  'quality_governance.evidence': EvidenceTable;
+  'quality_governance.evidence_validation': EvidenceValidationTable;
+  'quality_governance.evidence_revocation': EvidenceRevocationTable;
+  'quality_governance.evidence_link': EvidenceLinkTable;
+  'quality_governance.quality_profile': QualityProfileTable;
+  'quality_governance.quality_profile_version': QualityProfileVersionTable;
+  'quality_governance.quality_profile_gate_spec': QualityProfileGateSpecTable;
+  'quality_governance.quality_profile_gate_dependency': QualityProfileGateDependencyTable;
+  'quality_governance.quality_profile_approval_requirement': QualityProfileApprovalRequirementTable;
+  'quality_governance.quality_profile_release_requirement': QualityProfileReleaseRequirementTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';
