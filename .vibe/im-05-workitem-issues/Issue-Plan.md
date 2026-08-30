@@ -1,7 +1,7 @@
 # IM-05 Quality + Release + Renderer GitHub Issue 拆解
 
 日期：2026-08-30
-状态：`PUBLISHED / REMOTE READBACK VERIFIED / IMPLEMENTATION NOT STARTED`
+状态：`PUBLISHED / REMOTE READBACK VERIFIED / WI-06 #126 LOCAL IMPLEMENTATION AND PERSISTENCE VERIFIED / GIT DELIVERY PENDING USER REVIEW`
 
 ## 1. 启动判定
 
@@ -56,4 +56,4 @@
 - Release Runtime/Receipt/Recall：[#127](https://github.com/qzhike/zhiju-business-core/issues/127)
 - Synthetic Exit Evidence：[#128](https://github.com/qzhike/zhiju-business-core/issues/128)
 
-以上 Issue 已逐项 API 回读，均为 `OPEN / PLANNED / NOT STARTED`。本次未修改既有 #22、#23、#24、#27，未创建实现分支、PR、Commit 或 Push。
+建档时各 Issue 已逐项 API 回读为 `OPEN / PLANNED / NOT STARTED`。截至 2026-08-31，WI-06 #126 已在本地完成实现与真实 PostgreSQL 验证，但尚未创建 Commit、Push 或 PR；#124/#125 的既有交付不在本工作树重复修改，#127/#128 仍按计划承接后续范围。本次未修改既有 #22、#23、#24、#27。

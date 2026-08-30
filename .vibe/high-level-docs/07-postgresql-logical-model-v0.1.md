@@ -1209,6 +1209,16 @@ WI-03 在 `quality_governance` Schema 以 forward-only `V5003` 落地 `change_im
 
 2026-08-30 本地物理验证：V5003 在 pinned PostgreSQL 18.6/Flyway 11.20.3 空库成功应用，正式 persistence gate 为 31 files/303 tests，二次 migrate no-op、tag→digest 校验、RLS/ACL、immutable guard、exact ref、readiness stale/not-ready、rollback 和容器清理通过。首轮真实写入发现 V5003 两张表与 V5002 通用 guard 使用的授权归因列名不一致，已将六张 WI-03 表和对应类型统一沿用既有 `created_authorization_decision_id`；该修复已由空库首次 ChangeImpact/GateResult 写入回归。当前实现待用户检查后再 commit/push。
 
+### 13.10 IM-05 WI-06 Release/Package 物理切片
+
+WI-06 以 forward-only `V6001` 在 `release_publication` Schema 落地 `release_record`、`release_package`、`release_package_item` 和 `release_destination`。`release_record` 保存 exact artifact/revision/quality profile/RAS/ABS 引用、release purpose/number、DRAFT/PREPARED/CANCELLED 状态、draft selections/destinations、aggregate version 和冻结 Package identity；`release_package` 保存版本化 canonical manifest、packageHash、完整 package definition 的 payload hash 与 frozen timestamp；Item/Destination 行保存不可变的 representation checksum/renderer、display metadata、recipient scope 和 destination policy/ref。
+
+Package Hash 由应用层以 `release-package-manifest/1.0` canonical JSON 计算：Header 的 Release/Revision/ABS/Recipient Scope，加上按 ordinal 与 representation identity 稳定排序的 Items，以及按 destinationId 稳定排序的 Destinations。`packagePayloadHash` 由规范化完整 `ReleasePackageDefinition`（含已重算的 packageHash）计算。数据库不依赖 `pgcrypto` 复算哈希，而是以 32-byte check、owner function 参数和测试中的 canonical readback 约束应用层；caller hash、object locator、filename、temporary URL、message ID 不属于可信 Hash 输入。
+
+四张业务表均保留 Enterprise/Project scope mirror，不建立跨 Schema FK。app role 只能通过 RLS 读取精确 Scope，并执行创建 Draft、替换 DRAFT selection/destination、原子 Prepare、Cancel 的受控 owner function；直接 app DML、无 Context 读取、跨 Scope、错误 expected version、错误 exact ref/hash、重复 destination/representation 和 PREPARED 后更新均 fail-closed。Prepare 在一事务内追加 Package/Item/Destination 与 ReleasePrepared Outbox/Reference Edge/Audit/Receipt，任何故障整体回滚；Cancel 不删除已冻结 Package 历史。Release Readiness、Authorization、Attempt、Receipt、Recall 和外部 Provider 仍是后续 WI-07/后续模块边界。
+
+2026-08-31 本地物理验证：固定 PostgreSQL 18.6（server_version `180006`）/Flyway 11.20.3 空库应用 V6001 成功，ReleasePublication persistence gate 为 34 files/313 tests PASS；二次 migrate 返回 `Schema "public" is up to date. No migration necessary.`，并通过 CAS/idempotency、canonical hash、RLS/ACL、immutable guard、cross-scope、Reference Edge path separation、技术事实同事务与 rollback 探针。Provider、公开 HTTP、跨模块业务 E2E、生产和独立人工验收仍为 `NOT RUN`。
+
 ---
 
 ## 14. `release_publication` 逻辑模型

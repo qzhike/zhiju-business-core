@@ -65,6 +65,9 @@ importers:
       '@zhiju/quality-governance':
         specifier: workspace:*
         version: link:modules/quality-governance
+      '@zhiju/release-publication':
+        specifier: workspace:*
+        version: link:modules/release-publication
       '@zhiju/shared-kernel':
         specifier: workspace:*
         version: link:packages/shared-kernel
@@ -229,6 +232,16 @@ importers:
       '@zhiju/shared-kernel':
         specifier: workspace:*
         version: link:../../packages/shared-kernel
+      kysely:
+        specifier: 0.29.5
+        version: 0.29.5
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
+    devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
 
   modules/task-execution:
     dependencies:

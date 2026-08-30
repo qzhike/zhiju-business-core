@@ -43,6 +43,7 @@
     "@zhiju/identity-policy": "workspace:*",
     "@zhiju/integration-gateway": "workspace:*",
     "@zhiju/quality-governance": "workspace:*",
+    "@zhiju/release-publication": "workspace:*",
     "@zhiju/shared-kernel": "workspace:*"
   }
 }
