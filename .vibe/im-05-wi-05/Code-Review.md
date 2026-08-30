@@ -2,7 +2,7 @@
 
 日期：2026-08-30
 初审 PR Head：`e668c5ba18c3bf46be7bc5125ffb9570de475452`
-审查状态：`CR-001–CR-004 REMEDIATED / FINAL EXACT-HEAD EVIDENCE IN PR #135`
+审查状态：`CR-001–CR-005 REMEDIATED / FINAL EXACT-HEAD EVIDENCE IN PR #135`
 
 ## 1. 审查范围
 
@@ -20,6 +20,7 @@
 | CR-002 | P1 | Local Provider 的 `verifySucceeded` 只检查声明 checksum 与对象是否存在，未绑定 exact locator、media type 和 canonical Receipt payload | 可用另一个自洽对象/Receipt 替换本 Attempt 的权威结果 | 固定 attempt-derived output/receipt locator；检查媒体类型；重建 canonical Receipt bytes，并与 readback 逐字节比较 |
 | CR-003 | P2 | Provider 提前完成时 `Promise.race` 的 timeout timer 未清理 | 成功请求仍保留无用 timer，延长进程存活并积累资源 | 在所有完成分支清理 timer；保留 timeout 后迟到 Promise 的 rejection observation |
 | CR-004 | P2 | ART-023 Representation 报告未输出 Binding 的 `requestPayloadHash` | Issue #125 的人工输出无法独立核对 request identity | 在脱敏报告中输出 authoritative `requestPayloadHash`，不增加 Secret 或原始 Provider payload |
+| CR-005 | P1 | PR #135 首轮 CI 在冷工作区 lint 失败；`tests/persistence` 导入 IntegrationGateway 却未声明对应 TypeScript project reference | 本地既有 `dist` 缓存掩盖类型无法解析，精确 head CI 不可交付 | 在 persistence test project 增加 `modules/integration-gateway` reference，并以 `pnpm clean && pnpm verify` 从零构建产物复验 |
 
 ## 3. 初审已确认通过的边界
 
@@ -33,7 +34,7 @@
 
 ## 4. 后续门禁
 
-完成 CR-001–CR-004 后，必须重新运行 focused regression、完整 `pnpm verify`、mutable tag→digest 对照、`git diff --check`，并复审 GitHub PR 的最新精确 head。只有复审无阻断发现且该精确 head 的 GitHub `verify` Check Run 为 `SUCCESS`，才允许合并和关闭 Issue #125。
+完成 CR-001–CR-005 后，必须重新运行 focused regression、完整 `pnpm clean && pnpm verify`、mutable tag→digest 对照、`git diff --check`，并复审 GitHub PR 的最新精确 head。只有复审无阻断发现且该精确 head 的 GitHub `verify` Check Run 为 `SUCCESS`，才允许合并和关闭 Issue #125。
 
 ## 5. 订正与本地复验结果
 
@@ -41,6 +42,7 @@
 - CR-002：Local Provider 固定 attempt-derived output/receipt locator，校验 Profile media type、完整 ContentHash、Provider Receipt identity/time/payload hash，并重建 canonical Receipt bytes 做逐字节 readback 比较；替换 Receipt 直接负例返回 `INTEGRATION_RENDER_OUTPUT_MISMATCH`。
 - CR-003：`Promise.race` 的 timeout handle 在 success/failure 分支清理；timeout 后迟到 Promise 仍由 rejection observer 消费。
 - CR-004：脱敏 `ART023_REPRESENTATION_EVIDENCE` 已增加 authoritative `requestPayloadHash`。
+- CR-005：首轮 GitHub `verify` run `33320335089` 在 lint 阶段以 41 个 unresolved-type unsafe-call 错误失败；根因是 persistence test project 缺失 IntegrationGateway reference，不是业务测试失败。增加 project reference 后，`pnpm clean && pnpm verify` 已从无 `dist`/`.tsbuildinfo` 状态完整通过；仍须由新 exact-head CI 复验。
 - focused Renderer：`1 file / 4 tests` 通过。
 - 完整 `pnpm verify`：普通测试 `38 passed / 29 skipped` 个文件、`420 passed / 293 skipped` 个测试；Architecture、201/201 FULL Contract 与 200-operation compatibility baseline 通过；PostgreSQL 18.6/Flyway 11.20.3 为 `33 files / 308 tests`，空库 `V7001`、second no-op 和容器清理通过。
 - 报告 Gate：`ZJU_ART023_REPORT=1 pnpm persistence:gate` 为 `33 files / 308 tests`，输出 exact Attempt/Request Hash/Binding/Representation 后完成 second no-op 与容器清理。
