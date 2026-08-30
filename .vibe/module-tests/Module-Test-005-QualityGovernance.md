@@ -177,7 +177,7 @@ Gate Evaluator、业务 Repository 与 payload↔hash Gate 仍为 `NOT RUN`。
 
 ## IM-05 WI-04 最终验证结果
 
-2026-08-30 最终结果：`node_modules/.bin/prettier --check .`、`node_modules/.bin/eslint .`、`node_modules/.bin/tsc -b --pretty false`、`node tools/architecture/check-boundaries.mjs`、`pnpm contracts:check` 和普通 `node_modules/.bin/vitest run` 均为 `PASS`。普通 Vitest 为 37 passed/28 skipped files、416 passed/290 skipped tests；正式 `node tools/persistence/gate.mjs` 使用 PostgreSQL 18.6/Flyway 11.20.3 完成 tag→digest 校验、`server_version=180006`、空库 35 migrations（含 V5004）、32 passed files/305 passed tests、二次 `No migration necessary` 和容器清理。所有 Persistence 数据为 `SYNTHETIC / TECHNICAL ONLY`。Provider、公开 HTTP、跨模块业务 E2E、生产、Workspace UI、Feishu、真实组织审批和独立人工客户验收为 `NOT RUN` 或表格中的 `PARTIAL`；当前尚未 commit/push/创建 PR，等待用户检查确认。
+2026-08-30 最终结果：`node_modules/.bin/prettier --check .`、`node_modules/.bin/eslint .`、`node_modules/.bin/tsc -b --pretty false`、`node tools/architecture/check-boundaries.mjs`、`pnpm contracts:check` 和普通 `node_modules/.bin/vitest run` 均为 `PASS`。普通 Vitest 为 37 passed/28 skipped files、416 passed/290 skipped tests；正式 `node tools/persistence/gate.mjs` 使用 PostgreSQL 18.6/Flyway 11.20.3 完成 tag→digest 校验、`server_version=180006`、空库 35 migrations（含 V5004）、32 passed files/305 passed tests、二次 `No migration necessary` 和容器清理。所有 Persistence 数据为 `SYNTHETIC / TECHNICAL ONLY`。Provider、公开 HTTP、跨模块业务 E2E、生产、Workspace UI、Feishu、真实组织审批和独立人工客户验收为 `NOT RUN` 或表格中的 `PARTIAL`；实现 commit `390b2bcb017c12706f0de7a02bbd5dbe922287a9` 已创建并 non-force push 到目标分支，PR 创建与 exact-head CI/远端 readback 仍在进行。
 
 ## IM-05 WI-03 本地验证结果
 

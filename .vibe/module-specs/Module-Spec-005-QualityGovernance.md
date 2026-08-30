@@ -309,7 +309,7 @@ QUALITY_RELEASE_READINESS_NOT_READY
 - `modules/quality-governance/src/business/quality-review-approval-validation.test.ts` 为 1 file/7 tests `PASS`，覆盖 exact Typed Reference、Scope、hash、Common namespace/ReasonCode、Human-only Approval、错误 Request/Separation ref 和 revocation 输入；Persistence 测试覆盖实际 Handler 的 ReviewIssue→Resolution→Verification→Close、Approval→ABS→Revocation、AGENT/Service/Runtime trusted-context 拒绝（payload 声明 Human 也不能升级权限）、CAS、重复 Human、RLS/ACL、immutable guard、事件和 rollback。
 - 正式 `node tools/persistence/gate.mjs` 使用 PostgreSQL 18.6 digest `sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280` 与 Flyway 11.20.3 digest `sha256:01605f443e1a891b3762f66e66d92403c33b6e0c29099ad550af94b6c1cbc3c1`，完成 tag→digest 校验、`server_version=180006`、空库 35 migrations、32 files/305 tests、二次迁移 no-op 与容器清理，结果为 `PASS`。
 - 校验边界包括：原始 ReviewIssue 与历史事实不可变；作者自验返回职责分离错误；新 Revision 不关闭旧 Issue；Approval 只能由 trusted Human 以 exact Revision/RAS/Profile/Requirement/role/AuthorizationDecision/SeparationCheck 生效；重复 Human 返回 `QUALITY_APPROVAL_IDENTITY_CONFLICT`；撤销追加 stale ABS/impact 并保留旧 Decision/ABS；并发仅一个 CAS winner；app 直接写入、跨 Enterprise 读取和 owner immutable UPDATE/DELETE 均 fail-closed。
-- 本地和正式 Gate 仅证明合成技术场景；Provider、Workspace UI、Feishu、公开 HTTP、跨模块业务 E2E、生产数据库、真实组织审批和独立人工客户验收继续为 `NOT RUN`。代码与文档已完成但尚未 commit/push，等待用户检查确认。
+- 本地和正式 Gate 仅证明合成技术场景；Provider、Workspace UI、Feishu、公开 HTTP、跨模块业务 E2E、生产数据库、真实组织审批和独立人工客户验收继续为 `NOT RUN`。实现 commit `390b2bcb017c12706f0de7a02bbd5dbe922287a9` 已创建并 non-force push 到目标分支，PR 创建与 exact-head CI/远端 readback 仍在进行。
 
 ## 8. 可人工验收的模块产出
 
