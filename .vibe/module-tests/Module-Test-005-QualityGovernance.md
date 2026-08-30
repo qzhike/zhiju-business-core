@@ -1,8 +1,8 @@
 # Module-Test-005-QualityGovernance
 
-版本：v0.5
+版本：v0.6
 日期：2026-08-30
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 UNIT AND PERSISTENCE PASS / IM-05 WI-02 IMPLEMENTATION COMPLETE / UNIT, CONTRACT AND PERSISTENCE LOCALLY VERIFIED 2026-08-30 / CROSS-MODULE E2E AND MANUAL NOT RUN / GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED 2026-08-30 / ISSUE #122 CLOSED 2026-08-30 / LOCAL AND REMOTE FEATURE BRANCHES DELETED`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 UNIT AND PERSISTENCE PASS / IM-05 WI-02 IMPLEMENTATION COMPLETE / IM-05 WI-03 IMPLEMENTATION COMPLETE / LOCAL VERIFICATION PASS 2026-08-30 / CROSS-MODULE E2E AND MANUAL NOT RUN / GITHUB DELIVERY PENDING USER CONFIRMATION`
 
 对应规格：[`Module-Spec-005-QualityGovernance.md`](../module-specs/Module-Spec-005-QualityGovernance.md)。
 
@@ -115,6 +115,34 @@ Gate Evaluator、业务 Repository 与 payload↔hash Gate 仍为 `NOT RUN`。
 | QG-WI02-PG-008 | Persistence | `tests/persistence/quality-governance-business.test.ts`：空库迁移后的 Evidence/Profile handler、owner function、RLS、immutable guard、CAS 与 exact query，包括 scope mirror、`RETURNS TABLE` 输出列与内部列名冲突探针 | 真实 PostgreSQL 返回逐项预期结果；无 `ZJU_PERSISTENCE_DATABASE_URL` 时为 `NOT RUN`，不得升级为 PASS | Pinned PostgreSQL 18.6/Flyway 11.20.3：30 files/298 tests PASS，V5002 已应用，容器已清理 | `PASS` |
 | QG-WI02-E-001 | E2E | synthetic `QMS_PROCEDURE_HIGH@3` profile、Evidence source/hash、verification、claim links、activation cases | 输出可复核 source/hash/status/history/link/profile version/error/cleanup 表 | 未运行跨模块业务 E2E；本地 PG 仅为 synthetic technical evidence | `NOT RUN` |
 | QG-WI02-M-001 | Manual | 审阅 synthetic Evidence/Profile table 与 exact rejection matrix | 审阅者能区分 immutable source、verification history、support/context、active/new version 和 NOT RUN 边界 | 未执行独立人工客户 QMS 审阅 | `NOT RUN` |
+
+## IM-05 WI-03 GateResult/Impact/Readiness 测试用例
+
+以下用例冻结 WI-03 的输入、预期输出和业务边界；在实现与运行前不得把 `NOT RUN` 改为 `PASS`。所有业务数据必须标记为 `SYNTHETIC / TECHNICAL ONLY`。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| QG-WI03-U-001 | Unit | 对已记录 FAIL Result 提交原地 PASS/改 target/outcome/input hash | 拒绝 `QUALITY_GATE_RESULT_IMMUTABLE`；重跑必须产生新 Result | validation Unit 校验 canonical input/hash；PG 场景验证旧 Result 不可变且 rerun 产生新 id/attempt | `PASS` |
+| QG-WI03-U-002 | Unit | REUSED gate 声明未经允许的 stage/profile/gate/source result | 拒绝 `QUALITY_GATE_REUSE_NOT_ALLOWED` 或 `QUALITY_GATE_INPUT_MISMATCH` | `quality-gate-validation.test.ts` 覆盖 executionMode 注入、stage mixing、source/impact exact mismatch 和非法 outcome | `PASS` |
+| QG-WI03-U-003 | Unit | ChangeImpact coverage 小于 Profile 要求，或 changed section 命中 Gate 输入 | 拒绝 `QUALITY_INCREMENTAL_COVERAGE_INSUFFICIENT`，不产生 reused Result | validation Unit 覆盖 distinct exact revisions；PG 场景覆盖 incomplete coverage 无新 Result | `PASS` |
+| QG-WI03-U-004 | Unit | RAS 输入混入 RELEASE_READINESS Gate、FAIL/ERROR、无效 Result 或阻断 Evidence | 输出 `NOT_READY`，包含稳定原因，不写 Artifact 状态 | stage mismatch Unit；PG 场景覆盖 FAIL/invalid Result 的 `NOT_READY` 和 invalidation 后 `STALE`；ReviewIssue/Evidence 跨模块阻断分支保持 `PARTIAL/NOT RUN` | `PARTIAL` |
+| QG-WI03-U-005 | Unit | RRS 的 packageHash、Representation checksum/renderer、recipient/destination 与冻结输入不一致 | 拒绝 `QUALITY_RELEASE_PACKAGE_TARGET_MISMATCH` 或输出 `NOT_READY` | validation Unit 覆盖非空 destination；PG 场景覆盖 exact Representation/Package 和 package hash drift；Approval 状态与实际 Renderer 未运行 | `PARTIAL` |
+| QG-WI03-C-001 | Contract | exact GateResult/ChangeImpact/RAS/RRS refs 与错误 objectId/hash/scope/latest 变体，以及合法/非法 namespace code | 精确引用通过；错误引用统一 fail-closed，不泄漏 Scope；Contract 失败保留字段级 AJV path | RAS/RRS 输出经 `ContractRegistry` Core contract 验证；非法 namespace 的字段级 AJV path 曾由回归定位并已修正 | `PASS` |
+| QG-WI03-C-002 | Contract | `record_gate_result` 的 REVISION_ACCEPTANCE target 携带 Representation/Package 或 RELEASE_READINESS target 缺 Package | 阶段/target 约束拒绝 | validation Unit stage mixing 与 PG stage-specific target checks 通过 | `PASS` |
+| QG-WI03-PG-001 | Persistence | record FAIL → exact query → rerun PASS；尝试 update/delete 旧 Result | 旧 Result 保留且不可变；新 Result 独立记录并绑定新 attempt | `quality-governance-gate-results.test.ts` 通过；5 tests，old Result UPDATE/DELETE=`55000` | `PASS` |
+| QG-WI03-PG-002 | Persistence | exact ChangeImpact + source PASS + 足够 unchanged coverage 的复用；错误 hash/coverage/source 的复用 | 合法复用创建新 Result/reuse fact；错误输入稳定拒绝且不产生新业务行 | exact reuse 与 incomplete coverage rejection 通过，target 仅保留 1 个 reused Result | `PASS` |
+| QG-WI03-PG-003 | Persistence | Invalidate Result，随后重新评估 RAS/RRS；Evidence/Representation/Package/destination 变化 | 旧 Result/RAS/RRS 不改写；新增 invalidation/impact fact 和 `STALE`/`NOT_READY` snapshot | RAS READY→invalidation→新 STALE，旧 READY 保留；FAIL 产生 NOT_READY；RRS package drift 产生 NOT_READY，旧 READY 保留 | `PASS` |
+| QG-WI03-PG-004 | Persistence | RLS/ACL、跨 Enterprise/Project、direct app DML/owner append-only update-delete、故障注入 | 直接写入/越权访问拒绝；业务事实与 Receipt/Audit/Outbox/Reference Edge 整体回滚 | direct app insert=`42501`、cross Enterprise zero rows、owner update/delete=`55000`；故障注入后 GateResult/Receipt 均为 0 | `PASS` |
+| QG-WI03-PG-005 | Persistence | clean V5003 migration 与 second migrate | 首次成功、第二次显示 `No migration necessary`，容器清理 | formal `pnpm persistence:gate`：34 migrations（含 V5003）成功、second no-op、container removed | `PASS` |
+| QG-WI03-PG-006 | Persistence | 空库 V5003 迁移后经 owner function 首次写入 ChangeImpact/GateResult | 六张事实表及函数沿用 `created_authorization_decision_id`；不出现列名不一致或首写失败 | 首轮发现并修复 V5003 列名与既有通用 trigger 不一致；修复后空库首次写入通过 | `PASS AFTER REMEDIATION` |
+| QG-WI03-PG-007 | Persistence | 多个独立场景在同一 Enterprise 创建 QualityProfile | 每个 fixture 使用唯一 profile identity/name；既有唯一约束不放宽，场景不互相污染 | 5 个场景均独立创建唯一 profile name，正式 gate 通过 | `PASS` |
+| QG-WI03-E-001 | E2E | synthetic REV-002 FAIL/Issue → REV-003 exact rerun/reuse → RAS | REV-002 历史保留，REV-003 形成 exact `READY` 或预期 `NOT_READY` RAS | 受控 synthetic E2E 待运行 | `NOT RUN` |
+| QG-WI03-E-002 | E2E | RRS 绑定 exact DOCX/XLSX Representation 和 frozen package 后变更 checksum/destination | 旧 RRS 保留，新 `STALE/NOT_READY` RRS 与 impact fact 追加 | 受控 synthetic E2E 待运行 | `NOT RUN` |
+| QG-WI03-M-001 | Manual | REV-002/REV-003 Gate、Impact、RAS/RRS 表及命令输出 | 审阅者能区分执行、复用、失效、Revision Acceptance、Release Readiness 和 `NOT RUN` | 未执行独立人工客户验收 | `NOT RUN` |
+
+## IM-05 WI-03 本地验证结果
+
+WI-03 本地验证结果（2026-08-30）：`quality-gate-validation.test.ts` 为 1 file/6 tests `PASS`；`quality-governance-gate-results.test.ts` 为 1 file/5 tests `PASS`。正式 `pnpm persistence:gate` 使用 pinned PostgreSQL 18.6/Flyway 11.20.3，完成 tag→digest 校验、`server_version=180006`、空库 34 migrations（含 V5003）、31 files/303 tests、second migrate `Schema "public" is up to date. No migration necessary.` 和容器清理；WI-03 业务场景覆盖 immutable/rerun、exact reuse、coverage rejection、invalidation、RAS/RRS readiness、RLS/ACL、append-only 和 rollback。全量本地检查 `format:check`、`lint`、`typecheck`、`build`、`pnpm test`（36 passed/27 skipped files，409 passed/288 skipped tests）、`architecture`、`contracts:check` 均 `PASS`。所有数据为 `SYNTHETIC / TECHNICAL ONLY`；真实 ReviewIssue/Approval/Renderer/ReleasePublication/Provider、公开 HTTP、跨模块业务 E2E、生产和独立人工客户验收保持 `NOT RUN` 或表格中的 `PARTIAL`。当前尚未 commit/push/创建 PR，等待用户检查确认。
 
 ## IM-05 WI-02 本地验证结果
 

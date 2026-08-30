@@ -451,6 +451,21 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 
 WI-02 实现、验证与 GitHub 交付状态（2026-08-30）：`IMPLEMENTATION COMPLETE / LOCAL VERIFICATION PASS / GITHUB EXACT-HEAD DELIVERY COMPLETE / PR #130 MERGED / ISSUE #122 CLOSED / LOCAL AND REMOTE FEATURE BRANCHES DELETED`。已通过 `pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm build`、`pnpm test`（35 passed/26 skipped files，403 passed/283 skipped tests）、`pnpm architecture` 与 `pnpm contracts:check`；WI-02 validation Unit 为 1 file/8 tests PASS。Pinned PostgreSQL 18.6/Flyway 11.20.3 persistence gate 为 30 files/298 tests PASS，V5002 空库迁移、第二次 `No migration necessary`、Evidence/Profile/RLS/ACL/CAS/rollback/immutable guard probe 与容器清理均通过。实现 commit `f0269ddfac1d16dd3f627818606e8546254f8ef1` 已由 PR #130 合入 `main`，merge commit 为 `7f04f8acea7b32a456316801aa0b5ed75c7230a7`；Provider、公开 HTTP、生产、跨模块业务 E2E 与独立人工客户验收继续为 `NOT RUN`。
 
+### 2.14 IM-05 WI-03 GateResult、ChangeImpact 与 Readiness Snapshot（Issue #123）
+
+- WI-03 依赖已关闭的 #122、IM-04 Artifact 的精确 Revision/Representation Query 边界和父退出门槛 #120；新增 forward-only QualityGovernance migration，不修改已经应用的 `V5000`、`V5001`、`V5002`。
+- `GateResult` 是不可变评估事实：target、evaluation stage、QualityProfile version、GateSpec/version、input snapshot、evaluator、outcome、findings、Evidence refs、scope 和 canonical hash 创建后不更新；FAIL/ERROR 只能通过重跑创建新 Result，不能把旧 Result 原地改成 PASS。
+- `ChangeImpact` 保存 exact base/candidate Revision refs、changed sections/claims、affected Evidence/Gate 集合、分析策略/版本、coverage 和 canonical hash。复用必须同时匹配允许的 QualityProfile rerun policy、精确 source GateResult、精确 ChangeImpact、相同 GateSpec/version/stage、目标 Revision 和充分的 unchanged coverage；复用仍写入新的 `GateResult` 与不可变 reuse fact，禁止 caller 声明 `executionMode` 伪造执行来源。
+- `GateInvalidation` 只追加失效原因、影响评估和触发 Typed Reference；旧 PASS/FAIL Result 不删除。Evidence、Result、Approval、Representation、Package 或 destination 变化由受控 impact fact 标记依赖结果为 stale，Readiness 重新评估后追加 `STALE` 或 `NOT_READY` Snapshot。
+- RAS 只评估 `REVISION_ACCEPTANCE`：所有适用 mandatory Gate 必须有 exact、有效 PASS，且无 ERROR、open blocking issue、阻断性 Evidence 状态、Hash/Scope/Profile mismatch 或职责分离失败；RAS 不包含 Release Render Gate，也不写 Artifact 状态。RRS 必须绑定 exact release/package/artifact/revision、ApprovalBundle Snapshot、recipient scope、destination、release requirements 和 `RELEASE_READINESS` Gate；Representation checksum、rendererVersion 和 packageHash 不一致时 fail-closed，`READY_FOR_AUTHORIZATION` 不等于授权或发布。
+- V5003 的六张 WI-03 业务表及其 owner 写入口必须沿用 QualityGovernance 已应用事实表的物理归因列 `created_authorization_decision_id`；表定义、函数参数、Repository 调用和 TypeScript 类型不允许出现新增的 `created_by_authorization_decision_id` 变体。空库迁移后首次真实 GateResult 写入必须作为该列契约的回归。
+- synthetic PostgreSQL 场景必须为每个独立 Profile fixture 使用唯一 profile identity/name；数据库的同 Enterprise profile name 唯一约束必须保持启用，测试不能依赖场景执行顺序或通过放宽约束隔离场景。
+- RAS/RRS 输出必须由 `ContractRegistry` 以字段级错误路径验证；Contract 失败不得只由状态断言掩盖，回归必须保留可定位的验证错误。
+- 合成 evaluator、gate 和 release 目标标识必须遵守 Core `namespaceCode` 的小写点号/下划线命名规则；测试 fixture 不得用连字符标识掩盖 Contract 边界。
+- WI-03 已完成本地实现与技术验证：focused validation 为 1 file/6 tests，WI-03 disposable PostgreSQL 为 31 files/303 tests；Format、Lint、Typecheck、Build、普通 Vitest、Architecture、Contract/Catalog/Compatibility 和正式 persistence gate 均通过。验证使用 synthetic technical fixture；外部 Provider/Renderer、公开 HTTP、生产、跨模块业务 E2E 与独立人工客户验收保持 `NOT RUN`。
+
+WI-03 本地验证结果（2026-08-30）：正式 `pnpm persistence:gate` 在 pinned PostgreSQL 18.6/Flyway 11.20.3 上通过 registry tag→digest 校验、`server_version=180006`、空库 34 migrations（含 V5003）、31 persistence files/303 tests、第二次 `Schema "public" is up to date. No migration necessary.` 和容器清理。WI-03 专用场景覆盖 GateResult 不可变/重跑、exact ChangeImpact 复用与 coverage rejection、RAS stale/not-ready、RRS package drift、RLS/ACL/append-only 和 post-write rollback。全量 `pnpm test` 为 36 passed/27 skipped files、409 passed/288 skipped tests；Provider、真实 Renderer、ReleasePublication、公开 HTTP、生产、跨模块业务 E2E 和独立人工客户验收仍为 `NOT RUN`。当前实现尚未 commit/push/创建 PR，等待用户检查确认。
+
 建议的下一阶段：
 
 ```text

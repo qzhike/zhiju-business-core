@@ -1,8 +1,8 @@
 # Module-Spec-005-QualityGovernance
 
-版本：v0.6
+版本：v0.7
 日期：2026-08-30
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 APPLICATION AND PERSISTENCE LOCALLY VERIFIED 2026-08-30 / IM-05 WI-02 IMPLEMENTATION COMPLETE / UNIT AND PERSISTENCE LOCALLY VERIFIED 2026-08-30 / GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED 2026-08-30 / ISSUE #122 CLOSED 2026-08-30 / LOCAL AND REMOTE FEATURE BRANCHES DELETED`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 APPLICATION AND PERSISTENCE LOCALLY VERIFIED 2026-08-30 / IM-05 WI-02 IMPLEMENTATION COMPLETE / GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED 2026-08-30 / ISSUE #122 CLOSED 2026-08-30 / IM-05 WI-03 IMPLEMENTATION COMPLETE / LOCAL VERIFICATION PASS 2026-08-30 / GITHUB DELIVERY PENDING USER CONFIRMATION`
 
 ## 1. 模块责任
 
@@ -283,6 +283,16 @@ QUALITY_RELEASE_READINESS_NOT_READY
 7. Human Approval 不能覆盖 Mandatory Gate FAIL/ERROR；Approval、Release Authorization 和 EffectiveBinding 分层。
 8. RAS/ABS/RRS 均不可变；READY Snapshot 不自动写 Artifact/Release 状态，上游失效产生新 STALE/NOT_READY Snapshot。
 
+## 8.1 IM-05 WI-03 GateResult、ChangeImpact 与 Readiness Snapshot 实现约束
+
+1. **GateResult identity 与 stage**：每个 Result 必须绑定 exact Artifact/Revision target、QualityProfile version、GateSpec/version、evaluation stage、input snapshot、evaluated scope、evaluator、outcome、findings 和 Evidence refs，并保存 canonical payload/hash。`REVISION_ACCEPTANCE` 只能写 Revision target；`RELEASE_READINESS` 只能写 Representation 或 frozen ReleasePackage target。Result 的 immutable facts 不允许更新或删除，重跑必须使用新 Result id/attempt。
+2. **ChangeImpact 与复用**：ChangeImpact 必须绑定 exact base/candidate Revision content hashes、分析策略/版本和 changed/affected facts；coverage 必须是闭合、可审计的 unchanged coverage。复用只能引用同 Profile version、GateSpec/version、stage、有效 source Result 和 exact ChangeImpact，且 source outcome 允许由 rerun policy 复用、source 未失效、coverage 足够；成功复用追加新 GateResult 和 reuse fact，不能冒充一次新的 evaluator execution。
+3. **失效与影响处理**：GateInvalidation 是 append-only fact，保留 Result 原始 outcome/hash，并通过 impact status/trigger reference 使依赖 Result 和 Readiness 进入 stale/re-evaluation 路径。Evidence、GateResult、Approval、Representation、Package 或 destination 的变化不得改写旧 RAS/RRS；必须追加带 exact upstream refs 的 `STALE`/`NOT_READY` Snapshot。
+4. **RAS 评估**：RevisionAcceptanceSnapshot 必须完整符合 Core `revision-acceptance/1.0` Contract，只读取 REVISION_ACCEPTANCE Gate。所有适用 mandatory Gate 必须存在 exact valid PASS；FAIL/ERROR、无效或缺失 Result、阻断 Evidence 状态、open blocking issue、profile/revision/hash/scope mismatch 或职责分离失败都使结果 `NOT_READY`。RAS 不要求 Render Gate，不写 Artifact 状态。
+5. **RRS 评估**：ReleaseReadinessSnapshot 必须完整符合 Core `release-readiness/1.0` Contract，绑定 exact ReleasePackageRef、package snapshot/hash、Representation checksum/renderer、ApprovalBundle snapshot、recipient scope、destination 和 RELEASE_READINESS Gate。Package/Representation/renderer/recipient/destination 任一不一致、Approval Bundle 非 FULLY_APPROVED 或 stale、缺 mandatory release Gate、FAIL/ERROR/invalid/stale Result、未满足 release requirement 或 Recall Blocker 存在时返回 `NOT_READY`/`STALE`；READY 只代表 authorization 前置条件，不代表授权或发布。
+6. **Storage and access**：WI-03 仅在 `quality_governance` Schema 新增 GateResult、ChangeImpact、reuse、invalidation、RAS、RRS 及对应影响/状态事实表；每行保留 Enterprise/Project scope mirror、actor/authorization/source command attribution 和 hash。六张业务表及 owner 写入口统一沿用既有 QualityGovernance 物理列 `created_authorization_decision_id`，不得引入 `created_by_authorization_decision_id` 变体；空库迁移后的首次真实业务写入必须验证表列、函数参数、Repository 和类型保持一致。业务写入只能经 owner `SECURITY DEFINER` function，app role 只读 RLS；append-only history 的 owner UPDATE/DELETE 也必须拒绝，直接 app write、跨 scope read/write、错误 exact hash 和错误 stage fail-closed。业务行与 Receipt、Audit、Outbox、Reference Edge 必须在同一事务中提交或回滚。独立测试场景必须使用唯一 Profile identity/name，不得依赖数据库清理顺序或放宽同 Enterprise name 唯一约束。
+7. **Public query**：GatePlan/Results/RAS/RRS 查询只接受 exact target/profile/snapshot refs；禁止 `latest`、`current`、name-only、path fallback、caller hash fallback 和跨 Scope enumeration。不存在或不匹配统一使用稳定业务错误。RAS/RRS 产出还必须经过 `ContractRegistry` 字段级验证，Contract 失败需保留可定位的 AJV path，不能只断言 readiness status；evaluator 和其他 namespace code 必须遵守 Core 的小写点号/下划线命名规则。
+
 ## 8. 可人工验收的模块产出
 
 里程碑 `API-QG-01` 的人工产出是 REV-002/REV-003 Fixture：REV-002 Gate FAIL 并产生 Blocking Issue；新 Revision 不自动关闭 Issue；独立验证后 REV-003 形成 RAS，再由真实 Human 决定形成 ABS；同名替换的 PDF 令旧 RRS 失效。该审核不代表 Gate、Renderer、身份或人工审批已经运行。
@@ -295,7 +305,7 @@ QUALITY_RELEASE_READINESS_NOT_READY
 - Schema Contract 用例（`quality-governance.schema.test.ts`）已 PASSED：覆盖 Human Approval、Agent 冒充、Target hash、Evaluation Stage、敏感字段泄漏、Gate vs Approval 形态差异等正反例；
 - PR #13 Code Review 修复已于 2026-08-18 完成：REPRESENTATION GateTarget 改用 Common `representationRef`；三个 Snapshot Query Result 改为 `$ref` Core Contract ID（不再维护截断视图）；`evidenceVerification.verifier` / `issueVerification.verifier` / `blockingIssueView.ownerRef` / `propose_issue_resolution.proposedBy` 改用 Common `principalRef`；`revoke_evidence` / `invalidate_gate_result` / `revoke_approval` 三个 Command 去除未授权 `revocation`/`invalidation` 包装，恢复 Module Spec 第 3 节直接字段；`QualityProfileDefinition.releaseRequirements` 由 optional 改为 required；`get_gate_results` 复用 Common `pageRequest` / `opaqueCursor`；
 - PR #13 第二轮 Code Review 修复已于 2026-08-18 完成：`GateResultSubmission` 删除未授权 `executionMode` 字段；`record_reused_gate_result` 路径独立为 `GateReuseSubmission`，`sourceGateResultRef` / `changeImpactRef` 强制 required；数组类型按 Module Spec `Set<T>` / `NonEmptySet<T>` / `T[]` 精确分类 — 仅 NonEmptySet 保留 `minItems: 1`，Set 仅保留 `uniqueItems`，普通 `T[]` 不附加额外约束；空过滤集合与无内容变更 IssueResolution 接受正向回归。
-- Gate Evaluator、Profile Registry、Readiness Evaluator、ReviewIssue、Approval、Readiness 等后续业务仍未实现；WI-02 的 Evidence/Profile Repository、Handler、Persistence 和 validation Unit 已实现并在本地验证；
+- WI-03 的 GateResult、ChangeImpact、Readiness Evaluator、Repository、Handler 与 Persistence 实现已在本工作树完成；ReviewIssue、Approval、Renderer、ReleasePackage 与外部 Provider 仍由后续 Work Item 负责；WI-02 的 Evidence/Profile Repository、Handler、Persistence 和 validation Unit 已实现并在本地验证；
 - WI-02 的 Unit/Contract/Persistence 结果见第 12 节及 Module-Test-005；跨模块 E2E、Provider、公开 HTTP、生产和独立人工业务验收仍为 `NOT RUN`。
 
 ## 10. IM-02 WI-04 持久化切片
@@ -329,3 +339,5 @@ Issue #121 在既有 `V5000__quality_governance_technical_tables.sql` 与 owning
 8. **Out of scope**：本 WI 不实现 GateResult evaluator、ReviewIssue、Human Approval decision、Readiness Snapshot、ReleasePackage、Renderer、Provider、公开 HTTP、生产或跨模块业务 E2E。上述项在 Module-Test-005 中继续标为 `NOT RUN`。
 
 WI-02 实现、验证与交付结果（2026-08-30）：`IMPLEMENTATION COMPLETE / UNIT AND PERSISTENCE LOCALLY VERIFIED / GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED / ISSUE #122 CLOSED / LOCAL AND REMOTE FEATURE BRANCHES DELETED`。`modules/quality-governance/src/business/quality-business-validation.test.ts` 为 8/8 PASS；`tests/persistence/quality-governance-business.test.ts` 纳入 pinned PostgreSQL/Flyway gate，覆盖 Evidence capture/verify/dispute/revoke/history、exact hash/query、support/context、QualityProfile activation/new version、CAS、RLS/ACL、owner immutable guard、idempotency replay 和 post-write rollback。全 persistence gate 为 30 files/298 tests PASS，V5002 空库迁移和 second-run no-op 通过并清理容器。实现 commit `f0269ddfac1d16dd3f627818606e8546254f8ef1` 已由 PR #130 合入 `main`，merge commit 为 `7f04f8acea7b32a456316801aa0b5ed75c7230a7`。存储 definition 的 activation 重校验由 Handler 实现，因数据库 immutable guard 不允许篡改存储行，专门篡改后的运行时分支保持 `NOT RUN`；Provider、公开 HTTP、跨模块 E2E、生产和独立人工业务验收保持 `NOT RUN`。
+
+WI-03 实现与本地验证结果（2026-08-30）：`modules/quality-governance/src/business/quality-gate-validation.test.ts` 为 1 file/6 tests `PASS`；`tests/persistence/quality-governance-gate-results.test.ts` 为 5/5 `PASS`。正式 `pnpm persistence:gate` 在 PostgreSQL 18.6/Flyway 11.20.3 上为 31 files/303 tests `PASS`，V5003 空库迁移、tag→digest 校验、RLS/ACL、owner append-only guard、exact reference、reused Result、RAS/RRS stale/not-ready、rollback、second migrate no-op 与容器清理均通过。全量静态/普通测试为 Format、Lint、Typecheck、Build、36 passed/27 skipped files（409 passed/288 skipped tests）、Architecture、201/201 Contract/Catalog/Compatibility `PASS`。唯一修复的运行时缺陷是 V5003 与既有 V5002 通用 trigger guard 的授权归因列命名不一致，已统一沿用 `created_authorization_decision_id`；独立场景 profile name 也已改为唯一 fixture。当前实现尚未 commit/push，需用户先检查工作树后再进入 Git 交付阶段。Provider、实际 Renderer、ReleasePublication、公开 HTTP、跨模块业务 E2E、生产和独立人工验收保持 `NOT RUN`。
