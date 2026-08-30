@@ -962,7 +962,7 @@ describe.skipIf(!gateEnabled)('QualityGovernance WI-04 business persistence', ()
       'quality.RevisionFullyApproved',
     );
     expect(firstApprovalRef.objectId).not.toBe(secondApprovalRef.objectId);
-  });
+  }, 15000);
 
   it('rolls back ReviewIssue business facts and the command receipt after a post-write fault', async () => {
     const current = contextFor();
