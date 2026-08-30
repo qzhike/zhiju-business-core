@@ -421,4 +421,4 @@ WI-05 复用已经交付的 `artifact.register_representation@1.0` Handler、`Re
 
 成功组合仍要求 exact Revision/canonical locator/input hash/format/media type/renderer ID/version/output locator/checksum/Raw Receipt/Scope/时间全部一致，且 Attempt 为 `SUCCEEDED`。`FAILED`、`UNKNOWN`、quarantined、缺 Receipt、契约无效或任一替换都必须 fail closed。登记 Representation 只形成 Artifact 自有 immutable Representation、validation、reference edges 与最小事件；不得推进 Quality、Approval、Release 或 EffectiveBinding。
 
-当前状态：`CONTROLLED PUBLIC-PORT COMPOSITION AND PERSISTENCE VERIFIED / LOCAL COMMIT AUTHORIZED / REMOTE DELIVERY NOT STARTED`。真实外部 Provider、公开 HTTP、生产、真实客户适用性和独立人工业务验收仍为 `NOT RUN`。
+当前状态：`CONTROLLED PUBLIC-PORT COMPOSITION AND PERSISTENCE VERIFIED / GITHUB DELIVERY TRACKED BY PR #135 AND ISSUE #125`。真实外部 Provider、公开 HTTP、生产、真实客户适用性和独立人工业务验收仍为 `NOT RUN`。

@@ -38,6 +38,7 @@ const LOCATOR = /^[a-z0-9][a-z0-9._-]*(?:\/[A-Za-z0-9._-]+)+$/;
 
 export const INTEGRATION_EXTERNAL_OUTCOME_UNKNOWN = 'INTEGRATION_EXTERNAL_OUTCOME_UNKNOWN';
 export const INTEGRATION_RENDER_FAILED = 'INTEGRATION_RENDER_FAILED';
+export const INTEGRATION_RENDER_OUTPUT_MISMATCH = 'INTEGRATION_RENDER_OUTPUT_MISMATCH';
 
 export interface RenderProviderSuccess {
   readonly outcome: 'SUCCEEDED';
@@ -251,9 +252,18 @@ export class LocalOoxmlRenderProvider implements RenderProviderPort {
     readonly request: IntegrationGateway.RenderRequest;
     readonly outcome: RenderProviderSuccess;
   }): Promise<boolean> {
+    const profile = resolveRendererProfile(input.request);
+    const expectedOutputObjectRef = `integration/render/output/${input.attemptRef.objectId}.${profile.extension}`;
+    const expectedReceiptPayloadRef = `integration/render/receipt/${input.attemptRef.objectId}.json`;
     if (
+      input.outcome.outputObjectRef !== expectedOutputObjectRef ||
+      input.outcome.receiptPayloadRef !== expectedReceiptPayloadRef ||
+      input.outcome.providerReceiptRef.system !== 'zhiju.local_renderer' ||
+      input.outcome.providerReceiptRef.resourceType !== 'render_receipt' ||
       input.outcome.providerReceiptRef.externalId !== input.attemptRef.objectId ||
-      input.outcome.providerReceiptRef.adapterVersion !== input.request.rendererVersion
+      input.outcome.providerReceiptRef.adapterVersion !== input.request.rendererVersion ||
+      input.outcome.providerReceiptRef.observedAt !== input.outcome.occurredAt.toISOString() ||
+      input.outcome.providerReceiptRef.payloadHash === undefined
     ) {
       return false;
     }
@@ -261,13 +271,32 @@ export class LocalOoxmlRenderProvider implements RenderProviderPort {
       this.storage.read(input.outcome.outputObjectRef),
       this.storage.read(input.outcome.receiptPayloadRef),
     ]);
-    return (
-      output !== undefined &&
-      receipt !== undefined &&
-      output.checksum.digest === input.outcome.outputChecksum.digest &&
-      receipt.checksum.digest === input.outcome.receiptPayloadHash.digest &&
-      input.outcome.providerReceiptRef.payloadHash?.digest === receipt.checksum.digest
+    if (
+      output === undefined ||
+      receipt === undefined ||
+      output.mediaType !== profile.mediaType ||
+      receipt.mediaType !== 'application/json' ||
+      canonicalize(output.checksum as unknown as CanonicalJsonObject) !==
+        canonicalize(input.outcome.outputChecksum as unknown as CanonicalJsonObject) ||
+      canonicalize(receipt.checksum as unknown as CanonicalJsonObject) !==
+        canonicalize(input.outcome.receiptPayloadHash as unknown as CanonicalJsonObject) ||
+      canonicalize(
+        input.outcome.providerReceiptRef.payloadHash as unknown as CanonicalJsonObject,
+      ) !== canonicalize(receipt.checksum as unknown as CanonicalJsonObject)
+    ) {
+      return false;
+    }
+    const expectedReceiptBytes = Buffer.from(
+      canonicalize({
+        attemptId: input.attemptRef.objectId,
+        outputObjectRef: expectedOutputObjectRef,
+        outputChecksum: output.checksum,
+        rendererId: input.request.rendererId,
+        rendererVersion: input.request.rendererVersion,
+      } as unknown as CanonicalJsonObject),
+      'utf8',
     );
+    return receipt.bytes.equals(expectedReceiptBytes);
   }
 }
 
@@ -297,17 +326,20 @@ export class RenderAttemptService {
     });
     providerCall.catch(() => undefined);
     let outcome: RenderProviderOutcome | undefined;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     try {
       outcome = await Promise.race([
         providerCall,
         new Promise<undefined>((resolve) => {
-          setTimeout(() => {
+          timeoutHandle = setTimeout(() => {
             resolve(undefined);
           }, input.timeoutMs);
         }),
       ]);
     } catch {
       outcome = { outcome: 'FAILED', errorCode: INTEGRATION_RENDER_FAILED, occurredAt: new Date() };
+    } finally {
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
     }
     if (outcome === undefined) {
       await withRenderTransaction(this.db, context, (trx) =>
@@ -329,6 +361,28 @@ export class RenderAttemptService {
           errorCode: outcome.errorCode,
           context,
           occurredAt: outcome.occurredAt,
+        }),
+      );
+      return this.getRenderAttemptBinding(context, input.attemptRef);
+    }
+    let verified: boolean;
+    try {
+      verified = await this.provider.verifySucceeded({
+        attemptRef: input.attemptRef,
+        request: input.request,
+        outcome,
+      });
+    } catch {
+      verified = false;
+    }
+    if (!verified) {
+      await withRenderTransaction(this.db, context, (trx) =>
+        repo.recordFailure(trx, {
+          record: claim.record,
+          status: 'FAILED',
+          errorCode: INTEGRATION_RENDER_OUTPUT_MISMATCH,
+          context,
+          occurredAt: new Date(),
         }),
       );
       return this.getRenderAttemptBinding(context, input.attemptRef);

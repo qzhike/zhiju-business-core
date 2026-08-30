@@ -935,6 +935,7 @@ describe.skipIf(databaseUrl === undefined)(
               status: exactBinding.status,
               canonicalContentRef: exactBinding.request.canonicalContentRef,
               inputHash: exactBinding.request.inputHash,
+              requestPayloadHash: exactBinding.requestPayloadHash,
               outputChecksum: exactBinding.succeededResult.outputChecksum,
               rawReceiptRef: exactBinding.rawReceiptRef,
             },

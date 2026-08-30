@@ -111,6 +111,7 @@ function renderRequest(
 
 class CountingProvider implements RenderProviderPort {
   calls = 0;
+  verifications = 0;
 
   constructor(private readonly delegate: RenderProviderPort) {}
 
@@ -123,6 +124,7 @@ class CountingProvider implements RenderProviderPort {
   }
 
   verifySucceeded(input: Parameters<RenderProviderPort['verifySucceeded']>[0]): Promise<boolean> {
+    this.verifications += 1;
     return this.delegate.verifySucceeded(input);
   }
 }
@@ -242,6 +244,7 @@ describe.skipIf(!gateEnabled)('IntegrationGateway Renderer slice (real PostgreSQ
     expect(first.succeededResult?.outputChecksum.digest).toMatch(/^[0-9a-f]{64}$/);
     expect(first.rawReceiptRef?.contentHash.digest).toMatch(/^[0-9a-f]{64}$/);
     expect(provider.calls).toBe(1);
+    expect(provider.verifications).toBe(1);
     const replay = await service.requestRender(context(), {
       attemptRef: attemptRef(newUuidV7()),
       request,
@@ -249,6 +252,7 @@ describe.skipIf(!gateEnabled)('IntegrationGateway Renderer slice (real PostgreSQ
     });
     expect(replay).toEqual(first);
     expect(provider.calls).toBe(1);
+    expect(provider.verifications).toBe(1);
 
     const conflicting = {
       ...request,
@@ -324,6 +328,40 @@ describe.skipIf(!gateEnabled)('IntegrationGateway Renderer slice (real PostgreSQ
     expect(await count('raw_external_receipt', 'WHERE attempt_id = $1', [failedRef.objectId])).toBe(
       0,
     );
+
+    const unverifiedSourceRef = `integration/render/source/${newUuidV7()}.json`;
+    const unverifiedPayload = await sourceFixture(storage, unverifiedSourceRef);
+    const unverifiedRequest = renderRequest(
+      unverifiedPayload,
+      `render-unverified-${newUuidV7()}`,
+      unverifiedSourceRef,
+    );
+    const unverifiedRef = attemptRef();
+    const local = new LocalOoxmlRenderProvider(storage);
+    const unverifiedProvider: RenderProviderPort = {
+      render: (input) => local.render(input),
+      verifySucceeded: () => Promise.resolve(false),
+    };
+    const rejectedSuccess = await new RenderAttemptService(db, unverifiedProvider).requestRender(
+      context(),
+      {
+        attemptRef: unverifiedRef,
+        request: unverifiedRequest,
+        timeoutMs: 1000,
+      },
+    );
+    expect(rejectedSuccess.status).toBe('FAILED');
+    expect(rejectedSuccess).not.toHaveProperty('succeededResult');
+    expect(
+      await count('raw_external_receipt', 'WHERE attempt_id = $1', [unverifiedRef.objectId]),
+    ).toBe(0);
+    expect(
+      await count(
+        'outbox_event',
+        "WHERE event_type = 'integration.RenderSucceeded' AND aggregate_id = $1",
+        [unverifiedRef.objectId],
+      ),
+    ).toBe(0);
   });
 
   it('keeps timeout UNKNOWN, never repeats it, and reconciles only authoritative readback', async () => {
@@ -366,6 +404,18 @@ describe.skipIf(!gateEnabled)('IntegrationGateway Renderer slice (real PostgreSQ
     await expect(service.reconcileSucceeded(context(), ref, tampered)).rejects.toMatchObject({
       code: 'INTEGRATION_RENDER_OUTPUT_MISMATCH',
     });
+    const substitutedReceipt = {
+      ...observed,
+      receiptPayloadRef: observed.outputObjectRef,
+      receiptPayloadHash: observed.outputChecksum,
+      providerReceiptRef: {
+        ...observed.providerReceiptRef,
+        payloadHash: observed.outputChecksum,
+      },
+    } satisfies RenderProviderOutcome;
+    await expect(
+      service.reconcileSucceeded(context(), ref, substitutedReceipt),
+    ).rejects.toMatchObject({ code: 'INTEGRATION_RENDER_OUTPUT_MISMATCH' });
     const reconciled = await service.reconcileSucceeded(context(), ref, observed);
     expect(reconciled.status).toBe('SUCCEEDED');
     expect(await count('raw_external_receipt', 'WHERE attempt_id = $1', [ref.objectId])).toBe(1);
