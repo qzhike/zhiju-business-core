@@ -1,7 +1,7 @@
 # IM-05 WI-05 最小 DOCX/XLSX Renderer 与 Representation 闭环任务计划
 
 日期：2026-08-30
-状态：`LOCAL IMPLEMENTATION, PERSISTENCE AND OFFICE OPENABILITY VERIFIED / GITHUB DELIVERY TRACKED BY PR #135 AND ISSUE #125`
+状态：`IMPLEMENTATION, PERSISTENCE, OFFICE OPENABILITY AND GIT DELIVERY COMPLETE / PR #135 MERGED / ISSUE #125 CLOSED`
 
 ## 1. 目标与权威
 
@@ -49,4 +49,4 @@
 - Disposable PostgreSQL 18.6/Flyway 11.20.3 Gate 通过：`33` 个文件、`308` 个测试；空库应用 `V7001` 成功，第二次迁移为 `No migration necessary`，容器已删除。
 - 真实 Renderer `SUCCEEDED` Binding 已通过公开 Port 输入既有 Artifact Representation Handler，并完成 immutable Representation/Validation/Reference Edge/Outbox 的实际 PostgreSQL 登记与负向回归。
 - 脱敏 DOCX/XLSX 分别通过 ZIP 完整性及 Microsoft Word/Excel 本地打开检查；临时输出已删除。此结果不升级真实客户 pixel-perfect 版式、独立人工业务验收或生产状态。
-- 用户已于 2026-08-30 明确授权本地提交及完整 GitHub 交付；远端 Push、PR review/CI、Merge、Issue 关闭和 Branch 清理的实际状态统一从 PR #135 与 Issue #125 读回。
+- 用户已于 2026-08-30 明确授权本地提交及完整 GitHub 交付。实现 head `d3a1394663d3f953e4c686385b0ef9d8d280aefb` 通过 exact-head review 与 GitHub `verify` run `33320566486`，由 PR #135 以 merge commit `1ef1303be233901c73a0bcc8f97bce8edf7e93a7` 合入 `main`；Issue #125 已关闭，原本地/远端 feature branch 已删除。
