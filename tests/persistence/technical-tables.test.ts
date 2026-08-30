@@ -181,6 +181,18 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'gate_invalidation',
     'revision_acceptance_snapshot',
     'release_readiness_snapshot',
+    // IM-05 WI-04 (issue #124): immutable ReviewIssue remediation, Human
+    // Approval, revocation, and ApprovalBundleSnapshot facts.
+    'review_issue',
+    'issue_observation',
+    'resolution_proposal',
+    'verification_record',
+    'issue_state_transition',
+    'approval_request',
+    'approval',
+    'approval_decision',
+    'approval_revocation',
+    'approval_bundle_snapshot',
   ],
   release_publication: ['business_probe', 'outbox_probe'],
   integration_gateway: ['business_probe', 'outbox_probe'],

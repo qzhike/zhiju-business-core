@@ -1,8 +1,8 @@
 # Module-Test-005-QualityGovernance
 
-版本：v0.6
+版本：v0.8
 日期：2026-08-30
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 UNIT AND PERSISTENCE PASS / IM-05 WI-02 IMPLEMENTATION COMPLETE / IM-05 WI-03 IMPLEMENTATION COMPLETE / LOCAL VERIFICATION PASS 2026-08-30 / CROSS-MODULE E2E AND MANUAL NOT RUN / GITHUB DELIVERY PENDING USER CONFIRMATION`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 UNIT AND PERSISTENCE PASS / IM-05 WI-02 IMPLEMENTATION COMPLETE / IM-05 WI-03 IMPLEMENTATION COMPLETE / IM-05 WI-04 IMPLEMENTATION COMPLETE / FOCUSED, FULL AND FORMAL PERSISTENCE VERIFICATION PASS / CROSS-MODULE E2E AND MANUAL NOT RUN`
 
 对应规格：[`Module-Spec-005-QualityGovernance.md`](../module-specs/Module-Spec-005-QualityGovernance.md)。
 
@@ -139,6 +139,45 @@ Gate Evaluator、业务 Repository 与 payload↔hash Gate 仍为 `NOT RUN`。
 | QG-WI03-E-001 | E2E | synthetic REV-002 FAIL/Issue → REV-003 exact rerun/reuse → RAS | REV-002 历史保留，REV-003 形成 exact `READY` 或预期 `NOT_READY` RAS | 受控 synthetic E2E 待运行 | `NOT RUN` |
 | QG-WI03-E-002 | E2E | RRS 绑定 exact DOCX/XLSX Representation 和 frozen package 后变更 checksum/destination | 旧 RRS 保留，新 `STALE/NOT_READY` RRS 与 impact fact 追加 | 受控 synthetic E2E 待运行 | `NOT RUN` |
 | QG-WI03-M-001 | Manual | REV-002/REV-003 Gate、Impact、RAS/RRS 表及命令输出 | 审阅者能区分执行、复用、失效、Revision Acceptance、Release Readiness 和 `NOT RUN` | 未执行独立人工客户验收 | `NOT RUN` |
+
+## IM-05 WI-04 ReviewIssue/Approval 测试用例
+
+以下用例冻结 WI-04 的输入、预期输出和业务边界；未取得对应层级的可复核运行证据前不得把 `NOT RUN` 改为 `PASS`。所有业务数据必须标记为 `SYNTHETIC / TECHNICAL ONLY`。当前 validator Unit 为 1 file/7 tests `PASS`；正式 mutable tag→digest PostgreSQL gate 为 32 files/305 tests `PASS`，空库 35 migrations、二次迁移 no-op 和容器清理均完成。普通全量 Vitest 为 37 passed/28 skipped files、416 passed/290 skipped tests。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| QG-WI04-U-001 | Unit | Blocking Issue、修复 Proposal、作者尝试自验证 | Proposal 可追加；作者自验拒绝 `QUALITY_SEPARATION_OF_DUTIES_VIOLATION`；Issue 不自动关闭 | validator Unit 通过 exact Issue/Resolution/Verification shape；Persistence 通过作者自验拒绝、独立验证和关闭前状态保持 | `PASS` |
+| QG-WI04-U-002 | Unit | 未 VERIFIED verification 请求关闭 Issue | 拒绝 `QUALITY_ISSUE_VERIFICATION_REQUIRED`；失败验证历史保留 | Handler/owner function 只接受 exact VERIFIED verification；Persistence 覆盖未验证状态阻断和合法关闭 | `PASS` |
+| QG-WI04-U-003 | Unit | Agent 或 actingFor Agent 提交 APPROVED；错误 Revision/RAS/role/hash | 拒绝 `QUALITY_APPROVAL_AGENT_FORBIDDEN` 或 `QUALITY_APPROVAL_REVISION_MISMATCH` | validator Unit 覆盖 Agent principal 拒绝；Persistence Handler 逐一覆盖 AGENT、Service、Runtime trusted Context，即使 payload 声明 Human 也拒绝；exact Human 两次决策和错误 identity/ref 通过 | `PASS` |
+| QG-WI04-U-004 | Unit | Open Blocking Issue、FAIL RAS、过期/撤销 Request 或错误 SeparationCheck | Approval 不生效，返回稳定的 Gate/Issue/Requirement/Separation 错误 | Persistence 覆盖 Open Blocking Issue、exact READY RAS、撤销后的 stale ABS 和 Separation；过期 Request/上游失效未单独运行 | `PARTIAL` |
+| QG-WI04-C-001 | Contract | exact ReviewIssue/Resolution/Verification/Approval/ABS refs 与 latest/current/hash/scope 变体 | 精确引用通过；错误引用 fail-closed；ABS 输出保留字段级 AJV path | 201/201 FULL Registry、Core ABS Contract validation、Unit exact scope/hash/namespace negative checks 均通过 | `PASS` |
+| QG-WI04-PG-001 | Persistence | raise → propose → denied self-verify → independent verify → close | 原始 Issue、Proposal、Verification、状态迁移均保留；新 Revision 不自动关闭 | PostgreSQL gate 覆盖 root/observation/proposal/verification/transition history、作者自验拒绝、独立验证、exact close 和 open-blocking query | `PASS` |
+| QG-WI04-PG-002 | Persistence | exact RAS/Requirement 请求 Approval；Agent/actingFor Agent 与错误 refs 决策 | 仅 exact Human 决策可追加；非法决策无 Approval/ABS 生效事实 | PostgreSQL gate 覆盖 exact RAS/Profile/Requirement、AGENT/Service/Runtime trusted-context 拒绝、两名独立 Human、duplicate Human identity conflict、ABS Contract 和错误 ref fail-closed | `PASS` |
+| QG-WI04-PG-003 | Persistence | Human APPROVED → ABS → revoke/上游失效 | 原 Decision 与旧 ABS 不变；追加 Revocation/Impact；后续有效性阻断 | PostgreSQL gate 覆盖 partial/full ABS、Revocation、stale ABS/impact、旧 Decision/ABS 保留；独立 upstream invalidation consumer 未运行 | `PARTIAL` |
+| QG-WI04-PG-004 | Persistence | app direct DML、owner immutable UPDATE/DELETE、跨 Scope、CAS/race、post-write fault | RLS/ACL/append-only/并发/整体回滚均 fail-closed | PostgreSQL gate 覆盖 app INSERT=`42501`、cross-Enterprise SELECT=0、owner immutable=`55000`、CAS winner/loser、事件和 post-write rollback | `PASS` |
+| QG-WI04-PG-005 | Persistence | clean V5004 migration 与 second migrate | 首次成功，第二次显示 `No migration necessary`，容器清理 | 正式 PostgreSQL 18.6/Flyway 11.20.3 完成 mutable tag→digest 校验、`server_version=180006`、空库 35 migrations、second no-op 和容器清理 | `PASS` |
+| QG-WI04-E-001 | E2E | synthetic REV-002 FAIL → REV-003 fix/independent verify → Human Approval/ABS | 输出可复核 exact refs/hashes、职责分离、Approval bundle 与边界 | 真实跨模块业务 E2E 未运行 | `NOT RUN` |
+| QG-WI04-M-001 | Manual | 审阅 ReviewIssue/Approval/ABS history 与 denied attempts | 审阅者能区分 Agent proposal、Human decision、旧 ABS 保留和未运行边界 | 未执行独立人工客户验收 | `NOT RUN` |
+
+首轮 WI-04 persistence gate 结果：空库迁移成功、`server_version=180006`，随后 `technical-tables` allowlist 发现 V5004 新表未登记，ReviewIssue rollback probe 发现 owner function attribution 参数名错误（`42703`），RAS synthetic fixture 的 Core Contract 断言失败。以上失败均已定位，不能记录为 `PASS`；修复后必须重新运行完整 gate。该历史失败不代表最终结果。
+
+第二轮 WI-04 persistence gate 结果：V5004 参数名和技术表 allowlist 修复后，32 个测试文件中 31 个通过；唯一失败为 synthetic GateResult 夹具的 `evaluatorId=synthetic-gate` 不符合 Common 命名空间正则（禁止连字符）。该轮仍未形成业务 PASS，修正夹具后必须重新运行完整 gate。
+
+随后使用已缓存的 digest-pinned 镜像做本地复现时，RAS 夹具又定位到 `evaluatorVersions[0].evaluatorId=synthetic-readiness` 同样违反该正则；该复现没有通过 gate 的 mutable tag-to-digest 校验，且自定义数据库用户名导致既有 role baseline 出现额外登录角色，不能替代正式门禁结果。以上仅作为失败诊断，不计入 PASS。
+
+修正两个 evaluator 标识后，digest-pinned 本地复现继续到 ReviewIssue 关闭步骤，发现实现把 Common `Justification.reasonCode` 按 namespace code（小写）校验；权威 Common 合同要求其为注册的 upper-snake reason code。该历史实现缺陷已修复；本段记录的是修复前状态。
+
+修正 `reasonCode` 校验后，同一复现又暴露 V5004 `close_review_issue` 内部 `outcome` 输出参数与 `verification_record.outcome` 未限定表别名造成的 PostgreSQL `42702` 歧义。该历史数据库实现缺陷已修复；之后的 pinned-image WI-04 业务 2/2 复现和正式 mutable tag→digest gate 均已通过。
+
+差异审计补充发现 Common namespace 校验仍允许连字符、Approval `requiredCount` 尚未阻止同一 Human 重复计数、Persistence 用例尚未执行 PostgreSQL CAS race；以上是历史待补充测试/修复状态，不计入当时 PASS，后续已补齐并复验。
+
+补充边界首轮已执行：CAS race 已证明一个 committed winner 与一个 `CONCURRENCY_CONFLICT` loser；同一 Human 重复 Approval 已由数据库唯一约束拦截，但应用层暂时把该唯一冲突映射成了错误的 `CONCURRENCY_CONFLICT`，需修正为 `QUALITY_APPROVAL_IDENTITY_CONFLICT` 后再复验。该错误码已修正，最终正式 Gate 已复验通过。
+
+错误码映射修正后，重复身份拒绝的安全摘要已改为描述同一 Request 下已存在的 Human Decision，不再使用 stale aggregate 语义；正式 Gate 已通过。
+
+## IM-05 WI-04 最终验证结果
+
+2026-08-30 最终结果：`node_modules/.bin/prettier --check .`、`node_modules/.bin/eslint .`、`node_modules/.bin/tsc -b --pretty false`、`node tools/architecture/check-boundaries.mjs`、`pnpm contracts:check` 和普通 `node_modules/.bin/vitest run` 均为 `PASS`。普通 Vitest 为 37 passed/28 skipped files、416 passed/290 skipped tests；正式 `node tools/persistence/gate.mjs` 使用 PostgreSQL 18.6/Flyway 11.20.3 完成 tag→digest 校验、`server_version=180006`、空库 35 migrations（含 V5004）、32 passed files/305 passed tests、二次 `No migration necessary` 和容器清理。所有 Persistence 数据为 `SYNTHETIC / TECHNICAL ONLY`。Provider、公开 HTTP、跨模块业务 E2E、生产、Workspace UI、Feishu、真实组织审批和独立人工客户验收为 `NOT RUN` 或表格中的 `PARTIAL`；当前尚未 commit/push/创建 PR，等待用户检查确认。
 
 ## IM-05 WI-03 本地验证结果
 

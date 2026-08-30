@@ -15,6 +15,11 @@ import {
 import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import type {
   ChangeImpactTable,
+  ApprovalBundleSnapshotTable,
+  ApprovalDecisionTable,
+  ApprovalRequestTable,
+  ApprovalRevocationTable,
+  ApprovalTable,
   EvidenceLinkTable,
   EvidenceRevocationTable,
   EvidenceTable,
@@ -22,6 +27,8 @@ import type {
   GateInvalidationTable,
   GateResultReuseTable,
   GateResultTable,
+  IssueObservationTable,
+  IssueStateTransitionTable,
   QualityProfileApprovalRequirementTable,
   QualityProfileGateDependencyTable,
   QualityProfileGateSpecTable,
@@ -29,7 +36,10 @@ import type {
   QualityProfileTable,
   QualityProfileVersionTable,
   ReleaseReadinessSnapshotTable,
+  ResolutionProposalTable,
+  ReviewIssueTable,
   RevisionAcceptanceSnapshotTable,
+  VerificationRecordTable,
 } from './quality-business-types.js';
 
 type Int8 = ColumnType<string, string | number, string | number>;
@@ -211,6 +221,16 @@ export interface QualityGovernanceDb {
   'quality_governance.gate_invalidation': GateInvalidationTable;
   'quality_governance.revision_acceptance_snapshot': RevisionAcceptanceSnapshotTable;
   'quality_governance.release_readiness_snapshot': ReleaseReadinessSnapshotTable;
+  'quality_governance.review_issue': ReviewIssueTable;
+  'quality_governance.issue_observation': IssueObservationTable;
+  'quality_governance.resolution_proposal': ResolutionProposalTable;
+  'quality_governance.verification_record': VerificationRecordTable;
+  'quality_governance.issue_state_transition': IssueStateTransitionTable;
+  'quality_governance.approval_request': ApprovalRequestTable;
+  'quality_governance.approval': ApprovalTable;
+  'quality_governance.approval_decision': ApprovalDecisionTable;
+  'quality_governance.approval_revocation': ApprovalRevocationTable;
+  'quality_governance.approval_bundle_snapshot': ApprovalBundleSnapshotTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';
