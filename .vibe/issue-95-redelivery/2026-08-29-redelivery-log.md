@@ -1,13 +1,13 @@
 # Issue #95 / IM-04 WI-06 重新交付记录
 
-状态：实现重新验证通过，文档待用户检查
+状态：重新交付完成，PR #113 已合并，Issue #95 已关闭
 
 ## 1. 重新验证基线
 
 - 实现提交：`a62332061856eb4457501d4efe93f4fd8241420f`
-- `origin/main`：`813dc53db29f22077cc1748b189282ceabc9fe21`
+- `origin/main`（合并后）：`435b3b438122de7e8f053708c5cc1bcb49e7494f`
 - 首轮 PR：[#112](https://github.com/qzhike/zhiju-business-core/pull/112)，已关闭且未合并；首轮远端和本地分支已删除。
-- 本次分支：`galendai/im-04-wi-06-redelivery`
+- 本次分支：`galendai/im-04-wi-06-redelivery`（合并后本地和远端均已删除）
 
 ## 2. 接受条件判断
 
@@ -36,6 +36,6 @@
 - 独立人工业务验收、Provider、生产数据库、公开 HTTP、跨模块 E2E、Renderer、Quality、Approval 和 Release 均保持 `NOT RUN`。
 - `Manual-ART-024.md` 是可复核的 synthetic procurement-procedure 技术夹具，不代表真实业务政策验收。
 
-## 5. Git 交付计划
+## 5. Git 交付结果
 
-文档经用户检查确认后提交本记录和状态同步，推送本次分支，创建关联 Issue #95 的 PR，等待 exact-head CI；CI 通过后按精确 head 合并，回读 `main` 祖先关系、PR 状态和 Issue 状态。
+文档经用户检查确认后，状态同步已提交为 `3128e120167ee3b85fccdab5b2254bcb855988fb` 并非强制推送。PR #113 已按 exact head 通过 CI 并合并，merge commit 为 `435b3b438122de7e8f053708c5cc1bcb49e7494f`；Issue #95 已关闭；重新交付分支的本地和远端引用均已删除。实现 worktree 仍以 detached 方式保留，WI-07 dirty worktree 未修改。

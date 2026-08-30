@@ -1,6 +1,6 @@
 # Issue #95 交付工作记录
 
-状态：实现已重新验证，等待重新交付提交
+状态：WI-06 重新交付完成，PR #113 已合并，Issue #95 已关闭
 
 ## 目标
 
@@ -17,10 +17,10 @@
 
 ### Issue 与代码基线
 
-- Issue #95：`OPEN`，标题为 `[IM-04][WI-06] Implement Structured Document Human Edit and deterministic internal Diff`。
+- Issue #95：`CLOSED`（2026-08-29），标题为 `[IM-04][WI-06] Implement Structured Document Human Edit and deterministic internal Diff`。
 - 依赖 #90、#94 已在 `main` 上完成；本切片实现提交为 `a62332061856eb4457501d4efe93f4fd8241420f`。
 - 首轮实现分支及 PR #112 已按授权关闭并删除；实现提交 `a62332061856eb4457501d4efe93f4fd8241420f` 仍保留在当前 detached worktree。
-- 本次重新交付分支：`galendai/im-04-wi-06-redelivery`，基于 `origin/main=813dc53db29f22077cc1748b189282ceabc9fe21`，包含已重新核验的实现和文档同步。
+- 本次重新交付分支：`galendai/im-04-wi-06-redelivery`，从精确实现提交创建并已通过 PR #113 合并；合并提交为 `435b3b438122de7e8f053708c5cc1bcb49e7494f`，本地和远端分支均已删除。
 
 ### 实现与验证
 
@@ -36,4 +36,4 @@
 - 首轮已非强制推送远端分支，远端 head 为 `a62332061856eb4457501d4efe93f4fd8241420f`。
 - PR [#112](https://github.com/qzhike/zhiju-business-core/pull/112) 已按授权关闭且未合并；其远端和本地分支已删除。
 - 首轮 PR #112 的 exact-head `verify` 曾成功；实现提交保留在 detached worktree，供本次重新交付复核。
-- 聚焦 Unit、完整 `pnpm verify` 和真实 PostgreSQL persistence gate 已重新通过；重新交付的 commit、push、PR、exact-head CI、merge 和 Issue 关闭仍待本次流程完成并逐项回读。
+- 聚焦 Unit、完整 `pnpm verify` 和真实 PostgreSQL persistence gate 已重新通过；重新交付 commit `3128e120167ee3b85fccdab5b2254bcb855988fb` 已推送，PR #113 的 exact-head CI 已通过并合并，Issue #95 已关闭，分支已删除；`origin/main` 的合并提交为 `435b3b438122de7e8f053708c5cc1bcb49e7494f`。
