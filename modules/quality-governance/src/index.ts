@@ -1,6 +1,6 @@
 export const qualityGovernanceModule = Object.freeze({
   name: 'quality-governance',
-  status: 'IM_05_WI03_GATE_RESULTS_READINESS' as const,
+  status: 'IM_05_WI04_REVIEW_ISSUE_HUMAN_APPROVAL' as const,
 });
 
 export {
@@ -95,6 +95,30 @@ export {
   handleGetRevisionAcceptanceSnapshot,
   handleGetReleaseReadinessSnapshot,
 } from './business/quality-gate-handlers.js';
+
+export {
+  handleRaiseReviewIssue,
+  handleProposeIssueResolution,
+  handleVerifyIssueResolution,
+  handleCloseReviewIssue,
+  handleRequestApproval,
+  handleSubmitApprovalDecision,
+  handleRevokeApproval,
+  handleGetOpenBlockingIssues,
+  handleGetApprovalBundleSnapshot,
+} from './business/quality-review-approval-handlers.js';
+export type {
+  QualityReviewApprovalCommandEnvelope,
+  RaiseReviewIssuePayload,
+  ProposeIssueResolutionPayload,
+  VerifyIssueResolutionPayload,
+  CloseReviewIssuePayload,
+  RequestApprovalPayload,
+  SubmitApprovalDecisionPayload,
+  RevokeApprovalPayload,
+  GetOpenBlockingIssuesPayload,
+  GetApprovalBundleSnapshotPayload,
+} from './business/quality-review-approval-handlers.js';
 export type {
   RecordGateResultPayload,
   RecordReusedGateResultPayload,
@@ -117,6 +141,29 @@ export {
   validateReleaseReadinessInput,
   validateRevisionReadinessInput,
 } from './business/quality-gate-validation.js';
+
+export {
+  validateReviewIssueDefinition,
+  validateIssueResolution,
+  validateIssueVerification,
+  validateApprovalRequestDefinition,
+  validateApprovalSubmission,
+  validateIssueCloseReason,
+  validateApprovalRevocation,
+  isExactRef,
+  contentAddressedHash,
+  objectRefForIssue,
+  snapshotRefForApprovalBundle,
+} from './business/quality-review-approval-validation.js';
+export type {
+  ValidationScope,
+  ValidatedReviewIssueDefinition,
+  ValidatedIssueResolution,
+  ValidatedIssueVerification,
+  ValidatedApprovalRequestDefinition,
+  ValidatedApprovalSubmission,
+  ValidatedApprovalRevocation,
+} from './business/quality-review-approval-validation.js';
 
 export {
   QualityBusinessError,
@@ -149,6 +196,23 @@ export {
   QUALITY_GATE_RESULT_QUERY_NOT_FOUND,
   QUALITY_CHANGE_IMPACT_QUERY_NOT_FOUND,
   QUALITY_READINESS_SNAPSHOT_QUERY_NOT_FOUND,
+  QUALITY_REVIEW_ISSUE_QUERY_NOT_FOUND,
+  QUALITY_REVIEW_ISSUE_INVALID,
+  QUALITY_REVIEW_ISSUE_IMMUTABLE,
+  QUALITY_ISSUE_VERIFICATION_REQUIRED,
+  QUALITY_SEPARATION_OF_DUTIES_VIOLATION,
+  QUALITY_AGENT_DISMISSAL_FORBIDDEN,
+  QUALITY_APPROVAL_QUERY_NOT_FOUND,
+  QUALITY_APPROVAL_INVALID,
+  QUALITY_APPROVAL_AGENT_FORBIDDEN,
+  QUALITY_APPROVAL_REVISION_MISMATCH,
+  QUALITY_APPROVAL_GATE_BUNDLE_INVALID,
+  QUALITY_APPROVAL_BLOCKING_ISSUE_OPEN,
+  QUALITY_APPROVAL_REQUIREMENTS_INCOMPLETE,
+  QUALITY_APPROVAL_REQUEST_EXPIRED,
+  QUALITY_APPROVAL_ALREADY_REVOKED,
+  QUALITY_APPROVAL_IDENTITY_CONFLICT,
+  QUALITY_ABS_CONTRACT_INVALID,
 } from './business/quality-business-errors.js';
 
 export { QualityBusinessRepository } from './persistence/quality-business-repository.js';
@@ -166,6 +230,15 @@ export type {
   GateResultReuseInsert,
   GateInvalidationInsert,
   ReadinessSnapshotInsert,
+  ReviewIssueInsert,
+  IssueResolutionAppend,
+  IssueVerificationAppend,
+  ReviewIssueClose,
+  ApprovalRequestInsert,
+  ApprovalDecisionInsert,
+  ApprovalRevocationAppend,
+  ApprovalBundleSnapshotInsert,
+  AggregateWriteResult,
 } from './persistence/quality-business-repository.js';
 export type {
   IdentityPolicyAuthorityPort,

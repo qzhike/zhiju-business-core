@@ -5,6 +5,11 @@
 
 import { sql } from 'kysely';
 import type {
+  ApprovalBundleSnapshotTable,
+  ApprovalDecisionTable,
+  ApprovalRequestTable,
+  ApprovalRevocationTable,
+  ApprovalTable,
   ChangeImpactTable,
   EvidenceLinkTable,
   EvidenceRevocationTable,
@@ -13,6 +18,8 @@ import type {
   GateInvalidationTable,
   GateResultReuseTable,
   GateResultTable,
+  IssueObservationTable,
+  IssueStateTransitionTable,
   QualityProfileApprovalRequirementTable,
   QualityProfileGateDependencyTable,
   QualityProfileGateSpecTable,
@@ -20,7 +27,10 @@ import type {
   QualityProfileTable,
   QualityProfileVersionTable,
   ReleaseReadinessSnapshotTable,
+  ResolutionProposalTable,
+  ReviewIssueTable,
   RevisionAcceptanceSnapshotTable,
+  VerificationRecordTable,
 } from './quality-business-types.js';
 import type { QualityTransaction } from './quality-db.js';
 
@@ -182,6 +192,112 @@ export interface ReadinessSnapshotInsert {
   readonly createdByActorSnapshotId: string;
   readonly createdByAuthorizationDecisionId: string;
   readonly sourceCommandId: string;
+}
+
+export interface ReviewIssueInsert {
+  readonly reviewIssueId: string;
+  readonly enterpriseId: string;
+  readonly projectId?: string;
+  readonly definition: unknown;
+  readonly raisedBy: unknown;
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface IssueResolutionAppend {
+  readonly resolutionId: string;
+  readonly reviewIssueId: string;
+  readonly expectedVersion: string;
+  readonly definition: unknown;
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface IssueVerificationAppend {
+  readonly verificationId: string;
+  readonly reviewIssueId: string;
+  readonly resolutionId: string;
+  readonly expectedVersion: string;
+  readonly definition: unknown;
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface ReviewIssueClose {
+  readonly reviewIssueId: string;
+  readonly expectedVersion: string;
+  readonly verificationRef: unknown;
+  readonly verificationHash: Buffer;
+  readonly closeReason: unknown;
+  readonly closedAt: Date;
+  readonly transitionId: string;
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface ApprovalRequestInsert {
+  readonly requestId: string;
+  readonly enterpriseId: string;
+  readonly projectId?: string;
+  readonly definition: unknown;
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface ApprovalDecisionInsert {
+  readonly approvalId: string;
+  readonly requestId: string;
+  readonly definition: unknown;
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface ApprovalRevocationAppend {
+  readonly revocationId: string;
+  readonly approvalId: string;
+  readonly expectedVersion: string;
+  readonly definition: unknown;
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface ApprovalBundleSnapshotInsert {
+  readonly snapshotId: string;
+  readonly enterpriseId: string;
+  readonly projectId?: string;
+  readonly snapshot: unknown;
+  readonly revisionContentHash: Buffer;
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface AggregateWriteResult {
+  readonly outcome: BusinessWriteOutcome;
+  readonly aggregateVersion?: string;
 }
 
 export type BusinessWriteOutcome =
@@ -481,6 +597,215 @@ export class QualityBusinessRepository {
     return result.rows[0]?.outcome ?? 'INVALID';
   }
 
+  async insertReviewIssue(
+    trx: QualityTransaction,
+    input: ReviewIssueInsert,
+  ): Promise<BusinessWriteOutcome> {
+    const result = await sql<{ outcome: BusinessWriteOutcome }>`
+      SELECT outcome
+      FROM quality_governance.create_review_issue(
+        ${input.reviewIssueId}::uuid,
+        ${input.enterpriseId}::uuid,
+        ${input.projectId ?? null}::uuid,
+        ${json(input.definition)}::jsonb,
+        ${json(input.raisedBy)}::jsonb,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'INVALID';
+  }
+
+  async appendIssueResolution(
+    trx: QualityTransaction,
+    input: IssueResolutionAppend,
+  ): Promise<AggregateWriteResult> {
+    const result = await sql<{
+      outcome: BusinessWriteOutcome;
+      aggregate_version: string | null;
+    }>`
+      SELECT outcome, aggregate_version::text
+      FROM quality_governance.append_issue_resolution(
+        ${input.resolutionId}::uuid,
+        ${input.reviewIssueId}::uuid,
+        ${input.expectedVersion}::bigint,
+        ${json(input.definition)}::jsonb,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    const row = result.rows[0];
+    return {
+      outcome: row?.outcome ?? 'INVALID',
+      ...(row?.aggregate_version === null || row?.aggregate_version === undefined
+        ? {}
+        : { aggregateVersion: row.aggregate_version }),
+    };
+  }
+
+  async appendIssueVerification(
+    trx: QualityTransaction,
+    input: IssueVerificationAppend,
+  ): Promise<AggregateWriteResult> {
+    const result = await sql<{
+      outcome: BusinessWriteOutcome;
+      aggregate_version: string | null;
+    }>`
+      SELECT outcome, aggregate_version::text
+      FROM quality_governance.append_issue_verification(
+        ${input.verificationId}::uuid,
+        ${input.reviewIssueId}::uuid,
+        ${input.resolutionId}::uuid,
+        ${input.expectedVersion}::bigint,
+        ${json(input.definition)}::jsonb,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    const row = result.rows[0];
+    return {
+      outcome: row?.outcome ?? 'INVALID',
+      ...(row?.aggregate_version === null || row?.aggregate_version === undefined
+        ? {}
+        : { aggregateVersion: row.aggregate_version }),
+    };
+  }
+
+  async closeReviewIssue(
+    trx: QualityTransaction,
+    input: ReviewIssueClose,
+  ): Promise<AggregateWriteResult> {
+    const result = await sql<{
+      outcome: BusinessWriteOutcome;
+      aggregate_version: string | null;
+    }>`
+      SELECT outcome, aggregate_version::text
+      FROM quality_governance.close_review_issue(
+        ${input.reviewIssueId}::uuid,
+        ${input.expectedVersion}::bigint,
+        ${input.verificationRef}::jsonb,
+        ${input.verificationHash}::bytea,
+        ${json(input.closeReason)}::jsonb,
+        ${input.closedAt}::timestamptz,
+        ${input.transitionId}::uuid,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    const row = result.rows[0];
+    return {
+      outcome: row?.outcome ?? 'INVALID',
+      ...(row?.aggregate_version === null || row?.aggregate_version === undefined
+        ? {}
+        : { aggregateVersion: row.aggregate_version }),
+    };
+  }
+
+  async insertApprovalRequest(
+    trx: QualityTransaction,
+    input: ApprovalRequestInsert,
+  ): Promise<BusinessWriteOutcome> {
+    const result = await sql<{ outcome: BusinessWriteOutcome }>`
+      SELECT outcome
+      FROM quality_governance.create_approval_request(
+        ${input.requestId}::uuid,
+        ${input.enterpriseId}::uuid,
+        ${input.projectId ?? null}::uuid,
+        ${json(input.definition)}::jsonb,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'INVALID';
+  }
+
+  async insertApprovalDecision(
+    trx: QualityTransaction,
+    input: ApprovalDecisionInsert,
+  ): Promise<BusinessWriteOutcome> {
+    const result = await sql<{ outcome: BusinessWriteOutcome }>`
+      SELECT outcome
+      FROM quality_governance.create_approval_decision(
+        ${input.approvalId}::uuid,
+        ${input.requestId}::uuid,
+        ${json(input.definition)}::jsonb,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'INVALID';
+  }
+
+  async appendApprovalRevocation(
+    trx: QualityTransaction,
+    input: ApprovalRevocationAppend,
+  ): Promise<AggregateWriteResult> {
+    const result = await sql<{
+      outcome: BusinessWriteOutcome;
+      aggregate_version: string | null;
+    }>`
+      SELECT outcome, aggregate_version::text
+      FROM quality_governance.append_approval_revocation(
+        ${input.revocationId}::uuid,
+        ${input.approvalId}::uuid,
+        ${input.expectedVersion}::bigint,
+        ${json(input.definition)}::jsonb,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    const row = result.rows[0];
+    return {
+      outcome: row?.outcome ?? 'INVALID',
+      ...(row?.aggregate_version === null || row?.aggregate_version === undefined
+        ? {}
+        : { aggregateVersion: row.aggregate_version }),
+    };
+  }
+
+  async insertApprovalBundleSnapshot(
+    trx: QualityTransaction,
+    input: ApprovalBundleSnapshotInsert,
+  ): Promise<BusinessWriteOutcome> {
+    const result = await sql<{ outcome: BusinessWriteOutcome }>`
+      SELECT outcome
+      FROM quality_governance.create_approval_bundle_snapshot(
+        ${input.snapshotId}::uuid,
+        ${input.enterpriseId}::uuid,
+        ${input.projectId ?? null}::uuid,
+        ${json(input.snapshot)}::jsonb,
+        ${input.revisionContentHash}::bytea,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'INVALID';
+  }
+
   async getEvidenceById(
     trx: QualityTransaction,
     evidenceId: string,
@@ -673,5 +998,166 @@ export class QualityBusinessRepository {
       .selectAll()
       .where('snapshot_id', '=', snapshotId)
       .executeTakeFirst();
+  }
+
+  async getReviewIssueById(
+    trx: QualityTransaction,
+    reviewIssueId: string,
+  ): Promise<ReviewIssueTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.review_issue')
+      .selectAll()
+      .where('review_issue_id', '=', reviewIssueId)
+      .executeTakeFirst();
+  }
+
+  async getReviewIssues(trx: QualityTransaction): Promise<readonly ReviewIssueTable[]> {
+    return trx
+      .selectFrom('quality_governance.review_issue')
+      .selectAll()
+      .orderBy('created_at', 'desc')
+      .orderBy('review_issue_id', 'desc')
+      .execute();
+  }
+
+  async getIssueObservations(
+    trx: QualityTransaction,
+    reviewIssueId: string,
+  ): Promise<readonly IssueObservationTable[]> {
+    return trx
+      .selectFrom('quality_governance.issue_observation')
+      .selectAll()
+      .where('review_issue_id', '=', reviewIssueId)
+      .orderBy('observed_at', 'desc')
+      .execute();
+  }
+
+  async getResolutionProposals(
+    trx: QualityTransaction,
+    reviewIssueId: string,
+  ): Promise<readonly ResolutionProposalTable[]> {
+    return trx
+      .selectFrom('quality_governance.resolution_proposal')
+      .selectAll()
+      .where('review_issue_id', '=', reviewIssueId)
+      .orderBy('proposed_at', 'desc')
+      .orderBy('resolution_id', 'desc')
+      .execute();
+  }
+
+  async getVerificationRecords(
+    trx: QualityTransaction,
+    reviewIssueId: string,
+  ): Promise<readonly VerificationRecordTable[]> {
+    return trx
+      .selectFrom('quality_governance.verification_record')
+      .selectAll()
+      .where('review_issue_id', '=', reviewIssueId)
+      .orderBy('verified_at', 'desc')
+      .orderBy('verification_id', 'desc')
+      .execute();
+  }
+
+  async getVerificationRecordById(
+    trx: QualityTransaction,
+    verificationId: string,
+  ): Promise<VerificationRecordTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.verification_record')
+      .selectAll()
+      .where('verification_id', '=', verificationId)
+      .executeTakeFirst();
+  }
+
+  async getIssueStateTransitions(
+    trx: QualityTransaction,
+    reviewIssueId: string,
+  ): Promise<readonly IssueStateTransitionTable[]> {
+    return trx
+      .selectFrom('quality_governance.issue_state_transition')
+      .selectAll()
+      .where('review_issue_id', '=', reviewIssueId)
+      .orderBy('transitioned_at', 'asc')
+      .orderBy('transition_id', 'asc')
+      .execute();
+  }
+
+  async getApprovalRequestById(
+    trx: QualityTransaction,
+    requestId: string,
+  ): Promise<ApprovalRequestTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.approval_request')
+      .selectAll()
+      .where('request_id', '=', requestId)
+      .executeTakeFirst();
+  }
+
+  async getApprovalById(
+    trx: QualityTransaction,
+    approvalId: string,
+  ): Promise<ApprovalTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.approval')
+      .selectAll()
+      .where('approval_id', '=', approvalId)
+      .executeTakeFirst();
+  }
+
+  async getApprovals(trx: QualityTransaction): Promise<readonly ApprovalTable[]> {
+    return trx
+      .selectFrom('quality_governance.approval')
+      .selectAll()
+      .orderBy('created_at', 'desc')
+      .orderBy('approval_id', 'desc')
+      .execute();
+  }
+
+  async getApprovalDecisions(
+    trx: QualityTransaction,
+    approvalId: string,
+  ): Promise<readonly ApprovalDecisionTable[]> {
+    return trx
+      .selectFrom('quality_governance.approval_decision')
+      .selectAll()
+      .where('approval_id', '=', approvalId)
+      .orderBy('decided_at', 'desc')
+      .orderBy('decision_id', 'desc')
+      .execute();
+  }
+
+  async getApprovalRevocations(
+    trx: QualityTransaction,
+    approvalId: string,
+  ): Promise<readonly ApprovalRevocationTable[]> {
+    return trx
+      .selectFrom('quality_governance.approval_revocation')
+      .selectAll()
+      .where('approval_id', '=', approvalId)
+      .orderBy('revoked_at', 'desc')
+      .orderBy('revocation_id', 'desc')
+      .execute();
+  }
+
+  async getApprovalBundleSnapshotById(
+    trx: QualityTransaction,
+    snapshotId: string,
+  ): Promise<ApprovalBundleSnapshotTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.approval_bundle_snapshot')
+      .selectAll()
+      .where('snapshot_id', '=', snapshotId)
+      .executeTakeFirst();
+  }
+
+  async getApprovalBundleSnapshots(
+    trx: QualityTransaction,
+  ): Promise<readonly ApprovalBundleSnapshotTable[]> {
+    return trx
+      .selectFrom('quality_governance.approval_bundle_snapshot')
+      .selectAll()
+      .orderBy('evaluated_at', 'desc')
+      .orderBy('snapshot_id', 'desc')
+      .execute();
   }
 }

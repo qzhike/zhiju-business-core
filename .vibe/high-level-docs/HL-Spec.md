@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-30
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01–WI-09 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / IM-05 WI-01 LOCAL IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-30 / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01–WI-09 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / IM-05 WI-01 LOCAL IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-30 / IM-05 WI-04 IMPLEMENTATION AND LOCAL TECHNICAL VERIFICATION COMPLETE 2026-08-30 / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN / GITHUB PR #133 CI RETRY REQUIRED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -465,6 +465,16 @@ WI-02 实现、验证与 GitHub 交付状态（2026-08-30）：`IMPLEMENTATION C
 - WI-03 已完成本地实现与技术验证：focused validation 为 1 file/6 tests，WI-03 disposable PostgreSQL 为 31 files/303 tests；Format、Lint、Typecheck、Build、普通 Vitest、Architecture、Contract/Catalog/Compatibility 和正式 persistence gate 均通过。验证使用 synthetic technical fixture；外部 Provider/Renderer、公开 HTTP、生产、跨模块业务 E2E 与独立人工客户验收保持 `NOT RUN`。
 
 WI-03 本地验证结果（2026-08-30）：正式 `pnpm persistence:gate` 在 pinned PostgreSQL 18.6/Flyway 11.20.3 上通过 registry tag→digest 校验、`server_version=180006`、空库 34 migrations（含 V5003）、31 persistence files/303 tests、第二次 `Schema "public" is up to date. No migration necessary.` 和容器清理。WI-03 专用场景覆盖 GateResult 不可变/重跑、exact ChangeImpact 复用与 coverage rejection、RAS stale/not-ready、RRS package drift、RLS/ACL/append-only 和 post-write rollback。全量 `pnpm test` 为 36 passed/27 skipped files、409 passed/288 skipped tests；Provider、真实 Renderer、ReleasePublication、公开 HTTP、生产、跨模块业务 E2E 和独立人工客户验收仍为 `NOT RUN`。当前实现尚未 commit/push/创建 PR，等待用户检查确认。
+
+### 2.15 IM-05 WI-04 ReviewIssue remediation 与 Human Approval snapshot（Issue #124）
+
+- WI-04 依赖已关闭的 #123、既有 IdentityPolicy Human-only/AuthorizationDecision 精确边界、Artifact exact Revision Query 和父退出门槛 #120；本切片新增 forward-only QualityGovernance migration，不修改 `V5000`–`V5003`。
+- `ReviewIssue` 保存精确 Artifact/原始 Revision/Gate/Evidence、statement、locator、severity、blocking classification 和 raised actor；原始发现不可更新或删除。Resolution、Verification、状态迁移为独立 immutable facts；新 Revision 不自动关闭 Issue，作者在启用职责分离时不得验证自己的修复。
+- `ApprovalRequest` 绑定 exact Revision、Revision Acceptance Snapshot、QualityProfile version、Requirement、requested role、expiry 和 nonce hash；`Approval`/decision 只接受可信 Human，并保存 exact role snapshot、AuthorizationDecision、SeparationCheck、decision payload/hash。Agent、actingFor Agent、错误 Revision/RAS、未关闭 Blocking Issue 或无效 Gate Bundle 均 fail-closed。
+- ABS 为不可变 Core `approval-bundle/1.0` Snapshot；Approval 撤销或上游失效只追加 Revocation/Impact/新状态事实，保留旧 Decision 与旧 ABS，不把新 Revision 或新 Profile 静默迁移到旧 Approval。
+- 业务写入只能经 `quality_governance_owner` 的 SECURITY DEFINER 函数；ReviewIssue/Approval 及其历史表保留 Enterprise/Project scope、actor/authorization/source-command attribution、canonical payload/hash，app role 仅可读 RLS。业务事实、Receipt、Audit、Outbox、Reference Edge 必须同事务提交或回滚。
+- 本阶段的数据库、Unit、Contract、Persistence、race/RLS/rollback 证据仅为 `SYNTHETIC / TECHNICAL ONLY`；Workspace UI、Feishu approval、真实组织审批人、Release Authorization/Publication、生产、公开 HTTP、跨模块业务 E2E 和独立人工客户验收保持 `NOT RUN`。
+- WI-04 已完成实现与技术验证：focused validator Unit 为 1 file/7 tests，普通全量 Vitest 为 37 passed/28 skipped files、416 passed/290 skipped tests；正式 `node tools/persistence/gate.mjs` 已完成 PostgreSQL 18.6/Flyway 11.20.3 mutable tag→digest 校验、`server_version=180006`、空库 35 migrations（含 V5004）、32 persistence files/305 tests、二次 `Schema "public" is up to date. No migration necessary.` 和容器清理。该 Gate 覆盖 ReviewIssue remediation、独立 Human verification、Approval/ABS、AGENT/Service/Runtime trusted-context 拒绝、撤销 stale、CAS race、重复 Human、RLS/ACL、append-only、事件最小性和 post-write rollback；重复 Human 映射为 `QUALITY_APPROVAL_IDENTITY_CONFLICT`。所有数据均为 `SYNTHETIC / TECHNICAL ONLY`；Workspace UI、Feishu approval、真实组织审批人、Release Authorization/Publication、Provider、生产、公开 HTTP、跨模块业务 E2E 和独立人工客户验收保持 `NOT RUN`。实现 commit `390b2bcb017c12706f0de7a02bbd5dbe922287a9` 已创建并 non-force push 到目标分支，文档同步 commit `6da530d5c1b4f3bf74ed51bbcab89b2837cd95ec` 已推送；PR #133 的首轮 exact-head CI 仅因 WI-04 长 persistence 测试超过默认 5 秒时限而失败，正在增加显式测试时限并重跑 CI。
 
 建议的下一阶段：
 

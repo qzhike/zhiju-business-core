@@ -329,3 +329,247 @@ export interface ReleaseReadinessSnapshotTable {
   created_at: Date;
   source_command_id: string;
 }
+
+// IM-05 WI-04 (issue #124): ReviewIssue remediation and Human Approval facts.
+// Cross-module references remain JSON values; immutable payloads keep their
+// canonical hash beside the exact reference they describe.
+
+export type ReviewIssueStatus =
+  | 'OPEN'
+  | 'ACKNOWLEDGED'
+  | 'RESOLUTION_PROPOSED'
+  | 'VERIFICATION_PENDING'
+  | 'VERIFIED'
+  | 'CLOSED'
+  | 'DISMISSED'
+  | 'DUPLICATE'
+  | 'SUPERSEDED';
+
+export interface ReviewIssueTable {
+  review_issue_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  artifact_ref: unknown;
+  origin_revision_ref: unknown;
+  origin_revision_hash: Buffer;
+  origin_gate_result_ref: unknown;
+  issue_type: string;
+  severity: 'CRITICAL' | 'MAJOR' | 'MINOR' | 'INFO';
+  blocking_classification: string;
+  statement: string;
+  locator: string;
+  evidence_refs: unknown;
+  raised_by: unknown;
+  raised_at: Date;
+  status: ReviewIssueStatus;
+  aggregate_version: string;
+  payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Date;
+  updated_at: Date;
+  last_command_id: string;
+}
+
+export interface IssueObservationTable {
+  observation_id: string;
+  review_issue_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  origin_revision_ref: unknown;
+  origin_revision_hash: Buffer;
+  origin_gate_result_ref: unknown;
+  evidence_refs: unknown;
+  definition: unknown;
+  payload_hash: Buffer;
+  observed_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Date;
+  source_command_id: string;
+}
+
+export interface ResolutionProposalTable {
+  resolution_id: string;
+  review_issue_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  target_revision_ref: unknown;
+  target_revision_hash: Buffer;
+  changed_claim_refs: unknown;
+  explanation: string;
+  proposed_by: unknown;
+  proposed_at: Date;
+  definition: unknown;
+  payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Date;
+  source_command_id: string;
+}
+
+export interface VerificationRecordTable {
+  verification_id: string;
+  review_issue_id: string;
+  resolution_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  target_revision_ref: unknown;
+  target_revision_hash: Buffer;
+  verifier: unknown;
+  supporting_gate_result_refs: unknown;
+  outcome: 'VERIFIED' | 'REJECTED';
+  verified_at: Date;
+  definition: unknown;
+  payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Date;
+  source_command_id: string;
+}
+
+export interface IssueStateTransitionTable {
+  transition_id: string;
+  review_issue_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  from_status: ReviewIssueStatus;
+  to_status: ReviewIssueStatus;
+  cause_ref: unknown;
+  reason: unknown;
+  transitioned_at: Date;
+  definition: unknown;
+  payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Date;
+  source_command_id: string;
+}
+
+export type ApprovalRequestStatus = 'OPEN' | 'EXPIRED' | 'FULFILLED' | 'REVOKED';
+export type ApprovalStatus = 'EFFECTIVE' | 'REVOKED' | 'STALE' | 'INVALID' | 'SUPERSEDED';
+
+export interface ApprovalRequestTable {
+  request_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  artifact_ref: unknown;
+  revision_ref: unknown;
+  revision_content_hash: Buffer;
+  revision_acceptance_snapshot_ref: unknown;
+  revision_acceptance_snapshot_hash: Buffer;
+  quality_profile_ref: unknown;
+  approval_requirement_id: string;
+  requested_approver_role: string;
+  expires_at: Date | null;
+  request_nonce_hash: Buffer;
+  status: ApprovalRequestStatus;
+  definition: unknown;
+  payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Date;
+  source_command_id: string;
+}
+
+export interface ApprovalTable {
+  approval_id: string;
+  request_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  artifact_ref: unknown;
+  revision_ref: unknown;
+  revision_content_hash: Buffer;
+  revision_acceptance_snapshot_ref: unknown;
+  revision_acceptance_snapshot_hash: Buffer;
+  quality_profile_ref: unknown;
+  approval_requirement_id: string;
+  decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
+  status: ApprovalStatus;
+  aggregate_version: string;
+  payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Date;
+  updated_at: Date;
+  last_command_id: string;
+}
+
+export interface ApprovalDecisionTable {
+  decision_id: string;
+  approval_id: string;
+  request_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  revision_ref: unknown;
+  revision_content_hash: Buffer;
+  revision_acceptance_snapshot_ref: unknown;
+  revision_acceptance_snapshot_hash: Buffer;
+  approval_requirement_id: string;
+  decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
+  decision_comment: string;
+  approver_human_principal_ref: unknown;
+  approver_role_snapshot_ref: unknown;
+  authorization_decision_ref: unknown;
+  separation_check_ref: unknown;
+  decided_at: Date;
+  definition: unknown;
+  payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Date;
+  source_command_id: string;
+}
+
+export interface ApprovalRevocationTable {
+  revocation_id: string;
+  approval_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  approval_ref: unknown;
+  approval_hash: Buffer;
+  approval_decision_ref: unknown;
+  approval_decision_hash: Buffer;
+  revocation_reason: unknown;
+  impact_assessment_ref: unknown;
+  revoked_at: Date;
+  definition: unknown;
+  payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Date;
+  source_command_id: string;
+}
+
+export interface ApprovalBundleSnapshotTable {
+  snapshot_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  artifact_ref: unknown;
+  revision_ref: unknown;
+  revision_content_hash: Buffer;
+  revision_acceptance_snapshot_ref: unknown;
+  quality_profile_ref: unknown;
+  approval_requirements: unknown;
+  approval_refs: unknown;
+  separation_of_duties_result: unknown;
+  authorization_snapshot_refs: unknown;
+  completeness: unknown;
+  snapshot: unknown;
+  payload_hash: Buffer;
+  evaluated_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Date;
+  source_command_id: string;
+}
