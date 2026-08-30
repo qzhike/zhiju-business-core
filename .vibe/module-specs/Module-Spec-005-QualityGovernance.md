@@ -1,8 +1,8 @@
 # Module-Spec-005-QualityGovernance
 
 版本：v0.4
-日期：2026-08-18
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTED 2026-08-18 / PR #13 FIRST-ROUND REMEDIATION APPLIED 2026-08-18 / PR #13 SECOND-ROUND REMEDIATION APPLIED 2026-08-18`
+日期：2026-08-30
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 APPLICATION AND PERSISTENCE LOCALLY VERIFIED 2026-08-30 / QUALITY BUSINESS HANDLERS NOT RUN`
 
 ## 1. 模块责任
 
@@ -301,3 +301,16 @@ QUALITY_RELEASE_READINESS_NOT_READY
 ## 10. IM-02 WI-04 持久化切片
 
 QualityGovernance owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。Canonical payload↔hash 强校验、Gate Evaluator、Profile Registry、业务 Repository 与 Handler 仍为 `NOT RUN`。
+
+## 11. IM-05 WI-01 Application/Persistence 基础
+
+Issue #121 在既有 `V5000__quality_governance_technical_tables.sql` 与 owning roles 上实现模块自有的 Application/Persistence 事务边界，不修改已经应用的 Migration，也不创建质量业务表。首轮真实 PostgreSQL 负向探针发现两个 trigger guard function 对 app role 仍可解析执行并返回 `0A000`；forward-only `V5001` 必须撤销 PUBLIC、app、dispatcher 与 audit reader 的直接 EXECUTE，只保留 owner 管理边界，且不得影响 trigger 正常执行。
+
+1. 同一连接和事务内先由 `platform_context_establisher` 建立可信 Actor、Authorization、Enterprise/Project Scope、Correlation 与可选 Source Event Context，再切换到 `quality_governance_app`；任何 Envelope attribution 或 Scope 不一致均须在 Claim Receipt 前拒绝。
+2. `(idempotency_scope, idempotency_key)` 是数据库仲裁的唯一幂等键。same key/same canonical SHA-256 必须重放首个 `COMMITTED`/`REJECTED` 结果；different hash 返回稳定 `IDEMPOTENCY_PAYLOAD_CONFLICT`，不得泄漏 `unique_violation`。
+3. 技术 `process_instance.aggregate_version` 使用字符串/BigInt 精确 CAS。相同 expected version 的并发写只允许一个提交，失败方返回稳定 `CONCURRENCY_CONFLICT`，不得丢失更新。
+4. Receipt、业务 callback、Inbox、Process/Step、Audit、Outbox 与 Reference Edge 在同一事务组合；任一后置故障必须回滚全部写入。Canonical JSONB、Payload Hash、Event/Edge owner、Scope mirror 与 actor attribution 在 Application 与 PostgreSQL 两层校验。
+5. QualityGovernance 只依赖三个公开 Query Port：IdentityPolicy 的 Actor/Authorization 精确校验、EnterpriseProject 的 `project.validate_object_scope`、Artifact 的 `artifact.validate_revision_ref`。Port 返回必须精确匹配输入 Ref、Enterprise/Project Scope、版本/内容 Hash 和请求目的；不得使用 `latest/current`、跨 Enterprise 搜索、caller-provided fallback 或跨 Schema Repository。
+6. 本切片只证明技术事务与受控 Query Port 组合；Evidence/Profile/Gate/Issue/Approval/Readiness 业务 Repository/Handler、Renderer、ReleasePublication、外部 Provider、公开 HTTP、生产与独立人工业务验收保持 `NOT RUN`。
+
+当前状态：`IMPLEMENTATION COMPLETE / LOCAL VERIFICATION PASS`。Unit 2 files/5 tests、普通全量 34 passed/25 skipped files（395 passed/278 skipped tests）、Architecture、201/201 FULL Contract、冻结 200-operation compatibility baseline 均通过；disposable PostgreSQL 18.6/Flyway 11.20.3 为 29 files/293 tests，空库应用 32 条 Migration（含 V5001）、第二次 no-op 与容器清理通过。GitHub 交付状态以 Issue #121 及其 PR 为准。

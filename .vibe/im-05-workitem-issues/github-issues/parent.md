@@ -1,6 +1,6 @@
 ## Status
 
-`PLANNED / NOT STARTED`
+`IN PROGRESS / WI-01 IMPLEMENTATION COMPLETE / PARENT EXIT GATE OPEN`
 
 ## Goal
 
@@ -26,7 +26,7 @@ Deliver and accept IM-05 Quality + Release + Renderer as a scoped engineering mi
 
 ## Work items
 
-- [ ] #121 — QualityGovernance application and persistence foundation
+- [x] #121 — QualityGovernance application and persistence foundation
 - [ ] #122 — Evidence, EvidenceLink, and QualityProfile lifecycle
 - [ ] #123 — Gate results, impact reuse, and readiness snapshots
 - [ ] #124 — ReviewIssue remediation, Human Approval, and approval bundle snapshots

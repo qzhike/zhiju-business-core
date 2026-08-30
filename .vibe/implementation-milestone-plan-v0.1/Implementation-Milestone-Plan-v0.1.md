@@ -211,6 +211,8 @@ GitHub 任务基线：Parent Exit Gate [#89](https://github.com/qzhike/zhiju-bus
 
 退出 Gate：针对精确 Revision 的 Gate/Approval/Render/Release Hash 链完整；未批准 Revision、普通文件发送或 Agent 行为不能形成 Formal Release。
 
+GitHub 任务基线：Parent Exit Gate [#120](https://github.com/qzhike/zhiju-business-core/issues/120)，开发 Work Item [#121](https://github.com/qzhike/zhiju-business-core/issues/121)–[#128](https://github.com/qzhike/zhiju-business-core/issues/128)。WI-01 的 Application/Persistence 本地实现与完整 Gate 已通过；其远端交付状态以 #121 及关联 PR 为准。WI-02–WI-08 不因 WI-01 的技术 Persistence 通过而自动开始或完成。
+
 ### IM-06 TaskExecution Human-operated Core
 
 产出：Task、WorkOrder、ContextSnapshot、Run、AgentResult、InformationRequest、Usage/Provenance 的 Human-operated 流程；只实现 200 项已批准 Catalog 能力。
