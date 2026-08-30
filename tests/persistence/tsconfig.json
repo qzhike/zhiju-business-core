@@ -19,6 +19,9 @@
       "path": "../../modules/artifact"
     },
     {
+      "path": "../../modules/integration-gateway"
+    },
+    {
       "path": "../../modules/quality-governance"
     }
   ]

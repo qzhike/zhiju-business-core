@@ -1,8 +1,8 @@
 # Module-Test-007-IntegrationGateway
 
 版本：v0.1
-日期：2026-08-13（字段级 Schema 增补于 2026-08-18，2026-08-18 review 第一轮修复，2026-08-18 review 第二轮修复，Issue #17 运行时切片设计于 2026-08-21、实现于 2026-08-22，WI-01 Binding Query 回归于 2026-08-28）
-状态：`API CONTRACT TEST BASELINE / WI-01 BINDING QUERY CONTRACT REGRESSION PASS / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / 9-CLASS REVIEW FIXES APPLIED 2026-08-18 / ISSUE #17 RUNTIME SLICE PASS 2026-08-22 / REAL HANDLER + ADAPTER + DB STILL NOT RUN / PR #16 NOT CLAIMING ISSUE #6`
+日期：2026-08-30（字段级 Schema 增补于 2026-08-18，Issue #17 运行时切片实现于 2026-08-22，WI-01 Binding Query 回归于 2026-08-28，IM-05 WI-05 本地 Renderer/Persistence/Openability 验证于 2026-08-30）
+状态：`API CONTRACT TEST BASELINE / WI-01 BINDING QUERY CONTRACT REGRESSION PASS / ISSUE #17 RUNTIME SLICE PASS / IM-05 WI-05 UNIT + CONTRACT + PERSISTENCE + LOCAL OFFICE OPENABILITY PASS / REAL EXTERNAL PROVIDER + PRODUCTION + INDEPENDENT BUSINESS ACCEPTANCE NOT RUN / GITHUB DELIVERY TRACKED BY PR #135 AND ISSUE #125`
 
 对应规格：[`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md)。
 
@@ -90,3 +90,20 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 | IG-PG-002 | Process Scope、masked audit、Reference owner version 矩阵 | 跨 Scope 拒绝、masked row 可读、多 owner version 可共存 | 分别为 `23514`、目标 row、两版本成功/精确重复 `23505` | `PASS` |
 
 #27 的业务 Migration/Repository、Provider、跨进程验证与 payload↔hash Gate 仍为 `NOT RUN`。
+
+## IM-05 WI-05 Renderer 用例（Issue #125）
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| IG-IM05-WI05-U-001 | Unit/Renderer | 同一 Canonical Document/Workbook bytes 与同一 Renderer Profile 重复渲染 | DOCX/XLSX bytes 与 SHA-256 完全一致；ZIP entry 顺序、时间和 XML 顺序固定 | `deterministic-ooxml-renderer.test.ts` 两类参数化输入逐字节及 checksum 相等，ZIP magic/目标 entry 存在；focused file 共 4 tests passed | `PASS` |
+| IG-IM05-WI05-U-002 | Unit/Renderer | Document→XLSX、Workbook→DOCX、错误 input hash、错误 renderer ID/version/format | 外部副作用前 fail closed；不产生 output、Receipt 或成功事件 | Document/XLSX profile、声明 hash、format、renderer ID 与 version 替换均被 `RendererInputError` 拒绝；Artifact 组合负例继续覆盖 Binding 字段替换 | `PASS` |
+| IG-IM05-WI05-U-003 | Unit/Security | canonical/source/output locator 或 receipt 候选包含 URL、credential、token、secret | 返回稳定安全错误；公开 Binding/事件/日志无敏感值 | Object Store 拒绝 credential-like locator 和不同 bytes 覆盖；`V7001` CHECK/Repository 仅持久化 opaque locator、ExternalRef 与 hash，不保存原始 payload | `PASS` |
+| IG-IM05-WI05-P-001 | Persistence/Migration | 空库应用 `V7001`，再运行第二次 migrate | RenderAttempt/RawReceipt 表、RLS/ACL/不可变保护成功；第二次 no-op | PostgreSQL 18.6/Flyway 11.20.3 空库应用 `V7001` 成功；second migrate=`No migration necessary`；容器删除 | `PASS` |
+| IG-IM05-WI05-P-002 | Persistence/Idempotency | same stable key/same request hash replay；same key/different hash；renderer version/content 改变 | 首种复用同 Attempt；第二种稳定冲突；版本/内容变化必须使用新 Attempt | same key/same hash 返回同一 Binding 且 Provider 仅调用 1 次；key/request/attempt identity 冲突返回 `INTEGRATION_ATTEMPT_IDEMPOTENCY_CONFLICT` | `PASS` |
+| IG-IM05-WI05-P-003 | Persistence/UNKNOWN | Provider timeout 后以相同 stable key replay，再执行权威 reconcile | 初始和 replay 均为同一 `UNKNOWN` 且 Provider 只调用一次；只有匹配 attempt-derived locator/media/output bytes/checksum/canonical Receipt readback 可推进 | timeout 与 replay 均为同一 `UNKNOWN`、Provider calls=1；伪造 checksum 与用 output 替换 Receipt 均返回 `INTEGRATION_RENDER_OUTPUT_MISMATCH`，权威 output/receipt readback 才推进 `SUCCEEDED` | `PASS` |
+| IG-IM05-WI05-P-004 | Persistence/Atomicity | 成功结果未经权威验证，或在 Receipt/Outbox/Attempt 更新后注入回滚 | 验证拒绝进入 `FAILED` 且 Raw Receipt/成功 Outbox 为 0；提交 fault 时三类写入全部回滚，不得存在半成功 Binding | `verifySucceeded=false` 的 Provider outcome 落为 `FAILED`、Raw Receipt=0、成功 Outbox=0；受控提交 fault 后 Attempt 保持 `CREATED`、Raw Receipt=0、成功 Outbox=0 | `PASS` |
+| IG-IM05-WI05-P-005 | Persistence/RLS | 无 Context、wrong Project、直接终态改写/删除、跨 Schema读取 Artifact | zero-row/`42501`；终态不可改写；IntegrationGateway App 无 Artifact Repository/Schema 权限 | wrong Project read 为 zero-row；Attempt UPDATE/DELETE 与 Artifact Schema read 均为 `42501`；FORCE RLS/owner policy/受控函数签名通过 catalog 回归 | `PASS` |
+| IG-IM05-WI05-C-001 | Contract/Query | `get_render_attempt_binding` 读取 CREATED/FAILED/UNKNOWN/SUCCEEDED | 只有 SUCCEEDED 携带 exact succeededResult/rawReceiptRef；全部结果通过 201-operation Contract Registry | PostgreSQL 用例实际读回四种状态；FAILED/CREATED/UNKNOWN 无 success 字段，SUCCEEDED 含 exact output/receipt；Registry `201/201 FULL` | `PASS` |
+| IG-IM05-WI05-C-002 | Tooling/CI | 无 `dist`/`.tsbuildinfo` 的冷工作区执行 lint/typecheck/test | Persistence test project 能解析 `@zhiju/integration-gateway` 类型；不得依赖本地旧 build artifact | PR #135 首轮 CI run `33320335089` 暴露缺失 reference；增加 IntegrationGateway project reference 后，`pnpm clean && pnpm verify` 从零构建产物通过 420 个普通测试与 308 个 PostgreSQL 测试 | `PASS (CLEAN LOCAL) / NEW EXACT-HEAD CI REQUIRED` |
+| IG-IM05-WI05-E-001 | Integration | exact RenderAttempt Binding 作为公开 Port 输入既有 Artifact Representation Handler | exact binding 注册；revision/input/format/renderer/checksum/scope/receipt/非成功状态全部拒绝 | 真实 Renderer `SUCCEEDED` Binding 经公开 Port 完成 Artifact Handler 登记；既有替换/状态/Scope/receipt 负例与本轮真实链路均通过 PostgreSQL Gate | `PASS (CONTROLLED PUBLIC-PORT/PERSISTENCE)` |
+| IG-IM05-WI05-M-001 | Manual/Openability | 一份脱敏 Document 与 Workbook，含 input bytes/hash、attempt/request hash、output checksum、Binding、Representation 与检查表 | DOCX/XLSX 在批准应用中可打开；身份/checksum 可独立比较；输出清理完成 | DOCX `9da593bff44cc62d4e1b693af7dec80aabb884a3eaa58dd3e94854bff8a894ef`/3939 bytes 在 Word 打开并展示标题、段落、表格；XLSX `81d7aac6eb8a9cfc55046758705587466e4e8fa1a5010347fda46c4f4ae94e86`/3495 bytes 在 Excel 打开并展示 A1:C3；公式 XML 已保留但未验证完整计算引擎；ZIP 完整性通过，临时输出删除 | `PASS (LOCAL MANUAL OPENABILITY) / REAL CUSTOMER ACCEPTANCE NOT RUN` |

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-16
-状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 ADDITIVE BINDING QUERY CONTRACT LANDED 2026-08-28 / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / ISSUE #17 RUNTIME SLICE LANDED 2026-08-22 / REAL PROVIDER AND DATABASE NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 ADDITIVE BINDING QUERY CONTRACT LANDED 2026-08-28 / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / ISSUE #17 RUNTIME SLICE LANDED 2026-08-22 / IM-05 WI-05 LOCAL RENDERER AND DATABASE VERIFIED 2026-08-30 / REAL EXTERNAL PROVIDER NOT RUN`
 
 ## 1. 模块责任
 
@@ -258,3 +258,15 @@ Issue #17 允许先在模块内部验证不依赖真实 Provider、数据库或 
 ## 10. IM-02 WI-04 持久化切片
 
 IntegrationGateway owning Schema 在 #32 中仅获得八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。#27 继续拥有业务 Migration/Repository、Provider、跨进程幂等与外部 E2E；Canonical payload↔hash 强校验及这些运行时验收均为 `NOT RUN`。
+
+## 11. IM-05 WI-05 Renderer 纵向切片实现合同（Issue #125）
+
+1. Renderer Profile 为代码内版本化闭集，只接受 `document.docx + zhiju.renderer.docx.minimal` 和 `workbook.xlsx + zhiju.renderer.xlsx.minimal` 的声明版本；Document 与 Workbook 类型/format/profile 交叉组合必须在外部副作用前拒绝。
+2. Render input package 必须包含完整 `RenderRequest`、其 canonical SHA-256、精确 `revisionRef`、canonical source locator、canonical input hash 和 Renderer Profile。Worker 从注入的 Object Storage Port 权威 readback bytes，重新计算 canonical SHA-256，并验证 Canonical Content executable Schema；调用方声明或 storage metadata 不能替代 bytes readback。
+3. 使用 forward-only `V7001` 新增 RenderAttempt 与 RawExternalReceipt 业务表；不得修改已应用的 `V7000`。Project 行必须同时满足 Enterprise/Project RLS；Attempt 按 Scope + stable key hash 唯一，same key/same request hash replay，same key/different request hash 返回 `INTEGRATION_ATTEMPT_IDEMPOTENCY_CONFLICT`。
+4. Attempt 在任何 Renderer 调用前以公开状态集内的 `CREATED` 提交；调用不占用数据库事务。所有 Provider 成功结果必须在落库前通过同一权威验证：output/receipt locator 必须由 Attempt identity 派生，media type 必须匹配 Profile，output bytes/checksum 必须一致，Receipt canonical bytes 必须精确绑定 attempt/output/checksum/renderer。验证拒绝或异常进入 `FAILED`，不得创建 Raw Receipt 或成功 Outbox；验证通过后才写入脱敏 Raw Receipt，并与 `integration.RenderSucceeded` Outbox 原子推进 `SUCCEEDED`。Timeout/不确定结果进入 `UNKNOWN`，重放不得再次调用；reconciliation 复用同一验证，不得接受自洽但替换的 output/Receipt。
+5. Raw Receipt 只保存 attempt identity、opaque provider receipt ref、payload locator/hash、observed outcome 和时间；不得保存 Presigned URL、credential、token、secret 或原始敏感 payload。`integration.get_render_attempt_binding@1.0` 只能由公开 Query Handler 从 IntegrationGateway owning Repository 构造并经 ContractRegistry result validation 后返回。
+6. Artifact 组合仅依赖 `RenderAttemptBindingQueryPort`；IntegrationGateway 不导入 Artifact Repository，不写 Artifact/Quality/Release Schema。Render success 与 Representation registration 均不产生 Quality PASS、Approval、Release Authorization、Release Completion 或 EffectiveBinding。
+7. Local/CI Object Storage 与内置最小 OOXML Renderer 属于受控工程实现；真实 Ceph RGW/OpenBao、第三方 Renderer、公开 HTTP、生产、负载/HA、宏/外链/pivot/完整公式引擎和 pixel-perfect Office fidelity 不在本切片。
+
+当前状态：`LOCAL IMPLEMENTATION, UNIT, CONTRACT, PERSISTENCE AND OFFICE OPENABILITY VERIFIED / GITHUB DELIVERY TRACKED BY PR #135 AND ISSUE #125`。真实外部 Provider、Ceph RGW/OpenBao、公开 HTTP、生产、负载/HA、完整 Office 引擎与真实客户版式验收仍为 `NOT RUN`。

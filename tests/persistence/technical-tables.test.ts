@@ -195,7 +195,13 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'approval_bundle_snapshot',
   ],
   release_publication: ['business_probe', 'outbox_probe'],
-  integration_gateway: ['business_probe', 'outbox_probe'],
+  integration_gateway: [
+    'business_probe',
+    'outbox_probe',
+    // IM-05 WI-05 (issue #125): owning Renderer business facts.
+    'render_attempt',
+    'raw_external_receipt',
+  ],
 };
 
 const ENTERPRISE_A = '11111111-1111-7111-8111-1111111111a1';

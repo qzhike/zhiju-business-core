@@ -4,3 +4,8 @@ export const integrationGatewayModule = Object.freeze({
 });
 
 export * from './integration-gateway-runtime.js';
+export * from './persistence/render-attempt-db.js';
+export * from './persistence/render-attempt-repository.js';
+export * from './renderer/deterministic-ooxml-renderer.js';
+export * from './renderer/in-memory-render-object-storage.js';
+export * from './renderer/render-attempt-service.js';
