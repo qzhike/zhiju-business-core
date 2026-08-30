@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / IM-04 WI-08 V4004 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-08 PERSISTENCE VERIFIED 2026-08-29 / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / IM-04 WI-08 V4004 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-08 PERSISTENCE VERIFIED 2026-08-29 / IM-05 WI-02 V5002 IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-30 / IM-05 WI-02 GITHUB EXACT-HEAD DELIVERY PENDING USER CONFIRMATION / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -1192,6 +1192,12 @@ RELEASE_READINESS
 - effective Approval Decisions by target hash/requirement；
 - Quality Snapshot by id + payload hash；
 - invalidation/impact targets through reference_edge。
+
+### 13.8 IM-05 WI-02 Evidence/Profile 物理切片
+
+WI-02 在 `quality_governance` Schema 以 forward-only `V5002` 落地以下业务表：`evidence`、`evidence_validation`、`evidence_revocation`、`evidence_link`、`quality_profile`、`quality_profile_version`、`quality_profile_gate_spec`、`quality_profile_gate_dependency`、`quality_profile_approval_requirement` 和 `quality_profile_release_requirement`。模块只保存精确 Typed Reference、canonical payload/hash、immutable source snapshot 与治理事实，不建立跨模块外键或跨 Schema Repository 读取。
+
+Evidence root 的 candidate payload hash 与 source `capturedContentHash` 分列保存；validation/revocation/link 为 append-only fact，owner 直接 UPDATE/DELETE 也由 immutable trigger 拒绝。QualityProfile root 的 ACTIVE pointer 只指向精确 version，版本行及其 gate/dependency/approval/release 子行在激活后不可更新。应用写入必须经 owner SECURITY DEFINER function；app role 仅有 RLS 控制下的 SELECT，直接 write、跨 Enterprise/Project Scope 和 owner-only function 调用必须拒绝。2026-08-30 的 pinned PostgreSQL 18.6/Flyway 11.20.3 gate 已验证空库 V5002 migration、second no-op、RLS/direct-write、CAS、rollback、immutable guard、history replay 与 exact query：30 个 persistence 文件、298 个测试通过，容器已清理。Provider、公开 HTTP、跨模块业务 E2E、生产和独立人工验收保持 `NOT RUN`。
 
 ---
 

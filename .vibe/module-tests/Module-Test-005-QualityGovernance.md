@@ -1,8 +1,8 @@
 # Module-Test-005-QualityGovernance
 
-版本：v0.3
+版本：v0.5
 日期：2026-08-30
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 UNIT AND PERSISTENCE PASS / HANDLER E2E NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 UNIT AND PERSISTENCE PASS / IM-05 WI-02 IMPLEMENTATION COMPLETE / UNIT, CONTRACT AND PERSISTENCE LOCALLY VERIFIED 2026-08-30 / CROSS-MODULE E2E AND MANUAL NOT RUN / GITHUB EXACT-HEAD DELIVERY PENDING USER CONFIRMATION`
 
 对应规格：[`Module-Spec-005-QualityGovernance.md`](../module-specs/Module-Spec-005-QualityGovernance.md)。
 
@@ -84,3 +84,44 @@ Gate Evaluator、业务 Repository 与 payload↔hash Gate 仍为 `NOT RUN`。
 本阶段不会运行 Evidence、QualityProfile、GateResult、ReviewIssue、Approval、RAS/ABS/RRS 业务 Handler，也不会运行 Renderer、ReleasePublication、Provider、公开 HTTP、生产或独立人工业务验收。
 
 完整 `pnpm clean && pnpm verify`：Format、Lint、Typecheck、普通 Vitest（34 passed/25 skipped files，395 passed/278 skipped tests）、Architecture、201/201 FULL Contract、冻结 200-operation compatibility baseline 与上述 Persistence Gate 全部通过。
+
+## IM-05 WI-02 Evidence/Profile 测试用例
+
+以下用例冻结了输入、预期输出和证据位置；`当前实际输出` 已按本地代码与 disposable PostgreSQL 验证更新。所有业务事实使用合成技术数据，不代表真实客户 QMS 验收。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| QG-WI02-U-001 | Unit | 缺少 source snapshot、locator、captured content ref 或 captured content hash 的 Evidence Candidate | 拒绝 `QUALITY_EVIDENCE_SOURCE_INCOMPLETE`，不生成 root | `quality-business-validation.test.ts`：空 `capturedContentRef` 被拒绝 | `PASS` |
+| QG-WI02-U-002 | Unit | Candidate source Scope、Envelope Scope 或 source hash 不一致 | 拒绝 `QUALITY_EVIDENCE_SCOPE_INVALID` 或稳定 hash mismatch，不泄漏其他 Scope 行 | `quality-business-validation.test.ts`：source object/snapshot Scope 不一致被拒绝；candidate payload hash 计算稳定 | `PASS` |
+| QG-WI02-U-003 | Unit | Agent 或非 `deterministic.` Service verifier 提交 VERIFIED | 拒绝 `QUALITY_EVIDENCE_VERIFIER_UNAUTHORIZED` | `quality-business-validation.test.ts`：Agent 与 `manual.*` Service 均被拒绝；trusted Human 通过 | `PASS` |
+| QG-WI02-U-004 | Unit | claim hash 改变、Evidence ref hash 替换或缺失 target 的 EvidenceLink | 拒绝 `QUALITY_EVIDENCE_LINK_TARGET_MISMATCH`，旧 link 不改写 | 主要由 persistence exact-hash probe 覆盖；Unit 未单独覆盖 claim hash 变体 | `PARTIAL` |
+| QG-WI02-U-005 | Persistence | CONTEXT_ONLY、DISPUTED 或 REVOKED Evidence 用作 SUPPORTS | 拒绝 `QUALITY_EVIDENCE_NOT_VERIFIED` | PG gate：DISPUTED/REVOKED `SUPPORTS` 拒绝；REVOKED `CONTEXT_ONLY` 保留 | `PASS` |
+| QG-WI02-U-006 | Unit | Profile gate dependency 存在闭环、未知 gate ID 或无 mandatory gate | 拒绝 `QUALITY_PROFILE_DEPENDENCY_CYCLE` 或 `QUALITY_PROFILE_REQUIREMENT_INCOMPLETE` | `quality-business-validation.test.ts`：闭环与不完整 Gate shape 被拒绝；未知 ID 未单独运行 | `PARTIAL` |
+| QG-WI02-U-007 | Unit | 高风险 Profile 缺 Human approval、职责分离策略开放 self-review 或 release requirement 不完整 | 拒绝 `QUALITY_PROFILE_REQUIREMENT_INCOMPLETE` | `quality-business-validation.test.ts`：open separation 与不完整 release requirement 被拒绝；高风险 profile 保留 Human approval | `PASS` |
+| QG-WI02-U-008 | Persistence | ACTIVE Profile 的 definition/gate/dependency/approval/release shape 被原地编辑 | 拒绝 `QUALITY_PROFILE_IMMUTABLE` | PG gate：owner root/version update、GateSpec delete 均为 `55000` | `PASS` |
+| QG-WI02-U-009 | Unit | activation 事务重新读取的已持久化 definition 缺少 release requirement | 拒绝 `QUALITY_PROFILE_REQUIREMENT_INCOMPLETE`，不调用激活写入口 | Handler 已实现存储 definition 重校验；因 immutable guard 不允许篡改存储行，专门篡改后的运行时分支未运行 | `NOT RUN` |
+| QG-WI02-U-010 | Static | WI-02 source/test files and updated authority docs | Prettier, ESLint and TypeScript build/typecheck all pass | `format:check`、`lint`、QualityGovernance build、full typecheck 均通过 | `PASS` |
+| QG-WI02-U-011 | Persistence | owner 直接 DELETE Evidence/Profile root 或 append-only history | 由 immutable guard 稳定拒绝，不产生删除 | PG gate：Evidence/Profile root 与 Evidence validation history owner DELETE 均为 `55000` | `PASS` |
+| QG-WI02-U-012 | Unit | activation 携带 Project-scoped profileVersionRef 或交换 review/validation snapshot objectType | 拒绝 `QUALITY_PROFILE_SCOPE_INVALID` 或 `QUALITY_PROFILE_REQUIREMENT_INCOMPLETE` | `quality-business-validation.test.ts`：两类输入均被拒绝 | `PASS` |
+| QG-WI02-C-001 | Contract | `get_evidence` 使用 exact ContentAddressedRef；错误 objectId、contentHash、Scope 和 `latest/current` 变体 | 只接受 exact ref；所有不匹配 fail-closed，不提供 enumeration signal | PG gate：exact get 成功、错误 hash 统一 `QUALITY_EVIDENCE_QUERY_NOT_FOUND`；Schema gate 拒绝 `latest` 形态 | `PASS` |
+| QG-WI02-C-002 | Contract | `get_quality_profile` 使用 exact VersionedRef；ACTIVE 旧版与新 draft version 分别查询 | 返回指定版本；不得把 active pointer 当作 version fallback | PG gate：旧 version 返回 `SUPERSEDED`、新 version 返回 `ACTIVE`，均使用 exact ref | `PASS` |
+| QG-WI02-PG-001 | Persistence | capture → exact get → verify VERIFIED → append second verification DISPUTED → revoke | root identity/hash 不变；validation/revocation history 全保留；当前 status 按事实推进 | PG gate：Evidence root hash 与 capturedContentHash 分离，2 validation/1 revocation/2 links，最终 `REVOKED` | `PASS` |
+| QG-WI02-PG-002 | Persistence | 正确 Scope/hash 与错误 Scope/hash、source substitution、跨 Project link | 正确请求提交；错误请求稳定拒绝且无越权行/枚举泄漏 | PG gate：错误 exact Evidence hash/query 与 EvidenceLink hash 被拒绝；RLS cross-enterprise count 为 0 | `PASS` |
+| QG-WI02-PG-003 | Persistence | CONTEXT_ONLY link、SUPPORTS candidate/disputed/revoked link | CONTEXT_ONLY 可保留；非 VERIFIED supporting link 拒绝 | PG gate：DISPUTED/REVOKED `SUPPORTS` 拒绝，REVOKED `CONTEXT_ONLY` 成功 | `PASS` |
+| QG-WI02-PG-004 | Persistence | create draft → activate exact version → attempt edit → create new draft version → activate | ACTIVE 旧版不可变；新策略产生新 version 并绑定自己的 review/validation snapshots | PG gate：旧 version hash/status 保留，新 version 独立激活；activation 校验 version scope mirror；root/version/GateSpec owner 改写均为 `55000` | `PASS` |
+| QG-WI02-PG-005 | Persistence | concurrent verify/revoke/activate 使用相同 expected aggregate version | 一个请求提交，其他请求稳定 `CONCURRENCY_CONFLICT` 并回报锁等待后当前 aggregate version；无丢失更新 | PG gate：concurrent Evidence verify 为 1 committed/1 `CONCURRENCY_CONFLICT`，输方回报当前 version `2`；Profile activation race 未单独运行 | `PARTIAL` |
+| QG-WI02-PG-006 | Persistence | app role 直接 INSERT/UPDATE/DELETE、guard helper、跨 Scope SELECT；migration second-run | 直接写入/guard helper 调用拒绝；RLS 隔离；业务 mutation function 只经受控执行面；Flyway second run `No migration necessary` | PG gate：app direct DML/helper 为 `42501`，RLS count=0，second migrate 为 `No migration necessary` | `PASS` |
+| QG-WI02-PG-007 | Persistence | business write 后注入 callback/audit/outbox 后置故障 | Evidence/Profile business rows 与 Receipt/技术事实整体回滚 | PG gate：business Evidence write 后 `INJECTED_FAULT`，Evidence 与 command receipt 均为 0 | `PASS` |
+| QG-WI02-PG-008 | Persistence | `tests/persistence/quality-governance-business.test.ts`：空库迁移后的 Evidence/Profile handler、owner function、RLS、immutable guard、CAS 与 exact query，包括 scope mirror、`RETURNS TABLE` 输出列与内部列名冲突探针 | 真实 PostgreSQL 返回逐项预期结果；无 `ZJU_PERSISTENCE_DATABASE_URL` 时为 `NOT RUN`，不得升级为 PASS | Pinned PostgreSQL 18.6/Flyway 11.20.3：30 files/298 tests PASS，V5002 已应用，容器已清理 | `PASS` |
+| QG-WI02-E-001 | E2E | synthetic `QMS_PROCEDURE_HIGH@3` profile、Evidence source/hash、verification、claim links、activation cases | 输出可复核 source/hash/status/history/link/profile version/error/cleanup 表 | 未运行跨模块业务 E2E；本地 PG 仅为 synthetic technical evidence | `NOT RUN` |
+| QG-WI02-M-001 | Manual | 审阅 synthetic Evidence/Profile table 与 exact rejection matrix | 审阅者能区分 immutable source、verification history、support/context、active/new version 和 NOT RUN 边界 | 未执行独立人工客户 QMS 审阅 | `NOT RUN` |
+
+## IM-05 WI-02 本地验证结果
+
+- `modules/quality-governance/src/business/quality-business-validation.test.ts`：1 file / 8 tests `PASS`；覆盖 source custody、scope、candidate hash、Human/Agent/deterministic Service verifier、EvidenceLink scope、Gate DAG、separation、approval/release shape、Enterprise profile ref 与 snapshot objectType。
+- `tests/persistence/quality-governance-business.test.ts`：5 个业务场景纳入 persistence gate；覆盖 Evidence capture/replay、exact query/hash、verify/dispute/revoke/history、support/context、QualityProfile activation/new version、CAS、RLS/ACL、owner immutable guard 和 post-write rollback。
+- Pinned PostgreSQL 18.6（server `180006`）与 Flyway 11.20.3：空库 V5002 migration、第二次 `Schema "public" is up to date. No migration necessary.`、30 persistence files / 298 tests `PASS`，容器已清理。
+- 全量本地检查：`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm build`、`pnpm test`（35 passed/26 skipped files，403 passed/283 skipped tests）、`pnpm architecture`、`pnpm contracts:check` 均 `PASS`；Contract Registry 保持 201 operation FULL 与 v1.0 frozen 200-operation compatibility baseline。
+- 本地测试数据均为 synthetic technical fixtures；Provider、公开 HTTP、跨模块业务 E2E、生产数据库、真实客户 QMS 和独立人工验收保持 `NOT RUN`。`QG-WI02-U-004`、`QG-WI02-U-006`、`QG-WI02-U-009` 与 `QG-WI02-PG-005` 的未单独覆盖分支已在表格中标记 `PARTIAL`/`NOT RUN`，不将实现存在推断为运行证据。
+
+WI-02 非目标：GateResult evaluation、ReviewIssue、Human Approval decision、Renderer、ReleasePackage、Provider、公开 HTTP、生产、真实客户 QMS 和独立人工业务验收均保持 `NOT RUN`。

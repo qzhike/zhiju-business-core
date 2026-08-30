@@ -158,7 +158,22 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'representation',
     'representation_validation',
   ],
-  quality_governance: ['business_probe', 'outbox_probe'],
+  quality_governance: [
+    'business_probe',
+    'outbox_probe',
+    // IM-05 WI-02 (issue #122): immutable Evidence custody and versioned
+    // QualityProfile business tables are owned by this schema.
+    'evidence',
+    'evidence_validation',
+    'evidence_revocation',
+    'evidence_link',
+    'quality_profile',
+    'quality_profile_version',
+    'quality_profile_gate_spec',
+    'quality_profile_gate_dependency',
+    'quality_profile_approval_requirement',
+    'quality_profile_release_requirement',
+  ],
   release_publication: ['business_probe', 'outbox_probe'],
   integration_gateway: ['business_probe', 'outbox_probe'],
 };

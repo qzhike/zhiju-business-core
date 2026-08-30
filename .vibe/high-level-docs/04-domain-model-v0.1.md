@@ -5672,6 +5672,14 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Cont
 
 本节是设计决策，不替代业务实现证据；WI-03 至 WI-12 的 DDL、Repository、Handler、Evaluator 和受控 PostgreSQL 结果已记录在 Module-Test-002。统一跨 Aggregate runtime chain、真实业务适用性和人工 Reference Project 仍为 `NOT RUN`。
 
+## 48.2 IM-05 WI-02 Evidence/Profile 实现边界
+
+WI-02 将本 Domain 已冻结的 Evidence 与 QualityProfile 语义收敛为可执行的最小业务切片：Evidence source snapshot、locator、captured content ref/hash 和 candidate payload hash 创建后不可变；verification、revocation、EvidenceLink 只追加事实；`SUPPORTS` 依赖当前 VERIFIED 且未 revoked/disputed 的 Evidence，`CONTEXT_ONLY` 不可满足 supporting gate。QualityProfile 以 root/version 保存 GateSpec、闭合 DAG、职责分离、Human approval 和 release requirement；ACTIVE version 只读，策略变化必须创建新 exact version。
+
+Handler 只使用公开精确 Ref 和可信 Context，错误 Scope/hash/target、source substitution、Agent verifier、环依赖、缺失 mandatory/approval/release requirement 与 self-review 均 fail-closed。此实现不宣称 GateResult、ReviewIssue、Approval、Release、Renderer、Provider、公开 HTTP、生产、跨模块 E2E 或真实客户业务验收已运行；Module-Test-005 WI-02 将这些范围保留为 `NOT RUN`。
+
+本切片本地验证已通过：validation Unit 8/8，pinned PostgreSQL/Flyway persistence gate 30 files/298 tests；Evidence/Profile synthetic technical fixture 的 Provider、公开 HTTP、跨模块业务 E2E、生产和独立人工验收仍为 `NOT RUN`。
+
 ## 51. IM-03 合成 Reference Project 技术验收边界
 
 用户已确认在没有真实业务场景时采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。现有 WI focused fixtures 已在固定 PostgreSQL 18.6 / Flyway 11.20.3 上组成受控技术 Gate，`21` 个 persistence 测试文件、`256` 个测试通过；该结果只证明精确引用、生命周期、权限、Scope、Replay、CAS、RLS、immutable、stale/impact 和 Completion 技术边界，不证明真实业务适用性。

@@ -1,6 +1,6 @@
 export const qualityGovernanceModule = Object.freeze({
   name: 'quality-governance',
-  status: 'IM_05_WI01_APPLICATION_PERSISTENCE_FOUNDATION' as const,
+  status: 'IM_05_WI02_EVIDENCE_PROFILE_LIFECYCLE' as const,
 });
 
 export {
@@ -60,6 +60,62 @@ export {
   QualityAuthorityError,
   QUALITY_REFERENCE_VALIDATION_FAILED,
 } from './application/authority-ports.js';
+
+export {
+  handleCaptureEvidenceCandidate,
+  handleVerifyEvidence,
+  handleRevokeEvidence,
+  handleCreateEvidenceLink,
+  handleCreateQualityProfileDraft,
+  handleActivateQualityProfile,
+  handleGetEvidence,
+  handleGetQualityProfile,
+  canonicalDefinitionKey,
+} from './business/quality-business-handlers.js';
+export type {
+  QualityCommandEnvelope,
+  CaptureEvidenceCandidatePayload,
+  VerifyEvidencePayload,
+  RevokeEvidencePayload,
+  CreateEvidenceLinkPayload,
+  CreateQualityProfileDraftPayload,
+  ActivateQualityProfilePayload,
+  GetEvidencePayload,
+  GetQualityProfilePayload,
+} from './business/quality-business-handlers.js';
+
+export {
+  QualityBusinessError,
+  QUALITY_EVIDENCE_SOURCE_INCOMPLETE,
+  QUALITY_EVIDENCE_SCOPE_INVALID,
+  QUALITY_EVIDENCE_VERIFIER_UNAUTHORIZED,
+  QUALITY_EVIDENCE_NOT_VERIFIED,
+  QUALITY_EVIDENCE_LINK_TARGET_MISMATCH,
+  QUALITY_EVIDENCE_QUERY_NOT_FOUND,
+  QUALITY_EVIDENCE_IDENTITY_CONFLICT,
+  QUALITY_EVIDENCE_ALREADY_REVOKED,
+  QUALITY_EVIDENCE_EXPECTED_VERSION_REQUIRED,
+  QUALITY_PROFILE_IMMUTABLE,
+  QUALITY_PROFILE_DEPENDENCY_CYCLE,
+  QUALITY_PROFILE_REQUIREMENT_INCOMPLETE,
+  QUALITY_PROFILE_SCOPE_INVALID,
+  QUALITY_PROFILE_QUERY_NOT_FOUND,
+  QUALITY_PROFILE_HUMAN_ONLY_DENIED,
+  QUALITY_PROFILE_IDENTITY_CONFLICT,
+  QUALITY_PROFILE_EXPECTED_VERSION_REQUIRED,
+} from './business/quality-business-errors.js';
+
+export { QualityBusinessRepository } from './persistence/quality-business-repository.js';
+export type {
+  BusinessWriteOutcome,
+  EvidenceInsert,
+  EvidenceVerificationAppend,
+  EvidenceRevocationAppend,
+  EvidenceLinkInsert,
+  QualityProfileDraftInsert,
+  QualityProfileActivation,
+  ProfileDraftWriteResult,
+} from './persistence/quality-business-repository.js';
 export type {
   IdentityPolicyAuthorityPort,
   EnterpriseProjectAuthorityPort,
