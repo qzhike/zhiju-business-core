@@ -5,16 +5,22 @@
 
 import { sql } from 'kysely';
 import type {
+  ChangeImpactTable,
   EvidenceLinkTable,
   EvidenceRevocationTable,
   EvidenceTable,
   EvidenceValidationTable,
+  GateInvalidationTable,
+  GateResultReuseTable,
+  GateResultTable,
   QualityProfileApprovalRequirementTable,
   QualityProfileGateDependencyTable,
   QualityProfileGateSpecTable,
   QualityProfileReleaseRequirementTable,
   QualityProfileTable,
   QualityProfileVersionTable,
+  ReleaseReadinessSnapshotTable,
+  RevisionAcceptanceSnapshotTable,
 } from './quality-business-types.js';
 import type { QualityTransaction } from './quality-db.js';
 
@@ -103,6 +109,78 @@ export interface QualityProfileActivation {
   readonly updatedByPrincipalId: string;
   readonly updatedByActorSnapshotId: string;
   readonly updatedAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface ChangeImpactInsert {
+  readonly changeImpactId: string;
+  readonly enterpriseId: string;
+  readonly projectId?: string;
+  readonly definition: unknown;
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdByAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface GateResultInsert {
+  readonly gateResultId: string;
+  readonly enterpriseId: string;
+  readonly projectId?: string;
+  readonly definition: unknown;
+  readonly revisionContentHash: Buffer;
+  readonly evaluationStage: 'REVISION_ACCEPTANCE' | 'RELEASE_READINESS';
+  readonly executionMode: 'EXECUTED' | 'REUSED_BY_IMPACT_ANALYSIS';
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdByAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface GateResultReuseInsert {
+  readonly reuseId: string;
+  readonly gateResultId: string;
+  readonly enterpriseId: string;
+  readonly projectId?: string;
+  readonly sourceGateResultRef: unknown;
+  readonly sourceGateResultHash: Buffer;
+  readonly changeImpactRef: unknown;
+  readonly changeImpactHash: Buffer;
+  readonly coverageProof: unknown;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdByAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface GateInvalidationInsert {
+  readonly invalidationId: string;
+  readonly gateResultId: string;
+  readonly enterpriseId: string;
+  readonly projectId?: string;
+  readonly gateResultRef: unknown;
+  readonly gateResultHash: Buffer;
+  readonly invalidationReason: unknown;
+  readonly impactAssessmentRef: unknown;
+  readonly invalidatedAt: Date;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdByAuthorizationDecisionId: string;
+  readonly sourceCommandId: string;
+}
+
+export interface ReadinessSnapshotInsert {
+  readonly snapshotId: string;
+  readonly enterpriseId: string;
+  readonly projectId?: string;
+  readonly snapshot: unknown;
+  readonly revisionContentHash: Buffer;
+  readonly payloadHash: Buffer;
+  readonly createdByPrincipalId: string;
+  readonly createdByActorSnapshotId: string;
+  readonly createdByAuthorizationDecisionId: string;
   readonly sourceCommandId: string;
 }
 
@@ -264,6 +342,145 @@ export class QualityBusinessRepository {
     return result.rows[0]?.outcome ?? 'INVALID';
   }
 
+  async insertChangeImpact(
+    trx: QualityTransaction,
+    input: ChangeImpactInsert,
+  ): Promise<BusinessWriteOutcome> {
+    const result = await sql<{ outcome: BusinessWriteOutcome }>`
+      SELECT outcome
+      FROM quality_governance.create_change_impact(
+        ${input.changeImpactId}::uuid,
+        ${input.enterpriseId}::uuid,
+        ${input.projectId ?? null}::uuid,
+        ${json(input.definition)}::jsonb,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdByAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'INVALID';
+  }
+
+  async insertGateResult(
+    trx: QualityTransaction,
+    input: GateResultInsert,
+  ): Promise<BusinessWriteOutcome> {
+    const result = await sql<{ outcome: BusinessWriteOutcome }>`
+      SELECT outcome
+      FROM quality_governance.create_gate_result(
+        ${input.gateResultId}::uuid,
+        ${input.enterpriseId}::uuid,
+        ${input.projectId ?? null}::uuid,
+        ${json(input.definition)}::jsonb,
+        ${input.revisionContentHash}::bytea,
+        ${input.evaluationStage}::text,
+        ${input.executionMode}::text,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdByAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'INVALID';
+  }
+
+  async insertGateResultReuse(
+    trx: QualityTransaction,
+    input: GateResultReuseInsert,
+  ): Promise<BusinessWriteOutcome> {
+    const result = await sql<{ outcome: BusinessWriteOutcome }>`
+      SELECT outcome
+      FROM quality_governance.create_gate_result_reuse(
+        ${input.reuseId}::uuid,
+        ${input.gateResultId}::uuid,
+        ${input.enterpriseId}::uuid,
+        ${input.projectId ?? null}::uuid,
+        ${json(input.sourceGateResultRef)}::jsonb,
+        ${input.sourceGateResultHash}::bytea,
+        ${json(input.changeImpactRef)}::jsonb,
+        ${input.changeImpactHash}::bytea,
+        ${json(input.coverageProof)}::jsonb,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdByAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'INVALID';
+  }
+
+  async insertGateInvalidation(
+    trx: QualityTransaction,
+    input: GateInvalidationInsert,
+  ): Promise<BusinessWriteOutcome> {
+    const result = await sql<{ outcome: BusinessWriteOutcome }>`
+      SELECT outcome
+      FROM quality_governance.create_gate_invalidation(
+        ${input.invalidationId}::uuid,
+        ${input.gateResultId}::uuid,
+        ${input.enterpriseId}::uuid,
+        ${input.projectId ?? null}::uuid,
+        ${json(input.gateResultRef)}::jsonb,
+        ${input.gateResultHash}::bytea,
+        ${json(input.invalidationReason)}::jsonb,
+        ${json(input.impactAssessmentRef)}::jsonb,
+        ${input.invalidatedAt}::timestamptz,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdByAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'INVALID';
+  }
+
+  async insertRevisionAcceptanceSnapshot(
+    trx: QualityTransaction,
+    input: ReadinessSnapshotInsert,
+  ): Promise<BusinessWriteOutcome> {
+    const result = await sql<{ outcome: BusinessWriteOutcome }>`
+      SELECT outcome
+      FROM quality_governance.create_revision_acceptance_snapshot(
+        ${input.snapshotId}::uuid,
+        ${input.enterpriseId}::uuid,
+        ${input.projectId ?? null}::uuid,
+        ${json(input.snapshot)}::jsonb,
+        ${input.revisionContentHash}::bytea,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdByAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'INVALID';
+  }
+
+  async insertReleaseReadinessSnapshot(
+    trx: QualityTransaction,
+    input: ReadinessSnapshotInsert,
+  ): Promise<BusinessWriteOutcome> {
+    const result = await sql<{ outcome: BusinessWriteOutcome }>`
+      SELECT outcome
+      FROM quality_governance.create_release_readiness_snapshot(
+        ${input.snapshotId}::uuid,
+        ${input.enterpriseId}::uuid,
+        ${input.projectId ?? null}::uuid,
+        ${json(input.snapshot)}::jsonb,
+        ${input.revisionContentHash}::bytea,
+        ${input.payloadHash}::bytea,
+        ${input.createdByPrincipalId}::uuid,
+        ${input.createdByActorSnapshotId}::uuid,
+        ${input.createdByAuthorizationDecisionId}::uuid,
+        ${input.sourceCommandId}::uuid
+      )
+    `.execute(trx);
+    return result.rows[0]?.outcome ?? 'INVALID';
+  }
+
   async getEvidenceById(
     trx: QualityTransaction,
     evidenceId: string,
@@ -381,5 +598,80 @@ export class QualityBusinessRepository {
       .where('profile_version_id', '=', profileVersionId)
       .orderBy('requirement_order')
       .execute();
+  }
+
+  async getChangeImpactById(
+    trx: QualityTransaction,
+    changeImpactId: string,
+  ): Promise<ChangeImpactTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.change_impact')
+      .selectAll()
+      .where('change_impact_id', '=', changeImpactId)
+      .executeTakeFirst();
+  }
+
+  async getGateResultById(
+    trx: QualityTransaction,
+    gateResultId: string,
+  ): Promise<GateResultTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.gate_result')
+      .selectAll()
+      .where('gate_result_id', '=', gateResultId)
+      .executeTakeFirst();
+  }
+
+  async getGateResults(trx: QualityTransaction): Promise<readonly GateResultTable[]> {
+    return trx
+      .selectFrom('quality_governance.gate_result')
+      .selectAll()
+      .orderBy('completed_at', 'desc')
+      .orderBy('gate_result_id', 'desc')
+      .execute();
+  }
+
+  async getGateResultReuseByGateResultId(
+    trx: QualityTransaction,
+    gateResultId: string,
+  ): Promise<GateResultReuseTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.gate_result_reuse')
+      .selectAll()
+      .where('gate_result_id', '=', gateResultId)
+      .executeTakeFirst();
+  }
+
+  async getGateInvalidationByGateResultId(
+    trx: QualityTransaction,
+    gateResultId: string,
+  ): Promise<GateInvalidationTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.gate_invalidation')
+      .selectAll()
+      .where('gate_result_id', '=', gateResultId)
+      .executeTakeFirst();
+  }
+
+  async getRevisionAcceptanceSnapshotById(
+    trx: QualityTransaction,
+    snapshotId: string,
+  ): Promise<RevisionAcceptanceSnapshotTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.revision_acceptance_snapshot')
+      .selectAll()
+      .where('snapshot_id', '=', snapshotId)
+      .executeTakeFirst();
+  }
+
+  async getReleaseReadinessSnapshotById(
+    trx: QualityTransaction,
+    snapshotId: string,
+  ): Promise<ReleaseReadinessSnapshotTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.release_readiness_snapshot')
+      .selectAll()
+      .where('snapshot_id', '=', snapshotId)
+      .executeTakeFirst();
   }
 }

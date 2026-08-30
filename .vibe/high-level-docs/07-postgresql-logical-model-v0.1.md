@@ -1156,6 +1156,8 @@ RELEASE_READINESS
     render gate also requires representation checksum + rendererVersion
 ```
 
+WI-03 还要求 Gate Target 持久化完整的 `representationRef` 或 `releasePackageRef`，包括 revision content hash、representation checksum/rendererVersion 和 package hash；不能只保存文件名或 package id。`change_impact` 必须保存 base/candidate exact ref/hash、changed section/claim 集合、affected Evidence/Gate 集合、analysis policy/version 和 coverage proof；`gate_result_reuse` 与 `gate_invalidation` 都是不可变事实，分别证明新 Result 的复用来源和旧 Result 的失效来源。
+
 ### 13.4 ReviewIssue
 
 | 表 | 类型 | 关键列/关系 | 关键约束 |
@@ -1198,6 +1200,14 @@ RELEASE_READINESS
 WI-02 在 `quality_governance` Schema 以 forward-only `V5002` 落地以下业务表：`evidence`、`evidence_validation`、`evidence_revocation`、`evidence_link`、`quality_profile`、`quality_profile_version`、`quality_profile_gate_spec`、`quality_profile_gate_dependency`、`quality_profile_approval_requirement` 和 `quality_profile_release_requirement`。模块只保存精确 Typed Reference、canonical payload/hash、immutable source snapshot 与治理事实，不建立跨模块外键或跨 Schema Repository 读取。
 
 Evidence root 的 candidate payload hash 与 source `capturedContentHash` 分列保存；validation/revocation/link 为 append-only fact，owner 直接 UPDATE/DELETE 也由 immutable trigger 拒绝。QualityProfile root 的 ACTIVE pointer 只指向精确 version，版本行及其 gate/dependency/approval/release 子行在激活后不可更新。应用写入必须经 owner SECURITY DEFINER function；app role 仅有 RLS 控制下的 SELECT，直接 write、跨 Enterprise/Project Scope 和 owner-only function 调用必须拒绝。2026-08-30 的 pinned PostgreSQL 18.6/Flyway 11.20.3 gate 已验证空库 V5002 migration、second no-op、RLS/direct-write、CAS、rollback、immutable guard、history replay 与 exact query：30 个 persistence 文件、298 个测试通过，容器已清理。Provider、公开 HTTP、跨模块业务 E2E、生产和独立人工验收保持 `NOT RUN`。
+
+### 13.9 IM-05 WI-03 GateResult/Impact/Readiness 物理切片
+
+WI-03 在 `quality_governance` Schema 以 forward-only `V5003` 落地 `change_impact`、`gate_result`、`gate_result_reuse`、`gate_invalidation`、`revision_acceptance_snapshot`、`release_readiness_snapshot` 及其引用/失效事实。所有业务表均保留 Enterprise/Project scope mirror、canonical payload/hash、actor/authorization/source-command attribution；六张事实表及 owner function 沿用既有 QualityGovernance 物理列 `created_authorization_decision_id`，表列、函数参数、Repository 和类型不得引入 `created_by_authorization_decision_id` 变体；跨 Schema Revision、Representation、ReleasePackage、ApprovalBundle 和 Recipient Scope 只保存精确 Typed Reference，不建立跨 Schema FK。
+
+`gate_result`、`change_impact` 和三类 Snapshot 的 immutable trigger 同时拒绝 owner UPDATE/DELETE；受控 owner function 执行 stage-specific target、exact hash/profile/gate/source/coverage 约束。`gate_result_reuse` 必须与 source Result、ChangeImpact、new target 和 coverage proof 一起追加，不能改写 source Result。`gate_invalidation` 只追加 reason/impact/trigger facts，不能删除旧 PASS。RAS 只收录 `REVISION_ACCEPTANCE` Gate；RRS 只收录 `RELEASE_READINESS` Gate，并以冻结 `ReleasePackageRef` 的 package hash、Representation checksum/renderer、recipient/destination 快照作一致性边界。业务写入和 QualityGovernance 技术 Receipt/Audit/Outbox/Reference Edge 需在同一事务中整体提交或回滚；直接 app DML、跨 Scope 访问、错误 exact ref/hash/stage 和 append-only history 改写必须 fail-closed。Provider、实际 Renderer、ReleasePublication、公开 HTTP、生产和跨模块业务 E2E 在 WI-03 中仍为 `NOT RUN`。
+
+2026-08-30 本地物理验证：V5003 在 pinned PostgreSQL 18.6/Flyway 11.20.3 空库成功应用，正式 persistence gate 为 31 files/303 tests，二次 migrate no-op、tag→digest 校验、RLS/ACL、immutable guard、exact ref、readiness stale/not-ready、rollback 和容器清理通过。首轮真实写入发现 V5003 两张表与 V5002 通用 guard 使用的授权归因列名不一致，已将六张 WI-03 表和对应类型统一沿用既有 `created_authorization_decision_id`；该修复已由空库首次 ChangeImpact/GateResult 写入回归。当前实现待用户检查后再 commit/push。
 
 ---
 

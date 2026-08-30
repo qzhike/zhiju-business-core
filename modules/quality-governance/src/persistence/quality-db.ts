@@ -14,16 +14,22 @@ import {
 } from 'kysely';
 import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import type {
+  ChangeImpactTable,
   EvidenceLinkTable,
   EvidenceRevocationTable,
   EvidenceTable,
   EvidenceValidationTable,
+  GateInvalidationTable,
+  GateResultReuseTable,
+  GateResultTable,
   QualityProfileApprovalRequirementTable,
   QualityProfileGateDependencyTable,
   QualityProfileGateSpecTable,
   QualityProfileReleaseRequirementTable,
   QualityProfileTable,
   QualityProfileVersionTable,
+  ReleaseReadinessSnapshotTable,
+  RevisionAcceptanceSnapshotTable,
 } from './quality-business-types.js';
 
 type Int8 = ColumnType<string, string | number, string | number>;
@@ -199,6 +205,12 @@ export interface QualityGovernanceDb {
   'quality_governance.quality_profile_gate_dependency': QualityProfileGateDependencyTable;
   'quality_governance.quality_profile_approval_requirement': QualityProfileApprovalRequirementTable;
   'quality_governance.quality_profile_release_requirement': QualityProfileReleaseRequirementTable;
+  'quality_governance.change_impact': ChangeImpactTable;
+  'quality_governance.gate_result': GateResultTable;
+  'quality_governance.gate_result_reuse': GateResultReuseTable;
+  'quality_governance.gate_invalidation': GateInvalidationTable;
+  'quality_governance.revision_acceptance_snapshot': RevisionAcceptanceSnapshotTable;
+  'quality_governance.release_readiness_snapshot': ReleaseReadinessSnapshotTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';

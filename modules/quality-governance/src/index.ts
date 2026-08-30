@@ -1,6 +1,6 @@
 export const qualityGovernanceModule = Object.freeze({
   name: 'quality-governance',
-  status: 'IM_05_WI02_EVIDENCE_PROFILE_LIFECYCLE' as const,
+  status: 'IM_05_WI03_GATE_RESULTS_READINESS' as const,
 });
 
 export {
@@ -85,6 +85,40 @@ export type {
 } from './business/quality-business-handlers.js';
 
 export {
+  handleRecordGateResult,
+  handleRecordReusedGateResult,
+  handleInvalidateGateResult,
+  handleEvaluateRevisionReadiness,
+  handleEvaluateReleaseGateReadiness,
+  handleGetGatePlan,
+  handleGetGateResults,
+  handleGetRevisionAcceptanceSnapshot,
+  handleGetReleaseReadinessSnapshot,
+} from './business/quality-gate-handlers.js';
+export type {
+  RecordGateResultPayload,
+  RecordReusedGateResultPayload,
+  InvalidateGateResultPayload,
+  EvaluateRevisionReadinessPayload,
+  EvaluateReleaseReadinessPayload,
+  GetGatePlanPayload,
+  GetGateResultsPayload,
+  GetRevisionAcceptanceSnapshotPayload,
+  GetReleaseReadinessSnapshotPayload,
+} from './business/quality-gate-handlers.js';
+
+export {
+  validateChangeImpactDefinition,
+  validateContentAddressedRef,
+  validateGateInvalidation,
+  validateGateResultSubmission,
+  validateGateReuseSubmission,
+  validateGateTarget,
+  validateReleaseReadinessInput,
+  validateRevisionReadinessInput,
+} from './business/quality-gate-validation.js';
+
+export {
   QualityBusinessError,
   QUALITY_EVIDENCE_SOURCE_INCOMPLETE,
   QUALITY_EVIDENCE_SCOPE_INVALID,
@@ -103,6 +137,18 @@ export {
   QUALITY_PROFILE_HUMAN_ONLY_DENIED,
   QUALITY_PROFILE_IDENTITY_CONFLICT,
   QUALITY_PROFILE_EXPECTED_VERSION_REQUIRED,
+  QUALITY_GATE_INPUT_MISMATCH,
+  QUALITY_GATE_STAGE_MISMATCH,
+  QUALITY_GATE_RESULT_IMMUTABLE,
+  QUALITY_GATE_RESULT_INVALID,
+  QUALITY_GATE_REUSE_NOT_ALLOWED,
+  QUALITY_INCREMENTAL_COVERAGE_INSUFFICIENT,
+  QUALITY_REVISION_ACCEPTANCE_NOT_READY,
+  QUALITY_RELEASE_PACKAGE_TARGET_MISMATCH,
+  QUALITY_RELEASE_READINESS_NOT_READY,
+  QUALITY_GATE_RESULT_QUERY_NOT_FOUND,
+  QUALITY_CHANGE_IMPACT_QUERY_NOT_FOUND,
+  QUALITY_READINESS_SNAPSHOT_QUERY_NOT_FOUND,
 } from './business/quality-business-errors.js';
 
 export { QualityBusinessRepository } from './persistence/quality-business-repository.js';
@@ -115,6 +161,11 @@ export type {
   QualityProfileDraftInsert,
   QualityProfileActivation,
   ProfileDraftWriteResult,
+  ChangeImpactInsert,
+  GateResultInsert,
+  GateResultReuseInsert,
+  GateInvalidationInsert,
+  ReadinessSnapshotInsert,
 } from './persistence/quality-business-repository.js';
 export type {
   IdentityPolicyAuthorityPort,
