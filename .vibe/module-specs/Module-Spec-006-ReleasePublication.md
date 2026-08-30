@@ -1,8 +1,8 @@
 # Module-Spec-006-ReleasePublication
 
-版本：v0.3
-日期：2026-08-21
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTATION COMPLETE 2026-08-18 / RUNTIME RECEIPT VALIDATOR IMPLEMENTED 2026-08-21 (#15)`
+版本：v0.4
+日期：2026-08-31
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTATION COMPLETE 2026-08-18 / RUNTIME RECEIPT VALIDATOR IMPLEMENTED 2026-08-21 (#15) / IM-05 WI-06 PERSISTENCE IMPLEMENTED AND LOCAL GATE VERIFIED / USER REVIEW BEFORE GIT DELIVERY`
 
 ## 1. 模块责任
 
@@ -214,9 +214,47 @@ RELEASE_CANCEL_NOT_ALLOWED
 - Unit / Contract 级 Schema 测试已在 `contracts/src/operations/release-publication.schema.test.ts` 中实现并通过；
 - Runtime Receipt Validator 已于 2026-08-21（Issue #15 / IM-RP-001）在 `modules/release-publication/src/receipt-validator.ts` 落地，并经 PR #21 review remediation 补强：按 `attemptRef` + `rawReceiptRef.contentHash` + `stableIdempotencyKey` 维护稳定键索引；Attempt / Formal Receipt 分别仅经 `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账；同 stable key 不同 packageHash 拒绝 `RELEASE_ATTEMPT_IDEMPOTENCY_CONFLICT` 且不覆盖原 Receipt；同 `rawReceiptRef` 重复提交拒绝 `RELEASE_RECEIPT_ALREADY_RECORDED`；迟到窗口使用 Raw Receipt 的权威发生时间并拒绝 `RELEASE_RECEIPT_STALE`；attempt 不存在、destination/package 不匹配、`packageRef.releaseRef` 与当前 Release / 冻结 Package 不一致、或 `rawReceiptRef` 非已加载且成功的 `RawExternalReceipt`（objectType / 溯源字段 / payload hash / 权威时间不匹配）均拒绝 `RELEASE_RECEIPT_TARGET_MISMATCH`。持久化载体为 `ReleaseReceiptLedger` + `RawExternalReceiptRepository` 接口与 In-Memory 实现，DDL / 真实 Repository / Integration Provider 注入仍不存在（后者归属 #17）；
 - Issue #5 仅负责上述 25 个字段级 Contract；其余 Runtime Owner 已明确迁移：授权主体 ActorSnapshot/actingFor 与 Envelope 一致性归属 #22，`providerResult` PII 最小化归属 #23，普通飞书发送与 Formal Release 来源链归属 #24。三项均未因 Owner 迁移而变为 `PASS`；
-- Package Hash 计算、Publisher、完整 Persistence 与人工验收实现仍不存在；
+- Package Hash 计算、Release/Package/Frozen Package Persistence 已由 IM-05 WI-06（Issue #126）实现并通过本地 Unit/真实 PostgreSQL Persistence Gate；本切片人工客户验收尚未执行。Publisher、Release Readiness、Human Authorization、Publication Attempt、Formal Receipt、Recall 和外部 Provider 仍未实现；
 - 对应 Unit / Contract / E2E / Manual 验收结果见 [`Module-Test-006-ReleasePublication.md`](../module-tests/Module-Test-006-ReleasePublication.md)。
 
 ## 10. IM-02 WI-04 持久化切片
 
 ReleasePublication owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。当前 Runtime Receipt Validator 仍使用 In-Memory Ledger；Canonical payload↔hash 强校验、真实 PostgreSQL Repository、Publisher 与 Provider 注入均为 `NOT RUN`。
+
+## 11. IM-05 WI-06 Release/Package 持久化设计
+
+### 11.1 负责范围
+
+WI-06 只负责 `release.create_release_draft@1.0`、`release.select_representations@1.0`、`release.set_destinations@1.0`、`release.prepare_release@1.0`、`release.cancel_release@1.0`，以及 `release.get_release@1.0`、`release.get_frozen_package@1.0` 的 Application/Persistence 实现。DRAFT 允许替换 Representation Selection、Destination 和 Recipient Scope；Prepare 成功后进入 PREPARED，Package、Revision、ABS、Representation、Recipient Scope、Destination 和 exact Hash 全部冻结；PREPARED 仅允许转为 CANCELLED，且不得删除已冻结 Package 历史。
+
+Application 层只依赖公开 Authority Query Port：Artifact `validate_revision_ref` 与 `get_representation`、Quality `get_revision_acceptance_snapshot` 与 `get_approval_bundle_snapshot`。ReleasePublication 不导入其他业务模块，不读取其他 Schema/Repository；所有强引用按 kind/objectType/objectId/完整 scope 以及 snapshot/content hash 比较。Authority Port 返回的 Revision 必须为 exact、content available、`ACTIVE`；RAS/ABS 必须精确绑定 Artifact、Revision、QualityProfile 和对方 SnapshotRef，Representation 必须精确绑定 Revision、checksum、renderer 和 scope。
+
+### 11.2 Canonical Package Hash
+
+`release-package-manifest/1.0` 是 Package Hash 的固定 canonicalization domain。Manifest 只包含以下结构，不包含 `preparedAt`、`preparationValidationRef` 或调用方声明的 Hash：
+
+```text
+{
+  manifestVersion,
+  releaseRef,
+  canonicalRevisionRef,
+  approvalBundleSnapshotRef,
+  recipientScopeSnapshotRef,
+  representations: selections sorted by (ordinal, representationId, representation.checksum),
+  destinations: definitions sorted by destinationId
+}
+```
+
+Manifest 以 shared-kernel `canonicalize` 后计算 SHA-256，结果必须与 `package.packageHash` 完全相等；排序后的 Representation/Destination 数组同时写入冻结 Package。`packagePayloadHash` 是排序后的完整 `ReleasePackageDefinition`（含 computed packageHash）canonical JSON 的 SHA-256，用于 FrozenPackageView 的 payload identity。一个 Package 只允许一个 Release identity；`ReleasePackageRef.packageSnapshotRef` 的 `objectType` 为 `release.release_package`，其 contentHash 必须等于 packageHash。
+
+### 11.3 Persistence/Transaction 约束
+
+新增且只新增 forward-only `V6001__release_publication_release_package_lifecycle.sql`，不改写 `V6000`。四张业务表：`release_record`（可变 DRAFT aggregate）、`release_package`（immutable package）、`release_package_item`（immutable Representation item）和 `release_destination`（immutable frozen Destination）。业务表保留 scope、actor、authorization、source command 与 canonical hash attribution；`release_number` 在 Enterprise 内唯一；Package/Item/Destination 的 owner trigger 拒绝 UPDATE/DELETE；Release trigger 只允许 DRAFT 内 CAS 更新、DRAFT→PREPARED/CANCELLED、PREPARED→CANCELLED，并拒绝 PREPARED 后任意冻结字段改变。
+
+业务写入必须经 owner SECURITY DEFINER function，app role 不得直接 INSERT/UPDATE/DELETE 业务表。Application transaction 先建立 trusted platform Context，再切到 `release_publication_app`；Receipt Claim、业务 owner function、`ReleasePrepared` Outbox、Reference Edge 和 Audit 在同一个数据库事务中执行。Release aggregate 与冻结 Package 使用分离的 Reference Edge path 前缀，避免同一精确引用在两个事实层重复占用唯一路径。若业务、技术或 Hash/Reference 校验失败，所有写入回滚；CAS 冲突在锁后事务视图回读当前 version。业务 Query 只从 ReleasePublication 自有表读取并返回契约定义的精确 `ReleaseView`/`FrozenPackageView`。
+
+### 11.4 WI-06 输出与边界
+
+技术人工材料为 REL-801 preparation-only：Release/Revision/ABS/Representation/recipient/destination ref、canonical manifest bytes、expected/actual packageHash、packagePayloadHash、freeze/cancel 和 SQLSTATE/错误结果。该材料不执行 Human Authorization、RRS、Publisher、真实 Feishu/Email、对象存储、生产、公开 HTTP、跨模块业务 E2E 或独立人工客户验收。
+
+2026-08-31 本地验证已完成：新增 Unit 测试 2 files/5 tests PASS；固定 PostgreSQL 18.6/Flyway 11.20.3 的 persistence gate 为 34 files/313 tests PASS，覆盖 V6001 空库迁移、二次 no-op、CAS/idempotency、canonical hash、RLS/ACL、immutable guard、Reference Edge path separation、技术事实同事务与 rollback。用户检查和 Git 交付仍是独立边界。

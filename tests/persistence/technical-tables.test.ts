@@ -194,7 +194,15 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'approval_revocation',
     'approval_bundle_snapshot',
   ],
-  release_publication: ['business_probe', 'outbox_probe'],
+  release_publication: [
+    'business_probe',
+    'outbox_probe',
+    // IM-05 WI-06 (issue #126): Release draft and immutable frozen Package.
+    'release_record',
+    'release_package',
+    'release_package_item',
+    'release_destination',
+  ],
   integration_gateway: [
     'business_probe',
     'outbox_probe',

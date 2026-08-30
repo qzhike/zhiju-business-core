@@ -1,8 +1,8 @@
 # Module-Test-006-ReleasePublication
 
-版本：v0.6
-日期：2026-08-21
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA TESTS PASSING 2026-08-18 (#5) / RUNTIME RECEIPT VALIDATOR UNIT+E2E PASSING 2026-08-21 (#15) / REMAINING RUNTIME OWNERS #22–#24`
+版本：v0.7
+日期：2026-08-31
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA TESTS PASSING 2026-08-18 (#5) / RUNTIME RECEIPT VALIDATOR UNIT+E2E PASSING 2026-08-21 (#15) / IM-05 WI-06 PERSISTENCE AND LOCAL GATE VERIFIED 2026-08-31 / REMAINING RUNTIME OWNERS #22–#24`
 
 对应规格：[`Module-Spec-006-ReleasePublication.md`](../module-specs/Module-Spec-006-ReleasePublication.md)。
 
@@ -25,6 +25,13 @@
 | RP-API-E-002 | E2E | 普通飞书文件发送成功与正式 REL 路径对比 | 只有正式授权 Release 产生 Formal Receipt/Completion Event | 无飞书/Release 完整运行时；来源链不变量由 #24 承接，并依赖 #22 的授权主体校验；真实 Provider 与 #17 协调 | `NOT RUN — TRACKED BY #24` |
 | RP-API-E-003 | E2E | REL-801 fixture：两个 Destination 一早到成功一迟到回执（`tests/fixtures/runtime/rel-801-late-receipt-timeline.json` 受控 Runtime 序列；预置 RawExternalReceipt 事实；非真实飞书 / IntegrationGateway） | 早到 Receipt 保留；迟到项拒绝 `RELEASE_RECEIPT_STALE`；状态 PARTIALLY_RELEASED；外 Release package 负例拒绝 | `release-publication-runtime.e2e.test.ts` 回放 fixture 时间线并覆盖 foreign-package 负例。Integration Provider 注入仍属 #17 / `NOT RUN` | `PASS — RUNTIME E2E (#15); Integration Provider NOT RUN (#17)` |
 | RP-API-M-001 | Manual | REL-801 冻结 Package Fixture | 审核者能核对 Revision、ABS、RRS、Package、Destination、Attempt 和 Receipt Hash 链 | REL-801 late-receipt 时间线 fixture 已准备（`tests/fixtures/runtime/rel-801-late-receipt-timeline.json`，含 attempt → rawReceipt → late submission 三段时间线），可沿时间线核对状态；完整冻结 Package / 真实 Provider 人工验收仍不可执行 | `PARTIAL — timeline fixture ready, full manual walkthrough NOT RUN` |
+| RP-API-U-004 | Unit | canonical manifest 含 caller hash、locator、filename 或临时 URL替代输入 | 只使用版本化 manifest 的 exact refs/checksum/scope 计算 SHA-256；替代字段不能改变 packageHash | `package-hash.test.ts`：调整 preparedAt 不改变 manifest/packageHash；manifest 不含 preparedAt/packageHash | `PASS — 2 files / 5 tests` |
+| RP-API-U-005 | Unit | 未批准/stale/withdrawn Revision、RAS、ABS 或 Representation | 拒绝稳定错误，不写业务/技术事实 | `release-publication-validation.test.ts`：WITHDRAWN Revision 与 PARTIALLY_APPROVED ABS 分别拒绝稳定错误 | `PASS — 2 files / 5 tests` |
+| RP-API-U-006 | Unit | PREPARED 后替换 selection/destination/recipient 或重用不同 packageHash | 拒绝 `RELEASE_PACKAGE_FROZEN`/`RELEASE_MULTIPLE_PACKAGE_HASHES`，保留原 Package | 形状/hash 负例由 Unit 覆盖；PREPARED freeze、不同 hash 与原 Package 保留由真实 PostgreSQL Gate 覆盖 | `PASS — PostgreSQL Gate` |
+| RP-API-PG-001 | Persistence | REL-801 preparation-only exact refs、两个 Representation、两个 Destination | Release 进入 PREPARED；Package/Item/Destination 与 manifest/hash 可 readback；`ReleasePrepared@1.0` 与 Reference Edge/Receipt/Audit 同事务 | V6001 空库迁移后真实流程完成；313 个测试全部通过，Package/Item/Destination、hash、Outbox/Reference Edge/Receipt/Audit 可读回 | `PASS — PostgreSQL 18.6 / 34 files / 313 tests` |
+| RP-API-PG-002 | Persistence | 直接 app DML、owner 改写 immutable Package、跨 Scope 查询、错误 CAS/hash | app/owner 均 fail-closed，跨 Scope 无行，业务/技术写入无部分提交 | app UPDATE `42501`、owner immutable trigger `55000`、cross-scope query 无行、wrong hash 不增加 Package | `PASS — PostgreSQL Gate` |
+| RP-API-PG-003 | Persistence/Race | 相同 idempotency key 重放、不同 payload、并发同 version mutation、故障注入 | 同 payload 返回原结果；不同 payload 拒绝；仅一个 CAS 成功；Receipt/业务/Outbox/Reference Edge/Audit 整体回滚 | 同命令返回 `DUPLICATE`/原结果；wrong hash 拒绝；controlled fault 后 Receipt/Audit 无残留；事务整体回滚 | `PASS — PostgreSQL Gate` |
+| RP-API-M-002 | Manual | REL-801 preparation-only table + canonical manifest bytes/hash readback | 可人工核对 exact Revision/ABS/Representation/recipient/destination/package identity、freeze/cancel；不冒充 Authorization/Provider/Publication | 自动化已产出 preparation-only 技术事实与 hash readback；独立人工逐项验收未执行 | `NOT RUN — independent manual acceptance` |
 
 ## 本阶段结果
 
@@ -46,6 +53,8 @@
   - Issue #5 的字段 Schema 边界已完成；后续经用户批准将 ActorSnapshot/actingFor、providerResult PII、普通飞书来源链分别迁移到 #22、#23、#24。#5 的关闭不改变这些用例的 `PARTIAL` / `NOT RUN` 状态。
 - 测试遗留：未创建临时脚本或测试文件；所有 25 个 happy-path / negative-path 场景在测试文件中以确定性方式构造。
 
+- IM-05 WI-06 本地验证（2026-08-31）：`pnpm exec vitest run modules/release-publication/src/package-hash.test.ts modules/release-publication/src/release-publication-validation.test.ts --no-file-parallelism` 为 `2 files / 5 tests PASS`；`pnpm lint`、`pnpm typecheck` 和 ReleasePublication package build 均通过；`pnpm persistence:gate` 在固定 PostgreSQL `18.6`（server_version `180006`）/Flyway `11.20.3` 上为 `34 files / 313 tests PASS`，空库迁移与第二次 `Schema "public" is up to date. No migration necessary.` 均通过，容器已清理。该结果覆盖本地实现、真实 PostgreSQL、合成 REL-801 preparation-only 技术边界，不升级真实 Provider、公开 HTTP、跨模块业务 E2E、生产或独立人工验收。
+
 ## IM-02 WI-04 PostgreSQL 用例
 
 | ID | 输入 | 预期输出 | 修复前实际输出 | 当前结果 |
@@ -54,3 +63,9 @@
 | RP-PG-002 | Process Scope、masked audit、Reference owner version 矩阵 | 跨 Scope 拒绝、masked row 可读、多 owner version 可共存 | 分别为 `23514`、目标 row、两版本成功/精确重复 `23505` | `PASS` |
 
 真实 PostgreSQL Receipt Repository、Publisher/Provider 与 payload↔hash Gate 仍为 `NOT RUN`。
+
+## IM-05 WI-06 Persistence 用例定义
+
+本切片的 Unit/Contract 测试先证明 canonical manifest、完整强引用比较、Authority Port fail-closed 和状态边界；Persistence 测试再使用 disposable PostgreSQL 证明 V6001 空库迁移、owner function、RLS/ACL、CAS、idempotency、Release/Package 原子写入、分离的 aggregate/package Reference Edge path、immutable history、技术表联动、故障回滚和第二次 migrate no-op。没有 `ZJU_PERSISTENCE_DATABASE_URL` 时 Persistence 场景必须显式 `SKIP`，不能把跳过记为业务 PASS。
+
+REL-801 只冻结准备态，不包含 Release Readiness、Human Authorization、Publisher、Attempt、Formal Receipt、Recall、真实 Provider、对象存储、公开 HTTP、生产或独立人工客户验收。测试遗留脚本和临时数据在每次执行后清除；最终 acceptance evidence 写入 GitHub Issue/PR，不另建重复的 `.vibe` acceptance/delivery log。
