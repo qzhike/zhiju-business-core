@@ -5,13 +5,49 @@
 import type { CanonicalJson } from '@zhiju/contracts';
 import type { CanonicalJsonValue } from '@zhiju/shared-kernel';
 
-const sensitiveKeyPattern =
-  /(?:address|body|content|credential|email|location|message(?:body|content|text|value)?$|mobile|name|password|phone|recipient|secret|subject|token|url|user)/iu;
 const sensitiveStringPatterns = [
   /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu,
   /(?:\+?\d[\d ()-]{7,}\d)/u,
   /bearer\s+[A-Z0-9._~+/=-]+/iu,
+  /https?:\/\/[^\s]+/iu,
 ];
+
+const SAFE_PROVIDER_RESULT_KEYS = new Set([
+  'attemptNumber',
+  'deliveryId',
+  'errorCode',
+  'messageId',
+  'outcome',
+  'providerAttemptId',
+  'providerCode',
+  'providerMessageId',
+  'providerRequestId',
+  'providerStatus',
+  'reasonCode',
+  'requestId',
+  'retryable',
+  'status',
+  'traceId',
+]);
+
+const SAFE_PROVIDER_IDENTIFIER_KEYS = new Set([
+  'deliveryId',
+  'messageId',
+  'providerAttemptId',
+  'providerMessageId',
+  'providerRequestId',
+  'requestId',
+  'traceId',
+]);
+
+const SAFE_PROVIDER_STATUS_KEYS = new Set([
+  'errorCode',
+  'outcome',
+  'providerCode',
+  'providerStatus',
+  'reasonCode',
+  'status',
+]);
 
 const REDACTED_VALUE = Object.freeze({
   redacted: true,
@@ -27,15 +63,52 @@ function shouldRedactString(value: string): boolean {
   return sensitiveStringPatterns.some((pattern) => pattern.test(value));
 }
 
-function sanitize(value: CanonicalJsonValue, path: string, redactedPaths: string[]): CanonicalJson {
+function redacted(path: string, redactedPaths: string[]): CanonicalJson {
+  redactedPaths.push(path);
+  return REDACTED_VALUE;
+}
+
+function isSafeProviderScalar(key: string, value: CanonicalJsonValue): boolean {
+  if (key === 'attemptNumber') return typeof value === 'number' && Number.isInteger(value);
+  if (key === 'retryable') return typeof value === 'boolean';
+  if (SAFE_PROVIDER_IDENTIFIER_KEYS.has(key)) {
+    return (
+      typeof value === 'string' &&
+      /^[A-Za-z][A-Za-z0-9._:-]{0,127}$/u.test(value) &&
+      !shouldRedactString(value)
+    );
+  }
+  if (SAFE_PROVIDER_STATUS_KEYS.has(key)) {
+    return typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/u.test(value);
+  }
+  return false;
+}
+
+function sanitize(
+  value: CanonicalJsonValue,
+  path: string,
+  redactedPaths: string[],
+  key?: string,
+): CanonicalJson {
+  if (key !== undefined && value !== null && typeof value === 'object') {
+    return redacted(path, redactedPaths);
+  }
   if (typeof value === 'string') {
+    if (key !== undefined && !isSafeProviderScalar(key, value)) {
+      return redacted(path, redactedPaths);
+    }
     if (shouldRedactString(value)) {
-      redactedPaths.push(path);
-      return REDACTED_VALUE;
+      return redacted(path, redactedPaths);
     }
     return value;
   }
   if (value === null || typeof value === 'boolean' || typeof value === 'number') {
+    if (key === undefined && path !== '') {
+      return redacted(path, redactedPaths);
+    }
+    if (key !== undefined && !isSafeProviderScalar(key, value)) {
+      return redacted(path, redactedPaths);
+    }
     return value;
   }
   if (Array.isArray(value)) {
@@ -46,12 +119,11 @@ function sanitize(value: CanonicalJsonValue, path: string, redactedPaths: string
   const result: Record<string, CanonicalJson> = {};
   for (const [key, child] of Object.entries(value)) {
     const childPath = `${path}/${key.replaceAll('~', '~0').replaceAll('/', '~1')}`;
-    if (sensitiveKeyPattern.test(key)) {
+    if (!SAFE_PROVIDER_RESULT_KEYS.has(key)) {
       redactedPaths.push(childPath);
-      result[key] = REDACTED_VALUE;
       continue;
     }
-    result[key] = sanitize(child, childPath, redactedPaths);
+    result[key] = sanitize(child, childPath, redactedPaths, key);
   }
   return result;
 }
@@ -63,6 +135,12 @@ function sanitize(value: CanonicalJsonValue, path: string, redactedPaths: string
  */
 export function sanitizeProviderResult(value: CanonicalJson): SanitizedProviderResult {
   const redactedPaths: string[] = [];
+  if (value === null || typeof value !== 'object') {
+    return { value: redacted('', redactedPaths), redactedPaths };
+  }
+  if (Array.isArray(value)) {
+    return { value: redacted('', redactedPaths), redactedPaths };
+  }
   return {
     value: sanitize(value, '', redactedPaths),
     redactedPaths,

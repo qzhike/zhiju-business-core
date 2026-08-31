@@ -5,6 +5,7 @@ import {
   RELEASE_ACTOR_NOT_HUMAN,
   RELEASE_AUTHORIZATION_DECISION_MISMATCH,
   RELEASE_AUTHORIZATION_EXPIRED,
+  RELEASE_AUTHORIZATION_INVALID,
   RELEASE_AUTHORIZATION_PURPOSE_MISMATCH,
   validateHumanAuthorizationChain,
 } from './release-publication-authorization.js';
@@ -175,6 +176,19 @@ describe('ReleasePublication WI-07 Human authorization chain', () => {
         }),
       ),
     ).rejects.toMatchObject({ code: RELEASE_ACTOR_NOT_HUMAN });
+
+    await expect(
+      validateHumanAuthorizationChain(
+        input({
+          actor: {
+            ...facts.actor,
+            principalRef: { principalKind: 'AGENT', principalId: PRINCIPAL },
+            actingForRef: { principalKind: 'HUMAN', principalId: PRINCIPAL },
+          },
+          decision: facts.decision,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: RELEASE_ACTOR_NOT_HUMAN });
   });
 
   it('rejects mismatched purpose, decision hash, and expired authorization', async () => {
@@ -201,6 +215,35 @@ describe('ReleasePublication WI-07 Human authorization chain', () => {
         input({
           actor: facts.actor,
           decision: { ...facts.decision, expiresAt: '2026-08-30T00:00:00Z' },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: RELEASE_AUTHORIZATION_EXPIRED });
+
+    await expect(
+      validateHumanAuthorizationChain(
+        input(facts, {
+          context: context({ allowedProjectIds: [] }),
+        }),
+      ),
+    ).rejects.toMatchObject({ code: RELEASE_AUTHORIZATION_INVALID });
+
+    await expect(
+      validateHumanAuthorizationChain(
+        input(facts, {
+          context: context({
+            kind: 'EVENT_CONSUMER',
+            enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d599',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ code: RELEASE_ACTOR_NOT_HUMAN });
+
+    await expect(
+      validateHumanAuthorizationChain(
+        input(facts, {
+          context: context({
+            authorizationDecisionExpiresAt: new Date('2026-08-30T00:00:00Z'),
+          }),
         }),
       ),
     ).rejects.toMatchObject({ code: RELEASE_AUTHORIZATION_EXPIRED });

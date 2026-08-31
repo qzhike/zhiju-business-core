@@ -25,6 +25,20 @@
       "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d810",
       "packageHashDigest": "ab01000000000000000000000000000000000000000000000000000000000000",
       "publicationAttemptId": "018f22e2-7c15-7b2e-8d86-2de956a9d820",
+      "externalDeliveryRequestRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "integration.external_delivery_request",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d840",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ee01000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
       "adapterAttemptRef": {
         "kind": "OBJECT",
         "objectType": "integration.adapter_attempt",
@@ -62,6 +76,20 @@
       "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d811",
       "packageHashDigest": "ab01000000000000000000000000000000000000000000000000000000000000",
       "publicationAttemptId": "018f22e2-7c15-7b2e-8d86-2de956a9d821",
+      "externalDeliveryRequestRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "integration.external_delivery_request",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d841",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ee02000000000000000000000000000000000000000000000000000000000000",
+          "canonicalizationVersion": "1"
+        }
+      },
       "adapterAttemptRef": {
         "kind": "OBJECT",
         "objectType": "integration.adapter_attempt",

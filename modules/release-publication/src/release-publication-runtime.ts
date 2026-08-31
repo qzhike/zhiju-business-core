@@ -38,6 +38,10 @@ import {
   type ReleaseAuthorizationValidationInput,
   type ReleaseHumanAuthorizationChainInput,
 } from './release-publication-authorization.js';
+import {
+  RELEASE_NOT_AUTHORIZED,
+  ReleasePublicationBusinessError,
+} from './release-publication-validation.js';
 
 type ObjectRef = Common.ObjectRef;
 type ReleasePackageRef = Common.ReleasePackageRef;
@@ -254,7 +258,7 @@ export class ReleasePublicationRuntime {
       failuresByAttemptId: new Map(),
       outboxEvents: [],
       frozenPackageRef: request.frozenPackageRef,
-      status: 'AUTHORIZED',
+      status: 'PREPARED',
     });
   }
 
@@ -269,6 +273,16 @@ export class ReleasePublicationRuntime {
   ): Promise<ReleaseAuthorizationRuntimeResult | { readonly ok: false; readonly error: ApiError }> {
     try {
       const validated = await validateReleaseAuthorization(request.validation);
+      const derivedAuthorizationRef = runtimeAuthorizationRef(request.validation);
+      if (
+        request.authorizationRef !== undefined &&
+        !sameContentAddressedRef(request.authorizationRef, derivedAuthorizationRef)
+      ) {
+        throw new ReleasePublicationBusinessError(
+          RELEASE_AUTHORIZATION_DECISION_MISMATCH,
+          'authorizationRef does not match the validated authorization chain',
+        );
+      }
       const key = objectRefKey(request.validation.releaseRef);
       let release = this.releases.get(key);
       if (release === undefined) {
@@ -307,8 +321,7 @@ export class ReleasePublicationRuntime {
       release.purpose = request.validation.draftDefinition.purpose;
       release.revisionRef = request.validation.draftDefinition.revisionRef;
       release.releaseReadinessSnapshotRef = request.validation.releaseReadinessSnapshotRef;
-      const authorizationRef =
-        request.authorizationRef ?? runtimeAuthorizationRef(request.validation);
+      const authorizationRef = derivedAuthorizationRef;
       release.authorizationRef = authorizationRef;
       release.status = 'AUTHORIZED';
       appendOutbox(release, {
@@ -329,9 +342,12 @@ export class ReleasePublicationRuntime {
         authorizationRef,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Release authorization was rejected';
+      const message =
+        error instanceof ReleasePublicationBusinessError
+          ? error.message
+          : 'Release authorization was rejected';
       const code =
-        error instanceof Error && 'code' in error && typeof error.code === 'string'
+        error instanceof ReleasePublicationBusinessError
           ? error.code
           : RELEASE_AUTHORIZATION_INVALID;
       return {
@@ -363,6 +379,12 @@ export class ReleasePublicationRuntime {
       return {
         ok: false,
         error: closedReleaseError(request.releaseRef, correlationId),
+      };
+    }
+    if (release.authorizationRef === undefined) {
+      return {
+        ok: false,
+        error: authorizationRequiredError(request.releaseRef, correlationId),
       };
     }
     if (!release.destinations.has(request.definition.destinationId)) {
@@ -478,6 +500,12 @@ export class ReleasePublicationRuntime {
     if (publicationClosed(release.status)) {
       return { ok: false, error: closedReleaseError(request.releaseRef, request.correlationId) };
     }
+    if (release.authorizationRef === undefined) {
+      return {
+        ok: false,
+        error: authorizationRequiredError(request.releaseRef, request.correlationId),
+      };
+    }
     const destination = release.destinations.get(request.submission.destinationId);
     if (destination === undefined) {
       return {
@@ -575,6 +603,12 @@ export class ReleasePublicationRuntime {
     }
     if (publicationClosed(release.status)) {
       return { ok: false, error: closedReleaseError(request.releaseRef, request.correlationId) };
+    }
+    if (release.authorizationRef === undefined) {
+      return {
+        ok: false,
+        error: authorizationRequiredError(request.releaseRef, request.correlationId),
+      };
     }
     const attempt = release.attemptsById.get(request.failure.attemptRef.objectId);
     const registered = this.ledger.findAttempt(request.failure.attemptRef.objectId);
@@ -692,6 +726,12 @@ export class ReleasePublicationRuntime {
     if (immutableRelease(release.status)) {
       return { ok: false, error: closedReleaseError(request.releaseRef, request.correlationId) };
     }
+    if (release.authorizationRef === undefined) {
+      return {
+        ok: false,
+        error: authorizationRequiredError(request.releaseRef, request.correlationId),
+      };
+    }
     if (request.destinationOutcomeRefs.length === 0) {
       return {
         ok: false,
@@ -806,7 +846,7 @@ export class ReleasePublicationRuntime {
       });
     } catch (error) {
       const code =
-        error instanceof Error && 'code' in error && typeof error.code === 'string'
+        error instanceof ReleasePublicationBusinessError
           ? error.code
           : RELEASE_AUTHORIZATION_INVALID;
       return {
@@ -815,7 +855,10 @@ export class ReleasePublicationRuntime {
           code,
           category: 'AUTHORIZATION',
           retryDisposition: 'RELOAD_AND_REEVALUATE',
-          safeMessage: error instanceof Error ? error.message : 'Recall authorization was rejected',
+          safeMessage:
+            error instanceof ReleasePublicationBusinessError
+              ? error.message
+              : 'Recall authorization was rejected',
           fieldPath: '/payload',
           violatedRule: 'Recall requires an exact trusted Human authorization chain',
           correlationId: request.context.correlationId,
@@ -885,6 +928,13 @@ export class ReleasePublicationRuntime {
         status: 'REJECTED',
         invoked: false,
         error: unknownReleaseError(releaseRef, ''),
+      };
+    }
+    if (release.authorizationRef === undefined) {
+      return {
+        status: 'REJECTED',
+        invoked: false,
+        error: authorizationRequiredError(releaseRef, ''),
       };
     }
     const registeredAttemptRef: ObjectRef = {
@@ -1121,6 +1171,19 @@ function unknownReleaseError(releaseRef: ObjectRef, correlationId = ''): ApiErro
     safeMessage: 'release is not open for publication',
     fieldPath: '/targetRef',
     violatedRule: 'release must be opened for publication first',
+    correlationId,
+    targetRef: releaseRef,
+  });
+}
+
+function authorizationRequiredError(releaseRef: ObjectRef, correlationId: string): ApiError {
+  return buildApiRejection({
+    code: RELEASE_NOT_AUTHORIZED,
+    category: 'AUTHORIZATION',
+    retryDisposition: 'RELOAD_AND_REEVALUATE',
+    safeMessage: 'Release authorization is required before publication',
+    fieldPath: '/authorizationRef',
+    violatedRule: 'publication side effects require a validated Human Release Authorization',
     correlationId,
     targetRef: releaseRef,
   });
