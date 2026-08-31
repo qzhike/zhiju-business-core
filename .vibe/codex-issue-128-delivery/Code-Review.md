@@ -1,12 +1,12 @@
 # Issue #128 代码审查记录
 
-版本：v1.0
+版本：v1.1
 
 日期：2026-08-31
 
 审查范围：IM-05 WI-08 合成 QMS/REL-801 退出证据所涉及的权威 Spec/Test 文档、QMS Gate fixture、ReleasePublication Handler persistence report、deterministic OOXML renderer report、既有 Representation/Binding 证据及本地验证结果。
 
-审查结论：`PASS — COMPONENT / SYNTHETIC / DISPOSABLE POSTGRESQL TECHNICAL SCOPE`；统一跨模块业务 E2E、真实 Provider/生产、独立人工业务验收和 GitHub exact-head closeout 尚未执行。
+审查结论：`PASS — COMPONENT / SYNTHETIC / DISPOSABLE POSTGRESQL TECHNICAL SCOPE / EXACT-HEAD CI PASS`；PR #139 已创建，Issue #128 尚待合并 closeout；统一跨模块业务 E2E、真实 Provider/生产和独立人工业务验收仍未执行。
 
 ## 1. 审查发现与处置
 
@@ -41,6 +41,7 @@ ReleasePublication 的 `record_publication_failure` 命令返回的是更新后�
 - QMS report：原始 gate `FAIL`、修复后 gate `PASS`、独立 verification、双 approval、revocation/stale bundle 和历史 readback 均有直接输出。
 - REL-801 report：3 Attempt、6 Observation、2 Formal Receipt、1 Failure、1 Recall、1 ImpactReview；Observation payload hash 逐条重算并与数据库 32-byte 值一致。
 - `pnpm clean && pnpm verify`：`PASS`；普通 Vitest 为 `42 files passed / 30 skipped`、`432 passed / 299 skipped`，Architecture `source_roots=10`，Public API/Catalog `201` 且全部 `FULL`，compatibility baseline v1.0 为 `200` operations，Persistence Gate 为 `34 files / 314 tests`；空库迁移、二次 no-op、tag→digest 与容器清理均通过。
+- PR #139 exact-head CI：实现 head `290d28758d04d6be225d8587e8314ed2f46830de` 的 GitHub Actions `verify` run `33355081899` 第二次执行 `PASS`；初次执行的单个非 WI-08 `TemplateBaseline` 并发 fixture 竞态经有界重跑通过，未改变 WI-08 代码和报告证据。
 
 ## 4. 风险与未覆盖范围
 
@@ -57,4 +58,4 @@ Issue #120 不能因本 Issue 的合成技术证据自动关闭；父级仍需�
 
 ## 5. Git 交付边界
 
-当前工作树尚未执行 `git commit`、`git push`、PR 创建/合并或 Issue closeout。用户检查当前 diff、权威文档、测试、报告和验证结果并明确回复“确认提交”后，才执行限定路径 staging、`git diff --cached --check`、commit、push、精确 HEAD CI、远端 readback，以及按 Issue #128 需要的后续 GitHub 操作；不会自动修改或关闭父级 Issue #120。
+初始交付已执行限定路径 staging、`git diff --cached --check`、commit 和 non-force push：提交为 `290d28758d04d6be225d8587e8314ed2f46830de`，PR 为 [#139](https://github.com/qzhike/zhiju-business-core/pull/139)，其 exact-head CI 已通过。当前 follow-up 仅同步本记录和权威文档的 Git 状态；PR #139 合并、Issue #128 closeout、`origin/main` ancestry readback 和该命名交付分支清理仍需在最终精确 head 上完成，不修改或关闭父级 Issue #120。

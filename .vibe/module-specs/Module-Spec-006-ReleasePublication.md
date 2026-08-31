@@ -2,7 +2,7 @@
 
 版本：v1.3
 日期：2026-08-31
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTATION COMPLETE 2026-08-18 / RUNTIME RECEIPT VALIDATOR IMPLEMENTED 2026-08-21 (#15) / IM-05 WI-06 PERSISTENCE AND GITHUB DELIVERY COMPLETE / IM-05 WI-07 IMPLEMENTATION, PERSISTENCE AND GITHUB DELIVERY COMPLETE 2026-08-31 / PR #138 MERGED / ISSUE #127 CLOSED / DISPATCH EXACT-REFERENCE GUARD VERIFIED / OBSERVATION HASH READBACK REGRESSION ADDED / IM-05 WI-08 SYNTHETIC REL-801 EXIT REVIEW IN PROGRESS / UNIFIED CROSS-MODULE E2E NOT RUN / USER REVIEW BEFORE WI-08 GIT DELIVERY`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTATION COMPLETE 2026-08-18 / RUNTIME RECEIPT VALIDATOR IMPLEMENTED 2026-08-21 (#15) / IM-05 WI-06 PERSISTENCE AND GITHUB DELIVERY COMPLETE / IM-05 WI-07 IMPLEMENTATION, PERSISTENCE AND GITHUB DELIVERY COMPLETE 2026-08-31 / PR #138 MERGED / ISSUE #127 CLOSED / DISPATCH EXACT-REFERENCE GUARD VERIFIED / OBSERVATION HASH READBACK REGRESSION ADDED / IM-05 WI-08 SYNTHETIC REL-801 EXIT REVIEW SUBMITTED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 PENDING MERGE / UNIFIED CROSS-MODULE E2E NOT RUN`
 
 ## 1. 模块责任
 
@@ -283,10 +283,12 @@ WI-07 只新增 forward-only `V6002__release_publication_authorization_publicati
 
 业务状态写入、Command Receipt、Audit、Outbox、Reference Edge、Attempt/Receipt/Failure/Recall 和必要的 ImpactReview 必须同事务提交或整体回滚。Reference Edge 为 append-only；同一 Release 在不同命令中再次引用同一权威事实时必须使用包含具体事实 ID 的语义独立 reference path，不能重复占用同一 owner/path 或改写已有 Edge。已知业务校验错误才可转换为稳定业务拒绝；数据库约束、连接和其他技术异常必须继续冒泡，让整个事务回滚，不能在 aborted transaction 中继续 finalize Receipt/Audit。稳定重试、并发授权、并发 Attempt、重复/迟到 Receipt、Recall 后终态写保护、RLS、直接 DML、跨 Scope、PII、普通发送来源链和 rollback 都必须有 Unit/Contract/Persistence/E2E 回归；Persistence readback 还必须对每一条 Observation 的 canonical `observation_payload` 重新计算 SHA-256，并与持久化的 32-byte `observation_payload_hash` 精确相等。Persistence Gate 中既有 Artifact direct-Context expiry probe 使用 500ms 建立窗口并等待 800ms 后验证过期，确保验证的是“已建立 Context 后过期”而不是数据库往返竞态；这不改变 Context 的生产 expiry contract。REL-801 手工时间线为合成技术输出，不升级真实 Provider、生产、公开 HTTP、跨模块业务 E2E、外部收件人确认或独立人工业务验收；#22/#23/#24 的 Issue 状态与独立证据不由本切片静默关闭。
 
-2026-08-31 实现与本地技术验收结果：精确 `pnpm verify` 全部通过，包含 Format、Lint、Typecheck、普通 Vitest（42 个文件通过、30 个受控跳过；432 passed、299 skipped）、Architecture、201 项 Public API/Catalog 全部 `FULL`、v1.0 compatibility baseline 200 项，以及 PostgreSQL/Flyway Persistence Gate（34 个文件、314 个测试；V6002、二次 no-op、tag→digest、容器清理）。WI-07 focused suite 为 6 个文件、33 个测试通过；PostgreSQL Handler 路径读回 3 个 Attempt、6 条 Observation、2 个 Formal Receipt、1 个 Failure、1 个 Recall 和 1 个 ImpactReview，并逐条重算 Observation SHA-256 与持久化 32-byte hash 相等；RLS/ACL、append-only、CAS、rollback、跨 Scope 和 dispatch exact `objectType`/`objectId`/Scope guard 均有回归。该结果仅证明本地、合成和 disposable PostgreSQL 技术边界；真实 Provider、公开 HTTP、生产、跨模块业务 E2E、外部收件人和独立人工验收仍为 `NOT RUN`，等待用户检查后再进入 Git 交付。
+2026-08-31 实现与本地技术验收结果：精确 `pnpm verify` 全部通过，包含 Format、Lint、Typecheck、普通 Vitest（42 个文件通过、30 个受控跳过；432 passed、299 skipped）、Architecture、201 项 Public API/Catalog 全部 `FULL`、v1.0 compatibility baseline 200 项，以及 PostgreSQL/Flyway Persistence Gate（34 个文件、314 个测试；V6002、二次 no-op、tag→digest、容器清理）。WI-07 focused suite 为 6 个文件、33 个测试通过；PostgreSQL Handler 路径读回 3 个 Attempt、6 条 Observation、2 个 Formal Receipt、1 个 Failure、1 个 Recall 和 1 个 ImpactReview，并逐条重算 Observation SHA-256 与持久化 32-byte hash 相等；RLS/ACL、append-only、CAS、rollback、跨 Scope 和 dispatch exact `objectType`/`objectId`/Scope guard 均有回归。该结果仅证明本地、合成和 disposable PostgreSQL 技术边界；真实 Provider、公开 HTTP、生产、跨模块业务 E2E、外部收件人和独立人工验收仍为 `NOT RUN`。
 
 ## 13. IM-05 WI-08 合成 REL-801 退出复核边界
 
 WI-08 不新增 ReleasePublication Contract、业务表或 Migration；它复用 V6001/V6002 和已验证的 Release Authority Query Port，整理 Release Readiness、frozen Package、Human Authorization、两 Destination Attempt/Receipt/Failure/Partial/Completion/Recall 的 exact ref/hash/history。`tests/fixtures/runtime/rel-801-late-receipt-timeline.json` 提供固定的受控迟到回执时间线；WI-07 PostgreSQL Handler 主流程提供完整授权、失败重试、Formal Receipt、final completion 与 Recall 事实。
 
 报告模式只输出合成技术事实，不连接真实 Feishu/email/对象存储/Provider，也不将 `messageId`、PII、token 或原始 Provider 结果当作 Formal Receipt 依据。统一 Quality→Renderer→Release 编排器、公开 HTTP、生产数据库、真实外部收件人、部署后验证和独立人工业务验收继续为 `NOT RUN`。
+
+2026-08-31 GitHub 交付状态：WI-08 报告与测试变化已进入 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139)，实现 head `290d28758d04d6be225d8587e8314ed2f46830de` 的 GitHub Actions `verify` run `33355081899` 第二次执行通过。PR 合并前 Issue #128 保持 OPEN；真实 Provider、公开 HTTP、生产和独立人工验收仍为 `NOT RUN`。

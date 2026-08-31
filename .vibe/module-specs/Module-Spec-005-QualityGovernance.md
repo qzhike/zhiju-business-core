@@ -2,7 +2,7 @@
 
 版本：v1.0
 日期：2026-08-31
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01–WI-04 IMPLEMENTATION AND GITHUB DELIVERY COMPLETE / ISSUE #121–#124 CLOSED / IM-05 WI-08 SYNTHETIC QMS EXIT REVIEW IN PROGRESS / QMS COMPONENT TECHNICAL EVIDENCE PASS / UNIFIED CROSS-MODULE E2E NOT RUN / USER REVIEW BEFORE WI-08 GIT DELIVERY`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01–WI-04 IMPLEMENTATION AND GITHUB DELIVERY COMPLETE / ISSUE #121–#124 CLOSED / IM-05 WI-08 SYNTHETIC QMS EXIT REVIEW SUBMITTED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 PENDING MERGE / QMS COMPONENT TECHNICAL EVIDENCE PASS / UNIFIED CROSS-MODULE E2E NOT RUN`
 
 ## 1. 模块责任
 
@@ -366,3 +366,5 @@ WI-03 实现与本地验证结果（2026-08-30）：`modules/quality-governance/
 WI-08 不新增 QualityGovernance 公共 Contract、业务表或 Migration；它冻结并复核既有 Evidence/Profile、GateResult/ChangeImpact/RAS/RRS、ReviewIssue/Resolution/Verification、Approval/ABS 的精确引用和历史语义。复核主流程必须显式使用一条合成 `REV-002 / FAIL` GateResult，随后追加 Blocking ReviewIssue、Resolution Proposal、作者自验拒绝、独立 Human Verification、`REV-003` exact Gate/RAS、Approval Request/Decision 和 ABS；新事实不得覆盖或删除 REV-002、旧 Issue、旧 Gate 或旧 Approval。
 
 所有跨模块 Revision、Representation、ReleasePackage 和 Identity 事实只通过 QualityGovernance 的公开 Authority Query Port 或已验证的 Typed Reference 进入复核。报告中的 UUID、Hash 和 Snapshot 不代表生产数据；报告模式必须无 Secret，并在输出中区分 `PASS (LOCAL)`、`PASS (PERSISTENCE)`、`PARTIAL` 和 `NOT RUN`。统一 Quality→Renderer→Release 业务编排器、公开 HTTP、真实身份/审批系统、生产数据库、Provider 和独立人工客户验收仍为 `NOT RUN`。
+
+2026-08-31 GitHub 交付状态：WI-08 报告与回归测试已随 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139) 提交；实现 head `290d28758d04d6be225d8587e8314ed2f46830de` 的 GitHub Actions `verify` run `33355081899` 第二次执行通过。PR 合并前 Issue #128 保持 OPEN，QualityGovernance 的统一跨模块编排和独立业务验收仍为 `NOT RUN`。

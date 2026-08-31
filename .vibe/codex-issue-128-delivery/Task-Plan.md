@@ -12,7 +12,7 @@
 4. 运行聚焦测试、完整验证和一次性 PostgreSQL 证据；清除生成物与临时测试文件。
 5. 形成可审阅的 `.vibe` 交付记录，提交前展示变更并等待用户确认。
 
-当前阶段：本地实现、权威文档同步、聚焦测试、完整 `pnpm clean && pnpm verify` 和 disposable PostgreSQL 证据均已完成；等待用户检查当前未提交差异。
+当前阶段：本地实现、权威文档同步、聚焦测试、完整 `pnpm clean && pnpm verify` 和 disposable PostgreSQL 证据均已完成；用户已确认提交，提交 `290d28758d04d6be225d8587e8314ed2f46830de` 已推送到 PR #139，GitHub Actions `verify` 第二次执行已在该精确 head 上通过；当前进入 follow-up 文档同步、最终 PR 合并、Issue #128 closeout 和交付分支清理。
 
 ## 交付成功标准
 
@@ -27,4 +27,4 @@
 - `pnpm clean && pnpm verify`：`PASS`。普通 Vitest 为 `42 files passed / 30 skipped`、`432 passed / 299 skipped`；Architecture `source_roots=10`；Public API/Catalog 为 201 operations 且全部 `FULL`；compatibility baseline v1.0 为 200 operations；Persistence Gate 为 34 files/314 tests。
 - QMS/REL-801 报告模式：`REV-002 FAIL`、独立 ReviewIssue/Verification、双 Human Approval、revocation/stale bundle、三次 Attempt、六条 Observation、两条 Formal Receipt、Failure、Recall 和 ImpactReview 均有 exact readback；详细 Ref/hash 见 [`Synthetic-QMS-REL-801-Exit-Report.md`](./Synthetic-QMS-REL-801-Exit-Report.md)。
 - 空库 Flyway、第二次 `No migration necessary`、PostgreSQL 18.6/Flyway 11.20.3 digest pin 和容器清理均通过；当前没有新增 Migration、公共 Contract 或生产运行时适配器。
-- 真实 Provider、生产、公开 HTTP、统一跨模块业务 E2E、外部收件人和独立人工验收继续为 `NOT RUN`；本工作树尚未 commit、push、创建/合并 PR 或关闭 Issue。
+- 真实 Provider、生产、公开 HTTP、统一跨模块业务 E2E、外部收件人和独立人工验收继续为 `NOT RUN`；PR #139 已创建并通过 exact-head CI，Issue #128 在 PR 合并前保持 OPEN，父级 Issue #120 不关闭。
