@@ -2,7 +2,7 @@
 
 版本：v0.9
 日期：2026-08-31
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01–WI-04 IMPLEMENTATION AND GITHUB DELIVERY COMPLETE / ISSUE #121–#124 CLOSED / IM-05 WI-08 SYNTHETIC QMS EXIT REVIEW SUBMITTED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 PENDING MERGE / QMS COMPONENT UNIT-CONTRACT-PERSISTENCE EVIDENCE PASS / UNIFIED CROSS-MODULE E2E AND INDEPENDENT MANUAL BUSINESS ACCEPTANCE NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01–WI-04 IMPLEMENTATION AND GITHUB DELIVERY COMPLETE / ISSUE #121–#124 CLOSED / IM-05 WI-08 SYNTHETIC QMS EXIT REVIEW DELIVERED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 CLOSED / QMS COMPONENT UNIT-CONTRACT-PERSISTENCE EVIDENCE PASS / UNIFIED CROSS-MODULE E2E AND INDEPENDENT MANUAL BUSINESS ACCEPTANCE NOT RUN`
 
 对应规格：[`Module-Spec-005-QualityGovernance.md`](../module-specs/Module-Spec-005-QualityGovernance.md)。
 
@@ -205,4 +205,4 @@ WI-02 非目标：GateResult evaluation、ReviewIssue、Human Approval decision�
 | QG-WI08-E-002 | E2E | Quality RAS/ABS 经公开 Port 交给 Renderer/Release，并在同一业务流程中完成 | 只消费 exact ref；任一上游失效在副作用前拒绝 | 当前没有统一跨模块业务 orchestrator；Artifact/Renderer/Release 以各自公开 Port/受控 fixture 独立验证 | `NOT RUN — UNIFIED CROSS-MODULE E2E` |
 | QG-WI08-M-001 | Manual | Reviewer-readable QMS/REL-801 report with exact refs, hashes, expected/actual and cleanup | 审核者可重放历史并清楚区分技术 PASS 与未运行边界 | [`Synthetic-QMS-REL-801-Exit-Report.md`](../codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)；独立业务/客户验收不在本地执行 | `PARTIAL — REPORT READY / INDEPENDENT BUSINESS ACCEPTANCE NOT RUN` |
 
-2026-08-31 GitHub exact-head 验证：WI-08 提交 head `290d28758d04d6be225d8587e8314ed2f46830de` 已进入 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139)，GitHub Actions `verify` run `33355081899` 第二次执行通过。该结果覆盖仓库 Gate，不扩大 QG-WI08-E-002 的统一跨模块业务 E2E 或 QG-WI08-M-001 的独立人工验收范围；Issue #128 在 PR 合并前保持 OPEN。
+2026-08-31 GitHub exact-head 验证：WI-08 最终审阅 head `306cdbc3b8c8201994a57097038c4c3f784b0412` 已随 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139) 合入 `main`，GitHub Actions `verify` run `33355948473` 通过，merge commit 为 `07fc6a083897c01924f842d12dffe06fd6068261`，Issue #128 已关闭。该结果覆盖仓库 Gate，不扩大 QG-WI08-E-002 的统一跨模块业务 E2E 或 QG-WI08-M-001 的独立人工验收范围。
