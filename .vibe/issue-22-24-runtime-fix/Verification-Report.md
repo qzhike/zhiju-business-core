@@ -4,7 +4,7 @@
 
 ## 结论
 
-PR #141 合并后，#22 Recall、#23 Provider Result 和 #24 Formal Receipt provenance 均经过重新复验。当前结论为 `#22 RECALL LOCAL CONTROLLED TECHNICAL PASS / #23 AND #24 DIRECT COUNTEREXAMPLES STILL FAIL / GITHUB RE-CLOSEOUT PENDING`：Persistence Recall Handler 现在从当前 Recall AuthorizationDecision 解析其 ActorSnapshot，原始 Release ActorSnapshot 只保留为历史；#23/#24 继续保持 OPEN。本报告不替代真实 Identity Provider、Provider/Feishu、生产、公开 HTTP、统一跨模块业务 E2E 或独立人工验收。
+PR #141 合并后，#22 Recall、#23 Provider Result 和 #24 Formal Receipt provenance 均经过重新复验。当前结论为 `#22 RECALL LOCAL CONTROLLED TECHNICAL PASS AND GITHUB CLOSEOUT COMPLETE / #23 AND #24 DIRECT COUNTEREXAMPLES STILL FAIL`：Persistence Recall Handler 现在从当前 Recall AuthorizationDecision 解析其 ActorSnapshot，原始 Release ActorSnapshot 只保留为历史；PR #142 已合入，Issue #22 已关闭，#23/#24 继续保持 OPEN。本报告不替代真实 Identity Provider、Provider/Feishu、生产、公开 HTTP、统一跨模块业务 E2E 或独立人工验收。
 
 ## 合并后复核缺陷
 
