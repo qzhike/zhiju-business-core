@@ -285,6 +285,17 @@ WI-07 只新增 forward-only `V6002__release_publication_authorization_publicati
 
 2026-08-31 实现与本地技术验收结果：精确 `pnpm verify` 全部通过，包含 Format、Lint、Typecheck、普通 Vitest（42 个文件通过、30 个受控跳过；432 passed、299 skipped）、Architecture、201 项 Public API/Catalog 全部 `FULL`、v1.0 compatibility baseline 200 项，以及 PostgreSQL/Flyway Persistence Gate（34 个文件、314 个测试；V6002、二次 no-op、tag→digest、容器清理）。WI-07 focused suite 为 6 个文件、33 个测试通过；PostgreSQL Handler 路径读回 3 个 Attempt、6 条 Observation、2 个 Formal Receipt、1 个 Failure、1 个 Recall 和 1 个 ImpactReview，并逐条重算 Observation SHA-256 与持久化 32-byte hash 相等；RLS/ACL、append-only、CAS、rollback、跨 Scope 和 dispatch exact `objectType`/`objectId`/Scope guard 均有回归。该结果仅证明本地、合成和 disposable PostgreSQL 技术边界；真实 Provider、公开 HTTP、生产、跨模块业务 E2E、外部收件人和独立人工验收仍为 `NOT RUN`。
 
+### 12.4 Issue #22–#24 Runtime 修复契约（2026-08-31，IMPLEMENTED / CONTROLLED TECHNICAL VERIFIED）
+
+本节是对 §12.1–§12.3 的收紧，已由实现、聚焦回归和仓库级完整 Gate 落实；外部边界不因本地证据升级：
+
+- **#22 授权主体**：`authorizeRelease`/对应 Handler 只接受 `REQUEST` Context。Context 的 Human principal、ActorSnapshot ID、AuthorizationDecision ID/hash、Enterprise、允许 Project、Decision expiry 必须与请求和权威 Identity facts 完全一致；Release Scope/Project、command type/version、purpose、payload hash、authentication context、outcome、expiry 和 revocation 也必须逐项一致。ActorSnapshot 的 principal kind 必须是 `HUMAN`；任何 Agent/Service/Runtime principal 或其 `actingFor` 代授权都必须拒绝，且拒绝前不得写入授权、Attempt、Receipt、Event 或状态变化。Runtime 派生的 `authorizationRef` 也必须先与调用方声明精确比较，再允许任何 Release 状态写入。
+- **#23 Provider Result**：Formal Receipt 的 `providerResult` 只允许模块定义的安全 provider identifier/status/attempt 字段及其安全标量格式；根值必须是对象，数组/标量根值直接 fail-closed。未知字段、PII/Secret-like key、嵌套对象/数组中的未知或敏感字段、以及允许 key 下不安全的字符串值必须在进入持久化、Event、Error 或日志前不可逆去除/替换。安全标识符可以保留，但不得以宽泛 key 名或直接 provider payload 代替白名单。
+- **#24 来源链**：`RawExternalReceiptFact` 必须保存并通过精确比较绑定 Attempt 的 `externalDeliveryRequestRef`；Adapter Attempt 必须为 `integration.adapter_attempt` 且与 Release Scope 一致。即使 Provider 返回成功或 `messageId`，没有有效 Human Authorization、已登记 Publication Attempt、精确 External Delivery Request、成功 Raw Receipt、payload hash 和权威时间，也不得铸造 Formal Receipt、`PublicationSucceeded` 或 Completion。
+- **验证边界**：本节的独立回归使用受控 Runtime/Authority Port/合成 Raw Receipt；真实 Provider、真实 Feishu、公开 HTTP、统一跨模块业务 E2E、生产和独立人工验收仍明确标记 `NOT RUN`，不由本地技术 PASS 替代。
+
+聚焦验证命令 `pnpm exec vitest run provider-result.test.ts receipt-validator.test.ts release-publication-authorization.test.ts release-publication-runtime.e2e.test.ts --no-file-parallelism --reporter=dot` 已通过 `4 files / 34 tests`。随后 `pnpm clean && pnpm verify` 完整通过：Format、Lint、Typecheck、全量 Vitest `42 files passed / 30 skipped`（`438 passed / 299 skipped`）、Architecture、Contract/Catalog `201/201 FULL`、v1.0 compatibility baseline 200 operations，以及 PostgreSQL/Flyway `34 files / 314 tests`；二次 migrate 返回 `Schema "public" is up to date. No migration necessary.`，容器已清理。
+
 ## 13. IM-05 WI-08 合成 REL-801 退出复核边界
 
 WI-08 不新增 ReleasePublication Contract、业务表或 Migration；它复用 V6001/V6002 和已验证的 Release Authority Query Port，整理 Release Readiness、frozen Package、Human Authorization、两 Destination Attempt/Receipt/Failure/Partial/Completion/Recall 的 exact ref/hash/history。`tests/fixtures/runtime/rel-801-late-receipt-timeline.json` 提供固定的受控迟到回执时间线；WI-07 PostgreSQL Handler 主流程提供完整授权、失败重试、Formal Receipt、final completion 与 Recall 事实。

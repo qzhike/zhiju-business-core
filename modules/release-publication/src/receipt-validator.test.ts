@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Common, ReleasePublication } from '@zhiju/contracts';
+import type { CanonicalJson, Common, ReleasePublication } from '@zhiju/contracts';
 
 import {
   InMemoryRawExternalReceiptRepository,
@@ -115,6 +115,7 @@ interface ReceiptOptions {
   readonly rawOccurredAt?: string | undefined;
   readonly rawRecordedAt?: string;
   readonly rawReceiptPayloadDigest?: string;
+  readonly providerResult?: CanonicalJson;
 }
 
 function receiptSubmission(options: ReceiptOptions): ReleasePublication.FormalReceiptSubmission {
@@ -127,7 +128,7 @@ function receiptSubmission(options: ReceiptOptions): ReleasePublication.FormalRe
       options.rawReceiptObjectId ?? options.attemptId,
       options.rawReceiptDigest,
     ),
-    providerResult: { messageId: `om_${options.attemptId}` },
+    providerResult: options.providerResult ?? { messageId: `om_${options.attemptId}` },
     occurredAt: options.occurredAt ?? '2026-08-21T00:00:05Z',
     receiptPayloadHash: {
       algorithm: 'SHA-256',
@@ -149,6 +150,11 @@ function rawFact(options: ReceiptOptions): RawExternalReceiptFact {
     destinationId: options.destinationId,
     packageHashDigest: packageDigest,
     publicationAttemptId: options.attemptId,
+    externalDeliveryRequestRef: contentAddressedRef(
+      'integration.external_delivery_request',
+      options.attemptId,
+      digest('ee'),
+    ),
     adapterAttemptRef: objectRef('integration.adapter_attempt', options.attemptId),
     receiptPayloadHash: {
       algorithm: 'SHA-256',
@@ -362,6 +368,37 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
     expect(reregistration.ok).toBe(true);
   });
 
+  it('RP-ISSUE23-U-001: persists only the minimized provider result in a Formal Receipt', () => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
+
+    const accepted = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('c8'),
+      providerResult: {
+        messageId: 'provider-message-801',
+        providerStatus: 'accepted',
+        customRecipientData: [{ email: 'customer@example.com', body: 'document body' }],
+      },
+    });
+
+    expect(accepted.ok).toBe(true);
+    if (accepted.ok) {
+      expect(accepted.record.submission.providerResult).toEqual({
+        messageId: 'provider-message-801',
+        providerStatus: 'accepted',
+      });
+      expect(JSON.stringify(accepted.record.submission.providerResult)).not.toContain(
+        'customer@example.com',
+      );
+      expect(JSON.stringify(accepted.record.submission.providerResult)).not.toContain(
+        'document body',
+      );
+    }
+  });
+
   it('rejects attempt registration that rebinds a stable key to another destination or packageHash', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
     registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-shared-key', digest('ab'));
@@ -532,6 +569,26 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
               enterpriseId: ENTERPRISE_ID,
               projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d299',
             },
+          },
+        }),
+      },
+      {
+        label: 'adapterAttemptRef objectType',
+        mutate: (fact) => ({
+          ...fact,
+          adapterAttemptRef: {
+            ...fact.adapterAttemptRef,
+            objectType: 'integration.external_delivery_request',
+          },
+        }),
+      },
+      {
+        label: 'externalDeliveryRequestRef',
+        mutate: (fact) => ({
+          ...fact,
+          externalDeliveryRequestRef: {
+            ...fact.externalDeliveryRequestRef,
+            objectId: ATTEMPT_B,
           },
         }),
       },

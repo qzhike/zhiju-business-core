@@ -11,8 +11,9 @@
 //   - receipts that do not match their referenced attempt are rejected as
 //     RELEASE_RECEIPT_TARGET_MISMATCH;
 //   - FormalReceiptSubmission.rawReceiptRef must resolve to a loaded
-//     RawExternalReceipt fact whose release/destination/package/attempt
-//     provenance matches (Module-Spec-006 §7.5 / RP-API-C-002).
+//     RawExternalReceipt fact whose release/destination/package/attempt/
+//     external-delivery-request provenance matches (Module-Spec-006 §7.5 /
+//     RP-API-C-002).
 //
 // Persistence is abstracted behind ReleaseReceiptLedger so the production
 // repository can replace the in-memory implementation without touching the
@@ -215,6 +216,7 @@ export interface RawExternalReceiptFact {
   readonly destinationId: string;
   readonly packageHashDigest: string;
   readonly publicationAttemptId: string;
+  readonly externalDeliveryRequestRef: Common.ContentAddressedRef;
   readonly adapterAttemptRef: ObjectRef;
   readonly receiptPayloadHash: Common.ContentHash;
   readonly observedOutcome: 'SUCCEEDED' | 'FAILED' | 'UNKNOWN';
@@ -465,7 +467,8 @@ export function recordFormalReceipt(
   }
 
   // 5. Raw observation must be a loaded RawExternalReceipt with matching
-  //    release / destination / packageHash / publication attempt provenance.
+  //    release / destination / packageHash / publication attempt /
+  //    external-delivery-request provenance.
   const provenance = validateRawReceiptProvenance(
     rawReceipts,
     submission,
@@ -651,6 +654,28 @@ function validateRawReceiptProvenance(
       correlationId,
       'raw external receipt scope does not match the publication attempt release',
       'RawExternalReceipt and adapter attempt must share the release scope',
+    );
+  }
+  if (fact.adapterAttemptRef.objectType !== 'integration.adapter_attempt') {
+    return rawProvenanceRejection(
+      submission,
+      correlationId,
+      'raw external receipt adapter reference is not an Adapter Attempt',
+      'RawExternalReceipt.adapterAttemptRef must address integration.adapter_attempt',
+    );
+  }
+  if (
+    fact.externalDeliveryRequestRef.objectType !== 'integration.external_delivery_request' ||
+    !sameContentAddressedRef(
+      fact.externalDeliveryRequestRef,
+      attempt.definition.externalDeliveryRequestRef,
+    )
+  ) {
+    return rawProvenanceRejection(
+      submission,
+      correlationId,
+      'raw external receipt is not bound to the publication external delivery request',
+      'RawExternalReceipt.externalDeliveryRequestRef must equal the Attempt externalDeliveryRequestRef',
     );
   }
   if (fact.destinationId !== submission.destinationId) {

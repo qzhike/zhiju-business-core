@@ -234,13 +234,13 @@ function assertActorSnapshot(
   if (!equalJson(actor.actorSnapshotRef, input.actorSnapshotRef)) {
     fail(RELEASE_ACTOR_SNAPSHOT_MISMATCH, 'ActorSnapshot reference or hash is not exact');
   }
-  assertPrincipal(actor.principalRef, input.authorizingHumanRef, 'ActorSnapshot principal');
   if (actor.principalRef.principalKind !== 'HUMAN') {
     fail(RELEASE_ACTOR_NOT_HUMAN, 'only a trusted Human ActorSnapshot may authorize a Release');
   }
   if (actor.actingForRef !== undefined && actor.actingForRef.principalKind !== 'HUMAN') {
     fail(RELEASE_ACTOR_NOT_HUMAN, 'an Agent/Service/Runtime actingFor Human cannot authorize');
   }
+  assertPrincipal(actor.principalRef, input.authorizingHumanRef, 'ActorSnapshot principal');
   if (!sameScopeRef(actor.actorSnapshotRef.scope, input.releaseRef.scope)) {
     fail(RELEASE_ACTOR_SNAPSHOT_MISMATCH, 'ActorSnapshot scope does not match the Release scope');
   }
@@ -330,6 +330,7 @@ export async function validateHumanAuthorizationChain(
   readonly authorizationDecision: ReleaseAuthorizationDecisionFact;
 }> {
   if (
+    input.context.kind !== 'REQUEST' ||
     input.context.principalKind !== 'HUMAN' ||
     input.context.principalId !== input.authorizingHumanRef.principalId ||
     input.authorizingHumanRef.principalKind !== 'HUMAN'
@@ -338,6 +339,36 @@ export async function validateHumanAuthorizationChain(
       RELEASE_ACTOR_NOT_HUMAN,
       'Release authorization requires the trusted Human transaction principal',
     );
+  }
+  if (
+    input.releaseRef.scope.enterpriseId === undefined ||
+    input.context.enterpriseId !== input.releaseRef.scope.enterpriseId ||
+    (input.releaseRef.scope.projectId !== undefined &&
+      !input.context.allowedProjectIds.includes(input.releaseRef.scope.projectId))
+  ) {
+    fail(RELEASE_AUTHORIZATION_INVALID, 'Release scope is outside the trusted transaction context');
+  }
+  if (
+    !Number.isFinite(input.context.authorizationDecisionExpiresAt.getTime()) ||
+    input.context.authorizationDecisionExpiresAt <= input.now
+  ) {
+    fail(RELEASE_AUTHORIZATION_EXPIRED, 'transaction authorization context has expired');
+  }
+  const actorSnapshotReference = input.actorSnapshotRef as unknown as {
+    readonly kind?: unknown;
+    readonly objectType?: unknown;
+  };
+  const authorizationDecisionReference = input.authorizationDecisionRef as unknown as {
+    readonly kind?: unknown;
+    readonly objectType?: unknown;
+  };
+  if (
+    actorSnapshotReference.kind !== 'SNAPSHOT' ||
+    actorSnapshotReference.objectType !== 'identity.actor_snapshot' ||
+    authorizationDecisionReference.kind !== 'CONTENT_ADDRESSED' ||
+    authorizationDecisionReference.objectType !== 'identity.authorization_decision'
+  ) {
+    fail(RELEASE_AUTHORIZATION_INVALID, 'authorization chain reference types are not exact');
   }
   if (input.context.actorSnapshotId !== input.actorSnapshotRef.snapshotId) {
     fail(
@@ -352,6 +383,8 @@ export async function validateHumanAuthorizationChain(
     );
   }
   if (
+    !Buffer.isBuffer(input.context.authorizationDecisionHash) ||
+    input.context.authorizationDecisionHash.length !== 32 ||
     !input.context.authorizationDecisionHash.equals(
       Buffer.from(input.authorizationDecisionRef.contentHash.digest, 'hex'),
     )

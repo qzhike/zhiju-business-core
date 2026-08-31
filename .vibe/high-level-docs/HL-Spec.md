@@ -509,6 +509,13 @@ WI-03 本地验证结果（2026-08-30）：正式 `pnpm persistence:gate` 在 pi
 
 2026-08-31 WI-07 GitHub 交付已完成：实现 head `4c98f4e13aec9498802d2f914beeaced3d02330b` 通过 GitHub Actions `verify` run `33348710524`，PR #138 以 merge commit `c69f446a610b4fff18850f0450a0b5f4e1fd3ccf` 合入 `main`，Issue #127 已关闭，目标 feature branch 已从远端消失。WI-08 在当前 `origin/main` 上只新增合成退出复核材料与报告输出边界，不新增公共 Contract 或 Migration；父 Issue #120 不因本 WI 自动关闭。
 
+#### Issue #22–#24 Runtime 修复契约（2026-08-31，IMPLEMENTED / CONTROLLED TECHNICAL VERIFIED）
+
+- #22 的 Runtime 授权入口必须验证 `REQUEST` Envelope 的可信 Human actor、ActorSnapshot、AuthorizationDecision、Release Enterprise/Project Scope、command type/version、purpose、payload/authentication hash、Context expiry 和 authority fact 的 expiry/revocation；Actor principal 为 Agent/Service/Runtime，或 Agent/Service/Runtime `actingFor` Human，必须在任何授权、Attempt、Receipt、Event、Completion 或 Provider 调用前 fail-closed。派生 `authorizationRef` 与调用方声明不一致时，也必须在任何 Runtime Release 状态写入前拒绝。Runtime 错误只输出稳定安全信息，不回显 Authority Port 的任意异常文本。
+- #23 的 `providerResult` 采用显式安全字段白名单；只有对象根值可进入字段筛选，数组/标量根值和不符合安全格式的允许字段值均 fail-closed 为不可逆替换，未知字段和嵌套/数组中的不安全值不得保留。Formal Receipt、Publication Event、业务错误和日志不得携带原始 Provider PII、Secret、Token、URL、正文或自定义等价字段；安全 `messageId`/status/attempt 事实可保留。
+- #24 的 Formal Receipt 必须同时满足授权 Release、冻结 Package、Publication Attempt、Attempt 的 `externalDeliveryRequestRef`、`integration.adapter_attempt` 类型的 Adapter Attempt 和已加载的成功 Raw External Receipt 的精确绑定。普通 Feishu/file send、单独 `messageId`、伪造/缺失 Adapter Attempt 或不匹配 External Delivery Request 均不得形成 Formal Receipt、`PublicationSucceeded` 或 Completion。
+- 本次修复已新增/收紧 ReleasePublication 的受控 Runtime、Authority Validator、Raw Receipt provenance 和对应 Unit/E2E 回归；四个聚焦测试文件共 34 个测试通过。`pnpm clean && pnpm verify` 已完整通过：全量 Vitest 为 `42 files passed / 30 skipped`、`438 passed / 299 skipped`，Architecture 为 `source_roots=10`，Public API/Catalog 为 `201/201` 且全部 `FULL`，compatibility baseline v1.0 为 200 operations，PostgreSQL/Flyway Persistence Gate 为 `34 files / 314 tests passed`，二次 migrate 返回 `No migration necessary`，容器已清理。真实 Provider、真实 Feishu、公开 HTTP、生产、统一跨模块业务 E2E 和独立人工验收继续为 `NOT RUN`。GitHub #22、#23、#24 仍保持 OPEN，不因本地受控证据自动关闭。
+
 ### 2.19 IM-05 WI-08 合成 QMS/REL-801 退出证据与父级复核（Issue #128）
 
 - WI-08 只组合已经交付的 QualityGovernance、Artifact、IntegrationGateway 和 ReleasePublication 公开 Application/Query Port 证据；不跨模块导入 Repository、不直接 SQL 改写业务 fixture、不解析 `latest`/`current`，也不信任调用方声明的 hash。新增的报告模式只能输出合成 UUID、opaque locator、Hash、checksum、稳定错误码、计数和清理结果，不输出 Secret、凭据、Presigned URL、PII 或原始 Provider payload。

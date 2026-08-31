@@ -2,19 +2,30 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import type { Common, ReleasePublication } from '@zhiju/contracts';
+import type { Artifact, Common, Core, ReleasePublication } from '@zhiju/contracts';
 
 import {
   ReleasePublicationRuntime,
   type ReleaseDestinationPolicy,
 } from './release-publication-runtime.js';
+import { buildPackageHashMaterial } from './package-hash.js';
+import {
+  RELEASE_ACTOR_NOT_HUMAN,
+  RELEASE_AUTHORIZATION_DECISION_MISMATCH,
+  type ReleaseAuthorizationValidationInput,
+} from './release-publication-authorization.js';
 import {
   RELEASE_RECEIPT_STALE,
   RELEASE_RECEIPT_TARGET_MISMATCH,
   type RawExternalReceiptFact,
 } from './receipt-validator.js';
 import type { ReleaseTransactionContext } from './persistence/release-publication-db.js';
-import type { ReleaseAuthorityQueryPorts } from './release-publication-validation.js';
+import type {
+  ReleaseActorSnapshotFact,
+  ReleaseAuthorizationDecisionFact,
+  ReleaseAuthorityQueryPorts,
+} from './release-publication-validation.js';
+import { RELEASE_NOT_AUTHORIZED } from './release-publication-validation.js';
 
 // =============================================================================
 // REL-801 late-receipt timeline fixture (RP-API-E-003 / RP-API-M-001)
@@ -52,22 +63,374 @@ interface TimelineFixture {
   };
 }
 
-function loadFixture(): TimelineFixture {
+interface RuntimeAuthorizationFixture {
+  readonly validation: ReleaseAuthorizationValidationInput;
+}
+
+type PreparedTimelineFixture = TimelineFixture & {
+  readonly authorization: RuntimeAuthorizationFixture;
+};
+
+function fixtureHash(byte: number): Common.ContentHash {
+  return {
+    algorithm: 'SHA-256',
+    digest: Buffer.alloc(32, byte).toString('hex'),
+    canonicalizationVersion: '1',
+  };
+}
+
+function fixtureObjectRef(
+  objectType: string,
+  objectId: string,
+  scope: Common.ScopeRef,
+): Common.ObjectRef {
+  return { kind: 'OBJECT', objectType, objectId, scope };
+}
+
+function fixtureContentRef(
+  objectType: string,
+  objectId: string,
+  scope: Common.ScopeRef,
+  byte: number,
+): Common.ContentAddressedRef {
+  return {
+    kind: 'CONTENT_ADDRESSED',
+    objectType,
+    objectId,
+    scope,
+    contentHash: fixtureHash(byte),
+  };
+}
+
+function fixtureSnapshotRef(
+  objectType: string,
+  objectId: string,
+  scope: Common.ScopeRef,
+  byte: number,
+): Common.SnapshotRef {
+  return {
+    kind: 'SNAPSHOT',
+    objectType,
+    objectId,
+    snapshotId: objectId,
+    scope,
+    contentHash: fixtureHash(byte),
+  };
+}
+
+function fixtureVersionedRef(
+  objectType: string,
+  objectId: string,
+  versionId: string,
+  scope: Common.ScopeRef,
+): Common.VersionedRef {
+  return { kind: 'VERSIONED', objectType, objectId, versionId, scope };
+}
+
+function buildRuntimeAuthorizationFixture(fixture: TimelineFixture): RuntimeAuthorizationFixture {
+  const { enterpriseId, projectId } = fixture.release.releaseRef.scope;
+  if (enterpriseId === undefined || projectId === undefined) {
+    throw new Error('REL-801 authorization fixture requires an Enterprise and Project scope');
+  }
+  const scope: Common.ScopeRef = { enterpriseId, projectId };
+  const artifactId = '018f22e2-7c15-7b2e-8d86-2de956a9d8b0';
+  const revisionId = '018f22e2-7c15-7b2e-8d86-2de956a9d8b1';
+  const profileId = '018f22e2-7c15-7b2e-8d86-2de956a9d8b2';
+  const profileVersionId = '018f22e2-7c15-7b2e-8d86-2de956a9d8b3';
+  const rasId = '018f22e2-7c15-7b2e-8d86-2de956a9d8b4';
+  const absId = '018f22e2-7c15-7b2e-8d86-2de956a9d8b5';
+  const recipientId = '018f22e2-7c15-7b2e-8d86-2de956a9d8b6';
+  const representationId = '018f22e2-7c15-7b2e-8d86-2de956a9d8b7';
+  const packageId = '018f22e2-7c15-7b2e-8d86-2de956a9d8b8';
+  const packageSnapshotId = '018f22e2-7c15-7b2e-8d86-2de956a9d8b9';
+  const readinessId = '018f22e2-7c15-7b2e-8d86-2de956a9d8ba';
+  const principalId = '018f22e2-7c15-7b2e-8d86-2de956a9d8bb';
+  const actorId = '018f22e2-7c15-7b2e-8d86-2de956a9d8bc';
+  const decisionId = '018f22e2-7c15-7b2e-8d86-2de956a9d8bd';
+  const policyId = '018f22e2-7c15-7b2e-8d86-2de956a9d8be';
+  const correlationId = '018f22e2-7c15-7b2e-8d86-2de956a9d8bf';
+  const registrationId = '018f22e2-7c15-7b2e-8d86-2de956a9d8c0';
+
+  const revisionRef = fixtureContentRef('artifact.artifact_revision', revisionId, scope, 0x41);
+  const artifactRef = fixtureObjectRef('artifact.artifact', artifactId, scope);
+  const qualityProfileRef = fixtureVersionedRef(
+    'quality.quality_profile',
+    profileId,
+    profileVersionId,
+    { enterpriseId },
+  );
+  const revisionAcceptanceSnapshotRef = fixtureSnapshotRef(
+    'quality.revision_acceptance_snapshot',
+    rasId,
+    scope,
+    0x42,
+  );
+  const approvalBundleSnapshotRef = fixtureSnapshotRef(
+    'quality.approval_bundle_snapshot',
+    absId,
+    scope,
+    0x43,
+  );
+  const recipientScopeSnapshotRef = fixtureSnapshotRef(
+    'release.recipient_scope_snapshot',
+    recipientId,
+    scope,
+    0x44,
+  );
+  const representationRef: Artifact.RepresentationRef = {
+    representationId,
+    revision: revisionRef,
+    format: 'PDF',
+    mediaType: 'application/pdf',
+    objectStorageRef: 'objects/rel-801-formal-representation',
+    checksum: fixtureHash(0x45),
+    renderer: { rendererId: 'renderer.test', rendererVersion: '1.0.0' },
+    createdAt: '2026-08-20T00:00:00Z',
+  };
+  const representations: readonly ReleasePublication.ReleaseRepresentationSelection[] = [
+    {
+      representationRef,
+      ordinal: 0,
+      displayName: 'REL-801 formal PDF',
+      required: true,
+      releaseRole: 'PRIMARY',
+    },
+  ];
+  const destinations: readonly ReleasePublication.ReleaseDestinationDefinition[] =
+    fixture.release.destinations.map((policy, index) => ({
+      destinationId: policy.destinationId,
+      destinationType: 'FEISHU_DOC',
+      destinationRef: {
+        system: 'feishu',
+        resourceType: 'document',
+        externalId: `rel-801-${policy.destinationId}`,
+        observedAt: '2026-08-20T00:00:00Z',
+      },
+      recipientScopeRef: recipientScopeSnapshotRef,
+      purpose: 'CUSTOMER_DELIVERY',
+      required: policy.required,
+      requiredReceiptKind: 'PROVIDER_ACK',
+      deliveryPolicyRef: fixtureVersionedRef(
+        'policy.delivery_policy',
+        `018f22e2-7c15-7b2e-8d86-2de956a9d8${String(index + 1)}0`,
+        `018f22e2-7c15-7b2e-8d86-2de956a9d8${String(index + 1)}1`,
+        scope,
+      ),
+    }));
+  const packageWithPlaceholderHash: ReleasePublication.ReleasePackageDefinition = {
+    releaseRef: fixture.release.releaseRef,
+    canonicalRevisionRef: revisionRef,
+    representations,
+    destinations,
+    recipientScopeSnapshotRef,
+    approvalBundleSnapshotRef,
+    preparedAt: '2026-08-20T00:00:00Z',
+    packageHash: fixtureHash(0x00),
+  };
+  const packageMaterial = buildPackageHashMaterial(packageWithPlaceholderHash);
+  const packageDefinition: ReleasePublication.ReleasePackageDefinition = {
+    ...packageMaterial.normalizedDefinition,
+    packageHash: packageMaterial.expectedPackageHash,
+  };
+  const packageSnapshotRef: Common.SnapshotRef = {
+    kind: 'SNAPSHOT',
+    objectType: 'release.release_package',
+    objectId: packageId,
+    snapshotId: packageSnapshotId,
+    scope,
+    contentHash: packageMaterial.expectedPackageHash,
+  };
+  const packageRef: Common.ReleasePackageRef = {
+    releaseRef: fixture.release.releaseRef,
+    packageSnapshotRef,
+    packageHash: packageMaterial.expectedPackageHash,
+  };
+  const releaseReadinessSnapshotRef = fixtureSnapshotRef(
+    'quality.release_readiness_snapshot',
+    readinessId,
+    scope,
+    0x46,
+  );
+  const readinessSnapshot = {
+    header: { scopeRef: scope },
+    snapshotId: readinessId,
+    releaseRef: fixture.release.releaseRef,
+    artifactRef,
+    revisionRef,
+    approvalBundleSnapshotRef,
+    releasePackageRef: packageRef,
+    purpose: 'CUSTOMER_DELIVERY',
+    recipientScopeSnapshotRef,
+    destinationRefs: destinations.map((destination) => destination.destinationRef),
+    releaseRequirements: [],
+    requiredReleaseGateSpecs: [],
+    releaseGateResultRefs: [],
+    readiness: { status: 'READY_FOR_AUTHORIZATION', reasons: [] },
+    evaluatedAt: '2026-08-20T00:00:00Z',
+  } as unknown as Core.ReleaseReadinessSnapshot;
+  const registrationRef = fixtureContentRef(
+    'artifact.representation_registration',
+    registrationId,
+    scope,
+    0x47,
+  );
+  const acceptance = {
+    header: { scopeRef: scope },
+    snapshotId: rasId,
+    artifactRef,
+    revisionRef,
+    qualityProfileRef,
+    readiness: { status: 'READY' },
+  } as unknown as Core.RevisionAcceptanceSnapshot;
+  const approval = {
+    header: { scopeRef: scope },
+    snapshotId: absId,
+    artifactRef,
+    revisionRef,
+    revisionAcceptanceSnapshotRef,
+    qualityProfileRef,
+    completeness: { status: 'FULLY_APPROVED' },
+    separationOfDutiesResult: { outcome: 'SATISFIED' },
+  } as unknown as Core.ApprovalBundleSnapshot;
+  const revisionValidation: Artifact.ArtifactValidateRevisionRefResult = {
+    valid: true,
+    exactRef: revisionRef,
+    authoritativeScopeRef: revisionRef.scope,
+    disposition: 'ACTIVE',
+    contentAvailable: true,
+    reasons: [],
+  };
+  const actorSnapshotRef = fixtureSnapshotRef('identity.actor_snapshot', actorId, scope, 0x48);
+  const authorizationDecisionRef = fixtureContentRef(
+    'identity.authorization_decision',
+    decisionId,
+    scope,
+    0x49,
+  );
+  const authenticationContextHash = fixtureHash(0x4a);
+  const commandPayloadHash = fixtureHash(0x4b);
+  const actor: ReleaseActorSnapshotFact = {
+    actorSnapshotRef,
+    principalRef: { principalKind: 'HUMAN', principalId },
+    authenticationContextHash,
+  };
+  const decision: ReleaseAuthorizationDecisionFact = {
+    authorizationDecisionRef,
+    actorSnapshotRef,
+    principalRef: { principalKind: 'HUMAN', principalId },
+    commandType: 'release.authorize_release',
+    commandVersion: '1.0',
+    scope,
+    purpose: 'release.publication.authorize_release',
+    commandPayloadHash,
+    authenticationContextHash,
+    outcome: 'ALLOW',
+    expiresAt: '2026-09-01T00:00:00Z',
+  };
+  const ports: ReleaseAuthorityQueryPorts = {
+    artifact: {
+      validateRevisionRef: () => Promise.resolve(revisionValidation),
+      getRepresentation: () =>
+        Promise.resolve({
+          representationRef,
+          status: 'registered',
+          registrationRef,
+        }),
+    },
+    quality: {
+      getRevisionAcceptanceSnapshot: () => Promise.resolve(acceptance),
+      getApprovalBundleSnapshot: () => Promise.resolve(approval),
+      getReleaseReadinessSnapshot: () => Promise.resolve(readinessSnapshot),
+    },
+    identity: {
+      getActorSnapshot: () => Promise.resolve(actor),
+      getAuthorizationDecision: () => Promise.resolve(decision),
+    },
+  };
+  const now = new Date('2026-08-21T00:00:10Z');
+  const validation: ReleaseAuthorizationValidationInput = {
+    context: {
+      kind: 'REQUEST',
+      principalId,
+      principalKind: 'HUMAN',
+      actorSnapshotId: actorId,
+      authorizationDecisionId: decisionId,
+      authorizationDecisionHash: Buffer.from(authorizationDecisionRef.contentHash.digest, 'hex'),
+      authorizationDecisionExpiresAt: new Date('2026-09-01T00:00:00Z'),
+      policySnapshotId: policyId,
+      enterpriseId,
+      allowedProjectIds: [projectId],
+      correlationId,
+    },
+    ports,
+    releaseRef: fixture.release.releaseRef,
+    draftDefinition: {
+      artifactRef,
+      revisionRef,
+      releaseNumber: 'REL-801',
+      purpose: 'CUSTOMER_DELIVERY',
+      requestedEffectiveAt: '2026-09-01T00:00:00Z',
+      qualityProfileRef,
+      revisionAcceptanceSnapshotRef,
+      approvalBundleSnapshotRef,
+    },
+    packageRef,
+    packageDefinition,
+    releaseReadinessSnapshotRef,
+    authorizingHumanRef: { principalKind: 'HUMAN', principalId },
+    actorSnapshotRef,
+    authorizationDecisionRef,
+    expectedCommandType: 'release.authorize_release',
+    expectedCommandVersion: '1.0',
+    expectedPurpose: 'release.publication.authorize_release',
+    expectedCommandPayloadHash: commandPayloadHash,
+    now,
+  };
+  return { validation };
+}
+
+function loadFixture(): PreparedTimelineFixture {
   const url = new URL(
     '../../../tests/fixtures/runtime/rel-801-late-receipt-timeline.json',
     import.meta.url,
   );
-  return JSON.parse(readFileSync(url, 'utf8')) as TimelineFixture;
+  const fixture = JSON.parse(readFileSync(url, 'utf8')) as TimelineFixture;
+  const authorization = buildRuntimeAuthorizationFixture(fixture);
+  const packageRef = authorization.validation.packageRef;
+  const timeline = fixture.timeline.map((entry) => ({
+    ...entry,
+    ...(entry.definition === undefined ? {} : { definition: { ...entry.definition, packageRef } }),
+    ...(entry.submission === undefined || typeof entry.submission === 'string'
+      ? {}
+      : { submission: { ...entry.submission, packageRef } }),
+  }));
+  return {
+    ...fixture,
+    authorization,
+    rawExternalReceipts: fixture.rawExternalReceipts.map((fact) => ({
+      ...fact,
+      packageHashDigest: packageRef.packageHash.digest,
+    })),
+    timeline,
+  };
 }
 
-function openRuntime(fixture: TimelineFixture): ReleasePublicationRuntime {
+async function openRuntime(fixture: PreparedTimelineFixture): Promise<ReleasePublicationRuntime> {
   const runtime = new ReleasePublicationRuntime();
   runtime.openReleaseForPublication({
     releaseRef: fixture.release.releaseRef,
     destinations: fixture.release.destinations,
+    frozenPackageRef: fixture.authorization.validation.packageRef,
   });
   for (const fact of fixture.rawExternalReceipts) {
     runtime.seedRawExternalReceipt(fact);
+  }
+  const authorization = await runtime.authorizeRelease({
+    validation: fixture.authorization.validation,
+    destinations: fixture.release.destinations,
+  });
+  if (!authorization.ok) {
+    throw new Error(`REL-801 fixture authorization failed: ${authorization.error.code}`);
   }
   return runtime;
 }
@@ -218,9 +581,9 @@ function resolveReceiptRef(
 }
 
 describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
-  it('preserves the early success receipt, rejects the late submission as stale, and settles at PARTIALLY_RELEASED', () => {
+  it('preserves the early success receipt, rejects the late submission as stale, and settles at PARTIALLY_RELEASED', async () => {
     const fixture = loadFixture();
-    const runtime = openRuntime(fixture);
+    const runtime = await openRuntime(fixture);
 
     // Step 3 is the only accepted receipt; step 5 replays it verbatim.
     let acceptedSubmission: ReleasePublication.FormalReceiptSubmission | undefined;
@@ -274,9 +637,9 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     expect(finalOutcome?.succeededDestinationIds).toContain('018f22e2-7c15-7b2e-8d86-2de956a9d810');
   });
 
-  it('keeps the stale rejection from mutating the ledger on replay', () => {
+  it('keeps the stale rejection from mutating the ledger on replay', async () => {
     const fixture = loadFixture();
-    const runtime = openRuntime(fixture);
+    const runtime = await openRuntime(fixture);
 
     for (const entry of fixture.timeline) {
       if (entry.action === 'start_publication_attempt') {
@@ -309,9 +672,9 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     expect(outcome?.receiptRefs).toHaveLength(0);
   });
 
-  it('preserves PARTIALLY_RELEASED when a later destination attempt starts after an early receipt', () => {
+  it('preserves PARTIALLY_RELEASED when a later destination attempt starts after an early receipt', async () => {
     const fixture = loadFixture();
-    const runtime = openRuntime(fixture);
+    const runtime = await openRuntime(fixture);
     const step1 = fixture.timeline[0];
     const step2 = fixture.timeline[1];
     const step3 = fixture.timeline.find((entry) => entry.step === 3);
@@ -368,9 +731,9 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     );
   });
 
-  it('rejects a publication attempt whose package belongs to a foreign release', () => {
+  it('rejects a publication attempt whose package belongs to a foreign release', async () => {
     const fixture = loadFixture();
-    const runtime = openRuntime(fixture);
+    const runtime = await openRuntime(fixture);
     const firstStep = fixture.timeline[0];
     if (firstStep === undefined) {
       throw new Error('fixture timeline is empty');
@@ -432,9 +795,9 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.receiptRefs).toHaveLength(0);
   });
 
-  it('does not expose or mutate a release through the same objectId in another project scope', () => {
+  it('does not expose or mutate a release through the same objectId in another project scope', async () => {
     const fixture = loadFixture();
-    const runtime = openRuntime(fixture);
+    const runtime = await openRuntime(fixture);
     const firstStep = fixture.timeline[0];
     if (firstStep === undefined) {
       throw new Error('fixture timeline is empty');
@@ -487,9 +850,9 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     }
   });
 
-  it('does not settle FAILED while a newer retry Attempt is still pending', () => {
+  it('does not settle FAILED while a newer retry Attempt is still pending', async () => {
     const fixture = loadFixture();
-    const runtime = openRuntime(fixture);
+    const runtime = await openRuntime(fixture);
     const firstEntry = fixture.timeline[0];
     const secondEntry = fixture.timeline[1];
     if (firstEntry === undefined || secondEntry === undefined) {
@@ -614,7 +977,7 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
 
   it('blocks publication mutations, repeat Recall, and Adapter dispatch after Recall', async () => {
     const fixture = loadFixture();
-    const runtime = openRuntime(fixture);
+    const runtime = await openRuntime(fixture);
     const firstEntry = fixture.timeline[0];
     const receiptEntry = fixture.timeline.find((entry) => entry.step === 3);
     if (firstEntry === undefined || receiptEntry === undefined) {
@@ -778,6 +1141,146 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     });
     expect(repeatedRecall.ok).toBe(false);
     expect(runtime.getPublicationAttempts(fixture.release.releaseRef)).toHaveLength(1);
-    expect(runtime.getOutboxEvents(fixture.release.releaseRef)).toHaveLength(2);
+    expect(runtime.getOutboxEvents(fixture.release.releaseRef)).toHaveLength(3);
+  });
+
+  it('RP-ISSUE22-E-001: rejects an Agent Envelope before authorization or publication side effects', async () => {
+    const fixture = loadFixture();
+    const runtime = new ReleasePublicationRuntime();
+    runtime.openReleaseForPublication({
+      releaseRef: fixture.release.releaseRef,
+      destinations: fixture.release.destinations,
+      frozenPackageRef: fixture.authorization.validation.packageRef,
+    });
+
+    const denied = await runtime.authorizeRelease({
+      validation: {
+        ...fixture.authorization.validation,
+        context: {
+          ...fixture.authorization.validation.context,
+          principalKind: 'AGENT',
+        },
+      },
+      destinations: fixture.release.destinations,
+    });
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) {
+      expect(denied.error.code).toBe(RELEASE_ACTOR_NOT_HUMAN);
+      expect(denied.error.safeMessage).not.toContain('port');
+    }
+    expect(runtime.getOutboxEvents(fixture.release.releaseRef)).toHaveLength(0);
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe('PREPARED');
+
+    const firstEntry = fixture.timeline[0];
+    if (firstEntry === undefined) throw new Error('fixture is missing the first Attempt');
+    const first = requireAttemptFields(firstEntry);
+    const start = runtime.startPublicationAttempt({
+      releaseRef: fixture.release.releaseRef,
+      attemptRef: first.attemptRef,
+      definition: first.definition,
+      correlationId: 'issue-22-after-denied-authorization',
+    });
+    expect(start.ok).toBe(false);
+    if (!start.ok) expect(start.error.code).toBe(RELEASE_NOT_AUTHORIZED);
+    expect(runtime.getPublicationAttempts(fixture.release.releaseRef)).toHaveLength(0);
+    expect(runtime.getOutboxEvents(fixture.release.releaseRef)).toHaveLength(0);
+  });
+
+  it('RP-ISSUE22-U-001: rejects a forged runtime authorization ref before mutating state', async () => {
+    const fixture = loadFixture();
+    const runtime = new ReleasePublicationRuntime();
+    const firstEntry = fixture.timeline[0];
+    if (firstEntry === undefined) throw new Error('fixture is missing the first Attempt');
+    const first = requireAttemptFields(firstEntry);
+
+    const denied = await runtime.authorizeRelease({
+      validation: fixture.authorization.validation,
+      destinations: fixture.release.destinations,
+      authorizationRef: fixtureContentRef(
+        'release.release_authorization',
+        fixture.authorization.validation.authorizationDecisionRef.objectId,
+        fixture.release.releaseRef.scope,
+        0xfa,
+      ),
+    });
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) expect(denied.error.code).toBe(RELEASE_AUTHORIZATION_DECISION_MISMATCH);
+    expect(runtime.getOutboxEvents(fixture.release.releaseRef)).toHaveLength(0);
+    expect(runtime.getPublicationAttempts(fixture.release.releaseRef)).toHaveLength(0);
+
+    const start = runtime.startPublicationAttempt({
+      releaseRef: fixture.release.releaseRef,
+      attemptRef: first.attemptRef,
+      definition: first.definition,
+      correlationId: 'issue-22-forged-authorization-ref',
+    });
+    expect(start.ok).toBe(false);
+    if (start.ok) throw new Error('forged authorization unexpectedly created a Runtime Release');
+    expect(start.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+  });
+
+  it('RP-ISSUE24-E-001: rejects an ordinary provider success without a formal Raw Receipt binding', async () => {
+    const fixture = loadFixture();
+    const runtime = await openRuntime(fixture);
+    const firstEntry = fixture.timeline[0];
+    const receiptEntry = fixture.timeline.find((entry) => entry.step === 3);
+    if (firstEntry === undefined || receiptEntry === undefined) {
+      throw new Error('fixture is missing the first Attempt or accepted Receipt');
+    }
+    const first = requireAttemptFields(firstEntry);
+    const receiptSubmission = resolveSubmission(receiptEntry, undefined);
+    const receiptRef = resolveReceiptRef(receiptEntry, undefined);
+    const start = runtime.startPublicationAttempt({
+      releaseRef: fixture.release.releaseRef,
+      attemptRef: first.attemptRef,
+      definition: first.definition,
+      correlationId: 'issue-24-formal-attempt',
+    });
+    expect(start.ok).toBe(true);
+
+    let invokeCount = 0;
+    const ordinarySubmission: ReleasePublication.FormalReceiptSubmission = {
+      ...receiptSubmission,
+      rawReceiptRef: {
+        ...receiptSubmission.rawReceiptRef,
+        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d8d0',
+        contentHash: fixtureHash(0x9a),
+      },
+      providerResult: { messageId: 'ordinary-feishu-message-001' },
+    };
+    const ordinaryReceiptRef: Common.ContentAddressedRef = {
+      ...receiptRef,
+      objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d8d1',
+      contentHash: fixtureHash(0x9b),
+    };
+    const dispatch = await runtime.dispatchPublicationAttempt(
+      fixture.release.releaseRef,
+      first.attemptRef,
+      () => {
+        invokeCount += 1;
+        return Promise.resolve({
+          outcome: 'SUCCEEDED',
+          receipt: {
+            releaseRef: fixture.release.releaseRef,
+            submission: ordinarySubmission,
+            receiptRef: ordinaryReceiptRef,
+            correlationId: 'issue-24-ordinary-send',
+          },
+        });
+      },
+    );
+
+    expect(dispatch.status).toBe('REJECTED');
+    expect(dispatch.invoked).toBe(true);
+    expect(invokeCount).toBe(1);
+    if (dispatch.status === 'REJECTED') {
+      expect(dispatch.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+    }
+    expect(runtime.getPublicationAttempts(fixture.release.releaseRef)[0]?.outcome).toBe('PENDING');
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe('PUBLISHING');
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.receiptRefs).toHaveLength(0);
+    expect(
+      runtime.getOutboxEvents(fixture.release.releaseRef).map((event) => event.eventType),
+    ).toEqual(['release.ReleaseAuthorized', 'release.PublicationAttemptRequested']);
   });
 });
