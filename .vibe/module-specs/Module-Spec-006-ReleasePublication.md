@@ -1,8 +1,8 @@
 # Module-Spec-006-ReleasePublication
 
-版本：v0.4
+版本：v1.2
 日期：2026-08-31
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTATION COMPLETE 2026-08-18 / RUNTIME RECEIPT VALIDATOR IMPLEMENTED 2026-08-21 (#15) / IM-05 WI-06 PERSISTENCE IMPLEMENTED AND LOCAL GATE VERIFIED / USER REVIEW BEFORE GIT DELIVERY`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA IMPLEMENTATION COMPLETE 2026-08-18 / RUNTIME RECEIPT VALIDATOR IMPLEMENTED 2026-08-21 (#15) / IM-05 WI-06 PERSISTENCE IMPLEMENTED AND LOCAL GATE VERIFIED / IM-05 WI-07 IMPLEMENTATION AND LOCAL PERSISTENCE VERIFIED 2026-08-31 / DISPATCH EXACT-REFERENCE GUARD VERIFIED / OBSERVATION HASH READBACK REGRESSION ADDED / OBSERVATION HASH AND REFERENCE PATH INVARIANT CORRECTED / PERSISTENCE FACT COUNT ASSERTION RECONCILED / EXISTING ARTIFACT EXPIRY PROBE WINDOW STABILIZED / USER REVIEW BEFORE GIT DELIVERY`
 
 ## 1. 模块责任
 
@@ -212,14 +212,14 @@ RELEASE_CANCEL_NOT_ALLOWED
 - `tools/contracts/check-catalog.mjs` 已把 `release-publication` 加入 `implementedOwners`；
 - 字段级 Payload / Result Schema 与 `Module-Spec-006` §2–§5 完全一致：Release / ReleasePackage / RecipientScopeSnapshot / Destination / PublicationAttempt / Receipt / Recall / Readiness 引用精确、状态枚举闭合、`authorizingHumanRef` 强制 `principalKind: HUMAN`、`publicationFailureSubmission.outcome` 仅允许 `FAILED|UNKNOWN`、事件 payload 严格闭合；
 - Unit / Contract 级 Schema 测试已在 `contracts/src/operations/release-publication.schema.test.ts` 中实现并通过；
-- Runtime Receipt Validator 已于 2026-08-21（Issue #15 / IM-RP-001）在 `modules/release-publication/src/receipt-validator.ts` 落地，并经 PR #21 review remediation 补强：按 `attemptRef` + `rawReceiptRef.contentHash` + `stableIdempotencyKey` 维护稳定键索引；Attempt / Formal Receipt 分别仅经 `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账；同 stable key 不同 packageHash 拒绝 `RELEASE_ATTEMPT_IDEMPOTENCY_CONFLICT` 且不覆盖原 Receipt；同 `rawReceiptRef` 重复提交拒绝 `RELEASE_RECEIPT_ALREADY_RECORDED`；迟到窗口使用 Raw Receipt 的权威发生时间并拒绝 `RELEASE_RECEIPT_STALE`；attempt 不存在、destination/package 不匹配、`packageRef.releaseRef` 与当前 Release / 冻结 Package 不一致、或 `rawReceiptRef` 非已加载且成功的 `RawExternalReceipt`（objectType / 溯源字段 / payload hash / 权威时间不匹配）均拒绝 `RELEASE_RECEIPT_TARGET_MISMATCH`。持久化载体为 `ReleaseReceiptLedger` + `RawExternalReceiptRepository` 接口与 In-Memory 实现，DDL / 真实 Repository / Integration Provider 注入仍不存在（后者归属 #17）；
+- Runtime Receipt Validator 已于 2026-08-21（Issue #15 / IM-RP-001）在 `modules/release-publication/src/receipt-validator.ts` 落地，并经 PR #21 review remediation 补强：按 `attemptRef` + `rawReceiptRef.contentHash` + `stableIdempotencyKey` 维护稳定键索引；Attempt / Formal Receipt 分别仅经 `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账；同 stable key 不同 packageHash 拒绝 `RELEASE_ATTEMPT_IDEMPOTENCY_CONFLICT` 且不覆盖原 Receipt；同 `rawReceiptRef` 重复提交拒绝 `RELEASE_RECEIPT_ALREADY_RECORDED`；迟到窗口使用 Raw Receipt 的权威发生时间并拒绝 `RELEASE_RECEIPT_STALE`；attempt 不存在、destination/package 不匹配、`packageRef.releaseRef` 与当前 Release / 冻结 Package 不一致、或 `rawReceiptRef` 非已加载且成功的 `RawExternalReceipt`（objectType / 溯源字段 / payload hash / 权威时间不匹配）均拒绝 `RELEASE_RECEIPT_TARGET_MISMATCH`。该段是 #15 的 In-Memory Validator 边界；WI-07 另行提供 Handler/Repository 与 V6002 业务持久化，Integration Provider 注入仍不存在（后者归属 #17）；
 - Issue #5 仅负责上述 25 个字段级 Contract；其余 Runtime Owner 已明确迁移：授权主体 ActorSnapshot/actingFor 与 Envelope 一致性归属 #22，`providerResult` PII 最小化归属 #23，普通飞书发送与 Formal Release 来源链归属 #24。三项均未因 Owner 迁移而变为 `PASS`；
-- Package Hash 计算、Release/Package/Frozen Package Persistence 已由 IM-05 WI-06（Issue #126）实现并通过本地 Unit/真实 PostgreSQL Persistence Gate；本切片人工客户验收尚未执行。Publisher、Release Readiness、Human Authorization、Publication Attempt、Formal Receipt、Recall 和外部 Provider 仍未实现；
+- Package Hash 计算、Release/Package/Frozen Package Persistence 已由 IM-05 WI-06（Issue #126）实现并通过本地 Unit/真实 PostgreSQL Persistence Gate；WI-07 的 Readiness、Human Authorization、Publication Attempt、Formal Receipt、Failure、Completion、Recall 及对应 Handler/Repository/V6002 已在本切片实现，Provider/公开 HTTP/人工客户验收仍不在本切片范围；
 - 对应 Unit / Contract / E2E / Manual 验收结果见 [`Module-Test-006-ReleasePublication.md`](../module-tests/Module-Test-006-ReleasePublication.md)。
 
 ## 10. IM-02 WI-04 持久化切片
 
-ReleasePublication owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。当前 Runtime Receipt Validator 仍使用 In-Memory Ledger；Canonical payload↔hash 强校验、真实 PostgreSQL Repository、Publisher 与 Provider 注入均为 `NOT RUN`。
+历史 IM-02 WI-04 基线只覆盖 ReleasePublication owning Schema 的八张标准事务技术表、Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和 masked audit surface。当时 Runtime Receipt Validator 仍使用 In-Memory Ledger；WI-07 的真实 PostgreSQL Repository/Handler 已在 §12 和 V6002 中单独落地，Provider 注入仍为 `NOT RUN`。
 
 ## 11. IM-05 WI-06 Release/Package 持久化设计
 
@@ -258,3 +258,29 @@ Manifest 以 shared-kernel `canonicalize` 后计算 SHA-256，结果必须与 `p
 技术人工材料为 REL-801 preparation-only：Release/Revision/ABS/Representation/recipient/destination ref、canonical manifest bytes、expected/actual packageHash、packagePayloadHash、freeze/cancel 和 SQLSTATE/错误结果。该材料不执行 Human Authorization、RRS、Publisher、真实 Feishu/Email、对象存储、生产、公开 HTTP、跨模块业务 E2E 或独立人工客户验收。
 
 2026-08-31 本地验证已完成：新增 Unit 测试 2 files/5 tests PASS；固定 PostgreSQL 18.6/Flyway 11.20.3 的 persistence gate 为 34 files/313 tests PASS，覆盖 V6001 空库迁移、二次 no-op、CAS/idempotency、canonical hash、RLS/ACL、immutable guard、Reference Edge path separation、技术事实同事务与 rollback。用户检查和 Git 交付仍是独立边界。
+
+## 12. IM-05 WI-07 Release Authorization、Publication、Receipt 与 Recall
+
+### 12.1 Application 与 Authority Port
+
+WI-07 在不改变既有 25 项公开 Contract 的前提下实现 Release Readiness、Human Authorization、Publication Attempt、Formal Receipt、Failure、Completion 和 Recall。Application 只依赖窄化的公开 Authority Query Port：Artifact exact Revision/Representation、Quality exact RAS/ABS/RRS、Identity exact ActorSnapshot/AuthorizationDecision，以及 Integration exact RawExternalReceipt。ReleasePublication 不导入其他模块的 Repository、Schema 或内部实现。
+
+`validate_release_readiness` 和 `authorize_release` 必须在事务内重新读取并逐项比较 Release、冻结 Package、Package Item、Recipient Scope、Destination、RAS、ABS、RRS、Revision、Representation 和上游有效性。RRS 必须绑定当前 Release、冻结 Package、purpose、recipient/destination 集合并处于可授权状态；任何 stale、withdrawn、revoked、scope、purpose、hash、version 或 upstream impact 不一致都在 publisher/attempt 副作用前 fail-closed。
+
+授权链必须同时满足：Envelope actor 是可信 Human；ActorSnapshot principal kind 是 `HUMAN`；不存在 Agent/Service/Runtime actingFor Human 代授权；authorizing principal、ActorSnapshot、AuthorizationDecision、scope、purpose、command type/version、payload hash、authentication context、expiry 和 revocation 完全一致；AuthorizationDecision 的 outcome 为允许且仍在有效期内。授权失败不得追加 Attempt、Raw/Formal Receipt、PublicationSucceeded 或 Completion。
+
+### 12.2 Attempt、Failure、Completion 与 Recall
+
+每个 Destination 以 `releaseId + frozenPackageHash + destinationId` 生成稳定 Attempt key，并以 Attempt number/CAS 处理重放和竞争。业务事务先追加 Attempt、Outbox 和审计事实，提交成功后才允许 Worker 调用 Adapter/Provider。稳定 key 在同一 Release/Package/Destination 绑定，后续 retry 可以复用该 key 生成新的 Attempt number；`release + package + destination + attempt number` 才是 Attempt 行的唯一身份。相同 Attempt key、相同 payload 的重放返回权威已有 Attempt；不同 package、destination、payload 或 scope 不得覆盖旧事实。Worker 在调用 Adapter 前必须再次比较传入 Attempt Ref 的 `objectType`、`objectId` 和完整 Scope 与已提交 Attempt identity；不匹配时必须在副作用前 fail-closed。Provider timeout 只能记录 `UNKNOWN`，Reconciliation 必须读取同一 Attempt 的权威状态/Raw Receipt，不得根据未知状态盲目重发。
+
+RawExternalReceipt 必须精确绑定 Release、Package、Destination、PublicationAttempt、Adapter Attempt、success outcome、payload hash 和权威发生时间；仅此事实可以晋升 Formal Receipt。`providerResult` 在持久化、Event、Error 和日志边界前使用 allowlist/redaction，任何 email、phone、personal name、地址、credential、token 或原始消息正文不得泄漏。普通 Feishu/file send、provider message ID、伪造或不完整 Raw Receipt 不能产生 Formal Receipt、PublicationSucceeded 或 Completion。
+
+Completion 按 Destination 保存 Attempt identity、Receipt、Failure、Observation 历史和受控 Attempt outcome projection：每个 Attempt 创建、Receipt 成功和 Failure/UNKNOWN 结果都追加不可变 Observation，不能以终态 projection 取代历史；Attempt identity、Receipt、Failure、Observation 均不可变；Attempt 的 outcome/raw/formal/failure projection 只能由 owner function 按合法状态迁移更新。成功 Receipt 必须保留；FAILED/UNKNOWN 目标独立重试；全部 purpose-specific required receipt 成功后才允许 `RELEASED`，存在成功与终态失败/未知时为 `PARTIALLY_RELEASED`，全失败时为 `FAILED`。Receipt projection 已达到 `RELEASED` 时，公开 Complete 命令仍可基于 exact outcome refs 幂等记录最终收尾事实，不得重复创建业务 Receipt。Recall 只能追加 Recall、ImpactReview、affected destinations、reason、actions、impact 和外部事实，不能删除或改写历史，不自动创建替代 Release 或 EffectiveBinding。Release 进入 `RECALLED` 后，Attempt、Receipt、Failure、Completion、Recall 和任何外部 Adapter/Provider 调度路径都必须 fail-closed，不能再追加事实、改变投影或产生副作用。
+
+### 12.3 Persistence、事务与验证边界
+
+WI-07 只新增 forward-only `V6002__release_publication_authorization_publication_receipt_recall.sql`，不得修改已应用的 `V6000`/`V6001`。新增业务事实表为 `publication_attempt`、`publication_observation`、`publication_receipt`、`publication_failure`、`release_recall` 和 `release_impact_review`；表均保留 Enterprise/Project Scope、canonical payload/hash、actor/authorization/source-command attribution 和 immutable history。所有 Observation 的 `observation_payload_hash` 必须由应用层对 canonical observation payload 计算 SHA-256 后传入 owner function，数据库至少校验其 32-byte 长度，不得写入任意长度或占位哈希。`publication_attempt` 的 identity 列和稳定 key 不可变；同一 stable key 的重试由 owner function 校验 Release/Package/Destination 绑定并递增 Attempt number，不能依赖 stable key 单列唯一约束；outcome/raw/formal/failure 仅可由 owner function 受控更新，Receipt/Failure/Observation/Recall/ImpactReview 仍为 append-only。`release_record` 另外保存由授权命令稳定生成的 `release.release_authorization` ContentAddressedRef，并仅通过 owner SECURITY DEFINER function 扩展授权、Attempt、Completion、Recall 状态，app role 不得直接 DML；RLS/ACL、scope mirror、CAS、stable-key binding、append-only trigger 和 rollback 必须由真实 PostgreSQL 验证。
+
+业务状态写入、Command Receipt、Audit、Outbox、Reference Edge、Attempt/Receipt/Failure/Recall 和必要的 ImpactReview 必须同事务提交或整体回滚。Reference Edge 为 append-only；同一 Release 在不同命令中再次引用同一权威事实时必须使用包含具体事实 ID 的语义独立 reference path，不能重复占用同一 owner/path 或改写已有 Edge。已知业务校验错误才可转换为稳定业务拒绝；数据库约束、连接和其他技术异常必须继续冒泡，让整个事务回滚，不能在 aborted transaction 中继续 finalize Receipt/Audit。稳定重试、并发授权、并发 Attempt、重复/迟到 Receipt、Recall 后终态写保护、RLS、直接 DML、跨 Scope、PII、普通发送来源链和 rollback 都必须有 Unit/Contract/Persistence/E2E 回归；Persistence readback 还必须对每一条 Observation 的 canonical `observation_payload` 重新计算 SHA-256，并与持久化的 32-byte `observation_payload_hash` 精确相等。Persistence Gate 中既有 Artifact direct-Context expiry probe 使用 500ms 建立窗口并等待 800ms 后验证过期，确保验证的是“已建立 Context 后过期”而不是数据库往返竞态；这不改变 Context 的生产 expiry contract。REL-801 手工时间线为合成技术输出，不升级真实 Provider、生产、公开 HTTP、跨模块业务 E2E、外部收件人确认或独立人工业务验收；#22/#23/#24 的 Issue 状态与独立证据不由本切片静默关闭。
+
+2026-08-31 实现与本地技术验收结果：精确 `pnpm verify` 全部通过，包含 Format、Lint、Typecheck、普通 Vitest（42 个文件通过、30 个受控跳过；432 passed、299 skipped）、Architecture、201 项 Public API/Catalog 全部 `FULL`、v1.0 compatibility baseline 200 项，以及 PostgreSQL/Flyway Persistence Gate（34 个文件、314 个测试；V6002、二次 no-op、tag→digest、容器清理）。WI-07 focused suite 为 6 个文件、33 个测试通过；PostgreSQL Handler 路径读回 3 个 Attempt、6 条 Observation、2 个 Formal Receipt、1 个 Failure、1 个 Recall 和 1 个 ImpactReview，并逐条重算 Observation SHA-256 与持久化 32-byte hash 相等；RLS/ACL、append-only、CAS、rollback、跨 Scope 和 dispatch exact `objectType`/`objectId`/Scope guard 均有回归。该结果仅证明本地、合成和 disposable PostgreSQL 技术边界；真实 Provider、公开 HTTP、生产、跨模块业务 E2E、外部收件人和独立人工验收仍为 `NOT RUN`，等待用户检查后再进入 Git 交付。

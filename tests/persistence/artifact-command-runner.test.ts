@@ -925,9 +925,9 @@ describe.skipIf(!gateEnabled)('Artifact command transaction runner (real Postgre
     await probe.query('BEGIN');
     await establishDirectContext(probe, {
       allowedProjectIds: [PROJECT_A1],
-      expiresAt: new Date(Date.now() + 25),
+      expiresAt: new Date(Date.now() + 500),
     });
-    await probe.query(`SELECT pg_sleep(0.08)`);
+    await probe.query(`SELECT pg_sleep(0.8)`);
     const expiredRead = await probe.query<{ count: string }>(
       `SELECT count(*) AS count FROM artifact.process_instance`,
     );

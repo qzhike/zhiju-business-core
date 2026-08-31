@@ -203,13 +203,30 @@ export interface ReleaseRecordTable {
   representation_selection_reason: unknown;
   destination_definitions: unknown;
   recipient_scope_snapshot_ref: unknown;
-  status: 'DRAFT' | 'PREPARED' | 'CANCELLED';
+  status:
+    | 'DRAFT'
+    | 'PREPARED'
+    | 'VALIDATING'
+    | 'AUTHORIZED'
+    | 'PUBLISHING'
+    | 'RELEASED'
+    | 'PARTIALLY_RELEASED'
+    | 'FAILED'
+    | 'CANCELLED'
+    | 'RECALLED'
+    | 'SUPERSEDED';
   aggregate_version: string;
   package_id: string | null;
   package_hash: Buffer | null;
   preparation_validation_ref: unknown;
+  release_readiness_snapshot_ref: unknown;
+  authorization_actor_snapshot_ref: unknown;
+  authorization_decision_ref: unknown;
+  authorization_ref: unknown;
+  authorized_at: Date | null;
   cancel_reason: unknown;
   cancelled_at: Date | null;
+  recall_ref: unknown;
   created_by_principal_id: string;
   created_by_actor_snapshot_id: string;
   created_authorization_decision_id: string;
@@ -282,6 +299,133 @@ export interface ReleaseDestinationTable {
   source_command_id: string;
 }
 
+export interface PublicationAttemptTable {
+  attempt_id: string;
+  release_id: string;
+  package_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  destination_id: string;
+  attempt_number: number;
+  stable_idempotency_key: string;
+  stable_key_hash: Buffer;
+  definition: Json;
+  outcome: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN';
+  requested_at: Date;
+  external_delivery_request_ref: Json;
+  raw_receipt_ref: Json | null;
+  formal_receipt_ref: Json | null;
+  failure_ref: Json | null;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export interface PublicationObservationTable {
+  observation_id: string;
+  attempt_id: string;
+  release_id: string;
+  package_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  destination_id: string;
+  observation_kind: 'ATTEMPT_CREATED' | 'PROVIDER_RESULT' | 'RECONCILED';
+  outcome: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN';
+  raw_receipt_ref: Json | null;
+  observed_at: Date;
+  observation_payload: Json;
+  observation_payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export interface PublicationReceiptTable {
+  receipt_id: string;
+  attempt_id: string;
+  release_id: string;
+  package_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  destination_id: string;
+  raw_receipt_ref: Json;
+  formal_receipt_ref: Json;
+  provider_result: Json;
+  receipt_payload_hash: Buffer;
+  occurred_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export interface PublicationFailureTable {
+  failure_id: string;
+  attempt_id: string;
+  release_id: string;
+  package_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  destination_id: string;
+  failure_ref: Json;
+  classification: string;
+  retryable: boolean;
+  outcome: 'FAILED' | 'UNKNOWN';
+  provider_ref: Json | null;
+  diagnostic_ref: Json | null;
+  occurred_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export interface ReleaseRecallTable {
+  recall_id: string;
+  release_id: string;
+  package_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  recall_scope: Json;
+  recall_reason: Json;
+  authorizing_human_ref: Json;
+  authorization_decision_ref: Json;
+  notification_policy_ref: Json;
+  affected_destinations: Json;
+  recalled_at: Date;
+  payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Generated<Date>;
+  source_command_id: string;
+}
+
+export interface ReleaseImpactReviewTable {
+  impact_review_id: string;
+  release_id: string;
+  package_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  triggering_refs: Json;
+  affected_destinations: Json;
+  risk_classification: string;
+  required_actions: Json;
+  human_intervention_required: boolean;
+  payload_hash: Buffer;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  created_authorization_decision_id: string;
+  created_at: Generated<Date>;
+  source_command_id: string;
+}
+
 export interface ReleasePublicationDb {
   'release_publication.command_receipt': CommandReceiptTable;
   'release_publication.outbox_event': OutboxEventTable;
@@ -295,6 +439,12 @@ export interface ReleasePublicationDb {
   'release_publication.release_package': ReleasePackageTable;
   'release_publication.release_package_item': ReleasePackageItemTable;
   'release_publication.release_destination': ReleaseDestinationTable;
+  'release_publication.publication_attempt': PublicationAttemptTable;
+  'release_publication.publication_observation': PublicationObservationTable;
+  'release_publication.publication_receipt': PublicationReceiptTable;
+  'release_publication.publication_failure': PublicationFailureTable;
+  'release_publication.release_recall': ReleaseRecallTable;
+  'release_publication.release_impact_review': ReleaseImpactReviewTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';

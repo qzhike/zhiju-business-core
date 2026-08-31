@@ -202,6 +202,13 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'release_package',
     'release_package_item',
     'release_destination',
+    // IM-05 WI-07 (issue #127): authorization, publication, receipt and recall facts.
+    'publication_attempt',
+    'publication_observation',
+    'publication_receipt',
+    'publication_failure',
+    'release_recall',
+    'release_impact_review',
   ],
   integration_gateway: [
     'business_probe',

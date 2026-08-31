@@ -2,11 +2,11 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / IM-04 WI-08 V4004 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-08 PERSISTENCE VERIFIED 2026-08-29 / IM-05 WI-02 V5002 IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-30 / IM-05 WI-02 GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED 2026-08-30 / ISSUE #122 CLOSED 2026-08-30 / LOCAL AND REMOTE FEATURE BRANCHES DELETED / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / IM-04 WI-08 V4004 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-08 PERSISTENCE VERIFIED 2026-08-29 / IM-05 WI-02 V5002 IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-30 / IM-05 WI-02 GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED 2026-08-30 / ISSUE #122 CLOSED 2026-08-30 / LOCAL AND REMOTE FEATURE BRANCHES DELETED / IM-05 WI-07 V6002 IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-31 / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
-本文把已冻结的 Domain Model、Typed Reference、Core Contract 和模块边界映射为 PostgreSQL 逻辑数据模型。当前不包含可执行 DDL、Migration、ORM Model、Repository 或性能结论。
+本文把已冻结的 Domain Model、Typed Reference、Core Contract 和模块边界映射为 PostgreSQL 逻辑数据模型；本文自身不承载可执行 DDL、ORM Model、Repository 或性能结论，实际 Migration 与 Repository 由对应模块实现并在验证记录中引用。
 
 权威输入：
 
@@ -1219,6 +1219,20 @@ Package Hash 由应用层以 `release-package-manifest/1.0` canonical JSON 计�
 
 2026-08-31 本地物理验证：固定 PostgreSQL 18.6（server_version `180006`）/Flyway 11.20.3 空库应用 V6001 成功，ReleasePublication persistence gate 为 34 files/313 tests PASS；二次 migrate 返回 `Schema "public" is up to date. No migration necessary.`，并通过 CAS/idempotency、canonical hash、RLS/ACL、immutable guard、cross-scope、Reference Edge path separation、技术事实同事务与 rollback 探针。Provider、公开 HTTP、跨模块业务 E2E、生产和独立人工验收仍为 `NOT RUN`。
 
+### 13.11 IM-05 WI-07 Release Authorization、Publication、Receipt 与 Recall 物理切片
+
+WI-07 以 forward-only `V6002__release_publication_authorization_publication_receipt_recall.sql` 扩展 `release_publication` Schema，不修改已应用的 `V6000`/`V6001`。`release_record` 追加 exact RRS、ActorSnapshot、AuthorizationDecision、`release.release_authorization` ref、authorizedAt、Recall pointer 和可受控的后续状态；新增 `publication_attempt`、`publication_observation`、`publication_receipt`、`publication_failure`、`release_recall`、`release_impact_review`，分别保存每个 Destination 的稳定 Attempt、权威观察、Formal Receipt、FAILED/UNKNOWN 失败、Recall 和影响评估事实。
+
+所有 WI-07 表均保存 Enterprise/Project scope mirror、canonical payload/hash、actor/authorization/source-command attribution 和时间戳。Observation 的 canonical payload hash 由应用层计算为 32-byte SHA-256 后传入 owner function，数据库只做长度和归因防线，不依赖 `pgcrypto` 或占位值。WI-07 的 Reference Edge path 按具体事实 ID 隔离，避免同一 Release 下不同 Attempt/Receipt/Failure/Completion/Recall 再次引用相同 Package 或 Authority fact 时触发唯一键冲突。Attempt 由 owner function 将 stable key 绑定到 Release/Package/Destination，`(release_id, package_id, destination_id, attempt_number)` 保证每次 Attempt 行唯一，同一 stable key 可在后续 retry 复用；Receipt 通过 exact Attempt 唯一和 Raw Receipt content digest 唯一保护重复事实。Attempt identity、Observation/Failure/Receipt/Recall/ImpactReview 均 append-only，Attempt outcome/raw/formal/failure projection 只能由 owner SECURITY DEFINER function 按合法迁移更新，禁止 app 直接 INSERT/UPDATE/DELETE。owner function 负责授权、Attempt Claim、观察/失败/Receipt promotion、Completion 和 Recall；app role 只可经 RLS 查询并执行显式 owner function。
+
+授权 owner function 必须锁定 Release，要求 expected aggregate version，并只接受 Application 已完成的 exact frozen Package、Representation、Recipient Scope、Destination、RAS/ABS/RRS、可信 Human ActorSnapshot 与 AuthorizationDecision 校验结果。数据库 guard 继续保护 scope、状态迁移、冻结字段、唯一 stable key 和不可变事实；授权、Attempt/Outbox、Receipt/Failure/Recall、Audit、Reference Edge 和 Command Receipt 必须同事务提交或整体回滚。
+
+Publication Attempt 提交后才能调用外部 Adapter；timeout 只能落为 `UNKNOWN`，Reconciliation 只能读取同一 stable key/Attempt 的权威观察或 RawExternalReceipt，不得盲目重发。Formal Receipt 行必须保存 exact Release/Package/Destination/PublicationAttempt/AdapterAttempt provenance、成功 outcome、Raw Receipt ref、payload hash 和权威 occurredAt；providerResult 进入持久化/Event/Error/Log 前由应用 allowlist/redaction，不能将 PII 或原始消息正文写入正式事实。普通 Feishu/file send、message ID、伪造或不完整 Raw Receipt 不满足 provenance。
+
+Completion 由事实表按 Destination 独立计算：成功 Receipt 永不因其他目标失败而删除；FAILED/UNKNOWN 可独立重试；全部 purpose-specific required receipt 成功才转 `RELEASED`，部分成功保持 `PARTIALLY_RELEASED`，全失败转 `FAILED`。Recall 只追加 affected destinations、reason、actions、impact 和外部事实，不删除历史，不自动建立替代 Release 或 EffectiveBinding。V6002 的空库迁移、二次 no-op、RLS/ACL、并发/幂等、late receipt、PII、ordinary-send provenance、append-only 与 rollback 已在本切片验证；真实 Provider、生产、公开 HTTP、跨模块业务 E2E 和独立人工验收保持 `NOT RUN`。
+
+2026-08-31 物理实现与验证结果：精确 `pnpm verify` 的 PostgreSQL Persistence Gate 使用 PostgreSQL 18.6（`server_version=180006`）/Flyway 11.20.3，通过 V6002 空库迁移、34 个文件/314 个测试、二次 `No migration necessary`、tag→digest、容器清理以及 RLS/ACL、append-only、CAS、跨 Scope、rollback 和 Observation hash readback。WI-07 Handler readback 为 3 个 Attempt、6 条 Observation、2 个 Formal Receipt、1 个 Failure、1 个 Recall 和 1 个 ImpactReview，所有 Observation 均由 canonical payload 逐条重算为相等的 32-byte SHA-256。该证据属于 disposable PostgreSQL 技术范围；真实 Provider、公开 HTTP、跨模块业务 E2E、生产和独立人工验收仍为 `NOT RUN`。
+
 ---
 
 ## 14. `release_publication` 逻辑模型
@@ -1251,7 +1265,7 @@ Authorize 事务重新验证 exact packageHash、Approval 未撤销、Readiness 
 
 | 表 | 类型 | 关键列/关系 | 关键约束 |
 |---|---|---|---|
-| `publication_attempt` | Entity/Attempt | release/package/destination、attempt_no、stable idempotency key、status、aggregate_version、external attempt ref | destination + package + attempt no 唯一 |
+| `publication_attempt` | Entity/Attempt | release/package/destination、attempt_no、stable idempotency key、status、aggregate_version、external attempt ref | destination + package + attempt no 唯一；同一 stable key 可在绑定的 destination 上产生后续 retry |
 | `publication_observation` | Immutable Fact | attempt_id、observed status、occurred/recorded time、raw receipt ref/hash | TIMEOUT 只形成 UNKNOWN |
 | `publication_receipt` | Immutable Formal Fact | release/package/destination/attempt、raw receipt ref/hash、provider result fields、payload/hash | 同 exact destination/package 成功 Receipt 唯一 |
 | `publication_failure` | Immutable Fact | attempt_id、error classification、retryability、provider ref、recorded_at | 不覆盖历史失败 |

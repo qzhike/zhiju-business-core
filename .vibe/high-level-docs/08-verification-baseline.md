@@ -482,3 +482,13 @@ Issue #97 的本地实现只通过注入的公开 `integration.get_render_attemp
 2026-08-29 的聚焦 Unit/Contract 为 4 个文件、17 个测试通过；完整 `pnpm verify` 的 format、lint、typecheck、全量 test、architecture、contracts 与 persistence 均通过。全量 Vitest 为 32 个文件通过、24 个受控跳过，390 个测试通过、269 个受控跳过；架构边界为 `source_roots=10`；公开契约为 `FULL=201`，历史 v1.0 兼容基线仍为 200 项。真实 Persistence Gate 使用 pinned PostgreSQL 18.6 与 Flyway 11.20.3：V4004 空库迁移成功，28 个测试文件、284 个测试通过，第二次 migrate 返回 `No migration necessary`，测试容器已删除。成功 fixture 精确生成 1 Representation、1 Validation、3 Reference Edge 和 1 `artifact.RepresentationRegistered` Event；exact replay 不增加业务事实，同 Attempt 替换返回 conflict，注入故障无半提交。合成可复核表见 [`Manual-Representation-Binding.md`](../codex-issue-97/Manual-Representation-Binding.md)。
 
 上述结果只能标记 `PASS (LOCAL/PERSISTENCE)`。真实 IntegrationGateway Handler/DB readback、Renderer/Provider/object store、文件打开与版式、公开 HTTP、部署后的跨模块 E2E、生产和独立人工业务验收均为 `NOT RUN`。
+
+## 18. IM-05 WI-07 Release Authorization、Publication、Receipt 与 Recall 验证边界
+
+Issue #127 的验证必须沿 Release → frozen Package → latest RAS/ABS/RRS → trusted Human Authorization → PublicationAttempt/AdapterAttempt → RawExternalReceipt → Formal Receipt → per-destination Completion → Recall 事实链展开。Authorize 的最后一次 authority recheck 必须发生在同一事务内，并在任何 publisher/adapter side effect 前拒绝 stale approval/readiness、scope/purpose/hash/version 不一致、Agent/Service/Runtime 或 actingFor Human、revoked/expired Decision 和不完整 provenance。
+
+自动化 Unit/Contract 需要覆盖 Human/ActorSnapshot/Envelope/Decision exact match、稳定 Attempt key、timeout `UNKNOWN`、reconciliation 不盲目重发、Raw Receipt provenance、providerResult PII allowlist/redaction、ordinary Feishu/file-send negative、partial/final completion、late receipt 和 append-only Recall。disposable PostgreSQL 需要覆盖 forward-only V6002、空库/二次 no-op、RLS/ACL、CAS/race、stable-key conflict、直接 DML、跨 Scope、rollback、Receipt/Failure/Recall 历史和最小事件。
+
+REL-801 双 Destination 合成时间线是手工复核材料：必须能核对 exact refs、hashes、authorizing Human、时间戳、一次成功、一次 timeout/failed、partial、reconciliation/retry、Formal Receipt、最终完成或保留 partial、ordinary-send/PII/stale negatives、Recall 和 cleanup。Controlled Fake/Adapter 只可记为本地技术或受控 E2E `PASS`，不等价于真实 Provider；真实 Feishu/email、生产凭据、公开 HTTP、跨模块业务 E2E、外部收件人确认、部署和独立人工业务验收继续为 `NOT RUN`。#22/#23/#24 的独立证据和 Issue 状态不在本切片中静默替代或关闭。
+
+2026-08-31 验证结果：精确执行 `pnpm verify` 全部通过，普通 Vitest 为 42 个文件通过、30 个受控跳过（432 passed、299 skipped），Architecture 为 `source_roots=10`，Public API/Catalog 为 201 operations 且全部 `FULL`，compatibility baseline v1.0 为 200 operations；PostgreSQL/Flyway Persistence Gate 为 34 个文件、314 个测试，V6002、二次 no-op、tag→digest、RLS/ACL、CAS、append-only、Observation hash readback、rollback、跨 Scope 和容器清理均通过。ReleasePublication focused suite 为 6 个文件、33 个测试通过。该结果只覆盖本地、合成和 disposable PostgreSQL 技术边界；真实 Provider、公开 HTTP、生产数据库、跨模块业务 E2E、外部收件人和独立人工验收保持 `NOT RUN`。
