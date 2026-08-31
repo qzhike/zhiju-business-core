@@ -3,6 +3,7 @@ export interface FlywayTarget {
   database: string;
   username: string;
   password: string;
+  target?: string;
 }
 
 export declare function runFlyway(containerId: string, target: FlywayTarget): Promise<string>;

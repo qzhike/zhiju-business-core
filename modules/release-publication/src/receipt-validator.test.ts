@@ -407,7 +407,7 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
     }
   });
 
-  it('RP-ISSUE23-U-003: persists deterministic closed Adapter output and opaque identifier hashes', () => {
+  it('RP-ISSUE23-U-003: persists deterministic closed Adapter output with identifiers omitted', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
     const rawReceipts = new InMemoryRawExternalReceiptRepository();
     registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
@@ -436,6 +436,8 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
     expect(accepted.ok).toBe(true);
     if (accepted.ok) {
       expect(accepted.record.submission.providerResult).toEqual(mapped.value);
+      expect(accepted.record.submission.providerResult).not.toHaveProperty('messageIdHash');
+      expect(accepted.record.submission.providerResult).not.toHaveProperty('providerRequestIdHash');
       expect(JSON.stringify(accepted.record.submission.providerResult)).not.toContain(
         'AliceCustomer',
       );

@@ -21,17 +21,12 @@ describe('ReleasePublication provider result minimization', () => {
       nested: [{ body: 'original document body' }, { note: 'safe status' }],
       authorization: 'Bearer secret-token',
       customRecipientData: [{ destination: 'alice@example.com' }],
+      'customer@example.com': 'AliceCustomer',
     } as const;
     const result = sanitizeProviderResult(input);
 
     expect(result.value).toEqual({ status: 'ACCEPTED' });
-    expect(result.redactedPaths).toEqual([
-      '/messageId',
-      '/details',
-      '/nested',
-      '/authorization',
-      '/customRecipientData',
-    ]);
+    expect(result.redactedPaths).toEqual(['/providerResult/unknown']);
     expect(JSON.stringify(result.value)).not.toContain('provider-message-801');
     expect(JSON.stringify(result.value)).not.toContain('customer@example.com');
     expect(JSON.stringify(result.value)).not.toContain('original document body');
@@ -54,10 +49,10 @@ describe('ReleasePublication provider result minimization', () => {
       status: REDACTED_VALUE,
     });
     expect(result.redactedPaths).toEqual([
-      '/messageId',
-      '/providerStatus',
-      '/reasonCode',
-      '/status',
+      '/providerResult/unknown',
+      '/providerResult/providerStatus',
+      '/providerResult/reasonCode',
+      '/providerResult/status',
     ]);
     expect(JSON.stringify(result.value)).not.toContain('AliceCustomer');
     expect(JSON.stringify(result.value)).not.toContain('BobBuyer');
@@ -84,20 +79,11 @@ describe('ReleasePublication provider result minimization', () => {
       attemptNumber: 1,
       retryable: false,
     });
-    expect(result.redactedPaths).toEqual([
-      '/deliveryId',
-      '/messageId',
-      '/providerAttemptId',
-      '/providerMessageId',
-      '/providerRequestId',
-      '/requestId',
-      '/traceId',
-      '/messageIdHash',
-    ]);
+    expect(result.redactedPaths).toEqual(['/providerResult/unknown']);
     expect(JSON.stringify(result.value)).not.toContain('provider-message-801');
   });
 
-  it('maps a registered Adapter extraction to closed values and field-separated opaque hashes', () => {
+  it('maps a registered Adapter extraction to closed values and omits all identifiers', () => {
     const extraction = {
       adapterCode: 'feishu.channel',
       messageId: 'AliceCustomer',
@@ -111,8 +97,11 @@ describe('ReleasePublication provider result minimization', () => {
       attemptNumber: 1,
       retryable: false,
     };
-    const first = createProviderResultFromAdapter(extraction);
-    const second = createProviderResultFromAdapter(extraction);
+    const serializedExtraction = JSON.parse(
+      JSON.stringify(extraction),
+    ) as ProviderResultAdapterExtraction;
+    const first = createProviderResultFromAdapter(serializedExtraction);
+    const second = createProviderResultFromAdapter(serializedExtraction);
 
     expect(first.ok).toBe(true);
     expect(second).toEqual(first);
@@ -127,9 +116,10 @@ describe('ReleasePublication provider result minimization', () => {
         attemptNumber: 1,
         retryable: false,
       });
-      expect(first.value.messageIdHash).toMatch(/^[a-f0-9]{64}$/u);
-      expect(first.value.providerRequestIdHash).toMatch(/^[a-f0-9]{64}$/u);
-      expect(first.value.providerAttemptIdHash).toMatch(/^[a-f0-9]{64}$/u);
+      expect(first.value).not.toHaveProperty('messageIdHash');
+      expect(first.value).not.toHaveProperty('providerRequestIdHash');
+      expect(first.value).not.toHaveProperty('providerAttemptIdHash');
+      expect(Object.isFrozen(first.value)).toBe(true);
       expect(JSON.stringify(first.value)).not.toContain('AliceCustomer');
       expect(sanitizeProviderResult(first.value)).toEqual({
         value: first.value,
@@ -191,17 +181,17 @@ describe('ReleasePublication provider result minimization', () => {
     expect(nested.value).toEqual({
       status: REDACTED_VALUE,
     });
-    expect(nested.redactedPaths).toEqual(['/status', '/details', '/messageIdHash']);
+    expect(nested.redactedPaths).toEqual(['/providerResult/status', '/providerResult/unknown']);
     expect(JSON.stringify(nested.value)).not.toContain('AliceCustomer');
 
     const marker = { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' };
     expect(sanitizeProviderResult('raw provider body')).toEqual({
       value: marker,
-      redactedPaths: [''],
+      redactedPaths: ['/providerResult'],
     });
     expect(sanitizeProviderResult([{ messageId: 'safe-id' }, 'raw provider body'])).toEqual({
       value: marker,
-      redactedPaths: [''],
+      redactedPaths: ['/providerResult'],
     });
   });
 });

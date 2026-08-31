@@ -1,6 +1,7 @@
 -- IM-RP-003 / Issue #23: reject unnormalized Provider Results at the
 -- PostgreSQL persistence boundary. V6002 is already applied and remains
--- unchanged; this migration adds a forward-only write guard.
+-- unchanged; this migration adds a forward-only write guard. Historical data
+-- remediation is performed by V6004 before this guard is left active.
 
 SET ROLE release_publication_owner;
 
@@ -76,13 +77,6 @@ BEGIN
             END IF;
         ELSIF item.key = 'retryable' THEN
             IF jsonb_typeof(item.value) <> 'boolean' THEN
-                RETURN false;
-            END IF;
-        ELSIF item.key IN ('deliveryIdHash', 'messageIdHash',
-                           'providerAttemptIdHash', 'providerMessageIdHash',
-                           'providerRequestIdHash', 'requestIdHash', 'traceIdHash') THEN
-            IF jsonb_typeof(item.value) <> 'string'
-               OR value_text !~ '^[0-9a-f]{64}$' THEN
                 RETURN false;
             END IF;
         ELSE

@@ -17,6 +17,7 @@ import {
 import { flywayVersion, runFlyway } from './flyway.mjs';
 import { startPostgres, stopPostgres } from './postgres.mjs';
 import { docker, dockerInspectImage } from './docker.mjs';
+import { historicalProviderResultSeedSql } from './provider-result-upgrade-fixture.mjs';
 
 function log(message) {
   process.stdout.write(`[persistence-gate] ${message}\n`);
@@ -36,6 +37,11 @@ async function query(containerId, sql) {
     '-c',
     sql,
   ]);
+}
+
+async function seedHistoricalProviderResultData(containerId) {
+  await query(containerId, historicalProviderResultSeedSql());
+  log('seeded synthetic V6002 historical Provider Result rows');
 }
 
 function runVitest(env) {
@@ -112,8 +118,19 @@ async function main() {
       database: pg.database,
       username: pg.username,
       password: pg.password,
+      target: '6002',
     });
-    log('flyway migrate (empty database) completed');
+    log('flyway migrate (empty database through V6002) completed');
+
+    await seedHistoricalProviderResultData(pg.containerId);
+
+    await runFlyway(pg.containerId, {
+      command: 'migrate',
+      database: pg.database,
+      username: pg.username,
+      password: pg.password,
+    });
+    log('flyway migrate (V6003/V6004 historical Provider Result upgrade) completed');
 
     await runVitest({
       ZJU_PERSISTENCE_DATABASE_URL: `postgres://${pg.username}:${pg.password}@${pg.host}:${pg.port}/${pg.database}`,

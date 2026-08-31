@@ -7,6 +7,7 @@ import type { Artifact, Common, Core, ReleasePublication } from '@zhiju/contract
 import {
   ReleasePublicationRuntime,
   type ReleaseDestinationPolicy,
+  type PublicationAdapterResult,
 } from './release-publication-runtime.js';
 import { buildPackageHashMaterial } from './package-hash.js';
 import {
@@ -716,6 +717,59 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     expect(JSON.stringify(rejected)).not.toContain('document body');
   });
 
+  it('RP-ISSUE23-E-001: maps a serialized Adapter result before Runtime Receipt persistence', async () => {
+    const fixture = loadFixture();
+    const runtime = await openRuntime(fixture);
+    const firstEntry = fixture.timeline[0];
+    const receiptEntry = fixture.timeline.find((entry) => entry.step === 3);
+    if (firstEntry === undefined || receiptEntry === undefined) {
+      throw new Error('fixture is missing the first Attempt or accepted Receipt');
+    }
+    const first = requireAttemptFields(firstEntry);
+    const submission = resolveSubmission(receiptEntry, undefined);
+    const receiptRef = resolveReceiptRef(receiptEntry, undefined);
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: first.attemptRef,
+        definition: first.definition,
+        correlationId: 'issue-23-adapter-start',
+      }).ok,
+    ).toBe(true);
+
+    const serializedAdapterResult = JSON.stringify({
+      outcome: 'SUCCEEDED',
+      receipt: {
+        releaseRef: fixture.release.releaseRef,
+        submission: {
+          ...submission,
+          providerResult: {
+            adapterCode: 'feishu.channel',
+            messageId: 'serialized-provider-message',
+            providerRequestId: 'serialized-provider-request',
+            status: 'delivered',
+            outcome: 'success',
+          },
+        },
+        receiptRef,
+        correlationId: 'issue-23-adapter-receipt',
+      },
+    });
+    const adapterResult = JSON.parse(serializedAdapterResult) as PublicationAdapterResult;
+    const dispatch = await runtime.dispatchPublicationAttempt(
+      fixture.release.releaseRef,
+      first.attemptRef,
+      () => Promise.resolve(adapterResult),
+    );
+
+    expect(dispatch).toEqual({ status: 'SUCCEEDED', invoked: true });
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.receiptRefs).toHaveLength(1);
+    const eventPayloads = JSON.stringify(runtime.getOutboxEvents(fixture.release.releaseRef));
+    expect(eventPayloads).not.toContain('serialized-provider-message');
+    expect(eventPayloads).not.toContain('serialized-provider-request');
+    expect(eventPayloads).not.toContain('providerResult');
+  });
+
   it('keeps the stale rejection from mutating the ledger on replay', async () => {
     const fixture = loadFixture();
     const runtime = await openRuntime(fixture);
@@ -1318,34 +1372,40 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     expect(start.ok).toBe(true);
 
     let invokeCount = 0;
-    const ordinarySubmission: ReleasePublication.FormalReceiptSubmission = {
-      ...receiptSubmission,
-      rawReceiptRef: {
-        ...receiptSubmission.rawReceiptRef,
-        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d8d0',
-        contentHash: fixtureHash(0x9a),
-      },
-      providerResult: { messageId: 'ordinary-feishu-message-001' },
-    };
     const ordinaryReceiptRef: Common.ContentAddressedRef = {
       ...receiptRef,
       objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d8d1',
       contentHash: fixtureHash(0x9b),
     };
+    const ordinaryAdapterResult = JSON.parse(
+      JSON.stringify({
+        outcome: 'SUCCEEDED',
+        receipt: {
+          releaseRef: fixture.release.releaseRef,
+          submission: {
+            ...receiptSubmission,
+            rawReceiptRef: {
+              ...receiptSubmission.rawReceiptRef,
+              objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d8d0',
+              contentHash: fixtureHash(0x9a),
+            },
+            providerResult: {
+              adapterCode: 'feishu.channel',
+              messageId: 'ordinary-feishu-message-001',
+              status: 'DELIVERED',
+            },
+          },
+          receiptRef: ordinaryReceiptRef,
+          correlationId: 'issue-24-ordinary-send',
+        },
+      }),
+    ) as PublicationAdapterResult;
     const dispatch = await runtime.dispatchPublicationAttempt(
       fixture.release.releaseRef,
       first.attemptRef,
       () => {
         invokeCount += 1;
-        return Promise.resolve({
-          outcome: 'SUCCEEDED',
-          receipt: {
-            releaseRef: fixture.release.releaseRef,
-            submission: ordinarySubmission,
-            receiptRef: ordinaryReceiptRef,
-            correlationId: 'issue-24-ordinary-send',
-          },
-        });
+        return Promise.resolve(ordinaryAdapterResult);
       },
     );
 

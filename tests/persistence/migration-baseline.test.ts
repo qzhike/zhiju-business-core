@@ -2,6 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { runFlyway } from '../../tools/persistence/flyway.mjs';
 import {
+  HISTORICAL_PROVIDER_RESULT_OBSERVATION_ID,
+  HISTORICAL_PROVIDER_RESULT_RECEIPT_ID,
+} from '../../tools/persistence/provider-result-upgrade-fixture.mjs';
+import { digestCanonicalPayload } from '@zhiju/release-publication';
+import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
+import {
   assertServerVersion,
   FLYWAY_IMAGE_TAG,
   POSTGRES_IMAGE_DIGEST,
@@ -71,6 +77,59 @@ describe.skipIf(!gateEnabled)('persistence migration baseline (real PostgreSQL)'
     expect(bootstrap?.description).toBe('platform bootstrap');
     expect(bootstrap?.success).toBe('true');
     expect(bootstrap?.checksum).toMatch(/^\d+$/);
+  });
+
+  it('remediated V6002 historical Receipt and Observation provider results', async () => {
+    const receipt = await pool.query<{
+      provider_result: CanonicalJsonObject;
+      formal_receipt_ref: CanonicalJsonObject;
+    }>(
+      `SELECT provider_result, formal_receipt_ref
+         FROM release_publication.publication_receipt
+        WHERE receipt_id = $1`,
+      [HISTORICAL_PROVIDER_RESULT_RECEIPT_ID],
+    );
+    expect(receipt.rows).toHaveLength(1);
+    expect(receipt.rows[0]?.provider_result).toEqual({
+      providerStatus: { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' },
+      reasonCode: { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' },
+      status: { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' },
+    });
+    expect(receipt.rows[0]?.formal_receipt_ref).toMatchObject({
+      objectId: HISTORICAL_PROVIDER_RESULT_RECEIPT_ID,
+      contentHash: { digest: 'b'.repeat(64) },
+    });
+
+    const observation = await pool.query<{
+      observation_payload: CanonicalJsonObject;
+      observation_payload_hash: Buffer;
+    }>(
+      `SELECT observation_payload, observation_payload_hash
+         FROM release_publication.publication_observation
+        WHERE observation_id = $1`,
+      [HISTORICAL_PROVIDER_RESULT_OBSERVATION_ID],
+    );
+    expect(observation.rows).toHaveLength(1);
+    const row = observation.rows[0];
+    if (row === undefined) throw new Error('historical Provider Result observation is missing');
+    expect(row.observation_payload.providerResult).toEqual(receipt.rows[0]?.provider_result);
+    expect(row.observation_payload.formalReceiptRef).toEqual(receipt.rows[0]?.formal_receipt_ref);
+    const serialized = JSON.stringify({ receipt: receipt.rows[0], observation: row });
+    expect(serialized).not.toContain('LegacyAliceCustomer');
+    expect(serialized).not.toContain('LegacyBobBuyer');
+    expect(serialized).not.toContain('LegacyCustomerName');
+    expect(serialized).not.toContain('legacy.customer@example.com');
+    expect(serialized).not.toContain('legacy document body');
+    expect(row.observation_payload_hash).toEqual(
+      digestCanonicalPayload(row.observation_payload).hash,
+    );
+
+    const safety = await pool.query<{ receipt_safe: boolean; observation_safe: boolean }>(
+      `SELECT release_publication.provider_result_is_safe($1::jsonb) AS receipt_safe,
+              release_publication.provider_result_is_safe($2::jsonb) AS observation_safe`,
+      [receipt.rows[0]?.provider_result, row.observation_payload.providerResult],
+    );
+    expect(safety.rows[0]).toEqual({ receipt_safe: true, observation_safe: true });
   });
 
   it('created the seven owning schemas plus projection', async () => {

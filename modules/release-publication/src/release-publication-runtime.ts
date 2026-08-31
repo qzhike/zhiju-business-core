@@ -42,6 +42,10 @@ import {
   RELEASE_NOT_AUTHORIZED,
   ReleasePublicationBusinessError,
 } from './release-publication-validation.js';
+import {
+  createProviderResultFromAdapter,
+  type ProviderResultAdapterExtraction,
+} from './provider-result.js';
 
 type ObjectRef = Common.ObjectRef;
 type ReleasePackageRef = Common.ReleasePackageRef;
@@ -138,10 +142,6 @@ export interface RecallReleaseRequest extends ReleaseHumanAuthorizationChainInpu
   readonly recalledAt: string;
 }
 
-export type PublicationAdapterResult =
-  | { readonly outcome: 'SUCCEEDED'; readonly receipt: RecordReceiptRequest }
-  | { readonly outcome: 'FAILED' | 'UNKNOWN'; readonly failure: RecordFailureRequest };
-
 export type PublicationDispatchResult =
   | { readonly status: 'SUCCEEDED' | 'FAILED' | 'UNKNOWN'; readonly invoked: boolean }
   | {
@@ -204,9 +204,58 @@ export interface RecordReceiptRequest {
   readonly correlationId: string;
 }
 
+/**
+ * Adapter/Port receipt shape before ReleasePublication maps provider output.
+ * The extraction is intentionally a wire-safe plain object so a transport
+ * round trip cannot create or preserve an implicit runtime trust marker.
+ */
+export type PublicationAdapterReceiptRequest = Omit<RecordReceiptRequest, 'submission'> & {
+  readonly submission: Omit<FormalReceiptSubmission, 'providerResult'> & {
+    readonly providerResult: ProviderResultAdapterExtraction;
+  };
+};
+
+export type PublicationAdapterResult =
+  | { readonly outcome: 'SUCCEEDED'; readonly receipt: PublicationAdapterReceiptRequest }
+  | { readonly outcome: 'FAILED' | 'UNKNOWN'; readonly failure: RecordFailureRequest };
+
 export interface ReleasePublicationRuntimeOptions {
   readonly ledger?: ReleaseReceiptLedger;
   readonly rawReceipts?: RawExternalReceiptRepository;
+}
+
+function normalizeAdapterReceipt(
+  request: PublicationAdapterReceiptRequest,
+):
+  | { readonly ok: true; readonly value: RecordReceiptRequest }
+  | { readonly ok: false; readonly error: ApiError } {
+  const mapped = createProviderResultFromAdapter(request.submission.providerResult);
+  if (!mapped.ok) {
+    return {
+      ok: false,
+      error: buildApiRejection({
+        code: mapped.error.code,
+        category: 'VALIDATION',
+        retryDisposition: 'DO_NOT_RETRY',
+        safeMessage: 'Adapter provider result mapping was rejected',
+        fieldPath: '/payload/receipt/providerResult',
+        violatedRule:
+          'Adapter provider results must use a registered closed mapping before receipt validation',
+        correlationId: request.correlationId,
+        targetRef: request.submission.attemptRef,
+      }),
+    };
+  }
+  return {
+    ok: true,
+    value: {
+      ...request,
+      submission: {
+        ...request.submission,
+        providerResult: mapped.value,
+      },
+    },
+  };
 }
 
 /**
@@ -982,7 +1031,11 @@ export class ReleasePublicationRuntime {
     try {
       const result = await invoke();
       if (result.outcome === 'SUCCEEDED') {
-        const receipt = this.recordPublicationReceipt(result.receipt);
+        const normalized = normalizeAdapterReceipt(result.receipt);
+        if (!normalized.ok) {
+          return { status: 'REJECTED', invoked: true, error: normalized.error };
+        }
+        const receipt = this.recordPublicationReceipt(normalized.value);
         return receipt.ok
           ? { status: 'SUCCEEDED', invoked: true }
           : { status: 'REJECTED', invoked: true, error: receipt.error };
@@ -999,7 +1052,11 @@ export class ReleasePublicationRuntime {
   /** Applies an already authoritative reconciliation result without invoking a Provider. */
   reconcilePublicationAttempt(result: PublicationAdapterResult): PublicationDispatchResult {
     if (result.outcome === 'SUCCEEDED') {
-      const recorded = this.recordPublicationReceipt(result.receipt);
+      const normalized = normalizeAdapterReceipt(result.receipt);
+      if (!normalized.ok) {
+        return { status: 'REJECTED', invoked: false, error: normalized.error };
+      }
+      const recorded = this.recordPublicationReceipt(normalized.value);
       return recorded.ok
         ? { status: 'SUCCEEDED', invoked: false }
         : { status: 'REJECTED', invoked: false, error: recorded.error };

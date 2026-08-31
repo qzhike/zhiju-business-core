@@ -3,10 +3,8 @@
 // mapping can create retained provider facts; all other values are normalized
 // at the Formal Receipt, Event, Error, and logging boundary.
 
-import { createHash } from 'node:crypto';
-
 import type { CanonicalJson } from '@zhiju/contracts';
-import type { CanonicalJsonValue } from '@zhiju/shared-kernel';
+import type { CanonicalJsonObject, CanonicalJsonValue } from '@zhiju/shared-kernel';
 
 const REDACTED_VALUE = Object.freeze({
   redacted: true,
@@ -144,14 +142,8 @@ const ADAPTER_RESULT_KEYS = new Set([
   'traceId',
 ]);
 
-const trustedAdapterResults = new WeakSet<object>();
-
-declare const adapterProviderResultBrand: unique symbol;
-
 /** Result created by a registered Adapter mapping, not by a public Command. */
-export type AdapterProviderResult = Record<string, CanonicalJsonValue> & {
-  readonly [adapterProviderResultBrand]: 'REGISTERED_ADAPTER_RESULT';
-};
+export type AdapterProviderResult = Readonly<Record<string, CanonicalJsonValue>>;
 
 export interface ProviderResultAdapterExtraction {
   readonly adapterCode: string;
@@ -207,16 +199,6 @@ function mapClosedValue(
   return mapping[value];
 }
 
-function hashAdapterIdentifier(field: string, value: string): string {
-  return createHash('sha256')
-    .update(`zhiju/release-publication/provider-result/${field}/1\u0000${value}`, 'utf8')
-    .digest('hex');
-}
-
-function identifierHashKey(field: string): string {
-  return `${field}Hash`;
-}
-
 function hasValidIdentifier(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 512;
 }
@@ -235,26 +217,28 @@ function mappedField(
 
 /**
  * Maps an Adapter-owned extraction into a closed, persistence-safe result.
- * Raw identifiers are retained only as field-domain-separated SHA-256 hashes.
+ * Raw identifiers are validated at the Adapter boundary and then omitted.
  */
-export function createProviderResultFromAdapter(
-  input: ProviderResultAdapterExtraction,
-): ProviderResultMappingResult {
+export function createProviderResultFromAdapter(input: unknown): ProviderResultMappingResult {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    return failure('PROVIDER_RESULT_EXTRA_FIELD', '/providerResult');
+  }
   for (const key of Object.keys(input)) {
     if (!ADAPTER_RESULT_KEYS.has(key)) {
       return failure('PROVIDER_RESULT_EXTRA_FIELD', '/providerResult');
     }
   }
 
+  const extraction = input as ProviderResultAdapterExtraction;
   const mapping = REGISTERED_PROVIDER_RESULT_MAPPINGS[
-    input.adapterCode as RegisteredProviderResultAdapterCode
+    extraction.adapterCode as RegisteredProviderResultAdapterCode
   ] as ProviderResultMapping | undefined;
   if (mapping === undefined) {
     return failure('PROVIDER_RESULT_ADAPTER_UNREGISTERED', '/adapterCode');
   }
 
   const result: Record<string, CanonicalJsonValue> = {
-    providerCode: input.adapterCode,
+    providerCode: extraction.adapterCode,
   };
   const mappedFields: readonly [
     keyof ProviderResultAdapterExtraction,
@@ -268,49 +252,54 @@ export function createProviderResultFromAdapter(
     ['reasonCode', mapping.reasonCode, REASON_CODE_VALUES],
   ];
   for (const [key, valueMapping, allowedValues] of mappedFields) {
-    const rawValue = input[key];
+    const rawValue = extraction[key];
     if (rawValue === undefined) continue;
-    const value = mappedField(input, key, valueMapping, allowedValues);
+    const value = mappedField(extraction, key, valueMapping, allowedValues);
     if (value === undefined) {
       return failure('PROVIDER_RESULT_FIELD_UNMAPPED', `/${key}`);
     }
     result[key] = value;
   }
 
-  if (input.attemptNumber !== undefined) {
-    if (!Number.isInteger(input.attemptNumber) || input.attemptNumber <= 0) {
+  if (extraction.attemptNumber !== undefined) {
+    if (!Number.isInteger(extraction.attemptNumber) || extraction.attemptNumber <= 0) {
       return failure('PROVIDER_RESULT_FIELD_UNMAPPED', '/attemptNumber');
     }
-    result.attemptNumber = input.attemptNumber;
+    result.attemptNumber = extraction.attemptNumber;
   }
-  if (input.retryable !== undefined) {
-    if (typeof input.retryable !== 'boolean') {
+  if (extraction.retryable !== undefined) {
+    if (typeof extraction.retryable !== 'boolean') {
       return failure('PROVIDER_RESULT_FIELD_UNMAPPED', '/retryable');
     }
-    result.retryable = input.retryable;
+    result.retryable = extraction.retryable;
   }
 
   for (const key of PROVIDER_RESULT_IDENTIFIER_KEYS) {
-    const value = input[key as keyof ProviderResultAdapterExtraction];
+    const value = extraction[key as keyof ProviderResultAdapterExtraction];
     if (value === undefined) continue;
     if (!hasValidIdentifier(value)) {
       return failure('PROVIDER_RESULT_IDENTIFIER_INVALID', `/${key}`);
     }
-    result[identifierHashKey(key)] = hashAdapterIdentifier(key, value);
   }
 
-  const trustedResult = Object.freeze(result) as AdapterProviderResult;
-  trustedAdapterResults.add(trustedResult);
-  return { ok: true, value: trustedResult };
+  return { ok: true, value: Object.freeze(result) };
 }
 
-function escapeJsonPointer(value: string): string {
-  return value.replaceAll('~', '~0').replaceAll('/', '~1');
-}
+const UNKNOWN_REDACTION_PATH = '/providerResult/unknown';
 
 function redacted(path: string, redactedPaths: string[]): CanonicalJson {
-  redactedPaths.push(path);
+  if (!redactedPaths.includes(path)) redactedPaths.push(path);
   return REDACTED_VALUE;
+}
+
+function isRedactedValue(value: CanonicalJsonValue): boolean {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const objectValue = value as CanonicalJsonObject;
+  return (
+    Object.keys(objectValue).length === 2 &&
+    objectValue.redacted === true &&
+    objectValue.reasonCode === 'PROVIDER_RESULT_FIELD_REDACTED'
+  );
 }
 
 function normalizedSafeString(key: string, value: string): string | undefined {
@@ -352,7 +341,6 @@ function normalizedSafeString(key: string, value: string): string | undefined {
       REASON_CODE_VALUES,
     );
   }
-  if (PROVIDER_RESULT_IDENTIFIER_KEYS.has(key)) return undefined;
   return undefined;
 }
 
@@ -371,6 +359,7 @@ function sanitize(
   redactedPaths: string[],
   key?: string,
 ): CanonicalJson {
+  if (isRedactedValue(value)) return REDACTED_VALUE;
   if (key !== undefined && value !== null && typeof value === 'object') {
     return redacted(path, redactedPaths);
   }
@@ -393,11 +382,13 @@ function sanitize(
   }
   const result: Record<string, CanonicalJson> = {};
   for (const [childKey, child] of Object.entries(value)) {
-    const childPath = `${path}/${escapeJsonPointer(childKey)}`;
     if (!SAFE_PROVIDER_RESULT_KEYS.has(childKey)) {
-      redactedPaths.push(childPath);
+      if (!redactedPaths.includes(UNKNOWN_REDACTION_PATH)) {
+        redactedPaths.push(UNKNOWN_REDACTION_PATH);
+      }
       continue;
     }
+    const childPath = `${path}/${childKey}`;
     result[childKey] = sanitize(child, childPath, redactedPaths, childKey);
   }
   return result;
@@ -406,21 +397,22 @@ function sanitize(
 /**
  * Recursively removes PII and secret-like values without retaining the input
  * value in an error or diagnostic object. Only closed scalars can survive an
- * untrusted public Command input; opaque identifier hashes require the
- * internal trust marker produced by the Adapter mapping factory.
+ * untrusted public Command input; raw identifiers and caller-declared hashes
+ * are omitted, including after JSON serialization.
  */
 export function sanitizeProviderResult(value: CanonicalJson): SanitizedProviderResult {
   const redactedPaths: string[] = [];
+  const rootPath = '/providerResult';
+  if (isRedactedValue(value)) {
+    return { value: REDACTED_VALUE, redactedPaths };
+  }
   if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-    if (trustedAdapterResults.has(value)) {
-      return { value, redactedPaths };
-    }
     return {
-      value: sanitize(value, '', redactedPaths),
+      value: sanitize(value, rootPath, redactedPaths),
       redactedPaths,
     };
   }
-  return { value: redacted('', redactedPaths), redactedPaths };
+  return { value: redacted(rootPath, redactedPaths), redactedPaths };
 }
 
 export function providerResultContainsSensitiveData(value: CanonicalJson): boolean {

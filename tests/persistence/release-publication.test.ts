@@ -985,7 +985,7 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
             scope: scope(),
             contentHash: hash(0x86),
           }),
-          JSON.stringify({ messageId: 'AliceCustomer', status: 'CustomerName' }),
+          JSON.stringify({ messageIdHash: 'a'.repeat(64), status: 'DELIVERED' }),
           Buffer.from(hash(0x87).digest, 'hex'),
           Buffer.from(hash(0x88).digest, 'hex'),
           new Date().toISOString(),
