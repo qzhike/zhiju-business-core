@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / IM-04 WI-08 V4004 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-08 PERSISTENCE VERIFIED 2026-08-29 / IM-05 WI-02 V5002 IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-30 / IM-05 WI-02 GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED 2026-08-30 / ISSUE #122 CLOSED 2026-08-30 / LOCAL AND REMOTE FEATURE BRANCHES DELETED / IM-05 WI-07 V6002 IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-31 / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT DATA MODEL BASELINE / IM-02 TECHNICAL TABLES LANDED / IM-03 WI-01–WI-12 IMPLEMENTATION VERIFIED / IM-04 WI-05 V4003 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / IM-04 WI-08 V4004 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-08 PERSISTENCE VERIFIED 2026-08-29 / IM-05 WI-02 V5002 IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-30 / IM-05 WI-02 GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED 2026-08-30 / ISSUE #122 CLOSED 2026-08-30 / LOCAL AND REMOTE FEATURE BRANCHES DELETED / IM-05 WI-07 V6002 IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-31 / PR #138 MERGED / ISSUE #127 CLOSED / IM-05 WI-08 SYNTHETIC EXIT REVIEW IN PROGRESS / NO NEW MIGRATION / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #57–#68 CLOSED / ISSUE #56 EXIT GATE PENDING / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：PostgreSQL Schema 所有权、逻辑表、关系/JSONB/对象存储、事务技术表、RLS、并发约束和 Projection 的唯一权威。本文不重新定义 Domain 或 Contract 语义。
 
@@ -1232,6 +1232,12 @@ Publication Attempt 提交后才能调用外部 Adapter；timeout 只能落为 `
 Completion 由事实表按 Destination 独立计算：成功 Receipt 永不因其他目标失败而删除；FAILED/UNKNOWN 可独立重试；全部 purpose-specific required receipt 成功才转 `RELEASED`，部分成功保持 `PARTIALLY_RELEASED`，全失败转 `FAILED`。Recall 只追加 affected destinations、reason、actions、impact 和外部事实，不删除历史，不自动建立替代 Release 或 EffectiveBinding。V6002 的空库迁移、二次 no-op、RLS/ACL、并发/幂等、late receipt、PII、ordinary-send provenance、append-only 与 rollback 已在本切片验证；真实 Provider、生产、公开 HTTP、跨模块业务 E2E 和独立人工验收保持 `NOT RUN`。
 
 2026-08-31 物理实现与验证结果：精确 `pnpm verify` 的 PostgreSQL Persistence Gate 使用 PostgreSQL 18.6（`server_version=180006`）/Flyway 11.20.3，通过 V6002 空库迁移、34 个文件/314 个测试、二次 `No migration necessary`、tag→digest、容器清理以及 RLS/ACL、append-only、CAS、跨 Scope、rollback 和 Observation hash readback。WI-07 Handler readback 为 3 个 Attempt、6 条 Observation、2 个 Formal Receipt、1 个 Failure、1 个 Recall 和 1 个 ImpactReview，所有 Observation 均由 canonical payload 逐条重算为相等的 32-byte SHA-256。该证据属于 disposable PostgreSQL 技术范围；真实 Provider、公开 HTTP、跨模块业务 E2E、生产和独立人工验收仍为 `NOT RUN`。
+
+### 13.12 IM-05 WI-08 合成退出复核的持久化边界
+
+WI-08 不新增 PostgreSQL Schema、业务表或 Migration。QMS 复核复用已应用的 `V5000`–`V5004`，Renderer/Representation 复用 `V4004` 与 `V7001`，Release/Package/Attempt/Receipt/Recall 复用 `V6000`–`V6002`；报告模式只通过公开 Application/Query Port 读取或调用这些已经验证的事实，不以直接 SQL 变更跨模块 fixture。
+
+本 WI 的 Persistence `PASS` 仅表示既有 owning Schema 在 disposable PostgreSQL 中的空库迁移、二次 no-op、RLS/ACL、CAS、immutable/append-only、canonical hash 和 rollback 证据可以被父级复核引用。Quality、Artifact、IntegrationGateway 和 ReleasePublication 在同一跨 Schema 业务事务中的统一编排器不属于当前实现，因此统一跨 Aggregate E2E、生产数据库、真实 Provider 和独立人工 Reference Project 继续为 `NOT RUN`。
 
 ---
 

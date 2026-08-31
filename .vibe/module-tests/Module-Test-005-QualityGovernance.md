@@ -1,8 +1,8 @@
 # Module-Test-005-QualityGovernance
 
-版本：v0.8
-日期：2026-08-30
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 UNIT AND PERSISTENCE PASS / IM-05 WI-02 IMPLEMENTATION COMPLETE / IM-05 WI-03 IMPLEMENTATION COMPLETE / IM-05 WI-04 IMPLEMENTATION AND GITHUB DELIVERY COMPLETE 2026-08-30 / FOCUSED, FULL AND FORMAL PERSISTENCE VERIFICATION PASS / PR #133 MERGED / ISSUE #124 CLOSED / CROSS-MODULE E2E AND MANUAL NOT RUN`
+版本：v0.9
+日期：2026-08-31
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01–WI-04 IMPLEMENTATION AND GITHUB DELIVERY COMPLETE / ISSUE #121–#124 CLOSED / IM-05 WI-08 SYNTHETIC QMS EXIT REVIEW IN PROGRESS / QMS COMPONENT UNIT-CONTRACT-PERSISTENCE EVIDENCE PASS / UNIFIED CROSS-MODULE E2E AND INDEPENDENT MANUAL BUSINESS ACCEPTANCE NOT RUN`
 
 对应规格：[`Module-Spec-005-QualityGovernance.md`](../module-specs/Module-Spec-005-QualityGovernance.md)。
 
@@ -194,3 +194,13 @@ WI-03 本地验证结果（2026-08-30）：`quality-gate-validation.test.ts` 为
 - 本地测试数据均为 synthetic technical fixtures；Provider、公开 HTTP、跨模块业务 E2E、生产数据库、真实客户 QMS 和独立人工验收保持 `NOT RUN`。`QG-WI02-U-004`、`QG-WI02-U-006`、`QG-WI02-U-009` 与 `QG-WI02-PG-005` 的未单独覆盖分支已在表格中标记 `PARTIAL`/`NOT RUN`，不将实现存在推断为运行证据。
 
 WI-02 非目标：GateResult evaluation、ReviewIssue、Human Approval decision、Renderer、ReleasePackage、Provider、公开 HTTP、生产、真实客户 QMS 和独立人工业务验收均保持 `NOT RUN`。
+
+## IM-05 WI-08 合成 QMS 退出复核用例
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| QG-WI08-U-001 | Unit/Contract | Evidence/Profile/Gate/Issue/Approval/RAS/ABS/RRS 的 exact Typed Reference、Scope、Hash 和状态边界 | 只接受精确 ref；`latest/current`、caller hash、跨 Scope 和阶段混用 fail-closed | 既有 Quality validation 与 Contract suite 已通过；公开 Query Port 只暴露 exact handler；报告模式不改变业务输入 | `PASS — LOCAL CONTRACT/VALIDATION` |
+| QG-WI08-P-001 | Persistence | V5002–V5004 事实历史、作者自验、独立验证、Approval/ABS、revocation/stale、RLS/ACL、CAS、append-only 和 rollback | 历史追加保留；错误 Scope/直接 DML/immutable UPDATE/DELETE/技术故障拒绝并整体回滚 | `pnpm verify` 的 PostgreSQL Gate 为 34 files/314 tests；Quality 业务场景与 WI-04 主流程通过；容器和二次迁移清理通过 | `PASS — DISPOSABLE POSTGRESQL` |
+| QG-WI08-E-001 | E2E | `REV-002 / FAIL` → Blocking ReviewIssue → Resolution → 作者自验拒绝 → 独立 Human Verification → `REV-003` exact RAS → 两个 Human Approval → ABS → revocation/stale replay | 新旧 Revision/Issue/Gate/Verification/Approval/ABS 均可按 exact ref 重放；撤销只追加 stale/impact | WI-04 PostgreSQL 主流程覆盖 ReviewIssue、独立验证、Approval/ABS、重复 Human、revocation/stale 和历史 readback；本 WI 增加报告输出，不把各模块测试误报为统一跨模块业务 E2E | `PASS — QMS COMPONENT EVIDENCE / CROSS-MODULE ORCHESTRATION NOT RUN` |
+| QG-WI08-E-002 | E2E | Quality RAS/ABS 经公开 Port 交给 Renderer/Release，并在同一业务流程中完成 | 只消费 exact ref；任一上游失效在副作用前拒绝 | 当前没有统一跨模块业务 orchestrator；Artifact/Renderer/Release 以各自公开 Port/受控 fixture 独立验证 | `NOT RUN — UNIFIED CROSS-MODULE E2E` |
+| QG-WI08-M-001 | Manual | Reviewer-readable QMS/REL-801 report with exact refs, hashes, expected/actual and cleanup | 审核者可重放历史并清楚区分技术 PASS 与未运行边界 | [`Synthetic-QMS-REL-801-Exit-Report.md`](../codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)；独立业务/客户验收不在本地执行 | `PARTIAL — REPORT READY / INDEPENDENT BUSINESS ACCEPTANCE NOT RUN` |

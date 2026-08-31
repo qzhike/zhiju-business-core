@@ -1,8 +1,8 @@
 # Module-Test-006-ReleasePublication
 
-版本：v1.5
+版本：v1.6
 日期：2026-08-31
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA TESTS PASSING 2026-08-18 (#5) / RUNTIME RECEIPT VALIDATOR UNIT+E2E PASSING 2026-08-21 (#15) / IM-05 WI-06 PERSISTENCE AND LOCAL GATE VERIFIED 2026-08-31 / IM-05 WI-07 IMPLEMENTATION AND LOCAL PERSISTENCE VERIFIED 2026-08-31 / TERMINAL-HISTORY GUARD REGRESSION ADDED / OBSERVATION HASH READBACK REGRESSION ADDED / OBSERVATION HASH AND REFERENCE PATH INVARIANT CORRECTED / PERSISTENCE FACT COUNT ASSERTION RECONCILED / EXISTING ARTIFACT EXPIRY PROBE WINDOW STABILIZED / DISPATCH EXACT-REFERENCE GUARD REGRESSION VERIFIED / USER REVIEW BEFORE GIT DELIVERY / #22–#24 INDEPENDENT ISSUE EVIDENCE REQUIRED`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA TESTS PASSING 2026-08-18 (#5) / RUNTIME RECEIPT VALIDATOR UNIT+E2E PASSING 2026-08-21 (#15) / IM-05 WI-06 PERSISTENCE AND GITHUB DELIVERY COMPLETE / IM-05 WI-07 IMPLEMENTATION, PERSISTENCE AND GITHUB DELIVERY COMPLETE 2026-08-31 / PR #138 MERGED / ISSUE #127 CLOSED / TERMINAL-HISTORY GUARD REGRESSION ADDED / OBSERVATION HASH READBACK REGRESSION ADDED / DISPATCH EXACT-REFERENCE GUARD REGRESSION VERIFIED / IM-05 WI-08 SYNTHETIC REL-801 EXIT REVIEW IN PROGRESS / UNIFIED CROSS-MODULE E2E NOT RUN / USER REVIEW BEFORE WI-08 GIT DELIVERY / #22–#24 INDEPENDENT ISSUE EVIDENCE REQUIRED`
 
 对应规格：[`Module-Spec-006-ReleasePublication.md`](../module-specs/Module-Spec-006-ReleasePublication.md)。
 
@@ -88,3 +88,13 @@ WI-07 的最小可交付验证顺序为：先执行 Contract/Unit 的 Human-only
 自动化 `PASS` 只表示对应本地实现、合成输入或 disposable PostgreSQL 事实已通过；Controlled Fake/Adapter E2E 不等价于真实 Provider。真实 Feishu/email/object storage、生产凭据、公开 HTTP、跨模块业务 E2E、外部收件人确认、部署后验证和独立人工业务验收必须单独标记 `NOT RUN`，除非有直接证据。#22、#23、#24 的 Issue 状态和独立验收证据继续独立维护，不因本切片的局部实现静默升级或关闭。
 
 每次测试完成后删除临时脚本、测试文件、容器和合成外部对象；既有 Artifact direct-Context expiry probe 以 500ms 建立窗口配合 800ms sleep，确保验证的是“已建立 Context 后过期”而不是数据库往返竞态；该稳定性校正不改变生产语义。最终接受证据写入 GitHub Issue/PR，不新增重复的 `.vibe` acceptance/delivery log。代码和文档完成后先由用户检查，获得确认后才进入 Git commit 边界。
+
+## IM-05 WI-08 合成 REL-801 退出复核用例
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| RP-WI08-U-001 | Unit/Contract | Release、frozen Package、RRS、Human ActorSnapshot、AuthorizationDecision、Attempt、Raw/Formal Receipt 的 exact ref/scope/purpose/hash | 只接受完整 authority/provenance 链；Agent、stale、wrong scope/hash、ordinary send 和 PII fail-closed | WI-07 validator、providerResult sanitizer、package hash 和 receipt validator focused tests 已通过；#22/#23/#24 独立 Issue 仍不被静默关闭 | `PASS — LOCAL TECHNICAL / DEPENDENCIES INDEPENDENT` |
+| RP-WI08-P-001 | Persistence | V6001/V6002 空库、二次 no-op、Release/Package/Attempt/Observation/Receipt/Failure/Recall Handler、RLS/ACL、CAS、append-only、rollback | exact facts/history 可读回；非法直接 DML、跨 Scope、错误 hash、终态 mutation 和技术故障拒绝 | `pnpm verify` Persistence Gate 为 34 files/314 tests；3 Attempts、6 Observations、2 Formal Receipts、1 Failure、1 Recall、1 ImpactReview readback 通过 | `PASS — DISPOSABLE POSTGRESQL` |
+| RP-WI08-E-001 | E2E | `REL-801-late-receipt-timeline.json`：A 早到成功、B 90 秒迟到、duplicate replay；另有 WI-07 Handler 的 failure→retry→final→Recall | A Receipt 保留；B 返回 `RELEASE_RECEIPT_STALE`；duplicate 返回 `RELEASE_RECEIPT_ALREADY_RECORDED`；partial/final/Recall history 保留 | Runtime fixture 7 tests 与 PostgreSQL Handler 主流程均通过；fixed refs、hashes、timestamps、expected outcomes 见报告 | `PASS — SYNTHETIC/TECHNICAL ONLY` |
+| RP-WI08-E-002 | E2E | Quality RAS/ABS、Artifact Representation 和 Release Package 在同一跨模块业务编排中执行 | 所有 downstream 输入由公开 Port exact readback；上游失效在副作用前拒绝 | 当前仅有分模块公开 Port/受控 Runtime/PG 证据，没有统一跨模块业务 orchestrator | `NOT RUN — UNIFIED CROSS-MODULE E2E` |
+| RP-WI08-M-001 | Manual | 包含 DOCX/XLSX checksum、Representation binding、Package/Attempt/Receipt/Recall exact refs 的复核报告 | 可审阅合成技术事实并看到 fidelity/Provider/业务人工边界 | [`Synthetic-QMS-REL-801-Exit-Report.md`](../codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)；PR #135 的 Word/Excel openability 结果可引用；本地不保留生成文件 | `PARTIAL — TECHNICAL REPORT / INDEPENDENT BUSINESS ACCEPTANCE NOT RUN` |

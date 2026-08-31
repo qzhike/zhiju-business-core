@@ -779,7 +779,8 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
       '8',
     );
     const failureResult = await handleRecordPublicationFailure(db, currentContext, failureEnvelope);
-    expect(committed(failureResult).aggregateVersion).toBe(9);
+    const failureRecord = committed(failureResult);
+    expect(failureRecord.aggregateVersion).toBe(9);
 
     const retryB = attemptDefinition(DESTINATION_B, 2, newUuidV7(), 0x77);
     const retryBEnvelope = envelope(
@@ -925,8 +926,9 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
       '12',
     );
     const completeResult = await handleCompleteRelease(db, currentContext, completeEnvelope);
-    expect(committed(completeResult).status).toBe('RELEASED');
-    expect(committed(completeResult).aggregateVersion).toBe(13);
+    const completedRelease = committed(completeResult);
+    expect(completedRelease.status).toBe('RELEASED');
+    expect(completedRelease.aggregateVersion).toBe(13);
 
     decisionCommandType = 'release.recall_release';
     decisionPurpose = 'release.publication.recall_release';
@@ -975,6 +977,9 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
       'FAILED',
       'SUCCEEDED',
     ]);
+    const failedAttempt = attemptsPage.items.find((item) => item.outcome === 'FAILED');
+    if (failedAttempt?.failureRef === undefined) throw new Error('Failure ref was not read back');
+    const failureRef = failedAttempt.failureRef;
     const receiptsPage = await handleGetReleaseReceipts(db, currentContext, {
       releaseRef: preparedRelease.releaseRef,
       packageRef,
@@ -1086,5 +1091,47 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
     ).rejects.toMatchObject({ code: '55000' });
     await admin.query('ROLLBACK');
     expect(immutableAttempt.rows[0]?.stable_idempotency_key).toBe(`wi07-${DESTINATION_A}`);
+
+    // Emit only synthetic references, hashes, and outcomes for the WI-08 report.
+    if (process.env.ZJU_IM05_WI08_REPORT === '1') {
+      process.stdout.write(
+        `[wi-08-release-report] ${JSON.stringify(
+          {
+            fixtureId: 'REL-801',
+            scope: scope(),
+            releaseRef: preparedRelease.releaseRef,
+            packageRef,
+            packagePayloadHash: packageView.packagePayloadHash,
+            readinessRef,
+            actorSnapshotRef,
+            authorizationDecisionRef,
+            authorizationRef,
+            attempts: [
+              attemptRefFor(attemptAEnvelope),
+              attemptRefFor(attemptBEnvelope),
+              attemptRefFor(retryBEnvelope),
+            ],
+            rawReceiptRefs: [rawReceiptRefA, rawReceiptRefB],
+            receiptRefs: [receiptARef, receiptBRef],
+            failureRef,
+            completion: {
+              status: completedRelease.status,
+              aggregateVersion: completedRelease.aggregateVersion,
+            },
+            recallRef: recalledPayload.recallRef,
+            outcomes: {
+              afterReceiptA: 'PARTIALLY_RELEASED',
+              afterReceiptB: 'RELEASED',
+              afterCompletion: 'RELEASED',
+              afterRecall: recalledPayload.status,
+            },
+            factCounts: factCounts.rows[0],
+            observationHashReadback: 'PASS',
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    }
   });
 });

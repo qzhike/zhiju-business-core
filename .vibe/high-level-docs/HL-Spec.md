@@ -1,8 +1,8 @@
 # Zhiju Business Core 基准规格与 Agent 入口
 
 版本：v0.1
-日期：2026-08-30
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01–WI-09 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / IM-05 WI-01 LOCAL IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-30 / IM-05 WI-04 IMPLEMENTATION AND GIT DELIVERY COMPLETE 2026-08-30 / ISSUE #124 CLOSED 2026-08-30 / IM-05 WI-05 IMPLEMENTATION, PERSISTENCE, OFFICE OPENABILITY AND GIT DELIVERY COMPLETE 2026-08-30 / PR #135 MERGED / ISSUE #125 CLOSED / IM-05 WI-06 IMPLEMENTATION AND LOCAL PERSISTENCE VERIFIED 2026-08-31 / IM-05 WI-07 IMPLEMENTATION, CLEAN BUILD AND LOCAL PERSISTENCE VERIFIED 2026-08-31 / USER REVIEW BEFORE GIT DELIVERY / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN / GITHUB PR #133 MERGED / AUTHORITY DOCS SYNCED`
+日期：2026-08-31
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01–WI-09 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / IM-05 WI-01–WI-06 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #121–#126 CLOSED / IM-05 WI-07 IMPLEMENTATION, CLEAN BUILD, LOCAL/PERSISTENCE AND GITHUB DELIVERY COMPLETE 2026-08-31 / PR #138 MERGED / ISSUE #127 CLOSED / IM-05 WI-08 SYNTHETIC QMS/REL-801 EXIT REVIEW IN PROGRESS 2026-08-31 / PARENT #120 OPEN / #22–#24 OPEN / USER REVIEW BEFORE WI-08 GIT DELIVERY / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN / AUTHORITY DOCS SYNCED`
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -507,7 +507,17 @@ WI-03 本地验证结果（2026-08-30）：正式 `pnpm persistence:gate` 在 pi
 - Persistence Gate 中既有 Artifact direct-Context expiry probe 使用 500ms 建立窗口、建立后等待 800ms 再验证过期语义；该测试稳定性校正不改变生产 Context expiry contract 或 WI-07 行为。
 - REL-801 手工输出必须覆盖双 Destination 的有效 Human Authorization、一成功、一 timeout/failed、partial、reconciliation/retry、Formal Receipt、最终完成或保留 partial、ordinary-send negative、PII negative、stale approval negative、Recall、exact refs/hashes/timestamps 与 cleanup。真实 Provider、生产、公开 HTTP、外部收件人确认和独立人工业务验收保持 `NOT RUN`。
 
-2026-08-31 本地实现与验证结果：`pnpm clean` 已通过，随后精确执行 `pnpm verify` 全部通过，包括 Format、Lint、Typecheck、普通 Vitest（42 个文件通过、30 个受控跳过；432 passed、299 skipped）、Architecture（`source_roots=10`）、Public API/Catalog（201 operations、201 registry、全部 `FULL`）、compatibility baseline（v1.0 为 200 operations）以及 PostgreSQL Persistence Gate（34 个文件、314 个测试）。Persistence 使用 PostgreSQL 18.6（`server_version=180006`）/Flyway 11.20.3，V6002 空库迁移、二次 `No migration necessary`、Observation canonical hash readback、RLS/ACL、CAS/append-only、rollback 和容器清理均通过。ReleasePublication focused suite 为 6 个文件、33 个测试通过。上述证据属于本地、合成和 disposable PostgreSQL 技术边界；真实 Provider、公开 HTTP、跨模块业务 E2E、生产数据库、外部收件人和独立人工业务验收仍为 `NOT RUN`。本工作树尚未 commit、push 或创建/关闭 PR/Issue，等待用户检查。
+2026-08-31 WI-07 GitHub 交付已完成：实现 head `4c98f4e13aec9498802d2f914beeaced3d02330b` 通过 GitHub Actions `verify` run `33348710524`，PR #138 以 merge commit `c69f446a610b4fff18850f0450a0b5f4e1fd3ccf` 合入 `main`，Issue #127 已关闭，目标 feature branch 已从远端消失。WI-08 在当前 `origin/main` 上只新增合成退出复核材料与报告输出边界，不新增公共 Contract 或 Migration；父 Issue #120 不因本 WI 自动关闭。
+
+### 2.19 IM-05 WI-08 合成 QMS/REL-801 退出证据与父级复核（Issue #128）
+
+- WI-08 只组合已经交付的 QualityGovernance、Artifact、IntegrationGateway 和 ReleasePublication 公开 Application/Query Port 证据；不跨模块导入 Repository、不直接 SQL 改写业务 fixture、不解析 `latest`/`current`，也不信任调用方声明的 hash。新增的报告模式只能输出合成 UUID、opaque locator、Hash、checksum、稳定错误码、计数和清理结果，不输出 Secret、凭据、Presigned URL、PII 或原始 Provider payload。
+- QMS 证据链必须明确区分 `REV-002 / FAIL`、Blocking ReviewIssue、Resolution Proposal、作者自验拒绝、独立 Human Verification、`REV-003` exact Revision、RAS、Approval 和 ABS。撤销只追加 stale ABS/impact，旧 Gate/Issue/Approval/RAS/ABS 保留并可按 exact ref 重放；当前受控测试不把一次跨模块编排器假设成已经存在。
+- Renderer/Representation 证据使用既有 Canonical Document/Workbook golden fixture、确定性 DOCX/XLSX Renderer、`integration.get_render_attempt_binding@1.0` 和 `artifact.register_representation@1.0` 公共边界。输出 checksum、Renderer version、Attempt/Raw Receipt/Representation 绑定可以由本地/CI 复核；真实部署对象存储、真实 Provider、生产文件和独立客户版式验收继续为 `NOT RUN`。
+- Release 证据使用既有 `REL-801-late-receipt-timeline` 及 WI-07 PostgreSQL Handler 场景，覆盖 frozen Package、RRS、可信 Human Authorization、双 Destination、Attempt/Observation、Raw→Formal Receipt、FAILED/UNKNOWN、partial/final、retry 和 Recall。迟到回执 fixture 的固定 package/receipt/attempt refs 与错误码只能证明受控 Runtime 技术事实，不能升级为真实 Feishu/email/外部收件人交付。
+- WI-08 的完整报告与实际命令、head、环境、期望/实际输出、清理和剩余风险见 [`Synthetic-QMS-REL-801-Exit-Report.md`](../codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)。父级推荐必须单独判断：#120 保持 OPEN，#22/#23/#24 的独立 Issue 证据不能由本报告代替。
+
+WI-08 当前阶段是 `SYNTHETIC / TECHNICAL ONLY / USER REVIEW BEFORE GIT DELIVERY`。本地和 disposable PostgreSQL 技术 Gate 可以标记 `PASS`；统一 QMS→Renderer→Release 的跨模块业务 E2E、公开 HTTP、Workspace UI、生产、真实外部 Provider、外部收件人确认和独立人工业务验收必须标记 `NOT RUN`，除非另有直接证据。
 
 建议的下一阶段：
 
