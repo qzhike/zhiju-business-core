@@ -418,6 +418,7 @@ describe.skipIf(!gateEnabled)('QualityGovernance WI-04 business persistence', ()
     profile: ProfileFixture,
     revisionRef: Common.ContentAddressedRef,
     evaluatedAt: string,
+    outcome: QualityGovernance.GateOutcome = 'PASS',
   ): Promise<GateFixture> {
     const gateResultId = newUuidV7();
     const submission: QualityGovernance.GateResultSubmission = {
@@ -431,8 +432,8 @@ describe.skipIf(!gateEnabled)('QualityGovernance WI-04 business persistence', ()
       evaluatedScope: { enterpriseId: ENTERPRISE, projectId: PROJECT },
       inputSnapshotRef: snapshotRef('quality.gate_input', 0x20),
       evaluator: { evaluatorId: 'synthetic_gate', evaluatorVersion: '1.0.0' },
-      outcome: 'PASS',
-      findings: [],
+      outcome,
+      findings: outcome === 'PASS' ? [] : [{ code: 'SYNTHETIC_REVISION_DEFECT' }],
       evidenceRefs: [],
       startedAt: evaluatedAt,
       completedAt: evaluatedAt,
@@ -536,7 +537,13 @@ describe.skipIf(!gateEnabled)('QualityGovernance WI-04 business persistence', ()
       REMEDIATED_REVISION_ID,
       0x42,
     );
-    const originGate = await recordGate(raiser, profile, originRevisionRef, '2026-08-30T00:11:00Z');
+    const originGate = await recordGate(
+      raiser,
+      profile,
+      originRevisionRef,
+      '2026-08-30T00:11:00Z',
+      'FAIL',
+    );
     const remediatedGate = await recordGate(
       raiser,
       profile,
@@ -962,6 +969,52 @@ describe.skipIf(!gateEnabled)('QualityGovernance WI-04 business persistence', ()
       'quality.RevisionFullyApproved',
     );
     expect(firstApprovalRef.objectId).not.toBe(secondApprovalRef.objectId);
+
+    // Emit only synthetic references and stable outcomes for the WI-08 report.
+    if (process.env.ZJU_IM05_WI08_REPORT === '1') {
+      process.stdout.write(
+        `[wi-08-qms-report] ${JSON.stringify(
+          {
+            fixtureId: 'QMS-REL-801',
+            scope: { enterpriseId: ENTERPRISE, projectId: PROJECT },
+            revisions: {
+              origin: originRevisionRef,
+              remediated: remediatedRevisionRef,
+            },
+            gateResults: {
+              origin: { ref: originGate.gateResultRef, outcome: 'FAIL' },
+              remediated: { ref: remediatedGate.gateResultRef, outcome: 'PASS' },
+            },
+            readiness: { ref: remediatedReadiness.snapshotRef, status: 'READY' },
+            reviewIssue: {
+              ref: issueRef,
+              resolutionRef,
+              verificationRef,
+              status: close.status,
+            },
+            approval: {
+              requestRef,
+              approvalRefs: [firstApprovalRef, secondApprovalRef],
+              bundleRefs: {
+                partial: firstBundleRef,
+                full: fullBundleRef,
+                stale: staleBundleRef,
+              },
+              revokedApprovalRef: secondApprovalRef,
+            },
+            replay: {
+              originalFailurePreserved: true,
+              issueHistoryPreserved: true,
+              staleBundlePreserved: true,
+              targetApprovalCount: targetApprovals.length,
+              targetBundleCount: targetBundles.length,
+            },
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    }
   }, 15000);
 
   it('rolls back ReviewIssue business facts and the command receipt after a post-write fault', async () => {

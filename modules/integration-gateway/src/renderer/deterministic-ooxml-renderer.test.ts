@@ -47,6 +47,26 @@ describe('IM-05 WI-05 deterministic OOXML renderer', () => {
     expect(second.checksum).toEqual(first.checksum);
     expect(first.bytes.subarray(0, 2).toString('ascii')).toBe('PK');
     expect(first.bytes.includes(Buffer.from(marker, 'utf8'))).toBe(true);
+
+    // Emit deterministic synthetic renderer evidence only when explicitly requested.
+    if (process.env.ZJU_IM05_WI08_REPORT === '1') {
+      process.stdout.write(
+        `[wi-08-renderer-report] ${JSON.stringify(
+          {
+            fixtureId: `canonical-content/${name}-golden`,
+            inputHash: hash(payload),
+            outputFormat: profile.outputFormat,
+            rendererId: profile.rendererId,
+            rendererVersion: profile.rendererVersion,
+            mediaType: profile.mediaType,
+            byteLength: first.bytes.length,
+            outputChecksum: first.checksum,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    }
   });
 
   it('rejects content/profile and declared hash substitutions', () => {

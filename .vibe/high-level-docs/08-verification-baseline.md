@@ -1,8 +1,8 @@
 # Zhiju Business Core 验证基准
 
 版本：v0.1
-日期：2026-08-17
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01 CONTRACT VERIFIED 2026-08-28 / IM-04 WI-01 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-01 GIT DELIVERY VERIFIED PR #100 MERGED 2026-08-28 / ISSUE #90 CLOSED 2026-08-28 / WI-01 FEATURE BRANCH DELETED / IM-04 WI-02 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-02 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY VERIFIED PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / WI-02 FEATURE BRANCH RETAINED / IM-04 WI-04 IMPLEMENTATION VERIFIED 2026-08-28 / IM-04 WI-04 PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-04 GIT DELIVERY VERIFIED PR #106 MERGED 2026-08-28 / ISSUE #93 CLOSED 2026-08-28 / WI-04 FEATURE BRANCH DELETED / IM-04 WI-05 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-05 PERSISTENCE VERIFIED 2026-08-29 / IM-04 WI-05 GIT DELIVERY COMPLETE PR #110 MERGED 2026-08-29 / ISSUE #94 CLOSED 2026-08-29 / WI-05 FEATURE BRANCH DELETED / IM-04 WI-08 IMPLEMENTATION VERIFIED 2026-08-29 / IM-04 WI-08 PERSISTENCE VERIFIED 2026-08-29 / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / IM-UI-01 DESIGN VERIFIED / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+日期：2026-08-31
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01–WI-09 GIT DELIVERY VERIFIED / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-05 WI-01–WI-06 GIT DELIVERY VERIFIED / ISSUE #121–#126 CLOSED / IM-05 WI-07 GITHUB DELIVERY VERIFIED PR #138 / ISSUE #127 CLOSED / IM-05 WI-08 SYNTHETIC QMS/REL-801 EXIT REVIEW SUBMITTED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 PENDING MERGE / PARENT #120 OPEN / #22–#24 OPEN / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -492,3 +492,17 @@ Issue #127 的验证必须沿 Release → frozen Package → latest RAS/ABS/RRS 
 REL-801 双 Destination 合成时间线是手工复核材料：必须能核对 exact refs、hashes、authorizing Human、时间戳、一次成功、一次 timeout/failed、partial、reconciliation/retry、Formal Receipt、最终完成或保留 partial、ordinary-send/PII/stale negatives、Recall 和 cleanup。Controlled Fake/Adapter 只可记为本地技术或受控 E2E `PASS`，不等价于真实 Provider；真实 Feishu/email、生产凭据、公开 HTTP、跨模块业务 E2E、外部收件人确认、部署和独立人工业务验收继续为 `NOT RUN`。#22/#23/#24 的独立证据和 Issue 状态不在本切片中静默替代或关闭。
 
 2026-08-31 验证结果：精确执行 `pnpm verify` 全部通过，普通 Vitest 为 42 个文件通过、30 个受控跳过（432 passed、299 skipped），Architecture 为 `source_roots=10`，Public API/Catalog 为 201 operations 且全部 `FULL`，compatibility baseline v1.0 为 200 operations；PostgreSQL/Flyway Persistence Gate 为 34 个文件、314 个测试，V6002、二次 no-op、tag→digest、RLS/ACL、CAS、append-only、Observation hash readback、rollback、跨 Scope 和容器清理均通过。ReleasePublication focused suite 为 6 个文件、33 个测试通过。该结果只覆盖本地、合成和 disposable PostgreSQL 技术边界；真实 Provider、公开 HTTP、生产数据库、跨模块业务 E2E、外部收件人和独立人工验收保持 `NOT RUN`。
+
+2026-08-31 exact-head GitHub 验证：提交 head `290d28758d04d6be225d8587e8314ed2f46830de` 已推送到 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139)；GitHub Actions `verify` run `33355081899` 的第二次执行通过。PR #139 合并前 Issue #128 保持 OPEN；本地/CI 技术 PASS 仍不代表统一跨模块业务 E2E、Provider、生产或独立人工验收。
+
+## 19. IM-05 WI-08 合成 QMS/REL-801 退出复核
+
+WI-08 的验收对象是“证据是否可以沿精确引用重建”和“父级是否应当关闭”的复核材料，而不是新增业务 Owner。复核报告必须把 QualityGovernance 的 Evidence/Profile/Gate/ReviewIssue/Approval/RAS/ABS/RRS、Artifact 的 Revision/Representation、IntegrationGateway 的 RenderAttempt/Raw Receipt、ReleasePublication 的 Release/Package/Attempt/Receipt/Failure/Recall 分成可追踪的事实段，并为每段记录输入、预期、实际、直接测试证据和边界。
+
+当前可复用的直接证据包括：
+
+- QualityGovernance：`quality-business-validation.test.ts`、`quality-gate-validation.test.ts`、`quality-review-approval-validation.test.ts` 以及三组真实 PostgreSQL Persistence 场景；WI-08 额外要求 ReviewIssue 主流程明确产生 `REV-002 / FAIL`，再由 `REV-003` 的独立验证形成 RAS/Approval/ABS 历史。
+- Renderer/Representation：Canonical Document/Workbook golden fixture、确定性 DOCX/XLSX Renderer、V7001 RenderAttempt/Raw Receipt、Artifact Binding Query/Representation 测试，以及 PR #135 已记录的本地 Word/Excel openability 结果。Renderer 成功不能推导 Quality PASS、Approval、Release Authorization 或 Completion。
+- ReleasePublication：V6002 Handler 的完整授权/Attempt/Failure/Receipt/Completion/Recall 场景和 `tests/fixtures/runtime/rel-801-late-receipt-timeline.json` 受控时间线。后者的 `RELEASE_RECEIPT_STALE`、`RELEASE_RECEIPT_ALREADY_RECORDED`、`PARTIALLY_RELEASED` 是可重放的本地 Runtime 结果，不是外部 Provider 结果。
+
+WI-08 复核命令和实际输出见 [`Synthetic-QMS-REL-801-Exit-Report.md`](../codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)。`pnpm clean && pnpm verify`、空库/二次 no-op Migration、精确 head/CI 和文档同步可以形成技术 `PASS`；统一跨模块业务 E2E、公开 HTTP、生产、真实 Provider、外部收件人确认、Workspace UI、CLI runtime、IM-09 和独立人工客户验收必须保持 `NOT RUN`。父 Issue #120 不由 WI-08 自动关闭。

@@ -1,8 +1,8 @@
 # Module-Spec-005-QualityGovernance
 
-版本：v0.9
-日期：2026-08-30
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01 APPLICATION AND PERSISTENCE LOCALLY VERIFIED 2026-08-30 / IM-05 WI-02 IMPLEMENTATION COMPLETE / GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED 2026-08-30 / ISSUE #122 CLOSED 2026-08-30 / IM-05 WI-03 IMPLEMENTATION COMPLETE / LOCAL VERIFICATION PASS 2026-08-30 / IM-05 WI-04 IMPLEMENTATION AND GITHUB DELIVERY COMPLETE 2026-08-30 / UNIT, CONTRACT AND FORMAL PERSISTENCE VERIFICATION PASS / PR #133 MERGED / ISSUE #124 CLOSED 2026-08-30`
+版本：v1.0
+日期：2026-08-31
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01–WI-04 IMPLEMENTATION AND GITHUB DELIVERY COMPLETE / ISSUE #121–#124 CLOSED / IM-05 WI-08 SYNTHETIC QMS EXIT REVIEW SUBMITTED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 PENDING MERGE / QMS COMPONENT TECHNICAL EVIDENCE PASS / UNIFIED CROSS-MODULE E2E NOT RUN`
 
 ## 1. 模块责任
 
@@ -360,3 +360,11 @@ Issue #121 在既有 `V5000__quality_governance_technical_tables.sql` 与 owning
 WI-02 实现、验证与交付结果（2026-08-30）：`IMPLEMENTATION COMPLETE / UNIT AND PERSISTENCE LOCALLY VERIFIED / GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED / ISSUE #122 CLOSED / LOCAL AND REMOTE FEATURE BRANCHES DELETED`。`modules/quality-governance/src/business/quality-business-validation.test.ts` 为 8/8 PASS；`tests/persistence/quality-governance-business.test.ts` 纳入 pinned PostgreSQL/Flyway gate，覆盖 Evidence capture/verify/dispute/revoke/history、exact hash/query、support/context、QualityProfile activation/new version、CAS、RLS/ACL、owner immutable guard、idempotency replay 和 post-write rollback。全 persistence gate 为 30 files/298 tests PASS，V5002 空库迁移和 second-run no-op 通过并清理容器。实现 commit `f0269ddfac1d16dd3f627818606e8546254f8ef1` 已由 PR #130 合入 `main`，merge commit 为 `7f04f8acea7b32a456316801aa0b5ed75c7230a7`。存储 definition 的 activation 重校验由 Handler 实现，因数据库 immutable guard 不允许篡改存储行，专门篡改后的运行时分支保持 `NOT RUN`；Provider、公开 HTTP、跨模块 E2E、生产和独立人工业务验收保持 `NOT RUN`。
 
 WI-03 实现与本地验证结果（2026-08-30）：`modules/quality-governance/src/business/quality-gate-validation.test.ts` 为 1 file/6 tests `PASS`；`tests/persistence/quality-governance-gate-results.test.ts` 为 5/5 `PASS`。正式 `pnpm persistence:gate` 在 PostgreSQL 18.6/Flyway 11.20.3 上为 31 files/303 tests `PASS`，V5003 空库迁移、tag→digest 校验、RLS/ACL、owner append-only guard、exact reference、reused Result、RAS/RRS stale/not-ready、rollback、second migrate no-op 与容器清理均通过。全量静态/普通测试为 Format、Lint、Typecheck、Build、36 passed/27 skipped files（409 passed/288 skipped tests）、Architecture、201/201 Contract/Catalog/Compatibility `PASS`。唯一修复的运行时缺陷是 V5003 与既有 V5002 通用 trigger guard 的授权归因列命名不一致，已统一沿用 `created_authorization_decision_id`；独立场景 profile name 也已改为唯一 fixture。当前实现尚未 commit/push，需用户先检查工作树后再进入 Git 交付阶段。Provider、实际 Renderer、ReleasePublication、公开 HTTP、跨模块业务 E2E、生产和独立人工验收保持 `NOT RUN`。
+
+## 13. IM-05 WI-08 合成 QMS 退出复核边界
+
+WI-08 不新增 QualityGovernance 公共 Contract、业务表或 Migration；它冻结并复核既有 Evidence/Profile、GateResult/ChangeImpact/RAS/RRS、ReviewIssue/Resolution/Verification、Approval/ABS 的精确引用和历史语义。复核主流程必须显式使用一条合成 `REV-002 / FAIL` GateResult，随后追加 Blocking ReviewIssue、Resolution Proposal、作者自验拒绝、独立 Human Verification、`REV-003` exact Gate/RAS、Approval Request/Decision 和 ABS；新事实不得覆盖或删除 REV-002、旧 Issue、旧 Gate 或旧 Approval。
+
+所有跨模块 Revision、Representation、ReleasePackage 和 Identity 事实只通过 QualityGovernance 的公开 Authority Query Port 或已验证的 Typed Reference 进入复核。报告中的 UUID、Hash 和 Snapshot 不代表生产数据；报告模式必须无 Secret，并在输出中区分 `PASS (LOCAL)`、`PASS (PERSISTENCE)`、`PARTIAL` 和 `NOT RUN`。统一 Quality→Renderer→Release 业务编排器、公开 HTTP、真实身份/审批系统、生产数据库、Provider 和独立人工客户验收仍为 `NOT RUN`。
+
+2026-08-31 GitHub 交付状态：WI-08 报告与回归测试已随 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139) 提交；实现 head `290d28758d04d6be225d8587e8314ed2f46830de` 的 GitHub Actions `verify` run `33355081899` 第二次执行通过。PR 合并前 Issue #128 保持 OPEN，QualityGovernance 的统一跨模块编排和独立业务验收仍为 `NOT RUN`。
