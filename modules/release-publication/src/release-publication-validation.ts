@@ -5,6 +5,7 @@
 import type { Artifact, Common, QualityGovernance, ReleasePublication } from '@zhiju/contracts';
 import { canonicalize, isUuidV7, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 import { normalizePackageDefinition } from './package-hash.js';
+import type { RawExternalReceiptRepository } from './receipt-validator.js';
 import type { ReleaseTransactionContext } from './persistence/release-publication-db.js';
 
 export const RELEASE_SCOPE_INVALID = 'RELEASE_SCOPE_INVALID';
@@ -19,6 +20,10 @@ export const RELEASE_PACKAGE_HASH_MISMATCH = 'RELEASE_PACKAGE_HASH_MISMATCH';
 export const RELEASE_PACKAGE_FROZEN = 'RELEASE_PACKAGE_FROZEN';
 export const RELEASE_MULTIPLE_PACKAGE_HASHES = 'RELEASE_MULTIPLE_PACKAGE_HASHES';
 export const RELEASE_CANCEL_NOT_ALLOWED = 'RELEASE_CANCEL_NOT_ALLOWED';
+export const RELEASE_REQUIRED_RECEIPT_MISSING = 'RELEASE_REQUIRED_RECEIPT_MISSING';
+export const RELEASE_COMPLETION_CRITERIA_UNSATISFIED = 'RELEASE_COMPLETION_CRITERIA_UNSATISFIED';
+export const RELEASE_NOT_AUTHORIZED = 'RELEASE_NOT_AUTHORIZED';
+export const RELEASE_RECALL_NOT_AUTHORIZED = 'RELEASE_RECALL_NOT_AUTHORIZED';
 
 export class ReleasePublicationBusinessError extends Error {
   constructor(
@@ -46,11 +51,51 @@ export interface QualityAuthorityQueryPort {
   getApprovalBundleSnapshot(
     input: QualityGovernance.QualityGetApprovalBundleSnapshotPayload,
   ): Promise<QualityGovernance.QualityGetApprovalBundleSnapshotResult>;
+  /** WI-07 exact Release Readiness Snapshot query; absent means fail-closed. */
+  getReleaseReadinessSnapshot?(
+    input: QualityGovernance.QualityGetReleaseReadinessSnapshotPayload,
+  ): Promise<QualityGovernance.QualityGetReleaseReadinessSnapshotResult>;
+}
+
+export interface ReleaseActorSnapshotFact {
+  readonly actorSnapshotRef: Common.SnapshotRef;
+  readonly principalRef: Common.PrincipalRef;
+  readonly actingForRef?: Common.PrincipalRef;
+  readonly authenticationContextHash: Common.ContentHash;
+  readonly revokedAt?: string;
+}
+
+export interface ReleaseAuthorizationDecisionFact {
+  readonly authorizationDecisionRef: Common.ContentAddressedRef;
+  readonly actorSnapshotRef: Common.SnapshotRef;
+  readonly principalRef: Common.PrincipalRef;
+  readonly commandType: string;
+  readonly commandVersion: string;
+  readonly scope: Common.ScopeRef;
+  readonly purpose: string;
+  readonly commandPayloadHash?: Common.ContentHash;
+  readonly authenticationContextHash: Common.ContentHash;
+  readonly outcome: 'ALLOW' | 'DENY';
+  readonly expiresAt: string;
+  readonly revokedAt?: string;
+}
+
+export interface ReleaseIdentityAuthorityQueryPort {
+  getActorSnapshot(
+    actorSnapshotRef: Common.SnapshotRef,
+  ): Promise<ReleaseActorSnapshotFact | undefined>;
+  getAuthorizationDecision(
+    authorizationDecisionRef: Common.ContentAddressedRef,
+  ): Promise<ReleaseAuthorizationDecisionFact | undefined>;
 }
 
 export interface ReleaseAuthorityQueryPorts {
   readonly artifact: ArtifactAuthorityQueryPort;
   readonly quality: QualityAuthorityQueryPort;
+  /** Identity is optional in the legacy WI-06 port bundle, but required by WI-07. */
+  readonly identity?: ReleaseIdentityAuthorityQueryPort;
+  /** IntegrationGateway-owned RawExternalReceipt facts; absent means fail-closed. */
+  readonly rawExternalReceipts?: RawExternalReceiptRepository;
 }
 
 type DraftDefinition = ReleasePublication.ReleaseDraftDefinition;

@@ -1,6 +1,6 @@
-// IM-05 WI-06 (issue #126): real PostgreSQL persistence evidence for Release
-// drafts, exact authority references, frozen Package hashes, CAS/idempotency,
-// RLS/ACL, immutable history and transaction rollback.
+// IM-05 WI-06/WI-07 (issues #126/#127): real PostgreSQL persistence evidence
+// for Release drafts, publication facts, exact authority references, frozen
+// Package hashes, CAS/idempotency, RLS/ACL, immutable history and rollback.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -14,18 +14,31 @@ import type {
 import {
   buildPackageHashMaterial,
   createReleasePublicationDatabase,
+  digestCanonicalPayload,
   executeReleasePublicationCommand,
+  handleAuthorizeRelease,
+  handleCompleteRelease,
   handleCreateReleaseDraft,
   handleGetFrozenPackage,
+  handleGetPublicationAttempts,
   handleGetRelease,
+  handleGetReleaseImpact,
+  handleGetReleaseReceipts,
   handlePrepareRelease,
+  handleRecordPublicationFailure,
+  handleRecordPublicationReceipt,
+  handleRecallRelease,
   handleSelectRepresentations,
   handleSetDestinations,
+  handleStartPublicationAttempt,
+  handleValidateReleaseReadiness,
+  InMemoryRawExternalReceiptRepository,
   ReleasePublicationBusinessError,
   type CommandResult,
   type ReleaseAuthorityQueryPorts,
   type ReleaseCommandEnvelope,
   type ReleaseTransactionContext,
+  type RawExternalReceiptFact,
 } from '@zhiju/release-publication';
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 
@@ -53,6 +66,14 @@ const DESTINATION_A = '0190a1b2-c3d4-7e81-8f90-123456789112';
 const DESTINATION_B = '0190a1b2-c3d4-7e81-8f90-123456789113';
 const PROBE_ROLE = 'im05_wi06_release_probe';
 const PROBE_PASSWORD = 'im05-wi06-release-probe';
+
+function contentHashFromBytes(value: Buffer): Common.ContentHash {
+  return {
+    algorithm: 'SHA-256',
+    digest: value.toString('hex'),
+    canonicalizationVersion: '1',
+  };
+}
 
 function context(projectIds: readonly string[] = [PROJECT]): ReleaseTransactionContext {
   return {
@@ -548,5 +569,522 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
         releaseRef: objectRef('release.release', releaseId),
       }),
     ).rejects.toBeInstanceOf(ReleasePublicationBusinessError);
+  });
+
+  it('delivers WI-07 through the Handler, owner functions, RLS and append-only facts', async () => {
+    const preparedRelease = await handleGetRelease(db, currentContext, {
+      releaseRef: objectRef('release.release', releaseId),
+    });
+    if (preparedRelease.packageRef === undefined) {
+      throw new Error('WI-07 probe requires the exact frozen Package from WI-06');
+    }
+    const packageRef = preparedRelease.packageRef;
+    const packageView = await handleGetFrozenPackage(db, currentContext, { packageRef });
+    const packageDefinition = packageView.definition;
+    const readinessRef = snapshotRef('quality.release_readiness_snapshot', newUuidV7(), 0x71);
+    const actorSnapshotRef = snapshotRef('identity.actor_snapshot', ACTOR, 0x72);
+    const authorizationDecisionRef: Common.ContentAddressedRef = {
+      kind: 'CONTENT_ADDRESSED',
+      objectType: 'identity.authorization_decision',
+      objectId: DECISION,
+      scope: scope(),
+      contentHash: hash(0x51),
+    };
+    const principalRef = {
+      principalKind: 'HUMAN',
+      principalId: PRINCIPAL,
+    } as const satisfies Common.PrincipalRef;
+    const authenticationContextHash = hash(0x73);
+    const readinessSnapshot = {
+      header: { scopeRef: readinessRef.scope },
+      snapshotId: readinessRef.snapshotId,
+      releaseRef: preparedRelease.releaseRef,
+      artifactRef: preparedRelease.definition.artifactRef,
+      revisionRef: packageDefinition.canonicalRevisionRef,
+      approvalBundleSnapshotRef: packageDefinition.approvalBundleSnapshotRef,
+      releasePackageRef: packageRef,
+      purpose: preparedRelease.definition.purpose,
+      recipientScopeSnapshotRef: packageDefinition.recipientScopeSnapshotRef,
+      destinationRefs: packageDefinition.destinations.map((item) => item.destinationRef),
+      releaseRequirements: [],
+      requiredReleaseGateSpecs: [],
+      releaseGateResultRefs: [],
+      readiness: { status: 'READY_FOR_AUTHORIZATION', reasons: [] },
+      evaluatedAt: new Date(Date.now() - 1000).toISOString(),
+    } as unknown as Core.ReleaseReadinessSnapshot;
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    const basePorts = authorityPorts();
+    let decisionCommandType = 'release.authorize_release';
+    let decisionPurpose = 'release.publication.authorize_release';
+    let decisionPayloadHash = hash(0x74);
+    const ports: ReleaseAuthorityQueryPorts = {
+      ...basePorts,
+      quality: {
+        ...basePorts.quality,
+        getReleaseReadinessSnapshot: () => Promise.resolve(readinessSnapshot),
+      },
+      identity: {
+        getActorSnapshot: (ref) =>
+          Promise.resolve(
+            ref.snapshotId === actorSnapshotRef.snapshotId
+              ? {
+                  actorSnapshotRef,
+                  principalRef,
+                  authenticationContextHash,
+                }
+              : undefined,
+          ),
+        getAuthorizationDecision: (ref) =>
+          Promise.resolve(
+            ref.objectId === authorizationDecisionRef.objectId
+              ? {
+                  authorizationDecisionRef,
+                  actorSnapshotRef,
+                  principalRef,
+                  commandType: decisionCommandType,
+                  commandVersion: '1.0',
+                  scope: scope(),
+                  purpose: decisionPurpose,
+                  commandPayloadHash: decisionPayloadHash,
+                  authenticationContextHash,
+                  outcome: 'ALLOW' as const,
+                  expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+                }
+              : undefined,
+          ),
+      },
+      rawExternalReceipts: rawReceipts,
+    };
+
+    const readinessEnvelope = envelope(
+      currentContext,
+      'release.validate_release_readiness',
+      releaseId,
+      {
+        releaseReadinessSnapshotRef: readinessRef,
+        validatedPackageRef: packageRef,
+        validatedAt: new Date().toISOString(),
+      },
+      '4',
+    );
+    const readinessResult = await handleValidateReleaseReadiness(
+      db,
+      currentContext,
+      readinessEnvelope,
+      ports,
+    );
+    expect(committed(readinessResult).status).toBe('VALIDATING');
+    expect(committed(readinessResult).aggregateVersion).toBe(5);
+
+    const authorizationPayload: ReleasePublication.ReleaseAuthorizeReleasePayload = {
+      releaseReadinessSnapshotRef: readinessRef,
+      authorizingHumanRef: principalRef,
+      actorSnapshotRef,
+      authorizationDecisionRef,
+      authorizedAt: new Date().toISOString(),
+    };
+    const authorizationEnvelope = envelope(
+      currentContext,
+      'release.authorize_release',
+      releaseId,
+      authorizationPayload,
+      '5',
+    );
+    decisionCommandType = authorizationEnvelope.commandType;
+    decisionPurpose = 'release.publication.authorize_release';
+    decisionPayloadHash = contentHashFromBytes(
+      digestCanonicalPayload(authorizationEnvelope.requestPayload).hash,
+    );
+    const authorizationResult = await handleAuthorizeRelease(
+      db,
+      currentContext,
+      authorizationEnvelope,
+      ports,
+    );
+    const authorizedPayload = committed(authorizationResult);
+    expect(authorizedPayload.status).toBe('AUTHORIZED');
+    expect(authorizedPayload.aggregateVersion).toBe(6);
+    const authorizationRef =
+      authorizedPayload.authorizationRef as unknown as Common.ContentAddressedRef;
+    expect(authorizationRef.objectType).toBe('release.release_authorization');
+
+    const attemptDefinition = (
+      destinationId: string,
+      attemptNumber: number,
+      externalRequestId: string,
+      externalHashByte: number,
+    ): ReleasePublication.PublicationAttemptDefinition => ({
+      destinationId,
+      packageRef,
+      attemptNumber,
+      stableIdempotencyKey: `wi07-${destinationId}`,
+      requestedAt: new Date().toISOString(),
+      externalDeliveryRequestRef: {
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'integration.external_delivery_request',
+        objectId: externalRequestId,
+        scope: scope(),
+        contentHash: hash(externalHashByte),
+      },
+    });
+    const attemptRefFor = (attemptEnvelope: ReleaseCommandEnvelope<object>): Common.ObjectRef =>
+      objectRef('release.publication_attempt', attemptEnvelope.commandId);
+    const attemptA = attemptDefinition(DESTINATION_A, 1, newUuidV7(), 0x75);
+    const attemptAEnvelope = envelope(
+      currentContext,
+      'release.start_publication_attempt',
+      releaseId,
+      { attempt: attemptA },
+      '6',
+    );
+    const attemptAResult = await handleStartPublicationAttempt(
+      db,
+      currentContext,
+      attemptAEnvelope,
+    );
+    expect(committed(attemptAResult).status).toBe('PUBLISHING');
+    expect(committed(attemptAResult).aggregateVersion).toBe(7);
+
+    const attemptB = attemptDefinition(DESTINATION_B, 1, newUuidV7(), 0x76);
+    const attemptBEnvelope = envelope(
+      currentContext,
+      'release.start_publication_attempt',
+      releaseId,
+      { attempt: attemptB },
+      '7',
+    );
+    const attemptBResult = await handleStartPublicationAttempt(
+      db,
+      currentContext,
+      attemptBEnvelope,
+    );
+    expect(committed(attemptBResult).aggregateVersion).toBe(8);
+
+    const failurePayload = {
+      failure: {
+        attemptRef: attemptRefFor(attemptBEnvelope),
+        destinationId: DESTINATION_B,
+        packageRef,
+        classification: 'INTEGRATION_DELIVERY_FAILED',
+        retryable: true,
+        outcome: 'FAILED' as const,
+        occurredAt: new Date().toISOString(),
+      },
+    };
+    const failureEnvelope = envelope(
+      currentContext,
+      'release.record_publication_failure',
+      releaseId,
+      failurePayload,
+      '8',
+    );
+    const failureResult = await handleRecordPublicationFailure(db, currentContext, failureEnvelope);
+    expect(committed(failureResult).aggregateVersion).toBe(9);
+
+    const retryB = attemptDefinition(DESTINATION_B, 2, newUuidV7(), 0x77);
+    const retryBEnvelope = envelope(
+      currentContext,
+      'release.start_publication_attempt',
+      releaseId,
+      { attempt: retryB },
+      '9',
+    );
+    const retryBResult = await handleStartPublicationAttempt(db, currentContext, retryBEnvelope);
+    expect(committed(retryBResult).aggregateVersion).toBe(10);
+
+    const receiptPayloadHashA = hash(0x81);
+    const rawReceiptRefA: Common.ContentAddressedRef = {
+      kind: 'CONTENT_ADDRESSED',
+      objectType: 'integration.raw_external_receipt',
+      objectId: newUuidV7(),
+      scope: scope(),
+      contentHash: hash(0x82),
+    };
+    const receiptOccurredAtA = new Date().toISOString();
+    const rawFactA: RawExternalReceiptFact = {
+      rawReceiptRef: rawReceiptRefA,
+      releaseId,
+      destinationId: DESTINATION_A,
+      packageHashDigest: packageRef.packageHash.digest,
+      publicationAttemptId: attemptAEnvelope.commandId,
+      adapterAttemptRef: objectRef('integration.adapter_attempt', newUuidV7()),
+      receiptPayloadHash: receiptPayloadHashA,
+      observedOutcome: 'SUCCEEDED',
+      occurredAt: receiptOccurredAtA,
+      recordedAt: receiptOccurredAtA,
+    };
+    rawReceipts.save(rawFactA);
+    const receiptAEnvelope = envelope(
+      currentContext,
+      'release.record_publication_receipt',
+      releaseId,
+      {
+        receipt: {
+          attemptRef: attemptRefFor(attemptAEnvelope),
+          destinationId: DESTINATION_A,
+          packageRef,
+          rawReceiptRef: rawReceiptRefA,
+          providerResult: { messageId: 'provider-a', status: 'SUCCEEDED' },
+          occurredAt: receiptOccurredAtA,
+          receiptPayloadHash: receiptPayloadHashA,
+        },
+      },
+      '10',
+    );
+    const receiptAResult = await handleRecordPublicationReceipt(
+      db,
+      currentContext,
+      receiptAEnvelope,
+      ports,
+      { deliveryTimeoutMsByDestination: { [DESTINATION_A]: 60 * 60 * 1000 } },
+    );
+    const receiptAPayload = committed(receiptAResult);
+    expect(receiptAPayload.status).toBe('PARTIALLY_RELEASED');
+    expect(receiptAPayload.aggregateVersion).toBe(11);
+    const receiptARefs =
+      receiptAPayload.receiptRefs as unknown as readonly Common.ContentAddressedRef[];
+    const receiptARef = receiptARefs[0];
+    if (receiptARef === undefined) throw new Error('Receipt A was not persisted');
+    expect(receiptARef.objectType).toBe('release.publication_receipt');
+
+    const receiptPayloadHashB = hash(0x83);
+    const rawReceiptRefB: Common.ContentAddressedRef = {
+      kind: 'CONTENT_ADDRESSED',
+      objectType: 'integration.raw_external_receipt',
+      objectId: newUuidV7(),
+      scope: scope(),
+      contentHash: hash(0x84),
+    };
+    const receiptOccurredAtB = new Date().toISOString();
+    rawReceipts.save({
+      rawReceiptRef: rawReceiptRefB,
+      releaseId,
+      destinationId: DESTINATION_B,
+      packageHashDigest: packageRef.packageHash.digest,
+      publicationAttemptId: retryBEnvelope.commandId,
+      adapterAttemptRef: objectRef('integration.adapter_attempt', newUuidV7()),
+      receiptPayloadHash: receiptPayloadHashB,
+      observedOutcome: 'SUCCEEDED',
+      occurredAt: receiptOccurredAtB,
+      recordedAt: receiptOccurredAtB,
+    });
+    const receiptBEnvelope = envelope(
+      currentContext,
+      'release.record_publication_receipt',
+      releaseId,
+      {
+        receipt: {
+          attemptRef: attemptRefFor(retryBEnvelope),
+          destinationId: DESTINATION_B,
+          packageRef,
+          rawReceiptRef: rawReceiptRefB,
+          providerResult: { messageId: 'provider-b', status: 'SUCCEEDED' },
+          occurredAt: receiptOccurredAtB,
+          receiptPayloadHash: receiptPayloadHashB,
+        },
+      },
+      '11',
+    );
+    const receiptBResult = await handleRecordPublicationReceipt(
+      db,
+      currentContext,
+      receiptBEnvelope,
+      ports,
+      {
+        deliveryTimeoutMsByDestination: {
+          [DESTINATION_A]: 60 * 60 * 1000,
+          [DESTINATION_B]: 60 * 60 * 1000,
+        },
+      },
+    );
+    const receiptBPayload = committed(receiptBResult);
+    expect(receiptBPayload.status).toBe('RELEASED');
+    expect(receiptBPayload.aggregateVersion).toBe(12);
+    const receiptBRefs =
+      receiptBPayload.receiptRefs as unknown as readonly Common.ContentAddressedRef[];
+    const receiptBRef = receiptBRefs.find((value) => value.objectId !== receiptARef.objectId);
+    if (receiptBRef === undefined) throw new Error('Receipt B was not persisted');
+    expect(receiptBRef.objectType).toBe('release.publication_receipt');
+
+    const completionPolicyRef: Common.VersionedRef = {
+      kind: 'VERSIONED',
+      objectType: 'policy.release_completion',
+      objectId: newUuidV7(),
+      versionId: newUuidV7(),
+      scope: { enterpriseId: ENTERPRISE },
+    };
+    const completeEnvelope = envelope(
+      currentContext,
+      'release.complete_release',
+      releaseId,
+      {
+        completionPolicyRef,
+        destinationOutcomeRefs: [receiptARef, receiptBRef],
+        evaluatedAt: new Date().toISOString(),
+      },
+      '12',
+    );
+    const completeResult = await handleCompleteRelease(db, currentContext, completeEnvelope);
+    expect(committed(completeResult).status).toBe('RELEASED');
+    expect(committed(completeResult).aggregateVersion).toBe(13);
+
+    decisionCommandType = 'release.recall_release';
+    decisionPurpose = 'release.publication.recall_release';
+    const notificationPolicyRef = packageDefinition.destinations[0]?.deliveryPolicyRef;
+    if (notificationPolicyRef === undefined) {
+      throw new Error('WI-07 probe requires a notification policy');
+    }
+    const recallPayload: ReleasePublication.ReleaseRecallReleasePayload = {
+      recallScope: {
+        affectedDestinationIds: [DESTINATION_A, DESTINATION_B],
+      },
+      recallReason: {
+        reasonCode: 'RELEASE_RECALL_REQUESTED',
+        summary: 'The synthetic release requires destination recall review.',
+        evidenceRefs: [],
+      },
+      authorizingHumanRef: principalRef,
+      authorizationDecisionRef,
+      notificationPolicyRef,
+      recalledAt: new Date().toISOString(),
+    };
+    const recallEnvelope = envelope(
+      currentContext,
+      'release.recall_release',
+      releaseId,
+      recallPayload,
+      '13',
+    );
+    decisionPayloadHash = contentHashFromBytes(
+      digestCanonicalPayload(recallEnvelope.requestPayload).hash,
+    );
+    const recallResult = await handleRecallRelease(db, currentContext, recallEnvelope, ports);
+    const recalledPayload = committed(recallResult);
+    expect(recalledPayload.status).toBe('RECALLED');
+    expect(recalledPayload.aggregateVersion).toBe(14);
+
+    const attemptsPage = await handleGetPublicationAttempts(db, currentContext, {
+      releaseRef: preparedRelease.releaseRef,
+      destinationIds: [],
+      outcomes: [],
+      page: { pageSize: 20 },
+    });
+    expect(attemptsPage.items).toHaveLength(3);
+    expect(attemptsPage.items.map((item) => item.outcome)).toEqual([
+      'SUCCEEDED',
+      'FAILED',
+      'SUCCEEDED',
+    ]);
+    const receiptsPage = await handleGetReleaseReceipts(db, currentContext, {
+      releaseRef: preparedRelease.releaseRef,
+      packageRef,
+      destinationIds: [],
+      page: { pageSize: 20 },
+    });
+    expect(receiptsPage.items).toHaveLength(2);
+    const impact = await handleGetReleaseImpact(db, currentContext, {
+      releaseRef: preparedRelease.releaseRef,
+    });
+    expect(impact.affectedDestinations).toEqual([DESTINATION_A, DESTINATION_B]);
+    expect(impact.humanInterventionRequired).toBe(true);
+
+    const factCounts = await admin.query<{
+      attempts: string;
+      observations: string;
+      receipts: string;
+      failures: string;
+      recalls: string;
+      impacts: string;
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM release_publication.publication_attempt WHERE release_id = $1) AS attempts,
+         (SELECT count(*)::text FROM release_publication.publication_observation WHERE release_id = $1) AS observations,
+         (SELECT count(*)::text FROM release_publication.publication_receipt WHERE release_id = $1) AS receipts,
+         (SELECT count(*)::text FROM release_publication.publication_failure WHERE release_id = $1) AS failures,
+         (SELECT count(*)::text FROM release_publication.release_recall WHERE release_id = $1) AS recalls,
+         (SELECT count(*)::text FROM release_publication.release_impact_review WHERE release_id = $1) AS impacts`,
+      [releaseId],
+    );
+    expect(factCounts.rows[0]).toEqual({
+      attempts: '3',
+      observations: '6',
+      receipts: '2',
+      failures: '1',
+      recalls: '1',
+      impacts: '1',
+    });
+
+    const observationRows = await admin.query<{
+      observation_kind: string;
+      observation_payload: CanonicalJsonObject;
+      observation_payload_hash: Buffer;
+    }>(
+      `SELECT observation_kind, observation_payload, observation_payload_hash
+         FROM release_publication.publication_observation
+        WHERE release_id = $1
+        ORDER BY created_at, observation_id`,
+      [releaseId],
+    );
+    expect(observationRows.rows).toHaveLength(6);
+    for (const observation of observationRows.rows) {
+      expect(observation.observation_payload_hash).toHaveLength(32);
+      expect(observation.observation_payload_hash).toEqual(
+        digestCanonicalPayload(observation.observation_payload).hash,
+      );
+    }
+
+    await probe.query('BEGIN');
+    await probe.query('SET LOCAL ROLE platform_context_establisher');
+    await probe.query(
+      `SELECT platform_security.establish_transaction_context(
+       'REQUEST', $1, $2, $3, $4, now() + interval '1 hour', $5, $6, $7, NULL)`,
+      [
+        currentContext.principalId,
+        currentContext.actorSnapshotId,
+        currentContext.authorizationDecisionId,
+        currentContext.authorizationDecisionHash,
+        currentContext.enterpriseId,
+        [...currentContext.allowedProjectIds],
+        currentContext.correlationId,
+      ],
+    );
+    await probe.query('SET LOCAL ROLE release_publication_app');
+    await expect(
+      probe.query(
+        `UPDATE release_publication.publication_attempt
+            SET stable_idempotency_key = stable_idempotency_key
+          WHERE release_id = $1`,
+        [releaseId],
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+    await probe.query('ROLLBACK');
+
+    await expect(
+      handleGetPublicationAttempts(db, context([OTHER_PROJECT]), {
+        releaseRef: preparedRelease.releaseRef,
+        destinationIds: [],
+        outcomes: [],
+        page: { pageSize: 20 },
+      }),
+    ).rejects.toBeInstanceOf(ReleasePublicationBusinessError);
+
+    const immutableAttempt = await admin.query<{ stable_idempotency_key: string }>(
+      `SELECT stable_idempotency_key
+         FROM release_publication.publication_attempt
+        WHERE attempt_id = $1`,
+      [attemptAEnvelope.commandId],
+    );
+    await admin.query('BEGIN');
+    await admin.query('SET LOCAL ROLE release_publication_owner');
+    await expect(
+      admin.query(
+        `UPDATE release_publication.publication_attempt
+            SET stable_idempotency_key = $2
+          WHERE attempt_id = $1`,
+        [attemptAEnvelope.commandId, 'tampered-stable-key'],
+      ),
+    ).rejects.toMatchObject({ code: '55000' });
+    await admin.query('ROLLBACK');
+    expect(immutableAttempt.rows[0]?.stable_idempotency_key).toBe(`wi07-${DESTINATION_A}`);
   });
 });

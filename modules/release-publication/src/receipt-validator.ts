@@ -17,8 +17,9 @@
 // Persistence is abstracted behind ReleaseReceiptLedger so the production
 // repository can replace the in-memory implementation without touching the
 // validation rules. Formal receipt inserts go through compareAndSaveReceipt
-// (unique-index semantics); DDL / real persistence remains NOT RUN in this
-// slice.
+// (unique-index semantics); the WI-07 Handler/Repository path persists the
+// same invariants through V6002, while this in-memory seam remains useful for
+// controlled Runtime tests.
 
 import { apiError, parseUuidV7 } from '@zhiju/shared-kernel';
 import type {
@@ -29,6 +30,7 @@ import type {
   ScopeRef as KernelScopeRef,
 } from '@zhiju/shared-kernel';
 import type { Common, ReleasePublication } from '@zhiju/contracts';
+import { sanitizeProviderResult } from './provider-result.js';
 
 type FormalReceiptSubmission = ReleasePublication.FormalReceiptSubmission;
 type PublicationAttemptDefinition = ReleasePublication.PublicationAttemptDefinition;
@@ -248,7 +250,7 @@ export class InMemoryRawExternalReceiptRepository implements RawExternalReceiptR
 // =============================================================================
 
 export type AttemptRegistrationResult =
-  | { readonly ok: true; readonly record: PublicationAttemptRecord }
+  | { readonly ok: true; readonly record: PublicationAttemptRecord; readonly inserted: boolean }
   | { readonly ok: false; readonly error: ApiError };
 
 export interface AttemptRegistrationRequest {
@@ -288,7 +290,7 @@ export function registerPublicationAttempt(
   };
   const saved = ledger.compareAndSaveAttempt(record);
   if (saved.ok) {
-    return { ok: true, record: saved.record };
+    return { ok: true, record: saved.record, inserted: saved.inserted };
   }
 
   const attemptRefConflict = saved.conflictOn === 'ATTEMPT_REF';
@@ -512,9 +514,14 @@ export function recordFormalReceipt(
     };
   }
 
+  const sanitizedProviderResult = sanitizeProviderResult(submission.providerResult);
+  const normalizedSubmission: FormalReceiptSubmission = {
+    ...submission,
+    providerResult: sanitizedProviderResult.value,
+  };
   const record: PublicationReceiptRecord = {
     receiptRef: request.receiptRef,
-    submission,
+    submission: normalizedSubmission,
   };
 
   if (request.receiptRef.objectType !== PUBLICATION_RECEIPT_OBJECT_TYPE) {

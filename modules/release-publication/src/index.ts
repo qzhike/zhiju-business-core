@@ -2,6 +2,8 @@ export * from './receipt-validator.js';
 export * from './release-publication-runtime.js';
 export * from './package-hash.js';
 export * from './release-publication-validation.js';
+export * from './release-publication-authorization.js';
+export * from './provider-result.js';
 export * from './release-publication-handlers.js';
 
 export {
@@ -57,5 +59,5 @@ export type {
 
 export const releasePublicationModule = Object.freeze({
   name: 'release-publication',
-  status: 'IM_05_WI06_RELEASE_PACKAGE_PERSISTENCE' as const,
+  status: 'IM_05_WI07_RELEASE_PUBLICATION' as const,
 });

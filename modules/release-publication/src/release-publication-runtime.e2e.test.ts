@@ -13,6 +13,8 @@ import {
   RELEASE_RECEIPT_TARGET_MISMATCH,
   type RawExternalReceiptFact,
 } from './receipt-validator.js';
+import type { ReleaseTransactionContext } from './persistence/release-publication-db.js';
+import type { ReleaseAuthorityQueryPorts } from './release-publication-validation.js';
 
 // =============================================================================
 // REL-801 late-receipt timeline fixture (RP-API-E-003 / RP-API-M-001)
@@ -68,6 +70,110 @@ function openRuntime(fixture: TimelineFixture): ReleasePublicationRuntime {
     runtime.seedRawExternalReceipt(fact);
   }
   return runtime;
+}
+
+function recallAuthorizationFixture(fixture: TimelineFixture): {
+  readonly context: ReleaseTransactionContext;
+  readonly ports: ReleaseAuthorityQueryPorts;
+  readonly actorSnapshotRef: Common.SnapshotRef;
+  readonly authorizationDecisionRef: Common.ContentAddressedRef;
+  readonly recallRef: Common.ContentAddressedRef;
+} {
+  const { enterpriseId, projectId } = fixture.release.releaseRef.scope;
+  if (enterpriseId === undefined || projectId === undefined) {
+    throw new Error('Recall test fixture requires a Project scope');
+  }
+  const scope = { enterpriseId, projectId };
+  const principalId = '018f22e2-7c15-7b2e-8d86-2de956a9d880';
+  const actorId = '018f22e2-7c15-7b2e-8d86-2de956a9d881';
+  const decisionId = '018f22e2-7c15-7b2e-8d86-2de956a9d882';
+  const policyId = '018f22e2-7c15-7b2e-8d86-2de956a9d883';
+  const correlationId = '018f22e2-7c15-7b2e-8d86-2de956a9d884';
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const authorizationContextHash: Common.ContentHash = {
+    algorithm: 'SHA-256',
+    digest: Buffer.alloc(32, 0x91).toString('hex'),
+    canonicalizationVersion: '1',
+  };
+  const actorSnapshotRef: Common.SnapshotRef = {
+    kind: 'SNAPSHOT',
+    objectType: 'identity.actor_snapshot',
+    objectId: actorId,
+    snapshotId: actorId,
+    scope,
+    contentHash: authorizationContextHash,
+  };
+  const authorizationDecisionRef: Common.ContentAddressedRef = {
+    kind: 'CONTENT_ADDRESSED',
+    objectType: 'identity.authorization_decision',
+    objectId: decisionId,
+    scope,
+    contentHash: {
+      algorithm: 'SHA-256',
+      digest: Buffer.alloc(32, 0x92).toString('hex'),
+      canonicalizationVersion: '1',
+    },
+  };
+  const actor = {
+    actorSnapshotRef,
+    principalRef: { principalKind: 'HUMAN' as const, principalId },
+    authenticationContextHash: authorizationContextHash,
+  };
+  const decision = {
+    authorizationDecisionRef,
+    actorSnapshotRef,
+    principalRef: { principalKind: 'HUMAN' as const, principalId },
+    commandType: 'release.recall_release',
+    commandVersion: '1.0',
+    scope,
+    purpose: 'release.publication.recall_release',
+    authenticationContextHash: authorizationContextHash,
+    outcome: 'ALLOW' as const,
+    expiresAt,
+  };
+  const ports: ReleaseAuthorityQueryPorts = {
+    artifact: {
+      validateRevisionRef: () => Promise.reject(new Error('not used by Recall test')),
+      getRepresentation: () => Promise.reject(new Error('not used by Recall test')),
+    },
+    quality: {
+      getRevisionAcceptanceSnapshot: () => Promise.reject(new Error('not used by Recall test')),
+      getApprovalBundleSnapshot: () => Promise.reject(new Error('not used by Recall test')),
+    },
+    identity: {
+      getActorSnapshot: () => Promise.resolve(actor),
+      getAuthorizationDecision: () => Promise.resolve(decision),
+    },
+  };
+  return {
+    context: {
+      kind: 'REQUEST',
+      principalId,
+      principalKind: 'HUMAN',
+      actorSnapshotId: actorId,
+      authorizationDecisionId: decisionId,
+      authorizationDecisionHash: Buffer.from(authorizationDecisionRef.contentHash.digest, 'hex'),
+      authorizationDecisionExpiresAt: new Date(expiresAt),
+      policySnapshotId: policyId,
+      enterpriseId,
+      allowedProjectIds: [projectId],
+      correlationId,
+    },
+    ports,
+    actorSnapshotRef,
+    authorizationDecisionRef,
+    recallRef: {
+      kind: 'CONTENT_ADDRESSED',
+      objectType: 'release.recall',
+      objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d885',
+      scope,
+      contentHash: {
+        algorithm: 'SHA-256',
+        digest: Buffer.alloc(32, 0x93).toString('hex'),
+        canonicalizationVersion: '1',
+      },
+    },
+  };
 }
 
 // Fixture guards: a malformed timeline must fail loudly instead of silently
@@ -379,5 +485,299 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
         '/payload/attemptRef/scope',
       );
     }
+  });
+
+  it('does not settle FAILED while a newer retry Attempt is still pending', () => {
+    const fixture = loadFixture();
+    const runtime = openRuntime(fixture);
+    const firstEntry = fixture.timeline[0];
+    const secondEntry = fixture.timeline[1];
+    if (firstEntry === undefined || secondEntry === undefined) {
+      throw new Error('fixture is missing the first two Attempts');
+    }
+    const first = requireAttemptFields(firstEntry);
+    const second = requireAttemptFields(secondEntry);
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: first.attemptRef,
+        definition: first.definition,
+      }).ok,
+    ).toBe(true);
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: second.attemptRef,
+        definition: second.definition,
+      }).ok,
+    ).toBe(true);
+
+    const failureRef = (objectId: string): Common.ContentAddressedRef => ({
+      kind: 'CONTENT_ADDRESSED',
+      objectType: 'release.publication_failure',
+      objectId,
+      scope: fixture.release.releaseRef.scope,
+      contentHash: first.definition.packageRef.packageHash,
+    });
+    const failure = (attempt: typeof first, ref: Common.ContentAddressedRef) =>
+      runtime.recordPublicationFailure({
+        releaseRef: fixture.release.releaseRef,
+        failure: {
+          attemptRef: attempt.attemptRef,
+          destinationId: attempt.definition.destinationId,
+          packageRef: attempt.definition.packageRef,
+          classification: 'INTEGRATION_DELIVERY_FAILED',
+          retryable: true,
+          outcome: 'FAILED',
+          occurredAt: '2026-08-21T00:00:10Z',
+        },
+        failureRef: ref,
+        correlationId: `failure-${ref.objectId}`,
+      });
+
+    expect(failure(first, failureRef('018f22e2-7c15-7b2e-8d86-2de956a9d870')).ok).toBe(true);
+    expect(failure(second, failureRef('018f22e2-7c15-7b2e-8d86-2de956a9d871')).ok).toBe(true);
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe('FAILED');
+
+    const retryFirst = {
+      ...first.definition,
+      attemptNumber: 2,
+      externalDeliveryRequestRef: {
+        ...first.definition.externalDeliveryRequestRef,
+        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d872',
+      },
+    };
+    const retrySecond = {
+      ...second.definition,
+      attemptNumber: 2,
+      externalDeliveryRequestRef: {
+        ...second.definition.externalDeliveryRequestRef,
+        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d873',
+      },
+    };
+    const retryFirstRef = {
+      ...first.attemptRef,
+      objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d874',
+    };
+    const retrySecondRef = {
+      ...second.attemptRef,
+      objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d875',
+    };
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: retryFirstRef,
+        definition: retryFirst,
+      }).ok,
+    ).toBe(true);
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: retrySecondRef,
+        definition: retrySecond,
+      }).ok,
+    ).toBe(true);
+
+    const retrySecondFailure = runtime.recordPublicationFailure({
+      releaseRef: fixture.release.releaseRef,
+      failure: {
+        attemptRef: retrySecondRef,
+        destinationId: retrySecond.destinationId,
+        packageRef: retrySecond.packageRef,
+        classification: 'INTEGRATION_DELIVERY_FAILED',
+        retryable: true,
+        outcome: 'FAILED',
+        occurredAt: '2026-08-21T00:00:20Z',
+      },
+      failureRef: failureRef('018f22e2-7c15-7b2e-8d86-2de956a9d876'),
+      correlationId: 'retry-second-failure',
+    });
+    expect(retrySecondFailure.ok).toBe(true);
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe('PUBLISHING');
+
+    const conflictingFailure = runtime.recordPublicationFailure({
+      releaseRef: fixture.release.releaseRef,
+      failure: {
+        attemptRef: first.attemptRef,
+        destinationId: first.definition.destinationId,
+        packageRef: first.definition.packageRef,
+        classification: 'DIFFERENT_FAILURE',
+        retryable: false,
+        outcome: 'UNKNOWN',
+        occurredAt: '2026-08-21T00:00:30Z',
+      },
+      failureRef: failureRef('018f22e2-7c15-7b2e-8d86-2de956a9d877'),
+      correlationId: 'conflicting-failure',
+    });
+    expect(conflictingFailure.ok).toBe(false);
+  });
+
+  it('blocks publication mutations, repeat Recall, and Adapter dispatch after Recall', async () => {
+    const fixture = loadFixture();
+    const runtime = openRuntime(fixture);
+    const firstEntry = fixture.timeline[0];
+    const receiptEntry = fixture.timeline.find((entry) => entry.step === 3);
+    if (firstEntry === undefined || receiptEntry === undefined) {
+      throw new Error('fixture is missing the first Attempt or accepted Receipt');
+    }
+    const first = requireAttemptFields(firstEntry);
+    const receiptSubmission = resolveSubmission(receiptEntry, undefined);
+    const receiptRef = resolveReceiptRef(receiptEntry, undefined);
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: first.attemptRef,
+        definition: first.definition,
+        correlationId: 'recall-terminal-start',
+      }).ok,
+    ).toBe(true);
+
+    let invokeCount = 0;
+    const wrongTypeDispatch = await runtime.dispatchPublicationAttempt(
+      fixture.release.releaseRef,
+      { ...first.attemptRef, objectType: 'release.publication_receipt' },
+      () => {
+        invokeCount += 1;
+        return Promise.reject(
+          new Error('an incorrect Attempt object type must not invoke an Adapter'),
+        );
+      },
+    );
+    expect(wrongTypeDispatch.status).toBe('REJECTED');
+    expect(wrongTypeDispatch.invoked).toBe(false);
+
+    const enterpriseId = fixture.release.releaseRef.scope.enterpriseId;
+    if (enterpriseId === undefined) throw new Error('Dispatch test requires an Enterprise scope');
+    const wrongScopeDispatch = await runtime.dispatchPublicationAttempt(
+      fixture.release.releaseRef,
+      {
+        ...first.attemptRef,
+        scope: {
+          enterpriseId,
+          projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d899',
+        },
+      },
+      () => {
+        invokeCount += 1;
+        return Promise.reject(new Error('an incorrect Attempt scope must not invoke an Adapter'));
+      },
+    );
+    expect(wrongScopeDispatch.status).toBe('REJECTED');
+    expect(wrongScopeDispatch.invoked).toBe(false);
+    expect(invokeCount).toBe(0);
+
+    const authorization = recallAuthorizationFixture(fixture);
+    const recall = await runtime.recallRelease({
+      context: authorization.context,
+      ports: authorization.ports,
+      releaseRef: fixture.release.releaseRef,
+      packageRef: first.definition.packageRef,
+      authorizingHumanRef: {
+        principalKind: 'HUMAN',
+        principalId: authorization.context.principalId,
+      },
+      actorSnapshotRef: authorization.actorSnapshotRef,
+      authorizationDecisionRef: authorization.authorizationDecisionRef,
+      now: new Date(),
+      recallRef: authorization.recallRef,
+      affectedDestinationIds: fixture.release.destinations.map(
+        (destination) => destination.destinationId,
+      ),
+      recalledAt: new Date().toISOString(),
+    });
+    expect(recall).toEqual({ ok: true, recallRef: authorization.recallRef });
+
+    const secondStart = runtime.startPublicationAttempt({
+      releaseRef: fixture.release.releaseRef,
+      attemptRef: first.attemptRef,
+      definition: first.definition,
+      correlationId: 'recall-terminal-start-replay',
+    });
+    expect(secondStart.ok).toBe(false);
+    if (!secondStart.ok) expect(secondStart.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+
+    const receipt = runtime.recordPublicationReceipt({
+      releaseRef: fixture.release.releaseRef,
+      submission: receiptSubmission,
+      receiptRef,
+      correlationId: 'recall-terminal-receipt',
+    });
+    expect(receipt.ok).toBe(false);
+    if (!receipt.ok) expect(receipt.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+
+    const failure = runtime.recordPublicationFailure({
+      releaseRef: fixture.release.releaseRef,
+      failure: {
+        attemptRef: first.attemptRef,
+        destinationId: first.definition.destinationId,
+        packageRef: first.definition.packageRef,
+        classification: 'INTEGRATION_DELIVERY_FAILED',
+        retryable: true,
+        outcome: 'FAILED',
+        occurredAt: '2026-08-21T00:00:10Z',
+      },
+      failureRef: {
+        ...receiptRef,
+        objectType: 'release.publication_failure',
+      },
+      correlationId: 'recall-terminal-failure',
+    });
+    expect(failure.ok).toBe(false);
+    if (!failure.ok) expect(failure.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+
+    const projectId = authorization.context.allowedProjectIds[0];
+    if (projectId === undefined) throw new Error('Recall test context requires a Project scope');
+    const completion = runtime.completeRelease({
+      releaseRef: fixture.release.releaseRef,
+      completionPolicyRef: {
+        kind: 'VERSIONED',
+        objectType: 'policy.release_completion',
+        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d886',
+        versionId: '018f22e2-7c15-7b2e-8d86-2de956a9d887',
+        scope: {
+          enterpriseId: authorization.context.enterpriseId,
+          projectId,
+        },
+      },
+      destinationOutcomeRefs: [receiptRef],
+      evaluatedAt: new Date().toISOString(),
+      correlationId: 'recall-terminal-complete',
+    });
+    expect(completion.ok).toBe(false);
+    if (!completion.ok) expect(completion.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+
+    const dispatch = await runtime.dispatchPublicationAttempt(
+      fixture.release.releaseRef,
+      first.attemptRef,
+      () => {
+        invokeCount += 1;
+        return Promise.reject(new Error('recalled Release must not invoke an Adapter'));
+      },
+    );
+    expect(dispatch.status).toBe('REJECTED');
+    expect(dispatch.invoked).toBe(false);
+    expect(invokeCount).toBe(0);
+
+    const repeatedRecall = await runtime.recallRelease({
+      context: authorization.context,
+      ports: authorization.ports,
+      releaseRef: fixture.release.releaseRef,
+      packageRef: first.definition.packageRef,
+      authorizingHumanRef: {
+        principalKind: 'HUMAN',
+        principalId: authorization.context.principalId,
+      },
+      actorSnapshotRef: authorization.actorSnapshotRef,
+      authorizationDecisionRef: authorization.authorizationDecisionRef,
+      now: new Date(),
+      recallRef: authorization.recallRef,
+      affectedDestinationIds: fixture.release.destinations.map(
+        (destination) => destination.destinationId,
+      ),
+      recalledAt: new Date().toISOString(),
+    });
+    expect(repeatedRecall.ok).toBe(false);
+    expect(runtime.getPublicationAttempts(fixture.release.releaseRef)).toHaveLength(1);
+    expect(runtime.getOutboxEvents(fixture.release.releaseRef)).toHaveLength(2);
   });
 });
