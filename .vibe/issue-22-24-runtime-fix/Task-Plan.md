@@ -30,7 +30,7 @@
 - Provider Result 改为安全字段白名单，递归处理对象和数组，并对允许字段的值执行安全格式校验。
 - Raw Receipt 增加并验证精确的 `externalDeliveryRequestRef` 和 Adapter Attempt 类型/绑定。
 - 可手测产出物：受控 Runtime 的正向正式链路和三个 Issue 的负向 counterexample 测试。
-- 状态：已完成。除既有 Authorize、Receipt provenance 和 Provider Result 边界外，本次已修复 Persistence Recall Handler：从当前 Recall AuthorizationDecision 解析其 exact ActorSnapshot，不再把 Release 原始授权 ActorSnapshot 当作当前主体；未修改已应用 Migration 或公共 Contract Schema。
+- 状态：部分完成。本次已修复 Persistence Recall Handler：从当前 Recall AuthorizationDecision 解析其 exact ActorSnapshot，不再把 Release 原始授权 ActorSnapshot 当作当前主体；未修改已应用 Migration 或公共 Contract Schema。#23 Provider Result 与 #24 Adapter Attempt provenance 在 PR #141 合并后的直接复验中仍存在失败反例，继续独立保持 OPEN。
 
 ### 里程碑 3：回归与边界报告
 
@@ -48,6 +48,6 @@
 
 - #22：受控 Runtime/Authority Port 已拒绝非 Human principal、Agent `actingFor` Human、错误 Context kind/scope/expiry 和不一致的 ActorSnapshot/AuthorizationDecision 链；授权失败不产生授权、Attempt 或 Outbox 副作用。
 - #22 Recall：已在当前工作树修复并通过受控 PostgreSQL 验证。当前 Recall 从当次 AuthorizationDecision 解析并使用其 exact ActorSnapshot；Release 原始授权 ActorSnapshot 只保留为历史。不同 Human 的有效 Recall、主体/范围/用途/command/payload hash、过期/撤销、Agent/`actingFor` 负例及所有拒绝路径的 Persistence readback 均通过。
-- #23：Formal Receipt 入库前使用显式 provider-result allowlist；未知字段、嵌套/custom PII、允许字段的不安全值和非对象根值均被删除或不可逆替换。
-- #24：Formal Receipt 只能使用已授权 Release 的冻结 Package、登记 Attempt、精确 External Delivery Request、`integration.adapter_attempt` 和成功 Raw External Receipt；普通 provider success/messageId 缺少正式 Raw binding 时保持 Attempt PENDING 且不产生 succeeded event。
-- Authorize/Receipt/Provider/Recall 的受控本地技术证据已通过；Issue #22 的 GitHub re-closeout 尚未执行，当前分支也尚未 commit/push 或创建 follow-up PR。真实 Provider/Feishu、生产、公开 HTTP、统一跨模块业务 E2E 和独立人工验收仍需分别验证，未执行边界不能升级为 PASS。
+- #23：`providerResult` 的根对象字段 allowlist 已实现，但允许字段仍可原样携带姓名式或客户标识式值；修复后直接反例返回 `redactedPaths=[]`。Issue #23 保持 OPEN，本计划不将该边界标记为通过。
+- #24：External Delivery Request、Adapter Attempt 类型和 Scope 检查已实现，但未登记的伪造 `integration.adapter_attempt.objectId` 仍可铸造 Formal Receipt。Issue #24 保持 OPEN，本计划不将该边界标记为通过。
+- #22 Recall 的受控本地技术证据已通过；`14598cc63ad935337b61c386336537a60c38959e` 已提交并推送，follow-up PR #142 已创建且该 head 的 GitHub `verify` 已通过，Issue #22 在实际合并和重新验收前保持 OPEN。commandVersion mismatch、authentication-context mismatch 和 Identity Authority Port 异常不泄漏回归尚未单独执行，不升级为 PASS。真实 Identity Provider、Provider/Feishu、生产、公开 HTTP、统一跨模块业务 E2E 和独立人工验收仍需分别验证。

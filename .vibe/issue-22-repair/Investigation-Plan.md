@@ -21,7 +21,8 @@
 2. 已先更新 HL-Spec、Module-Spec、Module-Test 和验证报告，再实施最小代码修复：Recall 先解析当前 AuthorizationDecision，再使用该 Decision 的 exact ActorSnapshot；未新增 Migration 或公共 Contract 字段。
 3. 已补充不同 Human、主体/范围/用途/command/payload hash、过期/撤销、Agent/`actingFor` 和无业务副作用回归。聚焦测试为 `4 files / 35 tests PASS`；Persistence Gate 为 PostgreSQL 18.6/Flyway 11.20.3、`34 files / 314 tests PASS`，二次迁移为 `No migration necessary`；`pnpm clean && pnpm verify` 为 `42 files passed / 30 skipped`、`439 passed / 299 skipped`。
 
-## 待用户确认
+## 当前 GitHub 交付状态
 
-1. 当前工作树已完成本地修复和验证，Issue #22 仍 OPEN；尚未 commit、push 或创建 follow-up PR。
-2. 请用户检查本记录、权威文档、源码和测试差异；收到明确确认后，才执行 scoped staging audit 和新的 Git commit。
+1. 修复 commit `14598cc63ad935337b61c386336537a60c38959e` 已推送，follow-up PR #142 已创建；该 exact head 的 GitHub `verify` 已通过。Issue #22 在 PR 实际合并和重新验收前保持 OPEN。
+2. PR #142 code review 确认核心 Recall 修复方向正确，同时要求先订正 #23/#24 的失败状态、未执行测试边界和过期 Git 状态。本轮只修复文档对齐，尚未生成新的修复 commit。
+3. 请用户检查本记录和权威文档差异；收到明确确认后，才执行 scoped staging audit 和新的 Git commit。真实 Identity Provider、Provider/Feishu、公开 HTTP、生产、统一跨模块业务 E2E、外部收件人和独立人工验收仍保持 `NOT RUN`。
