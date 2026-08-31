@@ -50,9 +50,10 @@ PR #144 最新 review 的阻断项：
 - 前一轮 `pnpm clean && pnpm verify` 曾通过普通 Vitest `42 files passed / 30 skipped`、`444 passed / 299 skipped`、Architecture、201 项 Catalog/API、compatibility baseline 200 项和 PostgreSQL/Flyway `34 files / 314 tests`；本轮必须在改动后重新执行，并新增 V6002-with-data upgrade probe。
 - 真实 Provider/Feishu、生产、公开 HTTP、统一跨模块业务 E2E、外部收件人和独立人工验收仍为 `NOT RUN`；#24 未登记 Adapter Attempt 直接反例仍保持 `FAIL`。本轮提交与交付只覆盖 Issue #23，不关闭 #24。
 
-## 本轮验证结果（2026-09-01，交付中）
+## 本轮验证结果（2026-09-01，GitHub 交付完成）
 
 - focused 命令 `pnpm exec vitest run modules/release-publication/src/provider-result.test.ts modules/release-publication/src/receipt-validator.test.ts modules/release-publication/src/release-publication-runtime.e2e.test.ts --no-file-parallelism --reporter=dot` 通过：`3 files passed / 37 tests passed`。
 - `pnpm clean && pnpm verify` 通过：Format、Lint、Typecheck、全量 Vitest `42 files passed / 30 skipped`（`445 passed / 300 skipped`）、Architecture、Contract/Catalog `201/201 FULL`、compatibility baseline 200 operations，以及 PostgreSQL/Flyway Persistence Gate。
 - Persistence Gate 在 PostgreSQL 18.6/Flyway 11.20.3 上按 `V6002 -> seed historical unsafe data -> V6003/V6004` 顺序执行；34 个 persistence 文件、315 个测试通过。历史 Receipt/Observation provider result 已清理，Observation canonical hash readback 相等，V6003 对未归一化结果和 caller-declared `*Hash` 返回 SQLSTATE `23514`，二次迁移输出 `Schema "public" is up to date. No migration necessary.`，tag→digest、RLS/ACL、append-only、CAS、rollback、跨 Scope 和容器清理均通过。
+- 最终 head `2a066c493458778df2ba883e433d482e41dd02be` 的 GitHub Actions run `33450314391` 通过；PR #144 以 merge commit `78d4175d0a2c25b9247521435f36d443a75e546e` 合入 `main`，Issue #23 已关闭，Issue #24 保持开启，相关本地与远端交付/审查分支均已删除。
 - 本轮只证明本地实现、受控 Runtime Adapter/Port 和 disposable PostgreSQL 技术边界；真实 Provider/Feishu、生产、公开 HTTP、统一跨模块业务 E2E、外部收件人和独立人工验收仍为 `NOT RUN`；#24 伪造 Adapter Attempt provenance 仍保持 `FAIL`。未创建持久化临时测试脚本/文件，临时数据库容器已删除。
