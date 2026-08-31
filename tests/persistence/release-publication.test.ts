@@ -878,7 +878,13 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
           destinationId: DESTINATION_A,
           packageRef,
           rawReceiptRef: rawReceiptRefA,
-          providerResult: { messageId: 'provider-a', status: 'SUCCEEDED' },
+          providerResult: {
+            messageId: 'AliceCustomer',
+            providerStatus: 'AliceCustomer',
+            reasonCode: 'BobBuyer',
+            status: 'CustomerName',
+            customRecipientData: [{ email: 'customer@example.com', body: 'document body' }],
+          },
           occurredAt: receiptOccurredAtA,
           receiptPayloadHash: receiptPayloadHashA,
         },
@@ -900,6 +906,97 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
     const receiptARef = receiptARefs[0];
     if (receiptARef === undefined) throw new Error('Receipt A was not persisted');
     expect(receiptARef.objectType).toBe('release.publication_receipt');
+
+    const receiptAStored = await admin.query<{
+      provider_result: CanonicalJsonObject;
+      observation_payload: CanonicalJsonObject;
+      event_payload: CanonicalJsonObject;
+    }>(
+      `SELECT receipt.provider_result,
+              (SELECT observation_payload
+                 FROM release_publication.publication_observation
+                WHERE attempt_id = receipt.attempt_id
+                  AND observation_kind = 'PROVIDER_RESULT') AS observation_payload,
+              (SELECT payload
+                 FROM release_publication.outbox_event
+                WHERE aggregate_id = receipt.release_id
+                  AND event_type = 'release.PublicationSucceeded'
+                ORDER BY aggregate_version DESC
+                LIMIT 1) AS event_payload
+         FROM release_publication.publication_receipt receipt
+        WHERE receipt.receipt_id = $1`,
+      [receiptARef.objectId],
+    );
+    expect(receiptAStored.rows).toHaveLength(1);
+    const storedProviderResult = receiptAStored.rows[0]?.provider_result;
+    expect(storedProviderResult).toEqual({
+      providerStatus: { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' },
+      reasonCode: { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' },
+      status: { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' },
+    });
+    const storedBoundaryPayloads = JSON.stringify(receiptAStored.rows[0]);
+    expect(storedBoundaryPayloads).not.toContain('AliceCustomer');
+    expect(storedBoundaryPayloads).not.toContain('BobBuyer');
+    expect(storedBoundaryPayloads).not.toContain('CustomerName');
+    expect(storedBoundaryPayloads).not.toContain('customer@example.com');
+    expect(storedBoundaryPayloads).not.toContain('document body');
+    expect(receiptAStored.rows[0]?.event_payload).not.toHaveProperty('providerResult');
+
+    const directOwnerReceiptId = newUuidV7();
+    await admin.query('BEGIN');
+    await admin.query('SET LOCAL ROLE platform_context_establisher');
+    await admin.query(
+      `SELECT platform_security.establish_transaction_context(
+       'REQUEST', $1, $2, $3, $4, now() + interval '1 hour', $5, $6, $7, NULL)`,
+      [
+        currentContext.principalId,
+        currentContext.actorSnapshotId,
+        currentContext.authorizationDecisionId,
+        currentContext.authorizationDecisionHash,
+        currentContext.enterpriseId,
+        [...currentContext.allowedProjectIds],
+        currentContext.correlationId,
+      ],
+    );
+    await admin.query('SET LOCAL ROLE release_publication_app');
+    await expect(
+      admin.query(
+        `SELECT * FROM release_publication.record_publication_receipt(
+           $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
+           $6::jsonb, $7::jsonb, $8::jsonb, $9::bytea, $10::bytea,
+           $11::timestamptz, $12::uuid, $13::uuid, $14::uuid, $15::uuid)`,
+        [
+          directOwnerReceiptId,
+          retryBEnvelope.commandId,
+          releaseId,
+          packageRef.packageSnapshotRef.objectId,
+          DESTINATION_B,
+          JSON.stringify({
+            kind: 'CONTENT_ADDRESSED',
+            objectType: 'integration.raw_external_receipt',
+            objectId: newUuidV7(),
+            scope: scope(),
+            contentHash: hash(0x85),
+          }),
+          JSON.stringify({
+            kind: 'CONTENT_ADDRESSED',
+            objectType: 'release.publication_receipt',
+            objectId: directOwnerReceiptId,
+            scope: scope(),
+            contentHash: hash(0x86),
+          }),
+          JSON.stringify({ messageIdHash: 'a'.repeat(64), status: 'DELIVERED' }),
+          Buffer.from(hash(0x87).digest, 'hex'),
+          Buffer.from(hash(0x88).digest, 'hex'),
+          new Date().toISOString(),
+          currentContext.principalId,
+          currentContext.actorSnapshotId,
+          currentContext.authorizationDecisionId,
+          newUuidV7(),
+        ],
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
+    await admin.query('ROLLBACK');
 
     const receiptPayloadHashB = hash(0x83);
     const rawReceiptRefB: Common.ContentAddressedRef = {

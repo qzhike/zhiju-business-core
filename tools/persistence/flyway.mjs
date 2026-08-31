@@ -19,7 +19,7 @@ const MIGRATION_LOCATIONS = [
  * Uses `--network container:<id>` so the CLI reaches the server on its native
  * port without publishing anything to the host.
  */
-export async function runFlyway(containerId, { command, database, username, password }) {
+export async function runFlyway(containerId, { command, database, username, password, target }) {
   const args = [
     'run',
     '--rm',
@@ -34,6 +34,7 @@ export async function runFlyway(containerId, { command, database, username, pass
     `-schemas=public`,
     `-locations=${MIGRATION_LOCATIONS}`,
     '-connectRetries=10',
+    ...(target === undefined ? [] : [`-target=${target}`]),
     command,
   ];
   return docker(args);

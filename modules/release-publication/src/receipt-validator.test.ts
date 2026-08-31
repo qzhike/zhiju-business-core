@@ -17,6 +17,10 @@ import {
   type ReceiptValidationResult,
   type ReleaseReceiptLedger,
 } from './receipt-validator.js';
+import {
+  createProviderResultFromAdapter,
+  providerResultContainsSensitiveData,
+} from './provider-result.js';
 
 // =============================================================================
 // Deterministic builders (schema-shaped; structural validity is owned by the
@@ -31,6 +35,7 @@ const PACKAGE_SNAPSHOT_ID = '018f22e2-7c15-7b2e-8d86-2de956a9d831';
 const REQUESTED_AT = '2026-08-21T00:00:00Z';
 const DELIVERY_TIMEOUT_MS = 60_000;
 const CORRELATION_ID = '018f22e2-7c15-7b2e-8d86-2de956a9d870';
+const REDACTED_VALUE = { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' };
 
 function digest(prefix: string): string {
   return (prefix + '0'.repeat(64)).slice(0, 64);
@@ -368,7 +373,7 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
     expect(reregistration.ok).toBe(true);
   });
 
-  it('RP-ISSUE23-U-001: persists only the minimized provider result in a Formal Receipt', () => {
+  it('RP-ISSUE23-U-001: rejects name-like values in allowlisted fields before Formal Receipt persistence', () => {
     const ledger = new InMemoryReleaseReceiptLedger();
     const rawReceipts = new InMemoryRawExternalReceiptRepository();
     registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
@@ -378,8 +383,10 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
       destinationId: DESTINATION_A,
       rawReceiptDigest: digest('c8'),
       providerResult: {
-        messageId: 'provider-message-801',
-        providerStatus: 'accepted',
+        messageId: 'AliceCustomer',
+        providerStatus: 'AliceCustomer',
+        reasonCode: 'BobBuyer',
+        status: 'CustomerName',
         customRecipientData: [{ email: 'customer@example.com', body: 'document body' }],
       },
     });
@@ -387,16 +394,85 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
     expect(accepted.ok).toBe(true);
     if (accepted.ok) {
       expect(accepted.record.submission.providerResult).toEqual({
-        messageId: 'provider-message-801',
-        providerStatus: 'accepted',
+        providerStatus: REDACTED_VALUE,
+        reasonCode: REDACTED_VALUE,
+        status: REDACTED_VALUE,
       });
+      const serialized = JSON.stringify(accepted.record.submission.providerResult);
+      expect(serialized).not.toContain('AliceCustomer');
+      expect(serialized).not.toContain('BobBuyer');
+      expect(serialized).not.toContain('CustomerName');
+      expect(serialized).not.toContain('customer@example.com');
+      expect(serialized).not.toContain('document body');
+    }
+  });
+
+  it('RP-ISSUE23-U-003: persists deterministic closed Adapter output with identifiers omitted', () => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
+    const mapped = createProviderResultFromAdapter({
+      adapterCode: 'feishu.channel',
+      messageId: 'AliceCustomer',
+      providerRequestId: 'request-801',
+      providerStatus: 'delivered',
+      status: 'delivered',
+      outcome: 'success',
+      errorCode: 'rate_limited',
+      reasonCode: 'delivery_rejected',
+      attemptNumber: 1,
+      retryable: false,
+    });
+    expect(mapped.ok).toBe(true);
+    if (!mapped.ok) throw new Error(`Adapter mapping failed: ${mapped.error.code}`);
+
+    const accepted = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('c9'),
+      providerResult: mapped.value,
+    });
+
+    expect(accepted.ok).toBe(true);
+    if (accepted.ok) {
+      expect(accepted.record.submission.providerResult).toEqual(mapped.value);
+      expect(accepted.record.submission.providerResult).not.toHaveProperty('messageIdHash');
+      expect(accepted.record.submission.providerResult).not.toHaveProperty('providerRequestIdHash');
       expect(JSON.stringify(accepted.record.submission.providerResult)).not.toContain(
-        'customer@example.com',
+        'AliceCustomer',
       );
-      expect(JSON.stringify(accepted.record.submission.providerResult)).not.toContain(
-        'document body',
+      expect(providerResultContainsSensitiveData(accepted.record.submission.providerResult)).toBe(
+        false,
       );
     }
+  });
+
+  it('RP-ISSUE23-U-005: keeps sensitive provider input out of rejected ApiError diagnostics', () => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-dest-a-attempt-001');
+
+    const rejected = record(ledger, rawReceipts, {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('ca'),
+      rawObservedOutcome: 'FAILED',
+      providerResult: {
+        messageId: 'AliceCustomer',
+        providerStatus: 'AliceCustomer',
+        reasonCode: 'BobBuyer',
+        status: 'CustomerName',
+        customRecipientData: [{ email: 'customer@example.com', body: 'document body' }],
+      },
+    });
+
+    expect(rejected.ok).toBe(false);
+    const serialized = JSON.stringify(rejected);
+    expect(serialized).not.toContain('AliceCustomer');
+    expect(serialized).not.toContain('BobBuyer');
+    expect(serialized).not.toContain('CustomerName');
+    expect(serialized).not.toContain('customer@example.com');
+    expect(serialized).not.toContain('document body');
   });
 
   it('rejects attempt registration that rebinds a stable key to another destination or packageHash', () => {
