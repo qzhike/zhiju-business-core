@@ -30,14 +30,14 @@
 - Provider Result 改为安全字段白名单，递归处理对象和数组，并对允许字段的值执行安全格式校验。
 - Raw Receipt 增加并验证精确的 `externalDeliveryRequestRef` 和 Adapter Attempt 类型/绑定。
 - 可手测产出物：受控 Runtime 的正向正式链路和三个 Issue 的负向 counterexample 测试。
-- 状态：已完成。实现变更集中在 ReleasePublication authorization、Runtime、Receipt provenance、provider-result sanitizer 和对应回归；未修改已应用 Migration 或公共 Contract Schema。
+- 状态：已完成。除既有 Authorize、Receipt provenance 和 Provider Result 边界外，本次已修复 Persistence Recall Handler：从当前 Recall AuthorizationDecision 解析其 exact ActorSnapshot，不再把 Release 原始授权 ActorSnapshot 当作当前主体；未修改已应用 Migration 或公共 Contract Schema。
 
 ### 里程碑 3：回归与边界报告
 
 - 顺序执行聚焦测试、类型检查和仓库验证；必要时先清理 `dist`，避免旧构建产物掩盖错误。
 - 记录每个测试的输入、预期输出、实际输出和 Provider/生产/人工未运行边界。
 - 可手测产出物：`Module-Test-006-ReleasePublication.md` 中的可复现实验命令和结果。
-- 状态：已完成。聚焦套件为 4 files / 34 tests PASS；`pnpm clean && pnpm verify` 为完整 PASS，含全量 Vitest 42 passed / 30 skipped、PostgreSQL/Flyway 34 files / 314 tests、二次迁移 no-op 和容器清理。
+- 状态：已完成。聚焦套件为 `4 files / 35 tests PASS`；Persistence Gate 为 PostgreSQL 18.6/Flyway 11.20.3、`34 files / 314 tests PASS`，二次迁移为 `No migration necessary`；新鲜 `pnpm clean && pnpm verify` 为 `42 files passed / 30 skipped`、`439 passed / 299 skipped`。不同 Human、主体/范围/用途/载荷 hash、过期/撤销、Agent/`actingFor` 及无业务副作用均已写回 Module-Test 和 Verification-Report。
 
 ## Git 边界
 
@@ -47,6 +47,7 @@
 ## 当前交付结论
 
 - #22：受控 Runtime/Authority Port 已拒绝非 Human principal、Agent `actingFor` Human、错误 Context kind/scope/expiry 和不一致的 ActorSnapshot/AuthorizationDecision 链；授权失败不产生授权、Attempt 或 Outbox 副作用。
+- #22 Recall：已在当前工作树修复并通过受控 PostgreSQL 验证。当前 Recall 从当次 AuthorizationDecision 解析并使用其 exact ActorSnapshot；Release 原始授权 ActorSnapshot 只保留为历史。不同 Human 的有效 Recall、主体/范围/用途/command/payload hash、过期/撤销、Agent/`actingFor` 负例及所有拒绝路径的 Persistence readback 均通过。
 - #23：Formal Receipt 入库前使用显式 provider-result allowlist；未知字段、嵌套/custom PII、允许字段的不安全值和非对象根值均被删除或不可逆替换。
 - #24：Formal Receipt 只能使用已授权 Release 的冻结 Package、登记 Attempt、精确 External Delivery Request、`integration.adapter_attempt` 和成功 Raw External Receipt；普通 provider success/messageId 缺少正式 Raw binding 时保持 Attempt PENDING 且不产生 succeeded event。
-- 受控技术证据已通过，但 GitHub Issues #22/#23/#24 仍 OPEN；真实 Provider/Feishu、生产、公开 HTTP、统一跨模块业务 E2E 和独立人工验收没有执行，不升级为 PASS。
+- Authorize/Receipt/Provider/Recall 的受控本地技术证据已通过；Issue #22 的 GitHub re-closeout 尚未执行，当前分支也尚未 commit/push 或创建 follow-up PR。真实 Provider/Feishu、生产、公开 HTTP、统一跨模块业务 E2E 和独立人工验收仍需分别验证，未执行边界不能升级为 PASS。

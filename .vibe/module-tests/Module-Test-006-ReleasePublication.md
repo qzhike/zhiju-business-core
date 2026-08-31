@@ -1,8 +1,8 @@
 # Module-Test-006-ReleasePublication
 
-版本：v1.6
+版本：v1.8
 日期：2026-08-31
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA TESTS PASSING 2026-08-18 (#5) / RUNTIME RECEIPT VALIDATOR UNIT+E2E PASSING 2026-08-21 (#15) / IM-05 WI-06 PERSISTENCE AND GITHUB DELIVERY COMPLETE / IM-05 WI-07 IMPLEMENTATION, PERSISTENCE AND GITHUB DELIVERY COMPLETE 2026-08-31 / PR #138 MERGED / ISSUE #127 CLOSED / TERMINAL-HISTORY GUARD REGRESSION ADDED / OBSERVATION HASH READBACK REGRESSION ADDED / DISPATCH EXACT-REFERENCE GUARD REGRESSION VERIFIED / IM-05 WI-08 SYNTHETIC REL-801 EXIT REVIEW DELIVERED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 CLOSED / #22–#24 CONTROLLED RUNTIME EVIDENCE PASS / FULL VERIFY PASS / UNIFIED CROSS-MODULE E2E NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / FIELD-LEVEL SCHEMA TESTS PASSING 2026-08-18 (#5) / RUNTIME RECEIPT VALIDATOR UNIT+E2E PASSING 2026-08-21 (#15) / IM-05 WI-06 PERSISTENCE AND GITHUB DELIVERY COMPLETE / IM-05 WI-07 IMPLEMENTATION, PERSISTENCE AND GITHUB DELIVERY COMPLETE 2026-08-31 / PR #138 MERGED / ISSUE #127 CLOSED / TERMINAL-HISTORY GUARD REGRESSION ADDED / OBSERVATION HASH READBACK REGRESSION ADDED / DISPATCH EXACT-REFERENCE GUARD REGRESSION VERIFIED / IM-05 WI-08 SYNTHETIC REL-801 EXIT REVIEW DELIVERED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 CLOSED / #22 AUTHORIZE + RECALL CONTROLLED RUNTIME/PERSISTENCE EVIDENCE PASS LOCALLY / GITHUB DELIVERY PENDING / UNIFIED CROSS-MODULE E2E NOT RUN`
 
 对应规格：[`Module-Spec-006-ReleasePublication.md`](../module-specs/Module-Spec-006-ReleasePublication.md)。
 
@@ -42,19 +42,32 @@
 | RP-API-WI07-PG-004 | Persistence/Race | V6002 空库/二次 no-op、RLS/ACL、并发授权/Attempt/Receipt、稳定 key、32-byte canonical Observation hash、按事实 ID 隔离 Reference Edge path、完整 Observation 历史、rollback、direct DML 和跨 Scope | 只有一个权威成功事实；未知不重发；Attempt identity/Receipt/Failure/Observation/Recall 历史不可改写，仅 owner function 可更新 Attempt outcome projection；非法写入拒绝；已知业务拒绝可 finalize，技术异常必须 abort 并整体回滚；每条 Observation 的 hash 必须由 canonical payload 得出且为 32 bytes；同一 Release 的重复事实引用不得发生 path 冲突 | 精确 `pnpm verify` 的 PostgreSQL 18.6/Flyway 11.20.3 Gate：V6002 已应用，34 files/314 tests PASS，逐行重算 `observation_payload` 后与持久化 hash 精确相等，二次 migrate `No migration necessary`，tag→digest、容器清理和 RLS/ACL、append-only、CAS、rollback、跨 Scope 均通过 | `PASS — formal exact gate` |
 | RP-API-WI07-M-003 | Manual | REL-801 双 Destination 可复核时间线和 cleanup | 人工可核对授权链、Attempt/Raw/Formal Receipt、partial/final、ordinary-send/PII/stale negatives 与 Recall | 自动化 synthetic/technical evidence 已完成；真实 Provider、外部收件人和独立人工逐项验收未执行 | `NOT RUN — independent manual acceptance` |
 
-## Issue #22–#24 独立运行时修复用例（实现完成 / 聚焦验证通过）
+## Issue #22–#24 独立运行时修复用例（#22 Recall 修复后聚焦验证）
 
-以下用例是本次修复的独立验收入口。它们已在受控 Runtime、Authority Port 和合成 Raw Receipt 边界执行，且仓库级完整 Gate 已通过；真实 Provider/Feishu、生产和人工边界继续单独标记。
+以下用例是本次修复的独立验收入口。PR #141 的 Authorize、Provider Result 和 Formal Receipt 证据仍可复用；本次已补齐 Recall Persistence Handler 的当前 ActorSnapshot 绑定和不同授权主体回归。真实 Provider/Feishu、生产和人工边界继续单独标记。
 
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
-| RP-ISSUE22-U-001 | Unit/Runtime | Agent Envelope actor + Human `authorizingHumanRef`；Agent ActorSnapshot `actingFor` Human；合法 REQUEST 的 allowed Project/Context kind/expiry 失配 | `authorizeRelease` 稳定拒绝；不产生 `authorizationRef`、ReleaseAuthorized、Attempt、Receipt 或状态变化；错误不包含 Port 任意异常文本 | `release-publication-authorization.test.ts` 与 Runtime E2E 已覆盖 Agent/actingFor、REQUEST Scope/allowed Project、Context kind/expiry 和受控授权前副作用检查；聚焦命令 4 files/34 tests 全通过 | `PASS — controlled unit/runtime` |
-| RP-ISSUE22-E-001 | E2E/Runtime | 同一 Release 的拒绝授权矩阵与完整 Human → ActorSnapshot → Decision 正例 | 所有负例均无副作用；完整 Human 链才允许后续正式 Attempt | `release-publication-runtime.e2e.test.ts` 10 tests 全通过；Agent/伪造 authorizationRef 负例无 outbox/Attempt，合法 Human fixture 可继续正式 Attempt | `PASS — controlled Runtime E2E; Identity/Provider NOT RUN` |
+| RP-ISSUE22-U-001 | Unit/Runtime | Agent Envelope actor + Human `authorizingHumanRef`；Agent ActorSnapshot `actingFor` Human；合法 REQUEST 的 allowed Project/Context kind/expiry 失配 | `authorizeRelease` 稳定拒绝；不产生 `authorizationRef`、ReleaseAuthorized、Attempt、Receipt 或状态变化；错误不包含 Port 任意异常文本 | `release-publication-authorization.test.ts` 与 Runtime E2E 覆盖 Agent/actingFor、REQUEST Scope/allowed Project、Context kind/expiry 和受控授权前副作用检查；聚焦命令 4 files/35 tests 全通过 | `PASS — controlled unit/runtime` |
+| RP-ISSUE22-E-001 | E2E/Runtime | 同一 Release 的拒绝授权矩阵与完整 Human → ActorSnapshot → Decision 正例 | 所有负例均无副作用；完整 Human 链才允许后续正式 Attempt | `release-publication-runtime.e2e.test.ts` 受控测试通过；Agent/伪造 authorizationRef 负例无 outbox/Attempt，合法 Human fixture 可继续正式 Attempt | `PASS — controlled Runtime E2E; Identity/Provider NOT RUN` |
 | RP-ISSUE23-U-001 | Unit | 顶层/嵌套/数组未知字段、email/phone/name/address/token/URL/正文及自定义等价字段；安全 messageId/status/attempt | 只输出白名单安全字段；原始敏感值和未知字段不出现在 sanitized value 或错误边界；安全字段保留 | `provider-result.test.ts` 4 tests + `receipt-validator.test.ts` Formal Receipt persistence regression：unknown/custom/nested 字段删除，非对象根值 fail-closed，允许 key 不安全值替换，安全 ID/status 保留 | `PASS — controlled allowlist/persistence` |
 | RP-ISSUE24-U-001 | Unit/Provenance | 普通发送成功或单独 messageId；缺授权/Attempt/Raw、错误 Adapter Attempt type、错误 `externalDeliveryRequestRef` | 不铸造 Formal Receipt，不追加 `PublicationSucceeded`/Completion，拒绝不改写原状态 | `receipt-validator.test.ts` provenance matrix 与 Runtime gate 覆盖错误 Adapter Attempt type、External Delivery Request、Scope/Attempt/Package；Formal Receipt rejected without state mutation | `PASS — controlled provenance` |
 | RP-ISSUE24-E-001 | E2E/Runtime | 完整授权 Release → frozen Package → Publication Attempt → External Delivery Request → Adapter Attempt → successful Raw Receipt；并行 ordinary-send negative | 仅完整正式链路产生 Formal Receipt/Event；ordinary 与 formal refs 不混淆 | Runtime E2E 通过完整 Human authorization fixture；普通 provider success 只返回 messageId 且缺正式 Raw binding 时 rejected，Attempt 保持 PENDING、无 succeeded event | `PASS — controlled Runtime; Feishu/Provider NOT RUN` |
 
-聚焦命令：`pnpm exec vitest run provider-result.test.ts receipt-validator.test.ts release-publication-authorization.test.ts release-publication-runtime.e2e.test.ts --no-file-parallelism --reporter=dot`，实际输出为 `4 files passed / 34 tests passed`。真实 Provider/Feishu、公开 HTTP、统一跨模块业务 E2E、生产和独立人工验收继续记录为 `NOT RUN`。
+聚焦命令：`pnpm exec vitest run provider-result.test.ts receipt-validator.test.ts release-publication-authorization.test.ts release-publication-runtime.e2e.test.ts --no-file-parallelism --reporter=dot`，实际输出为 `4 files passed / 35 tests passed`。真实 Provider/Feishu、公开 HTTP、统一跨模块业务 E2E、生产和独立人工验收继续记录为 `NOT RUN`。
+
+## Issue #22 Recall Persistence 回归（PR #141 合并后发现的缺陷）
+
+| ID | 层级 | 输入 | 预期输出 | 修复前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| RP-ISSUE22-R-001 | Handler/Persistence | Release 原始授权由 Human A/ActorSnapshot A 完成；当前 Recall Envelope/Context 使用不同的 Human B，当前 Recall AuthorizationDecision B 精确引用 ActorSnapshot B | 先从 Identity Authority 解析 Decision B，再加载 ActorSnapshot B；有效 Recall 成功，Recall/ImpactReview/Event/Release 状态一次提交 | PostgreSQL Handler 回归使用 Decision B → ActorSnapshot B；Recall 成功并推进 `RECALLED@14`，Release 原始 ActorSnapshot A 仍保留为历史，未被当前主体替代 | `PASS — current Decision binding / PostgreSQL` |
+| RP-ISSUE22-R-002 | Handler/Persistence | 当前 Recall ActorSnapshot principal 与当前 Decision principal 不一致 | 确定性拒绝；不写 Recall、ImpactReview、Event，不改变 Release 状态/版本 | PostgreSQL Handler 回归稳定拒绝 `RELEASE_AUTHORIZATION_INVALID`，Release 保持 `RELEASED@13`，Recall/ImpactReview/Event 均无新增 | `PASS — rejection and no side effect` |
+| RP-ISSUE22-R-003 | Handler/Persistence | 当前 Recall Decision 的 Scope、Purpose、command type/version 或 payload hash 与请求不一致 | 确定性拒绝；无业务副作用 | PostgreSQL Handler 回归逐项覆盖 foreign Scope、错误 Purpose、错误 command type 和错误 payload hash；每项均拒绝且无业务事实新增 | `PASS — exact mismatch matrix` |
+| RP-ISSUE22-R-004 | Handler/Persistence | 当前 Recall Decision 过期或撤销 | 确定性拒绝；无 Recall、ImpactReview、Event 或 Release 状态变化 | PostgreSQL Handler 回归分别覆盖 expired/revoked Decision；均返回稳定拒绝，Release 保持 `RELEASED@13` 且无 Recall side effect | `PASS — expiry/revocation` |
+| RP-ISSUE22-R-005 | Handler/Persistence | Agent，或 Agent `actingFor` Human 作为当前 Recall actor | 确定性拒绝；不得通过 `actingFor` 提权，且无业务副作用 | PostgreSQL Handler 回归覆盖 Agent Context 和 Agent ActorSnapshot `actingFor` Human；均在业务写入前拒绝，未提权 | `PASS — Agent/actingFor fail-closed` |
+| RP-ISSUE22-R-006 | Handler/Persistence | 任一 Recall 授权拒绝场景 | 可保留安全拒绝 Receipt/Audit，但不得产生 Recall、ImpactReview、ReleaseRecalled Event 或 Release 状态/版本变化 | 每个拒绝分支均读回 Release `RELEASED@13`、`release_recall=0`、`impact_review=0` 和无 `release.ReleaseRecalled` outbox event；只有有效 B Recall 才推进 `RECALLED@14` | `PASS — side-effect readback` |
+
+本节验证已完成：聚焦命令为 `4 files / 35 tests PASS`；`pnpm persistence:gate` 在 PostgreSQL 18.6/Flyway 11.20.3 上为 `34 files / 314 tests PASS`，V6002 已应用，二次迁移为 `No migration necessary`，容器已清理；新鲜 `pnpm clean && pnpm verify` 为 `42 files passed / 30 skipped`、`439 passed / 299 skipped`。当前证据仍是本地/受控技术证据；Issue #22 仍 OPEN，尚未 commit、push 或创建 follow-up PR。
 
 ## 本阶段结果
 
@@ -78,7 +91,7 @@
 
 - IM-05 WI-06 本地验证（2026-08-31）：`pnpm exec vitest run modules/release-publication/src/package-hash.test.ts modules/release-publication/src/release-publication-validation.test.ts --no-file-parallelism` 为 `2 files / 5 tests PASS`；`pnpm lint`、`pnpm typecheck` 和 ReleasePublication package build 均通过；`pnpm persistence:gate` 在固定 PostgreSQL `18.6`（server_version `180006`）/Flyway `11.20.3` 上为 `34 files / 313 tests PASS`，空库迁移与第二次 `Schema "public" is up to date. No migration necessary.` 均通过，容器已清理。该结果覆盖本地实现、真实 PostgreSQL、合成 REL-801 preparation-only 技术边界，不升级真实 Provider、公开 HTTP、跨模块业务 E2E、生产或独立人工验收。
 
-- IM-05 WI-07 本地验证（2026-08-31）是既有历史交付证据；本次 #22–#24 修复的最新聚焦命令为 `4 files / 34 tests PASS`。随后 `pnpm clean && pnpm verify` 完整通过：Format、Lint、Typecheck、全量 Vitest `42 files passed / 30 skipped`（`438 passed / 299 skipped`）、Architecture、Contract/Catalog `201/201 FULL`、compatibility baseline 200 operations，以及 PostgreSQL/Flyway `34 files / 314 tests`；二次 migrate 返回 `Schema "public" is up to date. No migration necessary.`，容器已清理。真实 Provider、公开 HTTP、跨模块业务 E2E、生产、外部收件人和独立人工验收仍为 `NOT RUN`；本工作树尚未 commit、push 或创建/关闭 PR/Issue。
+- IM-05 WI-07 本地验证（2026-08-31）是既有历史交付证据；本次 #22 Recall 修复的最新聚焦命令为 `4 files / 35 tests PASS`，包含当前 Decision → ActorSnapshot 和 PostgreSQL side-effect readback。随后 `pnpm clean && pnpm verify` 完整通过：Format、Lint、Typecheck、全量 Vitest `42 files passed / 30 skipped`（`439 passed / 299 skipped`）、Architecture、Contract/Catalog `201/201 FULL`、compatibility baseline 200 operations，以及 PostgreSQL/Flyway `34 files / 314 tests`；二次 migrate 返回 `Schema "public" is up to date. No migration necessary.`，容器已清理。真实 Provider、公开 HTTP、跨模块业务 E2E、生产、外部收件人和独立人工验收仍为 `NOT RUN`；本工作树尚未 commit、push 或创建/关闭 PR/Issue。
 
 ## IM-02 WI-04 PostgreSQL 用例
 

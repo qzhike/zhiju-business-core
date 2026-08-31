@@ -33,8 +33,16 @@ import {
   handleStartPublicationAttempt,
   handleValidateReleaseReadiness,
   InMemoryRawExternalReceiptRepository,
+  RELEASE_ACTOR_NOT_HUMAN,
+  RELEASE_AUTHORIZATION_DECISION_MISMATCH,
+  RELEASE_AUTHORIZATION_EXPIRED,
+  RELEASE_AUTHORIZATION_INVALID,
+  RELEASE_AUTHORIZATION_PURPOSE_MISMATCH,
+  RELEASE_AUTHORIZATION_REVOKED,
   ReleasePublicationBusinessError,
   type CommandResult,
+  type ReleaseActorSnapshotFact,
+  type ReleaseAuthorizationDecisionFact,
   type ReleaseAuthorityQueryPorts,
   type ReleaseCommandEnvelope,
   type ReleaseTransactionContext,
@@ -64,6 +72,9 @@ const REPRESENTATION_A = '0190a1b2-c3d4-7e81-8f90-123456789110';
 const REPRESENTATION_B = '0190a1b2-c3d4-7e81-8f90-123456789111';
 const DESTINATION_A = '0190a1b2-c3d4-7e81-8f90-123456789112';
 const DESTINATION_B = '0190a1b2-c3d4-7e81-8f90-123456789113';
+const RECALL_PRINCIPAL = '0190a1b2-c3d4-7e81-8f90-123456789117';
+const RECALL_ACTOR = '0190a1b2-c3d4-7e81-8f90-123456789118';
+const RECALL_DECISION = '0190a1b2-c3d4-7e81-8f90-123456789119';
 const PROBE_ROLE = 'im05_wi06_release_probe';
 const PROBE_PASSWORD = 'im05-wi06-release-probe';
 
@@ -75,7 +86,10 @@ function contentHashFromBytes(value: Buffer): Common.ContentHash {
   };
 }
 
-function context(projectIds: readonly string[] = [PROJECT]): ReleaseTransactionContext {
+function context(
+  projectIds: readonly string[] = [PROJECT],
+  overrides: Partial<ReleaseTransactionContext> = {},
+): ReleaseTransactionContext {
   return {
     kind: 'REQUEST',
     principalId: PRINCIPAL,
@@ -88,6 +102,7 @@ function context(projectIds: readonly string[] = [PROJECT]): ReleaseTransactionC
     enterpriseId: ENTERPRISE,
     allowedProjectIds: projectIds,
     correlationId: CORRELATION,
+    ...overrides,
   };
 }
 
@@ -617,6 +632,39 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
     let decisionCommandType = 'release.authorize_release';
     let decisionPurpose = 'release.publication.authorize_release';
     let decisionPayloadHash = hash(0x74);
+    const recallActorSnapshotRef = snapshotRef('identity.actor_snapshot', RECALL_ACTOR, 0x78);
+    const recallAuthorizationDecisionRef: Common.ContentAddressedRef = {
+      kind: 'CONTENT_ADDRESSED',
+      objectType: 'identity.authorization_decision',
+      objectId: RECALL_DECISION,
+      scope: scope(),
+      contentHash: hash(0x79),
+    };
+    const recallPrincipalRef = {
+      principalKind: 'HUMAN',
+      principalId: RECALL_PRINCIPAL,
+    } as const satisfies Common.PrincipalRef;
+    const recallAuthenticationContextHash = hash(0x7a);
+    const baseRecallActor: ReleaseActorSnapshotFact = {
+      actorSnapshotRef: recallActorSnapshotRef,
+      principalRef: recallPrincipalRef,
+      authenticationContextHash: recallAuthenticationContextHash,
+    };
+    const baseRecallDecision: ReleaseAuthorizationDecisionFact = {
+      authorizationDecisionRef: recallAuthorizationDecisionRef,
+      actorSnapshotRef: recallActorSnapshotRef,
+      principalRef: recallPrincipalRef,
+      commandType: 'release.recall_release',
+      commandVersion: '1.0',
+      scope: scope(),
+      purpose: 'release.publication.recall_release',
+      commandPayloadHash: hash(0x7b),
+      authenticationContextHash: recallAuthenticationContextHash,
+      outcome: 'ALLOW',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    };
+    let recallActor = baseRecallActor;
+    let recallDecision = baseRecallDecision;
     const ports: ReleaseAuthorityQueryPorts = {
       ...basePorts,
       quality: {
@@ -632,7 +680,9 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
                   principalRef,
                   authenticationContextHash,
                 }
-              : undefined,
+              : ref.snapshotId === recallActorSnapshotRef.snapshotId
+                ? recallActor
+                : undefined,
           ),
         getAuthorizationDecision: (ref) =>
           Promise.resolve(
@@ -650,7 +700,9 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
                   outcome: 'ALLOW' as const,
                   expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
                 }
-              : undefined,
+              : ref.objectId === recallAuthorizationDecisionRef.objectId
+                ? recallDecision
+                : undefined,
           ),
       },
       rawExternalReceipts: rawReceipts,
@@ -932,12 +984,21 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
     expect(completedRelease.status).toBe('RELEASED');
     expect(completedRelease.aggregateVersion).toBe(13);
 
-    decisionCommandType = 'release.recall_release';
-    decisionPurpose = 'release.publication.recall_release';
     const notificationPolicyRef = packageDefinition.destinations[0]?.deliveryPolicyRef;
     if (notificationPolicyRef === undefined) {
       throw new Error('WI-07 probe requires a notification policy');
     }
+    const recallContext = context([PROJECT], {
+      principalId: RECALL_PRINCIPAL,
+      principalKind: 'HUMAN',
+      actorSnapshotId: RECALL_ACTOR,
+      authorizationDecisionId: RECALL_DECISION,
+      authorizationDecisionHash: Buffer.from(
+        recallAuthorizationDecisionRef.contentHash.digest,
+        'hex',
+      ),
+      correlationId: newUuidV7(),
+    });
     const recallPayload: ReleasePublication.ReleaseRecallReleasePayload = {
       recallScope: {
         affectedDestinationIds: [DESTINATION_A, DESTINATION_B],
@@ -947,25 +1008,163 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
         summary: 'The synthetic release requires destination recall review.',
         evidenceRefs: [],
       },
-      authorizingHumanRef: principalRef,
-      authorizationDecisionRef,
+      authorizingHumanRef: recallPrincipalRef,
+      authorizationDecisionRef: recallAuthorizationDecisionRef,
       notificationPolicyRef,
-      recalledAt: new Date().toISOString(),
+      recalledAt: '2026-08-31T00:20:00.000Z',
     };
     const recallEnvelope = envelope(
-      currentContext,
+      recallContext,
       'release.recall_release',
       releaseId,
       recallPayload,
       '13',
     );
-    decisionPayloadHash = contentHashFromBytes(
-      digestCanonicalPayload(recallEnvelope.requestPayload).hash,
+    const validRecallDecision: ReleaseAuthorizationDecisionFact = {
+      ...baseRecallDecision,
+      commandPayloadHash: contentHashFromBytes(
+        digestCanonicalPayload(recallEnvelope.requestPayload).hash,
+      ),
+    };
+    recallDecision = validRecallDecision;
+
+    const assertNoRecallSideEffects = async (): Promise<void> => {
+      const state = await admin.query<{
+        status: string;
+        aggregate_version: string;
+        recalls: string;
+        impacts: string;
+        recalled_events: string;
+      }>(
+        `SELECT r.status, r.aggregate_version::text,
+                (SELECT count(*)::text FROM release_publication.release_recall
+                  WHERE release_id = r.release_id) AS recalls,
+                (SELECT count(*)::text FROM release_publication.release_impact_review
+                  WHERE release_id = r.release_id) AS impacts,
+                (SELECT count(*)::text FROM release_publication.outbox_event
+                  WHERE aggregate_id = r.release_id
+                    AND event_type = 'release.ReleaseRecalled') AS recalled_events
+           FROM release_publication.release_record r
+          WHERE r.release_id = $1`,
+        [releaseId],
+      );
+      expect(state.rows[0]).toEqual({
+        status: 'RELEASED',
+        aggregate_version: '13',
+        recalls: '0',
+        impacts: '0',
+        recalled_events: '0',
+      });
+    };
+
+    const rejectRecall = async (
+      recallContextForCommand: ReleaseTransactionContext,
+      payload: ReleasePublication.ReleaseRecallReleasePayload,
+      expectedCode: string,
+    ): Promise<void> => {
+      const result = await handleRecallRelease(
+        db,
+        recallContextForCommand,
+        envelope(recallContextForCommand, 'release.recall_release', releaseId, payload, '13'),
+        ports,
+      );
+      expect(result.status).toBe('REJECTED');
+      if (result.status === 'REJECTED') expect(result.errorCode).toBe(expectedCode);
+      await assertNoRecallSideEffects();
+    };
+
+    recallDecision = { ...validRecallDecision, principalRef };
+    await rejectRecall(recallContext, recallPayload, RELEASE_AUTHORIZATION_INVALID);
+
+    recallDecision = {
+      ...validRecallDecision,
+      scope: { enterpriseId: ENTERPRISE, projectId: OTHER_PROJECT },
+    };
+    await rejectRecall(recallContext, recallPayload, RELEASE_AUTHORIZATION_DECISION_MISMATCH);
+
+    recallDecision = {
+      ...validRecallDecision,
+      purpose: 'release.publication.authorize_release',
+    };
+    await rejectRecall(recallContext, recallPayload, RELEASE_AUTHORIZATION_PURPOSE_MISMATCH);
+
+    recallDecision = { ...validRecallDecision, commandPayloadHash: hash(0x99) };
+    await rejectRecall(recallContext, recallPayload, RELEASE_AUTHORIZATION_DECISION_MISMATCH);
+
+    recallDecision = { ...validRecallDecision, commandType: 'release.authorize_release' };
+    await rejectRecall(recallContext, recallPayload, RELEASE_AUTHORIZATION_DECISION_MISMATCH);
+
+    recallDecision = { ...validRecallDecision, expiresAt: '2026-08-30T00:00:00.000Z' };
+    await rejectRecall(recallContext, recallPayload, RELEASE_AUTHORIZATION_EXPIRED);
+
+    recallDecision = {
+      ...validRecallDecision,
+      revokedAt: '2026-08-30T00:00:00.000Z',
+    };
+    await rejectRecall(recallContext, recallPayload, RELEASE_AUTHORIZATION_REVOKED);
+
+    recallDecision = validRecallDecision;
+    await rejectRecall(
+      context(recallContext.allowedProjectIds, {
+        ...recallContext,
+        principalKind: 'AGENT',
+        correlationId: newUuidV7(),
+      }),
+      recallPayload,
+      RELEASE_ACTOR_NOT_HUMAN,
     );
-    const recallResult = await handleRecallRelease(db, currentContext, recallEnvelope, ports);
+
+    recallActor = {
+      ...baseRecallActor,
+      principalRef: { principalKind: 'AGENT', principalId: RECALL_PRINCIPAL },
+      actingForRef: recallPrincipalRef,
+    };
+    await rejectRecall(recallContext, recallPayload, RELEASE_ACTOR_NOT_HUMAN);
+
+    recallActor = baseRecallActor;
+    recallDecision = validRecallDecision;
+    const recallResult = await handleRecallRelease(db, recallContext, recallEnvelope, ports);
     const recalledPayload = committed(recallResult);
     expect(recalledPayload.status).toBe('RECALLED');
     expect(recalledPayload.aggregateVersion).toBe(14);
+
+    const recallProvenance = await admin.query<{
+      created_by_principal_id: string;
+      created_by_actor_snapshot_id: string;
+      created_authorization_decision_id: string;
+      authorization_decision_ref: Common.ContentAddressedRef;
+    }>(
+      `SELECT created_by_principal_id::text, created_by_actor_snapshot_id::text,
+              created_authorization_decision_id::text, authorization_decision_ref
+         FROM release_publication.release_recall
+        WHERE release_id = $1`,
+      [releaseId],
+    );
+    expect(recallProvenance.rows).toHaveLength(1);
+    expect(recallProvenance.rows[0]).toMatchObject({
+      created_by_principal_id: RECALL_PRINCIPAL,
+      created_by_actor_snapshot_id: RECALL_ACTOR,
+      created_authorization_decision_id: RECALL_DECISION,
+    });
+    expect(recallProvenance.rows[0]?.authorization_decision_ref.objectId).toBe(RECALL_DECISION);
+
+    const releaseAuthorizationHistory = await admin.query<{
+      authorization_actor_snapshot_ref: Common.SnapshotRef;
+      status: string;
+      aggregate_version: string;
+    }>(
+      `SELECT authorization_actor_snapshot_ref, status, aggregate_version::text
+         FROM release_publication.release_record
+        WHERE release_id = $1`,
+      [releaseId],
+    );
+    expect(releaseAuthorizationHistory.rows[0]).toMatchObject({
+      status: 'RECALLED',
+      aggregate_version: '14',
+    });
+    expect(releaseAuthorizationHistory.rows[0]?.authorization_actor_snapshot_ref.snapshotId).toBe(
+      ACTOR,
+    );
 
     const attemptsPage = await handleGetPublicationAttempts(db, currentContext, {
       releaseRef: preparedRelease.releaseRef,

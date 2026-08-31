@@ -3,6 +3,7 @@ import type { Common } from '@zhiju/contracts';
 import type { ReleaseTransactionContext } from './persistence/release-publication-db.js';
 import {
   RELEASE_ACTOR_NOT_HUMAN,
+  RELEASE_ACTOR_SNAPSHOT_MISMATCH,
   RELEASE_AUTHORIZATION_DECISION_MISMATCH,
   RELEASE_AUTHORIZATION_EXPIRED,
   RELEASE_AUTHORIZATION_INVALID,
@@ -153,6 +154,24 @@ describe('ReleasePublication WI-07 Human authorization chain', () => {
       actorSnapshot: facts.actor,
       authorizationDecision: facts.decision,
     });
+  });
+
+  it('resolves the current ActorSnapshot from the authoritative AuthorizationDecision', async () => {
+    const facts = validFacts();
+    const { actorSnapshotRef: omittedActorSnapshotRef, ...decisionBoundInput } = input(facts);
+    expect(omittedActorSnapshotRef).toEqual(facts.actor.actorSnapshotRef);
+
+    await expect(validateHumanAuthorizationChain(decisionBoundInput)).resolves.toMatchObject({
+      actorSnapshot: facts.actor,
+      authorizationDecision: facts.decision,
+    });
+
+    await expect(
+      validateHumanAuthorizationChain({
+        ...decisionBoundInput,
+        context: context({ actorSnapshotId: '018f22e2-7c15-7b2e-8d86-2de956a9d599' }),
+      }),
+    ).rejects.toMatchObject({ code: RELEASE_ACTOR_SNAPSHOT_MISMATCH });
   });
 
   it('rejects an Agent actor and an actingFor Agent before any publication side effect', async () => {

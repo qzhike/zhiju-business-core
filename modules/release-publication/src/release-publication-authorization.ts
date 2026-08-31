@@ -82,6 +82,12 @@ export interface ReleaseHumanAuthorizationChainInput {
   readonly now: Date;
 }
 
+/** Input variant for commands whose current ActorSnapshot is named by the Decision. */
+export type ReleaseCurrentDecisionAuthorizationChainInput = Omit<
+  ReleaseHumanAuthorizationChainInput,
+  'actorSnapshotRef'
+>;
+
 export interface ReleaseAuthorizationValidationResult extends ReleaseAuthorizationRevalidationResult {
   readonly actorSnapshot: ReleaseActorSnapshotFact;
   readonly authorizationDecision: ReleaseAuthorizationDecisionFact;
@@ -324,7 +330,7 @@ function assertAuthorizationDecision(
 
 /** Validates the complete trusted Human → ActorSnapshot → Decision chain. */
 export async function validateHumanAuthorizationChain(
-  input: ReleaseHumanAuthorizationChainInput,
+  input: ReleaseHumanAuthorizationChainInput | ReleaseCurrentDecisionAuthorizationChainInput,
 ): Promise<{
   readonly actorSnapshot: ReleaseActorSnapshotFact;
   readonly authorizationDecision: ReleaseAuthorizationDecisionFact;
@@ -354,27 +360,25 @@ export async function validateHumanAuthorizationChain(
   ) {
     fail(RELEASE_AUTHORIZATION_EXPIRED, 'transaction authorization context has expired');
   }
-  const actorSnapshotReference = input.actorSnapshotRef as unknown as {
-    readonly kind?: unknown;
-    readonly objectType?: unknown;
-  };
   const authorizationDecisionReference = input.authorizationDecisionRef as unknown as {
     readonly kind?: unknown;
     readonly objectType?: unknown;
   };
+  const actorSnapshotReference =
+    'actorSnapshotRef' in input
+      ? (input.actorSnapshotRef as unknown as {
+          readonly kind?: unknown;
+          readonly objectType?: unknown;
+        })
+      : undefined;
   if (
-    actorSnapshotReference.kind !== 'SNAPSHOT' ||
-    actorSnapshotReference.objectType !== 'identity.actor_snapshot' ||
+    (actorSnapshotReference !== undefined &&
+      (actorSnapshotReference.kind !== 'SNAPSHOT' ||
+        actorSnapshotReference.objectType !== 'identity.actor_snapshot')) ||
     authorizationDecisionReference.kind !== 'CONTENT_ADDRESSED' ||
     authorizationDecisionReference.objectType !== 'identity.authorization_decision'
   ) {
     fail(RELEASE_AUTHORIZATION_INVALID, 'authorization chain reference types are not exact');
-  }
-  if (input.context.actorSnapshotId !== input.actorSnapshotRef.snapshotId) {
-    fail(
-      RELEASE_ACTOR_SNAPSHOT_MISMATCH,
-      'Envelope ActorSnapshot does not match the authorization payload',
-    );
   }
   if (input.context.authorizationDecisionId !== input.authorizationDecisionRef.objectId) {
     fail(
@@ -394,20 +398,51 @@ export async function validateHumanAuthorizationChain(
       'trusted AuthorizationDecision hash does not match the payload',
     );
   }
-  if (input.ports.identity === undefined) {
+  const identity = input.ports.identity;
+  if (identity === undefined) {
     fail(RELEASE_AUTHORIZATION_INVALID, 'Identity authority ports are unavailable');
   }
-  const actor = await input.ports.identity.getActorSnapshot(input.actorSnapshotRef);
-  if (actor === undefined)
-    fail(RELEASE_ACTOR_SNAPSHOT_MISMATCH, 'ActorSnapshot was not found exactly');
-  assertActorSnapshot(actor, input);
-  const decision = await input.ports.identity.getAuthorizationDecision(
-    input.authorizationDecisionRef,
-  );
+
+  let decision: ReleaseAuthorizationDecisionFact | undefined;
+  try {
+    decision = await identity.getAuthorizationDecision(input.authorizationDecisionRef);
+  } catch {
+    fail(RELEASE_AUTHORIZATION_INVALID, 'AuthorizationDecision could not be resolved exactly');
+  }
   if (decision === undefined) {
     fail(RELEASE_AUTHORIZATION_DECISION_MISMATCH, 'AuthorizationDecision was not found exactly');
   }
-  assertAuthorizationDecision(decision, actor, input);
+
+  const actorSnapshotRef =
+    'actorSnapshotRef' in input ? input.actorSnapshotRef : decision.actorSnapshotRef;
+  const resolvedInput: ReleaseHumanAuthorizationChainInput = { ...input, actorSnapshotRef };
+  const resolvedActorSnapshotReference = resolvedInput.actorSnapshotRef as unknown as {
+    readonly kind?: unknown;
+    readonly objectType?: unknown;
+  };
+  if (
+    resolvedActorSnapshotReference.kind !== 'SNAPSHOT' ||
+    resolvedActorSnapshotReference.objectType !== 'identity.actor_snapshot'
+  ) {
+    fail(RELEASE_AUTHORIZATION_INVALID, 'authorization chain reference types are not exact');
+  }
+  if (resolvedInput.context.actorSnapshotId !== resolvedInput.actorSnapshotRef.snapshotId) {
+    fail(
+      RELEASE_ACTOR_SNAPSHOT_MISMATCH,
+      'Envelope ActorSnapshot does not match the authorization payload',
+    );
+  }
+
+  let actor: ReleaseActorSnapshotFact | undefined;
+  try {
+    actor = await identity.getActorSnapshot(resolvedInput.actorSnapshotRef);
+  } catch {
+    fail(RELEASE_AUTHORIZATION_INVALID, 'ActorSnapshot could not be resolved exactly');
+  }
+  if (actor === undefined)
+    fail(RELEASE_ACTOR_SNAPSHOT_MISMATCH, 'ActorSnapshot was not found exactly');
+  assertActorSnapshot(actor, resolvedInput);
+  assertAuthorizationDecision(decision, actor, resolvedInput);
   return { actorSnapshot: actor, authorizationDecision: decision };
 }
 
