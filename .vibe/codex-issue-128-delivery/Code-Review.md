@@ -6,7 +6,7 @@
 
 审查范围：IM-05 WI-08 合成 QMS/REL-801 退出证据所涉及的权威 Spec/Test 文档、QMS Gate fixture、ReleasePublication Handler persistence report、deterministic OOXML renderer report、既有 Representation/Binding 证据及本地验证结果。
 
-审查结论：`PASS — COMPONENT / SYNTHETIC / DISPOSABLE POSTGRESQL TECHNICAL SCOPE / EXACT-HEAD CI PASS`；PR #139 已创建，Issue #128 尚待合并 closeout；统一跨模块业务 E2E、真实 Provider/生产和独立人工业务验收仍未执行。
+审查结论：`PASS — COMPONENT / SYNTHETIC / DISPOSABLE POSTGRESQL TECHNICAL SCOPE / EXACT-HEAD CI PASS / MERGED`；PR #139 已合并，Issue #128 已关闭；统一跨模块业务 E2E、真实 Provider/生产和独立人工业务验收仍未执行。
 
 ## 1. 审查发现与处置
 
@@ -58,4 +58,4 @@ Issue #120 不能因本 Issue 的合成技术证据自动关闭；父级仍需�
 
 ## 5. Git 交付边界
 
-初始交付已执行限定路径 staging、`git diff --cached --check`、commit 和 non-force push：提交为 `290d28758d04d6be225d8587e8314ed2f46830de`，PR 为 [#139](https://github.com/qzhike/zhiju-business-core/pull/139)，其 exact-head CI 已通过。当前 follow-up 仅同步本记录和权威文档的 Git 状态；PR #139 合并、Issue #128 closeout、`origin/main` ancestry readback 和该命名交付分支清理仍需在最终精确 head 上完成，不修改或关闭父级 Issue #120。
+初始实现提交 `290d28758d04d6be225d8587e8314ed2f46830de` 与状态同步提交 `306cdbc3b8c8201994a57097038c4c3f784b0412` 已按限定路径完成 staging、`git diff --cached --check`、commit 和 non-force push；PR 为 [#139](https://github.com/qzhike/zhiju-business-core/pull/139)，最终 head 已通过 GitHub Actions `verify` run `33355948473` 并以 merge commit `07fc6a083897c01924f842d12dffe06fd6068261` 合入 `main`。Issue #128 已关闭，`origin/main` ancestry 和原交付分支本地/远端删除均已读回；当前仅保留本无 Issue 的 authority docs closeout，不修改或关闭父级 Issue #120。

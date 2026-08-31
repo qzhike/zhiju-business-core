@@ -2,9 +2,9 @@
 
 日期：2026-08-31
 
-状态：`SUBMITTED PR #139 / SYNTHETIC / TECHNICAL ONLY / LOCAL VERIFY PASS / EXACT-HEAD CI PASS`
+状态：`DELIVERED PR #139 / ISSUE #128 CLOSED / SYNTHETIC / TECHNICAL ONLY / LOCAL VERIFY PASS / EXACT-HEAD CI PASS`
 
-Git 状态：实现提交 `290d28758d04d6be225d8587e8314ed2f46830de` 已 push 到 PR #139；GitHub Actions `verify` run `33355081899` 第二次执行在该精确 head 上通过。PR 合并前 Issue #128 保持 OPEN；本报告不关闭父级 Issue #120。
+Git 状态：最终审阅 head `306cdbc3b8c8201994a57097038c4c3f784b0412` 已 push 到 PR #139，并由 GitHub Actions `verify` run `33355948473` 通过；PR #139 以 merge commit `07fc6a083897c01924f842d12dffe06fd6068261` 合入 `main`，Issue #128 已关闭。本报告不关闭父级 Issue #120。
 
 ## 1. 目标、范围与结论
 
@@ -51,8 +51,10 @@ REV-002 FAIL
 | 工作分支 | `galendai/im-05-wi-08-deliver-synthetic-qms-rel-801-exit-e` |
 | PR base / `origin/main` | `c69f446a610b4fff18850f0450a0b5f4e1fd3ccf` |
 | 初始实现 delivery HEAD | `290d28758d04d6be225d8587e8314ed2f46830de` |
-| 远端 delivery branch | `galendai/im-05-wi-08-deliver-synthetic-qms-rel-801-exit-e` → `290d28758d04d6be225d8587e8314ed2f46830de` |
-| Issue | [#128](https://github.com/qzhike/zhiju-business-core/issues/128)，当前 OPEN |
+| 最终审阅 delivery HEAD | `306cdbc3b8c8201994a57097038c4c3f784b0412` |
+| Merge commit | `07fc6a083897c01924f842d12dffe06fd6068261` |
+| 远端 delivery branch | `galendai/im-05-wi-08-deliver-synthetic-qms-rel-801-exit-e` → 已在合并后清理 |
+| Issue | [#128](https://github.com/qzhike/zhiju-business-core/issues/128)，`CLOSED / COMPLETED` |
 | 父级 Issue | [#120](https://github.com/qzhike/zhiju-business-core/issues/120)，当前 OPEN |
 | 前置 WI | #121–#127 已关闭；#22/#23/#24 仍为独立 OPEN 边界 |
 | Migration 变化 | 本轮无新增 Migration；现有 V6002 继续作为 ReleasePublication 持久化入口 |
@@ -260,10 +262,10 @@ Binding 的 exact Revision、Scope、input/output、format、renderer 和 Receip
 | Word/Excel openability | `PASS`（既有 WI-05 证据） | 本轮未重新启动 GUI；独立人工版式/业务验收 `NOT RUN` |
 | Clean/no-op migration and persistence gate | `PASS` | 34 files / 314 tests；second migrate no-op；容器清理 |
 | `pnpm clean && pnpm verify` | `PASS` | 当前工作树最终运行：42 files passed / 30 skipped；432 passed / 299 skipped；Persistence 34 files / 314 tests |
-| Exact-head CI and GitHub readback | `PASS（PR #139 当前初始 head）` | `290d2875`；GitHub Actions `verify` run `33355081899` 第二次执行通过；PR 合并和 Issue closeout 尚待完成 |
+| Exact-head CI and GitHub readback | `PASS` | 最终 head `306cdbc3`；GitHub Actions `verify` run `33355948473` 通过；PR #139 与 Issue #128 已完成 closeout |
 | Parent #120 closeout | `NOT RECOMMENDED` | #22/#23/#24、Provider/production/manual/unified E2E 边界仍未满足 |
 
-建议：本轮已形成 PR #139 交付；在最终 follow-up 文档提交的精确 head 上重新读回 CI、PR、Issue 和 ancestry 后合并 PR #139，使关联的 Issue #128 关闭。绝不自动关闭 #120；#22/#23/#24 和真实 Provider/生产/人工边界继续独立维护。
+建议：本轮 PR #139、Issue #128 和精确 head closeout 已完成；父级 #120 不因本报告自动关闭，#22/#23/#24 和真实 Provider/生产/人工边界继续独立维护。
 
 ## 9. 未运行边界与清理
 
@@ -280,8 +282,8 @@ Binding 的 exact Revision、Scope、input/output、format、renderer 和 Receip
 
 ## 10. Git 交付状态
 
-用户已回复“确认提交”，初始交付状态如下：
+用户已回复“确认提交”，最终交付状态如下：
 
 1. 已按限定路径完成 staging、`git diff --cached --check`、commit、non-force push，并创建 PR #139。
 2. `pnpm clean && pnpm verify` 本地 PASS；GitHub Actions exact-head `verify` 在重跑后 PASS；技术证据仍保持真实 `NOT RUN` 边界。
-3. 当前 follow-up 只同步本报告与权威文档的 Git 状态；之后在最终精确 head 上完成 PR merge、Issue #128 closeout、远端 readback、main ancestry 验证和命名分支清理。
+3. 已在最终精确 head 上完成 PR merge、Issue #128 closeout、远端 readback、`origin/main` ancestry 验证以及命名交付分支的本地/远端删除读回；本报告的 authority docs 状态同步随后的无 Issue closeout PR 完成。

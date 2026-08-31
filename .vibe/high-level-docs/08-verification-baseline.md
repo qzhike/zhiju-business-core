@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-31
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01–WI-09 GIT DELIVERY VERIFIED / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-05 WI-01–WI-06 GIT DELIVERY VERIFIED / ISSUE #121–#126 CLOSED / IM-05 WI-07 GITHUB DELIVERY VERIFIED PR #138 / ISSUE #127 CLOSED / IM-05 WI-08 SYNTHETIC QMS/REL-801 EXIT REVIEW SUBMITTED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 PENDING MERGE / PARENT #120 OPEN / #22–#24 OPEN / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01–WI-09 GIT DELIVERY VERIFIED / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-05 WI-01–WI-06 GIT DELIVERY VERIFIED / ISSUE #121–#126 CLOSED / IM-05 WI-07 GITHUB DELIVERY VERIFIED PR #138 / ISSUE #127 CLOSED / IM-05 WI-08 SYNTHETIC QMS/REL-801 EXIT REVIEW DELIVERED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 CLOSED / PARENT #120 OPEN / #22–#24 OPEN / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -493,7 +493,7 @@ REL-801 双 Destination 合成时间线是手工复核材料：必须能核对 e
 
 2026-08-31 验证结果：精确执行 `pnpm verify` 全部通过，普通 Vitest 为 42 个文件通过、30 个受控跳过（432 passed、299 skipped），Architecture 为 `source_roots=10`，Public API/Catalog 为 201 operations 且全部 `FULL`，compatibility baseline v1.0 为 200 operations；PostgreSQL/Flyway Persistence Gate 为 34 个文件、314 个测试，V6002、二次 no-op、tag→digest、RLS/ACL、CAS、append-only、Observation hash readback、rollback、跨 Scope 和容器清理均通过。ReleasePublication focused suite 为 6 个文件、33 个测试通过。该结果只覆盖本地、合成和 disposable PostgreSQL 技术边界；真实 Provider、公开 HTTP、生产数据库、跨模块业务 E2E、外部收件人和独立人工验收保持 `NOT RUN`。
 
-2026-08-31 exact-head GitHub 验证：提交 head `290d28758d04d6be225d8587e8314ed2f46830de` 已推送到 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139)；GitHub Actions `verify` run `33355081899` 的第二次执行通过。PR #139 合并前 Issue #128 保持 OPEN；本地/CI 技术 PASS 仍不代表统一跨模块业务 E2E、Provider、生产或独立人工验收。
+2026-08-31 exact-head GitHub 验证：最终审阅 head `306cdbc3b8c8201994a57097038c4c3f784b0412` 已通过 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139) 合入 `main`，merge commit 为 `07fc6a083897c01924f842d12dffe06fd6068261`；GitHub Actions `verify` run `33355948473` 在该精确 head 上通过，Issue #128 已关闭。本地/CI 技术 PASS 仍不代表统一跨模块业务 E2E、Provider、生产或独立人工验收。
 
 ## 19. IM-05 WI-08 合成 QMS/REL-801 退出复核
 
