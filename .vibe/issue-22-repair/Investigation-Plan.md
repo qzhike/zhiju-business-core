@@ -23,6 +23,6 @@
 
 ## 当前 GitHub 交付状态
 
-1. 修复 commit `14598cc63ad935337b61c386336537a60c38959e` 已推送，follow-up PR #142 已创建；该 exact head 的 GitHub `verify` 已通过。Issue #22 在 PR 实际合并和重新验收前保持 OPEN。
-2. PR #142 code review 确认核心 Recall 修复方向正确，同时要求先订正 #23/#24 的失败状态、未执行测试边界和过期 Git 状态。本轮只修复文档对齐，尚未生成新的修复 commit。
-3. 请用户检查本记录和权威文档差异；收到明确确认后，才执行 scoped staging audit 和新的 Git commit。真实 Identity Provider、Provider/Feishu、公开 HTTP、生产、统一跨模块业务 E2E、外部收件人和独立人工验收仍保持 `NOT RUN`。
+1. 修复 commit `14598cc63ad935337b61c386336537a60c38959e` 与文档对齐 commit `87704a35838f2db529cc2b992eb3f5e33675fe05` 已推送；最终 exact head 的 GitHub `verify` run `33391359556` 已通过。
+2. PR #142 已以 merge commit `e9590a9ec9dbc706b42233ed76068c0fdd6fd729` 合入 `main`，Issue #22 已于 2026-08-31 自动关闭。Issue #23/#24 继续保持 OPEN，不因 #22 关闭而升级验收状态。
+3. 真实 Identity Provider、Provider/Feishu、公开 HTTP、生产、统一跨模块业务 E2E、外部收件人和独立人工验收仍保持 `NOT RUN`。
