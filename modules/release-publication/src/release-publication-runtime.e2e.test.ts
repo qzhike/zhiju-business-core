@@ -637,6 +637,85 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     expect(finalOutcome?.succeededDestinationIds).toContain('018f22e2-7c15-7b2e-8d86-2de956a9d810');
   });
 
+  it('RP-ISSUE23-U-005: keeps normalized provider result in the Receipt and excludes it from Events and errors', async () => {
+    const fixture = loadFixture();
+    const runtime = await openRuntime(fixture);
+    const firstEntry = fixture.timeline[0];
+    const receiptEntry = fixture.timeline.find((entry) => entry.step === 3);
+    if (firstEntry === undefined || receiptEntry === undefined) {
+      throw new Error('fixture is missing the first Attempt or accepted Receipt');
+    }
+    const first = requireAttemptFields(firstEntry);
+    const baseSubmission = resolveSubmission(receiptEntry, undefined);
+    const baseReceiptRef = resolveReceiptRef(receiptEntry, undefined);
+    const sensitiveSubmission: ReleasePublication.FormalReceiptSubmission = {
+      ...baseSubmission,
+      providerResult: {
+        messageId: 'AliceCustomer',
+        providerStatus: 'AliceCustomer',
+        reasonCode: 'BobBuyer',
+        status: 'CustomerName',
+        customRecipientData: [{ email: 'customer@example.com', body: 'document body' }],
+      },
+    };
+
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: first.attemptRef,
+        definition: first.definition,
+        correlationId: 'issue-23-runtime-start',
+      }).ok,
+    ).toBe(true);
+    const accepted = runtime.recordPublicationReceipt({
+      releaseRef: fixture.release.releaseRef,
+      submission: sensitiveSubmission,
+      receiptRef: baseReceiptRef,
+      correlationId: 'issue-23-runtime-accepted',
+    });
+    expect(accepted.ok).toBe(true);
+    if (accepted.ok) {
+      const serializedReceipt = JSON.stringify(accepted.record.submission.providerResult);
+      expect(accepted.record.submission.providerResult).toEqual({
+        providerStatus: { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' },
+        reasonCode: { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' },
+        status: { redacted: true, reasonCode: 'PROVIDER_RESULT_FIELD_REDACTED' },
+      });
+      expect(serializedReceipt).not.toContain('AliceCustomer');
+      expect(serializedReceipt).not.toContain('BobBuyer');
+      expect(serializedReceipt).not.toContain('CustomerName');
+      expect(serializedReceipt).not.toContain('customer@example.com');
+      expect(serializedReceipt).not.toContain('document body');
+    }
+
+    const events = runtime.getOutboxEvents(fixture.release.releaseRef);
+    expect(JSON.stringify(events)).not.toContain('AliceCustomer');
+    expect(JSON.stringify(events)).not.toContain('BobBuyer');
+    expect(JSON.stringify(events)).not.toContain('CustomerName');
+    expect(
+      events.find((event) => event.eventType === 'release.PublicationSucceeded')?.payload,
+    ).not.toHaveProperty('providerResult');
+
+    const rejected = runtime.recordPublicationReceipt({
+      releaseRef: fixture.release.releaseRef,
+      submission: {
+        ...sensitiveSubmission,
+        destinationId: '018f22e2-7c15-7b2e-8d86-2de956a9d811',
+      },
+      receiptRef: {
+        ...baseReceiptRef,
+        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d8d2',
+      },
+      correlationId: 'issue-23-runtime-rejected',
+    });
+    expect(rejected.ok).toBe(false);
+    expect(JSON.stringify(rejected)).not.toContain('AliceCustomer');
+    expect(JSON.stringify(rejected)).not.toContain('BobBuyer');
+    expect(JSON.stringify(rejected)).not.toContain('CustomerName');
+    expect(JSON.stringify(rejected)).not.toContain('customer@example.com');
+    expect(JSON.stringify(rejected)).not.toContain('document body');
+  });
+
   it('keeps the stale rejection from mutating the ledger on replay', async () => {
     const fixture = loadFixture();
     const runtime = await openRuntime(fixture);
