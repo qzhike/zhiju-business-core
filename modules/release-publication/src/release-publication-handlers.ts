@@ -2304,7 +2304,7 @@ export async function handleRecallRelease(
           ports,
           releaseRef: frozen.releaseRef,
           authorizingHumanRef: envelope.payload.authorizingHumanRef,
-          actorSnapshotRef: actorSnapshotRefForRecall(row),
+          // Recall binds to the current Decision's ActorSnapshot; the Release row is history only.
           authorizationDecisionRef: envelope.payload.authorizationDecisionRef,
           expectedCommandPayloadHash: hashFromBytes(
             digestCanonicalPayload(envelope.requestPayload).hash,
@@ -2631,30 +2631,6 @@ export async function handleGetReleaseImpact(
       humanInterventionRequired: matching.human_intervention_required,
     };
   });
-}
-
-function actorSnapshotRefForRecall(row: ReleaseRecordTable): Common.SnapshotRef {
-  const parsed =
-    row.authorization_actor_snapshot_ref === null ||
-    row.authorization_actor_snapshot_ref === undefined
-      ? undefined
-      : parseStoredJson(
-          row.authorization_actor_snapshot_ref,
-          'Release.authorizationActorSnapshotRef',
-        );
-  if (
-    parsed === undefined ||
-    parsed === null ||
-    typeof parsed !== 'object' ||
-    Array.isArray(parsed) ||
-    (parsed as { readonly kind?: unknown }).kind !== 'SNAPSHOT'
-  ) {
-    throw new ReleasePublicationBusinessError(
-      RELEASE_RECALL_NOT_AUTHORIZED,
-      'Recall requires the exact ActorSnapshot retained by the authorized Release',
-    );
-  }
-  return parsed as Common.SnapshotRef;
 }
 
 function checkedPageSize(value: number): number {
