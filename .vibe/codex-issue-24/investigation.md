@@ -15,11 +15,11 @@
 
 | 阶段 | 状态 | 证据 |
 |---|---|---|
-| Issue、工作树与权威文档核对 | 已完成 | `origin/main@c4ef6817427c5c7f4fa73b3a57efc4f8ec778d9d`；Issue #24 为 OPEN；最新评论 `issuecomment-5475987654` 给出未登记 Adapter Attempt ID 仍可铸造 Formal Receipt 的反例 |
+| Issue、工作树与权威文档核对 | 已完成 | 初始 `origin/main@c4ef6817427c5c7f4fa73b3a57efc4f8ec778d9d`；Issue #24 初始为 OPEN；最新评论 `issuecomment-5475987654` 给出未登记 Adapter Attempt ID 仍可铸造 Formal Receipt 的反例 |
 | 回归测试与实现 | 已完成 | IntegrationGateway formal Adapter Attempt Query Port、ReleasePublication fail-closed provenance 校验、Runtime/Validator/Handler 回归已完成；未增加公共 Contract Catalog operation |
 | PR #147 审核复核 | 已完成，发现 P1 | Runtime E2E 将 `FormalAdapterAttemptQueryPort` 从同一份 Raw Receipt fixture 反向构造；仅修改 Raw Receipt 为未登记 `objectId` 即能令标称拒绝场景返回 `ok: true` |
 | 审核修复、分层验证与 exact-head 审阅 | 本地技术验证完成 | 独立登记的 Adapter Attempt Authority fixture 已替换 Raw Receipt projection；focused `3 files / 49 tests`、`pnpm clean && pnpm verify`、PostgreSQL/Flyway `34 files / 315 tests`、二次 migrate no-op 和容器清理均通过 |
-| commit、push、PR、Issue 与远端回读 | 已授权，进行中 | 修复提交、推送和 exact-head CI 后继续完成 PR 合并、Issue #24 关闭和命名分支本地/远端清理 |
+| commit、push、PR、Issue 与远端回读 | 已完成 | 修复提交 `9c9a4fc74c291d92e144d5dcb2e7c10609c9e928` 的 PR #147 `verify` run `33477404474` 成功；PR 以 `cd2391b0e8abb3c0b0da081323ba0fadd4f239ec` 合入 `main`，实现 Head 已确认是 `origin/main` 祖先；Issue #24 自动关闭并已附 closeout comment `issuecomment-5489855198`；原交付分支待按本次文档同步 PR 完成后统一清理 |
 
 ## 测试结果边界
 
