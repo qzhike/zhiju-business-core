@@ -1,8 +1,8 @@
 # Module-Spec-007-IntegrationGateway
 
-版本：v0.1
-日期：2026-08-16
-状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 ADDITIVE BINDING QUERY CONTRACT LANDED 2026-08-28 / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / ISSUE #17 RUNTIME SLICE LANDED 2026-08-22 / IM-05 WI-05 IMPLEMENTATION AND GIT DELIVERY COMPLETE 2026-08-30 / PR #135 MERGED / ISSUE #125 CLOSED / REAL EXTERNAL PROVIDER NOT RUN`
+版本：v0.2
+日期：2026-09-01
+状态：`CURRENT MODULE CONTRACT BASELINE / WI-01 ADDITIVE BINDING QUERY CONTRACT LANDED 2026-08-28 / FEISHU OPTIONAL MINOR ACCEPTED / RUNTIME USER PROGRESSION CONFIRMED / FIELD-LEVEL PAYLOAD/EVENT/RESULT SCHEMAS LANDED 2026-08-18 / ISSUE #17 RUNTIME SLICE LANDED 2026-08-22 / IM-05 WI-05 IMPLEMENTATION AND GIT DELIVERY COMPLETE 2026-08-30 / PR #135 MERGED / ISSUE #125 CLOSED / ISSUE #24 FORMAL ADAPTER ATTEMPT QUERY PORT LOCAL TECHNICAL VERIFICATION PASS / ISSUE #24 OPEN / PR NOT YET CREATED / REAL EXTERNAL PROVIDER NOT RUN`
 
 ## 1. 模块责任
 
@@ -231,12 +231,18 @@ INTEGRATION_SENSITIVE_DATA_REJECTED
 Issue #17 允许先在模块内部验证不依赖真实 Provider、数据库或 HTTP 的纯运行时边界。该切片使用内存 Ledger 和显式 Port，不新增公开 Contract：
 
 1. InboundEnvelope 按 adapter/account/event identity 与 Payload Hash 幂等；先 Claim 该 identity 再映射 Core Command；同 ID 不同 Hash 保留首个事实并创建 Quarantine。
-2. 外部 Attempt 以稳定键和请求 Hash 绑定；调用超时进入 `UNKNOWN`，稳定键重放复用已记录状态；timeout 之后迟到的成功或失败不得改写 `UNKNOWN`，也必须被观察以免 unhandled rejection。
+2. 外部 Attempt 以稳定键和请求 Hash 绑定；调用超时进入 `UNKNOWN`，稳定键重放复用已记录状态；timeout 之后迟到的成功或失败不得改写 `UNKNOWN`，也必须被观察以免 unhandled rejection。正式 `integration.adapter_attempt` 还必须绑定 `integration.external_delivery_request`，通用 Runtime/Renderer Attempt 不因该正式发布约束改变既有入口语义。
 3. Adapter Contract 检查未知 Provider Major 或 required extension 时拒绝映射并进入 Quarantine；Render 结果的 input Hash、完整内容寻址 Revision（包括 `immutableVersionId` 与 `contentHash`）、Renderer 与 Request 不一致时拒绝登记。
 4. 撤回只把 Origin 标记为 `WITHDRAWN` 并保留已有 Envelope；Origin 身份与入站事实相同，为 adapter + account + message；`im.message.recalled_v1` 必须携带被撤回消息引用，否则 Quarantine。每个 Binding 动作必须经过显式 Authorization Port，Binding 本身不授予成员 Project 权限。
 5. Audit 入口只保存安全诊断字段；access token、app secret 和原始 webhook body 一旦进入候选审计输入即拒绝，并返回 `INTEGRATION_SENSITIVE_DATA_REJECTED`。
 
 这是实现与 Unit/Contract 测试的最小验收切片，不等于跨进程幂等、真实 Adapter Conformance、PostgreSQL 事务、外部 E2E 或人工安全审查已经完成。
+
+### 7.2 Formal Adapter Attempt Query Port（Issue #24）
+
+ReleasePublication 需要 IntegrationGateway 提供窄化的结构化 Query Port，而不是导入 IntegrationGateway Repository 或读取其 Schema。`getFormalAdapterAttempt(attemptRef)` 只按完整 `objectType/objectId/Scope` 解析已登记的 `integration.adapter_attempt`，并返回 `attemptRef`、`adapterKind`、`status` 与 `externalDeliveryRequestRef`；未登记、错误类型、错误 Scope、缺少正式 External Delivery Request 或不存在的事实返回 `undefined`。Formal Receipt 只接受 `SUCCEEDED` 且与 PublicationAttempt 的 External Delivery Request 完全相等的绑定。受控跨模块 Runtime E2E 的登记输入必须独立于待验证的 RawExternalReceipt fixture，禁止将 Raw Receipt 反向投影为 Query 结果。
+
+该 Port 是跨模块组合边界，不新增公开 Contract Catalog operation。受控 Runtime 由 `IntegrationGatewayRuntime` 实现；真实 IntegrationGateway Repository、Provider、跨进程一致性和生产 Query Handler 仍属于后续外部验收范围。
 
 ## 8. 可人工验收的模块产出
 
@@ -254,6 +260,7 @@ Issue #17 允许先在模块内部验证不依赖真实 Provider、数据库或 
 - 静态设计 / Schema 维度 Gate：WI-01 的 `pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm architecture` 与 `pnpm contracts:check` 全部通过；新增 Binding Query 正向、秘密字段、状态条件和未知 major 负向断言全部 PASS。
 - Issue #17 的可离线验证运行时切片已于 2026-08-22 落地，覆盖 Inbound 幂等/Hash 冲突、timeout `UNKNOWN`、未知协议拒绝、Render 绑定、撤回 Origin、显式授权和 Audit/Masking；PR #26 review 补强 Claim-before-dispatch、timeout 迟到 rejection 观察、Origin 的 adapter/account 身份、recall 必填消息引用和 renderer mismatch 回归；focused tests 全部 `PASS`，完整验证结果见 `.vibe/issue-17-integrationgateway-runtime-acceptance-gaps/Verification-Report.md`。
 - Handler、Repository、Database、Migration、Feishu Adapter、Runtime Adapter、Renderer Adapter、Credentials、E2E 与人工业务验收仍为 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪；Schema 闭合或内存运行时切片不等于跨进程去重 / 真实撤回 / 真实权限 / Provider UNKNOWN / 业务撤回判定已运行；review body 中标注的 7 类字段级契约偏差已修复，模块不得据此声称 Issue #6 全部 8 条验收完成。
+- Issue #24 的 controlled Runtime Query Port 已完成 exact Adapter Attempt ID/Scope/Status/External Delivery Request 绑定回归；该 Port 不替代真实 Provider、数据库 Handler 或统一跨模块业务 E2E，前两者的本地受控技术回归已通过，真实 Provider、生产 Query Handler、跨进程一致性和统一跨模块业务 E2E 继续为 `NOT RUN`。
 
 ## 10. IM-02 WI-04 持久化切片
 

@@ -30,7 +30,7 @@ import type {
   RetryDisposition,
   ScopeRef as KernelScopeRef,
 } from '@zhiju/shared-kernel';
-import type { Common, ReleasePublication } from '@zhiju/contracts';
+import type { Common, IntegrationGateway, ReleasePublication } from '@zhiju/contracts';
 import { sanitizeProviderResult } from './provider-result.js';
 
 type FormalReceiptSubmission = ReleasePublication.FormalReceiptSubmission;
@@ -228,6 +228,21 @@ export interface RawExternalReceiptRepository {
   findByRef(rawReceiptRef: Common.ContentAddressedRef): RawExternalReceiptFact | undefined;
 }
 
+/**
+ * Minimal IntegrationGateway-owned binding required for Formal Receipt promotion.
+ * The caller must obtain this fact through the authoritative Query Port.
+ */
+export interface FormalAdapterAttemptBinding {
+  readonly attemptRef: Common.ObjectRef;
+  readonly adapterKind: IntegrationGateway.AdapterKind;
+  readonly status: IntegrationGateway.AttemptStatus;
+  readonly externalDeliveryRequestRef: Common.ContentAddressedRef;
+}
+
+export interface FormalAdapterAttemptQueryPort {
+  getFormalAdapterAttempt(attemptRef: Common.ObjectRef): FormalAdapterAttemptBinding | undefined;
+}
+
 export class InMemoryRawExternalReceiptRepository implements RawExternalReceiptRepository {
   private readonly byDigest = new Map<string, RawExternalReceiptFact>();
 
@@ -286,6 +301,29 @@ export function registerPublicationAttempt(
       }),
     };
   }
+  if (
+    request.definition.externalDeliveryRequestRef.objectType !==
+      'integration.external_delivery_request' ||
+    !sameScopeRef(
+      request.definition.externalDeliveryRequestRef.scope,
+      request.definition.packageRef.releaseRef.scope,
+    )
+  ) {
+    return {
+      ok: false,
+      error: rejection({
+        code: RELEASE_RECEIPT_TARGET_MISMATCH,
+        category: 'VALIDATION',
+        retryDisposition: 'DO_NOT_RETRY',
+        safeMessage: 'attempt requires an External Delivery Request in the Release scope',
+        fieldPath: '/payload/attempt/externalDeliveryRequestRef',
+        violatedRule:
+          'publication attempts must bind an integration.external_delivery_request in the Release scope',
+        correlationId: request.correlationId,
+        targetRef: request.attemptRef,
+      }),
+    };
+  }
   const record: PublicationAttemptRecord = {
     attemptRef: request.attemptRef,
     definition: request.definition,
@@ -334,6 +372,8 @@ export interface ReceiptValidationRequest {
    */
   readonly deliveryTimeoutMs: number;
   readonly correlationId: string;
+  /** IntegrationGateway authority; an undefined query result is fail-closed. */
+  readonly adapterAttempts: FormalAdapterAttemptQueryPort;
 }
 
 /**
@@ -347,7 +387,8 @@ export interface ReceiptValidationRequest {
  *    enforced per rawReceiptRef content hash;
  * 4. TARGET_MISMATCH — packageRef disagrees with the referenced attempt;
  * 5. TARGET_MISMATCH — rawReceiptRef objectType / missing fact / provenance
- *    (release, destination, packageHash, publication attempt) mismatch;
+ *    (release, destination, packageHash, publication attempt, registered
+ *    Adapter Attempt) mismatch;
  * 6. STALE — occurredAt beyond requestedAt + deliveryTimeout;
  * 7. Atomic compare-and-save — uniqueness conflicts surface as ALREADY_RECORDED
  *    or IDEMPOTENCY_CONFLICT without a separate save step.
@@ -471,6 +512,7 @@ export function recordFormalReceipt(
   //    external-delivery-request provenance.
   const provenance = validateRawReceiptProvenance(
     rawReceipts,
+    request.adapterAttempts,
     submission,
     attempt,
     request.correlationId,
@@ -606,6 +648,7 @@ type RawReceiptProvenanceResult =
 
 function validateRawReceiptProvenance(
   rawReceipts: RawExternalReceiptRepository,
+  adapterAttempts: FormalAdapterAttemptQueryPort,
   submission: FormalReceiptSubmission,
   attempt: PublicationAttemptRecord,
   correlationId: string,
@@ -662,6 +705,30 @@ function validateRawReceiptProvenance(
       correlationId,
       'raw external receipt adapter reference is not an Adapter Attempt',
       'RawExternalReceipt.adapterAttemptRef must address integration.adapter_attempt',
+    );
+  }
+  let binding: FormalAdapterAttemptBinding | undefined;
+  try {
+    binding = adapterAttempts.getFormalAdapterAttempt(fact.adapterAttemptRef);
+  } catch {
+    binding = undefined;
+  }
+  if (
+    binding === undefined ||
+    !sameObjectRef(binding.attemptRef, fact.adapterAttemptRef) ||
+    binding.status !== 'SUCCEEDED' ||
+    binding.externalDeliveryRequestRef.objectType !== 'integration.external_delivery_request' ||
+    !sameContentAddressedRef(binding.externalDeliveryRequestRef, fact.externalDeliveryRequestRef) ||
+    !sameContentAddressedRef(
+      binding.externalDeliveryRequestRef,
+      attempt.definition.externalDeliveryRequestRef,
+    )
+  ) {
+    return rawProvenanceRejection(
+      submission,
+      correlationId,
+      'raw external receipt adapter attempt is not an authoritative successful formal binding',
+      'RawExternalReceipt.adapterAttemptRef must resolve to a registered SUCCEEDED Adapter Attempt with the exact External Delivery Request',
     );
   }
   if (

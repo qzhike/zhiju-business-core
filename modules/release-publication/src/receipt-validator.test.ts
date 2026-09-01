@@ -12,6 +12,9 @@ import {
   RELEASE_RECEIPT_STALE,
   RELEASE_RECEIPT_TARGET_MISMATCH,
   RAW_EXTERNAL_RECEIPT_OBJECT_TYPE,
+  sameObjectRef,
+  type FormalAdapterAttemptBinding,
+  type FormalAdapterAttemptQueryPort,
   type PublicationAttemptRecord,
   type RawExternalReceiptFact,
   type ReceiptValidationResult,
@@ -174,6 +177,37 @@ function rawFact(options: ReceiptOptions): RawExternalReceiptFact {
   };
 }
 
+const registeredAdapterAuthority: FormalAdapterAttemptQueryPort = {
+  getFormalAdapterAttempt: (attemptRef) => ({
+    attemptRef,
+    adapterKind: 'FEISHU_CHANNEL',
+    status: 'SUCCEEDED',
+    externalDeliveryRequestRef: contentAddressedRef(
+      'integration.external_delivery_request',
+      attemptRef.objectId,
+      digest('ee'),
+    ),
+  }),
+};
+
+function authorityForFact(
+  fact: RawExternalReceiptFact,
+  overrides: Partial<FormalAdapterAttemptBinding> = {},
+): FormalAdapterAttemptQueryPort {
+  return {
+    getFormalAdapterAttempt: (attemptRef) =>
+      sameObjectRef(attemptRef, fact.adapterAttemptRef)
+        ? {
+            attemptRef: fact.adapterAttemptRef,
+            adapterKind: 'FEISHU_CHANNEL',
+            status: 'SUCCEEDED',
+            externalDeliveryRequestRef: fact.externalDeliveryRequestRef,
+            ...overrides,
+          }
+        : undefined,
+  };
+}
+
 const DESTINATION_A = '018f22e2-7c15-7b2e-8d86-2de956a9d810';
 const DESTINATION_B = '018f22e2-7c15-7b2e-8d86-2de956a9d811';
 const ATTEMPT_A = '018f22e2-7c15-7b2e-8d86-2de956a9d820';
@@ -209,6 +243,7 @@ function record(
     receiptRef: contentAddressedRef('release.publication_receipt', options.attemptId, digest('ff')),
     deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
     correlationId: CORRELATION_ID,
+    adapterAttempts: registeredAdapterAuthority,
   });
 }
 
@@ -567,6 +602,7 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
       receiptRef: contentAddressedRef('release.publication_receipt', ATTEMPT_A, digest('ff')),
       deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
       correlationId: CORRELATION_ID,
+      adapterAttempts: registeredAdapterAuthority,
     });
     expect(wrongType.ok).toBe(false);
     if (!wrongType.ok) {
@@ -587,6 +623,7 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
       receiptRef: contentAddressedRef('release.publication_receipt', ATTEMPT_A, digest('ff')),
       deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
       correlationId: CORRELATION_ID,
+      adapterAttempts: registeredAdapterAuthority,
     });
     expect(missingFact.ok).toBe(false);
     if (!missingFact.ok) {
@@ -687,6 +724,7 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
         ),
         deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
         correlationId: CORRELATION_ID,
+        adapterAttempts: registeredAdapterAuthority,
       });
       expect(rejected.ok, probe.label).toBe(false);
       if (!rejected.ok) {
@@ -697,6 +735,86 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
       }
     }
     expect(ledger.findReceiptByStableKey('rel-801-dest-a-attempt-001')).toBeUndefined();
+  });
+
+  it('RP-API-C-006: rejects an unregistered Adapter Attempt ID even when the Raw Receipt is self-consistent', () => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, 'rel-801-formal-binding-key');
+    const options = {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest('d1'),
+    };
+    const registeredFact = rawFact(options);
+    const forgedFact: RawExternalReceiptFact = {
+      ...registeredFact,
+      adapterAttemptRef: {
+        ...registeredFact.adapterAttemptRef,
+        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d899',
+      },
+    };
+    rawReceipts.save(forgedFact);
+
+    const result = recordFormalReceipt(ledger, rawReceipts, {
+      submission: receiptSubmission(options),
+      receiptRef: contentAddressedRef(
+        'release.publication_receipt',
+        '018f22e2-7c15-7b2e-8d86-2de956a9d89a',
+        digest('d2'),
+      ),
+      deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
+      correlationId: CORRELATION_ID,
+      adapterAttempts: authorityForFact(registeredFact),
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+    }
+    expect(ledger.findReceiptByStableKey('rel-801-formal-binding-key')).toBeUndefined();
+  });
+
+  it.each([
+    [
+      'missing registered Adapter Attempt',
+      { getFormalAdapterAttempt: () => undefined } satisfies FormalAdapterAttemptQueryPort,
+      'd3',
+    ],
+    [
+      'non-successful registered Adapter Attempt',
+      authorityForFact(
+        rawFact({
+          attemptId: ATTEMPT_A,
+          destinationId: DESTINATION_A,
+          rawReceiptDigest: digest('d4'),
+        }),
+        { status: 'FAILED' },
+      ),
+      'd4',
+    ],
+  ])('RP-API-C-006: rejects %s before minting a Formal Receipt', (_label, authority, byte) => {
+    const ledger = new InMemoryReleaseReceiptLedger();
+    const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    registerAttempt(ledger, ATTEMPT_A, DESTINATION_A, `rel-801-binding-${_label}`);
+    const options = {
+      attemptId: ATTEMPT_A,
+      destinationId: DESTINATION_A,
+      rawReceiptDigest: digest(byte),
+    };
+    rawReceipts.save(rawFact(options));
+
+    const result = recordFormalReceipt(ledger, rawReceipts, {
+      submission: receiptSubmission(options),
+      receiptRef: contentAddressedRef('release.publication_receipt', ATTEMPT_A, digest('d5')),
+      deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
+      correlationId: CORRELATION_ID,
+      adapterAttempts: authority,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+    expect(ledger.findReceiptByRawReceiptDigest(options.rawReceiptDigest)).toBeUndefined();
   });
 
   it('compareAndSaveReceipt rejects a second insert for the same stable key without a separate validate step', () => {
@@ -855,6 +973,7 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
       receiptRef: contentAddressedRef('release.publication_receipt', ATTEMPT_A, digest('ff')),
       deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
       correlationId: CORRELATION_ID,
+      adapterAttempts: registeredAdapterAuthority,
     });
     expect(wrongScope.ok).toBe(false);
     if (!wrongScope.ok) {
@@ -867,6 +986,7 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
       receiptRef: contentAddressedRef('artifact.revision', ATTEMPT_A, digest('ff')),
       deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
       correlationId: CORRELATION_ID,
+      adapterAttempts: registeredAdapterAuthority,
     });
     expect(wrongReceiptType.ok).toBe(false);
     if (!wrongReceiptType.ok) {
@@ -885,6 +1005,7 @@ describe('release-publication receipt validator (RP-API-U-003)', () => {
       },
       deliveryTimeoutMs: DELIVERY_TIMEOUT_MS,
       correlationId: CORRELATION_ID,
+      adapterAttempts: registeredAdapterAuthority,
     });
     expect(wrongReceiptScope.ok).toBe(false);
     if (!wrongReceiptScope.ok) {

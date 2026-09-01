@@ -74,6 +74,8 @@ export interface ExternalCallOutcome {
 export interface ExecuteExternalAttemptRequest {
   readonly attemptRef: ObjectRef;
   readonly adapterKind: IntegrationGateway.AdapterKind;
+  /** Exact external request fact that a formal Adapter Attempt executes. */
+  readonly externalDeliveryRequestRef?: ContentAddressedRef;
   readonly stableIdempotencyKey: Common.NonEmptyString;
   readonly requestPayloadHash: ContentHash;
   readonly timeoutMs: number;
@@ -84,6 +86,7 @@ export interface ExecuteExternalAttemptRequest {
 export interface AdapterAttemptRecord {
   readonly attemptRef: ObjectRef;
   readonly adapterKind: IntegrationGateway.AdapterKind;
+  readonly externalDeliveryRequestRef?: ContentAddressedRef;
   readonly status: IntegrationGateway.AttemptStatus;
   readonly stableIdempotencyKeyHash: ContentHash;
   readonly requestPayloadHash: ContentHash;
@@ -99,6 +102,24 @@ export type ExecuteExternalAttemptResult =
       readonly attempt: AdapterAttemptRecord;
     }
   | { readonly ok: false; readonly error: ApiError };
+
+/**
+ * Minimal formal-delivery binding exposed to ReleasePublication.
+ *
+ * The binding is resolved by IntegrationGateway from its registered Attempt
+ * facts. ReleasePublication must not trust a caller-created Adapter Attempt
+ * reference or inspect IntegrationGateway storage directly.
+ */
+export interface FormalAdapterAttemptBinding {
+  readonly attemptRef: ObjectRef;
+  readonly adapterKind: IntegrationGateway.AdapterKind;
+  readonly status: IntegrationGateway.AttemptStatus;
+  readonly externalDeliveryRequestRef: ContentAddressedRef;
+}
+
+export interface FormalAdapterAttemptQueryPort {
+  getFormalAdapterAttempt(attemptRef: ObjectRef): FormalAdapterAttemptBinding | undefined;
+}
 
 export interface ChannelAuthorizationPort {
   authorize(input: {
@@ -187,7 +208,7 @@ export interface IntegrationGatewayRuntimeOptions {
 }
 
 /** Process-local stand-in for IntegrationGateway runtime facts; not durable persistence. */
-export class IntegrationGatewayRuntime {
+export class IntegrationGatewayRuntime implements FormalAdapterAttemptQueryPort {
   private readonly inboundByIdentity = new Map<string, InboundEnvelopeRecord>();
 
   private readonly quarantines: QuarantineRecord[] = [];
@@ -398,16 +419,31 @@ export class IntegrationGatewayRuntime {
   async executeExternalAttempt(
     request: ExecuteExternalAttemptRequest,
   ): Promise<ExecuteExternalAttemptResult> {
-    if (request.stableIdempotencyKey.length === 0 || request.timeoutMs <= 0) {
+    const formalAdapterAttempt = request.attemptRef.objectType === 'integration.adapter_attempt';
+    const hasValidFormalExternalRequest =
+      request.externalDeliveryRequestRef?.objectType === 'integration.external_delivery_request' &&
+      sameScopeRef(request.externalDeliveryRequestRef.scope, request.attemptRef.scope);
+    const invalidFormalExternalRequest = formalAdapterAttempt && !hasValidFormalExternalRequest;
+    if (
+      request.stableIdempotencyKey.length === 0 ||
+      request.timeoutMs <= 0 ||
+      invalidFormalExternalRequest
+    ) {
       return {
         ok: false,
         error: rejection({
           code: 'INTEGRATION_ATTEMPT_IDEMPOTENCY_CONFLICT',
           category: 'VALIDATION',
           retryDisposition: 'DO_NOT_RETRY',
-          safeMessage: 'attempt requires a non-empty stable key and positive timeout',
-          fieldPath: '/request/stableIdempotencyKey',
-          violatedRule: 'external attempts require a stable key and positive timeout window',
+          safeMessage: invalidFormalExternalRequest
+            ? 'formal adapter attempts require an external request binding'
+            : 'attempt requires a non-empty stable key and positive timeout',
+          fieldPath: invalidFormalExternalRequest
+            ? '/request/externalDeliveryRequestRef'
+            : '/request/stableIdempotencyKey',
+          violatedRule: invalidFormalExternalRequest
+            ? 'formal adapter attempts must bind an integration.external_delivery_request in the attempt scope'
+            : 'external attempts require a stable key and positive timeout window',
           correlationId: request.correlationId,
           targetRef: request.attemptRef,
         }),
@@ -420,7 +456,11 @@ export class IntegrationGatewayRuntime {
     if (existing !== undefined) {
       if (
         !sameHash(existing.requestPayloadHash, request.requestPayloadHash) ||
-        !sameObjectRef(existing.attemptRef, request.attemptRef)
+        !sameObjectRef(existing.attemptRef, request.attemptRef) ||
+        !sameOptionalObjectRef(
+          existing.externalDeliveryRequestRef,
+          request.externalDeliveryRequestRef,
+        )
       ) {
         return {
           ok: false,
@@ -428,9 +468,10 @@ export class IntegrationGatewayRuntime {
             code: INTEGRATION_ATTEMPT_IDEMPOTENCY_CONFLICT,
             category: 'CONFLICT',
             retryDisposition: 'RELOAD_AND_REEVALUATE',
-            safeMessage: 'stable idempotency key is already bound to a different attempt',
+            safeMessage: 'stable idempotency key is already bound to a different attempt binding',
             fieldPath: '/request/requestPayloadHash',
-            violatedRule: 'one stable key must retain one attempt identity and request hash',
+            violatedRule:
+              'one stable key must retain one attempt identity, external request and request hash',
             correlationId: request.correlationId,
             targetRef: request.attemptRef,
           }),
@@ -442,6 +483,9 @@ export class IntegrationGatewayRuntime {
     const initial: AdapterAttemptRecord = Object.freeze({
       attemptRef: request.attemptRef,
       adapterKind: request.adapterKind,
+      ...(request.externalDeliveryRequestRef === undefined
+        ? {}
+        : { externalDeliveryRequestRef: request.externalDeliveryRequestRef }),
       status: 'IN_FLIGHT',
       stableIdempotencyKeyHash,
       requestPayloadHash: request.requestPayloadHash,
@@ -506,6 +550,23 @@ export class IntegrationGatewayRuntime {
 
   getAttempt(attemptRef: ObjectRef): AdapterAttemptRecord | undefined {
     return this.attemptsByRef.get(objectRefKey(attemptRef));
+  }
+
+  getFormalAdapterAttempt(attemptRef: ObjectRef): FormalAdapterAttemptBinding | undefined {
+    const attempt = this.attemptsByRef.get(objectRefKey(attemptRef));
+    if (
+      attempt?.attemptRef.objectType !== 'integration.adapter_attempt' ||
+      attempt.externalDeliveryRequestRef === undefined ||
+      !sameObjectRef(attempt.attemptRef, attemptRef)
+    ) {
+      return undefined;
+    }
+    return Object.freeze({
+      attemptRef: attempt.attemptRef,
+      adapterKind: attempt.adapterKind,
+      status: attempt.status,
+      externalDeliveryRequestRef: attempt.externalDeliveryRequestRef,
+    });
   }
 
   registerChannelBinding(request: RegisterChannelBindingRequest): void {
@@ -776,6 +837,14 @@ function sameObjectRef(left: IdentityReference, right: IdentityReference): boole
     );
   }
   return true;
+}
+
+function sameOptionalObjectRef(
+  left: IdentityReference | undefined,
+  right: IdentityReference | undefined,
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  return sameObjectRef(left, right);
 }
 
 function sameScopeRef(left: Common.ScopeRef, right: Common.ScopeRef): boolean {
