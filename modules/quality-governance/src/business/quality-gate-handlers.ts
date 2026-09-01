@@ -27,6 +27,7 @@ import type {
   GateResultTable,
   QualityProfileTable,
   QualityProfileVersionTable,
+  ReleaseReadinessSnapshotTable,
 } from '../persistence/quality-business-types.js';
 import {
   executeQualityGovernanceCommand,
@@ -78,6 +79,8 @@ const CHANGE_IMPACT_OBJECT_TYPE = 'quality.change_impact';
 const GATE_INVALIDATION_OBJECT_TYPE = 'quality.gate_invalidation';
 const REVISION_SNAPSHOT_OBJECT_TYPE = 'quality.revision_acceptance_snapshot';
 const RELEASE_SNAPSHOT_OBJECT_TYPE = 'quality.release_readiness_snapshot';
+const APPROVAL_BUNDLE_SNAPSHOT_OBJECT_TYPE = 'quality.approval_bundle_snapshot';
+const APPROVAL_OBJECT_TYPE = 'quality.approval';
 const GATE_SPEC_OBJECT_TYPE = 'quality.gate_spec';
 
 export type QualityCommandEnvelope<TPayload> = CommandEnvelope & { readonly payload: TPayload };
@@ -2030,6 +2033,148 @@ function exactSnapshotQueryRef(
   return ref;
 }
 
+function currentReadinessRejected(): never {
+  throw new QualityBusinessError(
+    QUALITY_RELEASE_READINESS_NOT_READY,
+    'ReleaseReadinessSnapshot is not current for authorization',
+  );
+}
+
+function exactStoredSnapshotRef(
+  value: unknown,
+  context: QualityTransactionContext,
+  label: string,
+  objectType: string,
+): Common.SnapshotRef {
+  const ref = validateSnapshotRef(value, context, label);
+  if (ref.objectType !== objectType) currentReadinessRejected();
+  return ref;
+}
+
+async function assertCurrentApprovalBundle(
+  trx: QualityTransaction,
+  context: QualityTransactionContext,
+  readinessRow: ReleaseReadinessSnapshotTable,
+  readinessSnapshot: Core.ReleaseReadinessSnapshot,
+): Promise<void> {
+  const approvalRef = exactStoredSnapshotRef(
+    readinessSnapshot.approvalBundleSnapshotRef,
+    context,
+    'ReleaseReadinessSnapshot.approvalBundleSnapshotRef',
+    APPROVAL_BUNDLE_SNAPSHOT_OBJECT_TYPE,
+  );
+  const approvalRow = await repo.getApprovalBundleSnapshotById(trx, approvalRef.snapshotId);
+  if (approvalRow === undefined) currentReadinessRejected();
+  if (
+    approvalRow.enterprise_id !== context.enterpriseId ||
+    (approvalRow.project_id ?? undefined) !== (approvalRef.scope.projectId ?? undefined) ||
+    !approvalRow.payload_hash.equals(snapshotRefHash(approvalRef)) ||
+    !exactJsonEqual(approvalRow.revision_ref, readinessRow.revision_ref)
+  ) {
+    currentReadinessRejected();
+  }
+  const approvalSnapshot = storedObject(
+    approvalRow.snapshot,
+    'ApprovalBundleSnapshot.snapshot',
+  ) as unknown as Core.ApprovalBundleSnapshot;
+  const latestApproval = await repo.getLatestApprovalBundleSnapshot(
+    trx,
+    approvalRow.revision_ref,
+    approvalRow.quality_profile_ref,
+  );
+  if (
+    latestApproval?.snapshot_id !== approvalRow.snapshot_id ||
+    approvalSnapshot.snapshotId !== approvalRef.snapshotId ||
+    approvalSnapshot.completeness.status !== 'FULLY_APPROVED' ||
+    !exactJsonEqual(approvalSnapshot.revisionRef, readinessSnapshot.revisionRef)
+  ) {
+    currentReadinessRejected();
+  }
+  for (const [index, value] of approvalSnapshot.approvalRefs.entries()) {
+    const approvalRefValue = validateContentAddressedRef(
+      value,
+      context,
+      `ApprovalBundleSnapshot.approvalRefs[${index}]`,
+      new Set([APPROVAL_OBJECT_TYPE]),
+    );
+    const approval = await repo.getApprovalById(trx, approvalRefValue.objectId);
+    if (approval === undefined) currentReadinessRejected();
+    if (
+      approval.status !== 'EFFECTIVE' ||
+      approval.enterprise_id !== context.enterpriseId ||
+      (approval.project_id ?? undefined) !== (approvalRefValue.scope.projectId ?? undefined) ||
+      !approval.payload_hash.equals(contentRefHash(approvalRefValue))
+    ) {
+      currentReadinessRejected();
+    }
+  }
+  const acceptanceRef = exactStoredSnapshotRef(
+    approvalSnapshot.revisionAcceptanceSnapshotRef,
+    context,
+    'ApprovalBundleSnapshot.revisionAcceptanceSnapshotRef',
+    REVISION_SNAPSHOT_OBJECT_TYPE,
+  );
+  const acceptance = await repo.getRevisionAcceptanceSnapshotById(trx, acceptanceRef.snapshotId);
+  const acceptanceSnapshot =
+    acceptance === undefined
+      ? undefined
+      : (storedObject(
+          acceptance.snapshot,
+          'RevisionAcceptanceSnapshot.snapshot',
+        ) as unknown as Core.RevisionAcceptanceSnapshot);
+  if (
+    acceptance === undefined ||
+    acceptanceSnapshot?.snapshotId !== acceptanceRef.snapshotId ||
+    acceptance.status !== 'READY' ||
+    acceptance.enterprise_id !== context.enterpriseId ||
+    (acceptance.project_id ?? undefined) !== (acceptanceRef.scope.projectId ?? undefined) ||
+    !acceptance.payload_hash.equals(snapshotRefHash(acceptanceRef)) ||
+    !exactJsonEqual(acceptance.revision_ref, approvalRow.revision_ref) ||
+    !exactJsonEqual(acceptance.quality_profile_ref, approvalRow.quality_profile_ref)
+  ) {
+    currentReadinessRejected();
+  }
+  const latestAcceptance = await repo.getLatestRevisionAcceptanceSnapshot(
+    trx,
+    acceptance.revision_ref,
+    acceptance.quality_profile_ref,
+  );
+  if (latestAcceptance?.snapshot_id !== acceptance.snapshot_id) currentReadinessRejected();
+}
+
+async function assertCurrentReleaseReadiness(
+  trx: QualityTransaction,
+  context: QualityTransactionContext,
+  row: ReleaseReadinessSnapshotTable,
+  snapshot: Core.ReleaseReadinessSnapshot,
+): Promise<void> {
+  if (row.status !== 'READY_FOR_AUTHORIZATION') currentReadinessRejected();
+  const latest = await repo.getLatestReleaseReadinessSnapshot(trx, row.release_ref);
+  if (latest?.snapshot_id !== row.snapshot_id) currentReadinessRejected();
+  for (const [index, value] of storedArray(
+    row.release_gate_result_refs,
+    'ReleaseReadinessSnapshot.releaseGateResultRefs',
+  ).entries()) {
+    const gateRef = validateContentAddressedRef(
+      value,
+      context,
+      `ReleaseReadinessSnapshot.releaseGateResultRefs[${index}]`,
+      new Set([GATE_RESULT_OBJECT_TYPE]),
+    );
+    const gate = await repo.getGateResultById(trx, gateRef.objectId);
+    if (gate === undefined) currentReadinessRejected();
+    if (
+      gate.enterprise_id !== context.enterpriseId ||
+      (gate.project_id ?? undefined) !== (gateRef.scope.projectId ?? undefined) ||
+      !gate.payload_hash.equals(contentRefHash(gateRef)) ||
+      (await repo.getGateInvalidationByGateResultId(trx, gate.gate_result_id)) !== undefined
+    ) {
+      currentReadinessRejected();
+    }
+  }
+  await assertCurrentApprovalBundle(trx, context, row, snapshot);
+}
+
 export async function handleGetRevisionAcceptanceSnapshot(
   db: Kysely<QualityGovernanceDb>,
   context: QualityTransactionContext,
@@ -2074,6 +2219,15 @@ export async function handleGetReleaseReadinessSnapshot(
   context: QualityTransactionContext,
   payload: GetReleaseReadinessSnapshotPayload,
 ): Promise<Core.ReleaseReadinessSnapshot> {
+  if (
+    payload.requireCurrentForAuthorization !== undefined &&
+    typeof payload.requireCurrentForAuthorization !== 'boolean'
+  ) {
+    throw new QualityBusinessError(
+      QUALITY_READINESS_SNAPSHOT_QUERY_NOT_FOUND,
+      'requireCurrentForAuthorization must be boolean',
+    );
+  }
   const requested = exactSnapshotQueryRef(
     payload.snapshotRef,
     context,
@@ -2104,6 +2258,10 @@ export async function handleGetReleaseReadinessSnapshot(
         'ReleaseReadinessSnapshot was not found',
       );
     }
-    return stored as unknown as Core.ReleaseReadinessSnapshot;
+    const snapshot = stored as unknown as Core.ReleaseReadinessSnapshot;
+    if (payload.requireCurrentForAuthorization === true) {
+      await assertCurrentReleaseReadiness(trx, context, row, snapshot);
+    }
+    return snapshot;
   });
 }

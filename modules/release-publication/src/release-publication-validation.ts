@@ -54,7 +54,7 @@ export interface QualityAuthorityQueryPort {
   getApprovalBundleSnapshot(
     input: QualityGovernance.QualityGetApprovalBundleSnapshotPayload,
   ): Promise<QualityGovernance.QualityGetApprovalBundleSnapshotResult>;
-  /** WI-07 exact Release Readiness Snapshot query; absent means fail-closed. */
+  /** WI-07 exact and current Release Readiness Snapshot query; absent means fail-closed. */
   getReleaseReadinessSnapshot?(
     input: QualityGovernance.QualityGetReleaseReadinessSnapshotPayload,
   ): Promise<QualityGovernance.QualityGetReleaseReadinessSnapshotResult>;

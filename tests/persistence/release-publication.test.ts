@@ -39,6 +39,7 @@ import {
   RELEASE_AUTHORIZATION_INVALID,
   RELEASE_AUTHORIZATION_PURPOSE_MISMATCH,
   RELEASE_AUTHORIZATION_REVOKED,
+  RELEASE_READINESS_INVALID,
   RELEASE_RECEIPT_TARGET_MISMATCH,
   ReleasePublicationBusinessError,
   type CommandResult,
@@ -691,7 +692,10 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
       ...basePorts,
       quality: {
         ...basePorts.quality,
-        getReleaseReadinessSnapshot: () => Promise.resolve(readinessSnapshot),
+        getReleaseReadinessSnapshot: (input) => {
+          expect(input.requireCurrentForAuthorization).toBe(true);
+          return Promise.resolve(readinessSnapshot);
+        },
       },
       identity: {
         getActorSnapshot: (ref) =>
@@ -742,6 +746,63 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
       },
       '4',
     );
+    const beforeStaleReadiness = await admin.query<{
+      status: string;
+      aggregate_version: string;
+      attempt_count: string;
+      event_count: string;
+    }>(
+      `SELECT r.status,
+              r.aggregate_version::text,
+              (SELECT count(*)::text
+                 FROM release_publication.publication_attempt
+                WHERE release_id = r.release_id) AS attempt_count,
+              (SELECT count(*)::text
+                 FROM release_publication.outbox_event
+                WHERE aggregate_id = r.release_id) AS event_count
+         FROM release_publication.release_record r
+        WHERE r.release_id = $1`,
+      [releaseId],
+    );
+    const stalePorts: ReleaseAuthorityQueryPorts = {
+      ...ports,
+      quality: {
+        ...ports.quality,
+        getReleaseReadinessSnapshot: (input) => {
+          expect(input.requireCurrentForAuthorization).toBe(true);
+          return Promise.reject(new Error('historical READY RRS is stale'));
+        },
+      },
+    };
+    const staleReadinessResult = await handleValidateReleaseReadiness(
+      db,
+      currentContext,
+      { ...readinessEnvelope, commandId: newUuidV7(), idempotencyKey: newUuidV7() },
+      stalePorts,
+    );
+    expect(staleReadinessResult.status).toBe('REJECTED');
+    if (staleReadinessResult.status === 'REJECTED') {
+      expect(staleReadinessResult.errorCode).toBe(RELEASE_READINESS_INVALID);
+    }
+    const afterStaleReadiness = await admin.query<{
+      status: string;
+      aggregate_version: string;
+      attempt_count: string;
+      event_count: string;
+    }>(
+      `SELECT r.status,
+              r.aggregate_version::text,
+              (SELECT count(*)::text
+                 FROM release_publication.publication_attempt
+                WHERE release_id = r.release_id) AS attempt_count,
+              (SELECT count(*)::text
+                 FROM release_publication.outbox_event
+                WHERE aggregate_id = r.release_id) AS event_count
+         FROM release_publication.release_record r
+        WHERE r.release_id = $1`,
+      [releaseId],
+    );
+    expect(afterStaleReadiness.rows[0]).toEqual(beforeStaleReadiness.rows[0]);
     const readinessResult = await handleValidateReleaseReadiness(
       db,
       currentContext,

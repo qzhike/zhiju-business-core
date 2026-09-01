@@ -1000,6 +1000,34 @@ export class QualityBusinessRepository {
       .executeTakeFirst();
   }
 
+  async getLatestReleaseReadinessSnapshot(
+    trx: QualityTransaction,
+    releaseRef: unknown,
+  ): Promise<ReleaseReadinessSnapshotTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.release_readiness_snapshot')
+      .selectAll()
+      .where(sql<boolean>`release_ref = ${json(releaseRef)}::jsonb`)
+      .orderBy('evaluated_at', 'desc')
+      .orderBy('snapshot_id', 'desc')
+      .executeTakeFirst();
+  }
+
+  async getLatestRevisionAcceptanceSnapshot(
+    trx: QualityTransaction,
+    revisionRef: unknown,
+    qualityProfileRef: unknown,
+  ): Promise<RevisionAcceptanceSnapshotTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.revision_acceptance_snapshot')
+      .selectAll()
+      .where(sql<boolean>`revision_ref = ${json(revisionRef)}::jsonb`)
+      .where(sql<boolean>`quality_profile_ref = ${json(qualityProfileRef)}::jsonb`)
+      .orderBy('evaluated_at', 'desc')
+      .orderBy('snapshot_id', 'desc')
+      .executeTakeFirst();
+  }
+
   async getReviewIssueById(
     trx: QualityTransaction,
     reviewIssueId: string,
@@ -1147,6 +1175,21 @@ export class QualityBusinessRepository {
       .selectFrom('quality_governance.approval_bundle_snapshot')
       .selectAll()
       .where('snapshot_id', '=', snapshotId)
+      .executeTakeFirst();
+  }
+
+  async getLatestApprovalBundleSnapshot(
+    trx: QualityTransaction,
+    revisionRef: unknown,
+    qualityProfileRef: unknown,
+  ): Promise<ApprovalBundleSnapshotTable | undefined> {
+    return trx
+      .selectFrom('quality_governance.approval_bundle_snapshot')
+      .selectAll()
+      .where(sql<boolean>`revision_ref = ${json(revisionRef)}::jsonb`)
+      .where(sql<boolean>`quality_profile_ref = ${json(qualityProfileRef)}::jsonb`)
+      .orderBy('evaluated_at', 'desc')
+      .orderBy('snapshot_id', 'desc')
       .executeTakeFirst();
   }
 
