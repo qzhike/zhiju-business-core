@@ -18,8 +18,8 @@ import {
 import {
   RELEASE_RECEIPT_STALE,
   RELEASE_RECEIPT_TARGET_MISMATCH,
-  sameObjectRef,
   type FormalAdapterAttemptQueryPort,
+  type FormalAdapterAttemptBinding,
   type RawExternalReceiptFact,
 } from './receipt-validator.js';
 import type { ReleaseTransactionContext } from './persistence/release-publication-db.js';
@@ -73,6 +73,23 @@ interface RuntimeAuthorizationFixture {
 type PreparedTimelineFixture = TimelineFixture & {
   readonly authorization: RuntimeAuthorizationFixture;
 };
+
+class InMemoryFormalAdapterAttemptAuthority implements FormalAdapterAttemptQueryPort {
+  private readonly bindings = new Map<string, FormalAdapterAttemptBinding>();
+
+  register(binding: FormalAdapterAttemptBinding): void {
+    this.bindings.set(adapterAttemptKey(binding.attemptRef), binding);
+  }
+
+  getFormalAdapterAttempt(attemptRef: Common.ObjectRef): FormalAdapterAttemptBinding | undefined {
+    return this.bindings.get(adapterAttemptKey(attemptRef));
+  }
+}
+
+const REL_801_FORMAL_ADAPTER_ATTEMPTS = [
+  { attemptId: '018f22e2-7c15-7b2e-8d86-2de956a9d840', timelineStep: 1 },
+  { attemptId: '018f22e2-7c15-7b2e-8d86-2de956a9d841', timelineStep: 2 },
+] as const;
 
 function fixtureHash(byte: number): Common.ContentHash {
   return {
@@ -420,7 +437,7 @@ function loadFixture(): PreparedTimelineFixture {
 
 async function openRuntime(fixture: PreparedTimelineFixture): Promise<ReleasePublicationRuntime> {
   const runtime = new ReleasePublicationRuntime({
-    adapterAttempts: formalAdapterAttemptAuthority(fixture.rawExternalReceipts),
+    adapterAttempts: formalAdapterAttemptAuthority(fixture),
   });
   runtime.openReleaseForPublication({
     releaseRef: fixture.release.releaseRef,
@@ -441,22 +458,37 @@ async function openRuntime(fixture: PreparedTimelineFixture): Promise<ReleasePub
 }
 
 function formalAdapterAttemptAuthority(
-  facts: readonly RawExternalReceiptFact[],
+  fixture: PreparedTimelineFixture,
 ): FormalAdapterAttemptQueryPort {
-  return {
-    getFormalAdapterAttempt: (attemptRef) => {
-      const fact = facts.find((candidate) =>
-        sameObjectRef(candidate.adapterAttemptRef, attemptRef),
+  const authority = new InMemoryFormalAdapterAttemptAuthority();
+  for (const registration of REL_801_FORMAL_ADAPTER_ATTEMPTS) {
+    const entry = fixture.timeline.find(
+      (candidate) => candidate.step === registration.timelineStep,
+    );
+    if (entry?.definition === undefined) {
+      throw new Error(
+        `REL-801 fixture is missing formal Attempt step ${registration.timelineStep}`,
       );
-      if (fact === undefined) return undefined;
-      return {
-        attemptRef: fact.adapterAttemptRef,
-        adapterKind: 'FEISHU_CHANNEL',
-        status: fact.observedOutcome,
-        externalDeliveryRequestRef: fact.externalDeliveryRequestRef,
-      };
-    },
-  };
+    }
+    const externalDeliveryRequestRef = entry.definition.externalDeliveryRequestRef;
+    authority.register({
+      attemptRef: fixtureObjectRef(
+        'integration.adapter_attempt',
+        registration.attemptId,
+        externalDeliveryRequestRef.scope,
+      ),
+      adapterKind: 'FEISHU_CHANNEL',
+      status: 'SUCCEEDED',
+      externalDeliveryRequestRef,
+    });
+  }
+  return authority;
+}
+
+function adapterAttemptKey(ref: Common.ObjectRef): string {
+  return [ref.objectType, ref.objectId, ref.scope.enterpriseId, ref.scope.projectId ?? ''].join(
+    ':',
+  );
 }
 
 function recallAuthorizationFixture(fixture: TimelineFixture): {

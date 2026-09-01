@@ -2,7 +2,7 @@
 
 ## 目标
 
-执行并交付 GitHub Issue #24，形成可审阅的代码、规范、测试与验证证据，并在用户确认后提交 commit、推送分支和创建 PR。
+执行并交付 GitHub Issue #24，修复 PR #147 审核发现的独立来源证明缺口，形成可审阅的代码、规范、测试与验证证据，并在已获授权的交付流程中提交、推送、合并、关闭 Issue 和清理命名分支。
 
 ## 约束
 
@@ -17,8 +17,9 @@
 |---|---|---|
 | Issue、工作树与权威文档核对 | 已完成 | `origin/main@c4ef6817427c5c7f4fa73b3a57efc4f8ec778d9d`；Issue #24 为 OPEN；最新评论 `issuecomment-5475987654` 给出未登记 Adapter Attempt ID 仍可铸造 Formal Receipt 的反例 |
 | 回归测试与实现 | 已完成 | IntegrationGateway formal Adapter Attempt Query Port、ReleasePublication fail-closed provenance 校验、Runtime/Validator/Handler 回归已完成；未增加公共 Contract Catalog operation |
-| 分层验证与 exact-head 审阅 | 本地技术验证通过，等待用户检查 | focused `3 files / 49 tests`；`pnpm clean && pnpm verify` 全部通过；当前工作树仍未提交 |
-| commit、push、PR 与远端回读 | 等待用户确认 | 待补充 |
+| PR #147 审核复核 | 已完成，发现 P1 | Runtime E2E 将 `FormalAdapterAttemptQueryPort` 从同一份 Raw Receipt fixture 反向构造；仅修改 Raw Receipt 为未登记 `objectId` 即能令标称拒绝场景返回 `ok: true` |
+| 审核修复、分层验证与 exact-head 审阅 | 本地技术验证完成 | 独立登记的 Adapter Attempt Authority fixture 已替换 Raw Receipt projection；focused `3 files / 49 tests`、`pnpm clean && pnpm verify`、PostgreSQL/Flyway `34 files / 315 tests`、二次 migrate no-op 和容器清理均通过 |
+| commit、push、PR、Issue 与远端回读 | 已授权，进行中 | 修复提交、推送和 exact-head CI 后继续完成 PR 合并、Issue #24 关闭和命名分支本地/远端清理 |
 
 ## 测试结果边界
 

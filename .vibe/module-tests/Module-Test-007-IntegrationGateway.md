@@ -1,8 +1,8 @@
 # Module-Test-007-IntegrationGateway
 
-版本：v0.2
+版本：v0.3
 日期：2026-09-01（字段级 Schema 增补于 2026-08-18，Issue #17 运行时切片实现于 2026-08-22，WI-01 Binding Query 回归于 2026-08-28，IM-05 WI-05 本地 Renderer/Persistence/Openability 验证于 2026-08-30，Issue #24 formal Adapter Attempt Query Port 本地技术验证于 2026-09-01）
-状态：`API CONTRACT TEST BASELINE / WI-01 ADDITIVE BINDING QUERY CONTRACT REGRESSION PASS / ISSUE #17 RUNTIME SLICE PASS / IM-05 WI-05 UNIT + CONTRACT + PERSISTENCE + LOCAL OFFICE OPENABILITY + GIT DELIVERY PASS / PR #135 MERGED / ISSUE #125 CLOSED / ISSUE #24 FORMAL ADAPTER ATTEMPT QUERY PORT LOCAL TECHNICAL VERIFICATION PASS / ISSUE #24 OPEN / PR NOT YET CREATED / REAL EXTERNAL PROVIDER + PRODUCTION + INDEPENDENT BUSINESS ACCEPTANCE NOT RUN`
+状态：`API CONTRACT TEST BASELINE / WI-01 ADDITIVE BINDING QUERY CONTRACT REGRESSION PASS / ISSUE #17 RUNTIME SLICE PASS / IM-05 WI-05 UNIT + CONTRACT + PERSISTENCE + LOCAL OFFICE OPENABILITY + GIT DELIVERY PASS / PR #135 MERGED / ISSUE #125 CLOSED / ISSUE #24 FORMAL ADAPTER ATTEMPT QUERY PORT AND INDEPENDENT AUTHORITY COMPOSITION PASS LOCALLY IN PR #147 / EXACT-HEAD CI PENDING / ISSUE #24 OPEN / REAL EXTERNAL PROVIDER + PRODUCTION + INDEPENDENT BUSINESS ACCEPTANCE NOT RUN`
 
 对应规格：[`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md)。
 
@@ -66,7 +66,7 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 | IG-API-U-001 | Unit | same external event ID + same Hash 三次 | 返回同一 Envelope/处理结果；只调用一次等价业务 Command | dispatch callback 仅执行 1 次；三次结果复用首个 Envelope；dispatch 抛错后 identity 已 Claim，重放不再 dispatch | `PASS` |
 | IG-API-U-002 | Unit | same external event ID + different Hash | 首个 Envelope 不变；新事件 Quarantine | 首个 Envelope 保留；Hash 冲突生成 1 条 Quarantine；后续同 Hash 重放仍返回首个 Envelope | `PASS` |
 | IG-API-U-003 | Unit | Runtime/Channel external call timeout | Attempt 为 UNKNOWN，不报告 FAILED/SUCCEEDED | timeout 后为 `UNKNOWN` + `INTEGRATION_EXTERNAL_OUTCOME_UNKNOWN`；稳定键重放不再次调用 Provider；timeout 后迟到 rejection 不改写状态且无 unhandled rejection | `PASS` |
-| IG-API-U-007 | Unit/Provenance | 已登记 `integration.adapter_attempt`、`SUCCEEDED` 状态、精确 External Delivery Request；伪造 ID、wrong type/scope、缺少正式 External Delivery Request 和通用 Runtime Attempt | Query 只返回完整登记的正式 Adapter Attempt；伪造/错误/缺失绑定返回 `undefined`；通用 Runtime Attempt 既有语义不变 | `IntegrationGatewayRuntime.getFormalAdapterAttempt` 返回登记的 exact binding；fabricated ID、wrong type/scope 和缺失正式 External Delivery Request 均被拒绝/解析为 `undefined`；generic Runtime Attempt 回归通过 | `PASS — focused Issue #24 runtime regression; Provider NOT RUN` |
+| IG-API-U-007 | Unit/Provenance | 已登记 `integration.adapter_attempt`、`SUCCEEDED` 状态、精确 External Delivery Request；伪造 ID、wrong type/scope、缺少正式 External Delivery Request 和通用 Runtime Attempt | Query 只返回完整登记的正式 Adapter Attempt；伪造/错误/缺失绑定返回 `undefined`；通用 Runtime Attempt 既有语义不变 | `IntegrationGatewayRuntime.getFormalAdapterAttempt` 返回登记的 exact binding；ReleasePublication 组合回归以独立登记的 Authority fixture 注入相同 Port、不得从 Raw Receipt 投影 authority；fabricated ID、wrong type/scope 和缺失正式 External Delivery Request 均被拒绝 | `PASS — focused 3 files / 49 tests; Provider NOT RUN` |
 | IG-API-C-001 | Contract | Inbound 未知 Major 或未知 required extension | Quarantine，不猜测映射，不写业务状态 | 未知 Major 与未知 required extension 均 Quarantine；dispatch callback 为 0 次 | `PASS` |
 | IG-API-C-002 | Contract | RenderSucceeded 的 inputHash、完整内容寻址 revision 或 renderer 不匹配 Request | 拒绝 mismatch，不把结果当作已登记 Representation | inputHash、revision contentHash/immutableVersionId、rendererId mismatch 均为 `INTEGRATION_RENDER_INPUT_MISMATCH`；匹配输入通过。本切片无 Artifact 登记 Port，不把本地计数当作 Representation 不变量 | `PASS` |
 | IG-API-E-001 | E2E | InformationRequest 卡片发出、授权回答、重复回调 | 一个 Answer Candidate/Submission；未授权成员被拒绝；不重复恢复 WorkOrder | 无飞书实现 | `NOT RUN` |

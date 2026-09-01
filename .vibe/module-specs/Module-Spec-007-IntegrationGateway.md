@@ -240,7 +240,7 @@ Issue #17 允许先在模块内部验证不依赖真实 Provider、数据库或 
 
 ### 7.2 Formal Adapter Attempt Query Port（Issue #24）
 
-ReleasePublication 需要 IntegrationGateway 提供窄化的结构化 Query Port，而不是导入 IntegrationGateway Repository 或读取其 Schema。`getFormalAdapterAttempt(attemptRef)` 只按完整 `objectType/objectId/Scope` 解析已登记的 `integration.adapter_attempt`，并返回 `attemptRef`、`adapterKind`、`status` 与 `externalDeliveryRequestRef`；未登记、错误类型、错误 Scope、缺少正式 External Delivery Request 或不存在的事实返回 `undefined`。Formal Receipt 只接受 `SUCCEEDED` 且与 PublicationAttempt 的 External Delivery Request 完全相等的绑定。
+ReleasePublication 需要 IntegrationGateway 提供窄化的结构化 Query Port，而不是导入 IntegrationGateway Repository 或读取其 Schema。`getFormalAdapterAttempt(attemptRef)` 只按完整 `objectType/objectId/Scope` 解析已登记的 `integration.adapter_attempt`，并返回 `attemptRef`、`adapterKind`、`status` 与 `externalDeliveryRequestRef`；未登记、错误类型、错误 Scope、缺少正式 External Delivery Request 或不存在的事实返回 `undefined`。Formal Receipt 只接受 `SUCCEEDED` 且与 PublicationAttempt 的 External Delivery Request 完全相等的绑定。受控跨模块 Runtime E2E 的登记输入必须独立于待验证的 RawExternalReceipt fixture，禁止将 Raw Receipt 反向投影为 Query 结果。
 
 该 Port 是跨模块组合边界，不新增公开 Contract Catalog operation。受控 Runtime 由 `IntegrationGatewayRuntime` 实现；真实 IntegrationGateway Repository、Provider、跨进程一致性和生产 Query Handler 仍属于后续外部验收范围。
 
