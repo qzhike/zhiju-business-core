@@ -25,6 +25,7 @@ import {
   PUBLICATION_ATTEMPT_OBJECT_TYPE,
   RELEASE_RECEIPT_TARGET_MISMATCH,
   type ReceiptValidationResult,
+  type FormalAdapterAttemptQueryPort,
   type RawExternalReceiptFact,
   type RawExternalReceiptRepository,
   type ReleaseReceiptLedger,
@@ -222,6 +223,8 @@ export type PublicationAdapterResult =
 export interface ReleasePublicationRuntimeOptions {
   readonly ledger?: ReleaseReceiptLedger;
   readonly rawReceipts?: RawExternalReceiptRepository;
+  /** IntegrationGateway authority for registered formal Adapter Attempts. */
+  readonly adapterAttempts?: FormalAdapterAttemptQueryPort;
 }
 
 function normalizeAdapterReceipt(
@@ -269,11 +272,15 @@ function normalizeAdapterReceipt(
 export class ReleasePublicationRuntime {
   private readonly ledger: ReleaseReceiptLedger;
   private readonly rawReceipts: RawExternalReceiptRepository;
+  private readonly adapterAttempts: FormalAdapterAttemptQueryPort;
   private readonly releases = new Map<string, ReleaseState>();
 
   constructor(options: ReleasePublicationRuntimeOptions = {}) {
     this.ledger = options.ledger ?? new InMemoryReleaseReceiptLedger();
     this.rawReceipts = options.rawReceipts ?? new InMemoryRawExternalReceiptRepository();
+    this.adapterAttempts =
+      options.adapterAttempts ??
+      ({ getFormalAdapterAttempt: () => undefined } satisfies FormalAdapterAttemptQueryPort);
   }
 
   /** Seeds a RawExternalReceipt fact consumed by formal-receipt provenance checks. */
@@ -613,6 +620,7 @@ export class ReleasePublicationRuntime {
       receiptRef: request.receiptRef,
       deliveryTimeoutMs: destination.deliveryTimeoutMs,
       correlationId: request.correlationId,
+      adapterAttempts: this.adapterAttempts,
     });
     if (!validation.ok) {
       // Rejected receipts never mutate release state: the original facts stay.

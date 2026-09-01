@@ -39,8 +39,11 @@ import {
   RELEASE_AUTHORIZATION_INVALID,
   RELEASE_AUTHORIZATION_PURPOSE_MISMATCH,
   RELEASE_AUTHORIZATION_REVOKED,
+  RELEASE_RECEIPT_TARGET_MISMATCH,
   ReleasePublicationBusinessError,
   type CommandResult,
+  type FormalAdapterAttemptBinding,
+  type FormalAdapterAttemptQueryPort,
   type ReleaseActorSnapshotFact,
   type ReleaseAuthorizationDecisionFact,
   type ReleaseAuthorityQueryPorts,
@@ -77,6 +80,24 @@ const RECALL_ACTOR = '0190a1b2-c3d4-7e81-8f90-123456789118';
 const RECALL_DECISION = '0190a1b2-c3d4-7e81-8f90-123456789119';
 const PROBE_ROLE = 'im05_wi06_release_probe';
 const PROBE_PASSWORD = 'im05-wi06-release-probe';
+
+class InMemoryFormalAdapterAttemptAuthority implements FormalAdapterAttemptQueryPort {
+  private readonly bindings = new Map<string, FormalAdapterAttemptBinding>();
+
+  save(binding: FormalAdapterAttemptBinding): void {
+    this.bindings.set(adapterAttemptKey(binding.attemptRef), binding);
+  }
+
+  getFormalAdapterAttempt(attemptRef: Common.ObjectRef): FormalAdapterAttemptBinding | undefined {
+    return this.bindings.get(adapterAttemptKey(attemptRef));
+  }
+}
+
+function adapterAttemptKey(ref: Common.ObjectRef): string {
+  return [ref.objectType, ref.objectId, ref.scope.enterpriseId, ref.scope.projectId ?? ''].join(
+    ':',
+  );
+}
 
 function contentHashFromBytes(value: Buffer): Common.ContentHash {
   return {
@@ -628,6 +649,7 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
       evaluatedAt: new Date(Date.now() - 1000).toISOString(),
     } as unknown as Core.ReleaseReadinessSnapshot;
     const rawReceipts = new InMemoryRawExternalReceiptRepository();
+    const adapterAttempts = new InMemoryFormalAdapterAttemptAuthority();
     const basePorts = authorityPorts();
     let decisionCommandType = 'release.authorize_release';
     let decisionPurpose = 'release.publication.authorize_release';
@@ -706,6 +728,7 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
           ),
       },
       rawExternalReceipts: rawReceipts,
+      adapterAttempts,
     };
 
     const readinessEnvelope = envelope(
@@ -854,6 +877,7 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
       contentHash: hash(0x82),
     };
     const receiptOccurredAtA = new Date().toISOString();
+    const adapterAttemptRefA = objectRef('integration.adapter_attempt', newUuidV7());
     const rawFactA: RawExternalReceiptFact = {
       rawReceiptRef: rawReceiptRefA,
       releaseId,
@@ -861,12 +885,94 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
       packageHashDigest: packageRef.packageHash.digest,
       publicationAttemptId: attemptAEnvelope.commandId,
       externalDeliveryRequestRef: attemptA.externalDeliveryRequestRef,
-      adapterAttemptRef: objectRef('integration.adapter_attempt', newUuidV7()),
+      adapterAttemptRef: adapterAttemptRefA,
       receiptPayloadHash: receiptPayloadHashA,
       observedOutcome: 'SUCCEEDED',
       occurredAt: receiptOccurredAtA,
       recordedAt: receiptOccurredAtA,
     };
+    adapterAttempts.save({
+      attemptRef: adapterAttemptRefA,
+      adapterKind: 'FEISHU_CHANNEL',
+      status: 'SUCCEEDED',
+      externalDeliveryRequestRef: attemptA.externalDeliveryRequestRef,
+    });
+    rawReceipts.save(rawFactA);
+    const beforeForgedReceipt = await admin.query<{
+      status: string;
+      aggregate_version: string;
+      receipt_count: string;
+      success_event_count: string;
+    }>(
+      `SELECT r.status,
+              r.aggregate_version::text,
+              (SELECT count(*)::text
+                 FROM release_publication.publication_receipt
+                WHERE release_id = r.release_id) AS receipt_count,
+              (SELECT count(*)::text
+                 FROM release_publication.outbox_event
+                WHERE aggregate_id = r.release_id
+                  AND event_type = 'release.PublicationSucceeded') AS success_event_count
+         FROM release_publication.release_record r
+        WHERE r.release_id = $1`,
+      [releaseId],
+    );
+    const forgedRawFactA: RawExternalReceiptFact = {
+      ...rawFactA,
+      adapterAttemptRef: {
+        ...rawFactA.adapterAttemptRef,
+        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d899',
+      },
+    };
+    rawReceipts.save(forgedRawFactA);
+    const forgedReceiptResult = await handleRecordPublicationReceipt(
+      db,
+      currentContext,
+      envelope(
+        currentContext,
+        'release.record_publication_receipt',
+        releaseId,
+        {
+          receipt: {
+            attemptRef: attemptRefFor(attemptAEnvelope),
+            destinationId: DESTINATION_A,
+            packageRef,
+            rawReceiptRef: rawReceiptRefA,
+            providerResult: { messageId: 'forged-provider-message' },
+            occurredAt: receiptOccurredAtA,
+            receiptPayloadHash: receiptPayloadHashA,
+          },
+        },
+        '10',
+        'issue-24-forged-adapter-attempt',
+      ),
+      ports,
+      { deliveryTimeoutMsByDestination: { [DESTINATION_A]: 60 * 60 * 1000 } },
+    );
+    expect(forgedReceiptResult.status).toBe('REJECTED');
+    if (forgedReceiptResult.status === 'REJECTED') {
+      expect(forgedReceiptResult.errorCode).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+    }
+    const afterForgedReceipt = await admin.query<{
+      status: string;
+      aggregate_version: string;
+      receipt_count: string;
+      success_event_count: string;
+    }>(
+      `SELECT r.status,
+              r.aggregate_version::text,
+              (SELECT count(*)::text
+                 FROM release_publication.publication_receipt
+                WHERE release_id = r.release_id) AS receipt_count,
+              (SELECT count(*)::text
+                 FROM release_publication.outbox_event
+                WHERE aggregate_id = r.release_id
+                  AND event_type = 'release.PublicationSucceeded') AS success_event_count
+         FROM release_publication.release_record r
+        WHERE r.release_id = $1`,
+      [releaseId],
+    );
+    expect(afterForgedReceipt.rows).toEqual(beforeForgedReceipt.rows);
     rawReceipts.save(rawFactA);
     const receiptAEnvelope = envelope(
       currentContext,
@@ -1007,6 +1113,7 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
       contentHash: hash(0x84),
     };
     const receiptOccurredAtB = new Date().toISOString();
+    const adapterAttemptRefB = objectRef('integration.adapter_attempt', newUuidV7());
     rawReceipts.save({
       rawReceiptRef: rawReceiptRefB,
       releaseId,
@@ -1014,11 +1121,17 @@ describe.skipIf(!gateEnabled)('ReleasePublication WI-06 persistence (real Postgr
       packageHashDigest: packageRef.packageHash.digest,
       publicationAttemptId: retryBEnvelope.commandId,
       externalDeliveryRequestRef: retryB.externalDeliveryRequestRef,
-      adapterAttemptRef: objectRef('integration.adapter_attempt', newUuidV7()),
+      adapterAttemptRef: adapterAttemptRefB,
       receiptPayloadHash: receiptPayloadHashB,
       observedOutcome: 'SUCCEEDED',
       occurredAt: receiptOccurredAtB,
       recordedAt: receiptOccurredAtB,
+    });
+    adapterAttempts.save({
+      attemptRef: adapterAttemptRefB,
+      adapterKind: 'FEISHU_CHANNEL',
+      status: 'SUCCEEDED',
+      externalDeliveryRequestRef: retryB.externalDeliveryRequestRef,
     });
     const receiptBEnvelope = envelope(
       currentContext,

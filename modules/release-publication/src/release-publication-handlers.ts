@@ -75,6 +75,7 @@ import {
   RELEASE_RECEIPT_TARGET_MISMATCH,
   sameObjectRef,
   samePackageRef,
+  type FormalAdapterAttemptQueryPort,
   type RawExternalReceiptRepository,
 } from './receipt-validator.js';
 import { buildPackageHashMaterial, sameContentHash } from './package-hash.js';
@@ -993,6 +994,18 @@ function rawReceiptRepository(ports: ReleaseAuthorityQueryPorts): RawExternalRec
   return ports.rawExternalReceipts;
 }
 
+function formalAdapterAttemptQuery(
+  ports: ReleaseAuthorityQueryPorts,
+): FormalAdapterAttemptQueryPort {
+  if (ports.adapterAttempts === undefined) {
+    throw new ReleasePublicationBusinessError(
+      RELEASE_RECEIPT_TARGET_MISMATCH,
+      'Formal Adapter Attempt authority is unavailable; Formal Receipt promotion is fail-closed',
+    );
+  }
+  return ports.adapterAttempts;
+}
+
 function normalizeReceiptWithRuntimeValidator(
   attempt: PublicationAttemptTable,
   releaseRef: Common.ObjectRef,
@@ -1020,6 +1033,7 @@ function normalizeReceiptWithRuntimeValidator(
     receiptRef,
     deliveryTimeoutMs,
     correlationId,
+    adapterAttempts: formalAdapterAttemptQuery(ports),
   });
   if (!validated.ok) {
     throw new ReleasePublicationBusinessError(validated.error.code, validated.error.safeMessage);

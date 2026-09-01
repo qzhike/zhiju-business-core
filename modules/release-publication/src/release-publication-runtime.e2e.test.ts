@@ -18,6 +18,8 @@ import {
 import {
   RELEASE_RECEIPT_STALE,
   RELEASE_RECEIPT_TARGET_MISMATCH,
+  sameObjectRef,
+  type FormalAdapterAttemptQueryPort,
   type RawExternalReceiptFact,
 } from './receipt-validator.js';
 import type { ReleaseTransactionContext } from './persistence/release-publication-db.js';
@@ -417,7 +419,9 @@ function loadFixture(): PreparedTimelineFixture {
 }
 
 async function openRuntime(fixture: PreparedTimelineFixture): Promise<ReleasePublicationRuntime> {
-  const runtime = new ReleasePublicationRuntime();
+  const runtime = new ReleasePublicationRuntime({
+    adapterAttempts: formalAdapterAttemptAuthority(fixture.rawExternalReceipts),
+  });
   runtime.openReleaseForPublication({
     releaseRef: fixture.release.releaseRef,
     destinations: fixture.release.destinations,
@@ -434,6 +438,25 @@ async function openRuntime(fixture: PreparedTimelineFixture): Promise<ReleasePub
     throw new Error(`REL-801 fixture authorization failed: ${authorization.error.code}`);
   }
   return runtime;
+}
+
+function formalAdapterAttemptAuthority(
+  facts: readonly RawExternalReceiptFact[],
+): FormalAdapterAttemptQueryPort {
+  return {
+    getFormalAdapterAttempt: (attemptRef) => {
+      const fact = facts.find((candidate) =>
+        sameObjectRef(candidate.adapterAttemptRef, attemptRef),
+      );
+      if (fact === undefined) return undefined;
+      return {
+        attemptRef: fact.adapterAttemptRef,
+        adapterKind: 'FEISHU_CHANNEL',
+        status: fact.observedOutcome,
+        externalDeliveryRequestRef: fact.externalDeliveryRequestRef,
+      };
+    },
+  };
 }
 
 function recallAuthorizationFixture(fixture: TimelineFixture): {
@@ -636,6 +659,52 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
 
     // The preserved fact is destination A's early success receipt.
     expect(finalOutcome?.succeededDestinationIds).toContain('018f22e2-7c15-7b2e-8d86-2de956a9d810');
+  });
+
+  it('RP-ISSUE24-E-002: rejects a self-consistent Raw Receipt with an unregistered Adapter Attempt ID', async () => {
+    const fixture = loadFixture();
+    const runtime = await openRuntime(fixture);
+    const firstEntry = fixture.timeline[0];
+    const receiptEntry = fixture.timeline.find((entry) => entry.step === 3);
+    const registeredRaw = fixture.rawExternalReceipts[0];
+    if (firstEntry === undefined || receiptEntry === undefined || registeredRaw === undefined) {
+      throw new Error('fixture is missing the first Attempt, accepted Receipt or Raw Receipt');
+    }
+    const first = requireAttemptFields(firstEntry);
+    expect(
+      runtime.startPublicationAttempt({
+        releaseRef: fixture.release.releaseRef,
+        attemptRef: first.attemptRef,
+        definition: first.definition,
+        correlationId: 'issue-24-runtime-start',
+      }).ok,
+    ).toBe(true);
+
+    const forgedRaw: RawExternalReceiptFact = {
+      ...registeredRaw,
+      adapterAttemptRef: {
+        ...registeredRaw.adapterAttemptRef,
+        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d899',
+      },
+    };
+    runtime.seedRawExternalReceipt(forgedRaw);
+    const result = runtime.recordPublicationReceipt({
+      releaseRef: fixture.release.releaseRef,
+      submission: resolveSubmission(receiptEntry, undefined),
+      receiptRef: resolveReceiptRef(receiptEntry, undefined),
+      correlationId: 'issue-24-runtime-forged-adapter',
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(RELEASE_RECEIPT_TARGET_MISMATCH);
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe('PUBLISHING');
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.receiptRefs).toHaveLength(0);
+    expect(runtime.getPublicationAttempts(fixture.release.releaseRef)).toHaveLength(1);
+    expect(
+      runtime
+        .getOutboxEvents(fixture.release.releaseRef)
+        .filter((event) => event.eventType === 'release.PublicationSucceeded'),
+    ).toHaveLength(0);
   });
 
   it('RP-ISSUE23-U-005: keeps normalized provider result in the Receipt and excludes it from Events and errors', async () => {

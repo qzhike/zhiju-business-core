@@ -5,7 +5,10 @@
 import type { Artifact, Common, QualityGovernance, ReleasePublication } from '@zhiju/contracts';
 import { canonicalize, isUuidV7, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 import { normalizePackageDefinition } from './package-hash.js';
-import type { RawExternalReceiptRepository } from './receipt-validator.js';
+import type {
+  FormalAdapterAttemptQueryPort,
+  RawExternalReceiptRepository,
+} from './receipt-validator.js';
 import type { ReleaseTransactionContext } from './persistence/release-publication-db.js';
 
 export const RELEASE_SCOPE_INVALID = 'RELEASE_SCOPE_INVALID';
@@ -96,6 +99,8 @@ export interface ReleaseAuthorityQueryPorts {
   readonly identity?: ReleaseIdentityAuthorityQueryPort;
   /** IntegrationGateway-owned RawExternalReceipt facts; absent means fail-closed. */
   readonly rawExternalReceipts?: RawExternalReceiptRepository;
+  /** IntegrationGateway-owned exact formal Adapter Attempt authority; absent means fail-closed. */
+  readonly adapterAttempts?: FormalAdapterAttemptQueryPort;
 }
 
 type DraftDefinition = ReleasePublication.ReleaseDraftDefinition;

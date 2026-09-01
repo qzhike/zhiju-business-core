@@ -301,6 +301,67 @@ describe('IntegrationGateway Issue #17 runtime slice', () => {
     }
   });
 
+  it('IG-API-U-007: resolves only the exact registered formal Adapter Attempt binding', async () => {
+    const runtime = new IntegrationGatewayRuntime();
+    const attemptRef = objectRef(
+      'integration.adapter_attempt',
+      '018f22e2-7c15-7b2e-8d86-2de956a9d242',
+    );
+    const externalDeliveryRequestRef = contentRef(
+      'integration.external_delivery_request',
+      '018f22e2-7c15-7b2e-8d86-2de956a9d243',
+      ONE_DIGEST,
+    );
+    const result = await runtime.executeExternalAttempt({
+      attemptRef,
+      adapterKind: 'FEISHU_CHANNEL',
+      externalDeliveryRequestRef,
+      stableIdempotencyKey: 'formal-adapter-attempt-001',
+      requestPayloadHash: hash(ONE_DIGEST),
+      timeoutMs: 100,
+      correlationId: 'ig-u-007-formal',
+      call: () => Promise.resolve({ outcome: 'SUCCEEDED' as const }),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(runtime.getFormalAdapterAttempt(attemptRef)).toEqual({
+      attemptRef,
+      adapterKind: 'FEISHU_CHANNEL',
+      status: 'SUCCEEDED',
+      externalDeliveryRequestRef,
+    });
+    expect(
+      runtime.getFormalAdapterAttempt({
+        ...attemptRef,
+        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d899',
+      }),
+    ).toBeUndefined();
+    expect(
+      runtime.getFormalAdapterAttempt({
+        ...attemptRef,
+        objectType: 'integration.runtime_attempt',
+      }),
+    ).toBeUndefined();
+    expect(
+      runtime.getFormalAdapterAttempt({
+        ...attemptRef,
+        scope: scope('018f22e2-7c15-7b2e-8d86-2de956a9d299'),
+      }),
+    ).toBeUndefined();
+
+    const missingExternalRequest = await runtime.executeExternalAttempt({
+      attemptRef: objectRef('integration.adapter_attempt', '018f22e2-7c15-7b2e-8d86-2de956a9d244'),
+      adapterKind: 'FEISHU_CHANNEL',
+      stableIdempotencyKey: 'formal-adapter-attempt-missing-request',
+      requestPayloadHash: hash(ONE_DIGEST),
+      timeoutMs: 100,
+      correlationId: 'ig-u-007-missing-request',
+      call: () => Promise.resolve({ outcome: 'SUCCEEDED' as const }),
+    });
+    expect(missingExternalRequest.ok).toBe(false);
+    expect(runtime.getAttempt(attemptRef)?.status).toBe('SUCCEEDED');
+  });
+
   it.each([
     ['unknown Provider Major', { providerSchemaMajor: 3, requiredExtensions: [] }],
     [
