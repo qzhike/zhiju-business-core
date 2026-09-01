@@ -70,3 +70,11 @@
 - HL-Spec、Module-Spec-006、Module-Test-006 和 Module-Test-007 已从“PR 未创建/未提交”同步为 PR #147 `OPEN / remediation locally verified / exact-head CI pending`。
 
 复审结论：`PASS FOR DELIVERY`。该结论只覆盖独立 Authority fixture、ReleasePublication Runtime/Handler 和 disposable PostgreSQL 技术证据；真实 Feishu/Provider、生产、公共 HTTP/E2E、统一跨模块业务 E2E 与独立人工验收继续为 `NOT RUN`。
+
+## 交付回读
+
+- 修复提交：`9c9a4fc74c291d92e144d5dcb2e7c10609c9e928`。
+- exact-head CI：GitHub Actions `verify` run `33477404474` 成功。
+- PR #147：于 2026-09-01 合并，merge commit 为 `cd2391b0e8abb3c0b0da081323ba0fadd4f239ec`；实现 Head 已确认是 `origin/main` 祖先。
+- Issue #24：由 PR closing reference 自动关闭；closeout evidence 已写入 `issuecomment-5489855198`。
+- 本次交付不把真实 Feishu/Provider、生产、公共 HTTP/E2E、统一跨模块业务 E2E 或独立人工验收标记为通过。
