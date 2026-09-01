@@ -662,6 +662,7 @@ const operationSchemas = {
   'quality.get_release_readiness_snapshot': {
     payload: object(['snapshotRef'], {
       snapshotRef: snapshotReference,
+      requireCurrentForAuthorization: { type: 'boolean' },
     }),
     result: localRef('releaseReadinessResult'),
   },

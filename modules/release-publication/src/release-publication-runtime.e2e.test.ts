@@ -13,6 +13,7 @@ import { buildPackageHashMaterial } from './package-hash.js';
 import {
   RELEASE_ACTOR_NOT_HUMAN,
   RELEASE_AUTHORIZATION_DECISION_MISMATCH,
+  RELEASE_READINESS_INVALID,
   type ReleaseAuthorizationValidationInput,
 } from './release-publication-authorization.js';
 import {
@@ -360,7 +361,10 @@ function buildRuntimeAuthorizationFixture(fixture: TimelineFixture): RuntimeAuth
     quality: {
       getRevisionAcceptanceSnapshot: () => Promise.resolve(acceptance),
       getApprovalBundleSnapshot: () => Promise.resolve(approval),
-      getReleaseReadinessSnapshot: () => Promise.resolve(readinessSnapshot),
+      getReleaseReadinessSnapshot: (input) => {
+        expect(input.requireCurrentForAuthorization).toBe(true);
+        return Promise.resolve(readinessSnapshot);
+      },
     },
     identity: {
       getActorSnapshot: () => Promise.resolve(actor),
@@ -1418,6 +1422,44 @@ describe('REL-801 simulated late receipt timeline (RP-API-E-003)', () => {
     if (!start.ok) expect(start.error.code).toBe(RELEASE_NOT_AUTHORIZED);
     expect(runtime.getPublicationAttempts(fixture.release.releaseRef)).toHaveLength(0);
     expect(runtime.getOutboxEvents(fixture.release.releaseRef)).toHaveLength(0);
+  });
+
+  it('RP-IM05-RRS-001: rejects a historical READY RRS when current authority marks it stale', async () => {
+    const fixture = loadFixture();
+    const runtime = new ReleasePublicationRuntime();
+    runtime.openReleaseForPublication({
+      releaseRef: fixture.release.releaseRef,
+      destinations: fixture.release.destinations,
+      frozenPackageRef: fixture.authorization.validation.packageRef,
+    });
+    let currentQueryCount = 0;
+    const quality = fixture.authorization.validation.ports.quality;
+    const denied = await runtime.authorizeRelease({
+      validation: {
+        ...fixture.authorization.validation,
+        ports: {
+          ...fixture.authorization.validation.ports,
+          quality: {
+            ...quality,
+            getReleaseReadinessSnapshot: (input) => {
+              currentQueryCount += 1;
+              expect(input.requireCurrentForAuthorization).toBe(true);
+              return Promise.reject(new Error('historical RRS is no longer current'));
+            },
+          },
+        },
+      },
+      destinations: fixture.release.destinations,
+    });
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) {
+      expect(denied.error.code).toBe(RELEASE_READINESS_INVALID);
+      expect(denied.error.safeMessage).not.toContain('historical RRS');
+    }
+    expect(currentQueryCount).toBe(1);
+    expect(runtime.getReleaseOutcome(fixture.release.releaseRef)?.status).toBe('PREPARED');
+    expect(runtime.getOutboxEvents(fixture.release.releaseRef)).toHaveLength(0);
+    expect(runtime.getPublicationAttempts(fixture.release.releaseRef)).toHaveLength(0);
   });
 
   it('RP-ISSUE22-U-001: rejects a forged runtime authorization ref before mutating state', async () => {

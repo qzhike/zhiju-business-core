@@ -211,14 +211,19 @@ export async function revalidateReleaseForAuthorization(
   if (input.ports.quality.getReleaseReadinessSnapshot === undefined) {
     fail(RELEASE_READINESS_INVALID, 'Release Readiness Snapshot authority port is unavailable');
   }
-  let snapshot: Core.ReleaseReadinessSnapshot;
+  let resolvedSnapshot: unknown;
   try {
-    snapshot = await input.ports.quality.getReleaseReadinessSnapshot({
+    resolvedSnapshot = await input.ports.quality.getReleaseReadinessSnapshot({
       snapshotRef: input.releaseReadinessSnapshotRef,
+      requireCurrentForAuthorization: true,
     });
   } catch {
     fail(RELEASE_READINESS_INVALID, 'Release Readiness Snapshot could not be resolved exactly');
   }
+  if (resolvedSnapshot === null || typeof resolvedSnapshot !== 'object') {
+    fail(RELEASE_READINESS_INVALID, 'Release Readiness Snapshot could not be resolved exactly');
+  }
+  const snapshot = resolvedSnapshot as Core.ReleaseReadinessSnapshot;
   assertExactReadiness(snapshot, input, normalizedPackage);
   return { releaseReadinessSnapshot: snapshot, packageDefinition: material.normalizedDefinition };
 }

@@ -1,8 +1,8 @@
 # Module-Spec-005-QualityGovernance
 
-版本：v1.0
-日期：2026-08-31
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01–WI-04 IMPLEMENTATION AND GITHUB DELIVERY COMPLETE / ISSUE #121–#124 CLOSED / IM-05 WI-08 SYNTHETIC QMS EXIT REVIEW DELIVERED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 CLOSED / QMS COMPONENT TECHNICAL EVIDENCE PASS / UNIFIED CROSS-MODULE E2E NOT RUN`
+版本：v1.1
+日期：2026-09-01
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / FIELD-LEVEL SCHEMA IMPLEMENTED / IM-05 WI-01–WI-04 IMPLEMENTATION AND GITHUB DELIVERY COMPLETE / ISSUE #121–#124 CLOSED / IM-05 WI-08 SYNTHETIC QMS EXIT REVIEW DELIVERED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 CLOSED / CURRENT RRS AUTHORIZATION QUERY LOCAL POSTGRESQL PASS 2026-09-01 / USER REVIEW AND GIT DELIVERY PENDING / QMS COMPONENT TECHNICAL EVIDENCE PASS / UNIFIED CROSS-MODULE E2E NOT RUN`
 
 ## 1. 模块责任
 
@@ -224,7 +224,7 @@ BlockingIssueView
 | `quality.get_open_blocking_issues@1.0` | A | `revisionRef: ContentAddressedRef<ArtifactRevision>; qualityProfileRef: VersionedRef<QualityProfile>` | `BlockingIssueView[]` |
 | `quality.get_revision_acceptance_snapshot@1.0` | A | `snapshotRef: SnapshotRef<RevisionAcceptance>` | `RevisionAcceptanceSnapshot` |
 | `quality.get_approval_bundle_snapshot@1.0` | A | `snapshotRef: SnapshotRef<ApprovalBundle>` | `ApprovalBundleSnapshot` |
-| `quality.get_release_readiness_snapshot@1.0` | A | `snapshotRef: SnapshotRef<ReleaseReadiness>` | `ReleaseReadinessSnapshot`；Release Authorize 必须再验证最新有效性 |
+| `quality.get_release_readiness_snapshot@1.0` | A | `snapshotRef: SnapshotRef<ReleaseReadiness>; requireCurrentForAuthorization?: boolean` | `ReleaseReadinessSnapshot`；省略标志时读取不可变历史，`true` 时只返回仍是 exact Release + frozen Package 最新有效 readiness、且 Gate/ABS/RAS/Approval 当前有效的 RRS，否则 fail-closed |
 
 ## 5. Event Payload Contract
 
@@ -360,6 +360,8 @@ Issue #121 在既有 `V5000__quality_governance_technical_tables.sql` 与 owning
 WI-02 实现、验证与交付结果（2026-08-30）：`IMPLEMENTATION COMPLETE / UNIT AND PERSISTENCE LOCALLY VERIFIED / GITHUB EXACT-HEAD DELIVERY COMPLETE PR #130 MERGED / ISSUE #122 CLOSED / LOCAL AND REMOTE FEATURE BRANCHES DELETED`。`modules/quality-governance/src/business/quality-business-validation.test.ts` 为 8/8 PASS；`tests/persistence/quality-governance-business.test.ts` 纳入 pinned PostgreSQL/Flyway gate，覆盖 Evidence capture/verify/dispute/revoke/history、exact hash/query、support/context、QualityProfile activation/new version、CAS、RLS/ACL、owner immutable guard、idempotency replay 和 post-write rollback。全 persistence gate 为 30 files/298 tests PASS，V5002 空库迁移和 second-run no-op 通过并清理容器。实现 commit `f0269ddfac1d16dd3f627818606e8546254f8ef1` 已由 PR #130 合入 `main`，merge commit 为 `7f04f8acea7b32a456316801aa0b5ed75c7230a7`。存储 definition 的 activation 重校验由 Handler 实现，因数据库 immutable guard 不允许篡改存储行，专门篡改后的运行时分支保持 `NOT RUN`；Provider、公开 HTTP、跨模块 E2E、生产和独立人工业务验收保持 `NOT RUN`。
 
 WI-03 实现与本地验证结果（2026-08-30）：`modules/quality-governance/src/business/quality-gate-validation.test.ts` 为 1 file/6 tests `PASS`；`tests/persistence/quality-governance-gate-results.test.ts` 为 5/5 `PASS`。正式 `pnpm persistence:gate` 在 PostgreSQL 18.6/Flyway 11.20.3 上为 31 files/303 tests `PASS`，V5003 空库迁移、tag→digest 校验、RLS/ACL、owner append-only guard、exact reference、reused Result、RAS/RRS stale/not-ready、rollback、second migrate no-op 与容器清理均通过。全量静态/普通测试为 Format、Lint、Typecheck、Build、36 passed/27 skipped files（409 passed/288 skipped tests）、Architecture、201/201 Contract/Catalog/Compatibility `PASS`。唯一修复的运行时缺陷是 V5003 与既有 V5002 通用 trigger guard 的授权归因列命名不一致，已统一沿用 `created_authorization_decision_id`；独立场景 profile name 也已改为唯一 fixture。当前实现尚未 commit/push，需用户先检查工作树后再进入 Git 交付阶段。Provider、实际 Renderer、ReleasePublication、公开 HTTP、跨模块业务 E2E、生产和独立人工验收保持 `NOT RUN`。
+
+2026-09-01 IM-05 父级阻断修复收紧 Query 语义：exact RRS 历史读取继续保持不可变与可审计；只有调用方显式设置 `requireCurrentForAuthorization=true` 时，Query 才执行授权用途的当前性重验。当前性必须同时满足：请求 ref 与存储 hash/scope 精确一致、snapshot 为该 Release 与 frozen Package 的最新 RRS、状态为 `READY_FOR_AUTHORIZATION`、所有 `releaseGateResultRefs` 未出现 GateInvalidation、引用的 ABS 是同 Revision/Profile 的最新 `FULLY_APPROVED` bundle、ABS 内所有 Approval 仍为 `EFFECTIVE`、其 RAS 是同 Revision/Profile 的最新 `READY` snapshot。缺失/损坏引用、后续 STALE/NOT_READY snapshot、Gate invalidation、Approval revocation 或 Authority 异常一律 fail-closed；不得把旧 READY snapshot 当作当前授权证据。
 
 ## 13. IM-05 WI-08 合成 QMS 退出复核边界
 

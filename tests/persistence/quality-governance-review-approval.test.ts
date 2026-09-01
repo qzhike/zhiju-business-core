@@ -12,9 +12,12 @@ import {
   handleActivateQualityProfile,
   handleCloseReviewIssue,
   handleCreateQualityProfileDraft,
+  handleEvaluateReleaseGateReadiness,
   handleEvaluateRevisionReadiness,
   handleGetApprovalBundleSnapshot,
   handleGetOpenBlockingIssues,
+  handleGetReleaseReadinessSnapshot,
+  handleInvalidateGateResult,
   handleProposeIssueResolution,
   handleRecordGateResult,
   handleRaiseReviewIssue,
@@ -22,6 +25,7 @@ import {
   handleSubmitApprovalDecision,
   handleRevokeApproval,
   handleVerifyIssueResolution,
+  QUALITY_RELEASE_READINESS_NOT_READY,
   QualityBusinessRepository,
   validateReviewIssueDefinition,
   withQualityGovernanceTransaction,
@@ -250,6 +254,8 @@ function envelope<TPayload extends object>(
 interface ProfileFixture {
   readonly profileRef: Common.VersionedRef;
   readonly revisionGateId: string;
+  readonly representationGateId: string;
+  readonly packageGateId: string;
   readonly approvalRequirementId: string;
 }
 
@@ -410,7 +416,13 @@ describe.skipIf(!gateEnabled)('QualityGovernance WI-04 business persistence', ()
     const approvalRequirementId = requirements[0]?.approval_requirement_id;
     if (approvalRequirementId === undefined)
       throw new Error('approval requirement was not persisted');
-    return { profileRef, revisionGateId, approvalRequirementId };
+    return {
+      profileRef,
+      revisionGateId,
+      representationGateId,
+      packageGateId,
+      approvalRequirementId,
+    };
   }
 
   async function recordGate(
@@ -448,6 +460,106 @@ describe.skipIf(!gateEnabled)('QualityGovernance WI-04 business persistence', ()
       gateResultId,
       gateResultRef: resultRef(payload, 'gateResultRef') as Common.ContentAddressedRef,
     };
+  }
+
+  async function recordReleaseGate(
+    current: QualityTransactionContext,
+    profile: ProfileFixture,
+    gateSpecId: string,
+    target: QualityGovernance.GateTarget,
+    evaluatedAt: string,
+  ): Promise<GateFixture> {
+    const gateResultId = newUuidV7();
+    const result = await handleRecordGateResult(
+      db,
+      current,
+      envelope(current, 'quality.gate_result', gateResultId, {
+        submission: {
+          artifactRef: objectRef('artifact.artifact', ARTIFACT_ID),
+          gateTarget: target,
+          evaluationStage: 'RELEASE_READINESS',
+          qualityProfileRef: profile.profileRef,
+          gateSpecId,
+          gateVersion: '1.0.0',
+          evaluationAttempt: 1,
+          evaluatedScope: { enterpriseId: ENTERPRISE, projectId: PROJECT },
+          inputSnapshotRef: snapshotRef('quality.gate_input', 0x20),
+          evaluator: { evaluatorId: 'synthetic_release_gate', evaluatorVersion: '1.0.0' },
+          outcome: 'PASS',
+          findings: [],
+          evidenceRefs: [],
+          startedAt: evaluatedAt,
+          completedAt: evaluatedAt,
+        } satisfies QualityGovernance.GateResultSubmission,
+      }),
+    );
+    const payload = committed(result);
+    return {
+      gateResultId,
+      gateResultRef: resultRef(payload, 'gateResultRef') as Common.ContentAddressedRef,
+    };
+  }
+
+  function releasePackageRef(releaseId: string, hashByte: number): Common.ReleasePackageRef {
+    return {
+      releaseRef: objectRef('release.release', releaseId),
+      packageSnapshotRef: {
+        ...snapshotRef('release.release_package', hashByte),
+        objectId: releaseId,
+      },
+      packageHash: hash(hashByte),
+    };
+  }
+
+  function releaseRepresentationTarget(
+    revisionRef: Common.ContentAddressedRef,
+  ): QualityGovernance.GateTarget {
+    return {
+      kind: 'REPRESENTATION',
+      revisionRef,
+      representationRef: {
+        representationId: newUuidV7(),
+        revision: revisionRef,
+        format: 'DOCX',
+        mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        objectStorageRef: 'objects/im05/current-rrs.docx',
+        checksum: hash(0x72),
+        renderer: { rendererId: 'renderer.docx', rendererVersion: '1.0.0' },
+        createdAt: '2026-08-30T00:21:10Z',
+      },
+    };
+  }
+
+  async function evaluateReleaseReadiness(
+    current: QualityTransactionContext,
+    packageRef: Common.ReleasePackageRef,
+    approvalBundleSnapshotRef: Common.SnapshotRef,
+    gateResultRefs: readonly Common.ContentAddressedRef[],
+    evaluatedAt: string,
+  ): Promise<Common.SnapshotRef> {
+    const result = committed(
+      await handleEvaluateReleaseGateReadiness(
+        db,
+        current,
+        envelope(current, 'quality.release_readiness_snapshot', newUuidV7(), {
+          releasePackageRef: packageRef,
+          approvalBundleSnapshotRef,
+          recipientScopeSnapshotRef: snapshotRef('release.recipient_scope_snapshot', 0x73),
+          destinationRefs: [
+            {
+              system: 'feishu',
+              resourceType: 'document',
+              externalId: packageRef.releaseRef.objectId,
+              observedAt: evaluatedAt,
+            },
+          ],
+          releaseGateResultRefs: gateResultRefs,
+          evaluatedAt,
+        }),
+      ),
+    );
+    expect(result.readinessStatus).toBe('READY_FOR_AUTHORIZATION');
+    return resultRef(result, 'snapshotRef') as Common.SnapshotRef;
   }
 
   async function evaluateReadiness(
@@ -820,6 +932,118 @@ describe.skipIf(!gateEnabled)('QualityGovernance WI-04 business persistence', ()
       'approvalRef',
     ) as Common.ContentAddressedRef;
 
+    const representationTarget = releaseRepresentationTarget(remediatedRevisionRef);
+    const representationGate = await recordReleaseGate(
+      secondApprover,
+      profile,
+      profile.representationGateId,
+      representationTarget,
+      '2026-08-30T00:21:05Z',
+    );
+    const packageRefA = releasePackageRef(newUuidV7(), 0x74);
+    const packageRefB = releasePackageRef(newUuidV7(), 0x75);
+    const packageGateA = await recordReleaseGate(
+      secondApprover,
+      profile,
+      profile.packageGateId,
+      {
+        kind: 'RELEASE_PACKAGE',
+        revisionRef: remediatedRevisionRef,
+        releasePackageRef: packageRefA,
+      },
+      '2026-08-30T00:21:06Z',
+    );
+    const packageGateB = await recordReleaseGate(
+      secondApprover,
+      profile,
+      profile.packageGateId,
+      {
+        kind: 'RELEASE_PACKAGE',
+        revisionRef: remediatedRevisionRef,
+        releasePackageRef: packageRefB,
+      },
+      '2026-08-30T00:21:07Z',
+    );
+    const readinessRefA = await evaluateReleaseReadiness(
+      secondApprover,
+      packageRefA,
+      fullBundleRef,
+      [representationGate.gateResultRef, packageGateA.gateResultRef],
+      '2026-08-30T00:21:10Z',
+    );
+    const readinessRefB = await evaluateReleaseReadiness(
+      secondApprover,
+      packageRefB,
+      fullBundleRef,
+      [representationGate.gateResultRef, packageGateB.gateResultRef],
+      '2026-08-30T00:21:11Z',
+    );
+    await expect(
+      handleGetReleaseReadinessSnapshot(db, secondApprover, {
+        snapshotRef: readinessRefA,
+        requireCurrentForAuthorization: true,
+      }),
+    ).resolves.toMatchObject({ readiness: { status: 'READY_FOR_AUTHORIZATION' } });
+    await expect(
+      handleGetReleaseReadinessSnapshot(db, secondApprover, {
+        snapshotRef: readinessRefB,
+        requireCurrentForAuthorization: true,
+      }),
+    ).resolves.toMatchObject({ readiness: { status: 'READY_FOR_AUTHORIZATION' } });
+    const latestReadinessRefB = await evaluateReleaseReadiness(
+      secondApprover,
+      packageRefB,
+      fullBundleRef,
+      [representationGate.gateResultRef, packageGateB.gateResultRef],
+      '2026-08-30T00:21:13Z',
+    );
+    await expect(
+      handleGetReleaseReadinessSnapshot(db, secondApprover, {
+        snapshotRef: readinessRefB,
+        requireCurrentForAuthorization: true,
+      }),
+    ).rejects.toMatchObject({ code: QUALITY_RELEASE_READINESS_NOT_READY });
+    await expect(
+      handleGetReleaseReadinessSnapshot(db, secondApprover, {
+        snapshotRef: latestReadinessRefB,
+        requireCurrentForAuthorization: true,
+      }),
+    ).resolves.toMatchObject({ readiness: { status: 'READY_FOR_AUTHORIZATION' } });
+
+    const invalidatedPackageGate = committed(
+      await handleInvalidateGateResult(
+        db,
+        secondApprover,
+        envelope(secondApprover, 'quality.gate_result', packageGateA.gateResultId, {
+          invalidationReason: {
+            reasonCode: 'QUALITY_UPSTREAM_CHANGED',
+            summary: 'Synthetic package evidence changed after readiness evaluation.',
+            evidenceRefs: [],
+          },
+          impactAssessmentRef: contentRef('quality.impact_assessment', newUuidV7(), 0x76),
+          invalidatedAt: '2026-08-30T00:21:12Z',
+        }),
+      ),
+    );
+    expect(invalidatedPackageGate.validityStatus).toBe('INVALIDATED');
+    await expect(
+      handleGetReleaseReadinessSnapshot(db, secondApprover, {
+        snapshotRef: readinessRefA,
+      }),
+    ).resolves.toMatchObject({ readiness: { status: 'READY_FOR_AUTHORIZATION' } });
+    await expect(
+      handleGetReleaseReadinessSnapshot(db, secondApprover, {
+        snapshotRef: readinessRefA,
+        requireCurrentForAuthorization: true,
+      }),
+    ).rejects.toMatchObject({ code: QUALITY_RELEASE_READINESS_NOT_READY });
+    await expect(
+      handleGetReleaseReadinessSnapshot(db, secondApprover, {
+        snapshotRef: latestReadinessRefB,
+        requireCurrentForAuthorization: true,
+      }),
+    ).resolves.toMatchObject({ readiness: { status: 'READY_FOR_AUTHORIZATION' } });
+
     const duplicateApproval = await handleSubmitApprovalDecision(db, firstApprover, {
       ...envelope(firstApprover, 'quality.approval_request', requestId, {
         submission: approvalSubmission(
@@ -890,6 +1114,17 @@ describe.skipIf(!gateEnabled)('QualityGovernance WI-04 business persistence', ()
         snapshotRef: fullBundleRef,
       }),
     ).toMatchObject({ completeness: { status: 'FULLY_APPROVED' } });
+    await expect(
+      handleGetReleaseReadinessSnapshot(db, secondApprover, {
+        snapshotRef: latestReadinessRefB,
+      }),
+    ).resolves.toMatchObject({ readiness: { status: 'READY_FOR_AUTHORIZATION' } });
+    await expect(
+      handleGetReleaseReadinessSnapshot(db, secondApprover, {
+        snapshotRef: latestReadinessRefB,
+        requireCurrentForAuthorization: true,
+      }),
+    ).rejects.toMatchObject({ code: QUALITY_RELEASE_READINESS_NOT_READY });
 
     const histories = await withQualityGovernanceTransaction(db, secondApprover, async (trx) => ({
       request: await businessRepository.getApprovalRequestById(trx, requestId),

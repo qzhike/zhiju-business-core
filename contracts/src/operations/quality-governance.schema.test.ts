@@ -306,6 +306,15 @@ describe('quality-governance schema', () => {
       errors: [],
     });
     expect(
+      registry.validateOperation('quality.get_release_readiness_snapshot', '1.0', {
+        ...query,
+        payload: {
+          ...(query.payload as Record<string, unknown>),
+          requireCurrentForAuthorization: true,
+        },
+      }),
+    ).toEqual({ valid: true, errors: [] });
+    expect(
       registry.validateOperationResult('quality.get_release_readiness_snapshot', '1.0', resultData),
     ).toEqual({
       valid: true,

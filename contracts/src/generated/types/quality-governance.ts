@@ -362,6 +362,7 @@ export namespace QualityGovernance {
   /** Payload of `quality.get_release_readiness_snapshot` (QUERY). */
   export interface QualityGetReleaseReadinessSnapshotPayload {
   readonly snapshotRef: Common.SnapshotRef;
+  readonly requireCurrentForAuthorization?: boolean;
 }
   /** Result of `quality.get_release_readiness_snapshot` (QUERY). */
   export type QualityGetReleaseReadinessSnapshotResult = QualityGovernance.ReleaseReadinessResult;
