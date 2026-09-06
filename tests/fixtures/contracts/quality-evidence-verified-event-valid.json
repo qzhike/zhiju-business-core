@@ -1,0 +1,65 @@
+{
+  "eventId": "018f22e2-7c15-7c40-8d86-2de956a9d601",
+  "eventType": "quality.EvidenceVerified",
+  "eventVersion": "1.0",
+  "producerModule": "quality-governance",
+  "aggregateType": "quality.evidence",
+  "aggregateId": "018f22e2-7c15-7be2-8d86-2de956a9d214",
+  "aggregateVersion": 1,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b12-8d86-2de956a9d207"
+  },
+  "correlationId": "018f22e2-7c15-7c40-8d86-2de956a9d602",
+  "causationId": "018f22e2-7c15-7c40-8d86-2de956a9d603",
+  "commandId": "018f22e2-7c15-7c40-8d86-2de956a9d604",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:00:00Z",
+  "dataClassification": "INTERNAL",
+  "payload": {
+    "evidenceRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "quality.evidence",
+      "objectId": "018f22e2-7c15-7be2-8d86-2de956a9d214",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b12-8d86-2de956a9d207"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "1212121212121212121212121212121212121212121212121212121212121212",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "verificationRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "quality.evidence_verification",
+      "objectId": "018f22e2-7c15-7c40-8d86-2de956a9d605",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "1313131313131313131313131313131313131313131313131313131313131313",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "authority": "quality.evidence.authority.internal",
+    "verifiedAt": "2026-08-17T00:00:00Z"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "1414141414141414141414141414141414141414141414141414141414141414",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

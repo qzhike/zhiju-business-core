@@ -1,0 +1,117 @@
+{
+  "commandId": "018f22e2-7c15-7c40-8d86-2de956a9d401",
+  "commandType": "quality.record_gate_result",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b12-8d86-2de956a9d207"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "quality.gate_result",
+    "objectId": "018f22e2-7c15-7c40-8d86-2de956a9d402",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b12-8d86-2de956a9d207"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7c40-8d86-2de956a9d403",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "5555555555555555555555555555555555555555555555555555555555555555",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "quality-gate-result-bad-hash-001",
+  "correlationId": "018f22e2-7c15-7c40-8d86-2de956a9d404",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "submission": {
+      "artifactRef": {
+        "kind": "OBJECT",
+        "objectType": "artifact.artifact",
+        "objectId": "018f22e2-7c15-7b32-8d86-2de956a9d209",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b12-8d86-2de956a9d207"
+        }
+      },
+      "gateTarget": {
+        "kind": "REVISION",
+        "revisionRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "artifact.artifact_revision",
+          "objectId": "018f22e2-7c15-7b42-8d86-2de956a9d20a",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b12-8d86-2de956a9d207"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "not-a-real-hash",
+            "canonicalizationVersion": "1"
+          }
+        }
+      },
+      "evaluationStage": "REVISION_ACCEPTANCE",
+      "qualityProfileRef": {
+        "kind": "VERSIONED",
+        "objectType": "quality.quality_profile",
+        "objectId": "018f22e2-7c15-7b52-8d86-2de956a9d20b",
+        "versionId": "018f22e2-7c15-7c22-8d86-2de956a9d218",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+        }
+      },
+      "gateSpecId": "018f22e2-7c15-7c02-8d86-2de956a9d216",
+      "gateVersion": "1",
+      "evaluationAttempt": 1,
+      "evaluatedScope": { "scope": "section.4.2" },
+      "inputSnapshotRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "quality.gate_input",
+        "objectId": "018f22e2-7c15-7c02-8d86-2de956a9d220",
+        "snapshotId": "018f22e2-7c15-7b22-8d86-2de956a9d208",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "evaluator": {
+        "evaluatorId": "quality.evaluator.revision_readiness",
+        "evaluatorVersion": "1.0.0"
+      },
+      "outcome": "PASS",
+      "findings": [],
+      "evidenceRefs": [],
+      "startedAt": "2026-08-17T00:00:00Z",
+      "completedAt": "2026-08-17T00:00:10Z"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+[
+  {
+    "reviewIssueRef": {
+      "kind": "OBJECT",
+      "objectType": "quality.review_issue",
+      "objectId": "018f22e2-7c15-7d62-8d86-2de956a9d22c",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b12-8d86-2de956a9d207"
+      }
+    },
+    "originRevisionRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "artifact.artifact_revision",
+      "objectId": "018f22e2-7c15-7b42-8d86-2de956a9d20a",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b12-8d86-2de956a9d207"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "severity": "CRITICAL",
+    "blockingClassification": "release_blocking",
+    "status": "OPEN",
+    "ownerRef": {
+      "principalKind": "HUMAN",
+      "principalId": "018f22e2-7c15-7d52-8d86-2de956a9d22b"
+    }
+  }
+]
