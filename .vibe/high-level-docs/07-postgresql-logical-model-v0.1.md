@@ -10,11 +10,11 @@
 
 权威输入：
 
-- [`02-zhiju-core-architecture.md`](./02-zhiju-core-architecture.md)；
-- [`03-core-contracts.md`](./03-core-contracts.md)；
-- [`04-domain-model-v0.1.md`](./04-domain-model-v0.1.md)；
-- [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md)；
-- [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)。
+- [`02-zhiju-core-architecture.md`](02-zhiju-core-architecture.md)；
+- [`03-core-contracts.md`](03-core-contracts.md)；
+- [`04-domain-model-v0.1.md`](04-domain-model-v0.1.md)；
+- [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](05-cross-aggregate-consistency-module-boundary-v0.1.md)；
+- [`06-typed-references-contract-catalog-v0.1.md`](06-typed-references-contract-catalog-v0.1.md)。
 
 ---
 
@@ -1641,7 +1641,7 @@ Context；唯一写入口仅授予 NOLOGIN 的 `platform_context_establisher`。
 Project，空数组不能利用 SQL `CHECK UNKNOWN` 绕过。
 
 具体函数、权限、清理机制与威胁模型以
-[`../im-02-workitem-issues/rls-context-design-wi-03.md`](../im-02-workitem-issues/rls-context-design-wi-03.md)
+[`../im-02-workitem-issues/rls-context-design-wi-03.md`](../decisions/rls-transaction-context.md)
 为唯一权威。WI-03 校验 Decision 引用形状、hash 长度、有效期和同事务一致性；
 AuthorizationDecision 的业务真实性、Scope/Purpose/Intent 与持久化事实比对仍由 WI-09 的
 IdentityPolicy Decision Port 负责，在其落地前保持 `NOT RUN`。
@@ -2051,7 +2051,7 @@ Enterprise/Project Scope、精确 Version/Hash、不可变 Contract、Human Auth
 
 ## 27. IM-03 WI-01 数据边界修正
 
-Issue #57 的决策记录见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。本阶段必须区分两类状态：
+Issue #57 的决策记录见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../decisions/enterprise-project-capabilities.md)。本阶段必须区分两类状态：
 
 - IM-02 已落地并验证的 `enterprise_project` 标准事务技术表（Command Receipt、Outbox、Inbox、Process、Audit、Reference Edge、Contract Violation）是后续业务事务的基础，已有独立 `PASS` 证据；
 - Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot、Platform Reference 及其业务表、Repository、Handler 和 Application Capability 仍未实现，保持 `NOT RUN`。
@@ -2106,7 +2106,7 @@ Persistence Gate 必须覆盖：空库迁移与二次 no-op、Scope/RLS/ACL、�
 
 用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。WI-03 至 WI-12 的 owning Schema、Migration、RLS/ACL、不可变保护和受控 PostgreSQL fixture 已通过 composed Gate：`21` 个 persistence 测试文件、`256` 个测试通过，空库迁移、V2013、二次 no-op 和容器清理通过。
 
-该结果不创建或暗示真实客户业务数据；统一跨 Aggregate runtime chain、Provider、公开 HTTP、生产数据库、真实跨模块 Event Bus/Process Manager 和独立人工 Reference Project 仍为 `NOT RUN`。Fixture 记录见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。
+该结果不创建或暗示真实客户业务数据；统一跨 Aggregate runtime chain、Provider、公开 HTTP、生产数据库、真实跨模块 Event Bus/Process Manager 和独立人工 Reference Project 仍为 `NOT RUN`。Fixture 记录见 [`Verification-Record.md`](../archive/im-03-synthetic-reference-fixture/Verification-Record.md)。
 
 WI-10 exact-head closeout（2026-08-27）：实现 head `054480ebac29cd820e7893df5844ad23a6940f3b` 已通过 [PR #83](https://github.com/qzhike/zhiju-business-core/pull/83) 的 [GitHub Actions verify run 33029833203](https://github.com/qzhike/zhiju-business-core/actions/runs/33029833203)，并以 merge commit `71e527b110b7c65d6a73ba16aca4ed1b334bf89d` 合入 `main`；Issue [#66](https://github.com/qzhike/zhiju-business-core/issues/66) 已读回为 `closed`，原始远端和本地 feature branch 均已删除，`origin/main` 已验证包含实现 head。Provider、公开 HTTP、跨模块 Process Manager、生产与独立人工验收保持 `NOT RUN`。
 ## 31. IM-03 WI-12 Delivery Completion 物理边界

@@ -24,7 +24,7 @@ Artifact + Quality Gate Contract
 = What can be accepted, approved and released?
 ```
 
-本文只冻结业务 Schema 与验证语义，不指定 JSON/Protobuf 实现、数据库表、HTTP/MCP 接口或 Runtime Prompt 格式。Typed Reference、Envelope 和模块 Catalog 见 [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)。
+本文只冻结业务 Schema 与验证语义，不指定 JSON/Protobuf 实现、数据库表、HTTP/MCP 接口或 Runtime Prompt 格式。Typed Reference、Envelope 和模块 Catalog 见 [`06-typed-references-contract-catalog-v0.1.md`](06-typed-references-contract-catalog-v0.1.md)。
 
 ---
 

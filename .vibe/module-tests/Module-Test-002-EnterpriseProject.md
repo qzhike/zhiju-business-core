@@ -33,7 +33,7 @@
 ## 本阶段结果
 
 - Unit/Contract/E2E/Manual 的历史基线记录了当时业务 Fixture 尚不存在；当前状态由本文后续的 IM-03 合成 Fixture 技术验收章节覆盖。统一跨 Aggregate E2E 和独立人工业务验收仍为 `NOT RUN`。
-- 现有公开 Contract 的静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
+- 现有公开 Contract 的静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)。
 - PR #72 修正后的本地 `pnpm verify` 已通过：Persistence 为 14 文件 / 202 测试 PASS；全量 Unit 为 21 文件 PASS、12 文件 skipped，348 个测试 PASS、189 个 skipped。它只证明当前工作区和 Disposable PostgreSQL 边界，不改变真实 Provider、HTTP、跨模块 E2E 和人工验收的 `NOT RUN` 状态。
 - 本次 PR #73 复核发现工作树已有未跟踪 `tmp/` 测试脚本和 Node compile cache；它们不属于交付内容，修复验证完成后必须清理并重新确认工作树。
 
@@ -316,11 +316,11 @@ WI-12 的三张 EnterpriseProject owning 表（`delivery_item_completion_fact`�
 | `EP-WI12-RLS-001` | Persistence/RLS | 无 Context、缺失或不匹配 `sourceEventId`、跨 Enterprise/Project Event、伪造 scopeRef/producerModule/payloadHash/sourceWatermark | 在业务写入前拒绝或 Quarantine；不泄漏 payload，不产生第二事实，不推进其他 Project Process | `pnpm verify`：无 Context、缺失 `sourceEventId`、精确 Event Consumer 合同的 Unit 断言通过；跨 Project SELECT/ACL 由 P-005 的真实 PostgreSQL 断言覆盖 | `PASS (UNIT + PERSISTENCE/RLS)` |
 | `EP-WI12-M-001` | Manual/Local | 脱敏采购控制程序查看 Task-only、Release-complete、revoke/new-version 的 Evaluation 与 Impact 历史 | 人工能区分 formal fact、派生 Evaluation、current pointer、Impact Review 和未运行的真实上游 Provider/跨模块 Process Manager | 尚未准备人工界面；真实外部链路 `NOT RUN` | `NOT RUN` |
 
-WI-12 测试运行后的真实命令、PostgreSQL/Flyway 版本、测试计数和精确证据已写入 [`Verification-Record.md`](../im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md)；没有运行的 Provider、公开 HTTP、跨模块 Event Bus/Process Manager、生产数据库和独立人工 Reference Project 继续标记 `NOT RUN`。
+WI-12 测试运行后的真实命令、PostgreSQL/Flyway 版本、测试计数和精确证据已写入 [`Verification-Record.md`](../archive/im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md)；没有运行的 Provider、公开 HTTP、跨模块 Event Bus/Process Manager、生产数据库和独立人工 Reference Project 继续标记 `NOT RUN`。
 
 ## IM-03 合成 Reference Project 技术验收（2026-08-27）
 
-用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` 方案。合成数据、流程和矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md)、[`Test-Matrix.md`](../im-03-synthetic-reference-fixture/Test-Matrix.md) 和 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。
+用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` 方案。合成数据、流程和矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md)、[`Test-Matrix.md`](../im-03-synthetic-reference-fixture/Test-Matrix.md) 和 [`Verification-Record.md`](../archive/im-03-synthetic-reference-fixture/Verification-Record.md)。
 
 本次执行：
 

@@ -9,7 +9,7 @@
 
 ## 1. 文档目标
 
-本文继续 [`02-zhiju-core-architecture.md`](./02-zhiju-core-architecture.md) 中的 Domain Model v0.1，详细设计三条核心业务链：
+本文继续 [`02-zhiju-core-architecture.md`](02-zhiju-core-architecture.md) 中的 Domain Model v0.1，详细设计三条核心业务链：
 
 1. Project Domain：客户资料、客户基线、参考与法规范围、差距和交付承诺；
 2. Task / Execution Domain：业务任务、执行授权、Runtime 尝试、执行结果和人工输入；
@@ -5657,11 +5657,11 @@ Task → WorkOrder → Run → AgentResult
 Artifact → Revision → Evidence/Gates/Issues → Approval → Release
 ```
 
-三条链的跨 Aggregate 一致性、Reference Project、事务/Saga 和并发幂等基准见 [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md)。Typed Reference、四个核心 Contract 和模块公开 Catalog 分别见 [`03-core-contracts.md`](./03-core-contracts.md) 与 [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)；PostgreSQL Schema 所有权、逻辑表、事务、RLS、Outbox/Inbox 和对象存储边界见 [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md)。当前实现入口由 IM-03 WI-01 决策矩阵补充；WI-03 至 WI-12 的本地业务实现和运行结果以 Module-Test-002 及各 Verification-Record 为准，统一跨 Aggregate E2E 与独立人工验收仍未运行。
+三条链的跨 Aggregate 一致性、Reference Project、事务/Saga 和并发幂等基准见 [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](05-cross-aggregate-consistency-module-boundary-v0.1.md)。Typed Reference、四个核心 Contract 和模块公开 Catalog 分别见 [`03-core-contracts.md`](03-core-contracts.md) 与 [`06-typed-references-contract-catalog-v0.1.md`](06-typed-references-contract-catalog-v0.1.md)；PostgreSQL Schema 所有权、逻辑表、事务、RLS、Outbox/Inbox 和对象存储边界见 [`07-postgresql-logical-model-v0.1.md`](07-postgresql-logical-model-v0.1.md)。当前实现入口由 IM-03 WI-01 决策矩阵补充；WI-03 至 WI-12 的本地业务实现和运行结果以 Module-Test-002 及各 Verification-Record 为准，统一跨 Aggregate E2E 与独立人工验收仍未运行。
 
 ## 48. IM-03 WI-01 前置对象决策补充
 
-Issue #57 的 [`Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md) 冻结了本 Domain 开始实现前的四组前置对象：
+Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-capabilities.md) 冻结了本 Domain 开始实现前的四组前置对象：
 
 1. Product Root 只保存稳定身份和 current version pointer；ProductVersion 至少包含 ProductType、DisplayName、IntendedUse、结构化 ProductScope、SourceRefs 和 payload Hash。版本只追加，激活与回滚只移动精确指针。
 2. QMSConfiguration Revision 必须同时表达 ApplicabilityDecision、ManagementChoice 和 ProfessionalDecision；Human-only 激活/回滚指向既有精确 Revision，不能改写历史。
@@ -5684,7 +5684,7 @@ Handler 只使用公开精确 Ref 和可信 Context，错误 Scope/hash/target�
 
 用户已确认在没有真实业务场景时采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。现有 WI focused fixtures 已在固定 PostgreSQL 18.6 / Flyway 11.20.3 上组成受控技术 Gate，`21` 个 persistence 测试文件、`256` 个测试通过；该结果只证明精确引用、生命周期、权限、Scope、Replay、CAS、RLS、immutable、stale/impact 和 Completion 技术边界，不证明真实业务适用性。
 
-`EP-API-E-001/E-002` 的统一跨 Aggregate runtime execution、`EP-API-M-001` 的独立人工逐项审阅、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续为 `NOT RUN`。详细执行记录见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。
+`EP-API-E-001/E-002` 的统一跨 Aggregate runtime execution、`EP-API-M-001` 的独立人工逐项审阅、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续为 `NOT RUN`。详细执行记录见 [`Verification-Record.md`](../archive/im-03-synthetic-reference-fixture/Verification-Record.md)。
 
 ## 48.1 IM-03 WI-09 可执行 GapAnalysis 边界
 

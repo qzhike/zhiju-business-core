@@ -71,13 +71,13 @@
 
 | 场景集 | 唯一位置 | 数量 | 当前实际状态 |
 |---|---|---:|---|
-| Domain Aggregate 场景 | [`04-domain-model-v0.1.md`](./04-domain-model-v0.1.md) | 105 | `NOT RUN` |
-| Cross-Aggregate 场景 | [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md) | 17 | `NOT RUN` |
-| Core Contract 场景 | [`03-core-contracts.md`](./03-core-contracts.md) | 20 | `NOT RUN` |
-| Typed Reference/Envelope 场景 | [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md) | 12 | `NOT RUN` |
-| PostgreSQL Logical Model 场景 | [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md) | 24 | `NOT RUN` |
+| Domain Aggregate 场景 | [`04-domain-model-v0.1.md`](04-domain-model-v0.1.md) | 105 | `NOT RUN` |
+| Cross-Aggregate 场景 | [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](05-cross-aggregate-consistency-module-boundary-v0.1.md) | 17 | `NOT RUN` |
+| Core Contract 场景 | [`03-core-contracts.md`](03-core-contracts.md) | 20 | `NOT RUN` |
+| Typed Reference/Envelope 场景 | [`06-typed-references-contract-catalog-v0.1.md`](06-typed-references-contract-catalog-v0.1.md) | 12 | `NOT RUN` |
+| PostgreSQL Logical Model 场景 | [`07-postgresql-logical-model-v0.1.md`](07-postgresql-logical-model-v0.1.md) | 24 | `NOT RUN` |
 | 跨模块验收场景 | 本文第 5 节 | 57 | `NOT RUN` |
-| API Module Test 场景 | [七份 Module Test](../module-tests/) | 63 | 7 个 Design Gate `DESIGN VERIFIED`；其余 56 个 `NOT RUN` |
+| API Module Test 场景 | [七份 Module Test](../module-tests) | 63 | 7 个 Design Gate `DESIGN VERIFIED`；其余 56 个 `NOT RUN` |
 | Feishu Channel 专项场景 | [`Feishu-Channel-Test-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md) | 32 | 4 个 Design Gate `DESIGN VERIFIED`；其余 28 个 `NOT RUN`；用户已指示进入下一阶段 |
 | Runtime Adapter 专项场景 | [`Runtime-Adapter-Test-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md) | 32 | 4 个 Design Gate `DESIGN VERIFIED`；其余 28 个 `NOT RUN`；用户已指示进入实施计划阶段 |
 | Workspace UI Experience 场景 | [`Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md) | 15 | 1 个 Design Gate `DESIGN VERIFIED`；其余 14 个 `NOT RUN` |
@@ -359,7 +359,7 @@ remaining risk
 
 ### 9.3 IM-04 WI-04 Canonical Content Object 验证边界（2026-08-28）
 
-Issue #93 的实现和本地自动验证已完成，唯一证据报告为 [`Verification-Report.md`](../issue-93-delivery/Verification-Report.md)。本次实现使用 forward-only `V4002`，不修改 V4000/V4001，不创建 Revision 或公开 Artifact Operation。
+Issue #93 的实现和本地自动验证已完成，唯一证据报告为 [`Verification-Report.md`](../archive/issue-93-delivery/Verification-Report.md)。本次实现使用 forward-only `V4002`，不修改 V4000/V4001，不创建 Revision 或公开 Artifact Operation。
 
 - 完整 `pnpm verify` 已通过：format/lint/typecheck、全量 Vitest（28 个文件通过、20 个受控跳过；373 passed、262 skipped）、Architecture、Contract（201 operations、201 schema FULL；历史 compatibility baseline 200）均通过；新增 in-memory Object Storage 与既有 Artifact focused 回归为 3 个文件、10 个测试通过。
 - pinned PostgreSQL 18.6/Flyway 11.20.3 的 `pnpm persistence:gate` 通过 24 个测试文件、277 个测试；V4002 空库迁移成功，第二次 migrate 输出 `No migration necessary`，测试容器已清理。
@@ -368,7 +368,7 @@ Issue #93 的实现和本地自动验证已完成，唯一证据报告为 [`Veri
 
 ### 9.4 IM-04 WI-05 Revision/Lineage/Branch CAS 验证边界（2026-08-29）
 
-Issue #94 的实现、自动验证和交付记录已同步到 [`Module-Test-004-Artifact.md`](../module-tests/Module-Test-004-Artifact.md) 与 [`Verification-Report.md`](../issue-94-delivery/Verification-Report.md)。WI-05 仍把本地技术证据与外部/人工验收分开记录：
+Issue #94 的实现、自动验证和交付记录已同步到 [`Module-Test-004-Artifact.md`](../module-tests/Module-Test-004-Artifact.md) 与 [`Verification-Report.md`](../archive/issue-94-delivery/Verification-Report.md)。WI-05 仍把本地技术证据与外部/人工验收分开记录：
 
 - `PASS` 只用于实际运行的 Unit/Contract、V4003 空库迁移与二次 no-op、FROZEN Manifest 门禁、immutable ACL/Trigger、递归 DAG、Parent 数量、cross Artifact/Project、wrong hash、Branch CAS race、explicit Merge conflict/resolution、幂等、rollback、RLS 和历史 Snapshot/Lineage replay；本轮这些本地/临时 PostgreSQL 证据均已在交付报告中列出；
 - `DESIGN VERIFIED` 只表示 HL-Spec、Module Spec、Module Test 和 PostgreSQL logical model 已同步，不代表 Revision Handler 或业务数据库存在；
@@ -391,7 +391,7 @@ Issue #94 的实现、自动验证和交付记录已同步到 [`Module-Test-004-
 - 2026-08-21 用户先批准修订 Issue #9 的 Schema 退出硬依赖，随后批准将 #5 收敛为字段 Schema 边界；关闭 #5 不会把 #22–#24 或 #27 的 Runtime/外部验收改写为 `PASS`；
 - 尚无 IM-03 EnterpriseProject 业务 DDL、Repository、业务 Handler、飞书 Adapter、Runtime Adapter 或 Renderer 实现；IM-02 标准事务技术表已落地并有独立验证，但不能写成 IM-03 业务实现 `PASS`；
 - 尚无 IM-03 业务 PostgreSQL 事务链、飞书、Runtime、Renderer、对象存储、负载、备份恢复或人工质量验收结果；IM-02 技术表的 PostgreSQL/Flyway persistence gate 已通过，但不等于业务链完成；
-- 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../im-01-exit-gate-issue-9/Verification-Report.md)）；IM-02 已完成技术基础和文档收口，PR #51–#55 已合入，Issue #28 已关闭；真实业务 Handler、外部系统和人工验收仍未完成。IM-03 WI-01 设计决策已记录；WI-02 正在落地 EnterpriseProject Application/Persistence 事务基础，业务 DDL/Handler 仍为 `NOT RUN`。
+- 正式 `IM-01 COMPLETE` 已由 PR #20 原子更新（证据见 [Issue #9 Verification Report](../archive/im-01-exit-gate-issue-9/Verification-Report.md)）；IM-02 已完成技术基础和文档收口，PR #51–#55 已合入，Issue #28 已关闭；真实业务 Handler、外部系统和人工验收仍未完成。IM-03 WI-01 设计决策已记录；WI-02 正在落地 EnterpriseProject Application/Persistence 事务基础，业务 DDL/Handler 仍为 `NOT RUN`。
 
 ## 10. IM-03 WI-01 设计验证边界
 
@@ -451,13 +451,13 @@ WI-12 的验证必须证明一条完整的本地受控链：精确 DeliveryPlan/
 
 Disposable PostgreSQL、Unit/Contract 和 controlled fixture 只能标记 `PASS (PERSISTENCE)` 或 `PASS (LOCAL)`；真实 TaskExecution/QualityGovernance/ReleasePublication Provider、跨模块 Event Bus/Process Manager、公开 HTTP、生产和独立人工 Reference Project 继续 `NOT RUN`，不得由本地事实账本模拟成已完成外部链路。
 
-截至 2026-08-27，WI-12 的本地验证记录为 [`Verification-Record.md`](../im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md)：`pnpm verify` 全部通过；完整 Vitest 为 24 个文件通过、17 个受控跳过，356 个测试通过、241 个受控跳过；Persistence Gate 为 21 个文件、256 个测试全部通过。Gate 使用 PostgreSQL 18.6（`server_version=180006`）与 Flyway 11.20.3 的固定镜像 digest，V2013 空库迁移和二次 no-op 均通过，测试容器已清理。Provider、真实跨模块 Event Bus/Process Manager、公开 HTTP、生产数据库和独立人工 Reference Project 仍为 `NOT RUN`。
+截至 2026-08-27，WI-12 的本地验证记录为 [`Verification-Record.md`](../archive/im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md)：`pnpm verify` 全部通过；完整 Vitest 为 24 个文件通过、17 个受控跳过，356 个测试通过、241 个受控跳过；Persistence Gate 为 21 个文件、256 个测试全部通过。Gate 使用 PostgreSQL 18.6（`server_version=180006`）与 Flyway 11.20.3 的固定镜像 digest，V2013 空库迁移和二次 no-op 均通过，测试容器已清理。Provider、真实跨模块 Event Bus/Process Manager、公开 HTTP、生产数据库和独立人工 Reference Project 仍为 `NOT RUN`。
 
 ## 15. IM-03 合成 Reference Project 验证补充
 
 用户已确认 `SYNTHETIC / TECHNICAL ONLY` 方案。现有 WI focused fixtures 已组成一次受控技术 Gate：`pnpm persistence:gate` 在 PostgreSQL 18.6 / Flyway 11.20.3 上通过 `21` 个 persistence 测试文件、`256` 个测试，空库迁移、V2013、二次 no-op 和容器清理均通过。该结果标记为 `PASS (COMPOSED CONTROLLED PERSISTENCE)`，不标记为统一跨 Aggregate E2E。
 
-`EP-API-E-001/E-002` 的 integrated runtime chain、`EP-API-M-001` 的实际人工逐项审阅、真实业务适用性、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续为 `NOT RUN`。完整矩阵和证据见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。
+`EP-API-E-001/E-002` 的 integrated runtime chain、`EP-API-M-001` 的实际人工逐项审阅、真实业务适用性、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续为 `NOT RUN`。完整矩阵和证据见 [`Verification-Record.md`](../archive/im-03-synthetic-reference-fixture/Verification-Record.md)。
 
 ## 16. IM-UI-01 Workspace UI 验证边界
 
@@ -505,4 +505,4 @@ WI-08 的验收对象是“证据是否可以沿精确引用重建”和“父�
 - Renderer/Representation：Canonical Document/Workbook golden fixture、确定性 DOCX/XLSX Renderer、V7001 RenderAttempt/Raw Receipt、Artifact Binding Query/Representation 测试，以及 PR #135 已记录的本地 Word/Excel openability 结果。Renderer 成功不能推导 Quality PASS、Approval、Release Authorization 或 Completion。
 - ReleasePublication：V6002 Handler 的完整授权/Attempt/Failure/Receipt/Completion/Recall 场景和 `tests/fixtures/runtime/rel-801-late-receipt-timeline.json` 受控时间线。后者的 `RELEASE_RECEIPT_STALE`、`RELEASE_RECEIPT_ALREADY_RECORDED`、`PARTIALLY_RELEASED` 是可重放的本地 Runtime 结果，不是外部 Provider 结果。
 
-WI-08 复核命令和实际输出见 [`Synthetic-QMS-REL-801-Exit-Report.md`](../codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)。`pnpm clean && pnpm verify`、空库/二次 no-op Migration、精确 head/CI 和文档同步可以形成技术 `PASS`；统一跨模块业务 E2E、公开 HTTP、生产、真实 Provider、外部收件人确认、Workspace UI、CLI runtime、IM-09 和独立人工客户验收必须保持 `NOT RUN`。父 Issue #120 不由 WI-08 自动关闭。
+WI-08 复核命令和实际输出见 [`Synthetic-QMS-REL-801-Exit-Report.md`](../archive/codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)。`pnpm clean && pnpm verify`、空库/二次 no-op Migration、精确 head/CI 和文档同步可以形成技术 `PASS`；统一跨模块业务 E2E、公开 HTTP、生产、真实 Provider、外部收件人确认、Workspace UI、CLI runtime、IM-09 和独立人工客户验收必须保持 `NOT RUN`。父 Issue #120 不由 WI-08 自动关闭。

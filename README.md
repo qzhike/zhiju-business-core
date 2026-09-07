@@ -10,10 +10,10 @@ rules and persistence boundaries; Workspace UI/BFF is an experience layer.
 - [HL-Spec](.vibe/high-level-docs/HL-Spec.md): frozen rules, authority, and topic routing.
 - [Agent instructions](AGENTS.md): Planner, Implementer, and Reviewer entry points.
 - [Milestone design](.vibe/implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md): scope, dependencies, and exit criteria.
-- [Module specifications](.vibe/module-specs/) and [test specifications](.vibe/module-tests/): affected-module contracts and acceptance scenarios.
+- [Module specifications](.vibe/module-specs) and [test specifications](.vibe/module-tests): affected-module contracts and acceptance scenarios.
 
 GitHub Issues and PRs hold execution and acceptance evidence. Historical files
-under `.vibe` remain available during documentation cleanup; their snapshots do
+under `.vibe/archive` and `.vibe/reviews` remain available; their snapshots do
 not replace current issue state or the roadmap.
 
 ## Development
@@ -44,9 +44,9 @@ vibe verify full --json
 The [project configuration](.vibe/project.yaml) resolves `full` to
 `pnpm clean && pnpm verify`. It checks formatting, lint, types, tests, architecture,
 Catalog/generated contracts, compatibility, and real PostgreSQL persistence.
-Docker is required for the PostgreSQL/Flyway gate. See the existing
-[database runbook](.vibe/im-02-workitem-issues/runbook-wi-01.md) for prerequisites
-and diagnostics; its historical test counts are not current acceptance evidence.
+Docker is required for the PostgreSQL/Flyway gate. See the current
+[database runbook](.vibe/runbooks/postgresql-verification.md) for prerequisites
+and diagnostics.
 
 If Vibe is unavailable, the manual equivalent is:
 

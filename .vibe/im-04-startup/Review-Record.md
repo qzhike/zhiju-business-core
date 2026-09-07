@@ -43,7 +43,7 @@
 4. Artifact 业务 Repository、Application Handler、Canonical payload/hash 强校验、Diff、对象 Link 和 Orphan Cleanup 尚未实现。
 5. Renderer Adapter、真实对象存储、DOCX/XLSX 可打开性与版式人工审阅仍为 `NOT RUN`。
 
-因此，截至该次审阅时，不能把现有 Schema Contract 回归、`V4000` 技术表或 IntegrationGateway 内存运行时切片解释为 IM-04 已完成。后续 WI-01 的当前实现状态以本记录末尾的补充和 [`Issue #90 Verification-Record`](../issue-90/Verification-Record.md) 为准。
+因此，截至该次审阅时，不能把现有 Schema Contract 回归、`V4000` 技术表或 IntegrationGateway 内存运行时切片解释为 IM-04 已完成。后续 WI-01 的当前实现状态以本记录末尾的补充和 [`Issue #90 Verification-Record`](../archive/issue-90/Verification-Record.md) 为准。
 
 ## 3. IM-DG-005 推荐冻结内容
 
@@ -252,4 +252,4 @@ Artifact.register_representation@1.0
 
 ## 10. WI-01 后续实现补充（2026-08-28）
 
-Issue #90 已在独立工作树中完成 executable Canonical Document/Workbook Schema、Canonical JSON/SHA-256 golden fixture、Manifest Hash Domain 排除、additive RenderAttempt Binding Query 以及对应生成物和负向 Contract 回归。当前 Catalog/Registry 为 `FULL:201`，冻结的 v1.0 历史 baseline 保持 200；技术 PostgreSQL/Flyway persistence gate 已通过 `21 files / 256 tests`，空库迁移、二次 no-op 和容器清理均通过；Artifact 业务 Repository/Handler、对象 Link、Renderer、Provider、跨模块 E2E 和人工验收仍为 `NOT RUN`。精确命令、fixture bytes/digest、预期/实际输出和 Git 交付状态见 [`Issue #90 Verification-Record.md`](../issue-90/Verification-Record.md)。
+Issue #90 已在独立工作树中完成 executable Canonical Document/Workbook Schema、Canonical JSON/SHA-256 golden fixture、Manifest Hash Domain 排除、additive RenderAttempt Binding Query 以及对应生成物和负向 Contract 回归。当前 Catalog/Registry 为 `FULL:201`，冻结的 v1.0 历史 baseline 保持 200；技术 PostgreSQL/Flyway persistence gate 已通过 `21 files / 256 tests`，空库迁移、二次 no-op 和容器清理均通过；Artifact 业务 Repository/Handler、对象 Link、Renderer、Provider、跨模块 E2E 和人工验收仍为 `NOT RUN`。精确命令、fixture bytes/digest、预期/实际输出和 Git 交付状态见 [`Issue #90 Verification-Record.md`](../archive/issue-90/Verification-Record.md)。

@@ -1,6 +1,6 @@
 # IM-02 WI-03 本地 Runbook：RLS 事务上下文与 Scope 防伪手动验收
 
-对应 Issue #31。自动验收入口是 `pnpm persistence:gate`（新增 `tests/persistence/rls-context.test.ts`）；本文提供脱敏数据的人工探测：A/B Enterprise 与 A1/A2 Project，用户切换受控 Context 后可直接观察允许行集合，无 Context/伪造 Context 探测明确失败。机制与威胁模型见 [`rls-context-design-wi-03.md`](./rls-context-design-wi-03.md)。
+对应 Issue #31。自动验收入口是 `pnpm persistence:gate`（新增 `tests/persistence/rls-context.test.ts`）；本文提供脱敏数据的人工探测：A/B Enterprise 与 A1/A2 Project，用户切换受控 Context 后可直接观察允许行集合，无 Context/伪造 Context 探测明确失败。机制与威胁模型见 [`rls-context-design-wi-03.md`](../decisions/rls-transaction-context.md)。
 
 ## 启动探测环境
 

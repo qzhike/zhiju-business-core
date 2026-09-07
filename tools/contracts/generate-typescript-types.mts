@@ -21,7 +21,7 @@
 // the generated text to disk.
 //
 // Generation rules and known limits are documented inline and mirrored in
-// `.vibe/im-01-executable-schema-typescript/Verification-Report.md`.
+// `.vibe/archive/im-01-executable-schema-typescript/Verification-Report.md`.
 //
 
 import { readFileSync, writeFileSync } from 'node:fs';

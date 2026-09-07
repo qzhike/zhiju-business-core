@@ -16,7 +16,7 @@
 - **当前基准**：Coding Agent 必须遵守，仍可通过正式架构决定变更；
 - **待确认 / 待设计**：只说明已知边界，不得由 Agent 擅自补成正式事实。
 
-业务依据见 [`01-customer-field-findings.md`](./01-customer-field-findings.md)。
+业务依据见 [`01-customer-field-findings.md`](01-customer-field-findings.md)。
 
 ---
 
@@ -360,7 +360,7 @@ Project 启动时应至少冻结：
 
 覆盖层级：`CURRENT BASELINE / DETAIL IN 04`
 
-详细对象、命令、状态机、不变量、事件、权限和测试用例见 [`04-domain-model-v0.1.md`](./04-domain-model-v0.1.md)。本节保留架构级摘要，详细设计以该文档为准。
+详细对象、命令、状态机、不变量、事件、权限和测试用例见 [`04-domain-model-v0.1.md`](04-domain-model-v0.1.md)。本节保留架构级摘要，详细设计以该文档为准。
 
 ### 6.1 三个文档世界
 
@@ -564,7 +564,7 @@ Agent 不能把 INFERRED 或 UNKNOWN 当成 CONFIRMED 使用。
 
 每次高价值 Run 必须引用不可变 ContextSnapshot。只记录 `project_id` 不足以支持 Replay，因为项目状态会变化。
 
-详细 Contract、SourceManifest、ContextItem、Omission、Redaction、Coverage 和验证规则见 [`03-core-contracts.md`](./03-core-contracts.md)。Typed Reference 见 [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)。
+详细 Contract、SourceManifest、ContextItem、Omission、Redaction、Coverage 和验证规则见 [`03-core-contracts.md`](03-core-contracts.md)。Typed Reference 见 [`06-typed-references-contract-catalog-v0.1.md`](06-typed-references-contract-catalog-v0.1.md)。
 
 ---
 
@@ -572,9 +572,9 @@ Agent 不能把 INFERRED 或 UNKNOWN 当成 CONFIRMED 使用。
 
 覆盖层级：`CURRENT BASELINE / DETAIL IN 03 AND 04`
 
-详细对象、Commands、Lifecycle、Invariants、Events、权限和测试用例见 [`04-domain-model-v0.1.md`](./04-domain-model-v0.1.md) Part D。本节保留核心 Contract 摘要。
+详细对象、Commands、Lifecycle、Invariants、Events、权限和测试用例见 [`04-domain-model-v0.1.md`](04-domain-model-v0.1.md) Part D。本节保留核心 Contract 摘要。
 
-WorkOrder 与 AgentResult 的 canonical Contract v1.0 见 [`03-core-contracts.md`](./03-core-contracts.md)。Runtime Adapter、Prompt 或飞书展示必须从该 Contract 映射，不得另建不同语义。
+WorkOrder 与 AgentResult 的 canonical Contract v1.0 见 [`03-core-contracts.md`](03-core-contracts.md)。Runtime Adapter、Prompt 或飞书展示必须从该 Contract 映射，不得另建不同语义。
 
 ### 8.1 Task
 
@@ -977,7 +977,7 @@ Release 至少记录：
 
 Release 在 PREPARED 后冻结 Revision、Representation Package、Recipient 和 Destination，由符合要求的 Human 授权，再由 Publishing Service 执行外部副作用并记录逐项回执。Release 与 EffectiveBinding 继续分离；新 Draft 或新 Revision 不改变当前有效版本。
 
-Revision Acceptance、Approval Bundle 和 Release Readiness 的完整 Contract Family 见 [`03-core-contracts.md`](./03-core-contracts.md)。
+Revision Acceptance、Approval Bundle 和 Release Readiness 的完整 Contract Family 见 [`03-core-contracts.md`](03-core-contracts.md)。
 
 ---
 
@@ -1599,7 +1599,7 @@ Project Domain 的核心原则已由用户于 2026-08-12 确认；实现前细�
 - 冻结模块化单体作为 v0.1 部署基线；
 - 冻结 MVP 必须实现、可简化和明确延后范围。
 
-详细设计见 [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md)。
+详细设计见 [`05-cross-aggregate-consistency-module-boundary-v0.1.md`](05-cross-aggregate-consistency-module-boundary-v0.1.md)。
 
 ### Typed Reference 与 Core Contracts
 
@@ -1611,7 +1611,7 @@ Project Domain 的核心原则已由用户于 2026-08-12 确认；实现前细�
 - 定义 Major/Minor 兼容、Canonicalization、Payload Hash、安全和未知版本处理；
 - 建立七个模块的公开 Command/Query/Event Catalog。
 
-详细设计见 [`03-core-contracts.md`](./03-core-contracts.md) 和 [`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)。
+详细设计见 [`03-core-contracts.md`](03-core-contracts.md) 和 [`06-typed-references-contract-catalog-v0.1.md`](06-typed-references-contract-catalog-v0.1.md)。
 
 ### PostgreSQL Logical Model
 
@@ -1624,7 +1624,7 @@ Project Domain 的核心原则已由用户于 2026-08-12 确认；实现前细�
 - 定义 Enterprise/Project RLS、模块数据库角色、敏感 ExternalId 和保留/删除边界；
 - 用采购控制程序 Reference Project 验证从 Context 到正式 Receipt/Completion 的数据链。
 
-详细设计见 [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md)。
+详细设计见 [`07-postgresql-logical-model-v0.1.md`](07-postgresql-logical-model-v0.1.md)。
 
 ### 建议的下一步设计
 
@@ -1911,10 +1911,10 @@ Business Ports ─────────────────────�
 
 ### 20.13 公开 Contract 与持久化路由
 
-- 完整 Command/Query/Event 名称、版本和唯一 Owner：[`06-typed-references-contract-catalog-v0.1.md`](./06-typed-references-contract-catalog-v0.1.md)；
-- 每模块逻辑表、技术表、RLS 和对象存储边界：[`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md)；
-- 跨模块事务、Process Manager、并发、幂等和补偿：[`05-cross-aggregate-consistency-module-boundary-v0.1.md`](./05-cross-aggregate-consistency-module-boundary-v0.1.md)；
-- 模块级验收和失败场景：[`08-verification-baseline.md`](./08-verification-baseline.md)。
+- 完整 Command/Query/Event 名称、版本和唯一 Owner：[`06-typed-references-contract-catalog-v0.1.md`](06-typed-references-contract-catalog-v0.1.md)；
+- 每模块逻辑表、技术表、RLS 和对象存储边界：[`07-postgresql-logical-model-v0.1.md`](07-postgresql-logical-model-v0.1.md)；
+- 跨模块事务、Process Manager、并发、幂等和补偿：[`05-cross-aggregate-consistency-module-boundary-v0.1.md`](05-cross-aggregate-consistency-module-boundary-v0.1.md)；
+- 模块级验收和失败场景：[`08-verification-baseline.md`](08-verification-baseline.md)。
 
 ---
 
@@ -2071,7 +2071,7 @@ Zhiju Core 的核心价值不是让某个 Agent 更聪明，而是建立一个�
 
 ## 25. IM-03 WI-01 前置对象入口决策
 
-Issue #57 的 [`Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md) 进一步冻结了 EnterpriseProject 在进入业务实现前的入口边界：
+Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-capabilities.md) 进一步冻结了 EnterpriseProject 在进入业务实现前的入口边界：
 
 - Product、QMSConfiguration、EnterpriseProfileSnapshot 和 ProductScopeSnapshot 由 EnterpriseProject Application 层产生；Root、Revision、Version 和 Snapshot 通过精确引用关联，不能由测试/Migration 直接写业务表。
 - Platform Template/Regulatory Reference 属于独立 Platform Reference 数据面，无 Enterprise Scope；只允许 Reference Admin/Publisher 导入和发布，Enterprise Runtime 只能读取已发布的精确 ContentAddressedRef。

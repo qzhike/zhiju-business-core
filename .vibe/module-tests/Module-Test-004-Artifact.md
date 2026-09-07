@@ -218,9 +218,9 @@ Persistence 夹具对 `CommandResult` 的 `COMMITTED` 分支和回滚注入回�
 ## 本阶段结果
 
 - PR #12 Review 已用当前 `ContractRegistry` 运行确认 AF-API-C-003/004 修复前失败；修复后 focused regression 27/27、独立切片 35/35、合入最新 `main` 后全量测试 98/98 通过。
-- IM-DG-005 的 Canonical Document/Workbook 与 Renderer 路线已获用户批准；WI-01 的 Schema、Hash、Binding Query Contract 回归已通过，WI-02 Application/Persistence 用例已在真实 PostgreSQL Gate 中完成，WI-03 Artifact Root/Branch 业务 Repository/Handler、RLS、CAS、Archive 和回滚已在本文件上方的独立 Gate 中完成，WI-04 Canonical Content Object 已完成并通过真实 PostgreSQL Gate；WI-05 Revision/Lineage/Branch CAS/显式 Merge 已完成实现与本地验证，具体命令、计数和未运行边界见 [`Verification-Report.md`](../issue-94-delivery/Verification-Report.md)；PR #110 已合并、Issue #94 已关闭、原 feature branch 已删除。
-- WI-02 的历史 Gate 记录为 PostgreSQL 18.6 / Flyway 11.20.3、22 个文件、268 个测试；WI-03 最终独立 Gate 记录为 23 个文件、272 个测试。最新完整 `pnpm verify` 的静态阶段通过，但 Persistence 子阶段因 Docker Hub token `EOF` 未启动，详见本次 Issue #92 [`Verification-Report.md`](../codex-issue-92/Verification-Report.md)。
-- 静态设计 Gate：`DESIGN VERIFIED`；本次 WI-03 的实现与验证摘要见 [`Verification-Report.md`](../codex-issue-92/Verification-Report.md)。
+- IM-DG-005 的 Canonical Document/Workbook 与 Renderer 路线已获用户批准；WI-01 的 Schema、Hash、Binding Query Contract 回归已通过，WI-02 Application/Persistence 用例已在真实 PostgreSQL Gate 中完成，WI-03 Artifact Root/Branch 业务 Repository/Handler、RLS、CAS、Archive 和回滚已在本文件上方的独立 Gate 中完成，WI-04 Canonical Content Object 已完成并通过真实 PostgreSQL Gate；WI-05 Revision/Lineage/Branch CAS/显式 Merge 已完成实现与本地验证，具体命令、计数和未运行边界见 [`Verification-Report.md`](../archive/issue-94-delivery/Verification-Report.md)；PR #110 已合并、Issue #94 已关闭、原 feature branch 已删除。
+- WI-02 的历史 Gate 记录为 PostgreSQL 18.6 / Flyway 11.20.3、22 个文件、268 个测试；WI-03 最终独立 Gate 记录为 23 个文件、272 个测试。最新完整 `pnpm verify` 的静态阶段通过，但 Persistence 子阶段因 Docker Hub token `EOF` 未启动，详见本次 Issue #92 [`Verification-Report.md`](../archive/codex-issue-92/Verification-Report.md)。
+- 静态设计 Gate：`DESIGN VERIFIED`；本次 WI-03 的实现与验证摘要见 [`Verification-Report.md`](../archive/codex-issue-92/Verification-Report.md)。
 - 测试遗留：未创建临时脚本或测试文件。
 
 ## IM-02 WI-04 PostgreSQL 用例

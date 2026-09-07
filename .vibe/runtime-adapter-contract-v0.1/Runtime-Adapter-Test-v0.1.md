@@ -4,7 +4,7 @@
 日期：2026-08-17
 状态：`BASELINE TEST SPEC / DESIGN VERIFIED / USER PROGRESSION CONFIRMED / IMPLEMENTATION NOT STARTED`
 
-对应规格：[`Runtime-Adapter-Contract-v0.1.md`](./Runtime-Adapter-Contract-v0.1.md)。对应模块：[`Module-Spec-003-TaskExecution.md`](../module-specs/Module-Spec-003-TaskExecution.md) 与 [`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md)。
+对应规格：[`Runtime-Adapter-Contract-v0.1.md`](Runtime-Adapter-Contract-v0.1.md)。对应模块：[`Module-Spec-003-TaskExecution.md`](../module-specs/Module-Spec-003-TaskExecution.md) 与 [`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md)。
 
 `DESIGN VERIFIED` 只表示文档静态一致；Unit/Contract/E2E/Manual 在没有实现和真实 Provider 时保持 `NOT RUN`。
 

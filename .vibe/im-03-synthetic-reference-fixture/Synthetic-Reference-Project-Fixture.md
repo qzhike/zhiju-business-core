@@ -227,4 +227,4 @@ remaining risk
 
 ## 8. 执行记录
 
-本次命令、环境、WI focused 场景映射、实际输出和 cleanup 记录见 [`Verification-Record.md`](./Verification-Record.md)。
+本次命令、环境、WI focused 场景映射、实际输出和 cleanup 记录见 [`Verification-Record.md`](../archive/im-03-synthetic-reference-fixture/Verification-Record.md)。

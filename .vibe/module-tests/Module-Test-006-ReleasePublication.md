@@ -78,7 +78,7 @@
 
 ## 本阶段结果
 
-- 设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
+- 设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)。
 - 字段级 Schema 与运行时边界测试：RP-API-C-002 / C-003 / C-004 / C-005 / C-006 / C-007 全部 `PASS`；C-005 的 #23 等价 PII 已由 Adapter-owned closed mapping 和 boundary regression 收紧，C-006 的 #24 未登记 Adapter Attempt ID 直接反例已由 exact Query Port 回归拒绝。C-001 的 #22 Recall Runtime/Handler 延伸已有受控回归。真实 Identity Provider、Provider/Feishu、生产、公开 HTTP、统一跨模块业务 E2E 和独立人工验收仍保持各自 `NOT RUN` 边界。
 - 当时切片 `pnpm clean && pnpm verify` 输出：`catalog=200 registry=200 schema_status={"FULL":177,"ENVELOPE_ONLY":23}`，release-publication 模块 25 个操作全部 `FULL`。Issue #9 退出 Gate 时全仓已为 `schema_status={"FULL":200}`（无 `ENVELOPE_ONLY`）。
 - PR #14 review remediation（v0.3）：
@@ -133,6 +133,6 @@ WI-07 的最小可交付验证顺序为：先执行 Contract/Unit 的 Human-only
 | RP-WI08-P-001 | Persistence | `V6002 -> seed historical unsafe data -> V6003/V6004`、二次 no-op、Release/Package/Attempt/Observation/Receipt/Failure/Recall Handler、RLS/ACL、CAS、append-only、rollback | exact facts/history 可读回；非法直接 DML、跨 Scope、错误 hash、终态 mutation、未归一化 provider_result 和技术故障拒绝 | `pnpm verify` Persistence Gate 为 34 files/315 tests；V6003/V6004 owner/table guard 与历史数据升级通过；3 Attempts、6 Observations、2 Formal Receipts、1 Failure、1 Recall、1 ImpactReview readback 通过 | `PASS — DISPOSABLE POSTGRESQL` |
 | RP-WI08-E-001 | E2E | `REL-801-late-receipt-timeline.json`：A 早到成功、B 90 秒迟到、duplicate replay；另有 WI-07 Handler 的 failure→retry→final→Recall | A Receipt 保留；B 返回 `RELEASE_RECEIPT_STALE`；duplicate 返回 `RELEASE_RECEIPT_ALREADY_RECORDED`；partial/final/Recall history 保留 | Runtime fixture 7 tests 与 PostgreSQL Handler 主流程均通过；fixed refs、hashes、timestamps、expected outcomes 见报告 | `PASS — SYNTHETIC/TECHNICAL ONLY` |
 | RP-WI08-E-002 | E2E | Quality RAS/ABS、Artifact Representation 和 Release Package 在同一跨模块业务编排中执行 | 所有 downstream 输入由公开 Port exact readback；上游失效在副作用前拒绝 | 当前仅有分模块公开 Port/受控 Runtime/PG 证据，没有统一跨模块业务 orchestrator | `NOT RUN — UNIFIED CROSS-MODULE E2E` |
-| RP-WI08-M-001 | Manual | 包含 DOCX/XLSX checksum、Representation binding、Package/Attempt/Receipt/Recall exact refs 的复核报告 | 可审阅合成技术事实并看到 fidelity/Provider/业务人工边界 | [`Synthetic-QMS-REL-801-Exit-Report.md`](../codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)；PR #135 的 Word/Excel openability 结果可引用；本地不保留生成文件 | `PARTIAL — TECHNICAL REPORT / INDEPENDENT BUSINESS ACCEPTANCE NOT RUN` |
+| RP-WI08-M-001 | Manual | 包含 DOCX/XLSX checksum、Representation binding、Package/Attempt/Receipt/Recall exact refs 的复核报告 | 可审阅合成技术事实并看到 fidelity/Provider/业务人工边界 | [`Synthetic-QMS-REL-801-Exit-Report.md`](../archive/codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)；PR #135 的 Word/Excel openability 结果可引用；本地不保留生成文件 | `PARTIAL — TECHNICAL REPORT / INDEPENDENT BUSINESS ACCEPTANCE NOT RUN` |
 
 2026-08-31 GitHub exact-head 验证：WI-08 最终审阅 head `306cdbc3b8c8201994a57097038c4c3f784b0412` 已随 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139) 合入 `main`，GitHub Actions `verify` run `33355948473` 通过，merge commit 为 `07fc6a083897c01924f842d12dffe06fd6068261`，Issue #128 已关闭。该结果覆盖仓库 Gate，不扩大 RP-WI08-E-002 的统一跨模块业务 E2E 或 RP-WI08-M-001 的独立人工验收范围。

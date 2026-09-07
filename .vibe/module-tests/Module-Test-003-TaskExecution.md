@@ -44,7 +44,7 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 
 - Schema 层 Contract（TE-API-S-001 ~ TE-API-S-018）均为 `PASSED`；合并 PR #12 后全项目为 118/118；Registry operationCount=200、FULL=115、ENVELOPE_ONLY=85、task-execution FULL=37。
 - Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与 Handler 实现均不存在；本阶段未声明 CLI 或 DB E2E 已运行。
-- 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
+- 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)。
 - Runtime Adapter 专项：4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景为 `NOT RUN`；6 个 API proposal 尚未进入 Catalog 与本模块 Schema。
 - 测试遗留：未创建临时脚本或临时测试文件；永久 Fixture 位于 `tests/fixtures/contracts/`，与生产代码同源管理。
 

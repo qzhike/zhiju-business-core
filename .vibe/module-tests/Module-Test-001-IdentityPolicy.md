@@ -63,7 +63,7 @@
 
 - WI-07 已实现的 U-002、C-001、U-004、U-005、C-003、E-003 均已在真实 PostgreSQL、ContractRegistry 或完整 gate 中执行并取得 `PASS`；U-001、U-003、E-001、E-002 仍未属于本 PR 的运行范围，保持 `NOT RUN`；WI-06/WI-07 migration 用例另见 IP-PG-M-001/IP-PG-M-002。
 - 新增 IP-API-U-004、IP-API-U-005、IP-API-C-003、IP-API-E-003 已覆盖拒绝 receipt、完整幂等身份、可执行 Schema 对齐和 bootstrap claim 并发裁决，修复后的回归结果均为 `PASS`。
-- 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../api-contract-v0.1/Verification-Report.md)。
+- 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)。
 - 完整验证：合并最新 WI-07 base 后 `pnpm verify` 为 `PASS`；Vitest `20 passed | 8 skipped / 341 passed | 143 skipped`；Persistence gate `10 files / 156 passed`；V1002/V1003/V1004 成功、二次迁移 no-op、旧库形状 V1004 升级探针通过、容器已清理。
 - 直接 Registry 探针：PrincipalRegistered Event、ExternalIdentityLinked Event、resolve_principal Result 均为 `valid: true, errors: []`。
 - 未运行边界：真实 Keycloak/OIDC、飞书 Provider、OpenBao 生产密钥、跨系统 E2E、人工验收保持 `NOT RUN`；测试遗留未创建临时脚本或测试文件。

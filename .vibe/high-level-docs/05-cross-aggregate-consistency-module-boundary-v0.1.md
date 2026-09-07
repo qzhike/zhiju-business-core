@@ -8,7 +8,7 @@
 
 ## 1. 文档目标
 
-本文承接 [`04-domain-model-v0.1.md`](./04-domain-model-v0.1.md)，使用完整业务案例验证三个主域之间的一致性，并冻结跨 Aggregate 命令、事件、事务、Process Manager、并发、幂等和逻辑模块协作边界。
+本文承接 [`04-domain-model-v0.1.md`](04-domain-model-v0.1.md)，使用完整业务案例验证三个主域之间的一致性，并冻结跨 Aggregate 命令、事件、事务、Process Manager、并发、幂等和逻辑模块协作边界。
 
 本文不映射数据库、ORM、REST、MCP Tool、飞书事件 JSON、Renderer 或 Runtime Adapter 代码。
 
@@ -1078,7 +1078,7 @@ Provider 模型调用
 
 ### 17.1 权威来源
 
-七个逻辑模块的职责、所有权、非职责、端口、依赖和持久化边界只在 [`02-zhiju-core-architecture.md`](./02-zhiju-core-architecture.md) 第 20 节维护。本文不再复制模块规格；以下内容只解释边界形成原因、允许的协作和禁止的耦合。
+七个逻辑模块的职责、所有权、非职责、端口、依赖和持久化边界只在 [`02-zhiju-core-architecture.md`](02-zhiju-core-architecture.md) 第 20 节维护。本文不再复制模块规格；以下内容只解释边界形成原因、允许的协作和禁止的耦合。
 
 ### 17.2 为什么这样划分
 
@@ -1363,7 +1363,7 @@ PostgreSQL Logical Model 已纳入当前基准。进入 API Contract 前应完�
 3. 模块化单体是 v0.1 部署基线；
 4. 一个 Aggregate 一个事务、跨模块 Process Manager 的一致性策略可接受；
 5. MVP 必须实现/延后范围符合产品优先级；
-6. [`07-postgresql-logical-model-v0.1.md`](./07-postgresql-logical-model-v0.1.md) 中一个 Database、七个权威 Schema、Typed Reference、RLS 和对象存储边界可接受；
+6. [`07-postgresql-logical-model-v0.1.md`](07-postgresql-logical-model-v0.1.md) 中一个 Database、七个权威 Schema、Typed Reference、RLS 和对象存储边界可接受；
 7. 仍未冻结的 Policy 数值不影响 API 业务语义，或在对应 API Contract / 实施任务中有明确占位。
 
 Gate 通过后的推荐顺序：

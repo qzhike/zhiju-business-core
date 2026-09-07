@@ -41,7 +41,7 @@
 - 当前公开 Catalog 为 200 项，API 与 Module Spec 集合一致；
 - v0.1 为单进程模块化单体、一个 PostgreSQL Database、七个权威 Schema、一个可重建 Projection Schema；
 - 目标环境预安装 Codex CLI、Claude Code CLI、OpenClaw CLI，智举只通过本地 Process Driver 调用。
-- 生产部署为客户私有 Ubuntu 单服务器；首期 API-first；对象存储、Secret/KMS 与 OIDC 认证基准见 [`Deployment-Security-Baseline-v0.1.md`](./Deployment-Security-Baseline-v0.1.md)。
+- 生产部署为客户私有 Ubuntu 单服务器；首期 API-first；对象存储、Secret/KMS 与 OIDC 认证基准见 [`Deployment-Security-Baseline-v0.1.md`](Deployment-Security-Baseline-v0.1.md)。
 
 仍未确认的 proposal 不得被“先写代码”事实化：
 
@@ -78,7 +78,7 @@
 | IM-DG-005 | Canonical Document/Workbook 最小 Schema 与 Renderer 技术路线 | IM-04/IM-05 | `USER APPROVED 2026-08-27` |
 | IM-DG-006 | 6 个 Runtime Command 与 Runtime 默认 Policy | IM-08 | `USER DECISION REQUIRED` |
 
-IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](./Technology-Baseline-v0.1.md)，IM-DG-003/004 见 [`Deployment-Security-Baseline-v0.1.md`](./Deployment-Security-Baseline-v0.1.md)。IM-DG-005 已于 2026-08-27 获用户批准，决策记录见 [`../im-04-startup/Review-Record.md`](../im-04-startup/Review-Record.md)；IM-DG-006 仍必须记录选项、理由、兼容边界、迁移成本、拒绝的替代项和验证方式。选择具体库不会改变已冻结 Domain/API 语义。
+IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](Technology-Baseline-v0.1.md)，IM-DG-003/004 见 [`Deployment-Security-Baseline-v0.1.md`](Deployment-Security-Baseline-v0.1.md)。IM-DG-005 已于 2026-08-27 获用户批准，决策记录见 [`../im-04-startup/Review-Record.md`](../im-04-startup/Review-Record.md)；IM-DG-006 仍必须记录选项、理由、兼容边界、迁移成本、拒绝的替代项和验证方式。选择具体库不会改变已冻结 Domain/API 语义。
 
 `IM-UI-01` 里程碑已于 2026-08-28 获用户批准，但开始写 UI 代码前仍须完成以下 Experience 层决策，不得用默认脚手架静默事实化：
 
@@ -175,7 +175,7 @@ IM-UI-01 可在 IM-06 完成后启动，并与 IM-07/IM-08 的交付时间窗并
 
 退出 Gate：空仓库可一条命令完成 build/test；Catalog 与可执行 Schema 可自动比对；禁止的跨模块依赖会让构建失败；`FULL=200`、`ENVELOPE_ONLY=0`；类型生成与兼容性 Gate 无漂移。
 
-历史状态快照：`COMPLETE`（Issue #9 / PR #20；证据见 [`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)）。IM-02 已完成 scoped 交付并仅待 Issue #28 关闭，详见下方状态快照。
+历史状态快照：`COMPLETE`（Issue #9 / PR #20；证据见 [`../im-01-exit-gate-issue-9/Verification-Report.md`](../archive/im-01-exit-gate-issue-9/Verification-Report.md)）。IM-02 已完成 scoped 交付并仅待 Issue #28 关闭，详见下方状态快照。
 
 ### IM-02 PostgreSQL Foundation + IdentityPolicy
 
@@ -191,7 +191,7 @@ IM-UI-01 可在 IM-06 完成后启动，并与 IM-07/IM-08 的交付时间窗并
 
 ### IM-03 EnterpriseProject Reference Foundation
 
-前置：Issue #57（WI-01）先冻结 Product/QMS/Profile/Platform Reference 的受控 Application Capability、ProjectStartSnapshot 必需 Ref 和 Gap stale/impact Policy；决策记录见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../issue-57-enterpriseproject/Contract-Decision-Matrix.md)。
+前置：Issue #57（WI-01）先冻结 Product/QMS/Profile/Platform Reference 的受控 Application Capability、ProjectStartSnapshot 必需 Ref 和 Gap stale/impact Policy；决策记录见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../decisions/enterprise-project-capabilities.md)。
 
 产出：Enterprise、EnterpriseFact、Profile Snapshot、Product、QMSConfiguration、Project、Source/Customer Material、Baseline、Gap、DeliveryPlan/Item 的最小链；所有业务前置对象必须通过唯一 Owner 的 Application 入口创建，不能由测试或 Migration 直写。
 

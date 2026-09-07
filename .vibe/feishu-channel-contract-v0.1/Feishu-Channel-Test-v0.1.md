@@ -4,7 +4,7 @@
 日期：2026-08-13
 状态：`CURRENT TEST SPEC / DESIGN VERIFIED / USER PROGRESSION CONFIRMED 2026-08-16 / IMPLEMENTATION NOT STARTED`
 
-对应规格：[`Feishu-Channel-Contract-v0.1.md`](./Feishu-Channel-Contract-v0.1.md)。对应模块：[`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md)。
+对应规格：[`Feishu-Channel-Contract-v0.1.md`](Feishu-Channel-Contract-v0.1.md)。对应模块：[`Module-Spec-007-IntegrationGateway.md`](../module-specs/Module-Spec-007-IntegrationGateway.md)。
 
 ## 1. 结果口径
 

@@ -634,4 +634,4 @@ MVP 必须建设完整双向飞书 Agent Channel；但业务逻辑不得写入�
 
 > 以 Zhiju Core 承载长期业务事实和正式状态，以可替换 Agent Harness 执行具体任务，以确定性验证、独立 Review 和 Human Approval 控制质量，以飞书和专业 Workspace 提供符合员工习惯的使用体验。
 
-本报告是 [`02-zhiju-core-architecture.md`](./02-zhiju-core-architecture.md) 的业务输入，不应被 Agent Runtime、UI 或数据库设计反向覆盖。
+本报告是 [`02-zhiju-core-architecture.md`](02-zhiju-core-architecture.md) 的业务输入，不应被 Agent Runtime、UI 或数据库设计反向覆盖。
