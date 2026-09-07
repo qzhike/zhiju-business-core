@@ -1,10 +1,10 @@
 # Zhiju Business Core 基准规格与 Agent 入口
 
 版本：v0.1
-日期：2026-09-01
-状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01–WI-09 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / IM-05 WI-01–WI-06 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #121–#126 CLOSED / IM-05 WI-07 IMPLEMENTATION, CLEAN BUILD, LOCAL/PERSISTENCE AND GITHUB DELIVERY COMPLETE 2026-08-31 / PR #138 MERGED / ISSUE #127 CLOSED / IM-05 WI-08 SYNTHETIC QMS/REL-801 EXIT REVIEW DELIVERED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 CLOSED / PARENT #120 OPEN / #22 CLOSED / #23 CLOSED / #24 CLOSED / CURRENT RRS AUTHORIZATION REVALIDATION LOCALLY VERIFIED 2026-09-01 / USER REVIEW AND GIT DELIVERY PENDING / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN / AUTHORITY DOCS SYNCED`
+日期：2026-09-07
+状态：`CURRENT DESIGN BASELINE`；当前推进方向见 [roadmap](../product/roadmap.md)，执行与验收事实以最新 GitHub Issue/PR 为准。
 
-本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是 Codex、Claude Code 及其他 Coding Agent 进入本项目时必须首先读取的文档。它负责说明当前目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
+本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是本项目的产品与工程冻结基准。Agent 从根目录 `AGENTS.md` 进入，按角色与任务读取本文相关章节；本文负责说明产品目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
 ---
 
@@ -12,7 +12,7 @@
 
 任何设计或实现任务开始前，Agent 必须：
 
-1. 先完整读取本文；
+1. 读取根目录 `AGENTS.md` 与 `.vibe/project.yaml`；首次进入项目或涉及冻结规则时读取本文第 1–6、8–11 节；普通任务定位并读取相关冻结规则和权威章节，不默认读取历史快照；
 2. 根据第 3 节选择任务所需的最小权威文档集；
 3. 检查用户请求是否改变冻结决定、模块所有权、Contract 或持久化边界；
 4. 检查工作区实际文件、Git 状态和已有改动，不假设对话中的结果已经落盘；
@@ -27,11 +27,13 @@
 
 ## 2. 基准文档包
 
+下表的正式规格在其声明范围内拥有权威；Task-Plan 与 Verification-Report 链接仅用于追溯历史计划、审核 Gate 和验证证据。最新执行状态以 GitHub 为准，历史记录中的独有约束须核对后才能迁移。
+
 `.vibe/high-level-docs/` 下的以下文档构成已经用户审核通过的高层设计基准：
 
 | 顺序 | 文档                                                                                                                 | 唯一权威范围                                                              | 典型读取者                                 |
 | ---: | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------ |
-|    0 | `HL-Spec.md`                                                                                                         | 产品目标、冻结规则、文档路由、当前阶段、变更纪律                          | 所有 Agent，必读                           |
+|    0 | `HL-Spec.md`                                                                                                         | 产品目标、冻结规则、文档路由、变更纪律                          | 所有 Agent，按启动协议读取                           |
 |    1 | [`01-customer-field-findings.md`](./01-customer-field-findings.md)                                                   | 客户现场证据、业务动因、风险原则、MVP 业务约束                            | 产品、业务、UX、Channel 任务               |
 |    2 | [`02-zhiju-core-architecture.md`](./02-zhiju-core-architecture.md)                                                   | 总体架构、七模块职责/所有权/端口/依赖、权限边界、ADR、实施边界            | 所有跨模块或实现任务                       |
 |    3 | [`03-core-contracts.md`](./03-core-contracts.md)                                                                     | Project Context、WorkOrder、AgentResult、Artifact + Quality Gate Contract | Runtime、执行、Artifact、Quality、API 任务 |
@@ -64,8 +66,8 @@ Issue #57 的前置对象入口和未冻结参数决策记录在 [`../issue-57-e
 | [`../api-contract-v0.1/API-Contract-v0.1.md`](../api-contract-v0.1/API-Contract-v0.1.md) | Command/Query/Event 共享类型、执行语义、错误、兼容、安全与 Registry |
 | [`../module-specs/`](../module-specs/) 下七份 `Module-Spec-[ID]-[ModuleName].md` | 对应模块公开操作的 payload/result/event 字段、授权和模块错误 |
 | [`../module-tests/`](../module-tests/) 下七份 `Module-Test-[ID]-[ModuleName].md` | 对应模块 Unit/Contract/E2E/Manual 用例、输入、预期、实际和结果 |
-| [`../api-contract-v0.1/Task-Plan.md`](../api-contract-v0.1/Task-Plan.md) | 本阶段里程碑、任务分配、执行状态和人工审核 Gate |
-| [`../api-contract-v0.1/Verification-Report.md`](../api-contract-v0.1/Verification-Report.md) | API 阶段 Catalog、字段、测试文档、Markdown 和 diff 静态验证证据 |
+| [`../api-contract-v0.1/Task-Plan.md`](../api-contract-v0.1/Task-Plan.md) | 历史阶段记录：本阶段里程碑、任务分配、执行状态和人工审核 Gate（非最新执行状态；独有 Gate 仍须核对） |
+| [`../api-contract-v0.1/Verification-Report.md`](../api-contract-v0.1/Verification-Report.md) | 历史阶段记录：API 阶段 Catalog、字段、测试文档、Markdown 和 diff 静态验证证据（非最新执行状态；独有 Gate 仍须核对） |
 
 ### 2.3 Feishu Channel Contract 阶段文档
 
@@ -75,8 +77,8 @@ Feishu Channel v0.1 的专项协议固定维护在 `.vibe/feishu-channel-contrac
 |---|---|
 | [`../feishu-channel-contract-v0.1/Feishu-Channel-Contract-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Contract-v0.1.md) | 飞书事件接收、身份/Binding、消息/文件/卡片、出站投递、回执、撤回、重试、安全和 Core API 映射 |
 | [`../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md) | Feishu Channel Unit/Contract/E2E/Manual 场景、输入、预期、实际和结果 |
-| [`../feishu-channel-contract-v0.1/Task-Plan.md`](../feishu-channel-contract-v0.1/Task-Plan.md) | 本阶段里程碑、执行顺序、人工审核 Gate 与状态 |
-| [`../feishu-channel-contract-v0.1/Verification-Report.md`](../feishu-channel-contract-v0.1/Verification-Report.md) | 官方协议证据、映射覆盖、安全边界、Markdown 和 diff 静态验证结果 |
+| [`../feishu-channel-contract-v0.1/Task-Plan.md`](../feishu-channel-contract-v0.1/Task-Plan.md) | 历史阶段记录：本阶段里程碑、执行顺序、人工审核 Gate 与状态（非最新执行状态；独有 Gate 仍须核对） |
+| [`../feishu-channel-contract-v0.1/Verification-Report.md`](../feishu-channel-contract-v0.1/Verification-Report.md) | 历史阶段记录：官方协议证据、映射覆盖、安全边界、Markdown 和 diff 静态验证结果（非最新执行状态；独有 Gate 仍须核对） |
 
 ### 2.4 Runtime Adapter Contract 阶段文档
 
@@ -86,8 +88,8 @@ Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contr
 |---|---|
 | [`../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md) | Execution Package、Adapter Port、本地 CLI Process Driver、标准事件、Lease/Fencing、Result/Usage、Resume/Retry、CLI Profile 与安全边界 |
 | [`../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md) | Runtime Adapter Unit/Contract/E2E/Manual 场景、输入、预期、实际和结果 |
-| [`../runtime-adapter-contract-v0.1/Task-Plan.md`](../runtime-adapter-contract-v0.1/Task-Plan.md) | 本阶段范围、里程碑、执行顺序、审核与提交 Gate |
-| [`../runtime-adapter-contract-v0.1/Verification-Report.md`](../runtime-adapter-contract-v0.1/Verification-Report.md) | Provider 资料、API 映射、proposal、安全、Markdown 和 diff 静态证据 |
+| [`../runtime-adapter-contract-v0.1/Task-Plan.md`](../runtime-adapter-contract-v0.1/Task-Plan.md) | 历史阶段记录：本阶段范围、里程碑、执行顺序、审核与提交 Gate（非最新执行状态；独有 Gate 仍须核对） |
+| [`../runtime-adapter-contract-v0.1/Verification-Report.md`](../runtime-adapter-contract-v0.1/Verification-Report.md) | 历史阶段记录：Provider 资料、API 映射、proposal、安全、Markdown 和 diff 静态证据（非最新执行状态；独有 Gate 仍须核对） |
 
 ### 2.5 Implementation Milestone Plan 阶段文档
 
@@ -98,13 +100,13 @@ Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contr
 | [`../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md`](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md) | IM-DG-001 至 006、IM-00 至 09、IM-UI-01、目标代码边界与 Definition of Done |
 | [`../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md`](../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md) | 已批准 Node.js/TypeScript/NestJS/Fastify/PostgreSQL/Kysely/Flyway/Test 技术基线与升级边界 |
 | [`../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md`](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md) | 已批准 Ubuntu 私有化、MicroCeph/Ceph RGW、OpenBao、Keycloak OIDC 与 Workspace UI 边界 |
-| [`../implementation-milestone-plan-v0.1/Task-Plan.md`](../implementation-milestone-plan-v0.1/Task-Plan.md) | 本阶段范围、输入、步骤和提交 Gate |
-| [`../implementation-milestone-plan-v0.1/Verification-Report.md`](../implementation-milestone-plan-v0.1/Verification-Report.md) | 路线、依赖、决策隔离、静态验证和剩余风险 |
+| [`../implementation-milestone-plan-v0.1/Task-Plan.md`](../implementation-milestone-plan-v0.1/Task-Plan.md) | 历史阶段记录：本阶段范围、输入、步骤和提交 Gate（非最新执行状态；独有 Gate 仍须核对） |
+| [`../implementation-milestone-plan-v0.1/Verification-Report.md`](../implementation-milestone-plan-v0.1/Verification-Report.md) | 历史阶段记录：路线、依赖、决策隔离、静态验证和剩余风险（非最新执行状态；独有 Gate 仍须核对） |
 | [`../module-specs/Module-Spec-UI01-WorkspaceUI.md`](../module-specs/Module-Spec-UI01-WorkspaceUI.md) | Workspace UI Experience Module 的页面能力、BFF/API、状态真实性、安全和非所有权边界 |
 | [`../module-tests/Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md) | Workspace UI Unit/Contract/Browser E2E/Security/Accessibility/Manual 用例和真实结果 |
-| [`../im-ui-01-workspace-ui-milestone/Task-Plan.md`](../im-ui-01-workspace-ui-milestone/Task-Plan.md) | IM-UI-01 建档范围、假设、步骤、验证和非目标 |
-| [`../im-01-exit-gate-issue-9/Task-Plan.md`](../im-01-exit-gate-issue-9/Task-Plan.md) | Issue #9 IM-01 退出 Gate 范围、#5/#9 修订口径与阶段 |
-| [`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md) | Issue #9 干净 verify、数量对账、负向证据与 NOT RUN 清单 |
+| [`../im-ui-01-workspace-ui-milestone/Task-Plan.md`](../im-ui-01-workspace-ui-milestone/Task-Plan.md) | 历史阶段记录：IM-UI-01 建档范围、假设、步骤、验证和非目标（非最新执行状态；独有 Gate 仍须核对） |
+| [`../im-01-exit-gate-issue-9/Task-Plan.md`](../im-01-exit-gate-issue-9/Task-Plan.md) | 历史阶段记录：Issue #9 IM-01 退出 Gate 范围、#5/#9 修订口径与阶段（非最新执行状态；独有 Gate 仍须核对） |
+| [`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md) | 历史阶段记录：Issue #9 干净 verify、数量对账、负向证据与 NOT RUN 清单（非最新执行状态；独有 Gate 仍须核对） |
 
 模块职责仍只由 `02` 冻结，公开名称/Owner 仍只由 `06` 冻结；Module Spec 不得重新划分所有权。API 阶段文档已于 2026-08-13 通过用户审核并构成当前字段级 API 基准，但不能覆盖已审核高层基准。
 
@@ -112,22 +114,25 @@ Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contr
 
 ## 3. 按任务读取
 
-Agent 应使用最小充分上下文，避免每次把全部约 1.5 万行文档注入 Prompt。
+先按角色选择入口，再按主题定位权威章节；表中的文档名称是查找范围，不要求整份加载。
 
-| 任务                              | 必读                                    | 需要时追加         |
-| --------------------------------- | --------------------------------------- | ------------------ |
-| 产品原则、范围或路线              | `HL-Spec`、`01`、`02`                   | `08`               |
-| Aggregate/状态机/业务规则         | `HL-Spec`、`02`、`04`、`08`             | `05`、`03`         |
-| 跨模块流程、Saga、幂等            | `HL-Spec`、`02`、`05`、`06`、`08`       | `04`、`07`         |
-| Command/Query/Event API           | `HL-Spec`、`02`、`03`、`06`、`08`       | `04`、`05`、`07`   |
-| PostgreSQL/Repository/Migration   | `HL-Spec`、`02`、`04`、`07`、`08`       | `03`、`05`、`06`   |
-| 飞书 Channel                      | `HL-Spec`、`01`、`02`、`03`、`06`、`08` | `05`、`07`         |
-| Runtime Adapter                   | `HL-Spec`、`02`、`03`、`06`、`08`       | `04`、`05`、`07`   |
-| Implementation Milestone/代码脚手架 | `HL-Spec`、`02`、`05`、`07`、`08`、Implementation Plan | API、Module、Feishu、Runtime 专项 |
-| Artifact/Quality/Approval/Release | `HL-Spec`、`02`、`03`、`04`、`05`、`08` | `06`、`07`         |
-| 安全、权限、客户隔离              | `HL-Spec`、`02`、`06`、`07`、`08`       | `03`、`04`         |
-| 架构或代码 Review                 | `HL-Spec`、`02`、`08`、实际代码/差异    | 所有受影响专题文档 |
-| 字段级 Command/Query/Event API    | `HL-Spec`、`02`、`03`、`06`、`08`、共享 API Contract、对应 Module Spec/Test | `04`、`05`、`07` |
+| 角色 | 必需上下文 | 按需追加 |
+|---|---|---|
+| Planner | 用户目标、roadmap、相关 HL/Module Spec | 阶段定义、未决 Gate、最新 Issue/PR |
+| Implementer | 最新 Issue、受影响 Module Spec/Test、相关冻结规则 | 共享 Contract、具体架构/数据库章节 |
+| Reviewer | 最新 PR head/diff、Issue、受影响契约与测试证据 | 相关跨模块约束、具体失败场景 |
+
+| 主题 | 权威定位 |
+|---|---|
+| 产品与范围 | 本文第 4–6 节、01 客户约束、02 架构中受影响部分 |
+| 领域与状态机 | 对应 Module Spec、04 中对应 Aggregate；跨模块时追加 05 |
+| API 与字段 | 对应 Module Spec/Test、共享 API Contract；03 的被引用 Core 类型、06 的 Reference/Envelope/操作条目 |
+| 数据库与事务 | 07 对应 Schema、Migration/事务约束；对应模块及 05 相关一致性规则 |
+| 飞书或 Runtime | 对应专项 Contract/Test、所使用 Core 类型和接口 |
+| 验证与审查 | 08 第 1–2 节、对应 Module-Test 场景、当前 PR 检查 |
+| 里程碑规划 | roadmap、Implementation Milestone Plan 对应阶段及依赖/Gate |
+
+只在当前证据不能解决具体问题时扩大阅读范围。第 7 节和文末附录保留历史记录及尚待提取的实施约束；不将旧状态、旧命令或旧分支要求作为当前执行指令。涉及其中独有技术约束时仍须读取并与 owning 规格核对，不能因标记历史就忽略约束。
 
 ---
 
@@ -245,7 +250,16 @@ ExperienceLayer
 
 ---
 
-## 7. 当前基准状态
+## 7. 当前方向与历史基线
+
+当前推进意图只在 [roadmap](../product/roadmap.md) 维护。执行状态、审查与每次验证证据从最新 GitHub Issue/PR 读取；以下原有记录保留原地，不作为最新任务状态。
+
+<details>
+<summary>展开历史实施基线与待归位约束（第一阶段保留）</summary>
+
+状态：`CURRENT DESIGN BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-DG-005 APPROVED 2026-08-27 / IM-04 WI-01–WI-09 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE 2026-08-30 / IM-05 WI-01–WI-06 IMPLEMENTATION AND GIT DELIVERY COMPLETE / ISSUE #121–#126 CLOSED / IM-05 WI-07 IMPLEMENTATION, CLEAN BUILD, LOCAL/PERSISTENCE AND GITHUB DELIVERY COMPLETE 2026-08-31 / PR #138 MERGED / ISSUE #127 CLOSED / IM-05 WI-08 SYNTHETIC QMS/REL-801 EXIT REVIEW DELIVERED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 CLOSED / PARENT #120 OPEN / #22 CLOSED / #23 CLOSED / #24 CLOSED / CURRENT RRS AUTHORIZATION REVALIDATION LOCALLY VERIFIED 2026-09-01 / USER REVIEW AND GIT DELIVERY PENDING / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN / AUTHORITY DOCS SYNCED`
+
+### 历史基准状态
 
 ### 7.1 IM-02 WI-08 实现审查基线（2026-08-24）
 
@@ -566,6 +580,9 @@ Role。详细威胁模型与测试边界以
 
 ---
 
+
+</details>
+
 ## 8. 变更纪律
 
 ### 8.1 修改前
@@ -650,6 +667,13 @@ BLOCKED
 5. 未执行的外部/人工验证；
 6. 工作区与 Commit 状态；
 7. 下一步只在确有价值时给出。
+
+## 历史补充记录（第一阶段保留）
+
+以下原文保留历史证据与技术约束；其状态不覆盖 roadmap 或最新 GitHub 事实。第二阶段逐项提取后再迁移，本轮不删除独有约束。
+
+<details>
+<summary>展开历史交付与审查补充</summary>
 
 截至 2026-08-27 的前置基线已完成 IM-00 与 IM-01 Repository + Executable Contracts（Issue #9 / PR #20）。工程骨架、共享内核、Core 字段级 Schema、200 个 API Envelope、自动测试、架构/Catalog Gate、Schema-derived Type、v1.0 compatibility baseline 与 HTTP health smoke 已通过；IdentityPolicy 20 个、EnterpriseProject 32 个、TaskExecution 37 个、Artifact 26 个、QualityGovernance 37 个、ReleasePublication 25 个与 IntegrationGateway 23 个操作均已具有字段级 Payload/Event Schema 和 Query Result Schema；Registry 精确为 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。干净 checkout 证据见 [`.vibe/im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)。Schema 衍生类型见 `.vibe/im-01-executable-schema-typescript/`；兼容性基线见 `.vibe/im-01-v1.0-schema-fixtures/`。PR #10–#14、#16、#18、#19 的 Schema/类型/兼容性实现与 review 修复均已保留。2026-08-21 用户批准修订 Issue #9：硬依赖改为 #1–#8 的 Schema 子切片均已合入，#5 的 Runtime 状态不阻塞本 Gate；随后用户批准将 #5 收敛为字段 Schema 边界。Issue #5 的字段级目标已由 PR #14 完成，重复 / 迟到回执由已关闭的 #15 完成；未实现的 Release Authorization ActorSnapshot/actingFor、`providerResult` PII 最小化、普通飞书发送 Formal Release 来源链分别由 #22、#23、#24 承接，不能因 #5 关闭而视为 Runtime `PASS`。#17 的本地 IntegrationGateway Runtime 切片已在 `modules/integration-gateway` 落地：幂等、Quarantine、UNKNOWN、协议/完整 Revision 绑定、撤回 Origin（adapter/account/message）、显式授权和 Audit/Masking focused tests 全部通过；timeout 后迟到的 Adapter rejection 不得改写 `UNKNOWN`，也不得成为 unhandled rejection。真实 Provider、数据库、HTTP Handler、外部和人工验收仍保持 `NOT RUN`，改由 [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 追踪。IM-02 已完成代码、数据库和文档验收：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify、Persistence `12/177`、Migration/no-op、Runbook 和 Probe 证据均通过，Issue #28 已关闭。真实 Provider、数据库外部 Adapter、HTTP Handler、跨模块业务 E2E 和生产人工验收仍保持 `NOT RUN`；IM-02 scoped 目标已完成。IM-RP-001（Issue #15）在 `modules/release-publication` 落地 Runtime Receipt Validator（重复 / 迟到回执检测、RawExternalReceipt outcome/payload/time provenance、package↔release 与完整 scope 绑定、Ledger `compareAndSaveAttempt` / `compareAndSaveReceipt` 原子落账）；持久化载体仍为 In-Memory Ledger。数据库 DDL/真实 Repository、IntegrationGateway 飞书/邮件 Provider 注入（#27）与 HTTP Handler 仍 `NOT RUN`，不得冒充业务 E2E。6 个 Runtime additive proposal、IM-DG-006 仍待独立审核；IM-DG-005 已于 2026-08-27 独立批准，但其代码、数据库、外部和人工运行验证仍为 `NOT RUN`，不得冒充业务 E2E。
 
@@ -894,3 +918,5 @@ WI-12 的应用角色对完成历史表不授予 `UPDATE/DELETE`；直接历史�
 用户已确认在没有真实业务场景时采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。合成数据、流程和测试矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md) 与 [`Test-Matrix.md`](../im-03-synthetic-reference-fixture/Test-Matrix.md)。本次 `pnpm persistence:gate` 在固定 PostgreSQL 18.6 / Flyway 11.20.3 上通过 `21` 个 persistence 测试文件、`256` 个测试，空库迁移、V2013、二次 no-op 和容器清理均通过。
 
 该结果是现有 WI focused fixtures 的 composed controlled persistence evidence，不是一个统一的跨 Aggregate Reference Project runtime runner。`EP-API-U-001/U-002/U-003`、`EP-API-C-001/C-002` 和各 WI focused 技术场景可记录为受控本地证据；`EP-API-E-001/E-002` 的 integrated cross-aggregate execution、`EP-API-M-001` 的实际人工逐项审阅、真实业务适用性、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续保持 `NOT RUN`。详见 [`Verification-Record.md`](../im-03-synthetic-reference-fixture/Verification-Record.md)。
+
+</details>

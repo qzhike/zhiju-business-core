@@ -1,43 +1,59 @@
 # Zhiju Business Core
 
-Zhiju Business Core 是面向企业交付、质量治理与发布控制的模块化单体。`IM-01 Repository + Executable Contracts` 已标记为 `COMPLETE`；当前工作项为 `IM-04 WI-01 Freeze executable canonical schemas`，业务持久化与外部验收仍按后续里程碑推进。
+Zhiju Business Core is a modular monolith for enterprise delivery, quality
+governance, and controlled publication. Seven business modules own their domain
+rules and persistence boundaries; Workspace UI/BFF is an experience layer.
 
-## 当前实现范围
+## Start here
 
-- Node.js 24.19.0、TypeScript 6.0.3、pnpm 11.19.0 workspace；
-- NestJS 11 + Fastify 5 API composition skeleton；
-- 七个业务模块的独立 package/project-reference 边界；
-- Canonical JSON/Hash、UUIDv7、Typed Reference、ApiError 共享内核；
-- 四类 Core Contract Family 的顶层 JSON Schema；
-- 201 个已批准公开 API 的严格 Envelope Registry；
-- IdentityPolicy 20 个操作的字段级 Payload/Event Schema，以及 6 个 Query Result Schema；
-- EnterpriseProject 32 个操作的字段级 Payload/Event Schema，以及 6 个 Query Result Schema；
-- TaskExecution 37 个操作的字段级 Payload/Event Schema，以及 7 个 Query Result Schema；
-- Artifact 26 个操作的字段级 Payload/Event Schema，以及 7 个 Query Result Schema；
-- QualityGovernance 37 个操作的字段级 Payload/Event Schema，以及 7 个 Query Result Schema；
-- ReleasePublication 25 个操作的字段级 Payload/Event Schema，以及 5 个 Query Result Schema；
-- IntegrationGateway 24 个操作的字段级 Payload/Event Schema，以及 6 个 Query Result Schema；
-- 201 个 operation payload + 45 个 query result + 6 个 Core Contract 的字段级 TypeScript 类型（`contracts/src/generated/types/`），由 `tools/contracts/generate-typescript-types.mts` 从已注册 JSON Schema 确定性生成；
-- v1.0 Schema 兼容性基线（`contracts/baselines/v1.0/`）与构建期 structural compatibility 检查（`tools/contracts/check-compatibility.mts`），含历史正/负向 fixtures、冻结 Event Schema 校验，以及 `operation-compatibility-metadata.v1.json` 人工审查 fingerprint；
-- format、lint、typecheck、Vitest、架构依赖、Catalog 对账、生成 diff 与 compatibility Gate。
+- [Current roadmap](.vibe/product/roadmap.md): near-term direction and unresolved decisions.
+- [HL-Spec](.vibe/high-level-docs/HL-Spec.md): frozen rules, authority, and topic routing.
+- [Agent instructions](AGENTS.md): Planner, Implementer, and Reviewer entry points.
+- [Milestone design](.vibe/implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md): scope, dependencies, and exit criteria.
+- [Module specifications](.vibe/module-specs/) and [test specifications](.vibe/module-tests/): affected-module contracts and acceptance scenarios.
 
-Registry 精确为 `FULL:201 / ENVELOPE_ONLY:0`（Command=95、Query=45、Event=61）；冻结的 v1.0 兼容性历史基线仍为 200 个 operation。WI-01 的 format、lint、typecheck、Vitest、架构、Catalog/Registry、compatibility 与完整 PostgreSQL/Flyway persistence Gate 已通过，其中 persistence 为 `21 个测试文件 / 256 个测试`，空库迁移、二次 migrate no-op 和容器清理均通过。Artifact 业务 Handler / Repository / Object Storage Link、Runtime / Feishu / Renderer / 人工业务验收仍为后续里程碑 `NOT RUN`。
+GitHub Issues and PRs hold execution and acceptance evidence. Historical files
+under `.vibe` remain available during documentation cleanup; their snapshots do
+not replace current issue state or the roadmap.
 
-## 验证
+## Development
+
+Use the Node.js and pnpm versions pinned in `package.json` and `.nvmrc`.
+Install dependencies from the lockfile:
 
 ```shell
 pnpm install --frozen-lockfile
-pnpm verify
 ```
 
-`pnpm verify` 末尾包含真实 PostgreSQL Persistence Gate（`pnpm persistence:gate`）：以 tag+digest 锁定的 PostgreSQL 18.6 与 Flyway 11.20.3 容器执行 Migration 与 Persistence 测试，需要本地 Docker。操作说明见 [IM-02 WI-01 Runbook](.vibe/im-02-workitem-issues/runbook-wi-01.md)。
-
-本地启动 API：
+Start the API composition application:
 
 ```shell
 pnpm --filter @zhiju/api start
 ```
 
-健康检查：`GET http://127.0.0.1:3000/health`。
+The health endpoint is `GET http://127.0.0.1:3000/health`.
 
-设计权威入口见 [HL-Spec](.vibe/high-level-docs/HL-Spec.md)。
+## Verification
+
+With the Vibe CLI installed, run the configured full gate:
+
+```shell
+vibe verify full --json
+```
+
+The [project configuration](.vibe/project.yaml) resolves `full` to
+`pnpm clean && pnpm verify`. It checks formatting, lint, types, tests, architecture,
+Catalog/generated contracts, compatibility, and real PostgreSQL persistence.
+Docker is required for the PostgreSQL/Flyway gate. See the existing
+[database runbook](.vibe/im-02-workitem-issues/runbook-wi-01.md) for prerequisites
+and diagnostics; its historical test counts are not current acceptance evidence.
+
+If Vibe is unavailable, the manual equivalent is:
+
+```shell
+pnpm clean && pnpm verify
+```
+
+A failed Vibe gate must be reported and resolved; the manual command is not a
+fallback for bypassing a failed result. Local or synthetic checks do not establish
+production, external-provider, or independent business acceptance.

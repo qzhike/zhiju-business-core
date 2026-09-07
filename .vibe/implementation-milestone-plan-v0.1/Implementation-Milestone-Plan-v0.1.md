@@ -2,7 +2,9 @@
 
 版本：v0.1
 日期：2026-08-24
-状态：`BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 COMPLETE / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / ISSUE #56–#68 CLOSED / IM-04 WI-01 COMPLETE / IM-04 WI-02 IMPLEMENTATION AND PERSISTENCE VERIFIED 2026-08-28 / IM-04 WI-02 GIT DELIVERY COMPLETE PR #102 MERGED 2026-08-28 / ISSUE #91 CLOSED 2026-08-28 / IM-04 WI-03–WI-09 PLANNED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / IM-UI-01 IMPLEMENTATION NOT STARTED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`MILESTONE DESIGN BASELINE`；当前推进方向见 [roadmap](../product/roadmap.md)。下文完成情况与测试数量为历史快照，不作为最新执行状态。
+
+文档职责：只维护阶段范围、依赖、决策 Gate 与退出标准；当前工作选择由 roadmap 维护，执行结果由 GitHub Issue/PR 维护。历史快照暂不搬迁，不再追加逐轮进度。
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -173,7 +175,7 @@ IM-UI-01 可在 IM-06 完成后启动，并与 IM-07/IM-08 的交付时间窗并
 
 退出 Gate：空仓库可一条命令完成 build/test；Catalog 与可执行 Schema 可自动比对；禁止的跨模块依赖会让构建失败；`FULL=200`、`ENVELOPE_ONLY=0`；类型生成与兼容性 Gate 无漂移。
 
-当前状态：`COMPLETE`（Issue #9 / PR #20；证据见 [`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)）。IM-02 已完成 scoped 交付并仅待 Issue #28 关闭，详见下方状态快照。
+历史状态快照：`COMPLETE`（Issue #9 / PR #20；证据见 [`../im-01-exit-gate-issue-9/Verification-Report.md`](../im-01-exit-gate-issue-9/Verification-Report.md)）。IM-02 已完成 scoped 交付并仅待 Issue #28 关闭，详见下方状态快照。
 
 ### IM-02 PostgreSQL Foundation + IdentityPolicy
 
@@ -185,7 +187,7 @@ IM-UI-01 可在 IM-06 完成后启动，并与 IM-07/IM-08 的交付时间窗并
 
 退出 Gate：空库迁移、重复迁移、最小权限、跨 Schema 写拒绝、无/伪造 RLS Context、CAS 和 Inbox/Outbox replay 在真实 PostgreSQL 通过。
 
-当前状态：`COMPLETE`（2026-08-24）。#29–#38 子 Issue 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`；PR #46–#50 的 stacked 实现由 PR #51 进入 `main`，Gate 修复由 PR #52 合入，Runbook/验收文档和 COMPLETE 状态由 PR #53/#54/#55 合入 `main@47d1b57`。合并后的完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify` 通过：Persistence `12/177`、14 个 Migration `Success`、二次 migrate no-op、Runbook 和 Probe 证据均已记录。真实 Provider、跨模块 HTTP/E2E、生产环境和外部系统验收仍为 `NOT RUN`；IM-02 已完成，Issue #28 已关闭。
+历史状态快照：`COMPLETE`（2026-08-24）。#29–#38 子 Issue 均已关闭；PR #39、#41、#43、#44、#45 已合入 `main`；PR #46–#50 的 stacked 实现由 PR #51 进入 `main`，Gate 修复由 PR #52 合入，Runbook/验收文档和 COMPLETE 状态由 PR #53/#54/#55 合入 `main@47d1b57`。合并后的完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify` 通过：Persistence `12/177`、14 个 Migration `Success`、二次 migrate no-op、Runbook 和 Probe 证据均已记录。真实 Provider、跨模块 HTTP/E2E、生产环境和外部系统验收仍为 `NOT RUN`；IM-02 已完成，Issue #28 已关闭。
 
 ### IM-03 EnterpriseProject Reference Foundation
 
@@ -249,7 +251,7 @@ Work Item 与手动可测产出：
 
 非目标：UI/BFF 不拥有授权、Aggregate 状态机、Approval、Release、Completion、Repository 或跨模块业务事务；不直接连接 PostgreSQL、OpenBao、Ceph 或 Provider SDK；不因页面缓存或乐观更新制造业务事实。
 
-当前状态：`MILESTONE USER APPROVED 2026-08-28 / DESIGN BASELINE / IMPLEMENTATION NOT STARTED / ALL RUNTIME AND MANUAL TESTS NOT RUN`。权威 Experience 规格见 [`../module-specs/Module-Spec-UI01-WorkspaceUI.md`](../module-specs/Module-Spec-UI01-WorkspaceUI.md)，测试基线见 [`../module-tests/Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md)。
+历史状态快照：`MILESTONE USER APPROVED 2026-08-28 / DESIGN BASELINE / IMPLEMENTATION NOT STARTED / ALL RUNTIME AND MANUAL TESTS NOT RUN`。权威 Experience 规格见 [`../module-specs/Module-Spec-UI01-WorkspaceUI.md`](../module-specs/Module-Spec-UI01-WorkspaceUI.md)，测试基线见 [`../module-tests/Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md)。
 
 ### IM-07 Feishu Channel
 
@@ -290,7 +292,7 @@ Work Item 与手动可测产出：
 
 ---
 
-## 9. 当前结论
+## 9. 历史阶段结论（保留快照）
 
 - IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 已退出；MinIO 因官方仓库归档被否决，私有化基准采用 MicroCeph/Ceph RGW、OpenBao 与 Keycloak OIDC。
 - IM-01 已 `COMPLETE`：七模块 200 个公开操作全部为字段级 `FULL` Schema；Registry 精确 `FULL:200 / ENVELOPE_ONLY:0`（Command=95、Query=44、Event=61）。
@@ -300,6 +302,6 @@ Work Item 与手动可测产出：
 - IM-UI-01 已于 2026-08-28 作为独立 Workspace UI MVP 里程碑获用户批准：硬依赖 IM-06，可与 IM-07/IM-08 时间窗并行，并成为 IM-09 的前置；具体 UI 技术栈仍须通过 UI-DG-001 至 UI-DG-003，当前实现与 Browser/Manual 验收均为 `NOT RUN`。
 - IM-02 当前为 `COMPLETE`：PR #51/#52/#53/#54/#55 已合入 `main@47d1b57`，最终 main 完整 verify 为 PASS，Persistence `12/177`、Migration/no-op、Runbook/Probe 证据和 exact-head CI 均通过。真实 Provider、跨模块 HTTP/E2E、生产负载和外部系统验收仍为 `NOT RUN`。Issue #28 已关闭；IM-03 WI-01 至 WI-12 的实现已合入默认分支，并由 Module-Test-002 及各 Verification-Record 记录本地受控验证。统一跨 Aggregate E2E、独立人工 Reference Project 和真实外部链路仍为 `NOT RUN`。
 
-### IM-03 合成 Reference Project 当前验证状态（2026-08-27）
+### IM-03 合成 Reference Project 历史验证状态（2026-08-27）
 
 用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。`pnpm persistence:gate` 已通过 `21` 个 persistence 测试文件、`256` 个测试，空库迁移、V2013、二次 no-op 和容器清理均通过。该结果是 `PASS (COMPOSED CONTROLLED PERSISTENCE)`，不是统一跨 Aggregate runtime E2E；`EP-API-E-001/E-002` 集成链和 `EP-API-M-001` 人工验收继续为 `NOT RUN`。

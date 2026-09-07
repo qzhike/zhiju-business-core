@@ -1,0 +1,4 @@
+workflow: vibe-v2
+
+verify:
+  full: pnpm clean && pnpm verify
