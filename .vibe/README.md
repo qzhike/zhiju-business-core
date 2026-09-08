@@ -1,44 +1,27 @@
 # 文档索引
 
-- 当前方向：[roadmap](product/roadmap.md)。
-- 冻结规则与任务路由：[HL-Spec](high-level-docs/HL-Spec.md)。
-- 字段级权威：[Module Spec](module-specs/)、[Module Test](module-tests/)、[API Contract](api-contract-v0.1/API-Contract-v0.1.md)。
-- 决策：[EnterpriseProject Capability](decisions/enterprise-project-capabilities.md)、[RLS 事务上下文](decisions/rls-transaction-context.md)。
-- 未分散复制的实施约束：[实施基线补充](decisions/implementation-baseline-notes.md)，按模块标题定位；历史状态不提供当前执行指令。
-- 日常操作：[PostgreSQL 验证指南](runbooks/postgresql-verification.md)。
-- 审查证据：[reviews](reviews/README.md)。
-- 历史记录：[archive](archive/README.md)，以及 [迁移表](archive/migration-map.csv)。
+日常从下面三个入口开始，不需要遍历历史任务目录。
 
-## 保留原位的混合材料
+| 你要做什么                       | 阅读入口                                                                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 了解当前进度、下一阶段与待决事项 | [roadmap](product/roadmap.md)；[里程碑计划](implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md)        |
+| 规划或实现具体功能               | [HL-Spec](high-level-docs/HL-Spec.md) 定位权威章节，然后读取相关 [Module Spec](module-specs/) / [Module Test](module-tests/) |
+| 查某项任务的执行、验收或交付     | GitHub Issue/PR；旧材料按 [归档与 Issue 对照](archive/issue-index.md) 查找                                                   |
 
-以下材料仍包含设计选择、手工探测或可复用 fixture，本轮不批量改写或宣布它们当前已验证。涉及对应任务时读原文并与 owning 规格/当前脚本核对；其中的日期、旧测试数量和执行状态仍是历史快照。保留原位不代表创建第二份权威定义。
+## 必须保留的长期文档
 
-- [codex-issue-91/Runbook-Manual-Acceptance.md](codex-issue-91/Runbook-Manual-Acceptance.md)
-- [codex-issue-97/Manual-Representation-Binding.md](codex-issue-97/Manual-Representation-Binding.md)
-- [im-01-integrationgateway-23/01-design-plan.md](im-01-integrationgateway-23/01-design-plan.md)
-- [im-01-releasepublication-25/01-design-plan.md](im-01-releasepublication-25/01-design-plan.md)
-- [im-01-v1.0-schema-fixtures/01-design-plan.md](im-01-v1.0-schema-fixtures/01-design-plan.md)
-- [im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md](im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)
-- [im-02-workitem-issues/runbook-wi-02.md](im-02-workitem-issues/runbook-wi-02.md)
-- [im-02-workitem-issues/runbook-wi-03.md](im-02-workitem-issues/runbook-wi-03.md)
-- [im-02-workitem-issues/runbook-wi-04.md](im-02-workitem-issues/runbook-wi-04.md)
-- [im-02-workitem-issues/runbook-wi-05.md](im-02-workitem-issues/runbook-wi-05.md)
-- [im-02-workitem-issues/runbook-wi-06.md](im-02-workitem-issues/runbook-wi-06.md)
-- [im-02-workitem-issues/runbook-wi-07.md](im-02-workitem-issues/runbook-wi-07.md)
-- [im-02-workitem-issues/runbook-wi-08.md](im-02-workitem-issues/runbook-wi-08.md)
-- [im-02-workitem-issues/runbook-wi-09.md](im-02-workitem-issues/runbook-wi-09.md)
-- [im-02-workitem-issues/runbook-wi-10.md](im-02-workitem-issues/runbook-wi-10.md)
-- [im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md](im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md)
-- [im-03-synthetic-reference-fixture/Test-Matrix.md](im-03-synthetic-reference-fixture/Test-Matrix.md)
-- [im-03-wi-02-application-persistence/Design-Notes.md](im-03-wi-02-application-persistence/Design-Notes.md)
-- [im-03-wi-03-enterprise-fact-profile-product-qms/Design-Notes.md](im-03-wi-03-enterprise-fact-profile-product-qms/Design-Notes.md)
-- [im-03-wi-06-customermaterial/Design-Notes.md](im-03-wi-06-customermaterial/Design-Notes.md)
-- [im-03-wi-11-query-source-slice-board-projection/Design-Notes.md](im-03-wi-11-query-source-slice-board-projection/Design-Notes.md)
-- [im-03-workitem-issues/runbook-wi-02.md](im-03-workitem-issues/runbook-wi-02.md)
-- [im-04-startup/Review-Record.md](im-04-startup/Review-Record.md)
-- [im-04-startup/Task-Plan.md](im-04-startup/Task-Plan.md)
-- [im-ui-01-workspace-ui-milestone/Task-Plan.md](im-ui-01-workspace-ui-milestone/Task-Plan.md)
-- [issue-94-delivery/Manual-ART-023.md](issue-94-delivery/Manual-ART-023.md)
-- [issue-95-delivery/Manual-ART-024.md](issue-95-delivery/Manual-ART-024.md)
-- [issue-96-delivery/Manual-Workbook-Fixture.md](issue-96-delivery/Manual-Workbook-Fixture.md)
-- [issue-98-delivery/Manual-ART-023.md](issue-98-delivery/Manual-ART-023.md)
+| 类别             | 位置与用途                                                                                                                                                                                          |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 工作流配置       | [project.yaml](project.yaml)：Vibe 工作流及配置的验证入口                                                                                                                                           |
+| 产品与依赖       | [product](product/roadmap.md)、[里程碑计划](implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md)：当前方向、依赖与退出条件                                                     |
+| 权威设计         | [high-level-docs](high-level-docs/)：HL、架构、Core Contracts、领域模型、跨模块边界、公开目录、数据库逻辑模型、验证基线                                                                             |
+| 模块规格与测试   | [module-specs](module-specs/)、[module-tests](module-tests/)：行为、Owner、失败语义和验证边界                                                                                                       |
+| 专项契约         | [API](api-contract-v0.1/API-Contract-v0.1.md)、[Feishu](feishu-channel-contract-v0.1/)、[Runtime](runtime-adapter-contract-v0.1/)                                                                   |
+| 技术与安全基线   | [Technology](implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md)、[Deployment/Security](implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md)：已批准选择与未决 Gate |
+| 已批准与待决设计 | [decisions](decisions/README.md)：按主题找决策；PROPOSED 不代表批准                                                                                                                                 |
+| 可复用操作说明   | [PostgreSQL 验证指南](runbooks/postgresql-verification.md)：当前操作入口                                                                                                                            |
+| 正式审查记录     | [reviews](reviews/README.md)：保留 PR 关闭前的正式审查证据                                                                                                                                          |
+
+历史 Runbook、手动探测、合成 Fixture 和交付计划完整保存在 [archive](archive/README.md)。它们的旧状态和命令不作为当前指令；归档不表示撤销有效约束，也不把未执行的人工作业或外部系统验证视为完成。
+
+新任务不再建立 issue-_、im-_-wi-_、codex-_ 根目录。执行证据写入 GitHub Issue/PR；持久规则进入 owning 规格或主题决策；正式审查继续写入 reviews/pr-<number>/Review.md。

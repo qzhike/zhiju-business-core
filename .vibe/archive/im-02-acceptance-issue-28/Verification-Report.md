@@ -197,8 +197,8 @@ WI-01–WI-05 的本地真实数据库与手工反例此前也已执行：版本
 | PR #52 合并后最终 main 直接 digest 等价 Gate | `typecheck PASS`；Persistence `12 files / 177 tests PASS`；14 个 Migration 成功；二次 migrate no-op；容器清理 | `PASS` |
 | PR #52 exact-head GitHub Actions `verify` | 静态、常规、契约、兼容性及内嵌 Persistence Gate 均通过 | `PASS` |
 | PR #53 合并后最终 `main` 完整 `pnpm install --frozen-lockfile && pnpm clean && pnpm verify` | Prettier、ESLint、TypeScript、Vitest `341 passed / 164 skipped`、architecture、Public API、generated types、Catalog/Registry、Compatibility、Persistence `12 files / 177 tests`、14 个 Migration `Success`、二次 migrate no-op、容器清理 | `PASS` |
-| Agent-executed Runbook/Probe | WI-02/03/04/09 及 WI-06/07/10 输出见 [Runbook-Manual-Acceptance-2026-08-24.md](../../im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md) | `PASS (LOCAL) / EXTERNAL NOT RUN` |
+| Agent-executed Runbook/Probe | WI-02/03/04/09 及 WI-06/07/10 输出见 [Runbook-Manual-Acceptance-2026-08-24.md](Runbook-Manual-Acceptance-2026-08-24.md) | `PASS (LOCAL) / EXTERNAL NOT RUN` |
 
 根因是 `tests/persistence/messaging.test.ts` 临时撤销共享 `identity_policy_app` 的 `audit_record` INSERT 权限，而 Vitest 默认并行运行 Persistence 文件；该失败不证明迁移缺少 INSERT 授权。PR #52 已把 Gate 改为文件级串行，连续两次独立 Gate、PR #53 合并后的最终 main 完整 verify 和 exact-head CI 均通过。当前仅剩 Issue #28 关闭动作。
 
-合并后的最终本地 Runbook 探测记录见 [Runbook-Manual-Acceptance-2026-08-24.md](../../im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)；其中已修订并复核 WI-02 默认 `plpgsql`、WI-04 合法 JSON ACL 负例和 WI-09 Decision 脱敏查询。
+合并后的最终本地 Runbook 探测记录见 [Runbook-Manual-Acceptance-2026-08-24.md](Runbook-Manual-Acceptance-2026-08-24.md)；其中已修订并复核 WI-02 默认 `plpgsql`、WI-04 合法 JSON ACL 负例和 WI-09 Decision 脱敏查询。

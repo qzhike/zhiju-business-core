@@ -31,7 +31,7 @@ Issue #94 的代码、forward-only 数据库迁移、规格/测试文档和本�
 - `.vibe/module-specs/Module-Spec-004-Artifact.md`
 - `.vibe/module-tests/Module-Test-004-Artifact.md`
 - `.vibe/archive/issue-94-delivery/Task-Plan.md`
-- `.vibe/issue-94-delivery/Manual-ART-023.md`
+- `.vibe/archive/issue-94-delivery/Manual-ART-023.md`
 - 本报告
 
 ### 2.2 实现与测试
@@ -128,7 +128,7 @@ pnpm build
 - 生产 PostgreSQL、生产 scheduler 和部署环境；
 - 公开 HTTP、Browser、跨模块 Process Manager/Event Bus、集成 E2E；
 - Renderer、Diff 计算、Quality、Approval、Release 和后续业务 Handler；
-- 独立人工 ART-023 业务验收。人工复核步骤和记录表见 [`Manual-ART-023.md`](../../issue-94-delivery/Manual-ART-023.md)，自动 synthetic fixture 不能替代人工签字。
+- 独立人工 ART-023 业务验收。人工复核步骤和记录表见 [`Manual-ART-023.md`](Manual-ART-023.md)，自动 synthetic fixture 不能替代人工签字。
 
 ## 5. Git 收口状态
 

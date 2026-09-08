@@ -1,0 +1,16 @@
+# 决策与实施约束索引
+
+本目录保留持久设计理由，不作为任务执行日志。权威优先级遵循 [HL-Spec](../high-level-docs/HL-Spec.md)。Issue 已关闭不撤销既有约束；历史数字、实现进度和当时授权不提供当前指令。
+
+| 主题                          | 文档                                                       | 执行关联 / 状态                                                                                                                                                                                                |
+| ----------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Canonical Content / Renderer  | [IM-DG-005 决策](canonical-content-renderer.md)            | 用户批准路线；[#89](https://github.com/qzhike/zhiju-business-core/issues/89)、[#90](https://github.com/qzhike/zhiju-business-core/issues/90)、[#125](https://github.com/qzhike/zhiju-business-core/issues/125) |
+| EnterpriseProject 能力        | [Capability 决策](enterprise-project-capabilities.md)      | [#57](https://github.com/qzhike/zhiju-business-core/issues/57)                                                                                                                                                 |
+| RLS 与事务 Context            | [安全边界](rls-transaction-context.md)                     | [#31](https://github.com/qzhike/zhiju-business-core/issues/31)                                                                                                                                                 |
+| 跨模块实施补充                | [实施基线](implementation-baseline-notes.md)               | 按模块定位，历史进度不替代当前 Spec/Test                                                                                                                                                                       |
+| EnterpriseProject 事务基础    | [设计补充](enterprise-project/transaction-foundation.md)   | [#58](https://github.com/qzhike/zhiju-business-core/issues/58)                                                                                                                                                 |
+| Fact/Profile/Product/QMS      | [设计补充](enterprise-project/fact-profile-product-qms.md) | [#59](https://github.com/qzhike/zhiju-business-core/issues/59)                                                                                                                                                 |
+| CustomerMaterial              | [设计补充](enterprise-project/customer-material.md)        | [#62](https://github.com/qzhike/zhiju-business-core/issues/62)                                                                                                                                                 |
+| Query/Source Slice/Projection | [设计补充](enterprise-project/query-source-projection.md)  | [#67](https://github.com/qzhike/zhiju-business-core/issues/67)                                                                                                                                                 |
+
+Workspace UI 的未来 UI-DG-001～003 继续在 [Technology Baseline §6.1](../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md#61-im-ui-01-技术选型边界) 与 [Module Spec UI01](../module-specs/Module-Spec-UI01-WorkspaceUI.md) 维护；旧建档 Task-Plan 归档不代表技术栈或实现已批准。

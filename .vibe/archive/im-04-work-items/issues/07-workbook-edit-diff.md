@@ -46,7 +46,7 @@ Implement the minimum WorkbookSpec canonical model, scoped Human Edit, stable sh
 
 Provide a synthetic WorkbookSpec with exact canonical bytes/hash, stable ID map, allowed cell edit, rejected cross-sheet reference, before/after revisions, deterministic diff table, replay output, and cleanup. The data is a technical fixture, not a customer workbook.
 
-Automated synthetic output: [`../../../issue-96-delivery/Manual-Workbook-Fixture.md`](../../../issue-96-delivery/Manual-Workbook-Fixture.md). Independent Human review remains `NOT RUN`.
+Automated synthetic output: [`../../../issue-96-delivery/Manual-Workbook-Fixture.md`](../../issue-96-delivery/Manual-Workbook-Fixture.md). Independent Human review remains `NOT RUN`.
 
 ## Non-goals and NOT RUN
 

@@ -358,7 +358,7 @@ ARTIFACT_STRUCTURED_DOCUMENT_ID_MISMATCH
 7. 内部 Diff 只能由现有 `artifact.get_revision_diff_inputs@1.0` 的两个 exact Revision Ref 驱动，然后从各自 FROZEN Content Object authoritative readback 重建 Document。Diff 结果是内存中的可重建值，不写入数据库、Outbox、Receipt、Approval、Quality 或 Release 事实；不添加公开 `artifact.get_revision_diff@1.0` 或其他 Diff Result Operation。结果按 `unitId`、kind 固定排序，Added/Removed/Changed/Moved 使用稳定 Unit identity；位置变化比较 `parentUnitId + ordinal`，内容变化比较 Unit 的非位置字段，必要时同一 Unit 可同时产生 Changed 与 Moved。
 8. WI-06 允许使用 local Object Storage 与 disposable PostgreSQL 做自动验证，必须保留 Unit/Contract、Persistence、Rollback、History Replay、Hash Golden、manual synthetic fixture 和 `NOT RUN` 边界；真实 Provider、生产数据库、公开 HTTP、跨模块 E2E、Renderer、Quality/Approval/Release 和独立人工业务验收不因本 WI 自动变为 `PASS`。
 
-当前实现与自动验收已重新核验：聚焦 Unit 为 1 文件/4 passed；全量静态门禁、Contract、全量 Unit（30 个文件/380 passed/265 skipped）和 Persistence（26 个文件/280 passed）均通过，pinned PostgreSQL/Flyway 空库迁移与第二次 migrate no-op 均通过；synthetic procurement-procedure 复核材料见 [`Manual-ART-024.md`](../issue-95-delivery/Manual-ART-024.md)。组合流程中途故障注入仍为 `PARTIAL PASS / INJECTION NOT RUN`，独立人工业务验收及外部边界保持 `NOT RUN`；PR #113 已合入 `main`，Issue #95 已关闭。
+当前实现与自动验收已重新核验：聚焦 Unit 为 1 文件/4 passed；全量静态门禁、Contract、全量 Unit（30 个文件/380 passed/265 skipped）和 Persistence（26 个文件/280 passed）均通过，pinned PostgreSQL/Flyway 空库迁移与第二次 migrate no-op 均通过；synthetic procurement-procedure 复核材料见 [`Manual-ART-024.md`](../archive/issue-95-delivery/Manual-ART-024.md)。组合流程中途故障注入仍为 `PARTIAL PASS / INJECTION NOT RUN`，独立人工业务验收及外部边界保持 `NOT RUN`；PR #113 已合入 `main`，Issue #95 已关闭。
 
 ## 7.5 IM-04 WI-08 Representation 与 RenderAttempt Binding 实现约束
 
@@ -385,7 +385,7 @@ ARTIFACT_STRUCTURED_DOCUMENT_ID_MISMATCH
 4. Content Object 只有 `FROZEN` 才能创建 Revision；`STAGING`、`LINKED`、`QUARANTINED` 或 readback/hash 不一致均在写入边界拒绝，所以公共 Revision Query 不暴露这些对象的 locator。调用方 locator、文件名、URL 或声明 hash 不形成 Query identity。
 5. Representation Query 必须逐字段匹配完整 RepresentationRef，并只返回经 `integration.get_render_attempt_binding@1.0` 权威校验后登记的 immutable View。登记新 Representation 不改变 Revision Snapshot、Lineage 或 Diff Inputs。
 6. `artifact.get_effective_binding@1.0` 只在后续正式 Release/EffectiveBinding 写模型落地后实现；IM-04 仅证明新 Draft/Revision/Representation 不产生该事实。该 Query 与独立人工跨模块场景继续记录为 `NOT RUN`。
-7. WI-09 本地自动验证已通过：focused Artifact Unit/Contract 为 6 files/69 passed；普通全量 Vitest 为 32 passed/24 skipped files、390 passed/269 skipped tests；Architecture 与 201-operation FULL Contract/200-operation frozen compatibility baseline 通过；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence 为 28 files/284 passed，空库 V4000–V4004、第二次 migrate no-op 和容器清理通过。`ZJU_ART023_REPORT=1` 可重复输出 exact Query/DAG/Representation UUID、Hash、checksum 与错误码；汇总见 [`../issue-98-delivery/Manual-ART-023.md`](../issue-98-delivery/Manual-ART-023.md)。
+7. WI-09 本地自动验证已通过：focused Artifact Unit/Contract 为 6 files/69 passed；普通全量 Vitest 为 32 passed/24 skipped files、390 passed/269 skipped tests；Architecture 与 201-operation FULL Contract/200-operation frozen compatibility baseline 通过；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence 为 28 files/284 passed，空库 V4000–V4004、第二次 migrate no-op 和容器清理通过。`ZJU_ART023_REPORT=1` 可重复输出 exact Query/DAG/Representation UUID、Hash、checksum 与错误码；汇总见 [`../issue-98-delivery/Manual-ART-023.md`](../archive/issue-98-delivery/Manual-ART-023.md)。
 8. WI-09 实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 已通过 PR #117 exact-head CI，并以 merge commit `f4b8704ba766d49c12c4433884d94bce91d50792` 合入 `main`；Issue #98 已关闭，实现 head 是 `origin/main` ancestor。父 Issue #89 必须由独立父 Gate 复核后关闭。
 
 ## 8.2 IM-04 父退出门槛约束

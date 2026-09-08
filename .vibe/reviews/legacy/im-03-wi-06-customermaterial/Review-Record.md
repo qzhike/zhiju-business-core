@@ -32,7 +32,7 @@
 - `modules/enterprise-project/src/business/enterprise-business-errors.ts`、`src/index.ts`：导出 WI-06 错误码、Handler、Payload 和持久化类型。
 - `tests/persistence/customer-material.test.ts`、`tests/persistence/technical-tables.test.ts`：补充真实 PostgreSQL 场景和技术表 Fixture。
 - `.vibe/high-level-docs/HL-Spec.md`、`.vibe/module-specs/Module-Spec-002-EnterpriseProject.md`、`.vibe/module-tests/Module-Test-002-EnterpriseProject.md`：同步设计、字段、测试输入/预期/实际结果和 `NOT RUN` 边界。
-- `.vibe/im-03-wi-06-customermaterial/Design-Notes.md`、`Task-Execution.md`、本文件：记录实现决策、执行证据和提交前审查结论。
+- `.vibe/decisions/enterprise-project/customer-material.md`、`Task-Execution.md`、本文件：记录实现决策、执行证据和提交前审查结论。
 
 公共 Catalog、Registry、Schema 和 Compatibility baseline 未修改；现有 `200` 项公共 Contract 保持不变。
 

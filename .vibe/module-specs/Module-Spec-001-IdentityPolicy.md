@@ -248,4 +248,4 @@ WI-10 的 `Audit INSERT` 失败场景需要临时撤销共享角色权限，而 
 
 PR #52 合并后的默认分支已通过直接锁定 digest 的 `12 files / 177 tests` Persistence 运行、二次 migrate no-op 和 WI-02/03/04/09 Runbook 级本地探测；PR #53 已收口 Runbook 文档口径，合并后的 main 完整 verify 仍为 PASS。
 
-最终默认分支的 WI-09 Decision 脱敏追踪和本地 Runbook 角色/RLS/技术表探测已记录于 [`Runbook-Manual-Acceptance-2026-08-24.md`](../im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)；外部 Provider、生产环境和真实用户外部验收仍为 `NOT RUN`，不影响本地 scoped IM-02 COMPLETE。
+最终默认分支的 WI-09 Decision 脱敏追踪和本地 Runbook 角色/RLS/技术表探测已记录于 [`Runbook-Manual-Acceptance-2026-08-24.md`](../archive/im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)；外部 Provider、生产环境和真实用户外部验收仍为 `NOT RUN`，不影响本地 scoped IM-02 COMPLETE。

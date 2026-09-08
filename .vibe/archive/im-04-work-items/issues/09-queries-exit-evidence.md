@@ -48,7 +48,7 @@ Complete authoritative Artifact queries, assemble the synthetic ART-023 technica
 
 Provide one reviewer-readable ART-023 report with exact object/revision/branch/attempt/representation IDs, versions and hashes; expected versus actual output for every step; stable negative error codes; environment; commands; timestamps; and cleanup. Clearly label it `SYNTHETIC / TECHNICAL ONLY`.
 
-本次 automated exact output 已汇总至 [`../../../issue-98-delivery/Manual-ART-023.md`](../../../issue-98-delivery/Manual-ART-023.md)；独立人工业务复核保持 `NOT RUN`。
+本次 automated exact output 已汇总至 [`../../../issue-98-delivery/Manual-ART-023.md`](../../issue-98-delivery/Manual-ART-023.md)；独立人工业务复核保持 `NOT RUN`。
 
 ## Non-goals and NOT RUN
 

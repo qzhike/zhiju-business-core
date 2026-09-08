@@ -17,7 +17,7 @@ Issue #98 的技术实现、本地验证与 Git 交付已完成。六个 IM-04 �
 - 权威文档：HL-Spec、Artifact Module Spec/Test 已同步 WI-08 Git 交付事实、WI-09 Query/退出边界、测试输入/预期/实际与 `NOT RUN`。
 - Query 回归：`tests/persistence/artifact-revisions.test.ts` 新增 wrong hash、`latest`、确定性 Lineage、治理后 node/edge 与 Diff Inputs 稳定断言。
 - Representation 回归：`tests/persistence/artifact-representation.test.ts` 新增 Representation 前后 Lineage/Diff Inputs 深比较，以及 locator/renderer 精确 Ref 替换拒绝。
-- 可重复报告：`ZJU_ART023_REPORT=1` 输出本次实际 UUID/hash/checksum；汇总见 [`Manual-ART-023.md`](../../issue-98-delivery/Manual-ART-023.md)。
+- 可重复报告：`ZJU_ART023_REPORT=1` 输出本次实际 UUID/hash/checksum；汇总见 [`Manual-ART-023.md`](Manual-ART-023.md)。
 
 ## 实际执行结果
 

@@ -65,7 +65,7 @@ status. Never silently resolve a conflict between an Issue and a contract.
 - Preserve required HL-Spec, Module-Spec, Module-Test, and pre-close review
   documents under `.vibe`. Put execution/acceptance evidence in GitHub Issue/PR;
   do not create parallel task plans, verification logs, or delivery reports for
-  ordinary work. Find historical records through `.vibe/README.md`; preserve their evidence and
+  ordinary work. Find historical records through `.vibe/archive/issue-index.md`; preserve their evidence and
   reconcile unique constraints before treating them as obsolete. New formal review
   records belong in `.vibe/reviews/pr-<number>/Review.md`.
 - After authorized merge, read back remote state and update durable documents

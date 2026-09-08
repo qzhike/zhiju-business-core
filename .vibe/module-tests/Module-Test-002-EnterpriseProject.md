@@ -74,7 +74,7 @@
 | EP-WI02-P-003 | Persistence | 无 Context、伪造 GUC、过期 Decision、跨 Project、连接池复用 | 写入拒绝或零行；过期映射 `COMMAND_CONTEXT_EXPIRED`；下一连接无残留 Context | Enterprise/Project fixture 与 pool leak 用例 | `PASS` |
 | EP-WI02-P-004 | Persistence | Outbox Event 使用不同 Aggregate、错误初始/CAS 版本；Reference Edge 使用不同 owner | 在写入边界拒绝 `COMMAND_TARGET_MISMATCH`；不留 Receipt、Outbox 或 Edge | PostgreSQL 18.6 负向回归通过；CAS 回滚至版本 `1`，Receipt/Outbox/Edge 均为 `0` | `PASS` |
 | EP-WI02-P-005 | Persistence | Repository 传入与受信 Context 不同的 `createdByPrincipalId` | 以稳定主体绑定错误拒绝；不留 Process 或 Receipt | PostgreSQL 18.6 返回 `ENTERPRISE_CONTEXT_PRINCIPAL_MISMATCH`；Process/Receipt 均为 `0` | `PASS` |
-| EP-WI02-M-001 | Manual | `tests/manual/im03-wi02-probe.mts` 五步输出 | 用户看到 success / replay / hash-conflict / cas-conflict / rollback | Runbook：`.vibe/im-03-workitem-issues/runbook-wi-02.md` | `NOT RUN` |
+| EP-WI02-M-001 | Manual | `tests/manual/im03-wi02-probe.mts` 五步输出 | 用户看到 success / replay / hash-conflict / cas-conflict / rollback | Runbook：`.vibe/archive/im-03-workitem-issues/runbook-wi-02.md` | `NOT RUN` |
 
 空库 Migration 与二次 no-op 仍由 `pnpm persistence:gate` 证明，不因本切片重复宣布业务链 `PASS`。
 
@@ -320,7 +320,7 @@ WI-12 测试运行后的真实命令、PostgreSQL/Flyway 版本、测试计数�
 
 ## IM-03 合成 Reference Project 技术验收（2026-08-27）
 
-用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` 方案。合成数据、流程和矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md)、[`Test-Matrix.md`](../im-03-synthetic-reference-fixture/Test-Matrix.md) 和 [`Verification-Record.md`](../archive/im-03-synthetic-reference-fixture/Verification-Record.md)。
+用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` 方案。合成数据、流程和矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../archive/im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md)、[`Test-Matrix.md`](../archive/im-03-synthetic-reference-fixture/Test-Matrix.md) 和 [`Verification-Record.md`](../archive/im-03-synthetic-reference-fixture/Verification-Record.md)。
 
 本次执行：
 

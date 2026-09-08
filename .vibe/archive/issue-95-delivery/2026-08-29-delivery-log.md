@@ -34,7 +34,7 @@
 - `pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm architecture`、`pnpm contracts:check`：PASS；Contract 为 `201 operations / 201 FULL`，compatibility baseline 为 `200 operations`。
 - `pnpm test -- --reporter=dot`：PASS，`30 files / 380 passed / 265 skipped`。
 - `pnpm persistence:gate`：PASS，pinned PostgreSQL `18.6`、Flyway `11.20.3`，`26 files / 280 passed`；空库 migrate、第二次 `No migration necessary`、应用 migration 对账和容器清理均通过。
-- Issue-95 synthetic procurement fixture：[`Manual-ART-024.md`](../../issue-95-delivery/Manual-ART-024.md) 已生成，记录 exact base/after Canonical bytes、SHA-256、Unit tree、allow-list、拒绝矩阵、Diff、replay 与 cleanup；独立人工业务验收保持 `NOT RUN`。
+- Issue-95 synthetic procurement fixture：[`Manual-ART-024.md`](Manual-ART-024.md) 已生成，记录 exact base/after Canonical bytes、SHA-256、Unit tree、allow-list、拒绝矩阵、Diff、replay 与 cleanup；独立人工业务验收保持 `NOT RUN`。
 
 ### 首轮交付时的 Git / GitHub 边界（历史记录，后续已完成重新交付）
 

@@ -66,7 +66,7 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - Implementation Milestone Plan v0.1 与 IM-00；
 - IM-DG-001 至 IM-DG-004 已于 2026-08-17 获用户批准；生产目标为 Ubuntu 私有单服务器，首期 API-first；
 - 对象存储采用 MicroCeph/Ceph RGW，Secret/KMS 采用 OpenBao，认证入口采用 Keycloak OIDC；MinIO 因官方仓库归档被否决；
-- IM-DG-005 已于 2026-08-27 获用户批准：Canonical Document/Workbook 使用共用不可变封装、Document/Workbook 双领域最小 Schema、稳定 Unit/Sheet/Row/Cell 身份、Canonical JSON + SHA-256，以及经 IntegrationGateway Attempt/Adapter/Receipt 的 Renderer 路线；2026-08-27 复审进一步确认现有通用 RenderAttempt Query 不足，IM-04 WI-01 以 additive 方式冻结只读 RenderAttempt Binding Query，当前 Catalog 由 200 项增至 201 项；详细记录见 [`../im-04-startup/Review-Record.md`](../im-04-startup/Review-Record.md)；
+- IM-DG-005 已于 2026-08-27 获用户批准：Canonical Document/Workbook 使用共用不可变封装、Document/Workbook 双领域最小 Schema、稳定 Unit/Sheet/Row/Cell 身份、Canonical JSON + SHA-256，以及经 IntegrationGateway Attempt/Adapter/Receipt 的 Renderer 路线；2026-08-27 复审进一步确认现有通用 RenderAttempt Query 不足，IM-04 WI-01 以 additive 方式冻结只读 RenderAttempt Binding Query，当前 Catalog 由 200 项增至 201 项；详细记录见 [IM-DG-005 决策](../decisions/canonical-content-renderer.md)；
 - IM-DG-006 仍待决，不阻塞 IM-01，但阻塞 IM-08。
 - 用户于 2026-08-28 批准新增 `IM-UI-01 Workspace UI MVP`：硬依赖 IM-06，可与 IM-07/IM-08 时间窗并行，并作为 IM-09 前置；UI-DG-001/002 仍待用户决定，UI-DG-003 仅冻结安全边界，所有 UI 实现与 Browser/Manual 测试均为 `NOT RUN`。
 
@@ -181,7 +181,7 @@ WI-09 的授权覆盖必须按请求 Intent 的完整 Scope 精确匹配：Enter
 - Quarantined/STAGING/LINKED Manifest 不能创建 Revision，因此没有公共 Revision Query 路径暴露其 locator；该门禁由 Content Object 与 Revision owner function 的负例共同证明。Representation Query 只返回已经通过权威 successful Binding 登记的 immutable view。
 - `integration.get_render_attempt_binding@1.0` 继续只经公开 Query Port 使用；Artifact 不跨模块读库。`artifact.get_effective_binding@1.0` 依赖后续正式 Release/EffectiveBinding 事实，本里程碑不伪造实现并保持 `NOT RUN`。
 - ART-023 输出必须整合 Root/Branch、FROZEN Manifest、Revision DAG/CAS/Merge、Document/Workbook stable Diff、RenderAttempt Binding、Representation 与预期拒绝，记录环境、命令、精确 ID/hash/checksum、预期/实际输出和 cleanup，并明确标注 `SYNTHETIC / TECHNICAL ONLY`。这不代表真实客户适用性、Provider、生产、公开 HTTP、跨模块或独立人工业务验收通过。
-- WI-09 本地实现与验证已完成：focused Artifact Unit/Contract 为 6 files/69 passed；`pnpm clean && pnpm verify` 的 Format、Lint、Typecheck、普通 Vitest（32 passed/24 skipped files，390 passed/269 skipped tests）、Architecture、201-operation FULL Contract 与 frozen 200-operation compatibility baseline 均通过；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence 为 28 files/284 passed，空库迁移、第二次 no-op 与容器清理通过。exact automated output 见 [`../issue-98-delivery/Manual-ART-023.md`](../issue-98-delivery/Manual-ART-023.md)；独立人工与所有外部/生产边界保持 `NOT RUN`。
+- WI-09 本地实现与验证已完成：focused Artifact Unit/Contract 为 6 files/69 passed；`pnpm clean && pnpm verify` 的 Format、Lint、Typecheck、普通 Vitest（32 passed/24 skipped files，390 passed/269 skipped tests）、Architecture、201-operation FULL Contract 与 frozen 200-operation compatibility baseline 均通过；pinned PostgreSQL 18.6/Flyway 11.20.3 Persistence 为 28 files/284 passed，空库迁移、第二次 no-op 与容器清理通过。exact automated output 见 [`../issue-98-delivery/Manual-ART-023.md`](../archive/issue-98-delivery/Manual-ART-023.md)；独立人工与所有外部/生产边界保持 `NOT RUN`。
 - WI-09 实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 已通过 PR #117 的 exact-head `ci/verify` 并以 merge commit `f4b8704ba766d49c12c4433884d94bce91d50792` 合入 `main`；Issue #98 已关闭，实现 head 已验证为 `origin/main` ancestor。父 Issue #89 必须由独立父 Gate 复核后关闭；独立人工与所有外部/生产边界继续保持 `NOT RUN`。
 
 ### 2.11 IM-04 父退出门槛（Issue #89）
@@ -319,7 +319,7 @@ IM-02 的 RLS Context 物理机制已经进入 WI-03：上下文存放于
 helper，不能建立或清理 Context；唯一写入口只授予 NOLOGIN 的
 `platform_context_establisher`，由受信事务协调器先建立 Context、再切换到目标 Runtime
 Role。详细威胁模型与测试边界以
-[`../im-02-workitem-issues/rls-context-design-wi-03.md`](../decisions/rls-transaction-context.md)
+[`../im-02-workitem-issues/rls-context-design-wi-03.md`](rls-transaction-context.md)
 为准。IdentityPolicy 对 AuthorizationDecision 业务真实性、Scope、Purpose 与 Intent 的完整
 校验仍由 WI-09 负责，不能因 WI-03 数据库 Gate 通过而声明授权链完成。
 
@@ -417,7 +417,7 @@ PR #51 的实现复审基准为 `47a2a9d`，PR #51 已合并；PR #52 的 Gate �
 
 ## 14. IM-02 合并后干净 main 最终复验（2026-08-24）
 
-PR #51 已使用 `--match-head-commit` 合并，合并提交为 `8f5c0701ace93ce88ec55acde753e5abcd07fa2c`；PR #52 的 Gate 隔离修复以精确 head 合并为 `64e3040b58093548a477021595d3c2f554b07e45`，PR #53 的文档跟进以精确 head `89673bb` 合并为 `36825118c6b2483dd365879179b390205549dab7`，PR #54 的 COMPLETE 状态同步以精确 head `cdf2cb7` 合并为 `47d1b57a2a51e2d4c458406de8af0eecd0a2ed8a`。Issue #28 已关闭；PR #55 只同步 CLOSED 状态。Runbook 级本地探测记录见 [Runbook-Manual-Acceptance-2026-08-24.md](../im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)。真实 Provider、生产环境和外部人工业务验收保持 `NOT RUN`；IM-02 已完成。
+PR #51 已使用 `--match-head-commit` 合并，合并提交为 `8f5c0701ace93ce88ec55acde753e5abcd07fa2c`；PR #52 的 Gate 隔离修复以精确 head 合并为 `64e3040b58093548a477021595d3c2f554b07e45`，PR #53 的文档跟进以精确 head `89673bb` 合并为 `36825118c6b2483dd365879179b390205549dab7`，PR #54 的 COMPLETE 状态同步以精确 head `cdf2cb7` 合并为 `47d1b57a2a51e2d4c458406de8af0eecd0a2ed8a`。Issue #28 已关闭；PR #55 只同步 CLOSED 状态。Runbook 级本地探测记录见 [Runbook-Manual-Acceptance-2026-08-24.md](../archive/im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)。真实 Provider、生产环境和外部人工业务验收保持 `NOT RUN`；IM-02 已完成。
 
 ## 12. IM-02 WI-04 标准事务技术表边界
 
@@ -568,6 +568,6 @@ WI-12 的应用角色对完成历史表不授予 `UPDATE/DELETE`；直接历史�
 
 ### IM-03 合成 Reference Project 技术验收边界（2026-08-27）
 
-用户已确认在没有真实业务场景时采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。合成数据、流程和测试矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md) 与 [`Test-Matrix.md`](../im-03-synthetic-reference-fixture/Test-Matrix.md)。本次 `pnpm persistence:gate` 在固定 PostgreSQL 18.6 / Flyway 11.20.3 上通过 `21` 个 persistence 测试文件、`256` 个测试，空库迁移、V2013、二次 no-op 和容器清理均通过。
+用户已确认在没有真实业务场景时采用 `SYNTHETIC / TECHNICAL ONLY` Fixture。合成数据、流程和测试矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../archive/im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md) 与 [`Test-Matrix.md`](../archive/im-03-synthetic-reference-fixture/Test-Matrix.md)。本次 `pnpm persistence:gate` 在固定 PostgreSQL 18.6 / Flyway 11.20.3 上通过 `21` 个 persistence 测试文件、`256` 个测试，空库迁移、V2013、二次 no-op 和容器清理均通过。
 
 该结果是现有 WI focused fixtures 的 composed controlled persistence evidence，不是一个统一的跨 Aggregate Reference Project runtime runner。`EP-API-U-001/U-002/U-003`、`EP-API-C-001/C-002` 和各 WI focused 技术场景可记录为受控本地证据；`EP-API-E-001/E-002` 的 integrated cross-aggregate execution、`EP-API-M-001` 的实际人工逐项审阅、真实业务适用性、Provider、公开 HTTP、生产和真实跨模块 Event Bus/Process Manager 继续保持 `NOT RUN`。详见 [`Verification-Record.md`](../archive/im-03-synthetic-reference-fixture/Verification-Record.md)。

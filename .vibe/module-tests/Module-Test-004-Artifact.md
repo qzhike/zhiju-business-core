@@ -24,7 +24,7 @@
 | AF-API-C-004 | Contract | Merge `conflictSet` 非空且 `conflictResolutionRefs=[]` | 拒绝未显式解决的冲突 | 修复前 `valid=true`；修复后以 `minItems` 拒绝 | `PASS` |
 | AF-API-E-001 | E2E | 两 Agent 从同 Head 创建并行 Revision 后 Merge | Branch 全保留；Merge 有多 Parent 与显式冲突解决记录 | scoped local PostgreSQL fixture：并行候选保留、CAS loser 形成 conflict、Human Merge 有 2 Parent 与 resolution fact | `PASS (SCOPED LOCAL)` |
 | AF-API-E-002 | E2E | 已发布 REV-003 后创建 REV-004 Draft | 原 Approval/Release/EffectiveBinding 不变 | 无跨模块实现 | `NOT RUN` |
-| AF-API-M-001 | Manual | ART-023 Revision DAG Fixture | 审核者能定位内容 Hash、Parent、Branch、Representation 与 Binding 差异 | [`Manual-ART-023.md`](../issue-98-delivery/Manual-ART-023.md) 已汇总 exact automated output；独立人工复核尚未执行 | `NOT RUN (INDEPENDENT MANUAL)` |
+| AF-API-M-001 | Manual | ART-023 Revision DAG Fixture | 审核者能定位内容 Hash、Parent、Branch、Representation 与 Binding 差异 | [`Manual-ART-023.md`](../archive/issue-98-delivery/Manual-ART-023.md) 已汇总 exact automated output；独立人工复核尚未执行 | `NOT RUN (INDEPENDENT MANUAL)` |
 
 ## IM-04 父退出门槛用例
 
@@ -50,7 +50,7 @@
 | AF-IM04-WI09-Q-004 | Unit/Persistence | 两个 exact Revision 的 Document/Workbook Diff Inputs 与 authoritative bytes | 只返回精确 Snapshot/common ancestor/schema；内部 stable Diff 可重复且不持久化为 Quality/Approval/Release 事实 | Document `902a... -> 3bee...` 为 `CHANGED introduction`；Workbook `e3e0... -> 7a84...` 为 stable Cell `CHANGED`；共同祖先/Schema exact，无 Diff 业务事实 | `PASS` |
 | AF-IM04-WI09-Q-005 | Contract/Persistence | successful RenderAttempt Binding 后登记 Representation；替换 attempt/revision/input/renderer/output/receipt/status | 仅完整权威 Binding 可登记和 exact Query；失败矩阵无 Representation/Validation/Event 遗留；新增 Representation 不改变 Revision Query | success 为 Representation/Validation/Event=`1/1/1`、Edge=3；替换/UNKNOWN/conflict 精确拒绝；wrong Query Ref not found；Lineage/Diff Inputs 不变 | `PASS` |
 | AF-IM04-WI09-G-001 | Full Gate | `pnpm clean && pnpm verify` 与 pinned PostgreSQL/Flyway | Format/Lint/Typecheck/Unit/Architecture/201-operation Contract、空库 Migration、second no-op、Persistence 与 cleanup 全部通过 | 32 passed/24 skipped files、390 passed/269 skipped tests；Architecture PASS；FULL=201；baseline=200；Persistence 28 files/284 passed；no-op；container removed | `PASS` |
-| AF-IM04-WI09-M-001 | Manual/Review | 合成 ART-023 Document/Workbook/Manifest/DAG/Branch/Diff/Binding/Representation/negative 输出 | 单一报告记录 exact IDs、hashes、checksums、输入、预期、实际、命令、环境、时间与 cleanup；标注 `SYNTHETIC / TECHNICAL ONLY` | [`Manual-ART-023.md`](../issue-98-delivery/Manual-ART-023.md) 已记录本次 automated exact output；独立人工业务复核未运行 | `PASS (AUTOMATED SYNTHETIC) / NOT RUN (INDEPENDENT MANUAL)` |
+| AF-IM04-WI09-M-001 | Manual/Review | 合成 ART-023 Document/Workbook/Manifest/DAG/Branch/Diff/Binding/Representation/negative 输出 | 单一报告记录 exact IDs、hashes、checksums、输入、预期、实际、命令、环境、时间与 cleanup；标注 `SYNTHETIC / TECHNICAL ONLY` | [`Manual-ART-023.md`](../archive/issue-98-delivery/Manual-ART-023.md) 已记录本次 automated exact output；独立人工业务复核未运行 | `PASS (AUTOMATED SYNTHETIC) / NOT RUN (INDEPENDENT MANUAL)` |
 | AF-IM04-WI09-X-001 | Deferred | `artifact.get_effective_binding@1.0`、真实 Provider/Renderer/object store、公开 HTTP、生产、跨模块与独立业务验收 | 不以 IM-04 本地技术 Gate 冒充实现或通过 | 无正式 Release/EffectiveBinding 事实；保留边界 | `NOT RUN` |
 
 Git 交付回读：实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 的 PR #117 `ci/verify` 为 `SUCCESS`；merge commit 为 `f4b8704ba766d49c12c4433884d94bce91d50792`；Issue #98 为 `CLOSED / COMPLETED`；实现 head 是 `origin/main` ancestor。父 Issue #89 由上方独立父 Gate 复核后关闭。
@@ -71,7 +71,7 @@ Git 交付回读：实现 head `8e58fa18ee50726252ca38542b6de1afdfbb4310` 的 PR
 | AF-IM04-WI08-P-004 | Persistence/Security | cross-project/cross-enterprise、归档 Artifact、withdrawn/invalidated Revision、无 Context、直接 INSERT/UPDATE/DELETE | 不可枚举拒绝或 ACL/RLS 拒绝；既有行不变 | Unit/Persistence 覆盖 cross-project 不可见；owner function 重验 active Artifact/Revision/Context；wrong-project SELECT=0，直接 UPDATE/DELETE 为 SQLSTATE `42501` | `PASS` |
 | AF-IM04-WI08-P-005 | Persistence/Rollback | Representation/Validation/Outbox/Reference 写入后注入故障 | Receipt success 与所有本次业务/技术事实整体回滚 | Outbox 后注入故障，Representation/Validation/Command Receipt 均为 0；事务无半提交 | `PASS` |
 | AF-IM04-WI08-P-006 | Persistence/Migration | 空库应用 V4004、第二次 migrate、owner function 授权签名、immutable trigger 与 RLS policy | Migration 成功、second migrate no-op；`artifact_app` 仅 SELECT/EXECUTE，owner function 重验 Scope/attribution | pinned PostgreSQL 18.6/Flyway 11.20.3：V4004 成功，28 files/284 tests passed，second migrate `No migration necessary`，容器清理；`can_insert=false/can_execute=true` | `PASS` |
-| AF-IM04-WI08-M-001 | Manual | synthetic successful Binding/Registration 对照及 wrong revision/input/renderer/checksum/UNKNOWN/cross-project 矩阵 | 可复核预期/实际 error code、Representation/Validation/Event 行数和 cleanup；标注技术 Fixture | [`Manual-Representation-Binding.md`](../codex-issue-97/Manual-Representation-Binding.md) 已准备自动 fixture 实际结果；独立人工业务验收尚未执行 | `NOT RUN` |
+| AF-IM04-WI08-M-001 | Manual | synthetic successful Binding/Registration 对照及 wrong revision/input/renderer/checksum/UNKNOWN/cross-project 矩阵 | 可复核预期/实际 error code、Representation/Validation/Event 行数和 cleanup；标注技术 Fixture | [`Manual-Representation-Binding.md`](../archive/codex-issue-97/Manual-Representation-Binding.md) 已准备自动 fixture 实际结果；独立人工业务验收尚未执行 | `NOT RUN` |
 
 WI-08 完整 `pnpm verify` 实际结果：format、lint、typecheck、test、architecture、contracts、persistence 全部通过；全量 Vitest 为 `32 passed / 24 skipped` 文件、`390 passed / 269 skipped` tests；公开 Registry 为 `FULL=201`，冻结兼容基线仍为 200 operations；Persistence 为 `28 files / 284 tests passed`，V4004 空库迁移、二次 no-op 与容器清理通过。受控 skipped、真实 IntegrationGateway/Renderer/Provider/object store、公开 HTTP、生产和独立人工验收不得升级为 PASS。
 
@@ -98,7 +98,7 @@ WI-08 完整 `pnpm verify` 实际结果：format、lint、typecheck、test、arc
 | AF-IM04-WI05-P-008 | Persistence/Rollback | Merge conflict set、resolution refs 或 Human resolvedBy 在持久化前非法 | 在 Revision/Parent/Conflict/Outbox/Edge 写入前拒绝，数据库无孤立业务或技术事实 | unresolved conflict 与 non-Human Merge 均在持久化前拒绝；目标 Revision 行数为 0；Unit 覆盖 resolution refs 不能为空 | `PASS` |
 | AF-IM04-WI05-C-004 | Contract/Query | Project Revision Lineage/Validation 使用仅含 Enterprise 的宽 Scope | 拒绝宽 Scope；`expectedScopeRef` 必须与 Project Artifact 的事实 Scope 完全一致 | Lineage 宽 Scope 返回 `ARTIFACT_QUERY_SCOPE_MISMATCH`；Validation 返回 `valid=false` 与同一 reason；精确 Project Scope 返回 `valid=true` | `PASS` |
 | AF-IM04-WI05-P-009 | Persistence/History | Withdrawal 追加治理事实并产生 Outbox | Governance fact 的 `withdrawn_at` 与 Outbox `occurred_at` 使用同一已记录时刻 | Admin readback 对同一 command join 后两列 `::text` 完全相等；Snapshot disposition 为 `WITHDRAWN` 且 Revision identity 未改写 | `PASS` |
-| AF-IM04-WI05-M-001 | Manual | ART-023：REV-001、两个分支候选、stale-head reject、显式 Conflict/Resolution、Merge、精确 Parent/Hash 表、immutable reject | 审核者能复核 DAG、CAS 冲突、Merge 事实和历史查询；清理结果明确 | [`Manual-ART-023.md`](../issue-94-delivery/Manual-ART-023.md) 已准备可执行检查表；独立人工业务验收尚未运行，自动 synthetic fixture 证据已列入 Verification Report | `NOT RUN` |
+| AF-IM04-WI05-M-001 | Manual | ART-023：REV-001、两个分支候选、stale-head reject、显式 Conflict/Resolution、Merge、精确 Parent/Hash 表、immutable reject | 审核者能复核 DAG、CAS 冲突、Merge 事实和历史查询；清理结果明确 | [`Manual-ART-023.md`](../archive/issue-94-delivery/Manual-ART-023.md) 已准备可执行检查表；独立人工业务验收尚未运行，自动 synthetic fixture 证据已列入 Verification Report | `NOT RUN` |
 
 ## IM-04 Canonical Content 与对象验收用例
 
@@ -119,7 +119,7 @@ WI-08 完整 `pnpm verify` 实际结果：format、lint、typecheck、test、arc
 | AF-IM04-C-005 | Contract | 仅调用现有 `integration.get_render_attempt@1.0` 后尝试登记 Representation | 因缺少原始 Request/成功 Result Binding 而禁止 Handler 实现；必须先通过 additive Binding Query | Handler 仅注入并校验 `integration.get_render_attempt_binding@1.0` Port；通用 Attempt Query 无降级路径 | `PASS` |
 | AF-IM04-E-001 | E2E | 同一 Head 的两个 Branch 创建 Revision 并显式 Merge | Branch 全保留；Merge 多 Parent；冲突有显式解决记录 | scoped local PostgreSQL fixture 实际完成 DAG/CAS/Conflict/Human Merge/Query/readback/cleanup | `PASS (SCOPED LOCAL)` |
 | AF-IM04-E-002 | E2E | 已批准/已生效 Revision 后创建新 Draft | 旧 Approval/EffectiveBinding 不变化 | 尚无跨模块 E2E | `NOT RUN` |
-| AF-IM04-M-001 | Manual | 合成 ART-023 Document/Workbook Fixture | 可检查 Revision Hash、稳定 Unit Diff、Branch、Representation 与 Binding | [`Manual-ART-023.md`](../issue-98-delivery/Manual-ART-023.md) 已汇总 exact automated output；独立人工验收尚未运行 | `NOT RUN (INDEPENDENT MANUAL)` |
+| AF-IM04-M-001 | Manual | 合成 ART-023 Document/Workbook Fixture | 可检查 Revision Hash、稳定 Unit Diff、Branch、Representation 与 Binding | [`Manual-ART-023.md`](../archive/issue-98-delivery/Manual-ART-023.md) 已汇总 exact automated output；独立人工验收尚未运行 | `NOT RUN (INDEPENDENT MANUAL)` |
 | AF-IM05-R-001 | Renderer/Manual | 精确 Revision 请求 DOCX/XLSX Render | Attempt、input Hash、Renderer 版本、输出 checksum 全链一致；可打开性与版式另行验收 | Renderer 尚未实现 | `DEFERRED TO IM-05` |
 
 ## IM-04 WI-07 WorkbookSpec Human Edit 与内部 Diff 用例
@@ -138,7 +138,7 @@ WI-08 完整 `pnpm verify` 实际结果：format、lint、typecheck、test、arc
 | AF-IM04-WI07-P-003 | Persistence/Replay | 同一外层 command/key/hash 重放；相同 key 不同 payload | 首者复用同一对象/Revision/结果且不重复事实；后者返回 `IDEMPOTENCY_PAYLOAD_CONFLICT` | replay 深比较相等且 Revision 数为 2；conflict 返回预期 code 后仍为 2 | `PASS` |
 | AF-IM04-WI07-P-004 | Persistence/Readback | authoritative bytes 被篡改；Diff 输入不是两个精确 Workbook Revision | fail-closed，不信任调用方 bytes/locator；不返回伪造 Diff | tampered base bytes 返回 `ARTIFACT_CONTENT_READBACK_MISMATCH` 且 Revision 数为 1；Diff 经既有 exact Diff Inputs Query 与双方 FROZEN readback | `PASS` |
 | AF-IM04-WI07-P-005 | PostgreSQL/Security | 空库 migrate、第二次 migrate、RLS/ACL 与拒绝路径行计数 | 不新增 migration；现有 V4000-V4003 完整应用且第二次 no-op；越权不可枚举，拒绝无新 Revision | PostgreSQL 18.6/Flyway 11.20.3：30 条现有 migration、27 files/283 passed、second migrate no-op、非特权 probe、container removed | `PASS` |
-| AF-IM04-WI07-M-001 | Manual | 合成 Workbook 的 exact bytes/hash、stable ID map、合法 Cell Edit、跨 Sheet 拒绝、before/after refs、Diff、replay、cleanup | 审核者可逐项复核；明确标注 `SYNTHETIC / TECHNICAL ONLY` | [`Manual-Workbook-Fixture.md`](../issue-96-delivery/Manual-Workbook-Fixture.md) 已准备自动证据；独立人工复核尚未运行 | `NOT RUN` |
+| AF-IM04-WI07-M-001 | Manual | 合成 Workbook 的 exact bytes/hash、stable ID map、合法 Cell Edit、跨 Sheet 拒绝、before/after refs、Diff、replay、cleanup | 审核者可逐项复核；明确标注 `SYNTHETIC / TECHNICAL ONLY` | [`Manual-Workbook-Fixture.md`](../archive/issue-96-delivery/Manual-Workbook-Fixture.md) 已准备自动证据；独立人工复核尚未运行 | `NOT RUN` |
 
 ## IM-04 WI-06 Structured Document Human Edit 与内部 Diff 用例
 
@@ -156,7 +156,7 @@ WI-08 完整 `pnpm verify` 实际结果：format、lint、typecheck、test、arc
 | AF-IM04-WI06-P-002 | Persistence/History | 对 Human Edit 结果读取两个 exact Revision 的 Diff Inputs，再次 readback/rebuild Diff；重放同一输入 | left/right Snapshot、Canonical bytes、Hash、Diff entries 每次一致；不写 Diff Result 或治理事实 | PostgreSQL 夹具两次调用 exact Diff handler，bytes/hash/entries 均相等；Contract gate 保持无公共 Diff Result Operation | `PASS (PERSISTENCE/CONTRACT)` |
 | AF-IM04-WI06-P-003 | Persistence/Rollback | Stage/Link/Freeze/Create Revision 任一步骤注入失败，或候选无变化 | 失败不改写 base；在失败边界保留既有 WI-04 orphan/retry 记录，不产生半成品 Revision；no-op 返回稳定错误 | PostgreSQL 夹具验证越权、空/重复/未知 allow-list、wrong hash、非 Human、stale 和 no-op 在 Stage 前拒绝；故障注入未在本 WI 新增 | `PARTIAL PASS / INJECTION NOT RUN` |
 | AF-IM04-WI06-E-001 | E2E | 合成采购流程从 exact base 到允许编辑、拒绝越权编辑、读取 before/after Diff | UI/HTTP 之外的 Artifact 内部链路可复核；跨模块/公开 HTTP 不在本 WI 证明 | Unit + PostgreSQL 已覆盖 Artifact 内部链路；公开 HTTP、跨模块 E2E 与独立人工业务流程未运行 | `PASS (INTERNAL) / EXTERNAL NOT RUN` |
-| AF-IM04-WI06-M-001 | Manual | synthetic procurement-procedure：exact bytes/hash、Unit tree、allowed edit、out-of-scope deny、before/after refs、Diff table、replay、cleanup | 审核者可独立复核 Human Edit 与 Diff 的输入/输出和清理边界；不代表真实业务政策验收 | [`Manual-ART-024.md`](../issue-95-delivery/Manual-ART-024.md) 已生成，包含 base/after bytes、Hash、tree、拒绝矩阵、Diff 和 cleanup；独立人工验收未运行 | `NOT RUN` |
+| AF-IM04-WI06-M-001 | Manual | synthetic procurement-procedure：exact bytes/hash、Unit tree、allowed edit、out-of-scope deny、before/after refs、Diff table、replay、cleanup | 审核者可独立复核 Human Edit 与 Diff 的输入/输出和清理边界；不代表真实业务政策验收 | [`Manual-ART-024.md`](../archive/issue-95-delivery/Manual-ART-024.md) 已生成，包含 base/after bytes、Hash、tree、拒绝矩阵、Diff 和 cleanup；独立人工验收未运行 | `NOT RUN` |
 
 ## IM-04 WI-03 Artifact Root/Metadata/Archive 用例
 

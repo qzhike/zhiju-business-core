@@ -268,7 +268,7 @@ PROJECT_COMPLETION_IS_DERIVED
 
 ## 8.1 IM-03 WI-01 受控前置 Capability
 
-Issue #57 的字段/语义决策见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../decisions/enterprise-project-capabilities.md)。EnterpriseProject 除本文件第 3—5 节的 32 个公开 Contract 外，还必须由 Application 层提供受控入口：Product 根/版本/激活与 ProductScopeSnapshot、QMSConfiguration Revision/激活与回滚、EnterpriseProfileSnapshot，以及 Platform Template/Regulatory Reference 的导入/发布。
+Issue #57 的字段/语义决策见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。EnterpriseProject 除本文件第 3—5 节的 32 个公开 Contract 外，还必须由 Application 层提供受控入口：Product 根/版本/激活与 ProductScopeSnapshot、QMSConfiguration Revision/激活与回滚、EnterpriseProfileSnapshot，以及 Platform Template/Regulatory Reference 的导入/发布。
 
 这些入口必须保留唯一 Owner、授权 purpose、Human-only 边界、精确 Version/Snapshot/Content Hash、Scope 校验、失败码、Audit 和后续 Outbox 事实；不得由测试 Fixture、Migration seed 或跨 Schema Join 代替。它们暂不进入 200 项公开 Catalog，因此不在本 Module Spec 的公开操作表中增加 `@1.0` 名称；若要公共化，必须先通过用户审核和兼容性同步 Gate。
 

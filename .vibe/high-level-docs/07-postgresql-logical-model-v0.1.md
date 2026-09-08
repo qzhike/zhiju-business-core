@@ -2051,7 +2051,7 @@ Enterprise/Project Scope、精确 Version/Hash、不可变 Contract、Human Auth
 
 ## 27. IM-03 WI-01 数据边界修正
 
-Issue #57 的决策记录见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../decisions/enterprise-project-capabilities.md)。本阶段必须区分两类状态：
+Issue #57 的决策记录见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。本阶段必须区分两类状态：
 
 - IM-02 已落地并验证的 `enterprise_project` 标准事务技术表（Command Receipt、Outbox、Inbox、Process、Audit、Reference Edge、Contract Violation）是后续业务事务的基础，已有独立 `PASS` 证据；
 - Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot、Platform Reference 及其业务表、Repository、Handler 和 Application Capability 仍未实现，保持 `NOT RUN`。

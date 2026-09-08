@@ -78,7 +78,7 @@
 | IM-DG-005 | Canonical Document/Workbook 最小 Schema 与 Renderer 技术路线 | IM-04/IM-05 | `USER APPROVED 2026-08-27` |
 | IM-DG-006 | 6 个 Runtime Command 与 Runtime 默认 Policy | IM-08 | `USER DECISION REQUIRED` |
 
-IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](Technology-Baseline-v0.1.md)，IM-DG-003/004 见 [`Deployment-Security-Baseline-v0.1.md`](Deployment-Security-Baseline-v0.1.md)。IM-DG-005 已于 2026-08-27 获用户批准，决策记录见 [`../im-04-startup/Review-Record.md`](../im-04-startup/Review-Record.md)；IM-DG-006 仍必须记录选项、理由、兼容边界、迁移成本、拒绝的替代项和验证方式。选择具体库不会改变已冻结 Domain/API 语义。
+IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](Technology-Baseline-v0.1.md)，IM-DG-003/004 见 [`Deployment-Security-Baseline-v0.1.md`](Deployment-Security-Baseline-v0.1.md)。IM-DG-005 已于 2026-08-27 获用户批准，决策记录见 [IM-DG-005 决策](../decisions/canonical-content-renderer.md)；IM-DG-006 仍必须记录选项、理由、兼容边界、迁移成本、拒绝的替代项和验证方式。选择具体库不会改变已冻结 Domain/API 语义。
 
 `IM-UI-01` 里程碑已于 2026-08-28 获用户批准，但开始写 UI 代码前仍须完成以下 Experience 层决策，不得用默认脚手架静默事实化：
 
@@ -191,7 +191,7 @@ IM-UI-01 可在 IM-06 完成后启动，并与 IM-07/IM-08 的交付时间窗并
 
 ### IM-03 EnterpriseProject Reference Foundation
 
-前置：Issue #57（WI-01）先冻结 Product/QMS/Profile/Platform Reference 的受控 Application Capability、ProjectStartSnapshot 必需 Ref 和 Gap stale/impact Policy；决策记录见 [`../issue-57-enterpriseproject/Contract-Decision-Matrix.md`](../decisions/enterprise-project-capabilities.md)。
+前置：Issue #57（WI-01）先冻结 Product/QMS/Profile/Platform Reference 的受控 Application Capability、ProjectStartSnapshot 必需 Ref 和 Gap stale/impact Policy；决策记录见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。
 
 产出：Enterprise、EnterpriseFact、Profile Snapshot、Product、QMSConfiguration、Project、Source/Customer Material、Baseline、Gap、DeliveryPlan/Item 的最小链；所有业务前置对象必须通过唯一 Owner 的 Application 入口创建，不能由测试或 Migration 直写。
 

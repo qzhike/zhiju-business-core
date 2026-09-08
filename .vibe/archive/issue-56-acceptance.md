@@ -59,8 +59,8 @@
 用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` 方案。合成 Fixture、测试矩阵和任务记录见：
 
 - [`Task-Plan.md`](im-03-synthetic-reference-fixture/Task-Plan.md)
-- [`Synthetic-Reference-Project-Fixture.md`](../im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md)
-- [`Test-Matrix.md`](../im-03-synthetic-reference-fixture/Test-Matrix.md)
+- [`Synthetic-Reference-Project-Fixture.md`](im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md)
+- [`Test-Matrix.md`](im-03-synthetic-reference-fixture/Test-Matrix.md)
 - [`Verification-Record.md`](im-03-synthetic-reference-fixture/Verification-Record.md)
 
 本次 `pnpm persistence:gate` 实际通过：`21` 个测试文件、`256` 个测试；空库迁移、V2013、二次 migrate no-op 和容器清理均通过。该结果是现有 WI focused fixtures 的 composed technical evidence，不是单一跨 Aggregate Reference Project runtime chain。

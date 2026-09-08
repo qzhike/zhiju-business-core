@@ -104,9 +104,6 @@ Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contr
 | [`../archive/implementation-milestone-plan-v0.1/Verification-Report.md`](../archive/implementation-milestone-plan-v0.1/Verification-Report.md) | 历史阶段记录：路线、依赖、决策隔离、静态验证和剩余风险（非最新执行状态；独有 Gate 仍须核对） |
 | [`../module-specs/Module-Spec-UI01-WorkspaceUI.md`](../module-specs/Module-Spec-UI01-WorkspaceUI.md) | Workspace UI Experience Module 的页面能力、BFF/API、状态真实性、安全和非所有权边界 |
 | [`../module-tests/Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md) | Workspace UI Unit/Contract/Browser E2E/Security/Accessibility/Manual 用例和真实结果 |
-| [`../im-ui-01-workspace-ui-milestone/Task-Plan.md`](../im-ui-01-workspace-ui-milestone/Task-Plan.md) | 历史阶段记录：IM-UI-01 建档范围、假设、步骤、验证和非目标（非最新执行状态；独有 Gate 仍须核对） |
-| [`../archive/im-01-exit-gate-issue-9/Task-Plan.md`](../archive/im-01-exit-gate-issue-9/Task-Plan.md) | 历史阶段记录：Issue #9 IM-01 退出 Gate 范围、#5/#9 修订口径与阶段（非最新执行状态；独有 Gate 仍须核对） |
-| [`../archive/im-01-exit-gate-issue-9/Verification-Report.md`](../archive/im-01-exit-gate-issue-9/Verification-Report.md) | 历史阶段记录：Issue #9 干净 verify、数量对账、负向证据与 NOT RUN 清单（非最新执行状态；独有 Gate 仍须核对） |
 
 模块职责仍只由 `02` 冻结，公开名称/Owner 仍只由 `06` 冻结；Module Spec 不得重新划分所有权。API 阶段文档已于 2026-08-13 通过用户审核并构成当前字段级 API 基准，但不能覆盖已审核高层基准。
 

@@ -131,4 +131,4 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 修复要求：Gate 必须隔离文件级 Persistence 测试执行，保留 `IP-WI10-U-006` 的真实权限失败反例；PR #52 已满足连续独立 Gate、直接 digest main Gate 和 exact-head CI 条件。Runbook 文档口径修订不改变本项运行时结论。
 
-最终默认分支的 Agent-executed local Runbook 结果（WI-02/03/04/09）以及 WI-06/07/10 Probe 输出见 [`Runbook-Manual-Acceptance-2026-08-24.md`](../im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)。该记录不替代外部 Provider 或生产人工验收。
+最终默认分支的 Agent-executed local Runbook 结果（WI-02/03/04/09）以及 WI-06/07/10 Probe 输出见 [`Runbook-Manual-Acceptance-2026-08-24.md`](../archive/im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)。该记录不替代外部 Provider 或生产人工验收。

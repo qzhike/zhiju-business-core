@@ -20,7 +20,7 @@ This is the IM-04 Artifact + Canonical Content parent exit gate. It closes only 
 - `.vibe/implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md`
 - `.vibe/module-specs/Module-Spec-004-Artifact.md`
 - `.vibe/module-tests/Module-Test-004-Artifact.md`
-- `.vibe/im-04-startup/Review-Record.md`
+- `.vibe/archive/im-04-startup/Review-Record.md`
 - `.vibe/reviews/legacy/im-04-spec-review-im03-closeout/Review-Report.md`
 
 ## Preconditions
