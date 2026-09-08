@@ -45,6 +45,8 @@ const PROCESS_CONCURRENCY = 'e4e4e4e4-e4e4-74e4-84e4-e4e4e4e4e4e4';
 const PROCESS_BIGINT = 'e5e5e5e5-e5e5-75e5-85e5-e5e5e5e5e5e5';
 const PROCESS_PROJECT = 'e6e6e6e6-e6e6-76e6-86e6-e6e6e6e6e6e6';
 const PROCESS_CAS_SCOPE = 'eb0b0b0b-eb0b-7eb0-8eb0-eb0beb0beb0b';
+const PROCESS_CAS_MUTATION_X = 'eb1b1b1b-eb1b-7eb1-8eb1-eb1beb1beb1b';
+const PROCESS_CAS_MUTATION_Y = 'eb2b2b2b-eb2b-7eb2-8eb2-eb2beb2beb2b';
 const PROCESS_PRINCIPAL = 'ea0a0a0a-ea0a-7ea0-8ea0-ea0aea0aea0a';
 const PROCESS_INSERT_PROJECT_A = 'ec0c0c0c-ec0c-7ec0-8ec0-ec0cec0cec0c';
 const PROCESS_INSERT_PROJECT_B = 'ed0d0d0d-ed0d-7ed0-8ed0-ed0ded0ded0d';
@@ -913,7 +915,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
     ).toBe('0');
   });
 
-  it('binds the runner-bound insert path and ignores caller mutations of the input envelope', async () => {
+  it('binds insertProcessInstance to the original envelope target and ignores body mutations of the input envelope', async () => {
     const inputEnvelope = envelope({
       commandId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f001',
       idempotencyKey: 'wi01-tamper-control',
@@ -936,6 +938,16 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
           // strict-mode rejection is fine
         }
         await execution.insertProcessInstance(processInsert(PROCESS_INSERT_TAMPER, PROJECT_A1));
+        await execution.appendOutbox({
+          eventId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f002',
+          eventType: 'wi01.TamperControlOutbox',
+          eventVersion: '1.0',
+          aggregateType: 'ProcessInstance',
+          aggregateId: PROCESS_INSERT_TAMPER,
+          aggregateVersion: '1',
+          payload: { enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1, note: 'committed' },
+          occurredAt: new Date(),
+        });
         return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_INSERT_TAMPER } };
       },
     );
@@ -945,66 +957,243 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
     expect(
       await count('process_instance', `WHERE process_id = '00000000-0000-7000-8000-000000000000'`),
     ).toBe('0');
-    const inserted = await admin.query<{ enterprise_id: string; project_id: string | null }>(
-      `SELECT enterprise_id::text, project_id::text FROM task_execution.process_instance WHERE process_id = $1`,
+    const inserted = await admin.query<{
+      enterprise_id: string;
+      project_id: string | null;
+      aggregate_version: string;
+    }>(
+      `SELECT enterprise_id::text, project_id::text, aggregate_version::text FROM task_execution.process_instance WHERE process_id = $1`,
       [PROCESS_INSERT_TAMPER],
     );
-    expect(inserted.rows[0]).toEqual({ enterprise_id: ENTERPRISE_A, project_id: PROJECT_A1 });
+    expect(inserted.rows[0]).toEqual({
+      enterprise_id: ENTERPRISE_A,
+      project_id: PROJECT_A1,
+      aggregate_version: '1',
+    });
+    const receiptRow = await admin.query<{
+      target_type: string;
+      target_id: string;
+      enterprise_id: string;
+      project_id: string | null;
+      outcome: string;
+    }>(
+      `SELECT target_type, target_id::text, enterprise_id::text, project_id::text, outcome
+         FROM task_execution.command_receipt WHERE idempotency_key = $1`,
+      ['wi01-tamper-control'],
+    );
+    expect(receiptRow.rows[0]).toEqual({
+      target_type: 'ProcessInstance',
+      target_id: PROCESS_INSERT_TAMPER,
+      enterprise_id: ENTERPRISE_A,
+      project_id: PROJECT_A1,
+      outcome: 'COMMITTED',
+    });
+    const auditRow = await admin.query<{
+      target_type: string;
+      target_id: string;
+    }>(
+      `SELECT target_type, target_id::text FROM task_execution.audit_record
+        WHERE command_type = 'wi01.tamper-control'`,
+    );
+    expect(auditRow.rows[0]).toEqual({
+      target_type: 'ProcessInstance',
+      target_id: PROCESS_INSERT_TAMPER,
+    });
+    expect(await count('outbox_event', `WHERE event_type = 'wi01.TamperControlOutbox'`)).toBe('1');
+  });
 
-    const spoofedEnvelope = envelope({
-      commandId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f002',
-      idempotencyKey: 'wi01-tamper-envelope-mutation',
-      commandType: 'wi01.tamper-envelope-mutation',
-      targetId: PROCESS_INSERT_TAMPER,
+  it('binds casProcessInstance to the original envelope target; a body mutation is rejected with the envelope target still ruling', async () => {
+    await executeTaskExecutionCommand(
+      db,
+      contextFor(ENTERPRISE_A, [PROJECT_A1]),
+      envelope({
+        commandId: 'fafafafa-fafa-7afa-8afa-fafafafafafa',
+        idempotencyKey: 'wi01-cas-mutation-setup-x',
+        commandType: 'wi01.cas-mutation-setup-x',
+        targetId: PROCESS_CAS_MUTATION_X,
+        projectId: PROJECT_A1,
+        expectedAggregateVersion: '1',
+        requestPayload: { op: 'cas-mutation-setup-x' },
+      }),
+      async (execution) => {
+        await execution.insertProcessInstance(processInsert(PROCESS_CAS_MUTATION_X, PROJECT_A1));
+        return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_CAS_MUTATION_X } };
+      },
+    );
+    await executeTaskExecutionCommand(
+      db,
+      contextFor(ENTERPRISE_A, [PROJECT_A2]),
+      envelope({
+        commandId: 'fafafafa-fafa-7afa-8afa-fafafafafafb',
+        idempotencyKey: 'wi01-cas-mutation-setup-y',
+        commandType: 'wi01.cas-mutation-setup-y',
+        targetId: PROCESS_CAS_MUTATION_Y,
+        projectId: PROJECT_A2,
+        requestPayload: { op: 'cas-mutation-setup-y' },
+      }),
+      async (execution) => {
+        await execution.insertProcessInstance(processInsert(PROCESS_CAS_MUTATION_Y, PROJECT_A2));
+        return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_CAS_MUTATION_Y } };
+      },
+    );
+    const mutatedEnvelope = envelope({
+      commandId: 'fafafafa-fafa-7afa-8afa-fafafafafafc',
+      idempotencyKey: 'wi01-cas-mutation',
+      commandType: 'wi01.cas-mutation',
+      targetId: PROCESS_CAS_MUTATION_X,
       projectId: PROJECT_A1,
-      requestPayload: { op: 'tamper-envelope-mutation' },
+      expectedAggregateVersion: '1',
+      requestPayload: { op: 'cas-mutation' },
     });
     await expect(
       executeTaskExecutionCommand(
         db,
         contextFor(ENTERPRISE_A, [PROJECT_A1, PROJECT_A2]),
-        spoofedEnvelope,
+        mutatedEnvelope,
         async (execution) => {
-          spoofedEnvelope.targetId = '00000000-0000-7000-8000-000000000000';
-          spoofedEnvelope.projectId = PROJECT_A2;
-          await execution.casProcessInstance(spoofedEnvelope.targetId, '1');
-          await execution.appendOutbox({
-            eventId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f099',
-            eventType: 'wi01.TamperOutbox',
-            eventVersion: '1.0',
-            aggregateType: spoofedEnvelope.targetType,
-            aggregateId: spoofedEnvelope.targetId,
-            aggregateVersion: '1',
-            payload: {
-              enterpriseId: spoofedEnvelope.enterpriseId,
-              projectId: spoofedEnvelope.projectId,
-              note: 'should-not-write',
-            },
-            occurredAt: new Date(),
-          });
-          await execution.appendReferenceEdge({
-            ownerObjectType: spoofedEnvelope.targetType,
-            ownerObjectId: spoofedEnvelope.targetId,
-            referencePath: '/tamper',
-            targetModule: 'task_execution',
-            targetObjectType: 'ProcessInstance',
-            targetObjectId: spoofedEnvelope.targetId,
-            referencePurpose: 'WI01_TAMPER_REFERENCE',
-          });
+          mutatedEnvelope.targetId = PROCESS_CAS_MUTATION_Y;
+          mutatedEnvelope.projectId = PROJECT_A2;
+          const outcome = await execution.casProcessInstance(mutatedEnvelope.targetId, '1');
+          if (outcome === 'OK') {
+            throw new CommandExecutionError('LEAKED', 'mutation succeeded');
+          }
           return {
             kind: 'COMMITTED',
-            resultPayload: { note: 'should-not-write' },
+            resultPayload: { cas: outcome },
           };
         },
       ),
     ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
-    expect(
-      await count('command_receipt', `WHERE idempotency_key = 'wi01-tamper-envelope-mutation'`),
-    ).toBe('0');
-    expect(await count('outbox_event', `WHERE event_type = 'wi01.TamperOutbox'`)).toBe('0');
-    expect(await count('reference_edge', `WHERE reference_purpose = 'WI01_TAMPER_REFERENCE'`)).toBe(
+    expect(await count('command_receipt', `WHERE idempotency_key = 'wi01-cas-mutation'`)).toBe('0');
+    const casRow = await admin.query<{ aggregate_version: string; state: string }>(
+      `SELECT aggregate_version::text, state FROM task_execution.process_instance WHERE process_id = $1`,
+      [PROCESS_CAS_MUTATION_X],
+    );
+    expect(casRow.rows[0]).toEqual({ aggregate_version: '1', state: 'ACTIVE' });
+  });
+
+  it('binds appendOutbox to the original envelope target; a body mutation does not write to the spoofed aggregate', async () => {
+    const mutatedEnvelope = envelope({
+      commandId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f201',
+      idempotencyKey: 'wi01-outbox-mutation',
+      commandType: 'wi01.outbox-mutation',
+      targetType: 'ProcessInstance',
+      targetId: PROCESS_CAS_SCOPE,
+      projectId: PROJECT_A1,
+      requestPayload: { op: 'outbox-mutation' },
+    });
+    await expect(
+      executeTaskExecutionCommand(
+        db,
+        contextFor(ENTERPRISE_A, [PROJECT_A1, PROJECT_A2]),
+        mutatedEnvelope,
+        async (execution) => {
+          mutatedEnvelope.targetId = 'e9e9e9e9-e9e9-7ee9-8ee9-e9e9e9e9e9e9';
+          mutatedEnvelope.projectId = PROJECT_A2;
+          await execution.appendOutbox({
+            eventId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f211',
+            eventType: 'wi01.MutationOutbox',
+            eventVersion: '1.0',
+            aggregateType: 'ProcessInstance',
+            aggregateId: mutatedEnvelope.targetId,
+            aggregateVersion: '1',
+            payload: {
+              enterpriseId: ENTERPRISE_A,
+              projectId: mutatedEnvelope.projectId,
+              note: 'should-not-write',
+            },
+            occurredAt: new Date(),
+          });
+          return {
+            kind: 'COMMITTED',
+            resultPayload: { should: 'never reach' },
+          };
+        },
+      ),
+    ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
+    expect(await count('command_receipt', `WHERE idempotency_key = 'wi01-outbox-mutation'`)).toBe(
       '0',
     );
+    expect(await count('outbox_event', `WHERE event_type = 'wi01.MutationOutbox'`)).toBe('0');
+  });
+
+  it('binds appendReferenceEdge to the original envelope target; a body mutation does not write to the spoofed owner', async () => {
+    const mutatedEnvelope = envelope({
+      commandId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f301',
+      idempotencyKey: 'wi01-ref-mutation',
+      commandType: 'wi01.ref-mutation',
+      targetType: 'ProcessInstance',
+      targetId: PROCESS_CAS_SCOPE,
+      projectId: PROJECT_A1,
+      requestPayload: { op: 'ref-mutation' },
+    });
+    await expect(
+      executeTaskExecutionCommand(
+        db,
+        contextFor(ENTERPRISE_A, [PROJECT_A1, PROJECT_A2]),
+        mutatedEnvelope,
+        async (execution) => {
+          mutatedEnvelope.targetId = 'e9e9e9e9-e9e9-7ee9-8ee9-e9e9e9e9e9e9';
+          mutatedEnvelope.projectId = PROJECT_A2;
+          await execution.appendReferenceEdge({
+            ownerObjectType: 'ProcessInstance',
+            ownerObjectId: mutatedEnvelope.targetId,
+            referencePath: '/mutation',
+            targetModule: 'task_execution',
+            targetObjectType: 'ProcessInstance',
+            targetObjectId: mutatedEnvelope.targetId,
+            referencePurpose: 'WI01_MUTATION_REFERENCE',
+          });
+          return {
+            kind: 'COMMITTED',
+            resultPayload: { should: 'never reach' },
+          };
+        },
+      ),
+    ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
+    expect(await count('command_receipt', `WHERE idempotency_key = 'wi01-ref-mutation'`)).toBe('0');
+    expect(
+      await count('reference_edge', `WHERE reference_purpose = 'WI01_MUTATION_REFERENCE'`),
+    ).toBe('0');
+  });
+
+  it('binds appendProcessStep to the original envelope target; a body mutation does not bind the step to the spoofed parent', async () => {
+    const mutatedEnvelope = envelope({
+      commandId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f401',
+      idempotencyKey: 'wi01-step-mutation',
+      commandType: 'wi01.step-mutation',
+      targetType: 'ProcessInstance',
+      targetId: PROCESS_CAS_SCOPE,
+      projectId: PROJECT_A1,
+      requestPayload: { op: 'step-mutation' },
+    });
+    await expect(
+      executeTaskExecutionCommand(
+        db,
+        contextFor(ENTERPRISE_A, [PROJECT_A1, PROJECT_A2]),
+        mutatedEnvelope,
+        async (execution) => {
+          mutatedEnvelope.targetId = 'e9e9e9e9-e9e9-7ee9-8ee9-e9e9e9e9e9e9';
+          mutatedEnvelope.projectId = PROJECT_A2;
+          await execution.appendProcessStep({
+            processStepId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f411',
+            processId: mutatedEnvelope.targetId,
+            stepNo: 1,
+            outcome: 'COMPLETED',
+          });
+          return {
+            kind: 'COMMITTED',
+            resultPayload: { should: 'never reach' },
+          };
+        },
+      ),
+    ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
+    expect(await count('command_receipt', `WHERE idempotency_key = 'wi01-step-mutation'`)).toBe(
+      '0',
+    );
+    expect(
+      await count('process_step', `WHERE process_step_id = 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f411'`),
+    ).toBe('0');
   });
 
   it('persists REJECTED receipt on business rejection without altering the aggregate', async () => {
