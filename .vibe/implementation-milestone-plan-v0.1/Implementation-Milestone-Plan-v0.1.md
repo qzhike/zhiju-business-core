@@ -221,7 +221,7 @@ GitHub 任务基线：Parent Exit Gate [#120](https://github.com/qzhike/zhiju-bu
 
 退出 Gate：WorkOrder 范围、Run/Result/Completion 四层状态不混淆；BLOCKED_INPUT、新 Run Retry、Cancel request 和 late result 语义可测试；不依赖真实 Agent。
 
-规划设计见 [Human-operated 设计提案](../decisions/task-execution-human-operated.md)，当前波次见 [roadmap](../product/roadmap.md)。受控 Driver/答案 Fixture 的证据与真实 Runtime/飞书 E2E 分开；Cancel request 不代表 Cancel ACK，未知 Usage 不代表零。尚未决定的首次 Context 构建与控制入口，须先完成 owning Contract/Module Spec/Test 的设计收敛，不能通过直接写表或伪造可信 Ref 绕过。
+规划设计见 [Human-operated 设计提案](../decisions/task-execution-human-operated.md)，当前波次见 [roadmap](../product/roadmap.md)。受控 Driver/答案 Fixture 的证据与真实 Runtime/飞书 E2E 分开；Cancel request 不代表 Cancel ACK，未知 Usage 不代表零。首次 Context、控制入口与判断事实的 TD-01–04 技术设计已于 2026-09-08 获用户批准，包含具体新 API、Task v2、持久化与首版范围；实现须遵循 owning Contract/Module Spec/Test，不能通过直接写表或伪造可信 Ref 绕过。
 
 ### IM-UI-01 Workspace UI MVP
 

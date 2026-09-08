@@ -415,3 +415,11 @@ API Contract 进入用户审核前必须证明：
 Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-capabilities.md) 冻结了 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Reference 的受控 Application Capability 输入/输出、授权目的、版本语义和失败码，但本轮不把它们加入公开 `@1.0` Catalog。当前 API baseline 仍为 200 项；因此不生成新的 Registry Envelope、Type 或 Compatibility baseline，也不允许业务测试/Migration 以直写代替受控入口。
 
 若未来用户决定将任一 Capability 公开为 Command/Query/Event，必须先更新对应 Module Spec 和本文的字段路由，再通过 Schema、生成类型、Catalog、operation metadata、兼容性审批和正/负 Fixture Gate。受控 Capability 的设计示例不属于当前可执行 API Fixture，不能把它们的设计检查写成 Runtime `PASS`。
+
+## IM-06 兼容性增量
+
+状态：TECHNICAL DESIGN APPROVED 2026-09-08，尚未进入Registry。#152–#154具体输入/输出在owning Spec 002/003/005/007设计附录；[TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)已获批准，按依赖实施。首次构建采用新操作，避免改变build_context_snapshot@1.0必填ContractRef语义；Task typed definition采用create_task@2.0，避免以Minor或Handler默认值收窄旧CanonicalJson。
+
+旧201项Registry、历史200项Compatibility Baseline、旧Envelope/Event/Query result Schema均不修改。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
+
+新增Query只读且受Scope/Purpose裁剪；Slice捕获使用CREATE Command，避免Query产生不可审计写入。CAS expectedAggregateVersion只在Envelope，历史snapshotId/hash不充当CAS token；runtime bigint不能有损转Number。公开整数范围在实现前须与共享Envelope Schema一致，超界明确拒绝，不能借本设计暗改共享类型。

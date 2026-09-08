@@ -207,3 +207,11 @@ WI-02 非目标：GateResult evaluation、ReviewIssue、Human Approval decision�
 | QG-WI08-M-001 | Manual | Reviewer-readable QMS/REL-801 report with exact refs, hashes, expected/actual and cleanup | 审核者可重放历史并清楚区分技术 PASS 与未运行边界 | [`Synthetic-QMS-REL-801-Exit-Report.md`](../archive/codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)；独立业务/客户验收不在本地执行 | `PARTIAL — REPORT READY / INDEPENDENT BUSINESS ACCEPTANCE NOT RUN` |
 
 2026-08-31 GitHub exact-head 验证：WI-08 最终审阅 head `306cdbc3b8c8201994a57097038c4c3f784b0412` 已随 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139) 合入 `main`，GitHub Actions `verify` run `33355948473` 通过，merge commit 为 `07fc6a083897c01924f842d12dffe06fd6068261`，Issue #128 已关闭。该结果覆盖仓库 Gate，不扩大 QG-WI08-E-002 的统一跨模块业务 E2E 或 QG-WI08-M-001 的独立人工验收范围。
+
+## IM-06 Revision Eligibility 设计用例
+
+| ID | 输入 | 预期 | 结果 |
+|---|---|---|---|
+| QG-TD-001 | 同Revision精确RAS/ABS及当前有效Gate/Approval | 返回当前资格与精确watermark，历史Snapshot不变 | NOT RUN |
+| QG-TD-002 | 历史READY/FULLY_APPROVED但Gate/Approval失效或被撤销 | eligibility=false，不能支持新的TE Completion | NOT RUN |
+| QG-TD-003 | 错Hash/Scope/Profile或不请求ABS | 错绑定拒绝；未请求ABS为NOT_APPLICABLE而非true | NOT RUN |

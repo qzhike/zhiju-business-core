@@ -1410,3 +1410,10 @@ EnterpriseProject / Artifact
 ```
 
 这条链允许飞书、Agent、Runtime、Renderer 和未来外部系统完整参与工作，但任何外部系统都不能拥有正式业务状态。跨 Aggregate 失败也不通过删除历史或伪造回滚处理，而通过幂等重试、显式补偿、影响评估和 Human Intervention 收口。
+
+
+## IM-06 Process 与观测一致性技术设计
+
+状态：TECHNICAL DESIGN APPROVED 2026-09-08，未实现。具体流程见[设计§9–10](../decisions/task-execution-human-operated.md#9-wi-03-事务序列与竞态裁决)及Spec 003设计命令。Process从已提交Result/Acceptance/Resolution/Event恢复固定步骤，每一步调用owning公开Command，进度单独提交；响应/进度丢失通过稳定Command Receipt重放恢复。不能把Run、WO、Task、DeliveryItem放进一个写事务。
+
+TaskCompleted沿用现有v1.0事件字段，由TE Task事务的Outbox真实派发至既有EP DeliveryCompletionEventInput，SourceWatermark来自持久游标。EP只消费事实，不同步回查TE形成依赖环。跨模块即时Query与本模块CAS不能保证分布式同一时刻的撤销原子性；只声明可审计观测时点，失效事件推动Impact/重评估，当前权威Query阻止后续误用。需要跨模块原子授权reservation时另立设计，不把当前方案误称强一致。

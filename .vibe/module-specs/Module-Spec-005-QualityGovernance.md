@@ -370,3 +370,13 @@ WI-08 不新增 QualityGovernance 公共 Contract、业务表或 Migration；它
 所有跨模块 Revision、Representation、ReleasePackage 和 Identity 事实只通过 QualityGovernance 的公开 Authority Query Port 或已验证的 Typed Reference 进入复核。报告中的 UUID、Hash 和 Snapshot 不代表生产数据；报告模式必须无 Secret，并在输出中区分 `PASS (LOCAL)`、`PASS (PERSISTENCE)`、`PARTIAL` 和 `NOT RUN`。统一 Quality→Renderer→Release 业务编排器、公开 HTTP、真实身份/审批系统、生产数据库、Provider 和独立人工客户验收仍为 `NOT RUN`。
 
 2026-08-31 GitHub 交付状态：WI-08 报告与回归测试已随 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139) 合入 `main`；最终审阅 head `306cdbc3b8c8201994a57097038c4c3f784b0412` 的 GitHub Actions `verify` run `33355948473` 通过，merge commit 为 `07fc6a083897c01924f842d12dffe06fd6068261`，Issue #128 已关闭。QualityGovernance 的统一跨模块编排和独立业务验收仍为 `NOT RUN`。
+
+## IM-06 Revision 当前执行资格 Query 设计
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / NOT REGISTERED / NOT IMPLEMENTED`；关联 #154/TD-03。已有 RAS/ABS精确查询保留历史语义，不能把历史 READY/FULLY_APPROVED当作当前仍有效。
+
+设计 `quality.get_revision_execution_eligibility@1.0`，A Query；purpose `quality.revision.execution_eligibility.read`，仅有目标 Scope权的 TE Evaluator Service/授权 Human。Payload：`revisionRef: Exact<ArtifactRevision>; revisionAcceptanceRef: Snap<RevisionAcceptance>; approvalBundleRef?: Snap<ApprovalBundle>`。Result：`{revisionRef, revisionAcceptanceRef, approvalBundleRef?, revisionAcceptanceUsable:boolean, approvalBundleUsable: ValueEnvelope<boolean>, reasonCodes: ReasonCode[], observedAt, sourceWatermarks}`。
+
+由 Quality owning应用逻辑复用 RAS/ABS/Gate/Approval 的当前有效性检查：所有 Ref精确匹配同 Revision/Scope/Profile；RAS 当前适用 mandatory Gate必须存在、未失效且满足 READY；传入 ABS时须检查当前批准集合、签署者资格/撤销、Approval与精确 Revision/Gate/Review事实关联。输入错 Hash/Scope/purpose拒绝；已授权的历史 Snapshot过时可返回 false和原因，不写回历史 Snapshot。没有请求 ABS时 approvalBundleUsable为 NOT_APPLICABLE，不能伪造 false/true；请求但缺事实不得自动通过。
+
+该Query不重算 Gate、不创建Approval、不授予Release授权，也不改变 `get_release_readiness_snapshot(requireCurrentForAuthorization)` 的语义。生产端 Query实现和对应负向测试尚未运行；当前跨模块观测一致性界限见 IM-06设计 §10.1。

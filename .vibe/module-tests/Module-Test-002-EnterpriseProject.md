@@ -337,3 +337,12 @@ pnpm persistence:gate
 - 该结果是现有 WI focused fixtures 的 `PASS (COMPOSED CONTROLLED PERSISTENCE)`，不是一个统一跨 Aggregate runtime chain。
 
 因此，`EP-API-U-001/U-002/U-003`、`EP-API-C-001/C-002` 和各 `SYN-WI03-001` 至 `SYN-WI12-001` 可以记录受控本地技术证据；`EP-API-E-001/E-002` 的 integrated cross-aggregate execution 和 `EP-API-M-001` 的实际人工逐项审阅继续为 `NOT RUN`。真实 Provider、公开 HTTP、生产环境、真实跨模块 Event Bus/Process Manager 以及真实业务适用性也继续为 `NOT RUN`。
+
+## IM-06 Source Slice 与 Receipt 设计用例
+
+| ID | 输入 | 预期 | 结果 |
+|---|---|---|---|
+| EP-TD-001 | capture同键重放、不同Hash冲突、exact Slice Query | 原id/hash；冲突拒绝；动态View不能冒充Slice | NOT RUN |
+| EP-TD-002 | 错Scope/Purpose/Audience或已撤销授权读取Slice | fail closed；旧payload不改写 | NOT RUN |
+| EP-TD-003 | 真实confirm_customer_material Receipt及candidate/result/Source/Decision | 窄Attestation精确匹配实际提交，TE可核验；不泄露客户正文 | NOT RUN |
+| EP-TD-004 | REJECTED或其他command Receipt、同correlation错材料、旧材料不足以backfill | 不可用，不用current Root猜历史确认 | NOT RUN |

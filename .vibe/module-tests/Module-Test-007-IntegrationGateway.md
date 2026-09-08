@@ -108,3 +108,14 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 | IG-IM05-WI05-C-002 | Tooling/CI | 无 `dist`/`.tsbuildinfo` 的冷工作区执行 lint/typecheck/test | Persistence test project 能解析 `@zhiju/integration-gateway` 类型；不得依赖本地旧 build artifact | PR #135 首轮 CI run `33320335089` 暴露缺失 reference；增加 IntegrationGateway project reference 后，`pnpm clean && pnpm verify` 从零构建产物通过，GitHub run `33320566486` 在 exact head `d3a1394` 上成功 | `PASS (CLEAN LOCAL + EXACT-HEAD CI)` |
 | IG-IM05-WI05-E-001 | Integration | exact RenderAttempt Binding 作为公开 Port 输入既有 Artifact Representation Handler | exact binding 注册；revision/input/format/renderer/checksum/scope/receipt/非成功状态全部拒绝 | 真实 Renderer `SUCCEEDED` Binding 经公开 Port 完成 Artifact Handler 登记；既有替换/状态/Scope/receipt 负例与本轮真实链路均通过 PostgreSQL Gate | `PASS (CONTROLLED PUBLIC-PORT/PERSISTENCE)` |
 | IG-IM05-WI05-M-001 | Manual/Openability | 一份脱敏 Document 与 Workbook，含 input bytes/hash、attempt/request hash、output checksum、Binding、Representation 与检查表 | DOCX/XLSX 在批准应用中可打开；身份/checksum 可独立比较；输出清理完成 | DOCX `9da593bff44cc62d4e1b693af7dec80aabb884a3eaa58dd3e94854bff8a894ef`/3939 bytes 在 Word 打开并展示标题、段落、表格；XLSX `81d7aac6eb8a9cfc55046758705587466e4e8fa1a5010347fda46c4f4ae94e86`/3495 bytes 在 Excel 打开并展示 A1:C3；公式 XML 已保留但未验证完整计算引擎；ZIP 完整性通过，临时输出删除 | `PASS (LOCAL MANUAL OPENABILITY) / REAL CUSTOMER ACCEPTANCE NOT RUN` |
+
+## IM-06 Runtime Binding 设计用例
+
+关联 Spec 007 的 Runtime Binding Query设计；以下未实现，不改变旧测试证据。
+
+| ID | 输入 | 预期 | 结果 |
+|---|---|---|---|
+| IG-TD-001 | 同AttemptRef但替换Run/Contract/Context/Capability/lease/fencing任一项 | TaskExecution exact binding校验失败，不start_run | NOT RUN |
+| IG-TD-002 | synthetic Driver未调用，fixture伪造SUCCEEDED/Receipt | owning写入拒绝；真实合成调用可保存source=SYNTHETIC_DRIVER | NOT RUN |
+| IG-TD-003 | 超时UNKNOWN同键重放/真实reconciliation | 无二次dispatch；追加Observation不改request/binding | NOT RUN |
+| IG-TD-004 | 跨Scope Query或试图读取Token/Continuation Secret | 拒绝或最小化投影；不存在敏感字段 | NOT RUN |

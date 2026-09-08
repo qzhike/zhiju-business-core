@@ -574,3 +574,10 @@ Provider authentication/resource/policy 错误映射到共享 `ApiError` 的 `AU
 - 三个已安装 CLI Profile 只有官方文档事实，均未做本地版本、认证或真实调用验证。
 - 现有 API 覆盖核心闭环，但缺少 6 个已由 Domain Model 预示的运行控制写操作；已隔离为待审核 additive proposal。
 - Runtime Adapter、CLI Process Driver、Persistence、Credential、Sandbox、CLI E2E、负载与人工验收均未实现、未运行。
+
+
+## IM-06 Human-operated 技术设计映射
+
+关联#153/TD-02，状态TECHNICAL DESIGN APPROVED 2026-09-08。当前§15.1六项命令仍待独立决定；本轮不把它们纳入Catalog。设计Run record/finalize/expire与WO/Task reconcile由[Spec 003 §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)定义；完整Runtime Attempt binding由[Spec 007](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)拥有。
+
+受控Driver通过真实合成调用/ack建立SYNTHETIC_DRIVER Observation，Input/Output是可重复技术Fixture，不宣称Provider/CLI/Feishu验收。先提交Attempt再调用，UNKNOWN只调和原Attempt；start_run必须exact绑定且lease有效。result提交、record、validation、acceptance、finalize为独立owning事务，late/cancel/expiry在Run锁上裁决；lease到期的无ACK取消为ABANDONED，不是CANCELLED。未知Usage继续ValueEnvelope UNKNOWN/UNAVAILABLE，独立权威Usage写入本轮不实现。

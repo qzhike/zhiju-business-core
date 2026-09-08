@@ -1218,3 +1218,10 @@ Artifact + Quality Gate Snapshots
 ```
 
 Human、Agent、飞书、Runtime 和未来 API 可以使用不同呈现方式，但必须回到同一个 Contract ID、Version、Typed Reference 和 Payload Hash。
+
+
+## IM-06 Core Contract 技术增量
+
+状态：TECHNICAL DESIGN APPROVED 2026-09-08。#152–#154 的已批准选择见 [TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。本轮保持 ProjectContext/WorkOrder/AgentResult v1.0 本体、Hash规则和七类WorkOrder Criterion名称不变。首次Context的Draft Snapshot与build metadata位于Core本体外，Context不反向引用未来frozen Contract；旧build_context_snapshot仍需要精确ContractRef。
+
+TaskDefinition的开放CanonicalJson若收敛为首版typed criteria，采用execution.create_task@2.0，不能收窄旧@1.0。Core §4.9 的inputBindings/expectedCondition/profile机械形状设计在[Spec 003 §11.6](../module-specs/Module-Spec-003-TaskExecution.md#116-workorder-criterion-与-task-v2)，作为已批准的注册Evaluator适配器设计，不改写本Core当前Schema。Readiness/Validation的新事实外壳引用精确Core输入，不能用bool替代Core验证或用bundleHash形成循环引用。新增字段与首版类型限制已获批准，运行验收NOT RUN。

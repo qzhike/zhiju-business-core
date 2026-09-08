@@ -5700,3 +5700,10 @@ Issue #64 的实现保留本 Domain 对 TemplateBaseline/RegulatoryProfile 的�
 DeliveryItem Completion 是由 EnterpriseProject owning Evaluator 根据冻结 `completionCriteria`、精确事实集合和 evaluator 版本派生的历史结果。Task/Run/Agent 自报、Release 的临时状态或任何 caller 布尔值都不能取得 Completion 权威性。WI-12 v1 的 criteria 只允许由 `allOf` 组成的正式 event type 条件；事实必须先经过受控 Inbox/Process Manager 记录并带有 payload hash、exact TypedReference、SourceWatermark 和 lifecycle。
 
 `TaskCompleted` 单独存在而 criteria 要求 `ReleaseCompleted` 时只能形成 UNSATISFIED Evaluation；只有完整 ACTIVE fact set 才产生 `DeliveryItemCompletionSatisfied`。late、upstream new Version/Hash、RevisionApprovalLost 或 ReleaseRecalled 只追加新的 Fact/Evaluation/Impact Review，历史 Evaluation、已批准 Plan Version、Approval Decision 与旧 Fact 不改写。DeliveryItem Root 只保存 CAS 维护的 `current_completion_evaluation_id`，不复制 outcome 或事实正文；Projection 延迟不改变 Completion 结论。
+
+
+## IM-06 执行状态与判断事实技术设计
+
+#152–#154 的具体设计方向批准与新增决定边界见[IM-06设计](../decisions/task-execution-human-operated.md)。本轮设计保留Task/WorkOrder/Run/AgentResult/InformationRequest独立Aggregate以及§18–22的完成层级；提出Result接收reservation、Run record/finalize/expire、WO/Task reconcile的公开映射与竞态裁决，见[Spec 003 §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)。这些入口尚未注册，不把本Domain内部命令表直接当现有API。
+
+新增设计明确COMPLETED为历史完成事实，当前useStatus/Impact与历史分开；依赖Readiness必须检查当前有效性。final BLOCKED_INPUT的Run可SUCCEEDED但WorkOrder仍阻塞，答案后新Context/Run；Runtime取消未确认不能CANCELLED。Task typed criteria首版、答案CustomerMaterial限制与具体控制入口属于TD-01–04已批准增量。

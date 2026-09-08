@@ -2125,3 +2125,31 @@ WI-12 在 V2013 只增加 EnterpriseProject owning Schema 的正式事实与派�
 Completion Fact 的 payload 和 promoted Scope mirror 必须由 Application 计算/校验，hash 长度固定 32 bytes；Event Consumer 只接受 `TaskCompleted`、`ReleaseCompleted`、`RevisionFullyApproved`、`RevisionApprovalLost`、`ReleaseRecalled` 的精确 v1.0 Envelope。Producer/source module、event payload integrity hash、Scope、TypedReference kind/version/hash/lifecycle 和 SourceWatermark 必须闭集校验；late watermark 可以保留但不得覆盖更高事实或改写旧 Evaluation。
 
 `delivery_item_completion_evaluation` 与 `delivery_item_impact_review` 的所有事实列使用 FORCE RLS、Enterprise/Project Scope mirror、组合外键/trigger 和 app role 最小 INSERT/SELECT 权限；事实表不授予 UPDATE/DELETE。`delivery_item` 的 V2011 immutable guard 在 V2013 仅允许受控 current pointer 列更新，任何其他列（特别是 `execution_status`）的直接 SQL UPDATE 继续拒绝。Persistence Gate 必须覆盖空库迁移、二次 migrate no-op、RLS/ACL、Inbox replay/hash conflict/quarantine、Process Step、criteria/hash、direct COMPLETED denial、Task-only unsatisfied、Release-complete satisfied、revocation/late/new-version history、CAS 和 rollback；Provider、真实跨模块 Event Bus/Process Manager、生产和人工验收保持 `NOT RUN`。
+
+## 33. IM-06 持久化技术设计
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / NO MIGRATION IMPLEMENTED`。本节为 #152–#154、TD-01–04 的持久化设计，保留 §11/§17–19 的 ownership与单 Aggregate规则。#151只使用现有 V3000，不包含本节新表；后续须独立 forward migration，不能改已应用的 V3000/V2007/V7001。迁移编号在实际分支执行时分配。
+
+| owning Schema / 设计表 | Aggregate/事实与关键列 | 必须由数据库/应用共同证明的约束 |
+|---|---|---|
+| task_execution / task_definition_snapshot | Task附属不可变 definition id、task_id、schema_version、canonical payload/hash | Task创建同事务写；完整Scope镜像；Root pointer组合FK只向同Task事实；业务snapshotId独立于CAS版本 |
+| task_execution / work_order_draft_snapshot | WorkOrder附属不可变 snapshot_id、work_order_id、payload/hash | DRAFT创建同事务写；Root current pointer组合FK；Freeze锁Root复验；不对同一id换Hash |
+| task_execution / context_snapshot_build | Context目标的build_kind、draft_snapshot_ref或frozen_contract_ref、slice_refs、purpose/audience/policy | INITIAL/FROZEN输入闭集CHECK；success metadata与Snapshot同事务；payload与normalized refs/hash一致；查询不可只信body |
+| task_execution / execution_judgment | 独立Readiness/Validation Bundle root；id、kind、subject refs、policy/evaluator、valid_until、payload/hash | 不可变；id+kind+Scope唯一；subject/payload mirrors、规范Hash校验；失败判断可保存但无权限请求不能制造事实 |
+| task_execution / result_validation_fact | Bundle内五类不可变子事实，bundle_id、validation_kind、result_ref、payload/hash | unique(bundle_id,kind)；五种kind完整性在final bundle提交时检查；FK含Scope；子payload不引用父Hash避免递归 |
+| task_execution / judgment_invalidation | 精确judgmentId/hash、原因、sourceEvent/DecisionRef、occurred_at | append-only；失效不覆盖原结果；重评估新identity；跨模块来源TypedRef无FK |
+| task_execution / run_final_submission_claim | Run维度reservation、result_id/hash、Scope、recorded_at | unique(run_id)；与Result同事务；submit/record/cancel/expiry锁同Run。不得借此修改RunRoot；冲突事实另存 |
+| task_execution / run + work_order_run_claim | §11.4既有逻辑表的具体写边界 | create_run原子创建Run/ACTIVE Claim；unique(work_order_id,attempt_number)，unique ACTIVE work_order；fencing严格递增；terminal+Claim释放同Run事务；不写WorkOrderRoot |
+| task_execution / completion evaluation与state_transition | §11.1/11.3现有表，保存完整输入集合Hash/版本/watermark与outcome | 目标Root CAS、Evaluation、成功Event/Receipt/Audit同事务；精确历史只追加；无独立通用共享业务状态表 |
+| enterprise_project / context_source_slice | 独立Slice Aggregate，payload/hash、Scope、purpose/audience/policy、valid_until | FORCE RLS；Source来自EP owning事实；不可变；Capture结果与技术事实同事务；不复制其他Schema数据 |
+| enterprise_project / resolution_receipt_material | 精确command_id、canonicalReceiptPayload/hash、candidate/result/decision引用投影 | 一命令一个不可变规范Receipt；与真实confirmation提交绑定；已有历史只按真实不可变材料backfill，材料不足拒绝，不猜当前Root |
+| integration_gateway / runtime_attempt_binding | 独立RuntimeAttempt的原request、requestHash、invocation binding/hash、状态、稳定键Hash | same scope/stable key同Hash重放；先提交Attempt才调用Driver；RuntimeBinding/lease/fencing/Capability来源锁定，禁止更新 |
+| integration_gateway / runtime_attempt_observation | Attempt附属不可变observation、source、ack/result/receipt Ref、observed_at、payload/hash | source与固定Driver一致；success只由真实ack证明；UNKNOWN调和追加；Raw Receipt复用既有存储，不能替换Renderer provenance |
+
+completion facts可各自保存在既有Task/WorkOrder evaluation表；只读 judgment union Query在模块内分派，不要求把它们合并到新的跨Aggregate表。同一事务创建Bundle和五个子事实符合“一个Root及Entity”；不能把Task readiness和WorkOrder validation放进一个跨Root事务。
+
+所有新增 Project-owned行显式保存 enterprise_id/project_id，FORCE RLS、最小模块app角色与精确Actor/Decision guard沿用现行安全基准。跨模块只存TypedRef，不跨Schema FK/Join；同模块FK需绑定Scope和parent identity。immutable facts禁止UPDATE/DELETE，mutable Root/Attempt state通过owning runner/受控guard CAS更新，canonical payload↔Hash及normalized refs不能只检查Hash长度。
+
+并发设计：Task/WorkOrder child创建先对parent作只读锁和Scope/lifecycle校验；Task completion/reconcile锁目标Task并重读完整child集合，防止本模块新child/Request插入绕过Completion。锁顺序固定 Task→WorkOrder→Run→Claim→附属事实；操作只锁其所需祖先和目标，不反序持有锁。所有事务仅修改一个目标Root；跨Root推进通过已提交事实和显式owning Command。
+
+迁移验证必须覆盖空库、升级、二次no-op、角色ACL/RLS、payloadHash/Scope mirror、immutable/direct SQL、原子回滚、双连接CAS/Claim/取消/expiry竞态、池复用与长事务Decision过期。具体业务fixture使用owning命令产生输入，不能用直写伪造成功验收。此表是设计，不是物理migration完成证明。

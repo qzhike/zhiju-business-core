@@ -747,3 +747,21 @@ ACL/RLS 断言必须区分层次：Fact/Evaluation/Impact 的应用角色 `UPDAT
 - 真实 Provider、公开 HTTP、生产数据库、真实跨模块 Event Bus/Process Manager、Artifact/QualityGovernance/ReleasePublication 业务 Handler 和独立业务适用性继续为 `NOT RUN`。
 
 本次执行记录见 [`Verification-Record.md`](../archive/im-03-synthetic-reference-fixture/Verification-Record.md)，不扩展公共 Operation Catalog，也不改变各 Command/Query/Event 的 Owner 或 payload contract。
+
+## IM-06 Source Slice 与 Resolution Receipt 设计
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / NOT REGISTERED / NOT IMPLEMENTED`；关联 #152/#154、[TD-01/04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。本节只拥有 EnterpriseProject 的输入事实捕获和窄化证明，不把 ContextSnapshot/InformationRequest 的业务所有权移入本模块。现有 `get_project_context_source@1.0` 保持动态 View，不能由调用者生成任意 ContentAddressedRef假定其可持久化读取。
+
+| 设计操作 | 模式/一致性 | Payload | Result.data / Purpose |
+|---|---|---|---|
+| `project.capture_context_source_slice@1.0` | ContextSourceSlice / CREATE | `projectRef; purpose: NamespaceCode; audience: PrincipalRef; requestedKinds: Set<NamespaceCode>; capturePolicyRef: VersionedRef<Policy>` | `{sourceSliceRef: Exact<ContextSourceSlice>}`；`project.context_source.capture`，受授权 ContextBuilder Service |
+| `project.get_context_source_slice@1.0` | A | `sourceSliceRef: Exact<ContextSourceSlice>` | `{slice: ContextSourceSlice, useStatus: Closed<USABLE\|EXPIRED\|REVOKED>, checkedAt}`；`project.context_source.read`，受授权 ContextBuilder Service |
+| `project.get_resolution_receipt@1.0` | A | `commandReceiptRef: Exact<CommandReceipt>` | `ResolutionReceiptAttestation`；`project.resolution_receipt.read`，受授权 TE Resolver Service |
+
+ContextSourceSlice payload：`sliceId, scopeRef, projectRef, purpose, audience, capturePolicyRef, capturedAt, validUntil, source: ProjectContextSourceSlice`。所有字段 required。capture 复用 owning Source Query 的事实装配与裁剪逻辑，在一个 EP 只读依赖 + 新 Slice Aggregate 事务中持久化；不存其他模块事实或 Token。validUntil由显式版本化 Policy 与 Decision时效推导，不接受 caller任意期限。查询按 exact id/hash 读取并重验当前 Action/Scope/audience/purpose授权；源内容变化不改旧 Slice，当前授权/Policy失效则不允许新 Context消费。每次 capture同幂等键原结果重放，新来源需要新键/新 Slice，不能把旧 ContentHash当 latest。
+
+ResolutionReceiptAttestation payload：`commandReceiptRef, commandType, commandVersion, targetRef, scopeRef, requestPayloadHash, outcome: COMMITTED, candidateVersionRef, confirmedVersionRef, sourceMaterialRefs, decisionRef, actorRef, actorSnapshotRef, authorizationDecisionRef, committedAt`。首版只返回 `project.confirm_customer_material@1.0`；其他命令、REJECTED/PENDING/UNKNOWN、错 Hash/Scope或不存在统一返回不可用。数据从 owning Receipt 与实际 confirmed version/decision/source selections联合验证得到；不把该联接开放成通用 SQL/Repository Port。Human身份、Decision用途和不可变设计→确认版本关系来自现有 confirmation事实，不依赖本次查询调用方提供。
+
+Receipt Ref 的 Hash 对应持久化规范 Receipt payload（command identity/type/version、完整 Scope/target、request hash、结果引用、outcome、actor/decision、committedAt），不使用原命令 requestHash冒充 Receipt Hash。若现有 Receipt未存该规范投影，后续实现须 forward migration/backfill精确可重算材料，不能凭 current Root猜历史结果；无法恢复时 fail closed。Query可以返回脱敏 typed projection，但 Hash验证基于完整受控 canonical receipt。TE仅消费允许字段。
+
+新增 Slice表、Receipt canonical material的存储要求由 PostgreSQL技术设计附录拥有；不修改旧 V2007/历史Receipt，不创建跨 Schema FK。此设计不自动支持 Fact/Approval/Policy Exception答案采纳。

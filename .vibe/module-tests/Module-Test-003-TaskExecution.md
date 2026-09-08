@@ -56,3 +56,38 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 | TE-PG-002 | Process Scope、masked audit、Reference owner version 矩阵 | 跨 Scope 拒绝、masked row 可读、多 owner version 可共存 | 分别为 `23514`、目标 row、两版本成功/精确重复 `23505` | `PASS` |
 
 Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍为 `NOT RUN`。
+
+## IM-06 技术设计验证矩阵
+
+状态：已批准设计，关联 #152–#154 / TD-01–04。下表定义可执行回归的输入与预期；当前均未实现，不能因文档评审/现有full通过改为PASS。新增Schema/Handler/持久化测试在相应API与业务切片中落实。
+
+| ID | 层级 | 输入/竞争/故障 | 预期输出与禁止效果 | 当前结果 |
+|---|---|---|---|---|
+| TE-TD-001 | Contract/Persistence | 空业务库经owning入口创建Task/WO Draft、捕获Slice、首次Context、Validation、Freeze | DS-1→SS-1→CTX-1→Contract精确链，无占位Hash/悬空Ref，无跨Root写事务 | NOT RUN |
+| TE-TD-002 | Contract | 旧build_context_snapshot缺ContractRef；新initial请求含旧ContractRef/未知字段 | 旧Schema仍拒绝；initial闭集拒绝错分支；旧合法fixture不变 | NOT RUN |
+| TE-TD-003 | Persistence | Builder查询Draft后并发Freeze或未来合法Draft换代；提交前故障 | stale请求拒绝，无成功Context；原Snapshot/Hash保留 | NOT RUN |
+| TE-TD-004 | Unit/Persistence | Builder提交后Draft变化，再用旧Context冻结 | Freeze拒绝；旧Context只历史可读，不能create_run | NOT RUN |
+| TE-TD-005 | Contract/Persistence | Slice错id/hash/Scope/Purpose/Audience/Policy，或伪造动态View Hash | 统一不可用，内部Audit原因准确；无Context发布 | NOT RUN |
+| TE-TD-006 | Persistence | 同键重放capture/build/validation；同键异payload | 原事实原结果；无重复成功效果；异Hash冲突 | NOT RUN |
+| TE-TD-007 | Unit/Contract | 伪造valid=true、五个不同Bundle验证Ref、kind/subject错配 | Judgment/Acceptance拒绝，不推进Run或Completion | NOT RUN |
+| TE-TD-008 | Unit/Persistence | Judgment/Decision过期、输入版本变化；同一长事务中到期 | consumer重验失败；旧判断不可变，新判断新identity | NOT RUN |
+| TE-TD-009 | Contract | Task v2错误criterion分支/重复ID/未知Policy/任意表达式；v1合法payload | v2拒绝且不READY；v1Schema不变，不回写旧定义 | NOT RUN |
+| TE-TD-010 | Persistence | 两Dispatcher同WO创建Run；不同attemptNumber抢ACTIVE | 仅一个ACTIVE，失败无孤立Run；fencing精确单调 | NOT RUN |
+| TE-TD-011 | Controlled integration | 正常synthetic Driver ack；未调用Driver直造Receipt；Attempt绑定替换 | 仅真实合成调用可SUCCEEDED；TE拒绝伪造/错绑定；不声称Provider通过 | NOT RUN |
+| TE-TD-012 | Controlled integration | dispatch timeout→same-key replay→真实readback | UNKNOWN不二次调用；调和不替换原request/binding | NOT RUN |
+| TE-TD-013 | Persistence | final submit后进程崩溃，record前cancel/expiry | 只保留Result/隔离，不能业务输出；恢复调用owning Command | NOT RUN |
+| TE-TD-014 | Persistence | record_run_result与cancel双连接竞争 | 一个状态转换获胜；CANCELLING不能接收可用Result；RESULT_RECORDED不能伪造取消确认 | NOT RUN |
+| TE-TD-015 | Persistence | finalize与expire竞争；旧fencing；相同/不同Acceptance重放 | 单terminal+单RunTerminated+Claim释放；冲突不改旧结果 | NOT RUN |
+| TE-TD-016 | Persistence | deadline未到期调用expire；CANCELLING无ACK到期 | 前者拒绝；后者ABANDONED非CANCELLED，旧Run不能Resume | NOT RUN |
+| TE-TD-017 | Unit/Contract | final BLOCKED_INPUT且合法空业务输出；scratch DOCX | 可在执行边界ACCEPTED/SUCCEEDED；WO/Task仍未完成，scratch不满足ExpectedOutput | NOT RUN |
+| TE-TD-018 | Unit/Persistence | Result已BLOCKED_INPUT但Request尚未创建；caller传blockingRefs=[] | 保守阻塞，不能利用异步窗口提前完成 | NOT RUN |
+| TE-TD-019 | Controlled integration | Human确认CustomerMaterial，Answer引用精确candidate/confirmed/Source，resolve | EP attestation与实际Receipt/Decision匹配，RESOLVED；新Context/Run，旧hash不变 | NOT RUN |
+| TE-TD-020 | Security | 未授权答案、Agent自采纳、别的CommandReceipt、同correlation但不同材料、未确认来源 | 拒绝，不清blocker；不把文本/投递成功当采纳 | NOT RUN |
+| TE-TD-021 | Unit | 七类WO Criterion逐个缺事实/错Scope/provenance/未支持适配器 | 必要条件失败或UNSUPPORTED，无COMPLETED；显式保留解释 | NOT RUN |
+| TE-TD-022 | Controlled integration | 历史RAS/ABS为READY/FULLY_APPROVED但已失效/撤销 | 当前eligibility false；新Task Completion/Readiness不通过 | NOT RUN |
+| TE-TD-023 | Persistence | Task completion并发创建child WO/Request；WO/Task reconcile重放 | 固定parent锁顺序重读集合，单Root事务；无重复事件，不互写Root | NOT RUN |
+| TE-TD-024 | Controlled cross-module | 实际TaskCompleted Outbox→Dispatcher watermark→EP Inbox；重复/乱序/异Hash/错Producer/Scope | 正确Producer链持久读回；重复幂等、异Hash隔离、低watermark不覆盖；Task-only不保证Delivery完成 | NOT RUN |
+| TE-TD-025 | Security/Persistence | 各新表直接SQL、无Context、池复用、Scope镜像错、异常注入 | RLS/ACL/hash/immutable guard拒绝；技术事实原子回滚；池不继承上下文 | NOT RUN |
+| TE-TD-026 | Query | Task历史COMPLETED而事实撤销；读取TaskState与依赖Readiness | 历史保持，completionUseStatus不可用，依赖不能仅凭status通过 | NOT RUN |
+
+独立设计审查应核对 TD-01–04、新操作清单、所有具体失败矩阵与单Aggregate/兼容边界。人类对具体技术设计的批准不等于上述运行结果。真实Feishu/CLI Runtime、公开HTTP、生产和独立人工业务验收继续独立NOT RUN。

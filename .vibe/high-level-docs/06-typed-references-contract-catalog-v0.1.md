@@ -1119,3 +1119,7 @@ Evidence/Representation/Package Ref
 Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 冻结 EnterpriseProject Owner 的受控 Application Capability；逻辑名称、输入/输出、授权目的和错误码见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。
 
 这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；当前 Catalog 已因 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量变更为 201 个公开 Contract，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
+
+## IM-06 未注册设计路由
+
+当前Catalog保持201项；本节不注册任何新操作或Type。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；选定operation type/version/Owner与新增Ref类型将在对应实现修订纳入可执行Catalog并生成Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。

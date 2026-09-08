@@ -19,15 +19,15 @@
 2. 处理实质性契约缺口；只有 NOW + READY 的独立切片才发布 Issue。
 3. Issue 明确权威章节、可观察验收、非目标及 `full` 验证目标。
 
-已识别的首次 Context/Contract 构建、Human-operated Driver/Attempt 与控制入口、Readiness/Validation/Completion 判断事实来源，见 [IM-06 设计提案](../decisions/task-execution-human-operated.md)。该提案第 2–4 节尚待设计审核，不作为已批准 Contract。
+已识别的首次 Context/Contract 构建、Human-operated Driver/Attempt 与控制入口、Readiness/Validation/Completion 判断事实来源，见 [IM-06 设计提案](../decisions/task-execution-human-operated.md)。第 2–4 节方向与约束已获用户批准；具体技术增量 TD-01–04（新增 API、Task v2、持久化与首版范围）已获用户批准，作为未来实现的设计基准；可执行 Schema/Catalog 与业务能力尚待交付。
 
-首个 NOW + READY 候选是该提案第 5 节的 **TaskExecution application/persistence 技术基础**：限定现有 V3000 技术表、模块事务、幂等、CAS、Hash/Scope guard 与失败回滚，复用已批准安全机制。它不依赖尚未决定的业务状态机，不实现业务 Handler 或新增 Catalog 操作。
+首个 NOW + READY 实现切片是该提案第 5 节的 **TaskExecution application/persistence 技术基础**：限定现有 V3000 技术表、模块事务、幂等、CAS、Hash/Scope guard 与失败回滚，复用已批准安全机制。它不依赖尚未决定的业务状态机，不实现业务 Handler 或新增 Catalog 操作。
 
 后续按依赖滚动收敛：Task/WorkOrder 与首次 Context → Run/Attempt/Result Acceptance → InformationRequest 与新 Context/Run Retry → Completion、Query/Projection 和受控退出 Fixture。Context/Run 等依赖设计决定与技术基础；跨模块 Completion 依赖真实 Producer 和 owning Consumer。此处是顺序意图，不提前拆出完整 Issue backlog。
 
 退出时须证明：冻结 Scope/Hash 不变，active Run/final Result 并发唯一，正常完成与 BLOCKED_INPUT→授权答案→新 Context/Run 两条链，Cancel request/late result 失败语义，Run/WorkOrder/Task/DeliveryItem 分层完成，Usage 未知与声明来源可区分，权威 Query 与 Projection freshness 分离。完整验证使用 `vibe verify full --json`；真实飞书/Runtime 与人工业务验收独立列为 `NOT RUN`，不得被受控 Fixture 替代。
 
-本次仅启动规划并形成候选；创建 Issue、实现和 Git 交付仍按用户授权范围推进。
+当前技术设计将首次构建、Runtime/状态协调、判断事实与跨模块读取边界一起收敛；已批准设计由 owning 规格与测试附录维护。业务实现仍按实际依赖与 NOW + READY 滚动发布，Git 交付按用户授权范围推进。
 
 ## Next / Later — 后续顺序
 

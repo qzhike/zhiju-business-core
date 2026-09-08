@@ -277,3 +277,36 @@ IntegrationGateway owning Schema 在 #32 中仅获得八张标准事务技术表
 7. Local/CI Object Storage 与内置最小 OOXML Renderer 属于受控工程实现；真实 Ceph RGW/OpenBao、第三方 Renderer、公开 HTTP、生产、负载/HA、宏/外链/pivot/完整公式引擎和 pixel-perfect Office fidelity 不在本切片。
 
 当前状态：`IMPLEMENTATION, UNIT, CONTRACT, PERSISTENCE, OFFICE OPENABILITY AND GIT DELIVERY COMPLETE / PR #135 MERGED / ISSUE #125 CLOSED`。实现 head `d3a1394663d3f953e4c686385b0ef9d8d280aefb` 已通过 exact-head review/CI 并由 merge commit `1ef1303be233901c73a0bcc8f97bce8edf7e93a7` 纳入 `main`；真实外部 Provider、Ceph RGW/OpenBao、公开 HTTP、生产、负载/HA、完整 Office 引擎与真实客户版式验收仍为 `NOT RUN`。
+
+## IM-06 Runtime Binding Query 设计
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / NOT REGISTERED / NOT IMPLEMENTED`；关联 #153、[TD-02](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。保持 `get_runtime_attempt@1.0` 的 AdapterAttemptView 和既有 RuntimeDispatchRequest 不变。设计新增 `integration.get_runtime_attempt_binding@1.0`：A Query，payload `{attemptRef: ObjectRef<RuntimeAttempt>}`，purpose `integration.runtime.binding.read`，仅有该 Scope 权限的 TaskExecution Dispatcher/Validator Service及授权审计 Human。
+
+```text
+RuntimeAttemptBindingView
+  attemptRef: ObjectRef<RuntimeAttempt>
+  status: AttemptStatus
+  request: RuntimeDispatchRequest
+  requestPayloadHash: PayloadHash
+  invocationBinding:
+    runRef, workOrderContractRef, contextSnapshotRef, capabilityGrantRef
+    leaseId: UuidV7
+    fencingToken: NonNegativeInt
+    leaseExpiresAt: UtcInstant
+    runtimeBinding: RuntimeBinding
+  acknowledgement?:
+    observationId: UuidV7
+    rawReceiptRef: Exact<RawExternalReceipt>
+    runtimeSessionRef: ExternalRef
+    acknowledgedAt: UtcInstant
+    source: Closed<SYNTHETIC_DRIVER|PROVIDER>
+  bindingHash: PayloadHash
+```
+
+RuntimeBinding 的字段复用 Spec 003；Raw Receipt 与 acknowledgement 必须由真实执行的所选 Driver 产生，source 与 Adapter Profile 固定 namespace一致，不能由调用者传入 `SUCCEEDED`。仅 SUCCEEDED 携带 acknowledgement；其他状态省略，TaskExecution不得启动。bindingHash只规范覆盖不可变的attemptRef、原request及invocationBinding，排除自身Hash、mutable status与后续acknowledgement；acknowledgement以独立Observation/RawReceipt Hash验证。requestPayloadHash 仅覆盖原 request，不能与 bindingHash 互换；调用者不能提交一个新的 self-consistent request替代已存 request。
+
+Runtime Worker 从 TaskExecution 权威 Run lease/binding Port 读取 lease/fencing（读取服务 capability受限，不能从 caller runtimeBinding CanonicalJson提取授权）。读取接口设计为 `execution.get_run_dispatch_binding@1.0`，字段由 Spec 003拥有。创建 Attempt 时核对 request 与该 Port的 Run/Contract/Context/Capability/RuntimeBinding匹配，提交后才调用 Driver；Token/密钥仅在受控 Adapter 进程解析，不能进入上述 Query/Receipt。
+
+Attempt invocationBinding 创建后不可变；success observation 必须复验 invocationHash、稳定键和 session来源，原 request、Receipt、lease绑定全部同 Scope。超时 UNKNOWN、重放返回原 Attempt；允许对原 Attempt 独立真实读回并追加 reconciliation Observation，但不得二次 dispatch同键或反向由待验证 Receipt 构造 Query View。记录成功不意味着当前 lease仍有效，TE start/finalize 必须重新判断时效。
+
+拥有关系、物理表和 guard 见 PostgreSQL 技术设计附录。旧 Renderer/FormalReceipt 行为保持原基准；本设计不授权 Runtime 六项控制命令。Runtime成功与 synthetic 技术证据必须分别标记。
