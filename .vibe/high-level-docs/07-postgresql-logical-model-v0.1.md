@@ -2153,3 +2153,22 @@ completion facts可各自保存在既有Task/WorkOrder evaluation表；只读 ju
 并发设计：Task/WorkOrder child创建先对parent作只读锁和Scope/lifecycle校验；Task completion/reconcile锁目标Task并重读完整child集合，防止本模块新child/Request插入绕过Completion。锁顺序固定 Task→WorkOrder→Run→Claim→附属事实；操作只锁其所需祖先和目标，不反序持有锁。所有事务仅修改一个目标Root；跨Root推进通过已提交事实和显式owning Command。
 
 迁移验证必须覆盖空库、升级、二次no-op、角色ACL/RLS、payloadHash/Scope mirror、immutable/direct SQL、原子回滚、双连接CAS/Claim/取消/expiry竞态、池复用与长事务Decision过期。具体业务fixture使用owning命令产生输入，不能用直写伪造成功验收。此表是设计，不是物理migration完成证明。
+
+
+## 34. IM-06 TD-05 Task Board 存储提案
+
+状态：`PROPOSED / NOT IMPLEMENTED`，详细语义见 [Spec 003 §12](../module-specs/Module-Spec-003-TaskExecution.md#12-td-05-query--task-board-补充设计)。本节不改变 §33 TD-01–04 批准状态，不分配 migration 编号，不修改既有 EnterpriseProject Board 表。
+
+| Owner / 逻辑存储 | 内容与约束 |
+|---|---|
+| task_execution / task_board_dirty | owning 业务事务附带的技术 dirty identity、Enterprise/Project、source Root/version、createdAt；只追加，业务回滚一并回滚；只确认 export 明确覆盖的 identities，不按最大分配号跳过未提交事务 |
+| task_execution / task_board_export_dispatch | 每 Project 的 worker lease/fencing、exportId/hash、完整安全 manifest、covered dirty ids 与完成确认；同 exportId 只重放原 manifest，新快照用新 identity；技术事务不修改业务 Root；派发器从 owning 只读 Export Port 取 manifest，不授予 projection_app TE 表权限 |
+| projection / task_board_generation 与 task_board_row | generationId、exportId/hash、Scope、Policy、snapshotAt、rowCount/rowsHash、发布 sequence；行 INSERT-only，(generationId,taskId) 唯一；保存完整 TaskBoardSnapshotRow（公开 item 与内部 filterKeys.deliveryItemRef）；Ref 可选性与源一致，精确版本/Scope完整保留；rowsHash/manifest hash覆盖两部分 |
+| projection / task_board_alias 与 checkpoint/source health | 同 Project 单 active generation；发布、checkpoint 与 alias 在一事务；检查有效 worker fencing；相同 exportId/hash 幂等，异 hash 拒绝 |
+| projection / failure 与 generation retention | 复用脱敏 failure 原则；失败不覆盖有效 alias；generation 保留到 cursor 最大 expiresAt，清理不由 Query 执行 |
+
+内部筛选引用与 item 同 generation INSERT-only，不在查询时补写。若提取 deliveryItemRef 的索引列，必须由完整 Ref 派生并校验镜像一致，不能以仅 id 的索引命中替代完整 Ref 比较；无引用不得镜像成虚构默认值。查询在固定 generation 内完成筛选、排序与分页后仅返回 item，filterKeys 不进入公开 v1 data。
+
+来源 manifest 在 TE 的一致性只读快照内形成；Projection 的存储事务独立。首版完整重建替代字段级 Delta，只把 Domain Event 当唤醒提示。内部 dirty 保证没有公共 Event 的相关更新也可刷新；dispatcher确认和alias发布之间允许至少一次重复，禁止业务和Projection组成跨Root提交。
+
+所有行保留 Enterprise/Project Scope 并启用 FORCE RLS、最小角色权限与 Scope/hash 镜像校验；不引入跨 Schema FK。Scope/Purpose 与 worker fence 需在 Application 和持久化边界重复校验。board watermark 只属于 `task_board:<projectId>` 导出流，与 TaskCompleted→EP 的源事件 watermark 分离。缓存/旧 generation 清理失败不修改权威状态；其空间成本与定期完整导出成本在实现切片做有界负载验证后配置 Policy。

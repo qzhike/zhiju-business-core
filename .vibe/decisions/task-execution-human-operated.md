@@ -1,7 +1,7 @@
 # IM-06 Human-operated 执行边界与设计提案
 
 日期：2026-09-08
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。本文为已批准的未来技术设计，不宣称实现存在。推进顺序见 [roadmap](../product/roadmap.md)。
+状态：`TD-01–04 APPROVED 2026-09-08 / TD-05–07 PROPOSED / IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计；§11 是本次剩余设计提案，尚未批准，不宣称实现存在。推进顺序见 [roadmap](../product/roadmap.md)。
 
 ## 1. 分类与既有边界
 
@@ -151,3 +151,22 @@ Dispatcher 将已提交 Event Envelope 与真实 outbox 游标映射为 `sourceM
 本轮明确上述设计操作的输入/结果/授权、单 Aggregate 写边界、竞态裁决、持久化约束和失败用例；不声称全部 IM-06 业务已可实现。WorkOrder/Task状态协调与依赖Task当前有效性已纳入本轮候选。首版 Source Slice限定EP owning来源，答案限定CustomerMaterial，Task质量条件限定精确Revision RAS/ABS；多Owner Slice、其他AnswerSpec/Receipt和其他Task Criterion是明确延后范围，不能在实现时通过默认放行补齐。跨模块失效以既有Gate/Approval/Release事件触发重评估，并以消费时owning当前Query作兜底；因未订阅而延迟的Projection不能授权新的动作。
 
 执行次序：先独立实现 #151；TD-01–04 已批准，接下来交付必要 API/Schema 与 owning 持久化契约，再评估首批 Task/WorkOrder/Context 实现。Run/Result/答案/Completion 的后续 Issue 需基于前批实际能力再次 readiness 检查。#152–#154 当前交付为已批准技术设计；独立审查记录与业务验收分别保留，不因本次批准自动关闭。
+
+
+## 11. 剩余设计增量 TD-05–07
+
+状态：`PROPOSED / REVIEW PENDING / IMPLEMENTATION NOT STARTED`。本节属于 T2，不追溯扩张 TD-01–04 的批准。限定于 IM-06 已有 Query/Projection、Usage/Provenance 与受控退出链；不新增其他 Source Owner、答案类型、Task Criterion 或真实 Runtime 控制命令。
+
+| 决策 | Spec Delta | 主要代价与验收 |
+|---|---|---|
+| TD-05 查询与看板快照 | Spec 003 §12：权威查询逐次授权；现有 TaskBoard v1 使用不可变 generation、绑定 cursor、共享 QueryResult freshness；内部快照独立保存精确 DeliveryItem 筛选 Ref 并纳入 Hash，公开行仍为 TaskBoardItem；TE owning Snapshot Export 为内部只读 Port，Projection 不跨 Schema 读表 | 全项目导出成本与旧 generation 保留空间；暂停、并发翻页、重建失败、授权撤销与提交乱序必须有反例 |
+| TD-06 Usage 与安全来源 | Spec 003 §13：首版不产生 RuntimeUsageRecord；区分 Agent 自报、缺失及合成执行；Provenance 的可用性与可信度分别表达 | Result 声明不能冒充 Driver Observation；新解释 profile 仅限返回值中既有 CanonicalJson，不收紧旧请求 Schema |
+| TD-07 受控退出与恢复 | Spec 003 §14 / Module Test：正常正式输出、BLOCKED_INPUT 后 Human 答案两条真实 owning 链；每步失败可重放、四层完成独立 | 需要前序业务能力和持久化故障注入；现有全仓 PASS 不等于这些链已运行 |
+
+TD-05 选择从 owning 模块一致性快照重建，不假设所有字段变化都有完整公共事件。Domain Event 只唤醒刷新；提交事务中的内部 dirty marker 保证无公开 Event 的字段变化也可发现。首版不依赖字段级 Event Delta 重建；每次发布完整不可变 generation。它牺牲刷新成本换取可重复快照与严格分页，后续增量优化须证明同等一致性。Snapshot Export 不成为公共 Catalog 操作，也不允许任意 SQL、跨模块事务或调用者提供可信 Board 行。
+
+TD-06 不增加 `record_run_usage`，受控 Driver 固定可辨认的合成 Adapter/Harness/Provider/Model 身份；不存在的 Provider 计量与会话不能填造。查询仍可解释 Run/Attempt/Result 来源，Usage 缺失不阻断已满足的业务 Completion，也不免除冻结 Budget/Policy 的执行前检查。
+
+TD-07 的可执行 Fixture 使用生产 Application Command/Query、同一授权与事务路径、真实 PostgreSQL 和实际被调用的确定性 Driver。只有外部 Runtime 被受控 Driver 替换；不能替代 Policy、Receipt、Validation、Acceptance、Completion 或 TE→EP Producer。人工审核 Fixture 输出与真正独立人工业务验收分开记录。
+
+实施顺序仍从 #151 开始；TD-01–04 的 Schema/API 和 owning 存储先行。TD-05–07 批准与独立审查后，在所需基础能力实际交付时再生成 Query/Projection、受控退出的 NOW + READY 实现 Issue。现有 #152–#154 不扩写成包含所有后续实现的总任务。本次设计不会将 IM-06 或其退出 Gate 标为完成。

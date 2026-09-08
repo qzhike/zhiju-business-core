@@ -27,7 +27,7 @@
 
 退出时须证明：冻结 Scope/Hash 不变，active Run/final Result 并发唯一，正常完成与 BLOCKED_INPUT→授权答案→新 Context/Run 两条链，Cancel request/late result 失败语义，Run/WorkOrder/Task/DeliveryItem 分层完成，Usage 未知与声明来源可区分，权威 Query 与 Projection freshness 分离。完整验证使用 `vibe verify full --json`；真实飞书/Runtime 与人工业务验收独立列为 `NOT RUN`，不得被受控 Fixture 替代。
 
-当前技术设计将首次构建、Runtime/状态协调、判断事实与跨模块读取边界一起收敛；已批准设计由 owning 规格与测试附录维护。业务实现仍按实际依赖与 NOW + READY 滚动发布，Git 交付按用户授权范围推进。
+首次构建、Runtime/状态协调、判断事实与跨模块读取边界的 TD-01–04 已批准，由 owning 规格与测试附录维护。剩余的 Query/Projection 快照与重建、Usage/安全来源、正常与阻塞恢复退出链已形成 TD-05–07 提案，见设计 §11 和 Spec 003 §12–14；尚待人类批准与独立审查，不改变首版来源/答案/质量条件范围。业务实现仍按实际依赖与 NOW + READY 滚动发布，Git 交付按用户授权范围推进。
 
 ## Next / Later — 后续顺序
 

@@ -497,3 +497,73 @@ REVISION_ACCEPTANCE_READY 通过 Artifact exact Revision + Quality 的精确 Rev
 设计 `execution.get_run_dispatch_binding@1.0`：A Query；payload `{runRef: ObjectRef<Run>}`；purpose `execution.run.dispatch_binding.read`，只授予 IG Runtime Dispatcher 与 TE Dispatcher/Validator。结果 `{runRef, workOrderRef, workOrderContractRef, contextSnapshotRef, capabilityGrantRef, runtimeBinding: RuntimeBinding, leaseId: UuidV7, fencingToken: NonNegativeInt, leaseExpiresAt: UtcInstant, executionDeadline?: UtcInstant, status: RunStatus, aggregateVersion: NonNegativeInt}`。字段全由 owning Run/Claim/不可变SecurityBinding读取；无有效ACTIVE Claim、跨Scope或过期授权拒绝，不返回Token、secret handle、workspace locator或Continuation secret。此Query弥补旧 RunStateView无法返回Capability/leaseId的缺口，禁止IG直接读TE Schema。
 
 TaskStateView另返回 `completionUseStatus: Closed<NOT_EVALUATED|USABLE|STALE|REVOKED>`。COMPLETED保留历史状态，当前事实失效通过useStatus和immutable Impact事实解释，不从旧完成事件反推当前权限。依赖Task用于新的Readiness时必须重验其Completion Evaluation和当前事实，不能只看到status=COMPLETED即放行。跨模块一致性只保证所记录观测时点，详见设计 §10.1。
+
+
+## 12. TD-05 Query / Task Board 补充设计
+
+状态：`PROPOSED / NOT IMPLEMENTED`，见[设计增量](../decisions/task-execution-human-operated.md#11-剩余设计增量-td-05–07)。本节与 §13–14 待审核，§11 的 TD-01–04 仍为已批准基准。
+
+### 12.1 权威读取与公开兼容
+
+七个既有 Query 的 payload/result data 不变；TaskState 使用 §11 已批准的新 Query。读取开始和返回前验证有效授权、Scope/Purpose；对 mutable Root 在同一只读一致性快照组装 aggregateVersion 与子事实，不从 Board 补字段。exact Contract/Context/Result 校验 Owner、id/hash、Scope；查询不补建 Judgment、不 resolve Request、不触发 Driver 或 Completion。历史 immutable fact 的存在不等于当前可用于执行，当前有效性走 §11 Judgment/TaskState 等 owning Port。
+
+所有 Board 响应使用共享 `QueryResult<Page<TaskBoardItem>>`。`stalenessStatus` 等诊断放共享 Envelope，不向严格的 TaskBoardPage v1 增加字段；Page 与 Envelope 的 snapshotAt/sourceWatermarks/nextCursor 一致，Hash 按共享规则计算。既有 Result Schema 只验证 data，不能代替 Envelope 的集成验证。权限不足与不存在依共享安全 Policy 折叠，不泄露跨租户行数、cursor 或故障正文。
+
+### 12.2 owning Snapshot Export 与发布
+
+新增内部只读 `TaskBoardSnapshotExportPort`，仅授予指定 Projection Service；输入 `{projectRef, exportPolicyRef, authorizationContext}`，输出不可变 manifest `{exportId, projectRef, snapshotAt, policyRef, rows, rowCount, rowsHash, coveredDirtyIds}`。rows 使用内部 `TaskBoardSnapshotRow = {item: TaskBoardItem, filterKeys: {deliveryItemRef?: VersionedRef<DeliveryItem>}}`，按 item.taskRef 的 Task id 的 UTF-8 字节序排序；同一 REPEATABLE READ 快照中读取 Task、child WorkOrder、blocking Request 与已提交内部 dirty marker。业务对象含完整 Enterprise/Project Scope，未解决 BLOCKED_INPUT 与 §11.5 的 reconcile 阻塞规则一致；export 不推进这些 Root。内部 Port 不接收自由过滤 SQL，不对 Human/Agent 开放，Projection writer 不直接访问 task_execution 表。
+
+`filterKeys` 必填，其 deliveryItemRef 从该快照内 Task definition 的同名字段原样取得；源字段不存在时省略，不填 null、不按最新 DeliveryPlan 推断。item 与 filterKeys 必须从同一来源快照组装，受同一 Scope 校验。rowsHash 对完整有序 TaskBoardSnapshotRow 数组做 canonical hash，包含 filterKeys、精确 Ref 及字段有无；manifest hash 同样覆盖完整 rows。相同展示字段而筛选引用不同必须产生不同 Hash。公开 Page 仅投影 row.item，禁止把 filterKeys 加入严格的 TaskBoardItem v1。
+
+每个影响 Board 的 owning 写事务同时追加 Scope 内 dirty marker（Task 创建/状态/字段及任何已授权的 deliveryItemRef 来源变更、WO 状态、Request/Resolution、影响 blocker 的 Result 等）；只读 Export 不写 marker、checkpoint 或派发状态。worker 在独立技术事务领取每 Project 的带 fencing 的单一 export lease，读取 owning manifest，再发布 generation。旧 worker 失去 lease 后不能切换 alias。worker 在派发技术事务中持久化完整安全 manifest 后才能发布；同一 exportId 重放必须使用原 manifest，新读快照必须使用新 exportId。消费者仅确认 manifest 明确覆盖的 dirty identities，不能以 `MAX(sequence)` 确认尚未提交的更小序号；并发晚提交 marker 会再次触发刷新。启动、恢复和定期完整导出兜底，不能依赖一次性唤醒。
+
+每个发布 generation 保存 canonical manifest hash、行数、策略版本、来源 snapshotAt。Projection 在一事务写新 generation/rows、校验 count/hash、更新 checkpoint 并切换 alias；任一失败保留旧 alias。发布顺序由该 Project 的 fenced worker 串行分配持久化 sequence，相同 exportId/hash 重放复用，异 hash 拒绝。Board SourceWatermark 为 `sourceModule=task_execution`、`partition=task_board:<projectId>`、generation 发布 sequence；它只表示这个导出流的消费进度，不冒充 Domain Event 全局提交位置，不能传给 §10.3 的 EP Completion consumer。observedAt 是真实导出观测时间，不能用查询当前时间把旧快照变新。
+
+这是 §07 Snapshot Export 方案的首版完整刷新实现；不需要无限保留公共 Outbox，不把 Event payload 当完整状态。导出失败、越权、无法校验的 manifest 进入脱敏 failure；不能空集合替换成功 generation。worker 崩溃于 alias 切换后、dirty 确认前，可重复相同导出/刷新，但不得漏掉新 marker。
+
+### 12.3 过滤、分页与 freshness
+
+过滤先约束当前授权 Enterprise/Project，再在 cursor 固定的 generation 内应用 statuses、assigneeRef、精确 deliveryItemRef；前两者读取 row.item，后者只读取 row.filterKeys.deliveryItemRef。指定 deliveryItemRef 时，只有存有同一完整规范化 VersionedRef 的行匹配，必须包含版本及 Ref 内的 Scope/其他限定字段，不能仅比较对象 id；未绑定或不同版本均不匹配。未指定该过滤器时不排除未绑定行。所有过滤先于稳定排序与分页截取，不能先取一页再过滤。禁止回查最新 Task/DeliveryPlan 补充筛选关系；当前权限仍独立重验。空 statuses 表示不限制状态。assignee 仅导出规范 PrincipalRef 的安全表示，不复制任意主体属性。首版筛选、排序和分页规则须以既有 Query payload Schema 为输入，不静默改类型。固定排序为 Task id 升序，无 offset 翻页。
+
+Cursor 按共享 API §6.2 防篡改，绑定 query/version、Scope、requester/当前授权策略、Purpose、规范 filter hash、generationId、snapshotAt/watermarks、sort、last Task id、expiresAt。下一页读相同不可变 generation；alias 已换新也不能混读。每页仍重新授权；权限/Policy 改变时拒绝旧 cursor 并重新查询，不沿用旧授权或返回部分旧行。旧 generation 保留至所签发 cursor 的最大有效期，过期返回 QUERY_CURSOR_EXPIRED；参数/Scope/Purpose 不匹配返回 QUERY_CURSOR_SCOPE_MISMATCH。过期清理独立于只读 Query。
+
+本 profile 的共享 Envelope `stalenessStatus` 使用 FRESH/STALE/REBUILDING/FAILED；它们是待注册的响应语义，不增改旧 data Schema。FRESH 要求所读 generation 仍是当前 alias、当前检查能确认没有未覆盖 dirty marker、无失败/重建且快照年龄在版本化 freshness Policy 阈值内；这仅是观测时点新鲜，不能授权下一条写操作。无法读 source health 为 FAILED；有待处理 marker 或超过阈值为 STALE；新版本构建中为 REBUILDING。后两者与 FAILED 可附带仍在保留期且通过当前授权检查的旧 generation，分别使用共享 status STALE/ERROR；没有可用 generation 时省略 data，禁止 OK+空 Page 掩盖故障。状态优先 FAILED > REBUILDING > STALE > FRESH。刷新阈值、cursor TTL 与保留期限从版本化 Policy 读取，缺失配置不能自称 FRESH。
+
+Board 的 COMPLETED 是历史状态展示。进入操作前重新读取权威 TaskState 和适用 Judgment/Decision；禁止 Board blockerRefs=[]、历史 Evaluation 或 FRESH 成为 readiness/completion/授权证明。即使独立权威查询成功，也不能把同页 Board 改标 FRESH。
+
+## 13. TD-06 Usage / Provenance 补充设计
+
+状态：`PROPOSED / NOT IMPLEMENTED`。复用 `get_usage_and_provenance@1.0`；不新增 Runtime Usage 写命令，不改变 AgentResult Core Schema。
+
+| 可验证输入 | 首版返回规则 |
+|---|---|
+| 尚无可用 final Result，或无任何 Usage 声明 | 不返回 runtimeUsageRef；agentDeclaredUsage 为 UNKNOWN 且无 value；authoritativeSource=UNAVAILABLE |
+| final Result 含可定位的 Agent 声明 | agentDeclaredUsage=PRESENT，evidenceRefs 指向 exact Result；authoritativeSource=AGENT_DECLARED，仅指当前可展示来源，不是 Provider 权威计量 |
+| 已隔离/拒绝的 Result 含声明 | 不提升为可用 Usage；返回 UNKNOWN 及安全原因，Provenance 可展示隔离 fact ref；不合计其数值 |
+| Provider/Runtime 计量尚未实现 | runtimeUsageRef 省略；不依据 Driver 执行次数估算 token/cost，不用 PRESENT 0 替代 UNKNOWN |
+
+当前 AgentResult 没有统一计量字段；仅当存在经后续明确 profile 解释的合法声明时才采用表中 PRESENT 分支，IM-06 默认路径为 UNKNOWN，不从自由文本、stdout 或任意 metadata 猜值。本轮不添加或收紧 AgentResult 请求字段；执行前 Budget 检查照常，无法满足的强制计量/预算 Policy 拒绝 dispatch，不能把未知当无消耗。
+
+Query 的既有 `provenance: CanonicalJson` 输出使用安全 profile `execution.provenance.human_operated.v1`：`{profile, runRef, workOrderContractRef, contextSnapshotRef, capabilityGrantRef, runtimeBinding, attemptEvidence, resultEvidence}`。后两项使用 ValueEnvelope<CanonicalJson>；PRESENT 的 attemptEvidence 只含 exact Attempt、bindingHash、Observation/receipt refs 与 source=SYNTHETIC_DRIVER，resultEvidence 只含 exact Result、Acceptance ref（若已形成）、受验证的 Core provenance 安全字段。未知为 UNKNOWN，不造占位Ref。缺少可校验的跨模块查询时用 UNAVAILABLE 原因，不能降级信任 caller 的 provenance。
+
+从已持久化 Run、IG binding/observation 与 immutable Result 分别取证，不把 Result 自述当作 Invocation Observation。声明与实际绑定不一致保留拒绝/隔离事实，不合成新的可信 provenance；Runtime Binding 不包含 token、secret handle、stdout、Prompt、客户正文或 continuation secret。合成 Driver 使用版本化的明确 synthetic 身份，不冒充真实 Provider/Model；不存在的 Execution Package、execution node/session 不编造 hash/ref。
+
+`reconciliationStatus` 首版 profile 值为 `execution.usage.unavailable`、`execution.usage.agent_declared_only` 或 `execution.usage.source_conflict`；它们不表示 Provider 对账完成。Run-2 不覆盖 Run-1 的 Result/Usage/来源，每次查询按 runRef 返回独立事实，不跨 Run 汇总费用。将来增加真实计量仍须 IM-DG-006 及独立契约设计。
+
+## 14. TD-07 受控退出 Fixture 与恢复设计
+
+状态：`PROPOSED / NOT IMPLEMENTED`。使用同一公开 Application Port、正式 AuthorizationDecision/ActorSnapshot、真实 PostgreSQL 与可控时钟/故障点；测试 Human identity 是测试环境授权主体，不伪造生产审批。Policy/Evaluator/Adapter fixture 固定版本与 canonical hash，由正常注册/装载边界解析；unknown、过期或 Hash 不匹配直接拒绝，不能为了通过链路跳过判据。测试依赖和业务初始化分别走各 owning 入口。
+
+| 阶段 | 正常正式输出链 | BLOCKED_INPUT 恢复链 |
+|---|---|---|
+| 初始化 | 已存在合法 EP/Artifact 输入；Task v2→Readiness→READY；WO Draft→EP Slice→initial Context→Validation→Freeze/Queue | 同左，冻结一个 CustomerMaterial 答案 profile 的缺输入场景 |
+| 执行 | Dispatcher create Run→IG Attempt→实际 synthetic invoke/ack→start Run | Run-1 返回 final BLOCKED_INPUT，合法空输出可 Acceptance/Run SUCCEEDED |
+| 结果 | Result submit→record→五类 Validation→Acceptance→finalize；所指正式 ArtifactRevision 由 Artifact owning Command 创建并核验 Scope/provenance | WO/Task 保持阻塞；服务按已提交 Result 建立关联 Request，Request 建立前的异步窗口也必须阻塞 |
+| 恢复 | 不需要答案 | Human 提交 Answer，EP 确认材料，TE 核验 Receipt 采纳/resolve；冻结后 build_context 形成 CTX-2；新 Run-2/Attempt/fencing，原 Contract/CTX-1/Run-1/Result hash 不变 |
+| 完成 | WO Evaluation→WO完成；Task Evaluation核验全部条件/适用质量事实→Task完成；实际 TaskCompleted Outbox→EP Inbox/独立 DeliveryItem Evaluation | Run-2 走正常结果链；新结果明确覆盖旧阻塞意图，所有关联 Request resolution 均可解析；不能只凭 RESOLVED 或新 Run 存在判成功 |
+
+正式 Revision 的业务修改只由已授权 owning Command 发生；Driver 不直接写 Artifact 表。TD-02 所限 Proposal/结果驱动副作用须在匹配 Acceptance finalize 后处理；预置输入 Revision 与本次 WO 创建的输出不能混淆。Quality 条件通过真实 owning Gate/Approval 路径产生当前 RAS/ABS，不注入 READY 布尔值。DeliveryItem Fixture 先选满足已批准首版 Task profile、且其自身 criteria 可由本范围事实证明的受控对象；另设要求 Release 的负例，必须保持未完成，不能为过 Gate 扩展 Task RELEASED criterion。
+
+恢复 Process 只保存当前 step/source exact ref、稳定幂等键、attemptCount、nextAttemptAt、安全 lastError；每步调用 owning Command 后再确认进度。提交成功但确认进度前崩溃重放同键；结果不明先查询 Receipt，不换键重做外部动作。临时不可用按版本化 retry Policy 有限重试，到预算上限保留失败与待处理源，不清 blocker、不写业务成功；输入/授权/Hash 错误为需处理失败，不无限重试。处理后的新合法输入生成新的 source fingerprint，旧失败与原事实仍可追溯。scan/worker 重启恢复规则沿用 §11.5，Query 不承担补偿。
+
+退出报告在 GitHub Issue/PR 给出两条链的真实 identity/hash 与 CommandReceipt/Outbox/Inbox/Evaluation 引用，分别列 Design、Schema、Application、PostgreSQL、controlled cross-module、Provider/HTTP/Manual 结果。至少在 Result提交、Acceptance提交、Run终结、Request resolution、TaskCompleted投递后各注入一次故障，恢复前后核对 Receipt/事件数量与旧 Hash。外部 Provider、Feishu、CLI、公开 HTTP、生产与独立人工业务验收保持各自 NOT RUN，除非另有实际执行证据。

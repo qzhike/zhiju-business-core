@@ -91,3 +91,29 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-TD-026 | Query | Task历史COMPLETED而事实撤销；读取TaskState与依赖Readiness | 历史保持，completionUseStatus不可用，依赖不能仅凭status通过 | NOT RUN |
 
 独立设计审查应核对 TD-01–04、新操作清单、所有具体失败矩阵与单Aggregate/兼容边界。人类对具体技术设计的批准不等于上述运行结果。真实Feishu/CLI Runtime、公开HTTP、生产和独立人工业务验收继续独立NOT RUN。
+
+
+## TD-05–07 剩余设计回归矩阵
+
+状态：`PROPOSED / REVIEW PENDING`。下表对应 Spec 003 §12–14；批准前不是已冻结执行契约，当前全部 NOT RUN。已有 Schema/full 通过不能替代新增 Handler 与受控业务链验收。
+
+| ID | 层级 | 输入/故障 | 预期输出与禁止效果 | 当前结果 |
+|---|---|---|---|---|
+| TE-TD-027 | Contract/Query | Board v1 的严格 data Schema 与共享 QueryResult 分别校验 | 不往 data 塞 freshness 字段；两层 snapshotAt/watermarks/cursor 一致；旧合法 fixture 保留 | NOT RUN |
+| TE-TD-028 | Persistence | 翻页间 Task 更新、alias 切换、generation 清理 | 原 cursor 仍读原 generation、无重复漏项/混页；超 TTL 明确过期，不跳到最新页 | NOT RUN |
+| TE-TD-029 | Security | cursor 篡改、换 Scope/filter/Purpose/主体；第一页后授权撤销 | 返回安全错误，不泄露旧 generation 行或计数；当前授权先于返回数据 | NOT RUN |
+| TE-TD-030 | Persistence | 暂停刷新，mutable 权威状态已变；无 alias；source health 查询失败 | STALE/FAILED/REBUILDING 真实表达；无可用数据时省略 data，不返回 OK 空页；权威状态仍独立正确 | NOT RUN |
+| TE-TD-031 | Persistence | 导出/重建错行数/Hash、事务中断；切 alias 后未确认 dirty 即崩溃 | 失败不切 alias；重放不丢 marker，旧 generation 不变，完成判据不依赖刷新 | NOT RUN |
+| TE-TD-032 | Persistence | 低序号事务晚提交、高序号先提交；export lease 过期后旧 worker 返回 | coveredDirtyIds 仅确认快照可见集合；晚提交触发新刷新，旧 fencing 不能覆盖新 alias | NOT RUN |
+| TE-TD-033 | Contract/Security | 未调用 Driver 的来源声明、跨 Run Observation、Usage 缺失、Result隔离 | provenance 不能提升为可信 Invocation；UNKNOWN 无 value，不造 0/runtimeUsageRef；Run 间不覆盖 | NOT RUN |
+| TE-TD-034 | Security | Provenance 注入 Prompt/token/stdout/客户正文；synthetic 伪装 Provider | 安全 profile 拒绝/裁剪，不持久化或返回敏感源；明确 synthetic 身份，无 Provider 验收声称 | NOT RUN |
+| TE-TD-035 | Controlled cross-module | 空 TE 业务库、合法 owning 初始输入→正常正式 Revision 输出→四层判断 | 实际 Receipt/Hash 链；TaskCompleted 由 TE 真实生产并进入 EP；需额外 Release 的 Item 仍未完成 | NOT RUN |
+| TE-TD-036 | Controlled cross-module | BLOCKED_INPUT→授权 CustomerMaterial Answer/Receipt→CTX-2/Run-2 | 新事实推进，旧 Contract/CTX-1/Run-1/Result 哈希不变；Request未建立窗口也阻塞，无假 Resume | NOT RUN |
+| TE-TD-037 | Persistence/Recovery | Result/Acceptance/finalize/resolve/TaskCompleted 各提交后、确认前崩溃 | 重放原幂等键、单业务效果；原成功 Receipt 可查，不为重试造新 Attempt | NOT RUN |
+| TE-TD-038 | Unit/Recovery | 临时故障持续到 retry budget；未知 Policy、过期授权或异 Hash | 有限重试或立即失败，待处理源/错误可追溯；无清 blocker/假成功；新合法输入用新 fingerprint | NOT RUN |
+| TE-TD-039 | Security/Persistence | 内部 Snapshot Export 越权/跨 Scope，Projection app 直读 TE 表 | Port拒绝与ACL/RLS拒绝；导出只读且无状态推进，manifest 仅含安全 item 与限定的内部筛选字段 | NOT RUN |
+| TE-TD-040 | Query/Contract | 同一 DeliveryItem 的 v1/v2、其他 Item 与未绑定 Task；带/不带过滤器 | 精确版本仅命中对应行；未绑定行只在无该过滤器时可返回；先过滤后分页，不回查最新 Task；公开结果不含 filterKeys | NOT RUN |
+| TE-TD-041 | Persistence/Query | G1 翻页期间来源关联合法变化并发布 G2；或切换 cursor 的 DeliveryItem 版本过滤器 | 原 cursor 的行归属按 G1 保持；新查询使用 G2；修改过滤器拒绝 cursor，不混入新关系 | NOT RUN |
+| TE-TD-042 | Persistence/Integrity | item 不变而内部 Ref 换版本/Scope、由缺失变存在；保留旧 rowsHash 或篡改索引镜像 | 完整行 Hash 随变更改变，错误 Hash/镜像拒绝发布且保留旧 alias；内部字段不能漏出 TaskBoardItem v1 | NOT RUN |
+
+独立审查须覆盖共享 Envelope 与 data Schema 边界、export dirty 集合的提交可见性、cursor 生命周期、Usage 证据来源以及正常/阻塞链的四层完成反例。独立审查和人类设计批准分别记录；本次自检不替代独立审查。
