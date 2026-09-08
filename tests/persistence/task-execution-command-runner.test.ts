@@ -11,11 +11,9 @@ import {
   PAYLOAD_HASH_MISMATCH,
   TASK_EXECUTION_CONTEXT_PRINCIPAL_MISMATCH,
   TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
-  TaskExecutionRepository,
   type CommandBodyResult,
   type CommandEnvelope,
   type CommandExecution,
-  type CommandFacts,
   type TaskExecutionTransactionContext,
 } from '@zhiju/task-execution';
 
@@ -118,7 +116,6 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
   let probe: pg.Client;
   let pool: pg.Pool;
   let db: ReturnType<typeof createTaskExecutionDatabase>;
-  let repo: TaskExecutionRepository;
 
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: databaseUrl });
@@ -134,7 +131,6 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
     await probe.connect();
     pool = new pg.Pool({ connectionString: url.toString(), max: 6 });
     db = createTaskExecutionDatabase(pool);
-    repo = new TaskExecutionRepository();
   });
 
   afterAll(async () => {
@@ -230,11 +226,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
       contextFor(ENTERPRISE_A),
       envelope(),
       async (execution) => {
-        await repo.insertProcessInstance(
-          execution.trx,
-          execution.commandFacts,
-          processInsert(PROCESS_A),
-        );
+        await execution.insertProcessInstance(processInsert(PROCESS_A));
         await execution.appendReferenceEdge({
           ownerObjectType: 'ProcessInstance',
           ownerObjectId: PROCESS_A,
@@ -404,11 +396,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
         requestPayload: { op: 'register', target: 'concurrency' },
       }),
       async (execution) => {
-        await repo.insertProcessInstance(
-          execution.trx,
-          execution.commandFacts,
-          processInsert(PROCESS_CONCURRENCY),
-        );
+        await execution.insertProcessInstance(processInsert(PROCESS_CONCURRENCY));
         return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_CONCURRENCY } };
       },
     );
@@ -480,11 +468,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
         requestPayload: { op: 'bigint-setup' },
       }),
       async (execution) => {
-        await repo.insertProcessInstance(
-          execution.trx,
-          execution.commandFacts,
-          processInsert(PROCESS_BIGINT),
-        );
+        await execution.insertProcessInstance(processInsert(PROCESS_BIGINT));
         return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_BIGINT } };
       },
     );
@@ -544,11 +528,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
       requestPayload: { op: 'register-fault' },
     });
     const successBody: CommandBody = async (execution) => {
-      await repo.insertProcessInstance(
-        execution.trx,
-        execution.commandFacts,
-        processInsert(PROCESS_FAULT),
-      );
+      await execution.insertProcessInstance(processInsert(PROCESS_FAULT));
       await execution.appendReferenceEdge({
         ownerObjectType: 'ProcessInstance',
         ownerObjectId: PROCESS_FAULT,
@@ -646,9 +626,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
           requestPayload: { op: 'creator-mismatch' },
         }),
         async (execution) => {
-          await repo.insertProcessInstance(
-            execution.trx,
-            execution.commandFacts,
+          await execution.insertProcessInstance(
             processInsert(
               PROCESS_PRINCIPAL,
               undefined,
@@ -680,11 +658,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
         requestPayload: { op: 'cas-target-setup' },
       }),
       async (execution) => {
-        await repo.insertProcessInstance(
-          execution.trx,
-          execution.commandFacts,
-          processInsert(PROCESS_CAS_SCOPE, PROJECT_A1),
-        );
+        await execution.insertProcessInstance(processInsert(PROCESS_CAS_SCOPE, PROJECT_A1));
         return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_CAS_SCOPE } };
       },
     );
@@ -829,11 +803,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
         requestPayload: { op: 'insert-positive' },
       }),
       async (execution) => {
-        await repo.insertProcessInstance(
-          execution.trx,
-          execution.commandFacts,
-          processInsert(PROCESS_INSERT_PROJECT_A, PROJECT_A1),
-        );
+        await execution.insertProcessInstance(processInsert(PROCESS_INSERT_PROJECT_A, PROJECT_A1));
         return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_INSERT_PROJECT_A } };
       },
     );
@@ -855,9 +825,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
           requestPayload: { op: 'insert-project-mismatch' },
         }),
         async (execution) => {
-          await repo.insertProcessInstance(
-            execution.trx,
-            execution.commandFacts,
+          await execution.insertProcessInstance(
             processInsert(PROCESS_INSERT_PROJECT_B, PROJECT_A2),
           );
           return { kind: 'COMMITTED', resultPayload: { should: 'never reach' } };
@@ -893,9 +861,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
           requestPayload: { op: 'insert-processid-mismatch' },
         }),
         async (execution) => {
-          await repo.insertProcessInstance(
-            execution.trx,
-            execution.commandFacts,
+          await execution.insertProcessInstance(
             processInsert(PROCESS_INSERT_TARGET_TYPE, PROJECT_A1),
           );
           return { kind: 'COMMITTED', resultPayload: { should: 'never reach' } };
@@ -929,9 +895,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
           requestPayload: { op: 'insert-targettype-mismatch' },
         }),
         async (execution) => {
-          await repo.insertProcessInstance(
-            execution.trx,
-            execution.commandFacts,
+          await execution.insertProcessInstance(
             processInsert(PROCESS_INSERT_TARGET_TYPE, PROJECT_A1),
           );
           return { kind: 'COMMITTED', resultPayload: { should: 'never reach' } };
@@ -949,93 +913,98 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
     ).toBe('0');
   });
 
-  it('binds the runner-bound command facts and rejects replacement or mutation attempts', async () => {
-    const tamperedTargets: string[] = [];
+  it('binds the runner-bound insert path and ignores caller mutations of the input envelope', async () => {
+    const inputEnvelope = envelope({
+      commandId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f001',
+      idempotencyKey: 'wi01-tamper-control',
+      commandType: 'wi01.tamper-control',
+      targetId: PROCESS_INSERT_TAMPER,
+      projectId: PROJECT_A1,
+      requestPayload: { op: 'tamper-control' },
+    });
     await executeTaskExecutionCommand(
       db,
       contextFor(ENTERPRISE_A, [PROJECT_A1, PROJECT_A2]),
-      envelope({
-        commandId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f001',
-        idempotencyKey: 'wi01-tamper-control',
-        commandType: 'wi01.tamper-control',
-        targetId: PROCESS_INSERT_TAMPER,
-        projectId: PROJECT_A1,
-        requestPayload: { op: 'tamper-control' },
-      }),
+      inputEnvelope,
       async (execution) => {
-        expect(Object.isFrozen(execution.commandFacts)).toBe(true);
-        const before = execution.commandFacts.targetId;
+        expect(typeof execution.insertProcessInstance).toBe('function');
+        expect('commandFacts' in execution).toBe(false);
         try {
-          (execution.commandFacts as { targetId: string }).targetId =
-            '00000000-0000-7000-8000-000000000000';
+          inputEnvelope.targetId = '00000000-0000-7000-8000-000000000000';
+          inputEnvelope.projectId = PROJECT_A2;
         } catch {
-          // runtime rejected the mutation (strict mode)
+          // strict-mode rejection is fine
         }
-        tamperedTargets.push(execution.commandFacts.targetId);
-        expect(execution.commandFacts.targetId).toBe(before);
-        await repo.insertProcessInstance(
-          execution.trx,
-          execution.commandFacts,
-          processInsert(PROCESS_INSERT_TAMPER, PROJECT_A1),
-        );
+        await execution.insertProcessInstance(processInsert(PROCESS_INSERT_TAMPER, PROJECT_A1));
         return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_INSERT_TAMPER } };
       },
     );
-    expect(tamperedTargets).toEqual([PROCESS_INSERT_TAMPER]);
     expect(await count('process_instance', `WHERE process_id = '${PROCESS_INSERT_TAMPER}'`)).toBe(
       '1',
     );
+    expect(
+      await count('process_instance', `WHERE process_id = '00000000-0000-7000-8000-000000000000'`),
+    ).toBe('0');
+    const inserted = await admin.query<{ enterprise_id: string; project_id: string | null }>(
+      `SELECT enterprise_id::text, project_id::text FROM task_execution.process_instance WHERE process_id = $1`,
+      [PROCESS_INSERT_TAMPER],
+    );
+    expect(inserted.rows[0]).toEqual({ enterprise_id: ENTERPRISE_A, project_id: PROJECT_A1 });
 
-    const tamperedBrand = Symbol('caller-minted-fake-brand');
-    const substitudedFactShape = {
-      targetType: 'ProcessInstance',
-      targetId: '00000000-0000-7000-8000-000000000000',
-      enterpriseId: ENTERPRISE_A,
-      projectId: PROJECT_A2,
-      [tamperedBrand]: true,
-    };
-    const branded = Object.freeze({
-      ...substitudedFactShape,
-      [tamperedBrand]: true,
-    }) as unknown as CommandFacts;
-
+    const spoofedEnvelope = envelope({
+      commandId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f002',
+      idempotencyKey: 'wi01-tamper-envelope-mutation',
+      commandType: 'wi01.tamper-envelope-mutation',
+      targetId: PROCESS_INSERT_TAMPER,
+      projectId: PROJECT_A1,
+      requestPayload: { op: 'tamper-envelope-mutation' },
+    });
     await expect(
       executeTaskExecutionCommand(
         db,
         contextFor(ENTERPRISE_A, [PROJECT_A1, PROJECT_A2]),
-        envelope({
-          commandId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f002',
-          idempotencyKey: 'wi01-tamper-substitute',
-          commandType: 'wi01.tamper-substitute',
-          targetId: PROCESS_INSERT_TAMPER,
-          projectId: PROJECT_A1,
-          requestPayload: { op: 'tamper-substitute' },
-        }),
+        spoofedEnvelope,
         async (execution) => {
-          try {
-            (execution.commandFacts as { targetId: string }).targetId = branded.targetId;
-          } catch {
-            // strict-mode rejection
-          }
-          await repo.insertProcessInstance(
-            execution.trx,
-            branded,
-            processInsert('00000000-0000-7000-8000-000000000000', PROJECT_A2),
-          );
-          return { kind: 'COMMITTED', resultPayload: { should: 'never reach' } };
+          spoofedEnvelope.targetId = '00000000-0000-7000-8000-000000000000';
+          spoofedEnvelope.projectId = PROJECT_A2;
+          await execution.casProcessInstance(spoofedEnvelope.targetId, '1');
+          await execution.appendOutbox({
+            eventId: 'f1f1f1f1-f1f1-71f1-81f1-f1f1f1f1f099',
+            eventType: 'wi01.TamperOutbox',
+            eventVersion: '1.0',
+            aggregateType: spoofedEnvelope.targetType,
+            aggregateId: spoofedEnvelope.targetId,
+            aggregateVersion: '1',
+            payload: {
+              enterpriseId: spoofedEnvelope.enterpriseId,
+              projectId: spoofedEnvelope.projectId,
+              note: 'should-not-write',
+            },
+            occurredAt: new Date(),
+          });
+          await execution.appendReferenceEdge({
+            ownerObjectType: spoofedEnvelope.targetType,
+            ownerObjectId: spoofedEnvelope.targetId,
+            referencePath: '/tamper',
+            targetModule: 'task_execution',
+            targetObjectType: 'ProcessInstance',
+            targetObjectId: spoofedEnvelope.targetId,
+            referencePurpose: 'WI01_TAMPER_REFERENCE',
+          });
+          return {
+            kind: 'COMMITTED',
+            resultPayload: { note: 'should-not-write' },
+          };
         },
       ),
-    ).rejects.toMatchObject({ code: TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH });
+    ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
     expect(
-      await count('process_instance', `WHERE process_id = '00000000-0000-7000-8000-000000000000'`),
+      await count('command_receipt', `WHERE idempotency_key = 'wi01-tamper-envelope-mutation'`),
     ).toBe('0');
-    expect(await count('process_instance', `WHERE process_id = '${PROCESS_INSERT_TAMPER}'`)).toBe(
-      '1',
-    );
-    expect(await count('command_receipt', `WHERE idempotency_key = 'wi01-tamper-substitute'`)).toBe(
+    expect(await count('outbox_event', `WHERE event_type = 'wi01.TamperOutbox'`)).toBe('0');
+    expect(await count('reference_edge', `WHERE reference_purpose = 'WI01_TAMPER_REFERENCE'`)).toBe(
       '0',
     );
-    expect(await count('audit_record', `WHERE command_type = 'wi01.tamper-substitute'`)).toBe('0');
   });
 
   it('persists REJECTED receipt on business rejection without altering the aggregate', async () => {
@@ -1049,11 +1018,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
         requestPayload: { op: 'reject-setup' },
       }),
       async (execution) => {
-        await repo.insertProcessInstance(
-          execution.trx,
-          execution.commandFacts,
-          processInsert(PROCESS_REJECT),
-        );
+        await execution.insertProcessInstance(processInsert(PROCESS_REJECT));
         return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_REJECT } };
       },
     );
@@ -1161,11 +1126,7 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
         requestPayload: { op: 'project-seed' },
       }),
       async (execution) => {
-        await repo.insertProcessInstance(
-          execution.trx,
-          execution.commandFacts,
-          processInsert(PROCESS_PROJECT, PROJECT_A1),
-        );
+        await execution.insertProcessInstance(processInsert(PROCESS_PROJECT, PROJECT_A1));
         return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_PROJECT } };
       },
     );

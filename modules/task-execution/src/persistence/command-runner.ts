@@ -13,6 +13,10 @@ import {
   type TaskExecutionTransaction,
   type TaskExecutionTransactionContext,
 } from './task-execution-db.js';
+import {
+  TaskExecutionRepository,
+  type ProcessInstanceInsert,
+} from './task-execution-repository.js';
 
 export const IDEMPOTENCY_PAYLOAD_CONFLICT = 'IDEMPOTENCY_PAYLOAD_CONFLICT';
 export const CONCURRENCY_CONFLICT = 'CONCURRENCY_CONFLICT';
@@ -144,16 +148,60 @@ export type CommandBodyResult =
       currentAggregateVersion?: string | undefined;
     };
 
-const COMMAND_FACTS_BRAND: unique symbol = Symbol('@zhiju/task-execution/CommandFacts');
+function freezeEnvelope(envelope: CommandEnvelope): CommandEnvelope {
+  return Object.freeze({
+    commandId: envelope.commandId,
+    commandType: envelope.commandType,
+    commandVersion: envelope.commandVersion,
+    idempotencyScope: envelope.idempotencyScope,
+    idempotencyKey: envelope.idempotencyKey,
+    requestPayload: envelope.requestPayload,
+    enterpriseId: envelope.enterpriseId,
+    projectId: envelope.projectId,
+    targetType: envelope.targetType,
+    targetId: envelope.targetId,
+    expectedAggregateVersion: envelope.expectedAggregateVersion,
+    correlationId: envelope.correlationId,
+    causationId: envelope.causationId,
+    principalId: envelope.principalId,
+    principalKind: envelope.principalKind,
+    actorSnapshotId: envelope.actorSnapshotId,
+    authorizationDecisionId: envelope.authorizationDecisionId,
+    policySnapshotId: envelope.policySnapshotId,
+  });
+}
+
+export interface CommandExecution {
+  readonly trx: TaskExecutionTransaction;
+  /**
+   * Runner-bound process instance insert: the body supplies the row only;
+   * the runner closes over the open transaction, the snapshot of the
+   * envelope target, and the repository. Callers cannot substitute a
+   * different `trx`, `commandFacts`, or repository from outside the
+   * command transaction.
+   */
+  readonly insertProcessInstance: (row: ProcessInstanceInsert) => Promise<void>;
+  /** CAS on the technical process aggregate until business tables exist. */
+  casProcessInstance(
+    id: string,
+    expectedVersion: string,
+    patch?: { state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED' },
+  ): Promise<'OK' | 'NOT_FOUND' | 'CONFLICT'>;
+  appendOutbox(event: OutboxEventInput): Promise<void>;
+  appendReferenceEdge(edge: ReferenceEdgeInput): Promise<void>;
+  appendAudit(audit: CommandAuditInput): Promise<void>;
+  appendProcessStep(step: ProcessStepInput): Promise<void>;
+  failAfterOutbox(): never;
+}
 
 /**
  * Closed-shape command target facts the runner binds at command entry and
- * hands to `CommandExecution`. The brand key is a process-local unique
- * `Symbol` (not `Symbol.for`) so no caller can mint a passing shape; the
- * repository verifies the same symbol reference at runtime and the
- * underlying object is deeply frozen so any attempt to mutate it
- * (for example, `execution.commandFacts.targetId = 'Y'`) is rejected by
- * the runtime.
+ * passes internally to the repository via the closure that powers
+ * `CommandExecution.insertProcessInstance`. The brand key is a
+ * process-local unique `Symbol` (not `Symbol.for`) so no caller can mint a
+ * matching shape; the underlying object is also deeply frozen. The symbol
+ * is exported solely so the repository can verify identity at the same
+ * module instance.
  */
 export interface CommandFacts {
   readonly [COMMAND_FACTS_BRAND]: true;
@@ -163,18 +211,10 @@ export interface CommandFacts {
   readonly projectId: string | null;
 }
 
-function freezeCommandFacts(facts: CommandFacts): CommandFacts {
-  return Object.freeze({
-    [COMMAND_FACTS_BRAND]: true as const,
-    targetType: facts.targetType,
-    targetId: facts.targetId,
-    enterpriseId: facts.enterpriseId,
-    projectId: facts.projectId,
-  });
-}
+const COMMAND_FACTS_BRAND: unique symbol = Symbol('@zhiju/task-execution/CommandFacts');
 
 function makeCommandFacts(envelope: CommandEnvelope): CommandFacts {
-  return freezeCommandFacts({
+  return Object.freeze({
     [COMMAND_FACTS_BRAND]: true as const,
     targetType: envelope.targetType,
     targetId: envelope.targetId,
@@ -182,6 +222,8 @@ function makeCommandFacts(envelope: CommandEnvelope): CommandFacts {
     projectId: envelope.projectId ?? null,
   });
 }
+
+export const COMMAND_FACTS_RUNTIME_BRAND = COMMAND_FACTS_BRAND;
 
 export function isRunnerBoundFacts(value: unknown): value is CommandFacts {
   return (
@@ -192,21 +234,16 @@ export function isRunnerBoundFacts(value: unknown): value is CommandFacts {
   );
 }
 
-/** Exposed for the repository's runtime verification; the symbol is unique
- *  to this module instance so no caller can mint a matching shape. */
-export const COMMAND_FACTS_RUNTIME_BRAND = COMMAND_FACTS_BRAND;
-
 export interface CommandExecution {
   readonly trx: TaskExecutionTransaction;
   /**
-   * The runner-bound command facts. Frozen and brand-protected; the only
-   * authoritative source for any technical fact tied to the current command
-   * (Process instance insert target, CAS target, Audit/Outbox target). The
-   * repository accepts this shape instead of a caller-supplied target so the
-   * command's identity, Enterprise and Project cannot be swapped between
-   * Receipt claim and the subsequent writes.
+   * Runner-bound process instance insert: the body supplies the row only;
+   * the runner closes over the open transaction, the snapshot of the
+   * envelope target, and the repository. Callers cannot substitute a
+   * different `trx`, `commandFacts`, or repository from outside the
+   * command transaction.
    */
-  readonly commandFacts: CommandFacts;
+  readonly insertProcessInstance: (row: ProcessInstanceInsert) => Promise<void>;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -302,10 +339,11 @@ async function runCommandTransaction(
   requestHash: Buffer,
   body: (execution: CommandExecution) => Promise<CommandBodyResult>,
 ) {
+  const envelopeSnapshot = freezeEnvelope(envelope);
   return withTaskExecutionTransaction(db, context, async (trx) => {
-    const claimed = await claimReceipt(trx, envelope, requestHash);
+    const claimed = await claimReceipt(trx, envelopeSnapshot, requestHash);
     if (!claimed) {
-      const existing = await readReceipt(trx, envelope);
+      const existing = await readReceipt(trx, envelopeSnapshot);
       if (!existing) {
         throw new CommandExecutionError(
           COMMAND_IN_PROGRESS,
@@ -313,11 +351,11 @@ async function runCommandTransaction(
         );
       }
       if (!existing.request_payload_hash.equals(requestHash)) {
-        await insertAuditRow(trx, envelope, {
+        await insertAuditRow(trx, envelopeSnapshot, {
           outcome: 'DENIED',
           errorCode: IDEMPOTENCY_PAYLOAD_CONFLICT,
-          targetType: envelope.targetType,
-          targetId: envelope.targetId,
+          targetType: envelopeSnapshot.targetType,
+          targetId: envelopeSnapshot.targetId,
           targetAggregateVersion: existing.expected_aggregate_version ?? undefined,
           safeSummary: 'same idempotency key replayed with a different request hash',
           requestHash,
@@ -339,9 +377,10 @@ async function runCommandTransaction(
       } as const;
     }
 
-    const bodyResult = await body(createExecution(trx, envelope, makeCommandFacts(envelope)));
+    const commandFacts = makeCommandFacts(envelopeSnapshot);
+    const bodyResult = await body(createExecution(trx, envelopeSnapshot, commandFacts));
     if (bodyResult.kind === 'REJECTED') {
-      await finalizeReceipt(trx, envelope, {
+      await finalizeReceipt(trx, envelopeSnapshot, {
         outcome: 'REJECTED',
         resultPayload: {
           errorCode: bodyResult.errorCode,
@@ -349,11 +388,11 @@ async function runCommandTransaction(
           currentAggregateVersion: bodyResult.currentAggregateVersion ?? null,
         },
       });
-      await insertAuditRow(trx, envelope, {
+      await insertAuditRow(trx, envelopeSnapshot, {
         outcome: 'REJECTED',
         errorCode: bodyResult.errorCode,
-        targetType: envelope.targetType,
-        targetId: envelope.targetId,
+        targetType: envelopeSnapshot.targetType,
+        targetId: envelopeSnapshot.targetId,
         targetAggregateVersion: bodyResult.currentAggregateVersion,
         safeSummary: bodyResult.safeSummary,
         requestHash,
@@ -370,14 +409,14 @@ async function runCommandTransaction(
     }
 
     const resultDigest = digestCanonicalPayload(bodyResult.resultPayload);
-    await finalizeReceipt(trx, envelope, {
+    await finalizeReceipt(trx, envelopeSnapshot, {
       outcome: 'COMMITTED',
       resultPayload: bodyResult.resultPayload,
     });
-    await insertAuditRow(trx, envelope, {
+    await insertAuditRow(trx, envelopeSnapshot, {
       outcome: 'COMMITTED',
-      targetType: envelope.targetType,
-      targetId: envelope.targetId,
+      targetType: envelopeSnapshot.targetType,
+      targetId: envelopeSnapshot.targetId,
       requestHash,
       resultHash: resultDigest.hash,
     });
@@ -472,9 +511,12 @@ function createExecution(
   envelope: CommandEnvelope,
   commandFacts: CommandFacts,
 ): CommandExecution {
+  const taskExecutionRepo = new TaskExecutionRepository();
   return {
     trx,
-    commandFacts,
+    async insertProcessInstance(row) {
+      await taskExecutionRepo.insertProcessInstance(trx, commandFacts, row);
+    },
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {
         throw new CommandExecutionError(
