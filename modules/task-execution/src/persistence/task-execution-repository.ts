@@ -23,6 +23,19 @@ export interface ProcessInstanceInsert {
   createdByPrincipalId: string;
 }
 
+/**
+ * Runner-bound command facts the repository must read on every insert so it
+ * can keep one technical aggregate per command. Sourced from
+ * `executeTaskExecutionCommand` so the runner is the only caller that can
+ * mint a `process_instance` row today.
+ */
+export interface ProcessInstanceTarget {
+  targetType: string;
+  targetId: string;
+  enterpriseId: string;
+  projectId?: string | undefined;
+}
+
 interface TrustedContextFacts {
   principal_id: string;
   enterprise_id: string;
@@ -74,18 +87,49 @@ export class TaskExecutionRepository {
   /**
    * Inserts a fresh process_instance row in the current transaction. The
    * caller must already hold a trusted TaskExecution context (the runner
-   * establishes it before invoking the body). The creator attribution, the
-   * Enterprise scope and the Project scope are re-checked against the
-   * trusted context row in `platform_security.tx_context`; any mismatch
-   * raises `TASK_EXECUTION_CONTEXT_PRINCIPAL_MISMATCH` or
+   * establishes it before invoking the body), and the runner-bound command
+   * facts (`target`) are required so the repository can verify that the
+   * row identity, Enterprise, Project and target type are an exact match
+   * for the current command envelope — not just a member of the
+   * Context-allowed set.
+   *
+   * The creator attribution is re-checked against
+   * `platform_security.context_principal_id()`; any mismatch raises
+   * `TASK_EXECUTION_CONTEXT_PRINCIPAL_MISMATCH` or
    * `TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH` so that a misuse from another
-   * module role cannot smuggle a different creator or scope.
+   * module role cannot smuggle a different creator, scope, or process id.
    */
   async insertProcessInstance(
     trx: TaskExecutionTransaction,
+    target: ProcessInstanceTarget,
     row: ProcessInstanceInsert,
   ): Promise<void> {
+    if (target.targetType !== 'ProcessInstance') {
+      throw new TaskExecutionPersistenceError(
+        TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
+        'process insert target type must be ProcessInstance',
+      );
+    }
+    if (target.targetId !== row.processId) {
+      throw new TaskExecutionPersistenceError(
+        TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
+        'process id must equal the command envelope targetId',
+      );
+    }
+    if (target.enterpriseId !== row.enterpriseId) {
+      throw new TaskExecutionPersistenceError(
+        TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
+        'process enterprise scope must equal the command envelope enterpriseId',
+      );
+    }
     const requestedProjectId = row.projectId ?? null;
+    const targetProjectId = target.projectId ?? null;
+    if (targetProjectId !== requestedProjectId) {
+      throw new TaskExecutionPersistenceError(
+        TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
+        'process project scope must equal the command envelope projectId',
+      );
+    }
     const trusted = await readTrustedContext(trx, row.enterpriseId, requestedProjectId);
     if (row.createdByPrincipalId !== trusted.principal_id) {
       throw new TaskExecutionPersistenceError(

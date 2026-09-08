@@ -25,7 +25,10 @@ export type {
   ContractViolationTable,
 } from './persistence/task-execution-db.js';
 
-export type { ProcessInstanceInsert } from './persistence/task-execution-repository.js';
+export type {
+  ProcessInstanceInsert,
+  ProcessInstanceTarget,
+} from './persistence/task-execution-repository.js';
 export { TaskExecutionRepository } from './persistence/task-execution-repository.js';
 
 export {

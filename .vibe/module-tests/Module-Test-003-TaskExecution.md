@@ -108,7 +108,8 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-WI-01-008 | Persistence | outbox `declaredHash` 与 canonical payload 不一致 | `PAYLOAD_HASH_MISMATCH`，Receipt/Outbox 均未写入 | PASS |
 | TE-WI-01-009 | Persistence/Security | COMMIT/ROLLBACK 后同连接新事务；不同连接建立各自 Context；Decision 在长事务中过期；同 backend 残留行被下次 establish 清理 | 同连接新事务零行；不同 enterprise/project Context 读对方行零行；过期 Decision 在 `statement_timestamp()` 重验返回零行 | PASS |
 | TE-WI-01-010 | Security/Persistence | Process creator 与受信 `platform_security.context_principal_id` 不一致 | 抛 `TASK_EXECUTION_CONTEXT_PRINCIPAL_MISMATCH`；process_instance 零写入；Receipt 零写入（不在故障态遗留 PENDING） | PASS |
-| TE-WI-01-011 | Persistence | CAS 目标行 enterprise_id 与 envelope.enterpriseId 不一致；envelope 携带 projectId 但目标行 project_id 为另一 project；envelope targetType 不是 ProcessInstance | 三种反例均抛 `COMMAND_TARGET_MISMATCH`，目标行 `aggregate_version` 与状态不变，未产生 Audit/Receipt/Outbox 效果 | PASS |
+| TE-WI-01-011 | Persistence | CAS 目标行 enterprise_id 与 envelope.enterpriseId 不一致；Context 同时允许目标项目和命令项目但 envelope projectId 与目标行 project_id 不同；envelope targetType 不是 ProcessInstance；附合法正向控制 | 三种反例均抛 `COMMAND_TARGET_MISMATCH` 且 `expectedAggregateVersion` 已匹配；Receipt/Audit 零残留；正向控制 CAS `1→2` SUCCEEDED；目标行最终 `aggregate_version=2, state=SUSPENDED` 仅有正向控制写下的版本与状态变化 | PASS |
+| TE-WI-01-012 | Security/Persistence | Context 允许 P1/P2 但 envelope 声明 P2 时 body 试图 insertProcessInstance(P_A1, P2)；envelope targetId = X 但 body 试图 insertProcessInstance(Y, P2)；envelope targetType ≠ ProcessInstance | 三个反例均抛 `TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH`；process_instance 零写入；Receipt/Audit 零残留；不允许在授权集合内替换 Process id/type | PASS |
 
 聚焦单元覆盖：CAS/Idempotency/Hash/Scope mirror guard 已分别嵌入 `executeTaskExecutionCommand`、`CommandExecution` 与 Kysely insert 中；不存在脱离真实 PostgreSQL 的内存替身版本。`vibe verify full --json` 的 disposable PostgreSQL gate 完整运行以上 9 项；`pnpm test` 中跳过 gate 时仅占位 skip，未声明 PASS。
 

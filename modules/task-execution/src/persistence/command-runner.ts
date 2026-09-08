@@ -146,6 +146,13 @@ export type CommandBodyResult =
 
 export interface CommandExecution {
   readonly trx: TaskExecutionTransaction;
+  /**
+   * The runner-bound command envelope. Read-only; the repository uses it to
+   * verify that any new technical fact matches the current command target
+   * identity, Enterprise and Project exactly — not just a Context-allowed
+   * member.
+   */
+  readonly envelope: CommandEnvelope;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -412,6 +419,7 @@ function createExecution(
 ): CommandExecution {
   return {
     trx,
+    envelope,
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {
         throw new CommandExecutionError(
