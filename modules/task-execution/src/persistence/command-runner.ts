@@ -144,15 +144,69 @@ export type CommandBodyResult =
       currentAggregateVersion?: string | undefined;
     };
 
+const COMMAND_FACTS_BRAND: unique symbol = Symbol('@zhiju/task-execution/CommandFacts');
+
+/**
+ * Closed-shape command target facts the runner binds at command entry and
+ * hands to `CommandExecution`. The brand key is a process-local unique
+ * `Symbol` (not `Symbol.for`) so no caller can mint a passing shape; the
+ * repository verifies the same symbol reference at runtime and the
+ * underlying object is deeply frozen so any attempt to mutate it
+ * (for example, `execution.commandFacts.targetId = 'Y'`) is rejected by
+ * the runtime.
+ */
+export interface CommandFacts {
+  readonly [COMMAND_FACTS_BRAND]: true;
+  readonly targetType: string;
+  readonly targetId: string;
+  readonly enterpriseId: string;
+  readonly projectId: string | null;
+}
+
+function freezeCommandFacts(facts: CommandFacts): CommandFacts {
+  return Object.freeze({
+    [COMMAND_FACTS_BRAND]: true as const,
+    targetType: facts.targetType,
+    targetId: facts.targetId,
+    enterpriseId: facts.enterpriseId,
+    projectId: facts.projectId,
+  });
+}
+
+function makeCommandFacts(envelope: CommandEnvelope): CommandFacts {
+  return freezeCommandFacts({
+    [COMMAND_FACTS_BRAND]: true as const,
+    targetType: envelope.targetType,
+    targetId: envelope.targetId,
+    enterpriseId: envelope.enterpriseId,
+    projectId: envelope.projectId ?? null,
+  });
+}
+
+export function isRunnerBoundFacts(value: unknown): value is CommandFacts {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as Record<symbol, unknown>)[COMMAND_FACTS_BRAND] === true &&
+    Object.isFrozen(value)
+  );
+}
+
+/** Exposed for the repository's runtime verification; the symbol is unique
+ *  to this module instance so no caller can mint a matching shape. */
+export const COMMAND_FACTS_RUNTIME_BRAND = COMMAND_FACTS_BRAND;
+
 export interface CommandExecution {
   readonly trx: TaskExecutionTransaction;
   /**
-   * The runner-bound command envelope. Read-only; the repository uses it to
-   * verify that any new technical fact matches the current command target
-   * identity, Enterprise and Project exactly — not just a Context-allowed
-   * member.
+   * The runner-bound command facts. Frozen and brand-protected; the only
+   * authoritative source for any technical fact tied to the current command
+   * (Process instance insert target, CAS target, Audit/Outbox target). The
+   * repository accepts this shape instead of a caller-supplied target so the
+   * command's identity, Enterprise and Project cannot be swapped between
+   * Receipt claim and the subsequent writes.
    */
-  readonly envelope: CommandEnvelope;
+  readonly commandFacts: CommandFacts;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -285,7 +339,7 @@ async function runCommandTransaction(
       } as const;
     }
 
-    const bodyResult = await body(createExecution(trx, envelope));
+    const bodyResult = await body(createExecution(trx, envelope, makeCommandFacts(envelope)));
     if (bodyResult.kind === 'REJECTED') {
       await finalizeReceipt(trx, envelope, {
         outcome: 'REJECTED',
@@ -416,10 +470,11 @@ async function finalizeReceipt(
 function createExecution(
   trx: TaskExecutionTransaction,
   envelope: CommandEnvelope,
+  commandFacts: CommandFacts,
 ): CommandExecution {
   return {
     trx,
-    envelope,
+    commandFacts,
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {
         throw new CommandExecutionError(

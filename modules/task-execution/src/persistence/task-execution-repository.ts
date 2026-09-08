@@ -6,6 +6,7 @@
 
 import { sql } from 'kysely';
 import type { TaskExecutionTransaction } from './task-execution-db.js';
+import { COMMAND_FACTS_RUNTIME_BRAND, type CommandFacts } from './command-runner.js';
 import {
   TaskExecutionPersistenceError,
   TASK_EXECUTION_CONTEXT_PRINCIPAL_MISMATCH,
@@ -21,19 +22,6 @@ export interface ProcessInstanceInsert {
   projectId?: string | undefined;
   state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED';
   createdByPrincipalId: string;
-}
-
-/**
- * Runner-bound command facts the repository must read on every insert so it
- * can keep one technical aggregate per command. Sourced from
- * `executeTaskExecutionCommand` so the runner is the only caller that can
- * mint a `process_instance` row today.
- */
-export interface ProcessInstanceTarget {
-  targetType: string;
-  targetId: string;
-  enterpriseId: string;
-  projectId?: string | undefined;
 }
 
 interface TrustedContextFacts {
@@ -83,15 +71,57 @@ async function readTrustedContext(
   };
 }
 
+function assertRunnerBoundFacts(
+  facts: CommandFacts,
+  row: ProcessInstanceInsert,
+): { requestedProjectId: string | null } {
+  if (!(
+    typeof facts === 'object' &&
+    (facts as unknown as Record<symbol, unknown>)[COMMAND_FACTS_RUNTIME_BRAND] === true &&
+    Object.isFrozen(facts)
+  )) {
+    throw new TaskExecutionPersistenceError(
+      TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
+      'process insert target must be a runner-bound CommandFacts snapshot',
+    );
+  }
+  if (facts.targetType !== 'ProcessInstance') {
+    throw new TaskExecutionPersistenceError(
+      TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
+      'process insert target type must be ProcessInstance',
+    );
+  }
+  if (facts.targetId !== row.processId) {
+    throw new TaskExecutionPersistenceError(
+      TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
+      'process id must equal the runner-bound command targetId',
+    );
+  }
+  if (facts.enterpriseId !== row.enterpriseId) {
+    throw new TaskExecutionPersistenceError(
+      TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
+      'process enterprise scope must equal the runner-bound command enterpriseId',
+    );
+  }
+  const requestedProjectId = row.projectId ?? null;
+  if (facts.projectId !== requestedProjectId) {
+    throw new TaskExecutionPersistenceError(
+      TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
+      'process project scope must equal the runner-bound command projectId',
+    );
+  }
+  return { requestedProjectId };
+}
+
 export class TaskExecutionRepository {
   /**
    * Inserts a fresh process_instance row in the current transaction. The
    * caller must already hold a trusted TaskExecution context (the runner
-   * establishes it before invoking the body), and the runner-bound command
-   * facts (`target`) are required so the repository can verify that the
-   * row identity, Enterprise, Project and target type are an exact match
-   * for the current command envelope — not just a member of the
-   * Context-allowed set.
+   * establishes it before invoking the body). The repository accepts the
+   * runner-bound `CommandFacts` snapshot — never a freely-constructed
+   * target — so the row identity, Enterprise, Project and target type are
+   * an exact match for the current command target, not a Context-allowed
+   * member that a caller could swap after the Receipt claim.
    *
    * The creator attribution is re-checked against
    * `platform_security.context_principal_id()`; any mismatch raises
@@ -101,35 +131,10 @@ export class TaskExecutionRepository {
    */
   async insertProcessInstance(
     trx: TaskExecutionTransaction,
-    target: ProcessInstanceTarget,
+    commandFacts: CommandFacts,
     row: ProcessInstanceInsert,
   ): Promise<void> {
-    if (target.targetType !== 'ProcessInstance') {
-      throw new TaskExecutionPersistenceError(
-        TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
-        'process insert target type must be ProcessInstance',
-      );
-    }
-    if (target.targetId !== row.processId) {
-      throw new TaskExecutionPersistenceError(
-        TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
-        'process id must equal the command envelope targetId',
-      );
-    }
-    if (target.enterpriseId !== row.enterpriseId) {
-      throw new TaskExecutionPersistenceError(
-        TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
-        'process enterprise scope must equal the command envelope enterpriseId',
-      );
-    }
-    const requestedProjectId = row.projectId ?? null;
-    const targetProjectId = target.projectId ?? null;
-    if (targetProjectId !== requestedProjectId) {
-      throw new TaskExecutionPersistenceError(
-        TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH,
-        'process project scope must equal the command envelope projectId',
-      );
-    }
+    const { requestedProjectId } = assertRunnerBoundFacts(commandFacts, row);
     const trusted = await readTrustedContext(trx, row.enterpriseId, requestedProjectId);
     if (row.createdByPrincipalId !== trusted.principal_id) {
       throw new TaskExecutionPersistenceError(
