@@ -94,7 +94,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 ## IM-06 WI-01 application/persistence 基础用例（Issue #151）
 
-下表覆盖 Issue #151 的 9 项 Acceptance 项；用例在 `tests/persistence/task-execution-command-runner.test.ts` 中以 disposable PostgreSQL 真实执行，不使用内存替身；除 `TE-WI-01-009`（连接复用与 Context 隔离）外，其余每项在同一测试进程内只运行一次以避免幂等键重叠。其它 TE-TD-* 用例在本切片中保持 `NOT RUN`；本表只标记本次实现实际验证通过的部分，不将 WI-01 的通过扩大为 IM-06 业务闭环已 READY。
+下表覆盖 Issue #151 的 9 项 Acceptance 项及两个 reviewer 反馈的持久化/Scope guard 验证项 (TE-WI-01-010/011)；用例在 `tests/persistence/task-execution-command-runner.test.ts` 中以 disposable PostgreSQL 真实执行，不使用内存替身；除 `TE-WI-01-009`（连接复用与 Context 隔离）外，其余每项在同一测试进程内只运行一次以避免幂等键重叠。其它 TE-TD-* 用例在本切片中保持 `NOT RUN`；本表只标记本次实现实际验证通过的部分，不将 WI-01 的通过扩大为 IM-06 业务闭环已 READY。
 
 | ID | 层级 | 输入/竞争/故障 | 预期输出与禁止效果 | 当前结果 |
 |---|---|---|---|---|
@@ -102,11 +102,13 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-WI-01-002 | Persistence | 同 scope/key/Hash 顺序重放与并发重复 | 仅 1 条 Receipt；并发重复返回 `DUPLICATE` 持久化原结果，不重复 Process/Audit/Outbox；新连接/新 runner 重放仍得到原结果 | PASS |
 | TE-WI-01-003 | Persistence | 同 scope/key 携带不同 request Hash | 抛 `IDEMPOTENCY_PAYLOAD_CONFLICT`；原 Receipt outcome 保持 `COMMITTED`；新增 1 条 `DENIED` 审计；不写第二条 Receipt/Audit/Outbox | PASS |
 | TE-WI-01-004 | Persistence | 两不同 idempotency key 同 `expectedAggregateVersion='1'` 更新同一 `process_instance` | 恰一事务 `aggregate_version=2, state=SUSPENDED`；另一事务抛 `CONCURRENCY_CONFLICT`；版本仅增一次；`aggregate_version` 通过 SQL 文本读回与提交值一致 | PASS |
-| TE-WI-01-005 | Persistence | 在技术写入后、提交前调用 `execution.failAfterOutbox()` | Receipt/Process/Audit/Outbox/Ref Edge 全部不存在；原 idempotency key 重试可成功且仅产生一次成功效果 | PASS |
+| TE-WI-01-005 | Persistence | 在技术写入后、提交前调用 `execution.failAfterOutbox()`；原 idempotency_key/request_payload 重放同一成功 body；再次重放 | Receipt/Process/Audit/Outbox/Ref Edge 全部零残留；原 key 第二次提交返回 `COMMITTED` 且仅产生一次成功效果（1 条 Process/Ref Edge/Outbox 与 1 条 `COMMITTED` Audit/Receipt）；第三次重放返回 `DUPLICATE` 不再增加任何事实 | PASS |
 | TE-WI-01-006 | Persistence | body 返回 `{kind:'REJECTED'}`；同 envelope 重放 | 第一次返回 `REJECTED` + 稳定 errorCode/safeSummary + `REJECTED` 审计；目标 `process_instance.aggregate_version` 不变；第二次返回 `DUPLICATE` 原 `REJECTED` 结果 | PASS |
 | TE-WI-01-007 | Security | envelope 错 principalId/actorSnapshotId/authorizationDecisionId/policySnapshotId/enterpriseId/projectId/correlationId | 7 项探测全部 `COMMAND_CONTEXT_MISMATCH`，不写 Receipt | PASS |
 | TE-WI-01-008 | Persistence | outbox `declaredHash` 与 canonical payload 不一致 | `PAYLOAD_HASH_MISMATCH`，Receipt/Outbox 均未写入 | PASS |
 | TE-WI-01-009 | Persistence/Security | COMMIT/ROLLBACK 后同连接新事务；不同连接建立各自 Context；Decision 在长事务中过期；同 backend 残留行被下次 establish 清理 | 同连接新事务零行；不同 enterprise/project Context 读对方行零行；过期 Decision 在 `statement_timestamp()` 重验返回零行 | PASS |
+| TE-WI-01-010 | Security/Persistence | Process creator 与受信 `platform_security.context_principal_id` 不一致 | 抛 `TASK_EXECUTION_CONTEXT_PRINCIPAL_MISMATCH`；process_instance 零写入；Receipt 零写入（不在故障态遗留 PENDING） | PASS |
+| TE-WI-01-011 | Persistence | CAS 目标行 enterprise_id 与 envelope.enterpriseId 不一致；envelope 携带 projectId 但目标行 project_id 为另一 project；envelope targetType 不是 ProcessInstance | 三种反例均抛 `COMMAND_TARGET_MISMATCH`，目标行 `aggregate_version` 与状态不变，未产生 Audit/Receipt/Outbox 效果 | PASS |
 
 聚焦单元覆盖：CAS/Idempotency/Hash/Scope mirror guard 已分别嵌入 `executeTaskExecutionCommand`、`CommandExecution` 与 Kysely insert 中；不存在脱离真实 PostgreSQL 的内存替身版本。`vibe verify full --json` 的 disposable PostgreSQL gate 完整运行以上 9 项；`pnpm test` 中跳过 gate 时仅占位 skip，未声明 PASS。
 

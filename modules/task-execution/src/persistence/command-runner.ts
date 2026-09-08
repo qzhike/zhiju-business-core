@@ -419,8 +419,15 @@ function createExecution(
           'CAS target and expected version must match the command envelope',
         );
       }
+      if (envelope.targetType !== 'ProcessInstance') {
+        throw new CommandExecutionError(
+          COMMAND_TARGET_MISMATCH,
+          'CAS target type must be ProcessInstance for the technical aggregate',
+        );
+      }
+      const requestedProjectId = envelope.projectId ?? null;
       const nextVersion = nextAggregateVersion(expectedVersion);
-      const updated = await trx
+      let updateQuery = trx
         .updateTable('task_execution.process_instance')
         .set({
           aggregate_version: nextVersion,
@@ -429,16 +436,33 @@ function createExecution(
         })
         .where('process_id', '=', id)
         .where('aggregate_version', '=', expectedVersion)
-        .executeTakeFirst();
+        .where('enterprise_id', '=', envelope.enterpriseId);
+      updateQuery =
+        requestedProjectId === null
+          ? updateQuery.where('project_id', 'is', null)
+          : updateQuery.where('project_id', '=', requestedProjectId);
+      const updated = await updateQuery.executeTakeFirst();
       if (Number(updated.numUpdatedRows) === 1) {
         return 'OK';
       }
       const visible = await trx
         .selectFrom('task_execution.process_instance')
-        .select(['aggregate_version'])
+        .select(['aggregate_version', 'enterprise_id', 'project_id'])
         .where('process_id', '=', id)
         .executeTakeFirst();
-      return visible ? 'CONFLICT' : 'NOT_FOUND';
+      if (!visible) {
+        return 'NOT_FOUND';
+      }
+      if (
+        visible.enterprise_id !== envelope.enterpriseId ||
+        (visible.project_id ?? null) !== requestedProjectId
+      ) {
+        throw new CommandExecutionError(
+          COMMAND_TARGET_MISMATCH,
+          'CAS target row scope does not match the command envelope',
+        );
+      }
+      return 'CONFLICT';
     },
     async appendOutbox(event) {
       const expectedEventVersion =

@@ -9,10 +9,15 @@ import {
   executeTaskExecutionCommand,
   IDEMPOTENCY_PAYLOAD_CONFLICT,
   PAYLOAD_HASH_MISMATCH,
+  TASK_EXECUTION_CONTEXT_PRINCIPAL_MISMATCH,
   TaskExecutionRepository,
+  type CommandBodyResult,
   type CommandEnvelope,
+  type CommandExecution,
   type TaskExecutionTransactionContext,
 } from '@zhiju/task-execution';
+
+type CommandBody = (execution: CommandExecution) => Promise<CommandBodyResult>;
 
 // IM-06 WI-01 (issue #151): TaskExecution application/persistence foundation
 // on real PostgreSQL. No Task/WorkOrder/Run business tables are touched; CAS
@@ -39,6 +44,8 @@ const PROCESS_FAULT = 'e3e3e3e3-e3e3-73e3-83e3-e3e3e3e3e3e3';
 const PROCESS_CONCURRENCY = 'e4e4e4e4-e4e4-74e4-84e4-e4e4e4e4e4e4';
 const PROCESS_BIGINT = 'e5e5e5e5-e5e5-75e5-85e5-e5e5e5e5e5e5';
 const PROCESS_PROJECT = 'e6e6e6e6-e6e6-76e6-86e6-e6e6e6e6e6e6';
+const PROCESS_CAS_SCOPE = 'eb0b0b0b-eb0b-7eb0-8eb0-eb0beb0beb0b';
+const PROCESS_PRINCIPAL = 'ea0a0a0a-ea0a-7ea0-8ea0-ea0aea0aea0a';
 
 function contextFor(
   enterpriseId: string,
@@ -511,41 +518,46 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
   });
 
   it('rolls back receipt, process, audit, outbox and reference edge after a fault', async () => {
+    const faultEnvelope = envelope({
+      commandId: 'c0c0c0c0-c0c0-70c0-80c0-c0c0c0c0c101',
+      idempotencyKey: 'wi01-fault',
+      targetId: PROCESS_FAULT,
+      requestPayload: { op: 'register-fault' },
+    });
+    const successBody: CommandBody = async (execution) => {
+      await repo.insertProcessInstance(execution.trx, processInsert(PROCESS_FAULT));
+      await execution.appendReferenceEdge({
+        ownerObjectType: 'ProcessInstance',
+        ownerObjectId: PROCESS_FAULT,
+        referencePath: '/faultRef',
+        targetModule: 'task_execution',
+        targetObjectType: 'ProcessInstance',
+        targetObjectId: PROCESS_FAULT,
+        referencePurpose: 'WI01_FAULT_PROBE',
+      });
+      await execution.appendOutbox({
+        eventId: 'c1c1c1c1-c1c1-71c1-81c1-c1c1c1c1c101',
+        eventType: 'wi01.ProcessFault',
+        eventVersion: '1.0',
+        aggregateType: 'ProcessInstance',
+        aggregateId: PROCESS_FAULT,
+        aggregateVersion: '1',
+        payload: { enterpriseId: ENTERPRISE_A, note: 'fault-injected' },
+        occurredAt: new Date(),
+      });
+      return {
+        kind: 'COMMITTED',
+        resultPayload: { processId: PROCESS_FAULT, status: 'ACTIVE' },
+      };
+    };
+    const failingBody: CommandBody = async (execution) => {
+      await successBody(execution);
+      execution.failAfterOutbox();
+      return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_FAULT, status: 'ACTIVE' } };
+    };
+
     await expect(
-      executeTaskExecutionCommand(
-        db,
-        contextFor(ENTERPRISE_A),
-        envelope({
-          commandId: 'c0c0c0c0-c0c0-70c0-80c0-c0c0c0c0c101',
-          idempotencyKey: 'wi01-fault',
-          targetId: PROCESS_FAULT,
-          requestPayload: { op: 'register-fault' },
-        }),
-        async (execution) => {
-          await repo.insertProcessInstance(execution.trx, processInsert(PROCESS_FAULT));
-          await execution.appendReferenceEdge({
-            ownerObjectType: 'ProcessInstance',
-            ownerObjectId: PROCESS_FAULT,
-            referencePath: '/faultRef',
-            targetModule: 'task_execution',
-            targetObjectType: 'ProcessInstance',
-            targetObjectId: PROCESS_FAULT,
-            referencePurpose: 'WI01_FAULT_PROBE',
-          });
-          await execution.appendOutbox({
-            eventId: 'c1c1c1c1-c1c1-71c1-81c1-c1c1c1c1c101',
-            eventType: 'wi01.ProcessFault',
-            eventVersion: '1.0',
-            aggregateType: 'ProcessInstance',
-            aggregateId: PROCESS_FAULT,
-            aggregateVersion: '1',
-            payload: { enterpriseId: ENTERPRISE_A, note: 'fault-injected' },
-            occurredAt: new Date(),
-          });
-          execution.failAfterOutbox();
-          return { kind: 'COMMITTED', resultPayload: {} };
-        },
-      ),
+      executeTaskExecutionCommand(db, contextFor(ENTERPRISE_A), faultEnvelope, failingBody),
     ).rejects.toMatchObject({ code: 'INJECTED_FAULT' });
 
     expect(await count('process_instance', `WHERE process_id = '${PROCESS_FAULT}'`)).toBe('0');
@@ -554,29 +566,167 @@ describe.skipIf(!gateEnabled)('TaskExecution command transaction runner (real Po
     expect(
       await count('audit_record', `WHERE command_id = 'c0c0c0c0-c0c0-70c0-80c0-c0c0c0c0c101'`),
     ).toBe('0');
-    expect(
-      await count(
-        'command_receipt',
-        "WHERE idempotency_key = 'wi01-fault' AND outcome = 'PENDING'",
-      ),
-    ).toBe('0');
+    expect(await count('command_receipt', `WHERE idempotency_key = 'wi01-fault'`)).toBe('0');
 
     const recovered = await executeTaskExecutionCommand(
       db,
       contextFor(ENTERPRISE_A),
+      faultEnvelope,
+      successBody,
+    );
+    expect(recovered).toMatchObject({
+      status: 'COMMITTED',
+      resultPayload: { processId: PROCESS_FAULT, status: 'ACTIVE' },
+    });
+    expect(await count('process_instance', `WHERE process_id = '${PROCESS_FAULT}'`)).toBe('1');
+    expect(await count('reference_edge', "WHERE reference_purpose = 'WI01_FAULT_PROBE'")).toBe('1');
+    expect(await count('outbox_event', "WHERE event_type = 'wi01.ProcessFault'")).toBe('1');
+    expect(
+      await count(
+        'audit_record',
+        `WHERE command_id = 'c0c0c0c0-c0c0-70c0-80c0-c0c0c0c0c101' AND outcome = 'COMMITTED'`,
+      ),
+    ).toBe('1');
+    expect(
+      await count(
+        'command_receipt',
+        `WHERE idempotency_key = 'wi01-fault' AND outcome = 'COMMITTED'`,
+      ),
+    ).toBe('1');
+
+    const replayed = await executeTaskExecutionCommand(
+      db,
+      contextFor(ENTERPRISE_A),
+      faultEnvelope,
+      () => Promise.reject(new Error('replay must not execute the body')),
+    );
+    expect(replayed).toMatchObject({
+      status: 'DUPLICATE',
+      originalOutcome: 'COMMITTED',
+      resultPayload: { processId: PROCESS_FAULT, status: 'ACTIVE' },
+    });
+    expect(await count('process_instance', `WHERE process_id = '${PROCESS_FAULT}'`)).toBe('1');
+    expect(await count('reference_edge', "WHERE reference_purpose = 'WI01_FAULT_PROBE'")).toBe('1');
+    expect(await count('outbox_event', "WHERE event_type = 'wi01.ProcessFault'")).toBe('1');
+  });
+
+  it('rejects a process whose creator disagrees with the trusted context principal', async () => {
+    await expect(
+      executeTaskExecutionCommand(
+        db,
+        contextFor(ENTERPRISE_A),
+        envelope({
+          commandId: 'b1b1b1b1-b1b1-71b1-81b1-b1b1b1b1b101',
+          idempotencyKey: 'wi01-creator-mismatch',
+          commandType: 'wi01.creator-mismatch',
+          requestPayload: { op: 'creator-mismatch' },
+        }),
+        async (execution) => {
+          await repo.insertProcessInstance(
+            execution.trx,
+            processInsert(
+              PROCESS_PRINCIPAL,
+              undefined,
+              ENTERPRISE_A,
+              '99999999-9999-7999-8999-999999999999',
+            ),
+          );
+          return { kind: 'COMMITTED', resultPayload: { should: 'never reach' } };
+        },
+      ),
+    ).rejects.toMatchObject({ code: TASK_EXECUTION_CONTEXT_PRINCIPAL_MISMATCH });
+    expect(await count('process_instance', `WHERE process_id = '${PROCESS_PRINCIPAL}'`)).toBe('0');
+    expect(await count('command_receipt', `WHERE idempotency_key = 'wi01-creator-mismatch'`)).toBe(
+      '0',
+    );
+  });
+
+  it('rejects CAS attempts against rows whose scope does not match the command envelope', async () => {
+    await executeTaskExecutionCommand(
+      db,
+      contextFor(ENTERPRISE_A, [PROJECT_A1]),
       envelope({
-        commandId: 'c0c0c0c0-c0c0-70c0-80c0-c0c0c0c0c102',
-        idempotencyKey: 'wi01-fault-retry',
-        targetId: PROCESS_FAULT,
-        requestPayload: { op: 'register-fault-retry' },
+        commandId: 'a1a1a1a1-a1a1-71a1-81a1-a1a1a1a1a901',
+        idempotencyKey: 'wi01-cas-target-setup',
+        commandType: 'wi01.cas-target-setup',
+        targetId: PROCESS_CAS_SCOPE,
+        projectId: PROJECT_A1,
+        requestPayload: { op: 'cas-target-setup' },
       }),
       async (execution) => {
-        await repo.insertProcessInstance(execution.trx, processInsert(PROCESS_FAULT));
-        return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_FAULT } };
+        await repo.insertProcessInstance(
+          execution.trx,
+          processInsert(PROCESS_CAS_SCOPE, PROJECT_A1),
+        );
+        return { kind: 'COMMITTED', resultPayload: { processId: PROCESS_CAS_SCOPE } };
       },
     );
-    expect(recovered).toMatchObject({ status: 'COMMITTED' });
-    expect(await count('process_instance', `WHERE process_id = '${PROCESS_FAULT}'`)).toBe('1');
+
+    await expect(
+      executeTaskExecutionCommand(
+        db,
+        contextFor(ENTERPRISE_B, [PROJECT_A1]),
+        envelope({
+          commandId: 'a1a1a1a1-a1a1-71a1-81a1-a1a1a1a1a911',
+          idempotencyKey: 'wi01-cas-enterprise-mismatch',
+          commandType: 'wi01.cas-enterprise-mismatch',
+          enterpriseId: ENTERPRISE_B,
+          targetId: PROCESS_CAS_SCOPE,
+          projectId: PROJECT_A1,
+          requestPayload: { op: 'cas-enterprise-mismatch' },
+        }),
+        async (execution) => {
+          await execution.casProcessInstance(PROCESS_CAS_SCOPE, '1');
+          return { kind: 'COMMITTED', resultPayload: { invalid: true } };
+        },
+      ),
+    ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
+
+    await expect(
+      executeTaskExecutionCommand(
+        db,
+        contextFor(ENTERPRISE_A, [PROJECT_A2]),
+        envelope({
+          commandId: 'a1a1a1a1-a1a1-71a1-81a1-a1a1a1a1a912',
+          idempotencyKey: 'wi01-cas-project-mismatch',
+          commandType: 'wi01.cas-project-mismatch',
+          targetId: PROCESS_CAS_SCOPE,
+          projectId: PROJECT_A2,
+          requestPayload: { op: 'cas-project-mismatch' },
+        }),
+        async (execution) => {
+          await execution.casProcessInstance(PROCESS_CAS_SCOPE, '1');
+          return { kind: 'COMMITTED', resultPayload: { invalid: true } };
+        },
+      ),
+    ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
+
+    await expect(
+      executeTaskExecutionCommand(
+        db,
+        contextFor(ENTERPRISE_A, [PROJECT_A1]),
+        envelope({
+          commandId: 'a1a1a1a1-a1a1-71a1-81a1-a1a1a1a1a913',
+          idempotencyKey: 'wi01-cas-wrong-target-type',
+          commandType: 'wi01.cas-wrong-target-type',
+          targetType: 'SomeOtherAggregate',
+          targetId: PROCESS_CAS_SCOPE,
+          projectId: PROJECT_A1,
+          requestPayload: { op: 'cas-wrong-target-type' },
+        }),
+        async (execution) => {
+          await execution.casProcessInstance(PROCESS_CAS_SCOPE, '1');
+          return { kind: 'COMMITTED', resultPayload: { invalid: true } };
+        },
+      ),
+    ).rejects.toMatchObject({ code: COMMAND_TARGET_MISMATCH });
+
+    expect(await count('process_instance', `WHERE process_id = '${PROCESS_CAS_SCOPE}'`)).toBe('1');
+    const version = await admin.query<{ aggregate_version: string }>(
+      `SELECT aggregate_version::text FROM task_execution.process_instance WHERE process_id = $1`,
+      [PROCESS_CAS_SCOPE],
+    );
+    expect(version.rows[0]?.aggregate_version).toBe('1');
   });
 
   it('persists REJECTED receipt on business rejection without altering the aggregate', async () => {

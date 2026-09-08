@@ -26,6 +26,9 @@
     },
     {
       "path": "../../modules/release-publication"
+    },
+    {
+      "path": "../../modules/task-execution"
     }
   ]
 }

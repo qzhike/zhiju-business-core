@@ -315,6 +315,8 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 **写 guard**：
 - canonical payload → SHA-256 hash 必须等于列存 `payload_hash`/`request_payload_hash`/`result_payload_hash`（outbox 范围同时由 `task_execution.guard_outbox_scope_mirror` 触发器守护 `enterpriseId`/`projectId` mirror）；
 - envelope 字段必须与受信 Context 的 principalId/principalKind/actorSnapshotId/authorizationDecisionId/policySnapshotId/enterpriseId/correlationId/allowedProjectIds 完全一致；
+- process_instance 创建主体 `created_by_principal_id` 必须等于 `platform_security.context_principal_id()`，enterprise_id 与 project_id 必须通过 `platform_security.context_allows_enterprise` / `context_allows_project` 检查，否则 `TASK_EXECUTION_CONTEXT_PRINCIPAL_MISMATCH` 或 `TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH`；
+- `casProcessInstance` 在 UPDATE 阶段把 `enterprise_id` 与 `project_id` 列入 WHERE，envelope `targetType` 必须为 `ProcessInstance`；若冲突读回发现行 scope 与 envelope 不一致则抛 `COMMAND_TARGET_MISMATCH`，拒绝留下任何成功的 Process 推进、Audit、Outbox 或 Reference Edge；
 - outbox/Reference Edge/Process Step 的 owner/processId/process parent 必须与 envelope targetType/targetId 相符；
 - Process Step 的 enterprise_id/project_id 由 `task_execution.guard_process_step_scope` 触发器与父 Process 镜像；
 - 同 `idempotency_scope + idempotency_key` 顺序/并发重放均通过数据库唯一约束与 `ON CONFLICT DO NOTHING` 裁决；异 Hash 返回 `IDEMPOTENCY_PAYLOAD_CONFLICT` 并 DENIED 审计，不覆盖原 Receipt/结果。
