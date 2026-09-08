@@ -23,11 +23,15 @@
 
 首个 NOW + READY 实现切片是该提案第 5 节的 **TaskExecution application/persistence 技术基础**：限定现有 V3000 技术表、模块事务、幂等、CAS、Hash/Scope guard 与失败回滚，复用已批准安全机制。它不依赖尚未决定的业务状态机，不实现业务 Handler 或新增 Catalog 操作。
 
+[PR #155](https://github.com/qzhike/zhiju-business-core/pull/155) 已合并至 `6e39ec84b3c35edb4a701a4c8fd2aafcda5391c6`(本地 `origin/main` head),交付 [Issue #151](https://github.com/qzhike/zhiju-business-core/issues/151) 的 application/persistence 切片。`@zhiju/task-execution` 暴露 `executeTaskExecutionCommand` + `TaskExecutionRepository.insertProcessInstance` + 接收方 `CommandFacts` 闭包绑定;模块事务由 V3000 八张技术表 + `withTaskExecutionTransaction` 兜底;精确 bigint CAS 跨授权集合亦不漂移;envelope 顶层字段被深冻结供 `claimReceipt` / `casProcessInstance` / `appendOutbox` / `appendReferenceEdge` / `appendProcessStep` / `finalizeReceipt` 读取。Module-Spec-003 §10.1 与 Module-Test-003 IM-06 WI-01 矩阵已记录 TE-WI-01-001..013 验收证据。仍不引入新公开 Contract、不改 200 项 Catalog baseline、不动 V3000 DDL。
+
 后续按依赖滚动收敛：Task/WorkOrder 与首次 Context → Run/Attempt/Result Acceptance → InformationRequest 与新 Context/Run Retry → Completion、Query/Projection 和受控退出 Fixture。Context/Run 等依赖设计决定与技术基础；跨模块 Completion 依赖真实 Producer 和 owning Consumer。此处是顺序意图，不提前拆出完整 Issue backlog。
 
-退出时须证明：冻结 Scope/Hash 不变，active Run/final Result 并发唯一，正常完成与 BLOCKED_INPUT→授权答案→新 Context/Run 两条链，Cancel request/late result 失败语义，Run/WorkOrder/Task/DeliveryItem 分层完成，Usage 未知与声明来源可区分，权威 Query 与 Projection freshness 分离。完整验证使用 `vibe verify full --json`；真实飞书/Runtime 与人工业务验收独立列为 `NOT RUN`，不得被受控 Fixture 替代。
+下一项 NOW + READY 候选:基于已交付的技术 Foundation 推进 IM-06 WI-02(WI-02-04 TD-01–04 的最小可执行 Catalog + 新公开 Command/Query/Event 注册),前置 readiness 复核走 Planner 流程;TD-05–07(Query/Projection 快照、Usage/安全来源、受控退出 Fixture)仍是已形成提案但尚未批准的剩余设计,在 TD-01–04 业务实现前不展开 Issue。
 
-首次构建、Runtime/状态协调、判断事实与跨模块读取边界的 TD-01–04 已批准，由 owning 规格与测试附录维护。剩余的 Query/Projection 快照与重建、Usage/安全来源、正常与阻塞恢复退出链已形成 TD-05–07 提案，见设计 §11 和 Spec 003 §12–14；尚待人类批准与独立审查，不改变首版来源/答案/质量条件范围。业务实现仍按实际依赖与 NOW + READY 滚动发布，Git 交付按用户授权范围推进。
+退出时须证明：冻结 Scope/Hash 不变，active Run/final Result 并发唯一，正常完成与 BLOCKED_INPUT→授权答案→新 Context/Run 两条链，Cancel request/late result 失败语义，Run/WorkOrder/Task/DeliveryItem 分层完成，Usage 未知与声明来源可区分，权威 Query 与 Projection freshness 分离。完整验证使用 `vibe verify full --json`；真实飞书/Runtime 与人工业务验收独立列为 `NOT RUN`，不得被受控 Fixture 替代。Issue #151 的技术 Foundation 通过不替代 IM-06 业务闭环验收。
+
+首次构建、Runtime/状态协调、判断事实与跨模块读取边界的 TD-01–04 已批准,由 owning 规格与测试附录维护。剩余的 Query/Projection 快照与重建、Usage/安全来源、正常与阻塞恢复退出链已形成 TD-05–07 提案,见设计 §11 和 Spec 003 §12–14;尚待人类批准与独立审查,不改变首版来源/答案/质量条件范围。业务实现仍按实际依赖与 NOW + READY 滚动发布,Git 交付按用户授权范围推进。
 
 ## Next / Later — 后续顺序
 
