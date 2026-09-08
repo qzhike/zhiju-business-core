@@ -9,9 +9,9 @@
 
 接受范围为 scoped engineering；真实 Provider/Feishu、公开 HTTP、生产、统一跨模块业务 E2E、外部收件人确认和独立人工业务验收仍为 `NOT RUN`。不得用 Issue 关闭扩大验收范围。
 
-## 近期方向
+## Current — IM-06 TaskExecution Human-operated Core
 
-下一阶段按已批准依赖顺序进入 **IM-06 TaskExecution Human-operated Core 的规划与 readiness 检查**。目标是 Human-operated Task/WorkOrder/Run/Result/InformationRequest 流程，不提前引入真实 Agent 自动化。
+当前进入 IM-06 的规划与首批 readiness 检查。目标是 Human 发起、owning Service 执行的 Task/WorkOrder/Context/Run/Result/InformationRequest 流程，以及独立 Completion 与 Usage/Provenance；不提前引入真实 Agent 自动化。
 
 开始实现前：
 
@@ -19,13 +19,21 @@
 2. 处理实质性契约缺口；只有 NOW + READY 的独立切片才发布 Issue。
 3. Issue 明确权威章节、可观察验收、非目标及 `full` 验证目标。
 
-本路线不授权创建 Issue 或开始 IM-06 编码。仓库文档整理是当前维护工作，不新增业务 milestone。
+已识别的首次 Context/Contract 构建、Human-operated Driver/Attempt 与控制入口、Readiness/Validation/Completion 判断事实来源，见 [IM-06 设计提案](../decisions/task-execution-human-operated.md)。该提案第 2–4 节尚待设计审核，不作为已批准 Contract。
 
-## 剩余工作与后续顺序
+首个 NOW + READY 候选是该提案第 5 节的 **TaskExecution application/persistence 技术基础**：限定现有 V3000 技术表、模块事务、幂等、CAS、Hash/Scope guard 与失败回滚，复用已批准安全机制。它不依赖尚未决定的业务状态机，不实现业务 Handler 或新增 Catalog 操作。
+
+后续按依赖滚动收敛：Task/WorkOrder 与首次 Context → Run/Attempt/Result Acceptance → InformationRequest 与新 Context/Run Retry → Completion、Query/Projection 和受控退出 Fixture。Context/Run 等依赖设计决定与技术基础；跨模块 Completion 依赖真实 Producer 和 owning Consumer。此处是顺序意图，不提前拆出完整 Issue backlog。
+
+退出时须证明：冻结 Scope/Hash 不变，active Run/final Result 并发唯一，正常完成与 BLOCKED_INPUT→授权答案→新 Context/Run 两条链，Cancel request/late result 失败语义，Run/WorkOrder/Task/DeliveryItem 分层完成，Usage 未知与声明来源可区分，权威 Query 与 Projection freshness 分离。完整验证使用 `vibe verify full --json`；真实飞书/Runtime 与人工业务验收独立列为 `NOT RUN`，不得被受控 Fixture 替代。
+
+本次仅启动规划并形成候选；创建 Issue、实现和 Git 交付仍按用户授权范围推进。
+
+## Next / Later — 后续顺序
 
 - [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 仍开放，承接 IntegrationGateway 的剩余 Handler/Adapter/Persistence 与外部验收。其旧正文包含早期 23-operation 与 Renderer 未实现描述，不能直接作为下一项完整实现任务；需先与已交付 Renderer slice 和当前 Module-Spec-007 对账，再按所属阶段收敛验收范围。
 - IM-06 后可启动 IM-UI-01；IM-07 Feishu → IM-08 CLI Runtime 保持既有依赖。IM-UI-01 可与该窗口并行，IM-09 等待三者适用 Gate。
-- UI-DG-001/002 及 UI-DG-003 具体设计、IM-DG-006 仍须按 [阶段决策 Gate](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md#4-开始编码前的决策-gate) 获得明确决定。整理不选择技术栈或批准未决方案。
+- UI-DG-001/002 及 UI-DG-003 具体设计、IM-DG-006 仍须按 [阶段决策 Gate](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md#4-开始编码前的决策-gate) 获得明确决定。本规划不选择 UI 技术栈或批准未决 Runtime 方案。
 
 ## 维护规则
 
