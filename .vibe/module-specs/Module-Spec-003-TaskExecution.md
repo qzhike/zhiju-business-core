@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / HANDLER IMPLEMENTATION NOT STARTED`
+状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / HANDLER IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -294,12 +294,38 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 - TaskExecution 直接复用权威 `core/work-order/1.0#/$defs/*`；WorkOrder Core Contract 与 `create_work_order` 使用同一组 `$defs`，且 `requestedBy` 统一为 `PrincipalRef`；Core Contract 不再被开放 `CanonicalJson` 降级；
 - 注册到 `ContractRegistry` 后所有 37 项 `schemaStatus` 从 `ENVELOPE_ONLY` 提升到 `FULL`；总 Catalog 仍为 200 项；
 - 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与 200 项 Registry，等待用户审核通过后单独补齐；
-- Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与 Handler 实现均不存在；
-- 对应 Unit、Contract、E2E 与人工验收中，Schema fixture 与 Review 修复回归已执行；Handler、Runtime/DB E2E 和人工验收仍为 `NOT RUN`。
+- IM-06 WI-01（Issue #151）落地模块自有 application/persistence 基础：`@zhiju/task-execution` 提供 Kysely schema、`createTaskExecutionDatabase`、`withTaskExecutionTransaction`、`executeTaskExecutionCommand`、`TaskExecutionRepository`，单一受信事务上下文建立路径，幂等/CAS/Scope mirror/Process 父子 Scope/Hash 一致性 guard 与 controlled fault 回滚均已落实；可由 disposable PostgreSQL gate 复测；
+- Context Builder、Dispatcher、Runtime、Evaluator、Projection 与 Handler 实现均不存在；模块自有业务 Repository 仅暴露 `insertProcessInstance` 给当前技术 Aggregate，不与任何业务表/其他模块 Repository 交叉；
+- 对应 Unit、Contract、E2E 与人工验收中，Schema fixture、Review 修复回归与 IM-06 WI-01 持久化 gate 已执行；Handler、Runtime/DB E2E 和人工业务验收仍为 `NOT RUN`。
 
 ## 10. IM-02 WI-04 持久化切片
 
 TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 Project 行双重 RLS、Process 父子 Scope 镜像、含 owner version 的 Reference Edge 判重和可用的 masked audit surface。Canonical payload↔hash 强校验、Task Handler、Runtime Dispatcher 与业务 Repository 仍为 `NOT RUN`，不得由 DDL Gate 代替。
+
+### 10.1 IM-06 WI-01 application/persistence 基础（Issue #151）
+
+本切片只落实已批准 [`task-execution-human-operated.md` §5](../decisions/task-execution-human-operated.md#5-可独立先行的技术基础切片)、[PostgreSQL §17](../high-level-docs/07-postgresql-logical-model-v0.1.md) 与 [RLS 事务上下文](../decisions/rls-transaction-context.md) 的模块内机制，未引入新公开 Contract、未新增业务表、未改变 §1–9 的 @1.0 字段、未修改 200 项 Catalog。
+
+**模块入口**：`@zhiju/task-execution` 暴露 `executeTaskExecutionCommand`（受信事务上下文 → claim Receipt → 执行 body → finalize Receipt + Audit + Outbox + Reference Edge → 提交或回滚）、`assertEnvelopeMatchesContext`、`casProcessInstance`、`appendOutbox`/`appendReferenceEdge`/`appendAudit`/`appendProcessStep`、`TaskExecutionRepository.insertProcessInstance`。CAS 使用字符串/Buffer 在 PostgreSQL bigint 全量程内精确比较与递增，不经 `Number` 转换。
+
+**技术表使用**：仅 `command_receipt`、`outbox_event`、`inbox_message`、`process_instance`、`process_step`、`audit_record`、`reference_edge`、`contract_violation` 八张现有技术表；以 `process_instance.aggregate_version` 作为唯一 CAS 目标；`process_instance` 不再以业务 Root Aggregate 形式出现。
+
+**事务边界**：`withTaskExecutionTransaction` 在同一连接先 `SET LOCAL ROLE platform_context_establisher` → `establish_transaction_context` → `SET LOCAL ROLE task_execution_app` → 调 body；commit/rollback/异常后同一连接新事务不可见旧 Context；并发连接之间不污染；过期 Decision 在 `statement_timestamp()` 重验时被识别为空集。
+
+**写 guard**：
+- canonical payload → SHA-256 hash 必须等于列存 `payload_hash`/`request_payload_hash`/`result_payload_hash`（outbox 范围同时由 `task_execution.guard_outbox_scope_mirror` 触发器守护 `enterpriseId`/`projectId` mirror）；
+- envelope 字段必须与受信 Context 的 principalId/principalKind/actorSnapshotId/authorizationDecisionId/policySnapshotId/enterpriseId/correlationId/allowedProjectIds 完全一致；
+- outbox/Reference Edge/Process Step 的 owner/processId/process parent 必须与 envelope targetType/targetId 相符；
+- Process Step 的 enterprise_id/project_id 由 `task_execution.guard_process_step_scope` 触发器与父 Process 镜像；
+- 同 `idempotency_scope + idempotency_key` 顺序/并发重放均通过数据库唯一约束与 `ON CONFLICT DO NOTHING` 裁决；异 Hash 返回 `IDEMPOTENCY_PAYLOAD_CONFLICT` 并 DENIED 审计，不覆盖原 Receipt/结果。
+
+**显式不做**：
+- 不复制 IdentityPolicy/AuthorizationDecision 验证：Context 由调用方提供的可信快照带入；本模块只校验 envelope 与 Context 一致，不裁决 AuthorizationDecision 真实性；
+- 不开放跨模块 Repository 读写：仅 `task_execution.*` 表，仅 `task_execution_app` 角色；
+- 不引入新公开 Command/Query/Event，不修改 §2–6、§11 已批准字段，不复用 `Runtime-Adapter` 6 项 additive proposal；
+- 不进入业务 Handler、Runtime Driver、Completion 评估、Production、Provider/Feishu/CLI Runtime 验证、跨模块业务 E2E 与独立人工业务验收（保持 `NOT RUN`）。
+
+**Verify**：`tests/persistence/task-execution-command-runner.test.ts` 在 `vibe verify full` 的 disposable PostgreSQL gate 内运行；聚焦 Unit 集成在 `pnpm test`。`pnpm contracts:check` 仍以原 200 项 Catalog 为基准，未因本切片新增操作。
 
 ## 11. IM-06 技术设计
 

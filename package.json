@@ -44,6 +44,7 @@
     "@zhiju/integration-gateway": "workspace:*",
     "@zhiju/quality-governance": "workspace:*",
     "@zhiju/release-publication": "workspace:*",
-    "@zhiju/shared-kernel": "workspace:*"
+    "@zhiju/shared-kernel": "workspace:*",
+    "@zhiju/task-execution": "workspace:*"
   }
 }
