@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / HANDLER E2E NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION PASSED 2026-09-08 / HANDLER E2E NOT RUN`
 
 对应规格：[`Module-Spec-003-TaskExecution.md`](../module-specs/Module-Spec-003-TaskExecution.md)。
 
@@ -91,6 +91,28 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-TD-026 | Query | Task历史COMPLETED而事实撤销；读取TaskState与依赖Readiness | 历史保持，completionUseStatus不可用，依赖不能仅凭status通过 | NOT RUN |
 
 独立设计审查应核对 TD-01–04、新操作清单、所有具体失败矩阵与单Aggregate/兼容边界。人类对具体技术设计的批准不等于上述运行结果。真实Feishu/CLI Runtime、公开HTTP、生产和独立人工业务验收继续独立NOT RUN。
+
+## IM-06 WI-01 application/persistence 基础用例（Issue #151）
+
+下表覆盖 Issue #151 的 9 项 Acceptance 项及两个 reviewer 反馈的持久化/Scope guard 验证项 (TE-WI-01-010/011)；用例在 `tests/persistence/task-execution-command-runner.test.ts` 中以 disposable PostgreSQL 真实执行，不使用内存替身；除 `TE-WI-01-009`（连接复用与 Context 隔离）外，其余每项在同一测试进程内只运行一次以避免幂等键重叠。其它 TE-TD-* 用例在本切片中保持 `NOT RUN`；本表只标记本次实现实际验证通过的部分，不将 WI-01 的通过扩大为 IM-06 业务闭环已 READY。
+
+| ID | 层级 | 输入/竞争/故障 | 预期输出与禁止效果 | 当前结果 |
+|---|---|---|---|---|
+| TE-WI-01-001 | Persistence | 同 envelope 首次提交，含 process_instance/audit/outbox/reference_edge | Receipt/Process/Audit/Outbox/Ref Edge 同事务提交；Aggregate version=1，Outbox aggregate_version 与本次创建一致 | PASS |
+| TE-WI-01-002 | Persistence | 同 scope/key/Hash 顺序重放与并发重复 | 仅 1 条 Receipt；并发重复返回 `DUPLICATE` 持久化原结果，不重复 Process/Audit/Outbox；新连接/新 runner 重放仍得到原结果 | PASS |
+| TE-WI-01-003 | Persistence | 同 scope/key 携带不同 request Hash | 抛 `IDEMPOTENCY_PAYLOAD_CONFLICT`；原 Receipt outcome 保持 `COMMITTED`；新增 1 条 `DENIED` 审计；不写第二条 Receipt/Audit/Outbox | PASS |
+| TE-WI-01-004 | Persistence | 两不同 idempotency key 同 `expectedAggregateVersion='1'` 更新同一 `process_instance` | 恰一事务 `aggregate_version=2, state=SUSPENDED`；另一事务抛 `CONCURRENCY_CONFLICT`；版本仅增一次；`aggregate_version` 通过 SQL 文本读回与提交值一致 | PASS |
+| TE-WI-01-005 | Persistence | 在技术写入后、提交前调用 `execution.failAfterOutbox()`；原 idempotency_key/request_payload 重放同一成功 body；再次重放 | Receipt/Process/Audit/Outbox/Ref Edge 全部零残留；原 key 第二次提交返回 `COMMITTED` 且仅产生一次成功效果（1 条 Process/Ref Edge/Outbox 与 1 条 `COMMITTED` Audit/Receipt）；第三次重放返回 `DUPLICATE` 不再增加任何事实 | PASS |
+| TE-WI-01-006 | Persistence | body 返回 `{kind:'REJECTED'}`；同 envelope 重放 | 第一次返回 `REJECTED` + 稳定 errorCode/safeSummary + `REJECTED` 审计；目标 `process_instance.aggregate_version` 不变；第二次返回 `DUPLICATE` 原 `REJECTED` 结果 | PASS |
+| TE-WI-01-007 | Security | envelope 错 principalId/actorSnapshotId/authorizationDecisionId/policySnapshotId/enterpriseId/projectId/correlationId | 7 项探测全部 `COMMAND_CONTEXT_MISMATCH`，不写 Receipt | PASS |
+| TE-WI-01-008 | Persistence | outbox `declaredHash` 与 canonical payload 不一致 | `PAYLOAD_HASH_MISMATCH`，Receipt/Outbox 均未写入 | PASS |
+| TE-WI-01-009 | Persistence/Security | COMMIT/ROLLBACK 后同连接新事务；不同连接建立各自 Context；Decision 在长事务中过期；同 backend 残留行被下次 establish 清理 | 同连接新事务零行；不同 enterprise/project Context 读对方行零行；过期 Decision 在 `statement_timestamp()` 重验返回零行 | PASS |
+| TE-WI-01-010 | Security/Persistence | Process creator 与受信 `platform_security.context_principal_id` 不一致 | 抛 `TASK_EXECUTION_CONTEXT_PRINCIPAL_MISMATCH`；process_instance 零写入；Receipt 零写入（不在故障态遗留 PENDING） | PASS |
+| TE-WI-01-011 | Persistence | CAS 目标行 enterprise_id 与 envelope.enterpriseId 不一致；Context 同时允许目标项目和命令项目但 envelope projectId 与目标行 project_id 不同；envelope targetType 不是 ProcessInstance；附合法正向控制 | 跨 Enterprise 行由 RLS 隐藏,body 抛 `CROSS_ENTERPRISE_HIDDEN` 标记 `NOT_FOUND`(不暴露 scope);Project case `Context=[P1,P2]` 隔离精确 guard,body 在 OK/CONFLICT 时显式抛 `LEAKED`/`CONCURRENCY_CONFLICT`,最终抛 `COMMAND_TARGET_MISMATCH`;Wrong-target-type case 抛 `COMMAND_TARGET_MISMATCH`;每个 case 独立断言 Receipt/Audit 零残留,正向控制使 `aggregate_version=2, state=SUSPENDED` | PASS |
+| TE-WI-01-012 | Security/Persistence | 每 case 用独立全新 Process ID 与匹配目标事实验证正向可提交,再用隔离的新数据只变更一个目标字段验证拒绝:Context 允许 P1/P2 但 envelope 声明 X/P1 时 body 试图 X/P2;envelope targetId = X 但 body 试图 Y;envelope targetType ≠ ProcessInstance | 正向 case 提交并写入 1 条 Process + Receipt;三个反例均抛 `TASK_EXECUTION_CONTEXT_SCOPE_MISMATCH`;对应全新 Process ID 零写入;每个反例独立断言 Receipt/Audit/Outbox 零残留,不依赖前一测试的行 | PASS |
+| TE-WI-01-013 | Security/Persistence | 每个 helper 独立 mutation 反例:body 保留原 envelope 引用后 mutate `input.targetId / input.projectId`,再分别调用 `casProcessInstance` / `appendOutbox` / `appendReferenceEdge` / `appendProcessStep`;`expectedAggregateVersion` 匹配;另配 Context 同时允许目标项目和命令项目,使“原 envelope CAS 会成功”的反例在去掉 snapshot 绑定时会失败而非因版本缺失偶然失败 | `execution.insertProcessInstance` 是唯一 insert 入口;body mutate 后 `process_instance` 仍以原始 target/project 落库;四个 helper mutation 反例各自独立执行并因 snapshot target/Scope 不匹配抛 `COMMAND_TARGET_MISMATCH`,对应 commandId 的 Receipt/Audit 零残留 | PASS |
+
+聚焦单元覆盖：CAS/Idempotency/Hash/Scope mirror guard 已分别嵌入 `executeTaskExecutionCommand`、`CommandExecution` 与 Kysely insert 中；不存在脱离真实 PostgreSQL 的内存替身版本。`vibe verify full --json` 的 disposable PostgreSQL gate 完整运行以上 9 项；`pnpm test` 中跳过 gate 时仅占位 skip，未声明 PASS。
 
 
 ## TD-05–07 剩余设计回归矩阵
