@@ -1,7 +1,7 @@
 # IM-06 Human-operated 执行边界与设计提案
 
-日期：2026-09-08
-状态：`TD-01–04 APPROVED 2026-09-08 / TD-05–07 PROPOSED / IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计；§11 是本次剩余设计提案，尚未批准，不宣称实现存在。推进顺序见 [roadmap](../product/roadmap.md)。
+日期：2026-09-09
+状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / TD-05–07 PROPOSED / IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；§11 是剩余设计提案，尚未批准，不宣称实现存在。推进顺序见 [roadmap](../product/roadmap.md)。
 
 ## 1. 分类与既有边界
 
@@ -120,11 +120,19 @@ TD-01–04 已于 2026-09-08 获用户明确批准，包含新操作、Task v2 �
 
 ### 8.3 已解决边界与后续 readiness
 
-本项解决首次构建的循环引用、必填输入/兼容方式、精确 Hash/Scope/Purpose 绑定、单 Root 提交、并发失败/恢复及冻结后 Retry 引用不变性。对应验收以 Spec 003 §11.2 的合法链和拒绝矩阵、Module Test 的输入/预期对账；新增行为的运行结果保持 NOT RUN。
+本项已明确首次构建的循环引用、必填输入/兼容方式、精确 Hash/Scope/Purpose 绑定、单 Root 提交、并发失败/恢复及冻结后 Retry 引用不变性；创建期限与冻结 Contract 的衔接已按 §8.4 批准决定同步，相关实现仍须按实际前置交付复核 READY。对应验收以 Spec 003 §11.2 的合法链和拒绝矩阵、Module Test 的输入/预期对账；新增行为的运行结果保持 NOT RUN。
 
 #154 继续拥有 TaskReadiness、WorkOrderValidation 的检查内容、Policy/Evaluator 支持与时效以及答案/Receipt 采纳事实；#153 继续拥有 Run/Attempt、状态协调、active claim、取消/超时裁决。这里要求消费它们的精确事实和当前资格，不重复定义结论或把 Ref 存在视为 valid。TD-05–07 的待批准 Query/Usage/退出设计不成为首次 Context 引用方案的隐含前提，也不被本项追认批准。
 
 #151 技术基础已经交付（当前事实见 roadmap）；下一候选是 TD-01–04 的必要 Schema/Catalog 与 owning 持久化交付。设计批准只解除设计依赖，不使不存在的 API/表成为可调用事实。发布 Task/WorkOrder/首次 Context 实现任务前，须核对这些前置交付与 #154 判断接口均可用，或在单独、明确的实现 Scope 中完整交付；本项不自动生成后续 Issue，不宣称完整 IM-06 NOW + READY。独立设计审查与人类批准、仓库回归、未来业务验收分别留证。
+
+### 8.4 TD-01 创建期限与冻结期限补充
+
+状态：`APPROVED 2026-09-09 / NOT IMPLEMENTED`。用户在本次协作会话明确“确认本次修改”，批准已呈现的期限补充：**冻结 Contract 原样继承创建期限，包括是否提供期限**；变更期限须新建 WorkOrder。此批准补充 TD-01，不追溯声称 2026-09-08 已决定该关系，也不批准 TD-05–07。
+
+采用原样继承，避免 Freeze 再承担变更授权期限的职责；不采用冻结时自行收紧或独立指定期限的方案。创建没有期限不等于无限授权，其他 Policy/Decision/Context/Capability/Run 时限独立生效。
+
+字段、Hash、读取、到期错误与重放规则由 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限) 拥有；Domain §19.7.1 拥有生命周期约束，Core 的 IM-06 附录保留 payloadHash/specificationHash 范围，PostgreSQL §33 拥有存储镜像，Module Test 003 的 TE-WI02-D-009–012 覆盖拒绝反例。现有 @1.0 payload/Core 本体/历史 Compatibility Baseline 不变，新 Draft Snapshot/Query 字段随后续契约交付注册。本决定不代表 Schema、业务 Handler 或期限运行测试已经实现。
 
 ## 9. WI-03 事务序列与竞态裁决
 

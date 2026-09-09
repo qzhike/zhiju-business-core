@@ -105,6 +105,15 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-WI02-D-007 | Controlled integration | final BLOCKED_INPUT→合法答案/Receipt→Context-2/Run-2；对照到期 Contract、改 Scope、直接复用 initial 入口及任意其他 Context | 新 Run 使用新 Context 与原 Contract；原 Contract/Context-1/Run-1 精确 Ref/Hash 不变；反例不能启动新 Run，不 Resume 旧终态 | NOT RUN |
 | TE-WI02-D-008 | Contract/Security | 旧合法 frozen 请求、旧请求缺 ContractRef、新请求含旧字段/空 Slice/未知 projection；成功 build 重放时输入已过期；检查实际 Manifest 与 omission/redaction | 保留旧合法 @1.0；错误分支拒绝；重放返回原结果但新消费拒绝；不补充未用来源、不扩大 Audience 权限，裁剪不足由 owning Validation 阻止可执行冻结 | NOT RUN |
 
+期限补充场景已于 2026-09-09 获用户批准，行为来源为 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限)。这些是未来 Contract/Persistence/受控集成的验收输入，不把设计批准或仓库回归写成新业务测试 PASS。
+
+| ID | 输入 / 边界 | 预期输出与禁止效果 | 运行状态 |
+|---|---|---|---|
+| TE-WI02-D-009 | 创建带未来 T0；Query/Root/Snapshot 期限存在性或值不一致、JSON null 冒充缺省；candidate 分别为 T0、缺省、T0之前、T0之后 | 仅精确一致且未到期的链可冻结；读绑定错误拒绝，完整 Snapshot Hash 覆盖存在性/值；candidate 期限不符不能取得有效判断/READY，成功 Ready Event 期限与 Contract 一致 | NOT RUN |
+| TE-WI02-D-010 | 创建不提供期限；candidate 分别缺省或提供 T1；其他 Decision/Policy/Context 过期 | 仅缺省映射一致；无 WorkOrder 期限仍不能绕过其他期限或缺失 Policy | NOT RUN |
+| TE-WI02-D-011 | 创建时 now 等于/晚于 T0；Builder/Validator/Freeze 在查询后或长事务内跨过 T0 | 创建直接拒绝；后续步骤在消费/提交前重新判断，不发布可执行成功事实；历史 Snapshot/判断不删除，可用 Validation.validUntil 不晚于 T0 | NOT RUN |
+| TE-WI02-D-012 | Root status 仍 READY/QUEUED 但 now>=T0；Contract 期限被伪造为 T1；Run 已创建但尚未 start；到期后同键重放原 build/freeze | 新构建/排队/create/start 被拒绝；错期限绑定拒绝；原 Receipt 可重放但不授权新动作；不强改已运行 Run | NOT RUN |
+
 独立设计审查应核对 TD-01–04、新操作清单、所有具体失败矩阵与单Aggregate/兼容边界。人类对具体技术设计的批准不等于上述运行结果。真实Feishu/CLI Runtime、公开HTTP、生产和独立人工业务验收继续独立NOT RUN。
 
 ## IM-06 WI-01 application/persistence 基础用例（Issue #151）

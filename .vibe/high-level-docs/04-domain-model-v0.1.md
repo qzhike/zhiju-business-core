@@ -2497,6 +2497,14 @@ READY / QUEUED / WAITING_INPUT / RETRY_PENDING
 17. InformationRequest 的 RESOLVED Answer 可以进入新 ContextSnapshot，但不能静默改写原快照。
 18. WorkOrder 不保存模型 Chain of Thought；只保存结构化契约、事件、摘要、输出和 Provenance。
 
+#### 19.7.1 IM-06 WorkOrder 期限补充
+
+状态：`APPROVED 2026-09-09 / NOT IMPLEMENTED`，依据 [TD-01 期限决定](../decisions/task-execution-human-operated.md#84-td-01-创建期限与冻结期限补充)。WorkOrder 创建时的可选 expiresAt 是该 Root 的不可变期限，首次冻结 Contract 原样继承其存在性和值；冻结不承担修改期限的职责，变更期限必须创建新 WorkOrder。
+
+提供期限时，创建必须满足受信当前时间早于期限；后续首次构建、判断、冻结、FROZEN Context 构建、排队、新 Run 创建和启动均按当前时间拒绝到期输入，不以仍为 DRAFT/READY/QUEUED 的滞后状态放行。读取历史事实和重放原成功 Receipt 不重新赋予执行资格；没有指定 WorkOrder 期限不等于免除其他 Policy/Decision/Context/Capability/lease/deadline 时限。
+
+到期消费的拒绝不要求在同一事务把另一个 Root 改为 EXPIRED。已经 RUNNING 的 Run 仍按既有 lease/deadline 与终态规则收尾，本补充不新增到期强杀；§19.7 中 EXPIRED/CANCELLED WorkOrder 的 late result 隔离约束继续有效。字段、错误和时效检查位置由 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限) 唯一维护。
+
 ### 19.8 Domain Events
 
 ```text

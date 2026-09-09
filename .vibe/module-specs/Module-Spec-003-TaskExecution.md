@@ -334,7 +334,7 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 
 ## 11. IM-06 技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / NOT REGISTERED / NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的未来字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节现有 @1.0 定义及当前 201 项 Registry 不变。本节不把 Domain 内部命令名自动视为公开 API。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / NOT REGISTERED / NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的未来字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节现有 @1.0 定义及当前 201 项 Registry 不变。本节不把 Domain 内部命令名自动视为公开 API。
 
 ### 11.1 公共规则与设计操作清单
 
@@ -346,7 +346,7 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 |---|---|---|---|---|
 | `execution.create_task@2.0` | Task / CREATE | `projectRef; definition: TaskDefinitionV2; initialAssignee?` | 与 create_task 的 CommandResult 约定相同；targetRef=Task | 复用 `execution.task.create`；Human，或既有 Coordinator Capability 下的 Agent，只创建 DRAFT |
 | `execution.get_task_state@1.0` | A | `taskRef: ObjectRef<Task>` | `TaskStateView` | 设计 `execution.task.read`；有 Scope 权限的 Human/Service |
-| `execution.get_work_order_draft@1.0` | A | `workOrderRef: ObjectRef<WorkOrder>` | `{draftSnapshotRef: Exact<WorkOrderDraftSnapshot>, draft: WorkOrderDraft, rootAggregateVersion: NonNegativeInt, status: WorkOrderStatus}` | 设计 `execution.work_order.draft.read`；Human/Builder/Validator；只接受 DRAFT Root |
+| `execution.get_work_order_draft@1.0` | A | `workOrderRef: ObjectRef<WorkOrder>` | `{draftSnapshotRef: Exact<WorkOrderDraftSnapshot>, draft: WorkOrderDraft, expiresAt?: UtcInstant, rootAggregateVersion: NonNegativeInt, status: WorkOrderStatus}` | 设计 `execution.work_order.draft.read`；Human/Builder/Validator；只接受 DRAFT Root |
 | `execution.build_initial_context_snapshot@1.0` | ContextSnapshot / CREATE | `request: InitialContextBuildRequest` | `{contextSnapshotRef: Snap<ProjectContext>}` | 设计 `execution.context.build.initial`；ContextBuilder Service，代表 Human 授权 Intent |
 | `execution.build_task_readiness@1.0` | TaskReadiness / CREATE | `taskRef; taskDefinitionRef: Exact<TaskDefinitionSnapshot>; policyRef; evaluatorRef` | `{readinessSnapshotRef: Snap<TaskReadiness>}` | 设计 `execution.task.readiness.build`；ReadinessBuilder Service |
 | `execution.validate_work_order_draft@1.0` | WorkOrderValidation / CREATE | `draftSnapshotRef; candidateContract: WorkOrderContract; policyRef; evaluatorRef` | `{validationSnapshotRef: Snap<WorkOrderValidation>}` | 设计 `execution.work_order.draft.validate`；WorkOrderValidator Service |
@@ -369,6 +369,7 @@ WorkOrderDraftSnapshot
   taskRef: ObjectRef<Task>
   scopeRef: ScopeRef
   draft: WorkOrderDraft
+  expiresAt?: UtcInstant
   capturedAt: UtcInstant
   createdBy: PrincipalRef
 
@@ -415,6 +416,7 @@ Builder 成功发布前读锁 WorkOrder Root并核对其仍 DRAFT、当前 Draft
 | ProjectContext projection / sourceManifest / items | projection 与请求 purpose/audience/builderPolicyRef 一致；每个 Slice 同 Scope、purpose、audience 且 owning Query 返回 USABLE。Builder 再按 Draft targetScope、inputRefs.permittedUse/contentAccessMode、Policy 裁剪，保留 omission/redaction/coverage；Manifest 只列实际采用的精确来源 |
 | Candidate workOrderRef / taskRef / projectRef / requestedBy | 来自上述 Root/Scope 与 draft.requestedBy；不能借 candidate 替换请求主体。header.issuedBy、issuedAt 等签发归因按受信 Validator/签发规则校验，不由 Ref 的存在性推导授权 |
 | Candidate objective 至 versionPins | draft 中对应字段逐字段相等；其中 contextSnapshotRef 是唯一由本次已提交 Context 补入的执行规范字段。不得在组装时默认增加 Capability、修改 Objective/Scope 或补写未知策略 |
+| Candidate expiresAt | 与创建时保存在 Root 和 exact Draft Snapshot 的期限存在性和值完全一致；Query 返回同一值。映射、Hash 范围与到期判断见 §11.2.4；不得以签发元数据为由省略或改变期限 |
 | Candidate payloadHash / specificationHash | 分别按 Core §2、§4.3/4.13 的规范范围计算；contextSnapshotRef 属于冻结规范。Validation 的 candidateContractHash、Context Ref 与实际提交 candidate 一致；Hash 正确不能替代引用存在性、授权或可执行性判断 |
 
 Build metadata 是 ContextSnapshot 的不可变附属绑定，逻辑字段由 PostgreSQL §33 拥有，不扩展 ProjectContext v1.0 payload。INITIAL 绑定唯一 Draft Ref，不存在 frozen Contract Ref；FROZEN 绑定唯一原 Contract Ref，不使用 Draft Ref。两者均保存实际 sourceSlices、purpose/audience/builderPolicyRef 与输出 Snapshot 的精确关联；FROZEN 还保存原请求 answeredInformationRefs（可为空）。成功 Snapshot 与 metadata/Receipt/Reference Edge/Outbox 同事务提交，不能出现可读成功 Snapshot 却找不到输入绑定。
@@ -430,6 +432,7 @@ Build metadata 是 ContextSnapshot 的不可变附属绑定，逻辑字段由 Po
 | Slice 不存在、动态 View 冒充 Slice、错 Hash/Scope/Purpose/Audience、非 USABLE | `EXECUTION_CONTEXT_SOURCE_INVALID` | 无成功 Context；经 EP owning capture/query 获取新合法输入，不能修改旧 Slice |
 | 当前 Decision 过期/撤销，或 Builder Policy 无法解析 | 共享授权错误 / `REFERENCE_INVALID`；暂时不可查询为 `DEPENDENCY_UNAVAILABLE` | fail closed；不采用默认永久有效 Policy，不将依赖不可用当作空内容继续 |
 | Context 来源绑定与 candidate/Draft 不符，或判断 subject/Hash 不符 | `EXECUTION_JUDGMENT_INVALID`；过期/输入失效为 `EXECUTION_JUDGMENT_STALE` | 不 READY；判断内容与 executable/coverage 结论由 §11.3 拥有，本项不定义放行捷径 |
+| Root/Snapshot/Query 期限镜像不符；candidate 期限省略或改变；消费前跨过期限 | 按 §11.2.4 分别使用 `REFERENCE_INVALID`、`EXECUTION_JUDGMENT_INVALID` 或对应到期错误 | 不通过冻结；创建缺省不得冻结时补值，创建有期限不得省略/提前/延后；历史与重放不重新授权 |
 | 两个 Freeze 使用相同 expectedAggregateVersion | 仅一个 CAS 成功，另一为 `AGGREGATE_VERSION_CONFLICT`；已不允许转换时为 `AGGREGATE_STATE_NOT_ALLOWED` | 只保存一个 frozen Contract；失败请求不能覆盖赢家的 Context/Contract |
 | Slice 已提交，Context 提交前失败 | Slice 保留；Context 事务全部回滚，无成功 Receipt/Event | 重放原 capture 得到原 Slice；仍有效时重试 build，失效时新 capture/new key；不跨模块补偿删除已提交 Slice |
 | Context 已提交、响应丢失或 Validation/Freeze 前中断 | 原 Snapshot/metadata/成功 Receipt 保留，WorkOrder 仍按实际提交状态 | 同键同输入返回原结果；后续消费重新验资格。重放不把过期/已失配 Snapshot 重新变成可执行 |
@@ -443,6 +446,17 @@ Build metadata 是 ContextSnapshot 的不可变附属绑定，逻辑字段由 Po
 冻结后仍使用 §2 的完整 ContextBuildRequest：workOrderRef、workOrderContractRef、projectionType、purpose、audience、非空 sourceSlices、answeredInformationRefs、builderPolicyRef 均必填，expiresAt 可选；不能把首次入口当作无 Contract 的 Retry 旁路。原 Contract 必须可精确读回，且 Ref 属于该 WorkOrder 的 frozen binding。新 Snapshot 需重新校验授权、来源、期限及原冻结 Scope/Capability；答案和 Receipt 的采纳判断由 #154 对应 §11.7 拥有。
 
 `Context-2` 的 FROZEN metadata 指向原 Contract，可使用新 Slice/已解决答案；`Run-2.creation.contextSnapshotRef` 指向 Context-2，`Run-2.creation.workOrderContractRef` 仍指向原 Contract。原 Contract.contextSnapshotRef 始终为 Context-1，Context-1 的 payload/hash 和 Run-1 的固定绑定不变。不能要求 Retry Context 等于 Contract.contextSnapshotRef，否则合法新输入无法进入 Run；也不能据此允许任意 Context，必须核验新 Snapshot 的原 Contract 绑定。到期 Contract 不得创建新 Run；改变 Objective/Scope/Completion 仍须新 WorkOrder。
+
+#### 11.2.4 创建期限与冻结期限
+
+状态：`APPROVED 2026-09-09 / NOT REGISTERED / NOT IMPLEMENTED`，依据[期限补充决定](../decisions/task-execution-human-operated.md#84-td-01-创建期限与冻结期限补充)。本节是本轮期限字段和错误行为的唯一 API 权威。
+
+1. `create_work_order@1.0` 的 payload 形状不变。可选 expiresAt 的“未提供”或精确 UtcInstant 原样保存于 WorkOrder Root，并在同事务创建的 WorkOrderDraftSnapshot 顶层保存 `expiresAt?: UtcInstant`；不把它塞入既有 WorkOrderDraft。Snapshot 的完整 payload Hash 包含该字段的存在性和值，缺省不序列化为 null。创建时若提供期限，服务端当前时间必须严格早于期限，否则以现有 `API_VALUE_INVALID` 拒绝，不创建 Root/Receipt 成功事实。
+2. 新 `get_work_order_draft@1.0` Result.data 返回 `expiresAt?: UtcInstant`，其存在性和值必须与 exact Snapshot、Root 一致。Root 与 Snapshot 不一致属于 `REFERENCE_INVALID`，不能信任 Query 调用者提供的期限。已过期但仍为 DRAFT 的 Root 可在当前读取授权下返回历史事实；返回 DRAFT 不意味着可以继续构建或冻结。
+3. candidate Contract.expiresAt 必须与创建期限的存在性和值完全一致：创建有 T0，则省略、更早或更晚均拒绝；创建未提供，则 candidate 也必须省略。该字段按既有规则进入完整 Contract payloadHash，不改变 specificationHash 的覆盖范围；不能以 specificationHash 相同证明期限未变。Validator 产生解释性不通过判断，Freeze 用 `EXECUTION_JUDGMENT_INVALID` 拒绝期限映射不符的输入。改变期限须新建 WorkOrder，本次不新增 DRAFT 编辑或延长期限 API。
+4. 初次 Builder 发布、Validator 产出可用判断及 Freeze 提交前，均读取上述 exact 期限并以受信服务端当前时间重验；`now >= expiresAt` 即不可用，不能使用 caller 时间或事务开始时间绕过。Builder 无成功 Snapshot，Validator 不得产生可执行通过判断，Freeze 不进入 READY；期限已过时 Builder 使用 `AGGREGATE_STATE_NOT_ALLOWED`，Validator 和 Freeze 使用 `EXECUTION_JUDGMENT_STALE` 拒绝新消费。判断 validUntil 不得晚于已提供的 WorkOrder 期限，仍受其他输入/授权/Policy 更早期限限制。已提交历史不删除，重放原成功 Receipt 不重新赋予执行资格。
+5. 冻结后 Root 与 Contract 的 expiresAt 仍是同一不可变期限，WorkOrderBecameReady 事件中的可选 expiresAt 必须一致；FROZEN Context 构建、queue、create_run 和 start_run 都要检查 Root/Contract 一致且未到期，不能只看滞后的 Root status。期限映射错误为 `REFERENCE_INVALID`，已到期为 `AGGREGATE_STATE_NOT_ALLOWED`。尚未到期也不能越过 Context、Decision、Capability、lease/deadline 的独立期限。已经 RUNNING 的 Run 如何收尾仍由 #153 的既有 lease/deadline 与终态规则拥有；本项不新增到期强杀或跨 Root 同步状态转换。
+6. 创建未提供 expiresAt 只表示没有 caller 指定的 WorkOrder 绝对到期时间，不默认生成期限，也不代表无限授权；既有版本化 Policy、Decision、Context、Capability 和 Run lease/deadline 检查继续生效。Context 请求自身的可选 expiresAt 不替代或改写 WorkOrder 期限。其他已注册旧 @1.0 Schema 和历史 Compatibility Baseline 不变；此选择是待实施业务语义的明确化，不能以旧 Schema 接受 candidate 为理由免除跨字段校验。
 
 ### 11.3 判断事实形状、生产和消费
 
@@ -470,7 +484,7 @@ JudgmentCheck
   reasonCodes: ReasonCode[]
 ```
 
-ExecutionJudgmentRef 为受支持五类 Ref 的闭集；TaskReadiness/WorkOrderValidation 使用 SnapshotRef，其余使用 Exact Ref。ExecutionJudgment 为 header + 各 kind 的明确 payload，禁止任意 CanonicalJson 或跨类型 ID fallback。Hash 由完整事实 payload 规范化计算；`inputHash` 包含有序/去重规则明确的 subject refs、Policy/Evaluator 与事实清单，不含自身 judgmentId。生效期限不超过输入 AuthorizationDecision/Context/Policy 期限的最小值。
+ExecutionJudgmentRef 为受支持五类 Ref 的闭集；TaskReadiness/WorkOrderValidation 使用 SnapshotRef，其余使用 Exact Ref。ExecutionJudgment 为 header + 各 kind 的明确 payload，禁止任意 CanonicalJson 或跨类型 ID fallback。Hash 由完整事实 payload 规范化计算；`inputHash` 包含有序/去重规则明确的 subject refs、Policy/Evaluator 与事实清单，不含自身 judgmentId。生效期限不超过输入 AuthorizationDecision/Context/Policy 期限的最小值。WorkOrderValidation 的 validUntil 还不得晚于 §11.2.4 已提供的 WorkOrder 期限；产出可用判断和 Freeze 消费时均重新检查当前时间。
 
 | Kind / 自有 payload | 生产端 | 消费端与必要 guard |
 |---|---|---|
@@ -487,7 +501,7 @@ accept_agent_result 的 caller disposition 必须等于 owning validator 重算�
 ### 11.4 Run 控制的精确状态和幂等
 
 - create_run 将 Run 置 CREATED，同时创建本 Run 的模块内 ACTIVE reservation、不可变 Capability binding、精确 lease/fencing；不写 WorkOrder Root。attemptNumber 取该 WorkOrder 历史已提交最大值+1，Claim/attempt/fencing 的并发唯一性由数据库保证。
-- start_run 仅对合法 CREATED/STARTING Run 生效：读取 IG exact Binding（Spec 007），要求 SUCCEEDED 且 acknowledgement 与 Run/Contract/Context/Capability/RuntimeBinding 全等、lease/deadline 未到期。在成功事务中记录必要 STARTING→RUNNING transition，不制造 dispatch 前已启动事件；重复同命令返回原结果。
+- start_run 同时遵循 §11.2.4 的 Root/Contract 期限一致且未到期检查；仅对合法 CREATED/STARTING Run 生效：读取 IG exact Binding（Spec 007），要求 SUCCEEDED 且 acknowledgement 与 Run/Contract/Context/Capability/RuntimeBinding 全等、lease/deadline 未到期。在成功事务中记录必要 STARTING→RUNNING transition，不制造 dispatch 前已启动事件；重复同命令返回原结果。
 - submit_agent_result 只追加 Result Aggregate 和 Run 维度 final reservation，先锁 Run 并核对 RUNNING、lease、fencing 与绑定；不更新 Run Root。record_run_result 再锁 Run，确认该 Result 是唯一 reservation、仍 RUNNING且未过期，设置 resultRef/RESULT_RECORDED。不同 final identity 即使 Hash 相同也不可替换；相同 identity/hash 走持久化重放。
 - cancel 只接受非 terminal 且未 RESULT_RECORDED 的可取消执行态；与 record 争同一 Run 锁。取消获胜后的 Result只能隔离；record 获胜则取消返回状态冲突。finalize 要求 RESULT_RECORDED、resultRef 匹配、Acceptance 通过精确查询、无隔离且 lease/deadline 有效。ACCEPTED→SUCCEEDED；REJECTED/QUARANTINED→INVALID_RESULT。Contract final outcome 不直接决定 WorkOrder 完成。
 - expire_run 按服务端时钟重验传入原因：deadline 已到期且不在 CANCELLING 时 TIMED_OUT；lease 已到期或 CANCELLING 到期未确认时 ABANDONED。原因尚不成立则拒绝，不能接受 caller endedAt。terminal transition、Claim RELEASED/EXPIRED、Audit/Receipt/Outbox 同一个 Run 事务提交；terminal 后禁止改成其他 terminal 状态。

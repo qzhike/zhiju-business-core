@@ -423,3 +423,5 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 旧201项Registry、历史200项Compatibility Baseline、旧Envelope/Event/Query result Schema均不修改。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
 
 新增Query只读且受Scope/Purpose裁剪；Slice捕获使用CREATE Command，避免Query产生不可审计写入。CAS expectedAggregateVersion只在Envelope，历史snapshotId/hash不充当CAS token；runtime bigint不能有损转Number。公开整数范围在实现前须与共享Envelope Schema一致，超界明确拒绝，不能借本设计暗改共享类型。
+
+2026-09-09 已批准的 TD-01 期限补充由 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限) 拥有：待注册的 WorkOrderDraftSnapshot 和 get_work_order_draft Result 增加可选 expiresAt，缺省与显式 null 不等价；既有 create_work_order/freeze_work_order payload、Core WorkOrder 和 WorkOrderBecameReady 字段不变。原样继承期限与消费时未到期属于 Handler/持久化跨字段语义，Schema 接受合法字段形状不证明该语义已验证。历史 Compatibility Baseline 不重写，新增运行测试保持 NOT RUN。
