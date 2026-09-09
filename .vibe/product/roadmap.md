@@ -11,7 +11,7 @@
 
 ## Current — IM-06 TaskExecution Human-operated Core
 
-当前进入 IM-06 的规划与首批 readiness 检查。目标是 Human 发起、owning Service 执行的 Task/WorkOrder/Context/Run/Result/InformationRequest 流程，以及独立 Completion 与 Usage/Provenance；不提前引入真实 Agent 自动化。
+当前 IM-06 技术基础已交付，继续推进业务切片的 readiness 检查。目标是 Human 发起、owning Service 执行的 Task/WorkOrder/Context/Run/Result/InformationRequest 流程，以及独立 Completion 与 Usage/Provenance；不提前引入真实 Agent 自动化。
 
 开始实现前：
 
@@ -21,13 +21,11 @@
 
 已识别的首次 Context/Contract 构建、Human-operated Driver/Attempt 与控制入口、Readiness/Validation/Completion 判断事实来源，见 [IM-06 设计提案](../decisions/task-execution-human-operated.md)。第 2–4 节方向与约束已获用户批准；具体技术增量 TD-01–04（新增 API、Task v2、持久化与首版范围）已获用户批准，作为未来实现的设计基准；可执行 Schema/Catalog 与业务能力尚待交付。
 
-首个 NOW + READY 实现切片是该提案第 5 节的 **TaskExecution application/persistence 技术基础**：限定现有 V3000 技术表、模块事务、幂等、CAS、Hash/Scope guard 与失败回滚，复用已批准安全机制。它不依赖尚未决定的业务状态机，不实现业务 Handler 或新增 Catalog 操作。
-
-[PR #155](https://github.com/qzhike/zhiju-business-core/pull/155) 已合并至 `6e39ec84b3c35edb4a701a4c8fd2aafcda5391c6`(本地 `origin/main` head),交付 [Issue #151](https://github.com/qzhike/zhiju-business-core/issues/151) 的 application/persistence 切片。`@zhiju/task-execution` 暴露 `executeTaskExecutionCommand` + `TaskExecutionRepository.insertProcessInstance` + 接收方 `CommandFacts` 闭包绑定;模块事务由 V3000 八张技术表 + `withTaskExecutionTransaction` 兜底;精确 bigint CAS 跨授权集合亦不漂移;envelope 顶层字段被深冻结供 `claimReceipt` / `casProcessInstance` / `appendOutbox` / `appendReferenceEdge` / `appendProcessStep` / `finalizeReceipt` 读取。Module-Spec-003 §10.1 与 Module-Test-003 IM-06 WI-01 矩阵已记录 TE-WI-01-001..013 验收证据。仍不引入新公开 Contract、不改 200 项 Catalog baseline、不动 V3000 DDL。
+首个技术基础切片已通过 [PR #155](https://github.com/qzhike/zhiju-business-core/pull/155) 合入 main，[Issue #151](https://github.com/qzhike/zhiju-business-core/issues/151) 已关闭。当前具备基于既有 V3000 技术表的模块事务、持久化幂等、精确 bigint CAS、Hash/Scope guard 与失败恢复能力；命令目标由闭包绑定及 envelope 顶层快照固定。具体行为与验证场景见 Module-Spec-003 §10.1 和 Module-Test-003，不将技术 Foundation 的通过扩大为业务 Handler 或 IM-06 整体完成。
 
 后续按依赖滚动收敛：Task/WorkOrder 与首次 Context → Run/Attempt/Result Acceptance → InformationRequest 与新 Context/Run Retry → Completion、Query/Projection 和受控退出 Fixture。Context/Run 等依赖设计决定与技术基础；跨模块 Completion 依赖真实 Producer 和 owning Consumer。此处是顺序意图，不提前拆出完整 Issue backlog。
 
-下一项 NOW + READY 候选:基于已交付的技术 Foundation 推进 IM-06 WI-02(WI-02-04 TD-01–04 的最小可执行 Catalog + 新公开 Command/Query/Event 注册),前置 readiness 复核走 Planner 流程;TD-05–07(Query/Projection 快照、Usage/安全来源、受控退出 Fixture)仍是已形成提案但尚未批准的剩余设计,在 TD-01–04 业务实现前不展开 Issue。
+下一步基于已交付技术基础，对 TD-01–04 所需的可执行 Schema/Catalog 与业务切片进行 Planner readiness 复核；只有复核满足 NOW + READY 后才发布实现 Issue。TD-05–07 仍为待批准提案，不作为已批准实现范围。
 
 退出时须证明：冻结 Scope/Hash 不变，active Run/final Result 并发唯一，正常完成与 BLOCKED_INPUT→授权答案→新 Context/Run 两条链，Cancel request/late result 失败语义，Run/WorkOrder/Task/DeliveryItem 分层完成，Usage 未知与声明来源可区分，权威 Query 与 Projection freshness 分离。完整验证使用 `vibe verify full --json`；真实飞书/Runtime 与人工业务验收独立列为 `NOT RUN`，不得被受控 Fixture 替代。Issue #151 的技术 Foundation 通过不替代 IM-06 业务闭环验收。
 
