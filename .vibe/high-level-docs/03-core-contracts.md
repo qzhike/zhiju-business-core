@@ -1224,4 +1224,8 @@ Human、Agent、飞书、Runtime 和未来 API 可以使用不同呈现方式，
 
 状态：TECHNICAL DESIGN APPROVED 2026-09-08。#152–#154 的已批准选择见 [TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。本轮保持 ProjectContext/WorkOrder/AgentResult v1.0 本体、Hash规则和七类WorkOrder Criterion名称不变。首次Context的Draft Snapshot与build metadata位于Core本体外，Context不反向引用未来frozen Contract；旧build_context_snapshot仍需要精确ContractRef。
 
+TD-01 对 §3.3/3.8/3.10 与 §4.3/4.13 的衔接：先提交 DRAFT WorkOrder 及不可变 Draft Snapshot，再构建只引用已存在 Root 的 Context，最后把已提交 Context 的 exact Ref 纳入完整 candidate 并验证/冻结。不能预写缺 Context 的 frozen Contract，或预分配未来 Hash 以消除依赖。Snapshot 创建不等于 WorkOrder READY；冻结时必须重新核验 Draft pointer、Context 输入绑定和 Validation 对完整 candidate 的 Hash。首次与冻结后请求字段、候选映射和拒绝矩阵由 [Spec 003 §11.2](../module-specs/Module-Spec-003-TaskExecution.md#112-首次-context-的精确输入) 拥有。
+
+Retry 的 Context-2 可以记录新来源，但必须在本体外绑定原 frozen Contract；新 Run 独立引用 Context-2，原 Contract.contextSnapshotRef 仍为 Context-1。不得为了容纳新输入重算原 Contract 的 payloadHash/specificationHash，也不得改写 Context-1 或 Run-1 的固定引用。原 Contract 到期、Scope/Objective/Completion 发生实质变化的既有拒绝规则继续适用。
+
 TaskDefinition的开放CanonicalJson若收敛为首版typed criteria，采用execution.create_task@2.0，不能收窄旧@1.0。Core §4.9 的inputBindings/expectedCondition/profile机械形状设计在[Spec 003 §11.6](../module-specs/Module-Spec-003-TaskExecution.md#116-workorder-criterion-与-task-v2)，作为已批准的注册Evaluator适配器设计，不改写本Core当前Schema。Readiness/Validation的新事实外壳引用精确Core输入，不能用bool替代Core验证或用bundleHash形成循环引用。新增字段与首版类型限制已获批准，运行验收NOT RUN。

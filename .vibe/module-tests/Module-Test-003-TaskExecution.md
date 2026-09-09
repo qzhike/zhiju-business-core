@@ -90,6 +90,21 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-TD-025 | Security/Persistence | 各新表直接SQL、无Context、池复用、Scope镜像错、异常注入 | RLS/ACL/hash/immutable guard拒绝；技术事实原子回滚；池不继承上下文 | NOT RUN |
 | TE-TD-026 | Query | Task历史COMPLETED而事实撤销；读取TaskState与依赖Readiness | 历史保持，completionUseStatus不可用，依赖不能仅凭status通过 | NOT RUN |
 
+### WI-02 首次构建与冻结的细化场景
+
+以下场景细化 TE-TD-001–008 和 TE-TD-019，唯一行为来源是 [Spec 003 §11.2](../module-specs/Module-Spec-003-TaskExecution.md#112-首次-context-的精确输入)。设计审阅逐项对照输入、预期及拒绝反例；当前不执行新业务 Handler，全部保持 NOT RUN。
+
+| ID | 层级 | 可审阅输入 / 拒绝反例 | 预期输出与禁止效果 | 当前结果 |
+|---|---|---|---|---|
+| TE-WI02-D-001 | Contract/Persistence | 空业务库通过 owning 入口建立 Identity/EP 必需来源、Task、Draft，再 capture→build→validate→freeze；分别移除必需来源或用未来 ID/占位 Hash | 合法链逐步读回每个 exact Ref；缺输入拒绝，不要求历史 Context/Contract，不以直写伪造初始事实 | NOT RUN |
+| TE-WI02-D-002 | Contract | 固定完整 candidate，包括签发时间；验证后仅改变 issuedAt、requestedBy、Context Ref 或 specificationHash；Freeze 使用当前 Query 的 CAS 版本 | 原 candidate 可继续 Freeze；任一绑定/Hash/归因不符均拒绝，不混淆 payloadHash 与 specificationHash，不硬编码 Root version | NOT RUN |
+| TE-WI02-D-003 | Security/Persistence | Draft 不存在、错 Hash、错 Task/Scope；合法 Draft pointer 换代；Slice 分别错 Purpose/Audience/Policy；Builder 使用无权来源 | 按 Spec 失败矩阵拒绝；无成功 Snapshot/Validation，不泄露其他 Scope 对象存在性；安全 Audit 保留内部原因 | NOT RUN |
+| TE-WI02-D-004 | Persistence | 双连接控制 Builder 发布前与 Freeze 的锁顺序；另测 Builder 提交后输入失配、两个 Freeze 同版本 | 前者按持锁顺序只使用有效 DRAFT；后者旧 Snapshot 仅保留历史；Freeze 只有一个 frozen binding，失败事务不写其他 Root | NOT RUN |
+| TE-WI02-D-005 | Persistence | 依次在 Slice 提交后、Context 写入后提交前、Context 提交后响应前、Validation 提交后、Freeze 写入后提交前/提交后响应前注入异常 | 未提交目标整体回滚，已提交上游事实保留；同键重试返回原成功 Ref/Receipt 或安全继续，无重复成功 Outbox/Contract；同键异 Hash 冲突 | NOT RUN |
+| TE-WI02-D-006 | Contract/Persistence | INITIAL metadata 同时带 Contract/Draft 或无输入分支；FROZEN 指向其他 WO Contract；成功 Snapshot 缺 metadata；payload 与 normalized ref 不一致 | 闭集/完整性 guard 拒绝，无可读成功 Snapshot 缺绑定；合法两分支仍产生同 ProjectContext v1.0 和旧事件形状 | NOT RUN |
+| TE-WI02-D-007 | Controlled integration | final BLOCKED_INPUT→合法答案/Receipt→Context-2/Run-2；对照到期 Contract、改 Scope、直接复用 initial 入口及任意其他 Context | 新 Run 使用新 Context 与原 Contract；原 Contract/Context-1/Run-1 精确 Ref/Hash 不变；反例不能启动新 Run，不 Resume 旧终态 | NOT RUN |
+| TE-WI02-D-008 | Contract/Security | 旧合法 frozen 请求、旧请求缺 ContractRef、新请求含旧字段/空 Slice/未知 projection；成功 build 重放时输入已过期；检查实际 Manifest 与 omission/redaction | 保留旧合法 @1.0；错误分支拒绝；重放返回原结果但新消费拒绝；不补充未用来源、不扩大 Audience 权限，裁剪不足由 owning Validation 阻止可执行冻结 | NOT RUN |
+
 独立设计审查应核对 TD-01–04、新操作清单、所有具体失败矩阵与单Aggregate/兼容边界。人类对具体技术设计的批准不等于上述运行结果。真实Feishu/CLI Runtime、公开HTTP、生产和独立人工业务验收继续独立NOT RUN。
 
 ## IM-06 WI-01 application/persistence 基础用例（Issue #151）

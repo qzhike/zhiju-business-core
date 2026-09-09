@@ -91,6 +91,41 @@ TD-01–04 已于 2026-09-08 获用户明确批准，包含新操作、Task v2 �
 
 同键同输入重放返回原 Snapshot/判断；输入改变需新命令键和新 immutable identity。同键异 Hash 冲突，不能重建原 ID。时间来自受信服务；所有时效查询重验服务器时间，而非信任 caller 的 evaluatedAt/requestedAt。来源对象后续变化不改写旧 Source Slice；当前授权或生命周期失效影响新消费资格，并记录拒绝/失效事实。
 
+### 8.1 空业务库的依赖与提交顺序
+
+“首次”不要求预先存在 Context 或 frozen WorkOrder，也不豁免基础业务事实。先经 IdentityPolicy 和 EnterpriseProject 正常 owning 入口建立授权主体、Enterprise/Project、Core §3.5 必需的 EnterpriseProfileSnapshot/QmsConfiguration 及适用的版本化 Policy；缺少必需来源应拒绝，不生成空壳引用。再经 Task owning 入口创建 Task，并按 #154 的 Readiness 规则满足创建 WorkOrder 的生命周期要求。首版来源仅限 EP owning Source Slice；本项不发明 Policy 内容、Task 判据或其他模块 Source 捕获 API。
+
+| 提交步骤 | 唯一写 Owner / Root | 已提交输入与输出 | 在此停止后的合法状态 |
+|---|---|---|---|
+| 创建 DRAFT | TE / WorkOrder | 已存在 Task/Scope → WorkOrder + 附属 Draft Snapshot + Root pointer | 无 Context/Contract；Draft 可精确读取 |
+| 捕获来源 | EP / ContextSourceSlice | 已存在 EP 权威事实及授权 → immutable Slice Ref | 不写 TE；已提交 Slice 不因后续失败回滚 |
+| 首次构建 | TE / ContextSnapshot | exact Draft + Slice + Policy → Context + INITIAL metadata | WorkOrder 不变；Snapshot 存在本身不赋予执行资格 |
+| 验证候选 | TE / WorkOrderValidation | Draft + Context + 完整 candidate → exact Validation Snapshot | 不修改 WorkOrder 或 Context；判断可因时效/输入变化不可用 |
+| 冻结 | TE / WorkOrder | 当前 Draft、candidate、Context、Validation + expected version → frozen Contract + READY | 只写 WorkOrder 及附属事实；失败不留下部分 frozen binding |
+
+每步 Receipt/Audit/Reference Edge/适用 Outbox 与目标事实同事务；跨步骤不存在原子总事务。引用 ID 只有在 owning 提交成功并能校验内容 Hash 后才可作为下一步输入；CREATE 的目标 ID 可由 Envelope 指定，但不能提前作为已存在输入。字段映射、失败分类、响应丢失恢复与 Retry 约束唯一维护于 [Spec 003 §11.2](../module-specs/Module-Spec-003-TaskExecution.md#112-首次-context-的精确输入)，避免在此复制字段定义。
+
+### 8.2 TD-01 权威增量与兼容交付边界
+
+下表是已批准 TD-01 的设计路由与后续交付约束，不是执行日志或新的 API 批准；本 Issue 不修改可执行 Schema、Registry 或 migration。
+
+| 权威 / 精确位置 | 本项增量与保持项 | 后续实现的可审阅反例 |
+|---|---|---|
+| Core §3.3/3.8/3.10、§4.3/4.13，IM-06 附录 | Context 只引用已存在 WorkOrder Root；首次绑定在本体外，Freeze 引入已存在 Context；v1.0 本体/Hash 范围不变 | Context 嵌未来 Contract Hash、Retry 改旧 Contract 或以 payloadHash 代替 specificationHash 均拒绝 |
+| Module Spec 003 §2/3、§11.1–11.3；Module Test 003 TE-TD-001–008、TE-WI02-D-001–008 | 新 initial 入口/精确 Draft 读取与旧 frozen 入口并存；字段/版本/授权、并发与恢复矩阵 | 旧请求缺 ContractRef、新请求带旧字段、Draft 竞态、同键异输入不得成功 |
+| Module Spec 002「IM-06 Source Slice 与 Resolution Receipt 设计」；Module Test 002 EP-TD-001/002 | capture 新 Slice 与 exact Query；保留 get_project_context_source 动态 View | 动态 View 加自算 Hash 不成为已存在 Slice；错 Purpose/Audience 拒绝 |
+| 共享 API「IM-06 兼容性增量」；Catalog 06 owning operation/Ref 注册 | 新操作独立 @1.0；不改变旧必填字段、Envelope、Result/Event；新 Purpose 需要显式策略 | Service 通配授权、未知 objectType、旧 Schema 被收窄均不合格 |
+| `contracts/src/operations/task-execution.schema.ts`、`enterprise-project.schema.ts`、`contracts/src/core.schema.ts`、`contracts/registry/public-api.v1.json` 及生成类型/fixture | 后续注册 Draft/Initial 请求、Source Slice capture/read、Draft Query 和 Validation 衔接所需 Schema；Core 仅被引用，不改变本体；保持旧 201 项与历史 Compatibility Baseline | 只加操作名字却无 Envelope/Ref/错误/PayloadGuard/正负 fixture，或改写历史 baseline，不能算交付 |
+| PostgreSQL §11.2、§18、§33 | Draft immutable payload/Root pointer、Context build 输入闭集、唯一冻结 binding；EP Slice 独立提交 | 只验证 Hash 长度、Snapshot 与 metadata 分开提交、跨 Schema FK/写事务均拒绝 |
+
+### 8.3 已解决边界与后续 readiness
+
+本项解决首次构建的循环引用、必填输入/兼容方式、精确 Hash/Scope/Purpose 绑定、单 Root 提交、并发失败/恢复及冻结后 Retry 引用不变性。对应验收以 Spec 003 §11.2 的合法链和拒绝矩阵、Module Test 的输入/预期对账；新增行为的运行结果保持 NOT RUN。
+
+#154 继续拥有 TaskReadiness、WorkOrderValidation 的检查内容、Policy/Evaluator 支持与时效以及答案/Receipt 采纳事实；#153 继续拥有 Run/Attempt、状态协调、active claim、取消/超时裁决。这里要求消费它们的精确事实和当前资格，不重复定义结论或把 Ref 存在视为 valid。TD-05–07 的待批准 Query/Usage/退出设计不成为首次 Context 引用方案的隐含前提，也不被本项追认批准。
+
+#151 技术基础已经交付（当前事实见 roadmap）；下一候选是 TD-01–04 的必要 Schema/Catalog 与 owning 持久化交付。设计批准只解除设计依赖，不使不存在的 API/表成为可调用事实。发布 Task/WorkOrder/首次 Context 实现任务前，须核对这些前置交付与 #154 判断接口均可用，或在单独、明确的实现 Scope 中完整交付；本项不自动生成后续 Issue，不宣称完整 IM-06 NOW + READY。独立设计审查与人类批准、仓库回归、未来业务验收分别留证。
+
 ## 9. WI-03 事务序列与竞态裁决
 
 ```text

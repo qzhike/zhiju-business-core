@@ -393,11 +393,56 @@ build_initial_context_snapshot(DS-1, [SS-1], purpose=P, audience=A, policy=BP-1)
   -> CTX-1(hash=C1); build metadata = {DS-1,SS-1,P,A,BP-1}
 validate_work_order_draft(DS-1,candidateContract(context=CTX-1),VP-1,EV-1)
   -> WV-1(subjectContractHash=W1)
-freeze_work_order(WO-1,expectedAggregateVersion=1,contractHash=W1,validation=WV-1)
+freeze_work_order(target=WO-1,expectedAggregateVersion=V,
+  workOrderContract=candidateContract,validationSnapshotRef=WV-1,
+  specificationHash=candidateContract.specificationHash)
   -> frozen WO-1 Contract W1; DS-1/SS-1/CTX-1 unchanged
 ```
 
+`V` 是 owning Query 返回的当前 Root CAS 版本，不能从 DS-1 的 identity 推导或硬编码为 1；`W1` 是完整 Contract 的 payload Hash，不是 specificationHash。示例中的 target/version 属于 Envelope，其余三个字段才是现有 Freeze payload。Validator 与 Freeze 必须接收同一完整 candidate，包括签发元数据；验证后重新生成 issuedAt、Contract identity 或其他字段会改变 candidate Hash，必须重新验证。
+
 Builder 成功发布前读锁 WorkOrder Root并核对其仍 DRAFT、当前 Draft pointer==DS-1；Freeze 在 WorkOrder 更新锁内重复核对。只读依赖锁不授权跨 Aggregate 写入。若 Builder 成功后 Draft 被合法换代，CTX-1 作为历史仍存在，Freeze 拒绝它，且 `create_run` 无法使用没有 frozen Contract 认可的 Context。
+
+#### 11.2.1 字段映射与引用校验
+
+本节展开 TD-01 已批准的精确绑定，不新增操作或改变 Core v1.0。首次请求的六个必填字段保持 §11.2 定义；只有 expiresAt 可选。`projectionType` 虽以 NamespaceCode 传输，仍须满足 Core §3.4 已注册集合，不能以未知值回退。空 sourceSlices、未注册 objectType、latest 或缺 Hash 在 Schema/引用校验阶段拒绝。
+
+| 输入 / 输出字段 | 唯一来源与消费约束 |
+|---|---|
+| Draft snapshotId / hash | create_work_order 同事务持久化的不可变事实；按 exact id + 完整 canonical payload Hash 解引用，不能把 Root aggregateVersion 当 snapshotId。比较 Root current pointer 的 identity/hash，而非只比较 WorkOrder id |
+| Draft workOrderRef / taskRef / scopeRef | 与已存在 Root、Root 所属 Task 及 Envelope Enterprise/Project 完整一致；draft.taskRef 与 Snapshot taskRef 一致。不存在、错 Hash、错 parent 或无权读取不得继续组装 |
+| ProjectContext projectRef / enterpriseRef / workContext | 从已核验 Scope 和已提交 Task/WorkOrder 推导；workContext.taskRef/workOrderRef 及 projection.requestedByWorkOrderRef（若出现）必须指向同一输入 Root，不引用未来 Contract |
+| ProjectContext projection / sourceManifest / items | projection 与请求 purpose/audience/builderPolicyRef 一致；每个 Slice 同 Scope、purpose、audience 且 owning Query 返回 USABLE。Builder 再按 Draft targetScope、inputRefs.permittedUse/contentAccessMode、Policy 裁剪，保留 omission/redaction/coverage；Manifest 只列实际采用的精确来源 |
+| Candidate workOrderRef / taskRef / projectRef / requestedBy | 来自上述 Root/Scope 与 draft.requestedBy；不能借 candidate 替换请求主体。header.issuedBy、issuedAt 等签发归因按受信 Validator/签发规则校验，不由 Ref 的存在性推导授权 |
+| Candidate objective 至 versionPins | draft 中对应字段逐字段相等；其中 contextSnapshotRef 是唯一由本次已提交 Context 补入的执行规范字段。不得在组装时默认增加 Capability、修改 Objective/Scope 或补写未知策略 |
+| Candidate payloadHash / specificationHash | 分别按 Core §2、§4.3/4.13 的规范范围计算；contextSnapshotRef 属于冻结规范。Validation 的 candidateContractHash、Context Ref 与实际提交 candidate 一致；Hash 正确不能替代引用存在性、授权或可执行性判断 |
+
+Build metadata 是 ContextSnapshot 的不可变附属绑定，逻辑字段由 PostgreSQL §33 拥有，不扩展 ProjectContext v1.0 payload。INITIAL 绑定唯一 Draft Ref，不存在 frozen Contract Ref；FROZEN 绑定唯一原 Contract Ref，不使用 Draft Ref。两者均保存实际 sourceSlices、purpose/audience/builderPolicyRef 与输出 Snapshot 的精确关联；FROZEN 还保存原请求 answeredInformationRefs（可为空）。成功 Snapshot 与 metadata/Receipt/Reference Edge/Outbox 同事务提交，不能出现可读成功 Snapshot 却找不到输入绑定。
+
+#### 11.2.2 失败与恢复矩阵
+
+表中错误复用共享 API 及 §11.7；诊断原因保留在受权限控制的 Audit，不以不同外观泄露其他 Scope 对象是否存在。所有消费动作有独立当前授权，Builder/Validator 曾获授权不等于 Freeze/Run 获授权。
+
+| 输入、竞争或中断位置 | 可判定结果 | 恢复与禁止效果 |
+|---|---|---|
+| Draft id 不存在、Hash 不符、parent/Scope 不符 | `REFERENCE_INVALID`；Envelope 授权/Scope 先按共享规则拒绝 | 无成功 Snapshot/Validation；重新获取合法 exact Ref，不尝试 latest 或占位 Hash |
+| 已合法解析 Draft，但 Root 非 DRAFT 或 current pointer 不同 | `EXECUTION_DRAFT_SNAPSHOT_STALE` | Builder 发布前拒绝；Freeze 前出现则保留旧 Context 为历史，重新读取当前合法输入。不得引入未批准的 DRAFT 编辑入口 |
+| Slice 不存在、动态 View 冒充 Slice、错 Hash/Scope/Purpose/Audience、非 USABLE | `EXECUTION_CONTEXT_SOURCE_INVALID` | 无成功 Context；经 EP owning capture/query 获取新合法输入，不能修改旧 Slice |
+| 当前 Decision 过期/撤销，或 Builder Policy 无法解析 | 共享授权错误 / `REFERENCE_INVALID`；暂时不可查询为 `DEPENDENCY_UNAVAILABLE` | fail closed；不采用默认永久有效 Policy，不将依赖不可用当作空内容继续 |
+| Context 来源绑定与 candidate/Draft 不符，或判断 subject/Hash 不符 | `EXECUTION_JUDGMENT_INVALID`；过期/输入失效为 `EXECUTION_JUDGMENT_STALE` | 不 READY；判断内容与 executable/coverage 结论由 §11.3 拥有，本项不定义放行捷径 |
+| 两个 Freeze 使用相同 expectedAggregateVersion | 仅一个 CAS 成功，另一为 `AGGREGATE_VERSION_CONFLICT`；已不允许转换时为 `AGGREGATE_STATE_NOT_ALLOWED` | 只保存一个 frozen Contract；失败请求不能覆盖赢家的 Context/Contract |
+| Slice 已提交，Context 提交前失败 | Slice 保留；Context 事务全部回滚，无成功 Receipt/Event | 重放原 capture 得到原 Slice；仍有效时重试 build，失效时新 capture/new key；不跨模块补偿删除已提交 Slice |
+| Context 已提交、响应丢失或 Validation/Freeze 前中断 | 原 Snapshot/metadata/成功 Receipt 保留，WorkOrder 仍按实际提交状态 | 同键同输入返回原结果；后续消费重新验资格。重放不把过期/已失配 Snapshot 重新变成可执行 |
+| Validation 已提交但 Freeze 失败；Freeze 提交后响应丢失 | 前者保留不可变判断但不 READY；后者 Contract/READY/成功技术事实已原子提交 | 前者在判断仍有效且输入相同条件下重试；后者同键返回原结果，不再次签发 Contract |
+| capture/build/validate/freeze 同键异 payload Hash | `IDEMPOTENCY_PAYLOAD_CONFLICT` | 不调用业务 Handler、不生成第二份成功事实；变更输入必须新 key，新的不可变输出使用新 identity |
+
+跨模块来源的当前授权/生命周期采用[设计决定 §10.1](../decisions/task-execution-human-operated.md#101-判断顺序与时效)所述观测时点一致性：消费前读 owning Query 并记录版本/watermark，后续撤销经失效/Impact 处理。只读 WorkOrder 行锁解决本模块 DRAFT 竞态，不宣称锁住 EP 来源或建立分布式原子提交。
+
+#### 11.2.3 冻结后 Retry 的独立绑定
+
+冻结后仍使用 §2 的完整 ContextBuildRequest：workOrderRef、workOrderContractRef、projectionType、purpose、audience、非空 sourceSlices、answeredInformationRefs、builderPolicyRef 均必填，expiresAt 可选；不能把首次入口当作无 Contract 的 Retry 旁路。原 Contract 必须可精确读回，且 Ref 属于该 WorkOrder 的 frozen binding。新 Snapshot 需重新校验授权、来源、期限及原冻结 Scope/Capability；答案和 Receipt 的采纳判断由 #154 对应 §11.7 拥有。
+
+`Context-2` 的 FROZEN metadata 指向原 Contract，可使用新 Slice/已解决答案；`Run-2.creation.contextSnapshotRef` 指向 Context-2，`Run-2.creation.workOrderContractRef` 仍指向原 Contract。原 Contract.contextSnapshotRef 始终为 Context-1，Context-1 的 payload/hash 和 Run-1 的固定绑定不变。不能要求 Retry Context 等于 Contract.contextSnapshotRef，否则合法新输入无法进入 Run；也不能据此允许任意 Context，必须核验新 Snapshot 的原 Contract 绑定。到期 Contract 不得创建新 Run；改变 Objective/Scope/Completion 仍须新 WorkOrder。
 
 ### 11.3 判断事实形状、生产和消费
 
