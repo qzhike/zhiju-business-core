@@ -305,7 +305,7 @@ const namedDefinitions = {
       purpose: namespace,
       audience: typedReference,
       sourceSlices: array(contentAddressedReference, { nonEmpty: true, unique: true }),
-      answeredInformationRefs: array(typedReference, { unique: true }),
+      answeredInformationRefs: array(typedReference),
       builderPolicyRef: versionedReference,
       expiresAt: instant,
     },
