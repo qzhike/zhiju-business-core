@@ -1,5 +1,20 @@
-import type { AnySchemaObject, ErrorObject, Options, ValidateFunction } from 'ajv';
+import type {
+  AnySchemaObject,
+  ErrorObject,
+  KeywordDefinition,
+  Options,
+  ValidateFunction,
+} from 'ajv';
 import Ajv2020Import from 'ajv/dist/2020.js';
+
+import { assertSliceOperationRegistrations } from './operation-registration.js';
+import guardPolicyData from './generated/payload-guard-policies.json' with { type: 'json' };
+import {
+  loadPayloadGuardPolicies,
+  payloadGuardErrors,
+  payloadGuardKeyword,
+  resolvePayloadGuardPolicy,
+} from './payload-guard.js';
 
 import { commonSchema } from './common.schema.js';
 import { coreContractSchemas } from './core.schema.js';
@@ -23,6 +38,7 @@ export interface ContractValidationResult {
 }
 
 interface AjvRuntime {
+  addKeyword(keyword: KeywordDefinition): AjvRuntime;
   addSchema(schema: AnySchemaObject): AjvRuntime;
   getSchema(key: string): ValidateFunction | undefined;
 }
@@ -31,10 +47,13 @@ const Ajv2020 = Ajv2020Import as unknown as new (options?: Options) => AjvRuntim
 
 export class ContractRegistry {
   readonly #ajv: AjvRuntime;
+  readonly #guardPolicies = loadPayloadGuardPolicies(guardPolicyData);
   readonly #operations: ReadonlyMap<string, PublicOperationDefinition>;
 
   constructor() {
+    assertSliceOperationRegistrations(publicApiOperations);
     this.#ajv = new Ajv2020({ allErrors: true, strict: true });
+    this.#ajv.addKeyword(payloadGuardKeyword(this.#guardPolicies));
     this.#ajv.addSchema(commonSchema);
     for (const schema of coreContractSchemas) this.#ajv.addSchema(schema);
     for (const schema of executableOperationSchemas) this.#ajv.addSchema(schema);
@@ -78,6 +97,8 @@ export class ContractRegistry {
         ],
       };
     }
+    const guard = this.#guard(operation, input, 'envelope');
+    if (guard !== undefined) return guard;
     const schemaId = `https://schemas.zhiju.local/api/1.0/${operation.type}`;
     return this.#run(this.#ajv.getSchema(schemaId), input);
   }
@@ -108,6 +129,8 @@ export class ContractRegistry {
     const operation = this.getOperation(type, version);
     if (operation === undefined) return this.#unknownOperation(type, version);
 
+    const guard = this.#guard(operation, input, 'result');
+    if (guard !== undefined) return guard;
     const resultSchemaRef = operationResultSchemaRef(operation);
     if (resultSchemaRef === undefined) {
       return {
@@ -124,6 +147,17 @@ export class ContractRegistry {
       };
     }
     return this.#run(this.#ajv.getSchema(resultSchemaRef), input);
+  }
+
+  #guard(
+    operation: PublicOperationDefinition,
+    input: unknown,
+    mode: 'envelope' | 'result',
+  ): ContractValidationResult | undefined {
+    if (operation.payloadGuardPolicyRef === undefined) return undefined;
+    const policy = resolvePayloadGuardPolicy(this.#guardPolicies, operation.payloadGuardPolicyRef);
+    const errors = payloadGuardErrors(input, policy, mode);
+    return errors.length === 0 ? undefined : { valid: false, errors };
   }
 
   #assertExecutableSchemas(operation: PublicOperationDefinition): void {

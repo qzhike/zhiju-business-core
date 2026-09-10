@@ -750,7 +750,7 @@ ACL/RLS 断言必须区分层次：Fact/Evaluation/Impact 的应用角色 `UPDAT
 
 ## IM-06 Source Slice 与 Resolution Receipt 设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / NOT REGISTERED / NOT IMPLEMENTED`；关联 #152/#154、[TD-01/04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。本节只拥有 EnterpriseProject 的输入事实捕获和窄化证明，不把 ContextSnapshot/InformationRequest 的业务所有权移入本模块。现有 `get_project_context_source@1.0` 保持动态 View，不能由调用者生成任意 ContentAddressedRef假定其可持久化读取。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08`；capture/read 的 Schema/Registry/Guard 已交付，业务 Handler 未实现；get_resolution_receipt 未注册、未实现；关联 #152/#154、[TD-01/04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。本节只拥有 EnterpriseProject 的输入事实捕获和窄化证明，不把 ContextSnapshot/InformationRequest 的业务所有权移入本模块。现有 `get_project_context_source@1.0` 保持动态 View，不能由调用者生成任意 ContentAddressedRef假定其可持久化读取。
 
 | 设计操作 | 模式/一致性 | Payload | Result.data / Purpose |
 |---|---|---|---|
@@ -765,3 +765,18 @@ ResolutionReceiptAttestation payload：`commandReceiptRef, commandType, commandV
 Receipt Ref 的 Hash 对应持久化规范 Receipt payload（command identity/type/version、完整 Scope/target、request hash、结果引用、outcome、actor/decision、committedAt），不使用原命令 requestHash冒充 Receipt Hash。若现有 Receipt未存该规范投影，后续实现须 forward migration/backfill精确可重算材料，不能凭 current Root猜历史结果；无法恢复时 fail closed。Query可以返回脱敏 typed projection，但 Hash验证基于完整受控 canonical receipt。TE仅消费允许字段。
 
 新增 Slice表、Receipt canonical material的存储要求由 PostgreSQL技术设计附录拥有；不修改旧 V2007/历史Receipt，不创建跨 Schema FK。此设计不自动支持 Fact/Approval/Policy Exception答案采纳。
+
+### #157 注册元数据绑定
+
+状态：`APPROVED 2026-09-09 / SCHEMA AND GUARD IMPLEMENTED / HANDLER NOT IMPLEMENTED`；仅补充 #157 的技术注册声明，原 TD-01 字段设计已批准。技术 Guard 参数和机制唯一见[共享 API 补充](../api-contract-v0.1/API-Contract-v0.1.md#157-payloadguard-注册补充方案)。
+
+| 操作 | Owner | Target / Mode / Consistency | authorizationPurpose | dataClassification | payloadGuardPolicyRef |
+|---|---|---|---|---|---|
+| project.capture_context_source_slice@1.0 | enterprise-project | ContextSourceSlice / CREATE；expectedAggregateVersion 必须省略 | project.context_source.capture | CUSTOMER_CONFIDENTIAL | ep.context_source_slice@1.0 |
+| project.get_context_source_slice@1.0 | enterprise-project | AUTHORITATIVE only | project.context_source.read | CUSTOMER_CONFIDENTIAL | ep.context_source_slice@1.0 |
+
+Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；capture.payload.projectRef 与 Result.slice.projectRef 为 OBJECT/Project；capture.payload.audience 与 Result.slice.audience 复用共享 PrincipalRef（{principalKind, principalId}，不是 ObjectRef）；capture.payload.capturePolicyRef 与 Result.slice.capturePolicyRef 为 VERSIONED/Policy；Query.payload.sourceSliceRef 为 CONTENT_ADDRESSED/ContextSourceSlice，Hash 必填。Slice.scopeRef 继续使用共享 ScopeRef，scope 相等/存在性由业务校验负责。source 直接引用现有 ProjectContextSourceSlice，其内部 Ref/SourceWatermark 和 CanonicalJson 叶字段沿用既有定义，不借本次注册改变其形状。
+
+授权声明只标识受授权 ContextBuilder Service 的目的；不创建 Service Principal、CapabilityGrant 或业务 capturePolicy，不规定 TTL。Schema 能拒绝错误 Ref kind/objectType、缺 Hash 或形状不合法，但不能证明 Hash 与内容匹配、对象存在或当前权限。EP-TD-001/002 业务验收保持 NOT RUN；本模块当前公开 Contract 共 34 项，新增两项仅交付 Schema/Guard。
+
+新操作的公开 Ref objectType 映射由 [Catalog #157](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#157-contextsourceslice-注册) 注册：Project → zhiju.project.project，Policy → zhiju.identity.policy，ContextSourceSlice → zhiju.project.context_source_slice。PrincipalRef 沿用共享类型；旧操作的历史字段形状不因本次映射被改写。

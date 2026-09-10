@@ -45,7 +45,7 @@ describe('production envelope builder is the Gate source of truth', () => {
 
   it('makes loadCurrentEnvelopeDocuments identical to production operationEnvelopeSchema', () => {
     const documents = loadCurrentEnvelopeDocuments();
-    expect(documents).toHaveLength(201);
+    expect(documents).toHaveLength(203);
 
     for (const operation of publicApiOperations) {
       const relativePath = envelopeSchemaRelativePath(operation.type);

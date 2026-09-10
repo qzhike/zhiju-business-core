@@ -41,8 +41,20 @@ function commandSchema(operation: PublicOperationDefinition): JsonSchema {
       commandType: { const: operation.type },
       commandVersion: { const: operation.version },
       scopeRef: { $ref: `${common}scopeRef` },
-      targetRef: { $ref: `${common}objectRef` },
-      expectedAggregateVersion: { type: 'integer', minimum: 0 },
+      targetRef:
+        operation.targetObjectType === undefined
+          ? { $ref: `${common}objectRef` }
+          : {
+              allOf: [
+                { $ref: `${common}objectRef` },
+                {
+                  type: 'object',
+                  properties: { objectType: { const: operation.targetObjectType } },
+                },
+              ],
+            },
+      expectedAggregateVersion:
+        operation.concurrencyMode === 'CREATE' ? false : { type: 'integer', minimum: 0 },
       actor: { $ref: `${common}typedReference` },
       authorizationDecisionRef: { $ref: `${common}typedReference` },
       idempotencyKey: { $ref: `${common}nonEmptyString` },
@@ -83,7 +95,11 @@ function querySchema(operation: PublicOperationDefinition): JsonSchema {
       authenticationContextRef: { $ref: `${common}typedReference` },
       authorizationDecisionRef: { $ref: `${common}typedReference` },
       consistencyRequirement: {
-        enum: ['AUTHORITATIVE', 'SNAPSHOT_AT_LEAST', 'PROJECTION_OK'],
+        enum: operation.allowedConsistency ?? [
+          'AUTHORITATIVE',
+          'SNAPSHOT_AT_LEAST',
+          'PROJECTION_OK',
+        ],
       },
       minimumWatermark: { type: 'integer', minimum: 0 },
       asOf: { $ref: `${common}utcInstant` },
@@ -151,10 +167,16 @@ function eventSchema(operation: PublicOperationDefinition): JsonSchema {
 export function operationEnvelopeSchema(operation: PublicOperationDefinition): JsonSchema {
   switch (operation.kind) {
     case 'COMMAND':
-      return commandSchema(operation);
+      return guardedEnvelope(operation, commandSchema(operation));
     case 'QUERY':
-      return querySchema(operation);
+      return guardedEnvelope(operation, querySchema(operation));
     case 'EVENT':
       return eventSchema(operation);
   }
+}
+
+function guardedEnvelope(operation: PublicOperationDefinition, schema: JsonSchema): JsonSchema {
+  return operation.payloadGuardPolicyRef === undefined
+    ? schema
+    : { ...schema, payloadGuard: operation.payloadGuardPolicyRef };
 }

@@ -1409,6 +1409,81 @@
       "kind": "EVENT",
       "owner": "integration-gateway",
       "schemaStatus": "FULL"
+    },
+    {
+      "type": "project.capture_context_source_slice",
+      "version": "1.0",
+      "kind": "COMMAND",
+      "owner": "enterprise-project",
+      "schemaStatus": "FULL",
+      "targetObjectType": "zhiju.project.context_source_slice",
+      "concurrencyMode": "CREATE",
+      "authorizationPurpose": "project.context_source.capture",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "payloadGuardPolicyRef": {
+        "type": "ep.context_source_slice",
+        "version": "1.0"
+      },
+      "references": [
+        {
+          "path": "/targetRef",
+          "kind": "OBJECT",
+          "objectType": "zhiju.project.context_source_slice"
+        },
+        {
+          "path": "/payload/projectRef",
+          "kind": "OBJECT",
+          "objectType": "zhiju.project.project"
+        },
+        {
+          "path": "/payload/audience",
+          "kind": "PRINCIPAL",
+          "objectType": "zhiju.identity.principal"
+        },
+        {
+          "path": "/payload/capturePolicyRef",
+          "kind": "VERSIONED",
+          "objectType": "zhiju.identity.policy"
+        }
+      ]
+    },
+    {
+      "type": "project.get_context_source_slice",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "enterprise-project",
+      "schemaStatus": "FULL",
+      "allowedConsistency": ["AUTHORITATIVE"],
+      "authorizationPurpose": "project.context_source.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "payloadGuardPolicyRef": {
+        "type": "ep.context_source_slice",
+        "version": "1.0"
+      },
+      "references": [
+        {
+          "path": "/payload/sourceSliceRef",
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.project.context_source_slice"
+        }
+      ],
+      "resultReferences": [
+        {
+          "path": "/slice/projectRef",
+          "kind": "OBJECT",
+          "objectType": "zhiju.project.project"
+        },
+        {
+          "path": "/slice/audience",
+          "kind": "PRINCIPAL",
+          "objectType": "zhiju.identity.principal"
+        },
+        {
+          "path": "/slice/capturePolicyRef",
+          "kind": "VERSIONED",
+          "objectType": "zhiju.identity.policy"
+        }
+      ]
     }
   ]
 }

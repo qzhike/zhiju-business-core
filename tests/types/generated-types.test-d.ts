@@ -728,3 +728,38 @@ expectType<CanonicalJson>(canonicalObject);
   const badCanonical: CanonicalJson = new Date('2026-08-17T00:00:00Z');
   void badCanonical;
 }
+
+// Persistent source slices reuse the existing named view and shared PrincipalRef.
+function persistentSourceSliceTypes(
+  source: EnterpriseProject.ProjectContextSourceSlice,
+  result: EnterpriseProject.ProjectGetContextSourceSliceResult,
+  request: EnterpriseProject.ProjectCaptureContextSourceSlicePayload,
+) {
+  const namedSource: EnterpriseProject.ProjectContextSourceSlice = result.slice.source;
+  const principal: Common.PrincipalRef = request.audience;
+  const capture: EnterpriseProject.ProjectCaptureContextSourceSlicePayload = {
+    projectRef: { ...objectReference, objectType: 'zhiju.project.project' },
+    purpose: 'context.snapshot.read',
+    audience: { principalKind: 'SERVICE', principalId: uuid },
+    requestedKinds: [],
+    capturePolicyRef: { ...versionedReference, objectType: 'zhiju.identity.policy' },
+  };
+  // @ts-expect-error Policy is required, even when requestedKinds is empty.
+  const missingPolicy: EnterpriseProject.ProjectCaptureContextSourceSlicePayload = {
+    projectRef: capture.projectRef,
+    purpose: capture.purpose,
+    audience: principal,
+    requestedKinds: [],
+  };
+  // @ts-expect-error Closed useStatus must not widen to string.
+  const status: EnterpriseProject.ProjectGetContextSourceSliceResult['useStatus'] = 'STALE';
+  // @ts-expect-error A dynamic view is not a persistent slice with capture metadata.
+  const slice: EnterpriseProject.ContextSourceSlice = source;
+  // @ts-expect-error A complete result must include checkedAt.
+  const missingCheckedAt: EnterpriseProject.ProjectGetContextSourceSliceResult = {
+    slice: result.slice,
+    useStatus: 'USABLE',
+  };
+  return { namedSource, principal, capture, missingPolicy, status, slice, missingCheckedAt };
+}
+void persistentSourceSliceTypes;

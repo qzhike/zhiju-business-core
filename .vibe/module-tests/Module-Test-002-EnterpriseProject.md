@@ -346,3 +346,20 @@ pnpm persistence:gate
 | EP-TD-002 | 错Scope/Purpose/Audience或已撤销授权读取Slice | fail closed；旧payload不改写 | NOT RUN |
 | EP-TD-003 | 真实confirm_customer_material Receipt及candidate/result/Source/Decision | 窄Attestation精确匹配实际提交，TE可核验；不泄露客户正文 | NOT RUN |
 | EP-TD-004 | REJECTED或其他command Receipt、同correlation错材料、旧材料不足以backfill | 不可用，不用current Root猜历史确认 | NOT RUN |
+
+### #157 注册与 Guard 验证矩阵
+
+状态：`APPROVED 2026-09-09`；对应[共享 API 方案](../api-contract-v0.1/API-Contract-v0.1.md#157-payloadguard-注册补充方案)，Schema/Guard fixture 通过公共 ContractRegistry 执行，结果为 `PASS (CONTRACT)`；Guard helper 测试仅补充算法诊断。对应自动测试位于 `contracts/src/operations/enterprise-project.schema.test.ts`，完整合法 fixture 与逐字段反例位于 `tests/fixtures/contracts/context-source-slice/`。
+
+| ID | 输入 / 反例 | 预期 | 结果 |
+|---|---|---|---|
+| EP-REG-157-001 | 两个完整合法 Envelope，read 完整 Result；依次删除 capture 五字段、Slice 九字段、Result 三字段 | 基线通过；每个独立反例的 required 路径/属性精确匹配删除项 | PASS (CONTRACT) |
+| EP-REG-157-002 | 替换逐项声明的 Ref kind/objectType，删除 exact Hash；CREATE 带 expectedAggregateVersion；Query 请求 PROJECTION_OK/SNAPSHOT_AT_LEAST | 拒绝并定位被变更字段；不靠其他非法字段造成假阳性 | PASS (CONTRACT) |
+| EP-REG-157-003 | requestedKinds 为 0、64、65 项及独立重复反例；普通 source 数组重复；未知顶层字段、非法 useStatus、畸形 source/SourceWatermark | 0/64 项与合法普通数组重复通过；65 项/Set 重复及非法形状拒绝 | PASS (CONTRACT) |
+| EP-REG-157-004 | Guard 文本、每数组、每对象、容器深度分别等于上限和超 1；包括 CanonicalJson 内层和对象键 | 等于上限通过，超 1 精确定位；其余结构保持合法、其他预算不超限 | PASS (CONTRACT) |
+| EP-REG-157-005 | Envelope 262144/262145 字节、Result 4194304/4194305 字节；ASCII、中文、补充平面字符和转义字符 | 按紧凑 JSON UTF-8 字节计量，根路径拒绝超限；fixture 用独立字节计量构造并核验，字符串/集合/深度均在预算内 | PASS (CONTRACT) |
+| EP-REG-157-006 | 循环、undefined、NaN/Infinity、bigint、函数、非普通 JSON 对象或 accessor；超深输入 | 安全失败，无栈溢出或原始内容泄露；错误 rule/path 可判定，不因序列化丢字段而通过 | PASS (CONTRACT) |
+| EP-REG-157-007 | Policy 缺失/未知/重复、零/负数/非整数/无限值、未知属性；元数据缺字段/Owner 不匹配/Ref 未注册/Purpose 分叉；未安装 keyword | 构建或 Registry 初始化失败；保留重复名、数量与 Schema 完整性检查 | PASS (CONTRACT) |
+| EP-REG-157-008 | 旧 201 项 Schema/fixture、历史 200 项 baseline；旧 source 数组超新 Guard 预算但符合旧 Schema | 兼容检查通过，旧接口不被新 Guard 收窄；当前操作净增 2，生成类型仍引用唯一 Source View | PASS (CONTRACT) |
+
+source 内允许的 CanonicalJson 可用于独立构造资源预算反例，不把空缺的 required 字段或错误 Ref 当作 Guard 失败证据。精确失败路径与字段矩阵保存在后续授权的 PR/Issue 验证证据中，不创建平行执行报告。新 Handler、权限/Scope/Purpose、重放、时效、持久化、外部与人工验收保持 NOT RUN。

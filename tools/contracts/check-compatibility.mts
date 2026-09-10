@@ -8,6 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  assertCurrentSchemasCompile,
   loadCurrentEnvelopeDocuments,
   loadCurrentOperationRecords,
   loadCurrentSchemaDocuments,
@@ -22,6 +23,8 @@ import {
   type CompatibilityFinding,
   type OperationCompatibilityRecord,
 } from './lib/schema-compatibility.ts';
+
+assertCurrentSchemasCompile();
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const baselineRoot = join(root, 'contracts', 'baselines', 'v1.0');

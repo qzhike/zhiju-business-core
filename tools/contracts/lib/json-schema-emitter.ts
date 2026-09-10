@@ -383,6 +383,15 @@ export function schemaExpression(schema: unknown, context: EmitContext): string 
   if (!isObject(schema)) {
     return 'never';
   }
+  // Resource limits are enforced by the mandatory Ajv keyword, not by TypeScript types.
+  if (
+    'payloadGuard' in schema &&
+    (!isObject(schema.payloadGuard) ||
+      typeof schema.payloadGuard.type !== 'string' ||
+      typeof schema.payloadGuard.version !== 'string')
+  ) {
+    throw new Error('invalid payloadGuard reference in generated schema');
+  }
   if (typeof schema.$ref === 'string') {
     return resolveRef(schema.$ref, context);
   }

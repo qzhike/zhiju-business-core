@@ -17,3 +17,4 @@ export type {
 export * from './operations/index.js';
 export * from './registry.js';
 export * from './schema-types.js';
+export * from './payload-guard.js';

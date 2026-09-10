@@ -745,12 +745,14 @@ project.create_delivery_plan_draft@1.0
 project.approve_delivery_plan@1.0
 project.activate_delivery_plan@1.0
 project.evaluate_delivery_item_completion@1.0
+project.capture_context_source_slice@1.0
 ```
 
 Queries：
 
 ```text
 project.get_project_context_source@1.0
+project.get_context_source_slice@1.0
 project.get_enterprise_profile_snapshot@1.0
 project.get_active_baseline_refs@1.0
 project.get_delivery_item_criteria@1.0
@@ -1122,4 +1124,16 @@ Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、Produc
 
 ## IM-06 未注册设计路由
 
-当前Catalog保持201项；本节不注册任何新操作或Type。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；选定operation type/version/Owner与新增Ref类型将在对应实现修订纳入可执行Catalog并生成Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 203 项：#157 注册 Source Slice capture/read 两项，其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；选定operation type/version/Owner与新增Ref类型将在对应实现修订纳入可执行Catalog并生成Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+
+### #157 ContextSourceSlice 注册
+
+Owner 为 EnterpriseProject；两项操作完整注册 Envelope/Payload、read Result、生成类型和技术 Guard。具体字段与授权声明见 [Spec 002](../module-specs/Module-Spec-002-EnterpriseProject.md#157-注册元数据绑定)，资源约束见 [共享 API](../api-contract-v0.1/API-Contract-v0.1.md#157-payloadguard-注册补充方案)。当前总数在原 201 项上净增 2，历史 200 项 Compatibility Baseline 不改写；Handler、授权和持久化验收仍为 NOT RUN。
+
+| objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
+|---|---|---|---|
+| zhiju.project.context_source_slice | enterprise-project | OBJECT（CREATE target）、CONTENT_ADDRESSED（已提交输入）；Project Scope | 不可变；不另建可变版本；否 |
+| zhiju.project.project | enterprise-project | OBJECT；Project Scope | 既有 Project 身份；本项不改变生命周期；否 |
+| zhiju.identity.policy | identity-policy | VERSIONED；按既有 Policy Scope | 既有 Policy 版本身份；不创建业务 Policy；否 |
+
+PrincipalRef 复用 §3.9 的 `{principalKind,principalId}`，元数据归属标识 zhiju.identity.principal 不作为额外 payload 字段。Source View 内部引用继续沿用既有定义；此表不改写旧 Schema 已接受的内部/历史名称。

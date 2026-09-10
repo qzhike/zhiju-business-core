@@ -17,7 +17,7 @@
 - Query 一致性、分页、脱敏和结果语义；
 - Domain Event 最小事实 Payload 与 Replay 语义；
 - 公开错误结构、兼容规则和 Schema Registry 要求；
-- 七模块 200 个公开 Contract 的字段级路由。
+- 七模块当前 203 个公开 Contract 的字段级路由（历史兼容基线为 200 项）。
 
 本阶段不定义：
 
@@ -379,7 +379,7 @@ ContractRegistration
 
 API Contract 进入用户审核前必须证明：
 
-1. Catalog 中 200 个 `name@1.0` 在七个 Module Spec 中各出现且只出现一次；
+1. Catalog 中当前 203 个 `name@1.0` 在七个 Module Spec 中各出现且只出现一次；
 2. namespace 与唯一 Owner 一致；
 3. 每个 Command 有 target/concurrency、payload、authorization 和主要拒绝语义；
 4. 每个 Query 有 payload、result 和允许一致性；
@@ -412,16 +412,54 @@ API Contract 进入用户审核前必须证明：
 
 ## 14. Issue #57 受控 Capability 边界
 
-Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-capabilities.md) 冻结了 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Reference 的受控 Application Capability 输入/输出、授权目的、版本语义和失败码，但本轮不把它们加入公开 `@1.0` Catalog。当前 API baseline 仍为 200 项；因此不生成新的 Registry Envelope、Type 或 Compatibility baseline，也不允许业务测试/Migration 以直写代替受控入口。
+Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-capabilities.md) 冻结了 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Reference 的受控 Application Capability 输入/输出、授权目的、版本语义和失败码，但本轮不把它们加入公开 `@1.0` Catalog。该历史阶段 API baseline 为 200 项；因此这些 Capability 未生成新的 Registry Envelope、Type 或 Compatibility baseline，也不允许业务测试/Migration 以直写代替受控入口。
 
 若未来用户决定将任一 Capability 公开为 Command/Query/Event，必须先更新对应 Module Spec 和本文的字段路由，再通过 Schema、生成类型、Catalog、operation metadata、兼容性审批和正/负 Fixture Gate。受控 Capability 的设计示例不属于当前可执行 API Fixture，不能把它们的设计检查写成 Runtime `PASS`。
 
 ## IM-06 兼容性增量
 
-状态：TECHNICAL DESIGN APPROVED 2026-09-08，尚未进入Registry。#152–#154具体输入/输出在owning Spec 002/003/005/007设计附录；[TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)已获批准，按依赖实施。首次构建采用新操作，避免改变build_context_snapshot@1.0必填ContractRef语义；Task typed definition采用create_task@2.0，避免以Minor或Handler默认值收窄旧CanonicalJson。
+状态：TECHNICAL DESIGN APPROVED 2026-09-08；#157 的两项 Source Slice 操作已交付 Schema/Registry/Guard，其余增量尚未注册。#152–#154具体输入/输出在owning Spec 002/003/005/007设计附录；[TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)已获批准，按依赖实施。首次构建采用新操作，避免改变build_context_snapshot@1.0必填ContractRef语义；Task typed definition采用create_task@2.0，避免以Minor或Handler默认值收窄旧CanonicalJson。
 
-旧201项Registry、历史200项Compatibility Baseline、旧Envelope/Event/Query result Schema均不修改。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
+保留既有 201 项操作与历史 200 项 Compatibility Baseline 的兼容性；#157 新增两项后当前 Registry 为 203 项，旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
 
 新增Query只读且受Scope/Purpose裁剪；Slice捕获使用CREATE Command，避免Query产生不可审计写入。CAS expectedAggregateVersion只在Envelope，历史snapshotId/hash不充当CAS token；runtime bigint不能有损转Number。公开整数范围在实现前须与共享Envelope Schema一致，超界明确拒绝，不能借本设计暗改共享类型。
 
 2026-09-09 已批准的 TD-01 期限补充由 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限) 拥有：待注册的 WorkOrderDraftSnapshot 和 get_work_order_draft Result 增加可选 expiresAt，缺省与显式 null 不等价；既有 create_work_order/freeze_work_order payload、Core WorkOrder 和 WorkOrderBecameReady 字段不变。原样继承期限与消费时未到期属于 Handler/持久化跨字段语义，Schema 接受合法字段形状不证明该语义已验证。历史 Compatibility Baseline 不重写，新增运行测试保持 NOT RUN。
+
+### #157 PayloadGuard 注册补充方案
+
+状态：`APPROVED 2026-09-09 / SCHEMA AND GUARD IMPLEMENTED`；设计决定见 [TD-01 §8.5](../decisions/task-execution-human-operated.md#85-157-payloadguard-补充方案)。仅适用于已注册的 project.capture_context_source_slice@1.0 与 project.get_context_source_slice@1.0；不改变旧 Schema 或全局默认上限。
+
+#### 技术 Policy 与参数
+
+技术参数唯一维护在 `contracts/registry/payload-guard-policies.v1.json`，静态注册 `ep.context_source_slice@1.0`；operation 的 payloadGuardPolicyRef 使用 `{type, version}` 精确匹配该构建期条目。这是技术 Registry 引用，不是业务 TypedReference，不需要数据库 Policy 行或虚构 Hash。参数全部必填、为有限正整数，未知字段、重复身份和缺失引用使构建失败。
+
+| 参数 | 已批准值 | 适用范围与依据 |
+|---|---:|---|
+| maxEnvelopeBytes | 262144（256 KiB） | 两项完整请求 Envelope；采用 PostgreSQL §5.5 的 Command 建议预算并覆盖 Envelope 开销，Query 采用相同预算 |
+| maxResultBytes | 4194304（4 MiB） | read 完整 Result.data，即 `{slice,useStatus,checkedAt}`；采用 Snapshot 建议预算，不含尚未实现的传输 QueryResult wrapper |
+| maxStringCodePoints | 16384 | 所有字符串值和对象键，包括 CanonicalJson 叶节点；为引用/元数据提供有限技术预算 |
+| maxArrayItems | 1024 | 每一个数组；不改变普通数组的顺序或重复语义 |
+| maxObjectProperties | 256 | 每一个 JSON object，含 CanonicalJson；限制宽对象 |
+| maxDepth | 32 | 根容器深度为 1；每进入一个 object/array 加 1，scalar 不增加容器深度 |
+| maxRequestedKinds | 64 | capture.payload.requestedKinds 的专属上限；允许空集且 uniqueItems=true，不把 Schema 的 NamespaceCode 改为业务 kind 闭集 |
+
+结构预算与文本/集合数值为本次批准的技术选择，尚无负载测量背书；它们不表示业务最大事实数、来源种类数或可用期限。超限一律拒绝，不截断、分页、自动对象化或返回部分 Slice；未来业务 capture 无法装配合法结果时必须失败，不能改写已捕获的不可变内容。
+
+#### Guard 算法与 Schema 集成
+
+- 在公共 ContractRegistry.validateOperation 与 validateOperationResult 中执行。新操作先按显式静态 Policy 对输入做有界 JSON 树检查，再执行结构 Schema；Guard 不读取授权、数据库或对象存储。失败不进入结构递归或后续业务调用。
+- 深度检查使用有界/迭代遍历，检查对象键、每个字符串、数组长度和对象成员数；拒绝循环、undefined、非有限数字、bigint、函数和其他非 JSON 值，不用 JSON.stringify 的忽略/转换行为接受非法输入。公共输入要求 JSON tree，不支持自定义类或带 accessor 的对象。
+- 字节数为合法 JSON tree 的紧凑 JSON 序列化 UTF-8 字节数（无额外空白、无 Unicode 正规化），包括引号、转义、键名和标点；不使用 JS UTF-16 length。它是资源计量，不改变既有 Canonicalization/ContentHash 算法。遍历/编码可提前停止在超限处，不能先对任意深度对象完整递归序列化。
+- 上限为 inclusive：等于上限通过 Guard，超过 1 拒绝。字符串按 Unicode code point 计数，与 JSON Schema maxLength 口径一致。JSON number 使用现行序列化形式；不新增数字业务语义。
+- 标准 JSON Schema 能表达的 requestedKinds.maxItems/uniqueItems 由技术 Policy 生成。递归通用 Guard 以项目自定义断言 keyword `payloadGuard` 挂在两项新 Envelope 与 read Result 根，值为精确 Policy Ref；运行时与构建期 Ajv loader 共同注册相同实现。该 keyword 必须执行，禁止仅作为 annotation 忽略；未知 Policy 或未加载 Guard 的校验器必须拒绝编译。
+- keyword 覆盖通用字符串/数组/对象/深度和字节数，复用原 Source View `$ref`，不递归改写共享旧 Schema。生成器识别该资源断言，TypeScript 继续生成既有命名类型；类型本身不声称静态证明资源限制。对外 Schema 使用方需加载该 keyword，不能只依赖标准 Ajv 证明完整验证。
+- Guard 错误沿用 ContractValidationResult，keyword=`payloadGuard`，instancePath 为 JSON Pointer（正确转义 `~`、`/`），params 包含 rule/limit；总字节超限定位根 `''`，其他超限定位对应值。错误不携带原始内容。非法 JSON 的 rule=`jsonValue`。不新增业务错误码或改变旧 API 错误语义。
+
+#### 最小 Registry 扩展与兼容
+
+现有 `public-api.v1.json` 为新操作增加 targetObjectType/concurrencyMode（Command）、allowedConsistency（Query）、authorizationPurpose、dataClassification、payloadGuardPolicyRef 和引用声明；生成 public-api.ts 并通过 getOperation 可检查。Purpose/Classification 与现有 operation-compatibility-metadata 声明必须一致，禁止两个来源静默分叉。共享元数据类型对旧操作保持可选，新操作构建检查为必填，不能为缺值注入 Service 通配授权或无限额 Policy。
+
+为两项新操作增加静态 Ref 声明，记录 path、kind、objectType；Schema 必须逐项执行对应约束。复用已有 objectType 名称，并登记唯一新增 ContextSourceSlice 的 Owner=enterprise-project；只校验声明涉及的类型，不扩大为重建全部历史 TypedReference Catalog。构建检查重复 type/version、namespace/Owner、Schema 完整性、Query Result、元数据和 Guard/Ref 引用，保留原数量断言并净增 2。
+
+CREATE Envelope 必须省略 expectedAggregateVersion，targetRef 为 ObjectRef<ContextSourceSlice>；Query 仅接受 AUTHORITATIVE。具体字段 Ref 由 [Spec 002 注册绑定](../module-specs/Module-Spec-002-EnterpriseProject.md#157-注册元数据绑定) 拥有。上述新操作约束不应用于旧 201 项 Envelope，也不改旧动态 get_project_context_source 的接受集合。
