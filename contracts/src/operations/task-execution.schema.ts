@@ -58,6 +58,11 @@ const text = { $ref: `${common}nonEmptyString` } as const;
 const instant = { $ref: `${common}utcInstant` } as const;
 const positiveInt = { $ref: `${common}positiveInteger` } as const;
 const nonNegativeInt = { $ref: `${common}nonNegativeInteger` } as const;
+const losslessNonNegativeInt = {
+  $ref: `${common}nonNegativeInteger`,
+  type: 'integer',
+  maximum: 9007199254740991,
+} as const;
 const payloadHash = { $ref: `${common}contentHash` } as const;
 const objectReference = { $ref: `${common}objectRef` } as const;
 const versionedReference = { $ref: `${common}versionedRef` } as const;
@@ -720,7 +725,7 @@ const operationSchemas = {
       draftSnapshotRef: draftSnapshotReference,
       draft: localRef('workOrderDraft'),
       expiresAt: instant,
-      rootAggregateVersion: nonNegativeInt,
+      rootAggregateVersion: losslessNonNegativeInt,
       status: localRef('workOrderStatus'),
     }),
   },

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { publicApiOperations } from '../generated/public-api.js';
 import { assertTaskExecutionOperationRegistrations } from '../operation-registration.js';
-import { ContractRegistry } from '../registry.js';
+import { ContractRegistry, type ContractValidationResult } from '../registry.js';
 
 const registry = new ContractRegistry();
 const enterpriseId = '018f22e2-7c15-7b2e-8d86-2de956a9d201';
@@ -15,6 +15,22 @@ const scope = { enterpriseId, projectId };
 const digest = 'a'.repeat(64);
 
 type JsonObject = Record<string, unknown>;
+
+function expectSchemaError(
+  result: ContractValidationResult,
+  instancePath: string,
+  keyword: string,
+  params?: Record<string, unknown>,
+): void {
+  expect(result.valid).toBe(false);
+  expect(result.errors).toContainEqual(
+    expect.objectContaining({
+      instancePath,
+      keyword,
+      ...(params === undefined ? {} : { params: expect.objectContaining(params) }),
+    }),
+  );
+}
 
 function omit(object: JsonObject, key: string): JsonObject {
   return Object.fromEntries(Object.entries(object).filter(([entryKey]) => entryKey !== key));
@@ -220,9 +236,56 @@ describe('TaskExecution Draft and initial Context contracts', () => {
         initialContextCommand(),
       ),
     ).toEqual({ valid: true, errors: [] });
-    expect(
-      registry.validateOperation('execution.get_work_order_draft', '1.0', draftQuery()),
-    ).toEqual({ valid: true, errors: [] });
+    for (const pagination of [
+      undefined,
+      { pageSize: 1 },
+      { pageSize: 1, cursor: 'a'.repeat(16) },
+    ]) {
+      const query = draftQuery();
+      if (pagination !== undefined) query.pagination = pagination;
+      expect(registry.validateOperation('execution.get_work_order_draft', '1.0', query)).toEqual({
+        valid: true,
+        errors: [],
+      });
+    }
+    for (const testCase of [
+      {
+        pagination: {},
+        instancePath: '/pagination',
+        keyword: 'required',
+        params: { missingProperty: 'pageSize' },
+      },
+      {
+        pagination: { pageSize: 0 },
+        instancePath: '/pagination/pageSize',
+        keyword: 'minimum',
+      },
+      {
+        pagination: { pageSize: 1.5 },
+        instancePath: '/pagination/pageSize',
+        keyword: 'type',
+      },
+      {
+        pagination: { pageSize: 1, cursor: '!' },
+        instancePath: '/pagination/cursor',
+        keyword: 'pattern',
+      },
+      {
+        pagination: { pageSize: 1, padding: [] },
+        instancePath: '/pagination',
+        keyword: 'additionalProperties',
+        params: { additionalProperty: 'padding' },
+      },
+    ]) {
+      const query = draftQuery();
+      query.pagination = testCase.pagination;
+      expectSchemaError(
+        registry.validateOperation('execution.get_work_order_draft', '1.0', query),
+        testCase.instancePath,
+        testCase.keyword,
+        testCase.params,
+      );
+    }
     expect(
       registry.validateOperationResult(
         'execution.get_work_order_draft',
@@ -243,75 +306,106 @@ describe('TaskExecution Draft and initial Context contracts', () => {
   });
 
   it('keeps the initial request closed to frozen-build branches and expected CAS fields', () => {
-    const wrongBranch = initialContextCommand();
-    const request = (wrongBranch.payload as JsonObject).request as JsonObject;
-    request.workOrderContractRef = contentRef('execution.work_order_contract');
-    request.answeredInformationRefs = [];
-    expect(
-      registry.validateOperation('execution.build_initial_context_snapshot', '1.0', wrongBranch)
-        .valid,
-    ).toBe(false);
+    for (const field of ['workOrderContractRef', 'answeredInformationRefs']) {
+      const wrongBranch = initialContextCommand();
+      const request = (wrongBranch.payload as JsonObject).request as JsonObject;
+      request[field] =
+        field === 'workOrderContractRef' ? contentRef('execution.work_order_contract') : [];
+      expectSchemaError(
+        registry.validateOperation('execution.build_initial_context_snapshot', '1.0', wrongBranch),
+        '/payload/request',
+        'additionalProperties',
+        { additionalProperty: field },
+      );
+    }
 
     const expectedVersion = initialContextCommand();
-    expectedVersion.expectedAggregateVersion = 0;
-    expect(
-      registry.validateOperation('execution.build_initial_context_snapshot', '1.0', expectedVersion)
-        .valid,
-    ).toBe(false);
+    ((expectedVersion.payload as JsonObject).request as JsonObject).expectedAggregateVersion = 0;
+    expectSchemaError(
+      registry.validateOperation(
+        'execution.build_initial_context_snapshot',
+        '1.0',
+        expectedVersion,
+      ),
+      '/payload/request',
+      'additionalProperties',
+      { additionalProperty: 'expectedAggregateVersion' },
+    );
   });
 
   it('rejects missing, null, weak, duplicate, and empty initial refs at their public paths', () => {
-    for (const field of [
+    const requiredFields = [
       'draftSnapshotRef',
       'projectionType',
       'purpose',
       'audience',
       'sourceSlices',
       'builderPolicyRef',
-    ]) {
-      const input = initialContextCommand();
-      const payload = input.payload as JsonObject;
-      payload.request = omit(payload.request as JsonObject, field);
-      const result = registry.validateOperation(
-        'execution.build_initial_context_snapshot',
-        '1.0',
-        input,
+    ] as const;
+    const nullKeywords: Record<(typeof requiredFields)[number], string> = {
+      draftSnapshotRef: 'type',
+      projectionType: 'enum',
+      purpose: 'type',
+      audience: 'type',
+      sourceSlices: 'type',
+      builderPolicyRef: 'type',
+    };
+
+    for (const field of requiredFields) {
+      const missing = initialContextCommand();
+      const missingPayload = missing.payload as JsonObject;
+      missingPayload.request = omit(missingPayload.request as JsonObject, field);
+      expectSchemaError(
+        registry.validateOperation('execution.build_initial_context_snapshot', '1.0', missing),
+        '/payload/request',
+        'required',
+        { missingProperty: field },
       );
-      expect(result.valid).toBe(false);
-      expect(result.errors.some((error) => error.instancePath === '/payload/request')).toBe(true);
+
+      const nullValue = initialContextCommand();
+      ((nullValue.payload as JsonObject).request as JsonObject)[field] = null;
+      expectSchemaError(
+        registry.validateOperation('execution.build_initial_context_snapshot', '1.0', nullValue),
+        `/payload/request/${field}`,
+        nullKeywords[field],
+      );
     }
 
     const nullExpiry = initialContextCommand();
     ((nullExpiry.payload as JsonObject).request as JsonObject).expiresAt = null;
-    expect(
-      registry.validateOperation('execution.build_initial_context_snapshot', '1.0', nullExpiry)
-        .valid,
-    ).toBe(false);
+    expectSchemaError(
+      registry.validateOperation('execution.build_initial_context_snapshot', '1.0', nullExpiry),
+      '/payload/request/expiresAt',
+      'type',
+    );
 
     const weakDraftRef = initialContextCommand();
     const weakRequest = (weakDraftRef.payload as JsonObject).request as JsonObject;
     (weakRequest.draftSnapshotRef as JsonObject).kind = 'OBJECT';
-    expect(
-      registry.validateOperation('execution.build_initial_context_snapshot', '1.0', weakDraftRef)
-        .valid,
-    ).toBe(false);
+    expectSchemaError(
+      registry.validateOperation('execution.build_initial_context_snapshot', '1.0', weakDraftRef),
+      '/payload/request/draftSnapshotRef/kind',
+      'const',
+    );
 
     const missingHash = initialContextCommand();
     const missingHashRef = ((missingHash.payload as JsonObject).request as JsonObject)
       .draftSnapshotRef as JsonObject;
     delete missingHashRef.contentHash;
-    expect(
-      registry.validateOperation('execution.build_initial_context_snapshot', '1.0', missingHash)
-        .valid,
-    ).toBe(false);
+    expectSchemaError(
+      registry.validateOperation('execution.build_initial_context_snapshot', '1.0', missingHash),
+      '/payload/request/draftSnapshotRef',
+      'required',
+      { missingProperty: 'contentHash' },
+    );
 
     const emptySlices = initialContextCommand();
     ((emptySlices.payload as JsonObject).request as JsonObject).sourceSlices = [];
-    expect(
-      registry
-        .validateOperation('execution.build_initial_context_snapshot', '1.0', emptySlices)
-        .errors.some((error) => error.instancePath === '/payload/request/sourceSlices'),
-    ).toBe(true);
+    expectSchemaError(
+      registry.validateOperation('execution.build_initial_context_snapshot', '1.0', emptySlices),
+      '/payload/request/sourceSlices',
+      'minItems',
+    );
 
     const duplicateSlices = initialContextCommand();
     const duplicateRequest = (duplicateSlices.payload as JsonObject).request as JsonObject;
@@ -319,39 +413,59 @@ describe('TaskExecution Draft and initial Context contracts', () => {
     const firstSlice = slices[0];
     if (firstSlice === undefined) throw new Error('missing source slice fixture');
     slices.push(structuredClone(firstSlice));
-    expect(
-      registry
-        .validateOperation('execution.build_initial_context_snapshot', '1.0', duplicateSlices)
-        .errors.some((error) => error.instancePath === '/payload/request/sourceSlices'),
-    ).toBe(true);
+    expectSchemaError(
+      registry.validateOperation(
+        'execution.build_initial_context_snapshot',
+        '1.0',
+        duplicateSlices,
+      ),
+      '/payload/request/sourceSlices',
+      'uniqueItems',
+    );
   });
 
   it('rejects invalid nested Drafts, missing/null Draft result fields, and illegal CAS values', () => {
     const invalidDraft = draftQueryResult();
     invalidDraft.draft = omit(invalidDraft.draft as JsonObject, 'objective');
-    expect(
-      registry.validateOperationResult('execution.get_work_order_draft', '1.0', invalidDraft).valid,
-    ).toBe(false);
+    expectSchemaError(
+      registry.validateOperationResult('execution.get_work_order_draft', '1.0', invalidDraft),
+      '/draft',
+      'required',
+      { missingProperty: 'objective' },
+    );
 
     for (const field of ['draftSnapshotRef', 'draft', 'rootAggregateVersion', 'status']) {
       const missing = omit(draftQueryResult(), field);
-      expect(
-        registry.validateOperationResult('execution.get_work_order_draft', '1.0', missing).valid,
-      ).toBe(false);
+      expectSchemaError(
+        registry.validateOperationResult('execution.get_work_order_draft', '1.0', missing),
+        '',
+        'required',
+        { missingProperty: field },
+      );
     }
 
     const nullExpiry = draftQueryResult();
     nullExpiry.expiresAt = null;
-    expect(
-      registry.validateOperationResult('execution.get_work_order_draft', '1.0', nullExpiry).valid,
-    ).toBe(false);
+    expectSchemaError(
+      registry.validateOperationResult('execution.get_work_order_draft', '1.0', nullExpiry),
+      '/expiresAt',
+      'type',
+    );
 
-    for (const rootAggregateVersion of [-1, 1.5, '1']) {
+    for (const testCase of [
+      { value: -1, keyword: 'minimum' },
+      { value: 1.5, keyword: 'type' },
+      { value: '1', keyword: 'type' },
+      { value: 9007199254740992, keyword: 'maximum' },
+      { value: 1e100, keyword: 'maximum' },
+    ]) {
       const invalidCas = draftQueryResult();
-      invalidCas.rootAggregateVersion = rootAggregateVersion;
-      expect(
-        registry.validateOperationResult('execution.get_work_order_draft', '1.0', invalidCas).valid,
-      ).toBe(false);
+      invalidCas.rootAggregateVersion = testCase.value;
+      expectSchemaError(
+        registry.validateOperationResult('execution.get_work_order_draft', '1.0', invalidCas),
+        '/rootAggregateVersion',
+        testCase.keyword,
+      );
     }
   });
 
