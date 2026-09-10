@@ -3,6 +3,7 @@
 // The database remains the authority for scope, lifecycle, immutable history
 // and pointer constraints; this repository only maps trusted inputs to SQL.
 
+import { sql } from 'kysely';
 import type { EnterpriseProjectTransaction } from './enterprise-db.js';
 import { EnterpriseBusinessRepository, type CasResult } from './enterprise-business-repository.js';
 import type {
@@ -463,25 +464,56 @@ export class TemplateRegulatoryRepository extends EnterpriseBusinessRepository {
     insert: TemplateBaselineInsert,
   ): Promise<boolean> {
     await this.assertContextPrincipal(trx, insert.createdByPrincipalId);
-    const inserted = await trx
-      .insertInto('enterprise_project.template_baseline')
-      .values({
-        template_baseline_id: insert.templateBaselineId,
-        enterprise_id: insert.enterpriseId,
-        project_id: insert.projectId,
-        current_version_id: insert.currentVersionId,
-        active_version_id: insert.currentVersionId,
-        aggregate_version: '1',
-        created_at: new Date(),
-        created_by_principal_id: insert.createdByPrincipalId,
-        created_by_actor_snapshot_id: insert.createdByActorSnapshotId,
-        updated_at: new Date(),
-        last_command_id: insert.sourceCommandId,
-      })
-      .onConflict((oc) => oc.columns(['enterprise_id', 'project_id']).doNothing())
-      .returning('template_baseline_id')
-      .executeTakeFirst();
-    return inserted !== undefined;
+    // Project-only ON CONFLICT can still raise a primary-key violation when
+    // two speculative INSERTs pass the arbiter precheck together. Recover only
+    // that exact root race, keeping the command transaction usable for its
+    // rejection receipt/audit and preserving unrelated database failures.
+    await sql`SAVEPOINT template_baseline_root_insert`.execute(trx);
+    try {
+      const inserted = await trx
+        .insertInto('enterprise_project.template_baseline')
+        .values({
+          template_baseline_id: insert.templateBaselineId,
+          enterprise_id: insert.enterpriseId,
+          project_id: insert.projectId,
+          current_version_id: insert.currentVersionId,
+          active_version_id: insert.currentVersionId,
+          aggregate_version: '1',
+          created_at: new Date(),
+          created_by_principal_id: insert.createdByPrincipalId,
+          created_by_actor_snapshot_id: insert.createdByActorSnapshotId,
+          updated_at: new Date(),
+          last_command_id: insert.sourceCommandId,
+        })
+        .onConflict((oc) => oc.columns(['enterprise_id', 'project_id']).doNothing())
+        .returning('template_baseline_id')
+        .executeTakeFirst();
+      await sql`RELEASE SAVEPOINT template_baseline_root_insert`.execute(trx);
+      return inserted !== undefined;
+    } catch (error) {
+      await sql`ROLLBACK TO SAVEPOINT template_baseline_root_insert`.execute(trx);
+      await sql`RELEASE SAVEPOINT template_baseline_root_insert`.execute(trx);
+      const failure = error as {
+        code?: unknown;
+        schema?: unknown;
+        table?: unknown;
+        constraint?: unknown;
+      };
+      if (
+        failure.code === '23505' &&
+        failure.schema === 'enterprise_project' &&
+        failure.table === 'template_baseline' &&
+        failure.constraint === 'template_baseline_pkey'
+      ) {
+        const root = await this.getTemplateBaselineByProject(
+          trx,
+          insert.enterpriseId,
+          insert.projectId,
+        );
+        if (root?.template_baseline_id === insert.templateBaselineId) return false;
+      }
+      throw error;
+    }
   }
 
   async getTemplateBaselineById(

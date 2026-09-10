@@ -1255,113 +1255,309 @@ describe.skipIf(!gateEnabled)(
       expect(events.rows[0]?.count).toBe('3');
     });
 
-    it('EP-WI08-P-004: first Project root creation race is conflict-safe', async () => {
-      const fixture = await seedFixture(admin);
-      const adminContext = platformContext('PLATFORM_REFERENCE_ADMIN');
-      const publisherContext = platformContext('PLATFORM_REFERENCE_PUBLISHER');
-      const templateId = newUuidV7();
-      const templateVersionId = newUuidV7();
-      const templateHash = digestCanonicalPayload({ title: 'WI-08 root race template' }).hash;
-      const templateVersionRef = contentRef('TemplateDocument', newUuidV7(), templateHash);
-      await handlePlatformTemplateImportVersion(
-        db,
-        adminContext,
-        commandEnvelope(
+    it.each([false, true])(
+      'EP-WI08-P-004: first Project root creation race is conflict-safe (different identities: %s)',
+      async (differentIdentities) => {
+        const fixture = await seedFixture(admin);
+        const adminContext = platformContext('PLATFORM_REFERENCE_ADMIN');
+        const publisherContext = platformContext('PLATFORM_REFERENCE_PUBLISHER');
+        const templateId = newUuidV7();
+        const templateVersionId = newUuidV7();
+        const templateHash = digestCanonicalPayload({ title: 'WI-08 root race template' }).hash;
+        const templateVersionRef = contentRef('TemplateDocument', newUuidV7(), templateHash);
+        await handlePlatformTemplateImportVersion(
+          db,
           adminContext,
-          'enterprise_project.platform_template_import_version',
-          `root-race-template-import-${templateVersionId}`,
-          templateImportPayload(templateId, templateVersionId, 'v1', templateVersionRef),
-          { platform: true, targetType: 'ReferenceTemplate', targetId: templateId },
-        ),
-      );
-      await handlePlatformTemplatePublishVersion(
-        db,
-        publisherContext,
-        commandEnvelope(
+          commandEnvelope(
+            adminContext,
+            'enterprise_project.platform_template_import_version',
+            `root-race-template-import-${templateVersionId}`,
+            templateImportPayload(templateId, templateVersionId, 'v1', templateVersionRef),
+            { platform: true, targetType: 'ReferenceTemplate', targetId: templateId },
+          ),
+        );
+        await handlePlatformTemplatePublishVersion(
+          db,
           publisherContext,
-          'enterprise_project.platform_template_publish_version',
-          `root-race-template-publish-${templateVersionId}`,
-          {
-            referenceTemplateId: templateId,
-            versionId: templateVersionId,
-            releaseDecisionRef: { decision: 'APPROVE' },
-            publishReason: { reasonCode: 'WI08_ROOT_RACE' },
-          },
-          {
-            platform: true,
-            targetType: 'ReferenceTemplate',
-            targetId: templateId,
-            expectedAggregateVersion: '1',
-          },
-        ),
-      );
+          commandEnvelope(
+            publisherContext,
+            'enterprise_project.platform_template_publish_version',
+            `root-race-template-publish-${templateVersionId}`,
+            {
+              referenceTemplateId: templateId,
+              versionId: templateVersionId,
+              releaseDecisionRef: { decision: 'APPROVE' },
+              publishReason: { reasonCode: 'WI08_ROOT_RACE' },
+            },
+            {
+              platform: true,
+              targetType: 'ReferenceTemplate',
+              targetId: templateId,
+              expectedAggregateVersion: '1',
+            },
+          ),
+        );
 
-      const humanContext = projectContext(fixture);
-      const baselineId = newUuidV7();
-      const makeFreeze = (versionId: string, idempotencyKey: string) =>
-        commandEnvelope(
-          humanContext,
-          'project.freeze_template_baseline',
-          idempotencyKey,
+        const humanContext = projectContext(fixture);
+        const baselineId = newUuidV7();
+        const otherBaselineId = differentIdentities ? newUuidV7() : baselineId;
+        const makeFreeze = (baselineId: string, versionId: string, idempotencyKey: string) =>
+          commandEnvelope(
+            humanContext,
+            'project.freeze_template_baseline',
+            idempotencyKey,
+            {
+              templateBaselineVersionRef: versionedRef(
+                'TemplateBaseline',
+                baselineId,
+                versionId,
+                fixture.enterpriseId,
+                fixture.projectId,
+              ),
+              selections: [
+                {
+                  deliveryCategory: 'ROOT_RACE_CONTROL',
+                  templateRef: {
+                    ...templateVersionRef,
+                    objectType: 'TemplateVersion',
+                    objectId: templateId,
+                    immutableVersionId: templateVersionId,
+                  },
+                  applicabilityScope: { jurisdiction: 'CN' },
+                  selectionReason: justification('WI08_ROOT_RACE_SELECTION'),
+                },
+              ],
+              reviewSnapshotRef: projectSnapshotRef(
+                'TemplateReview',
+                fixture.enterpriseId,
+                fixture.projectId,
+              ),
+              selectionRationale: justification('WI08_ROOT_RACE_FREEZE'),
+            },
+            {
+              projectId: fixture.projectId,
+              targetType: 'TemplateBaseline',
+              targetId: baselineId,
+            },
+          );
+        const envelopes = [
+          makeFreeze(baselineId, newUuidV7(), `root-race-a-${baselineId}`),
+          makeFreeze(otherBaselineId, newUuidV7(), `root-race-b-${baselineId}`),
+        ];
+        const blocker = new pg.Client({ connectionString: databaseUrl });
+        await blocker.connect();
+        let pending: Promise<PromiseSettledResult<CommandResult>[]> | undefined;
+        try {
+          await blocker.query('BEGIN');
+          const backend = await blocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+          const pid = backend.rows[0]?.pid;
+          if (pid === undefined) throw new Error('blocker backend PID missing');
+          // Uncommitted roots in OTHER Projects leave the target Project arbiter
+          // empty, but hold the primary keys. Both real INSERTs must pass their
+          // arbiter precheck and wait in unique-index insertion before release.
+          for (const candidateId of new Set([baselineId, otherBaselineId])) {
+            const blockerFixture = await seedFixture(admin);
+            await blocker.query(
+              `INSERT INTO enterprise_project.template_baseline
+               (template_baseline_id, enterprise_id, project_id, current_version_id,
+                active_version_id, created_by_principal_id, created_by_actor_snapshot_id)
+             VALUES ($1, $2, $3, $4, $4, $5, $6)`,
+              [
+                candidateId,
+                blockerFixture.enterpriseId,
+                blockerFixture.projectId,
+                newUuidV7(),
+                HUMAN_PRINCIPAL,
+                HUMAN_ACTOR,
+              ],
+            );
+          }
+          pending = Promise.allSettled(
+            envelopes.map((envelope) => handleFreezeTemplateBaseline(db, humanContext, envelope)),
+          );
+          const deadline = Date.now() + 5_000;
+          let blockedCount = 0;
+          while (Date.now() < deadline) {
+            const blocked = await admin.query<{ count: number }>(
+              `SELECT count(*)::int AS count FROM pg_stat_activity
+              WHERE usename = 'im03_wi08_probe' AND wait_event = 'transactionid'
+                AND $1 = ANY(pg_blocking_pids(pid))
+                AND query LIKE 'insert into "enterprise_project"."template_baseline" %'`,
+              [pid],
+            );
+            blockedCount = blocked.rows[0]?.count ?? 0;
+            if (blockedCount === 2) break;
+            await new Promise<void>((resolve) => setImmediate(resolve));
+          }
+          expect(
+            blockedCount,
+            'both INSERTs reached primary-key checks after the Project precheck',
+          ).toBe(2);
+        } finally {
+          await blocker.query('ROLLBACK');
+          await blocker.end();
+          // Drain both transactions even if the barrier assertion fails.
+          await pending;
+        }
+        const settled = await pending;
+        const results = settled.map((result) => {
+          if (result.status === 'rejected') throw result.reason;
+          return result.value;
+        });
+        expect(results.filter((result) => result.status === 'COMMITTED')).toHaveLength(1);
+        expect(results.filter((result) => result.status === 'REJECTED')).toHaveLength(1);
+        expect(results.find((result) => result.status === 'REJECTED')).toMatchObject({
+          errorCode: CONCURRENCY_CONFLICT,
+        });
+
+        const winner = envelopes[results.findIndex((result) => result.status === 'COMMITTED')];
+        const loser = envelopes[results.findIndex((result) => result.status === 'REJECTED')];
+        if (!winner || !loser) throw new Error('expected winner and loser envelopes');
+        const winnerVersion = winner.payload.templateBaselineVersionRef.versionId;
+        const roots = await admin.query(
+          `SELECT template_baseline_id, current_version_id, active_version_id, aggregate_version::text
+           FROM enterprise_project.template_baseline WHERE project_id = $1`,
+          [fixture.projectId],
+        );
+        expect(roots.rows).toEqual([
           {
+            template_baseline_id: winner.targetId,
+            current_version_id: winnerVersion,
+            active_version_id: winnerVersion,
+            aggregate_version: '1',
+          },
+        ]);
+        for (const table of ['template_baseline_version', 'template_selection']) {
+          const rows = await admin.query(
+            `SELECT version_id, source_command_id FROM enterprise_project.${table} WHERE project_id = $1`,
+            [fixture.projectId],
+          );
+          expect(rows.rows).toEqual([
+            { version_id: winnerVersion, source_command_id: winner.commandId },
+          ]);
+        }
+        const versions = await admin.query(
+          `SELECT version_status FROM enterprise_project.template_baseline_version WHERE project_id = $1`,
+          [fixture.projectId],
+        );
+        expect(versions.rows).toEqual([{ version_status: 'FROZEN' }]);
+        const edges = await admin.query(
+          `SELECT reference_path, source_command_id, owner_version_id
+           FROM enterprise_project.reference_edge WHERE project_id = $1 ORDER BY reference_path`,
+          [fixture.projectId],
+        );
+        expect(edges.rows).toEqual(
+          ['/projectRef', '/reviewSnapshotRef', '/selections/0/templateRef'].map((path) => ({
+            reference_path: path,
+            source_command_id: winner.commandId,
+            owner_version_id: winnerVersion,
+          })),
+        );
+        const events = await admin.query(
+          `SELECT event_type, source_command_id FROM enterprise_project.outbox_event WHERE project_id = $1`,
+          [fixture.projectId],
+        );
+        expect(events.rows).toEqual([
+          { event_type: 'Project.TemplateBaselineFrozen', source_command_id: winner.commandId },
+        ]);
+        for (const table of ['command_receipt', 'audit_record']) {
+          const rows = await admin.query(
+            `SELECT command_id, outcome FROM enterprise_project.${table} WHERE project_id = $1 ORDER BY outcome`,
+            [fixture.projectId],
+          );
+          expect(rows.rows).toEqual([
+            { command_id: winner.commandId, outcome: 'COMMITTED' },
+            { command_id: loser.commandId, outcome: 'REJECTED' },
+          ]);
+        }
+        expect(await handleFreezeTemplateBaseline(db, humanContext, winner)).toMatchObject({
+          status: 'DUPLICATE',
+          originalOutcome: 'COMMITTED',
+        });
+        expect(await handleFreezeTemplateBaseline(db, humanContext, loser)).toMatchObject({
+          status: 'DUPLICATE',
+          originalOutcome: 'REJECTED',
+          errorCode: CONCURRENCY_CONFLICT,
+        });
+        const rejection = await admin.query(
+          `SELECT r.result_payload->>'errorCode' AS receipt_error, a.error_code AS audit_error
+             FROM enterprise_project.command_receipt r
+             JOIN enterprise_project.audit_record a USING (command_id)
+            WHERE r.command_id = $1`,
+          [loser.commandId],
+        );
+        expect(rejection.rows).toEqual([
+          { receipt_error: CONCURRENCY_CONFLICT, audit_error: CONCURRENCY_CONFLICT },
+        ]);
+
+        // An unrelated immutable Version CHECK failure must still abort
+        // the entire transaction, including the preceding successful Root CAS.
+        const reusedVersion = {
+          ...makeFreeze(winner.targetId, winnerVersion, `duplicate-version-${baselineId}`),
+          expectedAggregateVersion: '1',
+        };
+        await expect(
+          handleFreezeTemplateBaseline(db, humanContext, reusedVersion),
+        ).rejects.toMatchObject({
+          code: '23514',
+          constraint: 'template_baseline_version_previous_not_self',
+        });
+        const rootAfterFailure = await admin.query(
+          `SELECT template_baseline_id, current_version_id, active_version_id, aggregate_version::text
+             FROM enterprise_project.template_baseline WHERE project_id = $1`,
+          [fixture.projectId],
+        );
+        expect(rootAfterFailure.rows).toEqual(roots.rows);
+
+        // Reusing another scope's Root ID is not this Project's creation race.
+        // The exact same pkey error must propagate when no scoped winner exists.
+        const otherFixture = await seedFixture(admin);
+        const otherContext = projectContext(otherFixture);
+        const scopeCollision = commandEnvelope(
+          otherContext,
+          'project.freeze_template_baseline',
+          `scope-collision-${baselineId}`,
+          {
+            ...winner.payload,
             templateBaselineVersionRef: versionedRef(
               'TemplateBaseline',
-              baselineId,
-              versionId,
-              fixture.enterpriseId,
-              fixture.projectId,
+              winner.targetId,
+              newUuidV7(),
+              otherFixture.enterpriseId,
+              otherFixture.projectId,
             ),
-            selections: [
-              {
-                deliveryCategory: 'ROOT_RACE_CONTROL',
-                templateRef: {
-                  ...templateVersionRef,
-                  objectType: 'TemplateVersion',
-                  objectId: templateId,
-                  immutableVersionId: templateVersionId,
-                },
-                applicabilityScope: { jurisdiction: 'CN' },
-                selectionReason: justification('WI08_ROOT_RACE_SELECTION'),
-              },
-            ],
             reviewSnapshotRef: projectSnapshotRef(
               'TemplateReview',
-              fixture.enterpriseId,
-              fixture.projectId,
+              otherFixture.enterpriseId,
+              otherFixture.projectId,
             ),
-            selectionRationale: justification('WI08_ROOT_RACE_FREEZE'),
           },
           {
-            projectId: fixture.projectId,
+            projectId: otherFixture.projectId,
             targetType: 'TemplateBaseline',
-            targetId: baselineId,
+            targetId: winner.targetId,
           },
         );
-      const results = await Promise.all([
-        handleFreezeTemplateBaseline(
-          db,
-          humanContext,
-          makeFreeze(newUuidV7(), `root-race-a-${baselineId}`),
-        ),
-        handleFreezeTemplateBaseline(
-          db,
-          humanContext,
-          makeFreeze(newUuidV7(), `root-race-b-${baselineId}`),
-        ),
-      ]);
-      expect(results.filter((result) => result.status === 'COMMITTED')).toHaveLength(1);
-      expect(results.filter((result) => result.status === 'REJECTED')).toHaveLength(1);
-      expect(results.find((result) => result.status === 'REJECTED')).toMatchObject({
-        errorCode: CONCURRENCY_CONFLICT,
-      });
-
-      const rows = await admin.query<{ count: string }>(
-        `SELECT count(*)::text AS count
-           FROM enterprise_project.template_baseline_version
-          WHERE template_baseline_id = $1`,
-        [baselineId],
-      );
-      expect(rows.rows[0]?.count).toBe('1');
-    });
+        await expect(
+          handleFreezeTemplateBaseline(db, otherContext, scopeCollision),
+        ).rejects.toMatchObject({
+          code: '23505',
+          constraint: 'template_baseline_pkey',
+        });
+        for (const table of ['command_receipt', 'audit_record', 'outbox_event']) {
+          const facts = await admin.query(
+            `SELECT count(*)::int AS count FROM enterprise_project.${table}
+              WHERE ${table === 'outbox_event' ? 'source_command_id' : 'command_id'} = ANY($1::uuid[])`,
+            [[reusedVersion.commandId, scopeCollision.commandId]],
+          );
+          expect(facts.rows).toEqual([{ count: 0 }]);
+        }
+        const replayEvents = await admin.query(
+          `SELECT count(*)::int AS count FROM enterprise_project.outbox_event WHERE project_id = $1`,
+          [fixture.projectId],
+        );
+        expect(replayEvents.rows).toEqual([{ count: 1 }]);
+      },
+    );
   },
 );
