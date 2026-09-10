@@ -480,6 +480,7 @@ Issue #64 的实现边界如下，受控 Capability 不加入公共 Catalog：
 
 - Platform Template/Regulatory Reference 由 `enterprise_project_platform_reference_writer` 写入；普通 `enterprise_project_app` 只读已发布版本。平台业务表没有 `enterprise_id` 或 `project_id`，保留技术 Scope 只用于事务 Context、Audit、Receipt、Outbox 和 RLS。
 - TemplateBaseline 与 RegulatoryProfile 都使用 Project-owned Root、不可变 `FROZEN` Version 和 INSERT-only 条目。Root 仅以 expected aggregate version CAS 推进 current/active pointer；同一 Project 的 identity 唯一。
+- TemplateBaseline 首次 Root 创建竞争中，相同或不同候选 baselineId 的两个合法命令均只能提交一个；输家返回 `REJECTED / CONCURRENCY_CONFLICT`，不得泄露 Root 主键唯一约束异常。冲突处理必须保持 Command Runner 事务可用，保存拒绝 Receipt/Audit，不产生 Version、Selection、pointer、Reference Edge 或成功 Outbox 的部分写入；无关唯一约束、Scope/授权和其他数据库错误保留原有失败语义。
 - Template Selection 必须是已发布 Platform Template 的精确 `CONTENT_ADDRESSED` ref；Regulatory Profile Item 必须是已发布 Platform Regulatory Reference 的精确 ref。ref 的 object id、immutable/version id、SHA-256、canonicalization 和 scope 必须与数据库事实逐项一致，禁止 `latest`、display label 或跨 Project 替代。
 - Regulatory EvidenceRef 必须引用独立证据对象；`TemplateVersion`、`ReferenceTemplateVersion`、`RegulatoryReferenceVersion` 不能作为 Evidence。非 `PENDING_DETERMINATION` 的 applicability 必须带证据，`PENDING_DETERMINATION` 与高风险组合按稳定错误拒绝。
 - 两个 Project command 都要求可信 Human Context，写入 Version、条目、Reference Edge、Audit、Receipt、Outbox 必须同事务提交；失败必须回滚全部业务事实。
