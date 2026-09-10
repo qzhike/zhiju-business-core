@@ -134,6 +134,23 @@ TD-01–04 已于 2026-09-08 获用户明确批准，包含新操作、Task v2 �
 
 字段、Hash、读取、到期错误与重放规则由 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限) 拥有；Domain §19.7.1 拥有生命周期约束，Core 的 IM-06 附录保留 payloadHash/specificationHash 范围，PostgreSQL §33 拥有存储镜像，Module Test 003 的 TE-WI02-D-009–012 覆盖拒绝反例。现有 @1.0 payload/Core 本体/历史 Compatibility Baseline 不变，新 Draft Snapshot/Query 字段随后续契约交付注册。本决定不代表 Schema、业务 Handler 或期限运行测试已经实现。
 
+### 8.5 #157 PayloadGuard 补充方案
+
+状态：`APPROVED 2026-09-09 / SCHEMA AND GUARD IMPLEMENTED`。分类 T2；用户在审阅本节与 owning 补充后明确“批准”，批准本次 PayloadGuard 参数、注册机制及限定范围。TD-01 已批准的接口字段和业务语义继续有效。
+
+当前缺口：共享 API §4/§9.2 要求构建期 Guard，但当前 Registry 只有基础操作元数据，兼容元数据仅声明 Purpose/Classification/Semantics；没有可引用的 Guard 注册表。PostgreSQL §5.5 给出建议字节数，§24 仍将最终参数列为待冻结。#157 不能通过任意选择数值或只填不可解析的 Policy 名称交付。
+
+已批准以下最小增量：
+
+1. 仅为 #157 的 capture/read 两项操作注册有限额的构建期技术 Policy。具体参数与验证算法唯一维护于[共享 API 的补充](../api-contract-v0.1/API-Contract-v0.1.md#157-payloadguard-注册补充方案)。该 Policy 不等于 payload 中的业务 capturePolicyRef，不决定 validUntil，不授予任何主体权限。
+2. 扩展现有 public-api Registry、生成器和 ContractRegistry，检查目标/模式、一致性、Purpose、Ref objectType 和 Guard 引用，并只对这两项新操作强制执行。既有 201 项保持原样，历史 200 项 Compatibility Baseline 不重写；不以修复全部历史注册欠账作为本项前置。
+3. 复用现有 ProjectContextSourceSlice 命名 Schema；在新操作的 Envelope/Result 根上附加递归资源 Guard，不复制 Source View、不修改共享旧定义。既有 CanonicalJson 叶节点保持 JSON 内容能力，但在新操作内也受大小与深度约束。
+4. 参数属于受版本控制的构建输入；部署不得静默修改相同 Policy 版本或绕过 Guard。更改数值须更新技术 Policy 版本、生成物、fixture 并审查 API 兼容性；收窄既有公开操作可接受输入时按共享 API Major/新操作规则处理。
+
+范围：contracts、现有 Catalog/生成器、必要 fixture 和 owning 文档；新增静态技术 Policy 文件及纯验证 helper 属于该范围。无业务 Handler、数据库表、migration、运行主体授权或 HTTP parser。公开传输的解析前字节限制由后续接入任务落实，本次 parsed-object Guard 不替代它。
+
+验收入口为[Module Test 002 的验证矩阵](../module-tests/Module-Test-002-EnterpriseProject.md#157-注册与-guard-验证矩阵)。本次修订同步 owning 状态并实现新操作和 Guard；交付须通过 Contract fixture、配置目标 full，随后交由独立 Reviewer 复核。只有 Schema/Guard 的实际验证可记 PASS，EP-TD-001/002 业务用例仍为 NOT RUN。本次批准解除该设计缺口；实际实现与验收仍须独立完成，不新增或修改远端 Issue。
+
 ## 9. WI-03 事务序列与竞态裁决
 
 ```text

@@ -152,6 +152,21 @@ export namespace EnterpriseProject {
   readonly evaluatorRef: Common.VersionedRef;
   readonly evaluatedAt: Common.UtcInstant;
 }
+  export type ContextSourceSlice = {
+  readonly sliceId: Common.UuidV7;
+  readonly scopeRef: Common.ScopeRef;
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly purpose: Common.NamespaceCode;
+  readonly audience: Common.PrincipalRef;
+  readonly capturePolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+};
+  readonly capturedAt: Common.UtcInstant;
+  readonly validUntil: Common.UtcInstant;
+  readonly source: EnterpriseProject.ProjectContextSourceSlice;
+};
   export interface ProjectContextSourceSlice {
   readonly projectRef: Common.ObjectRef;
   readonly enterpriseProfileSnapshotRef: Common.SnapshotRef;
@@ -437,4 +452,28 @@ export namespace EnterpriseProject {
   readonly priorEvaluationRef?: Common.ContentAddressedRef;
   readonly impactReason: Common.ReasonCode;
 }
+  /** Payload of `project.capture_context_source_slice` (COMMAND). */
+  export type ProjectCaptureContextSourceSlicePayload = {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly purpose: Common.NamespaceCode;
+  readonly audience: Common.PrincipalRef;
+  readonly requestedKinds: readonly Common.NamespaceCode[];
+  readonly capturePolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+};
+};
+  /** Payload of `project.get_context_source_slice` (QUERY). */
+  export type ProjectGetContextSourceSlicePayload = {
+  readonly sourceSliceRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.context_source_slice";
+};
+};
+  /** Result of `project.get_context_source_slice` (QUERY). */
+  export type ProjectGetContextSourceSliceResult = {
+  readonly slice: EnterpriseProject.ContextSourceSlice;
+  readonly useStatus: "USABLE" | "EXPIRED" | "REVOKED";
+  readonly checkedAt: Common.UtcInstant;
+};
 }

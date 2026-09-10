@@ -1410,6 +1410,20 @@
       "authorizationPurpose": "integration.gateway.RenderFailed",
       "dataClassification": "INTERNAL",
       "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "project.capture_context_source_slice",
+      "version": "1.0",
+      "authorizationPurpose": "project.context_source.capture",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "im-06-context-source-slice-v1.0"
+    },
+    {
+      "type": "project.get_context_source_slice",
+      "version": "1.0",
+      "authorizationPurpose": "project.context_source.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "im-06-context-source-slice-v1.0"
     }
   ]
 }

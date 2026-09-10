@@ -1,0 +1,124 @@
+{
+  "slice": {
+    "sliceId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "scopeRef": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "projectRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.project.project",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "purpose": "context.snapshot.read",
+    "audience": {
+      "principalKind": "SERVICE",
+      "principalId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "capturePolicyRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.identity.policy",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "capturedAt": "2026-09-09T00:00:00Z",
+    "validUntil": "2026-09-10T00:00:00Z",
+    "source": {
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "zhiju.project.project",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "enterpriseProfileSnapshotRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "zhiju.project.enterprise_profile",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "qmsConfigurationRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.project.qms_configuration",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      },
+      "productScopeSnapshotRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "zhiju.project.product_scope",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "activeBaselineRefs": [
+        {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.project.customer_baseline",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+        }
+      ],
+      "factItems": [
+        {
+          "factType": "enterprise.legal_name",
+          "status": "CONFIRMED"
+        }
+      ],
+      "omissions": [
+        {
+          "kind": "customer_material",
+          "reason": "not_requested"
+        }
+      ],
+      "redactions": [
+        {
+          "path": "enterprise_facts.*.value",
+          "reason": "metadata_only"
+        }
+      ],
+      "sourceWatermark": {
+        "sourceModule": "enterprise_project",
+        "partition": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+        "sequence": 42,
+        "observedAt": "2026-09-09T00:00:00Z"
+      }
+    }
+  },
+  "useStatus": "USABLE",
+  "checkedAt": "2026-09-09T00:00:00Z"
+}

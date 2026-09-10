@@ -1,0 +1,993 @@
+[
+  {
+    "base": "capture",
+    "path": "/payload/projectRef",
+    "keyword": "required",
+    "expectedPath": "/payload",
+    "remove": true,
+    "params": {
+      "missingProperty": "projectRef"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/payload/purpose",
+    "keyword": "required",
+    "expectedPath": "/payload",
+    "remove": true,
+    "params": {
+      "missingProperty": "purpose"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/payload/audience",
+    "keyword": "required",
+    "expectedPath": "/payload",
+    "remove": true,
+    "params": {
+      "missingProperty": "audience"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/payload/requestedKinds",
+    "keyword": "required",
+    "expectedPath": "/payload",
+    "remove": true,
+    "params": {
+      "missingProperty": "requestedKinds"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/payload/capturePolicyRef",
+    "keyword": "required",
+    "expectedPath": "/payload",
+    "remove": true,
+    "params": {
+      "missingProperty": "capturePolicyRef"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/payload/sourceSliceRef",
+    "keyword": "required",
+    "expectedPath": "/payload",
+    "remove": true,
+    "params": {
+      "missingProperty": "sourceSliceRef"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "slice"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/useStatus",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "useStatus"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/checkedAt",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "checkedAt"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/sliceId",
+    "keyword": "required",
+    "expectedPath": "/slice",
+    "remove": true,
+    "params": {
+      "missingProperty": "sliceId"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/scopeRef",
+    "keyword": "required",
+    "expectedPath": "/slice",
+    "remove": true,
+    "params": {
+      "missingProperty": "scopeRef"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/projectRef",
+    "keyword": "required",
+    "expectedPath": "/slice",
+    "remove": true,
+    "params": {
+      "missingProperty": "projectRef"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/purpose",
+    "keyword": "required",
+    "expectedPath": "/slice",
+    "remove": true,
+    "params": {
+      "missingProperty": "purpose"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/audience",
+    "keyword": "required",
+    "expectedPath": "/slice",
+    "remove": true,
+    "params": {
+      "missingProperty": "audience"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/capturePolicyRef",
+    "keyword": "required",
+    "expectedPath": "/slice",
+    "remove": true,
+    "params": {
+      "missingProperty": "capturePolicyRef"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/capturedAt",
+    "keyword": "required",
+    "expectedPath": "/slice",
+    "remove": true,
+    "params": {
+      "missingProperty": "capturedAt"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/validUntil",
+    "keyword": "required",
+    "expectedPath": "/slice",
+    "remove": true,
+    "params": {
+      "missingProperty": "validUntil"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source",
+    "keyword": "required",
+    "expectedPath": "/slice",
+    "remove": true,
+    "params": {
+      "missingProperty": "source"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/projectRef",
+    "keyword": "required",
+    "expectedPath": "/slice/source",
+    "remove": true,
+    "params": {
+      "missingProperty": "projectRef"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/enterpriseProfileSnapshotRef",
+    "keyword": "required",
+    "expectedPath": "/slice/source",
+    "remove": true,
+    "params": {
+      "missingProperty": "enterpriseProfileSnapshotRef"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/qmsConfigurationRef",
+    "keyword": "required",
+    "expectedPath": "/slice/source",
+    "remove": true,
+    "params": {
+      "missingProperty": "qmsConfigurationRef"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/productScopeSnapshotRef",
+    "keyword": "required",
+    "expectedPath": "/slice/source",
+    "remove": true,
+    "params": {
+      "missingProperty": "productScopeSnapshotRef"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/activeBaselineRefs",
+    "keyword": "required",
+    "expectedPath": "/slice/source",
+    "remove": true,
+    "params": {
+      "missingProperty": "activeBaselineRefs"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/factItems",
+    "keyword": "required",
+    "expectedPath": "/slice/source",
+    "remove": true,
+    "params": {
+      "missingProperty": "factItems"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/omissions",
+    "keyword": "required",
+    "expectedPath": "/slice/source",
+    "remove": true,
+    "params": {
+      "missingProperty": "omissions"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/redactions",
+    "keyword": "required",
+    "expectedPath": "/slice/source",
+    "remove": true,
+    "params": {
+      "missingProperty": "redactions"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/sourceWatermark",
+    "keyword": "required",
+    "expectedPath": "/slice/source",
+    "remove": true,
+    "params": {
+      "missingProperty": "sourceWatermark"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/sourceWatermark/sourceModule",
+    "keyword": "required",
+    "expectedPath": "/slice/source/sourceWatermark",
+    "remove": true,
+    "params": {
+      "missingProperty": "sourceModule"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/sourceWatermark/sequence",
+    "keyword": "required",
+    "expectedPath": "/slice/source/sourceWatermark",
+    "remove": true,
+    "params": {
+      "missingProperty": "sequence"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/sourceWatermark/observedAt",
+    "keyword": "required",
+    "expectedPath": "/slice/source/sourceWatermark",
+    "remove": true,
+    "params": {
+      "missingProperty": "observedAt"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/targetRef/kind",
+    "keyword": "const",
+    "expectedPath": "/targetRef/kind",
+    "value": "EXTERNAL"
+  },
+  {
+    "base": "capture",
+    "path": "/targetRef/objectType",
+    "keyword": "const",
+    "expectedPath": "/targetRef/objectType",
+    "value": "zhiju.unknown.object"
+  },
+  {
+    "base": "capture",
+    "path": "/payload/projectRef/kind",
+    "keyword": "const",
+    "expectedPath": "/payload/projectRef/kind",
+    "value": "EXTERNAL"
+  },
+  {
+    "base": "capture",
+    "path": "/payload/projectRef/objectType",
+    "keyword": "const",
+    "expectedPath": "/payload/projectRef/objectType",
+    "value": "zhiju.unknown.object"
+  },
+  {
+    "base": "capture",
+    "path": "/payload/capturePolicyRef/kind",
+    "keyword": "const",
+    "expectedPath": "/payload/capturePolicyRef/kind",
+    "value": "EXTERNAL"
+  },
+  {
+    "base": "capture",
+    "path": "/payload/capturePolicyRef/objectType",
+    "keyword": "const",
+    "expectedPath": "/payload/capturePolicyRef/objectType",
+    "value": "zhiju.unknown.object"
+  },
+  {
+    "base": "query",
+    "path": "/payload/sourceSliceRef/kind",
+    "keyword": "const",
+    "expectedPath": "/payload/sourceSliceRef/kind",
+    "value": "EXTERNAL"
+  },
+  {
+    "base": "query",
+    "path": "/payload/sourceSliceRef/objectType",
+    "keyword": "const",
+    "expectedPath": "/payload/sourceSliceRef/objectType",
+    "value": "zhiju.unknown.object"
+  },
+  {
+    "base": "result",
+    "path": "/slice/projectRef/kind",
+    "keyword": "const",
+    "expectedPath": "/slice/projectRef/kind",
+    "value": "EXTERNAL"
+  },
+  {
+    "base": "result",
+    "path": "/slice/projectRef/objectType",
+    "keyword": "const",
+    "expectedPath": "/slice/projectRef/objectType",
+    "value": "zhiju.unknown.object"
+  },
+  {
+    "base": "result",
+    "path": "/slice/capturePolicyRef/kind",
+    "keyword": "const",
+    "expectedPath": "/slice/capturePolicyRef/kind",
+    "value": "EXTERNAL"
+  },
+  {
+    "base": "result",
+    "path": "/slice/capturePolicyRef/objectType",
+    "keyword": "const",
+    "expectedPath": "/slice/capturePolicyRef/objectType",
+    "value": "zhiju.unknown.object"
+  },
+  {
+    "base": "query",
+    "path": "/payload/sourceSliceRef/contentHash",
+    "keyword": "required",
+    "expectedPath": "/payload/sourceSliceRef",
+    "remove": true,
+    "params": {
+      "missingProperty": "contentHash"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/payload/sourceSliceRef/contentHash/digest",
+    "keyword": "pattern",
+    "expectedPath": "/payload/sourceSliceRef/contentHash/digest",
+    "value": "wrong"
+  },
+  {
+    "base": "capture",
+    "path": "/payload/audience/principalKind",
+    "keyword": "enum",
+    "expectedPath": "/payload/audience/principalKind",
+    "value": "UNKNOWN"
+  },
+  {
+    "base": "capture",
+    "path": "/payload/audience/principalId",
+    "keyword": "required",
+    "expectedPath": "/payload/audience",
+    "remove": true,
+    "params": {
+      "missingProperty": "principalId"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/payload/audience",
+    "keyword": "required",
+    "expectedPath": "/payload/audience",
+    "value": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.identity.principal",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "params": {
+      "missingProperty": "principalKind"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/audience/principalKind",
+    "keyword": "enum",
+    "expectedPath": "/slice/audience/principalKind",
+    "value": "UNKNOWN"
+  },
+  {
+    "base": "result",
+    "path": "/slice/audience/principalId",
+    "keyword": "required",
+    "expectedPath": "/slice/audience",
+    "remove": true,
+    "params": {
+      "missingProperty": "principalId"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/audience",
+    "keyword": "required",
+    "expectedPath": "/slice/audience",
+    "value": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.identity.principal",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "params": {
+      "missingProperty": "principalKind"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/payload/unexpected",
+    "keyword": "additionalProperties",
+    "expectedPath": "/payload",
+    "value": true,
+    "params": {
+      "additionalProperty": "unexpected"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/unexpected",
+    "keyword": "additionalProperties",
+    "expectedPath": "",
+    "value": true,
+    "params": {
+      "additionalProperty": "unexpected"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/payload/unexpected",
+    "keyword": "additionalProperties",
+    "expectedPath": "/payload",
+    "value": true,
+    "params": {
+      "additionalProperty": "unexpected"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/unexpected",
+    "keyword": "additionalProperties",
+    "expectedPath": "",
+    "value": true,
+    "params": {
+      "additionalProperty": "unexpected"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/unexpected",
+    "keyword": "additionalProperties",
+    "expectedPath": "/slice",
+    "value": true,
+    "params": {
+      "additionalProperty": "unexpected"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/unexpected",
+    "keyword": "additionalProperties",
+    "expectedPath": "/slice/source",
+    "value": true,
+    "params": {
+      "additionalProperty": "unexpected"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/sourceWatermark/unexpected",
+    "keyword": "additionalProperties",
+    "expectedPath": "/slice/source/sourceWatermark",
+    "value": true,
+    "params": {
+      "additionalProperty": "unexpected"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/useStatus",
+    "keyword": "enum",
+    "expectedPath": "/useStatus",
+    "value": "STALE"
+  },
+  {
+    "base": "result",
+    "path": "/slice/source",
+    "keyword": "type",
+    "expectedPath": "/slice/source",
+    "value": []
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/activeBaselineRefs",
+    "keyword": "type",
+    "expectedPath": "/slice/source/activeBaselineRefs",
+    "value": {}
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/factItems",
+    "keyword": "type",
+    "expectedPath": "/slice/source/factItems",
+    "value": {}
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/omissions",
+    "keyword": "type",
+    "expectedPath": "/slice/source/omissions",
+    "value": {}
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/redactions",
+    "keyword": "type",
+    "expectedPath": "/slice/source/redactions",
+    "value": {}
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/sourceWatermark",
+    "keyword": "type",
+    "expectedPath": "/slice/source/sourceWatermark",
+    "value": "wrong"
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/sourceWatermark/sequence",
+    "keyword": "minimum",
+    "expectedPath": "/slice/source/sourceWatermark/sequence",
+    "value": -1
+  },
+  {
+    "base": "result",
+    "path": "/slice/source/sourceWatermark/observedAt",
+    "keyword": "pattern",
+    "expectedPath": "/slice/source/sourceWatermark/observedAt",
+    "value": "yesterday"
+  },
+  {
+    "base": "capture",
+    "path": "/payload/requestedKinds",
+    "keyword": "uniqueItems",
+    "expectedPath": "/payload/requestedKinds",
+    "value": ["project", "project"]
+  },
+  {
+    "base": "capture",
+    "path": "/payload/requestedKinds",
+    "keyword": "maxItems",
+    "expectedPath": "/payload/requestedKinds",
+    "value": [
+      "kind_0",
+      "kind_1",
+      "kind_2",
+      "kind_3",
+      "kind_4",
+      "kind_5",
+      "kind_6",
+      "kind_7",
+      "kind_8",
+      "kind_9",
+      "kind_10",
+      "kind_11",
+      "kind_12",
+      "kind_13",
+      "kind_14",
+      "kind_15",
+      "kind_16",
+      "kind_17",
+      "kind_18",
+      "kind_19",
+      "kind_20",
+      "kind_21",
+      "kind_22",
+      "kind_23",
+      "kind_24",
+      "kind_25",
+      "kind_26",
+      "kind_27",
+      "kind_28",
+      "kind_29",
+      "kind_30",
+      "kind_31",
+      "kind_32",
+      "kind_33",
+      "kind_34",
+      "kind_35",
+      "kind_36",
+      "kind_37",
+      "kind_38",
+      "kind_39",
+      "kind_40",
+      "kind_41",
+      "kind_42",
+      "kind_43",
+      "kind_44",
+      "kind_45",
+      "kind_46",
+      "kind_47",
+      "kind_48",
+      "kind_49",
+      "kind_50",
+      "kind_51",
+      "kind_52",
+      "kind_53",
+      "kind_54",
+      "kind_55",
+      "kind_56",
+      "kind_57",
+      "kind_58",
+      "kind_59",
+      "kind_60",
+      "kind_61",
+      "kind_62",
+      "kind_63",
+      "kind_64"
+    ]
+  },
+  {
+    "base": "capture",
+    "path": "/expectedAggregateVersion",
+    "keyword": "false schema",
+    "expectedPath": "/expectedAggregateVersion",
+    "value": 0
+  },
+  {
+    "base": "query",
+    "path": "/consistencyRequirement",
+    "keyword": "enum",
+    "expectedPath": "/consistencyRequirement",
+    "value": "PROJECTION_OK"
+  },
+  {
+    "base": "query",
+    "path": "/consistencyRequirement",
+    "keyword": "enum",
+    "expectedPath": "/consistencyRequirement",
+    "value": "SNAPSHOT_AT_LEAST"
+  },
+  {
+    "base": "capture",
+    "path": "/commandId",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "commandId"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/commandType",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "commandType"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/commandVersion",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "commandVersion"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/scopeRef",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "scopeRef"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/targetRef",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "targetRef"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/actor",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "actor"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/authorizationDecisionRef",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "authorizationDecisionRef"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/idempotencyKey",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "idempotencyKey"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/correlationId",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "correlationId"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/requestedAt",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "requestedAt"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/payload",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "payload"
+    }
+  },
+  {
+    "base": "capture",
+    "path": "/integrity",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "integrity"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/queryId",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "queryId"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/queryType",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "queryType"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/queryVersion",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "queryVersion"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/scopeRef",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "scopeRef"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/requester",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "requester"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/authenticationContextRef",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "authenticationContextRef"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/consistencyRequirement",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "consistencyRequirement"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/correlationId",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "correlationId"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/requestedAt",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "requestedAt"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/payload",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true,
+    "params": {
+      "missingProperty": "payload"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {},
+    "keyword": "required",
+    "expectedPath": "/pagination",
+    "params": {
+      "missingProperty": "pageSize"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {
+      "pageSize": 0
+    },
+    "keyword": "minimum",
+    "expectedPath": "/pagination/pageSize",
+    "params": {}
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {
+      "pageSize": 1.5
+    },
+    "keyword": "type",
+    "expectedPath": "/pagination/pageSize",
+    "params": {}
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {
+      "pageSize": 1,
+      "cursor": "!"
+    },
+    "keyword": "pattern",
+    "expectedPath": "/pagination/cursor",
+    "params": {}
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {
+      "padding": []
+    },
+    "keyword": "required",
+    "expectedPath": "/pagination",
+    "params": {
+      "missingProperty": "pageSize"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {
+      "pageSize": 1,
+      "extra": true
+    },
+    "keyword": "additionalProperties",
+    "expectedPath": "/pagination",
+    "params": {
+      "additionalProperty": "extra"
+    }
+  }
+]

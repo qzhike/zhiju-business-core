@@ -1,0 +1,15 @@
+{
+  "policies": [
+    {
+      "type": "ep.context_source_slice",
+      "version": "1.0",
+      "maxEnvelopeBytes": 262144,
+      "maxResultBytes": 4194304,
+      "maxStringCodePoints": 16384,
+      "maxArrayItems": 1024,
+      "maxObjectProperties": 256,
+      "maxDepth": 32,
+      "maxRequestedKinds": 64
+    }
+  ]
+}

@@ -1,6 +1,12 @@
 // Shared schema loading helpers for baseline generation and compatibility checks.
 // Imports the same TypeScript schema sources as generate-typescript-types.mts.
 
+import Ajv2020Import from '../../../contracts/node_modules/ajv/dist/2020.js';
+import guardPolicyData from '../../../contracts/src/generated/payload-guard-policies.json' with { type: 'json' };
+import {
+  loadPayloadGuardPolicies,
+  payloadGuardKeyword,
+} from '../../../contracts/src/payload-guard.ts';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -232,4 +238,27 @@ export function loadCurrentEnvelopeDocuments(): readonly NamedSchemaDocument[] {
     schemaId: `https://schemas.zhiju.local/api/1.0/${operation.type}`,
     schema: operationEnvelopeSchema(operation),
   }));
+}
+
+/** Compile the live graph with the same mandatory resource assertion as ContractRegistry. */
+export function assertCurrentSchemasCompile(): void {
+  const Ajv2020 = Ajv2020Import as unknown as new (options: object) => {
+    addKeyword(keyword: unknown): void;
+    addSchema(schema: unknown): void;
+    getSchema(id: string): unknown;
+  };
+  const ajv = new Ajv2020({ strict: true, allErrors: true });
+  ajv.addKeyword(payloadGuardKeyword(loadPayloadGuardPolicies(guardPolicyData)));
+  for (const document of [...loadCurrentSchemaDocuments(), ...loadCurrentEnvelopeDocuments()])
+    ajv.addSchema(document.schema);
+  for (const operation of publicApiOperations as readonly PublicOperationDefinition[]) {
+    const refs = [
+      `https://schemas.zhiju.local/api/1.0/${operation.type}`,
+      operationPayloadSchemaRef(operation),
+      operationResultSchemaRef(operation),
+    ];
+    for (const ref of refs)
+      if (ref !== undefined && ajv.getSchema(ref) === undefined)
+        throw new Error(`missing executable schema: ${ref}`);
+  }
 }

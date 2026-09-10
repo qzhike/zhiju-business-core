@@ -1,3 +1,5 @@
+import guardPolicies from '../generated/payload-guard-policies.json' with { type: 'json' };
+
 import type { JsonSchema } from '../schema-types.js';
 
 const schemaId = 'https://schemas.zhiju.local/modules/enterprise-project/1.0';
@@ -49,6 +51,26 @@ const contentAddressedReference = { $ref: `${common}contentAddressedRef` } as co
 const snapshotReference = { $ref: `${common}snapshotRef` } as const;
 const externalReference = { $ref: `${common}externalRef` } as const;
 const canonicalJson = {} as const;
+
+const sliceGuard = guardPolicies.policies.find(
+  (policy) => policy.type === 'ep.context_source_slice' && policy.version === '1.0',
+);
+if (sliceGuard === undefined) throw new Error('missing source slice payload guard');
+const sliceGuardRef = { type: sliceGuard.type, version: sliceGuard.version };
+
+function exactObjectType(reference: unknown, objectType: string): JsonSchema {
+  return {
+    allOf: [reference, { type: 'object', properties: { objectType: { const: objectType } } }],
+  };
+}
+
+const projectRef = exactObjectType(objectReference, 'zhiju.project.project');
+const capturePolicyRef = exactObjectType(versionedReference, 'zhiju.identity.policy');
+const sourceSliceRef = exactObjectType(
+  contentAddressedReference,
+  'zhiju.project.context_source_slice',
+);
+const principalRef = { $ref: `${common}principalRef` };
 
 const namedDefinitions = {
   enterpriseStatus: { enum: ['ACTIVE', 'SUSPENDED', 'ARCHIVED'] },
@@ -298,6 +320,30 @@ const namedDefinitions = {
       sourceWatermarks: array(localRef('sourceWatermark')),
       evaluatorRef: versionedReference,
       evaluatedAt: instant,
+    },
+  ),
+  contextSourceSlice: object(
+    [
+      'sliceId',
+      'scopeRef',
+      'projectRef',
+      'purpose',
+      'audience',
+      'capturePolicyRef',
+      'capturedAt',
+      'validUntil',
+      'source',
+    ],
+    {
+      sliceId: uuid,
+      scopeRef: scope,
+      projectRef,
+      purpose: namespace,
+      audience: principalRef,
+      capturePolicyRef,
+      capturedAt: instant,
+      validUntil: instant,
+      source: localRef('projectContextSourceSlice'),
     },
   ),
   projectContextSourceSlice: object(
@@ -563,6 +609,29 @@ const operationSchemas = {
   },
   'project.evaluate_delivery_item_completion': {
     payload: object(['input'], { input: localRef('completionEvaluationInput') }),
+  },
+  'project.capture_context_source_slice': {
+    payload: object(['projectRef', 'purpose', 'audience', 'requestedKinds', 'capturePolicyRef'], {
+      projectRef,
+      purpose: namespace,
+      audience: principalRef,
+      requestedKinds: {
+        ...array(namespace, { unique: true }),
+        maxItems: sliceGuard.maxRequestedKinds,
+      },
+      capturePolicyRef,
+    }),
+  },
+  'project.get_context_source_slice': {
+    payload: object(['sourceSliceRef'], { sourceSliceRef }),
+    result: {
+      ...object(['slice', 'useStatus', 'checkedAt'], {
+        slice: localRef('contextSourceSlice'),
+        useStatus: { enum: ['USABLE', 'EXPIRED', 'REVOKED'] },
+        checkedAt: instant,
+      }),
+      payloadGuard: sliceGuardRef,
+    },
   },
   'project.get_project_context_source': {
     payload: object(['projectRef', 'purpose', 'audience', 'requestedKinds'], {

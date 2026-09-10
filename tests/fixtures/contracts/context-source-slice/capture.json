@@ -1,0 +1,79 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+  "commandType": "project.capture_context_source_slice",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.context_source_slice",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "capture-source-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+  "requestedAt": "2026-09-09T00:00:00Z",
+  "payload": {
+    "projectRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.project.project",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "purpose": "context.snapshot.read",
+    "audience": {
+      "principalKind": "SERVICE",
+      "principalId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "requestedKinds": ["project", "active_baselines"],
+    "capturePolicyRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.identity.policy",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  }
+}
