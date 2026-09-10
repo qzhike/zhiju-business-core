@@ -1,3 +1,78 @@
+# PR #160 合并前审查（2026-09-10）
+
+- 结论：`APPROVE`（代码与契约审查）；实际合并须等待最终 head 的远端 verify 通过。
+- Reviewed implementation SHA：`a265e6c3566585e521a5ed136d6fdd856647cdc6`。
+- Scope：Issue #157 的 ContextSourceSlice 契约注册；已同步 main 的 PR #162 / Issue #161 修复。
+- 最终仅文档提交的 SHA、CI 与审查回读证据写入 PR comments，避免文档自身 SHA 循环；本记录不将旧 SHA 的证据冒充后续 head 的 CI。
+
+## R1 / R2 结论
+
+R1 已关闭。新 Query 通过共享 PageRequest 执行必填正整数 pageSize、可选 OpaqueCursor 与未知字段拒绝；旧 201 项接受集合保持不变。Query 字节边界使用合法 Reference 文本和 PageRequest，未恢复开放分页填充。原字段矩阵继续适用，Read Envelope 项改为 PASS。
+
+R2 已关闭其实现缺陷。#161 已经 #162 独立修复、审核并合入 main；本次无冲突同步完整保留 savepoint 恢复、精确 SQLSTATE/schema/table/constraint 与同 Scope Root identity 判断，以及真实 PostgreSQL 的同/异 identity 并发回归。未把无关数据库错误转为成功或冲突，未重写其他 Aggregate。#162 的独立审查见 https://github.com/qzhike/zhiju-business-core/pull/162#issuecomment-5613880443 。此前失败 CI 与复审记录保留在下方，最终远端检查仍作为合并 Gate。
+
+独立复核了实际合并差异、当前 owning Spec/Test、完整新增契约字段及注册元数据：capture 五字段、Slice 九字段、read result 三字段、exact Ref/hash、Set/数组区别、SourceWatermark 与命名 Source View、Guard 参数、当前203项和历史200项兼容边界均保持符合 #157。相对最新 main 不新增 TemplateBaseline 修复代码；它已属于 base。
+
+## 当前验证
+
+隔离工作区在上述精确 SHA 执行 `DOCKER_HOST=unix:///Users/galendai/.orbstack/run/docker.sock vibe verify full --json`：PASS / exit_code=0。
+
+- clean、格式、Lint、类型、architecture、生成检查通过。
+- 43 个常规测试文件 / 637 项测试通过。
+- 35 个 PostgreSQL 测试文件 / 336 项测试通过，包括修复后的受控首次 Root race。
+- PostgreSQL 18.6 / Flyway 11.20.3 空库迁移、历史升级和二次迁移 no-op 通过；临时容器已删除。
+- Catalog/Registry=203；冻结200项兼容检查通过。
+- 当前同步提交 CI：https://github.com/qzhike/zhiju-business-core/actions/runs/34444460036/job/102766116467 。本记录落盘时仍在运行，不提前记 PASS；最终提交需另取得通过证据并回读。
+
+本记录提交前未修改产品实现；原工作区的未提交内容完整保留。用户已明确授权本次同步、交付和通过 Gate 后的合并。
+
+真实 capture/replay、当前授权/Scope/Purpose/时效、持久 Slice、首次 Context 业务闭环、外部与人工验收仍为 NOT RUN。Schema/Guard 交付不代表 IM-06 完成。
+
+---
+
+## 历史审查
+
+# PR #160 复审（2026-09-10）
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`55bf0ce0792205d8c1ff92008d08f385e1d44031`
+- 结束前回读远端：head 未变化，verify 仍为 FAILURE。
+- R1：已修复，关闭。本次修订范围内未发现新的契约缺陷。
+- 已发布并回读核对：[复审评论](https://github.com/qzhike/zhiju-business-core/pull/160#issuecomment-5613468578)。
+
+## R1 复核
+
+新 Query 在 `contracts/src/envelopes.schema.ts:106` 仅针对 project.get_context_source_slice 引用共享 pageRequest；其他操作保留原 Schema。共享定义要求 pageSize 为必填正整数、cursor 使用 16–512 字符的 OpaqueCursor，并关闭未知字段。
+
+独立通过公共 ContractRegistry 探测：省略 pagination、pageSize=1、合法 cursor 长度16/512通过；空对象在 /pagination 报 required；pageSize=0/1.5 在 /pagination/pageSize 报 minimum/type；cursor 为 !、长度15/513在 /pagination/cursor 报 pattern；未知字段报 additionalProperties。原 R1 的反例已正确拒绝。
+
+已检查修订后的正负 fixture、旧 Query 兼容对照和 Query 字节边界测试。新字节 fixture 使用既有 TypedReference 的合法文本字段及合法 PageRequest，262144字节通过、262145字节在根路径报 maxEnvelopeBytes；不再依赖 pagination.padding/text。共享 required/optional、Source View、Set/数组、Slice 九字段及注册元数据未被本次修订改变，前次字段矩阵除 R1 修正外继续适用。
+
+## R2 / P2：当前 SHA 的远端验证失败尚未处置
+
+证据：[CI verify](https://github.com/qzhike/zhiju-business-core/actions/runs/34432915885/job/102731999835)，run headSha 与 Reviewed SHA 一致。
+
+637项常规测试、203项 Catalog、200项历史兼容检查通过；PostgreSQL 为334通过、1失败。失败用例为 `tests/persistence/template-regulatory.test.ts:1258` 的 `EP-WI08-P-004: first Project root creation race is conflict-safe`，错误为 `duplicate key value violates unique constraint "template_baseline_pkey"`，调用栈指向 TemplateRegulatoryRepository.insertTemplateBaseline 和 handleFreezeTemplateBaseline。
+
+定向代码核对：测试以相同 baselineId 并发提交两次首次创建，预期一次 COMMITTED、一次 REJECTED/CONCURRENCY_CONFLICT。`modules/enterprise-project/src/persistence/template-regulatory-repository.ts:481` 的 ON CONFLICT 仅指定 enterprise_id/project_id；此次 CI 实际抛出主键冲突，没有返回预期的受控拒绝。这些业务代码与测试不在本 PR 的修改范围，不能据此断言是分页修复引入，但也没有证据允许将该失败忽略。
+
+处置要求：由 owning Implementer 调查并处理该并发失败；涉及本任务之外的产品代码修改时应明确单独范围。保留这次失败证据，取得解释和当前 head 的通过检查，再复审。不要删除、跳过该测试或用旧 SHA/一次本地成功覆盖失败。本审查未修复相关产品代码，也未扩展 #157 的实现范围。
+
+## 验证结果与边界
+
+- Reviewer 本地运行 `DOCKER_HOST=unix:///Users/galendai/.orbstack/run/docker.sock vibe verify full --json`：PASS，exit_code=0。Socket 来自当前 docker context。
+- 本地 clean、format、lint、typecheck、637项常规测试、architecture、生成一致性、203项 Catalog 和200项历史兼容检查通过。
+- 本地 PostgreSQL 18.6 / Flyway 11.20.3：35文件/335测试通过；空库迁移、历史升级、二次迁移 no-op 通过；临时容器已移除。本地成功与远端并发失败分别记录。
+- 单独发起的 pnpm exec vitest 定向命令持续无输出，在 full 已完成后中止，不记 PASS；相关用例已有本次 full 的实际通过证据。独立 ContractRegistry 分页探测完成。
+- 本次审查记录更新前 git diff --check 通过，工作区干净。
+- 真实 capture/replay、当前授权/Scope/Purpose/时效、持久 Slice、首次 Context 业务闭环、外部与人工验收仍为 NOT RUN。
+
+本次仅更新正式审查记录；未修改产品代码，未提交、推送或合并。沿用用户已明确给出的 comments 发布授权，本复审结果发布为 PR comment，不作为 GitHub formal review。
+
+---
+
+## 历史审查（保留原 SHA 与结论）
+
 # PR #160 独立审查
 
 - 结论：`REQUEST_CHANGES`

@@ -19,7 +19,7 @@
 2. 处理实质性契约缺口；只有 NOW + READY 的独立切片才发布 Issue。
 3. Issue 明确权威章节、可观察验收、非目标及 `full` 验证目标。
 
-已识别的首次 Context/Contract 构建、Human-operated Driver/Attempt 与控制入口、Readiness/Validation/Completion 判断事实来源，见 [IM-06 设计提案](../decisions/task-execution-human-operated.md)。第 2–4 节方向与约束已获用户批准；具体技术增量 TD-01–04（新增 API、Task v2、持久化与首版范围）已获用户批准，作为未来实现的设计基准；可执行 Schema/Catalog 与业务能力尚待交付。
+已识别的首次 Context/Contract 构建、Human-operated Driver/Attempt 与控制入口、Readiness/Validation/Completion 判断事实来源，见 [IM-06 设计提案](../decisions/task-execution-human-operated.md)。第 2–4 节方向与约束已获用户批准；具体技术增量 TD-01–04（新增 API、Task v2、持久化与首版范围）已获用户批准，作为未来实现的设计基准；其中 [Issue #157](https://github.com/qzhike/zhiju-business-core/issues/157) 的 Source Slice capture/read Schema、Catalog 和技术 Guard 已实现，其 owning 字段与边界见 Module-Spec-002；其余可执行契约及业务能力继续按切片交付。Source Slice Handler、持久化与真实授权验收仍为 NOT RUN。
 
 首个技术基础切片已通过 [PR #155](https://github.com/qzhike/zhiju-business-core/pull/155) 合入 main，[Issue #151](https://github.com/qzhike/zhiju-business-core/issues/151) 已关闭。当前具备基于既有 V3000 技术表的模块事务、持久化幂等、精确 bigint CAS、Hash/Scope guard 与失败恢复能力；命令目标由闭包绑定及 envelope 顶层快照固定。具体行为与验证场景见 Module-Spec-003 §10.1 和 Module-Test-003，不将技术 Foundation 的通过扩大为业务 Handler 或 IM-06 整体完成。
 
