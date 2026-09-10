@@ -408,6 +408,47 @@ export const publicApiOperations = [
     schemaStatus: 'FULL',
   },
   {
+    type: 'execution.build_initial_context_snapshot',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.context_snapshot',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'execution.context.build.initial',
+    dataClassification: 'INTERNAL',
+    references: [
+      { path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.execution.context_snapshot' },
+      {
+        path: '/payload/request/draftSnapshotRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.work_order_draft_snapshot',
+      },
+      {
+        path: '/payload/request/audience',
+        kind: 'PRINCIPAL',
+        objectType: 'zhiju.identity.principal',
+      },
+      {
+        path: '/payload/request/sourceSlices',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.project.context_source_slice',
+      },
+      {
+        path: '/payload/request/builderPolicyRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.identity.policy',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/contextSnapshotRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.execution.context_snapshot',
+      },
+    ],
+  },
+  {
     type: 'execution.create_run',
     version: '1.0',
     kind: 'COMMAND',
@@ -504,6 +545,26 @@ export const publicApiOperations = [
     kind: 'QUERY',
     owner: 'task-execution',
     schemaStatus: 'FULL',
+  },
+  {
+    type: 'execution.get_work_order_draft',
+    version: '1.0',
+    kind: 'QUERY',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'execution.work_order.draft.read',
+    dataClassification: 'INTERNAL',
+    references: [
+      { path: '/payload/workOrderRef', kind: 'OBJECT', objectType: 'zhiju.execution.work_order' },
+    ],
+    resultReferences: [
+      {
+        path: '/draftSnapshotRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.work_order_draft_snapshot',
+      },
+    ],
   },
   {
     type: 'execution.get_context_snapshot',

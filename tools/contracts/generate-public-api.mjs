@@ -9,6 +9,8 @@ import {
 import {
   assertSliceOperationRegistrations,
   assertSliceCompatibilityMetadata,
+  assertTaskExecutionCompatibilityMetadata,
+  assertTaskExecutionOperationRegistrations,
 } from '../../contracts/src/operation-registration.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -23,6 +25,7 @@ const guardSource = readFileSync(
 const guardPolicies = loadPayloadGuardPolicies(JSON.parse(guardSource));
 const guardOutputPath = join(root, 'contracts/src/generated/payload-guard-policies.json');
 assertSliceOperationRegistrations(registry.operations);
+assertTaskExecutionOperationRegistrations(registry.operations);
 const metadata = JSON.parse(
   readFileSync(join(root, 'contracts/registry/operation-compatibility-metadata.v1.json'), 'utf8'),
 );
@@ -32,6 +35,7 @@ for (const op of registry.operations) {
 }
 
 assertSliceCompatibilityMetadata(registry.operations, metadata.operations);
+assertTaskExecutionCompatibilityMetadata(metadata.operations);
 
 function quote(value) {
   return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;

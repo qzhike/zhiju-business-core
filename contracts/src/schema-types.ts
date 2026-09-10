@@ -9,7 +9,7 @@ export interface PayloadGuardPolicyRef {
 
 export interface OperationReferenceDeclaration {
   readonly path: string;
-  readonly kind: 'OBJECT' | 'VERSIONED' | 'CONTENT_ADDRESSED' | 'PRINCIPAL';
+  readonly kind: 'OBJECT' | 'VERSIONED' | 'CONTENT_ADDRESSED' | 'SNAPSHOT' | 'PRINCIPAL';
   readonly objectType: string;
 }
 

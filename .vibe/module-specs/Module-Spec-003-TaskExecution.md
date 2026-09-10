@@ -284,16 +284,16 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 
 提案覆盖 heartbeat、runtime progress、run suspension、same-run resume、authoritative usage 和 cancellation acknowledgement 六类写操作；完整候选名称与版本只在 Runtime 专项 Contract 第 15.1 节维护，避免审核前被机械计入正式 Catalog。
 
-这些操作是 `USER REVIEW PENDING` 的 additive proposal，不属于本文件当前已审核的 19 Command，也未进入 200 项 Catalog。审核通过后必须统一补齐 payload、授权、并发、错误、Catalog 和测试；审核前不得通过直接写 TaskExecution Repository 绕过 public port。
+这些操作是 `USER REVIEW PENDING` 的 additive proposal，不属于本文件当前已审核的 20 Command，也未进入当前 205 项 Catalog（历史 Compatibility Baseline 为 200 项）。审核通过后必须统一补齐 payload、授权、并发、错误、Catalog 和测试；审核前不得通过直接写 TaskExecution Repository 绕过 public port。
 
 ## 9. 当前状态
 
-- 37 个公开 Contract 已定义字段级 payload/result/event 结构；
+- 39 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已由用户审核；Runtime Adapter v0.1 已获用户推进确认并进入 Implementation Milestone Plan，同时保留 6 个尚未纳入基准的 additive Command；
-- `contracts/src/operations/task-execution.schema.ts` 已注册所有 37 个操作；PR #10 Review 识别的 8 类 strict Schema 偏差均已修复，`TE-API-S-009` 至 `TE-API-S-016` 回归为 `PASSED`；
+- `contracts/src/operations/task-execution.schema.ts` 已注册基线 37 个操作及 #158 的 `get_work_order_draft` / `build_initial_context_snapshot` 两项操作；PR #10 Review 识别的 8 类 strict Schema 偏差均已修复，#158 的 Draft/initial Context 正负向 Contract 回归已补齐；
 - TaskExecution 直接复用权威 `core/work-order/1.0#/$defs/*`；WorkOrder Core Contract 与 `create_work_order` 使用同一组 `$defs`，且 `requestedBy` 统一为 `PrincipalRef`；Core Contract 不再被开放 `CanonicalJson` 降级；
-- 注册到 `ContractRegistry` 后所有 37 项 `schemaStatus` 从 `ENVELOPE_ONLY` 提升到 `FULL`；总 Catalog 仍为 200 项；
-- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与 200 项 Registry，等待用户审核通过后单独补齐；
+- 注册到 `ContractRegistry` 后所有 39 项 TaskExecution `schemaStatus` 为 `FULL`；总 Catalog 为 205 项，历史 Compatibility Baseline 仍为 200 项；
+- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 205 项 Registry，等待用户审核通过后单独补齐；
 - IM-06 WI-01（Issue #151）落地模块自有 application/persistence 基础：`@zhiju/task-execution` 提供 Kysely schema、`createTaskExecutionDatabase`、`withTaskExecutionTransaction`、`executeTaskExecutionCommand`、`TaskExecutionRepository`，单一受信事务上下文建立路径，幂等/CAS/Scope mirror/Process 父子 Scope/Hash 一致性 guard 与 controlled fault 回滚均已落实；可由 disposable PostgreSQL gate 复测；
 - Context Builder、Dispatcher、Runtime、Evaluator、Projection 与 Handler 实现均不存在；模块自有业务 Repository 仅暴露 `insertProcessInstance` 给当前技术 Aggregate，不与任何业务表/其他模块 Repository 交叉；
 - 对应 Unit、Contract、E2E 与人工验收中，Schema fixture、Review 修复回归与 IM-06 WI-01 持久化 gate 已执行；Handler、Runtime/DB E2E 和人工业务验收仍为 `NOT RUN`。
@@ -330,11 +330,11 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 - 不引入新公开 Command/Query/Event，不修改 §2–6、§11 已批准字段，不复用 `Runtime-Adapter` 6 项 additive proposal；
 - 不进入业务 Handler、Runtime Driver、Completion 评估、Production、Provider/Feishu/CLI Runtime 验证、跨模块业务 E2E 与独立人工业务验收（保持 `NOT RUN`）。
 
-**Verify**：`tests/persistence/task-execution-command-runner.test.ts` 在 `vibe verify full` 的 disposable PostgreSQL gate 内运行；聚焦 Unit 集成在 `pnpm test`。`pnpm contracts:check` 仍以原 200 项 Catalog 为基准，未因本切片新增操作。
+**Verify**：`tests/persistence/task-execution-command-runner.test.ts` 在 `vibe verify full` 的 disposable PostgreSQL gate 内运行；聚焦 Contract 测试在 `pnpm test`。`pnpm contracts:check` 检查当前 205 项 Catalog，并保留历史 200 项 Compatibility Baseline。
 
 ## 11. IM-06 技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / NOT REGISTERED / NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的未来字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节现有 @1.0 定义及当前 201 项 Registry 不变。本节不把 Domain 内部命令名自动视为公开 API。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 205 项。本节不把 Domain 内部命令名自动视为公开 API。
 
 ### 11.1 公共规则与设计操作清单
 
@@ -449,7 +449,7 @@ Build metadata 是 ContextSnapshot 的不可变附属绑定，逻辑字段由 Po
 
 #### 11.2.4 创建期限与冻结期限
 
-状态：`APPROVED 2026-09-09 / NOT REGISTERED / NOT IMPLEMENTED`，依据[期限补充决定](../decisions/task-execution-human-operated.md#84-td-01-创建期限与冻结期限补充)。本节是本轮期限字段和错误行为的唯一 API 权威。
+状态：`APPROVED 2026-09-09 / CONTRACT SCHEMA REGISTERED 2026-09-10 / HANDLER NOT IMPLEMENTED`，依据[期限补充决定](../decisions/task-execution-human-operated.md#84-td-01-创建期限与冻结期限补充)。本节是本轮期限字段和错误行为的唯一 API 权威。
 
 1. `create_work_order@1.0` 的 payload 形状不变。可选 expiresAt 的“未提供”或精确 UtcInstant 原样保存于 WorkOrder Root，并在同事务创建的 WorkOrderDraftSnapshot 顶层保存 `expiresAt?: UtcInstant`；不把它塞入既有 WorkOrderDraft。Snapshot 的完整 payload Hash 包含该字段的存在性和值，缺省不序列化为 null。创建时若提供期限，服务端当前时间必须严格早于期限，否则以现有 `API_VALUE_INVALID` 拒绝，不创建 Root/Receipt 成功事实。
 2. 新 `get_work_order_draft@1.0` Result.data 返回 `expiresAt?: UtcInstant`，其存在性和值必须与 exact Snapshot、Root 一致。Root 与 Snapshot 不一致属于 `REFERENCE_INVALID`，不能信任 Query 调用者提供的期限。已过期但仍为 DRAFT 的 Root 可在当前读取授权下返回历史事实；返回 DRAFT 不意味着可以继续构建或冻结。

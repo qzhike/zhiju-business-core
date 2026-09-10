@@ -411,6 +411,13 @@
       "semanticDeclaration": "v1.0-baseline"
     },
     {
+      "type": "execution.build_initial_context_snapshot",
+      "version": "1.0",
+      "authorizationPurpose": "execution.context.build.initial",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-work-order-draft-initial-context-v1.0"
+    },
+    {
       "type": "execution.create_run",
       "version": "1.0",
       "authorizationPurpose": "task.execution.create_run",
@@ -507,6 +514,13 @@
       "authorizationPurpose": "task.execution.get_work_order_contract",
       "dataClassification": "INTERNAL",
       "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.get_work_order_draft",
+      "version": "1.0",
+      "authorizationPurpose": "execution.work_order.draft.read",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-work-order-draft-initial-context-v1.0"
     },
     {
       "type": "execution.get_context_snapshot",

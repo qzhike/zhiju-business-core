@@ -44,6 +44,35 @@ export namespace TaskExecution {
   readonly modelPolicy: Core.ModelPolicy;
   readonly versionPins: Core.VersionPins;
 }
+  export type WorkOrderDraftSnapshot = {
+  readonly snapshotId: Common.UuidV7;
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+};
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+};
+  readonly scopeRef: Common.ScopeRef;
+  readonly draft: TaskExecution.WorkOrderDraft;
+  readonly expiresAt?: Common.UtcInstant;
+  readonly capturedAt: Common.UtcInstant;
+  readonly createdBy: Common.PrincipalRef;
+};
+  export type InitialContextBuildRequest = {
+  readonly draftSnapshotRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.work_order_draft_snapshot";
+};
+  readonly projectionType: Common.ProjectionType;
+  readonly purpose: Common.NamespaceCode;
+  readonly audience: Common.PrincipalRef;
+  readonly sourceSlices: readonly (Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.context_source_slice";
+})[];
+  readonly builderPolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+};
+  readonly expiresAt?: Common.UtcInstant;
+};
   export interface ContextBuildRequest {
   readonly workOrderRef: Common.ObjectRef;
   readonly workOrderContractRef: Common.ContentAddressedRef;
@@ -235,6 +264,10 @@ export namespace TaskExecution {
   export interface ExecutionBuildContextSnapshotPayload {
   readonly request: TaskExecution.ContextBuildRequest;
 }
+  /** Payload of `execution.build_initial_context_snapshot` (COMMAND). */
+  export interface ExecutionBuildInitialContextSnapshotPayload {
+  readonly request: TaskExecution.InitialContextBuildRequest;
+}
   /** Payload of `execution.create_run` (COMMAND). */
   export interface ExecutionCreateRunPayload {
   readonly creation: TaskExecution.RunCreation;
@@ -326,6 +359,22 @@ export namespace TaskExecution {
   readonly workOrderContract: Core.WorkOrderContract;
   readonly contractRef: Common.ContentAddressedRef;
 }
+  /** Payload of `execution.get_work_order_draft` (QUERY). */
+  export type ExecutionGetWorkOrderDraftPayload = {
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+};
+};
+  /** Result of `execution.get_work_order_draft` (QUERY). */
+  export type ExecutionGetWorkOrderDraftResult = {
+  readonly draftSnapshotRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.work_order_draft_snapshot";
+};
+  readonly draft: TaskExecution.WorkOrderDraft;
+  readonly expiresAt?: Common.UtcInstant;
+  readonly rootAggregateVersion: Common.NonNegativeInteger;
+  readonly status: TaskExecution.WorkOrderStatus;
+};
   /** Payload of `execution.get_context_snapshot` (QUERY). */
   export interface ExecutionGetContextSnapshotPayload {
   readonly contextSnapshotRef: Common.SnapshotRef;
