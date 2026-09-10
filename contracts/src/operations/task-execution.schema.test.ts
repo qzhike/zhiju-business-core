@@ -202,6 +202,10 @@ function frozenBuildCommand(): JsonObject {
   );
 }
 
+function frozenBuildFixture(name: string): JsonObject {
+  return fixture(`context-build/${name}.json`);
+}
+
 describe('TaskExecution Draft and initial Context contracts', () => {
   it('registers exactly the approved operations and reference metadata', () => {
     assertTaskExecutionOperationRegistrations(publicApiOperations);
@@ -303,6 +307,100 @@ describe('TaskExecution Draft and initial Context contracts', () => {
     expect(
       registry.validateOperation('execution.build_context_snapshot', '1.0', frozenBuildCommand()),
     ).toEqual({ valid: true, errors: [] });
+  });
+
+  it('accepts ordinary answeredInformationRefs arrays without changing complete fixtures', () => {
+    const cases = [
+      ['frozen-build-empty-answered-refs', 0],
+      ['frozen-build-single-answered-ref', 1],
+      ['frozen-build-duplicate-answered-ref', 2],
+    ] as const;
+    let requestWithoutAnsweredRefs: JsonObject | undefined;
+    let integrity: unknown;
+
+    for (const [name, expectedLength] of cases) {
+      const command = frozenBuildFixture(name);
+      const beforeValidation = structuredClone(command);
+      const payload = command.payload as JsonObject;
+      const request = payload.request as JsonObject;
+      const answeredRefs = request.answeredInformationRefs as JsonObject[];
+
+      expect(answeredRefs).toHaveLength(expectedLength);
+      if (expectedLength === 2) {
+        const firstRef = answeredRefs[0];
+        const secondRef = answeredRefs[1];
+        if (firstRef === undefined || secondRef === undefined) {
+          throw new Error('missing duplicate answered reference fixture');
+        }
+        expect(secondRef).toEqual(firstRef);
+      }
+
+      expect(
+        registry.validateOperation('execution.build_context_snapshot', '1.0', command),
+      ).toEqual({ valid: true, errors: [] });
+      expect(command).toEqual(beforeValidation);
+
+      const currentRequestWithoutAnsweredRefs = omit(request, 'answeredInformationRefs');
+      if (requestWithoutAnsweredRefs === undefined) {
+        requestWithoutAnsweredRefs = currentRequestWithoutAnsweredRefs;
+      } else {
+        expect(currentRequestWithoutAnsweredRefs).toEqual(requestWithoutAnsweredRefs);
+      }
+      if (integrity === undefined) integrity = command.integrity;
+      else expect(command.integrity).toEqual(integrity);
+    }
+  });
+
+  it('keeps answered ref shape, source-slice Set, and ContractRef controls independent', () => {
+    const base = frozenBuildFixture('frozen-build-single-answered-ref');
+
+    const nonArray = structuredClone(base);
+    const nonArrayRequest = (nonArray.payload as JsonObject).request as JsonObject;
+    nonArrayRequest.answeredInformationRefs = {};
+    expectSchemaError(
+      registry.validateOperation('execution.build_context_snapshot', '1.0', nonArray),
+      '/payload/request/answeredInformationRefs',
+      'type',
+    );
+
+    const malformedRef = structuredClone(base);
+    const malformedRequest = (malformedRef.payload as JsonObject).request as JsonObject;
+    malformedRequest.answeredInformationRefs = [{}];
+    expectSchemaError(
+      registry.validateOperation('execution.build_context_snapshot', '1.0', malformedRef),
+      '/payload/request/answeredInformationRefs/0',
+      'oneOf',
+    );
+
+    const missingContractRef = structuredClone(base);
+    const missingContractRequest = (missingContractRef.payload as JsonObject).request as JsonObject;
+    delete missingContractRequest.workOrderContractRef;
+    expectSchemaError(
+      registry.validateOperation('execution.build_context_snapshot', '1.0', missingContractRef),
+      '/payload/request',
+      'required',
+      { missingProperty: 'workOrderContractRef' },
+    );
+
+    const emptySlices = structuredClone(base);
+    ((emptySlices.payload as JsonObject).request as JsonObject).sourceSlices = [];
+    expectSchemaError(
+      registry.validateOperation('execution.build_context_snapshot', '1.0', emptySlices),
+      '/payload/request/sourceSlices',
+      'minItems',
+    );
+
+    const duplicateSlices = structuredClone(base);
+    const duplicateSlicesRequest = (duplicateSlices.payload as JsonObject).request as JsonObject;
+    const sourceSlices = duplicateSlicesRequest.sourceSlices as JsonObject[];
+    const firstSlice = sourceSlices[0];
+    if (firstSlice === undefined) throw new Error('missing source slice fixture');
+    sourceSlices.push(structuredClone(firstSlice));
+    expectSchemaError(
+      registry.validateOperation('execution.build_context_snapshot', '1.0', duplicateSlices),
+      '/payload/request/sourceSlices',
+      'uniqueItems',
+    );
   });
 
   it('keeps the initial request closed to frozen-build branches and expected CAS fields', () => {

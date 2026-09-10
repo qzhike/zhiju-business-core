@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT API CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 CONTROLLED CAPABILITY DECISION RECORDED / IM-06 #157/#158 CONTRACT SCHEMA AND REGISTRY DELIVERED 2026-09-10 / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`CURRENT API CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 CONTROLLED CAPABILITY DECISION RECORDED / IM-06 #157/#158 CONTRACT SCHEMA AND REGISTRY DELIVERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / BUSINESS IMPLEMENTATION NOT STARTED`
 
 文档角色：公开 Command、Query、Event 的共享字段规则、执行语义、错误、兼容性、安全与验证要求的唯一权威。具体操作名称及唯一 Owner 以 [`../high-level-docs/06-typed-references-contract-catalog-v0.1.md`](../high-level-docs/06-typed-references-contract-catalog-v0.1.md) 为准；每个操作的 payload/result/event 字段由对应 `Module-Spec` 唯一维护。
 
@@ -341,6 +341,16 @@ INTERNAL_CONTRACT_VIOLATION
 - 新 Optional 字段只有在默认 absent 不改变旧 Consumer 语义时才允许 Minor；
 - 历史 Event、Contract 和 Fixture 不重写。
 
+Issue #159 对 `execution.build_context_snapshot@1.0` 的
+`ContextBuildRequest.answeredInformationRefs` 执行兼容性对账：该字段按 §3
+的 `TypedReference[]` 保持普通有序数组语义，当前 Schema 不再施加
+`uniqueItems`；空数组、单项和重复合法 Ref 均由公共 `ContractRegistry` 接受。
+数组元素仍逐项执行 `TypedReference` 形状校验，非数组或畸形 Ref 继续拒绝；
+同一请求的 `sourceSlices` 仍为非空唯一集合，`workOrderContractRef` 仍为必填。
+这是恢复已声明契约的 `COMPATIBLE_MINOR` 放宽，不新增 operation/version、
+不改变 Payload Hash/Canonicalization 规则，也不排序、截断或静默去重输入。
+历史 v1.0 Compatibility Baseline 的 Schema 与 Fixture 保持冻结，不重写。
+
 ### 9.2 构建期 Registry
 
 实现必须从静态 Registry 生成或校验：
@@ -405,7 +415,7 @@ API Contract 进入用户审核前必须证明：
 ## 13. 当前状态
 
 - 字段级 API 文档已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；验证证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)；
-- 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
+- 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，#159 仅放宽既有字段的数组接受集合，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
 - 业务 Handler、业务 Fixture、Persistence 业务链和 E2E Runtime 仍未实现；
 - #157/#158 的 Schema/Registry 与生成检查、以及既有 WI-01 Persistence gate 已通过；业务 Handler、E2E、外部和人工运行验证仍为 `NOT RUN`；
 - 本阶段静态检查最多可标记 `DESIGN VERIFIED`，不得报告实现通过。
