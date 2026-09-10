@@ -780,3 +780,5 @@ Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；
 授权声明只标识受授权 ContextBuilder Service 的目的；不创建 Service Principal、CapabilityGrant 或业务 capturePolicy，不规定 TTL。Schema 能拒绝错误 Ref kind/objectType、缺 Hash 或形状不合法，但不能证明 Hash 与内容匹配、对象存在或当前权限。EP-TD-001/002 业务验收保持 NOT RUN；本模块当前公开 Contract 共 34 项，新增两项仅交付 Schema/Guard。
 
 新操作的公开 Ref objectType 映射由 [Catalog #157](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#157-contextsourceslice-注册) 注册：Project → zhiju.project.project，Policy → zhiju.identity.policy，ContextSourceSlice → zhiju.project.context_source_slice。PrincipalRef 沿用共享类型；旧操作的历史字段形状不因本次映射被改写。
+
+新 Source Slice Query 的可选 Envelope.pagination 引用共享 PageRequest：提供时 pageSize 为必填正整数，cursor 可选且使用共享 OpaqueCursor，不接受未知分页字段；省略 pagination 合法。此结构约束仅应用于新 Query，旧 201 项 Envelope 的接受集合不变。

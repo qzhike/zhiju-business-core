@@ -37,7 +37,7 @@ interface SourceFixture extends Record<string, unknown> {
 interface Fixture extends Record<string, unknown> {
   payload: Record<string, unknown> & { requestedKinds: string[] };
   slice: Record<string, unknown> & { source: SourceFixture };
-  pagination: Record<string, unknown> & { padding: string[] };
+  pagination: Record<string, unknown>;
   queryType: string;
 }
 function object(value: unknown): Record<string, unknown> {
@@ -171,6 +171,65 @@ describe('persistent ContextSourceSlice public contracts', () => {
 });
 
 describe('slice resource limits through the public Registry', () => {
+  it.each([
+    undefined,
+    { pageSize: 1 },
+    { pageSize: 1, cursor: 'a'.repeat(16) },
+    { pageSize: 1, cursor: 'a'.repeat(512) },
+  ])('accepts valid PageRequest %#', (pagination) => {
+    const input = fixture('query');
+    if (pagination !== undefined) input.pagination = pagination;
+    expect(validate('query', input)).toEqual({ valid: true, errors: [] });
+  });
+  it('preserves the legacy Query pagination acceptance set', () => {
+    const input = fixture('query');
+    input.queryType = 'project.get_project_context_source';
+    input.payload = {
+      projectRef: fixture('result').slice.source.projectRef,
+      purpose: 'context.snapshot.read',
+      audience: input.requester,
+      requestedKinds: [],
+    };
+    for (const pagination of [{}, { pageSize: 0 }, { padding: [] }, { pageSize: 1, cursor: '!' }]) {
+      input.pagination = pagination;
+      expect(registry.validateOperation(input.queryType, '1.0', input).valid).toBe(true);
+    }
+  });
+  it('enforces the Query byte limit with otherwise-valid references and PageRequest', () => {
+    const input = fixture('query');
+    input.pagination = { pageSize: 1, cursor: 'a'.repeat(16) };
+    // ExternalRef is an existing TypedReference variant in these Envelope fields.
+    // These synthetic values test shape/size only, not reference existence or authorization.
+    const references = Array.from({ length: 2 }, () => ({
+      system: 'a'.repeat(10000),
+      resourceType: 'b'.repeat(10000),
+      externalId: 'x',
+      adapterVersion: '1',
+      observedAt: '2026-09-10T00:00:00Z',
+    }));
+    input.authenticationContextRef = references[0];
+    input.authorizationDecisionRef = references[1];
+    expect(validate('query', input)).toEqual({ valid: true, errors: [] });
+    let last:
+      { ref: (typeof references)[number]; key: 'externalId' | 'adapterVersion' } | undefined;
+    for (const ref of references) {
+      for (const key of ['externalId', 'adapterVersion'] as const) {
+        const remaining = 262144 - Buffer.byteLength(JSON.stringify(input), 'utf8');
+        const count = Math.min(15000, Math.floor(remaining / 4));
+        ref[key] += '😀'.repeat(count) + 'a'.repeat(Math.min(remaining - count * 4, 3));
+        last = { ref, key };
+        if (Buffer.byteLength(JSON.stringify(input), 'utf8') === 262144) break;
+      }
+      if (Buffer.byteLength(JSON.stringify(input), 'utf8') === 262144) break;
+    }
+    expect(Buffer.byteLength(JSON.stringify(input), 'utf8')).toBe(262144);
+    expect(validate('query', input)).toEqual({ valid: true, errors: [] });
+    if (last === undefined) throw new Error('missing query boundary field');
+    last.ref[last.key] += 'a';
+    expect(Buffer.byteLength(JSON.stringify(input), 'utf8')).toBe(262145);
+    expectGuard('query', input, '', 'maxEnvelopeBytes');
+  });
+
   it.each(['a', '中', '😀', '\\', '"', '\n'])(
     'counts code points and UTF-8 safely (%j)',
     (character) => {
@@ -225,7 +284,7 @@ describe('slice resource limits through the public Registry', () => {
     const padding: string[] = [];
     if (base === 'result') input.slice.source.factItems = padding;
     else if (base === 'capture') input.payload.requestedKinds = padding;
-    else input.pagination = { padding };
+    else throw new Error('use the dedicated bounded Query fixture');
     // Independent fixture sizing uses native JSON serialization, not the guard's counter.
     while (Buffer.byteLength(JSON.stringify(input), 'utf8') < bytes) {
       const before = Buffer.byteLength(JSON.stringify(input), 'utf8');
@@ -246,18 +305,14 @@ describe('slice resource limits through the public Registry', () => {
     expect(Buffer.byteLength(JSON.stringify(input), 'utf8')).toBe(bytes);
     return input;
   }
-  for (const base of ['capture', 'query', 'result']) {
+  for (const base of ['capture', 'result']) {
     for (const character of base === 'capture' ? ['a'] : ['a', '中', '😀', '\\', '\n']) {
       it(`enforces exact ${base} byte boundary for ${JSON.stringify(character)}`, () => {
         const limit = base === 'result' ? 4194304 : 262144;
         const input = padToBytes(base, limit, character);
         expect(validate(base, input)).toEqual({ valid: true, errors: [] });
         const padding =
-          base === 'result'
-            ? input.slice.source.factItems
-            : base === 'capture'
-              ? input.payload.requestedKinds
-              : input.pagination.padding;
+          base === 'result' ? input.slice.source.factItems : input.payload.requestedKinds;
         padding[padding.length - 1] = String(padding[padding.length - 1]) + 'a';
         expect(Buffer.byteLength(JSON.stringify(input), 'utf8')).toBe(limit + 1);
         expectGuard(base, input, '', base === 'result' ? 'maxResultBytes' : 'maxEnvelopeBytes');
@@ -423,13 +478,14 @@ describe('build-time guard registration', () => {
       .addSchema(enterpriseProjectSchema);
     const validateEnvelope = ajv.compile(operationEnvelopeSchema(operation(queryType)));
     const input = fixture('query');
-    input.pagination = { padding: [], text: 'a'.repeat(16385) };
+    input.pagination = { pageSize: 1 };
+    object(input.requester).objectType = 'a'.repeat(16385);
     expect(validateEnvelope(input)).toBe(false);
     expect(validateEnvelope.errors).toContainEqual(
-      expect.objectContaining({ keyword: 'payloadGuard', instancePath: '/pagination/text' }),
+      expect.objectContaining({ keyword: 'payloadGuard', instancePath: '/requester/objectType' }),
     );
     expect(payloadGuardErrors(input, policy, 'envelope')).toEqual([
-      expect.objectContaining({ instancePath: '/pagination/text' }),
+      expect.objectContaining({ instancePath: '/requester/objectType' }),
     ]);
   });
 });

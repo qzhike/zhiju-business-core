@@ -923,5 +923,71 @@
     "params": {
       "missingProperty": "payload"
     }
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {},
+    "keyword": "required",
+    "expectedPath": "/pagination",
+    "params": {
+      "missingProperty": "pageSize"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {
+      "pageSize": 0
+    },
+    "keyword": "minimum",
+    "expectedPath": "/pagination/pageSize",
+    "params": {}
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {
+      "pageSize": 1.5
+    },
+    "keyword": "type",
+    "expectedPath": "/pagination/pageSize",
+    "params": {}
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {
+      "pageSize": 1,
+      "cursor": "!"
+    },
+    "keyword": "pattern",
+    "expectedPath": "/pagination/cursor",
+    "params": {}
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {
+      "padding": []
+    },
+    "keyword": "required",
+    "expectedPath": "/pagination",
+    "params": {
+      "missingProperty": "pageSize"
+    }
+  },
+  {
+    "base": "query",
+    "path": "/pagination",
+    "value": {
+      "pageSize": 1,
+      "extra": true
+    },
+    "keyword": "additionalProperties",
+    "expectedPath": "/pagination",
+    "params": {
+      "additionalProperty": "extra"
+    }
   }
 ]

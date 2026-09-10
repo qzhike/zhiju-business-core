@@ -361,5 +361,9 @@ pnpm persistence:gate
 | EP-REG-157-006 | 循环、undefined、NaN/Infinity、bigint、函数、非普通 JSON 对象或 accessor；超深输入 | 安全失败，无栈溢出或原始内容泄露；错误 rule/path 可判定，不因序列化丢字段而通过 | PASS (CONTRACT) |
 | EP-REG-157-007 | Policy 缺失/未知/重复、零/负数/非整数/无限值、未知属性；元数据缺字段/Owner 不匹配/Ref 未注册/Purpose 分叉；未安装 keyword | 构建或 Registry 初始化失败；保留重复名、数量与 Schema 完整性检查 | PASS (CONTRACT) |
 | EP-REG-157-008 | 旧 201 项 Schema/fixture、历史 200 项 baseline；旧 source 数组超新 Guard 预算但符合旧 Schema | 兼容检查通过，旧接口不被新 Guard 收窄；当前操作净增 2，生成类型仍引用唯一 Source View | PASS (CONTRACT) |
+| EP-REG-157-009 | 新 Query 省略 pagination、合法 pageSize/cursor，以及空对象、缺 pageSize、零/小数、非法 cursor 和未知字段 | 合法输入通过；反例逐项定位 /pagination 的 required/additionalProperties、/pagination/pageSize 的 type/minimum、/pagination/cursor 的 pattern；旧 Query 保持兼容 | PASS (CONTRACT) |
 
 source 内允许的 CanonicalJson 可用于独立构造资源预算反例，不把空缺的 required 字段或错误 Ref 当作 Guard 失败证据。精确失败路径与字段矩阵保存在后续授权的 PR/Issue 验证证据中，不创建平行执行报告。新 Handler、权限/Scope/Purpose、重放、时效、持久化、外部与人工验收保持 NOT RUN。
+
+
+Query 字节边界使用既有 Envelope Reference 的合法文本字段构造，分页固定为合法 PageRequest，不使用 pagination.padding/text；仅证明 Schema 和 Guard 资源边界，不证明引用实际存在或授权有效。

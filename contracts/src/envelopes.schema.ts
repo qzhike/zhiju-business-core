@@ -103,7 +103,10 @@ function querySchema(operation: PublicOperationDefinition): JsonSchema {
       },
       minimumWatermark: { type: 'integer', minimum: 0 },
       asOf: { $ref: `${common}utcInstant` },
-      pagination: { type: 'object' },
+      pagination:
+        operation.type === 'project.get_context_source_slice'
+          ? { $ref: `${common}pageRequest` }
+          : { type: 'object' },
       correlationId: { $ref: `${common}uuidV7` },
       requestedAt: { $ref: `${common}utcInstant` },
       payload: payloadSchema(operation),
