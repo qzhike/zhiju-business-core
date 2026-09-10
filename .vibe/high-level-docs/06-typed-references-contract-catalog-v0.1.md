@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-12
-状态：`CURRENT CONTRACT CATALOG BASELINE / IM-04 WI-01 ADDITIVE CONTRACT VERIFIED 2026-08-28 / PR #100 MERGED / ISSUE #90 CLOSED / FEATURE BRANCH DELETED`
+状态：`CURRENT CONTRACT CATALOG BASELINE / IM-04 WI-01 ADDITIVE CONTRACT VERIFIED 2026-08-28 / PR #100 MERGED / ISSUE #90 CLOSED / IM-06 #157/#158 CONTRACT REGISTRATION VERIFIED 2026-09-10`
 
 文档角色：Typed Reference、统一 Envelope、Contract 兼容性与公开 Command/Query/Event 名称的唯一权威。模块职责以 `02` 为准，Payload 业务语义以 `03/04` 为准，持久化以 `07` 为准。
 
@@ -286,7 +286,7 @@ zhiju.<module>.<object>
 |---|---|---|
 | `zhiju.identity.*` | IdentityPolicy | principal、role_assignment、authorization_decision、policy_snapshot |
 | `zhiju.project.*` | EnterpriseProject | enterprise、project、source_material、customer_material、baseline_version、gap_analysis、delivery_item |
-| `zhiju.execution.*` | TaskExecution | task、work_order、run、agent_result、information_request、context_snapshot、usage_record |
+| `zhiju.execution.*` | TaskExecution | task、work_order、work_order_draft_snapshot、run、agent_result、information_request、context_snapshot、usage_record |
 | `zhiju.artifact.*` | Artifact | artifact、artifact_revision、representation、effective_binding |
 | `zhiju.quality.*` | QualityGovernance | evidence、evidence_link、quality_profile_version、gate_result、review_issue、approval |
 | `zhiju.release.*` | ReleasePublication | release、release_package、publication_attempt、receipt、recall |
@@ -784,6 +784,7 @@ execution.create_work_order@1.0
 execution.freeze_work_order@1.0
 execution.queue_work_order@1.0
 execution.build_context_snapshot@1.0
+execution.build_initial_context_snapshot@1.0
 execution.create_run@1.0
 execution.start_run@1.0
 execution.request_run_cancel@1.0
@@ -803,6 +804,7 @@ Queries：
 
 ```text
 execution.get_work_order_contract@1.0
+execution.get_work_order_draft@1.0
 execution.get_context_snapshot@1.0
 execution.get_run_state@1.0
 execution.get_agent_result@1.0
@@ -1120,15 +1122,15 @@ Evidence/Representation/Package Ref
 
 Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 冻结 EnterpriseProject Owner 的受控 Application Capability；逻辑名称、输入/输出、授权目的和错误码见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。
 
-这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；当前 Catalog 已因 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量变更为 201 个公开 Contract，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
+这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 205 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
 
-## IM-06 未注册设计路由
+## IM-06 注册与未注册设计路由
 
-当前 Catalog 为 203 项：#157 注册 Source Slice capture/read 两项，其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；选定operation type/version/Owner与新增Ref类型将在对应实现修订纳入可执行Catalog并生成Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 205 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
 
 ### #157 ContextSourceSlice 注册
 
-Owner 为 EnterpriseProject；两项操作完整注册 Envelope/Payload、read Result、生成类型和技术 Guard。具体字段与授权声明见 [Spec 002](../module-specs/Module-Spec-002-EnterpriseProject.md#157-注册元数据绑定)，资源约束见 [共享 API](../api-contract-v0.1/API-Contract-v0.1.md#157-payloadguard-注册补充方案)。当前总数在原 201 项上净增 2，历史 200 项 Compatibility Baseline 不改写；Handler、授权和持久化验收仍为 NOT RUN。
+Owner 为 EnterpriseProject；两项操作完整注册 Envelope/Payload、read Result、生成类型和技术 Guard。具体字段与授权声明见 [Spec 002](../module-specs/Module-Spec-002-EnterpriseProject.md#157-注册元数据绑定)，资源约束见 [共享 API](../api-contract-v0.1/API-Contract-v0.1.md#157-payloadguard-注册补充方案)。#157 阶段在原 201 项上净增 2，历史 200 项 Compatibility Baseline 不改写；Handler、授权和持久化验收仍为 NOT RUN。
 
 | objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
 |---|---|---|---|
@@ -1137,3 +1139,12 @@ Owner 为 EnterpriseProject；两项操作完整注册 Envelope/Payload、read R
 | zhiju.identity.policy | identity-policy | VERSIONED；按既有 Policy Scope | 既有 Policy 版本身份；不创建业务 Policy；否 |
 
 PrincipalRef 复用 §3.9 的 `{principalKind,principalId}`，元数据归属标识 zhiju.identity.principal 不作为额外 payload 字段。Source View 内部引用继续沿用既有定义；此表不改写旧 Schema 已接受的内部/历史名称。
+
+### #158 WorkOrder Draft 与首次 Context 注册
+
+Owner 为 TaskExecution；`execution.get_work_order_draft@1.0` 是 AUTHORITATIVE Query，读取精确 `WorkOrderDraftSnapshot`；`execution.build_initial_context_snapshot@1.0` 是 CREATE Command，目标为 `ContextSnapshot`。两项操作使用显式 Purpose、Typed Ref objectType 和完整 Payload/Result Schema，当前没有额外获批的 PayloadGuard 技术 Policy；Handler、期限继承、引用存在性、授权和持久化验收仍为 NOT RUN。
+
+| objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
+|---|---|---|---|
+| zhiju.execution.work_order_draft_snapshot | task-execution | CONTENT_ADDRESSED；Project Scope | 不可变；不另建可变版本；否 |
+| zhiju.execution.context_snapshot | task-execution | OBJECT（CREATE target）、SNAPSHOT（结果）；Project Scope | 不可变；Snapshot；否 |

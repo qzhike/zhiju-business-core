@@ -7,7 +7,10 @@ import type {
 } from 'ajv';
 import Ajv2020Import from 'ajv/dist/2020.js';
 
-import { assertSliceOperationRegistrations } from './operation-registration.js';
+import {
+  assertSliceOperationRegistrations,
+  assertTaskExecutionOperationRegistrations,
+} from './operation-registration.js';
 import guardPolicyData from './generated/payload-guard-policies.json' with { type: 'json' };
 import {
   loadPayloadGuardPolicies,
@@ -52,6 +55,7 @@ export class ContractRegistry {
 
   constructor() {
     assertSliceOperationRegistrations(publicApiOperations);
+    assertTaskExecutionOperationRegistrations(publicApiOperations);
     this.#ajv = new Ajv2020({ allErrors: true, strict: true });
     this.#ajv.addKeyword(payloadGuardKeyword(this.#guardPolicies));
     this.#ajv.addSchema(commonSchema);

@@ -45,6 +45,12 @@ function workOrderTypeRef(name: string) {
   return { $ref: `${workOrderTypes}${name}` } as const;
 }
 
+function exactObjectType(reference: unknown, objectType: string): JsonSchema {
+  return {
+    allOf: [reference, { type: 'object', properties: { objectType: { const: objectType } } }],
+  };
+}
+
 const uuid = { $ref: `${common}uuidV7` } as const;
 const namespace = { $ref: `${common}namespaceCode` } as const;
 const reasonCode = { $ref: `${common}reasonCode` } as const;
@@ -59,8 +65,21 @@ const typedReference = { $ref: `${common}typedReference` } as const;
 const contentAddressedReference = { $ref: `${common}contentAddressedRef` } as const;
 const snapshotReference = { $ref: `${common}snapshotRef` } as const;
 const principalReference = { $ref: `${common}principalRef` } as const;
+const scopeReference = { $ref: `${common}scopeRef` } as const;
 const externalReference = { $ref: `${common}externalRef` } as const;
 const canonicalJson = {} as const;
+
+const workOrderObjectReference = exactObjectType(objectReference, 'zhiju.execution.work_order');
+const taskObjectReference = exactObjectType(objectReference, 'zhiju.execution.task');
+const draftSnapshotReference = exactObjectType(
+  contentAddressedReference,
+  'zhiju.execution.work_order_draft_snapshot',
+);
+const sourceSliceReference = exactObjectType(
+  contentAddressedReference,
+  'zhiju.project.context_source_slice',
+);
+const builderPolicyReference = exactObjectType(versionedReference, 'zhiju.identity.policy');
 
 const taskStatus = {
   enum: [
@@ -229,6 +248,38 @@ const namedDefinitions = {
       harnessPolicy: workOrderTypeRef('harnessPolicy'),
       modelPolicy: workOrderTypeRef('modelPolicy'),
       versionPins: workOrderTypeRef('versionPins'),
+    },
+  ),
+  workOrderDraftSnapshot: object(
+    ['snapshotId', 'workOrderRef', 'taskRef', 'scopeRef', 'draft', 'capturedAt', 'createdBy'],
+    {
+      snapshotId: uuid,
+      workOrderRef: workOrderObjectReference,
+      taskRef: taskObjectReference,
+      scopeRef: scopeReference,
+      draft: localRef('workOrderDraft'),
+      expiresAt: instant,
+      capturedAt: instant,
+      createdBy: principalReference,
+    },
+  ),
+  initialContextBuildRequest: object(
+    [
+      'draftSnapshotRef',
+      'projectionType',
+      'purpose',
+      'audience',
+      'sourceSlices',
+      'builderPolicyRef',
+    ],
+    {
+      draftSnapshotRef: draftSnapshotReference,
+      projectionType: { $ref: `${common}projectionType` },
+      purpose: namespace,
+      audience: principalReference,
+      sourceSlices: array(sourceSliceReference, { nonEmpty: true, unique: true }),
+      builderPolicyRef: builderPolicyReference,
+      expiresAt: instant,
     },
   ),
   contextBuildRequest: object(
@@ -530,6 +581,11 @@ const operationSchemas = {
       request: localRef('contextBuildRequest'),
     }),
   },
+  'execution.build_initial_context_snapshot': {
+    payload: object(['request'], {
+      request: localRef('initialContextBuildRequest'),
+    }),
+  },
   'execution.create_run': {
     payload: object(['creation'], {
       creation: localRef('runCreation'),
@@ -654,6 +710,18 @@ const operationSchemas = {
       workOrderRef: objectReference,
       workOrderContract,
       contractRef: contentAddressedReference,
+    }),
+  },
+  'execution.get_work_order_draft': {
+    payload: object(['workOrderRef'], {
+      workOrderRef: workOrderObjectReference,
+    }),
+    result: object(['draftSnapshotRef', 'draft', 'rootAggregateVersion', 'status'], {
+      draftSnapshotRef: draftSnapshotReference,
+      draft: localRef('workOrderDraft'),
+      expiresAt: instant,
+      rootAggregateVersion: nonNegativeInt,
+      status: localRef('workOrderStatus'),
     }),
   },
   'execution.get_context_snapshot': {
