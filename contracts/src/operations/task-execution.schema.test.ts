@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { publicApiOperations } from '../generated/public-api.js';
 import { assertTaskExecutionOperationRegistrations } from '../operation-registration.js';
 import { ContractRegistry, type ContractValidationResult } from '../registry.js';
+import { operationSchemaDefinitionName } from '../schema-types.js';
+import { taskExecutionOperationContracts } from './task-execution.schema.js';
 
 const registry = new ContractRegistry();
 const enterpriseId = '018f22e2-7c15-7b2e-8d86-2de956a9d201';
@@ -732,5 +734,139 @@ describe('TaskExecution Draft and initial Context contracts', () => {
       registry.validateOperation('execution.build_context_snapshot', '1.0', missingContractRef)
         .valid,
     ).toBe(false);
+  });
+
+  it('registers one executable result schema per Initial Context entry version', () => {
+    const resultData = fixture('context-build/initial-context-result.json').data;
+
+    for (const version of ['1.0', '1.1'] as const) {
+      const expectedRef = `https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/${operationSchemaDefinitionName(
+        'execution.build_initial_context_snapshot',
+        version,
+        'result',
+      )}`;
+      const key =
+        version === '1.0'
+          ? 'execution.build_initial_context_snapshot'
+          : `execution.build_initial_context_snapshot@${version}`;
+
+      expect(
+        registry.getOperation('execution.build_initial_context_snapshot', version)?.resultSchemaRef,
+      ).toBe(expectedRef);
+      expect(taskExecutionOperationContracts[key]?.resultSchemaRef).toBe(expectedRef);
+      expect(
+        registry.validateOperationResult(
+          'execution.build_initial_context_snapshot',
+          version,
+          resultData,
+        ),
+      ).toEqual({ valid: true, errors: [] });
+    }
+
+    // The frozen build stays on its ContractRef semantics: it returns identity
+    // through the envelope only and declares no operation-specific result data.
+    expect(
+      registry.getOperation('execution.build_context_snapshot', '1.0')?.resultSchemaRef,
+    ).toBeUndefined();
+  });
+
+  it('pins the canonical Context Snapshot identity in the Initial Context result schema', () => {
+    const resultData = (): JsonObject =>
+      fixture('context-build/initial-context-result.json').data as JsonObject;
+
+    function snapshotRef(data: JsonObject): JsonObject {
+      return data.contextSnapshotRef as JsonObject;
+    }
+
+    const missingRef = resultData();
+    delete missingRef.contextSnapshotRef;
+    expectSchemaError(
+      registry.validateOperationResult(
+        'execution.build_initial_context_snapshot',
+        '1.0',
+        missingRef,
+      ),
+      '',
+      'required',
+      { missingProperty: 'contextSnapshotRef' },
+    );
+
+    for (const objectType of ['zhiju.project.context_snapshot', 'zhiju.execution.other_snapshot']) {
+      const wrongIdentity = resultData();
+      snapshotRef(wrongIdentity).objectType = objectType;
+      expectSchemaError(
+        registry.validateOperationResult(
+          'execution.build_initial_context_snapshot',
+          '1.0',
+          wrongIdentity,
+        ),
+        '/contextSnapshotRef/objectType',
+        'const',
+        { allowedValue: 'zhiju.execution.context_snapshot' },
+      );
+    }
+
+    const wrongKind = resultData();
+    snapshotRef(wrongKind).kind = 'OBJECT';
+    expectSchemaError(
+      registry.validateOperationResult(
+        'execution.build_initial_context_snapshot',
+        '1.0',
+        wrongKind,
+      ),
+      '/contextSnapshotRef/kind',
+      'const',
+      { allowedValue: 'SNAPSHOT' },
+    );
+
+    const wrongHash = resultData();
+    (snapshotRef(wrongHash).contentHash as JsonObject).digest = 'zz';
+    expectSchemaError(
+      registry.validateOperationResult(
+        'execution.build_initial_context_snapshot',
+        '1.0',
+        wrongHash,
+      ),
+      '/contextSnapshotRef/contentHash/digest',
+      'pattern',
+    );
+
+    const wrongScope = resultData();
+    snapshotRef(wrongScope).scope = { projectId };
+    expectSchemaError(
+      registry.validateOperationResult(
+        'execution.build_initial_context_snapshot',
+        '1.0',
+        wrongScope,
+      ),
+      '/contextSnapshotRef/scope',
+      'dependentRequired',
+    );
+
+    const missingSnapshotId = resultData();
+    delete snapshotRef(missingSnapshotId).snapshotId;
+    expectSchemaError(
+      registry.validateOperationResult(
+        'execution.build_initial_context_snapshot',
+        '1.0',
+        missingSnapshotId,
+      ),
+      '/contextSnapshotRef',
+      'required',
+      { missingProperty: 'snapshotId' },
+    );
+
+    const extraField = resultData();
+    extraField.committed = true;
+    expectSchemaError(
+      registry.validateOperationResult(
+        'execution.build_initial_context_snapshot',
+        '1.0',
+        extraField,
+      ),
+      '',
+      'additionalProperties',
+      { additionalProperty: 'committed' },
+    );
   });
 });

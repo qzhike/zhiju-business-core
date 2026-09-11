@@ -167,6 +167,16 @@ TD-01–04 已于 2026-09-08 获用户明确批准，包含新操作、Task v2 �
 
 候选 Frozen Contract 的顶层 `contextSnapshotRef` 与嵌套 `versionPins.projectContextContractRef` 必须逐字段完全相等，比较 canonical object type、objectId、snapshotId、Scope 中 enterpriseId/projectId 的有无和值，以及 contentHash 的 algorithm/digest/canonicalizationVersion。缺失、错误 Hash/Scope、Draft stale 或输入改变都必须 fail closed；不创建部分成功 Context/Contract。此次交付范围是 Schema、Envelope/Registry、兼容元数据、生成类型、fixtures 和纯契约校验。Context Handler、migration、真实 PostgreSQL 业务链、Provider/Feishu/Runtime 与人工业务验收仍为 `NOT RUN`。
 
+### 8.8 #167 Initial Context Result 与 canonical SnapshotRef
+
+状态：`APPROVED 2026-09-10 / RESULT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-12 / HANDLER AND BUSINESS PERSISTENCE NOT IMPLEMENTED`。用户已批准 operation-specific CommandResult data 扩展方案：`execution.build_initial_context_snapshot@1.0` 与 `@1.1` 通过已注册 Result Schema 返回 `data.contextSnapshotRef`，不再只依赖 `resultReferences` 元数据描述返回引用。新入口固定使用 canonical `zhiju.execution.context_snapshot`；exact Snapshot Ref 必须来自已提交事实，并由 authoritative `get_context_snapshot` Query 重新校验。本决定不批准 Context Handler、migration、公开 HTTP、Provider/Feishu/Runtime 或业务验收。
+
+Result Schema 的 `data.contextSnapshotRef` 是完整 `SnapshotRef`：`kind` 固定 `SNAPSHOT`，`objectType` 固定 `zhiju.execution.context_snapshot`，`objectId`/`snapshotId` 为 UuidV7，`scope` 按共享 `ScopeRef` 规则（projectId 必须伴随 enterpriseId），`contentHash` 必须为 `SHA-256`、64 位小写十六进制、`canonicalizationVersion=1`。CommandResult 的 `targetRef` 必须是同一 canonical objectType 且 `objectId` 与返回 Ref 相等，Scope 也必须逐字段一致；`targetRef.objectId` 一致不能替代 canonical objectType 比较。
+
+`zhiju.project.context_snapshot` 只是 Core v1.0 历史读回身份，不能由 WI-02 新入口产生，也不能与 canonical 名称仅按 `objectId` 互换：跨字段校验比较 canonical objectType、objectId、Scope，读取绑定的比较还包含 `snapshotId` 与完整 `contentHash` 三元组。authoritative `get_context_snapshot@1.0` 的输入 Ref 与结果 Ref 必须逐字段相等，避免返回与请求不同的 Snapshot；该 Query 的既有 Schema 与接受集合不变，因此历史 namespace 的读回仍然合法。旧 `execution.build_context_snapshot@1.0` 的必填 `workOrderContractRef` 语义、返回形状与「无 operation-specific Result Schema」状态保持不变。
+
+Schema 通过、`targetRef`/Query 绑定通过都只证明契约形状与跨字段一致，不证明 Snapshot 已提交、当前授权有效或 Handler 已实现；存在性、幂等与同键异 Hash 冲突仍由 owning Handler 与持久化验收拥有，保持 `NOT RUN`。
+
 ## 9. WI-03 事务序列与竞态裁决
 
 ```text

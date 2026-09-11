@@ -56,6 +56,7 @@ function renderOperation(operation) {
       'authorizationPurpose',
       'dataClassification',
       'payloadGuardPolicyRef',
+      'resultSchemaRef',
       'references',
       'resultReferences',
     ]

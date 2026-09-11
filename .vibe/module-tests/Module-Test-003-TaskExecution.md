@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION PASSED 2026-09-08 / #158 CONTRACT SCHEMA REGISTERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT VERIFIED 2026-09-11 / HANDLER E2E NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION PASSED 2026-09-08 / #158 CONTRACT SCHEMA REGISTERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT VERIFIED 2026-09-11 / #167 INITIAL CONTEXT RESULT AND CANONICAL SNAPSHOTREF VERIFIED 2026-09-12 / HANDLER E2E NOT RUN`
 
 对应规格：[`Module-Spec-003-TaskExecution.md`](../module-specs/Module-Spec-003-TaskExecution.md)。
 
@@ -118,6 +118,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-WI02-D-012 | Root status 仍 READY/QUEUED 但 now>=T0；Contract 期限被伪造为 T1；Run 已创建但尚未 start；到期后同键重放原 build/freeze | 新构建/排队/create/start 被拒绝；错期限绑定拒绝；原 Receipt 可重放但不授权新动作；不强改已运行 Run | NOT RUN |
 | TE-WI02-D-013 | @1.1 DRAFT 使用独立 `DraftVersionPins`；正向 candidate 绑定顶层 `contextSnapshotRef` 与嵌套 `versionPins.projectContextContractRef`；分别改变 canonical objectType、objectId、snapshotId、Scope、contentHash，或删除/伪造 Hash | 合法冻结候选的两处 Snapshot Ref 必须逐字段完全相等；DRAFT 拒绝 Context Ref；缺失、错误 Hash/Scope 和 stale 输入 fail closed；不生成部分成功 Context/Contract | Schema/跨字段纯契约校验通过；Handler、真实 PostgreSQL 业务链与运行验收保持 NOT RUN | PASS |
 | TE-WI02-D-014 | 固定同一 canonical `zhiju.identity.policy` ref，分别放入 InitialContextBuildRequest、ProjectContext projection、Context build metadata 与 Frozen WorkOrder VersionPins；对照缺失 ref、`zhiju.context.policy`/任意 namespace、错 objectId/versionId/Scope、同 key 异 contentHash、metadata/Policy 有效期不一致、未生效和已过期 | 合法四点绑定通过；候选组装、Validator、Freeze 均可复用同一校验；所有反例 fail closed，不生成部分 Snapshot/Validation/Contract，不接受 legacy 或 caller Hash | PASS（纯契约校验）；Handler/真实 IdentityPolicy/PG 仍 NOT RUN |
+| TE-WI02-D-015 | 正向：`build_initial_context_snapshot@1.0/@1.1` 返回 canonical `zhiju.execution.context_snapshot` 的 `data.contextSnapshotRef`，`targetRef.objectId` 与返回 Ref 一致，`get_context_snapshot@1.0` 请求/结果 Ref 逐字段相等。反例：未注册 Result Schema 的命令（`build_context_snapshot@1.0`）、缺 `contextSnapshotRef`、缺 `snapshotId`、`kind` 非 SNAPSHOT、`objectType` 为 `zhiju.project.context_snapshot`/任意 namespace、错误 Hash/Scope、`targetRef.objectId` 或 Scope 不等、Query 返回与请求不同的 objectId/snapshotId/contentHash/scope；同一合法 Ref 在过期/撤销后重放 | 两个入口版本都注册真实 `resultSchemaRef` 且 `validateOperationResult` 通过；Result Schema 固定 canonical objectType 与完整 SnapshotRef 字段；跨字段绑定拒绝只按 objectId 或 legacy namespace 混用；Query 绑定要求逐字段相等但保留历史 namespace 读回；旧 `build_context_snapshot@1.0` 仍无 operation-specific Result Schema 且 ContractRef 语义不变；未提交 Snapshot、幂等与同 key 异 Hash 由 Handler 拒绝，不生成部分成功事实 | PASS（Schema/Registry/生成类型/纯契约校验）；Handler、真实 PostgreSQL 业务链、授权运行与人工验收仍 NOT RUN |
 
 独立设计审查应核对 TD-01–04、新操作清单、所有具体失败矩阵与单Aggregate/兼容边界。人类对具体技术设计的批准不等于上述运行结果。真实Feishu/CLI Runtime、公开HTTP、生产和独立人工业务验收继续独立NOT RUN。
 

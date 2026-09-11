@@ -1,5 +1,6 @@
 export * from './common.schema.js';
 export * from './context-builder-policy.js';
+export * from './context-snapshot-binding.js';
 export * from './core.schema.js';
 export * from './envelopes.schema.js';
 export * from './work-order-context-binding.js';

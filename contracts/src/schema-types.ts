@@ -31,6 +31,12 @@ export interface PublicOperationDefinition {
   readonly payloadGuardPolicyRef?: PayloadGuardPolicyRef;
   readonly references?: readonly OperationReferenceDeclaration[];
   readonly resultReferences?: readonly OperationReferenceDeclaration[];
+  /**
+   * Explicit result schema for a COMMAND that returns operation-specific
+   * CommandResult data. Commands without one keep `data` out of the public
+   * contract; QUERY result schemas stay derived from the operation identity.
+   */
+  readonly resultSchemaRef?: string;
 }
 
 export function operationSchemaDefinitionName(
@@ -54,6 +60,9 @@ export function operationPayloadSchemaRef(
 }
 
 export function operationResultSchemaRef(operation: PublicOperationDefinition): string | undefined {
-  if (operation.schemaStatus !== 'FULL' || operation.kind !== 'QUERY') return undefined;
-  return `https://schemas.zhiju.local/modules/${operation.owner}/1.0#/$defs/${operationSchemaDefinitionName(operation.type, operation.version, 'result')}`;
+  if (operation.schemaStatus !== 'FULL') return undefined;
+  if (operation.kind === 'QUERY') {
+    return `https://schemas.zhiju.local/modules/${operation.owner}/1.0#/$defs/${operationSchemaDefinitionName(operation.type, operation.version, 'result')}`;
+  }
+  return operation.resultSchemaRef;
 }

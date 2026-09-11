@@ -745,6 +745,40 @@ const initialContextBuildRequest: TaskExecution.InitialContextBuildRequestV11 = 
 };
 expectType<TaskExecution.InitialContextBuildRequestV11>(initialContextBuildRequest);
 
+const initialContextCommandResult: TaskExecution.ExecutionBuildInitialContextSnapshotResult = {
+  contextSnapshotRef: {
+    ...snapshotReference,
+    objectType: 'zhiju.execution.context_snapshot',
+  },
+};
+expectType<TaskExecution.ExecutionBuildInitialContextSnapshotResult>(initialContextCommandResult);
+expectType<TaskExecution.InitialContextCommandResult>(initialContextCommandResult);
+
+const initialContextV11CommandResult: TaskExecution.ExecutionBuildInitialContextSnapshotV11Result =
+  initialContextCommandResult;
+expectType<TaskExecution.ExecutionBuildInitialContextSnapshotV11Result>(
+  initialContextV11CommandResult,
+);
+
+// Negative case — the Initial Context result never carries the legacy Core
+// v1.0 Context Snapshot identity or a non-SNAPSHOT ref kind.
+{
+  const legacyInitialContextResult: TaskExecution.ExecutionBuildInitialContextSnapshotResult = {
+    contextSnapshotRef: {
+      ...snapshotReference,
+      // @ts-expect-error — only zhiju.execution.context_snapshot is a valid result identity.
+      objectType: 'zhiju.project.context_snapshot',
+    },
+  };
+  void legacyInitialContextResult;
+
+  const objectKindResult: TaskExecution.ExecutionBuildInitialContextSnapshotResult = {
+    // @ts-expect-error — a SNAPSHOT ref is required, not an ObjectRef.
+    contextSnapshotRef: { ...objectReference, objectType: 'zhiju.execution.context_snapshot' },
+  };
+  void objectKindResult;
+}
+
 // Negative case — DraftVersionPins cannot carry the frozen Context ref.
 {
   const invalidDraftVersionPins: TaskExecution.DraftVersionPins = {

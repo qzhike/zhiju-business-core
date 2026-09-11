@@ -961,6 +961,8 @@ DeliveryItem 的 `status` 是 Aggregate 内当前派生缓存；权威解释来�
 
 Context Item 不拆为可编辑业务表。若需要检索，使用同事务派生的 `reference_edge` 和可重建 Projection；Canonical Payload 保持唯一顺序和 Hash。
 
+新入口产出的 Snapshot 行使用 canonical `zhiju.execution.context_snapshot` 身份，并通过 `reference_edge` 记录 `object_id`、`snapshot_id` 与 `content_hash` 三元组，使 `build_initial_context_snapshot` 返回的引用和 `get_context_snapshot` 的请求/结果能够按完整 SnapshotRef 逐字段验证，而不是只按 `object_id` 关联。历史 Core v1.0 契约中的 `zhiju.project.context_snapshot` 仍是只读回值，不由新入口写入，也不与 canonical 行互换。返回引用必须指向本次事务已提交的 Snapshot；幂等同键异 Hash 与未提交引用由 Handler 拒绝，不在本阶段实现。
+
 ### 11.3 WorkOrder
 
 | 表 | 类型 | 关键列/关系 | 关键约束 |

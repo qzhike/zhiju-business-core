@@ -94,6 +94,10 @@ const sourceSliceReference = exactObjectType(
   'zhiju.project.context_source_slice',
 );
 const builderPolicyReference = exactObjectType(versionedReference, 'zhiju.identity.policy');
+const contextSnapshotReference = exactObjectType(
+  snapshotReference,
+  'zhiju.execution.context_snapshot',
+);
 
 const taskStatus = {
   enum: [
@@ -639,6 +643,13 @@ const namedDefinitions = {
       }),
     ],
   },
+  initialContextCommandResult: object(['contextSnapshotRef'], {
+    // Operation-specific CommandResult data. `objectType` is pinned to the
+    // canonical namespace, so a new entry cannot return the legacy
+    // `zhiju.project.context_snapshot` identity that stays readable through
+    // the historical Core v1.0 compatibility path only.
+    contextSnapshotRef: contextSnapshotReference,
+  }),
   contextBuilderPolicyBinding: object(['builderPolicyRef', 'contentHash', 'effectiveFrom'], {
     // VersionedRef intentionally remains hash-free. The resolved Policy
     // content hash and validity window are persisted beside the exact ref so
@@ -703,6 +714,7 @@ const operationSchemas = {
     payload: object(['request'], {
       request: localRef('initialContextBuildRequest'),
     }),
+    result: localRef('initialContextCommandResult'),
   },
   'execution.create_run': {
     payload: object(['creation'], {
@@ -1037,6 +1049,7 @@ const versionedOperationSchemas: readonly VersionedOperationContractSchema[] = [
     payload: object(['request'], {
       request: localRef('initialContextBuildRequestV11'),
     }),
+    result: localRef('initialContextCommandResult'),
   },
 ];
 

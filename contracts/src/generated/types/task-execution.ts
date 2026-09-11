@@ -283,6 +283,11 @@ export namespace TaskExecution {
   readonly evidenceRefs: readonly Common.TypedReference[];
   readonly lastVerifiedAt?: Common.UtcInstant;
 });
+  export type InitialContextCommandResult = {
+  readonly contextSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.execution.context_snapshot";
+};
+};
   export type ContextBuilderPolicyBinding = {
   readonly builderPolicyRef: Common.VersionedRef & {
   readonly objectType?: "zhiju.identity.policy";
@@ -340,10 +345,14 @@ export namespace TaskExecution {
   export interface ExecutionBuildInitialContextSnapshotPayload {
   readonly request: TaskExecution.InitialContextBuildRequest;
 }
+  /** Result of `execution.build_initial_context_snapshot` (COMMAND). */
+  export type ExecutionBuildInitialContextSnapshotResult = TaskExecution.InitialContextCommandResult;
   /** Payload of `execution.build_initial_context_snapshot` (COMMAND). */
   export interface ExecutionBuildInitialContextSnapshotV11Payload {
   readonly request: TaskExecution.InitialContextBuildRequestV11;
 }
+  /** Result of `execution.build_initial_context_snapshot` (COMMAND). */
+  export type ExecutionBuildInitialContextSnapshotV11Result = TaskExecution.InitialContextCommandResult;
   /** Payload of `execution.create_run` (COMMAND). */
   export interface ExecutionCreateRunPayload {
   readonly creation: TaskExecution.RunCreation;
