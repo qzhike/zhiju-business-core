@@ -80,10 +80,6 @@ function contentRef(
   };
 }
 
-function principal(principalKind: 'HUMAN' | 'SERVICE' = 'HUMAN'): JsonObject {
-  return { principalKind, principalId };
-}
-
 function workOrderDraft(): JsonObject {
   const contract = fixture('core/work-order-valid.json');
   let draft = { ...contract };
@@ -101,6 +97,18 @@ function workOrderDraft(): JsonObject {
   return draft;
 }
 
+function initialWorkOrderDraft(): JsonObject {
+  const draft = workOrderDraft();
+  const versionPins = { ...(draft.versionPins as JsonObject) };
+  delete versionPins.projectContextContractRef;
+  versionPins.contextBuilderPolicyRef = {
+    ...(versionPins.contextBuilderPolicyRef as JsonObject),
+    objectType: 'zhiju.identity.policy',
+  };
+  draft.versionPins = versionPins;
+  return draft;
+}
+
 function draftSnapshotReference(): JsonObject {
   return contentRef(
     'zhiju.execution.work_order_draft_snapshot',
@@ -109,28 +117,21 @@ function draftSnapshotReference(): JsonObject {
 }
 
 function initialContextRequest(withExpiry = true): JsonObject {
-  return {
-    draftSnapshotRef: draftSnapshotReference(),
-    projectionType: 'COORDINATOR',
-    purpose: 'context.initial',
-    audience: principal(),
-    sourceSlices: [
-      contentRef('zhiju.project.context_source_slice', '018f22e2-7c15-7b2e-8d86-2de956a9d436'),
-    ],
-    builderPolicyRef: versionedRef('zhiju.identity.policy'),
-    ...(withExpiry ? { expiresAt: '2026-09-01T00:00:00Z' } : {}),
-  };
+  const request = fixture('context-build/initial-v1-1.json');
+  if (!withExpiry) delete request.expiresAt;
+  return request;
 }
 
 function commandEnvelope(
   commandType: string,
   payload: JsonObject,
   targetRef: JsonObject,
+  version: '1.0' | '1.1' = '1.0',
 ): JsonObject {
   return {
     commandId: '018f22e2-7c15-7b2e-8d86-2de956a9d437',
     commandType,
-    commandVersion: '1.0',
+    commandVersion: version,
     scopeRef: scope,
     targetRef,
     actor: objectRef('identity.principal', principalId, { enterpriseId }),
@@ -150,19 +151,20 @@ function commandEnvelope(
   };
 }
 
-function initialContextCommand(withExpiry = true): JsonObject {
+function initialContextCommand(withExpiry = true, version: '1.0' | '1.1' = '1.0'): JsonObject {
   return commandEnvelope(
     'execution.build_initial_context_snapshot',
     { request: initialContextRequest(withExpiry) },
     objectRef('zhiju.execution.context_snapshot', '018f22e2-7c15-7b2e-8d86-2de956a9d439'),
+    version,
   );
 }
 
-function draftQuery(): JsonObject {
+function draftQuery(version: '1.0' | '1.1' = '1.0'): JsonObject {
   return {
     queryId: '018f22e2-7c15-7b2e-8d86-2de956a9d440',
     queryType: 'execution.get_work_order_draft',
-    queryVersion: '1.0',
+    queryVersion: version,
     scopeRef: scope,
     requester: objectRef('identity.principal', principalId, { enterpriseId }),
     authenticationContextRef: contentRef('identity.authentication_context'),
@@ -174,14 +176,26 @@ function draftQuery(): JsonObject {
   };
 }
 
-function draftQueryResult(withExpiry = true): JsonObject {
+function draftQueryResult(withExpiry = true, version: '1.0' | '1.1' = '1.0'): JsonObject {
   return {
     draftSnapshotRef: draftSnapshotReference(),
-    draft: workOrderDraft(),
+    draft: version === '1.1' ? initialWorkOrderDraft() : workOrderDraft(),
     ...(withExpiry ? { expiresAt: '2026-09-01T00:00:00Z' } : {}),
     rootAggregateVersion: 9007199254740991,
     status: 'DRAFT',
   };
+}
+
+function createWorkOrderCommand(version: '1.0' | '1.1'): JsonObject {
+  return commandEnvelope(
+    'execution.create_work_order',
+    {
+      draft: version === '1.1' ? initialWorkOrderDraft() : workOrderDraft(),
+      expiresAt: '2026-09-01T00:00:00Z',
+    },
+    objectRef('zhiju.execution.work_order'),
+    version,
+  );
 }
 
 function frozenBuildCommand(): JsonObject {
@@ -209,7 +223,7 @@ function frozenBuildFixture(name: string): JsonObject {
 describe('TaskExecution Draft and initial Context contracts', () => {
   it('registers exactly the approved operations and reference metadata', () => {
     assertTaskExecutionOperationRegistrations(publicApiOperations);
-    expect(registry.operationCount).toBe(205);
+    expect(registry.operationCount).toBe(208);
     expect(registry.getOperation('execution.get_work_order_draft', '1.0')).toMatchObject({
       owner: 'task-execution',
       kind: 'QUERY',
@@ -230,6 +244,123 @@ describe('TaskExecution Draft and initial Context contracts', () => {
       registry.getOperation('execution.build_initial_context_snapshot', '1.0')
         ?.payloadGuardPolicyRef,
     ).toBeUndefined();
+  });
+
+  it('registers and validates the additive v1.1 initial WorkOrder chain', () => {
+    expect(registry.getOperation('execution.create_work_order', '1.1')).toMatchObject({
+      owner: 'task-execution',
+      kind: 'COMMAND',
+      targetObjectType: 'zhiju.execution.work_order',
+      concurrencyMode: 'CREATE',
+      authorizationPurpose: 'task.execution.create_work_order',
+      references: [
+        {
+          path: '/targetRef',
+          kind: 'OBJECT',
+          objectType: 'zhiju.execution.work_order',
+        },
+      ],
+    });
+    expect(registry.getOperation('execution.get_work_order_draft', '1.1')).toMatchObject({
+      owner: 'task-execution',
+      kind: 'QUERY',
+      allowedConsistency: ['AUTHORITATIVE'],
+    });
+    expect(registry.getOperation('execution.build_initial_context_snapshot', '1.1')).toMatchObject({
+      owner: 'task-execution',
+      kind: 'COMMAND',
+      targetObjectType: 'zhiju.execution.context_snapshot',
+      concurrencyMode: 'CREATE',
+    });
+
+    expect(
+      registry.validateOperation(
+        'execution.create_work_order',
+        '1.1',
+        createWorkOrderCommand('1.1'),
+      ),
+    ).toEqual({ valid: true, errors: [] });
+    expect(
+      registry.validateOperation('execution.get_work_order_draft', '1.1', draftQuery('1.1')),
+    ).toEqual({ valid: true, errors: [] });
+    expect(
+      registry.validateOperationResult(
+        'execution.get_work_order_draft',
+        '1.1',
+        draftQueryResult(true, '1.1'),
+      ),
+    ).toEqual({ valid: true, errors: [] });
+    expect(
+      registry.validateOperation(
+        'execution.build_initial_context_snapshot',
+        '1.1',
+        initialContextCommand(true, '1.1'),
+      ),
+    ).toEqual({ valid: true, errors: [] });
+
+    const createWithCas = createWorkOrderCommand('1.1');
+    createWithCas.expectedAggregateVersion = 0;
+    expectSchemaError(
+      registry.validateOperation('execution.create_work_order', '1.1', createWithCas),
+      '/expectedAggregateVersion',
+      'false schema',
+    );
+
+    const createWithWrongTarget = createWorkOrderCommand('1.1');
+    createWithWrongTarget.targetRef = objectRef('zhiju.artifact.artifact');
+    expectSchemaError(
+      registry.validateOperation('execution.create_work_order', '1.1', createWithWrongTarget),
+      '/targetRef/objectType',
+      'const',
+      { allowedValue: 'zhiju.execution.work_order' },
+    );
+
+    const draftWithContextRef = createWorkOrderCommand('1.1');
+    const draft = (draftWithContextRef.payload as JsonObject).draft as JsonObject;
+    const versionPins = draft.versionPins as JsonObject;
+    versionPins.projectContextContractRef = {
+      kind: 'SNAPSHOT',
+      objectType: 'zhiju.project.context_snapshot',
+      objectId: workOrderId,
+      snapshotId: principalId,
+      scope,
+      contentHash: { algorithm: 'SHA-256', digest, canonicalizationVersion: '1' },
+    };
+    expectSchemaError(
+      registry.validateOperation('execution.create_work_order', '1.1', draftWithContextRef),
+      '/payload/draft/versionPins',
+      'additionalProperties',
+      { additionalProperty: 'projectContextContractRef' },
+    );
+
+    const missingDraftPin = createWorkOrderCommand('1.1');
+    delete ((missingDraftPin.payload as JsonObject).draft as JsonObject).versionPins;
+    expectSchemaError(
+      registry.validateOperation('execution.create_work_order', '1.1', missingDraftPin),
+      '/payload/draft',
+      'required',
+      { missingProperty: 'versionPins' },
+    );
+
+    const frozenBranch = initialContextCommand(true, '1.1');
+    ((frozenBranch.payload as JsonObject).request as JsonObject).workOrderContractRef = contentRef(
+      'execution.work_order_contract',
+    );
+    expectSchemaError(
+      registry.validateOperation('execution.build_initial_context_snapshot', '1.1', frozenBranch),
+      '/payload/request',
+      'additionalProperties',
+      { additionalProperty: 'workOrderContractRef' },
+    );
+
+    // The historical @1.0 path remains valid with its original VersionPins shape.
+    expect(
+      registry.validateOperation(
+        'execution.create_work_order',
+        '1.0',
+        createWorkOrderCommand('1.0'),
+      ),
+    ).toEqual({ valid: true, errors: [] });
   });
 
   it('accepts complete initial Context, Draft Query results with both expiry states, and frozen build', () => {

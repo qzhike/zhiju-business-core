@@ -1226,9 +1226,11 @@ Human、Agent、飞书、Runtime 和未来 API 可以使用不同呈现方式，
 
 ## IM-06 Core Contract 技术增量
 
-状态：TECHNICAL DESIGN APPROVED 2026-09-08。#152–#154 的已批准选择见 [TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。本轮保持 ProjectContext/WorkOrder/AgentResult v1.0 本体、Hash规则和七类WorkOrder Criterion名称不变。首次Context的Draft Snapshot与build metadata位于Core本体外，Context不反向引用未来frozen Contract；旧build_context_snapshot仍需要精确ContractRef。
+状态：TECHNICAL DESIGN APPROVED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT SYNCED 2026-09-11。#152–#154 的已批准选择见 [TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。本轮保持 ProjectContext/WorkOrder/AgentResult v1.0 本体、Hash规则和七类WorkOrder Criterion名称不变。首次Context的Draft Snapshot与build metadata位于Core本体外，Context不反向引用未来frozen Contract；旧build_context_snapshot仍需要精确ContractRef。
 
 TD-01 对 §3.3/3.8/3.10 与 §4.3/4.13 的衔接：先提交 DRAFT WorkOrder 及不可变 Draft Snapshot，再构建只引用已存在 Root 的 Context，最后把已提交 Context 的 exact Ref 纳入完整 candidate 并验证/冻结。不能预写缺 Context 的 frozen Contract，或预分配未来 Hash 以消除依赖。Snapshot 创建不等于 WorkOrder READY；冻结时必须重新核验 Draft pointer、Context 输入绑定和 Validation 对完整 candidate 的 Hash。首次与冻结后请求字段、候选映射和拒绝矩阵由 [Spec 003 §11.2](../module-specs/Module-Spec-003-TaskExecution.md#112-首次-context-的精确输入) 拥有。
+
+#165 在不改变 Core WorkOrder v1.0 本体的前提下，为首次 DRAFT 增加 `InitialWorkOrderDraft@1.1` 与独立 `DraftVersionPins`。DRAFT 不携带 `projectContextContractRef`；CTX-1 成功提交后，Frozen WorkOrder Contract 才同时保存顶层 `contextSnapshotRef` 和 `versionPins.projectContextContractRef`，并要求两处 Ref 的 canonical object type、objectId、snapshotId、Scope 与 contentHash 全字段相等。旧 @1.0 Core/Envelope/操作继续按原字段接受；该增量的业务 Handler、migration 和真实业务链仍未实现。
 
 Retry 的 Context-2 可以记录新来源，但必须在本体外绑定原 frozen Contract；新 Run 独立引用 Context-2，原 Contract.contextSnapshotRef 仍为 Context-1。不得为了容纳新输入重算原 Contract 的 payloadHash/specificationHash，也不得改写 Context-1 或 Run-1 的固定引用。原 Contract 到期、Scope/Objective/Completion 发生实质变化的既有拒绝规则继续适用。
 

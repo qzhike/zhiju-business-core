@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / HANDLER IMPLEMENTATION NOT STARTED`
+状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / HANDLER IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -53,6 +53,20 @@ WorkOrderDraft
 ├── harnessPolicy: HarnessPolicy
 ├── modelPolicy: ModelPolicy
 └── versionPins: VersionPins
+
+InitialWorkOrderDraft
+├── same fields as WorkOrderDraft except the versionPins shape
+└── versionPins: DraftVersionPins
+
+DraftVersionPins
+├── contextBuilderPolicyRef: VersionedRef<Policy>
+├── workOrderSchemaRef: VersionedRef
+├── skillRefs: Set<VersionedRef>
+├── templateRefs: Set<VersionedRef>
+├── capabilityPolicyRef: VersionedRef
+├── runtimeAdapterContractRef: VersionedRef
+├── regulatoryProfileRef?: VersionedRef
+└── qualityProfileRef?: VersionedRef
 
 ContextBuildRequest
 ├── workOrderRef: ObjectRef<WorkOrder>
@@ -145,6 +159,7 @@ CompletionEvaluationInput
 | `execution.create_task@1.0` | `Task / CREATE` | `projectRef: ObjectRef<Project>; definition: TaskDefinition; initialAssignee?: CanonicalJson` | `execution.task.create`；Agent 仅在 Coordinator Capability 下创建 DRAFT，不能直接 READY |
 | `execution.mark_task_ready@1.0` | `Task / MUTATE` | `readinessSnapshotRef: SnapshotRef<TaskReadiness>; requestedAt: UtcInstant` | `execution.task.mark_ready`；依赖、输入、权限满足；不接受调用者布尔值 |
 | `execution.create_work_order@1.0` | `WorkOrder / CREATE` | `draft: WorkOrderDraft; expiresAt?: UtcInstant` | `execution.work_order.create`；Scope 不得超出 Task；Human-only Capability 禁止授予 Agent |
+| `execution.create_work_order@1.1` | `WorkOrder / CREATE` | `draft: InitialWorkOrderDraft; expiresAt?: UtcInstant` | `task.execution.create_work_order`；DRAFT 不携带 `projectContextContractRef`；保留 @1.0 合法调用 |
 | `execution.freeze_work_order@1.0` | `WorkOrder / MUTATE` | `workOrderContract: WorkOrderContract; validationSnapshotRef: SnapshotRef<WorkOrderValidation>; specificationHash: PayloadHash` | `execution.work_order.freeze`；READY 后 Specification 不可变；Hash 必须匹配 |
 | `execution.queue_work_order@1.0` | `WorkOrder / MUTATE` | `queuePolicyRef: VersionedRef<Policy>; notBefore?: UtcInstant; requestedRuntimeClass?: NamespaceCode` | `execution.work_order.queue`；必须 READY、未过期且预算可用 |
 | `execution.build_context_snapshot@1.0` | `ContextSnapshot / CREATE` | `request: ContextBuildRequest` | `execution.context.build`；Source Slice 精确版本、同 Scope、按 Purpose 裁剪；创建后不可变 |
@@ -284,16 +299,16 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 
 提案覆盖 heartbeat、runtime progress、run suspension、same-run resume、authoritative usage 和 cancellation acknowledgement 六类写操作；完整候选名称与版本只在 Runtime 专项 Contract 第 15.1 节维护，避免审核前被机械计入正式 Catalog。
 
-这些操作是 `USER REVIEW PENDING` 的 additive proposal，不属于本文件当前已审核的 20 Command，也未进入当前 205 项 Catalog（历史 Compatibility Baseline 为 200 项）。审核通过后必须统一补齐 payload、授权、并发、错误、Catalog 和测试；审核前不得通过直接写 TaskExecution Repository 绕过 public port。
+这些操作是 `USER REVIEW PENDING` 的 additive proposal，不属于本文件当前已审核的 20 Command，也未进入当前 208 项 Catalog（历史 Compatibility Baseline 为 200 项）。审核通过后必须统一补齐 payload、授权、并发、错误、Catalog 和测试；审核前不得通过直接写 TaskExecution Repository 绕过 public port。
 
 ## 9. 当前状态
 
-- 39 个公开 Contract 已定义字段级 payload/result/event 结构；
+- 42 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已由用户审核；Runtime Adapter v0.1 已获用户推进确认并进入 Implementation Milestone Plan，同时保留 6 个尚未纳入基准的 additive Command；
-- `contracts/src/operations/task-execution.schema.ts` 已注册基线 37 个操作及 #158 的 `get_work_order_draft` / `build_initial_context_snapshot` 两项操作；PR #10 Review 识别的 8 类 strict Schema 偏差均已修复，#158 的 Draft/initial Context 正负向 Contract 回归已补齐；
+- `contracts/src/operations/task-execution.schema.ts` 已注册基线 37 个操作、#158 的 @1.0 Draft/initial Context 两项操作及 #165 的三个 @1.1 兼容操作；PR #10 Review 识别的 8 类 strict Schema 偏差均已修复，Draft/initial Context 正负向 Contract 回归已补齐；
 - TaskExecution 直接复用权威 `core/work-order/1.0#/$defs/*`；WorkOrder Core Contract 与 `create_work_order` 使用同一组 `$defs`，且 `requestedBy` 统一为 `PrincipalRef`；Core Contract 不再被开放 `CanonicalJson` 降级；
-- 注册到 `ContractRegistry` 后所有 39 项 TaskExecution `schemaStatus` 为 `FULL`；总 Catalog 为 205 项，历史 Compatibility Baseline 仍为 200 项；
-- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 205 项 Registry，等待用户审核通过后单独补齐；
+- 注册到 `ContractRegistry` 后所有 42 项 TaskExecution `schemaStatus` 为 `FULL`；总 Catalog 为 208 项，历史 Compatibility Baseline 仍为 200 项；
+- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 208 项 Registry，等待用户审核通过后单独补齐；
 - IM-06 WI-01（Issue #151）落地模块自有 application/persistence 基础：`@zhiju/task-execution` 提供 Kysely schema、`createTaskExecutionDatabase`、`withTaskExecutionTransaction`、`executeTaskExecutionCommand`、`TaskExecutionRepository`，单一受信事务上下文建立路径，幂等/CAS/Scope mirror/Process 父子 Scope/Hash 一致性 guard 与 controlled fault 回滚均已落实；可由 disposable PostgreSQL gate 复测；
 - Context Builder、Dispatcher、Runtime、Evaluator、Projection 与 Handler 实现均不存在；模块自有业务 Repository 仅暴露 `insertProcessInstance` 给当前技术 Aggregate，不与任何业务表/其他模块 Repository 交叉；
 - 对应 Unit、Contract、E2E 与人工验收中，Schema fixture、Review 修复回归与 IM-06 WI-01 持久化 gate 已执行；Handler、Runtime/DB E2E 和人工业务验收仍为 `NOT RUN`。
@@ -330,11 +345,11 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 - 不引入新公开 Command/Query/Event，不修改 §2–6、§11 已批准字段，不复用 `Runtime-Adapter` 6 项 additive proposal；
 - 不进入业务 Handler、Runtime Driver、Completion 评估、Production、Provider/Feishu/CLI Runtime 验证、跨模块业务 E2E 与独立人工业务验收（保持 `NOT RUN`）。
 
-**Verify**：`tests/persistence/task-execution-command-runner.test.ts` 在 `vibe verify full` 的 disposable PostgreSQL gate 内运行；聚焦 Contract 测试在 `pnpm test`。`pnpm contracts:check` 检查当前 205 项 Catalog，并保留历史 200 项 Compatibility Baseline。
+**Verify**：`tests/persistence/task-execution-command-runner.test.ts` 在 `vibe verify full` 的 disposable PostgreSQL gate 内运行；聚焦 Contract 测试在 `pnpm test`。`pnpm contracts:check` 检查当前 208 项 Catalog，并保留历史 200 项 Compatibility Baseline。
 
 ## 11. IM-06 技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 205 项。本节不把 Domain 内部命令名自动视为公开 API。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 208 项。本节不把 Domain 内部命令名自动视为公开 API。
 
 ### 11.1 公共规则与设计操作清单
 
@@ -347,7 +362,9 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 | `execution.create_task@2.0` | Task / CREATE | `projectRef; definition: TaskDefinitionV2; initialAssignee?` | 与 create_task 的 CommandResult 约定相同；targetRef=Task | 复用 `execution.task.create`；Human，或既有 Coordinator Capability 下的 Agent，只创建 DRAFT |
 | `execution.get_task_state@1.0` | A | `taskRef: ObjectRef<Task>` | `TaskStateView` | 设计 `execution.task.read`；有 Scope 权限的 Human/Service |
 | `execution.get_work_order_draft@1.0` | A | `workOrderRef: ObjectRef<WorkOrder>` | `{draftSnapshotRef: Exact<WorkOrderDraftSnapshot>, draft: WorkOrderDraft, expiresAt?: UtcInstant, rootAggregateVersion: NonNegativeInt, status: WorkOrderStatus}` | 设计 `execution.work_order.draft.read`；Human/Builder/Validator；只接受 DRAFT Root |
+| `execution.get_work_order_draft@1.1` | A | `workOrderRef: ObjectRef<WorkOrder>` | `{draftSnapshotRef: Exact<WorkOrderDraftSnapshot>, draft: InitialWorkOrderDraft, expiresAt?: UtcInstant, rootAggregateVersion: NonNegativeInt, status: WorkOrderStatus}` | 设计 `execution.work_order.draft.read`；返回不含 `projectContextContractRef` 的 DRAFT |
 | `execution.build_initial_context_snapshot@1.0` | ContextSnapshot / CREATE | `request: InitialContextBuildRequest` | `{contextSnapshotRef: Snap<ProjectContext>}` | 设计 `execution.context.build.initial`；ContextBuilder Service，代表 Human 授权 Intent |
+| `execution.build_initial_context_snapshot@1.1` | ContextSnapshot / CREATE | `request: InitialContextBuildRequest` | `{contextSnapshotRef: Snap<ProjectContext>}` | 设计 `execution.context.build.initial`；DRAFT 分支不接收 frozen Contract Ref |
 | `execution.build_task_readiness@1.0` | TaskReadiness / CREATE | `taskRef; taskDefinitionRef: Exact<TaskDefinitionSnapshot>; policyRef; evaluatorRef` | `{readinessSnapshotRef: Snap<TaskReadiness>}` | 设计 `execution.task.readiness.build`；ReadinessBuilder Service |
 | `execution.validate_work_order_draft@1.0` | WorkOrderValidation / CREATE | `draftSnapshotRef; candidateContract: WorkOrderContract; policyRef; evaluatorRef` | `{validationSnapshotRef: Snap<WorkOrderValidation>}` | 设计 `execution.work_order.draft.validate`；WorkOrderValidator Service |
 | `execution.validate_agent_result@1.0` | AgentResultValidationBundle / CREATE | `agentResultRef; runRef; runtimeAttemptRef; policyRef; evaluatorRef` | `{bundleRef: Exact<AgentResultValidationBundle>, schemaValidationRef, identityValidationRef, runBindingValidationRef, scopeValidationRef, businessOutputValidationRef}` | 设计 `execution.agent_result.validate`；ResultValidator Service；五个 Ref 均 Exact<ValidationResult> |
@@ -383,7 +400,7 @@ InitialContextBuildRequest
   expiresAt?: UtcInstant
 ```
 
-Hash 在 Ref/持久化完整性列保存，payload 不嵌自身 Hash。Draft Snapshot 的 id 与 Contract/业务版本 id 不混用；Root aggregateVersion 仅用于 CAS。首次请求不携带尚不存在的 workOrderContractRef，不带 answeredInformationRefs；回答后的构建继续使用旧 `ContextBuildRequest@1.0`。首次与后续操作共享同一 ProjectContext v1.0 输出和 `ContextSnapshotBuilt@1.0`，不修改旧事件字段。
+Hash 在 Ref/持久化完整性列保存，payload 不嵌自身 Hash。Draft Snapshot 的 id 与 Contract/业务版本 id 不混用；Root aggregateVersion 仅用于 CAS。首次 @1.1 请求不携带尚不存在的 workOrderContractRef，不带 answeredInformationRefs；回答后的构建继续使用旧 `ContextBuildRequest@1.0`。首次与后续操作共享同一 ProjectContext v1.0 输出和 `ContextSnapshotBuilt@1.0`，不修改旧事件字段；既有 @1.0 合法调用保持原字段形状。
 
 合法调用示例（符号均为已持久化的精确 Ref，不是 API 字面占位值）：
 
@@ -501,6 +518,18 @@ ContextBuilderPolicyBinding
 | ref 结构通过但 IdentityPolicy 对象不存在/不可查询/当前授权失效 | `REFERENCE_INVALID` 或 `DEPENDENCY_UNAVAILABLE` | Schema 通过不等于对象存在或授权通过；无成功 Snapshot/Validation/READY |
 
 以上校验只拥有跨字段绑定和 metadata 观察一致性；IdentityPolicy 对象存在性、Scope 权威归属、当前授权与业务状态分别由 owning Query/Handler 负责。真实 Handler、PostgreSQL 业务链和生产/人工验收在本阶段仍为 `NOT RUN`。
+
+#### 11.2.6 #165 DRAFT VersionPins 与首次 Context 的 @1.1 兼容契约
+
+状态：`APPROVED DESIGN / SCHEMA, REGISTRY, GENERATED TYPES AND FIXTURES IMPLEMENTED 2026-09-11 / HANDLER AND BUSINESS PERSISTENCE NOT IMPLEMENTED`。本节把批准的 DRAFT/Context 解环边界落到可执行契约；不改变既有 @1.0 合法调用。
+
+`InitialWorkOrderDraft@1.1` 复用 `WorkOrderDraft` 的全部业务字段，但 `versionPins` 使用独立的 `DraftVersionPins@1.1`。其必填字段为 `contextBuilderPolicyRef`、`workOrderSchemaRef`、`skillRefs`、`templateRefs`、`capabilityPolicyRef` 和 `runtimeAdapterContractRef`；`regulatoryProfileRef` 与 `qualityProfileRef` 可选。`contextBuilderPolicyRef` 必须是 `VersionedRef` 且 `objectType=zhiju.identity.policy`；各数组保持唯一。`DraftVersionPins` 明确不允许 `projectContextContractRef`，该字段不能以空值、占位 Ref 或预分配 Hash 的形式出现在 DRAFT。
+
+以下三个版本化操作与旧版本并存：`create_work_order@1.1` 接受 `InitialWorkOrderDraft`，`get_work_order_draft@1.1` 返回同一 DRAFT 形状，`build_initial_context_snapshot@1.1` 只接受 `draftSnapshotRef`、projection、purpose、audience、sourceSlices、builderPolicyRef 和可选 expiresAt。旧 `create_work_order@1.0`、`get_work_order_draft@1.0`、冻结后 `build_context_snapshot@1.0` 与 `build_initial_context_snapshot@1.0` 的合法字段和 Envelope 语义保持不变。
+
+首次链按以下边界推进：DRAFT 只保存独立 Draft VersionPins；CTX-1 提交成功后，候选 Frozen WorkOrder Contract 才补入完整 `contextSnapshotRef`，并在 `versionPins.projectContextContractRef` 保存同一 Snapshot Ref。候选顶层与嵌套 Ref 必须逐字段完全相等：`kind`、canonical `objectType`、`objectId`、`snapshotId`、Scope 中 enterpriseId/projectId 的有无和值，以及 contentHash 的 algorithm/digest/canonicalizationVersion。候选组装、Validator 和 Freeze 都必须重新执行该绑定校验；缺失、错 Hash、错 Scope、Draft stale 或 Retry 输入改变时 fail closed，不生成部分成功事实。
+
+本 Issue 只交付上述 Schema、Envelope/Registry、兼容元数据、生成类型、fixtures 与 TE-WI02-D-013 级别的纯契约正反例。Context Handler、业务 migration、真实 PostgreSQL 首次链、Provider/Feishu/Runtime 和人工业务验收仍为 `NOT RUN`。
 
 ### 11.3 判断事实形状、生产和消费
 

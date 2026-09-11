@@ -23,6 +23,7 @@ import { qualityGovernanceSchema } from '../../../contracts/src/operations/quali
 import { releasePublicationSchema } from '../../../contracts/src/operations/release-publication.schema.ts';
 import { taskExecutionSchema } from '../../../contracts/src/operations/task-execution.schema.ts';
 import {
+  operationEnvelopeSchemaId,
   operationPayloadSchemaRef,
   operationResultSchemaRef,
   type PublicOperationDefinition,
@@ -227,15 +228,16 @@ export function loadCoreContractManifestEntries(): ReadonlyArray<{
   }));
 }
 
-export function envelopeSchemaRelativePath(type: string): string {
-  return `schemas/envelopes/${type}.schema.json`;
+export function envelopeSchemaRelativePath(type: string, version = '1.0'): string {
+  const suffix = version === '1.0' ? '' : `@${version}`;
+  return `schemas/envelopes/${type}${suffix}.schema.json`;
 }
 
 export function loadCurrentEnvelopeDocuments(): readonly NamedSchemaDocument[] {
   return (publicApiOperations as readonly PublicOperationDefinition[]).map((operation) => ({
     key: `envelope:${operation.type}@${operation.version}`,
-    relativePath: envelopeSchemaRelativePath(operation.type),
-    schemaId: `https://schemas.zhiju.local/api/1.0/${operation.type}`,
+    relativePath: envelopeSchemaRelativePath(operation.type, operation.version),
+    schemaId: operationEnvelopeSchemaId(operation),
     schema: operationEnvelopeSchema(operation),
   }));
 }
@@ -253,7 +255,7 @@ export function assertCurrentSchemasCompile(): void {
     ajv.addSchema(document.schema);
   for (const operation of publicApiOperations as readonly PublicOperationDefinition[]) {
     const refs = [
-      `https://schemas.zhiju.local/api/1.0/${operation.type}`,
+      operationEnvelopeSchemaId(operation),
       operationPayloadSchemaRef(operation),
       operationResultSchemaRef(operation),
     ];

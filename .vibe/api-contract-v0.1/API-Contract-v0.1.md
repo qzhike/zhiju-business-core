@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT API CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 CONTROLLED CAPABILITY DECISION RECORDED / IM-06 #157/#158 CONTRACT SCHEMA AND REGISTRY DELIVERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`CURRENT API CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 CONTROLLED CAPABILITY DECISION RECORDED / IM-06 #157/#158 CONTRACT SCHEMA AND REGISTRY DELIVERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT DELIVERED 2026-09-11 / BUSINESS IMPLEMENTATION NOT STARTED`
 
 文档角色：公开 Command、Query、Event 的共享字段规则、执行语义、错误、兼容性、安全与验证要求的唯一权威。具体操作名称及唯一 Owner 以 [`../high-level-docs/06-typed-references-contract-catalog-v0.1.md`](../high-level-docs/06-typed-references-contract-catalog-v0.1.md) 为准；每个操作的 payload/result/event 字段由对应 `Module-Spec` 唯一维护。
 
@@ -17,7 +17,7 @@
 - Query 一致性、分页、脱敏和结果语义；
 - Domain Event 最小事实 Payload 与 Replay 语义；
 - 公开错误结构、兼容规则和 Schema Registry 要求；
-- 七模块当前 205 个公开 Contract 的字段级路由（历史兼容基线为 200 项）。
+- 七模块当前 208 个公开 Contract 的字段级路由（历史兼容基线为 200 项）。
 
 本阶段不定义：
 
@@ -389,7 +389,7 @@ ContractRegistration
 
 API Contract 进入用户审核前必须证明：
 
-1. Catalog 中当前 205 个 `name@1.0` 在七个 Module Spec 中各出现且只出现一次；
+1. Catalog 中当前 208 个已注册 `name@version` 在七个 Module Spec 中各出现且只出现一次；
 2. namespace 与唯一 Owner 一致；
 3. 每个 Command 有 target/concurrency、payload、authorization 和主要拒绝语义；
 4. 每个 Query 有 payload、result 和允许一致性；
@@ -415,9 +415,9 @@ API Contract 进入用户审核前必须证明：
 ## 13. 当前状态
 
 - 字段级 API 文档已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；验证证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)；
-- 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，#159 仅放宽既有字段的数组接受集合，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
+- 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，#165 再增加三个 @1.1 兼容操作至 208 项，#159 仅放宽既有字段的数组接受集合，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
 - 业务 Handler、业务 Fixture、Persistence 业务链和 E2E Runtime 仍未实现；
-- #157/#158 的 Schema/Registry 与生成检查、以及既有 WI-01 Persistence gate 已通过；业务 Handler、E2E、外部和人工运行验证仍为 `NOT RUN`；
+- #157/#158/#165 的 Schema/Registry 与生成检查、以及既有 WI-01 Persistence gate 已通过；业务 Handler、E2E、外部和人工运行验证仍为 `NOT RUN`；
 - 本阶段静态检查最多可标记 `DESIGN VERIFIED`，不得报告实现通过。
 
 ## 14. Issue #57 受控 Capability 边界
@@ -428,15 +428,19 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 ## IM-06 兼容性增量
 
-状态：TECHNICAL DESIGN APPROVED 2026-09-08；#157 的两项 Source Slice 操作与 #158 的两项 WorkOrder Draft/initial Context 操作已交付 Schema/Registry，其中 #157 另有已批准 Guard；其余增量尚未注册。#152–#154具体输入/输出在owning Spec 002/003/005/007设计附录；[TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)已获批准，按依赖实施。首次构建采用新操作，避免改变build_context_snapshot@1.0必填ContractRef语义；Task typed definition采用create_task@2.0，避免以Minor或Handler默认值收窄旧CanonicalJson。
+状态：TECHNICAL DESIGN APPROVED 2026-09-08；#157 的两项 Source Slice 操作、#158 的两项 @1.0 WorkOrder Draft/initial Context 操作与 #165 的三个 @1.1 兼容操作已交付 Schema/Registry，其中 #157 另有已批准 Guard；其余增量尚未注册。#152–#154具体输入/输出在owning Spec 002/003/005/007设计附录；[TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)已获批准，按依赖实施。首次构建采用版本化新操作，避免改变build_context_snapshot@1.0必填ContractRef语义；Task typed definition采用create_task@2.0，避免以Minor或Handler默认值收窄旧CanonicalJson。
 
-保留既有 201 项操作与历史 200 项 Compatibility Baseline 的兼容性；#157 与 #158 各新增两项后当前 Registry 为 205 项，旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
+保留既有 @1.0 操作与历史 200 项 Compatibility Baseline 的兼容性；#157 与 #158 各新增两项后 Registry 为 205 项，#165 再新增三个 @1.1 兼容操作至 208 项，旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
 
 新增Query只读且受Scope/Purpose裁剪；Slice捕获使用CREATE Command，避免Query产生不可审计写入。CAS expectedAggregateVersion只在Envelope，历史snapshotId/hash不充当CAS token；runtime bigint不能有损转Number。公开整数范围在实现前须与共享Envelope Schema一致，超界明确拒绝，不能借本设计暗改共享类型。
 
-2026-09-09 已批准的 TD-01 期限补充由 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限) 拥有：待注册的 WorkOrderDraftSnapshot 和 get_work_order_draft Result 增加可选 expiresAt，缺省与显式 null 不等价；既有 create_work_order/freeze_work_order payload、Core WorkOrder 和 WorkOrderBecameReady 字段不变。原样继承期限与消费时未到期属于 Handler/持久化跨字段语义，Schema 接受合法字段形状不证明该语义已验证。历史 Compatibility Baseline 不重写，新增运行测试保持 NOT RUN。
+2026-09-09 已批准的 TD-01 期限补充由 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限) 拥有：待注册的 WorkOrderDraftSnapshot 和 get_work_order_draft Result 增加可选 expiresAt，缺省与显式 null 不等价；既有 create_work_order/freeze_work_order payload、Core WorkOrder 和 WorkOrderBecameReady 字段不变。原样继承期限与消费时未到期属于 Handler/持久化跨字段语义，Schema 接受合法字段形状不证明该语义已验证。历史 Compatibility Baseline 不重写，新增运行测试保持 NOT RUN。#165 已将该 DRAFT/initial Context 分支以 @1.1 形式注册，旧 @1.0 合法调用保持兼容。
 
 `execution.get_work_order_draft@1.0` 与 `execution.build_initial_context_snapshot@1.0` 已按 TD-01 注册为 TaskExecution 的 AUTHORITATIVE Query 与 ContextSnapshot CREATE Command。两项新增操作的 WorkOrderDraftSnapshot、InitialContextBuildRequest、精确 Source Slice/Policy Ref 与 ProjectContext Snapshot Ref 由 Module Spec 003 及其生成 Schema 拥有；本次不新增 PayloadGuard Policy，业务期限继承、引用存在性和授权运行语义继续保持 NOT RUN。
+
+### #165 DRAFT VersionPins 与首次 Context 的 @1.1 兼容增量
+
+`create_work_order@1.1`、`get_work_order_draft@1.1` 与 `build_initial_context_snapshot@1.1` 与旧 @1.0 操作并存。@1.1 DRAFT 使用 `InitialWorkOrderDraft` 和不含 `projectContextContractRef` 的 `DraftVersionPins`；该完整 Context Ref 只在 CTX-1 成功提交后进入 Frozen WorkOrder Contract。候选顶层 `contextSnapshotRef` 与嵌套 `versionPins.projectContextContractRef` 必须逐字段相等，比较 canonical object type、objectId、snapshotId、Scope 以及 contentHash 全部字段。Schema、Registry、生成类型、fixture 与纯契约跨字段校验已同步；Handler、migration、真实 PostgreSQL 业务链和运行验收保持 `NOT RUN`。
 
 ### #166 Builder Policy ref 绑定
 

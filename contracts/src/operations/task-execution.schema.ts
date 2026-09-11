@@ -16,6 +16,15 @@ interface OperationContractSchema {
   readonly result?: JsonSchema;
 }
 
+function operationSchemaDefinitionName(
+  type: string,
+  version: '1.0' | '1.1',
+  suffix: 'payload' | 'result',
+): string {
+  const versionSuffix = version === '1.0' ? '' : `_v${version.replaceAll('.', '_')}`;
+  return `${type.replaceAll('.', '_')}${versionSuffix}_${suffix}`;
+}
+
 export interface ExecutableExecutionOperationContract {
   readonly payloadSchemaRef: string;
   readonly resultSchemaRef?: string;
@@ -255,6 +264,67 @@ const namedDefinitions = {
       versionPins: workOrderTypeRef('versionPins'),
     },
   ),
+  draftVersionPins: object(
+    [
+      'contextBuilderPolicyRef',
+      'workOrderSchemaRef',
+      'skillRefs',
+      'templateRefs',
+      'capabilityPolicyRef',
+      'runtimeAdapterContractRef',
+    ],
+    {
+      contextBuilderPolicyRef: builderPolicyReference,
+      workOrderSchemaRef: versionedReference,
+      skillRefs: array(versionedReference, { unique: true }),
+      templateRefs: array(versionedReference, { unique: true }),
+      regulatoryProfileRef: versionedReference,
+      qualityProfileRef: versionedReference,
+      capabilityPolicyRef: versionedReference,
+      runtimeAdapterContractRef: versionedReference,
+    },
+  ),
+  initialWorkOrderDraft: object(
+    [
+      'taskRef',
+      'requestedBy',
+      'objective',
+      'targetScope',
+      'inputRefs',
+      'constraints',
+      'allowedCapabilities',
+      'deniedCapabilities',
+      'expectedOutputs',
+      'completionCriteria',
+      'riskAndQuality',
+      'executionPolicy',
+      'budget',
+      'harnessPolicy',
+      'modelPolicy',
+      'versionPins',
+    ],
+    {
+      taskRef: objectReference,
+      requestedBy: principalReference,
+      objective: workOrderTypeRef('objective'),
+      targetScope: workOrderTypeRef('targetScope'),
+      inputRefs: array(workOrderTypeRef('inputRef'), { unique: true }),
+      constraints: array(canonicalJson),
+      allowedCapabilities: array(workOrderTypeRef('capabilityGrant'), { unique: true }),
+      deniedCapabilities: array(workOrderTypeRef('capabilityGrant'), { unique: true }),
+      expectedOutputs: array(workOrderTypeRef('expectedOutput'), { nonEmpty: true, unique: true }),
+      completionCriteria: array(workOrderTypeRef('completionCriterion'), {
+        nonEmpty: true,
+        unique: true,
+      }),
+      riskAndQuality: workOrderTypeRef('riskAndQuality'),
+      executionPolicy: workOrderTypeRef('executionPolicy'),
+      budget: workOrderTypeRef('executionBudget'),
+      harnessPolicy: workOrderTypeRef('harnessPolicy'),
+      modelPolicy: workOrderTypeRef('modelPolicy'),
+      versionPins: localRef('draftVersionPins'),
+    },
+  ),
   workOrderDraftSnapshot: object(
     ['snapshotId', 'workOrderRef', 'taskRef', 'scopeRef', 'draft', 'capturedAt', 'createdBy'],
     {
@@ -268,7 +338,39 @@ const namedDefinitions = {
       createdBy: principalReference,
     },
   ),
+  initialWorkOrderDraftSnapshot: object(
+    ['snapshotId', 'workOrderRef', 'taskRef', 'scopeRef', 'draft', 'capturedAt', 'createdBy'],
+    {
+      snapshotId: uuid,
+      workOrderRef: workOrderObjectReference,
+      taskRef: taskObjectReference,
+      scopeRef: scopeReference,
+      draft: localRef('initialWorkOrderDraft'),
+      expiresAt: instant,
+      capturedAt: instant,
+      createdBy: principalReference,
+    },
+  ),
   initialContextBuildRequest: object(
+    [
+      'draftSnapshotRef',
+      'projectionType',
+      'purpose',
+      'audience',
+      'sourceSlices',
+      'builderPolicyRef',
+    ],
+    {
+      draftSnapshotRef: draftSnapshotReference,
+      projectionType: { $ref: `${common}projectionType` },
+      purpose: namespace,
+      audience: principalReference,
+      sourceSlices: array(sourceSliceReference, { nonEmpty: true, unique: true }),
+      builderPolicyRef: builderPolicyReference,
+      expiresAt: instant,
+    },
+  ),
+  initialContextBuildRequestV11: object(
     [
       'draftSnapshotRef',
       'projectionType',
@@ -896,27 +998,67 @@ const operationSchemas = {
   },
 } as const satisfies Readonly<Record<string, OperationContractSchema>>;
 
-function operationDefinitionName(type: string, suffix: 'payload' | 'result'): string {
-  return `${type.replaceAll('.', '_')}_${suffix}`;
+interface VersionedOperationContractSchema extends OperationContractSchema {
+  readonly type: string;
+  readonly version: '1.0' | '1.1';
 }
 
+const versionedOperationSchemas: readonly VersionedOperationContractSchema[] = [
+  ...Object.entries(operationSchemas).map(([type, contract]) => ({
+    type,
+    version: '1.0' as const,
+    ...contract,
+  })),
+  {
+    type: 'execution.create_work_order',
+    version: '1.1',
+    payload: object(['draft'], {
+      draft: localRef('initialWorkOrderDraft'),
+      expiresAt: instant,
+    }),
+  },
+  {
+    type: 'execution.get_work_order_draft',
+    version: '1.1',
+    payload: object(['workOrderRef'], {
+      workOrderRef: workOrderObjectReference,
+    }),
+    result: object(['draftSnapshotRef', 'draft', 'rootAggregateVersion', 'status'], {
+      draftSnapshotRef: draftSnapshotReference,
+      draft: localRef('initialWorkOrderDraft'),
+      expiresAt: instant,
+      rootAggregateVersion: losslessNonNegativeInt,
+      status: localRef('workOrderStatus'),
+    }),
+  },
+  {
+    type: 'execution.build_initial_context_snapshot',
+    version: '1.1',
+    payload: object(['request'], {
+      request: localRef('initialContextBuildRequestV11'),
+    }),
+  },
+];
+
 const operationDefinitions = Object.fromEntries(
-  Object.entries(operationSchemas).flatMap(([type, contract]) => [
-    [operationDefinitionName(type, 'payload'), contract.payload],
+  versionedOperationSchemas.flatMap(({ type, version, ...contract }) => [
+    [operationSchemaDefinitionName(type, version, 'payload'), contract.payload],
     ...('result' in contract
-      ? [[operationDefinitionName(type, 'result'), contract.result] as const]
+      ? [[operationSchemaDefinitionName(type, version, 'result'), contract.result] as const]
       : []),
   ]),
 ) as Readonly<Record<string, JsonSchema>>;
 
 export const taskExecutionOperationContracts = Object.freeze(
   Object.fromEntries(
-    Object.entries(operationSchemas).map(([type, contract]) => [
-      type,
+    versionedOperationSchemas.map(({ type, version, ...contract }) => [
+      version === '1.0' ? type : `${type}@${version}`,
       {
-        payloadSchemaRef: `${schemaId}#/$defs/${operationDefinitionName(type, 'payload')}`,
+        payloadSchemaRef: `${schemaId}#/$defs/${operationSchemaDefinitionName(type, version, 'payload')}`,
         ...('result' in contract
-          ? { resultSchemaRef: `${schemaId}#/$defs/${operationDefinitionName(type, 'result')}` }
+          ? {
+              resultSchemaRef: `${schemaId}#/$defs/${operationSchemaDefinitionName(type, version, 'result')}`,
+            }
           : {}),
       },
     ]),
