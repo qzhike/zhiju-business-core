@@ -2,6 +2,7 @@ export * from './common.schema.js';
 export * from './context-builder-policy.js';
 export * from './core.schema.js';
 export * from './envelopes.schema.js';
+export * from './work-order-context-binding.js';
 export * from './generated/public-api.js';
 export type { CanonicalJson } from './generated/types/common.js';
 export type {

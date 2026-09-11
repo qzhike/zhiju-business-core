@@ -29,8 +29,13 @@ import {
 } from './operations/artifact.schema.js';
 import { executableOperationSchemas } from './operations/index.js';
 import { canonicalContentInvariantErrors } from './canonical-content.validation.js';
+import {
+  validateWorkOrderContextSnapshotBinding,
+  type WorkOrderContextBindingValidationResult,
+} from './work-order-context-binding.js';
 import { contextBuilderPolicyBindingSchemaRef } from './operations/task-execution.schema.js';
 import {
+  operationEnvelopeSchemaId,
   operationPayloadSchemaRef,
   operationResultSchemaRef,
   type PublicOperationDefinition,
@@ -104,7 +109,7 @@ export class ContractRegistry {
     }
     const guard = this.#guard(operation, input, 'envelope');
     if (guard !== undefined) return guard;
-    const schemaId = `https://schemas.zhiju.local/api/1.0/${operation.type}`;
+    const schemaId = operationEnvelopeSchemaId(operation);
     return this.#run(this.#ajv.getSchema(schemaId), input);
   }
 
@@ -132,6 +137,10 @@ export class ContractRegistry {
 
   validateContextBuilderPolicyBindingMetadata(input: unknown): ContractValidationResult {
     return this.#run(this.#ajv.getSchema(contextBuilderPolicyBindingSchemaRef), input);
+  }
+
+  validateWorkOrderContextSnapshotBinding(input: unknown): WorkOrderContextBindingValidationResult {
+    return validateWorkOrderContextSnapshotBinding(input);
   }
 
   validateOperationResult(type: string, version: string, input: unknown): ContractValidationResult {

@@ -38,6 +38,7 @@ import { qualityGovernanceSchema } from '../../contracts/src/operations/quality-
 import { releasePublicationSchema } from '../../contracts/src/operations/release-publication.schema.ts';
 import { taskExecutionSchema } from '../../contracts/src/operations/task-execution.schema.ts';
 import { publicApiOperations } from '../../contracts/src/generated/public-api.ts';
+import { operationSchemaDefinitionName } from '../../contracts/src/schema-types.ts';
 
 import {
   buildCommonRefs,
@@ -81,11 +82,12 @@ export type { EmitContext, SchemaObject } from './lib/json-schema-emitter.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const typesRoot = join(root, 'contracts', 'src', 'generated', 'types');
-const operationsByOwner: Readonly<Record<string, ReadonlyArray<{ type: string; kind: string }>>> =
-  {};
+const operationsByOwner: Readonly<
+  Record<string, ReadonlyArray<{ type: string; version: '1.0' | '1.1'; kind: string }>>
+> = {};
 for (const op of publicApiOperations) {
   const list = operationsByOwner[op.owner] ?? [];
-  list.push({ type: op.type, kind: op.kind });
+  list.push({ type: op.type, version: op.version, kind: op.kind });
   operationsByOwner[op.owner] = list;
 }
 
@@ -190,7 +192,11 @@ interface ModuleRender {
 function renderModule(
   owner: string,
   schema: unknown,
-  operationList: ReadonlyArray<{ readonly type: string; readonly kind: string }>,
+  operationList: ReadonlyArray<{
+    readonly type: string;
+    readonly version: '1.0' | '1.1';
+    readonly kind: string;
+  }>,
 ): ModuleRender {
   if (!isObject(schema)) throw new Error(`schema for ${owner} is not an object`);
   const defs = isObject(schema.$defs) ? schema.$defs : {};
@@ -227,9 +233,8 @@ function renderModule(
 
   const operations: ModuleRender['operations'] = [];
   for (const op of operationList) {
-    const baseName = op.type.replaceAll('.', '_');
-    const payloadName = `${baseName}_payload`;
-    const resultName = `${baseName}_result`;
+    const payloadName = operationSchemaDefinitionName(op.type, op.version, 'payload');
+    const resultName = operationSchemaDefinitionName(op.type, op.version, 'result');
     const payloadDef = defs[payloadName];
     if (!isObject(payloadDef)) {
       throw new Error(`missing payload def for ${op.type} in ${owner}`);
@@ -370,16 +375,13 @@ function renderModuleFile(
     renderTypeToLines(lines, def.typeName, def.expression, '  ');
   }
   for (const op of moduleRender.operations) {
-    const baseName = op.type.replaceAll('.', '_');
-    const payloadName = `${baseName}_payload`;
-    const resultName = `${baseName}_result`;
-    const payloadTypeName = pascalFromSnake(payloadName);
-    const resultTypeName = pascalFromSnake(resultName);
+    const payloadTypeName = op.payload.typeName;
+    const resultTypeName = op.result?.typeName;
     lines.push(`  /** Payload of \`${op.type}\` (${op.kind}). */`);
     renderTypeToLines(lines, payloadTypeName, op.payload.expression, '  ');
     if (op.result !== undefined) {
       lines.push(`  /** Result of \`${op.type}\` (${op.kind}). */`);
-      renderTypeToLines(lines, resultTypeName, op.result.expression, '  ');
+      renderTypeToLines(lines, resultTypeName!, op.result.expression, '  ');
     }
   }
   lines.push('}');

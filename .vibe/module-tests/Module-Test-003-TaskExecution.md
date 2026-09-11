@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION PASSED 2026-09-08 / #158 CONTRACT SCHEMA REGISTERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / HANDLER E2E NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION PASSED 2026-09-08 / #158 CONTRACT SCHEMA REGISTERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT VERIFIED 2026-09-11 / HANDLER E2E NOT RUN`
 
 对应规格：[`Module-Spec-003-TaskExecution.md`](../module-specs/Module-Spec-003-TaskExecution.md)。
 
@@ -13,7 +13,7 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
 | TE-API-D-001 | Design | TaskExecution Module Spec 与 Catalog | 20 Command、8 Query、11 Event 名称/Owner/字段完整且无重复 | `commands=20 queries=8 events=11`；Catalog 集合差 0；字段检查无异常 | `DESIGN VERIFIED` |
-| TE-API-S-001 | Schema | 39 个 FULL 操作 Payload/Result Schema 注册到 `ContractRegistry` | Registry `operationCount=205`，本模块 39 项 `FULL`，已覆盖的 Payload/Result 正反向 Fixture 通过 `validateOperation`/`validateOperationResult` | Registry operationCount=205，task-execution FULL=39；#158 专项正反向回归见 TE-API-S-019 | `PASSED` |
+| TE-API-S-001 | Schema | 42 个 FULL 操作 Payload/Result Schema 注册到 `ContractRegistry` | Registry `operationCount=208`，本模块 42 项 `FULL`，已覆盖的 Payload/Result 正反向 Fixture 通过 `validateOperation`/`validateOperationResult` | Registry operationCount=208，task-execution FULL=42；#158/#165 专项正反向回归见 TE-API-S-019/021 | `PASSED` |
 | TE-API-S-002 | Schema | `execution.create_task` 命令携带未知字段 `skipPolicyCheck` | Registry 拒绝 `/payload/definition/skipPolicyCheck` | `additionalProperties` keyword 触发 `/payload/definition` 错误 | `PASSED` |
 | TE-API-S-003 | Schema | `execution.start_run` 携带负数 `fencingToken` | Registry 拒绝 `/payload/fencingToken` | `minimum` keyword 触发错误 | `PASSED` |
 | TE-API-S-004 | Schema | `execution.accept_agent_result` 用 `objectRef` 而非 `contentAddressedRef` | Registry 拒绝 `/payload/agentResultRef` | `const` keyword 触发错误（`kind` 必须是 `CONTENT_ADDRESSED`） | `PASSED` |
@@ -33,6 +33,7 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 | TE-API-S-018 | Schema Integration | 合并 PR #12 的 Artifact 26 个 FULL 操作与 TaskExecution 37 个 FULL 操作 | 聚合 Registry 同时注册两个模块；FULL=115、ENVELOPE_ONLY=85；两个模块的正反向回归全部通过 | 5 个 Test Files、118/118；Architecture、Public API generation、Catalog Registry 全部通过 | `PASSED` |
 | TE-API-S-019 | Schema | #158 的 `get_work_order_draft@1.0` 与 `build_initial_context_snapshot@1.0`，包括精确 Ref、闭集字段、期限可选性、Draft/Result 结构与旧 `build_context_snapshot@1.0` 兼容边界 | 新 Query/Command 正向 Envelope、Query Result 与负向错分支/空 Slice/重复 Slice/非法期限/非法 CAS/旧字段输入按 Spec 通过或拒绝；旧合法 Contract 保持通过 | `task-execution.schema.test.ts` 6/6；与 `registry.test.ts` 合并 55/55；生成、目录计数与 TypeScript 类型检查通过 | `PASSED` |
 | TE-API-S-020 | Schema/Compatibility | #159 的完整 frozen build Envelope 覆盖 `answeredInformationRefs=[]/[R]/[R,R]`，并以同一合法输入控制非数组、畸形 Ref、缺 `workOrderContractRef`、空/重复 `sourceSlices` | `[]`、单项和重复合法 Ref 均通过；非数组/畸形 Ref 仍在 intended 字段拒绝；ContractRef 仍 required，Source Slice 仍 minItems+uniqueItems；输入顺序、内容和 Envelope Hash 不被改变 | 修改前重复 fixture 仅因 `/payload/request/answeredInformationRefs` 的 `uniqueItems` 拒绝；修改后 `task-execution.schema.test.ts` 8/8 通过，重复输入保持长度 2 且未被 validator 改写；历史 baseline 不重写 | `PASSED` |
+| TE-API-S-021 | Schema/Compatibility | #165 的 `create_work_order@1.1`、`get_work_order_draft@1.1`、`build_initial_context_snapshot@1.1` 与 `DraftVersionPins`/`InitialWorkOrderDraft` | @1.1 DRAFT 拒绝 `projectContextContractRef` 和 frozen Contract Ref；合法 @1.1 链通过；旧 @1.0 create/draft/build 合法调用继续通过；生成类型与 Registry 计数同步 | `task-execution.schema.test.ts` 与 `work-order-context-binding.test.ts` 覆盖正反向契约；TE-WI02-D-013 覆盖 Context Ref 全字段相等与缺失/错误 Hash/Scope | `PASSED` |
 | TE-API-U-001 | Unit | READY WorkOrder 请求扩大 target scope | 拒绝 `EXECUTION_WORK_ORDER_SPEC_IMMUTABLE`，要求新 WorkOrder | 无实现 | `NOT RUN` |
 | TE-API-U-002 | Unit | 两个 Dispatcher 竞争同 WorkOrder active Run | 只有一个 claim/fencing token 生效，另一个返回 active conflict | 无并发实现 | `NOT RUN` |
 | TE-API-U-003 | Unit | terminal Run 提交第二个不同 Hash final Result | Quarantine/replay conflict；不处理 BusinessOutput | 无实现 | `NOT RUN` |
@@ -44,11 +45,11 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 
 ## 本阶段结果
 
-- Schema 层 Contract（TE-API-S-001 ~ TE-API-S-020）均为 `PASSED`；TE-API-S-018 保留 PR #12 时的 200 项聚合基线证据；当前 Registry operationCount=205、FULL=205、ENVELOPE_ONLY=0、task-execution FULL=39，#158 新增两项操作与 #159 数组兼容修复的 focused 与聚合回归均通过。
+- Schema 层 Contract（TE-API-S-001 ~ TE-API-S-021）均为 `PASSED`；TE-API-S-018 保留 PR #12 时的 200 项聚合基线证据；当前 Registry operationCount=208、FULL=208、ENVELOPE_ONLY=0、task-execution FULL=42，#158/#165 的操作增量与 #159 数组兼容修复的 focused 与聚合回归均通过。
 - Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与 Handler 实现均不存在；本阶段未声明 CLI 或 DB E2E 已运行。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)。
 - Runtime Adapter 专项：4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景为 `NOT RUN`；6 个 API proposal 尚未进入 Catalog 与本模块 Schema。
-- 测试遗留：未创建临时脚本或临时测试文件；#158/#159 的永久 Contract 回归位于 `contracts/src/operations/task-execution.schema.test.ts`，复用 `tests/fixtures/contracts/` 中的权威 WorkOrder 与完整 frozen build fixture，与生产代码同源管理。
+- 测试遗留：未创建临时脚本或临时测试文件；#158/#159/#165 的永久 Contract 回归位于 `contracts/src/operations/task-execution.schema.test.ts` 与 `contracts/src/work-order-context-binding.test.ts`，复用 `tests/fixtures/contracts/` 中的权威 WorkOrder、initial Context 和完整 frozen build fixture，与生产代码同源管理。
 
 ## IM-02 WI-04 PostgreSQL 用例
 
@@ -115,6 +116,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-WI02-D-010 | 创建不提供期限；candidate 分别缺省或提供 T1；其他 Decision/Policy/Context 过期 | 仅缺省映射一致；无 WorkOrder 期限仍不能绕过其他期限或缺失 Policy | NOT RUN |
 | TE-WI02-D-011 | 创建时 now 等于/晚于 T0；Builder/Validator/Freeze 在查询后或长事务内跨过 T0 | 创建直接拒绝；后续步骤在消费/提交前重新判断，不发布可执行成功事实；历史 Snapshot/判断不删除，可用 Validation.validUntil 不晚于 T0 | NOT RUN |
 | TE-WI02-D-012 | Root status 仍 READY/QUEUED 但 now>=T0；Contract 期限被伪造为 T1；Run 已创建但尚未 start；到期后同键重放原 build/freeze | 新构建/排队/create/start 被拒绝；错期限绑定拒绝；原 Receipt 可重放但不授权新动作；不强改已运行 Run | NOT RUN |
+| TE-WI02-D-013 | @1.1 DRAFT 使用独立 `DraftVersionPins`；正向 candidate 绑定顶层 `contextSnapshotRef` 与嵌套 `versionPins.projectContextContractRef`；分别改变 canonical objectType、objectId、snapshotId、Scope、contentHash，或删除/伪造 Hash | 合法冻结候选的两处 Snapshot Ref 必须逐字段完全相等；DRAFT 拒绝 Context Ref；缺失、错误 Hash/Scope 和 stale 输入 fail closed；不生成部分成功 Context/Contract | Schema/跨字段纯契约校验通过；Handler、真实 PostgreSQL 业务链与运行验收保持 NOT RUN | PASS |
 | TE-WI02-D-014 | 固定同一 canonical `zhiju.identity.policy` ref，分别放入 InitialContextBuildRequest、ProjectContext projection、Context build metadata 与 Frozen WorkOrder VersionPins；对照缺失 ref、`zhiju.context.policy`/任意 namespace、错 objectId/versionId/Scope、同 key 异 contentHash、metadata/Policy 有效期不一致、未生效和已过期 | 合法四点绑定通过；候选组装、Validator、Freeze 均可复用同一校验；所有反例 fail closed，不生成部分 Snapshot/Validation/Contract，不接受 legacy 或 caller Hash | PASS（纯契约校验）；Handler/真实 IdentityPolicy/PG 仍 NOT RUN |
 
 独立设计审查应核对 TD-01–04、新操作清单、所有具体失败矩阵与单Aggregate/兼容边界。人类对具体技术设计的批准不等于上述运行结果。真实Feishu/CLI Runtime、公开HTTP、生产和独立人工业务验收继续独立NOT RUN。

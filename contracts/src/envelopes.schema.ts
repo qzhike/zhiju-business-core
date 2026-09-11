@@ -1,24 +1,33 @@
-import type { JsonSchema, PublicOperationDefinition } from './schema-types.js';
+import type { JsonSchema, OperationVersion, PublicOperationDefinition } from './schema-types.js';
 
 const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
 
-// Keep this helper local and type-import-only so tooling can load this module
-// under Node `--experimental-strip-types` without resolving compiled `.js`
-// value imports. Behavior must match `operationPayloadSchemaRef` in
-// `schema-types.ts` (enforced by contracts envelope parity tests).
-function payloadSchemaRef(operation: PublicOperationDefinition): string | undefined {
+function operationSchemaDefinitionName(
+  type: string,
+  version: OperationVersion,
+  suffix: 'payload' | 'result',
+): string {
+  const versionSuffix = version === '1.0' ? '' : `_v${version.replaceAll('.', '_')}`;
+  return `${type.replaceAll('.', '_')}${versionSuffix}_${suffix}`;
+}
+
+function operationEnvelopeSchemaId(operation: PublicOperationDefinition): string {
+  return `https://schemas.zhiju.local/api/${operation.version}/${operation.type}`;
+}
+
+function operationPayloadSchemaRef(operation: PublicOperationDefinition): string | undefined {
   if (operation.schemaStatus !== 'FULL') return undefined;
-  return `https://schemas.zhiju.local/modules/${operation.owner}/1.0#/$defs/${operation.type.replaceAll('.', '_')}_payload`;
+  return `https://schemas.zhiju.local/modules/${operation.owner}/1.0#/$defs/${operationSchemaDefinitionName(operation.type, operation.version, 'payload')}`;
 }
 
 function payloadSchema(operation: PublicOperationDefinition): JsonSchema {
-  const schemaRef = payloadSchemaRef(operation);
+  const schemaRef = operationPayloadSchemaRef(operation);
   return schemaRef === undefined ? { type: 'object' } : { $ref: schemaRef };
 }
 
 function commandSchema(operation: PublicOperationDefinition): JsonSchema {
   return {
-    $id: `https://schemas.zhiju.local/api/1.0/${operation.type}`,
+    $id: operationEnvelopeSchemaId(operation),
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     type: 'object',
     additionalProperties: false,
@@ -70,7 +79,7 @@ function commandSchema(operation: PublicOperationDefinition): JsonSchema {
 
 function querySchema(operation: PublicOperationDefinition): JsonSchema {
   return {
-    $id: `https://schemas.zhiju.local/api/1.0/${operation.type}`,
+    $id: operationEnvelopeSchemaId(operation),
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     type: 'object',
     additionalProperties: false,
@@ -117,7 +126,7 @@ function querySchema(operation: PublicOperationDefinition): JsonSchema {
 
 function eventSchema(operation: PublicOperationDefinition): JsonSchema {
   return {
-    $id: `https://schemas.zhiju.local/api/1.0/${operation.type}`,
+    $id: operationEnvelopeSchemaId(operation),
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     type: 'object',
     additionalProperties: false,

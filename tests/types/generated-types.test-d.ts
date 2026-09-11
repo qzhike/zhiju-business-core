@@ -686,6 +686,75 @@ const workOrderContract: Core.WorkOrderContract = {
 };
 expectType<Core.WorkOrderContract>(workOrderContract);
 
+const draftVersionPins: TaskExecution.DraftVersionPins = {
+  contextBuilderPolicyRef: {
+    ...workOrderContract.versionPins.contextBuilderPolicyRef,
+    objectType: 'zhiju.identity.policy',
+  },
+  workOrderSchemaRef: workOrderContract.versionPins.workOrderSchemaRef,
+  skillRefs: [],
+  templateRefs: [],
+  capabilityPolicyRef: workOrderContract.versionPins.capabilityPolicyRef,
+  runtimeAdapterContractRef: workOrderContract.versionPins.runtimeAdapterContractRef,
+};
+expectType<TaskExecution.DraftVersionPins>(draftVersionPins);
+
+const initialWorkOrderDraft: TaskExecution.InitialWorkOrderDraft = {
+  taskRef: workOrderContract.taskRef,
+  requestedBy: workOrderContract.requestedBy,
+  objective: workOrderContract.objective,
+  targetScope: workOrderContract.targetScope,
+  inputRefs: workOrderContract.inputRefs,
+  constraints: workOrderContract.constraints,
+  allowedCapabilities: workOrderContract.allowedCapabilities,
+  deniedCapabilities: workOrderContract.deniedCapabilities,
+  expectedOutputs: workOrderContract.expectedOutputs,
+  completionCriteria: workOrderContract.completionCriteria,
+  riskAndQuality: workOrderContract.riskAndQuality,
+  executionPolicy: workOrderContract.executionPolicy,
+  budget: workOrderContract.budget,
+  harnessPolicy: workOrderContract.harnessPolicy,
+  modelPolicy: workOrderContract.modelPolicy,
+  versionPins: draftVersionPins,
+};
+expectType<TaskExecution.InitialWorkOrderDraft>(initialWorkOrderDraft);
+
+const createInitialWorkOrderPayload: TaskExecution.ExecutionCreateWorkOrderV11Payload = {
+  draft: initialWorkOrderDraft,
+};
+expectType<TaskExecution.ExecutionCreateWorkOrderV11Payload>(createInitialWorkOrderPayload);
+
+const initialContextBuildRequest: TaskExecution.InitialContextBuildRequestV11 = {
+  draftSnapshotRef: {
+    ...contentAddressedReference,
+    objectType: 'zhiju.execution.work_order_draft_snapshot',
+  },
+  projectionType: 'COORDINATOR',
+  purpose: 'context.initial',
+  audience: { principalKind: 'HUMAN', principalId: uuid },
+  sourceSlices: [
+    {
+      ...contentAddressedReference,
+      objectType: 'zhiju.project.context_source_slice',
+    },
+  ],
+  builderPolicyRef: {
+    ...versionedReference,
+    objectType: 'zhiju.identity.policy',
+  },
+};
+expectType<TaskExecution.InitialContextBuildRequestV11>(initialContextBuildRequest);
+
+// Negative case — DraftVersionPins cannot carry the frozen Context ref.
+{
+  const invalidDraftVersionPins: TaskExecution.DraftVersionPins = {
+    ...draftVersionPins,
+    // @ts-expect-error — projectContextContractRef is added only on the frozen branch.
+    projectContextContractRef: snapshotReference,
+  };
+  void invalidDraftVersionPins;
+}
+
 const freezePayload: TaskExecution.ExecutionFreezeWorkOrderPayload = {
   workOrderContract,
   validationSnapshotRef: snapshotReference,

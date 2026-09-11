@@ -1,7 +1,7 @@
 # IM-06 Human-operated 执行边界与设计提案
 
 日期：2026-09-09
-状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / TD-05–07 PROPOSED / IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；§11 是剩余设计提案，尚未批准，不宣称实现存在。推进顺序见 [roadmap](../product/roadmap.md)。
+状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / TD-05–07 PROPOSED / HANDLER IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。推进顺序见 [roadmap](../product/roadmap.md)。
 
 ## 1. 分类与既有边界
 
@@ -9,7 +9,7 @@ IM-06 按 T2 规划：涉及安全绑定、不可变 Contract、数据库并发 
 
 目标是由 Human 发起并审阅、由 owning Service 执行的可重复 Core 流程。Human 不直接拼写可信 AgentResult，不通过布尔值完成 Task/WorkOrder；确定性测试 Driver 的结果只提供合成技术证据。真实 CLI、Provider、飞书收答与 Workspace UI 分别保留在既有后续里程碑。
 
-TaskExecution 当前业务入口仍为 `SKELETON`；已有 37 项字段级操作（19 Command、7 Query、11 Event）与 V3000 技术表，不等于业务 Handler、业务表或完成闭环已经存在。EnterpriseProject 的 TaskCompleted 消费能力可作为后续衔接点，不能以其合成事件测试替代真实 TaskExecution Producer。
+TaskExecution 当前业务入口仍为 `SKELETON`；已有 42 个版本化字段级操作（20 Command、8 Query、11 Event，其中三个为 #165 的 @1.1 兼容版本）与 V3000 技术表，不等于业务 Handler、业务表或完成闭环已经存在。EnterpriseProject 的 TaskCompleted 消费能力可作为后续衔接点，不能以其合成事件测试替代真实 TaskExecution Producer。
 
 ## 2. 首次 Context 与冻结 Contract 的构建顺序
 
@@ -78,7 +78,7 @@ Task Criterion 的首版字段、支持的质量/审批条件，以及 Informati
 | TD-03 判断事实 | 显式 Builder/Validator 创建不可变事实；一项只读 tagged-union Query；Task typed definition 用新 Major | `create_task@2.0` 与 v1.0 并存，旧 Schema/历史数据不收窄；新增判断事实存储 | 直接收窄 v1.0 的 CanonicalJson、通用规则表达式或允许调用者决定 valid/completed |
 | TD-04 首版答案和质量范围 | 首版答案闭环采用已确认 CustomerMaterial；通过 EP Receipt attestation 证明领域写入。Task 支持正式输出与精确 RAS/ABS 质量条件；其他类型 fail closed | 新增 EP 窄 Query；首版不支持任意 Fact/Policy Exception/Release Criterion。后续扩展需独立决定 | 把收到文本、关联 correlationId 或 caller Receipt 当作采纳事实；让 Task 复制 Release/DeliveryItem 判据 |
 
-TD-01–04 已于 2026-09-08 获用户明确批准，包含新操作、Task v2 与首版类型限制。完整已批准字段、授权与错误在 [Module Spec 003 技术设计附录](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)；IG/EP 的字段分别由 [Spec 007](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[Spec 002](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计) 拥有。设计操作不计入当前 201 项 Catalog，不生成 executable Schema，不修改历史 Compatibility Baseline。
+TD-01–04 已于 2026-09-08 获用户明确批准，包含新操作、Task v2 与首版类型限制。完整已批准字段、授权与错误在 [Module Spec 003 技术设计附录](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)；IG/EP 的字段分别由 [Spec 007](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[Spec 002](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计) 拥有。#165 已将 DRAFT/initial Context 的三个 @1.1 兼容操作纳入当前 208 项 Catalog，并保持历史 Compatibility Baseline 不变；其余仅设计操作仍不自动进入 Registry。
 
 ## 8. WI-02 首次构建、冻结与 Retry
 
@@ -160,6 +160,12 @@ TD-01–04 已于 2026-09-08 获用户明确批准，包含新操作、Task v2 �
 新 `execution.build_initial_context_snapshot@1.0` 入口只接受 `zhiju.identity.policy`，不能产生 `zhiju.context.policy`、`identity.policy` 或其他任意 namespace。旧 Core v1.0 历史 fixture 的 `zhiju.context.policy` 只通过兼容读回保持可解析；它不是新的 WI-02 binding 的合法输入。旧 `execution.build_context_snapshot@1.0` 的必填字段和通用 Ref 形状不因本决定改变。
 
 候选组装、WorkOrderValidator 和 Freeze 必须在各自消费边界重新读取并调用同一绑定校验：缺失 ref、错误 objectType/objectId/versionId/Scope、同 Key 异 Hash、metadata 与解析结果有效期不一致、尚未生效或已过期都 fail closed。校验通过只证明跨字段绑定完整，不证明 IdentityPolicy 对象存在、当前授权允许或业务 Handler 已实现；这些仍由 owning Query/Handler 和未来真实验收拥有。
+
+### 8.7 #165 DRAFT VersionPins 与首次 Context 的 @1.1 契约同步
+
+状态：`APPROVED DESIGN / CONTRACT IMPLEMENTED 2026-09-11 / HANDLER AND BUSINESS PERSISTENCE NOT IMPLEMENTED`。#165 在旧 @1.0 合法调用保持不变的前提下，新增 `create_work_order@1.1`、`get_work_order_draft@1.1` 和 `build_initial_context_snapshot@1.1`。@1.1 DRAFT 使用 `InitialWorkOrderDraft` 与不含 `projectContextContractRef` 的 `DraftVersionPins`；该完整 Context Ref 只在 CTX-1 成功提交后进入 Frozen WorkOrder Contract。
+
+候选 Frozen Contract 的顶层 `contextSnapshotRef` 与嵌套 `versionPins.projectContextContractRef` 必须逐字段完全相等，比较 canonical object type、objectId、snapshotId、Scope 中 enterpriseId/projectId 的有无和值，以及 contentHash 的 algorithm/digest/canonicalizationVersion。缺失、错误 Hash/Scope、Draft stale 或输入改变都必须 fail closed；不创建部分成功 Context/Contract。此次交付范围是 Schema、Envelope/Registry、兼容元数据、生成类型、fixtures 和纯契约校验。Context Handler、migration、真实 PostgreSQL 业务链、Provider/Feishu/Runtime 与人工业务验收仍为 `NOT RUN`。
 
 ## 9. WI-03 事务序列与竞态裁决
 

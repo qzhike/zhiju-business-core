@@ -781,10 +781,12 @@ Commands：
 execution.create_task@1.0
 execution.mark_task_ready@1.0
 execution.create_work_order@1.0
+execution.create_work_order@1.1
 execution.freeze_work_order@1.0
 execution.queue_work_order@1.0
 execution.build_context_snapshot@1.0
 execution.build_initial_context_snapshot@1.0
+execution.build_initial_context_snapshot@1.1
 execution.create_run@1.0
 execution.start_run@1.0
 execution.request_run_cancel@1.0
@@ -805,6 +807,7 @@ Queries：
 ```text
 execution.get_work_order_contract@1.0
 execution.get_work_order_draft@1.0
+execution.get_work_order_draft@1.1
 execution.get_context_snapshot@1.0
 execution.get_run_state@1.0
 execution.get_agent_result@1.0
@@ -1122,11 +1125,11 @@ Evidence/Representation/Package Ref
 
 Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 冻结 EnterpriseProject Owner 的受控 Application Capability；逻辑名称、输入/输出、授权目的和错误码见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。
 
-这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 205 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
+这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 208 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
 
 ## IM-06 注册与未注册设计路由
 
-当前 Catalog 为 205 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 208 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
 
 ### #157 ContextSourceSlice 注册
 
@@ -1148,6 +1151,10 @@ Owner 为 TaskExecution；`execution.get_work_order_draft@1.0` 是 AUTHORITATIVE
 |---|---|---|---|
 | zhiju.execution.work_order_draft_snapshot | task-execution | CONTENT_ADDRESSED；Project Scope | 不可变；不另建可变版本；否 |
 | zhiju.execution.context_snapshot | task-execution | OBJECT（CREATE target）、SNAPSHOT（结果）；Project Scope | 不可变；Snapshot；否 |
+
+### #165 DRAFT VersionPins 与首次 Context 的 @1.1 注册
+
+Owner 仍为 TaskExecution；新增三个与旧 @1.0 并存的 @1.1 operation。`InitialWorkOrderDraft` 复用旧 Draft 的业务字段，但使用独立 `DraftVersionPins`，必填 `contextBuilderPolicyRef`、`workOrderSchemaRef`、`skillRefs`、`templateRefs`、`capabilityPolicyRef`、`runtimeAdapterContractRef`，可选 `regulatoryProfileRef` 与 `qualityProfileRef`，且明确不包含 `projectContextContractRef`。只有 CTX-1 成功提交后，候选 Frozen WorkOrder Contract 才补入完整 Context Ref；顶层 `contextSnapshotRef` 与嵌套 `versionPins.projectContextContractRef` 必须在 object type、object/snapshot identity、Scope 和 contentHash 全字段上完全相等。旧 @1.0 操作与历史 Core WorkOrder 形状保持兼容；本项的 Handler、migration、真实 PostgreSQL 业务链与运行验收仍为 NOT RUN。
 
 ### #166 Context Builder Policy binding
 

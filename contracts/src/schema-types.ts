@@ -2,6 +2,8 @@ import type { AnySchemaObject } from 'ajv';
 
 export type JsonSchema = AnySchemaObject;
 
+export type OperationVersion = '1.0' | '1.1';
+
 export interface PayloadGuardPolicyRef {
   readonly type: string;
   readonly version: string;
@@ -15,7 +17,7 @@ export interface OperationReferenceDeclaration {
 
 export interface PublicOperationDefinition {
   readonly type: string;
-  readonly version: '1.0';
+  readonly version: OperationVersion;
   readonly kind: 'COMMAND' | 'QUERY' | 'EVENT';
   readonly owner: string;
   readonly schemaStatus: 'ENVELOPE_ONLY' | 'FULL';
@@ -31,18 +33,27 @@ export interface PublicOperationDefinition {
   readonly resultReferences?: readonly OperationReferenceDeclaration[];
 }
 
-function operationDefinitionName(type: string, suffix: 'payload' | 'result'): string {
-  return `${type.replaceAll('.', '_')}_${suffix}`;
+export function operationSchemaDefinitionName(
+  type: string,
+  version: OperationVersion,
+  suffix: 'payload' | 'result',
+): string {
+  const versionSuffix = version === '1.0' ? '' : `_v${version.replaceAll('.', '_')}`;
+  return `${type.replaceAll('.', '_')}${versionSuffix}_${suffix}`;
+}
+
+export function operationEnvelopeSchemaId(operation: PublicOperationDefinition): string {
+  return `https://schemas.zhiju.local/api/${operation.version}/${operation.type}`;
 }
 
 export function operationPayloadSchemaRef(
   operation: PublicOperationDefinition,
 ): string | undefined {
   if (operation.schemaStatus !== 'FULL') return undefined;
-  return `https://schemas.zhiju.local/modules/${operation.owner}/1.0#/$defs/${operationDefinitionName(operation.type, 'payload')}`;
+  return `https://schemas.zhiju.local/modules/${operation.owner}/1.0#/$defs/${operationSchemaDefinitionName(operation.type, operation.version, 'payload')}`;
 }
 
 export function operationResultSchemaRef(operation: PublicOperationDefinition): string | undefined {
   if (operation.schemaStatus !== 'FULL' || operation.kind !== 'QUERY') return undefined;
-  return `https://schemas.zhiju.local/modules/${operation.owner}/1.0#/$defs/${operationDefinitionName(operation.type, 'result')}`;
+  return `https://schemas.zhiju.local/modules/${operation.owner}/1.0#/$defs/${operationSchemaDefinitionName(operation.type, operation.version, 'result')}`;
 }
