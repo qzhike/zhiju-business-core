@@ -250,7 +250,16 @@ describe('TaskExecution Draft and initial Context contracts', () => {
     expect(registry.getOperation('execution.create_work_order', '1.1')).toMatchObject({
       owner: 'task-execution',
       kind: 'COMMAND',
+      targetObjectType: 'zhiju.execution.work_order',
+      concurrencyMode: 'CREATE',
       authorizationPurpose: 'task.execution.create_work_order',
+      references: [
+        {
+          path: '/targetRef',
+          kind: 'OBJECT',
+          objectType: 'zhiju.execution.work_order',
+        },
+      ],
     });
     expect(registry.getOperation('execution.get_work_order_draft', '1.1')).toMatchObject({
       owner: 'task-execution',
@@ -288,6 +297,23 @@ describe('TaskExecution Draft and initial Context contracts', () => {
         initialContextCommand(true, '1.1'),
       ),
     ).toEqual({ valid: true, errors: [] });
+
+    const createWithCas = createWorkOrderCommand('1.1');
+    createWithCas.expectedAggregateVersion = 0;
+    expectSchemaError(
+      registry.validateOperation('execution.create_work_order', '1.1', createWithCas),
+      '/expectedAggregateVersion',
+      'false schema',
+    );
+
+    const createWithWrongTarget = createWorkOrderCommand('1.1');
+    createWithWrongTarget.targetRef = objectRef('zhiju.artifact.artifact');
+    expectSchemaError(
+      registry.validateOperation('execution.create_work_order', '1.1', createWithWrongTarget),
+      '/targetRef/objectType',
+      'const',
+      { allowedValue: 'zhiju.execution.work_order' },
+    );
 
     const draftWithContextRef = createWorkOrderCommand('1.1');
     const draft = (draftWithContextRef.payload as JsonObject).draft as JsonObject;

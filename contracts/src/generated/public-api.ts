@@ -392,8 +392,11 @@ export const publicApiOperations = [
     kind: 'COMMAND',
     owner: 'task-execution',
     schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.work_order',
+    concurrencyMode: 'CREATE',
     authorizationPurpose: 'task.execution.create_work_order',
     dataClassification: 'INTERNAL',
+    references: [{ path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.execution.work_order' }],
   },
   {
     type: 'execution.freeze_work_order',
