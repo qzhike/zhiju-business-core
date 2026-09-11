@@ -532,12 +532,12 @@ InitialContextCommandResult
     ├── objectType: Closed<zhiju.execution.context_snapshot>
     ├── objectId: UuidV7
     ├── snapshotId: UuidV7
-    ├── scope: ScopeRef                 // projectId 必须伴随 enterpriseId
+    ├── scope: ProjectScope             // enterpriseId 与 projectId 均必填
     └── contentHash: ContentHash         // SHA-256 / 64 hex / canonicalizationVersion=1
 ```
 
 1. 两个版本的 `resultSchemaRef` 分别是各自 `$defs` 中的 `..._result` 定义，Registry 条目显式注册该引用；只声明 `resultReferences` 不构成可验证返回路径。COMMAND 的结果 Schema 是显式可选加入的：未注册 `resultSchemaRef` 的命令不接受 operation-specific data，`validateOperationResult` 以 `operationResultRegistry` 拒绝。
-2. `data.contextSnapshotRef` 必须同时满足 Result Schema 与跨字段绑定：CommandResult `targetRef` 的 canonical objectType 必须是 `zhiju.execution.context_snapshot`，`objectId` 必须等于返回 Ref 的 `objectId`，Scope 的 enterpriseId/projectId 有无和值必须相等。只比较 objectId、或把 `zhiju.project.context_snapshot` 当作同一对象，都不能通过。
+2. `data.contextSnapshotRef` 必须同时满足 Result Schema 与跨字段绑定：`scope` 是 **Project Scope**，`enterpriseId` 与 `projectId` 都是必填字段——共享 `scopeRef` 允许的 `{}` 或仅 `enterpriseId` 在本入口一律拒绝；CommandResult `targetRef` 的 canonical objectType 必须是 `zhiju.execution.context_snapshot`，`objectId` 必须等于返回 Ref 的 `objectId`，Scope 的 enterpriseId/projectId 有无和值必须相等。只比较 objectId、或把 `zhiju.project.context_snapshot` 当作同一对象，都不能通过。该收紧只作用于新增的 Initial Context Result Ref Schema 与 canonical 绑定，不改变通用 `ScopeRef`，也不改变既有 Query 的接受集合。
 3. canonical 名称是新入口的唯一输出；`zhiju.project.context_snapshot` 仅是 Core v1.0 历史读回身份，既不能由本入口产生，也不能在跨字段比较中与 canonical 名称互换。返回引用必须指向本次已提交的 Snapshot：同一 `objectId` 只能有该次构建产生的 `snapshotId` 与 `contentHash`，同键异 payload Hash 属于 `IDEMPOTENCY_PAYLOAD_CONFLICT`，由 Handler 判定。
 4. authoritative `execution.get_context_snapshot@1.0` 的输入 Ref 与结果 Ref 必须逐字段相等（含 `snapshotId` 与完整 `contentHash` 三元组），防止返回与请求不同的 Snapshot。该 Query 既有 Schema、接受集合与历史 namespace 读回语义不变；不得用返回结果反推或放宽请求校验。
 5. 旧 `execution.build_context_snapshot@1.0` 保持必填 `workOrderContractRef` 和原返回形状，不注册 operation-specific Result Schema，也不接受 `draftSnapshotRef` 分支。
@@ -546,7 +546,7 @@ InitialContextCommandResult
 |---|---|---|
 | 命令未注册 Result Schema，或用 `resultReferences` 冒充返回契约 | `operationResultRegistry` / 构建期缺 Schema 错误 | 不产生「已实现精确返回路径」的结论；Handler 不接受未注册 data |
 | 缺 `contextSnapshotRef`，或 `kind`/`objectType` 为 legacy/任意 namespace | `REFERENCE_INVALID`（Schema `required`/`const`） | 不返回 legacy 身份，不以任意 namespace 代替 canonical |
-| `snapshotId` 缺失、`scope` 缺 enterpriseId、`contentHash` 非 SHA-256/64 hex/version 1 | `REFERENCE_INVALID`（Schema） | 不把残缺 Ref 当可读回对象；不默认补全 Scope 或 Hash |
+| `snapshotId` 缺失、`scope` 非 Project Scope（缺 enterpriseId 或 projectId，含空 Scope）、`contentHash` 非 SHA-256/64 hex/version 1 | `REFERENCE_INVALID`（Schema `required`）或 `MISSING_CONTEXT_SNAPSHOT_PROJECT_SCOPE` | 不把残缺 Ref 当可读回对象；不默认补全 Scope 或 Hash，也不因 target 与结果双方都缺 projectId 就判为一致 |
 | `targetRef.objectId` 与返回 Ref 不等，或 objectType/Scope 不一致 | `EXECUTION_JUDGMENT_INVALID` / `CONTEXT_SNAPSHOT_TARGET_MISMATCH` | 不把另一次构建的 Snapshot 组装成本次成功结果 |
 | Query 返回与请求不同的 `objectId`/`snapshotId`/`contentHash`/`scope`/`objectType` | `REFERENCE_INVALID` / `CONTEXT_SNAPSHOT_READ_MISMATCH` | 不用结果覆盖请求；不回退到 latest 或同 objectId 的其他 Snapshot |
 | Snapshot 未提交、已提交但不可读 | `REFERENCE_INVALID` 或 `DEPENDENCY_UNAVAILABLE` | fail closed；不生成部分成功结果，不把未提交引用写入 Contract/Event |

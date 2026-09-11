@@ -94,10 +94,31 @@ const sourceSliceReference = exactObjectType(
   'zhiju.project.context_source_slice',
 );
 const builderPolicyReference = exactObjectType(versionedReference, 'zhiju.identity.policy');
-const contextSnapshotReference = exactObjectType(
-  snapshotReference,
-  'zhiju.execution.context_snapshot',
-);
+/**
+ * Initial Context entries return a Project-scoped Context Snapshot. Beside the
+ * canonical object type this narrows the shared `scopeRef` so both members are
+ * present; the shared `scopeRef` itself stays unchanged for the historical
+ * read paths, which must keep accepting their legacy snapshots.
+ */
+const contextSnapshotReference = {
+  allOf: [
+    snapshotReference,
+    {
+      type: 'object',
+      properties: {
+        objectType: { const: 'zhiju.execution.context_snapshot' },
+        scope: {
+          type: 'object',
+          required: ['enterpriseId', 'projectId'],
+          properties: {
+            enterpriseId: { $ref: `${common}uuidV7` },
+            projectId: { $ref: `${common}uuidV7` },
+          },
+        },
+      },
+    },
+  ],
+} as const;
 
 const taskStatus = {
   enum: [

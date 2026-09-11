@@ -21,6 +21,7 @@ export type ContextSnapshotBindingCode =
   | 'MISSING_CONTEXT_SNAPSHOT_REF'
   | 'INVALID_CONTEXT_SNAPSHOT_REF'
   | 'LEGACY_CONTEXT_SNAPSHOT_OBJECT_TYPE'
+  | 'MISSING_CONTEXT_SNAPSHOT_PROJECT_SCOPE'
   | 'CONTEXT_SNAPSHOT_TARGET_MISMATCH'
   | 'CONTEXT_SNAPSHOT_READ_MISMATCH';
 
@@ -73,6 +74,18 @@ function readCanonicalSnapshotRef(
       `${path}/objectType`,
       'INVALID_CONTEXT_SNAPSHOT_REF',
       `Ref objectType must be ${contextSnapshotObjectType}`,
+    );
+    return undefined;
+  }
+  // A WI-02 Initial Context Snapshot is always Project scoped. The shared
+  // `scopeRef` treats both members as optional, so the enterprise-only or empty
+  // scope has to be rejected here as well as in the result schema.
+  if (ref.scope.enterpriseId === undefined || ref.scope.projectId === undefined) {
+    pushError(
+      errors,
+      `${path}/scope`,
+      'MISSING_CONTEXT_SNAPSHOT_PROJECT_SCOPE',
+      'Context Snapshot refs from a WI-02 entry require enterpriseId and projectId',
     );
     return undefined;
   }

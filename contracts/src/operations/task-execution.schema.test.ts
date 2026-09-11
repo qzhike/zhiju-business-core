@@ -843,6 +843,29 @@ describe('TaskExecution Draft and initial Context contracts', () => {
       'dependentRequired',
     );
 
+    // A WI-02 Initial Context Snapshot is Project scoped: the enterprise-only
+    // and empty scopes that the shared `scopeRef` accepts must be rejected by
+    // both entry versions.
+    for (const version of ['1.0', '1.1'] as const) {
+      for (const testCase of [
+        { scope: {}, missingProperty: 'enterpriseId' },
+        { scope: { enterpriseId }, missingProperty: 'projectId' },
+      ]) {
+        const incompleteScope = resultData();
+        snapshotRef(incompleteScope).scope = testCase.scope;
+        expectSchemaError(
+          registry.validateOperationResult(
+            'execution.build_initial_context_snapshot',
+            version,
+            incompleteScope,
+          ),
+          '/contextSnapshotRef/scope',
+          'required',
+          { missingProperty: testCase.missingProperty },
+        );
+      }
+    }
+
     const missingSnapshotId = resultData();
     delete snapshotRef(missingSnapshotId).snapshotId;
     expectSchemaError(

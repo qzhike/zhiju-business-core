@@ -461,7 +461,7 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 ### #167 Initial Context Result 与 canonical SnapshotRef
 
-`execution.build_initial_context_snapshot@1.0` 与 `@1.1` 注册显式 `resultSchemaRef`，通过 §5.5.1 的扩展返回 `data.contextSnapshotRef`，不再只以 `resultReferences` 描述返回引用。Result Schema 固定 `kind=SNAPSHOT`、`objectType=zhiju.execution.context_snapshot`，并完整要求 `objectId`、`snapshotId`、`Scope` 与 `contentHash`；CommandResult `targetRef` 必须与返回 Ref 的 canonical objectType、objectId 和 Scope 一致。
+`execution.build_initial_context_snapshot@1.0` 与 `@1.1` 注册显式 `resultSchemaRef`，通过 §5.5.1 的扩展返回 `data.contextSnapshotRef`，不再只以 `resultReferences` 描述返回引用。Result Schema 固定 `kind=SNAPSHOT`、`objectType=zhiju.execution.context_snapshot`，并完整要求 `objectId`、`snapshotId`、`contentHash` 与 Project Scope（`enterpriseId` 与 `projectId` 均必填）；CommandResult `targetRef` 必须与返回 Ref 的 canonical objectType、objectId 和 Scope 一致，双方同时缺少 `projectId` 不构成合法结果。该 Project Scope 要求只属于新增的 Initial Context Result Ref Schema 与 canonical 绑定，通用 `ScopeRef` 与既有 Query 的接受集合不变。
 
 `zhiju.project.context_snapshot` 只是 Core v1.0 历史读回身份，不由新入口产生，也不能仅凭 `objectId` 与 canonical 名称互换。authoritative `execution.get_context_snapshot@1.0` 的既有 Schema、接受集合与历史 namespace 读回语义不变，其请求 Ref 与结果 Ref 必须逐字段相等。旧 `execution.build_context_snapshot@1.0` 保持必填 `workOrderContractRef` 语义且不注册 operation-specific Result Schema。本次不新增公开 operation、Purpose、Catalog 数量或 PayloadGuard Policy；Schema、Registry、生成类型与纯契约正反例已同步，对象存在性、幂等、Handler、migration 与真实 PostgreSQL 业务验收保持 `NOT RUN`。
 

@@ -286,6 +286,10 @@ export namespace TaskExecution {
   export type InitialContextCommandResult = {
   readonly contextSnapshotRef: Common.SnapshotRef & {
   readonly objectType?: "zhiju.execution.context_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
 };
 };
   export type ContextBuilderPolicyBinding = {

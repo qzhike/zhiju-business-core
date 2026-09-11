@@ -38,6 +38,11 @@ function legacySnapshotRef(): JsonObject {
   return ref;
 }
 
+function setScope(result: JsonObject, scope: JsonObject): void {
+  dataRef(result).scope = structuredClone(scope);
+  (result.targetRef as JsonObject).scope = structuredClone(scope);
+}
+
 describe('Initial Context CommandResult binding', () => {
   const registry = new ContractRegistry();
 
@@ -123,6 +128,20 @@ describe('Initial Context CommandResult binding', () => {
       code: 'INVALID_CONTEXT_SNAPSHOT_REF',
       mutate: (result) => {
         dataRef(result).scope = { projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d202' };
+      },
+    },
+    {
+      name: 'an empty Scope on both the target and the returned ref',
+      code: 'MISSING_CONTEXT_SNAPSHOT_PROJECT_SCOPE',
+      mutate: (result) => {
+        setScope(result, {});
+      },
+    },
+    {
+      name: 'an enterprise-only Scope on both the target and the returned ref',
+      code: 'MISSING_CONTEXT_SNAPSHOT_PROJECT_SCOPE',
+      mutate: (result) => {
+        setScope(result, { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201' });
       },
     },
     {
@@ -218,6 +237,20 @@ describe('authoritative Context Snapshot read binding', () => {
 
   it('still reads the historical Core v1.0 context snapshot identity back', () => {
     const legacy = legacySnapshotRef();
+    const binding = readBinding(legacy);
+
+    expect(registry.validateContextSnapshotReadBinding(binding)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(
+      registry.validateOperationResult('execution.get_context_snapshot', '1.0', binding.data),
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it('keeps the historical read acceptance set for an enterprise-only legacy scope', () => {
+    const legacy = legacySnapshotRef();
+    legacy.scope = { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201' };
     const binding = readBinding(legacy);
 
     expect(registry.validateContextSnapshotReadBinding(binding)).toEqual({

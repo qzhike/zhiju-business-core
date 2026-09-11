@@ -749,6 +749,7 @@ const initialContextCommandResult: TaskExecution.ExecutionBuildInitialContextSna
   contextSnapshotRef: {
     ...snapshotReference,
     objectType: 'zhiju.execution.context_snapshot',
+    scope: projectScope,
   },
 };
 expectType<TaskExecution.ExecutionBuildInitialContextSnapshotResult>(initialContextCommandResult);
@@ -777,6 +778,17 @@ expectType<TaskExecution.ExecutionBuildInitialContextSnapshotV11Result>(
     contextSnapshotRef: { ...objectReference, objectType: 'zhiju.execution.context_snapshot' },
   };
   void objectKindResult;
+
+  const incompleteProjectScope: TaskExecution.ExecutionBuildInitialContextSnapshotResult = {
+    contextSnapshotRef: {
+      ...snapshotReference,
+      objectType: 'zhiju.execution.context_snapshot',
+      // @ts-expect-error — a WI-02 Initial Context Snapshot is Project scoped,
+      // so the shared enterprise-only ScopeRef is not sufficient.
+      scope: enterpriseScope,
+    },
+  };
+  void incompleteProjectScope;
 }
 
 // Negative case — DraftVersionPins cannot carry the frozen Context ref.
