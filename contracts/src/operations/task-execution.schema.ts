@@ -537,6 +537,15 @@ const namedDefinitions = {
       }),
     ],
   },
+  contextBuilderPolicyBinding: object(['builderPolicyRef', 'contentHash', 'effectiveFrom'], {
+    // VersionedRef intentionally remains hash-free. The resolved Policy
+    // content hash and validity window are persisted beside the exact ref so
+    // every consumer can re-check the same immutable observation.
+    builderPolicyRef: builderPolicyReference,
+    contentHash: payloadHash,
+    effectiveFrom: instant,
+    supersededAt: instant,
+  }),
   acceptanceDisposition: { enum: ['ACCEPTED', 'REJECTED', 'QUARANTINED'] },
   deliveryOutcome: { enum: ['DELIVERED', 'FAILED', 'UNKNOWN'] },
   justification: object(['reasonCode', 'summary', 'evidenceRefs'], {
@@ -546,6 +555,8 @@ const namedDefinitions = {
     policyRef: versionedReference,
   }),
 } as const satisfies Readonly<Record<string, JsonSchema>>;
+
+export const contextBuilderPolicyBindingSchemaRef = `${schemaId}#/$defs/contextBuilderPolicyBinding`;
 
 const operationSchemas = {
   'execution.create_task': {

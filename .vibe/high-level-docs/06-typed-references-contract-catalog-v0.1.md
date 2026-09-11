@@ -1148,3 +1148,9 @@ Owner 为 TaskExecution；`execution.get_work_order_draft@1.0` 是 AUTHORITATIVE
 |---|---|---|---|
 | zhiju.execution.work_order_draft_snapshot | task-execution | CONTENT_ADDRESSED；Project Scope | 不可变；不另建可变版本；否 |
 | zhiju.execution.context_snapshot | task-execution | OBJECT（CREATE target）、SNAPSHOT（结果）；Project Scope | 不可变；Snapshot；否 |
+
+### #166 Context Builder Policy binding
+
+本项不新增 objectType 或公开 operation；复用已注册的 `zhiju.identity.policy`：Owner 为 IdentityPolicy，Reference 为 `VersionedRef<Policy>`，Scope 遵循 Policy 权威 Scope。WI-02 新入口、ProjectContext projection、Context build metadata 与 Frozen WorkOrder VersionPins 必须绑定同一对象类型、对象 ID、`versionId` 和 Scope。
+
+通用 `VersionedRef` 不内嵌 `contentHash`。`context_snapshot_build` metadata 保存 IdentityPolicy exact snapshot 的 `contentHash`、`effectiveFrom` 和可选 `supersededAt`，消费端将其与当前 Policy 解析逐项比较；这不是另一个 Policy namespace，也不创建业务 Policy。`zhiju.context.policy` 仅是历史 Core fixture/兼容读回边界，`identity.policy` 等未注册名称不得由新 WI-02 入口产生。

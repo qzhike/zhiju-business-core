@@ -109,7 +109,7 @@
       ],
       "builderPolicyRef": {
         "kind": "VERSIONED",
-        "objectType": "identity.policy",
+        "objectType": "zhiju.identity.policy",
         "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d430",
         "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d431",
         "scope": {

@@ -1,4 +1,5 @@
 export * from './common.schema.js';
+export * from './context-builder-policy.js';
 export * from './core.schema.js';
 export * from './envelopes.schema.js';
 export * from './generated/public-api.js';

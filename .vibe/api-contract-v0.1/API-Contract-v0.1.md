@@ -438,6 +438,12 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 `execution.get_work_order_draft@1.0` 与 `execution.build_initial_context_snapshot@1.0` 已按 TD-01 注册为 TaskExecution 的 AUTHORITATIVE Query 与 ContextSnapshot CREATE Command。两项新增操作的 WorkOrderDraftSnapshot、InitialContextBuildRequest、精确 Source Slice/Policy Ref 与 ProjectContext Snapshot Ref 由 Module Spec 003 及其生成 Schema 拥有；本次不新增 PayloadGuard Policy，业务期限继承、引用存在性和授权运行语义继续保持 NOT RUN。
 
+### #166 Builder Policy ref 绑定
+
+本次不新增公开 operation、Purpose、Catalog 数量或 migration。`execution.build_initial_context_snapshot@1.0` 的 `builderPolicyRef` 继续由 Schema 精确限定为 `zhiju.identity.policy`；候选生成的 ProjectContext projection 与冻结 WorkOrder VersionPins 必须复制同一 `VersionedRef`。通用 `VersionedRef` 仍不携带 `contentHash`，避免改变既有 @1.0 Typed Reference 家族；TaskExecution 的 Context Builder Policy metadata 另存 IdentityPolicy exact snapshot 的 `contentHash/effectiveFrom/supersededAt`，并在 candidate assembly、Validator、Freeze 逐次重验。
+
+历史 Core v1.0 fixture 中的 `zhiju.context.policy` 通过兼容读回保持可解析，不能作为新 WI-02 entry 的输出；`identity.policy` 等未注册 namespace 不能出现在新 entry。Ref 的 objectType、objectId、versionId、Scope、解析 Hash 或有效期任一缺失/不一致都 fail closed。此跨字段语义不由标准 Schema 单独证明，也不宣称业务 Handler、授权运行或真实 PostgreSQL 验收已执行。
+
 ### #157 PayloadGuard 注册补充方案
 
 状态：`APPROVED 2026-09-09 / SCHEMA AND GUARD IMPLEMENTED`；设计决定见 [TD-01 §8.5](../decisions/task-execution-human-operated.md#85-157-payloadguard-补充方案)。仅适用于已注册的 project.capture_context_source_slice@1.0 与 project.get_context_source_slice@1.0；不改变旧 Schema 或全局默认上限。

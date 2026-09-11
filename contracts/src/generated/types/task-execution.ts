@@ -224,6 +224,14 @@ export namespace TaskExecution {
   readonly evidenceRefs: readonly Common.TypedReference[];
   readonly lastVerifiedAt?: Common.UtcInstant;
 });
+  export type ContextBuilderPolicyBinding = {
+  readonly builderPolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+};
+  readonly contentHash: Common.ContentHash;
+  readonly effectiveFrom: Common.UtcInstant;
+  readonly supersededAt?: Common.UtcInstant;
+};
   export type AcceptanceDisposition = "ACCEPTED" | "REJECTED" | "QUARANTINED";
   export type DeliveryOutcome = "DELIVERED" | "FAILED" | "UNKNOWN";
   export interface Justification {

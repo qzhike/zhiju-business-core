@@ -382,6 +382,32 @@ const createTaskPayload: TaskExecution.ExecutionCreateTaskPayload = {
 };
 expectType<TaskExecution.ExecutionCreateTaskPayload>(createTaskPayload);
 
+const contextBuilderPolicyBinding: TaskExecution.ContextBuilderPolicyBinding = {
+  builderPolicyRef: {
+    ...versionedReference,
+    objectType: 'zhiju.identity.policy',
+    scope: projectScope,
+  },
+  contentHash: payloadHash,
+  effectiveFrom: '2026-08-01T00:00:00Z',
+  supersededAt: '2026-10-01T00:00:00Z',
+};
+expectType<TaskExecution.ContextBuilderPolicyBinding>(contextBuilderPolicyBinding);
+
+// Negative case — the new WI-02 binding type narrows Builder Policy refs to
+// the canonical registered namespace.
+{
+  const historicalPolicyBinding: TaskExecution.ContextBuilderPolicyBinding = {
+    ...contextBuilderPolicyBinding,
+    builderPolicyRef: {
+      ...contextBuilderPolicyBinding.builderPolicyRef,
+      // @ts-expect-error — new Builder Policy bindings use the canonical objectType.
+      objectType: 'zhiju.context.policy',
+    },
+  };
+  void historicalPolicyBinding;
+}
+
 // Negative case — `outcome` is a closed enum, `MUTATED` is not in it.
 {
   const externalRef: Common.ExternalRef = {
@@ -471,7 +497,7 @@ const projectContextContract: Core.ProjectContextContract = {
     audience: 'human_workspace',
     builderPolicyRef: {
       ...versionedReference,
-      objectType: 'context.builder_policy',
+      objectType: 'zhiju.identity.policy',
       scope: projectScope,
     },
   },
@@ -634,7 +660,7 @@ const workOrderContract: Core.WorkOrderContract = {
     projectContextContractRef: snapshotReference,
     contextBuilderPolicyRef: {
       ...versionedReference,
-      objectType: 'policy.context_builder',
+      objectType: 'zhiju.identity.policy',
       scope: projectScope,
     },
     workOrderSchemaRef: {
