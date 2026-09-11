@@ -151,6 +151,16 @@ TD-01–04 已于 2026-09-08 获用户明确批准，包含新操作、Task v2 �
 
 验收入口为[Module Test 002 的验证矩阵](../module-tests/Module-Test-002-EnterpriseProject.md#157-注册与-guard-验证矩阵)。本次修订同步 owning 状态并实现新操作和 Guard；交付须通过 Contract fixture、配置目标 full，随后交由独立 Reviewer 复核。只有 Schema/Guard 的实际验证可记 PASS，EP-TD-001/002 业务用例仍为 NOT RUN。本次批准解除该设计缺口；实际实现与验收仍须独立完成，不新增或修改远端 Issue。
 
+### 8.6 #166 Context Builder Policy ref 端到端绑定
+
+状态：`APPROVED 2026-09-10 / CONTRACT BINDING IMPLEMENTED 2026-09-11 / HANDLER NOT IMPLEMENTED`。用户已批准本 Issue 的绑定方案：首次 Context 请求、ProjectContext projection、Context build metadata 与冻结 WorkOrder `versionPins` 的 Builder Policy 必须是同一个 canonical `zhiju.identity.policy` PolicyRef。此决定只补齐引用校验契约，不批准 Policy Handler、Context Handler、migration、Provider/Feishu/Runtime 或业务验收。
+
+`PolicyRef` 继续遵守 Catalog 的 `VersionedRef<Policy>` 形状，通用 `VersionedRef` 不增加 `contentHash`。IdentityPolicy 解析返回的不可变观察记录由 Context build metadata 保存：`builderPolicyRef`、`contentHash`、`effectiveFrom`、可选 `supersededAt`。因此四个消费位置比较同一对象类型、对象 ID、版本 ID、Scope；同时比较 metadata 与当前 IdentityPolicy 解析的 contentHash 和有效期。不能用仅相同的 objectId/versionId 代替 Hash 或有效性检查。
+
+新 `execution.build_initial_context_snapshot@1.0` 入口只接受 `zhiju.identity.policy`，不能产生 `zhiju.context.policy`、`identity.policy` 或其他任意 namespace。旧 Core v1.0 历史 fixture 的 `zhiju.context.policy` 只通过兼容读回保持可解析；它不是新的 WI-02 binding 的合法输入。旧 `execution.build_context_snapshot@1.0` 的必填字段和通用 Ref 形状不因本决定改变。
+
+候选组装、WorkOrderValidator 和 Freeze 必须在各自消费边界重新读取并调用同一绑定校验：缺失 ref、错误 objectType/objectId/versionId/Scope、同 Key 异 Hash、metadata 与解析结果有效期不一致、尚未生效或已过期都 fail closed。校验通过只证明跨字段绑定完整，不证明 IdentityPolicy 对象存在、当前授权允许或业务 Handler 已实现；这些仍由 owning Query/Handler 和未来真实验收拥有。
+
 ## 9. WI-03 事务序列与竞态裁决
 
 ```text

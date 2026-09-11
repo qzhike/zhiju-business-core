@@ -193,7 +193,7 @@ function frozenBuildCommand(): JsonObject {
     audience: objectRef('identity.principal', principalId, { enterpriseId }),
     sourceSlices: [contentRef('project.context_source_slice')],
     answeredInformationRefs: [],
-    builderPolicyRef: versionedRef('identity.policy'),
+    builderPolicyRef: versionedRef('zhiju.identity.policy'),
   };
   return commandEnvelope(
     'execution.build_context_snapshot',
@@ -485,6 +485,26 @@ describe('TaskExecution Draft and initial Context contracts', () => {
       '/payload/request/draftSnapshotRef/kind',
       'const',
     );
+
+    for (const objectType of [
+      'zhiju.context.policy',
+      'identity.policy',
+      'policy.context_builder',
+    ]) {
+      const wrongPolicyNamespace = initialContextCommand();
+      const request = (wrongPolicyNamespace.payload as JsonObject).request as JsonObject;
+      (request.builderPolicyRef as JsonObject).objectType = objectType;
+      expectSchemaError(
+        registry.validateOperation(
+          'execution.build_initial_context_snapshot',
+          '1.0',
+          wrongPolicyNamespace,
+        ),
+        '/payload/request/builderPolicyRef/objectType',
+        'const',
+        { allowedValue: 'zhiju.identity.policy' },
+      );
+    }
 
     const missingHash = initialContextCommand();
     const missingHashRef = ((missingHash.payload as JsonObject).request as JsonObject)

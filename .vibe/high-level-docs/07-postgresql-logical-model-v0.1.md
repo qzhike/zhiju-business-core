@@ -2134,7 +2134,7 @@ Completion Fact 的 payload 和 promoted Scope mirror 必须由 Application 计�
 |---|---|---|
 | task_execution / task_definition_snapshot | Task附属不可变 definition id、task_id、schema_version、canonical payload/hash | Task创建同事务写；完整Scope镜像；Root pointer组合FK只向同Task事实；业务snapshotId独立于CAS版本 |
 | task_execution / work_order_draft_snapshot | WorkOrder附属不可变 snapshot_id、work_order_id、payload/hash、可空 expires_at 镜像 | DRAFT创建同事务写；Root current pointer组合FK；Freeze锁Root复验；期限存在性/值与Root一致并受完整payload Hash保护；不对同一id换Hash |
-| task_execution / context_snapshot_build | Context目标的build_kind、draft_snapshot_ref或frozen_contract_ref、slice_refs、purpose/audience/policy | INITIAL/FROZEN输入闭集CHECK；success metadata与Snapshot同事务；payload与normalized refs/hash一致；查询不可只信body |
+| task_execution / context_snapshot_build | Context目标的build_kind、draft_snapshot_ref或frozen_contract_ref、slice_refs、purpose/audience、canonical builder_policy_ref、policy_content_hash、effective_from/superseded_at | INITIAL/FROZEN输入闭集CHECK；success metadata与Snapshot同事务；Policy ref/hash/validity 与 ProjectContext projection、请求及最终 VersionPins 逐项一致；payload与normalized refs/hash一致；查询不可只信body |
 | task_execution / execution_judgment | 独立Readiness/Validation Bundle root；id、kind、subject refs、policy/evaluator、valid_until、payload/hash | 不可变；id+kind+Scope唯一；subject/payload mirrors、规范Hash校验；失败判断可保存但无权限请求不能制造事实 |
 | task_execution / result_validation_fact | Bundle内五类不可变子事实，bundle_id、validation_kind、result_ref、payload/hash | unique(bundle_id,kind)；五种kind完整性在final bundle提交时检查；FK含Scope；子payload不引用父Hash避免递归 |
 | task_execution / judgment_invalidation | 精确judgmentId/hash、原因、sourceEvent/DecisionRef、occurred_at | append-only；失效不覆盖原结果；重评估新identity；跨模块来源TypedRef无FK |
@@ -2149,6 +2149,8 @@ Completion Fact 的 payload 和 promoted Scope mirror 必须由 Application 计�
 completion facts可各自保存在既有Task/WorkOrder evaluation表；只读 judgment union Query在模块内分派，不要求把它们合并到新的跨Aggregate表。同一事务创建Bundle和五个子事实符合“一个Root及Entity”；不能把Task readiness和WorkOrder validation放进一个跨Root事务。
 
 TD-01 的 `context_snapshot_build` 成功记录必须精确关联输出 Snapshot id/hash；INITIAL 仅有非空 draft_snapshot_ref，FROZEN 仅有非空 frozen_contract_ref，禁止两者同时存在或同时为空。两类都保存完整 slice_refs、purpose/audience/policy；FROZEN 另保留请求的 answeredInformationRefs，INITIAL 不接受答案分支。Scope、输入 Ref/Hash 与 canonical metadata 镜像逐项校验；metadata 与 Snapshot 同事务提交并保持不可变，不能把失败 Build Attempt 当成功绑定。此记录是 ContextSnapshot 附属事实，不是另一个需要共同提交的业务 Root，不把自身 Hash 递归写入 Context payload。
+
+WI-02 的 `policy` 字段具体拆为 `builder_policy_ref`（`zhiju.identity.policy` 的 VersionedRef）、`policy_content_hash`、`effective_from` 和可选 `superseded_at`。Root/metadata/candidate 的 Builder Policy ref 必须在应用层按 objectType、objectId、versionId、enterprise/project Scope 逐字段比较；Hash 三元组和有效期也必须与 IdentityPolicy exact snapshot 当前解析相等。缺失、legacy/任意 namespace、错 key、同 key 异 Hash、过期或尚未生效均 fail closed。旧 Core v1.0 的 `zhiju.context.policy` fixture 只走兼容读回，不改变已有物理表，不新增跨 Schema FK。
 
 Builder 按既定锁顺序对 WorkOrder 取只读依赖行锁，持有至 Context 事务结束；在发布前核验 DRAFT/current pointer/Scope。Freeze 在另一个 WorkOrder 事务锁 Root 并 CAS，校验同一 Draft、candidate Hash、Context metadata 和 Validation，再一次性插入 `work_order_contract` 与 READY/frozen pointer/技术事实。初次创建 Draft 与 pointer 同事务，不可能先引用尚未提交的 Snapshot。并发 Freeze 只能产生一个绑定；Snapshot 已提交而 Freeze 失败时保留可审计历史，不回滚或删除其他已提交 Aggregate。具体恢复矩阵见 [Spec 003 §11.2](../module-specs/Module-Spec-003-TaskExecution.md#112-首次-context-的精确输入)。这些本地锁不替代 EP owning Query 的当前授权检查，也不声称跨模块同时刻一致性。
 

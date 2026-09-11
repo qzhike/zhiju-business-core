@@ -1,0 +1,19 @@
+{
+  "builderPolicyRef": {
+    "kind": "VERSIONED",
+    "objectType": "zhiju.identity.policy",
+    "objectId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+    "versionId": "018f22e2-7c15-7ca2-8d86-2de956a9d220",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "contentHash": {
+    "algorithm": "SHA-256",
+    "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "canonicalizationVersion": "1"
+  },
+  "effectiveFrom": "2026-08-01T00:00:00Z",
+  "supersededAt": "2026-10-01T00:00:00Z"
+}

@@ -29,6 +29,7 @@ import {
 } from './operations/artifact.schema.js';
 import { executableOperationSchemas } from './operations/index.js';
 import { canonicalContentInvariantErrors } from './canonical-content.validation.js';
+import { contextBuilderPolicyBindingSchemaRef } from './operations/task-execution.schema.js';
 import {
   operationPayloadSchemaRef,
   operationResultSchemaRef,
@@ -127,6 +128,10 @@ export class ContractRegistry {
 
   validateCanonicalContentManifest(input: unknown): ContractValidationResult {
     return this.#run(this.#ajv.getSchema(artifactCanonicalContentManifestSchemaRef), input);
+  }
+
+  validateContextBuilderPolicyBindingMetadata(input: unknown): ContractValidationResult {
+    return this.#run(this.#ajv.getSchema(contextBuilderPolicyBindingSchemaRef), input);
   }
 
   validateOperationResult(type: string, version: string, input: unknown): ContractValidationResult {

@@ -162,6 +162,8 @@ ProjectContextContract
 └── expiresAt?
 ```
 
+WI-02 新构建链中的 `projection.builderPolicyRef` 必须是已注册的 `zhiju.identity.policy` `VersionedRef`，并与请求、build metadata 和冻结 WorkOrder VersionPins 绑定。Core v1.0 结构 Schema 仍允许历史 `zhiju.context.policy` 读回，以保持既有 Compatibility Baseline；该 legacy 值不是新 WI-02 入口的合法输出，必须在跨字段绑定校验层拒绝。通用 `VersionedRef` 不携带 `contentHash`，Hash 与有效期由 IdentityPolicy exact snapshot 解析并在 build metadata 保存/重验。
+
 ### 3.4 ProjectionType
 
 v1.0 closed enum：
@@ -566,6 +568,8 @@ qualityProfileRef?
 capabilityPolicyRef
 runtimeAdapterContractRef
 ```
+
+WI-02 新冻结 Contract 的 `contextBuilderPolicyRef` 必须逐字段等于 ProjectContext projection 与 InitialContextBuildRequest 的 canonical `zhiju.identity.policy` ref。`objectType/objectId/versionId/Scope` 不得由候选重新选择；对应 Policy snapshot 的 `contentHash`、`effectiveFrom` 与可选 `supersededAt` 必须在 Validator 和 Freeze 消费前重新核验。历史 v1.0 `zhiju.context.policy` fixture 仅用于兼容读回，不改变旧 Contract 的必填字段语义。
 
 ### 4.13 Invariants
 

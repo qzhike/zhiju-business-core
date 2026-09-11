@@ -334,7 +334,7 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 
 ## 11. IM-06 技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 205 项。本节不把 Domain 内部命令名自动视为公开 API。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 205 项。本节不把 Domain 内部命令名自动视为公开 API。
 
 ### 11.1 公共规则与设计操作清单
 
@@ -457,6 +457,50 @@ Build metadata 是 ContextSnapshot 的不可变附属绑定，逻辑字段由 Po
 4. 初次 Builder 发布、Validator 产出可用判断及 Freeze 提交前，均读取上述 exact 期限并以受信服务端当前时间重验；`now >= expiresAt` 即不可用，不能使用 caller 时间或事务开始时间绕过。Builder 无成功 Snapshot，Validator 不得产生可执行通过判断，Freeze 不进入 READY；期限已过时 Builder 使用 `AGGREGATE_STATE_NOT_ALLOWED`，Validator 和 Freeze 使用 `EXECUTION_JUDGMENT_STALE` 拒绝新消费。判断 validUntil 不得晚于已提供的 WorkOrder 期限，仍受其他输入/授权/Policy 更早期限限制。已提交历史不删除，重放原成功 Receipt 不重新赋予执行资格。
 5. 冻结后 Root 与 Contract 的 expiresAt 仍是同一不可变期限，WorkOrderBecameReady 事件中的可选 expiresAt 必须一致；FROZEN Context 构建、queue、create_run 和 start_run 都要检查 Root/Contract 一致且未到期，不能只看滞后的 Root status。期限映射错误为 `REFERENCE_INVALID`，已到期为 `AGGREGATE_STATE_NOT_ALLOWED`。尚未到期也不能越过 Context、Decision、Capability、lease/deadline 的独立期限。已经 RUNNING 的 Run 如何收尾仍由 #153 的既有 lease/deadline 与终态规则拥有；本项不新增到期强杀或跨 Root 同步状态转换。
 6. 创建未提供 expiresAt 只表示没有 caller 指定的 WorkOrder 绝对到期时间，不默认生成期限，也不代表无限授权；既有版本化 Policy、Decision、Context、Capability 和 Run lease/deadline 检查继续生效。Context 请求自身的可选 expiresAt 不替代或改写 WorkOrder 期限。其他已注册旧 @1.0 Schema 和历史 Compatibility Baseline 不变；此选择是待实施业务语义的明确化，不能以旧 Schema 接受 candidate 为理由免除跨字段校验。
+
+#### 11.2.5 Context Builder Policy ref 绑定
+
+首次入口与冻结候选使用同一 Builder Policy 身份链，但不把 Hash 自引用塞入通用 `VersionedRef`。新入口的 `builderPolicyRef` 必须是 `VersionedRef<Policy>` 且 `objectType=zhiju.identity.policy`；ProjectContext projection 和 WorkOrder `versionPins.contextBuilderPolicyRef` 在 WI-02 新链中保存同一 `objectType/objectId/versionId/scope`。旧 Core v1.0 的结构 Schema 为历史读回保留 `zhiju.context.policy`，但该 legacy 值不能通过本节的 WI-02 绑定校验。
+
+Context build metadata 的 Builder Policy binding 形状为：
+
+```text
+ContextBuilderPolicyBinding
+├── builderPolicyRef: VersionedRef<Policy>  // exact zhiju.identity.policy
+├── contentHash: ContentHash                 // IdentityPolicy snapshot payload hash
+├── effectiveFrom: UtcInstant
+└── supersededAt?: UtcInstant
+```
+
+`contentHash/effectiveFrom/supersededAt` 来自 IdentityPolicy 的 exact Policy snapshot 解析，不由 caller 自报，也不由 `objectId/versionId` 推导。成功 metadata 与 ContextSnapshot 同事务保存；metadata 不扩展 ProjectContext v1.0 payload，也不改变旧 frozen-build 请求的字段必填语义。
+
+#### 11.2.5.1 绑定来源与消费位置
+
+四个位置的唯一来源和约束如下：
+
+| 位置 | 保存字段 | 必须满足 |
+|---|---|---|
+| `InitialContextBuildRequest.builderPolicyRef` | exact `zhiju.identity.policy` VersionedRef | 缺失、legacy/任意 namespace、错 kind 或 Scope 先于组装拒绝 |
+| `ProjectContext.projection.builderPolicyRef` | 与请求同一 PolicyRef | 候选组装只复制已校验 ref，不从 Draft、source slice 或默认值重选 Policy |
+| `context_snapshot_build` metadata | PolicyRef + contentHash + validity window | metadata 与 Snapshot 同事务；Hash/有效期是本次解析的不可变观察，不接受异 Hash 覆盖 |
+| Frozen WorkOrder `versionPins.contextBuilderPolicyRef` | 与 projection/request 同一 PolicyRef | Validator 与 Freeze 都重新解析当前 Policy，并比较 ref、Hash、有效期后才允许候选进入冻结链 |
+
+`VersionedRef` 的版本字段使用 `versionId`；“version”在本节不允许用显示 label、latest 或 current 替代。Scope 比较包含 enterpriseId/projectId 的有无和值，contentHash 比较 algorithm/digest/canonicalizationVersion 的全部字段。
+
+#### 11.2.5.2 校验顺序与 fail-closed 矩阵
+
+候选组装、Validator 和 Freeze 各自消费前必须调用同一绑定校验，并以当前受信服务时间检查 `effectiveFrom <= now < supersededAt`（无 `supersededAt` 表示未被该 Policy snapshot supersede）：
+
+| 反例 | 结果 | 禁止效果 |
+|---|---|---|
+| 任一 ref/metadata/resolved Policy 缺失 | `REFERENCE_INVALID` / 绑定校验 invalid | 不猜默认 Policy、不生成部分 metadata、不发布 Snapshot |
+| objectType 为 `zhiju.context.policy`、`identity.policy` 或其他 namespace | `REFERENCE_INVALID` / `POLICY_OBJECT_TYPE_INVALID` | 新 WI-02 入口不得生成未注册或任意 namespace；legacy 只可走兼容读回 |
+| objectId、versionId、kind 或 Scope 任一不等 | `EXECUTION_JUDGMENT_INVALID` / `POLICY_REF_MISMATCH` | 不把 P1 构建结果组装成 P2 Contract，不进入 Validator/Freeze |
+| 同一 Policy key 的 contentHash 不等，或 metadata Hash 与 IdentityPolicy 解析不等 | `EXECUTION_JUDGMENT_INVALID` / `POLICY_CONTENT_HASH_MISMATCH` | 不采用 caller Hash，不覆盖已提交 metadata，不签发候选 Contract |
+| effectiveFrom 尚未到达、supersededAt 已到达或各位置有效期不等 | `EXECUTION_JUDGMENT_STALE` / `POLICY_NOT_EFFECTIVE`、`POLICY_EXPIRED` 或 `POLICY_VALIDITY_MISMATCH` | fail closed；不把过期 Policy 当永久有效，不以历史成功 Receipt 重新赋予消费资格 |
+| ref 结构通过但 IdentityPolicy 对象不存在/不可查询/当前授权失效 | `REFERENCE_INVALID` 或 `DEPENDENCY_UNAVAILABLE` | Schema 通过不等于对象存在或授权通过；无成功 Snapshot/Validation/READY |
+
+以上校验只拥有跨字段绑定和 metadata 观察一致性；IdentityPolicy 对象存在性、Scope 权威归属、当前授权与业务状态分别由 owning Query/Handler 负责。真实 Handler、PostgreSQL 业务链和生产/人工验收在本阶段仍为 `NOT RUN`。
 
 ### 11.3 判断事实形状、生产和消费
 

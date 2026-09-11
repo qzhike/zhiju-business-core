@@ -94,7 +94,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 ### WI-02 首次构建与冻结的细化场景
 
-以下场景细化 TE-TD-001–008 和 TE-TD-019，唯一行为来源是 [Spec 003 §11.2](../module-specs/Module-Spec-003-TaskExecution.md#112-首次-context-的精确输入)。设计审阅逐项对照输入、预期及拒绝反例；当前不执行新业务 Handler，全部保持 NOT RUN。
+以下场景细化 TE-TD-001–008 和 TE-TD-019，唯一行为来源是 [Spec 003 §11.2](../module-specs/Module-Spec-003-TaskExecution.md#112-首次-context-的精确输入)。设计审阅逐项对照输入、预期及拒绝反例；业务 Handler、真实授权和 PostgreSQL 业务链不执行，保持 NOT RUN；本次新增的纯契约绑定校验单独标记实际结果。
 
 | ID | 层级 | 可审阅输入 / 拒绝反例 | 预期输出与禁止效果 | 当前结果 |
 |---|---|---|---|---|
@@ -115,6 +115,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-WI02-D-010 | 创建不提供期限；candidate 分别缺省或提供 T1；其他 Decision/Policy/Context 过期 | 仅缺省映射一致；无 WorkOrder 期限仍不能绕过其他期限或缺失 Policy | NOT RUN |
 | TE-WI02-D-011 | 创建时 now 等于/晚于 T0；Builder/Validator/Freeze 在查询后或长事务内跨过 T0 | 创建直接拒绝；后续步骤在消费/提交前重新判断，不发布可执行成功事实；历史 Snapshot/判断不删除，可用 Validation.validUntil 不晚于 T0 | NOT RUN |
 | TE-WI02-D-012 | Root status 仍 READY/QUEUED 但 now>=T0；Contract 期限被伪造为 T1；Run 已创建但尚未 start；到期后同键重放原 build/freeze | 新构建/排队/create/start 被拒绝；错期限绑定拒绝；原 Receipt 可重放但不授权新动作；不强改已运行 Run | NOT RUN |
+| TE-WI02-D-014 | 固定同一 canonical `zhiju.identity.policy` ref，分别放入 InitialContextBuildRequest、ProjectContext projection、Context build metadata 与 Frozen WorkOrder VersionPins；对照缺失 ref、`zhiju.context.policy`/任意 namespace、错 objectId/versionId/Scope、同 key 异 contentHash、metadata/Policy 有效期不一致、未生效和已过期 | 合法四点绑定通过；候选组装、Validator、Freeze 均可复用同一校验；所有反例 fail closed，不生成部分 Snapshot/Validation/Contract，不接受 legacy 或 caller Hash | PASS（纯契约校验）；Handler/真实 IdentityPolicy/PG 仍 NOT RUN |
 
 独立设计审查应核对 TD-01–04、新操作清单、所有具体失败矩阵与单Aggregate/兼容边界。人类对具体技术设计的批准不等于上述运行结果。真实Feishu/CLI Runtime、公开HTTP、生产和独立人工业务验收继续独立NOT RUN。
 
