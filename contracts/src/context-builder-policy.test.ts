@@ -49,6 +49,28 @@ function bindingInput(): ContextBuilderPolicyBindingValidationInput {
   };
 }
 
+function bindingAt(
+  effectiveFrom: string,
+  supersededAt: string,
+  now: string,
+): ContextBuilderPolicyBindingValidationInput {
+  const input = bindingInput();
+  return {
+    ...input,
+    contextBuildMetadata: {
+      ...input.contextBuildMetadata,
+      effectiveFrom,
+      supersededAt,
+    },
+    resolvedPolicy: {
+      ...input.resolvedPolicy,
+      effectiveFrom,
+      supersededAt,
+    },
+    now,
+  };
+}
+
 function mutate(input: ContextBuilderPolicyBindingValidationInput, path: string, value: unknown) {
   const clone = structuredClone(input) as unknown as JsonObject;
   const segments = path.split('.');
@@ -145,6 +167,55 @@ describe('WI-02 Context Builder Policy binding', () => {
     const result = validateContextBuilderPolicyBinding(input);
     expect(result.valid).toBe(false);
     expect(result.errors.some((error) => error.code === code)).toBe(true);
+  });
+
+  it('preserves UtcInstant precision when checking sub-millisecond validity windows', () => {
+    const notEffective = bindingAt(
+      '2026-09-11T00:00:00.000900Z',
+      '2026-10-01T00:00:00Z',
+      '2026-09-11T00:00:00.000100Z',
+    );
+    expect(
+      registry.validateContextBuilderPolicyBindingMetadata(notEffective.contextBuildMetadata),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+    const notEffectiveResult = validateContextBuilderPolicyBinding(notEffective);
+    expect(notEffectiveResult.valid).toBe(false);
+    expect(notEffectiveResult.errors.some((error) => error.code === 'POLICY_NOT_EFFECTIVE')).toBe(
+      true,
+    );
+
+    const activeBeforeSuperseded = bindingAt(
+      '2026-08-01T00:00:00Z',
+      '2026-09-11T00:00:00.000900Z',
+      '2026-09-11T00:00:00.000100Z',
+    );
+    expect(
+      registry.validateContextBuilderPolicyBindingMetadata(
+        activeBeforeSuperseded.contextBuildMetadata,
+      ),
+    ).toEqual({ valid: true, errors: [] });
+    expect(validateContextBuilderPolicyBinding(activeBeforeSuperseded)).toEqual({
+      valid: true,
+      errors: [],
+    });
+
+    const activeBetweenBoundaries = bindingAt(
+      '2026-09-11T00:00:00.000100Z',
+      '2026-09-11T00:00:00.000900Z',
+      '2026-09-11T00:00:00.000500Z',
+    );
+    expect(
+      registry.validateContextBuilderPolicyBindingMetadata(
+        activeBetweenBoundaries.contextBuildMetadata,
+      ),
+    ).toEqual({ valid: true, errors: [] });
+    expect(validateContextBuilderPolicyBinding(activeBetweenBoundaries)).toEqual({
+      valid: true,
+      errors: [],
+    });
   });
 
   it('is reusable at candidate assembly, Validator, and Freeze checkpoints', () => {

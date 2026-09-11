@@ -61,6 +61,36 @@ function isRecord(value: unknown): value is UnknownRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+const utcInstantPattern = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z$/;
+
+interface ParsedUtcInstant {
+  readonly wholeSecondMilliseconds: number;
+  readonly fraction: string;
+}
+
+function parseUtcInstant(value: string): ParsedUtcInstant | undefined {
+  const match = utcInstantPattern.exec(value);
+  if (match === null) return undefined;
+  const wholeSecondMilliseconds = Date.parse(`${match[1]}Z`);
+  if (Number.isNaN(wholeSecondMilliseconds)) return undefined;
+  return { wholeSecondMilliseconds, fraction: match[2] ?? '' };
+}
+
+function compareUtcInstants(left: string, right: string): -1 | 0 | 1 | undefined {
+  const leftParsed = parseUtcInstant(left);
+  const rightParsed = parseUtcInstant(right);
+  if (leftParsed === undefined || rightParsed === undefined) return undefined;
+  if (leftParsed.wholeSecondMilliseconds < rightParsed.wholeSecondMilliseconds) return -1;
+  if (leftParsed.wholeSecondMilliseconds > rightParsed.wholeSecondMilliseconds) return 1;
+
+  const fractionLength = Math.max(leftParsed.fraction.length, rightParsed.fraction.length);
+  const leftFraction = leftParsed.fraction.padEnd(fractionLength, '0');
+  const rightFraction = rightParsed.fraction.padEnd(fractionLength, '0');
+  if (leftFraction < rightFraction) return -1;
+  if (leftFraction > rightFraction) return 1;
+  return 0;
+}
+
 function pushError(
   errors: ContextBuilderPolicyValidationError[],
   path: string,
@@ -254,7 +284,7 @@ function readInstant(
   required: boolean,
 ): string | undefined {
   if (value === undefined && !required) return undefined;
-  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
+  if (typeof value !== 'string' || parseUtcInstant(value) === undefined) {
     pushError(
       errors,
       path,
@@ -288,7 +318,9 @@ function readPolicyBinding(
   const supersededAt = readInstant(value.supersededAt, `${path}/supersededAt`, errors, false);
   if (ref === undefined || contentHash === undefined || effectiveFrom === undefined)
     return undefined;
-  if (supersededAt !== undefined && Date.parse(supersededAt) <= Date.parse(effectiveFrom)) {
+  const validityOrder =
+    supersededAt === undefined ? undefined : compareUtcInstants(effectiveFrom, supersededAt);
+  if (supersededAt !== undefined && (validityOrder === undefined || validityOrder >= 0)) {
     pushError(
       errors,
       `${path}/supersededAt`,
@@ -391,12 +423,16 @@ function checkCurrentValidity(
   now: unknown,
   errors: ContextBuilderPolicyValidationError[],
 ): void {
-  if (typeof now !== 'string' || Number.isNaN(Date.parse(now))) {
+  if (typeof now !== 'string' || parseUtcInstant(now) === undefined) {
     pushError(errors, '/now', 'INVALID_CONSUMPTION_TIME', 'Policy consumption time is invalid');
     return;
   }
-  const nowMs = Date.parse(now);
-  if (nowMs < Date.parse(policy.effectiveFrom)) {
+  const nowVsEffectiveFrom = compareUtcInstants(now, policy.effectiveFrom);
+  if (nowVsEffectiveFrom === undefined) {
+    pushError(errors, '/now', 'INVALID_CONSUMPTION_TIME', 'Policy consumption time is invalid');
+    return;
+  }
+  if (nowVsEffectiveFrom < 0) {
     pushError(
       errors,
       '/resolvedPolicy/effectiveFrom',
@@ -404,7 +440,12 @@ function checkCurrentValidity(
       'Policy is not effective at consumption time',
     );
   }
-  if (policy.supersededAt !== undefined && nowMs >= Date.parse(policy.supersededAt)) {
+  const nowVsSuperseded =
+    policy.supersededAt === undefined ? undefined : compareUtcInstants(now, policy.supersededAt);
+  if (
+    policy.supersededAt !== undefined &&
+    (nowVsSuperseded === undefined || nowVsSuperseded >= 0)
+  ) {
     pushError(
       errors,
       '/resolvedPolicy/supersededAt',
