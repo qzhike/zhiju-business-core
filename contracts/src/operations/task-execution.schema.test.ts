@@ -1150,4 +1150,88 @@ describe('Task v2 creation contract', () => {
     expect(registry.validateOperation('execution.create_task', '2.0', v1).valid).toBe(false);
     expect(registry.validateTaskDefinitionBinding(v1.payload).errors.length).toBeGreaterThan(0);
   });
+
+  it('accepts repeated TypedReference inputRefs in v2 without rewriting the request', () => {
+    // §2 declares `inputRefs: TypedReference[]`; only `dependencyTaskRefs` is a
+    // Set. A repeated reference is therefore an accepted v2 request, and the
+    // v1 implementation's `uniqueItems` must not be carried into the new Major.
+    const inputRef = (taskV2().command.payload as JsonObject).projectRef as JsonObject;
+    const cases: readonly (readonly unknown[])[] = [
+      [],
+      [structuredClone(inputRef)],
+      [structuredClone(inputRef), structuredClone(inputRef)],
+    ];
+
+    for (const inputRefs of cases) {
+      const accepted = taskV2();
+      accepted.definition.inputRefs = structuredClone(inputRefs);
+      const before = structuredClone(accepted.definition.inputRefs);
+
+      expect(registry.validateOperation('execution.create_task', '2.0', accepted.command)).toEqual({
+        valid: true,
+        errors: [],
+      });
+      expect(registry.validateTaskDefinitionBinding(accepted.definition)).toEqual({
+        valid: true,
+        errors: [],
+      });
+      // The accepted request is not silently de-duplicated or reordered.
+      expect(accepted.definition.inputRefs).toEqual(before);
+    }
+
+    // `dependencyTaskRefs` stays a Set: the same field-level control still
+    // rejects a repeated Task reference in v2.
+    const duplicateDependencies = taskV2();
+    const taskRef = objectRef('zhiju.execution.task');
+    duplicateDependencies.definition.dependencyTaskRefs = [
+      structuredClone(taskRef),
+      structuredClone(taskRef),
+    ];
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', duplicateDependencies.command),
+      '/payload/definition/dependencyTaskRefs',
+      'uniqueItems',
+    );
+  });
+
+  it('still rejects non-array and malformed v2 inputRefs at their public path', () => {
+    const nonArray = taskV2();
+    nonArray.definition.inputRefs = {};
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', nonArray.command),
+      '/payload/definition/inputRefs',
+      'type',
+    );
+
+    const malformedRef = taskV2();
+    malformedRef.definition.inputRefs = [{}];
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', malformedRef.command),
+      '/payload/definition/inputRefs/0',
+      'oneOf',
+    );
+
+    // The frozen v1 payload keeps its historical Set behaviour, so the v2
+    // correction is not a v1 contract change.
+    const v1 = fixture('execution-create-task-command-valid.json');
+    ((v1.payload as JsonObject).definition as JsonObject).inputRefs = [
+      (v1.payload as JsonObject).projectRef,
+    ];
+    expect(registry.validateOperation('execution.create_task', '1.0', v1)).toEqual({
+      valid: true,
+      errors: [],
+    });
+
+    const v1Duplicate = fixture('execution-create-task-command-valid.json');
+    const v1InputRef = (v1Duplicate.payload as JsonObject).projectRef as JsonObject;
+    ((v1Duplicate.payload as JsonObject).definition as JsonObject).inputRefs = [
+      v1InputRef,
+      structuredClone(v1InputRef),
+    ];
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '1.0', v1Duplicate),
+      '/payload/definition/inputRefs',
+      'uniqueItems',
+    );
+  });
 });

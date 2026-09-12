@@ -350,9 +350,9 @@ const namedDefinitions = {
     ],
     taskDefinitionProperties,
   ),
-  // §11.6 `TaskDefinitionV2 = TaskDefinition except:` — the only members that
-  // change are the two open CanonicalJson fields, which become registered closed
-  // shapes so a criterion cannot bind an output slot that no output declares.
+  // §11.6 `TaskDefinitionV2 = TaskDefinition except:` — the two open
+  // CanonicalJson members become registered closed shapes so a criterion cannot
+  // bind an output slot that no output declares.
   taskDefinitionV2: object(
     [
       'taskType',
@@ -367,6 +367,11 @@ const namedDefinitions = {
     ],
     {
       ...taskDefinitionProperties,
+      // §2 declares `inputRefs: TypedReference[]`, a plain array; only
+      // `dependencyTaskRefs` is a Set. The v1 payload's `uniqueItems` is a
+      // historical implementation deviation and is deliberately not carried
+      // into the new Major, so a repeated reference stays a legal v2 request.
+      inputRefs: array(typedReference),
       expectedOutputSpec: localRef('taskExpectedOutputSpec'),
       completionCriteria: localRef('taskCompletionCriteria'),
     },
