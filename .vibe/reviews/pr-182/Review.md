@@ -126,3 +126,32 @@
 - 本轮独立验证 SD-181-1 的共享 Schema + 长度限制，以及请求时间字段的 4 字节编码差异。另按 owning 字段定义构造样本检查包装变化，仅用于诊断，不作为未注册操作的端到端验收。
 - 两个新增操作的 Schema/Registry/Handler/授权/持久化、外部链与人工验收仍 NOT RUN；参数和 SD-181-1 仍需人类批准。
 - 只追加本轮正式审查记录，保留历史；未修改产品代码或 owning 设计，未 commit/push/merge。发布形式为 PR comment，不是正式 GitHub REQUEST_CHANGES review。
+
+---
+
+## 第五轮复审（2026-09-13）
+
+- Outcome: `REQUEST_CHANGES`
+- Reviewed SHA: `f395aa56999cb9073597cca935055a3bba04b87c`
+- R1/R3 保持已修复；R2 的核心证明已闭合：新方案只对结果专有字段求上界，不依赖请求最小包装。逐项重建结果专有字段，成员编码长度为 117/444/143/31/38/41，合计 814；计入至多六个新增成员分隔逗号为 820，低于 4096。SD-181-1 与 canonical 引用字段约束使该增量有界。无需继续重做请求极值证明。
+
+### R4 — P2：Policy JSON 仍保留旧结果上限，与已修订方案冲突
+
+位置：`Module-Spec-001-IdentityPolicy.md:325`；同文件参数表位于第 341 行。
+
+§13.3.1 的完整技术 Policy JSON 仍声明 `maxResultBytes: 262144`，但参数表、读回不变量、共享 API 与决定 §12 已要求 `maxResultBytes = maxEnvelopeBytes + 4096 = 266240`，并明确不能再取等值。该 JSON 紧接两个操作的 payloadGuardPolicyRef 注册映射，是实现者会直接用于构建期条目的具体交付定义，不是标记为历史的反例。
+
+独立复现：从当前 Spec 直接提取并解析该 JSON，调用现有 `payloadGuardErrors`。使用满足其余资源维度的 JSON-value 结果探针：262153、262441、266240 字节均被该条目以 `maxResultBytes / limit=262144` 拒绝；只把 maxResultBytes 改成参数表的 266240，三者全部通过，266241 字节仍按 `maxResultBytes / limit=266240` 拒绝。探针仅验证资源边界，不冒充新操作结果 Schema 或 Handler 的运行验收。
+
+请把完整 Policy JSON 同步为 266240，并将参数表 maxResultBytes 的“合法边界：同上”改成显式 ≤266240 / >266240（上一行是 262144）。统一具体配置、文字和边界场景后才能把该参数提案交给实现者；这项修正不要求更改已提出的余量或 SD-181-1，也不要求再次重做 R2 的证明。
+
+### 同步说明（不另列阻塞项）
+
+IP-181-C-010 仍写“262441 字节的实测反例被拒绝”，需明确它使用的是历史等值结果预算 262144；新结果预算 266240 下，该大小本身不会触发 maxResultBytes。现行 SD-181-1 的拒绝原因应是后继时刻字段长度约束。Spec §13.3.2 已作等值预算标注，测试说明应同步，避免错误断言。
+
+### 验证、批准与交付
+
+- 当前 head 的 GitHub CI verify SUCCESS（2026-09-12T15:58:29Z）；PR 提供同 revision 的 `vibe verify full --json` PASS，含 Docker/PostgreSQL persistence gate。本轮不重复完整目标。
+- 本轮独立执行了结果专有字段计量、Spec JSON 提取与新旧参数对照、266240/266241 边界探针；最新 Issue 未新增批准或范围变更。
+- 两个新增操作的 Schema/Registry/Handler/授权/持久化、外部与人工验收仍 NOT RUN；参数、4096 余量与 SD-181-1 尚待人类批准。
+- 仅追加本轮正式审查记录，保留历史；未修改产品代码或 owning 设计，未 commit/push/merge。发布为 PR comment，不是 GitHub 正式 REQUEST_CHANGES review。

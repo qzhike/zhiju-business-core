@@ -322,7 +322,7 @@ PolicyVersionResolutionView
   "type": "identity.policy_version",
   "version": "1.0",
   "maxEnvelopeBytes": 262144,
-  "maxResultBytes": 262144,
+  "maxResultBytes": 266240,
   "maxStringCodePoints": 16384,
   "maxArrayItems": 1024,
   "maxObjectProperties": 256,
@@ -331,6 +331,8 @@ PolicyVersionResolutionView
 }
 ```
 
+该 JSON 是与参数表、读回不变量一致的**具体构建期条目定义**（`maxResultBytes` 必须等于 `maxEnvelopeBytes + 4096`，不得取等值）；`payloadGuardPolicyRef` 只引用 `{type, version}`，数值本身由本条目的注册内容决定。
+
 两个操作的 `payloadGuardPolicyRef` 都精确映射为 `{type: "identity.policy_version", version: "1.0"}`：`identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0` 各在自己的 operation 条目中声明该引用。这是**技术 Registry 引用**，不是业务 `TypedReference`；它不进入 `references`/`resultReferences` 声明，不需要数据库行、授权 Decision 或 `contentHash`，也不得被当作已提交业务事实。既有 `ep.context_source_slice@1.0` 的条目、参数与两项已注册 Source Slice 操作的引用不受本项影响；本项不引入全局默认，未声明 `payloadGuardPolicyRef` 的既有操作行为不变。
 
 #### 参数表与依据
@@ -338,7 +340,7 @@ PolicyVersionResolutionView
 | 参数 | 提案值 | 适用输入/输出与计量单位 | 合法边界 | 依据类别 |
 |---|---:|---|---|---|
 | maxEnvelopeBytes | 262144（256 KiB） | `record_policy_version` **完整请求 Envelope**（含 `commandId`/`scopeRef`/`targetRef`/`actor`/`authorizationDecisionRef`/`idempotencyKey`/`correlationId`/`requestedAt`/`integrity`、payload 与 `policyDocument`）与 `resolve_policy` 完整请求 Envelope；紧凑 JSON 的 UTF-8 字节 | ≤ 262144 通过；> 262144 拒绝 | 复用 #157 已批准的 Command Envelope 技术预算（PostgreSQL 逻辑模型 §5.5 的 256 KiB 建议） |
-| maxResultBytes | 266240 = `maxEnvelopeBytes` + 4096 | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | 同上；**必须以"请求预算 + 固定余量"的形式声明**，不能取等值 | 余量 4096 ≥ 结果侧增量上界 `R_only = 820`（§13.3.1），后者全部由有界形状构成；等值预算下 Project Scope 的实测反例为读回 262153 被拒绝（§13.3.2） |
+| maxResultBytes | 266240 = `maxEnvelopeBytes` + 4096 | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | **≤ 266240 通过；> 266240 拒绝**（不等于上一行：这是请求预算加 4096 余量，**必须以"请求预算 + 固定余量"的形式声明**，不能取等值） | 余量 4096 ≥ 结果侧增量上界 `R_only = 820`（§13.3.1），后者全部由有界形状构成；等值预算下 Project Scope 的实测反例为读回 262153 被拒绝（§13.3.2） |
 | maxStringCodePoints | 16384 | 每一个字符串值**与每一个对象键**，按 Unicode code point 计数 | 单串 ≤ 16384 通过；**该上限独立于字节预算，可能先触发** | 复用 #157 已批准的同名技术值（非由字节预算推导）；实测边界 16384 通过 / 16385 拒绝 |
 | maxArrayItems | 1024 | 每一个 JSON 数组的元素个数；不改变普通数组顺序或重复语义，也不把 `Set`/`NonEmptySet` 变成可有重复的数组 | 单数组 ≤ 1024 通过 | 复用 #157 已批准的结构预算 |
 | maxObjectProperties | 256 | 每一个 JSON object 的成员数（含 `policyDocument` 内对象） | 单对象 ≤ 256 通过 | 同上 |
@@ -407,7 +409,7 @@ C_res + |D| = (C_req + |D|) + (C_res − C_req) ≤ 262144 + R_only ≤ 262144 +
 
 **SD-181-1（本提案附带、需一并批准的 Spec Delta）**：两个操作的 payload 与结果中每一个 `UtcInstant`（`effectiveFrom`、`supersededAt`、`checkedAt`）都必须序列化为**至多毫秒精度**的 canonical UTC 时刻，即 `YYYY-MM-DDTHH:mm:ss[.SSS]Z`、至多 24 code point，由这两个操作自己的字段 Schema 以长度上界执行。**不改变**共享 `UtcInstant` 定义、既有操作接受集合与 `compareUtcInstants` 的变长小数比较能力：亚毫秒输入在新操作写入边界被**拒绝**，不截断、不静默降低精度；`supersededAt = 唯一后继的 effectiveFrom` 的相等语义不受影响，因为两侧受同一约束（§13.4 第 4 条继续成立）。
 
-> 为什么该约束不可省：共享 `UtcInstant` 的小数部分为变长（`common.schema.ts` 的 `(?:\d+)?`，且 `contracts/src/utc-instant.ts` 明确按不同长度小数比较），因此**不存在**默认的固定长度序列化。不约束时 `checkedAt` 与 `supersededAt` 各可达 16384 code point，`R_only` 变为约 `820 + 2 × (16384 − 24) = 33540`，**远超 4096 余量**，读回保证不成立——实测：一个 260046 字节正文的前驱合法写入（请求恰好 262144、通过），被一个正文仅 90 字节、`effectiveFrom` 取 1021 code point 的后继取代后，读回为 262441 字节。
+> 为什么该约束不可省：共享 `UtcInstant` 的小数部分为变长（`common.schema.ts` 的 `(?:\d+)?`，且 `contracts/src/utc-instant.ts` 明确按不同长度小数比较），因此**不存在**默认的固定长度序列化。不约束时 `checkedAt` 与 `supersededAt` 各可达 16384 code point，`R_only` 变为约 `820 + 2 × (16384 − 24) = 33540`，**远超 4096 余量**，读回保证不成立——实测：一个 260046 字节正文的前驱合法写入（请求恰好 262144、通过），被一个正文仅 90 字节、`effectiveFrom` 取 1021 code point 的后继取代后，读回为 262441 字节（该数值是**当时等值结果预算 262144** 下的反例；在现行 266240 下其拒绝依据是 SD-181-1 的写入边界时刻长度约束，而非结果预算）。
 
 > 已评估但**不采纳**的替代方案：保留变长时刻并把 `maxResultBytes` 提到能吸收它。按上式需把余量提到约 33 KiB（读取预算约 296 KiB）；该方案让单个时刻字段可占约 16 KiB，且任何将来新增的变长结果字段都会再次打破保证。SD-181-1 把 `R_only` 压到 820，使余量与字段级细节解耦。
 
@@ -496,7 +498,7 @@ C_res + |D| = (C_req + |D|) + (C_res − C_req) ≤ 262144 + R_only ≤ 262144 +
 | 结果恰等于上限 | — | 266240 通过 | 266240 | 通过 |
 | 结果多 1 字节 | — | 266241 | 266240 | 拒绝 `maxResultBytes` |
 
-**时刻长度项（SD-181-1）**：放宽该约束后 `checkedAt` 与 `supersededAt` 各可达 16384 code point，`R_only` 变为约 `820 + 2 × (16384 − 24) = 33540`（约 33 KiB），远超 4096 余量，读回保证不成立。实测反例：一个 260046 字节正文的前驱合法写入（请求恰好 262144、通过），被一个正文仅 90 字节、`effectiveFrom` 取 1021 code point 的后继取代后，读回为 262441 字节（在等值预算下被拒绝）。
+**时刻长度项（SD-181-1）**：放宽该约束后 `checkedAt` 与 `supersededAt` 各可达 16384 code point，`R_only` 变为约 `820 + 2 × (16384 − 24) = 33540`（约 33 KiB），远超 4096 余量，读回保证不成立。实测反例：一个 260046 字节正文的前驱合法写入（请求恰好 262144、通过），被一个正文仅 90 字节、`effectiveFrom` 取 1021 code point 的后继取代后，读回为 262441 字节（在**当时等值的结果预算 262144** 下被拒绝；现行 266240 下该规模的拒绝依据是时刻长度约束本身）。
 
 ### 13.4 不变量
 
