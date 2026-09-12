@@ -338,7 +338,7 @@ PolicyVersionResolutionView
 | 参数 | 提案值 | 适用输入/输出与计量单位 | 合法边界 | 依据类别 |
 |---|---:|---|---|---|
 | maxEnvelopeBytes | 262144（256 KiB） | `record_policy_version` **完整请求 Envelope**（含 `commandId`/`scopeRef`/`targetRef`/`actor`/`authorizationDecisionRef`/`idempotencyKey`/`correlationId`/`requestedAt`/`integrity`、payload 与 `policyDocument`）与 `resolve_policy` 完整请求 Envelope；紧凑 JSON 的 UTF-8 字节 | ≤ 262144 通过；> 262144 拒绝 | 复用 #157 已批准的 Command Envelope 技术预算（PostgreSQL 逻辑模型 §5.5 的 256 KiB 建议） |
-| maxResultBytes | 266240（256 KiB + 4 KiB 余量） | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | 同上；**必须严格大于 `maxEnvelopeBytes`**（见 §13.3.1 的最小编码推导） | 取 Envelope 预算 + 4096 显式余量：按请求专有字段的合法最小编码与结果专有字段的合法最大编码推导，最坏帧差为正（实测 +9），等值预算不能保证读回（§13.3.2） |
+| maxResultBytes | 266240 = `maxEnvelopeBytes` + 4096 | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | 同上；**必须以"请求预算 + 固定余量"的形式声明**，不能取等值 | 余量 4096 ≥ 结果侧增量上界 `R_only = 820`（§13.3.1），后者全部由有界形状构成；等值预算下 Project Scope 的实测反例为读回 262153 被拒绝（§13.3.2） |
 | maxStringCodePoints | 16384 | 每一个字符串值**与每一个对象键**，按 Unicode code point 计数 | 单串 ≤ 16384 通过；**该上限独立于字节预算，可能先触发** | 复用 #157 已批准的同名技术值（非由字节预算推导）；实测边界 16384 通过 / 16385 拒绝 |
 | maxArrayItems | 1024 | 每一个 JSON 数组的元素个数；不改变普通数组顺序或重复语义，也不把 `Set`/`NonEmptySet` 变成可有重复的数组 | 单数组 ≤ 1024 通过 | 复用 #157 已批准的结构预算 |
 | maxObjectProperties | 256 | 每一个 JSON object 的成员数（含 `policyDocument` 内对象） | 单对象 ≤ 256 通过 | 同上 |
@@ -369,64 +369,56 @@ PolicyVersionResolutionView
 
 **编码模型**：`policyDocument` 在请求 Envelope 与 `QueryResult.data` 中都是 `CanonicalJson` **JSON 值**（共享 API §2/§13.3），不是被二次编码的字符串；Guard 逐节点计量，两侧的同一字符串叶子使用相同的 JSON 编码。实测对照（§13.3.2 `R2`）确认：同一文档无论嵌套在哪种包装里，贡献的字节数相同，文档内容本身不产生请求/结果方向的差异。差异只来自**包装的固定项**。
 
-**请求/结果字段矩阵**（`D` = `policyDocument`；"抵消"指该字段在同一版本的请求与结果中以**逐字段相同的字节**出现，故在差式中消失）：
+**结果侧增量的上界**（这是读回保证唯一需要的量；`D` = `policyDocument`）：
 
-| 字段 | 位置 | 用于差式的取值 | 说明 |
-|---|---|---|---|
-| `commandId`/`correlationId` | 仅请求 | 最小 = UuidV7 定长 36 | — |
-| `commandType`/`commandVersion` | 仅请求 | `const`（`identity.record_policy_version` / `1.0`） | 定长 |
-| Envelope `scopeRef` | 仅请求 | 最小 = 空对象（schema 允许） | 保守取下界；实际授权约束只会使其更大 |
-| `targetRef` | 仅请求 | 最小 = `ObjectRef` + canonical `objectType` + 空 Scope | objectType 由 §13.2 固定 |
-| `actor`/`authorizationDecisionRef` | 仅请求 | 最小 = 最短的 `ObjectRef` 变体 | 语义上更长的 `ContentAddressedRef` 只会增加请求侧字节 |
-| `idempotencyKey` | 仅请求 | 最小 = `NonEmptyString` 的 1 字符 | **不是定长** |
-| `requestedAt` | 仅请求 | 最小 = 无小数形式（20 code point） | **不是定长**；SD-181-1 只约束上界 |
-| `integrity` | 仅请求 | `canonicalizationVersion` + `payloadHash` | 定长 |
-| 可选 `supersedesRef` | 仅请求 | 最小 = 缺省（0） | 出现时增加 290 |
-| `policyRef` | 两侧 | — | 抵消（逐字段相等回显） |
-| `policySetVersion` | 两侧 | — | 抵消（**两侧同值**，故其长度不影响差式） |
-| `policySchemaRefs` | 两侧 | — | 抵消（canonical 注册条目） |
-| `D` | 两侧 | — | 抵消 |
-| `effectiveFrom` | 两侧 | — | 抵消（≤ 24，SD-181-1） |
-| `policyVersionRef` | 仅结果 | 最大 = canonical `SnapshotRef`（两个 UuidV7 + Scope + `contentHash`） | **请求侧没有的完整 SnapshotRef** |
-| `contentHash` | 仅结果 | 最大 = `SHA-256` + 64 位 hex + 规范化版本 | 定长 |
-| `useStatus` | 仅结果 | 最大 = `NOT_YET_EFFECTIVE`（17） | 闭集四值中最长 |
-| `checkedAt` | 仅结果 | 最大 = 24（SD-181-1） | 服务端时间，不在请求中 |
-| `supersededAt` | 仅结果 | 最大 = 24（SD-181-1；= 唯一后继的 `effectiveFrom`） | 来自后继版本，不受本版本写入预算约束 |
+读回关系不需要论证请求侧能有多小，只需要结果侧比请求侧**多出**的部分有上界。记：
+
+- `C_req` = 请求 Envelope 去掉 `D` 后的字节；`C_res` = 结果去掉 `D` 后的字节；
+- 两侧共有且必须**逐字节相同**的字段——`policyRef`、`policySetVersion`、`policySchemaRefs`、`effectiveFrom`——在 `C_res − C_req` 中抵消；
+- 余下的 `R_only = C_res − C_req ≤ 结果专有字段总量`（因为请求专有部分 `W_only ≥ 0`）。
+
+`R_only` 的每个成员都是有界形状，逐个取合法最大编码：
+
+| 结果专有字段 | 合法最大取值 | 实测字节 |
+|---|---|---:|
+| `scopeRef` | 版本 Scope，含 `enterpriseId` 与 `projectId` | 117 |
+| `policyVersionRef` | canonical `SnapshotRef`：`const` objectType + 两个 UuidV7 + Scope + `contentHash` | 444 |
+| `contentHash` | `SHA-256` + 64 位 hex + 规范化版本 | 143 |
+| `useStatus` | 闭集四值，最长 `NOT_YET_EFFECTIVE` | 31 |
+| `checkedAt` | **≤ 24**（SD-181-1） | 38 |
+| `supersededAt` | **≤ 24**（SD-181-1；= 唯一后继的 `effectiveFrom`） | 41 |
+| **合计 `R_only ≤`** | — | **820** |
 
 `policyRef`/`policyVersionRef` 的 `objectType` 是两个 UuidV7 之外的主要变长部分；§13.2 已把它们固定为 canonical 名称，因此两个新操作（含请求与结果）的 Schema 必须以 `const` 编码该取值，使其按形状有界，而不是仅靠 `maxStringCodePoints` 兜底。
 
+**读回不变量（本次采用的定式）**：两个操作共享的技术条目把结果预算声明为**请求预算加固定余量**，而不是两个独立数值：
+
+```text
+maxResultBytes = maxEnvelopeBytes + 4096 = 266240
+```
+
+对任意合法写入：`C_req + |D| ≤ 262144`，故读取帧为
+
+```text
+C_res + |D| = (C_req + |D|) + (C_res − C_req) ≤ 262144 + R_only ≤ 262144 + 820 = 262964 ≤ 266240
+```
+
+**该推导不依赖任何请求侧样本或其最小编码**：请求侧只用到"写入已通过 262144"这一事实，`W_only ≥ 0` 恒成立；唯一需要证明的量是结果侧增量 820 < 4096，而它的每个成员都是有界形状（`const`、闭集、UuidV7、`contentHash`，以及 SD-181-1 限定到 24 的两个时刻）。余量 4096 是 `R_only` 的约 5 倍，因此对字段级细节不再敏感。
+
 **SD-181-1（本提案附带、需一并批准的 Spec Delta）**：两个操作的 payload 与结果中每一个 `UtcInstant`（`effectiveFrom`、`supersededAt`、`checkedAt`）都必须序列化为**至多毫秒精度**的 canonical UTC 时刻，即 `YYYY-MM-DDTHH:mm:ss[.SSS]Z`、至多 24 code point，由这两个操作自己的字段 Schema 以长度上界执行。**不改变**共享 `UtcInstant` 定义、既有操作接受集合与 `compareUtcInstants` 的变长小数比较能力：亚毫秒输入在新操作写入边界被**拒绝**，不截断、不静默降低精度；`supersededAt = 唯一后继的 effectiveFrom` 的相等语义不受影响，因为两侧受同一约束（§13.4 第 4 条继续成立）。
 
-> 为什么必须显式约束而非常规化：共享 `UtcInstant` 的小数部分为变长（`common.schema.ts` 的 `(?:\.\d+)?`，且 `contracts/src/utc-instant.ts` 明确按不同长度小数比较），因此**不存在**默认的固定长度序列化。不约束时，`supersededAt` 与 `checkedAt` 的长度由上界 `maxStringCodePoints`（16384）而非本版本的写入预算决定。按最小编码配对计算，无 SD-181-1 时最坏合法结果可达 `262144 − 1372 + (1381 + 2 × (16384 − 24)) = 294873` 字节，比本提案的 266240 上限**超出 28633 字节**——"写得进读不回"真实成立（§13.3.2 另有等值预算下的实测反例）。
+> 为什么该约束不可省：共享 `UtcInstant` 的小数部分为变长（`common.schema.ts` 的 `(?:\d+)?`，且 `contracts/src/utc-instant.ts` 明确按不同长度小数比较），因此**不存在**默认的固定长度序列化。不约束时 `checkedAt` 与 `supersededAt` 各可达 16384 code point，`R_only` 变为约 `820 + 2 × (16384 − 24) = 33540`，**远超 4096 余量**，读回保证不成立——实测：一个 260046 字节正文的前驱合法写入（请求恰好 262144、通过），被一个正文仅 90 字节、`effectiveFrom` 取 1021 code point 的后继取代后，读回为 262441 字节。
 
-> 已评估但**不采纳**的替代方案：保留变长时刻并把 `maxResultBytes` 提到能吸收它。按上界需把读取预算提到约 512 KiB（4096 的余量远不足以覆盖 32720 的变长项）；该方案让单个时刻字段可占用约 16 KiB、把读取预算无条件翻倍，且任何将来新增的变长结果字段都会再次打破该保证。相比之下 SD-181-1 用一条可检查的字段约束换取一个稳定不变量：它消掉 32720 字节的变长项，余下的固有正帧差（9 字节）由 4096 余量覆盖。两项措施解决不同项，缺一不可。
+> 已评估但**不采纳**的替代方案：保留变长时刻并把 `maxResultBytes` 提到能吸收它。按上式需把余量提到约 33 KiB（读取预算约 296 KiB）；该方案让单个时刻字段可占约 16 KiB，且任何将来新增的变长结果字段都会再次打破保证。SD-181-1 把 `R_only` 压到 820，使余量与字段级细节解耦。
 
-**代表性样本计量**（Project Scope、UUIDv7 引用、64 位 hex `contentHash`、24 长度时刻；**仅用于实现期 fixture 与回归对照，不是全局极值，也不作为上一节推论的依据**）：
+**适用范围与维护规则**：本次采用的定式是"结果预算 = 请求预算 + 固定余量，且余量不小于结果侧增量 `R_only` 的上界"。因此：
 
-| 包装 | 组成 | 字节 |
-|---|---|---:|
-| `record_policy_version` 请求 Envelope | 全部 Envelope 字段 + payload 的 `policyRef`/`policySetVersion`/`policySchemaRefs`/`effectiveFrom`（`supersedesRef` 缺省） | 2098 |
-| 同上，含可选 `supersedesRef` | 追加一个 `VersionedRef<Policy>` | 2388 |
-| `resolve_policy` 请求 Envelope | 固定（payload 只有 `policyRef`，无文档） | 1373 |
-| `resolve_policy` 结果数据 | `PolicyVersionResolutionView` 除 `policyDocument`（`useStatus=USABLE`、`supersededAt` 缺省） | 1345 |
-| 同上，`useStatus=NOT_YET_EFFECTIVE`、`supersededAt` 缺省 | 状态取最长闭集值 | 1356 |
-| 同上，含可选 `supersededAt`（`useStatus=USABLE`） | 追加一个 24 长度 `UtcInstant` | 1387 |
-| 同上，`useStatus=NOT_YET_EFFECTIVE` 且含 `supersededAt` | 生命周期字段取最长组合 | 1398 |
-| `record_policy_version` 结果数据 | `{policyVersionRef}` | 446 |
+1. `maxResultBytes > maxEnvelopeBytes` 必须保持，且差值不小于 `R_only` 的实际上界；
+2. 结果侧新增任何字段、或放宽 SD-181-1，都必须重新计算 `R_only` 并相应地重选余量；
+3. 请求侧字段变化（新增可选字段、放宽 `idempotencyKey` 等）**不影响**该推导，只要写入仍受 `maxEnvelopeBytes` 约束；
+4. 两侧共有字段必须继续满足"逐字段相等回显"，否则 `C_res − C_req` 不再有 820 的上界。
 
-**推导（按字段最小/最大编码配对消项，不依赖任何一个样本）**：设文档为 `D`。同一版本的请求与结果共有的字段（`policyRef`、`policySetVersion`、`policySchemaRefs`、`effectiveFrom`、`D`）以**逐字段相同的字节**出现，在差式中抵消，与其取值无关；因此只需比较**请求专有**字段的合法最小总量与**结果专有**字段的合法最大总量。同一版本只能有一个 Scope，故写入与读取必须按**同一个 Scope** 配对：
-
-| 量（单位字节） | Enterprise Scope | Project Scope | 取值方式 |
-|---|---:|---:|---|
-| 请求专有最小总量（`commandId`/`commandType`/`commandVersion`/`scopeRef`/`targetRef`/`actor`/`authorizationDecisionRef`/`idempotencyKey`/`correlationId`/`requestedAt`/`integrity`） | 1321 | 1372 | 每个字段取其**合法最小编码**：UuidV7 定长、`commandType`/`commandVersion` 为 `const`、`idempotencyKey` 取 `NonEmptyString` 的 1 字符、`requestedAt` 取无小数形式（20 code point）、`actor`/`authorizationDecisionRef` 取最短的 `ObjectRef` 变体、`policyRef.scope` 按 §13.2 至少含 `enterpriseId`、其余 Scope 字段取空对象 |
-| 结果专有最大总量（`policyVersionRef`/`contentHash`/`useStatus`/`checkedAt`/`supersededAt`） | 1228 | 1381 | 每个字段取其**合法最大编码**：`useStatus=NOT_YET_EFFECTIVE`（17）、`checkedAt`/`supersededAt` 取 SD-181-1 允许的 24 code point、`objectType` 取 canonical `const`、`scopeRef` 取该版本 Scope |
-| **帧差（请求最小 − 结果最大）** | **+93** | **−9** | 正数表示请求侧仍有富余；负数表示**等值预算下会读不回** |
-
-**Project Scope 的 −9 是本轮的关键发现**：`policySetVersion` 可取 1 字符、`idempotencyKey` 可取 1 字符、`requestedAt` 可取无小数形式、`actor`/`authorizationDecisionRef`/`targetRef`/Envelope Scope 都可取更短编码，而结果侧的 `policyVersionRef` 拥有请求侧没有的完整 `SnapshotRef`（两个 UuidV7 + Scope + `contentHash`）。把 `maxResultBytes` 取成与 `maxEnvelopeBytes` 相等时，一个按写入边界合法提交的 Project 版本读回 **262153 > 262144 被拒绝**（§13.3.2 实测）。
-
-**因此本提案把 `maxResultBytes` 取为 `maxEnvelopeBytes + 4096 = 266240`**：4096 严格大于推导出的最坏正帧差（Project Scope 的 9 字节），使读回保证不再依赖某个样本的恰好取值，也不依赖对"最小编码"的乐观假设。等值预算（`≥`）**不构成**该证明——本轮的 −9 就是反例。
-
-**适用范围与不变量**：上表是**界**，适用于全部合法输入，前提是结果侧每个变长字段都有本设计声明的有限上界：`UtcInstant` 由 SD-181-1 提供 24 code point 上界，`objectType` 由 canonical `const` 提供，其余变长字段（`policySetVersion`、`policySchemaRefs`、`D`、`effectiveFrom`）必须是请求侧的逐字段相等回显（**两侧同值**，故其长度任意都不影响差式）。结果侧 `scopeRef` 是版本的 `policyRef.scope`，请求侧 Envelope `scopeRef` 在上表中保守地取空对象（比任何实际值都小），因此该比较已包含"写入用 Enterprise Scope、读取带 Project Scope"这一最不利方向。§13.3.2 的 2098/1398 等数值是**代表性样本计量**，用于实现期 fixture 与回归对照，不代表全局极值，也不作为这条推论的依据。任一侧新增字段、放宽 SD-181-1、改为分别注册或调低 `maxResultBytes`，都必须按本表重算；`maxResultBytes > maxEnvelopeBytes` 必须保持。读取无需分页、截断或额外 Result 通道，`get_policy_snapshot@1.0` 也不参与该路径。
+§13.3.2 的 2098/1398 等数值是**代表性样本计量**，用于实现期 fixture 与回归对照，不参与本推导。读取无需分页、截断或额外 Result 通道，`get_policy_snapshot@1.0` 也不参与该路径。
 
 ### 13.3.2 样本计量与尺寸依据（#181）
 
@@ -465,7 +457,7 @@ PolicyVersionResolutionView
 | 一个正文仅 90 字节的后继取代它，`effectiveFrom` 取 `2026-09-13T00:00:00.` + 1000 个 `0` + `Z`（1021 code point，Ajv 校验共享 `utcInstant` 为 true） | 后继请求 2478 | 通过 |
 | 读回前驱（`supersededAt` 等于该后继 `effectiveFrom`，`useStatus=NOT_YET_EFFECTIVE`） | 262441 | 在**等值预算**下被 `maxResultBytes` 拒绝 |
 
-即**不约束时刻长度时，"写得进读不回"真实成立**。按最小编码配对的上界，两个结果专有变长时刻各可达 16384，最坏合法结果为 294873 字节（§13.3.1），仍超出本提案 266240 的上限。SD-181-1 把这两个时刻限制到 24 code point 后消掉该项，结果侧只剩 9 字节的固有正帧差，由 4096 余量覆盖。
+即**不约束时刻长度时，"写得进读不回"真实成立**。两个结果专有变长时刻各可达 16384，`R_only` 因此约为 33540，远超 4096 余量（§13.3.1）。SD-181-1 把这两个时刻限制到 24 code point 后，`R_only` 落到 820，由余量覆盖。
 
 **固定项**（单位字节；样本取 Project Scope、UUIDv7 引用、64 位 hex `contentHash` 与 24 长度时刻；**含空文档 `{}` 的样本取"最小通过上限减 2"**，因为该样本内嵌一个占 2 字节的空 `policyDocument`）：
 
@@ -480,45 +472,31 @@ PolicyVersionResolutionView
 | `resolve_policy` 结果数据**包装上界**（`useStatus=NOT_YET_EFFECTIVE` 且含 `supersededAt`） | 结果侧最大合法形态 | **1398** |
 | `record_policy_version` 结果数据 | `{policyVersionRef}`，**不含文档**（直接用最小通过上限） | 446 |
 
-**最小/最大编码配对（审查意见 R2，本轮核心）**：请求包装**越小，可写入的文档越大**，所以最坏读回由"请求专有字段的合法最小编码"配"结果专有字段的合法最大编码"决定，而不是任何一组样本（PR 上一版的 2098 只是样本，且其 `requestedAt` 用了 24 长度、`idempotencyKey` 用了 14 字符、`actor`/`authorizationDecisionRef` 用了较长的 `ContentAddressedRef`）。逐字段取最值后：
+**结果侧增量 `R_only` 与余量的实测（审查意见 R2 的定式修订）**：本提案不再用"请求侧能多小 × 结果侧能多大"的极值配对来论证读回，而是采用 §13.3.1 的定式——**结果预算 = 请求预算 + 固定余量**，只需证明结果侧增量有上界。逐项实测（合法最大编码）：
 
-| 量 | Enterprise Scope | Project Scope |
-|---|---:|---:|
-| 请求专有最小总量 | 1321 | 1372 |
-| 结果专有最大总量 | 1228 | 1381 |
-| **帧差** | **+93** | **−9** |
+| 结果专有字段 | 实测字节 |
+|---|---:|
+| `scopeRef` | 117 |
+| `policyVersionRef` | 444 |
+| `contentHash` | 143 |
+| `useStatus`（`NOT_YET_EFFECTIVE`） | 31 |
+| `checkedAt`（24） | 38 |
+| `supersededAt`（24） | 41 |
+| **`R_only` 合计** | **820** |
 
-**等值预算下的实测反例（Project Scope）**：
+820 < 4096，因此对任意合法写入，读取帧 ≤ `262144 + 820 = 262964 ≤ 266240`。
 
-| 步骤 | 数值 | Guard |
-|---|---:|---|
-| 按最小编码写满（空 Envelope Scope、1 字符 `idempotencyKey`、20 长度 `requestedAt`、最短 `ObjectRef`、canonical `policySchemaRefs`） | 文档 260772，请求 Envelope 262144 | 通过 |
-| 请求再多 1 字节 | 262145 | 拒绝 `maxEnvelopeBytes`（`instancePath=''`） |
-| 读回同一版本（`useStatus=NOT_YET_EFFECTIVE`、含 `supersededAt`） | **262153** | **拒绝 `maxResultBytes`** |
+**等值预算的反例（说明为什么余量必需）**：取 `maxResultBytes = maxEnvelopeBytes = 262144` 时，一个按最小请求编码写满的 Project 版本（文档 260772、请求恰好 262144、通过）读回为 **262153**，被 `maxResultBytes` 拒绝。该反例只说明"相等"不成立，不再用于推导具体余量——余量来自 `R_only` 的上界。
 
-即 `maxResultBytes = maxEnvelopeBytes` 时，一个按写入边界合法提交的 Project 版本**读不回**——这与 SD-181-1 无关，是"结果侧拥有请求侧没有的完整 `SnapshotRef`"造成的固有正帧差。
+**边界复核（加入 4096 余量后）**：
 
-**加入 4096 余量后的复核**（`maxResultBytes = 266240`）：
-
-| Scope | 请求 Envelope | 读取结果 | 余量 | 结果 |
+| Scope | 写入 | 读取 | 上限 | 结果 |
 |---|---:|---:|---:|---|
-| Project | 262144 通过 | 262153 | **4087** | 通过 |
-| Enterprise | 262144 通过 | 262051 | 4189 | 通过 |
+| Project | 262144 通过 / 262145 拒绝 `maxEnvelopeBytes`（`instancePath=''`） | 262157 | 266240 | 通过 |
+| 结果恰等于上限 | — | 266240 通过 | 266240 | 通过 |
+| 结果多 1 字节 | — | 266241 | 266240 | 拒绝 `maxResultBytes` |
 
-结果侧自身的边界也独立复核：结果恰等于上限通过、再多 1 字节以 `maxResultBytes` 拒绝。4096 严格大于推导出的最坏正帧差 9，因此读回保证不再依赖样本取值或对"最小编码"的乐观假设。
-
-四个已注册 profile 的合法样本与实测尺寸（`policySchemaRefs` 取该 profile 的真实 canonical typed ref）：
-
-| profile | 合法 `policyDocument` 样本 | 文档字节 | `record_policy_version` Envelope | `resolve_policy` Result.data |
-|---|---|---:|---:|---:|
-| `ep.context_source_slice_capture.policy@1.0` | `{"maxSliceValiditySeconds":86400,"allowedPurposeCodes":["project.context_source.capture","execution.context.build.initial"]}` | 124 | 2222 | 1469 |
-| `execution.context_builder.policy@1.0` | `{"allowedProjectionTypes":["DOCUMENT_WRITER","REVIEWER"]}`（取值必须落在 Core §3.4 已注册投影类型内） | 57 | 2155 | 1402 |
-| `execution.task_readiness.policy@1.0` | `{"maxReadinessValiditySeconds":86400}` | 37 | 2135 | 1382 |
-| `execution.work_order_validation.policy@1.0` | `{"maxValidationValiditySeconds":86400,"mandatoryCriterionTypes":["OUTPUT_REF_VALID","OUTPUT_SCHEMA_VALID"]}` | 107 | 2205 | 1452 |
-
-四个样本都已用 `createPolicyProfileDocumentValidator()` 的 `im06-static-v1` 校验器实际验证通过（`valid=true`），且均远小于预算；样本的 `policySchemaRefs` 使用注册表给出的固定 UuidV7 与 `scope={}`，`allowedProjectionTypes` 与 `mandatoryCriterionTypes` 取已注册的闭集值，因此样本可直接作为实现 Issue 的正向 fixture 种子（业务规则字段语义仍由消费模块校验；consumer 所需的 profile key 是否在集合内也由消费模块判定）。这四个样本的规模**不能**用来论证 §13.3.1 的参数边界——该论证由本节上面的固定项推导与写入/读回复核承担。
-
-上述数值是**技术预算**，不是业务事实上限：它们不表示政策文档的业务字段数、profile 种类数或版本数量上限，也不改变任何 profile 的 closed 规则字段与其语义。四个 profile 的合法文档规模由各自的 closed schema 拥有，Guard 只保证资源有界。
+**时刻长度项（SD-181-1）**：放宽该约束后 `checkedAt` 与 `supersededAt` 各可达 16384 code point，`R_only` 变为约 `820 + 2 × (16384 − 24) = 33540`（约 33 KiB），远超 4096 余量，读回保证不成立。实测反例：一个 260046 字节正文的前驱合法写入（请求恰好 262144、通过），被一个正文仅 90 字节、`effectiveFrom` 取 1021 code point 的后继取代后，读回为 262441 字节（在等值预算下被拒绝）。
 
 ### 13.4 不变量
 
