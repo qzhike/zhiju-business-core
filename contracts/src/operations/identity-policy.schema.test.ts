@@ -39,6 +39,8 @@ const guardPolicyRef = { type: 'identity.policy_version', version: '1.0' };
 const policies = loadPayloadGuardPolicies(policiesData);
 const policy = resolvePayloadGuardPolicy(policies, guardPolicyRef);
 const identitySchemaId = 'https://schemas.zhiju.local/modules/identity-policy/1.0';
+const enterpriseId = '018f22e2-7c15-7b2e-8d86-2de956a9d201';
+const projectId = '018f22e2-7c15-7b2e-8d86-2de956a9d202';
 const instant = '2026-09-12T00:00:00.000Z';
 const laterInstant = '2026-09-12T02:00:00.000Z';
 
@@ -133,6 +135,97 @@ function resolveResult(document: unknown, options: { superseded?: boolean } = {}
 /** Frame without the embedded document; both samples embed the 2-byte empty document. */
 function frameWithoutDocument(sample: JsonObject): number {
   return bytes(sample) - 2;
+}
+
+/** Bytes a top-level member contributes to its holder, including its separator. */
+function memberBytes(holder: JsonObject, key: string): number {
+  const without = structuredClone(holder);
+  Reflect.deleteProperty(without, key);
+  return bytes(holder) - bytes(without);
+}
+
+const policyKeyObjectId = '018f22e2-7c15-7b2e-8d86-2de956a9d440';
+const policyKeyVersionId = '018f22e2-7c15-7b2e-8d86-2de956a9d441';
+const policyVersionFactId = '018f22e2-7c15-7b2e-8d86-2de956a9d450';
+const policyVersionHash = {
+  algorithm: 'SHA-256',
+  digest: 'a'.repeat(64),
+  canonicalizationVersion: '1',
+};
+
+/**
+ * Smallest legal `record_policy_version` envelope: empty envelope Scope, the
+ * shortest typed-reference variants, a one-character idempotency key and no
+ * fractional second. Only the fact Scope must carry the required `enterpriseId`.
+ */
+function minimalRecordCommand(scope: JsonObject, document: unknown): JsonObject {
+  return {
+    commandId: policyVersionFactId,
+    commandType: recordType,
+    commandVersion: '1.0',
+    scopeRef: {},
+    targetRef: {
+      kind: 'OBJECT',
+      objectType: 'zhiju.identity.policy_version',
+      objectId: policyVersionFactId,
+      scope,
+    },
+    actor: { kind: 'OBJECT', objectType: 'a', objectId: policyVersionFactId, scope: {} },
+    authorizationDecisionRef: {
+      kind: 'OBJECT',
+      objectType: 'b',
+      objectId: policyVersionFactId,
+      scope: {},
+    },
+    idempotencyKey: 'x',
+    correlationId: policyVersionFactId,
+    requestedAt: '2026-09-12T00:00:00Z',
+    payload: {
+      policyRef: {
+        kind: 'VERSIONED',
+        objectType: 'zhiju.identity.policy',
+        objectId: policyKeyObjectId,
+        versionId: policyKeyVersionId,
+        scope,
+      },
+      policySetVersion: 'v',
+      policySchemaRefs: [profileReferenceByKey['ep.context_source_slice_capture.policy@1.0']],
+      policyDocument: document,
+      effectiveFrom: '2026-09-12T00:00:00Z',
+    },
+    integrity: { canonicalizationVersion: '1', payloadHash: policyVersionHash },
+  };
+}
+
+/**
+ * Largest legal resolve result for the same version: every result-only member at
+ * its approved bound (millisecond instants, longest closed `useStatus`) while
+ * `policyRef`/`policySetVersion`/`policySchemaRefs`/`effectiveFrom`/document are
+ * echoed from the write payload field by field.
+ */
+function maximalResolveResult(payload: JsonObject, document: unknown): JsonObject {
+  const key = payload.policyRef as JsonObject;
+  const scope = key.scope as JsonObject;
+  return {
+    policyRef: key,
+    policyVersionRef: {
+      kind: 'SNAPSHOT',
+      objectType: 'zhiju.identity.policy_version',
+      objectId: policyVersionFactId,
+      snapshotId: policyVersionFactId,
+      scope,
+      contentHash: policyVersionHash,
+    },
+    policySetVersion: payload.policySetVersion,
+    policySchemaRefs: payload.policySchemaRefs,
+    policyDocument: document,
+    contentHash: policyVersionHash,
+    scopeRef: scope,
+    effectiveFrom: payload.effectiveFrom,
+    useStatus: 'NOT_YET_EFFECTIVE',
+    checkedAt: '2026-09-12T00:00:00.000Z',
+    supersededAt: '2026-09-12T00:00:00.000Z',
+  };
 }
 
 interface NegativeCase {
@@ -404,6 +497,10 @@ describe('PolicyVersion public contracts', () => {
       expect.objectContaining({ params: { rule: 'maxDepth', limit: 32 } }),
     ]);
 
+    const exactObject = Object.fromEntries(
+      Array.from({ length: 256 }, (_, index) => [`key${index}`, 0]),
+    );
+    expect(guardErrors(exactObject, 'envelope', bytes(exactObject))).toEqual([]);
     const wideObject = Object.fromEntries(
       Array.from({ length: 257 }, (_, index) => [`key${index}`, 0]),
     );
@@ -517,48 +614,90 @@ describe('PolicyVersion public contracts', () => {
     expectGuardError(validate('record', asEnvelope), '', 'maxEnvelopeBytes', 262144);
   });
 
-  it('keeps the result-side increment inside the approved headroom', () => {
-    const emptyRequest = fixture('record-command');
-    (emptyRequest.payload as JsonObject).policyDocument = {};
-    const requestFrame = frameWithoutDocument(emptyRequest);
-    const maximumResult = resolveResult({}, { superseded: true });
-    const resultFrame = frameWithoutDocument(maximumResult);
+  it('pairs the smallest legal write with the largest legal result under both budgets', () => {
     const headroom = policy.maxResultBytes - policy.maxEnvelopeBytes;
     expect(headroom).toBe(4096);
-    expect(resultFrame - requestFrame).toBeLessThanOrEqual(headroom);
+    const scope = { enterpriseId, projectId };
 
-    // Every result-only member is a bounded shape; §13.3.2 measured 820 for the
-    // legal maximum encoding, and that sum is what the headroom must cover.
-    const resultOnlyBytes = [
+    const request = minimalRecordCommand(scope, {});
+    const result = maximalResolveResult(request.payload as JsonObject, {});
+    expect(validate('record', request)).toEqual({ valid: true, errors: [] });
+    expect(validate('result', result)).toEqual({ valid: true, errors: [] });
+    expect(
+      registry.validatePolicyVersionResolutionBinding({ payload: request.payload, data: result }),
+    ).toEqual({ valid: true, errors: [] });
+    expect(
+      registry.validatePolicyVersionCommandResult({
+        targetRef: request.targetRef,
+        payload: request.payload,
+        data: { policyVersionRef: result.policyVersionRef },
+      }),
+    ).toEqual({ valid: true, errors: [] });
+
+    // §13.3.1 定式: C_res − C_req ≤ R_only，且余量覆盖 R_only。
+    const requestFrame = frameWithoutDocument(request);
+    const resultFrame = frameWithoutDocument(result);
+    const requestOnly = [
+      'commandId',
+      'commandType',
+      'commandVersion',
+      'scopeRef',
+      'targetRef',
+      'actor',
+      'authorizationDecisionRef',
+      'idempotencyKey',
+      'correlationId',
+      'requestedAt',
+      'integrity',
+    ].reduce((total, key) => total + memberBytes(request, key), 0);
+    const resultOnly = [
       'scopeRef',
       'policyVersionRef',
       'contentHash',
       'useStatus',
       'checkedAt',
       'supersededAt',
-    ].reduce(
-      (total, key) =>
-        total +
-        Buffer.byteLength(JSON.stringify(key)) +
-        1 +
-        Buffer.byteLength(JSON.stringify(maximumResult[key]), 'utf8') +
-        1,
-      0,
-    );
-    expect(resultOnlyBytes).toBe(820);
-    expect(resultOnlyBytes).toBeLessThanOrEqual(headroom);
+    ].reduce((total, key) => total + memberBytes(result, key), 0);
+    expect(resultOnly).toBe(820);
+    expect(resultOnly).toBeLessThanOrEqual(headroom);
+    expect(resultFrame - requestFrame).toBeLessThanOrEqual(resultOnly);
 
-    // Any write accepted at the request boundary reads back inside the result
-    // budget, and the read frame never exceeds the write frame by more than the
-    // result-only members: 262144 + 820 <= 266240.
-    const write = withDocumentSize(fixture('record-command'), policy.maxEnvelopeBytes);
-    const readBack = resolveResult((write.payload as JsonObject).policyDocument, {
-      superseded: true,
-    });
+    // 最弱合法配对（最小请求包装 × 最大结果包装）：请求专有最小编码 903 大于结果
+    // 专有最大编码 820，结果侧增量因此为负，等值预算下“合法写入读回被拒”的已批准
+    // 反例（262153）在已交付形状下不可复现。下列数字是实测回归锚点，任一 Envelope
+    // 或结果形状变化都必须重新推导（§13.3.1 维护规则 2）。
+    expect({ requestOnly, resultOnly }).toEqual({ requestOnly: 903, resultOnly: 820 });
+    const write = minimalRecordCommand(scope, {});
+    fillDocument(write, write.payload as JsonObject, policy.maxEnvelopeBytes);
+    expect(bytes(write)).toBe(policy.maxEnvelopeBytes);
+    expect(validate('record', write)).toEqual({ valid: true, errors: [] });
+    const readBack = maximalResolveResult(
+      write.payload as JsonObject,
+      (write.payload as JsonObject).policyDocument,
+    );
     expect(validate('result', readBack)).toEqual({ valid: true, errors: [] });
     const readFrame = bytes(readBack);
-    expect(readFrame).toBeLessThanOrEqual(policy.maxEnvelopeBytes + resultOnlyBytes);
-    expect(readFrame).toBeLessThanOrEqual(policy.maxResultBytes);
+    expect({ requestFrame, resultFrame, readFrame }).toEqual({
+      requestFrame: 1476,
+      resultFrame: 1381,
+      readFrame: 262049,
+    });
+    expect(guardErrors(readBack, 'result', policy.maxEnvelopeBytes)).toEqual([]);
+    expect(guardErrors(readBack, 'result', policy.maxResultBytes)).toEqual([]);
+    // 预算独立性对照：结果帧超过请求预算时只由 maxResultBytes 拒绝，并在 266240 下通过。
+    const oversized = maximalResolveResult(
+      write.payload as JsonObject,
+      (write.payload as JsonObject).policyDocument,
+    );
+    fillDocument(oversized, oversized, policy.maxResultBytes);
+    expect(bytes(oversized)).toBe(policy.maxResultBytes);
+    expect(guardErrors(oversized, 'result', policy.maxEnvelopeBytes)).toEqual([
+      expect.objectContaining({
+        instancePath: '',
+        params: { rule: 'maxResultBytes', limit: policy.maxEnvelopeBytes },
+      }),
+    ]);
+    expect(guardErrors(oversized, 'result', policy.maxResultBytes)).toEqual([]);
   });
 
   it('measures the published sample frames and their inclusive boundaries', () => {
@@ -587,6 +726,19 @@ describe('PolicyVersion public contracts', () => {
       expect.objectContaining({
         instancePath: '',
         params: { rule: 'maxResultBytes', limit: 445 },
+      }),
+    ]);
+
+    // The resolve request envelope gets the same single-variable B / B−1 check.
+    const resolveQuery = fixture('resolve-query');
+    const queryFrame = bytes(resolveQuery);
+    expect(queryFrame).toBe(1311);
+    expect(validate('query', resolveQuery)).toEqual({ valid: true, errors: [] });
+    expect(guardErrors(resolveQuery, 'envelope', queryFrame)).toEqual([]);
+    expect(guardErrors(resolveQuery, 'envelope', queryFrame - 1)).toEqual([
+      expect.objectContaining({
+        instancePath: '',
+        params: { rule: 'maxEnvelopeBytes', limit: queryFrame - 1 },
       }),
     ]);
   });
