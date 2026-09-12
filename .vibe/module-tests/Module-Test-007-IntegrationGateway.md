@@ -119,3 +119,15 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 | IG-TD-002 | synthetic Driver未调用，fixture伪造SUCCEEDED/Receipt | owning写入拒绝；真实合成调用可保存source=SYNTHETIC_DRIVER | NOT RUN |
 | IG-TD-003 | 超时UNKNOWN同键重放/真实reconciliation | 无二次dispatch；追加Observation不改request/binding | NOT RUN |
 | IG-TD-004 | 跨Scope Query或试图读取Token/Continuation Secret | 拒绝或最小化投影；不存在敏感字段 | NOT RUN |
+
+### WI-03 Driver 证据来源细化
+
+权威为 [Runtime profile](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md#受控-driver-输入输出与调度)及 Spec 007 Runtime Binding Query；每个反例采用 otherwise-valid 原始请求、Hash、已提交同 Scope 对象与 Service 授权。设计静态审阅不改变下列业务运行结果。
+
+| ID | 输入 / 故障 | 预期读回 / 禁止效果 | 当前结果 |
+|---|---|---|---|
+| IG-WI03-D-001 | 正常 ack 场景：原 request/binding 已提交，实际调用 Driver；保存安全 ack 的 ObjectLocator/Hash，经 record_external_receipt 提交后更新 Attempt | 调用次数 1；Query 可读原 requestHash/bindingHash，SUCCEEDED 的 acknowledgement 指向实际 synthetic session、Observation、exact Raw Receipt；source=SYNTHETIC_DRIVER | NOT RUN |
+| IG-WI03-D-002 | Fixture 未调用 Driver，却带 SUCCEEDED/Receipt/expectedOutcome；或实际 ack 替换 bindingHash/lease/session | 不产生成功 Observation；精确来源/绑定不符拒绝；自洽 Hash 不替代真实调用；无 Token/secret 输出 | NOT RUN |
+| IG-WI03-D-003 | 延迟 ack，超时 UNKNOWN，同稳定键重放三次，随后释放原调用 ack 并 readback | 无二次 dispatch；无 ack 时 Query 省略 acknowledgement；原调用读回后才追加 Observation。Run lease 已过期时仍不得 start | NOT RUN |
+| IG-WI03-D-004 | Raw Receipt 已提交但 Attempt success 事务前崩溃；另在 success/Outbox 提交后 Worker 确认前崩溃 | 前者孤立 Receipt 不证明成功，恢复核验原 ack 后补交 Attempt；后者原 Observation/Receipt 重放，无第二成功事件；相同 identity 异 Hash 拒绝 | NOT RUN |
+| IG-WI03-D-005 | 同稳定键不同 requestHash，或 Fixture 中途更换 Result 样本/合成 RuntimeBinding；延迟 final 仍携带原 token/submission | 冲突不替换原调用，原样本/Hash/来源可追溯；late final 交给 TE 接收边界隔离，不由 IG 修改 Run、Acceptance 或 Completion | NOT RUN |

@@ -93,6 +93,25 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-TD-025 | Security/Persistence | 各新表直接SQL、无Context、池复用、Scope镜像错、异常注入 | RLS/ACL/hash/immutable guard拒绝；技术事实原子回滚；池不继承上下文 | NOT RUN |
 | TE-TD-026 | Query | Task历史COMPLETED而事实撤销；读取TaskState与依赖Readiness | 历史保持，completionUseStatus不可用，依赖不能仅凭status通过 | NOT RUN |
 
+### WI-03 控制入口与拒绝反例
+
+本表细化已批准 TD-02 / #153，不新增业务语义或 Runtime 控制能力。前置为合法同 Scope 的 Human Intent、各 Service 自身授权、已提交 frozen Contract/Context/Capability/Run/Attempt 和未过期有限 Policy；负例只改变列出的维度，所有未列字段均合法。完整 Driver 输入与观察来源见 [Runtime profile](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md#受控-driver-输入输出与调度)，状态依据 Spec 003 §11.4/§11.5，API/Gate 对账见设计决定 §9.2。各行定义设计验收输入和预期，实际业务执行均 NOT RUN；不得用当前仓库回归替代。
+
+| ID | 输入 / owning 入口 / 次序 | 预期读回与拒绝效果 | 当前结果 |
+|---|---|---|---|
+| TE-WI03-D-001 | 正常 Driver ack → IG exact binding → start → 合法 FINAL BLOCKED_INPUT/空输出 → submit/record → #154 validation/accept → finalize | Run SUCCEEDED 且单 terminal/Claim 释放；Result/Acceptance 精确关联；WO WAITING_INPUT，Task 不完成；Driver 不能提供 valid/accepted 布尔结论 | NOT RUN |
+| TE-WI03-D-002 | 正常 ack，但 start_run 使用同 Scope 另一真实 Attempt；或任一 Contract/Context/Capability/RuntimeBinding 与原 Run 不符 | binding 校验拒绝，Run 不启动；不是“Attempt 存在且 SUCCEEDED”即可通过 | NOT RUN |
+| TE-WI03-D-003 | 所有身份/Hash 正确，start 或 submit 到达时 lease 已过期；另对照未过期输入 | 过期分支拒绝/隔离，无可用 Result；未过期对照可继续；ACTIVE Claim 不因时间流逝被直接绕过，先由 expire_run 释放 | NOT RUN |
+| TE-WI03-D-004 | 同 Run/Attempt/Scope 的 final payload，唯一变化为 runFencingToken 小于该 invocation token | 旧 fencing 拒绝/隔离，不创建可用 final reservation，不推进 Run/Completion | NOT RUN |
+| TE-WI03-D-005 | R1 和 R2 都真实、同 Scope 且有效，R1 的 submission/ack 绑定引用 R2；保持其余结构/Hash 自洽 | 跨 Run callback 拒绝/隔离；两 Run 原事实不覆盖，不能靠重新计算 payload Hash 合法化绑定 | NOT RUN |
+| TE-WI03-D-006 | 相同 Result identity/hash 重放 submit；分别使用同 identity 异 Hash、不同 identity 同 Hash 的冲突输入 | 相同事实重放原 Receipt，无第二 final；另外两项隔离/冲突，首个 Result 与 reservation 不替换 | NOT RUN |
+| TE-WI03-D-007 | ack/start 后先 request_run_cancel 提交，再释放原 final 到 submit/record；对照为 record 先提交再 cancel | cancel 先到：CANCELLING，final 仅隔离；record 先到：RESULT_RECORDED，cancel 状态冲突。两者均不产生虚假 Cancel ACK/CANCELLED | NOT RUN |
+| TE-WI03-D-008 | 显式 deadline 已到且 lease 未到、非 CANCELLING，expire_run(DEADLINE_EXCEEDED) 提交后才释放 final | TIMED_OUT + Claim 释放；late final 无业务输出/Completion。另用 reason 尚未成立的调用作反例，拒绝且不改变状态 | NOT RUN |
+| TE-WI03-D-009 | CANCELLING 无 ack，等待实际 lease 到期后 expire_run(LEASE_EXPIRED)；再提交旧 final | ABANDONED，不是 CANCELLED；旧 Result 只隔离，旧 Run 禁止 Resume；恢复须新 Context/Run | NOT RUN |
+| TE-WI03-D-010 | RESULT_RECORDED 与已提交 Acceptance；两个 owning 调用竞争 finalize/expire，再以相同与冲突 Acceptance 重放 finalize | Run 锁/CAS 只允许一个 terminal，Claim 原子释放、单 RunTerminated；旧 Acceptance 不能覆盖 expiry，重放不生成新版本/事件 | NOT RUN |
+| TE-WI03-D-011 | final submit 提交后 record 前崩溃；以及目标 finalize 提交后 Process 进度保存前崩溃；相同 sourceFactId/hash/step 重试 | 扫描已提交事实并调用 owning Command/原 Receipt，最终单次效果；在空隙内取消/到期获胜时不提升 Result 资格；Process 不直接写 Root | NOT RUN |
+| TE-WI03-D-012 | Human 直接冒用 create_run/validate/finalize 的 Service Purpose；Driver 回传 caller valid=true/desiredStatus；调用未批准 heartbeat/resume/usage/cancel-ack | 授权/契约边界拒绝，不执行控制写入；合法 Human queue/cancel Intent 与 Service 各自授权作正对照；UNKNOWN Usage 不填 0 | NOT RUN |
+
 ### WI-02 首次构建与冻结的细化场景
 
 以下场景细化 TE-TD-001–008 和 TE-TD-019，唯一行为来源是 [Spec 003 §11.2](../module-specs/Module-Spec-003-TaskExecution.md#112-首次-context-的精确输入)。设计审阅逐项对照输入、预期及拒绝反例；业务 Handler、真实授权和 PostgreSQL 业务链不执行，保持 NOT RUN；本次新增的纯契约绑定校验单独标记实际结果。

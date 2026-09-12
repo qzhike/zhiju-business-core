@@ -222,6 +222,39 @@ Process Manager 只在本模块读取已提交 Result/Acceptance/Run 状态并�
 
 WorkOrder 的 WAITING_INPUT、RETRY_PENDING、COMPLETION_PENDING 等推进是另一个 Aggregate 的动作；本轮提出 reconcile_work_order_execution 与 reconcile_task_execution 两个明确 owning 命令，状态规则见 Spec 003 §11.5。它们重新读取已提交事实，不能通过 caller desiredStatus或Run Command顺带写另一Root。设计批准不代表实现完成；所需能力交付前不宣称完整业务链READY。
 
+### 9.1 受控 Driver 的可审阅输入与证据
+
+本节细化已批准 TD-02 的确定性 Driver 和验收方式，不新增公开 Contract、控制入口或 Runtime 默认 Policy。输入/输出的唯一详细映射在 [Runtime 专项受控 Driver profile](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md#受控-driver-输入输出与调度)。它复用已提交的 RuntimeDispatchRequest、Attempt invocationBinding、既有 AgentResultContract 和 RawReceiptSubmission；Fixture 只决定何时返回合成 ack/Result，不决定授权、Acceptance 或业务完成。
+
+Human 经既有 queue/cancel 等入口提交授权 Intent；Dispatcher 使用自己的 ActorSnapshot/AuthorizationDecision 调用 create_run 和 request_runtime_dispatch。Ingestion/Validator/LeaseMonitor/Process 各自按 Spec 003 的 Purpose 调用 owning 入口，不能把 Human 凭据转交 Driver，也不能以 Driver 的合成身份代替 Core Service 授权。正常链、取消先到、record 先到、expiry 先到均使用独立合法基线；每个负例只改变被检验的字段或提交次序，避免用不存在对象、错误 Scope 等无关缺陷掩盖预期拒绝。
+
+设计验收按 [TE WI-03 矩阵](../module-tests/Module-Test-003-TaskExecution.md#wi-03-控制入口与拒绝反例)和 [IG WI-03 矩阵](../module-tests/Module-Test-007-IntegrationGateway.md#wi-03-driver-证据来源细化)逐项检查输入、预期状态、禁止效果及 owning 读回。运行时测试保留 NOT RUN；固定 Fixture 设计不等于 Fixture 实现或执行通过。
+
+### 9.2 控制入口与 IM-DG-006 适用性
+
+以下对账消费 §7 已批准的 TD-02，不再提交或追认 Runtime 专项六项提案。表中“已注册”仅指公开 Catalog 有该操作，不证明业务 Handler 可调用；“设计已批准”仍需后续 Schema/Registry/Handler/持久化交付。公共 Envelope、精确 Ref、Purpose、Actor、结果与错误约束由 [Spec 003 §3/§11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)及 [Spec 007](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)拥有。
+
+| 入口（均 @1.0） | Owner / 本项用途与批准依据 | IM-DG-006 适用性及尚缺入口 |
+|---|---|---|
+| execution.create_run / execution.start_run | TE，既有已注册 Command；建立 Run/Claim，按 exact Attempt ack 启动 | 不新增六项控制能力；租约必须来自显式 leasePolicyRef，不选择 Runtime 默认租约 |
+| integration.request_runtime_dispatch | IG，既有已注册 Command；先持久化 Attempt 再调用合成 Driver | 使用已批准 Human-operated 限定，不批准真实 CLI/Provider dispatch 或 fallback Policy |
+| execution.get_run_dispatch_binding | TE，TD-02 设计已批准；IG 获取完整 Capability/lease/fencing/Scope | 新增只读 Query，不修改 lease、默认 Policy 或 Runtime 控制状态；不依赖六项提案 |
+| integration.get_runtime_attempt_binding | IG，TD-02 设计已批准；TE 校验原 request、不可变 binding 和真实 ack | 新增只读 Query，保留旧 get_runtime_attempt 结果；不依赖六项提案 |
+| execution.submit_agent_result | TE，既有已注册 Command；Ingestion 录入完整 Result 与 final reservation | 不以 progress/usage/heartbeat 代替 final Result；late payload 可到达接收边界，但只能隔离 |
+| execution.record_run_result | TE，TD-02 设计已批准；由已提交唯一 Result 推进 RESULT_RECORDED | Core 已存事实到 Run 状态的协调；不是 Runtime progress 写入，不依赖六项提案 |
+| execution.validate_agent_result / execution.accept_agent_result | TE，前者为 TD-03 批准设计，后者既有已注册；#154 拥有判断内容 | 消费 #154 接口，不把 Driver 断言当验证；其实现可用性是后续实现依赖，不是批准六项命令 |
+| execution.finalize_run_from_acceptance | TE，TD-02 设计已批准；从 exact Acceptance 终结 Run 并原子释放 Claim | Core owning 状态协调，不代替 cancel acknowledgement 或 Runtime terminal 自报 |
+| execution.expire_run | TE，TD-02 设计已批准；服务端时间重验已存 lease/deadline，终结并释放 Claim | 不延长租约、不新增 timeout 默认值；受控测试等待已选 Policy 的有限期限，不批准 IM-DG-006 默认 Policy |
+| execution.request_run_cancel | TE，既有已注册 Command；Human/已授权 Service 请求 CANCELLING | 只覆盖取消 Intent 与竞态；没有获批的 Core Cancel ACK 入口，CANCELLED 路径继续阻断 |
+| execution.reconcile_work_order_execution | TE，TD-02 设计已批准；独立 WorkOrder 事务重读已提交事实 | 不控制 Runtime，不依赖六项提案；不顺带写 Run/Task |
+| execution.reconcile_task_execution | TE，TD-02 设计已批准；独立 Task 事务协调，不能设置 COMPLETED | 不控制 Runtime，不依赖六项提案；Completion 仍由 #154 owning Evaluator 判断 |
+
+IM-DG-006 拥有“六个 Runtime Command 与 Runtime 默认 Policy”。本项仅解释已经批准的受控范围为何不要求先关闭整个 Gate；**Gate 仍为 USER DECISION REQUIRED**。不预设租约时长、heartbeat 间隔、cancel grace、默认 budget 或跨 Provider 路由参数。测试必须明确绑定有效的已有版本化 Policy 和有限期限；Policy 未提供/不支持时拒绝，不为通过测试提供隐式默认值。
+
+无合法正向路径的步骤逐项保留：`record_run_heartbeat` 不可用于续租；`record_runtime_progress` 不可用于推进 Run；`record_run_suspension` / `resume_suspended_run` 不可用于同 Run 恢复；`record_run_usage` 不可制造独立权威 Usage；`acknowledge_run_cancellation` 不可产生 CANCELLED。以上六个 @1.0 名称仍只在 Runtime §15.1 提案中。既有 integration.request_runtime_cancel / request_runtime_resume 只是 Adapter 控制请求，不能补足缺失的 TE 控制入口；本 Fixture 不调用它们来伪造正向完成。真实 Runtime fallback 仍属于后续 IM-DG-006/IM-08，final BLOCKED_INPUT 只走新 Context/新 Run Retry。
+
+兼容与代价：TD-02 采用增量 @1.0 Command/Query，不改旧 payload/result 或历史 Compatibility Baseline；公开名字、Purpose、Ref 注册及新表需后续独立交付，物理约束见 PostgreSQL §33。拒绝以私有跨模块写入代替 API、以旧 AdapterAttemptView 推断完整绑定、或把六项提案全部纳入 Catalog。#153 关闭只解除设计缺口，不免除这些实现依赖和各次调用的授权。
+
 ## 10. WI-04 判断事实、完成与安全边界
 
 ### 10.1 判断顺序与时效

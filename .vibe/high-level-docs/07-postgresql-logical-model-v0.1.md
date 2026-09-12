@@ -2150,6 +2150,8 @@ Completion Fact 的 payload 和 promoted Scope mirror 必须由 Application 计�
 
 completion facts可各自保存在既有Task/WorkOrder evaluation表；只读 judgment union Query在模块内分派，不要求把它们合并到新的跨Aggregate表。同一事务创建Bundle和五个子事实符合“一个Root及Entity”；不能把Task readiness和WorkOrder validation放进一个跨Root事务。
 
+TD-02 的合成 ack 先以既有 RawExternalReceipt Aggregate 独立提交，再在 RuntimeAttempt 事务追加 Observation、设置成功状态与 Outbox；两者不共享一个写事务。Worker 在 Receipt 提交后崩溃时，恢复必须读回并核验原调用/Receipt，而非再次 dispatch；Observation identity/原 payload Hash 的重放不追加第二次成功事件。同身份异 Hash 或绑定不符时拒绝，孤立 Raw Receipt 不足以通过 Attempt Binding Query 的成功条件。该约束沿用既有 Receipt/Attempt 所有权，不增加公开 Command 或新的共享表；具体字段映射见 [Spec 007](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)。
+
 TD-01 的 `context_snapshot_build` 成功记录必须精确关联输出 Snapshot id/hash；INITIAL 仅有非空 draft_snapshot_ref，FROZEN 仅有非空 frozen_contract_ref，禁止两者同时存在或同时为空。两类都保存完整 slice_refs、purpose/audience/policy；FROZEN 另保留请求的 answeredInformationRefs，INITIAL 不接受答案分支。Scope、输入 Ref/Hash 与 canonical metadata 镜像逐项校验；metadata 与 Snapshot 同事务提交并保持不可变，不能把失败 Build Attempt 当成功绑定。此记录是 ContextSnapshot 附属事实，不是另一个需要共同提交的业务 Root，不把自身 Hash 递归写入 Context payload。
 
 #165 的存储边界沿用上述单 Aggregate 顺序：@1.1 DRAFT 的 Draft Snapshot 只持久化不含 `projectContextContractRef` 的 `DraftVersionPins`；CTX-1 成功提交后，Freeze 才能在 WorkOrder Contract 中同时保存顶层 `contextSnapshotRef` 与嵌套 `versionPins.projectContextContractRef`。应用 owner function 和 Freeze guard 必须比较两处 Ref 的 canonical object type、objectId、snapshotId、Scope 和 contentHash 全字段，缺失、错 Hash/Scope、Draft current pointer stale、重试输入改变或任何预分配/placeholder/latest ref 均 fail closed。该增量只同步持久化设计约束，不分配 migration，不宣称真实首次业务链已执行；对应 PostgreSQL 业务验收保持 `NOT RUN`。
