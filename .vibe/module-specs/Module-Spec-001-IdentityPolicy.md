@@ -338,8 +338,8 @@ PolicyVersionResolutionView
 | 参数 | 提案值 | 适用输入/输出与计量单位 | 合法边界 | 依据类别 |
 |---|---:|---|---|---|
 | maxEnvelopeBytes | 262144（256 KiB） | `record_policy_version` **完整请求 Envelope**（含 `commandId`/`scopeRef`/`targetRef`/`actor`/`authorizationDecisionRef`/`idempotencyKey`/`correlationId`/`requestedAt`/`integrity`、payload 与 `policyDocument`）与 `resolve_policy` 完整请求 Envelope；紧凑 JSON 的 UTF-8 字节 | ≤ 262144 通过；> 262144 拒绝 | 复用 #157 已批准的 Command Envelope 技术预算（PostgreSQL 逻辑模型 §5.5 的 256 KiB 建议） |
-| maxResultBytes | 262144（256 KiB） | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | 同上，且必须满足 §13.3.2 的写入/读回关系 | 同上；并由读回关系（§13.3.2）确定为不小于 Envelope 预算，不单独调低 |
-| maxStringCodePoints | 16384 | 每一个字符串值**与每一个对象键**，按 Unicode code point 计数 | 单串 ≤ 16384 通过 | 复用 #157 已批准的引用/元数据技术预算；不截断任何能装入 262144 字节的文档（见下） |
+| maxResultBytes | 262144（256 KiB） | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | 同上，且必须满足 §13.3.1 的写入/读回推导 | 同上；取与 Envelope 等值，使读取侧固定项小于写入侧固定项（§13.3.2 实测） |
+| maxStringCodePoints | 16384 | 每一个字符串值**与每一个对象键**，按 Unicode code point 计数 | 单串 ≤ 16384 通过；**该上限独立于字节预算，可能先触发** | 复用 #157 已批准的同名技术值（非由字节预算推导）；实测边界 16384 通过 / 16385 拒绝 |
 | maxArrayItems | 1024 | 每一个 JSON 数组的元素个数；不改变普通数组顺序或重复语义，也不把 `Set`/`NonEmptySet` 变成可有重复的数组 | 单数组 ≤ 1024 通过 | 复用 #157 已批准的结构预算 |
 | maxObjectProperties | 256 | 每一个 JSON object 的成员数（含 `policyDocument` 内对象） | 单对象 ≤ 256 通过 | 同上 |
 | maxDepth | 32 | 每个容器（object/array）深度；根容器为 1，每进入一层子容器加 1，标量不增加容器深度 | 最深容器 ≤ 32 通过 | 同上；两个操作的实际最大嵌套为 Envelope→payload→document→profile 字段→数组元素（≤ 6） |
@@ -347,7 +347,11 @@ PolicyVersionResolutionView
 
 **未采用维度与理由**：`maxRequestedKinds` 是 #157 为 `capture.payload.requestedKinds` 增加的**字段专属**上限。PolicyVersion 的两个操作没有同形字段，因此该值对二者不构成任何接受/拒绝判断；之所以仍保留一个有限正整数而非省略，是因为 `loadPayloadGuardPolicies` 要求每个条目恰好声明七项限值——省略会让构建失败，声明一个"无限额"值又违反共享 API §4 的"不允许实现以无限制作为默认值"。因此保留与既有条目一致的值并在此显式声明其非适用性；若将来这两个操作新增任何可枚举集合字段，必须按 §157 的方式为新字段单独定义专属上限，不得让该值自动生效。本项不新增 `Set`/`NonEmptySet` 专属维度：集合语义由结构 Schema 裁决，Guard 只限制元素个数，不改变 `policySchemaRefs` 的 `NonEmptySet`（非空、唯一）契约。
 
-**为什么 16384 code point 不会截断能装入预算的文档**：`policyDocument` 作为 `CanonicalJson` 是一个 JSON 值，其**编码后**紧凑形式（含转义）计入 Envelope 字节预算，而其**非转义**长度计入 code point 预算。对 JSON 文本而言，编码后字节数不小于非转义 code point 数（ASCII 字符 1:1、非 ASCII 按 UTF-8 膨胀、控制字符转义为 6 字节），因此 262144 字节的 Envelope 预算蕴含任一字符串值的 code point 数都小于 16384。该维度因此不会成为 PolicyVersion 路径的实际拒绝原因，只对缺失字节预算的调用场景提供兜底。
+**`maxStringCodePoints` 是独立上限，可能先于字节预算触发**：该维度按 Unicode code point 限制**单个字符串值与对象键**，与总字节预算是两个独立判据，**不得**假定总字节预算蕴含单值上限。实测（§13.3.2）：在提案参数下，`{"payload":{"policyDocument":{"text":"a"×n}}}` 在 n=16384 时总计 16426 字节、Guard 通过；n=16385 时总计 16427 字节、Guard 在 `/payload/policyDocument/text` 返回 `maxStringCodePoints=16384`。两次都远低于 262144 字节，且只改变了字符串长度——即一个总字节数远未超限的合法形状 `policyDocument` 仍会被该维度拒绝。因此：
+
+1. 该维度的实际接受边界是**单串 ≤ 16384 code point**，超出即拒绝，不截断、不按字节预算回退；
+2. 保留 16384 的依据是复用 #157 已批准的同名技术值，使两个操作与既有条目使用同一技术层级；它不是由 262144 字节推导出的值，本项不为 PolicyVersion 单独提高或降低它；
+3. 若后续需要放宽单串上限，必须按 §157 的方式对共享条目做一次显式参数变更并重新审查；不得在实现中以"能装入 16384 字节预算"为由放宽或绕过该判据。
 
 **依据类别声明**：上表数值全部来自两类可复核依据——既有技术基线（#157 已批准预算、PostgreSQL 逻辑模型 §5.5 的 256 KiB/4 MiB 建议）与**本次实测**（§13.3.2，使用已交付的 Guard 实现与四个已注册 profile 的真实 canonical typed ref）；它们**不是**代表性业务负载的测量结论，也不表示业务最大策略规模。为避免歧义：本项不复用 #157 的 `maxResultBytes`（4 MiB），且不宣称 256 KiB 已获人类批准——它在本次独立审查与人类批准后才成为可实现的参数。数值全部为有限正整数，未知字段、重复身份或缺失引用使构建失败；超限一律拒绝，不截断、不自动对象化、不返回部分成功事实。
 
@@ -361,46 +365,79 @@ PolicyVersionResolutionView
 
 #### 与文件可用性的关系：写入预算不会让合法版本读不回
 
-`resolve_policy` 返回的 `policyDocument` 必须与写入时通过 Envelope 预算的是**同一份 canonical payload**。若读取预算小于写入预算，"按本参数合法写入、却因包装开销读不回"就会成立。本项以实测固定该关系（§13.3.2）：对同一 `policyDocument`，`resolve_policy` 的 `QueryResult.data` 恒比 `record_policy_version` 的请求 Envelope **小**，实测差额为恒定 −1001 字节。因此在本提案参数下，写入端能通过 Guard 的版本必然能被读回；无需 `get_policy_snapshot@1.0`，也无需分页或截断。不变量：**两个操作共享同一 Policy 条目时必须满足 `maxResultBytes ≥ maxEnvelopeBytes`**；若将来分别注册，`maxResultBytes` 的下界必须按 §13.3.2 的固定项与转义膨胀量重算，不得直接照搬本值。
+`resolve_policy` 返回的 `policyDocument` 必须与写入时通过 Envelope 预算的是**同一份 canonical payload**。若读取侧的包装开销小于写入侧，则通过写入预算的文档必然仍能通过结果预算；若读取侧开销更大，"按本参数合法写入、却因包装开销读不回"就会成立。本节按同一 JSON-value 编码模型给出可复核推导（实测见 §13.3.2）。
+
+**编码模型**：`policyDocument` 在请求 Envelope 与 `QueryResult.data` 中都是 `CanonicalJson` **JSON 值**（共享 API §2/§13.3），不是被二次编码的字符串；Guard 逐节点计量，两侧的同一字符串叶子使用相同的 JSON 编码。实测对照（§13.3.2 `R2`）确认：同一文档无论嵌套在哪种包装里，贡献的字节数相同，文档内容本身不产生请求/结果方向的差异。差异只来自**包装的固定项**。
+
+**固定项（实测字节数，取 Project Scope、UUIDv7 引用与 64 位 hex `contentHash`）**：
+
+| 包装 | 组成 | 字节 |
+|---|---|---:|
+| `record_policy_version` 请求 Envelope | 全部 Envelope 字段 + payload 的 `policyRef`/`policySetVersion`/`policySchemaRefs`/`effectiveFrom`（`supersedesRef` 缺省） | 2098 |
+| 同上，含可选 `supersedesRef` | 追加一个 `VersionedRef<Policy>` | 2388 |
+| `resolve_policy` 请求 Envelope | 固定（payload 只有 `policyRef`，无文档） | 1372 |
+| `resolve_policy` 结果数据 | `PolicyVersionResolutionView` 除 `policyDocument`（`supersededAt` 缺省） | 1345 |
+| 同上，含可选 `supersededAt` | 追加一个 `UtcInstant` | 1387 |
+| `record_policy_version` 结果数据 | `{policyVersionRef}` | 445 |
+
+**推导**：设文档为 `D`。
+
+- 写入侧的文档预算是 `262144 − frame(请求)`。请求固定项最大的合法形态（含 `supersedesRef`）为 2388，故 `|D| ≤ 262144 − 2388 = 259756`。
+- 读取侧要求 `frame(结果) + |D| ≤ 262144`。结果固定项最大的合法形态（含 `supersededAt`）为 1387，故读取侧允许 `|D| ≤ 262144 − 1387 = 260757`。
+- 两者相差 `2388 − 1387 = 1001` 字节（即**请求包装固定项严格大于结果包装固定项**）：凡通过写入预算的文档，读取侧仍有 ≥ 1001 字节余量。
+
+**因此本提案参数下不存在"写得进读不回"**：最坏合法形态（同时含 `supersedesRef` 的请求与含 `supersededAt` 的结果）已覆盖其余组合（`supersedesRef` 缺省、`supersededAt` 缺省、Enterprise Scope 等），实测边界复核见 §13.3.2。读取无需分页、截断或额外 Result 通道，`get_policy_snapshot@1.0` 也不参与该路径。
+
+**适用范围与不变量**：上述数值是**本样本**（Project Scope、`policySchemaRefs` 单项、Envelope 必填字段且不携带 `deadline`/`causationId` 等可选字段）的实测固定项；Enterprise Scope 等更小的包装会同时缩短两侧，不改变结论方向，但**新增任一可选 Envelope/payload 字段都会改变请求侧固定项**。因此：两个操作共享同一 Policy 条目时，**请求侧最大固定项必须严格大于结果侧最大固定项**；本提案以 `maxResultBytes = maxEnvelopeBytes` 配合该不等式成立。任何包装变更（新增 Envelope/payload/结果字段）、改为分别注册，或调低 `maxResultBytes`，都必须按上表重算固定项并重跑 §13.3.2 的边界复核；`maxResultBytes ≥ maxEnvelopeBytes` 本身**不构成**该证明，只是本提案取值满足推导的一个必要条件。
 
 ### 13.3.2 样本计量与尺寸依据（#181）
 
-以下计量使用**已交付的 Guard 实现**（`payloadGuardErrors`，`contracts/src/payload-guard.ts`）与 `im06-static-v1` 的四个已注册 profile 真实 canonical typed ref（#179 交付）。计量方式为"紧凑 JSON 的 UTF-8 字节数"，与共享 API §157 方案声明的口径一致；在每个样本上同时断言"等于计量值通过、减 1 拒绝"，即 Guard 自身账目与字节数逐字节一致（inclusive 边界）。
+以下计量使用**已交付的 Guard 实现**（`payloadGuardErrors`，`contracts/src/payload-guard.ts`）与 `im06-static-v1` 的四个已注册 profile 真实 canonical typed ref（#179 交付），并按 PR #182 审查意见 R1/R2 的发现重做：单值上限被当作字节预算的推论（R1），以及两侧编码模型与固定项的推导不完整（R2）。三项结论都已由本次实测替换或补全。
 
-固定项（对文档之外的结构，单位字节；样本取 Project Scope、UUIDv7 引用与 64 位 hex `contentHash`）：
+**计量程序**：构造完整样本后，用二分查找求"Guard 接受的最小字节上限"，减 1 即该样本的 Guard 字节总数（边界 inclusive，等于上限通过、超过 1 拒绝）；同一程序对所有样本一致执行，因此请求侧与结果侧的数值可直接比较。字节总数等于紧凑 JSON 的 UTF-8 字节数（不带额外空白、不做 Unicode 正规化）。
+
+**单值上限的实际边界（审查发现 R1）**：
+
+| 输入（只改变字符串长度） | 总计字节 | Guard 结果 |
+|---|---:|---|
+| `{"payload":{"policyDocument":{"text":"a"×16384}}}` | 16426 | 通过 |
+| `{"payload":{"policyDocument":{"text":"a"×16385}}}` | 16427 | 拒绝：`rule=maxStringCodePoints`、`limit=16384`、`instancePath=/payload/policyDocument/text` |
+
+两次都远低于 262144 字节预算。`maxStringCodePoints` 是**独立的、可能先于字节预算触发**的上限（§13.3.1），不能用字节预算推导。
+
+**编码对照（审查发现 R2）**：同一文档分别内联为请求侧与结果侧的 JSON 值。实测确认文档贡献的字节数不随包装方向变化；请求/结果的差额完全由包装固定项决定（下表）。此前把两侧差异归因于"请求是转义字符串、结果是解析值"的说明**不成立**，已删除。
+
+**固定项**（单位字节；样本取 Project Scope、UUIDv7 引用与 64 位 hex `contentHash`；每个数值都用上述二分程序复核）：
 
 | 结构 | 组成 | 字节 |
 |---|---|---:|
-| `record_policy_version` 固定开销 | Envelope 除 payload 正文外的全部字段 + payload 的 `policyRef`/`policySetVersion`/`policySchemaRefs`/`effectiveFrom`/可选 `supersedesRef` 与 JSON 标点 | 2388 |
-| `resolve_policy` 固定开销 | 完整请求 Envelope（无文档） | 1373 |
-| `resolve_policy` 结果固定开销 | `PolicyVersionResolutionView` 除 `policyDocument` 外的全部字段，含回显 `policyRef`、`policyVersionRef`、`policySchemaRefs`、`contentHash`、`scopeRef` 与生命周期观察 | 1387 |
-| `record_policy_version` 结果 | `{policyVersionRef}`（`SnapshotRef<PolicyVersion>`） | 446 |
+| `record_policy_version` 请求 Envelope（`supersedesRef` 缺省） | 全部 Envelope 字段 + payload 的 `policyRef`/`policySetVersion`/`policySchemaRefs`/`effectiveFrom` | 2098 |
+| `record_policy_version` 请求 Envelope（含 `supersedesRef`） | 追加一个 `VersionedRef<Policy>` | 2388 |
+| `resolve_policy` 请求 Envelope | 固定：payload 只有 `policyRef` | 1372 |
+| `resolve_policy` 结果数据（`supersededAt` 缺省） | `PolicyVersionResolutionView` 除 `policyDocument` 外全部字段 | 1345 |
+| `resolve_policy` 结果数据（含 `supersededAt`） | 追加一个 `UtcInstant` | 1387 |
+| `record_policy_version` 结果数据 | `{policyVersionRef}` | 445 |
 
-四个已注册 profile 的合法样本（`policySchemaRefs` 取该 profile 的真实 canonical typed ref）：
+**写入/读回边界的实测复核**：文档固定为"按写入侧放行的最大文档"（`262144 − 2388 = 259756` 字节）：
+
+| 量 | 字节 | 上限 | 结果 |
+|---|---:|---:|---|
+| 含 `supersedesRef` 的请求 Envelope | 262144 | 262144 | 恰好通过（边界 inclusive） |
+| 该请求 Envelope 再多 1 字节 | 262145 | 262144 | 拒绝（`rule=maxEnvelopeBytes`、`instancePath=''`） |
+| 同文档的 `resolve_policy` 结果（含 `supersededAt`） | 261143 | 262144 | 通过，余量 1001 字节 |
+
+因此 §13.3.1 的推导在本提案参数下成立：写入侧最坏形态仍给读取侧留下 1001 字节余量，合法的最大版本必然可读回。
+
+四个已注册 profile 的合法样本与实测尺寸（`policySchemaRefs` 取该 profile 的真实 canonical typed ref）：
 
 | profile | 合法 `policyDocument` 样本 | 文档字节 | `record_policy_version` Envelope | `resolve_policy` Result.data |
 |---|---|---:|---:|---:|
-| `ep.context_source_slice_capture.policy@1.0` | `{"maxSliceValiditySeconds":86400,"allowedPurposeCodes":["project.context_source.capture","execution.context.build.initial"]}` | 124 | 2512 | 1511 |
-| `execution.context_builder.policy@1.0` | `{"allowedProjectionTypes":["DOCUMENT_WRITER","REVIEWER"]}`（取值必须落在 Core §3.4 已注册投影类型内） | 57 | 2445 | 1444 |
-| `execution.task_readiness.policy@1.0` | `{"maxReadinessValiditySeconds":86400}` | 37 | 2425 | 1424 |
-| `execution.work_order_validation.policy@1.0` | `{"maxValidationValiditySeconds":86400,"mandatoryCriterionTypes":["OUTPUT_REF_VALID","OUTPUT_SCHEMA_VALID"]}` | 107 | 2495 | 1494 |
-| （空文档下界） | `{}` | 2 | 2390 | 1389 |
+| `ep.context_source_slice_capture.policy@1.0` | `{"maxSliceValiditySeconds":86400,"allowedPurposeCodes":["project.context_source.capture","execution.context.build.initial"]}` | 124 | 2222 | 1469 |
+| `execution.context_builder.policy@1.0` | `{"allowedProjectionTypes":["DOCUMENT_WRITER","REVIEWER"]}`（取值必须落在 Core §3.4 已注册投影类型内） | 57 | 2155 | 1402 |
+| `execution.task_readiness.policy@1.0` | `{"maxReadinessValiditySeconds":86400}` | 37 | 2135 | 1382 |
+| `execution.work_order_validation.policy@1.0` | `{"maxValidationValiditySeconds":86400,"mandatoryCriterionTypes":["OUTPUT_REF_VALID","OUTPUT_SCHEMA_VALID"]}` | 107 | 2205 | 1452 |
 
-四个样本都已用 `createPolicyProfileDocumentValidator()` 的 `im06-static-v1` 校验器实际验证通过（`valid=true`），且均远小于预算；样本的 `policySchemaRefs` 使用注册表给出的固定 UuidV7 与 `scope={}`，`allowedProjectionTypes` 与 `mandatoryCriterionTypes` 取已注册的闭集值，因此样本可直接作为实现 Issue 的正向 fixture 种子（业务规则字段语义仍由消费模块校验；consumer 所需的 profile key 是否在集合内也由消费模块判定）。
-
-文档规模与包装开销的关系（`policyDocument` 逐渐增大时的实测值）：
-
-| `policyDocument` 字节 | `record_policy_version` Envelope | `resolve_policy` Result.data | 结果 − Envelope |
-|---:|---:|---:|---:|
-| 2 | 2390 | 1389 | −1001 |
-| 491 | 2879 | 1878 | −1001 |
-| 5583 | 7971 | 6970 | −1001 |
-| 22065 | 24453 | 23452 | −1001 |
-| 87926 | 90314 | 89313 | −1001 |
-| 351370 | 353758 | 352757 | −1001 |
-| 1405213 | 1407601 | 1406600 | −1001 |
-
-恒定差 −1001 字节由两个固定项之差构成：`2388 − 1387 = 1001`。在该区间内该差为常数；文档继续增大时，`policyDocument` 在 Envelope 中是**转义后的 JSON 字符串**（其中每个引号、反斜杠等按 `\"` 计），而在 `QueryResult.data` 中是**已解析的 JSON 值**，同一内容在 Envelope 中的字节数不小于结果中的字节数，因此该差只能保持或增大，不会反向收敛。这就是 §13.3.1 关系成立的实测依据：在本提案参数下，`maxEnvelopeBytes` 通过即蕴含 `maxResultBytes` 通过。反之，若照搬 #157 的 `maxResultBytes = 4194304` 与更小的 `maxEnvelopeBytes`、或把两者对调，同样成立但无必要——本项选择等值以保持与既有条目同形并让静态不变量最简。
+四个样本都已用 `createPolicyProfileDocumentValidator()` 的 `im06-static-v1` 校验器实际验证通过（`valid=true`），且均远小于预算；样本的 `policySchemaRefs` 使用注册表给出的固定 UuidV7 与 `scope={}`，`allowedProjectionTypes` 与 `mandatoryCriterionTypes` 取已注册的闭集值，因此样本可直接作为实现 Issue 的正向 fixture 种子（业务规则字段语义仍由消费模块校验；consumer 所需的 profile key 是否在集合内也由消费模块判定）。这四个样本的规模**不能**用来论证 §13.3.1 的参数边界——该论证由本节上面的固定项推导与写入/读回复核承担。
 
 上述数值是**技术预算**，不是业务事实上限：它们不表示政策文档的业务字段数、profile 种类数或版本数量上限，也不改变任何 profile 的 closed 规则字段与其语义。四个 profile 的合法文档规模由各自的 closed schema 拥有，Guard 只保证资源有界。
 

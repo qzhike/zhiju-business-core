@@ -491,8 +491,9 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 - **计量对象**：`validateOperation` 以完整请求 Envelope 计量（Command/Query 一致，含全部 Envelope 字段、payload 与内联 `policyDocument`）；`validateOperationResult` 以 `CommandResult.data` / `QueryResult.data` 计量。两者都是紧凑 JSON 的 UTF-8 字节数，inclusive 边界，与 §157 口径相同。
 - **执行位置**：复用 `ContractRegistry` 的 Guard 执行点与 `payloadGuard` keyword，先于结构 Schema，也先于 Handler 的授权、幂等与 CAS；构建期与运行期加载同一实现，未知 Policy 或未加载 Guard 的校验器拒绝编译，禁止仅作 annotation 忽略。
-- **写入/读回关系**：两个操作共享条目时必须满足 `maxResultBytes ≥ maxEnvelopeBytes`。对同一 `policyDocument`，`resolve_policy` 的结果恒小于 `record_policy_version` 的 Envelope（差额为两个固定项之差 1001 字节，且随文档增大而增大），因此按本参数合法写入的版本必然可正常读回；本项不需要 Spec Delta（例如分页、截断或额外 Result 通道），也不得让读取路径返回部分结果。
+- **写入/读回关系**：`policyDocument` 在请求 Envelope 与 `QueryResult.data` 中都是 §2 定义的 **JSON 值**，Guard 两侧逐节点按同一编码计量，文档本身不产生方向差异；差异只来自包装固定项。实测固定项为：`record_policy_version` 请求 Envelope 含可选 `supersedesRef` 时 2388 字节（缺省 2098），`resolve_policy` 结果数据含可选 `supersededAt` 时 1387 字节（缺省 1345），`resolve_policy` 请求 Envelope 固定 1372 字节。请求侧最大固定项严格大于结果侧最大固定项（差 1001 字节），故按本参数合法写入的版本必然可正常读回；最坏合法形态的边界复核为"请求恰好 262144 通过、多 1 拒绝，同文档结果 261143 通过"。该推导与逐字段依据见 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案)。本项不需要 Spec Delta（例如分页、截断或额外 Result 通道），也不得让读取路径返回部分结果；修改任一包装字段或改为分别注册时必须重算固定项，`maxResultBytes ≥ maxEnvelopeBytes` 本身不构成该证明。
 - **错误**：沿用 `ContractValidationResult`、`keyword=payloadGuard`、`params.rule/limit` 与 JSON Pointer；不新增业务错误码，不改写既有错误语义，错误不携带原始内容。
+- **单值上限独立于字节预算**：`maxStringCodePoints` 按 code point 限制单个字符串值与对象键，实测可在总字节数远低于 262144 时先触发（16384 通过、16385 拒绝）；该值复用 #157 已批准的同名技术值，不得由字节预算推导，也不得在实现中绕过。
 - **非适用维度**：`maxRequestedKinds` 是 #157 的字段专属上限，对这两个操作不构成裁决；它不在本文档被声明为"可省略"，也不表示无限额。
 
 上述参数在取得独立设计审查结论与人类批准后，才随两个操作的 Schema/Registry 一并实现；本 PR 不注册操作、不写入参数文件。批准与审查证据保留在对应 Issue/PR。
