@@ -1,7 +1,7 @@
 # IM-06 Human-operated 执行边界与设计提案
 
 日期：2026-09-09
-状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #176 POLICY/EVALUATOR RESOLUTION DESIGN PROPOSED 2026-09-12 REVIEW PENDING / TD-05–07 PROPOSED / HANDLER IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。§12 是 [#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的 Policy/Evaluator 解析与授权依赖提案，同样尚未批准、尚未实现。推进顺序见 [roadmap](../product/roadmap.md)。
+状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #176 POLICY/EVALUATOR RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / TD-05–07 PROPOSED / HANDLER IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。§12 是 [#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的 Policy/Evaluator 解析与授权依赖设计，已于 2026-09-12 获批、尚未实现。推进顺序见 [roadmap](../product/roadmap.md)。
 
 ## 1. 分类与既有边界
 
@@ -304,7 +304,7 @@ TD-07 的可执行 Fixture 使用生产 Application Command/Query、同一授权
 
 ## 12. #176 首批 Policy/Evaluator 解析与授权依赖
 
-状态：`PROPOSED 2026-09-12 / REVIEW PENDING / HUMAN APPROVAL REQUIRED / NOT IMPLEMENTED`（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：企业级隔离归属、profile registry 注册路径、取代关系基数与并发裁决，以及后继唯一性只作用于真实取代边）。本节回应 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)，只收敛首批 Task/WorkOrder/Context 业务链真实需要的 Policy/Evaluator 解析与授权前置。TD-01–04 及其补充（§7–§10）继续有效且被本节引用为已批准边界；TD-05–07（§11）保持 `PROPOSED`，不被本节追认。**本节 P-176-1 至 P-176-5 是尚未批准的设计提案**：它们不授权 Schema、Registry、Handler、migration 或任何业务实现，也不得被后续 Issue 当作已批准前提引用；依赖它们的工作必须先取得人类批准并完成独立设计审查（§12.9）。既有 `zhiju.identity.policy`、`execution.*`、`project.*` 的已批准字段与历史 Compatibility Baseline 不因本节改变。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT IMPLEMENTED`（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：企业级隔离归属、profile registry 注册路径、取代关系基数与并发裁决，以及后继唯一性只作用于真实取代边）。本节回应 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)，只收敛首批 Task/WorkOrder/Context 业务链真实需要的 Policy/Evaluator 解析与授权前置。TD-01–04 及其补充（§7–§10）继续有效且被本节引用为已批准边界；TD-05–07（§11）保持 `PROPOSED`，不被本节追认。**本节 P-176-1 至 P-176-5 已于 2026-09-12 获人类批准**。批准对应 PR #178 的 `5975da3f52f83cf5b9c24dfe5e046f5d4996521b` 所呈现设计；用户在独立技术复审确认 R1–R4 已修复后明确表示“我批准新增的实质决定”。已批准内容可作为后续 readiness 复核的设计前提，业务实现仍须有明确 Scope 与实际依赖；本次批准不使 Schema、Registry、Handler 或 migration 自动成为已交付事实。既有 `zhiju.identity.policy`、`execution.*`、`project.*` 的已批准字段与历史 Compatibility Baseline 不因本节改变。
 
 ### 12.1 对账结论：既有事实与真实缺口
 
@@ -509,7 +509,7 @@ PolicyVersionResolutionView
 
 - IdentityPolicy：`record_policy_version@1.0` 与 `resolve_policy@1.0` 的 Schema、Registry、生成类型、fixture、Handler；带 Enterprise/Project Scope 的 FORCE RLS 新表（版本事实 + 唯一版本绑定 + 取代边唯一约束与查询路径）、`zhiju.identity.policy_version` 的 objectType 注册，以及两个 registry 中的 Purpose 注册；
 - 构建期 profile schema registry 的新版本（`im06-static-v1`）与四个 profile 条目的固定 typed ref、生成物与构建检查；旧 `im02-static-v1` 与旧命令接受集合不变；
-- 人类批准与本节的独立设计审查；以及 P-176-1/P-176-2/P-176-3 所需的人类决定（新 scoped 表与 RLS 分支、registry 新版本与四个 profile 条目、Evaluator objectType 命名、PayloadGuard 参数）；
+- 实现前仍需确定的 PayloadGuard 有限参数值（本次设计未呈现具体数值，不由本次批准补造）；本节 P-176-1–5 的人类批准与独立设计审查已完成，包括新 scoped 表/RLS、registry 新版本与四个 profile 以及 Evaluator objectType 设计；
 - EnterpriseProject：`capture_context_source_slice`/`get_context_source_slice` Handler、Slice 表与 capture policy 解析观察、`validUntil` 推导；
 - TaskExecution：`create_work_order@1.1`、`get_work_order_draft@1.1`、`build_initial_context_snapshot@1.0/@1.1`、`build_task_readiness@1.0`、`validate_work_order_draft@1.0`、`freeze_work_order` 的 Handler 与业务持久化；Evaluator 确定性实现；
 - 真实业务 Policy 文档内容与其审批（本项不发明 Policy 内容）；

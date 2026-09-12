@@ -2,7 +2,7 @@
 
 版本：v0.8
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / #176 CAPTURE POLICY RESOLUTION PROPOSED 2026-09-12 REVIEW PENDING / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / #176 CAPTURE POLICY RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -751,7 +751,7 @@ ACL/RLS 断言必须区分层次：Fact/Evaluation/Impact 的应用角色 `UPDAT
 
 ## IM-06 Source Slice 与 Resolution Receipt 设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08`；capture/read 的 Schema/Registry/Guard 已交付，业务 Handler 未实现；get_resolution_receipt 未注册、未实现；关联 #152/#154、[TD-01/04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。#176 的 capture policy 解析与 `validUntil` 绑定为 `PROPOSED 2026-09-12 / REVIEW PENDING / NOT IMPLEMENTED`（见下方「#176 Capture Policy 解析与 validUntil 推导（提案）」）。本节只拥有 EnterpriseProject 的输入事实捕获和窄化证明，不把 ContextSnapshot/InformationRequest 的业务所有权移入本模块。现有 `get_project_context_source@1.0` 保持动态 View，不能由调用者生成任意 ContentAddressedRef假定其可持久化读取。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08`；capture/read 的 Schema/Registry/Guard 已交付，业务 Handler 未实现；get_resolution_receipt 未注册、未实现；关联 #152/#154、[TD-01/04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。#176 的 capture policy 解析与 `validUntil` 绑定为 `TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT IMPLEMENTED`（见下方「#176 Capture Policy 解析与 validUntil 推导（提案）」）。本节只拥有 EnterpriseProject 的输入事实捕获和窄化证明，不把 ContextSnapshot/InformationRequest 的业务所有权移入本模块。现有 `get_project_context_source@1.0` 保持动态 View，不能由调用者生成任意 ContentAddressedRef假定其可持久化读取。
 
 | 设计操作 | 模式/一致性 | Payload | Result.data / Purpose |
 |---|---|---|---|
@@ -786,7 +786,7 @@ Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；
 
 ### #176 Capture Policy 解析与 validUntil 推导（提案）
 
-状态：`PROPOSED 2026-09-12 / REVIEW PENDING / HUMAN APPROVAL REQUIRED / NOT IMPLEMENTED`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)、[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本节只补齐 capture 的 Policy 解析输入与 `validUntil` 来源，不改变已批准的 capture/read 字段、Purpose 声明、PayloadGuard 技术 Policy 或 Slice 公开 payload。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT IMPLEMENTED`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)、[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本节只补齐 capture 的 Policy 解析输入与 `validUntil` 来源，不改变已批准的 capture/read 字段、Purpose 声明、PayloadGuard 技术 Policy 或 Slice 公开 payload。
 
 1. `capturePolicyRef` 继续是 Schema 已固定的 `VersionedRef<zhiju.identity.policy>`；capture 必须在提交事务内通过 `identity.resolve_policy@1.0` 取得当次解析观察（`policyVersionRef`、`contentHash`、`effectiveFrom`、`supersededAt` 与 `policyDocument`），不得由调用者自报 Hash/有效期，也不得由 `objectId/versionId` 推导。
 2. 首版 profile 为 `ep.context_source_slice_capture.policy@1.0`（本模块拥有，规则字段 closed；registry key 与 canonical typed ref 由 [Spec 001 §13.5](../module-specs/Module-Spec-001-IdentityPolicy.md#135-授权profile-schema-注册与失败审计) 注册）：`maxSliceValiditySeconds: PositiveInt`（必填，无默认）与 `allowedPurposeCodes: NonEmptySet<NamespaceCode>`（必填，请求 `purpose` 必须是成员）。`validUntil = min(capturedAt + maxSliceValiditySeconds, authorizationDecision.expiresAt)`；不接受调用者提供的期限，不引入默认 TTL，不把缺失字段解释为无限制。

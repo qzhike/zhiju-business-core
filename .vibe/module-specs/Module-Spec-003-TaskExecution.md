@@ -350,7 +350,7 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 
 ## 11. IM-06 技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #167 INITIAL CONTEXT RESULT CONTRACT IMPLEMENTED 2026-09-12 / #175 TASK V2 CREATION CONTRACT IMPLEMENTED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION PROPOSED 2026-09-12 REVIEW PENDING / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 209 项。本节不把 Domain 内部命令名自动视为公开 API。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #167 INITIAL CONTEXT RESULT CONTRACT IMPLEMENTED 2026-09-12 / #175 TASK V2 CREATION CONTRACT IMPLEMENTED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 209 项。本节不把 Domain 内部命令名自动视为公开 API。
 
 ### 11.1 公共规则与设计操作清单
 
@@ -376,7 +376,7 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 | `execution.reconcile_work_order_execution@1.0` | WorkOrder / MUTATE | `triggerRef: TypedReference` | `{workOrderRef,status: WorkOrderStatus}` | 设计 `execution.work_order.reconcile`；WorkExecutionProcess Service；trigger 仅定位，结论从 owning facts 重算 |
 | `execution.reconcile_task_execution@1.0` | Task / MUTATE | `triggerRef: TypedReference` | `{taskRef,status: TaskStatus}` | 设计 `execution.task.reconcile`；TaskExecutionProcess Service；不得由此设 COMPLETED |
 
-新操作的注册清单同时包括 Spec 007 的 Runtime Binding Query 和 Spec 002 的 Source Slice capture/exact Query、Resolution Receipt Query；本节仅拥有 execution 命名空间。新 Purpose 不能通过默认 Service 通配授权开放，必须注册到 IdentityPolicy 的版本化 capability/policy 并保留 ActorSnapshot/AuthorizationDecision。其中 `policyRef`/`evaluatorRef` 的解析来源、首版 profile、版本注册与消费时重验由 §11.9 固定（#176 提案，未批准）。
+新操作的注册清单同时包括 Spec 007 的 Runtime Binding Query 和 Spec 002 的 Source Slice capture/exact Query、Resolution Receipt Query；本节仅拥有 execution 命名空间。新 Purpose 不能通过默认 Service 通配授权开放，必须注册到 IdentityPolicy 的版本化 capability/policy 并保留 ActorSnapshot/AuthorizationDecision。其中 `policyRef`/`evaluatorRef` 的解析来源、首版 profile、版本注册与消费时重验由 §11.9 固定（#176 已批准设计，尚未实现）。
 
 ### 11.2 首次 Context 的精确输入
 
@@ -737,7 +737,7 @@ TaskStateView另返回 `completionUseStatus: Closed<NOT_EVALUATED|USABLE|STALE|R
 
 ### 11.9 首批 Policy/Evaluator 解析与消费时重验（#176 提案）
 
-状态：`PROPOSED 2026-09-12 / REVIEW PENDING / HUMAN APPROVAL REQUIRED / NOT IMPLEMENTED`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)、[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本节固定 TaskExecution 三个消费者（Initial Context Builder、TaskReadinessBuilder、WorkOrderValidator）如何取得 Policy/Evaluator 输入并重验，不改变 §11.1–§11.8 已批准的字段、错误码与判定语义，也不改变 §3/§4 的既有 @1.0 操作。未获批准前，本节不产生可执行 Schema、Handler 或业务持久化。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT IMPLEMENTED`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)、[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本节固定 TaskExecution 三个消费者（Initial Context Builder、TaskReadinessBuilder、WorkOrderValidator）如何取得 Policy/Evaluator 输入并重验，不改变 §11.1–§11.8 已批准的字段、错误码与判定语义，也不改变 §3/§4 的既有 @1.0 操作。本节已获设计批准，但尚未产生可执行 Schema、Handler 或业务持久化。
 
 **Policy 解析输入的唯一来源**：`resolvedPolicy`（§11.2.5 的 `ContextBuilderPolicyBinding`）与 Builder Policy 的有限上界（§11.2.5.4 的 `supersededAt`）只能来自 `identity.resolve_policy@1.0` 的当次返回。映射是逐字段的：`policyRef → builderPolicyRef`、`contentHash → contentHash`、`effectiveFrom → effectiveFrom`、`supersededAt → supersededAt`。`validateContextBuilderPolicyBinding` 与 `validateInitialContextExpiryBinding` 仍是**纯跨字段校验**：不得由 caller 自报、由 `objectId/versionId` 推导、用 fixture 值或历史 Receipt 充当当次观察。
 

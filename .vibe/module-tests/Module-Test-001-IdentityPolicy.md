@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION SCENARIOS PROPOSED 2026-09-12 REVIEW PENDING / EXTERNAL NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION SCENARIOS APPROVED 2026-09-12 DESIGN VERIFIED / EXTERNAL NOT RUN`
 
 对应规格：[`Module-Spec-001-IdentityPolicy.md`](../module-specs/Module-Spec-001-IdentityPolicy.md)。本文件记录 IdentityPolicy 的 API 层 Unit、Contract、E2E 与人工验收用例和真实结果；高层跨模块场景仍见 `08-verification-baseline.md`。
 
@@ -135,7 +135,7 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 ## #176 Policy 版本身份与解析 Port 验证矩阵（提案）
 
-状态：`PROPOSED 2026-09-12 / REVIEW PENDING / NOT IMPLEMENTED`。行为来源为 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)。下表定义批准并实现后的可执行验收输入与预期；当前全部 `NOT RUN`，不得因设计评审或现有 full 通过改为 PASS。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT IMPLEMENTED`。行为来源为 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)。下表定义批准并实现后的可执行验收输入与预期；当前全部 `NOT RUN`，不得因设计评审或现有 full 通过改为 PASS。
 
 | ID | 层级 | 输入 | 预期输出与禁止效果 | 当前结果 |
 |---|---|---|---|---|
@@ -148,4 +148,4 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 | IP-176-D-007 | Contract/Registry | 写入端提交 `policySchemaRefs` 为四个 profile 的 canonical typed ref（以及未注册 key、旧 `im02-static-v1` 条目、非 canonical 形状）；随后消费端校验必需 profile key | 四个 registry key 与 typed ref 的映射固定且可加载；未注册/非 canonical 条目在写入前 `IDENTITY_POLICY_VERSION_UNKNOWN`；旧命令 `record_policy_snapshot@1.0` 的接受集合不变；消费端能据 `policySchemaRefs` 判定所需 key 存在并校验 closed 字段 | `NOT RUN` |
 | IP-176-D-008 | Persistence/Contract | 正向对照：同一 Scope 下两个不同 Policy 各自创建首版；同一 identity 先后创建两个**未互相取代**的版本。反向：同一真实前驱的顺序与并发第二个后继。Enterprise 与 Project Scope 各覆盖一次 | 三个正向输入全部成功——无前驱版本的后继索引谓词为假，不参与后继唯一性，不得因 `(NULL, NULL, E, [P])` 折叠被判为重复后继；同一真实前驱的第二个后继仍稳定 `IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED`；`NULLS NOT DISTINCT` 保证 Enterprise 行的 NULL `project_id` 仍能裁决重复后继 | `NOT RUN` |
 
-独立设计审查须覆盖版本键语义、取代基数与并发裁决（含无前驱版本共存）、企业级隔离归属（新 scoped 表与旧 Platform 表的分支）、profile registry 注册路径、统一不可用与内部审计边界；本节批准与实现前不改变 `identity.*` 既有 20 项公开 Contract 的接受集合与历史验收记录。
+独立设计审查须覆盖版本键语义、取代基数与并发裁决（含无前驱版本共存）、企业级隔离归属（新 scoped 表与旧 Platform 表的分支）、profile registry 注册路径、统一不可用与内部审计边界；本节设计批准不改变 `identity.*` 既有 20 项公开 Contract 的接受集合与历史验收记录。

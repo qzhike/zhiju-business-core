@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION PASSED 2026-09-08 / #158 CONTRACT SCHEMA REGISTERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT VERIFIED 2026-09-11 / #167 INITIAL CONTEXT RESULT AND CANONICAL SNAPSHOTREF VERIFIED 2026-09-12 / #175 TASK V2 CREATION CONTRACT VERIFIED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION SCENARIOS PROPOSED 2026-09-12 REVIEW PENDING / HANDLER E2E NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION PASSED 2026-09-08 / #158 CONTRACT SCHEMA REGISTERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT VERIFIED 2026-09-11 / #167 INITIAL CONTEXT RESULT AND CANONICAL SNAPSHOTREF VERIFIED 2026-09-12 / #175 TASK V2 CREATION CONTRACT VERIFIED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION SCENARIOS APPROVED 2026-09-12 DESIGN VERIFIED / HANDLER E2E NOT RUN`
 
 对应规格：[`Module-Spec-003-TaskExecution.md`](../module-specs/Module-Spec-003-TaskExecution.md)。
 
@@ -115,7 +115,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 ### WI-02 首次构建与冻结的细化场景
 
-以下场景细化 TE-TD-001–008 和 TE-TD-019，唯一行为来源是 [Spec 003 §11.2](../module-specs/Module-Spec-003-TaskExecution.md#112-首次-context-的精确输入)。设计审阅逐项对照输入、预期及拒绝反例；业务 Handler、真实授权和 PostgreSQL 业务链不执行，保持 NOT RUN；本次新增的纯契约绑定校验单独标记实际结果。`TE-WI02-D-017`–`TE-WI02-D-020` 由 [Spec 003 §11.9](../module-specs/Module-Spec-003-TaskExecution.md#119-首批-policyevaluator-解析与消费时重验176-提案) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)（#176 提案，未批准）拥有行为语义；在批准与实现前不得标记任何结果。
+以下场景细化 TE-TD-001–008 和 TE-TD-019，唯一行为来源是 [Spec 003 §11.2](../module-specs/Module-Spec-003-TaskExecution.md#112-首次-context-的精确输入)。设计审阅逐项对照输入、预期及拒绝反例；业务 Handler、真实授权和 PostgreSQL 业务链不执行，保持 NOT RUN；本次新增的纯契约绑定校验单独标记实际结果。`TE-WI02-D-017`–`TE-WI02-D-020` 由 [Spec 003 §11.9](../module-specs/Module-Spec-003-TaskExecution.md#119-首批-policyevaluator-解析与消费时重验176-提案) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)（#176 已批准设计，尚未实现）拥有行为语义；实现前运行验收保持 NOT RUN。
 
 | ID | 层级 | 可审阅输入 / 拒绝反例 | 预期输出与禁止效果 | 当前结果 |
 |---|---|---|---|---|

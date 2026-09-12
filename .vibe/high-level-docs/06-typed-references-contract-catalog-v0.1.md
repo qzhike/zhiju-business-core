@@ -1130,7 +1130,7 @@ Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、Produc
 
 ## IM-06 注册与未注册设计路由
 
-当前 Catalog 为 209 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析提案（未批准）同样未注册、不计入 operationCount，其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 209 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析设计（已批准）同样未注册、不计入 operationCount，其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
 
 ### #157 ContextSourceSlice 注册
 
@@ -1171,7 +1171,7 @@ SnapshotRef 的全部字段（`kind`、`objectType`、`objectId`、`snapshotId`�
 
 ### #176 Policy 版本解析注册（提案）
 
-状态：`PROPOSED 2026-09-12 / REVIEW PENDING / NOT REGISTERED`。Owner 为 IdentityPolicy；本项按 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 提出两个新增入口：`identity.record_policy_version@1.0`（企业级版本事实，注册 operation-specific Result Schema 返回 `{policyVersionRef}`）与只读 Query `identity.resolve_policy@1.0`（Purpose `identity.policy.resolve_policy`）。实现后 Catalog 由 209 增至 211 项，本模块公开条目由 20 增至 22，**当前未注册、未计入 operationCount**，历史 200 项 Compatibility Baseline 与旧 `record_policy_snapshot@1.0` 条目均不重写。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT REGISTERED`。Owner 为 IdentityPolicy；本项按 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 提出两个新增入口：`identity.record_policy_version@1.0`（企业级版本事实，注册 operation-specific Result Schema 返回 `{policyVersionRef}`）与只读 Query `identity.resolve_policy@1.0`（Purpose `identity.policy.resolve_policy`）。实现后 Catalog 由 209 增至 211 项，本模块公开条目由 20 增至 22，**当前未注册、未计入 operationCount**，历史 200 项 Compatibility Baseline 与旧 `record_policy_snapshot@1.0` 条目均不重写。
 
 | objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
 |---|---|---|---|
