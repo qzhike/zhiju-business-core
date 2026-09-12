@@ -300,7 +300,7 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 
 提案覆盖 heartbeat、runtime progress、run suspension、same-run resume、authoritative usage 和 cancellation acknowledgement 六类写操作；完整候选名称与版本只在 Runtime 专项 Contract 第 15.1 节维护，避免审核前被机械计入正式 Catalog。
 
-这些操作是 `USER REVIEW PENDING` 的 additive proposal，不属于本文件当前已审核的 20 Command，也未进入当前 209 项 Catalog（历史 Compatibility Baseline 为 200 项）。审核通过后必须统一补齐 payload、授权、并发、错误、Catalog 和测试；审核前不得通过直接写 TaskExecution Repository 绕过 public port。
+这些操作是 `USER REVIEW PENDING` 的 additive proposal，不属于本文件当前已审核的 20 Command，也未进入当前 211 项 Catalog（历史 Compatibility Baseline 为 200 项）。审核通过后必须统一补齐 payload、授权、并发、错误、Catalog 和测试；审核前不得通过直接写 TaskExecution Repository 绕过 public port。
 
 ## 9. 当前状态
 
@@ -308,8 +308,8 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 - API v0.1 已由用户审核；Runtime Adapter v0.1 已获用户推进确认并进入 Implementation Milestone Plan，同时保留 6 个尚未纳入基准的 additive Command；
 - `contracts/src/operations/task-execution.schema.ts` 已注册基线 37 个操作、#158 的 @1.0 Draft/initial Context 两项操作、#165 的三个 @1.1 兼容操作及 #175 的 `execution.create_task@2.0`；PR #10 Review 识别的 8 类 strict Schema 偏差均已修复，Draft/initial Context 正负向 Contract 回归已补齐；
 - TaskExecution 直接复用权威 `core/work-order/1.0#/$defs/*`；WorkOrder Core Contract 与 `create_work_order` 使用同一组 `$defs`，且 `requestedBy` 统一为 `PrincipalRef`；Core Contract 不再被开放 `CanonicalJson` 降级；
-- 注册到 `ContractRegistry` 后所有 43 项 TaskExecution `schemaStatus` 为 `FULL`；总 Catalog 为 209 项，历史 Compatibility Baseline 仍为 200 项；
-- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 209 项 Registry，等待用户审核通过后单独补齐；
+- 注册到 `ContractRegistry` 后所有 43 项 TaskExecution `schemaStatus` 为 `FULL`；总 Catalog 为 211 项（#183 追加两个 IdentityPolicy PolicyVersion 操作），历史 Compatibility Baseline 仍为 200 项；
+- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 211 项 Registry，等待用户审核通过后单独补齐；
 - IM-06 WI-01（Issue #151）落地模块自有 application/persistence 基础：`@zhiju/task-execution` 提供 Kysely schema、`createTaskExecutionDatabase`、`withTaskExecutionTransaction`、`executeTaskExecutionCommand`、`TaskExecutionRepository`，单一受信事务上下文建立路径，幂等/CAS/Scope mirror/Process 父子 Scope/Hash 一致性 guard 与 controlled fault 回滚均已落实；可由 disposable PostgreSQL gate 复测；
 - Context Builder、Dispatcher、Runtime、Evaluator、Projection 与 Handler 实现均不存在；模块自有业务 Repository 仅暴露 `insertProcessInstance` 给当前技术 Aggregate，不与任何业务表/其他模块 Repository 交叉；
 - 对应 Unit、Contract、E2E 与人工验收中，Schema fixture、Review 修复回归与 IM-06 WI-01 持久化 gate 已执行；Handler、Runtime/DB E2E 和人工业务验收仍为 `NOT RUN`。
@@ -346,11 +346,11 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 - 不引入新公开 Command/Query/Event，不修改 §2–6、§11 已批准字段，不复用 `Runtime-Adapter` 6 项 additive proposal；
 - 不进入业务 Handler、Runtime Driver、Completion 评估、Production、Provider/Feishu/CLI Runtime 验证、跨模块业务 E2E 与独立人工业务验收（保持 `NOT RUN`）。
 
-**Verify**：`tests/persistence/task-execution-command-runner.test.ts` 在 `vibe verify full` 的 disposable PostgreSQL gate 内运行；聚焦 Contract 测试在 `pnpm test`。`pnpm contracts:check` 检查当前 209 项 Catalog，并保留历史 200 项 Compatibility Baseline。
+**Verify**：`tests/persistence/task-execution-command-runner.test.ts` 在 `vibe verify full` 的 disposable PostgreSQL gate 内运行；聚焦 Contract 测试在 `pnpm test`。`pnpm contracts:check` 检查当前 211 项 Catalog，并保留历史 200 项 Compatibility Baseline。
 
 ## 11. IM-06 技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #167 INITIAL CONTEXT RESULT CONTRACT IMPLEMENTED 2026-09-12 / #175 TASK V2 CREATION CONTRACT IMPLEMENTED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 209 项。本节不把 Domain 内部命令名自动视为公开 API。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #167 INITIAL CONTEXT RESULT CONTRACT IMPLEMENTED 2026-09-12 / #175 TASK V2 CREATION CONTRACT IMPLEMENTED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / #183 POLICYVERSION STATIC CONTRACT REGISTERED 2026-09-13 / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 209 项。本节不把 Domain 内部命令名自动视为公开 API。
 
 ### 11.1 公共规则与设计操作清单
 

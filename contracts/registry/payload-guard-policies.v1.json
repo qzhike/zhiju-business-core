@@ -10,6 +10,17 @@
       "maxObjectProperties": 256,
       "maxDepth": 32,
       "maxRequestedKinds": 64
+    },
+    {
+      "type": "identity.policy_version",
+      "version": "1.0",
+      "maxEnvelopeBytes": 262144,
+      "maxResultBytes": 266240,
+      "maxStringCodePoints": 16384,
+      "maxArrayItems": 1024,
+      "maxObjectProperties": 256,
+      "maxDepth": 32,
+      "maxRequestedKinds": 64
     }
   ]
 }

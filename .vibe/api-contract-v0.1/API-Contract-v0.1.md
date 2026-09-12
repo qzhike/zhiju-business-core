@@ -17,7 +17,7 @@
 - Query 一致性、分页、脱敏和结果语义；
 - Domain Event 最小事实 Payload 与 Replay 语义；
 - 公开错误结构、兼容规则和 Schema Registry 要求；
-- 七模块当前 209 个公开 Contract 的字段级路由（历史兼容基线为 200 项）。
+- 七模块当前 211 个公开 Contract 的字段级路由（历史兼容基线为 200 项）。
 
 本阶段不定义：
 
@@ -224,7 +224,7 @@ integrity
 - Query 的 Result Schema 继续由 operation 身份派生；Command 的 Result Schema 是显式增量，不改变任何未声明命令的既有返回形状；
 - Result Schema 只证明形状与跨字段一致，不证明对象已提交、当前授权有效或副作用完成。
 
-`execution.build_initial_context_snapshot@1.0` 与 `@1.1` 是首个使用该扩展的 Command：`data.contextSnapshotRef` 必须是已注册的 canonical `zhiju.execution.context_snapshot` `SnapshotRef`；`zhiju.project.context_snapshot` 仅作为 Core v1.0 历史读回身份。权威 `execution.get_context_snapshot@1.0` 的输入 Ref 与结果 Ref 必须逐字段相等。字段与失败语义见 [Spec 003 §11.2.5.3](../module-specs/Module-Spec-003-TaskExecution.md#11253-initial-context-commandresult-与-canonical-snapshotref)；Handler、幂等与持久化验收仍为 `NOT RUN`。
+`execution.build_initial_context_snapshot@1.0` 与 `@1.1` 是首个使用该扩展的 Command；`identity.record_policy_version@1.0`（#183）是第二个：`data.contextSnapshotRef` 必须是已注册的 canonical `zhiju.execution.context_snapshot` `SnapshotRef`；`zhiju.project.context_snapshot` 仅作为 Core v1.0 历史读回身份。权威 `execution.get_context_snapshot@1.0` 的输入 Ref 与结果 Ref 必须逐字段相等。字段与失败语义见 [Spec 003 §11.2.5.3](../module-specs/Module-Spec-003-TaskExecution.md#11253-initial-context-commandresult-与-canonical-snapshotref)；Handler、幂等与持久化验收仍为 `NOT RUN`。
 
 ## 6. Query API
 
@@ -400,7 +400,7 @@ ContractRegistration
 
 API Contract 进入用户审核前必须证明：
 
-1. Catalog 中当前 209 个已注册 `name@version` 在七个 Module Spec 中各出现且只出现一次；
+1. Catalog 中当前 211 个已注册 `name@version` 在七个 Module Spec 中各出现且只出现一次；
 2. namespace 与唯一 Owner 一致；
 3. 每个 Command 有 target/concurrency、payload、authorization 和主要拒绝语义；
 4. 每个 Query 有 payload、result 和允许一致性；
@@ -426,9 +426,9 @@ API Contract 进入用户审核前必须证明：
 ## 13. 当前状态
 
 - 字段级 API 文档已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；验证证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)；
-- 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，#165 再增加三个 @1.1 兼容操作至 208 项，#175 再增加一个 @2.0 操作至 209 项，#159 仅放宽既有字段的数组接受集合，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
+- 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，#165 再增加三个 @1.1 兼容操作至 208 项，#175 再增加一个 @2.0 操作至 209 项，#183 再注册 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0` 至 211 项，#159 仅放宽既有字段的数组接受集合，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
 - 业务 Handler、业务 Fixture、Persistence 业务链和 E2E Runtime 仍未实现；
-- #157/#158/#165/#175 的 Schema/Registry 与生成检查、以及既有 WI-01 Persistence gate 已通过；#181 只呈现两个 PolicyVersion 操作的 PayloadGuard 有限参数提案与实测依据，未注册操作或参数；业务 Handler、E2E、外部和人工运行验证仍为 `NOT RUN`；
+- #157/#158/#165/#175/#183 的 Schema/Registry、PayloadGuard 条目与生成检查、以及既有 WI-01 Persistence gate 已通过；#181 提供两个 PolicyVersion 操作的 PayloadGuard 有限参数与实测依据，#183 按该已批准参数完成静态注册（Schema/Registry/Catalog/生成类型/fixture）；业务 Handler、E2E、外部和人工运行验证仍为 `NOT RUN`；
 - 本阶段静态检查最多可标记 `DESIGN VERIFIED`，不得报告实现通过。
 
 ## 14. Issue #57 受控 Capability 边界
@@ -439,9 +439,9 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 ## IM-06 兼容性增量
 
-状态：TECHNICAL DESIGN APPROVED 2026-09-08；#157 的两项 Source Slice 操作、#158 的两项 @1.0 WorkOrder Draft/initial Context 操作与 #165 的三个 @1.1 兼容操作已交付 Schema/Registry，其中 #157 另有已批准 Guard；其余增量尚未注册。#152–#154具体输入/输出在owning Spec 002/003/005/007设计附录；[TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)已获批准，按依赖实施。首次构建采用版本化新操作，避免改变build_context_snapshot@1.0必填ContractRef语义；Task typed definition采用create_task@2.0，避免以Minor或Handler默认值收窄旧CanonicalJson。
+状态：TECHNICAL DESIGN APPROVED 2026-09-08；#157 的两项 Source Slice 操作、#158 的两项 @1.0 WorkOrder Draft/initial Context 操作与 #165 的三个 @1.1 兼容操作已交付 Schema/Registry，其中 #157 另有已批准 Guard；#175 的 `execution.create_task@2.0` 与 #183 的两个 PolicyVersion 操作也已注册；其余增量尚未注册。#152–#154具体输入/输出在owning Spec 002/003/005/007设计附录；[TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)已获批准，按依赖实施。首次构建采用版本化新操作，避免改变build_context_snapshot@1.0必填ContractRef语义；Task typed definition采用create_task@2.0，避免以Minor或Handler默认值收窄旧CanonicalJson。
 
-保留既有 @1.0 操作与历史 200 项 Compatibility Baseline 的兼容性；#157 与 #158 各新增两项后 Registry 为 205 项，#165 再新增三个 @1.1 兼容操作至 208 项，#175 再新增 `execution.create_task@2.0` 至 209 项；#176 的 Policy 版本解析设计（已批准）未注册、不计入计数，实现后为 211 项。旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
+保留既有 @1.0 操作与历史 200 项 Compatibility Baseline 的兼容性；#157 与 #158 各新增两项后 Registry 为 205 项，#165 再新增三个 @1.1 兼容操作至 208 项，#175 再新增 `execution.create_task@2.0` 至 209 项，#183 再注册 #176 的两个 PolicyVersion 操作至 211 项（静态契约；Handler、授权与持久化仍 `NOT RUN`）。旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
 
 新增Query只读且受Scope/Purpose裁剪；Slice捕获使用CREATE Command，避免Query产生不可审计写入。CAS expectedAggregateVersion只在Envelope，历史snapshotId/hash不充当CAS token；runtime bigint不能有损转Number。公开整数范围在实现前须与共享Envelope Schema一致，超界明确拒绝，不能借本设计暗改共享类型。
 
@@ -473,13 +473,13 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 ### #176 Policy 版本解析与授权依赖（提案）
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT REGISTERED`，设计见 [决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本项提出 IdentityPolicy 的两个新入口：`identity.record_policy_version@1.0`（payload `policyRef`、`policySetVersion`、`policySchemaRefs`、`policyDocument`、`effectiveFrom`、可选 `supersedesRef`；注册 operation-specific Result Schema 返回精确 `SnapshotRef<zhiju.identity.policy_version>`）与 AUTHORITATIVE Query `identity.resolve_policy@1.0`（payload 固定 canonical `zhiju.identity.policy`，Purpose `identity.policy.resolve_policy`）。二者按 §9.2 完整注册后 Catalog 由 209 增至 211；当前未注册、未实现，历史 200 项 Compatibility Baseline、旧 `record_policy_snapshot@1.0` 条目与其 Platform 读取路径都不改写。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / CONTRACT REGISTERED 2026-09-13 (#183) / HANDLER NOT IMPLEMENTED`，设计见 [决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本项提出 IdentityPolicy 的两个新入口：`identity.record_policy_version@1.0`（payload `policyRef`、`policySetVersion`、`policySchemaRefs`、`policyDocument`、`effectiveFrom`、可选 `supersedesRef`；注册 operation-specific Result Schema 返回精确 `SnapshotRef<zhiju.identity.policy_version>`）与 AUTHORITATIVE Query `identity.resolve_policy@1.0`（payload 固定 canonical `zhiju.identity.policy`，Purpose `identity.policy.resolve_policy`）。二者按 §9.2 完整注册后 Catalog 由 209 增至 211；当前未注册、未实现，历史 200 项 Compatibility Baseline、旧 `record_policy_snapshot@1.0` 条目与其 Platform 读取路径都不改写。
 
-新增 Purpose `identity.policy.record_policy_version` 与 `identity.policy.resolve_policy` 必须在 public-api 与 compatibility metadata 两个来源中一致登记，并注册到版本化 capability/policy；`dataClassification=INTERNAL`，若某 profile 将来允许承载客户材料必须重新分类；两个新操作实现时必须声明有限额的构建期 PayloadGuard 技术 Policy（参数在实现 Issue 中按 §157 流程确定，不得以无限额占位）。首版四个 profile 的 schema 身份由新的构建期 registry 版本承载（见 [Spec 001 §13.5](../module-specs/Module-Spec-001-IdentityPolicy.md#135-授权profile-schema-注册与失败审计)），既有 registry 条目与旧命令接受集合不变。企业级版本事实与其正文不得写入 Platform `policy_snapshot`（该表 RLS 无 enterprise/project 条件），必须落在带 Scope 的 FORCE RLS 新表并经受授权 Query 读取；RLS 不替代授权。解析结果内联返回 `policyDocument`，通用 `VersionedRef` 继续不携带 `contentHash`。对象存在性、授权、幂等、Handler、migration 与真实 PostgreSQL 业务链仍为 `NOT RUN`；后续实现须按已批准设计与明确的实现 Issue Scope 交付。
+新增 Purpose `identity.policy.record_policy_version` 与 `identity.policy.resolve_policy` 必须在 public-api 与 compatibility metadata 两个来源中一致登记，并注册到版本化 capability/policy；`dataClassification=INTERNAL`，若某 profile 将来允许承载客户材料必须重新分类；两个新操作的有限额构建期 PayloadGuard 技术 Policy 已按 #181 的已批准参数注册为共享条目 `identity.policy_version@1.0`（`maxEnvelopeBytes=262144`、`maxResultBytes=266240`、`maxStringCodePoints=16384`、`maxArrayItems=1024`、`maxObjectProperties=256`、`maxDepth=32`、`maxRequestedKinds=64` 且显式非适用；数值不得在实现中另行替换或取等值），SD-181-1 由这两个操作自己的字段 Schema 执行。首版四个 profile 的 schema 身份由新的构建期 registry 版本承载（见 [Spec 001 §13.5](../module-specs/Module-Spec-001-IdentityPolicy.md#135-授权profile-schema-注册与失败审计)），既有 registry 条目与旧命令接受集合不变。企业级版本事实与其正文不得写入 Platform `policy_snapshot`（该表 RLS 无 enterprise/project 条件），必须落在带 Scope 的 FORCE RLS 新表并经受授权 Query 读取；RLS 不替代授权。解析结果内联返回 `policyDocument`，通用 `VersionedRef` 继续不携带 `contentHash`。对象存在性、授权、幂等、Handler、migration 与真实 PostgreSQL 业务链仍为 `NOT RUN`；后续实现须按已批准设计与明确的实现 Issue Scope 交付。
 
 ### #181 PolicyVersion PayloadGuard 注册方案
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-13 / DESIGN VERIFIED / NOT REGISTERED`。本方案与 SD-181-1 已于 2026-09-13 完成独立技术审查并获人类设计验收批准（[人类批准记录](https://github.com/qzhike/zhiju-business-core/pull/182#issuecomment-5647186487)），对应设计 revision `0f596d1f74d9d306bf8a7884ca8adf1f5203d26d`；这是已批准设计基准，不代表操作、参数或业务能力已经实现。仅适用于 #176 提出的 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0`（当前未注册）。参数、适用边界、实测依据与验证矩阵的权威文本在 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案) 与 [Module-Test 001](../module-tests/Module-Test-001-IdentityPolicy.md#181-policyversion-api-payloadguard-验证矩阵提案待批准)；本节只固定共享 API 层的集成边界，不重复参数表。本项不改变 `ep.context_source_slice@1.0` 的既有参数、不新增全局默认上限，也不改变任何已注册操作的接受集合。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-13 / DESIGN VERIFIED / PARAMETERS REGISTERED 2026-09-13 (#183) / HANDLER NOT IMPLEMENTED`。本方案与 SD-181-1 已于 2026-09-13 完成独立技术审查并获人类设计验收批准（[人类批准记录](https://github.com/qzhike/zhiju-business-core/pull/182#issuecomment-5647186487)），对应设计 revision `0f596d1f74d9d306bf8a7884ca8adf1f5203d26d`；这是已批准设计基准，不代表操作、参数或业务能力已经实现。仅适用于 #176 提出、#183 已注册的 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0`。参数、适用边界、实测依据与验证矩阵的权威文本在 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案) 与 [Module-Test 001](../module-tests/Module-Test-001-IdentityPolicy.md#181-policyversion-api-payloadguard-验证矩阵提案待批准)；本节只固定共享 API 层的集成边界，不重复参数表。本项不改变 `ep.context_source_slice@1.0` 的既有参数、不新增全局默认上限，也不改变任何已注册操作的接受集合。
 
 ```json
 { "type": "identity.policy_version", "version": "1.0" }

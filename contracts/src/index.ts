@@ -22,6 +22,7 @@ export type {
 export * from './operations/index.js';
 export * from './policy-profile-documents.js';
 export * from './policy-profiles.js';
+export * from './policy-version-binding.js';
 export * from './registry.js';
 export * from './schema-types.js';
 export * from './payload-guard.js';

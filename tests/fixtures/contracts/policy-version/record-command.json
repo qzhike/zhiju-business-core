@@ -1,0 +1,89 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d450",
+  "commandType": "identity.record_policy_version",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.identity.policy_version",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d450",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "record-policy-version-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d450",
+  "requestedAt": "2026-09-12T00:00:00.000Z",
+  "payload": {
+    "policyRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.identity.policy",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d440",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d441",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "policySetVersion": "policy-set-1",
+    "policySchemaRefs": [
+      {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d404",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+        "scope": {}
+      }
+    ],
+    "policyDocument": {
+      "maxSliceValiditySeconds": 3600,
+      "allowedPurposeCodes": ["project.context_source.capture", "project.context_source.read"]
+    },
+    "effectiveFrom": "2026-09-12T00:00:00.000Z",
+    "supersedesRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.identity.policy",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d440",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d442",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

@@ -695,6 +695,7 @@ identity.revoke_role@1.0
 identity.grant_capability@1.0
 identity.revoke_capability@1.0
 identity.record_policy_snapshot@1.0
+identity.record_policy_version@1.0
 ```
 
 Queries：
@@ -706,6 +707,7 @@ identity.check_enterprise_access@1.0
 identity.check_project_access@1.0
 identity.check_human_only_capability@1.0
 identity.get_policy_snapshot@1.0
+identity.resolve_policy@1.0
 ```
 
 Events：
@@ -1126,11 +1128,11 @@ Evidence/Representation/Package Ref
 
 Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 冻结 EnterpriseProject Owner 的受控 Application Capability；逻辑名称、输入/输出、授权目的和错误码见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。
 
-这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 209 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
+这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 211 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
 
 ## IM-06 注册与未注册设计路由
 
-当前 Catalog 为 209 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析设计（已批准）同样未注册、不计入 operationCount，其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 211 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
 
 ### #157 ContextSourceSlice 注册
 
@@ -1169,16 +1171,16 @@ Owner 仍为 TaskExecution；新增三个与旧 @1.0 并存的 @1.1 operation。
 
 SnapshotRef 的全部字段（`kind`、`objectType`、`objectId`、`snapshotId`、`scope`、`contentHash`）都进入 Result Schema 与跨字段绑定比较；`targetRef` 与返回 Ref 必须按 canonical objectType、objectId 和 Scope 相等，不能只按 objectId 关联。`zhiju.execution.context_snapshot` 的 Project Scope 是必填成员：新增 Result Ref Schema 要求 `enterpriseId` 与 `projectId` 同时存在，canonical 绑定同样拒绝空 Scope 或 enterprise-only Scope；共享 `ScopeRef` 与既有 Query 的接受集合不因此改变。`zhiju.project.context_snapshot` 仅是 Core v1.0 历史读回身份与历史 fixture 值，不由新入口产生，也不与 canonical 名称互换。`execution.get_context_snapshot@1.0` 的既有 Schema/接受集合不变，其请求 Ref 与结果 Ref 必须逐字段相等；返回引用指向未提交 Snapshot 或重放异 Hash 由 Handler 拒绝，保持 `NOT RUN`。
 
-### #176 Policy 版本解析注册（提案）
+### #176 Policy 版本解析注册
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT REGISTERED`。Owner 为 IdentityPolicy；本项按 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 提出两个新增入口：`identity.record_policy_version@1.0`（企业级版本事实，注册 operation-specific Result Schema 返回 `{policyVersionRef}`）与只读 Query `identity.resolve_policy@1.0`（Purpose `identity.policy.resolve_policy`）。实现后 Catalog 由 209 增至 211 项，本模块公开条目由 20 增至 22，**当前未注册、未计入 operationCount**，历史 200 项 Compatibility Baseline 与旧 `record_policy_snapshot@1.0` 条目均不重写。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / CONTRACT REGISTERED 2026-09-13 / HANDLER NOT IMPLEMENTED`。Owner 为 IdentityPolicy；本项按 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 新增两个入口：`identity.record_policy_version@1.0`（企业级版本事实，注册 operation-specific Result Schema 返回 `{policyVersionRef}`）与只读 AUTHORITATIVE Query `identity.resolve_policy@1.0`（Purpose `identity.policy.resolve_policy`）。两者已由 #183 按完整 Envelope、Payload/Result Schema、两个 Registry 与共享 `identity.policy_version@1.0` PayloadGuard 静态注册：Catalog 由 209 增至 211 项，本模块公开条目由 20 增至 22；历史 200 项 Compatibility Baseline 与旧 `record_policy_snapshot@1.0` 条目均未重写。Handler、授权路径、scoped 事实表与真实 PostgreSQL 业务链仍为 `NOT IMPLEMENTED / NOT RUN`，因此本节的静态注册不构成公开 HTTP 或业务链可用。
 
 | objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
 |---|---|---|---|
 | `zhiju.identity.policy` | identity-policy | VERSIONED；企业 Scope（`enterpriseId` 必填，`projectId` 可选） | 既有 Policy 版本身份；新入口把该版本键与已提交的 scoped 版本事实建立唯一绑定；仍不创建业务 Policy；否 |
-| `zhiju.identity.policy_version` | identity-policy | SNAPSHOT（解析结果与正文）；Enterprise/Project Scope（与版本键 Scope 逐字段相等） | 新增不可变版本事实；`objectId==snapshotId`；只存在于带 Scope 的 FORCE RLS 新表；否 |
+| `zhiju.identity.policy_version` | identity-policy | OBJECT（CREATE target）、SNAPSHOT（解析结果与正文）；Enterprise/Project Scope（与版本键 Scope 逐字段相等） | 新增不可变版本事实；`objectId==snapshotId`；只存在于带 Scope 的 FORCE RLS 新表；否 |
 
-`resolve_policy` 的 payload 固定 VERSIONED/`zhiju.identity.policy`，结果固定 SNAPSHOT/`zhiju.identity.policy_version`，并在同一次授权读取中返回 `policyDocument`。既有 Platform `identity.policy_snapshot` 身份、其 `get_policy_snapshot@1.0` 读回路径与 RLS 不变，也不被新入口写入；Core fixture 中出现的历史拼写 `zhiju.identity.policy_snapshot` 只作兼容读回材料，不由新入口产生，也不在解析实现中被静默改写。首版 profile 的 registry key 与 canonical typed ref（`ep.context_source_slice_capture.policy@1.0`、`execution.context_builder.policy@1.0`、`execution.task_readiness.policy@1.0`、`execution.work_order_validation.policy@1.0`）以新的构建期 registry 版本承载，既有 `im02-static-v1` 条目与旧命令接受集合不变。两个新操作在实现时必须按 #157 规则声明有限额的构建期 PayloadGuard 技术 Policy，参数在实现 Issue 中确定。TD-01–04 的既有边界、`zhiju.execution.*`/`zhiju.project.*` 已有映射与旧操作接受集合不因本项改变。
+`resolve_policy` 的 payload 固定 VERSIONED/`zhiju.identity.policy`，结果固定 SNAPSHOT/`zhiju.identity.policy_version`，并在同一次授权读取中返回 `policyDocument`。既有 Platform `identity.policy_snapshot` 身份、其 `get_policy_snapshot@1.0` 读回路径与 RLS 不变，也不被新入口写入；Core fixture 中出现的历史拼写 `zhiju.identity.policy_snapshot` 只作兼容读回材料，不由新入口产生，也不在解析实现中被静默改写。首版 profile 的 registry key 与 canonical typed ref（`ep.context_source_slice_capture.policy@1.0`、`execution.context_builder.policy@1.0`、`execution.task_readiness.policy@1.0`、`execution.work_order_validation.policy@1.0`）以新的构建期 registry 版本承载，既有 `im02-static-v1` 条目与旧命令接受集合不变。两个新操作按 #157 规则声明共享的有限额构建期 PayloadGuard 技术 Policy `identity.policy_version@1.0`；完整七项参数按 #181 已批准值注册（`maxEnvelopeBytes=262144`、`maxResultBytes=266240`、`maxStringCodePoints=16384`、`maxArrayItems=1024`、`maxObjectProperties=256`、`maxDepth=32`、`maxRequestedKinds=64` 并对两个操作不适用），SD-181-1 的时刻长度约束由这两个操作自己的 Schema 执行。TD-01–04 的既有边界、`zhiju.execution.*`/`zhiju.project.*` 已有映射与旧操作接受集合不因本项改变。
 
 ### #175 Task v2 create 注册
 

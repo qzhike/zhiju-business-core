@@ -1,0 +1,216 @@
+[
+  {
+    "base": "record",
+    "path": "/payload/effectiveFrom",
+    "value": "2026-09-12T00:00:00.1234Z",
+    "keyword": "maxLength",
+    "expectedPath": "/payload/effectiveFrom",
+    "params": {
+      "limit": 24
+    }
+  },
+  {
+    "base": "record",
+    "path": "/payload/effectiveFrom",
+    "value": "2026-09-13T00:00:00.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000Z",
+    "keyword": "maxLength",
+    "expectedPath": "/payload/effectiveFrom"
+  },
+  {
+    "base": "record",
+    "path": "/payload/effectiveFrom",
+    "value": "2026-09-12T00:00:00.123456789Z",
+    "keyword": "maxLength",
+    "expectedPath": "/payload/effectiveFrom"
+  },
+  {
+    "base": "record",
+    "path": "/payload/effectiveFrom",
+    "value": "2026-09-12",
+    "keyword": "pattern",
+    "expectedPath": "/payload/effectiveFrom"
+  },
+  {
+    "base": "record",
+    "path": "/payload/policyRef/objectType",
+    "value": "zhiju.identity.policy_snapshot",
+    "keyword": "const",
+    "expectedPath": "/payload/policyRef/objectType"
+  },
+  {
+    "base": "record",
+    "path": "/payload/policyRef/kind",
+    "value": "OBJECT",
+    "keyword": "const",
+    "expectedPath": "/payload/policyRef/kind"
+  },
+  {
+    "base": "record",
+    "path": "/payload/policyRef/scope/enterpriseId",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "/payload/policyRef/scope",
+    "params": {
+      "missingProperty": "enterpriseId"
+    }
+  },
+  {
+    "base": "record",
+    "path": "/payload/policyRef/scope/tenantId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "keyword": "additionalProperties",
+    "expectedPath": "/payload/policyRef/scope"
+  },
+  {
+    "base": "record",
+    "path": "/payload/supersedesRef/objectType",
+    "value": "zhiju.identity.policy_snapshot",
+    "keyword": "const",
+    "expectedPath": "/payload/supersedesRef/objectType"
+  },
+  {
+    "base": "record",
+    "path": "/payload/policySchemaRefs",
+    "value": [],
+    "keyword": "minItems",
+    "expectedPath": "/payload/policySchemaRefs",
+    "params": {
+      "limit": 1
+    }
+  },
+  {
+    "base": "record",
+    "path": "/payload/policySchemaRefs",
+    "value": [
+      {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d404",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+        "scope": {}
+      },
+      {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d404",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+        "scope": {}
+      }
+    ],
+    "keyword": "uniqueItems",
+    "expectedPath": "/payload/policySchemaRefs"
+  },
+  {
+    "base": "record",
+    "path": "/payload/policySetVersion",
+    "value": "",
+    "keyword": "minLength",
+    "expectedPath": "/payload/policySetVersion"
+  },
+  {
+    "base": "record",
+    "path": "/payload/policyDocument",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "/payload",
+    "params": {
+      "missingProperty": "policyDocument"
+    }
+  },
+  {
+    "base": "record",
+    "path": "/expectedAggregateVersion",
+    "value": 1,
+    "keyword": "false schema",
+    "expectedPath": "/expectedAggregateVersion"
+  },
+  {
+    "base": "query",
+    "path": "/consistencyRequirement",
+    "value": "PROJECTION_OK",
+    "keyword": "enum",
+    "expectedPath": "/consistencyRequirement"
+  },
+  {
+    "base": "query",
+    "path": "/payload/policyRef/objectId",
+    "value": "018f22e2-7c15-4b2e-8d86-2de956a9d440",
+    "keyword": "pattern",
+    "expectedPath": "/payload/policyRef/objectId"
+  },
+  {
+    "base": "result",
+    "path": "/policyVersionRef/objectType",
+    "value": "zhiju.identity.policy",
+    "keyword": "const",
+    "expectedPath": "/policyVersionRef/objectType"
+  },
+  {
+    "base": "result",
+    "path": "/scopeRef/tenantId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "keyword": "additionalProperties",
+    "expectedPath": "/scopeRef"
+  },
+  {
+    "base": "result",
+    "path": "/useStatus",
+    "value": "ACTIVE",
+    "keyword": "enum",
+    "expectedPath": "/useStatus"
+  },
+  {
+    "base": "result",
+    "path": "/supersededAt",
+    "value": "2026-09-12T02:00:00.1234Z",
+    "keyword": "maxLength",
+    "expectedPath": "/supersededAt"
+  },
+  {
+    "base": "result",
+    "path": "/checkedAt",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "",
+    "params": {
+      "missingProperty": "checkedAt"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/policyDocument",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "",
+    "params": {
+      "missingProperty": "policyDocument"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/policySchemaRefs/0/versionId",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "/policySchemaRefs/0",
+    "params": {
+      "missingProperty": "versionId"
+    }
+  },
+  {
+    "base": "recordResult",
+    "path": "/policyVersionRef/kind",
+    "value": "VERSIONED",
+    "keyword": "const",
+    "expectedPath": "/policyVersionRef/kind"
+  },
+  {
+    "base": "recordResult",
+    "path": "/policyVersionRef",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "",
+    "params": {
+      "missingProperty": "policyVersionRef"
+    }
+  }
+]

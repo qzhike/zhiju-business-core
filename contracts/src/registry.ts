@@ -8,6 +8,7 @@ import type {
 import Ajv2020Import from 'ajv/dist/2020.js';
 
 import {
+  assertPolicyVersionOperationRegistrations,
   assertSliceOperationRegistrations,
   assertTaskExecutionOperationRegistrations,
 } from './operation-registration.js';
@@ -40,6 +41,11 @@ import {
   validateInitialContextCommandResult,
   type ContextSnapshotBindingValidationResult,
 } from './context-snapshot-binding.js';
+import {
+  validatePolicyVersionCommandResult,
+  validatePolicyVersionResolutionBinding,
+  type PolicyVersionBindingValidationResult,
+} from './policy-version-binding.js';
 import {
   validateWorkOrderContextSnapshotBinding,
   type WorkOrderContextBindingValidationResult,
@@ -87,6 +93,7 @@ export class ContractRegistry {
   constructor() {
     assertSliceOperationRegistrations(publicApiOperations);
     assertTaskExecutionOperationRegistrations(publicApiOperations);
+    assertPolicyVersionOperationRegistrations(publicApiOperations);
     this.#ajv = new Ajv2020({ allErrors: true, strict: true });
     this.#ajv.addKeyword(payloadGuardKeyword(this.#guardPolicies));
     this.#ajv.addSchema(commonSchema);
@@ -201,6 +208,14 @@ export class ContractRegistry {
 
   validateContextSnapshotReadBinding(input: unknown): ContextSnapshotBindingValidationResult {
     return validateContextSnapshotReadBinding(input);
+  }
+
+  validatePolicyVersionCommandResult(input: unknown): PolicyVersionBindingValidationResult {
+    return validatePolicyVersionCommandResult(input);
+  }
+
+  validatePolicyVersionResolutionBinding(input: unknown): PolicyVersionBindingValidationResult {
+    return validatePolicyVersionResolutionBinding(input);
   }
 
   validateOperationResult(type: string, version: string, input: unknown): ContractValidationResult {
