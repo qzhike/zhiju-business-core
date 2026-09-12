@@ -150,7 +150,21 @@ interface TaskExecutionRegistration {
   readonly dataClassification: string;
   readonly references: readonly OperationReferenceDeclaration[];
   readonly resultReferences: readonly OperationReferenceDeclaration[];
+  readonly resultSchemaRef?: string;
 }
+
+/**
+ * Executable result schema registered for the Initial Context Command. The
+ * `$defs` names follow `operationSchemaDefinitionName(type, version, 'result')`
+ * and are declared by the owning TaskExecution schema; the contract test
+ * asserts this declaration still matches that derivation.
+ */
+const initialContextResultSchemaRef = {
+  '1.0':
+    'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_build_initial_context_snapshot_result',
+  '1.1':
+    'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_build_initial_context_snapshot_v1_1_result',
+} as const;
 
 const taskExecutionRegistrations: readonly TaskExecutionRegistration[] = [
   {
@@ -219,6 +233,7 @@ const taskExecutionRegistrations: readonly TaskExecutionRegistration[] = [
         objectType: 'zhiju.execution.context_snapshot',
       },
     ],
+    resultSchemaRef: initialContextResultSchemaRef['1.0'],
   },
   {
     type: 'execution.create_work_order',
@@ -307,6 +322,7 @@ const taskExecutionRegistrations: readonly TaskExecutionRegistration[] = [
         objectType: 'zhiju.execution.context_snapshot',
       },
     ],
+    resultSchemaRef: initialContextResultSchemaRef['1.1'],
   },
 ] as const;
 
@@ -338,6 +354,7 @@ export function assertTaskExecutionOperationRegistrations(
       operation.authorizationPurpose !== expected.authorizationPurpose ||
       operation.dataClassification !== expected.dataClassification ||
       operation.payloadGuardPolicyRef !== undefined ||
+      operation.resultSchemaRef !== expected.resultSchemaRef ||
       !sameRegistrationValue(operation.references ?? [], expected.references) ||
       !sameRegistrationValue(operation.resultReferences ?? [], expected.resultReferences)
     ) {

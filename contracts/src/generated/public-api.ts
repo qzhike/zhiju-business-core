@@ -429,6 +429,8 @@ export const publicApiOperations = [
     concurrencyMode: 'CREATE',
     authorizationPurpose: 'execution.context.build.initial',
     dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_build_initial_context_snapshot_result',
     references: [
       { path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.execution.context_snapshot' },
       {
@@ -470,6 +472,8 @@ export const publicApiOperations = [
     concurrencyMode: 'CREATE',
     authorizationPurpose: 'execution.context.build.initial',
     dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_build_initial_context_snapshot_v1_1_result',
     references: [
       { path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.execution.context_snapshot' },
       {

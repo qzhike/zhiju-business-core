@@ -349,7 +349,7 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 
 ## 11. IM-06 技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 208 项。本节不把 Domain 内部命令名自动视为公开 API。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #167 INITIAL CONTEXT RESULT CONTRACT IMPLEMENTED 2026-09-12 / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 208 项。本节不把 Domain 内部命令名自动视为公开 API。
 
 ### 11.1 公共规则与设计操作清单
 
@@ -518,6 +518,41 @@ ContextBuilderPolicyBinding
 | ref 结构通过但 IdentityPolicy 对象不存在/不可查询/当前授权失效 | `REFERENCE_INVALID` 或 `DEPENDENCY_UNAVAILABLE` | Schema 通过不等于对象存在或授权通过；无成功 Snapshot/Validation/READY |
 
 以上校验只拥有跨字段绑定和 metadata 观察一致性；IdentityPolicy 对象存在性、Scope 权威归属、当前授权与业务状态分别由 owning Query/Handler 负责。真实 Handler、PostgreSQL 业务链和生产/人工验收在本阶段仍为 `NOT RUN`。
+
+#### 11.2.5.3 Initial Context CommandResult 与 canonical SnapshotRef
+
+状态：`APPROVED 2026-09-10 / RESULT SCHEMA, REGISTRY AND GENERATED TYPES IMPLEMENTED 2026-09-12 / HANDLER AND BUSINESS PERSISTENCE NOT IMPLEMENTED`。依据 [#167](https://github.com/qzhike/zhiju-business-core/issues/167) 与[决定 §8.8](../decisions/task-execution-human-operated.md#88-167-initial-context-result-与-canonical-snapshotref)。本节是首次 Context 命令返回引用的唯一 API 权威，不改变旧 `build_context_snapshot@1.0`。
+
+`execution.build_initial_context_snapshot@1.0` 与 `@1.1` 注册可执行 Result Schema，描述 operation-specific CommandResult data：
+
+```text
+InitialContextCommandResult
+└── contextSnapshotRef: SnapshotRef<ProjectContextContract>
+    ├── kind: Closed<SNAPSHOT>
+    ├── objectType: Closed<zhiju.execution.context_snapshot>
+    ├── objectId: UuidV7
+    ├── snapshotId: UuidV7
+    ├── scope: ProjectScope             // enterpriseId 与 projectId 均必填
+    └── contentHash: ContentHash         // SHA-256 / 64 hex / canonicalizationVersion=1
+```
+
+1. 两个版本的 `resultSchemaRef` 分别是各自 `$defs` 中的 `..._result` 定义，Registry 条目显式注册该引用；只声明 `resultReferences` 不构成可验证返回路径。COMMAND 的结果 Schema 是显式可选加入的：未注册 `resultSchemaRef` 的命令不接受 operation-specific data，`validateOperationResult` 以 `operationResultRegistry` 拒绝。
+2. `data.contextSnapshotRef` 必须同时满足 Result Schema 与跨字段绑定：`scope` 是 **Project Scope**，`enterpriseId` 与 `projectId` 都是必填字段——共享 `scopeRef` 允许的 `{}` 或仅 `enterpriseId` 在本入口一律拒绝；CommandResult `targetRef` 的 canonical objectType 必须是 `zhiju.execution.context_snapshot`，`objectId` 必须等于返回 Ref 的 `objectId`，Scope 的 enterpriseId/projectId 有无和值必须相等。只比较 objectId、或把 `zhiju.project.context_snapshot` 当作同一对象，都不能通过。该收紧只作用于新增的 Initial Context Result Ref Schema 与 canonical 绑定，不改变通用 `ScopeRef`，也不改变既有 Query 的接受集合。
+3. canonical 名称是新入口的唯一输出；`zhiju.project.context_snapshot` 仅是 Core v1.0 历史读回身份，既不能由本入口产生，也不能在跨字段比较中与 canonical 名称互换。返回引用必须指向本次已提交的 Snapshot：同一 `objectId` 只能有该次构建产生的 `snapshotId` 与 `contentHash`，同键异 payload Hash 属于 `IDEMPOTENCY_PAYLOAD_CONFLICT`，由 Handler 判定。
+4. authoritative `execution.get_context_snapshot@1.0` 的输入 Ref 与结果 Ref 必须逐字段相等（含 `snapshotId` 与完整 `contentHash` 三元组），防止返回与请求不同的 Snapshot。该 Query 既有 Schema、接受集合与历史 namespace 读回语义不变；不得用返回结果反推或放宽请求校验。
+5. 旧 `execution.build_context_snapshot@1.0` 保持必填 `workOrderContractRef` 和原返回形状，不注册 operation-specific Result Schema，也不接受 `draftSnapshotRef` 分支。
+
+| 反例 | 结果 | 禁止效果 |
+|---|---|---|
+| 命令未注册 Result Schema，或用 `resultReferences` 冒充返回契约 | `operationResultRegistry` / 构建期缺 Schema 错误 | 不产生「已实现精确返回路径」的结论；Handler 不接受未注册 data |
+| 缺 `contextSnapshotRef`，或 `kind`/`objectType` 为 legacy/任意 namespace | `REFERENCE_INVALID`（Schema `required`/`const`） | 不返回 legacy 身份，不以任意 namespace 代替 canonical |
+| `snapshotId` 缺失、`scope` 非 Project Scope（缺 enterpriseId 或 projectId，含空 Scope）、`contentHash` 非 SHA-256/64 hex/version 1 | `REFERENCE_INVALID`（Schema `required`）或 `MISSING_CONTEXT_SNAPSHOT_PROJECT_SCOPE` | 不把残缺 Ref 当可读回对象；不默认补全 Scope 或 Hash，也不因 target 与结果双方都缺 projectId 就判为一致 |
+| `targetRef.objectId` 与返回 Ref 不等，或 objectType/Scope 不一致 | `EXECUTION_JUDGMENT_INVALID` / `CONTEXT_SNAPSHOT_TARGET_MISMATCH` | 不把另一次构建的 Snapshot 组装成本次成功结果 |
+| Query 返回与请求不同的 `objectId`/`snapshotId`/`contentHash`/`scope`/`objectType` | `REFERENCE_INVALID` / `CONTEXT_SNAPSHOT_READ_MISMATCH` | 不用结果覆盖请求；不回退到 latest 或同 objectId 的其他 Snapshot |
+| Snapshot 未提交、已提交但不可读 | `REFERENCE_INVALID` 或 `DEPENDENCY_UNAVAILABLE` | fail closed；不生成部分成功结果，不把未提交引用写入 Contract/Event |
+| 同键同输入重复请求，或同键异 payload Hash 重放 | 前者返回原 `contextSnapshotRef`/Receipt，不产生第二个 Snapshot；后者 `IDEMPOTENCY_PAYLOAD_CONFLICT` | 不签发第二份成功事实，不以不同 Hash 覆盖已提交 Snapshot 的 `snapshotId`/`contentHash` |
+
+第 2–5 项的结构与跨字段判断由共享 `ContractRegistry` 的 Result Schema 与纯契约绑定校验拥有；对象存在性、幂等裁决、授权与提交顺序仍由 owning Handler 与 PostgreSQL 业务链负责，本轮保持 `NOT RUN`。
 
 #### 11.2.6 #165 DRAFT VersionPins 与首次 Context 的 @1.1 兼容契约
 

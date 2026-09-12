@@ -94,6 +94,31 @@ const sourceSliceReference = exactObjectType(
   'zhiju.project.context_source_slice',
 );
 const builderPolicyReference = exactObjectType(versionedReference, 'zhiju.identity.policy');
+/**
+ * Initial Context entries return a Project-scoped Context Snapshot. Beside the
+ * canonical object type this narrows the shared `scopeRef` so both members are
+ * present; the shared `scopeRef` itself stays unchanged for the historical
+ * read paths, which must keep accepting their legacy snapshots.
+ */
+const contextSnapshotReference = {
+  allOf: [
+    snapshotReference,
+    {
+      type: 'object',
+      properties: {
+        objectType: { const: 'zhiju.execution.context_snapshot' },
+        scope: {
+          type: 'object',
+          required: ['enterpriseId', 'projectId'],
+          properties: {
+            enterpriseId: { $ref: `${common}uuidV7` },
+            projectId: { $ref: `${common}uuidV7` },
+          },
+        },
+      },
+    },
+  ],
+} as const;
 
 const taskStatus = {
   enum: [
@@ -639,6 +664,13 @@ const namedDefinitions = {
       }),
     ],
   },
+  initialContextCommandResult: object(['contextSnapshotRef'], {
+    // Operation-specific CommandResult data. `objectType` is pinned to the
+    // canonical namespace, so a new entry cannot return the legacy
+    // `zhiju.project.context_snapshot` identity that stays readable through
+    // the historical Core v1.0 compatibility path only.
+    contextSnapshotRef: contextSnapshotReference,
+  }),
   contextBuilderPolicyBinding: object(['builderPolicyRef', 'contentHash', 'effectiveFrom'], {
     // VersionedRef intentionally remains hash-free. The resolved Policy
     // content hash and validity window are persisted beside the exact ref so
@@ -703,6 +735,7 @@ const operationSchemas = {
     payload: object(['request'], {
       request: localRef('initialContextBuildRequest'),
     }),
+    result: localRef('initialContextCommandResult'),
   },
   'execution.create_run': {
     payload: object(['creation'], {
@@ -1037,6 +1070,7 @@ const versionedOperationSchemas: readonly VersionedOperationContractSchema[] = [
     payload: object(['request'], {
       request: localRef('initialContextBuildRequestV11'),
     }),
+    result: localRef('initialContextCommandResult'),
   },
 ];
 

@@ -14,7 +14,18 @@ export interface WorkOrderContextBindingValidationResult {
   readonly errors: readonly WorkOrderContextBindingValidationError[];
 }
 
-interface SnapshotRefParts {
+/**
+ * Minimal error record accepted by the shared snapshot-ref reader. Callers keep
+ * their own code union; the two structural codes below are the only ones the
+ * reader itself can produce.
+ */
+export interface SnapshotRefReadError {
+  readonly path: string;
+  readonly code: string;
+  readonly message: string;
+}
+
+export interface SnapshotRefParts {
   readonly kind: string;
   readonly objectType: string;
   readonly objectId: string;
@@ -35,7 +46,7 @@ function isRecord(value: unknown): value is UnknownRecord {
 }
 
 function pushError(
-  errors: WorkOrderContextBindingValidationError[],
+  errors: SnapshotRefReadError[],
   path: string,
   code: WorkOrderContextBindingValidationCode,
   message: string,
@@ -43,10 +54,15 @@ function pushError(
   errors.push({ path, code, message });
 }
 
-function readSnapshotRef(
+/**
+ * Parses one `SnapshotRef` and records every structural defect. Shared by the
+ * WorkOrder candidate binding and the Initial Context result binding so both
+ * compare the same canonical parts instead of object ids alone.
+ */
+export function readSnapshotRef(
   value: unknown,
   path: string,
-  errors: WorkOrderContextBindingValidationError[],
+  errors: SnapshotRefReadError[],
 ): SnapshotRefParts | undefined {
   if (!isRecord(value)) {
     pushError(
@@ -222,7 +238,7 @@ function readSnapshotRef(
   };
 }
 
-function sameSnapshotRef(left: SnapshotRefParts, right: SnapshotRefParts): boolean {
+export function sameSnapshotRef(left: SnapshotRefParts, right: SnapshotRefParts): boolean {
   return (
     left.kind === right.kind &&
     left.objectType === right.objectType &&

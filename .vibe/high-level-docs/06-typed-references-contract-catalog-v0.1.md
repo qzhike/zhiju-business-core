@@ -1161,3 +1161,9 @@ Owner 仍为 TaskExecution；新增三个与旧 @1.0 并存的 @1.1 operation。
 本项不新增 objectType 或公开 operation；复用已注册的 `zhiju.identity.policy`：Owner 为 IdentityPolicy，Reference 为 `VersionedRef<Policy>`，Scope 遵循 Policy 权威 Scope。WI-02 新入口、ProjectContext projection、Context build metadata 与 Frozen WorkOrder VersionPins 必须绑定同一对象类型、对象 ID、`versionId` 和 Scope。
 
 通用 `VersionedRef` 不内嵌 `contentHash`。`context_snapshot_build` metadata 保存 IdentityPolicy exact snapshot 的 `contentHash`、`effectiveFrom` 和可选 `supersededAt`，消费端将其与当前 Policy 解析逐项比较；这不是另一个 Policy namespace，也不创建业务 Policy。`zhiju.context.policy` 仅是历史 Core fixture/兼容读回边界，`identity.policy` 等未注册名称不得由新 WI-02 入口产生。
+
+### #167 Initial Context Result 与 canonical SnapshotRef
+
+本项不新增 objectType 或公开 operation；`execution.build_initial_context_snapshot@1.0` 与 `@1.1` 新增显式 `resultSchemaRef`，用于返回 operation-specific CommandResult data。返回的 `data.contextSnapshotRef` 是 `SnapshotRef<ProjectContextContract>`，唯一使用已注册的 `zhiju.execution.context_snapshot`（Owner 为 TaskExecution，Project Scope，不可变 Snapshot 身份），不接受任何未注册 namespace。
+
+SnapshotRef 的全部字段（`kind`、`objectType`、`objectId`、`snapshotId`、`scope`、`contentHash`）都进入 Result Schema 与跨字段绑定比较；`targetRef` 与返回 Ref 必须按 canonical objectType、objectId 和 Scope 相等，不能只按 objectId 关联。`zhiju.execution.context_snapshot` 的 Project Scope 是必填成员：新增 Result Ref Schema 要求 `enterpriseId` 与 `projectId` 同时存在，canonical 绑定同样拒绝空 Scope 或 enterprise-only Scope；共享 `ScopeRef` 与既有 Query 的接受集合不因此改变。`zhiju.project.context_snapshot` 仅是 Core v1.0 历史读回身份与历史 fixture 值，不由新入口产生，也不与 canonical 名称互换。`execution.get_context_snapshot@1.0` 的既有 Schema/接受集合不变，其请求 Ref 与结果 Ref 必须逐字段相等；返回引用指向未提交 Snapshot 或重放异 Hash 由 Handler 拒绝，保持 `NOT RUN`。

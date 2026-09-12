@@ -30,6 +30,11 @@ import {
 import { executableOperationSchemas } from './operations/index.js';
 import { canonicalContentInvariantErrors } from './canonical-content.validation.js';
 import {
+  validateContextSnapshotReadBinding,
+  validateInitialContextCommandResult,
+  type ContextSnapshotBindingValidationResult,
+} from './context-snapshot-binding.js';
+import {
   validateWorkOrderContextSnapshotBinding,
   type WorkOrderContextBindingValidationResult,
 } from './work-order-context-binding.js';
@@ -143,6 +148,14 @@ export class ContractRegistry {
     return validateWorkOrderContextSnapshotBinding(input);
   }
 
+  validateInitialContextCommandResult(input: unknown): ContextSnapshotBindingValidationResult {
+    return validateInitialContextCommandResult(input);
+  }
+
+  validateContextSnapshotReadBinding(input: unknown): ContextSnapshotBindingValidationResult {
+    return validateContextSnapshotReadBinding(input);
+  }
+
   validateOperationResult(type: string, version: string, input: unknown): ContractValidationResult {
     const operation = this.getOperation(type, version);
     if (operation === undefined) return this.#unknownOperation(type, version);
@@ -189,10 +202,13 @@ export class ContractRegistry {
       );
     }
 
+    // QUERY results are derived from the operation identity; COMMAND results are
+    // opt-in through an explicit `resultSchemaRef`. A declared one must resolve.
     const resultRef = operationResultSchemaRef(operation);
+    const resultRequired = operation.kind === 'QUERY' || operation.resultSchemaRef !== undefined;
     if (
       operation.schemaStatus === 'FULL' &&
-      operation.kind === 'QUERY' &&
+      resultRequired &&
       (resultRef === undefined || this.#ajv.getSchema(resultRef) === undefined)
     ) {
       throw new Error(

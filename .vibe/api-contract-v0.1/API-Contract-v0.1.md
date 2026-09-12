@@ -215,6 +215,17 @@ integrity
 - 异步外部投递、Process Manager、Projection 或通知状态不进入 `COMMITTED` 判据；
 - 创建命令成功后的新对象身份来自 envelope `targetRef`，不得由传输层临时生成另一个 ID。
 
+### 5.5.1 Operation-specific CommandResult data
+
+只有需要返回精确新对象的 Command 才声明 operation-specific data；其余 Command 只通过 `targetRef`、`resultingAggregateVersion` 和 `emittedEventRefs` 表达成功。
+
+- Command 以显式注册的 `resultSchemaRef` 声明该 data 的形状；未注册的命令不接受 data，Registry 的 Result 校验以 `operationResultRegistry` 拒绝，不能以 `resultReferences` 元数据代替可执行 Schema；
+- 声明了 Result Schema 的命令，其 `data` 必须通过该 Schema 校验，并与 envelope `targetRef` 一致：创建类命令返回的对象身份必须等于 `targetRef` 的 objectType/objectId/Scope，不能只比较 objectId；
+- Query 的 Result Schema 继续由 operation 身份派生；Command 的 Result Schema 是显式增量，不改变任何未声明命令的既有返回形状；
+- Result Schema 只证明形状与跨字段一致，不证明对象已提交、当前授权有效或副作用完成。
+
+`execution.build_initial_context_snapshot@1.0` 与 `@1.1` 是首个使用该扩展的 Command：`data.contextSnapshotRef` 必须是已注册的 canonical `zhiju.execution.context_snapshot` `SnapshotRef`；`zhiju.project.context_snapshot` 仅作为 Core v1.0 历史读回身份。权威 `execution.get_context_snapshot@1.0` 的输入 Ref 与结果 Ref 必须逐字段相等。字段与失败语义见 [Spec 003 §11.2.5.3](../module-specs/Module-Spec-003-TaskExecution.md#11253-initial-context-commandresult-与-canonical-snapshotref)；Handler、幂等与持久化验收仍为 `NOT RUN`。
+
 ## 6. Query API
 
 ### 6.1 Envelope 与一致性
@@ -447,6 +458,12 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 本次不新增公开 operation、Purpose、Catalog 数量或 migration。`execution.build_initial_context_snapshot@1.0` 的 `builderPolicyRef` 继续由 Schema 精确限定为 `zhiju.identity.policy`；候选生成的 ProjectContext projection 与冻结 WorkOrder VersionPins 必须复制同一 `VersionedRef`。通用 `VersionedRef` 仍不携带 `contentHash`，避免改变既有 @1.0 Typed Reference 家族；TaskExecution 的 Context Builder Policy metadata 另存 IdentityPolicy exact snapshot 的 `contentHash/effectiveFrom/supersededAt`，并在 candidate assembly、Validator、Freeze 逐次重验。
 
 历史 Core v1.0 fixture 中的 `zhiju.context.policy` 通过兼容读回保持可解析，不能作为新 WI-02 entry 的输出；`identity.policy` 等未注册 namespace 不能出现在新 entry。Ref 的 objectType、objectId、versionId、Scope、解析 Hash 或有效期任一缺失/不一致都 fail closed。此跨字段语义不由标准 Schema 单独证明，也不宣称业务 Handler、授权运行或真实 PostgreSQL 验收已执行。
+
+### #167 Initial Context Result 与 canonical SnapshotRef
+
+`execution.build_initial_context_snapshot@1.0` 与 `@1.1` 注册显式 `resultSchemaRef`，通过 §5.5.1 的扩展返回 `data.contextSnapshotRef`，不再只以 `resultReferences` 描述返回引用。Result Schema 固定 `kind=SNAPSHOT`、`objectType=zhiju.execution.context_snapshot`，并完整要求 `objectId`、`snapshotId`、`contentHash` 与 Project Scope（`enterpriseId` 与 `projectId` 均必填）；CommandResult `targetRef` 必须与返回 Ref 的 canonical objectType、objectId 和 Scope 一致，双方同时缺少 `projectId` 不构成合法结果。该 Project Scope 要求只属于新增的 Initial Context Result Ref Schema 与 canonical 绑定，通用 `ScopeRef` 与既有 Query 的接受集合不变。
+
+`zhiju.project.context_snapshot` 只是 Core v1.0 历史读回身份，不由新入口产生，也不能仅凭 `objectId` 与 canonical 名称互换。authoritative `execution.get_context_snapshot@1.0` 的既有 Schema、接受集合与历史 namespace 读回语义不变，其请求 Ref 与结果 Ref 必须逐字段相等。旧 `execution.build_context_snapshot@1.0` 保持必填 `workOrderContractRef` 语义且不注册 operation-specific Result Schema。本次不新增公开 operation、Purpose、Catalog 数量或 PayloadGuard Policy；Schema、Registry、生成类型与纯契约正反例已同步，对象存在性、幂等、Handler、migration 与真实 PostgreSQL 业务验收保持 `NOT RUN`。
 
 ### #157 PayloadGuard 注册补充方案
 

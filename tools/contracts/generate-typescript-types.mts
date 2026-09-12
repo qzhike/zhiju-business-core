@@ -240,13 +240,14 @@ function renderModule(
       throw new Error(`missing payload def for ${op.type} in ${owner}`);
     }
     const payload = emitDef(context, payloadName, payloadDef);
+    // QUERY results are mandatory; a COMMAND declares operation-specific
+    // CommandResult data through the same `_result` definition name.
     let result: DefShape | undefined;
-    if (op.kind === 'QUERY') {
-      const resultDef = defs[resultName];
-      if (!isObject(resultDef)) {
-        throw new Error(`missing result def for QUERY ${op.type} in ${owner}`);
-      }
+    const resultDef = defs[resultName];
+    if (isObject(resultDef)) {
       result = emitDef(context, resultName, resultDef);
+    } else if (op.kind === 'QUERY') {
+      throw new Error(`missing result def for QUERY ${op.type} in ${owner}`);
     }
     operations.push({ type: op.type, kind: op.kind, payload, result });
   }
@@ -453,7 +454,7 @@ function main(): void {
       process.exit(1);
     }
     console.log(
-      `typescript_types=PASS payloads=${totalPayloads} query_results=${totalResults} core_contracts=${coreContractSchemas.length}`,
+      `typescript_types=PASS payloads=${totalPayloads} results=${totalResults} core_contracts=${coreContractSchemas.length}`,
     );
     return;
   }
@@ -462,7 +463,7 @@ function main(): void {
     writeFileSync(path, content, 'utf8');
   }
   console.log(
-    `typescript_types=UPDATED payloads=${totalPayloads} query_results=${totalResults} core_contracts=${coreContractSchemas.length}`,
+    `typescript_types=UPDATED payloads=${totalPayloads} results=${totalResults} core_contracts=${coreContractSchemas.length}`,
   );
 }
 
