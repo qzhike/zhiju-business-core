@@ -1,7 +1,7 @@
 # IM-06 Human-operated 执行边界与设计提案
 
 日期：2026-09-09
-状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / TD-05–07 PROPOSED / HANDLER IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。推进顺序见 [roadmap](../product/roadmap.md)。
+状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #176 POLICY/EVALUATOR RESOLUTION DESIGN PROPOSED 2026-09-12 REVIEW PENDING / TD-05–07 PROPOSED / HANDLER IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。§12 是 [#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的 Policy/Evaluator 解析与授权依赖提案，同样尚未批准、尚未实现。推进顺序见 [roadmap](../product/roadmap.md)。
 
 ## 1. 分类与既有边界
 
@@ -301,3 +301,184 @@ TD-06 不增加 `record_run_usage`，受控 Driver 固定可辨认的合成 Adap
 TD-07 的可执行 Fixture 使用生产 Application Command/Query、同一授权与事务路径、真实 PostgreSQL 和实际被调用的确定性 Driver。只有外部 Runtime 被受控 Driver 替换；不能替代 Policy、Receipt、Validation、Acceptance、Completion 或 TE→EP Producer。人工审核 Fixture 输出与真正独立人工业务验收分开记录。
 
 实施顺序仍从 #151 开始；TD-01–04 的 Schema/API 和 owning 存储先行。TD-05–07 批准与独立审查后，在所需基础能力实际交付时再生成 Query/Projection、受控退出的 NOW + READY 实现 Issue。现有 #152–#154 不扩写成包含所有后续实现的总任务。本次设计不会将 IM-06 或其退出 Gate 标为完成。
+
+## 12. #176 首批 Policy/Evaluator 解析与授权依赖
+
+状态：`PROPOSED 2026-09-12 / REVIEW PENDING / HUMAN APPROVAL REQUIRED / NOT IMPLEMENTED`。本节回应 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)，只收敛首批 Task/WorkOrder/Context 业务链真实需要的 Policy/Evaluator 解析与授权前置。TD-01–04 及其补充（§7–§10）继续有效且被本节引用为已批准边界；TD-05–07（§11）保持 `PROPOSED`，不被本节追认。**本节 P-176-1 至 P-176-5 是尚未批准的设计提案**：它们不授权 Schema、Registry、Handler、migration 或任何业务实现，也不得被后续 Issue 当作已批准前提引用；依赖它们的工作必须先取得人类批准并完成独立设计审查（§12.9）。既有 `zhiju.identity.policy`、`execution.*`、`project.*` 的已批准字段与历史 Compatibility Baseline 不因本节改变。
+
+### 12.1 对账结论：既有事实与真实缺口
+
+| 位置 | 当前已提交事实（可核验） | 对账结论 |
+|---|---|---|
+| Policy 版本身份 | Catalog 注册 `zhiju.identity.policy`（Owner identity-policy，VERSIONED）；#165/#166 已把 `InitialContextBuildRequest.builderPolicyRef`、ProjectContext `projection.builderPolicyRef`、Context build metadata 与冻结 WorkOrder `versionPins.contextBuilderPolicyRef` 绑定到同一 canonical ref；`exactObjectType(versionedReference,'zhiju.identity.policy')` 已在契约 Schema 中固定该 objectType | 身份字符串与四个消费位置已批准；**版本键（objectId/versionId/Scope）与已提交 PolicySnapshot 之间的对应关系没有权威定义** |
+| 唯一 Policy 读取 Port | `identity.get_policy_snapshot@1.0` 输入 `SnapshotRef<PolicySnapshot>`，精确 id+hash、禁止 latest；实现额外要求 `objectType=identity.policy_snapshot` 且 Scope 为空 | 输入本身要求 `contentHash`；**调用者无法从 `VersionedRef<Policy>` 得到该 Ref**。本项不改变该 Query 的 Schema、接受集合与历史读回语义 |
+| PolicySnapshot 写入 | `identity.record_policy_snapshot@1.0` 载荷为 `policySetVersion/policySchemaRefs/policyDocument/effectiveFrom/sourceRefs`；行不可变（`REVOKE UPDATE`）、`policy_set_version` 唯一 | **载荷与物理列都不记录 Policy 的 objectId/versionId/Scope**，因此不存在"按 Policy 版本反查已提交事实"的数据 |
+| 解析能力 | 全仓不存在 policy resolver（无 `resolvePolicy`/`PolicyResolver` 实现或声明） | **不存在 owning 解析入口**，Core §4 与 #166 所述的 "IdentityPolicy exact snapshot 解析" 无对应 Port |
+| 纯绑定 helper | `validateContextBuilderPolicyBinding`（#166）与 `validateInitialContextExpiryBinding`（#168）接受调用者传入的 `resolvedPolicy` / `builderPolicy.supersededAt` 后做跨字段比较 | 二者只验证跨字段一致；**不是解析器**，不提供存在性、授权或生命周期证明，不能作为 `resolvedPolicy` 的权威来源 |
+| Evaluator | `VersionedRef<Evaluator>` 未固定 objectType；首版 profile 规则在 Spec 003 §11.6 已批准 | 版本注册机制与支持边界未固定，调用者可传任意 objectType/版本 |
+| Purpose | capture/read/Builder 三个 Purpose 已注册；ReadinessBuilder/Validator 仅有设计值；仓库无 Purpose 枚举注册表，`authorizationPurpose` 由两个 registry 声明并交叉校验 | 消费者授权路径未固定；任何未注册 Purpose 不得通过 Service 通配放行 |
+
+**缺口是真实的且不能靠既有机制填补**：`VersionedRef<Policy>` 无法定位任何已提交事实，而 #166 要求消费端在四个位置逐次重验 "IdentityPolicy 当前解析" 的 `contentHash`/`effectiveFrom`/`supersededAt`。以下三条使"不新增写入路径"不可行：
+
+1. 解析结果必须携带精确 `contentHash`，而通用 `VersionedRef` 明确不携带 Hash（#166 已批准边界）；调用者无法自行构造 `SnapshotRef`。
+2. 已提交 `policy_snapshot` 事实没有任何 Policy 版本身份列或 mirror，无法按 `(objectId, versionId, Scope)` 反查。
+3. 任何"给动态 View 加自算 Hash"、"由 `objectId` 猜 `snapshotId`"或以 `sourceRefs` 冒充版本身份的转换都属于 §8 已禁止的拼造 Ref / 改 objectType 路线。
+
+同时记录两处既有命名分歧，本节只**记录**、不静默统一：
+
+- PolicySnapshot 的 objectType 拼写不一致：IdentityPolicy 运行时接受 `identity.policy_snapshot`，而 Core fixture/测试中出现 `zhiju.identity.policy_snapshot`。本节的解析结果只使用**权威读取 Port 实际接受的拼写**，不得在解析实现中静默改写任一拼写；统一命名属 owning 模块的独立兼容决定。
+- Purpose 字符串分歧：`execution.create_task@1.0` 为 `task.execution.create_task`、`@2.0` 为 `execution.task.create`（共享 API 已记录为待 IdentityPolicy 实际承载 Purpose 时收敛），`create_work_order` 的 Registry 值与 Spec 003 §3 设计值也不一致。本项不生成该收敛决定，只要求新注册的 Purpose 不复制该分歧（§12.9）。
+
+### 12.2 P-176-1 Policy 版本身份与解析 Port（提案）
+
+已批准事实（Core §4、#166/#167/#168、§8.6）要求消费端能取得"某个 exact Policy 版本的已提交观察"。提案给出该观察的唯一 owning 来源，包含一个新增 Major 写入操作与一个新增只读 Query；**不改变** `zhiju.identity.policy` 的 objectType、通用 `VersionedRef` 形状、`get_policy_snapshot@1.0` 的接受集合与任何历史 baseline。
+
+**身份、版本、Scope、Hash 与生命周期对应关系（canonical）**
+
+| 概念 | 固定取值 | 约束 |
+|---|---|---|
+| Policy 版本键 | `VersionedRef<Policy>`：`kind=VERSIONED`、`objectType=zhiju.identity.policy`、`objectId`/`versionId` 为 UuidV7、`scope.enterpriseId` 必填（`projectId` 可选） | 首版不接受空 Scope/Platform Scope 的 Policy 版本；该收紧只作用于新增入口与 WI-02 新链，不改变既有 Schema 与 helper 的接受集合 |
+| 已提交事实 | PolicySnapshot：`SnapshotRef<PolicySnapshot>`，权威读取拼写 `identity.policy_snapshot`，`objectId==snapshotId`，`contentHash` 为该 Snapshot 已提交 canonical payload 的 SHA-256/规范化版本 1 | Snapshot 自身保持 Platform Scope（`{}`）；**不与 Policy 版本的 Enterprise/Project Scope 混用或互相推断** |
+| 版本 → 事实 | 一次 Policy 版本提交在**同一 IdentityPolicy 事务**内同时写入 Snapshot 事实与 `(objectType, objectId, versionId, enterpriseId, projectId)` 唯一绑定 | 同一版本键只能绑定一个已提交 Snapshot；不存在"第二次绑定覆盖"路径 |
+| 生命周期 | `effectiveFrom` 必填；`supersededAt` 只能由**后续版本**声明 `supersedesRef` 派生（等于被取代版本被新版本接管的时刻） | 调用者不能直接指定某版本的 `supersededAt`；不引入默认 TTL |
+
+**Spec Delta（新增操作，均未注册）**
+
+| 设计操作 | Target / 模式 | Payload | Result.data / Purpose |
+|---|---|---|---|
+| `identity.record_policy_snapshot@2.0` | PolicySnapshot / CREATE（省略 `expectedAggregateVersion`） | `policyRef: VersionedRef<Policy>; policySetVersion: NonEmptyString; policySchemaRefs: NonEmptySet<TypedReference>; policyDocument: CanonicalJson; effectiveFrom: UtcInstant; sourceRefs: TypedReference[]; supersedesRef?: VersionedRef<Policy>` | `{policySnapshotRef: SnapshotRef<PolicySnapshot>}`；沿用已注册 Purpose `identity.policy.record_policy_snapshot` |
+| `identity.resolve_policy@1.0` | A（AUTHORITATIVE） | `policyRef: VersionedRef<Policy>`（objectType 固定） | `PolicyVersionResolutionView`；Purpose `identity.policy.resolve_policy` |
+
+```text
+PolicyVersionResolutionView
+├── policyRef: VersionedRef<Policy>                    // 与输入逐字段相等的已核验回显
+├── policySnapshotRef: SnapshotRef<PolicySnapshot>     // 权威拼写；objectId==snapshotId；contentHash 必填
+├── policySetVersion: NonEmptyString
+├── policySchemaRefs: TypedReference[]
+├── contentHash: ContentHash                           // == policySnapshotRef.contentHash，已提交 payload hash
+├── scopeRef: ScopeRef                                 // 绑定的 Policy 版本 Scope，与 policyRef.scope 逐字段相等
+├── effectiveFrom: UtcInstant
+├── supersededAt?: UtcInstant
+├── useStatus: Closed<USABLE | NOT_YET_EFFECTIVE | SUPERSEDED | REVOKED>
+└── checkedAt: UtcInstant                              // 受信服务端当前时间，不接受 caller 时间
+```
+
+1. `identity.record_policy_snapshot@2.0` 只在 @1.0 载荷上增加必填 `policyRef` 与可选 `supersedesRef`；`@1.0` 保持合法，其提交的 Snapshot 继续可按 exact ref 读回并用于既有授权链，但**不能被解析为任何 Policy 版本**（无版本绑定）。@1.0 的 payload、行结构、Compatibility Baseline 与历史 fixture 一律不改写。
+2. `policyRef` 的 objectType/kind/Scope 形状先于任何写入拒绝非法值（错误沿用 `REFERENCE_INVALID`；objectType 非 canonical 时不得改写为 canonical）。
+3. 同一版本键的第二次提交返回稳定 `IDENTITY_POLICY_VERSION_ALREADY_BOUND`（数据库唯一约束裁决后转换为模块错误，不穿透 `23505`），不返回原结果、不覆盖、不新增成功 Outbox。
+4. `supersedesRef` 必须指向同 objectType/objectId/Scope 的另一已提交版本，且其 `effectiveFrom` 严格早于本次 `effectiveFrom`；不满足时为 `IDENTITY_POLICY_SNAPSHOT_INVALID`。被取代版本的 `supersededAt` 等于本次 `effectiveFrom`，以派生观察返回；**不 UPDATE 已被 `REVOKE UPDATE` 保护的不可变行**。
+5. `policySchemaRefs` 必须全部可由构建期 Registry 解析（沿用 `POLICY_SCHEMA_REGISTRY` 机制），未注册 schema 仍是 `IDENTITY_POLICY_VERSION_UNKNOWN`；@2.0 不新增或放宽 Registry 内容。
+6. `resolve_policy` 只做 exact 解析：不解析 latest/current、不回退到同 objectId 的其他版本、不做写操作、不返回 `policyDocument`（正文仍由 `get_policy_snapshot@1.0` 以精确 SnapshotRef 读取，本项不改变该读取路径）。返回 `useStatus` 与生命周期观察，**不把解析成功当作授权**：消费者的可用性判断、Scope 授权与业务条件由各消费边界独立执行。
+7. 同一 `policyRef` 在事实未变时必须返回同一 `policySnapshotRef`/`contentHash`；已提交事实之后被取代或失效时，返回的是同一已提交事实加上最新 `supersededAt`/`useStatus`，不产生第二份 Snapshot。
+
+**Catalog、Ref 与 Purpose 影响（实现时生效）**：Catalog 209 → 211（净增 2 条目），IdentityPolicy 公开条目 20 → 22（8 Command / 7 Query / 7 Event）；不新增 objectType（复用已注册 `zhiju.identity.policy`，结果使用 `identity.policy_snapshot`）；新增 Purpose `identity.policy.resolve_policy` 必须按共享 API §9.2 与 Spec 001 的版本化 capability/policy 注册，禁止 Service 通配；两个新操作在实现时必须按 #157 的规则声明有限额的构建期 PayloadGuard 技术 Policy（本项不预设参数值，也不得用无限额 Policy 占位）；`dataClassification` 取 `INTERNAL`。历史 200 项 Compatibility Baseline 不重写。
+
+**未采用方案与代价**：新增独立绑定事实（`identity.register_policy_version` 式两段写入）会引入"已提交 Snapshot 但未绑定"的半成品状态和第二个写入命令，且不减少迁移面；把对应关系塞进既有 `sourceRefs` 属语义冒充并允许空数组，无法保证唯一性；由既有 `create_task@2.0` 式 Major 之外的"改 objectType 读取"路线被 §8 明确禁止。代价是必须新增一个 Major 与一个 Query，且实现时需同步两个 registry、生成类型、fixture 与 owning 迁移。
+
+### 12.3 P-176-2 版本生命周期与消费时有效性（提案）
+
+| 观察 | 唯一来源 | 消费规则 |
+|---|---|---|
+| `effectiveFrom` | @2.0 提交时由受信服务端校验的已提交字段 | 未来时刻可提交并返回 `NOT_YET_EFFECTIVE`；消费端按 `now < effectiveFrom` fail closed（#166 `POLICY_NOT_EFFECTIVE`），不得提前生效 |
+| `supersededAt` | 后续版本的 `supersedesRef` 派生，等于新版本 `effectiveFrom` | `now >= supersededAt` 即不可用于新消费（#166 `POLICY_EXPIRED`）；历史事实保留可读 |
+| `REVOKED` | **首版无版本级撤销入口** | 任何来源报告 `REVOKED` 时一律 fail closed；授权侧（Role/Capability/AuthorizationDecision）撤销独立生效，不受本项影响 |
+
+1. 首版**不引入任何默认期限**：Policy 版本没有默认 TTL，`effectiveFrom` 缺席或 `supersededAt` 缺席分别表示"立即生效"和"尚无有限终止"，不表示无限授权；其他版本化 Policy/Decision/Context/Capability/Run lease 检查继续独立生效（§8.4、§8.9 已批准语义）。
+2. 已经可表达的生命周期只有"尚未生效"与"被后续版本取代"。因此**版本级撤销在首版不可表达**；不得把"无法撤销"当作"永久有效"，也不得用 `supersededAt` 冒充安全撤销。
+3. 跨消费边界失效：Context/判断/Contract 一旦提交即保持不可变历史；Policy 版本在其后被取代或授权被撤销时，**新消费**（Freeze、queue、create_run、start_run、Validator 产出可用判断）必须重新解析并拒绝，历史成功 Receipt 的重放不重新赋予执行资格（与 §11.2.5.2、§11.2.5.4 一致）。
+4. `checkedAt` 与所有到期比较使用受信服务端当前时间；长事务必须在提交点重验，不用事务开始时间绕过。
+
+### 12.4 P-176-3 首版 Policy/Evaluator profile、版本注册与支持边界（提案）
+
+每个消费者只解释**已注册 profile** 的 closed 规则字段；未知字段、未知 profile 版本、未知 Evaluator 版本一律 fail closed，不回落默认值、不静默忽略。规则语义由各 owning 模块解释，IdentityPolicy 只提供不可变事实、Hash、生命周期与解析（不解释他方规则）。
+
+| 消费者 | Policy 绑定位置 | 首版 policy profile 与规则字段 | Evaluator 注册与支持边界 |
+|---|---|---|---|
+| EP Source Slice capture | `capturePolicyRef`（已注册 `zhiju.identity.policy`） | `ep.context_source_slice_capture.policy@1.0`（EP owning）：`maxSliceValiditySeconds: PositiveInt`（必填，无默认）、`allowedPurposeCodes: NonEmptySet<NamespaceCode>`（必填）。`validUntil = min(capturedAt + maxSliceValiditySeconds, authorizationDecision.expiresAt)`，不接受 caller 期限 | 不需要独立 Evaluator；裁剪与 kind 闭集仍由 EP 既有 Source Query 规则拥有 |
+| Initial Context Builder | `builderPolicyRef`（#165/#166 已固定） | `execution.context_builder.policy@1.0`（TE owning）：`allowedProjectionTypes: NonEmptySet<NamespaceCode>`（必填，且必须落在 Core §3.4 已注册投影类型内）。**不新增 Context TTL 字段**：Builder Policy 的有限上界仍是其 `supersededAt`（#168 已批准组合） | 不需要独立 Evaluator；裁剪规则由 Draft `targetScope`/`inputRefs.permittedUse`/`contentAccessMode` 与既有 §11.2.1 拥有 |
+| TaskReadinessBuilder | `build_task_readiness@1.0.policyRef`（设计） | `execution.task_readiness.policy@1.0`（TE owning）：`maxReadinessValiditySeconds: PositiveInt`（必填）。`validUntil = min(evaluatedAt + T, authorizationDecision.expiresAt)`；依赖集合、输入与阻塞条件仍由 Spec 003 §11.3/§11.6 拥有 | Evaluator profile `te.task_readiness.evaluator@1.0`；未支持的 profile/版本返回 `EXECUTION_CRITERION_UNSUPPORTED`，不产生可用判断 |
+| WorkOrderValidator | `validate_work_order_draft@1.0.policyRef`（设计） | `execution.work_order_validation.policy@1.0`（TE owning）：`maxValidationValiditySeconds: PositiveInt`（必填）、可选 `mandatoryCriterionTypes: Set<CriterionType>`（取值限 Core §4.9 七类，未注册值即不支持）。`validUntil` 同时不得晚于 §11.2.4 的 WorkOrder 期限 | Evaluator profile `te.work_order_validation.evaluator@1.0`，按 Spec 003 §11.6 的绑定字符串 profile 解释七类 Criterion；其他类型 `UNSUPPORTED` |
+
+1. **policy profile 由消费模块拥有**：`policyDocument` 的 profile 字段校验发生在消费模块（EP/TE）内，不在 IdentityPolicy；IdentityPolicy 只保证文档不可变、可解析、Hash 与生命周期正确。消费模块还必须校验 `policySchemaRefs` 含其支持的 profile schema 引用。
+2. **Evaluator 版本注册**：首版 Evaluator 是确定性实现代码，其版本以**构建期静态注册表**登记（沿用 `POLICY_SCHEMA_REGISTRY`/`payload-guard-policies.v1.json` 的既有机制：静态条目、固定标识、无数据库行、无虚构 Hash），并以 `VersionedRef<Evaluator>` 暴露；objectType 由 owning 模块注册（提案 `zhiju.execution.evaluator_profile`），Scope 为 Platform。Evaluator ref 是**profile 选择器**，不携带 `contentHash`、不参与 Policy 版本的解析与生命周期，也不得被当作已提交业务事实。
+3. **支持边界**：首版只支持 §12.4 表内列出的 profile 与 Evaluator 版本。capability/Policy 未提供、版本未知、字段未注册、语义未支持都必须在创建判断前拒绝（TE 侧 `EXECUTION_CRITERION_UNSUPPORTED`，EP 侧由 owning 模块 §6 的错误码拥有），不得"跳过判据"通过链路。
+4. 本节的 profile 字段是**首版最小闭合集合**；扩展任何字段或类型都需要新的 profile 版本与独立决定，不得就地扩展既有 profile 版本。
+
+### 12.5 P-176-4 Purpose 与授权验证路径（提案）
+
+| 消费者 / 操作 | Purpose | 注册状态与授权路径 |
+|---|---|---|
+| `project.capture_context_source_slice@1.0` | `project.context_source.capture` | 已注册；调用方持自己的 ActorSnapshot/AuthorizationDecision；解析 `capturePolicyRef` 时另需 `identity.policy.resolve_policy` 的独立 Decision |
+| `project.get_context_source_slice@1.0` | `project.context_source.read` | 已注册；Slice 的 capture policy 失效由 EP 在读取时重验并反映为 `EXPIRED`/`REVOKED` |
+| `execution.build_initial_context_snapshot@1.0` / `@1.1` | `execution.context.build.initial` | 已注册；Builder 自己解析 `builderPolicyRef`，不消费 capture/build 之外的他人授权 |
+| `execution.build_task_readiness@1.0`（设计） | `execution.task.readiness.build` | 未注册；实现前必须注册到版本化 capability/policy |
+| `execution.validate_work_order_draft@1.0`（设计） | `execution.work_order.draft.validate` | 未注册；同上 |
+| `identity.resolve_policy@1.0`（提案） | `identity.policy.resolve_policy` | 未注册；实现前必须在两个 registry 中注册并与版本化 capability/policy 一致 |
+
+1. **不使用 Service 通配放行**：Purpose 必须按 owning Spec 注册为精确字符串；`*`/前缀通配/未注册 Purpose 一律拒绝（既有测试已覆盖通配拒绝）。
+2. **Human Intent 与 Service 自身授权分别保留**：Human 经既有 owning Command（`create_work_order`、Task CREATE、答案提交等）保留自己的 ActorSnapshot/AuthorizationDecision；Service（ContextBuilder、ReadinessBuilder、WorkOrderValidator、EP capture）使用各自的 Decision，不能以 Human 凭据或 Driver 身份代理。
+3. **producer 的授权不转让给 consumer**：capture 的 Decision 不授权 build/freeze；Builder 的 Decision 不授权 Validator/Freeze/Run；ReadinessBuilder 的 Decision 不授权 `mark_task_ready`。每次消费在自己的边界重新授权并重新解析（§12.6）。
+4. 解析本身是受授权读取：`resolve_policy` 必须校验请求 `policyRef.scope` 落在调用者当前授权 Scope 内，`DENY` 与 Scope 不符按 WI-09 既有规则写同事务安全 Audit，不泄露跨 Scope 对象是否存在。
+
+### 12.6 P-176-5 消费时重验、统一外部错误与内部审计边界（提案）
+
+消费端可用 `resolvedPolicy` 的唯一合法来源是 `identity.resolve_policy@1.0` 的当次返回；把 caller 自报、`objectId/versionId` 推导、fixture 值或历史 Receipt 当作解析结果的输入一律拒绝。
+
+| 情形 | 统一外部结果 | 内部原因与禁止效果 |
+|---|---|---|
+| objectType/kind 非 canonical、缺字段、latest/占位值 | `REFERENCE_INVALID` / 绑定校验 `POLICY_OBJECT_TYPE_INVALID` | 不把非 canonical 名称改写为 canonical；新入口不得生成 legacy/任意 namespace |
+| 版本键无对应已提交绑定的 Snapshot | `IDENTITY_POLICY_VERSION_UNKNOWN`（统一不可用） | Audit 区分 unknown-identity / unknown-version / not-bound；不泄露其他 Scope 是否存在该版本 |
+| Scope 不在调用者授权集合、或与绑定 Scope 不等 | 统一不可用（同上） | Audit 记录 scope-mismatch；不得返回跨 Scope 的 Hash、版本或存在性 |
+| 同一版本键第二次绑定 | `IDENTITY_POLICY_VERSION_ALREADY_BOUND` | 不覆盖、不返回原结果、不新增成功 Outbox；原绑定与 Hash 不变 |
+| 同 Key 异 Hash（metadata/Draft 与当次解析不等） | 绑定校验 `POLICY_CONTENT_HASH_MISMATCH` | 不采用 caller Hash，不覆盖已提交 metadata，不签发候选 Contract |
+| 尚未生效 / 已过期或被取代 | 解析成功 + `useStatus=NOT_YET_EFFECTIVE`/`SUPERSEDED`；消费端 `POLICY_NOT_EFFECTIVE`/`POLICY_EXPIRED` | fail closed；历史保留，重放不重新授权 |
+| 生命周期观察与 metadata 不一致（`effectiveFrom`/`supersededAt`） | 绑定校验 `POLICY_VALIDITY_MISMATCH`；期限组合冲突 `EXPIRY_UPPER_BOUND_EXCEEDED` | 不发布部分成功 Snapshot/判断；不静默截断到最小值 |
+| 版本级撤销（首版不可表达）/ 消费时发现曾被撤销 | 一律不可用（不得作为有效 Policy 放行） | 不得把不可撤销当永久有效；授权侧撤销另行生效 |
+| 伪造解析结果：caller 自报 Hash/有效期、复用他人解析、用历史 Receipt 冒充当前有效 | 上述绑定校验错误或统一不可用 | 纯绑定 helper 不得替代解析；不接受"Ref 存在即 valid" |
+| 消费时已跨过 Policy 的 `supersededAt`、Decision 期限或 Context 期限 | `POLICY_EXPIRED` / `EXECUTION_JUDGMENT_STALE` / `AGGREGATE_STATE_NOT_ALLOWED`（按 Spec 003 §11.2.4/§11.2.5.4 归属） | 新消费拒绝，已提交历史保留；`now >= bound` 即不可用 |
+| IdentityPolicy 存储/依赖暂时不可用 | `DEPENDENCY_UNAVAILABLE` | fail closed；不得当作空内容、默认 Policy 或"无 Policy 限制"继续 |
+| 消费端 profile/Evaluator 版本不支持 | TE `EXECUTION_CRITERION_UNSUPPORTED`；EP 使用 owning 模块 §6 错误码（提案 `PROJECT_CAPTURE_POLICY_UNSUPPORTED`） | 不产生可用判断/可执行冻结；不忽略未识别字段 |
+
+1. **统一不可用**（`IDENTITY_POLICY_VERSION_UNKNOWN`）覆盖"不存在/未绑定/错 Scope"，其内部分类只进受权限控制的 Audit；不同 Scope 的外观不可区分。
+2. **重验位置固定**：candidate 组装、Validator 产出判断、Freeze 提交、Context 构建、Run 创建/启动各自在提交点重新解析并重跑同一绑定校验（#166/#168 的纯 helper 保持不变，输入必须来自当次解析）。
+3. EP Source Slice 在提交事务内保存 capture policy 的解析观察（`contentHash`/`effectiveFrom`/`supersededAt`）作为附属不可变 metadata，读取时以受信时间重验；不改变 Slice 公开 payload 字段。
+4. 所有未实现路径保持 `NOT RUN`：纯 helper、Schema 与静态 Registry 通过都不证明对象存在、当前授权有效或 Handler 已实现。
+
+### 12.7 合法基线与拒绝反例
+
+合法基线（可审阅、无需新增业务判断）：IdentityPolicy 经 `identity.record_policy_snapshot@2.0` 提交带版本的 PolicySnapshot（同一事务 Receipt/Audit/Outbox 与绑定）→ 各消费者用 `identity.resolve_policy@1.0` 取回精确观察 → 消费方在 candidate/context/judgment 中逐项保存并重验 → 与 §8.1 的 Draft→Slice→Context→Validation→Freeze 链对接。反例逐项对应 §12.2–§12.6 的失败矩阵：未知 identity/version、错 Scope、未生效、已取代、同 Key 异 Hash、Version 重绑定、caller 伪造观察、跨消费边界失效、profile/Evaluator 不支持、依赖不可用。**每项反例只改变被检验的维度**，其余输入合法。
+
+| 反例 | 预期结果 | 禁止效果 |
+|---|---|---|
+| 用 `VersionedRef` 直接构造 `SnapshotRef` 或给 `get_project_context_source` 结果加 Hash | 统一不可用/`REFERENCE_INVALID` | 不生成可读回的伪造 Snapshot；解析只走 owning Port |
+| `policyRef` 为 legacy/任意 namespace、缺 objectId/versionId、latest | `REFERENCE_INVALID`/`POLICY_OBJECT_TYPE_INVALID` | 不改写 objectType、不回退默认 Policy |
+| 同一版本键第二次提交不同 `policyDocument` | `IDENTITY_POLICY_VERSION_ALREADY_BOUND` | 不覆盖首个绑定与 Hash，不产生第二个 Snapshot |
+| `supersedesRef` 指向不存在/跨 Scope/`effectiveFrom` 不更早的版本 | `IDENTITY_POLICY_SNAPSHOT_INVALID` | 不产生"自我取代"或倒序生命周期 |
+| metadata 中的 Hash/有效期与当次解析不等 | `POLICY_CONTENT_HASH_MISMATCH`/`POLICY_VALIDITY_MISMATCH` | 不进入 Validator/Freeze，不发布 Snapshot |
+| 已取代/未生效的 Policy 用于新 Freeze 或 create_run | `POLICY_EXPIRED`/`POLICY_NOT_EFFECTIVE`/`EXECUTION_JUDGMENT_STALE` | 历史保留可读，但不赋予新执行资格 |
+| 未注册 profile 字段、未知 Evaluator 版本、七类之外的 Criterion | `EXECUTION_CRITERION_UNSUPPORTED`（EP 用 owning 错误码） | 不"跳过判据"冻结/判断，不解释自由文本规则 |
+| 依赖不可用（存储/IdentityPolicy 暂时不可查询） | `DEPENDENCY_UNAVAILABLE` | 不当作空 Policy 或无限授权继续 |
+
+### 12.8 经 owning 入口建立输入、解析并供消费方重验的路径
+
+1. 授权：调用方经 `identity.authorize_command@1.0` 取得自己的精确 Decision（Human Intent 与各 Service 各自持有，§12.5）。
+2. 提交：经 `identity.record_policy_snapshot@2.0` 在同一事务写入 Snapshot（canonical payload/Hash）、版本绑定与 Receipt/Audit/Outbox；失败不留下部分绑定，`@1.0` 路径不变。
+3. 解析：消费方以 `identity.resolve_policy@1.0` 取回精确 `PolicyVersionResolutionView`；需要正文时再以返回的 exact `SnapshotRef` 调 `identity.get_policy_snapshot@1.0`。
+4. 保存观察：消费方在自己的 owning 事务中保存产物（Context build metadata、Slice 附属 metadata、Judgment header 等）与该次观察的 `contentHash`/`effectiveFrom`/`supersededAt`。
+5. 重验：每次高风险消费在自己的提交点重新解析，并用既有纯 helper（#166/#168）比较请求/投影/metadata/VersionPins 四个位置与当次观察。
+6. 禁止：不直接写 IdentityPolicy 表、不共享他方 Repository、不把纯 helper 或 Schema 校验当作解析、不用历史 Receipt/fixture 值充当当前有效事实。
+
+### 12.9 已解除的依赖与仍缺少的实际能力
+
+**本设计解除（设计层）**：Policy 版本如何定位已提交事实；解析 Port 的输入/输出/授权/失败/重验契约；四个消费者的 profile 与支持边界；capture/read/Builder/ReadinessBuilder/Validator 的 Purpose 与授权路径；统一不可用与内部审计边界；合法基线与反例集合。
+
+**仍缺少（实际能力，均 `NOT IMPLEMENTED / NOT RUN`）**：
+
+- IdentityPolicy：`record_policy_snapshot@2.0` 与 `resolve_policy@1.0` 的 Schema、Registry、生成类型、fixture、Handler、版本绑定持久化（唯一约束与查询路径）与两个 registry 的 Purpose 注册；
+- 人类批准与本节的独立设计审查；以及 P-176-1/P-176-3 所需的人类决定（含 Evaluator objectType 命名与 PayloadGuard 参数）；
+- EnterpriseProject：`capture_context_source_slice`/`get_context_source_slice` Handler、Slice 表与 capture policy 解析观察、`validUntil` 推导；
+- TaskExecution：`create_work_order@1.1`、`get_work_order_draft@1.1`、`build_initial_context_snapshot@1.0/@1.1`、`build_task_readiness@1.0`、`validate_work_order_draft@1.0`、`freeze_work_order` 的 Handler 与业务持久化；Evaluator 确定性实现；
+- 真实业务 Policy 文档内容与其审批（本项不发明 Policy 内容）；
+- 仍未决定、本项不生成的收敛项：`create_task`/`create_work_order` 的 Purpose 字符串分歧、PolicySnapshot objectType 拼写分歧（§12.1）；TD-05–07 仍为待批准提案。
+
+因此：本项完成只解除**设计前置**，首个 Task/WorkOrder/Context 业务实现 Issue 仍须先确认上述实际交付可用，或在单独 Scope 内完整交付；不得据此宣布完整 IM-06 业务链 `READY`，也不得把本节写成已实现事实。

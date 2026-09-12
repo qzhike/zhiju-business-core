@@ -2130,7 +2130,7 @@ Completion Fact 的 payload 和 promoted Scope mirror 必须由 Application 计�
 
 ## 33. IM-06 持久化技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / #165 CONTRACT STORAGE BOUNDARY SYNCED 2026-09-11 / #168 INITIAL CONTEXT EXPIRY BOUNDARY SYNCED 2026-09-12 / NO MIGRATION IMPLEMENTED`。本节为 #152–#154、TD-01–04 的持久化设计，保留 §11/§17–19 的 ownership与单 Aggregate规则。#151只使用现有 V3000，不包含本节新表；后续须独立 forward migration，不能改已应用的 V3000/V2007/V7001。迁移编号在实际分支执行时分配。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / #165 CONTRACT STORAGE BOUNDARY SYNCED 2026-09-11 / #168 INITIAL CONTEXT EXPIRY BOUNDARY SYNCED 2026-09-12 / #176 POLICY VERSION BINDING STORAGE PROPOSED 2026-09-12 REVIEW PENDING / NO MIGRATION IMPLEMENTED`。本节为 #152–#154、TD-01–04 的持久化设计，保留 §11/§17–19 的 ownership与单 Aggregate规则。#151只使用现有 V3000，不包含本节新表；后续须独立 forward migration，不能改已应用的 V3000/V2007/V7001。迁移编号在实际分支执行时分配。
 
 | owning Schema / 设计表 | Aggregate/事实与关键列 | 必须由数据库/应用共同证明的约束 |
 |---|---|---|
@@ -2167,6 +2167,8 @@ TD-01 期限补充（`APPROVED 2026-09-09 / NO MIGRATION IMPLEMENTED`）：creat
 Freeze 锁 Root 并核验 Root/Snapshot/candidate 期限完全一致且未到期，将同一期限写入不可变 work_order_contract payload/镜像和 WorkOrderBecameReady Outbox。成功 Receipt/Root 状态/Contract/Outbox 仍同事务，失败不能留下部分绑定。后续消费从 owning 权威读取 Root/Contract 期限及当前受信时间，不依赖 status/Projection；判断 valid_until 不得晚于已提供的 WorkOrder 期限。期限镜像伪造、SQL NULL/JSON 缺省混淆、长事务跨过期限、提交回滚及到期重放均须由对应 persistence 场景覆盖，见 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限) 和 Module Test 003 TE-WI02-D-009–012。此补充不修改现有 V3000 或分配 migration 编号。
 
 #168 的 INITIAL 期限链路在同一 `context_snapshot_build` metadata 记录可空 `request_expires_at`（请求上界原样观察，缺省与 JSON null 不等价）与可空 `effective_expires_at`（Request 有期限时等于该期限，否则为 WorkOrder 期限、被消费 Slice `valid_until` 与 Builder Policy 有限上界的最小值；无有限上界时为空）。数据库只保存组合结果与请求观察，不保存推导出的第二份输入；Slice/Policy/WorkOrder 期限仍由各自 owning 事实持有。应用层 owner function 必须按同一组合规则重算并逐项比较：请求超过任一有限上界、metadata 缺记或改写请求期限、effective 被静默截断或放宽、ProjectContext payload 的 `expires_at` 与 effective 不一致均 fail closed，且 `expires_at`/`effective_expires_at` 的存在性与值必须进入对应 payload Hash。空值比较使用明确的 null-safe 相等语义，不能让 SQL NULL、JSON null 与缺省三者互相冒充；已提交 metadata 不可变，重放不重新赋予消费资格，长事务在提交前以受信当前时间重验。FROZEN 分支只使用其自身 Contract/Context 期限，不继承 INITIAL 的 effective 值。本项只同步存储设计，不分配 migration 编号，不宣称真实首次业务链已执行。
+
+#176 提案（`PROPOSED 2026-09-12 / REVIEW PENDING / HUMAN APPROVAL REQUIRED / NO MIGRATION ALLOCATED`）新增一条 IdentityPolicy 版本绑定存储边界，并同步两个消费侧观察字段：`identity_policy.policy_snapshot` 增加 Policy 版本键镜像（canonical objectType/objectId/versionId 与 enterprise/project Scope 镜像）与唯一约束 `(policy_object_id, policy_version_id, enterprise_id, project_id)`，以及后继版本的不可变 `supersedes` 镜像与索引；被取代版本的 `superseded_at` 以派生观察返回，**不 UPDATE 已受 `REVOKE UPDATE` 保护的不可变行**，也不把 Platform Scope 的 Snapshot 与版本键的企业 Scope 混用为同一列。`enterprise_project.context_source_slice` 在同一提交事务内保存 capture policy 解析观察（policy content hash、effective_from、可选 superseded_at 与当次 `policy_snapshot_ref`）；`task_execution.execution_judgment` 保存同源的 policy 观察与当次解析 Snapshot Ref，使判断可用性可解释。三者都只追加镜像与事实，模块角色、RLS、append-only 与 canonical payload↔Hash 校验沿用现行基准；非法 shape、镜像与 canonical payload 不一致、跨 Scope 绑定、重复版本键或倒序取代在写入前拒绝并转换为稳定模块错误（不穿透 `23505`）。本节提案未获批准前不生成 Schema、migration 或 Handler，编号在实现分支分配；对应 SQL/RLS/唯一约束回归、真实 PostgreSQL 业务链与人工验收保持 `NOT RUN`。
 
 并发设计：Task/WorkOrder child创建先对parent作只读锁和Scope/lifecycle校验；Task completion/reconcile锁目标Task并重读完整child集合，防止本模块新child/Request插入绕过Completion。锁顺序固定 Task→WorkOrder→Run→Claim→附属事实；操作只锁其所需祖先和目标，不反序持有锁。所有事务仅修改一个目标Root；跨Root推进通过已提交事实和显式owning Command。
 

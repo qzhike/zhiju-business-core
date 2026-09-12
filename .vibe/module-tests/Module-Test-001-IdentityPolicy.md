@@ -132,3 +132,18 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 修复要求：Gate 必须隔离文件级 Persistence 测试执行，保留 `IP-WI10-U-006` 的真实权限失败反例；PR #52 已满足连续独立 Gate、直接 digest main Gate 和 exact-head CI 条件。Runbook 文档口径修订不改变本项运行时结论。
 
 最终默认分支的 Agent-executed local Runbook 结果（WI-02/03/04/09）以及 WI-06/07/10 Probe 输出见 [`Runbook-Manual-Acceptance-2026-08-24.md`](../archive/im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)。该记录不替代外部 Provider 或生产人工验收。
+
+## #176 Policy 版本身份与解析 Port 验证矩阵（提案）
+
+状态：`PROPOSED 2026-09-12 / REVIEW PENDING / NOT IMPLEMENTED`。行为来源为 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)。下表定义批准并实现后的可执行验收输入与预期；当前全部 `NOT RUN`，不得因设计评审或现有 full 通过改为 PASS。
+
+| ID | 层级 | 输入 | 预期输出与禁止效果 | 当前结果 |
+|---|---|---|---|---|
+| IP-176-D-001 | Design/Contract | `identity.record_policy_snapshot@2.0` 与 `identity.resolve_policy@1.0` 的名称、版本、Owner、Purpose、Ref 声明与 Envelope 元数据 | 两个操作按共享 API §9.2 完整注册；Purpose `identity.policy.resolve_policy` 与 `identity.policy.record_policy_snapshot` 在两个 registry 中一致；Catalog 净增 2 项且历史 baseline 不重写 | `NOT RUN` |
+| IP-176-D-002 | Contract/Persistence | 同一版本键 `(objectType, objectId, versionId, enterpriseId, projectId)` 提交两次不同 `policyDocument`；另附相同幂等键/相同 payload 的重放 | 第二次绑定稳定返回 `IDENTITY_POLICY_VERSION_ALREADY_BOUND`（不穿透 `23505`），首个 Snapshot/Hash/绑定不变；相同键同 payload 走既有 `DUPLICATE` 重放 | `NOT RUN` |
+| IP-176-D-003 | Contract/Persistence | `supersedesRef` 分别指向不存在、跨 Scope、`effectiveFrom` 不更早或自身的版本；正向为同 identity/Scope 的早期版本 | 非法输入 `IDENTITY_POLICY_SNAPSHOT_INVALID` 且不产生取代关系；正向提交后被取代版本返回 `supersededAt = 新版本 effectiveFrom` 与 `useStatus=SUPERSEDED`，原不可变行不被 UPDATE | `NOT RUN` |
+| IP-176-D-004 | Query/Security | `resolve_policy` 输入未知 identity、未知 version、未绑定 Snapshot、Scope 不在调用者授权集合；对照合法精确 ref | 前三者统一返回 `IDENTITY_POLICY_VERSION_UNKNOWN`，不泄露跨 Scope 存在性；合法输入返回 exact `policySnapshotRef`+`contentHash`，且不返回 `policyDocument`、不解析 latest | `NOT RUN` |
+| IP-176-D-005 | Query/Contract | Builder 在候选组装、Validator 与 Freeze 各自消费前重新解析：对照 caller 自报 Hash/有效期、复用上一次解析结果、Policy 在两次消费之间被取代、存储暂时不可用 | 自报/复用/不一致分别按 #166 与 #168 的既有错误 fail closed；被取代后新消费拒绝而历史保留；依赖不可用返回 `DEPENDENCY_UNAVAILABLE`，不得当作无限制继续 | `NOT RUN` |
+| IP-176-D-006 | Persistence/Security | 直接 SQL 写入版本绑定、修改不可变 Snapshot 行、无 Context 查询、跨 Enterprise 行读取 | ACL/RLS/`REVOKE UPDATE` 全部拒绝；绑定镜像与 canonical payload 不一致时写入前拒绝；技术事实与 Snapshot 同事务原子提交 | `NOT RUN` |
+
+独立设计审查须覆盖版本键语义、生命周期派生规则、统一不可用与内部审计边界以及 Major 兼容代价；本节批准与实现前不改变 `identity.*` 既有 20 项公开 Contract 的接受集合与历史验收记录。

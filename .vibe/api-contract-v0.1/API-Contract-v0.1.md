@@ -441,7 +441,7 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 状态：TECHNICAL DESIGN APPROVED 2026-09-08；#157 的两项 Source Slice 操作、#158 的两项 @1.0 WorkOrder Draft/initial Context 操作与 #165 的三个 @1.1 兼容操作已交付 Schema/Registry，其中 #157 另有已批准 Guard；其余增量尚未注册。#152–#154具体输入/输出在owning Spec 002/003/005/007设计附录；[TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)已获批准，按依赖实施。首次构建采用版本化新操作，避免改变build_context_snapshot@1.0必填ContractRef语义；Task typed definition采用create_task@2.0，避免以Minor或Handler默认值收窄旧CanonicalJson。
 
-保留既有 @1.0 操作与历史 200 项 Compatibility Baseline 的兼容性；#157 与 #158 各新增两项后 Registry 为 205 项，#165 再新增三个 @1.1 兼容操作至 208 项，#175 再新增 `execution.create_task@2.0` 至 209 项，旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
+保留既有 @1.0 操作与历史 200 项 Compatibility Baseline 的兼容性；#157 与 #158 各新增两项后 Registry 为 205 项，#165 再新增三个 @1.1 兼容操作至 208 项，#175 再新增 `execution.create_task@2.0` 至 209 项；#176 的 Policy 版本解析提案（未批准）未注册、不计入计数，批准并实现后为 211 项。旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
 
 新增Query只读且受Scope/Purpose裁剪；Slice捕获使用CREATE Command，避免Query产生不可审计写入。CAS expectedAggregateVersion只在Envelope，历史snapshotId/hash不充当CAS token；runtime bigint不能有损转Number。公开整数范围在实现前须与共享Envelope Schema一致，超界明确拒绝，不能借本设计暗改共享类型。
 
@@ -470,6 +470,12 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 `InitialContextBuildRequest.expiresAt`（两个入口版本已有可选字段）只表示该 Context 的有效期上界，不改写 WorkOrder Root/Contract 的创建期限，也不改变 `WorkOrderBecameReady` 的字段形状。显式期限超过 WorkOrder 期限、任一被消费 Source Slice 的 `validUntil` 或当前 Builder Policy 的有限上界时一律拒绝，不静默截断为最小值；请求缺省时 effective expiresAt 取有限上界最小值，无有限上界时保持缺省并明确不等于无限授权。effective expiresAt 写入 ProjectContext Snapshot 的可选 `expiresAt` 与 INITIAL `context_snapshot_build` metadata，并随完整 payload Hash 固定；Builder 发布、Validator 判断、Freeze 提交与 Run 消费前均以受信服务端时间重验。
 
 本次不新增公开 operation、Purpose、Catalog 数量、PayloadGuard Policy 或 Core 本体字段；旧 @1.0 合法调用与历史 Compatibility Baseline 保持可接受，期限组合属于跨字段语义，Schema 接受字段形状不证明该语义已验证。Schema、Registry、生成类型、fixture 与纯契约正反例已同步；期限 Handler、migration、真实 PostgreSQL 业务链与人工验收保持 `NOT RUN`。
+
+### #176 Policy 版本解析与授权依赖（提案）
+
+状态：`PROPOSED 2026-09-12 / REVIEW PENDING / NOT REGISTERED`，设计见 [决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本项提出 IdentityPolicy 的两个新入口：`identity.record_policy_snapshot@2.0`（新增必填 `policyRef: VersionedRef<zhiju.identity.policy>`、可选 `supersedesRef`，并注册 operation-specific Result Schema 返回精确 `SnapshotRef<identity.policy_snapshot>`）与 AUTHORITATIVE Query `identity.resolve_policy@1.0`（payload 固定 canonical `zhiju.identity.policy`，Purpose `identity.policy.resolve_policy`）。二者按 §9.2 完整注册后 Catalog 由 209 增至 211；当前未注册、未实现，历史 200 项 Compatibility Baseline 与 `identity.*` 既有 20 项条目不改写。
+
+新增 Purpose `identity.policy.resolve_policy` 必须与 `identity.policy.record_policy_snapshot` 在 public-api 与 compatibility metadata 两个来源中一致登记，并注册到版本化 capability/policy；`dataClassification=INTERNAL`；两个新操作实现时必须声明有限额的构建期 PayloadGuard 技术 Policy（参数在实现 Issue 中按 §157 流程确定，不得以无限额占位）。解析结果只承载身份、Hash 与生命周期观察，不返回 `policyDocument`；通用 `VersionedRef` 继续不携带 `contentHash`。对象存在性、授权、幂等、Handler、migration 与真实 PostgreSQL 业务链仍为 `NOT RUN`；未批准前不得引用本节字段实现。
 
 ### #175 Task v2 create 注册
 

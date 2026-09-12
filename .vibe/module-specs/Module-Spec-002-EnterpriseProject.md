@@ -2,7 +2,7 @@
 
 版本：v0.8
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / #176 CAPTURE POLICY RESOLUTION PROPOSED 2026-09-12 REVIEW PENDING / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -751,7 +751,7 @@ ACL/RLS 断言必须区分层次：Fact/Evaluation/Impact 的应用角色 `UPDAT
 
 ## IM-06 Source Slice 与 Resolution Receipt 设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08`；capture/read 的 Schema/Registry/Guard 已交付，业务 Handler 未实现；get_resolution_receipt 未注册、未实现；关联 #152/#154、[TD-01/04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。本节只拥有 EnterpriseProject 的输入事实捕获和窄化证明，不把 ContextSnapshot/InformationRequest 的业务所有权移入本模块。现有 `get_project_context_source@1.0` 保持动态 View，不能由调用者生成任意 ContentAddressedRef假定其可持久化读取。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08`；capture/read 的 Schema/Registry/Guard 已交付，业务 Handler 未实现；get_resolution_receipt 未注册、未实现；关联 #152/#154、[TD-01/04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。#176 的 capture policy 解析与 `validUntil` 绑定为 `PROPOSED 2026-09-12 / REVIEW PENDING / NOT IMPLEMENTED`（见下方「#176 Capture Policy 解析与 validUntil 推导（提案）」）。本节只拥有 EnterpriseProject 的输入事实捕获和窄化证明，不把 ContextSnapshot/InformationRequest 的业务所有权移入本模块。现有 `get_project_context_source@1.0` 保持动态 View，不能由调用者生成任意 ContentAddressedRef假定其可持久化读取。
 
 | 设计操作 | 模式/一致性 | Payload | Result.data / Purpose |
 |---|---|---|---|
@@ -783,3 +783,15 @@ Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；
 新操作的公开 Ref objectType 映射由 [Catalog #157](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#157-contextsourceslice-注册) 注册：Project → zhiju.project.project，Policy → zhiju.identity.policy，ContextSourceSlice → zhiju.project.context_source_slice。PrincipalRef 沿用共享类型；旧操作的历史字段形状不因本次映射被改写。
 
 新 Source Slice Query 的可选 Envelope.pagination 引用共享 PageRequest：提供时 pageSize 为必填正整数，cursor 可选且使用共享 OpaqueCursor，不接受未知分页字段；省略 pagination 合法。此结构约束仅应用于新 Query，旧 201 项 Envelope 的接受集合不变。
+
+### #176 Capture Policy 解析与 validUntil 推导（提案）
+
+状态：`PROPOSED 2026-09-12 / REVIEW PENDING / HUMAN APPROVAL REQUIRED / NOT IMPLEMENTED`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)、[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本节只补齐 capture 的 Policy 解析输入与 `validUntil` 来源，不改变已批准的 capture/read 字段、Purpose 声明、PayloadGuard 技术 Policy 或 Slice 公开 payload。
+
+1. `capturePolicyRef` 继续是 Schema 已固定的 `VersionedRef<zhiju.identity.policy>`；capture 必须在提交事务内通过 `identity.resolve_policy@1.0` 取得当次解析观察（`policySnapshotRef`、`contentHash`、`effectiveFrom`、`supersededAt`），不得由调用者自报 Hash/有效期，也不得由 `objectId/versionId` 推导。
+2. 首版 profile 为 `ep.context_source_slice_capture.policy@1.0`（本模块拥有，规则字段 closed）：`maxSliceValiditySeconds: PositiveInt`（必填，无默认）与 `allowedPurposeCodes: NonEmptySet<NamespaceCode>`（必填，请求 `purpose` 必须是成员）。`validUntil = min(capturedAt + maxSliceValiditySeconds, authorizationDecision.expiresAt)`；不接受调用者提供的期限，不引入默认 TTL，不把缺失字段解释为无限制。
+3. Slice 提交事务在同一事务内保存该次解析观察（policy `contentHash`/`effectiveFrom`/可选 `supersededAt` 与当次 `policy_snapshot_ref`）作为不可变附属 metadata，与 Slice 事实、Receipt/Audit/Outbox 一起提交；**不改变 Slice 公开 payload 字段与既有 required 集合**，metadata 不进入 payload Hash 之外的重复定义。
+4. `get_context_source_slice@1.0` 读取时以受信服务端当前时间重验 Slice `validUntil`、capture policy 的 `supersededAt`/有效性以及当前 Action/Scope/audience/purpose 授权；capture policy 被取代或不可解析导致不可用时，必须以既有 `useStatus` 闭集返回 `EXPIRED` 或 `REVOKED`，不得继续返回 `USABLE`。
+5. 未知 profile 版本、未注册规则字段、`policySchemaRefs` 不含本模块支持的 profile schema 时拒绝；提案新增稳定错误码 `PROJECT_CAPTURE_POLICY_UNSUPPORTED`（命名与登记以本模块 §6 为准，实现时同步）。
+6. capture 的授权沿用已注册 Purpose `project.context_source.capture`；解析 capture policy 需要 `identity.policy.resolve_policy` 的独立 AuthorizationDecision。capture 的授权不转让给 Builder，Builder 也不得代替 EP 解释 capture policy 语义。
+7. 不改变 `get_project_context_source@1.0` 的动态 View 语义；不得给其返回结果补算 Hash 冒充已提交 Slice。EP-TD-001/002 与本节新增场景在实现前保持 `NOT RUN`。
