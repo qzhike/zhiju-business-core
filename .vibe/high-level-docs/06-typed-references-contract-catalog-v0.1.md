@@ -1171,14 +1171,14 @@ SnapshotRef 的全部字段（`kind`、`objectType`、`objectId`、`snapshotId`�
 
 ### #176 Policy 版本解析注册（提案）
 
-状态：`PROPOSED 2026-09-12 / REVIEW PENDING / NOT REGISTERED`。Owner 为 IdentityPolicy；本项按 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 提出两个与既有操作并存的入口：新增 Major `identity.record_policy_snapshot@2.0`（在 @1.0 载荷上增加必填 `policyRef` 与可选 `supersedesRef`，并注册 operation-specific Result Schema 返回 `{policySnapshotRef}`）与新增只读 Query `identity.resolve_policy@1.0`（Purpose `identity.policy.resolve_policy`）。实现后 Catalog 由 209 增至 211 项，本模块公开条目由 20 增至 22，**当前未注册、未计入 operationCount**，历史 200 项 Compatibility Baseline 不重写。
+状态：`PROPOSED 2026-09-12 / REVIEW PENDING / NOT REGISTERED`。Owner 为 IdentityPolicy；本项按 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 提出两个新增入口：`identity.record_policy_version@1.0`（企业级版本事实，注册 operation-specific Result Schema 返回 `{policyVersionRef}`）与只读 Query `identity.resolve_policy@1.0`（Purpose `identity.policy.resolve_policy`）。实现后 Catalog 由 209 增至 211 项，本模块公开条目由 20 增至 22，**当前未注册、未计入 operationCount**，历史 200 项 Compatibility Baseline 与旧 `record_policy_snapshot@1.0` 条目均不重写。
 
 | objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
 |---|---|---|---|
-| `zhiju.identity.policy` | identity-policy | VERSIONED；企业 Scope（`enterpriseId` 必填，`projectId` 可选） | 既有 Policy 版本身份；@2.0 把该版本键与已提交 PolicySnapshot 建立唯一绑定；仍不创建业务 Policy；否 |
-| `identity.policy_snapshot` | identity-policy | SNAPSHOT（解析结果与精确读回）；Platform Scope（`{}`） | 既有 PolicySnapshot 身份；解析结果使用该权威读取拼写，`objectId==snapshotId`；否 |
+| `zhiju.identity.policy` | identity-policy | VERSIONED；企业 Scope（`enterpriseId` 必填，`projectId` 可选） | 既有 Policy 版本身份；新入口把该版本键与已提交的 scoped 版本事实建立唯一绑定；仍不创建业务 Policy；否 |
+| `zhiju.identity.policy_version` | identity-policy | SNAPSHOT（解析结果与正文）；Enterprise/Project Scope（与版本键 Scope 逐字段相等） | 新增不可变版本事实；`objectId==snapshotId`；只存在于带 Scope 的 FORCE RLS 新表；否 |
 
-`resolve_policy` 的 payload 固定 VERSIONED/`zhiju.identity.policy`，结果固定 SNAPSHOT/`identity.policy_snapshot`；解析不返回 `policyDocument`（正文仍经 `get_policy_snapshot@1.0`）。Policy 版本键的 Scope 与 PolicySnapshot 的 Platform Scope 是两个不同维度，不得互相推断或镜像为同一字段。Core fixture 中出现的历史拼写 `zhiju.identity.policy_snapshot` 只作兼容读回材料，不由新入口产生，也不在解析实现中被静默改写；统一命名属 IdentityPolicy 的独立决定。本项不新增 PayloadGuard 之外的技术 Policy；两个新操作在实现时必须按 #157 规则声明有限额的构建期 Guard Policy，参数在实现 Issue 中确定。TD-01–04 的既有边界、`zhiju.execution.*`/`zhiju.project.*` 已有映射与旧操作接受集合不因本项改变。
+`resolve_policy` 的 payload 固定 VERSIONED/`zhiju.identity.policy`，结果固定 SNAPSHOT/`zhiju.identity.policy_version`，并在同一次授权读取中返回 `policyDocument`。既有 Platform `identity.policy_snapshot` 身份、其 `get_policy_snapshot@1.0` 读回路径与 RLS 不变，也不被新入口写入；Core fixture 中出现的历史拼写 `zhiju.identity.policy_snapshot` 只作兼容读回材料，不由新入口产生，也不在解析实现中被静默改写。首版 profile 的 registry key 与 canonical typed ref（`ep.context_source_slice_capture.policy@1.0`、`execution.context_builder.policy@1.0`、`execution.task_readiness.policy@1.0`、`execution.work_order_validation.policy@1.0`）以新的构建期 registry 版本承载，既有 `im02-static-v1` 条目与旧命令接受集合不变。两个新操作在实现时必须按 #157 规则声明有限额的构建期 PayloadGuard 技术 Policy，参数在实现 Issue 中确定。TD-01–04 的既有边界、`zhiju.execution.*`/`zhiju.project.*` 已有映射与旧操作接受集合不因本项改变。
 
 ### #175 Task v2 create 注册
 

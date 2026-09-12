@@ -750,8 +750,9 @@ TaskStateView另返回 `completionUseStatus: Closed<NOT_EVALUATED|USABLE|STALE|R
 1. **Evaluator 版本注册**：Evaluator 是确定性实现代码，其版本以构建期静态注册表登记（沿用 `POLICY_SCHEMA_REGISTRY`/`payload-guard-policies.v1.json` 机制：静态条目、固定标识、无数据库行、无虚构 Hash），以 `VersionedRef<Evaluator>` 暴露；objectType 由本模块注册（提案 `zhiju.execution.evaluator_profile`），Scope 为 Platform。Evaluator ref 是 profile 选择器，不携带 `contentHash`、不参与 Policy 版本生命周期，也不得作为已提交业务事实。
 2. **消费时重验**：每次产出可用判断或提交冻结前，都以受信服务端当前时间重新解析 Policy 并重跑 §11.2.5.2 与 §11.2.5.4 的校验；`now >= effectiveExpiresAt`、`now >= supersededAt`、Decision/Capability 失效时分别按 §11.2.4/§11.2.5.4 的既有错误拒绝新消费。已提交 Context/判断/Contract 保持不可变历史，重放不重新授权。
 3. **profile 语义归属**：`policyDocument` 的 profile 字段校验在 TaskExecution 内完成；IdentityPolicy 只提供不可变事实、Hash、生命周期与解析。未知字段、未知 profile 版本或语义未支持时拒绝（`EXECUTION_CRITERION_UNSUPPORTED`），不得静默忽略字段或跳过判据。
-4. **持久化观察**：`context_snapshot_build` 继续保存 §33 已定义的 `builder_policy_ref`/`policy_content_hash`/`effective_from`/`superseded_at`；`execution_judgment` 增加同源的 `policy_content_hash`、`effective_from`、可选 `superseded_at` 与当次解析的 exact `policy_snapshot_ref` 镜像，使判断可用性与当时观察可解释。新增字段属提案，实现时按 forward-only migration 交付，不修改已应用 V3000。
-5. 本节所有行为在批准与实现前保持 `NOT RUN`；Schema/纯 helper 通过不证明 Policy 对象存在、当前授权有效或 Handler 已实现。
+4. **profile 注册校验**：本节三个消费者的 `policySchemaRefs` 必须含各自 registry key（`execution.context_builder.policy@1.0`、`execution.task_readiness.policy@1.0`、`execution.work_order_validation.policy@1.0`；见 [Spec 001 §13.5](../module-specs/Module-Spec-001-IdentityPolicy.md#135-授权profile-schema-注册与失败审计)）的 canonical typed ref；Evaluator 版本来自本模块构建期静态注册表。任一不匹配即拒绝，不得以旧 registry 条目代替。
+5. **持久化观察**：`context_snapshot_build` 继续保存 §33 已定义的 `builder_policy_ref`/`policy_content_hash`/`effective_from`/`superseded_at`；`execution_judgment` 增加同源的 `policy_content_hash`、`effective_from`、可选 `superseded_at` 与当次解析的 exact `policy_version_ref` 镜像，使判断可用性与当时观察可解释。新增字段属提案，实现时按 forward-only migration 交付，不修改已应用 V3000。
+6. 本节所有行为在批准与实现前保持 `NOT RUN`；Schema/纯 helper 通过不证明 Policy 对象存在、当前授权有效或 Handler 已实现。
 
 ## 12. TD-05 Query / Task Board 补充设计
 
