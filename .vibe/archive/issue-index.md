@@ -42,3 +42,15 @@
 - [#27](https://github.com/qzhike/zhiju-business-core/issues/27) 仍为 OPEN，承接 IntegrationGateway 剩余工作；旧 #6/#17 Schema/内存切片的归档不意味着该 Issue 完成。按当前规格重新收敛旧正文后再实施。
 - IM-03/04/05 已关闭父任务的真实 Provider、公开 HTTP、生产和独立人工验收限制继续保留在 Issue 与 Module Test 中。归档里的 synthetic fixture 可以参考，但不能改标为真实业务验收。
 - 历史 GitHub 文档引用使用固定提交 SHA 或已发布的当前位置，避免后续目录迁移产生断链。[Issue #57 的决策版本](https://github.com/qzhike/zhiju-business-core/blob/9f260424d1c9d889b2b0592ec018d95ca8d2a63c/.vibe/decisions/enterprise-project-capabilities.md)可独立于原兼容目录读取；历史评论不改写为新的验收结论。
+
+
+## 从历史工作树补收的记录
+
+以下文件原已存在于历史工作树，本次按原文补收；其中 OPEN、阻断及待交付等表述均是记录当时的状态，不覆盖最新 GitHub 决定。原源码工作树和未提交补丁另有仓库外恢复备份。前端提案/演示原型按用户要求只保留在仓库外，未进入本仓库。
+
+| 原位置 | 现位置 | GitHub 关联 | 保留理由 |
+|---|---|---|---|
+| IM-05 工作树 `.vibe/im-05-acceptance/` | [原始审查](im-05-acceptance/Code-Review.md)、[复验](im-05-acceptance/Reacceptance-2026-09-01.md)及同目录原始计划/评论草稿 | [#120](https://github.com/qzhike/zhiju-business-core/issues/120)、[#22](https://github.com/qzhike/zhiju-business-core/issues/22)、[#23](https://github.com/qzhike/zhiju-business-core/issues/23)、[#24](https://github.com/qzhike/zhiju-business-core/issues/24) | 保留具体反例、历史验证与审核经过；后续修复由 PR #142/#144/#147/#149 及最新 Issue 记录解释 |
+| IM-05 工作树 `.vibe/pr-142-code-review/` | [Code-Review.md](pr-142-code-review/Code-Review.md)、[Task-Plan.md](pr-142-code-review/Task-Plan.md) | [PR #142](https://github.com/qzhike/zhiju-business-core/pull/142) | 原始审查与计划，非新的执行指令 |
+| 主工作树 `.vibe/reviews/pr-163/Review.md` | [Review.md](../reviews/pr-163/Review.md) | [PR #163](https://github.com/qzhike/zhiju-business-core/pull/163#issuecomment-5615246806) | 补齐已发布 APPROVE 复审，保留下方早期 REQUEST_CHANGES |
+| 主工作树 `.vibe/reviews/pr-164/Review.md` | [Review.md](../reviews/pr-164/Review.md) | [PR #164](https://github.com/qzhike/zhiju-business-core/pull/164#issuecomment-5616545711) | 保留已完成的独立审查与当时交付回读，不以历史分支删除描述推导当前远端状态 |
