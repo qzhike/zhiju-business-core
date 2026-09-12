@@ -304,7 +304,7 @@ TD-07 的可执行 Fixture 使用生产 Application Command/Query、同一授权
 
 ## 12. #176 首批 Policy/Evaluator 解析与授权依赖
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT IMPLEMENTED`（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：企业级隔离归属、profile registry 注册路径、取代关系基数与并发裁决，以及后继唯一性只作用于真实取代边）。本节回应 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)，只收敛首批 Task/WorkOrder/Context 业务链真实需要的 Policy/Evaluator 解析与授权前置。TD-01–04 及其补充（§7–§10）继续有效且被本节引用为已批准边界；TD-05–07（§11）保持 `PROPOSED`，不被本节追认。**本节 P-176-1 至 P-176-5 已于 2026-09-12 获人类批准**。批准对应 PR #178 的 `5975da3f52f83cf5b9c24dfe5e046f5d4996521b` 所呈现设计；用户在独立技术复审确认 R1–R4 已修复后明确表示“我批准新增的实质决定”。已批准内容可作为后续 readiness 复核的设计前提，业务实现仍须有明确 Scope 与实际依赖；本次批准不使 Schema、Registry、Handler 或 migration 自动成为已交付事实。既有 `zhiju.identity.policy`、`execution.*`、`project.*` 的已批准字段与历史 Compatibility Baseline 不因本节改变。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED`；[Issue #179](https://github.com/qzhike/zhiju-business-core/issues/179) 已交付构建期 profile registry `im06-static-v1`、四个 profile 的固定 canonical typed ref 与 closed 字段 Schema、生成检查，以及各 owning 模块的纯注册性/closed 字段校验（见 §12.9）；`record_policy_version`/`resolve_policy` 的 Schema、Handler、Purpose 注册、migration 与 PolicyVersion 事实存在性、授权、生命周期和真实业务链仍 `NOT IMPLEMENTED / NOT RUN`（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：企业级隔离归属、profile registry 注册路径、取代关系基数与并发裁决，以及后继唯一性只作用于真实取代边）。本节回应 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)，只收敛首批 Task/WorkOrder/Context 业务链真实需要的 Policy/Evaluator 解析与授权前置。TD-01–04 及其补充（§7–§10）继续有效且被本节引用为已批准边界；TD-05–07（§11）保持 `PROPOSED`，不被本节追认。**本节 P-176-1 至 P-176-5 已于 2026-09-12 获人类批准**。批准对应 PR #178 的 `5975da3f52f83cf5b9c24dfe5e046f5d4996521b` 所呈现设计；用户在独立技术复审确认 R1–R4 已修复后明确表示“我批准新增的实质决定”。已批准内容可作为后续 readiness 复核的设计前提，业务实现仍须有明确 Scope 与实际依赖；本次批准不使 Schema、Registry、Handler 或 migration 自动成为已交付事实。既有 `zhiju.identity.policy`、`execution.*`、`project.*` 的已批准字段与历史 Compatibility Baseline 不因本节改变。
 
 ### 12.1 对账结论：既有事实与真实缺口
 
@@ -505,14 +505,15 @@ PolicyVersionResolutionView
 
 **本设计解除（设计层）**：Policy 版本如何定位已提交事实；解析 Port 的输入/输出/授权/失败/重验契约；四个消费者的 profile 与支持边界；capture/read/Builder/ReadinessBuilder/Validator 的 Purpose 与授权路径；统一不可用与内部审计边界；合法基线与反例集合。
 
+**已交付（#179，仅构建期静态注册与纯校验）**：构建期 profile schema registry 新版本 `im06-static-v1`（既有 `im02-static-v1` 三项 ∪ 四个首版 profile）、四个 profile 条目的固定 canonical typed ref 与 closed 字段 Schema、生成副本与构建漂移检查，以及各 owning 模块的纯注册性/closed 字段校验；旧 `im02-static-v1`、旧命令接受集合与 200 项历史 Compatibility Baseline 不变。该交付只证明静态注册与规则字段闭合：PolicyVersion 事实是否存在、当前授权是否有效、Handler 与业务链是否可用均未因此成立。
+
 **仍缺少（实际能力，均 `NOT IMPLEMENTED / NOT RUN`）**：
 
 - IdentityPolicy：`record_policy_version@1.0` 与 `resolve_policy@1.0` 的 Schema、Registry、生成类型、fixture、Handler；带 Enterprise/Project Scope 的 FORCE RLS 新表（版本事实 + 唯一版本绑定 + 取代边唯一约束与查询路径）、`zhiju.identity.policy_version` 的 objectType 注册，以及两个 registry 中的 Purpose 注册；
-- 构建期 profile schema registry 的新版本（`im06-static-v1`）与四个 profile 条目的固定 typed ref、生成物与构建检查；旧 `im02-static-v1` 与旧命令接受集合不变；
 - 实现前仍需确定的 PayloadGuard 有限参数值（本次设计未呈现具体数值，不由本次批准补造）；本节 P-176-1–5 的人类批准与独立设计审查已完成，包括新 scoped 表/RLS、registry 新版本与四个 profile 以及 Evaluator objectType 设计；
 - EnterpriseProject：`capture_context_source_slice`/`get_context_source_slice` Handler、Slice 表与 capture policy 解析观察、`validUntil` 推导；
 - TaskExecution：`create_work_order@1.1`、`get_work_order_draft@1.1`、`build_initial_context_snapshot@1.0/@1.1`、`build_task_readiness@1.0`、`validate_work_order_draft@1.0`、`freeze_work_order` 的 Handler 与业务持久化；Evaluator 确定性实现；
 - 真实业务 Policy 文档内容与其审批（本项不发明 Policy 内容）；
 - 仍未决定、本项不生成的收敛项：`create_task`/`create_work_order` 的 Purpose 字符串分歧、PolicySnapshot objectType 拼写分歧（§12.1）；TD-05–07 仍为待批准提案。
 
-因此：本项完成只解除**设计前置**，首个 Task/WorkOrder/Context 业务实现 Issue 仍须先确认上述实际交付可用，或在单独 Scope 内完整交付；不得据此宣布完整 IM-06 业务链 `READY`，也不得把本节写成已实现事实。
+因此：本项完成只解除**设计前置**；`im06-static-v1` 静态注册与纯校验已由 #179 交付，其余首个 Task/WorkOrder/Context 业务实现 Issue 仍须先确认上述实际能力可用，或在单独 Scope 内完整交付；不得据此宣布完整 IM-06 业务链 `READY`，也不得把本节其余未交付能力写成已实现事实。
