@@ -1,5 +1,21 @@
 # PR #172 独立审查
 
+## 最新复审：2026-09-12
+
+- 结论：`APPROVE`
+- Reviewed SHA：`4e38228c37fbc3c99b725272e5956da45beea6f4`
+- 正式交接：[复审 comment](https://github.com/qzhike/zhiju-business-core/pull/172#issuecomment-5642338952)。这是独立 Reviewer 结论，不是 GitHub formal approval，也不授权合并。
+
+R1 已修复。独立检查确认解析器在构造时间前验证真实月日、Gregorian 闰年规则和时分秒范围，保留小于 100 的年份及亚秒精度；共享历史 Schema 不变，Builder Policy 的同源校验与更新后的 Spec 003 §11.2.5.2/§11.2.5.4 一致。复审未发现新的阻塞问题。
+
+Reviewer 通过公开 ContractRegistry 重跑隔离反例：Source Slice 的 2 月 28 日通过，2 月 30 日和 32 日均在 `/sourceSlices/0/validUntil` 返回 `INVALID_EXPIRY_INPUT`。直接运行本地 Vitest 的日期解析、Context expiry 与 Builder Policy 三个测试文件，74 项全部通过；最初 pnpm 启动未输出而中止，直接 Vitest 运行成功。
+
+独立读回 [CI 34662785551](https://github.com/qzhike/zhiju-business-core/actions/runs/34662785551)：headSha 与 reviewed SHA 相同，结果 SUCCESS，常规阶段 752 项通过、持久化阶段 336 项通过，日志明确 `gate passed`。本轮采用当前 CI 的完整验证证据，未重复执行全量 verifier；实现者的当前 head comment 另记录 `vibe verify full --json` PASS。上一轮本地容器连接限制不再构成证据缺口。
+
+批准仅覆盖声明的 Schema/Registry/生成类型/fixture/纯契约与设计同步范围。业务期限 Handler、migration、长事务重验、到期 replay、真实首次业务持久化链、外部集成、公开 HTTP 和独立人工验收保持 `NOT RUN`。未修改产品代码或执行 commit、push、merge。以下保留旧 head 的审查历史，不代表最新结论。
+
+## 首轮审查：0980cdf
+
 - 结论：`REQUEST_CHANGES`
 - Reviewed SHA：`0980cdf74440ec062a252c13d64d617981737b61`
 - 关联任务：Issue #168
