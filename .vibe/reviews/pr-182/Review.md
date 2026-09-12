@@ -66,3 +66,37 @@
 - 两个新增 API 的 Schema/Registry/Handler/授权/持久化、IP-181 运行验收、外部链与人工验收仍为 `NOT RUN`；参数人类批准尚未完成。
 - PR 正文仍含已被本轮修订删除的旧编码/恒定差额论证，修订后应同步摘要，避免与最终设计冲突。
 - 本轮只追加正式审查记录，保留上轮历史，未修复产品代码或 owning 设计，未 commit/push/merge。发布形式为 PR comment，不是 GitHub 正式 REQUEST_CHANGES review。
+
+---
+
+## 第三轮复审（2026-09-12）
+
+- Outcome: `REQUEST_CHANGES`
+- Reviewed SHA: `639e859140174e30e6bff6dfc9c84185afc71d91`
+- 已核对当前 head、修订 diff、最新 Issue 评论、PR 摘要、Spec/Test、共享标量与 Envelope 定义及现有 Guard。
+- R1 保持已修复；R3 的核心计量错误已修复，独立重建 Project Scope 的 `{policyVersionRef}` 结果为 446 字节，Guard 在 446 通过、445 以 `maxResultBytes` 拒绝。R2 已改正最大/最小请求包装方向，但普遍读回保证仍缺少真实的结果包装上界。
+
+### R2（仍未解决）— P2：结果生命周期字段没有被已声明的固定包装上界覆盖
+
+位置：`Module-Spec-001-IdentityPolicy.md:386–392`，关联 §13.3.2、共享 API #181 方案与 `IP-181-C-002`。
+
+当前把含 `supersededAt` 的结果包装 1387 字节当作最大合法值，并由此保证所有版本至少有 711 字节余量。但共享 API 将 `UtcInstant` 定义为带显式精度的 UTC RFC 3339 timestamp，现有 `common.schema.ts` 的小数部分为 `(?:\.\d+)?`，没有固定为毫秒。§13.4 又规定 `supersededAt` 等于唯一后继的 `effectiveFrom`，因此该字段不属于原版本写入时能抵消的相同输入。
+
+直接反例：`2026-09-13T00:00:00.` 后接 1000 个 `0` 再接 `Z`，长度为 1021。本轮用 Ajv 编译实际共享 `utcInstant` Schema，验证结果为 true；现有 Guard 对承载该值的对象也通过（未触发 16384 code point 等限制）。相比文档样本采用的 24 字符时间戳，该值增加 997 字节。即使接受 PR 的其余尺寸，结果会从 261433 增至 `261433 + 997 = 262430 > 262144`。一个正文很小的后继版本可携带该精度的 effectiveFrom，而它派生到大正文前驱的读回结果时，新增长度并未被前驱写入预算覆盖。
+
+这是共享字段 Schema/Guard 的直接验证及基于 PR 尺寸的计算反例，不冒充尚未实现 Handler/数据库链的运行失败。如果计划在输出或持久化时规范化时间精度，需要在 owning 设计中明确该约束及与 effectiveFrom 相等语义的关系；不能默认存在未声明的固定长度序列化。
+
+此外，新“逐字段消项”称剩余差异只有 Envelope 必填字段和 supersedesRef 对 supersededAt，但结果专有的必填 `policyVersionRef`、`contentHash`、`useStatus`、`checkedAt` 并未消失。`useStatus` 也不是固定长度：USABLE 为 6 字符，NOT_YET_EFFECTIVE 为 17，SUPERSEDED 为 10。现有四组合只切换两个可选字段，不能独自证明其余合法结果的最大包装。
+
+请在同一版本的请求/结果字段矩阵中保留全部未抵消字段，为时间戳精度、状态、Scope 和引用包装给出实际约束与上下界，并提供可复算的完整样本或字段公式。若需要输出规范化或新增字段限制，明确呈现所需设计决定；否则按实际允许的最长结果重算预算。同步共享 API、Spec 与 C-002，增加“短正文后继取代大正文前驱”的精度边界场景。在该问题解决前，不能维持当前“711 为普遍下界、无需任何 Spec Delta”的保证。
+
+### 非阻塞说明
+
+§13.3.2 的“除 resolve 请求外均减 2，因为包含空文档”仍误覆盖 `{policyVersionRef}` 结果；该结果不含 policyDocument，应同样排除在减 2 规则之外。446 的表值本轮已独立验证正确，此处是方法描述需同步，不另列阻塞项。
+
+### 验证与交付
+
+- 该 head 的 PR 评论提供 `vibe verify full --json` PASS，含 Docker/PostgreSQL persistence gate；发布前回读 head 未变，GitHub CI `verify` 已于 2026-09-12T14:58:40Z 完成，结论 SUCCESS。本轮未重复完整目标。
+- 本轮独立执行共享 UtcInstant Schema 的 Ajv 校验、Guard 单值探针、结果引用的 446/445 边界以及生命周期字符串长度计量；没有将局部探针声明为新增 API 的运行验收。
+- 两个新增 API 的 Schema/Registry/Handler/授权/持久化、外部链及人工验收仍为 NOT RUN；参数人类批准仍待完成。
+- 本轮只追加正式审查记录，保留前两轮历史；未修改产品代码或 owning 设计，未 commit/push/merge。发布为 PR comment，不是 GitHub 正式 REQUEST_CHANGES review。

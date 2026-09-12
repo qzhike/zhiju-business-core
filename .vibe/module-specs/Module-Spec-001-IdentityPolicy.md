@@ -311,7 +311,7 @@ PolicyVersionResolutionView
 
 ### 13.3.1 PayloadGuard 技术 Policy、参数与适用边界（#181 提案）
 
-状态：`TECHNICAL PARAMETER PROPOSAL / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL`。本节由 [Issue #181](https://github.com/qzhike/zhiju-business-core/issues/181) 呈现两个新操作的完整请求 Envelope、CommandResult.data、Query Result.data 与有限技术参数；参数值本身在独立设计审查与人类批准前不是实现事实，也不得在实现 Issue 中另行替换。计量与依据见本节表与 §13.3.2；Registry 登记在批准后随两个操作一并交付。
+状态：`TECHNICAL PARAMETER PROPOSAL / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL`。本节由 [Issue #181](https://github.com/qzhike/zhiju-business-core/issues/181) 呈现两个新操作的完整请求 Envelope、CommandResult.data、Query Result.data 与有限技术参数，并附带一项字段约束 **SD-181-1**（见"与文件可用性的关系"）；参数值与 SD-181-1 在独立设计审查与人类批准前都不是实现事实，也不得在实现 Issue 中另行替换。计量与依据见本节表与 §13.3.2；Registry 登记在批准后随两个操作一并交付。
 
 #### 技术 Policy 与注册映射
 
@@ -338,7 +338,7 @@ PolicyVersionResolutionView
 | 参数 | 提案值 | 适用输入/输出与计量单位 | 合法边界 | 依据类别 |
 |---|---:|---|---|---|
 | maxEnvelopeBytes | 262144（256 KiB） | `record_policy_version` **完整请求 Envelope**（含 `commandId`/`scopeRef`/`targetRef`/`actor`/`authorizationDecisionRef`/`idempotencyKey`/`correlationId`/`requestedAt`/`integrity`、payload 与 `policyDocument`）与 `resolve_policy` 完整请求 Envelope；紧凑 JSON 的 UTF-8 字节 | ≤ 262144 通过；> 262144 拒绝 | 复用 #157 已批准的 Command Envelope 技术预算（PostgreSQL 逻辑模型 §5.5 的 256 KiB 建议） |
-| maxResultBytes | 262144（256 KiB） | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | 同上，且必须满足 §13.3.1 的写入/读回推导 | 同上；取与 Envelope 等值，使最小请求包装（2098）不小于最大结果包装（1387），最弱组合余量 711（§13.3.2 实测） |
+| maxResultBytes | 262144（256 KiB） | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | 同上，且必须满足 §13.3.1 的写入/读回推导 | 同上；取与 Envelope 等值，使最小请求包装（2098）不小于最大结果包装（1398，需 SD-181-1），最弱组合余量 700（§13.3.2 实测） |
 | maxStringCodePoints | 16384 | 每一个字符串值**与每一个对象键**，按 Unicode code point 计数 | 单串 ≤ 16384 通过；**该上限独立于字节预算，可能先触发** | 复用 #157 已批准的同名技术值（非由字节预算推导）；实测边界 16384 通过 / 16385 拒绝 |
 | maxArrayItems | 1024 | 每一个 JSON 数组的元素个数；不改变普通数组顺序或重复语义，也不把 `Set`/`NonEmptySet` 变成可有重复的数组 | 单数组 ≤ 1024 通过 | 复用 #157 已批准的结构预算 |
 | maxObjectProperties | 256 | 每一个 JSON object 的成员数（含 `policyDocument` 内对象） | 单对象 ≤ 256 通过 | 同上 |
@@ -369,27 +369,54 @@ PolicyVersionResolutionView
 
 **编码模型**：`policyDocument` 在请求 Envelope 与 `QueryResult.data` 中都是 `CanonicalJson` **JSON 值**（共享 API §2/§13.3），不是被二次编码的字符串；Guard 逐节点计量，两侧的同一字符串叶子使用相同的 JSON 编码。实测对照（§13.3.2 `R2`）确认：同一文档无论嵌套在哪种包装里，贡献的字节数相同，文档内容本身不产生请求/结果方向的差异。差异只来自**包装的固定项**。
 
-**固定项（实测字节数，取 Project Scope、UUIDv7 引用与 64 位 hex `contentHash`）**：
+**请求/结果字段矩阵与各自上界**（`D` = `policyDocument`；"抵消"指该字段在同一版本的请求与结果中以**逐字段相同的字节**出现）：
+
+| 字段 | 出现位置 | 上界 | 是否抵消 |
+|---|---|---|---|
+| Envelope 必填字段（`commandId`/`commandType`/`commandVersion`/`scopeRef`/`targetRef`/`actor`/`authorizationDecisionRef`/`idempotencyKey`/`correlationId`/`requestedAt`/`integrity`） | 仅请求 | 固定形状（UUIDv7 / canonical ref / 闭集） | 不抵消，计入请求固定项 |
+| 可选 `supersedesRef` | 仅请求 | 一个 `VersionedRef<Policy>` = 290 | 不抵消 |
+| `policyRef` | 两侧 | canonical `objectType=zhiju.identity.policy` + 两个 UuidV7 + Scope | 抵消（回显与原值逐字段相等） |
+| `policySetVersion` | 两侧 | ≤ 写入预算 | 抵消 |
+| `policySchemaRefs` | 两侧 | ≤ 写入预算 | 抵消 |
+| `policyDocument`（`D`） | 两侧 | ≤ 写入预算 | 抵消 |
+| `effectiveFrom` | 两侧 | **≤ 24**（见 SD-181-1） | 抵消 |
+| `policyVersionRef` | 仅结果 | canonical `objectType=zhiju.identity.policy_version` + 两个 UuidV7 + Scope + `contentHash` ≈ 350 | 不抵消 |
+| `contentHash` | 仅结果 | `SHA-256` + 64 位 hex + 规范化版本 = 固定 ≈ 100 | 不抵消 |
+| `useStatus` | 仅结果 | 闭集四个值，最长 `NOT_YET_EFFECTIVE` = 17 | 不抵消 |
+| `checkedAt` | 仅结果 | **≤ 24**（SD-181-1） | 不抵消（服务端时间，不在请求中） |
+| `supersededAt` | 仅结果 | **≤ 24**（SD-181-1；= 唯一后继的 `effectiveFrom`） | 不抵消（来自后继版本，不受本版本写入预算约束） |
+
+`policyRef`/`policyVersionRef` 的 `objectType` 是两个 UuidV7 之外的唯一变长部分；§13.2 已把它们固定为 canonical 名称，因此两个新操作（含请求与结果）的 Schema 必须以 `const` 编码该取值，使其按形状有界，而不是仅靠 `maxStringCodePoints` 兜底。
+
+**SD-181-1（本提案附带、需一并批准的 Spec Delta）**：两个操作的 payload 与结果中每一个 `UtcInstant`（`effectiveFrom`、`supersededAt`、`checkedAt`）都必须序列化为**至多毫秒精度**的 canonical UTC 时刻，即 `YYYY-MM-DDTHH:mm:ss[.SSS]Z`、至多 24 code point，由这两个操作自己的字段 Schema 以长度上界执行。**不改变**共享 `UtcInstant` 定义、既有操作接受集合与 `compareUtcInstants` 的变长小数比较能力：亚毫秒输入在新操作写入边界被**拒绝**，不截断、不静默降低精度；`supersededAt = 唯一后继的 effectiveFrom` 的相等语义不受影响，因为两侧受同一约束（§13.4 第 4 条继续成立）。
+
+> 为什么必须显式约束而非常规化：共享 `UtcInstant` 的小数部分为变长（`common.schema.ts` 的 `(?:\.\d+)?`，且 `contracts/src/utc-instant.ts` 明确按不同长度小数比较），因此**不存在**默认的固定长度序列化。不约束时，`supersededAt` 的长度由上界 `maxStringCodePoints`（16384）而非本版本的写入预算决定，"写得进读不回"就真实成立——实测：一个 260046 字节正文的前驱合法写入（请求恰好 262144、通过），被一个正文仅 90 字节的后继取代后，读回结果为 262441 字节，被 `maxResultBytes` **拒绝**（§13.3.2）。
+
+> 已评估但**不采纳**的替代方案：保留变长时刻并把 `maxResultBytes` 提高到能吸收它。按上界计算最坏结果可达 `261444 + 2 × (16384 − 24) = 294164` 字节，需把读取预算提到约 512 KiB；该方案让单个时刻字段可占用约 16 KiB、把读取预算无条件翻倍，且任何将来新增的变长结果字段都会再次打破该保证。相比之下 SD-181-1 用一条可检查的字段约束换取一个稳定不变量。
+
+**固定项（实测字节数，取 Project Scope、UUIDv7 引用、64 位 hex `contentHash` 与 24 长度时刻）**：
 
 | 包装 | 组成 | 字节 |
 |---|---|---:|
 | `record_policy_version` 请求 Envelope | 全部 Envelope 字段 + payload 的 `policyRef`/`policySetVersion`/`policySchemaRefs`/`effectiveFrom`（`supersedesRef` 缺省） | 2098 |
 | 同上，含可选 `supersedesRef` | 追加一个 `VersionedRef<Policy>` | 2388 |
 | `resolve_policy` 请求 Envelope | 固定（payload 只有 `policyRef`，无文档） | 1373 |
-| `resolve_policy` 结果数据 | `PolicyVersionResolutionView` 除 `policyDocument`（`supersededAt` 缺省） | 1345 |
-| 同上，含可选 `supersededAt` | 追加一个 `UtcInstant` | 1387 |
+| `resolve_policy` 结果数据 | `PolicyVersionResolutionView` 除 `policyDocument`（`useStatus=USABLE`、`supersededAt` 缺省） | 1345 |
+| 同上，`useStatus=NOT_YET_EFFECTIVE`、`supersededAt` 缺省 | 状态取最长闭集值 | 1356 |
+| 同上，含可选 `supersededAt`（`useStatus=USABLE`） | 追加一个 24 长度 `UtcInstant` | 1387 |
+| **结果包装上界**：`useStatus=NOT_YET_EFFECTIVE` 且含 `supersededAt` | 结果侧最大合法形态 | **1398** |
 | `record_policy_version` 结果数据 | `{policyVersionRef}` | 446 |
 
 **推导（按最弱合法组合消项）**：设文档为 `D`，同一 `D` 在请求与结果两侧贡献相同字节（编码模型见上），故只需比较两侧包装。
 
 - 写入侧：`frame(请求) + |D| ≤ 262144`。请求包装**越小，可写入的 `D` 越大**，因此可写入文档的上界由最小请求包装给出：`|D| ≤ 262144 − 2098 = 260046`。
-- 读取侧：`frame(结果) + |D| ≤ 262144`。结果包装最大的合法形态含 `supersededAt`（1387），故需 `|D| ≤ 262144 − 1387 = 260757`。
-- 最弱组合是"最小请求包装 + 最大结果包装"：`(262144 − 2098) − (262144 − 1387) = 1387 − 2098 = −711`，即余量 `2098 − 1387 = 711 ≥ 0`，全部合法文档可读回。
-- 该推导可以逐字段消去相同项：两侧共有的 `policyRef`、`policySetVersion`、`policySchemaRefs`、`effectiveFrom`、`scopeRef` 与文档本身互相抵消，剩余差异只有请求侧的 Envelope 必填字段与可选 `supersedesRef`（+290）对结果侧的可选 `supersededAt`（+42）——请求侧恒多出至少 711 字节。四组合实测见 §13.3.2。
+- 读取侧：`frame(结果) + |D| ≤ 262144`。结果包装的最大合法形态为上表的 1398，故需 `|D| ≤ 262144 − 1398 = 260746`。
+- 最弱组合是"最小请求包装 + 最大结果包装"：余量 `2098 − 1398 = 700 ≥ 0`，全部合法文档可读回。
+- 逐字段消去：两侧共有的 `policyRef`/`policySetVersion`/`policySchemaRefs`/`effectiveFrom`/`scopeRef` 与 `D` 互相抵消；**结果侧另有不抵消的必填字段** `policyVersionRef`（≈350）、`contentHash`（≈100）、`useStatus`（≤17）、`checkedAt`（≤24）与可选 `supersededAt`（≤24）。请求侧减去这些结果专有项后仍多出 700 字节，来自请求 Envelope 必填字段与可选 `supersedesRef`。
 
-**因此本提案参数下不存在"写得进读不回"**：最弱组合（省略 `supersedesRef` 的请求 + 含 `supersededAt` 的结果）已给出一、其余组合余量更大（753/1001/1043），实测边界复核见 §13.3.2。读取无需分页、截断或额外 Result 通道，`get_policy_snapshot@1.0` 也不参与该路径。
+**因此在本提案参数 + SD-181-1 下不存在"写得进读不回"**：最弱组合（省略 `supersedesRef` 的请求 + `NOT_YET_EFFECTIVE` 且含 `supersededAt` 的结果）余量 700，另一写入形态 990，实测边界复核见 §13.3.2。读取无需分页、截断或额外 Result 通道，`get_policy_snapshot@1.0` 也不参与该路径。
 
-**适用范围与不变量**：上述数值是 Project Scope、`policySchemaRefs` 单项、Envelope 必填字段且不携带 `deadline`/`causationId` 等可选字段的实测样本；Enterprise Scope 等更小的包装同时缩短两侧，不改变方向，但**新增任一可选 Envelope/payload 字段都会改变请求侧固定项**。因此：两个操作共享同一 Policy 条目时，**最小合法请求包装必须不小于最大合法结果包装**（本提案为 2098 ≥ 1387）；本提案以 `maxResultBytes = maxEnvelopeBytes` 配合该不等式成立。任何包装变更（新增 Envelope/payload/结果字段）、改为分别注册，或调低 `maxResultBytes`，都必须按上表重算并重跑 §13.3.2 的边界复核；`maxResultBytes ≥ maxEnvelopeBytes` 本身**不构成**该证明，只是本提案取值满足推导的一个必要条件。
+**适用范围与不变量**：上述数值是 Project Scope、`policySchemaRefs` 单项、Envelope 必填字段且不携带 `deadline`/`causationId` 等可选字段的实测样本；Enterprise Scope 等更小的包装同时缩短两侧，不改变方向，但**新增任一可选 Envelope/payload/结果字段都会改变固定项**。因此：两个操作共享同一 Policy 条目时，**最小合法请求包装必须不小于最大合法结果包装**（本提案为 2098 ≥ 1398），且结果侧的每个变长字段都必须先有本设计声明的有限上界——`UtcInstant` 的长度上界由 SD-181-1 提供，`objectType` 由 canonical `const` 提供，其余变长字段必须是请求侧的抵消回显。任何包装变更（新增 Envelope/payload/结果字段）、改为分别注册、放宽 SD-181-1 或调低 `maxResultBytes`，都必须按上表重算并重跑 §13.3.2 的边界复核；`maxResultBytes ≥ maxEnvelopeBytes` 本身**不构成**该证明，只是本提案取值满足推导的一个必要条件。
 
 ### 13.3.2 样本计量与尺寸依据（#181）
 
@@ -420,27 +447,39 @@ PolicyVersionResolutionView
 
 **编码对照（审查发现 R2）**：同一文档分别内联为请求侧与结果侧的 JSON 值。实测确认文档贡献的字节数不随包装方向变化；请求/结果的差额完全由包装固定项决定（下表）。此前把两侧差异归因于"请求是转义字符串、结果是解析值"的说明**不成立**，已删除。
 
-**固定项**（单位字节；样本取 Project Scope、UUIDv7 引用与 64 位 hex `contentHash`；除 `resolve_policy` 请求 Envelope 外均为"最小通过上限减 2"，因为样本内含一个占 2 字节的空文档 `{}`）：
+**时刻长度反例与 SD-181-1（审查发现 R2，本轮核心）**：共享 `UtcInstant` 的小数部分为变长，因此 `supersededAt`（= 唯一后继的 `effectiveFrom`）与 `checkedAt` 不受本版本写入预算约束。实测反例：
+
+| 步骤 | 数值 | Guard |
+|---|---:|---|
+| 前驱正文按最小请求包装写满 | 文档 260046，请求 Envelope 262144 | 通过 |
+| 一个正文仅 90 字节的后继取代它，`effectiveFrom` 取 `2026-09-13T00:00:00.` + 1000 个 `0` + `Z`（1021 code point，Ajv 校验共享 `utcInstant` 为 true） | 后继请求 2478 | 通过 |
+| 读回前驱（`supersededAt` 等于该后继 `effectiveFrom`，`useStatus=NOT_YET_EFFECTIVE`） | 261444 + 997 = 262441 | **拒绝**：`rule=maxResultBytes` |
+
+即**不约束时刻长度时，"写得进读不回"真实成立**。按上界计算（两个结果专有变长时刻各可达 16384）最坏结果为 `261444 + 2 × (16384 − 24) = 294164`。SD-181-1 把这两个时刻限制到 24 code point 后，结果包装上界回到 1398。
+
+**固定项**（单位字节；样本取 Project Scope、UUIDv7 引用、64 位 hex `contentHash` 与 24 长度时刻；**含空文档 `{}` 的样本取"最小通过上限减 2"**，因为该样本内嵌一个占 2 字节的空 `policyDocument`）：
 
 | 结构 | 组成 | 字节 |
 |---|---|---:|
 | `record_policy_version` 请求 Envelope（`supersedesRef` 缺省） | 全部 Envelope 字段 + payload 的 `policyRef`/`policySetVersion`/`policySchemaRefs`/`effectiveFrom` | 2098 |
 | `record_policy_version` 请求 Envelope（含 `supersedesRef`） | 追加一个 `VersionedRef<Policy>` | 2388 |
-| `resolve_policy` 请求 Envelope | 固定：payload 只有 `policyRef`，**不含文档** | 1373 |
-| `resolve_policy` 结果数据（`supersededAt` 缺省） | `PolicyVersionResolutionView` 除 `policyDocument` 外全部字段 | 1345 |
-| `resolve_policy` 结果数据（含 `supersededAt`） | 追加一个 `UtcInstant` | 1387 |
-| `record_policy_version` 结果数据 | `{policyVersionRef}` | 446 |
+| `resolve_policy` 请求 Envelope | 固定：payload 只有 `policyRef`，**不含文档**（直接用最小通过上限） | 1373 |
+| `resolve_policy` 结果数据（`useStatus=USABLE`、`supersededAt` 缺省） | `PolicyVersionResolutionView` 除 `policyDocument` 外全部字段 | 1345 |
+| `resolve_policy` 结果数据（`useStatus=NOT_YET_EFFECTIVE`、`supersededAt` 缺省） | 状态取最长闭集值 | 1356 |
+| `resolve_policy` 结果数据（`useStatus=USABLE`、含 `supersededAt`） | 追加一个 24 长度 `UtcInstant` | 1387 |
+| `resolve_policy` 结果数据**包装上界**（`useStatus=NOT_YET_EFFECTIVE` 且含 `supersededAt`） | 结果侧最大合法形态 | **1398** |
+| `record_policy_version` 结果数据 | `{policyVersionRef}`，**不含文档**（直接用最小通过上限） | 446 |
 
-**可写入文档的上界与最弱读回组合（审查意见 R2）**：请求包装**越小，可写入的文档越大**，所以最坏读回不是"最大请求包装"，而是"最小合法请求包装配最大合法结果包装"。四种合法组合的实测：
+**可写入文档的上界与最弱读回组合（审查意见 R2）**：请求包装**越小，可写入的文档越大**，所以最坏读回不是"最大请求包装"，而是"最小合法请求包装配最大合法结果包装"。两种写入形态的实测（读取侧统一取其包装上界 1398）：
 
-| 写入（请求） | 该组合下最大可写文档 | 读取结果（含 `supersededAt`） | 上限 | 余量 |
-|---|---:|---:|---:|---:|
-| `supersedesRef` 缺省，包装 2098 | 260046 | 261433 | 262144 | **711** |
-| `supersedesRef` 存在，包装 2388 | 259756 | 261143 | 262144 | 1001 |
+| 写入（请求） | 该组合下最大可写文档 | 请求 Envelope / +1 字节 | 读取结果 | 上限 | 余量 |
+|---|---:|---|---:|---:|---:|
+| `supersedesRef` 缺省，包装 2098 | 260046 | 262144 通过 / 262145 拒绝 `maxEnvelopeBytes`（`instancePath=''`） | 261444 | 262144 | **700** |
+| `supersedesRef` 存在，包装 2388 | 259756 | 262144 通过 / 262145 拒绝 `maxEnvelopeBytes` | 261154 | 262144 | 990 |
 
-（另外两种读取形态不含 `supersededAt`、结果更小，余量更大：753 / 1043。）最弱组合的余量为 **711 字节**，出现在"写入时省略 `supersedesRef`、之后被其他版本取代而结果带上 `supersededAt`"的版本上——这是普遍读回保证必须成立的下界。该组合的边界同时复核：请求 Envelope 恰好 262144 通过、再多 1 字节（262145）以 `maxEnvelopeBytes` 拒绝（`instancePath=''`）；其上界文档的结果为 261433 通过。
+最弱组合的余量为 **700 字节**，出现在"写入时省略 `supersedesRef`、之后被其他版本取代而结果带上全部生命周期字段"的版本上——这是普遍读回保证必须成立的下界。结果侧自身的边界也已独立复核：结果恰等于 262144 通过、再多 1 字节以 `maxResultBytes` 拒绝。
 
-因此 §13.3.1 的推导在本提案参数下成立：即使写入侧用了最小的请求包装、读取侧带上全部生命周期字段，合法版本仍留下 711 字节余量。
+因此 §13.3.1 的推导在**本提案参数 + SD-181-1** 下成立：即使写入侧用了最小的请求包装、读取侧带上全部生命周期字段，合法版本仍留下 700 字节余量。
 
 四个已注册 profile 的合法样本与实测尺寸（`policySchemaRefs` 取该 profile 的真实 canonical typed ref）：
 

@@ -412,7 +412,7 @@ PolicyVersionResolutionView
 
 1. **policy profile 由消费模块拥有**：`policyDocument` 的 profile 字段校验发生在消费模块（EP/TE）内，不在 IdentityPolicy；IdentityPolicy 只校验 `policySchemaRefs` 是否为构建期 Registry 的已注册 canonical 条目，并保证事实不可变、Hash 与生命周期正确。消费模块还必须校验 `policySchemaRefs` 含其支持的 profile schema 引用。
 2. **Evaluator 版本注册**：首版 Evaluator 是确定性实现代码，其版本以**构建期静态注册表**登记（沿用 `POLICY_SCHEMA_REGISTRY`/`payload-guard-policies.v1.json` 的既有机制：静态条目、固定标识、无数据库行、无虚构 Hash），并以 `VersionedRef<Evaluator>` 暴露；objectType 由 owning 模块注册（提案 `zhiju.execution.evaluator_profile`），Scope 为 Platform。Evaluator ref 是**profile 选择器**，不携带 `contentHash`、不参与 Policy 版本的解析与生命周期，也不得被当作已提交业务事实。
-3. **写入前的资源边界**：两个 PolicyVersion 操作使用共享的有限技术 Policy `identity.policy_version@1.0`；参数、计量对象、执行位置与写入/读回关系见 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案)（#181 提案，待批准）。该 Guard 只限制资源规模，不解释 profile 规则字段、不改变 `validUntil` 推导；它声明仍不支持的内容不作为放行理由。
+3. **写入前的资源边界**：两个 PolicyVersion 操作使用共享的有限技术 Policy `identity.policy_version@1.0`；参数、计量对象、执行位置与写入/读回关系见 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案)（#181 提案，待批准）。该 Guard 只限制资源规模，不解释 profile 规则字段、不改变 `validUntil` 推导；它声明仍不支持的内容不作为放行理由。同一提案还附带 **SD-181-1**：这两个操作的 `UtcInstant` 字段（`effectiveFrom`/`supersededAt`/`checkedAt`）限定为至多毫秒精度（≤ 24 code point），否则结果侧的 `supersededAt`/`checkedAt` 长度不受写入预算约束、"写得进读不回"会真实成立。该约束**只作用于两个未注册操作**，不改变共享 `UtcInstant` 定义、既有操作接受集合或 `compareUtcInstants` 的变长小数比较，也不改变 `supersededAt = 唯一后继 effectiveFrom` 的相等语义；它与参数一并通过独立审查与人类批准后才成为实现事实。
 4. **支持边界**：首版只支持 §12.4 表内列出的 profile 与 Evaluator 版本。capability/Policy 未提供、版本未知、字段未注册、语义未支持都必须在创建判断前拒绝（TE 侧 `EXECUTION_CRITERION_UNSUPPORTED`，EP 侧由 owning 模块 §6 的错误码拥有），不得"跳过判据"通过链路。
 5. 本节的 profile 字段是**首版最小闭合集合**；扩展任何字段或类型都需要新的 profile 版本与独立决定，不得就地扩展既有 profile 版本。
 
@@ -510,7 +510,7 @@ PolicyVersionResolutionView
 
 **已交付（#179，仅构建期静态注册与纯校验）**：构建期 profile schema registry 新版本 `im06-static-v1`（既有 `im02-static-v1` 三项 ∪ 四个首版 profile）、四个 profile 条目的固定 canonical typed ref 与 closed 字段 Schema、生成副本与构建漂移检查，以及各 owning 模块的纯注册性/closed 字段校验；旧 `im02-static-v1`、旧命令接受集合与 200 项历史 Compatibility Baseline 不变。该交付只证明静态注册与规则字段闭合：PolicyVersion 事实是否存在、当前授权是否有效、Handler 与业务链是否可用均未因此成立。
 
-**本次设计层新解除（#181 提案，待批准）**：两个 PolicyVersion 操作的完整请求 Envelope、`CommandResult.data` 与 `QueryResult.data` 计量对象，共享技术 Policy `identity.policy_version@1.0` 与其有限参数、执行位置与错误形状，以及"按该参数合法写入的版本必然可读回"的实测关系（`maxResultBytes ≥ maxEnvelopeBytes`）。权威文本见 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案) 与 [共享 API §#181 方案](../api-contract-v0.1/API-Contract-v0.1.md#181-policyversion-payloadguard-注册方案)。该提案**尚未取得独立设计审查结论与人类批准**，因此参数值目前不是实现事实；批准后随两个操作一并注册。
+**本次设计层新解除（#181 提案，待批准）**：两个 PolicyVersion 操作的完整请求 Envelope、`CommandResult.data` 与 `QueryResult.data` 计量对象，共享技术 Policy `identity.policy_version@1.0` 与其有限参数、执行位置与错误形状，以及"按该参数合法写入的版本必然可读回"的实测关系——最弱合法组合（最小请求包装 2098 × 最大结果包装 1398）余量 700 字节，而不是 `maxResultBytes ≥ maxEnvelopeBytes` 这一必要条件。该关系**依赖 SD-181-1**（两个操作的时刻字段至多毫秒精度）；缺少它时结果侧 `supersededAt`/`checkedAt` 的长度不受写入预算约束，实测反例为 262441 字节被拒绝。权威文本见 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案) 与 [共享 API §#181 方案](../api-contract-v0.1/API-Contract-v0.1.md#181-policyversion-payloadguard-注册方案)。该提案与 SD-181-1 **尚未取得独立设计审查结论与人类批准**，因此参数值与字段约束目前都不是实现事实；批准后随两个操作一并注册。
 
 **仍缺少（实际能力，均 `NOT IMPLEMENTED / NOT RUN`）**：
 
