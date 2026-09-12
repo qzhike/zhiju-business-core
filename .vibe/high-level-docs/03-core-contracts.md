@@ -164,6 +164,8 @@ ProjectContextContract
 
 WI-02 新构建链中的 `projection.builderPolicyRef` 必须是已注册的 `zhiju.identity.policy` `VersionedRef`，并与请求、build metadata 和冻结 WorkOrder VersionPins 绑定。Core v1.0 结构 Schema 仍允许历史 `zhiju.context.policy` 读回，以保持既有 Compatibility Baseline；该 legacy 值不是新 WI-02 入口的合法输出，必须在跨字段绑定校验层拒绝。通用 `VersionedRef` 不携带 `contentHash`，Hash 与有效期由 IdentityPolicy exact snapshot 解析并在 build metadata 保存/重验。
 
+首次 WI-02 Context 构建使用 v1.0 已有的可选 `expiresAt` 承载 effective expiresAt：它是本次构建组合出的 Context 有效期，已提交 Snapshot 的完整 payloadHash 覆盖其存在性和值。该字段不改变 Core v1.0 本体、必填集合或历史 Compatibility Baseline；当没有可组合的有限上界时保持缺省，缺省不等于无限授权。组合来源、优先级、拒绝规则与消费时重验位置由 [Spec 003 §11.2.5.4](../module-specs/Module-Spec-003-TaskExecution.md#11254-首次-context-的期限上界与-effective-expiresat) 拥有。
+
 ### 3.4 ProjectionType
 
 v1.0 closed enum：
@@ -1237,5 +1239,7 @@ TD-01 对 §3.3/3.8/3.10 与 §4.3/4.13 的衔接：先提交 DRAFT WorkOrder �
 Retry 的 Context-2 可以记录新来源，但必须在本体外绑定原 frozen Contract；新 Run 独立引用 Context-2，原 Contract.contextSnapshotRef 仍为 Context-1。不得为了容纳新输入重算原 Contract 的 payloadHash/specificationHash，也不得改写 Context-1 或 Run-1 的固定引用。原 Contract 到期、Scope/Objective/Completion 发生实质变化的既有拒绝规则继续适用。
 
 TD-01 期限补充已于 2026-09-09 获用户批准：§4.3 的可选 expiresAt 原样继承创建 WorkOrder 时的期限，包括是否提供；不允许 Freeze 补值、删值、提前或延后，变更期限须新 WorkOrder。expiresAt 仍位于完整 payloadHash 的覆盖范围内，不进入既有 Objective 至 VersionPins 的 specificationHash 范围；两个 Hash 相同与否均不能替代期限映射和当前有效性检查。Draft Snapshot/Query 的精确输入及 Builder/Validator/Freeze/Run 拒绝规则由 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限) 拥有。#158 已交付这些增量的 Schema/Registry/生成类型，Core v1.0 本体与历史 Schema 不变；业务期限继承和运行时有效性仍未实现。未提供 WorkOrder 期限不能绕过其他授权和 Policy 时限。
+
+#168 在不改变 Core v1.0 期限字段的前提下补齐 Initial Context 的期限组合：`InitialContextBuildRequest.expiresAt` 只是 Context 有效期上界，不改写 WorkOrder Root/Contract 的创建期限；显式期限超过 WorkOrder、Source Slice 或 Builder Policy 的任一有限上界即拒绝，不静默截断为最小值；请求缺省时 effective expiresAt 取有限上界最小值，无有限上界时保持缺省。effective expiresAt 写入 ProjectContext Snapshot 的可选 `expiresAt`、INITIAL `context_snapshot_build` metadata，并随 Snapshot payload Hash 固定；Builder 发布、Validator 判断、Freeze 提交及 Run 消费前都以受信服务端时间重验。规则由 [Spec 003 §11.2.5.4](../module-specs/Module-Spec-003-TaskExecution.md#11254-首次-context-的期限上界与-effective-expiresat) 拥有，Handler/migration 仍未实现。
 
 TaskDefinition的开放CanonicalJson若收敛为首版typed criteria，采用execution.create_task@2.0，不能收窄旧@1.0。Core §4.9 的inputBindings/expectedCondition/profile机械形状设计在[Spec 003 §11.6](../module-specs/Module-Spec-003-TaskExecution.md#116-workorder-criterion-与-task-v2)，作为已批准的注册Evaluator适配器设计，不改写本Core当前Schema。Readiness/Validation的新事实外壳引用精确Core输入，不能用bool替代Core验证或用bundleHash形成循环引用。新增字段与首版类型限制已获批准，运行验收NOT RUN。

@@ -300,6 +300,10 @@ export namespace TaskExecution {
   readonly effectiveFrom: Common.UtcInstant;
   readonly supersededAt?: Common.UtcInstant;
 };
+  export interface InitialContextExpiryBinding {
+  readonly requestExpiresAt?: Common.UtcInstant;
+  readonly effectiveExpiresAt?: Common.UtcInstant;
+}
   export type AcceptanceDisposition = "ACCEPTED" | "REJECTED" | "QUARANTINED";
   export type DeliveryOutcome = "DELIVERED" | "FAILED" | "UNKNOWN";
   export interface Justification {

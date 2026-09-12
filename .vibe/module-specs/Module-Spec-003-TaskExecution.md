@@ -423,7 +423,7 @@ Builder 成功发布前读锁 WorkOrder Root并核对其仍 DRAFT、当前 Draft
 
 #### 11.2.1 字段映射与引用校验
 
-本节展开 TD-01 已批准的精确绑定，不新增操作或改变 Core v1.0。首次请求的六个必填字段保持 §11.2 定义；只有 expiresAt 可选。`projectionType` 虽以 NamespaceCode 传输，仍须满足 Core §3.4 已注册集合，不能以未知值回退。空 sourceSlices、未注册 objectType、latest 或缺 Hash 在 Schema/引用校验阶段拒绝。
+本节展开 TD-01 已批准的精确绑定，不新增操作或改变 Core v1.0。首次请求的六个必填字段保持 §11.2 定义；只有 expiresAt 可选，其有效期组合规则见 §11.2.5.4。`projectionType` 虽以 NamespaceCode 传输，仍须满足 Core §3.4 已注册集合，不能以未知值回退。空 sourceSlices、未注册 objectType、latest 或缺 Hash 在 Schema/引用校验阶段拒绝。
 
 | 输入 / 输出字段 | 唯一来源与消费约束 |
 |---|---|
@@ -473,7 +473,7 @@ Build metadata 是 ContextSnapshot 的不可变附属绑定，逻辑字段由 Po
 3. candidate Contract.expiresAt 必须与创建期限的存在性和值完全一致：创建有 T0，则省略、更早或更晚均拒绝；创建未提供，则 candidate 也必须省略。该字段按既有规则进入完整 Contract payloadHash，不改变 specificationHash 的覆盖范围；不能以 specificationHash 相同证明期限未变。Validator 产生解释性不通过判断，Freeze 用 `EXECUTION_JUDGMENT_INVALID` 拒绝期限映射不符的输入。改变期限须新建 WorkOrder，本次不新增 DRAFT 编辑或延长期限 API。
 4. 初次 Builder 发布、Validator 产出可用判断及 Freeze 提交前，均读取上述 exact 期限并以受信服务端当前时间重验；`now >= expiresAt` 即不可用，不能使用 caller 时间或事务开始时间绕过。Builder 无成功 Snapshot，Validator 不得产生可执行通过判断，Freeze 不进入 READY；期限已过时 Builder 使用 `AGGREGATE_STATE_NOT_ALLOWED`，Validator 和 Freeze 使用 `EXECUTION_JUDGMENT_STALE` 拒绝新消费。判断 validUntil 不得晚于已提供的 WorkOrder 期限，仍受其他输入/授权/Policy 更早期限限制。已提交历史不删除，重放原成功 Receipt 不重新赋予执行资格。
 5. 冻结后 Root 与 Contract 的 expiresAt 仍是同一不可变期限，WorkOrderBecameReady 事件中的可选 expiresAt 必须一致；FROZEN Context 构建、queue、create_run 和 start_run 都要检查 Root/Contract 一致且未到期，不能只看滞后的 Root status。期限映射错误为 `REFERENCE_INVALID`，已到期为 `AGGREGATE_STATE_NOT_ALLOWED`。尚未到期也不能越过 Context、Decision、Capability、lease/deadline 的独立期限。已经 RUNNING 的 Run 如何收尾仍由 #153 的既有 lease/deadline 与终态规则拥有；本项不新增到期强杀或跨 Root 同步状态转换。
-6. 创建未提供 expiresAt 只表示没有 caller 指定的 WorkOrder 绝对到期时间，不默认生成期限，也不代表无限授权；既有版本化 Policy、Decision、Context、Capability 和 Run lease/deadline 检查继续生效。Context 请求自身的可选 expiresAt 不替代或改写 WorkOrder 期限。其他已注册旧 @1.0 Schema 和历史 Compatibility Baseline 不变；此选择是待实施业务语义的明确化，不能以旧 Schema 接受 candidate 为理由免除跨字段校验。
+6. 创建未提供 expiresAt 只表示没有 caller 指定的 WorkOrder 绝对到期时间，不默认生成期限，也不代表无限授权；既有版本化 Policy、Decision、Context、Capability 和 Run lease/deadline 检查继续生效。Context 请求自身的可选 expiresAt 不替代或改写 WorkOrder 期限；首次 Context 的有效期组合、effective 值写入与消费重验由 §11.2.5.4 拥有。其他已注册旧 @1.0 Schema 和历史 Compatibility Baseline 不变；此选择是待实施业务语义的明确化，不能以旧 Schema 接受 candidate 为理由免除跨字段校验。
 
 #### 11.2.5 Context Builder Policy ref 绑定
 
@@ -553,6 +553,39 @@ InitialContextCommandResult
 | 同键同输入重复请求，或同键异 payload Hash 重放 | 前者返回原 `contextSnapshotRef`/Receipt，不产生第二个 Snapshot；后者 `IDEMPOTENCY_PAYLOAD_CONFLICT` | 不签发第二份成功事实，不以不同 Hash 覆盖已提交 Snapshot 的 `snapshotId`/`contentHash` |
 
 第 2–5 项的结构与跨字段判断由共享 `ContractRegistry` 的 Result Schema 与纯契约绑定校验拥有；对象存在性、幂等裁决、授权与提交顺序仍由 owning Handler 与 PostgreSQL 业务链负责，本轮保持 `NOT RUN`。
+
+#### 11.2.5.4 首次 Context 的期限上界与 effective expiresAt
+
+状态：`APPROVED 2026-09-10 / SCHEMA, REGISTRY, GENERATED TYPES, FIXTURES AND PURE CONTRACT BINDING IMPLEMENTED 2026-09-12 / HANDLER AND BUSINESS PERSISTENCE NOT IMPLEMENTED`。依据 [#168](https://github.com/qzhike/zhiju-business-core/issues/168) 与[决定 §8.9](../decisions/task-execution-human-operated.md#89-168-initial-context-期限上界与-effective-expiresat)。本节是首次 Context 期限组合与 effective expiresAt 的唯一 API 权威，不改变 §11.2.4 的 WorkOrder 创建/冻结期限，也不改变旧 `build_context_snapshot@1.0`。
+
+`InitialContextBuildRequest.expiresAt`（§11.2 的 @1.0 与 @1.1 均已有该可选字段）是本次 Context 的有效期上界，不是 WorkOrder 期限的替代或改写入口。INITIAL `context_snapshot_build` metadata 保存以下不可变观察：
+
+```text
+InitialContextExpiryBinding
+├── requestExpiresAt?: UtcInstant     // 请求上界的原样观察
+└── effectiveExpiresAt?: UtcInstant   // 本次 Context 的有效期；缺省表示没有有限上界
+```
+
+1. 请求提供期限 T 时，T 就是 effective expiresAt，并且必须不晚于每个有限上界：WorkOrder Root/Draft Snapshot 的创建期限、每个被消费 Source Slice 的 `validUntil`、以及当前 Builder Policy 解析出的有限终止时刻（`supersededAt`）。任一处 `T > bound` 即拒绝并保留被违反的上界路径，不静默截断为最小值。上界自身的读取授权与当前有效性仍由 §11.2.1 与 §11.2.5.2 拥有。
+2. 请求未提供期限时，effective expiresAt 取上述有限上界的最小值。所有来源都没有有限上界时保持缺省；缺省只表示本次构建没有组合出有限期限，不表示无限授权——既有版本化 Policy、Decision、Context、Capability 与 Run lease/deadline 检查继续独立生效。当前已注册的 `ContextSourceSlice` 必须携带 `validUntil`，因此合法首次请求总是至少存在一个有限上界；缺省分支只描述组合规则的边界，不作为放宽输入的依据。
+3. 组合与到期判断使用受信服务端当前时间，不能使用 caller 时间或事务开始时间。请求期限本身已过期或 `now >= effectiveExpiresAt` 即不可继续构建或消费，不发布成功 Snapshot。
+4. effective expiresAt 必须写入本次已提交 ProjectContext Snapshot 的可选 `expiresAt`：存在性和值都与该 Snapshot 完全一致，并随完整 payloadHash 固定。Core v1.0 本体、必填集合与历史 Compatibility Baseline 不变；缺失、额外写入或不一致属于 `CONTEXT_EXPIRY_MISMATCH`。
+5. metadata 必须原样记录请求上界：缺失、改写或以其来源（签发元数据、事务时间、本地默认值）替换属于 `EXPIRY_OBSERVATION_MISMATCH`；effective 被截断、放宽、事后重写或缺失属于 `EXPIRY_EFFECTIVE_MISMATCH`。metadata 与 Snapshot 同事务提交并保持不可变，重试不得覆盖。
+6. Builder 发布前、Validator 产出可用判断前、Freeze 提交前以及 Run 创建/启动前，都从已提交事实重新读取 effective expiresAt 与其他独立期限，并以最新受信服务端时间重验。已过期时 Builder 不发布成功 Snapshot（`AGGREGATE_STATE_NOT_ALLOWED`），Validator 与 Freeze 拒绝新消费（`EXECUTION_JUDGMENT_STALE`）；期限映射错误仍按 §11.2.4 使用 `REFERENCE_INVALID` 或 `EXECUTION_JUDGMENT_INVALID`。
+7. 已提交 Snapshot、判断与 Receipt 保留为不可变历史：同键同输入重放返回原结果，不重算期限，也不重新赋予执行资格。长事务跨过期限时提交前重验失败即回滚本次事务，不修改已提交事实，也不把其他 Root 状态改成 EXPIRED。
+8. 冻结后 Retry 按 §11.2.3 使用完整 `ContextBuildRequest` 并重新组合一份新的 Context 期限；原 Contract、Context-1 与 Run-1 的 Ref/Hash/期限保持不变。WorkOrder 期限继续按 §11.2.4 原样继承，本节的请求上界不改写 Root、Contract 或 `WorkOrderBecameReady`。
+
+| 反例 | 结果 | 禁止效果 |
+|---|---|---|
+| 请求期限晚于 WorkOrder 期限、任一 Source Slice `validUntil` 或 Builder Policy 有限上界 | 绑定校验 `EXPIRY_UPPER_BOUND_EXCEEDED`；构建按 §11.2.4 使用对应到期/拒绝错误 | 不取最小值继续、不静默截断、不放宽任一上界 |
+| 请求无期限但记载了请求上界，或有期限却未记录/改写了它 | `EXPIRY_OBSERVATION_MISMATCH` | 不补值、不省略，不以 caller 或事务时间替代已观察事实 |
+| effective expiresAt 与组合结果不符、缺失、被截断放宽或事后重写 | `EXPIRY_EFFECTIVE_MISMATCH` | 不发布成功 Snapshot，不以历史成功 Receipt 重新授权 |
+| ProjectContext `expiresAt` 与 effective 不一致、缺失或额外写入 | `CONTEXT_EXPIRY_MISMATCH` | 不让 Snapshot payload 与 metadata/Hash 分离，不部分提交 |
+| 构建前过期、长事务内跨过期限 | Builder `AGGREGATE_STATE_NOT_ALLOWED`；Validator/Freeze `EXECUTION_JUDGMENT_STALE` | 不发布可执行成功事实，不用事务开始时间或滞后 status 绕过，不回滚已提交上游事实 |
+| 无期限请求在无有限上界时被当作无限授权 | 按缺省处理且不产生期限 | 其他 Policy/Decision/Capability/lease/deadline 检查继续独立拒绝 |
+| 任一输入期限值畸形、以 JSON null 冒充缺省、Source Slice 列表为空 | `INVALID_EXPIRY_INPUT` / `INVALID_EXPIRY_BINDING` / `MISSING_EXPIRY_BINDING` | fail closed；不把畸形值当缺省，也不静默扩大 Context 有效期 |
+
+组合与镜像的跨字段判断由 `ContractRegistry` 的 `initialContextExpiryBinding` Schema 与 `validateInitialContextExpiryBinding` 纯契约校验拥有；对象存在性、幂等裁决、提交顺序和真实期限重验仍由 owning Handler 与 PostgreSQL 业务链负责，本轮保持 `NOT RUN`。
 
 #### 11.2.6 #165 DRAFT VersionPins 与首次 Context 的 @1.1 兼容契约
 

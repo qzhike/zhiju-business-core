@@ -38,7 +38,15 @@ import {
   validateWorkOrderContextSnapshotBinding,
   type WorkOrderContextBindingValidationResult,
 } from './work-order-context-binding.js';
-import { contextBuilderPolicyBindingSchemaRef } from './operations/task-execution.schema.js';
+import {
+  validateInitialContextExpiryBinding,
+  type ContextExpiryBindingValidationInput,
+  type ContextExpiryBindingValidationResult,
+} from './context-expiry-binding.js';
+import {
+  contextBuilderPolicyBindingSchemaRef,
+  initialContextExpiryBindingSchemaRef,
+} from './operations/task-execution.schema.js';
 import {
   operationEnvelopeSchemaId,
   operationPayloadSchemaRef,
@@ -142,6 +150,16 @@ export class ContractRegistry {
 
   validateContextBuilderPolicyBindingMetadata(input: unknown): ContractValidationResult {
     return this.#run(this.#ajv.getSchema(contextBuilderPolicyBindingSchemaRef), input);
+  }
+
+  validateInitialContextExpiryBindingMetadata(input: unknown): ContractValidationResult {
+    return this.#run(this.#ajv.getSchema(initialContextExpiryBindingSchemaRef), input);
+  }
+
+  validateInitialContextExpiryBinding(
+    input: ContextExpiryBindingValidationInput,
+  ): ContextExpiryBindingValidationResult {
+    return validateInitialContextExpiryBinding(input);
   }
 
   validateWorkOrderContextSnapshotBinding(input: unknown): WorkOrderContextBindingValidationResult {

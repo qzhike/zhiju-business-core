@@ -1,4 +1,5 @@
 import type { Core, Common, TaskExecution } from './generated/types/index.js';
+import { compareUtcInstants, parseUtcInstant } from './utc-instant.js';
 
 export const CONTEXT_BUILDER_POLICY_OBJECT_TYPE = 'zhiju.identity.policy' as const;
 
@@ -59,36 +60,6 @@ interface PolicyBindingParts {
 
 function isRecord(value: unknown): value is UnknownRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-const utcInstantPattern = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z$/;
-
-interface ParsedUtcInstant {
-  readonly wholeSecondMilliseconds: number;
-  readonly fraction: string;
-}
-
-function parseUtcInstant(value: string): ParsedUtcInstant | undefined {
-  const match = utcInstantPattern.exec(value);
-  if (match === null) return undefined;
-  const wholeSecondMilliseconds = Date.parse(`${match[1]}Z`);
-  if (Number.isNaN(wholeSecondMilliseconds)) return undefined;
-  return { wholeSecondMilliseconds, fraction: match[2] ?? '' };
-}
-
-function compareUtcInstants(left: string, right: string): -1 | 0 | 1 | undefined {
-  const leftParsed = parseUtcInstant(left);
-  const rightParsed = parseUtcInstant(right);
-  if (leftParsed === undefined || rightParsed === undefined) return undefined;
-  if (leftParsed.wholeSecondMilliseconds < rightParsed.wholeSecondMilliseconds) return -1;
-  if (leftParsed.wholeSecondMilliseconds > rightParsed.wholeSecondMilliseconds) return 1;
-
-  const fractionLength = Math.max(leftParsed.fraction.length, rightParsed.fraction.length);
-  const leftFraction = leftParsed.fraction.padEnd(fractionLength, '0');
-  const rightFraction = rightParsed.fraction.padEnd(fractionLength, '0');
-  if (leftFraction < rightFraction) return -1;
-  if (leftFraction > rightFraction) return 1;
-  return 0;
 }
 
 function pushError(

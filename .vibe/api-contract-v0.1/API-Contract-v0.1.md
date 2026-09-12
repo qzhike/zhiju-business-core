@@ -465,6 +465,12 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 `zhiju.project.context_snapshot` 只是 Core v1.0 历史读回身份，不由新入口产生，也不能仅凭 `objectId` 与 canonical 名称互换。authoritative `execution.get_context_snapshot@1.0` 的既有 Schema、接受集合与历史 namespace 读回语义不变，其请求 Ref 与结果 Ref 必须逐字段相等。旧 `execution.build_context_snapshot@1.0` 保持必填 `workOrderContractRef` 语义且不注册 operation-specific Result Schema。本次不新增公开 operation、Purpose、Catalog 数量或 PayloadGuard Policy；Schema、Registry、生成类型与纯契约正反例已同步，对象存在性、幂等、Handler、migration 与真实 PostgreSQL 业务验收保持 `NOT RUN`。
 
+### #168 Initial Context 期限上界
+
+`InitialContextBuildRequest.expiresAt`（两个入口版本已有可选字段）只表示该 Context 的有效期上界，不改写 WorkOrder Root/Contract 的创建期限，也不改变 `WorkOrderBecameReady` 的字段形状。显式期限超过 WorkOrder 期限、任一被消费 Source Slice 的 `validUntil` 或当前 Builder Policy 的有限上界时一律拒绝，不静默截断为最小值；请求缺省时 effective expiresAt 取有限上界最小值，无有限上界时保持缺省并明确不等于无限授权。effective expiresAt 写入 ProjectContext Snapshot 的可选 `expiresAt` 与 INITIAL `context_snapshot_build` metadata，并随完整 payload Hash 固定；Builder 发布、Validator 判断、Freeze 提交与 Run 消费前均以受信服务端时间重验。
+
+本次不新增公开 operation、Purpose、Catalog 数量、PayloadGuard Policy 或 Core 本体字段；旧 @1.0 合法调用与历史 Compatibility Baseline 保持可接受，期限组合属于跨字段语义，Schema 接受字段形状不证明该语义已验证。Schema、Registry、生成类型、fixture 与纯契约正反例已同步；期限 Handler、migration、真实 PostgreSQL 业务链与人工验收保持 `NOT RUN`。
+
 ### #157 PayloadGuard 注册补充方案
 
 状态：`APPROVED 2026-09-09 / SCHEMA AND GUARD IMPLEMENTED`；设计决定见 [TD-01 §8.5](../decisions/task-execution-human-operated.md#85-157-payloadguard-补充方案)。仅适用于已注册的 project.capture_context_source_slice@1.0 与 project.get_context_source_slice@1.0；不改变旧 Schema 或全局默认上限。
