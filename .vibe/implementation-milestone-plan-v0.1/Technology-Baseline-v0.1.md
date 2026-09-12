@@ -112,11 +112,11 @@ Migration 文件按 owning Schema 分目录；平台 Role/Schema bootstrap 与�
 
 ### 6.1 IM-UI-01 技术选型边界
 
-用户于 2026-08-28 批准新增 `IM-UI-01 Workspace UI MVP` 里程碑，但未批准任何具体前端框架、设计系统或浏览器运行时依赖。本文第 2～5 节冻结的是 Business Core 后端与工程基线，不得被解释为已经为 Workspace UI 选择技术栈。
+用户于 2026-08-28 批准新增 `IM-UI-01 Workspace UI MVP` 里程碑，后续明确批准 React + TypeScript + Tailwind CSS + Vite，以 Monorepo 交付。UI-DG-001 的技术栈与仓库组织部分已确认，SPA/SSR、精确版本及升级策略仍待冻结；该确认不等于 UI-DG-002/003 通过。本文第 2～5 节冻结的是 Business Core 后端与工程基线，不得被解释为已经为 Workspace UI 选择技术栈。
 
 在 UI-DG-001～003 完成前：
 
-1. 不创建或锁定 React、Vue、Svelte、Next.js、Nuxt、Vite 等框架/构建依赖；
+1. 使用已批准的 React + TypeScript + Tailwind CSS + Vite / Monorepo 方向开展设计准备；适用 Gate 与 IM-06 前置条件未完成前，不安装依赖或创建正式应用。精确版本需在工程实现前核查并锁定；
 2. 不以 NestJS/Fastify 已冻结为由默认决定 BFF 与 UI 的部署拓扑；
 3. 可以按 [`Module-Spec-UI01-WorkspaceUI.md`](../module-specs/Module-Spec-UI01-WorkspaceUI.md) 细化产品语义和安全边界，但不得声明 Browser/BFF Runtime 已可用；
 4. 所有 UI Unit、Contract、Browser E2E、Security、Accessibility 与 Manual 场景均以 [`Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md) 为权威，并在实际执行前保持 `NOT RUN`。

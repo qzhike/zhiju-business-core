@@ -207,6 +207,6 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 ## 12. 当前状态
 
 - IM-UI-01 里程碑、依赖、范围和边界已由用户于 2026-08-28 批准。
-- UI-DG-001、UI-DG-002 尚为 `USER DECISION REQUIRED`；UI-DG-003 只有高层安全边界，具体设计未完成。
+- UI-DG-001 部分确认：React + TypeScript + Tailwind CSS + Vite、Monorepo 已获用户批准；SPA/SSR、精确版本及升级策略仍待冻结。UI-DG-002 尚为 `USER DECISION REQUIRED`；UI-DG-003 只有高层安全边界，具体设计未完成。
 - 前端工程、BFF、OIDC、页面、组件、Browser Test、Security Test、Accessibility Test 和 Manual Acceptance 均未实现或运行，状态为 `NOT RUN`。
 - 本文 `DESIGN VERIFIED` 只表示 Experience 层职责、依赖和失败边界与现有 Core 权威文档一致，不代表 UI 可用。

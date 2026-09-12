@@ -84,7 +84,7 @@ IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](Technology-Base
 
 | Gate | 必须冻结 | 当前状态 |
 |---|---|---|
-| UI-DG-001 | 前端框架、构建/包管理、SSR/SPA 边界、版本与升级策略 | `USER DECISION REQUIRED` |
+| UI-DG-001 | 前端框架、构建/包管理、SSR/SPA 边界、版本与升级策略 | `PARTIALLY CONFIRMED`：React + TypeScript + Tailwind CSS + Vite、Monorepo 已批准；其余待冻结 |
 | UI-DG-002 | Design System、支持浏览器/视口、可访问性目标、国际化与视觉验收方法 | `USER DECISION REQUIRED` |
 | UI-DG-003 | BFF 部署拓扑、OIDC Session、CSRF/CSP、API 代理和前端可观测性 | `BOUNDARY FROZEN / CONCRETE DESIGN REQUIRED` |
 
