@@ -155,3 +155,50 @@ IP-181-C-010 仍写“262441 字节的实测反例被拒绝”，需明确它使
 - 本轮独立执行了结果专有字段计量、Spec JSON 提取与新旧参数对照、266240/266241 边界探针；最新 Issue 未新增批准或范围变更。
 - 两个新增操作的 Schema/Registry/Handler/授权/持久化、外部与人工验收仍 NOT RUN；参数、4096 余量与 SD-181-1 尚待人类批准。
 - 仅追加本轮正式审查记录，保留历史；未修改产品代码或 owning 设计，未 commit/push/merge。发布为 PR comment，不是 GitHub 正式 REQUEST_CHANGES review。
+
+---
+
+## 第六轮复审（2026-09-13）
+
+- Outcome: `HUMAN_REVIEW_REQUIRED`
+- Reviewed SHA: `0f596d1f74d9d306bf8a7884ca8adf1f5203d26d`
+- 独立技术审查结论：**通过，R1–R4 均已解决，未发现新的阻塞性技术问题**。当前状态不再要求继续修复上述问题；剩余门槛为 Issue #181 明确要求的人类设计批准。
+
+### 发现关闭情况
+
+| 发现 | 当前结论 |
+|---|---|
+| R1：单串上限与字节预算混淆 | 已解决；单串 16384 code point 是独立限制，正反向场景保留 |
+| R2：读回预算证明 | 已解决；结果预算 266240 = 请求预算 262144 + 4096，结果专有字段增量上界 820 由固定引用形状、闭集状态与 SD-181-1 保证；不再依赖请求包装的样本最小值 |
+| R3：最小通过上限减 1 | 已解决；inclusive 计量定义及文档/非文档样本处理已明确 |
+| R4：Policy JSON 与参数表不一致 | 本轮关闭；JSON 已为 266240，表格明确 ≤266240 通过、>266240 拒绝，历史 262441 字节反例已标明使用旧等值预算 |
+
+### 当前 head 的独立验证
+
+直接从当前 Spec §13.3.1 提取完整 JSON，通过 `loadPayloadGuardPolicies` 加载后调用现有 `payloadGuardErrors`；未用手写的新参数替代被审查 JSON。断言结果如下：
+
+| 计量口径 | 字节数 | 实际结果 |
+|---|---:|---|
+| 请求 | 262144 | 通过 |
+| 请求 | 262145 | 拒绝 maxEnvelopeBytes，limit=262144，根路径 |
+| 结果 | 262153 / 262441 / 266240 | 全部通过 |
+| 结果 | 266241 | 拒绝 maxResultBytes，limit=266240，根路径 |
+
+所有探针满足其余资源维度，只改变总字节数；JSON 条目还断言 `maxResultBytes === maxEnvelopeBytes + 4096`。这是现有 Guard 对提案条目的设计诊断，不代表两个未注册操作的公开 Schema、Handler 或数据库链已运行。
+
+该 SHA 的 GitHub CI verify 于 2026-09-12T16:14:34Z 完成，结论 SUCCESS；PR 评论提供同 revision 的 `vibe verify full --json` PASS，含 Docker/PostgreSQL persistence gate。本轮未重复完整目标。发布前回读 head 未变，最新 Issue 评论未包含新增批准。
+
+### 剩余人类门槛与实现边界
+
+Issue #181 Acceptance 要求参数方案完成独立设计审查并取得人类批准后才可完成。当前独立技术审查已通过，但以下提案仍需人类批准：完整七项有限参数、结果预算额外 4096 字节，以及 SD-181-1 对两个新操作 payload/result 时刻字段的至多毫秒精度约束（超出拒绝，不截断；共享 UtcInstant 与旧操作不变）。因此角色结果为 HUMAN_REVIEW_REQUIRED，而不是追认人类批准或授权合并。
+
+两个新增操作的 Schema/Registry/Handler/授权/持久化、IP-181 运行验收、外部链与人工验收继续 NOT RUN。人类批准后才按明确 Scope 复核后续契约注册任务的 NOW + READY；本轮不创建实现 Issue，不把 IM-06 标记完成。
+
+本轮仅追加正式审查记录，保留前五轮历史；未修改产品代码、参数注册文件或 owning 设计，未 commit/push/merge。发布为 PR comment，不是 GitHub 正式 APPROVE review。
+
+
+---
+
+## 人类设计验收批准（2026-09-13）
+
+本方案与 SD-181-1 已于 2026-09-13 完成独立技术审查并获人类设计验收批准（[人类批准记录](https://github.com/qzhike/zhiju-business-core/pull/182#issuecomment-5647186487)），对应设计 revision `0f596d1f74d9d306bf8a7884ca8adf1f5203d26d`；这是已批准设计基准，不代表操作、参数或业务能力已经实现。 用户在第六轮技术审查通过后明确回复“批准验收”。R1–R4 已关闭，Issue #181 所要求的独立技术审查与人类设计批准门槛均已满足；第六轮 HUMAN_REVIEW_REQUIRED 作为当时的历史结论保留。批准范围包括七项参数、结果预算 4096 余量和 SD-181-1；运行验收仍 NOT RUN。未授权 commit/push/merge，不追认未实现能力或 IM-06 完成。

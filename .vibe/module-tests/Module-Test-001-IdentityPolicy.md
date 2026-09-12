@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION SCENARIOS APPROVED 2026-09-12 DESIGN VERIFIED / #179 STATIC PROFILE REGISTRY + PURE VALIDATION IMPLEMENTED / #181 PAYLOADGUARD SCENARIOS PROPOSED PENDING APPROVAL / POLICY VERSION HANDLER, AUTHORIZATION, LIFECYCLE AND EXTERNAL NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION SCENARIOS APPROVED 2026-09-12 DESIGN VERIFIED / #179 STATIC PROFILE REGISTRY + PURE VALIDATION IMPLEMENTED / #181 PAYLOADGUARD SCENARIOS APPROVED 2026-09-13 / RUNTIME NOT RUN / POLICY VERSION HANDLER, AUTHORIZATION, LIFECYCLE AND EXTERNAL NOT RUN`
 
 对应规格：[`Module-Spec-001-IdentityPolicy.md`](../module-specs/Module-Spec-001-IdentityPolicy.md)。本文件记录 IdentityPolicy 的 API 层 Unit、Contract、E2E 与人工验收用例和真实结果；高层跨模块场景仍见 `08-verification-baseline.md`。
 
@@ -150,9 +150,11 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 独立设计审查须覆盖版本键语义、取代基数与并发裁决（含无前驱版本共存）、企业级隔离归属（新 scoped 表与旧 Platform 表的分支）、profile registry 注册路径、统一不可用与内部审计边界；本节设计批准不改变 `identity.*` 既有 20 项公开 Contract 的接受集合与历史验收记录。
 
-## #181 PolicyVersion API PayloadGuard 验证矩阵（提案，待批准）
+<a id="181-policyversion-api-payloadguard-验证矩阵提案待批准"></a>
 
-状态：`TECHNICAL PARAMETER PROPOSAL / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL`。行为来源为 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案)。两个操作与其技术 Policy 尚未注册，因此下列各行**全部为** `NOT RUN`；本设计只固定输入、预期与禁止效果，不把设计评审或现有 full PASS 当作已执行证据。参数获批准后，随两个操作注册与实现一同执行。
+## #181 PolicyVersion API PayloadGuard 验证矩阵（已批准，运行未执行）
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-13 / DESIGN VERIFIED / RUNTIME NOT RUN`。本方案与 SD-181-1 已于 2026-09-13 完成独立技术审查并获人类设计验收批准（[人类批准记录](https://github.com/qzhike/zhiju-business-core/pull/182#issuecomment-5647186487)），对应设计 revision `0f596d1f74d9d306bf8a7884ca8adf1f5203d26d`；这是已批准设计基准，不代表操作、参数或业务能力已经实现。行为来源为 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案)。两个操作与其技术 Policy 尚未注册，因此下列各行**全部为** `NOT RUN`；本设计只固定输入、预期与禁止效果，不把设计评审或现有 full PASS 当作已执行证据。参数已批准；运行场景随后续两个操作注册与实现一同执行。
 
 | ID | 层级 | 输入 | 预期输出与禁止效果 | 当前结果 |
 |---|---|---|---|---|

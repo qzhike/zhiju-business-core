@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT API CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 CONTROLLED CAPABILITY DECISION RECORDED / IM-06 #157/#158 CONTRACT SCHEMA AND REGISTRY DELIVERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT DELIVERED 2026-09-11 / #181 POLICYVERSION PAYLOADGUARD PARAMETERS PROPOSED PENDING HUMAN APPROVAL / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`CURRENT API CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 CONTROLLED CAPABILITY DECISION RECORDED / IM-06 #157/#158 CONTRACT SCHEMA AND REGISTRY DELIVERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT DELIVERED 2026-09-11 / #181 POLICYVERSION PAYLOADGUARD PARAMETERS + SD-181-1 APPROVED 2026-09-13 / BUSINESS IMPLEMENTATION NOT STARTED`
 
 文档角色：公开 Command、Query、Event 的共享字段规则、执行语义、错误、兼容性、安全与验证要求的唯一权威。具体操作名称及唯一 Owner 以 [`../high-level-docs/06-typed-references-contract-catalog-v0.1.md`](../high-level-docs/06-typed-references-contract-catalog-v0.1.md) 为准；每个操作的 payload/result/event 字段由对应 `Module-Spec` 唯一维护。
 
@@ -143,7 +143,7 @@ FieldViolation
 └── targetRef?: TypedReference
 ```
 
-所有文本、集合、Payload 和分页大小上限由构建期 `PayloadGuardPolicy@1.0` 注册并进入生成 Schema；Handler 必须在解析大对象或执行授权查询前应用 Guard。具体数值属于实现前部署参数，本 Contract 不允许实现以“无限制”作为默认值。已批准并实现的数值见 [§157 补充方案](#157-payloadguard-注册补充方案)；#176 两个 PolicyVersion 操作的有限参数提案与实测依据见 [§#181 PolicyVersion PayloadGuard 注册方案](#181-policyversion-payloadguard-注册方案)，在独立审查与人类批准前不是已批准数值。
+所有文本、集合、Payload 和分页大小上限由构建期 `PayloadGuardPolicy@1.0` 注册并进入生成 Schema；Handler 必须在解析大对象或执行授权查询前应用 Guard。具体数值属于实现前部署参数，本 Contract 不允许实现以“无限制”作为默认值。已批准并实现的数值见 [§157 补充方案](#157-payloadguard-注册补充方案)；#176 两个 PolicyVersion 操作的有限参数提案与实测依据见 [§#181 PolicyVersion PayloadGuard 注册方案](#181-policyversion-payloadguard-注册方案)，已于 2026-09-13 获批，尚未注册或实现。
 
 ## 5. Command API
 
@@ -479,7 +479,7 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 ### #181 PolicyVersion PayloadGuard 注册方案
 
-状态：`TECHNICAL PARAMETER PROPOSAL 2026-09-12 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL / NOT REGISTERED`。仅适用于 #176 提出的 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0`（当前未注册）。参数、适用边界、实测依据与验证矩阵的权威文本在 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案) 与 [Module-Test 001](../module-tests/Module-Test-001-IdentityPolicy.md#181-policyversion-api-payloadguard-验证矩阵提案待批准)；本节只固定共享 API 层的集成边界，不重复参数表。本项不改变 `ep.context_source_slice@1.0` 的既有参数、不新增全局默认上限，也不改变任何已注册操作的接受集合。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-13 / DESIGN VERIFIED / NOT REGISTERED`。本方案与 SD-181-1 已于 2026-09-13 完成独立技术审查并获人类设计验收批准（[人类批准记录](https://github.com/qzhike/zhiju-business-core/pull/182#issuecomment-5647186487)），对应设计 revision `0f596d1f74d9d306bf8a7884ca8adf1f5203d26d`；这是已批准设计基准，不代表操作、参数或业务能力已经实现。仅适用于 #176 提出的 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0`（当前未注册）。参数、适用边界、实测依据与验证矩阵的权威文本在 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案) 与 [Module-Test 001](../module-tests/Module-Test-001-IdentityPolicy.md#181-policyversion-api-payloadguard-验证矩阵提案待批准)；本节只固定共享 API 层的集成边界，不重复参数表。本项不改变 `ep.context_source_slice@1.0` 的既有参数、不新增全局默认上限，也不改变任何已注册操作的接受集合。
 
 ```json
 { "type": "identity.policy_version", "version": "1.0" }
@@ -492,13 +492,13 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 - **计量对象**：`validateOperation` 以完整请求 Envelope 计量（Command/Query 一致，含全部 Envelope 字段、payload 与内联 `policyDocument`）；`validateOperationResult` 以 `CommandResult.data` / `QueryResult.data` 计量。两者都是紧凑 JSON 的 UTF-8 字节数，inclusive 边界，与 §157 口径相同。
 - **执行位置**：复用 `ContractRegistry` 的 Guard 执行点与 `payloadGuard` keyword，先于结构 Schema，也先于 Handler 的授权、幂等与 CAS；构建期与运行期加载同一实现，未知 Policy 或未加载 Guard 的校验器拒绝编译，禁止仅作 annotation 忽略。
 - **写入/读回关系（定式）**：结果预算**以"请求预算 + 固定余量"声明**，不是两个独立数值：`maxResultBytes = maxEnvelopeBytes + 4096 = 266240`。证明只需结果侧增量有上界：设 `C_req`/`C_res` 为去掉 `policyDocument` 后的请求与结果字节，两侧共有且逐字节相同的字段（`policyRef`、`policySetVersion`、`policySchemaRefs`、`effectiveFrom`）相消，故 `C_res − C_req ≤ R_only`（结果专有字段总量，请求专有部分恒 ≥ 0）。`R_only` 的每个成员都是有界形状（`scopeRef`、canonical `SnapshotRef`、`contentHash`、闭集 `useStatus`，以及 SD-181-1 限定的两个时刻），实测上界 **820**。于是任意合法写入都满足：读取帧 `= (C_req + |D|) + (C_res − C_req) ≤ 262144 + 820 = 262964 ≤ 266240`。**该推导不使用请求侧最小值**，因此不受请求侧字段编码变化影响。等值预算下实测一个按写入边界合法提交的 Project 版本读回为 262153 字节并被拒绝，故必须保留余量。该推导与逐字段上界见 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案)；§13.3.2 的 2098/1398 等数值是代表性样本，不参与该推导。除下一项的字段约束外，本项不需要分页、截断或额外 Result 通道等结构变更，也不得让读取路径返回部分结果。
-- **SD-181-1（随本方案一并批准的字段约束）**：两个操作的 payload 与结果中每个 `UtcInstant`（`effectiveFrom`、`supersededAt`、`checkedAt`）序列化为至多毫秒精度的 canonical UTC 时刻（≤ 24 code point），由这两个操作自己的 Schema 以长度上界执行，亚毫秒输入在写入边界拒绝、不截断。共享 `UtcInstant` 定义、既有操作接受集合与 `compareUtcInstants` 的变长小数能力**不变**。缺少该约束时 `R_only` 的上界不成立：`supersededAt`（= 后继 `effectiveFrom`）与 `checkedAt` 只受 `maxStringCodePoints` 约束，各可达 16384 code point，`R_only` 变为约 **33540**（约 33 KiB），远超 4096 余量；实测反例是（在当时的等值结果预算下）一个 260046 字节正文的合法前驱被 90 字节后继取代后读回 262441 字节；在现行 266240 下该规模的拒绝依据是时刻长度约束本身。已评估但不采纳的替代方案是把余量提到约 33 KiB（读取预算约 296 KiB）——它让单个时刻字段可占约 16 KiB，且任何新增变长结果字段都会再次打破保证。SD-181-1 把 `R_only` 压到 820，使余量与字段级细节解耦；余量 4096 与 SD-181-1 解决不同项，缺一不可。
+- **SD-181-1（2026-09-13 随本方案一并获批的字段约束）**：两个操作的 payload 与结果中每个 `UtcInstant`（`effectiveFrom`、`supersededAt`、`checkedAt`）序列化为至多毫秒精度的 canonical UTC 时刻（≤ 24 code point），由这两个操作自己的 Schema 以长度上界执行，亚毫秒输入在写入边界拒绝、不截断。共享 `UtcInstant` 定义、既有操作接受集合与 `compareUtcInstants` 的变长小数能力**不变**。缺少该约束时 `R_only` 的上界不成立：`supersededAt`（= 后继 `effectiveFrom`）与 `checkedAt` 只受 `maxStringCodePoints` 约束，各可达 16384 code point，`R_only` 变为约 **33540**（约 33 KiB），远超 4096 余量；实测反例是（在当时的等值结果预算下）一个 260046 字节正文的合法前驱被 90 字节后继取代后读回 262441 字节；在现行 266240 下该规模的拒绝依据是时刻长度约束本身。已评估但不采纳的替代方案是把余量提到约 33 KiB（读取预算约 296 KiB）——它让单个时刻字段可占约 16 KiB，且任何新增变长结果字段都会再次打破保证。SD-181-1 把 `R_only` 压到 820，使余量与字段级细节解耦；余量 4096 与 SD-181-1 解决不同项，缺一不可。
 - **结果侧变长字段必须逐个有界**：`policyRef.objectType` 与 `policyVersionRef.objectType` 由 §13.2 的 canonical 名称以 `const` 编码固定（不能只靠 `maxStringCodePoints`）；`policySetVersion`、`policySchemaRefs`、`policyDocument`、`effectiveFrom`、`scopeRef` 必须是请求侧的逐字段相等回显；`contentHash` 形状固定。任何新增结果字段或放宽 SD-181-1 都必须重算并重跑 §13.3.2 的边界复核。
 - **错误**：沿用 `ContractValidationResult`、`keyword=payloadGuard`、`params.rule/limit` 与 JSON Pointer；不新增业务错误码，不改写既有错误语义，错误不携带原始内容。
 - **单值上限独立于字节预算**：`maxStringCodePoints` 按 code point 限制单个字符串值与对象键，实测可在总字节数远低于 262144 时先触发（16384 通过、16385 拒绝）；该值复用 #157 已批准的同名技术值，不得由字节预算推导，也不得在实现中绕过。
 - **非适用维度**：`maxRequestedKinds` 是 #157 的字段专属上限，对这两个操作不构成裁决；它不在本文档被声明为"可省略"，也不表示无限额。
 
-上述参数在取得独立设计审查结论与人类批准后，才随两个操作的 Schema/Registry 一并实现；本 PR 不注册操作、不写入参数文件。批准与审查证据保留在对应 Issue/PR。
+上述参数与 SD-181-1 已取得独立设计审查结论与人类批准，随后续明确 Scope 的两个操作 Schema/Registry 一并实现；本 PR 不注册操作、不写入参数文件。批准与审查证据保留在对应 Issue/PR。
 
 ### #175 Task v2 create 注册
 
