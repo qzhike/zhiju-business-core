@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / #181 PAYLOADGUARD PARAMETERS PROPOSED 2026-09-12 PENDING HUMAN APPROVAL / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -252,7 +252,7 @@ PR #52 合并后的默认分支已通过直接锁定 digest 的 `12 files / 177 
 
 ## 13. #176 Policy 版本身份与解析 Port 设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED`；[Issue #179](https://github.com/qzhike/zhiju-business-core/issues/179) 已交付**构建期 profile registry `im06-static-v1`**（`contracts/registry/policy-profiles.v1.json` 与其生成副本）、四个 profile 的 canonical typed ref 与 closed 字段 Schema，以及本模块的精确注册性检查（`policy-profiles.ts`、`policy-profile-documents.ts`、`commands/static-registry.ts`）；`record_policy_version`/`resolve_policy` 的 Envelope、Handler、生成类型、Purpose 注册、migration 与 PolicyVersion 事实存在性、授权、生命周期和真实业务链仍 `NOT IMPLEMENTED / NOT RUN`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)。本节提案是 `VersionedRef<zhiju.identity.policy>` 定位已提交版本事实的唯一权威来源（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：隔离归属、profile registry 注册路径、取代关系基数，以及后继唯一性只作用于真实取代边）；已完成独立设计审查并获人类批准；可执行 Schema、Registry 条目、Handler 与 migration 仍须按后续实现 Issue 的明确 Scope 交付。§2–§12 的既有类型、20 项公开 Contract、历史 Compatibility Baseline 与现有实现行为不因本节改变；本文档 §5–§11 记录的历史执行结果继续按原文成立。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED`（PayloadGuard 参数另见 §13.3.1，`#181 提案 / 待人类批准`，不由本节批准覆盖）；[Issue #179](https://github.com/qzhike/zhiju-business-core/issues/179) 已交付**构建期 profile registry `im06-static-v1`**（`contracts/registry/policy-profiles.v1.json` 与其生成副本）、四个 profile 的 canonical typed ref 与 closed 字段 Schema，以及本模块的精确注册性检查（`policy-profiles.ts`、`policy-profile-documents.ts`、`commands/static-registry.ts`）；`record_policy_version`/`resolve_policy` 的 Envelope、Handler、生成类型、Purpose 注册、migration 与 PolicyVersion 事实存在性、授权、生命周期和真实业务链仍 `NOT IMPLEMENTED / NOT RUN`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)。本节提案是 `VersionedRef<zhiju.identity.policy>` 定位已提交版本事实的唯一权威来源（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：隔离归属、profile registry 注册路径、取代关系基数，以及后继唯一性只作用于真实取代边）；已完成独立设计审查并获人类批准；可执行 Schema、Registry 条目、Handler 与 migration 仍须按后续实现 Issue 的明确 Scope 交付。§2–§12 的既有类型、20 项公开 Contract、历史 Compatibility Baseline 与现有实现行为不因本节改变；本文档 §5–§11 记录的历史执行结果继续按原文成立。
 
 ### 13.1 当前事实与缺口
 
@@ -305,9 +305,104 @@ PolicyVersionResolutionView
 
 1. `identity.record_policy_snapshot@1.0` 保持合法且不变：其 Platform 行、RLS、读回与授权链不受影响，但不获得版本绑定或解析能力；本项不发布新 Major，不修改其 payload、行结构、历史 fixture 或 200 项 Compatibility Baseline。
 2. `policySchemaRefs` 必须是构建期 profile Registry 的已注册 canonical 条目（13.5）；profile 字段语义由消费模块校验，IdentityPolicy 只校验注册性与 canonical 形状。
-3. 两个新操作在实现时必须按完整 Envelope 注册（共享 API §9.2），并声明有限额的构建期 PayloadGuard 技术 Policy（本项不预设参数）；`dataClassification=INTERNAL`，若某 profile 将来允许承载客户材料必须重新分类；Catalog 净增 2 项（209 → 211，本模块 20 → 22）。
+3. 两个新操作在实现时必须按完整 Envelope 注册（共享 API §9.2），并声明有限额的构建期 PayloadGuard 技术 Policy；`dataClassification=INTERNAL`，若某 profile 将来允许承载客户材料必须重新分类；Catalog 净增 2 项（209 → 211，本模块 20 → 22）。技术 Policy、参数与适用边界见 §13.3.1。
 4. 结果 Schema 是 operation-specific CommandResult data，按 #167 的既有纪律注册 `resultSchemaRef`；只声明 `resultReferences` 不构成可验证返回路径。
 5. `resolve_policy` 不解析 latest/current、不回退同 objectId 的其他版本、不执行任何写入；正文由本次解析一并返回，因此 WI-02 新链不依赖 `get_policy_snapshot@1.0`。
+
+### 13.3.1 PayloadGuard 技术 Policy、参数与适用边界（#181 提案）
+
+状态：`TECHNICAL PARAMETER PROPOSAL / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL`。本节由 [Issue #181](https://github.com/qzhike/zhiju-business-core/issues/181) 呈现两个新操作的完整请求 Envelope、CommandResult.data、Query Result.data 与有限技术参数；参数值本身在独立设计审查与人类批准前不是实现事实，也不得在实现 Issue 中另行替换。计量与依据见本节表与 §13.3.2；Registry 登记在批准后随两个操作一并交付。
+
+#### 技术 Policy 与注册映射
+
+采用**共享**技术 Policy（而非分别注册），理由有二：其一，两个操作唯一的可变规模载体是同一份 `policyDocument`，分别注册会让"写入端放行、读取端拒绝"在参数漂移时静默成立；共享条目使该关系成为单点不变量。其二，Guard 算法、错误形状与生成机制全部复用既有实现（§157 方案：`contracts/registry/payload-guard-policies.v1.json`、`loadPayloadGuardPolicies`、`payloadGuardKeyword`、`pnpm contracts:generate` 的字节镜像），本次不新增算法、错误码或校验器。
+
+```json
+{
+  "type": "identity.policy_version",
+  "version": "1.0",
+  "maxEnvelopeBytes": 262144,
+  "maxResultBytes": 262144,
+  "maxStringCodePoints": 16384,
+  "maxArrayItems": 1024,
+  "maxObjectProperties": 256,
+  "maxDepth": 32,
+  "maxRequestedKinds": 64
+}
+```
+
+两个操作的 `payloadGuardPolicyRef` 都精确映射为 `{type: "identity.policy_version", version: "1.0"}`：`identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0` 各在自己的 operation 条目中声明该引用。这是**技术 Registry 引用**，不是业务 `TypedReference`；它不进入 `references`/`resultReferences` 声明，不需要数据库行、授权 Decision 或 `contentHash`，也不得被当作已提交业务事实。既有 `ep.context_source_slice@1.0` 的条目、参数与两项已注册 Source Slice 操作的引用不受本项影响；本项不引入全局默认，未声明 `payloadGuardPolicyRef` 的既有操作行为不变。
+
+#### 参数表与依据
+
+| 参数 | 提案值 | 适用输入/输出与计量单位 | 合法边界 | 依据类别 |
+|---|---:|---|---|---|
+| maxEnvelopeBytes | 262144（256 KiB） | `record_policy_version` **完整请求 Envelope**（含 `commandId`/`scopeRef`/`targetRef`/`actor`/`authorizationDecisionRef`/`idempotencyKey`/`correlationId`/`requestedAt`/`integrity`、payload 与 `policyDocument`）与 `resolve_policy` 完整请求 Envelope；紧凑 JSON 的 UTF-8 字节 | ≤ 262144 通过；> 262144 拒绝 | 复用 #157 已批准的 Command Envelope 技术预算（PostgreSQL 逻辑模型 §5.5 的 256 KiB 建议） |
+| maxResultBytes | 262144（256 KiB） | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | 同上，且必须满足 §13.3.2 的写入/读回关系 | 同上；并由读回关系（§13.3.2）确定为不小于 Envelope 预算，不单独调低 |
+| maxStringCodePoints | 16384 | 每一个字符串值**与每一个对象键**，按 Unicode code point 计数 | 单串 ≤ 16384 通过 | 复用 #157 已批准的引用/元数据技术预算；不截断任何能装入 262144 字节的文档（见下） |
+| maxArrayItems | 1024 | 每一个 JSON 数组的元素个数；不改变普通数组顺序或重复语义，也不把 `Set`/`NonEmptySet` 变成可有重复的数组 | 单数组 ≤ 1024 通过 | 复用 #157 已批准的结构预算 |
+| maxObjectProperties | 256 | 每一个 JSON object 的成员数（含 `policyDocument` 内对象） | 单对象 ≤ 256 通过 | 同上 |
+| maxDepth | 32 | 每个容器（object/array）深度；根容器为 1，每进入一层子容器加 1，标量不增加容器深度 | 最深容器 ≤ 32 通过 | 同上；两个操作的实际最大嵌套为 Envelope→payload→document→profile 字段→数组元素（≤ 6） |
+| maxRequestedKinds | 64 | **本项不作用于这两个操作**：二者 payload 均无 `requestedKinds` 字段，该维度是构建期 Registry 形状对条目齐全的要求，不是对本文档的约束 | 该维度不参与裁决 | 显式非适用维度，理由见下 |
+
+**未采用维度与理由**：`maxRequestedKinds` 是 #157 为 `capture.payload.requestedKinds` 增加的**字段专属**上限。PolicyVersion 的两个操作没有同形字段，因此该值对二者不构成任何接受/拒绝判断；之所以仍保留一个有限正整数而非省略，是因为 `loadPayloadGuardPolicies` 要求每个条目恰好声明七项限值——省略会让构建失败，声明一个"无限额"值又违反共享 API §4 的"不允许实现以无限制作为默认值"。因此保留与既有条目一致的值并在此显式声明其非适用性；若将来这两个操作新增任何可枚举集合字段，必须按 §157 的方式为新字段单独定义专属上限，不得让该值自动生效。本项不新增 `Set`/`NonEmptySet` 专属维度：集合语义由结构 Schema 裁决，Guard 只限制元素个数，不改变 `policySchemaRefs` 的 `NonEmptySet`（非空、唯一）契约。
+
+**为什么 16384 code point 不会截断能装入预算的文档**：`policyDocument` 作为 `CanonicalJson` 是一个 JSON 值，其**编码后**紧凑形式（含转义）计入 Envelope 字节预算，而其**非转义**长度计入 code point 预算。对 JSON 文本而言，编码后字节数不小于非转义 code point 数（ASCII 字符 1:1、非 ASCII 按 UTF-8 膨胀、控制字符转义为 6 字节），因此 262144 字节的 Envelope 预算蕴含任一字符串值的 code point 数都小于 16384。该维度因此不会成为 PolicyVersion 路径的实际拒绝原因，只对缺失字节预算的调用场景提供兜底。
+
+**依据类别声明**：上表数值全部来自两类可复核依据——既有技术基线（#157 已批准预算、PostgreSQL 逻辑模型 §5.5 的 256 KiB/4 MiB 建议）与**本次实测**（§13.3.2，使用已交付的 Guard 实现与四个已注册 profile 的真实 canonical typed ref）；它们**不是**代表性业务负载的测量结论，也不表示业务最大策略规模。为避免歧义：本项不复用 #157 的 `maxResultBytes`（4 MiB），且不宣称 256 KiB 已获人类批准——它在本次独立审查与人类批准后才成为可实现的参数。数值全部为有限正整数，未知字段、重复身份或缺失引用使构建失败；超限一律拒绝，不截断、不自动对象化、不返回部分成功事实。
+
+#### 执行位置与错误形状
+
+`resolve_policy` 与 `record_policy_version` 的 Guard 都在公共 `ContractRegistry` 中执行，且都在结构 Schema 之前：`validateOperation(type, version, input)` 先按显式静态 Policy 做**有界迭代** JSON 树检查（同一棵树在解析大对象或执行授权查询之前被拒绝），再进入 Envelope 结构 Schema；`validateOperationResult(type, version, input)` 以 result 口径对 `CommandResult.data` / `QueryResult.data` 执行同一算法。Guard 不读取授权、数据库或对象存储，也不产生业务副作用；Handler 的固定顺序（共享 API §5.3）把它放在第 1 步，早于授权、幂等与 CAS。
+
+失败沿用既有形状：`ContractValidationResult` 的 `keyword='payloadGuard'`，`instancePath` 为正确转义的 JSON Pointer，`params` 含 `rule` 与 `limit`，总字节超限定位根 `''`；错误不携带原始内容，也不得回显被拒绝的字符串、键名或文档片段。操作层对外错误统一为共享 `API_PAYLOAD_LIMIT_EXCEEDED`（category `VALIDATION`）；本项不新增业务错误码，也不改变既有错误语义。
+
+**外部 Schema 使用方注意**：Guard 是项目自定义断言 keyword，使用方必须加载与构建期相同的实现（未知 Policy 或未加载 Guard 的校验器必须拒绝编译，而不是忽略该 keyword 后宣告有效）。两个操作注册后，结果数据形状的 `$defs` 必须挂 `payloadGuard`；自行解析模块 Schema 的校验器还必须直接调用 `ContractRegistry.validateOperationResult`，否则会绕过本次的读回预算。该绑定语义与 #157 的 read Result 相同，不新增模式。
+
+#### 与文件可用性的关系：写入预算不会让合法版本读不回
+
+`resolve_policy` 返回的 `policyDocument` 必须与写入时通过 Envelope 预算的是**同一份 canonical payload**。若读取预算小于写入预算，"按本参数合法写入、却因包装开销读不回"就会成立。本项以实测固定该关系（§13.3.2）：对同一 `policyDocument`，`resolve_policy` 的 `QueryResult.data` 恒比 `record_policy_version` 的请求 Envelope **小**，实测差额为恒定 −1001 字节。因此在本提案参数下，写入端能通过 Guard 的版本必然能被读回；无需 `get_policy_snapshot@1.0`，也无需分页或截断。不变量：**两个操作共享同一 Policy 条目时必须满足 `maxResultBytes ≥ maxEnvelopeBytes`**；若将来分别注册，`maxResultBytes` 的下界必须按 §13.3.2 的固定项与转义膨胀量重算，不得直接照搬本值。
+
+### 13.3.2 样本计量与尺寸依据（#181）
+
+以下计量使用**已交付的 Guard 实现**（`payloadGuardErrors`，`contracts/src/payload-guard.ts`）与 `im06-static-v1` 的四个已注册 profile 真实 canonical typed ref（#179 交付）。计量方式为"紧凑 JSON 的 UTF-8 字节数"，与共享 API §157 方案声明的口径一致；在每个样本上同时断言"等于计量值通过、减 1 拒绝"，即 Guard 自身账目与字节数逐字节一致（inclusive 边界）。
+
+固定项（对文档之外的结构，单位字节；样本取 Project Scope、UUIDv7 引用与 64 位 hex `contentHash`）：
+
+| 结构 | 组成 | 字节 |
+|---|---|---:|
+| `record_policy_version` 固定开销 | Envelope 除 payload 正文外的全部字段 + payload 的 `policyRef`/`policySetVersion`/`policySchemaRefs`/`effectiveFrom`/可选 `supersedesRef` 与 JSON 标点 | 2388 |
+| `resolve_policy` 固定开销 | 完整请求 Envelope（无文档） | 1373 |
+| `resolve_policy` 结果固定开销 | `PolicyVersionResolutionView` 除 `policyDocument` 外的全部字段，含回显 `policyRef`、`policyVersionRef`、`policySchemaRefs`、`contentHash`、`scopeRef` 与生命周期观察 | 1387 |
+| `record_policy_version` 结果 | `{policyVersionRef}`（`SnapshotRef<PolicyVersion>`） | 446 |
+
+四个已注册 profile 的合法样本（`policySchemaRefs` 取该 profile 的真实 canonical typed ref）：
+
+| profile | 合法 `policyDocument` 样本 | 文档字节 | `record_policy_version` Envelope | `resolve_policy` Result.data |
+|---|---|---:|---:|---:|
+| `ep.context_source_slice_capture.policy@1.0` | `{"maxSliceValiditySeconds":86400,"allowedPurposeCodes":["project.context_source.capture","execution.context.build.initial"]}` | 124 | 2512 | 1511 |
+| `execution.context_builder.policy@1.0` | `{"allowedProjectionTypes":["DOCUMENT_WRITER","REVIEWER"]}`（取值必须落在 Core §3.4 已注册投影类型内） | 57 | 2445 | 1444 |
+| `execution.task_readiness.policy@1.0` | `{"maxReadinessValiditySeconds":86400}` | 37 | 2425 | 1424 |
+| `execution.work_order_validation.policy@1.0` | `{"maxValidationValiditySeconds":86400,"mandatoryCriterionTypes":["OUTPUT_REF_VALID","OUTPUT_SCHEMA_VALID"]}` | 107 | 2495 | 1494 |
+| （空文档下界） | `{}` | 2 | 2390 | 1389 |
+
+四个样本都已用 `createPolicyProfileDocumentValidator()` 的 `im06-static-v1` 校验器实际验证通过（`valid=true`），且均远小于预算；样本的 `policySchemaRefs` 使用注册表给出的固定 UuidV7 与 `scope={}`，`allowedProjectionTypes` 与 `mandatoryCriterionTypes` 取已注册的闭集值，因此样本可直接作为实现 Issue 的正向 fixture 种子（业务规则字段语义仍由消费模块校验；consumer 所需的 profile key 是否在集合内也由消费模块判定）。
+
+文档规模与包装开销的关系（`policyDocument` 逐渐增大时的实测值）：
+
+| `policyDocument` 字节 | `record_policy_version` Envelope | `resolve_policy` Result.data | 结果 − Envelope |
+|---:|---:|---:|---:|
+| 2 | 2390 | 1389 | −1001 |
+| 491 | 2879 | 1878 | −1001 |
+| 5583 | 7971 | 6970 | −1001 |
+| 22065 | 24453 | 23452 | −1001 |
+| 87926 | 90314 | 89313 | −1001 |
+| 351370 | 353758 | 352757 | −1001 |
+| 1405213 | 1407601 | 1406600 | −1001 |
+
+恒定差 −1001 字节由两个固定项之差构成：`2388 − 1387 = 1001`。在该区间内该差为常数；文档继续增大时，`policyDocument` 在 Envelope 中是**转义后的 JSON 字符串**（其中每个引号、反斜杠等按 `\"` 计），而在 `QueryResult.data` 中是**已解析的 JSON 值**，同一内容在 Envelope 中的字节数不小于结果中的字节数，因此该差只能保持或增大，不会反向收敛。这就是 §13.3.1 关系成立的实测依据：在本提案参数下，`maxEnvelopeBytes` 通过即蕴含 `maxResultBytes` 通过。反之，若照搬 #157 的 `maxResultBytes = 4194304` 与更小的 `maxEnvelopeBytes`、或把两者对调，同样成立但无必要——本项选择等值以保持与既有条目同形并让静态不变量最简。
+
+上述数值是**技术预算**，不是业务事实上限：它们不表示政策文档的业务字段数、profile 种类数或版本数量上限，也不改变任何 profile 的 closed 规则字段与其语义。四个 profile 的合法文档规模由各自的 closed schema 拥有，Guard 只保证资源有界。
 
 ### 13.4 不变量
 
@@ -335,6 +430,8 @@ PolicyVersionResolutionView
 - 注册方式：新增 registry 版本（提案 `im06-static-v1`）= 既有 `im02-static-v1` 三项 ∪ 上表四项；作为构建期制品与生成检查覆盖，由本模块与 owning 模块共同加载（提案置于 `contracts/registry/`），使任一模块都不内置他方语义。`identity.record_policy_snapshot@1.0` 保持历史 `im02-static-v1` 接受集合不变；`identity.record_policy_version@1.0` 只接受新版本集合。
 - 校验分工：本模块判定"是否为已注册 canonical 条目"；EP/TE 判定"文档是否符合本模块 profile 的 closed 字段与语义、所需 key 是否在集合内"。
 - 实现状态（#179，仅静态注册与纯校验）：registry 版本、七个条目（历史三项 ∪ 四个 profile）、canonical typed ref 与 closed 字段 Schema 已作为构建期制品交付，重复 key/重复身份、缺失映射与生成物漂移在加载与 `pnpm contracts:check` 处确定性拒绝；本模块只提供精确注册性检查（`registeredPolicySchemaKey(registryVersion, reference)`，未知版本 fail closed），不解释任何 profile 规则字段。写入 Handler 与对外 `IDENTITY_POLICY_VERSION_UNKNOWN` 映射仍随 `identity.record_policy_version@1.0` 交付，不因本次注册而建立。
+
+**PayloadGuard 技术 Policy 注册边界**：`identity.policy_version@1.0` 是构建期技术条目（§13.3.1），与 profile registry 是**两条互不从属的注册路径**：profile registry 判定"这个 `policySchemaRefs` 条目是否是已注册 canonical schema"，PayloadGuard registry 判定"这个操作允许的请求/结果规模上限是多少"。二者都不创建数据库行、不虚构 Hash、不参与授权，也不得互为替代。未知技术 Policy 或未加载 Guard 的校验器必须拒绝编译或拒绝校验，不得降级为"无限制"。参数与边界在独立审查与人类批准后才实现（§13.3.1 状态）。
 
 **授权与失败**：
 

@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION SCENARIOS APPROVED 2026-09-12 DESIGN VERIFIED / #179 STATIC PROFILE REGISTRY + PURE VALIDATION IMPLEMENTED / POLICY VERSION HANDLER, AUTHORIZATION, LIFECYCLE AND EXTERNAL NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION SCENARIOS APPROVED 2026-09-12 DESIGN VERIFIED / #179 STATIC PROFILE REGISTRY + PURE VALIDATION IMPLEMENTED / #181 PAYLOADGUARD SCENARIOS PROPOSED PENDING APPROVAL / POLICY VERSION HANDLER, AUTHORIZATION, LIFECYCLE AND EXTERNAL NOT RUN`
 
 对应规格：[`Module-Spec-001-IdentityPolicy.md`](../module-specs/Module-Spec-001-IdentityPolicy.md)。本文件记录 IdentityPolicy 的 API 层 Unit、Contract、E2E 与人工验收用例和真实结果；高层跨模块场景仍见 `08-verification-baseline.md`。
 
@@ -149,3 +149,22 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 | IP-176-D-008 | Persistence/Contract | 正向对照：同一 Scope 下两个不同 Policy 各自创建首版；同一 identity 先后创建两个**未互相取代**的版本。反向：同一真实前驱的顺序与并发第二个后继。Enterprise 与 Project Scope 各覆盖一次 | 三个正向输入全部成功——无前驱版本的后继索引谓词为假，不参与后继唯一性，不得因 `(NULL, NULL, E, [P])` 折叠被判为重复后继；同一真实前驱的第二个后继仍稳定 `IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED`；`NULLS NOT DISTINCT` 保证 Enterprise 行的 NULL `project_id` 仍能裁决重复后继 | `NOT RUN` |
 
 独立设计审查须覆盖版本键语义、取代基数与并发裁决（含无前驱版本共存）、企业级隔离归属（新 scoped 表与旧 Platform 表的分支）、profile registry 注册路径、统一不可用与内部审计边界；本节设计批准不改变 `identity.*` 既有 20 项公开 Contract 的接受集合与历史验收记录。
+
+## #181 PolicyVersion API PayloadGuard 验证矩阵（提案，待批准）
+
+状态：`TECHNICAL PARAMETER PROPOSAL / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL`。行为来源为 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案)。两个操作与其技术 Policy 尚未注册，因此下列各行**全部为** `NOT RUN`；本设计只固定输入、预期与禁止效果，不把设计评审或现有 full PASS 当作已执行证据。参数获批准后，随两个操作注册与实现一同执行。
+
+| ID | 层级 | 输入 | 预期输出与禁止效果 | 当前结果 |
+|---|---|---|---|---|
+| IP-181-D-001 | Design | 对账两个操作的完整请求 Envelope、`CommandResult.data` 与 `QueryResult.data`，以及 §13.3.1 的共享技术 Policy 与 `payloadGuardPolicyRef` 映射 | Envelope 字段与 §5.3 固定顺序一致；`record_policy_version` 结果 Schema 只返回 `{policyVersionRef}`；`resolve_policy` 结果含内联 `policyDocument`；两个操作引用同一 `identity.policy_version@1.0`；`maxRequestedKinds` 显式标注为非适用维度而非缺省无限额 | `NOT RUN` |
+| IP-181-C-001 | Contract | `record_policy_version` 的合法请求 Envelope，其紧凑 JSON 字节数恰等于 262144；同一 Envelope 改为 262145 | 等于上限通过 Guard 并继续结构校验；超过 1 字节即拒绝，`keyword=payloadGuard`、`rule=maxEnvelopeBytes`、`limit=262144`、`instancePath=''`，错误不回显原文 | `NOT RUN` |
+| IP-181-C-002 | Contract | 同一版本事实的 `resolve_policy` 结果，恰等于 262144 与多 1 字节两个变体；以及对同一 `policyDocument` 分别按写入 Envelope 与读取 Result 计量 | 等于上限通过、多 1 拒绝；且实测 `QueryResult.data` 恒小于对应 Envelope（差额 ≥ 1001 字节），因此按本参数合法写入的版本必然可读回，不出现"写得进读不回" | `NOT RUN` |
+| IP-181-C-003 | Contract | `policyDocument` 内含多字节 Unicode、需要转义的字符（引号、反斜杠、控制字符）与同样 code point 数的纯 ASCII 对照 | 计量按紧凑 JSON 的 UTF-8 字节而非 UTF-16 长度或 code point 数；Unicode/转义样本先于同长度 ASCII 触顶；字符串按 code point 计数，`maxStringCodePoints` 与 JSON Schema `maxLength` 口径一致 | `NOT RUN` |
+| IP-181-C-004 | Contract | 数组 1024/1025 项、对象 256/257 个成员、容器深度 32/33，以及 `policySchemaRefs` 的 `NonEmptySet` 正例与重复项反例 | 各维度等于上限通过、超过 1 拒绝；Guard 不改写数组顺序或重复语义；集合契约仍由结构 Schema 的 `uniqueItems`/`minItems` 裁决并拒绝重复项，不由资源限制放宽 | `NOT RUN` |
+| IP-181-C-005 | Contract | 循环引用、`undefined`、非有限数字、`bigint`、函数、带 accessor 或非 JSON 原型的对象 | 一律以 `rule=jsonValue` 拒绝，不进入结构递归；不使用 `JSON.stringify` 的忽略/转换行为接受非法输入，也不先对任意深度对象完整递归序列化 | `NOT RUN` |
+| IP-181-C-006 | Contract | 两个操作分别指向未注册技术 Policy（错误 `type`/`version`）与未知操作身份；以及在未注册 `payloadGuard` keyword 的校验器上编译这两个 Schema | 未注册操作返回 `operationRegistry` 拒绝；未知 Policy 引用与未加载 Guard 的校验器拒绝编译/校验，不得降级为无限制或忽略该 keyword 后宣告有效 | `NOT RUN` |
+| IP-181-C-007 | Contract | 两个操作分别在输入超限、结果超限，以及输入合法但结果独立超限三种组合下校验 | 超限方各自拒绝且互不掩盖；输入超限在任何业务写入或授权查询前短路；结果超限不返回部分成功事实、不截断 `policyDocument`、不产生成功 Receipt/Outbox | `NOT RUN` |
+| IP-181-C-008 | Contract | 四个已注册 profile 的合法 `policyDocument` 样本（§13.3.2 表），配合各自的 canonical typed ref | 四个样本均通过 Guard 且通过结构 Schema；Guard 不改变 profile 的 closed 规则字段、不施加或放宽 TTL 与 `validUntil` 语义，也不把 `policyDocument` 的对象形状要求变成资源限制 | `NOT RUN` |
+| IP-181-E-001 | E2E | 按本参数合法写入的最大合法版本，经 `resolve_policy@1.0` 读回后逐字段比对 | 读回的 `policyDocument`/`contentHash`/生命周期观察与写入时同一 canonical payload 一致；不得因包装开销返回不可用、截断或部分结果 | `NOT RUN` |
+
+独立设计审查须覆盖：计量口径（紧凑 JSON UTF-8 字节、code point 与字节的区分、inclusive 边界）、写入/读回预算关系与不变量、共享而非分别注册的理由、`maxRequestedKinds` 的非适用性声明、执行位置与固定顺序、错误不泄漏与"禁止部分成功"约束，以及是否改变了既有 Profile/Slice/Platform 接受集合。本节提案不改变 `identity.*` 既有 20 项公开 Contract、`ep.context_source_slice@1.0` 参数与旧命令的接受集合。

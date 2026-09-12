@@ -25,7 +25,7 @@
 
 后续按依赖滚动收敛：Task/WorkOrder 与首次 Context → Run/Attempt/Result Acceptance → InformationRequest 与新 Context/Run Retry → Completion、Query/Projection 和受控退出 Fixture。Context/Run 等依赖设计决定与技术基础；跨模块 Completion 依赖真实 Producer 和 owning Consumer。此处是顺序意图，不提前拆出完整 Issue backlog。
 
-下一步基于已交付技术基础，对 TD-01–04 所需的可执行 Schema/Catalog 与业务切片进行 Planner readiness 复核；只有复核满足 NOW + READY 后才发布实现 Issue。TD-05–07 仍为待批准提案，不作为已批准实现范围。[#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的首批 Policy/Evaluator 解析与授权依赖设计已于 2026-09-12 完成独立技术审查并获人类批准（IdentityPolicy 版本绑定与解析 Port、四个消费者的 profile/Evaluator 支持边界与 Purpose 授权路径）：下一步按实际依赖复核必要契约与持久化实现的 NOW + READY；设计批准本身不使任何 API 或表成为可调用事实。
+下一步基于已交付技术基础，对 TD-01–04 所需的可执行 Schema/Catalog 与业务切片进行 Planner readiness 复核；只有复核满足 NOW + READY 后才发布实现 Issue。TD-05–07 仍为待批准提案，不作为已批准实现范围。[#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的首批 Policy/Evaluator 解析与授权依赖设计已于 2026-09-12 完成独立技术审查并获人类批准（IdentityPolicy 版本绑定与解析 Port、四个消费者的 profile/Evaluator 支持边界与 Purpose 授权路径）：下一步按实际依赖复核必要契约与持久化实现的 NOW + READY；设计批准本身不使任何 API 或表成为可调用事实。[#179](https://github.com/qzhike/zhiju-business-core/issues/179) 已交付构建期 profile registry；[#181](https://github.com/qzhike/zhiju-business-core/issues/181) 呈现两个 PolicyVersion 操作的 PayloadGuard 有限参数与实测依据，参数在独立审查与人类批准前不构成实现事实，未注册操作与参数。批准后按 NOW + READY 复核两个操作的契约注册与持久化实现。
 
 退出时须证明：冻结 Scope/Hash 不变，active Run/final Result 并发唯一，正常完成与 BLOCKED_INPUT→授权答案→新 Context/Run 两条链，Cancel request/late result 失败语义，Run/WorkOrder/Task/DeliveryItem 分层完成，Usage 未知与声明来源可区分，权威 Query 与 Projection freshness 分离。完整验证使用 `vibe verify full --json`；真实飞书/Runtime 与人工业务验收独立列为 `NOT RUN`，不得被受控 Fixture 替代。Issue #151 的技术 Foundation 通过不替代 IM-06 业务闭环验收。
 
