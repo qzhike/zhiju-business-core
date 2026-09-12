@@ -213,6 +213,56 @@ describe('WI-02 Initial Context expiry binding', () => {
   });
 
   it.each([
+    ['workOrder.expiresAt', '/workOrder/expiresAt'],
+    ['sourceSlices.0.validUntil', '/sourceSlices/0/validUntil'],
+    ['builderPolicy.supersededAt', '/builderPolicy/supersededAt'],
+  ] as const)(
+    'rejects a calendar-invalid bound at %s instead of normalizing it',
+    (path, errorPath) => {
+      const result = validateInitialContextExpiryBinding(
+        mutate(bindingInput(), path, '2026-02-30T00:00:00Z'),
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.map((error) => error.path)).toEqual([errorPath]);
+      expect(result.errors.map((error) => error.code)).toEqual(['INVALID_EXPIRY_INPUT']);
+    },
+  );
+
+  it('rejects the reported non-existent request expiry across every position', () => {
+    const nonExistent = '2026-02-30T00:00:00Z';
+    const input = mutate(bindingInput(), 'request.expiresAt', nonExistent);
+    const result = registry.validateInitialContextExpiryBinding({
+      ...input,
+      contextBuildMetadata: {
+        requestExpiresAt: nonExistent,
+        effectiveExpiresAt: nonExistent,
+      },
+      projectContext: { expiresAt: nonExistent },
+      now: '2026-02-01T00:00:00Z',
+    });
+    expect(result.valid).toBe(false);
+    const paths = result.errors.map((error) => error.path);
+    expect(paths).toContain('/request/expiresAt');
+    expect(paths).toContain('/contextBuildMetadata/requestExpiresAt');
+    expect(paths).toContain('/projectContext/expiresAt');
+  });
+
+  it('accepts a real leap day and rejects a non-leap February 29', () => {
+    const leapDay = '2024-02-29T00:00:00Z';
+    const leapInput = {
+      ...mutate(bindingInput(), 'request.expiresAt', leapDay),
+      contextBuildMetadata: { requestExpiresAt: leapDay, effectiveExpiresAt: leapDay },
+      projectContext: { expiresAt: leapDay },
+      now: '2024-02-01T00:00:00Z',
+    };
+    expect(validateInitialContextExpiryBinding(leapInput)).toEqual({ valid: true, errors: [] });
+
+    expect(codes(mutate(bindingInput(), 'request.expiresAt', '2026-02-29T00:00:00Z'))).toContain(
+      'INVALID_EXPIRY_INPUT',
+    );
+  });
+
+  it.each([
     ['contextBuildMetadata', undefined, 'MISSING_EXPIRY_BINDING'],
     ['contextBuildMetadata', null, 'INVALID_EXPIRY_BINDING'],
     ['contextBuildMetadata.requestExpiresAt', null, 'INVALID_EXPIRY_BINDING'],

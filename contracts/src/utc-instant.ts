@@ -10,12 +10,48 @@ export interface ParsedUtcInstant {
 
 const utcInstantPattern = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z$/;
 
+const monthLengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
+
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2 && isLeapYear(year)) return 29;
+  return monthLengths[month - 1] ?? 0;
+}
+
+/**
+ * Parses a `UtcInstant` without letting the runtime normalize an invalid
+ * input. `Date.parse` accepts non-existent calendar dates such as
+ * `2026-02-30T00:00:00Z` and silently rolls them over to March 2, which would
+ * let a malformed expiry pass as a real bound. Every component is range
+ * checked here instead, so a rejected instant never reaches an ordering or
+ * mirror comparison.
+ */
 export function parseUtcInstant(value: string): ParsedUtcInstant | undefined {
   const match = utcInstantPattern.exec(value);
-  if (match === null) return undefined;
-  const wholeSecondMilliseconds = Date.parse(`${match[1]}Z`);
-  if (Number.isNaN(wholeSecondMilliseconds)) return undefined;
-  return { wholeSecondMilliseconds, fraction: match[2] ?? '' };
+  const timestamp = match?.[1];
+  if (timestamp === undefined) return undefined;
+
+  // Fixed-width digits are guaranteed by the anchored pattern, so these slices
+  // are always in range and numeric.
+  const year = Number(timestamp.slice(0, 4));
+  const month = Number(timestamp.slice(5, 7));
+  const day = Number(timestamp.slice(8, 10));
+  const hour = Number(timestamp.slice(11, 13));
+  const minute = Number(timestamp.slice(14, 16));
+  const second = Number(timestamp.slice(17, 19));
+  if (month < 1 || month > 12) return undefined;
+  if (day < 1 || day > daysInMonth(year, month)) return undefined;
+  if (hour > 23 || minute > 59 || second > 59) return undefined;
+
+  // Component construction keeps years below 100 intact; `Date.UTC` would map
+  // them into the 1900s.
+  const instant = new Date(0);
+  instant.setUTCFullYear(year, month - 1, day);
+  instant.setUTCHours(hour, minute, second, 0);
+  return { wholeSecondMilliseconds: instant.getTime(), fraction: match?.[2] ?? '' };
 }
 
 /**

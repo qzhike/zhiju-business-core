@@ -517,7 +517,7 @@ ContextBuilderPolicyBinding
 | effectiveFrom 尚未到达、supersededAt 已到达或各位置有效期不等 | `EXECUTION_JUDGMENT_STALE` / `POLICY_NOT_EFFECTIVE`、`POLICY_EXPIRED` 或 `POLICY_VALIDITY_MISMATCH` | fail closed；不把过期 Policy 当永久有效，不以历史成功 Receipt 重新赋予消费资格 |
 | ref 结构通过但 IdentityPolicy 对象不存在/不可查询/当前授权失效 | `REFERENCE_INVALID` 或 `DEPENDENCY_UNAVAILABLE` | Schema 通过不等于对象存在或授权通过；无成功 Snapshot/Validation/READY |
 
-以上校验只拥有跨字段绑定和 metadata 观察一致性；IdentityPolicy 对象存在性、Scope 权威归属、当前授权与业务状态分别由 owning Query/Handler 负责。真实 Handler、PostgreSQL 业务链和生产/人工验收在本阶段仍为 `NOT RUN`。
+以上校验只拥有跨字段绑定和 metadata 观察一致性；IdentityPolicy 对象存在性、Scope 权威归属、当前授权与业务状态分别由 owning Query/Handler 负责。有效期字符串先按 UTC 组件逐项校验再参与比较：不存在的日历日期（如 `2026-02-30`、非闰年 `2026-02-29`）与越界时刻按畸形值 fail closed，不能依赖运行时的日期归一化把非法输入折算成另一个真实时刻。§11.2.5.4 的期限上界共享同一解析规则。真实 Handler、PostgreSQL 业务链和生产/人工验收在本阶段仍为 `NOT RUN`。
 
 #### 11.2.5.3 Initial Context CommandResult 与 canonical SnapshotRef
 
@@ -583,7 +583,7 @@ InitialContextExpiryBinding
 | ProjectContext `expiresAt` 与 effective 不一致、缺失或额外写入 | `CONTEXT_EXPIRY_MISMATCH` | 不让 Snapshot payload 与 metadata/Hash 分离，不部分提交 |
 | 构建前过期、长事务内跨过期限 | Builder `AGGREGATE_STATE_NOT_ALLOWED`；Validator/Freeze `EXECUTION_JUDGMENT_STALE` | 不发布可执行成功事实，不用事务开始时间或滞后 status 绕过，不回滚已提交上游事实 |
 | 无期限请求在无有限上界时被当作无限授权 | 按缺省处理且不产生期限 | 其他 Policy/Decision/Capability/lease/deadline 检查继续独立拒绝 |
-| 任一输入期限值畸形、以 JSON null 冒充缺省、Source Slice 列表为空 | `INVALID_EXPIRY_INPUT` / `INVALID_EXPIRY_BINDING` / `MISSING_EXPIRY_BINDING` | fail closed；不把畸形值当缺省，也不静默扩大 Context 有效期 |
+| 任一输入期限值畸形（含不存在的日历日期/越界时刻）、以 JSON null 冒充缺省、Source Slice 列表为空 | `INVALID_EXPIRY_INPUT` / `INVALID_EXPIRY_BINDING` / `MISSING_EXPIRY_BINDING` | fail closed；不把畸形值当缺省，不依赖运行时的日期归一化（如 `2026-02-30` 被折算为 3 月 2 日），也不静默扩大 Context 有效期 |
 
 组合与镜像的跨字段判断由 `ContractRegistry` 的 `initialContextExpiryBinding` Schema 与 `validateInitialContextExpiryBinding` 纯契约校验拥有；对象存在性、幂等裁决、提交顺序和真实期限重验仍由 owning Handler 与 PostgreSQL 业务链负责，本轮保持 `NOT RUN`。
 
