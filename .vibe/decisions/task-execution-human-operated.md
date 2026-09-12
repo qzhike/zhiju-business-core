@@ -177,6 +177,18 @@ Result Schema 的 `data.contextSnapshotRef` 是完整 `SnapshotRef`：`kind` 固
 
 Schema 通过、`targetRef`/Query 绑定通过都只证明契约形状与跨字段一致，不证明 Snapshot 已提交、当前授权有效或 Handler 已实现；存在性、幂等与同键异 Hash 冲突仍由 owning Handler 与持久化验收拥有，保持 `NOT RUN`。
 
+### 8.9 #168 Initial Context 期限上界与 effective expiresAt
+
+状态：`APPROVED 2026-09-10 / SCHEMA AND PURE CONTRACT BINDING IMPLEMENTED 2026-09-12 / HANDLER AND BUSINESS PERSISTENCE NOT IMPLEMENTED`。用户已批准本 Issue 的 Initial Context expiry 设计：`InitialContextBuildRequest.expiresAt` 是 Context 有效期上界，不改写 WorkOrder Root 的创建期限；显式期限不得晚于 WorkOrder、Source Slice 或 Builder Policy 的有限上界；缺省时取有限上界最小值；effective expiresAt 进入 Snapshot、build metadata 和 Hash，并在后续消费前以受信服务端时间重验。此批准只补齐期限组合与失败语义，不批准期限 Handler、migration、Provider/Feishu/Runtime 或业务验收。
+
+请求有期限时，该期限就是本次 Context 的 effective expiresAt，并且必须不晚于每一个有限上界——WorkOrder Root/Draft Snapshot 期限、每个被消费 Source Slice 的 `validUntil`、当前 Builder Policy 解析出的有限终止时刻。超过任一上界即拒绝并保留被违反的上界路径，不静默截断到最小值，也不以「取小」掩盖非法输入。请求无期限时，effective expiresAt 是这些有限上界的最小值；没有任何有限上界时保持缺省。缺省只表示本次构建没有组合出有限期限，不代表无限授权：版本化 Policy/Decision/Context/Capability 与 Run lease/deadline 检查继续独立生效。
+
+effective expiresAt 写入本次已提交 ProjectContext Snapshot 的可选 `expiresAt`（Core v1.0 已有字段，本体与必填集合不变，存在性和值进入完整 payload Hash），并写入 INITIAL `context_snapshot_build` metadata 的 `requestExpiresAt`/`effectiveExpiresAt` 观察。请求期限原样记录，不得省略、改写或以签发元数据为由替换；effective 值不得被截断、放宽或事后重写。Builder 发布前、Validator 产出可用判断前、Freeze 提交前以及后续 Run 创建/启动前，都读取已提交事实并以受信服务端当前时间重新判断，不能使用 caller 时间或事务开始时间绕过。
+
+期限冲突、构建前已过期、长事务跨过期限、同键幂等重放、Context 已提交但 Validation/Freeze 失败等情形按 [Spec 003 §11.2.5.4](../module-specs/Module-Spec-003-TaskExecution.md#11254-首次-context-的期限上界与-effective-expiresat) 的失败矩阵裁决。已提交 Snapshot/判断/Receipt 保留为不可变历史，重放返回原结果但不重新获得执行资格；不再新增到期强杀，也不把其他 Root 的状态改成 EXPIRED。冻结后 Retry 重新组合一份新的 Context 期限，原 Contract、Context-1 和 Run-1 的 Ref/Hash/期限保持不变。WorkOrder 自身期限继续按 §8.4 原样继承，本决定不改变其存在性与值。
+
+本次交付范围是 Schema、Envelope/Registry、生成类型、fixtures 与纯契约跨字段校验，对应 TE-WI02-D-016。跨字段校验通过只证明组合规则和镜像一致，不证明 Snapshot 已提交、当前授权有效或 Handler 已实现；这些仍由 owning Handler 与持久化验收拥有，保持 `NOT RUN`。
+
 ## 9. WI-03 事务序列与竞态裁决
 
 ```text

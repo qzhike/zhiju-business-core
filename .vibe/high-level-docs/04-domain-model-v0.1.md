@@ -2505,6 +2505,8 @@ READY / QUEUED / WAITING_INPUT / RETRY_PENDING
 
 到期消费的拒绝不要求在同一事务把另一个 Root 改为 EXPIRED。已经 RUNNING 的 Run 仍按既有 lease/deadline 与终态规则收尾，本补充不新增到期强杀；§19.7 中 EXPIRED/CANCELLED WorkOrder 的 late result 隔离约束继续有效。字段、错误和时效检查位置由 [Spec 003 §11.2.4](../module-specs/Module-Spec-003-TaskExecution.md#1124-创建期限与冻结期限) 唯一维护。
 
+首次 Context 另有自己的有效期上界：`InitialContextBuildRequest.expiresAt` 只限该 Context，不改写上述 WorkOrder Root 期限；它不得超过 WorkOrder 期限、任何被消费 Source Slice 的 `validUntil` 或当前 Builder Policy 有限上界，请求缺省时取其中最小值，无有限上界时保持缺省。该 effective expiresAt 随 ProjectContext Snapshot 一并提交并受完整 Hash 覆盖，因此 Context 生命周期短于、但绝不长于其任一输入来源；改写任一输入期限或静默截断到最小值都不合法。组合与消费规则由 [Spec 003 §11.2.5.4](../module-specs/Module-Spec-003-TaskExecution.md#11254-首次-context-的期限上界与-effective-expiresat) 拥有。
+
 ### 19.8 Domain Events
 
 ```text

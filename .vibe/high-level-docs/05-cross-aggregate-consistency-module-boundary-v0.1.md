@@ -1417,3 +1417,5 @@ EnterpriseProject / Artifact
 状态：TECHNICAL DESIGN APPROVED 2026-09-08，未实现。具体流程见[设计§9–10](../decisions/task-execution-human-operated.md#9-wi-03-事务序列与竞态裁决)及Spec 003设计命令。Process从已提交Result/Acceptance/Resolution/Event恢复固定步骤，每一步调用owning公开Command，进度单独提交；响应/进度丢失通过稳定Command Receipt重放恢复。不能把Run、WO、Task、DeliveryItem放进一个写事务。
 
 TaskCompleted沿用现有v1.0事件字段，由TE Task事务的Outbox真实派发至既有EP DeliveryCompletionEventInput，SourceWatermark来自持久游标。EP只消费事实，不同步回查TE形成依赖环。跨模块即时Query与本模块CAS不能保证分布式同一时刻的撤销原子性；只声明可审计观测时点，失效事件推动Impact/重评估，当前权威Query阻止后续误用。需要跨模块原子授权reservation时另立设计，不把当前方案误称强一致。
+
+首次 Context 的期限同样按观测时点组合：WorkOrder 期限来自 TE 自己的 Draft/Root 事实，Source Slice 的 `validUntil` 来自 EP owning 事实，Builder Policy 的有限上界来自 IdentityPolicy exact snapshot；TE 在同一 Context 事务内按各自 owning 读取的那次观察组合出 effective expiresAt，并把观察到的请求期限与该结果写入 INITIAL build metadata。组合只依赖已提交事实，不建立跨模块锁定或分布式原子到期：任一来源在观察后提前失效由该来源的后续 Query/失效处理阻止新消费，已提交 Context 仍是不可变历史，不因其他 Aggregate 变化而被重写或删除。消费前按受信服务端时间重验 effective expiresAt 与其他独立时限，任一不满足即拒绝；不得因为写入时组合成功而假定仍然有效。规则由 [Spec 003 §11.2.5.4](../module-specs/Module-Spec-003-TaskExecution.md#11254-首次-context-的期限上界与-effective-expiresat) 拥有。

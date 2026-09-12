@@ -680,6 +680,16 @@ const namedDefinitions = {
     effectiveFrom: instant,
     supersededAt: instant,
   }),
+  initialContextExpiryBinding: object([], {
+    // The request `expiresAt` is an upper bound for the Context only; it never
+    // rewrites the WorkOrder Root expiry. It is recorded verbatim so Validator
+    // and Freeze can re-derive the effective value instead of trusting a
+    // silently truncated one. Both members are optional: an absent request
+    // expiry combined with no finite observed bound leaves the Context without
+    // a finite expiry, and that absence is not an unlimited authorization.
+    requestExpiresAt: instant,
+    effectiveExpiresAt: instant,
+  }),
   acceptanceDisposition: { enum: ['ACCEPTED', 'REJECTED', 'QUARANTINED'] },
   deliveryOutcome: { enum: ['DELIVERED', 'FAILED', 'UNKNOWN'] },
   justification: object(['reasonCode', 'summary', 'evidenceRefs'], {
@@ -691,6 +701,7 @@ const namedDefinitions = {
 } as const satisfies Readonly<Record<string, JsonSchema>>;
 
 export const contextBuilderPolicyBindingSchemaRef = `${schemaId}#/$defs/contextBuilderPolicyBinding`;
+export const initialContextExpiryBindingSchemaRef = `${schemaId}#/$defs/initialContextExpiryBinding`;
 
 const operationSchemas = {
   'execution.create_task': {

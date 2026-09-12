@@ -408,6 +408,29 @@ expectType<TaskExecution.ContextBuilderPolicyBinding>(contextBuilderPolicyBindin
   void historicalPolicyBinding;
 }
 
+const initialContextExpiryBinding: TaskExecution.InitialContextExpiryBinding = {
+  requestExpiresAt: '2026-09-20T00:00:00Z',
+  effectiveExpiresAt: '2026-09-20T00:00:00Z',
+};
+expectType<TaskExecution.InitialContextExpiryBinding>(initialContextExpiryBinding);
+
+// Both members are optional on purpose: no request expiry plus no finite
+// observed bound is a defined state, not a missing one.
+{
+  const openEndedExpiryBinding: TaskExecution.InitialContextExpiryBinding = {};
+  expectType<TaskExecution.InitialContextExpiryBinding>(openEndedExpiryBinding);
+}
+
+// Negative case — the recorded expiry is an instant, not a duration or number.
+{
+  const invalidExpiryBinding: TaskExecution.InitialContextExpiryBinding = {
+    ...initialContextExpiryBinding,
+    // @ts-expect-error — effectiveExpiresAt is a UtcInstant.
+    effectiveExpiresAt: 900,
+  };
+  void invalidExpiryBinding;
+}
+
 // Negative case — `outcome` is a closed enum, `MUTATED` is not in it.
 {
   const externalRef: Common.ExternalRef = {
