@@ -649,6 +649,8 @@ accept_agent_result 的 caller disposition 必须等于 owning validator 重算�
 - 不同命令键重放 terminal finalize：若 exact result/acceptance/terminal 与已存结论一致，返回无新业务变化的原 terminal 结果；不允许新版本或第二个 RunTerminated。冲突 Ref 返回稳定错误。同键先通过 Command Receipt 重放。
 - lease、deadline、fencing、Claim、Result/Acceptance 检查必须在提交点重验；长事务过期不能靠事务开始时间通过。
 
+TD-02 的入口版本、批准依据及 IM-DG-006 适用性见 [设计决定 §9.2](../decisions/task-execution-human-operated.md#92-控制入口与-im-dg-006-适用性)，逐项拒绝反例见 [WI-03 矩阵](../module-tests/Module-Test-003-TaskExecution.md#wi-03-控制入口与拒绝反例)。受控 Driver 只产生合成 ack/Result；Ingestion 的 runtimeSubmissionRef 与 runFencingToken 来自该实际调用观察和原 invocation，不从任意 caller 声明建立可信来源。延迟 Result 原样进入接收校验；拒绝/隔离不能留下可用 final reservation、RESULT_RECORDED、Acceptance 或业务输出。已存在的 immutable Result/Acceptance 仅保留历史，不能因重放获得新的执行资格。
+
 ### 11.5 WorkOrder 与 Task 跨 Aggregate 推进
 
 两个 reconcile Command 只写各自目标 Root/transition/Audit/Receipt/Outbox；不顺带修改 Run、另一 WorkOrder、Task 或 DeliveryItem。triggerRef 只接受同 Scope 精确 Run/Acceptance/InformationRequestResolution/CompletionEvaluation 等本模块已提交事实；不存在、错 target 关联或不支持类型拒绝。后台扫描可用已知持久事实发起同一动作，不能传任意 desiredStatus。

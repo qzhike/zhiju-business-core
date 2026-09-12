@@ -581,3 +581,25 @@ Provider authentication/resource/policy 错误映射到共享 `ApiError` 的 `AU
 关联#153/TD-02，状态TECHNICAL DESIGN APPROVED 2026-09-08。当前§15.1六项命令仍待独立决定；本轮不把它们纳入Catalog。设计Run record/finalize/expire与WO/Task reconcile由[Spec 003 §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)定义；完整Runtime Attempt binding由[Spec 007](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)拥有。
 
 受控Driver通过真实合成调用/ack建立SYNTHETIC_DRIVER Observation，Input/Output是可重复技术Fixture，不宣称Provider/CLI/Feishu验收。先提交Attempt再调用，UNKNOWN只调和原Attempt；start_run必须exact绑定且lease有效。result提交、record、validation、acceptance、finalize为独立owning事务，late/cancel/expiry在Run锁上裁决；lease到期的无ACK取消为ABANDONED，不是CANCELLED。未知Usage继续ValueEnvelope UNKNOWN/UNAVAILABLE，独立权威Usage写入本轮不实现。
+
+### 受控 Driver 输入输出与调度
+
+本 profile 细化 TD-02 已批准的 `SYNTHETIC / TECHNICAL ONLY` 替身，只用于受控技术 Fixture。它不是 §6.1 三个 CLI Profile 的 conformance 实现；不要求先实现完整 Execution Package/workspace/secret materialization，也不得填造这些尚未产生的 Ref/Hash。它不增加公开 Schema 或调用方可传入的控制字段。
+
+| 边界 | 完整输入/输出及来源 | 校验与消费 |
+|---|---|---|
+| Driver 调用输入 | 已提交 RuntimeAttempt 的 attemptRef、原 RuntimeDispatchRequest 和 requestPayloadHash、不可变 invocationBinding 及 bindingHash；字段唯一来源为 Spec 007 RuntimeAttemptBindingView | IG Worker 从自有已提交事实读取，按 Spec 003 get_run_dispatch_binding 校验 Run/Contract/Context/Capability/RuntimeBinding/lease；传给 Driver 的是最小投影，不包括可变 status/ack、凭据、任意命令、路径或 callback URL |
+| Fixture 本地配置 | 场景选择为“正常 ack + final”“延迟 ack”“ack 后延迟 final”；版本化的合成 RuntimeBinding、完整 AgentResultContract 样本及样本 Hash；释放屏障指定在 start/cancel/record/expiry 哪个实际提交或服务端期限之后 | 只属于受控测试配置，不进入公开 request，也不授予权限。Result 样本使用本次真实 Run 和 owning 输出引用；配置与 Hash 在调用前固定并随技术证据保存，不能同一次 invocation 中换样本 |
+| Dispatch ack 输出 | 实际调用后 Driver 产生的 synthetic session ExternalRef、receipt ExternalRef、acknowledgedAt；安全原始 ack 内容绑定 attemptRef、runRef、leaseId、fencingToken、bindingHash 和 session | 这些 ExternalRef 标识本次实际发生的合成调用，不冒充 Provider 对象。IG 保存原始内容/Hash，通过既有 RawReceiptSubmission 建立 Receipt，之后在 Attempt 事务保存 Observation/成功状态/Outbox；跨 Aggregate 先提交 Receipt，再引用它，不跨 Root 原子写 |
+| Final 输出 | 完整既有 AgentResultContract（Core §5.3–5.9）与 runtimeSubmissionRef: ExternalRef、原 invocation 的 fencingToken | Driver 实际释放样本时形成 submission 观察；Ingestion 通过 submit_agent_result 的既有三个 payload 字段接收。AgentResult 自身身份可新建，但指向 Run/Contract/Context/Capability/BusinessOutput 的 Ref 必须已存在；封存前不伪造自身 ContentAddressedRef |
+| 无观察/超时输出 | 屏障未释放或回执丢失时没有 ack/Result 成功输出；IG 记录 UNKNOWN 与实际错误/时间 | UNKNOWN 不生成成功 Receipt、session 或 SUCCEEDED；不把测试“预期应成功”写成观察。只有读回原调用已发生的 ack 才能追加 reconciliation Observation，无法读回则等待 Run expiry |
+
+AgentResult 的 header/schema/hash、FINAL、executionOutcome、provenance 和 submittedByRuntime 必须满足原 Core 契约；Driver 不能自行提供 Validation、Acceptance 或 Completion 的可信结论。正常控制链可使用合法 BLOCKED_INPUT/空业务输出样本，证明 Run 的执行边界，WorkOrder/Task 保持未完成；声称存在 BusinessOutput 的样本必须先由 owning Command 创建该对象，并由 Validator 重验。agentDeclaredUsage 仅保留 AGENT_DECLARED；无真实计量时省略 runtimeUsageRef，查询按既有 ValueEnvelope 显示 UNKNOWN/UNAVAILABLE，不以合成调用次数填造 token/cost。
+
+三种调度只改变观察到达时机：正常场景在 ack 持久化且 start_run 提交后释放 final；延迟 ack 场景先让 dispatch 观察超时为 UNKNOWN，重放同键不得再次调用 Driver，之后只读回原调用（若已超出 Run lease，ack 即使存在也不能 start）；延迟 final 场景在 start_run 后保留原 payload，待 cancel 或 expire_run 实际提交后交给同一 Ingestion 边界。record 先到的取消反例由测试在 record 提交后发起 cancel；不通过 Driver 修改 Run 状态。
+
+受控时序使用测试屏障和真实服务端时间。测试可以选取被显式批准/授权的有限期限 Policy，不能直接改表、改系统时钟、接受 caller now 或添加公开“强制到期”入口。需要并发竞争时用两个真实 owning 调用，记录各自成功/冲突结果；可重复性指同样输入和已记录提交顺序得到同样判定，不要求每次运行的 UUID/时间戳相同。
+
+技术证据必须同时保留 Fixture 版本/Hash、实际输入 Hash、Driver 调用次数、ack/submission 原始内容 Hash 与 synthetic ExternalRef、屏障释放对应的已提交 Command Receipt，以及 owning Query 读回的 Attempt/Run/Result/Acceptance/Claim 结果。Claim 释放由 TE 的受控持久化验收在 owning 边界证明，不新增跨模块 Claim Query。缺少任何实际执行的项目保持 NOT RUN，静态样本不能充当 Driver 调用证据。ID/Hash 重复重放只复用原观察；同 ID 异 Hash、错 Scope/绑定、过期 lease 或旧 fencing 必须拒绝/隔离，禁止“修正”原 payload 后伪装同一次成功。
+
+输入/预期矩阵见 [TE WI-03](../module-tests/Module-Test-003-TaskExecution.md#wi-03-控制入口与拒绝反例)、[IG WI-03](../module-tests/Module-Test-007-IntegrationGateway.md#wi-03-driver-证据来源细化)。API/Gate 的完整适用性判断见 [设计决定 §9.2](../decisions/task-execution-human-operated.md#92-控制入口与-im-dg-006-适用性)。以上不批准 §15.1 六项操作、Runtime 默认 Policy、真实 CLI/Provider/Feishu、同 Run Resume 或 fallback，也不批准 TD-05–07。

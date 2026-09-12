@@ -310,3 +310,5 @@ Runtime Worker 从 TaskExecution 权威 Run lease/binding Port 读取 lease/fenc
 Attempt invocationBinding 创建后不可变；success observation 必须复验 invocationHash、稳定键和 session来源，原 request、Receipt、lease绑定全部同 Scope。超时 UNKNOWN、重放返回原 Attempt；允许对原 Attempt 独立真实读回并追加 reconciliation Observation，但不得二次 dispatch同键或反向由待验证 Receipt 构造 Query View。记录成功不意味着当前 lease仍有效，TE start/finalize 必须重新判断时效。
 
 拥有关系、物理表和 guard 见 PostgreSQL 技术设计附录。旧 Renderer/FormalReceipt 行为保持原基准；本设计不授权 Runtime 六项控制命令。Runtime成功与 synthetic 技术证据必须分别标记。
+
+TD-02 受控 Driver 的完整输入/输出由 [Runtime profile](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md#受控-driver-输入输出与调度)拥有；Fixture 配置不能作为公开请求字段或成功证明。RawReceiptSubmission 的 attemptKind 为 RUNTIME，attemptRef 来自已提交 Attempt；providerReceiptRef 标识实际 synthetic receipt，receiptPayloadRef/hash 来自保存的安全原始 ack；occurredAt 仅在真实观察存在时填入，recordedAt 为受信记录时间。先由既有 record_external_receipt 提交 RawExternalReceipt，再由 IG Worker 在自己的 Attempt 事务校验 exact Receipt、追加 Observation、更新成功状态并写 Outbox。目标事务提交后、Worker 进度确认前崩溃时按原稳定键/Observation identity 重放；孤立 Receipt 不是 SUCCEEDED。该步骤是既有 owning Worker 的内部职责，不是调用方任意设置 status 的新公开 API；不得通过调用者自带 Receipt 反向构造可信 binding。
