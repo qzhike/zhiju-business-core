@@ -1,3 +1,50 @@
+APPROVE
+
+# PR #163 独立复审（2026-09-10）
+
+- Reviewed SHA：`ae6242ecefb4f6e8a273ec7ff04849ab48873b64`
+- 关联 Issue：#158。
+- 本次独立检查最新 PR head、修订差异、当前契约与 fixture，以及对应 SHA 的 CI 实际日志。上次 R1/R2/R3 均已修复；本次审查范围内未发现新的阻塞问题。
+
+## 上次发现的复核
+
+| 发现 | 结论 | 独立验证 |
+|---|---|---|
+| R1：Draft Query 分页契约 | 已修复，关闭 | 新 Query 使用共享 PageRequest。省略分页、pageSize=1、16/512 字符合法 cursor 通过；空对象在 `/pagination` 报 required；0/1.5 在 `/pagination/pageSize` 报 minimum/type；非法或513字符 cursor 在 `/pagination/cursor` 报 pattern；未知字段报 additionalProperties。旧 `execution.get_work_order_contract` 的开放 pagination 接受集合保留。 |
+| R2：CAS 可无损整数边界 | 已修复，关闭 | 新 Result 独立增加 maximum=9007199254740991，共享 nonNegativeInteger 未改。0 和最大安全整数通过；9007199254740992、1e100 在 `/rootAggregateVersion` 报 maximum；负数/小数仍报 minimum/type。 |
+| R3：负向 fixture 单一边界与错误路径 | 已修复，关闭 | 两个旧分支字段已拆为独立输入；六个 initial 必填字段逐项缺省/null；request 内 expectedAggregateVersion、Ref/Hash、期限、空/重复 Slice、嵌套 Draft、Result 必填与 CAS 均检查对应 keyword/path，required/additionalProperties 同时检查字段参数。Reviewer 另确认 payload 顶层及 Envelope 顶层 CAS 错字段分别在 `/payload` 和 `/expectedAggregateVersion` 拒绝。 |
+
+完整合法 initial request、Draft Query/Result、旧 frozen build fixture 保持通过。Reviewer 补测 initial expiresAt 省略合法；旧 frozen build 省略 workOrderContractRef 仍在 `/payload/request` 返回 required/missingProperty=workOrderContractRef。
+
+## 契约与范围核对
+
+上次完整字段矩阵仍适用，本轮只收紧新 Query 的分页和新 Result 的整数边界并增强测试：
+
+- WorkOrderDraftSnapshot：snapshotId/workOrderRef/taskRef/scopeRef/draft/capturedAt/createdBy 必填；expiresAt 可选非 null；draft 复用既有类型。
+- InitialContextBuildRequest：draftSnapshotRef/projectionType/purpose/audience/sourceSlices/builderPolicyRef 必填；expiresAt 可选；精确 Ref、Core projectionType、NonEmptySet Slice 约束保留。
+- Draft Query：workOrderRef 必填；Result draftSnapshotRef/draft/rootAggregateVersion/status 必填，expiresAt 可选，复用 WorkOrderStatus。
+- 新操作的 Owner、AUTHORITATIVE/CREATE、target objectType、Purpose 和引用元数据保持一致；当前 Catalog/Registry 205 项、全部 FULL；历史 200 项 Compatibility Baseline 未改写。
+- 原 create/freeze_work_order、frozen build、Core ProjectContext、ContextSnapshotBuilt 和 answeredInformationRefs 既存边界保持不变；未扩展 Handler、授权策略、TTL 或模块所有权。
+
+## 当前版本验证证据
+
+- [CI verify / run 34452464388](https://github.com/qzhike/zhiju-business-core/actions/runs/34452464388/job/102791087505)：SUCCESS；check-run head_sha 与本次 Reviewed SHA 一致，已读取实际日志。
+- CI 新 checkout 的完整 pnpm verify：44 个普通测试文件、643 项通过；31 文件/321 项受控 skipped。生成 205 operations、历史兼容 baseline 200 operations 通过。
+- Docker/PostgreSQL gate：35 个文件、336 项通过；二次迁移 No migration necessary；gate passed；PostgreSQL 容器已移除。
+- Reviewer 本地定向 `node node_modules/vitest/vitest.mjs run contracts/src/operations/task-execution.schema.test.ts contracts/src/registry.test.ts`：2 文件、55/55 通过。
+- Reviewer 公共 ContractRegistry 独立边界探测通过，具体输入和实际 keyword/path 见上表。
+- 复用当前 SHA 的完整 CI 证据，本轮未重复执行本地 `vibe verify full --json`；实现者已在修复评论记录该配置目标通过，本复审通过判断不依赖其自报。
+
+Schema/注册通过仅覆盖本 Issue 的契约切片。真实 Handler、引用存在性/Hash/Scope/Purpose、期限继承/当前时间、授权、业务事务/CAS/重放、首次 Context 业务闭环、外部和人工验收仍为 `NOT RUN`。
+
+本结论为独立 agent review 的 APPROVE，按用户要求发布为 PR comment，不是 GitHub formal APPROVE review，也不授权合并。正式复审记录更新于 `.vibe/reviews/pr-163/Review.md`，保留上次审查历史。本轮未修改产品代码、未提交/推送/合并，保留已有 PR #160 文档改动。
+
+已发布并回读确认 [本次复审评论](https://github.com/qzhike/zhiju-business-core/pull/163#issuecomment-5615246806)，正文一致；发布前远端 head 仍为本次 Reviewed SHA。
+
+---
+
+## 历史审查记录
+
 # PR #163 独立审查
 
 - 结论：`REQUEST_CHANGES`
