@@ -779,6 +779,7 @@ Commands：
 
 ```text
 execution.create_task@1.0
+execution.create_task@2.0
 execution.mark_task_ready@1.0
 execution.create_work_order@1.0
 execution.create_work_order@1.1
@@ -1125,11 +1126,11 @@ Evidence/Representation/Package Ref
 
 Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 冻结 EnterpriseProject Owner 的受控 Application Capability；逻辑名称、输入/输出、授权目的和错误码见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。
 
-这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 208 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
+这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 209 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
 
 ## IM-06 注册与未注册设计路由
 
-当前 Catalog 为 208 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 209 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
 
 ### #157 ContextSourceSlice 注册
 
@@ -1167,3 +1168,9 @@ Owner 仍为 TaskExecution；新增三个与旧 @1.0 并存的 @1.1 operation。
 本项不新增 objectType 或公开 operation；`execution.build_initial_context_snapshot@1.0` 与 `@1.1` 新增显式 `resultSchemaRef`，用于返回 operation-specific CommandResult data。返回的 `data.contextSnapshotRef` 是 `SnapshotRef<ProjectContextContract>`，唯一使用已注册的 `zhiju.execution.context_snapshot`（Owner 为 TaskExecution，Project Scope，不可变 Snapshot 身份），不接受任何未注册 namespace。
 
 SnapshotRef 的全部字段（`kind`、`objectType`、`objectId`、`snapshotId`、`scope`、`contentHash`）都进入 Result Schema 与跨字段绑定比较；`targetRef` 与返回 Ref 必须按 canonical objectType、objectId 和 Scope 相等，不能只按 objectId 关联。`zhiju.execution.context_snapshot` 的 Project Scope 是必填成员：新增 Result Ref Schema 要求 `enterpriseId` 与 `projectId` 同时存在，canonical 绑定同样拒绝空 Scope 或 enterprise-only Scope；共享 `ScopeRef` 与既有 Query 的接受集合不因此改变。`zhiju.project.context_snapshot` 仅是 Core v1.0 历史读回身份与历史 fixture 值，不由新入口产生，也不与 canonical 名称互换。`execution.get_context_snapshot@1.0` 的既有 Schema/接受集合不变，其请求 Ref 与结果 Ref 必须逐字段相等；返回引用指向未提交 Snapshot 或重放异 Hash 由 Handler 拒绝，保持 `NOT RUN`。
+
+### #175 Task v2 create 注册
+
+Owner 为 TaskExecution；新增一个与旧 @1.0 并存的 `execution.create_task@2.0` Command，Target 固定 `zhiju.execution.task`（OBJECT、CREATE），Purpose 为 `execution.task.create`。本项不新增 objectType：复用已注册的 `zhiju.execution.task` 与 `zhiju.project.project`，payload 的 `projectRef` 固定为 canonical `zhiju.project.project`；`initialAssignee` 沿用既有开放形状，`evaluatorRef` 沿用通用 `VersionedRef`（与 Core `completionCriterion.evaluatorRef` 一致），故上表无新增行。
+
+`TaskDefinitionV2` 仅把历史 `TaskDefinition` 的 `expectedOutputSpec` 与 `completionCriteria` 两个开放 `CanonicalJson` 成员替换为注册的 closed shape：`ExpectedOutput[]`（复用 Core `ExpectedOutput`）与非空 criterion 集合。五类 `TaskCriterionV1` 的 closed Schema、criterionType 与三个 bindings 分支的一一对应、未知字段与任意 `expectedCondition` 表达式由注册 Schema 拒绝；重复 criterionId、重复 outputSlot 与未解析的 output-slot 绑定由纯契约校验 `validateTaskDefinitionBinding` 拒绝。`create_task@1.0` 的 Schema、历史 fixture 与接受集合不变，历史 200 项 Compatibility Baseline 不重写；Evaluator 存在性/支持版本、Policy 有效性、真实授权以及 Task Handler、业务持久化、Readiness/Completion 与业务 E2E 仍为 `NOT IMPLEMENTED / NOT RUN`。

@@ -48,6 +48,10 @@ import {
   initialContextExpiryBindingSchemaRef,
 } from './operations/task-execution.schema.js';
 import {
+  validateTaskDefinitionBinding,
+  type TaskDefinitionBindingValidationResult,
+} from './task-definition-binding.js';
+import {
   operationEnvelopeSchemaId,
   operationPayloadSchemaRef,
   operationResultSchemaRef,
@@ -164,6 +168,10 @@ export class ContractRegistry {
 
   validateWorkOrderContextSnapshotBinding(input: unknown): WorkOrderContextBindingValidationResult {
     return validateWorkOrderContextSnapshotBinding(input);
+  }
+
+  validateTaskDefinitionBinding(input: unknown): TaskDefinitionBindingValidationResult {
+    return validateTaskDefinitionBinding(input);
   }
 
   validateInitialContextCommandResult(input: unknown): ContextSnapshotBindingValidationResult {

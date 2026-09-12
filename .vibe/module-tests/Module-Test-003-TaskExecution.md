@@ -13,7 +13,7 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
 | TE-API-D-001 | Design | TaskExecution Module Spec 与 Catalog | 20 Command、8 Query、11 Event 名称/Owner/字段完整且无重复 | `commands=20 queries=8 events=11`；Catalog 集合差 0；字段检查无异常 | `DESIGN VERIFIED` |
-| TE-API-S-001 | Schema | 42 个 FULL 操作 Payload/Result Schema 注册到 `ContractRegistry` | Registry `operationCount=208`，本模块 42 项 `FULL`，已覆盖的 Payload/Result 正反向 Fixture 通过 `validateOperation`/`validateOperationResult` | Registry operationCount=208，task-execution FULL=42；#158/#165 专项正反向回归见 TE-API-S-019/021 | `PASSED` |
+| TE-API-S-001 | Schema | 43 个 FULL 操作 Payload/Result Schema 注册到 `ContractRegistry` | Registry `operationCount=209`，本模块 43 项 `FULL`，已覆盖的 Payload/Result 正反向 Fixture 通过 `validateOperation`/`validateOperationResult` | Registry operationCount=209，task-execution FULL=43；#158/#165/#175 专项正反向回归见 TE-API-S-019/021/022 | `PASSED` |
 | TE-API-S-002 | Schema | `execution.create_task` 命令携带未知字段 `skipPolicyCheck` | Registry 拒绝 `/payload/definition/skipPolicyCheck` | `additionalProperties` keyword 触发 `/payload/definition` 错误 | `PASSED` |
 | TE-API-S-003 | Schema | `execution.start_run` 携带负数 `fencingToken` | Registry 拒绝 `/payload/fencingToken` | `minimum` keyword 触发错误 | `PASSED` |
 | TE-API-S-004 | Schema | `execution.accept_agent_result` 用 `objectRef` 而非 `contentAddressedRef` | Registry 拒绝 `/payload/agentResultRef` | `const` keyword 触发错误（`kind` 必须是 `CONTENT_ADDRESSED`） | `PASSED` |
@@ -34,6 +34,7 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 | TE-API-S-019 | Schema | #158 的 `get_work_order_draft@1.0` 与 `build_initial_context_snapshot@1.0`，包括精确 Ref、闭集字段、期限可选性、Draft/Result 结构与旧 `build_context_snapshot@1.0` 兼容边界 | 新 Query/Command 正向 Envelope、Query Result 与负向错分支/空 Slice/重复 Slice/非法期限/非法 CAS/旧字段输入按 Spec 通过或拒绝；旧合法 Contract 保持通过 | `task-execution.schema.test.ts` 6/6；与 `registry.test.ts` 合并 55/55；生成、目录计数与 TypeScript 类型检查通过 | `PASSED` |
 | TE-API-S-020 | Schema/Compatibility | #159 的完整 frozen build Envelope 覆盖 `answeredInformationRefs=[]/[R]/[R,R]`，并以同一合法输入控制非数组、畸形 Ref、缺 `workOrderContractRef`、空/重复 `sourceSlices` | `[]`、单项和重复合法 Ref 均通过；非数组/畸形 Ref 仍在 intended 字段拒绝；ContractRef 仍 required，Source Slice 仍 minItems+uniqueItems；输入顺序、内容和 Envelope Hash 不被改变 | 修改前重复 fixture 仅因 `/payload/request/answeredInformationRefs` 的 `uniqueItems` 拒绝；修改后 `task-execution.schema.test.ts` 8/8 通过，重复输入保持长度 2 且未被 validator 改写；历史 baseline 不重写 | `PASSED` |
 | TE-API-S-021 | Schema/Compatibility | #165 的 `create_work_order@1.1`、`get_work_order_draft@1.1`、`build_initial_context_snapshot@1.1` 与 `DraftVersionPins`/`InitialWorkOrderDraft` | @1.1 DRAFT 拒绝 `projectContextContractRef` 和 frozen Contract Ref；CREATE Envelope 固定 WorkOrder target 且拒绝 `expectedAggregateVersion`；合法 @1.1 链通过；旧 @1.0 create/draft/build 合法调用继续通过；生成类型与 Registry 计数同步 | `task-execution.schema.test.ts` 与 `work-order-context-binding.test.ts` 覆盖正反向契约，新增错误 target 与 CREATE CAS 反例；TE-WI02-D-013 覆盖 Context Ref 全字段相等与缺失/错误 Hash/Scope | `PASSED` |
+| TE-API-S-022 | Schema/Compatibility | #175 的 `execution.create_task@2.0`、`TaskDefinitionV2` 与五类 `TaskCriterionV1`：错误 bindings 分支、未知字段、五类之外的 criterionType、任意 `expectedCondition` 表达式、重复 `criterionId`/`outputSlot`、未解析 output-slot 绑定；对照 `create_task@1.0` 合法 fixture | @2.0 正向 Envelope 经正常 Registry 路径通过且固定 Task target/CREATE/Purpose；上述负例分别由注册 Schema 或纯契约校验拒绝；`create_task@1.0` Schema、合法调用与历史 fixture 不变；生成类型、Catalog/Registry 计数同步 | `task-execution.schema.test.ts` 覆盖正反向契约（Schema 与 `validateTaskDefinitionBinding`），`registry.test.ts`、生成检查与目录计数同步；Evaluator/Policy 真实存在与支持版本、READINESS 与业务 Handler 仍无实现 | `PASSED` |
 | TE-API-U-001 | Unit | READY WorkOrder 请求扩大 target scope | 拒绝 `EXECUTION_WORK_ORDER_SPEC_IMMUTABLE`，要求新 WorkOrder | 无实现 | `NOT RUN` |
 | TE-API-U-002 | Unit | 两个 Dispatcher 竞争同 WorkOrder active Run | 只有一个 claim/fencing token 生效，另一个返回 active conflict | 无并发实现 | `NOT RUN` |
 | TE-API-U-003 | Unit | terminal Run 提交第二个不同 Hash final Result | Quarantine/replay conflict；不处理 BusinessOutput | 无实现 | `NOT RUN` |
@@ -45,7 +46,7 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 
 ## 本阶段结果
 
-- Schema 层 Contract（TE-API-S-001 ~ TE-API-S-021）均为 `PASSED`；TE-API-S-018 保留 PR #12 时的 200 项聚合基线证据；当前 Registry operationCount=208、FULL=208、ENVELOPE_ONLY=0、task-execution FULL=42，#158/#165 的操作增量与 #159 数组兼容修复的 focused 与聚合回归均通过。
+- Schema 层 Contract（TE-API-S-001 ~ TE-API-S-022）均为 `PASSED`；TE-API-S-018 保留 PR #12 时的 200 项聚合基线证据；当前 Registry operationCount=209、FULL=209、ENVELOPE_ONLY=0、task-execution FULL=43，#158/#165/#175 的操作增量与 #159 数组兼容修复的 focused 与聚合回归均通过。
 - Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与 Handler 实现均不存在；本阶段未声明 CLI 或 DB E2E 已运行。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)。
 - Runtime Adapter 专项：4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景为 `NOT RUN`；6 个 API proposal 尚未进入 Catalog 与本模块 Schema。
@@ -74,7 +75,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-TD-006 | Persistence | 同键重放capture/build/validation；同键异payload | 原事实原结果；无重复成功效果；异Hash冲突 | NOT RUN |
 | TE-TD-007 | Unit/Contract | 伪造valid=true、五个不同Bundle验证Ref、kind/subject错配 | Judgment/Acceptance拒绝，不推进Run或Completion | NOT RUN |
 | TE-TD-008 | Unit/Persistence | Judgment/Decision过期、输入版本变化；同一长事务中到期 | consumer重验失败；旧判断不可变，新判断新identity | NOT RUN |
-| TE-TD-009 | Contract | Task v2错误criterion分支/重复ID/未知Policy/任意表达式；v1合法payload | v2拒绝且不READY；v1Schema不变，不回写旧定义 | NOT RUN |
+| TE-TD-009 | Contract | Task v2错误criterion分支/重复ID/未知Policy/任意表达式；v1合法payload | v2拒绝且不READY；v1Schema不变，不回写旧定义 | Schema/纯绑定层已由 TE-API-S-022 覆盖（错误分支、未知字段、五类之外的 criterionType、任意表达式、重复 criterionId/outputSlot、未解析 output-slot 绑定均拒绝，`create_task@1.0` 合法 payload 与历史 fixture 不变）；Evaluator/Policy 真实存在与支持版本、READINESS 判定及业务 Handler 仍 NOT RUN | `NOT RUN` |
 | TE-TD-010 | Persistence | 两Dispatcher同WO创建Run；不同attemptNumber抢ACTIVE | 仅一个ACTIVE，失败无孤立Run；fencing精确单调 | NOT RUN |
 | TE-TD-011 | Controlled integration | 正常synthetic Driver ack；未调用Driver直造Receipt；Attempt绑定替换 | 仅真实合成调用可SUCCEEDED；TE拒绝伪造/错绑定；不声称Provider通过 | NOT RUN |
 | TE-TD-012 | Controlled integration | dispatch timeout→same-key replay→真实readback | UNKNOWN不二次调用；调和不替换原request/binding | NOT RUN |

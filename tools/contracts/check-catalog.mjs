@@ -14,7 +14,7 @@ const catalogText = readFileSync(catalogPath, 'utf8');
 const registry = JSON.parse(readFileSync(registryPath, 'utf8'));
 
 const catalogNames = [
-  ...catalogText.matchAll(/^([a-z][a-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*)@(1\.0|1\.1)\s*$/gmu),
+  ...catalogText.matchAll(/^([a-z][a-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*)@(1\.0|1\.1|2\.0)\s*$/gmu),
 ].map((match) => `${match[1]}@${match[2]}`);
 const registryNames = registry.operations.map(
   (operation) => `${operation.type}@${operation.version}`,
@@ -30,7 +30,7 @@ const missing = catalogNames.filter((name) => !registrySet.has(name));
 const extra = registryNames.filter((name) => !catalogSet.has(name));
 const invalid = registry.operations.filter(
   (operation) =>
-    !['1.0', '1.1'].includes(operation.version) ||
+    !['1.0', '1.1', '2.0'].includes(operation.version) ||
     !['COMMAND', 'QUERY', 'EVENT'].includes(operation.kind) ||
     typeof operation.owner !== 'string' ||
     !['ENVELOPE_ONLY', 'FULL'].includes(operation.schemaStatus),
@@ -66,10 +66,10 @@ const issues = [
   ),
 ];
 
-if (catalogNames.length !== 208)
-  issues.push(`catalog count must be 208, got ${catalogNames.length}`);
-if (registryNames.length !== 208)
-  issues.push(`registry count must be 208, got ${registryNames.length}`);
+if (catalogNames.length !== 209)
+  issues.push(`catalog count must be 209, got ${catalogNames.length}`);
+if (registryNames.length !== 209)
+  issues.push(`registry count must be 209, got ${registryNames.length}`);
 
 if (issues.length > 0) {
   console.error(issues.join('\n'));

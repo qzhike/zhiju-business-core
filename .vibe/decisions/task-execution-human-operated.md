@@ -9,7 +9,7 @@ IM-06 按 T2 规划：涉及安全绑定、不可变 Contract、数据库并发 
 
 目标是由 Human 发起并审阅、由 owning Service 执行的可重复 Core 流程。Human 不直接拼写可信 AgentResult，不通过布尔值完成 Task/WorkOrder；确定性测试 Driver 的结果只提供合成技术证据。真实 CLI、Provider、飞书收答与 Workspace UI 分别保留在既有后续里程碑。
 
-TaskExecution 当前业务入口仍为 `SKELETON`；已有 42 个版本化字段级操作（20 Command、8 Query、11 Event，其中三个为 #165 的 @1.1 兼容版本）与 V3000 技术表，不等于业务 Handler、业务表或完成闭环已经存在。EnterpriseProject 的 TaskCompleted 消费能力可作为后续衔接点，不能以其合成事件测试替代真实 TaskExecution Producer。
+TaskExecution 当前业务入口仍为 `SKELETON`；已有 43 个版本化字段级操作（20 Command、8 Query、11 Event 的已审核基线，其中三个为 #165 的 @1.1 兼容版本，#175 另加 `execution.create_task@2.0`）与 V3000 技术表，不等于业务 Handler、业务表或完成闭环已经存在。EnterpriseProject 的 TaskCompleted 消费能力可作为后续衔接点，不能以其合成事件测试替代真实 TaskExecution Producer。
 
 ## 2. 首次 Context 与冻结 Contract 的构建顺序
 
@@ -78,7 +78,7 @@ Task Criterion 的首版字段、支持的质量/审批条件，以及 Informati
 | TD-03 判断事实 | 显式 Builder/Validator 创建不可变事实；一项只读 tagged-union Query；Task typed definition 用新 Major | `create_task@2.0` 与 v1.0 并存，旧 Schema/历史数据不收窄；新增判断事实存储 | 直接收窄 v1.0 的 CanonicalJson、通用规则表达式或允许调用者决定 valid/completed |
 | TD-04 首版答案和质量范围 | 首版答案闭环采用已确认 CustomerMaterial；通过 EP Receipt attestation 证明领域写入。Task 支持正式输出与精确 RAS/ABS 质量条件；其他类型 fail closed | 新增 EP 窄 Query；首版不支持任意 Fact/Policy Exception/Release Criterion。后续扩展需独立决定 | 把收到文本、关联 correlationId 或 caller Receipt 当作采纳事实；让 Task 复制 Release/DeliveryItem 判据 |
 
-TD-01–04 已于 2026-09-08 获用户明确批准，包含新操作、Task v2 与首版类型限制。完整已批准字段、授权与错误在 [Module Spec 003 技术设计附录](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)；IG/EP 的字段分别由 [Spec 007](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[Spec 002](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计) 拥有。#165 已将 DRAFT/initial Context 的三个 @1.1 兼容操作纳入当前 208 项 Catalog，并保持历史 Compatibility Baseline 不变；其余仅设计操作仍不自动进入 Registry。
+TD-01–04 已于 2026-09-08 获用户明确批准，包含新操作、Task v2 与首版类型限制。完整已批准字段、授权与错误在 [Module Spec 003 技术设计附录](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)；IG/EP 的字段分别由 [Spec 007](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[Spec 002](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计) 拥有。#165 已将 DRAFT/initial Context 的三个 @1.1 兼容操作纳入当前 Catalog，#175 已纳入 `execution.create_task@2.0`（当前 209 项），并保持历史 Compatibility Baseline 不变；其余仅设计操作仍不自动进入 Registry。
 
 ## 8. WI-02 首次构建、冻结与 Retry
 

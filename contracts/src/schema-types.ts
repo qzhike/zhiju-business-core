@@ -2,7 +2,7 @@ import type { AnySchemaObject } from 'ajv';
 
 export type JsonSchema = AnySchemaObject;
 
-export type OperationVersion = '1.0' | '1.1';
+export type OperationVersion = '1.0' | '1.1' | '2.0';
 
 export interface PayloadGuardPolicyRef {
   readonly type: string;

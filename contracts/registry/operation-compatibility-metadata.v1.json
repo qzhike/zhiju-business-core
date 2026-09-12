@@ -370,6 +370,13 @@
     },
     {
       "type": "execution.create_task",
+      "version": "2.0",
+      "authorizationPurpose": "execution.task.create",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-task-v2-registration"
+    },
+    {
+      "type": "execution.create_task",
       "version": "1.0",
       "authorizationPurpose": "task.execution.create_task",
       "dataClassification": "INTERNAL",
