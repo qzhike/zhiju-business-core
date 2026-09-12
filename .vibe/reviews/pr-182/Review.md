@@ -100,3 +100,29 @@
 - 本轮独立执行共享 UtcInstant Schema 的 Ajv 校验、Guard 单值探针、结果引用的 446/445 边界以及生命周期字符串长度计量；没有将局部探针声明为新增 API 的运行验收。
 - 两个新增 API 的 Schema/Registry/Handler/授权/持久化、外部链及人工验收仍为 NOT RUN；参数人类批准仍待完成。
 - 本轮只追加正式审查记录，保留前两轮历史；未修改产品代码或 owning 设计，未 commit/push/merge。发布为 PR comment，不是 GitHub 正式 REQUEST_CHANGES review。
+
+---
+
+## 第四轮复审（2026-09-12）
+
+- Outcome: `REQUEST_CHANGES`
+- Reviewed SHA: `5c538638441062c13a5f34fbc921a2f8825e3568`
+- 已核对最新 head、修订 diff、Issue 评论、Spec/Test、共享字段定义及当前验证证据。
+- R1/R3 保持已修复。SD-181-1 已明确呈现为待批准的局部字段约束，覆盖上轮变长时间戳反例；结果专有字段现已列入矩阵。独立以共享 UtcInstant Schema 叠加 maxLength=24 验证：无小数与三位小数通过，四位小数拒绝。此探针验证提案机制，不代表新操作已注册。
+
+### R2（剩余问题）— P2：2098 仍是样本包装，不能作为最小合法请求包装
+
+位置：Spec 001 §13.3.1 的字段矩阵、固定项及“最弱合法组合”推导；同步影响共享 API #181 方案、决定 §12.9 和 IP-181-C-002。
+
+当前新增的时刻与 canonical objectType 上界解决了结果侧的变长风险，但证明仍直接把“24 长度时刻”的 Project 样本包装 2098 当作最小合法请求包装，继而保证全部合法输入至少有 700 字节余量。请求侧的下界与结果侧的上界必须分别证明；矩阵将 Envelope 必填字段统称为“固定形状（UUIDv7 / canonical ref / 闭集）”并不成立，其中 idempotencyKey 是 NonEmptyString，requestedAt 也允许不同长度。
+
+无需重建全部样本即可反驳 2098/700 的普遍下界：在该样本中只把请求 Envelope 的 `requestedAt` 从 `2026-09-12T00:00:00.000Z` 改成 `2026-09-12T00:00:00Z`。两者都是相同时刻的合法共享 UtcInstant，也都满足提案的至多毫秒精度；本轮实际共享 Schema 校验均通过，紧凑 JSON 成员从 42 字节减至 38 字节。该字段不在 PolicyVersionResolutionView 中回显，因此请求包装减 4，结果包装不变。按 PR 其余数字，请求包装成为 2094，字节维度的文档预算成为 260050，相应结果为 261448，余量为 696，而非至少 700。idempotencyKey 的合法短值、actor 的可选字段和 Enterprise Scope 仍需要各自的最小值分析，不能继续把某组样本称为全体下界。
+
+这不是新发现的实际 API 读回失败，696 仍为正；本项也不要求再次更改 SD-181-1 或直接提高结果预算。阻塞点是 Issue #181 的普遍读回保证及精确边界验收仍建立在错误的最小值上。请用每个请求专有字段的合法最小编码、每个结果专有字段的合法最大编码，加上共同字段/Scope 的配对消项，给出保守且可复算的正余量下界。引用/hash 使用精确编码长度，不以“≈350 / ≈100”作为精确边界依据；明确区分样本数字和适用于所有合法输入的不变量。同步修正 C-002 的“最大文档”表述，并覆盖短 requestedAt/idempotencyKey 与两种 Scope。可以保留现有样本作代表性计量，无需声称它们是全局极值。
+
+### 验证、批准与交付
+
+- 当前 SHA 的 GitHub CI verify 已 SUCCESS（2026-09-12T15:19:24Z）；PR 提供同 revision 的 `vibe verify full --json` PASS，含 Docker/PostgreSQL persistence gate。本轮未重复完整目标。
+- 本轮独立验证 SD-181-1 的共享 Schema + 长度限制，以及请求时间字段的 4 字节编码差异。另按 owning 字段定义构造样本检查包装变化，仅用于诊断，不作为未注册操作的端到端验收。
+- 两个新增操作的 Schema/Registry/Handler/授权/持久化、外部链与人工验收仍 NOT RUN；参数和 SD-181-1 仍需人类批准。
+- 只追加本轮正式审查记录，保留历史；未修改产品代码或 owning 设计，未 commit/push/merge。发布形式为 PR comment，不是正式 GitHub REQUEST_CHANGES review。
