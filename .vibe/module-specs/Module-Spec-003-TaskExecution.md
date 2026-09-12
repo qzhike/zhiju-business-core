@@ -350,7 +350,7 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 
 ## 11. IM-06 技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #167 INITIAL CONTEXT RESULT CONTRACT IMPLEMENTED 2026-09-12 / #175 TASK V2 CREATION CONTRACT IMPLEMENTED 2026-09-12 / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 209 项。本节不把 Domain 内部命令名自动视为公开 API。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #167 INITIAL CONTEXT RESULT CONTRACT IMPLEMENTED 2026-09-12 / #175 TASK V2 CREATION CONTRACT IMPLEMENTED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前 Registry 为 209 项。本节不把 Domain 内部命令名自动视为公开 API。
 
 ### 11.1 公共规则与设计操作清单
 
@@ -366,8 +366,8 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 | `execution.get_work_order_draft@1.1` | A | `workOrderRef: ObjectRef<WorkOrder>` | `{draftSnapshotRef: Exact<WorkOrderDraftSnapshot>, draft: InitialWorkOrderDraft, expiresAt?: UtcInstant, rootAggregateVersion: NonNegativeInt, status: WorkOrderStatus}` | 设计 `execution.work_order.draft.read`；返回不含 `projectContextContractRef` 的 DRAFT |
 | `execution.build_initial_context_snapshot@1.0` | ContextSnapshot / CREATE | `request: InitialContextBuildRequest` | `{contextSnapshotRef: Snap<ProjectContext>}` | 设计 `execution.context.build.initial`；ContextBuilder Service，代表 Human 授权 Intent |
 | `execution.build_initial_context_snapshot@1.1` | ContextSnapshot / CREATE | `request: InitialContextBuildRequest` | `{contextSnapshotRef: Snap<ProjectContext>}` | 设计 `execution.context.build.initial`；DRAFT 分支不接收 frozen Contract Ref |
-| `execution.build_task_readiness@1.0` | TaskReadiness / CREATE | `taskRef; taskDefinitionRef: Exact<TaskDefinitionSnapshot>; policyRef; evaluatorRef` | `{readinessSnapshotRef: Snap<TaskReadiness>}` | 设计 `execution.task.readiness.build`；ReadinessBuilder Service |
-| `execution.validate_work_order_draft@1.0` | WorkOrderValidation / CREATE | `draftSnapshotRef; candidateContract: WorkOrderContract; policyRef; evaluatorRef` | `{validationSnapshotRef: Snap<WorkOrderValidation>}` | 设计 `execution.work_order.draft.validate`；WorkOrderValidator Service |
+| `execution.build_task_readiness@1.0` | TaskReadiness / CREATE | `taskRef; taskDefinitionRef: Exact<TaskDefinitionSnapshot>; policyRef; evaluatorRef` | `{readinessSnapshotRef: Snap<TaskReadiness>}` | 设计 `execution.task.readiness.build`；ReadinessBuilder Service；Policy/Evaluator profile 与消费时重验见 §11.9 |
+| `execution.validate_work_order_draft@1.0` | WorkOrderValidation / CREATE | `draftSnapshotRef; candidateContract: WorkOrderContract; policyRef; evaluatorRef` | `{validationSnapshotRef: Snap<WorkOrderValidation>}` | 设计 `execution.work_order.draft.validate`；WorkOrderValidator Service；Policy/Evaluator profile 与消费时重验见 §11.9 |
 | `execution.validate_agent_result@1.0` | AgentResultValidationBundle / CREATE | `agentResultRef; runRef; runtimeAttemptRef; policyRef; evaluatorRef` | `{bundleRef: Exact<AgentResultValidationBundle>, schemaValidationRef, identityValidationRef, runBindingValidationRef, scopeValidationRef, businessOutputValidationRef}` | 设计 `execution.agent_result.validate`；ResultValidator Service；五个 Ref 均 Exact<ValidationResult> |
 | `execution.get_execution_judgment@1.0` | A | `judgmentRef: ExecutionJudgmentRef` | `{fact: ExecutionJudgment, useStatus: Closed<USABLE\|STALE\|EXPIRED\|REVOKED>, checkedAt, reasonCodes: ReasonCode[]}` | 设计 `execution.judgment.read`；同 Scope 的 owning Service/授权 Human |
 | `execution.record_run_result@1.0` | Run / MUTATE | `agentResultRef: Exact<AgentResult>` | `{runRef,status: RESULT_RECORDED,agentResultRef}` | 设计 `execution.run.result.record`；ResultIngestion Service |
@@ -376,7 +376,7 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 | `execution.reconcile_work_order_execution@1.0` | WorkOrder / MUTATE | `triggerRef: TypedReference` | `{workOrderRef,status: WorkOrderStatus}` | 设计 `execution.work_order.reconcile`；WorkExecutionProcess Service；trigger 仅定位，结论从 owning facts 重算 |
 | `execution.reconcile_task_execution@1.0` | Task / MUTATE | `triggerRef: TypedReference` | `{taskRef,status: TaskStatus}` | 设计 `execution.task.reconcile`；TaskExecutionProcess Service；不得由此设 COMPLETED |
 
-新操作的注册清单同时包括 Spec 007 的 Runtime Binding Query 和 Spec 002 的 Source Slice capture/exact Query、Resolution Receipt Query；本节仅拥有 execution 命名空间。新 Purpose 不能通过默认 Service 通配授权开放，必须注册到 IdentityPolicy 的版本化 capability/policy 并保留 ActorSnapshot/AuthorizationDecision。
+新操作的注册清单同时包括 Spec 007 的 Runtime Binding Query 和 Spec 002 的 Source Slice capture/exact Query、Resolution Receipt Query；本节仅拥有 execution 命名空间。新 Purpose 不能通过默认 Service 通配授权开放，必须注册到 IdentityPolicy 的版本化 capability/policy 并保留 ActorSnapshot/AuthorizationDecision。其中 `policyRef`/`evaluatorRef` 的解析来源、首版 profile、版本注册与消费时重验由 §11.9 固定（#176 已批准设计，尚未实现）。
 
 ### 11.2 首次 Context 的精确输入
 
@@ -734,6 +734,25 @@ Issue #175 已把该 Major 落到可执行契约：`execution.create_task@2.0` �
 
 TaskStateView另返回 `completionUseStatus: Closed<NOT_EVALUATED|USABLE|STALE|REVOKED>`。COMPLETED保留历史状态，当前事实失效通过useStatus和immutable Impact事实解释，不从旧完成事件反推当前权限。依赖Task用于新的Readiness时必须重验其Completion Evaluation和当前事实，不能只看到status=COMPLETED即放行。跨模块一致性只保证所记录观测时点，详见设计 §10.1。
 
+
+### 11.9 首批 Policy/Evaluator 解析与消费时重验（#176 提案）
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT IMPLEMENTED`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)、[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本节固定 TaskExecution 三个消费者（Initial Context Builder、TaskReadinessBuilder、WorkOrderValidator）如何取得 Policy/Evaluator 输入并重验，不改变 §11.1–§11.8 已批准的字段、错误码与判定语义，也不改变 §3/§4 的既有 @1.0 操作。本节已获设计批准，但尚未产生可执行 Schema、Handler 或业务持久化。
+
+**Policy 解析输入的唯一来源**：`resolvedPolicy`（§11.2.5 的 `ContextBuilderPolicyBinding`）与 Builder Policy 的有限上界（§11.2.5.4 的 `supersededAt`）只能来自 `identity.resolve_policy@1.0` 的当次返回。映射是逐字段的：`policyRef → builderPolicyRef`、`contentHash → contentHash`、`effectiveFrom → effectiveFrom`、`supersededAt → supersededAt`。`validateContextBuilderPolicyBinding` 与 `validateInitialContextExpiryBinding` 仍是**纯跨字段校验**：不得由 caller 自报、由 `objectId/versionId` 推导、用 fixture 值或历史 Receipt 充当当次观察。
+
+| 消费者 | Policy 绑定与 profile（§12.4） | Evaluator 支持边界 | 授权与重验 |
+|---|---|---|---|
+| Initial Context Builder（`build_initial_context_snapshot@1.0/@1.1`、冻结后 `build_context_snapshot@1.0`） | `builderPolicyRef`（`zhiju.identity.policy`）；`execution.context_builder.policy@1.0` 的 `allowedProjectionTypes` 必须包含请求 `projectionType`；有限上界仍是 Builder Policy 的 `supersededAt`，不新增 Context TTL 字段 | 不需要独立 Evaluator | Purpose `execution.context.build.initial`（已注册）的自身 Decision；candidate 组装、Validator、Freeze 各自重新解析并重跑 §11.2.5.2 |
+| TaskReadinessBuilder（`build_task_readiness@1.0`，设计） | `policyRef`（`zhiju.identity.policy`）；`execution.task_readiness.policy@1.0` 的 `maxReadinessValiditySeconds` 决定 `JudgmentHeader.validUntil = min(evaluatedAt + T, authorizationDecision.expiresAt)` | profile `te.task_readiness.evaluator@1.0`（构建期静态注册）；其他版本 `EXECUTION_CRITERION_UNSUPPORTED` | Purpose `execution.task.readiness.build`（未注册）的自身 Decision；生产端读 Task/依赖/输入，不把 producer 授权转让给 `mark_task_ready` |
+| WorkOrderValidator（`validate_work_order_draft@1.0`，设计） | `policyRef`（`zhiju.identity.policy`）；`execution.work_order_validation.policy@1.0` 的 `maxValidationValiditySeconds` 与可选 `mandatoryCriterionTypes` 参与判定；`validUntil` 不得晚于 §11.2.4 的 WorkOrder 期限 | profile `te.work_order_validation.evaluator@1.0`，按 §11.6 的绑定字符串 profile 解释 Core §4.9 七类 Criterion；其他类型/版本 `UNSUPPORTED` | Purpose `execution.work_order.draft.validate`（未注册）的自身 Decision；Freeze 不继承 Validator 的授权，必须重算两类 Hash 与期限 |
+
+1. **Evaluator 版本注册**：Evaluator 是确定性实现代码，其版本以构建期静态注册表登记（沿用 `POLICY_SCHEMA_REGISTRY`/`payload-guard-policies.v1.json` 机制：静态条目、固定标识、无数据库行、无虚构 Hash），以 `VersionedRef<Evaluator>` 暴露；objectType 由本模块注册（提案 `zhiju.execution.evaluator_profile`），Scope 为 Platform。Evaluator ref 是 profile 选择器，不携带 `contentHash`、不参与 Policy 版本生命周期，也不得作为已提交业务事实。
+2. **消费时重验**：每次产出可用判断或提交冻结前，都以受信服务端当前时间重新解析 Policy 并重跑 §11.2.5.2 与 §11.2.5.4 的校验；`now >= effectiveExpiresAt`、`now >= supersededAt`、Decision/Capability 失效时分别按 §11.2.4/§11.2.5.4 的既有错误拒绝新消费。已提交 Context/判断/Contract 保持不可变历史，重放不重新授权。
+3. **profile 语义归属**：`policyDocument` 的 profile 字段校验在 TaskExecution 内完成；IdentityPolicy 只提供不可变事实、Hash、生命周期与解析。未知字段、未知 profile 版本或语义未支持时拒绝（`EXECUTION_CRITERION_UNSUPPORTED`），不得静默忽略字段或跳过判据。
+4. **profile 注册校验**：本节三个消费者的 `policySchemaRefs` 必须含各自 registry key（`execution.context_builder.policy@1.0`、`execution.task_readiness.policy@1.0`、`execution.work_order_validation.policy@1.0`；见 [Spec 001 §13.5](../module-specs/Module-Spec-001-IdentityPolicy.md#135-授权profile-schema-注册与失败审计)）的 canonical typed ref；Evaluator 版本来自本模块构建期静态注册表。任一不匹配即拒绝，不得以旧 registry 条目代替。
+5. **持久化观察**：`context_snapshot_build` 继续保存 §33 已定义的 `builder_policy_ref`/`policy_content_hash`/`effective_from`/`superseded_at`；`execution_judgment` 增加同源的 `policy_content_hash`、`effective_from`、可选 `superseded_at` 与当次解析的 exact `policy_version_ref` 镜像，使判断可用性与当时观察可解释。新增字段属提案，实现时按 forward-only migration 交付，不修改已应用 V3000。
+6. 本节所有行为在批准与实现前保持 `NOT RUN`；Schema/纯 helper 通过不证明 Policy 对象存在、当前授权有效或 Handler 已实现。
 
 ## 12. TD-05 Query / Task Board 补充设计
 

@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -249,3 +249,105 @@ WI-10 的 `Audit INSERT` 失败场景需要临时撤销共享角色权限，而 
 PR #52 合并后的默认分支已通过直接锁定 digest 的 `12 files / 177 tests` Persistence 运行、二次 migrate no-op 和 WI-02/03/04/09 Runbook 级本地探测；PR #53 已收口 Runbook 文档口径，合并后的 main 完整 verify 仍为 PASS。
 
 最终默认分支的 WI-09 Decision 脱敏追踪和本地 Runbook 角色/RLS/技术表探测已记录于 [`Runbook-Manual-Acceptance-2026-08-24.md`](../archive/im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)；外部 Provider、生产环境和真实用户外部验收仍为 `NOT RUN`，不影响本地 scoped IM-02 COMPLETE。
+
+## 13. #176 Policy 版本身份与解析 Port 设计
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / SCHEMA, REGISTRY, HANDLER AND MIGRATION NOT IMPLEMENTED`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)。本节提案是 `VersionedRef<zhiju.identity.policy>` 定位已提交版本事实的唯一权威来源（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：隔离归属、profile registry 注册路径、取代关系基数，以及后继唯一性只作用于真实取代边）；已完成独立设计审查并获人类批准；可执行 Schema、Registry 条目、Handler 与 migration 仍须按后续实现 Issue 的明确 Scope 交付。§2–§12 的既有类型、20 项公开 Contract、历史 Compatibility Baseline 与现有实现行为不因本节改变；本文档 §5–§11 记录的历史执行结果继续按原文成立。
+
+### 13.1 当前事实与缺口
+
+1. `identity.record_policy_snapshot@1.0`（§3）的载荷只有 `policySetVersion/policySchemaRefs/policyDocument/effectiveFrom/sourceRefs`，**不含 Policy 的 objectId/versionId/Scope**；`policy_snapshot` 行不可变（`REVOKE UPDATE`），`policy_set_version` 唯一。
+2. `identity.get_policy_snapshot@1.0`（§4）只接受 `SnapshotRef<PolicySnapshot>`，实现要求 `objectType=identity.policy_snapshot` 且 Scope 为空；该 Query 的接受集合与历史语义保持不变。
+3. 因此"某个 `zhiju.identity.policy` 版本对应哪个已提交事实"没有事实来源，也不存在解析 Port；Core §4 与 #166 所述 "IdentityPolicy exact snapshot 解析" 目前无 owning 入口。三个消费模块的纯绑定 helper 只比较调用者传入的观察，不提供存在性、Hash 或生命周期证明。
+4. `policy_snapshot` 的 `policy_snapshot_select`/`policy_snapshot_insert` 只校验 `platform_security.context_is_valid()`，不含 enterprise/project 条件：它适合承载 Platform 事实，但**不能承载企业级版本绑定与企业策略正文**，否则任何有效 Context 都能经直接 SQL 读取（13.2、13.6）。
+
+### 13.2 版本键、版本事实、隔离归属与生命周期对应关系
+
+| 概念 | 固定取值 | 约束 |
+|---|---|---|
+| Policy 版本键 | `VersionedRef<Policy>`：`kind=VERSIONED`、`objectType=zhiju.identity.policy`、`objectId`/`versionId` 为 UuidV7、`scope.enterpriseId` 必填、`scope.projectId` 可选 | 首版不接受空 Scope/Platform Scope 的 Policy 版本；该收紧只作用于新增入口，不改变既有 Schema/helper 的接受集合 |
+| 已提交事实 | PolicyVersion 快照：`SnapshotRef<PolicyVersion>`，canonical `objectType=zhiju.identity.policy_version`，`objectId==snapshotId`，Scope 与版本键 Scope 逐字段相等（`enterpriseId` 必填、`projectId` 按版本键有无），`contentHash` = 该事实 canonical payload 的 SHA-256/规范化版本 1 | 事实只存在于本节新增的 scoped 表；**不写入 Platform `policy_snapshot`**，不得伪装成 Platform Snapshot；既有 AuthorizationDecision 的 `policySnapshotRef` 语义不变 |
+| 绑定 | 同一 IdentityPolicy 事务内提交版本事实与唯一版本绑定 `(objectType, objectId, versionId, enterpriseId, project_id)` | 一个版本键只能绑定一个已提交事实；无覆盖路径；重复提交返回稳定业务错误，不穿透数据库唯一冲突 |
+| 生命周期 | `effectiveFrom`（必填）与派生的 `supersededAt`（由**唯一后继**的取代边派生，等于后继 `effectiveFrom`） | 无默认 TTL；`supersededAt` 不可由调用者直接指定；一个版本至多一个后继（13.4）；首版无版本级撤销入口 |
+
+**隔离归属（为什么不在 Platform 表）**：新版本事实与其 `policyDocument` 落在本模块新增的 scoped 表；旧 `policy_snapshot` 是 Platform 事实，其 RLS 只校验 `context_is_valid()`，**不承载任何企业级版本或正文**。因此"旧 exact Snapshot 入口读取新行"在本设计中不存在：两套事实位于不同表，读取路径互不交叉，也不得互相转换。
+
+| 读取场景 | 归属与结果 | 依据 |
+|---|---|---|
+| 同 Enterprise（或同 Project）合法读取 | 经 `identity.resolve_policy@1.0` 的 Purpose + Scope 授权返回观察与正文；RLS 同时放行 | 授权为主，RLS 为纵深防御 |
+| 另一 Enterprise 的 Context | 授权 Query 统一不可用（`IDENTITY_POLICY_VERSION_UNKNOWN`）；直接 SQL 返回零行或 `42501` | 新表使用与既有 scoped 表一致的 `context_allows_enterprise` / `context_allows_project` 分支与 Scope shape 约束 |
+| 同 Enterprise 的另一 Project | 同上；`scope_kind=PROJECT` 行必须同时满足 `context_allows_project`，不得因同 Enterprise 放行 | 沿用既有 Project Scope 规则（§7 不变量 9） |
+| 旧 Platform `policy_snapshot` 兼容读回 | 完全不变：仍按 `get_policy_snapshot@1.0` 的 exact id+hash、空 Scope 规则读取既有行；不因本项产生新行 | 历史 baseline 与既有授权链不改写 |
+
+IdentityPolicy 只拥有事实、绑定、Hash 与生命周期，以及"`policySchemaRefs` 是否为构建期注册条目"；policy 文档的 profile 字段语义由消费模块拥有（决定 §12.4），本节不解释他方规则。RLS 与 Scope 校验都不替代授权：解析仍是带 Purpose 的受授权 Query。
+
+### 13.3 新增操作 Spec Delta（提案，未注册）
+
+| Contract | Target / mode | Payload | Result.data / Purpose |
+|---|---|---|---|
+| `identity.record_policy_version@1.0` | `PolicyVersion / CREATE`（省略 `expectedAggregateVersion`） | `policyRef: VersionedRef<Policy>; policySetVersion: NonEmptyString; policySchemaRefs: NonEmptySet<TypedReference>; policyDocument: CanonicalJson; effectiveFrom: UtcInstant; supersedesRef?: VersionedRef<Policy>` | `{policyVersionRef: SnapshotRef<PolicyVersion>}`；Purpose `identity.policy.record_policy_version`（新增） |
+| `identity.resolve_policy@1.0` | AUTHORITATIVE Query | `policyRef: VersionedRef<Policy>`（objectType 固定 canonical） | `PolicyVersionResolutionView`；Purpose `identity.policy.resolve_policy`（新增） |
+
+```text
+PolicyVersionResolutionView
+├── policyRef: VersionedRef<Policy>                    // 与输入逐字段相等的已核验回显
+├── policyVersionRef: SnapshotRef<PolicyVersion>       // canonical zhiju.identity.policy_version；objectId==snapshotId
+├── policySetVersion: NonEmptyString
+├── policySchemaRefs: TypedReference[]
+├── policyDocument: CanonicalJson                      // 与 contentHash 同一 canonical payload
+├── contentHash: ContentHash                           // == policyVersionRef.contentHash
+├── scopeRef: ScopeRef                                 // 与 policyRef.scope 逐字段相等
+├── effectiveFrom: UtcInstant
+├── supersededAt?: UtcInstant
+├── useStatus: Closed<USABLE | NOT_YET_EFFECTIVE | SUPERSEDED | REVOKED>
+└── checkedAt: UtcInstant                              // 受信服务端时间
+```
+
+1. `identity.record_policy_snapshot@1.0` 保持合法且不变：其 Platform 行、RLS、读回与授权链不受影响，但不获得版本绑定或解析能力；本项不发布新 Major，不修改其 payload、行结构、历史 fixture 或 200 项 Compatibility Baseline。
+2. `policySchemaRefs` 必须是构建期 profile Registry 的已注册 canonical 条目（13.5）；profile 字段语义由消费模块校验，IdentityPolicy 只校验注册性与 canonical 形状。
+3. 两个新操作在实现时必须按完整 Envelope 注册（共享 API §9.2），并声明有限额的构建期 PayloadGuard 技术 Policy（本项不预设参数）；`dataClassification=INTERNAL`，若某 profile 将来允许承载客户材料必须重新分类；Catalog 净增 2 项（209 → 211，本模块 20 → 22）。
+4. 结果 Schema 是 operation-specific CommandResult data，按 #167 的既有纪律注册 `resultSchemaRef`；只声明 `resultReferences` 不构成可验证返回路径。
+5. `resolve_policy` 不解析 latest/current、不回退同 objectId 的其他版本、不执行任何写入；正文由本次解析一并返回，因此 WI-02 新链不依赖 `get_policy_snapshot@1.0`。
+
+### 13.4 不变量
+
+1. Policy 版本键在其有效期内唯一确定一个已提交版本事实；`contentHash` 与 `snapshotId` 不因重放或并发改变。
+2. 同一版本键的第二次提交必须稳定拒绝；不得覆盖、不得返回原结果、不得留下部分绑定或成功 Outbox。
+3. `supersedesRef` 必须指向同 objectType/objectId/Scope 的另一已提交版本，且其 `effectiveFrom` 严格早于本次 `effectiveFrom`；自引用、倒序、跨 Scope、不存在一律拒绝，不产生"自我取代"。
+4. **一个版本至多有一个后继**：取代边只对真实边唯一（部分唯一索引），由数据库裁决并发；第二个竞争提交稳定拒绝且不改写首个后继。该唯一性**不约束无前驱的初始版本**：同一 Scope 下不同 Policy 各自的首版、同一 identity 的多个未互相取代的版本都必须能共存。被取代版本的 `supersededAt` 等于其唯一后继的 `effectiveFrom`，只由已提交取代边派生，任何重放/重试/后续提交都不得延长。
+5. 首版不支持分叉取代、跨 identity 取代或指向 Platform Snapshot 的取代边；连锁取代逐条独立校验。首版也不强制"同一 identity 同时只有一个可用版本"：未声明取代的版本保持无有限终止，该性质必须显式可见。
+6. 已被取代的版本保留历史可读，但其 `useStatus` 不再为 `USABLE`；历史重放不重新赋予执行资格；首版无版本级撤销入口，任何 `REVOKED` 观察都不得当作可用。
+7. `policySchemaRefs` 必须是构建期 Registry 的已注册 canonical typed ref，逐字段相等比较；未注册 schema 返回 `IDENTITY_POLICY_VERSION_UNKNOWN`。本项以新 registry 版本承载四个 profile 条目，既有条目与旧命令接受集合都不放宽、不收窄。
+8. 解析是只读观察，不是授权：Scope 授权、profile 字段校验、业务条件与当前有效性判断由各消费边界独立执行。
+9. 通用 `VersionedRef` 继续不携带 `contentHash`；`SnapshotRef` 的 `contentHash` 是唯一 Hash 载体；企业级版本事实与正文只存在于 scoped 表，不进入 Platform `policy_snapshot`。
+
+### 13.5 授权、profile schema 注册与失败审计
+
+**profile schema Registry 边界**（写入与消费两端的注册路径）：四个首版 profile 是构建期注册的 policy schema，公开身份为 `VersionedRef`（`objectType=identity.contract_schema`、固定 UuidV7 `objectId`/`versionId`、`scope={}`），与既有 `POLICY_SCHEMA_TYPED_REFS` 同形；registry key 与 typed ref 一一对应，运行期不解析 latest、不创建数据库行、不虚构 Hash。
+
+| registry key | Owner | 首次消费方 |
+|---|---|---|
+| `ep.context_source_slice_capture.policy@1.0` | enterprise-project | EP Source Slice capture |
+| `execution.context_builder.policy@1.0` | task-execution | TE Initial Context Builder |
+| `execution.task_readiness.policy@1.0` | task-execution | TE TaskReadinessBuilder |
+| `execution.work_order_validation.policy@1.0` | task-execution | TE WorkOrderValidator |
+
+- 注册方式：新增 registry 版本（提案 `im06-static-v1`）= 既有 `im02-static-v1` 三项 ∪ 上表四项；作为构建期制品与生成检查覆盖，由本模块与 owning 模块共同加载（提案置于 `contracts/registry/`），使任一模块都不内置他方语义。`identity.record_policy_snapshot@1.0` 保持历史 `im02-static-v1` 接受集合不变；`identity.record_policy_version@1.0` 只接受新版本集合。
+- 校验分工：本模块判定"是否为已注册 canonical 条目"；EP/TE 判定"文档是否符合本模块 profile 的 closed 字段与语义、所需 key 是否在集合内"。
+
+**授权与失败**：
+
+- 解析 Query 与写入 Command 都走既有 Envelope 与精确 Purpose；请求 `policyRef.scope` 必须落在调用者当前授权 Scope 内；`DENY` 与 Scope 不符按 §7 WI-09 规则写同事务脱敏 Audit，不泄露跨 Scope 对象是否存在。RLS 只作纵深防御。
+- 对外统一不可用：`IDENTITY_POLICY_VERSION_UNKNOWN` 覆盖"身份/版本未知、未绑定、Scope 不符"；内部分类（unknown-identity / unknown-version / not-bound / scope-mismatch）只进受权限控制的 Audit。
+- 事实存在但完整性失败（mirror/Hash/payload 不一致）为 `IDENTITY_POLICY_SNAPSHOT_INVALID`；同一版本键重复绑定为新增 `IDENTITY_POLICY_VERSION_ALREADY_BOUND`；取代边非法为新增 `IDENTITY_POLICY_SUPERSEDE_INVALID`；前驱已有唯一后继时为新增 `IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED`。
+- 存储或依赖暂时不可用返回共享 `DEPENDENCY_UNAVAILABLE`；不得当作空 Policy、默认 Policy 或"无限制"继续。
+- 上述四个新增错误码与两个新增 Purpose 在实现时一并登记到 §6 与两个 registry；现有运行时已抛出但 §6 尚未列出的 `IDENTITY_POLICY_SNAPSHOT_NOT_FOUND` 与 `IDENTITY_POLICY_SNAPSHOT_HASH_MISMATCH` 也应在该次收敛，本项不改变其现有语义。
+
+### 13.6 持久化边界（提案）
+
+1. **新增 scoped 不可变事实表**（本模块 owning，提案名 `identity_policy.policy_version`）：`policy_version_fact_id`（PK，同时是 `SnapshotRef` 的 `objectId`/`snapshotId`）、`policy_object_id`、`policy_key_version_id`、`scope_kind`（`ENTERPRISE|PROJECT`）、`enterprise_id`、`project_id`、`policy_set_version`、`policy_schema_refs`、`effective_from`、`policy_document`（canonical payload 内）、`payload_hash`、`canonical_payload`、`supersedes_object_id`/`supersedes_version_id`（成对，可为 NULL）以及既有技术列（contract type/version、registry/canonicalization version、created_at/created_by/actor_snapshot_id/source_command_id、data_classification、retention_class）。
+2. **约束**：`UNIQUE (policy_object_id, policy_key_version_id, enterprise_id, project_id) NULLS NOT DISTINCT` 保证版本键唯一绑定，**覆盖全部行**；后继唯一性只作用于**真实取代边**：部分唯一索引 `UNIQUE (supersedes_object_id, supersedes_version_id, enterprise_id, project_id) NULLS NOT DISTINCT WHERE supersedes_object_id IS NOT NULL AND supersedes_version_id IS NOT NULL`。`supersedesRef` 是可选的，无前驱的初始版本两列均为 NULL；若把后继唯一约束无条件施加于全部行，同一 Scope 下不同 Policy 的首版会全部折叠为同一个键 `(NULL, NULL, E, [P])` 而互相冲突，因此必须使用该部分索引（且两条唯一对象都必须 `NULLS NOT DISTINCT`，否则 Enterprise 行 `project_id IS NULL` 会使比较失效）。`supersedes` 两列另以 `CHECK` 约束同时为空或同时非空，使部分谓词良定义；`CHECK` 固定 Scope shape（Enterprise 行 `project_id IS NULL`、Project 行 `project_id NOT NULL` 且 `enterprise_id` 非空）；`CHECK (octet_length(payload_hash) = 32)`；`REVOKE UPDATE, DELETE` + trigger 镜像校验（`effective_from`、`policy_set_version`、`policy_schema_refs`、Scope 镜像与 canonical payload 逐项一致）。非法 shape、镜像不一致、重复版本键与重复后继都在写入前拒绝并转换为稳定模块错误，不穿透 `23505`。
+3. **RLS 分支**：新表启用 FORCE RLS，SELECT/INSERT 使用与既有 scoped 表相同的分支——`(scope_kind='ENTERPRISE' AND platform_security.context_allows_enterprise(enterprise_id)) OR (scope_kind='PROJECT' AND platform_security.context_allows_project(enterprise_id, project_id))`；**不采用 Platform 表的 `context_is_valid()`-only 分支**。授权仍以 Purpose + Scope 的 Query 判定为主，RLS 只作纵深防御。
+4. **访问路径**：`(policy_object_id, policy_key_version_id, enterprise_id, project_id)` → 唯一已提交版本事实；`supersedes` 边唯一索引 → 前驱（派生 `supersededAt`）。首版**不提供"列出全部版本/当前版本"的访问路径**，避免引入 latest 语义；需要正文时由 `resolve_policy` 在同一次授权读取中返回。
+5. **旧 Platform `policy_snapshot` 完全不变**：表、`policy_snapshot_select`/`policy_snapshot_insert`、`REVOKE UPDATE`、`policy_snapshot_set_unique` 与 `get_policy_snapshot@1.0` 的读回语义均不改写；新表不与旧表建立 FK/join，也不把 scoped 行写入旧表。
+6. 新增迁移必须 forward-only 并在实际分支分配编号，不修改已应用的 V1000–V1004；迁移验证须覆盖空库、升级、二次 no-op、角色 ACL/RLS、镜像与 Hash、immutable/direct SQL、并发版本键与并发后继竞争。业务 Handler、迁移、真实 PostgreSQL 业务链、授权运行与外部验收在批准与实现前保持 `NOT RUN`。

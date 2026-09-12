@@ -571,7 +571,7 @@ capabilityPolicyRef
 runtimeAdapterContractRef
 ```
 
-WI-02 新冻结 Contract 的 `contextBuilderPolicyRef` 必须逐字段等于 ProjectContext projection 与 InitialContextBuildRequest 的 canonical `zhiju.identity.policy` ref。`objectType/objectId/versionId/Scope` 不得由候选重新选择；对应 Policy snapshot 的 `contentHash`、`effectiveFrom` 与可选 `supersededAt` 必须在 Validator 和 Freeze 消费前重新核验。历史 v1.0 `zhiju.context.policy` fixture 仅用于兼容读回，不改变旧 Contract 的必填字段语义。
+WI-02 新冻结 Contract 的 `contextBuilderPolicyRef` 必须逐字段等于 ProjectContext projection 与 InitialContextBuildRequest 的 canonical `zhiju.identity.policy` ref。`objectType/objectId/versionId/Scope` 不得由候选重新选择；对应 Policy snapshot 的 `contentHash`、`effectiveFrom` 与可选 `supersededAt` 必须在 Validator 和 Freeze 消费前重新核验。历史 v1.0 `zhiju.context.policy` fixture 仅用于兼容读回，不改变旧 Contract 的必填字段语义。该 "IdentityPolicy exact snapshot 解析" 的 owning Port、版本键与生命周期对应关系见 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)（#176 已批准设计，`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED`，未实现）；在批准与交付前不得把任何调用者自报的 Hash/有效期当作解析结果。
 
 WI-02 新入口产出的 Context Snapshot 身份使用 canonical `zhiju.execution.context_snapshot`；`build_initial_context_snapshot` 的 operation-specific CommandResult data 与 `get_context_snapshot` 的请求/结果都必须按该 canonical objectType 与完整 SnapshotRef 字段比较。本文件与历史 v1.0 fixture 中的 `zhiju.project.context_snapshot` 是既有 Core WorkOrder `contextSnapshotRef` 的兼容读回值，只用于读取既有契约，不由新入口产生，也不能仅凭 `objectId` 与 canonical 名称互换。字段与失败语义见 [Spec 003 §11.2.5.3](../module-specs/Module-Spec-003-TaskExecution.md#11253-initial-context-commandresult-与-canonical-snapshotref)。
 

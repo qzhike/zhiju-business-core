@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / EXTERNAL NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION SCENARIOS APPROVED 2026-09-12 DESIGN VERIFIED / EXTERNAL NOT RUN`
 
 对应规格：[`Module-Spec-001-IdentityPolicy.md`](../module-specs/Module-Spec-001-IdentityPolicy.md)。本文件记录 IdentityPolicy 的 API 层 Unit、Contract、E2E 与人工验收用例和真实结果；高层跨模块场景仍见 `08-verification-baseline.md`。
 
@@ -132,3 +132,20 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 修复要求：Gate 必须隔离文件级 Persistence 测试执行，保留 `IP-WI10-U-006` 的真实权限失败反例；PR #52 已满足连续独立 Gate、直接 digest main Gate 和 exact-head CI 条件。Runbook 文档口径修订不改变本项运行时结论。
 
 最终默认分支的 Agent-executed local Runbook 结果（WI-02/03/04/09）以及 WI-06/07/10 Probe 输出见 [`Runbook-Manual-Acceptance-2026-08-24.md`](../archive/im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)。该记录不替代外部 Provider 或生产人工验收。
+
+## #176 Policy 版本身份与解析 Port 验证矩阵（提案）
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT IMPLEMENTED`。行为来源为 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)。下表定义批准并实现后的可执行验收输入与预期；当前全部 `NOT RUN`，不得因设计评审或现有 full 通过改为 PASS。
+
+| ID | 层级 | 输入 | 预期输出与禁止效果 | 当前结果 |
+|---|---|---|---|---|
+| IP-176-D-001 | Design/Contract | `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0` 的名称、版本、Owner、Purpose、Ref 声明、Envelope 元数据与 `zhiju.identity.policy_version` objectType 注册 | 两个操作按共享 API §9.2 完整注册；Purpose `identity.policy.record_policy_version` 与 `identity.policy.resolve_policy` 在两个 registry 中一致；Catalog 净增 2 项、历史 baseline 与旧 `record_policy_snapshot@1.0` 均不重写 | `NOT RUN` |
+| IP-176-D-002 | Contract/Persistence | 同一版本键 `(objectType, objectId, versionId, enterpriseId, projectId)` 提交两次不同 `policyDocument`，分别覆盖 Project 行与 `project_id IS NULL` 的 Enterprise 行（`NULLS NOT DISTINCT` 生效）；另附相同幂等键/相同 payload 的重放 | 第二次绑定稳定返回 `IDENTITY_POLICY_VERSION_ALREADY_BOUND`（不穿透 `23505`），首个版本事实/Hash/绑定不变；Enterprise 行的重复绑定同样被唯一约束裁决；相同键同 payload 走既有 `DUPLICATE` 重放 | `NOT RUN` |
+| IP-176-D-003 | Contract/Persistence | `supersedesRef` 分别指向不存在、跨 Scope、`effectiveFrom` 不更早或自身的版本（正向为同 identity/Scope 的早期版本）；另用顺序提交与双连接并发让 B、C 都取代同一前驱 A（分别覆盖 Project 行与 Enterprise 行 `project_id IS NULL` 的唯一约束），并覆盖后继 `effectiveFrom` 在未来、以及 `now` 恰等于/晚于 A 的派生 `supersededAt` 时继续消费 A 的变体 | 非法输入 `IDENTITY_POLICY_SUPERSEDE_INVALID` 且不产生取代边；仅第一个后继建立唯一取代边，另一个稳定 `IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED`；A 的 `supersededAt` 唯一等于胜出后继的 `effectiveFrom`（未来生效则在此之前仍为 `USABLE`），不被改写或延长，原不可变行不被 UPDATE，不形成分叉；到达截止点后新消费按 `POLICY_EXPIRED` 拒绝 | `NOT RUN` |
+| IP-176-D-004 | Query/Security | `resolve_policy` 输入未知 identity、未知 version、未绑定版本、Scope 不在调用者授权集合；对照合法精确 ref | 前三者统一返回 `IDENTITY_POLICY_VERSION_UNKNOWN`，不泄露跨 Scope 存在性；合法输入返回 exact `policyVersionRef`+`contentHash`+`policyDocument`，不解析 latest、不回退同 objectId 其他版本 | `NOT RUN` |
+| IP-176-D-005 | Query/Contract | Builder 在候选组装、Validator 与 Freeze 各自消费前重新解析：对照 caller 自报 Hash/有效期、复用上一次解析结果、Policy 在两次消费之间被取代、存储暂时不可用 | 自报/复用/不一致分别按 #166 与 #168 的既有错误 fail closed；被取代后新消费拒绝而历史保留；依赖不可用返回 `DEPENDENCY_UNAVAILABLE`，不得当作无限制继续 | `NOT RUN` |
+| IP-176-D-006 | Persistence/Security | 版本事实表的隔离矩阵：同 Enterprise（或同 Project）合法读取、另一 Enterprise Context、同 Enterprise 的另一 Project、旧 Platform `policy_snapshot` 兼容读回；外加直接 SQL 写入 scoped 行、修改不可变行、无 Context 查询 | 新表 FORCE RLS 按 `context_allows_enterprise`/`context_allows_project` 分支放行或拒绝（跨行零行/`42501`）；授权 Query 对越界 Scope 统一不可用；旧 Platform 行与其 `context_is_valid()` RLS、`get_policy_snapshot@1.0` 读回语义不变；`REVOKE UPDATE/DELETE` 与镜像校验拒绝写入，不靠隐藏 Ref 代替授权 | `NOT RUN` |
+| IP-176-D-007 | Contract/Registry | 写入端提交 `policySchemaRefs` 为四个 profile 的 canonical typed ref（以及未注册 key、旧 `im02-static-v1` 条目、非 canonical 形状）；随后消费端校验必需 profile key | 四个 registry key 与 typed ref 的映射固定且可加载；未注册/非 canonical 条目在写入前 `IDENTITY_POLICY_VERSION_UNKNOWN`；旧命令 `record_policy_snapshot@1.0` 的接受集合不变；消费端能据 `policySchemaRefs` 判定所需 key 存在并校验 closed 字段 | `NOT RUN` |
+| IP-176-D-008 | Persistence/Contract | 正向对照：同一 Scope 下两个不同 Policy 各自创建首版；同一 identity 先后创建两个**未互相取代**的版本。反向：同一真实前驱的顺序与并发第二个后继。Enterprise 与 Project Scope 各覆盖一次 | 三个正向输入全部成功——无前驱版本的后继索引谓词为假，不参与后继唯一性，不得因 `(NULL, NULL, E, [P])` 折叠被判为重复后继；同一真实前驱的第二个后继仍稳定 `IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED`；`NULLS NOT DISTINCT` 保证 Enterprise 行的 NULL `project_id` 仍能裁决重复后继 | `NOT RUN` |
+
+独立设计审查须覆盖版本键语义、取代基数与并发裁决（含无前驱版本共存）、企业级隔离归属（新 scoped 表与旧 Platform 表的分支）、profile registry 注册路径、统一不可用与内部审计边界；本节设计批准不改变 `identity.*` 既有 20 项公开 Contract 的接受集合与历史验收记录。
