@@ -26,6 +26,45 @@ export namespace TaskExecution {
   readonly completionCriteria: CanonicalJson;
   readonly dueConstraint?: CanonicalJson;
 }
+  export interface TaskDefinitionV2 {
+  readonly deliveryItemRef?: Common.VersionedRef;
+  readonly parentTaskRef?: Common.ObjectRef;
+  readonly taskType: Common.NamespaceCode;
+  readonly title: Common.NonEmptyString;
+  readonly objective: Common.NonEmptyString;
+  readonly priority: Common.NamespaceCode;
+  readonly riskLevel: Common.NamespaceCode;
+  readonly dependencyTaskRefs: readonly Common.ObjectRef[];
+  readonly inputRefs: readonly Common.TypedReference[];
+  readonly expectedOutputSpec: TaskExecution.TaskExpectedOutputSpec;
+  readonly completionCriteria: TaskExecution.TaskCompletionCriteria;
+  readonly dueConstraint?: CanonicalJson;
+}
+  export interface TaskExpectedOutputSpec {
+  readonly schemaVersion: "1.0";
+  readonly outputs: readonly Core.ExpectedOutput[];
+}
+  export interface TaskCompletionCriteria {
+  readonly schemaVersion: "1.0";
+  readonly criteria: readonly TaskExecution.TaskCriterionV1[];
+}
+  export type TaskCriterionV1 = {
+  readonly criterionId: Common.NamespaceCode;
+  readonly criterionType: "EXPECTED_OUTPUTS_SATISFIED" | "NO_BLOCKING_INFORMATION_REQUEST" | "REQUIRED_WORK_ORDERS_COMPLETED" | "REVISION_ACCEPTANCE_READY" | "REVISION_FULLY_APPROVED";
+  readonly required: boolean;
+  readonly evaluatorRef: Common.VersionedRef;
+  readonly bindings: ({
+  readonly outputSlots: readonly Common.NamespaceCode[];
+} | {
+  readonly scope: "ALL_CHILD_WORK_ORDERS";
+} | {
+  readonly scope: "TASK_AND_CHILD_WORK_ORDERS";
+});
+  readonly expectedCondition: {
+  readonly satisfied: true;
+};
+  readonly failureDisposition: "BLOCK" | "REQUIRE_HUMAN_REVIEW";
+};
   export interface WorkOrderDraft {
   readonly taskRef: Common.ObjectRef;
   readonly requestedBy: Common.PrincipalRef;
@@ -318,6 +357,14 @@ export namespace TaskExecution {
   readonly definition: TaskExecution.TaskDefinition;
   readonly initialAssignee?: CanonicalJson;
 }
+  /** Payload of `execution.create_task` (COMMAND). */
+  export type ExecutionCreateTaskV20Payload = {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly definition: TaskExecution.TaskDefinitionV2;
+  readonly initialAssignee?: CanonicalJson;
+};
   /** Payload of `execution.mark_task_ready` (COMMAND). */
   export interface ExecutionMarkTaskReadyPayload {
   readonly readinessSnapshotRef: Common.SnapshotRef;

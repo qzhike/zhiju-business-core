@@ -19,6 +19,7 @@ export const taskExecutionObjectTypes = {
   },
   'zhiju.execution.work_order': { owner: 'task-execution', kinds: ['OBJECT'] },
   'zhiju.execution.task': { owner: 'task-execution', kinds: ['OBJECT'] },
+  'zhiju.project.project': { owner: 'enterprise-project', kinds: ['OBJECT'] },
   'zhiju.execution.work_order_draft_snapshot': {
     owner: 'task-execution',
     kinds: ['CONTENT_ADDRESSED'],
@@ -139,7 +140,7 @@ export function assertSliceCompatibilityMetadata(
 
 interface TaskExecutionRegistration {
   readonly type: string;
-  readonly version?: '1.0' | '1.1';
+  readonly version?: '1.0' | '1.1' | '2.0';
   readonly kind: 'COMMAND' | 'QUERY';
   readonly owner: string;
   readonly schemaStatus: 'FULL';
@@ -234,6 +235,30 @@ const taskExecutionRegistrations: readonly TaskExecutionRegistration[] = [
       },
     ],
     resultSchemaRef: initialContextResultSchemaRef['1.0'],
+  },
+  {
+    type: 'execution.create_task',
+    version: '2.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.task',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'execution.task.create',
+    dataClassification: 'INTERNAL',
+    references: [
+      {
+        path: '/targetRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.execution.task',
+      },
+      {
+        path: '/payload/projectRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.project.project',
+      },
+    ],
+    resultReferences: [],
   },
   {
     type: 'execution.create_work_order',

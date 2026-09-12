@@ -1,4 +1,4 @@
-import type { JsonSchema } from '../schema-types.js';
+import type { JsonSchema, OperationVersion } from '../schema-types.js';
 
 const schemaId = 'https://schemas.zhiju.local/modules/task-execution/1.0';
 const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
@@ -18,7 +18,7 @@ interface OperationContractSchema {
 
 function operationSchemaDefinitionName(
   type: string,
-  version: '1.0' | '1.1',
+  version: OperationVersion,
   suffix: 'payload' | 'result',
 ): string {
   const versionSuffix = version === '1.0' ? '' : `_v${version.replaceAll('.', '_')}`;
@@ -85,6 +85,7 @@ const canonicalJson = {} as const;
 
 const workOrderObjectReference = exactObjectType(objectReference, 'zhiju.execution.work_order');
 const taskObjectReference = exactObjectType(objectReference, 'zhiju.execution.task');
+const projectObjectReference = exactObjectType(objectReference, 'zhiju.project.project');
 const draftSnapshotReference = exactObjectType(
   contentAddressedReference,
   'zhiju.execution.work_order_draft_snapshot',
@@ -213,6 +214,120 @@ const authoritativeSource = {
   enum: ['PROVIDER', 'RUNTIME_ADAPTER', 'HARNESS', 'AGENT_DECLARED', 'UNAVAILABLE'],
 } as const;
 
+/**
+ * §11.6 criterion `bindings`. The three branches are closed shapes and the
+ * criterion type selects exactly one of them through the `allOf` guard below,
+ * so a criterion cannot carry a binding that does not belong to its type.
+ */
+const taskCriterionOutputSlotBindings = object(['outputSlots'], {
+  outputSlots: array(namespace, { nonEmpty: true, unique: true }),
+});
+const taskCriterionChildWorkOrderBindings = object(['scope'], {
+  scope: { const: 'ALL_CHILD_WORK_ORDERS' },
+});
+const taskCriterionTaskAndChildWorkOrderBindings = object(['scope'], {
+  scope: { const: 'TASK_AND_CHILD_WORK_ORDERS' },
+});
+
+const taskCriterionV1 = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'criterionId',
+    'criterionType',
+    'required',
+    'evaluatorRef',
+    'bindings',
+    'expectedCondition',
+    'failureDisposition',
+  ],
+  properties: {
+    criterionId: namespace,
+    criterionType: {
+      enum: [
+        'EXPECTED_OUTPUTS_SATISFIED',
+        'NO_BLOCKING_INFORMATION_REQUEST',
+        'REQUIRED_WORK_ORDERS_COMPLETED',
+        'REVISION_ACCEPTANCE_READY',
+        'REVISION_FULLY_APPROVED',
+      ],
+    },
+    required: { type: 'boolean' },
+    // `VersionedRef<Evaluator>`; no `Evaluator` object type is registered, so
+    // the ref keeps the shared generic VersionedRef shape exactly as the Core
+    // `completionCriterion.evaluatorRef` does. Whether a given evaluator id and
+    // version are supported is an owning-Handler fact and is not asserted here.
+    evaluatorRef: versionedReference,
+    bindings: {
+      oneOf: [
+        taskCriterionOutputSlotBindings,
+        taskCriterionChildWorkOrderBindings,
+        taskCriterionTaskAndChildWorkOrderBindings,
+      ],
+    },
+    expectedCondition: object(['satisfied'], { satisfied: { const: true } }),
+    failureDisposition: { enum: ['BLOCK', 'REQUIRE_HUMAN_REVIEW'] },
+  },
+  allOf: [
+    {
+      if: {
+        properties: { criterionType: { const: 'EXPECTED_OUTPUTS_SATISFIED' } },
+        required: ['criterionType'],
+      },
+      then: { properties: { bindings: taskCriterionOutputSlotBindings } },
+    },
+    {
+      if: {
+        properties: { criterionType: { const: 'NO_BLOCKING_INFORMATION_REQUEST' } },
+        required: ['criterionType'],
+      },
+      then: { properties: { bindings: taskCriterionTaskAndChildWorkOrderBindings } },
+    },
+    {
+      if: {
+        properties: { criterionType: { const: 'REQUIRED_WORK_ORDERS_COMPLETED' } },
+        required: ['criterionType'],
+      },
+      then: { properties: { bindings: taskCriterionChildWorkOrderBindings } },
+    },
+    {
+      if: {
+        properties: { criterionType: { const: 'REVISION_ACCEPTANCE_READY' } },
+        required: ['criterionType'],
+      },
+      then: { properties: { bindings: taskCriterionOutputSlotBindings } },
+    },
+    {
+      if: {
+        properties: { criterionType: { const: 'REVISION_FULLY_APPROVED' } },
+        required: ['criterionType'],
+      },
+      then: { properties: { bindings: taskCriterionOutputSlotBindings } },
+    },
+  ],
+} as const satisfies JsonSchema;
+
+/**
+ * Business fields shared by the historical `TaskDefinition` and the `@2.0`
+ * `TaskDefinitionV2`. §11.6 defines v2 as v1 `except` the two output/completion
+ * members, so both definitions are rendered from this single map and only those
+ * two members differ.
+ */
+const taskDefinitionProperties = {
+  deliveryItemRef: versionedReference,
+  parentTaskRef: objectReference,
+  taskType: namespace,
+  title: text,
+  objective: text,
+  priority: namespace,
+  riskLevel: namespace,
+  dependencyTaskRefs: array(objectReference, { unique: true }),
+  inputRefs: array(typedReference, { unique: true }),
+  expectedOutputSpec: canonicalJson,
+  completionCriteria: canonicalJson,
+  dueConstraint: canonicalJson,
+} as const;
+
 const namedDefinitions = {
   taskStatus,
   workOrderStatus,
@@ -233,21 +348,45 @@ const namedDefinitions = {
       'expectedOutputSpec',
       'completionCriteria',
     ],
+    taskDefinitionProperties,
+  ),
+  // §11.6 `TaskDefinitionV2 = TaskDefinition except:` — the two open
+  // CanonicalJson members become registered closed shapes so a criterion cannot
+  // bind an output slot that no output declares.
+  taskDefinitionV2: object(
+    [
+      'taskType',
+      'title',
+      'objective',
+      'priority',
+      'riskLevel',
+      'dependencyTaskRefs',
+      'inputRefs',
+      'expectedOutputSpec',
+      'completionCriteria',
+    ],
     {
-      deliveryItemRef: versionedReference,
-      parentTaskRef: objectReference,
-      taskType: namespace,
-      title: text,
-      objective: text,
-      priority: namespace,
-      riskLevel: namespace,
-      dependencyTaskRefs: array(objectReference, { unique: true }),
-      inputRefs: array(typedReference, { unique: true }),
-      expectedOutputSpec: canonicalJson,
-      completionCriteria: canonicalJson,
-      dueConstraint: canonicalJson,
+      ...taskDefinitionProperties,
+      // §2 declares `inputRefs: TypedReference[]`, a plain array; only
+      // `dependencyTaskRefs` is a Set. The v1 payload's `uniqueItems` is a
+      // historical implementation deviation and is deliberately not carried
+      // into the new Major, so a repeated reference stays a legal v2 request.
+      inputRefs: array(typedReference),
+      expectedOutputSpec: localRef('taskExpectedOutputSpec'),
+      completionCriteria: localRef('taskCompletionCriteria'),
     },
   ),
+  taskExpectedOutputSpec: object(['schemaVersion', 'outputs'], {
+    schemaVersion: { const: '1.0' },
+    // `ExpectedOutput[]` per §11.6; the Core `ExpectedOutput` value object is
+    // reused unchanged, including `outputSlot` and `cardinality`.
+    outputs: array(workOrderTypeRef('expectedOutput')),
+  }),
+  taskCompletionCriteria: object(['schemaVersion', 'criteria'], {
+    schemaVersion: { const: '1.0' },
+    criteria: array(localRef('taskCriterionV1'), { nonEmpty: true, unique: true }),
+  }),
+  taskCriterionV1,
   workOrderDraft: object(
     [
       'taskRef',
@@ -1044,7 +1183,7 @@ const operationSchemas = {
 
 interface VersionedOperationContractSchema extends OperationContractSchema {
   readonly type: string;
-  readonly version: '1.0' | '1.1';
+  readonly version: OperationVersion;
 }
 
 const versionedOperationSchemas: readonly VersionedOperationContractSchema[] = [
@@ -1053,6 +1192,18 @@ const versionedOperationSchemas: readonly VersionedOperationContractSchema[] = [
     version: '1.0' as const,
     ...contract,
   })),
+  {
+    type: 'execution.create_task',
+    version: '2.0',
+    // §11.1 `execution.create_task@2.0` / Task CREATE. `initialAssignee` keeps
+    // the historical open shape: §11.6 changes only the two definition members
+    // and the approved design does not type the assignee further.
+    payload: object(['projectRef', 'definition'], {
+      projectRef: projectObjectReference,
+      definition: localRef('taskDefinitionV2'),
+      initialAssignee: canonicalJson,
+    }),
+  },
   {
     type: 'execution.create_work_order',
     version: '1.1',

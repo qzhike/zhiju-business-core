@@ -17,7 +17,7 @@
 - Query 一致性、分页、脱敏和结果语义；
 - Domain Event 最小事实 Payload 与 Replay 语义；
 - 公开错误结构、兼容规则和 Schema Registry 要求；
-- 七模块当前 208 个公开 Contract 的字段级路由（历史兼容基线为 200 项）。
+- 七模块当前 209 个公开 Contract 的字段级路由（历史兼容基线为 200 项）。
 
 本阶段不定义：
 
@@ -400,7 +400,7 @@ ContractRegistration
 
 API Contract 进入用户审核前必须证明：
 
-1. Catalog 中当前 208 个已注册 `name@version` 在七个 Module Spec 中各出现且只出现一次；
+1. Catalog 中当前 209 个已注册 `name@version` 在七个 Module Spec 中各出现且只出现一次；
 2. namespace 与唯一 Owner 一致；
 3. 每个 Command 有 target/concurrency、payload、authorization 和主要拒绝语义；
 4. 每个 Query 有 payload、result 和允许一致性；
@@ -426,9 +426,9 @@ API Contract 进入用户审核前必须证明：
 ## 13. 当前状态
 
 - 字段级 API 文档已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；验证证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)；
-- 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，#165 再增加三个 @1.1 兼容操作至 208 项，#159 仅放宽既有字段的数组接受集合，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
+- 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，#165 再增加三个 @1.1 兼容操作至 208 项，#175 再增加一个 @2.0 操作至 209 项，#159 仅放宽既有字段的数组接受集合，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
 - 业务 Handler、业务 Fixture、Persistence 业务链和 E2E Runtime 仍未实现；
-- #157/#158/#165 的 Schema/Registry 与生成检查、以及既有 WI-01 Persistence gate 已通过；业务 Handler、E2E、外部和人工运行验证仍为 `NOT RUN`；
+- #157/#158/#165/#175 的 Schema/Registry 与生成检查、以及既有 WI-01 Persistence gate 已通过；业务 Handler、E2E、外部和人工运行验证仍为 `NOT RUN`；
 - 本阶段静态检查最多可标记 `DESIGN VERIFIED`，不得报告实现通过。
 
 ## 14. Issue #57 受控 Capability 边界
@@ -441,7 +441,7 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 状态：TECHNICAL DESIGN APPROVED 2026-09-08；#157 的两项 Source Slice 操作、#158 的两项 @1.0 WorkOrder Draft/initial Context 操作与 #165 的三个 @1.1 兼容操作已交付 Schema/Registry，其中 #157 另有已批准 Guard；其余增量尚未注册。#152–#154具体输入/输出在owning Spec 002/003/005/007设计附录；[TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)已获批准，按依赖实施。首次构建采用版本化新操作，避免改变build_context_snapshot@1.0必填ContractRef语义；Task typed definition采用create_task@2.0，避免以Minor或Handler默认值收窄旧CanonicalJson。
 
-保留既有 @1.0 操作与历史 200 项 Compatibility Baseline 的兼容性；#157 与 #158 各新增两项后 Registry 为 205 项，#165 再新增三个 @1.1 兼容操作至 208 项，旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
+保留既有 @1.0 操作与历史 200 项 Compatibility Baseline 的兼容性；#157 与 #158 各新增两项后 Registry 为 205 项，#165 再新增三个 @1.1 兼容操作至 208 项，#175 再新增 `execution.create_task@2.0` 至 209 项，旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
 
 新增Query只读且受Scope/Purpose裁剪；Slice捕获使用CREATE Command，避免Query产生不可审计写入。CAS expectedAggregateVersion只在Envelope，历史snapshotId/hash不充当CAS token；runtime bigint不能有损转Number。公开整数范围在实现前须与共享Envelope Schema一致，超界明确拒绝，不能借本设计暗改共享类型。
 
@@ -470,6 +470,12 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 `InitialContextBuildRequest.expiresAt`（两个入口版本已有可选字段）只表示该 Context 的有效期上界，不改写 WorkOrder Root/Contract 的创建期限，也不改变 `WorkOrderBecameReady` 的字段形状。显式期限超过 WorkOrder 期限、任一被消费 Source Slice 的 `validUntil` 或当前 Builder Policy 的有限上界时一律拒绝，不静默截断为最小值；请求缺省时 effective expiresAt 取有限上界最小值，无有限上界时保持缺省并明确不等于无限授权。effective expiresAt 写入 ProjectContext Snapshot 的可选 `expiresAt` 与 INITIAL `context_snapshot_build` metadata，并随完整 payload Hash 固定；Builder 发布、Validator 判断、Freeze 提交与 Run 消费前均以受信服务端时间重验。
 
 本次不新增公开 operation、Purpose、Catalog 数量、PayloadGuard Policy 或 Core 本体字段；旧 @1.0 合法调用与历史 Compatibility Baseline 保持可接受，期限组合属于跨字段语义，Schema 接受字段形状不证明该语义已验证。Schema、Registry、生成类型、fixture 与纯契约正反例已同步；期限 Handler、migration、真实 PostgreSQL 业务链与人工验收保持 `NOT RUN`。
+
+### #175 Task v2 create 注册
+
+`execution.create_task@2.0` 与 `execution.create_task@1.0` 并存。@2.0 的 Envelope 固定 `targetRef` 为 `zhiju.execution.task` 且为 CREATE（不接受 `expectedAggregateVersion`），Payload 为 `projectRef: ObjectRef<zhiju.project.project>; definition: TaskDefinitionV2; initialAssignee?`，Purpose 按 Spec 003 §11.1 与 §3 的字段设计取 `execution.task.create`。@1.0 在 Registry/metadata 中登记的 Purpose 仍是历史 `task.execution.create_task`，本次不修改该既有条目；同一操作族的两个 Major 因此暂时持有不同 Purpose 字符串（`task.execution.create_task` / `execution.task.create`），待 IdentityPolicy 实际承载 Purpose 时需按 owning Spec 收敛——本项不生成该决定。`TaskDefinitionV2` 的字段集合与 `TaskDefinition` 相同，其中 `expectedOutputSpec`（`ExpectedOutput[]`，复用 Core `ExpectedOutput`）与 `completionCriteria`（非空 `TaskCriterionV1` 集合）替换为注册的 closed shape；`inputRefs` 按 §2 的已批准 `TypedReference[]` 注册为普通数组，不复用 @1.0 payload 的 `uniqueItems` 历史实现偏差，`dependencyTaskRefs` 仍为 Set。
+
+五类 `TaskCriterionV1` 的 closed Schema、criterionType 与三个 bindings 分支的唯一对应、未知字段与任意 `expectedCondition` 表达式由注册 Schema 拒绝；重复 criterionId、重复 outputSlot 与未解析的 output-slot 绑定由纯契约校验拒绝。`evaluatorRef` 保持通用 `VersionedRef`，不新增 objectType 或 PayloadGuard Policy：本次不新增 Catalog objectType，只新增一个公开 operation（Catalog 208 → 209）。`create_task@1.0` 的 Schema、接受集合与历史 200 项 Compatibility Baseline 均不改变；Evaluator 存在性/支持版本、Policy 有效性、真实授权、Handler、migration、业务持久化与人工验收保持 `NOT RUN`。
 
 ### #157 PayloadGuard 注册补充方案
 

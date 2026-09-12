@@ -1,0 +1,210 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9e001",
+  "commandType": "execution.create_task",
+  "commandVersion": "2.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9e003"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.task",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e004",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9e003"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e005",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e006",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "execution-create-task-v2-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9e007",
+  "requestedAt": "2026-09-12T00:00:00Z",
+  "payload": {
+    "projectRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.project.project",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e003",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9e003"
+      }
+    },
+    "definition": {
+      "deliveryItemRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.project.delivery_item",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e008",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9e009",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9e003"
+        }
+      },
+      "taskType": "document.draft",
+      "title": "Draft quality procedure SOP-002",
+      "objective": "Produce a draft quality procedure mapped to delivery item SOP-002",
+      "priority": "high",
+      "riskLevel": "moderate",
+      "dependencyTaskRefs": [],
+      "inputRefs": [],
+      "expectedOutputSpec": {
+        "schemaVersion": "1.0",
+        "outputs": [
+          {
+            "outputSlot": "procedure.draft",
+            "allowedObjectTypes": ["zhiju.artifact.artifact_revision"],
+            "cardinality": "EXACTLY_ONE",
+            "requiredReferenceStrength": "CONTENT_ADDRESSED",
+            "creationRequired": true,
+            "acceptancePolicyRef": {
+              "kind": "VERSIONED",
+              "objectType": "zhiju.quality.quality_profile_version",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e00a",
+              "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9e00b",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002",
+                "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9e003"
+              }
+            }
+          },
+          {
+            "outputSlot": "evidence.summary",
+            "allowedObjectTypes": ["zhiju.artifact.artifact_revision"],
+            "cardinality": "ZERO_OR_ONE",
+            "requiredReferenceStrength": "CONTENT_ADDRESSED",
+            "creationRequired": false,
+            "acceptancePolicyRef": {
+              "kind": "VERSIONED",
+              "objectType": "zhiju.quality.quality_profile_version",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e00a",
+              "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9e00b",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002",
+                "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9e003"
+              }
+            }
+          }
+        ]
+      },
+      "completionCriteria": {
+        "schemaVersion": "1.0",
+        "criteria": [
+          {
+            "criterionId": "criterion.output.procedure",
+            "criterionType": "EXPECTED_OUTPUTS_SATISFIED",
+            "required": true,
+            "evaluatorRef": {
+              "kind": "VERSIONED",
+              "objectType": "zhiju.quality.evaluator",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e00c",
+              "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9e00d",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002"
+              }
+            },
+            "bindings": { "outputSlots": ["procedure.draft"] },
+            "expectedCondition": { "satisfied": true },
+            "failureDisposition": "BLOCK"
+          },
+          {
+            "criterionId": "criterion.input.blockers",
+            "criterionType": "NO_BLOCKING_INFORMATION_REQUEST",
+            "required": true,
+            "evaluatorRef": {
+              "kind": "VERSIONED",
+              "objectType": "zhiju.quality.evaluator",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e00c",
+              "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9e00d",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002"
+              }
+            },
+            "bindings": { "scope": "TASK_AND_CHILD_WORK_ORDERS" },
+            "expectedCondition": { "satisfied": true },
+            "failureDisposition": "BLOCK"
+          },
+          {
+            "criterionId": "criterion.work.order.completion",
+            "criterionType": "REQUIRED_WORK_ORDERS_COMPLETED",
+            "required": true,
+            "evaluatorRef": {
+              "kind": "VERSIONED",
+              "objectType": "zhiju.quality.evaluator",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e00c",
+              "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9e00d",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002"
+              }
+            },
+            "bindings": { "scope": "ALL_CHILD_WORK_ORDERS" },
+            "expectedCondition": { "satisfied": true },
+            "failureDisposition": "BLOCK"
+          },
+          {
+            "criterionId": "criterion.quality.revision.acceptance",
+            "criterionType": "REVISION_ACCEPTANCE_READY",
+            "required": false,
+            "evaluatorRef": {
+              "kind": "VERSIONED",
+              "objectType": "zhiju.quality.evaluator",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e00c",
+              "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9e00d",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002"
+              }
+            },
+            "bindings": { "outputSlots": ["evidence.summary"] },
+            "expectedCondition": { "satisfied": true },
+            "failureDisposition": "REQUIRE_HUMAN_REVIEW"
+          },
+          {
+            "criterionId": "criterion.quality.revision.approval",
+            "criterionType": "REVISION_FULLY_APPROVED",
+            "required": false,
+            "evaluatorRef": {
+              "kind": "VERSIONED",
+              "objectType": "zhiju.quality.evaluator",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9e00c",
+              "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9e00d",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9e002"
+              }
+            },
+            "bindings": { "outputSlots": ["procedure.draft", "evidence.summary"] },
+            "expectedCondition": { "satisfied": true },
+            "failureDisposition": "REQUIRE_HUMAN_REVIEW"
+          }
+        ]
+      }
+    },
+    "initialAssignee": { "principalKind": "HUMAN", "roleCode": "role.task.owner" }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

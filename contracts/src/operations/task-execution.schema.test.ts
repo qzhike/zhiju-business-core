@@ -225,7 +225,7 @@ function frozenBuildFixture(name: string): JsonObject {
 describe('TaskExecution Draft and initial Context contracts', () => {
   it('registers exactly the approved operations and reference metadata', () => {
     assertTaskExecutionOperationRegistrations(publicApiOperations);
-    expect(registry.operationCount).toBe(208);
+    expect(registry.operationCount).toBe(209);
     expect(registry.getOperation('execution.get_work_order_draft', '1.0')).toMatchObject({
       owner: 'task-execution',
       kind: 'QUERY',
@@ -890,6 +890,348 @@ describe('TaskExecution Draft and initial Context contracts', () => {
       '',
       'additionalProperties',
       { additionalProperty: 'committed' },
+    );
+  });
+});
+describe('Task v2 creation contract', () => {
+  function taskV2(): {
+    readonly command: JsonObject;
+    readonly definition: JsonObject;
+    readonly criteria: JsonObject[];
+  } {
+    // Parsed once per call: every caller must mutate the object it reads, so a
+    // test cannot accidentally edit a throwaway copy.
+    const command = fixture('task-v2/create-task-v2-command-valid.json');
+    const definition = (command.payload as JsonObject).definition as JsonObject;
+    const criteria = ((definition.completionCriteria as JsonObject).criteria ?? []) as JsonObject[];
+    return { command, definition, criteria };
+  }
+
+  function firstCriterion(criteria: readonly JsonObject[]): JsonObject {
+    const criterion = criteria[0];
+    if (criterion === undefined) throw new Error('missing Task v2 criterion fixture');
+    return criterion;
+  }
+
+  function outputs(definition: JsonObject): JsonObject[] {
+    return (definition.expectedOutputSpec as JsonObject).outputs as JsonObject[];
+  }
+
+  /** The closed `bindings` branch shape is rejected wherever it is applied. */
+  function expectRejectedAt(result: ContractValidationResult, instancePath: string): void {
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ instancePath })]),
+    );
+  }
+
+  it('registers create_task@2.0 as an exact Task CREATE command beside the v1 operation', () => {
+    expect(registry.getOperation('execution.create_task', '2.0')).toMatchObject({
+      owner: 'task-execution',
+      kind: 'COMMAND',
+      targetObjectType: 'zhiju.execution.task',
+      concurrencyMode: 'CREATE',
+      authorizationPurpose: 'execution.task.create',
+      dataClassification: 'INTERNAL',
+      references: [
+        { path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.execution.task' },
+        { path: '/payload/projectRef', kind: 'OBJECT', objectType: 'zhiju.project.project' },
+      ],
+    });
+    expect(
+      registry.getOperation('execution.create_task', '2.0')?.allowedConsistency,
+    ).toBeUndefined();
+    expect(registry.getOperation('execution.create_task', '2.0')?.resultSchemaRef).toBeUndefined();
+    expect(taskExecutionOperationContracts['execution.create_task@2.0']).toEqual({
+      payloadSchemaRef: `https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/${operationSchemaDefinitionName(
+        'execution.create_task',
+        '2.0',
+        'payload',
+      )}`,
+    });
+  });
+
+  it('accepts the approved Task v2 definition through both the envelope and the binding check', () => {
+    const { command, definition, criteria } = taskV2();
+
+    expect(registry.validateOperation('execution.create_task', '2.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(registry.validateTaskDefinitionBinding(definition)).toEqual({
+      valid: true,
+      errors: [],
+    });
+
+    // The control fixture exercises every approved criterion type, so a branch
+    // guard cannot pass merely by never being reachable.
+    expect(criteria.map((criterion) => criterion.criterionType)).toEqual([
+      'EXPECTED_OUTPUTS_SATISFIED',
+      'NO_BLOCKING_INFORMATION_REQUEST',
+      'REQUIRED_WORK_ORDERS_COMPLETED',
+      'REVISION_ACCEPTANCE_READY',
+      'REVISION_FULLY_APPROVED',
+    ]);
+  });
+
+  it('keeps the v2 definition closed and rejects non-Task targets or legacy namespaces', () => {
+    const wrongTarget = taskV2();
+    wrongTarget.command.targetRef = objectRef('zhiju.artifact.artifact');
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', wrongTarget.command),
+      '/targetRef/objectType',
+      'const',
+      { allowedValue: 'zhiju.execution.task' },
+    );
+
+    // The historical `execution.task` / `project.project` names stay readable
+    // through the frozen v1.0 fixtures only; the new entry cannot produce them.
+    const legacyNamespace = taskV2();
+    ((legacyNamespace.command.payload as JsonObject).projectRef as JsonObject).objectType =
+      'project.project';
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', legacyNamespace.command),
+      '/payload/projectRef/objectType',
+      'const',
+      { allowedValue: 'zhiju.project.project' },
+    );
+
+    const unknownField = taskV2();
+    unknownField.definition.skipPolicyCheck = true;
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', unknownField.command),
+      '/payload/definition',
+      'additionalProperties',
+      { additionalProperty: 'skipPolicyCheck' },
+    );
+
+    // A @1.0-style open definition is not an acceptable @2.0 definition.
+    const legacyOpenDefinition = taskV2();
+    legacyOpenDefinition.definition.expectedOutputSpec = { kind: 'document' };
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', legacyOpenDefinition.command),
+      '/payload/definition/expectedOutputSpec',
+      'required',
+      { missingProperty: 'schemaVersion' },
+    );
+
+    const casOnCreate = taskV2();
+    casOnCreate.command.expectedAggregateVersion = 0;
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', casOnCreate.command),
+      '/expectedAggregateVersion',
+      'false schema',
+    );
+
+    expect(registry.validateOperation('execution.create_task', '3.0', taskV2().command).valid).toBe(
+      false,
+    );
+  });
+
+  it('rejects a criterion whose bindings branch does not belong to its type', () => {
+    const wrongBranch = taskV2();
+    // `REQUIRED_WORK_ORDERS_COMPLETED` owns the ALL_CHILD_WORK_ORDERS branch only.
+    firstCriterion(wrongBranch.criteria).criterionType = 'REQUIRED_WORK_ORDERS_COMPLETED';
+    expectRejectedAt(
+      registry.validateOperation('execution.create_task', '2.0', wrongBranch.command),
+      '/payload/definition/completionCriteria/criteria/0/bindings',
+    );
+    expect(registry.validateTaskDefinitionBinding(wrongBranch.definition).valid).toBe(false);
+
+    const scopeInOutputBranch = taskV2();
+    firstCriterion(scopeInOutputBranch.criteria).bindings = { scope: 'ALL_CHILD_WORK_ORDERS' };
+    expectRejectedAt(
+      registry.validateOperation('execution.create_task', '2.0', scopeInOutputBranch.command),
+      '/payload/definition/completionCriteria/criteria/0/bindings',
+    );
+
+    const unknownBindingField = taskV2();
+    firstCriterion(unknownBindingField.criteria).bindings = {
+      outputSlots: ['procedure.draft'],
+      ok: true,
+    };
+    expectRejectedAt(
+      registry.validateOperation('execution.create_task', '2.0', unknownBindingField.command),
+      '/payload/definition/completionCriteria/criteria/0/bindings',
+    );
+
+    // A WorkOrder criterion type is not a Task criterion type.
+    const unknownCriterionType = taskV2();
+    firstCriterion(unknownCriterionType.criteria).criterionType = 'OUTPUT_REF_VALID';
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', unknownCriterionType.command),
+      '/payload/definition/completionCriteria/criteria/0/criterionType',
+      'enum',
+    );
+
+    // §11.6 fixes the first-version condition at `satisfied`; an arbitrary
+    // expression is not an accepted criterion.
+    const arbitraryExpression = taskV2();
+    firstCriterion(arbitraryExpression.criteria).expectedCondition = {
+      expression: 'outputs.length > 0',
+    };
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', arbitraryExpression.command),
+      '/payload/definition/completionCriteria/criteria/0/expectedCondition',
+      'required',
+      { missingProperty: 'satisfied' },
+    );
+
+    const emptyCriteria = taskV2();
+    (emptyCriteria.definition.completionCriteria as JsonObject).criteria = [];
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', emptyCriteria.command),
+      '/payload/definition/completionCriteria/criteria',
+      'minItems',
+    );
+  });
+
+  it('rejects duplicated criterion ids, duplicated output slots and unresolved slot bindings', () => {
+    const duplicateCriterionId = taskV2();
+    const secondCriterion = duplicateCriterionId.criteria[1];
+    if (secondCriterion === undefined) throw new Error('missing Task v2 criterion fixture');
+    secondCriterion.criterionId = firstCriterion(duplicateCriterionId.criteria).criterionId;
+    // The two criteria differ structurally, so only the pure binding check can
+    // see that one semantic identity was declared twice.
+    expect(
+      registry.validateOperation('execution.create_task', '2.0', duplicateCriterionId.command),
+    ).toEqual({ valid: true, errors: [] });
+    expect(registry.validateTaskDefinitionBinding(duplicateCriterionId.definition).errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: '/completionCriteria/criteria/1/criterionId',
+          code: 'DUPLICATE_CRITERION_ID',
+        }),
+      ]),
+    );
+
+    const duplicateSlot = taskV2();
+    const firstOutput = outputs(duplicateSlot.definition)[0];
+    if (firstOutput === undefined) throw new Error('missing Task v2 output fixture');
+    outputs(duplicateSlot.definition).push(structuredClone(firstOutput));
+    expect(
+      registry.validateOperation('execution.create_task', '2.0', duplicateSlot.command).valid,
+    ).toBe(true);
+    expect(registry.validateTaskDefinitionBinding(duplicateSlot.definition).errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: '/expectedOutputSpec/outputs/2/outputSlot',
+          code: 'DUPLICATE_OUTPUT_SLOT',
+        }),
+      ]),
+    );
+
+    const unknownSlot = taskV2();
+    firstCriterion(unknownSlot.criteria).bindings = {
+      outputSlots: ['procedure.draft', 'procedure.missing'],
+    };
+    expect(registry.validateOperation('execution.create_task', '2.0', unknownSlot.command)).toEqual(
+      { valid: true, errors: [] },
+    );
+    expect(registry.validateTaskDefinitionBinding(unknownSlot.definition).errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: '/completionCriteria/criteria/0/bindings/outputSlots/1',
+          code: 'UNKNOWN_OUTPUT_SLOT',
+        }),
+      ]),
+    );
+  });
+
+  it('leaves every v1 create_task acceptance unchanged', () => {
+    const v1 = fixture('execution-create-task-command-valid.json');
+    expect(registry.validateOperation('execution.create_task', '1.0', v1)).toEqual({
+      valid: true,
+      errors: [],
+    });
+
+    // The historical open definition stays a v1 payload; it is not an
+    // acceptable @2.0 definition even though the command name is shared.
+    expect(registry.validateOperation('execution.create_task', '2.0', v1).valid).toBe(false);
+    expect(registry.validateTaskDefinitionBinding(v1.payload).errors.length).toBeGreaterThan(0);
+  });
+
+  it('accepts repeated TypedReference inputRefs in v2 without rewriting the request', () => {
+    // §2 declares `inputRefs: TypedReference[]`; only `dependencyTaskRefs` is a
+    // Set. A repeated reference is therefore an accepted v2 request, and the
+    // v1 implementation's `uniqueItems` must not be carried into the new Major.
+    const inputRef = (taskV2().command.payload as JsonObject).projectRef as JsonObject;
+    const cases: readonly (readonly unknown[])[] = [
+      [],
+      [structuredClone(inputRef)],
+      [structuredClone(inputRef), structuredClone(inputRef)],
+    ];
+
+    for (const inputRefs of cases) {
+      const accepted = taskV2();
+      accepted.definition.inputRefs = structuredClone(inputRefs);
+      const before = structuredClone(accepted.definition.inputRefs);
+
+      expect(registry.validateOperation('execution.create_task', '2.0', accepted.command)).toEqual({
+        valid: true,
+        errors: [],
+      });
+      expect(registry.validateTaskDefinitionBinding(accepted.definition)).toEqual({
+        valid: true,
+        errors: [],
+      });
+      // The accepted request is not silently de-duplicated or reordered.
+      expect(accepted.definition.inputRefs).toEqual(before);
+    }
+
+    // `dependencyTaskRefs` stays a Set: the same field-level control still
+    // rejects a repeated Task reference in v2.
+    const duplicateDependencies = taskV2();
+    const taskRef = objectRef('zhiju.execution.task');
+    duplicateDependencies.definition.dependencyTaskRefs = [
+      structuredClone(taskRef),
+      structuredClone(taskRef),
+    ];
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', duplicateDependencies.command),
+      '/payload/definition/dependencyTaskRefs',
+      'uniqueItems',
+    );
+  });
+
+  it('still rejects non-array and malformed v2 inputRefs at their public path', () => {
+    const nonArray = taskV2();
+    nonArray.definition.inputRefs = {};
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', nonArray.command),
+      '/payload/definition/inputRefs',
+      'type',
+    );
+
+    const malformedRef = taskV2();
+    malformedRef.definition.inputRefs = [{}];
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '2.0', malformedRef.command),
+      '/payload/definition/inputRefs/0',
+      'oneOf',
+    );
+
+    // The frozen v1 payload keeps its historical Set behaviour, so the v2
+    // correction is not a v1 contract change.
+    const v1 = fixture('execution-create-task-command-valid.json');
+    ((v1.payload as JsonObject).definition as JsonObject).inputRefs = [
+      (v1.payload as JsonObject).projectRef,
+    ];
+    expect(registry.validateOperation('execution.create_task', '1.0', v1)).toEqual({
+      valid: true,
+      errors: [],
+    });
+
+    const v1Duplicate = fixture('execution-create-task-command-valid.json');
+    const v1InputRef = (v1Duplicate.payload as JsonObject).projectRef as JsonObject;
+    ((v1Duplicate.payload as JsonObject).definition as JsonObject).inputRefs = [
+      v1InputRef,
+      structuredClone(v1InputRef),
+    ];
+    expectSchemaError(
+      registry.validateOperation('execution.create_task', '1.0', v1Duplicate),
+      '/payload/definition/inputRefs',
+      'uniqueItems',
     );
   });
 });

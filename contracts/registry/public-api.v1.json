@@ -375,6 +375,29 @@
       "schemaStatus": "FULL"
     },
     {
+      "type": "execution.create_task",
+      "version": "2.0",
+      "kind": "COMMAND",
+      "owner": "task-execution",
+      "schemaStatus": "FULL",
+      "targetObjectType": "zhiju.execution.task",
+      "concurrencyMode": "CREATE",
+      "authorizationPurpose": "execution.task.create",
+      "dataClassification": "INTERNAL",
+      "references": [
+        {
+          "path": "/targetRef",
+          "kind": "OBJECT",
+          "objectType": "zhiju.execution.task"
+        },
+        {
+          "path": "/payload/projectRef",
+          "kind": "OBJECT",
+          "objectType": "zhiju.project.project"
+        }
+      ]
+    },
+    {
       "type": "execution.mark_task_ready",
       "version": "1.0",
       "kind": "COMMAND",
