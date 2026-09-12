@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-13
-状态：`CURRENT API CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 CONTROLLED CAPABILITY DECISION RECORDED / IM-06 #157/#158 CONTRACT SCHEMA AND REGISTRY DELIVERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT DELIVERED 2026-09-11 / BUSINESS IMPLEMENTATION NOT STARTED`
+状态：`CURRENT API CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 WI-01 CONTROLLED CAPABILITY DECISION RECORDED / IM-06 #157/#158 CONTRACT SCHEMA AND REGISTRY DELIVERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT DELIVERED 2026-09-11 / #181 POLICYVERSION PAYLOADGUARD PARAMETERS + SD-181-1 APPROVED 2026-09-13 / BUSINESS IMPLEMENTATION NOT STARTED`
 
 文档角色：公开 Command、Query、Event 的共享字段规则、执行语义、错误、兼容性、安全与验证要求的唯一权威。具体操作名称及唯一 Owner 以 [`../high-level-docs/06-typed-references-contract-catalog-v0.1.md`](../high-level-docs/06-typed-references-contract-catalog-v0.1.md) 为准；每个操作的 payload/result/event 字段由对应 `Module-Spec` 唯一维护。
 
@@ -143,7 +143,7 @@ FieldViolation
 └── targetRef?: TypedReference
 ```
 
-所有文本、集合、Payload 和分页大小上限由构建期 `PayloadGuardPolicy@1.0` 注册并进入生成 Schema；Handler 必须在解析大对象或执行授权查询前应用 Guard。具体数值属于实现前部署参数，本 Contract 不允许实现以“无限制”作为默认值。
+所有文本、集合、Payload 和分页大小上限由构建期 `PayloadGuardPolicy@1.0` 注册并进入生成 Schema；Handler 必须在解析大对象或执行授权查询前应用 Guard。具体数值属于实现前部署参数，本 Contract 不允许实现以“无限制”作为默认值。已批准并实现的数值见 [§157 补充方案](#157-payloadguard-注册补充方案)；#176 两个 PolicyVersion 操作的有限参数提案与实测依据见 [§#181 PolicyVersion PayloadGuard 注册方案](#181-policyversion-payloadguard-注册方案)，已于 2026-09-13 获批，尚未注册或实现。
 
 ## 5. Command API
 
@@ -428,7 +428,7 @@ API Contract 进入用户审核前必须证明：
 - 字段级 API 文档已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；验证证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)；
 - 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，#165 再增加三个 @1.1 兼容操作至 208 项，#175 再增加一个 @2.0 操作至 209 项，#159 仅放宽既有字段的数组接受集合，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
 - 业务 Handler、业务 Fixture、Persistence 业务链和 E2E Runtime 仍未实现；
-- #157/#158/#165/#175 的 Schema/Registry 与生成检查、以及既有 WI-01 Persistence gate 已通过；业务 Handler、E2E、外部和人工运行验证仍为 `NOT RUN`；
+- #157/#158/#165/#175 的 Schema/Registry 与生成检查、以及既有 WI-01 Persistence gate 已通过；#181 只呈现两个 PolicyVersion 操作的 PayloadGuard 有限参数提案与实测依据，未注册操作或参数；业务 Handler、E2E、外部和人工运行验证仍为 `NOT RUN`；
 - 本阶段静态检查最多可标记 `DESIGN VERIFIED`，不得报告实现通过。
 
 ## 14. Issue #57 受控 Capability 边界
@@ -476,6 +476,29 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT REGISTERED`，设计见 [决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本项提出 IdentityPolicy 的两个新入口：`identity.record_policy_version@1.0`（payload `policyRef`、`policySetVersion`、`policySchemaRefs`、`policyDocument`、`effectiveFrom`、可选 `supersedesRef`；注册 operation-specific Result Schema 返回精确 `SnapshotRef<zhiju.identity.policy_version>`）与 AUTHORITATIVE Query `identity.resolve_policy@1.0`（payload 固定 canonical `zhiju.identity.policy`，Purpose `identity.policy.resolve_policy`）。二者按 §9.2 完整注册后 Catalog 由 209 增至 211；当前未注册、未实现，历史 200 项 Compatibility Baseline、旧 `record_policy_snapshot@1.0` 条目与其 Platform 读取路径都不改写。
 
 新增 Purpose `identity.policy.record_policy_version` 与 `identity.policy.resolve_policy` 必须在 public-api 与 compatibility metadata 两个来源中一致登记，并注册到版本化 capability/policy；`dataClassification=INTERNAL`，若某 profile 将来允许承载客户材料必须重新分类；两个新操作实现时必须声明有限额的构建期 PayloadGuard 技术 Policy（参数在实现 Issue 中按 §157 流程确定，不得以无限额占位）。首版四个 profile 的 schema 身份由新的构建期 registry 版本承载（见 [Spec 001 §13.5](../module-specs/Module-Spec-001-IdentityPolicy.md#135-授权profile-schema-注册与失败审计)），既有 registry 条目与旧命令接受集合不变。企业级版本事实与其正文不得写入 Platform `policy_snapshot`（该表 RLS 无 enterprise/project 条件），必须落在带 Scope 的 FORCE RLS 新表并经受授权 Query 读取；RLS 不替代授权。解析结果内联返回 `policyDocument`，通用 `VersionedRef` 继续不携带 `contentHash`。对象存在性、授权、幂等、Handler、migration 与真实 PostgreSQL 业务链仍为 `NOT RUN`；后续实现须按已批准设计与明确的实现 Issue Scope 交付。
+
+### #181 PolicyVersion PayloadGuard 注册方案
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-13 / DESIGN VERIFIED / NOT REGISTERED`。本方案与 SD-181-1 已于 2026-09-13 完成独立技术审查并获人类设计验收批准（[人类批准记录](https://github.com/qzhike/zhiju-business-core/pull/182#issuecomment-5647186487)），对应设计 revision `0f596d1f74d9d306bf8a7884ca8adf1f5203d26d`；这是已批准设计基准，不代表操作、参数或业务能力已经实现。仅适用于 #176 提出的 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0`（当前未注册）。参数、适用边界、实测依据与验证矩阵的权威文本在 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案) 与 [Module-Test 001](../module-tests/Module-Test-001-IdentityPolicy.md#181-policyversion-api-payloadguard-验证矩阵提案待批准)；本节只固定共享 API 层的集成边界，不重复参数表。本项不改变 `ep.context_source_slice@1.0` 的既有参数、不新增全局默认上限，也不改变任何已注册操作的接受集合。
+
+```json
+{ "type": "identity.policy_version", "version": "1.0" }
+```
+
+两个操作都以该 `{type, version}` 作为自己的 `payloadGuardPolicyRef`，共享同一个构建期技术条目（登记后位于 `contracts/registry/payload-guard-policies.v1.json`）：两个操作唯一的可变规模载体是同一份 `policyDocument`，共享条目把"写入端放行则读取端必须放行"变成单点不变量。该引用是 §9.2 `ContractRegistration` 的技术字段，不是业务 `TypedReference`，不进入 `references`/`resultReferences`，不需要数据库行或 `contentHash`。
+
+规则要点：
+
+- **计量对象**：`validateOperation` 以完整请求 Envelope 计量（Command/Query 一致，含全部 Envelope 字段、payload 与内联 `policyDocument`）；`validateOperationResult` 以 `CommandResult.data` / `QueryResult.data` 计量。两者都是紧凑 JSON 的 UTF-8 字节数，inclusive 边界，与 §157 口径相同。
+- **执行位置**：复用 `ContractRegistry` 的 Guard 执行点与 `payloadGuard` keyword，先于结构 Schema，也先于 Handler 的授权、幂等与 CAS；构建期与运行期加载同一实现，未知 Policy 或未加载 Guard 的校验器拒绝编译，禁止仅作 annotation 忽略。
+- **写入/读回关系（定式）**：结果预算**以"请求预算 + 固定余量"声明**，不是两个独立数值：`maxResultBytes = maxEnvelopeBytes + 4096 = 266240`。证明只需结果侧增量有上界：设 `C_req`/`C_res` 为去掉 `policyDocument` 后的请求与结果字节，两侧共有且逐字节相同的字段（`policyRef`、`policySetVersion`、`policySchemaRefs`、`effectiveFrom`）相消，故 `C_res − C_req ≤ R_only`（结果专有字段总量，请求专有部分恒 ≥ 0）。`R_only` 的每个成员都是有界形状（`scopeRef`、canonical `SnapshotRef`、`contentHash`、闭集 `useStatus`，以及 SD-181-1 限定的两个时刻），实测上界 **820**。于是任意合法写入都满足：读取帧 `= (C_req + |D|) + (C_res − C_req) ≤ 262144 + 820 = 262964 ≤ 266240`。**该推导不使用请求侧最小值**，因此不受请求侧字段编码变化影响。等值预算下实测一个按写入边界合法提交的 Project 版本读回为 262153 字节并被拒绝，故必须保留余量。该推导与逐字段上界见 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案)；§13.3.2 的 2098/1398 等数值是代表性样本，不参与该推导。除下一项的字段约束外，本项不需要分页、截断或额外 Result 通道等结构变更，也不得让读取路径返回部分结果。
+- **SD-181-1（2026-09-13 随本方案一并获批的字段约束）**：两个操作的 payload 与结果中每个 `UtcInstant`（`effectiveFrom`、`supersededAt`、`checkedAt`）序列化为至多毫秒精度的 canonical UTC 时刻（≤ 24 code point），由这两个操作自己的 Schema 以长度上界执行，亚毫秒输入在写入边界拒绝、不截断。共享 `UtcInstant` 定义、既有操作接受集合与 `compareUtcInstants` 的变长小数能力**不变**。缺少该约束时 `R_only` 的上界不成立：`supersededAt`（= 后继 `effectiveFrom`）与 `checkedAt` 只受 `maxStringCodePoints` 约束，各可达 16384 code point，`R_only` 变为约 **33540**（约 33 KiB），远超 4096 余量；实测反例是（在当时的等值结果预算下）一个 260046 字节正文的合法前驱被 90 字节后继取代后读回 262441 字节；在现行 266240 下该规模的拒绝依据是时刻长度约束本身。已评估但不采纳的替代方案是把余量提到约 33 KiB（读取预算约 296 KiB）——它让单个时刻字段可占约 16 KiB，且任何新增变长结果字段都会再次打破保证。SD-181-1 把 `R_only` 压到 820，使余量与字段级细节解耦；余量 4096 与 SD-181-1 解决不同项，缺一不可。
+- **结果侧变长字段必须逐个有界**：`policyRef.objectType` 与 `policyVersionRef.objectType` 由 §13.2 的 canonical 名称以 `const` 编码固定（不能只靠 `maxStringCodePoints`）；`policySetVersion`、`policySchemaRefs`、`policyDocument`、`effectiveFrom`、`scopeRef` 必须是请求侧的逐字段相等回显；`contentHash` 形状固定。任何新增结果字段或放宽 SD-181-1 都必须重算并重跑 §13.3.2 的边界复核。
+- **错误**：沿用 `ContractValidationResult`、`keyword=payloadGuard`、`params.rule/limit` 与 JSON Pointer；不新增业务错误码，不改写既有错误语义，错误不携带原始内容。
+- **单值上限独立于字节预算**：`maxStringCodePoints` 按 code point 限制单个字符串值与对象键，实测可在总字节数远低于 262144 时先触发（16384 通过、16385 拒绝）；该值复用 #157 已批准的同名技术值，不得由字节预算推导，也不得在实现中绕过。
+- **非适用维度**：`maxRequestedKinds` 是 #157 的字段专属上限，对这两个操作不构成裁决；它不在本文档被声明为"可省略"，也不表示无限额。
+
+上述参数与 SD-181-1 已取得独立设计审查结论与人类批准，随后续明确 Scope 的两个操作 Schema/Registry 一并实现；本 PR 不注册操作、不写入参数文件。批准与审查证据保留在对应 Issue/PR。
 
 ### #175 Task v2 create 注册
 

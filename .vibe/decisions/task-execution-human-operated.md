@@ -304,7 +304,7 @@ TD-07 的可执行 Fixture 使用生产 Application Command/Query、同一授权
 
 ## 12. #176 首批 Policy/Evaluator 解析与授权依赖
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED`；[Issue #179](https://github.com/qzhike/zhiju-business-core/issues/179) 已交付构建期 profile registry `im06-static-v1`、四个 profile 的固定 canonical typed ref 与 closed 字段 Schema、生成检查，以及各 owning 模块的纯注册性/closed 字段校验（见 §12.9）；`record_policy_version`/`resolve_policy` 的 Schema、Handler、Purpose 注册、migration 与 PolicyVersion 事实存在性、授权、生命周期和真实业务链仍 `NOT IMPLEMENTED / NOT RUN`（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：企业级隔离归属、profile registry 注册路径、取代关系基数与并发裁决，以及后继唯一性只作用于真实取代边）。本节回应 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)，只收敛首批 Task/WorkOrder/Context 业务链真实需要的 Policy/Evaluator 解析与授权前置。TD-01–04 及其补充（§7–§10）继续有效且被本节引用为已批准边界；TD-05–07（§11）保持 `PROPOSED`，不被本节追认。**本节 P-176-1 至 P-176-5 已于 2026-09-12 获人类批准**。批准对应 PR #178 的 `5975da3f52f83cf5b9c24dfe5e046f5d4996521b` 所呈现设计；用户在独立技术复审确认 R1–R4 已修复后明确表示“我批准新增的实质决定”。已批准内容可作为后续 readiness 复核的设计前提，业务实现仍须有明确 Scope 与实际依赖；本次批准不使 Schema、Registry、Handler 或 migration 自动成为已交付事实。既有 `zhiju.identity.policy`、`execution.*`、`project.*` 的已批准字段与历史 Compatibility Baseline 不因本节改变。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED`；[Issue #179](https://github.com/qzhike/zhiju-business-core/issues/179) 已交付构建期 profile registry `im06-static-v1`、四个 profile 的固定 canonical typed ref 与 closed 字段 Schema、生成检查，以及各 owning 模块的纯注册性/closed 字段校验（见 §12.9）；`record_policy_version`/`resolve_policy` 的 Schema、Handler、Purpose 注册、migration 与 PolicyVersion 事实存在性、授权、生命周期和真实业务链仍 `NOT IMPLEMENTED / NOT RUN`（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：企业级隔离归属、profile registry 注册路径、取代关系基数与并发裁决，以及后继唯一性只作用于真实取代边）。两个操作的 PayloadGuard 有限参数不在本次批准范围内，由 [Issue #181](https://github.com/qzhike/zhiju-business-core/issues/181) 单独呈现，并于 2026-09-13 完成独立技术审查与人类批准（见 §12.4 第 3 条与 §12.9）。本节回应 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)，只收敛首批 Task/WorkOrder/Context 业务链真实需要的 Policy/Evaluator 解析与授权前置。TD-01–04 及其补充（§7–§10）继续有效且被本节引用为已批准边界；TD-05–07（§11）保持 `PROPOSED`，不被本节追认。**本节 P-176-1 至 P-176-5 已于 2026-09-12 获人类批准**。批准对应 PR #178 的 `5975da3f52f83cf5b9c24dfe5e046f5d4996521b` 所呈现设计；用户在独立技术复审确认 R1–R4 已修复后明确表示“我批准新增的实质决定”。已批准内容可作为后续 readiness 复核的设计前提，业务实现仍须有明确 Scope 与实际依赖；本次批准不使 Schema、Registry、Handler 或 migration 自动成为已交付事实。既有 `zhiju.identity.policy`、`execution.*`、`project.*` 的已批准字段与历史 Compatibility Baseline 不因本节改变。
 
 ### 12.1 对账结论：既有事实与真实缺口
 
@@ -412,8 +412,9 @@ PolicyVersionResolutionView
 
 1. **policy profile 由消费模块拥有**：`policyDocument` 的 profile 字段校验发生在消费模块（EP/TE）内，不在 IdentityPolicy；IdentityPolicy 只校验 `policySchemaRefs` 是否为构建期 Registry 的已注册 canonical 条目，并保证事实不可变、Hash 与生命周期正确。消费模块还必须校验 `policySchemaRefs` 含其支持的 profile schema 引用。
 2. **Evaluator 版本注册**：首版 Evaluator 是确定性实现代码，其版本以**构建期静态注册表**登记（沿用 `POLICY_SCHEMA_REGISTRY`/`payload-guard-policies.v1.json` 的既有机制：静态条目、固定标识、无数据库行、无虚构 Hash），并以 `VersionedRef<Evaluator>` 暴露；objectType 由 owning 模块注册（提案 `zhiju.execution.evaluator_profile`），Scope 为 Platform。Evaluator ref 是**profile 选择器**，不携带 `contentHash`、不参与 Policy 版本的解析与生命周期，也不得被当作已提交业务事实。
-3. **支持边界**：首版只支持 §12.4 表内列出的 profile 与 Evaluator 版本。capability/Policy 未提供、版本未知、字段未注册、语义未支持都必须在创建判断前拒绝（TE 侧 `EXECUTION_CRITERION_UNSUPPORTED`，EP 侧由 owning 模块 §6 的错误码拥有），不得"跳过判据"通过链路。
-4. 本节的 profile 字段是**首版最小闭合集合**；扩展任何字段或类型都需要新的 profile 版本与独立决定，不得就地扩展既有 profile 版本。
+3. **写入前的资源边界**：两个 PolicyVersion 操作使用共享的有限技术 Policy `identity.policy_version@1.0`；参数、计量对象、执行位置与写入/读回关系见 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案)（#181 已批准 2026-09-13，未实现）。该 Guard 只限制资源规模，不解释 profile 规则字段、不改变 `validUntil` 推导；它声明仍不支持的内容不作为放行理由。同一提案还要求 **`maxResultBytes` 以"`maxEnvelopeBytes` + 4096 余量"的形式声明**（266240），并附带 **SD-181-1**：这两个操作的 `UtcInstant` 字段（`effectiveFrom`/`supersededAt`/`checkedAt`）限定为至多毫秒精度（≤ 24 code point）。前者覆盖结果侧拥有请求侧没有的完整 `SnapshotRef` 所造成的增量（`R_only` 实测上界 820，等值预算下会读不回）；后者覆盖结果侧两个派生时刻的长度（放宽后 `R_only` 约 33540）。该约束**只作用于两个未注册操作**，不改变共享 `UtcInstant` 定义、既有操作接受集合或 `compareUtcInstants` 的变长小数比较，也不改变 `supersededAt = 唯一后继 effectiveFrom` 的相等语义；它与参数已一并获批，但尚未成为实现事实。
+4. **支持边界**：首版只支持 §12.4 表内列出的 profile 与 Evaluator 版本。capability/Policy 未提供、版本未知、字段未注册、语义未支持都必须在创建判断前拒绝（TE 侧 `EXECUTION_CRITERION_UNSUPPORTED`，EP 侧由 owning 模块 §6 的错误码拥有），不得"跳过判据"通过链路。
+5. 本节的 profile 字段是**首版最小闭合集合**；扩展任何字段或类型都需要新的 profile 版本与独立决定，不得就地扩展既有 profile 版本。
 
 **profile schema 身份、Registry 注册与 owning 校验边界**
 
@@ -441,6 +442,8 @@ PolicyVersionResolutionView
 | `execution.validate_work_order_draft@1.0`（设计） | `execution.work_order.draft.validate` | 未注册；同上 |
 | `identity.record_policy_version@1.0`（提案） | `identity.policy.record_policy_version` | 未注册；写入者（授权 Human 或受约束 Service）持自己的 Decision，不得与旧 `identity.policy.record_policy_snapshot` 混用同一条目 |
 | `identity.resolve_policy@1.0`（提案） | `identity.policy.resolve_policy` | 未注册；实现前必须在两个 registry 中注册并与版本化 capability/policy 一致 |
+
+两个操作的 Purpose 字符串本身不受 #181 的参数提案影响；#181 只固定二者共享的 PayloadGuard 技术条目与参数（见 §12.4 第 3 条），不注册 Purpose、不改变本节任何行的授权路径。
 
 1. **不使用 Service 通配放行**：Purpose 必须按 owning Spec 注册为精确字符串；`*`/前缀通配/未注册 Purpose 一律拒绝（既有测试已覆盖通配拒绝）。
 2. **Human Intent 与 Service 自身授权分别保留**：Human 经既有 owning Command（`create_work_order`、Task CREATE、答案提交等）保留自己的 ActorSnapshot/AuthorizationDecision；Service（ContextBuilder、ReadinessBuilder、WorkOrderValidator、EP capture）使用各自的 Decision，不能以 Human 凭据或 Driver 身份代理。
@@ -507,10 +510,12 @@ PolicyVersionResolutionView
 
 **已交付（#179，仅构建期静态注册与纯校验）**：构建期 profile schema registry 新版本 `im06-static-v1`（既有 `im02-static-v1` 三项 ∪ 四个首版 profile）、四个 profile 条目的固定 canonical typed ref 与 closed 字段 Schema、生成副本与构建漂移检查，以及各 owning 模块的纯注册性/closed 字段校验；旧 `im02-static-v1`、旧命令接受集合与 200 项历史 Compatibility Baseline 不变。该交付只证明静态注册与规则字段闭合：PolicyVersion 事实是否存在、当前授权是否有效、Handler 与业务链是否可用均未因此成立。
 
+**本次设计层新解除（#181 已批准 2026-09-13，未实现）**：两个 PolicyVersion 操作的完整请求 Envelope、`CommandResult.data` 与 `QueryResult.data` 计量对象，共享技术 Policy `identity.policy_version@1.0` 与其有限参数、执行位置与错误形状，以及"按该参数合法写入的版本必然可读回"的**定式**——结果预算以"请求预算 + 固定余量"声明（`maxResultBytes = maxEnvelopeBytes + 4096 = 266240`），证明只需结果侧增量 `R_only` 有上界（实测 820，全部由有界形状构成），**不使用请求侧最小值**，因此不受请求侧字段编码变化影响。等值预算被实测证伪：一个合法 Project 版本读回 262153 字节被拒绝。该关系**同时依赖 SD-181-1**（两个操作的时刻字段至多毫秒精度）：缺少它时 `R_only` 变为约 33540，远超 4096 余量。余量与 SD-181-1 解决不同项，缺一不可。权威文本见 [Spec 001 §13.3.1/§13.3.2](../module-specs/Module-Spec-001-IdentityPolicy.md#1331-payloadguard-技术-policy参数与适用边界181-提案) 与 [共享 API §#181 方案](../api-contract-v0.1/API-Contract-v0.1.md#181-policyversion-payloadguard-注册方案)。本方案与 SD-181-1 已于 2026-09-13 完成独立技术审查并获人类设计验收批准（[人类批准记录](https://github.com/qzhike/zhiju-business-core/pull/182#issuecomment-5647186487)），对应设计 revision `0f596d1f74d9d306bf8a7884ca8adf1f5203d26d`；这是已批准设计基准，不代表操作、参数或业务能力已经实现。 后续随两个操作一并注册。
+
 **仍缺少（实际能力，均 `NOT IMPLEMENTED / NOT RUN`）**：
 
-- IdentityPolicy：`record_policy_version@1.0` 与 `resolve_policy@1.0` 的 Schema、Registry、生成类型、fixture、Handler；带 Enterprise/Project Scope 的 FORCE RLS 新表（版本事实 + 唯一版本绑定 + 取代边唯一约束与查询路径）、`zhiju.identity.policy_version` 的 objectType 注册，以及两个 registry 中的 Purpose 注册；
-- 实现前仍需确定的 PayloadGuard 有限参数值（本次设计未呈现具体数值，不由本次批准补造）；本节 P-176-1–5 的人类批准与独立设计审查已完成，包括新 scoped 表/RLS、registry 新版本与四个 profile 以及 Evaluator objectType 设计；
+- IdentityPolicy：`record_policy_version@1.0` 与 `resolve_policy@1.0` 的 Schema、Registry、生成类型、fixture、Handler；带 Enterprise/Project Scope 的 FORCE RLS 新表（版本事实 + 唯一版本绑定 + 取代边唯一约束与查询路径）、`zhiju.identity.policy_version` 的 objectType 注册、两个 registry 中的 Purpose 注册，以及 `identity.policy_version@1.0` PayloadGuard 技术条目与两个操作的 `payloadGuardPolicyRef` 绑定（参数与 SD-181-1 已于 2026-09-13 获批，未注册）；
+- 本节 P-176-1–5 的人类批准与独立设计审查已完成，包括新 scoped 表/RLS、registry 新版本与四个 profile 以及 Evaluator objectType 设计；
 - EnterpriseProject：`capture_context_source_slice`/`get_context_source_slice` Handler、Slice 表与 capture policy 解析观察、`validUntil` 推导；
 - TaskExecution：`create_work_order@1.1`、`get_work_order_draft@1.1`、`build_initial_context_snapshot@1.0/@1.1`、`build_task_readiness@1.0`、`validate_work_order_draft@1.0`、`freeze_work_order` 的 Handler 与业务持久化；Evaluator 确定性实现；
 - 真实业务 Policy 文档内容与其审批（本项不发明 Policy 内容）；

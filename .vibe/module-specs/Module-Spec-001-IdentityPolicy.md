@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / #181 PAYLOADGUARD PARAMETERS + SD-181-1 APPROVED 2026-09-13 DESIGN VERIFIED / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -252,7 +252,7 @@ PR #52 合并后的默认分支已通过直接锁定 digest 的 `12 files / 177 
 
 ## 13. #176 Policy 版本身份与解析 Port 设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED`；[Issue #179](https://github.com/qzhike/zhiju-business-core/issues/179) 已交付**构建期 profile registry `im06-static-v1`**（`contracts/registry/policy-profiles.v1.json` 与其生成副本）、四个 profile 的 canonical typed ref 与 closed 字段 Schema，以及本模块的精确注册性检查（`policy-profiles.ts`、`policy-profile-documents.ts`、`commands/static-registry.ts`）；`record_policy_version`/`resolve_policy` 的 Envelope、Handler、生成类型、Purpose 注册、migration 与 PolicyVersion 事实存在性、授权、生命周期和真实业务链仍 `NOT IMPLEMENTED / NOT RUN`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)。本节提案是 `VersionedRef<zhiju.identity.policy>` 定位已提交版本事实的唯一权威来源（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：隔离归属、profile registry 注册路径、取代关系基数，以及后继唯一性只作用于真实取代边）；已完成独立设计审查并获人类批准；可执行 Schema、Registry 条目、Handler 与 migration 仍须按后续实现 Issue 的明确 Scope 交付。§2–§12 的既有类型、20 项公开 Contract、历史 Compatibility Baseline 与现有实现行为不因本节改变；本文档 §5–§11 记录的历史执行结果继续按原文成立。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED`（PayloadGuard 参数另见 §13.3.1，`#181 已批准 2026-09-13 / 未实现`，不由本节批准覆盖）；[Issue #179](https://github.com/qzhike/zhiju-business-core/issues/179) 已交付**构建期 profile registry `im06-static-v1`**（`contracts/registry/policy-profiles.v1.json` 与其生成副本）、四个 profile 的 canonical typed ref 与 closed 字段 Schema，以及本模块的精确注册性检查（`policy-profiles.ts`、`policy-profile-documents.ts`、`commands/static-registry.ts`）；`record_policy_version`/`resolve_policy` 的 Envelope、Handler、生成类型、Purpose 注册、migration 与 PolicyVersion 事实存在性、授权、生命周期和真实业务链仍 `NOT IMPLEMENTED / NOT RUN`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176) 与[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖)。本节提案是 `VersionedRef<zhiju.identity.policy>` 定位已提交版本事实的唯一权威来源（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：隔离归属、profile registry 注册路径、取代关系基数，以及后继唯一性只作用于真实取代边）；已完成独立设计审查并获人类批准；可执行 Schema、Registry 条目、Handler 与 migration 仍须按后续实现 Issue 的明确 Scope 交付。§2–§12 的既有类型、20 项公开 Contract、历史 Compatibility Baseline 与现有实现行为不因本节改变；本文档 §5–§11 记录的历史执行结果继续按原文成立。
 
 ### 13.1 当前事实与缺口
 
@@ -305,9 +305,200 @@ PolicyVersionResolutionView
 
 1. `identity.record_policy_snapshot@1.0` 保持合法且不变：其 Platform 行、RLS、读回与授权链不受影响，但不获得版本绑定或解析能力；本项不发布新 Major，不修改其 payload、行结构、历史 fixture 或 200 项 Compatibility Baseline。
 2. `policySchemaRefs` 必须是构建期 profile Registry 的已注册 canonical 条目（13.5）；profile 字段语义由消费模块校验，IdentityPolicy 只校验注册性与 canonical 形状。
-3. 两个新操作在实现时必须按完整 Envelope 注册（共享 API §9.2），并声明有限额的构建期 PayloadGuard 技术 Policy（本项不预设参数）；`dataClassification=INTERNAL`，若某 profile 将来允许承载客户材料必须重新分类；Catalog 净增 2 项（209 → 211，本模块 20 → 22）。
+3. 两个新操作在实现时必须按完整 Envelope 注册（共享 API §9.2），并声明有限额的构建期 PayloadGuard 技术 Policy；`dataClassification=INTERNAL`，若某 profile 将来允许承载客户材料必须重新分类；Catalog 净增 2 项（209 → 211，本模块 20 → 22）。技术 Policy、参数与适用边界见 §13.3.1。
 4. 结果 Schema 是 operation-specific CommandResult data，按 #167 的既有纪律注册 `resultSchemaRef`；只声明 `resultReferences` 不构成可验证返回路径。
 5. `resolve_policy` 不解析 latest/current、不回退同 objectId 的其他版本、不执行任何写入；正文由本次解析一并返回，因此 WI-02 新链不依赖 `get_policy_snapshot@1.0`。
+
+### 13.3.1 PayloadGuard 技术 Policy、参数与适用边界（#181 提案）
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-13 / DESIGN VERIFIED / NOT IMPLEMENTED`。本方案与 SD-181-1 已于 2026-09-13 完成独立技术审查并获人类设计验收批准（[人类批准记录](https://github.com/qzhike/zhiju-business-core/pull/182#issuecomment-5647186487)），对应设计 revision `0f596d1f74d9d306bf8a7884ca8adf1f5203d26d`；这是已批准设计基准，不代表操作、参数或业务能力已经实现。本节由 [Issue #181](https://github.com/qzhike/zhiju-business-core/issues/181) 呈现两个新操作的完整请求 Envelope、CommandResult.data、Query Result.data 与有限技术参数，并附带一项字段约束 **SD-181-1**（见"与文件可用性的关系"）；参数值与 SD-181-1 已批准但尚未实现，不得在实现 Issue 中另行替换。计量与依据见本节表与 §13.3.2；Registry 登记随后续明确 Scope 的两个操作实现一并交付。
+
+#### 技术 Policy 与注册映射
+
+采用**共享**技术 Policy（而非分别注册），理由有二：其一，两个操作唯一的可变规模载体是同一份 `policyDocument`，分别注册会让"写入端放行、读取端拒绝"在参数漂移时静默成立；共享条目使该关系成为单点不变量。其二，Guard 算法、错误形状与生成机制全部复用既有实现（§157 方案：`contracts/registry/payload-guard-policies.v1.json`、`loadPayloadGuardPolicies`、`payloadGuardKeyword`、`pnpm contracts:generate` 的字节镜像），本次不新增算法、错误码或校验器。
+
+```json
+{
+  "type": "identity.policy_version",
+  "version": "1.0",
+  "maxEnvelopeBytes": 262144,
+  "maxResultBytes": 266240,
+  "maxStringCodePoints": 16384,
+  "maxArrayItems": 1024,
+  "maxObjectProperties": 256,
+  "maxDepth": 32,
+  "maxRequestedKinds": 64
+}
+```
+
+该 JSON 是与参数表、读回不变量一致的**具体构建期条目定义**（`maxResultBytes` 必须等于 `maxEnvelopeBytes + 4096`，不得取等值）；`payloadGuardPolicyRef` 只引用 `{type, version}`，数值本身由本条目的注册内容决定。
+
+两个操作的 `payloadGuardPolicyRef` 都精确映射为 `{type: "identity.policy_version", version: "1.0"}`：`identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0` 各在自己的 operation 条目中声明该引用。这是**技术 Registry 引用**，不是业务 `TypedReference`；它不进入 `references`/`resultReferences` 声明，不需要数据库行、授权 Decision 或 `contentHash`，也不得被当作已提交业务事实。既有 `ep.context_source_slice@1.0` 的条目、参数与两项已注册 Source Slice 操作的引用不受本项影响；本项不引入全局默认，未声明 `payloadGuardPolicyRef` 的既有操作行为不变。
+
+#### 参数表与依据
+
+| 参数 | 提案值 | 适用输入/输出与计量单位 | 合法边界 | 依据类别 |
+|---|---:|---|---|---|
+| maxEnvelopeBytes | 262144（256 KiB） | `record_policy_version` **完整请求 Envelope**（含 `commandId`/`scopeRef`/`targetRef`/`actor`/`authorizationDecisionRef`/`idempotencyKey`/`correlationId`/`requestedAt`/`integrity`、payload 与 `policyDocument`）与 `resolve_policy` 完整请求 Envelope；紧凑 JSON 的 UTF-8 字节 | ≤ 262144 通过；> 262144 拒绝 | 复用 #157 已批准的 Command Envelope 技术预算（PostgreSQL 逻辑模型 §5.5 的 256 KiB 建议） |
+| maxResultBytes | 266240 = `maxEnvelopeBytes` + 4096 | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | **≤ 266240 通过；> 266240 拒绝**（不等于上一行：这是请求预算加 4096 余量，**必须以"请求预算 + 固定余量"的形式声明**，不能取等值） | 余量 4096 ≥ 结果侧增量上界 `R_only = 820`（§13.3.1），后者全部由有界形状构成；等值预算下 Project Scope 的实测反例为读回 262153 被拒绝（§13.3.2） |
+| maxStringCodePoints | 16384 | 每一个字符串值**与每一个对象键**，按 Unicode code point 计数 | 单串 ≤ 16384 通过；**该上限独立于字节预算，可能先触发** | 复用 #157 已批准的同名技术值（非由字节预算推导）；实测边界 16384 通过 / 16385 拒绝 |
+| maxArrayItems | 1024 | 每一个 JSON 数组的元素个数；不改变普通数组顺序或重复语义，也不把 `Set`/`NonEmptySet` 变成可有重复的数组 | 单数组 ≤ 1024 通过 | 复用 #157 已批准的结构预算 |
+| maxObjectProperties | 256 | 每一个 JSON object 的成员数（含 `policyDocument` 内对象） | 单对象 ≤ 256 通过 | 同上 |
+| maxDepth | 32 | 每个容器（object/array）深度；根容器为 1，每进入一层子容器加 1，标量不增加容器深度 | 最深容器 ≤ 32 通过 | 同上；两个操作的实际最大嵌套为 Envelope→payload→document→profile 字段→数组元素（≤ 6） |
+| maxRequestedKinds | 64 | **本项不作用于这两个操作**：二者 payload 均无 `requestedKinds` 字段，该维度是构建期 Registry 形状对条目齐全的要求，不是对本文档的约束 | 该维度不参与裁决 | 显式非适用维度，理由见下 |
+
+**未采用维度与理由**：`maxRequestedKinds` 是 #157 为 `capture.payload.requestedKinds` 增加的**字段专属**上限。PolicyVersion 的两个操作没有同形字段，因此该值对二者不构成任何接受/拒绝判断；之所以仍保留一个有限正整数而非省略，是因为 `loadPayloadGuardPolicies` 要求每个条目恰好声明七项限值——省略会让构建失败，声明一个"无限额"值又违反共享 API §4 的"不允许实现以无限制作为默认值"。因此保留与既有条目一致的值并在此显式声明其非适用性；若将来这两个操作新增任何可枚举集合字段，必须按 §157 的方式为新字段单独定义专属上限，不得让该值自动生效。本项不新增 `Set`/`NonEmptySet` 专属维度：集合语义由结构 Schema 裁决，Guard 只限制元素个数，不改变 `policySchemaRefs` 的 `NonEmptySet`（非空、唯一）契约。
+
+**`maxStringCodePoints` 是独立上限，可能先于字节预算触发**：该维度按 Unicode code point 限制**单个字符串值与对象键**，与总字节预算是两个独立判据，**不得**假定总字节预算蕴含单值上限。实测（§13.3.2）：在提案参数下，`{"payload":{"policyDocument":{"text":"a"×n}}}` 在 n=16384 时总计 16426 字节、Guard 通过；n=16385 时总计 16427 字节、Guard 在 `/payload/policyDocument/text` 返回 `maxStringCodePoints=16384`。两次都远低于 262144 字节，且只改变了字符串长度——即一个总字节数远未超限的合法形状 `policyDocument` 仍会被该维度拒绝。因此：
+
+1. 该维度的实际接受边界是**单串 ≤ 16384 code point**，超出即拒绝，不截断、不按字节预算回退；
+2. 保留 16384 的依据是复用 #157 已批准的同名技术值，使两个操作与既有条目使用同一技术层级；它不是由 262144 字节推导出的值，本项不为 PolicyVersion 单独提高或降低它；
+3. 若后续需要放宽单串上限，必须按 §157 的方式对共享条目做一次显式参数变更并重新审查；不得在实现中以"能装入 16384 字节预算"为由放宽或绕过该判据。
+
+**依据类别声明**：上表数值全部来自两类可复核依据——既有技术基线（#157 已批准预算、PostgreSQL 逻辑模型 §5.5 的 256 KiB/4 MiB 建议）与**本次实测**（§13.3.2，使用已交付的 Guard 实现与四个已注册 profile 的真实 canonical typed ref）；它们**不是**代表性业务负载的测量结论，也不表示业务最大策略规模。为避免歧义：本项不复用 #157 的 `maxResultBytes`（4 MiB），该参数方案已于 2026-09-13 完成独立技术审查并获人类批准，成为后续实现的设计依据，尚未注册。数值全部为有限正整数，未知字段、重复身份或缺失引用使构建失败；超限一律拒绝，不截断、不自动对象化、不返回部分成功事实。
+
+#### 执行位置与错误形状
+
+`resolve_policy` 与 `record_policy_version` 的 Guard 都在公共 `ContractRegistry` 中执行，且都在结构 Schema 之前：`validateOperation(type, version, input)` 先按显式静态 Policy 做**有界迭代** JSON 树检查（同一棵树在解析大对象或执行授权查询之前被拒绝），再进入 Envelope 结构 Schema；`validateOperationResult(type, version, input)` 以 result 口径对 `CommandResult.data` / `QueryResult.data` 执行同一算法。Guard 不读取授权、数据库或对象存储，也不产生业务副作用；Handler 的固定顺序（共享 API §5.3）把它放在第 1 步，早于授权、幂等与 CAS。
+
+失败沿用既有形状：`ContractValidationResult` 的 `keyword='payloadGuard'`，`instancePath` 为正确转义的 JSON Pointer，`params` 含 `rule` 与 `limit`，总字节超限定位根 `''`；错误不携带原始内容，也不得回显被拒绝的字符串、键名或文档片段。操作层对外错误统一为共享 `API_PAYLOAD_LIMIT_EXCEEDED`（category `VALIDATION`）；本项不新增业务错误码，也不改变既有错误语义。
+
+**外部 Schema 使用方注意**：Guard 是项目自定义断言 keyword，使用方必须加载与构建期相同的实现（未知 Policy 或未加载 Guard 的校验器必须拒绝编译，而不是忽略该 keyword 后宣告有效）。两个操作注册后，结果数据形状的 `$defs` 必须挂 `payloadGuard`；自行解析模块 Schema 的校验器还必须直接调用 `ContractRegistry.validateOperationResult`，否则会绕过本次的读回预算。该绑定语义与 #157 的 read Result 相同，不新增模式。
+
+#### 与文件可用性的关系：写入预算不会让合法版本读不回
+
+`resolve_policy` 返回的 `policyDocument` 必须与写入时通过 Envelope 预算的是**同一份 canonical payload**。若读取侧的包装开销小于写入侧，则通过写入预算的文档必然仍能通过结果预算；若读取侧开销更大，"按本参数合法写入、却因包装开销读不回"就会成立。本节按同一 JSON-value 编码模型给出可复核推导（实测见 §13.3.2）。
+
+**编码模型**：`policyDocument` 在请求 Envelope 与 `QueryResult.data` 中都是 `CanonicalJson` **JSON 值**（共享 API §2/§13.3），不是被二次编码的字符串；Guard 逐节点计量，两侧的同一字符串叶子使用相同的 JSON 编码。实测对照（§13.3.2 `R2`）确认：同一文档无论嵌套在哪种包装里，贡献的字节数相同，文档内容本身不产生请求/结果方向的差异。差异只来自**包装的固定项**。
+
+**结果侧增量的上界**（这是读回保证唯一需要的量；`D` = `policyDocument`）：
+
+读回关系不需要论证请求侧能有多小，只需要结果侧比请求侧**多出**的部分有上界。记：
+
+- `C_req` = 请求 Envelope 去掉 `D` 后的字节；`C_res` = 结果去掉 `D` 后的字节；
+- 两侧共有且必须**逐字节相同**的字段——`policyRef`、`policySetVersion`、`policySchemaRefs`、`effectiveFrom`——在 `C_res − C_req` 中抵消；
+- 余下的 `R_only = C_res − C_req ≤ 结果专有字段总量`（因为请求专有部分 `W_only ≥ 0`）。
+
+`R_only` 的每个成员都是有界形状，逐个取合法最大编码：
+
+| 结果专有字段 | 合法最大取值 | 实测字节 |
+|---|---|---:|
+| `scopeRef` | 版本 Scope，含 `enterpriseId` 与 `projectId` | 117 |
+| `policyVersionRef` | canonical `SnapshotRef`：`const` objectType + 两个 UuidV7 + Scope + `contentHash` | 444 |
+| `contentHash` | `SHA-256` + 64 位 hex + 规范化版本 | 143 |
+| `useStatus` | 闭集四值，最长 `NOT_YET_EFFECTIVE` | 31 |
+| `checkedAt` | **≤ 24**（SD-181-1） | 38 |
+| `supersededAt` | **≤ 24**（SD-181-1；= 唯一后继的 `effectiveFrom`） | 41 |
+| **合计 `R_only ≤`** | — | **820** |
+
+`policyRef`/`policyVersionRef` 的 `objectType` 是两个 UuidV7 之外的主要变长部分；§13.2 已把它们固定为 canonical 名称，因此两个新操作（含请求与结果）的 Schema 必须以 `const` 编码该取值，使其按形状有界，而不是仅靠 `maxStringCodePoints` 兜底。
+
+**读回不变量（本次采用的定式）**：两个操作共享的技术条目把结果预算声明为**请求预算加固定余量**，而不是两个独立数值：
+
+```text
+maxResultBytes = maxEnvelopeBytes + 4096 = 266240
+```
+
+对任意合法写入：`C_req + |D| ≤ 262144`，故读取帧为
+
+```text
+C_res + |D| = (C_req + |D|) + (C_res − C_req) ≤ 262144 + R_only ≤ 262144 + 820 = 262964 ≤ 266240
+```
+
+**该推导不依赖任何请求侧样本或其最小编码**：请求侧只用到"写入已通过 262144"这一事实，`W_only ≥ 0` 恒成立；唯一需要证明的量是结果侧增量 820 < 4096，而它的每个成员都是有界形状（`const`、闭集、UuidV7、`contentHash`，以及 SD-181-1 限定到 24 的两个时刻）。余量 4096 是 `R_only` 的约 5 倍，因此对字段级细节不再敏感。
+
+**SD-181-1（已于 2026-09-13 一并批准的 Spec Delta）**：两个操作的 payload 与结果中每一个 `UtcInstant`（`effectiveFrom`、`supersededAt`、`checkedAt`）都必须序列化为**至多毫秒精度**的 canonical UTC 时刻，即 `YYYY-MM-DDTHH:mm:ss[.SSS]Z`、至多 24 code point，由这两个操作自己的字段 Schema 以长度上界执行。**不改变**共享 `UtcInstant` 定义、既有操作接受集合与 `compareUtcInstants` 的变长小数比较能力：亚毫秒输入在新操作写入边界被**拒绝**，不截断、不静默降低精度；`supersededAt = 唯一后继的 effectiveFrom` 的相等语义不受影响，因为两侧受同一约束（§13.4 第 4 条继续成立）。
+
+> 为什么该约束不可省：共享 `UtcInstant` 的小数部分为变长（`common.schema.ts` 的 `(?:\d+)?`，且 `contracts/src/utc-instant.ts` 明确按不同长度小数比较），因此**不存在**默认的固定长度序列化。不约束时 `checkedAt` 与 `supersededAt` 各可达 16384 code point，`R_only` 变为约 `820 + 2 × (16384 − 24) = 33540`，**远超 4096 余量**，读回保证不成立——实测：一个 260046 字节正文的前驱合法写入（请求恰好 262144、通过），被一个正文仅 90 字节、`effectiveFrom` 取 1021 code point 的后继取代后，读回为 262441 字节（该数值是**当时等值结果预算 262144** 下的反例；在现行 266240 下其拒绝依据是 SD-181-1 的写入边界时刻长度约束，而非结果预算）。
+
+> 已评估但**不采纳**的替代方案：保留变长时刻并把 `maxResultBytes` 提到能吸收它。按上式需把余量提到约 33 KiB（读取预算约 296 KiB）；该方案让单个时刻字段可占约 16 KiB，且任何将来新增的变长结果字段都会再次打破保证。SD-181-1 把 `R_only` 压到 820，使余量与字段级细节解耦。
+
+**适用范围与维护规则**：本次采用的定式是"结果预算 = 请求预算 + 固定余量，且余量不小于结果侧增量 `R_only` 的上界"。因此：
+
+1. `maxResultBytes > maxEnvelopeBytes` 必须保持，且差值不小于 `R_only` 的实际上界；
+2. 结果侧新增任何字段、或放宽 SD-181-1，都必须重新计算 `R_only` 并相应地重选余量；
+3. 请求侧字段变化（新增可选字段、放宽 `idempotencyKey` 等）**不影响**该推导，只要写入仍受 `maxEnvelopeBytes` 约束；
+4. 两侧共有字段必须继续满足"逐字段相等回显"，否则 `C_res − C_req` 不再有 820 的上界。
+
+§13.3.2 的 2098/1398 等数值是**代表性样本计量**，用于实现期 fixture 与回归对照，不参与本推导。读取无需分页、截断或额外 Result 通道，`get_policy_snapshot@1.0` 也不参与该路径。
+
+### 13.3.2 样本计量与尺寸依据（#181）
+
+以下计量使用**已交付的 Guard 实现**（`payloadGuardErrors`，`contracts/src/payload-guard.ts`）与 `im06-static-v1` 的四个已注册 profile 真实 canonical typed ref（#179 交付），并按 PR #182 审查意见 R1/R2 的发现重做：单值上限被当作字节预算的推论（R1），以及两侧编码模型与固定项的推导不完整（R2）。三项结论都已由本次实测替换或补全。
+
+**计量程序**：构造完整样本后，用二分查找求"Guard 接受的最小字节上限" `B`，该值**就是**样本的字节总数——边界 inclusive（等于上限通过、超过 1 拒绝），故 `B − 1` 是最大的被拒上限，而不是字节数。同一程序对所有样本一致执行，因此请求侧与结果侧的数值可直接比较。
+
+**方法交叉核对（审查意见 R3）**：下方每个数值都与独立计算的紧凑 JSON UTF-8 字节数逐项核对，并同时验证 `B` 通过、`B − 1` 以字节规则拒绝：
+
+| 样本 | 紧凑 JSON 字节 | 最小通过上限 `B` | `B − 1` 的规则 |
+|---|---:|---:|---|
+| `{}` | 2 | 2 | `maxEnvelopeBytes` |
+| `recordResult`（`{policyVersionRef}`） | 446 | 446 | `maxResultBytes` |
+| `resolve_policy` 请求 Envelope | 1373 | 1373 | `maxEnvelopeBytes` |
+| `{"payload":{"policyDocument":{"text":"a"×40}}}` | 82 | 82 | `maxEnvelopeBytes` |
+| `{"payload":{"policyDocument":{"text":"a"×16384}}}` | 16426 | 16426 | `maxEnvelopeBytes` |
+
+字节口径为紧凑 JSON 的 UTF-8 字节数（不带额外空白、不做 Unicode 正规化）；所有样本同时满足其他维度（对象成员数、深度、单串 code point）未触发。
+
+**单值上限的实际边界（审查发现 R1）**：
+
+| 输入（只改变字符串长度） | 总计字节 | Guard 结果 |
+|---|---:|---|
+| `{"payload":{"policyDocument":{"text":"a"×16384}}}` | 16426 | 通过 |
+| `{"payload":{"policyDocument":{"text":"a"×16385}}}` | 16427 | 拒绝：`rule=maxStringCodePoints`、`limit=16384`、`instancePath=/payload/policyDocument/text` |
+
+两次都远低于 262144 字节预算。`maxStringCodePoints` 是**独立的、可能先于字节预算触发**的上限（§13.3.1），不能用字节预算推导。
+
+**编码对照（审查发现 R2）**：同一文档分别内联为请求侧与结果侧的 JSON 值。实测确认文档贡献的字节数不随包装方向变化；请求/结果的差额完全由包装固定项决定（下表）。此前把两侧差异归因于"请求是转义字符串、结果是解析值"的说明**不成立**，已删除。
+
+**时刻长度反例与 SD-181-1**：共享 `UtcInstant` 的小数部分为变长，因此 `supersededAt`（= 唯一后继的 `effectiveFrom`）与 `checkedAt` 不受本版本写入预算约束。实测反例：
+
+| 步骤 | 数值 | Guard |
+|---|---:|---|
+| 前驱正文按最小请求包装写满 | 文档 260046，请求 Envelope 262144 | 通过 |
+| 一个正文仅 90 字节的后继取代它，`effectiveFrom` 取 `2026-09-13T00:00:00.` + 1000 个 `0` + `Z`（1021 code point，Ajv 校验共享 `utcInstant` 为 true） | 后继请求 2478 | 通过 |
+| 读回前驱（`supersededAt` 等于该后继 `effectiveFrom`，`useStatus=NOT_YET_EFFECTIVE`） | 262441 | 在**等值预算**下被 `maxResultBytes` 拒绝 |
+
+即**不约束时刻长度时，"写得进读不回"真实成立**。两个结果专有变长时刻各可达 16384，`R_only` 因此约为 33540，远超 4096 余量（§13.3.1）。SD-181-1 把这两个时刻限制到 24 code point 后，`R_only` 落到 820，由余量覆盖。
+
+**固定项**（单位字节；样本取 Project Scope、UUIDv7 引用、64 位 hex `contentHash` 与 24 长度时刻；**含空文档 `{}` 的样本取"最小通过上限减 2"**，因为该样本内嵌一个占 2 字节的空 `policyDocument`）：
+
+| 结构 | 组成 | 字节 |
+|---|---|---:|
+| `record_policy_version` 请求 Envelope（`supersedesRef` 缺省） | 全部 Envelope 字段 + payload 的 `policyRef`/`policySetVersion`/`policySchemaRefs`/`effectiveFrom` | 2098 |
+| `record_policy_version` 请求 Envelope（含 `supersedesRef`） | 追加一个 `VersionedRef<Policy>` | 2388 |
+| `resolve_policy` 请求 Envelope | 固定：payload 只有 `policyRef`，**不含文档**（直接用最小通过上限） | 1373 |
+| `resolve_policy` 结果数据（`useStatus=USABLE`、`supersededAt` 缺省） | `PolicyVersionResolutionView` 除 `policyDocument` 外全部字段 | 1345 |
+| `resolve_policy` 结果数据（`useStatus=NOT_YET_EFFECTIVE`、`supersededAt` 缺省） | 状态取最长闭集值 | 1356 |
+| `resolve_policy` 结果数据（`useStatus=USABLE`、含 `supersededAt`） | 追加一个 24 长度 `UtcInstant` | 1387 |
+| `resolve_policy` 结果数据**包装上界**（`useStatus=NOT_YET_EFFECTIVE` 且含 `supersededAt`） | 结果侧最大合法形态 | **1398** |
+| `record_policy_version` 结果数据 | `{policyVersionRef}`，**不含文档**（直接用最小通过上限） | 446 |
+
+**结果侧增量 `R_only` 与余量的实测（审查意见 R2 的定式修订）**：本提案不再用"请求侧能多小 × 结果侧能多大"的极值配对来论证读回，而是采用 §13.3.1 的定式——**结果预算 = 请求预算 + 固定余量**，只需证明结果侧增量有上界。逐项实测（合法最大编码）：
+
+| 结果专有字段 | 实测字节 |
+|---|---:|
+| `scopeRef` | 117 |
+| `policyVersionRef` | 444 |
+| `contentHash` | 143 |
+| `useStatus`（`NOT_YET_EFFECTIVE`） | 31 |
+| `checkedAt`（24） | 38 |
+| `supersededAt`（24） | 41 |
+| **`R_only` 合计** | **820** |
+
+820 < 4096，因此对任意合法写入，读取帧 ≤ `262144 + 820 = 262964 ≤ 266240`。
+
+**等值预算的反例（说明为什么余量必需）**：取 `maxResultBytes = maxEnvelopeBytes = 262144` 时，一个按最小请求编码写满的 Project 版本（文档 260772、请求恰好 262144、通过）读回为 **262153**，被 `maxResultBytes` 拒绝。该反例只说明"相等"不成立，不再用于推导具体余量——余量来自 `R_only` 的上界。
+
+**边界复核（加入 4096 余量后）**：
+
+| Scope | 写入 | 读取 | 上限 | 结果 |
+|---|---:|---:|---:|---|
+| Project | 262144 通过 / 262145 拒绝 `maxEnvelopeBytes`（`instancePath=''`） | 262157 | 266240 | 通过 |
+| 结果恰等于上限 | — | 266240 通过 | 266240 | 通过 |
+| 结果多 1 字节 | — | 266241 | 266240 | 拒绝 `maxResultBytes` |
+
+**时刻长度项（SD-181-1）**：放宽该约束后 `checkedAt` 与 `supersededAt` 各可达 16384 code point，`R_only` 变为约 `820 + 2 × (16384 − 24) = 33540`（约 33 KiB），远超 4096 余量，读回保证不成立。实测反例：一个 260046 字节正文的前驱合法写入（请求恰好 262144、通过），被一个正文仅 90 字节、`effectiveFrom` 取 1021 code point 的后继取代后，读回为 262441 字节（在**当时等值的结果预算 262144** 下被拒绝；现行 266240 下该规模的拒绝依据是时刻长度约束本身）。
 
 ### 13.4 不变量
 
@@ -335,6 +526,8 @@ PolicyVersionResolutionView
 - 注册方式：新增 registry 版本（提案 `im06-static-v1`）= 既有 `im02-static-v1` 三项 ∪ 上表四项；作为构建期制品与生成检查覆盖，由本模块与 owning 模块共同加载（提案置于 `contracts/registry/`），使任一模块都不内置他方语义。`identity.record_policy_snapshot@1.0` 保持历史 `im02-static-v1` 接受集合不变；`identity.record_policy_version@1.0` 只接受新版本集合。
 - 校验分工：本模块判定"是否为已注册 canonical 条目"；EP/TE 判定"文档是否符合本模块 profile 的 closed 字段与语义、所需 key 是否在集合内"。
 - 实现状态（#179，仅静态注册与纯校验）：registry 版本、七个条目（历史三项 ∪ 四个 profile）、canonical typed ref 与 closed 字段 Schema 已作为构建期制品交付，重复 key/重复身份、缺失映射与生成物漂移在加载与 `pnpm contracts:check` 处确定性拒绝；本模块只提供精确注册性检查（`registeredPolicySchemaKey(registryVersion, reference)`，未知版本 fail closed），不解释任何 profile 规则字段。写入 Handler 与对外 `IDENTITY_POLICY_VERSION_UNKNOWN` 映射仍随 `identity.record_policy_version@1.0` 交付，不因本次注册而建立。
+
+**PayloadGuard 技术 Policy 注册边界**：`identity.policy_version@1.0` 是构建期技术条目（§13.3.1），与 profile registry 是**两条互不从属的注册路径**：profile registry 判定"这个 `policySchemaRefs` 条目是否是已注册 canonical schema"，PayloadGuard registry 判定"这个操作允许的请求/结果规模上限是多少"。二者都不创建数据库行、不虚构 Hash、不参与授权，也不得互为替代。未知技术 Policy 或未加载 Guard 的校验器必须拒绝编译或拒绝校验，不得降级为"无限制"。参数与边界已获批准，后续按明确实现 Scope 交付（§13.3.1 状态）。
 
 **授权与失败**：
 
