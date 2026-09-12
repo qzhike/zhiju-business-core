@@ -1,0 +1,150 @@
+{
+  "registryVersion": "im06-static-v1",
+  "profiles": [
+    {
+      "registryKey": "identity.PolicySnapshot@1.0",
+      "owner": "identity-policy",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d401",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d411",
+        "scope": {}
+      }
+    },
+    {
+      "registryKey": "identity.RolePolicy@1.0",
+      "owner": "identity-policy",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d402",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d412",
+        "scope": {}
+      }
+    },
+    {
+      "registryKey": "identity.CapabilityPolicy@1.0",
+      "owner": "identity-policy",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d403",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d413",
+        "scope": {}
+      }
+    },
+    {
+      "registryKey": "ep.context_source_slice_capture.policy@1.0",
+      "owner": "enterprise-project",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d404",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+        "scope": {}
+      },
+      "documentSchema": {
+        "description": "First-version closed capture policy profile owned by enterprise-project; validUntil derivation stays with the owning consumer.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["maxSliceValiditySeconds", "allowedPurposeCodes"],
+        "properties": {
+          "maxSliceValiditySeconds": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger"
+          },
+          "allowedPurposeCodes": {
+            "type": "array",
+            "items": { "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode" },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    {
+      "registryKey": "execution.context_builder.policy@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d405",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d415",
+        "scope": {}
+      },
+      "documentSchema": {
+        "description": "First-version closed Initial Context Builder policy profile owned by task-execution; the finite upper bound stays the policy version supersededAt.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["allowedProjectionTypes"],
+        "properties": {
+          "allowedProjectionTypes": {
+            "type": "array",
+            "items": { "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/projectionType" },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    {
+      "registryKey": "execution.task_readiness.policy@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d406",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d416",
+        "scope": {}
+      },
+      "documentSchema": {
+        "description": "First-version closed TaskReadinessBuilder policy profile owned by task-execution; no default TTL is implied by the registry.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["maxReadinessValiditySeconds"],
+        "properties": {
+          "maxReadinessValiditySeconds": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger"
+          }
+        }
+      }
+    },
+    {
+      "registryKey": "execution.work_order_validation.policy@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d407",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d417",
+        "scope": {}
+      },
+      "documentSchema": {
+        "description": "First-version closed WorkOrderValidator policy profile owned by task-execution; mandatoryCriterionTypes is optional and its values are the seven registered Core v1.0 Criterion Types.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["maxValidationValiditySeconds"],
+        "properties": {
+          "maxValidationValiditySeconds": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger"
+          },
+          "mandatoryCriterionTypes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "EXPECTED_OUTPUT_PRESENT",
+                "OUTPUT_REF_VALID",
+                "OUTPUT_CREATED_BY_WORK_ORDER",
+                "NO_BLOCKING_INFORMATION_REQUEST",
+                "OUTPUT_SCHEMA_VALID",
+                "OUTPUT_WITHIN_TARGET_SCOPE",
+                "REQUIRED_PROPOSAL_PROCESSED"
+              ]
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    }
+  ]
+}

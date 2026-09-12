@@ -1,0 +1,3 @@
+{
+  "allowedProjectionTypes": ["COORDINATOR", "DOCUMENT_WRITER"]
+}

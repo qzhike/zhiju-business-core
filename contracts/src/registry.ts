@@ -12,6 +12,12 @@ import {
   assertTaskExecutionOperationRegistrations,
 } from './operation-registration.js';
 import guardPolicyData from './generated/payload-guard-policies.json' with { type: 'json' };
+import { createPolicyProfileDocumentValidator } from './policy-profile-documents.js';
+import {
+  policyProfileRegistry,
+  POLICY_PROFILE_REGISTRY_VERSION,
+  type PolicyProfileRegistry,
+} from './policy-profiles.js';
 import {
   loadPayloadGuardPolicies,
   payloadGuardErrors,
@@ -74,6 +80,8 @@ const Ajv2020 = Ajv2020Import as unknown as new (options?: Options) => AjvRuntim
 export class ContractRegistry {
   readonly #ajv: AjvRuntime;
   readonly #guardPolicies = loadPayloadGuardPolicies(guardPolicyData);
+  readonly #profileRegistry = policyProfileRegistry;
+  readonly #profileDocuments = createPolicyProfileDocumentValidator();
   readonly #operations: ReadonlyMap<string, PublicOperationDefinition>;
 
   constructor() {
@@ -150,6 +158,19 @@ export class ContractRegistry {
 
   validateCanonicalContentManifest(input: unknown): ContractValidationResult {
     return this.#run(this.#ajv.getSchema(artifactCanonicalContentManifestSchemaRef), input);
+  }
+
+  get policyProfileRegistry(): PolicyProfileRegistry {
+    return this.#profileRegistry;
+  }
+
+  /**
+   * Apply the closed `policyDocument` schema of one build-time registered
+   * profile. The key is owned by the consuming module; an unregistered key
+   * fails closed instead of falling back to an open document.
+   */
+  validatePolicyProfileDocument(registryKey: string, input: unknown): ContractValidationResult {
+    return this.#profileDocuments.validate(POLICY_PROFILE_REGISTRY_VERSION, registryKey, input);
   }
 
   validateContextBuilderPolicyBindingMetadata(input: unknown): ContractValidationResult {

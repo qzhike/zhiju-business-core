@@ -4,6 +4,20 @@ export const taskExecutionModule = Object.freeze({
 });
 
 export {
+  CONTEXT_BUILDER_POLICY_PROFILE_KEY,
+  TASK_READINESS_POLICY_PROFILE_KEY,
+  WORK_ORDER_VALIDATION_POLICY_PROFILE_KEY,
+  validateContextBuilderPolicy,
+  validateTaskReadinessPolicy,
+  validateWorkOrderValidationPolicy,
+} from './business/policy-profiles.js';
+export type {
+  ContextBuilderPolicyRules,
+  PolicyProfileValidationResult,
+  TaskReadinessPolicyRules,
+  WorkOrderValidationPolicyRules,
+} from './business/policy-profiles.js';
+export {
   createTaskExecutionDatabase,
   withTaskExecutionTransaction,
   digestCanonicalPayload,

@@ -1,0 +1,4 @@
+{
+  "maxValidationValiditySeconds": 1800,
+  "mandatoryCriterionTypes": ["EXPECTED_OUTPUT_PRESENT", "OUTPUT_REF_VALID"]
+}

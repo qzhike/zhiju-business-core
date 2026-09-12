@@ -6,6 +6,7 @@ import {
   loadPayloadGuardPolicies,
   resolvePayloadGuardPolicy,
 } from '../../contracts/src/payload-guard.ts';
+import { loadPolicyProfileRegistry } from '../../contracts/src/policy-profiles.ts';
 import {
   assertSliceOperationRegistrations,
   assertSliceCompatibilityMetadata,
@@ -24,6 +25,16 @@ const guardSource = readFileSync(
 );
 const guardPolicies = loadPayloadGuardPolicies(JSON.parse(guardSource));
 const guardOutputPath = join(root, 'contracts/src/generated/payload-guard-policies.json');
+
+// The IM-06 profile registry is a build artifact too: the generated copy is a
+// byte-for-byte mirror of the registry source, and loading it here rejects a
+// duplicated key/identity or a missing mapping before anything consumes it.
+const profileRegistrySource = readFileSync(
+  join(root, 'contracts/registry/policy-profiles.v1.json'),
+  'utf8',
+);
+const profileRegistry = loadPolicyProfileRegistry(JSON.parse(profileRegistrySource));
+const profileRegistryOutputPath = join(root, 'contracts/src/generated/policy-profiles.json');
 assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
 const metadata = JSON.parse(
@@ -80,14 +91,23 @@ const generated = await format(
 
 if (process.argv.includes('--check')) {
   const current = readFileSync(outputPath, 'utf8').replaceAll('\r\n', '\n');
-  if (current !== generated || readFileSync(guardOutputPath, 'utf8') !== guardSource) {
+  if (
+    current !== generated ||
+    readFileSync(guardOutputPath, 'utf8') !== guardSource ||
+    readFileSync(profileRegistryOutputPath, 'utf8') !== profileRegistrySource
+  ) {
     console.error('generated public API registry is stale; run pnpm contracts:generate');
     process.exitCode = 1;
   } else {
-    console.log(`public_api_generation=PASS operations=${registry.operations.length}`);
+    console.log(
+      `public_api_generation=PASS operations=${registry.operations.length} policy_profiles=${profileRegistry.profiles.length}`,
+    );
   }
 } else {
   writeFileSync(outputPath, generated, 'utf8');
   writeFileSync(guardOutputPath, guardSource, 'utf8');
-  console.log(`public_api_generation=UPDATED operations=${registry.operations.length}`);
+  writeFileSync(profileRegistryOutputPath, profileRegistrySource, 'utf8');
+  console.log(
+    `public_api_generation=UPDATED operations=${registry.operations.length} policy_profiles=${profileRegistry.profiles.length}`,
+  );
 }
