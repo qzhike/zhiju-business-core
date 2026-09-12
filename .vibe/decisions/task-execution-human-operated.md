@@ -304,7 +304,7 @@ TD-07 的可执行 Fixture 使用生产 Application Command/Query、同一授权
 
 ## 12. #176 首批 Policy/Evaluator 解析与授权依赖
 
-状态：`PROPOSED 2026-09-12 / REVIEW PENDING / HUMAN APPROVAL REQUIRED / NOT IMPLEMENTED`（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 独立设计审查的三项发现修订：企业级隔离归属、profile registry 注册路径、取代关系基数与并发裁决）。本节回应 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)，只收敛首批 Task/WorkOrder/Context 业务链真实需要的 Policy/Evaluator 解析与授权前置。TD-01–04 及其补充（§7–§10）继续有效且被本节引用为已批准边界；TD-05–07（§11）保持 `PROPOSED`，不被本节追认。**本节 P-176-1 至 P-176-5 是尚未批准的设计提案**：它们不授权 Schema、Registry、Handler、migration 或任何业务实现，也不得被后续 Issue 当作已批准前提引用；依赖它们的工作必须先取得人类批准并完成独立设计审查（§12.9）。既有 `zhiju.identity.policy`、`execution.*`、`project.*` 的已批准字段与历史 Compatibility Baseline 不因本节改变。
+状态：`PROPOSED 2026-09-12 / REVIEW PENDING / HUMAN APPROVAL REQUIRED / NOT IMPLEMENTED`（2026-09-12 按 [PR #178](https://github.com/qzhike/zhiju-business-core/pull/178) 两轮独立设计审查修订：企业级隔离归属、profile registry 注册路径、取代关系基数与并发裁决，以及后继唯一性只作用于真实取代边）。本节回应 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)，只收敛首批 Task/WorkOrder/Context 业务链真实需要的 Policy/Evaluator 解析与授权前置。TD-01–04 及其补充（§7–§10）继续有效且被本节引用为已批准边界；TD-05–07（§11）保持 `PROPOSED`，不被本节追认。**本节 P-176-1 至 P-176-5 是尚未批准的设计提案**：它们不授权 Schema、Registry、Handler、migration 或任何业务实现，也不得被后续 Issue 当作已批准前提引用；依赖它们的工作必须先取得人类批准并完成独立设计审查（§12.9）。既有 `zhiju.identity.policy`、`execution.*`、`project.*` 的已批准字段与历史 Compatibility Baseline 不因本节改变。
 
 ### 12.1 对账结论：既有事实与真实缺口
 
@@ -383,7 +383,7 @@ PolicyVersionResolutionView
 **取代关系是线性的，一个版本至多有一个后继。** 一条取代边为 `前驱版本 ←─ 后继版本`，由后继的 `supersedesRef` 声明：
 
 1. 前驱与后继必须同 objectType/objectId/Scope；前驱必须已提交，且其 `effectiveFrom` 严格早于后继的 `effectiveFrom`；自引用、倒序、跨 Scope、不存在均为 `IDENTITY_POLICY_SUPERSEDE_INVALID`。
-2. **一个版本至多有一个后继**：唯一约束建在取代边上（被取代版本键 `(objectType, objectId, versionId, enterpriseId, projectId)` 唯一，NULL 表示无前驱；唯一约束必须用 `NULLS NOT DISTINCT`，否则 Enterprise 行的 `projectId IS NULL` 会让约束失效），由数据库裁决并发；第二个竞争提交（不同幂等键）稳定返回 `IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED`，不覆盖首个后继，也不改变被取代版本的派生截止时间。
+2. **一个版本至多有一个后继**：唯一性只建在**真实取代边**上——部分唯一索引 `(supersedes_object_id, supersedes_version_id, enterprise_id, project_id) NULLS NOT DISTINCT WHERE supersedes 两列均非空`，由数据库裁决并发。`supersedesRef` 可选，无前驱的初始版本两列均为 NULL；若把后继唯一性无条件施加于全部行，同一 Scope 下不同 Policy 的首版会折叠为同一个键 `(NULL, NULL, E, [P])` 而互相冲突，因此必须是部分索引；同时唯一对象必须 `NULLS NOT DISTINCT`，否则 Enterprise 行的 `projectId IS NULL` 会让比较失效。第二个竞争提交（不同幂等键）稳定返回 `IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED`，不覆盖首个后继，也不改变被取代版本的派生截止时间。
 3. 被取代版本的 `supersededAt` **等于其唯一后继的 `effectiveFrom`**，只由已提交取代边派生：不写入、不更新被取代的不可变行，任何重放、重试或后续提交都不得重新延长它。
 4. 首版不支持分叉（同一前驱的多个后继）、不允许取代边跨 policy identity 或指向 Platform Snapshot；连锁（A←B←C）逐条独立校验，每条边各自满足 1–2。
 5. 首版**不强制"同一 identity 同时只有一个可用版本"**：未声明取代的版本保持无有限终止，与其并存的更新版本不会自动使其失效。该性质在本版是显式的、必须可见；只有 `now >= supersededAt` 才由消费端拒绝。若将来要求"至多一个可用版本"，须另行决定。
@@ -485,6 +485,7 @@ PolicyVersionResolutionView
 | 同一版本键第二次提交不同 `policyDocument` | `IDENTITY_POLICY_VERSION_ALREADY_BOUND` | 不覆盖首个绑定与 Hash，不产生第二个版本事实 |
 | `supersedesRef` 指向不存在/跨 Scope/`effectiveFrom` 不更早的版本 | `IDENTITY_POLICY_SUPERSEDE_INVALID` | 不产生"自我取代"或倒序生命周期 |
 | 顺序或双连接并发提交 B、C 两个都取代同一前驱 A（含前驱未来才生效、在两后继截止点消费的变体） | 仅第一个提交建立唯一取代边，另一个稳定 `IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED` | A 的 `supersededAt` 唯一（= 胜出后继的 `effectiveFrom`），不被第二次提交改写或延长；B/C 使用各自版本键时也不得形成分叉 |
+| 同一 Scope 下两个不同 Policy 各自的首版，或同一 identity 的多个未互相取代版本（Enterprise 与 Project Scope 各覆盖） | 正向对照：全部提交成功，各自获得独立版本事实与 `useStatus` | 无前驱版本不参与后继唯一性（部分唯一索引谓词为假）；不得因 `(NULL, NULL, E, [P])` 折叠被判为重复后继 |
 | 另一 Enterprise/Project 的有效 Context 直接 SQL 读版本事实/正文，或以旧 exact Snapshot 入口读取新事实 | RLS `42501`/零行；Query 统一不可用 | 不靠隐藏 Ref 代替授权；旧入口不服务新 scoped 事实，两套 RLS 分支互不放大 |
 | metadata 中的 Hash/有效期与当次解析不等 | `POLICY_CONTENT_HASH_MISMATCH`/`POLICY_VALIDITY_MISMATCH` | 不进入 Validator/Freeze，不发布 Snapshot |
 | 已取代/未生效的 Policy 用于新 Freeze 或 create_run | `POLICY_EXPIRED`/`POLICY_NOT_EFFECTIVE`/`EXECUTION_JUDGMENT_STALE` | 历史保留可读，但不赋予新执行资格 |
