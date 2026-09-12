@@ -1,3 +1,28 @@
+APPROVE
+
+复审 PR #177 / Issue #175，reviewed SHA：`dfd1861689004848eecd9288bd54872e160b21c0`。
+
+上次 `903f23a` 的 [P2] `TaskDefinitionV2.inputRefs` 数组收窄问题已修复。本次独立审查修复增量、最新 Issue/comments、owning Spec/Test 与契约证据，未发现新的阻塞问题。
+
+- v2 显式使用 `inputRefs: array(typedReference)`，没有修改 v1 的共享属性表；`dependencyTaskRefs` 仍为 Set。
+- 独立调用当前构建的正常 Registry 路径，`inputRefs=[]/[R]/[R,R]` 全部 PASS，完整请求序列化结果保持不变。
+- 新增回归对非数组、畸形 Ref、重复 dependencyTaskRefs 分别断言预期字段与 Schema keyword；v1 单项通过/重复项拒绝的对照继续成立。
+- Spec/Test/Catalog/API Contract 已同步记录 v2 普通数组与 v1 历史实现偏差；无历史 Compatibility Baseline 改写或业务范围扩张。
+- 原审查字段矩阵中 `TaskDefinitionV2.inputRefs` 本次转为 PASS；其他字段结构、required/optional、Criterion 分支、注册元数据与纯绑定校验没有在修复中改变。
+
+验证：
+
+- Reviewer：`pnpm exec vitest run contracts/src/operations/task-execution.schema.test.ts contracts/src/registry.test.ts` → 68/68 PASS。
+- Reviewer：`pnpm contracts:check` → 生成 PASS；Catalog/Registry=209；compatibility=PASS，历史 baseline=200。
+- 当前 SHA 的 [CI verify](https://github.com/qzhike/zhiju-business-core/actions/runs/34670766407/job/103491566561) 为 SUCCESS：普通测试 760 passed / 321 skipped，PostgreSQL gate 336 passed，日志明确输出 `gate passed`。采用该 revision 绑定的完整 CI 证据，本轮不重复运行本地完整目标。
+
+Task Handler、业务持久化链、Readiness/Completion、业务 E2E、真实 Runtime/Feishu 与人工验收仍为 NOT IMPLEMENTED / NOT RUN。Schema/纯绑定 PASS 不证明 Policy/Evaluator 的真实存在、版本支持、有效性或授权。
+
+本条是 PR comment 中的独立 Reviewer 结论，不是 GitHub formal APPROVE review，也不授权 merge。正式复审记录同步保存在 `.vibe/reviews/pr-177/Review.md`，保留此前 REQUEST_CHANGES 的历史证据。
+
+
+## 历史审查：903f23a
+
 REQUEST_CHANGES
 
 审查 PR #177 / Issue #175，reviewed SHA：`903f23ae4a97a0a04a52a5b4006d0aedb6bd1c6a`。
