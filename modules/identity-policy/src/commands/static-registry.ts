@@ -3,7 +3,11 @@
 // declared at build time; the database only records which registry version
 // was used. There is no online dynamic semantics change path.
 
-import type { Common } from '@zhiju/contracts';
+import {
+  POLICY_PROFILE_REGISTRY_VERSION,
+  registeredPolicyProfileKey,
+  type Common,
+} from '@zhiju/contracts';
 
 /** Registry identity recorded with every grant/snapshot. */
 export const HUMAN_ONLY_CAPABILITY_REGISTRY_VERSION = 'im02-static-v1';
@@ -67,4 +71,61 @@ const POLICY_SCHEMA_TYPED_REFS: Readonly<Record<string, Common.VersionedRef>> = 
 
 export function policySchemaReference(ref: string): Common.VersionedRef | undefined {
   return POLICY_SCHEMA_TYPED_REFS[ref];
+}
+
+// ---------------------------------------------------------------------------
+// IM-06 (#179): registration of a policy schema reference under a declared
+// registry version.
+//
+// IdentityPolicy only answers "is this an exact registered canonical entry of
+// the declared registry version". It never interprets the rule fields of an
+// EnterpriseProject or TaskExecution profile, and it never lets a historical
+// `im02-static-v1` entry stand in for a profile that a consumer requires.
+// `identity.record_policy_snapshot@1.0` keeps its historical acceptance set.
+// ---------------------------------------------------------------------------
+
+/** Registry versions a policy schema reference can be registered against. */
+export const POLICY_SCHEMA_REGISTRY_VERSIONS: readonly string[] = Object.freeze([
+  POLICY_SCHEMA_REGISTRY_VERSION,
+  POLICY_PROFILE_REGISTRY_VERSION,
+]);
+
+/**
+ * Registry key of an exact registered canonical entry, or `undefined` when the
+ * registry version is unknown, the reference is not canonical, or the entry is
+ * not registered under that version.
+ */
+export function registeredPolicySchemaKey(
+  registryVersion: string,
+  reference: unknown,
+): string | undefined {
+  if (registryVersion === POLICY_SCHEMA_REGISTRY_VERSION) {
+    return legacyPolicySchemaKey(reference);
+  }
+  if (registryVersion === POLICY_PROFILE_REGISTRY_VERSION) {
+    return registeredPolicyProfileKey(registryVersion, reference);
+  }
+  return undefined;
+}
+
+function legacyPolicySchemaKey(reference: unknown): string | undefined {
+  return Object.keys(POLICY_SCHEMA_TYPED_REFS).find((key) =>
+    sameVersionedReference(POLICY_SCHEMA_TYPED_REFS[key], reference),
+  );
+}
+
+function sameVersionedReference(
+  expected: Common.VersionedRef | undefined,
+  candidate: unknown,
+): boolean {
+  if (expected === undefined || candidate === null || typeof candidate !== 'object') return false;
+  const reference = candidate as Record<string, unknown>;
+  return (
+    Object.keys(reference).length === 5 &&
+    reference.kind === expected.kind &&
+    reference.objectType === expected.objectType &&
+    reference.objectId === expected.objectId &&
+    reference.versionId === expected.versionId &&
+    JSON.stringify(reference.scope) === JSON.stringify(expected.scope)
+  );
 }

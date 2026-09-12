@@ -30,6 +30,14 @@ export type {
   ProjectionVersionStatus,
   ProjectionCheckpointStatus,
 } from './persistence/projection-types.js';
+export {
+  CAPTURE_POLICY_PROFILE_KEY,
+  validateCapturePolicy,
+} from './business/capture-policy-profile.js';
+export type {
+  CapturePolicyRules,
+  CapturePolicyValidationResult,
+} from './business/capture-policy-profile.js';
 export { EnterpriseProjectRepository } from './persistence/enterprise-project-repository.js';
 export type { ProcessInstanceInsert } from './persistence/enterprise-project-repository.js';
 export {

@@ -20,6 +20,8 @@ export type {
   TaskExecution,
 } from './generated/types/index.js';
 export * from './operations/index.js';
+export * from './policy-profile-documents.js';
+export * from './policy-profiles.js';
 export * from './registry.js';
 export * from './schema-types.js';
 export * from './payload-guard.js';

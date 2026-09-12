@@ -124,8 +124,10 @@ export {
   isHumanOnlyCapability,
   POLICY_SCHEMA_REGISTRY,
   POLICY_SCHEMA_REGISTRY_VERSION,
+  POLICY_SCHEMA_REGISTRY_VERSIONS,
   isResolvablePolicySchemaRef,
   policySchemaReference,
+  registeredPolicySchemaKey,
 } from './commands/static-registry.js';
 export {
   createActorSnapshot,

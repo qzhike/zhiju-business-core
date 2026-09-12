@@ -1,0 +1,4 @@
+{
+  "maxSliceValiditySeconds": 3600,
+  "allowedPurposeCodes": ["project.context_source.capture", "project.context_source.read"]
+}
