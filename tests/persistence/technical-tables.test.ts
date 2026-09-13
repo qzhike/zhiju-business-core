@@ -62,6 +62,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'policy_snapshot',
     'actor_snapshot',
     'authorization_decision',
+    // IM-06 (#186) scoped PolicyVersion facts landed by V1005.
+    'policy_version',
   ],
   enterprise_project: [
     'business_probe',

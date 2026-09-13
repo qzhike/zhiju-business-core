@@ -5,7 +5,7 @@
 // upgraded by the acting_for reference.
 
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
-import type { Common } from '@zhiju/contracts';
+import type { Common, ContractRegistry } from '@zhiju/contracts';
 import type { Kysely } from 'kysely';
 import {
   withIdentityTransaction,
@@ -26,6 +26,14 @@ export interface IdentityCommandDeps {
   readonly repo: IdentityPolicyRepository;
   readonly crypto: IdentityCryptoPorts;
   readonly context: IdentityTransactionContext;
+  /**
+   * Registered contract implementation for the owning entries that validate
+   * public Envelopes and results. Defaults to the shared build-time registry;
+   * it is a wiring-level dependency, so a composition may supply the same
+   * registry implementation (for example to exercise a failing result
+   * contract in a controlled regression).
+   */
+  readonly contracts?: ContractRegistry;
 }
 
 export type PrincipalKind = 'HUMAN' | 'AGENT' | 'SERVICE' | 'RUNTIME' | 'EXTERNAL_PARTY';

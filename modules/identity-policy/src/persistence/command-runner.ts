@@ -152,6 +152,12 @@ export type CommandResult =
       errorCode: string | null;
     };
 
+/** The committed variant, named for consumers that read the stable result. */
+export type CommittedCommandResult = Extract<CommandResult, { status: 'COMMITTED' }>;
+
+/** The business-rejection variant with its stable module error code. */
+export type RejectedCommandResult = Extract<CommandResult, { status: 'REJECTED' }>;
+
 /**
  * Executes one command atomically. The idempotency claim, aggregate change,
  * audit, outbox event(s) and the finalized receipt commit together or not

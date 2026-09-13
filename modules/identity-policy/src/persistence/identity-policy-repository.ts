@@ -6,7 +6,12 @@
 // metadata; raw values never appear in rows, results or error messages.
 
 import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
-import { digestCanonicalPayload, type IdentityTransaction } from './identity-db.js';
+import type { Selectable } from 'kysely';
+import {
+  digestCanonicalPayload,
+  type IdentityTransaction,
+  type PolicyVersionTable,
+} from './identity-db.js';
 import type { IdentityCryptoPorts } from './ports.js';
 
 /** Stable error codes surfaced by the repository (safe, no raw payloads). */
@@ -117,6 +122,28 @@ export interface PolicySnapshotInsert {
   dataClassification: string;
 }
 
+export interface PolicyVersionInsert {
+  policyVersionFactId: string;
+  policyObjectId: string;
+  policyKeyVersionId: string;
+  scopeKind: 'ENTERPRISE' | 'PROJECT';
+  enterpriseId: string;
+  projectId?: string | undefined;
+  /** Present only for a real supersede edge to an earlier committed version. */
+  supersedes?: { objectId: string; versionId: string } | undefined;
+  /** Exact payload of `identity.record_policy_version@1.0`. */
+  payload: CanonicalJsonObject;
+  policySetVersion: string;
+  policySchemaRefs: unknown[];
+  effectiveFrom: Date;
+  schemaRegistryVersion: string;
+  contractVersion: string;
+  createdByPrincipalId: string;
+  actorSnapshotId: string;
+  sourceCommandId: string;
+  dataClassification: string;
+}
+
 export interface ActorSnapshotInsert {
   actorSnapshotId: string;
   principalId: string;
@@ -216,6 +243,153 @@ export function assertHashMatches(
       'declared payload hash does not match the canonical payload',
     );
   }
+}
+
+function payloadMember(value: unknown, field: string): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return throwMirrorMismatch(field);
+  }
+  return value as Record<string, unknown>;
+}
+
+/** Structural JSON equality; object members compare without key order. */
+function jsonMembersEqual(left: unknown, right: unknown): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((item, index) => jsonMembersEqual(item, right[index]))
+    );
+  }
+  if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') {
+    return false;
+  }
+  const leftMembers = left as Record<string, unknown>;
+  const rightMembers = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftMembers);
+  return (
+    leftKeys.length === Object.keys(rightMembers).length &&
+    leftKeys.every(
+      (key) => key in rightMembers && jsonMembersEqual(leftMembers[key], rightMembers[key]),
+    )
+  );
+}
+
+/**
+ * Promoted-mirror validation for the scoped PolicyVersion fact (#186): every
+ * promoted column must be present in the canonical payload with the same
+ * value. The database trigger re-checks the same mirrors; this check keeps the
+ * failure inside the owning transaction with a stable error and no partial
+ * write.
+ */
+function validatePolicyVersionMirror(
+  payload: CanonicalJsonObject,
+  promoted: {
+    policyObjectId: string;
+    policyKeyVersionId: string;
+    enterpriseId: string;
+    projectId: string | null;
+    supersedes?: { objectId: string; versionId: string } | undefined;
+    policySetVersion: string;
+    policySchemaRefs: unknown[];
+    effectiveFrom: Date;
+  },
+): void {
+  const policyRef = payloadMember(payload.policyRef, 'policyRef.objectId');
+  const scope = payloadMember(policyRef.scope, 'policyRef.scope.enterpriseId');
+  if (policyRef.objectId !== promoted.policyObjectId) {
+    throwMirrorMismatch('policyRef.objectId');
+  }
+  if (policyRef.versionId !== promoted.policyKeyVersionId) {
+    throwMirrorMismatch('policyRef.versionId');
+  }
+  if (scope.enterpriseId !== promoted.enterpriseId) {
+    throwMirrorMismatch('policyRef.scope.enterpriseId');
+  }
+  if ((scope.projectId ?? null) !== promoted.projectId) {
+    throwMirrorMismatch('policyRef.scope.projectId');
+  }
+  if (promoted.supersedes === undefined) {
+    if (payload.supersedesRef !== undefined) {
+      throwMirrorMismatch('supersedesRef');
+    }
+  } else {
+    const edge = payloadMember(payload.supersedesRef, 'supersedesRef.objectId');
+    if (edge.objectId !== promoted.supersedes.objectId) {
+      throwMirrorMismatch('supersedesRef.objectId');
+    }
+    if (edge.versionId !== promoted.supersedes.versionId) {
+      throwMirrorMismatch('supersedesRef.versionId');
+    }
+  }
+  if (payload.policySetVersion !== promoted.policySetVersion) {
+    throwMirrorMismatch('policySetVersion');
+  }
+  if (!jsonMembersEqual(payload.policySchemaRefs, promoted.policySchemaRefs)) {
+    throwMirrorMismatch('policySchemaRefs');
+  }
+  const effectiveFrom = payload.effectiveFrom;
+  if (
+    typeof effectiveFrom !== 'string' ||
+    new Date(effectiveFrom).getTime() !== promoted.effectiveFrom.getTime()
+  ) {
+    throwMirrorMismatch('effectiveFrom');
+  }
+}
+
+/**
+ * Read-side integrity boundary for a committed PolicyVersion fact: the
+ * canonical payload must still hash to the stored payload hash, the promoted
+ * columns must mirror it, and the Scope shape must be well formed. A row
+ * rewritten outside the owning handler (direct SQL) fails here instead of
+ * being served as a version fact.
+ */
+export function policyVersionIntegrityHolds(row: Selectable<PolicyVersionTable>): boolean {
+  const payload = row.canonical_payload;
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    return false;
+  }
+  const digest = digestCanonicalPayload(payload as CanonicalJsonObject);
+  if (
+    !digest.hash.equals(row.payload_hash) ||
+    digest.hashAlgorithm !== row.payload_hash_algorithm ||
+    digest.canonicalizationVersion !== row.canonicalization_version
+  ) {
+    return false;
+  }
+  const projectId = row.project_id ?? null;
+  if (
+    (row.scope_kind === 'ENTERPRISE' && projectId !== null) ||
+    (row.scope_kind === 'PROJECT' && projectId === null)
+  ) {
+    return false;
+  }
+  try {
+    validatePolicyVersionMirror(payload as CanonicalJsonObject, {
+      policyObjectId: row.policy_object_id,
+      policyKeyVersionId: row.policy_key_version_id,
+      enterpriseId: row.enterprise_id,
+      projectId,
+      ...(row.supersedes_object_id === null || row.supersedes_version_id === null
+        ? {}
+        : {
+            supersedes: {
+              objectId: row.supersedes_object_id,
+              versionId: row.supersedes_version_id,
+            },
+          }),
+      policySetVersion: row.policy_set_version,
+      policySchemaRefs: Array.isArray(row.policy_schema_refs) ? row.policy_schema_refs : [],
+      effectiveFrom: row.effective_from,
+    });
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 export class IdentityPolicyRepository {
@@ -560,6 +734,113 @@ export class IdentityPolicyRepository {
       .selectFrom('identity_policy.policy_snapshot')
       .selectAll()
       .where('policy_snapshot_id', '=', id)
+      .executeTakeFirst();
+  }
+
+  // -- policy version (#186) -------------------------------------------------
+
+  /**
+   * Appends one immutable scoped PolicyVersion fact. The promoted columns must
+   * mirror the canonical payload exactly; the database trigger re-checks the
+   * same mirrors. Version-binding and supersede-edge uniqueness is adjudicated
+   * by the database (`policy_version_binding_unique` /
+   * `policy_version_supersede_unique`); the handler converts those conflicts
+   * into stable module errors instead of leaking `23505`.
+   */
+  async insertPolicyVersion(trx: IdentityTransaction, insert: PolicyVersionInsert) {
+    const projectId = insert.projectId ?? null;
+    validatePolicyVersionMirror(insert.payload, {
+      policyObjectId: insert.policyObjectId,
+      policyKeyVersionId: insert.policyKeyVersionId,
+      enterpriseId: insert.enterpriseId,
+      projectId,
+      supersedes: insert.supersedes,
+      policySetVersion: insert.policySetVersion,
+      policySchemaRefs: insert.policySchemaRefs,
+      effectiveFrom: insert.effectiveFrom,
+    });
+    const digest = digestCanonicalPayload(insert.payload);
+    await trx
+      .insertInto('identity_policy.policy_version')
+      .values({
+        policy_version_fact_id: insert.policyVersionFactId,
+        policy_object_id: insert.policyObjectId,
+        policy_key_version_id: insert.policyKeyVersionId,
+        scope_kind: insert.scopeKind,
+        enterprise_id: insert.enterpriseId,
+        project_id: projectId,
+        supersedes_object_id: insert.supersedes?.objectId ?? null,
+        supersedes_version_id: insert.supersedes?.versionId ?? null,
+        policy_set_version: insert.policySetVersion,
+        policy_schema_refs: JSON.stringify(insert.policySchemaRefs),
+        effective_from: insert.effectiveFrom,
+        contract_type: 'identity.PolicyVersion',
+        contract_version: insert.contractVersion,
+        schema_registry_version: insert.schemaRegistryVersion,
+        canonicalization_version: digest.canonicalizationVersion,
+        payload_hash_algorithm: digest.hashAlgorithm,
+        payload_hash: digest.hash,
+        payload_size_bytes: digest.sizeBytes,
+        canonical_payload: digest.canonicalJson,
+        created_by_principal_id: insert.createdByPrincipalId,
+        actor_snapshot_id: insert.actorSnapshotId,
+        source_command_id: insert.sourceCommandId,
+        data_classification: insert.dataClassification,
+        retention_class: 'CUSTOMER_RECORD',
+      })
+      .execute();
+    return digest;
+  }
+
+  /** The committed version fact bound to one Policy version key, if any. */
+  async getPolicyVersionByKey(
+    trx: IdentityTransaction,
+    key: {
+      policyObjectId: string;
+      policyKeyVersionId: string;
+      enterpriseId: string;
+      projectId: string | null;
+    },
+  ) {
+    return trx
+      .selectFrom('identity_policy.policy_version')
+      .selectAll()
+      .where('policy_object_id', '=', key.policyObjectId)
+      .where('policy_key_version_id', '=', key.policyKeyVersionId)
+      .where('enterprise_id', '=', key.enterpriseId)
+      .where((eb) =>
+        key.projectId === null
+          ? eb('project_id', 'is', null)
+          : eb('project_id', '=', key.projectId),
+      )
+      .executeTakeFirst();
+  }
+
+  /**
+   * The successor fact of a predecessor version, read through the unique
+   * supersede edge. Its `effective_from` is the only source of the
+   * predecessor's derived `supersededAt`.
+   */
+  async getPolicyVersionSuccessor(
+    trx: IdentityTransaction,
+    edge: {
+      supersedesObjectId: string;
+      supersedesVersionId: string;
+      enterpriseId: string;
+      projectId: string | null;
+    },
+  ) {
+    return trx
+      .selectFrom('identity_policy.policy_version')
+      .selectAll()
+      .where('supersedes_object_id', '=', edge.supersedesObjectId)
+      .where('supersedes_version_id', '=', edge.supersedesVersionId)
+      .where('enterprise_id', '=', edge.enterpriseId)
+      .where((eb) =>
+        edge.projectId === null
+          ? eb('project_id', 'is', null)
+          : eb('project_id', '=', edge.projectId),
+      )
       .executeTakeFirst();
   }
 
