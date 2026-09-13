@@ -1007,61 +1007,73 @@ describe.skipIf(!gateEnabled)('policy version handlers (real PostgreSQL)', () =>
     });
     const scope = { enterpriseId: ENTERPRISE_A };
     const storedActorHash = await actorSnapshotHash(OPERATOR_ACTOR_ENTERPRISE);
-    const decisionRef = call.envelope.authorizationDecisionRef as Record<string, unknown>;
-
-    // Single-field mutations that stay schema-valid: an actor naming another
-    // object type, another snapshot id or another content hash, and a Decision
-    // reference naming another object type or another Scope.
-    const actorVariants: readonly [string, unknown][] = [
+    const exactActorSnapshot = {
+      kind: 'SNAPSHOT',
+      objectType: 'identity.actor_snapshot',
+      objectId: OPERATOR_ACTOR_ENTERPRISE,
+      snapshotId: OPERATOR_ACTOR_ENTERPRISE,
+      scope,
+      contentHash: {
+        algorithm: 'SHA-256',
+        digest: storedActorHash,
+        canonicalizationVersion: '1',
+      },
+    };
+    const mutate = (base: unknown, patch: Record<string, unknown>): unknown => ({
+      ...(base as Record<string, unknown>),
+      ...patch,
+    });
+    // Every negative is derived from the exact reference the matching entry
+    // presents and changes exactly one member, so each comparison in the
+    // binding validator is individually protected by a regression.
+    const principalActor = call.envelope.actor;
+    const commandDecisionRef = call.envelope.authorizationDecisionRef;
+    const wrongSnapshotHash = mutate(exactActorSnapshot, {
+      contentHash: {
+        algorithm: 'SHA-256',
+        digest: '0'.repeat(64),
+        canonicalizationVersion: '1',
+      },
+    });
+    const actorNegatives: readonly [string, unknown][] = [
+      ['actor-type', mutate(principalActor, { objectType: 'zhiju.identity.policy' })],
+      ['principal-id', mutate(principalActor, { objectId: SERVICE })],
       [
-        'actor-type',
-        { kind: 'OBJECT', objectType: 'zhiju.identity.policy', objectId: OPERATOR, scope },
-      ],
-      [
-        'snapshot-hash',
-        {
-          kind: 'SNAPSHOT',
-          objectType: 'identity.actor_snapshot',
-          objectId: OPERATOR_ACTOR_ENTERPRISE,
-          snapshotId: OPERATOR_ACTOR_ENTERPRISE,
-          scope,
-          contentHash: {
-            algorithm: 'SHA-256',
-            digest: '0'.repeat(64),
-            canonicalizationVersion: '1',
-          },
-        },
+        'snapshot-object',
+        mutate(exactActorSnapshot, { objectId: 'dddddddd-dddd-7ddd-8ddd-ddddddddddd2' }),
       ],
       [
         'snapshot-id',
-        {
-          kind: 'SNAPSHOT',
-          objectType: 'identity.actor_snapshot',
-          objectId: 'dddddddd-dddd-7ddd-8ddd-ddddddddddd1',
-          snapshotId: 'dddddddd-dddd-7ddd-8ddd-ddddddddddd1',
-          scope,
+        mutate(exactActorSnapshot, { snapshotId: 'dddddddd-dddd-7ddd-8ddd-ddddddddddd1' }),
+      ],
+      ['snapshot-hash', wrongSnapshotHash],
+    ];
+    const wrongDecisionScope = { enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 };
+    const decisionNegatives: readonly [string, unknown][] = [
+      ['decision-type', mutate(commandDecisionRef, { objectType: 'identity.policy_snapshot' })],
+      [
+        'decision-id',
+        mutate(commandDecisionRef, { objectId: 'dddddddd-dddd-7ddd-8ddd-ddddddddddd3' }),
+      ],
+      [
+        'decision-hash',
+        mutate(commandDecisionRef, {
           contentHash: {
             algorithm: 'SHA-256',
-            digest: storedActorHash,
+            digest: '1'.repeat(64),
             canonicalizationVersion: '1',
           },
-        },
+        }),
       ],
+      ['decision-scope', mutate(commandDecisionRef, { scope: wrongDecisionScope })],
     ];
-    for (const [label, actor] of actorVariants) {
+    for (const [label, actor] of actorNegatives) {
       expect(
         await recordPolicyVersion(call.deps, { envelope: { ...call.envelope, actor } }),
         label,
       ).toMatchObject({ status: 'REJECTED', errorCode: AUTHORIZATION_DECISION_INVALID });
     }
-    const decisionVariants: readonly [string, unknown][] = [
-      ['decision-type', { ...decisionRef, objectType: 'identity.policy_snapshot' }],
-      [
-        'decision-scope',
-        { ...decisionRef, scope: { enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 } },
-      ],
-    ];
-    for (const [label, authorizationDecisionRef] of decisionVariants) {
+    for (const [label, authorizationDecisionRef] of decisionNegatives) {
       expect(
         await recordPolicyVersion(call.deps, {
           envelope: { ...call.envelope, authorizationDecisionRef },
@@ -1081,37 +1093,66 @@ describe.skipIf(!gateEnabled)('policy version handlers (real PostgreSQL)', () =>
     expect(await versionBindingCount(POLICY_FIVE, V14)).toBe(0);
 
     // Positive control: the exact ActorSnapshot reference form is supported.
-    const actorSnapshotRef = {
-      kind: 'SNAPSHOT',
-      objectType: 'identity.actor_snapshot',
-      objectId: OPERATOR_ACTOR_ENTERPRISE,
-      snapshotId: OPERATOR_ACTOR_ENTERPRISE,
-      scope,
-      contentHash: {
-        algorithm: 'SHA-256',
-        digest: storedActorHash,
-        canonicalizationVersion: '1',
-      },
-    };
-    const committed = await recordPolicyVersion(call.deps, {
-      envelope: { ...call.envelope, actor: actorSnapshotRef },
-    });
-    expect(committed).toMatchObject({ status: 'COMMITTED' });
+    expect(
+      await recordPolicyVersion(call.deps, {
+        envelope: { ...call.envelope, actor: exactActorSnapshot },
+      }),
+    ).toMatchObject({ status: 'COMMITTED' });
 
-    // The Query entry enforces the same binding rules with a masked Audit.
+    // The Query entry enforces the same binding rules with a masked Audit,
+    // using negatives derived from the Query Envelope's own references.
     const query = await queryCall({ key });
-    await expect(
-      resolvePolicy(query.deps, {
-        envelope: { ...query.envelope, requester: actorVariants[1]?.[1] },
-        asOf: new Date(),
-      }),
-    ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
-    await expect(
-      resolvePolicy(query.deps, {
-        envelope: { ...query.envelope, authorizationDecisionRef: decisionVariants[1]?.[1] },
-        asOf: new Date(),
-      }),
-    ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
+    const queryPrincipal = query.envelope.requester;
+    const queryDecisionRef = query.envelope.authorizationDecisionRef;
+    const queryActorNegatives: readonly [string, unknown][] = [
+      ['actor-type', mutate(queryPrincipal, { objectType: 'zhiju.identity.policy' })],
+      ['principal-id', mutate(queryPrincipal, { objectId: SERVICE })],
+      [
+        'snapshot-object',
+        mutate(exactActorSnapshot, { objectId: 'dddddddd-dddd-7ddd-8ddd-ddddddddddd2' }),
+      ],
+      [
+        'snapshot-id',
+        mutate(exactActorSnapshot, { snapshotId: 'dddddddd-dddd-7ddd-8ddd-ddddddddddd1' }),
+      ],
+      ['snapshot-hash', wrongSnapshotHash],
+    ];
+    const queryDecisionNegatives: readonly [string, unknown][] = [
+      ['decision-type', mutate(queryDecisionRef, { objectType: 'identity.policy_snapshot' })],
+      [
+        'decision-id',
+        mutate(queryDecisionRef, { objectId: 'dddddddd-dddd-7ddd-8ddd-ddddddddddd3' }),
+      ],
+      [
+        'decision-hash',
+        mutate(queryDecisionRef, {
+          contentHash: {
+            algorithm: 'SHA-256',
+            digest: '1'.repeat(64),
+            canonicalizationVersion: '1',
+          },
+        }),
+      ],
+      ['decision-scope', mutate(queryDecisionRef, { scope: wrongDecisionScope })],
+    ];
+    for (const [label, requester] of queryActorNegatives) {
+      await expect(
+        resolvePolicy(query.deps, {
+          envelope: { ...query.envelope, requester },
+          asOf: new Date(),
+        }),
+        label,
+      ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
+    }
+    for (const [label, authorizationDecisionRef] of queryDecisionNegatives) {
+      await expect(
+        resolvePolicy(query.deps, {
+          envelope: { ...query.envelope, authorizationDecisionRef },
+          asOf: new Date(),
+        }),
+        label,
+      ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
+    }
     const queryBindingAudit = await admin.query<{ safe_summary: string }>(
       `SELECT safe_summary FROM identity_policy.audit_record
         WHERE command_type = $1 AND error_code = $2 AND safe_summary = 'reference-binding'
@@ -1120,9 +1161,10 @@ describe.skipIf(!gateEnabled)('policy version handlers (real PostgreSQL)', () =>
     );
     expect(queryBindingAudit.rows[0]).toMatchObject({ safe_summary: 'reference-binding' });
 
+    // Positive control: the Query entry accepts the exact ActorSnapshot form.
     const querySnapshot = await queryCall({ key });
     const resolved = await resolvePolicy(querySnapshot.deps, {
-      envelope: { ...querySnapshot.envelope, requester: actorSnapshotRef },
+      envelope: { ...querySnapshot.envelope, requester: exactActorSnapshot },
       asOf: new Date(),
     });
     expect(resolved.policyVersionRef.objectId).toBe('cacacaca-caca-7aca-8aca-cacacacaca26');
