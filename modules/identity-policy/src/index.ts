@@ -43,6 +43,7 @@ export type {
   ScopedAssignmentInsert,
   RevocationInsert,
   PolicySnapshotInsert,
+  PolicyVersionInsert,
   ActorSnapshotInsert,
   AuthorizationDecisionInsert,
 } from './persistence/identity-policy-repository.js';
@@ -61,6 +62,8 @@ export type {
   CommandBodyResult,
   CommandExecution,
   CommandResult,
+  CommittedCommandResult,
+  RejectedCommandResult,
   CommandAuditInput,
   OutboxEventInput,
 } from './persistence/command-runner.js';
@@ -111,6 +114,28 @@ export {
   IDENTITY_POLICY_VERSION_UNKNOWN,
   IDENTITY_BOOTSTRAP_ROLE_INVALID,
 } from './commands/role-capability-handlers.js';
+export {
+  recordPolicyVersion,
+  resolvePolicy,
+  IDENTITY_POLICY_VERSION_ALREADY_BOUND,
+  IDENTITY_POLICY_SUPERSEDE_INVALID,
+  IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED,
+  AUTHORIZATION_DECISION_INVALID,
+  AUTHORIZATION_EXPIRED,
+  AUTHORIZATION_REVOKED,
+  DEPENDENCY_UNAVAILABLE,
+  RECORD_POLICY_VERSION_COMMAND,
+  RESOLVE_POLICY_COMMAND,
+  RECORD_POLICY_VERSION_PURPOSE,
+  RESOLVE_POLICY_PURPOSE,
+  POLICY_OBJECT_TYPE,
+  POLICY_VERSION_OBJECT_TYPE,
+} from './commands/policy-version.js';
+export type {
+  RecordPolicyVersionInput,
+  ResolvePolicyInput,
+  PolicyVersionResolutionView,
+} from './commands/policy-version.js';
 export type {
   AssignRoleInput,
   RevokeScopedInput,

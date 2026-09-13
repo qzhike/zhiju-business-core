@@ -172,6 +172,34 @@ export interface PolicySnapshotTable {
   retention_class: string;
 }
 
+export interface PolicyVersionTable {
+  policy_version_fact_id: string;
+  policy_object_id: string;
+  policy_key_version_id: string;
+  scope_kind: 'ENTERPRISE' | 'PROJECT';
+  enterprise_id: string;
+  project_id: string | null;
+  supersedes_object_id: string | null;
+  supersedes_version_id: string | null;
+  policy_set_version: string;
+  policy_schema_refs: Json;
+  effective_from: Date;
+  contract_type: string;
+  contract_version: string;
+  schema_registry_version: string;
+  canonicalization_version: string;
+  payload_hash_algorithm: string;
+  payload_hash: Buffer;
+  payload_size_bytes: Int8;
+  canonical_payload: Json;
+  created_at: Generated<Date>;
+  created_by_principal_id: string;
+  actor_snapshot_id: string;
+  source_command_id: string;
+  data_classification: string;
+  retention_class: string;
+}
+
 export interface ActorSnapshotTable {
   actor_snapshot_id: string;
   principal_id: string;
@@ -457,6 +485,7 @@ export interface IdentityPolicyDb {
   'identity_policy.capability_grant': CapabilityGrantTable;
   'identity_policy.capability_revocation': CapabilityRevocationTable;
   'identity_policy.policy_snapshot': PolicySnapshotTable;
+  'identity_policy.policy_version': PolicyVersionTable;
   'identity_policy.actor_snapshot': ActorSnapshotTable;
   'identity_policy.authorization_decision': AuthorizationDecisionTable;
   'identity_policy.command_receipt': CommandReceiptTable;
