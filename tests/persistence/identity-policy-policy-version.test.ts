@@ -1437,10 +1437,22 @@ describe.skipIf(!gateEnabled)('policy version handlers (real PostgreSQL)', () =>
       supersededAt: FUTURE.toISOString(),
     });
     expect((await resolveAs(futurePredecessorKey, FUTURE)).useStatus).toBe('SUPERSEDED');
+    // A committed version whose effectiveFrom is still ahead of the trusted
+    // server time is observed as NOT_YET_EFFECTIVE through the owning entry.
+    expect(await resolveAs(futureSuccessorKey)).toMatchObject({
+      useStatus: 'NOT_YET_EFFECTIVE',
+      effectiveFrom: FUTURE.toISOString(),
+    });
 
     // Invalid edges never create a supersede edge or a version fact.
     const invalidEdges: readonly { label: string; supersedesRef: Common.VersionedRef }[] = [
-      { label: 'self', supersedesRef: predecessorKey },
+      {
+        label: 'self',
+        supersedesRef: scopedKey(POLICY_ONE, V8, {
+          enterpriseId: ENTERPRISE_A,
+          projectId: PROJECT_A1,
+        }),
+      },
       {
         label: 'unknown',
         supersedesRef: scopedKey(POLICY_ONE, UNKNOWN_VERSION, {
