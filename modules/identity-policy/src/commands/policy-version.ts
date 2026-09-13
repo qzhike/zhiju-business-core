@@ -7,15 +7,26 @@
 // observation (ref, canonical document, content hash, Scope, lifecycle) of a
 // version key without resolving latest/current.
 //
-// Every entry revalidates the AuthorizationDecision the trusted transaction
-// context pins: exact hash, command type/version, scope, purpose, request
-// payload hash, expiry and the *current* covering grant, so a revoked grant or
-// a Decision issued for another purpose cannot pass an owning handler. A
-// failed resolution writes the same masked, in-scope Audit as the write side
-// instead of leaking the existence of another Scope's fact.
+// Both owning entries take the complete registered Envelope and run the
+// registered contract first (schema + PayloadGuard, shared API §5.3 step 1),
+// then revalidate the AuthorizationDecision the trusted transaction context
+// pins (step 3: exact ref/hash, command type/version, Scope, Purpose, request
+// payload hash, actor binding, expiry and the *current* covering grant) before
+// any idempotent result can be returned, so a revoked grant or a Decision
+// issued for another purpose cannot pass an owning handler and a historical
+// Receipt never restores execution eligibility. Result payloads are checked
+// against the registered result contract inside the owning transaction, so a
+// failed check rolls back the fact instead of committing a success Receipt.
+// Every authorization failure writes a masked, in-scope Audit instead of
+// leaking the existence of another Scope's fact.
 
 import { newUuidV7, type CanonicalJsonObject, type CanonicalJsonValue } from '@zhiju/shared-kernel';
-import { POLICY_PROFILE_REGISTRY_VERSION, type CanonicalJson, type Common } from '@zhiju/contracts';
+import {
+  ContractRegistry,
+  POLICY_PROFILE_REGISTRY_VERSION,
+  type CanonicalJson,
+  type Common,
+} from '@zhiju/contracts';
 import { sql } from 'kysely';
 import {
   digestCanonicalPayload,
@@ -41,11 +52,17 @@ export const IDENTITY_POLICY_SUPERSEDE_INVALID = 'IDENTITY_POLICY_SUPERSEDE_INVA
 export const IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED =
   'IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED';
 
-/** Shared API reason codes reused by the owning authorization boundary. */
+/** Shared API reason codes reused by the owning contract and authorization boundary. */
 export const AUTHORIZATION_DECISION_INVALID = 'AUTHORIZATION_DECISION_INVALID';
 export const AUTHORIZATION_EXPIRED = 'AUTHORIZATION_EXPIRED';
 export const AUTHORIZATION_REVOKED = 'AUTHORIZATION_REVOKED';
 export const DEPENDENCY_UNAVAILABLE = 'DEPENDENCY_UNAVAILABLE';
+export const API_PAYLOAD_LIMIT_EXCEEDED = 'API_PAYLOAD_LIMIT_EXCEEDED';
+export const API_VALUE_INVALID = 'API_VALUE_INVALID';
+export const API_CONTRACT_TYPE_UNKNOWN = 'API_CONTRACT_TYPE_UNKNOWN';
+export const API_PAYLOAD_HASH_MISMATCH = 'API_PAYLOAD_HASH_MISMATCH';
+export const SCOPE_MISMATCH = 'SCOPE_MISMATCH';
+export const INTERNAL_CONTRACT_VIOLATION = 'INTERNAL_CONTRACT_VIOLATION';
 
 /** Exact registered identities of the two operations (Spec 001 §13.3). */
 export const RECORD_POLICY_VERSION_COMMAND = 'identity.record_policy_version';
@@ -58,6 +75,138 @@ export const POLICY_VERSION_OBJECT_TYPE = 'zhiju.identity.policy_version';
 const uuidV7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const canonicalInstantPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u;
 
+// ---------------------------------------------------------------------------
+// Registered contract boundary. Both owning entries validate the complete
+// public Envelope (structure and the registered finite PayloadGuard budget);
+// nothing below may run before that check, and the write result is validated
+// against the registered result schema before the owning transaction commits.
+// ---------------------------------------------------------------------------
+
+let registeredContracts: ContractRegistry | undefined;
+
+function contractRegistry(): ContractRegistry {
+  registeredContracts ??= new ContractRegistry();
+  return registeredContracts;
+}
+
+/**
+ * Stable reason code of a request that does not satisfy its registered
+ * operation contract, or `null` when it does. The Guard runs before the
+ * structural schema (same order as the shared registry), so a request over the
+ * approved budget short-circuits before any structure walk or database access.
+ */
+function requestContractViolation(type: string, input: unknown): string | null {
+  const validation = contractRegistry().validateOperation(type, '1.0', input);
+  if (validation.valid) {
+    return null;
+  }
+  if (validation.errors.some((error) => error.keyword === 'operationRegistry')) {
+    return API_CONTRACT_TYPE_UNKNOWN;
+  }
+  if (validation.errors.some((error) => error.keyword === 'payloadGuard')) {
+    return API_PAYLOAD_LIMIT_EXCEEDED;
+  }
+  return API_VALUE_INVALID;
+}
+
+function resultContractViolation(type: string, input: unknown): string | null {
+  const validation = contractRegistry().validateOperationResult(type, '1.0', input);
+  if (validation.valid) {
+    return null;
+  }
+  if (validation.errors.some((error) => error.keyword === 'payloadGuard')) {
+    return API_PAYLOAD_LIMIT_EXCEEDED;
+  }
+  return INTERNAL_CONTRACT_VIOLATION;
+}
+
+interface RegisteredReference {
+  readonly kind?: unknown;
+  readonly objectType?: unknown;
+  readonly objectId?: unknown;
+  readonly contentHash?: unknown;
+}
+
+interface RegisteredScope {
+  readonly enterpriseId?: unknown;
+  readonly projectId?: unknown;
+}
+
+interface RegisteredCommandEnvelope {
+  readonly commandId?: unknown;
+  readonly scopeRef?: RegisteredScope;
+  readonly targetRef?: RegisteredReference & { readonly scope?: RegisteredScope };
+  readonly actor?: RegisteredReference;
+  readonly authorizationDecisionRef?: RegisteredReference;
+  readonly idempotencyKey?: unknown;
+  readonly correlationId?: unknown;
+  readonly payload?: unknown;
+  readonly integrity?: { readonly payloadHash?: unknown };
+}
+
+interface RegisteredQueryEnvelope {
+  readonly queryId?: unknown;
+  readonly scopeRef?: RegisteredScope;
+  readonly requester?: RegisteredReference;
+  readonly authorizationDecisionRef?: RegisteredReference;
+  readonly correlationId?: unknown;
+  readonly payload?: unknown;
+}
+
+function contentHashDigest(value: unknown): string | null {
+  const candidate = value as { algorithm?: unknown; digest?: unknown } | null | undefined;
+  if (
+    candidate === null ||
+    candidate === undefined ||
+    typeof candidate !== 'object' ||
+    candidate.algorithm !== 'SHA-256' ||
+    typeof candidate.digest !== 'string'
+  ) {
+    return null;
+  }
+  return candidate.digest;
+}
+
+function sameScope(
+  left: RegisteredScope | undefined,
+  right: { readonly enterpriseId?: string | undefined; readonly projectId?: string | undefined },
+): boolean {
+  return (
+    left?.enterpriseId === right.enterpriseId &&
+    (left?.projectId ?? null) === (right.projectId ?? null)
+  );
+}
+
+/**
+ * The presented envelope must pin the same AuthorizationDecision the trusted
+ * transaction context was established with: a request that carries another
+ * Decision must not be answered with this context's authorization.
+ */
+function decisionReferenceMismatch(
+  reference: RegisteredReference | undefined,
+  context: IdentityTransactionContext,
+): boolean {
+  return (
+    reference?.kind !== 'CONTENT_ADDRESSED' ||
+    reference.objectId !== context.authorizationDecisionId ||
+    contentHashDigest(reference.contentHash) !== context.authorizationDecisionHash.toString('hex')
+  );
+}
+
+/**
+ * The presented actor must resolve to the trusted Context principal (an
+ * ObjectRef of that principal) or to its trusted ActorSnapshot.
+ */
+function actorReferenceMismatch(
+  actor: RegisteredReference | undefined,
+  context: IdentityTransactionContext,
+): boolean {
+  if (actor?.kind === 'OBJECT' && actor.objectId === context.principalId) {
+    return false;
+  }
+  return !(actor?.kind === 'SNAPSHOT' && actor.objectId === context.actorSnapshotId);
+}
+
 interface PolicyVersionKey {
   objectId: string;
   versionId: string;
@@ -69,8 +218,9 @@ interface PolicyVersionKey {
 /**
  * Reads the canonical `VersionedRef<Policy>` version key: VERSIONED kind, the
  * pinned `zhiju.identity.policy` objectType, UuidV7 ids, and the closed
- * `{enterpriseId, projectId?}` Scope. Anything else is not a version key and
- * is reported with the caller's failure code.
+ * `{enterpriseId, projectId?}` Scope. The registered payload schema enforces
+ * the same shape; this reader keeps the owning boundary fail-closed without
+ * assuming it.
  */
 function readPolicyVersionKey(value: unknown): PolicyVersionKey | null {
   if (value === null || typeof value !== 'object') {
@@ -82,8 +232,7 @@ function readPolicyVersionKey(value: unknown): PolicyVersionKey | null {
     objectId?: unknown;
     versionId?: unknown;
   };
-  const scope = (candidate as { scope?: unknown }).scope as
-    { enterpriseId?: unknown; projectId?: unknown } | null | undefined;
+  const scope = (candidate as { scope?: unknown }).scope as RegisteredScope | null | undefined;
   if (scope === null || scope === undefined || typeof scope !== 'object') {
     return null;
   }
@@ -136,25 +285,6 @@ function versionKeyReference(key: PolicyVersionKey): Common.VersionedRef {
   };
 }
 
-/**
- * The canonical payload form of the Policy version key. Canonical JSON has no
- * index signature for the typed reference interfaces, so the payload members
- * are built as plain JSON values here and stay byte-identical to the request
- * the caller hashes into its AuthorizationDecision intent.
- */
-function canonicalVersionKey(key: PolicyVersionKey): CanonicalJsonObject {
-  return {
-    kind: 'VERSIONED',
-    objectType: POLICY_OBJECT_TYPE,
-    objectId: key.objectId,
-    versionId: key.versionId,
-    scope:
-      key.projectId === undefined
-        ? { enterpriseId: key.enterpriseId }
-        : { enterpriseId: key.enterpriseId, projectId: key.projectId },
-  };
-}
-
 /** The canonical payload form of the committed version fact reference. */
 function canonicalVersionFactReference(
   policyVersionFactId: string,
@@ -191,8 +321,9 @@ function scopeWithinContext(key: PolicyVersionKey, context: IdentityTransactionC
 
 /**
  * SD-181-1 write boundary: canonical UTC instants at most millisecond
- * precision (`YYYY-MM-DDTHH:mm:ss[.SSS]Z`, ≤ 24 code points). Sub-millisecond
- * input is rejected, never truncated or silently rounded.
+ * precision (`YYYY-MM-DDTHH:mm:ss[.SSS]Z`, ≤ 24 code points). The registered
+ * schema enforces the same bound; this reader never truncates or silently
+ * rounds.
  */
 function parseCanonicalInstant(value: unknown): Date | null {
   if (typeof value !== 'string' || value.length > 24 || !canonicalInstantPattern.test(value)) {
@@ -275,6 +406,49 @@ async function currentAuthorizationError(
   return covering ? null : AUTHORIZATION_REVOKED;
 }
 
+/**
+ * Masked, in-scope audit for a denied request: the external result stays a
+ * stable code while the internal classification (scope mismatch, authorization
+ * state, integrity) is only visible here, together with hashes and never any
+ * document content.
+ */
+async function appendDeniedAudit(
+  deps: IdentityCommandDeps,
+  trx: IdentityTransaction,
+  input: {
+    commandType: string;
+    errorCode: string;
+    internalReason: string;
+    /** Verified Project of the request, or null when it is not authorized. */
+    projectId: string | null;
+    requestHash: Buffer;
+    targetId: string | null;
+  },
+): Promise<void> {
+  await trx
+    .insertInto('identity_policy.audit_record')
+    .values({
+      audit_id: newUuidV7(),
+      enterprise_id: deps.context.enterpriseId,
+      project_id: input.projectId,
+      principal_id: deps.context.principalId,
+      actor_snapshot_id: deps.context.actorSnapshotId,
+      authorization_decision_id: deps.context.authorizationDecisionId,
+      command_id: newUuidV7(),
+      command_type: input.commandType,
+      outcome: 'DENIED',
+      error_code: input.errorCode,
+      request_payload_hash: input.requestHash,
+      result_payload_hash: null,
+      target_type: 'PolicyVersion',
+      target_id: input.targetId,
+      correlation_id: deps.context.correlationId,
+      safe_summary: input.internalReason,
+      retention_class: 'REGULATED_AUDIT',
+    })
+    .execute();
+}
+
 function isUniqueViolation(error: unknown, constraint: string): boolean {
   if (typeof error !== 'object' || error === null) {
     return false;
@@ -329,7 +503,7 @@ async function insertPolicyVersionGuarded(
           }
         : isUniqueViolation(error, 'policy_version_pkey')
           ? {
-              errorCode: IDENTITY_POLICY_SNAPSHOT_INVALID,
+              errorCode: API_VALUE_INVALID,
               safeSummary: 'policyVersionFactId is already used by a committed fact',
             }
           : null;
@@ -343,108 +517,142 @@ async function insertPolicyVersionGuarded(
 }
 
 export interface RecordPolicyVersionInput {
-  /** Envelope targetRef objectId: the new fact identity, never regenerated. */
-  policyVersionFactId: string;
-  policyRef: unknown;
-  policySetVersion: unknown;
-  policySchemaRefs: unknown;
-  policyDocument: unknown;
-  effectiveFrom: unknown;
-  supersedesRef?: unknown;
-  idempotencyKey: string;
+  /** Complete registered `identity.record_policy_version@1.0` Command Envelope. */
+  envelope: unknown;
 }
 
 /**
  * `identity.record_policy_version@1.0`: one immutable scoped version fact per
  * version key, with the shared Receipt/Audit in the same owning transaction.
- * Replaying the same idempotency key and payload returns the original result;
- * the same key with a different payload is the shared idempotency conflict.
+ * The registered contract and the current authorization are checked before the
+ * idempotency claim, so an unauthorized request is rejected without claiming a
+ * key and a historical Receipt can never restore execution eligibility.
+ * Replaying the same idempotency key and payload under valid authorization
+ * returns the original result; the same key with a different payload is the
+ * shared idempotency conflict.
  */
 export async function recordPolicyVersion(
   deps: IdentityCommandDeps,
   input: RecordPolicyVersionInput,
 ): Promise<CommandResult> {
-  const key = readPolicyVersionKey(input.policyRef);
+  const envelope = (input.envelope ?? {}) as RegisteredCommandEnvelope;
+  const contractViolation = requestContractViolation(RECORD_POLICY_VERSION_COMMAND, input.envelope);
+  if (contractViolation !== null) {
+    throw new CommandExecutionError(
+      contractViolation,
+      'record_policy_version request does not satisfy its registered contract',
+    );
+  }
+  const payload = envelope.payload as CanonicalJsonObject;
+  const requestHash = digestCanonicalPayload(payload).hash;
+  if (contentHashDigest(envelope.integrity?.payloadHash) !== requestHash.toString('hex')) {
+    throw new CommandExecutionError(
+      API_PAYLOAD_HASH_MISMATCH,
+      'declared request integrity hash does not match the canonical payload',
+    );
+  }
+  const key = readPolicyVersionKey(payload.policyRef);
   if (key === null) {
-    return rejected(
-      IDENTITY_POLICY_SNAPSHOT_INVALID,
+    throw new CommandExecutionError(
+      API_VALUE_INVALID,
       'policyRef must be a canonical scoped Policy version key',
     );
   }
-  const effectiveFromInstant = typeof input.effectiveFrom === 'string' ? input.effectiveFrom : '';
-  const effectiveFrom = parseCanonicalInstant(effectiveFromInstant);
+  const effectiveFrom = parseCanonicalInstant(payload.effectiveFrom);
   if (effectiveFrom === null) {
-    return rejected(
-      IDENTITY_POLICY_SNAPSHOT_INVALID,
+    throw new CommandExecutionError(
+      API_VALUE_INVALID,
       'effectiveFrom must be a canonical UTC instant with at most millisecond precision',
     );
   }
-  const policySetVersion = typeof input.policySetVersion === 'string' ? input.policySetVersion : '';
+  const policySetVersion =
+    typeof payload.policySetVersion === 'string' ? payload.policySetVersion : '';
   if (policySetVersion.trim() === '') {
-    return rejected(IDENTITY_POLICY_SNAPSHOT_INVALID, 'policySetVersion must not be empty');
+    throw new CommandExecutionError(API_VALUE_INVALID, 'policySetVersion must not be empty');
   }
-  if (!uuidV7Pattern.test(input.policyVersionFactId)) {
-    return rejected(
-      IDENTITY_POLICY_SNAPSHOT_INVALID,
-      'policyVersionFactId must be a UuidV7 fact identity',
-    );
-  }
+  const versionScope = versionKeyScope(key);
   if (
-    !Array.isArray(input.policySchemaRefs) ||
-    input.policySchemaRefs.length === 0 ||
-    !input.policySchemaRefs.every(
-      (schemaRef) =>
-        registeredPolicySchemaKey(POLICY_PROFILE_REGISTRY_VERSION, schemaRef) !== undefined,
-    )
+    !sameScope(envelope.scopeRef, versionScope) ||
+    !sameScope(envelope.targetRef?.scope, versionScope)
   ) {
-    return rejected(
-      IDENTITY_POLICY_VERSION_UNKNOWN,
-      `policySchemaRefs must be registered canonical entries of ${POLICY_PROFILE_REGISTRY_VERSION}`,
+    throw new CommandExecutionError(
+      SCOPE_MISMATCH,
+      'envelope scopeRef and targetRef must carry the exact Scope of payload.policyRef',
     );
   }
+  if (decisionReferenceMismatch(envelope.authorizationDecisionRef, deps.context)) {
+    throw new CommandExecutionError(
+      AUTHORIZATION_DECISION_INVALID,
+      'envelope authorizationDecisionRef does not match the trusted transaction context',
+    );
+  }
+  if (actorReferenceMismatch(envelope.actor, deps.context)) {
+    throw new CommandExecutionError(
+      AUTHORIZATION_DECISION_INVALID,
+      'envelope actor does not resolve to the trusted transaction principal',
+    );
+  }
+  const policySchemaRefs = (
+    Array.isArray(payload.policySchemaRefs) ? payload.policySchemaRefs : []
+  ) as CanonicalJsonValue[];
   const supersedes =
-    input.supersedesRef === undefined ? null : readPolicyVersionKey(input.supersedesRef);
-  if (input.supersedesRef !== undefined && supersedes === null) {
-    return rejected(
+    payload.supersedesRef === undefined ? null : readPolicyVersionKey(payload.supersedesRef);
+  if (payload.supersedesRef !== undefined && supersedes === null) {
+    throw new CommandExecutionError(
       IDENTITY_POLICY_SUPERSEDE_INVALID,
       'supersedesRef must be a canonical scoped Policy version key',
     );
   }
-  if (
-    supersedes !== null &&
-    (supersedes.objectId !== key.objectId ||
-      supersedes.scopeKind !== key.scopeKind ||
-      supersedes.enterpriseId !== key.enterpriseId ||
-      supersedes.projectId !== key.projectId ||
-      supersedes.versionId === key.versionId)
-  ) {
-    return rejected(
-      IDENTITY_POLICY_SUPERSEDE_INVALID,
-      'supersedesRef must reference another version of the same Policy identity and Scope',
-    );
-  }
-
-  const policySchemaRefs = (
-    Array.isArray(input.policySchemaRefs) ? input.policySchemaRefs : []
-  ) as CanonicalJsonValue[];
-  const requestPayload: CanonicalJsonObject = {
-    policyRef: canonicalVersionKey(key),
-    policySetVersion,
-    policySchemaRefs,
-    policyDocument: input.policyDocument as CanonicalJsonValue,
-    effectiveFrom: effectiveFromInstant,
-    ...(supersedes === null ? {} : { supersedesRef: canonicalVersionKey(supersedes) }),
-  };
-  const requestHash = digestCanonicalPayload(requestPayload).hash;
-  const commandId = newUuidV7();
-  // An unverified Project never enters the Command envelope or the RLS write
-  // Scope: the owning handler rejects the request scope before any write.
-  const projectId =
-    key.projectId !== undefined && deps.context.allowedProjectIds.includes(key.projectId)
-      ? key.projectId
-      : undefined;
+  const policyVersionFactId =
+    typeof envelope.targetRef?.objectId === 'string' ? envelope.targetRef.objectId : '';
+  const commandId = typeof envelope.commandId === 'string' ? envelope.commandId : '';
+  const idempotencyKey = typeof envelope.idempotencyKey === 'string' ? envelope.idempotencyKey : '';
+  const correlationId = typeof envelope.correlationId === 'string' ? envelope.correlationId : '';
 
   try {
+    // Contract, Scope and current authorization precede the idempotency claim
+    // (shared API §5.3 steps 1-3): an unauthorized request must not claim the
+    // key, and an existing Receipt must never bypass the current check.
+    const authorizationError = await withIdentityTransaction(deps.db, deps.context, async (trx) => {
+      if (!scopeWithinContext(key, deps.context)) {
+        await appendDeniedAudit(deps, trx, {
+          commandType: RECORD_POLICY_VERSION_COMMAND,
+          errorCode: IDENTITY_POLICY_VERSION_UNKNOWN,
+          internalReason: 'scope-mismatch',
+          projectId: null,
+          requestHash,
+          targetId: policyVersionFactId,
+        });
+        return IDENTITY_POLICY_VERSION_UNKNOWN;
+      }
+      const failure = await currentAuthorizationError(deps, trx, {
+        commandType: RECORD_POLICY_VERSION_COMMAND,
+        purpose: RECORD_POLICY_VERSION_PURPOSE,
+        key,
+        payloadHash: requestHash,
+        now: new Date(),
+      });
+      if (failure === null) {
+        return null;
+      }
+      await appendDeniedAudit(deps, trx, {
+        commandType: RECORD_POLICY_VERSION_COMMAND,
+        errorCode: failure,
+        internalReason: 'authorization',
+        projectId: key.projectId ?? null,
+        requestHash,
+        targetId: policyVersionFactId,
+      });
+      return failure;
+    });
+    if (authorizationError !== null) {
+      return rejected(
+        authorizationError,
+        authorizationError === IDENTITY_POLICY_VERSION_UNKNOWN
+          ? 'policy version scope is not in the authorized scope'
+          : 'the pinned authorization decision does not cover this command',
+      );
+    }
     return await executeIdentityCommand(
       deps.db,
       deps.context,
@@ -453,41 +661,61 @@ export async function recordPolicyVersion(
         commandType: RECORD_POLICY_VERSION_COMMAND,
         commandVersion: '1.0',
         idempotencyScope: 'identity_policy:record_policy_version',
-        idempotencyKey: input.idempotencyKey,
-        requestPayload,
+        idempotencyKey,
+        requestPayload: payload,
         platform: false,
-        enterpriseId: deps.context.enterpriseId,
-        ...(projectId === undefined ? {} : { projectId }),
+        enterpriseId: key.enterpriseId,
+        ...(key.projectId === undefined ? {} : { projectId: key.projectId }),
         targetType: 'PolicyVersion',
-        targetId: input.policyVersionFactId,
-        correlationId: deps.context.correlationId,
+        targetId: policyVersionFactId,
+        correlationId,
         principalId: deps.context.principalId,
         actorSnapshotId: deps.context.actorSnapshotId,
         authorizationDecisionId: deps.context.authorizationDecisionId,
       },
       async (execution) => {
-        // Scope containment precedes every write: an out-of-authorization
-        // Scope collapses to the shared unavailable code, and the receipt /
-        // audit only record the trusted Context Scope.
-        if (!scopeWithinContext(key, deps.context)) {
-          return {
-            kind: 'REJECTED',
-            errorCode: IDENTITY_POLICY_VERSION_UNKNOWN,
-            safeSummary: 'policy version scope is not in the authorized scope',
-          };
-        }
-        const authorizationError = await currentAuthorizationError(deps, execution.trx, {
+        // Defense in depth for the write itself: the fact is only appended
+        // while the exact Decision and its covering grant are still current.
+        const stale = await currentAuthorizationError(deps, execution.trx, {
           commandType: RECORD_POLICY_VERSION_COMMAND,
           purpose: RECORD_POLICY_VERSION_PURPOSE,
           key,
           payloadHash: requestHash,
           now: new Date(),
         });
-        if (authorizationError !== null) {
+        if (stale !== null) {
           return {
             kind: 'REJECTED',
-            errorCode: authorizationError,
+            errorCode: stale,
             safeSummary: 'the pinned authorization decision does not cover this command',
+          };
+        }
+        if (
+          supersedes !== null &&
+          (supersedes.objectId !== key.objectId ||
+            supersedes.scopeKind !== key.scopeKind ||
+            supersedes.enterpriseId !== key.enterpriseId ||
+            supersedes.projectId !== key.projectId ||
+            supersedes.versionId === key.versionId)
+        ) {
+          return {
+            kind: 'REJECTED',
+            errorCode: IDENTITY_POLICY_SUPERSEDE_INVALID,
+            safeSummary:
+              'supersedesRef must reference another version of the same Policy identity and Scope',
+          };
+        }
+        if (
+          policySchemaRefs.length === 0 ||
+          !policySchemaRefs.every(
+            (schemaRef) =>
+              registeredPolicySchemaKey(POLICY_PROFILE_REGISTRY_VERSION, schemaRef) !== undefined,
+          )
+        ) {
+          return {
+            kind: 'REJECTED',
+            errorCode: IDENTITY_POLICY_VERSION_UNKNOWN,
+            safeSummary: `policySchemaRefs must be registered canonical entries of ${POLICY_PROFILE_REGISTRY_VERSION}`,
           };
         }
         const existing = await deps.repo.getPolicyVersionByKey(execution.trx, {
@@ -540,7 +768,7 @@ export async function recordPolicyVersion(
         }
         const inserted = await insertPolicyVersionGuarded(execution.trx, (trx) =>
           deps.repo.insertPolicyVersion(trx, {
-            policyVersionFactId: input.policyVersionFactId,
+            policyVersionFactId,
             policyObjectId: key.objectId,
             policyKeyVersionId: key.versionId,
             scopeKind: key.scopeKind,
@@ -549,7 +777,7 @@ export async function recordPolicyVersion(
             ...(supersedes === null
               ? {}
               : { supersedes: { objectId: supersedes.objectId, versionId: supersedes.versionId } }),
-            payload: requestPayload,
+            payload,
             policySetVersion,
             policySchemaRefs,
             effectiveFrom,
@@ -568,16 +796,27 @@ export async function recordPolicyVersion(
             safeSummary: inserted.safeSummary,
           };
         }
-        return {
-          kind: 'COMMITTED',
-          resultPayload: {
-            policyVersionRef: canonicalVersionFactReference(
-              input.policyVersionFactId,
-              key,
-              inserted.digest.hash,
-            ),
-          },
+        const resultPayload: CanonicalJsonObject = {
+          policyVersionRef: canonicalVersionFactReference(
+            policyVersionFactId,
+            key,
+            inserted.digest.hash,
+          ),
         };
+        // Result validation happens before the owning transaction commits: a
+        // failed check must roll back the fact instead of leaving a success
+        // Receipt for a result the registered contract rejects.
+        const resultViolation = resultContractViolation(
+          RECORD_POLICY_VERSION_COMMAND,
+          resultPayload,
+        );
+        if (resultViolation !== null) {
+          throw new CommandExecutionError(
+            resultViolation,
+            'record_policy_version result does not satisfy its registered contract',
+          );
+        }
+        return { kind: 'COMMITTED', resultPayload };
       },
     );
   } catch (error) {
@@ -592,8 +831,12 @@ export async function recordPolicyVersion(
 }
 
 export interface ResolvePolicyInput {
-  policyRef: unknown;
-  /** Trusted server time used for the lifecycle observation. */
+  /** Complete registered `identity.resolve_policy@1.0` Query Envelope. */
+  envelope: unknown;
+  /**
+   * Trusted server time used for the lifecycle observation. The Envelope's
+   * optional caller-provided `asOf` is never used as trusted time.
+   */
   asOf: Date;
 }
 
@@ -612,65 +855,55 @@ export interface PolicyVersionResolutionView {
 }
 
 /**
- * Masked, in-scope audit for a failed resolution: the external result stays
- * the unified unavailable code while the internal classification (unknown
- * identity/version, not bound, scope mismatch, integrity) is only visible
- * here, together with hashes and no document content.
- */
-async function appendResolutionAudit(
-  deps: IdentityCommandDeps,
-  trx: IdentityTransaction,
-  input: {
-    errorCode: string;
-    internalReason: string;
-    projectId: string | null;
-    requestHash: Buffer;
-    targetId: string | null;
-  },
-): Promise<void> {
-  await trx
-    .insertInto('identity_policy.audit_record')
-    .values({
-      audit_id: newUuidV7(),
-      enterprise_id: deps.context.enterpriseId,
-      project_id: input.projectId,
-      principal_id: deps.context.principalId,
-      actor_snapshot_id: deps.context.actorSnapshotId,
-      authorization_decision_id: deps.context.authorizationDecisionId,
-      command_id: newUuidV7(),
-      command_type: RESOLVE_POLICY_COMMAND,
-      outcome: 'DENIED',
-      error_code: input.errorCode,
-      request_payload_hash: input.requestHash,
-      result_payload_hash: null,
-      target_type: 'PolicyVersion',
-      target_id: input.targetId,
-      correlation_id: deps.context.correlationId,
-      safe_summary: input.internalReason,
-      retention_class: 'REGULATED_AUDIT',
-    })
-    .execute();
-}
-
-/**
  * `identity.resolve_policy@1.0`: authoritative read of one exact version key.
  * Returns the committed observation, the canonical document and its content
- * hash; never resolves latest/current and never falls back to another version
- * of the same objectId. Storage failure fails closed instead of returning an
- * empty or default policy.
+ * hash, checked against the registered result contract; never resolves
+ * latest/current and never falls back to another version of the same
+ * objectId. Storage failure fails closed instead of returning an empty or
+ * default policy.
  */
 export async function resolvePolicy(
   deps: IdentityCommandDeps,
   input: ResolvePolicyInput,
 ): Promise<PolicyVersionResolutionView> {
-  const key = readPolicyVersionKey(input.policyRef);
-  if (key === null || !(input.asOf instanceof Date) || Number.isNaN(input.asOf.getTime())) {
+  const envelope = (input.envelope ?? {}) as RegisteredQueryEnvelope;
+  const contractViolation = requestContractViolation(RESOLVE_POLICY_COMMAND, input.envelope);
+  if (contractViolation !== null) {
+    throw new SnapshotBoundaryError(
+      contractViolation,
+      'resolve_policy request does not satisfy its registered contract',
+    );
+  }
+  if (!(input.asOf instanceof Date) || Number.isNaN(input.asOf.getTime())) {
+    throw new SnapshotBoundaryError(API_VALUE_INVALID, 'resolution time is invalid');
+  }
+  const payload = envelope.payload as CanonicalJsonObject;
+  const requestHash = digestCanonicalPayload(payload).hash;
+  const key = readPolicyVersionKey(payload.policyRef);
+  if (key === null) {
     throw new SnapshotBoundaryError(
       IDENTITY_POLICY_VERSION_UNKNOWN,
       'policy version key is not resolvable',
     );
   }
-  const requestHash = digestCanonicalPayload({ policyRef: canonicalVersionKey(key) }).hash;
+  if (!sameScope(envelope.scopeRef, versionKeyScope(key))) {
+    throw new SnapshotBoundaryError(
+      SCOPE_MISMATCH,
+      'envelope scopeRef must carry the exact Scope of payload.policyRef',
+    );
+  }
+  if (decisionReferenceMismatch(envelope.authorizationDecisionRef, deps.context)) {
+    throw new SnapshotBoundaryError(
+      AUTHORIZATION_DECISION_INVALID,
+      'envelope authorizationDecisionRef does not match the trusted transaction context',
+    );
+  }
+  if (actorReferenceMismatch(envelope.requester, deps.context)) {
+    throw new SnapshotBoundaryError(
+      AUTHORIZATION_DECISION_INVALID,
+      'envelope requester does not resolve to the trusted transaction principal',
+    );
+  }
   const inScope = scopeWithinContext(key, deps.context);
   try {
     const outcome = await withIdentityTransaction(deps.db, deps.context, async (trx) => {
@@ -679,7 +912,8 @@ export async function resolvePolicy(
         internalReason: string,
         targetId: string | null,
       ) => {
-        await appendResolutionAudit(deps, trx, {
+        await appendDeniedAudit(deps, trx, {
+          commandType: RESOLVE_POLICY_COMMAND,
           errorCode,
           internalReason,
           projectId: inScope ? (key.projectId ?? null) : null,
@@ -713,9 +947,9 @@ export async function resolvePolicy(
       if (!policyVersionIntegrityHolds(row)) {
         return failure(IDENTITY_POLICY_SNAPSHOT_INVALID, 'integrity', row.policy_version_fact_id);
       }
-      const payload = row.canonical_payload as CanonicalJsonObject;
-      const storedSchemaRefs = Array.isArray(payload.policySchemaRefs)
-        ? payload.policySchemaRefs
+      const storedPayload = row.canonical_payload as CanonicalJsonObject;
+      const storedSchemaRefs = Array.isArray(storedPayload.policySchemaRefs)
+        ? storedPayload.policySchemaRefs
         : [];
       if (
         storedSchemaRefs.length === 0 ||
@@ -752,7 +986,7 @@ export async function resolvePolicy(
         },
         policySetVersion: row.policy_set_version,
         policySchemaRefs: storedSchemaRefs as Common.TypedReference[],
-        policyDocument: payload.policyDocument as CanonicalJson,
+        policyDocument: storedPayload.policyDocument as CanonicalJson,
         contentHash: hash,
         scopeRef: scope,
         effectiveFrom: row.effective_from.toISOString(),
@@ -762,6 +996,10 @@ export async function resolvePolicy(
         useStatus,
         checkedAt: input.asOf.toISOString(),
       };
+      const resultViolation = resultContractViolation(RESOLVE_POLICY_COMMAND, view);
+      if (resultViolation !== null) {
+        return failure(resultViolation, 'result-contract', row.policy_version_fact_id);
+      }
       return { kind: 'RESOLVED' as const, view };
     });
     if (outcome.kind === 'FAILED') {
