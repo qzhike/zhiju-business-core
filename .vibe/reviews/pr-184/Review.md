@@ -1,3 +1,53 @@
+REQUEST_CHANGES
+
+Reviewed SHA: `feb06e8d1daee71ce063d3f4fb684dfd1c47540a`
+
+PR #184 / Issue #183，2026-09-13 第三轮独立复审。
+
+结论：最新实现侧证据修复通过；应该同步修正 Spec、共享 API 的反例说明及 Module-Test 的对应预期。剩余问题已收敛为既有设计中的事实与验收纠正，无需为旧反例另行改动 API/Envelope 或重新选择参数。当前文档仍保留错误事实，因此本 PR 暂不能 APPROVE。
+
+## 最新修复核对
+
+已读取最新 PR comments，以及 Issue #183 的对账 comment https://github.com/qzhike/zhiju-business-core/issues/183#issuecomment-5649915272 。该记录明确说明当时仅记录差异、没有修改设计文本；这解释了 Spec 尚未修复的原因，但 comment 本身不会使权威文档自动变为正确。
+
+上轮遗漏 ExternalRef 的证据问题已关闭：新增测试枚举了 TypedReference 全部五个分支，逐个通过当前注册 Envelope；ObjectRef / VersionedRef / ContentAddressedRef / SnapshotRef / ExternalRef 的最小字节分别为 95 / 149 / 250 / 293 / 86，ExternalRef 为最小。对照共享 Schema 的 required、标量最短编码及可选成员后，这些分支下界成立。两种 Scope 的量分别为：
+
+| Scope | 请求专有成员最小字节 W | 结果专有成员最大字节 R | 请求 payload 包装额外字节 | C_res − C_req 上界 | 262144 字节写入后的读回上界 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Project | 885 | 820 | 12 | −77 | 262067 |
+| Enterprise-only | 834 | 718 | 12 | −128 | 262016 |
+
+推导前提是同一版本、共有字段逐字段回显、Scope/引用绑定一致及 SD-181-1 生效。共有字段（含文档）相消后，`C_res − C_req = R − W − 12`；可选请求成员或更长引用只增加请求开销，缺省结果可选成员只减少结果开销。业务授权如进一步限制可接受请求，也不会在该静态接受集合之外制造更小的合法请求。因此旧的“合法写入读回 262153、在等值预算下被拒”不是当前契约下应继续寻找的验收反例。
+
+## R3 — P2：修正已经证伪的反例及其权威副本
+
+1. `.vibe/module-specs/Module-Spec-001-IdentityPolicy.md:498` 仍将 262153 拒绝描述为“实测”并据此宣称“相等不成立”。§13.3.1 参数表第 350 行仍引用它，§13.3.2 第 504 行另称同一边界写入读回 262157，也超过当前配对上界。这些不能继续作为当前契约的有效证据。
+2. `.vibe/api-contract-v0.1/API-Contract-v0.1.md:494` 复制了“262153 被拒，故必须保留余量”的错误因果说明；只改 Module-Spec 不足以完成对账。
+3. `.vibe/module-tests/Module-Test-001-IdentityPolicy.md:163` 的预期仍要求旧拒绝结果，实际栏则证明其不成立。长期保留这一项 NOT RUN 不能代替更正无效预期；它不是等待 Handler 或外部环境才能运行的场景。
+4. Spec 第 387 行把 `R_only` 写成 `C_res − C_req`，后文又将它用作六项结果专有字段的总量 820；应统一符号。建议令 `R_only` 始终表示结果专有字段总量，写作 `C_res − C_req ≤ R_only ≤ 820`。精确的差值与上界不是同一个量。
+
+建议的最小修订：
+
+> 当前 Envelope、canonical 引用与 SD-181-1 下，满足逐字段回显及绑定约束的合法写入，其读回在等值预算对照中也能通过；此前 262153 拒绝的记录不适用于当前契约，撤回其作为有效反例的结论。正式注册参数仍保持 maxResultBytes = maxEnvelopeBytes + 4096 = 266240。4096 是已批准的固定余量，读回保证继续使用不依赖请求最小编码的充分条件 C_res − C_req ≤ R_only ≤ 820 < 4096；本次事实纠正不改变公开接受集合或参数。
+
+Module-Test C-002 应改为：同一合法写入/读回对照保持共享字段一致、校验形状与绑定，验证正式预算通过并如实验证等值预算对照也通过；继续保留独立结果 266240 通过 / 266241 拒绝、R_only 上界和固定余量检查。去除“必须复现 262153 拒绝”的无效预期，更新 Issue #183 对账 comment 指向纠正后的权威文本。旧审查和评论可保留追溯，旧错误数值不能继续无标注地承担当前验收依据。
+
+这项修订不应改变七项参数、SD-181-1、旧操作/历史 compatibility baseline，也不应为了制造旧反例而删除请求字段或扩大结果形状。Issue comment 提到的“更正事实与验收”是本次证据支持的路径；“改变预算或 Envelope 以保留原验收”没有当前业务需求依据，不建议采纳。
+
+此前 PLANNING_REQUIRED 的原因是极值论证不完整、冲突尚未收敛。全分支/双 Scope 证据补齐后，现在可以明确提出上述事实纠正，故本轮转为 REQUEST_CHANGES，修复范围限于 owning 规格、验收文本及其证据对账。
+
+## 验证与工作区
+
+- 本地独立定向执行：`node_modules/.bin/vitest run contracts/src/operations/identity-policy.schema.test.ts`，39/39 PASS。
+- 当前 SHA 的 CI https://github.com/qzhike/zhiju-business-core/actions/runs/34730282663 ：headSha 一致，SUCCESS；已读取日志，静态测试 855 passed / 321 skipped，Catalog/Registry 211/211，compatibility baseline 200 / minor 64，persistence 336/336 PASS，二次迁移 no-op PASS。
+- PR comment 另记录同一修订的本地 `vibe verify full --json` PASS；本轮复用当前 CI 与该 full 记录，未重复运行完整目标。
+- Handler、真实授权、scoped 事实表/FORCE RLS、并发、IP-181-E-001、业务 E2E、外部与人工验收仍 NOT RUN。
+- 本轮请求是审查并判断是否应修复 Spec；本轮只更新正式 Review.md 并发布本 comment，没有修改 owning Spec、验收要求或产品代码，没有 commit/push/merge。历史审查记录已保留。
+
+---
+
+## 第二轮及首轮审查历史
+
 PLANNING_REQUIRED
 
 Reviewed SHA: `93cbe44ae13825738210fab6878b6abd3536e098`

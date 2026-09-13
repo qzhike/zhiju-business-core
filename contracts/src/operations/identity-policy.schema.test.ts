@@ -724,9 +724,10 @@ describe('PolicyVersion public contracts', () => {
     expect(resultFrame - requestFrame).toBeLessThanOrEqual(resultOnly);
 
     // 最弱合法配对（最小请求包装 × 最大结果包装）：请求专有最小编码 885 仍大于结果
-    // 专有最大编码 820，结果侧增量因此为负，等值预算下“合法写入读回被拒”的已批准
-    // 反例（262153）在已交付形状下不可复现。下列数字是实测回归锚点，任一 Envelope
-    // 或结果形状变化都必须重新推导（§13.3.1 维护规则 2）。
+    // 专有最大编码 820，结果侧增量因此为负，等值预算对照也通过；此前“等值预算下读回
+    // 262153 被拒”的记录已于 2026-09-13 撤回（Spec 001 §13.3.2、Module-Test 001
+    // IP-181-C-002）。下列数字是实测回归锚点，任一 Envelope 或结果形状变化都必须重新
+    // 推导（§13.3.1 维护规则 2）。
     expect({ requestOnly, resultOnly }).toEqual({ requestOnly: 885, resultOnly: 820 });
     const write = minimalRecordCommand(scope, {});
     fillDocument(write, write.payload as JsonObject, policy.maxEnvelopeBytes);

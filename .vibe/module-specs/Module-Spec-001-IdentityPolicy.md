@@ -347,7 +347,7 @@ PolicyVersionResolutionView
 | 参数 | 提案值 | 适用输入/输出与计量单位 | 合法边界 | 依据类别 |
 |---|---:|---|---|---|
 | maxEnvelopeBytes | 262144（256 KiB） | `record_policy_version` **完整请求 Envelope**（含 `commandId`/`scopeRef`/`targetRef`/`actor`/`authorizationDecisionRef`/`idempotencyKey`/`correlationId`/`requestedAt`/`integrity`、payload 与 `policyDocument`）与 `resolve_policy` 完整请求 Envelope；紧凑 JSON 的 UTF-8 字节 | ≤ 262144 通过；> 262144 拒绝 | 复用 #157 已批准的 Command Envelope 技术预算（PostgreSQL 逻辑模型 §5.5 的 256 KiB 建议） |
-| maxResultBytes | 266240 = `maxEnvelopeBytes` + 4096 | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | **≤ 266240 通过；> 266240 拒绝**（不等于上一行：这是请求预算加 4096 余量，**必须以"请求预算 + 固定余量"的形式声明**，不能取等值） | 余量 4096 ≥ 结果侧增量上界 `R_only = 820`（§13.3.1），后者全部由有界形状构成；等值预算下 Project Scope 的实测反例为读回 262153 被拒绝（§13.3.2） |
+| maxResultBytes | 266240 = `maxEnvelopeBytes` + 4096 | `record_policy_version` 的 `CommandResult.data`（`{policyVersionRef}`）与 `resolve_policy` 的 `QueryResult.data`（`PolicyVersionResolutionView`，含内联 `policyDocument`）；同一字节口径 | **≤ 266240 通过；> 266240 拒绝**（不等于上一行：这是请求预算加 4096 余量，**必须以"请求预算 + 固定余量"的形式声明**，不能取等值） | 余量 4096 ≥ 结果专有字段总量上界 `R_only ≤ 820`（§13.3.1），后者全部由有界形状构成；当前契约下满足回显与绑定约束的合法写入在等值预算对照中也能通过，4096 作为已批准的固定余量保留（§13.3.2，2026-09-13 事实更正） |
 | maxStringCodePoints | 16384 | 每一个字符串值**与每一个对象键**，按 Unicode code point 计数 | 单串 ≤ 16384 通过；**该上限独立于字节预算，可能先触发** | 复用 #157 已批准的同名技术值（非由字节预算推导）；实测边界 16384 通过 / 16385 拒绝 |
 | maxArrayItems | 1024 | 每一个 JSON 数组的元素个数；不改变普通数组顺序或重复语义，也不把 `Set`/`NonEmptySet` 变成可有重复的数组 | 单数组 ≤ 1024 通过 | 复用 #157 已批准的结构预算 |
 | maxObjectProperties | 256 | 每一个 JSON object 的成员数（含 `policyDocument` 内对象） | 单对象 ≤ 256 通过 | 同上 |
@@ -384,7 +384,7 @@ PolicyVersionResolutionView
 
 - `C_req` = 请求 Envelope 去掉 `D` 后的字节；`C_res` = 结果去掉 `D` 后的字节；
 - 两侧共有且必须**逐字节相同**的字段——`policyRef`、`policySetVersion`、`policySchemaRefs`、`effectiveFrom`——在 `C_res − C_req` 中抵消；
-- 余下的 `R_only = C_res − C_req ≤ 结果专有字段总量`（因为请求专有部分 `W_only ≥ 0`）。
+- 余下的增量满足 `C_res − C_req ≤ R_only`：`R_only` 是**结果专有字段总量**，`W_only ≥ 0` 是请求专有部分。两者不是同一个量，`R_only` 不等于 `C_res − C_req`。
 
 `R_only` 的每个成员都是有界形状，逐个取合法最大编码：
 
@@ -495,13 +495,13 @@ C_res + |D| = (C_req + |D|) + (C_res − C_req) ≤ 262144 + R_only ≤ 262144 +
 
 820 < 4096，因此对任意合法写入，读取帧 ≤ `262144 + 820 = 262964 ≤ 266240`。
 
-**等值预算的反例（说明为什么余量必需）**：取 `maxResultBytes = maxEnvelopeBytes = 262144` 时，一个按最小请求编码写满的 Project 版本（文档 260772、请求恰好 262144、通过）读回为 **262153**，被 `maxResultBytes` 拒绝。该反例只说明"相等"不成立，不再用于推导具体余量——余量来自 `R_only` 的上界。
+**等值预算对照（2026-09-13 事实更正）**：当前 Envelope、canonical 引用与 SD-181-1 下，满足逐字段回显及绑定约束的合法写入，其读回在等值预算对照中也能通过；此前记录的"一个按最小请求编码写满的 Project 版本（文档 260772、请求恰好 262144、通过）读回为 **262153**、在等值预算 262144 下被拒"**不适用于当前契约**，撤回其作为有效反例的结论。正式注册参数仍保持 `maxResultBytes = maxEnvelopeBytes + 4096 = 266240`；4096 是已批准的固定余量，读回保证继续使用不依赖请求最小编码的充分条件 `C_res − C_req ≤ R_only ≤ 820 < 4096`；本次事实纠正不改变公开接受集合或参数。推导与实测见下方边界复核与 Module-Test 001 `IP-181-C-002`。
 
 **边界复核（加入 4096 余量后）**：
 
 | Scope | 写入 | 读取 | 上限 | 结果 |
 |---|---:|---:|---:|---|
-| Project | 262144 通过 / 262145 拒绝 `maxEnvelopeBytes`（`instancePath=''`） | 262157 | 266240 | 通过 |
+| Project | 262144 通过 / 262145 拒绝 `maxEnvelopeBytes`（`instancePath=''`） | 262067（最小合法请求包装 × 最大结果包装） | 266240 | 通过 |
 | 结果恰等于上限 | — | 266240 通过 | 266240 | 通过 |
 | 结果多 1 字节 | — | 266241 | 266240 | 拒绝 `maxResultBytes` |
 
