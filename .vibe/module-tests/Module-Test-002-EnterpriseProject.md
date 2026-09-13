@@ -367,3 +367,15 @@ source 内允许的 CanonicalJson 可用于独立构造资源预算反例，不�
 
 
 Query 字节边界使用既有 Envelope Reference 的合法文本字段构造，分页固定为合法 PageRequest，不使用 pagination.padding/text；仅证明 Schema 和 Guard 资源边界，不证明引用实际存在或授权有效。
+
+
+## #176 Capture Policy 解析与消费验收矩阵
+
+以下场景细化 [Spec 002 的 capture Policy 设计](../module-specs/Module-Spec-002-EnterpriseProject.md#176-capture-policy-解析与-validuntil-推导提案)，不新增 profile 字段、来源要求或 Policy 撤销入口。合法基线为 owning 入口已提交的同 Scope 来源、当前授权 audience、capture 自身 Decision 与 `identity.policy.resolve_policy` 的独立 Decision，以及 `ep.context_source_slice_capture.policy@1.0` 的已注册 canonical ref 和 closed 文档。每个负例仅改变所列维度；#179 静态校验不替代以下 Handler/持久化验收，全部 `NOT RUN`。
+
+| ID | 输入 / 故障 | 预期输出与禁止效果 | 当前结果 |
+|---|---|---|---|
+| EP-176-001 | 经 `identity.resolve_policy@1.0` 取得当前可用 capture Policy；合法 `maxSliceValiditySeconds`、`allowedPurposeCodes` 与请求 purpose；依次让 TTL 或 capture Decision 成为较早截止 | `validUntil = min(capturedAt + maxSliceValiditySeconds, authorizationDecision.expiresAt)`；Slice 与 Policy 解析观察 metadata、Receipt/Audit/Outbox 同事务提交；不接收 caller 自报 Hash/截止，不改变公开 Slice payload | NOT RUN |
+| EP-176-002 | 正向为 owning Source 规则允许的来源；分别使用 `record.form.read` 请求不允许披露的 Fact metadata、超出 audience 权限的来源、不在 allowedPurposeCodes 的 purpose、未知 kind、缺少既有 mandatory source | 沿用 Source 的 omission/redaction 与拒绝规则，不扩大披露；Policy 不授权额外来源，mandatory 缺失不产生伪造成功 Slice；不增加 allowedKinds 或额外必填来源 | NOT RUN |
+| EP-176-003 | Slice 提交后分别使 capture Policy 被后继取代、当前调用者/audience 授权失效、Slice 到期；另以仅 Source 后续改变作对照 | 新消费重验 Policy、Slice 时效与当前授权；无权读取拒绝，有权历史读取按 owning 规则解释 EXPIRED/REVOKED；仅 Source 改变不改写旧 Slice 内容/Hash/validUntil，需新内容时重新 capture；不调用版本级 INVALIDATION | NOT RUN |
+| EP-176-004 | 提交前跨过 validUntil、解析 metadata Hash 不一致、事务提交前故障；另在成功后重放同幂等键/原输入及同键异输入 | 非法或未提交事务不发布半成品 Slice；成功重放返回原结果且不延长期限，同键异输入按共享幂等冲突拒绝；历史回执不重新授予新消费资格 | NOT RUN |
