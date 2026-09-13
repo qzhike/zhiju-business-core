@@ -154,11 +154,59 @@ const policyVersionHash = {
 };
 
 /**
- * Smallest legal `record_policy_version` envelope: empty envelope Scope, the
- * shortest typed-reference variants, a one-character idempotency key and no
- * fractional second. Only the fact Scope must carry the required `enterpriseId`.
+ * Every `TypedReference` branch at its smallest legal encoding. The envelope
+ * slots `actor` and `authorizationDecisionRef` accept the whole `oneOf` set, so
+ * the request-side minimum has to be derived from all five branches rather than
+ * assumed to be an `ObjectRef`.
  */
-function minimalRecordCommand(scope: JsonObject, document: unknown): JsonObject {
+const minimalTypedReferences: readonly JsonObject[] = [
+  { kind: 'OBJECT', objectType: 'a', objectId: policyVersionFactId, scope: {} },
+  {
+    kind: 'VERSIONED',
+    objectType: 'a',
+    objectId: policyVersionFactId,
+    versionId: policyKeyVersionId,
+    scope: {},
+  },
+  {
+    kind: 'CONTENT_ADDRESSED',
+    objectType: 'a',
+    objectId: policyVersionFactId,
+    scope: {},
+    contentHash: policyVersionHash,
+  },
+  {
+    kind: 'SNAPSHOT',
+    objectType: 'a',
+    objectId: policyVersionFactId,
+    snapshotId: policyVersionFactId,
+    scope: {},
+    contentHash: policyVersionHash,
+  },
+  {
+    system: 'a',
+    resourceType: 'a',
+    externalId: 'a',
+    observedAt: '2026-09-12T00:00:00Z',
+  },
+];
+
+/** Smallest legal `TypedReference` encoding; the envelope accepts every branch. */
+const smallestTypedReference = minimalTypedReferences.reduce((smallest, reference) =>
+  bytes(reference) < bytes(smallest) ? reference : smallest,
+);
+
+/**
+ * Smallest legal `record_policy_version` envelope: empty envelope Scope, the
+ * smallest `TypedReference` branch in both reference slots, a one-character
+ * idempotency key and no fractional second. Only the fact Scope must carry the
+ * required `enterpriseId`.
+ */
+function minimalRecordCommand(
+  scope: JsonObject,
+  document: unknown,
+  reference: JsonObject = smallestTypedReference,
+): JsonObject {
   return {
     commandId: policyVersionFactId,
     commandType: recordType,
@@ -170,13 +218,8 @@ function minimalRecordCommand(scope: JsonObject, document: unknown): JsonObject 
       objectId: policyVersionFactId,
       scope,
     },
-    actor: { kind: 'OBJECT', objectType: 'a', objectId: policyVersionFactId, scope: {} },
-    authorizationDecisionRef: {
-      kind: 'OBJECT',
-      objectType: 'b',
-      objectId: policyVersionFactId,
-      scope: {},
-    },
+    actor: reference,
+    authorizationDecisionRef: reference,
     idempotencyKey: 'x',
     correlationId: policyVersionFactId,
     requestedAt: '2026-09-12T00:00:00Z',
@@ -614,6 +657,24 @@ describe('PolicyVersion public contracts', () => {
     expectGuardError(validate('record', asEnvelope), '', 'maxEnvelopeBytes', 262144);
   });
 
+  it('derives the smallest legal request from every TypedReference branch', () => {
+    const scope = { enterpriseId, projectId };
+    expect(minimalTypedReferences.map((reference) => bytes(reference))).toEqual([
+      95, 149, 250, 293, 86,
+    ]);
+    expect(bytes(smallestTypedReference)).toBe(86);
+    for (const reference of minimalTypedReferences) {
+      // Every branch is accepted in the two envelope reference slots, so the
+      // request-side minimum is the smallest branch, not a hand-picked one.
+      const command = minimalRecordCommand(scope, {}, reference);
+      expect({ size: bytes(reference), ...validate('record', command) }).toEqual({
+        size: bytes(reference),
+        valid: true,
+        errors: [],
+      });
+    }
+  });
+
   it('pairs the smallest legal write with the largest legal result under both budgets', () => {
     const headroom = policy.maxResultBytes - policy.maxEnvelopeBytes;
     expect(headroom).toBe(4096);
@@ -662,11 +723,11 @@ describe('PolicyVersion public contracts', () => {
     expect(resultOnly).toBeLessThanOrEqual(headroom);
     expect(resultFrame - requestFrame).toBeLessThanOrEqual(resultOnly);
 
-    // 最弱合法配对（最小请求包装 × 最大结果包装）：请求专有最小编码 903 大于结果
+    // 最弱合法配对（最小请求包装 × 最大结果包装）：请求专有最小编码 885 仍大于结果
     // 专有最大编码 820，结果侧增量因此为负，等值预算下“合法写入读回被拒”的已批准
     // 反例（262153）在已交付形状下不可复现。下列数字是实测回归锚点，任一 Envelope
     // 或结果形状变化都必须重新推导（§13.3.1 维护规则 2）。
-    expect({ requestOnly, resultOnly }).toEqual({ requestOnly: 903, resultOnly: 820 });
+    expect({ requestOnly, resultOnly }).toEqual({ requestOnly: 885, resultOnly: 820 });
     const write = minimalRecordCommand(scope, {});
     fillDocument(write, write.payload as JsonObject, policy.maxEnvelopeBytes);
     expect(bytes(write)).toBe(policy.maxEnvelopeBytes);
@@ -678,12 +739,46 @@ describe('PolicyVersion public contracts', () => {
     expect(validate('result', readBack)).toEqual({ valid: true, errors: [] });
     const readFrame = bytes(readBack);
     expect({ requestFrame, resultFrame, readFrame }).toEqual({
-      requestFrame: 1476,
+      requestFrame: 1458,
       resultFrame: 1381,
-      readFrame: 262049,
+      readFrame: 262067,
     });
     expect(guardErrors(readBack, 'result', policy.maxEnvelopeBytes)).toEqual([]);
     expect(guardErrors(readBack, 'result', policy.maxResultBytes)).toEqual([]);
+
+    // 两个 Scope 形态都保持同一方向：Enterprise-only 包装更小，增量同样为负。
+    const enterpriseScope = { enterpriseId };
+    const enterpriseRequest = minimalRecordCommand(enterpriseScope, {});
+    const enterpriseResult = maximalResolveResult(enterpriseRequest.payload as JsonObject, {});
+    expect(validate('record', enterpriseRequest)).toEqual({ valid: true, errors: [] });
+    const enterpriseRequestOnly = [
+      'commandId',
+      'commandType',
+      'commandVersion',
+      'scopeRef',
+      'targetRef',
+      'actor',
+      'authorizationDecisionRef',
+      'idempotencyKey',
+      'correlationId',
+      'requestedAt',
+      'integrity',
+    ].reduce((total, key) => total + memberBytes(enterpriseRequest, key), 0);
+    const enterpriseResultOnly = [
+      'scopeRef',
+      'policyVersionRef',
+      'contentHash',
+      'useStatus',
+      'checkedAt',
+      'supersededAt',
+    ].reduce((total, key) => total + memberBytes(enterpriseResult, key), 0);
+    expect({ enterpriseRequestOnly, enterpriseResultOnly }).toEqual({
+      enterpriseRequestOnly: 834,
+      enterpriseResultOnly: 718,
+    });
+    expect(enterpriseRequestOnly).toBeGreaterThan(enterpriseResultOnly);
+    expect(enterpriseRequestOnly).toBeLessThan(requestOnly);
+
     // 预算独立性对照：结果帧超过请求预算时只由 maxResultBytes 拒绝，并在 266240 下通过。
     const oversized = maximalResolveResult(
       write.payload as JsonObject,

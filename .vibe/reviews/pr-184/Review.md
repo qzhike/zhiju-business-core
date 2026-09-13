@@ -1,3 +1,53 @@
+PLANNING_REQUIRED
+
+Reviewed SHA: `93cbe44ae13825738210fab6878b6abd3536e098`
+
+PR #184 / Issue #183，2026-09-13 独立复审。本轮已核对上一轮 head 之后全部四个文件的 diff、最新 Issue/comments、相关 Envelope/TypedReference Schema、owning Spec/Test 与当前 CI 日志。
+
+上一轮 R2 已修复；R1 中 resolve 请求 B/B−1 和对象 256/257 的缺口已补齐。剩余的 `IP-181-C-002` 已批准等值预算反例仍未满足。将它从 PASS 改为 NOT RUN 是正确的证据纠正，但不构成验收条件已完成，也不自动授权豁免该条件。当前需要先对齐设计与验收口径，不能 APPROVE。
+
+## 剩余阻塞：已批准验收与新实测结论尚未正式对账
+
+Spec 001 §13.3.2 与 Module-Test `IP-181-C-002` 仍要求“同一个合法 Project 写入，在等值结果预算 262144 下读回 262153 并被拒”；新测试得到同一写入的读回为 262049，两个预算均通过，并据此声称反例不存在。Issue #183 的验收未调整，当前没有授权的设计修订或验收替换。因此不能把这项 NOT RUN 当作本次静态切片之外的运行期限制而关闭。
+
+建议由 Planner 对齐 Spec §13.3.1/§13.3.2、Module-Test C-002 与 Issue #183：核查旧反例是否使用了不符合当前 Envelope 的样本；如旧反例确实无效，明确更正其事实与验收要求，保留现有 262144/266240、4096 余量和 SD-181-1。仅修正反例不意味着可以把结果预算改为等值。若仍保留原验收，则需交付可经当前 Schema 和绑定校验的原反例。Reviewer 不替代设计授权作此选择。
+
+## 新证据问题：当前“最小请求”证明遗漏 ExternalRef 分支
+
+位置：`contracts/src/operations/identity-policy.schema.test.ts:155`、`:665`；`.vibe/module-tests/Module-Test-001-IdentityPolicy.md:157`、`:163`。
+
+`actor` 与 `authorizationDecisionRef` 在当前 Envelope 中均为 `TypedReference`，其 `oneOf` 包含 `externalRef`。新 helper 选取的最短 ObjectRef 为 95 字节，但下列合法 ExternalRef 只有 86 字节：
+
+```json
+{"system":"a","resourceType":"a","externalId":"a","observedAt":"2026-09-12T00:00:00Z"}
+```
+
+独立探针先复现新测试的 ObjectRef 正向基线（`C_req=1476`、`C_res=1381`），然后只把这两个请求专有引用替换为上述 ExternalRef：
+
+| 样本 | C_req | C_res | 请求专有成员字节 | 写满 262144 后的结果字节 |
+| --- | ---: | ---: | ---: | ---: |
+| 新测试 ObjectRef 样本 | 1476 | 1381 | 903 | 262049 |
+| ExternalRef 对照 | 1458 | 1381 | 885 | 262067 |
+
+ExternalRef 对照的请求 Schema、结果 Schema、查询结果绑定和写入结果绑定均返回 `{valid:true, errors:[]}`。因此“903 是请求专有最小编码”及“任意合法写入的读取帧 ≤262049”的声明有直接反例。这是当前静态 Schema 的接受集合探针，不声称该 actor 或 authorizationDecisionRef 能通过真实业务授权。
+
+这个对照仍小于 262144，**它没有复现旧等值预算拒绝反例，也没有证明反例存在**。它证明的是新修复的全称结论所用极值依据不完整。设计对账前应遍历/推导全部 TypedReference 分支，并区分 Enterprise/Project Scope，或者把现有数字明确限定为样本值；不要继续把 903/262049 当成已证明的全局界，也不要为保住该结论收窄旧 Envelope 的接受集合。
+
+## 已关闭问题与验证
+
+- R2：Spec §13、§13.3.1 的三处过期状态已更新为静态契约/参数已交付，Handler/migration/运行期授权仍未实现。
+- R1 边界补项：resolve 请求 1311 通过 / 1310 以 maxEnvelopeBytes 拒绝；对象 256 通过 / 257 以 maxObjectProperties 拒绝，已读测试并独立执行。
+- 本地定向：`node_modules/.bin/vitest run contracts/src/operations/identity-policy.schema.test.ts`，38/38 PASS。
+- 独立只读探针：使用当前本地构建的 `ContractRegistry`，复现上述 ObjectRef 与 ExternalRef 对照，未修改测试或产品实现。相关产品 Schema/Registry 在本轮 diff 中没有变化。
+- 当前 head CI [34725936436](https://github.com/qzhike/zhiju-business-core/actions/runs/34725936436) 的 headSha 与本次审查一致，SUCCESS；已读取日志：静态测试 854 passed / 321 skipped，Catalog/Registry 211/211，compatibility baseline 200 / minor 64，PostgreSQL 18.6 persistence gate 336/336 PASS，二次迁移 no-op PASS。PR 修复评论另有本地 `vibe verify full --json` PASS 记录；本轮复用当前修订证据，未重复执行完整目标。
+- 新 Handler、真实授权、scoped PolicyVersion 表/FORCE RLS、版本唯一性/并发、IP-181-E-001、业务 E2E、外部与人工验收仍 NOT RUN。
+
+项目要求的 `.vibe/reviews/pr-184/Review.md` 已追加本轮结论并保留首轮记录。本轮不修改产品代码，不执行 commit/push/merge。此结论以 PR comment 发布，不是 GitHub 正式 review。
+
+---
+
+## 首轮审查历史（6928c29）
+
 REQUEST_CHANGES
 
 PR: https://github.com/qzhike/zhiju-business-core/pull/184
