@@ -1,3 +1,46 @@
+APPROVE
+
+Reviewed SHA: `2fb8825efaf84f47831e9166e5e2ebb43ac4e58a`
+
+PR #184 / Issue #183，2026-09-13 第四轮独立复审。
+
+已读取最新 PR comments、Issue #183 对账更新，以及相对上轮 `feb06e8` 的全部五个文件 diff。最新修复完成上一轮要求的事实与验收纠正，没有新的阻塞发现。
+
+## Spec 是否还需要修复
+
+此前确实应该修复；本次已修复到位，不需要为本项继续改变 Spec 或实现。
+
+- Spec 001 §13.3.1 参数表已删除错误反例依据，保留 266240 与固定余量 4096；`R_only` 已统一为结果专有字段总量，明确不等于 `C_res − C_req`。
+- Spec §13.3.2 已显式撤回“262153 在等值预算下被拒”作为当前契约有效反例的结论，边界表改为当前配对实测 262067。
+- 共享 API Contract 已同步撤回相同错误因果说明，保留 `C_res − C_req ≤ R_only ≤ 820 < 4096` 的充分条件。
+- Module-Test `IP-181-C-002` 已改为同一合法写入与读回在正式预算、等值预算下均通过；独立结果 266240/266241、结果字段上界和固定余量检查继续保留，实际测试与更正后的预期一致，PASS 有依据。
+- Issue #183 最新更新 https://github.com/qzhike/zhiju-business-core/issues/183#issuecomment-5650113848 已明确承接此前只记录差异的历史 comment，并记录权威文本现已更正。不能再把旧 comment 的待决定状态视为当前阻塞。
+
+这次属于反例事实和验收说明纠正：七项技术参数、SD-181-1、Schema/Registry、公开接受集合和历史 compatibility baseline 均未改变。相对上轮唯一的测试文件变化是注释更新，没有为了满足旧错误反例删除请求字段或扩大结果形状。保留旧数值用于明确标注的撤回记录与历史审查是合理的，不要求删除历史证据。
+
+## 审查发现关闭
+
+| 发现 | 当前状态 |
+| --- | --- |
+| R1：缺失边界对照及等值预算反例验收不一致 | CLOSED：边界已补齐，反例事实及预期已纠正 |
+| R2：owning Spec 的静态交付状态矛盾 | CLOSED：前轮已修复，本轮无回退 |
+| TypedReference 最小编码遗漏 ExternalRef | CLOSED：前轮五分支及双 Scope 推导已修复，本轮无回退 |
+| R3：Spec/API/Module-Test 的错误反例与 R_only 定义 | CLOSED：本轮已同步对账 |
+
+## 当前修订验证证据
+
+已独立读取 CI run https://github.com/qzhike/zhiju-business-core/actions/runs/34732100532 的元数据及日志：headSha 与本次审查一致，SUCCESS；静态测试 855 passed / 321 skipped；Catalog/Registry 211/211；compatibility baseline 200 / minor 64；Docker/PostgreSQL persistence gate 336/336 PASS，二次迁移 no-op PASS。
+
+PR 修复 comment 另有该修订本地 `vibe verify full --json` PASS 记录。上轮独立定向执行 39/39 PASS；本轮测试逻辑没有变化，且当前 CI 已覆盖，因此复用当前修订证据，没有重复运行本地完整目标或定向测试。
+
+APPROVE 仅覆盖 Issue #183 的静态契约切片。Handler、真实 Purpose 授权、scoped PolicyVersion 表/FORCE RLS、版本唯一性与并发、IP-181-E-001、业务 E2E、外部和人工验收仍 NOT RUN。
+
+正式 Review.md 已追加当前结论并保留历轮记录。本轮未改产品代码或 owning Spec，未执行 commit/push/merge。此结论发布为 PR comment，不是 GitHub 正式 APPROVE review，也不代表合并授权。
+
+---
+
+## 历轮审查记录
+
 REQUEST_CHANGES
 
 Reviewed SHA: `feb06e8d1daee71ce063d3f4fb684dfd1c47540a`
