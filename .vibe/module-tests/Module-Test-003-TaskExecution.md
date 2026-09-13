@@ -13,7 +13,7 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
 | TE-API-D-001 | Design | TaskExecution Module Spec 与 Catalog | 20 Command、8 Query、11 Event 名称/Owner/字段完整且无重复 | `commands=20 queries=8 events=11`；Catalog 集合差 0；字段检查无异常 | `DESIGN VERIFIED` |
-| TE-API-S-001 | Schema | 43 个 FULL 操作 Payload/Result Schema 注册到 `ContractRegistry` | Registry `operationCount=209`，本模块 43 项 `FULL`，已覆盖的 Payload/Result 正反向 Fixture 通过 `validateOperation`/`validateOperationResult` | Registry operationCount=209，task-execution FULL=43；#158/#165/#175 专项正反向回归见 TE-API-S-019/021/022 | `PASSED` |
+| TE-API-S-001 | Schema | 43 个 FULL 操作 Payload/Result Schema 注册到 `ContractRegistry` | Registry `operationCount=211`，本模块 43 项 `FULL`，已覆盖的 Payload/Result 正反向 Fixture 通过 `validateOperation`/`validateOperationResult` | Registry operationCount=211（#183 追加两个 IdentityPolicy PolicyVersion 操作），task-execution FULL=43；#158/#165/#175 专项正反向回归见 TE-API-S-019/021/022 | `PASSED` |
 | TE-API-S-002 | Schema | `execution.create_task` 命令携带未知字段 `skipPolicyCheck` | Registry 拒绝 `/payload/definition/skipPolicyCheck` | `additionalProperties` keyword 触发 `/payload/definition` 错误 | `PASSED` |
 | TE-API-S-003 | Schema | `execution.start_run` 携带负数 `fencingToken` | Registry 拒绝 `/payload/fencingToken` | `minimum` keyword 触发错误 | `PASSED` |
 | TE-API-S-004 | Schema | `execution.accept_agent_result` 用 `objectRef` 而非 `contentAddressedRef` | Registry 拒绝 `/payload/agentResultRef` | `const` keyword 触发错误（`kind` 必须是 `CONTENT_ADDRESSED`） | `PASSED` |
@@ -46,7 +46,7 @@ Runtime 原始协议与 TaskExecution API 的专项映射测试见 [`Runtime-Ada
 
 ## 本阶段结果
 
-- Schema 层 Contract（TE-API-S-001 ~ TE-API-S-022）均为 `PASSED`；TE-API-S-018 保留 PR #12 时的 200 项聚合基线证据；当前 Registry operationCount=209、FULL=209、ENVELOPE_ONLY=0、task-execution FULL=43，#158/#165/#175 的操作增量与 #159 数组兼容修复的 focused 与聚合回归均通过。
+- Schema 层 Contract（TE-API-S-001 ~ TE-API-S-022）均为 `PASSED`；TE-API-S-018 保留 PR #12 时的 200 项聚合基线证据；当前 Registry operationCount=211、FULL=211、ENVELOPE_ONLY=0、task-execution FULL=43，#158/#165/#175 的操作增量与 #159 数组兼容修复的 focused 与聚合回归均通过。
 - Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Context Builder、Dispatcher、Runtime、Evaluator、Persistence、Projection 与 Handler 实现均不存在；本阶段未声明 CLI 或 DB E2E 已运行。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)。
 - Runtime Adapter 专项：4 个 Design Gate 已 `DESIGN VERIFIED`，其余 28 个场景为 `NOT RUN`；6 个 API proposal 尚未进入 Catalog 与本模块 Schema。

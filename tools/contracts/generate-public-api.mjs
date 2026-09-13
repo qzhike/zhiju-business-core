@@ -8,6 +8,8 @@ import {
 } from '../../contracts/src/payload-guard.ts';
 import { loadPolicyProfileRegistry } from '../../contracts/src/policy-profiles.ts';
 import {
+  assertPolicyVersionCompatibilityMetadata,
+  assertPolicyVersionOperationRegistrations,
   assertSliceOperationRegistrations,
   assertSliceCompatibilityMetadata,
   assertTaskExecutionCompatibilityMetadata,
@@ -37,6 +39,7 @@ const profileRegistry = loadPolicyProfileRegistry(JSON.parse(profileRegistrySour
 const profileRegistryOutputPath = join(root, 'contracts/src/generated/policy-profiles.json');
 assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
+assertPolicyVersionOperationRegistrations(registry.operations);
 const metadata = JSON.parse(
   readFileSync(join(root, 'contracts/registry/operation-compatibility-metadata.v1.json'), 'utf8'),
 );
@@ -47,6 +50,7 @@ for (const op of registry.operations) {
 
 assertSliceCompatibilityMetadata(registry.operations, metadata.operations);
 assertTaskExecutionCompatibilityMetadata(metadata.operations);
+assertPolicyVersionCompatibilityMetadata(metadata.operations);
 
 function quote(value) {
   return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;

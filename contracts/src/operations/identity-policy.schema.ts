@@ -1,3 +1,5 @@
+import guardPolicies from '../generated/payload-guard-policies.json' with { type: 'json' };
+
 import type { JsonSchema } from '../schema-types.js';
 
 const schemaId = 'https://schemas.zhiju.local/modules/identity-policy/1.0';
@@ -52,6 +54,69 @@ const contentAddressedReference = { $ref: `${common}contentAddressedRef` } as co
 const snapshotReference = { $ref: `${common}snapshotRef` } as const;
 const payloadHash = { $ref: `${common}contentHash` } as const;
 const canonicalJson = {} as const;
+
+// ---------------------------------------------------------------------------
+// #176/#183 Policy 版本身份。`policyRef` 是 canonical VERSIONED Policy 版本键，
+// `policyVersionRef` 是已提交版本事实的 canonical SNAPSHOT。两者的 objectType
+// 都以 `const` 编码：引用因此按形状有界，而不是只靠 maxStringCodePoints 兜底，
+// 这正是 #181 读回推导（结果预算 = 请求预算 + 4096，结果侧增量上界 820）的前提。
+// ---------------------------------------------------------------------------
+
+const policyObjectType = 'zhiju.identity.policy';
+const policyVersionObjectType = 'zhiju.identity.policy_version';
+
+/** Closed Scope shape：`enterpriseId` 必填、`projectId` 可选，不引入其他成员。 */
+const enterpriseScope = {
+  allOf: [
+    { $ref: `${common}scopeRef` },
+    {
+      type: 'object',
+      required: ['enterpriseId'],
+      properties: { enterpriseId: uuid, projectId: uuid },
+    },
+  ],
+} as const;
+
+/** 版本键：`VersionedRef<Policy>`（kind=VERSIONED、固定 objectType、企业/项目 Scope）。 */
+const policyVersionKey = {
+  allOf: [
+    { $ref: `${common}versionedRef` },
+    {
+      type: 'object',
+      required: ['objectType', 'scope'],
+      properties: { objectType: { const: policyObjectType }, scope: enterpriseScope },
+    },
+  ],
+} as const;
+
+/** 版本事实：`SnapshotRef<PolicyVersion>`；`objectId == snapshotId` 由绑定校验执行。 */
+const policyVersionSnapshotReference = {
+  allOf: [
+    { $ref: `${common}snapshotRef` },
+    {
+      type: 'object',
+      required: ['objectType', 'scope'],
+      properties: { objectType: { const: policyVersionObjectType }, scope: enterpriseScope },
+    },
+  ],
+} as const;
+
+/**
+ * SD-181-1：两个 PolicyVersion 操作的 payload 与结果中每个 `UtcInstant`
+ * 至多毫秒精度（≤ 24 code point）。共享 `UtcInstant` 与其余操作保持不变；
+ * `$ref` 同级 `maxLength` 在 draft 2020-12 下与 allOf 等价，并使生成类型保持
+ * 单一标量别名（`type` 与 `$ref` 一致，满足 Ajv strict）。
+ */
+const policyInstant = { $ref: `${common}utcInstant`, type: 'string', maxLength: 24 } as const;
+
+const policyVersionGuard = guardPolicies.policies.find(
+  (policy) => policy.type === 'identity.policy_version' && policy.version === '1.0',
+);
+if (policyVersionGuard === undefined) throw new Error('missing PolicyVersion payload guard');
+const policyVersionGuardRef = {
+  type: policyVersionGuard.type,
+  version: policyVersionGuard.version,
+};
 
 const namedDefinitions = {
   principalKind: { enum: ['HUMAN', 'AGENT', 'SERVICE', 'RUNTIME', 'EXTERNAL_PARTY'] },
@@ -300,6 +365,24 @@ const operationSchemas = {
       },
     ),
   },
+  'identity.record_policy_version': {
+    payload: object(
+      ['policyRef', 'policySetVersion', 'policySchemaRefs', 'policyDocument', 'effectiveFrom'],
+      {
+        policyRef: policyVersionKey,
+        policySetVersion: text,
+        // 写入侧是 NonEmptySet：非空且无重复项。
+        policySchemaRefs: array(typedReference, { nonEmpty: true, unique: true }),
+        policyDocument: canonicalJson,
+        effectiveFrom: policyInstant,
+        supersedesRef: policyVersionKey,
+      },
+    ),
+    result: {
+      ...object(['policyVersionRef'], { policyVersionRef: policyVersionSnapshotReference }),
+      payloadGuard: policyVersionGuardRef,
+    },
+  },
   'identity.resolve_principal': {
     payload: object(['lookup', 'purpose'], {
       lookup: localRef('principalLookup'),
@@ -307,6 +390,40 @@ const operationSchemas = {
       purpose: namespace,
     }),
     result: localRef('principalResolutionView'),
+  },
+  'identity.resolve_policy': {
+    payload: object(['policyRef'], { policyRef: policyVersionKey }),
+    result: {
+      ...object(
+        [
+          'policyRef',
+          'policyVersionRef',
+          'policySetVersion',
+          'policySchemaRefs',
+          'policyDocument',
+          'contentHash',
+          'scopeRef',
+          'effectiveFrom',
+          'useStatus',
+          'checkedAt',
+        ],
+        {
+          policyRef: policyVersionKey,
+          policyVersionRef: policyVersionSnapshotReference,
+          policySetVersion: text,
+          // 结果侧是一般 TypedReference[]；NonEmptySet 只是写入侧契约。
+          policySchemaRefs: array(typedReference),
+          policyDocument: canonicalJson,
+          contentHash: payloadHash,
+          scopeRef: enterpriseScope,
+          effectiveFrom: policyInstant,
+          supersededAt: policyInstant,
+          useStatus: { enum: ['USABLE', 'NOT_YET_EFFECTIVE', 'SUPERSEDED', 'REVOKED'] },
+          checkedAt: policyInstant,
+        },
+      ),
+      payloadGuard: policyVersionGuardRef,
+    },
   },
   'identity.authorize_command': {
     payload: object(['actorSnapshotRef', 'intent', 'authenticationContextRef'], {

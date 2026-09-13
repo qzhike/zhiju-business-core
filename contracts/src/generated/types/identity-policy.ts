@@ -181,6 +181,37 @@ export namespace IdentityPolicy {
   readonly effectiveFrom: Common.UtcInstant;
   readonly sourceRefs: readonly Common.TypedReference[];
 }
+  /** Payload of `identity.record_policy_version` (COMMAND). */
+  export type IdentityRecordPolicyVersionPayload = {
+  readonly policyRef: Common.VersionedRef & {
+  readonly objectType: "zhiju.identity.policy";
+  readonly scope: Common.ScopeRef & {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId?: Common.UuidV7;
+};
+};
+  readonly policySetVersion: Common.NonEmptyString;
+  readonly policySchemaRefs: readonly Common.TypedReference[];
+  readonly policyDocument: CanonicalJson;
+  readonly effectiveFrom: Common.UtcInstant;
+  readonly supersedesRef?: Common.VersionedRef & {
+  readonly objectType: "zhiju.identity.policy";
+  readonly scope: Common.ScopeRef & {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId?: Common.UuidV7;
+};
+};
+};
+  /** Result of `identity.record_policy_version` (COMMAND). */
+  export type IdentityRecordPolicyVersionResult = {
+  readonly policyVersionRef: Common.SnapshotRef & {
+  readonly objectType: "zhiju.identity.policy_version";
+  readonly scope: Common.ScopeRef & {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId?: Common.UuidV7;
+};
+};
+};
   /** Payload of `identity.resolve_principal` (QUERY). */
   export interface IdentityResolvePrincipalPayload {
   readonly lookup: IdentityPolicy.PrincipalLookup;
@@ -224,6 +255,45 @@ export namespace IdentityPolicy {
 }
   /** Result of `identity.get_policy_snapshot` (QUERY). */
   export type IdentityGetPolicySnapshotResult = IdentityPolicy.PolicySnapshotView;
+  /** Payload of `identity.resolve_policy` (QUERY). */
+  export type IdentityResolvePolicyPayload = {
+  readonly policyRef: Common.VersionedRef & {
+  readonly objectType: "zhiju.identity.policy";
+  readonly scope: Common.ScopeRef & {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId?: Common.UuidV7;
+};
+};
+};
+  /** Result of `identity.resolve_policy` (QUERY). */
+  export type IdentityResolvePolicyResult = {
+  readonly policyRef: Common.VersionedRef & {
+  readonly objectType: "zhiju.identity.policy";
+  readonly scope: Common.ScopeRef & {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId?: Common.UuidV7;
+};
+};
+  readonly policyVersionRef: Common.SnapshotRef & {
+  readonly objectType: "zhiju.identity.policy_version";
+  readonly scope: Common.ScopeRef & {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId?: Common.UuidV7;
+};
+};
+  readonly policySetVersion: Common.NonEmptyString;
+  readonly policySchemaRefs: readonly Common.TypedReference[];
+  readonly policyDocument: CanonicalJson;
+  readonly contentHash: Common.ContentHash;
+  readonly scopeRef: Common.ScopeRef & {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId?: Common.UuidV7;
+};
+  readonly effectiveFrom: Common.UtcInstant;
+  readonly supersededAt?: Common.UtcInstant;
+  readonly useStatus: "USABLE" | "NOT_YET_EFFECTIVE" | "SUPERSEDED" | "REVOKED";
+  readonly checkedAt: Common.UtcInstant;
+};
   /** Payload of `identity.PrincipalRegistered` (EVENT). */
   export interface IdentityPrincipalRegisteredPayload {
   readonly principalRef: Common.ObjectRef;

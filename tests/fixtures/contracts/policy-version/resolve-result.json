@@ -1,0 +1,53 @@
+{
+  "policyRef": {
+    "kind": "VERSIONED",
+    "objectType": "zhiju.identity.policy",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d440",
+    "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d441",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "policyVersionRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.identity.policy_version",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d450",
+    "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d450",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "policySetVersion": "policy-set-1",
+  "policySchemaRefs": [
+    {
+      "kind": "VERSIONED",
+      "objectType": "identity.contract_schema",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d404",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d414",
+      "scope": {}
+    }
+  ],
+  "policyDocument": {
+    "maxSliceValiditySeconds": 3600,
+    "allowedPurposeCodes": ["project.context_source.capture", "project.context_source.read"]
+  },
+  "contentHash": {
+    "algorithm": "SHA-256",
+    "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "canonicalizationVersion": "1"
+  },
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "effectiveFrom": "2026-09-12T00:00:00.000Z",
+  "useStatus": "USABLE",
+  "checkedAt": "2026-09-12T01:00:00.000Z"
+}

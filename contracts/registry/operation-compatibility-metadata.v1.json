@@ -54,6 +54,13 @@
       "semanticDeclaration": "v1.0-baseline"
     },
     {
+      "type": "identity.record_policy_version",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.record_policy_version",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-policy-version-registration"
+    },
+    {
       "type": "identity.resolve_principal",
       "version": "1.0",
       "authorizationPurpose": "identity.policy.resolve_principal",
@@ -94,6 +101,13 @@
       "authorizationPurpose": "identity.policy.get_policy_snapshot",
       "dataClassification": "INTERNAL",
       "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "identity.resolve_policy",
+      "version": "1.0",
+      "authorizationPurpose": "identity.policy.resolve_policy",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-policy-version-registration"
     },
     {
       "type": "identity.PrincipalRegistered",

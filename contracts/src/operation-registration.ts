@@ -32,6 +32,15 @@ export const taskExecutionObjectTypes = {
   'zhiju.identity.principal': { owner: 'identity-policy', kinds: ['PRINCIPAL'] },
 } as const;
 
+/** Public object names for the approved PolicyVersion version-key/fact boundary. */
+export const policyVersionObjectTypes = {
+  'zhiju.identity.policy': { owner: 'identity-policy', kinds: ['VERSIONED'] },
+  'zhiju.identity.policy_version': {
+    owner: 'identity-policy',
+    kinds: ['OBJECT', 'SNAPSHOT'],
+  },
+} as const;
+
 const sliceOperations = [
   'project.capture_context_source_slice',
   'project.get_context_source_slice',
@@ -351,8 +360,154 @@ const taskExecutionRegistrations: readonly TaskExecutionRegistration[] = [
   },
 ] as const;
 
+interface PolicyVersionRegistration {
+  readonly type: string;
+  readonly kind: 'COMMAND' | 'QUERY';
+  readonly targetObjectType?: string;
+  readonly concurrencyMode?: 'CREATE';
+  readonly allowedConsistency?: readonly 'AUTHORITATIVE'[];
+  readonly authorizationPurpose: string;
+  readonly references: readonly OperationReferenceDeclaration[];
+  readonly resultReferences: readonly OperationReferenceDeclaration[];
+  readonly resultSchemaRef?: string;
+}
+
+/**
+ * Approved #176/#181 registration for the two PolicyVersion entries. The
+ * `resultSchemaRef` names the `$defs` entry derived by
+ * `operationSchemaDefinitionName(type, version, 'result')`; the contract test
+ * asserts this declaration still matches that derivation.
+ */
+const policyVersionRegistrations: readonly PolicyVersionRegistration[] = [
+  {
+    type: 'identity.record_policy_version',
+    kind: 'COMMAND',
+    targetObjectType: 'zhiju.identity.policy_version',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'identity.policy.record_policy_version',
+    references: [
+      {
+        path: '/targetRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.identity.policy_version',
+      },
+      {
+        path: '/payload/policyRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.identity.policy',
+      },
+      {
+        path: '/payload/supersedesRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.identity.policy',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/policyVersionRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.identity.policy_version',
+      },
+    ],
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_record_policy_version_result',
+  },
+  {
+    type: 'identity.resolve_policy',
+    kind: 'QUERY',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'identity.policy.resolve_policy',
+    references: [
+      {
+        path: '/payload/policyRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.identity.policy',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/policyRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.identity.policy',
+      },
+      {
+        path: '/policyVersionRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.identity.policy_version',
+      },
+    ],
+  },
+] as const;
+
+/** Both operations share the one approved `identity.policy_version@1.0` entry. */
+const policyVersionGuardPolicyRef = { type: 'identity.policy_version', version: '1.0' } as const;
+
 function sameRegistrationValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export function assertPolicyVersionOperationRegistrations(
+  operations: readonly (Omit<PublicOperationDefinition, 'version'> & {
+    readonly version: string;
+  })[],
+): void {
+  for (const expected of policyVersionRegistrations) {
+    const matching = operations.filter(
+      (operation) => operation.type === expected.type && operation.version === '1.0',
+    );
+    if (matching.length !== 1)
+      throw new Error(`missing or duplicate policy version operation: ${expected.type}`);
+    const operation = matching[0];
+    if (operation === undefined) throw new Error('missing policy version operation');
+    if (
+      operation.kind !== expected.kind ||
+      operation.owner !== 'identity-policy' ||
+      operation.schemaStatus !== 'FULL' ||
+      operation.targetObjectType !== expected.targetObjectType ||
+      operation.concurrencyMode !== expected.concurrencyMode ||
+      !sameRegistrationValue(operation.allowedConsistency, expected.allowedConsistency) ||
+      operation.authorizationPurpose !== expected.authorizationPurpose ||
+      operation.dataClassification !== 'INTERNAL' ||
+      !sameRegistrationValue(operation.payloadGuardPolicyRef, policyVersionGuardPolicyRef) ||
+      operation.resultSchemaRef !== expected.resultSchemaRef ||
+      !sameRegistrationValue(operation.references ?? [], expected.references) ||
+      !sameRegistrationValue(operation.resultReferences ?? [], expected.resultReferences)
+    ) {
+      throw new Error(`invalid policy version registration: ${expected.type}`);
+    }
+    for (const ref of [...expected.references, ...expected.resultReferences]) {
+      const object = (
+        policyVersionObjectTypes as Readonly<
+          Record<string, { readonly owner: string; readonly kinds: readonly string[] }>
+        >
+      )[ref.objectType];
+      if (!object?.kinds.includes(ref.kind) || object.owner !== 'identity-policy')
+        throw new Error(`unregistered policy version reference object type: ${ref.objectType}`);
+    }
+  }
+}
+
+export function assertPolicyVersionCompatibilityMetadata(
+  metadata: readonly {
+    readonly type: string;
+    readonly version: string;
+    readonly authorizationPurpose: string;
+    readonly dataClassification: string;
+  }[],
+): void {
+  for (const expected of policyVersionRegistrations) {
+    const entries = metadata.filter(
+      (entry) => entry.type === expected.type && entry.version === '1.0',
+    );
+    const entry = entries[0];
+    if (
+      entries.length !== 1 ||
+      entry?.authorizationPurpose !== expected.authorizationPurpose ||
+      entry.dataClassification !== 'INTERNAL'
+    ) {
+      throw new Error(`inconsistent policy version compatibility metadata: ${expected.type}`);
+    }
+  }
 }
 
 export function assertTaskExecutionOperationRegistrations(
