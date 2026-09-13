@@ -27,6 +27,7 @@ import {
   IDENTITY_POLICY_VERSION_ALREADY_SUPERSEDED,
   IDENTITY_POLICY_VERSION_UNKNOWN,
   IDEMPOTENCY_PAYLOAD_CONFLICT,
+  INTERNAL_CONTRACT_VIOLATION,
   IdentityPolicyRepository,
   recordPolicySnapshot,
   recordPolicyVersion,
@@ -91,6 +92,7 @@ const POLICY_ONE = 'c8c8c8c8-c8c8-78c8-88c8-c8c8c8c8c801';
 const POLICY_TWO = 'c8c8c8c8-c8c8-78c8-88c8-c8c8c8c8c802';
 const POLICY_THREE = 'c8c8c8c8-c8c8-78c8-88c8-c8c8c8c8c803';
 const POLICY_FOUR = 'c8c8c8c8-c8c8-78c8-88c8-c8c8c8c8c804';
+const POLICY_FIVE = 'c8c8c8c8-c8c8-78c8-88c8-c8c8c8c8c805';
 const UNKNOWN_POLICY = 'c8c8c8c8-c8c8-78c8-88c8-c8c8c8c8c8ff';
 
 const V1 = 'c9c9c9c9-c9c9-79c9-89c9-c9c9c9c9c901';
@@ -106,6 +108,9 @@ const V10 = 'c9c9c9c9-c9c9-79c9-89c9-c9c9c9c9c90a';
 const V11 = 'c9c9c9c9-c9c9-79c9-89c9-c9c9c9c9c90b';
 const V12 = 'c9c9c9c9-c9c9-79c9-89c9-c9c9c9c9c90c';
 const V13 = 'c9c9c9c9-c9c9-79c9-89c9-c9c9c9c9c90d';
+const V14 = 'c9c9c9c9-c9c9-79c9-89c9-c9c9c9c9c90e';
+const V15 = 'c9c9c9c9-c9c9-79c9-89c9-c9c9c9c9c90f';
+const V16 = 'c9c9c9c9-c9c9-79c9-89c9-c9c9c9c9c910';
 const UNKNOWN_VERSION = 'c9c9c9c9-c9c9-79c9-89c9-c9c9c9c9c9ff';
 
 const FACT_ONE = 'cacacaca-caca-7aca-8aca-cacacacaca01';
@@ -749,6 +754,27 @@ describe.skipIf(!gateEnabled)('policy version handlers (real PostgreSQL)', () =>
     return rows.rows[0];
   }
 
+  async function actorSnapshotHash(actorSnapshotId: string): Promise<string> {
+    const rows = await admin.query<{ payload_hash: Buffer }>(
+      `SELECT payload_hash FROM identity_policy.actor_snapshot WHERE actor_snapshot_id = $1`,
+      [actorSnapshotId],
+    );
+    const hash = rows.rows[0]?.payload_hash;
+    if (hash === undefined) throw new Error('actor snapshot fixture is missing');
+    return hash.toString('hex');
+  }
+
+  async function receiptOutcomes(
+    idempotencyKey: string,
+  ): Promise<{ outcome: string; count: string }[]> {
+    const rows = await admin.query<{ outcome: string; count: string }>(
+      `SELECT outcome, count(*) AS count FROM identity_policy.command_receipt
+        WHERE idempotency_key = $1 GROUP BY outcome`,
+      [idempotencyKey],
+    );
+    return rows.rows;
+  }
+
   async function versionBindingCount(objectId: string, versionId: string): Promise<number> {
     const rows = await admin.query<{ count: string }>(
       `SELECT count(*) AS count FROM identity_policy.policy_version
@@ -967,6 +993,207 @@ describe.skipIf(!gateEnabled)('policy version handlers (real PostgreSQL)', () =>
       resolvePolicy(query.deps, { envelope: weakConsistency, asOf: new Date() }),
     ).rejects.toMatchObject({ code: API_VALUE_INVALID });
     expect(await versionBindingCount(POLICY_FOUR, V1)).toBe(0);
+  });
+
+  it('validates the complete presented authorization references on both entries', async () => {
+    const key = scopedKey(POLICY_FIVE, V14, { enterpriseId: ENTERPRISE_A });
+    const payload = recordPayload({ key, effectiveFrom: EARLIER.toISOString() });
+    const call = await commandCall({
+      payload,
+      key,
+      targetId: 'cacacaca-caca-7aca-8aca-cacacacaca26',
+      idempotencyKey: 'wi186:binding:1',
+      capability: RECORD_CAPABILITY,
+    });
+    const scope = { enterpriseId: ENTERPRISE_A };
+    const storedActorHash = await actorSnapshotHash(OPERATOR_ACTOR_ENTERPRISE);
+    const decisionRef = call.envelope.authorizationDecisionRef as Record<string, unknown>;
+
+    // Single-field mutations that stay schema-valid: an actor naming another
+    // object type, another snapshot id or another content hash, and a Decision
+    // reference naming another object type or another Scope.
+    const actorVariants: readonly [string, unknown][] = [
+      [
+        'actor-type',
+        { kind: 'OBJECT', objectType: 'zhiju.identity.policy', objectId: OPERATOR, scope },
+      ],
+      [
+        'snapshot-hash',
+        {
+          kind: 'SNAPSHOT',
+          objectType: 'identity.actor_snapshot',
+          objectId: OPERATOR_ACTOR_ENTERPRISE,
+          snapshotId: OPERATOR_ACTOR_ENTERPRISE,
+          scope,
+          contentHash: {
+            algorithm: 'SHA-256',
+            digest: '0'.repeat(64),
+            canonicalizationVersion: '1',
+          },
+        },
+      ],
+      [
+        'snapshot-id',
+        {
+          kind: 'SNAPSHOT',
+          objectType: 'identity.actor_snapshot',
+          objectId: 'dddddddd-dddd-7ddd-8ddd-ddddddddddd1',
+          snapshotId: 'dddddddd-dddd-7ddd-8ddd-ddddddddddd1',
+          scope,
+          contentHash: {
+            algorithm: 'SHA-256',
+            digest: storedActorHash,
+            canonicalizationVersion: '1',
+          },
+        },
+      ],
+    ];
+    for (const [label, actor] of actorVariants) {
+      expect(
+        await recordPolicyVersion(call.deps, { envelope: { ...call.envelope, actor } }),
+        label,
+      ).toMatchObject({ status: 'REJECTED', errorCode: AUTHORIZATION_DECISION_INVALID });
+    }
+    const decisionVariants: readonly [string, unknown][] = [
+      ['decision-type', { ...decisionRef, objectType: 'identity.policy_snapshot' }],
+      [
+        'decision-scope',
+        { ...decisionRef, scope: { enterpriseId: ENTERPRISE_A, projectId: PROJECT_A1 } },
+      ],
+    ];
+    for (const [label, authorizationDecisionRef] of decisionVariants) {
+      expect(
+        await recordPolicyVersion(call.deps, {
+          envelope: { ...call.envelope, authorizationDecisionRef },
+        }),
+        label,
+      ).toMatchObject({ status: 'REJECTED', errorCode: AUTHORIZATION_DECISION_INVALID });
+    }
+    const bindingAudit = await admin.query<{ safe_summary: string }>(
+      `SELECT safe_summary FROM identity_policy.audit_record
+        WHERE command_type = $1 AND error_code = $2
+        ORDER BY recorded_at DESC LIMIT 1`,
+      [RECORD_POLICY_VERSION_COMMAND, AUTHORIZATION_DECISION_INVALID],
+    );
+    expect(bindingAudit.rows[0]).toMatchObject({ safe_summary: 'reference-binding' });
+    // Refused reference bindings claim no idempotency key and leave no fact.
+    expect(await receiptOutcomes('wi186:binding:1')).toEqual([]);
+    expect(await versionBindingCount(POLICY_FIVE, V14)).toBe(0);
+
+    // Positive control: the exact ActorSnapshot reference form is supported.
+    const actorSnapshotRef = {
+      kind: 'SNAPSHOT',
+      objectType: 'identity.actor_snapshot',
+      objectId: OPERATOR_ACTOR_ENTERPRISE,
+      snapshotId: OPERATOR_ACTOR_ENTERPRISE,
+      scope,
+      contentHash: {
+        algorithm: 'SHA-256',
+        digest: storedActorHash,
+        canonicalizationVersion: '1',
+      },
+    };
+    const committed = await recordPolicyVersion(call.deps, {
+      envelope: { ...call.envelope, actor: actorSnapshotRef },
+    });
+    expect(committed).toMatchObject({ status: 'COMMITTED' });
+
+    // The Query entry enforces the same binding rules with a masked Audit.
+    const query = await queryCall({ key });
+    await expect(
+      resolvePolicy(query.deps, {
+        envelope: { ...query.envelope, requester: actorVariants[1]?.[1] },
+        asOf: new Date(),
+      }),
+    ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
+    await expect(
+      resolvePolicy(query.deps, {
+        envelope: { ...query.envelope, authorizationDecisionRef: decisionVariants[1]?.[1] },
+        asOf: new Date(),
+      }),
+    ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
+    const queryBindingAudit = await admin.query<{ safe_summary: string }>(
+      `SELECT safe_summary FROM identity_policy.audit_record
+        WHERE command_type = $1 AND error_code = $2 AND safe_summary = 'reference-binding'
+        ORDER BY recorded_at DESC LIMIT 1`,
+      [RESOLVE_POLICY_COMMAND, AUTHORIZATION_DECISION_INVALID],
+    );
+    expect(queryBindingAudit.rows[0]).toMatchObject({ safe_summary: 'reference-binding' });
+
+    const querySnapshot = await queryCall({ key });
+    const resolved = await resolvePolicy(querySnapshot.deps, {
+      envelope: { ...querySnapshot.envelope, requester: actorSnapshotRef },
+      asOf: new Date(),
+    });
+    expect(resolved.policyVersionRef.objectId).toBe('cacacaca-caca-7aca-8aca-cacacacaca26');
+  });
+
+  it('rolls back the fact, edge and receipt when the registered write result fails validation', async () => {
+    class ResultRefusingRegistry extends ContractRegistry {
+      override validateOperationResult(type: string, version: string, input: unknown) {
+        if (type === RECORD_POLICY_VERSION_COMMAND) {
+          return { valid: false, errors: [] };
+        }
+        return super.validateOperationResult(type, version, input);
+      }
+    }
+
+    const predecessorKey = scopedKey(POLICY_FIVE, V15, { enterpriseId: ENTERPRISE_A });
+    const predecessorCall = await commandCall({
+      payload: recordPayload({ key: predecessorKey, effectiveFrom: EARLIER.toISOString() }),
+      key: predecessorKey,
+      targetId: 'cacacaca-caca-7aca-8aca-cacacacaca27',
+      idempotencyKey: 'wi186:result:predecessor',
+      capability: RECORD_CAPABILITY,
+    });
+    expect(
+      await recordPolicyVersion(predecessorCall.deps, { envelope: predecessorCall.envelope }),
+    ).toMatchObject({ status: 'COMMITTED' });
+    const predecessor = await factRow(POLICY_FIVE, V15, null);
+    if (predecessor === undefined) throw new Error('predecessor fact is missing');
+
+    const childKey = scopedKey(POLICY_FIVE, V16, { enterpriseId: ENTERPRISE_A });
+    const childCall = await commandCall({
+      payload: recordPayload({
+        key: childKey,
+        effectiveFrom: MIDDLE.toISOString(),
+        supersedesRef: predecessorKey,
+      }),
+      key: childKey,
+      targetId: 'cacacaca-caca-7aca-8aca-cacacacaca28',
+      idempotencyKey: 'wi186:result:child',
+      capability: RECORD_CAPABILITY,
+    });
+
+    // The registered result validation runs after the INSERT and before the
+    // commit: its failure must roll the fact, the supersede edge and the
+    // success Receipt back together.
+    await expect(
+      recordPolicyVersion(
+        { ...childCall.deps, contracts: new ResultRefusingRegistry() },
+        { envelope: childCall.envelope },
+      ),
+    ).rejects.toMatchObject({ code: INTERNAL_CONTRACT_VIOLATION });
+    expect(await versionBindingCount(POLICY_FIVE, V16)).toBe(0);
+    const edgeRows = await admin.query<{ count: string }>(
+      `SELECT count(*) AS count FROM identity_policy.policy_version
+        WHERE supersedes_object_id = $1 AND supersedes_version_id = $2`,
+      [POLICY_FIVE, V15],
+    );
+    expect(edgeRows.rows[0]?.count).toBe('0');
+    expect(await receiptOutcomes('wi186:result:child')).toEqual([]);
+    const unchanged = await factRow(POLICY_FIVE, V15, null);
+    expect(unchanged?.payload_hash.equals(predecessor.payload_hash)).toBe(true);
+
+    // Control: the same command under the registered contract commits and
+    // leaves exactly one edge and one success Receipt.
+    expect(
+      await recordPolicyVersion(childCall.deps, { envelope: childCall.envelope }),
+    ).toMatchObject({ status: 'COMMITTED' });
+    expect(await versionBindingCount(POLICY_FIVE, V16)).toBe(1);
+    expect(await receiptOutcomes('wi186:result:child')).toEqual([
+      { outcome: 'COMMITTED', count: '1' },
+    ]);
   });
 
   it('commits a maximum-size Envelope in both scopes and rejects one byte more', async () => {
@@ -1443,20 +1670,31 @@ describe.skipIf(!gateEnabled)('policy version handlers (real PostgreSQL)', () =>
     });
     expect(await versionBindingCount(POLICY_THREE, V1)).toBe(0);
 
-    // Registration permission does not grant resolution permission.
+    // Registration permission does not grant resolution permission: the Query
+    // envelope is answered with a Decision issued for the write operation's
+    // Purpose, so the owning entry must refuse it and record a masked Audit.
+    const wrongPurposeCall = await queryCall({
+      key,
+      capability: RECORD_CAPABILITY,
+      decisionCommandType: RECORD_POLICY_VERSION_COMMAND,
+      decisionPurpose: RECORD_POLICY_VERSION_PURPOSE,
+    });
     await expect(
-      resolvePolicy(
-        (
-          await queryCall({
-            key,
-            capability: RECORD_CAPABILITY,
-            decisionCommandType: RECORD_POLICY_VERSION_COMMAND,
-            decisionPurpose: RECORD_POLICY_VERSION_PURPOSE,
-          })
-        ).deps,
-        { envelope: (await queryCall({ key })).envelope, asOf: new Date() },
-      ),
+      resolvePolicy(wrongPurposeCall.deps, {
+        envelope: wrongPurposeCall.envelope,
+        asOf: new Date(),
+      }),
     ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
+    const purposeAudit = await admin.query<{ error_code: string; safe_summary: string }>(
+      `SELECT error_code, safe_summary FROM identity_policy.audit_record
+        WHERE command_type = $1 AND error_code = $2
+        ORDER BY recorded_at DESC LIMIT 1`,
+      [RESOLVE_POLICY_COMMAND, AUTHORIZATION_DECISION_INVALID],
+    );
+    expect(purposeAudit.rows[0]).toMatchObject({
+      error_code: AUTHORIZATION_DECISION_INVALID,
+      safe_summary: 'authorization',
+    });
 
     // A constrained Service with its own exact-scope Decision is authorized:
     // no identity wildcard, no blanket rejection either.

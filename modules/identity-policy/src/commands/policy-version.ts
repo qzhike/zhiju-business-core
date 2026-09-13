@@ -82,11 +82,16 @@ const canonicalInstantPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})
 // against the registered result schema before the owning transaction commits.
 // ---------------------------------------------------------------------------
 
-let registeredContracts: ContractRegistry | undefined;
+let sharedContractRegistry: ContractRegistry | undefined;
 
-function contractRegistry(): ContractRegistry {
-  registeredContracts ??= new ContractRegistry();
-  return registeredContracts;
+/**
+ * The registered contract implementation used by these owning entries: the
+ * wiring-level dependency when supplied, otherwise the shared build-time
+ * registry. Both call sites keep the same validation order and error shape.
+ */
+function contractRegistry(deps?: IdentityCommandDeps): ContractRegistry {
+  sharedContractRegistry ??= new ContractRegistry();
+  return deps?.contracts ?? sharedContractRegistry;
 }
 
 /**
@@ -95,8 +100,12 @@ function contractRegistry(): ContractRegistry {
  * structural schema (same order as the shared registry), so a request over the
  * approved budget short-circuits before any structure walk or database access.
  */
-function requestContractViolation(type: string, input: unknown): string | null {
-  const validation = contractRegistry().validateOperation(type, '1.0', input);
+function requestContractViolation(
+  registry: ContractRegistry,
+  type: string,
+  input: unknown,
+): string | null {
+  const validation = registry.validateOperation(type, '1.0', input);
   if (validation.valid) {
     return null;
   }
@@ -109,8 +118,12 @@ function requestContractViolation(type: string, input: unknown): string | null {
   return API_VALUE_INVALID;
 }
 
-function resultContractViolation(type: string, input: unknown): string | null {
-  const validation = contractRegistry().validateOperationResult(type, '1.0', input);
+function resultContractViolation(
+  registry: ContractRegistry,
+  type: string,
+  input: unknown,
+): string | null {
+  const validation = registry.validateOperationResult(type, '1.0', input);
   if (validation.valid) {
     return null;
   }
@@ -124,8 +137,29 @@ interface RegisteredReference {
   readonly kind?: unknown;
   readonly objectType?: unknown;
   readonly objectId?: unknown;
+  readonly snapshotId?: unknown;
+  readonly scope?: unknown;
   readonly contentHash?: unknown;
 }
+
+/**
+ * Closed allow-list of the authorization reference namespaces accepted on the
+ * presented Envelope. Both the module's canonical identity namespace and the
+ * `zhiju.`-prefixed namespace registered by #183 fixtures are legal; every
+ * other object type is refused.
+ */
+const AUTHORIZATION_DECISION_OBJECT_TYPES: ReadonlySet<string> = new Set([
+  'identity.authorization_decision',
+  'zhiju.identity.authorization_decision',
+]);
+const PRINCIPAL_OBJECT_TYPES: ReadonlySet<string> = new Set([
+  'identity.principal',
+  'zhiju.identity.principal',
+]);
+const ACTOR_SNAPSHOT_OBJECT_TYPES: ReadonlySet<string> = new Set([
+  'identity.actor_snapshot',
+  'zhiju.identity.actor_snapshot',
+]);
 
 interface RegisteredScope {
   readonly enterpriseId?: unknown;
@@ -178,33 +212,68 @@ function sameScope(
 }
 
 /**
- * The presented envelope must pin the same AuthorizationDecision the trusted
- * transaction context was established with: a request that carries another
- * Decision must not be answered with this context's authorization.
+ * Validates the complete presented authorization references, not only their
+ * ids: the Decision reference must carry an allowed object type, the exact
+ * trusted id/hash and the request Scope; the actor reference must be either
+ * the trusted principal's ObjectRef or an ActorSnapshot SnapshotRef whose
+ * exact objectId, snapshotId, Scope and stored content hash all match the
+ * trusted Context. Returns the stable failure code, or `null` when both
+ * references are exact.
  */
-function decisionReferenceMismatch(
-  reference: RegisteredReference | undefined,
-  context: IdentityTransactionContext,
-): boolean {
-  return (
-    reference?.kind !== 'CONTENT_ADDRESSED' ||
-    reference.objectId !== context.authorizationDecisionId ||
-    contentHashDigest(reference.contentHash) !== context.authorizationDecisionHash.toString('hex')
-  );
-}
-
-/**
- * The presented actor must resolve to the trusted Context principal (an
- * ObjectRef of that principal) or to its trusted ActorSnapshot.
- */
-function actorReferenceMismatch(
-  actor: RegisteredReference | undefined,
-  context: IdentityTransactionContext,
-): boolean {
-  if (actor?.kind === 'OBJECT' && actor.objectId === context.principalId) {
-    return false;
+async function presentedReferenceError(
+  deps: IdentityCommandDeps,
+  trx: IdentityTransaction,
+  input: {
+    decisionRef: RegisteredReference | undefined;
+    actorRef: RegisteredReference | undefined;
+    scope: Common.ScopeRef;
+  },
+): Promise<string | null> {
+  const decision = input.decisionRef;
+  if (
+    decision?.kind !== 'CONTENT_ADDRESSED' ||
+    typeof decision.objectType !== 'string' ||
+    !AUTHORIZATION_DECISION_OBJECT_TYPES.has(decision.objectType) ||
+    decision.objectId !== deps.context.authorizationDecisionId ||
+    contentHashDigest(decision.contentHash) !==
+      deps.context.authorizationDecisionHash.toString('hex') ||
+    !sameScope(decision.scope as RegisteredScope | undefined, input.scope)
+  ) {
+    return AUTHORIZATION_DECISION_INVALID;
   }
-  return !(actor?.kind === 'SNAPSHOT' && actor.objectId === context.actorSnapshotId);
+  const actor = input.actorRef;
+  if (
+    actor === undefined ||
+    typeof actor.objectType !== 'string' ||
+    !sameScope(actor.scope as RegisteredScope | undefined, input.scope)
+  ) {
+    return AUTHORIZATION_DECISION_INVALID;
+  }
+  if (actor.kind === 'OBJECT') {
+    return PRINCIPAL_OBJECT_TYPES.has(actor.objectType) &&
+      actor.objectId === deps.context.principalId
+      ? null
+      : AUTHORIZATION_DECISION_INVALID;
+  }
+  if (actor.kind !== 'SNAPSHOT' || !ACTOR_SNAPSHOT_OBJECT_TYPES.has(actor.objectType)) {
+    return AUTHORIZATION_DECISION_INVALID;
+  }
+  if (
+    actor.objectId !== deps.context.actorSnapshotId ||
+    actor.snapshotId !== deps.context.actorSnapshotId
+  ) {
+    return AUTHORIZATION_DECISION_INVALID;
+  }
+  const digest = contentHashDigest(actor.contentHash);
+  if (digest === null) {
+    return AUTHORIZATION_DECISION_INVALID;
+  }
+  const resolved = await deps.repo.getActorSnapshotByIdAndHash(
+    trx,
+    deps.context.actorSnapshotId,
+    Buffer.from(digest, 'hex'),
+  );
+  return resolved?.hashMatched === true ? null : AUTHORIZATION_DECISION_INVALID;
 }
 
 interface PolicyVersionKey {
@@ -536,7 +605,12 @@ export async function recordPolicyVersion(
   input: RecordPolicyVersionInput,
 ): Promise<CommandResult> {
   const envelope = (input.envelope ?? {}) as RegisteredCommandEnvelope;
-  const contractViolation = requestContractViolation(RECORD_POLICY_VERSION_COMMAND, input.envelope);
+  const contracts = contractRegistry(deps);
+  const contractViolation = requestContractViolation(
+    contracts,
+    RECORD_POLICY_VERSION_COMMAND,
+    input.envelope,
+  );
   if (contractViolation !== null) {
     throw new CommandExecutionError(
       contractViolation,
@@ -580,18 +654,6 @@ export async function recordPolicyVersion(
       'envelope scopeRef and targetRef must carry the exact Scope of payload.policyRef',
     );
   }
-  if (decisionReferenceMismatch(envelope.authorizationDecisionRef, deps.context)) {
-    throw new CommandExecutionError(
-      AUTHORIZATION_DECISION_INVALID,
-      'envelope authorizationDecisionRef does not match the trusted transaction context',
-    );
-  }
-  if (actorReferenceMismatch(envelope.actor, deps.context)) {
-    throw new CommandExecutionError(
-      AUTHORIZATION_DECISION_INVALID,
-      'envelope actor does not resolve to the trusted transaction principal',
-    );
-  }
   const policySchemaRefs = (
     Array.isArray(payload.policySchemaRefs) ? payload.policySchemaRefs : []
   ) as CanonicalJsonValue[];
@@ -624,6 +686,22 @@ export async function recordPolicyVersion(
           targetId: policyVersionFactId,
         });
         return IDENTITY_POLICY_VERSION_UNKNOWN;
+      }
+      const referenceError = await presentedReferenceError(deps, trx, {
+        decisionRef: envelope.authorizationDecisionRef,
+        actorRef: envelope.actor,
+        scope: versionScope,
+      });
+      if (referenceError !== null) {
+        await appendDeniedAudit(deps, trx, {
+          commandType: RECORD_POLICY_VERSION_COMMAND,
+          errorCode: referenceError,
+          internalReason: 'reference-binding',
+          projectId: key.projectId ?? null,
+          requestHash,
+          targetId: policyVersionFactId,
+        });
+        return referenceError;
       }
       const failure = await currentAuthorizationError(deps, trx, {
         commandType: RECORD_POLICY_VERSION_COMMAND,
@@ -807,6 +885,7 @@ export async function recordPolicyVersion(
         // failed check must roll back the fact instead of leaving a success
         // Receipt for a result the registered contract rejects.
         const resultViolation = resultContractViolation(
+          contracts,
           RECORD_POLICY_VERSION_COMMAND,
           resultPayload,
         );
@@ -867,7 +946,12 @@ export async function resolvePolicy(
   input: ResolvePolicyInput,
 ): Promise<PolicyVersionResolutionView> {
   const envelope = (input.envelope ?? {}) as RegisteredQueryEnvelope;
-  const contractViolation = requestContractViolation(RESOLVE_POLICY_COMMAND, input.envelope);
+  const contracts = contractRegistry(deps);
+  const contractViolation = requestContractViolation(
+    contracts,
+    RESOLVE_POLICY_COMMAND,
+    input.envelope,
+  );
   if (contractViolation !== null) {
     throw new SnapshotBoundaryError(
       contractViolation,
@@ -892,18 +976,6 @@ export async function resolvePolicy(
       'envelope scopeRef must carry the exact Scope of payload.policyRef',
     );
   }
-  if (decisionReferenceMismatch(envelope.authorizationDecisionRef, deps.context)) {
-    throw new SnapshotBoundaryError(
-      AUTHORIZATION_DECISION_INVALID,
-      'envelope authorizationDecisionRef does not match the trusted transaction context',
-    );
-  }
-  if (actorReferenceMismatch(envelope.requester, deps.context)) {
-    throw new SnapshotBoundaryError(
-      AUTHORIZATION_DECISION_INVALID,
-      'envelope requester does not resolve to the trusted transaction principal',
-    );
-  }
   const inScope = scopeWithinContext(key, deps.context);
   try {
     const outcome = await withIdentityTransaction(deps.db, deps.context, async (trx) => {
@@ -924,6 +996,14 @@ export async function resolvePolicy(
       };
       if (!inScope) {
         return failure(IDENTITY_POLICY_VERSION_UNKNOWN, 'scope-mismatch', null);
+      }
+      const referenceError = await presentedReferenceError(deps, trx, {
+        decisionRef: envelope.authorizationDecisionRef,
+        actorRef: envelope.requester,
+        scope: versionKeyScope(key),
+      });
+      if (referenceError !== null) {
+        return failure(referenceError, 'reference-binding', null);
       }
       const authorizationError = await currentAuthorizationError(deps, trx, {
         commandType: RESOLVE_POLICY_COMMAND,
@@ -996,7 +1076,7 @@ export async function resolvePolicy(
         useStatus,
         checkedAt: input.asOf.toISOString(),
       };
-      const resultViolation = resultContractViolation(RESOLVE_POLICY_COMMAND, view);
+      const resultViolation = resultContractViolation(contracts, RESOLVE_POLICY_COMMAND, view);
       if (resultViolation !== null) {
         return failure(resultViolation, 'result-contract', row.policy_version_fact_id);
       }
