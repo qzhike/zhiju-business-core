@@ -56,9 +56,32 @@ function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Closed own-key inventory: a missing field, an extra field or a non-enumerable
+ * field is not the declared shape. `Object.keys` would silently accept the last
+ * one, which is exactly how a hidden field would enter a "matching" reference.
+ */
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const names = Object.keys(value);
-  return names.length === keys.length && names.every((name) => keys.includes(name));
+  const names = Reflect.ownKeys(value);
+  return (
+    names.length === keys.length &&
+    names.every((name) => typeof name === 'string' && keys.includes(name))
+  );
+}
+
+/**
+ * A Platform Scope is the empty object literal and nothing else, decided
+ * structurally: the prototype is `Object.prototype` (or absent) and the own-key
+ * inventory is empty. Serializing the candidate instead would drop `undefined`
+ * fields and Map entries and throw on values it cannot represent, so a Scope
+ * carrying hidden Platform fields could read as empty.
+ */
+function isPlatformScope(value: unknown): boolean {
+  if (!record(value)) return false;
+  const prototype = Reflect.getPrototypeOf(value);
+  return (
+    (prototype === Object.prototype || prototype === null) && Reflect.ownKeys(value).length === 0
+  );
 }
 
 /**
@@ -80,8 +103,7 @@ function parseReference(value: unknown): Common.VersionedRef {
     !uuidV7Pattern.test(value.objectId) ||
     typeof value.versionId !== 'string' ||
     !uuidV7Pattern.test(value.versionId) ||
-    !record(value.scope) ||
-    Object.keys(value.scope).length !== 0
+    !isPlatformScope(value.scope)
   ) {
     throw new Error('evaluator profile reference must be a Platform-scoped canonical selector');
   }
@@ -168,27 +190,31 @@ export function registeredEvaluatorProfileReference(
 }
 
 /**
- * Registry key of an exact canonical reference. The comparison is field by
- * field over the whole typed reference — kind, objectType, objectId, versionId
- * and Scope — so a shared suffix, a matching versionId alone or a
- * caller-crafted look-alike never resolves to a registered selector.
+ * Registry key of an exact canonical reference. The candidate must first be the
+ * closed reference shape — exactly `kind`, `objectType`, `objectId`, `versionId`
+ * and `scope`, with a structurally empty Platform Scope — and every identity
+ * field must then equal the registry entry, so a shared suffix, a matching
+ * `versionId` alone or a caller-crafted look-alike never resolves to a
+ * registered selector. A malformed candidate stays malformed: it resolves to
+ * nothing instead of letting serialization behaviour decide the comparison.
  */
 export function registeredEvaluatorProfileKey(
   registryVersion: string,
   reference: unknown,
 ): EvaluatorProfileRegistryKey | undefined {
-  if (registryVersion !== evaluatorProfileRegistry.registryVersion || !record(reference)) {
+  if (
+    registryVersion !== evaluatorProfileRegistry.registryVersion ||
+    !record(reference) ||
+    !exactKeys(reference, ['kind', 'objectType', 'objectId', 'versionId', 'scope']) ||
+    !isPlatformScope(reference.scope)
+  ) {
     return undefined;
   }
-  if (Object.keys(reference).length !== 5) return undefined;
-  return evaluatorProfileRegistry.profiles.find((profile) => {
-    const expected = profile.reference;
-    return (
-      reference.kind === expected.kind &&
-      reference.objectType === expected.objectType &&
-      reference.objectId === expected.objectId &&
-      reference.versionId === expected.versionId &&
-      JSON.stringify(reference.scope) === JSON.stringify(expected.scope)
-    );
-  })?.registryKey;
+  return evaluatorProfileRegistry.profiles.find(
+    (profile) =>
+      reference.kind === profile.reference.kind &&
+      reference.objectType === profile.reference.objectType &&
+      reference.objectId === profile.reference.objectId &&
+      reference.versionId === profile.reference.versionId,
+  )?.registryKey;
 }

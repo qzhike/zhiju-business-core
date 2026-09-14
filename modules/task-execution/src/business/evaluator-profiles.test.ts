@@ -24,6 +24,23 @@ function canonicalReference(registryKey: string): Common.VersionedRef {
 const readinessSelector = canonicalReference(TASK_READINESS_EVALUATOR_PROFILE_KEY);
 const validationSelector = canonicalReference(WORK_ORDER_VALIDATION_EVALUATOR_PROFILE_KEY);
 
+/**
+ * A Platform Scope is the empty object literal and nothing else. Each entry
+ * below carries a Platform field outside the own-key inventory, is not a plain
+ * object, or would only reveal itself through serialization; a caller-supplied
+ * Scope of that shape is not the registered selector.
+ */
+const malformedPlatformScopes: readonly unknown[] = [
+  { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d4a1' },
+  { enterpriseId: undefined },
+  { enterpriseId: 1n },
+  new Map([['enterpriseId', '018f22e2-7c15-7b2e-8d86-2de956a9d4a1']]),
+  Object.defineProperty({}, 'enterpriseId', {
+    value: '018f22e2-7c15-7b2e-8d86-2de956a9d4a1',
+    enumerable: false,
+  }),
+];
+
 describe('TaskReadinessBuilder evaluator support boundary', () => {
   it('resolves its own registered selector', () => {
     expect(resolveTaskReadinessEvaluatorProfile(readinessSelector)).toEqual(readinessSelector);
@@ -36,11 +53,8 @@ describe('TaskReadinessBuilder evaluator support boundary', () => {
       { ...readinessSelector, kind: 'SNAPSHOT' },
       { ...readinessSelector, objectId: validationSelector.objectId },
       { ...readinessSelector, versionId: validationSelector.versionId },
-      {
-        ...readinessSelector,
-        scope: { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d4a1' },
-      },
       { ...readinessSelector, contentHash: { algorithm: 'SHA-256', hashValue: 'x' } },
+      ...malformedPlatformScopes.map((scope) => ({ ...readinessSelector, scope })),
       TASK_READINESS_EVALUATOR_PROFILE_KEY,
       undefined,
     ];
@@ -64,8 +78,8 @@ describe('WorkOrderValidator evaluator support boundary', () => {
       { ...validationSelector, kind: 'CONTENT_ADDRESSED' },
       { ...validationSelector, objectId: readinessSelector.objectId },
       { ...validationSelector, versionId: readinessSelector.versionId },
-      { ...validationSelector, scope: { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d4a1' } },
       { ...validationSelector, versionId: '018f22e2-7c15-7b2e-8d86-2de956a9d4b3' },
+      ...malformedPlatformScopes.map((scope) => ({ ...validationSelector, scope })),
       {},
     ];
     for (const candidate of rejected) {

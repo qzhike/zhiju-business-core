@@ -26,6 +26,29 @@ const evaluatorKeys = [readinessKey, validationKey];
 
 const uuidV7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
+/**
+ * A Platform Scope is the empty object literal and nothing else. Each entry
+ * below carries a Platform field outside the own-key inventory, is not a plain
+ * object, or would only reveal itself through serialization — none of them is
+ * an empty Platform Scope, so none of them may resolve or register.
+ */
+const malformedPlatformScopes: readonly unknown[] = [
+  { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d4a1' },
+  { enterpriseId: undefined },
+  { enterpriseId: 1n },
+  new Map([['enterpriseId', '018f22e2-7c15-7b2e-8d86-2de956a9d4a1']]),
+  Object.defineProperty({}, 'enterpriseId', {
+    value: '018f22e2-7c15-7b2e-8d86-2de956a9d4a1',
+    enumerable: false,
+  }),
+  [],
+  {
+    toJSON: (): never => {
+      throw new Error('candidate Scope must not be serialized');
+    },
+  },
+];
+
 interface RawEntry {
   registryKey?: string;
   owner?: string;
@@ -169,16 +192,14 @@ describe('deterministic registry rejection', () => {
   });
 
   it('rejects a reference that is not a Platform-scoped canonical selector', () => {
+    const registered = reference(readinessKey);
     const rejected: readonly Record<string, unknown>[] = [
-      { ...reference(readinessKey), objectType: 'zhiju.execution.task' },
-      {
-        ...reference(readinessKey),
-        scope: { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d4a1' },
-      },
-      { ...reference(readinessKey), kind: 'SNAPSHOT' },
-      { ...reference(readinessKey), objectId: '018f22e2-7c15-1b2e-8d86-2de956a9d4a0' },
-      { ...reference(readinessKey), versionId: 'not-a-uuid' },
-      { ...reference(readinessKey), contentHash: { algorithm: 'SHA-256', hashValue: 'x' } },
+      { ...registered, objectType: 'zhiju.execution.task' },
+      { ...registered, kind: 'SNAPSHOT' },
+      { ...registered, objectId: '018f22e2-7c15-1b2e-8d86-2de956a9d4a0' },
+      { ...registered, versionId: 'not-a-uuid' },
+      { ...registered, contentHash: { algorithm: 'SHA-256', hashValue: 'x' } },
+      ...malformedPlatformScopes.map((scope) => ({ ...registered, scope })),
     ];
     for (const candidate of rejected) {
       expect(() =>
@@ -239,7 +260,12 @@ describe('canonical selector resolution', () => {
         versionId: '018f22e2-7c15-7b2e-8d86-2de956a9d4b3',
       },
       { ...readiness, scope: { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d4a1' } },
+      ...malformedPlatformScopes.map((scope) => ({ ...readiness, scope })),
       { ...readiness, contentHash: { algorithm: 'SHA-256', hashValue: 'x' } },
+      Object.defineProperty({ ...readiness }, 'contentHash', {
+        value: { algorithm: 'SHA-256', hashValue: 'x' },
+        enumerable: false,
+      }),
       Object.fromEntries(Object.entries(readiness).filter(([name]) => name !== 'scope')),
       null,
       'te.task_readiness.evaluator@1.0',
