@@ -4,7 +4,6 @@
 // each other directly.
 
 export {
-  ContextSourceSliceEntryError,
   RESOLVE_POLICY_COMMAND,
   RESOLVE_POLICY_PURPOSE,
   createContextSourceSliceEntry,
@@ -14,3 +13,10 @@ export type {
   ContextSourceSliceEntryConfig,
   ContextSourceSliceSession,
 } from './context-source-slice-entry.js';
+export { CompositionBoundaryError } from './decision-boundary.js';
+export { createResolutionReceiptEntry } from './resolution-receipt-entry.js';
+export type {
+  ResolutionReceiptEntry,
+  ResolutionReceiptEntryConfig,
+  ResolutionReceiptSession,
+} from './resolution-receipt-entry.js';

@@ -71,6 +71,35 @@ const sourceSliceRef = exactObjectType(
   'zhiju.project.context_source_slice',
 );
 const principalRef = { $ref: `${common}principalRef` };
+// IM-06 (#191) resolution receipt boundary: the exact receipt content address
+// and the owning confirmation facts it is bound to. The ActorSnapshot and the
+// AuthorizationDecision are EnterpriseProject-visible identities only: their
+// payload hashes are owned by IdentityPolicy and are never asserted here.
+const commandReceiptRef = exactObjectType(
+  contentAddressedReference,
+  'zhiju.project.command_receipt',
+);
+const customerMaterialObjectRef = exactObjectType(
+  objectReference,
+  'zhiju.project.customer_material',
+);
+const customerMaterialVersionRef = exactObjectType(
+  versionedReference,
+  'zhiju.project.customer_material',
+);
+const sourceMaterialRef = exactObjectType(
+  contentAddressedReference,
+  'zhiju.project.source_material',
+);
+const businessDecisionRef = exactObjectType(
+  contentAddressedReference,
+  'zhiju.project.business_decision',
+);
+const actorSnapshotRef = exactObjectType(objectReference, 'zhiju.identity.actor_snapshot');
+const authorizationDecisionRef = exactObjectType(
+  objectReference,
+  'zhiju.identity.authorization_decision',
+);
 
 const namedDefinitions = {
   enterpriseStatus: { enum: ['ACTIVE', 'SUSPENDED', 'ARCHIVED'] },
@@ -423,6 +452,47 @@ const namedDefinitions = {
     projectionLag: { type: 'integer', minimum: 0 },
     projectionStatus: { enum: ['READY', 'STALE', 'REBUILDING', 'FAILED'] },
   }),
+  // IM-06 (#191): the narrow attestation returned for one committed
+  // CustomerMaterial confirmation Receipt. Every field is a fact the owning
+  // confirmation recorded immutably; the caller's claimed outcome, candidate,
+  // result or actor is never echoed back.
+  resolutionReceiptAttestation: object(
+    [
+      'commandReceiptRef',
+      'commandType',
+      'commandVersion',
+      'targetRef',
+      'scopeRef',
+      'requestPayloadHash',
+      'outcome',
+      'candidateVersionRef',
+      'confirmedVersionRef',
+      'sourceMaterialRefs',
+      'decisionRef',
+      'actorRef',
+      'actorSnapshotRef',
+      'authorizationDecisionRef',
+      'committedAt',
+    ],
+    {
+      commandReceiptRef,
+      commandType: { const: 'project.confirm_customer_material' },
+      commandVersion: { const: '1.0' },
+      targetRef: customerMaterialObjectRef,
+      // A confirmation is Project-scoped: both Scope members are required.
+      scopeRef: object(['enterpriseId', 'projectId'], { enterpriseId: uuid, projectId: uuid }),
+      requestPayloadHash: contentHash,
+      outcome: { const: 'COMMITTED' },
+      candidateVersionRef: customerMaterialVersionRef,
+      confirmedVersionRef: customerMaterialVersionRef,
+      sourceMaterialRefs: array(sourceMaterialRef, { nonEmpty: true, unique: true }),
+      decisionRef: businessDecisionRef,
+      actorRef: principalRef,
+      actorSnapshotRef,
+      authorizationDecisionRef,
+      committedAt: instant,
+    },
+  ),
 } as const satisfies Readonly<Record<string, JsonSchema>>;
 
 const operationSchemas = {
@@ -632,6 +702,10 @@ const operationSchemas = {
       }),
       payloadGuard: sliceGuardRef,
     },
+  },
+  'project.get_resolution_receipt': {
+    payload: object(['commandReceiptRef'], { commandReceiptRef }),
+    result: localRef('resolutionReceiptAttestation'),
   },
   'project.get_project_context_source': {
     payload: object(['projectRef', 'purpose', 'audience', 'requestedKinds'], {

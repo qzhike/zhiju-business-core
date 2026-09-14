@@ -1738,6 +1738,70 @@
           "objectType": "zhiju.identity.policy"
         }
       ]
+    },
+    {
+      "type": "project.get_resolution_receipt",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "enterprise-project",
+      "schemaStatus": "FULL",
+      "allowedConsistency": ["AUTHORITATIVE"],
+      "authorizationPurpose": "project.resolution_receipt.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "references": [
+        {
+          "path": "/payload/commandReceiptRef",
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.project.command_receipt"
+        }
+      ],
+      "resultReferences": [
+        {
+          "path": "/commandReceiptRef",
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.project.command_receipt"
+        },
+        {
+          "path": "/targetRef",
+          "kind": "OBJECT",
+          "objectType": "zhiju.project.customer_material"
+        },
+        {
+          "path": "/candidateVersionRef",
+          "kind": "VERSIONED",
+          "objectType": "zhiju.project.customer_material"
+        },
+        {
+          "path": "/confirmedVersionRef",
+          "kind": "VERSIONED",
+          "objectType": "zhiju.project.customer_material"
+        },
+        {
+          "path": "/sourceMaterialRefs",
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.project.source_material"
+        },
+        {
+          "path": "/decisionRef",
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.project.business_decision"
+        },
+        {
+          "path": "/actorRef",
+          "kind": "PRINCIPAL",
+          "objectType": "zhiju.identity.principal"
+        },
+        {
+          "path": "/actorSnapshotRef",
+          "kind": "OBJECT",
+          "objectType": "zhiju.identity.actor_snapshot"
+        },
+        {
+          "path": "/authorizationDecisionRef",
+          "kind": "OBJECT",
+          "objectType": "zhiju.identity.authorization_decision"
+        }
+      ]
     }
   ]
 }

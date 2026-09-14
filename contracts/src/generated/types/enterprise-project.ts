@@ -225,6 +225,42 @@ export namespace EnterpriseProject {
   readonly projectionLag?: number;
   readonly projectionStatus?: "READY" | "STALE" | "REBUILDING" | "FAILED";
 };
+  export type ResolutionReceiptAttestation = {
+  readonly commandReceiptRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.command_receipt";
+};
+  readonly commandType: "project.confirm_customer_material";
+  readonly commandVersion: "1.0";
+  readonly targetRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.customer_material";
+};
+  readonly scopeRef: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+  readonly requestPayloadHash: Common.ContentHash;
+  readonly outcome: "COMMITTED";
+  readonly candidateVersionRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.customer_material";
+};
+  readonly confirmedVersionRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.customer_material";
+};
+  readonly sourceMaterialRefs: readonly (Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.source_material";
+})[];
+  readonly decisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.business_decision";
+};
+  readonly actorRef: Common.PrincipalRef;
+  readonly actorSnapshotRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.identity.actor_snapshot";
+};
+  readonly authorizationDecisionRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.identity.authorization_decision";
+};
+  readonly committedAt: Common.UtcInstant;
+};
   /** Payload of `project.create_enterprise` (COMMAND). */
   export interface ProjectCreateEnterprisePayload {
   readonly displayCode: Common.NonEmptyString;
@@ -476,4 +512,12 @@ export namespace EnterpriseProject {
   readonly useStatus: "USABLE" | "EXPIRED" | "REVOKED";
   readonly checkedAt: Common.UtcInstant;
 };
+  /** Payload of `project.get_resolution_receipt` (QUERY). */
+  export type ProjectGetResolutionReceiptPayload = {
+  readonly commandReceiptRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.command_receipt";
+};
+};
+  /** Result of `project.get_resolution_receipt` (QUERY). */
+  export type ProjectGetResolutionReceiptResult = EnterpriseProject.ResolutionReceiptAttestation;
 }

@@ -112,13 +112,46 @@ export interface CommandAuditInput {
 }
 
 export type CommandBodyResult =
-  | { kind: 'COMMITTED'; resultPayload: CanonicalJsonObject }
+  | {
+      kind: 'COMMITTED';
+      resultPayload: CanonicalJsonObject;
+      /**
+       * Canonical immutable receipt material of this command. It commits in
+       * the same transaction as the confirmation and the receipt itself, and
+       * it is built from the commit facts only after the receipt is finalized,
+       * so a caller can never present them.
+       */
+      receiptMaterial?: CommandReceiptMaterialInput | undefined;
+    }
   | {
       kind: 'REJECTED';
       errorCode: string;
       safeSummary: string;
       currentAggregateVersion?: string | undefined;
     };
+
+/** Facts only the command runner knows when the owning receipt is finalized. */
+export interface CommandCommitFacts {
+  /** Completion instant written to the owning command receipt. */
+  readonly committedAt: Date;
+  /** Canonical hash of the exact request payload the command was bound to. */
+  readonly requestPayloadHash: Buffer;
+}
+
+/** Canonical receipt material persisted next to the owning command receipt. */
+export interface CommandReceiptMaterialInput {
+  /** Builds the canonical immutable receipt projection of this command. */
+  readonly canonicalPayload: (facts: CommandCommitFacts) => CanonicalJsonObject;
+  /** Persists the material with its promoted mirrors in this transaction. */
+  readonly persist: (
+    trx: EnterpriseProjectTransaction,
+    material: {
+      readonly payload: CanonicalJsonObject;
+      readonly payloadHash: Buffer;
+      readonly committedAt: Date;
+    },
+  ) => Promise<void>;
+}
 
 export interface CommandExecution {
   readonly trx: EnterpriseProjectTransaction;
@@ -308,9 +341,11 @@ async function runCommandTransaction(
     }
 
     const resultDigest = digestCanonicalPayload(bodyResult.resultPayload);
+    const committedAt = new Date();
     await finalizeReceipt(trx, envelope, {
       outcome: 'COMMITTED',
       resultPayload: bodyResult.resultPayload,
+      completedAt: committedAt,
     });
     await insertAuditRow(trx, envelope, {
       outcome: 'COMMITTED',
@@ -319,6 +354,18 @@ async function runCommandTransaction(
       requestHash,
       resultHash: resultDigest.hash,
     });
+    if (bodyResult.receiptMaterial !== undefined) {
+      // The canonical material is built from the exact commit facts, so the
+      // persisted receipt content address is the command's own receipt hash
+      // and never the request payload hash. A failure here aborts the whole
+      // transaction: no half-written confirmation and no attestation survive.
+      const payload = bodyResult.receiptMaterial.canonicalPayload({
+        committedAt,
+        requestPayloadHash: requestHash,
+      });
+      const payloadHash = digestCanonicalPayload(payload).hash;
+      await bodyResult.receiptMaterial.persist(trx, { payload, payloadHash, committedAt });
+    }
     return {
       kind: 'RESULT',
       result: {
@@ -390,6 +437,8 @@ async function finalizeReceipt(
   final: {
     outcome: 'COMMITTED' | 'REJECTED';
     resultPayload: CanonicalJsonObject;
+    /** Completion instant; the canonical receipt material reuses this value. */
+    completedAt?: Date | undefined;
   },
 ): Promise<void> {
   const resultDigest = digestCanonicalPayload(final.resultPayload);
@@ -397,7 +446,7 @@ async function finalizeReceipt(
     .updateTable('enterprise_project.command_receipt')
     .set({
       outcome: final.outcome,
-      completed_at: new Date(),
+      completed_at: final.completedAt ?? new Date(),
       result_payload: resultDigest.canonicalJson,
       result_payload_hash: resultDigest.hash,
     })

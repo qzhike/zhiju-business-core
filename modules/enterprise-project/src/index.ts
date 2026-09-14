@@ -195,6 +195,7 @@ export type {
   DeliveryItemCompletionEvaluationTable,
   DeliveryItemImpactReviewTable,
   ContextSourceSliceTable,
+  ResolutionReceiptMaterialTable,
 } from './persistence/enterprise-business-types.js';
 // IM-03 WI-03 (issue #59): business handlers and failure codes for the
 // EnterpriseProject vertical slice. Handlers fall into two groups:
@@ -389,6 +390,18 @@ export type {
 } from './business/source-slice-assembly.js';
 export { ContextSourceSliceRepository } from './persistence/context-source-slice-repository.js';
 export type { ContextSourceSliceInsert } from './persistence/context-source-slice-repository.js';
+// IM-06 (#191): canonical Resolution Receipt material persistence and the
+// narrow authoritative attestation Query.
+export { ResolutionReceiptRepository } from './persistence/resolution-receipt-repository.js';
+export type { ResolutionReceiptMaterialInsert } from './persistence/resolution-receipt-repository.js';
+export {
+  handleGetResolutionReceipt,
+  GET_RESOLUTION_RECEIPT_QUERY,
+  GET_RESOLUTION_RECEIPT_PURPOSE,
+  COMMAND_RECEIPT_OBJECT_TYPE,
+  CONFIRM_CUSTOMER_MATERIAL_COMMAND,
+} from './business/resolution-receipt-handlers.js';
+export type { GetResolutionReceiptQueryPayload } from './business/resolution-receipt-handlers.js';
 export {
   PROJECT_BOARD_PROJECTION_CONSUMER,
   calculateProjectBoardSnapshotHash,

@@ -576,3 +576,174 @@ export function assertTaskExecutionCompatibilityMetadata(
     }
   }
 }
+
+/**
+ * Public object names for the approved IM-06 (#191) resolution receipt
+ * boundary. `CommandReceipt` is the EnterpriseProject-owned command receipt
+ * that carries the confirmation; the ActorSnapshot and the
+ * AuthorizationDecision are referenced by their exact IdentityPolicy identity,
+ * because their payload hashes are not part of the EnterpriseProject trusted
+ * transaction facts and are therefore never asserted by this module.
+ */
+export const resolutionReceiptObjectTypes = {
+  'zhiju.project.command_receipt': {
+    owner: 'enterprise-project',
+    kinds: ['CONTENT_ADDRESSED'],
+  },
+  'zhiju.project.customer_material': {
+    owner: 'enterprise-project',
+    kinds: ['OBJECT', 'VERSIONED'],
+  },
+  'zhiju.project.source_material': {
+    owner: 'enterprise-project',
+    kinds: ['CONTENT_ADDRESSED'],
+  },
+  'zhiju.project.business_decision': {
+    owner: 'enterprise-project',
+    kinds: ['CONTENT_ADDRESSED'],
+  },
+  'zhiju.identity.actor_snapshot': { owner: 'identity-policy', kinds: ['OBJECT'] },
+  'zhiju.identity.authorization_decision': { owner: 'identity-policy', kinds: ['OBJECT'] },
+  'zhiju.identity.principal': { owner: 'identity-policy', kinds: ['PRINCIPAL'] },
+} as const;
+
+interface ResolutionReceiptRegistration {
+  readonly type: string;
+  readonly kind: 'QUERY';
+  readonly owner: string;
+  readonly schemaStatus: 'FULL';
+  readonly allowedConsistency: readonly 'AUTHORITATIVE'[];
+  readonly authorizationPurpose: string;
+  readonly dataClassification: string;
+  readonly references: readonly OperationReferenceDeclaration[];
+  readonly resultReferences: readonly OperationReferenceDeclaration[];
+}
+
+const resolutionReceiptRegistrations: readonly ResolutionReceiptRegistration[] = [
+  {
+    type: 'project.get_resolution_receipt',
+    kind: 'QUERY',
+    owner: 'enterprise-project',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'project.resolution_receipt.read',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    references: [
+      {
+        path: '/payload/commandReceiptRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.project.command_receipt',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/commandReceiptRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.project.command_receipt',
+      },
+      {
+        path: '/targetRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.project.customer_material',
+      },
+      {
+        path: '/candidateVersionRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.project.customer_material',
+      },
+      {
+        path: '/confirmedVersionRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.project.customer_material',
+      },
+      {
+        path: '/sourceMaterialRefs',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.project.source_material',
+      },
+      {
+        path: '/decisionRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.project.business_decision',
+      },
+      {
+        path: '/actorRef',
+        kind: 'PRINCIPAL',
+        objectType: 'zhiju.identity.principal',
+      },
+      {
+        path: '/actorSnapshotRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.identity.actor_snapshot',
+      },
+      {
+        path: '/authorizationDecisionRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.identity.authorization_decision',
+      },
+    ],
+  },
+] as const;
+
+export function assertResolutionReceiptOperationRegistrations(
+  operations: readonly (Omit<PublicOperationDefinition, 'version'> & {
+    readonly version: string;
+  })[],
+): void {
+  for (const expected of resolutionReceiptRegistrations) {
+    const matching = operations.filter(
+      (operation) => operation.type === expected.type && operation.version === '1.0',
+    );
+    if (matching.length !== 1)
+      throw new Error(`missing or duplicate resolution receipt operation: ${expected.type}`);
+    const operation = matching[0];
+    if (operation === undefined) throw new Error('missing resolution receipt operation');
+    if (
+      operation.kind !== expected.kind ||
+      operation.owner !== expected.owner ||
+      operation.schemaStatus !== expected.schemaStatus ||
+      operation.targetObjectType !== undefined ||
+      operation.concurrencyMode !== undefined ||
+      !sameRegistrationValue(operation.allowedConsistency, expected.allowedConsistency) ||
+      operation.authorizationPurpose !== expected.authorizationPurpose ||
+      operation.dataClassification !== expected.dataClassification ||
+      operation.payloadGuardPolicyRef !== undefined ||
+      !sameRegistrationValue(operation.references ?? [], expected.references) ||
+      !sameRegistrationValue(operation.resultReferences ?? [], expected.resultReferences)
+    ) {
+      throw new Error(`invalid resolution receipt registration: ${expected.type}`);
+    }
+    for (const ref of [...expected.references, ...expected.resultReferences]) {
+      const object = (
+        resolutionReceiptObjectTypes as Readonly<
+          Record<string, { readonly owner: string; readonly kinds: readonly string[] }>
+        >
+      )[ref.objectType];
+      if (!object?.kinds.includes(ref.kind))
+        throw new Error(`unregistered resolution receipt reference object type: ${ref.objectType}`);
+    }
+  }
+}
+
+export function assertResolutionReceiptCompatibilityMetadata(
+  metadata: readonly {
+    readonly type: string;
+    readonly version: string;
+    readonly authorizationPurpose: string;
+    readonly dataClassification: string;
+  }[],
+): void {
+  for (const expected of resolutionReceiptRegistrations) {
+    const entries = metadata.filter(
+      (entry) => entry.type === expected.type && entry.version === '1.0',
+    );
+    const entry = entries[0];
+    if (
+      entries.length !== 1 ||
+      entry?.authorizationPurpose !== expected.authorizationPurpose ||
+      entry.dataClassification !== expected.dataClassification
+    ) {
+      throw new Error(`inconsistent resolution receipt compatibility metadata: ${expected.type}`);
+    }
+  }
+}

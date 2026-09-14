@@ -1091,6 +1091,38 @@ export interface ContextSourceSliceTable {
   retention_class: string;
 }
 
+// IM-06 (#191): one immutable canonical Receipt material per committed
+// CustomerMaterial confirmation command. The canonical payload is the exact
+// published attestation content; the promoted columns mirror it and are
+// guarded in SQL by `V2015`.
+export interface ResolutionReceiptMaterialTable {
+  command_id: string;
+  enterprise_id: string;
+  project_id: string;
+  command_type: string;
+  command_version: string;
+  outcome: string;
+  target_ref: Json;
+  request_payload_hash: Buffer;
+  candidate_version_ref: Json;
+  confirmed_version_ref: Json;
+  source_material_refs: Json;
+  decision_ref: Json;
+  actor_ref: Json;
+  actor_snapshot_ref: Json;
+  authorization_decision_ref: Json;
+  committed_at: Date;
+  receipt_payload: Json;
+  receipt_payload_hash: Buffer;
+  canonicalization_version: string;
+  created_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  source_command_id: string;
+  retention_class: string;
+}
+
 export interface DeliveryPlanDecisionTable {
   decision_id: string;
   delivery_plan_id: string;

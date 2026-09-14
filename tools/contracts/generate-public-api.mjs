@@ -11,6 +11,8 @@ import { loadPolicyProfileRegistry } from '../../contracts/src/policy-profiles.t
 import {
   assertPolicyVersionCompatibilityMetadata,
   assertPolicyVersionOperationRegistrations,
+  assertResolutionReceiptCompatibilityMetadata,
+  assertResolutionReceiptOperationRegistrations,
   assertSliceOperationRegistrations,
   assertSliceCompatibilityMetadata,
   assertTaskExecutionCompatibilityMetadata,
@@ -52,6 +54,7 @@ const evaluatorRegistryOutputPath = join(root, 'contracts/src/generated/evaluato
 assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
 assertPolicyVersionOperationRegistrations(registry.operations);
+assertResolutionReceiptOperationRegistrations(registry.operations);
 const metadata = JSON.parse(
   readFileSync(join(root, 'contracts/registry/operation-compatibility-metadata.v1.json'), 'utf8'),
 );
@@ -63,6 +66,7 @@ for (const op of registry.operations) {
 assertSliceCompatibilityMetadata(registry.operations, metadata.operations);
 assertTaskExecutionCompatibilityMetadata(metadata.operations);
 assertPolicyVersionCompatibilityMetadata(metadata.operations);
+assertResolutionReceiptCompatibilityMetadata(metadata.operations);
 
 function quote(value) {
   return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;

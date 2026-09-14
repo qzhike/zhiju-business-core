@@ -755,6 +755,7 @@ Queries：
 ```text
 project.get_project_context_source@1.0
 project.get_context_source_slice@1.0
+project.get_resolution_receipt@1.0
 project.get_enterprise_profile_snapshot@1.0
 project.get_active_baseline_refs@1.0
 project.get_delivery_item_criteria@1.0
@@ -1128,11 +1129,11 @@ Evidence/Representation/Package Ref
 
 Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 冻结 EnterpriseProject Owner 的受控 Application Capability；逻辑名称、输入/输出、授权目的和错误码见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。
 
-这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 211 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
+这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 212 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
 
 ## IM-06 注册与未注册设计路由
 
-当前 Catalog 为 211 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），#189 完成两个首版 Evaluator profile 选择器的构建期静态注册与纯解析（不新增公开 operation，计数不变），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 212 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），#189 完成两个首版 Evaluator profile 选择器的构建期静态注册与纯解析（不新增公开 operation，计数不变），#191 注册 `project.get_resolution_receipt@1.0`（静态契约、Handler、授权、V2015 持久化与精确可重算 backfill 由 #191 交付；TE 消费仍 NOT RUN），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
 
 ### #157 ContextSourceSlice 注册
 
@@ -1184,7 +1185,7 @@ SnapshotRef 的全部字段（`kind`、`objectType`、`objectId`、`snapshotId`�
 
 ### #189 首批 Evaluator profile 注册
 
-状态：`#176 TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / BUILD-TIME REGISTRATION IMPLEMENTED 2026-09-14 (#189) / EVALUATOR NOT IMPLEMENTED`。Owner 为 TaskExecution；本项**不新增公开 operation**，Catalog 保持 211 项，`operationCount` 不因选择器增加。两个首版 profile 选择器以新的构建期 registry 版本 `im06-evaluator-static-v1`（`contracts/registry/evaluator-profiles.v1.json`；生成副本 `contracts/src/generated/evaluator-profiles.json` 与注册源字节一致，漂移使构建失败）承载：`te.task_readiness.evaluator@1.0`、`te.work_order_validation.evaluator@1.0`。
+状态：`#176 TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / BUILD-TIME REGISTRATION IMPLEMENTED 2026-09-14 (#189) / EVALUATOR NOT IMPLEMENTED`。Owner 为 TaskExecution；本项**不新增公开 operation**，Catalog 保持该增量前的 211 项，`operationCount` 不因选择器增加。两个首版 profile 选择器以新的构建期 registry 版本 `im06-evaluator-static-v1`（`contracts/registry/evaluator-profiles.v1.json`；生成副本 `contracts/src/generated/evaluator-profiles.json` 与注册源字节一致，漂移使构建失败）承载：`te.task_readiness.evaluator@1.0`、`te.work_order_validation.evaluator@1.0`。
 
 registry key 与 canonical typed ref 一一对应：未知 key/objectType/objectId/versionId、非空 Scope、错 kind、重复 key/身份、缺条目、错误 owner 与未知 registry 版本一律 fail closed；纯解析只做 `kind`/`objectType`/`objectId`/`versionId`/`scope` 全字段精确匹配，不做 latest/回退，也不只比较字符串尾缀或 `versionId`。既有 `im02-static-v1`、`im06-static-v1`、旧命令接受集合与 200 项历史 Compatibility Baseline 均不改变。
 
@@ -1199,3 +1200,23 @@ Evaluator 确定性实现、解析调用点、`validUntil` 推导、判断产出
 Owner 为 TaskExecution；新增一个与旧 @1.0 并存的 `execution.create_task@2.0` Command，Target 固定 `zhiju.execution.task`（OBJECT、CREATE），Purpose 为 `execution.task.create`。本项不新增 objectType：复用已注册的 `zhiju.execution.task` 与 `zhiju.project.project`，payload 的 `projectRef` 固定为 canonical `zhiju.project.project`；`initialAssignee` 沿用既有开放形状，`evaluatorRef` 沿用通用 `VersionedRef`（与 Core `completionCriterion.evaluatorRef` 一致），故上表无新增行。
 
 `TaskDefinitionV2` 的字段集合与历史 `TaskDefinition` 相同：`expectedOutputSpec` 与 `completionCriteria` 两个开放 `CanonicalJson` 成员替换为注册的 closed shape（`ExpectedOutput[]`，复用 Core `ExpectedOutput`；非空 criterion 集合），`inputRefs` 按 §2 的已批准 `TypedReference[]` 注册为普通数组而不复用 @1.0 payload 的 `uniqueItems` 历史偏差（`dependencyTaskRefs` 仍为 Set）。五类 `TaskCriterionV1` 的 closed Schema、criterionType 与三个 bindings 分支的一一对应、未知字段与任意 `expectedCondition` 表达式由注册 Schema 拒绝；重复 criterionId、重复 outputSlot 与未解析的 output-slot 绑定由纯契约校验 `validateTaskDefinitionBinding` 拒绝。`create_task@1.0` 的 Schema、历史 fixture 与接受集合不变，历史 200 项 Compatibility Baseline 不重写；Evaluator 存在性/支持版本、Policy 有效性、真实授权以及 Task Handler、业务持久化、Readiness/Completion 与业务 E2E 仍为 `NOT IMPLEMENTED / NOT RUN`。
+
+### #191 Resolution Receipt 注册
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 (TD-04) / SCHEMA, REGISTRY, GENERATED TYPES, FIXTURES, HANDLER, AUTHORIZATION, V2015 PERSISTENCE AND EXACT BACKFILL IMPLEMENTED 2026-09-14 (#191) / TE CONSUMPTION NOT RUN`。Owner 为 EnterpriseProject；新增一个只读 AUTHORITATIVE Query `project.get_resolution_receipt@1.0`（Purpose `project.resolution_receipt.read`，`dataClassification=CUSTOMER_CONFIDENTIAL`，无独立构建期 PayloadGuard 技术 Policy），Catalog 由 211 增至 212 项，本模块公开条目由 34 增至 35。历史 200 项 Compatibility Baseline 与旧 `project.*` 条目均未重写。
+
+| objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
+|---|---|---|---|
+| `zhiju.project.command_receipt` | enterprise-project | CONTENT_ADDRESSED；Project Scope | 每命令一份不可变规范 Receipt 材料的事实身份；不另建可变版本；否 |
+| `zhiju.project.customer_material` | enterprise-project | OBJECT（确认目标）、VERSIONED（candidate/confirmed version）；Project Scope | 既有 CustomerMaterial Root/不可变版本身份；本项不改变其生命周期；否 |
+| `zhiju.project.source_material` | enterprise-project | CONTENT_ADDRESSED；Project Scope | 既有已接受 SourceMaterial 身份；selection 的 Hash 为原始 bytes 内容 Hash；否 |
+| `zhiju.project.business_decision` | enterprise-project | CONTENT_ADDRESSED；Project Scope | 既有 CustomerMaterial confirmation Decision 事实；Hash 为 Decision payload 的规范 Hash；否 |
+| `zhiju.identity.actor_snapshot` | identity-policy | OBJECT；Project Scope | 既有 ActorSnapshot 身份；EP 只记录并返回其精确身份，不声明其内容 Hash；否 |
+| `zhiju.identity.authorization_decision` | identity-policy | OBJECT；Project Scope | 既有 AuthorizationDecision 身份；EP 只记录并返回其精确身份，不声明其内容 Hash；否 |
+| `zhiju.identity.principal` | identity-policy | PRINCIPAL（`actorRef`）；无独立 Scope | 既有 PrincipalRef 形状；confirmation 为 Human-only，`principalKind` 精确为 `HUMAN`；否 |
+
+Query payload 固定 `{commandReceiptRef}`（CONTENT_ADDRESSED/`zhiju.project.command_receipt`，id + 完整 ContentHash + Project Scope）；Result 固定 `ResolutionReceiptAttestation`：`commandReceiptRef, commandType: 'project.confirm_customer_material', commandVersion: '1.0', targetRef, scopeRef, requestPayloadHash, outcome: 'COMMITTED', candidateVersionRef, confirmedVersionRef, sourceMaterialRefs, decisionRef, actorRef, actorSnapshotRef, authorizationDecisionRef, committedAt`，`sourceMaterialRefs` 为非空去重集合。
+
+`commandReceiptRef.contentHash` 是**持久化规范 Receipt payload 的规范 Hash**（command identity、完整 Scope/target、request hash、candidate/confirmed/decision/source 引用、outcome、actor、committedAt），不是原命令 request payload Hash；actor 与 AuthorizationDecision 只按精确身份绑定，因为其 payload Hash 由 IdentityPolicy 拥有、不属于 EnterpriseProject 的不可变记录，且历史确认必须能仅由 EP owning 事实精确重算。ActorSnapshot/AuthorizationDecision 的 Hash 不在本项声明，也不由 EP 伪造。
+
+正负 fixture、Schema/Guard 一致性与 Registry 元数据校验由 `contracts/src/operations/enterprise-project.schema.test.ts` 与 `tests/fixtures/contracts/resolution-receipt/` 覆盖；Handler/授权/持久化与真实 PostgreSQL 证据见 [Spec 002](../module-specs/Module-Spec-002-EnterpriseProject.md#191-实现事实resolution-receipt-material-与-attestation-query) 与 [Module Test 002](../module-tests/Module-Test-002-EnterpriseProject.md#im-06-191-resolution-receipt-用例)。TE 的答案采纳与 resolver 消费链仍为 `NOT RUN`。
