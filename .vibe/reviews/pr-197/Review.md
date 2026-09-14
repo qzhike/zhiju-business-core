@@ -1,6 +1,27 @@
 # PR #197 独立审查
 
-## 当前远端结论（第 2 轮：本地候选复核）
+## 当前结论（第 3 轮：已交付修复复审）
+
+- 结论：`APPROVE`
+- Reviewed SHA：`59ab6f605f073dcd755b23bb5394256a03ba146b`
+- Base SHA：`a00d5ac5a1b0a448aa15d99c6024977df3300e0d`
+- PR：[#197](https://github.com/qzhike/zhiju-business-core/pull/197)
+- Work item：[#191](https://github.com/qzhike/zhiju-business-core/issues/191)（T2）
+- 复审日期：2026-09-14
+
+本轮重新读取了 Issue #191、精确 PR head、`bcd54ad..59ab6f6` 修复 diff、受影响的 EnterpriseProject Spec/Test 与 PostgreSQL §33、迁移/业务/读取实现、正式 Review 记录和 revision-bound GitHub Actions 证据。复核时本地 `HEAD`、远端分支与 PR head 均为上述 SHA，工作树干净。
+
+第 1 轮 R1 已关闭。实时 Receipt 构造、Query 从 confirmed version 重建来源及 V2015 backfill 现在采用同一稳定的 exact `SourceMaterialRef` 去重规则，保留首次出现顺序且不收紧既有 `sourceSelections` 接受集合；数据库 mirror guard 同时拒绝重复 exact refs。`EP-WI191-P-005` 经真实 proposal → Human confirm → composition read → backfill 覆盖同一 source ref、不同 role/locator，验证 confirmed version 保留两项 selection、Receipt/attestation 只发布一个 exact ref、注册 Result Schema 通过且 backfill 精确复现 payload/hash；`EP-WI191-RLS-002` 验证自洽但重复的持久化材料以 `22023` 被拒绝。
+
+第 1 轮 R2 已关闭。V2015 显式从 `enterprise_project_app` 撤销 `canonical_jsonb_text(jsonb)` 与 `backfill_resolution_receipt_material()` 的 `EXECUTE`。mirror trigger guard 以 `SECURITY DEFINER` 调用 owner-only canonicalizer，固定 `search_path=pg_catalog`、使用全限定函数名且只检查 `NEW` 行；trigger function 不能作为普通 SQL 函数调用，因此没有新增 app 可调用的维护入口。扩展后的 `EP-WI191-RLS-001` 验证 app 的 `has_function_privilege=false`、直接调用返回 `42501`、owner 正向权限保留，同时正常 app confirmation 写入仍成功。
+
+本轮没有发现新的代码、契约、迁移或测试阻断。精确 reviewed SHA 的 GitHub Actions [run 34826052902](https://github.com/qzhike/zhiju-business-core/actions/runs/34826052902) 为 `completed / success`，`headSha=59ab6f605f073dcd755b23bb5394256a03ba146b`；verify job [103918363903](https://github.com/qzhike/zhiju-business-core/actions/runs/34826052902/job/103918363903) 的 `pnpm verify` 成功。交付记录与本地同内容完整门禁给出普通测试 897 passed / 367 skipped、persistence 382/382、PostgreSQL 18.6 / Flyway 11.20.3 空库迁移和二次 no-op 通过；`git diff --check` 对修复 commit 通过。
+
+TE InformationRequest/answer/resolver 消费、跨模块链、真实 Provider/Feishu、公开 HTTP、生产和独立人工 Reference Project 验收继续为 `NOT RUN`，与本 Work item 的已验证设计/本地/持久化证据保持分层。
+
+2026-09-14，人类审查者在本轮会话中明确确认“审核通过”，据此记录 Issue #191 要求的独立人类安全/迁移技术审查已满足。精确 SHA 的代码复审无阻断、required CI 成功，结论更新为 `APPROVE`。此结论不等于 merge 授权；合并仍须由用户另行明确授权。此第 3 轮记录是在被审 SHA 之后生成的 review evidence；进入分支时只能作为后续文档提交，不得声称已包含在 `59ab6f6` 中。
+
+## 第 2 轮：本地候选复核
 
 - 结论：`REQUEST_CHANGES`
 - 远端 Reviewed SHA：`bcd54ad56c5504aac34079077171a322f58c9b89`
