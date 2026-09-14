@@ -1,0 +1,28 @@
+{
+  "generatedFrom": [
+    "contracts/registry/public-api.v1.json",
+    "contracts/registry/operation-compatibility-metadata.v1.json"
+  ],
+  "mappings": [
+    {
+      "commandType": "execution.create_task",
+      "commandVersion": "1.0",
+      "authorizationPurpose": "task.execution.create_task"
+    },
+    {
+      "commandType": "execution.create_task",
+      "commandVersion": "2.0",
+      "authorizationPurpose": "execution.task.create"
+    },
+    {
+      "commandType": "execution.create_work_order",
+      "commandVersion": "1.0",
+      "authorizationPurpose": "task.execution.create_work_order"
+    },
+    {
+      "commandType": "execution.create_work_order",
+      "commandVersion": "1.1",
+      "authorizationPurpose": "task.execution.create_work_order"
+    }
+  ]
+}

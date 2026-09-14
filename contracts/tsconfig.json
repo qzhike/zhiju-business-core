@@ -9,7 +9,8 @@
     "src/**/*.ts",
     "src/generated/payload-guard-policies.json",
     "src/generated/policy-profiles.json",
-    "src/generated/evaluator-profiles.json"
+    "src/generated/evaluator-profiles.json",
+    "src/generated/task-execution-creation-purposes.json"
   ],
   "references": [{ "path": "../packages/shared-kernel" }]
 }

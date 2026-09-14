@@ -18,12 +18,22 @@ import {
   assertSliceOperationRegistrations,
   assertSliceCompatibilityMetadata,
   assertTaskExecutionCompatibilityMetadata,
+  assertTaskExecutionCreationPurposeMetadata,
+  assertTaskExecutionCreationPurposeRegistrations,
   assertTaskExecutionOperationRegistrations,
+  taskExecutionCreationPurposes,
 } from '../../contracts/src/operation-registration.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const registryPath = join(root, 'contracts', 'registry', 'public-api.v1.json');
 const outputPath = join(root, 'contracts', 'src', 'generated', 'public-api.ts');
+const creationPurposeOutputPath = join(
+  root,
+  'contracts',
+  'src',
+  'generated',
+  'task-execution-creation-purposes.json',
+);
 const registry = JSON.parse(readFileSync(registryPath, 'utf8'));
 
 const guardSource = readFileSync(
@@ -55,6 +65,7 @@ const evaluatorRegistry = loadEvaluatorProfileRegistry(JSON.parse(evaluatorRegis
 const evaluatorRegistryOutputPath = join(root, 'contracts/src/generated/evaluator-profiles.json');
 assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
+assertTaskExecutionCreationPurposeRegistrations(registry.operations);
 assertPolicyVersionOperationRegistrations(registry.operations);
 assertResolutionReceiptOperationRegistrations(registry.operations);
 assertRevisionEligibilityOperationRegistrations(registry.operations);
@@ -68,6 +79,7 @@ for (const op of registry.operations) {
 
 assertSliceCompatibilityMetadata(registry.operations, metadata.operations);
 assertTaskExecutionCompatibilityMetadata(metadata.operations);
+assertTaskExecutionCreationPurposeMetadata(metadata.operations);
 assertPolicyVersionCompatibilityMetadata(metadata.operations);
 assertResolutionReceiptCompatibilityMetadata(metadata.operations);
 assertRevisionEligibilityCompatibilityMetadata(metadata.operations);
@@ -113,19 +125,58 @@ const generated = await format(
   { parser: 'typescript', singleQuote: true, printWidth: 100, trailingComma: 'all' },
 );
 
+// The run-time consumable creation Purpose mapping is a projection of the two
+// published registries, not a third registry: the four approved
+// `(type, version)` keys come from the check table, owner/kind from
+// `public-api.v1.json` and the Purpose from
+// `operation-compatibility-metadata.v1.json` (the only source that carries the
+// two `@1.0` values). Both assertions above already rejected a missing,
+// duplicated, mis-owned, mis-kinded or rewritten entry.
+const creationPurposeMappings = taskExecutionCreationPurposes.map(
+  ({ type: commandType, version: commandVersion }) => {
+    const operation = registry.operations.find(
+      (candidate) => candidate.type === commandType && candidate.version === commandVersion,
+    );
+    const entry = metadata.operations.find(
+      (candidate) => candidate.type === commandType && candidate.version === commandVersion,
+    );
+    if (operation === undefined || entry === undefined) {
+      throw new Error(`missing creation operation: ${commandType}@${commandVersion}`);
+    }
+    return {
+      commandType: operation.type,
+      commandVersion: operation.version,
+      authorizationPurpose: entry.authorizationPurpose,
+    };
+  },
+);
+
+const generatedCreationPurposes = `${JSON.stringify(
+  {
+    generatedFrom: [
+      'contracts/registry/public-api.v1.json',
+      'contracts/registry/operation-compatibility-metadata.v1.json',
+    ],
+    mappings: creationPurposeMappings,
+  },
+  null,
+  2,
+)}\n`;
+
 if (process.argv.includes('--check')) {
   const current = readFileSync(outputPath, 'utf8').replaceAll('\r\n', '\n');
   if (
     current !== generated ||
     readFileSync(guardOutputPath, 'utf8') !== guardSource ||
     readFileSync(profileRegistryOutputPath, 'utf8') !== profileRegistrySource ||
-    readFileSync(evaluatorRegistryOutputPath, 'utf8') !== evaluatorRegistrySource
+    readFileSync(evaluatorRegistryOutputPath, 'utf8') !== evaluatorRegistrySource ||
+    readFileSync(creationPurposeOutputPath, 'utf8') !== generatedCreationPurposes
   ) {
     console.error('generated public API registry is stale; run pnpm contracts:generate');
     process.exitCode = 1;
   } else {
     console.log(
-      `public_api_generation=PASS operations=${registry.operations.length} policy_profiles=${profileRegistry.profiles.length} evaluator_profiles=${evaluatorRegistry.profiles.length}`,
+      `public_api_generation=PASS operations=${registry.operations.length} policy_profiles=${profileRegistry.profiles.length} evaluator_profiles=${evaluatorRegistry.profiles.length} creation_purposes=${creationPurposeMappings.length}`,
     );
   }
 } else {
@@ -133,7 +184,8 @@ if (process.argv.includes('--check')) {
   writeFileSync(guardOutputPath, guardSource, 'utf8');
   writeFileSync(profileRegistryOutputPath, profileRegistrySource, 'utf8');
   writeFileSync(evaluatorRegistryOutputPath, evaluatorRegistrySource, 'utf8');
+  writeFileSync(creationPurposeOutputPath, generatedCreationPurposes, 'utf8');
   console.log(
-    `public_api_generation=UPDATED operations=${registry.operations.length} policy_profiles=${profileRegistry.profiles.length} evaluator_profiles=${evaluatorRegistry.profiles.length}`,
+    `public_api_generation=UPDATED operations=${registry.operations.length} policy_profiles=${profileRegistry.profiles.length} evaluator_profiles=${evaluatorRegistry.profiles.length} creation_purposes=${creationPurposeMappings.length}`,
   );
 }

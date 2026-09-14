@@ -160,6 +160,11 @@ export {
   policySchemaReference,
   registeredPolicySchemaKey,
 } from './commands/static-registry.js';
+export { resolveTaskExecutionCreationPurpose } from './commands/task-execution-creation-purpose.js';
+export type {
+  TaskExecutionCreationPurpose,
+  TaskExecutionCreationPurposeResolution,
+} from './commands/task-execution-creation-purpose.js';
 export {
   createActorSnapshot,
   authorizeCommand,

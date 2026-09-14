@@ -578,6 +578,116 @@ export function assertTaskExecutionCompatibilityMetadata(
 }
 
 /**
+ * The approved per-version creation Purpose mapping of Spec 003 §15.1
+ * (design decision §13, P-190-1 option A): the exact `(type, version)` keys of
+ * the four published creation operations and the one Purpose each of them
+ * accepts.
+ *
+ * Executable sources stay the two published registries:
+ * `operation-compatibility-metadata.v1.json` carries all four approved values
+ * (including the two `@1.0` ones), `public-api.v1.json` carries owner/kind.
+ * The two `@1.0` public API entries legitimately omit `authorizationPurpose`;
+ * that historical shape stays accepted and is never read as "no Purpose".
+ * `contracts/src/generated/task-execution-creation-purposes.json` is the
+ * derived projection consumed at run time, and this table is the approved
+ * expectation it is checked against. No registry entry is rewritten, no alias
+ * (`execution.work_order.create`) and no cross-version fallback is accepted.
+ */
+export interface TaskExecutionCreationPurposeRegistration {
+  readonly type: string;
+  readonly version: string;
+  readonly kind: string;
+  readonly owner: string;
+  readonly authorizationPurpose: string;
+}
+
+export const taskExecutionCreationPurposes: readonly TaskExecutionCreationPurposeRegistration[] = [
+  {
+    type: 'execution.create_task',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    authorizationPurpose: 'task.execution.create_task',
+  },
+  {
+    type: 'execution.create_task',
+    version: '2.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    authorizationPurpose: 'execution.task.create',
+  },
+  {
+    type: 'execution.create_work_order',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    authorizationPurpose: 'task.execution.create_work_order',
+  },
+  {
+    type: 'execution.create_work_order',
+    version: '1.1',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    authorizationPurpose: 'task.execution.create_work_order',
+  },
+] as const;
+
+/**
+ * Every approved creation version is registered exactly once with its approved
+ * owner/kind, and a declared `authorizationPurpose` — where the historical
+ * `@1.0` entries declare none — is the approved value.
+ */
+export function assertTaskExecutionCreationPurposeRegistrations(
+  operations: readonly (Omit<PublicOperationDefinition, 'version'> & {
+    readonly version: string;
+  })[],
+): void {
+  for (const expected of taskExecutionCreationPurposes) {
+    const key = `${expected.type}@${expected.version}`;
+    const matching = operations.filter(
+      (operation) => operation.type === expected.type && operation.version === expected.version,
+    );
+    if (matching.length !== 1) throw new Error(`missing or duplicate creation operation: ${key}`);
+    const operation = matching[0];
+    if (operation === undefined) throw new Error(`missing creation operation: ${key}`);
+    if (operation.kind !== expected.kind || operation.owner !== expected.owner) {
+      throw new Error(`invalid creation operation registration: ${key}`);
+    }
+    if (
+      operation.authorizationPurpose !== undefined &&
+      operation.authorizationPurpose !== expected.authorizationPurpose
+    ) {
+      throw new Error(`invalid creation operation Purpose: ${key}`);
+    }
+  }
+}
+
+/**
+ * The compatibility metadata carries the approved Purpose of all four creation
+ * versions, including the two whose public API entry omits the field. A
+ * missing, duplicated, aliased or rewritten value fails here.
+ */
+export function assertTaskExecutionCreationPurposeMetadata(
+  metadata: readonly {
+    readonly type: string;
+    readonly version: string;
+    readonly authorizationPurpose: string;
+  }[],
+): void {
+  for (const expected of taskExecutionCreationPurposes) {
+    const entries = metadata.filter(
+      (entry) => entry.type === expected.type && entry.version === expected.version,
+    );
+    const entry = entries[0];
+    if (entries.length !== 1 || entry?.authorizationPurpose !== expected.authorizationPurpose) {
+      throw new Error(
+        `inconsistent creation Purpose metadata: ${expected.type}@${expected.version}`,
+      );
+    }
+  }
+}
+
+/**
  * Public object names for the approved IM-06 (#191) resolution receipt
  * boundary. `CommandReceipt` is the EnterpriseProject-owned command receipt
  * that carries the confirmation; the ActorSnapshot and the

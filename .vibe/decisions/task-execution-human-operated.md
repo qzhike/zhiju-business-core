@@ -528,7 +528,7 @@ PolicyVersionResolutionView
 
 ## 13. #190 Task/WorkOrder 创建 Purpose 兼容性提案
 
-状态：`T2 DESIGN ONLY / APPROVED 2026-09-14 / HANDLER AUTHORIZATION NOT RUN`。本节回应 [Issue #190](https://github.com/qzhike/zhiju-business-core/issues/190)，§12.1/§12.9 保留的创建 Purpose 分歧已按 P-190-1 方案 A 获得人类批准。TD-01–04 及 P-176-1–5 不重开，TD-05–07 不被追认。本次不改可执行 Registry、业务代码、migration 或授权数据，不创建依赖实现 Issue。
+状态：`T2 / DESIGN APPROVED 2026-09-14 / EXACT MAPPING AND PURE RESOLUTION IMPLEMENTED 2026-09-14（#196）/ HANDLER AUTHORIZATION NOT RUN`。本节回应 [Issue #190](https://github.com/qzhike/zhiju-business-core/issues/190)，§12.1/§12.9 保留的创建 Purpose 分歧已按 P-190-1 方案 A 获得人类批准。TD-01–04 及 P-176-1–5 不重开，TD-05–07 不被追认。本次不改可执行 Registry、业务代码、migration 或授权数据，不创建依赖实现 Issue。
 
 ### 13.1 逐版本事实与证据边界
 

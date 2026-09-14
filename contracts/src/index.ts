@@ -26,4 +26,5 @@ export * from './policy-profiles.js';
 export * from './policy-version-binding.js';
 export * from './registry.js';
 export * from './schema-types.js';
+export * from './task-execution-creation-purpose.js';
 export * from './payload-guard.js';

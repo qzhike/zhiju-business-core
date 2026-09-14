@@ -569,7 +569,9 @@ C_res + |D| = (C_req + |D|) + (C_res − C_req) ≤ 262144 + R_only ≤ 262144 +
 
 ## 14. TaskExecution 创建授权（#190 APPROVED）
 
-状态：`APPROVED 2026-09-14 / NOT IMPLEMENTED / NOT RUN`。批准依据见[决定 §13.3](../decisions/task-execution-human-operated.md#133-决定与交付边界)。本节固定四个创建版本的授权接线边界，不更改当前 Decision Port 的实现行为，也不扩大现行 Role/Capability。逐版本唯一 Purpose 由 [Spec 003 §15.1](Module-Spec-003-TaskExecution.md#151-推荐的逐版本-canonical-映射)拥有。
+状态：`APPROVED 2026-09-14 / EXACT MAPPING AND PURE RESOLUTION IMPLEMENTED 2026-09-14（#196）/ COMPOSITION LAYER NOT IMPLEMENTED / NOT RUN`。批准依据见[决定 §13.3](../decisions/task-execution-human-operated.md#133-决定与交付边界)。本节固定四个创建版本的授权接线边界，不更改当前 Decision Port 的实现行为，也不扩大现行 Role/Capability。逐版本唯一 Purpose 由 [Spec 003 §15.1](Module-Spec-003-TaskExecution.md#151-推荐的逐版本-canonical-映射)拥有。
+
+已实现的静态分量（#196，仅解析）：`contracts` 从两份现有 Registry 投影并发布四行精确映射（`contracts/src/task-execution-creation-purpose.ts`，生成副本与漂移检查见 [Spec 003 §15.1](Module-Spec-003-TaskExecution.md#151-推荐的逐版本-canonical-映射)），IdentityPolicy 模块公开导出 `resolveTaskExecutionCreationPurpose(commandType, commandVersion)`：只接受精确键，未知 operation/版本、缺失或非精确版本、`*`、别名、大小写变体与前缀一律返回 `UNSUPPORTED_OPERATION`/`UNSUPPORTED_VERSION`，无最新版本或默认 `@1.0` 回退，结果保留精确 type/version 且不按 Purpose 合并 WorkOrder 两个版本。该入口是纯函数：不读数据库、不读源码目录 JSON、不跨模块访问 Repository，输出不是 ALLOW、CapabilityGrant、AuthorizationDecision 或当前资格。本节其余接线（版本化 Capability/Policy 对应、Decision 签发、当前 grant 重验、按精确 Intent 的组合校验与 TE 入口）仍未实现；`authorizeCommand` 继续硬性拒绝非 `1.0` commandVersion，本节的运行验收（IP-P190-001–006）仍为 `NOT RUN`。
 
 已批准映射键为精确 `(commandType, commandVersion, purpose)`；四行分别注册，不能把 Purpose 当 operation/version 的替代键。每行绑定既有、明确授权的创建 Capability 与允许动作/资源范围，不能由 Purpose 字符串自动产生 grant，不能接受 `*`、前缀匹配、名称别名或“所有 execution 操作”。`requestedCapability` 必须是该行明确允许且当前覆盖本请求的能力，不能使用同 Scope 的任意其他 grant。Coordinator 不是新 capabilityCode；本设计不发明或批量重命名既有 capabilityCode，不迁移授权数据。实际接线须显式配置受支持的版本化 Policy/Capability 对应；映射缺失或条件无法解释则 DENY，不把未实现条件当满足。
 
