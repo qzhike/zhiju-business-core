@@ -566,3 +566,15 @@ C_res + |D| = (C_req + |D|) + (C_res − C_req) ≤ 262144 + R_only ≤ 262144 +
 3. **SD-181-1 写入边界**：注册 schema 以 `policyInstant`（`≤ 24` code point）执行至多毫秒精度的 canonical UTC 时刻要求，更长或亚毫秒 `effectiveFrom` 在写入前以 `API_VALUE_INVALID` 拒绝，不截断；共享 `UtcInstant` 定义不变，Handler 另有同规则的防御性读取。
 4. **Event 边界**：本项**不新增 Event 契约**（Catalog 保持 211），因此 `record_policy_version` 不产生 Outbox 行；版本事实与既有 `command_receipt`/`audit_record` 在同一 owning 事务提交，失败回滚不留下部分事实。
 5. **证据**：真实 PostgreSQL 18.6 / Flyway 11.20.3 的 persistence gate（14 个本项用例）覆盖 §13.4 不变量、§13.5 授权与失败矩阵（含重放重验与完整授权引用绑定）、§13.6 持久化边界、并发裁决、入口契约（超限/结构/NonEmptySet 唯一性/完整性 Hash）、写入结果校验失败的回滚边界、结果契约与**两种 Scope 的完整 262144 字节 Envelope 写入与逐字段读回**、以及边界加一的拒绝对照（Module-Test 001 `IP-176-D-002`–`D-004`、`D-006`、`D-008`–`D-011`、`IP-181-C-007`、`IP-181-E-001`）；下游消费位置、EP/TE 业务链、外部 Provider 与人工验收仍 `NOT RUN`。
+
+## 14. TaskExecution 创建授权（#190 APPROVED）
+
+状态：`APPROVED 2026-09-14 / NOT IMPLEMENTED / NOT RUN`。批准依据见[决定 §13.3](../decisions/task-execution-human-operated.md#133-决定与交付边界)。本节固定四个创建版本的授权接线边界，不更改当前 Decision Port 的实现行为，也不扩大现行 Role/Capability。逐版本唯一 Purpose 由 [Spec 003 §15.1](Module-Spec-003-TaskExecution.md#151-推荐的逐版本-canonical-映射)拥有。
+
+已批准映射键为精确 `(commandType, commandVersion, purpose)`；四行分别注册，不能把 Purpose 当 operation/version 的替代键。每行绑定既有、明确授权的创建 Capability 与允许动作/资源范围，不能由 Purpose 字符串自动产生 grant，不能接受 `*`、前缀匹配、名称别名或“所有 execution 操作”。`requestedCapability` 必须是该行明确允许且当前覆盖本请求的能力，不能使用同 Scope 的任意其他 grant。Coordinator 不是新 capabilityCode；本设计不发明或批量重命名既有 capabilityCode，不迁移授权数据。实际接线须显式配置受支持的版本化 Policy/Capability 对应；映射缺失或条件无法解释则 DENY，不把未实现条件当满足。
+
+旧合法 Capability 不因本设计被吊销：在其原先明确覆盖的 operation/version、动作、资源和 Scope 内仍可申请自己的新 Decision；这不保证历史 ALLOW 永久有效。Task v1 grant 不自动覆盖 v2，必须有对 v2 的明确授权事实；WorkOrder 两版本虽同 Purpose，只有既有能力/Policy 明确覆盖两个版本时，才可分别生成两个版本的 Decision。不通过重写旧 Grant/PolicySnapshot/Decision 或添加别名迁移权限。
+
+接线必须组合以下独立检查：精确 ActorSnapshot/Decision id + hash、实际 Principal 与认证绑定、type/version/Purpose/payloadHash、target 与资源约束、精确 Scope、ALLOW、受信当前时间及当前有效 grant/Policy。现有通用 `authorizeCommand` 主要检查 capabilityCode 与精确 Scope；通用 `validateAuthorizationDecision` 检查绑定和期限，不能据此宣称已经检查所有版本化动作/资源条件、目标绑定或当前 grant 撤销。当前 `authorizeCommand` 还硬性拒绝非 `1.0` commandVersion，Task v2/WorkOrder v1.1 无真实签发路径；已批准 Delta 要求按四条精确映射扩展支持，而非去掉版本检查后接受任意版本。后续实现须在 IdentityPolicy owning 授权组成层补齐缺失检查，并为 TaskExecution 暴露受约束 Port；不由 TaskExecution 读他方表或自行解释 Role/Capability。
+
+Human/Coordinator Agent/Process Manager 的适用边界见 Spec 003 §15.2；非 HUMAN 永远不能获得 Human-only capability，`actingFor`、Human 的 requestedBy、转交 Human Decision 均不改变该限制。当前 grant 撤销或到期后，即使旧 Decision 尚未过期，也拒绝新创建及通过 Command 重取成功 Receipt；历史事实不改写。使用同版本的新合法授权重试同一业务输入时，仍遵守既有幂等 Hash 规则，不通过换 Decision 改写原 Receipt。撤销、错误映射或依赖失败的拒绝须保留安全 Audit，失败不得生成成功业务事实/Outbox。矩阵见 [Module Test 001](../module-tests/Module-Test-001-IdentityPolicy.md#taskexecution-创建授权190-approved)。
