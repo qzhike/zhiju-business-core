@@ -2299,11 +2299,20 @@ interface EligibilityVerdict {
 }
 
 /**
- * The executing caller must hold its own current Decision for the exact
- * registered Purpose. A Decision issued for another operation, a wildcard or
- * an unregistered Purpose is refused here, before any fact is read.
+ * Only the executing TE Evaluator Service or an authorized Human may read
+ * this Query, and only with its own current Decision for the exact registered
+ * Purpose. A Decision issued for another operation, a wildcard or an
+ * unregistered Purpose is refused here, before any fact is read, and a
+ * principal kind the operation does not admit is refused even when it holds
+ * the registered Purpose.
  */
 function assertExecutionEligibilityAuthorized(context: QualityTransactionContext): void {
+  if (context.principalKind !== 'HUMAN' && context.principalKind !== 'SERVICE') {
+    throw new QualityBusinessError(
+      QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED,
+      'only a trusted Human or Service principal can read Revision execution eligibility',
+    );
+  }
   if (context.authorizationPurposes?.includes(REVISION_EXECUTION_ELIGIBILITY_PURPOSE) !== true) {
     throw new QualityBusinessError(
       QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED,
@@ -2444,10 +2453,10 @@ async function revisionAcceptanceEligibility(
 /**
  * Current usability of one ApprovalBundleSnapshot: still the latest bundle
  * for this Revision/Profile, still FULLY_APPROVED, every recorded Approval
- * still EFFECTIVE and exactly bound to this Revision/Profile and to a READY
- * RevisionAcceptanceSnapshot of the same Revision/Profile, and the bundle's
- * own Revision acceptance still currently usable. A revoked Approval or a
- * later STALE bundle therefore reports not usable with reasons instead of
+ * still EFFECTIVE and exactly bound to this Revision/Profile and to the
+ * bundle's own READY RevisionAcceptanceSnapshot of the same Revision/Profile,
+ * and that Acceptance still currently usable. A revoked Approval or a later
+ * STALE bundle therefore reports not usable with reasons instead of
  * re-reading history as current.
  */
 async function approvalBundleEligibility(
@@ -2538,8 +2547,16 @@ async function approvalBundleEligibility(
       'Approval.revisionAcceptanceSnapshotRef',
     );
     const anchor = await exactEligibilityAcceptance(trx, context, revisionRef, anchorRef);
+    // The Approval must be anchored to exactly the Acceptance this bundle
+    // describes: same snapshot identity, Scope and recorded payload hash. An
+    // Approval anchored to another Acceptance of the same Revision/Profile
+    // (e.g. a superseded RAS-1) never authorizes this bundle. Because the
+    // bundle's own Acceptance is checked above for latest-ness, READY and
+    // un-invalidated Gates, an anchor that is no longer the current Acceptance
+    // of this Revision/Profile fails closed here too.
     const anchorBound =
       anchorRef.objectType === REVISION_SNAPSHOT_OBJECT_TYPE &&
+      exactJsonEqual(anchorRef, acceptanceRef) &&
       anchor?.status === 'READY' &&
       anchor.payload_hash.equals(approval.revision_acceptance_snapshot_hash) &&
       exactJsonEqual(anchor.quality_profile_ref, row.quality_profile_ref);

@@ -4,7 +4,8 @@
 // own current Decision for `quality.revision.execution_eligibility.read`; this
 // entry proves that Decision through the shared composition boundary
 // (registered Envelope, exact operation, payload hash, actor, Scope, session
-// and the current covering capability grant) and only then calls the owning
+// and the current covering capability grant), enforces the operation's
+// Human/Service principal-kind allowlist, and only then calls the owning
 // QualityGovernance handler. The exact Revision, the Revision acceptance
 // snapshot and the optional Approval Bundle are bound with their Scope and
 // content hashes before the owning read runs, so a Decision issued for another
@@ -239,6 +240,17 @@ export function createRevisionEligibilityEntry(
         authenticationContextHash: sessionHash,
         actorRef: query.requester,
       });
+      // Issue #192 admits only the executing TE Evaluator Service or an
+      // authorized Human. IdentityPolicy's generic grant path would also issue
+      // an ALLOW Decision to any other kind holding this capability, so the
+      // operation-specific allowlist is enforced on the proved Decision,
+      // before the owning read runs.
+      if (decision.principal_kind !== 'HUMAN' && decision.principal_kind !== 'SERVICE') {
+        entryError(
+          AUTHORIZATION_DECISION_INVALID,
+          'only a trusted Human or Service principal may read execution eligibility',
+        );
+      }
       return handleGetRevisionExecutionEligibility(
         config.qualityDb,
         boundary.qualityGovernanceContext(decision, request.scope, query.correlationId as string),

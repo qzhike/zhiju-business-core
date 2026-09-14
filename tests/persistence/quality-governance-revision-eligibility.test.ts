@@ -42,6 +42,7 @@ import {
 } from '@zhiju/identity-policy';
 import {
   createQualityGovernanceDatabase,
+  digestCanonicalPayload,
   handleActivateQualityProfile,
   handleCreateQualityProfileDraft,
   handleEvaluateRevisionReadiness,
@@ -58,6 +59,7 @@ import {
   QUALITY_APPROVAL_QUERY_NOT_FOUND,
   QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED,
   QUALITY_READINESS_SNAPSHOT_QUERY_NOT_FOUND,
+  QualityBusinessRepository,
   REVISION_EXECUTION_ELIGIBILITY_PURPOSE,
   REVISION_EXECUTION_ELIGIBILITY_QUERY,
   withQualityGovernanceTransaction,
@@ -105,6 +107,16 @@ const POLICY_SNAPSHOT_SET_VERSION = 'wi192-grant-policy-set';
 const SEED_DECISION = '018f22e2-7c15-7b2e-8d86-2de956a9e017';
 const AUTH_CONTEXT_ID = '018f22e2-7c15-7b2e-8d86-2de956a9e018';
 const CORRELATION = '018f22e2-7c15-7b2e-8d86-2de956a9e019';
+
+// Non-Human/Service principals. IdentityPolicy's generic grant path admits
+// them for this capability, so the operation-specific allowlist has to refuse
+// them with an exact Purpose, Scope, payload and active grant.
+const AGENT_PRINCIPAL = '018f22e2-7c15-7b2e-8d86-2de956a9e021';
+const AGENT_ACTOR = '018f22e2-7c15-7b2e-8d86-2de956a9e022';
+const AGENT_GRANT = '018f22e2-7c15-7b2e-8d86-2de956a9e023';
+const RUNTIME_PRINCIPAL = '018f22e2-7c15-7b2e-8d86-2de956a9e024';
+const RUNTIME_ACTOR = '018f22e2-7c15-7b2e-8d86-2de956a9e025';
+const RUNTIME_GRANT = '018f22e2-7c15-7b2e-8d86-2de956a9e026';
 
 const ARTIFACT_ID = '018f22e2-7c15-7b2e-8d86-2de956a9e01a';
 const REVISION_ID = '018f22e2-7c15-7b2e-8d86-2de956a9e01b';
@@ -207,6 +219,8 @@ describe.skipIf(!gateEnabled)(
     let identityRepo: IdentityPolicyRepository;
     let grantPolicyHash: Buffer;
     let evaluatorActorRef: Common.SnapshotRef;
+    let agentActorRef: Common.SnapshotRef;
+    let runtimeActorRef: Common.SnapshotRef;
     let entry: RevisionEligibilityEntry;
     let revocableEntry: RevisionEligibilityEntry;
     let otherPurposeEntry: RevisionEligibilityEntry;
@@ -302,15 +316,25 @@ describe.skipIf(!gateEnabled)(
     }
 
     async function registerIdentityFacts(): Promise<void> {
-      await withIdentityTransaction(identityDb, identityContext(), (trx) =>
-        identityRepo.insertPrincipal(trx, {
+      for (const principal of [
+        {
           id: EVALUATOR_PRINCIPAL,
-          principalKind: 'SERVICE',
-          displayName: 'WI192 TE evaluator service fixture',
-          createdByPrincipalId: EVALUATOR_PRINCIPAL,
-          createdByActorSnapshotId: EVALUATOR_ACTOR,
-        }),
-      );
+          kind: 'SERVICE' as const,
+          name: 'WI192 TE evaluator service fixture',
+        },
+        { id: AGENT_PRINCIPAL, kind: 'AGENT' as const, name: 'WI192 agent fixture' },
+        { id: RUNTIME_PRINCIPAL, kind: 'RUNTIME' as const, name: 'WI192 runtime fixture' },
+      ]) {
+        await withIdentityTransaction(identityDb, identityContext(), (trx) =>
+          identityRepo.insertPrincipal(trx, {
+            id: principal.id,
+            principalKind: principal.kind,
+            displayName: principal.name,
+            createdByPrincipalId: EVALUATOR_PRINCIPAL,
+            createdByActorSnapshotId: EVALUATOR_ACTOR,
+          }),
+        );
+      }
       const platformPolicy = await recordPolicySnapshot(identityDeps(identityContext()), {
         policySnapshotId: POLICY_SNAPSHOT_ID,
         policySetVersion: POLICY_SNAPSHOT_SET_VERSION,
@@ -326,14 +350,18 @@ describe.skipIf(!gateEnabled)(
       );
       grantPolicyHash = snapshot.rows[0]?.payload_hash ?? Buffer.alloc(0);
       expect(grantPolicyHash).toHaveLength(32);
+      // The eligibility capability is not registered as Human-only, so every
+      // one of these grants is accepted for its principal kind.
       for (const grant of [
-        { id: ELIGIBILITY_GRANT, code: ELIGIBILITY_CAPABILITY },
-        { id: REVOCABLE_GRANT, code: REVOCABLE_CAPABILITY },
-        { id: OTHER_PURPOSE_GRANT, code: OTHER_PURPOSE },
+        { id: ELIGIBILITY_GRANT, code: ELIGIBILITY_CAPABILITY, principalId: EVALUATOR_PRINCIPAL },
+        { id: REVOCABLE_GRANT, code: REVOCABLE_CAPABILITY, principalId: EVALUATOR_PRINCIPAL },
+        { id: OTHER_PURPOSE_GRANT, code: OTHER_PURPOSE, principalId: EVALUATOR_PRINCIPAL },
+        { id: AGENT_GRANT, code: ELIGIBILITY_CAPABILITY, principalId: AGENT_PRINCIPAL },
+        { id: RUNTIME_GRANT, code: ELIGIBILITY_CAPABILITY, principalId: RUNTIME_PRINCIPAL },
       ]) {
         const result = await grantCapability(identityDeps(identityContext([PROJECT])), {
           grantId: grant.id,
-          principalId: EVALUATOR_PRINCIPAL,
+          principalId: grant.principalId,
           capabilityCode: grant.code,
           scope: {
             scopeKind: 'PROJECT' as const,
@@ -359,6 +387,24 @@ describe.skipIf(!gateEnabled)(
         enterpriseId: ENTERPRISE,
         projectId: PROJECT,
       });
+      agentActorRef = await createActorSnapshot(identityDeps(identityContext([PROJECT])), {
+        actorSnapshotId: AGENT_ACTOR,
+        principalId: AGENT_PRINCIPAL,
+        declaredPrincipalKind: 'AGENT',
+        authenticationContextHash: AUTH_HASH,
+        scopeKind: 'PROJECT',
+        enterpriseId: ENTERPRISE,
+        projectId: PROJECT,
+      });
+      runtimeActorRef = await createActorSnapshot(identityDeps(identityContext([PROJECT])), {
+        actorSnapshotId: RUNTIME_ACTOR,
+        principalId: RUNTIME_PRINCIPAL,
+        declaredPrincipalKind: 'RUNTIME',
+        authenticationContextHash: AUTH_HASH,
+        scopeKind: 'PROJECT',
+        enterpriseId: ENTERPRISE,
+        projectId: PROJECT,
+      });
     }
 
     /** Mints one Decision for the exact eligibility Query payload. */
@@ -367,10 +413,11 @@ describe.skipIf(!gateEnabled)(
       overrides: {
         readonly purpose?: string;
         readonly capability?: string;
+        readonly actorRef?: Common.SnapshotRef;
       } = {},
     ): Promise<Common.ContentAddressedRef> {
       const decision = await authorizeCommand(identityDeps(identityContext([PROJECT])), {
-        actorSnapshotRef: evaluatorActorRef,
+        actorSnapshotRef: overrides.actorRef ?? evaluatorActorRef,
         intent: {
           commandType: REVISION_EXECUTION_ELIGIBILITY_QUERY,
           commandVersion: '1.0',
@@ -723,6 +770,7 @@ describe.skipIf(!gateEnabled)(
       acceptanceRef: Common.SnapshotRef,
       profile: ProfileFixture,
       decidedAt: string,
+      decision: QualityGovernance.ApprovalSubmission['decision'] = 'APPROVED',
     ): Promise<{
       readonly approvalRef: Common.ContentAddressedRef;
       readonly bundleRef: Common.SnapshotRef;
@@ -737,7 +785,7 @@ describe.skipIf(!gateEnabled)(
               revisionRef,
               revisionAcceptanceSnapshotRef: acceptanceRef,
               approvalRequirementId: profile.approvalRequirementId,
-              decision: 'APPROVED',
+              decision,
               decisionComment: 'Synthetic independent Human approval for technical verification.',
               approverHumanPrincipalRef: {
                 principalKind: 'HUMAN',
@@ -814,6 +862,7 @@ describe.skipIf(!gateEnabled)(
       readonly scope: Scope;
       readonly authenticationContextHash?: Buffer;
       readonly queryType?: string;
+      readonly requester?: Common.SnapshotRef;
     }): Record<string, unknown> {
       const sessionHash = input.authenticationContextHash ?? AUTH_HASH;
       return {
@@ -821,7 +870,7 @@ describe.skipIf(!gateEnabled)(
         queryType: input.queryType ?? REVISION_EXECUTION_ELIGIBILITY_QUERY,
         queryVersion: '1.0',
         scopeRef: input.scope,
-        requester: evaluatorActorRef,
+        requester: input.requester ?? evaluatorActorRef,
         authenticationContextRef: {
           kind: 'CONTENT_ADDRESSED',
           objectType: 'zhiju.identity.authentication_context',
@@ -851,18 +900,21 @@ describe.skipIf(!gateEnabled)(
       readonly scope?: Scope;
       readonly authenticationContextHash?: Buffer;
       readonly sessionHash?: Buffer;
+      readonly actorRef?: Common.SnapshotRef;
     }): Promise<EligibilityOutcome> {
       const scope = input.scope ?? enterpriseScope();
       const payload = queryPayload(input);
       const decisionRef = await eligibilityDecisionRef(payload, {
         ...(input.purpose === undefined ? {} : { purpose: input.purpose }),
         ...(input.capability === undefined ? {} : { capability: input.capability }),
+        ...(input.actorRef === undefined ? {} : { actorRef: input.actorRef }),
       });
       const result = await (input.target ?? entry).read(
         eligibilityEnvelope({
           payload,
           decisionRef,
           scope,
+          ...(input.actorRef === undefined ? {} : { requester: input.actorRef }),
           ...(input.authenticationContextHash === undefined
             ? {}
             : { authenticationContextHash: input.authenticationContextHash }),
@@ -1443,6 +1495,237 @@ describe.skipIf(!gateEnabled)(
           authenticationContextHash: AUTH_HASH,
         }),
       ).rejects.toMatchObject({ code: AUTHORIZATION_REVOKED });
+    }, 30000);
+
+    it('QG-TD-006 keeps Approvals of a superseded Acceptance out of a new Bundle', async () => {
+      const scope = enterpriseScope();
+      const author = qualityContext(AUTHOR, AUTHOR_ACTOR, AUTHOR_DECISION, AUTHOR_CORRELATION);
+      const firstApprover = qualityContext(
+        FIRST_APPROVER,
+        FIRST_APPROVER_ACTOR,
+        FIRST_APPROVER_DECISION,
+        FIRST_APPROVER_CORRELATION,
+      );
+      const secondApprover = qualityContext(
+        SECOND_APPROVER,
+        SECOND_APPROVER_ACTOR,
+        SECOND_APPROVER_DECISION,
+        SECOND_APPROVER_CORRELATION,
+      );
+      const profile = await createProfile(author, 'IM06_WI192_SUPERSEDED');
+      const revisionRef = contentRef(scope, 'artifact.artifact_revision', REVISION_ID, 0x81);
+      const gateRef = await recordGate(author, profile, scope, revisionRef, '2026-09-14T05:11:00Z');
+
+      // RAS-1 is READY and fully approved by one independent Human.
+      const firstAcceptance = await evaluateReadiness(
+        author,
+        profile,
+        scope,
+        revisionRef,
+        [gateRef],
+        '2026-09-14T05:12:00Z',
+      );
+      const firstRequest = await openApprovalRequest(
+        author,
+        scope,
+        profile,
+        revisionRef,
+        firstAcceptance.snapshotRef,
+        0x57,
+      );
+      const firstApproval = await submitApproval(
+        firstApprover,
+        scope,
+        firstRequest.requestId,
+        firstRequest.requestRef,
+        revisionRef,
+        firstAcceptance.snapshotRef,
+        profile,
+        '2026-09-14T05:13:00Z',
+      );
+      expect(
+        (
+          await readThroughEntry({
+            revisionRef,
+            revisionAcceptanceRef: firstAcceptance.snapshotRef,
+            approvalBundleRef: firstApproval.bundleRef,
+          })
+        ).approvalBundleUsable,
+      ).toEqual({ presence: 'PRESENT', value: true });
+
+      // A newer Acceptance for the same Revision/Profile supersedes RAS-1, and
+      // the decision on RAS-2 is not an approval.
+      const secondAcceptance = await evaluateReadiness(
+        author,
+        profile,
+        scope,
+        revisionRef,
+        [gateRef],
+        '2026-09-14T05:20:00Z',
+      );
+      const secondRequest = await openApprovalRequest(
+        author,
+        scope,
+        profile,
+        revisionRef,
+        secondAcceptance.snapshotRef,
+        0x58,
+      );
+      const rejected = await submitApproval(
+        secondApprover,
+        scope,
+        secondRequest.requestId,
+        secondRequest.requestRef,
+        revisionRef,
+        secondAcceptance.snapshotRef,
+        profile,
+        '2026-09-14T05:21:00Z',
+        'CHANGES_REQUESTED',
+      );
+
+      // The Approval recorded against RAS-1 is not part of the current
+      // approval set, so the new Bundle cannot become FULLY_APPROVED and the
+      // Query never reports an usable approval bundle for it.
+      const currentBundle = await handleGetApprovalBundleSnapshot(db, secondApprover, {
+        snapshotRef: rejected.bundleRef,
+      });
+      expect(currentBundle.completeness.status).not.toBe('FULLY_APPROVED');
+      expect(currentBundle.approvalRefs).toEqual([]);
+      const current = await readThroughEntry({
+        revisionRef,
+        revisionAcceptanceRef: secondAcceptance.snapshotRef,
+        approvalBundleRef: rejected.bundleRef,
+      });
+      expect(current.revisionAcceptanceUsable).toBe(true);
+      expect(current.approvalBundleUsable).toEqual({ presence: 'PRESENT', value: false });
+      expect(current.reasonCodes).toContain(QUALITY_APPROVAL_GATE_BUNDLE_INVALID);
+
+      // The historical pair stays immutable and readable, but is no longer
+      // current execution eligibility.
+      const superseded = await readThroughEntry({
+        revisionRef,
+        revisionAcceptanceRef: firstAcceptance.snapshotRef,
+        approvalBundleRef: firstApproval.bundleRef,
+      });
+      expect(superseded).toMatchObject({
+        revisionAcceptanceUsable: false,
+        approvalBundleUsable: { presence: 'PRESENT', value: false },
+      });
+      await expect(
+        handleGetApprovalBundleSnapshot(db, firstApprover, {
+          snapshotRef: firstApproval.bundleRef,
+        }),
+      ).resolves.toMatchObject({ completeness: { status: 'FULLY_APPROVED' } });
+
+      // A Bundle recorded before this fix could bind RAS-2 while counting the
+      // Approval anchored to RAS-1. The eligibility recheck refuses that
+      // stored artifact too, instead of trusting its FULLY_APPROVED record.
+      // Every fact it references is a real owning-Handler artifact; only the
+      // Bundle row itself reproduces the historical shape, written through the
+      // same owning insert boundary the handler uses.
+      const businessRepository = new QualityBusinessRepository();
+      const legacySnapshotId = newUuidV7();
+      const storedCurrent = await handleGetApprovalBundleSnapshot(db, secondApprover, {
+        snapshotRef: rejected.bundleRef,
+      });
+      const legacySnapshot = {
+        ...storedCurrent,
+        snapshotId: legacySnapshotId,
+        approvalRefs: [firstApproval.approvalRef],
+        completeness: { status: 'FULLY_APPROVED', reasons: [] },
+        evaluatedAt: '2026-09-14T05:22:00Z',
+      } as unknown as Core.ApprovalBundleSnapshot;
+      const legacyHash = digestCanonicalPayload(
+        legacySnapshot as unknown as CanonicalJsonObject,
+      ).hash;
+      const legacyWrite = await withQualityGovernanceTransaction(db, author, (trx) =>
+        businessRepository.insertApprovalBundleSnapshot(trx, {
+          snapshotId: legacySnapshotId,
+          enterpriseId: ENTERPRISE,
+          projectId: PROJECT,
+          snapshot: legacySnapshot,
+          revisionContentHash: Buffer.from(revisionRef.contentHash.digest, 'hex'),
+          payloadHash: legacyHash,
+          createdByPrincipalId: author.principalId,
+          createdByActorSnapshotId: author.actorSnapshotId,
+          createdAuthorizationDecisionId: author.authorizationDecisionId,
+          sourceCommandId: newUuidV7(),
+        }),
+      );
+      expect(legacyWrite).toBe('OK');
+      const legacy = await readThroughEntry({
+        revisionRef,
+        revisionAcceptanceRef: secondAcceptance.snapshotRef,
+        approvalBundleRef: {
+          kind: 'SNAPSHOT',
+          objectType: 'quality.approval_bundle_snapshot',
+          objectId: legacySnapshotId,
+          snapshotId: legacySnapshotId,
+          scope: { enterpriseId: ENTERPRISE, projectId: PROJECT },
+          contentHash: {
+            algorithm: 'SHA-256',
+            digest: legacyHash.toString('hex'),
+            canonicalizationVersion: '1',
+          },
+        },
+      });
+      expect(legacy.approvalBundleUsable).toEqual({ presence: 'PRESENT', value: false });
+      expect(legacy.reasonCodes).toContain(QUALITY_APPROVAL_INVALID);
+    }, 30000);
+
+    it('QG-TD-007 admits only a Service or Human principal for the eligibility Query', async () => {
+      const scope = enterpriseScope();
+      const author = qualityContext(AUTHOR, AUTHOR_ACTOR, AUTHOR_DECISION, AUTHOR_CORRELATION);
+      const profile = await createProfile(author, 'IM06_WI192_PRINCIPAL');
+      const revisionRef = contentRef(scope, 'artifact.artifact_revision', REVISION_ID, 0x91);
+      const gateRef = await recordGate(author, profile, scope, revisionRef, '2026-09-14T06:11:00Z');
+      const readiness = await evaluateReadiness(
+        author,
+        profile,
+        scope,
+        revisionRef,
+        [gateRef],
+        '2026-09-14T06:12:00Z',
+      );
+
+      // The TE Evaluator Service keeps reading the exact payload.
+      await expect(
+        readThroughEntry({ revisionRef, revisionAcceptanceRef: readiness.snapshotRef }),
+      ).resolves.toMatchObject({ revisionAcceptanceUsable: true });
+
+      // `quality.revision.execution_eligibility.read` is not registered as a
+      // Human-only capability, so IdentityPolicy grants these principals an
+      // ALLOW Decision (`eligibilityDecisionRef` asserts the outcome) for the
+      // exact Purpose, Scope and payload. The operation still refuses them.
+      for (const actorRef of [agentActorRef, runtimeActorRef]) {
+        const payload = queryPayload({
+          revisionRef,
+          revisionAcceptanceRef: readiness.snapshotRef,
+        });
+        const decisionRef = await eligibilityDecisionRef(payload, { actorRef });
+        await expect(
+          entry.read(eligibilityEnvelope({ payload, decisionRef, scope, requester: actorRef }), {
+            authenticationContextHash: AUTH_HASH,
+          }),
+        ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
+      }
+
+      // The owning handler enforces the same allowlist on its trusted context,
+      // so a non-admitted principal kind is refused even with the exact
+      // registered Purpose pinned.
+      for (const principalKind of ['AGENT', 'RUNTIME', 'EXTERNAL_PARTY'] as const) {
+        await expect(
+          handleGetRevisionExecutionEligibility(
+            db,
+            {
+              ...qualityContext(AUTHOR, AUTHOR_ACTOR, AUTHOR_DECISION, AUTHOR_CORRELATION),
+              principalKind,
+              authorizationPurposes: [REVISION_EXECUTION_ELIGIBILITY_PURPOSE],
+            },
+            { revisionRef, revisionAcceptanceRef: readiness.snapshotRef },
+          ),
+        ).rejects.toMatchObject({ code: QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED });
+      }
     }, 30000);
   },
 );
