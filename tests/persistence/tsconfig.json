@@ -10,6 +10,9 @@
   "exclude": ["../../node_modules", ".tsbuildinfo"],
   "references": [
     {
+      "path": "../../apps/api"
+    },
+    {
       "path": "../../modules/identity-policy"
     },
     {

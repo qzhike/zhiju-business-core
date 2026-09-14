@@ -342,8 +342,8 @@ pnpm persistence:gate
 
 | ID | 输入 | 预期 | 结果 |
 |---|---|---|---|
-| EP-TD-001 | capture同键重放、不同Hash冲突、exact Slice Query | 原id/hash；冲突拒绝；动态View不能冒充Slice | NOT RUN |
-| EP-TD-002 | 错Scope/Purpose/Audience或已撤销授权读取Slice | fail closed；旧payload不改写 | NOT RUN |
+| EP-TD-001 | capture同键重放、不同Hash冲突、exact Slice Query | 原id/hash；冲突拒绝；动态View不能冒充Slice | `PASS (PERSISTENCE)`：#188 `context-source-slice.test.ts` 证明同键同输入返回原 `sourceSliceRef` 且 Slice 行与 `valid_until` 不变、同键异 purpose 返回 `IDEMPOTENCY_PAYLOAD_CONFLICT`、exact Query 以 id+Hash 读回原 payload；错 Hash 为 `PROJECT_QUERY_REF_INVALID`，未知/跨 Project 为 `PROJECT_QUERY_NOT_FOUND`；动态 View 未被补算 Hash 或写入 Slice 表 |
+| EP-TD-002 | 错Scope/Purpose/Audience或已撤销授权读取Slice | fail closed；旧payload不改写 | `PASS (PERSISTENCE)`：错 Enterprise Scope → `PROJECT_QUERY_SCOPE_MISMATCH`；非本 Principal audience → `PROJECT_QUERY_AUDIENCE_INVALID`；未注册 purpose → `PROJECT_QUERY_PURPOSE_FORBIDDEN`；被取代后的历史读取按 `useStatus=REVOKED` 返回且 payload/Hash/`validUntil` 与取代前逐字段一致 |
 | EP-TD-003 | 真实confirm_customer_material Receipt及candidate/result/Source/Decision | 窄Attestation精确匹配实际提交，TE可核验；不泄露客户正文 | NOT RUN |
 | EP-TD-004 | REJECTED或其他command Receipt、同correlation错材料、旧材料不足以backfill | 不可用，不用current Root猜历史确认 | NOT RUN |
 
@@ -363,7 +363,7 @@ pnpm persistence:gate
 | EP-REG-157-008 | 旧 201 项 Schema/fixture、历史 200 项 baseline；旧 source 数组超新 Guard 预算但符合旧 Schema | 兼容检查通过，旧接口不被新 Guard 收窄；当前操作净增 2，生成类型仍引用唯一 Source View | PASS (CONTRACT) |
 | EP-REG-157-009 | 新 Query 省略 pagination、合法 pageSize/cursor，以及空对象、缺 pageSize、零/小数、非法 cursor 和未知字段 | 合法输入通过；反例逐项定位 /pagination 的 required/additionalProperties、/pagination/pageSize 的 type/minimum、/pagination/cursor 的 pattern；旧 Query 保持兼容 | PASS (CONTRACT) |
 
-source 内允许的 CanonicalJson 可用于独立构造资源预算反例，不把空缺的 required 字段或错误 Ref 当作 Guard 失败证据。精确失败路径与字段矩阵保存在后续授权的 PR/Issue 验证证据中，不创建平行执行报告。新 Handler、权限/Scope/Purpose、重放、时效、持久化、外部与人工验收保持 NOT RUN。
+source 内允许的 CanonicalJson 可用于独立构造资源预算反例，不把空缺的 required 字段或错误 Ref 当作 Guard 失败证据。精确失败路径与字段矩阵保存在后续授权的 PR/Issue 验证证据中，不创建平行执行报告。#157 的 Handler 运行期验收已由 #188 在真实 PostgreSQL 上补齐：捕获 Envelope 的 canonical Project/Policy 引用与 Scope/Purpose/Audience 校验、Policy 解析观察绑定与时效、exact Query 读回与 fail-closed 拒绝；外部与人工验收保持 `NOT RUN`。
 
 
 Query 字节边界使用既有 Envelope Reference 的合法文本字段构造，分页固定为合法 PageRequest，不使用 pagination.padding/text；仅证明 Schema 和 Guard 资源边界，不证明引用实际存在或授权有效。
@@ -371,11 +371,189 @@ Query 字节边界使用既有 Envelope Reference 的合法文本字段构造，
 
 ## #176 Capture Policy 解析与消费验收矩阵
 
-以下场景细化 [Spec 002 的 capture Policy 设计](../module-specs/Module-Spec-002-EnterpriseProject.md#176-capture-policy-解析与-validuntil-推导提案)，不新增 profile 字段、来源要求或 Policy 撤销入口。合法基线为 owning 入口已提交的同 Scope 来源、当前授权 audience、capture 自身 Decision 与 `identity.policy.resolve_policy` 的独立 Decision，以及 `ep.context_source_slice_capture.policy@1.0` 的已注册 canonical ref 和 closed 文档。每个负例仅改变所列维度；#179 静态校验不替代以下 Handler/持久化验收，全部 `NOT RUN`。
+以下场景细化 [Spec 002 的 capture Policy 设计](../module-specs/Module-Spec-002-EnterpriseProject.md#176-capture-policy-解析与-validuntil-推导提案)，不新增 profile 字段、来源要求或 Policy 撤销入口。合法基线为 owning 入口已提交的同 Scope 来源、当前授权 audience、capture 自身 Decision 与 `identity.policy.resolve_policy` 的独立 Decision，以及 `ep.context_source_slice_capture.policy@1.0` 的已注册 canonical ref 和 closed 文档。每个负例仅改变所列维度；#179 静态校验不替代以下 Handler/持久化验收。以下结果由 #188 在真实 PostgreSQL 18.6 / Flyway 11.20.3 上取得，只覆盖本地 Handler、迁移与 Disposable PostgreSQL；TE 消费、跨模块链、外部与人工验收仍为 `NOT RUN`。
 
 | ID | 输入 / 故障 | 预期输出与禁止效果 | 当前结果 |
 |---|---|---|---|
-| EP-176-001 | 经 `identity.resolve_policy@1.0` 取得当前可用 capture Policy；合法 `maxSliceValiditySeconds`、`allowedPurposeCodes` 与请求 purpose；依次让 TTL 或 capture Decision 成为较早截止 | `validUntil = min(capturedAt + maxSliceValiditySeconds, authorizationDecision.expiresAt)`；Slice 与 Policy 解析观察 metadata、Receipt/Audit/Outbox 同事务提交；不接收 caller 自报 Hash/截止，不改变公开 Slice payload | NOT RUN |
-| EP-176-002 | 正向为 owning Source 规则允许的来源；分别使用 `record.form.read` 请求不允许披露的 Fact metadata、超出 audience 权限的来源、不在 allowedPurposeCodes 的 purpose、未知 kind、缺少既有 mandatory source | 沿用 Source 的 omission/redaction 与拒绝规则，不扩大披露；Policy 不授权额外来源，mandatory 缺失不产生伪造成功 Slice；不增加 allowedKinds 或额外必填来源 | NOT RUN |
-| EP-176-003 | Slice 提交后分别使 capture Policy 被后继取代、当前调用者/audience 授权失效、Slice 到期；另以仅 Source 后续改变作对照 | 新消费重验 Policy、Slice 时效与当前授权；无权读取拒绝，有权历史读取按 owning 规则解释 EXPIRED/REVOKED；仅 Source 改变不改写旧 Slice 内容/Hash/validUntil，需新内容时重新 capture；不调用版本级 INVALIDATION | NOT RUN |
-| EP-176-004 | 提交前跨过 validUntil、解析 metadata Hash 不一致、事务提交前故障；另在成功后重放同幂等键/原输入及同键异输入 | 非法或未提交事务不发布半成品 Slice；成功重放返回原结果且不延长期限，同键异输入按共享幂等冲突拒绝；历史回执不重新授予新消费资格 | NOT RUN |
+| EP-176-001 | 经 `identity.resolve_policy@1.0` 取得当前可用 capture Policy；合法 `maxSliceValiditySeconds`、`allowedPurposeCodes` 与请求 purpose；依次让 TTL 或 capture Decision 成为较早截止 | `validUntil = min(capturedAt + maxSliceValiditySeconds, authorizationDecision.expiresAt)`；Slice 与 Policy 解析观察 metadata、Receipt/Audit/Outbox 同事务提交；不接收 caller 自报 Hash/截止，不改变公开 Slice payload | `PASS (PERSISTENCE)`：同一真实 Policy 版本下，900s Decision 与 3600s Policy TTL 的窗口在 Decision 截止；120s Policy TTL 与 3600s Decision 的窗口为 `captured_at + 120s`。存储行含 `policy_version_ref`（指向 `identity_policy.policy_version` 的同一 fact、payload Hash 与解析观察相等）、`policy_set_version`、`effective_from`、空 `superseded_at`、`checked_at <= captured_at`；Slice 行、1 Receipt、1 Audit 与 2 条 Reference Edge 同一事务提交 |
+| EP-176-002 | 正向为 owning Source 规则允许的来源；分别使用 `record.form.read` 请求不允许披露的 Fact metadata、超出 audience 权限的来源、不在 allowedPurposeCodes 的 purpose、未知 kind、缺少既有 mandatory source | 沿用 Source 的 omission/redaction 与拒绝规则，不扩大披露；Policy 不授权额外来源，mandatory 缺失不产生伪造成功 Slice；不增加 allowedKinds 或额外必填来源 | `PASS (PERSISTENCE)`：captured `source` 与同参数 owning `get_project_context_source` 在去 objectType 后逐项相等（同一装配实现）；`record.form.read` 请求 `ENTERPRISE_FACTS` 时 `factItems=[]` 且记录 `PURPOSE_FORBIDDEN` omission，`context.snapshot.read` 才返回脱敏 Fact 元数据；非本 Principal audience 为 `PROJECT_QUERY_AUDIENCE_INVALID`；不在 `allowedPurposeCodes` 的 purpose 为 `PROJECT_CAPTURE_PURPOSE_FORBIDDEN`；未注册 kind 为 `PROJECT_QUERY_REF_INVALID`；缺少 Project/`PROJECT_START` binding 时以 `PROJECT_QUERY_NOT_FOUND` 拒绝且不写 Slice |
+| EP-176-003 | Slice 提交后分别使 capture Policy 被后继取代、当前调用者/audience 授权失效、Slice 到期；另以仅 Source 后续改变作对照 | 新消费重验 Policy、Slice 时效与当前授权；无权读取拒绝，有权历史读取按 owning 规则解释 EXPIRED/REVOKED；仅 Source 改变不改写旧 Slice 内容/Hash/validUntil，需新内容时重新 capture；不调用版本级 INVALIDATION | `PASS (PERSISTENCE)`：后继版本提交后同一 Slice 读取为 `REVOKED`；`validUntil` 之后按受信时间读取为 `EXPIRED`（payload 不变）；非本 Principal/缺 read purpose 读取被拒；新增 Enterprise Fact 后旧 Slice 逐字段不变，新键 capture 才返回含新 Fact 的新 Slice id/Hash；未调用任何版本级 INVALIDATION |
+| EP-176-004 | 提交前跨过 validUntil、解析 metadata Hash 不一致、事务提交前故障；另在成功后重放同幂等键/原输入及同键异输入 | 非法或未提交事务不发布半成品 Slice；成功重放返回原结果且不延长期限，同键异输入按共享幂等冲突拒绝；历史回执不重新授予新消费资格 | `PASS (PERSISTENCE)`：受信时钟在组装后跨过 120s 窗口时返回 `PROJECT_CAPTURE_VALIDITY_INVALID` 且无 Slice 行；解析观察 contentHash 被篡改时 capture 返回 `PROJECT_CAPTURE_POLICY_UNSUPPORTED`、无 Slice 行，read 对该不一致返回 `REVOKED`；解析依赖抛错时整事务回滚（无 Receipt、无 Slice）且同键可重试成功；成功重放返回原结果且 `valid_until` 不变，同键异输入为 `IDEMPOTENCY_PAYLOAD_CONFLICT`；被取代后重放历史 Receipt 不恢复 `USABLE` |
+
+## IM-06 (#188) ContextSourceSlice capture/read 用例
+
+以下结果来自 `tests/persistence/context-source-slice.test.ts` 与真实 PostgreSQL 18.6 / Flyway 11.20.3 的 Disposable Gate。正向路径**经组成层入口** `@zhiju/api/composition` 的 `createContextSourceSliceEntry` 进入：完整注册 Envelope 由公共 `ContractRegistry` 校验，被呈现的 AuthorizationDecision 由 owning IdentityPolicy Port 按实际操作、payload hash、Actor、Scope、Session 与期限复验，当前 capability grant 用 `checkProjectAccess` 在请求时刻重新求值，capture Policy 经 `identity.resolve_policy@1.0`（每次解析签发独立 `identity.policy.resolve_policy` Decision）解析。Project/`PROJECT_START` 来源由 owning EnterpriseProject Handler 建立，Policy 版本事实由 `identity.record_policy_version@1.0` 登记；不替换待测授权/存在性/解析路径。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI188-P-001` | Persistence（组成层入口） | 受授权 Service 持绑定实际操作/payload/Actor/Scope/Session 的 capture Decision、canonical Project/Policy 引用、预分配 `targetRef`，Policy 经 `identity.resolve_policy@1.0` 解析 | 提交不可变 Slice 与当次解析观察；请求目标 = 存储行 = 返回 `objectId`；Receipt/Audit/Reference Edge 同事务 | 真实 PostgreSQL：注册 Envelope 通过 `validateOperation`；`COMMITTED` 且 `sourceSliceRef.objectId` = Envelope `targetRef.objectId` = 存储 `slice_id`；`validUntil` 落在 Decision 窗口内且早于 3600s Policy 上限；`policy_version_ref` 指向同一 `identity_policy.policy_version` fact；1 Receipt / 1 Audit / 2 Edge 同事务；经入口 read 返回 `USABLE` 且 payload 与存储逐字段相等 | `PASS (PERSISTENCE)` |
+| `EP-WI188-P-002` | Persistence | TTL 或 Decision 成为较早截止；受信时钟跨过 `validUntil` | 窗口取二者最小值；跨过后 `EXPIRED`，payload 不变 | 120s TTL 与 900s Decision 取 `captured_at + 120s`；注入受信时钟（同一边界）跨过后读取 `EXPIRED` 且 Slice 逐字段不变 | `PASS (PERSISTENCE)` |
+| `EP-WI188-A-001` | Persistence（授权） | 错操作 Decision、错 payload hash Decision、他人 ActorSnapshot、他人 Session authentication context | 共享 `AUTHORIZATION_DECISION_INVALID`；不写 Slice | 四类呈现均被入口拒绝且 Slice 计数不变 | `PASS (PERSISTENCE)` |
+| `EP-WI188-A-002` | Persistence（授权） | 已签发 ALLOW Decision 之后经 owning 入口撤销覆盖 capture/read capability grant | 新 capture 与已提交 Slice 的 read 均被当前授权复验拒绝（`AUTHORIZATION_REVOKED`）；历史 Receipt 不恢复资格 | 撤销后同一 Decision 的 read 与 capture 均 `AUTHORIZATION_REVOKED`；无关 capability 的入口读取仍 `USABLE` | `PASS (PERSISTENCE)` |
+| `EP-WI188-A-004` | Persistence（授权/会话） | read：仅变更受信 Session authentication context、仅变更 Envelope `authenticationContextRef`、或 Session Hash 形状非法 | 三者任一不符即 `AUTHORIZATION_DECISION_INVALID`；三者一致才 `USABLE` | 真实 PostgreSQL：一致时 `USABLE`；换 Session Hash 与换 Envelope Hash 均 `AUTHORIZATION_DECISION_INVALID`；16 字节 Session Hash 在任何 Decision 校验前被拒 | `PASS (PERSISTENCE)` |
+| `EP-WI188-A-003` | Persistence（Envelope） | target 类型不符、携带 `expectedAggregateVersion`、未声明注册 Purpose 的 Context | `API_VALUE_INVALID` / `AUTHORIZATION_DECISION_INVALID`；不写 Slice | canonical CREATE target 校验与 Purpose 绑定拒绝均命中 | `PASS (PERSISTENCE)` |
+| `EP-WI188-P-003` | Persistence | 同键同输入重放、同键异输入、同 identity 异键、未注册引用 | 重放原结果不延期；冲突拒绝；同一 CREATE identity 只提交一次；错引用安全拒绝 | `DUPLICATE` 且 Slice/`valid_until` 不变；`IDEMPOTENCY_PAYLOAD_CONFLICT`；同 identity 异键 `PROJECT_CAPTURE_SLICE_ALREADY_EXISTS`；错 Hash `PROJECT_QUERY_REF_INVALID`；未知 `PROJECT_QUERY_NOT_FOUND` | `PASS (PERSISTENCE)` |
+| `EP-WI188-P-004` | Persistence（并发） | 两个 capture 竞争同一 CREATE identity（不同幂等键） | 恰好一个 `COMMITTED`；另一个稳定拒绝；只留一行 | 真实 PostgreSQL 并发：`COMMITTED` + `PROJECT_CAPTURE_SLICE_ALREADY_EXISTS`，`slice_id` 唯一一行 | `PASS (PERSISTENCE)` |
+| `EP-WI188-C-001` | Contract/Persistence | 与 owning Source Query 同参数的 capture；`record.form.read` + `enterprise_facts`/`active_baselines` | 同一装配实现，Policy 不扩大披露；canonical 拼写与 kind 词表满足注册 Schema | captured `source` 与 owning Query 结果在去 objectType 后逐项相等；`factItems=[]` + `PURPOSE_FORBIDDEN`；注册 Result Schema 校验 `errors=[]` | `PASS (PERSISTENCE)` |
+| `EP-WI188-U-001` | Unit/Persistence | 非本 Principal audience、越界 Project、未注册 purpose、legacy Project objectType、跨 Scope Policy key | `PROJECT_QUERY_AUDIENCE_INVALID` / `PROJECT_QUERY_SCOPE_MISMATCH` / `PROJECT_QUERY_PURPOSE_FORBIDDEN` / `PROJECT_QUERY_REF_INVALID`；不写 Slice | 五类拒绝均命中且 Slice 计数不变 | `PASS (PERSISTENCE)` |
+| `EP-WI188-U-002` | Unit/Persistence | 未知版本键、未声明 capture profile、closed 字段缺失、尚未生效、purpose 不在 `allowedPurposeCodes` | `PROJECT_CAPTURE_POLICY_UNSUPPORTED` / `PROJECT_CAPTURE_POLICY_NOT_USABLE` / `PROJECT_CAPTURE_PURPOSE_FORBIDDEN` | 五类 Policy 拒绝均命中且 Slice 计数不变 | `PASS (PERSISTENCE)` |
+| `EP-WI188-R-001` | Persistence（Result 预算） | owning 来源产生 511（redactions 1024，边界）与 512（1026，超限）个 Enterprise Fact 的候选结果 | 边界通过；超限在写入前以 `PROJECT_CAPTURE_RESULT_INVALID` 拒绝，不提交 Slice/成功 Receipt；边界 Slice 仍可精确读回 | 真实 PostgreSQL：511 Fact `COMMITTED` 且读回 `factItems=511`；再加 1 Fact 后 capture `REJECTED PROJECT_CAPTURE_RESULT_INVALID`，Slice 计数不变、无 `COMMITTED` Receipt | `PASS (PERSISTENCE)` |
+| `EP-WI188-P-005` | Persistence | Policy 后继取代、源事实新增、篡改解析观察、提交前跨过窗口、解析依赖不可用 | 历史读取 `REVOKED`；旧 Slice 不改写；非法/未提交事务不发布半成品；依赖不可用不得用旧观察回退 | 取代后 `REVOKED`；新 Fact 不改变旧 Slice 且新键产生新 Slice；篡改观察 capture `PROJECT_CAPTURE_POLICY_UNSUPPORTED`、read `REVOKED`；跨窗口 `PROJECT_CAPTURE_VALIDITY_INVALID` 且无 Slice；身份依赖不可用时 `DEPENDENCY_UNAVAILABLE` 且无 Receipt/Slice、同键事后可重试成功 | `PASS (PERSISTENCE)` |
+| `EP-WI188-U-003` | Persistence | 非本 Principal 读取、跨 Project 读取 | 拒绝；不泄漏其他 Project 的 Slice | 非 audience `PROJECT_QUERY_AUDIENCE_INVALID`；另一 Project 上下文读取 `PROJECT_QUERY_NOT_FOUND`（FORCE RLS 隐藏） | `PASS (PERSISTENCE)` |
+| `EP-WI188-RLS-001` | Persistence/RLS | app 角色直接 UPDATE/DELETE/跨 Scope INSERT、mirror 不一致 INSERT、无 Context 读取 | `42501`/`22023`；无 Context 零行 | 真实 PostgreSQL：UPDATE/DELETE `42501`，跨 Enterprise/Project INSERT `42501`，payload↔列不一致 `22023`，无 Context 计数 `0` | `PASS (PERSISTENCE/RLS)` |
+| `EP-WI188-M-001` | Manual | 脱敏 Project 上 Service capture 后按 exact Ref 读取，并观察取代/到期/撤权 | 人工可区分 USABLE/EXPIRED/REVOKED 与 exact Ref/Hash；TE 消费、真实 Provider 与人工业务验收仍 `NOT RUN` | 未执行 | `NOT RUN` |
+
+本轮 PostgreSQL 容器已清理，未保留临时数据库、临时脚本或临时测试文件。
+
+## 2026-08-27 PostgreSQL 镜像 pin 漂移与修复记录
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI09-V-002` | Delivery/Persistence | GitHub `pull_request` exact-head run `33021401819`、`33021517085`；PostgreSQL `18.6` tag 与仓库 pinned manifest digest | 静态、Unit、Contract 阶段通过后，Gate 应验证当前 tag 解析结果与 immutable pin 相同；若不同必须拒绝；修复后本地与新的 exact-head CI 均需完整通过 | 两次旧 head run 的静态、Unit、Architecture、Contract 均通过，Gate 拒绝旧 pin `sha256:1957b2ff3137e4ef7f3bc813e74fff50b1e1ffddc85c8b9d6f14ade972be8687`；更新为当前 `postgres:18.6` digest `sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280` 后，本地 `pnpm verify` 完整通过，corrected exact head 的远端 run `33022900309` 也完整通过，Flyway `11.20.3` pin 未变 | `PASS (LOCAL AND REMOTE EXACT HEAD)` |
+
+两次旧 head 的失败属于远端 registry tag 与仓库 pin 的物理 baseline 漂移，不是 WI-09 业务实现或测试断言失败。修复后第一次完整本地编排另遇 Docker Hub manifest 查询 `EOF`，随后重试成功；corrected exact head 的远端 run `33022900309` 已完整通过。Provider、生产和人工边界仍保持 `NOT RUN`。
+
+同一 exact head 的第二条远端 run `33022308826` 还暴露了并发接受返回码的竞争窗口：一个事务返回 `COMMITTED` 后，另一个事务曾观察到旧 Root aggregate version `1` 但已更新的 Version 状态，返回了 `PROJECT_GAP_DECISION_CONFLICT`，而预期必须是 `CONCURRENCY_CONFLICT`。接受命令已改为以 Root 行锁和最新 Root 读取作为并发判定依据；修复后本地 `pnpm persistence:gate` 连续两次通过，均为 `19 files / 238 passed`，并保持单一提交、单一 Decision/Event 与无部分写入；corrected exact head 的远端 run `33022900309` 已再次通过该用例。
+
+2026-08-27 exact-head closeout：实现 head `6de5c96c4ba4fe0938b422606d4632048ac19932` 已通过 [GitHub Actions run 33022900309](https://github.com/qzhike/zhiju-business-core/actions/runs/33022900309)，并以 merge commit `2d6afd0cc2889cf0fa6350c0599d514d5917b071` 合入 `main`；Issue [#65](https://github.com/qzhike/zhiju-business-core/issues/65) 已 `CLOSED`，closeout comment 为 [issuecomment-5432258964](https://github.com/qzhike/zhiju-business-core/issues/65#issuecomment-5432258964)，远端和本地 WI-09 feature branch 均已删除，`origin/main` 已确认包含 implementation head。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`。
+## IM-03 WI-10 DeliveryPlan/DeliveryItem 测试基线（2026-08-27）
+
+以下用例在实现前登记；`NOT RUN` 表示尚未执行，不是通过。所有实际输出必须写入本表并区分静态、Unit/Contract、Disposable PostgreSQL、受控本地 E2E、Provider、公开 HTTP、生产和人工验收。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI10-U-001` | Unit/Contract | 缺少 accepted Gap、使用 latest/current、跨 Scope/hash 错误、与 Accepted Gap InputSnapshot 不一致或不完整的 active baseline、未 ACCEPTED Gap、未知 GapItem 或缺 QualityProfile 的 draft | 在任何 DeliveryPlan/Item 业务事实写入前拒绝稳定错误；拒绝 receipt 可由共享 Command Runner 记录，但不创建 DeliveryPlan/Item/Outbox 业务事实 | PostgreSQL fixture 覆盖 alternate active ProductScopeSnapshot、缺失 baseline、非 Accepted Gap、Accepted Gap InputSnapshot 五项完整集合和成功 fixture | `PASS (PERSISTENCE)` |
+| `EP-WI10-U-002` | Unit | 重复 item id/key、空 item 字段、self dependency、unknown dependency 或同一 Plan Version 内的有向环 | 拒绝 `PROJECT_DELIVERY_ITEM_INVALID`、`PROJECT_DELIVERY_ITEM_KEY_CONFLICT` 或 `PROJECT_DELIVERY_DEPENDENCY_CYCLE`；不写入部分 Item | PostgreSQL fixture 的 duplicate key、cyclic dependency 和成功 DAG 断言通过 | `PASS (PERSISTENCE)` |
+| `EP-WI10-P-001` | Persistence | Agent 创建 draft；Agent/Service/actingFor/伪造 actor 批准或激活；可信 Human 批准 | Agent 可起草；非 Human/actingFor 不能产生 Decision 或 pointer；Human 才能追加 Decision | WI-10 gate 中 Agent draft 成功，Agent/Service/actingFor approval 与 Agent activation 均返回 Human-only；伪造 envelope actor 由共享 context guard 覆盖 | `PASS (PERSISTENCE)` |
+| `EP-WI10-P-002` | Persistence | Human 对同一 Plan 分别提交 APPROVE、CHANGES_REQUIRED、REJECT；使用 foreign/mismatched/replayed approval Decision 激活 | 只有 APPROVE 设置 approved pointer；其他决定 pointer 为 NULL；激活必须匹配精确 Plan Version、Human Decision hash 和 Impact Policy | 三态 Decision、非 APPROVE pointer、错误 approval hash 和精确 Human APPROVE activation 均通过 | `PASS (PERSISTENCE)` |
+| `EP-WI10-P-003` | Persistence | 直接 UPDATE Approved/Active Plan Version、Item、criteria、Dependency、Requirement 或 Decision；创建变更后的新 Plan | 旧事实 UPDATE/DELETE 被拒绝；新 scope/criteria/依赖通过新 Plan Version/identity 保存，旧 hash/ref 不变 | Version payload、Item 和 Decision 的真实 PostgreSQL immutable trigger/ACL 断言通过；新的 Plan Version command 不在本切片范围 | `PASS (IMMUTABILITY); NEW VERSION COMMAND NOT RUN` |
+| `EP-WI10-P-004` | Persistence | 两个 Human 以同一 expected aggregate version 激活；同一 command 重放；激活事务中注入故障 | 仅一个激活成功，输家为 `CONCURRENCY_CONFLICT`；重放返回 `DUPLICATE`；失败无 pointer/status/Event 半写入 | 同一 Plan activation race 为 `1 COMMITTED / 1 CONCURRENCY_CONFLICT`，winner replay 为 `DUPLICATE`；WI-10 专用 rollback injection 未接入 | `PASS (CONCURRENCY/IDEMPOTENCY); ROLLBACK NOT RUN` |
+| `EP-WI10-P-005` | Persistence | 已有 Active Plan 后激活新 Plan；读取两组 Plan/Item/Dependency/Requirement/Decision | 同一 Project 只保留一个 ACTIVE；旧 Plan/Version 为 `SUPERSEDED` 且所有历史事实与 hash 保留 | 两组真实 Plan/Item/Dependency/Requirement/Decision 读取通过；partial unique index 保证单 ACTIVE，旧 Root/Version 为 `SUPERSEDED` | `PASS (PERSISTENCE)` |
+| `EP-WI10-RLS-001` | Persistence/RLS | Project A context 读取/写入 Project B Plan；无 context 读取；跨 Enterprise 请求 | FORCE RLS 阻断跨 Scope/无 context；Handler 和组合 FK 同时拒绝 | WI-10 六表 FORCE RLS、Scope mirror、组合 FK 已迁移；cross-project exact Plan query 被稳定拒绝 | `PASS (RLS/MIGRATION)` |
+| `EP-WI10-E-001` | E2E/Persistence | Accepted Gap→含依赖 Item 的 draft→先提交环→Human APPROVE→精确 Decision 激活→查询 Item criteria | 环先被拒绝；修正后 Plan/Item 激活；查询返回精确 refs、criteriaHash 和 `NOT_READY`，不返回伪造 completion | 受控 PostgreSQL E2E 依次通过 cycle rejection、DAG draft、Human approval、Service exact-decision activation 和 criteria query | `PASS (PERSISTENCE E2E)` |
+| `EP-WI10-C-001` | Contract/Event | 激活含 2 个 Item 的 Plan，读取 Outbox 事件 payload | 1 个 `DeliveryPlanActivated` + 2 个 `DeliveryItemActivated`；只含精确 refs/hash/previous ref/quality ref，不含 criteria JSON、Gap finding 或客户正文 | 真实 Outbox 返回 1 个 Plan Event + 2 个 Item Events；payload minimality 与现有公共 Event Contract 断言通过 | `PASS (CONTRACT/PERSISTENCE)` |
+| `EP-WI10-M-001` | Manual | 脱敏采购控制程序，从 accepted Gap 到 Human approve/activate 后查看精确 Item refs | 人工能确认 Agent 只能起草、Human gate、依赖环拒绝、criteria/hash 冻结和旧版本保留；Provider、公开 HTTP、生产和独立人工 Reference Project 仍为 `NOT RUN` | 本地自动化已覆盖同一控制链；独立人工验收未执行 | `PASS (LOCAL AUTOMATION); HUMAN NOT RUN` |
+
+WI-10 的本地结果已记录空库迁移、二次 migrate no-op、静态门禁、Unit/Contract、真实 PostgreSQL、受控 E2E 和 cleanup 证据。WI-10 专用 rollback fault injection、Provider、公开 HTTP、跨模块 Process Manager、生产和人工测试仍为 `NOT RUN`，不得被 `pnpm verify` 或 disposable PostgreSQL 结果覆盖。
+
+WI-10 exact-head closeout（2026-08-27）：实现 head `054480ebac29cd820e7893df5844ad23a6940f3b` 已通过 [PR #83](https://github.com/qzhike/zhiju-business-core/pull/83) 的 [GitHub Actions verify run 33029833203](https://github.com/qzhike/zhiju-business-core/actions/runs/33029833203)，并以 merge commit `71e527b110b7c65d6a73ba16aca4ed1b334bf89d` 合入 `main`；Issue [#66](https://github.com/qzhike/zhiju-business-core/issues/66) 已读回为 `closed`，原始远端和本地 feature branch 均已删除。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`。
+
+## IM-03 WI-11 权威 Query、Source Slice 与 Board Projection 测试基线（2026-08-27）
+
+以下用例在实现前登记为 `NOT RUN`。真实 PostgreSQL 用例必须使用空库、固定版本 Migration 和唯一 Scope；每次 Gate 结束清理容器、临时数据库、临时脚本和测试文件。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI11-U-001` | Unit/Contract | 合法 ProjectRef、Principal Audience、`context.snapshot.read` 与 requestedKinds；权威 Fact 含敏感 value/sourceRefs；绑定 Ref 含额外 JSON 字段；未请求或 purpose 禁止 Fact；未知 purpose/kind、跨 Scope Audience、过期 Context | 合法请求只返回 allow-list Ref、安全 Fact 元数据和 REDACTED 标记；允许 Fact 时记录对应 redaction，未请求/禁止时只记录 omission；非法输入在读取前以稳定错误拒绝且不泄露原文 | WI-11 real PostgreSQL Source Slice fixture 验证 binding 额外字段剥离、Fact value/sourceRefs 脱敏、`record.form.read` omission，以及未知 kind/purpose、跨 Scope Audience、过期 Context 拒绝 | `PASS (PERSISTENCE QUERY; UNIT-ONLY PATH NOT SEPARATELY SEEDED)` |
+| `EP-WI11-P-001` | Persistence | Project Root 含 Customer/Template/Regulatory active pointer、Gap accepted pointer、DeliveryPlan active pointer；另有更高但未激活版本；active pointer 指向错误生命周期版本 | 只返回 Root 精确 pointer 对应的 VersionedRef；不查询 latest/current，不把未激活版本混入结果；Handler 对数据库读回状态执行防御性校验，非 `CONFIRMED/FROZEN/ACCEPTED/ACTIVE` pointer 稳定拒绝 | WI-10 real PostgreSQL fixture 在 Plan 激活后读取五类精确 active/accepted refs；Customer/Template/Regulatory/Gap/DeliveryPlan pointer 与 version 断言通过，未激活版本未混入 | `PASS (PERSISTENCE; INVALID-STATUS NEGATIVE PATH NOT SEPARATELY SEEDED)` |
+| `EP-WI11-P-002` | Persistence | 精确 DeliveryPlan Version/Item criteria；Projection alias 暂停并推进 target watermark | criteria definition/hash 和 `NOT_READY` execution projection 保持不变；Projection 状态不能成为 authoritative 判据 | DeliveryPlan real PostgreSQL criteria fixture 返回持久化 definition/hash 与 `NOT_READY`；独立 WI-11 pause fixture 暴露 projection lag/status，未把 projection 状态代替 criteria 判据 | `PASS (PERSISTENCE; CRITERIA/PROJECTION SEPARATE FIXTURES)` |
+| `EP-WI11-P-003` | Persistence | 两页 Board rows（包含非自然数字序 itemKey）、固定过滤器、有效 cursor；篡改 cursor、跨 Project cursor、过期 cursor；无下一页时的 optional cursor | 写入、读取和 cursor 使用同一固定 UTF-8 字节序，按 `itemKey ASC, deliveryItemId ASC` 稳定分页；Scope/Filter/Version/expiry 不匹配统一返回 cursor 错误；没有下一页时省略 cursor 字段 | WI-11 real PostgreSQL fixture 以 `item-10`/`item-2` 验证固定排序、两页 cursor、篡改/过滤/跨 Project/过期 cursor 拒绝及末页省略 `nextCursor` | `PASS (PERSISTENCE)` |
+| `EP-WI11-P-004` | Persistence | authoritative Snapshot Export + 有序 Event Delta（upsert/remove）；可选 event id 缺失时省略字段 | 新 Projection Version READY；checkpoint、row count、domain checksum 与预期一致；alias 原子切换且旧版本保留；不写入显式 `null/undefined` | WI-11 real PostgreSQL rebuild fixture 验证 Snapshot + UPSERT/REMOVE、READY、checkpoint/source watermark、row count/domain checksum、alias 原子切换和旧版本保留 | `PASS (PERSISTENCE)` |
+| `EP-WI11-P-005` | Persistence | Projection 暂停；记录新的 source event；读取 Board；恢复或 rebuild；在已有 target 较高时消费较低事件 | target-last 形成明确 lag，status 为 `STALE/PAUSED`；暂停期间 alias 不变；恢复后 last watermark 单调推进且不覆盖更高 target | WI-11 real PostgreSQL fixtures 验证较高 target 保留、较低事件消费后的 lag、pause 期间 alias 不变、rebuild 恢复及最终 `READY`/lag=0 | `PASS (PERSISTENCE)` |
+| `EP-WI11-P-006` | Persistence | 重复 event、sequence 为 0 或乱序、非 `enterprise_project` source module、跨 Project event、错误 partition、错误 item ref、缺失 ProjectSnapshotBinding；低序 watermark 直接写入 | 同一已提交 event 重放返回 `DUPLICATE`；低于 checkpoint 的消费返回 `PROJECT_PROJECTION_CHECKPOINT_CONFLICT`；其他输入返回 `PROJECT_PROJECTION_EVENT_INVALID` 或稳定 Query not-found/ref error；不得静默跳过、空值解引用或回退 source/checkpoint watermark | WI-11 real PostgreSQL 用例覆盖同一 event `DUPLICATE`、低于 checkpoint 的 consume conflict、sequence 0、错误 source module、跨 Project rebuild/Query、缺失 binding、partition/Scope guard | `PASS (PERSISTENCE)` |
+| `EP-WI11-RLS-001` | Persistence/RLS | Project A、Project B、无 Context 使用 projection_app 读取/写入；直接 UPDATE/DELETE Board/failure row；写入错误 partition | FORCE RLS 阻断越权；Board row 与 failure fact 不可变；partition 与 Project 一致；只有受控 alias/checkpoint/source state 可更新 | WI-11 real PostgreSQL fixture 验证 cross-project 隔离、FORCE RLS、Board/failure UPDATE/DELETE 拒绝、partition/checkpoint/source watermark guard | `PASS (PERSISTENCE/RLS)` |
+| `EP-WI11-M-001` | Manual/Local | 对同一 Project 读取 authoritative Source/criteria 与人为暂停 Projection 的 Board | 页面或 CLI 同时显示 source watermark、projection watermark、lag/status；用户不会把 Board 延迟误判为业务完成/未完成 | 自动化输出验证 source/projection watermark、lag/status 与 criteria 独立；独立人工页面操作尚未执行 | `PASS (LOCAL AUTOMATION); HUMAN NOT RUN` |
+
+Provider、公开 HTTP、跨模块 Process Manager、生产数据库和独立人工 Reference Project 验收不由本地 Gate 代替，保持 `NOT RUN`。
+
+WI-11 exact-head closeout（2026-08-27）：实现 head `c8f1a2cc6291ff65824a04e437a99b660fd926aa` 已通过 [PR #85](https://github.com/qzhike/zhiju-business-core/pull/85) 的 [GitHub Actions run 33039239177](https://github.com/qzhike/zhiju-business-core/actions/runs/33039239177)，并以 merge commit `43a2f4fcf074e565c10f3db54bd1be9134ef471d` 合入 `main`；PR verification comment 已读回：[issuecomment-5434378070](https://github.com/qzhike/zhiju-business-core/pull/85#issuecomment-5434378070)。Issue [#67](https://github.com/qzhike/zhiju-business-core/issues/67) 已读回为 `closed`，Issue closeout comment 已读回：[issuecomment-5434387709](https://github.com/qzhike/zhiju-business-core/issues/67#issuecomment-5434387709)；远端和本地 WI-11 feature branch 均已删除，`origin/main` 已确认包含 implementation head。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工 Reference Project 验收继续为 `NOT RUN`。
+## IM-03 WI-12 DeliveryItem Completion 与 Impact Process 用例基线（2026-08-27）
+
+以下用例在实现前登记为 `NOT RUN`。真实 PostgreSQL 用例必须使用空库、V2013 固定迁移、唯一 Enterprise/Project/Plan/Item Scope；每次 Gate 结束清理容器、临时数据库、临时脚本和测试文件。
+
+WI-12 的三张 EnterpriseProject owning 表（`delivery_item_completion_fact`、`delivery_item_completion_evaluation`、`delivery_item_impact_review`）已纳入既有技术表目录回归；主消费/评估链与 Unit/Contract、revoke/new-version、ACL/RLS、故障回滚、晚到事实和状态转移断言已由最终 `pnpm verify` 通过。Persistence Gate 使用 PostgreSQL 18.6（`server_version=180006`）和 Flyway 11.20.3，21 个 persistence 测试文件、256 个测试全部通过，空库迁移和二次 no-op 通过并清理容器。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI12-U-001` | Unit/Contract | `allOf` criteria、错误 criteriaHash、未知 eventType、重复/跨 Scope factRef、caller 提交 outcome 或 `submittedCompletion`、缺失 `sourceEventId` | 只接受已注册 criteria 与 exact refs；hash/grammar/scope/lifecycle 错误在写入前稳定拒绝；不接受 caller completion；Event Consumer 必须绑定精确 source event | `pnpm verify` 的 Unit/Contract 路径通过；独立 Unit 文件 4/4，完整 Vitest 24 文件通过；TypeScript project service、Buffer/ContentHash 夹具和 sourceEventId 断言均通过 | `PASS (UNIT/CONTRACT)` |
+| `EP-WI12-P-001` | Persistence | 注入合法 `execution.TaskCompleted@1.0`，criteria 同时要求 TaskCompleted 与 ReleaseCompleted | Inbox/Fact/Process Step 成功；Evaluation 为 `UNSATISFIED`；不产生 `DeliveryItemCompletionSatisfied`；Item 不被直接写成 `COMPLETED` | `pnpm persistence:gate`：Task fact、Inbox/Process Step、Task-only Evaluation=`UNSATISFIED`、无 Completion Event、Item=`NOT_READY` 通过 | `PASS (PERSISTENCE)` |
+| `EP-WI12-P-002` | Persistence | 在 P-001 后注入同一 Project 的精确 `release.ReleaseCompleted@1.0`，再评估 | 两个 ACTIVE formal facts 可被精确选择；Evaluation 为 `SATISFIED`；只产生一个最小 Completion Event，Root current pointer 从独立版本 `1` CAS 到该 Evaluation | `pnpm persistence:gate`：Release fact 后 Evaluation=`SATISFIED`，Completion/Impact Event、current pointer 和独立版本 `1→3` 通过 | `PASS (PERSISTENCE)` |
+| `EP-WI12-P-003` | Persistence | 同一 event/command 相同 payload hash/watermark replay；同 event id 改 payload hash 或 watermark | 相同输入返回 `DUPLICATE` 且无第二 Fact/Event；不同 hash/watermark 写 contract violation、Inbox `QUARANTINED`，首条事实不变 | `pnpm persistence:gate`：event replay=`DUPLICATE`，同 event id 改 payload 返回 `QUARANTINED`，Fact count=`1`、`INBOX_HASH_CONFLICT` violation count=`1`；command replay=`DUPLICATE` | `PASS (PERSISTENCE)` |
+| `EP-WI12-P-004` | Persistence | late fact、同一上游对象新 Version/Hash、`quality.RevisionApprovalLost` 或 `release.ReleaseRecalled` | 只追加新 Fact/Evaluation/Impact Review；revoked fact 不再满足 ACTIVE criterion；旧 Evaluation、Plan Version、Approval、Fact 和 hash 保留；发布 Impact Event 时 payload 仅含精确 refs/reason；已满足状态下的 late fact 不重复发 Completion Event | `pnpm persistence:gate`：revoke 后为 `UNSATISFIED`，同一上游新 PackageSnapshot 后为 `SATISFIED`，晚到 Task 后新增第 4 个 Evaluation 和第 3 个 Impact；5 个 Fact、2 个 Completion Event，旧 Plan Version/Approval/hash 不变 | `PASS (PERSISTENCE)` |
+| `EP-WI12-P-005` | Persistence/RLS | 直接 UPDATE `delivery_item.execution_status='COMPLETED'`、UPDATE/DELETE Fact/Evaluation/Impact；Project A Context 读写 Project B | ACL/trigger/RLS 拒绝；无 Completion/Impact 半写入；旧 immutable history 保持可读 | `pnpm persistence:gate`：直接完成写入及历史表 UPDATE/DELETE 均返回 `42501`；跨 Project SELECT 返回 `0`；Item 仍为 `NOT_READY`、Completion version=`2` 且 pointer 不变 | `PASS (PERSISTENCE/RLS)` |
+| `EP-WI12-P-006` | Persistence | 两个评估命令竞争同一 Item current pointer；一个在 Outbox/Impact 写入后故障 | 只有一个 CAS 成功，输家 `CONCURRENCY_CONFLICT`；故障事务回滚 Inbox/Fact/Evaluation/Impact/Root/Event；历史不重写 | `pnpm persistence:gate`：CAS 为 `1 COMMITTED / 1 REJECTED CONCURRENCY_CONFLICT`；Impact outbox `P0001` 注入后 facts=`3`、evaluations=`2`、impacts=`1`、Completion events=`1`、Root version=`3`，失败评估无半写入且故障事件 Inbox=`PROCESSED` | `PASS (PERSISTENCE)` |
+| `EP-WI12-E-001` | E2E/Persistence | 受控 Fixture 依次注入 TaskCompleted、评估；再注入 ReleaseCompleted、评估；读取 criteria/Root/Outbox/Inbox | 用户可看到缺 Release 时未完成，补齐精确 Release 后才完成；所有 Event/Fact/Evaluation/Impact ref/hash 可追溯；Projection 不参与判定 | `pnpm persistence:gate` 已完成受控 Task→评估→Release→评估链；Projection/真实跨模块链路未运行 | `PASS (CONTROLLED PERSISTENCE); CROSS-MODULE NOT RUN` |
+| `EP-WI12-RLS-001` | Persistence/RLS | 无 Context、缺失或不匹配 `sourceEventId`、跨 Enterprise/Project Event、伪造 scopeRef/producerModule/payloadHash/sourceWatermark | 在业务写入前拒绝或 Quarantine；不泄漏 payload，不产生第二事实，不推进其他 Project Process | `pnpm verify`：无 Context、缺失 `sourceEventId`、精确 Event Consumer 合同的 Unit 断言通过；跨 Project SELECT/ACL 由 P-005 的真实 PostgreSQL 断言覆盖 | `PASS (UNIT + PERSISTENCE/RLS)` |
+| `EP-WI12-M-001` | Manual/Local | 脱敏采购控制程序查看 Task-only、Release-complete、revoke/new-version 的 Evaluation 与 Impact 历史 | 人工能区分 formal fact、派生 Evaluation、current pointer、Impact Review 和未运行的真实上游 Provider/跨模块 Process Manager | 尚未准备人工界面；真实外部链路 `NOT RUN` | `NOT RUN` |
+
+WI-12 测试运行后的真实命令、PostgreSQL/Flyway 版本、测试计数和精确证据已写入 [`Verification-Record.md`](../archive/im-03-wi-12-deliveryitem-completion-impact-process/Verification-Record.md)；没有运行的 Provider、公开 HTTP、跨模块 Event Bus/Process Manager、生产数据库和独立人工 Reference Project 继续标记 `NOT RUN`。
+
+## IM-03 合成 Reference Project 技术验收（2026-08-27）
+
+用户已确认采用 `SYNTHETIC / TECHNICAL ONLY` 方案。合成数据、流程和矩阵见 [`Synthetic-Reference-Project-Fixture.md`](../archive/im-03-synthetic-reference-fixture/Synthetic-Reference-Project-Fixture.md)、[`Test-Matrix.md`](../archive/im-03-synthetic-reference-fixture/Test-Matrix.md) 和 [`Verification-Record.md`](../archive/im-03-synthetic-reference-fixture/Verification-Record.md)。
+
+本次执行：
+
+```text
+pnpm persistence:gate
+```
+
+实际结果：
+
+- PostgreSQL `18.6`（`server_version=180006`）和 Flyway `11.20.3`：通过；
+- 空库 Migration、V2013、二次 migrate no-op：通过；
+- `21` 个 persistence 测试文件、`256` 个测试：全部通过；
+- PostgreSQL 容器：已移除；测试后执行 `pnpm clean` 清理构建缓存；
+- 该结果是现有 WI focused fixtures 的 `PASS (COMPOSED CONTROLLED PERSISTENCE)`，不是一个统一跨 Aggregate runtime chain。
+
+因此，`EP-API-U-001/U-002/U-003`、`EP-API-C-001/C-002` 和各 `SYN-WI03-001` 至 `SYN-WI12-001` 可以记录受控本地技术证据；`EP-API-E-001/E-002` 的 integrated cross-aggregate execution 和 `EP-API-M-001` 的实际人工逐项审阅继续为 `NOT RUN`。真实 Provider、公开 HTTP、生产环境、真实跨模块 Event Bus/Process Manager 以及真实业务适用性也继续为 `NOT RUN`。
+
+## IM-06 Source Slice 与 Receipt 设计用例
+
+| ID | 输入 | 预期 | 结果 |
+|---|---|---|---|
+| EP-TD-001 | capture同键重放、不同Hash冲突、exact Slice Query | 原id/hash；冲突拒绝；动态View不能冒充Slice | `PASS (PERSISTENCE)`：#188 `context-source-slice.test.ts` 证明同键同输入返回原 `sourceSliceRef` 且 Slice 行与 `valid_until` 不变、同键异 purpose 返回 `IDEMPOTENCY_PAYLOAD_CONFLICT`、exact Query 以 id+Hash 读回原 payload；错 Hash 为 `PROJECT_QUERY_REF_INVALID`，未知/跨 Project 为 `PROJECT_QUERY_NOT_FOUND`；动态 View 未被补算 Hash 或写入 Slice 表 |
+| EP-TD-002 | 错Scope/Purpose/Audience或已撤销授权读取Slice | fail closed；旧payload不改写 | `PASS (PERSISTENCE)`：错 Enterprise Scope → `PROJECT_QUERY_SCOPE_MISMATCH`；非本 Principal audience → `PROJECT_QUERY_AUDIENCE_INVALID`；未注册 purpose → `PROJECT_QUERY_PURPOSE_FORBIDDEN`；被取代后的历史读取按 `useStatus=REVOKED` 返回且 payload/Hash/`validUntil` 与取代前逐字段一致 |
+| EP-TD-003 | 真实confirm_customer_material Receipt及candidate/result/Source/Decision | 窄Attestation精确匹配实际提交，TE可核验；不泄露客户正文 | NOT RUN |
+| EP-TD-004 | REJECTED或其他command Receipt、同correlation错材料、旧材料不足以backfill | 不可用，不用current Root猜历史确认 | NOT RUN |
+
+### #157 注册与 Guard 验证矩阵
+
+状态：`APPROVED 2026-09-09`；对应[共享 API 方案](../api-contract-v0.1/API-Contract-v0.1.md#157-payloadguard-注册补充方案)，Schema/Guard fixture 通过公共 ContractRegistry 执行，结果为 `PASS (CONTRACT)`；Guard helper 测试仅补充算法诊断。对应自动测试位于 `contracts/src/operations/enterprise-project.schema.test.ts`，完整合法 fixture 与逐字段反例位于 `tests/fixtures/contracts/context-source-slice/`。
+
+| ID | 输入 / 反例 | 预期 | 结果 |
+|---|---|---|---|
+| EP-REG-157-001 | 两个完整合法 Envelope，read 完整 Result；依次删除 capture 五字段、Slice 九字段、Result 三字段 | 基线通过；每个独立反例的 required 路径/属性精确匹配删除项 | PASS (CONTRACT) |
+| EP-REG-157-002 | 替换逐项声明的 Ref kind/objectType，删除 exact Hash；CREATE 带 expectedAggregateVersion；Query 请求 PROJECTION_OK/SNAPSHOT_AT_LEAST | 拒绝并定位被变更字段；不靠其他非法字段造成假阳性 | PASS (CONTRACT) |
+| EP-REG-157-003 | requestedKinds 为 0、64、65 项及独立重复反例；普通 source 数组重复；未知顶层字段、非法 useStatus、畸形 source/SourceWatermark | 0/64 项与合法普通数组重复通过；65 项/Set 重复及非法形状拒绝 | PASS (CONTRACT) |
+| EP-REG-157-004 | Guard 文本、每数组、每对象、容器深度分别等于上限和超 1；包括 CanonicalJson 内层和对象键 | 等于上限通过，超 1 精确定位；其余结构保持合法、其他预算不超限 | PASS (CONTRACT) |
+| EP-REG-157-005 | Envelope 262144/262145 字节、Result 4194304/4194305 字节；ASCII、中文、补充平面字符和转义字符 | 按紧凑 JSON UTF-8 字节计量，根路径拒绝超限；fixture 用独立字节计量构造并核验，字符串/集合/深度均在预算内 | PASS (CONTRACT) |
+| EP-REG-157-006 | 循环、undefined、NaN/Infinity、bigint、函数、非普通 JSON 对象或 accessor；超深输入 | 安全失败，无栈溢出或原始内容泄露；错误 rule/path 可判定，不因序列化丢字段而通过 | PASS (CONTRACT) |
+| EP-REG-157-007 | Policy 缺失/未知/重复、零/负数/非整数/无限值、未知属性；元数据缺字段/Owner 不匹配/Ref 未注册/Purpose 分叉；未安装 keyword | 构建或 Registry 初始化失败；保留重复名、数量与 Schema 完整性检查 | PASS (CONTRACT) |
+| EP-REG-157-008 | 旧 201 项 Schema/fixture、历史 200 项 baseline；旧 source 数组超新 Guard 预算但符合旧 Schema | 兼容检查通过，旧接口不被新 Guard 收窄；当前操作净增 2，生成类型仍引用唯一 Source View | PASS (CONTRACT) |
+| EP-REG-157-009 | 新 Query 省略 pagination、合法 pageSize/cursor，以及空对象、缺 pageSize、零/小数、非法 cursor 和未知字段 | 合法输入通过；反例逐项定位 /pagination 的 required/additionalProperties、/pagination/pageSize 的 type/minimum、/pagination/cursor 的 pattern；旧 Query 保持兼容 | PASS (CONTRACT) |
+
+source 内允许的 CanonicalJson 可用于独立构造资源预算反例，不把空缺的 required 字段或错误 Ref 当作 Guard 失败证据。精确失败路径与字段矩阵保存在后续授权的 PR/Issue 验证证据中，不创建平行执行报告。#157 的 Handler 运行期验收已由 #188 在真实 PostgreSQL 上补齐：捕获 Envelope 的 canonical Project/Policy 引用与 Scope/Purpose/Audience 校验、Policy 解析观察绑定与时效、exact Query 读回与 fail-closed 拒绝；外部与人工验收保持 `NOT RUN`。
+
+
+Query 字节边界使用既有 Envelope Reference 的合法文本字段构造，分页固定为合法 PageRequest，不使用 pagination.padding/text；仅证明 Schema 和 Guard 资源边界，不证明引用实际存在或授权有效。
+
+
+## #176 Capture Policy 解析与消费验收矩阵
+
+以下场景细化 [Spec 002 的 capture Policy 设计](../module-specs/Module-Spec-002-EnterpriseProject.md#176-capture-policy-解析与-validuntil-推导提案)，不新增 profile 字段、来源要求或 Policy 撤销入口。合法基线为 owning 入口已提交的同 Scope 来源、当前授权 audience、capture 自身 Decision 与 `identity.policy.resolve_policy` 的独立 Decision，以及 `ep.context_source_slice_capture.policy@1.0` 的已注册 canonical ref 和 closed 文档。每个负例仅改变所列维度；#179 静态校验不替代以下 Handler/持久化验收。以下结果由 #188 在真实 PostgreSQL 18.6 / Flyway 11.20.3 上取得，只覆盖本地 Handler、迁移与 Disposable PostgreSQL；TE 消费、跨模块链、外部与人工验收仍为 `NOT RUN`。
+
+| ID | 输入 / 故障 | 预期输出与禁止效果 | 当前结果 |
+|---|---|---|---|
+| EP-176-001 | 经 `identity.resolve_policy@1.0` 取得当前可用 capture Policy；合法 `maxSliceValiditySeconds`、`allowedPurposeCodes` 与请求 purpose；依次让 TTL 或 capture Decision 成为较早截止 | `validUntil = min(capturedAt + maxSliceValiditySeconds, authorizationDecision.expiresAt)`；Slice 与 Policy 解析观察 metadata、Receipt/Audit/Outbox 同事务提交；不接收 caller 自报 Hash/截止，不改变公开 Slice payload | `PASS (PERSISTENCE)`：同一真实 Policy 版本下，900s Decision 与 3600s Policy TTL 的窗口在 Decision 截止；120s Policy TTL 与 3600s Decision 的窗口为 `captured_at + 120s`。存储行含 `policy_version_ref`（指向 `identity_policy.policy_version` 的同一 fact、payload Hash 与解析观察相等）、`policy_set_version`、`effective_from`、空 `superseded_at`、`checked_at <= captured_at`；Slice 行、1 Receipt、1 Audit 与 2 条 Reference Edge 同一事务提交 |
+| EP-176-002 | 正向为 owning Source 规则允许的来源；分别使用 `record.form.read` 请求不允许披露的 Fact metadata、超出 audience 权限的来源、不在 allowedPurposeCodes 的 purpose、未知 kind、缺少既有 mandatory source | 沿用 Source 的 omission/redaction 与拒绝规则，不扩大披露；Policy 不授权额外来源，mandatory 缺失不产生伪造成功 Slice；不增加 allowedKinds 或额外必填来源 | `PASS (PERSISTENCE)`：captured `source` 与同参数 owning `get_project_context_source` 在去 objectType 后逐项相等（同一装配实现）；`record.form.read` 请求 `ENTERPRISE_FACTS` 时 `factItems=[]` 且记录 `PURPOSE_FORBIDDEN` omission，`context.snapshot.read` 才返回脱敏 Fact 元数据；非本 Principal audience 为 `PROJECT_QUERY_AUDIENCE_INVALID`；不在 `allowedPurposeCodes` 的 purpose 为 `PROJECT_CAPTURE_PURPOSE_FORBIDDEN`；未注册 kind 为 `PROJECT_QUERY_REF_INVALID`；缺少 Project/`PROJECT_START` binding 时以 `PROJECT_QUERY_NOT_FOUND` 拒绝且不写 Slice |
+| EP-176-003 | Slice 提交后分别使 capture Policy 被后继取代、当前调用者/audience 授权失效、Slice 到期；另以仅 Source 后续改变作对照 | 新消费重验 Policy、Slice 时效与当前授权；无权读取拒绝，有权历史读取按 owning 规则解释 EXPIRED/REVOKED；仅 Source 改变不改写旧 Slice 内容/Hash/validUntil，需新内容时重新 capture；不调用版本级 INVALIDATION | `PASS (PERSISTENCE)`：后继版本提交后同一 Slice 读取为 `REVOKED`；`validUntil` 之后按受信时间读取为 `EXPIRED`（payload 不变）；非本 Principal/缺 read purpose 读取被拒；新增 Enterprise Fact 后旧 Slice 逐字段不变，新键 capture 才返回含新 Fact 的新 Slice id/Hash；未调用任何版本级 INVALIDATION |
+| EP-176-004 | 提交前跨过 validUntil、解析 metadata Hash 不一致、事务提交前故障；另在成功后重放同幂等键/原输入及同键异输入 | 非法或未提交事务不发布半成品 Slice；成功重放返回原结果且不延长期限，同键异输入按共享幂等冲突拒绝；历史回执不重新授予新消费资格 | `PASS (PERSISTENCE)`：受信时钟在组装后跨过 120s 窗口时返回 `PROJECT_CAPTURE_VALIDITY_INVALID` 且无 Slice 行；解析观察 contentHash 被篡改时 capture 返回 `PROJECT_CAPTURE_POLICY_UNSUPPORTED`、无 Slice 行，read 对该不一致返回 `REVOKED`；解析依赖抛错时整事务回滚（无 Receipt、无 Slice）且同键可重试成功；成功重放返回原结果且 `valid_until` 不变，同键异输入为 `IDEMPOTENCY_PAYLOAD_CONFLICT`；被取代后重放历史 Receipt 不恢复 `USABLE` |
+
+## IM-06 (#188) ContextSourceSlice capture/read 用例
+
+以下结果来自 `tests/persistence/context-source-slice.test.ts` 与真实 PostgreSQL 18.6 / Flyway 11.20.3 的 Disposable Gate。正向路径**经组成层入口** `@zhiju/api/composition` 的 `createContextSourceSliceEntry` 进入：完整注册 Envelope 由公共 `ContractRegistry` 校验，被呈现的 AuthorizationDecision 由 owning IdentityPolicy Port 按实际操作、payload hash、Actor、Scope、Session 与期限复验，当前 capability grant 用 `checkProjectAccess` 在请求时刻重新求值，capture Policy 经 `identity.resolve_policy@1.0`（每次解析签发独立 `identity.policy.resolve_policy` Decision）解析。Project/`PROJECT_START` 来源由 owning EnterpriseProject Handler 建立，Policy 版本事实由 `identity.record_policy_version@1.0` 登记；不替换待测授权/存在性/解析路径。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| `EP-WI188-P-001` | Persistence | 受授权 Service 持 capture Purpose 的 Decision、同 Scope Project、canonical Project/Policy 引用、登记并通过 `identity.resolve_policy@1.0` 解析的 capture Policy | 提交不可变 Slice 与当次解析观察；返回可精确解引用的 CONTENT_ADDRESSED Ref；Receipt/Audit/Reference Edge 同事务 | 真实 PostgreSQL：`COMMITTED` 且 `sourceSliceRef` 指向存储 payload 的 SHA-256；Slice 行、1 Receipt、1 Audit、2 Edge 同事务；`policy_version_ref` 指向同一 `identity_policy.policy_version` fact 且 Hash 与解析观察相等 | `PASS (PERSISTENCE)` |
+| `EP-WI188-P-002` | Persistence | TTL 或 Decision 成为较早截止；读取跨过 `validUntil` | 窗口取二者最小值；跨过后 `EXPIRED`，payload 不变 | 900s Decision 与 3600s TTL 取 Decision；120s TTL 取 `captured_at + 120s`；跨过后读取 `EXPIRED` 且 Slice 逐字段不变 | `PASS (PERSISTENCE)` |
+| `EP-WI188-U-001` | Unit/Persistence | 未声明注册 Purpose 的 Service Context、错误 audience、越界 Project、未注册 purpose | `AUTHORIZATION_DECISION_INVALID`/`PROJECT_QUERY_AUDIENCE_INVALID`/`PROJECT_QUERY_SCOPE_MISMATCH`/`PROJECT_QUERY_PURPOSE_FORBIDDEN`；不因 `principalKind=SERVICE` 放行 | 四类拒绝均命中，且 Slice 计数不增加 | `PASS (PERSISTENCE)` |
+| `EP-WI188-U-002` | Unit/Persistence | 未知版本键、未声明 capture profile、closed 字段缺失、尚未生效、purpose 不在 `allowedPurposeCodes`、legacy Project objectType | 稳定 `PROJECT_CAPTURE_POLICY_UNSUPPORTED`/`PROJECT_CAPTURE_POLICY_NOT_USABLE`/`PROJECT_CAPTURE_PURPOSE_FORBIDDEN`/`PROJECT_QUERY_REF_INVALID`；不写 Slice | 五类 Policy 拒绝与 canonical objectType 拒绝均命中，Slice 计数不变 | `PASS (PERSISTENCE)` |
+| `EP-WI188-C-001` | Contract/Persistence | 与 owning Source Query 同参数的 capture；`record.form.read` + `ENTERPRISE_FACTS`/`ACTIVE_BASELINES` | 同一装配实现，Policy 不扩大披露；canonical `zhiju.project.*` 拼写满足注册 Result Schema | captured `source` 与 owning Query 结果在去 objectType 后逐项相等；`factItems=[]` + `PURPOSE_FORBIDDEN`；去 objectType 前后均通过注册 Result Schema 校验 | `PASS (PERSISTENCE)` |
+| `EP-WI188-P-003` | Persistence | 同键同输入重放、同键异输入、exact read、错 Hash、未知引用、跨 Scope | 重放原结果不延期；冲突拒绝；错引用安全拒绝 | `DUPLICATE` 且 Slice/`valid_until` 不变；`IDEMPOTENCY_PAYLOAD_CONFLICT`；错 Hash `PROJECT_QUERY_REF_INVALID`；未知/跨 Project `PROJECT_QUERY_NOT_FOUND`；错 Enterprise `PROJECT_QUERY_SCOPE_MISMATCH` | `PASS (PERSISTENCE)` |
+| `EP-WI188-P-004` | Persistence | Policy 后继取代、源事实新增、读取篡改观察、解析依赖抛错 | 历史读取 `REVOKED`；旧 Slice 不改写；依赖不可用 fail closed 且无半成品 | 取代后 `REVOKED`；新 Fact 不改变旧 Slice，新键返回新 Slice；篡改观察 capture 拒绝/read `REVOKED`；依赖抛错整事务回滚且同键可重试 | `PASS (PERSISTENCE)` |
+| `EP-WI188-RLS-001` | Persistence/RLS | app 角色直接 UPDATE/DELETE/跨 Scope INSERT、mirror 不一致 INSERT、无 Context 读取 | `42501`/`22023`；无 Context 零行 | 真实 PostgreSQL：UPDATE/DELETE `42501`，跨 Enterprise/Project INSERT `42501`，payload↔列不一致 `22023`，无 Context 计数 `0` | `PASS (PERSISTENCE/RLS)` |
+| `EP-WI188-M-001` | Manual | 脱敏 Project 上 Service capture 后按 exact Ref 读取，并观察取代/到期 | 人工可区分 USABLE/EXPIRED/REVOKED 与 exact Ref/Hash；TE 消费、真实 Provider 与人工业务验收仍 `NOT RUN` | 未执行 | `NOT RUN` |
+
+本轮 PostgreSQL 容器已清理，未保留临时数据库、临时脚本或临时测试文件。TE Context 消费、`get_resolution_receipt@1.0`、跨模块完整业务链、真实 Provider、公开 HTTP、生产与独立人工 Reference Project 验收保持 `NOT RUN`，不能由本表推断为 `PASS`。

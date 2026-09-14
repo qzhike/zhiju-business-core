@@ -62,6 +62,7 @@ import type {
   DeliveryItemArtifactRequirementTable,
   DeliveryItemDependencyTable,
   DeliveryPlanDecisionTable,
+  ContextSourceSliceTable,
 } from './enterprise-business-types.js';
 import type {
   ProjectBoardProjectionVersionTable,
@@ -318,6 +319,8 @@ export interface EnterpriseProjectDb {
   'enterprise_project.delivery_item_artifact_requirement': DeliveryItemArtifactRequirementTable;
   'enterprise_project.delivery_item_dependency': DeliveryItemDependencyTable;
   'enterprise_project.delivery_plan_decision': DeliveryPlanDecisionTable;
+  // IM-06 (#188): immutable ContextSourceSlice capture facts landed by V2014.
+  'enterprise_project.context_source_slice': ContextSourceSliceTable;
   // IM-03 WI-11 (issue #67): rebuildable Project Board projection. The
   // projection transaction is deliberately separate from the authoritative
   // EnterpriseProject transaction and never reads across schemas.
@@ -378,6 +381,13 @@ export interface EnterpriseProjectTransactionContext {
   readonly allowedProjectIds: readonly string[];
   readonly correlationId: string;
   readonly sourceEventId?: string;
+  /**
+   * Registered authorization purposes the pinned Decision was issued for,
+   * supplied by the trusted composition layer. Entries that declare a
+   * registered `authorizationPurpose` (IM-06 Source Slice capture/read) require
+   * their exact purpose here; a missing entry never widens access.
+   */
+  readonly authorizationPurposes?: readonly string[];
   /** Capabilities are supplied by the trusted composition layer, never by payload. */
   readonly platformReferenceCapabilities?: readonly PlatformReferenceCapability[];
 }

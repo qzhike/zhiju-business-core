@@ -1059,6 +1059,38 @@ export interface DeliveryItemDependencyTable {
   source_command_id: string;
 }
 
+/**
+ * IM-06 (#188) ContextSourceSlice aggregate: one immutable, content-addressed
+ * capture of the Project's committed owning facts plus the exact Policy
+ * resolution observation that bounded its validity. The DB trigger guards the
+ * payload↔column mirror; the app role has no UPDATE/DELETE path.
+ */
+export interface ContextSourceSliceTable {
+  slice_id: string;
+  enterprise_id: string;
+  project_id: string;
+  purpose: string;
+  audience_ref: Json;
+  capture_policy_ref: Json;
+  captured_at: Date;
+  valid_until: Date;
+  slice_payload: Json;
+  slice_payload_hash: Buffer;
+  policy_version_ref: Json;
+  policy_set_version: string;
+  policy_content_hash: Buffer;
+  policy_effective_from: Date;
+  policy_superseded_at: Date | null;
+  policy_checked_at: Date;
+  canonicalization_version: string;
+  created_at: Date;
+  created_by_principal_id: string;
+  created_by_actor_snapshot_id: string;
+  authorization_decision_id: string;
+  source_command_id: string;
+  retention_class: string;
+}
+
 export interface DeliveryPlanDecisionTable {
   decision_id: string;
   delivery_plan_id: string;

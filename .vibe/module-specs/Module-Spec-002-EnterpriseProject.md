@@ -2,7 +2,7 @@
 
 版本：v0.8
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / #176 CAPTURE POLICY RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / #176 CAPTURE POLICY RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / IM-06 (#188) CAPTURE AND READ IMPLEMENTED LOCAL PERSISTENCE PASS / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -249,7 +249,15 @@ PROJECT_DELIVERY_PLAN_IMMUTABLE
 PROJECT_DELIVERY_PLAN_HUMAN_APPROVAL_REQUIRED
 PROJECT_DELIVERY_ITEM_CRITERIA_UNSATISFIED
 PROJECT_COMPLETION_IS_DERIVED
+PROJECT_CAPTURE_POLICY_UNSUPPORTED
+PROJECT_CAPTURE_POLICY_NOT_USABLE
+PROJECT_CAPTURE_PURPOSE_FORBIDDEN
+PROJECT_CAPTURE_VALIDITY_INVALID
+PROJECT_CAPTURE_RESULT_INVALID
+PROJECT_CAPTURE_SLICE_ALREADY_EXISTS
 ```
+
+IM-06 Source Slice capture/read 另复用 `PROJECT_QUERY_REF_INVALID`、`PROJECT_QUERY_SCOPE_MISMATCH`、`PROJECT_QUERY_AUDIENCE_INVALID`、`PROJECT_QUERY_PURPOSE_FORBIDDEN`、`PROJECT_QUERY_CONTEXT_EXPIRED`、`PROJECT_QUERY_NOT_FOUND` 与共享 `AUTHORIZATION_DECISION_INVALID` / `DEPENDENCY_UNAVAILABLE`，不新增平行生命周期或第二套引用码。完整的 WI-11/WI-12 稳定码面见 §20.7、§21.4 与 IM-06 一节。
 
 ## 7. 不变量与持久化边界
 
@@ -751,7 +759,7 @@ ACL/RLS 断言必须区分层次：Fact/Evaluation/Impact 的应用角色 `UPDAT
 
 ## IM-06 Source Slice 与 Resolution Receipt 设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08`；capture/read 的 Schema/Registry/Guard 已交付，业务 Handler 未实现；get_resolution_receipt 未注册、未实现；关联 #152/#154、[TD-01/04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。#176 的 capture policy 解析与 `validUntil` 绑定为 `TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / NOT IMPLEMENTED`（见下方「#176 Capture Policy 解析与 validUntil 推导（提案）」）。本节只拥有 EnterpriseProject 的输入事实捕获和窄化证明，不把 ContextSnapshot/InformationRequest 的业务所有权移入本模块。现有 `get_project_context_source@1.0` 保持动态 View，不能由调用者生成任意 ContentAddressedRef假定其可持久化读取。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08`；capture/read 的 Schema/Registry/Guard 已交付，`project.capture_context_source_slice@1.0` 与 `project.get_context_source_slice@1.0` 的业务 Handler、授权接线、Policy 解析消费（#176）与不可变持久化（`V2014`）已由 #188 实现；`get_resolution_receipt` 未注册、未实现；关联 #152/#154、[TD-01/04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。#176 的 capture policy 解析与 `validUntil` 绑定为 `TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / IMPLEMENTED (#188)`（见下方「#176 Capture Policy 解析与 validUntil 推导（提案）」）。本节只拥有 EnterpriseProject 的输入事实捕获和窄化证明，不把 ContextSnapshot/InformationRequest 的业务所有权移入本模块。现有 `get_project_context_source@1.0` 保持动态 View，不能由调用者生成任意 ContentAddressedRef…
 
 | 设计操作 | 模式/一致性 | Payload | Result.data / Purpose |
 |---|---|---|---|
@@ -769,7 +777,7 @@ Receipt Ref 的 Hash 对应持久化规范 Receipt payload（command identity/ty
 
 ### #157 注册元数据绑定
 
-状态：`APPROVED 2026-09-09 / SCHEMA AND GUARD IMPLEMENTED / HANDLER NOT IMPLEMENTED`；仅补充 #157 的技术注册声明，原 TD-01 字段设计已批准。技术 Guard 参数和机制唯一见[共享 API 补充](../api-contract-v0.1/API-Contract-v0.1.md#157-payloadguard-注册补充方案)。
+状态：`APPROVED 2026-09-09 / SCHEMA AND GUARD IMPLEMENTED / HANDLER IMPLEMENTED (#188)`；仅补充 #157 的技术注册声明，原 TD-01 字段设计已批准。技术 Guard 参数和机制唯一见[共享 API 补充](../api-contract-v0.1/API-Contract-v0.1.md#157-payloadguard-注册补充方案)。
 
 | 操作 | Owner | Target / Mode / Consistency | authorizationPurpose | dataClassification | payloadGuardPolicyRef |
 |---|---|---|---|---|---|
@@ -778,7 +786,7 @@ Receipt Ref 的 Hash 对应持久化规范 Receipt payload（command identity/ty
 
 Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；capture.payload.projectRef 与 Result.slice.projectRef 为 OBJECT/Project；capture.payload.audience 与 Result.slice.audience 复用共享 PrincipalRef（{principalKind, principalId}，不是 ObjectRef）；capture.payload.capturePolicyRef 与 Result.slice.capturePolicyRef 为 VERSIONED/Policy；Query.payload.sourceSliceRef 为 CONTENT_ADDRESSED/ContextSourceSlice，Hash 必填。Slice.scopeRef 继续使用共享 ScopeRef，scope 相等/存在性由业务校验负责。source 直接引用现有 ProjectContextSourceSlice，其内部 Ref/SourceWatermark 和 CanonicalJson 叶字段沿用既有定义，不借本次注册改变其形状。
 
-授权声明只标识受授权 ContextBuilder Service 的目的；不创建 Service Principal、CapabilityGrant 或业务 capturePolicy，不规定 TTL。Schema 能拒绝错误 Ref kind/objectType、缺 Hash 或形状不合法，但不能证明 Hash 与内容匹配、对象存在或当前权限。EP-TD-001/002 业务验收保持 NOT RUN；本模块当前公开 Contract 共 34 项，新增两项仅交付 Schema/Guard。
+授权声明只标识受授权 ContextBuilder Service 的目的；不创建 Service Principal、CapabilityGrant 或业务 capturePolicy，不规定 TTL。Schema 能拒绝错误 Ref kind/objectType、缺 Hash 或形状不合法，但不能证明 Hash 与内容匹配、对象存在或当前权限；#188 在 owning Handler 中补齐了这两项的运行期授权、Scope、Purpose、Policy 与时效校验（见下方「#188 实现事实」）。本模块当前公开 Contract 共 34 项，新增两项未改变公共接受集合。
 
 新操作的公开 Ref objectType 映射由 [Catalog #157](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#157-contextsourceslice-注册) 注册：Project → zhiju.project.project，Policy → zhiju.identity.policy，ContextSourceSlice → zhiju.project.context_source_slice。PrincipalRef 沿用共享类型；旧操作的历史字段形状不因本次映射被改写。
 
@@ -786,7 +794,7 @@ Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；
 
 ### #176 Capture Policy 解析与 validUntil 推导（提案）
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED`；[Issue #179](https://github.com/qzhike/zhiju-business-core/issues/179) 已交付本模块 capture profile 的静态注册与纯校验：`ep.context_source_slice_capture.policy@1.0` 的 canonical typed ref、closed 字段 Schema 与 `validateCapturePolicy`（必需 profile key + closed 字段；空集、重复项、非法整数与未知字段拒绝）；capture Handler、`validUntil` 推导、Policy 解析调用、Slice 持久化与授权运行仍 `NOT IMPLEMENTED / NOT RUN`。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)、[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本节只补齐 capture 的 Policy 解析输入与 `validUntil` 来源，不改变已批准的 capture/read 字段、Purpose 声明、PayloadGuard 技术 Policy 或 Slice 公开 payload。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / IMPLEMENTED (#188)`；[Issue #179](https://github.com/qzhike/zhiju-business-core/issues/179) 已交付本模块 capture profile 的静态注册与纯校验：`ep.context_source_slice_capture.policy@1.0` 的 canonical typed ref、closed 字段 Schema 与 `validateCapturePolicy`（必需 profile key + closed 字段；空集、重复项、非法整数与未知字段拒绝）；#188 在此基础上交付 capture Handler、`validUntil` 推导、`identity.resolve_policy@1.0` 消费 Port、Slice 持久化与授权的真实运行路径，证据见「#188 实现事实」。依据 [Issue #176](https://github.com/qzhike/zhiju-business-core/issues/176)、[设计决定 §12](../decisions/task-execution-human-operated.md#12-176-首批-policyevaluator-解析与授权依赖) 与 [Spec 001 §13](../module-specs/Module-Spec-001-IdentityPolicy.md#13-176-policy-版本身份与解析-port-设计)。本节只补齐 capture 的 Policy 解析输入与 `validUntil` 来源，不改变已批准的 capture/read 字段、Purpose 声明、PayloadGuard 技术 Policy 或 Slice 公开 payload。
 
 1. `capturePolicyRef` 继续是 Schema 已固定的 `VersionedRef<zhiju.identity.policy>`；capture 必须在提交事务内通过 `identity.resolve_policy@1.0` 取得当次解析观察（`policyVersionRef`、`contentHash`、`effectiveFrom`、`supersededAt` 与 `policyDocument`），不得由调用者自报 Hash/有效期，也不得由 `objectId/versionId` 推导。
 2. 首版 profile 为 `ep.context_source_slice_capture.policy@1.0`（本模块拥有，规则字段 closed；registry key 与 canonical typed ref 由 [Spec 001 §13.5](../module-specs/Module-Spec-001-IdentityPolicy.md#135-授权profile-schema-注册与失败审计) 注册）：`maxSliceValiditySeconds: PositiveInt`（必填，无默认）与 `allowedPurposeCodes: NonEmptySet<NamespaceCode>`（必填，请求 `purpose` 必须是成员）。`validUntil = min(capturedAt + maxSliceValiditySeconds, authorizationDecision.expiresAt)`；不接受调用者提供的期限，不引入默认 TTL，不把缺失字段解释为无限制。
@@ -794,4 +802,17 @@ Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；
 4. `get_context_source_slice@1.0` 读取时以受信服务端当前时间重验 Slice `validUntil`、capture policy 的 `supersededAt`/有效性以及当前 Action/Scope/audience/purpose 授权；capture policy 被取代或不可解析导致不可用时，必须以既有 `useStatus` 闭集返回 `EXPIRED` 或 `REVOKED`，不得继续返回 `USABLE`。
 5. 未知 profile 版本、未注册规则字段、`policySchemaRefs` 不含 `ep.context_source_slice_capture.policy@1.0` 的 canonical ref 时拒绝；提案新增稳定错误码 `PROJECT_CAPTURE_POLICY_UNSUPPORTED`（命名与登记以本模块 §6 为准，实现时同步）。
 6. capture 的授权沿用已注册 Purpose `project.context_source.capture`；解析 capture policy 需要 `identity.policy.resolve_policy` 的独立 AuthorizationDecision。capture 的授权不转让给 Builder，Builder 也不得代替 EP 解释 capture policy 语义。
-7. 不改变 `get_project_context_source@1.0` 的动态 View 语义；不得给其返回结果补算 Hash 冒充已提交 Slice。EP-TD-001/002 与本节新增场景在实现前保持 `NOT RUN`。
+7. 不改变 `get_project_context_source@1.0` 的动态 View 语义；不得给其返回结果补算 Hash 冒充已提交 Slice。
+
+### #188 实现事实（Context Source Slice capture/read）
+
+状态：`HANDLER, COMPOSITION AUTHORIZATION WIRING, POLICY CONSUMPTION AND SCOPED PERSISTENCE IMPLEMENTED / REAL POSTGRESQL 18.6 PASS / TE CONSUMPTION AND EXTERNAL ACCEPTANCE NOT RUN`。实现入口为 `handleCaptureContextSourceSlice` 与 `handleGetContextSourceSlice`（`modules/enterprise-project/src/business/context-source-slice-handlers.ts`），运行期授权/Envelope/Policy Port 适配为 `createContextSourceSliceEntry`（`apps/api/src/composition/context-source-slice-entry.ts`，导出 `@zhiju/api/composition`），持久化为 `V2014__context_source_slice_capture.sql`。
+
+1. **单一装配实现**：capture 与 `get_project_context_source@1.0` 共用 `assembleProjectContextSourceSlice`（`business/source-slice-assembly.ts`）：同一 Project/`PROJECT_START` binding 存在性与 Scope 收窄、同一 allow-list Ref 重建、同一 active/accepted pointer 读取、同一 Fact 元数据脱敏与 omission/redaction 记录。缺 Project 或 binding 时 capture 拒绝并返回既有 `PROJECT_QUERY_NOT_FOUND`，不产生空壳 Slice；purpose 仍取 §20.2 的闭集，`record.form.read` 不返回 Fact 元数据，Policy 不能扩大来源披露。
+2. **公开拼写**：captured `source` 的 schema 受约束引用（`projectRef`、`enterpriseProfileSnapshotRef`、`qmsConfigurationRef`、`productScopeSnapshotRef`、`activeBaselineRefs[]`）使用 Core Project Context 与 #157 fixture 已确立的 canonical 名称（`zhiju.project.*`）；capture payload 的 `requestedKinds` 使用 #157 fixture 的 canonical 闭集（`project`、`enterprise_profile`、`qms_configuration`、`product_scope`、`active_baselines`、`enterprise_facts`），由组成层映射到 owning 装配的 kind 标识，未注册 kind 拒绝。`factItems`/`omissions`/`redactions` 是 CanonicalJson 叶字段，保留 owning 装配的既有取值。旧 `get_project_context_source@1.0` 动态 View 的既有拼写与 kind 词表不变。
+3. **授权接线（组成层，`apps/api` 的 `@zhiju/api/composition`）**：运行期适配由 `createContextSourceSliceEntry` 交付，EP 自身不读 IdentityPolicy。该入口 (a) 先用公共 `ContractRegistry` 校验完整注册 Envelope（结构 + PayloadGuard），(b) 校验 `integrity.payloadHash` 与 `scopeRef`/`targetRef` 形状，(c) 经 owning IdentityPolicy Port 读取并复验被呈现的 AuthorizationDecision：`withIdentityTransaction` + `getAuthorizationDecisionByIdAndHash` + `validateAuthorizationDecision`（精确 hash、command type/version、Scope、purpose、command payload hash、authentication context hash、expiry、ALLOW），(d) 校验被呈现 Actor 与 Decision 的 `actor_snapshot_id` + ActorSnapshot payload hash（或 `principal_id`）逐字段一致，(e) 用 `checkProjectAccess` 对该 Principal 与注册 Purpose 在请求时刻重新求值当前 capability grant，撤销即拒绝，(f) 由已验证 Decision 行派生受信 EP Context（principal/kind、actor snapshot、Decision id/hash/expiry、Policy snapshot、`authorizationPurposes = [Decision.purpose]`）。受信 Session 的 `authenticationContextHash` 形状在入口先校验，并作为传给 owning validator 的唯一 expected Hash；capture 与 read 都不得用请求自报值替代它。read 另要求 Envelope `authenticationContextRef.contentHash`、受信 Session Hash 与该 Decision 行的 `authentication_context_hash` 三者一致，仅变更 Session 或仅变更 Envelope 的认证 Hash 都被拒绝；Policy 解析的独立 Decision 也使用同一会话绑定。EP 入口仍要求该 Purpose 存在（缺失 → 共享 `AUTHORIZATION_DECISION_INVALID`），但不再接受调用方自报的 Purpose 数组；不因 `principalKind=SERVICE` 放行。capture 的 `audience` 必须是该受信 Principal 的精确 `PrincipalRef`。
+4. **Policy 解析 Port**：EP 不 import IdentityPolicy、不读其表。`CapturePolicyResolutionPort`（`business/context-source-slice-policy.ts`）由组成层适配到 `identity.resolve_policy@1.0`：入口以会话提供的 `policyResolutionActorSnapshotRef`（同一 Principal 的 ActorSnapshot）与验证过的 Session authentication context 为每次解析签发独立的 `identity.policy.resolve_policy` Decision（`authorizeCommand`），再调用 owning 解析入口；错操作、错 Scope 或他人 ActorSnapshot 由 owning 入口拒绝并回落为 fail-closed。`resolveCapturePolicy` 只接受与本次请求逐字段绑定（version key、Scope、`policyVersionRef`、`contentHash`、`checkedAt === asOf`）且 lifecycle 为 `USABLE` 的观察，再应用 `validateCapturePolicy` 的 closed 字段；未知/未绑定/错 Scope → `PROJECT_CAPTURE_POLICY_UNSUPPORTED`，非 `USABLE` → `PROJECT_CAPTURE_POLICY_NOT_USABLE`，Port 抛错或返回 `UNAVAILABLE` → 共享 `DEPENDENCY_UNAVAILABLE` fail closed。需求 purpose 不在 `allowedPurposeCodes` → `PROJECT_CAPTURE_PURPOSE_FORBIDDEN`。
+5. **期限与提交**：`validUntil = min(capturedAt + maxSliceValiditySeconds, authorizationDecision.expiresAt)`，`capturedAt`/`checkedAt` 取受信时钟；无默认 TTL、无 caller 期限。`validUntil` 在组装前与写入前各重验一次：任一时刻不为严格正 → `PROJECT_CAPTURE_VALIDITY_INVALID`，且该分支发生在任何业务写入之前，不发布半成品。
+6. **持久化与重放**：`enterprise_project.context_source_slice` 保存公开 payload、content-address Hash、Scope/purpose/audience/policy 提升列与当次解析观察（`policy_version_ref`、`policy_set_version`、`policy_content_hash`、`policy_effective_from`、可空 `policy_superseded_at`、`policy_checked_at`）作为附属 metadata；Payload 与提升列的 mirror 由 trigger 校验，app 角色 `REVOKE UPDATE, DELETE`，FORCE RLS 使用 `context_allows_project`。Capture 是注册的 `ContextSourceSlice / CREATE`：Slice identity 取自已校验 Envelope 的 `targetRef.objectId`（请求目标 = 提交行 = 返回 `objectId`），`expectedAggregateVersion` 必须省略，类型/Scope 不符以 `COMMAND_TARGET_MISMATCH`/`SCOPE_MISMATCH` 拒绝而不重写；同一 identity 的第二次提交经 savepoint 回滚为稳定 `PROJECT_CAPTURE_SLICE_ALREADY_EXISTS`（并发同样只剩一个提交）。Receipt/Audit 与两条 `reference_edge`（capture policy key 与 exact policy version fact）在同一 EP owning 事务提交；同键同输入重放返回原 `sourceSliceRef` 且不刷新 `valid_until`，同键异输入为 `IDEMPOTENCY_PAYLOAD_CONFLICT`。写入前还必须以注册 read Result Schema/Guard 校验完整候选结果（`{slice, useStatus: USABLE, checkedAt}`）：装配结果超出已注册数组/字节预算时返回 `PROJECT_CAPTURE_RESULT_INVALID` 且不写任何 Slice，避免提交不可解引用的 Slice。
+7. **读取语义**：按 exact `sourceSliceRef` 读取（id + payload Hash + Scope + audience + purpose），重算存储 payload 的 canonical Hash 并逐项核对提升列；未知/错 Hash → `PROJECT_QUERY_REF_INVALID`，不可见/跨 Project → `PROJECT_QUERY_NOT_FOUND`，Scope 越界 → `PROJECT_QUERY_SCOPE_MISMATCH`，非本 Principal audience → `PROJECT_QUERY_AUDIENCE_INVALID`。随后以受信时间重新解析 capture policy：解析依赖不可用 → `DEPENDENCY_UNAVAILABLE`（不得用旧观察回退）；Policy 不再可解析、内容 Hash 与存储观察不一致或 purpose 不再被允许 → `REVOKED`；仅 `validUntil` 已过 → `EXPIRED`；否则 `USABLE`。源内容后续变化不重写旧 Slice，新内容必须新键新 Slice；历史 Receipt 重放不恢复消费资格。
+8. **未运行边界**：TE Context 消费、`get_resolution_receipt@1.0`、跨模块完整业务链、真实 Provider、公开 HTTP 与人工业务验收保持 `NOT RUN`。acceptance 证据见 [`Module-Test-002`](../module-tests/Module-Test-002-EnterpriseProject.md#im-06-188-contextsourceslice-captureread-用例) 与对应 Issue/PR 记录。

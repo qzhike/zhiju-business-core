@@ -123,6 +123,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'gap_analysis_version',
     'gap_finding',
     'gap_analysis_decision',
+    // IM-06 (#188): Project-owned immutable ContextSourceSlice captures.
+    'context_source_slice',
     // IM-03 WI-10 (issue #66): Project-owned DeliveryPlan/DeliveryItem facts.
     'delivery_plan',
     'delivery_plan_version',

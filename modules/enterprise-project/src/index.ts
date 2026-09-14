@@ -194,6 +194,7 @@ export type {
   DeliveryItemCompletionFactTable,
   DeliveryItemCompletionEvaluationTable,
   DeliveryItemImpactReviewTable,
+  ContextSourceSliceTable,
 } from './persistence/enterprise-business-types.js';
 // IM-03 WI-03 (issue #59): business handlers and failure codes for the
 // EnterpriseProject vertical slice. Handlers fall into two groups:
@@ -341,6 +342,53 @@ export type {
   GetProjectContextSourceQueryPayload,
   GetProjectBoardSliceQueryPayload,
 } from './business/query-handlers.js';
+// IM-06 (#188): ContextSourceSlice capture/read handlers, the IdentityPolicy
+// resolution Port they consume and the shared source-slice assembly the
+// persisted capture reuses from the owning Source Query.
+export {
+  handleCaptureContextSourceSlice,
+  handleGetContextSourceSlice,
+  CAPTURE_CONTEXT_SOURCE_SLICE_COMMAND,
+  GET_CONTEXT_SOURCE_SLICE_QUERY,
+  CAPTURE_CONTEXT_SOURCE_SLICE_PURPOSE,
+  GET_CONTEXT_SOURCE_SLICE_PURPOSE,
+  CAPTURE_CONTEXT_SOURCE_SLICE_IDEMPOTENCY_SCOPE,
+  AUTHORIZATION_DECISION_INVALID,
+  CONTEXT_SOURCE_SLICE_OBJECT_TYPE,
+  CONTEXT_SOURCE_SLICE_TARGET,
+  PROJECT_OBJECT_TYPE,
+} from './business/context-source-slice-handlers.js';
+export type {
+  CaptureContextSourceSliceCommandPayload,
+  GetContextSourceSliceQueryPayload,
+  ContextSourceSliceHandlerDeps,
+} from './business/context-source-slice-handlers.js';
+export {
+  resolveCapturePolicy,
+  DEPENDENCY_UNAVAILABLE,
+} from './business/context-source-slice-policy.js';
+export type {
+  CapturePolicyObservation,
+  CapturePolicyResolution,
+  CapturePolicyResolutionPort,
+  CapturePolicyResolutionRequest,
+  CapturePolicyOutcome,
+  ResolvedCapturePolicy,
+} from './business/context-source-slice-policy.js';
+export {
+  SOURCE_KINDS,
+  SOURCE_SLICE_PURPOSE_POLICIES,
+  assembleProjectContextSourceSlice,
+  validateRequestedKinds,
+  validateSourceSlicePurpose,
+} from './business/source-slice-assembly.js';
+export type {
+  SourceKind,
+  SourceSlicePurposePolicy,
+  ProjectContextSourceSliceRequest,
+} from './business/source-slice-assembly.js';
+export { ContextSourceSliceRepository } from './persistence/context-source-slice-repository.js';
+export type { ContextSourceSliceInsert } from './persistence/context-source-slice-repository.js';
 export {
   PROJECT_BOARD_PROJECTION_CONSUMER,
   calculateProjectBoardSnapshotHash,
@@ -448,5 +496,11 @@ export {
   PROJECT_PROJECTION_EVENT_INVALID,
   PROJECT_PROJECTION_CHECKPOINT_CONFLICT,
   PROJECT_PROJECTION_REBUILD_INVALID,
+  PROJECT_CAPTURE_POLICY_UNSUPPORTED,
+  PROJECT_CAPTURE_POLICY_NOT_USABLE,
+  PROJECT_CAPTURE_PURPOSE_FORBIDDEN,
+  PROJECT_CAPTURE_VALIDITY_INVALID,
+  PROJECT_CAPTURE_RESULT_INVALID,
+  PROJECT_CAPTURE_SLICE_ALREADY_EXISTS,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';
