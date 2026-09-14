@@ -2146,6 +2146,53 @@ describe.skipIf(!gateEnabled)('ContextSourceSlice capture and read (real Postgre
     expect((await readThroughEntry(ref)).useStatus).toBe('REVOKED');
   });
 
+  it('binds a read to the trusted session authentication context', async () => {
+    const payload = capturePayload({
+      purpose: SOURCE_PURPOSE,
+      capturePolicyRef: scopedPolicyKey(
+        POLICY_OBJECT_MAIN,
+        POLICY_VERSION_MAIN,
+        fixture.enterpriseId,
+      ),
+    });
+    const captured = await captureThroughEntry({
+      payload,
+      idempotencyKey: 'wi188:capture:read-session',
+    });
+    const ref = sliceRefOf(captured);
+    const decisionRef = await readDecisionRef(ref);
+
+    // The unchanged session (Envelope hash = trusted session hash = Decision
+    // authentication context) reads the Slice.
+    expect((await entry.read(readEnvelope({ ref, decisionRef }), session)).useStatus).toBe(
+      'USABLE',
+    );
+
+    // Another session cannot replay this Decision, even with the same Principal.
+    await expect(
+      entry.read(readEnvelope({ ref, decisionRef }), {
+        ...session,
+        authenticationContextHash: OTHER_SESSION_HASH,
+      }),
+    ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
+
+    // The Envelope authentication reference must be this session's hash.
+    await expect(
+      entry.read(
+        readEnvelope({ ref, decisionRef, authenticationContextHash: OTHER_SESSION_HASH }),
+        session,
+      ),
+    ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
+
+    // A malformed trusted session hash is refused before any Decision check.
+    await expect(
+      entry.read(readEnvelope({ ref, decisionRef }), {
+        ...session,
+        authenticationContextHash: Buffer.alloc(16, 0x11),
+      }),
+    ).rejects.toMatchObject({ code: AUTHORIZATION_DECISION_INVALID });
+  });
+
   it('refuses readers outside the Slice audience and hides the Slice from other Projects', async () => {
     const payload = capturePayload({
       purpose: SOURCE_PURPOSE,

@@ -224,6 +224,22 @@ function contractViolation(
   return API_VALUE_INVALID;
 }
 
+/**
+ * The trusted session's authentication context hash. It is the single accepted
+ * source for Decision validation, so a caller cannot present a Decision issued
+ * for another session.
+ */
+function sessionAuthenticationContext(session: ContextSourceSliceSession): Buffer {
+  const hash = session.authenticationContextHash;
+  if (!Buffer.isBuffer(hash) || hash.length !== 32) {
+    entryError(
+      AUTHORIZATION_DECISION_INVALID,
+      'the session authentication context is not a SHA-256 digest',
+    );
+  }
+  return hash;
+}
+
 function owningRequestedKinds(value: unknown): string[] {
   if (!Array.isArray(value)) {
     entryError(API_VALUE_INVALID, 'requestedKinds must be an array of registered kinds');
@@ -607,7 +623,7 @@ export function createContextSourceSliceEntry(
               requestedAt: request.asOf,
               highRiskAction: false,
             },
-            authenticationContextHash: row.authentication_context_hash,
+            authenticationContextHash: sessionAuthenticationContext(session),
             policySnapshotRef: policySnapshotReference(row),
           });
         } catch (error) {
@@ -641,7 +657,7 @@ export function createContextSourceSliceEntry(
             objectType: 'zhiju.identity.authentication_context',
             objectId: row.actor_snapshot_id,
             scope: scopeValue,
-            contentHash: contentHash(row.authentication_context_hash.toString('hex')),
+            contentHash: contentHash(sessionAuthenticationContext(session).toString('hex')),
           },
           authorizationDecisionRef: {
             kind: 'CONTENT_ADDRESSED',
@@ -694,6 +710,7 @@ export function createContextSourceSliceEntry(
         scope,
         command.expectedAggregateVersion,
       );
+      const sessionAuthenticationContextHash = sessionAuthenticationContext(session);
       const decision = await validatedDecision({
         decisionRef: decisionReference(command.authorizationDecisionRef),
         commandType: CAPTURE_CONTEXT_SOURCE_SLICE_COMMAND,
@@ -701,7 +718,7 @@ export function createContextSourceSliceEntry(
         capability: config.capabilities.capture,
         scope,
         payloadHash,
-        authenticationContextHash: session.authenticationContextHash,
+        authenticationContextHash: sessionAuthenticationContextHash,
         actorRef: command.actor,
       });
       const internalEnvelope: CommandEnvelope = {
@@ -760,10 +777,21 @@ export function createContextSourceSliceEntry(
       ) {
         entryError(SCOPE_MISMATCH, 'scopeRef must carry the requested Slice Project scope');
       }
+      // The trusted session is the only accepted source of the authentication
+      // context: the Envelope reference and the Decision must both belong to
+      // exactly this session, so a Decision issued for another session can
+      // never be replayed through this entry.
+      const sessionAuthenticationContextHash = sessionAuthenticationContext(session);
       const authenticationContext = record(query.authenticationContextRef);
-      const authenticationContextHash = digest(authenticationContext.contentHash);
-      if (authenticationContextHash === undefined) {
+      const envelopeAuthenticationContextHash = digest(authenticationContext.contentHash);
+      if (envelopeAuthenticationContextHash === undefined) {
         entryError(AUTHORIZATION_DECISION_INVALID, 'the Query must pin an authentication context');
+      }
+      if (envelopeAuthenticationContextHash !== sessionAuthenticationContextHash.toString('hex')) {
+        entryError(
+          AUTHORIZATION_DECISION_INVALID,
+          'the Query authentication context is not the trusted session',
+        );
       }
       const decision = await validatedDecision({
         decisionRef: decisionReference(query.authorizationDecisionRef),
@@ -772,7 +800,7 @@ export function createContextSourceSliceEntry(
         capability: config.capabilities.read,
         scope,
         payloadHash: payloadHashOf(payload),
-        authenticationContextHash: Buffer.from(authenticationContextHash, 'hex'),
+        authenticationContextHash: sessionAuthenticationContextHash,
         actorRef: query.requester,
       });
       return handleGetContextSourceSlice(
