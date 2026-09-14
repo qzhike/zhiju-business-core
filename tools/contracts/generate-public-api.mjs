@@ -6,6 +6,7 @@ import {
   loadPayloadGuardPolicies,
   resolvePayloadGuardPolicy,
 } from '../../contracts/src/payload-guard.ts';
+import { loadEvaluatorProfileRegistry } from '../../contracts/src/evaluator-profiles.ts';
 import { loadPolicyProfileRegistry } from '../../contracts/src/policy-profiles.ts';
 import {
   assertPolicyVersionCompatibilityMetadata,
@@ -37,6 +38,17 @@ const profileRegistrySource = readFileSync(
 );
 const profileRegistry = loadPolicyProfileRegistry(JSON.parse(profileRegistrySource));
 const profileRegistryOutputPath = join(root, 'contracts/src/generated/policy-profiles.json');
+
+// The IM-06 Evaluator profile registry is a build artifact of the same shape:
+// the generated copy is a byte-for-byte mirror of the registry source, and
+// loading it rejects a duplicated key/identity, a missing entry or a wrong
+// owner before anything consumes it.
+const evaluatorRegistrySource = readFileSync(
+  join(root, 'contracts/registry/evaluator-profiles.v1.json'),
+  'utf8',
+);
+const evaluatorRegistry = loadEvaluatorProfileRegistry(JSON.parse(evaluatorRegistrySource));
+const evaluatorRegistryOutputPath = join(root, 'contracts/src/generated/evaluator-profiles.json');
 assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
 assertPolicyVersionOperationRegistrations(registry.operations);
@@ -98,20 +110,22 @@ if (process.argv.includes('--check')) {
   if (
     current !== generated ||
     readFileSync(guardOutputPath, 'utf8') !== guardSource ||
-    readFileSync(profileRegistryOutputPath, 'utf8') !== profileRegistrySource
+    readFileSync(profileRegistryOutputPath, 'utf8') !== profileRegistrySource ||
+    readFileSync(evaluatorRegistryOutputPath, 'utf8') !== evaluatorRegistrySource
   ) {
     console.error('generated public API registry is stale; run pnpm contracts:generate');
     process.exitCode = 1;
   } else {
     console.log(
-      `public_api_generation=PASS operations=${registry.operations.length} policy_profiles=${profileRegistry.profiles.length}`,
+      `public_api_generation=PASS operations=${registry.operations.length} policy_profiles=${profileRegistry.profiles.length} evaluator_profiles=${evaluatorRegistry.profiles.length}`,
     );
   }
 } else {
   writeFileSync(outputPath, generated, 'utf8');
   writeFileSync(guardOutputPath, guardSource, 'utf8');
   writeFileSync(profileRegistryOutputPath, profileRegistrySource, 'utf8');
+  writeFileSync(evaluatorRegistryOutputPath, evaluatorRegistrySource, 'utf8');
   console.log(
-    `public_api_generation=UPDATED operations=${registry.operations.length} policy_profiles=${profileRegistry.profiles.length}`,
+    `public_api_generation=UPDATED operations=${registry.operations.length} policy_profiles=${profileRegistry.profiles.length} evaluator_profiles=${evaluatorRegistry.profiles.length}`,
   );
 }

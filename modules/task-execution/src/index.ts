@@ -11,6 +11,12 @@ export {
   validateTaskReadinessPolicy,
   validateWorkOrderValidationPolicy,
 } from './business/policy-profiles.js';
+export {
+  TASK_READINESS_EVALUATOR_PROFILE_KEY,
+  WORK_ORDER_VALIDATION_EVALUATOR_PROFILE_KEY,
+  resolveTaskReadinessEvaluatorProfile,
+  resolveWorkOrderValidationEvaluatorProfile,
+} from './business/evaluator-profiles.js';
 export type {
   ContextBuilderPolicyRules,
   PolicyProfileValidationResult,

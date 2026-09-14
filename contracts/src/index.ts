@@ -4,6 +4,7 @@ export * from './context-expiry-binding.js';
 export * from './context-snapshot-binding.js';
 export * from './core.schema.js';
 export * from './envelopes.schema.js';
+export * from './evaluator-profiles.js';
 export * from './task-definition-binding.js';
 export * from './work-order-context-binding.js';
 export * from './generated/public-api.js';

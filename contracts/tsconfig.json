@@ -8,7 +8,8 @@
   "include": [
     "src/**/*.ts",
     "src/generated/payload-guard-policies.json",
-    "src/generated/policy-profiles.json"
+    "src/generated/policy-profiles.json",
+    "src/generated/evaluator-profiles.json"
   ],
   "references": [{ "path": "../packages/shared-kernel" }]
 }
