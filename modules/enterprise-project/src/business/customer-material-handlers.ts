@@ -1136,17 +1136,62 @@ const RECEIPT_OBJECT_TYPES = {
   authorizationDecision: 'zhiju.identity.authorization_decision',
 } as const;
 
+/** The exact SourceMaterial identity a Receipt source projection is keyed on. */
+export interface ReceiptSourceSelection {
+  readonly objectId: string;
+  readonly payloadHash: Buffer;
+}
+
+/** One confirmed source as the Receipt publishes it, with its exact ref. */
+export interface ReceiptSourceMaterialRef {
+  readonly objectId: string;
+  readonly ref: CanonicalJsonObject;
+}
+
 function canonicalSourceMaterialRef(
-  facts: SourceSelectionFacts,
+  selection: ReceiptSourceSelection,
   scope: Common.ScopeRef,
 ): CanonicalJsonObject {
   return {
     kind: 'CONTENT_ADDRESSED',
     objectType: RECEIPT_OBJECT_TYPES.sourceMaterial,
-    objectId: facts.objectId,
+    objectId: selection.objectId,
     scope,
-    contentHash: contentHashValue(facts.payloadHash),
+    contentHash: contentHashValue(selection.payloadHash),
   } as unknown as CanonicalJsonObject;
+}
+
+/**
+ * The exact `sourceMaterialRefs` projection of the confirmed source
+ * selections. `proposal.sourceSelections` is a `NonEmptySet<MaterialSourceSelection>`,
+ * so its uniqueness applies to the whole selection: the same exact
+ * SourceMaterial may legitimately appear twice with a different role or
+ * locator. The Receipt publishes the exact refs themselves, which are the
+ * unique set the public Result Schema declares, so selections that project to
+ * the same exact ref collapse into their first occurrence.
+ *
+ * This is the one dedupe rule of the Receipt: the read path rebuilds the
+ * confirmed refs with it and the V2015 backfill mirrors it, so a stored
+ * material can never disagree with the canonical payload of its own command.
+ */
+export function receiptSourceMaterialRefs(
+  selections: readonly ReceiptSourceSelection[],
+  scope: Common.ScopeRef,
+): readonly ReceiptSourceMaterialRef[] {
+  const references: ReceiptSourceMaterialRef[] = [];
+  const seenRefs = new Set<string>();
+  for (const selection of selections) {
+    const ref = canonicalSourceMaterialRef(selection, scope);
+    // JSONB does not preserve object key order, so the exact ref identity is
+    // its canonical payload hash rather than its raw text.
+    const key = digestCanonicalPayload(ref).hash.toString('hex');
+    if (seenRefs.has(key)) {
+      continue;
+    }
+    seenRefs.add(key);
+    references.push({ objectId: selection.objectId, ref });
+  }
+  return references;
 }
 
 /**
@@ -1204,8 +1249,8 @@ function resolutionReceiptPayload(input: {
     outcome: 'COMMITTED',
     candidateVersionRef: customerMaterialVersion(input.candidateVersionId),
     confirmedVersionRef: customerMaterialVersion(input.confirmedVersionId),
-    sourceMaterialRefs: input.sourceSelectionFacts.map((facts) =>
-      canonicalSourceMaterialRef(facts, scope),
+    sourceMaterialRefs: receiptSourceMaterialRefs(input.sourceSelectionFacts, scope).map(
+      (confirmed) => confirmed.ref,
     ),
     decisionRef: {
       kind: 'CONTENT_ADDRESSED',

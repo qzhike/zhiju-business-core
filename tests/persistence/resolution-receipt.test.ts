@@ -635,6 +635,7 @@ describe.skipIf(!gateEnabled)(
       sourceMaterialId: string;
       digest: string;
       proposerKind?: EnterprisePrincipalKind;
+      sourceSelections?: readonly EnterpriseProject.MaterialSourceSelection[];
     }): Promise<Confirmation> {
       const proposeContext = seedContext(input.proposerKind ?? 'HUMAN', [fixture.projectId]);
       const evidence = { evidence: input.sourceRef, relation: 'SUPPORTS' as const };
@@ -658,7 +659,7 @@ describe.skipIf(!gateEnabled)(
                 title: `${input.tag} control procedure`,
                 customerDocumentNumber: `QP-${input.tag}`,
                 completeness: 'PARTIAL',
-                sourceSelections: [
+                sourceSelections: input.sourceSelections ?? [
                   { sourceMaterialRef: input.sourceRef, role: 'primary', locator: 'section.1' },
                 ],
                 language: 'zh-CN',
@@ -1482,6 +1483,102 @@ describe.skipIf(!gateEnabled)(
       } finally {
         connection.release();
       }
+
+      // The two maintenance helpers stay owner-only: the V0002 default
+      // privileges would otherwise grant EXECUTE on every owner-created
+      // function to the application role, letting it re-derive or write
+      // Receipt material outside the owning confirmation path.
+      const privileges = await admin.query<{
+        app_canonicalizer: boolean;
+        app_backfill: boolean;
+        owner_canonicalizer: boolean;
+        owner_backfill: boolean;
+      }>(
+        `SELECT has_function_privilege('enterprise_project_app',
+                    'enterprise_project.canonical_jsonb_text(jsonb)', 'EXECUTE') AS app_canonicalizer,
+                has_function_privilege('enterprise_project_app',
+                    'enterprise_project.backfill_resolution_receipt_material()', 'EXECUTE') AS app_backfill,
+                has_function_privilege('enterprise_project_owner',
+                    'enterprise_project.canonical_jsonb_text(jsonb)', 'EXECUTE') AS owner_canonicalizer,
+                has_function_privilege('enterprise_project_owner',
+                    'enterprise_project.backfill_resolution_receipt_material()', 'EXECUTE') AS owner_backfill`,
+      );
+      expect(privileges.rows[0]).toEqual({
+        app_canonicalizer: false,
+        app_backfill: false,
+        owner_canonicalizer: true,
+        owner_backfill: true,
+      });
+      for (const statement of [
+        `SELECT enterprise_project.canonical_jsonb_text('{}'::jsonb)`,
+        `SELECT enterprise_project.backfill_resolution_receipt_material()`,
+      ]) {
+        const appConnection = await epPool.connect();
+        try {
+          await appConnection.query('BEGIN');
+          await appConnection.query('SET LOCAL ROLE enterprise_project_app');
+          await expect(appConnection.query(statement)).rejects.toMatchObject({
+            code: '42501',
+            message: expect.stringContaining('permission denied for function'),
+          });
+        } finally {
+          await appConnection.query('ROLLBACK');
+          appConnection.release();
+        }
+      }
+    });
+
+    it('EP-WI191-RLS-002 refuses a receipt that repeats an exact source ref', async () => {
+      const source = await registerAndAcceptSource('dup-guard');
+      const confirmation = await confirmCustomerMaterial({
+        tag: 'dup-guard',
+        sourceRef: source.sourceRef,
+        sourceMaterialId: source.sourceMaterialId,
+        digest: source.digest,
+      });
+      const singleRef = (confirmation.receiptPayload.sourceMaterialRefs as readonly unknown[])[0];
+      const repository = new ResolutionReceiptRepository();
+      // A row whose own payload, mirrors and content address are otherwise
+      // consistent: only the source refs are repeated, which the public Result
+      // Schema declares unique. The owning guard refuses it instead of storing
+      // a receipt the Query could never return.
+      const duplicatePayload = {
+        ...confirmation.receiptPayload,
+        commandId: newUuidV7(),
+        sourceMaterialRefs: [singleRef, singleRef],
+      } as unknown as CanonicalJsonObject;
+      const duplicatePayloadHash = digestCanonicalPayload(duplicatePayload).hash;
+      const context = seedContext('HUMAN', [fixture.projectId]);
+      await expect(
+        withEnterpriseProjectTransaction(db, context, (trx) =>
+          repository.insertResolutionReceiptMaterial(trx, {
+            commandId: duplicatePayload.commandId as string,
+            enterpriseId: fixture.enterpriseId,
+            projectId: fixture.projectId,
+            commandType: 'project.confirm_customer_material',
+            commandVersion: '1.0',
+            outcome: 'COMMITTED',
+            targetRef: duplicatePayload.targetRef,
+            requestPayloadHash: Buffer.from(
+              (duplicatePayload.requestPayloadHash as unknown as Common.ContentHash).digest,
+              'hex',
+            ),
+            candidateVersionRef: duplicatePayload.candidateVersionRef,
+            confirmedVersionRef: duplicatePayload.confirmedVersionRef,
+            sourceMaterialRefs: duplicatePayload.sourceMaterialRefs,
+            decisionRef: duplicatePayload.decisionRef,
+            actorRef: duplicatePayload.actorRef,
+            actorSnapshotRef: duplicatePayload.actorSnapshotRef,
+            authorizationDecisionRef: duplicatePayload.authorizationDecisionRef,
+            committedAt: new Date(duplicatePayload.committedAt as unknown as string),
+            receiptPayload: duplicatePayload,
+            receiptPayloadHash: duplicatePayloadHash,
+            createdByPrincipalId: HUMAN_PRINCIPAL,
+            createdByActorSnapshotId: HUMAN_ACTOR,
+            authorizationDecisionId: CONFIRMATION_DECISION,
+          }),
+        ),
+      ).rejects.toMatchObject({ code: '22023' });
     });
 
     // ---------------------------------------------------------------------
@@ -1721,6 +1818,74 @@ describe.skipIf(!gateEnabled)(
       });
       const stored = await readMaterial(confirmation.commandId);
       expect(stored?.payload).not.toEqual(confirmation.receiptPayload);
+    });
+
+    it('EP-WI191-P-005 attests one exact source ref when a selection repeats it', async () => {
+      const source = await registerAndAcceptSource('dup-selection');
+      // `sourceSelections` is a NonEmptySet of whole selections: the same
+      // exact SourceMaterial under another role/locator is legal input and is
+      // still accepted by the owning proposal path.
+      const selections: readonly EnterpriseProject.MaterialSourceSelection[] = [
+        { sourceMaterialRef: source.sourceRef, role: 'primary', locator: 'section.1' },
+        { sourceMaterialRef: source.sourceRef, role: 'attachment', locator: 'annex.b' },
+      ];
+      const confirmation = await confirmCustomerMaterial({
+        tag: 'dup-selection',
+        sourceRef: source.sourceRef,
+        sourceMaterialId: source.sourceMaterialId,
+        digest: source.digest,
+        sourceSelections: selections,
+      });
+
+      // The confirmation kept both selections; only the Receipt projection
+      // publishes the exact refs themselves, which are a unique set.
+      const version = await admin.query<{ selections: number }>(
+        `SELECT jsonb_array_length(source_selections) AS selections
+           FROM enterprise_project.customer_material_version
+          WHERE version_id = $1`,
+        [confirmation.confirmedVersionId],
+      );
+      expect(version.rows[0]?.selections).toBe(2);
+      expect(confirmation.receiptPayload.sourceMaterialRefs).toEqual([
+        contentRef(
+          'zhiju.project.source_material',
+          source.sourceMaterialId,
+          fixture.enterpriseId,
+          fixture.projectId,
+          source.digest,
+        ),
+      ]);
+
+      const attestation = await readThroughEntry(confirmation);
+      expect(attestation.sourceMaterialRefs).toEqual([
+        contentRef(
+          'zhiju.project.source_material',
+          source.sourceMaterialId,
+          fixture.enterpriseId,
+          fixture.projectId,
+          source.digest,
+        ),
+      ]);
+      expect(
+        registry.validateOperationResult('project.get_resolution_receipt', '1.0', attestation),
+      ).toEqual({ valid: true, errors: [] });
+
+      // The V2015 backfill mirrors the same exact-ref rule: re-deriving the
+      // material from the immutable records reproduces the committed one
+      // byte for byte and stays readable.
+      await admin.query(
+        `DELETE FROM enterprise_project.resolution_receipt_material WHERE command_id = $1`,
+        [confirmation.commandId],
+      );
+      const backfilled = await admin.query<{ inserted: number }>(
+        `SELECT enterprise_project.backfill_resolution_receipt_material() AS inserted`,
+      );
+      expect(backfilled.rows[0]?.inserted).toBe(1);
+      expect(await readMaterial(confirmation.commandId)).toEqual({
+        payload: confirmation.receiptPayload,
+        hash: confirmation.receiptHash,
+      });
+      expect(await readThroughEntry(confirmation)).toEqual(attestation);
     });
 
     it('EP-WI191-U-002 refuses a resolver whose capability grant was revoked', async () => {

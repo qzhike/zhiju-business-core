@@ -29,6 +29,10 @@ import type {
 } from '../persistence/enterprise-business-types.js';
 import { AUTHORIZATION_DECISION_INVALID } from './context-source-slice-handlers.js';
 import {
+  receiptSourceMaterialRefs,
+  type ReceiptSourceMaterialRef,
+} from './customer-material-handlers.js';
+import {
   EnterpriseBusinessError,
   PROJECT_QUERY_CONTEXT_EXPIRED,
   PROJECT_QUERY_NOT_FOUND,
@@ -136,38 +140,34 @@ function receiptReference(
 }
 
 /**
- * The canonical source selections of the stored confirmed version, in their
- * public spelling. They are rebuilt from the frozen version payload, so a
- * stored receipt that disagrees with the real confirmation is refused instead
- * of being returned.
+ * The exact source refs of the stored confirmed version, in their public
+ * spelling. They are rebuilt from the frozen version payload with the same
+ * exact-ref dedupe rule the live Receipt projection and the V2015 backfill
+ * use, so a selection that repeats one SourceMaterial under another
+ * role/locator never publishes that source twice, and a stored receipt that
+ * disagrees with the real confirmation is refused instead of being returned.
  */
 function confirmedSourceMaterialRefs(
   version: CustomerMaterialVersionTable,
   scope: Common.ScopeRef,
-): { readonly objectId: string; readonly ref: CanonicalJsonObject }[] {
+): readonly ReceiptSourceMaterialRef[] {
   const selections = Array.isArray(version.source_selections)
     ? (version.source_selections as unknown[])
     : [];
-  return selections.map((selection) => {
-    const source = record(record(selection).sourceMaterialRef);
-    const hash = hashFromContentHash(source.contentHash);
-    if (typeof source.objectId !== 'string' || !isUuidV7(source.objectId) || hash === undefined) {
-      receiptError(
-        PROJECT_QUERY_REF_INVALID,
-        'the stored confirmation does not carry an exact source selection',
-      );
-    }
-    return {
-      objectId: source.objectId,
-      ref: {
-        kind: 'CONTENT_ADDRESSED',
-        objectType: 'zhiju.project.source_material',
-        objectId: source.objectId,
-        scope,
-        contentHash: contentHashValue(hash.toString('hex')),
-      } as unknown as CanonicalJsonObject,
-    };
-  });
+  return receiptSourceMaterialRefs(
+    selections.map((selection) => {
+      const source = record(record(selection).sourceMaterialRef);
+      const hash = hashFromContentHash(source.contentHash);
+      if (typeof source.objectId !== 'string' || !isUuidV7(source.objectId) || hash === undefined) {
+        receiptError(
+          PROJECT_QUERY_REF_INVALID,
+          'the stored confirmation does not carry an exact source selection',
+        );
+      }
+      return { objectId: source.objectId, payloadHash: hash };
+    }),
+    scope,
+  );
 }
 
 interface ReceiptRow {

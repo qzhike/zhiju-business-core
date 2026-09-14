@@ -160,13 +160,26 @@ END
 $fn$;
 
 REVOKE ALL ON FUNCTION enterprise_project.canonical_jsonb_text(jsonb) FROM PUBLIC;
+-- V0002 grants EXECUTE on every function its owner creates in this schema to
+-- the application role, so revoking PUBLIC is not enough: the canonicalizer is
+-- a migration/backfill helper and no application session may call it.
+REVOKE EXECUTE ON FUNCTION enterprise_project.canonical_jsonb_text(jsonb)
+    FROM enterprise_project_app;
 
 -- The stored payload, its content address and every promoted column must
 -- agree, and the content address must be the canonical hash of the stored
 -- payload: a Receipt cannot be published under a scope, actor, version or
 -- validity fact that its own canonical payload does not carry.
+--
+-- SECURITY DEFINER: the guard calls the owner-only canonicalizer, and a
+-- permission check on that nested call is evaluated against the role that
+-- performed the write. Running the guard as its owner keeps the canonicalizer
+-- unreachable for the application role while every insert still re-derives the
+-- content address in the database. The function only reads its own NEW row and
+-- cannot be invoked directly (trigger functions are trigger-only).
 CREATE FUNCTION enterprise_project.guard_resolution_receipt_mirror() RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = pg_catalog
 AS $guard$
 DECLARE
@@ -190,6 +203,12 @@ BEGIN
           IS DISTINCT FROM NEW.confirmed_version_ref
        OR NEW.receipt_payload->'sourceMaterialRefs'
           IS DISTINCT FROM NEW.source_material_refs
+       -- The public Result Schema publishes sourceMaterialRefs as a unique
+       -- set of exact refs. A Receipt whose own payload repeats an exact ref
+       -- could never be returned, so the duplicate is refused at write time
+       -- instead of being stored as unreadable history.
+       OR (SELECT count(*) - count(DISTINCT exact_ref.value)
+             FROM jsonb_array_elements(NEW.source_material_refs) AS exact_ref(value)) <> 0
        OR NEW.receipt_payload->'decisionRef' IS DISTINCT FROM NEW.decision_ref
        OR NEW.receipt_payload->'actorRef' IS DISTINCT FROM NEW.actor_ref
        OR NEW.receipt_payload->'actorSnapshotRef' IS DISTINCT FROM NEW.actor_snapshot_ref
@@ -337,21 +356,34 @@ BEGIN
                            'enterpriseId', recoverable.enterprise_id::text,
                            'projectId', recoverable.project_id::text)),
                    'sourceMaterialRefs', (
-                       SELECT jsonb_agg(jsonb_build_object(
-                                  'kind', 'CONTENT_ADDRESSED',
-                                  'objectType', 'zhiju.project.source_material',
-                                  'objectId', selection.value->'sourceMaterialRef'->>'objectId',
-                                  'scope', jsonb_build_object(
-                                      'enterpriseId', recoverable.enterprise_id::text,
-                                      'projectId', recoverable.project_id::text),
-                                  'contentHash', jsonb_build_object(
-                                      'algorithm', 'SHA-256',
-                                      'digest',
-                                      selection.value->'sourceMaterialRef'->'contentHash'->>'digest',
-                                      'canonicalizationVersion', '1'))
-                                ORDER BY selection.ordinal)
-                         FROM jsonb_array_elements(recoverable.source_selections)
-                              WITH ORDINALITY AS selection(value, ordinal)),
+                       -- Same exact-ref dedupe rule as the live Receipt
+                       -- projection and the read path: selections that
+                       -- project to the same exact SourceMaterialRef keep
+                       -- only their first occurrence, in selection order.
+                       SELECT jsonb_agg(exact_ref.ref ORDER BY exact_ref.ordinal)
+                         FROM (
+                             SELECT DISTINCT ON (
+                                        selection.value->'sourceMaterialRef'->>'objectId',
+                                        selection.value->'sourceMaterialRef'->'contentHash'->>'digest')
+                                    jsonb_build_object(
+                                        'kind', 'CONTENT_ADDRESSED',
+                                        'objectType', 'zhiju.project.source_material',
+                                        'objectId', selection.value->'sourceMaterialRef'->>'objectId',
+                                        'scope', jsonb_build_object(
+                                            'enterpriseId', recoverable.enterprise_id::text,
+                                            'projectId', recoverable.project_id::text),
+                                        'contentHash', jsonb_build_object(
+                                            'algorithm', 'SHA-256',
+                                            'digest',
+                                            selection.value->'sourceMaterialRef'->'contentHash'->>'digest',
+                                            'canonicalizationVersion', '1')) AS ref,
+                                    selection.ordinal
+                               FROM jsonb_array_elements(recoverable.source_selections)
+                                    WITH ORDINALITY AS selection(value, ordinal)
+                              ORDER BY selection.value->'sourceMaterialRef'->>'objectId',
+                                       selection.value->'sourceMaterialRef'->'contentHash'->>'digest',
+                                       selection.ordinal
+                         ) AS exact_ref),
                    'decisionRef', jsonb_build_object(
                        'kind', 'CONTENT_ADDRESSED',
                        'objectType', 'zhiju.project.business_decision',
@@ -444,6 +476,10 @@ END
 $fn$;
 
 REVOKE ALL ON FUNCTION enterprise_project.backfill_resolution_receipt_material() FROM PUBLIC;
+-- A writing maintenance helper: the V0002 default privileges would let the
+-- application role call it directly, bypassing the owning confirmation path.
+REVOKE EXECUTE ON FUNCTION enterprise_project.backfill_resolution_receipt_material()
+    FROM enterprise_project_app;
 
 -- Runs before RLS is enforced so the owning role can recompute history; the
 -- function stays available for an exact, idempotent re-run.
