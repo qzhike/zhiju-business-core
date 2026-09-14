@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { publicApiOperations } from '../generated/public-api.js';
+import { assertRevisionEligibilityOperationRegistrations } from '../operation-registration.js';
 import { ContractRegistry } from '../registry.js';
 import { qualityGovernanceOperationContracts } from './quality-governance.schema.js';
 
@@ -14,14 +15,14 @@ function fixture(name: string): Record<string, unknown> {
 describe('quality-governance schema', () => {
   const registry = new ContractRegistry();
 
-  it('registers exactly 37 full quality operations with the approved kind distribution', () => {
+  it('registers exactly 38 full quality operations with the approved kind distribution', () => {
     const quality = publicApiOperations.filter(
       (operation) => operation.owner === 'quality-governance',
     );
 
-    expect(quality).toHaveLength(37);
+    expect(quality).toHaveLength(38);
     expect(quality.filter((operation) => operation.kind === 'COMMAND')).toHaveLength(18);
-    expect(quality.filter((operation) => operation.kind === 'QUERY')).toHaveLength(8);
+    expect(quality.filter((operation) => operation.kind === 'QUERY')).toHaveLength(9);
     expect(quality.filter((operation) => operation.kind === 'EVENT')).toHaveLength(11);
     expect(Object.keys(qualityGovernanceOperationContracts).sort()).toEqual(
       quality.map((operation) => operation.type).sort(),
@@ -33,7 +34,7 @@ describe('quality-governance schema', () => {
       (operation) => operation.owner === 'quality-governance' && operation.kind === 'QUERY',
     );
 
-    expect(quality).toHaveLength(8);
+    expect(quality).toHaveLength(9);
     for (const operation of quality) {
       const contract = qualityGovernanceOperationContracts[operation.type];
       expect(contract?.resultSchemaRef).toBeDefined();
@@ -436,5 +437,100 @@ describe('quality-governance schema', () => {
       valid: true,
       errors: [],
     });
+  });
+
+  // --- IM-06 (#192) Revision execution eligibility Query -------------------
+  const eligibilityType = 'quality.get_revision_execution_eligibility';
+
+  interface EligibilityNegativeCase {
+    base: string;
+    path: string;
+    keyword: string;
+    expectedPath: string;
+    remove?: boolean;
+    value?: unknown;
+  }
+
+  function eligibilityFixture(name: string): Record<string, unknown> {
+    return fixture(`revision-eligibility/${name}.json`);
+  }
+
+  function setPath(input: Record<string, unknown>, path: string, value: unknown, remove = false) {
+    const keys = path.split('/').slice(1);
+    const key = keys.pop();
+    if (key === undefined) throw new Error('missing fixture path');
+    let parent: Record<string, unknown> = input;
+    for (const name of keys) parent = parent[name] as Record<string, unknown>;
+    if (remove) Reflect.deleteProperty(parent, key);
+    else parent[key] = value;
+  }
+
+  function validateEligibility(base: string, input: unknown) {
+    return base === 'result'
+      ? registry.validateOperationResult(eligibilityType, '1.0', input)
+      : registry.validateOperation(eligibilityType, '1.0', input);
+  }
+
+  const eligibilityNegativeCases = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../../tests/fixtures/contracts/revision-eligibility/negative-cases.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ) as EligibilityNegativeCase[];
+
+  it('accepts the complete eligibility Query and result fixtures', () => {
+    expect(validateEligibility('query', eligibilityFixture('query'))).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(validateEligibility('result', eligibilityFixture('result'))).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it.each(eligibilityNegativeCases)('rejects $base $path ($keyword)', (test) => {
+    const input = eligibilityFixture(test.base);
+    expect(validateEligibility(test.base, input)).toEqual({ valid: true, errors: [] });
+    setPath(input, test.path, test.value, test.remove);
+    const outcome = validateEligibility(test.base, input);
+    expect(outcome.valid).toBe(false);
+    expect(outcome.errors).toContainEqual(
+      expect.objectContaining({ keyword: test.keyword, instancePath: test.expectedPath }),
+    );
+  });
+
+  it('accepts a result that omitted the Approval Bundle and answered NOT_APPLICABLE', () => {
+    const result = eligibilityFixture('result');
+    Reflect.deleteProperty(result, 'approvalBundleRef');
+    result.approvalBundleUsable = { presence: 'NOT_APPLICABLE' };
+    expect(validateEligibility('result', result)).toEqual({ valid: true, errors: [] });
+  });
+
+  it('exposes the exact AUTHORITATIVE eligibility registration metadata', () => {
+    assertRevisionEligibilityOperationRegistrations(publicApiOperations);
+    expect(registry.getOperation(eligibilityType, '1.0')).toMatchObject({
+      owner: 'quality-governance',
+      kind: 'QUERY',
+      schemaStatus: 'FULL',
+      allowedConsistency: ['AUTHORITATIVE'],
+      authorizationPurpose: 'quality.revision.execution_eligibility.read',
+      dataClassification: 'INTERNAL',
+    });
+    // The Query introduces no target, guard policy, reference surface or
+    // explicit result schema of its own.
+    const operation = registry.getOperation(eligibilityType, '1.0');
+    expect(operation?.targetObjectType).toBeUndefined();
+    expect(operation?.concurrencyMode).toBeUndefined();
+    expect(operation?.payloadGuardPolicyRef).toBeUndefined();
+    expect(operation?.references).toBeUndefined();
+    expect(operation?.resultReferences).toBeUndefined();
+    expect(operation?.resultSchemaRef).toBeUndefined();
+    expect(qualityGovernanceOperationContracts[eligibilityType]?.resultSchemaRef).toBe(
+      `https://schemas.zhiju.local/modules/quality-governance/1.0#/$defs/quality_get_revision_execution_eligibility_result`,
+    );
   });
 });

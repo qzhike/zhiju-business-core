@@ -23,11 +23,13 @@ import {
   type BusinessWriteOutcome,
 } from '../persistence/quality-business-repository.js';
 import type {
+  ApprovalBundleSnapshotTable,
   ChangeImpactTable,
   GateResultTable,
   QualityProfileTable,
   QualityProfileVersionTable,
   ReleaseReadinessSnapshotTable,
+  RevisionAcceptanceSnapshotTable,
 } from '../persistence/quality-business-types.js';
 import {
   executeQualityGovernanceCommand,
@@ -37,8 +39,13 @@ import {
   type CommandResult,
 } from '../persistence/command-runner.js';
 import {
+  QUALITY_APPROVAL_GATE_BUNDLE_INVALID,
+  QUALITY_APPROVAL_INVALID,
+  QUALITY_APPROVAL_QUERY_NOT_FOUND,
+  QUALITY_APPROVAL_REVISION_MISMATCH,
   QUALITY_CHANGE_IMPACT_QUERY_NOT_FOUND,
   QUALITY_EVIDENCE_NOT_VERIFIED,
+  QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED,
   QUALITY_GATE_INPUT_MISMATCH,
   QUALITY_GATE_REUSE_NOT_ALLOWED,
   QUALITY_GATE_RESULT_IMMUTABLE,
@@ -2263,5 +2270,391 @@ export async function handleGetReleaseReadinessSnapshot(
       await assertCurrentReleaseReadiness(trx, context, row, snapshot);
     }
     return snapshot;
+  });
+}
+
+// ===========================================================================
+// IM-06 (#192): Revision execution eligibility Query
+// ===========================================================================
+//
+// Answers whether one exact Artifact Revision is *currently* acceptable and
+// *currently* fully approved for new execution, reusing the owning current
+// validity checks instead of trusting the historical READY /
+// FULLY_APPROVED snapshot state. The Query is read-only: it never rewrites a
+// snapshot, re-runs a Gate or creates an Approval.
+
+export const REVISION_EXECUTION_ELIGIBILITY_QUERY = 'quality.get_revision_execution_eligibility';
+export const REVISION_EXECUTION_ELIGIBILITY_PURPOSE = 'quality.revision.execution_eligibility.read';
+
+export type GetRevisionExecutionEligibilityPayload =
+  QualityGovernance.QualityGetRevisionExecutionEligibilityPayload;
+
+const ARTIFACT_REVISION_OBJECT_TYPE = 'artifact.artifact_revision';
+
+interface EligibilityVerdict {
+  readonly usable: boolean;
+  readonly reasons: readonly string[];
+  /** Quality-owned facts this verdict actually validated. */
+  readonly observedFacts: number;
+}
+
+/**
+ * The executing caller must hold its own current Decision for the exact
+ * registered Purpose. A Decision issued for another operation, a wildcard or
+ * an unregistered Purpose is refused here, before any fact is read.
+ */
+function assertExecutionEligibilityAuthorized(context: QualityTransactionContext): void {
+  if (context.authorizationPurposes?.includes(REVISION_EXECUTION_ELIGIBILITY_PURPOSE) !== true) {
+    throw new QualityBusinessError(
+      QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED,
+      'the pinned authorization decision does not cover this exact purpose',
+    );
+  }
+}
+
+function eligibilitySnapshotRef(
+  value: unknown,
+  context: QualityTransactionContext,
+  label: string,
+  objectType: string,
+  errorCode: string,
+): Common.SnapshotRef {
+  const ref = validateSnapshotRef(value, context, label);
+  if (ref.objectType !== objectType) {
+    throw new QualityBusinessError(errorCode, `${label} does not identify the expected snapshot`);
+  }
+  return ref;
+}
+
+/**
+ * One requested snapshot resolved by identity, Scope, payload hash and exact
+ * Revision binding. A substituted hash, another Scope, another Revision or a
+ * mismatched stored snapshot identity is unresolvable rather than "not
+ * usable", so a foreign fact can never be presented as this Revision's answer.
+ */
+async function exactEligibilityAcceptance(
+  trx: QualityTransaction,
+  context: QualityTransactionContext,
+  revisionRef: Common.ContentAddressedRef,
+  requested: Common.SnapshotRef,
+): Promise<RevisionAcceptanceSnapshotTable | undefined> {
+  const row = await repo.getRevisionAcceptanceSnapshotById(trx, requested.snapshotId);
+  if (row === undefined) return undefined;
+  if (
+    row.enterprise_id !== context.enterpriseId ||
+    (row.project_id ?? undefined) !== (requested.scope.projectId ?? undefined) ||
+    !row.payload_hash.equals(snapshotRefHash(requested)) ||
+    !row.revision_content_hash.equals(contentRefHash(revisionRef)) ||
+    !exactJsonEqual(row.revision_ref, revisionRef)
+  ) {
+    return undefined;
+  }
+  const stored = storedObject(row.snapshot, 'RevisionAcceptanceSnapshot.snapshot');
+  if (stored.snapshotId !== requested.snapshotId) return undefined;
+  if (
+    !exactJsonEqual(stored.revisionRef, revisionRef) ||
+    !exactJsonEqual(stored.qualityProfileRef, row.quality_profile_ref)
+  ) {
+    return undefined;
+  }
+  return row;
+}
+
+function exactProfileGate(
+  definition: QualityGovernance.QualityProfileDefinition,
+  gateSpecId: unknown,
+  gateVersion: unknown,
+): CanonicalJsonObject | undefined {
+  return definition.gateSpecs
+    .map((item) => storedObject(item, 'QualityProfile.gateSpec'))
+    .find((gate) => gate.gateSpecId === gateSpecId && gate.gateVersion === gateVersion);
+}
+
+/**
+ * Current usability of one RevisionAcceptanceSnapshot: still the latest
+ * acceptance for this Revision/Profile, still READY, every recorded Gate
+ * Result still exact and un-invalidated, and every mandatory Gate still
+ * present with PASS. Historical READY alone is never sufficient.
+ */
+async function revisionAcceptanceEligibility(
+  trx: QualityTransaction,
+  context: QualityTransactionContext,
+  revisionRef: Common.ContentAddressedRef,
+  row: RevisionAcceptanceSnapshotTable,
+): Promise<EligibilityVerdict> {
+  const reasons = new Set<string>();
+  const snapshot = storedObject(
+    row.snapshot,
+    'RevisionAcceptanceSnapshot.snapshot',
+  ) as unknown as Core.RevisionAcceptanceSnapshot;
+  const profileRef = storedObject(
+    row.quality_profile_ref,
+    'RevisionAcceptanceSnapshot.qualityProfileRef',
+  ) as unknown as Common.VersionedRef;
+  if (row.status !== 'READY') reasons.add(QUALITY_REVISION_ACCEPTANCE_NOT_READY);
+  const latest = await repo.getLatestRevisionAcceptanceSnapshot(
+    trx,
+    row.revision_ref,
+    row.quality_profile_ref,
+  );
+  if (latest?.snapshot_id !== row.snapshot_id) reasons.add(QUALITY_REVISION_ACCEPTANCE_NOT_READY);
+  const gateResultRefs = storedArray(
+    row.gate_result_refs,
+    'RevisionAcceptanceSnapshot.gateResultRefs',
+  ) as unknown as readonly Common.ContentAddressedRef[];
+  const inspection = await inspectGateResultRefs(
+    trx,
+    context,
+    gateResultRefs,
+    'REVISION_ACCEPTANCE',
+    revisionRef,
+    profileRef,
+  );
+  for (const reason of inspection.reasons) reasons.add(reason);
+  const profile = await exactProfile(trx, context, profileRef, false);
+  if (profile === undefined) {
+    // The applicable Profile version cannot be re-read, so the currently
+    // applicable mandatory Gate set cannot be established: fail closed.
+    reasons.add(QUALITY_REVISION_ACCEPTANCE_NOT_READY);
+  } else {
+    for (const value of snapshot.requiredGateSpecs) {
+      const spec = storedObject(value, 'RevisionAcceptanceSnapshot.requiredGateSpecs');
+      const gate = exactProfileGate(profile.definition, spec.gateSpecId, spec.gateVersion);
+      if (gate?.mandatory !== true) continue;
+      const gateRow = inspection.rows.find(
+        (candidate) =>
+          candidate.gate_spec_id === spec.gateSpecId &&
+          candidate.gate_version === spec.gateVersion &&
+          candidate.evaluation_stage === 'REVISION_ACCEPTANCE',
+      );
+      if (gateRow === undefined) {
+        reasons.add('QUALITY_MANDATORY_GATE_MISSING');
+        continue;
+      }
+      if (gateRow.outcome !== 'PASS') reasons.add(QUALITY_REVISION_ACCEPTANCE_NOT_READY);
+    }
+  }
+  return {
+    usable: reasons.size === 0,
+    reasons: [...reasons].sort(),
+    observedFacts: inspection.rows.length + 1,
+  };
+}
+
+/**
+ * Current usability of one ApprovalBundleSnapshot: still the latest bundle
+ * for this Revision/Profile, still FULLY_APPROVED, every recorded Approval
+ * still EFFECTIVE and exactly bound to this Revision/Profile and to a READY
+ * RevisionAcceptanceSnapshot of the same Revision/Profile, and the bundle's
+ * own Revision acceptance still currently usable. A revoked Approval or a
+ * later STALE bundle therefore reports not usable with reasons instead of
+ * re-reading history as current.
+ */
+async function approvalBundleEligibility(
+  trx: QualityTransaction,
+  context: QualityTransactionContext,
+  revisionRef: Common.ContentAddressedRef,
+  row: ApprovalBundleSnapshotTable,
+): Promise<EligibilityVerdict> {
+  const reasons = new Set<string>();
+  const snapshot = storedObject(
+    row.snapshot,
+    'ApprovalBundleSnapshot.snapshot',
+  ) as unknown as Core.ApprovalBundleSnapshot;
+  if (snapshot.snapshotId !== row.snapshot_id) {
+    throw new QualityBusinessError(
+      QUALITY_APPROVAL_QUERY_NOT_FOUND,
+      'stored ApprovalBundleSnapshot identity does not match the requested snapshot',
+    );
+  }
+  const completeness = storedObject(row.completeness, 'ApprovalBundleSnapshot.completeness');
+  if (completeness.status !== 'FULLY_APPROVED') {
+    reasons.add(QUALITY_APPROVAL_GATE_BUNDLE_INVALID);
+  }
+  const latest = await repo.getLatestApprovalBundleSnapshot(
+    trx,
+    row.revision_ref,
+    row.quality_profile_ref,
+  );
+  if (latest?.snapshot_id !== row.snapshot_id) reasons.add(QUALITY_APPROVAL_GATE_BUNDLE_INVALID);
+  let observedFacts = 1;
+  const acceptanceRef = validateSnapshotRef(
+    snapshot.revisionAcceptanceSnapshotRef,
+    context,
+    'ApprovalBundleSnapshot.revisionAcceptanceSnapshotRef',
+  );
+  if (acceptanceRef.objectType !== REVISION_SNAPSHOT_OBJECT_TYPE) {
+    reasons.add(QUALITY_APPROVAL_GATE_BUNDLE_INVALID);
+  } else {
+    const acceptance = await exactEligibilityAcceptance(trx, context, revisionRef, acceptanceRef);
+    if (
+      acceptance === undefined ||
+      !exactJsonEqual(acceptance.quality_profile_ref, row.quality_profile_ref)
+    ) {
+      reasons.add(QUALITY_APPROVAL_GATE_BUNDLE_INVALID);
+    } else {
+      const verdict = await revisionAcceptanceEligibility(trx, context, revisionRef, acceptance);
+      observedFacts += verdict.observedFacts;
+      for (const reason of verdict.reasons) reasons.add(reason);
+    }
+  }
+  const approvalRefs = storedArray(row.approval_refs, 'ApprovalBundleSnapshot.approvalRefs');
+  for (const [index, value] of approvalRefs.entries()) {
+    const approvalRef = validateContentAddressedRef(
+      value,
+      context,
+      `ApprovalBundleSnapshot.approvalRefs[${index}]`,
+      new Set([APPROVAL_OBJECT_TYPE]),
+    );
+    const approval = await repo.getApprovalById(trx, approvalRef.objectId);
+    if (approval === undefined) {
+      reasons.add(QUALITY_APPROVAL_INVALID);
+      continue;
+    }
+    observedFacts += 1;
+    if (
+      approval.status !== 'EFFECTIVE' ||
+      approval.enterprise_id !== context.enterpriseId ||
+      (approval.project_id ?? undefined) !== (approvalRef.scope.projectId ?? undefined) ||
+      !approval.payload_hash.equals(contentRefHash(approvalRef))
+    ) {
+      reasons.add(QUALITY_APPROVAL_INVALID);
+      continue;
+    }
+    if (
+      !approval.revision_content_hash.equals(contentRefHash(revisionRef)) ||
+      !exactJsonEqual(approval.revision_ref, revisionRef)
+    ) {
+      reasons.add(QUALITY_APPROVAL_REVISION_MISMATCH);
+      continue;
+    }
+    if (!exactJsonEqual(approval.quality_profile_ref, row.quality_profile_ref)) {
+      reasons.add(QUALITY_APPROVAL_INVALID);
+      continue;
+    }
+    const anchorRef = validateSnapshotRef(
+      approval.revision_acceptance_snapshot_ref,
+      context,
+      'Approval.revisionAcceptanceSnapshotRef',
+    );
+    const anchor = await exactEligibilityAcceptance(trx, context, revisionRef, anchorRef);
+    const anchorBound =
+      anchorRef.objectType === REVISION_SNAPSHOT_OBJECT_TYPE &&
+      anchor?.status === 'READY' &&
+      anchor.payload_hash.equals(approval.revision_acceptance_snapshot_hash) &&
+      exactJsonEqual(anchor.quality_profile_ref, row.quality_profile_ref);
+    if (!anchorBound) {
+      reasons.add(QUALITY_APPROVAL_INVALID);
+      continue;
+    }
+    observedFacts += 1;
+  }
+  return { usable: reasons.size === 0, reasons: [...reasons].sort(), observedFacts };
+}
+
+/**
+ * `quality.get_revision_execution_eligibility@1.0` (AUTHORITATIVE only).
+ * Reports the current execution eligibility of one exact Revision, with the
+ * trusted observation instant, explainable reason codes and real source
+ * watermarks. It does not re-run a Gate, create an Approval, rewrite a
+ * snapshot or grant Release/Completion authority.
+ */
+export async function handleGetRevisionExecutionEligibility(
+  db: Kysely<QualityGovernanceDb>,
+  context: QualityTransactionContext,
+  payload: GetRevisionExecutionEligibilityPayload,
+): Promise<QualityGovernance.RevisionExecutionEligibilityResult> {
+  assertExecutionEligibilityAuthorized(context);
+  const revisionRef = validateContentAddressedRef(
+    payload.revisionRef,
+    context,
+    'revisionRef',
+    new Set([ARTIFACT_REVISION_OBJECT_TYPE]),
+  );
+  const revisionAcceptanceRef = eligibilitySnapshotRef(
+    payload.revisionAcceptanceRef,
+    context,
+    'revisionAcceptanceRef',
+    REVISION_SNAPSHOT_OBJECT_TYPE,
+    QUALITY_READINESS_SNAPSHOT_QUERY_NOT_FOUND,
+  );
+  const approvalBundleRef =
+    payload.approvalBundleRef === undefined
+      ? undefined
+      : eligibilitySnapshotRef(
+          payload.approvalBundleRef,
+          context,
+          'approvalBundleRef',
+          APPROVAL_BUNDLE_SNAPSHOT_OBJECT_TYPE,
+          QUALITY_APPROVAL_QUERY_NOT_FOUND,
+        );
+  return withQualityGovernanceTransaction(db, context, async (trx) => {
+    const acceptanceRow = await exactEligibilityAcceptance(
+      trx,
+      context,
+      revisionRef,
+      revisionAcceptanceRef,
+    );
+    if (acceptanceRow === undefined) {
+      throw new QualityBusinessError(
+        QUALITY_READINESS_SNAPSHOT_QUERY_NOT_FOUND,
+        'RevisionAcceptanceSnapshot is not resolvable for the exact Revision',
+      );
+    }
+    const acceptance = await revisionAcceptanceEligibility(
+      trx,
+      context,
+      revisionRef,
+      acceptanceRow,
+    );
+    const reasons = new Set(acceptance.reasons);
+    let observedFacts = acceptance.observedFacts;
+    let approvalBundleUsable: QualityGovernance.ValueEnvelopeBoolean = {
+      presence: 'NOT_APPLICABLE',
+    };
+    if (approvalBundleRef !== undefined) {
+      const bundleRow = await repo.getApprovalBundleSnapshotById(trx, approvalBundleRef.snapshotId);
+      if (bundleRow === undefined) {
+        throw new QualityBusinessError(
+          QUALITY_APPROVAL_QUERY_NOT_FOUND,
+          'ApprovalBundleSnapshot is not resolvable for the exact Revision',
+        );
+      }
+      if (
+        bundleRow.enterprise_id !== context.enterpriseId ||
+        (bundleRow.project_id ?? undefined) !== (approvalBundleRef.scope.projectId ?? undefined) ||
+        !bundleRow.payload_hash.equals(snapshotRefHash(approvalBundleRef)) ||
+        !bundleRow.revision_content_hash.equals(contentRefHash(revisionRef)) ||
+        !exactJsonEqual(bundleRow.revision_ref, revisionRef) ||
+        !exactJsonEqual(bundleRow.quality_profile_ref, acceptanceRow.quality_profile_ref)
+      ) {
+        throw new QualityBusinessError(
+          QUALITY_APPROVAL_QUERY_NOT_FOUND,
+          'ApprovalBundleSnapshot is not bound to the exact Revision, Scope and Profile',
+        );
+      }
+      const bundle = await approvalBundleEligibility(trx, context, revisionRef, bundleRow);
+      observedFacts += bundle.observedFacts;
+      for (const reason of bundle.reasons) reasons.add(reason);
+      approvalBundleUsable = { presence: 'PRESENT', value: bundle.usable };
+    }
+    const observedAt = new Date().toISOString();
+    return {
+      revisionRef,
+      revisionAcceptanceRef,
+      ...(approvalBundleRef === undefined ? {} : { approvalBundleRef }),
+      revisionAcceptanceUsable: acceptance.usable,
+      approvalBundleUsable,
+      reasonCodes: [...reasons].sort(),
+      observedAt,
+      sourceWatermarks: [
+        {
+          sourceModule: 'quality_governance',
+          partition: revisionRef.objectId,
+          sequence: observedFacts,
+          observedAt,
+        },
+      ],
+    };
   });
 }

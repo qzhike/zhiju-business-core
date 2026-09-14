@@ -94,6 +94,9 @@ export {
   handleGetGateResults,
   handleGetRevisionAcceptanceSnapshot,
   handleGetReleaseReadinessSnapshot,
+  handleGetRevisionExecutionEligibility,
+  REVISION_EXECUTION_ELIGIBILITY_PURPOSE,
+  REVISION_EXECUTION_ELIGIBILITY_QUERY,
 } from './business/quality-gate-handlers.js';
 
 export {
@@ -129,6 +132,7 @@ export type {
   GetGateResultsPayload,
   GetRevisionAcceptanceSnapshotPayload,
   GetReleaseReadinessSnapshotPayload,
+  GetRevisionExecutionEligibilityPayload,
 } from './business/quality-gate-handlers.js';
 
 export {
@@ -213,6 +217,7 @@ export {
   QUALITY_APPROVAL_ALREADY_REVOKED,
   QUALITY_APPROVAL_IDENTITY_CONFLICT,
   QUALITY_ABS_CONTRACT_INVALID,
+  QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED,
 } from './business/quality-business-errors.js';
 
 export { QualityBusinessRepository } from './persistence/quality-business-repository.js';

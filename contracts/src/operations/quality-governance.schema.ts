@@ -469,6 +469,45 @@ const namedDefinitions = {
   revisionAcceptanceResult: coreRevisionAcceptanceContract,
   approvalBundleResult: coreApprovalBundleContract,
   releaseReadinessResult: coreReleaseReadinessContract,
+  // ValueEnvelope<boolean>: the common value envelope keeps `value` open, so
+  // the approved execution-eligibility result restates it locally with the
+  // generic argument narrowed to boolean. `PRESENT` requires the boolean and
+  // every other presence state forbids carrying a usable value, so a
+  // NOT_APPLICABLE answer cannot be read as `false`.
+  valueEnvelopeBoolean: {
+    oneOf: [
+      object(['presence', 'value'], {
+        presence: { const: 'PRESENT' },
+        value: { type: 'boolean' },
+        reasonCode,
+      }),
+      object(['presence'], {
+        presence: { enum: ['UNKNOWN', 'REDACTED', 'NOT_APPLICABLE', 'UNAVAILABLE'] },
+        reasonCode,
+      }),
+    ],
+  },
+  revisionExecutionEligibilityResult: object(
+    [
+      'revisionRef',
+      'revisionAcceptanceRef',
+      'revisionAcceptanceUsable',
+      'approvalBundleUsable',
+      'reasonCodes',
+      'observedAt',
+      'sourceWatermarks',
+    ],
+    {
+      revisionRef: contentAddressedReference,
+      revisionAcceptanceRef: snapshotReference,
+      approvalBundleRef: snapshotReference,
+      revisionAcceptanceUsable: { type: 'boolean' },
+      approvalBundleUsable: localRef('valueEnvelopeBoolean'),
+      reasonCodes: array(reasonCode),
+      observedAt: instant,
+      sourceWatermarks: array(localRef('sourceWatermark')),
+    },
+  ),
 } as const satisfies Readonly<Record<string, JsonSchema>>;
 
 const operationSchemas = {
@@ -665,6 +704,14 @@ const operationSchemas = {
       requireCurrentForAuthorization: { type: 'boolean' },
     }),
     result: localRef('releaseReadinessResult'),
+  },
+  'quality.get_revision_execution_eligibility': {
+    payload: object(['revisionRef', 'revisionAcceptanceRef'], {
+      revisionRef: contentAddressedReference,
+      revisionAcceptanceRef: snapshotReference,
+      approvalBundleRef: snapshotReference,
+    }),
+    result: localRef('revisionExecutionEligibilityResult'),
   },
   'quality.EvidenceVerified': {
     payload: object(['evidenceRef', 'verificationRef', 'authority', 'verifiedAt'], {

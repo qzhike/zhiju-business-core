@@ -1694,4 +1694,14 @@ export const publicApiOperations = [
       },
     ],
   },
+  {
+    type: 'quality.get_revision_execution_eligibility',
+    version: '1.0',
+    kind: 'QUERY',
+    owner: 'quality-governance',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'quality.revision.execution_eligibility.read',
+    dataClassification: 'INTERNAL',
+  },
 ] as const satisfies readonly PublicOperationDefinition[];

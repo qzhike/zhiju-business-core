@@ -60,6 +60,13 @@ export const QUALITY_APPROVAL_ALREADY_REVOKED = 'QUALITY_APPROVAL_ALREADY_REVOKE
 export const QUALITY_APPROVAL_IDENTITY_CONFLICT = 'QUALITY_APPROVAL_IDENTITY_CONFLICT';
 export const QUALITY_ABS_CONTRACT_INVALID = 'QUALITY_ABS_CONTRACT_INVALID';
 
+// IM-06 (#192): stable failure for the Revision execution eligibility Query.
+// The Query is a high-risk authorization read: a pinned AuthorizationDecision
+// that does not cover the exact registered Purpose is refused, without a
+// generic Service permission and without leaking whether any fact exists.
+export const QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED =
+  'QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED';
+
 export class QualityBusinessError extends Error {
   constructor(
     readonly code: string,

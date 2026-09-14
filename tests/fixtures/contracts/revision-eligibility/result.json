@@ -1,0 +1,61 @@
+{
+  "revisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "artifact.artifact_revision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d407",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d401",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d402"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "revisionAcceptanceRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "quality.revision_acceptance_snapshot",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d408",
+    "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d408",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d401",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d402"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "approvalBundleRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "quality.approval_bundle_snapshot",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d409",
+    "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d409",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d401",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d402"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "5555555555555555555555555555555555555555555555555555555555555555",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "revisionAcceptanceUsable": true,
+  "approvalBundleUsable": {
+    "presence": "PRESENT",
+    "value": true
+  },
+  "reasonCodes": [],
+  "observedAt": "2026-09-14T00:00:00Z",
+  "sourceWatermarks": [
+    {
+      "sourceModule": "quality_governance",
+      "partition": "018f22e2-7c15-7b2e-8d86-2de956a9d407",
+      "sequence": 4,
+      "observedAt": "2026-09-14T00:00:00Z"
+    }
+  ]
+}

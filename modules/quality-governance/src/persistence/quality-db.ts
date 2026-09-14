@@ -270,6 +270,13 @@ export interface QualityTransactionContext {
   readonly allowedProjectIds: readonly string[];
   readonly correlationId: string;
   readonly sourceEventId?: string;
+  /**
+   * Registered Purposes pinned by the trusted AuthorizationDecision the
+   * composition layer proved for this request. Supplied only by that layer,
+   * never by a payload: an operation that requires an exact Purpose compares
+   * this list against its own registered string and fails closed otherwise.
+   */
+  readonly authorizationPurposes?: readonly string[];
 }
 
 export type QualityTransaction = Transaction<QualityGovernanceDb>;

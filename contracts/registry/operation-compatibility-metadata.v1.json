@@ -1487,6 +1487,13 @@
       "authorizationPurpose": "project.resolution_receipt.read",
       "dataClassification": "CUSTOMER_CONFIDENTIAL",
       "semanticDeclaration": "im-06-resolution-receipt-v1.0"
+    },
+    {
+      "type": "quality.get_revision_execution_eligibility",
+      "version": "1.0",
+      "authorizationPurpose": "quality.revision.execution_eligibility.read",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-revision-execution-eligibility-v1.0"
     }
   ]
 }

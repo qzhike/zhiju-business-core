@@ -17,7 +17,7 @@
 - Query 一致性、分页、脱敏和结果语义；
 - Domain Event 最小事实 Payload 与 Replay 语义；
 - 公开错误结构、兼容规则和 Schema Registry 要求；
-- 七模块当前 212 个公开 Contract 的字段级路由（历史兼容基线为 200 项）。
+- 七模块当前 213 个公开 Contract 的字段级路由（历史兼容基线为 200 项）。
 
 本阶段不定义：
 
@@ -400,7 +400,7 @@ ContractRegistration
 
 API Contract 进入用户审核前必须证明：
 
-1. Catalog 中当前 212 个已注册 `name@version` 在七个 Module Spec 中各出现且只出现一次；
+1. Catalog 中当前 213 个已注册 `name@version` 在七个 Module Spec 中各出现且只出现一次；
 2. namespace 与唯一 Owner 一致；
 3. 每个 Command 有 target/concurrency、payload、authorization 和主要拒绝语义；
 4. 每个 Query 有 payload、result 和允许一致性；
@@ -426,7 +426,7 @@ API Contract 进入用户审核前必须证明：
 ## 13. 当前状态
 
 - 字段级 API 文档已完成本轮静态 `DESIGN VERIFIED`，并由用户于 2026-08-13 审核通过；验证证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)；
-- 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，#165 再增加三个 @1.1 兼容操作至 208 项，#175 再增加一个 @2.0 操作至 209 项，#183 再注册 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0` 至 211 项，#191 再注册 `project.get_resolution_receipt@1.0` 至 212 项，#159 仅放宽既有字段的数组接受集合，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
+- 历史 200 项公开 Operation 已有机器可执行 JSON Schema、Schema-derived Type、Registry 和 v1.0 Compatibility Baseline；当前 #157/#158 增量后 Catalog/Registry 为 205 项，#165 再增加三个 @1.1 兼容操作至 208 项，#175 再增加一个 @2.0 操作至 209 项，#183 再注册 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0` 至 211 项，#191 再注册 `project.get_resolution_receipt@1.0` 至 212 项，#192 再注册 `quality.get_revision_execution_eligibility@1.0` 至 213 项，#159 仅放宽既有字段的数组接受集合，`pnpm contracts:check` 对当前集合执行一致性检查并通过；
 - 业务 Handler、业务 Fixture、Persistence 业务链和 E2E Runtime 仍未实现；
 - #157/#158/#165/#175/#183 的 Schema/Registry、PayloadGuard 条目与生成检查、以及既有 WI-01 Persistence gate 已通过；#181 提供两个 PolicyVersion 操作的 PayloadGuard 有限参数与实测依据，#183 按该已批准参数完成静态注册（Schema/Registry/Catalog/生成类型/fixture）；业务 Handler、E2E、外部和人工运行验证仍为 `NOT RUN`；
 - 本阶段静态检查最多可标记 `DESIGN VERIFIED`，不得报告实现通过。
@@ -441,7 +441,7 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 状态：TECHNICAL DESIGN APPROVED 2026-09-08；#157 的两项 Source Slice 操作、#158 的两项 @1.0 WorkOrder Draft/initial Context 操作与 #165 的三个 @1.1 兼容操作已交付 Schema/Registry，其中 #157 另有已批准 Guard；#175 的 `execution.create_task@2.0` 与 #183 的两个 PolicyVersion 操作也已注册；其余增量尚未注册。#152–#154具体输入/输出在owning Spec 002/003/005/007设计附录；[TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)已获批准，按依赖实施。首次构建采用版本化新操作，避免改变build_context_snapshot@1.0必填ContractRef语义；Task typed definition采用create_task@2.0，避免以Minor或Handler默认值收窄旧CanonicalJson。
 
-保留既有 @1.0 操作与历史 200 项 Compatibility Baseline 的兼容性；#157 与 #158 各新增两项后 Registry 为 205 项，#165 再新增三个 @1.1 兼容操作至 208 项，#175 再新增 `execution.create_task@2.0` 至 209 项，#183 再注册 #176 的两个 PolicyVersion 操作至 211 项，#191 再注册 `project.get_resolution_receipt@1.0` 至 212 项（静态契约与 Handler 均已交付，见本节末尾）。旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
+保留既有 @1.0 操作与历史 200 项 Compatibility Baseline 的兼容性；#157 与 #158 各新增两项后 Registry 为 205 项，#165 再新增三个 @1.1 兼容操作至 208 项，#175 再新增 `execution.create_task@2.0` 至 209 项，#183 再注册 #176 的两个 PolicyVersion 操作至 211 项，#191 再注册 `project.get_resolution_receipt@1.0` 至 212 项，#192 再注册 `quality.get_revision_execution_eligibility@1.0` 至 213 项（两批的静态契约与 Handler 均已交付，见本节末尾）。旧 Envelope/Event/Query Result 的接受集合不收窄。新操作/版本必须按完整Envelope注册，新增Purpose由IdentityPolicy显式策略承载；新Ref objectType、PayloadGuard上限、错误码和discriminated union必须同步生成Schema/IDL与正负向fixture。不得让candidate名字进入当前operationCount，也不能以Schema仍accept旧payload宣称新旧Handler语义兼容已经验证。
 
 新增Query只读且受Scope/Purpose裁剪；Slice捕获使用CREATE Command，避免Query产生不可审计写入。CAS expectedAggregateVersion只在Envelope，历史snapshotId/hash不充当CAS token；runtime bigint不能有损转Number。公开整数范围在实现前须与共享Envelope Schema一致，超界明确拒绝，不能借本设计暗改共享类型。
 
@@ -553,3 +553,13 @@ CREATE Envelope 必须省略 expectedAggregateVersion，targetRef 为 ObjectRef<
 状态：`TECHNICAL DESIGN APPROVED 2026-09-08 (TD-04) / SCHEMA, REGISTRY, GENERATED TYPES, FIXTURES, HANDLER, AUTHORIZATION AND V2015 PERSISTENCE IMPLEMENTED 2026-09-14 (#191) / TE CONSUMPTION NOT RUN`。新增只读 AUTHORITATIVE Query `project.get_resolution_receipt@1.0`（Owner=enterprise-project，Purpose `project.resolution_receipt.read`，`dataClassification=CUSTOMER_CONFIDENTIAL`）：payload 固定 `{commandReceiptRef: Exact<CommandReceipt>}`（CONTENT_ADDRESSED/`zhiju.project.command_receipt`，id、Project Scope 与完整 ContentHash 均为必填），Result 固定 `ResolutionReceiptAttestation` 的 15 个字段（见 [Catalog #191 注册](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#191-resolution-receipt-注册) 与 [Spec 002](../module-specs/Module-Spec-002-EnterpriseProject.md#191-实现事实resolution-receipt-material-与-attestation-query)）。
 
 本项在新操作的 `references`/`resultReferences` 中登记 `zhiju.project.command_receipt`、`zhiju.project.customer_material`、`zhiju.project.source_material`、`zhiju.project.business_decision`、`zhiju.identity.actor_snapshot`、`zhiju.identity.authorization_decision` 与 `zhiju.identity.principal`，并在构建期断言中固定 owner/kind/consistency/purpose/classification/ref 声明；未为该项增设构建期 PayloadGuard 技术 Policy（#157 的 `ep.context_source_slice@1.0` 适用范围不变），因此不产生新的资源限额声明。Catalog 由 211 增至 212 项，历史 200 项 Compatibility Baseline、旧 201/205/208/209/211 增量条目与所有旧 Envelope/Result 接受集合均未改变。`commandReceiptRef.contentHash` 为持久化规范 Receipt payload 的规范 Hash，不是原命令 request payload Hash；Query 不接受 caller 自报的 outcome/candidate/result/actor。
+
+### #192 Revision 执行资格 Query 注册
+
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 (TD-03) / SCHEMA, REGISTRY, GENERATED TYPES, FIXTURES, HANDLER, AUTHORIZATION BOUNDARY AND REAL POSTGRESQL EVIDENCE IMPLEMENTED 2026-09-14 (#192) / TE COMPLETION CONSUMPTION NOT RUN`。新增只读 AUTHORITATIVE Query `quality.get_revision_execution_eligibility@1.0`（Owner=quality-governance，Purpose `quality.revision.execution_eligibility.read`，`dataClassification=INTERNAL`，`allowedConsistency=AUTHORITATIVE`）：payload 固定 `{revisionRef: Exact<ArtifactRevision>; revisionAcceptanceRef: Snap<RevisionAcceptance>; approvalBundleRef?: Snap<ApprovalBundle>}`，Result 固定 `RevisionExecutionEligibilityResult` 的八个字段（`approvalBundleUsable` 为本地收窄的 `ValueEnvelope<boolean>`），字段级定义见 [Spec 005](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计) 与 [Catalog #192 注册](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#192-revision-执行资格-query-注册)。
+
+本项不新增 operation-specific PayloadGuard 技术 Policy、target、concurrencyMode、`references`/`resultReferences` 或显式 result schema；Result Schema 由 operation identity 从模块 Schema 派生，`assertRevisionEligibilityOperationRegistrations` 在构建期固定 owner/kind/consistency/purpose/classification 并拒绝上述任何附加声明。Purpose `quality.revision.execution_eligibility.read` 必须在 public-api 与 compatibility metadata 两个来源中一致登记，并由 IdentityPolicy 以精确字符串承载（不注册 Service 通配）；owning Handler 另行要求可信上下文携带该精确 Purpose。Catalog 由 212 增至 213 项（本模块 37 增至 38：18 Command / 9 Query / 11 Event），历史 200 项 Compatibility Baseline、旧 201/205/208/209/211/212 增量条目与所有旧 Envelope/Result 接受集合均未改变。
+
+`revisionAcceptanceUsable` 与 `approvalBundleUsable` 只复用 owning 应用逻辑的当前有效性检查：RAS 的最新性/READY/未失效 Gate/当前适用 mandatory Gate，以及 ABS 的最新性/FULLY_APPROVED/Approval `EFFECTIVE` 与精确 Revision/Profile/READY-RAS 绑定。历史 READY 或 FULLY_APPROVED 在上游 GateInvalidation、Approval revocation 或更新快照后返回 `false` 与 registered reason codes，不重算 Gate、不创建 Approval、不写回 Snapshot；未请求 ABS 时返回 `NOT_APPLICABLE` 而非 `true`/`false`。观测一致性只承诺该次读事务的记录时点与 `sourceWatermarks`，不虚构跨模块原子快照（[设计 §10.1](../decisions/task-execution-human-operated.md#101-判断顺序与时效)）。
+
+Schema/Registry/生成类型/fixture 证据：`contracts/src/operations/quality-governance.schema.test.ts` 与 `tests/fixtures/contracts/revision-eligibility/`（2 正例 + 22 负例）；Handler、Purpose 授权边界与真实 PostgreSQL 正反例证据见 [Module Test 005](../module-tests/Module-Test-005-QualityGovernance.md#im-06-revision-eligibility-用例)。TE Evaluator 的 Completion 消费、跨模块业务链、外部 Provider 与人工业务验收仍为 `NOT RUN`。

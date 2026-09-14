@@ -167,11 +167,11 @@ describe('schema compatibility structural diff', () => {
     expect(keywords(findings)).toContain('patternProperties-changed');
   });
 
-  it('loads non-null manualReviewFingerprint values from versioned metadata for all 212 operations', () => {
+  it('loads non-null manualReviewFingerprint values from versioned metadata for all 213 operations', () => {
     const metadata = loadManualReviewMetadata();
     const records = loadCurrentOperationRecords();
-    expect(metadata.size).toBe(212);
-    expect(records).toHaveLength(212);
+    expect(metadata.size).toBe(213);
+    expect(records).toHaveLength(213);
     expect(
       records.every(
         (record) =>

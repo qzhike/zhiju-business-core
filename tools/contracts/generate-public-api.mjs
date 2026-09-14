@@ -13,6 +13,8 @@ import {
   assertPolicyVersionOperationRegistrations,
   assertResolutionReceiptCompatibilityMetadata,
   assertResolutionReceiptOperationRegistrations,
+  assertRevisionEligibilityCompatibilityMetadata,
+  assertRevisionEligibilityOperationRegistrations,
   assertSliceOperationRegistrations,
   assertSliceCompatibilityMetadata,
   assertTaskExecutionCompatibilityMetadata,
@@ -55,6 +57,7 @@ assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
 assertPolicyVersionOperationRegistrations(registry.operations);
 assertResolutionReceiptOperationRegistrations(registry.operations);
+assertRevisionEligibilityOperationRegistrations(registry.operations);
 const metadata = JSON.parse(
   readFileSync(join(root, 'contracts/registry/operation-compatibility-metadata.v1.json'), 'utf8'),
 );
@@ -67,6 +70,7 @@ assertSliceCompatibilityMetadata(registry.operations, metadata.operations);
 assertTaskExecutionCompatibilityMetadata(metadata.operations);
 assertPolicyVersionCompatibilityMetadata(metadata.operations);
 assertResolutionReceiptCompatibilityMetadata(metadata.operations);
+assertRevisionEligibilityCompatibilityMetadata(metadata.operations);
 
 function quote(value) {
   return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;

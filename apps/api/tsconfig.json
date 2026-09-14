@@ -18,6 +18,9 @@
     },
     {
       "path": "../../modules/identity-policy"
+    },
+    {
+      "path": "../../modules/quality-governance"
     }
   ]
 }
