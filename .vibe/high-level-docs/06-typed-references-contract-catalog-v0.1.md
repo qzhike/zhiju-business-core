@@ -1132,7 +1132,7 @@ Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、Produc
 
 ## IM-06 注册与未注册设计路由
 
-当前 Catalog 为 211 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 211 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），#189 完成两个首版 Evaluator profile 选择器的构建期静态注册与纯解析（不新增公开 operation，计数不变），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
 
 ### #157 ContextSourceSlice 注册
 
@@ -1181,6 +1181,18 @@ SnapshotRef 的全部字段（`kind`、`objectType`、`objectId`、`snapshotId`�
 | `zhiju.identity.policy_version` | identity-policy | OBJECT（CREATE target）、SNAPSHOT（解析结果与正文）；Enterprise/Project Scope（与版本键 Scope 逐字段相等） | 新增不可变版本事实；`objectId==snapshotId`；只存在于带 Scope 的 FORCE RLS 新表；否 |
 
 `resolve_policy` 的 payload 固定 VERSIONED/`zhiju.identity.policy`，结果固定 SNAPSHOT/`zhiju.identity.policy_version`，并在同一次授权读取中返回 `policyDocument`。既有 Platform `identity.policy_snapshot` 身份、其 `get_policy_snapshot@1.0` 读回路径与 RLS 不变，也不被新入口写入；Core fixture 中出现的历史拼写 `zhiju.identity.policy_snapshot` 只作兼容读回材料，不由新入口产生，也不在解析实现中被静默改写。首版 profile 的 registry key 与 canonical typed ref（`ep.context_source_slice_capture.policy@1.0`、`execution.context_builder.policy@1.0`、`execution.task_readiness.policy@1.0`、`execution.work_order_validation.policy@1.0`）以新的构建期 registry 版本承载，既有 `im02-static-v1` 条目与旧命令接受集合不变。两个新操作按 #157 规则声明共享的有限额构建期 PayloadGuard 技术 Policy `identity.policy_version@1.0`；完整七项参数按 #181 已批准值注册（`maxEnvelopeBytes=262144`、`maxResultBytes=266240`、`maxStringCodePoints=16384`、`maxArrayItems=1024`、`maxObjectProperties=256`、`maxDepth=32`、`maxRequestedKinds=64` 并对两个操作不适用），SD-181-1 的时刻长度约束由这两个操作自己的 Schema 执行。TD-01–04 的既有边界、`zhiju.execution.*`/`zhiju.project.*` 已有映射与旧操作接受集合不因本项改变。
+
+### #189 首批 Evaluator profile 注册
+
+状态：`#176 TECHNICAL DESIGN APPROVED 2026-09-12 / DESIGN VERIFIED / BUILD-TIME REGISTRATION IMPLEMENTED 2026-09-14 (#189) / EVALUATOR NOT IMPLEMENTED`。Owner 为 TaskExecution；本项**不新增公开 operation**，Catalog 保持 211 项，`operationCount` 不因选择器增加。两个首版 profile 选择器以新的构建期 registry 版本 `im06-evaluator-static-v1`（`contracts/registry/evaluator-profiles.v1.json`；生成副本 `contracts/src/generated/evaluator-profiles.json` 与注册源字节一致，漂移使构建失败）承载：`te.task_readiness.evaluator@1.0`、`te.work_order_validation.evaluator@1.0`。
+
+registry key 与 canonical typed ref 一一对应：未知 key/objectType/objectId/versionId、非空 Scope、错 kind、重复 key/身份、缺条目、错误 owner 与未知 registry 版本一律 fail closed；纯解析只做 `kind`/`objectType`/`objectId`/`versionId`/`scope` 全字段精确匹配，不做 latest/回退，也不只比较字符串尾缀或 `versionId`。既有 `im02-static-v1`、`im06-static-v1`、旧命令接受集合与 200 项历史 Compatibility Baseline 均不改变。
+
+| objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
+|---|---|---|---|
+| `zhiju.execution.evaluator_profile` | task-execution | VERSIONED；Platform Scope（`scope={}`，不携带 `contentHash`） | 构建期静态身份，无数据库行、不参与 Policy 版本生命周期；否 |
+
+Evaluator 确定性实现、解析调用点、`validUntil` 推导、判断产出与 `EXECUTION_CRITERION_UNSUPPORTED` 映射仍 `NOT IMPLEMENTED / NOT RUN`：纯解析的空结果只是后续 owning Handler 的输入，本项不据此产生任何判断、冻结或 READY 事实。
 
 ### #175 Task v2 create 注册
 

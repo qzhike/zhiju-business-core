@@ -1,0 +1,27 @@
+{
+  "registryVersion": "im06-evaluator-static-v1",
+  "profiles": [
+    {
+      "registryKey": "te.task_readiness.evaluator@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.evaluator_profile",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d4a1",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d4b1",
+        "scope": {}
+      }
+    },
+    {
+      "registryKey": "te.work_order_validation.evaluator@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.evaluator_profile",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d4a2",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d4b2",
+        "scope": {}
+      }
+    }
+  ]
+}
