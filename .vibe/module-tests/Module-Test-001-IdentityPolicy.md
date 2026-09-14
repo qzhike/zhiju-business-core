@@ -184,3 +184,16 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 | IP-181-E-001 | E2E | 按本参数合法写入的最大合法版本，经 `resolve_policy@1.0` 读回后逐字段比对 | 读回的 `policyDocument`/`contentHash`/生命周期观察与写入时同一 canonical payload 一致；不得因包装开销返回不可用、截断或部分结果 | `PASS`（#186 真实 PostgreSQL 18.6 gate）：**Project 与 Enterprise 两种 Scope** 各构造经注册校验、紧凑 JSON 恰为 262144 字节的完整请求 Envelope，经真实授权（Decision 绑定该 payload hash）、Handler 与 PostgreSQL 提交，并由 `resolve_policy@1.0` 读回：`policyDocument` 与写入时逐字段相等，`contentHash` 等于提交返回的 `policyVersionRef.contentHash`，`useStatus=USABLE`，读回结果通过注册结果 schema（≤ 266240）；同一构造下 262145 字节请求以 `maxEnvelopeBytes` 拒绝且不产生事实 |
 
 独立设计审查须覆盖：计量口径（紧凑 JSON UTF-8 字节、code point 与字节的区分、inclusive 边界）、写入/读回预算关系与结果侧**每个变长字段的上界**（含 SD-181-1 的时刻精度约束与 canonical `objectType` 的 `const` 编码）、共享而非分别注册的理由、`maxRequestedKinds` 的非适用性声明、执行位置与固定顺序、错误不泄漏与"禁止部分成功"约束，以及是否改变了既有 Profile/Slice/Platform 接受集合与共享 `UtcInstant` 的既有操作接受集合。本节参数与 SD-181-1 已由 #183 注册；不改变 `identity.*` 既有公开 Contract 的接受集合、`ep.context_source_slice@1.0` 参数与旧命令行为，SD-181-1 只作用于这两个新操作，共享标量定义不变。`IP-181-E-001` 的读回逐字段比对依赖 Handler，保持 `NOT RUN`。
+
+## TaskExecution 创建授权（#190 APPROVED）
+
+对应 [Spec 001 §14](../module-specs/Module-Spec-001-IdentityPolicy.md#14-taskexecution-创建授权190-approved)。本节场景已于 2026-09-14 随 P-190-1 方案 A 获批，运行结果保持 `NOT RUN`。四版本端到端矩阵由 [Module Test 003](Module-Test-003-TaskExecution.md#创建-purpose-兼容性190-approved)拥有；本表聚焦 owning 授权组成层。使用真实合法 Actor/Policy/grant/Decision 独立基线，负例每次仅改变一个维度，拒绝 Audit 与 Decision 同事务，禁止以不存在对象等无关错误代替预期拒绝。
+
+| ID | 层级 | 输入/单一变化 | 预期输出 | 当前实际 / 结果 |
+|---|---|---|---|---|
+| IP-P190-001 | Authorization | 四个精确 `(type, version, purpose)` 配对应当前 Capability/动作/资源映射；逐项替换为未知版本、另一 Purpose、通配、别名或缺失映射 | 合法请求各获自身 ALLOW；错误映射 DENY，不能由 caller requestedCapability 或任意同 Scope grant 放行 | TE 映射未实现 / `NOT RUN` |
+| IP-P190-002 | Security | Project A Intent 分别只持 Enterprise Grant、Project B Grant；另测资源 selector 不覆盖 target | 全部 DENY；业务 Scope 包含关系不替代授权事实精确 Scope 与目标约束 | TE 组成层未实现 / `NOT RUN` |
+| IP-P190-003 | Persistence | 先签发 ALLOW，再撤销唯一 covering grant；Decision 未过期；分别提交新请求及原 key 重试 | 当前资格拒绝；旧 Decision/Receipt 不改写；不因通用精确校验通过而放行 | TE 组成层未实现 / `NOT RUN` |
+| IP-P190-004 | Security | 四版本各使用他人 Decision、不同认证上下文、错 id/hash、错 payloadHash、DENY Decision | 全部拒绝；映射正确不替代精确身份/内容绑定与 ALLOW 判定 | TE 组成层未实现 / `NOT RUN` |
+| IP-P190-005 | Compatibility | 原有创建能力仅覆盖旧版本；另设明确覆盖 WorkOrder 两版本的能力 | 原版本可重新授权；不自动扩大 Task v2；WorkOrder 分别签发版本绑定 Decision，历史授权不迁移 | TE 映射未实现 / `NOT RUN` |
+| IP-P190-006 | Security | AGENT/SERVICE 通过 actingFor 或转交 Human Decision 请求 Human-only 能力 | 固定拒绝，不改变真实 PrincipalKind，不签发 Human-only grant | TE 组成层未实现 / `NOT RUN` |

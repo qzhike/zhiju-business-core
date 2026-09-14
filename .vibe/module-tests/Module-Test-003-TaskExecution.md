@@ -196,3 +196,21 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-TD-042 | Persistence/Integrity | item 不变而内部 Ref 换版本/Scope、由缺失变存在；保留旧 rowsHash 或篡改索引镜像 | 完整行 Hash 随变更改变，错误 Hash/镜像拒绝发布且保留旧 alias；内部字段不能漏出 TaskBoardItem v1 | NOT RUN |
 
 独立审查须覆盖共享 Envelope 与 data Schema 边界、export dirty 集合的提交可见性、cursor 生命周期、Usage 证据来源以及正常/阻塞链的四层完成反例。独立审查和人类设计批准分别记录；本次自检不替代独立审查。
+
+## 创建 Purpose 兼容性（#190 APPROVED）
+
+对应 [Spec 003 §15](../module-specs/Module-Spec-003-TaskExecution.md#15-创建-purpose-兼容性-spec-delta190)。以下是于 2026-09-14 随 P-190-1 方案 A 获批、可转为 Handler/Contract/Persistence 测试的场景，不修改既有结果。每个负例从对应版本的独立合法基线开始，仅改变表列维度。合法基线须先由 owning 入口创建真实 Project/Task、ActorSnapshot、精确版本 Policy/grant/Decision，使用服务端当前时间和未到期期限；不能把旧 Schema fixture 中的虚构 Ref/固定历史时间直接当运行授权基线。每项拒绝均断言无新 Root、成功 Receipt 或业务 Outbox，历史事实/Hash 不变，安全 Audit 可追踪。
+
+| ID | 层级 | 输入/单一变化 | 预期输出 | 当前实际 / 结果 |
+|---|---|---|---|---|
+| TE-P190-001 | Contract + Persistence | 分别运行 Task v1/v2、WorkOrder v1/v1.1 的原合法字段与各自 Purpose；授权 Human | 四个入口各只创建 DRAFT；旧开放字段与 v2 closed shape、两种 versionPins 各守原契约 | 未实现 / `NOT RUN` |
+| TE-P190-002 | Authorization | 对每版本替换 Purpose 为另一操作的值；另测 Task v1/v2 互换、WorkOrder 使用未注册 `execution.work_order.create` | 拒绝 Purpose 不匹配，不采用别名 | 未实现 / `NOT RUN` |
+| TE-P190-003 | Authorization | 保留正确 Purpose，WorkOrder v1 Decision 提交 v1.1；另测 Task v1 Decision 提交 v2 | 拒绝 commandVersion 不匹配；同 Purpose 不免除版本绑定 | 未实现 / `NOT RUN` |
+| TE-P190-004 | Authorization | 分别改变 commandType、target、payloadHash、Actor、认证上下文或 Intent Scope；其余均合法 | 拒绝精确 Intent/身份绑定错误，不借他人 Decision | 未实现 / `NOT RUN` |
+| TE-P190-005 | Business + Persistence | 使用自身合法 Decision，但 WorkOrder targetScope 超出 Task；另测 Task projectRef 与目标 Scope 不闭合 | 拒绝业务 Scope，不以授权 ALLOW 替代业务校验；无跨 Scope 存在性泄露 | 未实现 / `NOT RUN` |
+| TE-P190-006 | Authorization | Human、Coordinator Agent、规则化 Process Manager 分别使用自己的合法授权；普通 Agent 及无对应规则的 Service 为独立负例 | 三种受约束角色各只创建 DRAFT；普通 Agent/任意 Service 拒绝 | 未实现 / `NOT RUN` |
+| TE-P190-007 | Security | 合法 Coordinator 创建请求仅加入 Human-only capability；另测把他人 Decision、requestedBy Human、actingFor Human 当作提权依据 | 拒绝；无 grant 新增，不 READY/freeze/queue/Run/Approval/Release | 未实现 / `NOT RUN` |
+| TE-P190-008 | Persistence | 首次成功后合法同版本同 key 同输入重试；分别测同键异输入、换版本重试、原 grant 撤销后重试 | 合法重试返回原结果且不增 Root/Event；异输入幂等冲突；跨版本不取原 Receipt；撤销拒绝且原历史保留 | 未实现 / `NOT RUN` |
+| TE-P190-009 | Authorization | Decision 已过期、grant 撤销/到期、Policy 不可用、IP 依赖不可用分别作为单独负例 | 按现有授权/依赖错误 fail closed，不生成默认授权 | 未实现 / `NOT RUN` |
+| TE-P190-010 | Compatibility | 旧客户端原版本请求 + 当前真实合法授权；持 Task v1 能力但未获 v2 授权；WorkOrder 明确覆盖两个版本的能力分别请求新 Decision | 旧合法请求通过；无 v2 覆盖拒绝；WorkOrder 两个精确版本独立通过，不共享 Decision | 未实现 / `NOT RUN` |
+| TE-P190-011 | Replay | 授权读取旧 Receipt/回放历史；再以该 Receipt 请求新创建/READY | 历史原 Purpose/version/hash 不变；新动作必须独立授权，历史成功不提升资格 | 未实现 / `NOT RUN` |

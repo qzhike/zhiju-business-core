@@ -156,10 +156,10 @@ CompletionEvaluationInput
 
 | Contract | Target / mode | Payload | Authorization purpose / 主要约束 |
 |---|---|---|---|
-| `execution.create_task@1.0` | `Task / CREATE` | `projectRef: ObjectRef<Project>; definition: TaskDefinition; initialAssignee?: CanonicalJson` | `execution.task.create`；Agent 仅在 Coordinator Capability 下创建 DRAFT，不能直接 READY |
+| `execution.create_task@1.0` | `Task / CREATE` | `projectRef: ObjectRef<Project>; definition: TaskDefinition; initialAssignee?: CanonicalJson` | `task.execution.create_task`；Agent 仅在 Coordinator Capability 下创建 DRAFT，不能直接 READY |
 | `execution.create_task@2.0` | `Task / CREATE` | `projectRef: ObjectRef<zhiju.project.project>; definition: TaskDefinitionV2; initialAssignee?: CanonicalJson` | `execution.task.create`；`expectedOutputSpec`/`completionCriteria` 为注册的 closed shape，不退回任意 CanonicalJson；`inputRefs` 按 §2 为 `TypedReference[]`；Human，或既有 Coordinator Capability 下的 Agent，只创建 DRAFT；合法字段见 §11.6 |
 | `execution.mark_task_ready@1.0` | `Task / MUTATE` | `readinessSnapshotRef: SnapshotRef<TaskReadiness>; requestedAt: UtcInstant` | `execution.task.mark_ready`；依赖、输入、权限满足；不接受调用者布尔值 |
-| `execution.create_work_order@1.0` | `WorkOrder / CREATE` | `draft: WorkOrderDraft; expiresAt?: UtcInstant` | `execution.work_order.create`；Scope 不得超出 Task；Human-only Capability 禁止授予 Agent |
+| `execution.create_work_order@1.0` | `WorkOrder / CREATE` | `draft: WorkOrderDraft; expiresAt?: UtcInstant` | `task.execution.create_work_order`；Scope 不得超出 Task；Human-only Capability 禁止授予 Agent |
 | `execution.create_work_order@1.1` | `WorkOrder / CREATE` | `draft: InitialWorkOrderDraft; expiresAt?: UtcInstant` | `task.execution.create_work_order`；DRAFT 不携带 `projectContextContractRef`；保留 @1.0 合法调用 |
 | `execution.freeze_work_order@1.0` | `WorkOrder / MUTATE` | `workOrderContract: WorkOrderContract; validationSnapshotRef: SnapshotRef<WorkOrderValidation>; specificationHash: PayloadHash` | `execution.work_order.freeze`；READY 后 Specification 不可变；Hash 必须匹配 |
 | `execution.queue_work_order@1.0` | `WorkOrder / MUTATE` | `queuePolicyRef: VersionedRef<Policy>; notBefore?: UtcInstant; requestedRuntimeClass?: NamespaceCode` | `execution.work_order.queue`；必须 READY、未过期且预算可用 |
@@ -822,3 +822,38 @@ Query 的既有 `provenance: CanonicalJson` 输出使用安全 profile `executio
 恢复 Process 只保存当前 step/source exact ref、稳定幂等键、attemptCount、nextAttemptAt、安全 lastError；每步调用 owning Command 后再确认进度。提交成功但确认进度前崩溃重放同键；结果不明先查询 Receipt，不换键重做外部动作。临时不可用按版本化 retry Policy 有限重试，到预算上限保留失败与待处理源，不清 blocker、不写业务成功；输入/授权/Hash 错误为需处理失败，不无限重试。处理后的新合法输入生成新的 source fingerprint，旧失败与原事实仍可追溯。scan/worker 重启恢复规则沿用 §11.5，Query 不承担补偿。
 
 退出报告在 GitHub Issue/PR 给出两条链的真实 identity/hash 与 CommandReceipt/Outbox/Inbox/Evaluation 引用，分别列 Design、Schema、Application、PostgreSQL、controlled cross-module、Provider/HTTP/Manual 结果。至少在 Result提交、Acceptance提交、Run终结、Request resolution、TaskCompleted投递后各注入一次故障，恢复前后核对 Receipt/事件数量与旧 Hash。外部 Provider、Feishu、CLI、公开 HTTP、生产与独立人工业务验收保持各自 NOT RUN，除非另有实际执行证据。
+
+## 15. 创建 Purpose 兼容性 Spec Delta（#190）
+
+状态：`APPROVED 2026-09-14 / HANDLER AUTHORIZATION NOT RUN`。本节是已批准的最小 Delta；§3 已同步逐版本 Purpose，§11.1、§11.6 与可执行 Registry 保持原值。背景、备选及逐版本声明见[决定 §13](../decisions/task-execution-human-operated.md#13-190-taskworkorder-创建-purpose-兼容性提案)。仅涉及 TaskExecution / IdentityPolicy 创建授权边界；TD-01–04、TD-05–07 状态不变。
+
+### 15.1 推荐的逐版本 canonical 映射
+
+这里 canonical 指该精确 operation/version 唯一可接受的授权 Purpose，不代表操作族存在一个通用别名。
+
+| operation/version | 唯一 Purpose（已批准） | 对现行声明的最小 Delta |
+|---|---|---|
+| `execution.create_task@1.0` | `task.execution.create_task` | 已修正 §3 的设计文字；保留 metadata 与旧 Schema |
+| `execution.create_task@2.0` | `execution.task.create` | 保留 §3/§11.1/§11.6、public-api 与 metadata；不继承 v1 授权 |
+| `execution.create_work_order@1.0` | `task.execution.create_work_order` | 已修正 §3 的设计文字；保留 metadata 与旧 Schema |
+| `execution.create_work_order@1.1` | `task.execution.create_work_order` | 保留 §3、public-api 与 metadata；同 Purpose 不表示 Decision 可跨版本 |
+
+四条已发布操作的 Registry/metadata 值变更为 **零**；历史 Compatibility Baseline、生成物、fixture 与 Catalog 计数不变。不注册 `execution.work_order.create`，也不将它作为兼容别名接受。保留其历史设计文字仅供追溯。新增版本若需要不同 Purpose，须另行提出明确版本与兼容决定，不能在本次实现时顺带增加。
+
+### 15.2 Actor、业务 Scope 与授权映射
+
+继承 Domain §18.8/§19.9：四版本均只创建 DRAFT。Human 须为授权项目成员；Agent 须有既有 Coordinator Profile/Capability，普通 Agent 只能提议；Service 仅限受规则约束的 Process Manager，Task 按规则创建、WorkOrder 基于既有 Task 创建草稿。上述是设计适用边界，不能由 PrincipalKind、角色名称、`actingFor`、`requestedBy` 或 `initialAssignee` 自动放行，也不代表 Agent 自动化已经实现。
+
+授权映射由 [Spec 001 §14](Module-Spec-001-IdentityPolicy.md#14-taskexecution-创建授权190-approved)拥有。调用者始终持自己的 ActorSnapshot 与 Decision。创建权不包含授予 Capability、READY、freeze、queue、Run、Approval 或 Release；DRAFT 中的 allowedCapabilities 只是受验证的业务输入，不能签发 grant，更不能给 Agent/Service 引入 Human-only 能力。
+
+业务校验与授权 Scope 分开：Task 的 projectRef、targetRef、父任务/关联输入与受信 Enterprise/Project 必须闭合；WorkOrder 的 taskRef、targetScope、输入及 capability 范围不能突破 Task 与当前授权，两者取交集，不因 Enterprise 归属相同而跨 Project 放行。业务范围是包含关系；IdentityPolicy 授权事实仍按 scopeKind + enterpriseId + projectId 精确匹配，Enterprise Grant 不覆盖 Project Intent。保持现行各版本 Ref/字段接受集合，不借本提案统一 objectType 拼写。
+
+### 15.3 调用与回放边界
+
+1. 先由精确 type/version 选择 Schema 与 §15.1 映射；未知版本或 Purpose 无映射拒绝，不回退其他版本。服务端构造预期 Intent，校验 target、payloadHash、Scope、实际 Actor/认证上下文、type/version、Purpose、requestedCapability 和有效期；不能只信调用者传入的 expected 值。
+2. 通过 IdentityPolicy owning Port 重验 `ALLOW` 与当前有效 grant/Policy，授权读取或依赖失败时 fail closed。通用 `validateAuthorizationDecision` 的精确比较本身不等于当前 grant 重验。TaskExecution 不直接读取 IdentityPolicy Repository；具体 Port 接线属于批准后的实现范围。
+3. 返回幂等成功结果前也执行当前 Actor/Scope/Decision/grant 检查；首次提交前再次确认资格。撤销后旧 Decision 与原 Receipt 保留，但不能凭原 key 越权取得成功返回或创建新事实。跨模块按既有观测时点一致性，不声称获得跨模块原子撤销锁。
+4. 当前资格仍有效时，同 operation/version、同 key、同输入返回原 Receipt，不重复创建 Root/Event；同键异输入仍拒绝 `IDEMPOTENCY_PAYLOAD_CONFLICT`。跨版本不是旧 Receipt 的等价重试，必须独立授权和请求，禁止通过改 version 取回另一版本 Receipt。
+5. 历史审计/回放保持原 Purpose、版本、Actor、Decision 与 payload Hash，不修改或重新签发历史证据。历史 Receipt 的受权读取不赋予新动作资格；业务重放若请求新副作用，按新动作完整校验。无新副作用的技术重放不能伪装为新的创建授权。
+
+验收与失败矩阵见 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#创建-purpose-兼容性190-approved) 与 [Module Test 001](../module-tests/Module-Test-001-IdentityPolicy.md#taskexecution-创建授权190-approved)。外部授权错误沿用共享 `AUTHORIZATION_DECISION_INVALID` / `AUTHORIZATION_EXPIRED` / `AUTHORIZATION_REVOKED`，内部细分 Purpose/version/Scope/grant 原因仅进入安全 Audit；不泄露其他 Scope 对象存在性，不新增错误注册。

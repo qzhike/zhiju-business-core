@@ -330,7 +330,7 @@ TD-07 的可执行 Fixture 使用生产 Application Command/Query、同一授权
 同时记录两处既有命名分歧，本节只**记录**、不静默统一：
 
 - PolicySnapshot 的 objectType 拼写不一致：IdentityPolicy 运行时接受 `identity.policy_snapshot`，而 Core fixture/测试中出现 `zhiju.identity.policy_snapshot`。本节的 WI-02 新链不再依赖任一 PolicySnapshot 拼写（版本事实使用新的 canonical `zhiju.identity.policy_version`），既有读取路径的接受集合与读回语义不变；统一命名仍属 owning 模块的独立兼容决定，不得在解析实现中静默改写。
-- Purpose 字符串分歧：`execution.create_task@1.0` 为 `task.execution.create_task`、`@2.0` 为 `execution.task.create`（共享 API 已记录为待 IdentityPolicy 实际承载 Purpose 时收敛），`create_work_order` 的 Registry 值与 Spec 003 §3 设计值也不一致。本项不生成该收敛决定，只要求新注册的 Purpose 不复制该分歧（§12.9）。
+- Purpose 字符串分歧：`execution.create_task@1.0` 为 `task.execution.create_task`、`@2.0` 为 `execution.task.create`（共享 API 已记录为待 IdentityPolicy 实际承载 Purpose 时收敛），`create_work_order` 的 Registry 值与 Spec 003 §3 设计值也不一致。这是 §12 的历史调查结论；创建 Purpose 已于 2026-09-14 按 §13 的 P-190-1 方案 A 获批收敛，逐版本保留已发布值，真实接线仍待实现。
 
 ### 12.2 P-176-1 Policy 版本事实、解析 Port 与隔离归属（提案）
 
@@ -522,6 +522,45 @@ PolicyVersionResolutionView
 - ~~EnterpriseProject：`capture_context_source_slice`/`get_context_source_slice` Handler、Slice 表与 capture policy 解析观察、`validUntil` 推导~~ 已由 #188 交付（Handler、`V2014` Slice 表与 Policy 观察、`validUntil` 推导、exact read 与 fail-closed 语义；TE 消费仍 `NOT RUN`）；
 - TaskExecution：`create_work_order@1.1`、`get_work_order_draft@1.1`、`build_initial_context_snapshot@1.0/@1.1`、`build_task_readiness@1.0`、`validate_work_order_draft@1.0`、`freeze_work_order` 的 Handler 与业务持久化；Evaluator 确定性实现；
 - 真实业务 Policy 文档内容与其审批（本项不发明 Policy 内容）；
-- 仍未决定、本项不生成的收敛项：`create_task`/`create_work_order` 的 Purpose 字符串分歧、PolicySnapshot objectType 拼写分歧（§12.1）；TD-05–07 仍为待批准提案。
+- 创建 Purpose 已由 §13 的 P-190-1 方案 A 于 2026-09-14 获批；PolicySnapshot objectType 拼写分歧（§12.1）仍未决定；TD-05–07 仍为待批准提案。
 
 因此：本项完成只解除**设计前置**；`im06-static-v1` 静态注册与纯校验已由 #179 交付，首版 Evaluator profile 选择器的静态注册与纯解析已由 #189 交付，两个 PolicyVersion 操作与 Guard 静态契约已由 #183 交付；首个 Task/WorkOrder/Context 业务实现 Issue 仍须先确认上述实际能力可用，或在单独 Scope 内完整交付；不得据此宣布完整 IM-06 业务链 `READY`，也不得把本节其余未交付能力写成已实现事实。
+
+## 13. #190 Task/WorkOrder 创建 Purpose 兼容性提案
+
+状态：`T2 DESIGN ONLY / APPROVED 2026-09-14 / HANDLER AUTHORIZATION NOT RUN`。本节回应 [Issue #190](https://github.com/qzhike/zhiju-business-core/issues/190)，§12.1/§12.9 保留的创建 Purpose 分歧已按 P-190-1 方案 A 获得人类批准。TD-01–04 及 P-176-1–5 不重开，TD-05–07 不被追认。本次不改可执行 Registry、业务代码、migration 或授权数据，不创建依赖实现 Issue。
+
+### 13.1 逐版本事实与证据边界
+
+对账 revision 为 `928b0c3cd9983c58b08714d8dc8d43166bcea828`（本地 HEAD 与读取的远端 main 一致）。下表保留批准前的设计调查事实，不沿用 Issue 创建时的旧 main；批准后 Spec §3 的两个冲突文字已按方案 A 修正，不能把表中历史差异视作当前未决状态。以下两份 JSON 路径均在 `contracts/registry/` 下；public-api 未写字段不是“无须授权”。
+
+| operation/version | public-api 原始 authorizationPurpose | compatibility metadata | owning Spec 003 / 共享 API | 现有 fixture 与运行证据 |
+|---|---|---|---|---|
+| `execution.create_task@1.0` | 未显式声明 | `task.execution.create_task`，`v1.0-baseline` | §3 写 `execution.task.create`；共享 API 的 Task v2 增量已记录分歧 | `tests/fixtures/contracts/execution-create-task-command-valid.json` 及历史 compatibility positive；Schema 测试有，真实创建 Handler/授权无 |
+| `execution.create_task@2.0` | `execution.task.create` | 同值，`im-06-task-v2-registration` | §3/§11.1/§11.6 与共享 API 一致 | `tests/fixtures/contracts/task-v2/create-task-v2-command-valid.json`、task-execution.schema.test.ts Task v2 正负例；真实创建 Handler/授权无 |
+| `execution.create_work_order@1.0` | 未显式声明 | `task.execution.create_work_order`，`v1.0-baseline` | §3 写 `execution.work_order.create`；共享 API 保留旧契约 | `contracts/src/registry.test.ts` 的 `validTaskExecutionWorkOrderDraft` 及 task-execution.schema.test.ts `createWorkOrderCommand('1.0')`；真实创建 Handler/授权无 |
+| `execution.create_work_order@1.1` | `task.execution.create_work_order` | 同值，`im-06-work-order-draft-initial-context-v1.1` | §3 与当前 Registry 一致；共享 API 描述 DraftVersionPins 兼容增量 | 同测试文件 `createWorkOrderCommand('1.1')`、注册与 DRAFT 正负例；真实创建 Handler/授权无 |
+
+Schema fixture 中的 Actor/Decision Ref 只是字段输入，不是已存在授权证据。TaskExecution `src/index.ts` 仅导出技术 Foundation、纯 Policy/Evaluator helper 与 persistence runner，`src/business/` 没有四版本创建 Handler。IdentityPolicy `src/commands/actor-snapshot.ts` 的 `authorizeCommand` 与 `validateAuthorizationDecision` 已有通用授权与精确 type/version/Purpose/hash/Scope/认证/期限校验，但 `authorizeCommand` 当前硬性要求 `commandVersion === '1.0'`：Task v2 与 WorkOrder v1.1 连真实 Decision 签发也尚不支持。四版本映射与下游创建入口未组成；后者不重查当前 grant。`src/commands/policy-version.ts` 已有其自身操作的当前 grant 重验，是可参考的运行边界，不是 TE 授权已实现的证据。TE `persistence/command-runner.ts` 当前按 idempotency_scope/key 读取 Receipt、比较 requestPayload Hash 后可直接返回 DUPLICATE，未独立比较所存 command_type/version，也不调用业务 body；因此版本防串用和返回前当前授权检查必须在未来 owning 组成入口覆盖，不能仅放在 body 内。
+
+静态复核方法：按 `type` 和 `version` 精确筛选四条 public-api 与 operation-compatibility-metadata 条目，比较字段是否存在及原值；对照 Spec 003 §3/§11.1/§11.6、共享 API「IM-06 Task typed definition @2.0」与上述四组 fixture/test，再检查 TE 导出和 IP 两个授权文件。`contracts/baselines/v1.0/operations.index.json`、`manifest.json` 及其 Schema/fixture 只保留历史 v1.0；不补写 v2/@1.1、不重算基线来让变更通过。复核输出与 full 结果放 Issue/PR 或本次交付会话，不另建执行报告。
+
+### 13.2 P-190-1 推荐决定与备选
+
+**已批准 A：逐 operation/version 保留已发布 Purpose，修正 owning 文档的旧设计命名。** 四条映射和最小 Delta 由 [Spec 003 §15](../module-specs/Module-Spec-003-TaskExecution.md#15-创建-purpose-兼容性-spec-delta190)拥有，授权边界由 [Spec 001 §14](../module-specs/Module-Spec-001-IdentityPolicy.md#14-taskexecution-创建授权190-approved)拥有。Task 两个 Major 保留不同 Purpose；WorkOrder 两个 Minor 保留相同 Purpose但逐版本授权。代价是命名不整齐与四条精确映射；收益是零已发布 Registry 值变化、无别名授权、无历史数据改写，并能清楚拒绝跨版本 Decision。新旧客户端继续发送原版本 Envelope；旧客户端无须改 payload 或了解新的别名。
+
+| 备选 | 具体行为与兼容代价 | 本次建议 |
+|---|---|---|
+| B：原地统一为 Spec 风格 | 把 Task v1 改为 `execution.task.create`，WorkOrder v1/v1.1 改为 `execution.work_order.create`；旧 Decision/Purpose 与 registry metadata 不再匹配，旧 Capability 映射须重授/迁移，改写 baseline 会掩盖破坏 | 拒绝；不能以文档修复或 Minor 名义实施 |
+| C：新 Major 使用统一命名 | 保留四条旧操作，另外设计新的 Task/WorkOrder Major，配独立 Purpose/Schema/映射与明确迁移窗口；旧授权不自动转入新版本 | 可未来单独提案；本次无业务字段升级需求，不新增 Catalog/客户端迁移负担 |
+| D：双名/前缀兼容 | 同一版本接受两种 Purpose，或 `execution.*`/Service 通配，隐式扩展旧 grant/Decision 覆盖 | 拒绝；Purpose 是权限边界，不能通过别名绕过原始 Intent |
+
+推荐 A 不断言历史授权已运行成功；“旧合法请求兼容”指保留原契约接受集合，并在原版本且当前资格真实有效时允许创建 DRAFT。过期、撤销、错误 Scope 或只有 Schema 合法的请求不属于必须放行的旧合法请求。历史 Receipt 与新动作资格、重放与幂等的区别由 Spec 003 §15.3 定义。
+
+### 13.3 决定与交付边界
+
+**批准记录：2026-09-14，用户在本任务会话明确回复“批准推荐方案A”。** 批准对象是此前提交且完成独立设计审查的 P-190-1 推荐 A，包括 Spec 003 §15 与 Spec 001 §14 的逐版本映射、Actor/Scope、当前 grant 重验及回放边界；批准前审查材料基于 HEAD `928b0c3cd9983c58b08714d8dc8d43166bcea828`，工作区 diff SHA-256 为 `8bacb8f553ca8a0950e1e244f2ac6793f1b31fe2d64ba84ee094bc0df58dec2d`。这条明确回复是批准依据，不能以此前“完成设计文档”或 Issue 创建替代。
+
+已将 §3 的两个冲突 Purpose 文字及共享 API 待收敛说明同步为已批准规则；四条 Registry/metadata 不变。后续按实际依赖另做 NOW + READY 复核，确认精确版本化授权映射、owning Port 与真实 Handler/持久化的独立实现范围，不能凭设计任务交付自动开启实现。设计审查和实际批准证据保留在 Issue/PR 或明确用户会话中；本节仅维护提案的长期语义与批准状态，不充当审查报告。
+
+成功标准：四版本事实可复核；推荐与备选可比较；旧请求与拒绝矩阵无权限扩大；独立设计审查无未解决阻断；人类明确决定有真实记录。修改文档后运行 `vibe verify full --json`，其通过仅代表当前仓库回归。新增创建授权运行、真实业务持久化链、外部与人工业务验收均为 `NOT RUN`，不能由静态检查或既有测试替代。
