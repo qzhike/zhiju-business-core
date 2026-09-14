@@ -517,7 +517,7 @@ PolicyVersionResolutionView
 **仍缺少（实际能力，均 `NOT IMPLEMENTED / NOT RUN`）**：
 
 - IdentityPolicy：`record_policy_version@1.0` 与 `resolve_policy@1.0` 的 Handler、真实 Purpose 授权与生命周期、scoped FORCE RLS 新表（版本事实 + 唯一版本绑定 + 取代边唯一约束与查询路径）已由 #186 交付并在真实 PostgreSQL 18.6 上验证；消费端（EP Slice 解析、TE Builder/Readiness/Validator/Freeze）仍 `NOT RUN`；
-- EnterpriseProject：`capture_context_source_slice`/`get_context_source_slice` Handler、Slice 表与 capture policy 解析观察、`validUntil` 推导；
+- ~~EnterpriseProject：`capture_context_source_slice`/`get_context_source_slice` Handler、Slice 表与 capture policy 解析观察、`validUntil` 推导~~ 已由 #188 交付（Handler、`V2014` Slice 表与 Policy 观察、`validUntil` 推导、exact read 与 fail-closed 语义；TE 消费仍 `NOT RUN`）；
 - TaskExecution：`create_work_order@1.1`、`get_work_order_draft@1.1`、`build_initial_context_snapshot@1.0/@1.1`、`build_task_readiness@1.0`、`validate_work_order_draft@1.0`、`freeze_work_order` 的 Handler 与业务持久化；Evaluator 确定性实现；
 - 真实业务 Policy 文档内容与其审批（本项不发明 Policy 内容）；
 - 仍未决定、本项不生成的收敛项：`create_task`/`create_work_order` 的 Purpose 字符串分歧、PolicySnapshot objectType 拼写分歧（§12.1）；TD-05–07 仍为待批准提案。
