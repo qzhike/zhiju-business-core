@@ -1,0 +1,199 @@
+[
+  {
+    "base": "query",
+    "path": "/payload/commandReceiptRef",
+    "keyword": "required",
+    "expectedPath": "/payload",
+    "remove": true
+  },
+  {
+    "base": "query",
+    "path": "/payload/commandReceiptRef/objectType",
+    "keyword": "const",
+    "expectedPath": "/payload/commandReceiptRef/objectType",
+    "value": "zhiju.project.context_source_slice"
+  },
+  {
+    "base": "query",
+    "path": "/payload/commandReceiptRef/kind",
+    "keyword": "const",
+    "expectedPath": "/payload/commandReceiptRef/kind",
+    "value": "OBJECT"
+  },
+  {
+    "base": "query",
+    "path": "/payload/commandReceiptRef/contentHash",
+    "keyword": "required",
+    "expectedPath": "/payload/commandReceiptRef",
+    "remove": true
+  },
+  {
+    "base": "query",
+    "path": "/payload/commandReceiptRef/contentHash/digest",
+    "keyword": "pattern",
+    "expectedPath": "/payload/commandReceiptRef/contentHash/digest",
+    "value": "3333"
+  },
+  {
+    "base": "query",
+    "path": "/payload/commandReceiptRef/objectId",
+    "keyword": "pattern",
+    "expectedPath": "/payload/commandReceiptRef/objectId",
+    "value": "018f22e2-7c15-4b2e-8d86-2de956a9d307"
+  },
+  {
+    "base": "query",
+    "path": "/payload/purpose",
+    "keyword": "additionalProperties",
+    "expectedPath": "/payload",
+    "value": "project.resolution_receipt.read"
+  },
+  {
+    "base": "query",
+    "path": "/consistencyRequirement",
+    "keyword": "enum",
+    "expectedPath": "/consistencyRequirement",
+    "value": "PROJECTION_OK"
+  },
+  {
+    "base": "result",
+    "path": "/outcome",
+    "keyword": "const",
+    "expectedPath": "/outcome",
+    "value": "REJECTED"
+  },
+  {
+    "base": "result",
+    "path": "/commandType",
+    "keyword": "const",
+    "expectedPath": "/commandType",
+    "value": "project.propose_customer_material"
+  },
+  {
+    "base": "result",
+    "path": "/commandVersion",
+    "keyword": "const",
+    "expectedPath": "/commandVersion",
+    "value": "1.1"
+  },
+  {
+    "base": "result",
+    "path": "/scopeRef/projectId",
+    "keyword": "required",
+    "expectedPath": "/scopeRef",
+    "remove": true
+  },
+  {
+    "base": "result",
+    "path": "/sourceMaterialRefs",
+    "keyword": "minItems",
+    "expectedPath": "/sourceMaterialRefs",
+    "value": []
+  },
+  {
+    "base": "result",
+    "path": "/sourceMaterialRefs",
+    "keyword": "uniqueItems",
+    "expectedPath": "/sourceMaterialRefs",
+    "value": [
+      {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.project.source_material",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d30b",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d301",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "5555555555555555555555555555555555555555555555555555555555555555",
+          "canonicalizationVersion": "1"
+        }
+      },
+      {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.project.source_material",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d30b",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d301",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "5555555555555555555555555555555555555555555555555555555555555555",
+          "canonicalizationVersion": "1"
+        }
+      }
+    ]
+  },
+  {
+    "base": "result",
+    "path": "/targetRef/objectType",
+    "keyword": "const",
+    "expectedPath": "/targetRef/objectType",
+    "value": "zhiju.project.project"
+  },
+  {
+    "base": "result",
+    "path": "/candidateVersionRef/objectType",
+    "keyword": "const",
+    "expectedPath": "/candidateVersionRef/objectType",
+    "value": "zhiju.project.source_material"
+  },
+  {
+    "base": "result",
+    "path": "/confirmedVersionRef/versionId",
+    "keyword": "required",
+    "expectedPath": "/confirmedVersionRef",
+    "remove": true
+  },
+  {
+    "base": "result",
+    "path": "/decisionRef/contentHash/digest",
+    "keyword": "pattern",
+    "expectedPath": "/decisionRef/contentHash/digest",
+    "value": "6666"
+  },
+  {
+    "base": "result",
+    "path": "/requestPayloadHash/algorithm",
+    "keyword": "const",
+    "expectedPath": "/requestPayloadHash/algorithm",
+    "value": "SHA-1"
+  },
+  {
+    "base": "result",
+    "path": "/actorRef/principalKind",
+    "keyword": "enum",
+    "expectedPath": "/actorRef/principalKind",
+    "value": "ROBOT"
+  },
+  {
+    "base": "result",
+    "path": "/actorSnapshotRef/objectType",
+    "keyword": "const",
+    "expectedPath": "/actorSnapshotRef/objectType",
+    "value": "zhiju.identity.authorization_decision"
+  },
+  {
+    "base": "result",
+    "path": "/authorizationDecisionRef/kind",
+    "keyword": "const",
+    "expectedPath": "/authorizationDecisionRef/kind",
+    "value": "CONTENT_ADDRESSED"
+  },
+  {
+    "base": "result",
+    "path": "/committedAt",
+    "keyword": "required",
+    "expectedPath": "",
+    "remove": true
+  },
+  {
+    "base": "result",
+    "path": "/confirmationDecisionRef",
+    "keyword": "additionalProperties",
+    "expectedPath": "",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d30c"
+  }
+]

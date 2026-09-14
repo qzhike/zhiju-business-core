@@ -1480,6 +1480,13 @@
       "authorizationPurpose": "project.context_source.read",
       "dataClassification": "CUSTOMER_CONFIDENTIAL",
       "semanticDeclaration": "im-06-context-source-slice-v1.0"
+    },
+    {
+      "type": "project.get_resolution_receipt",
+      "version": "1.0",
+      "authorizationPurpose": "project.resolution_receipt.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "im-06-resolution-receipt-v1.0"
     }
   ]
 }

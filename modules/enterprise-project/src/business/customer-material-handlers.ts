@@ -27,6 +27,7 @@ import {
   type CommandResult,
 } from '../persistence/command-runner.js';
 import { EnterpriseBusinessRepository } from '../persistence/enterprise-business-repository.js';
+import { ResolutionReceiptRepository } from '../persistence/resolution-receipt-repository.js';
 import type {
   CustomerMaterialVersionTable,
   SourceMaterialTable,
@@ -41,6 +42,7 @@ import {
 } from './enterprise-business-errors.js';
 
 const repo = new EnterpriseBusinessRepository();
+const receiptRepo = new ResolutionReceiptRepository();
 
 type ProposeCustomerMaterialPayload = EnterpriseProject.ProjectProposeCustomerMaterialPayload;
 type ConfirmCustomerMaterialPayload = EnterpriseProject.ProjectConfirmCustomerMaterialPayload;
@@ -1120,6 +1122,162 @@ export async function handleProposeCustomerMaterial(
 
 export type ConfirmCustomerMaterialCommandPayload = ConfirmCustomerMaterialPayload;
 
+/**
+ * Canonical public object names of the receipt references. The attestation is
+ * a public Contract, so it publishes the canonical `zhiju.project.*` /
+ * `zhiju.identity.*` spellings; the internal aliases of the stored rows are
+ * never republished.
+ */
+const RECEIPT_OBJECT_TYPES = {
+  customerMaterial: 'zhiju.project.customer_material',
+  sourceMaterial: 'zhiju.project.source_material',
+  businessDecision: 'zhiju.project.business_decision',
+  actorSnapshot: 'zhiju.identity.actor_snapshot',
+  authorizationDecision: 'zhiju.identity.authorization_decision',
+} as const;
+
+/** The exact SourceMaterial identity a Receipt source projection is keyed on. */
+export interface ReceiptSourceSelection {
+  readonly objectId: string;
+  readonly payloadHash: Buffer;
+}
+
+/** One confirmed source as the Receipt publishes it, with its exact ref. */
+export interface ReceiptSourceMaterialRef {
+  readonly objectId: string;
+  readonly ref: CanonicalJsonObject;
+}
+
+function canonicalSourceMaterialRef(
+  selection: ReceiptSourceSelection,
+  scope: Common.ScopeRef,
+): CanonicalJsonObject {
+  return {
+    kind: 'CONTENT_ADDRESSED',
+    objectType: RECEIPT_OBJECT_TYPES.sourceMaterial,
+    objectId: selection.objectId,
+    scope,
+    contentHash: contentHashValue(selection.payloadHash),
+  } as unknown as CanonicalJsonObject;
+}
+
+/**
+ * The exact `sourceMaterialRefs` projection of the confirmed source
+ * selections. `proposal.sourceSelections` is a `NonEmptySet<MaterialSourceSelection>`,
+ * so its uniqueness applies to the whole selection: the same exact
+ * SourceMaterial may legitimately appear twice with a different role or
+ * locator. The Receipt publishes the exact refs themselves, which are the
+ * unique set the public Result Schema declares, so selections that project to
+ * the same exact ref collapse into their first occurrence.
+ *
+ * This is the one dedupe rule of the Receipt: the read path rebuilds the
+ * confirmed refs with it and the V2015 backfill mirrors it, so a stored
+ * material can never disagree with the canonical payload of its own command.
+ */
+export function receiptSourceMaterialRefs(
+  selections: readonly ReceiptSourceSelection[],
+  scope: Common.ScopeRef,
+): readonly ReceiptSourceMaterialRef[] {
+  const references: ReceiptSourceMaterialRef[] = [];
+  const seenRefs = new Set<string>();
+  for (const selection of selections) {
+    const ref = canonicalSourceMaterialRef(selection, scope);
+    // JSONB does not preserve object key order, so the exact ref identity is
+    // its canonical payload hash rather than its raw text.
+    const key = digestCanonicalPayload(ref).hash.toString('hex');
+    if (seenRefs.has(key)) {
+      continue;
+    }
+    seenRefs.add(key);
+    references.push({ objectId: selection.objectId, ref });
+  }
+  return references;
+}
+
+/**
+ * The canonical Receipt projection of one committed confirmation. Every field
+ * is a fact this command recorded immutably: the command identity, the exact
+ * Project scope and target, the request payload hash, the candidate and
+ * confirmed version references, the confirmed source selections, the
+ * confirmation BusinessDecision reference, the Human actor, the exact
+ * ActorSnapshot/AuthorizationDecision identities, and the commit instant.
+ *
+ * The ActorSnapshot and the AuthorizationDecision are published as exact
+ * identities only: their payload hashes are owned by IdentityPolicy and are
+ * not part of the EnterpriseProject trusted transaction facts, so this module
+ * never asserts them.
+ */
+function resolutionReceiptPayload(input: {
+  commandId: string;
+  enterpriseId: string;
+  projectId: string;
+  customerMaterialId: string;
+  requestPayloadHash: Buffer;
+  candidateVersionId: string;
+  confirmedVersionId: string;
+  sourceSelectionFacts: readonly SourceSelectionFacts[];
+  decisionId: string;
+  decisionPayloadHash: Buffer;
+  actorPrincipalId: string;
+  actorSnapshotId: string;
+  authorizationDecisionId: string;
+  committedAt: Date;
+}): CanonicalJsonObject {
+  const scope: Common.ScopeRef = {
+    enterpriseId: input.enterpriseId,
+    projectId: input.projectId,
+  };
+  const customerMaterialVersion = (versionId: string): CanonicalJsonObject => ({
+    kind: 'VERSIONED',
+    objectType: RECEIPT_OBJECT_TYPES.customerMaterial,
+    objectId: input.customerMaterialId,
+    versionId,
+    scope,
+  });
+  return {
+    commandId: input.commandId,
+    commandType: 'project.confirm_customer_material',
+    commandVersion: '1.0',
+    scopeRef: scope,
+    targetRef: {
+      kind: 'OBJECT',
+      objectType: RECEIPT_OBJECT_TYPES.customerMaterial,
+      objectId: input.customerMaterialId,
+      scope,
+    },
+    requestPayloadHash: contentHashValue(input.requestPayloadHash),
+    outcome: 'COMMITTED',
+    candidateVersionRef: customerMaterialVersion(input.candidateVersionId),
+    confirmedVersionRef: customerMaterialVersion(input.confirmedVersionId),
+    sourceMaterialRefs: receiptSourceMaterialRefs(input.sourceSelectionFacts, scope).map(
+      (confirmed) => confirmed.ref,
+    ),
+    decisionRef: {
+      kind: 'CONTENT_ADDRESSED',
+      objectType: RECEIPT_OBJECT_TYPES.businessDecision,
+      objectId: input.decisionId,
+      scope,
+      contentHash: contentHashValue(input.decisionPayloadHash),
+    },
+    // The confirmation command is Human-only, so the persisted actor kind is
+    // exactly the kind the owning receipt recorded.
+    actorRef: { principalKind: 'HUMAN', principalId: input.actorPrincipalId },
+    actorSnapshotRef: {
+      kind: 'OBJECT',
+      objectType: RECEIPT_OBJECT_TYPES.actorSnapshot,
+      objectId: input.actorSnapshotId,
+      scope,
+    },
+    authorizationDecisionRef: {
+      kind: 'OBJECT',
+      objectType: RECEIPT_OBJECT_TYPES.authorizationDecision,
+      objectId: input.authorizationDecisionId,
+      scope,
+    },
+    committedAt: input.committedAt.toISOString(),
+  } as unknown as CanonicalJsonObject;
+}
+
 export async function handleConfirmCustomerMaterial(
   db: Kysely<EnterpriseProjectDb>,
   context: EnterpriseProjectTransactionContext,
@@ -1483,6 +1641,66 @@ async function confirmCustomerMaterialAfterRead(
     });
     return {
       kind: 'COMMITTED',
+      receiptMaterial: {
+        canonicalPayload: ({ committedAt, requestPayloadHash }) =>
+          resolutionReceiptPayload({
+            commandId: envelope.commandId,
+            enterpriseId: context.enterpriseId,
+            projectId: candidate.projectId,
+            customerMaterialId: candidate.customerMaterialId,
+            requestPayloadHash,
+            candidateVersionId: candidate.versionId,
+            confirmedVersionId: newVersionId,
+            sourceSelectionFacts,
+            decisionId,
+            decisionPayloadHash: decisionDigest.hash,
+            actorPrincipalId: envelope.principalId,
+            actorSnapshotId: envelope.actorSnapshotId,
+            authorizationDecisionId: envelope.authorizationDecisionId,
+            committedAt,
+          }),
+        persist: async (trx, material) => {
+          // The promoted mirrors are derived from the canonical payload
+          // itself, so the SQL guard can only accept a receipt whose columns
+          // agree with its own content address.
+          const payload = material.payload as unknown as {
+            commandType: string;
+            commandVersion: string;
+            targetRef: unknown;
+            requestPayloadHash: Common.ContentHash;
+            candidateVersionRef: unknown;
+            confirmedVersionRef: unknown;
+            sourceMaterialRefs: unknown;
+            decisionRef: unknown;
+            actorRef: unknown;
+            actorSnapshotRef: unknown;
+            authorizationDecisionRef: unknown;
+          };
+          await receiptRepo.insertResolutionReceiptMaterial(trx, {
+            commandId: envelope.commandId,
+            enterpriseId: context.enterpriseId,
+            projectId: candidate.projectId,
+            commandType: payload.commandType,
+            commandVersion: payload.commandVersion,
+            outcome: 'COMMITTED',
+            targetRef: payload.targetRef,
+            requestPayloadHash: Buffer.from(payload.requestPayloadHash.digest, 'hex'),
+            candidateVersionRef: payload.candidateVersionRef,
+            confirmedVersionRef: payload.confirmedVersionRef,
+            sourceMaterialRefs: payload.sourceMaterialRefs,
+            decisionRef: payload.decisionRef,
+            actorRef: payload.actorRef,
+            actorSnapshotRef: payload.actorSnapshotRef,
+            authorizationDecisionRef: payload.authorizationDecisionRef,
+            committedAt: material.committedAt,
+            receiptPayload: material.payload,
+            receiptPayloadHash: material.payloadHash,
+            createdByPrincipalId: envelope.principalId,
+            createdByActorSnapshotId: envelope.actorSnapshotId,
+            authorizationDecisionId: envelope.authorizationDecisionId,
+          });
+        },
+      },
       resultPayload: {
         customerMaterialRef: customerMaterialRef(
           context.enterpriseId,

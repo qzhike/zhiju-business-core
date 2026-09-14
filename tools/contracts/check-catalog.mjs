@@ -66,10 +66,10 @@ const issues = [
   ),
 ];
 
-if (catalogNames.length !== 211)
-  issues.push(`catalog count must be 211, got ${catalogNames.length}`);
-if (registryNames.length !== 211)
-  issues.push(`registry count must be 211, got ${registryNames.length}`);
+if (catalogNames.length !== 212)
+  issues.push(`catalog count must be 212, got ${catalogNames.length}`);
+if (registryNames.length !== 212)
+  issues.push(`registry count must be 212, got ${registryNames.length}`);
 
 if (issues.length > 0) {
   console.error(issues.join('\n'));

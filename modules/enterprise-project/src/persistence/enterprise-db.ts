@@ -63,6 +63,7 @@ import type {
   DeliveryItemDependencyTable,
   DeliveryPlanDecisionTable,
   ContextSourceSliceTable,
+  ResolutionReceiptMaterialTable,
 } from './enterprise-business-types.js';
 import type {
   ProjectBoardProjectionVersionTable,
@@ -321,6 +322,9 @@ export interface EnterpriseProjectDb {
   'enterprise_project.delivery_plan_decision': DeliveryPlanDecisionTable;
   // IM-06 (#188): immutable ContextSourceSlice capture facts landed by V2014.
   'enterprise_project.context_source_slice': ContextSourceSliceTable;
+  // IM-06 (#191): immutable canonical Resolution Receipt material landed by
+  // V2015. One row per committed CustomerMaterial confirmation command.
+  'enterprise_project.resolution_receipt_material': ResolutionReceiptMaterialTable;
   // IM-03 WI-11 (issue #67): rebuildable Project Board projection. The
   // projection transaction is deliberately separate from the authoritative
   // EnterpriseProject transaction and never reads across schemas.

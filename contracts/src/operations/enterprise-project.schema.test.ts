@@ -15,6 +15,8 @@ import {
 import policiesData from '../generated/payload-guard-policies.json' with { type: 'json' };
 import { publicApiOperations } from '../generated/public-api.js';
 import {
+  assertResolutionReceiptCompatibilityMetadata,
+  assertResolutionReceiptOperationRegistrations,
   assertSliceOperationRegistrations,
   assertSliceCompatibilityMetadata,
 } from '../operation-registration.js';
@@ -523,6 +525,164 @@ describe('slice metadata parity', () => {
       expect(() => {
         assertSliceCompatibilityMetadata(
           publicApiOperations,
+          metadata.operations.map((item) => (item === entry ? { ...item, [field]: '*' } : item)),
+        );
+      }).toThrow('inconsistent');
+    }
+  });
+});
+
+// ===========================================================================
+// IM-06 (#191): narrow resolution receipt attestation Query
+// ===========================================================================
+
+const receiptType = 'project.get_resolution_receipt';
+
+interface ReceiptNegativeCase {
+  base: string;
+  path: string;
+  keyword: string;
+  expectedPath: string;
+  remove?: boolean;
+  value?: unknown;
+  params?: Record<string, unknown>;
+}
+
+function readReceiptFixture(name: string): Fixture {
+  return JSON.parse(
+    readFileSync(
+      new URL(`../../../tests/fixtures/contracts/resolution-receipt/${name}.json`, import.meta.url),
+      'utf8',
+    ),
+  ) as Fixture;
+}
+
+const receiptNegativeCases = JSON.parse(
+  readFileSync(
+    new URL(
+      '../../../tests/fixtures/contracts/resolution-receipt/negative-cases.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+) as ReceiptNegativeCase[];
+
+function validateReceipt(base: string, input: unknown) {
+  return base === 'result'
+    ? registry.validateOperationResult(receiptType, '1.0', input)
+    : registry.validateOperation(receiptType, '1.0', input);
+}
+
+describe('resolution receipt attestation public contracts', () => {
+  it('accepts the complete Query and attestation fixtures', () => {
+    expect(validateReceipt('query', readReceiptFixture('query'))).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(validateReceipt('result', readReceiptFixture('result'))).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it.each(receiptNegativeCases)('rejects $base $path ($keyword)', (test) => {
+    const input = readReceiptFixture(test.base);
+    expect(validateReceipt(test.base, input)).toEqual({ valid: true, errors: [] });
+    setPath(input, test.path, test.value, test.remove);
+    const outcome = validateReceipt(test.base, input);
+    expect(outcome.valid).toBe(false);
+    expect(outcome.errors).toContainEqual(
+      expect.objectContaining({
+        keyword: test.keyword,
+        instancePath: test.expectedPath,
+        ...(test.params === undefined ? {} : { params: expect.objectContaining(test.params) }),
+      }),
+    );
+  });
+
+  it('exposes exact scoped registration metadata through the public Registry', () => {
+    assertResolutionReceiptOperationRegistrations(publicApiOperations);
+    expect(registry.getOperation(receiptType, '1.0')).toMatchObject({
+      owner: 'enterprise-project',
+      kind: 'QUERY',
+      schemaStatus: 'FULL',
+      allowedConsistency: ['AUTHORITATIVE'],
+      authorizationPurpose: 'project.resolution_receipt.read',
+      dataClassification: 'CUSTOMER_CONFIDENTIAL',
+      references: [
+        {
+          path: '/payload/commandReceiptRef',
+          kind: 'CONTENT_ADDRESSED',
+          objectType: 'zhiju.project.command_receipt',
+        },
+      ],
+      resultReferences: [
+        {
+          path: '/commandReceiptRef',
+          kind: 'CONTENT_ADDRESSED',
+          objectType: 'zhiju.project.command_receipt',
+        },
+        { path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.project.customer_material' },
+        {
+          path: '/candidateVersionRef',
+          kind: 'VERSIONED',
+          objectType: 'zhiju.project.customer_material',
+        },
+        {
+          path: '/confirmedVersionRef',
+          kind: 'VERSIONED',
+          objectType: 'zhiju.project.customer_material',
+        },
+        {
+          path: '/sourceMaterialRefs',
+          kind: 'CONTENT_ADDRESSED',
+          objectType: 'zhiju.project.source_material',
+        },
+        {
+          path: '/decisionRef',
+          kind: 'CONTENT_ADDRESSED',
+          objectType: 'zhiju.project.business_decision',
+        },
+        { path: '/actorRef', kind: 'PRINCIPAL', objectType: 'zhiju.identity.principal' },
+        {
+          path: '/actorSnapshotRef',
+          kind: 'OBJECT',
+          objectType: 'zhiju.identity.actor_snapshot',
+        },
+        {
+          path: '/authorizationDecisionRef',
+          kind: 'OBJECT',
+          objectType: 'zhiju.identity.authorization_decision',
+        },
+      ],
+    });
+    // The approved #157 PayloadGuard policy stays limited to the Source Slice
+    // boundary: this Query declares no build-time guard of its own.
+    expect(registry.getOperation(receiptType, '1.0')?.payloadGuardPolicyRef).toBeUndefined();
+  });
+
+  it('rejects divergent compatibility declarations for the receipt Query', () => {
+    const metadata = JSON.parse(
+      readFileSync(
+        new URL('../../registry/operation-compatibility-metadata.v1.json', import.meta.url),
+        'utf8',
+      ),
+    ) as {
+      operations: {
+        type: string;
+        version: string;
+        authorizationPurpose: string;
+        dataClassification: string;
+      }[];
+    };
+    expect(() => {
+      assertResolutionReceiptCompatibilityMetadata(metadata.operations);
+    }).not.toThrow();
+    const entry = metadata.operations.find((item) => item.type === receiptType);
+    if (entry === undefined) throw new Error('missing compatibility fixture');
+    for (const field of ['authorizationPurpose', 'dataClassification'] as const) {
+      expect(() => {
+        assertResolutionReceiptCompatibilityMetadata(
           metadata.operations.map((item) => (item === entry ? { ...item, [field]: '*' } : item)),
         );
       }).toThrow('inconsistent');
