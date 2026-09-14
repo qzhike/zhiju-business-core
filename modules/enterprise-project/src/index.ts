@@ -355,6 +355,7 @@ export {
   CAPTURE_CONTEXT_SOURCE_SLICE_IDEMPOTENCY_SCOPE,
   AUTHORIZATION_DECISION_INVALID,
   CONTEXT_SOURCE_SLICE_OBJECT_TYPE,
+  CONTEXT_SOURCE_SLICE_TARGET,
   PROJECT_OBJECT_TYPE,
 } from './business/context-source-slice-handlers.js';
 export type {
@@ -499,5 +500,7 @@ export {
   PROJECT_CAPTURE_POLICY_NOT_USABLE,
   PROJECT_CAPTURE_PURPOSE_FORBIDDEN,
   PROJECT_CAPTURE_VALIDITY_INVALID,
+  PROJECT_CAPTURE_RESULT_INVALID,
+  PROJECT_CAPTURE_SLICE_ALREADY_EXISTS,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';

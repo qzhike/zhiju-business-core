@@ -14,21 +14,28 @@
 // consumed through the IdentityPolicy resolution Port.
 
 import type { Kysely } from 'kysely';
+import { sql } from 'kysely';
 import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
-import { isUuidV7, newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import { isUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   digestCanonicalPayload,
   withEnterpriseProjectTransaction,
   type EnterpriseProjectDb,
+  type EnterpriseProjectTransaction,
   type EnterpriseProjectTransactionContext,
 } from '../persistence/enterprise-db.js';
 import {
   CommandExecutionError,
+  COMMAND_TARGET_MISMATCH,
   executeEnterpriseProjectCommand,
+  type CommandBodyResult,
   type CommandEnvelope,
   type CommandResult,
 } from '../persistence/command-runner.js';
-import { ContextSourceSliceRepository } from '../persistence/context-source-slice-repository.js';
+import {
+  ContextSourceSliceRepository,
+  type ContextSourceSliceInsert,
+} from '../persistence/context-source-slice-repository.js';
 import {
   assembleProjectContextSourceSlice,
   validateRequestedKinds,
@@ -46,6 +53,8 @@ import {
   PROJECT_CAPTURE_POLICY_NOT_USABLE,
   PROJECT_CAPTURE_POLICY_UNSUPPORTED,
   PROJECT_CAPTURE_PURPOSE_FORBIDDEN,
+  PROJECT_CAPTURE_RESULT_INVALID,
+  PROJECT_CAPTURE_SLICE_ALREADY_EXISTS,
   PROJECT_CAPTURE_VALIDITY_INVALID,
   PROJECT_QUERY_AUDIENCE_INVALID,
   PROJECT_QUERY_CONTEXT_EXPIRED,
@@ -113,6 +122,8 @@ export const CAPTURE_CONTEXT_SOURCE_SLICE_IDEMPOTENCY_SCOPE =
 /** Shared API reason code for a pinned Decision that does not cover the entry. */
 export const AUTHORIZATION_DECISION_INVALID = 'AUTHORIZATION_DECISION_INVALID';
 export const CONTEXT_SOURCE_SLICE_OBJECT_TYPE = 'zhiju.project.context_source_slice';
+/** Internal command target type of the Slice CREATE identity. */
+export const CONTEXT_SOURCE_SLICE_TARGET = 'ContextSourceSlice';
 export const PROJECT_OBJECT_TYPE = 'zhiju.project.project';
 const POLICY_OBJECT_TYPE = 'zhiju.identity.policy';
 
@@ -298,9 +309,67 @@ function sliceRef(
   };
 }
 
+/**
+ * The registered Command is a `ContextSourceSlice / CREATE`: the Envelope's
+ * `targetRef` is the pre-allocated Slice identity. The owning entry keeps that
+ * identity (request target = committed Slice = returned Ref) and refuses a
+ * mismatched target type, a missing id or a CREATE command that carries an
+ * expected aggregate version instead of silently rewriting it.
+ */
+function captureTargetIdentity(envelope: CommandEnvelope): string {
+  if (
+    envelope.targetType !== CONTEXT_SOURCE_SLICE_TARGET ||
+    !hasUuidV7(envelope.targetId) ||
+    envelope.expectedAggregateVersion !== undefined
+  ) {
+    throw new CommandExecutionError(
+      COMMAND_TARGET_MISMATCH,
+      'capture must target the pre-allocated ContextSourceSlice identity without an expected aggregate version',
+    );
+  }
+  return envelope.targetId;
+}
+
 interface CaptureValidity {
   readonly capturedAt: Date;
   readonly validUntil: Date;
+}
+
+function isUniqueViolation(error: unknown, constraint: string): boolean {
+  const candidate = error as { code?: unknown; constraint?: unknown } | null;
+  return candidate?.code === '23505' && candidate.constraint === constraint;
+}
+
+/**
+ * Appends the Slice behind a savepoint: a PostgreSQL unique violation aborts the
+ * enclosing transaction, so a repeated CREATE target identity is rolled back to
+ * the savepoint and reported as a stable conflict instead of leaking `23505`,
+ * leaving the transaction usable for the rejection receipt and audit.
+ */
+async function insertContextSourceSliceGuarded(
+  trx: EnterpriseProjectTransaction,
+  insert: ContextSourceSliceInsert,
+): Promise<CommandBodyResult | null> {
+  await sql.raw('SAVEPOINT context_source_slice_insert').execute(trx);
+  try {
+    await repo.insertContextSourceSlice(trx, insert);
+    await sql.raw('RELEASE SAVEPOINT context_source_slice_insert').execute(trx);
+    return null;
+  } catch (error) {
+    const conflict =
+      isUniqueViolation(error, 'context_source_slice_pkey') ||
+      isUniqueViolation(error, 'context_source_slice_scope_unique')
+        ? ({
+            kind: 'REJECTED',
+            errorCode: PROJECT_CAPTURE_SLICE_ALREADY_EXISTS,
+            safeSummary: 'the pre-allocated Slice identity already has a committed capture',
+          } as const)
+        : null;
+    if (conflict === null) throw error;
+    await sql.raw('ROLLBACK TO SAVEPOINT context_source_slice_insert').execute(trx);
+    await sql.raw('RELEASE SAVEPOINT context_source_slice_insert').execute(trx);
+    return conflict;
+  }
 }
 
 /**
@@ -346,7 +415,7 @@ export async function handleCaptureContextSourceSlice(
     envelope.payload.requestedKinds,
   );
   const policyKey = capturePolicyKey(envelope.payload.capturePolicyRef, context, projectId);
-  const sliceId = newUuidV7();
+  const sliceId = captureTargetIdentity(envelope);
   const normalizedEnvelope: CommandEnvelope = {
     ...envelope,
     projectId,
@@ -440,8 +509,25 @@ export async function handleCaptureContextSourceSlice(
       validUntil: validUntil.toISOString(),
       source,
     } as unknown as CanonicalJsonObject;
+    // The captured Slice must already be returnable as the registered read
+    // Result: the owning assembly can exceed the registered Guard budgets (for
+    // example one redaction pair per Enterprise Fact), and a Slice that cannot
+    // be dereferenced must never be committed.
+    const candidate = CONTRACT_REGISTRY.validateOperationResult(
+      GET_CONTEXT_SOURCE_SLICE_QUERY,
+      '1.0',
+      { slice: slicePayload, useStatus: 'USABLE', checkedAt: capturedAt.toISOString() },
+    );
+    if (!candidate.valid) {
+      return {
+        kind: 'REJECTED',
+        errorCode: PROJECT_CAPTURE_RESULT_INVALID,
+        safeSummary:
+          'the assembled Slice cannot be returned as a registered ContextSourceSlice result',
+      };
+    }
     const sliceHash = digestCanonicalPayload(slicePayload).hash;
-    await repo.insertContextSourceSlice(execution.trx, {
+    const rejectedInsert = await insertContextSourceSliceGuarded(execution.trx, {
       sliceId,
       enterpriseId: context.enterpriseId,
       projectId,
@@ -465,6 +551,7 @@ export async function handleCaptureContextSourceSlice(
       authorizationDecisionId: envelope.authorizationDecisionId,
       sourceCommandId: envelope.commandId,
     });
+    if (rejectedInsert !== null) return rejectedInsert;
     await execution.appendReferenceEdge({
       ownerObjectType: 'ContextSourceSlice',
       ownerObjectId: sliceId,

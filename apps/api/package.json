@@ -14,6 +14,24 @@
     "@zhiju/contracts": "workspace:*",
     "fastify": "catalog:",
     "reflect-metadata": "catalog:",
-    "rxjs": "catalog:"
+    "rxjs": "catalog:",
+    "@zhiju/enterprise-project": "workspace:*",
+    "@zhiju/identity-policy": "workspace:*",
+    "@zhiju/shared-kernel": "workspace:*",
+    "kysely": "0.29.5",
+    "pg": "8.23.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "default": "./dist/main.js"
+    },
+    "./composition": {
+      "types": "./dist/composition/index.d.ts",
+      "default": "./dist/composition/index.js"
+    }
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5"
   }
 }
