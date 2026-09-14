@@ -66,8 +66,8 @@ function validTaskExecutionWorkOrderDraft(): {
 describe('contract registry', () => {
   const registry = new ContractRegistry();
 
-  it('registers exactly the current 212 public operations', () => {
-    expect(registry.operationCount).toBe(212);
+  it('registers exactly the current 213 public operations', () => {
+    expect(registry.operationCount).toBe(213);
   });
 
   it('exposes implemented module operations as matching FULL schemas', () => {
@@ -81,12 +81,12 @@ describe('contract registry', () => {
     const release = full.filter((operation) => operation.owner === 'release-publication');
     const integration = full.filter((operation) => operation.owner === 'integration-gateway');
 
-    expect(full).toHaveLength(212);
+    expect(full).toHaveLength(213);
     expect(identity).toHaveLength(22);
     expect(project).toHaveLength(35);
     expect(execution).toHaveLength(43);
     expect(artifact).toHaveLength(26);
-    expect(quality).toHaveLength(37);
+    expect(quality).toHaveLength(38);
     expect(release).toHaveLength(25);
     expect(integration).toHaveLength(24);
     expect(Object.keys(identityPolicyOperationContracts).sort()).toEqual(
@@ -123,7 +123,7 @@ describe('contract registry', () => {
     const kinds = quality.map((operation) => operation.kind);
 
     expect(kinds.filter((kind) => kind === 'COMMAND')).toHaveLength(18);
-    expect(kinds.filter((kind) => kind === 'QUERY')).toHaveLength(8);
+    expect(kinds.filter((kind) => kind === 'QUERY')).toHaveLength(9);
     expect(kinds.filter((kind) => kind === 'EVENT')).toHaveLength(11);
     expect(
       quality

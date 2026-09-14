@@ -10,6 +10,7 @@ import Ajv2020Import from 'ajv/dist/2020.js';
 import {
   assertPolicyVersionOperationRegistrations,
   assertResolutionReceiptOperationRegistrations,
+  assertRevisionEligibilityOperationRegistrations,
   assertSliceOperationRegistrations,
   assertTaskExecutionOperationRegistrations,
 } from './operation-registration.js';
@@ -96,6 +97,7 @@ export class ContractRegistry {
     assertTaskExecutionOperationRegistrations(publicApiOperations);
     assertPolicyVersionOperationRegistrations(publicApiOperations);
     assertResolutionReceiptOperationRegistrations(publicApiOperations);
+    assertRevisionEligibilityOperationRegistrations(publicApiOperations);
     this.#ajv = new Ajv2020({ allErrors: true, strict: true });
     this.#ajv.addKeyword(payloadGuardKeyword(this.#guardPolicies));
     this.#ajv.addSchema(commonSchema);

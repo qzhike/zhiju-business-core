@@ -20,3 +20,9 @@ export type {
   ResolutionReceiptEntryConfig,
   ResolutionReceiptSession,
 } from './resolution-receipt-entry.js';
+export { createRevisionEligibilityEntry } from './revision-eligibility-entry.js';
+export type {
+  RevisionEligibilityEntry,
+  RevisionEligibilityEntryConfig,
+  RevisionEligibilitySession,
+} from './revision-eligibility-entry.js';

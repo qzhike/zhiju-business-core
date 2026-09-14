@@ -1,0 +1,178 @@
+[
+  {
+    "base": "query",
+    "path": "/payload/revisionAcceptanceRef",
+    "keyword": "required",
+    "expectedPath": "/payload",
+    "remove": true
+  },
+  {
+    "base": "query",
+    "path": "/payload/revisionRef/kind",
+    "keyword": "const",
+    "expectedPath": "/payload/revisionRef/kind",
+    "value": "SNAPSHOT"
+  },
+  {
+    "base": "query",
+    "path": "/payload/revisionRef/contentHash",
+    "keyword": "required",
+    "expectedPath": "/payload/revisionRef",
+    "remove": true
+  },
+  {
+    "base": "query",
+    "path": "/payload/revisionRef/contentHash/digest",
+    "keyword": "pattern",
+    "expectedPath": "/payload/revisionRef/contentHash/digest",
+    "value": "3333"
+  },
+  {
+    "base": "query",
+    "path": "/payload/revisionRef/objectId",
+    "keyword": "pattern",
+    "expectedPath": "/payload/revisionRef/objectId",
+    "value": "018f22e2-7c15-4b2e-8d86-2de956a9d407"
+  },
+  {
+    "base": "query",
+    "path": "/payload/approvalBundleRef/kind",
+    "keyword": "const",
+    "expectedPath": "/payload/approvalBundleRef/kind",
+    "value": "CONTENT_ADDRESSED"
+  },
+  {
+    "base": "query",
+    "path": "/payload/approvalBundleRef/snapshotId",
+    "keyword": "pattern",
+    "expectedPath": "/payload/approvalBundleRef/snapshotId",
+    "value": "018f22e2-7c15-4b2e-8d86-2de956a9d409"
+  },
+  {
+    "base": "query",
+    "path": "/payload/revisionAcceptanceRef/scope/projectId",
+    "keyword": "pattern",
+    "expectedPath": "/payload/revisionAcceptanceRef/scope/projectId",
+    "value": "project-1"
+  },
+  {
+    "base": "query",
+    "path": "/payload/current",
+    "keyword": "additionalProperties",
+    "expectedPath": "/payload",
+    "value": true
+  },
+  {
+    "base": "query",
+    "path": "/consistencyRequirement",
+    "keyword": "enum",
+    "expectedPath": "/consistencyRequirement",
+    "value": "PROJECTION_OK"
+  },
+  {
+    "base": "result",
+    "path": "/revisionAcceptanceUsable",
+    "keyword": "type",
+    "expectedPath": "/revisionAcceptanceUsable",
+    "value": "true"
+  },
+  {
+    "base": "result",
+    "path": "/approvalBundleUsable",
+    "keyword": "required",
+    "expectedPath": "/approvalBundleUsable",
+    "value": {
+      "presence": "PRESENT"
+    }
+  },
+  {
+    "base": "result",
+    "path": "/approvalBundleUsable",
+    "keyword": "additionalProperties",
+    "expectedPath": "/approvalBundleUsable",
+    "value": {
+      "presence": "NOT_APPLICABLE",
+      "value": false
+    }
+  },
+  {
+    "base": "result",
+    "path": "/approvalBundleUsable",
+    "keyword": "additionalProperties",
+    "expectedPath": "/approvalBundleUsable",
+    "value": {
+      "presence": "UNKNOWN",
+      "value": true
+    }
+  },
+  {
+    "base": "result",
+    "path": "/approvalBundleUsable/reasonCode",
+    "keyword": "pattern",
+    "expectedPath": "/approvalBundleUsable/reasonCode",
+    "value": "not_authorized"
+  },
+  {
+    "base": "result",
+    "path": "/approved",
+    "keyword": "additionalProperties",
+    "expectedPath": "",
+    "value": true
+  },
+  {
+    "base": "result",
+    "path": "/reasonCodes",
+    "keyword": "pattern",
+    "expectedPath": "/reasonCodes/0",
+    "value": ["stale_gate_result"]
+  },
+  {
+    "base": "result",
+    "path": "/observedAt",
+    "keyword": "pattern",
+    "expectedPath": "/observedAt",
+    "value": "2026-09-14T00:00:00+00:00"
+  },
+  {
+    "base": "result",
+    "path": "/sourceWatermarks/0/sourceModule",
+    "keyword": "pattern",
+    "expectedPath": "/sourceWatermarks/0/sourceModule",
+    "value": "quality-governance"
+  },
+  {
+    "base": "result",
+    "path": "/sourceWatermarks/0/sequence",
+    "keyword": "minimum",
+    "expectedPath": "/sourceWatermarks/0/sequence",
+    "value": -1
+  },
+  {
+    "base": "result",
+    "path": "/sourceWatermarks/0/observedAt",
+    "keyword": "pattern",
+    "expectedPath": "/sourceWatermarks/0/observedAt",
+    "value": "not-a-timestamp"
+  },
+  {
+    "base": "result",
+    "path": "/approvalBundleRef",
+    "keyword": "pattern",
+    "expectedPath": "/approvalBundleRef/contentHash/digest",
+    "value": {
+      "kind": "SNAPSHOT",
+      "objectType": "quality.approval_bundle_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d409",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d409",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d401",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d402"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "5555",
+        "canonicalizationVersion": "1"
+      }
+    }
+  }
+]

@@ -225,6 +225,7 @@ BlockingIssueView
 | `quality.get_revision_acceptance_snapshot@1.0` | A | `snapshotRef: SnapshotRef<RevisionAcceptance>` | `RevisionAcceptanceSnapshot` |
 | `quality.get_approval_bundle_snapshot@1.0` | A | `snapshotRef: SnapshotRef<ApprovalBundle>` | `ApprovalBundleSnapshot` |
 | `quality.get_release_readiness_snapshot@1.0` | A | `snapshotRef: SnapshotRef<ReleaseReadiness>; requireCurrentForAuthorization?: boolean` | `ReleaseReadinessSnapshot`；省略标志时读取不可变历史，`true` 时只返回仍是 exact Release + frozen Package 最新有效 readiness、且 Gate/ABS/RAS/Approval 当前有效的 RRS，否则 fail-closed |
+| `quality.get_revision_execution_eligibility@1.0` | A | `revisionRef: ContentAddressedRef<ArtifactRevision>; revisionAcceptanceRef: SnapshotRef<RevisionAcceptance>; approvalBundleRef?: SnapshotRef<ApprovalBundle>` | `{revisionRef, revisionAcceptanceRef, approvalBundleRef?, revisionAcceptanceUsable: boolean, approvalBundleUsable: ValueEnvelope<boolean>, reasonCodes: ReasonCode[], observedAt, sourceWatermarks}`；只复用 owning RAS/ABS/Gate/Approval 当前有效性检查，未请求 ABS 为 `NOT_APPLICABLE`，历史失效返回 `false` 与原因，不写回历史 |
 
 ## 5. Event Payload Contract
 
@@ -270,6 +271,7 @@ QUALITY_APPROVAL_REQUIREMENTS_INCOMPLETE
 QUALITY_REVISION_ACCEPTANCE_NOT_READY
 QUALITY_RELEASE_PACKAGE_TARGET_MISMATCH
 QUALITY_RELEASE_READINESS_NOT_READY
+QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED
 ```
 
 ## 7. 不变量与持久化边界
@@ -318,9 +320,9 @@ QUALITY_RELEASE_READINESS_NOT_READY
 
 ## 9. 当前状态
 
-- 37 个公开 Contract 已定义字段级 payload/result/event 结构；
+- 38 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已于 2026-08-13 通过用户审核；
-- 字段级 Payload / Result Schema 已于 2026-08-18 实现并注册到 `contracts/src/operations/quality-governance.schema.ts`；18 Command、8 Query 与 11 Event 全部由 `ENVELOPE_ONLY` 升级为 `FULL`；8 Query Result Schema 均载入 Registry；
+- 字段级 Payload / Result Schema 已于 2026-08-18 实现并注册到 `contracts/src/operations/quality-governance.schema.ts`；18 Command、9 Query 与 11 Event 全部由 `ENVELOPE_ONLY` 升级为 `FULL`；9 Query Result Schema 均载入 Registry；
 - Schema Contract 用例（`quality-governance.schema.test.ts`）已 PASSED：覆盖 Human Approval、Agent 冒充、Target hash、Evaluation Stage、敏感字段泄漏、Gate vs Approval 形态差异等正反例；
 - PR #13 Code Review 修复已于 2026-08-18 完成：REPRESENTATION GateTarget 改用 Common `representationRef`；三个 Snapshot Query Result 改为 `$ref` Core Contract ID（不再维护截断视图）；`evidenceVerification.verifier` / `issueVerification.verifier` / `blockingIssueView.ownerRef` / `propose_issue_resolution.proposedBy` 改用 Common `principalRef`；`revoke_evidence` / `invalidate_gate_result` / `revoke_approval` 三个 Command 去除未授权 `revocation`/`invalidation` 包装，恢复 Module Spec 第 3 节直接字段；`QualityProfileDefinition.releaseRequirements` 由 optional 改为 required；`get_gate_results` 复用 Common `pageRequest` / `opaqueCursor`；
 - PR #13 第二轮 Code Review 修复已于 2026-08-18 完成：`GateResultSubmission` 删除未授权 `executionMode` 字段；`record_reused_gate_result` 路径独立为 `GateReuseSubmission`，`sourceGateResultRef` / `changeImpactRef` 强制 required；数组类型按 Module Spec `Set<T>` / `NonEmptySet<T>` / `T[]` 精确分类 — 仅 NonEmptySet 保留 `minItems: 1`，Set 仅保留 `uniqueItems`，普通 `T[]` 不附加额外约束；空过滤集合与无内容变更 IssueResolution 接受正向回归。
@@ -373,10 +375,20 @@ WI-08 不新增 QualityGovernance 公共 Contract、业务表或 Migration；它
 
 ## IM-06 Revision 当前执行资格 Query 设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / NOT REGISTERED / NOT IMPLEMENTED`；关联 #154/TD-03。已有 RAS/ABS精确查询保留历史语义，不能把历史 READY/FULLY_APPROVED当作当前仍有效。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / SCHEMA, REGISTRY, GENERATED TYPES, FIXTURES, HANDLER, PURPOSE AUTHORIZATION BOUNDARY AND REAL POSTGRESQL EVIDENCE IMPLEMENTED 2026-09-14 (#192) / TE COMPLETION CONSUMPTION NOT RUN`；关联 #154/TD-03。已有 RAS/ABS精确查询保留历史语义，不能把历史 READY/FULLY_APPROVED当作当前仍有效。
 
 设计 `quality.get_revision_execution_eligibility@1.0`，A Query；purpose `quality.revision.execution_eligibility.read`，仅有目标 Scope权的 TE Evaluator Service/授权 Human。Payload：`revisionRef: Exact<ArtifactRevision>; revisionAcceptanceRef: Snap<RevisionAcceptance>; approvalBundleRef?: Snap<ApprovalBundle>`。Result：`{revisionRef, revisionAcceptanceRef, approvalBundleRef?, revisionAcceptanceUsable:boolean, approvalBundleUsable: ValueEnvelope<boolean>, reasonCodes: ReasonCode[], observedAt, sourceWatermarks}`。
 
 由 Quality owning应用逻辑复用 RAS/ABS/Gate/Approval 的当前有效性检查：所有 Ref精确匹配同 Revision/Scope/Profile；RAS 当前适用 mandatory Gate必须存在、未失效且满足 READY；传入 ABS时须检查当前批准集合、签署者资格/撤销、Approval与精确 Revision/Gate/Review事实关联。输入错 Hash/Scope/purpose拒绝；已授权的历史 Snapshot过时可返回 false和原因，不写回历史 Snapshot。没有请求 ABS时 approvalBundleUsable为 NOT_APPLICABLE，不能伪造 false/true；请求但缺事实不得自动通过。
 
-该Query不重算 Gate、不创建Approval、不授予Release授权，也不改变 `get_release_readiness_snapshot(requireCurrentForAuthorization)` 的语义。生产端 Query实现和对应负向测试尚未运行；当前跨模块观测一致性界限见 IM-06设计 §10.1。
+该Query不重算 Gate、不创建Approval、不授予Release授权，也不改变 `get_release_readiness_snapshot(requireCurrentForAuthorization)` 的语义。当前跨模块观测一致性界限见 IM-06设计 §10.1。
+
+### IM-06 #192 实现事实
+
+`quality.get_revision_execution_eligibility@1.0` 已由 #192 交付：AUTHORITATIVE Query、Owner QualityGovernance、Purpose `quality.revision.execution_eligibility.read`、`dataClassification=INTERNAL`；Catalog/Registry 由 212 增至 213 项（本模块 37 增至 38：18 Command / 9 Query / 11 Event），历史 200 项 Compatibility Baseline 与旧接受集合未改写。Handler `handleGetRevisionExecutionEligibility` 与 `REVISION_EXECUTION_ELIGIBILITY_PURPOSE` 由模块公开导出；`QualityTransactionContext` 新增可选 `authorizationPurposes`，只由可信组合层写入，Handler 要求其中包含该精确 Purpose（`QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED`），前缀、后缀或通配字符串不通过。
+
+当前有效性规则（复用既有 owning 检查，未新增判据）：所请求 RAS 必须与该 Revision 精确绑定（ref、revision content hash、Scope、payload hash、snapshot identity 与 payload 内 revisionRef/qualityProfileRef 镜像一致），仍为该 Revision/Profile 的最新 RAS，状态仍为 READY，记录的 Gate Result 仍精确存在且未被 GateInvalidation 失效，且当前适用 mandatory Gate 仍存在并为 PASS；缺失或不可重读的 Profile 版本使 mandatory 集合无法确立，因此 fail-closed 为不可用。请求 ABS 时，该 bundle 必须仍为该 Revision/Profile 的最新 ABS、`FULLY_APPROVED`，其 `revisionAcceptanceSnapshotRef` 必须精确解析为同一 Revision/Profile 的 READY RAS；bundle 内每个 Approval 必须仍 `EFFECTIVE`、精确绑定同一 Revision/Profile，并精确锚定该 bundle 自身的 `revisionAcceptanceSnapshotRef`（完整 ref/身份/Scope/payload hash 与单独记录的 anchor hash 一致）。锚定同 Revision/Profile 其他（含已被取代的）RAS 的 Approval 不属于当前批准集合：构建 ABS 时只计入精确锚定该次 RAS 的 Approval，因此新 RAS 不能复用旧 RAS 的 Approval 取得 `FULLY_APPROVED`；资格复核对这类历史 bundle 同样 fail-closed。任一 Gate 失效、Approval 撤销或更新快照导致 `revisionAcceptanceUsable=false` / `approvalBundleUsable={presence:'PRESENT', value:false}` 与解释码；未请求 ABS 返回 `{presence:'NOT_APPLICABLE'}` 且省略 `approvalBundleRef`。`reasonCodes` 只使用已注册 upper-snake 码（含既有 `QUALITY_REVISION_ACCEPTANCE_NOT_READY`、`STALE_GATE_RESULT`、`QUALITY_APPROVAL_GATE_BUNDLE_INVALID`、`QUALITY_APPROVAL_INVALID`、`QUALITY_APPROVAL_REVISION_MISMATCH`、`QUALITY_MANDATORY_GATE_MISSING`）；`sourceWatermarks` 只记录本模块、Revision 分区、已验证 Quality 事实数与受信观测时点，不声称跨模块原子快照。
+
+授权接线：`apps/api/src/composition/revision-eligibility-entry.ts` 通过共享 `DecisionBoundary.validatedDecision` 证明调用方自己的 Decision（注册 Envelope、精确 operation/purpose/payload hash/actor/Scope/会话与当前有效 capability grant），再以 `qualityGovernanceContext` 生成 owning 上下文；Purpose 为精确字符串，capability 撤销后同一 Decision 立即不再通过。该操作只允许目标 Scope 内的 TE Evaluator Service 或授权 Human：组合入口在证明 Decision 后对受信 Decision 的 `principal_kind` 执行 `HUMAN | SERVICE` allowlist（`AUTHORIZATION_DECISION_INVALID`），owning Handler 在 `authorizationPurposes` 之外同样拒绝其他 principal kind（`QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED`）；IdentityPolicy 通用 grant 路径签发给 AGENT/RUNTIME/EXTERNAL_PARTY 的 Decision 即使持有精确 capability 也不通过，不依赖部署时不发 grant。构建期断言 `assertRevisionEligibilityOperationRegistrations` 固定 owner/kind/consistency/purpose/classification，并拒绝该操作声明 target、concurrencyMode、PayloadGuard、`references`/`resultReferences` 或显式 result schema。
+
+验证边界：Contract/Schema 与正负 fixture 见 `contracts/src/operations/quality-governance.schema.test.ts` 与 `tests/fixtures/contracts/revision-eligibility/`；真实 PostgreSQL 正反例（QG-TD-001–004、QG-TD-006–007）、只读不改历史与 Scope 隔离见 [Module Test 005](../module-tests/Module-Test-005-QualityGovernance.md#im-06-revision-eligibility-用例)。TE Evaluator 的 Completion 消费、跨模块业务链、外部 Provider 与人工业务验收仍为 `NOT RUN`。

@@ -747,3 +747,88 @@ export function assertResolutionReceiptCompatibilityMetadata(
     }
   }
 }
+
+/**
+ * Build-time registration record for the approved IM-06 (#192) Revision
+ * execution eligibility Query. The operation is a read-only AUTHORITATIVE
+ * Query over QualityGovernance-owned snapshots: it introduces no new object
+ * type and declares no reference surface, so an added `references`,
+ * `resultReferences`, target, guard policy or explicit result schema is a
+ * registration regression rather than an accepted extension.
+ */
+interface RevisionEligibilityRegistration {
+  readonly type: string;
+  readonly kind: 'QUERY';
+  readonly owner: string;
+  readonly schemaStatus: 'FULL';
+  readonly allowedConsistency: readonly 'AUTHORITATIVE'[];
+  readonly authorizationPurpose: string;
+  readonly dataClassification: string;
+}
+
+const revisionEligibilityRegistrations: readonly RevisionEligibilityRegistration[] = [
+  {
+    type: 'quality.get_revision_execution_eligibility',
+    kind: 'QUERY',
+    owner: 'quality-governance',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'quality.revision.execution_eligibility.read',
+    dataClassification: 'INTERNAL',
+  },
+] as const;
+
+export function assertRevisionEligibilityOperationRegistrations(
+  operations: readonly (Omit<PublicOperationDefinition, 'version'> & {
+    readonly version: string;
+  })[],
+): void {
+  for (const expected of revisionEligibilityRegistrations) {
+    const matching = operations.filter(
+      (operation) => operation.type === expected.type && operation.version === '1.0',
+    );
+    if (matching.length !== 1)
+      throw new Error(`missing or duplicate revision eligibility operation: ${expected.type}`);
+    const operation = matching[0];
+    if (operation === undefined) throw new Error('missing revision eligibility operation');
+    if (
+      operation.kind !== expected.kind ||
+      operation.owner !== expected.owner ||
+      operation.schemaStatus !== expected.schemaStatus ||
+      operation.targetObjectType !== undefined ||
+      operation.concurrencyMode !== undefined ||
+      !sameRegistrationValue(operation.allowedConsistency, expected.allowedConsistency) ||
+      operation.authorizationPurpose !== expected.authorizationPurpose ||
+      operation.dataClassification !== expected.dataClassification ||
+      operation.payloadGuardPolicyRef !== undefined ||
+      operation.references !== undefined ||
+      operation.resultReferences !== undefined ||
+      operation.resultSchemaRef !== undefined
+    ) {
+      throw new Error(`invalid revision eligibility registration: ${expected.type}`);
+    }
+  }
+}
+
+export function assertRevisionEligibilityCompatibilityMetadata(
+  metadata: readonly {
+    readonly type: string;
+    readonly version: string;
+    readonly authorizationPurpose: string;
+    readonly dataClassification: string;
+  }[],
+): void {
+  for (const expected of revisionEligibilityRegistrations) {
+    const entries = metadata.filter(
+      (entry) => entry.type === expected.type && entry.version === '1.0',
+    );
+    const entry = entries[0];
+    if (
+      entries.length !== 1 ||
+      entry?.authorizationPurpose !== expected.authorizationPurpose ||
+      entry.dataClassification !== expected.dataClassification
+    ) {
+      throw new Error(`inconsistent revision eligibility compatibility metadata: ${expected.type}`);
+    }
+  }
+}

@@ -19,7 +19,7 @@
 | QG-API-S-006 | Schema | `quality.get_evidence` Result 携带 `capturedEvidenceBody` | Registry 拒绝 Result `additionalProperties` | `additionalProperties` keyword 触发错误 | `PASSED` |
 | QG-API-S-007 | Schema | Gate/Approval 字段集合差异 | 两条 Submission 字段集合不可互为子集 | `gateTarget` 仅在 Gate Submission；`approverHumanPrincipalRef` 仅在 Approval Submission | `PASSED` |
 | QG-API-S-008 | Schema | `quality.get_evidence` Future 使用 `latest` 修订引用 | `contentAddressedRef` 强制 CONTENT_ADDRESSED kind + 内容 hash，latest 风格被拒绝 | schema `const` kind 校验 + contentHash pattern 双重拒绝 | `PASSED` |
-| QG-API-S-009 | Schema | 任一 Quality 操作的 37 个 catalog 名字与实施 Schema 类型一致 | Registry 解析 37/37；Common / Core 引用全部命中 | `contracts/src/operations/quality-governance.schema.ts` 中 `qualityGovernanceOperationContracts` 37 个名字与 `publicApiOperations` 排序集合相等 | `PASSED` |
+| QG-API-S-009 | Schema | 任一 Quality 操作的 38 个 catalog 名字与实施 Schema 类型一致 | Registry 解析 38/38；Common / Core 引用全部命中 | `contracts/src/operations/quality-governance.schema.ts` 中 `qualityGovernanceOperationContracts` 38 个名字与 `publicApiOperations` 排序集合相等 | `PASSED` |
 | QG-API-S-010 | Schema | Quality Command/Query 携带公开 `commandType`/`queryType` 之外的 envelope 字段 | Registry 拒绝 envelope `additionalProperties` | envelope schema `additionalProperties: false` 拒绝 | `PASSED` |
 | QG-API-S-011 | Schema | Quality 事件 producerModule 与 owner 不一致 | Event envelope `producerModule: { const: 'quality-governance' }` 拒绝 | `const` keyword 触发 `/producerModule` 错误 | `PASSED` |
 | QG-API-S-012 | Schema | REPRESENTATION GateTarget 携带完整 Common `representationRef`（含 checksum/renderer/createdAt） | Registry 接受 | `record_gate_result` Payload 通过 `validateOperation` 返回 `valid=true` | `PASSED` |
@@ -42,6 +42,10 @@
 | QG-API-S-029 | Schema | `quality.record_reused_gate_result` 缺 `changeImpactRef` | Registry 拒绝 `reuse` 子树 | `required` keyword 触发 `reuse/changeImpactRef` 错误 | `PASSED` |
 | QG-API-S-030 | Schema | `quality.get_gate_results` 使用空 `gateSpecIds=[]` 与 `outcomes=[]` 过滤集合（Set 而非 NonEmptySet） | Registry 接受 | Payload 通过 `validateOperation` 返回 `valid=true` | `PASSED` |
 | QG-API-S-031 | Schema | `quality.propose_issue_resolution` 的 `changedClaimRefs` 为空数组（无内容变更治理处理） | Registry 接受 | Payload 通过 `validateOperation` 返回 `valid=true` | `PASSED` |
+| QG-API-S-032 | Schema | #192 `quality.get_revision_execution_eligibility` 完整 payload（含可选 `approvalBundleRef`）与含 ABS 的 Result fixture | Registry 接受 | `validateOperation` 与 `validateOperationResult` 均返回 `valid=true`；`tests/fixtures/contracts/revision-eligibility/{query,result}.json` | `PASSED` |
+| QG-API-S-033 | Schema | #192 Result 省略 `approvalBundleRef` 且 `approvalBundleUsable={presence:'NOT_APPLICABLE'}` | Registry 接受 NOT_APPLICABLE 分支 | `validateOperationResult` 返回 `valid=true`，不要求 `value` | `PASSED` |
+| QG-API-S-034 | Schema | #192 22 个负例：缺 `revisionAcceptanceRef`、错 kind/hash/UUID/Scope/一致性、`approvalBundleUsable` 缺 `value`、非 PRESENT 携带 `value`、小写或下划线 reasonCode、`quality-governance` 连字符 namespace、负 `sequence` 等 | Registry 逐项拒绝对应 `keyword`/`instancePath` | `tests/fixtures/contracts/revision-eligibility/negative-cases.json` 由 schema test `it.each` 驱动 | `PASSED` |
+| QG-API-S-035 | Schema | #192 注册元数据与构建期断言 | Owner/kind/consistency/purpose/classification 精确；不得声明 target、Guard、`references`/`resultReferences` 或显式 result schema | `assertRevisionEligibilityOperationRegistrations` + Registry 断言；Result Schema 由 operation identity 派生 | `PASSED` |
 | QG-API-U-001 | Unit | FAIL GateResult 请求原地改 PASS | 拒绝 `QUALITY_GATE_RESULT_IMMUTABLE`；重跑产生新 Result | 无 Handler 实现 | `NOT RUN` |
 | QG-API-U-002 | Unit | 作者在职责分离要求下验证自己的整改 | 拒绝 `QUALITY_SEPARATION_OF_DUTIES_VIOLATION` | 无 Handler 实现 | `NOT RUN` |
 | QG-API-U-003 | Unit | AGENT/actingFor Human 提交 APPROVED | 永久拒绝 `QUALITY_APPROVAL_AGENT_FORBIDDEN` | Schema 已在 S-002 拒绝 AGENT principalKind；Handler 仍 `NOT RUN` | `NOT RUN` |
@@ -53,8 +57,8 @@
 
 ## 本阶段结果
 
-- Schema 层 Contract（QG-API-S-001 ~ QG-API-S-031）均为 `PASSED`；合并 PR #13 第二轮 review 修复后全项目 150/150；Registry operationCount=200、FULL=152、ENVELOPE_ONLY=48、quality-governance FULL=37。
-- 31 个 Quality Schema 用例覆盖：Human Approval 接受、Agent 冒充拒绝、Target hash 校验、Evaluation Stage 枚举、Gate Result Event 校验、敏感字段泄漏、Result `additionalProperties` 拒绝、Gate/Approval 形态差异、owner/producerModule 一致性、envelope 字段约束、Common `representationRef` 正反例、Common `principalRef` 正反例、三个 revoke/invalidate Command 直接字段、required `releaseRequirements`、Common `pageRequest`/`opaqueCursor` 正反例、三个 Snapshot Query Result 复用 Core Contract golden fixture、截断 Snapshot 拒绝、unauthorized `executionMode` 拒绝、`record_reused_gate_result` 正向 + source/impact 缺失双侧反向、空 Set 过滤集合、无内容变更 `IssueResolution`。
+- Schema 层 Contract（QG-API-S-001 ~ QG-API-S-035）均为 `PASSED`；合并 PR #13 第二轮 review 修复后全项目 150/150；#192 增量后 Registry operationCount=213、quality-governance FULL=38。
+- 35 个 Quality Schema 用例覆盖：Human Approval 接受、Agent 冒充拒绝、Target hash 校验、Evaluation Stage 枚举、Gate Result Event 校验、敏感字段泄漏、Result `additionalProperties` 拒绝、Gate/Approval 形态差异、owner/producerModule 一致性、envelope 字段约束、Common `representationRef` 正反例、Common `principalRef` 正反例、三个 revoke/invalidate Command 直接字段、required `releaseRequirements`、Common `pageRequest`/`opaqueCursor` 正反例、三个 Snapshot Query Result 复用 Core Contract golden fixture、截断 Snapshot 拒绝、unauthorized `executionMode` 拒绝、`record_reused_gate_result` 正向 + source/impact 缺失双侧反向、空 Set 过滤集合、无内容变更 `IssueResolutio…
 - 第二轮 PR #13 review 修复（P1.1 `executionMode` 删除、P1.2 `record_reused_gate_result` 正反例、P2.1 数组 NonEmpty/unique 审计、P2.2 空过滤/无变更正向、P3 doc 计数）均已在 Schema、Fixture、Registry 与本测试文档中同步。
 - Unit/Contract/E2E/Manual：`NOT RUN`，原因是 Gate Evaluator、Profile Registry、Readiness Evaluator、Persistence 与 Handler 实现均不存在；本阶段未声明 CLI 或 DB E2E 已运行。
 - 静态设计 Gate：`DESIGN VERIFIED`，证据见 [`Verification-Report.md`](../archive/api-contract-v0.1/Verification-Report.md)。
@@ -208,10 +212,16 @@ WI-02 非目标：GateResult evaluation、ReviewIssue、Human Approval decision�
 
 2026-08-31 GitHub exact-head 验证：WI-08 最终审阅 head `306cdbc3b8c8201994a57097038c4c3f784b0412` 已随 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139) 合入 `main`，GitHub Actions `verify` run `33355948473` 通过，merge commit 为 `07fc6a083897c01924f842d12dffe06fd6068261`，Issue #128 已关闭。该结果覆盖仓库 Gate，不扩大 QG-WI08-E-002 的统一跨模块业务 E2E 或 QG-WI08-M-001 的独立人工验收范围。
 
-## IM-06 Revision Eligibility 设计用例
+## IM-06 Revision Eligibility 用例
 
 | ID | 输入 | 预期 | 结果 |
 |---|---|---|---|
-| QG-TD-001 | 同Revision精确RAS/ABS及当前有效Gate/Approval | 返回当前资格与精确watermark，历史Snapshot不变 | NOT RUN |
-| QG-TD-002 | 历史READY/FULLY_APPROVED但Gate/Approval失效或被撤销 | eligibility=false，不能支持新的TE Completion | NOT RUN |
-| QG-TD-003 | 错Hash/Scope/Profile或不请求ABS | 错绑定拒绝；未请求ABS为NOT_APPLICABLE而非true | NOT RUN |
+| QG-TD-001 | 同Revision精确RAS/ABS及当前有效Gate/Approval | 返回当前资格与精确watermark，历史Snapshot不变 | `PASS — DISPOSABLE POSTGRESQL`：#192 经组合层入口以真实 Decision 读取，`revisionAcceptanceUsable=true`、`approvalBundleUsable={presence:'PRESENT',value:true}`、`reasonCodes=[]`；追加同一 Revision/Profile 的新 RAS 后旧 RAS 返回 `false` 与 `QUALITY_REVISION_ACCEPTANCE_NOT_READY`，新 RAS + 无 ABS 返回 `true` + `NOT_APPLICABLE` 且省略 `approvalBundleRef`；RAS/ABS/Approval/Invalidation 行数与 RAS 行 `status`/`payload_hash` 在读取前后完全一致 |
+| QG-TD-002 | 历史READY/FULLY_APPROVED但Gate/Approval失效或被撤销 | eligibility=false，不能支持新的TE Completion | `PASS — DISPOSABLE POSTGRESQL`：`invalidate_gate_result` 后同一 RAS 立即 `revisionAcceptanceUsable=false` 且 `reasonCodes` 含 `STALE_GATE_RESULT`，旧精确 RAS Query 仍返回 READY；`revoke_approval` 后同一 ABS 返回 `{presence:'PRESENT',value:false}`，`reasonCodes` 含 `QUALITY_APPROVAL_GATE_BUNDLE_INVALID` 与 `QUALITY_APPROVAL_INVALID`，RAS 侧保持 `true`，旧 ABS Query 仍读回 `FULLY_APPROVED` |
+| QG-TD-003 | 错Hash/Scope/Profile或不请求ABS | 错绑定拒绝；未请求ABS为NOT_APPLICABLE而非true | `PASS — DISPOSABLE POSTGRESQL`：替换 Hash 或异 Revision 的 RAS 以 `QUALITY_READINESS_SNAPSHOT_QUERY_NOT_FOUND` 拒绝，异 Project/Enterprise 引用以 `SCOPE_MISMATCH` 拒绝，伪装成调用方 Scope 的他企业 snapshotId 得到同一不可用答案且无跨企业事实；异 Revision 的 ABS 以 `QUALITY_APPROVAL_QUERY_NOT_FOUND` 拒绝；已注册 Query 类型不匹配、非法 payload 成员、异 Purpose Decision、异会话 Decision 与未携带 Purpose 的可信上下文分别以 `API_VALUE_INVALID`、`AUTHORIZATION_DECISION_INVALID` 与 `QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED` 拒绝；未请求 ABS 的 `NOT_APPLICABLE` 分支与 QG-TD-001 同批验证，不返回 `true`/`false` |
+| QG-TD-004 | 已授权调用方的 capability grant 被撤销 | 同一 Decision 不再通过 | `PASS — DISPOSABLE POSTGRESQL`：撤销 grant 前同一 Decision 读取成功，撤销后以 `AUTHORIZATION_REVOKED` 拒绝 |
+| QG-TD-005 | 构建期注册断言与 Catalog/Registry 同步 | 只允许精确注册字段 | `PASS — LOCAL`：`pnpm contracts:check` 为 `catalog_registry=PASS catalog=213 registry=213`、`compatibility=PASS baseline=v1.0 operations=200`，生成类型与 public-api 检查通过 |
+| QG-TD-006 | 已被更新 RAS 取代的旧 RAS Approval 复用；以及历史 Bundle 记录非自身 RAS 的 Approval anchor | 新 ABS 不得 `FULLY_APPROVED`，资格 Query 不得返回 approval usable | `PASS — DISPOSABLE POSTGRESQL`：RAS-1 经真实 Handler 批准后为 `FULLY_APPROVED` 且资格为 `{presence:'PRESENT',value:true}`；同 Revision/Profile 追加 RAS-2 并对 RAS-2 提交 `CHANGES_REQUESTED` 后，新 Bundle 为 `NOT_APPROVED`、`approvalRefs=[]`，Query 对 RAS-2 返回 `revisionAcceptanceUsable=true` 与 `approvalBundleUsable={presence:'PRESENT',value:false}`（含 `QUALITY_APPROVAL_GATE_BUNDLE_INVALID`），旧 RAS-1/ABS-1 组合返回 `false` 且历史 ABS 仍读回 `FULLY_APPROVED`；按修复前形态记录的历史 Bundle（自身 RAS 为 RAS-2、`approvalRefs` 引用锚定 RAS-1 的 Approval）同样返回 `false` 且 `reasonCodes` 含 `QUALITY_APPROVAL_INVALID`。修复前基线：同一用例的新 Bundle 因复用旧 RAS Approval 得到 `FULLY_APPROVED` 并使 Query 误报可用 |
+| QG-TD-007 | 持有精确 Purpose/Scope/payload 与 active grant 的 AGENT、RUNTIME（以及 owning Handler 的 EXTERNAL_PARTY）调用方 | 仅 TE Evaluator Service/授权 Human 可读，其他 principal kind 拒绝 | `PASS — DISPOSABLE POSTGRESQL`：真实 IdentityPolicy 对 AGENT/RUNTIME 的该 capability 签发 ALLOW Decision（该 capability 不在 Human-only Registry 内），组合入口仍以 `AUTHORIZATION_DECISION_INVALID` 拒绝，同一批 SERVICE 调用方读取成功；owning Handler 在 `authorizationPurposes` 精确匹配时对 AGENT/RUNTIME/EXTERNAL_PARTY 返回 `QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED`。修复前基线：AGENT 的可信 Decision 通过入口并返回结果 |
+
+测试与证据边界：#192 的真实 PostgreSQL 用例为 `tests/persistence/quality-governance-revision-eligibility.test.ts`（6 个用例，纳入 `tests/persistence` pinned gate），正向事实全部经既有 owning Handler 建立，读取经 `apps/api/src/composition/revision-eligibility-entry.ts` 与真实 IdentityPolicy Decision/capability 端口，未以手填 `eligibility=true` 证明端口正确；QG-TD-006 的修复前形态历史 Bundle 仅用于负例，其引用的 RAS/Approval/Profile 均为真实 owning Handler 事实；数据为 `SYNTHETIC / TECHNICAL ONLY`。TE Evaluator 的 Completion 消费、跨模块业务链、公开 HTTP、外部 Provider、生产与独立人工业务验收仍为 `NOT RUN`。

@@ -611,6 +611,26 @@ interface ApprovalBundleInput {
   readonly staleReason?: string;
 }
 
+/**
+ * The exact RevisionAcceptanceSnapshot reference a stored RAS row resolves to.
+ * It is both the Acceptance an ApprovalBundleSnapshot describes and the only
+ * Acceptance an Approval may be anchored to in order to count towards that
+ * bundle, so it is derived in one place from the owning row.
+ */
+function revisionAcceptanceAnchorRef(ras: RevisionAcceptanceSnapshotTable): Common.SnapshotRef {
+  return {
+    kind: 'SNAPSHOT',
+    objectType: RAS_OBJECT_TYPE,
+    objectId: ras.snapshot_id,
+    snapshotId: ras.snapshot_id,
+    scope: {
+      enterpriseId: ras.enterprise_id,
+      ...(ras.project_id === null ? {} : { projectId: ras.project_id }),
+    },
+    contentHash: hashFromBytes(ras.payload_hash),
+  };
+}
+
 function buildApprovalBundleSnapshot(input: ApprovalBundleInput): {
   readonly snapshot: Core.ApprovalBundleSnapshot;
   readonly payloadHash: Buffer;
@@ -622,17 +642,7 @@ function buildApprovalBundleSnapshot(input: ApprovalBundleInput): {
   );
   const artifactRef = rasSnapshot.artifactRef as Common.ObjectRef;
   const revisionRef = rasSnapshot.revisionRef as Common.ContentAddressedRef;
-  const revisionAcceptanceSnapshotRef = {
-    kind: 'SNAPSHOT',
-    objectType: RAS_OBJECT_TYPE,
-    objectId: input.ras.snapshot_id,
-    snapshotId: input.ras.snapshot_id,
-    scope: {
-      enterpriseId: input.ras.enterprise_id,
-      ...(input.ras.project_id === null ? {} : { projectId: input.ras.project_id }),
-    },
-    contentHash: hashFromBytes(input.ras.payload_hash),
-  } as Common.SnapshotRef;
+  const revisionAcceptanceSnapshotRef = revisionAcceptanceAnchorRef(input.ras);
   const requirements = input.profile.requirements.map(requirementAsContract);
   const activeApprovals = input.approvals.filter((row) => row.status === 'EFFECTIVE');
   const approvedApprovals = activeApprovals.filter((row) => row.decision === 'APPROVED');
@@ -1544,12 +1554,18 @@ export async function handleSubmitApprovalDecision(
       );
     const approval = await repo.getApprovalById(execution.trx, approvalId);
     if (approval === undefined) throw new Error('Approval disappeared after decision insert');
+    // Only Approvals anchored to exactly the Acceptance this bundle describes
+    // may satisfy its requirements: an Approval decided against another
+    // Acceptance of the same Revision/Profile (e.g. a superseded RAS-1) is not
+    // part of the current approval set and never counts towards the bundle.
+    const anchoredAcceptanceRef = revisionAcceptanceAnchorRef(ras);
     const approvals = (await repo.getApprovals(execution.trx)).filter(
       (row) =>
         row.enterprise_id === approval.enterprise_id &&
         (row.project_id ?? undefined) === (approval.project_id ?? undefined) &&
         exactReferenceEqual(row.revision_ref, approval.revision_ref) &&
-        exactReferenceEqual(row.quality_profile_ref, approval.quality_profile_ref),
+        exactReferenceEqual(row.quality_profile_ref, approval.quality_profile_ref) &&
+        exactReferenceEqual(row.revision_acceptance_snapshot_ref, anchoredAcceptanceRef),
     );
     const evaluatedAt = validated.submission.decidedAt;
     const bundle = await buildApprovalBundle(

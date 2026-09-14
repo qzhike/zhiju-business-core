@@ -214,6 +214,24 @@ export namespace QualityGovernance {
   export type RevisionAcceptanceResult = Core.RevisionAcceptanceSnapshot;
   export type ApprovalBundleResult = Core.ApprovalBundleSnapshot;
   export type ReleaseReadinessResult = Core.ReleaseReadinessSnapshot;
+  export type ValueEnvelopeBoolean = ({
+  readonly presence: "PRESENT";
+  readonly value: boolean;
+  readonly reasonCode?: Common.ReasonCode;
+} | {
+  readonly presence: "UNKNOWN" | "REDACTED" | "NOT_APPLICABLE" | "UNAVAILABLE";
+  readonly reasonCode?: Common.ReasonCode;
+});
+  export interface RevisionExecutionEligibilityResult {
+  readonly revisionRef: Common.ContentAddressedRef;
+  readonly revisionAcceptanceRef: Common.SnapshotRef;
+  readonly approvalBundleRef?: Common.SnapshotRef;
+  readonly revisionAcceptanceUsable: boolean;
+  readonly approvalBundleUsable: QualityGovernance.ValueEnvelopeBoolean;
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly observedAt: Common.UtcInstant;
+  readonly sourceWatermarks: readonly QualityGovernance.SourceWatermark[];
+}
   /** Payload of `quality.capture_evidence_candidate` (COMMAND). */
   export interface QualityCaptureEvidenceCandidatePayload {
   readonly candidate: QualityGovernance.EvidenceCandidate;
@@ -447,4 +465,12 @@ export namespace QualityGovernance {
   readonly triggeringRef: Common.TypedReference;
   readonly reasonCode: Common.ReasonCode;
 }
+  /** Payload of `quality.get_revision_execution_eligibility` (QUERY). */
+  export interface QualityGetRevisionExecutionEligibilityPayload {
+  readonly revisionRef: Common.ContentAddressedRef;
+  readonly revisionAcceptanceRef: Common.SnapshotRef;
+  readonly approvalBundleRef?: Common.SnapshotRef;
+}
+  /** Result of `quality.get_revision_execution_eligibility` (QUERY). */
+  export type QualityGetRevisionExecutionEligibilityResult = QualityGovernance.RevisionExecutionEligibilityResult;
 }

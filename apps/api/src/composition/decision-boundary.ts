@@ -1,6 +1,6 @@
-// Shared composition boundary for EnterpriseProject runtime entries.
+// Shared composition boundary for runtime entries of the owning modules.
 //
-// EnterpriseProject owns its business facts; IdentityPolicy owns Decisions,
+// Each module owns its business facts; IdentityPolicy owns Decisions,
 // ActorSnapshots and capability grants. Neither module may read the other's
 // schema, so this module is the only place that turns an authenticated
 // transport request into the trusted transaction context an owning handler
@@ -47,6 +47,7 @@ import {
   digestCanonicalPayload,
   type EnterpriseProjectTransactionContext,
 } from '@zhiju/enterprise-project';
+import type { QualityTransactionContext } from '@zhiju/quality-governance';
 
 /** Object name returned by the owning ActorSnapshot Port. */
 export const ACTOR_SNAPSHOT_OBJECT_TYPE = 'identity.actor_snapshot';
@@ -295,6 +296,17 @@ export interface DecisionBoundary {
     scope: RequestScope,
     correlationId: string,
   ): EnterpriseProjectTransactionContext;
+  /**
+   * The trusted QualityGovernance context for the same proved Decision. The
+   * Decision's registered Purpose is pinned on the context, so an owning
+   * Query that requires an exact Purpose refuses a Decision issued for
+   * another operation instead of trusting a caller-declared one.
+   */
+  qualityGovernanceContext(
+    row: DecisionRow,
+    scope: RequestScope,
+    correlationId: string,
+  ): QualityTransactionContext;
 }
 
 export function createDecisionBoundary(config: IdentityBoundaryConfig): DecisionBoundary {
@@ -415,6 +427,23 @@ export function createDecisionBoundary(config: IdentityBoundaryConfig): Decision
         kind: 'REQUEST',
         principalId: row.principal_id,
         principalKind: row.principal_kind as EnterpriseProjectTransactionContext['principalKind'],
+        actorSnapshotId: row.actor_snapshot_id,
+        authorizationDecisionId: row.authorization_decision_id,
+        authorizationDecisionHash: row.payload_hash,
+        authorizationDecisionExpiresAt: row.expires_at,
+        policySnapshotId: row.policy_snapshot_id,
+        enterpriseId: scope.enterpriseId,
+        allowedProjectIds: [scope.projectId],
+        correlationId,
+        authorizationPurposes: [row.purpose],
+      };
+    },
+
+    qualityGovernanceContext(row, scope, correlationId) {
+      return {
+        kind: 'REQUEST',
+        principalId: row.principal_id,
+        principalKind: row.principal_kind as QualityTransactionContext['principalKind'],
         actorSnapshotId: row.actor_snapshot_id,
         authorizationDecisionId: row.authorization_decision_id,
         authorizationDecisionHash: row.payload_hash,
