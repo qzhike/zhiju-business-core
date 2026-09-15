@@ -217,7 +217,7 @@ GitHub 任务基线：Parent Exit Gate [#120](https://github.com/qzhike/zhiju-bu
 
 ### IM-06 TaskExecution Human-operated Core
 
-产出：Task、WorkOrder、ContextSnapshot、Run、AgentResult、InformationRequest、Usage/Provenance 的 Human-operated 流程。现有 TaskExecution 范围为 19 Command、7 Query、11 Event；原 200 项兼容基线保持不变，当前全仓 Catalog 已为 201 项。IM-06 不自动批准 Runtime 专项的 6 个新增 Command；任何必要 API Delta 必须先经正式设计决定。
+产出：Task、WorkOrder、ContextSnapshot、Run、AgentResult、InformationRequest、Usage/Provenance 的 Human-operated 流程。阶段启动基线的 TaskExecution 范围为 19 Command、7 Query、11 Event，当时全仓 Catalog 为 201 项；原 200 项兼容基线保持不变，当前全仓 Catalog/Registry 为 213 项，实时模块范围见 owning Module Spec 与 roadmap。IM-06 不自动批准 Runtime 专项的 6 个新增 Command；任何必要 API Delta 必须先经正式设计决定。
 
 退出 Gate：WorkOrder 范围、Run/Result/Completion 四层状态不混淆；BLOCKED_INPUT、新 Run Retry、Cancel request 和 late result 语义可测试；不依赖真实 Agent。
 

@@ -222,7 +222,7 @@ IdentityPolicy owning schema 的 WI-10 实现只负责本模块技术表上的 O
 
 ## 9. 当前状态
 
-- 22 个公开 Contract 已定义字段级 payload/result/event 结构；其中 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0` 的静态契约由 #183 注册（Schema/Registry/Catalog/PayloadGuard/生成类型/fixture），Handler、精确 Purpose 授权、`identity_policy.policy_version` scoped 持久化（V1005）与真实 PostgreSQL 写入/读回由 #186 交付，详见 §13.7；下游 Builder/Validator/Freeze 消费与 EP/TE 业务链仍 `NOT RUN`；
+- 22 个公开 Contract 已定义字段级 payload/result/event 结构；其中 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0` 的静态契约由 #183 注册（Schema/Registry/Catalog/PayloadGuard/生成类型/fixture），Handler、精确 Purpose 授权、`identity_policy.policy_version` scoped 持久化（V1005）与真实 PostgreSQL 写入/读回由 #186 交付，详见 §13.7；四个创建版本的版本绑定授权组成层（内部 `TaskExecutionCreationAuthorizationPort`、single covering Grant 判定与 V1006 target 绑定，见 §15）由 #200 交付，TaskExecution 消费仍 `NOT RUN`；下游 Builder/Validator/Freeze 消费与 EP/TE 业务链仍 `NOT RUN`；
 - API v0.1 已于 2026-08-13 通过用户审核；
 - WI-08 已有 Schema、Registry、Handler、Persistence 和真实 PostgreSQL gate 测试；PR #48 的 R1-R6 语义修复与回归测试已在本工作区验证，等待最新精确 head 的最终 review；
 - WI-09 已有 ActorSnapshot、AuthorizationDecision、四个访问 Query 与 PolicySnapshot Query 的实现入口；PR #49 review 已以最新 WI-08 base 为准补齐 Scope、精确内容寻址引用、完整 canonical facts、引用元数据和公开 Contract 正负边界，当前 scoped core 为 `REVIEW REPAIR VERIFIED`；
@@ -569,7 +569,7 @@ C_res + |D| = (C_req + |D|) + (C_res − C_req) ≤ 262144 + R_only ≤ 262144 +
 
 ## 14. TaskExecution 创建授权（#190 APPROVED）
 
-状态：`APPROVED 2026-09-14 / EXACT MAPPING AND PURE RESOLUTION IMPLEMENTED 2026-09-14（#196）/ COMPOSITION LAYER NOT IMPLEMENTED / NOT RUN`。批准依据见[决定 §13.3](../decisions/task-execution-human-operated.md#133-决定与交付边界)。本节固定四个创建版本的授权接线边界，不更改当前 Decision Port 的实现行为，也不扩大现行 Role/Capability。逐版本唯一 Purpose 由 [Spec 003 §15.1](Module-Spec-003-TaskExecution.md#151-推荐的逐版本-canonical-映射)拥有。
+状态：`APPROVED 2026-09-14 / EXACT MAPPING AND PURE RESOLUTION IMPLEMENTED 2026-09-14（#196）/ CREATION AUTHORIZATION PORT AND TARGET MIGRATION IMPLEMENTED 2026-09-15（#200）/ TASKEXECUTION HANDLER NOT RUN`。批准依据见[决定 §13.3](../decisions/task-execution-human-operated.md#133-决定与交付边界)。本节固定四个创建版本的授权接线边界，不更改当前 Decision Port 的实现行为，也不扩大现行 Role/Capability。逐版本唯一 Purpose 由 [Spec 003 §15.1](Module-Spec-003-TaskExecution.md#151-推荐的逐版本-canonical-映射)拥有。
 
 已实现的静态分量（#196，仅解析）：`contracts` 从两份现有 Registry 投影并发布四行精确映射（`contracts/src/task-execution-creation-purpose.ts`，生成副本与漂移检查见 [Spec 003 §15.1](Module-Spec-003-TaskExecution.md#151-推荐的逐版本-canonical-映射)），IdentityPolicy 模块公开导出 `resolveTaskExecutionCreationPurpose(commandType, commandVersion)`：只接受精确键，未知 operation/版本、缺失或非精确版本、`*`、别名、大小写变体与前缀一律返回 `UNSUPPORTED_OPERATION`/`UNSUPPORTED_VERSION`，无最新版本或默认 `@1.0` 回退，结果保留精确 type/version 且不按 Purpose 合并 WorkOrder 两个版本。该入口是纯函数：不读数据库、不读源码目录 JSON、不跨模块访问 Repository，输出不是 ALLOW、CapabilityGrant、AuthorizationDecision 或当前资格。本节其余接线（版本化 Capability/Policy 对应、Decision 签发、当前 grant 重验、按精确 Intent 的组合校验与 TE 入口）仍未实现；`authorizeCommand` 继续硬性拒绝非 `1.0` commandVersion，本节的运行验收（IP-P190-001–006）仍为 `NOT RUN`。
 
@@ -580,3 +580,42 @@ C_res + |D| = (C_req + |D|) + (C_res − C_req) ≤ 262144 + R_only ≤ 262144 +
 接线必须组合以下独立检查：精确 ActorSnapshot/Decision id + hash、实际 Principal 与认证绑定、type/version/Purpose/payloadHash、target 与资源约束、精确 Scope、ALLOW、受信当前时间及当前有效 grant/Policy。现有通用 `authorizeCommand` 主要检查 capabilityCode 与精确 Scope；通用 `validateAuthorizationDecision` 检查绑定和期限，不能据此宣称已经检查所有版本化动作/资源条件、目标绑定或当前 grant 撤销。当前 `authorizeCommand` 还硬性拒绝非 `1.0` commandVersion，Task v2/WorkOrder v1.1 无真实签发路径；已批准 Delta 要求按四条精确映射扩展支持，而非去掉版本检查后接受任意版本。后续实现须在 IdentityPolicy owning 授权组成层补齐缺失检查，并为 TaskExecution 暴露受约束 Port；不由 TaskExecution 读他方表或自行解释 Role/Capability。
 
 Human/Coordinator Agent/Process Manager 的适用边界见 Spec 003 §15.2；非 HUMAN 永远不能获得 Human-only capability，`actingFor`、Human 的 requestedBy、转交 Human Decision 均不改变该限制。当前 grant 撤销或到期后，即使旧 Decision 尚未过期，也拒绝新创建及通过 Command 重取成功 Receipt；历史事实不改写。使用同版本的新合法授权重试同一业务输入时，仍遵守既有幂等 Hash 规则，不通过换 Decision 改写原 Receipt。撤销、错误映射或依赖失败的拒绝须保留安全 Audit，失败不得生成成功业务事实/Outbox。矩阵见 [Module Test 001](../module-tests/Module-Test-001-IdentityPolicy.md#taskexecution-创建授权190-approved)。
+
+## 15. IM06-AUTH-01 Task/WorkOrder 创建授权组成提案
+
+状态：`APPROVED 2026-09-15 / PORT AND MIGRATION IMPLEMENTED 2026-09-15（#200）/ TASKEXECUTION DRAFT HANDLER CONSUMPTION NOT RUN`。本节不改 P-190-1 已批准的四个 Purpose，而是收敛 §14 所说“显式配置版本化 Policy/Capability 对应、目标绑定与当前资格重验”的实现前语义。用户于 2026-09-15 明确批准本 Delta；决策理由、备选与 readiness 见[IM-06 设计提案 §14](../decisions/task-execution-human-operated.md#14-im06-auth-01-taskworkorder-创建授权组成补充提案)。
+
+### 15.1 Owning Port 与精确映射
+
+IdentityPolicy 提供内部 `TaskExecutionCreationAuthorizationPort`：一个能力从受信组成配置、ActorSnapshot、精确 targetRef 和请求事实签发 Decision；另一个能力在 owning Handler 提交或返回幂等结果前重验 Decision 与当前 Grant/Policy。本 Port 不是公开 operation，不改变 `identity.authorize_command@1.0` 的 Schema 或历史行为，不允许 TaskExecution 读 IdentityPolicy Repository。
+
+| operation/version | Purpose | required Grant action | exact target objectType | trusted capability config key |
+|---|---|---|---|---|
+| `execution.create_task@1.0` | `task.execution.create_task` | `execution.task.create.v1` | `execution.task` | `taskV1` |
+| `execution.create_task@2.0` | `execution.task.create` | `execution.task.create.v2` | `zhiju.execution.task` | `taskV2` |
+| `execution.create_work_order@1.0` | `task.execution.create_work_order` | `execution.work_order.create.v1` | `execution.work_order` | `workOrderV1` |
+| `execution.create_work_order@1.1` | `task.execution.create_work_order` | `execution.work_order.create.v1_1` | `zhiju.execution.work_order` | `workOrderV11` |
+
+Purpose 必须来自已交付的精确解析器，不接受 caller 覆盖。capabilityCode 来自受信组成配置的当前版本键，不来自 Envelope；本提案不创建新 capabilityCode。action 是 Grant 中的 `NamespaceCode`，使用上表无 `@` 的精确 token；相同 capabilityCode 覆盖多版时仍须分别列出每个 action。
+
+### 15.2 Grant/Policy 覆盖规则
+
+一个 covering Grant 必须同时满足：
+
+1. principal 为当前受信 Actor 的真实 principal；capabilityCode 与当前版本的受信配置全等；Scope 为当前精确 Project，Enterprise Grant 不覆盖 Project Intent。
+2. 状态为 ACTIVE，受信当前时间位于 `[validFrom, validTo)`；`actions` 含 §15.1 的精确 token。
+3. `resourceSelectors` 的每项均是闭集 `{selectorType: "CREATE_TARGET_TYPE", objectType: NamespaceCode}`，且至少一项 objectType 与当前版本 targetRef 全等。未知字段、通配符、大小写变体、前缀或别名不匹配。
+4. `constraints` 严格为空对象，`maxUses` 缺省。首版不默认忽略未实现的约束或计数语义。
+5. Grant 的 `grant_policy_snapshot_id/hash` 与 Decision 精确 Policy Snapshot 一致；Snapshot 的 Hash/镜像完整，且 `effectiveFrom <= now < supersededAt`（无 `supersededAt` 时只要已生效）。
+
+多个 Grant 中任一个完整覆盖即可；不得把不同 Grant 的 capability/action/selector/policy 分段拼成一个覆盖结论。非 HUMAN 仍受 Human-only Registry 约束；`actingFor`、`requestedBy` 或转交 Human Decision 不改变 PrincipalKind。
+
+### 15.3 Decision 与重验边界
+
+该 Port 签发的 AuthorizationDecision canonical payload 必须包含精确 targetRef（objectType/objectId/Project Scope）。物理表通过 forward-only 迁移增加可空 `target_object_type` / `target_object_id` 镜像；新 Port 产生的行必须非空且与 canonical payload/Scope 一致。历史行保留 NULL 并可读，但无目标绑定的 Decision 不能用于本 Port 的四个创建版本。
+
+签发与重验均比较精确 Actor/实际 Principal、认证上下文、type/version/Purpose、payload Hash、targetRef、Project Scope、ALLOW 和期限。重验另在当次受信时间重读完整 covering Grant/Policy；撤销、到期、Policy 取代、配置变更、target 改变、版本串用或依赖不可用都 fail closed。TaskExecution 必须在幂等 Claim/历史 Receipt 读取前重验；历史 ALLOW/Receipt 不是当前资格。
+
+### 15.4 范围与兼容
+
+本提案不新增公开 Command/Query/Event，不改公开 `authorize_command@1.0` 的 CommandIntent `commandVersion=1.0` 接受集，不改四个创建 operation 的 Envelope/Schema/Purpose，不改历史 Decision 内容或 Hash，不新建/迁移 Capability Grant 或业务 Policy。首个实现切片只属 IdentityPolicy 与必要的组成层；Task/WorkOrder 业务 Handler 和表在其交付后另做 readiness 复核。

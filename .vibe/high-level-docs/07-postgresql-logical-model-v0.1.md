@@ -2176,6 +2176,14 @@ Freeze 锁 Root 并核验 Root/Snapshot/candidate 期限完全一致且未到期
 
 迁移验证必须覆盖空库、升级、二次no-op、角色ACL/RLS、payloadHash/Scope mirror、immutable/direct SQL、原子回滚、双连接CAS/Claim/取消/expiry竞态、池复用与长事务Decision过期。具体业务fixture使用owning命令产生输入，不能用直写伪造成功验收。此表是设计，不是物理migration完成证明。
 
+### IM06-AUTH-01 AuthorizationDecision target 绑定提案
+
+状态：`APPROVED 2026-09-15 / V1006 IMPLEMENTED 2026-09-15（#200）`。该设计只服务 [Spec 001 §15](../module-specs/Module-Spec-001-IdentityPolicy.md#15-im06-auth-01-taskworkorder-创建授权组成提案) 的四个 Task/WorkOrder CREATE 版本，不改历史 Decision 读回、公开 `authorize_command@1.0` 或现有 RLS。
+
+`identity_policy.authorization_decision` 在 forward-only 迁移中增加可空 `target_object_type text` / `target_object_id uuid`。历史行保持 NULL；经 `TaskExecutionCreationAuthorizationPort` 新建的 Decision 两列均非空，并由 INSERT/UPDATE mirror guard 强制与 canonical payload 的 `targetRef.objectType/objectId` 相等。targetRef.scope 必须与现有 `scope_kind/enterprise_id/project_id` 列完全一致；payload Hash 覆盖完整 targetRef。该 Port 的读取路径必须拒绝 target 两列为 NULL、只有一列、镜像不一致或 Hash 不一致的事实；通用历史读回不因此受限。
+
+迁移验证需覆盖空库、含历史 Decision 的升级、二次 no-op、新事实的 target/payload/Scope 镜像、所有者直 SQL 篡改及回滚。迁移编号已由 #200 在实现分支分配为 `V1006__identity_policy_creation_decision_target.sql`：新增可空 `target_object_type text` / `target_object_id uuid`、`authorization_decision_target_pair` 成对约束，并以 `CREATE OR REPLACE` 更新镜像 guard，使 canonical payload 的 `targetRef`（objectType/objectId 与 Decision 自身 Project Scope）与提升列强一致。空库迁移、含历史行的 `V1005 → V1006` 升级、二次 no-op、owner 直写 SQL 篡改与事务回滚已在真实 PostgreSQL 覆盖。
+
 
 ## 34. IM-06 TD-05 Task Board 存储提案
 

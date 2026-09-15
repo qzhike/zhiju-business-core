@@ -11,6 +11,8 @@ import {
   digestCanonicalPayload,
   type IdentityTransaction,
   type PolicyVersionTable,
+  type SelectedCapabilityGrant,
+  type SelectedPolicySnapshot,
 } from './identity-db.js';
 import type { IdentityCryptoPorts } from './ports.js';
 
@@ -186,6 +188,13 @@ export interface AuthorizationDecisionInsert {
   contractVersion: string;
   /** Decision body; must embed outcome / enterpriseId / commandType. */
   decisionPayload: CanonicalJsonObject;
+  /**
+   * IM-06 (#200) exact CREATE target of a version-bound creation decision.
+   * When present the canonical payload carries `targetRef` with the same
+   * object type/id and the decision's own Project Scope, and the promoted
+   * `target_object_type` / `target_object_id` columns mirror it.
+   */
+  targetRef?: { readonly objectType: string; readonly objectId: string } | undefined;
   createdByPrincipalId: string;
   sourceCommandId: string;
 }
@@ -627,7 +636,7 @@ export class IdentityPolicyRepository {
     principalId: string,
     enterpriseId: string,
     asOf: Date,
-  ) {
+  ): Promise<SelectedCapabilityGrant[]> {
     return trx
       .selectFrom('identity_policy.capability_grant')
       .selectAll()
@@ -729,7 +738,10 @@ export class IdentityPolicyRepository {
     return { row, hashMatched: row.payload_hash.equals(expectedHash) };
   }
 
-  async getPolicySnapshotById(trx: IdentityTransaction, id: string) {
+  async getPolicySnapshotById(
+    trx: IdentityTransaction,
+    id: string,
+  ): Promise<SelectedPolicySnapshot | undefined> {
     return trx
       .selectFrom('identity_policy.policy_snapshot')
       .selectAll()
@@ -923,6 +935,24 @@ export class IdentityPolicyRepository {
       enterpriseId: insert.enterpriseId,
       commandType: insert.commandType,
     });
+    const targetRef = insert.targetRef;
+    if (targetRef !== undefined) {
+      const payload = insert.decisionPayload.targetRef as
+        { objectType?: unknown; objectId?: unknown; scope?: unknown } | null | undefined;
+      const scope = payload?.scope as
+        { enterpriseId?: unknown; projectId?: unknown } | null | undefined;
+      if (
+        payload?.objectType !== targetRef.objectType ||
+        payload.objectId !== targetRef.objectId ||
+        scope?.enterpriseId !== insert.enterpriseId ||
+        scope.projectId !== insert.projectId
+      ) {
+        throw new IdentityPersistenceError(
+          IDENTITY_PROMOTED_MIRROR_MISMATCH,
+          'canonical payload targetRef does not match the promoted target columns',
+        );
+      }
+    }
     const payload: CanonicalJsonObject = {
       ...insert.decisionPayload,
       authorizationDecisionId: insert.authorizationDecisionId,
@@ -968,6 +998,8 @@ export class IdentityPolicyRepository {
         policy_snapshot_payload_hash: insert.policySnapshotPayloadHash,
         authentication_context_hash: insert.authenticationContextHash,
         expires_at: insert.expiresAt,
+        target_object_type: targetRef?.objectType ?? null,
+        target_object_id: targetRef?.objectId ?? null,
         contract_type: 'identity.AuthorizationDecision',
         contract_version: insert.contractVersion,
         canonicalization_version: digest.canonicalizationVersion,

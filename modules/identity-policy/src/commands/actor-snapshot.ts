@@ -595,13 +595,13 @@ export async function validateAuthorizationDecision(
   });
 }
 
-function validateHash(value: Buffer, code: string, field: string): void {
+export function validateHash(value: Buffer, code: string, field: string): void {
   if (!Buffer.isBuffer(value) || value.length !== 32) {
     throw new SnapshotBoundaryError(code, `${field} must be a SHA-256 digest`);
   }
 }
 
-function contentHash(value: Buffer): Common.ContentHash {
+export function contentHash(value: Buffer): Common.ContentHash {
   return {
     algorithm: 'SHA-256',
     digest: value.toString('hex'),
@@ -609,7 +609,7 @@ function contentHash(value: Buffer): Common.ContentHash {
   };
 }
 
-function contentHashToBuffer(value: unknown, code: string, field: string): Buffer {
+export function contentHashToBuffer(value: unknown, code: string, field: string): Buffer {
   const candidate = value as
     | {
         algorithm?: unknown;
@@ -688,7 +688,7 @@ function isScope(value: unknown): value is Common.ScopeRef {
   );
 }
 
-function sameScope(left: unknown, right: unknown): boolean {
+export function sameScope(left: unknown, right: unknown): boolean {
   if (!isScope(left) || !isScope(right)) return false;
   return left.enterpriseId === right.enterpriseId && left.projectId === right.projectId;
 }

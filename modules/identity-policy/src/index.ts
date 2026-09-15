@@ -166,6 +166,26 @@ export type {
   TaskExecutionCreationPurposeResolution,
 } from './commands/task-execution-creation-purpose.js';
 export {
+  createTaskExecutionCreationAuthorizationPort,
+  TASK_EXECUTION_CREATION_BINDINGS,
+  IDENTITY_CREATION_AUTHORIZATION_UNSUPPORTED,
+  IDENTITY_CREATION_CAPABILITY_CONFIG_INVALID,
+  IDENTITY_CREATION_TARGET_INVALID,
+} from './commands/task-execution-creation-authorization.js';
+export type {
+  TaskExecutionCreationAuthorizationConfig,
+  TaskExecutionCreationAuthorizationInput,
+  TaskExecutionCreationAuthorizationPort,
+  TaskExecutionCreationAuthorizationView,
+  TaskExecutionCreationBinding,
+  TaskExecutionCreationCapabilityCodes,
+  TaskExecutionCreationCapabilityKey,
+  TaskExecutionCreationDenialReason,
+  TaskExecutionCreationRevalidationFailure,
+  TaskExecutionCreationRevalidationInput,
+  TaskExecutionCreationRevalidationResult,
+} from './commands/task-execution-creation-authorization.js';
+export {
   createActorSnapshot,
   authorizeCommand,
   validateAuthorizationDecision,
