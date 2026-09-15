@@ -2,7 +2,7 @@
 
 版本：v0.8
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / #176 CAPTURE POLICY RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / IM-06 (#188) CAPTURE AND READ IMPLEMENTED LOCAL PERSISTENCE PASS / IM-06 (#191) RESOLUTION RECEIPT ATTESTATION IMPLEMENTED LOCAL PERSISTENCE PASS / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / #176 CAPTURE POLICY RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / IM-06 (#188) CAPTURE AND READ IMPLEMENTED LOCAL PERSISTENCE PASS / IM-06 (#191) RESOLUTION RECEIPT ATTESTATION IMPLEMENTED LOCAL PERSISTENCE PASS / #202 TASK CREATION PROJECT SCOPE PORT APPROVED 2026-09-15 DESIGN VERIFIED NOT IMPLEMENTED / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -367,6 +367,33 @@ PROJECT_OBJECT_SCOPE_MISMATCH
 ```
 
 `Project` 表通过 BEFORE UPDATE trigger 阻止任何对 `enterprise_id` / `project_id` / `member_policy_*` 列的写；`ProjectSnapshotBinding` 通过 `REVOKE UPDATE, DELETE` 给 app role 实现不可写。Project Aggregate CAS 通过 `casProject` 仅作用 `aggregate_version`，不接受任何对 Scope 列的"迁移"语义。WI-04 业务 DDL、Repository、Handler 由 `tests/persistence/enterprise-project-scope.test.ts` 在真实 PostgreSQL 上覆盖；用户手动 Probe 在 WI-05/06 之前保持 `NOT RUN`，业务实现可由 Issue #60 评审决定进入下一步 PR。
+
+### 13.1 Task 创建期的 Project/DeliveryItem 校验 Port（#202 提案）
+
+状态：`T2 / APPROVED 2026-09-15 / INDEPENDENT DESIGN REVIEW APPROVE / HUMAN DESIGN APPROVAL RECORDED / NOT IMPLEMENTED`。本节是 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202) 对 WI-04 边界的 additive 设计增量，方案、备选与批准记录见[决定 §15](../decisions/task-execution-human-operated.md#15-task-draft-创建引用与持久化边界提案202)，消费方字段与时机由 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计) 拥有。本节**不改变** §13 已交付的 `project.validate_object_scope@1.0` 接受集、错误外观、RLS 与任何公开 Schema；批准不表示 Port 已实现。
+
+**归属与形态**：EnterpriseProject 拥有内部只读 Port `TaskExecutionCreationProjectScopePort`。它不是公开 Command/Query，不进 Catalog，不新增公开 operation 或 objectType；TaskExecution 只消费其结果，不读 EP Repository、表或跨 Schema Join。
+
+**输入**：`(commandType, commandVersion, projectRef, deliveryItemRef?)`。两个 Ref 必须与消费方已接受的 payload 逐字节相同；期望的 `objectType`/kind/表/列由 Port 内部按 `commandType@commandVersion` 取值，**不接受调用者传入**。受信上下文（`enterpriseId`、`allowedProjectIds`、principal、AuthorizationDecision id/hash/expiry、correlation）由组合层从已验证 Decision 行构造，Port 在自己的 RLS 事务内执行。
+
+**闭集键表**（Port 自有，与公开 Query 的键表分离）：
+
+| `commandType@commandVersion` | `projectRef.objectType` | `deliveryItemRef.objectType` | 目标表 |
+|---|---|---|---|
+| `execution.create_task@1.0` | `project.project` | `project.delivery_item` | `enterprise_project.project` / `enterprise_project.delivery_item` |
+| `execution.create_task@2.0` | `zhiju.project.project` | `zhiju.project.delivery_item` | 同上 |
+
+键表只用于创建边界；Port 复用与 `project.validate_object_scope@1.0` 相同的 SELECT 与 RLS helper 语义（`context_allows_enterprise` / `context_allows_project`，RLS 为最终权威），不复制第二份查询实现，也不把 canonical 拼写或 `DeliveryItem` 加入公开 Query 的接受集合。
+
+**证明谓词**（EP 权威）：
+
+- Project identity：`projectRef.objectId == projectRef.scope.projectId == 受信 projectId`，且 `projectRef.scope.enterpriseId == 受信 enterpriseId`。两个 `create_task` Schema 只能约束 Ref 形状（v2 另有 objectType `const`），无法表达这些 UUID 的跨字段相等，因此该相等必须在 Port 内强制；不得用“受信 projectId 上存在任意 ACTIVE Project 行”代替。
+- Project existence/lifecycle：在受信 `(enterpriseId, projectId)` 内存在已提交 `enterprise_project.project` 行，且 `status = 'ACTIVE'`；身份不符、不存在、跨 Enterprise、跨 Project、`SUSPENDED`、`ARCHIVED` 一律拒绝，外观一致，不区分“不存在”与“不可见”。
+- DeliveryItem identity：`deliveryItemRef` 的 `objectId`/`versionId`/`scope.enterpriseId`/`scope.projectId` 必须与行 `(delivery_item_id, version_id, enterprise_id, project_id)` 逐字段相等，且 `commitment_status NOT IN ('CANCELLED','REPLACED')`；不允许只比较对象 id，也不允许用受信 Project 内的任意 DeliveryItem 行代替。
+
+**失败映射**：Port 返回闭集稳定结果（`VALID` / `INVALID`）；identity/kind/scope/existence/lifecycle 的内部原因写入受权限控制的 Audit，不进入公开错误，也不泄露其他 Scope 对象是否存在。消费方把业务拒绝收敛为自己的稳定码；Port 不可用或超时**不得**被解释为空结果或默认通过，消费方 fail closed 并映射共享 `DEPENDENCY_UNAVAILABLE`。
+
+**事务与历史行为**：Port 是只读调用，不授予 TaskExecution 任何 EP 写权限，也不建立跨 Schema 事务或 FK；历史 `project.validate_object_scope@1.0` 调用、其 13 个裸本地名接受集与其结果/错误语义完全不变。若未来需要公开接受 canonical 拼写，必须作为独立 additive 契约提案批准。
 
 ## 14. IM-03 WI-05 SourceMaterial 登记、验证与接受
 

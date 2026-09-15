@@ -2232,6 +2232,8 @@ TaskReopened
 FollowUpTaskProposed
 ```
 
+以上是 Domain 事件词汇，不等于公开 Catalog 事件：公开 Event 的注册、计数与发布边界由 [06-typed-references-contract-catalog-v0.1](06-typed-references-contract-catalog-v0.1.md) 拥有。Task 目前只有 `execution.TaskReady@1.0` 与 `execution.TaskCompleted@1.0` 两个已注册公开事件；`TaskCreated` 尚未注册，Task DRAFT 创建不发布公开业务事件（见 [Spec 003 §16.5](../module-specs/Module-Spec-003-TaskExecution.md#165-公开事件边界)），不能从本表反推发布依据。
+
 ### 18.8 权限
 
 | 动作 | Human | Agent | Service |
