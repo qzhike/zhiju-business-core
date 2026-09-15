@@ -204,8 +204,8 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | ID | 层级 | 输入/单一变化 | 预期输出 | 当前实际 / 结果 |
 |---|---|---|---|---|
 | TE-P190-001 | Contract + Persistence | 分别运行 Task v1/v2、WorkOrder v1/v1.1 的原合法字段与各自 Purpose；授权 Human | 四个入口各只创建 DRAFT；旧开放字段与 v2 closed shape、两种 versionPins 各守原契约 | 未实现 / `NOT RUN` |
-| TE-P190-002 | Authorization | 对每版本替换 Purpose 为另一操作的值；另测 Task v1/v2 互换、WorkOrder 使用未注册 `execution.work_order.create` | 拒绝 Purpose 不匹配，不采用别名 | 未实现 / `NOT RUN` |
-| TE-P190-003 | Authorization | 保留正确 Purpose，WorkOrder v1 Decision 提交 v1.1；另测 Task v1 Decision 提交 v2 | 拒绝 commandVersion 不匹配；同 Purpose 不免除版本绑定 | 未实现 / `NOT RUN` |
+| TE-P190-002 | Authorization | 对每版本替换 Purpose 为另一操作的值；另测 Task v1/v2 互换、WorkOrder 使用未注册 `execution.work_order.create` | 拒绝 Purpose 不匹配，不采用别名 | 精确映射与纯解析已实现（#196）；授权组成层未实现 / `NOT RUN` |
+| TE-P190-003 | Authorization | 保留正确 Purpose，WorkOrder v1 Decision 提交 v1.1；另测 Task v1 Decision 提交 v2 | 拒绝 commandVersion 不匹配；同 Purpose 不免除版本绑定 | 解析保留精确版本已实现（#196）；Decision 版本绑定未实现 / `NOT RUN` |
 | TE-P190-004 | Authorization | 分别改变 commandType、target、payloadHash、Actor、认证上下文或 Intent Scope；其余均合法 | 拒绝精确 Intent/身份绑定错误，不借他人 Decision | 未实现 / `NOT RUN` |
 | TE-P190-005 | Business + Persistence | 使用自身合法 Decision，但 WorkOrder targetScope 超出 Task；另测 Task projectRef 与目标 Scope 不闭合 | 拒绝业务 Scope，不以授权 ALLOW 替代业务校验；无跨 Scope 存在性泄露 | 未实现 / `NOT RUN` |
 | TE-P190-006 | Authorization | Human、Coordinator Agent、规则化 Process Manager 分别使用自己的合法授权；普通 Agent 及无对应规则的 Service 为独立负例 | 三种受约束角色各只创建 DRAFT；普通 Agent/任意 Service 拒绝 | 未实现 / `NOT RUN` |

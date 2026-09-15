@@ -825,7 +825,7 @@ Query 的既有 `provenance: CanonicalJson` 输出使用安全 profile `executio
 
 ## 15. 创建 Purpose 兼容性 Spec Delta（#190）
 
-状态：`APPROVED 2026-09-14 / HANDLER AUTHORIZATION NOT RUN`。本节是已批准的最小 Delta；§3 已同步逐版本 Purpose，§11.1、§11.6 与可执行 Registry 保持原值。背景、备选及逐版本声明见[决定 §13](../decisions/task-execution-human-operated.md#13-190-taskworkorder-创建-purpose-兼容性提案)。仅涉及 TaskExecution / IdentityPolicy 创建授权边界；TD-01–04、TD-05–07 状态不变。
+状态：`APPROVED 2026-09-14 / EXACT MAPPING AND PURE RESOLUTION IMPLEMENTED 2026-09-14（#196）/ HANDLER AUTHORIZATION NOT RUN`。本节是已批准的最小 Delta；§3 已同步逐版本 Purpose，§11.1、§11.6 与可执行 Registry 保持原值。背景、备选及逐版本声明见[决定 §13](../decisions/task-execution-human-operated.md#13-190-taskworkorder-创建-purpose-兼容性提案)。仅涉及 TaskExecution / IdentityPolicy 创建授权边界；TD-01–04、TD-05–07 状态不变。
 
 ### 15.1 推荐的逐版本 canonical 映射
 
@@ -839,6 +839,8 @@ Query 的既有 `provenance: CanonicalJson` 输出使用安全 profile `executio
 | `execution.create_work_order@1.1` | `task.execution.create_work_order` | 保留 §3、public-api 与 metadata；同 Purpose 不表示 Decision 可跨版本 |
 
 四条已发布操作的 Registry/metadata 值变更为 **零**；历史 Compatibility Baseline、生成物、fixture 与 Catalog 计数不变。不注册 `execution.work_order.create`，也不将它作为兼容别名接受。保留其历史设计文字仅供追溯。新增版本若需要不同 Purpose，须另行提出明确版本与兼容决定，不能在本次实现时顺带增加。
+
+已实现（#196）的静态分量，仅覆盖上表：四条 `(type, version, purpose)` 以 `contracts/registry/operation-compatibility-metadata.v1.json`（四条 Purpose 的执行来源，含两个 `@1.0`）与 `contracts/registry/public-api.v1.json`（owner/kind）为来源，经 `tools/contracts/generate-public-api.mjs` 投影为可再生成副本 `contracts/src/generated/task-execution-creation-purposes.json`，由 `pnpm contracts:check` 拒绝生成漂移，并在生成前拒绝四版本的遗漏、重复、错 owner、错 kind、越权 Purpose 或跨来源不一致；两个 `@1.0` 继续省略 public-api 字段。运行时可消费副本由 `contracts/src/task-execution-creation-purpose.ts` 发布，IdentityPolicy 模块公开导出精确解析入口 `resolveTaskExecutionCreationPurpose(commandType, commandVersion)`，解析结果保留精确 type/version。该入口只是解析事实：不含版本化 Capability/Policy 配置、Decision 签发、当前 grant 重验或 TE 幂等创建入口接线，也不解除 `authorizeCommand` 的 `1.0` 限制；§15.3 与 TE-P190-001–011 的运行验收仍未实现、未运行。
 
 ### 15.2 Actor、业务 Scope 与授权映射
 

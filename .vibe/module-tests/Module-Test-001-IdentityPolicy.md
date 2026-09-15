@@ -191,7 +191,7 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 | ID | 层级 | 输入/单一变化 | 预期输出 | 当前实际 / 结果 |
 |---|---|---|---|---|
-| IP-P190-001 | Authorization | 四个精确 `(type, version, purpose)` 配对应当前 Capability/动作/资源映射；逐项替换为未知版本、另一 Purpose、通配、别名或缺失映射 | 合法请求各获自身 ALLOW；错误映射 DENY，不能由 caller requestedCapability 或任意同 Scope grant 放行 | TE 映射未实现 / `NOT RUN` |
+| IP-P190-001 | Authorization | 四个精确 `(type, version, purpose)` 配对应当前 Capability/动作/资源映射；逐项替换为未知版本、另一 Purpose、通配、别名或缺失映射 | 合法请求各获自身 ALLOW；错误映射 DENY，不能由 caller requestedCapability 或任意同 Scope grant 放行 | 精确映射与纯解析已实现（#196）；当前 Capability 组成层未实现 / `NOT RUN` |
 | IP-P190-002 | Security | Project A Intent 分别只持 Enterprise Grant、Project B Grant；另测资源 selector 不覆盖 target | 全部 DENY；业务 Scope 包含关系不替代授权事实精确 Scope 与目标约束 | TE 组成层未实现 / `NOT RUN` |
 | IP-P190-003 | Persistence | 先签发 ALLOW，再撤销唯一 covering grant；Decision 未过期；分别提交新请求及原 key 重试 | 当前资格拒绝；旧 Decision/Receipt 不改写；不因通用精确校验通过而放行 | TE 组成层未实现 / `NOT RUN` |
 | IP-P190-004 | Security | 四版本各使用他人 Decision、不同认证上下文、错 id/hash、错 payloadHash、DENY Decision | 全部拒绝；映射正确不替代精确身份/内容绑定与 ALLOW 判定 | TE 组成层未实现 / `NOT RUN` |
