@@ -862,7 +862,7 @@ Query 的既有 `provenance: CanonicalJson` 输出使用安全 profile `executio
 
 ## 16. Task DRAFT 创建引用与持久化边界（#202 设计）
 
-状态：`T2 / PROPOSED / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL / HANDLER NOT IMPLEMENTED`。本节回应 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202)，固定 `execution.create_task@1.0` 与 `@2.0` 的跨模块引用身份、DRAFT 校验时机、创建事实、公开事件与授权顺序；依据、备选与批准记录见[决定 §15](../decisions/task-execution-human-operated.md#15-task-draft-创建引用与持久化边界提案202)。本节不改变 §2–§6 的既有 @1.0 定义、§11 的 TD-01–04 基准、§15 的逐版本 Purpose、可执行 Registry（213 项 Catalog 与 200 项历史 Compatibility Baseline）或任何已冻结 fixture；只定义 owning Handler 的最小语义增量。人类批准前，依赖的 Task DRAFT Handler 保持 `NOT_READY`，不得据本节开始实现。
+状态：`T2 / APPROVED 2026-09-15 / INDEPENDENT DESIGN REVIEW APPROVE / HUMAN DESIGN APPROVAL RECORDED / HANDLER NOT IMPLEMENTED`。本节回应 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202)，固定 `execution.create_task@1.0` 与 `@2.0` 的跨模块引用身份、DRAFT 校验时机、创建事实、公开事件与授权顺序；依据、备选与精确批准记录见[决定 §15](../decisions/task-execution-human-operated.md#15-task-draft-创建引用与持久化边界提案202)。本节不改变 §2–§6 的既有 @1.0 定义、§11 的 TD-01–04 基准、§15 的逐版本 Purpose、可执行 Registry（213 项 Catalog 与 200 项历史 Compatibility Baseline）或任何已冻结 fixture；只定义 owning Handler 的最小语义增量。本批准不表示 Handler、Port、业务表或 migration 已实现；后续 Issue 仍须由 Planner 单独复核并发布。
 
 ### 16.1 逐版本引用身份与封闭接受集
 
@@ -994,4 +994,4 @@ EXECUTION_TASK_ALREADY_EXISTS
 
 `EXECUTION_DEFINITION_REF_INVALID` 覆盖定义内其它引用（`dependencyTaskRefs`、`inputRefs`、v2 closed shape 的 `acceptancePolicyRef`/`evaluatorRef`）的 objectType/身份不闭合、Scope 不落在 Envelope 内（跨 Enterprise 或跨 Project，含 `ExternalRef.tenantOrAccountRef.scope`）与自引用；`EXECUTION_PROJECT_REF_INVALID`/`EXECUTION_DELIVERY_ITEM_REF_INVALID` 覆盖 §16.1 的拼写/kind 拒绝与 §16.2 的 Project/DeliveryItem 业务拒绝。依赖暂时不可用复用共享 `DEPENDENCY_UNAVAILABLE`，幂等冲突复用 `IDEMPOTENCY_PAYLOAD_CONFLICT`，授权错误沿用 §15.3 的共享码与 IdentityPolicy 内部原因（仅入安全 Audit）。
 
-验收矩阵与设计/静态检查分离见 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-draft-创建引用与持久化边界202-proposed)：本节的 Schema/映射/时序静态分量可由 `TE-P202-D-*` 对账，Handler、真实 PostgreSQL、RLS/ACL、直 SQL 篡改、并发与回滚仍为 `NOT RUN`，直到对应实现切片交付。
+验收矩阵与设计/静态检查分离见 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-draft-创建引用与持久化边界202-approved-design)：本节的 Schema/映射/时序静态分量可由 `TE-P202-D-*` 对账，Handler、真实 PostgreSQL、RLS/ACL、直 SQL 篡改、并发与回滚仍为 `NOT RUN`，直到对应实现切片交付。

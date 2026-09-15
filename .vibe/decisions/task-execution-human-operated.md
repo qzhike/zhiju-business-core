@@ -1,7 +1,7 @@
 # IM-06 Human-operated 执行边界与设计提案
 
 日期：2026-09-09
-状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #176 POLICY/EVALUATOR RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / TD-05–07 PROPOSED / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY PROPOSED 2026-09-15 / HANDLER IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。§12 是 [#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的 Policy/Evaluator 解析与授权依赖设计，已于 2026-09-12 获批、尚未实现。推进顺序见 [roadmap](../product/roadmap.md)。
+状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #176 POLICY/EVALUATOR RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / TD-05–07 PROPOSED / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED 2026-09-15 DESIGN VERIFIED / HANDLER IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。§12 是 [#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的 Policy/Evaluator 解析与授权依赖设计，已于 2026-09-12 获批、尚未实现。#202 的 Task DRAFT 创建引用与持久化边界已于 2026-09-15 通过独立审查并获用户明确设计批准，精确批准记录见 §15.8；这不表示 Handler 或业务持久化已实现。推进顺序见 [roadmap](../product/roadmap.md)。
 
 ## 1. 分类与既有边界
 
@@ -621,7 +621,7 @@ Port 级验收：`IP-TAUTH-001`–`008` 已在 persistence gate 的真实 Postgr
 
 ## 15. Task DRAFT 创建引用与持久化边界提案（#202）
 
-状态：`T2 / PROPOSED / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL / DEPENDENT HANDLER NOT READY`。本节回应 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202)：把 `execution.create_task@1.0` / `@2.0` 剩余未决的跨模块引用、校验时机、持久化身份与事件边界收敛为可实现语义，使后续 Task DRAFT Handler Issue 不必自行发明安全或兼容语义。字段级权威在 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计) 与 [Spec 002 §13.1](../module-specs/Module-Spec-002-EnterpriseProject.md#131-task-创建期的-projectdeliveryitem-校验-port202-提案)，验证矩阵在 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-draft-创建引用与持久化边界202-proposed)。本节不重开 TD-01–04、P-176-1–5、P-190-1、IM06-AUTH-01 或 TD-05–07，也不宣布 Task/WorkOrder 创建或 IM-06 已完成。
+状态：`T2 / APPROVED 2026-09-15 / INDEPENDENT DESIGN REVIEW APPROVE / HUMAN DESIGN APPROVAL RECORDED / DEPENDENT HANDLER NOT IMPLEMENTED`。本节回应 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202)：把 `execution.create_task@1.0` / `@2.0` 剩余未决的跨模块引用、校验时机、持久化身份与事件边界收敛为可实现语义，使后续 Task DRAFT Handler Issue 不必自行发明安全或兼容语义。字段级权威在 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计) 与 [Spec 002 §13.1](../module-specs/Module-Spec-002-EnterpriseProject.md#131-task-创建期的-projectdeliveryitem-校验-port202-提案)，验证矩阵在 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-draft-创建引用与持久化边界202-approved-design)。本节不重开 TD-01–04、P-176-1–5、P-190-1、IM06-AUTH-01 或 TD-05–07，也不宣布 Task/WorkOrder 创建或 IM-06 已完成。
 
 ### 15.1 对账事实与缺口
 
@@ -671,6 +671,7 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 
 ### 15.8 批准与交付边界
 
-- 本节与 Spec 003 §16、Spec 002 §13.1 在获得独立设计审查与人类明确批准前保持 `PROPOSED`；批准记录写入本节（含批准时间、批准对象与被审 revision），不追溯声明已批准。
-- 批准前不得创建依赖的 Task DRAFT Handler Issue；该 Issue 只能覆盖 `TE-P202-001`–`015` 中已批准范围，且不得顺带扩大公开接受集、注册新 objectType/Event、改写历史 fixture 或实现 TD-05–07。
-- 本节不授权 commit、push、PR 合并、migration 或任何业务实现；实际交付按用户授权范围另行推进。
+- 独立设计审查经四轮完成，最终结论为 `APPROVE`，批准对象是 PR [#203](https://github.com/qzhike/zhiju-business-core/pull/203) revision `7075741aa643479749591f631713a88640d9991e`；正式记录见 [`reviews/pr-203/Review.md`](../reviews/pr-203/Review.md)，PR 结论见 [第 4 轮评论](https://github.com/qzhike/zhiju-business-core/pull/203#issuecomment-5680277352)。前三轮 `REQUEST_CHANGES` 与 finding 保留，不被最终结论抹除。
+- 用户于 2026-09-15 在当前会话明确表示“审核批准”，批准上述精确 revision 的 #202 Task DRAFT 创建引用、校验时机、持久化身份、事件边界、授权顺序及 `TE-P202-*` 验收设计。该记录是人类设计批准，不追溯批准其他 revision、TD-05–07 或未呈现的实现选择。
+- 本批准只解除“设计待审/待人类批准”门禁。依赖的 Task DRAFT Handler 可由 Planner 按当前依赖重新执行 `NOW + READY` 复核；本次批准本身不创建 Issue，也不授权业务实现、migration、commit、push 或 PR 合并。
+- 后续 Handler Issue 只能覆盖 `TE-P202-001`–`015` 中已批准范围，不得顺带扩大公开接受集、注册新 objectType/Event、改写历史 fixture 或实现 TD-05–07。

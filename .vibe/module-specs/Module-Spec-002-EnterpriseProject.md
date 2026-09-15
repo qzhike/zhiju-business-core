@@ -2,7 +2,7 @@
 
 版本：v0.8
 日期：2026-08-27
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / #176 CAPTURE POLICY RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / IM-06 (#188) CAPTURE AND READ IMPLEMENTED LOCAL PERSISTENCE PASS / IM-06 (#191) RESOLUTION RECEIPT ATTESTATION IMPLEMENTED LOCAL PERSISTENCE PASS / #202 TASK CREATION PROJECT SCOPE PORT PROPOSED 2026-09-15 NOT IMPLEMENTED / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / IM-03 COMPLETE (SCOPED TECHNICAL ACCEPTANCE) / SYNTHETIC COMPOSED CONTROLLED PERSISTENCE PASS / ISSUE #56–#68 CLOSED / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / #176 CAPTURE POLICY RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / IM-06 (#188) CAPTURE AND READ IMPLEMENTED LOCAL PERSISTENCE PASS / IM-06 (#191) RESOLUTION RECEIPT ATTESTATION IMPLEMENTED LOCAL PERSISTENCE PASS / #202 TASK CREATION PROJECT SCOPE PORT APPROVED 2026-09-15 DESIGN VERIFIED NOT IMPLEMENTED / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -370,7 +370,7 @@ PROJECT_OBJECT_SCOPE_MISMATCH
 
 ### 13.1 Task 创建期的 Project/DeliveryItem 校验 Port（#202 提案）
 
-状态：`T2 / PROPOSED / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL / NOT IMPLEMENTED`。本节是 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202) 对 WI-04 边界的 additive 设计增量，方案与备选见[决定 §15.2](../decisions/task-execution-human-operated.md#152-p-202-1-projectdeliveryitem-校验归属)，消费方字段与时机由 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计) 拥有。本节**不改变** §13 已交付的 `project.validate_object_scope@1.0` 接受集、错误外观、RLS 与任何公开 Schema。
+状态：`T2 / APPROVED 2026-09-15 / INDEPENDENT DESIGN REVIEW APPROVE / HUMAN DESIGN APPROVAL RECORDED / NOT IMPLEMENTED`。本节是 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202) 对 WI-04 边界的 additive 设计增量，方案、备选与批准记录见[决定 §15](../decisions/task-execution-human-operated.md#15-task-draft-创建引用与持久化边界提案202)，消费方字段与时机由 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计) 拥有。本节**不改变** §13 已交付的 `project.validate_object_scope@1.0` 接受集、错误外观、RLS 与任何公开 Schema；批准不表示 Port 已实现。
 
 **归属与形态**：EnterpriseProject 拥有内部只读 Port `TaskExecutionCreationProjectScopePort`。它不是公开 Command/Query，不进 Catalog，不新增公开 operation 或 objectType；TaskExecution 只消费其结果，不读 EP Repository、表或跨 Schema Join。
 

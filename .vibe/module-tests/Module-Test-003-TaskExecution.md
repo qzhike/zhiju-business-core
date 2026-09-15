@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION PASSED 2026-09-08 / #158 CONTRACT SCHEMA REGISTERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT VERIFIED 2026-09-11 / #167 INITIAL CONTEXT RESULT AND CANONICAL SNAPSHOTREF VERIFIED 2026-09-12 / #175 TASK V2 CREATION CONTRACT VERIFIED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION SCENARIOS APPROVED 2026-09-12 DESIGN VERIFIED / #202 TASK DRAFT CREATION BOUNDARY PROPOSED 2026-09-15 DESIGN STATIC CHECKS VERIFIED / HANDLER E2E NOT RUN`
+状态：`API CONTRACT TEST BASELINE / DESIGN GATE VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION PASSED 2026-09-08 / #158 CONTRACT SCHEMA REGISTERED 2026-09-10 / #159 ANSWEREDINFORMATIONREFS ARRAY COMPATIBILITY FIXED 2026-09-10 / #165 DRAFT VERSION PINS @1.1 CONTRACT VERIFIED 2026-09-11 / #167 INITIAL CONTEXT RESULT AND CANONICAL SNAPSHOTREF VERIFIED 2026-09-12 / #175 TASK V2 CREATION CONTRACT VERIFIED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION SCENARIOS APPROVED 2026-09-12 DESIGN VERIFIED / #202 TASK DRAFT CREATION BOUNDARY APPROVED 2026-09-15 DESIGN STATIC CHECKS VERIFIED / HANDLER E2E NOT RUN`
 
 对应规格：[`Module-Spec-003-TaskExecution.md`](../module-specs/Module-Spec-003-TaskExecution.md)。
 
@@ -215,9 +215,9 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-P190-010 | Compatibility | 旧客户端原版本请求 + 当前真实合法授权；持 Task v1 能力但未获 v2 授权；WorkOrder 明确覆盖两个版本的能力分别请求新 Decision | 旧合法请求通过；无 v2 覆盖拒绝；WorkOrder 两个精确版本独立通过，不共享 Decision | 未实现 / `NOT RUN` |
 | TE-P190-011 | Replay | 授权读取旧 Receipt/回放历史；再以该 Receipt 请求新创建/READY | 历史原 Purpose/version/hash 不变；新动作必须独立授权，历史成功不提升资格 | 未实现 / `NOT RUN` |
 
-## Task DRAFT 创建引用与持久化边界（#202 PROPOSED）
+## Task DRAFT 创建引用与持久化边界（#202 APPROVED DESIGN）
 
-状态：`PROPOSED / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL / ALL RUNTIME BEHAVIOR NOT RUN`。对应 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计)，依据见 [决定 §15](../decisions/task-execution-human-operated.md#15-task-draft-创建引用与持久化边界提案202)。本表把本次可核对的设计/静态分量与未来 Handler 切片才可执行的行为分开：`TE-P202-D-*` 只对账版本身份、归属选择、时机表、创建事实与事件边界，不等于 Handler、授权接线或业务链已运行；其余各项在实现前保持 `NOT RUN`，不因本次 `full`、#151/#200 既有回归或设计批准而改变。每个运行时用例从对应版本的独立合法基线开始，只改变表列维度。
+状态：`APPROVED 2026-09-15 / INDEPENDENT DESIGN REVIEW APPROVE / HUMAN DESIGN APPROVAL RECORDED / ALL RUNTIME BEHAVIOR NOT RUN`。对应 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计)，依据与精确批准记录见 [决定 §15](../decisions/task-execution-human-operated.md#15-task-draft-创建引用与持久化边界提案202)。本表把本次可核对的设计/静态分量与未来 Handler 切片才可执行的行为分开：`TE-P202-D-*` 只对账版本身份、归属选择、时机表、创建事实与事件边界，不等于 Handler、授权接线或业务链已运行；其余各项在实现前保持 `NOT RUN`，不因本次 `full`、#151/#200 既有回归或设计批准而改变。每个运行时用例从对应版本的独立合法基线开始，只改变表列维度。
 
 | ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
 |---|---|---|---|---|---|
