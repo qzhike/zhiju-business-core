@@ -82,3 +82,34 @@ export type {
   ReferenceEdgeInput,
   ProcessStepInput,
 } from './persistence/command-runner.js';
+
+// IM-06 (#204): Task DRAFT creation for `execution.create_task@1.0` / `@2.0`
+// (Spec 003 §16). The handler consumes the EnterpriseProject-owned internal
+// Project scope Port; authorization is revalidated by the composition entry
+// before the idempotency claim.
+export {
+  handleCreateTask,
+  createTaskIdempotencyScope,
+  CREATE_TASK_COMMAND,
+  TASK_DRAFT_CREATION_BINDINGS,
+  EXECUTION_PROJECT_REF_INVALID,
+  EXECUTION_DELIVERY_ITEM_REF_INVALID,
+  EXECUTION_PARENT_TASK_REF_INVALID,
+  EXECUTION_DEFINITION_REF_INVALID,
+  EXECUTION_TASK_ALREADY_EXISTS,
+  DEPENDENCY_UNAVAILABLE,
+} from './business/task-draft-creation.js';
+export type {
+  TaskDraftCreationBinding,
+  TaskDraftCreationPorts,
+  TaskExecutionCreationProjectScopeOutcome,
+  TaskExecutionCreationProjectScopePort,
+  TaskExecutionCreationProjectScopeRequest,
+} from './business/task-draft-creation.js';
+export { TaskDraftRepository } from './persistence/task-draft-repository.js';
+export type {
+  TaskDefinitionSnapshotInsert,
+  TaskRootInsert,
+  TaskScopeRow,
+} from './persistence/task-draft-repository.js';
+export type { TaskTable, TaskDefinitionSnapshotTable } from './persistence/task-execution-db.js';

@@ -281,6 +281,15 @@ export interface DecisionBoundary {
   identityDeps(context: IdentityTransactionContext): IdentityCommandDeps;
   /** A Decision is always Project-scoped; an Enterprise-only one is refused. */
   decisionScope(row: DecisionRow): RequestScope;
+  /**
+   * Reads one presented Decision row (exact id and hash) in the requested
+   * Project scope without pinning an operation version. Reserved for entries
+   * whose owning authorization Port performs that comparison itself.
+   */
+  readDecisionRow(
+    decisionRef: Common.ContentAddressedRef,
+    scope: RequestScope,
+  ): Promise<DecisionRow>;
   validatedDecision(input: {
     readonly decisionRef: Common.ContentAddressedRef;
     readonly commandType: string;
@@ -328,9 +337,50 @@ export function createDecisionBoundary(config: IdentityBoundaryConfig): Decision
     return { scopeKind: 'PROJECT', enterpriseId: row.enterprise_id, projectId: row.project_id };
   }
 
+  /**
+   * Reads the presented Decision (exact id and hash) inside the requested
+   * Project scope, refusing a row that belongs to another scope. The caller
+   * owns the authoritative comparison of the row's fields: the shared
+   * validator pins `commandVersion: '1.0'`, which an owning authorisation Port
+   * may legitimately supersede for its own version-bound operation.
+   */
+  async function readPresentedDecision(
+    decisionRef: Common.ContentAddressedRef,
+    scope: RequestScope,
+  ): Promise<DecisionRow> {
+    const bootstrapContext: IdentityTransactionContext = {
+      kind: 'REQUEST',
+      principalId: decisionRef.objectId,
+      actorSnapshotId: decisionRef.objectId,
+      authorizationDecisionId: decisionRef.objectId,
+      authorizationDecisionHash: Buffer.from(decisionRef.contentHash.digest, 'hex'),
+      authorizationDecisionExpiresAt: new Date(now().getTime() + 60_000),
+      enterpriseId: scope.enterpriseId,
+      allowedProjectIds: [scope.projectId],
+      correlationId: decisionRef.objectId,
+    };
+    const found = await withIdentityTransaction(config.identity.db, bootstrapContext, (trx) =>
+      config.identity.repo.getAuthorizationDecisionByIdAndHash(
+        trx,
+        decisionRef.objectId,
+        Buffer.from(decisionRef.contentHash.digest, 'hex'),
+      ),
+    ).catch(() => entryError(DEPENDENCY_UNAVAILABLE, 'authorization storage is unavailable'));
+    if (!found?.hashMatched) {
+      entryError(AUTHORIZATION_DECISION_INVALID, 'the presented Decision is not resolvable');
+    }
+    const row = found.row;
+    const rowScope = decisionScope(row);
+    if (rowScope.enterpriseId !== scope.enterpriseId || rowScope.projectId !== scope.projectId) {
+      entryError(SCOPE_MISMATCH, 'the Decision Scope is not the requested Project');
+    }
+    return row;
+  }
+
   return {
     identityDeps,
     decisionScope,
+    readDecisionRow: readPresentedDecision,
 
     /**
      * Proves one presented Decision through the owning IdentityPolicy ports:
@@ -348,32 +398,8 @@ export function createDecisionBoundary(config: IdentityBoundaryConfig): Decision
           'the session authentication context is not a SHA-256 digest',
         );
       }
-      const bootstrapContext: IdentityTransactionContext = {
-        kind: 'REQUEST',
-        principalId: input.decisionRef.objectId,
-        actorSnapshotId: input.decisionRef.objectId,
-        authorizationDecisionId: input.decisionRef.objectId,
-        authorizationDecisionHash: Buffer.from(input.decisionRef.contentHash.digest, 'hex'),
-        authorizationDecisionExpiresAt: new Date(now().getTime() + 60_000),
-        enterpriseId: input.scope.enterpriseId,
-        allowedProjectIds: [input.scope.projectId],
-        correlationId: input.decisionRef.objectId,
-      };
-      const found = await withIdentityTransaction(config.identity.db, bootstrapContext, (trx) =>
-        config.identity.repo.getAuthorizationDecisionByIdAndHash(
-          trx,
-          input.decisionRef.objectId,
-          Buffer.from(input.decisionRef.contentHash.digest, 'hex'),
-        ),
-      ).catch(() => entryError(DEPENDENCY_UNAVAILABLE, 'authorization storage is unavailable'));
-      if (!found?.hashMatched) {
-        entryError(AUTHORIZATION_DECISION_INVALID, 'the presented Decision is not resolvable');
-      }
-      const row = found.row;
+      const row = await readPresentedDecision(input.decisionRef, input.scope);
       const scope = decisionScope(row);
-      if (scope.projectId !== input.scope.projectId) {
-        entryError(SCOPE_MISMATCH, 'the Decision Scope is not the requested Project');
-      }
       const scopedContext: IdentityTransactionContext = {
         kind: 'REQUEST',
         principalId: row.principal_id,

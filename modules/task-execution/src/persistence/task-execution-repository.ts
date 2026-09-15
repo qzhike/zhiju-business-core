@@ -31,7 +31,12 @@ interface TrustedContextFacts {
   allowsProject: boolean | null;
 }
 
-async function readTrustedContext(
+/**
+ * Reads the RLS-established transaction context that every owning-schema write
+ * of this module is bound to. Shared by the technical-table repository and the
+ * Task DRAFT repository so both prove the same principal and scope facts.
+ */
+export async function readTrustedContext(
   trx: TaskExecutionTransaction,
   enterpriseId: string,
   projectId: string | null,

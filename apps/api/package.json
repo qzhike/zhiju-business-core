@@ -19,6 +19,7 @@
     "@zhiju/identity-policy": "workspace:*",
     "@zhiju/quality-governance": "workspace:*",
     "@zhiju/shared-kernel": "workspace:*",
+    "@zhiju/task-execution": "workspace:*",
     "kysely": "0.29.5",
     "pg": "8.23.0"
   },

@@ -621,7 +621,7 @@ Port 级验收：`IP-TAUTH-001`–`008` 已在 persistence gate 的真实 Postgr
 
 ## 15. Task DRAFT 创建引用与持久化边界提案（#202）
 
-状态：`T2 / APPROVED 2026-09-15 / INDEPENDENT DESIGN REVIEW APPROVE / HUMAN DESIGN APPROVAL RECORDED / DEPENDENT HANDLER NOT IMPLEMENTED`。本节回应 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202)：把 `execution.create_task@1.0` / `@2.0` 剩余未决的跨模块引用、校验时机、持久化身份与事件边界收敛为可实现语义，使后续 Task DRAFT Handler Issue 不必自行发明安全或兼容语义。字段级权威在 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计) 与 [Spec 002 §13.1](../module-specs/Module-Spec-002-EnterpriseProject.md#131-task-创建期的-projectdeliveryitem-校验-port202-提案)，验证矩阵在 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-draft-创建引用与持久化边界202-approved-design)。本节不重开 TD-01–04、P-176-1–5、P-190-1、IM06-AUTH-01 或 TD-05–07，也不宣布 Task/WorkOrder 创建或 IM-06 已完成。
+状态：`T2 / APPROVED 2026-09-15 / INDEPENDENT DESIGN REVIEW APPROVE / HUMAN DESIGN APPROVAL RECORDED / DEPENDENT HANDLER, ENTERPRISE-PROJECT PORT AND SCOPED PERSISTENCE IMPLEMENTED BY #204 2026-09-15 / TASK READY AND OTHER IM-06 BEHAVIOR NOT RUN`。本节回应 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202)：把 `execution.create_task@1.0` / `@2.0` 剩余未决的跨模块引用、校验时机、持久化身份与事件边界收敛为可实现语义，使后续 Task DRAFT Handler Issue 不必自行发明安全或兼容语义。字段级权威在 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计) 与 [Spec 002 §13.1](../module-specs/Module-Spec-002-EnterpriseProject.md#131-task-创建期的-projectdeliveryitem-校验-port202-提案)，验证矩阵在 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-draft-创建引用与持久化边界202-approved-design)。本节不重开 TD-01–04、P-176-1–5、P-190-1、IM06-AUTH-01 或 TD-05–07，也不宣布 Task/WorkOrder 创建或 IM-06 已完成。
 
 ### 15.1 对账事实与缺口
 

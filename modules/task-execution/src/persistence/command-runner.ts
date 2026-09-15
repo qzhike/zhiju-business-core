@@ -17,6 +17,11 @@ import {
   TaskExecutionRepository,
   type ProcessInstanceInsert,
 } from './task-execution-repository.js';
+import {
+  TaskDraftRepository,
+  type TaskDefinitionSnapshotInsert,
+  type TaskRootInsert,
+} from './task-draft-repository.js';
 
 export const IDEMPOTENCY_PAYLOAD_CONFLICT = 'IDEMPOTENCY_PAYLOAD_CONFLICT';
 export const CONCURRENCY_CONFLICT = 'CONCURRENCY_CONFLICT';
@@ -181,6 +186,15 @@ export interface CommandExecution {
    * command transaction.
    */
   readonly insertProcessInstance: (row: ProcessInstanceInsert) => Promise<void>;
+  /**
+   * Runner-bound Task DRAFT inserts (IM-06 #204): the body supplies the row
+   * data only, and the runner closes over the open transaction, the frozen
+   * command target and the owning repository, exactly like
+   * `insertProcessInstance`. A caller cannot write a Root or a definition
+   * Snapshot for another Task, Scope or target type.
+   */
+  insertTaskDraftRoot(row: TaskRootInsert): Promise<boolean>;
+  insertTaskDraftDefinition(row: TaskDefinitionSnapshotInsert): Promise<void>;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -350,14 +364,28 @@ async function runCommandTransaction(
           'the command claim could not be resolved after a concurrent attempt',
         );
       }
-      if (!existing.request_payload_hash.equals(requestHash)) {
+      // A claimed idempotency key is owned by exactly one command identity.
+      // The historical Receipt may only be returned to the same
+      // `(commandType, commandVersion)` and the same target: the request hash
+      // alone cannot distinguish the two `create_task` majors, because the v1
+      // `projectRef` is a generic `objectRef`, so a byte-identical payload is
+      // possible. A different identity or target is a payload conflict and is
+      // audited instead of leaking the other version's Receipt.
+      const identityMismatch =
+        existing.command_type !== envelopeSnapshot.commandType ||
+        existing.command_version !== envelopeSnapshot.commandVersion ||
+        existing.target_type !== envelopeSnapshot.targetType ||
+        existing.target_id !== envelopeSnapshot.targetId;
+      if (!existing.request_payload_hash.equals(requestHash) || identityMismatch) {
         await insertAuditRow(trx, envelopeSnapshot, {
           outcome: 'DENIED',
           errorCode: IDEMPOTENCY_PAYLOAD_CONFLICT,
           targetType: envelopeSnapshot.targetType,
           targetId: envelopeSnapshot.targetId,
           targetAggregateVersion: existing.expected_aggregate_version ?? undefined,
-          safeSummary: 'same idempotency key replayed with a different request hash',
+          safeSummary: identityMismatch
+            ? 'same idempotency key replayed by another command identity or target'
+            : 'same idempotency key replayed with a different request hash',
           requestHash,
         });
         return { kind: 'PAYLOAD_CONFLICT' } as const;
@@ -432,6 +460,10 @@ async function runCommandTransaction(
 }
 
 interface ReceiptFacts {
+  command_type: string;
+  command_version: string;
+  target_type: string;
+  target_id: string;
   request_payload_hash: Buffer;
   outcome: 'PENDING' | 'COMMITTED' | 'REJECTED';
   result_payload: unknown;
@@ -512,10 +544,17 @@ function createExecution(
   commandFacts: CommandFacts,
 ): CommandExecution {
   const taskExecutionRepo = new TaskExecutionRepository();
+  const taskDraftRepo = new TaskDraftRepository();
   return {
     trx,
     async insertProcessInstance(row) {
       await taskExecutionRepo.insertProcessInstance(trx, commandFacts, row);
+    },
+    async insertTaskDraftRoot(row) {
+      return taskDraftRepo.insertTaskRoot(trx, commandFacts, row);
+    },
+    async insertTaskDraftDefinition(row) {
+      await taskDraftRepo.insertTaskDefinitionSnapshot(trx, commandFacts, row);
     },
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {
