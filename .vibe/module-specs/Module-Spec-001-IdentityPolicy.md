@@ -614,7 +614,7 @@ Purpose 必须来自已交付的精确解析器，不接受 caller 覆盖。capa
 
 该 Port 签发的 AuthorizationDecision canonical payload 必须包含精确 targetRef（objectType/objectId/Project Scope）。物理表通过 forward-only 迁移增加可空 `target_object_type` / `target_object_id` 镜像；新 Port 产生的行必须非空且与 canonical payload/Scope 一致。历史行保留 NULL 并可读，但无目标绑定的 Decision 不能用于本 Port 的四个创建版本。
 
-签发与重验均比较精确 Actor/实际 Principal、认证上下文、type/version/Purpose、payload Hash、targetRef、Project Scope、ALLOW 和期限。重验另在当次受信时间重读完整 covering Grant/Policy；撤销、到期、Policy 取代、配置变更、target 改变、版本串用或依赖不可用都 fail closed。TaskExecution 必须在幂等 Claim/历史 Receipt 读取前重验；历史 ALLOW/Receipt 不是当前资格。
+签发与重验均比较精确 Actor/实际 Principal、认证上下文、type/version/Purpose、payload Hash、targetRef、Project Scope、ALLOW 和期限。Actor 必须是当前受信事务 context 的 ActorSnapshot 与 principal：同 Project 的其他 Human、Agent 或 actingFor 快照都不能替代该绑定，也不能在另一主体的 context 中重验他人 Decision。读取端必须从 canonical payload 重算 Decision 与 Grant Policy Snapshot 的 hash/algorithm/canonicalization version/size 并校验提升列镜像；只比较存储 hash 列、promoted target 列或 Grant 的 policy hash 引用不构成完整性证明（#200 审查 R2/R3 修复）。重验另在当次受信时间重读完整 covering Grant/Policy；撤销、到期、Policy 取代、配置变更、target 改变、版本串用或依赖不可用都 fail closed。TaskExecution 必须在幂等 Claim/历史 Receipt 读取前重验；历史 ALLOW/Receipt 不是当前资格。
 
 ### 15.4 范围与兼容
 

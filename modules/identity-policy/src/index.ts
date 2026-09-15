@@ -34,7 +34,10 @@ export {
   IDENTITY_PROMOTED_MIRROR_MISMATCH,
   validatePromotedMirror,
   assertHashMatches,
+  authorizationDecisionIntegrityHolds,
+  policySnapshotIntegrityHolds,
 } from './persistence/identity-policy-repository.js';
+export type { SelectedAuthorizationDecision } from './persistence/identity-db.js';
 export type {
   PrincipalInsert,
   PrincipalStateTransitionInsert,

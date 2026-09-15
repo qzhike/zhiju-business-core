@@ -46,6 +46,10 @@ import {
   type SelectedPolicySnapshot,
 } from '../persistence/identity-db.js';
 import {
+  authorizationDecisionIntegrityHolds,
+  policySnapshotIntegrityHolds,
+} from '../persistence/identity-policy-repository.js';
+import {
   assertSnapshotReference,
   contentHash,
   contentHashToBuffer,
@@ -157,6 +161,7 @@ export type TaskExecutionCreationDenialReason =
   | 'PRINCIPAL_NOT_ACTIVE'
   | 'CAPABILITY_HUMAN_ONLY'
   | 'NO_ACTIVE_GRANT'
+  | 'GRANT_POLICY_SNAPSHOT_INVALID'
   | 'GRANT_POLICY_SNAPSHOT_NOT_CURRENT';
 
 export interface TaskExecutionCreationAuthorizationInput {
@@ -206,10 +211,12 @@ export type TaskExecutionCreationRevalidationFailure =
   | 'PAYLOAD_HASH_MISMATCH'
   | 'AUTH_CONTEXT_MISMATCH'
   | 'ACTOR_MISMATCH'
+  | 'DECISION_INTEGRITY_MISMATCH'
   | 'PRINCIPAL_NOT_ACTIVE'
   | 'CONFIGURATION_CHANGED'
   | 'EXPIRED'
   | 'GRANT_NOT_CURRENT'
+  | 'POLICY_INTEGRITY_MISMATCH'
   | 'POLICY_NOT_CURRENT';
 
 export type TaskExecutionCreationRevalidationResult =
@@ -279,7 +286,7 @@ export function createTaskExecutionCreationAuthorizationPort(
       const binding = approvedCreationBinding(input.commandType, input.commandVersion);
       const capabilityCode = configuredCapabilityCode(config, binding.capabilityConfigKey);
       const target = readCreationTarget(input.targetRef, binding, deps.context);
-      assertCreationInput(input, target);
+      assertCreationInput(input, target, deps.context);
       const actorSnapshotPayloadHash = contentHashToBuffer(
         input.actorSnapshotRef.contentHash,
         IDENTITY_ACTOR_SNAPSHOT_INVALID,
@@ -296,6 +303,14 @@ export function createTaskExecutionCreationAuthorizationPort(
           throw new SnapshotBoundaryError(
             IDENTITY_ACTOR_SNAPSHOT_INVALID,
             'actor snapshot ref does not match',
+          );
+        }
+        // The Decision is issued for the trusted transaction actor: a caller
+        // cannot present another principal's snapshot of the same Project.
+        if (actor.row.principal_id !== deps.context.principalId) {
+          throw new SnapshotBoundaryError(
+            IDENTITY_ACTOR_SNAPSHOT_INVALID,
+            'actor snapshot principal must be the trusted transaction principal',
           );
         }
         if (
@@ -495,6 +510,19 @@ export function createTaskExecutionCreationAuthorizationPort(
         if (!found) return invalid('NOT_FOUND');
         if (!found.hashMatched) return invalid('HASH_MISMATCH');
         const row = found.row;
+        // The stored hash column is not the canonical payload: the bytes must
+        // still hash to it before any field of the row is trusted.
+        if (!authorizationDecisionIntegrityHolds(row)) {
+          return invalid('DECISION_INTEGRITY_MISMATCH');
+        }
+        // The Decision must belong to the trusted transaction actor, not only
+        // to the same Project Scope.
+        if (
+          row.actor_snapshot_id !== deps.context.actorSnapshotId ||
+          row.principal_id !== deps.context.principalId
+        ) {
+          return invalid('ACTOR_MISMATCH');
+        }
         if (row.outcome !== 'ALLOW') return invalid('NOT_ALLOW');
         // A Decision without a target binding predates this Port: it stays
         // readable history but never authorizes one of the four versions.
@@ -566,9 +594,11 @@ export function createTaskExecutionCreationAuthorizationPort(
         });
         if ('denial' in finding) {
           return invalid(
-            finding.denial === 'GRANT_POLICY_SNAPSHOT_NOT_CURRENT'
-              ? 'POLICY_NOT_CURRENT'
-              : 'GRANT_NOT_CURRENT',
+            finding.denial === 'GRANT_POLICY_SNAPSHOT_INVALID'
+              ? 'POLICY_INTEGRITY_MISMATCH'
+              : finding.denial === 'GRANT_POLICY_SNAPSHOT_NOT_CURRENT'
+                ? 'POLICY_NOT_CURRENT'
+                : 'GRANT_NOT_CURRENT',
           );
         }
         return {
@@ -717,6 +747,7 @@ function readCreationTarget(
 function assertCreationInput(
   input: TaskExecutionCreationAuthorizationInput,
   target: CreationTarget,
+  context: IdentityTransactionContext,
 ): void {
   assertSnapshotReference(
     input.actorSnapshotRef,
@@ -724,6 +755,12 @@ function assertCreationInput(
     IDENTITY_ACTOR_SNAPSHOT_INVALID,
     'actor snapshot',
   );
+  if (input.actorSnapshotRef.snapshotId !== context.actorSnapshotId) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_ACTOR_SNAPSHOT_INVALID,
+      'actor snapshot must be the trusted transaction actor',
+    );
+  }
   if (!sameScope(input.actorSnapshotRef.scope, target.scope)) {
     throw new SnapshotBoundaryError(
       IDENTITY_ACTOR_SNAPSHOT_INVALID,
@@ -775,6 +812,7 @@ async function coveringCreationGrant(
     query.now,
   );
   let sawStalePolicy = false;
+  let sawInvalidPolicy = false;
   for (const grant of grants) {
     if (!grantMatchesCreation(grant, query)) continue;
     if (
@@ -791,9 +829,17 @@ async function coveringCreationGrant(
       trx,
       grant.grant_policy_snapshot_id,
     );
+    // The Snapshot must be integrity-valid before it is interpreted: a
+    // rewritten document that no longer hashes to the stored hash is refused.
     if (
       policySnapshot === undefined ||
       !policySnapshot.payload_hash.equals(grant.grant_policy_snapshot_hash) ||
+      !policySnapshotIntegrityHolds(policySnapshot)
+    ) {
+      sawInvalidPolicy = true;
+      continue;
+    }
+    if (
       policySnapshot.effective_from > query.now ||
       (policySnapshot.superseded_at !== null &&
         policySnapshot.superseded_at !== undefined &&
@@ -804,7 +850,13 @@ async function coveringCreationGrant(
     }
     return { policySnapshot };
   }
-  return { denial: sawStalePolicy ? 'GRANT_POLICY_SNAPSHOT_NOT_CURRENT' : 'NO_ACTIVE_GRANT' };
+  return {
+    denial: sawInvalidPolicy
+      ? 'GRANT_POLICY_SNAPSHOT_INVALID'
+      : sawStalePolicy
+        ? 'GRANT_POLICY_SNAPSHOT_NOT_CURRENT'
+        : 'NO_ACTIVE_GRANT',
+  };
 }
 
 function grantMatchesCreation(grant: SelectedCapabilityGrant, query: CreationGrantQuery): boolean {

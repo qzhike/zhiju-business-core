@@ -272,6 +272,9 @@ export interface AuthorizationDecisionTable {
   retention_class: string;
 }
 
+/** One committed authorization decision row, as the read paths select it. */
+export type SelectedAuthorizationDecision = Selectable<AuthorizationDecisionTable>;
+
 export interface CommandReceiptTable {
   command_id: string;
   command_type: string;

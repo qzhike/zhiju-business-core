@@ -580,6 +580,30 @@ describe('creation authorization: actor snapshot and request facts', () => {
     }
   });
 
+  it('refuses an actor snapshot that is not the trusted transaction actor', async () => {
+    const trustedActor = actorSnapshotRef();
+    await expect(
+      port().authorizeCreation(
+        deps,
+        creationInput('execution.create_task', '1.0', {
+          actorSnapshotRef: {
+            ...trustedActor,
+            objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d031',
+            snapshotId: '018f22e2-7c15-7b2e-8d86-2de956a9d031',
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: IDENTITY_ACTOR_SNAPSHOT_INVALID });
+    // The trusted actor itself still passes this gate and reaches the target
+    // and hash checks of the same request.
+    await expect(
+      port().authorizeCreation(
+        deps,
+        creationInput('execution.create_task', '1.0', { commandPayloadHash: Buffer.alloc(31, 3) }),
+      ),
+    ).rejects.toMatchObject({ code: IDENTITY_DECISION_INPUT_INVALID });
+  });
+
   it('refuses a request hash that is not a SHA-256 digest', async () => {
     for (const hash of [
       Buffer.alloc(31, 3),

@@ -133,6 +133,25 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
   let secondActorRef: ActorSnapshotRef;
   let agentActingForRef: ActorSnapshotRef;
 
+  /**
+   * The trusted transaction context of one actor: the Port binds issuance and
+   * revalidation to exactly this principal and actor snapshot.
+   */
+  function depsFor(principalId: string, actorSnapshotId: string): IdentityCommandDeps {
+    return {
+      db,
+      repo,
+      crypto,
+      context: {
+        ...context,
+        principalId,
+        actorSnapshotId,
+        authorizationDecisionId: newUuidV7(),
+        authorizationDecisionHash: Buffer.alloc(32, 0x72),
+      },
+    };
+  }
+
   function portFor(
     capabilityCodes: Partial<TaskExecutionCreationCapabilityCodes> = {},
     now?: () => Date,
@@ -319,15 +338,6 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
   });
 
   it('IP-TAUTH-001 signs one exact ALLOW per approved creation version and keeps the target bound', async () => {
-    const actor = await createActorSnapshot(deps, {
-      actorSnapshotId: newUuidV7(),
-      principalId: OPERATOR,
-      declaredPrincipalKind: 'HUMAN',
-      authenticationContextHash: AUTH_HASH_OPERATOR,
-      scopeKind: 'PROJECT',
-      enterpriseId: ENTERPRISE,
-      projectId: PROJECT_A,
-    });
     const port = portFor();
     for (const binding of TASK_EXECUTION_CREATION_BINDINGS) {
       const capabilityCode = DEFAULT_CAPABILITIES[binding.capabilityConfigKey];
@@ -339,7 +349,7 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
       });
       const target = targetRef(binding.targetObjectType);
       const view = await port.authorizeCreation(deps, {
-        actorSnapshotRef: actor,
+        actorSnapshotRef: operatorActorRef,
         commandType: binding.commandType,
         commandVersion: binding.commandVersion,
         targetRef: target,
@@ -373,18 +383,9 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
   });
 
   it('IP-TAUTH-001 fails closed on aliases, case variants, unknown versions and unusable configuration', async () => {
-    const actor = await createActorSnapshot(deps, {
-      actorSnapshotId: newUuidV7(),
-      principalId: OPERATOR,
-      declaredPrincipalKind: 'HUMAN',
-      authenticationContextHash: AUTH_HASH_OPERATOR,
-      scopeKind: 'PROJECT',
-      enterpriseId: ENTERPRISE,
-      projectId: PROJECT_A,
-    });
     const port = portFor();
     const request = {
-      actorSnapshotRef: actor,
+      actorSnapshotRef: operatorActorRef,
       commandPayloadHash: COMMAND_HASH,
       authenticationContextHash: AUTH_HASH_OPERATOR,
       targetRef: targetRef('zhiju.execution.task'),
@@ -713,8 +714,9 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
       selectors: [{ selectorType: 'CREATE_TARGET_TYPE', objectType: 'zhiju.execution.task' }],
     });
     const port = portFor({ taskV2: capabilityCode });
+    const secondDeps = depsFor(SECOND_HUMAN, SECOND_ACTOR);
     const target = targetRef('zhiju.execution.task');
-    const issued = await port.authorizeCreation(deps, {
+    const issued = await port.authorizeCreation(secondDeps, {
       actorSnapshotRef: secondActorRef,
       commandType: 'execution.create_task',
       commandVersion: '2.0',
@@ -725,7 +727,7 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
     const decisionRef = issued.authorizationDecisionRef;
     if (decisionRef === undefined) throw new Error('expected an issued decision');
     expect(
-      await port.revalidateCreation(deps, {
+      await port.revalidateCreation(secondDeps, {
         decisionRef,
         expectedCommandType: 'execution.create_task',
         expectedCommandVersion: '2.0',
@@ -751,7 +753,7 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
       snapshot: notYetEffective,
     });
     expect(
-      await port.revalidateCreation(deps, {
+      await port.revalidateCreation(secondDeps, {
         decisionRef,
         expectedCommandType: 'execution.create_task',
         expectedCommandVersion: '2.0',
@@ -885,9 +887,12 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
       selectors: [{ selectorType: 'CREATE_TARGET_TYPE', objectType: 'zhiju.execution.task' }],
     });
     const target = targetRef('zhiju.execution.task');
-    // A full covering Grant authorizes an AGENT for a non Human-only capability.
+    const agentDeps = depsFor(AGENT, AGENT_ACTOR);
+    const actingForDeps = depsFor(AGENT, AGENT_ACTING_FOR_ACTOR);
+    // A full covering Grant authorizes an AGENT for a non Human-only capability
+    // inside the agent's own trusted transaction context.
     expect(
-      await portFor({ taskV2: agentCapability }).authorizeCreation(deps, {
+      await portFor({ taskV2: agentCapability }).authorizeCreation(agentDeps, {
         actorSnapshotRef: agentActorRef,
         commandType: 'execution.create_task',
         commandVersion: '2.0',
@@ -898,7 +903,7 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
     ).toMatchObject({ outcome: 'ALLOW' });
     // Without its own Grant there is no coverage, and actingFor never upgrades.
     expect(
-      await portFor({ taskV2: 'wi200.kind.no_grant' }).authorizeCreation(deps, {
+      await portFor({ taskV2: 'wi200.kind.no_grant' }).authorizeCreation(agentDeps, {
         actorSnapshotRef: agentActorRef,
         commandType: 'execution.create_task',
         commandVersion: '2.0',
@@ -908,7 +913,7 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
       }),
     ).toMatchObject({ outcome: 'DENY', reasons: ['NO_ACTIVE_GRANT'] });
     expect(
-      await portFor({ taskV2: agentCapability }).authorizeCreation(deps, {
+      await portFor({ taskV2: agentCapability }).authorizeCreation(actingForDeps, {
         actorSnapshotRef: agentActingForRef,
         commandType: 'execution.create_task',
         commandVersion: '2.0',
@@ -946,7 +951,7 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
       ],
     );
     expect(
-      await portFor({ taskV2: humanOnlyCapability }).authorizeCreation(deps, {
+      await portFor({ taskV2: humanOnlyCapability }).authorizeCreation(actingForDeps, {
         actorSnapshotRef: agentActingForRef,
         commandType: 'execution.create_task',
         commandVersion: '2.0',
@@ -955,6 +960,178 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
         authenticationContextHash: AUTH_HASH_ACTING_FOR,
       }),
     ).toMatchObject({ outcome: 'DENY', reasons: ['CAPABILITY_HUMAN_ONLY'] });
+  });
+
+  it('IP-TAUTH-007 refuses the actor snapshot of another principal in the trusted context', async () => {
+    const capabilityCode = 'wi200.actor.binding';
+    const port = portFor({ taskV2: capabilityCode });
+    for (const principal of [SECOND_HUMAN, AGENT]) {
+      await grantCreation({
+        principalId: principal,
+        capabilityCode,
+        actions: ['execution.task.create.v2'],
+        selectors: [{ selectorType: 'CREATE_TARGET_TYPE', objectType: 'zhiju.execution.task' }],
+      });
+    }
+    const target = targetRef('zhiju.execution.task');
+    const request = (
+      actor: ActorSnapshotRef,
+      authenticationContextHash: Buffer,
+    ): Parameters<typeof port.authorizeCreation>[1] => ({
+      actorSnapshotRef: actor,
+      commandType: 'execution.create_task',
+      commandVersion: '2.0',
+      targetRef: target,
+      commandPayloadHash: COMMAND_HASH,
+      authenticationContextHash,
+    });
+    // The operator context may not issue for another Human, for an Agent, or
+    // for an Agent actingFor Human: the snapshot must be the trusted actor.
+    await expect(
+      port.authorizeCreation(deps, request(secondActorRef, AUTH_HASH_SECOND)),
+    ).rejects.toThrow(/trusted transaction actor|trusted transaction principal/);
+    await expect(
+      port.authorizeCreation(deps, request(agentActorRef, AUTH_HASH_AGENT)),
+    ).rejects.toThrow(/trusted transaction actor|trusted transaction principal/);
+    await expect(
+      port.authorizeCreation(deps, request(agentActingForRef, AUTH_HASH_ACTING_FOR)),
+    ).rejects.toThrow(/trusted transaction actor|trusted transaction principal/);
+    // A same-Project principal cannot replay the other principal's context:
+    // the decision of one actor is never valid in another actor's context.
+    const secondDeps = depsFor(SECOND_HUMAN, SECOND_ACTOR);
+    const issued = await port.authorizeCreation(
+      secondDeps,
+      request(secondActorRef, AUTH_HASH_SECOND),
+    );
+    const decisionRef = issued.authorizationDecisionRef;
+    if (decisionRef === undefined) throw new Error('expected an issued decision');
+    const revalidation = {
+      decisionRef,
+      expectedCommandType: 'execution.create_task',
+      expectedCommandVersion: '2.0',
+      expectedCommandPayloadHash: COMMAND_HASH,
+      expectedAuthenticationContextHash: AUTH_HASH_SECOND,
+      expectedTargetRef: target,
+    };
+    expect(await port.revalidateCreation(secondDeps, revalidation)).toMatchObject({ valid: true });
+    expect(await port.revalidateCreation(deps, revalidation)).toMatchObject({
+      valid: false,
+      reason: 'ACTOR_MISMATCH',
+    });
+  });
+
+  it('IP-TAUTH-008 refuses a decision whose target was moved together with its payload', async () => {
+    const capabilityCode = 'wi200.integrity.decision';
+    await grantCreation({
+      principalId: OPERATOR,
+      capabilityCode,
+      actions: ['execution.task.create.v2'],
+      selectors: [{ selectorType: 'CREATE_TARGET_TYPE', objectType: 'zhiju.execution.task' }],
+    });
+    const port = portFor({ taskV2: capabilityCode });
+    const target = targetRef('zhiju.execution.task');
+    const issued = await port.authorizeCreation(deps, {
+      actorSnapshotRef: operatorActorRef,
+      commandType: 'execution.create_task',
+      commandVersion: '2.0',
+      targetRef: target,
+      commandPayloadHash: COMMAND_HASH,
+      authenticationContextHash: AUTH_HASH_OPERATOR,
+    });
+    const decisionRef = issued.authorizationDecisionRef;
+    if (decisionRef === undefined) throw new Error('expected an issued decision');
+    const revalidate = (expectedTargetRef: ReturnType<typeof targetRef>) =>
+      port.revalidateCreation(deps, {
+        decisionRef,
+        expectedCommandType: 'execution.create_task',
+        expectedCommandVersion: '2.0',
+        expectedCommandPayloadHash: COMMAND_HASH,
+        expectedAuthenticationContextHash: AUTH_HASH_OPERATOR,
+        expectedTargetRef,
+      });
+    // Untampered control: the decision covers exactly the target it bound.
+    expect(await revalidate(target)).toMatchObject({ valid: true });
+
+    // Owner-level coordinated tamper: the promoted target column *and* the
+    // canonical payload move to a new object id while the stored hash, size and
+    // algorithm stay untouched, so the guard and the ref hash still match.
+    const movedTargetId = newUuidV7();
+    await admin.query(
+      `UPDATE identity_policy.authorization_decision
+          SET target_object_id = $2::text::uuid,
+              canonical_payload = jsonb_set(canonical_payload, '{targetRef,objectId}', to_jsonb($2::text))
+        WHERE authorization_decision_id = $1`,
+      [decisionRef.objectId, movedTargetId],
+    );
+    const tampered = await decisionRow(decisionRef.objectId);
+    expect(tampered?.target_object_id).toBe(movedTargetId);
+    expect(tampered?.payload_hash.equals(Buffer.from(decisionRef.contentHash.digest, 'hex'))).toBe(
+      true,
+    );
+    // The old decision ref cannot be repointed: the canonical bytes no longer
+    // hash to the stored hash, for the new target and for the old one.
+    expect(await revalidate({ ...target, objectId: movedTargetId })).toMatchObject({
+      valid: false,
+      reason: 'DECISION_INTEGRITY_MISMATCH',
+    });
+    expect(await revalidate(target)).toMatchObject({
+      valid: false,
+      reason: 'DECISION_INTEGRITY_MISMATCH',
+    });
+  });
+
+  it('IP-TAUTH-008 refuses a Grant whose Policy Snapshot document was rewritten', async () => {
+    const snapshot = await createPolicySnapshot(new Date(clock.getTime() - 60 * 60 * 1000));
+    const capabilityCode = 'wi200.integrity.policy';
+    await grantCreation({
+      principalId: OPERATOR,
+      capabilityCode,
+      actions: ['execution.task.create.v2'],
+      selectors: [{ selectorType: 'CREATE_TARGET_TYPE', objectType: 'zhiju.execution.task' }],
+      snapshot,
+    });
+    const port = portFor({ taskV2: capabilityCode });
+    const target = targetRef('zhiju.execution.task');
+    const issue = () =>
+      port.authorizeCreation(deps, {
+        actorSnapshotRef: operatorActorRef,
+        commandType: 'execution.create_task',
+        commandVersion: '2.0',
+        targetRef: target,
+        commandPayloadHash: COMMAND_HASH,
+        authenticationContextHash: AUTH_HASH_OPERATOR,
+      });
+    const issued = await issue();
+    expect(issued.outcome).toBe('ALLOW');
+    const decisionRef = issued.authorizationDecisionRef;
+    if (decisionRef === undefined) throw new Error('expected an issued decision');
+    const revalidation = {
+      decisionRef,
+      expectedCommandType: 'execution.create_task',
+      expectedCommandVersion: '2.0',
+      expectedCommandPayloadHash: COMMAND_HASH,
+      expectedAuthenticationContextHash: AUTH_HASH_OPERATOR,
+      expectedTargetRef: target,
+    };
+    expect(await port.revalidateCreation(deps, revalidation)).toMatchObject({ valid: true });
+
+    // The Snapshot mirror guard does not cover `policyDocument`: rewriting the
+    // document while keeping the stored hash must not authorize anything.
+    await admin.query(
+      `UPDATE identity_policy.policy_snapshot
+          SET canonical_payload = jsonb_set(canonical_payload, '{policyDocument}',
+                '{"rules":["tampered"],"version":2}'::jsonb)
+        WHERE policy_snapshot_id = $1`,
+      [snapshot.id],
+    );
+    expect(await issue()).toMatchObject({
+      outcome: 'DENY',
+      reasons: ['GRANT_POLICY_SNAPSHOT_INVALID'],
+    });
+    expect(await port.revalidateCreation(deps, revalidation)).toMatchObject({
+      valid: false,
+      reason: 'POLICY_INTEGRITY_MISMATCH',
+    });
   });
 
   it('IP-TAUTH-008 keeps historical decisions readable but unusable for the four versions', async () => {
@@ -1147,16 +1324,24 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
           `GRANT identity_policy_app TO wi200_upgrade_probe WITH INHERIT FALSE, SET TRUE`,
         );
         upgradePool = new pg.Pool({ connectionString: upgrade.probeConnectionString, max: 2 });
-        const upgradeContext: IdentityTransactionContext = { ...context };
+        const principalId = newUuidV7();
+        const actorId = newUuidV7();
+        const actorHash = Buffer.alloc(32, 0x81);
+        // The upgraded database holds the trusted context of its own fixture
+        // actor: the Port binds issuance and revalidation to it.
+        const upgradeContext: IdentityTransactionContext = {
+          ...context,
+          principalId,
+          actorSnapshotId: actorId,
+          authorizationDecisionId: newUuidV7(),
+          authorizationDecisionHash: Buffer.alloc(32, 0x73),
+        };
         const upgradeDeps: IdentityCommandDeps = {
           db: createIdentityPolicyDatabase(upgradePool),
           repo,
           crypto,
           context: upgradeContext,
         };
-        const principalId = newUuidV7();
-        const actorId = newUuidV7();
-        const actorHash = Buffer.alloc(32, 0x81);
         await withIdentityTransaction(upgradeDeps.db, upgradeContext, async (trx) => {
           await repo.insertPrincipal(trx, {
             id: principalId,

@@ -218,6 +218,7 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 - 实现：Port 在 `modules/identity-policy/src/commands/task-execution-creation-authorization.ts`，迁移为 `V1006__identity_policy_creation_decision_target.sql`；纯函数回归在 `modules/identity-policy/src/commands/task-execution-creation-authorization.test.ts`，真实 PostgreSQL 回归在 `tests/persistence/identity-policy-creation-authorization.test.ts`。
 - `PASS` 的来源是 persistence gate 内的真实 PostgreSQL 执行，其中 `IP-TAUTH-008` 在独立 pinned 容器内完成 `V1005 → 历史 Decision 行 → V1006` 升级、历史行精确读回与新行镜像断言。完整 `vibe verify full --json` 结果与 revision 记录在 Issue/PR。
 - 拒绝路径不写 AuthorizationDecision：本 Port 的 Decision 必须绑定其 covering Grant 的精确 Policy Snapshot，无 covering Grant 时不存在可写入的 Snapshot；因此拒绝只产生同事务的脱敏 `DENIED` Audit（设计未要求 DENY Decision 行）。
+- 审查修复（PR #201 R1–R3，`2026-09-15`）：签发与重验绑定受信事务 context 的 ActorSnapshot + principal；读取端新增 Decision 与 Policy Snapshot 的 canonical/hash/algorithm/version/size 与提升列镜像完整性校验。新增回归：同 Project 另一 Human / Agent / actingFor 快照在同一 context 中拒绝且跨 context 重验返回 `ACTOR_MISMATCH`；target 列与 payload `targetRef` 配对改写并保留旧 hash 返回 `DECISION_INTEGRITY_MISMATCH`；Policy Snapshot 文档改写保留旧 hash 时签发 `DENY`/`GRANT_POLICY_SNAPSHOT_INVALID`、重验 `POLICY_INTEGRITY_MISMATCH`。
 - 未运行边界：TaskExecution DRAFT Handler 的 Port 消费、业务表/Receipt/Outbox 链、真实 Provider/Runtime 与人工业务验收仍 `NOT RUN`，本表不将其计为已验收。
 
 独立设计审查须重点检查：内部 Port 是否保留公开 `authorize_command@1.0` 兼容边界；action/selector 是否真正区分 WorkOrder 同 Purpose 的两个版本；target 是否进入 Decision Hash；Grant/Policy 是否在每次高风险消费前完整重验；历史无 target Decision 是否只保留读回而不获得新资格。
