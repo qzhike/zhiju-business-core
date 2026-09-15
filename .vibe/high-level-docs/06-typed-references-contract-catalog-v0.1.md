@@ -1233,3 +1233,20 @@ Query payload 固定 `{revisionRef: Exact<ArtifactRevision>; revisionAcceptanceR
 输入 `revisionRef` 的 objectType、Scope 与完整 ContentHash，以及两个 SnapshotRef 的 hash/Scope/snapshotId 必须是精确且同一 Revision/Scope/Profile 的事实；错 Hash、错 Scope、异 Revision 绑定与未覆盖的 Purpose 一律 fail-closed（`QUALITY_READINESS_SNAPSHOT_QUERY_NOT_FOUND`、`QUALITY_APPROVAL_QUERY_NOT_FOUND`、`QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED`），不泄露他方事实。`revisionAcceptanceUsable` 复用 owning 当前有效性检查：所请求 RAS 仍是该 Revision/Profile 的最新快照、状态仍为 READY、记录的 Gate Result 仍精确存在且未被 GateInvalidation 失效、当前适用 mandatory Gate 仍存在且为 PASS。请求 ABS 时另核验该 bundle 仍是最新且 `FULLY_APPROVED`、其中每个 Approval 仍 `EFFECTIVE` 且精确绑定同一 Revision/Profile 与该 bundle 自身的 READY RevisionAcceptanceSnapshot；锚定同 Revision/Profile 其他（含已被取代的）RAS 的 Approval 既不计入新 ABS，也不构成当前批准集合，因此不产生可用的批准资格。该 Query 只允许目标 Scope 内的 TE Evaluator Service 或授权 Human：组合入口与 owning Handler 都对受信 Decision 的 principal kind 执行 `HUMAN | SERVICE` allowlist，持有精确 capability 的 AGENT/RUNTIME/EXTERNAL_PARTY 一律拒绝。历史 READY/FULLY_APPROVED 在上游失效/撤销后返回 `false` 与原因，Query 不重算 Gate、不创建 Approval、不写回任何 Snapshot，也不改变 `get_release_readiness_snapshot(requireCurrentForAuthorization)` 与旧历史 Snapshot Query 的语义。
 
 正负 fixture、Schema 与 Registry 元数据断言由 `contracts/src/operations/quality-governance.schema.test.ts` 与 `tests/fixtures/contracts/revision-eligibility/` 覆盖；构建期注册断言 `assertRevisionEligibilityOperationRegistrations` 固定 owner/kind/consistency/purpose/classification 并拒绝该操作声明 target、Guard、reference surface 或显式 result schema。Handler、Purpose 授权边界与真实 PostgreSQL 证据见 [Spec 005](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计) 与 [Module Test 005](../module-tests/Module-Test-005-QualityGovernance.md#im-06-revision-eligibility-用例)。TE Evaluator 的 Completion 消费、跨模块业务链、外部与人工业务验收仍为 `NOT RUN`。
+
+### #202 Task DRAFT 创建引用身份与 Project 校验边界
+
+状态：`T2 / PROPOSED / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL / NO CATALOG CHANGE`。本节记录 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202) 的引用身份路由：字段级权威见 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计)，Project 侧边界见 [Spec 002 §13.1](../module-specs/Module-Spec-002-EnterpriseProject.md#131-task-创建期的-projectdeliveryitem-校验-port202-提案)。本项**不新增公开 operation、不新增 objectType**：Catalog 保持 213 项，历史 200 项 Compatibility Baseline、v1 冻结 fixture 与全部 registry 元数据不变。
+
+`execution.create_task` 两个 Major 各自只有一套已发布身份，逐版本精确、大小写敏感、不互为别名：
+
+| operation/version | CREATE target | `projectRef.objectType` | `deliveryItemRef.objectType`（可选） |
+|---|---|---|---|
+| `execution.create_task@1.0` | `execution.task` | `project.project` | `project.delivery_item` |
+| `execution.create_task@2.0` | `zhiju.execution.task` | `zhiju.project.project` | `zhiju.project.delivery_item` |
+
+上表是**创建路径**的接受集：v1 的 legacy 拼写由 owning Handler 与 EnterpriseProject 内部 Port 闭合（v1 registry Schema 使用通用 `objectRef`/`versionedRef`，Schema 本身不约束拼写），v2 的 `projectRef` 由注册 Schema 的 `const` 与 `references` 声明固定。两套拼写都是已发布历史身份：既不重写 v1 payload/fixture，也不在任一版本内接受对方拼写或裸本地名，避免为跨模块消费者制造可互换别名。
+
+公开 `project.validate_object_scope@1.0` 的接受集（13 个裸本地名）与其错误外观保持不变：`zhiju.project.project`、`project.project`、`zhiju.project.delivery_item` 与 `DeliveryItem` 仍不是它的合法输入；创建期的 Project/DeliveryItem 证明走 EnterpriseProject owning 内部 Port，而不是扩大该公开 Query 的接受集。未来若需要公开接受 canonical 拼写，必须作为独立 additive 契约提案批准。
+
+`TaskDefinitionSnapshot` 的公开引用身份**在本 revision 不注册**：`execution.create_task` 两个版本都没有 operation-specific Result Schema，DRAFT 创建不返回该 Ref。未来需要返回或消费它的切片必须先取得 additive 批准并注册 `zhiju.execution.task_definition_snapshot`（Owner `task-execution`、kind `CONTENT_ADDRESSED`、Project Scope、不可变、不另建可变版本、不可作为 BusinessOutput），Ref 按 exact `objectId` + 完整 canonical payload Hash 解引用；不允许以“实现需要”为由静默发明名称或改写 v1 payload。

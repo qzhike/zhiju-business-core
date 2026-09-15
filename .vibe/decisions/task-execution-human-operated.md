@@ -1,7 +1,7 @@
 # IM-06 Human-operated 执行边界与设计提案
 
 日期：2026-09-09
-状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #176 POLICY/EVALUATOR RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / TD-05–07 PROPOSED / HANDLER IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。§12 是 [#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的 Policy/Evaluator 解析与授权依赖设计，已于 2026-09-12 获批、尚未实现。推进顺序见 [roadmap](../product/roadmap.md)。
+状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #176 POLICY/EVALUATOR RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / TD-05–07 PROPOSED / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY PROPOSED 2026-09-15 / HANDLER IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。§12 是 [#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的 Policy/Evaluator 解析与授权依赖设计，已于 2026-09-12 获批、尚未实现。推进顺序见 [roadmap](../product/roadmap.md)。
 
 ## 1. 分类与既有边界
 
@@ -618,3 +618,59 @@ Grant 必须同时满足：principal 与当前 Actor 一致，capabilityCode 等
 Port 级验收：`IP-TAUTH-001`–`008` 已在 persistence gate 的真实 PostgreSQL 上执行（含 `V1005 → 历史行 → V1006` 升级、二次 migrate no-op、owner 直写 SQL 篡改与事务回滚）；TaskExecution DRAFT Handler 消费、业务表/Receipt 链、外部与人工验收仍 `NOT RUN`。
 
 实现选择（设计未要求 DENY Decision 行）：拒绝路径只写同事务的脱敏 `DENIED` Audit，不签发 Decision。原因是本 Port 的 Decision 必须绑定其 covering Grant 的精确 Policy Snapshot，而请求没有 covering Grant 时不存在可写入该列的 Snapshot；公开 `authorize_command@1.0` 的 DENY 行为不受影响。
+
+## 15. Task DRAFT 创建引用与持久化边界提案（#202）
+
+状态：`T2 / PROPOSED / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL / DEPENDENT HANDLER NOT READY`。本节回应 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202)：把 `execution.create_task@1.0` / `@2.0` 剩余未决的跨模块引用、校验时机、持久化身份与事件边界收敛为可实现语义，使后续 Task DRAFT Handler Issue 不必自行发明安全或兼容语义。字段级权威在 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计) 与 [Spec 002 §13.1](../module-specs/Module-Spec-002-EnterpriseProject.md#131-task-创建期的-projectdeliveryitem-校验-port202-提案)，验证矩阵在 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-draft-创建引用与持久化边界202-proposed)。本节不重开 TD-01–04、P-176-1–5、P-190-1、IM06-AUTH-01 或 TD-05–07，也不宣布 Task/WorkOrder 创建或 IM-06 已完成。
+
+### 15.1 对账事实与缺口
+
+对账 revision：`53f0715fc994a65977a355557e0f9f5043ed55e4`（本分支起点，与远端 main 一致）。
+
+| 事实 | 证据 |
+|---|---|
+| 两个版本各自只有一套已发布身份：v1 目标 `execution.task`、`projectRef.objectType=project.project`；v2 目标 `zhiju.execution.task`、`projectRef.objectType=zhiju.project.project` | v1 冻结 fixture `tests/fixtures/contracts/execution-create-task-command-valid.json`；`contracts/registry/public-api.v1.json` 的 v2 `references`；#200 `TASK_EXECUTION_CREATION_BINDINGS` |
+| `project.validate_object_scope@1.0` 只接受 13 个裸本地名（`Project` 等），canonical `zhiju.project.project` 与 `DeliveryItem` 均被 `PROJECT_OBJECT_SCOPE_MISMATCH` 拒绝；不存在 `@2.0` | `modules/enterprise-project/src/business/enterprise-business-handlers.ts` 的闭集映射与 Handler；Spec 002 §13 |
+| v2 的 `execution.task.create` Purpose 与 CREATE 语义已交付，但 Task 业务表、Handler、Repository 均不存在 | `modules/task-execution` 仅有技术表与 runner；`migrations/task_execution/V3000` 无业务表 |
+| DRAFT 阶段没有任何已注册的公开创建事件 | `public-api.v1.json` 的 `execution.*` Event 恰 11 项，含 `TaskReady`/`TaskCompleted`，无 `TaskCreated` |
+| #200 的 Port 只覆盖授权，不覆盖 Project/DeliveryItem 业务范围证明；其顺序要求已固定 | 决定 §14.3、§14.5；Module Test 001 `IP-TAUTH-001`–`008` |
+
+**缺口**：Project 身份如何在这些输入下被证明、由谁拥有该边界、哪些 TaskDefinition 引用必须在 DRAFT 被证明、创建事实与跨版本幂等如何闭合、DRAFT 是否发布公开事件。这些在本节收敛，不在实现时即兴决定。
+
+### 15.2 P-202-1 Project/DeliveryItem 校验归属
+
+**建议批准 A：新增 EnterpriseProject owning 内部 Port `TaskExecutionCreationProjectScopePort`。** 与 #200 的授权 Port 同构：不是公开 Command/Query、不进 Catalog、不改变任何公开接受集；Port 内部按 `commandType@commandVersion` 固定期望拼写，证明已提交 Project（`ACTIVE`）与可选 DeliveryItem 版本（未被 CANCELLED/REPLACED），只读执行、fail closed，业务拒绝收敛为 TaskExecution 的稳定码。
+
+**未采用 B：扩展 `project.validate_object_scope@1.0` 的公开接受集。** 理由：(1) 该操作已发布并冻结于 200 项 Compatibility Baseline，接受集变更属公开行为变更，需单独批准；(2) 它的结果与错误面无法区分创建所需的身份失败，且接受 Enterprise-only 期望；(3) 让 legacy 与 canonical 拼写同时合法，会为所有消费者制造可互换别名，与逐版本精确身份要求冲突；(4) #200 已确立“新增 owning 内部 Port、不扩大公开接受集”的先例。
+
+**未采用 C：TaskExecution 直接解析拼写并读取 EP 表。** 违反“一个 owning 模块只读写自己 Schema”、禁止跨 Schema Repository/Join 与单写方边界。
+
+代价：EP 需要维护第二个键表（canonical/version 维度）与一处只读 Port；收益是公开接受集与历史行为零变化，且创建边界可精确拒绝而非依赖模糊匹配。若未来确有公开消费 canonical 拼写的需求，应作为独立 additive 契约提案处理，不并入本设计。
+
+### 15.3 P-202-2 逐版本引用身份
+
+两个版本各自只接受一套拼写（v1 `execution.task`/`project.project`/`project.delivery_item`；v2 三项 canonical），逐字符相等、大小写敏感，不做前缀补全、剥除、别名或 latest 回退。v1 的 `projectRef`/`deliveryItemRef` 在注册 Schema 中是通用 `objectRef`/`versionedRef`，因此接受集由 owning Handler 与 EP Port 闭合；这是模块层收窄，不修改 v1 Schema、fixture、Registry 元数据或历史 Baseline，也不统一两个版本的拼写。完整表与闭合规则由 [Spec 003 §16.1](../module-specs/Module-Spec-003-TaskExecution.md#161-逐版本引用身份与封闭接受集) 拥有。
+
+### 15.4 P-202-3 DRAFT 与 READY 的校验时机
+
+DRAFT 创建**必须**证明：`projectRef`（已提交、精确 Scope、`ACTIVE`）、可选 `deliveryItemRef`（精确版本、同 Scope、未取消/未替换）、可选 `parentTaskRef`（同 Scope、非 CANCELLED、非自引用）；并对其余引用只做 Scope 闭合与形状校验。**推迟到 READY/消费边界**：依赖 Task 的存在性、环检测与当前有效性；`inputRefs` 的存在性与生命周期；v2 closed shape 中 `acceptancePolicyRef`/`evaluatorRef` 的 Policy/Evaluator 存在性、支持版本与当前有效性。理由：语法有效 Ref 不是已提交事实；Domain 第 4 条不变量与 Spec §11.6/§11.8 已把依赖、输入与判据支持边界放在 READINESS；`initialAssignee` 不构成指派或能力签发。完整时机表由 [Spec 003 §16.3](../module-specs/Module-Spec-003-TaskExecution.md#163-draft-创建时的引用校验时机) 拥有。
+
+### 15.5 P-202-4 创建事实、快照身份与跨版本幂等
+
+DRAFT 创建在同一 owning 事务提交：`task` Root（`DRAFT`、`aggregate_version=1`、可空 `project_id` 之外的 Scope 镜像、可选 DeliveryItem 镜像、definition 指针）、不可变 `task_definition_snapshot`（独立 `snapshot_id`、`schema_version` 1.0/2.0、规范 payload 与 32 字节 Hash、Scope 镜像）、Receipt、Audit、以及仅指向已证明引用的 Reference Edge；**不写 Outbox**。快照 identity 独立于 CAS 版本；Root 指针必须同时绑定 id 与 hash。
+
+跨版本幂等是本节的显式补强：`(idempotency_scope, idempotency_key)` 的唯一性与 `request_payload_hash` 判定不足以区分版本（v1 通用 `objectRef` 允许与 v2 逐字节相同的 payload），因此返回历史 Receipt 前必须比较持久化 `command_type`/`command_version` 与 target 镜像，不一致即拒绝且不返回对方版本 Receipt；`idempotency_scope` 由服务端组合。`TaskDefinitionSnapshot` 的公开引用身份在本次不注册：未来若需返回或消费该 Ref，须先取得 additive 契约批准并注册 `zhiju.execution.task_definition_snapshot`（CONTENT_ADDRESSED、Project Scope、不可变），不静默发明、不改写 v1 payload。
+
+### 15.6 P-202-5 公开事件边界
+
+DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 的 `TaskCreated` 是 Domain 词汇，不是已注册公开事件；Handler 不得发布未注册事件。若未来需要 `TaskCreated`，须作为独立 additive 契约提案批准，并同步 Registry/兼容元数据、Catalog 计数（213 → 214）、reference 声明、Envelope/Result 与正负 fixture；本次不预先注册。
+
+### 15.7 P-202-6 授权与校验顺序
+
+单一顺序：Registry 精确 `(type, version)` 校验 → 组合层从已验证 Decision 派生受信上下文 → **幂等 Claim 与历史 Receipt 返回之前**重验授权（精确 Decision id/hash、Actor/实际 principal、认证上下文、operation/version/Purpose、payload hash、target/Scope、ALLOW、未过期，并重读当前 Grant/Policy）→ 取得 Claim 后、首个业务写入前证明 Project/DeliveryItem → 同一事务写入创建事实并 finalize Receipt/Audit。撤销、到期、配置漂移、target 或版本替换、依赖不可用一律 fail closed；重放仍重新授权但不重跑业务证明，历史 Receipt 不恢复资格。该顺序继承 §14.3 与 #200，取代任何“先返回历史 Receipt 再校验”的实现顺序。
+
+### 15.8 批准与交付边界
+
+- 本节与 Spec 003 §16、Spec 002 §13.1 在获得独立设计审查与人类明确批准前保持 `PROPOSED`；批准记录写入本节（含批准时间、批准对象与被审 revision），不追溯声明已批准。
+- 批准前不得创建依赖的 Task DRAFT Handler Issue；该 Issue 只能覆盖 `TE-P202-001`–`015` 中已批准范围，且不得顺带扩大公开接受集、注册新 objectType/Event、改写历史 fixture 或实现 TD-05–07。
+- 本节不授权 commit、push、PR 合并、migration 或任何业务实现；实际交付按用户授权范围另行推进。
