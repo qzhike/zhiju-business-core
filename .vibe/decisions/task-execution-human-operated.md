@@ -564,3 +564,57 @@ Schema fixture 中的 Actor/Decision Ref 只是字段输入，不是已存在授
 已将 §3 的两个冲突 Purpose 文字及共享 API 待收敛说明同步为已批准规则；四条 Registry/metadata 不变。后续按实际依赖另做 NOW + READY 复核，确认精确版本化授权映射、owning Port 与真实 Handler/持久化的独立实现范围，不能凭设计任务交付自动开启实现。设计审查和实际批准证据保留在 Issue/PR 或明确用户会话中；本节仅维护提案的长期语义与批准状态，不充当审查报告。
 
 成功标准：四版本事实可复核；推荐与备选可比较；旧请求与拒绝矩阵无权限扩大；独立设计审查无未解决阻断；人类明确决定有真实记录。修改文档后运行 `vibe verify full --json`，其通过仅代表当前仓库回归。新增创建授权运行、真实业务持久化链、外部与人工业务验收均为 `NOT RUN`，不能由静态检查或既有测试替代。
+
+## 14. IM06-AUTH-01 Task/WorkOrder 创建授权组成补充提案
+
+状态：`T2 / APPROVED 2026-09-15 / PORT AND MIGRATION IMPLEMENTED 2026-09-15（#200）/ TASKEXECUTION HANDLER NOT RUN`。本节是对已批准 P-190-1 的实现前缺口收敛，不重开四个 Purpose 值，不追认 TD-05–07，也不开始 TaskExecution 业务 Handler。用户于 2026-09-15 明确批准本节推荐 Delta；权威 Spec Delta 见 [Spec 001 §15](../module-specs/Module-Spec-001-IdentityPolicy.md#15-im06-auth-01-taskworkorder-创建授权组成提案)，验证矩阵见 [Module Test 001](../module-tests/Module-Test-001-IdentityPolicy.md#im06-auth-01-创建授权组成回归提案)。
+
+### 14.1 Readiness 结论
+
+四个 operation/version/Purpose 已可精确解析；实现 Issue 发布前确认了以下缺口：
+
+1. 通用 `authorizeCommand` 硬性拒绝非 `1.0` 的业务 commandVersion，Task v2 与 WorkOrder v1.1 没有真实 Decision 签发路径。
+2. 当前授权只用 caller 提供的 `requestedCapability` 和精确 Scope 查找 Grant，没有解释已持久的 `actions` / `resourceSelectors` / `constraints` / `maxUses`，也没有比较 Grant 与 Decision 的精确 Policy Snapshot。
+3. 公开 `CommandIntent` 定义有 `targetRef`，但当前内部签发输入和 `authorization_decision` 事实未保存目标类型/ID。CREATE 请求因此可在相同 payload Hash 下替换预分配 target ID，不满足已批准的精确 Intent 绑定。
+4. v1 历史 objectType 与新版 canonical objectType 不同，不能在实现中默认归一；WorkOrder 两个版本又共用 Purpose，不能只用 Purpose 判定版本覆盖。
+
+下述最小安全 Delta 已经独立的人类设计审查并于 2026-09-15 获得明确批准，解除了上述实质语义阻断。IdentityPolicy owning 前置切片现为 `NOW + READY`；TaskExecution DRAFT Handler 仍不属于该切片。
+
+### 14.2 推荐 Delta
+
+新增 IdentityPolicy owning 内部 Port `TaskExecutionCreationAuthorizationPort`，分为“签发精确创建 Decision”与“提交/重放前重验当前资格”两个能力。该 Port 不是新的公开 Command/Query，不进 Catalog；现有 `identity.authorize_command@1.0` 公开 Schema、只接受 commandVersion `1.0` 的历史路径及既有 Decision 读回保持不变。内部 Port 复用同一 IdentityPolicy 事实与 Audit 边界，TaskExecution 不直读本模块 Repository。
+
+受信组成配置按以下四个键分别提供一个既有 `capabilityCode`；值可相同，但不能由 caller 或 Envelope 指定。映射缺失、空值或非 NamespaceCode 一律 fail closed。
+
+| operation/version | 已批准 Purpose | Grant 必须包含的精确 action | 必须匹配的 CREATE target objectType | 受信配置键 |
+|---|---|---|---|---|
+| `execution.create_task@1.0` | `task.execution.create_task` | `execution.task.create.v1` | `execution.task` | `taskV1` |
+| `execution.create_task@2.0` | `execution.task.create` | `execution.task.create.v2` | `zhiju.execution.task` | `taskV2` |
+| `execution.create_work_order@1.0` | `task.execution.create_work_order` | `execution.work_order.create.v1` | `execution.work_order` | `workOrderV1` |
+| `execution.create_work_order@1.1` | `task.execution.create_work_order` | `execution.work_order.create.v1_1` | `zhiju.execution.work_order` | `workOrderV11` |
+
+action 使用既有 `NamespaceCode` 可表示的值，不使用含 `@` 的非法字符串。它是 Grant 内的精确版本覆盖，不是新 capabilityCode。WorkOrder 两个版本共用 Purpose 时，Grant 必须在 `actions` 中分别列出两个 token 才能覆盖两版；Task v1 与 v2 同样不自动继承。
+
+`resourceSelectors` 在该 Port 首版只解释闭集形状 `{selectorType: "CREATE_TARGET_TYPE", objectType: NamespaceCode}`。数组中每个元素都必须是该闭集形状，且至少一项与上表当前版本 objectType 全等；未知字段、通配符、前缀或别名均不解释。Project 边界由 Grant 的精确 Project Scope 与 targetRef.scope 双重绑定。为避免默认忽略尚无执行语义的限制，首版只接受 `constraints={}` 且 `maxUses` 缺省的 Grant；其他形状拒绝，不当作无限制。
+
+Grant 必须同时满足：principal 与当前 Actor 一致，capabilityCode 等于受信配置，Scope 为当前精确 Project，状态/有效期可用，action 与 selector 覆盖当前版本/target，Grant 的 `grant_policy_snapshot_id/hash` 与签发 Decision 时使用的精确 Policy Snapshot 一致，且该 Snapshot 在受信当前时间已生效且未被取代。任一条不满足都不得签发或接受 ALLOW。
+
+### 14.3 Decision target 绑定与历史兼容
+
+新的受约束 Port 必须把完整 targetRef（objectType/objectId/Project Scope）纳入 AuthorizationDecision canonical payload 和内部完整性 Hash。`authorization_decision` 通过 forward-only 迁移增加可空 `target_object_type` / `target_object_id`：历史行保持 NULL 且可读，新 Port 产生的事实必须非空并与 canonical payload 镜像一致。旧 Decision 、通用 Decision 或无 target 绑定的事实不能用于新的 Task/WorkOrder 创建，但不改写其历史读回语义。
+
+重验 Port 必须比较 Decision 的精确 id/hash、Actor/实际 Principal、认证上下文、type/version/Purpose、payload Hash、targetRef、Project Scope、ALLOW 和未过期，再以当次受信时间重读当前 covering Grant/Policy。TaskExecution 组成入口必须在幂等 Claim/读取历史 Receipt **之前**调用该 Port；撤销、到期、target 改变、版本串用或 IdentityPolicy 不可用时 fail closed，不能从旧成功 Receipt 取得新资格。
+
+### 14.4 交付边界
+
+本 Delta 已获批准；第一个 NOW + READY 实现切片只交付 IdentityPolicy owning Port、target 绑定事实/迁移、当前 Grant/Policy 重验与对应回归。不交付 Task/WorkOrder 业务表或 Handler，不创建/迁移 Capability Grant 或真实业务 Policy，不新增公开 API/Catalog，不改动通用 `authorize_command@1.0` 的历史接受集。该前置实现在真实 PostgreSQL 与 `full` 门禁通过后，再对 Task/WorkOrder DRAFT 创建入口做下一轮 readiness 复核。
+
+本 Delta 批准不等于实现；migration 编号已由 [#200](https://github.com/qzhike/zhiju-business-core/issues/200) 在实现分支分配为 V1006（见 §14.5）。本 Delta 与 TD-05–07 分开批准；后者不是本前置的实现范围。
+
+### 14.5 #200 实现事实（2026-09-15）
+
+状态：`PORT AND MIGRATION IMPLEMENTED / TASKEXECUTION CONSUMER NOT RUN`。[Issue #200](https://github.com/qzhike/zhiju-business-core/issues/200) 已交付 IdentityPolicy owning 内部 Port `TaskExecutionCreationAuthorizationPort`（`modules/identity-policy/src/commands/task-execution-creation-authorization.ts`）：四个精确版本的 closed 映射、受信 capability 配置解析、single covering Grant 判定（精确 action、闭集 `CREATE_TARGET_TYPE` selector、空 `constraints`、无 `maxUses`、Grant Policy Snapshot 一致且当前有效）、target 绑定 Decision 签发与当前资格重验；forward-only `V1006__identity_policy_creation_decision_target.sql` 增加可空 `target_object_type` / `target_object_id` 镜像、成对约束与更新后的镜像 guard。
+
+Port 级验收：`IP-TAUTH-001`–`008` 已在 persistence gate 的真实 PostgreSQL 上执行（含 `V1005 → 历史行 → V1006` 升级、二次 migrate no-op、owner 直写 SQL 篡改与事务回滚）；TaskExecution DRAFT Handler 消费、业务表/Receipt 链、外部与人工验收仍 `NOT RUN`。
+
+实现选择（设计未要求 DENY Decision 行）：拒绝路径只写同事务的脱敏 `DENIED` Audit，不签发 Decision。原因是本 Port 的 Decision 必须绑定其 covering Grant 的精确 Policy Snapshot，而请求没有 covering Grant 时不存在可写入该列的 Snapshot；公开 `authorize_command@1.0` 的 DENY 行为不受影响。

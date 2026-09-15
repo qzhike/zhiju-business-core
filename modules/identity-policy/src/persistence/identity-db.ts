@@ -10,6 +10,7 @@ import {
   sql,
   type ColumnType,
   type Generated,
+  type Selectable,
   type Transaction,
 } from 'kysely';
 import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
@@ -136,6 +137,9 @@ export interface CapabilityGrantTable {
   retention_class: Generated<string>;
 }
 
+/** One committed capability grant row, as the read paths select it. */
+export type SelectedCapabilityGrant = Selectable<CapabilityGrantTable>;
+
 export interface CapabilityRevocationTable {
   revocation_id: string;
   capability_grant_id: string;
@@ -171,6 +175,9 @@ export interface PolicySnapshotTable {
   data_classification: string;
   retention_class: string;
 }
+
+/** One committed policy snapshot row, as the read paths select it. */
+export type SelectedPolicySnapshot = Selectable<PolicySnapshotTable>;
 
 export interface PolicyVersionTable {
   policy_version_fact_id: string;
@@ -245,6 +252,13 @@ export interface AuthorizationDecisionTable {
   policy_snapshot_payload_hash: Buffer;
   authentication_context_hash: Buffer;
   expires_at: Date;
+  /**
+   * IM-06 (#200) target binding mirrors: NULL for history and for decisions
+   * issued by the generic port, non-NULL for the four version-bound creation
+   * versions, always equal to `canonical_payload.targetRef`.
+   */
+  target_object_type: string | null;
+  target_object_id: string | null;
   contract_type: string;
   contract_version: string;
   canonicalization_version: string;
@@ -257,6 +271,9 @@ export interface AuthorizationDecisionTable {
   source_command_id: string;
   retention_class: string;
 }
+
+/** One committed authorization decision row, as the read paths select it. */
+export type SelectedAuthorizationDecision = Selectable<AuthorizationDecisionTable>;
 
 export interface CommandReceiptTable {
   command_id: string;

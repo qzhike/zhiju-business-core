@@ -197,3 +197,29 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 | IP-P190-004 | Security | 四版本各使用他人 Decision、不同认证上下文、错 id/hash、错 payloadHash、DENY Decision | 全部拒绝；映射正确不替代精确身份/内容绑定与 ALLOW 判定 | TE 组成层未实现 / `NOT RUN` |
 | IP-P190-005 | Compatibility | 原有创建能力仅覆盖旧版本；另设明确覆盖 WorkOrder 两版本的能力 | 原版本可重新授权；不自动扩大 Task v2；WorkOrder 分别签发版本绑定 Decision，历史授权不迁移 | TE 映射未实现 / `NOT RUN` |
 | IP-P190-006 | Security | AGENT/SERVICE 通过 actingFor 或转交 Human Decision 请求 Human-only 能力 | 固定拒绝，不改变真实 PrincipalKind，不签发 Human-only grant | TE 组成层未实现 / `NOT RUN` |
+
+## IM06-AUTH-01 创建授权组成回归提案
+
+状态：`APPROVED 2026-09-15 / PORT-LEVEL CASES EXECUTED ON REAL POSTGRESQL 2026-09-15（#200）/ TASKEXECUTION CONSUMPTION NOT RUN`。本矩阵对应 [Spec 001 §15](../module-specs/Module-Spec-001-IdentityPolicy.md#15-im06-auth-01-taskworkorder-创建授权组成提案)，定义已批准 IdentityPolicy 前置切片的可观测验收边界；`IP-TAUTH-001`–`008` 已随 #200 在 persistence gate 内执行，TaskExecution 消费与业务链未运行。
+
+| ID | 层级 | 输入/单一变量 | 预期输出与禁止效果 | 当前结果 |
+|---|---|---|---|---|
+| IP-TAUTH-001 | Authorization | 四个精确 operation/version 分别使用受信 capability 配置、已批准 Purpose、对应 action 与版本 target type；反例替换版本/Purpose/配置键 | 四组合法请求可分别签发 ALLOW；错配、别名、前缀、通配和缺配置 fail closed，WorkOrder 共用 Purpose 不合并版本 | `PASS`（#200） |
+| IP-TAUTH-002 | Authorization/Persistence | 同 capabilityCode 的 Grant 分别只含 v1 action、只含新版 action、或同时含两个 action | 只覆盖显式列出的版本；不从 capabilityCode 或 Purpose 推导另一版本 | `PASS`（#200） |
+| IP-TAUTH-003 | Security | selector 精确匹配；反例为旧/新 objectType 串用、错 target type、未知字段、通配/前缀/别名、非空 constraints 或 maxUses | 只有闭集 CREATE_TARGET_TYPE selector 覆盖当前版本；未实现约束不被默认忽略 | `PASS`（#200） |
+| IP-TAUTH-004 | Security/Persistence | 已签发 Decision 后只替换 target objectId、objectType 或 Project Scope；对照原 target 重验 | 替换全部拒绝；新 Decision canonical payload/hash 与 promoted target 镜像一致，原 target 通过 | `PASS`（#200） |
+| IP-TAUTH-005 | Authorization | Grant 的 Policy Snapshot id/hash 与 Decision 不同，或 Policy 未生效/已取代/完整性失败 | 拒绝 ALLOW；不拼接另一 Grant 的 Policy 或使用默认 Policy | `PASS`（#200） |
+| IP-TAUTH-006 | Authorization/Replay | ALLOW 后撤销唯一 covering Grant、Grant 到期、受信配置变更或 IdentityPolicy 不可用；分别尝试新请求与原幂等键重放 | 提交/历史 Receipt 读取前重验并拒绝；历史 Decision/Receipt 不改写，不产生新成功事实 | `PASS`（#200） |
+| IP-TAUTH-007 | Security | AGENT/SERVICE 持受信配置的合法非 Human-only Grant；反例为普通 Agent 无该 Grant、使用 actingFor/Human Decision，或获授 Human-only capability | 真实 PrincipalKind 不改变；只有完整 covering Grant 可用，无 Grant/提权均拒绝 | `PASS`（#200） |
+| IP-TAUTH-008 | Compatibility/Migration | 历史 AuthorizationDecision target 镜像为 NULL；新 Port Decision 非空；空库与已有历史行升级后二次 migrate | 历史 Decision 保持精确读回但不可用于四个创建版本；新行 target 镜像/Hash 强一致；迁移幂等 | `PASS`（#200） |
+
+### #200 执行结果（2026-09-15）
+
+- 实现：Port 在 `modules/identity-policy/src/commands/task-execution-creation-authorization.ts`，迁移为 `V1006__identity_policy_creation_decision_target.sql`；纯函数回归在 `modules/identity-policy/src/commands/task-execution-creation-authorization.test.ts`，真实 PostgreSQL 回归在 `tests/persistence/identity-policy-creation-authorization.test.ts`。
+- `PASS` 的来源是 persistence gate 内的真实 PostgreSQL 执行，其中 `IP-TAUTH-008` 在独立 pinned 容器内完成 `V1005 → 历史 Decision 行 → V1006` 升级、历史行精确读回与新行镜像断言。完整 `vibe verify full --json` 结果与 revision 记录在 Issue/PR。
+- 拒绝路径不写 AuthorizationDecision：本 Port 的 Decision 必须绑定其 covering Grant 的精确 Policy Snapshot，无 covering Grant 时不存在可写入的 Snapshot；因此拒绝只产生同事务的脱敏 `DENIED` Audit（设计未要求 DENY Decision 行）。
+- 审查修复（PR #201 R1–R3，`2026-09-15`）：签发与重验绑定受信事务 context 的 ActorSnapshot + principal；读取端新增 Decision 与 Policy Snapshot 的 canonical/hash/algorithm/version/size 与提升列镜像完整性校验。新增回归：同 Project 另一 Human / Agent / actingFor 快照在同一 context 中拒绝且跨 context 重验返回 `ACTOR_MISMATCH`；target 列与 payload `targetRef` 配对改写并保留旧 hash 返回 `DECISION_INTEGRITY_MISMATCH`；Policy Snapshot 文档改写保留旧 hash 时签发 `DENY`/`GRANT_POLICY_SNAPSHOT_INVALID`、重验 `POLICY_INTEGRITY_MISMATCH`。
+- 审查修复（PR #201 第 2 轮 R4，`2026-09-15`）：Decision 读取端镜像闭集补齐 Decision id、reason codes 与 `targetRef.kind: OBJECT`。新增回归：owner 重写单一 canonical 维度并同步重算 payload hash/size/algorithm 的自洽行（Decision id 与行主键分叉、reason codes 与列分叉、targetRef.kind 非 OBJECT）在重验时均返回 `DECISION_INTEGRITY_MISMATCH`，未修改 Decision 的正向对照保持有效；仓库级 focused 单测（`pure-guards.test.ts`）覆盖同一维度集合，并经变异验证（移除对应比较时用例失败）。
+- 未运行边界：TaskExecution DRAFT Handler 的 Port 消费、业务表/Receipt/Outbox 链、真实 Provider/Runtime 与人工业务验收仍 `NOT RUN`，本表不将其计为已验收。
+
+独立设计审查须重点检查：内部 Port 是否保留公开 `authorize_command@1.0` 兼容边界；action/selector 是否真正区分 WorkOrder 同 Purpose 的两个版本；target 是否进入 Decision Hash；Grant/Policy 是否在每次高风险消费前完整重验；历史无 target Decision 是否只保留读回而不获得新资格。

@@ -9,8 +9,11 @@ import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
 import type { Selectable } from 'kysely';
 import {
   digestCanonicalPayload,
+  type AuthorizationDecisionTable,
   type IdentityTransaction,
   type PolicyVersionTable,
+  type SelectedCapabilityGrant,
+  type SelectedPolicySnapshot,
 } from './identity-db.js';
 import type { IdentityCryptoPorts } from './ports.js';
 
@@ -186,6 +189,13 @@ export interface AuthorizationDecisionInsert {
   contractVersion: string;
   /** Decision body; must embed outcome / enterpriseId / commandType. */
   decisionPayload: CanonicalJsonObject;
+  /**
+   * IM-06 (#200) exact CREATE target of a version-bound creation decision.
+   * When present the canonical payload carries `targetRef` with the same
+   * object type/id and the decision's own Project Scope, and the promoted
+   * `target_object_type` / `target_object_id` columns mirror it.
+   */
+  targetRef?: { readonly objectType: string; readonly objectId: string } | undefined;
   createdByPrincipalId: string;
   sourceCommandId: string;
 }
@@ -339,6 +349,191 @@ function validatePolicyVersionMirror(
   ) {
     throwMirrorMismatch('effectiveFrom');
   }
+}
+
+/**
+ * Promoted-mirror validation for one AuthorizationDecision payload (read
+ * side). It mirrors what the owning write path and the database guard
+ * enforce at insert time, plus the IM-06 target binding and the closed
+ * Decision identity: the payload must carry the row's Decision id, the same
+ * reason codes and the promoted intent/scope fields; a payload without
+ * `targetRef` requires both target columns to be NULL, and a payload with
+ * `targetRef` requires `kind: OBJECT` plus both columns set to exactly the
+ * payload object type/id and the Decision's own Scope.
+ */
+function validateAuthorizationDecisionMirror(
+  payload: CanonicalJsonObject,
+  promoted: {
+    authorizationDecisionId: string;
+    reasonCodes: unknown;
+    outcome: string;
+    enterpriseId: string;
+    commandType: string;
+    actorSnapshotId: string;
+    actorSnapshotPayloadHash: string;
+    policySnapshotId: string;
+    policySnapshotPayloadHash: string;
+    principalId: string;
+    principalKind: string;
+    commandVersion: string;
+    scopeKind: string;
+    projectId: string | null;
+    purpose: string;
+    requestedCapability: string;
+    commandPayloadHash: string;
+    authenticationContextHash: string;
+    expiresAt: Date;
+    targetObjectType: string | null;
+    targetObjectId: string | null;
+  },
+): void {
+  for (const [field, expected] of [
+    ['authorizationDecisionId', promoted.authorizationDecisionId],
+    ['outcome', promoted.outcome],
+    ['enterpriseId', promoted.enterpriseId],
+    ['commandType', promoted.commandType],
+    ['actorSnapshotId', promoted.actorSnapshotId],
+    ['actorSnapshotPayloadHash', promoted.actorSnapshotPayloadHash],
+    ['policySnapshotId', promoted.policySnapshotId],
+    ['policySnapshotPayloadHash', promoted.policySnapshotPayloadHash],
+    ['principalId', promoted.principalId],
+    ['principalKind', promoted.principalKind],
+    ['commandVersion', promoted.commandVersion],
+    ['scopeKind', promoted.scopeKind],
+    ['purpose', promoted.purpose],
+    ['requestedCapability', promoted.requestedCapability],
+    ['commandPayloadHash', promoted.commandPayloadHash],
+    ['authenticationContextHash', promoted.authenticationContextHash],
+  ] as const) {
+    if (payload[field] !== expected) {
+      throwMirrorMismatch(field);
+    }
+  }
+  if (!jsonMembersEqual(payload.reasonCodes, promoted.reasonCodes)) {
+    throwMirrorMismatch('reasonCodes');
+  }
+  if ((payload.projectId ?? null) !== promoted.projectId) {
+    throwMirrorMismatch('projectId');
+  }
+  const expiresAt = payload.expiresAt;
+  if (
+    typeof expiresAt !== 'string' ||
+    new Date(expiresAt).getTime() !== promoted.expiresAt.getTime()
+  ) {
+    throwMirrorMismatch('expiresAt');
+  }
+  if (promoted.targetObjectType === null || promoted.targetObjectId === null) {
+    if (promoted.targetObjectType !== null || promoted.targetObjectId !== null) {
+      throwMirrorMismatch('targetRef');
+    }
+    if (payload.targetRef !== undefined) {
+      throwMirrorMismatch('targetRef');
+    }
+    return;
+  }
+  const target = payloadMember(payload.targetRef, 'targetRef.objectType');
+  const scope = payloadMember(target.scope, 'targetRef.scope.enterpriseId');
+  if (
+    target.kind !== 'OBJECT' ||
+    target.objectType !== promoted.targetObjectType ||
+    target.objectId !== promoted.targetObjectId ||
+    scope.enterpriseId !== promoted.enterpriseId ||
+    (scope.projectId ?? null) !== promoted.projectId
+  ) {
+    throwMirrorMismatch('targetRef');
+  }
+}
+
+/**
+ * Read-side integrity boundary for a committed AuthorizationDecision: the
+ * canonical payload must still hash to the stored payload hash, algorithm,
+ * canonicalization version and size, and the promoted columns — the Decision
+ * id, reason codes, intent/scope mirrors and the IM-06 target binding — must
+ * mirror it. A row rewritten outside the owning
+ * boundary, for example an owner statement that moves `target_object_id`
+ * together with `canonical_payload.targetRef` while keeping the old hash,
+ * fails here instead of being served as a Decision.
+ */
+export function authorizationDecisionIntegrityHolds(
+  row: Selectable<AuthorizationDecisionTable>,
+): boolean {
+  const payload = row.canonical_payload;
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    return false;
+  }
+  const digest = digestCanonicalPayload(payload as CanonicalJsonObject);
+  if (
+    !digest.hash.equals(row.payload_hash) ||
+    digest.hashAlgorithm !== row.payload_hash_algorithm ||
+    digest.canonicalizationVersion !== row.canonicalization_version ||
+    digest.sizeBytes !== Number(row.payload_size_bytes)
+  ) {
+    return false;
+  }
+  try {
+    validateAuthorizationDecisionMirror(payload as CanonicalJsonObject, {
+      authorizationDecisionId: row.authorization_decision_id,
+      reasonCodes: row.reason_codes,
+      outcome: row.outcome,
+      enterpriseId: row.enterprise_id,
+      commandType: row.command_type,
+      actorSnapshotId: row.actor_snapshot_id,
+      actorSnapshotPayloadHash: row.actor_snapshot_payload_hash.toString('hex'),
+      policySnapshotId: row.policy_snapshot_id,
+      policySnapshotPayloadHash: row.policy_snapshot_payload_hash.toString('hex'),
+      principalId: row.principal_id,
+      principalKind: row.principal_kind,
+      commandVersion: row.command_version,
+      scopeKind: row.scope_kind,
+      projectId: row.project_id,
+      purpose: row.purpose,
+      requestedCapability: row.requested_capability,
+      commandPayloadHash: row.command_payload_hash.toString('hex'),
+      authenticationContextHash: row.authentication_context_hash.toString('hex'),
+      expiresAt: row.expires_at,
+      targetObjectType: row.target_object_type,
+      targetObjectId: row.target_object_id,
+    });
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Read-side integrity boundary for a committed PolicySnapshot: the canonical
+ * payload must still hash to the stored payload hash, algorithm,
+ * canonicalization version and size, and the mirrored policy identity columns
+ * must match it. The owning write path and the database guard keep these
+ * consistent, so a Snapshot whose document was rewritten outside the owning
+ * boundary is refused instead of authorizing a Grant.
+ */
+export function policySnapshotIntegrityHolds(row: SelectedPolicySnapshot): boolean {
+  const payload = row.canonical_payload;
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    return false;
+  }
+  const digest = digestCanonicalPayload(payload as CanonicalJsonObject);
+  if (
+    !digest.hash.equals(row.payload_hash) ||
+    digest.hashAlgorithm !== row.payload_hash_algorithm ||
+    digest.canonicalizationVersion !== row.canonicalization_version ||
+    digest.sizeBytes !== Number(row.payload_size_bytes)
+  ) {
+    return false;
+  }
+  const document = payload as CanonicalJsonObject;
+  if (document.policySetVersion !== row.policy_set_version) {
+    return false;
+  }
+  const effectiveFrom = document.effectiveFrom;
+  if (
+    typeof effectiveFrom !== 'string' ||
+    new Date(effectiveFrom).getTime() !== row.effective_from.getTime()
+  ) {
+    return false;
+  }
+  return jsonMembersEqual(document.policySchemaRefs, row.policy_schema_refs);
 }
 
 /**
@@ -627,7 +822,7 @@ export class IdentityPolicyRepository {
     principalId: string,
     enterpriseId: string,
     asOf: Date,
-  ) {
+  ): Promise<SelectedCapabilityGrant[]> {
     return trx
       .selectFrom('identity_policy.capability_grant')
       .selectAll()
@@ -729,7 +924,10 @@ export class IdentityPolicyRepository {
     return { row, hashMatched: row.payload_hash.equals(expectedHash) };
   }
 
-  async getPolicySnapshotById(trx: IdentityTransaction, id: string) {
+  async getPolicySnapshotById(
+    trx: IdentityTransaction,
+    id: string,
+  ): Promise<SelectedPolicySnapshot | undefined> {
     return trx
       .selectFrom('identity_policy.policy_snapshot')
       .selectAll()
@@ -923,6 +1121,24 @@ export class IdentityPolicyRepository {
       enterpriseId: insert.enterpriseId,
       commandType: insert.commandType,
     });
+    const targetRef = insert.targetRef;
+    if (targetRef !== undefined) {
+      const payload = insert.decisionPayload.targetRef as
+        { objectType?: unknown; objectId?: unknown; scope?: unknown } | null | undefined;
+      const scope = payload?.scope as
+        { enterpriseId?: unknown; projectId?: unknown } | null | undefined;
+      if (
+        payload?.objectType !== targetRef.objectType ||
+        payload.objectId !== targetRef.objectId ||
+        scope?.enterpriseId !== insert.enterpriseId ||
+        scope.projectId !== insert.projectId
+      ) {
+        throw new IdentityPersistenceError(
+          IDENTITY_PROMOTED_MIRROR_MISMATCH,
+          'canonical payload targetRef does not match the promoted target columns',
+        );
+      }
+    }
     const payload: CanonicalJsonObject = {
       ...insert.decisionPayload,
       authorizationDecisionId: insert.authorizationDecisionId,
@@ -968,6 +1184,8 @@ export class IdentityPolicyRepository {
         policy_snapshot_payload_hash: insert.policySnapshotPayloadHash,
         authentication_context_hash: insert.authenticationContextHash,
         expires_at: insert.expiresAt,
+        target_object_type: targetRef?.objectType ?? null,
+        target_object_id: targetRef?.objectId ?? null,
         contract_type: 'identity.AuthorizationDecision',
         contract_version: insert.contractVersion,
         canonicalization_version: digest.canonicalizationVersion,
