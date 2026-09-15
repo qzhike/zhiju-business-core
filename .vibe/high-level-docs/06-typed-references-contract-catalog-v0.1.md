@@ -1245,7 +1245,7 @@ Query payload 固定 `{revisionRef: Exact<ArtifactRevision>; revisionAcceptanceR
 | `execution.create_task@1.0` | `execution.task` | `project.project` | `project.delivery_item` |
 | `execution.create_task@2.0` | `zhiju.execution.task` | `zhiju.project.project` | `zhiju.project.delivery_item` |
 
-上表是**创建路径**的接受集：v1 的 legacy 拼写由 owning Handler 与 EnterpriseProject 内部 Port 闭合（v1 registry Schema 使用通用 `objectRef`/`versionedRef`，Schema 本身不约束拼写），v2 的 `projectRef` 由注册 Schema 的 `const` 与 `references` 声明固定。两套拼写都是已发布历史身份：既不重写 v1 payload/fixture，也不在任一版本内接受对方拼写或裸本地名，避免为跨模块消费者制造可互换别名。
+上表是**创建路径**的接受集：v1 的 legacy 拼写由 owning Handler 与 EnterpriseProject 内部 Port 闭合（v1 registry Schema 使用通用 `objectRef`/`versionedRef`，Schema 本身不约束拼写），v2 的 `projectRef` 由注册 Schema 的 `const` 与 `references` 声明固定。两个版本的 `parentTaskRef`/`dependencyTaskRefs[]` 同样使用各自版本的 Task 拼写（v1 `execution.task`、v2 `zhiju.execution.task`），因为它们在两侧 Schema 中都是通用 `ObjectRef`，身份只能由 owning Handler 闭合；错误模块类型、另一版本拼写或大小写变体不得进入 parent 查询或被固化为 dependency 事实。两套拼写都是已发布历史身份：既不重写 v1 payload/fixture，也不在任一版本内接受对方拼写或裸本地名，避免为跨模块消费者制造可互换别名。
 
 公开 `project.validate_object_scope@1.0` 的接受集（13 个裸本地名）与其错误外观保持不变：`zhiju.project.project`、`project.project`、`zhiju.project.delivery_item` 与 `DeliveryItem` 仍不是它的合法输入；创建期的 Project/DeliveryItem 证明走 EnterpriseProject owning 内部 Port，而不是扩大该公开 Query 的接受集。未来若需要公开接受 canonical 拼写，必须作为独立 additive 契约提案批准。
 

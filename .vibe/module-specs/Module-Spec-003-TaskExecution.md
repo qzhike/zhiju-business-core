@@ -868,18 +868,21 @@ Query 的既有 `provenance: CanonicalJson` 输出使用安全 profile `executio
 
 `execution.create_task` 两个 Major 各自只有一套已发布身份，均由既有材料固定：不新增别名、不统一拼写、不改写 v1 payload。
 
-| operation/version | Envelope `targetRef`（CREATE） | `payload.projectRef` 唯一接受的 objectType | `definition.deliveryItemRef` 唯一接受的 objectType（可选） |
+| 字段 | `@1.0` 唯一接受的 objectType | `@2.0` 唯一接受的 objectType | kind |
 |---|---|---|---|
-| `execution.create_task@1.0` | `execution.task`（OBJECT） | `project.project`（OBJECT） | `project.delivery_item`（VERSIONED） |
-| `execution.create_task@2.0` | `zhiju.execution.task`（OBJECT） | `zhiju.project.project`（OBJECT） | `zhiju.project.delivery_item`（VERSIONED） |
+| Envelope `targetRef`（CREATE） | `execution.task` | `zhiju.execution.task` | OBJECT |
+| `payload.projectRef` | `project.project` | `zhiju.project.project` | OBJECT |
+| `definition.deliveryItemRef`（可选） | `project.delivery_item` | `zhiju.project.delivery_item` | VERSIONED |
+| `definition.parentTaskRef`（可选） | `execution.task` | `zhiju.execution.task` | OBJECT |
+| `definition.dependencyTaskRefs[]` | `execution.task` | `zhiju.execution.task` | OBJECT |
 
-来源：v1 冻结正例 fixture `tests/fixtures/contracts/execution-create-task-command-valid.json`（与历史 compatibility baseline 逐字节相同）与 #200 已交付的 `TASK_EXECUTION_CREATION_BINDINGS`（v1 target `execution.task`、v2 target `zhiju.execution.task`）；v2 的 `projectRef` 由注册 Schema 的 `const` 固定，并由 `public-api.v1.json` 的 `references` 声明 `zhiju.execution.task` / `zhiju.project.project`。静态对账见 Module-Test-003 `TE-P202-D-001`。
+来源：v1 冻结正例 fixture `tests/fixtures/contracts/execution-create-task-command-valid.json`（与历史 compatibility baseline 逐字节相同）与 #200 已交付的 `TASK_EXECUTION_CREATION_BINDINGS`（v1 target `execution.task`、v2 target `zhiju.execution.task`）；v2 的 `projectRef` 由注册 Schema 的 `const` 固定，并由 `public-api.v1.json` 的 `references` 声明 `zhiju.execution.task` / `zhiju.project.project`。`parentTaskRef`/`dependencyTaskRefs` 在两个版本的 Schema 中都是通用 `ObjectRef`，Schema 不约束 Task 身份，因此其逐版本拼写同样必须由 owning Handler 闭合（§16.3），否则错误模块类型或另一版本拼写会进入 parent 查询或被原样固化为 dependency 事实。静态对账见 Module-Test-003 `TE-P202-D-001` 与 `TE-P202-005`。字段分类：`payload`/`definition` 内未在上表列出的引用（`inputRefs`、v2 closed shape 内的 `acceptancePolicyRef`/`evaluatorRef`）不由本表闭合，其规则见 §16.3。
 
 闭合规则（owning Handler 的义务，不由调用者选择）：
 
-1. 逐 operation/version 精确匹配上表，大小写敏感、逐字符相等；另一版本的拼写、裸本地名（如 `Project`）、前缀剥离或补全、`project.project` 与 `zhiju.project.project` 互换一律拒绝（`EXECUTION_PROJECT_REF_INVALID` / `EXECUTION_DELIVERY_ITEM_REF_INVALID`），不做规范化、不做 fuzzy 查找、不回退 latest。
-2. `kind` 必须分别为 OBJECT（`projectRef`）与 VERSIONED（`deliveryItemRef`）。v1 的 `projectRef`/`deliveryItemRef` 在注册 Schema 中是通用 `objectRef`/`versionedRef`，因此 v1 的接受集由 owning Handler 与 EnterpriseProject 边界（§16.2）闭合；这是模块层接受集收窄，不修改 v1 Schema、fixture、Registry 元数据或历史 Baseline。
-3. 目标 Task 身份：Envelope `targetRef.objectType` 同表固定，`objectId` 由调用方提供（CREATE），Handler 只接受 UuidV7 并在同 Scope 内保证唯一（§16.4）。
+1. 逐 operation/version 精确匹配上表，大小写敏感、逐字符相等；另一版本的拼写、裸本地名（如 `Project`）、前缀剥离或补全、`project.project` 与 `zhiju.project.project` 互换一律拒绝（`projectRef`/`deliveryItemRef` → `EXECUTION_PROJECT_REF_INVALID` / `EXECUTION_DELIVERY_ITEM_REF_INVALID`；`parentTaskRef`/`dependencyTaskRefs` → `EXECUTION_PARENT_TASK_REF_INVALID` / `EXECUTION_DEFINITION_REF_INVALID`），不做规范化、不做 fuzzy 查找、不回退 latest。Envelope `targetRef` 的错拼写在 v2 由注册 Schema 的 `const` 拒绝，在 v1 由 #200 的授权绑定拒绝（`IDENTITY_CREATION_TARGET_INVALID`）。
+2. `kind` 必须与上表一致：OBJECT（`targetRef`/`projectRef`/`parentTaskRef`/`dependencyTaskRefs[]`）与 VERSIONED（`deliveryItemRef`）。v1 的 `projectRef`/`deliveryItemRef` 与两版本的 `parentTaskRef`/`dependencyTaskRefs` 在注册 Schema 中分别是通用 `objectRef`/`versionedRef`，Schema 不约束身份，因此这些接受集由 owning Handler 与 EnterpriseProject 边界（§16.2）闭合；这是模块层接受集收窄，不修改 v1/v2 Schema、fixture、Registry 元数据或历史 Baseline。
+3. 目标 Task 身份：Envelope `targetRef.objectType` 同表固定，`objectId` 由调用方提供（CREATE），Handler 只接受 UuidV7 并在同 Scope 内保证唯一（§16.4）。v1 的 `targetRef` 不携带 objectType const，因此 v1 的 `execution.task` 目标身份由 §16.1 表与 #200 绑定共同闭合，不能作为接受其他 Task 拼写的理由。
 
 ### 16.2 Project/DeliveryItem 校验归属：EnterpriseProject owning 内部 Port
 
@@ -889,8 +892,9 @@ Query 的既有 `provenance: CanonicalJson` 输出使用安全 profile `executio
 - **输入**：`(commandType, commandVersion, projectRef, deliveryItemRef?)`，两个 Ref 必须与已接受 payload 逐字节相同；期望拼写由 Port 内部按 `commandType@commandVersion` 取值，**不接受调用者传入的期望 objectType**，因此不存在 caller-controlled aliasing。
 - **闭集键表**：Port 自有的、以 (version, canonical objectType) 为键的表，映射到 EP owning 的 `enterprise_project.project` 与 `enterprise_project.delivery_item`；复用与 `project.validate_object_scope@1.0` 相同的 SELECT 与 RLS helper 语义（`context_allows_enterprise` / `context_allows_project`），但不共享公开 Query 的键集合，也不新增第二份查询实现。
 - **证明谓词**（EP 权威，TaskExecution 只映射结果）：
-  - Project：受信 `(enterpriseId, projectId)` 内存在已提交 `enterprise_project.project` 行（`(enterprise_id, project_id)` 唯一键），且 `status = 'ACTIVE'`；不存在、跨 Enterprise、跨 Project、`SUSPENDED`、`ARCHIVED` 一律拒绝且**外观一致**，不区分“不存在”与“不可见”。
-  - DeliveryItem：在**同一** `(enterpriseId, projectId)` 内存在精确 `(version_id, delivery_item_id)` 行，且 `commitment_status NOT IN ('CANCELLED','REPLACED')`；只比较完整 `VersionedRef`（objectType/objectId/versionId/Scope），不只比较对象 id。
+  - Project identity：`projectRef.objectId == projectRef.scope.projectId == 受信 projectId`，且 `projectRef.scope.enterpriseId == 受信 enterpriseId`。两个 `create_task` Schema 只能约束 Ref 形状（v2 另有 objectType `const`），无法表达这些 UUID 的跨字段相等，因此该相等必须在 Port 内强制；不允许用“受信 projectId 上存在任意 ACTIVE Project 行”代替。
+  - Project existence/lifecycle：在受信 `(enterpriseId, projectId)` 内存在已提交 `enterprise_project.project` 行（`(enterprise_id, project_id)` 唯一键），且 `status = 'ACTIVE'`；身份不符、不存在、跨 Enterprise、跨 Project、`SUSPENDED`、`ARCHIVED` 一律拒绝且**外观一致**，不区分“不存在”与“不可见”。
+  - DeliveryItem identity：`deliveryItemRef` 的 `objectId`/`versionId`/`scope.enterpriseId`/`scope.projectId` 必须与行 `(delivery_item_id, version_id, enterprise_id, project_id)` 逐字段相等，且 `commitment_status NOT IN ('CANCELLED','REPLACED')`；不允许只比较对象 id，也不允许用受信 Project 内的任意 DeliveryItem 行代替。
 - **事务边界**：Port 是只读调用，在 EP 自己的 RLS 事务内执行；TaskExecution 不因此获得 EP 表写权限，也不建立跨 Schema 事务或 FK。Port 不可用或超时不得被解释为空结果或默认通过，调用方 fail closed 并映射共享 `DEPENDENCY_UNAVAILABLE`。
 - **失败映射**：Port 对外只返回闭集稳定结果（`VALID` / `INVALID`），identity/kind/scope/existence/lifecycle 四类内部原因由 EP 写入受权限控制的 Audit；TaskExecution 收敛为 `EXECUTION_PROJECT_REF_INVALID` / `EXECUTION_DELIVERY_ITEM_REF_INVALID`，不把 EP 的表/列细节带入公开错误，也不泄露其他 Scope 对象是否存在。
 - **历史行为**：`project.validate_object_scope@1.0` 的公开接受集（13 个裸本地名）与其错误外观不变，且不存在 `@2.0`；`zhiju.project.project`、`zhiju.project.delivery_item` 与 `DeliveryItem` 仍不是该公开 Query 的合法输入。若未来需要公开接受 canonical 拼写，必须作为独立的 additive 契约提案显式批准，不能由实现顺带扩大。
@@ -905,14 +909,20 @@ Query 的既有 `provenance: CanonicalJson` 输出使用安全 profile `executio
 |---|---|---|
 | `projectRef`（两版本，必填） | 经 §16.2 Port 证明已提交 Project 行、精确 Enterprise/Project Scope 与 `ACTIVE`；拼写与 kind 按 §16.1 闭合 | — |
 | `definition.deliveryItemRef`（可选，VERSIONED） | 经同一 Port 证明精确 `(delivery_item_id, version_id)` 与同一 Project Scope，且未被 CANCELLED/REPLACED；完整 Ref 进入快照 payload 与镜像 | 该 DeliveryItem 后续生命周期变化由 EP owning 事实解释，不回溯改写已提交 DRAFT |
-| `definition.parentTaskRef`（可选，OBJECT，本模块自有） | 由本模块在同一命令事务内只读校验：同 Scope 已提交 Task、`status <> 'CANCELLED'`、非自引用（`objectId != targetRef.objectId`）；不合格拒绝 `EXECUTION_PARENT_TASK_REF_INVALID`（不跨模块、不需要 EP Port） | 父 Task 的后续状态与父子完成关系由 owning 事实与 §11.6 解释 |
-| `definition.dependencyTaskRefs` | Scope 与 Envelope 完全一致（同 Enterprise/Project，禁止跨 Project 直接 TaskId，Domain §18.6 第 2 条）、非自引用、集合去重由 Schema/Set 语义保证 | 依赖存在性、环检测、依赖 Task 当前有效性（Readiness，§11.6、§11.8） |
-| `definition.inputRefs` | Scope 与 Envelope 完全一致（`TypedReference` 逐字段），形状合法 | 输入存在性、版本、生命周期与 Purpose 裁剪（Readiness 与 Context Builder） |
-| `expectedOutputSpec.outputs[].acceptancePolicyRef`、`completionCriteria.criteria[].evaluatorRef`（v2 closed shape） | 仅注册 Schema 与纯绑定校验（`validateTaskDefinitionBinding`）；不在 DRAFT 解析 Policy/Evaluator | Evaluator profile 与 Policy 版本的存在性、支持边界与当前有效性（Readiness/Validation/Completion，§11.6、§11.9；不支持时为 `EXECUTION_CRITERION_UNSUPPORTED`） |
+| `definition.parentTaskRef`（可选，OBJECT，本模块自有） | 由本模块在同一命令事务内只读校验：objectType 为 §16.1 表固定的 Task 拼写、同 Scope 已提交 Task、`status <> 'CANCELLED'`、非自引用（`objectId != targetRef.objectId`）；不合格拒绝 `EXECUTION_PARENT_TASK_REF_INVALID`（不跨模块、不需要 EP Port） | 父 Task 的后续状态与父子完成关系由 owning 事实与 §11.6 解释 |
+| `definition.dependencyTaskRefs` | objectType 为 §16.1 表固定的 Task 拼写、kind OBJECT、Scope 与 Envelope 完全一致（同 Enterprise/Project，禁止跨 Project 直接 TaskId，Domain §18.6 第 2 条）、非自引用、集合去重由 Schema/Set 语义保证；不合格拒绝 `EXECUTION_DEFINITION_REF_INVALID`（不在 DRAFT 解析被引用 Task 是否存在） | 依赖存在性、环检测、依赖 Task 当前有效性（Readiness，§11.6、§11.8） |
+| `definition.inputRefs` | 形状合法（`TypedReference[]`）；若引用携带 `projectId`，必须等于 Envelope Project（禁止跨 Project 输入）；Enterprise/Platform Scope（无 `projectId`）在 DRAFT 合法，不得以统一 Project Scope 为由拒绝 | 输入存在性、版本、生命周期、可用性与 Purpose 裁剪（Readiness 与 Context Builder） |
+| `expectedOutputSpec.outputs[].acceptancePolicyRef`、`completionCriteria.criteria[].evaluatorRef`（v2 closed shape） | 仅注册 Schema 与纯绑定校验（`validateTaskDefinitionBinding`）；不在 DRAFT 解析 Policy/Evaluator，**也不施加 Project Scope 相等**：已批准 Evaluator selector 是 Platform Scope（`contracts/registry/evaluator-profiles.v1.json` 的 `scope: {}`），注册 v2 正例的 `evaluatorRef` 是 Enterprise Scope，两者都必须在 DRAFT 通过 | Evaluator profile 与 Policy 版本的存在性、支持边界与当前有效性（Readiness/Validation/Completion，§11.6、§11.9；不支持时为 `EXECUTION_CRITERION_UNSUPPORTED`） |
 | `initialAssignee`（开放形状） | 仅作为定义载荷记录并进入快照 Hash；DRAFT 不据此签发 Capability 或 Assignment | 指派语义与权限走 Domain §18.4 的显式 Command 与 §18.8 的授权边界 |
 | `dueConstraint` | 形状与 Hash | 期限对 Readiness、冻结与执行的影响 |
 
-Scope 闭合对两版本一致：任一引用自带的 `scope` 必须与 Envelope `scopeRef` 的 `enterpriseId`/`projectId` 同时存在且逐字段相等；Enterprise-only 的 Ref 不能出现在 Project-scoped Task 定义中。差异仅在于 v1 的 `inputRefs` 沿用既有 `uniqueItems`、v2 接受重复引用（§11.6），本节不改变该兼容差异。
+Scope 规则按字段区分，不再对全部引用施加统一的 Project Scope 相等：
+
+- **Project 锚定字段**（`payload.projectRef`、`definition.deliveryItemRef`、`definition.parentTaskRef`、`definition.dependencyTaskRefs[]`）：`scope` 必须同时含 `enterpriseId` 与 `projectId`，且与 Envelope `scopeRef` 逐字段相等（企业维度亦不得放宽）；这些字段还必须满足 §16.1 的逐版本 objectType 闭集。`projectRef` 另有 `objectId == scope.projectId == 受信 projectId` 的身份相等要求（§16.2）。
+- **`definition.inputRefs`**：保留引用自身 Scope，**不要求** Project 相等；若引用携带 `projectId`，必须等于 Envelope Project（禁止跨 Project 输入），Enterprise/Platform Scope（无 `projectId`）在 DRAFT 合法。其存在性、版本、生命周期与可用性属于 Readiness 与消费边界，DRAFT 不得以 §16.1 未闭合的理由提前拒绝。
+- **v2 closed shape 内的 `expectedOutputSpec.outputs[].acceptancePolicyRef` 与 `completionCriteria.criteria[].evaluatorRef`**：只做注册 Schema 与纯绑定校验，既不要求引用存在，**也不施加 Project Scope 相等**。已批准 Evaluator selector 的 Platform Scope（`scope: {}`）与注册 v2 正例中的 Enterprise-scope `evaluatorRef` 都必须在 DRAFT 通过；其支持版本与当前有效性在 Readiness/Validation/Completion 判定（§11.6、§11.9）。
+
+两版本在 `inputRefs` 上的既有兼容差异保持不变：v1 沿用历史 `uniqueItems`，v2 接受重复引用（§11.6）。
 
 ### 16.4 创建事实、快照身份与幂等
 

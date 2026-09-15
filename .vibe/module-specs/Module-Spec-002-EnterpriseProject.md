@@ -387,8 +387,9 @@ PROJECT_OBJECT_SCOPE_MISMATCH
 
 **证明谓词**（EP 权威）：
 
-- Project：受信 `(enterpriseId, projectId)` 内存在已提交 `enterprise_project.project` 行，且 `status = 'ACTIVE'`；不存在、跨 Enterprise、跨 Project、`SUSPENDED`、`ARCHIVED` 一律拒绝，外观一致，不区分“不存在”与“不可见”。
-- DeliveryItem：同一 `(enterpriseId, projectId)` 内存在精确 `(version_id, delivery_item_id)` 行，且 `commitment_status NOT IN ('CANCELLED','REPLACED')`；比较完整 `VersionedRef`（objectType/objectId/versionId/Scope），不只比较对象 id。
+- Project identity：`projectRef.objectId == projectRef.scope.projectId == 受信 projectId`，且 `projectRef.scope.enterpriseId == 受信 enterpriseId`。两个 `create_task` Schema 只能约束 Ref 形状（v2 另有 objectType `const`），无法表达这些 UUID 的跨字段相等，因此该相等必须在 Port 内强制；不得用“受信 projectId 上存在任意 ACTIVE Project 行”代替。
+- Project existence/lifecycle：在受信 `(enterpriseId, projectId)` 内存在已提交 `enterprise_project.project` 行，且 `status = 'ACTIVE'`；身份不符、不存在、跨 Enterprise、跨 Project、`SUSPENDED`、`ARCHIVED` 一律拒绝，外观一致，不区分“不存在”与“不可见”。
+- DeliveryItem identity：`deliveryItemRef` 的 `objectId`/`versionId`/`scope.enterpriseId`/`scope.projectId` 必须与行 `(delivery_item_id, version_id, enterprise_id, project_id)` 逐字段相等，且 `commitment_status NOT IN ('CANCELLED','REPLACED')`；不允许只比较对象 id，也不允许用受信 Project 内的任意 DeliveryItem 行代替。
 
 **失败映射**：Port 返回闭集稳定结果（`VALID` / `INVALID`）；identity/kind/scope/existence/lifecycle 的内部原因写入受权限控制的 Audit，不进入公开错误，也不泄露其他 Scope 对象是否存在。消费方把业务拒绝收敛为自己的稳定码；Port 不可用或超时**不得**被解释为空结果或默认通过，消费方 fail closed 并映射共享 `DEPENDENCY_UNAVAILABLE`。
 
