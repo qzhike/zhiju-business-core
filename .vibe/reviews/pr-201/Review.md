@@ -55,3 +55,49 @@ GitHub 日志正文在本轮两次读取时遇到临时 API 连接失败，因�
 TaskExecution DRAFT Handler 消费、幂等 Claim/历史 Receipt 前真实调用顺序、业务表/Receipt/Outbox 链、跨模块 E2E、真实 Provider/Runtime、生产 migration 与人工业务验收仍为 `NOT RUN`。
 
 请由 Implementer 修复 R1–R3、补针对性负例并在新 PR head 上取得 required verification，再重新执行独立审查。Issue #200 明确要求的人类安全/迁移技术审查仍是后续独立门禁；应先关闭已知实现缺陷，再进入该人类 Gate。本结论不授权 merge、deploy 或 destructive migration。
+
+## 当前结论（第 2 轮：代码更新复审）
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`fc4457e11cad4a72179ddf3fbed202c18b9ad2dd`
+- Fix implementation SHA：`bb5a7155b9c4021504717b3aa48a77342d7e6233`
+- Previous reviewed SHA：`c4712f8d4664b465436e397479037b2967aff721`
+- Base SHA：`d3953a7136faf104e4c7dd050b67155af839dd81`
+- 审查日期：2026-09-15
+
+本轮针对新的 final head 独立重读了 Issue #200、PR diff、修复提交、Spec 001 §15.2–15.3、Port/Repository/迁移/真实 PostgreSQL测试，以及 exact-head required check。最终 head 相比实现修复提交只增加本正式 Review 文件；产品代码修复位于 `bb5a715`。
+
+### 上轮发现复核
+
+- R1 已关闭：`authorizeCreation` 现在要求输入 ActorSnapshot id 等于受信 context 的 `actorSnapshotId`，读回后要求真实 principal 等于 context principal；`revalidateCreation` 同时比较 Decision 的 actor/principal 与当前 context。`IP-TAUTH-007` 增加另一 Human、Agent、actingFor 的拒绝场景，并为合法第二 Human 使用其自身受信 context。
+- R2 的已报告复现场景已关闭：重验在信任 Decision 字段前，从 canonical payload 重算 hash/algorithm/canonicalization version/size，并比较 target/promoted facts；新增真实 PostgreSQL 回归证明“target mirror + canonical target、保留旧 hash”的配对修改返回 `DECISION_INTEGRITY_MISMATCH`。
+- R3 已关闭：签发与重验查找 covering Grant 时都调用 `policySnapshotIntegrityHolds`，从 canonical Policy Snapshot 重算完整性元数据并比较现有镜像；新增 `policyDocument` 保留旧 hash 的真实 PostgreSQL负例，分别返回 `GRANT_POLICY_SNAPSHOT_INVALID` / `POLICY_INTEGRITY_MISMATCH`。
+
+### 新阻断发现
+
+#### R4 / P1：Decision 读侧“完整 promoted mirror”遗漏 Decision 主键、reason codes 与 target kind
+
+`insertAuthorizationDecision` 在 `modules/identity-policy/src/persistence/identity-policy-repository.ts:1130–1183` 同时把 `authorizationDecisionId` / `reasonCodes` 写入 canonical payload，并把同一事实写入 `authorization_decision_id` / `reason_codes` 列；target canonical payload 还包含 `kind: OBJECT`。但新增的 `validateAuthorizationDecisionMirror`（`:362–436`）和调用参数（`:464–484`）没有比较：
+
+1. `canonical_payload.authorizationDecisionId` 与 `authorization_decision_id`；
+2. `canonical_payload.reasonCodes` 与 `reason_codes`；
+3. `canonical_payload.targetRef.kind` 与该 Port 要求的 `OBJECT`。
+
+因此，只要 canonical payload 自身与新写入的 hash/algorithm/version/size 一致，即使它声明了另一个 Decision id、不同 reason codes 或非 Object target kind，`authorizationDecisionIntegrityHolds` 仍返回 true；`revalidateCreation` 随后使用未与 canonical 身份一致的行主键和 promoted authorization facts 继续授权。这里不是“旧 hash 未更新”的上轮 R2 复现，而是新的 canonical/权威列不一致边界。
+
+这违反 Spec 001 §15.3 已明确落地的“读取端从 canonical payload 重算完整性元数据并校验提升列镜像”，也未完整证明 Issue #200 的 exact Decision id/hash 与 complete targetRef。函数注释称 promoted columns 必须 mirror canonical payload，但当前实现并未覆盖全部相关列。
+
+请把上述 canonical 字段纳入读侧 mirror 校验，并增加 focused/真实 PostgreSQL回归：至少构造 canonical `authorizationDecisionId` 与行主键不一致、重新计算并同步 payload hash/size 元数据的 Decision，证明重验返回 `DECISION_INTEGRITY_MISMATCH`；同时覆盖 `reasonCodes` 列镜像和 `targetRef.kind` 的闭集约束。合法未修改 Decision 应保留正向对照。
+
+### 第 2 轮验证证据
+
+- exact final head 的 GitHub Actions [run 34944745666](https://github.com/qzhike/zhiju-business-core/actions/runs/34944745666) 已独立回读为 `completed / success`，`headSha=fc4457e11cad4a72179ddf3fbed202c18b9ad2dd`；verify job [104301363687](https://github.com/qzhike/zhiju-business-core/actions/runs/34944745666/job/104301363687) 的 `pnpm verify` 步骤成功。
+- `git diff --check d3953a7..fc4457e` 通过，复审前工作树干净。
+- GitHub job 日志正文再次因临时 API 连接失败未能读取；本轮不把 PR 描述中的详细计数当作独立证据。
+- 本地 focused Vitest 在有界等待内没有输出，已终止，不记为 PASS/FAIL。绿色 CI 不关闭 R4，因为新增的 integrity 回归只覆盖保留旧 hash 的 target/policy tamper，未覆盖 canonical Decision identity/reasons/kind 与 promoted facts 分叉且完整性元数据同步的边界。
+
+### 未运行边界与交接
+
+TaskExecution DRAFT Handler 消费、幂等 Claim/历史 Receipt 前真实调用顺序、业务表/Receipt/Outbox 链、跨模块 E2E、真实 Provider/Runtime、生产 migration 与人工业务验收仍为 `NOT RUN`。
+
+请修复 R4、补回归并对新的 final head 重跑 required verification 后再次复审。即使代码缺陷全部关闭，Issue #200 明确要求的人类安全/迁移技术审查仍是独立 merge gate；在该门禁有可回读证据前不能得出 `APPROVE`。本结论不授权 merge、deploy 或 destructive migration。
