@@ -354,14 +354,18 @@ function validatePolicyVersionMirror(
 /**
  * Promoted-mirror validation for one AuthorizationDecision payload (read
  * side). It mirrors what the owning write path and the database guard
- * enforce at insert time, plus the IM-06 target binding: a payload without
+ * enforce at insert time, plus the IM-06 target binding and the closed
+ * Decision identity: the payload must carry the row's Decision id, the same
+ * reason codes and the promoted intent/scope fields; a payload without
  * `targetRef` requires both target columns to be NULL, and a payload with
- * `targetRef` requires both columns set to exactly the payload object
- * type/id and the Decision's own Scope.
+ * `targetRef` requires `kind: OBJECT` plus both columns set to exactly the
+ * payload object type/id and the Decision's own Scope.
  */
 function validateAuthorizationDecisionMirror(
   payload: CanonicalJsonObject,
   promoted: {
+    authorizationDecisionId: string;
+    reasonCodes: unknown;
     outcome: string;
     enterpriseId: string;
     commandType: string;
@@ -384,6 +388,7 @@ function validateAuthorizationDecisionMirror(
   },
 ): void {
   for (const [field, expected] of [
+    ['authorizationDecisionId', promoted.authorizationDecisionId],
     ['outcome', promoted.outcome],
     ['enterpriseId', promoted.enterpriseId],
     ['commandType', promoted.commandType],
@@ -403,6 +408,9 @@ function validateAuthorizationDecisionMirror(
     if (payload[field] !== expected) {
       throwMirrorMismatch(field);
     }
+  }
+  if (!jsonMembersEqual(payload.reasonCodes, promoted.reasonCodes)) {
+    throwMirrorMismatch('reasonCodes');
   }
   if ((payload.projectId ?? null) !== promoted.projectId) {
     throwMirrorMismatch('projectId');
@@ -426,6 +434,7 @@ function validateAuthorizationDecisionMirror(
   const target = payloadMember(payload.targetRef, 'targetRef.objectType');
   const scope = payloadMember(target.scope, 'targetRef.scope.enterpriseId');
   if (
+    target.kind !== 'OBJECT' ||
     target.objectType !== promoted.targetObjectType ||
     target.objectId !== promoted.targetObjectId ||
     scope.enterpriseId !== promoted.enterpriseId ||
@@ -438,8 +447,9 @@ function validateAuthorizationDecisionMirror(
 /**
  * Read-side integrity boundary for a committed AuthorizationDecision: the
  * canonical payload must still hash to the stored payload hash, algorithm,
- * canonicalization version and size, and the promoted columns — including the
- * IM-06 target binding — must mirror it. A row rewritten outside the owning
+ * canonicalization version and size, and the promoted columns — the Decision
+ * id, reason codes, intent/scope mirrors and the IM-06 target binding — must
+ * mirror it. A row rewritten outside the owning
  * boundary, for example an owner statement that moves `target_object_id`
  * together with `canonical_payload.targetRef` while keeping the old hash,
  * fails here instead of being served as a Decision.
@@ -462,6 +472,8 @@ export function authorizationDecisionIntegrityHolds(
   }
   try {
     validateAuthorizationDecisionMirror(payload as CanonicalJsonObject, {
+      authorizationDecisionId: row.authorization_decision_id,
+      reasonCodes: row.reason_codes,
       outcome: row.outcome,
       enterpriseId: row.enterprise_id,
       commandType: row.command_type,

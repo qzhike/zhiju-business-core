@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newUuidV7 } from '@zhiju/shared-kernel';
+import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import type { Common } from '@zhiju/contracts';
 import pg from 'pg';
 import {
   authorizeCommand,
@@ -254,6 +255,34 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
       )
     ).rows.at(0);
     return row?.n ?? -1;
+  }
+
+  /**
+   * Rewrites one canonical dimension of a committed Decision and syncs the
+   * stored payload hash, size and algorithm with the rewritten bytes, exactly
+   * like an owner SQL statement that keeps the row self-consistent.
+   */
+  async function rewriteDecisionPayload(
+    decisionId: string,
+    mutate: (payload: Record<string, unknown>) => void,
+  ): Promise<Buffer> {
+    const row = (
+      await admin.query<{ canonical_payload: Record<string, unknown> }>(
+        'SELECT canonical_payload FROM identity_policy.authorization_decision WHERE authorization_decision_id = $1',
+        [decisionId],
+      )
+    ).rows.at(0);
+    if (row === undefined) throw new Error('decision fixture missing');
+    const payload = structuredClone(row.canonical_payload);
+    mutate(payload);
+    const digest = digestCanonicalPayload(payload as CanonicalJsonObject);
+    await admin.query(
+      `UPDATE identity_policy.authorization_decision
+          SET canonical_payload = $2::jsonb, payload_hash = $3, payload_size_bytes = $4
+        WHERE authorization_decision_id = $1`,
+      [decisionId, digest.canonicalJson, digest.hash, digest.sizeBytes],
+    );
+    return digest.hash;
   }
 
   beforeAll(async () => {
@@ -1132,6 +1161,95 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
       valid: false,
       reason: 'POLICY_INTEGRITY_MISMATCH',
     });
+  });
+
+  it('IP-TAUTH-008 refuses a decision whose canonical identity diverges from its row', async () => {
+    const capabilityCode = 'wi200.integrity.identity';
+    await grantCreation({
+      principalId: OPERATOR,
+      capabilityCode,
+      actions: ['execution.task.create.v2'],
+      selectors: [{ selectorType: 'CREATE_TARGET_TYPE', objectType: 'zhiju.execution.task' }],
+    });
+    const port = portFor({ taskV2: capabilityCode });
+    const issue = async (): Promise<{
+      decisionRef: Common.ContentAddressedRef;
+      targetRef: ReturnType<typeof targetRef>;
+    }> => {
+      const target = targetRef('zhiju.execution.task');
+      const view = await port.authorizeCreation(deps, {
+        actorSnapshotRef: operatorActorRef,
+        commandType: 'execution.create_task',
+        commandVersion: '2.0',
+        targetRef: target,
+        commandPayloadHash: COMMAND_HASH,
+        authenticationContextHash: AUTH_HASH_OPERATOR,
+      });
+      const decisionRef = view.authorizationDecisionRef;
+      if (decisionRef === undefined) throw new Error('expected an issued decision');
+      return { decisionRef, targetRef: target };
+    };
+    const revalidate = (issued: {
+      decisionRef: Common.ContentAddressedRef;
+      targetRef: Common.ObjectRef;
+    }) =>
+      port.revalidateCreation(deps, {
+        decisionRef: issued.decisionRef,
+        expectedCommandType: 'execution.create_task',
+        expectedCommandVersion: '2.0',
+        expectedCommandPayloadHash: COMMAND_HASH,
+        expectedAuthenticationContextHash: AUTH_HASH_OPERATOR,
+        expectedTargetRef: issued.targetRef,
+      });
+
+    // Untampered control.
+    expect(await revalidate(await issue())).toMatchObject({ valid: true });
+
+    // Owner-level rewrite of one canonical dimension with the stored hash, size
+    // and algorithm recomputed and synced: the row is self-consistent, so only
+    // the promoted-mirror comparison can catch it.
+    const identity = await issue();
+    const identityHash = await rewriteDecisionPayload(identity.decisionRef.objectId, (payload) => {
+      payload.authorizationDecisionId = newUuidV7();
+    });
+    expect(
+      await revalidate({
+        decisionRef: { ...identity.decisionRef, contentHash: contentHash(identityHash) },
+        targetRef: identity.targetRef,
+      }),
+    ).toMatchObject({ valid: false, reason: 'DECISION_INTEGRITY_MISMATCH' });
+
+    const reasons = await issue();
+    const reasonsHash = await rewriteDecisionPayload(reasons.decisionRef.objectId, (payload) => {
+      payload.reasonCodes = ['TAMPERED'];
+    });
+    expect(
+      await revalidate({
+        decisionRef: { ...reasons.decisionRef, contentHash: contentHash(reasonsHash) },
+        targetRef: reasons.targetRef,
+      }),
+    ).toMatchObject({ valid: false, reason: 'DECISION_INTEGRITY_MISMATCH' });
+
+    const kind = await issue();
+    const kindHash = await rewriteDecisionPayload(kind.decisionRef.objectId, (payload) => {
+      (payload.targetRef as { kind: string }).kind = 'SNAPSHOT';
+    });
+    expect(
+      await revalidate({
+        decisionRef: { ...kind.decisionRef, contentHash: contentHash(kindHash) },
+        targetRef: kind.targetRef,
+      }),
+    ).toMatchObject({ valid: false, reason: 'DECISION_INTEGRITY_MISMATCH' });
+
+    // The rewritten rows really carry their own canonical hash, which is why
+    // the stored metadata cannot be the integrity proof.
+    const stored = (
+      await admin.query<{ payload_hash: Buffer }>(
+        'SELECT payload_hash FROM identity_policy.authorization_decision WHERE authorization_decision_id = $1',
+        [identity.decisionRef.objectId],
+      )
+    ).rows.at(0);
+    expect(stored?.payload_hash.equals(identityHash)).toBe(true);
   });
 
   it('IP-TAUTH-008 keeps historical decisions readable but unusable for the four versions', async () => {
