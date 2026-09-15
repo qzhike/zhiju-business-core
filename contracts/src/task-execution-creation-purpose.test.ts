@@ -211,6 +211,22 @@ describe('creation Purpose build checks', () => {
     }
   });
 
+  it('rejects an omitted Purpose on a non-historical creation version', () => {
+    for (const [type, version] of [
+      ['execution.create_task', '2.0'],
+      ['execution.create_work_order', '1.1'],
+    ] as const) {
+      const operations = publicApiOperations();
+      Reflect.deleteProperty(entry(operations, type, version), 'authorizationPurpose');
+      expect(() => {
+        assertTaskExecutionCreationPurposeRegistrations(asOperations(operations));
+      }).toThrow(`missing creation operation Purpose: ${type}@${version}`);
+      // The other source still carries the value: only the public API entry drifted.
+      expect(entry(compatibilityMetadata(), type, version).authorizationPurpose).toBeDefined();
+      assertTaskExecutionCreationPurposeRegistrations(asOperations(publicApiOperations()));
+    }
+  });
+
   it('rejects a declared public API Purpose that is not the approved one', () => {
     const operations = publicApiOperations();
     entry(operations, 'execution.create_task', '2.0').authorizationPurpose =

@@ -599,6 +599,12 @@ export interface TaskExecutionCreationPurposeRegistration {
   readonly kind: string;
   readonly owner: string;
   readonly authorizationPurpose: string;
+  /**
+   * Set only on the two historical `@1.0` baseline entries, whose published
+   * public API registration carries no `authorizationPurpose`. Every other
+   * version must declare the approved value in the public API registry.
+   */
+  readonly publicApiPurposeOmitted?: true;
 }
 
 export const taskExecutionCreationPurposes: readonly TaskExecutionCreationPurposeRegistration[] = [
@@ -608,6 +614,7 @@ export const taskExecutionCreationPurposes: readonly TaskExecutionCreationPurpos
     kind: 'COMMAND',
     owner: 'task-execution',
     authorizationPurpose: 'task.execution.create_task',
+    publicApiPurposeOmitted: true,
   },
   {
     type: 'execution.create_task',
@@ -622,6 +629,7 @@ export const taskExecutionCreationPurposes: readonly TaskExecutionCreationPurpos
     kind: 'COMMAND',
     owner: 'task-execution',
     authorizationPurpose: 'task.execution.create_work_order',
+    publicApiPurposeOmitted: true,
   },
   {
     type: 'execution.create_work_order',
@@ -634,8 +642,10 @@ export const taskExecutionCreationPurposes: readonly TaskExecutionCreationPurpos
 
 /**
  * Every approved creation version is registered exactly once with its approved
- * owner/kind, and a declared `authorizationPurpose` — where the historical
- * `@1.0` entries declare none — is the approved value.
+ * owner/kind and its approved `authorizationPurpose`. Only the two historical
+ * `@1.0` entries may leave the field out of the public API registry; for
+ * `@2.0` and `@1.1` an omitted field is cross-source drift even though the
+ * compatibility metadata still carries the value.
  */
 export function assertTaskExecutionCreationPurposeRegistrations(
   operations: readonly (Omit<PublicOperationDefinition, 'version'> & {
@@ -653,10 +663,12 @@ export function assertTaskExecutionCreationPurposeRegistrations(
     if (operation.kind !== expected.kind || operation.owner !== expected.owner) {
       throw new Error(`invalid creation operation registration: ${key}`);
     }
-    if (
-      operation.authorizationPurpose !== undefined &&
-      operation.authorizationPurpose !== expected.authorizationPurpose
-    ) {
+    const declared = operation.authorizationPurpose;
+    if (declared === undefined) {
+      if (expected.publicApiPurposeOmitted !== true) {
+        throw new Error(`missing creation operation Purpose: ${key}`);
+      }
+    } else if (declared !== expected.authorizationPurpose) {
       throw new Error(`invalid creation operation Purpose: ${key}`);
     }
   }
