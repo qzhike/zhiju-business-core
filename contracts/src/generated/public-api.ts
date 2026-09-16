@@ -435,6 +435,40 @@ export const publicApiOperations = [
     schemaStatus: 'FULL',
   },
   {
+    type: 'execution.build_task_readiness',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.task_readiness',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'execution.task.readiness.build',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_build_task_readiness_result',
+    references: [
+      { path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.execution.task_readiness' },
+      {
+        path: '/payload/taskDefinitionRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.task_definition_snapshot',
+      },
+      { path: '/payload/policyRef', kind: 'VERSIONED', objectType: 'zhiju.identity.policy' },
+      {
+        path: '/payload/evaluatorRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.execution.evaluator_profile',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/data/readinessSnapshotRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.execution.task_readiness',
+      },
+    ],
+  },
+  {
     type: 'execution.create_work_order',
     version: '1.0',
     kind: 'COMMAND',

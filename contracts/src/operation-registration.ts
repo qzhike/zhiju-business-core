@@ -30,6 +30,18 @@ export const taskExecutionObjectTypes = {
   },
   'zhiju.identity.policy': { owner: 'identity-policy', kinds: ['VERSIONED'] },
   'zhiju.identity.principal': { owner: 'identity-policy', kinds: ['PRINCIPAL'] },
+  'zhiju.execution.task_readiness': {
+    owner: 'task-execution',
+    kinds: ['OBJECT', 'SNAPSHOT'],
+  },
+  'zhiju.execution.task_definition_snapshot': {
+    owner: 'task-execution',
+    kinds: ['CONTENT_ADDRESSED'],
+  },
+  'zhiju.execution.evaluator_profile': {
+    owner: 'task-execution',
+    kinds: ['VERSIONED'],
+  },
 } as const;
 
 /** Public object names for the approved PolicyVersion version-key/fact boundary. */
@@ -951,6 +963,137 @@ export function assertRevisionEligibilityCompatibilityMetadata(
       entry.dataClassification !== expected.dataClassification
     ) {
       throw new Error(`inconsistent revision eligibility compatibility metadata: ${expected.type}`);
+    }
+  }
+}
+
+interface TaskReadinessRegistration {
+  readonly type: string;
+  readonly kind: 'COMMAND';
+  readonly owner: string;
+  readonly schemaStatus: 'FULL';
+  readonly targetObjectType: string;
+  readonly concurrencyMode: 'CREATE';
+  readonly authorizationPurpose: string;
+  readonly dataClassification: string;
+  readonly resultSchemaRef: string;
+  readonly references: readonly OperationReferenceDeclaration[];
+  readonly resultReferences: readonly OperationReferenceDeclaration[];
+}
+
+/**
+ * Approved #206/#208 registration for the Task Readiness producer. The command
+ * creates one immutable judgment, so it is a CREATE with an operation-specific
+ * Result Schema and no dedicated build-time PayloadGuard technical Policy; the
+ * `/payload/taskRef` reference stays undeclared because its accepted spelling
+ * follows the Task's creation major and is closed by the owning Handler
+ * (R-206-1). One entry, so a second version, an added reference or a rewritten
+ * Purpose is a registration regression rather than an accepted extension.
+ */
+const taskReadinessRegistrations: readonly TaskReadinessRegistration[] = [
+  {
+    type: 'execution.build_task_readiness',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.task_readiness',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'execution.task.readiness.build',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_build_task_readiness_result',
+    references: [
+      {
+        path: '/targetRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.execution.task_readiness',
+      },
+      {
+        path: '/payload/taskDefinitionRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.task_definition_snapshot',
+      },
+      {
+        path: '/payload/policyRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.identity.policy',
+      },
+      {
+        path: '/payload/evaluatorRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.execution.evaluator_profile',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/data/readinessSnapshotRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.execution.task_readiness',
+      },
+    ],
+  },
+] as const;
+
+export function assertTaskReadinessOperationRegistrations(
+  operations: readonly (Omit<PublicOperationDefinition, 'version'> & {
+    readonly version: string;
+  })[],
+): void {
+  for (const expected of taskReadinessRegistrations) {
+    const matching = operations.filter(
+      (operation) => operation.type === expected.type && operation.version === '1.0',
+    );
+    if (matching.length !== 1)
+      throw new Error(`missing or duplicate task readiness operation: ${expected.type}`);
+    const operation = matching[0];
+    if (operation === undefined) throw new Error('missing task readiness operation');
+    if (
+      operation.kind !== expected.kind ||
+      operation.owner !== expected.owner ||
+      operation.schemaStatus !== expected.schemaStatus ||
+      operation.targetObjectType !== expected.targetObjectType ||
+      operation.concurrencyMode !== expected.concurrencyMode ||
+      operation.allowedConsistency !== undefined ||
+      operation.authorizationPurpose !== expected.authorizationPurpose ||
+      operation.dataClassification !== expected.dataClassification ||
+      operation.payloadGuardPolicyRef !== undefined ||
+      operation.resultSchemaRef !== expected.resultSchemaRef ||
+      !sameRegistrationValue(operation.references ?? [], expected.references) ||
+      !sameRegistrationValue(operation.resultReferences ?? [], expected.resultReferences)
+    ) {
+      throw new Error(`invalid task readiness registration: ${expected.type}`);
+    }
+    for (const ref of [...expected.references, ...expected.resultReferences]) {
+      const object = (
+        taskExecutionObjectTypes as Readonly<
+          Record<string, { readonly owner: string; readonly kinds: readonly string[] }>
+        >
+      )[ref.objectType];
+      if (!object?.kinds.includes(ref.kind))
+        throw new Error(`unregistered task readiness reference object type: ${ref.objectType}`);
+    }
+  }
+}
+
+export function assertTaskReadinessCompatibilityMetadata(
+  metadata: readonly {
+    readonly type: string;
+    readonly version: string;
+    readonly authorizationPurpose: string;
+    readonly dataClassification: string;
+  }[],
+): void {
+  for (const expected of taskReadinessRegistrations) {
+    const entries = metadata.filter(
+      (entry) => entry.type === expected.type && entry.version === '1.0',
+    );
+    const entry = entries[0];
+    if (
+      entries.length !== 1 ||
+      entry?.authorizationPurpose !== expected.authorizationPurpose ||
+      entry.dataClassification !== expected.dataClassification
+    ) {
+      throw new Error(`inconsistent task readiness compatibility metadata: ${expected.type}`);
     }
   }
 }

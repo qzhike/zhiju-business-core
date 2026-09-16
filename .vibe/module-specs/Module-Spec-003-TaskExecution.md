@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN MERGED 2026-09-16 (PR #207; NOT REGISTERED, NOT IMPLEMENTED) / HANDLER IMPLEMENTATION NOT STARTED`
+状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN MERGED 2026-09-16 (PR #207) / #208 TASK READINESS PRODUCER, READY CONSUMER, V3002 AND BOTH AUTHORIZATION ENTRIES IMPLEMENTED 2026-09-16 (CATALOG 214, TE-P206-001–018 EXECUTED ON REAL PostgreSQL; COMPLETED-DEPENDENCY AND BLOCKING-INFORMATIONREQUEST BRANCHES NOT RUN) / OTHER HANDLER IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -304,16 +304,16 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 
 ## 9. 当前状态
 
-- 43 个公开 Contract 已定义字段级 payload/result/event 结构；
+- 44 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已由用户审核；Runtime Adapter v0.1 已获用户推进确认并进入 Implementation Milestone Plan，同时保留 6 个尚未纳入基准的 additive Command；
 - `contracts/src/operations/task-execution.schema.ts` 已注册基线 37 个操作、#158 的 @1.0 Draft/initial Context 两项操作、#165 的三个 @1.1 兼容操作及 #175 的 `execution.create_task@2.0`；PR #10 Review 识别的 8 类 strict Schema 偏差均已修复，Draft/initial Context 正负向 Contract 回归已补齐；
 - TaskExecution 直接复用权威 `core/work-order/1.0#/$defs/*`；WorkOrder Core Contract 与 `create_work_order` 使用同一组 `$defs`，且 `requestedBy` 统一为 `PrincipalRef`；Core Contract 不再被开放 `CanonicalJson` 降级；
-- 注册到 `ContractRegistry` 后所有 43 项 TaskExecution `schemaStatus` 为 `FULL`；当前全仓 Catalog/Registry 为 213 项（#183 追加两个 IdentityPolicy PolicyVersion 操作，#191/#192 追加两个权威 Query），历史 Compatibility Baseline 仍为 200 项；
-- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 211 项 Registry，等待用户审核通过后单独补齐；
+- 注册到 `ContractRegistry` 后所有 44 项 TaskExecution `schemaStatus` 为 `FULL`；当前全仓 Catalog/Registry 为 214 项（#183 追加两个 IdentityPolicy PolicyVersion 操作，#191/#192 追加两个权威 Query，#208 追加 `execution.build_task_readiness@1.0`），历史 Compatibility Baseline 仍为 200 项；
+- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 214 项 Registry，等待用户审核通过后单独补齐；
 - IM-06 WI-01（Issue #151）落地模块自有 application/persistence 基础：`@zhiju/task-execution` 提供 Kysely schema、`createTaskExecutionDatabase`、`withTaskExecutionTransaction`、`executeTaskExecutionCommand`、`TaskExecutionRepository`，单一受信事务上下文建立路径，幂等/CAS/Scope mirror/Process 父子 Scope/Hash 一致性 guard 与 controlled fault 回滚均已落实；可由 disposable PostgreSQL gate 复测；
-- Context Builder、Dispatcher、Runtime、Evaluator、Projection 与 Handler 实现均不存在；模块自有业务 Repository 仅暴露 `insertProcessInstance` 给当前技术 Aggregate，不与任何业务表/其他模块 Repository 交叉；
-- #206 设计（2026-09-16，本节 §17）固定 Task Readiness 生产与 READY 转换边界：`execution.build_task_readiness@1.0` 为唯一新增 operation（Catalog 213 → 214，历史 Baseline 200 不变）、`zhiju.execution.task_readiness` 与已决定的 `zhiju.execution.task_definition_snapshot` 为本切片注册的两个引用身份、两个 create-task Major 的 Task 寻址按创建事实版本绑定、生产者不发布事件而消费者发布恰一条 `execution.TaskReady@1.0`。该设计**未注册契约、未实现、未分配 migration**：Readiness Handler、`execution_judgment` 持久化、Spec 001 §15.5 授权 Port 与 READY 转换全部 `NOT RUN`；
-- 对应 Unit、Contract、E2E 与人工验收中，Schema fixture、Review 修复回归与 IM-06 WI-01 持久化 gate 已执行；Handler、Runtime/DB E2E 和人工业务验收仍为 `NOT RUN`。
+- Context Builder、Dispatcher、Runtime、Projection 与 WorkOrder/Context/Run/Completion/Query 的业务 Handler 仍不存在；模块自有业务 Repository 目前只服务 Task DRAFT 创建与 Task Readiness 判断/READY 转换，不与任何其他模块 Repository 或跨 Schema 读取交叉；
+- #206 设计（2026-09-16，本节 §17）固定 Task Readiness 生产与 READY 转换边界，并已由 #208 实现（实现事实见 §17.11）：`execution.build_task_readiness@1.0` 为唯一新增 operation（Catalog 213 → 214，历史 Baseline 200 不变）、`zhiju.execution.task_readiness` 与已决定的 `zhiju.execution.task_definition_snapshot` 为本切片注册的两个引用身份、两个 create-task Major 的 Task 寻址按创建事实版本绑定、生产者不发布事件而消费者发布恰一条 `execution.TaskReady@1.0`。Readiness Handler、`execution_judgment` 持久化（`V3002`）、Spec 001 §15.5 两个授权 Port 条目与 READY 转换均已交付并在真实 PostgreSQL 上执行 `TE-P206-001`–`018`；依赖已 `COMPLETED` 的 Completion Evaluation 可用性分支与 blocking InformationRequest 分支仍 `NOT RUN`，因为它们依赖的上游 producer 尚未交付；
+- 对应 Unit、Contract、E2E 与人工验收中，Schema fixture、Review 修复回归、IM-06 WI-01 持久化 gate 以及 #208 的 `TE-P206-001`–`018`（真实 PostgreSQL）已执行；WorkOrder/Context/Run/Completion/Query 的 Handler、Runtime/DB E2E、外部 Provider 与人工业务验收仍为 `NOT RUN`。
 
 ## 10. IM-02 WI-04 持久化切片
 
@@ -1021,9 +1021,9 @@ EXECUTION_TASK_ALREADY_EXISTS
 
 ## 17. Task Readiness 生产与 READY 转换边界（#206 设计）
 
-状态：`T2 / MERGED 2026-09-16（PR #207，merge commit 47966816e9ba96dc89b21d502176dfc413cfd7bc）/ INDEPENDENT DESIGN REVIEW APPROVE 2026-09-16（reviewed revision 2155d4dd89437694632c0e35ca65b7d6d46d720f）/ EXPLICIT HUMAN DESIGN APPROVAL OF THIS REVISION FOR THE DEPENDENT IMPLEMENTATION ISSUE NOT YET RECORDED / NO CONTRACT, HANDLER, MIGRATION OR REGISTRY CHANGE IN THIS REVISION`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206)，把 #154 已批准的权威判断原则、#176 已批准并部分交付的 Policy/Evaluator 边界，与 #202/#204 已交付的版本绑定 DRAFT 事实收敛为一套可实现语义，使 #204 创建的 Task 能到达 `READY` 而不在实现时发明兼容、授权或跨模块语义。字段级权威在本节；依据、备选与被否方案见[决定 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)；READY 动作的授权组成由 [Spec 001 §15.5](Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 拥有；验证矩阵见 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-readiness-生产与-ready-转换边界206-设计)。
+状态：`T2 / DESIGN MERGED 2026-09-16（PR #207，merge commit 47966816e9ba96dc89b21d502176dfc413cfd7bc）/ INDEPENDENT DESIGN REVIEW APPROVE 2026-09-16（reviewed revision 2155d4dd89437694632c0e35ca65b7d6d46d720f）/ EXPLICIT HUMAN DESIGN APPROVAL RECORDED 2026-09-16（Issue #206）/ IMPLEMENTED 2026-09-16 BY Issue #208（契约、两个 objectType、`EXECUTION_TASK_REF_INVALID` 注册、Spec 001 §15.5 两条授权条目、V3002、生产者与 READY 消费者 Handler、组成层接线、TE-P206-001–018 真实 PostgreSQL；实现事实见 §17.11）/ COMPLETED 依赖可用性与 blocking InformationRequest 分支 NOT RUN / WorkOrder、Context、Run/Completion 与人工业务验收 NOT RUN`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206)，把 #154 已批准的权威判断原则、#176 已批准并部分交付的 Policy/Evaluator 边界，与 #202/#204 已交付的版本绑定 DRAFT 事实收敛为一套可实现语义，使 #204 创建的 Task 能到达 `READY` 而不在实现时发明兼容、授权或跨模块语义。字段级权威在本节；依据、备选与被否方案见[决定 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)；READY 动作的授权组成由 [Spec 001 §15.5](Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 拥有；验证矩阵见 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-readiness-生产与-ready-转换边界206-设计)。
 
-本节只定义未来实现的字段与语义，不实现、不注册契约、Handler、Query、migration、持久化表、capability 配置或生产 Policy 事实；不改 §2–§6 的既有 @1.0 定义、§11 的 TD-01–04 基准、§15 的逐版本 Purpose、§16 的创建事实与接受集、当前 213 项 Catalog、200 项历史 Compatibility Baseline 或任何已冻结 fixture。Task READY 之外的行为（WorkOrder DRAFT、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、人工业务验收）不在本切片。
+本节定义字段与语义；Issues #206/#208 的实现事实、注册结果与未运行边界见 §17.11。本节与 §17.11 都不改 §2–§6 的既有 @1.0 定义、§11 的 TD-01–04 基准、§15 的逐版本 Purpose、§16 的创建事实与接受集、200 项历史 Compatibility Baseline 或任何已冻结 fixture；Catalog 已由 #208 按 §17.4 从 213 增至 214。Task READY 之外的行为（WorkOrder DRAFT、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、人工业务验收）不在本切片。
 
 ### 17.1 对账事实与剩余缺口
 
@@ -1205,3 +1205,47 @@ EXECUTION_TASK_ALREADY_EXISTS
 - 本 revision **不改**代码、契约、Registry、生成物、migration 或 fixture：Catalog 保持 213、历史 Baseline 保持 200、v1/v2 冻结 fixture 与两个 `create_task` Major 的接受集逐字节不变；本节新增的 operation、objectType、error code 与 `V3002` 均**未注册、未实现、未分配 migration 编号**。
 - 未运行边界：生产者/消费者 Handler、`execution_judgment` 持久化、Spec 001 §15.5 的两个授权条目（签发/重验与组成层接线）、真实 PostgreSQL、RLS/ACL、直 SQL 篡改、回滚、并发、重放与 `execution.TaskReady@1.0` 的实际发布全部 `NOT RUN`；依赖未交付导致的不可达分支（依赖 COMPLETED 可用性、blocking InformationRequest blocker）单独标注，不因无事实可产生而写成 PASS。
 - 依赖 #179/#186/#188/#189 的既有证据只证明各自的静态注册/解析或单模块 Handler slice，不证明本切片的判断产出、READY 转换或跨模块业务链已可运行。
+
+### 17.11 实现事实与验证边界（#208，2026-09-16）
+
+状态：`T2 / IMPLEMENTED AND EXECUTED ON REAL PostgreSQL / INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW PENDING`。[Issue #208](https://github.com/qzhike/zhiju-business-core/issues/208) 按 §17 的已批准设计交付本切片；本节只记录实现事实、必须的可核验点与仍然 `NOT RUN` 的边界，执行证据（revision、测试计数、PostgreSQL 版本与迁移路径、Catalog/Registry/Baseline 计数、独立审查结论与人类技术批准）保存在 Issue 与 PR，不另建并行报告。
+
+**注册与生成物**
+
+- `execution.build_task_readiness@1.0` 已按 §17.4 注册：owner `task-execution`、`COMMAND`、`targetObjectType=zhiju.execution.task_readiness`、`concurrencyMode=CREATE`、Purpose `execution.task.readiness.build`、`dataClassification=INTERNAL`、无专用 PayloadGuard、operation-specific `resultSchemaRef`（`execution_build_task_readiness_result`）。四条 `references` 与一条 `resultReferences` 与设计逐项一致；`/payload/taskRef` 仍**不**声明。
+- 两个引用身份已注册为 objectType：`zhiju.execution.task_readiness`（`OBJECT`/`SNAPSHOT`）、`zhiju.execution.task_definition_snapshot`（`CONTENT_ADDRESSED`）；`zhiju.execution.evaluator_profile`（`VERSIONED`）随 `evaluatorRef` 声明一并注册。
+- 生成物：`public-api.v1.json`（+1 条目）、`operation-compatibility-metadata.v1.json`（+1 条目，`semanticDeclaration=im-06-task-readiness-registration`）、`contracts/src/generated/public-api.ts`、`contracts/src/generated/types/task-execution.ts`，并由 `assertTaskReadinessOperationRegistrations`/`assertTaskReadinessCompatibilityMetadata` 在构建期闭合。正/负例 fixture 位于 `tests/fixtures/contracts/task-readiness/`，跨字段绑定校验由纯 helper `validateBuildTaskReadinessCommandResult` 承担。
+- 计数：Catalog/Registry 213 → **214**，TaskExecution 43 → **44**（24 Command / 9 Query / 11 Event）；历史 **200** 项 Compatibility Baseline、两个 `create_task` Major 的接受集与 `execution.mark_task_ready@1.0` 的注册 Schema/Catalog 条目/compat metadata 逐字节不变。
+- 唯一新增的模块稳定码是 `EXECUTION_TASK_REF_INVALID`；`EXECUTION_JUDGMENT_INVALID`/`EXECUTION_JUDGMENT_STALE`/`EXECUTION_CRITERION_UNSUPPORTED` 按 §17.9 沿用 §11.7 语义进入实现，`EXECUTION_TASK_DEPENDENCY_CYCLE`/`EXECUTION_TASK_READINESS_UNSATISFIED`/`EXECUTION_TASK_NOT_EXECUTABLE` 沿用 §6 既有码。
+
+**授权组成（Spec 001 §15.5）**
+
+- IdentityPolicy 新增内部 `TaskExecutionReadinessAuthorizationPort`（`modules/identity-policy/src/commands/task-execution-readiness-authorization.ts`），两条精确 `(type, version)` 条目互不替代：生产者 `execution.build_task_readiness@1.0`（Purpose `execution.task.readiness.build`、action 同名、`CREATE_TARGET_TYPE`、config key `taskReadinessBuildV1`、target `zhiju.execution.task_readiness` 单值）与消费者 `execution.mark_task_ready@1.0`（Purpose `task.execution.mark_task_ready`、action `execution.task.mark_ready`、`TARGET_TYPE`、config key `taskReadyV1`、target 为两个已发布 Task 拼写的闭集）。
+- `TARGET_TYPE` 是本 Port 解释的新 selector 类型；§15.2 的其余覆盖规则（ACTIVE、`[validFrom, validTo)`、精确 action、空 `constraints`、缺省 `maxUses`、Grant Policy Snapshot 一致且当前有效、禁止分段拼接）不变。两条条目都复用 V1006 的 `target_object_type`/`target_object_id` 列，**没有**新的 IdentityPolicy 迁移。拒绝路径只写同事务脱敏 `DENIED` Audit，不签发 Decision。
+- 两个方向都在各自幂等 Claim 与历史 Receipt 返回**之前**重验：生产者见 §17.5 第 1 步，消费者见 §17.8 第 1 步。生产者的 Decision/Grant 不能授权 READY 转换，消费者的也不能授权 build；两个 target objectType 集合不重叠。
+
+**持久化（V3002）**
+
+- `migrations/task_execution/V3002__task_readiness_judgment.sql` 建立 `task_execution.execution_judgment`：§17.7 列集合 + `canonicalization_version`，主键 `judgment_id`、`UNIQUE (enterprise_id, project_id, judgment_id)`、32 字节 hash 长度 CHECK、`valid_until >= evaluated_at`、封闭 `judgment_kind` CHECK（本切片只允许 `TASK_READINESS`）。判断 identity 独立于任何 CAS 版本：没有 current pointer、没有取代边、没有可变状态列。
+- 双 guard：`SECURITY DEFINER` 的 mirror guard 由 `canonical_payload` 重算 Scope/subject/Policy 观察镜像并用 owner-only 的 `task_execution.canonical_jsonb_text` 重算 `payload_hash`；`SECURITY INVOKER` 的 creation-identity guard 要求 `source_command_id` 指向仍在途（`outcome='PENDING'`）的 `execution.build_task_readiness@1.0` Receipt，其 target type/id 与 Project Scope 等于本判断且 `request_payload_hash` 等于本行同名列。app 角色 `REVOKE UPDATE, DELETE`，表 `FORCE RLS` + `context_allows_project`，无跨 Schema FK/Join。
+- 判断写入**不写** `outbox_event`。READY 转换**不新增** Task Root 列：它是单条受 guard 的 `UPDATE`（`task_id`、`enterprise_id`、`project_id`、`status='DRAFT'`、`aggregate_version`、`current_definition_snapshot_id`、`current_definition_hash` 同时入 `WHERE`），置 `READY` 并把 `aggregate_version` 加一；0 行时回读区分 `NOT_FOUND`/`EXECUTION_TASK_NOT_EXECUTABLE`/`CONCURRENCY_CONFLICT`/`EXECUTION_JUDGMENT_STALE`。转换事务写 Receipt、Audit、Reference Edge 与恰一条 `execution.TaskReady@1.0`。
+
+**Handler 与组成层**
+
+- 生产者 `handleBuildTaskReadiness`（`modules/task-execution/src/business/task-readiness-production.ts`）与消费者 `handleMarkTaskReady`（`business/task-ready-transition.ts`）共用 `business/task-readiness-plan.ts` 的闭合算法：R-206-1 身份闭合、只由被 pointer 固定的 definition payload 决定的依赖集合与输入集合、Kahn 拓扑判环（覆盖“本 Task + 传递依赖”子图）、单一支持输入种类 `zhiju.project.context_source_slice`、blocker 派生、稳定排序的检查行与 reason code、`inputHash` 与 `validUntil`。两个入口都用同一算法重新观测，消费者要求与记录逐项相等。
+- 组成层 `apps/api/src/composition/task-readiness-entry.ts`（`createTaskReadinessEntry`）在幂等 Claim 之前完成 Registry 精确版本校验、Decision/Actor 绑定与本操作**自己那一条**授权重验，随后把 Policy 解析与 Slice 解引用分别交给 `identity.resolve_policy@1.0` 与 `project.get_context_source_slice@1.0`，各自签发自己的 Decision；两条 owning 读取不可用时映射为 `DEPENDENCY_UNAVAILABLE`，不降级为默认值。
+- **实现期补充的记录字段**：判断 canonical payload 除 §17.7 的镜像外还记录当次 **Policy 版本键**（`policyRef`）与 Task 观察版本（`taskAggregateVersion`）。原因是 `policyVersionRef` 是解析出的不可变版本事实身份（`SnapshotRef`，`objectId == snapshotId`），而 §17.8 第 3 步要求消费者在提交点**重新解析** Policy，这需要一个可解析的版本键；观察版本是 §17.8 第 4 步与 `inputHash` 的比对对象。两者都进入 `inputHash` 与 `contentHash`，因此不可被事后替换。
+- **观测枚举**：依赖观测为 `{taskRef, aggregateVersion|null, completionEvaluationRef|null, completionUseStatus}`，其中 `completionUseStatus ∈ {USABLE, STALE, NOT_COMPLETED, CANCELLED, MISSING}`；输入观测为 `{inputRef, resolution ∈ {USABLE, EXPIRED, REVOKED, UNSUPPORTED}, validUntil|null}`；检查行为 `{checkCode, outcome, factRefs, reasonCodes}`，顺序为“每个依赖一行、每个输入一行、至多一行 blocker 检查”。`USABLE`/`STALE` 是设计为 COMPLETED 依赖固定的两个取值，其余三个取值分别对应设计中 `DEPENDENCY_TASK_MISSING`/`DEPENDENCY_TASK_CANCELLED`/`DEPENDENCY_NOT_COMPLETED` 三个不可用分支。
+- **`validUntil`**：`min(evaluatedAt + maxReadinessValiditySeconds, 产出 Decision 的 expiresAt, 每个 `USABLE` 输入的有限上界)`。Policy 上界与 Decision 上界始终参与，因此 `validUntil` 始终有限；无有限上界的项不参与 min，不被解释为无限期。
+- **提交点时间重验**：消费者在完成 Policy 重解析、Task/definition 绑定与完整依赖/输入/blocker 重观察之后、执行不可逆 CAS 之前，重新读取受信时钟，并以该当次时间同时重验 `now < valid_until`、`now < 判断镜像的 policySupersededAt`（存在时）与 `now < 产出该请求授权的 Decision expiresAt`。任一项越界即拒绝（前两者 `EXECUTION_JUDGMENT_STALE`，第三项共享码 `AUTHORIZATION_EXPIRED`），因此长事务不能在事务开始时刻尚未过期、而在 owning reads 之后已经过期的情况下完成转换。§17.8 第 3 步的首次过期检查保留为快速失败路径，实际裁决以提交点读取为准。
+- **单一提交时刻**：转换事件与 Receipt 共用同一个受信时刻。Handler 在提交点读到的时间即 `execution.TaskReady@1.0` 的 `readyAt` 与 Outbox 行的 `occurred_at`，并通过 `CommandBodyResult.committedAt` 交给共享 runner 写入该命令 `command_receipt.completed_at`，因此 §17.8 第 8 步“`readyAt` 取受信转换时刻（Receipt `completed_at`）”是构造性相等，而不是两个独立时钟的巧合。其他命令不传该值，runner 行为逐字节不变。
+
+**已知边界与后续候选**
+
+- 事件 payload 的平台既有约定：`execution.TaskReady@1.0` 的**注册** payload 是 `{taskRef, readinessSnapshotRef, readyAt}`，而 TaskExecution 的 Outbox 行还必须携带 promoted Scope 镜像（`enterpriseId`/`projectId`），因为 `V3000` 的 `outbox_scope_mirror_guard` 与共享 runner 都要求每个事件 payload 内嵌该镜像——已交付的 EnterpriseProject 与 IdentityPolicy 事件发射同此约定。本切片沿用该约定，未改写 `V3000`、未放宽共享 runner、未修改注册的 Event Schema。注册 Event payload 与 Outbox 行 payload 的这处全平台分叉应作为独立 additive 提案处理，不属本切片。
+
+**未运行边界**
+
+- `TE-P206-005` 的“依赖已 `COMPLETED` 且 Completion Evaluation 当前可用”分支与 `TE-P206-010` 的 blocking InformationRequest 分支保持 `NOT RUN`：`execution.evaluate_task_completion@1.0` 与 `information_request` 生产者未交付，当前不存在可产生这两个分支的合法事实；实现按设计把它们确定性映射为 `STALE`/`UNSATISFIED`，但“无事实可产生”不等于通过。
+- WorkOrder DRAFT、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection（TD-05–07）、受控退出 Fixture、外部 Provider/Runtime、飞书通道与人工业务验收仍 `NOT RUN`；`TaskCompleted` 等 Task 公开事件未注册也未发布。
+- 迁移验证与 PostgreSQL 验收覆盖空库、既有 V3000/V3001 之上的 forward 迁移、二次 no-op、RLS/ACL、直 SQL 篡改、回滚与并发；这些证据随本切片的执行记录保存在 Issue/PR，不改变 TD-01–04 其他表的 `NOT RUN` 状态。

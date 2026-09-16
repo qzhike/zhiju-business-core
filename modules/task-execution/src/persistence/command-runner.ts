@@ -22,6 +22,12 @@ import {
   type TaskDefinitionSnapshotInsert,
   type TaskRootInsert,
 } from './task-draft-repository.js';
+import {
+  TaskReadinessRepository,
+  type ExecutionJudgmentInsert,
+  type TaskReadyCasInput,
+  type TaskReadyCasResult,
+} from './task-readiness-repository.js';
 
 export const IDEMPOTENCY_PAYLOAD_CONFLICT = 'IDEMPOTENCY_PAYLOAD_CONFLICT';
 export const CONCURRENCY_CONFLICT = 'CONCURRENCY_CONFLICT';
@@ -145,7 +151,19 @@ export interface ProcessStepInput {
 }
 
 export type CommandBodyResult =
-  | { kind: 'COMMITTED'; resultPayload: CanonicalJsonObject }
+  | {
+      kind: 'COMMITTED';
+      resultPayload: CanonicalJsonObject;
+      /**
+       * The owning handler's trusted commit instant, when the command's own
+       * public facts must name the exact time this command committed (for
+       * example an event whose `readyAt` the design fixes to the Receipt's
+       * `completed_at`). The runner writes this value to the Receipt, so the
+       * two can never drift; omitted, the runner samples its own clock exactly
+       * as before for every other command.
+       */
+      committedAt?: Date | undefined;
+    }
   | {
       kind: 'REJECTED';
       errorCode: string;
@@ -195,6 +213,15 @@ export interface CommandExecution {
    */
   insertTaskDraftRoot(row: TaskRootInsert): Promise<boolean>;
   insertTaskDraftDefinition(row: TaskDefinitionSnapshotInsert): Promise<void>;
+  /**
+   * Runner-bound Task Readiness writes (IM-06 #208): the body supplies the row
+   * data only, and the runner closes over the open transaction, the frozen
+   * command target and the owning repository, so a caller cannot write a
+   * judgment for another Scope or convert a Task other than the command target.
+   * `false` means the judgment identity was already taken.
+   */
+  insertExecutionJudgment(row: ExecutionJudgmentInsert): Promise<boolean>;
+  casTaskStatusToReady(input: TaskReadyCasInput): Promise<TaskReadyCasResult>;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -440,6 +467,7 @@ async function runCommandTransaction(
     await finalizeReceipt(trx, envelopeSnapshot, {
       outcome: 'COMMITTED',
       resultPayload: bodyResult.resultPayload,
+      completedAt: bodyResult.committedAt,
     });
     await insertAuditRow(trx, envelopeSnapshot, {
       outcome: 'COMMITTED',
@@ -523,6 +551,8 @@ async function finalizeReceipt(
   final: {
     outcome: 'COMMITTED' | 'REJECTED';
     resultPayload: CanonicalJsonObject;
+    /** Completion instant; a body may name it so its own facts can reference it. */
+    completedAt?: Date | undefined;
   },
 ): Promise<void> {
   const resultDigest = digestCanonicalPayload(final.resultPayload);
@@ -530,7 +560,7 @@ async function finalizeReceipt(
     .updateTable('task_execution.command_receipt')
     .set({
       outcome: final.outcome,
-      completed_at: new Date(),
+      completed_at: final.completedAt ?? new Date(),
       result_payload: resultDigest.canonicalJson,
       result_payload_hash: resultDigest.hash,
     })
@@ -545,6 +575,7 @@ function createExecution(
 ): CommandExecution {
   const taskExecutionRepo = new TaskExecutionRepository();
   const taskDraftRepo = new TaskDraftRepository();
+  const taskReadinessRepo = new TaskReadinessRepository();
   return {
     trx,
     async insertProcessInstance(row) {
@@ -555,6 +586,12 @@ function createExecution(
     },
     async insertTaskDraftDefinition(row) {
       await taskDraftRepo.insertTaskDefinitionSnapshot(trx, commandFacts, row);
+    },
+    async insertExecutionJudgment(row) {
+      return taskReadinessRepo.insertExecutionJudgment(trx, commandFacts, row);
+    },
+    async casTaskStatusToReady(row) {
+      return taskReadinessRepo.casTaskStatusToReady(trx, commandFacts, row);
     },
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {

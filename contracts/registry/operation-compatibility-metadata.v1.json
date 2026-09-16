@@ -404,6 +404,13 @@
       "semanticDeclaration": "v1.0-baseline"
     },
     {
+      "type": "execution.build_task_readiness",
+      "version": "1.0",
+      "authorizationPurpose": "execution.task.readiness.build",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-task-readiness-registration"
+    },
+    {
       "type": "execution.create_work_order",
       "version": "1.0",
       "authorizationPurpose": "task.execution.create_work_order",
