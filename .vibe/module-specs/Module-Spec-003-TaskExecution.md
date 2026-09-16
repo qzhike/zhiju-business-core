@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / HANDLER IMPLEMENTATION NOT STARTED`
+状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN PROPOSED 2026-09-16 (NOT REGISTERED, NOT IMPLEMENTED) / HANDLER IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -158,7 +158,7 @@ CompletionEvaluationInput
 |---|---|---|---|
 | `execution.create_task@1.0` | `Task / CREATE` | `projectRef: ObjectRef<Project>; definition: TaskDefinition; initialAssignee?: CanonicalJson` | `task.execution.create_task`；Agent 仅在 Coordinator Capability 下创建 DRAFT，不能直接 READY |
 | `execution.create_task@2.0` | `Task / CREATE` | `projectRef: ObjectRef<zhiju.project.project>; definition: TaskDefinitionV2; initialAssignee?: CanonicalJson` | `execution.task.create`；`expectedOutputSpec`/`completionCriteria` 为注册的 closed shape，不退回任意 CanonicalJson；`inputRefs` 按 §2 为 `TypedReference[]`；Human，或既有 Coordinator Capability 下的 Agent，只创建 DRAFT；合法字段见 §11.6 |
-| `execution.mark_task_ready@1.0` | `Task / MUTATE` | `readinessSnapshotRef: SnapshotRef<TaskReadiness>; requestedAt: UtcInstant` | `execution.task.mark_ready`；依赖、输入、权限满足；不接受调用者布尔值 |
+| `execution.mark_task_ready@1.0` | `Task / MUTATE` | `readinessSnapshotRef: SnapshotRef<TaskReadiness>; requestedAt: UtcInstant` | `task.execution.mark_task_ready`（已发布值，2026-09-16 按 §15.1 同一规则修正本行设计期文字；见 §17.4）；依赖、输入、权限满足；不接受调用者布尔值或调用者时间 |
 | `execution.create_work_order@1.0` | `WorkOrder / CREATE` | `draft: WorkOrderDraft; expiresAt?: UtcInstant` | `task.execution.create_work_order`；Scope 不得超出 Task；Human-only Capability 禁止授予 Agent |
 | `execution.create_work_order@1.1` | `WorkOrder / CREATE` | `draft: InitialWorkOrderDraft; expiresAt?: UtcInstant` | `task.execution.create_work_order`；DRAFT 不携带 `projectContextContractRef`；保留 @1.0 合法调用 |
 | `execution.freeze_work_order@1.0` | `WorkOrder / MUTATE` | `workOrderContract: WorkOrderContract; validationSnapshotRef: SnapshotRef<WorkOrderValidation>; specificationHash: PayloadHash` | `execution.work_order.freeze`；READY 后 Specification 不可变；Hash 必须匹配 |
@@ -312,6 +312,7 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 - 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 211 项 Registry，等待用户审核通过后单独补齐；
 - IM-06 WI-01（Issue #151）落地模块自有 application/persistence 基础：`@zhiju/task-execution` 提供 Kysely schema、`createTaskExecutionDatabase`、`withTaskExecutionTransaction`、`executeTaskExecutionCommand`、`TaskExecutionRepository`，单一受信事务上下文建立路径，幂等/CAS/Scope mirror/Process 父子 Scope/Hash 一致性 guard 与 controlled fault 回滚均已落实；可由 disposable PostgreSQL gate 复测；
 - Context Builder、Dispatcher、Runtime、Evaluator、Projection 与 Handler 实现均不存在；模块自有业务 Repository 仅暴露 `insertProcessInstance` 给当前技术 Aggregate，不与任何业务表/其他模块 Repository 交叉；
+- #206 设计（2026-09-16，本节 §17）固定 Task Readiness 生产与 READY 转换边界：`execution.build_task_readiness@1.0` 为唯一新增 operation（Catalog 213 → 214，历史 Baseline 200 不变）、`zhiju.execution.task_readiness` 与已决定的 `zhiju.execution.task_definition_snapshot` 为本切片注册的两个引用身份、两个 create-task Major 的 Task 寻址按创建事实版本绑定、生产者不发布事件而消费者发布恰一条 `execution.TaskReady@1.0`。该设计**未注册契约、未实现、未分配 migration**：Readiness Handler、`execution_judgment` 持久化、Spec 001 §15.5 授权 Port 与 READY 转换全部 `NOT RUN`；
 - 对应 Unit、Contract、E2E 与人工验收中，Schema fixture、Review 修复回归与 IM-06 WI-01 持久化 gate 已执行；Handler、Runtime/DB E2E 和人工业务验收仍为 `NOT RUN`。
 
 ## 10. IM-02 WI-04 持久化切片
@@ -752,7 +753,7 @@ TaskStateView另返回 `completionUseStatus: Closed<NOT_EVALUATED|USABLE|STALE|R
 3. **profile 语义归属**：`policyDocument` 的 profile 字段校验在 TaskExecution 内完成；IdentityPolicy 只提供不可变事实、Hash、生命周期与解析。未知字段、未知 profile 版本或语义未支持时拒绝（`EXECUTION_CRITERION_UNSUPPORTED`），不得静默忽略字段或跳过判据。
 4. **profile 注册校验**：本节三个消费者的 `policySchemaRefs` 必须含各自 registry key（`execution.context_builder.policy@1.0`、`execution.task_readiness.policy@1.0`、`execution.work_order_validation.policy@1.0`；见 [Spec 001 §13.5](../module-specs/Module-Spec-001-IdentityPolicy.md#135-授权profile-schema-注册与失败审计)）的 canonical typed ref；Evaluator 版本来自本模块构建期静态注册表。任一不匹配即拒绝，不得以旧 registry 条目代替。
 5. **持久化观察**：`context_snapshot_build` 继续保存 §33 已定义的 `builder_policy_ref`/`policy_content_hash`/`effective_from`/`superseded_at`；`execution_judgment` 增加同源的 `policy_content_hash`、`effective_from`、可选 `superseded_at` 与当次解析的 exact `policy_version_ref` 镜像，使判断可用性与当时观察可解释。新增字段属提案，实现时按 forward-only migration 交付，不修改已应用 V3000。
-6. 本节所有行为在批准与实现前保持 `NOT RUN`；Schema/纯 helper 通过不证明 Policy 对象存在、当前授权有效或 Handler 已实现。
+- 本节所有行为在批准与实现前保持 `NOT RUN`；Schema/纯 helper 通过不证明 Policy 对象存在、当前授权有效或 Handler 已实现。TaskReadinessBuilder 的输入算法、依赖/输入/blocker 集合、`validUntil` 组合与失败面已由 §17（#206 设计）固定，仍未注册、未实现。
 
 ## 12. TD-05 Query / Task Board 补充设计
 
@@ -1017,3 +1018,190 @@ EXECUTION_TASK_ALREADY_EXISTS
 - 记录审查结论的 `357ebfb091a56131c97d9c455698a087137d794e`（仅新增 pre-close review 文档）在 [verify run 35058972506](https://github.com/qzhike/zhiju-business-core/actions/runs/35058972506) 为 `pass`；代码 revision 的 [verify run 35056590645](https://github.com/qzhike/zhiju-business-core/actions/runs/35056590645) 同为 `pass`，与同 SHA 的 `vibe verify full --json` PASS 一致。
 - 以 merge commit `7faba0ab65444a816225e7fde21d9e5b758cd1a4` 合入 `main`（2026-09-16T05:31:35Z）；Issue [#204](https://github.com/qzhike/zhiju-business-core/issues/204) 已读回为 `CLOSED`（`COMPLETED`，2026-09-16T05:33:04Z），远端与本地 feature branch 均已删除。
 - 已接受边界与后续候选：Receipt 必由授权 runner 产生仍属受信应用边界；`enterprise_project.canonical_jsonb_text`（V2015，#191）存在同一 NFC 键碰撞缺口，需独立 forward migration 修复；`PENDING` outcome 的完全隔离负例为建议性增强。
+
+## 17. Task Readiness 生产与 READY 转换边界（#206 设计）
+
+状态：`T2 / PROPOSED / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NO CONTRACT, HANDLER, MIGRATION OR REGISTRY CHANGE IN THIS REVISION`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206)，把 #154 已批准的权威判断原则、#176 已批准并部分交付的 Policy/Evaluator 边界，与 #202/#204 已交付的版本绑定 DRAFT 事实收敛为一套可实现语义，使 #204 创建的 Task 能到达 `READY` 而不在实现时发明兼容、授权或跨模块语义。字段级权威在本节；依据、备选与被否方案见[决定 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)；READY 动作的授权组成由 [Spec 001 §15.5](Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 拥有；验证矩阵见 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-readiness-生产与-ready-转换边界206-设计)。
+
+本节只定义未来实现的字段与语义，不实现、不注册契约、Handler、Query、migration、持久化表、capability 配置或生产 Policy 事实；不改 §2–§6 的既有 @1.0 定义、§11 的 TD-01–04 基准、§15 的逐版本 Purpose、§16 的创建事实与接受集、当前 213 项 Catalog、200 项历史 Compatibility Baseline 或任何已冻结 fixture。Task READY 之外的行为（WorkOrder DRAFT、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、人工业务验收）不在本切片。
+
+### 17.1 对账事实与剩余缺口
+
+对账 revision：`75553dec7afd87f25dc38230db9f884921b7e899`（本分支起点，与远端 `main` 一致）。
+
+| 位置 | 已提交事实（可核验） | 对账结论 |
+|---|---|---|
+| 两个 create-task Major | `execution.create_task@1.0`/`@2.0` 的 owning Handler、闭集引用判定、EP 只读 Port、`V3001` 的 `task`/`task_definition_snapshot` 与组合指针已由 #204 交付并在真实 PostgreSQL 通过（§16.9、`TE-P202-001`–`015`） | 两个 Major 都**只**创建 `DRAFT`；Task READY 目前没有任何入口 |
+| `execution.mark_task_ready@1.0` | 已在 213 项 Catalog 注册，`kind=COMMAND`、`owner=task-execution`、`schemaStatus=FULL`；注册 Schema 为历史通用形状 `readinessSnapshotRef: SnapshotRef; requestedAt: UtcInstant`；compat metadata 的 Purpose 为 `task.execution.mark_task_ready`（`v1.0-baseline`） | 该操作**已发布并冻结**：payload/result/接受集与 metadata 不得收窄或改写；§3 的 `execution.task.mark_ready` 是设计期文字，按 §15.1 对 `create_task`/`create_work_order` 的同一做法修正为已发布值 |
+| `execution.build_task_readiness@1.0` | 仅 §11.1/§11.3/§11.6/§11.9 的设计行；无注册条目、无 operation-specific Result Schema、无 Purpose、无 fixture | 本切片的**唯一新增公开 operation** |
+| `TaskReadiness` 引用身份 | §11.3 用 `SnapshotRef<TaskReadiness>`（判断 kind `TASK_READINESS`），但 Registry 中没有任何 `TaskReadiness` objectType | 必须注册**单一** canonical identity；不得由 TypeScript 名称或 Handler 隐式发出 |
+| `TaskDefinitionSnapshot` 引用身份 | §16.7 已决定 `zhiju.execution.task_definition_snapshot`（CONTENT_ADDRESSED、Project Scope、不可变、不可作 BusinessOutput），但**本 revision 未注册**；`execution.create_task` 两个版本都没有 Result Schema 返回它 | 本切片注册该身份并由 Readiness 生产者以自己的 payload 携带；**不改** `create_task` 的 Schema/Result/接受集，v1 冻结 fixture 逐字节不变 |
+| Policy 解析 | `identity.resolve_policy@1.0` 的契约、Handler、Purpose 授权与 V1005 scoped 事实已由 #183/#186 交付；`execution.task_readiness.policy@1.0` 与 `te.task_readiness.evaluator@1.0` 的静态注册与纯解析已由 #179/#189 交付 | 本切片**消费**既有边界，不新增 policy schema、不新增 registry 版本、不实现新的解析机制 |
+| Evaluator 确定性实现 | 全仓不存在 Evaluator 实现、解析调用点与判断产出（§11.9、决定 §12.9） | 本切片只固定规则与失败面；确定性实现属依赖实现切片 |
+| Task 自有 blocker 与依赖完成事实 | `information_request` 与 `completion evaluation` 表/Handler 均不存在（§33 仍为设计行） | 首个版本的 blocker 与“依赖已 COMPLETED 且判断可用”分支必须显式定义，并在无合法事实可产生时标 `NOT RUN` |
+| 已注册的 Task 公开事件 | 213 项 Catalog 的 `execution.*` Event 恰 11 项，含 `execution.TaskReady@1.0`/`execution.TaskCompleted@1.0`，无 `TaskCreated`、无 `TaskReadinessBuilt`（§16.5） | 生产者**不得**发布事件（无已注册事件可发布）；消费者恰好发布一条已注册的 `execution.TaskReady@1.0` |
+
+**缺口**：READY 转换由谁执行、以什么独立授权、消费什么判断事实、如何用一套规则寻址两个 create-task Major 创建的 Task、判断与转换各自提交哪些不可变事实——这些在实现前缺失，且不能由 Implementer 自行选择。
+
+### 17.2 公共引用身份（本 revision 决定，实现时随对应操作注册）
+
+| objectType | Owner | kind | Scope | 不可变 / 版本 | BusinessOutput | 解引用规则 |
+|---|---|---|---|---|---|---|
+| `zhiju.execution.task_definition_snapshot` | task-execution | CONTENT_ADDRESSED（`§16.7` 已决定） | Project（`enterpriseId` + `projectId` 必填，等于该 Task 的 Scope） | 不可变事实；不另建可变版本；无独立版本链 | 否 | 按 exact `objectId`（= `task_definition_snapshot.snapshot_id`）+ 完整 canonical payload Hash（= `payload_hash`）；**不使用** `aggregate_version`、latest 或 `schema_version` 定位 |
+| `zhiju.execution.task_readiness` | task-execution | SNAPSHOT（生产者 CREATE target 与 Result Ref 同一身份） | Project（两个成员必填，等于被判断 Task 的 Scope） | 不可变判断事实；不另建可变 Root、无 CAS 版本、无 current pointer | 否 | 按 exact `objectId` + `snapshotId` + 完整 canonical payload Hash 读取；不接受 latest、`aggregate_version`、kind/objectType 变体或跨 Project Scope |
+
+`TaskReadiness` 的 Ref 形状固定为 `{kind: 'SNAPSHOT', objectType: 'zhiju.execution.task_readiness', objectId: <judgment_id>, snapshotId: <judgment_id>, scope: {enterpriseId, projectId}, contentHash: <canonical payload SHA-256>` }`。`objectId == snapshotId` 与已注册的 `zhiju.identity.policy_version`（§13.2）同理：判断没有可变 Root、没有 CAS 版本、没有可搬移的指针，因此单一不可变身份同时承载两个成员；这与 `zhiju.execution.context_snapshot`（存在独立 Aggregate Root，`objectId != snapshotId`，见 #167 正例 fixture）的区别是对象形态差异，不是命名分歧。
+
+- 两个身份都**不由** TypeScript 名称、表名、Handler 内部约定或 `CanonicalJson` 推断；未注册名称不得被发出、返回或消费，也不得作为 legacy 别名被接受。
+- `task_readiness` 的 `contentHash` 覆盖完整判断 payload（header + kind payload），**不含**自身 `judgmentId` 之外的任何外部可变事实；判断的 `inputHash` 单独覆盖输入清单（§17.6）。
+- `task_definition_snapshot` 在两个 Major 下的形状差异（`TaskDefinition` / `TaskDefinitionV2`）由该行的 `schema_version` 表达，**不**分裂为两个 objectType。
+
+### 17.3 两个 create-task Major 的 Task 寻址规则
+
+**事实。** `task_execution.task` 不保存 objectType 拼写；Task 的创建 Major 只由创建事实表达：`task_definition_snapshot.schema_version`（`'1.0'`/`'2.0'`），而 `V3001` 的 creation-identity guard 已强制该快照所属的 `command_receipt` 是 `execution.create_task`、其 `command_version` 等于该提升列、其 target/Scope 等于本 Task，且 Receipt 仍为 `PENDING`（§16.9）。因此“该 Task 由哪个已发布 Major 创建”是一个由 owning 事实**精确、不可变**证明的事实，且每个 Task 恰有一个这样的创建快照（同 Scope 的重复 CREATE 由 `EXECUTION_TASK_ALREADY_EXISTS` 与唯一约束拒绝）。
+
+**备选与选择（详见[决定 §16.2](../decisions/task-execution-human-operated.md#162-p-206-2-task-寻址规则)）。**
+
+| 备选 | 结果 |
+|---|---|
+| A 闭集接受两种 Task 拼写 | **不采用**。同一 Task 会有两个可互换的公开拼写，与 §16.1/§16.3「逐版本精确、不做别名」的已批准规则冲突；且 `mark_task_ready@1.0` 没有任何版本字段能把它绑定到创建路径，两种拼写同时合法等于把创建期的版本收窄退化为别名 |
+| B 版本绑定判别（由 owning 事实派生） | **采用**。书写在请求里的拼写必须等于该 Task 创建 Major 的拼写；判别值来自不可变创建事实，不由调用者提供、不由 payload 新字段表达、不由 `aggregate_version` 或当前指针推导 |
+| C 新增 operation major（如 `execution.mark_task_ready@2.0`） | **不采用**。它不解决问题：@1.0 已发布且必须继续服务它可服务的 Task，其 envelope `targetRef` 仍要被闭合，判别规则仍是 B；同时新增一个仅按 Task 来源可用的第二消费者会增加公开面（Catalog 214 → 215）而语义不变。若未来确需新 major，须作为独立 additive 提案批准 |
+
+**闭合规则 R-206-1（两个 Readiness 操作共用，大小写敏感、逐字符相等）**
+
+1. 生产者 `payload.taskRef` 与消费者 Envelope `targetRef` 的 `objectType` 必须**恰好**等于该 Task 创建 Major 对应的拼写：`schema_version='1.0'` → `execution.task`；`schema_version='2.0'` → `zhiju.execution.task`。
+2. 另一版本的拼写、裸本地名（如 `Task`）、前缀剥离或补全、大小写变体、`zhiju.execution.task`/`execution.task` 互换一律拒绝（`EXECUTION_TASK_REF_INVALID`）；不做规范化、不做 fuzzy 查找、不回退 latest。
+3. `kind` 必须为 `OBJECT`；`objectId` 必须等于 `task_id`；`scope` 必须恰好是 `{enterpriseId, projectId}` 且与该 Task 的 Scope 列逐字段相等（Project 锚定，不接受 Platform 或 Enterprise-only 形态）。
+4. 创建快照只用于判定拼写与选择 definition 形状；`current_definition_snapshot_id`/hash 仍必须与本次命令携带/判断记录的 definition pointer 逐字段相等（§17.5 第 2 步、§17.8 第 4 步）。
+5. 两个 Readiness 操作都**不接受**任何形式的大小写/别名回退：`EXECUTION_TASK_REF_INVALID` 是唯一拒绝码，其安全外观不区分“拼写错误”“Scope 不符”或“不可见”。
+
+**为什么这不产生别名、不改写 v1 fixture**：别名意味着同一对象在**业务接受集**里有第二个可用名字；R-206-1 让每个 Task 恰好有一个被接受的拼写，另一个拼写在任何层都不能取得业务成功。v1 的冻结 fixture、v2 的 `const`、两个 Major 的注册 Schema、`references` 声明与 200 项历史 Baseline 都不变；本规则是 owning Handler 的模块级收窄（与 §16.1 对 `parentTaskRef`/`dependencyTaskRefs` 的处理同类），不新增公开字段、不改写任何历史 payload。
+
+**TaskDefinitionSnapshot 的 schema-version 绑定**：判断事实记录的 `taskDefinitionRef` 是 Exact Ref（`objectId` + 完整 Hash），消费时必须与 Task Root 的 `current_definition_snapshot_id`/`current_definition_hash` 逐字段相等；该行的 `schema_version` 决定用哪一个 definition 形状解释 payload（`1.0` = `TaskDefinition`、`2.0` = `TaskDefinitionV2`），且**必须**与 R-206-1 第 1 步的创建 Major 一致。二者不一致（今日没有任何已注册操作能产生，只能由直 SQL 篡改或未来版本化定义变更操作产生）一律 fail closed（`EXECUTION_DEFINITION_REF_INVALID`），不得按“当前形状”猜测或静默重解释。
+
+### 17.4 Readiness 生产操作的 Contract/Registry Delta
+
+| 项 | 固定值 |
+|---|---|
+| operation / version | `execution.build_task_readiness@1.0` |
+| Owner / kind | `task-execution` / `COMMAND` |
+| Target / mode | `zhiju.execution.task_readiness` / `CREATE`；`expectedAggregateVersion` 必须省略；CREATE 的新 target identity 由 Envelope 给出，`targetRef.objectId` 即本次判断的 `judgment_id`，同 Project Scope 内必须唯一 |
+| authorizationPurpose | `execution.task.readiness.build`（新增，公开 `public-api.v1.json` 与 `operation-compatibility-metadata.v1.json` 同步注册） |
+| dataClassification | `INTERNAL` |
+| Payload | `taskRef: ObjectRef<Task>; taskDefinitionRef: Exact<TaskDefinitionSnapshot>; policyRef: VersionedRef<Policy>; evaluatorRef: VersionedRef<Evaluator>`（全部 required，closed，无未知字段） |
+| Result.data | `{readinessSnapshotRef: SnapshotRef<TaskReadiness>}`，由 operation-specific `resultSchemaRef`（`execution_build_task_readiness_result`）注册 |
+| Schema 可闭合的部分 | `taskDefinitionRef` 的 `objectType` 以 `const` 固定为 `zhiju.execution.task_definition_snapshot` 且 Scope 收窄为 Project（`enterpriseId` + `projectId` 必填，与 #167 的 `contextSnapshotReference` 同法）；`policyRef` 固定 `zhiju.identity.policy`；`evaluatorRef` 固定 `zhiju.execution.evaluator_profile`；Result 的 `readinessSnapshotRef` 固定 `zhiju.execution.task_readiness` 与 Project Scope 形状，并与 `targetRef` 做跨字段绑定校验（纯 helper，与 `validateInitialContextCommandResult` 同族） |
+| Schema 不可闭合、由 owning Handler 闭合的部分 | `payload.taskRef` 的拼写（两种合法取值，按 R-206-1 由创建事实判定）；`policyRef.scope` 必须携带 `enterpriseId` 且与 Envelope/受信上下文一致（§12.2 首版不接受空或 Platform Scope），并由当次 `identity.resolve_policy@1.0` 返回的 `scopeRef` 逐字段复核；Envelope `targetRef.objectId` 与 `readinessSnapshotRef.objectId`/`snapshotId` 的相等；`readinessSnapshotRef.contentHash` 与持久化 payload 重算 Hash 的相等 |
+| `references` 声明 | `/targetRef` → OBJECT / `zhiju.execution.task_readiness`；`/payload/taskDefinitionRef` → CONTENT_ADDRESSED / `zhiju.execution.task_definition_snapshot`；`/payload/policyRef` → VERSIONED / `zhiju.identity.policy`；`/payload/evaluatorRef` → VERSIONED / `zhiju.execution.evaluator_profile`。**`/payload/taskRef` 有意不声明**：它的合法取值随 Task 的创建 Major 而定，Schema 与 Registry 都无法表达，收窄由 §17.3 的 Handler 规则完成（与 `create_task@2.0` 不声明两版本 `parentTaskRef`/`dependencyTaskRefs` 同理） |
+| `resultReferences` 声明 | `/data/readinessSnapshotRef` → SNAPSHOT / `zhiju.execution.task_readiness` |
+| Consistency / result 规则 | COMMAND 无 `allowedConsistency`；成功结果只返回该 SnapshotRef，不返回判断正文、依赖状态、Policy 正文或任何跨模块事实；Result 只含 `targetRef`/`data`/既有 Envelope 字段 |
+| Actor 边界 | 调用者持自己的 ActorSnapshot 与 `execution.task.readiness.build` Decision，该 Decision 由 [Spec 001 §15.5](Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 的**生产者条目**（`CREATE_TARGET_TYPE` / `taskReadinessBuildV1`）签发与重验；允许 Human，或受约束的 Readiness/执行 Service（Domain §18.8：Agent 不能直接设置状态，Service 按规则执行）。该 Purpose 不包含 READY 转换、不包含 WorkOrder/Run/Completion 资格，也不能由 `PrincipalKind`、角色名、`actingFor` 或 `initialAssignee` 自动放行；生产者自身读 Task/依赖/输入所需的其他 Purpose（§17.5 第 5 步、§17.6）各自独立授权，不能互相转让。消费者条目是另一条独立映射，生产者的 Decision 与 Grant 不能用于 READY 转换 |
+| PayloadGuard | **不新增**专用构建期技术 Policy：payload/result 是有界小对象，适用 [PostgreSQL §5.5](../high-level-docs/07-postgresql-logical-model-v0.1.md#55-默认-payload-guard) 的默认 Command Guard 与共享 Envelope 预算（同 #158/#167/#175/#192 的处理），不注册 `payloadGuardPolicyRef` |
+| 生成物与 fixture | `contracts/registry/public-api.v1.json`（+1 条目）、`contracts/registry/operation-compatibility-metadata.v1.json`（+1 条目）、`contracts/src/generated/public-api.ts`、`contracts/src/generated/types/task-execution.ts`、`operation-registration.ts` 的 `assertTaskReadinessOperationRegistrations`/`assertTaskReadinessCompatibilityMetadata`；正例 `tests/fixtures/contracts/task-readiness/build-task-readiness-command-valid.json` 与 `build-task-readiness-result-valid.json`；负例至少覆盖 `taskRef` 错误拼写/错 kind/非 Project Scope、`taskDefinitionRef` 错 objectType 或错 kind 或缺 Hash、`policyRef`/`evaluatorRef` 错 objectType、未知字段、Result 与 `targetRef` 的 objectId/Scope 不等、`readinessSnapshotRef` 的 `kind`/`objectType`/Scope 变体 |
+| Catalog 计数 | **213 → 214**；TaskExecution 公开条目 **43 → 44**（24 Command / 9 Query / 11 Event）；历史 200 项 Compatibility Baseline **不变**（additive 追加，不改写任何既有条目） |
+
+**历史 `execution.mark_task_ready@1.0` 的调和**：其注册 Schema（通用 `snapshotRef`）、`schemaVersion`/`schemaStatus`、Catalog 条目与 compat metadata **逐字节不变**，不收窄为固定 objectType、不新增 `targetObjectType`、不补 Purpose 字段；`snapshotReference` 的通用性保留给历史读回。逐版本 canonical Purpose 取其已发布值 `task.execution.mark_task_ready`（compat metadata 的 `v1.0-baseline` 行），§3 的设计期文字 `execution.task.mark_ready` 据此修正，与 §15.1 对 `create_task@1.0`/`create_work_order@1.0` 的处理一致。接受集与授权由 owning Handler 与 [Spec 001 §15.5](Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 的内部 Port 闭合，**不**通过改写注册 Schema 实现。
+
+### 17.5 TaskReadiness 输入算法（闭合）
+
+生产者在一个 owning 事务内按固定顺序执行；任一步拒绝即不产生判断事实、不写 Receipt 的成功结果、不写 Outbox：
+
+1. **命令级前置（拒绝，不产出解释性判断）**：Registry 精确 `(type, version)` 校验 → 组合层从已验证 Decision 行派生受信上下文 → [Spec 001 §15.5](Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 的**生产者条目**（Purpose `execution.task.readiness.build`、`CREATE_TARGET_TYPE`、config key `taskReadinessBuildV1`）在幂等 Claim 与历史 Receipt 返回**之前**签发/重验授权（精确 Decision id/hash、Actor/实际 principal、认证上下文、operation/version/Purpose、payload hash、`targetRef`、Project Scope、ALLOW、未过期，并以当次受信时间重读当前 covering Grant/Policy）→ Registry 已闭合的形状校验（含 Result/`targetRef` 的跨字段绑定）。CREATE identity 的唯一性不由前置读判定，而是在取得 Claim 后由主键/唯一约束裁决（第 8 步）。
+2. **Task Root 与 definition pointer**：在同一 owning 事务内按 `task_id` 读取 Task（RLS 限定受信 Enterprise/Project）；不存在或不可见 → `NOT_FOUND`（不区分“不存在”“跨 Scope”“已删除”）。要求 `status='DRAFT'`（否则 `EXECUTION_TASK_NOT_EXECUTABLE`）、Envelope `expectedAggregateVersion` **必须省略**（本操作是 CREATE，不是对 Task 的 MUTATE）、R-206-1 的身份闭合成立、`payload.taskDefinitionRef.objectId`/`contentHash` 与 `current_definition_snapshot_id`/`current_definition_hash` 逐字段相等（否则 `EXECUTION_JUDGMENT_INVALID`），并把 Task 的 `aggregate_version` 作为本次观测记入事实清单与 `inputHash`（消费端必须重新观察到同一版本，见 §17.8 第 4 步）。随后读取该 definition 快照行，要求其 `schema_version` 与 R-206-1 第 1 步的创建 Major 一致（否则 `EXECUTION_DEFINITION_REF_INVALID`）。
+3. **依赖集合枚举**：依赖集合**只**由被 pointer 固定的 definition payload 的 `definition.dependencyTaskRefs` 决定（两版本都是 `Set<ObjectRef<Task>>`，按 objectId 稳定序去重）；不从当前指针之外的任何视图、不是当前 Root 的其他列、也不是调用者提供的清单。逐项要求：`kind=OBJECT`、`objectType` 等于创建 Major 的 Task 拼写（否则 `EXECUTION_DEFINITION_REF_INVALID`）、Scope 与 Envelope 逐字段相等（跨 Project/Enterprise → `EXECUTION_DEFINITION_REF_INVALID`）、`objectId != task_id`（自引用 → `EXECUTION_DEFINITION_REF_INVALID`）。
+4. **依赖可用性观察与环检测**：在同一事务内读取每个依赖 Task 行（同 Scope，RLS 限定）与该 Task 的当前 Completion Evaluation 事实指针；对每个依赖记录 `{taskRef, aggregateVersion, completionEvaluationRef?, completionUseStatus}`。**环检测**覆盖“本 Task + 其直接与传递依赖”构成的子图（沿 `dependencyTaskRefs` 递归，访问集合有界于同 Scope 已提交 Task）；发现环即拒绝 `EXECUTION_TASK_DEPENDENCY_CYCLE`。环属于 Domain §18.6 第 3 条的图不变量违反，不是可通过等待满足的条件，因此**不**产出解释性判断。
+   - **不可见/未提交依赖**：在该 Project Scope 内不存在对应 Task 行（含“Task 从未创建”“被 RLS 隐藏”）→ 对应 `DEPENDENCY_SATISFIED` 检查 `UNSATISFIED`，`ready=false`，不区分不存在与不可见。
+   - **CANCELLED 依赖**：`DEPENDENCY_SATISFIED` `UNSATISFIED`，`ready=false`。
+   - **依赖未 COMPLETED**：`DEPENDENCY_SATISFIED` `UNSATISFIED`（`reasonCode=DEPENDENCY_NOT_COMPLETED`），`ready=false`。
+   - **依赖 COMPLETED**：必须同时重验其 Completion Evaluation 事实仍精确存在且当前可用（`completionUseStatus=USABLE`）；不可用则 `DEPENDENCY_SATISFIED` 记录 `STALE`，`ready=false`。首版该分支为 `NOT RUN`：Task 进入 `COMPLETED` 只能由 `evaluate_task_completion@1.0` 完成（§11.5），而该操作与 Completion Evaluation 持久化尚未交付，因此当前不存在可产生此分支的合法事实。
+5. **输入引用解析**：输入集合只由被 pointer 固定的 definition payload 的 `definition.inputRefs`（`TypedReference[]`）决定。首版**支持集恰好为** `zhiju.project.context_source_slice`（CONTENT_ADDRESSED、Exact id + 完整 Hash + Project Scope），经 owning 只读 AUTHORITATIVE `project.get_context_source_slice@1.0` 解析（#188 已交付）；解析结果按该 Query 的闭集 `useStatus` 映射：`USABLE` → `INPUT_REF_RESOLVED` `SATISFIED`；`EXPIRED` → `STALE`（`reasonCode=INPUT_REF_EXPIRED`）；`REVOKED` → `STALE`（`reasonCode=INPUT_REF_REVOKED`）。查询按该 Query 自身的 Purpose（`project.context_source.read`）与调用者授权重验；依赖不可用 → `DEPENDENCY_UNAVAILABLE`（不得当作“已满足”或“不存在”）。
+   - **支持集之外的一切引用形态**（其他 objectType、`ObjectRef`/`VersionedRef`/`SnapshotRef`、`zhiju.artifact.artifact_revision`、`ExternalRef` 任一分支持有或无 `tenantOrAccountRef`、未知 namespace）→ `INPUT_REF_RESOLVED` `UNSUPPORTED`，`ready=false`。**不得**被当作“无输入”“已满足”或跳过；**不得**由本操作擅自扩展支持集，也不得仅因实现已有其他 owning Query 就顺带放宽。
+   - `inputRefs` 为空的定义合法：此时不产生 `INPUT_REF_RESOLVED` 检查行，也不因此产生 blocker；空集不等于“未解析”。
+   - 未携带 `tenantOrAccountRef` 的 `ExternalRef` 在 §16.3 只是“声明的来源意图”，**不得**作为可执行输入事实；因此它在 Readiness 一律 `UNSUPPORTED`，不因缺少顶层 `scope` 而被静默接受。
+6. **blocker 集合推导**：blocker 集合由 owning 事实推导，独立于调用者输入。首版集合为“绑定到本 Task 且未有效解决的 blocking InformationRequest”的全部成员（按 `information_request` 的 `taskRef` + `blocking=true` + 未达到有效 Resolution 推导，稳定序去重）；非空即 `NO_BLOCKING_INFORMATION_REQUEST` `UNSATISFIED`，`ready=false`，`factRefs` 列出每个 blocker Ref。调用者**不能**通过省略 payload 字段把 blocker 变空（payload 本就没有 blocker 字段），也不能用“输入为空”替代。首版该分支为 `NOT RUN`：`information_request` 表与 Handler 未交付，当前不存在可产生该分支的合法事实。
+7. **判定汇总**：`ready = 全部必需检查 SATISFIED`。存在任一 `UNSUPPORTED` 时 `ready=false`；存在 `STALE`/`UNSATISFIED` 时 `ready=false`。失败的判断仍被提交为不可变事实（§11.3「不满足一般业务条件时允许生成解释性失败判断」），其消费端按 §17.8 映射为相应的稳定错误。
+8. **持久化与提交**：取得幂等 Claim 后、首个业务写入前不再需要跨模块证明（本操作不改写 Task Root）；同一 owning 事务写入 §17.7 的事实并 finalize Receipt/Audit/Reference Edge；**不写 Outbox**。同一 Project Scope 内 `judgment_id` 已存在时由主键/唯一约束裁决为 `CONCURRENCY_CONFLICT`（不返回他人结果）。故障注入、依赖不可用或任一检查拒绝都整体回滚，不留 `PENDING` Receipt 或部分事实。
+
+### 17.6 Policy、Evaluator 与期限推导
+
+| 项 | 固定语义 |
+|---|---|
+| Policy 解析 | `payload.policyRef` 的当次观察**只能**来自 `identity.resolve_policy@1.0` 的返回（#186 已实现），逐字段映射 `policyRef → policyVersionRef`、`contentHash → policy_content_hash`、`effectiveFrom → effective_from`、`supersededAt → superseded_at`；解析是独立授权读取，须持自己的 `identity.policy.resolve_policy` Decision（§12.5）。不得由调用者自报、由 `objectId/versionId` 推导、用 fixture 值或历史 Receipt 充当当次观察 |
+| profile 匹配 | `PolicyVersionResolutionView.policyDocument` 必须通过已交付的 `validateTaskReadinessPolicy` 对 `execution.task_readiness.policy@1.0` 的 closed 校验（必需 `maxReadinessValiditySeconds`、未知字段拒绝）；`policySchemaRefs` 必须含该 profile 的 canonical typed ref；未知 profile 版本或字段 → `EXECUTION_CRITERION_UNSUPPORTED`（拒绝创建，不产出判断） |
+| Policy 生命周期 | `useStatus` 必须为 `USABLE`；`NOT_YET_EFFECTIVE`/`SUPERSEDED`/`REVOKED` → 拒绝（`EXECUTION_JUDGMENT_STALE`）。判断行保存当次观察的 `policy_version_ref`/`content_hash`/`effective_from`/可空 `superseded_at` 镜像，使判断可用性可解释 |
+| Evaluator 匹配 | `payload.evaluatorRef` 必须与构建期静态注册的 `te.task_readiness.evaluator@1.0` 全字段精确相等（`kind`/`objectType=zhiju.execution.evaluator_profile`/`objectId`/`versionId`/`scope={}`）；其他 key/身份/版本或任何非 Platform Scope → `EXECUTION_CRITERION_UNSUPPORTED`（拒绝创建）。首版只有这一个选择器 |
+| `evaluatedAt` | 受信服务端当前时间（模块既有受信时钟语义），在判定求值点取得；**不接受**调用者时间。生产操作 payload 没有时间字段，消费者 `mark_task_ready@1.0` 的 `requestedAt`（冻结字段）只作为“调用者声明的请求时刻”记入 Receipt/Audit，**绝不**参与期限、有效期、CAS 或授权判定 |
+| `validUntil` | `min(evaluatedAt + maxReadinessValiditySeconds, 产出 Decision 的 expiresAt, 每个已解析输入自身的有限上界（如 Slice 的 `validUntil`，仅在 owning 读取返回有限值时）, 每个 COMPLETED 依赖的 Completion Evaluation 的有限有效期上界)`. 缺省/无限上界**不**被解释为无限期授权；任一参与项缺失时该项不参与 min，而不是变成无限 |
+| 时间边界 | `now >= validUntil`、`now >= Decision.expiresAt`、`now >= Policy.supersededAt` 或 Policy/Evaluator 不再可解析时，新消费一律 fail closed；长事务必须在提交点以受信时间重验，不能用事务开始时间通过 |
+| 检查行与顺序 | 检查按固定序列生成：`DEPENDENCY_SATISFIED`（每个依赖一行，按依赖 Ref 的 canonical 字节序）、`INPUT_REF_RESOLVED`（每个输入一行，同序规则）、`NO_BLOCKING_INFORMATION_REQUEST`（至多一行）。`checkCode` 是上述闭集；`factRefs` 与 `reasonCodes` 各自去重并按 canonical 字节序稳定排序；`outcome` 取值 `Closed<SATISFIED\|UNSATISFIED\|UNSUPPORTED\|STALE>` |
+| 解释码 | 首版闭集：`DEPENDENCY_TASK_MISSING`、`DEPENDENCY_TASK_CANCELLED`、`DEPENDENCY_NOT_COMPLETED`、`DEPENDENCY_COMPLETION_STALE`、`INPUT_REF_EXPIRED`、`INPUT_REF_REVOKED`、`INPUT_REF_UNSUPPORTED_KIND`、`INPUT_REF_EXTERNAL_UNBOUND`、`BLOCKING_INFORMATION_REQUEST_UNRESOLVED`；均为 upper-snake 稳定解释码，不作为公开错误码 |
+| `inputHash` | 规范化 Hash，覆盖：有序去重的 subject refs（Task Ref、`taskDefinitionRef`）、`policyVersionRef` + `content_hash` + `effective_from` + 可空 `superseded_at`、`evaluatorRef`，以及完整事实清单（每个依赖的 Ref + `aggregateVersion` + `completionEvaluationRef?` + `completionUseStatus`、每个输入的 Ref + owning `useStatus` + owning 观测的版本/Hash、每个 blocker Ref）；**不含**自身 `judgmentId` |
+| `contentHash` | 覆盖完整判断 payload（含 header 的 `judgmentId`、`evaluatedAt`、`validUntil`、`checks`），canonicalization v1；与 `readinessSnapshotRef.contentHash` 相等 |
+
+### 17.7 持久化事实与事务边界（生产者）
+
+| 事实 | 内容与约束 |
+|---|---|
+| `task_execution.execution_judgment`（Aggregate/事实行，**未分配 migration**） | `judgment_id`（= Envelope `targetRef.objectId`，UuidV7，主键）；`judgment_kind`（closed 五类，本切片只写 `TASK_READINESS`）；`enterprise_id`/`project_id`（Project Scope 镜像，创建后不可变）；subject 镜像 `task_id` + `task_definition_snapshot_id` + `task_definition_hash`（32 字节）；`policy_version_ref`/`policy_content_hash`/`policy_effective_from`/可空 `policy_superseded_at`；`evaluator_ref`；`input_hash`；`evaluated_at`/`valid_until`；`ready`；`canonical_payload` + `payload_hash`（SHA-256、32 字节、canonicalization v1）；`request_payload_hash`（32 字节，绑定产生本判断的在途请求）；`source_command_id`；`created_at`/`created_by_principal_id` |
+| 不可变性与 ACL | app 角色无 `UPDATE`/`DELETE`（`REVOKE UPDATE, DELETE`）；行创建后 Scope、subject、policy/evaluator 绑定、`input_hash`、`evaluated_at`/`valid_until`、`ready` 与 payload 全部不可改写；判断 identity 独立于任何 CAS 版本，没有 current pointer |
+| RLS | 每行显式保存 `enterprise_id`/`project_id`，`FORCE RLS` + `context_allows_project`（与 `V3001` 同族）；不依赖“隐藏 Ref”代替授权；不建立跨 Schema FK 或 Join |
+| payload↔镜像 guard | `SECURITY DEFINER` 的 mirror guard 逐项核对 Scope、subject 镜像（Task/definition id + hash）、policy 观察镜像与 `payload_hash`，并用 schema 内 canonicalization v1 由 `canonical_payload` 重算 Hash（复用 `V3001` 的 owner-only `task_execution.canonical_jsonb_text`；app 角色不可执行该函数） |
+| 来源命令绑定 guard | `SECURITY INVOKER` 的 creation-identity guard 要求 `source_command_id` 指向一条**仍为 `PENDING`** 的 `execution.build_task_readiness` Receipt，其 `command_version='1.0'`、target type/id 与 Project Scope 等于本判断的 `zhiju.execution.task_readiness` 身份与 Scope，且 `request_payload_hash` 等于本行的 `request_payload_hash`；即该判断必须由**声称的那条命令自身的在途事务**写入。因此复用他人 Receipt、事后补写判断、或把另一命令的请求哈希贴到本判断都不能成立（与 §16.9 的 creation-identity guard 同法，但判断 payload 是命令产出的结论而非请求 payload，故只绑定请求 Hash 与 target/Scope，不要求 payload 逐字节等于请求） |
+| `command_receipt` | 沿用 #151 runner：同键同输入返回原结果；同键异输入 `IDEMPOTENCY_PAYLOAD_CONFLICT` 并写 DENIED Audit；`idempotency_scope` 由服务端按 `commandType@commandVersion` + Project Scope 组合 |
+| `audit_record` | 成功与拒绝（授权、依赖不可用、绑定失败、幂等冲突、唯一冲突）都留稳定 `error_code`；不记录客户正文、不记录其他 Scope 的存在性 |
+| `reference_edge` | 只对**本事务已证明存在**的引用写入：Task（owner 为本次判断，target 使用创建 Major 的拼写）、`taskDefinitionRef`、`policyVersionRef`、`evaluatorRef`。未提交的依赖 Task、未解析的输入与 blocker 只存在于判断 payload：其 Edge 由证明其存在与当前有效的 owning 动作在各自事务写入，避免悬空 Edge |
+| `outbox_event` | **0 行**。生产者不发布任何公开事件：Catalog 没有 `execution.TaskReadinessBuilt@1.0`，Handler 不得发布未注册事件（§16.5 同理）。若未来需要该事件，须作为独立 additive 提案批准并同步 Catalog 计数（例如 214 → 215）、`references`、Envelope/Result 与正负 fixture |
+| 幂等与并发 | ① 同键同输入重放返回原 Receipt/结果，不新增判断/Edge；② 同键异输入按幂等冲突拒绝；③ 同一 Project Scope 内 `judgment_id` 已存在（重复 CREATE identity）→ `CONCURRENCY_CONFLICT`，不返回他人结果；④ **并发构建者合法**：同一 Task 允许多个不同 `judgment_id` 的判断共存（方法不同、时点不同）；没有“第二个判断取代第一个”的路径，也没有需要 CAS 的 current pointer；⑤ 生产者不改写 Task Root，因此与 READY 转换、其他判断之间没有 Root 竞争 |
+| 观测时点 | 本模块自有事实（Task、依赖、blocker）在同一 owning 事务内读取，因此记录的观测对提交时点一致；跨模块读取（Policy、Slice）只承诺记录的观测时点一致性（§10.1），消费者必须按 §17.8 重新观察并比较 |
+| 回滚 | 任一检查拒绝、依赖不可用或注入故障都整体回滚：不留 `PENDING` Receipt、判断行、Edge 或成功的 Audit 结论；重试可从零开始 |
+
+### 17.8 `execution.mark_task_ready@1.0` 消费边界
+
+单一顺序，任一步失败即拒绝且无业务副作用（不写 Root 状态、Receipt 成功结果、Edge 或 Outbox）。注册 Schema 与 Catalog 条目不变，payload 仍为 `readinessSnapshotRef: SnapshotRef; requestedAt: UtcInstant`。
+
+1. **Registry + 授权**：Registry 精确 `(type, version)` 校验（历史通用 Schema，接受集不变）→ 组合层从已验证 Decision 行派生受信上下文 → [Spec 001 §15.5](Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 的**消费者条目**（Purpose `task.execution.mark_task_ready`、`TARGET_TYPE`、config key `taskReadyV1`，与生产者条目互相独立）在**幂等 Claim 与历史 Receipt 返回之前**签发/重验授权（精确 Decision id/hash、Actor/实际 principal、认证上下文、`execution.mark_task_ready`/`1.0`、Purpose `task.execution.mark_task_ready`、payload hash、精确 target、Project Scope、ALLOW、未过期，并重读当前 covering Grant/Policy）。撤销、到期、配置漂移、target 替换、Policy 不可用一律 fail closed；历史 Receipt 不恢复授权资格；生产者的 Decision、Grant 或受信配置结果都不能替代本条目。
+2. **判断事实读取与完整性**：按 exact `readinessSnapshotRef` 读取判断行（`kind=SNAPSHOT`、`objectType=zhiju.execution.task_readiness`、`objectId==snapshotId`、Project Scope 等于 Envelope Scope、`contentHash` 等于由持久化 `canonical_payload` 重算的 Hash）；错 kind/objectType/Scope/Hash、未知、不可见统一 `EXECUTION_JUDGMENT_INVALID`，不泄露其他 Scope 是否存在该判断。
+3. **判断可用性**：`judgment_kind` 必须为 `TASK_READINESS`；`now < valid_until`（提交点受信时钟）；当次重新解析 Policy 并要求 `useStatus=USABLE`、`content_hash`/`effective_from`/可空 `superseded_at` 与判断镜像逐字段相等（否则 `EXECUTION_JUDGMENT_STALE`）；Evaluator 必须仍被支持（否则 `EXECUTION_CRITERION_UNSUPPORTED`）。
+4. **Task/Scope/definition 绑定**：Envelope `targetRef` 按 R-206-1 闭合并等于判断的 subject Task Ref；Task Root 必须可见、`status='DRAFT'`（否则 `EXECUTION_TASK_NOT_EXECUTABLE`）、`aggregate_version` 等于 Envelope `expectedAggregateVersion`（否则 `CONCURRENCY_CONFLICT`）、且等于判断记录的观测版本（否则 `EXECUTION_JUDGMENT_STALE`）；`current_definition_snapshot_id`/`current_definition_hash` 必须与判断的 `taskDefinitionRef` 逐字段相等（否则 `EXECUTION_JUDGMENT_STALE`）。
+5. **完整依赖/输入/blocker 重验（提交点）**：消费者按 §17.5 第 3–6 步**用自己的授权**重新观察同一闭合集合，并要求与判断记录的观测量**逐项相等**：依赖集合成员（由被 pointer 固定的 payload 决定）、每个依赖的 `aggregateVersion` 与 `completionEvaluationRef`/`completionUseStatus`、每个输入的 owning `useStatus` 与观测版本/Hash、blocker 集合成员。任何不一致 → `EXECUTION_JUDGMENT_STALE`（要求重建判断，不在消费端“就地修正”）；发现环 → `EXECUTION_TASK_DEPENDENCY_CYCLE`；依赖不可用 → `DEPENDENCY_UNAVAILABLE`。
+6. **判定映射（稳定错误优先级）**：判断含任一 `UNSUPPORTED` 检查 → `EXECUTION_CRITERION_UNSUPPORTED`；否则 `ready=false` → `EXECUTION_TASK_READINESS_UNSATISFIED`；`ready=true` 且第 1–5 步全部通过才继续。**不**把 `ready` 当作调用者可传入的值，也不接受任何调用者自报的检查清单。
+7. **状态转换（DRAFT-only CAS）**：单条受 guard 的 UPDATE，`WHERE` 同时包含 `task_id`、`enterprise_id`、`project_id`、`status='DRAFT'`、`aggregate_version = expectedAggregateVersion`、`current_definition_snapshot_id`、`current_definition_hash`，置 `status='READY'`、`aggregate_version = aggregate_version + 1`。0 行时回读区分：不可见 → `NOT_FOUND`；状态不再为 `DRAFT` → `EXECUTION_TASK_NOT_EXECUTABLE`；版本不符 → `CONCURRENCY_CONFLICT`；指针不符 → `EXECUTION_JUDGMENT_STALE`。**BACKLOG 不在本转换路径**：首版只实现 `DRAFT → READY`，没有把 `BACKLOG` 设为中间态的公开操作，也不得由该命令顺带写入其他状态。
+8. **同事务事实与事件**：在同一 Task 事务提交转换、`command_receipt`、`audit_record`、`reference_edge`（Task owner → 判断 Ref、definition Ref；判断 owner → Task Ref）与**恰一条**已注册 `execution.TaskReady@1.0` Outbox 行，payload 保持 `{taskRef, readinessSnapshotRef, readyAt}`：`taskRef` 使用创建 Major 拼写与 Project Scope，`readinessSnapshotRef` 与本次判断逐字段相等，`readyAt` 取受信转换时刻（Receipt `completed_at`）；Outbox 的 aggregate type/id/version 为本次转换后的 Task identity 与新 `aggregate_version`，correlation/causation 来自 Envelope。不发布第二类事件，不返回未注册事件名。
+
+**重放、竞争与失效**：
+
+- 同键同输入重放返回原 Receipt/结果，不产生第二次转换、第二条 Event 或新版本；同键异输入 `IDEMPOTENCY_PAYLOAD_CONFLICT`。
+- 授权在上次成功后失效、Grant/Policy 漂移、Decision 过期时，同键重放仍 fail closed（第 1 步先于历史 Receipt 返回）。
+- 已 READY 或已离开 `DRAFT` 的 Task 再次收到 READY 请求（含用另一判断、另一键）→ `EXECUTION_TASK_NOT_EXECUTABLE`，状态与版本不变。
+- 两个消费者用不同键并发 READY 同一 Task：CAS 恰一个获胜，失败方读回后返回 `EXECUTION_TASK_NOT_EXECUTABLE`，无部分事实。
+- 两个判断都已提交（两个构建者）：各自仍可被消费，但只有第一个成功的 CAS 发生转换；后续消费按上一条拒绝。判断与 Edge 保留为历史。
+- 判断在上游事实变化（依赖版本前进、输入 EXPIRED/REVOKED、出现新 blocker）后不可再用：消费端 `EXECUTION_JUDGMENT_STALE`，且必须重建判断；历史判断行不删除、不更新，`useStatus` 由当前重验派生。
+- 直接 SQL 篡改（改写判断 payload/镜像/Scope、UPDATE/DELETE 不可变行、跨 Project 插入）由 mirror guard、ACL 与 RLS 拒绝；`READY` 不加 Root 新列，因此不存在“只改指针、不改事实”的伪造转换路径。
+
+### 17.9 稳定错误码与安全外观
+
+| 错误码 | 触发条件 | 安全外观 |
+|---|---|---|
+| `EXECUTION_TASK_REF_INVALID`（**本切片新增**） | R-206-1 的 Task 拼写/kind/Scope 闭合失败（生产者 `payload.taskRef` 与消费者 Envelope `targetRef` 同一规则） | 不区分“拼写错误”“Scope 不符”“不可见”；不返回其他 Scope 的对象存在性 |
+| `EXECUTION_TASK_DEPENDENCY_CYCLE` | “本 Task + 传递依赖”子图成环（生产者与消费者同一判定） | 拒绝、无事实/无转换；不列出图外对象 |
+| `EXECUTION_TASK_READINESS_UNSATISFIED` | 判断 `ready=false` 且不含 `UNSUPPORTED` 检查 | 只返回稳定码；逐项原因只进同事务 Audit |
+| `EXECUTION_CRITERION_UNSUPPORTED` | profile/Evaluator 版本不支持（创建端拒绝），或判断含 `UNSUPPORTED` 检查（消费端） | 不 READY；不忽略未识别字段或不支持判据 |
+| `EXECUTION_JUDGMENT_INVALID` | 判断 Ref 的 kind/objectType/Scope/Hash 不合法、不可用、未知，或 definition pointer 与 `taskDefinitionRef` 不等 | 统一不可用；内部分类只进 Audit |
+| `EXECUTION_JUDGMENT_STALE` | 期限已过、Policy 观察漂移/被取代、依赖/输入/blocker 观测与记录不一致 | 不转换；要求重建判断；历史保留 |
+| `EXECUTION_DEFINITION_REF_INVALID` | 存储的 definition 事实自身不闭合（依赖 Ref 的拼写/kind/Scope/自引用，或 `schema_version` 与创建 Major 不一致） | 拒绝；不重解释、不猜测形状 |
+| `EXECUTION_TASK_NOT_EXECUTABLE` | Root 状态不允许 READY（非 `DRAFT`，含已 READY/COMPLETED/CANCELLED） | 不写状态、不发布事件 |
+| `CONCURRENCY_CONFLICT` | `expectedAggregateVersion` 不符，或判断 CREATE identity 已被占用 | 不覆盖既有事实 |
+| `NOT_FOUND` / `COMMAND_TARGET_MISMATCH` | Task 或判断在该 Scope 不可见；Envelope target 与命令目标不符 | 沿用既有语义，不泄露跨 Scope 存在性 |
+| `IDEMPOTENCY_PAYLOAD_CONFLICT` | 同键异输入 | 保留原 Receipt/结果并写 DENIED Audit |
+| `DEPENDENCY_UNAVAILABLE` | IdentityPolicy/EnterpriseProject 等 owning 依赖暂时不可查询 | fail closed；不得当作“空结果”“默认 Policy”“输入已满足”或“已授权” |
+| 共享授权码 | 沿用既有 `AUTHORIZATION_DECISION_INVALID`/`AUTHORIZATION_EXPIRED`/`AUTHORIZATION_REVOKED` | 内部分类只进安全 Audit |
+
+本切片只新增 `EXECUTION_TASK_REF_INVALID` 一个模块稳定码；`EXECUTION_JUDGMENT_INVALID`/`EXECUTION_JUDGMENT_STALE`/`EXECUTION_CRITERION_UNSUPPORTED` 沿用 §11.7 已批准但尚未注册的语义，本切片一并把它们带入实现范围；`EXECUTION_TASK_DEPENDENCY_CYCLE`/`EXECUTION_TASK_READINESS_UNSATISFIED`/`EXECUTION_TASK_NOT_EXECUTABLE` 沿用 §6 既有码。所有错误在该切片实现时随实现注册，本节只固定语义。
+
+### 17.10 验收矩阵与未运行边界
+
+- 设计/静态分量（引用身份、R-206-1 规则、operation/Registry 声明、创建事实与事件边界）由 `TE-P206-D-*` 对账；可执行分量由 `TE-P206-001`–`018` 定义，全部为未来执行输入。
+- 本 revision **不改**代码、契约、Registry、生成物、migration 或 fixture：Catalog 保持 213、历史 Baseline 保持 200、v1/v2 冻结 fixture 与两个 `create_task` Major 的接受集逐字节不变；本节新增的 operation、objectType、error code 与 `V3002` 均**未注册、未实现、未分配 migration 编号**。
+- 未运行边界：生产者/消费者 Handler、`execution_judgment` 持久化、Spec 001 §15.5 的两个授权条目（签发/重验与组成层接线）、真实 PostgreSQL、RLS/ACL、直 SQL 篡改、回滚、并发、重放与 `execution.TaskReady@1.0` 的实际发布全部 `NOT RUN`；依赖未交付导致的不可达分支（依赖 COMPLETED 可用性、blocking InformationRequest blocker）单独标注，不因无事实可产生而写成 PASS。
+- 依赖 #179/#186/#188/#189 的既有证据只证明各自的静态注册/解析或单模块 Handler slice，不证明本切片的判断产出、READY 转换或跨模块业务链已可运行。

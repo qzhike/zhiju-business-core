@@ -675,3 +675,75 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 - 用户于 2026-09-15 在当前会话明确表示“审核批准”，批准上述精确 revision 的 #202 Task DRAFT 创建引用、校验时机、持久化身份、事件边界、授权顺序及 `TE-P202-*` 验收设计。该记录是人类设计批准，不追溯批准其他 revision、TD-05–07 或未呈现的实现选择。
 - 本批准只解除“设计待审/待人类批准”门禁。依赖的 Task DRAFT Handler 可由 Planner 按当前依赖重新执行 `NOW + READY` 复核；本次批准本身不创建 Issue，也不授权业务实现、migration、commit、push 或 PR 合并。
 - 后续 Handler Issue 只能覆盖 `TE-P202-001`–`015` 中已批准范围，不得顺带扩大公开接受集、注册新 objectType/Event、改写历史 fixture 或实现 TD-05–07。
+
+## 16. Task Readiness 生产与 READY 转换边界提案（#206）
+
+状态：`T2 / PROPOSED 2026-09-16 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NO CONTRACT, HANDLER, MIGRATION OR REGISTRY CHANGE IN THIS REVISION`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206)：在 #154 已批准的权威判断原则、#176 已批准并部分交付的 Policy/Evaluator 边界，与 #202/#204 已交付的版本绑定 DRAFT 事实之间，收敛“让 #204 创建的 Task 到达 `READY`”所需的剩余语义。字段级权威在 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，READY 动作的授权组成在 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206)，验证矩阵在 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-readiness-生产与-ready-转换边界206-设计)。本节不重开 Issue #154/#176/#202/#204 的任何决定，TD-05–07 不被追认。
+
+### 16.1 P-206-1 对账结论与真实缺口
+
+对账 revision：`75553dec7afd87f25dc38230db9f884921b7e899`（本分支起点，与远端 `main` 一致）。
+
+| 事实 | 证据 | 结论 |
+|---|---|---|
+| 两个 `create_task` Major 都只创建 DRAFT，创建事实/幂等/EP Port 已交付 | Spec 003 §16.9、`V3001`、`TE-P202-001`–`015`（真实 PostgreSQL 通过） | READY 没有任何入口；本切片是它的第一个入口 |
+| `mark_task_ready@1.0` 已发布并冻结 | `public-api.v1.json`（`COMMAND`/`task-execution`/`schemaStatus=FULL`，通用 `snapshotRef` payload）、compat metadata `task.execution.mark_task_ready` | 只能由 owning Handler 与内部 Port 闭合接受集与授权；不得改写注册 Schema/metadata；[Spec 003 §3](../module-specs/Module-Spec-003-TaskExecution.md#3-command-payload-contract) 的设计期 Purpose 文字按 §15.1 同一规则修正为已发布值 |
+| `build_task_readiness@1.0` 只有设计行 | Spec 003 §11.1/§11.3/§11.6/§11.9；Registry 无条目 | 本切片唯一新增 operation |
+| Policy 解析已交付，profile/Evaluator selector 只有静态注册 | #183/#186（`identity.resolve_policy@1.0` Handler + V1005）、#179/#189（静态注册与纯解析） | 消费既有边界，不新增 policy schema、不新增 registry 版本 |
+| Evaluator 确定性实现、`information_request`、Completion Evaluation 均不存在 | Spec 003 §11.9、§33 | 依赖 COMPLETED 的可用性分支与 blocker 分支必须定义且标 `NOT RUN` |
+| Task 公开事件只有 `TaskReady@1.0`/`TaskCompleted@1.0` | `public-api.v1.json` 的 `execution.*` Event 恰 11 项 | 生产者不得发布事件；消费者恰好发布一条 `TaskReady@1.0` |
+
+**缺口是真实的**：Task 的 READY 转换由谁执行、以什么独立授权、消费什么判断事实、如何用一套规则寻址两个 Major 创建的 Task、判断与转换各自提交哪些不可变事实，当前都没有权威定义。若不先固定，后续实现必然自行选择兼容或授权语义。
+
+### 16.2 P-206-2 Task 寻址规则
+
+**诉求**：同一套 Readiness API 必须能处理两个已发布 `create_task` Major 创建的 Task，同时不制造别名、不改写 v1 冻结 fixture、不新增公开字段。
+
+**事实**：`task_execution.task` 不保存拼写；Task 的创建 Major 只由 `task_definition_snapshot.schema_version`（`'1.0'`/`'2.0'`）表达，而 `V3001` 的 creation-identity guard 已强制该快照所属 Receipt 是 `execution.create_task`、其 `command_version` 等于该列、其 target/Scope 等于本 Task、且 Receipt 仍为 `PENDING`。因此“Task 由哪个 Major 创建”是由 owning 事实精确、不可变证明的事实，且每个 Task 恰好一个创建快照。
+
+| 备选 | 评估 | 结论 |
+|---|---|---|
+| A 闭集接受两种拼写 | 同一 Task 得到两个可互换的公开拼写；`mark_task_ready@1.0` 没有版本字段可把它绑定到创建路径，两种拼写同时合法即把 §16.1 的逐版本精确身份退化为别名 | 不采用 |
+| B 版本绑定判别：拼写由 Task 自己的不可变创建事实派生 | 每个 Task 恰好一个被接受的拼写；判别值不来自调用者、不来自 payload 新字段、不来自 `aggregate_version` 或当前指针；两个 Major 各自可达 | **采用**（R-206-1） |
+| C 新增 operation major（`execution.mark_task_ready@2.0`） | 不解决问题：@1.0 已发布且必须继续服务它可服务的 Task，其 `targetRef` 仍需闭合，判别规则仍是 B；新增第二消费者会增加公开面（Catalog 214 → 215）而语义不变 | 不采用；未来若确需新 major，须独立 additive 提案 |
+
+**为什么 B 不是别名**：别名是同一对象在**业务接受集**中有第二个可用名字。B 让每个 Task 恰好一个拼写被接受，另一个拼写在生产者 Handler、消费者 Handler 与授权 Port 三处都不能取得业务成功；两个拼写并非「同一操作的两个名字」，而是「两个已发布创建路径各自的唯一名字」。v1 的 payload/fixture、v2 的 `const`、两个注册 Schema 与 200 项 Baseline 全部不变。
+
+**为什么 B 不需要新的公开字段**：`mark_task_ready@1.0` 的 payload 已冻结，任何新增字段都是对已发布 FULL 操作的破坏性变更；把判别做成 payload 字段还会让调用者可以选择拼写，正是 §16.2 拒绝的 caller-controlled aliasing。判别只能来自 owning 事实。
+
+**授权层的两层精确**：READY 动作需要一个绑定精确 Task target 的 Decision（`identity.authorize_command@1.0` 产生的历史 Decision 无 target 镜像，V1006 只允许新 Port 写入 target 列，因此公开路径无法表达该绑定）。授权 Port 的闭集键表按 `(commandType@commandVersion)` 列出该动作可接受的 target objectType **闭集**（两个已发布 Task 拼写），并要求 covering Grant 的 `TARGET_TYPE` selector 与请求声明的 target 逐字符相等；**业务**上哪个拼写正确只由 §17.3 的 owning Handler 判定。两层各自精确、大小写敏感、不做规范化，因此调用者无法通过声明另一拼写取得任何业务成功，也无法用另一个 target 的 Grant 提权。
+
+### 16.3 P-206-3 公共引用身份注册面
+
+- **`zhiju.execution.task_readiness`（新增）**：Owner `task-execution`、kind `SNAPSHOT`、Project Scope（两成员必填）、不可变判断事实、无可变 Root/无 CAS 版本/无 current pointer、不可作 BusinessOutput；Ref 的 `objectId == snapshotId`，`contentHash` 为完整判断 payload 的 SHA-256（canonicalization v1）。选择 `objectId == snapshotId` 而非 `context_snapshot` 的 Root+Snapshot 形态，是因为判断没有可变 Aggregate Root；这与已注册的 `zhiju.identity.policy_version`（§13.2）同形，属既有先例而非新机制。
+- **`zhiju.execution.task_definition_snapshot`（已决定、本切片注册）**：沿用 §16.7 的全部决定（CONTENT_ADDRESSED、Project Scope、不可变、不可作 BusinessOutput、按 exact `objectId` + 完整 payload Hash 解引用）；**不改** `execution.create_task` 两个版本的 Schema/Result/接受集，v1 冻结 fixture 逐字节不变，该 Ref 由 Readiness 生产者以自己的 payload 携带。§17.4 的 Catalog 路由记录**不**保留「PROPOSED / NO CATALOG CHANGE」的历史状态描述，改为与 #204 实现事实一致。
+- 两个身份都不由 TypeScript 名称、表名或 Handler 约定推断；未注册名称不得被发出、返回或消费。
+
+### 16.4 P-206-4 生产者 Contract/Registry Delta
+
+- 新增 `execution.build_task_readiness@1.0`：Owner `task-execution`、`COMMAND`、`Target=zhiju.execution.task_readiness`、mode `CREATE`、Purpose `execution.task.readiness.build`（新增）、`dataClassification=INTERNAL`、operation-specific Result Schema、四条 `references` 与一条 `resultReferences` 声明；`/payload/taskRef` 有意不声明，因为其合法取值随 Task 创建 Major 而定（与 `create_task@2.0` 不声明两版本 Task 引用的先例一致）。
+- **生产者也有自己的 owning 授权条目**：Purpose、required Grant action、`CREATE_TARGET_TYPE` selector、trusted capability config key `taskReadinessBuildV1` 与签发/重验顺序由 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 的生产者行拥有；它与消费者行互相独立（§16.6），不共用 entry、不继承资格。缺少该条目会让一个合法的 build 命令没有可路由、可签发、可重验的 owning Port，因此它是本 Delta 的必要组成部分，而不是实现期选择。
+- **不新增专用 PayloadGuard 技术 Policy**：payload/result 是有界小对象，适用 PostgreSQL §5.5 的默认 Command Guard（同 #158/#167/#175/#192）。
+- **Catalog 213 → 214**（TaskExecution 43 → 44：24 Command / 9 Query / 11 Event），历史 200 项 Compatibility Baseline 不变（additive 追加，不改写任何既有条目）。
+- **`mark_task_ready@1.0` 零改动**：Schema/Catalog/metadata 逐字节不变；不接受把 `snapshotRef` 收窄为固定 objectType、不补 `targetObjectType`、不补 Purpose 字段的"顺带修正"。
+
+### 16.5 P-206-5 判断持久化、事务边界与事件
+
+- **单一事实行** `task_execution.execution_judgment`（§33 的设计表，本切片只实现 kind `TASK_READINESS`；`result_validation_fact`/`judgment_invalidation` 留待各自切片）：Project Scope 镜像、subject 镜像（Task + definition id/hash）、Policy 观察镜像、evaluator、`input_hash`、`evaluated_at`/`valid_until`、`ready`、canonical payload/hash、`source_command_id`。
+- **不可变 + RLS + 双 guard**：app 角色无 UPDATE/DELETE；`FORCE RLS` + `context_allows_project`；mirror guard 由 payload 重算 Scope/subject/policy 镜像与 Hash；creation-identity guard 要求 `source_command_id` 指向仍在途（`PENDING`）的 `execution.build_task_readiness` Receipt 且其 target/Scope/请求 Hash 与本行一致。与 [Spec 003 §16.4](../module-specs/Module-Spec-003-TaskExecution.md#164-创建事实快照身份与幂等) 的差异在于判断 payload 是命令产出的**结论**而非请求 payload，因此绑定请求 Hash 与 target/Scope，而不要求 payload 逐字节等于请求。
+- **生产者不发布事件**：Catalog 没有 `TaskReadinessBuilt@1.0`，Handler 不得发布未注册事件；若未来需要，须独立 additive 提案并同步计数。
+- **不改写 Task Root**：READY 转换只改既有 `status`/`aggregate_version`，不新增 Root 列；转换的正当性由不可变判断 + Receipt + Reference Edge + 恰一条 `execution.TaskReady@1.0` 解释。若未来消费方需要 Root 侧的判断指针，须另立 additive 决定（forward migration），不在本切片顺带加入。
+- **并发**：同一 Task 允许多个判断共存（无 current pointer、无取代路径）；转换由 `DRAFT`-only CAS 单赢家裁决。
+
+### 16.6 P-206-6 消费者边界与授权组成
+
+- **两个入口各自的独立授权**：生产者与消费者各有自己的 Decision，且由 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 的**两条独立映射**签发与重验——生产者条目（Purpose `execution.task.readiness.build`、action `execution.task.readiness.build`、`CREATE_TARGET_TYPE`、config key `taskReadinessBuildV1`，target 是被创建的 readiness identity）与消费者条目（Purpose `task.execution.mark_task_ready`、action `execution.task.mark_ready`、`TARGET_TYPE`、config key `taskReadyV1`，target 是既有 Task）。两者不共用 entry、不继承、不互为别名：生产者的 Decision 与已提交判断不授权 READY 转换，消费者的 Decision 也不授权 build，且 target objectType 集合不重叠。两条映射的重验都在各自的幂等 Claim 与历史 Receipt 返回之前完成，并重读当前 covering Grant/Policy。
+- **提交点重验**：判断完整性/可用性、Task/Scope/definition 绑定、完整依赖/输入/blocker 观测逐项相等（不一致即 `EXECUTION_JUDGMENT_STALE`，要求重建判断）、`ready=true`、`now < validUntil`；任何 `UNSUPPORTED` 检查优先映射 `EXECUTION_CRITERION_UNSUPPORTED`。
+- **调用者非权威**：`ready`、检查清单、`requestedAt` 与历史 Receipt 都不是判定依据；`requestedAt` 只作为声明的请求时刻记录，不参与期限、CAS 或授权。
+- **错误面**：本切片只新增 `EXECUTION_TASK_REF_INVALID`；`EXECUTION_JUDGMENT_INVALID`/`EXECUTION_JUDGMENT_STALE`/`EXECUTION_CRITERION_UNSUPPORTED` 沿用 §11.7 已批准语义并带入实现范围；`EXECUTION_TASK_DEPENDENCY_CYCLE`/`EXECUTION_TASK_READINESS_UNSATISFIED`/`EXECUTION_TASK_NOT_EXECUTABLE` 沿用 §6 既有码。跨 Scope 不可见、不支持类型、依赖暂时不可用都不泄露 owning 模块细节，也不收敛为成功。
+
+### 16.7 批准与交付边界
+
+- 本提案只解除"设计待审"缺口；**独立设计审查与显式人类设计批准**仍是创建依赖实现 Issue 之前的门禁。两项通过前，Planner 不得据此发布实现 Issue、Implementer 不得开始实现。
+- 本 revision 不改代码、契约、Registry、生成物、migration 或 fixture；`execution.build_task_readiness@1.0`、两个 objectType、`EXECUTION_TASK_REF_INVALID` 与 `V3002` 均未注册、未实现、未分配编号。Catalog 保持 213、Baseline 保持 200。
+- 依赖的实现 Issue 只能覆盖 `TE-P206-D-*` 与 `TE-P206-001`–`018` 已批准范围，不得顺带扩展输入支持集、注册 Event、改写历史 fixture、修改两个 `create_task` Major 或 `mark_task_ready@1.0` 的接受集，也不得实现 TD-05–07。

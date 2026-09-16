@@ -1236,7 +1236,7 @@ Query payload 固定 `{revisionRef: Exact<ArtifactRevision>; revisionAcceptanceR
 
 ### #202 Task DRAFT 创建引用身份与 Project 校验边界
 
-状态：`T2 / PROPOSED / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN APPROVAL / NO CATALOG CHANGE`。本节记录 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202) 的引用身份路由：字段级权威见 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计)，Project 侧边界见 [Spec 002 §13.1](../module-specs/Module-Spec-002-EnterpriseProject.md#131-task-创建期的-projectdeliveryitem-校验-port202-提案)。本项**不新增公开 operation、不新增 objectType**：Catalog 保持 213 项，历史 200 项 Compatibility Baseline、v1 冻结 fixture 与全部 registry 元数据不变。
+状态：`T2 / APPROVED 2026-09-15 / INDEPENDENT DESIGN REVIEW APPROVE / HUMAN DESIGN APPROVAL RECORDED / OWNING HANDLER, ENTERPRISE-PROJECT PORT AND V3001 SCOPED PERSISTENCE IMPLEMENTED (#204, PR #205) / NO CATALOG CHANGE`。本节记录 [Issue #202](https://github.com/qzhike/zhiju-business-core/issues/202) 的引用身份路由：字段级权威见 [Spec 003 §16](../module-specs/Module-Spec-003-TaskExecution.md#16-task-draft-创建引用与持久化边界202-设计)，Project 侧边界见 [Spec 002 §13.1](../module-specs/Module-Spec-002-EnterpriseProject.md#131-task-创建期的-projectdeliveryitem-校验-port202-提案)。本项**不新增公开 operation、不新增 objectType**：Catalog 保持 213 项，历史 200 项 Compatibility Baseline、v1 冻结 fixture 与全部 registry 元数据不变。
 
 `execution.create_task` 两个 Major 各自只有一套已发布身份，逐版本精确、大小写敏感、不互为别名：
 
@@ -1250,3 +1250,20 @@ Query payload 固定 `{revisionRef: Exact<ArtifactRevision>; revisionAcceptanceR
 公开 `project.validate_object_scope@1.0` 的接受集（13 个裸本地名）与其错误外观保持不变：`zhiju.project.project`、`project.project`、`zhiju.project.delivery_item` 与 `DeliveryItem` 仍不是它的合法输入；创建期的 Project/DeliveryItem 证明走 EnterpriseProject owning 内部 Port，而不是扩大该公开 Query 的接受集。未来若需要公开接受 canonical 拼写，必须作为独立 additive 契约提案批准。
 
 `TaskDefinitionSnapshot` 的公开引用身份**在本 revision 不注册**：`execution.create_task` 两个版本都没有 operation-specific Result Schema，DRAFT 创建不返回该 Ref。未来需要返回或消费它的切片必须先取得 additive 批准并注册 `zhiju.execution.task_definition_snapshot`（Owner `task-execution`、kind `CONTENT_ADDRESSED`、Project Scope、不可变、不另建可变版本、不可作为 BusinessOutput），Ref 按 exact `objectId` + 完整 canonical payload Hash 解引用；不允许以“实现需要”为由静默发明名称或改写 v1 payload。
+
+### #206 Task Readiness 引用身份与 READY 转换注册（设计）
+
+状态：`T2 / PROPOSED 2026-09-16 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NO CATALOG CHANGE IN THIS REVISION`。本节记录 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206) 的引用身份与操作路由；字段级权威见 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，依据与被否方案见[设计提案 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)，生产者与 READY 动作各自的授权组成（两个互相独立的条目）见 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206)。本 revision 不注册任何条目：下列 operation 与 objectType 是**已决定、待实现切片注册**的内容。
+
+| objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
+|---|---|---|---|
+| `zhiju.execution.task_definition_snapshot` | task-execution | CONTENT_ADDRESSED；Project Scope（两成员必填，等于该 Task 的 Scope） | 不可变；不另建可变版本；否；按 exact `objectId` + 完整 payload Hash 解引用 |
+| `zhiju.execution.task_readiness` | task-execution | SNAPSHOT（生产者 CREATE target 与 Result Ref 共用）；Project Scope（两成员必填） | 不可变判断事实；无可变 Root、无 CAS 版本、无 current pointer；否；`objectId == snapshotId`，按完整 canonical payload Hash 解引用 |
+
+`execution.build_task_readiness@1.0`（新增，Catalog 213 → 214）：Owner `task-execution`、`COMMAND`、`Target=zhiju.execution.task_readiness`、mode `CREATE`、Purpose `execution.task.readiness.build`、`dataClassification=INTERNAL`、operation-specific Result Schema、无专用构建期 PayloadGuard 技术 Policy；`references` 声明 `/targetRef`（OBJECT/`zhiju.execution.task_readiness`）、`/payload/taskDefinitionRef`（CONTENT_ADDRESSED/`zhiju.execution.task_definition_snapshot`）、`/payload/policyRef`（VERSIONED/`zhiju.identity.policy`）、`/payload/evaluatorRef`（VERSIONED/`zhiju.execution.evaluator_profile`），`resultReferences` 声明 `/data/readinessSnapshotRef`（SNAPSHOT/`zhiju.execution.task_readiness`）。`/payload/taskRef` **有意不声明**：它的合法取值随该 Task 的创建 Major 而定（v1 `execution.task`、v2 `zhiju.execution.task`），Schema 与 `references` 都无法表达，收窄由 owning Handler 完成（与 `create_task@2.0` 不声明两版本 `parentTaskRef`/`dependencyTaskRefs` 同理）。
+
+Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 Task 引用拼写必须恰好等于该 Task **创建事实**对应的拼写——创建定义快照的 `schema_version='1.0'` → `execution.task`、`'2.0'` → `zhiju.execution.task`，大小写敏感、无规范化、无 latest 回退，另一版本拼写与裸本地名一律 `EXECUTION_TASK_REF_INVALID`。两种拼写是两条已发布创建路径各自的唯一身份，不是同一操作的两个别名。
+
+`execution.mark_task_ready@1.0` **零改动**：本项不改它的注册 Schema（通用 `snapshotRef`）、Catalog 条目或 compat metadata Purpose（`task.execution.mark_task_ready`），也不新增 `targetObjectType`；接受集与授权由 owning Handler 与 Spec 001 §15.5 的内部 Port 闭合。生产者**不发布任何公开 Event**（本 Catalog 无 `TaskReadinessBuilt`），消费者恰好发布一条已注册的 `execution.TaskReady@1.0`。
+
+历史 200 项 Compatibility Baseline 不变（additive 追加）；本 revision 的 Catalog 仍为 213 项，v1/v2 冻结 fixture、两个 `create_task` Major 的接受集与全部既有 registry 元数据逐字节不变。

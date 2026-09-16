@@ -2188,6 +2188,8 @@ COMPLETED
 
 `REOPENED` 更适合作为事件而不是长期状态；重新打开后进入 READY 或 IN_PROGRESS。
 
+**IM-06 首个 READY 转换切片（#206 设计，未实现）**：首个实现的 READY 转换是 `DRAFT → READY`，由 owning Service 依据不可变 TaskReadiness 判断事实与**独立**的当前授权执行；`BACKLOG` 仍是 `TaskStatus` 的合法闭集成员，但本切片没有设置它的公开操作，READY 也不经由它中转。判断生产（`execution.build_task_readiness@1.0`，设计）与状态转换（`execution.mark_task_ready@1.0`）是两个入口、两次授权：生产者不发布公开事件，消费者在同一事务提交 Root 转换与恰一条已注册的 `execution.TaskReady@1.0`。判定对象、输入算法、失败面与未运行边界见 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)。本段不改变上述状态机、不新增 Domain 状态或状态转换，也不把 `TaskReadiness` 变成新 Aggregate Root。
+
 ### 18.6 Invariants
 
 1. Task 必须属于一个 Enterprise 和 Project，创建后不可迁移。
@@ -2247,6 +2249,8 @@ FollowUpTaskProposed
 | 提交 Review | 执行者 | WorkOrder 授权可执行 | 可在输出满足最低 Schema 后执行 |
 | 完成 Task | Human 只能请求/确认例外 | 不允许自报 | CompletionEvaluator 验证并执行 |
 | 取消/重开 | 项目经理或授权角色 | 不允许最终决定 | 仅执行 Human/Policy Command |
+
+`标记 READY` 的授权边界（#206 设计）：Readiness 判断的**生产**与 READY **转换**是两个入口、两次授权，各自有独立 Decision 与独立 owning 映射（[Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 的生产者条目 `execution.task.readiness.build` 与消费者条目 `task.execution.mark_task_ready`，Purpose/Grant action/selector 类型/config key 均不同且不继承）。`execution.mark_task_ready@1.0` 需要自己的当前 Decision，并在幂等 Claim 与历史 Receipt 返回前重验；覆盖授权按精确 Project Scope 与精确 Task target 匹配，Enterprise Grant 不覆盖 Project Intent。Agent 仍不能直接设置状态，也不因拥有生产者 Decision 而获得转换资格。见 [Spec 003 §17.8](../module-specs/Module-Spec-003-TaskExecution.md#178-executionmark_task_ready10-消费边界)。
 
 ### 18.9 测试用例
 
@@ -5719,3 +5723,5 @@ DeliveryItem Completion 是由 EnterpriseProject owning Evaluator 根据冻结 `
 #152–#154 的具体设计方向批准与新增决定边界见[IM-06设计](../decisions/task-execution-human-operated.md)。本轮设计保留Task/WorkOrder/Run/AgentResult/InformationRequest独立Aggregate以及§18–22的完成层级；提出Result接收reservation、Run record/finalize/expire、WO/Task reconcile的公开映射与竞态裁决，见[Spec 003 §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)。这些入口尚未注册，不把本Domain内部命令表直接当现有API。
 
 新增设计明确COMPLETED为历史完成事实，当前useStatus/Impact与历史分开；依赖Readiness必须检查当前有效性。final BLOCKED_INPUT的Run可SUCCEEDED但WorkOrder仍阻塞，答案后新Context/Run；Runtime取消未确认不能CANCELLED。Task typed criteria首版、答案CustomerMaterial限制与具体控制入口属于TD-01–04已批准增量。
+
+**#206 Task Readiness 与 READY 转换（2026-09-16，设计；未实现）**：Task READY 的判定对象是不变判断事实而非调用者结论，生产与转换是两次独立授权的入口，见 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)。Domain 侧不新增状态、Invariant、Command 或 Domain Event：§18.5 的状态机、§18.6 的 16 条 Invariant、§18.7 的事件词汇、§27 的错误码表都保持不变。两处命名对照仅作路由记录，不改变任一侧：§27 的 `CYCLIC_TASK_DEPENDENCY` 在 TaskExecution 公开面上表现为模块稳定码 `EXECUTION_TASK_DEPENDENCY_CYCLE`，`TASK_NOT_EXECUTABLE` 对应 `EXECUTION_TASK_NOT_EXECUTABLE`，`TASK_COMPLETION_CRITERIA_NOT_MET` 仍属 Completion 而非 Readiness；Readiness 未满足使用模块稳定码 `EXECUTION_TASK_READINESS_UNSATISFIED`，不新增 Domain 错误码。§18.7 的 `TaskBecameReady` 不是公开事件：唯一已注册的公开事件是 `execution.TaskReady@1.0`，判断生产不发布任何公开事件。
