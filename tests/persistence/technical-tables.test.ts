@@ -140,7 +140,13 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'delivery_item_dependency',
     'delivery_plan_decision',
   ],
-  task_execution: ['business_probe', 'outbox_probe'],
+  task_execution: [
+    'business_probe',
+    'outbox_probe',
+    // IM-06 (#204): Task Aggregate Root and its immutable TaskDefinition.
+    'task',
+    'task_definition_snapshot',
+  ],
   artifact: [
     'business_probe',
     'outbox_probe',

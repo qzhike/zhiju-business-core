@@ -517,3 +517,20 @@ export {
   PROJECT_CAPTURE_SLICE_ALREADY_EXISTS,
 } from './business/enterprise-business-errors.js';
 export type { EnterpriseBusinessErrorCode } from './business/enterprise-business-errors.js';
+// IM-06 (#204): internal read-only Project/DeliveryItem proof Port for the
+// `execution.create_task` DRAFT creation boundary (Spec 002 §13.1). It is not a
+// registered operation and never enters the Contract Catalog.
+export {
+  createTaskExecutionCreationProjectScopePort,
+  TASK_CREATION_SCOPE_KIND_MISMATCH,
+  TASK_CREATION_SCOPE_IDENTITY_MISMATCH,
+  TASK_CREATION_SCOPE_SCOPE_MISMATCH,
+  TASK_CREATION_SCOPE_NOT_VISIBLE,
+  TASK_CREATION_SCOPE_LIFECYCLE_INVALID,
+} from './business/task-execution-creation-scope-port.js';
+export type {
+  TaskExecutionCreationProjectScopeConfig,
+  TaskExecutionCreationProjectScopeOutcome,
+  TaskExecutionCreationProjectScopePort,
+  TaskExecutionCreationProjectScopeRequest,
+} from './business/task-execution-creation-scope-port.js';

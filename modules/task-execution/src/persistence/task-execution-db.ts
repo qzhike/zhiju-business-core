@@ -189,7 +189,45 @@ export interface ContractViolationTable {
   created_by_principal_id: string;
 }
 
+/**
+ * IM-06 (#204): Task Aggregate Root. `current_definition_hash` is part of the
+ * composite pointer to the snapshot row, so a re-written definition cannot
+ * satisfy the pointer by reusing the same `snapshot_id`.
+ */
+export interface TaskTable {
+  task_id: string;
+  enterprise_id: string;
+  project_id: string;
+  status: string;
+  aggregate_version: Int8Default;
+  current_definition_snapshot_id: string;
+  current_definition_hash: Buffer;
+  delivery_item_id: string | null;
+  delivery_item_version_id: string | null;
+  created_at: Generated<Date>;
+  created_by_principal_id: string;
+}
+
+/** IM-06 (#204): immutable TaskDefinition of one Task; INSERT-only. */
+export interface TaskDefinitionSnapshotTable {
+  snapshot_id: string;
+  task_id: string;
+  schema_version: string;
+  enterprise_id: string;
+  project_id: string;
+  delivery_item_id: string | null;
+  delivery_item_version_id: string | null;
+  canonical_payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: Generated<string>;
+  created_at: Generated<Date>;
+  created_by_principal_id: string;
+  source_command_id: string;
+}
+
 export interface TaskExecutionDb {
+  'task_execution.task': TaskTable;
+  'task_execution.task_definition_snapshot': TaskDefinitionSnapshotTable;
   'task_execution.command_receipt': CommandReceiptTable;
   'task_execution.outbox_event': OutboxEventTable;
   'task_execution.inbox_message': InboxMessageTable;

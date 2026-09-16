@@ -20,6 +20,12 @@ export type {
   ResolutionReceiptEntryConfig,
   ResolutionReceiptSession,
 } from './resolution-receipt-entry.js';
+export { createCreateTaskEntry } from './create-task-entry.js';
+export type {
+  CreateTaskEntry,
+  CreateTaskEntryConfig,
+  CreateTaskSession,
+} from './create-task-entry.js';
 export { createRevisionEligibilityEntry } from './revision-eligibility-entry.js';
 export type {
   RevisionEligibilityEntry,
