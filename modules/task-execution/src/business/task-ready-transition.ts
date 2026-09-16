@@ -35,6 +35,7 @@ import {
 } from '../persistence/task-readiness-repository.js';
 import { resolveTaskReadinessEvaluatorProfile } from './evaluator-profiles.js';
 import {
+  AUTHORIZATION_EXPIRED,
   EXECUTION_CRITERION_UNSUPPORTED,
   EXECUTION_DEFINITION_REF_INVALID,
   EXECUTION_JUDGMENT_INVALID,
@@ -72,6 +73,14 @@ export const TASK_READY_EVENT_VERSION = '1.0';
  * and the two authorization entries cannot stand in for each other.
  */
 export type TaskReadyTransitionPorts = TaskReadinessProducerPorts;
+
+/**
+ * The module's trusted clock. `evaluatedAt`/`validUntil` are never derived from
+ * anything a caller declared, and every commitment decision reads this clock.
+ */
+function trustedClock(ports: TaskReadyTransitionPorts): () => Date {
+  return ports.now ?? ((): Date => new Date());
+}
 
 const HEX_64 = /^[0-9a-f]{64}$/u;
 
@@ -215,9 +224,10 @@ export async function handleMarkTaskReady(
 
     // §17.8 step 3: expiry and the Policy/Evaluator lifecycle are re-checked with
     // the trusted clock and a fresh owning resolution, never with anything the
-    // caller declared.
-    const now = (ports.now ?? ((): Date => new Date()))();
-    if (now.getTime() >= judgment.valid_until.getTime()) {
+    // caller declared. This first read fails fast; the commit point re-reads the
+    // clock and is the check that actually decides (see `commitNow` below).
+    const trustedNow = trustedClock(ports);
+    if (trustedNow().getTime() >= judgment.valid_until.getTime()) {
       return reject(EXECUTION_JUDGMENT_STALE, 'the readiness judgment has expired');
     }
     if (resolveTaskReadinessEvaluatorProfile(judgment.evaluator_ref) === undefined) {
@@ -367,6 +377,36 @@ export async function handleMarkTaskReady(
       );
     }
 
+    // §17.6 time boundary at the commit point: a long transaction must not pass
+    // on a timestamp read before its owning reads. The judgment, the producing
+    // Decision and the Policy's own finite bound are all re-checked against the
+    // trusted clock *now*, immediately before the irreversible CAS, and the same
+    // instant is what the Receipt and the TaskReady event record, so no reader
+    // can observe a transition that had already expired when it committed.
+    const commitNow = trustedNow();
+    const commitInstant = commitNow.getTime();
+    if (commitInstant >= judgment.valid_until.getTime()) {
+      return reject(
+        EXECUTION_JUDGMENT_STALE,
+        'the readiness judgment expired before the transition could commit',
+      );
+    }
+    if (
+      judgment.policy_superseded_at !== null &&
+      commitInstant >= judgment.policy_superseded_at.getTime()
+    ) {
+      return reject(
+        EXECUTION_JUDGMENT_STALE,
+        'the Policy the judgment observed was superseded before the transition could commit',
+      );
+    }
+    if (commitInstant >= context.authorizationDecisionExpiresAt.getTime()) {
+      throw new CommandExecutionError(
+        AUTHORIZATION_EXPIRED,
+        'the authorizing Decision expired before the transition could commit',
+      );
+    }
+
     // §17.8 step 7: the single DRAFT-only CAS decides the winner.
     const transition = await execution.casTaskStatusToReady({
       taskId: envelope.targetId,
@@ -424,9 +464,9 @@ export async function handleMarkTaskReady(
           judgment.payload_hash,
           scope,
         ),
-        readyAt: now.toISOString(),
+        readyAt: commitNow.toISOString(),
       },
-      occurredAt: now,
+      occurredAt: commitNow,
     });
 
     // The Task owner points at the judgment and at the definition it converted,
@@ -463,6 +503,10 @@ export async function handleMarkTaskReady(
 
     return {
       kind: 'COMMITTED',
+      // The same trusted instant the event carries becomes the Receipt's
+      // `completed_at`, so §17.8's `readyAt` and the command's own completion
+      // time are one value by construction instead of two independent clocks.
+      committedAt: commitNow,
       // The result carries the transitioned identity only. The caller-declared
       // `requestedAt` is not authority and is not echoed: it is committed by the
       // request hash chain and by the runner's own Receipt and Audit rows.

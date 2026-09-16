@@ -62,6 +62,12 @@ export const EXECUTION_TASK_DEPENDENCY_CYCLE = 'EXECUTION_TASK_DEPENDENCY_CYCLE'
 export const EXECUTION_TASK_READINESS_UNSATISFIED = 'EXECUTION_TASK_READINESS_UNSATISFIED';
 export const EXECUTION_TASK_NOT_EXECUTABLE = 'EXECUTION_TASK_NOT_EXECUTABLE';
 export const NOT_FOUND = 'NOT_FOUND';
+/**
+ * Shared authorization code (Spec 003 §17.9): reusing the existing exterior keeps
+ * a Decision that expired inside a long command indistinguishable, to the
+ * caller, from one that had already expired when the command started.
+ */
+export const AUTHORIZATION_EXPIRED = 'AUTHORIZATION_EXPIRED';
 
 /** The registered object types this operation fixes. */
 export const TASK_READINESS_OBJECT_TYPE = 'zhiju.execution.task_readiness';

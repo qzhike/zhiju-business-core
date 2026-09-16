@@ -151,7 +151,19 @@ export interface ProcessStepInput {
 }
 
 export type CommandBodyResult =
-  | { kind: 'COMMITTED'; resultPayload: CanonicalJsonObject }
+  | {
+      kind: 'COMMITTED';
+      resultPayload: CanonicalJsonObject;
+      /**
+       * The owning handler's trusted commit instant, when the command's own
+       * public facts must name the exact time this command committed (for
+       * example an event whose `readyAt` the design fixes to the Receipt's
+       * `completed_at`). The runner writes this value to the Receipt, so the
+       * two can never drift; omitted, the runner samples its own clock exactly
+       * as before for every other command.
+       */
+      committedAt?: Date | undefined;
+    }
   | {
       kind: 'REJECTED';
       errorCode: string;
@@ -455,6 +467,7 @@ async function runCommandTransaction(
     await finalizeReceipt(trx, envelopeSnapshot, {
       outcome: 'COMMITTED',
       resultPayload: bodyResult.resultPayload,
+      completedAt: bodyResult.committedAt,
     });
     await insertAuditRow(trx, envelopeSnapshot, {
       outcome: 'COMMITTED',
@@ -538,6 +551,8 @@ async function finalizeReceipt(
   final: {
     outcome: 'COMMITTED' | 'REJECTED';
     resultPayload: CanonicalJsonObject;
+    /** Completion instant; a body may name it so its own facts can reference it. */
+    completedAt?: Date | undefined;
   },
 ): Promise<void> {
   const resultDigest = digestCanonicalPayload(final.resultPayload);
@@ -545,7 +560,7 @@ async function finalizeReceipt(
     .updateTable('task_execution.command_receipt')
     .set({
       outcome: final.outcome,
-      completed_at: new Date(),
+      completed_at: final.completedAt ?? new Date(),
       result_payload: resultDigest.canonicalJson,
       result_payload_hash: resultDigest.hash,
     })

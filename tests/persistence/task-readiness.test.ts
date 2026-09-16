@@ -1520,6 +1520,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
       aggregate_version: string;
       payload: Record<string, unknown>;
       payload_hash: Buffer;
+      occurred_at: Date;
     }[];
     readonly edges: readonly { owner_object_type: string; reference_path: string }[];
     readonly judgmentIds: readonly string[];
@@ -1575,8 +1576,9 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
         aggregate_version: string;
         payload: Record<string, unknown>;
         payload_hash: Buffer;
+        occurred_at: Date;
       }>(
-        `SELECT event_type, event_version, aggregate_version::text, payload, payload_hash
+        `SELECT event_type, event_version, aggregate_version::text, payload, payload_hash, occurred_at
            FROM task_execution.outbox_event
           WHERE aggregate_id = $1 ORDER BY occurred_at, event_type`,
         [taskId],
@@ -2571,6 +2573,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
       factRefs: [slice.ref],
       reasonCodes: [],
     });
+    const convertedCommandId = newUuidV7();
     const converted = await attempt(() =>
       markReady({
         taskId: usable.taskId,
@@ -2578,6 +2581,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
         judgmentPayloadHash: usableJudgment.judgment.payloadHash,
         aggregateVersion: Number(usableJudgment.judgment.taskAggregateVersion),
         idempotencyKey: `wi208-008-ready-${usableJudgment.judgment.judgmentId}`,
+        commandId: convertedCommandId,
       }),
     );
     expect(converted.code, JSON.stringify(converted)).toBe('COMMITTED');
@@ -2599,6 +2603,23 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
       objectId: usableJudgment.judgment.judgmentId,
       snapshotId: usableJudgment.judgment.judgmentId,
     });
+    // §17.8 step 8: `readyAt` is the trusted conversion instant, which is the
+    // Receipt's own `completed_at`; the Outbox row records the same instant.
+    // Three independent clocks would let a reader observe a `readyAt` that is
+    // not the time the command actually committed.
+    const convertedReceipt = (
+      await admin.query<{ outcome: string; completed_at: Date }>(
+        `SELECT outcome, completed_at FROM task_execution.command_receipt
+          WHERE command_id = $1`,
+        [convertedCommandId],
+      )
+    ).rows[0];
+    if (convertedReceipt === undefined) throw new Error('the transition Receipt is missing');
+    expect(convertedReceipt.outcome).toBe('COMMITTED');
+    expect(record(eventPayload).readyAt).toBe(convertedReceipt.completed_at.toISOString());
+    expect(convertedState.outbox[0]?.occurred_at.toISOString()).toBe(
+      convertedReceipt.completed_at.toISOString(),
+    );
     // Exactly one registered TaskReady row exists for this conversion.
     expect(
       await countRows(`task_execution.outbox_event WHERE event_type = '${TASK_READY_EVENT}'`),
@@ -3324,10 +3345,91 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
       `far in the future:${CONCURRENCY_CONFLICT}`,
     ]);
 
-    // NOT RUN — the successful-CAS half of this row (a long transaction
-    // crossing `validUntil`, and a conversion that observes the bound as the
-    // winner) needs a committed `execution.mark_task_ready@1.0`, which the
-    // Edge-owner defect recorded in `TE-P206-008` blocks for every request.
+    // A conversion that observes the bound as the winner commits, and the same
+    // conversion observed one millisecond past the bound does not — a long
+    // transaction must not pass on a timestamp read before its owning reads.
+    //
+    // The two runs are the same request against two fresh judgements, so the
+    // clock's *call index* is the only variable: the control run records how many
+    // times the entry consults the trusted clock, and the boundary run returns a
+    // still-valid instant for every call but the last. The last call is the
+    // commit-point re-read (it is the final clock read before the CAS), so the
+    // boundary run fails only if that read is guarded. A removal of the guard
+    // makes the boundary run commit and the test fail; a guard moved earlier
+    // makes the control run fail instead.
+    const controlDraft = await createDraft('1.0');
+    const controlJudgment = await buildTaskJudgment(controlDraft, {
+      policyRefValue: shortTtlPolicyKey as unknown as CanonicalJsonObject,
+    });
+    const controlRow = await judgmentRow(controlJudgment.judgment.judgmentId);
+    if (controlRow === undefined) throw new Error('the judgment row is not readable');
+    const controlEarly = new Date(controlRow.evaluated_at.getTime() + 1000);
+    let controlCalls = 0;
+    const controlState = await attempt(() =>
+      markReady({
+        taskId: controlDraft.taskId,
+        judgmentId: controlJudgment.judgment.judgmentId,
+        judgmentPayloadHash: controlJudgment.judgment.payloadHash,
+        aggregateVersion: Number(controlJudgment.judgment.taskAggregateVersion),
+        idempotencyKey: `wi208-012-control-${controlJudgment.judgment.judgmentId}`,
+        entry: readinessEntryFor({
+          now: () => {
+            controlCalls += 1;
+            return controlEarly;
+          },
+        }),
+      }),
+    );
+    expect(controlState.code, JSON.stringify(controlState)).toBe('COMMITTED');
+    expect(controlCalls).toBeGreaterThan(1);
+    const convertedControl = await taskState(controlDraft.taskId);
+    expect(convertedControl.status).toBe('READY');
+    expect(convertedControl.outbox).toHaveLength(1);
+
+    const boundaryDraft = await createDraft('1.0');
+    const boundaryJudgment = await buildTaskJudgment(boundaryDraft, {
+      policyRefValue: shortTtlPolicyKey as unknown as CanonicalJsonObject,
+    });
+    const boundaryRow = await judgmentRow(boundaryJudgment.judgment.judgmentId);
+    if (boundaryRow === undefined) throw new Error('the judgment row is not readable');
+    const boundaryEarly = new Date(boundaryRow.evaluated_at.getTime() + 1000);
+    const boundaryLate = new Date(boundaryRow.valid_until.getTime() + 1);
+    let boundaryCalls = 0;
+    const beforeBoundary = await taskState(boundaryDraft.taskId);
+    const boundaryOutcome = await attempt(() =>
+      markReady({
+        taskId: boundaryDraft.taskId,
+        judgmentId: boundaryJudgment.judgment.judgmentId,
+        judgmentPayloadHash: boundaryJudgment.judgment.payloadHash,
+        aggregateVersion: Number(boundaryJudgment.judgment.taskAggregateVersion),
+        idempotencyKey: `wi208-012-boundary-${boundaryJudgment.judgment.judgmentId}`,
+        entry: readinessEntryFor({
+          now: () => {
+            boundaryCalls += 1;
+            return boundaryCalls === controlCalls ? boundaryLate : boundaryEarly;
+          },
+        }),
+      }),
+    );
+    expect(boundaryOutcome.code, JSON.stringify(boundaryOutcome)).toBe(EXECUTION_JUDGMENT_STALE);
+    expect(boundaryCalls).toBe(controlCalls);
+    // No side effect at all: the Task keeps its status and version, and no
+    // TaskReady row was published. The Receipt records the refusal, not a
+    // success result.
+    const afterBoundary = await taskState(boundaryDraft.taskId);
+    expect(afterBoundary.status).toBe(beforeBoundary.status);
+    expect(afterBoundary.aggregateVersion).toBe(beforeBoundary.aggregateVersion);
+    expect(afterBoundary.outbox).toEqual([]);
+    expect(afterBoundary.edges).toEqual(beforeBoundary.edges);
+    const boundaryReceipt = (
+      await admin.query<{ outcome: string; result_payload: Record<string, unknown> | null }>(
+        `SELECT outcome, result_payload FROM task_execution.command_receipt
+          WHERE idempotency_key = $1`,
+        [`wi208-012-boundary-${boundaryJudgment.judgment.judgmentId}`],
+      )
+    ).rows[0];
+    expect(boundaryReceipt?.outcome).toBe('REJECTED');
+    expect(record(boundaryReceipt?.result_payload).errorCode).toBe(EXECUTION_JUDGMENT_STALE);
   });
 
   // -------------------------------------------------------------------------

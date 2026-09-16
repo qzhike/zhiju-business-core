@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN MERGED 2026-09-16 (PR #207; NOT REGISTERED, NOT IMPLEMENTED) / HANDLER IMPLEMENTATION NOT STARTED`
+状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN MERGED 2026-09-16 (PR #207) / #208 TASK READINESS PRODUCER, READY CONSUMER, V3002 AND BOTH AUTHORIZATION ENTRIES IMPLEMENTED 2026-09-16 (CATALOG 214, TE-P206-001–018 EXECUTED ON REAL PostgreSQL; COMPLETED-DEPENDENCY AND BLOCKING-INFORMATIONREQUEST BRANCHES NOT RUN) / OTHER HANDLER IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -308,12 +308,12 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 - API v0.1 已由用户审核；Runtime Adapter v0.1 已获用户推进确认并进入 Implementation Milestone Plan，同时保留 6 个尚未纳入基准的 additive Command；
 - `contracts/src/operations/task-execution.schema.ts` 已注册基线 37 个操作、#158 的 @1.0 Draft/initial Context 两项操作、#165 的三个 @1.1 兼容操作及 #175 的 `execution.create_task@2.0`；PR #10 Review 识别的 8 类 strict Schema 偏差均已修复，Draft/initial Context 正负向 Contract 回归已补齐；
 - TaskExecution 直接复用权威 `core/work-order/1.0#/$defs/*`；WorkOrder Core Contract 与 `create_work_order` 使用同一组 `$defs`，且 `requestedBy` 统一为 `PrincipalRef`；Core Contract 不再被开放 `CanonicalJson` 降级；
-- 注册到 `ContractRegistry` 后所有 43 项 TaskExecution `schemaStatus` 为 `FULL`；当前全仓 Catalog/Registry 为 213 项（#183 追加两个 IdentityPolicy PolicyVersion 操作，#191/#192 追加两个权威 Query），历史 Compatibility Baseline 仍为 200 项；
+- 注册到 `ContractRegistry` 后所有 44 项 TaskExecution `schemaStatus` 为 `FULL`；当前全仓 Catalog/Registry 为 214 项（#183 追加两个 IdentityPolicy PolicyVersion 操作，#191/#192 追加两个权威 Query，#208 追加 `execution.build_task_readiness@1.0`），历史 Compatibility Baseline 仍为 200 项；
 - 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 211 项 Registry，等待用户审核通过后单独补齐；
 - IM-06 WI-01（Issue #151）落地模块自有 application/persistence 基础：`@zhiju/task-execution` 提供 Kysely schema、`createTaskExecutionDatabase`、`withTaskExecutionTransaction`、`executeTaskExecutionCommand`、`TaskExecutionRepository`，单一受信事务上下文建立路径，幂等/CAS/Scope mirror/Process 父子 Scope/Hash 一致性 guard 与 controlled fault 回滚均已落实；可由 disposable PostgreSQL gate 复测；
-- Context Builder、Dispatcher、Runtime、Evaluator、Projection 与 Handler 实现均不存在；模块自有业务 Repository 仅暴露 `insertProcessInstance` 给当前技术 Aggregate，不与任何业务表/其他模块 Repository 交叉；
-- #206 设计（2026-09-16，本节 §17）固定 Task Readiness 生产与 READY 转换边界：`execution.build_task_readiness@1.0` 为唯一新增 operation（Catalog 213 → 214，历史 Baseline 200 不变）、`zhiju.execution.task_readiness` 与已决定的 `zhiju.execution.task_definition_snapshot` 为本切片注册的两个引用身份、两个 create-task Major 的 Task 寻址按创建事实版本绑定、生产者不发布事件而消费者发布恰一条 `execution.TaskReady@1.0`。该设计**未注册契约、未实现、未分配 migration**：Readiness Handler、`execution_judgment` 持久化、Spec 001 §15.5 授权 Port 与 READY 转换全部 `NOT RUN`；
-- 对应 Unit、Contract、E2E 与人工验收中，Schema fixture、Review 修复回归与 IM-06 WI-01 持久化 gate 已执行；Handler、Runtime/DB E2E 和人工业务验收仍为 `NOT RUN`。
+- Context Builder、Dispatcher、Runtime、Projection 与 WorkOrder/Context/Run/Completion/Query 的业务 Handler 仍不存在；模块自有业务 Repository 目前只服务 Task DRAFT 创建与 Task Readiness 判断/READY 转换，不与任何其他模块 Repository 或跨 Schema 读取交叉；
+- #206 设计（2026-09-16，本节 §17）固定 Task Readiness 生产与 READY 转换边界，并已由 #208 实现（实现事实见 §17.11）：`execution.build_task_readiness@1.0` 为唯一新增 operation（Catalog 213 → 214，历史 Baseline 200 不变）、`zhiju.execution.task_readiness` 与已决定的 `zhiju.execution.task_definition_snapshot` 为本切片注册的两个引用身份、两个 create-task Major 的 Task 寻址按创建事实版本绑定、生产者不发布事件而消费者发布恰一条 `execution.TaskReady@1.0`。Readiness Handler、`execution_judgment` 持久化（`V3002`）、Spec 001 §15.5 两个授权 Port 条目与 READY 转换均已交付并在真实 PostgreSQL 上执行 `TE-P206-001`–`018`；依赖已 `COMPLETED` 的 Completion Evaluation 可用性分支与 blocking InformationRequest 分支仍 `NOT RUN`，因为它们依赖的上游 producer 尚未交付；
+- 对应 Unit、Contract、E2E 与人工验收中，Schema fixture、Review 修复回归、IM-06 WI-01 持久化 gate 以及 #208 的 `TE-P206-001`–`018`（真实 PostgreSQL）已执行；WorkOrder/Context/Run/Completion/Query 的 Handler、Runtime/DB E2E、外部 Provider 与人工业务验收仍为 `NOT RUN`。
 
 ## 10. IM-02 WI-04 持久化切片
 
@@ -1237,6 +1237,8 @@ EXECUTION_TASK_ALREADY_EXISTS
 - **实现期补充的记录字段**：判断 canonical payload 除 §17.7 的镜像外还记录当次 **Policy 版本键**（`policyRef`）与 Task 观察版本（`taskAggregateVersion`）。原因是 `policyVersionRef` 是解析出的不可变版本事实身份（`SnapshotRef`，`objectId == snapshotId`），而 §17.8 第 3 步要求消费者在提交点**重新解析** Policy，这需要一个可解析的版本键；观察版本是 §17.8 第 4 步与 `inputHash` 的比对对象。两者都进入 `inputHash` 与 `contentHash`，因此不可被事后替换。
 - **观测枚举**：依赖观测为 `{taskRef, aggregateVersion|null, completionEvaluationRef|null, completionUseStatus}`，其中 `completionUseStatus ∈ {USABLE, STALE, NOT_COMPLETED, CANCELLED, MISSING}`；输入观测为 `{inputRef, resolution ∈ {USABLE, EXPIRED, REVOKED, UNSUPPORTED}, validUntil|null}`；检查行为 `{checkCode, outcome, factRefs, reasonCodes}`，顺序为“每个依赖一行、每个输入一行、至多一行 blocker 检查”。`USABLE`/`STALE` 是设计为 COMPLETED 依赖固定的两个取值，其余三个取值分别对应设计中 `DEPENDENCY_TASK_MISSING`/`DEPENDENCY_TASK_CANCELLED`/`DEPENDENCY_NOT_COMPLETED` 三个不可用分支。
 - **`validUntil`**：`min(evaluatedAt + maxReadinessValiditySeconds, 产出 Decision 的 expiresAt, 每个 `USABLE` 输入的有限上界)`。Policy 上界与 Decision 上界始终参与，因此 `validUntil` 始终有限；无有限上界的项不参与 min，不被解释为无限期。
+- **提交点时间重验**：消费者在完成 Policy 重解析、Task/definition 绑定与完整依赖/输入/blocker 重观察之后、执行不可逆 CAS 之前，重新读取受信时钟，并以该当次时间同时重验 `now < valid_until`、`now < 判断镜像的 policySupersededAt`（存在时）与 `now < 产出该请求授权的 Decision expiresAt`。任一项越界即拒绝（前两者 `EXECUTION_JUDGMENT_STALE`，第三项共享码 `AUTHORIZATION_EXPIRED`），因此长事务不能在事务开始时刻尚未过期、而在 owning reads 之后已经过期的情况下完成转换。§17.8 第 3 步的首次过期检查保留为快速失败路径，实际裁决以提交点读取为准。
+- **单一提交时刻**：转换事件与 Receipt 共用同一个受信时刻。Handler 在提交点读到的时间即 `execution.TaskReady@1.0` 的 `readyAt` 与 Outbox 行的 `occurred_at`，并通过 `CommandBodyResult.committedAt` 交给共享 runner 写入该命令 `command_receipt.completed_at`，因此 §17.8 第 8 步“`readyAt` 取受信转换时刻（Receipt `completed_at`）”是构造性相等，而不是两个独立时钟的巧合。其他命令不传该值，runner 行为逐字节不变。
 
 **已知边界与后续候选**
 
