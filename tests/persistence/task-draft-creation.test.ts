@@ -1867,69 +1867,146 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
     const versionTwoSnapshot = (await snapshotRows(baselineV2.targetRef.objectId))[0];
     if (versionTwoSnapshot === undefined) throw new Error('v2 snapshot fixture missing');
     const targetId = baselineV1.targetRef.objectId;
-    const versionTwoRow = {
-      ...versionTwoSnapshot,
-      task_id: baselineV2.targetRef.objectId,
-    };
+    const versionTwoTaskId = baselineV2.targetRef.objectId;
 
-    // Every insert below is a direct application-role write under the trusted
-    // context: only the single named dimension differs from the committed row.
-    const insertSnapshot = (overrides: {
-      taskId?: string;
+    /**
+     * Writes one TaskDefinitionSnapshot from inside a real claimed command
+     * transaction: the Receipt is the runner's own (`PENDING`, request hash of
+     * this envelope), so the only difference from the owning path is the single
+     * tampered dimension named by the caller.
+     */
+    const insertThroughCommand = (input: {
+      commandVersion: string;
+      requestPayload: Record<string, unknown>;
+      targetId: string;
       schemaVersion?: string;
       payload?: Record<string, unknown>;
       payloadHash?: Buffer;
-      deliveryItemId?: string | null;
-      deliveryItemVersionId?: string | null;
+      deliveryItemId?: string;
+      deliveryItemVersionId?: string;
+      taskId?: string;
       sourceCommandId?: string;
-    }) =>
-      asAppRole(tePool, 'task_execution_app', [fixture.projectId], (client) =>
-        client.query(
-          `INSERT INTO task_execution.task_definition_snapshot
-             (snapshot_id, task_id, schema_version, enterprise_id, project_id,
-              delivery_item_id, delivery_item_version_id, canonical_payload,
-              payload_hash, created_by_principal_id, source_command_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)`,
-          [
-            newUuidV7(),
-            overrides.taskId ?? targetId,
-            overrides.schemaVersion ?? snapshot.schema_version,
-            fixture.enterpriseId,
-            fixture.projectId,
-            overrides.deliveryItemId ?? snapshot.delivery_item_id,
-            overrides.deliveryItemVersionId ?? snapshot.delivery_item_version_id,
-            JSON.stringify(overrides.payload ?? snapshot.canonical_payload),
-            overrides.payloadHash ?? snapshot.payload_hash,
-            OPERATOR,
-            overrides.sourceCommandId ?? snapshot.source_command_id,
-          ],
-        ),
+    }) => {
+      const commandId = newUuidV7();
+      const objectType = input.commandVersion === '1.0' ? TASK_OBJECT_V1 : TASK_OBJECT_V2;
+      const payload = input.payload ?? input.requestPayload;
+      const deliveryItemRef = definitionOf(payload).deliveryItemRef as
+        Record<string, unknown> | undefined;
+      const mirror =
+        deliveryItemRef === undefined
+          ? {}
+          : {
+              deliveryItemId: deliveryItemRef.objectId as string,
+              deliveryItemVersionId: deliveryItemRef.versionId as string,
+            };
+      return executeTaskExecutionCommand(
+        teDb,
+        runnerContext(),
+        {
+          commandId,
+          commandType: 'execution.create_task',
+          commandVersion: input.commandVersion,
+          idempotencyScope: `wi204:integrity:${input.commandVersion}`,
+          idempotencyKey: `wi204-integrity-${newUuidV7()}`,
+          requestPayload: input.requestPayload as CanonicalJsonObject,
+          enterpriseId: fixture.enterpriseId,
+          projectId: fixture.projectId,
+          targetType: objectType,
+          targetId: input.targetId,
+          correlationId: CORRELATION,
+          principalId: OPERATOR,
+          principalKind: 'HUMAN',
+          actorSnapshotId: OPERATOR_ACTOR,
+          authorizationDecisionId: REQUEST_DECISION,
+          policySnapshotId,
+        } satisfies CommandEnvelope,
+        async (execution) => {
+          await execution.insertTaskDraftDefinition({
+            snapshotId: newUuidV7(),
+            taskId: input.taskId ?? input.targetId,
+            schemaVersion: input.schemaVersion ?? input.commandVersion,
+            enterpriseId: fixture.enterpriseId,
+            projectId: fixture.projectId,
+            ...mirror,
+            ...(input.deliveryItemId === undefined ? {} : { deliveryItemId: input.deliveryItemId }),
+            ...(input.deliveryItemVersionId === undefined
+              ? {}
+              : { deliveryItemVersionId: input.deliveryItemVersionId }),
+            canonicalPayload: payload as CanonicalJsonObject,
+            payloadHash:
+              input.payloadHash ?? digestCanonicalPayload(payload as CanonicalJsonObject).hash,
+            createdByPrincipalId: OPERATOR,
+            sourceCommandId: input.sourceCommandId ?? commandId,
+          });
+          return { kind: 'COMMITTED', resultPayload: { status: 'DRAFT' } };
+        },
       );
+    };
 
     // A promoted column that disagrees with the canonical payload is refused
-    // before the row can be committed.
+    // before the row can be committed, in a real pending command transaction.
     await expect(
-      insertSnapshot({ deliveryItemId: fixture.itemBId }),
+      insertThroughCommand({
+        commandVersion: '1.0',
+        requestPayload: snapshot.canonical_payload,
+        targetId,
+        deliveryItemId: fixture.itemBId,
+        deliveryItemVersionId: fixture.planVersionId,
+      }),
       'delivery item id mirror',
     ).rejects.toThrow(/promoted mirror mismatch/);
     await expect(
-      insertSnapshot({ deliveryItemVersionId: newUuidV7() }),
+      insertThroughCommand({
+        commandVersion: '1.0',
+        requestPayload: snapshot.canonical_payload,
+        targetId,
+        ...(snapshot.delivery_item_id === null
+          ? {}
+          : { deliveryItemId: snapshot.delivery_item_id }),
+        deliveryItemVersionId: newUuidV7(),
+      }),
       'delivery item version mirror',
     ).rejects.toThrow(/promoted mirror mismatch/);
-    // A payload hash that is not the canonical hash of the stored payload is
-    // refused too: checking only the length is not enough.
+    // A hash that its own command never requested is refused by the creation
+    // identity guard, and a stored payload that disagrees with the hash the
+    // command did request is refused by the mirror guard: checking only the
+    // length, or only the command identity, is not enough.
     await expect(
-      insertSnapshot({ payloadHash: Buffer.alloc(32, 0x55) }),
-      'payload hash',
+      insertThroughCommand({
+        commandVersion: '1.0',
+        requestPayload: snapshot.canonical_payload,
+        targetId,
+        payloadHash: Buffer.alloc(32, 0x55),
+      }),
+      'payload hash its Receipt never requested',
+    ).rejects.toThrow(/creation identity mismatch/);
+    const unrequestedDefinition = structuredClone(snapshot.canonical_payload);
+    definitionOf(unrequestedDefinition).title = 'A definition this command never requested';
+    await expect(
+      insertThroughCommand({
+        commandVersion: '1.0',
+        requestPayload: unrequestedDefinition,
+        targetId,
+        payload: snapshot.canonical_payload,
+        // The declared hash is the one the command really requested, so only
+        // the stored bytes disagree with it.
+        payloadHash: digestCanonicalPayload(unrequestedDefinition as CanonicalJsonObject).hash,
+      }),
+      'stored payload that disagrees with its declared hash',
     ).rejects.toThrow(/promoted mirror mismatch/);
     const driftedPayload = structuredClone(snapshot.canonical_payload);
     (driftedPayload.projectRef as { scope: Record<string, unknown> }).scope = {
       enterpriseId: fixture.enterpriseId,
       projectId: fixture.otherProjectId,
     };
-    await expect(insertSnapshot({ payload: driftedPayload }), 'scope mirror').rejects.toThrow(
-      /mirror mismatch/,
-    );
+    await expect(
+      insertThroughCommand({
+        commandVersion: '1.0',
+        requestPayload: driftedPayload,
+        targetId,
+      }),
+      'Scope mirror',
+    ).rejects.toThrow(/mirror mismatch/);
 
     // The promoted `schema_version` records the CREATE major that produced the
     // payload, and its truth comes from that command's own Receipt: a v2
@@ -1937,42 +2014,63 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
     // shape alone cannot close this direction, because v1 leaves
     // `expectedOutputSpec`/`completionCriteria` open by contract.
     await expect(
-      insertSnapshot({
-        taskId: versionTwoRow.task_id,
+      insertThroughCommand({
+        commandVersion: '2.0',
+        requestPayload: versionTwoSnapshot.canonical_payload,
+        targetId: versionTwoTaskId,
         schemaVersion: '1.0',
-        payload: versionTwoRow.canonical_payload,
-        payloadHash: versionTwoRow.payload_hash,
-        deliveryItemId: versionTwoRow.delivery_item_id,
-        deliveryItemVersionId: versionTwoRow.delivery_item_version_id,
-        sourceCommandId: versionTwoRow.source_command_id,
       }),
       'v2 payload relabelled 1.0',
-    ).rejects.toThrow(/creation identity mismatch/);
-    // A Snapshot whose receipt does not exist, or whose receipt belongs to
-    // another target, is refused before the fact can exist.
-    await expect(
-      insertSnapshot({ sourceCommandId: newUuidV7() }),
-      'receipt that does not exist',
-    ).rejects.toThrow(/creation identity mismatch/);
-    await expect(
-      insertSnapshot({ taskId: newUuidV7(), sourceCommandId: snapshot.source_command_id }),
-      'receipt of another target',
     ).rejects.toThrow(/creation identity mismatch/);
     // The other direction stays closed by the payload-shape CHECK: a v2 label
     // may not carry the open v1 members.
     await expect(
-      insertSnapshot({
-        taskId: versionTwoRow.task_id,
+      insertThroughCommand({
+        commandVersion: '2.0',
+        requestPayload: snapshot.canonical_payload,
+        targetId: versionTwoTaskId,
         schemaVersion: '2.0',
-        payload: snapshot.canonical_payload,
-        payloadHash: snapshot.payload_hash,
-        sourceCommandId: versionTwoRow.source_command_id,
       }),
       'v1 payload relabelled 2.0',
     ).rejects.toThrow(/task_definition_snapshot_v2_shape/);
+    // A Snapshot whose Receipt does not exist, is already finalized, or belongs
+    // to another command identity is refused before the fact can exist.
+    await expect(
+      insertThroughCommand({
+        commandVersion: '1.0',
+        requestPayload: snapshot.canonical_payload,
+        targetId,
+        sourceCommandId: newUuidV7(),
+      }),
+      'Receipt that does not exist',
+    ).rejects.toThrow(/creation identity mismatch/);
+    await expect(
+      insertThroughCommand({
+        commandVersion: '1.0',
+        requestPayload: snapshot.canonical_payload,
+        targetId,
+        sourceCommandId: versionTwoSnapshot.source_command_id,
+      }),
+      'finalized Receipt of another command',
+    ).rejects.toThrow(/creation identity mismatch/);
+    // The Receipt already commits the canonical hash of its own request: the
+    // same pending command cannot store a different definition, so a Snapshot
+    // always carries the payload its `source_command_id` was claimed for.
+    const otherDefinition = structuredClone(snapshot.canonical_payload);
+    definitionOf(otherDefinition).title = 'A definition this command never requested';
+    await expect(
+      insertThroughCommand({
+        commandVersion: '1.0',
+        requestPayload: snapshot.canonical_payload,
+        targetId,
+        payload: otherDefinition,
+      }),
+      'another payload under the same Receipt',
+    ).rejects.toThrow(/creation identity mismatch/);
 
-    // A Root pointer is a composite reference: reusing the Snapshot id with
-    // another definition hash does not satisfy it.
+    // A Root pointer is a composite reference and a definition change is a CAS
+    // transition: reusing the Snapshot id with another definition hash, or
+    // re-pointing without advancing the aggregate version, is refused.
     await expect(
       asAppRole(tePool, 'task_execution_app', [fixture.projectId], (client) =>
         client.query(
@@ -1992,6 +2090,37 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
         ),
       ),
     ).rejects.toThrow(/task_definition_pointer_fk|violates foreign key/i);
+    const appStatement = (statement: string, parameters: readonly unknown[]) =>
+      asAppRole(tePool, 'task_execution_app', [fixture.projectId], (client) =>
+        client.query(statement, [...parameters]),
+      );
+    await expect(
+      appStatement(
+        'UPDATE task_execution.task SET current_definition_hash = $2 WHERE task_id = $1',
+        [targetId, Buffer.alloc(32, 0x58)],
+      ),
+      'pointer hash without a CAS advance',
+    ).rejects.toThrow(/must advance the aggregate version/);
+    await expect(
+      appStatement(
+        'UPDATE task_execution.task SET current_definition_snapshot_id = $2 WHERE task_id = $1',
+        [targetId, versionTwoSnapshot.snapshot_id],
+      ),
+      'foreign pointer without a CAS advance',
+    ).rejects.toThrow(/must advance the aggregate version/);
+    // The same pointer move with a CAS advance is the only accepted shape, and
+    // the composite pointer then still has to resolve to this Task's Snapshot.
+    await expect(
+      appStatement(
+        `UPDATE task_execution.task
+            SET current_definition_snapshot_id = $2, current_definition_hash = $3,
+                aggregate_version = aggregate_version + 1
+          WHERE task_id = $1`,
+        [targetId, versionTwoSnapshot.snapshot_id, versionTwoSnapshot.payload_hash],
+      ),
+      'pointer to another Task definition with a CAS advance',
+    ).rejects.toThrow(/task_definition_pointer_fk|violates foreign key/i);
+    expect((await taskRow(targetId))?.aggregate_version).toBe('1');
 
     // The database canonicalizer must be byte-equivalent to the shared-kernel
     // canonicalization v1: every creation below commits only when the SQL
@@ -2055,7 +2184,10 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
 
     // Property names that collide after NFC normalization are refused by the
     // shared kernel and by the database recomputation, so a direct write cannot
-    // publish an address no application can reproduce.
+    // publish an address no application can reproduce. The application cannot
+    // even hash that payload, so the SQL side is exercised with a synthetic
+    // pending Receipt whose declared request hash is the same self-consistent
+    // value: the collision rule, not the identity rule, is what must fire.
     const collidingPayload = structuredClone(snapshot.canonical_payload);
     const collidingScope = (collidingPayload.projectRef as { scope: Record<string, unknown> })
       .scope;
@@ -2064,8 +2196,51 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
     expect(() => digestCanonicalPayload(collidingPayload as CanonicalJsonObject)).toThrow(
       /collide after NFC normalization/,
     );
+    const syntheticCommandId = newUuidV7();
+    const syntheticHash = Buffer.alloc(32, 0x5a);
+    await admin.query(
+      `INSERT INTO task_execution.command_receipt
+         (command_id, command_type, command_version, idempotency_scope, idempotency_key,
+          request_payload_hash, enterprise_id, project_id, target_type, target_id,
+          outcome, correlation_id, created_by_principal_id, actor_snapshot_id,
+          authorization_decision_id)
+       VALUES ($1, 'execution.create_task', '1.0', 'wi204:integrity:collision', $2,
+               $3, $4, $5, 'execution.task', $6, 'PENDING', $7, $8, $9, $10)`,
+      [
+        syntheticCommandId,
+        `wi204-integrity-collision-${syntheticCommandId}`,
+        syntheticHash,
+        fixture.enterpriseId,
+        fixture.projectId,
+        targetId,
+        CORRELATION,
+        OPERATOR,
+        OPERATOR_ACTOR,
+        REQUEST_DECISION,
+      ],
+    );
     await expect(
-      insertSnapshot({ payload: collidingPayload }),
+      asAppRole(tePool, 'task_execution_app', [fixture.projectId], (client) =>
+        client.query(
+          `INSERT INTO task_execution.task_definition_snapshot
+             (snapshot_id, task_id, schema_version, enterprise_id, project_id,
+              delivery_item_id, delivery_item_version_id, canonical_payload,
+              payload_hash, created_by_principal_id, source_command_id)
+           VALUES ($1, $2, '1.0', $3, $4, $5, $6, $7::jsonb, $8, $9, $10)`,
+          [
+            newUuidV7(),
+            targetId,
+            fixture.enterpriseId,
+            fixture.projectId,
+            snapshot.delivery_item_id,
+            snapshot.delivery_item_version_id,
+            JSON.stringify(collidingPayload),
+            syntheticHash,
+            OPERATOR,
+            syntheticCommandId,
+          ],
+        ),
+      ),
       'NFC key collision',
     ).rejects.toThrow(/collide after NFC normalization/);
   });

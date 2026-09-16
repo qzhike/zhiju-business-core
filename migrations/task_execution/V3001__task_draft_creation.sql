@@ -271,9 +271,22 @@ CREATE TRIGGER task_definition_snapshot_mirror_guard
 -- The producing command identity is what closes that direction: the Snapshot
 -- must belong to the `command_receipt` of its own `source_command_id`, that
 -- receipt must be the registered creation command, its version must equal the
--- promoted `schema_version`, and its target identity plus Scope must be this
--- Task. A relabelled or foreign-Snapshot insert therefore has no receipt to
--- agree with, while every row the owning runner writes has exactly one.
+-- promoted `schema_version`, its target identity plus Scope must be this Task,
+-- and its `request_payload_hash` must be exactly the Snapshot's
+-- `payload_hash`. The Receipt already commits the canonical hash of the request
+-- the command was claimed for, so this is what proves the stored definition is
+-- the payload of *that* command: without it a real Receipt could be reused with
+-- different content that carries its own self-consistent hash, and the current
+-- pointer could then be moved onto a definition no creation request ever sent
+-- (Spec 003 §16.4 keeps `canonical_payload` byte-identical to the command
+-- payload).
+--
+-- The Receipt must also still be `PENDING`: the owning runner writes the
+-- Snapshot inside the very transaction that claimed it, so a Snapshot attached
+-- later to an already-finalized command is a retro-fitted fact, not this
+-- command's definition. A relabelled, foreign or re-contented Snapshot
+-- therefore has no receipt to agree with, while every row the owning runner
+-- writes has exactly one.
 --
 -- SECURITY INVOKER on purpose: the receipt is read under the same RLS policy
 -- and trusted Scope the writer itself is subject to, so a hidden receipt is
@@ -290,11 +303,14 @@ DECLARE
     receipt_target_id uuid;
     receipt_enterprise_id uuid;
     receipt_project_id uuid;
+    receipt_request_payload_hash bytea;
+    receipt_outcome text;
 BEGIN
     SELECT r.command_type, r.command_version, r.target_type, r.target_id,
-           r.enterprise_id, r.project_id
+           r.enterprise_id, r.project_id, r.request_payload_hash, r.outcome
       INTO receipt_command_type, receipt_command_version, receipt_target_type,
-           receipt_target_id, receipt_enterprise_id, receipt_project_id
+           receipt_target_id, receipt_enterprise_id, receipt_project_id,
+           receipt_request_payload_hash, receipt_outcome
       FROM task_execution.command_receipt r
      WHERE r.command_id = NEW.source_command_id
        AND r.command_type = 'execution.create_task';
@@ -307,7 +323,9 @@ BEGIN
               END)
        OR receipt_target_id IS DISTINCT FROM NEW.task_id
        OR receipt_enterprise_id IS DISTINCT FROM NEW.enterprise_id
-       OR receipt_project_id IS DISTINCT FROM NEW.project_id THEN
+       OR receipt_project_id IS DISTINCT FROM NEW.project_id
+       OR receipt_request_payload_hash IS DISTINCT FROM NEW.payload_hash
+       OR receipt_outcome IS DISTINCT FROM 'PENDING' THEN
         RAISE EXCEPTION 'task definition snapshot creation identity mismatch'
             USING ERRCODE = '22023';
     END IF;
@@ -342,8 +360,12 @@ CREATE TRIGGER task_definition_snapshot_immutable_guard
 -- The Root keeps an update path for later lifecycle/CAS slices, but Task
 -- identity, Project Scope, the DeliveryItem mirror and the creator attribution
 -- are creation facts: a later command may move status/aggregate version and the
--- definition pointer, never the Scope.
-CREATE FUNCTION task_execution.guard_task_scope_immutable() RETURNS trigger
+-- definition pointer, never the Scope. Re-pointing `current_definition_*` is a
+-- change of the committed definition, so it must be a deliberate CAS
+-- transition: the aggregate version has to advance in the same UPDATE. Without
+-- that rule the definition identity could be swapped silently, and a snapshot
+-- row that is merely present would be enough to replace the current definition.
+CREATE FUNCTION task_execution.guard_task_root_update() RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog
 AS $guard$
@@ -357,15 +379,21 @@ BEGIN
        OR NEW.created_by_principal_id IS DISTINCT FROM OLD.created_by_principal_id THEN
         RAISE EXCEPTION 'task scope is immutable' USING ERRCODE = '23514';
     END IF;
+    IF (NEW.current_definition_snapshot_id, NEW.current_definition_hash)
+       IS DISTINCT FROM (OLD.current_definition_snapshot_id, OLD.current_definition_hash)
+       AND NEW.aggregate_version <= OLD.aggregate_version THEN
+        RAISE EXCEPTION 'task definition pointer change must advance the aggregate version'
+            USING ERRCODE = '23514';
+    END IF;
     RETURN NEW;
 END
 $guard$;
 
-REVOKE ALL ON FUNCTION task_execution.guard_task_scope_immutable() FROM PUBLIC;
+REVOKE ALL ON FUNCTION task_execution.guard_task_root_update() FROM PUBLIC;
 
-CREATE TRIGGER task_scope_immutable_guard
+CREATE TRIGGER task_root_update_guard
     BEFORE UPDATE ON task_execution.task
-    FOR EACH ROW EXECUTE FUNCTION task_execution.guard_task_scope_immutable();
+    FOR EACH ROW EXECUTE FUNCTION task_execution.guard_task_root_update();
 
 -- Immutable definition facts and roots: no UPDATE/DELETE path for the app role.
 REVOKE UPDATE, DELETE ON task_execution.task_definition_snapshot FROM task_execution_app;
