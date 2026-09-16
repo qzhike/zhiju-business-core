@@ -998,7 +998,7 @@ EXECUTION_TASK_ALREADY_EXISTS
 
 ### 16.9 实现事实与验证边界（#204，2026-09-15）
 
-状态：`HANDLER, ENTERPRISE-PROJECT PORT, V3001 SCOPED PERSISTENCE AND COMPOSITION ENTRY IMPLEMENTED / REAL POSTGRESQL PASS / TASK READY AND OTHER IM-06 BEHAVIOR NOT RUN`。
+状态：`HANDLER, ENTERPRISE-PROJECT PORT, V3001 SCOPED PERSISTENCE AND COMPOSITION ENTRY IMPLEMENTED / REAL POSTGRESQL PASS / MERGED IN PR #205（2026-09-16）/ TASK READY AND OTHER IM-06 BEHAVIOR NOT RUN`。
 
 - 入口：`handleCreateTask`（`modules/task-execution/src/business/task-draft-creation.ts`）持有两个 `create_task` Major 的全部 §16.1/§16.3 闭集判定与创建事实写入；写入经 runner 绑定的 `insertTaskDraftRoot`/`insertTaskDraftDefinition`（`persistence/command-runner.ts`），行 identity/Scope 必须等于本次命令 target，Root 主键是并发单赢家边界，Root 未插入即 `EXECUTION_TASK_ALREADY_EXISTS`。Runner 在返回历史 Receipt 前比较持久化的 `command_type`/`command_version`/`target_type`/`target_id`，不一致按 `IDEMPOTENCY_PAYLOAD_CONFLICT` 拒绝并写 DENIED Audit，跨 Major 不返回对方 Receipt。
 - 持久化：`V3001__task_draft_creation.sql` 新增 `task_execution.task` 与 `task_execution.task_definition_snapshot`；Root 组合指针 `(task_id, current_definition_snapshot_id, current_definition_hash)` 以 deferrable 组合 FK 指向同 Task 快照行；两表 FORCE RLS + `context_allows_project`，app 角色无快照 UPDATE/DELETE 与 Root DELETE，Scope 列有 immutable guard；DRAFT 创建不写 `outbox_event`。
@@ -1010,3 +1010,10 @@ EXECUTION_TASK_ALREADY_EXISTS
 - 已验证：`TE-P202-001`–`015` 在真实 PostgreSQL 18.6 通过，覆盖引用身份/Scope 包含、Project/DeliveryItem 证明、ACL/RLS 探针、owner 直 SQL 篡改（含 Receipt 请求哈希绑定、`schema_version` 重标、指针 CAS 与 canonicalization 跨层对照）、并发单赢家、跨版本 Receipt 冲突、注入故障回滚、依赖不可用与零 Outbox；完整验证见 `vibe verify full --json`。
 - 边界：v2 的 `targetRef`/`projectRef` 拼写由注册 Schema 的 `const` 先行拒绝（公开 `API_VALUE_INVALID`），owning Handler 对 Schema 未闭合的引用（v1 `projectRef`、两版本 `parentTaskRef`/`dependencyTaskRefs`/`inputRefs`/v2 policy-evaluator refs）与 Schema 已拒绝的拼写仍按 §16.1/§16.3 拒绝；`commitment_status IN ('CANCELLED','REPLACED')` 分支无合法事实可产生（`V2011`/`V2013` 把该列固定为 `PROPOSED` 且拒绝其 UPDATE），保持 `NOT RUN`。
 - 未改变：Catalog 213 与历史 Baseline 200、v1 冻结 fixture 逐字节不变、两个 `create_task` Major 的注册 Schema 与公开接受集、`TaskDefinitionSnapshot` 不注册 objectType、不新增公开 Query/Event；Task READY、WorkOrder、Run/Attempt/Result、Completion 与人工业务验收不在本切片。
+
+### 16.10 交付闭环（#204，2026-09-16）
+
+- PR [#205](https://github.com/qzhike/zhiju-business-core/pull/205) 以 reviewed head `794ec7dfe84e1c61ad7fcd17c10ffa8deeacf3f1` 通过四轮独立审查（第 1、2 轮的 blocking findings 为 Snapshot `schema_version` 身份、canonicalizer NFC 键碰撞与 Receipt `request_payload_hash` 内容绑定，均已随回归关闭），最终结论 `APPROVE`，并记录了 authorization/RLS/immutable-persistence 人类技术批准；批准记录保存在 [`.vibe/reviews/pr-205/Review.md`](../reviews/pr-205/Review.md)。
+- 记录审查结论的 `357ebfb091a56131c97d9c455698a087137d794e`（仅新增 pre-close review 文档）在 [verify run 35058972506](https://github.com/qzhike/zhiju-business-core/actions/runs/35058972506) 为 `pass`；代码 revision 的 [verify run 35056590645](https://github.com/qzhike/zhiju-business-core/actions/runs/35056590645) 同为 `pass`，与同 SHA 的 `vibe verify full --json` PASS 一致。
+- 以 merge commit `7faba0ab65444a816225e7fde21d9e5b758cd1a4` 合入 `main`（2026-09-16T05:31:35Z）；Issue [#204](https://github.com/qzhike/zhiju-business-core/issues/204) 已读回为 `CLOSED`（`COMPLETED`，2026-09-16T05:33:04Z），远端与本地 feature branch 均已删除。
+- 已接受边界与后续候选：Receipt 必由授权 runner 产生仍属受信应用边界；`enterprise_project.canonical_jsonb_text`（V2015，#191）存在同一 NFC 键碰撞缺口，需独立 forward migration 修复；`PENDING` outcome 的完全隔离负例为建议性增强。
