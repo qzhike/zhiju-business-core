@@ -61,3 +61,48 @@ Issue #208 明确要求在同一 revision 把实现已经使其为真的 design-
 本 PR 的 Issue/规格还要求人类技术审查 authorization、RLS/ACL、immutable guard、concurrency 和 migration evidence。该门禁不能替代先修复上述实现/证据缺陷；新的 final head 需要重新独立审查，之后仍须完成并记录人类技术审查。
 
 `REQUEST_CHANGES` 针对精确 SHA `de52cd2b2d6b517fce0dfa56e0f30604640dea83`。本轮没有在 Reviewer 角色内修复产品代码，也不授权 merge、deploy、commit 或 push。
+
+## 第 2 轮：`REQUEST_CHANGES`
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`617b237be671b2505d5b059c8920f57e568072b5`
+- Base SHA：`1233a730499c1a9484ac601209aaf38386373fb9`
+- 审查日期：2026-09-16
+
+本轮独立复核了 `de52cd2..617b237` 的修复 diff、最新完整 PR diff、Issue #208、Spec 003 §17.6/§17.8、受影响 Module Spec/Test、关键 Handler/runner 与真实 PostgreSQL 回归；同时回读远端 PR head、当前 CI 与本地完整 verifier。未把实现者的修复说明当作正确性依据。
+
+### 已关闭的第 1 轮发现
+
+1. **提交点期限重验已修复**：`task-ready-transition.ts` 在 Policy、Task/definition 与完整依赖/输入/blocker 重观察之后、DRAFT-only CAS 之前重新读取受信时钟，并以该时刻重验 judgment `valid_until`、有限 Policy `superseded_at` 与当前授权 Decision 期限。`TE-P206-012` 新增长事务只在最后一次时钟读取越界的真实 PostgreSQL 分支，并断言状态、版本、Edge、Outbox 无副作用以及拒绝 Receipt。
+2. **`readyAt` 与 Receipt 时间已修复**：同一个 `commitNow` 同时写入 `TaskReady.payload.readyAt`、Outbox `occurred_at`，并由共享 runner 写入 Receipt `completed_at`；`TE-P206-008` 对三者做逐值相等断言。
+3. **第 1 轮点名的当前状态冲突已修复**：Spec 003 头部及 §9、Spec 001 头部、Domain 两处生命周期说明已改为 #208 的实现事实，且真正未交付边界仍保持 `NOT RUN`。
+
+### 阻断发现
+
+#### 1. Spec 003 的“当前状态”仍同时声明两套 Catalog/模块计数
+
+`.vibe/module-specs/Module-Spec-003-TaskExecution.md` §9 明确是“当前状态”，但同一段内仍存在互相矛盾的当前事实：
+
+- 第 307 行仍写“43 个公开 Contract 已定义”，而本 revision 的头部、第 311 行、§17.4/§17.11、Registry 检查与完整 verifier 都证明 TaskExecution 当前为 **44** 项；
+- 第 312 行仍写 6 个 Runtime additive Command 未进入“当前 **211** 项 Registry”，而紧邻第 311 行及本 revision 的 Registry 检查均为当前 **214** 项。
+
+这两处不是历史验收表或历史设计基线，而是当前状态段落，因而仍使同一权威文档在当前 revision 内自相矛盾。第 1 轮的第三项要求是把当前状态文档与已交付事实完整调和；本轮虽修复了点名位置，但尚未完成该目标。
+
+要求：最小范围把 §9 第 307 行的 TaskExecution 当前公开 Contract 数改为 44，并把第 312 行的当前 Registry 总数改为 214；不要改写 §16 等历史切片记录的 213、早期 Catalog/Registry 证据或 Compatibility Baseline 200。
+
+### 验证证据
+
+- 远端 PR head 回读为 `617b237be671b2505d5b059c8920f57e568072b5`，base `1233a730499c1a9484ac601209aaf38386373fb9`，PR `OPEN`、`MERGEABLE`。
+- GitHub Actions run [35092257916](https://github.com/qzhike/zhiju-business-core/actions/runs/35092257916) / verify job [104781091654](https://github.com/qzhike/zhiju-business-core/actions/runs/35092257916/job/104781091654) 为 `COMPLETED / SUCCESS`，绑定 reviewed SHA；fresh checkout 执行 `pnpm verify`。
+- 本地在 reviewed SHA 执行 `DOCKER_HOST=unix:///Users/galendai/.orbstack/run/docker.sock vibe verify full --json`：`PASS`，resolved command `pnpm clean && pnpm verify`，exit 0。普通 suite 98 files / 1434 tests（60 files / 1010 passed，38 / 424 skipped）；PostgreSQL 18.6 persistence gate 42 files / 439 tests全部通过；迁移包含 V3002 并到 V7001，第二次 migrate no-op；Catalog/Registry 214、Compatibility Baseline 200。
+- `git diff --check 1233a730499c1a9484ac601209aaf38386373fb9..617b237be671b2505d5b059c8920f57e568072b5` 通过。
+
+绿色 verifier 与上述静态/动态复核足以关闭第 1 轮前两项实现缺陷，但不能把权威当前状态中的 43/44、211/214 冲突视为已调和。
+
+### 未运行边界与后续门禁
+
+依赖已 `COMPLETED` 且 Completion Evaluation 当前可用的分支、blocking InformationRequest 分支仍因合法上游 producer 未交付而 `NOT RUN`；WorkOrder/Context/Run/Completion/Query、外部与人工业务验收边界保持不变。
+
+Issue #208 仍要求人类技术审查 authorization、RLS/ACL、immutable guard、concurrency 与 migration evidence。应先修正上述两处当前状态计数并对新 final head 做轻量复核；若没有新的实现或契约缺陷，下一结论应路由为 `HUMAN_REVIEW_REQUIRED`，而不是在该强制门禁未完成时给出 `APPROVE`。
+
+`REQUEST_CHANGES` 针对精确 SHA `617b237be671b2505d5b059c8920f57e568072b5`。本轮只更新项目要求的正式 review 记录，未修改产品实现，也不授权 merge、deploy、commit 或 push。

@@ -304,12 +304,12 @@ Runtime Adapter v0.1 对照 Domain Model 后识别以下公开写入缺口：
 
 ## 9. 当前状态
 
-- 43 个公开 Contract 已定义字段级 payload/result/event 结构；
+- 44 个公开 Contract 已定义字段级 payload/result/event 结构；
 - API v0.1 已由用户审核；Runtime Adapter v0.1 已获用户推进确认并进入 Implementation Milestone Plan，同时保留 6 个尚未纳入基准的 additive Command；
 - `contracts/src/operations/task-execution.schema.ts` 已注册基线 37 个操作、#158 的 @1.0 Draft/initial Context 两项操作、#165 的三个 @1.1 兼容操作及 #175 的 `execution.create_task@2.0`；PR #10 Review 识别的 8 类 strict Schema 偏差均已修复，Draft/initial Context 正负向 Contract 回归已补齐；
 - TaskExecution 直接复用权威 `core/work-order/1.0#/$defs/*`；WorkOrder Core Contract 与 `create_work_order` 使用同一组 `$defs`，且 `requestedBy` 统一为 `PrincipalRef`；Core Contract 不再被开放 `CanonicalJson` 降级；
 - 注册到 `ContractRegistry` 后所有 44 项 TaskExecution `schemaStatus` 为 `FULL`；当前全仓 Catalog/Registry 为 214 项（#183 追加两个 IdentityPolicy PolicyVersion 操作，#191/#192 追加两个权威 Query，#208 追加 `execution.build_task_readiness@1.0`），历史 Compatibility Baseline 仍为 200 项；
-- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 211 项 Registry，等待用户审核通过后单独补齐；
+- 6 个 Runtime Adapter additive Command（heartbeat / progress / suspend / resume / authoritative usage / cancellation ack）仍未进入本模块 Schema 与当前 214 项 Registry，等待用户审核通过后单独补齐；
 - IM-06 WI-01（Issue #151）落地模块自有 application/persistence 基础：`@zhiju/task-execution` 提供 Kysely schema、`createTaskExecutionDatabase`、`withTaskExecutionTransaction`、`executeTaskExecutionCommand`、`TaskExecutionRepository`，单一受信事务上下文建立路径，幂等/CAS/Scope mirror/Process 父子 Scope/Hash 一致性 guard 与 controlled fault 回滚均已落实；可由 disposable PostgreSQL gate 复测；
 - Context Builder、Dispatcher、Runtime、Projection 与 WorkOrder/Context/Run/Completion/Query 的业务 Handler 仍不存在；模块自有业务 Repository 目前只服务 Task DRAFT 创建与 Task Readiness 判断/READY 转换，不与任何其他模块 Repository 或跨 Schema 读取交叉；
 - #206 设计（2026-09-16，本节 §17）固定 Task Readiness 生产与 READY 转换边界，并已由 #208 实现（实现事实见 §17.11）：`execution.build_task_readiness@1.0` 为唯一新增 operation（Catalog 213 → 214，历史 Baseline 200 不变）、`zhiju.execution.task_readiness` 与已决定的 `zhiju.execution.task_definition_snapshot` 为本切片注册的两个引用身份、两个 create-task Major 的 Task 寻址按创建事实版本绑定、生产者不发布事件而消费者发布恰一条 `execution.TaskReady@1.0`。Readiness Handler、`execution_judgment` 持久化（`V3002`）、Spec 001 §15.5 两个授权 Port 条目与 READY 转换均已交付并在真实 PostgreSQL 上执行 `TE-P206-001`–`018`；依赖已 `COMPLETED` 的 Completion Evaluation 可用性分支与 blocking InformationRequest 分支仍 `NOT RUN`，因为它们依赖的上游 producer 尚未交付；
