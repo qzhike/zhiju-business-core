@@ -678,7 +678,7 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 
 ## 16. Task Readiness 生产与 READY 转换边界提案（#206）
 
-状态：`T2 / PROPOSED 2026-09-16 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NO CONTRACT, HANDLER, MIGRATION OR REGISTRY CHANGE IN THIS REVISION`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206)：在 #154 已批准的权威判断原则、#176 已批准并部分交付的 Policy/Evaluator 边界，与 #202/#204 已交付的版本绑定 DRAFT 事实之间，收敛“让 #204 创建的 Task 到达 `READY`”所需的剩余语义。字段级权威在 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，READY 动作的授权组成在 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-ready-授权组成提案206)，验证矩阵在 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-readiness-生产与-ready-转换边界206-设计)。本节不重开 Issue #154/#176/#202/#204 的任何决定，TD-05–07 不被追认。
+状态：`T2 / PROPOSED 2026-09-16 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NO CONTRACT, HANDLER, MIGRATION OR REGISTRY CHANGE IN THIS REVISION`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206)：在 #154 已批准的权威判断原则、#176 已批准并部分交付的 Policy/Evaluator 边界，与 #202/#204 已交付的版本绑定 DRAFT 事实之间，收敛“让 #204 创建的 Task 到达 `READY`”所需的剩余语义。字段级权威在 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，READY 动作的授权组成在 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206)，验证矩阵在 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-readiness-生产与-ready-转换边界206-设计)。本节不重开 Issue #154/#176/#202/#204 的任何决定，TD-05–07 不被追认。
 
 ### 16.1 P-206-1 对账结论与真实缺口
 
@@ -722,6 +722,7 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 ### 16.4 P-206-4 生产者 Contract/Registry Delta
 
 - 新增 `execution.build_task_readiness@1.0`：Owner `task-execution`、`COMMAND`、`Target=zhiju.execution.task_readiness`、mode `CREATE`、Purpose `execution.task.readiness.build`（新增）、`dataClassification=INTERNAL`、operation-specific Result Schema、四条 `references` 与一条 `resultReferences` 声明；`/payload/taskRef` 有意不声明，因为其合法取值随 Task 创建 Major 而定（与 `create_task@2.0` 不声明两版本 Task 引用的先例一致）。
+- **生产者也有自己的 owning 授权条目**：Purpose、required Grant action、`CREATE_TARGET_TYPE` selector、trusted capability config key `taskReadinessBuildV1` 与签发/重验顺序由 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 的生产者行拥有；它与消费者行互相独立（§16.6），不共用 entry、不继承资格。缺少该条目会让一个合法的 build 命令没有可路由、可签发、可重验的 owning Port，因此它是本 Delta 的必要组成部分，而不是实现期选择。
 - **不新增专用 PayloadGuard 技术 Policy**：payload/result 是有界小对象，适用 PostgreSQL §5.5 的默认 Command Guard（同 #158/#167/#175/#192）。
 - **Catalog 213 → 214**（TaskExecution 43 → 44：24 Command / 9 Query / 11 Event），历史 200 项 Compatibility Baseline 不变（additive 追加，不改写任何既有条目）。
 - **`mark_task_ready@1.0` 零改动**：Schema/Catalog/metadata 逐字节不变；不接受把 `snapshotRef` 收窄为固定 objectType、不补 `targetObjectType`、不补 Purpose 字段的"顺带修正"。
@@ -736,7 +737,7 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 
 ### 16.6 P-206-6 消费者边界与授权组成
 
-- **独立授权**：READY 需要自己的 Decision（Purpose `task.execution.mark_task_ready`），生产者的 Decision 不转让；[Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-ready-授权组成提案206) 的内部 Port 在幂等 Claim 与历史 Receipt 返回之前重验，并重读当前 covering Grant/Policy。
+- **两个入口各自的独立授权**：生产者与消费者各有自己的 Decision，且由 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 的**两条独立映射**签发与重验——生产者条目（Purpose `execution.task.readiness.build`、action `execution.task.readiness.build`、`CREATE_TARGET_TYPE`、config key `taskReadinessBuildV1`，target 是被创建的 readiness identity）与消费者条目（Purpose `task.execution.mark_task_ready`、action `execution.task.mark_ready`、`TARGET_TYPE`、config key `taskReadyV1`，target 是既有 Task）。两者不共用 entry、不继承、不互为别名：生产者的 Decision 与已提交判断不授权 READY 转换，消费者的 Decision 也不授权 build，且 target objectType 集合不重叠。两条映射的重验都在各自的幂等 Claim 与历史 Receipt 返回之前完成，并重读当前 covering Grant/Policy。
 - **提交点重验**：判断完整性/可用性、Task/Scope/definition 绑定、完整依赖/输入/blocker 观测逐项相等（不一致即 `EXECUTION_JUDGMENT_STALE`，要求重建判断）、`ready=true`、`now < validUntil`；任何 `UNSUPPORTED` 检查优先映射 `EXECUTION_CRITERION_UNSUPPORTED`。
 - **调用者非权威**：`ready`、检查清单、`requestedAt` 与历史 Receipt 都不是判定依据；`requestedAt` 只作为声明的请求时刻记录，不参与期限、CAS 或授权。
 - **错误面**：本切片只新增 `EXECUTION_TASK_REF_INVALID`；`EXECUTION_JUDGMENT_INVALID`/`EXECUTION_JUDGMENT_STALE`/`EXECUTION_CRITERION_UNSUPPORTED` 沿用 §11.7 已批准语义并带入实现范围；`EXECUTION_TASK_DEPENDENCY_CYCLE`/`EXECUTION_TASK_READINESS_UNSATISFIED`/`EXECUTION_TASK_NOT_EXECUTABLE` 沿用 §6 既有码。跨 Scope 不可见、不支持类型、依赖暂时不可用都不泄露 owning 模块细节，也不收敛为成功。

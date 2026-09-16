@@ -1253,7 +1253,7 @@ Query payload 固定 `{revisionRef: Exact<ArtifactRevision>; revisionAcceptanceR
 
 ### #206 Task Readiness 引用身份与 READY 转换注册（设计）
 
-状态：`T2 / PROPOSED 2026-09-16 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NO CATALOG CHANGE IN THIS REVISION`。本节记录 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206) 的引用身份与操作路由；字段级权威见 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，依据与被否方案见[设计提案 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)，READY 动作的授权组成见 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-ready-授权组成提案206)。本 revision 不注册任何条目：下列 operation 与 objectType 是**已决定、待实现切片注册**的内容。
+状态：`T2 / PROPOSED 2026-09-16 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NO CATALOG CHANGE IN THIS REVISION`。本节记录 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206) 的引用身份与操作路由；字段级权威见 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，依据与被否方案见[设计提案 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)，生产者与 READY 动作各自的授权组成（两个互相独立的条目）见 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206)。本 revision 不注册任何条目：下列 operation 与 objectType 是**已决定、待实现切片注册**的内容。
 
 | objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
 |---|---|---|---|

@@ -2250,7 +2250,7 @@ FollowUpTaskProposed
 | 完成 Task | Human 只能请求/确认例外 | 不允许自报 | CompletionEvaluator 验证并执行 |
 | 取消/重开 | 项目经理或授权角色 | 不允许最终决定 | 仅执行 Human/Policy Command |
 
-`标记 READY` 的授权边界（#206 设计）：Readiness 判断的生产者授权**不**转让给状态转换——`execution.mark_task_ready@1.0` 需要自己的当前 Decision（Purpose `task.execution.mark_task_ready`），并在幂等 Claim 与历史 Receipt 返回前重验；覆盖授权按精确 Project Scope 与精确 Task target 匹配，Enterprise Grant 不覆盖 Project Intent。Agent 仍不能直接设置状态，也不因拥有生产者 Decision 而获得转换资格。见 [Spec 003 §17.8](../module-specs/Module-Spec-003-TaskExecution.md#178-executionmark_task_ready10-消费边界) 与 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-ready-授权组成提案206)。
+`标记 READY` 的授权边界（#206 设计）：Readiness 判断的**生产**与 READY **转换**是两个入口、两次授权，各自有独立 Decision 与独立 owning 映射（[Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 的生产者条目 `execution.task.readiness.build` 与消费者条目 `task.execution.mark_task_ready`，Purpose/Grant action/selector 类型/config key 均不同且不继承）。`execution.mark_task_ready@1.0` 需要自己的当前 Decision，并在幂等 Claim 与历史 Receipt 返回前重验；覆盖授权按精确 Project Scope 与精确 Task target 匹配，Enterprise Grant 不覆盖 Project Intent。Agent 仍不能直接设置状态，也不因拥有生产者 Decision 而获得转换资格。见 [Spec 003 §17.8](../module-specs/Module-Spec-003-TaskExecution.md#178-executionmark_task_ready10-消费边界)。
 
 ### 18.9 测试用例
 
