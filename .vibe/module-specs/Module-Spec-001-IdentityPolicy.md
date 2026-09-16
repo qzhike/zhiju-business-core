@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / #181 PAYLOADGUARD PARAMETERS + SD-181-1 APPROVED 2026-09-13 DESIGN VERIFIED / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / #181 PAYLOADGUARD PARAMETERS + SD-181-1 APPROVED 2026-09-13 DESIGN VERIFIED / #206 TASK READY AUTHORIZATION COMPOSITION PROPOSED 2026-09-16 (§15.5, NOT IMPLEMENTED) / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -619,3 +619,20 @@ Purpose 必须来自已交付的精确解析器，不接受 caller 覆盖。capa
 ### 15.4 范围与兼容
 
 本提案不新增公开 Command/Query/Event，不改公开 `authorize_command@1.0` 的 CommandIntent `commandVersion=1.0` 接受集，不改四个创建 operation 的 Envelope/Schema/Purpose，不改历史 Decision 内容或 Hash，不新建/迁移 Capability Grant 或业务 Policy。首个实现切片只属 IdentityPolicy 与必要的组成层；Task/WorkOrder 业务 Handler 和表在其交付后另做 readiness 复核。
+
+### 15.5 IM06-READY-01 Task READY 授权组成提案（#206）
+
+状态：`T2 / PROPOSED 2026-09-16 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NOT IMPLEMENTED`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206) 对 `execution.mark_task_ready@1.0` 消费边界“独立当前授权”的要求，为 [Spec 003 §17.8](Module-Spec-003-TaskExecution.md#178-executionmark_task_ready10-消费边界) 提供 owning 授权边界。依据见[设计提案 §16.2/§16.6](../decisions/task-execution-human-operated.md#162-p-206-2-task-寻址规则)。本节不改 §15.1–§15.4 的四个创建版本、不改公开操作与 Catalog、不新建 capabilityCode 之外的业务 Policy。
+
+**为什么需要新的 Port 条目**：`identity.authorize_command@1.0` 产生的历史 Decision 没有 `target_object_type`/`target_object_id` 镜像（V1006 只允许新 Port 写入非空 target 列，且裸 payload 带 `targetRef` 的行会被 mirror guard 拒绝）。因此调用者持有的通用 Decision 无法表达“对这一个 Task 执行 READY”的目标绑定；无目标绑定的 Decision 不能用于本动作（同 §15.3 对四个创建版本的结论）。
+
+**Owning Port 与精确映射**：IdentityPolicy 在既有内部 Port 家族中新增一个能力条目 `TaskExecutionReadinessAuthorizationPort`，键为精确 `(type, version)`：
+
+| operation/version | Purpose | required Grant action | target kind / 可接受 target objectType（闭集） | trusted capability config key |
+|---|---|---|---|---|
+| `execution.mark_task_ready@1.0` | `task.execution.mark_task_ready` | `execution.task.mark_ready` | `OBJECT`；`execution.task`、`zhiju.execution.task` | `taskReadyV1` |
+
+1. **签发与重验**：与 §15.3 同形——签发时绑定精确 `targetRef`（objectType/objectId/Project Scope），重验时比较精确 Decision id/hash、Actor/实际 principal、认证上下文、type/version/Purpose、payload Hash、`targetRef`、Project Scope、ALLOW 与期限，并以当次受信时间重读完整 covering Grant/Policy；撤销、到期、Policy 取代、配置漂移、target 或版本替换、依赖不可用一律 fail closed。TaskExecution 必须在幂等 Claim/历史 Receipt 读取前重验；历史 ALLOW/Receipt 不是当前资格。拒绝路径只写同事务脱敏 `DENIED` Audit，不签发 Decision（§14.5 同一决定）。
+2. **两个可接受拼写不是别名**：`execution.task` 与 `zhiju.execution.task` 是两个已发布创建路径各自的唯一身份（Spec 003 §16.1）。本 Port 的闭集只声明"该动作可以作用于这两个已发布 Task 身份"，不决定哪一个对某个 Task 正确：请求声明的 objectType 必须与 covering Grant 的 `TARGET_TYPE` selector 逐字符相等，且必须由 owning TaskExecution Handler 按 Task 的不可变创建事实判定为唯一正确拼写（Spec 003 §17.3 的 R-206-1）。因此调用者无法通过声明另一拼写取得业务成功，也无法用另一 target 的 Grant 提权。这与 §15.2 对创建路径"期望拼写由 Port 内部按 `(type@version)` 取值"的区别在于：CREATE 的目标身份由操作版本自身决定，MUTATE 的目标是既有对象，其身份由该对象自己的创建事实决定，IdentityPolicy 依边界不读 TaskExecution 事实。
+3. **Grant selector**：READY 不是 CREATE，`resourceSelectors` 使用 `{selectorType: "TARGET_TYPE", objectType: NamespaceCode}`（新增 selector 类型），至少一项必须与请求声明的 target objectType 全等；`CREATE_TARGET_TYPE` 对本动作不适用，通配符、大小写变体、前缀或别名一律不匹配。其余覆盖规则（ACTIVE、`[validFrom, validTo)`、actions 含精确 token、constraints 为空、Grant Policy Snapshot 与 Decision 一致且当前有效、多 Grant 不得分段拼接）沿用 §15.2。
+4. **范围与兼容**：不新增公开 Command/Query/Event，不改 `authorize_command@1.0` 的接受集，不改 `mark_task_ready@1.0` 的注册 Envelope/Schema/Purpose/metadata，不改历史 Decision 内容或 Hash，不新建业务 Policy。物理表沿用 V1006 已增加的 target 列，**不需要**新的 IdentityPolicy 迁移；本 Port 的 capabilityCode/action 由受信组成配置持有，不从 Envelope 读取。
