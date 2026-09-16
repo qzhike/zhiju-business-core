@@ -121,6 +121,58 @@ const contextSnapshotReference = {
   ],
 } as const;
 
+/**
+ * #206/#208 readiness refs. The definition snapshot and the readiness judgment
+ * are both Project-scoped for the same reason as the Context Snapshot above:
+ * the shared `scopeRef` leaves both members optional, and an enterprise-only
+ * form would address a different fact. The Policy and Evaluator refs keep the
+ * shared generic shape, because their owning resolutions decide which scope
+ * form is legal and that decision is not a Schema fact.
+ */
+const taskDefinitionSnapshotReference = {
+  allOf: [
+    contentAddressedReference,
+    {
+      type: 'object',
+      properties: {
+        objectType: { const: 'zhiju.execution.task_definition_snapshot' },
+        scope: {
+          type: 'object',
+          required: ['enterpriseId', 'projectId'],
+          properties: {
+            enterpriseId: { $ref: `${common}uuidV7` },
+            projectId: { $ref: `${common}uuidV7` },
+          },
+        },
+      },
+    },
+  ],
+} as const;
+const taskReadinessSnapshotReference = {
+  allOf: [
+    snapshotReference,
+    {
+      type: 'object',
+      properties: {
+        objectType: { const: 'zhiju.execution.task_readiness' },
+        scope: {
+          type: 'object',
+          required: ['enterpriseId', 'projectId'],
+          properties: {
+            enterpriseId: { $ref: `${common}uuidV7` },
+            projectId: { $ref: `${common}uuidV7` },
+          },
+        },
+      },
+    },
+  ],
+} as const;
+const taskReadinessPolicyReference = exactObjectType(versionedReference, 'zhiju.identity.policy');
+const evaluatorProfileReference = exactObjectType(
+  versionedReference,
+  'zhiju.execution.evaluator_profile',
+);
+
 const taskStatus = {
   enum: [
     'DRAFT',
@@ -810,6 +862,13 @@ const namedDefinitions = {
     // the historical Core v1.0 compatibility path only.
     contextSnapshotRef: contextSnapshotReference,
   }),
+  buildTaskReadinessCommandResult: object(['readinessSnapshotRef'], {
+    // Operation-specific CommandResult data for the readiness producer. The
+    // judgment has no mutable root, so the returned SnapshotRef is bound to the
+    // envelope `targetRef` field by field outside Schema; `snapshotId` is
+    // checked to mirror `objectId` by the pure binding helper.
+    readinessSnapshotRef: taskReadinessSnapshotReference,
+  }),
   contextBuilderPolicyBinding: object(['builderPolicyRef', 'contentHash', 'effectiveFrom'], {
     // VersionedRef intentionally remains hash-free. The resolved Policy
     // content hash and validity window are persisted beside the exact ref so
@@ -855,6 +914,19 @@ const operationSchemas = {
       readinessSnapshotRef: snapshotReference,
       requestedAt: instant,
     }),
+  },
+  'execution.build_task_readiness': {
+    payload: object(['taskRef', 'taskDefinitionRef', 'policyRef', 'evaluatorRef'], {
+      // §17.3 R-206-1: the accepted Task `objectType` depends on the Task's
+      // creation major, so `taskRef` stays a generic ObjectRef here and the
+      // spelling is closed by the owning Handler. The remaining three refs are
+      // exact, because their namespaces are version-independent.
+      taskRef: objectReference,
+      taskDefinitionRef: taskDefinitionSnapshotReference,
+      policyRef: taskReadinessPolicyReference,
+      evaluatorRef: evaluatorProfileReference,
+    }),
+    result: localRef('buildTaskReadinessCommandResult'),
   },
   'execution.create_work_order': {
     payload: object(['draft'], {

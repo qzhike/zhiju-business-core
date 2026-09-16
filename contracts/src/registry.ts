@@ -13,6 +13,7 @@ import {
   assertRevisionEligibilityOperationRegistrations,
   assertSliceOperationRegistrations,
   assertTaskExecutionOperationRegistrations,
+  assertTaskReadinessOperationRegistrations,
 } from './operation-registration.js';
 import guardPolicyData from './generated/payload-guard-policies.json' with { type: 'json' };
 import { createPolicyProfileDocumentValidator } from './policy-profile-documents.js';
@@ -58,6 +59,10 @@ import {
   type ContextExpiryBindingValidationResult,
 } from './context-expiry-binding.js';
 import {
+  validateBuildTaskReadinessCommandResult,
+  type TaskReadinessBindingValidationResult,
+} from './task-readiness-binding.js';
+import {
   contextBuilderPolicyBindingSchemaRef,
   initialContextExpiryBindingSchemaRef,
 } from './operations/task-execution.schema.js';
@@ -95,6 +100,7 @@ export class ContractRegistry {
   constructor() {
     assertSliceOperationRegistrations(publicApiOperations);
     assertTaskExecutionOperationRegistrations(publicApiOperations);
+    assertTaskReadinessOperationRegistrations(publicApiOperations);
     assertPolicyVersionOperationRegistrations(publicApiOperations);
     assertResolutionReceiptOperationRegistrations(publicApiOperations);
     assertRevisionEligibilityOperationRegistrations(publicApiOperations);
@@ -208,6 +214,10 @@ export class ContractRegistry {
 
   validateInitialContextCommandResult(input: unknown): ContextSnapshotBindingValidationResult {
     return validateInitialContextCommandResult(input);
+  }
+
+  validateBuildTaskReadinessCommandResult(input: unknown): TaskReadinessBindingValidationResult {
+    return validateBuildTaskReadinessCommandResult(input);
   }
 
   validateContextSnapshotReadBinding(input: unknown): ContextSnapshotBindingValidationResult {

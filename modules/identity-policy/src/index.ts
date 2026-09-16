@@ -189,6 +189,29 @@ export type {
   TaskExecutionCreationRevalidationResult,
 } from './commands/task-execution-creation-authorization.js';
 export {
+  createTaskExecutionReadinessAuthorizationPort,
+  TASK_EXECUTION_READINESS_BINDINGS,
+  TASK_READINESS_BUILD_PURPOSE,
+  TASK_READY_PURPOSE,
+  IDENTITY_READINESS_AUTHORIZATION_UNSUPPORTED,
+  IDENTITY_READINESS_CAPABILITY_CONFIG_INVALID,
+  IDENTITY_READINESS_TARGET_INVALID,
+} from './commands/task-execution-readiness-authorization.js';
+export type {
+  TaskExecutionReadinessAuthorizationConfig,
+  TaskExecutionReadinessAuthorizationInput,
+  TaskExecutionReadinessAuthorizationPort,
+  TaskExecutionReadinessAuthorizationView,
+  TaskExecutionReadinessBinding,
+  TaskExecutionReadinessCapabilityCodes,
+  TaskExecutionReadinessCapabilityKey,
+  TaskExecutionReadinessDenialReason,
+  TaskExecutionReadinessRevalidationFailure,
+  TaskExecutionReadinessRevalidationInput,
+  TaskExecutionReadinessRevalidationResult,
+  TaskExecutionReadinessSelectorType,
+} from './commands/task-execution-readiness-authorization.js';
+export {
   createActorSnapshot,
   authorizeCommand,
   validateAuthorizationDecision,

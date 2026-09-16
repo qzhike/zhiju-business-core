@@ -22,6 +22,12 @@ import {
   type TaskDefinitionSnapshotInsert,
   type TaskRootInsert,
 } from './task-draft-repository.js';
+import {
+  TaskReadinessRepository,
+  type ExecutionJudgmentInsert,
+  type TaskReadyCasInput,
+  type TaskReadyCasResult,
+} from './task-readiness-repository.js';
 
 export const IDEMPOTENCY_PAYLOAD_CONFLICT = 'IDEMPOTENCY_PAYLOAD_CONFLICT';
 export const CONCURRENCY_CONFLICT = 'CONCURRENCY_CONFLICT';
@@ -195,6 +201,15 @@ export interface CommandExecution {
    */
   insertTaskDraftRoot(row: TaskRootInsert): Promise<boolean>;
   insertTaskDraftDefinition(row: TaskDefinitionSnapshotInsert): Promise<void>;
+  /**
+   * Runner-bound Task Readiness writes (IM-06 #208): the body supplies the row
+   * data only, and the runner closes over the open transaction, the frozen
+   * command target and the owning repository, so a caller cannot write a
+   * judgment for another Scope or convert a Task other than the command target.
+   * `false` means the judgment identity was already taken.
+   */
+  insertExecutionJudgment(row: ExecutionJudgmentInsert): Promise<boolean>;
+  casTaskStatusToReady(input: TaskReadyCasInput): Promise<TaskReadyCasResult>;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -545,6 +560,7 @@ function createExecution(
 ): CommandExecution {
   const taskExecutionRepo = new TaskExecutionRepository();
   const taskDraftRepo = new TaskDraftRepository();
+  const taskReadinessRepo = new TaskReadinessRepository();
   return {
     trx,
     async insertProcessInstance(row) {
@@ -555,6 +571,12 @@ function createExecution(
     },
     async insertTaskDraftDefinition(row) {
       await taskDraftRepo.insertTaskDefinitionSnapshot(trx, commandFacts, row);
+    },
+    async insertExecutionJudgment(row) {
+      return taskReadinessRepo.insertExecutionJudgment(trx, commandFacts, row);
+    },
+    async casTaskStatusToReady(row) {
+      return taskReadinessRepo.casTaskStatusToReady(trx, commandFacts, row);
     },
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {

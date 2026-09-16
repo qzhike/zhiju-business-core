@@ -6,6 +6,7 @@ export * from './core.schema.js';
 export * from './envelopes.schema.js';
 export * from './evaluator-profiles.js';
 export * from './task-definition-binding.js';
+export * from './task-readiness-binding.js';
 export * from './work-order-context-binding.js';
 export * from './generated/public-api.js';
 export type { CanonicalJson } from './generated/types/common.js';

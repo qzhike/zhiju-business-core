@@ -32,3 +32,9 @@ export type {
   RevisionEligibilityEntryConfig,
   RevisionEligibilitySession,
 } from './revision-eligibility-entry.js';
+export { createTaskReadinessEntry } from './task-readiness-entry.js';
+export type {
+  TaskReadinessEntry,
+  TaskReadinessEntryConfig,
+  TaskReadinessSession,
+} from './task-readiness-entry.js';

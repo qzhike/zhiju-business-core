@@ -146,6 +146,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     // IM-06 (#204): Task Aggregate Root and its immutable TaskDefinition.
     'task',
     'task_definition_snapshot',
+    // IM-06 (#208): the immutable Task Readiness judgment fact (V3002).
+    'execution_judgment',
   ],
   artifact: [
     'business_probe',

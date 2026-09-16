@@ -784,6 +784,7 @@ Commands：
 execution.create_task@1.0
 execution.create_task@2.0
 execution.mark_task_ready@1.0
+execution.build_task_readiness@1.0
 execution.create_work_order@1.0
 execution.create_work_order@1.1
 execution.freeze_work_order@1.0
@@ -1130,11 +1131,11 @@ Evidence/Representation/Package Ref
 
 Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 冻结 EnterpriseProject Owner 的受控 Application Capability；逻辑名称、输入/输出、授权目的和错误码见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。
 
-这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 213 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
+这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 214 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
 
 ## IM-06 注册与未注册设计路由
 
-当前 Catalog 为 213 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），#189 完成两个首版 Evaluator profile 选择器的构建期静态注册与纯解析（不新增公开 operation，计数不变），#191 注册 `project.get_resolution_receipt@1.0`（静态契约、Handler、授权、V2015 持久化与精确可重算 backfill 由 #191 交付；TE 消费仍 NOT RUN），#192 注册 `quality.get_revision_execution_eligibility@1.0`（静态契约、Handler、Purpose 授权边界与真实 PostgreSQL 正反例由 #192 交付；本模块条目由 37 增至 38，TE Completion 消费与跨模块业务链仍 NOT RUN），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 214 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），#189 完成两个首版 Evaluator profile 选择器的构建期静态注册与纯解析（不新增公开 operation，计数不变），#191 注册 `project.get_resolution_receipt@1.0`（静态契约、Handler、授权、V2015 持久化与精确可重算 backfill 由 #191 交付；TE 消费仍 NOT RUN），#192 注册 `quality.get_revision_execution_eligibility@1.0`（静态契约、Handler、Purpose 授权边界与真实 PostgreSQL 正反例由 #192 交付；本模块条目由 37 增至 38，TE Completion 消费与跨模块业务链仍 NOT RUN），#208 注册 `execution.build_task_readiness@1.0`（静态契约、Registry 条目、生成类型与构建期注册断言，以及 `zhiju.execution.task_readiness`、`zhiju.execution.task_definition_snapshot`、`zhiju.execution.evaluator_profile` 三个 objectType 由 #208 交付；本模块条目由 43 增至 44，`execution.mark_task_ready@1.0` 零改动），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
 
 ### #157 ContextSourceSlice 注册
 
@@ -1253,7 +1254,7 @@ Query payload 固定 `{revisionRef: Exact<ArtifactRevision>; revisionAcceptanceR
 
 ### #206 Task Readiness 引用身份与 READY 转换注册（设计）
 
-状态：`T2 / MERGED 2026-09-16（PR #207）/ INDEPENDENT DESIGN REVIEW APPROVE 2026-09-16（reviewed revision 2155d4dd89437694632c0e35ca65b7d6d46d720f）/ NO CATALOG CHANGE IN THIS REVISION`。本节记录 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206) 的引用身份与操作路由；字段级权威见 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，依据与被否方案见[设计提案 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)，生产者与 READY 动作各自的授权组成（两个互相独立的条目）见 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206)。本 revision 不注册任何条目：下列 operation 与 objectType 是**已决定、待实现切片注册**的内容。
+状态：`T2 / MERGED 2026-09-16（PR #207）/ INDEPENDENT DESIGN REVIEW APPROVE 2026-09-16（reviewed revision 2155d4dd89437694632c0e35ca65b7d6d46d720f）/ CATALOG 213 → 214 / HISTORICAL 200-ENTRY COMPATIBILITY BASELINE UNCHANGED (#208 REGISTERED)`。本节记录 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206) 的引用身份与操作路由；字段级权威见 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，依据与被否方案见[设计提案 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)，生产者与 READY 动作各自的授权组成（两个互相独立的条目）见 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206)。#208 已注册该 operation 与下列全部 objectType，本节的设计事实保持不变。
 
 | objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
 |---|---|---|---|
@@ -1266,4 +1267,4 @@ Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 
 
 `execution.mark_task_ready@1.0` **零改动**：本项不改它的注册 Schema（通用 `snapshotRef`）、Catalog 条目或 compat metadata Purpose（`task.execution.mark_task_ready`），也不新增 `targetObjectType`；接受集与授权由 owning Handler 与 Spec 001 §15.5 的内部 Port 闭合。生产者**不发布任何公开 Event**（本 Catalog 无 `TaskReadinessBuilt`），消费者恰好发布一条已注册的 `execution.TaskReady@1.0`。
 
-历史 200 项 Compatibility Baseline 不变（additive 追加）；本 revision 的 Catalog 仍为 213 项，v1/v2 冻结 fixture、两个 `create_task` Major 的接受集与全部既有 registry 元数据逐字节不变。
+历史 200 项 Compatibility Baseline 不变（additive 追加）；#208 将本 Catalog 由 213 增至 214 项，v1/v2 冻结 fixture、两个 `create_task` Major 的接受集与全部既有 registry 元数据逐字节不变。

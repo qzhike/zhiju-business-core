@@ -21,6 +21,8 @@ import {
   assertTaskExecutionCreationPurposeMetadata,
   assertTaskExecutionCreationPurposeRegistrations,
   assertTaskExecutionOperationRegistrations,
+  assertTaskReadinessCompatibilityMetadata,
+  assertTaskReadinessOperationRegistrations,
   taskExecutionCreationPurposes,
 } from '../../contracts/src/operation-registration.ts';
 
@@ -65,6 +67,7 @@ const evaluatorRegistry = loadEvaluatorProfileRegistry(JSON.parse(evaluatorRegis
 const evaluatorRegistryOutputPath = join(root, 'contracts/src/generated/evaluator-profiles.json');
 assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
+assertTaskReadinessOperationRegistrations(registry.operations);
 assertTaskExecutionCreationPurposeRegistrations(registry.operations);
 assertPolicyVersionOperationRegistrations(registry.operations);
 assertResolutionReceiptOperationRegistrations(registry.operations);
@@ -79,6 +82,7 @@ for (const op of registry.operations) {
 
 assertSliceCompatibilityMetadata(registry.operations, metadata.operations);
 assertTaskExecutionCompatibilityMetadata(metadata.operations);
+assertTaskReadinessCompatibilityMetadata(metadata.operations);
 assertTaskExecutionCreationPurposeMetadata(metadata.operations);
 assertPolicyVersionCompatibilityMetadata(metadata.operations);
 assertResolutionReceiptCompatibilityMetadata(metadata.operations);

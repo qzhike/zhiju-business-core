@@ -225,9 +225,43 @@ export interface TaskDefinitionSnapshotTable {
   source_command_id: string;
 }
 
+/**
+ * IM-06 (#208): immutable Task Readiness judgment fact. It has no CAS version
+ * and no current pointer: the identity of a judgment is the judgment itself, so
+ * the primary key is the database-adjudicated single-winner boundary for a
+ * duplicate CREATE identity and every promoted column is a mirror of the
+ * canonical payload (`V3002` re-derives them inside the database).
+ */
+export interface ExecutionJudgmentTable {
+  judgment_id: string;
+  judgment_kind: string;
+  enterprise_id: string;
+  project_id: string;
+  task_id: string;
+  task_definition_snapshot_id: string;
+  task_definition_hash: Buffer;
+  policy_version_ref: Json;
+  policy_content_hash: Buffer;
+  policy_effective_from: Date;
+  policy_superseded_at: Date | null;
+  evaluator_ref: Json;
+  input_hash: Buffer;
+  evaluated_at: Date;
+  valid_until: Date;
+  ready: boolean;
+  canonical_payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: Generated<string>;
+  request_payload_hash: Buffer;
+  source_command_id: string;
+  created_at: Generated<Date>;
+  created_by_principal_id: string;
+}
+
 export interface TaskExecutionDb {
   'task_execution.task': TaskTable;
   'task_execution.task_definition_snapshot': TaskDefinitionSnapshotTable;
+  'task_execution.execution_judgment': ExecutionJudgmentTable;
   'task_execution.command_receipt': CommandReceiptTable;
   'task_execution.outbox_event': OutboxEventTable;
   'task_execution.inbox_message': InboxMessageTable;

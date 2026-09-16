@@ -112,4 +112,74 @@ export type {
   TaskRootInsert,
   TaskScopeRow,
 } from './persistence/task-draft-repository.js';
-export type { TaskTable, TaskDefinitionSnapshotTable } from './persistence/task-execution-db.js';
+export type {
+  TaskTable,
+  TaskDefinitionSnapshotTable,
+  ExecutionJudgmentTable,
+} from './persistence/task-execution-db.js';
+
+// IM-06 (#208): Task Readiness production and the `DRAFT` → `READY` transition
+// (Spec 003 §17). The producer consumes the IdentityPolicy-owned Policy
+// resolution and the EnterpriseProject-owned input-reference reads through
+// internal Ports; each entry revalidates its own authorization at the
+// composition boundary before the idempotency claim.
+export {
+  BUILD_TASK_READINESS_COMMAND,
+  buildTaskReadinessIdempotencyScope,
+  handleBuildTaskReadiness,
+  EXECUTION_TASK_REF_INVALID,
+  EXECUTION_JUDGMENT_INVALID,
+  EXECUTION_JUDGMENT_STALE,
+  EXECUTION_CRITERION_UNSUPPORTED,
+  EXECUTION_TASK_DEPENDENCY_CYCLE,
+  EXECUTION_TASK_READINESS_UNSATISFIED,
+  EXECUTION_TASK_NOT_EXECUTABLE,
+  NOT_FOUND,
+  TASK_READINESS_OBJECT_TYPE,
+  TASK_DEFINITION_SNAPSHOT_OBJECT_TYPE,
+  POLICY_VERSION_OBJECT_TYPE,
+  EVALUATOR_PROFILE_OBJECT_TYPE,
+} from './business/task-readiness-production.js';
+export type {
+  TaskReadinessPolicyPort,
+  TaskReadinessPolicyResolution,
+  TaskReadinessProducerPorts,
+} from './business/task-readiness-production.js';
+export {
+  MARK_TASK_READY_COMMAND,
+  TASK_READY_EVENT,
+  TASK_READY_EVENT_VERSION,
+  handleMarkTaskReady,
+} from './business/task-ready-transition.js';
+export type { TaskReadyTransitionPorts } from './business/task-ready-transition.js';
+export {
+  SUPPORTED_INPUT_OBJECT_TYPE,
+  TASK_READINESS_TASK_BINDINGS,
+  exactProjectScope,
+  observeReadiness,
+  readTaskRefClosure,
+  taskSpellingForSchemaVersion,
+} from './business/task-readiness-plan.js';
+export type {
+  DependencyCompletionUseStatus,
+  DependencyObservation,
+  InputObservation,
+  InputResolution,
+  ReadinessCheckRow,
+  ReadinessObservation,
+  ReadinessScope,
+  TaskReadinessInputRefPort,
+  TaskReadinessInputRefResolution,
+} from './business/task-readiness-plan.js';
+export {
+  TASK_READINESS_JUDGMENT_KIND,
+  TASK_READINESS_TARGET_TYPE,
+  TaskReadinessRepository,
+} from './persistence/task-readiness-repository.js';
+export type {
+  ExecutionJudgmentInsert,
+  ExecutionJudgmentRow,
+  TaskGraphNodeRow,
+  TaskReadyCasInput,
+  TaskReadyCasResult,
+} from './persistence/task-readiness-repository.js';

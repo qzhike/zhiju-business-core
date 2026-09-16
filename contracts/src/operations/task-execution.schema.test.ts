@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { publicApiOperations } from '../generated/public-api.js';
-import { assertTaskExecutionOperationRegistrations } from '../operation-registration.js';
+import {
+  assertTaskExecutionOperationRegistrations,
+  assertTaskReadinessOperationRegistrations,
+} from '../operation-registration.js';
 import { ContractRegistry, type ContractValidationResult } from '../registry.js';
 import { operationSchemaDefinitionName } from '../schema-types.js';
 import { taskExecutionOperationContracts } from './task-execution.schema.js';
@@ -225,7 +228,7 @@ function frozenBuildFixture(name: string): JsonObject {
 describe('TaskExecution Draft and initial Context contracts', () => {
   it('registers exactly the approved operations and reference metadata', () => {
     assertTaskExecutionOperationRegistrations(publicApiOperations);
-    expect(registry.operationCount).toBe(213);
+    expect(registry.operationCount).toBe(214);
     expect(registry.getOperation('execution.get_work_order_draft', '1.0')).toMatchObject({
       owner: 'task-execution',
       kind: 'QUERY',
@@ -1232,6 +1235,379 @@ describe('Task v2 creation contract', () => {
       registry.validateOperation('execution.create_task', '1.0', v1Duplicate),
       '/payload/definition/inputRefs',
       'uniqueItems',
+    );
+  });
+});
+
+describe('Task Readiness producer contract', () => {
+  const buildTaskReadiness = 'execution.build_task_readiness';
+  const resultSchemaRef = `https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/${operationSchemaDefinitionName(
+    buildTaskReadiness,
+    '1.0',
+    'result',
+  )}`;
+
+  // Parsed per call: every case mutates the object it reads, so a test cannot
+  // accidentally edit a throwaway copy and silently pass.
+  function readinessCommand(): JsonObject {
+    return fixture('task-readiness/build-task-readiness-command-valid.json');
+  }
+
+  function readinessPayload(): JsonObject {
+    return readinessCommand().payload as JsonObject;
+  }
+
+  function commandWithPayload(payload: JsonObject): JsonObject {
+    const command = readinessCommand();
+    command.payload = payload;
+    return command;
+  }
+
+  function readinessResult(): JsonObject {
+    return fixture('task-readiness/build-task-readiness-result-valid.json');
+  }
+
+  function readinessData(): JsonObject {
+    return readinessResult().data as JsonObject;
+  }
+
+  /** The Result Ref of one already-parsed `data` object, never a fresh fixture. */
+  function snapshotRefOf(data: JsonObject): JsonObject {
+    return data.readinessSnapshotRef as JsonObject;
+  }
+
+  function expectBindingError(
+    result: {
+      readonly valid: boolean;
+      readonly errors: readonly { readonly path: string; readonly code: string }[];
+    },
+    path: string,
+    code: string,
+  ): void {
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual(expect.objectContaining({ path, code }));
+  }
+
+  it('registers the CREATE command, its exact references and its result schema', () => {
+    assertTaskReadinessOperationRegistrations(publicApiOperations);
+    expect(registry.getOperation(buildTaskReadiness, '1.0')).toMatchObject({
+      owner: 'task-execution',
+      kind: 'COMMAND',
+      schemaStatus: 'FULL',
+      targetObjectType: 'zhiju.execution.task_readiness',
+      concurrencyMode: 'CREATE',
+      authorizationPurpose: 'execution.task.readiness.build',
+      dataClassification: 'INTERNAL',
+      resultSchemaRef,
+      references: [
+        { path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.execution.task_readiness' },
+        {
+          path: '/payload/taskDefinitionRef',
+          kind: 'CONTENT_ADDRESSED',
+          objectType: 'zhiju.execution.task_definition_snapshot',
+        },
+        { path: '/payload/policyRef', kind: 'VERSIONED', objectType: 'zhiju.identity.policy' },
+        {
+          path: '/payload/evaluatorRef',
+          kind: 'VERSIONED',
+          objectType: 'zhiju.execution.evaluator_profile',
+        },
+      ],
+      resultReferences: [
+        {
+          path: '/data/readinessSnapshotRef',
+          kind: 'SNAPSHOT',
+          objectType: 'zhiju.execution.task_readiness',
+        },
+      ],
+    });
+    // No dedicated build-time PayloadGuard technical Policy is approved here.
+    expect(registry.getOperation(buildTaskReadiness, '1.0')?.payloadGuardPolicyRef).toBeUndefined();
+    // `/payload/taskRef` stays undeclared: R-206-1 closes its spelling in the
+    // owning Handler, and a declared reference would make one of the two
+    // published Task spellings look like an alias of the other.
+    expect(
+      registry
+        .getOperation(buildTaskReadiness, '1.0')
+        ?.references?.some((ref) => ref.path === '/payload/taskRef'),
+    ).toBe(false);
+  });
+
+  it('accepts the registered Command fixture and the bound result fixture', () => {
+    expect(registry.validateOperation(buildTaskReadiness, '1.0', readinessCommand())).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(registry.validateOperationResult(buildTaskReadiness, '1.0', readinessData())).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(registry.validateBuildTaskReadinessCommandResult(readinessResult())).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('closes the payload to the four declared refs and leaves the Task spelling to R-206-1', () => {
+    // R-206-1 accepts exactly one of two spellings, chosen by the Task's
+    // creation major. Both pass these Schema, and so does a spelling no major
+    // publishes: the closure is the owning Handler's, not the Schema's.
+    for (const taskObjectType of ['execution.task', 'zhiju.execution.task', 'task']) {
+      const payload = readinessPayload();
+      (payload.taskRef as JsonObject).objectType = taskObjectType;
+      expect(
+        registry.validateOperation(buildTaskReadiness, '1.0', commandWithPayload(payload)),
+      ).toEqual({ valid: true, errors: [] });
+    }
+
+    const extraTaskField = readinessPayload();
+    (extraTaskField.taskRef as JsonObject).creationMajor = '1.0';
+    expectSchemaError(
+      registry.validateOperation(buildTaskReadiness, '1.0', commandWithPayload(extraTaskField)),
+      '/payload/taskRef',
+      'additionalProperties',
+      { additionalProperty: 'creationMajor' },
+    );
+
+    const missingDefinitionRef = readinessPayload();
+    delete missingDefinitionRef.taskDefinitionRef;
+    expectSchemaError(
+      registry.validateOperation(
+        buildTaskReadiness,
+        '1.0',
+        commandWithPayload(missingDefinitionRef),
+      ),
+      '/payload',
+      'required',
+      { missingProperty: 'taskDefinitionRef' },
+    );
+
+    const foreignDefinitionType = readinessPayload();
+    (foreignDefinitionType.taskDefinitionRef as JsonObject).objectType =
+      'zhiju.execution.work_order_draft_snapshot';
+    expectSchemaError(
+      registry.validateOperation(
+        buildTaskReadiness,
+        '1.0',
+        commandWithPayload(foreignDefinitionType),
+      ),
+      '/payload/taskDefinitionRef/objectType',
+      'const',
+      { allowedValue: 'zhiju.execution.task_definition_snapshot' },
+    );
+
+    const weakDefinitionRef = readinessPayload();
+    (weakDefinitionRef.taskDefinitionRef as JsonObject).kind = 'OBJECT';
+    expectSchemaError(
+      registry.validateOperation(buildTaskReadiness, '1.0', commandWithPayload(weakDefinitionRef)),
+      '/payload/taskDefinitionRef/kind',
+      'const',
+      { allowedValue: 'CONTENT_ADDRESSED' },
+    );
+
+    const hashedlessDefinitionRef = readinessPayload();
+    delete (hashedlessDefinitionRef.taskDefinitionRef as JsonObject).contentHash;
+    expectSchemaError(
+      registry.validateOperation(
+        buildTaskReadiness,
+        '1.0',
+        commandWithPayload(hashedlessDefinitionRef),
+      ),
+      '/payload/taskDefinitionRef',
+      'required',
+      { missingProperty: 'contentHash' },
+    );
+
+    // The definition snapshot and the readiness judgment are Project scoped;
+    // the Policy and Evaluator refs keep the shared generic scope form.
+    const incompleteDefinitionScope = readinessPayload();
+    (incompleteDefinitionScope.taskDefinitionRef as JsonObject).scope = { enterpriseId };
+    expectSchemaError(
+      registry.validateOperation(
+        buildTaskReadiness,
+        '1.0',
+        commandWithPayload(incompleteDefinitionScope),
+      ),
+      '/payload/taskDefinitionRef/scope',
+      'required',
+      { missingProperty: 'projectId' },
+    );
+
+    for (const [key, objectType, allowedValue] of [
+      ['policyRef', 'zhiju.identity.policy_version', 'zhiju.identity.policy'],
+      ['evaluatorRef', 'zhiju.execution.task_readiness', 'zhiju.execution.evaluator_profile'],
+    ] as const) {
+      const foreignVersionedRef = readinessPayload();
+      (foreignVersionedRef[key] as JsonObject).objectType = objectType;
+      expectSchemaError(
+        registry.validateOperation(
+          buildTaskReadiness,
+          '1.0',
+          commandWithPayload(foreignVersionedRef),
+        ),
+        `/payload/${key}/objectType`,
+        'const',
+        { allowedValue },
+      );
+    }
+
+    const extraPayloadField = readinessPayload();
+    extraPayloadField.requestedAt = '2026-09-16T00:00:00Z';
+    expectSchemaError(
+      registry.validateOperation(buildTaskReadiness, '1.0', commandWithPayload(extraPayloadField)),
+      '/payload',
+      'additionalProperties',
+      { additionalProperty: 'requestedAt' },
+    );
+
+    // This entry is a CREATE: the judged Task's version is read inside the
+    // transaction, so a caller-supplied CAS expectation is never accepted.
+    const commandWithCas = readinessCommand();
+    commandWithCas.expectedAggregateVersion = 0;
+    expectSchemaError(
+      registry.validateOperation(buildTaskReadiness, '1.0', commandWithCas),
+      '/expectedAggregateVersion',
+      'false schema',
+    );
+  });
+
+  it('rejects a readiness Result Ref that is not the Project-scoped judgment', () => {
+    const missingRef = readinessData();
+    delete missingRef.readinessSnapshotRef;
+    expectSchemaError(
+      registry.validateOperationResult(buildTaskReadiness, '1.0', missingRef),
+      '',
+      'required',
+      { missingProperty: 'readinessSnapshotRef' },
+    );
+
+    const wrongKind = readinessData();
+    snapshotRefOf(wrongKind).kind = 'CONTENT_ADDRESSED';
+    expectSchemaError(
+      registry.validateOperationResult(buildTaskReadiness, '1.0', wrongKind),
+      '/readinessSnapshotRef/kind',
+      'const',
+      { allowedValue: 'SNAPSHOT' },
+    );
+
+    const foreignType = readinessData();
+    snapshotRefOf(foreignType).objectType = 'zhiju.execution.context_snapshot';
+    expectSchemaError(
+      registry.validateOperationResult(buildTaskReadiness, '1.0', foreignType),
+      '/readinessSnapshotRef/objectType',
+      'const',
+      { allowedValue: 'zhiju.execution.task_readiness' },
+    );
+
+    for (const testCase of [
+      { scope: {}, missingProperty: 'enterpriseId' },
+      { scope: { enterpriseId }, missingProperty: 'projectId' },
+    ]) {
+      const incompleteScope = readinessData();
+      snapshotRefOf(incompleteScope).scope = testCase.scope;
+      expectSchemaError(
+        registry.validateOperationResult(buildTaskReadiness, '1.0', incompleteScope),
+        '/readinessSnapshotRef/scope',
+        'required',
+        { missingProperty: testCase.missingProperty },
+      );
+    }
+
+    const extraField = readinessData();
+    extraField.ready = true;
+    expectSchemaError(
+      registry.validateOperationResult(buildTaskReadiness, '1.0', extraField),
+      '',
+      'additionalProperties',
+      { additionalProperty: 'ready' },
+    );
+  });
+
+  it('binds the Result Ref to the envelope targetRef in the pure helper', () => {
+    const missingRef = readinessResult();
+    delete (missingRef.data as JsonObject).readinessSnapshotRef;
+    expectBindingError(
+      registry.validateBuildTaskReadinessCommandResult(missingRef),
+      '/data/readinessSnapshotRef',
+      'MISSING_CONTEXT_SNAPSHOT_REF',
+    );
+
+    const malformedRef = readinessResult();
+    snapshotRefOf(malformedRef.data as JsonObject).kind = 'OBJECT';
+    expectBindingError(
+      registry.validateBuildTaskReadinessCommandResult(malformedRef),
+      '/data/readinessSnapshotRef/kind',
+      'INVALID_CONTEXT_SNAPSHOT_REF',
+    );
+
+    const foreignType = readinessResult();
+    snapshotRefOf(foreignType.data as JsonObject).objectType = 'zhiju.execution.task';
+    expectBindingError(
+      registry.validateBuildTaskReadinessCommandResult(foreignType),
+      '/data/readinessSnapshotRef/objectType',
+      'FOREIGN_TASK_READINESS_OBJECT_TYPE',
+    );
+
+    const incompleteScope = readinessResult();
+    snapshotRefOf(incompleteScope.data as JsonObject).scope = { enterpriseId };
+    expectBindingError(
+      registry.validateBuildTaskReadinessCommandResult(incompleteScope),
+      '/data/readinessSnapshotRef/scope',
+      'MISSING_TASK_READINESS_PROJECT_SCOPE',
+    );
+
+    // A judgment has no separate root: an id pair that disagrees with itself
+    // would address a snapshot the producer never created.
+    const splitIdentity = readinessResult();
+    snapshotRefOf(splitIdentity.data as JsonObject).snapshotId =
+      '018f22e2-7c15-7b2e-8d86-2de956a9d511';
+    expectBindingError(
+      registry.validateBuildTaskReadinessCommandResult(splitIdentity),
+      '/data/readinessSnapshotRef/snapshotId',
+      'TASK_READINESS_SNAPSHOT_IDENTITY_MISMATCH',
+    );
+
+    const nonObjectTarget = readinessResult();
+    (nonObjectTarget.targetRef as JsonObject).kind = 'SNAPSHOT';
+    expectBindingError(
+      registry.validateBuildTaskReadinessCommandResult(nonObjectTarget),
+      '/targetRef',
+      'TASK_READINESS_TARGET_MISMATCH',
+    );
+
+    const foreignTarget = readinessResult();
+    (foreignTarget.targetRef as JsonObject).objectType = 'execution.task';
+    expectBindingError(
+      registry.validateBuildTaskReadinessCommandResult(foreignTarget),
+      '/targetRef',
+      'TASK_READINESS_TARGET_MISMATCH',
+    );
+
+    const otherObject = readinessResult();
+    (otherObject.targetRef as JsonObject).objectId = '018f22e2-7c15-7b2e-8d86-2de956a9d512';
+    expectBindingError(
+      registry.validateBuildTaskReadinessCommandResult(otherObject),
+      '/data/readinessSnapshotRef',
+      'TASK_READINESS_TARGET_MISMATCH',
+    );
+
+    const otherScope = readinessResult();
+    (otherScope.targetRef as JsonObject).scope = {
+      enterpriseId,
+      projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d299',
+    };
+    expectBindingError(
+      registry.validateBuildTaskReadinessCommandResult(otherScope),
+      '/data/readinessSnapshotRef',
+      'TASK_READINESS_TARGET_MISMATCH',
+    );
+
+    const enterpriseOnlyTarget = readinessResult();
+    (enterpriseOnlyTarget.targetRef as JsonObject).scope = { enterpriseId };
+    expectBindingError(
+      registry.validateBuildTaskReadinessCommandResult(enterpriseOnlyTarget),
+      '/data/readinessSnapshotRef',
+      'TASK_READINESS_TARGET_MISMATCH',
     );
   });
 });
