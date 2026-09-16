@@ -50,21 +50,33 @@ CREATE TABLE task_execution.task_definition_snapshot (
     CONSTRAINT task_definition_snapshot_hash_len CHECK (octet_length(payload_hash) = 32),
     CONSTRAINT task_definition_snapshot_delivery_item_pair CHECK (
         (delivery_item_id IS NULL) = (delivery_item_version_id IS NULL)),
+    -- Every comparison is `IS NOT DISTINCT FROM`: a plain `=` against a
+    -- missing JSON member yields NULL, and SQL would let a NULL CHECK pass.
     CONSTRAINT task_definition_snapshot_payload_shape CHECK (
-        jsonb_typeof(canonical_payload) = 'object'
-        AND jsonb_typeof(canonical_payload->'projectRef') = 'object'
-        AND jsonb_typeof(canonical_payload->'definition') = 'object'),
+        jsonb_typeof(canonical_payload) IS NOT DISTINCT FROM 'object'
+        AND jsonb_typeof(canonical_payload->'projectRef') IS NOT DISTINCT FROM 'object'
+        AND jsonb_typeof(canonical_payload->'definition') IS NOT DISTINCT FROM 'object'),
     -- The @2.0 payload is a closed shape (§11.6): a snapshot that claims the
     -- v2 schema version must carry its `expectedOutputSpec`/`completionCriteria`
     -- shapes. The historical v1 members stay open JSON, so only this direction
-    -- is provable in SQL.
+    -- is provable from the payload; the other direction is closed by the
+    -- creation-identity guard below. Comparisons use `IS NOT DISTINCT FROM`
+    -- because a missing member compares as NULL, which a plain CHECK would
+    -- treat as satisfied.
     CONSTRAINT task_definition_snapshot_v2_shape CHECK (
         schema_version <> '2.0'
-        OR (jsonb_typeof(canonical_payload->'definition'->'expectedOutputSpec') = 'object'
-            AND canonical_payload->'definition'->'expectedOutputSpec'->>'schemaVersion' = '1.0'
-            AND jsonb_typeof(canonical_payload->'definition'->'expectedOutputSpec'->'outputs') = 'array'
-            AND jsonb_typeof(canonical_payload->'definition'->'completionCriteria') = 'object'
-            AND jsonb_typeof(canonical_payload->'definition'->'completionCriteria'->'criteria') = 'array')),
+        OR (jsonb_typeof(canonical_payload->'definition'->'expectedOutputSpec')
+                IS NOT DISTINCT FROM 'object'
+            AND canonical_payload->'definition'->'expectedOutputSpec'->>'schemaVersion'
+                IS NOT DISTINCT FROM '1.0'
+            AND jsonb_typeof(canonical_payload->'definition'->'expectedOutputSpec'->'outputs')
+                IS NOT DISTINCT FROM 'array'
+            AND jsonb_typeof(canonical_payload->'definition'->'completionCriteria')
+                IS NOT DISTINCT FROM 'object'
+            AND canonical_payload->'definition'->'completionCriteria'->>'schemaVersion'
+                IS NOT DISTINCT FROM '1.0'
+            AND jsonb_typeof(canonical_payload->'definition'->'completionCriteria'->'criteria')
+                IS NOT DISTINCT FROM 'array')),
     -- Composite identity the Root pointer references: the same Task, the same
     -- snapshot and the exact canonical payload hash.
     CONSTRAINT task_definition_snapshot_pointer_unique UNIQUE (
@@ -123,10 +135,14 @@ CREATE INDEX task_delivery_item_idx
 
 -- PostgreSQL 18 provides sha256(bytea); this local canonicalizer mirrors the
 -- shared-kernel canonicalization v1 rules (NFC-normalized strings, UTF-8 byte
--- order of object keys, safe integers only) without enabling pgcrypto, so the
+-- order of object keys, safe integers only, and the refusal of property names
+-- that collide after NFC normalization) without enabling pgcrypto, so the
 -- stored definition content address can be recomputed from the stored payload
--- inside the database. It is a guard helper only and is not granted to the
--- application role.
+-- inside the database. JSONB keeps two original keys that normalize to one
+-- string, and the application canonicalizer rejects that payload, so the
+-- database recomputation must reject it identically instead of publishing a
+-- content address no application can reproduce. It is a guard helper only and
+-- is not granted to the application role.
 CREATE FUNCTION task_execution.canonical_jsonb_text(p_value jsonb)
 RETURNS text
 LANGUAGE plpgsql
@@ -140,6 +156,8 @@ DECLARE
     result text;
     separator text := '';
     number_value numeric;
+    normalized_key text;
+    previous_key text;
 BEGIN
     kind := jsonb_typeof(p_value);
     IF kind = 'object' THEN
@@ -149,9 +167,17 @@ BEGIN
               FROM jsonb_each(p_value)
              ORDER BY encode(convert_to(normalize(key, NFC), 'UTF8'), 'hex')
         LOOP
+            normalized_key := normalize(item.key, NFC);
+            -- The scan is ordered by the normalized bytes, so a collision is
+            -- always adjacent to its twin.
+            IF normalized_key = previous_key THEN
+                RAISE EXCEPTION 'canonical JSON property names collide after NFC normalization'
+                    USING ERRCODE = '22023';
+            END IF;
+            previous_key := normalized_key;
             result := result
                 || separator
-                || to_jsonb(normalize(item.key, NFC))::text
+                || to_jsonb(normalized_key)::text
                 || ':'
                 || task_execution.canonical_jsonb_text(item.value);
             separator := ',';
@@ -236,6 +262,66 @@ REVOKE ALL ON FUNCTION task_execution.guard_task_definition_snapshot_mirror() FR
 CREATE TRIGGER task_definition_snapshot_mirror_guard
     BEFORE INSERT OR UPDATE ON task_execution.task_definition_snapshot
     FOR EACH ROW EXECUTE FUNCTION task_execution.guard_task_definition_snapshot_mirror();
+
+-- The promoted `schema_version` records the CREATE major that produced the
+-- canonical payload (Spec 003 §16.4). Its truth is not derivable from the
+-- payload alone: v1 `TaskDefinition` leaves `expectedOutputSpec` and
+-- `completionCriteria` open, so a v1 payload may legally carry the closed v2
+-- members, while a payload produced by `@2.0` must never be labelled `1.0`.
+-- The producing command identity is what closes that direction: the Snapshot
+-- must belong to the `command_receipt` of its own `source_command_id`, that
+-- receipt must be the registered creation command, its version must equal the
+-- promoted `schema_version`, and its target identity plus Scope must be this
+-- Task. A relabelled or foreign-Snapshot insert therefore has no receipt to
+-- agree with, while every row the owning runner writes has exactly one.
+--
+-- SECURITY INVOKER on purpose: the receipt is read under the same RLS policy
+-- and trusted Scope the writer itself is subject to, so a hidden receipt is
+-- indistinguishable from a missing one and fails closed.
+CREATE FUNCTION task_execution.guard_task_definition_snapshot_creation_identity()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+DECLARE
+    receipt_command_type text;
+    receipt_command_version text;
+    receipt_target_type text;
+    receipt_target_id uuid;
+    receipt_enterprise_id uuid;
+    receipt_project_id uuid;
+BEGIN
+    SELECT r.command_type, r.command_version, r.target_type, r.target_id,
+           r.enterprise_id, r.project_id
+      INTO receipt_command_type, receipt_command_version, receipt_target_type,
+           receipt_target_id, receipt_enterprise_id, receipt_project_id
+      FROM task_execution.command_receipt r
+     WHERE r.command_id = NEW.source_command_id
+       AND r.command_type = 'execution.create_task';
+    IF NOT FOUND
+       OR receipt_command_version IS DISTINCT FROM NEW.schema_version
+       OR receipt_target_type IS DISTINCT FROM (
+              CASE NEW.schema_version
+                  WHEN '2.0' THEN 'zhiju.execution.task'
+                  ELSE 'execution.task'
+              END)
+       OR receipt_target_id IS DISTINCT FROM NEW.task_id
+       OR receipt_enterprise_id IS DISTINCT FROM NEW.enterprise_id
+       OR receipt_project_id IS DISTINCT FROM NEW.project_id THEN
+        RAISE EXCEPTION 'task definition snapshot creation identity mismatch'
+            USING ERRCODE = '22023';
+    END IF;
+    RETURN NEW;
+END
+$guard$;
+
+REVOKE ALL ON FUNCTION task_execution.guard_task_definition_snapshot_creation_identity() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION task_execution.guard_task_definition_snapshot_creation_identity()
+    FROM task_execution_app;
+
+CREATE TRIGGER task_definition_snapshot_creation_identity_guard
+    BEFORE INSERT ON task_execution.task_definition_snapshot
+    FOR EACH ROW EXECUTE FUNCTION task_execution.guard_task_definition_snapshot_creation_identity();
 
 -- A committed Task definition is immutable history.
 CREATE FUNCTION task_execution.guard_task_definition_snapshot_immutable() RETURNS trigger

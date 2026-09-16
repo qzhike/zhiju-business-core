@@ -550,9 +550,10 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
         payload_hash: Buffer;
         delivery_item_id: string | null;
         delivery_item_version_id: string | null;
+        source_command_id: string;
       }>(
         `SELECT snapshot_id, schema_version, canonical_payload, payload_hash,
-                delivery_item_id, delivery_item_version_id
+                delivery_item_id, delivery_item_version_id, source_command_id
            FROM task_execution.task_definition_snapshot
           WHERE task_id = $1 ORDER BY created_at`,
         [taskId],
@@ -1845,17 +1846,42 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
     expect(await receiptRows('wi204-008-other-actor')).toHaveLength(0);
   });
 
-  it('TE-P202-009 rejects mirror, hash and pointer tampering at the database', async () => {
-    const targetId = await firstCommittedTaskId();
-    const snapshot = (await snapshotRows(targetId))[0];
-    if (snapshot === undefined) throw new Error('snapshot fixture missing');
+  it('TE-P202-009 rejects mirror, hash, version and pointer tampering at the database', async () => {
+    // Dedicated, deterministic baselines: one v1 and one v2 DRAFT created
+    // through the owning entry, so every single-variable tampering below starts
+    // from the same committed row and the same producing command identity.
+    const baselineV1 = await preparedEnvelope({
+      commandVersion: '1.0',
+      payload: fixturePayload('1.0', fixture),
+      idempotencyKey: 'wi204-009-baseline-v1',
+    });
+    expect(await createThroughEntry(baselineV1)).toMatchObject({ status: 'COMMITTED' });
+    const snapshot = (await snapshotRows(baselineV1.targetRef.objectId))[0];
+    if (snapshot === undefined) throw new Error('v1 snapshot fixture missing');
+    const baselineV2 = await preparedEnvelope({
+      commandVersion: '2.0',
+      payload: fixturePayload('2.0', fixture),
+      idempotencyKey: 'wi204-009-baseline-v2',
+    });
+    expect(await createThroughEntry(baselineV2)).toMatchObject({ status: 'COMMITTED' });
+    const versionTwoSnapshot = (await snapshotRows(baselineV2.targetRef.objectId))[0];
+    if (versionTwoSnapshot === undefined) throw new Error('v2 snapshot fixture missing');
+    const targetId = baselineV1.targetRef.objectId;
+    const versionTwoRow = {
+      ...versionTwoSnapshot,
+      task_id: baselineV2.targetRef.objectId,
+    };
 
+    // Every insert below is a direct application-role write under the trusted
+    // context: only the single named dimension differs from the committed row.
     const insertSnapshot = (overrides: {
+      taskId?: string;
+      schemaVersion?: string;
       payload?: Record<string, unknown>;
       payloadHash?: Buffer;
       deliveryItemId?: string | null;
       deliveryItemVersionId?: string | null;
-      taskId?: string;
+      sourceCommandId?: string;
     }) =>
       asAppRole(tePool, 'task_execution_app', [fixture.projectId], (client) =>
         client.query(
@@ -1863,10 +1889,11 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
              (snapshot_id, task_id, schema_version, enterprise_id, project_id,
               delivery_item_id, delivery_item_version_id, canonical_payload,
               payload_hash, created_by_principal_id, source_command_id)
-           VALUES ($1, $2, '1.0', $3, $4, $5, $6, $7::jsonb, $8, $9, $10)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)`,
           [
             newUuidV7(),
             overrides.taskId ?? targetId,
+            overrides.schemaVersion ?? snapshot.schema_version,
             fixture.enterpriseId,
             fixture.projectId,
             overrides.deliveryItemId ?? snapshot.delivery_item_id,
@@ -1874,30 +1901,75 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
             JSON.stringify(overrides.payload ?? snapshot.canonical_payload),
             overrides.payloadHash ?? snapshot.payload_hash,
             OPERATOR,
-            newUuidV7(),
+            overrides.sourceCommandId ?? snapshot.source_command_id,
           ],
         ),
       );
 
     // A promoted column that disagrees with the canonical payload is refused
     // before the row can be committed.
-    await expect(insertSnapshot({ deliveryItemId: fixture.itemBId })).rejects.toThrow(
-      /promoted mirror mismatch/,
-    );
-    await expect(insertSnapshot({ deliveryItemVersionId: newUuidV7() })).rejects.toThrow(
-      /promoted mirror mismatch/,
-    );
+    await expect(
+      insertSnapshot({ deliveryItemId: fixture.itemBId }),
+      'delivery item id mirror',
+    ).rejects.toThrow(/promoted mirror mismatch/);
+    await expect(
+      insertSnapshot({ deliveryItemVersionId: newUuidV7() }),
+      'delivery item version mirror',
+    ).rejects.toThrow(/promoted mirror mismatch/);
     // A payload hash that is not the canonical hash of the stored payload is
     // refused too: checking only the length is not enough.
-    await expect(insertSnapshot({ payloadHash: Buffer.alloc(32, 0x55) })).rejects.toThrow(
-      /promoted mirror mismatch/,
-    );
+    await expect(
+      insertSnapshot({ payloadHash: Buffer.alloc(32, 0x55) }),
+      'payload hash',
+    ).rejects.toThrow(/promoted mirror mismatch/);
     const driftedPayload = structuredClone(snapshot.canonical_payload);
     (driftedPayload.projectRef as { scope: Record<string, unknown> }).scope = {
       enterpriseId: fixture.enterpriseId,
       projectId: fixture.otherProjectId,
     };
-    await expect(insertSnapshot({ payload: driftedPayload })).rejects.toThrow(/mirror mismatch/);
+    await expect(insertSnapshot({ payload: driftedPayload }), 'scope mirror').rejects.toThrow(
+      /mirror mismatch/,
+    );
+
+    // The promoted `schema_version` records the CREATE major that produced the
+    // payload, and its truth comes from that command's own Receipt: a v2
+    // payload relabelled `1.0` has no v1 receipt to agree with. The payload
+    // shape alone cannot close this direction, because v1 leaves
+    // `expectedOutputSpec`/`completionCriteria` open by contract.
+    await expect(
+      insertSnapshot({
+        taskId: versionTwoRow.task_id,
+        schemaVersion: '1.0',
+        payload: versionTwoRow.canonical_payload,
+        payloadHash: versionTwoRow.payload_hash,
+        deliveryItemId: versionTwoRow.delivery_item_id,
+        deliveryItemVersionId: versionTwoRow.delivery_item_version_id,
+        sourceCommandId: versionTwoRow.source_command_id,
+      }),
+      'v2 payload relabelled 1.0',
+    ).rejects.toThrow(/creation identity mismatch/);
+    // A Snapshot whose receipt does not exist, or whose receipt belongs to
+    // another target, is refused before the fact can exist.
+    await expect(
+      insertSnapshot({ sourceCommandId: newUuidV7() }),
+      'receipt that does not exist',
+    ).rejects.toThrow(/creation identity mismatch/);
+    await expect(
+      insertSnapshot({ taskId: newUuidV7(), sourceCommandId: snapshot.source_command_id }),
+      'receipt of another target',
+    ).rejects.toThrow(/creation identity mismatch/);
+    // The other direction stays closed by the payload-shape CHECK: a v2 label
+    // may not carry the open v1 members.
+    await expect(
+      insertSnapshot({
+        taskId: versionTwoRow.task_id,
+        schemaVersion: '2.0',
+        payload: snapshot.canonical_payload,
+        payloadHash: snapshot.payload_hash,
+        sourceCommandId: versionTwoRow.source_command_id,
+      }),
+      'v1 payload relabelled 2.0',
+    ).rejects.toThrow(/task_definition_snapshot_v2_shape/);
 
     // A Root pointer is a composite reference: reusing the Snapshot id with
     // another definition hash does not satisfy it.
@@ -1920,6 +1992,82 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
         ),
       ),
     ).rejects.toThrow(/task_definition_pointer_fk|violates foreign key/i);
+
+    // The database canonicalizer must be byte-equivalent to the shared-kernel
+    // canonicalization v1: every creation below commits only when the SQL
+    // recomputation of `sha256(canonical_jsonb_text(canonical_payload))` equals
+    // the address the application computed.
+    const canonicalCases: readonly [string, Record<string, unknown>][] = [
+      [
+        'byte-order keys and NFC-normalized key',
+        { z: 1, A: 2, _: 3, '0': 4, 'e\u0301': 'normalized key' },
+      ],
+      [
+        'NFC-normalized values and escapes',
+        { value: 'e\u0301', escaped: 'line\nbreak\ttab"quote\\slash/\u0001del\u007f' },
+      ],
+      ['safe integers and -0', { max: 9007199254740991, zero: 0, negative: -1, minusZero: -0 }],
+      [
+        'empty containers and scalars',
+        { empty: {}, list: [], yes: true, no: false, nothing: null },
+      ],
+      ['nested structures', { list: [{ b: 1, a: [{ deep: 'é' }] }], text: '😀' }],
+    ];
+    for (const [label, tricky] of canonicalCases) {
+      const payload = fixturePayload('1.0', fixture);
+      definitionOf(payload).expectedOutputSpec = tricky;
+      payload.initialAssignee = { ...tricky, label };
+      const envelope = await preparedEnvelope({
+        commandVersion: '1.0',
+        payload,
+        idempotencyKey: `wi204-009-canonical-${label}`,
+      });
+      expect(await createThroughEntry(envelope), label).toMatchObject({ status: 'COMMITTED' });
+      const stored = (await snapshotRows(envelope.targetRef.objectId))[0];
+      // The stored payload is the JSON serialization of the request payload:
+      // JSONB keeps values (including `-0`), not JavaScript identity.
+      expect(stored?.canonical_payload, label).toEqual(JSON.parse(JSON.stringify(payload)));
+      expect(
+        stored?.payload_hash.equals(digestCanonicalPayload(payload as CanonicalJsonObject).hash),
+        label,
+      ).toBe(true);
+    }
+
+    // A v1 payload may legally carry the closed v2 members, because the v1
+    // `TaskDefinition` keeps those two fields open: the label records the
+    // creating major, and this row keeps its v1 command identity.
+    const openV1Payload = fixturePayload('1.0', fixture);
+    definitionOf(openV1Payload).expectedOutputSpec = {
+      schemaVersion: '1.0',
+      outputs: [{ outputSlot: 'procedure.draft', cardinality: 'EXACTLY_ONE' }],
+    };
+    definitionOf(openV1Payload).completionCriteria = { schemaVersion: '1.0', criteria: [] };
+    const openV1Envelope = await preparedEnvelope({
+      commandVersion: '1.0',
+      payload: openV1Payload,
+      idempotencyKey: 'wi204-009-open-v1-members',
+    });
+    expect(await createThroughEntry(openV1Envelope)).toMatchObject({ status: 'COMMITTED' });
+    expect((await snapshotRows(openV1Envelope.targetRef.objectId))[0]?.schema_version).toBe('1.0');
+    expect((await snapshotRows(openV1Envelope.targetRef.objectId))[0]?.canonical_payload).toEqual(
+      JSON.parse(JSON.stringify(openV1Payload)),
+    );
+
+    // Property names that collide after NFC normalization are refused by the
+    // shared kernel and by the database recomputation, so a direct write cannot
+    // publish an address no application can reproduce.
+    const collidingPayload = structuredClone(snapshot.canonical_payload);
+    const collidingScope = (collidingPayload.projectRef as { scope: Record<string, unknown> })
+      .scope;
+    collidingScope['e\u0301'] = 'nfd';
+    collidingScope['é'] = 'nfc';
+    expect(() => digestCanonicalPayload(collidingPayload as CanonicalJsonObject)).toThrow(
+      /collide after NFC normalization/,
+    );
+    await expect(
+      insertSnapshot({ payload: collidingPayload }),
+      'NFC key collision',
+    ).rejects.toThrow(/collide after NFC normalization/);
   });
 
   it('TE-P202-010 keeps idempotency scoped to one command identity', async () => {
@@ -2122,6 +2270,7 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
     // behind, not even a PENDING claim.
     const faultKey = 'wi204-012-fault';
     const faultTargetId = newUuidV7();
+    const faultCommandId = newUuidV7();
     const faultPayload = fixturePayload('1.0', fixture);
     const faultDigest = digestCanonicalPayload(faultPayload as CanonicalJsonObject);
     await expect(
@@ -2141,7 +2290,7 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
           correlationId: CORRELATION,
         },
         {
-          commandId: newUuidV7(),
+          commandId: faultCommandId,
           commandType: 'execution.create_task',
           commandVersion: '1.0',
           idempotencyScope: 'wi204:fault',
@@ -2189,7 +2338,7 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
             canonicalPayload: faultPayload as CanonicalJsonObject,
             payloadHash: faultDigest.hash,
             createdByPrincipalId: OPERATOR,
-            sourceCommandId: newUuidV7(),
+            sourceCommandId: faultCommandId,
           });
           throw new Error('injected fault after the definition write');
         },
