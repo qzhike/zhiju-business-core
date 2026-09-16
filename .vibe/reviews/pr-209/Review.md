@@ -106,3 +106,63 @@ Issue #208 明确要求在同一 revision 把实现已经使其为真的 design-
 Issue #208 仍要求人类技术审查 authorization、RLS/ACL、immutable guard、concurrency 与 migration evidence。应先修正上述两处当前状态计数并对新 final head 做轻量复核；若没有新的实现或契约缺陷，下一结论应路由为 `HUMAN_REVIEW_REQUIRED`，而不是在该强制门禁未完成时给出 `APPROVE`。
 
 `REQUEST_CHANGES` 针对精确 SHA `617b237be671b2505d5b059c8920f57e568072b5`。本轮只更新项目要求的正式 review 记录，未修改产品实现，也不授权 merge、deploy、commit 或 push。
+
+## 第 3 轮：`HUMAN_REVIEW_REQUIRED`
+
+- 结论：`HUMAN_REVIEW_REQUIRED`
+- Reviewed SHA：`c09dd80f5bd81f19dadb31d2c31868863e9f6c94`
+- Base SHA：`1233a730499c1a9484ac601209aaf38386373fb9`
+- 审查日期：2026-09-16
+
+本轮独立复核了 `617b237..c09dd80` 的完整增量、当前 §9 文本、PR/Issue 远端状态以及 exact-head 验证证据。增量只把 §9 的 TaskExecution 当前 Contract 数 `43 → 44`、当前 Registry 总数 `211 → 214`，并纳入第 2 轮正式审查记录；没有修改产品代码、契约、测试或 migration。
+
+### Agent 审查结论
+
+- 第 2 轮唯一阻断已关闭：§9 当前状态现在在第 307、311、312 行一致声明 TaskExecution 44、Catalog/Registry 214、Compatibility Baseline 200。
+- 修复没有改写 §8.1、§10.1、§16 等历史设计/交付切片中的当时计数，也没有扩大 #208 范围。
+- 第 1 轮的提交点期限重验、单一提交时刻与当前状态调和修复继续成立；本轮没有发现新的 correctness、contract、scope、security、reliability 或 durable-knowledge 缺陷。
+- PR 远端 head 与本地 `HEAD`/origin 一致为 `c09dd80f5bd81f19dadb31d2c31868863e9f6c94`；PR 为 `OPEN`、`MERGEABLE`。
+
+### 验证证据
+
+- GitHub Actions run [35095836320](https://github.com/qzhike/zhiju-business-core/actions/runs/35095836320) / verify job [104792825217](https://github.com/qzhike/zhiju-business-core/actions/runs/35095836320/job/104792825217) 在 reviewed SHA 上 `SUCCESS`（6m48s）。Node.js 20 deprecation annotation 来自 GitHub Actions runtime，不是本 PR 的验证失败。
+- 本地在 reviewed SHA 执行 `DOCKER_HOST=unix:///Users/galendai/.orbstack/run/docker.sock vibe verify full --json`：`PASS`，resolved command `pnpm clean && pnpm verify`，exit 0。
+- 普通 suite：98 files / 1434 tests（60 files / 1010 passed，38 / 424 skipped）；PostgreSQL 18.6 persistence gate：42 files / 439 tests全部通过。
+- 迁移包含 V3002 并执行至 V7001；第二次 migrate no-op；Catalog/Registry 214、Compatibility Baseline 200；`git diff --check base..head` 通过。
+
+### 必需的人类技术审查
+
+Issue #208 将本工作明确分类为 security- and persistence-sensitive T2，并要求在交付前由人类对 exact final revision 审查以下证据：
+
+1. 两个独立授权入口及重放前重验；
+2. `execution_judgment` 的 Project RLS 与最小 ACL；
+3. payload/mirror/hash、source-command identity 与不可变 guard；
+4. 并发 judgment builder、READY CAS、幂等与回滚；
+5. V3002 从空库、历史升级路径及二次 no-op migration。
+
+当前 PR `reviews` 为空，现有 PR 评论均来自 PR 作者，未发现上述人类技术审查完成记录。因此 agent 不能给出 `APPROVE`，也不能把绿色 CI、独立 agent review 或可合并状态当作人类批准。
+
+### 未运行边界
+
+依赖已 `COMPLETED` 且 Completion Evaluation 当前可用的分支、blocking InformationRequest 分支仍因合法上游 producer 未交付而 `NOT RUN`；WorkOrder/Context/Run/Completion/Query、外部与人工业务验收边界保持不变。
+
+`HUMAN_REVIEW_REQUIRED` 针对精确 SHA `c09dd80f5bd81f19dadb31d2c31868863e9f6c94`。下一步应由具备权限的人类技术 reviewer 审查并记录上述五类证据；本结论不授权 merge、deploy、commit 或 push。
+
+## 第 4 轮：`APPROVE`
+
+- 结论：`APPROVE`
+- Reviewed SHA：`c09dd80f5bd81f19dadb31d2c31868863e9f6c94`
+- Base SHA：`1233a730499c1a9484ac601209aaf38386373fb9`
+- 人类技术批准日期：2026-09-16
+
+在第 3 轮将五类强制人类技术审查证据逐项交给用户后，用户明确回复“批准”。该批准绑定第 3 轮列明且随后再次回读未变化的 exact PR head `c09dd80f5bd81f19dadb31d2c31868863e9f6c94`，覆盖：两个独立授权入口及重放前重验、Project RLS/最小 ACL、不可变与 payload/mirror/hash/source-command identity guards、并发/CAS/幂等/回滚，以及 V3002 空库/历史升级/二次 no-op migration evidence。
+
+批准前再次确认：
+
+- 远端 PR head、本地 `HEAD` 与 origin 均为上述 SHA；PR `OPEN`、`MERGEABLE`；
+- GitHub Actions run 35095836320 / job 104792825217 在该 SHA 上 `SUCCESS`；
+- 本地 exact-head `vibe verify full --json` 为 `PASS`，包含 clean build 与 PostgreSQL 18.6 persistence gate；
+- 第 1–2 轮所有实现与文档发现均已关闭，第 3 轮未发现新的 agent-review 阻断；
+- 未运行边界仍被明确保留，没有被人类批准误记为已执行。
+
+人类技术审查门禁现已解决，因此 Reviewer 最终结论为 `APPROVE`。该结论只批准当前 PR revision 的技术审查，不授权 merge、deploy、commit、push 或关闭 Issue；任何新的 PR head 都必须重新经过 revision-bound review/verification。
