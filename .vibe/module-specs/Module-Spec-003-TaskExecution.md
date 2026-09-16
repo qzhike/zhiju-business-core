@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN PROPOSED 2026-09-16 (NOT REGISTERED, NOT IMPLEMENTED) / HANDLER IMPLEMENTATION NOT STARTED`
+状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN MERGED 2026-09-16 (PR #207; NOT REGISTERED, NOT IMPLEMENTED) / HANDLER IMPLEMENTATION NOT STARTED`
 
 ## 1. 模块责任
 
@@ -1021,7 +1021,7 @@ EXECUTION_TASK_ALREADY_EXISTS
 
 ## 17. Task Readiness 生产与 READY 转换边界（#206 设计）
 
-状态：`T2 / PROPOSED / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NO CONTRACT, HANDLER, MIGRATION OR REGISTRY CHANGE IN THIS REVISION`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206)，把 #154 已批准的权威判断原则、#176 已批准并部分交付的 Policy/Evaluator 边界，与 #202/#204 已交付的版本绑定 DRAFT 事实收敛为一套可实现语义，使 #204 创建的 Task 能到达 `READY` 而不在实现时发明兼容、授权或跨模块语义。字段级权威在本节；依据、备选与被否方案见[决定 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)；READY 动作的授权组成由 [Spec 001 §15.5](Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 拥有；验证矩阵见 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-readiness-生产与-ready-转换边界206-设计)。
+状态：`T2 / MERGED 2026-09-16（PR #207，merge commit 47966816e9ba96dc89b21d502176dfc413cfd7bc）/ INDEPENDENT DESIGN REVIEW APPROVE 2026-09-16（reviewed revision 2155d4dd89437694632c0e35ca65b7d6d46d720f）/ EXPLICIT HUMAN DESIGN APPROVAL OF THIS REVISION FOR THE DEPENDENT IMPLEMENTATION ISSUE NOT YET RECORDED / NO CONTRACT, HANDLER, MIGRATION OR REGISTRY CHANGE IN THIS REVISION`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206)，把 #154 已批准的权威判断原则、#176 已批准并部分交付的 Policy/Evaluator 边界，与 #202/#204 已交付的版本绑定 DRAFT 事实收敛为一套可实现语义，使 #204 创建的 Task 能到达 `READY` 而不在实现时发明兼容、授权或跨模块语义。字段级权威在本节；依据、备选与被否方案见[决定 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)；READY 动作的授权组成由 [Spec 001 §15.5](Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206) 拥有；验证矩阵见 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-readiness-生产与-ready-转换边界206-设计)。
 
 本节只定义未来实现的字段与语义，不实现、不注册契约、Handler、Query、migration、持久化表、capability 配置或生产 Policy 事实；不改 §2–§6 的既有 @1.0 定义、§11 的 TD-01–04 基准、§15 的逐版本 Purpose、§16 的创建事实与接受集、当前 213 项 Catalog、200 项历史 Compatibility Baseline 或任何已冻结 fixture。Task READY 之外的行为（WorkOrder DRAFT、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、人工业务验收）不在本切片。
 

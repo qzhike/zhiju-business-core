@@ -2,7 +2,7 @@
 
 版本：v0.3
 日期：2026-08-24
-状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / #181 PAYLOADGUARD PARAMETERS + SD-181-1 APPROVED 2026-09-13 DESIGN VERIFIED / #206 TASK READINESS PRODUCTION AND READY TRANSITION AUTHORIZATION COMPOSITION PROPOSED 2026-09-16 (§15.5, TWO INDEPENDENT ENTRIES, NOT IMPLEMENTED) / EXTERNAL NOT RUN`
+状态：`CURRENT MODULE CONTRACT BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / WI-05 + WI-06 PERSISTENCE AUTOMATED PASS / WI-07 REVIEW REPAIR VERIFIED 2026-08-24 / WI-08 REGRESSION VERIFIED 2026-08-24 / WI-09 SCOPE+DENY-AUDIT REGRESSION VERIFIED 2026-08-24 / WI-10 TYPED-ORDER+SCOPE REGRESSION VERIFIED 2026-08-24 / PR #51+#52+#53+#54+#55 MERGED / FINAL MAIN VERIFY PASS / IM-02 COMPLETE / ISSUE #28 CLOSED / #176 POLICY VERSION RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / #181 PAYLOADGUARD PARAMETERS + SD-181-1 APPROVED 2026-09-13 DESIGN VERIFIED / #206 TASK READINESS PRODUCTION AND READY TRANSITION AUTHORIZATION COMPOSITION MERGED 2026-09-16 (PR #207, §15.5, TWO INDEPENDENT ENTRIES, NOT IMPLEMENTED) / EXTERNAL NOT RUN`
 
 ## 1. 模块责任
 
@@ -622,7 +622,7 @@ Purpose 必须来自已交付的精确解析器，不接受 caller 覆盖。capa
 
 ### 15.5 IM06-READY-01 Task Readiness 生产与 READY 转换授权组成提案（#206）
 
-状态：`T2 / PROPOSED 2026-09-16 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NOT IMPLEMENTED`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206) 对 Readiness **生产者**与 `execution.mark_task_ready@1.0` **消费者**“独立当前授权”的要求，为 [Spec 003 §17.4/§17.5](Module-Spec-003-TaskExecution.md#174-readiness-生产操作的-contractregistry-delta)（生产者）与 [Spec 003 §17.8](Module-Spec-003-TaskExecution.md#178-executionmark_task_ready10-消费边界)（消费者）提供 owning 授权边界。依据见[设计提案 §16.2/§16.4/§16.6](../decisions/task-execution-human-operated.md#162-p-206-2-task-寻址规则)。本节不改 §15.1–§15.4 的四个创建版本、不改公开操作与 Catalog、不新建 capabilityCode 之外的业务 Policy。
+状态：`T2 / MERGED 2026-09-16（PR #207）/ INDEPENDENT DESIGN REVIEW APPROVE 2026-09-16（reviewed revision 2155d4dd89437694632c0e35ca65b7d6d46d720f）/ NOT IMPLEMENTED`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206) 对 Readiness **生产者**与 `execution.mark_task_ready@1.0` **消费者**“独立当前授权”的要求，为 [Spec 003 §17.4/§17.5](Module-Spec-003-TaskExecution.md#174-readiness-生产操作的-contractregistry-delta)（生产者）与 [Spec 003 §17.8](Module-Spec-003-TaskExecution.md#178-executionmark_task_ready10-消费边界)（消费者）提供 owning 授权边界。依据见[设计提案 §16.2/§16.4/§16.6](../decisions/task-execution-human-operated.md#162-p-206-2-task-寻址规则)。本节不改 §15.1–§15.4 的四个创建版本、不改公开操作与 Catalog、不新建 capabilityCode 之外的业务 Policy。
 
 **为什么需要新的 Port 条目**：`identity.authorize_command@1.0` 产生的历史 Decision 没有 `target_object_type`/`target_object_id` 镜像（V1006 只允许新 Port 写入非空 target 列，且裸 payload 带 `targetRef` 的行会被 mirror guard 拒绝）。因此调用者持有的通用 Decision 无法表达“对这一个将被创建的 readiness 判断执行 build”或“对这一个 Task 执行 READY”的目标绑定；无目标绑定的 Decision 不能用于本节任何一个动作（同 §15.3 对四个创建版本的结论）。
 

@@ -678,7 +678,7 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 
 ## 16. Task Readiness 生产与 READY 转换边界提案（#206）
 
-状态：`T2 / PROPOSED 2026-09-16 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / NO CONTRACT, HANDLER, MIGRATION OR REGISTRY CHANGE IN THIS REVISION`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206)：在 #154 已批准的权威判断原则、#176 已批准并部分交付的 Policy/Evaluator 边界，与 #202/#204 已交付的版本绑定 DRAFT 事实之间，收敛“让 #204 创建的 Task 到达 `READY`”所需的剩余语义。字段级权威在 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，READY 动作的授权组成在 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206)，验证矩阵在 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-readiness-生产与-ready-转换边界206-设计)。本节不重开 Issue #154/#176/#202/#204 的任何决定，TD-05–07 不被追认。
+状态：`T2 / MERGED 2026-09-16（PR #207，merge commit 47966816e9ba96dc89b21d502176dfc413cfd7bc）/ INDEPENDENT DESIGN REVIEW APPROVE 2026-09-16（reviewed revision 2155d4dd89437694632c0e35ca65b7d6d46d720f）/ EXPLICIT HUMAN DESIGN APPROVAL OF THIS REVISION FOR THE DEPENDENT IMPLEMENTATION ISSUE NOT YET RECORDED / NO CONTRACT, HANDLER, MIGRATION OR REGISTRY CHANGE IN THIS REVISION`。本节回应 [Issue #206](https://github.com/qzhike/zhiju-business-core/issues/206)：在 #154 已批准的权威判断原则、#176 已批准并部分交付的 Policy/Evaluator 边界，与 #202/#204 已交付的版本绑定 DRAFT 事实之间，收敛“让 #204 创建的 Task 到达 `READY`”所需的剩余语义。字段级权威在 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，READY 动作的授权组成在 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206)，验证矩阵在 [Module Test 003](../module-tests/Module-Test-003-TaskExecution.md#task-readiness-生产与-ready-转换边界206-设计)。本节不重开 Issue #154/#176/#202/#204 的任何决定，TD-05–07 不被追认。
 
 ### 16.1 P-206-1 对账结论与真实缺口
 
@@ -744,6 +744,7 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 
 ### 16.7 批准与交付边界
 
-- 本提案只解除"设计待审"缺口；**独立设计审查与显式人类设计批准**仍是创建依赖实现 Issue 之前的门禁。两项通过前，Planner 不得据此发布实现 Issue、Implementer 不得开始实现。
+- 本设计已由 PR [#207](https://github.com/qzhike/zhiju-business-core/pull/207) 以 merge commit `47966816e9ba96dc89b21d502176dfc413cfd7bc` 合入 `main`（2026-09-16T07:37:01Z），Issue [#206](https://github.com/qzhike/zhiju-business-core/issues/206) 已关闭（`COMPLETED`）。独立设计审查经两轮完成：第 1 轮 `REQUEST_CHANGES`（reviewed revision `fbca61828e2e5791d8b0ac8282ee0c39eeac7e0d`，唯一阻断项为生产者缺少可执行的 owning 授权映射）→ 第 2 轮 `APPROVE`（reviewed revision `2155d4dd89437694632c0e35ca65b7d6d46d720f`）；正式记录见 [`reviews/pr-207/Review.md`](../reviews/pr-207/Review.md)。final head 为 `dcdada2b77ed36db99810159278b6ac1c0b5e918`（reviewed revision + review 记录 + 该轮非阻断引用澄清，未改变任何规则、接受集、计数或边界）。
+- **仍缺的一项门禁**：Issue #206 Acceptance 要求的“创建依赖实现 Issue 之前须取得该**确切 revision** 的显式人类设计批准”**尚未记录**；本次合并授权不等于该设计批准。在该批准缺失时，Planner 不得发布依赖实现 Issue、Implementer 不得开始实现。
 - 本 revision 不改代码、契约、Registry、生成物、migration 或 fixture；`execution.build_task_readiness@1.0`、两个 objectType、`EXECUTION_TASK_REF_INVALID` 与 `V3002` 均未注册、未实现、未分配编号。Catalog 保持 213、Baseline 保持 200。
 - 依赖的实现 Issue 只能覆盖 `TE-P206-D-*` 与 `TE-P206-001`–`018` 已批准范围，不得顺带扩展输入支持集、注册 Event、改写历史 fixture、修改两个 `create_task` Major 或 `mark_task_ready@1.0` 的接受集，也不得实现 TD-05–07。

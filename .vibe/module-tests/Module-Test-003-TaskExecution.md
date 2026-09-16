@@ -246,7 +246,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 ## Task Readiness 生产与 READY 转换边界（#206 设计）
 
-状态：`PROPOSED 2026-09-16 / PENDING INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL / IMPLEMENTATION NOT STARTED / ALL RUNTIME CASES NOT RUN`。对应 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，依据、备选与被否方案见 [决定 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)，生产者与 READY 动作各自的授权组成（两个互相独立的条目）见 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206)。
+状态：`MERGED 2026-09-16（PR #207）/ INDEPENDENT DESIGN REVIEW APPROVE 2026-09-16（reviewed revision 2155d4dd89437694632c0e35ca65b7d6d46d720f）/ IMPLEMENTATION NOT STARTED / ALL RUNTIME CASES NOT RUN`。对应 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)，依据、备选与被否方案见 [决定 §16](../decisions/task-execution-human-operated.md#16-task-readiness-生产与-ready-转换边界提案206)，生产者与 READY 动作各自的授权组成（两个互相独立的条目）见 [Spec 001 §15.5](../module-specs/Module-Spec-001-IdentityPolicy.md#155-im06-ready-01-task-readiness-生产与-ready-转换授权组成提案206)。
 
 本表把设计/静态分量（`TE-P206-D-*`）与只能由 Handler、真实 PostgreSQL 与组成层执行的行为（`TE-P206-001`–`018`）分开。除 `TE-P206-D-*` 外，本表所有行的“当前结果”均为 `NOT RUN`：本 revision 只改文档，没有注册 `execution.build_task_readiness@1.0`、没有注册两个 objectType、没有 `V3002`、没有 Handler。每个运行时用例从对应版本独立合法基线的 DRAFT Task 开始，只改变表内列出的维度；生产者与消费者用例各自使用自己的合规 Decision。
 
