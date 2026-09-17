@@ -181,3 +181,39 @@ WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、�
 WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、读取 Handler/组成层、IdentityPolicy 读取/分类 Port、`TE-P210-001`–`023`、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、外部 Provider/Runtime/飞书与人工业务验收继续保持 `NOT RUN`。
 
 本轮仍未发现 exact head 的显式人类设计批准。当前存在可由 agent 修复的数据库信任锚阻断，因此结论为 `REQUEST_CHANGES`；若修复 PrincipalKind 需要改变现有 platform transaction-context 合同，则须先进入相应的 scope/规划门禁。新 head 仍需重新独立审查，通过后才进入 Issue #210 明确要求的人类设计批准。本轮未修改设计正文或业务代码，也不授权 commit、push、merge 或 deploy。
+
+## 第 5 轮：`SCOPE_EXPANSION`
+
+- 结论：`SCOPE_EXPANSION`
+- Reviewed SHA：`9b34f07790deffd2df2e32b2b8762a6be62932c4`
+- Base SHA：`bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`
+- PR：[#211](https://github.com/qzhike/zhiju-business-core/pull/211)
+- Work item：[#210](https://github.com/qzhike/zhiju-business-core/issues/210)（T2 design）
+- 审查日期：2026-09-17
+
+本轮重新读取了远端最新 head、Issue #210、`a85d74a` 之后的修复增量、受影响权威、现有 platform transaction-context 合同、测试矩阵与当前 revision 的验证证据。第 4 轮的 principal-id 信任锚阻断已经实质关闭：WorkOrder 两表的 INSERT policy 与 creation guard 都直接比较 `platform_security.context_principal_id()`，Receipt creator 只被要求等于 Context 而不再被当作证明；`TE-P210-017` 也加入了 P2 Context 内 forged P1 Receipt 的 app-role 反例。
+
+但修复同时确认：`PrincipalRef.principalKind` 在当前 platform transaction-context 合同中没有数据库可验证来源。当前提案把该事实留作“依赖实现的 scope/规划门禁”，并允许人类批准时选择接受“id 层 Context 锚定 + kind 仅应用层证明”的残余。该处理说明正确交付已物质依赖 Issue #210 未声明的平台契约范围，因此本轮不再是可由 TaskExecution 文档内修补的 `REQUEST_CHANGES`，而是 `SCOPE_EXPANSION`。
+
+### 必需的范围扩展
+
+- **当前声明范围**：IM-06 决定、TaskExecution Module Spec/Test，以及相关 Domain、Typed Reference/Catalog、API compatibility、PostgreSQL logical model、roadmap；不包含 platform transaction-context 合同或其 bootstrap migration。
+- **必需新增范围**：为受信事务上下文提供数据库可验证的 PrincipalKind（例如等价的 `principal_kind` 事实和只读 helper），同步其建立/读取权限、跨模块兼容性、迁移与真实 PostgreSQL 隔离/池复用/伪造负例；随后让 WorkOrder guard 把两份 payload 的完整 `PrincipalRef`（id + kind）绑定到该受信事实。
+- **为什么必需**：Core `PrincipalRef` 恰由 `principalId` + `principalKind` 组成。Issue #210 要求精确绑定认证 principal、ActorSnapshot/Decision、`draft.requestedBy`、creator/requester attribution，并要求 direct-SQL integrity guards；一个 Agent/Service Context 仍可通过 direct SQL 把两份 JSON kind 同时写成 `HUMAN`，当前 guard 只证明两个不受信副本相等。即使后续动作按 principal id 重新授权，这份不可变 DRAFT 的 creator/requester attribution 已不真实，且本 Issue 的“闭合”验收未满足。
+
+“由人类批准接受残余”不是当前 Issue 下的完成路径：人类技术批准评审的是闭合设计，不能在未修改 work item/权威语义的情况下隐式放宽精确归属与 direct-SQL integrity 验收。若产品/架构确实选择 application-only kind 证明，Planner 必须先把这一降级作为明确、耐久的语义决定和风险接受写入适当 authority，并重新分类/定界；否则应扩展 platform transaction-context 范围后再提交新的 exact revision。
+
+## 第 5 轮验证证据
+
+- 远端与本地 exact head：`9b34f07790deffd2df2e32b2b8762a6be62932c4`；base `bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`；PR `OPEN`、`MERGEABLE`，GitHub Actions `verify` 为 `SUCCESS`。
+- `git diff --check bbfd2ceaab21d0d346d6f405be7f216bc6cdd276..9b34f07790deffd2df2e32b2b8762a6be62932c4`：PASS。
+- exact-head `vibe verify full --json`：`PASS`，resolved command `pnpm clean && pnpm verify`，exit 0。
+- 普通 suite：98 files（60 passed / 38 skipped）、1434 tests（1010 passed / 424 skipped）；真实 PostgreSQL 18.6 persistence gate：42 files / 439 tests 全部通过；空库迁移、历史升级至 V7001、二次 migrate no-op 均通过；Catalog/Registry 214、Compatibility Baseline 200。
+
+绿色 verifier 证明当前已实现行为未回归，但 WorkOrder migration/guard 与 `TE-P210-001`–`023` 尚未实现，也不验证尚不存在的 PrincipalKind transaction-context 事实。
+
+## 第 5 轮未运行边界与路由
+
+WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、读取 Handler/组成层、IdentityPolicy 读取/分类 Port、`TE-P210-001`–`023`、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、外部 Provider/Runtime/飞书与人工业务验收继续保持 `NOT RUN`。
+
+当前 revision 不应直接进入 Issue #210 的普通人类设计批准或依赖实现 Issue。应先由 Planner/架构 authority 处理 scope/classification：选择并批准 platform transaction-context 扩展，或明确修改 authoritative acceptance 以接受 application-only kind 证明及其不可变归属残余。完成该决定并形成新的闭合 exact revision 后，必须重新独立审查；安全敏感设计的人类技术批准随后仍然必需。本轮未修改设计正文或业务代码，也不授权 commit、push、merge 或 deploy。
