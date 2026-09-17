@@ -52,3 +52,52 @@ Spec 003 §18.7 把 `work_order_draft_snapshot.canonical_payload` 定义为带 `
 WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、读取 Handler/组成层、IdentityPolicy 读取授权条目、`TE-P210-001`–`023`、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、外部 Provider/Runtime/飞书与人工业务验收均保持 `NOT RUN`。
 
 Issue #210 还要求在修复上述设计阻断后，对新的 exact final revision 重新独立设计审查，并取得明确的人类设计批准；这两个门禁都不能由当前绿色 CI 或本轮 `REQUEST_CHANGES` 替代。本轮没有在 Reviewer 角色内修复设计正文或业务代码，也不授权 commit、push、merge 或 deploy。
+
+## 第 2 轮：`REQUEST_CHANGES`
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`c1b7eeec0cfc31322b16beebc00772c89c633b90`
+- Base SHA：`bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`
+- PR：[#211](https://github.com/qzhike/zhiju-business-core/pull/211)
+- Work item：[#210](https://github.com/qzhike/zhiju-business-core/issues/210)（T2 design）
+- 审查日期：2026-09-17
+
+本轮重新读取了远端最新 head、Issue #210、完整 PR diff、`b8354cf` 之后的修复增量、受影响契约与当前实现先例，并在 exact head 上重新运行项目配置的完整验证。上一轮三项阻断中，创建请求投影 Hash、`CapabilityGrant.capabilityType` 映射与创建错误码分层均有实质修复，但修复后的设计仍有下列两个可执行性/完整性阻断。
+
+### 阻断 1：双 guard 没有把请求内 `draft.taskRef`、Snapshot header `taskRef` 与 Root Task 绑定为同一身份
+
+§18.7 新增的创建请求投影能证明 `canonical_payload.draft` 与来源 Receipt 的请求 payload 相同，但 Snapshot 另外还有顶层 `canonical_payload.taskRef`，Root 又保存独立的 `task_id`/`task_object_type`。当前双 guard 只明确校验顶层拼写/Scope 镜像、`task_object_type` 对被绑定 Task 的创建事实，以及请求投影 Hash；没有要求以下三者逐字段相等：
+
+1. `canonical_payload.draft.taskRef`；
+2. `canonical_payload.taskRef`；
+3. Root 的 `task_id`/`task_object_type`/Project Scope。
+
+直接反例：合法在途 Receipt 的原请求 draft 指向 Task A；直 SQL 写入时保留这份原始 `draft`（所以创建请求投影 Hash 仍匹配 Receipt），但令 Snapshot 顶层 `taskRef` 与 Root 的 Task 镜像都指向同 Scope、创建事实自洽的 Task B。按当前文字，payload Hash、请求投影 Hash、顶层 mirror、Task B 创建事实和 WorkOrder Receipt 都可以分别通过，但持久化 Root 被绑定到从未出现在创建请求中的 Task B。这违反 R-210-2，也与 §11.2.1 已有的“`draft.taskRef` 与 Snapshot `taskRef` 一致”规则冲突。
+
+要求：在 §18.7/PostgreSQL §33 的数据库 guard 中明确把 inner draft、Snapshot header、Root mirrors 与被查验 Task 的 kind/objectType/objectId/Scope 全等闭合，并在 `TE-P210-017` 加入上述单变量直 SQL 反例。不能只依赖 Handler 先验校验，因为该场景正是数据库直写完整性 Gate。
+
+### 阻断 2：Human-only 分类 Port 的返回契约无法提供它要求 TaskExecution 审计的 registry version
+
+Spec 001 §15.7 把 Port 的外部结果闭合为单一 `'VALID' | 'INVALID'`，同时要求 IdentityPolicy 记录分类集合版本，并要求 TaskExecution 把“本次分类实际使用的 registry version”写入自己的 Audit。只有 outcome 时，TaskExecution 无法知道 owning Port 实际使用的版本；若在 TaskExecution 内硬编码或直接读取 `HUMAN_ONLY_CAPABILITY_REGISTRY_VERSION`，又会绕过本节明确建立的 owning Port/模块边界，并在 IdentityPolicy 升级版本时产生不可验证的错误归因。
+
+要求：让 Port 返回可归因的 owning 结果（至少 outcome + 实际 registry version），或把审计所有权改为一个无需跨边界复制版本事实的自洽方案；同时在 `TE-P210-010` 覆盖正向、Human-only 拒绝与依赖失败分支的版本归因。当前 `TE-P210-010` 只断言结果码和副作用，没有证明这项新审计要求可实现。
+
+### 对第 1 轮错误码表述的更正
+
+第 1 轮 Finding 2 中“当前权威没有共享码 `HUMAN_ONLY_CAPABILITY`”的表述不正确：共享 API §8 的既有错误码列表确实包含该码，Domain `WO-U-002` 也使用它。当前 revision 沿用该共享码是正确的；需要保留的原问题仅是旧 revision 缺少从完整 `CapabilityGrant` 到 Human-only 分类输入的映射。历史第 1 轮记录保持原文，本节明确更正，不把 Reviewer 的错误归因继续当作修复要求。
+
+## 第 2 轮验证证据
+
+- 远端与本地 exact head：`c1b7eeec0cfc31322b16beebc00772c89c633b90`；base `bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`；PR `OPEN`、`MERGEABLE`，GitHub Actions `verify` 为 `SUCCESS`。
+- `git diff --check bbfd2ceaab21d0d346d6f405be7f216bc6cdd276..c1b7eeec0cfc31322b16beebc00772c89c633b90`：PASS。
+- exact-head `vibe verify full --json`：`PASS`，resolved command `pnpm clean && pnpm verify`，exit 0。
+- 普通 suite：98 files（60 passed / 38 skipped）、1434 tests（1010 passed / 424 skipped）；真实 PostgreSQL 18.6 persistence gate：42 files / 439 tests 全部通过；空库迁移、历史升级至 V7001、二次 migrate no-op 均通过；Catalog/Registry 214、Compatibility Baseline 200。
+- `tests/persistence/task-readiness.test.ts` 的已授权卫生修复只把既有 `TE-P206-012` 场景预算从默认 5s 改为显式 30s，断言与业务场景未改变，本轮不把它列为阻断。
+
+绿色 verifier 证明当前已实现行为未回归，但 WorkOrder 表、guard、Human-only 分类 Port 与 `TE-P210-001`–`023` 都尚未实现，因此不能覆盖上述设计反例。
+
+## 第 2 轮未运行边界与门禁
+
+WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、读取 Handler/组成层、IdentityPolicy 读取/分类 Port、`TE-P210-001`–`023`、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、外部 Provider/Runtime/飞书与人工业务验收继续保持 `NOT RUN`。
+
+本轮仍未发现 exact head 的显式人类设计批准。由于存在上述两个 agent-fixable 阻断，当前结论先保持 `REQUEST_CHANGES`；修复后的新 head 仍需重新独立审查，随后才进入 Issue #210 明确要求的人类设计批准门禁。本轮未修改设计正文或业务代码，也不授权 commit、push、merge 或 deploy。
