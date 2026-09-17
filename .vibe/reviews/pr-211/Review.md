@@ -101,3 +101,44 @@ Spec 001 §15.7 把 Port 的外部结果闭合为单一 `'VALID' | 'INVALID'`，
 WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、读取 Handler/组成层、IdentityPolicy 读取/分类 Port、`TE-P210-001`–`023`、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、外部 Provider/Runtime/飞书与人工业务验收继续保持 `NOT RUN`。
 
 本轮仍未发现 exact head 的显式人类设计批准。由于存在上述两个 agent-fixable 阻断，当前结论先保持 `REQUEST_CHANGES`；修复后的新 head 仍需重新独立审查，随后才进入 Issue #210 明确要求的人类设计批准门禁。本轮未修改设计正文或业务代码，也不授权 commit、push、merge 或 deploy。
+
+## 第 3 轮：`REQUEST_CHANGES`
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`5ca6934597e5a78774882ab31195b66a47bb34e4`
+- Base SHA：`bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`
+- PR：[#211](https://github.com/qzhike/zhiju-business-core/pull/211)
+- Work item：[#210](https://github.com/qzhike/zhiju-business-core/issues/210)（T2 design）
+- 审查日期：2026-09-17
+
+本轮重新读取了远端最新 head、Issue #210、完整 PR diff、`c1b7ee` 之后的修复增量、受影响权威与当前持久化先例，并在 exact head 上重新运行项目配置的完整验证。第 2 轮的两个阻断已经实质关闭：四处 Task 身份由数据库 guard 全等绑定，Human-only owning Port 也改为返回并审计 `{outcome, classificationRegistryVersion}`。复审仍发现一项新的持久化归属完整性阻断。
+
+### 阻断：双 guard 没有把请求主体、快照创建者、Root 归属与来源 Receipt 主体绑定为同一 Principal
+
+§18.5 第 2 条要求 `draft.requestedBy` 恰好等于认证 principal；§18.7 又把 Root 的 `created_by_principal_id`/`requested_by_principal_id` 定义为受信归属，并把 Snapshot `canonical_payload.createdBy` 作为不可变事实保存。PostgreSQL §4.1 第 8 条进一步规定 `created_by_principal_id` 必须来自当前受信事务 Context，调用者不能写入另一主体。
+
+当前创建请求投影只覆盖 `{draft, expiresAt?}`，所以它能证明 `draft.requestedBy` 来自 Receipt 所绑定的原请求；但 §18.7 的双 guard 明确闭合的是 Receipt/WorkOrder 版本与身份、请求投影 Hash、期限以及 Task 身份，没有要求下列归属逐项相等：
+
+1. `canonical_payload.draft.requestedBy`；
+2. Snapshot header `canonical_payload.createdBy`；
+3. Root `created_by_principal_id` 与 `requested_by_principal_id`；
+4. 来源 `command_receipt.created_by_principal_id`（以及已建立的受信事务 Context Principal）。
+
+因此存在直 SQL 反例：先取得主体 P1 的合法 `PENDING` Receipt，并保持原始 `draft.requestedBy=P1` 与全部 WorkOrder/Task/Scope/Hash 字段不变；写入时把 Snapshot `createdBy` 和 Root 两个 principal id 都改为 P2，并据此重算完整 Snapshot `payload_hash`。创建请求投影 Hash 仍与 Receipt 相等，mirror guard 内部自洽，现有 creation-identity 与 Task guard 也都可以通过，但权威 Root/Snapshot 会把 P2 记为从未发起该命令的创建者/请求者。这违反 Issue #210 的 creator/requester attribution 与 direct-SQL integrity guard 验收边界，也违反 PostgreSQL §4.1 的通用来源规则。
+
+要求：在 creation-identity guard 中把请求、Snapshot、Root、Receipt 与受信事务 Context 的 Principal 归属闭合为同一事实；至少强制 `draft.requestedBy`/`createdBy` 的 Principal 身份与 Root 两个 principal id、Receipt `created_by_principal_id` 一致，并保持 Scope 闭合。将上述 P1→P2 单变量反例及 created/requested 分别不一致的反例加入 `TE-P210-017`；`TE-P210-009` 的 Handler/Decision 替换场景不能替代数据库直写完整性测试。
+
+## 第 3 轮验证证据
+
+- 远端与本地 exact head：`5ca6934597e5a78774882ab31195b66a47bb34e4`；base `bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`；PR `OPEN`、`MERGEABLE`，GitHub Actions `verify` 为 `SUCCESS`。
+- `git diff --check bbfd2ceaab21d0d346d6f405be7f216bc6cdd276..5ca6934597e5a78774882ab31195b66a47bb34e4`：PASS。
+- exact-head `vibe verify full --json`：`PASS`，resolved command `pnpm clean && pnpm verify`，exit 0。
+- 普通 suite：98 files（60 passed / 38 skipped）、1434 tests（1010 passed / 424 skipped）；真实 PostgreSQL 18.6 persistence gate：42 files / 439 tests 全部通过；空库迁移、历史升级至 V7001、二次 migrate no-op 均通过；Catalog/Registry 214、Compatibility Baseline 200。
+
+绿色 verifier 证明当前已实现行为未回归，但 WorkOrder 表、归属 guard 与 `TE-P210-001`–`023` 尚未实现，因此不会执行或发现上述设计中的 P1→P2 直写反例。
+
+## 第 3 轮未运行边界与门禁
+
+WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、读取 Handler/组成层、IdentityPolicy 读取/分类 Port、`TE-P210-001`–`023`、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、外部 Provider/Runtime/飞书与人工业务验收继续保持 `NOT RUN`。
+
+本轮仍未发现 exact head 的显式人类设计批准。当前先以新的 agent-fixable 归属完整性阻断给出 `REQUEST_CHANGES`；修复后的新 head 必须重新独立审查，通过后才进入 Issue #210 明确要求的人类设计批准门禁。本轮未修改设计正文或业务代码，也不授权 commit、push、merge 或 deploy。
