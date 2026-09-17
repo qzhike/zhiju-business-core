@@ -2513,6 +2513,16 @@ READY / QUEUED / WAITING_INPUT / RETRY_PENDING
 
 首次 Context 另有自己的有效期上界：`InitialContextBuildRequest.expiresAt` 只限该 Context，不改写上述 WorkOrder Root 期限；它不得超过 WorkOrder 期限、任何被消费 Source Slice 的 `validUntil` 或当前 Builder Policy 有限上界，请求缺省时取其中最小值，无有限上界时保持缺省。该 effective expiresAt 随 ProjectContext Snapshot 一并提交并受完整 Hash 覆盖，因此 Context 生命周期短于、但绝不长于其任一输入来源；改写任一输入期限或静默截断到最小值都不合法。组合与消费规则由 [Spec 003 §11.2.5.4](../module-specs/Module-Spec-003-TaskExecution.md#11254-首次-context-的期限上界与-effective-expiresat) 拥有。
 
+#### 19.7.2 IM-06 WorkOrder DRAFT 身份寻址与创建生命周期补充（#210 设计）
+
+状态：`DESIGN PROPOSED（Issue #210）/ NOT IMPLEMENTED`，字段级权威见 [Spec 003 §18](../module-specs/Module-Spec-003-TaskExecution.md#18-workorder-draft-创建与精确-draft-读取边界210-设计)。本节只补充 Domain 层必须成立的身份与生命周期约束，不新增状态、事件或操作。
+
+1. **每个 WorkOrder 恰好一个公开身份。** WorkOrder 的公开拼写由其**不可变创建事实**决定：由 `execution.create_work_order@1.0` 创建者为 `execution.work_order`，由 `@1.1` 创建者为 `zhiju.execution.work_order`。两个拼写不是同一对象的两个可用名字：另一个拼写在授权与业务两侧都不能取得成功，也不存在规范化、大小写回退或 latest 取值。读取同样按该事实绑定：`@1.1` 创建的 WorkOrder 只由 `execution.get_work_order_draft@1.1` 读取，`@1.0` 创建者只由新增设计的 `@2.0` 读取。
+2. **Task 绑定遵循 Task 自己的创建身份。** WorkOrder 的 `taskRef` 拼写必须等于被绑定 Task 的创建 Major 对应拼写（`execution.task`/`zhiju.execution.task`），不得由 WorkOrder 版本、Task 当前状态或版本号推断；两个 WorkOrder 创建路径都接受两个 Task 创建路径，且任一方向都不构成别名。
+3. **创建 DRAFT 的 Task 生命周期。** 只有 `status` ∈ `{READY, IN_PROGRESS, WAITING_INPUT, BLOCKED, IN_REVIEW, CHANGES_REQUIRED, COMPLETION_PENDING}` 的 Task 才能创建 DRAFT WorkOrder；`DRAFT`/`BACKLOG` 尚未满足 §18.5 的 Readiness 生命周期要求，`COMPLETED`/`CANCELLED` 为终态，均拒绝。该集合不新增中间态。
+4. **DRAFT 创建不产生可执行性。** 创建 DRAFT 不改变 Task 状态或版本、不签发 Capability、不使任何 WorkOrder 进入 READY/QUEUED/RUNNING；因此它既不能让 unready Task 变得可执行，也不因创建成功而给 Task 或 WorkOrder 任何执行资格。§19.7 第 1 条的“可执行且未 CANCELLED/COMPLETED”由创建期检查与后续 READY/Freeze/Queue/Run 各自的消费边界共同维护。
+5. **DRAFT 读取的资格语义。** 精确读取只接受 DRAFT Root，返回历史事实**不**赋予构建、校验、冻结、排队或执行资格；已过期的 DRAFT 仍可按读取授权返回，但不得据此继续构建或冻结（与 §19.7.1 一致）。
+
 ### 19.8 Domain Events
 
 ```text

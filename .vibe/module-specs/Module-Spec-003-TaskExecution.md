@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN MERGED 2026-09-16 (PR #207) / #208 TASK READINESS PRODUCER, READY CONSUMER, V3002 AND BOTH AUTHORIZATION ENTRIES IMPLEMENTED 2026-09-16 (CATALOG 214, TE-P206-001–018 EXECUTED ON REAL PostgreSQL; COMPLETED-DEPENDENCY AND BLOCKING-INFORMATIONREQUEST BRANCHES NOT RUN) / OTHER HANDLER IMPLEMENTATION NOT STARTED`
+状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN MERGED 2026-09-16 (PR #207) / #208 TASK READINESS PRODUCER, READY CONSUMER, V3002 AND BOTH AUTHORIZATION ENTRIES IMPLEMENTED 2026-09-16 (CATALOG 214, TE-P206-001–018 EXECUTED ON REAL PostgreSQL; COMPLETED-DEPENDENCY AND BLOCKING-INFORMATIONREQUEST BRANCHES NOT RUN) / OTHER HANDLER IMPLEMENTATION NOT STARTED / #210 WORKORDER DRAFT CREATION AND EXACT DRAFT READ BOUNDARY DESIGN PROPOSED 2026-09-17 (SECTION 18; INDEPENDENT DESIGN REVIEW AND HUMAN DESIGN APPROVAL PENDING; NOT REGISTERED, NOT IMPLEMENTED)`
 
 ## 1. 模块责任
 
@@ -1249,3 +1249,238 @@ EXECUTION_TASK_ALREADY_EXISTS
 - `TE-P206-005` 的“依赖已 `COMPLETED` 且 Completion Evaluation 当前可用”分支与 `TE-P206-010` 的 blocking InformationRequest 分支保持 `NOT RUN`：`execution.evaluate_task_completion@1.0` 与 `information_request` 生产者未交付，当前不存在可产生这两个分支的合法事实；实现按设计把它们确定性映射为 `STALE`/`UNSATISFIED`，但“无事实可产生”不等于通过。
 - WorkOrder DRAFT、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection（TD-05–07）、受控退出 Fixture、外部 Provider/Runtime、飞书通道与人工业务验收仍 `NOT RUN`；`TaskCompleted` 等 Task 公开事件未注册也未发布。
 - 迁移验证与 PostgreSQL 验收覆盖空库、既有 V3000/V3001 之上的 forward 迁移、二次 no-op、RLS/ACL、直 SQL 篡改、回滚与并发；这些证据随本切片的执行记录保存在 Issue/PR，不改变 TD-01–04 其他表的 `NOT RUN` 状态。
+
+## 18. WorkOrder DRAFT 创建与精确 Draft 读取边界（#210 设计）
+
+状态：`T2 / DESIGN PROPOSED（Issue #210）/ INDEPENDENT DESIGN REVIEW NOT RUN / EXPLICIT HUMAN DESIGN APPROVAL NOT RECORDED / HANDLER, REGISTRATION AND MIGRATION NOT IMPLEMENTED / TE-P210-* NOT RUN`。本节回应 [Issue #210](https://github.com/qzhike/zhiju-business-core/issues/210)：在 #158/#165 已注册的 WorkOrder DRAFT 契约、#190/#200 已交付的逐版本创建授权映射、#202/#204 的 Task DRAFT 创建事实先例与 #206/#208 的版本绑定寻址先例之上，固定 `execution.create_work_order@1.0`/`@1.1` 的创建边界与 `execution.get_work_order_draft@1.0`/`@1.1` 的精确读取规则。本节不注册任何 operation/objectType/Event、不分配 migration、不改写已发布接受集、注册 Schema、兼容元数据或历史 200 项 Compatibility Baseline；实现事实留待对应实现 Issue（§18.13）。依据、备选与被否方案见[决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)。
+
+### 18.1 对账事实（revision `bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`）
+
+| 位置 | 已提交事实（可核验来源） | 对账结论 |
+|---|---|---|
+| `create_work_order@1.0` 创建授权 | `modules/identity-policy/src/commands/task-execution-creation-authorization.ts` 的 `TASK_EXECUTION_CREATION_BINDINGS`：Purpose `task.execution.create_work_order`、action `execution.work_order.create.v1`、target objectType `execution.work_order`、config key `workOrderV1`（#200 交付） | 已交付事实把 @1.0 的 CREATE target 拼写固定为 legacy `execution.work_order` |
+| `create_work_order@1.1` 创建授权 | 同表：action `execution.work_order.create.v1_1`、target `zhiju.execution.work_order`、config key `workOrderV11`；`public-api.v1.json` 声明 `/targetRef` → OBJECT/`zhiju.execution.work_order` | 两个 Major 共用 Purpose，但 target 拼写与 Grant action 各自精确 |
+| `create_work_order@1.0` payload | 200 项 Baseline 成员（`execution_create_work_order_payload` 与 `workOrderDraft`）：`draft.taskRef` 是通用 `objectRef`；`versionPins` 是 Core `VersionPins`（必填 `projectContextContractRef`） | 形状逐字节冻结；它既不约束 Task 拼写，也不携带 WorkOrder 自身拼写 |
+| `create_work_order@1.1` payload | `initialWorkOrderDraft`：`taskRef` 同为通用 `objectRef`；`versionPins` 为 `DraftVersionPins`（无 `projectContextContractRef`） | 两个 Major 的 DRAFT 形状由 `versionPins` 区分，不能互相替代 |
+| `get_work_order_draft@1.0`/`@1.1` | 均已注册且 `schemaStatus=FULL`：`/payload/workOrderRef` 固定 `const zhiju.execution.work_order`；`/draftSnapshotRef` 固定 `zhiju.execution.work_order_draft_snapshot`；`draft` 分别为 `WorkOrderDraft`/`InitialWorkOrderDraft`；**两者都不在 200 项 Baseline 中**（Baseline defs 只有 `workOrderDraft`/`workOrderStatus`） | 已发布接受集只接受 canonical 拼写；@1.0 的 result 形状与 @1.1 的创建事实不兼容 |
+| Draft Snapshot 的声明形状 | `$defs.workOrderDraftSnapshot`/`initialWorkOrderDraftSnapshot` 把 `workOrderRef` 与 `taskRef` 都固定为 canonical（`zhiju.execution.work_order`/`zhiju.execution.task`）；两个 def 没有任何引用调用点，被注册 operation 使用的只是 `zhiju.execution.work_order_draft_snapshot` 这个 CONTENT_ADDRESSED objectType；Baseline 不含这两个 def | 声明形状当前无法忠实承载 legacy 拼写；改动它不触及任何已注册接受集 |
+| Task 创建身份 | Task 由哪个 Major 创建只由 `task_definition_snapshot.schema_version`（`'1.0'`/`'2.0'`）表达，`V3001` 的 creation-identity guard 把它绑定到在途 `execution.create_task` Receipt；R-206-1 已据此推导拼写（`execution.task`/`zhiju.execution.task`），#208 已实现 | Task 拼写是可由 owning 不可变事实精确证明的事实，与 WorkOrder 版本无关 |
+| legacy 拼写的注册状态 | `execution.work_order`/`execution.task` 都不是 Registry objectType（`taskExecutionObjectTypes` 只含 `zhiju.*` 条目）；`execution.work_order` 只出现在冻结 Baseline 的 integration-gateway envelope enum 与 #200 binding 中 | 本 revision 不把 legacy 拼写升级为注册 objectType（与 R-206-1 的处理一致） |
+| WorkOrder 业务表与 Handler | `task_execution` 只有 V3000 技术表、V3001 的 `task`/`task_definition_snapshot` 与 V3002 的 `execution_judgment`；无 `work_order`/`work_order_draft_snapshot` 表、无 `create_work_order`/`get_work_order_draft` Handler、无组成层入口 | 本节固定的身份、生命周期、持久化与幂等边界是实现的全部安全前置 |
+
+**缺口。** WorkOrder 的公开拼写与读取版本绑定、Task 跨 Major 绑定、创建期 Task 生命周期集合与锁/竞态、requester/actor 归属、DRAFT 与后续 Context/Validation/Freeze 的校验分工、`work_order` + `work_order_draft_snapshot` 的持久化与 guard、幂等/回放/并发/恢复，以及 @1.1/@2.0 读取的授权组成，在实现前都没有权威定义；若不由本节固定，实现必然自行发明身份或授权语义。
+
+### 18.2 R-210-1 WorkOrder 寻址与读取版本绑定
+
+**事实。** WorkOrder 的创建 Major 由不可变创建事实精确证明：本次 CREATE 的 `command_receipt` 行（`command_type='execution.create_work_order'`、`command_version` ∈ {`1.0`,`1.1`}、target 身份与 Project Scope 等于本 WorkOrder）。同一张 `task_execution.work_order` 表承载两个 Major 创建的行，行本身不存“哪个 Major”以外的拼写；拼写只由创建事实派生。
+
+| 创建 Major（不可变创建事实） | 该 WorkOrder 唯一被接受的公开拼写 | 其 DRAFT payload 形状 | 唯一被接受的读取版本 |
+|---|---|---|---|
+| `execution.create_work_order@1.0` | `execution.work_order` | `WorkOrderDraft`（Core `VersionPins`） | `execution.get_work_order_draft@2.0`（**本 revision 新增设计**，§18.8） |
+| `execution.create_work_order@1.1` | `zhiju.execution.work_order` | `InitialWorkOrderDraft`（`DraftVersionPins`） | `execution.get_work_order_draft@1.1`（已注册，零改动） |
+
+**闭合规则（owning Handler 的义务，不由调用者选择）**
+
+1. 一个 WorkOrder 恰好有一个被接受的公开拼写，取自其创建事实的 `command_version`：`'1.0'` → `execution.work_order`，`'1.1'` → `zhiju.execution.work_order`。大小写敏感、逐字符相等；另一版本的拼写、裸本地名（如 `WorkOrder`）、前缀剥离或补全、两个拼写互换一律拒绝。
+2. `kind` 必须为 `OBJECT`；`objectId` 必须等于 `work_order_id`；`scope` 必须是 Project 形态 `{enterpriseId, projectId}` 且与该 WorkOrder 的 Scope 列逐字段相等。不做规范化、不做 fuzzy 查找、不回退 latest。
+3. 读取版本与拼写**互相绑定**：`get_work_order_draft@1.1` 只接受 canonical 拼写，`get_work_order_draft@2.0` 只接受 legacy 拼写。请求另一读取版本、另一拼写、错 id、非 Project Scope 或不可见 WorkOrder 统一拒绝为 `EXECUTION_WORK_ORDER_REF_INVALID`（安全外观不区分“拼写错误”“版本不符”“Scope 不符”“不可见”，也不返回其他 Scope 的对象存在性）。
+4. 两层各自精确：[Spec 001 §15.6](Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210) 的读取授权条目按 `(type@version)` 声明该读取可接受的 target objectType 闭集，并要求请求声明的 target 与 covering Grant 的 selector 逐字符相等；**业务**上哪个拼写正确只由本节规则判定。调用者既不能靠声明另一拼写取得业务成功，也不能用另一个 target 的 Grant 提权。
+5. CREATE 的 `targetRef` 仍按 #200 的既有绑定逐版本闭合（@1.0 legacy、@1.1 canonical），本节不改变它；因此“创建时被授权的 target 拼写”与“创建后被接受的公开拼写”对两个 Major 都恰好相同。
+6. 跨版本永远不是等价重试：不得用另一个 `create_work_order` 版本的历史 Receipt 返回本版本结果，也不得凭历史 Receipt 取得创建或读取资格（沿用 §15.3 第 4–5 条）。
+
+**为什么这不是别名。** 别名意味着同一对象在业务接受集里有第二个可用名字。R-210-1 让每个 WorkOrder 恰好一个拼写被接受，且该拼写同时决定唯一可用的读取版本；另一个拼写在授权 Port、owning Handler 与注册 Schema 三处都不能取得业务成功。两个拼写不是“同一操作的两个名字”，而是“两条已发布创建路径各自的唯一身份”，与 §16.1/§17.3 对 Task 的处理同源。
+
+**`execution.get_work_order_draft@1.0` 的处理（本 revision 明确保留不改）。** 它已注册（但不在 200 项 Baseline 中），payload 固定 canonical、result 形状为 `WorkOrderDraft`。在本规则下没有任何创建 Major 产生“canonical 拼写 + `VersionPins` DRAFT”这一组合（@1.1 写 `DraftVersionPins`，@1.0 写 legacy 拼写），因此它**没有可满足的 IM-06 输入**。本 revision 逐字节保留它：不收窄、不放宽、不删除、不为它实现 Handler，也不把它的接受集改写为 legacy。若将来需要让它可用，必须由独立 additive 提案提供能产生该组合的创建路径或明确改写接受集，不得由实现顺带决定。
+
+**不注册 legacy objectType。** 本 revision 不把 `execution.work_order` 注册为 Registry objectType，也不改写任何 `references` 声明：legacy 拼写与 R-206-1 的 Task 拼写一样，是 owning Handler 层的模块级接受集收窄，不是新的公开对象名。`get_work_order_draft@2.0` 的 `/payload/workOrderRef` 因此**有意不声明**（与 §17.4 对 `/payload/taskRef` 的不声明同理）。未采用方案：把 @2.0 的 `/payload/workOrderRef` 固定为 `const execution.work_order` 并同时把该 legacy 名注册为 objectType——它扩大公开命名面并需要 namespace/owner 归属决定，而“每个 WorkOrder 恰好一个被接受拼写”的结论不依赖它。
+
+### 18.3 R-210-2 WorkOrder 与 Task 的绑定
+
+**规则。** `draft.taskRef` 的拼写必须等于**该 Task 自身创建事实**对应的拼写（R-206-1：创建定义快照 `schema_version='1.0'` → `execution.task`，`'2.0'` → `zhiju.execution.task`）；不得由 WorkOrder 版本、payload 其他字段、Task 的 `aggregate_version` 或 objectId 推断。两个 WorkOrder Major 都接受两个 Task Major，四种组合各自合法：
+
+| WorkOrder 创建 Major | 绑定的 Task 创建 Major | `draft.taskRef.objectType` |
+|---|---|---|
+| @1.0 / @1.1 | `execution.create_task@1.0`（`schema_version='1.0'`） | `execution.task` |
+| @1.0 / @1.1 | `execution.create_task@2.0`（`schema_version='2.0'`） | `zhiju.execution.task` |
+
+1. `kind` 必须为 `OBJECT`；`objectId` 必须等于 `task_id`；`scope` 必须是 Project 形态且与 Envelope `scopeRef`、Task 的 Scope 列逐字段相等。
+2. 拼写/kind/id/Scope 任一不闭合 → `EXECUTION_TASK_REF_INVALID`（复用 #208 已注册码），安全外观不区分“拼写错误”“Scope 不符”“不可见”；Scope 闭合成立但同 Scope 内不存在该 Task 行 → `NOT_FOUND`。
+3. Task 的创建事实必须存在且自洽：该 Task 恰有一份创建定义快照，其 `schema_version` 与其创建 Receipt 的 `command_version` 一致（`V3001` 的 creation-identity guard 已强制）。事实缺失、不可读或与拼写判定不一致 → `EXECUTION_DEFINITION_REF_INVALID`（沿用 §17.9 语义），fail closed，不按“当前形状”猜测。
+4. 两个 Task 拼写仍不是别名：每个 Task 恰好一个拼写被接受，另一拼写在创建与读取两侧都不能取得业务成功。
+5. 两个 WorkOrder Major 都**不**在 DRAFT 快照中记录 Task 的 `aggregate_version`：DRAFT 不写 Task Root、不建立 Task 版本 CAS，也不据此产生 staleness；Task 的后续状态与版本由 §18.4 的创建期检查与后续 READY/Freeze/Queue/Run 各自的消费边界解释。
+
+### 18.4 创建期 Task 生命周期、锁序与并发
+
+**允许集合（闭合）。** 仅当绑定 Task 的 `status` ∈ `{READY, IN_PROGRESS, WAITING_INPUT, BLOCKED, IN_REVIEW, CHANGES_REQUIRED, COMPLETION_PENDING}` 才可创建 DRAFT WorkOrder；`{DRAFT, BACKLOG, COMPLETED, CANCELLED}` 一律拒绝 `EXECUTION_TASK_NOT_EXECUTABLE`。理由：`DRAFT`/`BACKLOG` 是尚未满足 #154 readiness 规则的执行前状态（§8.1 要求按 Readiness 规则满足创建 WorkOrder 的生命周期要求），`COMPLETED`/`CANCELLED` 是终态；这与 Domain §19.7 第 1 条“必须引用可执行且未 CANCELLED/COMPLETED 的 Task”一致，且不新增中间态。
+
+**不产生可执行性。** DRAFT 创建只写本模块的 WorkOrder 事实：不改 Task 状态或版本、不签发 Capability、不 READY、不 queue、不创建 Run、不发布事件。因此它既不能让 unready Task 变得可执行，也不因创建成功而给 Task/WorkOrder 任何执行资格；后续每一步都各自重新授权并重读当前事实。
+
+**锁与读取顺序。** WorkOrder 创建事务只对绑定 Task 取**只读依赖行锁**（`SELECT … FOR SHARE`，作用于本模块 `task` 表），并在持有该锁时校验 Scope、创建事实与 status；随后插入 Root 与快照。锁顺序遵循 PostgreSQL §33 的 `Task → WorkOrder → Run → Claim`；本操作不锁其他 WorkOrder、不反向持锁、不写其他 Root。
+
+**并发裁决（稳定结果）。**
+
+| 相遇情形 | 裁决 |
+|---|---|
+| 并发 Task 转换（`mark_task_ready`、cancel 等 `FOR UPDATE` 事务）先提交 | 创建事务取得共享锁后读到新 status：仍在允许集合则创建成功；已离开集合 → `EXECUTION_TASK_NOT_EXECUTABLE`，无 Root/快照/Receipt 成功事实 |
+| 创建先提交 | 后续 Task 转换正常推进；已提交的 DRAFT WorkOrder 只作为历史 DRAFT 存在，不因 Task 变化获得或失去执行资格（后续切片各自重读） |
+| 同一 Task 上两个并发创建（不同 target） | 两者都可成功（Domain §19.4 `Task 1 — * WorkOrder`）；不引入 Task 侧唯一约束 |
+| 同一 target 的两个并发创建 | Root 主键/唯一约束裁决为唯一成功，另一侧 `EXECUTION_WORK_ORDER_ALREADY_EXISTS`，无部分事实 |
+| 长事务跨过 `expiresAt` | 提交前以受信服务端时间重验 `now < expiresAt`（§11.2.4 第 1 条），不满足即拒绝 |
+
+### 18.5 Actor、requester 与 Human-only 归属
+
+1. **唯一 Actor 来源**是受信会话与已验证 Decision 行（组合层从 Decision 派生的 principal/kind/ActorSnapshot/Decision id 与 hash/Scope/Purpose）。`actingFor`、payload 里的 `requestedBy`、`initialAssignee`、任何 PrincipalKind 字符串声明与转交的他人 Decision 都不是授权来源，也不参与 ALLOW 判定。
+2. `draft.requestedBy` 必须**恰好等于**认证 principal 的 `PrincipalRef`（Human、Coordinator Agent、受约束 Process Manager 一体适用）；不一致 → 共享 `AUTHORIZATION_DECISION_INVALID`（内部分类只进受权限控制的 Audit）。未采用方案：允许 payload 指定“Human requester + Service 执行”的双身份——它需要额外的 identity 证明边界，且正是 Issue 禁止的 caller-supplied `requestedBy` 旁路；本 revision 不发明该边界。Service 发起时不代表“替某个 Human 请求”；Human 归属只作为 owning ActorSnapshot 的 `actingFor` metadata 存在，不进入 WorkOrder payload、不改变授权。
+3. 受约束 Process Manager 的服务发起请求只允许持自己的 `task.execution.create_work_order` Decision 与覆盖 Grant（§15.2 的精确 action/selector/Scope 规则）；`actingFor` 不替代 principal、不豁免该 Service 的 capability/Purpose/Scope。
+4. **Human-only 能力**：当认证 principal 不是 Human 时，若 `draft.allowedCapabilities[]`/`deniedCapabilities[]` 声明的任一 capability code 被 owning IdentityPolicy 的 Human-only 边界判定为 Human-only，创建直接拒绝共享码 `HUMAN_ONLY_CAPABILITY`。分类只能来自 owning 边界（`identity.check_human_only_capability@1.0` 的既有语义），不得由 payload、角色名或 `requestedBy` 决定。DRAFT 不签发任何 Grant、不为 Agent/Service 引入 Human-only 能力，也不因创建成功使任何 capability 可执行。
+5. `actingFor`、Human `requestedBy` 或 Human Decision 的转交都不能放宽 principal-kind 与 Human-only 限制：他人 Decision 在授权 Port 的 actor/principal 绑定处即失败，不进入 Handler（§18.9 第 1 步）。
+6. `allowedCapabilities`/`deniedCapabilities` 是受验证的业务输入：创建期只做形状与 Scope 闭合以及“同一 capability 不得同时出现在两侧”的良构检查，不签发 Grant、不改写集合；实际可执行集合在后续 Validator/Freeze 与 Run capability binding 边界重新计算并收窄（Domain §19.9「Authorization Service 计算并收窄」）。
+
+### 18.6 DRAFT 与后续 Context/Validation/Freeze 的校验分工
+
+原则：**语法有效的 Ref 不等于已提交事实**；DRAFT 只证明它必须固化的事实，其余留给对应消费边界重新读取。
+
+| 事实 | 创建时必须证明 | 仅结构保留在不可变 draft | 必须由后续边界重新读取 |
+|---|---|---|---|
+| WorkOrder 身份 / Scope / 创建 version | CREATE target、拼写、Project Scope、id（§18.2） | — | Freeze/queue/Run 各自的 Root 读取 |
+| 绑定 Task | 存在性/可见性、Scope、创建事实拼写（§18.3）、status 集合（§18.4） | Task Ref 与 Scope 进入快照 | 后续 READY/Freeze/queue/Run 重读 Task 当前状态与定义 |
+| `targetScope` 与目标引用 | 形状与 Scope 包含关系：不得超出绑定 Task 与 Envelope；Project 锚定形态与 Envelope 逐字段相等；跨 Enterprise/Project 拒绝 `EXECUTION_WORK_ORDER_SCOPE_INVALID`（沿用 §16.3 的 Scope 形态规则） | 完整字段与 Scope | Freeze 的 candidate 组装与 Scope 复核 |
+| `inputRefs` | 形状 + Scope 落在 Envelope 内（Platform `{}`/同 Enterprise/同 Project；`ExternalRef` 按其有无 `tenantOrAccountRef` 两分支，未携带者只是来源意图）；跨租户拒绝 | 完整 Ref 集合 | 存在性、版本、生命周期、可用性与 Purpose 裁剪（Readiness/Context Builder）；`ExternalRef` 须先经 owning 授权 Adapter 形成正式对象 |
+| `expectedOutputs[].acceptancePolicyRef`、`completionCriteria[].evaluatorRef`、`versionPins.*`、`riskAndQuality` 等 Profile Ref | 形状 + Scope 包含关系（同上）；未知 namespace 拒绝 | 完整字段 | Evaluator/Policy/Profile 的存在性、支持版本与当前有效性（Validator §11.9、`EXECUTION_CRITERION_UNSUPPORTED`） |
+| `allowedCapabilities`/`deniedCapabilities` | 形状 + Scope 闭合 + 良构（§18.5 第 6 条）+ 非 Human 的 Human-only 拒绝 | 完整集合 | Grant 签发/收窄与 Run capability binding；Freeze 的可执行性判断 |
+| `budget`/`executionPolicy`/`harnessPolicy`/`modelPolicy`/`constraints` | 形状与 Hash | 完整字段 | 预算与 Policy 支持、当前有效性（Freeze、queue、`create_run`） |
+| `expiresAt` | 存在性与值；提供时以受信服务端时间要求 `now < expiresAt`（§11.2.4 第 1 条，违反用 `API_VALUE_INVALID`） | 原样进入 Root 与快照并进入完整 Hash | Builder/Validator/Freeze/queue/create_run/start_run 各自按当前时间重验（§11.2.4、Domain §19.7.1） |
+
+- **@1.0 的 `versionPins.projectContextContractRef`**：该字段在 @1.0 DRAFT 中必填，但首次 Context 的循环引用正是 @1.1 要解的问题（TD-01），因此它可能指向尚未冻结的 Contract。创建期只校验该 Ref 的形状与 Scope 包含关系，不解析、不证明其存在或适用；其存在性、Hash 与适用性由 §11.2.3/§11.2.5.2 的候选组装与 Freeze 边界决定。@1.0 DRAFT 的合法创建因此不依赖任何已冻结 Contract。
+
+**明确否定。** Schema 通过、Hash 正确、Ref 形状合法都**不**证明引用存在、当前授权有效或可执行；Human-only 能力、跨 Project 引用、缺失或过期引用、未支持的外部引用与依赖不可用都不得因“payload 通过 Schema 校验”而被当作有效。
+
+### 18.7 持久化事实与事务边界（设计；migration 编号在实现时分配）
+
+一次成功的 DRAFT 创建在**同一 owning 事务**提交 Root、不可变快照、Receipt、Audit 与仅指向已证明引用的 Reference Edge；任一步失败整体回滚，不留 `PENDING` Receipt 或孤立事实。本节不修改已应用的 `V3000`/`V3001`/`V3002`；未来 forward-only migration 的编号由实现 Issue 分配。
+
+`task_execution.work_order`（Aggregate Root，**未实现**）
+
+| 列 | 内容与约束 |
+|---|---|
+| `work_order_id` | = 已校验 Envelope `targetRef.objectId`（UuidV7），主键；`UNIQUE (enterprise_id, project_id, work_order_id)` |
+| `enterprise_id` / `project_id` | 受信 Project Scope 镜像，创建后不可变 |
+| `work_order_object_type` | 该 WorkOrder 唯一被接受的公开拼写（§18.2），创建后不可变；由 creation-identity guard 按创建 Receipt 的 `command_version` 强制 |
+| `task_id` / `task_object_type` | 绑定 Task 的 identity 与创建 Major 拼写镜像（§18.3），创建后不可变；由同一 guard 按该 Task 的创建定义快照 `schema_version` 复核 |
+| `status` / `aggregate_version` | 创建为 `DRAFT` / `1`；只有 owning 转换（本切片不实现）可改变；Scope 与身份列不随之改变 |
+| `current_draft_snapshot_id` + `current_draft_snapshot_hash` | 组合指针；比较必须含 hash，不得只比较 `snapshot_id`，也不得把 `aggregate_version` 当 `snapshot_id` |
+| `draft_schema_version` | `'1.0'` = `WorkOrderDraft` payload、`'1.1'` = `InitialWorkOrderDraft` payload；由 creation-identity guard 与 Receipt `command_version` 强制相等 |
+| `expires_at` | 可空、创建后不可变；NULL 只对应 canonical payload 字段缺省，禁止用 JSON null 冒充缺省；存在性与值进入完整 payload Hash |
+| `created_at` / `created_by_principal_id` / `requested_by_principal_id` | 受信时刻与归属（§18.5 第 2 条使 requested == authenticated principal） |
+
+`task_execution.work_order_draft_snapshot`（不可变事实，**未实现**）
+
+| 列 | 内容与约束 |
+|---|---|
+| `snapshot_id` | 应用生成的 UuidV7，**独立于** `aggregate_version`；主键 |
+| `work_order_id` | 组合指针 FK `(work_order_id, current_draft_snapshot_id, current_draft_snapshot_hash)` 只指向同一 WorkOrder 的快照行 |
+| `draft_schema_version` | 同上；与 payload 形状一一对应 |
+| `canonical_payload` | `WorkOrderDraftSnapshot` 形状的规范 JSON：`{snapshotId, workOrderRef, taskRef, scopeRef, draft, expiresAt?, capturedAt, createdBy}`，逐字节保存；其中 `workOrderRef`/`taskRef` 使用 §18.2/§18.3 的派生拼写，`draft` 为该 Major 的形状 |
+| 提升镜像 | `work_order_object_type`、`task_object_type`、`enterprise_id`/`project_id`、可空 `expires_at`、`payload_hash`（SHA-256、32 字节、canonicalization v1）与 `canonicalization_version`；必须与 `canonical_payload` 逐项一致（null-safe 比较，禁止 SQL NULL、JSON null 与缺省互相冒充） |
+| `request_payload_hash` / `source_command_id` | 绑定产生本快照的在途请求：`source_command_id` 指向仍在途（`PENDING`）的 `execution.create_work_order` Receipt，其 `command_version` = `draft_schema_version`、target type/id 与 Project Scope = 本 WorkOrder、`request_payload_hash` = 本行同名列 |
+
+- **双 guard**：`SECURITY DEFINER` 的 mirror guard 由 `canonical_payload` 重算 Scope、拼写与期限镜像及 `payload_hash`（复用 `V3001` 的 owner-only `task_execution.canonical_jsonb_text`，app 角色不可执行）；`SECURITY INVOKER` 的 creation-identity guard 强制来源 Receipt 身份与 `command_version` ↔ `work_order_object_type` ↔ `draft_schema_version` ↔ payload 内 `workOrderRef.objectType` 四者一致，并强制 `task_object_type` 与被绑定 Task 的创建事实一致。因此“复用他人的 Receipt 换内容”“把 @1.1 payload 重标为 `1.0`”“事后补写快照或只改指针”都不能成立。
+- **不可变性与 ACL**：app 角色对快照无 `UPDATE`/`DELETE`，Root 无 `DELETE`；Scope、身份、拼写与期限列由 immutable trigger 保护；指针变化必须是 `aggregate_version` 前进的 CAS 转换（本切片不实现该转换）。
+- **RLS**：两表都显式保存 `enterprise_id`/`project_id`，`FORCE RLS` + `context_allows_project`（与 `V3001`/`V3002` 同族）；不建立跨 Schema FK/Join，不复制其他 Schema 数据。
+- **Outbox**：0 行（§18.10）。
+- **Reference Edge**：只写本事务已证明存在的引用——绑定 Task（owner 为本次 WorkOrder，target 使用 §18.3 的创建 Major 拼写）。`inputRefs`、`versionPins`、`acceptancePolicyRef`/`evaluatorRef` 等未证明的引用只存在于不可变快照 payload，其 Edge 由证明其存在与当前有效的 owning 动作在各自事务写入（沿用 §16.4 的规则）。
+
+### 18.8 精确 DRAFT 读取与授权组成
+
+**读取语义（两个可满足版本同形）。** 读取按 exact identity 返回已提交事实，不重建、不推断、不补字段：
+
+1. 按 `(type@version)` 选定唯一可接受的拼写与 result 形状（§18.2）；`workOrderRef` 必须与该 WorkOrder 的 `work_order_object_type`/`work_order_id`/Scope 逐字段相等，否则 `EXECUTION_WORK_ORDER_REF_INVALID`。
+2. 读取 Root 与当前快照：`draftSnapshotRef` 的 `objectId`/`contentHash` 必须等于当前指针的 `snapshot_id` 与由 `canonical_payload` 重算的 Hash；`draft`/`expiresAt`/`status`/`rootAggregateVersion` 全部来自已提交列；Root↔快照或指针↔payload 不一致一律 `REFERENCE_INVALID`，不返回“部分成功”的结果。
+3. 只接受 `status='DRAFT'` 的 Root（§11.1）；其他状态 → `AGGREGATE_STATE_NOT_ALLOWED`，不返回非 DRAFT 的 draft 内容。
+4. 已过期但仍为 `DRAFT` 的 Root 在当前读取授权下仍返回历史事实（§11.2.4 第 2 条）；返回 DRAFT **不**赋予构建、校验、冻结、排队或执行资格，也不改变任何状态。
+5. 读取版本与 payload 形状必须由同一创建事实派生：请求的读取版本与 Root `draft_schema_version`（= 创建 `command_version`）不一致时按第 1 条以 `EXECUTION_WORK_ORDER_REF_INVALID` 拒绝；不存在“另一版本可读同一对象”的路径。
+6. 读取**不**返回判断、有效性结论或跨模块事实；`expiresAt` 只是不可变期限的原样读回。
+
+**新增读取版本（设计，实现时注册）**
+
+| 项 | 固定值 |
+|---|---|
+| operation / version | `execution.get_work_order_draft@2.0` |
+| Owner / kind / Consistency | `task-execution` / `QUERY` / `AUTHORITATIVE` |
+| Target | 既有 WorkOrder Root（无 `targetObjectType`、无 `concurrencyMode`；Query 不写状态） |
+| authorizationPurpose | `execution.work_order.draft.read`（复用已注册 Purpose；同 Purpose 不表示 Decision 可跨版本，沿用 §15.1） |
+| dataClassification | `INTERNAL` |
+| Payload | `workOrderRef: ObjectRef<WorkOrder>`（**通用 `ObjectRef`**，接受集按 §18.2 第 3 条由 owning Handler 闭合；`/payload/workOrderRef` **有意不声明**，理由见 §18.2） |
+| Result.data | `{draftSnapshotRef: Exact<WorkOrderDraftSnapshot>, draft: WorkOrderDraft, expiresAt?: UtcInstant, rootAggregateVersion: NonNegativeInt, status: WorkOrderStatus}`；`/draftSnapshotRef` → CONTENT_ADDRESSED / `zhiju.execution.work_order_draft_snapshot` |
+| PayloadGuard | 不新增专用技术 Policy，适用 [PostgreSQL §5.5](../high-level-docs/07-postgresql-logical-model-v0.1.md#55-默认-payload-guard) 的默认 Guard（同 #158/#167/#175/#192/#208） |
+| 生成物 | `contracts/src/operations/task-execution.schema.ts` 的 `versionedOperationSchemas` 新增条目与对应 `$defs`；`public-api.v1.json` +1；`operation-compatibility-metadata.v1.json` +1；`operation-registration.ts` 的 `taskExecutionRegistrations` +1 及断言；`contracts:generate` 重生成 `public-api.ts` 与 `generated/types`；正负 fixture |
+| 计数 | Catalog/Registry **214 → 215**、TaskExecution **44 → 45**（24 → 25 Query）；历史 **200** 项 Baseline 不变（additive 追加，不改写任何既有条目） |
+
+**Draft Snapshot 声明形状的增量（设计）**
+
+| def | 现状 | 要求的改动 | 分类 |
+|---|---|---|---|
+| `workOrderDraftSnapshot` | `workOrderRef` 与 `taskRef` 都固定 canonical | `workOrderRef` 固定为**该 def 对应创建 Major 的拼写** `execution.work_order`；`taskRef` 改为通用 `ObjectRef`（与 `workOrderDraft.taskRef` 同形，接受集由 §18.3 闭合） | 该 def 不被任何注册 operation 的 payload/result 引用，也不在 200 项 Baseline 中；改动不改变任何已注册接受集、Catalog 计数或兼容元数据 |
+| `initialWorkOrderDraftSnapshot` | `workOrderRef` 与 `taskRef` 都固定 canonical | `workOrderRef` 保持 canonical（与 @1.1 创建事实一致）；`taskRef` 改为通用 `ObjectRef` | 同上 |
+
+**读取授权组成（本 revision 必须补齐的 owning 前置）。** `identity.authorize_command@1.0` 的签发路径硬性拒绝非 `1.0` 的 `commandVersion`（`modules/identity-policy/src/commands/actor-snapshot.ts`），因此 @1.1 与新增 @2.0 的读取当前**不存在可路由、可签发、可重验的授权路径**；仅有 Registry 里的 Purpose 字符串不足以实现权威读取。本 revision 因此固定一个 IdentityPolicy owning 内部 Port 的读取条目（[Spec 001 §15.6](Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210)）：按 `(type@version)` 逐条声明 Purpose、Grant action、`TARGET_TYPE` selector 闭集与受信 capability config key，并在返回任何历史结果或读取事实**之前**重验精确 Decision id 与 hash、Actor/principal、认证上下文、type/version/Purpose、payload Hash、精确 target 与 Project Scope、ALLOW 与未过期，并以当次受信时间重读当前 covering Grant/Policy；撤销、到期、配置漂移、target 或版本替换、IdentityPolicy 不可用一律 fail closed。
+
+- 该 Port 不是公开 Command/Query、不进 Catalog、不新增 capability code、不改 `authorize_command@1.0` 的接受集、不新增 IdentityPolicy 迁移（复用 V1006 既有 target 列）；`get_work_order_draft@1.0` 保留既有通用路径。
+- 同一版本缺口也存在于 `execution.build_initial_context_snapshot@1.1`，它由 TD-01 的 Context 切片拥有，本 revision 有意**不**顺带关闭。
+
+### 18.9 幂等、重放、并发与恢复
+
+沿用 #151 runner 与 #204 的既有语义，并补齐 WorkOrder 创建所需的精确绑定：
+
+1. **顺序**：Registry 精确 `(type, version)` 校验 → 组合层从已验证 Decision 行派生受信上下文 → **在幂等 Claim 与历史 Receipt 返回之前**调用 `TaskExecutionCreationAuthorizationPort.revalidateCreation`（精确 Decision id 与 hash、Actor/实际 principal、认证上下文、type/version/Purpose、payload Hash、target、Project Scope、ALLOW 与未过期，并以当次受信时间重读当前 covering Grant/Policy）→ 取得 Claim 后、首个业务写入前证明绑定 Task（§18.3/§18.4）→ 同一 owning 事务写入 §18.7 的事实并 finalize Receipt/Audit。
+2. **幂等键**：`(idempotency_scope, idempotency_key)` 唯一；`idempotency_scope` 由服务端按 `execution.create_work_order@<version>` 与 Project Scope 组合，不接受调用者传入。
+3. **返回历史 Receipt 前**必须比较持久化的 `command_type`/`command_version`/`target_type`/`target_id` 与本次命令；不一致即 `IDEMPOTENCY_PAYLOAD_CONFLICT` 并写 DENIED Audit，不返回另一版本 Receipt（两个 Major 的 payload 形状不同，但该比较仍是必须的，不能只依赖 `request_payload_hash`）。
+4. **重放**：同键同输入返回原结果，不新增 Root/快照/Edge/Event；生效路径仍重新授权（第 1 步），但**不重跑** Task 业务证明，历史 Receipt 按原样返回（已提交 DRAFT 不因 Task 后续状态变化被改写）。
+5. **CREATE 唯一性**：同一 Project Scope 内 `work_order_id` 已存在 → `EXECUTION_WORK_ORDER_ALREADY_EXISTS`，不写第二条 Root；并发同 target 由主键与唯一约束裁决为单一成功。
+6. **原子性**：Root、快照、Receipt、Audit 与 Edge 同事务；注入故障或任一检查拒绝整体回滚，不留 `PENDING` Receipt 或孤立事实，同键重试可从零开始。
+7. **依赖不可用**：IdentityPolicy（以及实现若复用的其他 owning 读取）不可用一律映射共享 `DEPENDENCY_UNAVAILABLE`，不得被解释为空结果或默认通过。
+8. **事务上下文**：沿用 #151 的 `context_allows_project` 与池复用隔离要求；本切片不新增池语义。
+
+### 18.10 公开事件边界
+
+DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_event` 0 行，也不存在可发布的 WorkOrder 草案事件（Catalog 的 `execution.*` Event 恰 11 项，含 `WorkOrderBecameReady@1.0`/`WorkOrderQueued@1.0`/`WorkOrderCompleted@1.0`，没有 `WorkOrderDrafted`）。Domain §19.8 的 `WorkOrderDrafted` 只是 Domain 词汇，不是已注册公开事件；Handler 不得发布未注册事件，也不得从 Domain 事件列表反推公开事件。若将来需要该事件，必须作为独立 additive 契约提案批准，并同步 Registry、兼容元数据、reference 声明、Catalog 计数与正负 fixture。
+
+### 18.11 稳定错误码与安全外观
+
+| 错误码 | 触发条件 | 安全外观 |
+|---|---|---|
+| `EXECUTION_WORK_ORDER_REF_INVALID`（**本切片新增**） | §18.2 的 WorkOrder 拼写、读取版本、kind、id 或 Scope 闭合失败 | 不区分“拼写错误”“版本不符”“Scope 不符”“不可见”；不返回其他 Scope 的对象存在性 |
+| `EXECUTION_WORK_ORDER_ALREADY_EXISTS`（**本切片新增**） | 同一 Project Scope 内 CREATE identity 已被占用 | 不覆盖既有事实，不返回他人结果 |
+| `EXECUTION_TASK_REF_INVALID` | 绑定 Task 的拼写/kind/id/Scope 闭合失败（R-210-2，沿用 #208 语义） | 同 #208，不区分内部原因 |
+| `EXECUTION_DEFINITION_REF_INVALID` | 绑定 Task 的创建事实缺失、不可读或与拼写判定不一致（沿用 §17.9） | 拒绝，不猜测形状 |
+| `EXECUTION_TASK_NOT_EXECUTABLE` | 绑定 Task 的 status 不在允许集合（复用 §6） | 不写 Root 与快照，不泄露原因细分 |
+| `EXECUTION_WORK_ORDER_SCOPE_INVALID` | `targetScope`、目标引用或能力引用的 Scope 不闭合或跨租户（复用 §6） | 统一拒绝 |
+| `HUMAN_ONLY_CAPABILITY` | 非 Human principal 声明 Human-only capability（共享码） | 不签发 Grant、不创建事实 |
+| `API_VALUE_INVALID` / `AGGREGATE_STATE_NOT_ALLOWED` / `REFERENCE_INVALID` | 创建期限已过；读取非 DRAFT Root；Root↔快照或指针↔payload 不一致（共享码，§11.2.4） | 沿用既有语义 |
+| `IDEMPOTENCY_PAYLOAD_CONFLICT` / `CONCURRENCY_CONFLICT` / `NOT_FOUND` / `DEPENDENCY_UNAVAILABLE` / 共享授权码 | 同键异输入；目标已被占用；同 Scope 不可见；owning 依赖不可用；Decision/Actor/Scope/期限失败 | 沿用既有语义；内部分类只进安全 Audit |
+
+本切片只新增 `EXECUTION_WORK_ORDER_REF_INVALID` 与 `EXECUTION_WORK_ORDER_ALREADY_EXISTS` 两个模块稳定码，随实现注册；其余表项全部复用已发布码。
+
+### 18.12 增量分类（本 revision 要求的契约与元数据增量）
+
+| 已注册产物 | 需要的改动 | 分类与理由 |
+|---|---|---|
+| `create_work_order@1.0`（200 项 Baseline 成员） | **无**（payload、Schema、metadata 逐字节不变） | 身份语义由 owning Handler 与 §18.2 规则闭合，不重写已发布接受集 |
+| `create_work_order@1.1` | **无** | 同上；其 `/targetRef` 声明与 #200 binding 一致 |
+| `get_work_order_draft@1.0` | **无**（保留不改，且本切片不实现 Handler；见 §18.2） | 改写其 `const` 属于改变已发布接受集（共享 API §9.1 第 3 条、Catalog §9.2 第 5/6 行），必须走新 Major 或新操作 |
+| `get_work_order_draft@1.1` | **无** | 它已是 @1.1 创建 Major 的忠实读取（canonical 拼写 + `InitialWorkOrderDraft`） |
+| `get_work_order_draft@2.0` | **新增 operation 版本** | 唯一能同时满足 `create_work_order@1.0` 的 legacy 拼写与 `WorkOrderDraft` 形状的读取；additive，Catalog 214 → 215 |
+| `$defs.workOrderDraftSnapshot` / `initialWorkOrderDraftSnapshot` | 拼写固定改为创建 Major 派生（`taskRef` 通用化） | 无注册 operation 引用这两个 def，也不在 Baseline；不改变任何已注册接受集、计数或 metadata |
+| `operation-compatibility-metadata.v1.json` | +1 条目（@2.0，Purpose 复用 `execution.work_order.draft.read`） | additive；manual-review fingerprint 只对新条目生成 |
+| `public-api.v1.json` 与生成物、`operation-registration.ts` | +1 条目与断言扩展 | additive |
+| 历史 200 项 Compatibility Baseline | **不变** | `check-compatibility.mts` 的 `operationCount=200`、`envelopeDocuments=200` 与逐条比较继续通过；新版本按 `COMPATIBLE_MINOR operation-added-as-minor` 归类 |
+| IdentityPolicy | 新增一个内部读取授权 Port 条目（[Spec 001 §15.6](Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210)） | 不新增公开 Command/Query、不新增 capability code、不改 `authorize_command@1.0`、不新增迁移 |
+| TaskExecution migration | 未来 forward-only `V3003`（编号在实现 Issue 分配） | 不改 `V3000`/`V3001`/`V3002` |
+
+### 18.13 验收矩阵与未运行边界
+
+- 设计/静态分量（身份派生、读取版本绑定、Task 跨 Major 绑定、生命周期集合、Actor 与 requester 规则、校验分工、持久化与幂等边界、增量分类）由 `TE-P210-D-*` 对账；可执行分量由 `TE-P210-001`–`023` 定义，全部为未来执行输入，见 [Module-Test-003](../module-tests/Module-Test-003-TaskExecution.md#workorder-draft-创建与精确-draft-读取210-设计)。
+- 本 revision **不改**代码、契约、Registry、生成物、migration 或 fixture：Catalog/Registry 保持 **214**、TaskExecution 保持 **44**、历史 Baseline 保持 **200**、v1 冻结 fixture 与两个 `create_task` Major 及全部既有 WorkOrder 契约条目逐字节不变；本节新增的 operation、错误码与 migration 均**未注册、未实现、未分配编号**。
+- 未运行边界：WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` 持久化、读取 Handler 与组成层、IdentityPolicy 读取授权条目、真实 PostgreSQL、RLS/ACL、直 SQL 篡改、回滚、并发、重放与权威读取全部 `NOT RUN`；首次 Context、WorkOrder 校验/冻结、Run/Attempt/Result、InformationRequest、Completion、Query/Projection（TD-05–07）、受控退出 Fixture、外部 Provider/Runtime/飞书与人工业务验收同样 `NOT RUN`。
+- 依赖的既有证据（#200 授权 Port、#204 Task 创建、#208 readiness）只证明各自切片，不证明本节的创建、读取或跨模块业务链已可运行。
+- 实现前置门禁：**独立设计审查**与**明确的人类设计批准**（Issue #210 要求）完成后，Planner 才可对 WorkOrder DRAFT 创建与精确读取执行新的 `NOW + READY` 复核并发布实现 Issue；WorkOrder、首次 Context、Validation/Freeze 与 IM-06 均**不**因本节完成。
