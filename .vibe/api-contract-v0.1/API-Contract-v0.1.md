@@ -453,6 +453,17 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 
 `create_work_order@1.1`、`get_work_order_draft@1.1` 与 `build_initial_context_snapshot@1.1` 与旧 @1.0 操作并存。@1.1 DRAFT 使用 `InitialWorkOrderDraft` 和不含 `projectContextContractRef` 的 `DraftVersionPins`；该完整 Context Ref 只在 CTX-1 成功提交后进入 Frozen WorkOrder Contract。候选顶层 `contextSnapshotRef` 与嵌套 `versionPins.projectContextContractRef` 必须逐字段相等，比较 canonical object type、objectId、snapshotId、Scope 以及 contentHash 全部字段。Schema、Registry、生成类型、fixture 与纯契约跨字段校验已同步；Handler、migration、真实 PostgreSQL 业务链和运行验收保持 `NOT RUN`。
 
+### #210 WorkOrder DRAFT 创建与精确读取的增量分类
+
+状态：`DESIGN PROPOSED（Issue #210 2026-09-17）/ NOT REGISTERED / NOT IMPLEMENTED`。字段级权威见 [Spec 003 §18](../module-specs/Module-Spec-003-TaskExecution.md#18-workorder-draft-创建与精确-draft-读取边界210-设计)，依据与被否方案见 [决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)。
+
+- **已发布操作零改动**：`execution.create_work_order@1.0`/`@1.1` 与 `execution.get_work_order_draft@1.0`/`@1.1` 的注册 Envelope、Payload/Result Schema、Catalog 条目与兼容元数据逐字节不变。把 `get_work_order_draft@1.0` 的 `const zhiju.execution.work_order` 放宽为另一种拼写属于“改变已发布接受集”的 closed 值集合变更（§9.1 第 3 条；Catalog §9.2 第 5/6 行），因此不采用；该版本保留但本切片不实现 Handler（其固定接受集无法表示 `@1.0` 创建 Major 的对象）。
+- **新增读取版本**：`execution.get_work_order_draft@2.0`（`QUERY`/AUTHORITATIVE，Purpose 复用 `execution.work_order.draft.read`），唯一服务 `create_work_order@1.0` 创建的 legacy 拼写 WorkOrder；Catalog/Registry 在实现时由 214 增至 215，历史 200 项 Compatibility Baseline 不变（`COMPATIBLE_MINOR operation-added-as-minor`）。`/payload/workOrderRef` 有意不声明，接受集由 owning Handler 按不可变创建事实闭合（与 `/payload/taskRef` 同理）。
+- **Snapshot 声明形状**：`$defs.workOrderDraftSnapshot`/`initialWorkOrderDraftSnapshot` 的 `workOrderRef` 固定改为创建 Major 派生、`taskRef` 通用化。两个 def 无任何注册 operation 引用调用点、也不在历史 Baseline 中，因此不改变任何已发布接受集、计数或元数据。
+- **授权面无公开增量**：非 `1.0` 版本的读取授权由 IdentityPolicy owning 内部 Port 条目承载（[Spec 001 §15.6](../module-specs/Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210)），不新增公开 Command/Query、不新增 capability code、不改 `authorize_command@1.0` 的接受集。
+- **分类面无公开增量**：DRAFT 声明的 capability code 的 Human-only 判定走 IdentityPolicy owning 内部只读分类边界（[Spec 001 §15.7](../module-specs/Module-Spec-001-IdentityPolicy.md#157-im06-wodraft-02-workorder-draft-声明能力的-human-only-分类边界210)），不新增公开 Query/objectType，也不改写 `identity.check_human_only_capability@1.0` 的既有语义（它是 Grant 覆盖判定，不是分类器）；TaskExecution 对外仍使用既有共享码 `HUMAN_ONLY_CAPABILITY`（§8 共享错误码列表），不新增 capability code；该边界返回可归因的 `{outcome, classificationRegistryVersion}`，TaskExecution 据此记录自己的 Audit，不硬编码也不跨边界读取 owning 模块常量。本项只新增两个 TaskExecution 模块稳定码（`EXECUTION_WORK_ORDER_REF_INVALID`、`EXECUTION_WORK_ORDER_ALREADY_EXISTS`），随实现注册。
+- **不新增 PayloadGuard Policy**：payload/result 是有界小对象，适用 PostgreSQL §5.5 的默认 Guard（同 #158/#167/#175/#192/#208）。本项不代表 Handler、持久化、真实授权或运行验收已完成，保持 `NOT RUN`。
+
 ### #166 Builder Policy ref 绑定
 
 本次不新增公开 operation、Purpose、Catalog 数量或 migration。`execution.build_initial_context_snapshot@1.0` 的 `builderPolicyRef` 继续由 Schema 精确限定为 `zhiju.identity.policy`；候选生成的 ProjectContext projection 与冻结 WorkOrder VersionPins 必须复制同一 `VersionedRef`。通用 `VersionedRef` 仍不携带 `contentHash`，避免改变既有 @1.0 Typed Reference 家族；TaskExecution 的 Context Builder Policy metadata 另存 IdentityPolicy exact snapshot 的 `contentHash/effectiveFrom/supersededAt`，并在 candidate assembly、Validator、Freeze 逐次重验。

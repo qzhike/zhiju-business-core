@@ -638,3 +638,41 @@ Purpose 必须来自已交付的精确解析器，不接受 caller 覆盖。capa
 3. **Grant selector**：生产者是 CREATE，`resourceSelectors` 使用 `{selectorType: "CREATE_TARGET_TYPE", objectType}`，至少一项必须与该操作固定的 CREATE target objectType 全等（沿用 §15.2 第 3 条）；消费者是 MUTATE，使用 `{selectorType: "TARGET_TYPE", objectType}`（新增 selector 类型），至少一项必须与请求声明的 target objectType 全等。用错 selector 类型、通配符、大小写变体、前缀或别名一律不匹配。其余覆盖规则（ACTIVE、`[validFrom, validTo)`、actions 含精确 token、constraints 为空、Grant Policy Snapshot 与 Decision 一致且当前有效、多 Grant 不得分段拼接）沿用 §15.2。
 4. **消费者两个可接受拼写不是别名**：`execution.task` 与 `zhiju.execution.task` 是两个已发布创建路径各自的唯一身份（Spec 003 §16.1）。本 Port 的消费者行只声明“该动作可以作用于这两个已发布 Task 身份”，不决定哪一个对某个 Task 正确：请求声明的 objectType 必须与 covering Grant 的 `TARGET_TYPE` selector 逐字符相等，且必须由 owning TaskExecution Handler 按 Task 的不可变创建事实判定为唯一正确拼写（Spec 003 §17.3 的 R-206-1）。因此调用者无法通过声明另一拼写取得业务成功，也无法用另一 target 的 Grant 提权。这与 §15.2 对创建路径“期望拼写由 Port 内部按 `(type@version)` 取值”的区别在于：CREATE 的目标身份由操作版本自身决定，MUTATE 的目标是既有对象，其身份由该对象自己的创建事实决定，IdentityPolicy 依边界不读 TaskExecution 事实。
 5. **范围与兼容**：不新增公开 Command/Query/Event，不改 `authorize_command@1.0` 的接受集，不改 `execution.build_task_readiness@1.0` 与 `mark_task_ready@1.0` 的注册 Envelope/Schema/Purpose/metadata，不改历史 Decision 内容或 Hash，不新建业务 Policy。物理表沿用 V1006 已增加的 target 列（生产者的 target 是被创建的 readiness identity，消费者的是既有 Task），**不需要**新的 IdentityPolicy 迁移；两个 entry 的 capabilityCode/action 由受信组成配置持有，不从 Envelope 读取。
+
+### 15.6 IM06-WODRAFT-01 WorkOrder DRAFT 读取授权组成提案（#210）
+
+状态：`T2 / DESIGN PROPOSED（Issue #210）/ NOT REGISTERED / NOT IMPLEMENTED / TE-P210-021 NOT RUN`。本节回应 [Issue #210](https://github.com/qzhike/zhiju-business-core/issues/210) 的“权威 draft-read”要求：`execution.get_work_order_draft@1.0`/`@1.1` 已注册并携带 Purpose `execution.work_order.draft.read`，但 §15.4 的既有内部 Port 只覆盖 Task/WorkOrder **创建**，而 `identity.authorize_command@1.0` 的签发路径硬性拒绝非 `1.0` 的 `commandVersion`（`modules/identity-policy/src/commands/actor-snapshot.ts` 的 `command intent version must be 1.0`）。因此 @1.1 与 [Spec 003 §18.8](Module-Spec-003-TaskExecution.md#188-精确-draft-读取与授权组成) 新增设计的 `@2.0` 读取当前**不存在可路由、可签发、可重验的授权路径**。本节只固定补齐该路径的最小 Delta；字段级读取语义与接受集归 [Spec 003 §18](../module-specs/Module-Spec-003-TaskExecution.md#18-workorder-draft-创建与精确-draft-读取边界210-设计)。本节不注册任何条目、不新增 capability code、不改 `authorize_command@1.0` 的接受集、不新增迁移。
+
+| operation/version | Purpose | Grant action | selector 类型与 target 闭集 | 受信 capability config key |
+|---|---|---|---|---|
+| `execution.get_work_order_draft@1.1` | `execution.work_order.draft.read` | `execution.work_order.draft.read.v1_1` | `TARGET_TYPE` / {`zhiju.execution.work_order`} | `workOrderDraftReadV11` |
+| `execution.get_work_order_draft@2.0`（Spec 003 §18.8 新增设计） | `execution.work_order.draft.read` | `execution.work_order.draft.read.v2` | `TARGET_TYPE` / {`execution.work_order`} | `workOrderDraftReadV2` |
+
+1. **Port 形态复用**：与 §15.3/§15.5 同形——“签发精确 Decision”与“读取前重验当前资格”两个能力，由 TaskExecution 组成层在返回任何读取事实或历史结果**之前**调用。它不是公开 Command/Query、不进 Catalog；TaskExecution 不直读本模块 Repository。
+2. **两条条目互相独立**：Purpose 共用 `execution.work_order.draft.read`，但 Grant action、selector target 闭集与 capability config key 各自独立；**同 Purpose 不表示 Decision 可以跨版本使用**（沿用 §15.1 对两个 `create_work_order` 版本的处理）。用某一版本的 Decision、Grant 或受信配置结果去满足另一版本一律 fail closed。
+3. **target 闭集就是业务唯一拼写**：每版本的闭集只有一个值（[Spec 003 §18.2](Module-Spec-003-TaskExecution.md#182-r-210-1-workorder-寻址与读取版本绑定) 的版本-拼写绑定），请求声明的 target objectType 必须与 covering Grant 的 `TARGET_TYPE` selector 逐字符相等；因此这里不存在“先接受两种拼写、再由 Handler 决定”的分层，另一拼写在授权层即不能取得 Decision。
+4. **重验内容**：比较精确 Decision id 与 hash、Actor/实际 principal、认证上下文、type/version/Purpose、payload Hash、精确 target 与 Project Scope、ALLOW 与未过期，并以当次受信时间重读完整 covering Grant/Policy；撤销、到期、Policy 取代、配置漂移、target 或版本替换、依赖不可用一律 fail closed；读取不得凭缓存或历史结果跳过该步。拒绝路径只写同事务脱敏 `DENIED` Audit，不签发 Decision。
+5. **范围与兼容**：不新增公开 Command/Query/Event，不改任何既有注册 Schema/Purpose/metadata，不改 `authorize_command@1.0` 的接受集，不创建 capability code，不新增 IdentityPolicy 迁移（复用 V1006 的既有 target 列）。`execution.get_work_order_draft@1.0` 保留既有通用路径，其接受集与 Handler 状态见 Spec 003 §18.2。
+6. **同类缺口**：`execution.build_initial_context_snapshot@1.1` 读取/构建所需的非 `1.0` 授权路径由 TD-01 的 Context 切片拥有，本节不顺带关闭；`execution.create_work_order@1.0`/`@1.1` 的创建授权已由 §14 交付，本节不重复。
+
+### 15.7 IM06-WODRAFT-02 WorkOrder DRAFT 声明能力的 Human-only 分类边界（#210）
+
+状态：`T2 / DESIGN PROPOSED（Issue #210）/ NOT REGISTERED / NOT IMPLEMENTED / TE-P210-010 / TE-P210-020 NOT RUN`。本节补齐 [Spec 003 §18.5](Module-Spec-003-TaskExecution.md#185-actorrequester-与-human-only-归属) 的 Human-only 归属：TaskExecution 必须判定 `WorkOrderDraft.allowedCapabilities[]`/`deniedCapabilities[]` 声明的 capability code 是否属于 Human-only 集合，但**不能**读取 IdentityPolicy 的模块内部集合，也不能用 `identity.check_human_only_capability@1.0` 代替分类。
+
+**为什么不用既有公开 Query 代替。** `identity.check_human_only_capability@1.0` 的 Handler（`checkHumanOnlyCapability` → `evaluateAccess`）最终调用 `authorizeCommand(requestedCapability = capabilityCode)`：它回答的是“该 principal 在该 Scope 是否**持有**该 capability 的覆盖 Grant”，对非 HUMAN principal 再叠加 `CAPABILITY_HUMAN_ONLY` 原因（`modules/identity-policy/src/commands/actor-snapshot.ts`）。DRAFT 声明的 capability code 是将来 Run 的执行集合，起草者通常并不持有对应 Grant，因此该 Query 的 DENY 无法区分“未持有 Grant”与“Human-only”，把它当分类器会错误拒绝合法草案。
+
+**决定（方案 A）**：新增 IdentityPolicy owning 内部只读 Port `TaskExecutionCreationCapabilityBoundaryPort`，与 `TaskExecutionCreationProjectScopePort` 同构——不是公开 Command/Query、不进 Catalog、不改变任何公开接受集、不新增 capability code。
+
+| 项 | 固定值 |
+|---|---|
+| 输入 | `(commandType, commandVersion, principalRef, declaredCapabilityTypes, scopeRef, actionAt)`（`commandType`/`commandVersion` 参与键表选择；`principalRef` 必须是认证 principal，不接受 payload 自报；`scopeRef` 必须是受信 Project Scope；`actionAt` 为受信当前时间） |
+| 检查单元 | **恰好是**声明的 capability code：Core §4.7 `CapabilityGrant.capabilityType`。`actions[]`、`resourceSelectors[]`、`constraints[]`、`expiresAt`、`grantPolicyRef` **不参与** Human-only 分类，也不被本 Port 用作覆盖判定；`capabilityType` 逐项去重后按 canonical 字节序稳定处理 |
+| 分类集合 | IdentityPolicy 自己的版本化静态集合 `HUMAN_ONLY_CAPABILITIES`（registry version `im02-static-v1`，`modules/identity-policy/src/commands/static-registry.ts`）；分类按**精确字符串**成员判断，大小写敏感、无规范化、无前缀/别名 |
+| 外部结果 | `{outcome: 'VALID' / 'INVALID', classificationRegistryVersion: <string>}`：`outcome` 是闭集；`classificationRegistryVersion` 是本次判定**实际使用**的分类集合版本（当前为 `im02-static-v1`），由 owning 侧返回，使调用方可直接归因而无需硬编码或读取 owning 模块常量。`INVALID` 的内部分类（`CAPABILITY_HUMAN_ONLY` 等）与集合内容只写入 IdentityPolicy 受权限控制的 Audit，不随返回值泄露 |
+| 语义 | principal 为 HUMAN 时返回 `VALID`（该 Port 不判断 Grant、不签发 Capability、不评估行动级别的可用性）；principal 非 HUMAN 且任一声明 `capabilityType` 属于 Human-only 集合时返回 `INVALID` |
+| 授权与事务 | Port 是只读调用，在 IdentityPolicy 自己的 RLS 事务内执行；TaskExecution 不因此获得 IdentityPolicy 表权限；Port 不可用或超时不得被解释为空结果，调用方 fail closed 并映射共享 `DEPENDENCY_UNAVAILABLE` |
+| 版本与兼容 | 不新增公开 Command/Query/Event、不改任何既有注册 Schema/Purpose/metadata、不改 `authorize_command@1.0`、不新增 IdentityPolicy 迁移；分类集合版本变化是 Policy/版本事件：IdentityPolicy 以自己的 Audit 记录返回值中的 `classificationRegistryVersion`，TaskExecution 原样记录**同一个**返回值（不进入不可变 DRAFT payload，因为已注册的 Snapshot 形状不含该字段），从而两侧归因都不需要硬编码或跨边界读取 owning 常量 |
+
+TaskExecution 把 `INVALID` 收敛为公开共享码 `HUMAN_ONLY_CAPABILITY`（[共享 API §8](../api-contract-v0.1/API-Contract-v0.1.md) 的共享错误码列表；Domain §19.10 的 `WO-U-002` 同码），并把 Port 返回的 `{outcome, classificationRegistryVersion}` 原样记入自己的 Audit，使通过与拒绝都可归因到确切的分类集合版本；版本事实不进入不可变 DRAFT payload（已注册的 Snapshot 形状不含该字段），也不从 owning 模块常量读取。`IDENTITY_CAPABILITY_HUMAN_ONLY` 是 `identity.grant_capability` 的模块码，`CAPABILITY_HUMAN_ONLY` 是 IdentityPolicy 的 Decision/Audit reason——两者都不是本操作的公开错误码，也不得被复制成 TaskExecution 的模块码。
+
+本节的 Handler、授权接线与运行验收仍为 `NOT RUN`；Port 的字段映射只在实现时随对应实现 Issue 落地。

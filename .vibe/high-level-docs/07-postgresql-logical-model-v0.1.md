@@ -1648,6 +1648,13 @@ Project，空数组不能利用 SQL `CHECK UNKNOWN` 绕过。
 AuthorizationDecision 的业务真实性、Scope/Purpose/Intent 与持久化事实比对仍由 WI-09 的
 IdentityPolicy Decision Port 负责，在其落地前保持 `NOT RUN`。
 
+#210 的范围升级进一步固定一个**向后兼容的未来增量**：`tx_context` 增加可空的
+`principal_kind`，保留既有 10 参数 establish 入口作为 kind=NULL 的 legacy 路径，并新增要求
+闭集 PrincipalKind 的 11 参数重载与 `context_principal_kind()` 只读 helper。需要数据库证明完整
+`PrincipalRef` 的新写入（首个消费者为 WorkOrder DRAFT）必须使用新入口并对 helper 的 NULL
+fail closed；既有调用方不被隐式赋予 kind，也不因本设计被强制一次性迁移。精确签名、权限、
+混用冲突和验证场景由 [RLS 事务上下文决定 §3.5](../decisions/rls-transaction-context.md#35-210-principalkind-的向后兼容增量设计提案) 拥有。该增量尚未实现，V0003 当前事实不变。
+
 ### 19.3 RLS 基本策略
 
 - Enterprise-owned Row：`enterprise_id = current authorized enterprise`；
@@ -2130,7 +2137,7 @@ Completion Fact 的 payload 和 promoted Scope mirror 必须由 Application 计�
 
 ## 33. IM-06 持久化技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / #165 CONTRACT STORAGE BOUNDARY SYNCED 2026-09-11 / #168 INITIAL CONTEXT EXPIRY BOUNDARY SYNCED 2026-09-12 / #176 POLICY VERSION BINDING STORAGE APPROVED 2026-09-12 DESIGN VERIFIED / ENTERPRISE_PROJECT context_source_slice IMPLEMENTED (#188, V2014) / ENTERPRISE_PROJECT resolution_receipt_material IMPLEMENTED (#191, V2015) / #202 TASK DRAFT CREATION FACT BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) / #206 TASK READINESS JUDGMENT AND READY TRANSITION STORAGE BOUNDARY DESIGN MERGED 2026-09-16 (PR #207) AND IMPLEMENTED AND MERGED BY #208 (V3002, PR #209, merge commit 0dc1bcef9a9f1e21219a015ac0f8b5d6768fe250) / OTHER TASK_EXECUTION TABLES NO MIGRATION IMPLEMENTED`。本节为 #152–#154、TD-01–04 的持久化设计，保留 §11/§17–19 的 ownership与单 Aggregate规则。#151只使用现有 V3000，不包含本节新表；后续须独立 forward migration，不能改已应用的 V3000/V2007/V7001。迁移编号在实际分支执行时分配；#191 已按实际交付分配 `V2015`（不重编号、不改已应用迁移）。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / #165 CONTRACT STORAGE BOUNDARY SYNCED 2026-09-11 / #168 INITIAL CONTEXT EXPIRY BOUNDARY SYNCED 2026-09-12 / #176 POLICY VERSION BINDING STORAGE APPROVED 2026-09-12 DESIGN VERIFIED / ENTERPRISE_PROJECT context_source_slice IMPLEMENTED (#188, V2014) / ENTERPRISE_PROJECT resolution_receipt_material IMPLEMENTED (#191, V2015) / #202 TASK DRAFT CREATION FACT BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) / #206 TASK READINESS JUDGMENT AND READY TRANSITION STORAGE BOUNDARY DESIGN MERGED 2026-09-16 (PR #207) AND IMPLEMENTED AND MERGED BY #208 (V3002, PR #209, merge commit 0dc1bcef9a9f1e21219a015ac0f8b5d6768fe250) / OTHER TASK_EXECUTION TABLES NO MIGRATION IMPLEMENTED`。本节为 #152–#154、TD-01–04 的持久化设计，保留 §11/§17–19 的 ownership与单 Aggregate规则。#151只使用现有 V3000，不包含本节新表；后续须独立 forward migration，不能改已应用的 V3000/V2007/V7001。迁移编号在实际分支执行时分配；#191 已按实际交付分配 `V2015`（不重编号、不改已应用迁移）。#210 的 WorkOrder DRAFT 创建与精确 Draft 读取存储边界（`work_order` 与不可变 `work_order_draft_snapshot` 的列、身份/拼写镜像、双 guard、RLS/ACL、无 Outbox）已作为设计提案加入本节：状态 `DESIGN PROPOSED 2026-09-17 / NOT IMPLEMENTED / NO MIGRATION ALLOCATED`，不修改 `V3000`/`V3001`/`V3002`。
 
 #191 的 `resolution_receipt_material` 只保存 EnterpriseProject 自己以不可变记录持有的确认事实（命令身份、Scope/target、request hash、candidate/confirmed version、source selections、confirmation BusinessDecision、Human actor、commit 时刻），ActorSnapshot/AuthorizationDecision 只保存并返回精确身份；因此历史 confirmation 的规范 payload 与 Hash 可由 COMMITTED `command_receipt`、其创建的 CONFIRMED `customer_material_version` 与对应 CONFIRMED `customer_material_decision` 精确重算，材料不足的历史不 backfill 并保持不可用。
 
@@ -2200,6 +2207,21 @@ Freeze 锁 Root 并核验 Root/Snapshot/candidate 期限完全一致且未到期
 
 迁移验证需覆盖空库、含历史 Decision 的升级、二次 no-op、新事实的 target/payload/Scope 镜像、所有者直 SQL 篡改及回滚。迁移编号已由 #200 在实现分支分配为 `V1006__identity_policy_creation_decision_target.sql`：新增可空 `target_object_type text` / `target_object_id uuid`、`authorization_decision_target_pair` 成对约束，并以 `CREATE OR REPLACE` 更新镜像 guard，使 canonical payload 的 `targetRef`（objectType/objectId 与 Decision 自身 Project Scope）与提升列强一致。空库迁移、含历史行的 `V1005 → V1006` 升级、二次 no-op、owner 直写 SQL 篡改与事务回滚已在真实 PostgreSQL 覆盖。
 
+
+`#210 设计（T2 / DESIGN PROPOSED / NO MIGRATION ALLOCATED）` 为上表 `work_order` 与 `work_order_draft_snapshot` 两行固定 WorkOrder DRAFT 创建与精确读取的物理边界。字段级权威见 [Spec 003 §18](../module-specs/Module-Spec-003-TaskExecution.md#18-workorder-draft-创建与精确-draft-读取边界210-设计)，结论见[决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)。
+
+`task_execution.work_order`（Aggregate Root，未分配 migration）：
+
+- 列：`work_order_id`（= 已校验 CREATE `targetRef.objectId`，主键）、`enterprise_id`/`project_id`（Project Scope 镜像）、`work_order_object_type`（该 WorkOrder 唯一被接受的公开拼写，由创建 `command_version` 派生）、`task_id` + `task_object_type`（绑定 Task 的 identity 与创建 Major 拼写镜像）、`status`/`aggregate_version`（创建为 `DRAFT`/`1`）、`current_draft_snapshot_id` + `current_draft_snapshot_hash`（组合指针）、`draft_schema_version`（`1.0` = `WorkOrderDraft`、`1.1` = `InitialWorkOrderDraft`）、可空 `expires_at`、`created_at`、`created_by_principal_id`、`requested_by_principal_id`。
+- 约束：Scope、身份与拼写列创建后不可变；指针变化必须是 `aggregate_version` 前进的 CAS 转换（本切片不实现）；`expires_at` 的 NULL 只对应 canonical payload 字段缺省，禁止用 JSON null 冒充，存在性与值进入完整 payload Hash。
+
+`task_execution.work_order_draft_snapshot`（不可变事实，未分配 migration）：
+
+- 列：`snapshot_id`（应用生成的 UuidV7，独立于 `aggregate_version`）、`work_order_id`、`draft_schema_version`、`canonical_payload`（`WorkOrderDraftSnapshot` 规范 JSON：`snapshotId`、`workOrderRef`、`taskRef`、`scopeRef`、`draft`、可空 `expiresAt`、`capturedAt`、`createdBy`）、提升镜像（`work_order_object_type`、`task_object_type`、Scope、`expires_at`、`payload_hash` 与 `canonicalization_version`）、`request_payload_hash`、`source_command_id`。
+- 双 guard：`SECURITY DEFINER` 的 mirror guard 由 `canonical_payload` 重算 Scope/拼写/期限镜像与 `payload_hash`（复用 `V3001` 的 owner-only `task_execution.canonical_jsonb_text`，app 角色不可执行）；`SECURITY INVOKER` 的 creation-identity guard 要求 `source_command_id` 指向仍在途（`PENDING`）的 `execution.create_work_order` Receipt，其 `command_version` = `draft_schema_version`、target type/id 与 Project Scope = 本 WorkOrder、`request_payload_hash` 只能由 `canonical_payload` 的**创建请求投影**重建并与该 Receipt 的 `request_payload_hash` 相等（投影只含 `draft` 与可选 `expiresAt` 两个成员，成员存在性与值原样取自 payload，经 canonicalization v1 与 `sha256`；同名列本身不是证据），并强制 payload 内 `workOrderRef.objectType` 与 `work_order_object_type`、被绑定 Task 的创建事实与 `task_object_type` 逐项一致（与 §16.9 的 `V3001` guard 同法；差异在于快照 payload 是请求的超集，必须重建投影而不能只比较同名列），同时把 Task 身份闭合为**同一事实**：`canonical_payload->'draft'->'taskRef'`、`canonical_payload->'taskRef'`、Root 的 `task_id`/`task_object_type`/`enterprise_id`/`project_id` 与被查验 `task` 行（含其创建定义快照 `schema_version` 派生的拼写）在 `kind`/`objectType`/`objectId`/Project Scope 上全等；guard 在同一事务内读取 Root 行，因此“保留原 draft、只改顶层 header 与 Root 镜像指向另一 Task”不能被接受；同时（或由 Root 侧 guard）把归属闭合到**受信 Context 的完整 PrincipalRef**：两份 payload 的 `principalId`/`principalKind` 分别等于 `platform_security.context_principal_id()`/`context_principal_kind()`，Root 的 `created_by_principal_id`/`requested_by_principal_id` 与来源 Receipt 的 `created_by_principal_id` 等于 Context principal id，Receipt/Root Scope 等于本 WorkOrder 的 Project Scope，两表 INSERT policy 的 `WITH CHECK` 复用 id 等式。Receipt 的 creator 列**不是**受信锚；Context kind helper 为 NULL（含旧 10 参数入口）或任一 id/kind 不等均拒绝。TaskExecution WorkOrder 路径必须使用 RLS 决定 §3.5 的 11 参数 establish 重载。
+- 不可变与权限：app 角色无快照 `UPDATE`/`DELETE`、Root 无 `DELETE`；组合指针 FK 只指向同一 WorkOrder 的快照行且必须同时绑定 id 与 hash。两表都显式保存 `enterprise_id`/`project_id`、`FORCE RLS` + `context_allows_project`，且 INSERT policy 的 `WITH CHECK` 必须额外要求 `created_by_principal_id`/`requested_by_principal_id = platform_security.context_principal_id()`（沿用 EnterpriseProject `V2001`/`V2003` 的既有写法；TE 既有 `V3001`/`V3002` 策略目前只检查 Scope，本表不回填历史行）；无跨 Schema FK/Join。payload PrincipalKind 的数据库闭合由新 helper + creation guard 承担，不复制 IdentityPolicy 表或跨 Schema 查询。
+- 写入**不写** `outbox_event`（无已注册的 WorkOrder 草案事件）；幂等沿用 §7.1 的 `(idempotency_scope, idempotency_key)` 唯一约束与 request hash 判定，并在返回历史 Receipt 前比较持久化的 `command_type`/`command_version` 与 target 镜像（两个创建 Major 共用 Purpose，不能只靠 request hash 区分）。
+- 本项不修改已应用的 `V3000`/`V3001`/`V3002`；编号由实现 Issue 以 forward-only migration 分配。读取两表的唯一公开路径是 `execution.get_work_order_draft@1.1`/`@2.0` 的 exact identity 读取；DRAFT 读取不赋予任何执行资格，已过期的 DRAFT 仍按当前读取授权返回历史事实。
 
 ## 34. IM-06 TD-05 Task Board 存储提案
 

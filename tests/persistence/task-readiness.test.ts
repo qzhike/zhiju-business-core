@@ -3430,7 +3430,10 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     ).rows[0];
     expect(boundaryReceipt?.outcome).toBe('REJECTED');
     expect(record(boundaryReceipt?.result_payload).errorCode).toBe(EXECUTION_JUDGMENT_STALE);
-  });
+    // TE-P206-012 is a composite scenario (several owning commands and DRAFTs
+    // against real PostgreSQL); its runtime sits right at the 5 s default on
+    // slower CI runners, so it carries its own budget.
+  }, 30_000);
 
   // -------------------------------------------------------------------------
   // TE-P206-013 — authorization separation

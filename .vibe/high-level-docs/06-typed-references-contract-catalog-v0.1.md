@@ -1268,3 +1268,14 @@ Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 
 `execution.mark_task_ready@1.0` **零改动**：本项不改它的注册 Schema（通用 `snapshotRef`）、Catalog 条目或 compat metadata Purpose（`task.execution.mark_task_ready`），也不新增 `targetObjectType`；接受集与授权由 owning Handler 与 Spec 001 §15.5 的内部 Port 闭合。生产者**不发布任何公开 Event**（本 Catalog 无 `TaskReadinessBuilt`），消费者恰好发布一条已注册的 `execution.TaskReady@1.0`。
 
 历史 200 项 Compatibility Baseline 不变（additive 追加）；#208 将本 Catalog 由 213 增至 214 项，v1/v2 冻结 fixture、两个 `create_task` Major 的接受集与全部既有 registry 元数据逐字节不变。
+
+### #210 WorkOrder DRAFT 创建与精确读取的寻址路由（设计，未注册）
+
+状态：`DESIGN PROPOSED（Issue #210）/ NOT REGISTERED / NOT IMPLEMENTED`，字段级权威见 [Spec 003 §18](../module-specs/Module-Spec-003-TaskExecution.md#18-workorder-draft-创建与精确-draft-读取边界210-设计)，依据与被否方案见 [决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)，读取授权组成见 [Spec 001 §15.6](../module-specs/Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210)。
+
+- **WorkOrder 寻址规则（R-210-1）**：WorkOrder 的公开拼写由不可变创建事实派生——由 `execution.create_work_order@1.0` 创建者为 `execution.work_order`，由 `@1.1` 创建者为 `zhiju.execution.work_order`。每个 WorkOrder 恰好一个被接受的拼写，且该拼写绑定唯一读取版本：`@1.1` 创建者由 `execution.get_work_order_draft@1.1` 读取，`@1.0` 创建者由本项新增设计的 `execution.get_work_order_draft@2.0` 读取。两个拼写不是别名：另一拼写在授权 Port 的 target 闭集与 owning Handler 的业务闭合两侧都不能取得业务成功，且不存在规范化、大小写回退或 latest 取值。
+- **Task 寻址规则**：WorkOrder 的 `taskRef` 拼写必须等于被绑定 Task 的创建事实拼写（R-206-1），不得由 WorkOrder 版本、Task 的 `aggregate_version` 或 objectId 推断；两个 WorkOrder 创建路径都接受两个 Task 创建路径。
+- **不新增 objectType**：`execution.work_order` 与 `execution.task` 都不是本 Catalog 的 objectType 键，本项不把 legacy 拼写注册为公开对象名；`get_work_order_draft@2.0` 的 `/payload/workOrderRef` **有意不声明**，接受集由 owning Handler 闭合（与 §17.4 对 `/payload/taskRef` 的处理同理）。DRAFT 声明能力的 Human-only 分类经 [Spec 001 §15.7](../module-specs/Module-Spec-001-IdentityPolicy.md#157-im06-wodraft-02-workorder-draft-声明能力的-human-only-分类边界210) 的 owning 内部只读边界，不新增公开 Query 或 objectType。
+- **发生层与稳定码**：创建 target 的错拼写在注册 Envelope（@1.1 的 `targetRef` `const` → `API_VALUE_INVALID`）或 `TaskExecutionCreationAuthorizationPort`（@1.0 → `IDENTITY_CREATION_TARGET_INVALID`）被拒；新增的 `EXECUTION_WORK_ORDER_REF_INVALID` 只属于读取路径，`EXECUTION_WORK_ORDER_ALREADY_EXISTS` 是同一 target 已存在/并发的唯一稳定码；Human-only 拒绝沿用共享码 `HUMAN_ONLY_CAPABILITY`，不新增 Catalog 条目。
+- **注册面增量（实现时才发生）**：新增 `execution.get_work_order_draft@2.0`，本 Catalog 由 214 增至 215；`execution.create_work_order@1.0`/`@1.1` 与 `execution.get_work_order_draft@1.0`/`@1.1` 的条目、注册 Schema 与 metadata 逐字节不变。`execution.get_work_order_draft@1.0` 的固定接受集（canonical 拼写 + `WorkOrderDraft` 结果形状）无法表示 `@1.0` 创建 Major 的对象，因此保留不改、本切片不实现其 Handler，也不改写为 legacy。`$defs.workOrderDraftSnapshot`/`initialWorkOrderDraftSnapshot` 的拼写固定改为创建 Major 派生、`taskRef` 通用化：这两个 def 无任何注册引用调用点且不在历史 Baseline 中，因此不改变任何已注册接受集、计数或 metadata。
+- 历史 200 项 Compatibility Baseline 不变（additive 追加）；本项不新增 PayloadGuard 技术 Policy，不新增错误码注册以外的任何公开名。
