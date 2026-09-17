@@ -5,7 +5,7 @@
 
 版本：v1.2
 日期：2026-09-17
-状态：`V0003 CURRENT AUTHORITATIVE IMPLEMENTED DESIGN / #210 PRINCIPAL-KIND ADDITIVE DELTA PROPOSED（SCOPE APPROVED 2026-09-17；INDEPENDENT REVIEW AND EXACT-REVISION HUMAN DESIGN APPROVAL PENDING）`
+状态：`V0003 CURRENT AUTHORITATIVE IMPLEMENTED DESIGN / #210 PRINCIPAL-KIND ADDITIVE DELTA APPROVED 2026-09-17（INDEPENDENT REVIEW COMPLETED ON 67e5df57；EXACT-REVISION HUMAN DESIGN APPROVAL RECORDED）/ NOT IMPLEMENTED`
 上游权威：[`07-postgresql-logical-model-v0.1.md` §19](../high-level-docs/07-postgresql-logical-model-v0.1.md)。本文固定 §19.2 遗留的"事务安全上下文具体机制"，是 RLS 物理机制与威胁模型的唯一权威；实现（`migrations/bootstrap/V0003__platform_rls_context.sql`）与测试（`tests/persistence/rls-context.test.ts`）必须与本文件一致。
 
 ## 1. 目标与不变量
@@ -140,7 +140,7 @@ ALTER TABLE <module>.<table> FORCE ROW LEVEL SECURITY;
 
 ### 3.5 #210 `principalKind` 的向后兼容增量（设计提案）
 
-Issue #210 的第 5 轮独立审查确认：Core `PrincipalRef` 由 `principalId + principalKind` 共同构成，但 V0003 只把 `principal_id` 保存为数据库可验证的事务事实；`context_kind()` 表达 `REQUEST` / `EVENT_CONSUMER`，不能代替 PrincipalKind。用户于 2026-09-17 明确批准把该缺口纳入 #210 scope；这项批准只解决范围门禁，以下 exact design 仍须由新的 PR revision 独立审查并取得明确的人类设计批准后方可实现。
+Issue #210 的第 5 轮独立审查确认：Core `PrincipalRef` 由 `principalId + principalKind` 共同构成，但 V0003 只把 `principal_id` 保存为数据库可验证的事务事实；`context_kind()` 表达 `REQUEST` / `EVENT_CONSUMER`，不能代替 PrincipalKind。用户于 2026-09-17 明确批准把该缺口纳入 #210 scope；第 6 轮随后在 revision `67e5df57db637953009ba21b2193114aec401ce6` 完成独立审查且未发现新的 agent-fixable 阻断，用户已对该 exact design 明确作出人类技术批准。该批准不表示以下未来 migration 或消费端已经实现。
 
 增量采用**向后兼容双入口**，不修改已应用的 `V0003`：
 

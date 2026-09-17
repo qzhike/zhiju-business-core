@@ -217,3 +217,48 @@ WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、�
 WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、读取 Handler/组成层、IdentityPolicy 读取/分类 Port、`TE-P210-001`–`023`、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、外部 Provider/Runtime/飞书与人工业务验收继续保持 `NOT RUN`。
 
 当前 revision 不应直接进入 Issue #210 的普通人类设计批准或依赖实现 Issue。应先由 Planner/架构 authority 处理 scope/classification：选择并批准 platform transaction-context 扩展，或明确修改 authoritative acceptance 以接受 application-only kind 证明及其不可变归属残余。完成该决定并形成新的闭合 exact revision 后，必须重新独立审查；安全敏感设计的人类技术批准随后仍然必需。本轮未修改设计正文或业务代码，也不授权 commit、push、merge 或 deploy。
+
+## 第 6 轮：`HUMAN_REVIEW_REQUIRED`
+
+- 结论：`HUMAN_REVIEW_REQUIRED`
+- Reviewed SHA：`67e5df57db637953009ba21b2193114aec401ce6`
+- Base SHA：`bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`
+- PR：[#211](https://github.com/qzhike/zhiju-business-core/pull/211)
+- Work item：[#210](https://github.com/qzhike/zhiju-business-core/issues/210)（T2 design；PrincipalKind platform scope 已由 Issue 评论明确批准）
+- 审查日期：2026-09-17
+
+本轮独立读取了远端最新 head、Issue #210 及其 scope-expansion 决定、`9b34f077` 之后的完整增量、受影响的 platform transaction-context / PostgreSQL / TaskExecution 权威与验收矩阵，并复核精确提交的验证证据。第 5 轮 `SCOPE_EXPANSION` 已实质关闭：用户明确选择扩展 platform transaction-context，而不是接受 application-only kind 证明；新 revision 将该决定收敛为向后兼容的可信 PrincipalKind 设计。
+
+### 审查结论
+
+未发现新的 agent-fixable 阻断项。新增设计完整覆盖并保持下列边界一致：
+
+1. 未来 forward-only bootstrap migration 向 `platform_security.tx_context` 增加闭集、可空的 `principal_kind`，不修改已应用的 `V0003`；NULL 只代表 legacy Context，不被默认或解释为任何 PrincipalKind。
+2. 既有 10 参数 `establish_transaction_context` 的签名与权限保持兼容并显式写入 kind=NULL；新增 11 参数重载携带非空闭集 kind。kind 参与同事务幂等比较，异 kind 或 10/11 参数入口混用以 `platform_context_conflict` / SQLSTATE `40001` fail closed。
+3. 新增 `context_principal_kind()`，其 SECURITY DEFINER、固定 search path、逐 statement 期限重验、NULL 和 EXECUTE 权限模型与 `context_principal_id()` 对齐；`current_context()` 的既有返回签名保持不变。
+4. WorkOrder 路径必须使用 11 参数入口；INSERT policy 与 creation guard 将两份 payload 的完整 `PrincipalRef`（id + kind）绑定到两个 Context helper，并将 Root/Receipt principal id 绑定到 Context id。无 Context、过期 Context、legacy kind=NULL、P2 Context 伪造 P1 Receipt、两份 kind 同时伪造或任一副本不等均 fail closed。
+5. `TE-P210-D-011` 与 `TE-P210-017`/`018`/`022` 覆盖空库和 V0003 历史升级、旧入口兼容、两入口混用、非法/缺失 kind、ACL/直接写表、过期、同/异 kind、并发连接、commit/rollback/异常、连接池复用和 WorkOrder 直 SQL 错 kind 反例。其他模块继续走 legacy 入口，不被本设计虚假宣称为已经获得数据库级 kind 绑定。
+
+以上设计关闭了第 5 轮提出的“完整 PrincipalRef 缺少数据库受信 kind 锚”问题，同时没有扩大 RLS 到 Human-only、职责分离或业务授权判断，也没有改变已发布 API、Registry、Catalog 或 Compatibility Baseline。
+
+### 第 6 轮验证证据
+
+- 本地与远端 exact head：`67e5df57db637953009ba21b2193114aec401ce6`；base `bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`；PR `OPEN`、非 draft、`MERGEABLE`。
+- `git diff --check bbfd2ceaab21d0d346d6f405be7f216bc6cdd276..67e5df57db637953009ba21b2193114aec401ce6`：PASS。
+- exact-head GitHub Actions `verify`：SUCCESS（`pnpm verify`，job `105229475359`，2026-09-17T13:55:31Z 完成）。
+- 同一 exact tree 的 `vibe verify full --json`：PASS，resolved command `pnpm clean && pnpm verify`，exit 0；普通 suite 1010 passed / 424 skipped，真实 PostgreSQL 18.6 persistence gate 439 passed，Catalog/Registry 214、Compatibility Baseline 200，空库迁移、历史升级至 V7001 与第二次 migrate no-op 均通过。
+
+绿色验证证明当前已实现行为未回归；它不把本 PR 中提出的未来 migration、WorkOrder guard 或 `TE-P210-*` 行为误报为已实现。
+
+### 未运行边界与人类门禁
+
+Platform PrincipalKind migration、11 参数 establish/helper、WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、读取 Handler/组成层、IdentityPolicy 读取/分类 Port、`TE-P210-001`–`023`、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、外部 Provider/Runtime/飞书与人工业务验收继续保持 `NOT RUN`。
+
+Issue #210 明确规定：安全敏感的 identity、authorization 与 persistence 边界在依赖实现 Issue 解锁前，必须由人类对**精确最终设计 revision**作明确技术批准。当前 agent 独立审查已无阻断，但 exact head `67e5df57...` 尚未记录该批准，因此角色结论是 `HUMAN_REVIEW_REQUIRED`，不是 `APPROVE`。在该批准写入前，#210 不满足关闭条件，不应创建依赖实现 Issue，也不应合并 PR #211。本轮未修改设计正文或业务代码，也不授权 commit、push、merge 或 deploy。
+
+## 人类技术批准与交付授权
+
+- 批准对象：revision `67e5df57db637953009ba21b2193114aec401ce6` 上经第 6 轮独立审查的完整设计，包括第 5 轮 scope 扩展后的 platform transaction-context PrincipalKind 增量。
+- 批准决定：用户于 2026-09-17 明确指示“批准更改，合并PR并关闭Issue及local/remote branches”。该指示满足 Issue #210 要求的 exact-revision 人类技术批准，并明确授权合并 PR #211、关闭 Issue #210 及删除该 PR 的本地/远端源分支。
+- GitHub 记录：[Issue #210 exact-design human approval](https://github.com/qzhike/zhiju-business-core/issues/210#issuecomment-5715698129)。
+- 边界：批准的是设计，不表示 PrincipalKind migration、WorkOrder Handler/表/guard、读取组成或 `TE-P210-*` 运行场景已实现；这些仍为 `NOT RUN`，实现必须经合并后新的 `NOW + READY` 复核与独立 Issue 授权。
