@@ -668,11 +668,11 @@ Purpose 必须来自已交付的精确解析器，不接受 caller 覆盖。capa
 | 输入 | `(commandType, commandVersion, principalRef, declaredCapabilityTypes, scopeRef, actionAt)`（`commandType`/`commandVersion` 参与键表选择；`principalRef` 必须是认证 principal，不接受 payload 自报；`scopeRef` 必须是受信 Project Scope；`actionAt` 为受信当前时间） |
 | 检查单元 | **恰好是**声明的 capability code：Core §4.7 `CapabilityGrant.capabilityType`。`actions[]`、`resourceSelectors[]`、`constraints[]`、`expiresAt`、`grantPolicyRef` **不参与** Human-only 分类，也不被本 Port 用作覆盖判定；`capabilityType` 逐项去重后按 canonical 字节序稳定处理 |
 | 分类集合 | IdentityPolicy 自己的版本化静态集合 `HUMAN_ONLY_CAPABILITIES`（registry version `im02-static-v1`，`modules/identity-policy/src/commands/static-registry.ts`）；分类按**精确字符串**成员判断，大小写敏感、无规范化、无前缀/别名 |
-| 外部结果 | 闭集 `'VALID'` / `'INVALID'`；`INVALID` 的内部分类（`CAPABILITY_HUMAN_ONLY` 等）只写入 IdentityPolicy 受权限控制的 Audit，不把集合内容或原因泄露给 TaskExecution |
+| 外部结果 | `{outcome: 'VALID' / 'INVALID', classificationRegistryVersion: <string>}`：`outcome` 是闭集；`classificationRegistryVersion` 是本次判定**实际使用**的分类集合版本（当前为 `im02-static-v1`），由 owning 侧返回，使调用方可直接归因而无需硬编码或读取 owning 模块常量。`INVALID` 的内部分类（`CAPABILITY_HUMAN_ONLY` 等）与集合内容只写入 IdentityPolicy 受权限控制的 Audit，不随返回值泄露 |
 | 语义 | principal 为 HUMAN 时返回 `VALID`（该 Port 不判断 Grant、不签发 Capability、不评估行动级别的可用性）；principal 非 HUMAN 且任一声明 `capabilityType` 属于 Human-only 集合时返回 `INVALID` |
 | 授权与事务 | Port 是只读调用，在 IdentityPolicy 自己的 RLS 事务内执行；TaskExecution 不因此获得 IdentityPolicy 表权限；Port 不可用或超时不得被解释为空结果，调用方 fail closed 并映射共享 `DEPENDENCY_UNAVAILABLE` |
-| 版本与兼容 | 不新增公开 Command/Query/Event、不改任何既有注册 Schema/Purpose/metadata、不改 `authorize_command@1.0`、不新增 IdentityPolicy 迁移；分类集合版本变化是 Policy/版本事件，必须由 owning 侧记录，并由 TaskExecution 把本次分类所用的 registry version 记入自己的 Audit（不进入不可变 DRAFT payload，因为已注册的 Snapshot 形状不含该字段） |
+| 版本与兼容 | 不新增公开 Command/Query/Event、不改任何既有注册 Schema/Purpose/metadata、不改 `authorize_command@1.0`、不新增 IdentityPolicy 迁移；分类集合版本变化是 Policy/版本事件：IdentityPolicy 以自己的 Audit 记录返回值中的 `classificationRegistryVersion`，TaskExecution 原样记录**同一个**返回值（不进入不可变 DRAFT payload，因为已注册的 Snapshot 形状不含该字段），从而两侧归因都不需要硬编码或跨边界读取 owning 常量 |
 
-TaskExecution 把 `INVALID` 收敛为公开共享码 `HUMAN_ONLY_CAPABILITY`（[共享 API §8](../api-contract-v0.1/API-Contract-v0.1.md) 的共享错误码列表；Domain §19.10 的 `WO-U-002` 同码）。`IDENTITY_CAPABILITY_HUMAN_ONLY` 是 `identity.grant_capability` 的模块码，`CAPABILITY_HUMAN_ONLY` 是 IdentityPolicy 的 Decision/Audit reason——两者都不是本操作的公开错误码，也不得被复制成 TaskExecution 的模块码。
+TaskExecution 把 `INVALID` 收敛为公开共享码 `HUMAN_ONLY_CAPABILITY`（[共享 API §8](../api-contract-v0.1/API-Contract-v0.1.md) 的共享错误码列表；Domain §19.10 的 `WO-U-002` 同码），并把 Port 返回的 `{outcome, classificationRegistryVersion}` 原样记入自己的 Audit，使通过与拒绝都可归因到确切的分类集合版本；版本事实不进入不可变 DRAFT payload（已注册的 Snapshot 形状不含该字段），也不从 owning 模块常量读取。`IDENTITY_CAPABILITY_HUMAN_ONLY` 是 `identity.grant_capability` 的模块码，`CAPABILITY_HUMAN_ONLY` 是 IdentityPolicy 的 Decision/Audit reason——两者都不是本操作的公开错误码，也不得被复制成 TaskExecution 的模块码。
 
 本节的 Handler、授权接线与运行验收仍为 `NOT RUN`；Port 的字段映射只在实现时随对应实现 Issue 落地。
