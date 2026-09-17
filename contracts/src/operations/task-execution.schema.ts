@@ -84,7 +84,12 @@ const externalReference = { $ref: `${common}externalRef` } as const;
 const canonicalJson = {} as const;
 
 const workOrderObjectReference = exactObjectType(objectReference, 'zhiju.execution.work_order');
-const taskObjectReference = exactObjectType(objectReference, 'zhiju.execution.task');
+/**
+ * The `@1.0` creation Major's only accepted WorkOrder spelling (§18.2 R-210-1).
+ * It stays out of every registered operation payload: the WorkOrder identity of
+ * a legacy draft is closed by the owning Handler, not by a shared object type.
+ */
+const legacyWorkOrderObjectReference = exactObjectType(objectReference, 'execution.work_order');
 const projectObjectReference = exactObjectType(objectReference, 'zhiju.project.project');
 const draftSnapshotReference = exactObjectType(
   contentAddressedReference,
@@ -541,12 +546,17 @@ const namedDefinitions = {
       versionPins: localRef('draftVersionPins'),
     },
   ),
+  // §18.8: the spelling pinned by these two snapshot shapes follows the
+  // creation Major they belong to, and `taskRef` stays the generic `ObjectRef`
+  // whose accept set §18.3 closes in the owning Handler. Neither def is
+  // referenced by a registered operation payload/result, so both corrections
+  // change no published acceptance set.
   workOrderDraftSnapshot: object(
     ['snapshotId', 'workOrderRef', 'taskRef', 'scopeRef', 'draft', 'capturedAt', 'createdBy'],
     {
       snapshotId: uuid,
-      workOrderRef: workOrderObjectReference,
-      taskRef: taskObjectReference,
+      workOrderRef: legacyWorkOrderObjectReference,
+      taskRef: objectReference,
       scopeRef: scopeReference,
       draft: localRef('workOrderDraft'),
       expiresAt: instant,
@@ -559,7 +569,7 @@ const namedDefinitions = {
     {
       snapshotId: uuid,
       workOrderRef: workOrderObjectReference,
-      taskRef: taskObjectReference,
+      taskRef: objectReference,
       scopeRef: scopeReference,
       draft: localRef('initialWorkOrderDraft'),
       expiresAt: instant,
@@ -1293,6 +1303,27 @@ const versionedOperationSchemas: readonly VersionedOperationContractSchema[] = [
     result: object(['draftSnapshotRef', 'draft', 'rootAggregateVersion', 'status'], {
       draftSnapshotRef: draftSnapshotReference,
       draft: localRef('initialWorkOrderDraft'),
+      expiresAt: instant,
+      rootAggregateVersion: losslessNonNegativeInt,
+      status: localRef('workOrderStatus'),
+    }),
+  },
+  {
+    type: 'execution.get_work_order_draft',
+    version: '2.0',
+    // §18.8: the only read version that can return the `@1.0` creation Major's
+    // legacy `execution.work_order` identity and its `WorkOrderDraft` shape.
+    // `/payload/workOrderRef` is deliberately the generic `ObjectRef`: the
+    // accept set is closed by the owning Handler, and a declared reference
+    // would register one of the two published WorkOrder spellings as an
+    // object type the Catalog does not have (same treatment as
+    // `/payload/taskRef`).
+    payload: object(['workOrderRef'], {
+      workOrderRef: objectReference,
+    }),
+    result: object(['draftSnapshotRef', 'draft', 'rootAggregateVersion', 'status'], {
+      draftSnapshotRef: draftSnapshotReference,
+      draft: localRef('workOrderDraft'),
       expiresAt: instant,
       rootAggregateVersion: losslessNonNegativeInt,
       status: localRef('workOrderStatus'),

@@ -20,6 +20,14 @@ import { canonicalize, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 
 type Int8Default = ColumnType<string, string | number | undefined, string | number | undefined>;
 type Json = ColumnType<unknown, string>;
+/**
+ * A declared `expiresAt` instant is written as the exact text the command
+ * declared. A JavaScript `Date` only carries milliseconds, so passing one would
+ * store a truncated column that the V3003 mirror guard - which casts the same
+ * declared text to `timestamptz` at microsecond precision - then rejects as a
+ * mirror mismatch. Reads still see a `Date`, which is what `pg` decodes.
+ */
+type InstantColumn = ColumnType<Date | null, string | null, string | null>;
 
 export interface CommandReceiptTable {
   command_id: string;
@@ -258,10 +266,64 @@ export interface ExecutionJudgmentTable {
   created_by_principal_id: string;
 }
 
+/**
+ * IM-06 (#212): WorkOrder Aggregate Root. DRAFT creation writes `status='DRAFT'`
+ * and `aggregate_version=1`; `current_draft_snapshot_hash` is part of the
+ * composite pointer to the draft snapshot, so a silently re-written payload
+ * cannot satisfy the pointer by reusing the same `snapshot_id`. Identity,
+ * Project Scope, both spellings, the draft schema version and the expiry are
+ * creation facts (V3003), so only `status`, `aggregate_version` and the pointer
+ * may move in a later CAS transition.
+ */
+export interface WorkOrderTable {
+  work_order_id: string;
+  enterprise_id: string;
+  project_id: string;
+  work_order_object_type: string;
+  task_id: string;
+  task_object_type: string;
+  status: string;
+  aggregate_version: Int8Default;
+  current_draft_snapshot_id: string;
+  current_draft_snapshot_hash: Buffer;
+  draft_schema_version: string;
+  expires_at: InstantColumn;
+  created_at: Generated<Date>;
+  created_by_principal_id: string;
+  requested_by_principal_id: string;
+}
+
+/**
+ * IM-06 (#212): immutable `WorkOrderDraftSnapshot` of one WorkOrder;
+ * INSERT-only. Every promoted column is a mirror of `canonical_payload` that
+ * V3003 re-derives inside the database, and `request_payload_hash` only counts
+ * once the creation guard has proven it equals the projection the owning
+ * in-flight `execution.create_work_order` Receipt was claimed for.
+ */
+export interface WorkOrderDraftSnapshotTable {
+  snapshot_id: string;
+  work_order_id: string;
+  draft_schema_version: string;
+  work_order_object_type: string;
+  task_object_type: string;
+  enterprise_id: string;
+  project_id: string;
+  expires_at: InstantColumn;
+  canonical_payload: Json;
+  payload_hash: Buffer;
+  canonicalization_version: Generated<string>;
+  request_payload_hash: Buffer;
+  source_command_id: string;
+  created_at: Generated<Date>;
+  created_by_principal_id: string;
+}
+
 export interface TaskExecutionDb {
   'task_execution.task': TaskTable;
   'task_execution.task_definition_snapshot': TaskDefinitionSnapshotTable;
   'task_execution.execution_judgment': ExecutionJudgmentTable;
+  'task_execution.work_order': WorkOrderTable;
+  'task_execution.work_order_draft_snapshot': WorkOrderDraftSnapshotTable;
   'task_execution.command_receipt': CommandReceiptTable;
   'task_execution.outbox_event': OutboxEventTable;
   'task_execution.inbox_message': InboxMessageTable;
@@ -323,6 +385,13 @@ export function createTaskExecutionDatabase(pool: Pool): Kysely<TaskExecutionDb>
 /**
  * Runs one TaskExecution transaction on one connection and binds its RLS
  * context before any owning-schema statement can execute.
+ *
+ * The context is established through the 11-argument entry point, so the
+ * `principalKind` the composition layer derived from the revalidated Decision
+ * becomes a database-verifiable fact
+ * (`platform_security.context_principal_kind()`). The legacy 10-argument entry
+ * would write a NULL kind and can never satisfy a WorkOrder guard (IM-06 #212,
+ * decision `rls-transaction-context.md` §3.5 items 6-7).
  */
 export async function withTaskExecutionTransaction<T>(
   db: Kysely<TaskExecutionDb>,
@@ -335,6 +404,7 @@ export async function withTaskExecutionTransaction<T>(
       await sql`SELECT platform_security.establish_transaction_context(
           ${context.kind},
           ${context.principalId},
+          ${context.principalKind},
           ${context.actorSnapshotId},
           ${context.authorizationDecisionId},
           ${context.authorizationDecisionHash},

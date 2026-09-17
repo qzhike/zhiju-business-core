@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
 // IM-02 WI-03 (issue #31): the transaction-scoped RLS context and its scope
@@ -34,6 +34,14 @@ interface StatementOutcome {
   code?: string | undefined;
   message: string;
 }
+
+// IM-06 / issue #212 (V0004): the kind-carrying entry point and the scalar
+// PrincipalKind read helper, spelled as regprocedure input text.
+const ESTABLISH_LEGACY_SIGNATURE =
+  'platform_security.establish_transaction_context(text,uuid,uuid,uuid,bytea,timestamptz,uuid,uuid[],uuid,uuid)';
+const ESTABLISH_KIND_SIGNATURE =
+  'platform_security.establish_transaction_context(text,uuid,text,uuid,uuid,bytea,timestamptz,uuid,uuid[],uuid,uuid)';
+const PRINCIPAL_KIND_SIGNATURE = 'platform_security.context_principal_kind()';
 
 describe.skipIf(!gateEnabled)(
   'RLS transaction context and scope anti-forgery (real PostgreSQL)',
@@ -257,13 +265,15 @@ describe.skipIf(!gateEnabled)(
       return outcome;
     }
 
-    it('records the RLS context migration in flyway history', async () => {
-      const result = await admin.query<{ description: string; success: boolean }>(
-        `SELECT description, success FROM public.flyway_schema_history WHERE version = '0003'`,
+    it('records the RLS context and principal-kind migrations in flyway history', async () => {
+      const result = await admin.query<{ version: string; description: string; success: boolean }>(
+        `SELECT version, description, success FROM public.flyway_schema_history
+         WHERE version IN ('0003', '0004') ORDER BY version`,
       );
-      expect(result.rows).toHaveLength(1);
-      expect(result.rows[0]?.description).toBe('platform rls context');
-      expect(result.rows[0]?.success).toBe(true);
+      expect(result.rows).toEqual([
+        { version: '0003', description: 'platform rls context', success: true },
+        { version: '0004', description: 'platform principal kind', success: true },
+      ]);
     });
 
     it('ships a least-privilege platform_security owner and a closed function surface', async () => {
@@ -392,6 +402,44 @@ describe.skipIf(!gateEnabled)(
       for (const fn of functions.rows) {
         expect(fn.security, `${fn.proname} SECURITY DEFINER`).toBe(true);
       }
+      // V0004 adds the kind-carrying overload and the scalar kind helper; the
+      // generic loop above must therefore cover exactly these two functions as
+      // well, with the helper keeping the STABLE shape of context_principal_id.
+      const kindFunctions = await admin.query<{
+        name: string;
+        arg_count: number;
+        args: string;
+        kind: string;
+        security: boolean;
+        volatility: string;
+      }>(
+        `SELECT p.proname AS name, p.pronargs AS arg_count,
+                pg_get_function_identity_arguments(p.oid) AS args,
+                p.prokind AS kind, p.prosecdef AS security, p.provolatile AS volatility
+         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname = 'platform_security'
+           AND p.oid IN (to_regprocedure($1), to_regprocedure($2))`,
+        [ESTABLISH_KIND_SIGNATURE, PRINCIPAL_KIND_SIGNATURE],
+      );
+      expect(kindFunctions.rows).toHaveLength(2);
+      for (const fn of kindFunctions.rows) {
+        expect(fn, `${fn.name} metadata`).toMatchObject({ kind: 'f', security: true });
+      }
+      const kindOverload = kindFunctions.rows.find(
+        (row) => row.name === 'establish_transaction_context',
+      );
+      // The overload is the 11-argument entry with the kind immediately after
+      // the principal id; the read helper takes no arguments and is STABLE.
+      expect(kindOverload).toMatchObject({ arg_count: 11 });
+      expect(kindOverload?.args).toMatch(
+        /^p_context_kind text, p_principal_id uuid, p_principal_kind text, /,
+      );
+      expect(kindFunctions.rows.find((row) => row.name === 'context_principal_kind')).toMatchObject(
+        {
+          arg_count: 0,
+          volatility: 's',
+        },
+      );
       const fnOwner = await admin.query<{ rolname: string }>(
         `SELECT pg_get_userbyid(p.proowner) AS rolname
        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -835,3 +883,513 @@ describe.skipIf(!gateEnabled)(
     });
   },
 );
+
+// IM-06 / issue #212 (design authority: .vibe/decisions/rls-transaction-context.md
+// §3.5). V0004 adds the trusted PrincipalKind fact under the V0003 context. The
+// properties below are only provable against real PostgreSQL: the closed set is
+// a CHECK constraint, the legacy and kind-carrying entries are distinct
+// overloads, and the ACL boundary is enforced by the database, not by handlers.
+describe.skipIf(!gateEnabled)('platform principal kind (V0004, real PostgreSQL)', () => {
+  const APP_ROLE = 'task_execution_app';
+  // Probe role names deliberately avoid the `_(owner|app|dispatcher)$` module
+  // role shape (asserted by the roles-baseline suite) and collide with no other
+  // suite's probe role; both are dropped again in afterAll.
+  const ESTABLISHER_PROBE_ROLE = 'wi04_probe_establisher';
+  const RUNTIME_PROBE_ROLE = 'wi04_probe_runtime';
+  const ESTABLISHER_PROBE_PASSWORD = 'wi04-establisher';
+  const RUNTIME_PROBE_PASSWORD = 'wi04-runtime';
+  const PRINCIPAL_KINDS = ['HUMAN', 'AGENT', 'SERVICE', 'RUNTIME', 'EXTERNAL_PARTY'];
+  const READ_ROLES = [
+    'identity_policy_app',
+    'enterprise_project_app',
+    'task_execution_app',
+    'artifact_app',
+    'quality_governance_app',
+    'release_publication_app',
+    'integration_gateway_app',
+    'projection_app',
+    'identity_policy_owner',
+    'enterprise_project_owner',
+    'task_execution_owner',
+    'artifact_owner',
+    'quality_governance_owner',
+    'release_publication_owner',
+    'integration_gateway_owner',
+  ];
+  const DENIED_READ_ROLES = [
+    'identity_policy_dispatcher',
+    'enterprise_project_dispatcher',
+    'audit_reader',
+    'migration_runner',
+  ];
+
+  let admin: pg.Client;
+  let establisherProbe: pg.Client;
+  let secondProbe: pg.Client;
+  let appProbe: pg.Client;
+
+  beforeAll(async () => {
+    admin = new pg.Client({ connectionString: databaseUrl });
+    await admin.connect();
+
+    // The establisher probe mirrors the transaction coordinator: NOINHERIT
+    // LOGIN plus the NOLOGIN establisher and the module runtime role, both of
+    // which it must select explicitly. The runtime-only probe holds just the
+    // runtime role, so the database itself must reject its write attempts.
+    await admin.query(
+      `CREATE ROLE ${ESTABLISHER_PROBE_ROLE} LOGIN PASSWORD '${ESTABLISHER_PROBE_PASSWORD}' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+    );
+    await admin.query(
+      `GRANT platform_context_establisher, ${APP_ROLE} TO ${ESTABLISHER_PROBE_ROLE}`,
+    );
+    await admin.query(
+      `CREATE ROLE ${RUNTIME_PROBE_ROLE} LOGIN PASSWORD '${RUNTIME_PROBE_PASSWORD}' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+    );
+    await admin.query(`GRANT ${APP_ROLE} TO ${RUNTIME_PROBE_ROLE}`);
+
+    establisherProbe = await connectAs(ESTABLISHER_PROBE_ROLE, ESTABLISHER_PROBE_PASSWORD);
+    secondProbe = await connectAs(ESTABLISHER_PROBE_ROLE, ESTABLISHER_PROBE_PASSWORD);
+    appProbe = await connectAs(RUNTIME_PROBE_ROLE, RUNTIME_PROBE_PASSWORD);
+  });
+
+  afterAll(async () => {
+    await establisherProbe.end();
+    await secondProbe.end();
+    await appProbe.end();
+    // With the probe sessions closed, the disposable LOGIN roles they used can
+    // be removed: a leftover `_app`-shaped or otherwise unexpected role would
+    // otherwise change the authoritative inventory a later suite reads.
+    await admin.query(`DROP ROLE IF EXISTS ${ESTABLISHER_PROBE_ROLE}`);
+    await admin.query(`DROP ROLE IF EXISTS ${RUNTIME_PROBE_ROLE}`);
+    await admin.end();
+  });
+
+  // A probe that fails mid-transaction would otherwise stay in an open or
+  // aborted transaction, turning every later statement of every later test in
+  // this block into "current transaction is aborted". Rolling the probes back
+  // after each test keeps one failure local.
+  afterEach(async () => {
+    for (const probe of [establisherProbe, secondProbe, appProbe]) {
+      try {
+        await probe.query('ROLLBACK');
+      } catch {
+        // A connection that is already gone needs no further restoration.
+      }
+    }
+  });
+
+  async function connectAs(user: string, password: string): Promise<pg.Client> {
+    const url = new URL(databaseUrl ?? '');
+    url.username = user;
+    url.password = password;
+    const connection = new pg.Client({ connectionString: url.toString() });
+    await connection.connect();
+    await connection.query(`SET ROLE ${APP_ROLE}`);
+    return connection;
+  }
+
+  async function tryQuery(
+    connection: pg.Client,
+    sql: string,
+    values?: unknown[],
+  ): Promise<StatementOutcome> {
+    try {
+      await connection.query(sql, values);
+      return { allowed: true, message: 'ok' };
+    } catch (error) {
+      const pgError = error as pg.DatabaseError;
+      return { allowed: false, code: pgError.code, message: pgError.message };
+    }
+  }
+
+  interface ContextOptions {
+    decisionId?: string;
+    decisionExpiresInSeconds?: number;
+    enterpriseId?: string;
+    allowedProjects?: (string | null)[];
+    sourceEventId?: string | null;
+  }
+
+  interface KindContextOptions extends ContextOptions {
+    principalKind?: string | null;
+  }
+
+  function contextArguments(overrides: ContextOptions) {
+    return {
+      contextKind: 'REQUEST',
+      decisionId: DECISION_A,
+      decisionExpiresInSeconds: 3600,
+      enterpriseId: ENTERPRISE_A,
+      allowedProjects: [PROJECT_A1],
+      sourceEventId: null,
+      ...overrides,
+    };
+  }
+
+  async function establishLegacy(
+    connection: pg.Client,
+    overrides: ContextOptions = {},
+  ): Promise<StatementOutcome> {
+    const options = contextArguments(overrides);
+    await connection.query('SET LOCAL ROLE platform_context_establisher');
+    const outcome = await tryQuery(
+      connection,
+      `SELECT platform_security.establish_transaction_context(
+       $1, $2, $3, $4, $5, now() + make_interval(secs => $6), $7, $8, $9, $10)`,
+      [
+        options.contextKind,
+        PRINCIPAL,
+        ACTOR_SNAPSHOT,
+        options.decisionId,
+        DECISION_HASH,
+        options.decisionExpiresInSeconds,
+        options.enterpriseId,
+        options.allowedProjects,
+        CORRELATION,
+        options.sourceEventId,
+      ],
+    );
+    if (outcome.allowed) {
+      await connection.query(`SET LOCAL ROLE ${APP_ROLE}`);
+    }
+    return outcome;
+  }
+
+  async function establishWithKind(
+    connection: pg.Client,
+    overrides: KindContextOptions = {},
+  ): Promise<StatementOutcome> {
+    const { principalKind, ...rest } = overrides;
+    const options = {
+      principalKind: principalKind === undefined ? 'HUMAN' : principalKind,
+      ...contextArguments(rest),
+    };
+    await connection.query('SET LOCAL ROLE platform_context_establisher');
+    const outcome = await tryQuery(
+      connection,
+      `SELECT platform_security.establish_transaction_context(
+       $1, $2, $3, $4, $5, $6, now() + make_interval(secs => $7), $8, $9, $10, $11)`,
+      [
+        options.contextKind,
+        PRINCIPAL,
+        options.principalKind,
+        ACTOR_SNAPSHOT,
+        options.decisionId,
+        DECISION_HASH,
+        options.decisionExpiresInSeconds,
+        options.enterpriseId,
+        options.allowedProjects,
+        CORRELATION,
+        options.sourceEventId,
+      ],
+    );
+    if (outcome.allowed) {
+      await connection.query(`SET LOCAL ROLE ${APP_ROLE}`);
+    }
+    return outcome;
+  }
+
+  // The two trusted anchors as a runtime role observes them.
+  async function anchors(
+    connection: pg.Client,
+  ): Promise<{ kind: string | null; principal: string | null }> {
+    const result = await connection.query<{ kind: string | null; principal_id: string | null }>(
+      `SELECT platform_security.context_principal_kind() AS kind,
+              platform_security.context_principal_id() AS principal_id`,
+    );
+    return {
+      kind: result.rows[0]?.kind ?? null,
+      principal: result.rows[0]?.principal_id ?? null,
+    };
+  }
+
+  // The persisted fact behind the helper, read as a second session (the
+  // deployment superuser). A row written by the probe's still-open transaction
+  // is invisible to that session under READ COMMITTED, so callers read it only
+  // after committing the transaction that wrote it.
+  async function storedKind(connection: pg.Client): Promise<{ principal_kind: string | null }[]> {
+    const pid = (await connection.query<{ pid: string }>('SELECT pg_backend_pid() AS pid')).rows[0]
+      ?.pid;
+    const result = await admin.query<{ principal_kind: string | null }>(
+      `SELECT principal_kind FROM platform_security.tx_context WHERE backend_pid = $1`,
+      [Number(pid)],
+    );
+    return result.rows;
+  }
+
+  it('keeps the legacy 10-argument entry working with a NULL kind', async () => {
+    await establisherProbe.query('BEGIN');
+    await expect(establishLegacy(establisherProbe)).resolves.toMatchObject({ allowed: true });
+
+    expect(await anchors(establisherProbe)).toEqual({ kind: null, principal: PRINCIPAL });
+
+    // The persisted row is only observable to the superuser session once the
+    // transaction that wrote it is committed.
+    await establisherProbe.query('COMMIT');
+    const rows = await storedKind(establisherProbe);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.principal_kind).toBeNull();
+  });
+
+  it('stores and reads back each value of the closed PrincipalKind set', async () => {
+    for (const kind of PRINCIPAL_KINDS) {
+      await establisherProbe.query('BEGIN');
+      await expect(
+        establishWithKind(establisherProbe, { principalKind: kind }),
+      ).resolves.toMatchObject({ allowed: true });
+      expect(await anchors(establisherProbe), kind).toEqual({ kind, principal: PRINCIPAL });
+      await establisherProbe.query('COMMIT');
+      expect((await storedKind(establisherProbe))[0]?.principal_kind, kind).toBe(kind);
+    }
+    expect(await anchors(establisherProbe)).toEqual({ kind: null, principal: null });
+  });
+
+  it('rejects missing, empty and out-of-set kinds with 22023', async () => {
+    const rejected: (string | null)[] = [null, '', 'human', 'ROBOT'];
+    for (const kind of rejected) {
+      await establisherProbe.query('BEGIN');
+      const outcome = await establishWithKind(establisherProbe, { principalKind: kind });
+      expect(outcome.allowed, JSON.stringify(kind)).toBe(false);
+      expect(outcome.code, JSON.stringify(kind)).toBe('22023');
+      expect(outcome.message).toMatch(/invalid principal kind/);
+      await establisherProbe.query('ROLLBACK');
+      // A rejected attempt may not leave a usable context behind.
+      expect(await anchors(establisherProbe), JSON.stringify(kind)).toEqual({
+        kind: null,
+        principal: null,
+      });
+    }
+  });
+
+  it('rejects an expired decision on both entries with 22023', async () => {
+    await establisherProbe.query('BEGIN');
+    const kindEntry = await establishWithKind(establisherProbe, { decisionExpiresInSeconds: -60 });
+    expect(kindEntry).toMatchObject({ allowed: false, code: '22023' });
+    expect(kindEntry.message).toMatch(/expired/);
+    await establisherProbe.query('ROLLBACK');
+
+    await establisherProbe.query('BEGIN');
+    const legacyEntry = await establishLegacy(establisherProbe, {
+      decisionExpiresInSeconds: -60,
+    });
+    expect(legacyEntry).toMatchObject({ allowed: false, code: '22023' });
+    expect(legacyEntry.message).toMatch(/expired/);
+    await establisherProbe.query('ROLLBACK');
+
+    expect(await anchors(establisherProbe)).toEqual({ kind: null, principal: null });
+  });
+
+  it('is idempotent for the same kind and refuses a different or mixed context (40001)', async () => {
+    await establisherProbe.query('BEGIN');
+    await expect(establishWithKind(establisherProbe)).resolves.toMatchObject({ allowed: true });
+    await expect(establishWithKind(establisherProbe)).resolves.toMatchObject({ allowed: true });
+    // The identical replay left both anchors untouched.
+    expect(await anchors(establisherProbe)).toEqual({ kind: 'HUMAN', principal: PRINCIPAL });
+
+    const differentKind = await establishWithKind(establisherProbe, { principalKind: 'AGENT' });
+    expect(differentKind.allowed).toBe(false);
+    expect(differentKind.code).toBe('40001');
+    expect(differentKind.message).toMatch(/platform_context_conflict/);
+    await establisherProbe.query('ROLLBACK');
+
+    // Legacy context first, then the kind-carrying entry: no kind may be
+    // backfilled onto the existing row.
+    await establisherProbe.query('BEGIN');
+    await expect(establishLegacy(establisherProbe)).resolves.toMatchObject({ allowed: true });
+    const kindOverLegacy = await establishWithKind(establisherProbe);
+    expect(kindOverLegacy.allowed).toBe(false);
+    expect(kindOverLegacy.code).toBe('40001');
+    expect(kindOverLegacy.message).toMatch(/platform_context_conflict/);
+    await establisherProbe.query('ROLLBACK');
+
+    // Kind-carrying context first, then the legacy entry: the kind may not be
+    // overwritten away either.
+    await establisherProbe.query('BEGIN');
+    await expect(establishWithKind(establisherProbe)).resolves.toMatchObject({ allowed: true });
+    const legacyOverKind = await establishLegacy(establisherProbe);
+    expect(legacyOverKind.allowed).toBe(false);
+    expect(legacyOverKind.code).toBe('40001');
+    expect(legacyOverKind.message).toMatch(/platform_context_conflict/);
+    await establisherProbe.query('ROLLBACK');
+  });
+
+  it('returns NULL without context and after COMMIT, ROLLBACK and pool reuse', async () => {
+    expect(await anchors(establisherProbe)).toEqual({ kind: null, principal: null });
+
+    await establisherProbe.query('BEGIN');
+    await expect(establishWithKind(establisherProbe)).resolves.toMatchObject({ allowed: true });
+    await establisherProbe.query('COMMIT');
+    expect(await anchors(establisherProbe)).toEqual({ kind: null, principal: null });
+
+    await establisherProbe.query('BEGIN');
+    await expect(
+      establishWithKind(establisherProbe, { principalKind: 'SERVICE' }),
+    ).resolves.toMatchObject({ allowed: true });
+    await establisherProbe.query('ROLLBACK');
+    expect(await anchors(establisherProbe)).toEqual({ kind: null, principal: null });
+
+    // Pool reuse: a later transaction on the same backend never observes the
+    // finished transaction's kind, and the next establishment removes the
+    // residual row physically while refusing to reuse its kind.
+    await establisherProbe.query('BEGIN');
+    await expect(
+      establishWithKind(establisherProbe, { principalKind: 'RUNTIME' }),
+    ).resolves.toMatchObject({ allowed: true });
+    await establisherProbe.query('ROLLBACK');
+    expect(await storedKind(establisherProbe)).toHaveLength(1);
+
+    await establisherProbe.query('BEGIN');
+    expect(await anchors(establisherProbe)).toEqual({ kind: null, principal: null });
+    await expect(
+      establishWithKind(establisherProbe, { principalKind: 'EXTERNAL_PARTY' }),
+    ).resolves.toMatchObject({ allowed: true });
+    expect(await anchors(establisherProbe)).toEqual({
+      kind: 'EXTERNAL_PARTY',
+      principal: PRINCIPAL,
+    });
+    await establisherProbe.query('ROLLBACK');
+  });
+
+  it('keeps concurrent connections on their own kind', async () => {
+    await establisherProbe.query('BEGIN');
+    await secondProbe.query('BEGIN');
+    await expect(
+      establishWithKind(establisherProbe, { principalKind: 'HUMAN' }),
+    ).resolves.toMatchObject({ allowed: true });
+    await expect(
+      establishWithKind(secondProbe, { principalKind: 'RUNTIME' }),
+    ).resolves.toMatchObject({
+      allowed: true,
+    });
+
+    expect(await anchors(establisherProbe)).toEqual({ kind: 'HUMAN', principal: PRINCIPAL });
+    expect(await anchors(secondProbe)).toEqual({ kind: 'RUNTIME', principal: PRINCIPAL });
+
+    await establisherProbe.query('ROLLBACK');
+    await secondProbe.query('ROLLBACK');
+  });
+
+  it('grants the kind helper to runtime roles and owners but neither establish entry', async () => {
+    for (const role_ of READ_ROLES) {
+      const privileges = await admin.query<{
+        kind_helper: boolean;
+        legacy_entry: boolean;
+        kind_entry: boolean;
+      }>(
+        `SELECT has_function_privilege($1, $2, 'EXECUTE') AS kind_helper,
+                has_function_privilege($1, $3, 'EXECUTE') AS legacy_entry,
+                has_function_privilege($1, $4, 'EXECUTE') AS kind_entry`,
+        [role_, PRINCIPAL_KIND_SIGNATURE, ESTABLISH_LEGACY_SIGNATURE, ESTABLISH_KIND_SIGNATURE],
+      );
+      expect(privileges.rows[0], `${role_} function ACL`).toEqual({
+        kind_helper: true,
+        legacy_entry: false,
+        kind_entry: false,
+      });
+    }
+
+    const establisher = await admin.query<{
+      legacy_entry: boolean;
+      kind_entry: boolean;
+      kind_helper: boolean;
+    }>(
+      `SELECT has_function_privilege('platform_context_establisher', $1, 'EXECUTE') AS legacy_entry,
+              has_function_privilege('platform_context_establisher', $2, 'EXECUTE') AS kind_entry,
+              has_function_privilege('platform_context_establisher', $3, 'EXECUTE') AS kind_helper`,
+      [ESTABLISH_LEGACY_SIGNATURE, ESTABLISH_KIND_SIGNATURE, PRINCIPAL_KIND_SIGNATURE],
+    );
+    expect(establisher.rows[0]).toEqual({
+      legacy_entry: true,
+      kind_entry: true,
+      kind_helper: false,
+    });
+
+    for (const role_ of DENIED_READ_ROLES) {
+      const privileges = await admin.query<{ kind_helper: boolean }>(
+        `SELECT has_function_privilege($1, $2, 'EXECUTE') AS kind_helper`,
+        [role_, PRINCIPAL_KIND_SIGNATURE],
+      );
+      expect(privileges.rows[0]?.kind_helper, `${role_} kind helper EXECUTE`).toBe(false);
+    }
+
+    for (const role_ of [...READ_ROLES, 'platform_context_establisher']) {
+      const table = await admin.query<{
+        can_select: boolean;
+        can_insert: boolean;
+        can_update: boolean;
+        can_delete: boolean;
+      }>(
+        `SELECT has_table_privilege($1, 'platform_security.tx_context', 'SELECT') AS can_select,
+                has_table_privilege($1, 'platform_security.tx_context', 'INSERT') AS can_insert,
+                has_table_privilege($1, 'platform_security.tx_context', 'UPDATE') AS can_update,
+                has_table_privilege($1, 'platform_security.tx_context', 'DELETE') AS can_delete`,
+        [role_],
+      );
+      expect(table.rows[0], `${role_} tx_context table ACL`).toEqual({
+        can_select: false,
+        can_insert: false,
+        can_update: false,
+        can_delete: false,
+      });
+    }
+
+    // The helper is executable by an ordinary runtime role without any
+    // context; both write entries answer with 42501 on the wire.
+    expect(await anchors(appProbe)).toEqual({ kind: null, principal: null });
+
+    const deniedWrites: { sql: string; values: unknown[] }[] = [
+      {
+        sql: `SELECT platform_security.establish_transaction_context(
+         'REQUEST', $1, $2, $3, $4, now() + interval '1 hour', $5, ARRAY[$6]::uuid[], $7, NULL)`,
+        values: [
+          PRINCIPAL,
+          ACTOR_SNAPSHOT,
+          DECISION_A,
+          DECISION_HASH,
+          ENTERPRISE_A,
+          PROJECT_A1,
+          CORRELATION,
+        ],
+      },
+      {
+        sql: `SELECT platform_security.establish_transaction_context(
+         'REQUEST', $1, 'HUMAN', $2, $3, $4, now() + interval '1 hour', $5, ARRAY[$6]::uuid[], $7, NULL)`,
+        values: [
+          PRINCIPAL,
+          ACTOR_SNAPSHOT,
+          DECISION_A,
+          DECISION_HASH,
+          ENTERPRISE_A,
+          PROJECT_A1,
+          CORRELATION,
+        ],
+      },
+    ];
+    for (const attempt of deniedWrites) {
+      const outcome = await tryQuery(appProbe, attempt.sql, attempt.values);
+      expect(outcome.allowed, attempt.sql).toBe(false);
+      expect(outcome.code).toBe('42501');
+      expect(outcome.message).toMatch(
+        /permission denied for function establish_transaction_context/,
+      );
+      expect(await anchors(appProbe)).toEqual({ kind: null, principal: null });
+    }
+
+    // Owners are NOLOGIN, so the deployment session switches role explicitly
+    // (the FORCE-RLS probe above does the same); the ACL denies both entries
+    // to them on the wire as well.
+    await admin.query('SET ROLE enterprise_project_owner');
+    try {
+      for (const attempt of deniedWrites) {
+        const outcome = await tryQuery(admin, attempt.sql, attempt.values);
+        expect(outcome.allowed, attempt.sql).toBe(false);
+        expect(outcome.code).toBe('42501');
+        expect(outcome.message).toMatch(
+          /permission denied for function establish_transaction_context/,
+        );
+      }
+    } finally {
+      await admin.query('RESET ROLE');
+    }
+  });
+});

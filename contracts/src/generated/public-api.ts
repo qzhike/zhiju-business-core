@@ -733,6 +733,23 @@ export const publicApiOperations = [
     ],
   },
   {
+    type: 'execution.get_work_order_draft',
+    version: '2.0',
+    kind: 'QUERY',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'execution.work_order.draft.read',
+    dataClassification: 'INTERNAL',
+    resultReferences: [
+      {
+        path: '/draftSnapshotRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.work_order_draft_snapshot',
+      },
+    ],
+  },
+  {
     type: 'execution.get_context_snapshot',
     version: '1.0',
     kind: 'QUERY',

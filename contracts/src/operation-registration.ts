@@ -325,6 +325,27 @@ const taskExecutionRegistrations: readonly TaskExecutionRegistration[] = [
     ],
   },
   {
+    type: 'execution.get_work_order_draft',
+    version: '2.0',
+    kind: 'QUERY',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'execution.work_order.draft.read',
+    dataClassification: 'INTERNAL',
+    // §18.8 keeps `/payload/workOrderRef` undeclared on purpose: the two
+    // published WorkOrder spellings are not Catalog object types, and the
+    // legacy one is closed by the owning Handler.
+    references: [],
+    resultReferences: [
+      {
+        path: '/draftSnapshotRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.work_order_draft_snapshot',
+      },
+    ],
+  },
+  {
     type: 'execution.build_initial_context_snapshot',
     version: '1.1',
     kind: 'COMMAND',

@@ -5,7 +5,7 @@
 
 版本：v1.2
 日期：2026-09-17
-状态：`V0003 CURRENT AUTHORITATIVE IMPLEMENTED DESIGN / #210 PRINCIPAL-KIND ADDITIVE DELTA APPROVED 2026-09-17（INDEPENDENT REVIEW COMPLETED ON 67e5df57；EXACT-REVISION HUMAN DESIGN APPROVAL RECORDED）/ NOT IMPLEMENTED`
+状态：`V0003 CURRENT AUTHORITATIVE IMPLEMENTED DESIGN / #210 PRINCIPAL-KIND ADDITIVE DELTA APPROVED 2026-09-17（INDEPENDENT REVIEW COMPLETED ON 67e5df57；EXACT-REVISION HUMAN DESIGN APPROVAL RECORDED）/ #210 PRINCIPAL-KIND ADDITIVE DELTA IMPLEMENTED 2026-09-18 BY Issue #212（`migrations/bootstrap/V0004__platform_principal_kind.sql`）/ INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW PENDING`
 上游权威：[`07-postgresql-logical-model-v0.1.md` §19](../high-level-docs/07-postgresql-logical-model-v0.1.md)。本文固定 §19.2 遗留的"事务安全上下文具体机制"，是 RLS 物理机制与威胁模型的唯一权威；实现（`migrations/bootstrap/V0003__platform_rls_context.sql`）与测试（`tests/persistence/rls-context.test.ts`）必须与本文件一致。
 
 ## 1. 目标与不变量
@@ -140,19 +140,30 @@ ALTER TABLE <module>.<table> FORCE ROW LEVEL SECURITY;
 
 ### 3.5 #210 `principalKind` 的向后兼容增量（设计提案）
 
-Issue #210 的第 5 轮独立审查确认：Core `PrincipalRef` 由 `principalId + principalKind` 共同构成，但 V0003 只把 `principal_id` 保存为数据库可验证的事务事实；`context_kind()` 表达 `REQUEST` / `EVENT_CONSUMER`，不能代替 PrincipalKind。用户于 2026-09-17 明确批准把该缺口纳入 #210 scope；第 6 轮随后在 revision `67e5df57db637953009ba21b2193114aec401ce6` 完成独立审查且未发现新的 agent-fixable 阻断，用户已对该 exact design 明确作出人类技术批准。该批准不表示以下未来 migration 或消费端已经实现。
+状态：`DESIGN APPROVED 2026-09-17（INDEPENDENT REVIEW COMPLETED ON 67e5df57；EXACT-REVISION HUMAN DESIGN APPROVAL RECORDED）/ IMPLEMENTED 2026-09-18 BY Issue #212（migrations/bootstrap/V0004__platform_principal_kind.sql）/ INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW PENDING`。
+
+Issue #210 的第 5 轮独立审查确认：Core `PrincipalRef` 由 `principalId + principalKind` 共同构成，但 V0003 只把 `principal_id` 保存为数据库可验证的事务事实；`context_kind()` 表达 `REQUEST` / `EVENT_CONSUMER`，不能代替 PrincipalKind。用户于 2026-09-17 明确批准把该缺口纳入 #210 scope；第 6 轮随后在 revision `67e5df57db637953009ba21b2193114aec401ce6` 完成独立审查且未发现新的 agent-fixable 阻断，用户已对该 exact design 明确作出人类技术批准。该批准随后由 [Issue #212](https://github.com/qzhike/zhiju-business-core/issues/212) 实现；实现事实与验证边界见本节末尾。
 
 增量采用**向后兼容双入口**，不修改已应用的 `V0003`：
 
-1. 未来 forward-only bootstrap migration（编号在实现 Issue 分配；当前序列的下一候选为 `V0004`）向 `platform_security.tx_context` 增加可空 `principal_kind text`。闭集为 `HUMAN | AGENT | SERVICE | RUNTIME | EXTERNAL_PARTY`；NULL 只表示由既有 10 参数入口建立的 legacy Context，不得被解释或默认成任何 PrincipalKind。
+1. forward-only bootstrap migration（已按实际交付分配为 `migrations/bootstrap/V0004__platform_principal_kind.sql`）向 `platform_security.tx_context` 增加可空 `principal_kind text`。闭集为 `HUMAN | AGENT | SERVICE | RUNTIME | EXTERNAL_PARTY`；NULL 只表示由既有 10 参数入口建立的 legacy Context，不得被解释或默认成任何 PrincipalKind。
 2. 既有 10 参数 `establish_transaction_context(...)` 的签名与权限保持不变，并由新 migration 以相同签名重建实现：它显式写入 `principal_kind = NULL`，且幂等比较要求现有行同样为 NULL。它不能满足任何要求可信 PrincipalKind 的新 guard。
 3. 新增 11 参数重载，在 `p_principal_id` 后接受非空 `p_principal_kind`；它复用 V0003 的角色、Decision 引用、有效期、Scope、清理与审计约束，并把 kind 纳入同事务幂等比较。非法/空 kind 以 `22023` 拒绝；同事务中 10 参数与 11 参数入口混用一律视为不同 Context，以 `platform_context_conflict` 拒绝，不能补写或覆盖。
 4. 新增 `platform_security.context_principal_kind()`：与 `context_principal_id()` 相同，使用 `STABLE SECURITY DEFINER`、固定 `search_path=pg_catalog`、逐 statement 重验 Decision 有效期；无 Context、已过期 Context 或 legacy Context 均返回 NULL。其 EXECUTE 授权集合与 `context_principal_id()` 相同；PUBLIC、Dispatcher、Audit reader 和 migration runner 无权执行。
 5. 不扩展 `current_context()` 的既有返回签名，避免破坏依赖其复合返回类型的调用方；需要 PrincipalKind 的数据库策略或 guard 只调用新标量 helper。普通模块 app/projection role 仍无权调用任一 establish 入口或写 `tx_context`。
-6. #210 的 TaskExecution 事务入口已经在应用类型中持有经 Decision/Actor 复验的 `principalKind`；WorkOrder 实现必须改用 11 参数入口。WorkOrder INSERT policy 与 creation guard 必须同时要求两份 payload `PrincipalRef` 的 id/kind、Root/Receipt 的 principal id 分别等于 `context_principal_id()` / `context_principal_kind()`；任一 helper 为 NULL 或不等即拒绝。其他既有模块可继续使用 10 参数入口，本增量不宣称其历史写入已经获得数据库级 kind 绑定。
+6. #210 的 TaskExecution 事务入口已经在应用类型中持有经 Decision/Actor 复验的 `principalKind`；WorkOrder 实现已改用 11 参数入口（见末尾实现事实）。WorkOrder INSERT policy 与 creation guard 必须同时要求两份 payload `PrincipalRef` 的 id/kind、Root/Receipt 的 principal id 分别等于 `context_principal_id()` / `context_principal_kind()`；任一 helper 为 NULL 或不等即拒绝。其他既有模块可继续使用 10 参数入口，本增量不宣称其历史写入已经获得数据库级 kind 绑定。
 7. 实现验收必须覆盖：空库与 V0003 历史升级、二次迁移 no-op、旧入口兼容、两入口混用冲突、非法/缺失 kind、过期 Decision、无 Context、普通 app 直接调用/写表、同 kind 幂等与异 kind 冲突、并发连接、commit/rollback/异常及连接池复用隔离；WorkOrder 另覆盖“id 相同但两份 payload kind 同时伪造”的直 SQL 反例。
 
 该增量只补足事务 Context 的可信身份事实，不让 RLS 判断 Human-only、职责分离或业务授权；IdentityPolicy Decision/Actor/Grant 的真实性仍由 owning 应用 Port 在建立 Context 前证明。
+
+**实现事实与验证边界（#212，2026-09-18）**
+
+状态：`IMPLEMENTED 2026-09-18 BY Issue #212（migrations/bootstrap/V0004__platform_principal_kind.sql）/ INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW PENDING`。
+
+- 对象与 ACL：`platform_security.tx_context` 增加可空 `principal_kind`，`CHECK (principal_kind IS NULL OR principal_kind IN ('HUMAN','AGENT','SERVICE','RUNTIME','EXTERNAL_PARTY'))`；10 参数 `establish_transaction_context` 以原签名与原权限重建并写 NULL kind；新增以 `p_principal_kind` 为第三个参数的 11 参数重载；新增 `platform_security.context_principal_kind()`（`STABLE SECURITY DEFINER`，与 `context_principal_id()` 相同的逐 statement 过期重验与同一组 15 个 EXECUTE 角色）。两条 establish 入口的 EXECUTE 仍只授予 `platform_context_establisher`，`tx_context` 表权限与普通 app/projection 角色权限均不变；`V0003` 未被修改。
+- 行为与错误码：合法 11 参数建立后 helper 返回精确 kind，10 参数 legacy Context 返回 NULL；同事务内两个入口混用或使用不同 kind 一律 `40001`（`platform_context_conflict`），非法、NULL 或空 kind 一律 `22023`；普通 app 角色自行 establish 或直写 `tx_context` 仍为 `42501`。
+- 消费方：WorkOrder DRAFT 创建是该 helper 的首个消费者，TaskExecution 的该路径使用 11 参数入口（`V3003` 的归属 guard 同时锚定 `context_principal_id()` 与 `context_principal_kind()`）；其他模块继续使用 10 参数入口，其隐式 kind=NULL 行为不变。
+- 验证边界：`TE-P210-018`/`TE-P210-022` 在真实 PostgreSQL 18.6 覆盖空库与 V0003 历史升级、二次迁移 no-op、旧入口兼容、两入口混用冲突、非法/未知/缺失 kind、过期与无 Context、普通 app 角色直调/写表、同 kind 幂等与异 kind 冲突、并发连接、commit/rollback/异常与连接池复用隔离；WorkOrder 的“id 相同但两份 payload kind 同时伪造”直 SQL 反例由 `TE-P210-017` 覆盖。生产 Credential、Decision Port 接入、break-glass 与外部 Provider 仍 `NOT RUN`。
 
 ## 4. 明确不做（非目标对齐）
 

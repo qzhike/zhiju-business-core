@@ -38,3 +38,9 @@ export type {
   TaskReadinessEntryConfig,
   TaskReadinessSession,
 } from './task-readiness-entry.js';
+export { createWorkOrderDraftEntry } from './work-order-draft-entry.js';
+export type {
+  WorkOrderDraftEntry,
+  WorkOrderDraftEntryConfig,
+  WorkOrderDraftSession,
+} from './work-order-draft-entry.js';

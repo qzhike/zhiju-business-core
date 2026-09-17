@@ -28,6 +28,11 @@ import {
   type TaskReadyCasInput,
   type TaskReadyCasResult,
 } from './task-readiness-repository.js';
+import {
+  WorkOrderDraftRepository,
+  type WorkOrderDraftSnapshotInsert,
+  type WorkOrderRootInsert,
+} from './work-order-draft-repository.js';
 
 export const IDEMPOTENCY_PAYLOAD_CONFLICT = 'IDEMPOTENCY_PAYLOAD_CONFLICT';
 export const CONCURRENCY_CONFLICT = 'CONCURRENCY_CONFLICT';
@@ -222,6 +227,16 @@ export interface CommandExecution {
    */
   insertExecutionJudgment(row: ExecutionJudgmentInsert): Promise<boolean>;
   casTaskStatusToReady(input: TaskReadyCasInput): Promise<TaskReadyCasResult>;
+  /**
+   * Runner-bound WorkOrder DRAFT writes (IM-06 #212): the body supplies the row
+   * data only, and the runner closes over the open transaction, the frozen
+   * command target and the owning repository, exactly like the Task DRAFT
+   * inserts. A caller cannot write a WorkOrder Root or a draft Snapshot for
+   * another WorkOrder, Project Scope or target spelling. `false` means the
+   * WorkOrder CREATE identity already exists.
+   */
+  insertWorkOrderDraftRoot(row: WorkOrderRootInsert): Promise<boolean>;
+  insertWorkOrderDraftSnapshot(row: WorkOrderDraftSnapshotInsert): Promise<void>;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -576,6 +591,7 @@ function createExecution(
   const taskExecutionRepo = new TaskExecutionRepository();
   const taskDraftRepo = new TaskDraftRepository();
   const taskReadinessRepo = new TaskReadinessRepository();
+  const workOrderDraftRepo = new WorkOrderDraftRepository();
   return {
     trx,
     async insertProcessInstance(row) {
@@ -592,6 +608,12 @@ function createExecution(
     },
     async casTaskStatusToReady(row) {
       return taskReadinessRepo.casTaskStatusToReady(trx, commandFacts, row);
+    },
+    async insertWorkOrderDraftRoot(row) {
+      return workOrderDraftRepo.insertWorkOrderRoot(trx, commandFacts, row);
+    },
+    async insertWorkOrderDraftSnapshot(row) {
+      await workOrderDraftRepo.insertWorkOrderDraftSnapshot(trx, commandFacts, row);
     },
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {

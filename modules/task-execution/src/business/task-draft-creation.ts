@@ -118,7 +118,12 @@ export interface TaskDraftCreationPorts {
   readonly projectScope: TaskExecutionCreationProjectScopePort;
 }
 
-interface EnvelopeScope {
+/**
+ * The exact Project Scope form the creation handlers reason in. Exported so a
+ * later handler of the same module reuses the §16.3/§18.6 helpers instead of
+ * duplicating the accepted Scope forms.
+ */
+export interface EnvelopeScope {
   readonly enterpriseId: string;
   readonly projectId: string;
 }
@@ -158,8 +163,11 @@ function exactProjectScope(ref: unknown): EnvelopeScope | undefined {
  * enterprise, and a Project form must carry both Envelope dimensions. A shape
  * the shared `ScopeRef` does not allow (for example a bare `projectId`) is not
  * contained.
+ *
+ * Exported because §18.6 gives the WorkOrder DRAFT the same Scope shapes: the
+ * later handler reuses this rule instead of restating it.
  */
-function scopeWithinEnvelope(scope: unknown, envelope: EnvelopeScope): boolean {
+export function scopeWithinEnvelope(scope: unknown, envelope: EnvelopeScope): boolean {
   const value = record(scope);
   const keys = Object.keys(value);
   if (keys.length === 0) return true;
@@ -174,7 +182,7 @@ function scopeWithinEnvelope(scope: unknown, envelope: EnvelopeScope): boolean {
  * Scope must be contained, and without one it is accepted as a declared source
  * intent that is never a fact of existence, readiness or completion.
  */
-function inputReferenceWithinEnvelope(ref: unknown, envelope: EnvelopeScope): boolean {
+export function inputReferenceWithinEnvelope(ref: unknown, envelope: EnvelopeScope): boolean {
   const value = record(ref);
   if (Object.prototype.hasOwnProperty.call(value, 'system')) {
     if (!Object.prototype.hasOwnProperty.call(value, 'tenantOrAccountRef')) return true;

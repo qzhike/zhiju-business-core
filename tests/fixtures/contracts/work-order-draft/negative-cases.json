@@ -1,0 +1,45 @@
+[
+  {
+    "base": "query",
+    "path": "/payload/workOrderRef",
+    "keyword": "required",
+    "expectedPath": "/payload",
+    "remove": true
+  },
+  {
+    "base": "query",
+    "path": "/payload/taskRef",
+    "keyword": "additionalProperties",
+    "expectedPath": "/payload",
+    "value": {
+      "kind": "OBJECT",
+      "objectType": "execution.task",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d467",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    }
+  },
+  {
+    "base": "query",
+    "path": "/payload/workOrderRef/kind",
+    "keyword": "const",
+    "expectedPath": "/payload/workOrderRef/kind",
+    "value": "SNAPSHOT"
+  },
+  {
+    "base": "query",
+    "path": "/payload/workOrderRef/objectId",
+    "keyword": "pattern",
+    "expectedPath": "/payload/workOrderRef/objectId",
+    "value": "work-order-1"
+  },
+  {
+    "base": "result",
+    "path": "/expiresAt",
+    "keyword": "type",
+    "expectedPath": "/expiresAt",
+    "value": 1756684800
+  }
+]

@@ -116,11 +116,9 @@ export namespace TaskExecution {
   export type WorkOrderDraftSnapshot = {
   readonly snapshotId: Common.UuidV7;
   readonly workOrderRef: Common.ObjectRef & {
-  readonly objectType?: "zhiju.execution.work_order";
+  readonly objectType?: "execution.work_order";
 };
-  readonly taskRef: Common.ObjectRef & {
-  readonly objectType?: "zhiju.execution.task";
-};
+  readonly taskRef: Common.ObjectRef;
   readonly scopeRef: Common.ScopeRef;
   readonly draft: TaskExecution.WorkOrderDraft;
   readonly expiresAt?: Common.UtcInstant;
@@ -132,9 +130,7 @@ export namespace TaskExecution {
   readonly workOrderRef: Common.ObjectRef & {
   readonly objectType?: "zhiju.execution.work_order";
 };
-  readonly taskRef: Common.ObjectRef & {
-  readonly objectType?: "zhiju.execution.task";
-};
+  readonly taskRef: Common.ObjectRef;
   readonly scopeRef: Common.ScopeRef;
   readonly draft: TaskExecution.InitialWorkOrderDraft;
   readonly expiresAt?: Common.UtcInstant;
@@ -555,6 +551,20 @@ export namespace TaskExecution {
   readonly objectType?: "zhiju.execution.work_order_draft_snapshot";
 };
   readonly draft: TaskExecution.InitialWorkOrderDraft;
+  readonly expiresAt?: Common.UtcInstant;
+  readonly rootAggregateVersion: Common.NonNegativeInteger;
+  readonly status: TaskExecution.WorkOrderStatus;
+};
+  /** Payload of `execution.get_work_order_draft` (QUERY). */
+  export interface ExecutionGetWorkOrderDraftV20Payload {
+  readonly workOrderRef: Common.ObjectRef;
+}
+  /** Result of `execution.get_work_order_draft` (QUERY). */
+  export type ExecutionGetWorkOrderDraftV20Result = {
+  readonly draftSnapshotRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.work_order_draft_snapshot";
+};
+  readonly draft: TaskExecution.WorkOrderDraft;
   readonly expiresAt?: Common.UtcInstant;
   readonly rootAggregateVersion: Common.NonNegativeInteger;
   readonly status: TaskExecution.WorkOrderStatus;

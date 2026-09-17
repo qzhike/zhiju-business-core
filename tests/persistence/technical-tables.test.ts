@@ -148,6 +148,9 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'task_definition_snapshot',
     // IM-06 (#208): the immutable Task Readiness judgment fact (V3002).
     'execution_judgment',
+    // IM-06 (#212): WorkOrder Aggregate Root and its immutable Draft snapshot.
+    'work_order',
+    'work_order_draft_snapshot',
   ],
   artifact: [
     'business_probe',
