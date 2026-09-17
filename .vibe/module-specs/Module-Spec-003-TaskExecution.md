@@ -1283,9 +1283,9 @@ EXECUTION_TASK_ALREADY_EXISTS
 
 1. 一个 WorkOrder 恰好有一个被接受的公开拼写，取自其创建事实的 `command_version`：`'1.0'` → `execution.work_order`，`'1.1'` → `zhiju.execution.work_order`。大小写敏感、逐字符相等；另一版本的拼写、裸本地名（如 `WorkOrder`）、前缀剥离或补全、两个拼写互换一律拒绝。
 2. `kind` 必须为 `OBJECT`；`objectId` 必须等于 `work_order_id`；`scope` 必须是 Project 形态 `{enterpriseId, projectId}` 且与该 WorkOrder 的 Scope 列逐字段相等。不做规范化、不做 fuzzy 查找、不回退 latest。
-3. 读取版本与拼写**互相绑定**：`get_work_order_draft@1.1` 只接受 canonical 拼写，`get_work_order_draft@2.0` 只接受 legacy 拼写。请求另一读取版本、另一拼写、错 id、非 Project Scope 或不可见 WorkOrder 统一拒绝为 `EXECUTION_WORK_ORDER_REF_INVALID`（安全外观不区分“拼写错误”“版本不符”“Scope 不符”“不可见”，也不返回其他 Scope 的对象存在性）。
+3. 读取版本与拼写**互相绑定**：`get_work_order_draft@1.1` 只接受 canonical 拼写，`get_work_order_draft@2.0` 只接受 legacy 拼写。请求另一读取版本、另一拼写、错 id、非 Project Scope 或不可见 WorkOrder 统一拒绝为 `EXECUTION_WORK_ORDER_REF_INVALID`（安全外观不区分“拼写错误”“版本不符”“Scope 不符”“不可见”，也不返回其他 Scope 的对象存在性）。该码是**读取/owning Handler 路径**的闭合码；创建路径的同一语义在更早的层被拒绝（第 5 条），不由本节码表达。
 4. 两层各自精确：[Spec 001 §15.6](Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210) 的读取授权条目按 `(type@version)` 声明该读取可接受的 target objectType 闭集，并要求请求声明的 target 与 covering Grant 的 selector 逐字符相等；**业务**上哪个拼写正确只由本节规则判定。调用者既不能靠声明另一拼写取得业务成功，也不能用另一个 target 的 Grant 提权。
-5. CREATE 的 `targetRef` 仍按 #200 的既有绑定逐版本闭合（@1.0 legacy、@1.1 canonical），本节不改变它；因此“创建时被授权的 target 拼写”与“创建后被接受的公开拼写”对两个 Major 都恰好相同。
+5. CREATE 的 `targetRef` 仍按 #200 的既有绑定逐版本闭合（@1.0 legacy、@1.1 canonical），本节不改变它；其**真实可达的发生层**依次为：① **注册 Envelope**——`create_work_order@1.1` 带 `targetObjectType` 元数据，因此 `targetRef.objectType` 被 `const` 固定，错拼写、裸本地名、大小写变体与错 kind 在 Envelope 校验即拒绝为共享 `API_VALUE_INVALID`；`@1.0` 是 200 项 Baseline 条目、无 `targetObjectType`，其 target 不由 Schema 固定。② **`TaskExecutionCreationAuthorizationPort`（两版本）**——presented Decision 与 binding 的精确比对在幂等 Claim 与历史 Receipt 返回**之前**执行，`expectedTargetRef.objectType` 与该版本 binding 不一致即 `IDENTITY_CREATION_TARGET_INVALID`（沿用 #200 语义，内部分类只进安全 Audit）。③ **owning Handler**——创建期不再重新判定 target 拼写（①/② 已闭合），只由 §18.7 的持久化 guard 强制 `work_order_object_type` 等于 Receipt `command_version` 派生拼写。因此“创建时被授权的 target 拼写”与“创建后被接受的公开拼写”对两个 Major 恰好相同，而 `EXECUTION_WORK_ORDER_REF_INVALID` 不是创建路径码。
 6. 跨版本永远不是等价重试：不得用另一个 `create_work_order` 版本的历史 Receipt 返回本版本结果，也不得凭历史 Receipt 取得创建或读取资格（沿用 §15.3 第 4–5 条）。
 
 **为什么这不是别名。** 别名意味着同一对象在业务接受集里有第二个可用名字。R-210-1 让每个 WorkOrder 恰好一个拼写被接受，且该拼写同时决定唯一可用的读取版本；另一个拼写在授权 Port、owning Handler 与注册 Schema 三处都不能取得业务成功。两个拼写不是“同一操作的两个名字”，而是“两条已发布创建路径各自的唯一身份”，与 §16.1/§17.3 对 Task 的处理同源。
@@ -1332,9 +1332,9 @@ EXECUTION_TASK_ALREADY_EXISTS
 1. **唯一 Actor 来源**是受信会话与已验证 Decision 行（组合层从 Decision 派生的 principal/kind/ActorSnapshot/Decision id 与 hash/Scope/Purpose）。`actingFor`、payload 里的 `requestedBy`、`initialAssignee`、任何 PrincipalKind 字符串声明与转交的他人 Decision 都不是授权来源，也不参与 ALLOW 判定。
 2. `draft.requestedBy` 必须**恰好等于**认证 principal 的 `PrincipalRef`（Human、Coordinator Agent、受约束 Process Manager 一体适用）；不一致 → 共享 `AUTHORIZATION_DECISION_INVALID`（内部分类只进受权限控制的 Audit）。未采用方案：允许 payload 指定“Human requester + Service 执行”的双身份——它需要额外的 identity 证明边界，且正是 Issue 禁止的 caller-supplied `requestedBy` 旁路；本 revision 不发明该边界。Service 发起时不代表“替某个 Human 请求”；Human 归属只作为 owning ActorSnapshot 的 `actingFor` metadata 存在，不进入 WorkOrder payload、不改变授权。
 3. 受约束 Process Manager 的服务发起请求只允许持自己的 `task.execution.create_work_order` Decision 与覆盖 Grant（§15.2 的精确 action/selector/Scope 规则）；`actingFor` 不替代 principal、不豁免该 Service 的 capability/Purpose/Scope。
-4. **Human-only 能力**：当认证 principal 不是 Human 时，若 `draft.allowedCapabilities[]`/`deniedCapabilities[]` 声明的任一 capability code 被 owning IdentityPolicy 的 Human-only 边界判定为 Human-only，创建直接拒绝共享码 `HUMAN_ONLY_CAPABILITY`。分类只能来自 owning 边界（`identity.check_human_only_capability@1.0` 的既有语义），不得由 payload、角色名或 `requestedBy` 决定。DRAFT 不签发任何 Grant、不为 Agent/Service 引入 Human-only 能力，也不因创建成功使任何 capability 可执行。
+4. **Human-only 能力（分类单元与检查输入）**：判定单元是声明的 capability code，即 Core §4.7 `CapabilityGrant.capabilityType`；`actions[]`、`resourceSelectors[]`、`constraints[]`、`expiresAt`、`grantPolicyRef` **不参与** Human-only 分类，也不因 DRAFT 而签发 Grant。当认证 principal 不是 Human 时，对 `allowedCapabilities[]` 与 `deniedCapabilities[]` 每个元素的 `capabilityType` 逐项（去重、canonical 字节序稳定序）经 owning 内部分类边界 [Spec 001 §15.7](Module-Spec-001-IdentityPolicy.md#157-im06-wodraft-02-workorder-draft-声明能力的-human-only-分类边界210) 分类；任一项属于 Human-only 集合即拒绝共享码 `HUMAN_ONLY_CAPABILITY`（[共享 API §8](../api-contract-v0.1/API-Contract-v0.1.md) 的共享错误码列表；Domain §19.10 的 `WO-U-002` 同码），内部分类只进受权限控制的 Audit。分类来源只能是 owning 的版本化静态集合（`HUMAN_ONLY_CAPABILITIES`，registry version `im02-static-v1`），不由 payload、角色名或 `requestedBy` 决定；TE 不复制集合，也不把 `IDENTITY_CAPABILITY_HUMAN_ONLY`（`identity.grant_capability` 模块码）或 `CAPABILITY_HUMAN_ONLY`（IdentityPolicy 的 Decision/Audit reason）当作本操作的公开错误码。HUMAN principal 的同类声明在创建期只被结构保留，必须由拥有可执行性判断的 Validator/Freeze 与 Grant 签发边界拒绝；DRAFT 不为 Agent/Service 引入 Human-only 能力，也不因创建成功使任何 capability 可执行。
 5. `actingFor`、Human `requestedBy` 或 Human Decision 的转交都不能放宽 principal-kind 与 Human-only 限制：他人 Decision 在授权 Port 的 actor/principal 绑定处即失败，不进入 Handler（§18.9 第 1 步）。
-6. `allowedCapabilities`/`deniedCapabilities` 是受验证的业务输入：创建期只做形状与 Scope 闭合以及“同一 capability 不得同时出现在两侧”的良构检查，不签发 Grant、不改写集合；实际可执行集合在后续 Validator/Freeze 与 Run capability binding 边界重新计算并收窄（Domain §19.9「Authorization Service 计算并收窄」）。
+6. `allowedCapabilities`/`deniedCapabilities` 的良构键是**精确 `capabilityType` 字符串**（大小写敏感、无规范化、不比较整个 Grant 对象）：同一 `capabilityType` 不得同时出现在两侧，出现即在创建期以共享 `API_VALUE_INVALID` 拒绝并写稳定 Audit（自相矛盾的计划不是授权判断）；创建期不签发 Grant、不改写集合，实际可执行集合在后续 Validator/Freeze 与 Run capability binding 边界重新计算并收窄（Domain §19.9「Authorization Service 计算并收窄」）。
 
 ### 18.6 DRAFT 与后续 Context/Validation/Freeze 的校验分工
 
@@ -1347,7 +1347,7 @@ EXECUTION_TASK_ALREADY_EXISTS
 | `targetScope` 与目标引用 | 形状与 Scope 包含关系：不得超出绑定 Task 与 Envelope；Project 锚定形态与 Envelope 逐字段相等；跨 Enterprise/Project 拒绝 `EXECUTION_WORK_ORDER_SCOPE_INVALID`（沿用 §16.3 的 Scope 形态规则） | 完整字段与 Scope | Freeze 的 candidate 组装与 Scope 复核 |
 | `inputRefs` | 形状 + Scope 落在 Envelope 内（Platform `{}`/同 Enterprise/同 Project；`ExternalRef` 按其有无 `tenantOrAccountRef` 两分支，未携带者只是来源意图）；跨租户拒绝 | 完整 Ref 集合 | 存在性、版本、生命周期、可用性与 Purpose 裁剪（Readiness/Context Builder）；`ExternalRef` 须先经 owning 授权 Adapter 形成正式对象 |
 | `expectedOutputs[].acceptancePolicyRef`、`completionCriteria[].evaluatorRef`、`versionPins.*`、`riskAndQuality` 等 Profile Ref | 形状 + Scope 包含关系（同上）；未知 namespace 拒绝 | 完整字段 | Evaluator/Policy/Profile 的存在性、支持版本与当前有效性（Validator §11.9、`EXECUTION_CRITERION_UNSUPPORTED`） |
-| `allowedCapabilities`/`deniedCapabilities` | 形状 + Scope 闭合 + 良构（§18.5 第 6 条）+ 非 Human 的 Human-only 拒绝 | 完整集合 | Grant 签发/收窄与 Run capability binding；Freeze 的可执行性判断 |
+| `allowedCapabilities`/`deniedCapabilities` | 形状 + Scope 闭合 + 良构键（§18.5 第 6 条：精确 `capabilityType` 不得跨两侧重复）+ 非 Human 时对每个声明 `capabilityType` 的 Human-only 分类拒绝（§18.5 第 4 条，经 Spec 001 §15.7 的 owning 边界） | 完整集合 | Grant 签发/收窄与 Run capability binding；HUMAN principal 声明的 Human-only 能力必须在此被拒绝；Freeze 的可执行性判断 |
 | `budget`/`executionPolicy`/`harnessPolicy`/`modelPolicy`/`constraints` | 形状与 Hash | 完整字段 | 预算与 Policy 支持、当前有效性（Freeze、queue、`create_run`） |
 | `expiresAt` | 存在性与值；提供时以受信服务端时间要求 `now < expiresAt`（§11.2.4 第 1 条，违反用 `API_VALUE_INVALID`） | 原样进入 Root 与快照并进入完整 Hash | Builder/Validator/Freeze/queue/create_run/start_run 各自按当前时间重验（§11.2.4、Domain §19.7.1） |
 
@@ -1382,9 +1382,10 @@ EXECUTION_TASK_ALREADY_EXISTS
 | `draft_schema_version` | 同上；与 payload 形状一一对应 |
 | `canonical_payload` | `WorkOrderDraftSnapshot` 形状的规范 JSON：`{snapshotId, workOrderRef, taskRef, scopeRef, draft, expiresAt?, capturedAt, createdBy}`，逐字节保存；其中 `workOrderRef`/`taskRef` 使用 §18.2/§18.3 的派生拼写，`draft` 为该 Major 的形状 |
 | 提升镜像 | `work_order_object_type`、`task_object_type`、`enterprise_id`/`project_id`、可空 `expires_at`、`payload_hash`（SHA-256、32 字节、canonicalization v1）与 `canonicalization_version`；必须与 `canonical_payload` 逐项一致（null-safe 比较，禁止 SQL NULL、JSON null 与缺省互相冒充） |
-| `request_payload_hash` / `source_command_id` | 绑定产生本快照的在途请求：`source_command_id` 指向仍在途（`PENDING`）的 `execution.create_work_order` Receipt，其 `command_version` = `draft_schema_version`、target type/id 与 Project Scope = 本 WorkOrder、`request_payload_hash` = 本行同名列 |
+| `request_payload_hash` / `source_command_id` | 绑定产生本快照的在途请求：`source_command_id` 指向仍在途（`PENDING`）的 `execution.create_work_order` Receipt；`request_payload_hash` 列保存该 Receipt 的请求 Hash，但其**唯一证据**是 guard 由 `canonical_payload` 重建的创建请求投影（见下），同名列本身不构成证明；Receipt 的 `command_version` = `draft_schema_version`、target type/id 与 Project Scope = 本 WorkOrder |
 
-- **双 guard**：`SECURITY DEFINER` 的 mirror guard 由 `canonical_payload` 重算 Scope、拼写与期限镜像及 `payload_hash`（复用 `V3001` 的 owner-only `task_execution.canonical_jsonb_text`，app 角色不可执行）；`SECURITY INVOKER` 的 creation-identity guard 强制来源 Receipt 身份与 `command_version` ↔ `work_order_object_type` ↔ `draft_schema_version` ↔ payload 内 `workOrderRef.objectType` 四者一致，并强制 `task_object_type` 与被绑定 Task 的创建事实一致。因此“复用他人的 Receipt 换内容”“把 @1.1 payload 重标为 `1.0`”“事后补写快照或只改指针”都不能成立。
+- **创建请求投影（数据库可重建的闭合定义）**：`request(canonical_payload) = {draft: canonical_payload -> 'draft'}`，并且当且仅当 `canonical_payload` 含 `expiresAt` 成员时并入 `{expiresAt: canonical_payload -> 'expiresAt'}`。成员集合恰好是 `{draft}` 或 `{draft, expiresAt}`——注册 Schema 已把 `create_work_order` 的 payload 闭合为 `draft` 与可选 `expiresAt`，因此不存在“未知成员”分支；Snapshot header（`snapshotId`/`workOrderRef`/`taskRef`/`scopeRef`/`capturedAt`/`createdBy`）**不得**计入投影。规范化使用 owner-only 的 `task_execution.canonical_jsonb_text`（canonicalization v1），Hash 为 `sha256(convert_to(<规范化文本>, 'UTF8'))`，必须**等于**来源 Receipt 的 `request_payload_hash`。`expiresAt` 的存在性与值同样参与：增删该成员、改写其值或用 JSON null 冒充缺省都会改变投影 Hash（JSON null 已在注册 Envelope 的 `instant` 形状被拒）。`payload_hash`（覆盖完整 Snapshot payload，含 header 与成员存在性）与请求投影 Hash 是两个不同的绑定，不能互相替代，也不能只比较同名列。
+- **双 guard**：`SECURITY DEFINER` 的 mirror guard 由 `canonical_payload` 重算 Scope、拼写与期限镜像及 `payload_hash`（复用 `V3001` 的 owner-only `task_execution.canonical_jsonb_text`，app 角色不可执行）；`SECURITY INVOKER` 的 creation-identity guard 强制来源 Receipt 身份与 `command_version` ↔ `work_order_object_type` ↔ `draft_schema_version` ↔ payload 内 `workOrderRef.objectType` 四者一致、上述创建请求投影 Hash 相等、`canonical_payload.expiresAt` 与 Root `expires_at` 的存在性/值一致、以及 `task_object_type` 与被绑定 Task 的创建事实一致。因此“复用他人的 Receipt 换内容”“把 @1.1 payload 重标为 `1.0`”“增删或改写 `expiresAt`”“事后补写快照或只改指针”都不能成立。
 - **不可变性与 ACL**：app 角色对快照无 `UPDATE`/`DELETE`，Root 无 `DELETE`；Scope、身份、拼写与期限列由 immutable trigger 保护；指针变化必须是 `aggregate_version` 前进的 CAS 转换（本切片不实现该转换）。
 - **RLS**：两表都显式保存 `enterprise_id`/`project_id`，`FORCE RLS` + `context_allows_project`（与 `V3001`/`V3002` 同族）；不建立跨 Schema FK/Join，不复制其他 Schema 数据。
 - **Outbox**：0 行（§18.10）。
@@ -1449,17 +1450,20 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 
 | 错误码 | 触发条件 | 安全外观 |
 |---|---|---|
-| `EXECUTION_WORK_ORDER_REF_INVALID`（**本切片新增**） | §18.2 的 WorkOrder 拼写、读取版本、kind、id 或 Scope 闭合失败 | 不区分“拼写错误”“版本不符”“Scope 不符”“不可见”；不返回其他 Scope 的对象存在性 |
-| `EXECUTION_WORK_ORDER_ALREADY_EXISTS`（**本切片新增**） | 同一 Project Scope 内 CREATE identity 已被占用 | 不覆盖既有事实，不返回他人结果 |
+| `EXECUTION_WORK_ORDER_REF_INVALID`（**本切片新增**） | **读取路径**的 WorkOrder 拼写、读取版本、kind、id 或 Scope 闭合失败（§18.2 第 3 条）；创建路径的同类语义在更早的层被拒 | 不区分“拼写错误”“版本不符”“Scope 不符”“不可见”；不返回其他 Scope 的对象存在性 |
+| `EXECUTION_WORK_ORDER_ALREADY_EXISTS`（**本切片新增**） | 同一 Project Scope 内 CREATE identity 已存在，含并发同 target；这是该情形的**唯一**稳定码，不使用 `CONCURRENCY_CONFLICT` | 不覆盖既有事实，不返回他人结果 |
+| `IDENTITY_CREATION_TARGET_INVALID` | 创建路径的 `expectedTargetRef.objectType` 与该 `(type@version)` binding 不符（@1.0 的真实可达层，沿用 #200 语义） | 内部分类只进受权限控制的 Audit；不泄露其他 Scope 存在性 |
 | `EXECUTION_TASK_REF_INVALID` | 绑定 Task 的拼写/kind/id/Scope 闭合失败（R-210-2，沿用 #208 语义） | 同 #208，不区分内部原因 |
 | `EXECUTION_DEFINITION_REF_INVALID` | 绑定 Task 的创建事实缺失、不可读或与拼写判定不一致（沿用 §17.9） | 拒绝，不猜测形状 |
 | `EXECUTION_TASK_NOT_EXECUTABLE` | 绑定 Task 的 status 不在允许集合（复用 §6） | 不写 Root 与快照，不泄露原因细分 |
 | `EXECUTION_WORK_ORDER_SCOPE_INVALID` | `targetScope`、目标引用或能力引用的 Scope 不闭合或跨租户（复用 §6） | 统一拒绝 |
-| `HUMAN_ONLY_CAPABILITY` | 非 Human principal 声明 Human-only capability（共享码） | 不签发 Grant、不创建事实 |
-| `API_VALUE_INVALID` / `AGGREGATE_STATE_NOT_ALLOWED` / `REFERENCE_INVALID` | 创建期限已过；读取非 DRAFT Root；Root↔快照或指针↔payload 不一致（共享码，§11.2.4） | 沿用既有语义 |
-| `IDEMPOTENCY_PAYLOAD_CONFLICT` / `CONCURRENCY_CONFLICT` / `NOT_FOUND` / `DEPENDENCY_UNAVAILABLE` / 共享授权码 | 同键异输入；目标已被占用；同 Scope 不可见；owning 依赖不可用；Decision/Actor/Scope/期限失败 | 沿用既有语义；内部分类只进安全 Audit |
+| `HUMAN_ONLY_CAPABILITY` | 非 Human principal 声明的 `capabilityType` 被判为 Human-only（共享码，经 Spec 001 §15.7 的 owning 分类边界） | 不签发 Grant、不创建事实；公开错误不暴露集合内容或内部 reason |
+| `API_VALUE_INVALID` / `AGGREGATE_STATE_NOT_ALLOWED` / `REFERENCE_INVALID` | 创建期限已过或 allowed/denied 的 `capabilityType` 重叠；读取非 DRAFT Root；Root↔快照、指针↔payload 或创建请求投影 Hash 不一致（共享码，§11.2.4） | 沿用既有语义 |
+| `IDEMPOTENCY_PAYLOAD_CONFLICT` / `NOT_FOUND` / `DEPENDENCY_UNAVAILABLE` / 共享授权码 | 同键异输入；同 Scope 不可见；owning 依赖不可用（含分类边界不可用）；Decision/Actor/Scope/期限失败 | 沿用既有语义；内部分类只进安全 Audit |
 
-本切片只新增 `EXECUTION_WORK_ORDER_REF_INVALID` 与 `EXECUTION_WORK_ORDER_ALREADY_EXISTS` 两个模块稳定码，随实现注册；其余表项全部复用已发布码。
+**发生层序（同一语义可能更早被拒）**：注册 Envelope（`API_VALUE_INVALID`：@1.1 的 `targetRef.objectType` `const`、closed payload、`instant` 形状、未知字段）→ IdentityPolicy 边界（`IDENTITY_CREATION_TARGET_INVALID`、共享授权码、分类边界的 `DEPENDENCY_UNAVAILABLE`）→ owning Handler 与持久化 guard（本节的 `EXECUTION_WORK_ORDER_*`、`EXECUTION_TASK_REF_INVALID`、`EXECUTION_DEFINITION_REF_INVALID`、`HUMAN_ONLY_CAPABILITY`、`IDEMPOTENCY_PAYLOAD_CONFLICT`）。`TE-P210-*` 的每一行必须从能到达所断言层的合法基线开始，并在结果中标注实际发生层；一层更早的拒绝不得写成 Handler 的通过或失败。
+
+本切片只新增 `EXECUTION_WORK_ORDER_REF_INVALID` 与 `EXECUTION_WORK_ORDER_ALREADY_EXISTS` 两个模块稳定码，随实现注册；其余表项全部复用已发布码。`HUMAN_ONLY_CAPABILITY` 是[共享 API §8](../api-contract-v0.1/API-Contract-v0.1.md) 既有共享码（Domain §19.10 的 `WO-U-002` 同码），不是本切片新增的模块码。
 
 ### 18.12 增量分类（本 revision 要求的契约与元数据增量）
 
@@ -1474,7 +1478,7 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 | `operation-compatibility-metadata.v1.json` | +1 条目（@2.0，Purpose 复用 `execution.work_order.draft.read`） | additive；manual-review fingerprint 只对新条目生成 |
 | `public-api.v1.json` 与生成物、`operation-registration.ts` | +1 条目与断言扩展 | additive |
 | 历史 200 项 Compatibility Baseline | **不变** | `check-compatibility.mts` 的 `operationCount=200`、`envelopeDocuments=200` 与逐条比较继续通过；新版本按 `COMPATIBLE_MINOR operation-added-as-minor` 归类 |
-| IdentityPolicy | 新增一个内部读取授权 Port 条目（[Spec 001 §15.6](Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210)） | 不新增公开 Command/Query、不新增 capability code、不改 `authorize_command@1.0`、不新增迁移 |
+| IdentityPolicy | 新增一个内部读取授权 Port 条目（[Spec 001 §15.6](Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210)）与一个内部能力分类 Port（[Spec 001 §15.7](Module-Spec-001-IdentityPolicy.md#157-im06-wodraft-02-workorder-draft-声明能力的-human-only-分类边界210)） | 都不新增公开 Command/Query、不新增 capability code、不改 `authorize_command@1.0`、不新增迁移；分类集合版本由 owning 侧维护 |
 | TaskExecution migration | 未来 forward-only `V3003`（编号在实现 Issue 分配） | 不改 `V3000`/`V3001`/`V3002` |
 
 ### 18.13 验收矩阵与未运行边界

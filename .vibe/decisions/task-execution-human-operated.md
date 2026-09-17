@@ -783,6 +783,8 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 
 **不注册 legacy objectType**：`execution.work_order`/`execution.task` 都不是 Registry objectType，本 revision 不改变这一点；`get_work_order_draft@2.0` 的 `/payload/workOrderRef` 有意不声明（与 §17.4 对 `/payload/taskRef` 的不声明同理）。
 
+**创建 target 的发生层（评审修复）**：`EXECUTION_WORK_ORDER_REF_INVALID` 只属于读取路径。创建路径的真实可达顺序为：① 注册 Envelope——`create_work_order@1.1` 带 `targetObjectType` 元数据，`targetRef.objectType` 被 `const` 固定，错拼写/裸名/大小写/错 kind 即 `API_VALUE_INVALID`；@1.0 是 Baseline 条目、无该元数据，不由 Schema 固定。② `TaskExecutionCreationAuthorizationPort`——`expectedTargetRef.objectType` 与该版本 binding 不符即 `IDENTITY_CREATION_TARGET_INVALID`，且发生在幂等 Claim 与历史 Receipt 返回之前。③ owning Handler 与 §18.7 的持久化 guard——强制 `work_order_object_type` 等于 Receipt `command_version` 派生拼写，不再重复判定 target。因此创建与读取两侧都不会出现“同一情形两个稳定码”。
+
 ### 17.3 P-210-2 WorkOrder 与 Task 的绑定
 
 **决定（R-210-2）**：`draft.taskRef` 的拼写必须等于**该 Task 自身创建事实**对应的拼写（R-206-1：`schema_version='1.0'` → `execution.task`、`'2.0'` → `zhiju.execution.task`），不得由 WorkOrder 版本、payload 其他字段、Task 的 `aggregate_version` 或 objectId 推断；两个 WorkOrder Major 都接受两个 Task Major（四种组合合法）。拼写/kind/id/Scope 不闭合 → `EXECUTION_TASK_REF_INVALID`（复用 #208 已注册码）；同 Scope 内不存在该 Task → `NOT_FOUND`；创建事实缺失、不可读或与拼写判定不一致 → `EXECUTION_DEFINITION_REF_INVALID`（沿用 §17.9）。
@@ -802,8 +804,8 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 1. 唯一 Actor 来源是受信会话与已验证 Decision 行；`actingFor`、payload 的 `requestedBy`、`initialAssignee`、PrincipalKind 声明与转交的他人 Decision 都不是授权来源。
 2. `draft.requestedBy` 必须恰好等于认证 principal（Human/Coordinator Agent/受约束 Process Manager 一体适用），否则共享 `AUTHORIZATION_DECISION_INVALID` 且内部分类只进 Audit。**未采用**“payload 指定 Human requester + Service 执行”：它需要额外的 identity 证明边界，且正是 Issue 禁止的 caller-supplied `requestedBy` 旁路；Human 归属只作为 owning ActorSnapshot 的 `actingFor` metadata 存在。
 3. 服务发起请求只允许持自己的 `task.execution.create_work_order` Decision 与覆盖 Grant；`actingFor` 不替代 principal、不豁免 Service 的 capability/Purpose/Scope。
-4. 认证 principal 不是 Human 时，声明的任一 Human-only capability code 直接拒绝共享码 `HUMAN_ONLY_CAPABILITY`；分类只能来自 owning IdentityPolicy 边界（`identity.check_human_only_capability@1.0` 的既有语义），不得由 payload、角色名或 `requestedBy` 决定。DRAFT 不签发 Grant、不为 Agent/Service 引入 Human-only 能力。
-5. 能力集合只做形状、Scope 闭合与“同一 capability 不同时出现在 allowed/denied”的良构检查；实际可执行集合在 Validator/Freeze 与 Run capability binding 处重新计算并收窄（Domain §19.9）。
+4. 判定单元是 Core §4.7 `CapabilityGrant.capabilityType`（`actions[]`/`resourceSelectors[]`/`constraints[]`/`expiresAt`/`grantPolicyRef` 不参与 Human-only 分类）。认证 principal 不是 Human 时，对 `allowedCapabilities[]` 与 `deniedCapabilities[]` 的每个 `capabilityType` 经 owning 内部分类边界（Spec 001 §15.7，版本化静态集合 `HUMAN_ONLY_CAPABILITIES`@`im02-static-v1`）分类，任一项属于该集合即拒绝共享码 `HUMAN_ONLY_CAPABILITY`（[共享 API §8](../api-contract-v0.1/API-Contract-v0.1.md) 的共享错误码列表第 `HUMAN_ONLY_CAPABILITY` 条；Domain §19.10 的 `WO-U-002` 同码），内部分类只进 owning Audit。**不采用** `identity.check_human_only_capability@1.0` 作为分类器：它是 Grant 覆盖判定（`evaluateAccess` → `authorizeCommand(requestedCapability=capabilityCode)`），起草者通常不持有其声明的执行能力，其 DENY 无法区分“未持有 Grant”与“Human-only”，会把合法草案误拒。`IDENTITY_CAPABILITY_HUMAN_ONLY`（`identity.grant_capability` 模块码）与 `CAPABILITY_HUMAN_ONLY`（IdentityPolicy Decision/Audit reason）都不是本操作的公开错误码。
+5. HUMAN principal 声明的 Human-only 能力在创建期只被结构保留，必须由拥有可执行性判断的 Validator/Freeze 与 Grant 签发边界拒绝；能力集合的良构键是**精确 `capabilityType`**（同一 `capabilityType` 不得同时出现在 allowed 与 denied 两侧，出现即以共享 `API_VALUE_INVALID` 拒绝）；创建期不签发 Grant、不改写集合，实际可执行集合在 Validator/Freeze 与 Run capability binding 处重新计算并收窄（Domain §19.9）。
 
 ### 17.6 P-210-5 DRAFT 与后续 Context/Validation/Freeze 的校验分工
 
@@ -814,6 +816,8 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 **决定**：同一 owning 事务提交 `task_execution.work_order`（Root：身份、Scope、拼写与 Task 拼写镜像、status/aggregate_version、当前 Draft 指针 id + hash、`draft_schema_version`、可空且不可变的 `expires_at`、归属列）与不可变 `task_execution.work_order_draft_snapshot`（独立 `snapshot_id`、`WorkOrderDraftSnapshot` 规范 payload/hash、提升镜像、`request_payload_hash` 与 `source_command_id`），加 Receipt、Audit 与仅指向已证明引用的 Edge；**Outbox 0 行**。双 guard 强制 payload↔镜像、来源 Receipt 的 `command_version` 与拼写/形状版本一致、`task_object_type` 与被绑定 Task 的创建事实一致；app 角色无快照 UPDATE/DELETE 与 Root DELETE；两表 FORCE RLS + `context_allows_project`，无跨 Schema FK/Join。未来 forward-only migration 编号由实现 Issue 分配，**不改** `V3000`/`V3001`/`V3002`。
 
 幂等沿用 #151 runner 与 #204 规则：`idempotency_scope` 由服务端按 `execution.create_work_order@<version>` + Project Scope 组合；返回历史 Receipt 前比较持久化 `command_type`/`command_version`/`target_type`/`target_id`，不一致 `IDEMPOTENCY_PAYLOAD_CONFLICT` + DENIED Audit；重放仍重新授权但不重跑 Task 业务证明；同 target 冲突 `EXECUTION_WORK_ORDER_ALREADY_EXISTS`；注入故障或任一拒绝整体回滚，不留 `PENDING` Receipt 或孤立事实。
+
+**创建请求投影（评审修复）**：快照 payload 是创建请求的超集（多出 `snapshotId`/`workOrderRef`/`taskRef`/`scopeRef`/`capturedAt`/`createdBy` 与 `draft` 的包装），因此把 Receipt 的 `request_payload_hash` 复制到同名列**不能**证明“这份 draft 就是该命令提交的内容”。creation-identity guard 必须由 `canonical_payload` 重建请求投影 `{draft}` ∪（当且仅当 payload 含 `expiresAt`）`{expiresAt}`，用 owner-only canonicalization v1 规范化后 `sha256`，并要求恰好等于来源 Receipt 的 `request_payload_hash`；成员存在性与值都参与。投影成员集合闭合为这两种，header 不得计入，`payload_hash` 与请求投影 Hash 不能互相替代。这样“同一在途 Receipt + 另一份自洽 draft”“增删或改写 `expiresAt`”“掺入额外成员”都会被拒绝。
 
 **事件边界**：DRAFT 创建不发布任何公开 Event；Catalog 无 `WorkOrderDrafted`，Domain §19.8 的 `WorkOrderDrafted` 只是 Domain 词汇。需要该事件时须独立 additive 提案并同步 Registry/兼容元数据/reference/计数/fixture。
 
@@ -842,3 +846,6 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 - 在独立审查与人类批准完成前：不得创建 WorkOrder DRAFT 实现 Issue、不得注册 `execution.get_work_order_draft@2.0`、不得新增 objectType/错误码、不得分配 migration 编号、不得实现 Handler/Port/组成层，也不得把本节的任何行为记为 `PASS`。
 - 批准后，依赖的实现 Issue 只能覆盖 `TE-P210-D-*` 与 `TE-P210-001`–`023` 的已批准范围：不得顺带改写 `get_work_order_draft@1.0`/`@1.1` 与两个 `create_work_order` Major 的接受集、不得注册 legacy objectType、不得发布未注册 Event、不得改写历史 fixture 或 200 项 Baseline、不得实现首次 Context/校验/冻结或 TD-05–07。
 - WorkOrder、首次 Context、Validation/Freeze 与 IM-06 均**不**因本节完成。
+- **审查轮次（2026-09-17）**：PR [#211](https://github.com/qzhike/zhiju-business-core/pull/211) 的独立设计审查在 revision `b8354cfeb562197630596fdf528510df90d7617d` 给出 `REQUEST_CHANGES`，三个阻断项为：① Draft Snapshot 的双 guard 未从快照内容重建创建请求投影 Hash，同一在途 Receipt 可绑定另一份自洽 draft；② Human-only 检查缺少 Core `CapabilityGrant` → 分类输入的字段映射，且混用了模块码与 Decision reason；③ WorkOrder 创建身份与并发占用的稳定错误码在 Spec/Test 内互相矛盾，创建 target 的发生层未闭合。三项均已在本 revision 修正：Spec 003 §18.2 第 5 条、§18.5 第 4/6 条、§18.6 与 §18.7 的创建请求投影、§18.11 及其后的发生层序；Spec 001 §15.7（能力分类 Port）；Module Test `TE-P210-004`/`010`/`015`/`017` 与状态段的发生层原则。
+- 审查同时主张“仓库没有共享错误码 `HUMAN_ONLY_CAPABILITY`”。该主张与 [共享 API §8](../api-contract-v0.1/API-Contract-v0.1.md) 的共享错误码列表不符（Domain §19.10 的 `WO-U-002` 同码），因此本 revision 保留该共享码，并补充它与 `IDENTITY_CAPABILITY_HUMAN_ONLY`（`identity.grant_capability` 模块码）和 `CAPABILITY_HUMAN_ONLY`（IdentityPolicy Decision/Audit reason）的关系，见 §17.5 第 4 条。
+- 修复后仍须对新的 exact head 重新独立审查；本节的显式人类设计批准仍未完成，`TE-P210-*` 全部保持 `NOT RUN`。
