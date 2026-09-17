@@ -142,3 +142,42 @@ WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、�
 WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、读取 Handler/组成层、IdentityPolicy 读取/分类 Port、`TE-P210-001`–`023`、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、外部 Provider/Runtime/飞书与人工业务验收继续保持 `NOT RUN`。
 
 本轮仍未发现 exact head 的显式人类设计批准。当前先以新的 agent-fixable 归属完整性阻断给出 `REQUEST_CHANGES`；修复后的新 head 必须重新独立审查，通过后才进入 Issue #210 明确要求的人类设计批准门禁。本轮未修改设计正文或业务代码，也不授权 commit、push、merge 或 deploy。
+
+## 第 4 轮：`REQUEST_CHANGES`
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`a85d74a40f004b2664b0701c323d9563180ccf24`
+- Base SHA：`bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`
+- PR：[#211](https://github.com/qzhike/zhiju-business-core/pull/211)
+- Work item：[#210](https://github.com/qzhike/zhiju-business-core/issues/210)（T2 design）
+- 审查日期：2026-09-17
+
+本轮重新读取了远端最新 head、Issue #210、`5ca6934` 之后的修复增量、受影响权威、现有 transaction context/角色默认权限与 `V3000` Receipt 事实，并在 exact head 上重新运行项目配置的完整验证。第 3 轮要求的 `draft.requestedBy`、Snapshot `createdBy`、Root 两个 principal id 与 Receipt `created_by_principal_id` 的字段间等值关系已经补齐，相关 P1→P2 与字段间不一致场景也加入 `TE-P210-017`；但修复把一个当前可由 app 角色伪造的 Receipt 列误当作受信 Context 的数据库证明，因此第 3 轮的“闭合到受信事务 Context”仍未成立。
+
+### 阻断：Receipt `created_by_principal_id` 不是数据库受信锚，guard 没有直接绑定当前 transaction Context
+
+当前修复声称 Receipt `created_by_principal_id` “由受信事务 Context 产生，调用者不能改写”，并据此让 Root/Snapshot/requester 全部与该列相等。但是现有数据库事实相反：
+
+1. `V0002__schema_roles_baseline.sql` 默认向 `task_execution_app` 授予新表的 `SELECT, INSERT, UPDATE`；
+2. `V3000__task_execution_technical_tables.sql` 的 `command_receipt_insert` policy 只检查 `context_allows_enterprise/project`，没有检查 `created_by_principal_id = platform_security.context_principal_id()`；
+3. `command_receipt` 没有 creator mirror trigger/guard，仓库层 `assertEnvelopeMatchesContext` 只保护正常 runner 路径，不能作为 direct-SQL Gate；
+4. 当前 transaction context 只在数据库保存 `principal_id`，不保存 `principalKind`。`context_kind()` 是 `REQUEST`/`EVENT_CONSUMER`，不是 PrincipalKind。
+
+因此存在仍可达的直 SQL 反例：在受信 P2 transaction Context 下，以 `task_execution_app` 在同一允许 Project 插入一条 `PENDING` Receipt，把其 `created_by_principal_id` 写为 P1，并令请求 Hash 对应 `draft.requestedBy=P1`；随后让 Snapshot `createdBy=P1`、Root 两个 principal id=P1，其他 WorkOrder/Task/Scope/Hash 全部自洽。新增的所有等值检查与 RLS 都会通过，因为它们只证明多份 caller-writable 数据彼此相等，没有任何一项直接比较 `platform_security.context_principal_id()`。同理，把两个 JSON PrincipalRef 都写成同一错误 `principalKind` 时，当前 guard 只会确认两个不受信副本相等，不能证明该 kind 来自认证主体。
+
+要求：不能把现有 Receipt creator 列描述成不可伪造的 Context 来源。WorkOrder creation guard 至少必须直接要求 Receipt/Root/requester 的 principal id 等于 `platform_security.context_principal_id()`，并在 `TE-P210-017` 增加“P2 Context 内伪造 created_by=P1 的同 Scope PENDING Receipt，随后所有归属副本一致为 P1”的 app-role 反例。对于 `principalKind`，设计还必须指定一个数据库可验证的受信来源并覆盖“id 与 Context 相同、两个 JSON kind 同时伪造成另一 kind”的反例；若当前 transaction-context 合同不足以提供该事实，应明确进入相应的 scope/规划门禁，而不是把两个不受信 JSON 副本互相比对后称为已闭合到 Context。
+
+## 第 4 轮验证证据
+
+- 远端与本地 exact head：`a85d74a40f004b2664b0701c323d9563180ccf24`；base `bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`；PR `OPEN`、`MERGEABLE`，GitHub Actions `verify` 为 `SUCCESS`。
+- `git diff --check bbfd2ceaab21d0d346d6f405be7f216bc6cdd276..a85d74a40f004b2664b0701c323d9563180ccf24`：PASS。
+- exact-head `vibe verify full --json`：`PASS`，resolved command `pnpm clean && pnpm verify`，exit 0。PostgreSQL 镜像首次 pull 出现一次 Docker Hub TLS handshake timeout，已按 gate 内置重试恢复，未修改 verifier。
+- 普通 suite：98 files（60 passed / 38 skipped）、1434 tests（1010 passed / 424 skipped）；真实 PostgreSQL 18.6 persistence gate：42 files / 439 tests 全部通过；空库迁移、历史升级至 V7001、二次 migrate no-op 均通过；Catalog/Registry 214、Compatibility Baseline 200。
+
+绿色 verifier 证明当前已实现行为未回归，但 WorkOrder migration/guard 与 `TE-P210-001`–`023` 尚未实现；现有测试不会执行上述“同 Scope forged Receipt + 一致伪造归属”的未来设计反例。
+
+## 第 4 轮未运行边界与门禁
+
+WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` migration、读取 Handler/组成层、IdentityPolicy 读取/分类 Port、`TE-P210-001`–`023`、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection、外部 Provider/Runtime/飞书与人工业务验收继续保持 `NOT RUN`。
+
+本轮仍未发现 exact head 的显式人类设计批准。当前存在可由 agent 修复的数据库信任锚阻断，因此结论为 `REQUEST_CHANGES`；若修复 PrincipalKind 需要改变现有 platform transaction-context 合同，则须先进入相应的 scope/规划门禁。新 head 仍需重新独立审查，通过后才进入 Issue #210 明确要求的人类设计批准。本轮未修改设计正文或业务代码，也不授权 commit、push、merge 或 deploy。
