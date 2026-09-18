@@ -5,7 +5,7 @@
 
 版本：v1.2
 日期：2026-09-17
-状态：`V0003 CURRENT AUTHORITATIVE IMPLEMENTED DESIGN / #210 PRINCIPAL-KIND ADDITIVE DELTA APPROVED 2026-09-17（INDEPENDENT REVIEW COMPLETED ON 67e5df57；EXACT-REVISION HUMAN DESIGN APPROVAL RECORDED）/ #210 PRINCIPAL-KIND ADDITIVE DELTA IMPLEMENTED 2026-09-18 BY Issue #212（`migrations/bootstrap/V0004__platform_principal_kind.sql`）/ INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW PENDING`
+状态：`V0003 CURRENT AUTHORITATIVE IMPLEMENTED DESIGN / #210 PRINCIPAL-KIND ADDITIVE DELTA APPROVED 2026-09-17（INDEPENDENT REVIEW COMPLETED ON 67e5df57；EXACT-REVISION HUMAN DESIGN APPROVAL RECORDED）/ #210 PRINCIPAL-KIND ADDITIVE DELTA IMPLEMENTED 2026-09-18 BY Issue #212（`migrations/bootstrap/V0004__platform_principal_kind.sql`）/ MERGED 2026-09-18（PR [#213](https://github.com/qzhike/zhiju-business-core/pull/213)，merge commit `f0dccc9601316752dca15b393ef24f31199929f8`，Issue #212 已关闭 `COMPLETED`）/ INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW RECORDED ON `4deffa472bfb5f96f85224d3ec930b43a0e61ba8``
 上游权威：[`07-postgresql-logical-model-v0.1.md` §19](../high-level-docs/07-postgresql-logical-model-v0.1.md)。本文固定 §19.2 遗留的"事务安全上下文具体机制"，是 RLS 物理机制与威胁模型的唯一权威；实现（`migrations/bootstrap/V0003__platform_rls_context.sql`）与测试（`tests/persistence/rls-context.test.ts`）必须与本文件一致。
 
 ## 1. 目标与不变量
@@ -140,7 +140,7 @@ ALTER TABLE <module>.<table> FORCE ROW LEVEL SECURITY;
 
 ### 3.5 #210 `principalKind` 的向后兼容增量（设计提案）
 
-状态：`DESIGN APPROVED 2026-09-17（INDEPENDENT REVIEW COMPLETED ON 67e5df57；EXACT-REVISION HUMAN DESIGN APPROVAL RECORDED）/ IMPLEMENTED 2026-09-18 BY Issue #212（migrations/bootstrap/V0004__platform_principal_kind.sql）/ INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW PENDING`。
+状态：`DESIGN APPROVED 2026-09-17（INDEPENDENT REVIEW COMPLETED ON 67e5df57；EXACT-REVISION HUMAN DESIGN APPROVAL RECORDED）/ IMPLEMENTED 2026-09-18 BY Issue #212（migrations/bootstrap/V0004__platform_principal_kind.sql）/ MERGED 2026-09-18（PR [#213](https://github.com/qzhike/zhiju-business-core/pull/213)，merge commit `f0dccc9601316752dca15b393ef24f31199929f8`，Issue #212 已关闭 `COMPLETED`）/ INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW RECORDED ON `4deffa472bfb5f96f85224d3ec930b43a0e61ba8``。
 
 Issue #210 的第 5 轮独立审查确认：Core `PrincipalRef` 由 `principalId + principalKind` 共同构成，但 V0003 只把 `principal_id` 保存为数据库可验证的事务事实；`context_kind()` 表达 `REQUEST` / `EVENT_CONSUMER`，不能代替 PrincipalKind。用户于 2026-09-17 明确批准把该缺口纳入 #210 scope；第 6 轮随后在 revision `67e5df57db637953009ba21b2193114aec401ce6` 完成独立审查且未发现新的 agent-fixable 阻断，用户已对该 exact design 明确作出人类技术批准。该批准随后由 [Issue #212](https://github.com/qzhike/zhiju-business-core/issues/212) 实现；实现事实与验证边界见本节末尾。
 
@@ -158,7 +158,7 @@ Issue #210 的第 5 轮独立审查确认：Core `PrincipalRef` 由 `principalId
 
 **实现事实与验证边界（#212，2026-09-18）**
 
-状态：`IMPLEMENTED 2026-09-18 BY Issue #212（migrations/bootstrap/V0004__platform_principal_kind.sql）/ INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW PENDING`。
+状态：`IMPLEMENTED 2026-09-18 BY Issue #212（migrations/bootstrap/V0004__platform_principal_kind.sql）/ MERGED 2026-09-18（PR [#213](https://github.com/qzhike/zhiju-business-core/pull/213)，merge commit `f0dccc9601316752dca15b393ef24f31199929f8`，Issue #212 已关闭 `COMPLETED`）/ INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW RECORDED ON `4deffa472bfb5f96f85224d3ec930b43a0e61ba8``。
 
 - 对象与 ACL：`platform_security.tx_context` 增加可空 `principal_kind`，`CHECK (principal_kind IS NULL OR principal_kind IN ('HUMAN','AGENT','SERVICE','RUNTIME','EXTERNAL_PARTY'))`；10 参数 `establish_transaction_context` 以原签名与原权限重建并写 NULL kind；新增以 `p_principal_kind` 为第三个参数的 11 参数重载；新增 `platform_security.context_principal_kind()`（`STABLE SECURITY DEFINER`，与 `context_principal_id()` 相同的逐 statement 过期重验与同一组 15 个 EXECUTE 角色）。两条 establish 入口的 EXECUTE 仍只授予 `platform_context_establisher`，`tx_context` 表权限与普通 app/projection 角色权限均不变；`V0003` 未被修改。
 - 行为与错误码：合法 11 参数建立后 helper 返回精确 kind，10 参数 legacy Context 返回 NULL；同事务内两个入口混用或使用不同 kind 一律 `40001`（`platform_context_conflict`），非法、NULL 或空 kind 一律 `22023`；普通 app 角色自行 establish 或直写 `tx_context` 仍为 `42501`。

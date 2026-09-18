@@ -1270,9 +1270,9 @@ Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 
 
 历史 200 项 Compatibility Baseline 不变（additive 追加）；#208 将本 Catalog 由 213 增至 214 项，v1/v2 冻结 fixture、两个 `create_task` Major 的接受集与全部既有 registry 元数据逐字节不变。
 
-### #210 WorkOrder DRAFT 创建与精确读取的寻址路由（契约已注册 #212，Handler 未实现）
+### #210 WorkOrder DRAFT 创建与精确读取的寻址路由（契约已注册并实现 #212，PR #213 已合并）
 
-状态：`DESIGN APPROVED（Issue #210）/ CONTRACT REGISTERED（#212）/ HANDLER NOT IMPLEMENTED / NOT RUN`，字段级权威见 [Spec 003 §18](../module-specs/Module-Spec-003-TaskExecution.md#18-workorder-draft-创建与精确-draft-读取边界210-设计)，依据与被否方案见 [决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)，读取授权组成见 [Spec 001 §15.6](../module-specs/Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210)。
+状态：`DESIGN APPROVED（Issue #210）/ CONTRACT REGISTERED AND HANDLER IMPLEMENTED（#212）/ MERGED 2026-09-18（PR [#213](https://github.com/qzhike/zhiju-business-core/pull/213)，merge commit `f0dccc9601316752dca15b393ef24f31199929f8`）/ TE-P210-001–023 EXECUTED ON REAL PostgreSQL 18.6（CATALOG 214 → 215）/ TE-P210-006 AND TE-P210-020 SUB-BRANCHES NOT RUN`，字段级权威见 [Spec 003 §18](../module-specs/Module-Spec-003-TaskExecution.md#18-workorder-draft-创建与精确-draft-读取边界210-设计)，依据与被否方案见 [决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)，读取授权组成见 [Spec 001 §15.6](../module-specs/Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210)。
 
 - **WorkOrder 寻址规则（R-210-1）**：WorkOrder 的公开拼写由不可变创建事实派生——由 `execution.create_work_order@1.0` 创建者为 `execution.work_order`，由 `@1.1` 创建者为 `zhiju.execution.work_order`。每个 WorkOrder 恰好一个被接受的拼写，且该拼写绑定唯一读取版本：`@1.1` 创建者由 `execution.get_work_order_draft@1.1` 读取，`@1.0` 创建者由本项新增设计的 `execution.get_work_order_draft@2.0` 读取。两个拼写不是别名：另一拼写在授权 Port 的 target 闭集与 owning Handler 的业务闭合两侧都不能取得业务成功，且不存在规范化、大小写回退或 latest 取值。
 - **Task 寻址规则**：WorkOrder 的 `taskRef` 拼写必须等于被绑定 Task 的创建事实拼写（R-206-1），不得由 WorkOrder 版本、Task 的 `aggregate_version` 或 objectId 推断；两个 WorkOrder 创建路径都接受两个 Task 创建路径。
