@@ -1,7 +1,7 @@
 # IM-06 Human-operated 执行边界与设计提案
 
 日期：2026-09-09
-状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #176 POLICY/EVALUATOR RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / TD-05–07 PROPOSED / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED 2026-09-15 DESIGN VERIFIED / #210 WORKORDER DRAFT AND PRINCIPAL-KIND PLATFORM DELTA APPROVED 2026-09-17, DESIGN VERIFIED / HANDLER IMPLEMENTATION NOT STARTED`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。§12 是 [#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的 Policy/Evaluator 解析与授权依赖设计，已于 2026-09-12 获批、尚未实现。#202 的 Task DRAFT 创建引用与持久化边界已于 2026-09-15 通过独立审查并获用户明确设计批准，精确批准记录见 §15.8；这不表示 Handler 或业务持久化已实现；#210 的 WorkOrder DRAFT 创建、精确 Draft 读取与 platform transaction-context PrincipalKind 增量已在 revision `67e5df57db637953009ba21b2193114aec401ce6` 完成独立审查，并于 2026-09-17 获用户明确设计批准；其 Contract、migration 与 Handler 仍未注册、未实现。推进顺序见 [roadmap](../product/roadmap.md)。
+状态：`TD-01–04 APPROVED 2026-09-08 / TD-01 EXPIRY ADDENDUM APPROVED 2026-09-09 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #176 POLICY/EVALUATOR RESOLUTION DESIGN APPROVED 2026-09-12 DESIGN VERIFIED / TD-05–07 PROPOSED / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED 2026-09-15 DESIGN VERIFIED / #210 WORKORDER DRAFT AND PRINCIPAL-KIND PLATFORM DELTA APPROVED 2026-09-17, DESIGN VERIFIED / HANDLER IMPLEMENTATION NOT STARTED / #214 TD-01 INITIAL CONTEXT BUILD AND EXACT SNAPSHOT-READ DESIGN DELTA PROPOSED 2026-09-18, PENDING INDEPENDENT REVIEW AND HUMAN DESIGN APPROVAL`。用户已于 2026-09-08 批准 #151–#154 已呈现的方向与约束，并授权技术设计。用户随后明确“批准你的设计，提交更新”，批准本修订 TD-01–04 的具体 API、字段、持久化与首版范围。§1–10 为已批准的未来技术设计，其中 §8.4 的期限补充于 2026-09-09 单独获批；#165 已把其中的 DRAFT/initial Context 兼容契约同步到 Schema、Registry、生成类型和 fixtures，但不代表业务 Handler 或业务持久化链已经存在；§11 是剩余设计提案，尚未批准，不宣称实现存在。§12 是 [#176](https://github.com/qzhike/zhiju-business-core/issues/176) 的 Policy/Evaluator 解析与授权依赖设计，已于 2026-09-12 获批、尚未实现。#202 的 Task DRAFT 创建引用与持久化边界已于 2026-09-15 通过独立审查并获用户明确设计批准，精确批准记录见 §15.8；这不表示 Handler 或业务持久化已实现；#210 的 WorkOrder DRAFT 创建、精确 Draft 读取与 platform transaction-context PrincipalKind 增量已在 revision `67e5df57db637953009ba21b2193114aec401ce6` 完成独立审查，并于 2026-09-17 获用户明确设计批准；其 Contract、migration 与 Handler 仍未注册、未实现。推进顺序见 [roadmap](../product/roadmap.md)。
 
 ## 1. 分类与既有边界
 
@@ -858,3 +858,37 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 - **审查轮次 4（2026-09-17）**：第 4 轮复审在 revision `a85d74a40f004b2664b0701c323d9563180ccf24` 确认第 3 轮的字段间等值关系与 P1→P2 反例已补齐，但指出该修复把**可由 app 角色伪造的 Receipt creator 列**误当作受信 Context 的数据库证明：`V0002__schema_roles_baseline.sql` 默认给模块 app 角色 `SELECT/INSERT/UPDATE`，`V3000` 的 `command_receipt_insert` policy 只检查 Scope 且该表无 creator guard，所以原表述只证明“多份 caller-writable 数据彼此相等”。本 revision 已修正：受信锚改为 `platform_security.context_principal_id()`（两表 INSERT policy 的 `WITH CHECK` 与 creation guard 直接比较，沿用 EnterpriseProject `V2001`/`V2003` 先例；Receipt 的 creator 被要求等于该 Context 而不是被信任）；`principalKind` 明确声明**当前无数据库可验证来源**，记为依赖实现切片的显式 scope/规划门禁（Spec 003 §18.13），不在本节声称已闭合；`TE-P210-017` 增加“P2 Context 内伪造同 Scope、creator=P1、请求 Hash 自洽的 `PENDING` Receipt”反例与 kind 子项。修复后仍需对新的 exact head 重新独立审查；人类设计批准仍未完成。
 - **审查轮次 5 与 scope 决定（2026-09-17）**：第 5 轮在 revision `9b34f07790deffd2df2e32b2b8762a6be62932c4` 确认 principal-id Context 锚已闭合，但因 `principalKind` 仍无数据库可验证来源给出 `SCOPE_EXPANSION`。用户随后明确同意按该意见扩展 scope；本 revision 因此把 RLS 事务上下文决定 §3.5、PostgreSQL §19.2 的平台增量及对应兼容/隔离验收纳入 #210。该决定只解除 scope 门禁，不构成对本次新增 exact design 的独立审查或最终人类设计批准；新的 exact revision 仍须依次经过两项 Gate。
 - **审查轮次 6 与人类批准（2026-09-17）**：第 6 轮在 revision `67e5df57db637953009ba21b2193114aec401ce6` 复核 scope-expanded delta，确认 10/11 参数入口兼容、kind 幂等/混用冲突、helper ACL/期限、WorkOrder 完整 PrincipalRef 绑定及迁移/伪造/并发/池复用矩阵闭合，未发现新的 agent-fixable 阻断；因 Issue 要求安全敏感设计的人类判断而给出 `HUMAN_REVIEW_REQUIRED`。用户随后明确“批准更改，合并PR并关闭Issue及local/remote branches”，人类技术门禁据此满足；批准记录见 [Issue #210 评论](https://github.com/qzhike/zhiju-business-core/issues/210#issuecomment-5715698129)。该批准不把未来实现或 `TE-P210-*` 运行时场景改标为已完成。
+
+## 18. TD-01 首次 Context 构建与精确快照读取边界闭合提案（#214）
+
+状态：`T2 / DESIGN DELTA PROPOSED 2026-09-18（Issue #214，对账基线 main@0be76e0c62b722393d1c500772dab7dfa2a34db9）/ PENDING INDEPENDENT REVIEW AND HUMAN DESIGN APPROVAL / HANDLER, AUTHORIZATION PORT, MIGRATION AND RUNTIME TESTS NOT IMPLEMENTED`。权威细节见 [Spec 003 §19](../module-specs/Module-Spec-003-TaskExecution.md#19-首次-context-构建与精确快照读取边界闭合214-设计)、[Spec 001 §15.8](../module-specs/Module-Spec-001-IdentityPolicy.md#158-im06-ctxbuild-01-首次-context-构建与权威快照读取授权组成提案214)、[PostgreSQL §33](../high-level-docs/07-postgresql-logical-model-v0.1.md) 的 #214 增量与 Module-Test 003 `TE-214-D-*` 设计矩阵；本节是摘要与分类结论。
+
+### 18.1 对账基线与增量定位
+
+- #212 已交付两个 WorkOrder 创建 Major、不可变 `work_order_draft_snapshot`（`draft_schema_version` CHECK `'1.0'`/`'1.1'`）、版本派生 WorkOrder/Task 拼写、`get_work_order_draft@1.1`/`@2.0` 精确读取、受信 transaction-context PrincipalKind 与 `V3003` guards（PR #213 已合并）。
+- `execution.build_initial_context_snapshot@1.0/@1.1` 与 `zhiju.execution.context_snapshot` 已注册（FULL），`execution.get_context_snapshot@1.0` 仍是 `v1.0-baseline` 通用 SnapshotRef Query；#188 交付 Source Slice capture/read、#186 交付 PolicyVersion 精确解析、#179 交付 Context Builder profile 静态校验。
+- TaskExecution 仍无初始 Context Handler、权威 Context 读取 Handler、`context_snapshot` 持久化、build metadata、组成入口与运行时测试；§15.6 第 6 条显式留给 TD-01 Context 切片的 `build_initial_context_snapshot@1.1` 授权缺口未关闭。
+
+### 18.2 决定摘要（R-214-1 – R-214-8）
+
+1. **版本绑定（R-214-1）**：`build_initial_context_snapshot@1.1` 是唯一可满足入口，只接受 `create_work_order@1.1` 创建的不可变 DRAFT（`'1.1'` + canonical 拼写 + `DraftVersionPins`）；`@1.0` 无满足输入（Core `VersionPins.contextBuilderPolicyRef` 未钉 namespace 无法满足四点绑定、必带 `projectContextContractRef` 与 #165 方向互斥、legacy 拼写不在初始链），注册保留、逐字节不变、不实现、不建授权路径；禁止别名/`latest`/调用方规范化/借用他版 Receipt 使其变相可用。
+2. **身份与读取（R-214-2）**：初始构建只产生 canonical `zhiju.execution.context_snapshot` Project Scope SnapshotRef（六字段全绑定）；`get_context_snapshot@1.0` 分类为**足够、零改动**——通用请求形状覆盖 canonical 新事实与 legacy `zhiju.project.context_snapshot` 历史读回，结果 ref 逐字段相等，不需要 additive 版本，不重写 200 Baseline；Core 03/Catalog 06/共享 API 不要求改动。
+3. **授权组成（R-214-3）**：Spec 001 §15.8 两条互不替代的条目——build @1.1（`execution.context.build.initial.v1_1`、`CREATE_TARGET_TYPE {zhiju.execution.context_snapshot}`、`contextSnapshotBuildV11`）与权威 Snapshot 读（`execution.context.snapshot.read`、`TARGET_TYPE` 双 objectType 闭集、`contextSnapshotRead`）；@1.0 不建路径、同 Purpose 不跨版本。依赖读取（精确 Draft 读、每片 Slice 读、PolicyVersion 解析、Snapshot 读）各自独立现签；构建能力不隐含依赖读取能力；重验先于幂等 Claim 与历史 Receipt 返回。
+4. **确定性组装（R-214-4）**：精确 DRAFT + 非空精确 Slice 集 + 精确 Policy 观测 → ProjectContext v1.0；排序/去重、逐片可用性核验、profile 匹配（`allowedProjectionTypes`、`policySchemaRefs` 含 `execution.context_builder.policy@1.0`）、manifest/omission/redaction/coverage 与 canonical hashing 全部闭合；Schema 有效或内容寻址不等于已授权/可用/适用。
+5. **期限（R-214-5）**：§11.2.4/§11.2.5.4 原样沿用；增量为 Builder 持锁提交点以受信当前时间重验 WorkOrder 期限与 effective 期限。
+6. **持久化（R-214-6）**：`context_snapshot` 不可变 Contract Record + `context_snapshot_build` INITIAL-only metadata；forward-only migration 编号实现时分配（预期 V3004 之后），不改 `V3000`–`V3003`；mirror/creation-identity/immutable guards、RLS/ACL、`reference_edge` 与回滚边界闭合。
+7. **事件（R-214-7）**：已注册 `execution.ContextSnapshotBuilt@1.0` 足够，不新增版本；成功提交恰好一条 Outbox，payload 绑定已提交 canonical ref 与 DRAFT workOrderRef，重放不重复。
+8. **并发/幂等/恢复（R-214-8）**：WorkOrder 只读依赖行锁（既定锁序）内重验 DRAFT 状态与当前指针；跨模块观测只经 owning 边界，无分布式事务；幂等/冲突/注入故障整事务回滚沿用 #212 runner 模式。
+
+### 18.3 分类与交付边界
+
+| 产物 | 判定 |
+|---|---|
+| `build_initial_context_snapshot@1.0/@1.1`、`get_context_snapshot@1.0`、`ContextSnapshotBuilt@1.0` 的注册 Schema/Catalog/兼容元数据 | **零改动**（@1.0 判定无满足输入，冻结不实现；@1.1 走既有注册） |
+| 历史 200 项 Compatibility Baseline、Catalog 215、TaskExecution 45 | **不变** |
+| Core 03 §3、Catalog 06、共享 API | **不要求改动**（Query 分类为足够） |
+| IdentityPolicy | 一个 owning 内部 Port 的两条条目（Spec 001 §15.8）；无公开 API、无 capability code、无迁移（复用 V1006 target 列） |
+| TaskExecution migration | 未来 forward-only，编号实现时分配；不改 `V3000`–`V3003` |
+
+- 本 Delta 只改 durable 设计文档；独立设计审查须对 exact proposed revision 进行，正式记录存 `.vibe/reviews/pr-<number>/Review.md`；因本设计控制授权、跨模块数据最小化、不可变 Context 内容、RLS 与重放，依赖实现 Issue 在获得显式人类设计/技术批准前保持 `NOT_READY`。
+- #152/#165–#168 与 #188/#212 的历史证据保留不改；本节不把首次 Context、Validation/Freeze、执行或 IM-06 报告为已实现，`TE-214-D-*` 全部保持 `NOT RUN`。

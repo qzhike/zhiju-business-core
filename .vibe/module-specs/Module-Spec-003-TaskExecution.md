@@ -351,7 +351,7 @@ TaskExecution owning Schema 独立拥有八张标准事务技术表，并遵守 
 
 ## 11. IM-06 技术设计
 
-状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #167 INITIAL CONTEXT RESULT CONTRACT IMPLEMENTED 2026-09-12 / #175 TASK V2 CREATION CONTRACT IMPLEMENTED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / #183 POLICYVERSION STATIC CONTRACT REGISTERED 2026-09-13 / HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前全仓 Registry 为 213 项。本节不把 Domain 内部命令名自动视为公开 API。
+状态：`TECHNICAL DESIGN APPROVED 2026-09-08 / EXPIRY ADDENDUM APPROVED 2026-09-09 / CONTRACT SCHEMA AND REGISTRY IMPLEMENTED 2026-09-10 / BUILDER POLICY BINDING CONTRACT IMPLEMENTED 2026-09-11 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #167 INITIAL CONTEXT RESULT CONTRACT IMPLEMENTED 2026-09-12 / #175 TASK V2 CREATION CONTRACT IMPLEMENTED 2026-09-12 / #176 POLICY/EVALUATOR RESOLUTION APPROVED 2026-09-12 DESIGN VERIFIED / #183 POLICYVERSION STATIC CONTRACT REGISTERED 2026-09-13 / #214 INITIAL CONTEXT BUILD AND EXACT SNAPSHOT-READ DESIGN DELTA PROPOSED 2026-09-18 PENDING INDEPENDENT REVIEW（§19）/ HANDLER NOT IMPLEMENTED`。设计方向已获批准；本节是 #152–#154 经用户批准的字段设计基准，批准范围为 [技术决定 TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。第 2–6 节既有 @1.0 定义及历史 200 项 Compatibility Baseline 不变；当前全仓 Registry 为 213 项。本节不把 Domain 内部命令名自动视为公开 API。
 
 ### 11.1 公共规则与设计操作清单
 
@@ -1432,7 +1432,7 @@ EXECUTION_TASK_ALREADY_EXISTS
 **读取授权组成（本 revision 必须补齐的 owning 前置）。** `identity.authorize_command@1.0` 的签发路径硬性拒绝非 `1.0` 的 `commandVersion`（`modules/identity-policy/src/commands/actor-snapshot.ts`），因此 @1.1 与新增 @2.0 的读取当前**不存在可路由、可签发、可重验的授权路径**；仅有 Registry 里的 Purpose 字符串不足以实现权威读取。本 revision 因此固定一个 IdentityPolicy owning 内部 Port 的读取条目（[Spec 001 §15.6](Module-Spec-001-IdentityPolicy.md#156-im06-wodraft-01-workorder-draft-读取授权组成提案210)）：按 `(type@version)` 逐条声明 Purpose、Grant action、`TARGET_TYPE` selector 闭集与受信 capability config key，并在返回任何历史结果或读取事实**之前**重验精确 Decision id 与 hash、Actor/principal、认证上下文、type/version/Purpose、payload Hash、精确 target 与 Project Scope、ALLOW 与未过期，并以当次受信时间重读当前 covering Grant/Policy；撤销、到期、配置漂移、target 或版本替换、IdentityPolicy 不可用一律 fail closed。
 
 - 该 Port 不是公开 Command/Query、不进 Catalog、不新增 capability code、不改 `authorize_command@1.0` 的接受集、不新增 IdentityPolicy 迁移（复用 V1006 既有 target 列）；`get_work_order_draft@1.0` 保留既有通用路径。
-- 同一版本缺口也存在于 `execution.build_initial_context_snapshot@1.1`，它由 TD-01 的 Context 切片拥有，本 revision 有意**不**顺带关闭。
+- 同一版本缺口也存在于 `execution.build_initial_context_snapshot@1.1`，它由 TD-01 的 Context 切片拥有，本 revision 有意**不**顺带关闭（#214 的闭合提案见 §19.3 与 Spec 001 §15.8，待独立审查与人类设计批准）。
 
 ### 18.9 幂等、重放、并发与恢复
 
@@ -1553,3 +1553,75 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 - exact-head 证据：GitHub Actions `verify` 在该 SHA 上为 `SUCCESS`；独立执行的 `vibe verify full --json` 为 `PASS`（resolved command `pnpm clean && pnpm verify`，exit 0），其中 Docker/PostgreSQL 18.6 persistence gate 为 43/43 files、471/471 tests，migration 应用至 `0004` 与 `3003` 且第二次 Flyway migrate 为 no-op；Catalog/Registry **215**、TaskExecution **45** 与历史 **200** 项 Compatibility Baseline 保持不变。
 - 以 merge commit `f0dccc9601316752dca15b393ef24f31199929f8` 合入 `main`（2026-09-18T03:28:23Z；base `f950317d61d2a73f14f3bb0e76c1cb451e0f3fed`）；Issue [#212](https://github.com/qzhike/zhiju-business-core/issues/212) 已关闭为 `COMPLETED`，远端与本地 `galendai/im-06-taskexecution-implement-workorder-draft-cr` feature branch 均已删除。
 - 已接受边界不变：`TE-P210-006` 与 `TE-P210-020` 的两个无合法事实生产者子分支，以及 §18.14 列出的 WorkOrder 校验/冻结/READY/queue、首次 Context、Run/Attempt/AgentResult、InformationRequest 与 retry、Completion、Query/Projection（TD-05–07）、受控退出 Fixture、外部 Provider/Runtime/飞书、生产、负载/性能与独立人工业务验收，仍全部 `NOT RUN`；本次合并不把任何 `NOT RUN` 项记为已执行。
+
+## 19. 首次 Context 构建与精确快照读取边界闭合（#214 设计）
+
+状态：`T2 / DESIGN DELTA PROPOSED 2026-09-18（Issue #214，对账基线 main@0be76e0c62b722393d1c500772dab7dfa2a34db9）/ PENDING INDEPENDENT REVIEW AND HUMAN DESIGN APPROVAL / HANDLER, AUTHORIZATION PORT, MIGRATION AND RUNTIME TESTS NOT IMPLEMENTED`。本节闭合 TD-01 在 #212 交付后的实现就绪缺口：构建版本绑定、Snapshot 身份与权威读取契约、授权组成、确定性组装边界、期限、持久化/事务边界、事件边界与并发/幂等/恢复。它不改动任何已注册 Contract/Registry 产物（Catalog 215、TaskExecution 45、历史 200 项 Compatibility Baseline 不变）、#152/#165–#168/#188/#212 已交付实现或 `V3000`–`V3003`；未列出的行为沿用 §11、§18、[决定 §8](../decisions/task-execution-human-operated.md#8-wi-02-首次构建冻结与-retry-总序)与[决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)。本节是待批准设计提案，不是实现事实。
+
+### 19.1 版本绑定与可满足性（R-214-1）
+
+| build 版本 | WorkOrder 创建 Major | `draft_schema_version` | WorkOrder 拼写 | DRAFT payload | IM-06 可满足输入 |
+|---|---|---|---|---|---|
+| `execution.build_initial_context_snapshot@1.1` | `execution.create_work_order@1.1` | `'1.1'` | `zhiju.execution.work_order` | `initialWorkOrderDraft` + `DraftVersionPins`（`contextBuilderPolicyRef` 钉住 `zhiju.identity.policy`，无 `projectContextContractRef`） | **唯一可满足** |
+| `execution.build_initial_context_snapshot@1.0` | 无 | — | — | — | **无**（注册保留、冻结、不实现） |
+
+1. **@1.1 只接受 @1.1 创建事实**：目标 DRAFT 的 `draft_schema_version='1.1'`、`workOrderRef` 为 canonical 拼写、`draft` 为 `initialWorkOrderDraft`，且请求的 `draftSnapshotRef`（objectId/snapshotId/contentHash/Scope）与不可变 Draft Snapshot 逐字段相等、Root 当前指针解析到同一快照。`@1.0` 创建的 DRAFT（`'1.0'`、legacy `execution.work_order`、Core `VersionPins`）一律拒绝，错误码 `EXECUTION_DRAFT_SCHEMA_VERSION_MISMATCH`（新稳定码，实现时随错误码表登记，按注册 Envelope → IdentityPolicy Port → owning Handler 的真实层序归类）。
+2. **@1.0 无满足输入，三条独立理由任一即闭合**：① Core `VersionPins.contextBuilderPolicyRef` 是未钉住 namespace 的通用 `versionedRef`，无法满足 §11.2.5.1 四点精确 PolicyRef 绑定（请求/projection/metadata/versionPins 必须同一 `zhiju.identity.policy` exact snapshot ref，§11.2.5.2 的 `POLICY_OBJECT_TYPE_INVALID` fail-closed）；② 其 pins 必带 `projectContextContractRef`（Core required，§18.6 创建期只验形状），与 #165 批准的“初始链 DRAFT 不携带 `projectContextContractRef`”方向互斥；③ @1.0 创建 Major 的 legacy WorkOrder 拼写不在初始链任何消费位置的已发布拼写内。已注册、已发布的 @1.0 保持逐字节不变：不实现 Handler、不创建授权路径（任何 @1.0 构建尝试在授权层即 fail closed，无可路由授权）、不注册 legacy objectType。
+3. **禁止“变相可用”**：不得通过别名、placeholder/future ref、`latest`、调用方自选规范化或另一版本的历史 Receipt 使不可满足路径可用。两个 build 版本的 request shape 虽当前字节相同，身份判定只以目标 DRAFT 的不可变创建事实（`draft_schema_version` + 拼写 + pins 形状）为准，不以 payload 相似性、Purpose 或 target 类型相同放行。
+
+### 19.2 Snapshot 身份与权威读取契约（R-214-2）
+
+1. **唯一身份**：初始构建只产生注册的 canonical `zhiju.execution.context_snapshot` Project Scope SnapshotRef；kind=SNAPSHOT、objectId、snapshotId、scope（enterpriseId/projectId 双必填）、contentHash（SHA-256/64hex）、canonicalizationVersion `'1'` 六字段全部进入 Result Schema 与跨字段绑定（沿用 §11.2.5.3）。`zhiju.project.context_snapshot` 只是 Core v1.0 历史读回身份，不由新入口产生、不与 canonical 名称互换。
+2. **身份关系闭合**：① objectId = 命令 `targetRef.objectId`（Envelope 分配的 CREATE 身份），snapshotId 独立（应用生成，独立于 aggregate_version/CAS）；② contentHash = owner-only canonicalizer（cv1，NFC 键碰撞拒绝）对完整 ProjectContext v1.0 规范 payload 的 SHA-256，覆盖 `expiresAt` 的存在性与值（§11.2.5.4）；build metadata 不递归进 payload hash（§33）；③ `data.contextSnapshotRef` 与 `targetRef` 的 objectId/Scope 逐字段一致；④ build metadata（`context_snapshot_build`）、source command 绑定（`command_receipt` + creation-identity guard）、`reference_edge`（DRAFT→Snapshot、Snapshot→Policy snapshot、Snapshot→每片 Slice）与 Outbox `source_command_id` 四方闭合来源。
+3. **`execution.get_context_snapshot@1.0` 分类结论：足够，零改动**。通用 `snapshotRef` 请求形状已同时覆盖 canonical 新事实与 legacy `zhiju.project.context_snapshot` 历史读回；结果 `contextSnapshotRef` 与请求逐字段相等（namespace-agnostic 的读取绑定校验，#167 已固定）、`contractRef` 为内容寻址 Core ProjectContextContract ref。不需要 additive 操作版本，不改其 `v1.0-baseline` 兼容元数据与接受集，不重写历史 200 项 Baseline。未提交 Snapshot 或异 Hash 重放由 Handler 拒绝（`REFERENCE_INVALID`），读取授权走 §15.8 独立条目。
+4. **Core/Catalog/共享 API**：本 Delta 的分类结论为“现有 Query 足够”，不要求改动 [03-core-contracts](../high-level-docs/03-core-contracts.md) §3、Catalog 06 或共享 API 任何已发布接受集；Registry 计数与 Baseline 不变。若实现期发现该 Query 存在未预料的接受集缺口，须回到 readiness 复核而非静默改写。
+
+### 19.3 授权组成（R-214-3）
+
+权威条目见 [Spec 001 §15.8](../module-specs/Module-Spec-001-IdentityPolicy.md#158-im06-ctxbuild-01-首次-context-构建与权威快照读取授权组成提案214)（关闭 §15.6 第 6 条显式留给 TD-01 Context 切片、§18.8 记录的 `build_initial_context_snapshot@1.1` 缺口）。组成规则：
+
+1. **构建单一条目**：`execution.build_initial_context_snapshot@1.1` → Purpose `execution.context.build.initial`（已注册）、Grant action `execution.context.build.initial.v1_1`、`CREATE_TARGET_TYPE` 闭集 `{zhiju.execution.context_snapshot}`、受信 capability config key `contextSnapshotBuildV11`；Decision 签发绑定精确 targetRef，重验先于幂等 Claim 与历史 Receipt 返回。@1.0 不建授权路径（§19.1 第 2 条）。
+2. **每个独立动作各自授权**：精确 WorkOrder DRAFT 读（复用 §15.6 的 `workOrderDraftReadV11`）、每片 Source Slice 读（EnterpriseProject owning `project.context_source.read`，每次现签）、PolicyVersion 精确解析（`identity.policy.resolve_policy`，每次现签，沿用 `resolvePolicyView` 先例）、权威 Context Snapshot 读（§15.8 的 `contextSnapshotRead` 条目）。构建 Decision 不隐含任何依赖读取能力；无 Service 通配授权、无 caller 提供 principal 替换、无转移 Decision。
+3. **拒绝路径**只写同事务脱敏 `DENIED` Audit，不签发 Decision（沿用 §15.3 边界）。
+
+### 19.4 确定性组装边界（R-214-4）
+
+从精确 DRAFT（§19.1）、非空精确 Source Slice 集合与精确 Builder Policy 观测确定性组装 ProjectContext v1.0：
+
+1. **排序与去重**：Source Slice 按 (objectType, objectId, snapshotId) 字典序稳定排序；Schema `unique` 之外，组装层对 exact ref 重复再次拒绝（`EXECUTION_CONTEXT_SOURCE_INVALID`）；空集合由 Schema `nonEmpty` 与组装层双重拒绝。
+2. **每片核验**（经 EP owning 读，TE 不读 owning schema）：存在、contentHash 匹配、Scope 相等、purpose ∈ capture policy `allowedPurposeCodes`、audience 精确匹配、状态 `USABLE`（`EXPIRED`/`REVOKED` 拒绝，missing/stale/过期依赖统一 `DEPENDENCY_UNAVAILABLE` 或 `EXECUTION_CONTEXT_SOURCE_INVALID`，按发生层归类）。
+3. **Builder Policy 观测**：唯一解析来源 `identity.resolve_policy@1.0` 当次返回（TE-WI02-D-017，caller 自报/推导/历史 Receipt 充数拒绝）；`allowedProjectionTypes` 含请求 projectionType、`policySchemaRefs` 含 `execution.context_builder.policy@1.0`（#179 profile）；观测的 ref/hash/effectiveFrom/supersededAt 与请求 `builderPolicyRef` 及 DRAFT `DraftVersionPins.contextBuilderPolicyRef` 四点逐字段相等（§11.2.5.1/§11.2.5.2 fail-closed 矩阵原样沿用）。
+4. **projection 块**：purpose/audience 原样进 projection；`requestedByWorkOrderRef` = DRAFT canonical workOrderRef；`builderPolicyRef` = 同一 PolicyRef。
+5. **manifest 与内容闭合**：sourceManifest 列出 DRAFT ref + 每片 exact ref + Policy 观测；omissions[]/redactions[] 按 profile 与输入覆盖计算并给出原因；coverage 状态由覆盖推导；workContext/unresolvedItems 来自 DRAFT；WorkOrder/Task 联结只引用 DRAFT 已闭合身份。全部进入 payload hash，提升列逐项镜像（§19.6）。
+6. **输入证明的边界**：Schema 有效或内容寻址只证明形状/存在，不等于已授权、可用或适用；授权（§19.3）、可用性（第 2 条）与 profile 匹配（第 3 条）相互独立、全部核验。
+
+### 19.5 期限（R-214-5）
+
+§11.2.4/§11.2.5.4 已批准语义原样沿用，不合并、不改写：受信当前时间（V0004 transaction-context，非 caller 时钟）、请求上界原样观察（缺省与 JSON null 不等价）、不提供时取有限上界最小值、提供时超过任一有限上界拒绝而非静默截断、metadata 与 payload 镜像逐项一致（`EXPIRY_*` fail-closed 矩阵沿用）、提交点重验、不可变历史、重放不恢复当前资格。增量一条：Builder 在持有 WorkOrder 依赖行锁的提交点以受信当前时间重验 WorkOrder 期限与 effective 期限未越过；WorkOrder 已到期按 §11.2.4 第 4 条 `AGGREGATE_STATE_NOT_ALLOWED`，Context effective 越过按 §11.2.5.4 拒绝。
+
+### 19.6 持久化与事务边界（R-214-6）
+
+权威存储设计见 [PostgreSQL §33](../high-level-docs/07-postgresql-logical-model-v0.1.md) 的 #214 增量；此处固定行为边界：
+
+1. **迁移**：未来 forward-only TaskExecution migration，编号在实现 Issue 分配（预期 `V3004` 之后）；不改 `V3000`–`V3003`。迁移验证覆盖空库、历史升级、二次 migrate no-op、角色 ACL/RLS 四类隔离、immutable/direct-SQL、原子回滚、CAS/并发、池复用与长事务期限（矩阵见 Module-Test 003 `TE-214-D-*`）。
+2. **不可变 Snapshot**：`task_execution.context_snapshot` 按 §8.1/§8.2 不可变 Contract Record 模式；promoted 列（object_id、snapshot_id、purpose、audience、enterprise_id/project_id、builder_version `'1.1'`、policy_snapshot_id、source_manifest_count、context_item_count、omission_count、redaction_count、coverage_state、payload_hash 32B、canonicalization_version、可空 `expires_at`/`effective_expires_at` 镜像、source_command_id、created_at/created_by_principal_id）与 canonical payload 逐项一致，归属绑定受信 Context（V0004 完整 PrincipalRef 镜像）。
+3. **build metadata**：`task_execution.context_snapshot_build` 本切片只写 INITIAL 成功行（闭集 CHECK；`draft_snapshot_ref` 非空、`frozen_contract_ref` 为 NULL，两者不得同时非空或同时为空）；Policy ref/hash/effective_from/superseded_at 与 projection、请求、DraftVersionPins 逐项一致；`request_expires_at`/`effective_expires_at` 按 §11.2.5.4/#168 组合；成功 metadata 与 Snapshot 同事务，失败不留 metadata 行（Receipt 以 REJECTED 同事务收尾）。
+4. **guards 与边**：mirror guard（owner-only canonicalizer 重算 hash 与提升列）、creation-identity guard（`source_command_id` 指向仍为 `PENDING` 的 build@1.1 Receipt：command_version `'1.1'`、target type/id/Scope 相等、request hash 绑定，并把 DRAFT 身份与 `draft_schema_version` 闭为同一事实）、immutable guard、RLS FORCE + `context_allows_project`、最小模块角色、`reference_edge` 同事务（跨模块 TypedRef 无 FK/Join）。
+5. **回滚**：任一失败（含注入故障、依赖不可用、并发裁决失败）整事务回滚，无部分 Snapshot/metadata/Receipt/Audit/Edge/Outbox 状态；同键重试干净重跑并恰好产出一份事实。
+
+### 19.7 事件边界（R-214-7）
+
+`execution.ContextSnapshotBuilt@1.0`（已注册）**足够，不新增事件或版本**。初始构建成功提交时恰好写一条 Outbox：payload `contextSnapshotRef` = 已提交 canonical ref 六字段逐字段；`workOrderRef` = DRAFT canonical workOrderRef；`projectionType`/`coverageStatus` 来自已提交 payload；aggregate 硬绑定 envelope target（CREATE 模式）与创建后版本，`source_command_id` 盖章。同键同输入重放不重跑 body，不产生重复 Outbox；崩溃后同键重试由 Receipt `ON CONFLICT DO NOTHING` claim 保证单一执行者。
+
+### 19.8 并发、幂等与恢复（R-214-8）
+
+1. **锁与重验**：Builder 对 WorkOrder Root 取只读依赖行锁（既定锁序 Task→WorkOrder→Run→Claim，不反序、不扩大），持有至 Context 事务结束；锁内重验 `status='DRAFT'` 且当前指针 `(snapshot_id, payload_hash)` 解析等于请求 `draftSnapshotRef`；并发 Freeze/合法 Draft 换代 → `EXECUTION_DRAFT_SNAPSHOT_STALE`/`AGGREGATE_STATE_NOT_ALLOWED`，无写入。
+2. **跨模块边界**：Slice 与 Policy 观测只经 owning 边界现读现签（§19.3），不呈现为分布式事务或跨 schema 锁；依赖不可用 → `DEPENDENCY_UNAVAILABLE` fail closed，不留 PENDING Receipt。
+3. **幂等**（沿用 #151/#212 runner）：同键同输入先重验当前授权、再返回原 committed 结果，不重组装、不重复 Snapshot/Event/Edge；同键异输入（含跨版本、跨 target）`IDEMPOTENCY_PAYLOAD_CONFLICT` + DENIED Audit；同 target 异键由 CREATE 目标唯一约束裁决；in-flight → `COMMAND_IN_PROGRESS`。
+4. **故障**：注入故障与响应丢失整事务回滚（§19.6 第 5 条）；过期/失效输入（Slice、Policy、Decision、期限）全部确定性 fail closed，稳定错误码按 §11.2.2/§11.2.5.2/§11.2.5.4 既有矩阵归类，增量码只有 `EXECUTION_DRAFT_SCHEMA_VERSION_MISMATCH` 一个。
+
+### 19.9 交付边界
+
+- 本节只改 durable 设计文档；未注册、未实现、未分配 migration、未创建授权 Port。Catalog 215、TaskExecution 45、历史 200 项 Baseline、两个 build 版本的注册 Schema/元数据与 §11/§18 全部既有事实不变。
+- 依赖实现 Issue 在本节的确切设计 revision 获得显式人类设计批准前保持 `NOT_READY`；批准后实现范围限于本节、Spec 001 §15.8、PostgreSQL §33 #214 增量与 Module-Test 003 `TE-214-D-*` 矩阵。
+- 独立设计审查记录将存 `.vibe/reviews/pr-<number>/Review.md`；TD-05–07 的待批准状态不因本节改变。首次 Context 业务链、Validation/Freeze 与 IM-06 完成状态仍为 `NOT RUN`。
