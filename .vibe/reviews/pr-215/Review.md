@@ -131,3 +131,139 @@ review gate。修复后的新 exact head 必须重新独立审查；人类批准
 
 本轮未修改产品代码，未提交、推送或合并任何变更；只新增本地正式审查记录并发布 PR
 comment。该记录在未获得提交/推送授权前保持本地未提交状态。
+
+---
+
+## 第 2 轮：`REQUEST_CHANGES`
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`7382ece94f45239b45d875e0313a04735ee0aa25`
+- Base SHA：`0be76e0c62b722393d1c500772dab7dfa2a34db9`
+- PR：[#215](https://github.com/qzhike/zhiju-business-core/pull/215)
+- Work item：[#214](https://github.com/qzhike/zhiju-business-core/issues/214)（T2 design）
+- 审查日期：2026-09-18
+- GitHub handoff：[#issuecomment-5725494771](https://github.com/qzhike/zhiju-business-core/pull/215#issuecomment-5725494771)（同账号无法审查自己的 PR，因此使用 comment，不是 GitHub formal review）
+
+本轮独立复核了 `318c7f0d...7382ece9` 的修订、Issue #214、#188 已交付的
+Source Slice Schema/owning Spec/实际 assembly、ProjectContext v1.0 Contract、DRAFT
+Contract 与 exact-head 验证证据。上一轮 Finding 1 的 Purpose 对账，以及 Finding 3 的
+@1.0 supersession 已关闭；Finding 2 虽补充了目标字段矩阵，但矩阵没有与 #188 的真实
+Source Slice payload 对账，仍留下阻断性的输入/输出契约断裂。
+
+## 阻断发现
+
+### 1. 新 fact/omission/redaction 映射不接受 #188 实际产出的任何 Source Slice
+
+Spec 003 §19.4 第 6 条把 `slice.source.factItems[i]` 规定为必须含
+`kind, subjectRef, epistemicState, value, permittedUses, sensitivity` 的对象；第 7 条把
+omission 规定为必须含 `category, reasonCode, effectOnTask`，把 redaction 规定为必须含
+`fieldPath, policyRef, reasonCode`。缺任一成员就拒绝
+`EXECUTION_CONTEXT_SOURCE_INVALID`。
+
+但 #188 已交付且本 Issue 明确要求对账的 owning implementation 产生的是：
+
+- Fact 元数据：`{factRef, factType, riskLevel, status, value}`；它没有 `kind`、
+  `subjectRef`、`epistemicState`、`permittedUses` 或 `sensitivity`。
+- Omission：`{kind, reasonCode}`；它没有 `category` 或 `effectOnTask`。
+- Redaction：`{path, reasonCode}`；它没有 `fieldPath` 或 `policyRef`。
+
+这不是只影响边缘 fixture：若 `ENTERPRISE_FACTS` 未请求或 Purpose 禁止，#188 会产生
+上述 omission；若允许且请求 Facts，#188 即使没有任何 Fact，也会固定加入两条通配
+redaction。未请求其他已知 kind 也会产生同形 omission。因此当前 §19.4 的规则无法接受
+#188 正常捕获的 Source Slice，`@1.1` 仍没有文档所声称的可满足输入。
+
+同一问题也使 `coverage.includedScopes :=` 全部 Slice purpose 的结论不成立：设计在拒绝
+现行 omission/redaction 的同时，又没有定义如何把 #188 的 `productScopeSnapshotRef`、
+`activeBaselineRefs` 和安全 Fact 元数据实际纳入 ProjectContext，却宣称全部请求面已纳入。
+现有测试矩阵只构造了 PR 新设想的 fact/omission/redaction 形状，没有要求使用 #188
+真实 Query/capture 输出做正向 fixture，因此无法发现这条断链。
+
+要求：以 #188 已交付的 payload 为输入权威，明确其 Fact 元数据到 closed `ContextItem`
+的可实现映射（或明确哪些输入被有理由省略并正确反映 coverage），以及
+`{kind,reasonCode}` / `{path,reasonCode}` 到 Core omission/redaction 的确定性转换。若现有
+Source Slice 缺少 Core 必填语义，必须回到 readiness 决定 additive owning Contract/
+operation 版本或其他获批来源，不能要求 TaskExecution 假定未发布字段。正向 golden
+fixture 必须直接使用 #188 的真实输出形状，并覆盖 Facts requested/forbidden、空 Fact、
+未请求 kind 与通配 redaction；负例再从该合法基线做单变量变异。
+
+证据位置：
+
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1622`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1623`
+- `.vibe/module-specs/Module-Spec-002-EnterpriseProject.md:664`
+- `modules/enterprise-project/src/business/source-slice-assembly.ts:225`
+- `modules/enterprise-project/src/business/source-slice-assembly.ts:269`
+- `modules/enterprise-project/src/business/source-slice-assembly.ts:369`
+- `modules/enterprise-project/src/business/source-slice-assembly.ts:386`
+- `contracts/src/operations/enterprise-project.schema.ts:354`
+
+### 2. DRAFT 的 target/input 映射仍不是封闭、确定的组装规则
+
+§19.4 把 `artifactContext` 固定为空，并称“DRAFT `inputRefs` 已经 Source Slice 携带”；
+但 #188 Source Slice 的固定 payload 没有 DRAFT `inputRefs` 字段，只有 Project/Profile/
+QMS/ProductScope/baseline/Fact 等 owning 数据。`InitialWorkOrderDraft.inputRefs` 则仍接受
+通用 `InputRef.ref: TypedReference`，§18.6 明确把其存在性、生命周期、Purpose 裁剪留给
+Context Builder，§11.2.1 也要求 Builder 按 `inputRefs.permittedUse/contentAccessMode`
+裁剪。当前固定空数组会静默丢弃合法 DRAFT 输入，也没有生成 omission/unresolved/拒绝。
+
+同时，`targetScope.targetObjectRefs` 是可含零个或多个 TypedReference 的 Set，§19.4
+却只说“可派生 DeliveryItem 身份时取单元素集合，否则空集”，没有定义多 DeliveryItem、
+混合 objectType、重复业务身份或没有可解析 owning 事实时的选择/拒绝规则。实现者仍需
+发明如何得到唯一的 `workContext.deliveryItemRefs`。
+
+要求：给出 DRAFT `inputRefs` 与 `targetScope` 的支持集、owning read/授权/裁剪、排序、
+多值及不支持值处理，并将采纳、omission/unresolved 或 fail-closed 结果逐项绑定到
+ProjectContext。若本实现切片只支持 Source Slice 类型输入或至多一个 DeliveryItem，必须
+在 Builder 边界显式规定并以合法基线正反 fixture 证明；不能依赖 Source Slice 携带它
+实际没有的字段。
+
+证据位置：
+
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:435`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1350`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1351`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1609`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1611`
+- `contracts/src/core.schema.ts:294`
+- `contracts/src/core.schema.ts:356`
+- `contracts/src/operations/enterprise-project.schema.ts:378`
+
+## 已关闭的上一轮发现
+
+1. Snapshot Query Purpose 已改为逐字符复用已发布的
+   `task.execution.get_context_snapshot`；Grant action 被明确为内部 token，
+   `TE-214-D-015` 增加了错 Purpose 负例。
+2. §11.2/§11.2.6 已显式区分 Schema/Envelope 字段形状合法与 @1.0 业务路径不可满足，
+   并由 §19.1 精确 supersede 原“合法调用”表述。
+3. audience 编码、固定 Core 字段矩阵、manifest 公共值冲突、DRAFT provenance 与
+   fixture 要求已补充；但如上两项所述，Source/DRAFT 的真实输入形状仍未闭合，所以上一轮
+   Finding 2 不能判定为完全关闭。
+
+## 验证证据
+
+- 发布前回读：PR 为 OPEN、非 Draft、MERGEABLE，merge state `CLEAN`；head 仍为
+  `7382ece94f45239b45d875e0313a04735ee0aa25`。
+- exact-head GitHub Actions run
+  [35309148054](https://github.com/qzhike/zhiju-business-core/actions/runs/35309148054) /
+  job `105487373130`：`SUCCESS`。
+- Reviewer 执行 `vibe verify full --json`：首次只因沙箱不可见容器 runtime 返回
+  `VERIFY_FAIL`；使用同一 target 与 OrbStack socket 重跑后 `PASS`，resolved command
+  `pnpm clean && pnpm verify`，exit 0。普通测试 1071 passed / 456 skipped；Catalog/
+  Registry 215，Compatibility Baseline 200；真实 PostgreSQL 18.6 gate 43/43 files、
+  471/471 tests，second migrate no-op，容器清理成功。
+- `git diff --check 0be76e0c...7382ece9`：PASS；开始复审时工作树 clean。
+
+绿色 verifier 证明现有仓库与 design-only 文档没有触发现有回归检查；它没有执行
+`TE-214-D-*`，也没有把 #188 的真实 Source Slice 喂给尚未实现的 Builder，所以不能
+消除上述输入契约反例。
+
+## 未运行边界与后续门禁
+
+Initial Context Handler、authorization Port、`context_snapshot`/
+`context_snapshot_build` migration、权威 Context Query、真实 RLS/并发/重放、完整
+Context→Validation→Freeze 链、外部 Provider/Runtime/飞书、公开 HTTP、生产、负载/
+性能与独立人工业务验收均为 `NOT RUN`。
+
+本轮仍存在 agent 可修复的设计阻断，不能进入 Issue #214 的最终人类设计/技术批准；
+修复后的新 exact head 必须再次独立审查。本轮未修改产品代码，未提交、推送或合并；
+只更新本地正式审查记录并发布 PR comment，记录在未获得提交/推送授权前保持本地未提交。
