@@ -1589,7 +1589,7 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 从精确 DRAFT（§19.1）、非空精确 Source Slice 集合与精确 Builder Policy 观测确定性组装 ProjectContext v1.0：
 
 1. **排序与去重**：Source Slice 按 (objectType, objectId, snapshotId) 字典序稳定排序；Schema `unique` 之外，组装层对 exact ref 重复再次拒绝（`EXECUTION_CONTEXT_SOURCE_INVALID`）；空集合由 Schema `nonEmpty` 与组装层双重拒绝。
-2. **每片核验**（经 EP owning 读，TE 不读 owning schema）：存在、contentHash 匹配、Scope 相等、purpose ∈ capture policy `allowedPurposeCodes`、audience 精确匹配、状态 `USABLE`（`EXPIRED`/`REVOKED` 拒绝，missing/stale/过期依赖统一 `DEPENDENCY_UNAVAILABLE` 或 `EXECUTION_CONTEXT_SOURCE_INVALID`，按发生层归类）。
+2. **每片核验**（经 EP owning 读，TE 不读 owning schema）：存在、contentHash 匹配、Scope 相等、**`slice.purpose` 逐字符等于 `request.purpose`**（沿用 §11.2.1 的每片同 purpose 规则；不等 → `EXECUTION_CONTEXT_SOURCE_INVALID`，跨用途数据不得进入另一用途的 projection，也不产生“先放行再裁剪”的路径）、purpose ∈ capture policy `allowedPurposeCodes`、audience 精确匹配、状态 `USABLE`（`EXPIRED`/`REVOKED` 拒绝，missing/stale/过期依赖统一 `DEPENDENCY_UNAVAILABLE` 或 `EXECUTION_CONTEXT_SOURCE_INVALID`，按发生层归类）。
 3. **Builder Policy 观测**：唯一解析来源 `identity.resolve_policy@1.0` 当次返回（TE-WI02-D-017，caller 自报/推导/历史 Receipt 充数拒绝）；`allowedProjectionTypes` 含请求 projectionType、`policySchemaRefs` 含 `execution.context_builder.policy@1.0`（#179 profile）；观测的 ref/hash/effectiveFrom/supersededAt 与请求 `builderPolicyRef` 及 DRAFT `DraftVersionPins.contextBuilderPolicyRef` 四点逐字段相等（§11.2.5.1/§11.2.5.2 fail-closed 矩阵原样沿用）。
 4. **projection 块与 audience 编码**：`projection.purpose := request.purpose`（原样）；`projection.audience := audience.principalId`——请求 `audience` 是 `PrincipalRef` 而 Core `projection.audience` 是 `NonEmptyString`，确定性编码只取 `principalId`（非空性由 PrincipalRef 形状保证），编码串仅写入 payload；与 Slice 的 Audience 匹配按 `PrincipalRef` 逐字段相等，**不按编码串**匹配。`requestedByWorkOrderRef := DRAFT canonical workOrderRef`；`builderPolicyRef := 同一 PolicyRef`。
 5. **ProjectContext v1.0 必填字段的来源/合并矩阵**：选择**不新增 additive Core Contract 版本**——Core `project-context/1.0` 已注册的固定字段结构足以承载初始链，每个必填字段按下表确定性产生；若实现期发现结构性缺口，回到 readiness 复核，不静默改写 Core Schema。输入权威是 **#188 已发布的 Source Slice payload**（`enterprise-project.schema.ts` 的 `contextSourceSlice`/`projectContextSourceSlice` 与 `source-slice-assembly.ts` 的真实输出形状），不是假设的新字段。
@@ -1608,14 +1608,14 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
    | `contextItems` | 见第 6 条 fact→ContextItem 映射 |
    | `artifactContext` | `:= []`（初始切片恒空：DRAFT `inputRefs` 的采纳/裁剪见第 9 条，artifact 绑定映射没有已批准的 slice 来源，禁止发明条目） |
    | `workContext.taskRef` / `workContext.workOrderRef` | `:= DRAFT.taskRef` / DRAFT canonical workOrderRef |
-   | `workContext.deliveryItemRefs` | 见第 9 条 `targetScope` 支持集（有序并集；0 合法 target 时为空集） |
+   | `workContext.deliveryItemRefs` | `:= []`：DeliveryItem target 的 owning 核验需要尚未交付的 EnterpriseProject additive Port 与独立授权（见第 9 条），本切片不支持解析 |
    | `workContext.informationRequestRefs` / `blockers` / `relatedCompletionCriteriaRefs` | `:=` 空集（INITIAL 不接受答案分支，§33） |
-   | `unresolvedItems` | `:= []`（初始构建不产生未决项） |
+   | `unresolvedItems` | `:= []`（初始构建不产生未决项；`inputRefs` 的 required 缺失是 fail closed 输入错误，不落到未决项，见第 9 条） |
    | `omissions` / `redactions` | 见第 7 条映射（含 DRAFT `inputRefs` 裁剪产生的 omission） |
    | `coverage.requestedScopes` | `:=` 全部 Slice purpose 的有序并集 |
    | `coverage.includedScopes` | `:= { slice.purpose : 该片 omissions 不含 `PURPOSE_FORBIDDEN` }` 的有序集合 |
    | `coverage.excludedScopes` | `:=` 全部 Slice omissions `kind` 值的有序并集 |
-   | `coverage.completeness` | 任一 Slice 存在 `PURPOSE_FORBIDDEN` omission → `PARTIAL`；否则 → `COMPLETE_FOR_PURPOSE`（`KIND_NOT_REQUESTED` 是调用方经 `requestedKinds` 的主动选择，不构成缺口；依赖缺失/不可用已在入口拒绝，不产生 `BLOCKED` 快照） |
+   | `coverage.completeness` | 任一 Slice 存在 `PURPOSE_FORBIDDEN` omission → `PARTIAL`；否则 → `COMPLETE_FOR_PURPOSE`（前提：全部 required `inputRefs` 已采纳——required 缺失在第 9 条 fail closed，不产生本行可收割的省略；`KIND_NOT_REQUESTED` 是调用方经 `requestedKinds` 的主动选择，不构成缺口；依赖缺失/不可用已在入口拒绝，不产生 `BLOCKED` 快照） |
    | `sourceWatermarks` | 各片 `source.sourceWatermark` 的 exact 并集（非空 Slice 集保证非空） |
    | `expiresAt` | `:= effectiveExpiresAt`（§11.2.5.4/#168；无有限上界时该成员不出现） |
 
@@ -1637,21 +1637,23 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 
 7. **fact→ContextItem 映射**（输入为 #188 真实形状 `{factRef, factType, riskLevel, status, value}`；`value` 为已发布的 REDACTED `ValueEnvelope`，原样通过 Core value 校验）：
 
-   - `kind := 'FACT'`（固定常量：Enterprise Fact 即事实）；`subjectRef := factRef`（VERSIONED typed reference，过 Core 形状校验）。
+   - `kind := 'FACT'`（固定常量：Enterprise Fact 即事实）；`subjectRef :=` 该片 ContentAddressedRef（与请求 `sourceSlices` 中该片 exact ref 相等、contentHash 已核验）——#188 已发布的 `factRef.objectType='EnterpriseFact'` 是未注册的 legacy 拼写、不满足 Core namespaceCode，且 Catalog 未注册 `enterprise_fact` 的 canonical objectType，本切片不做调用方不可验证的拼写发明；Fact 精确身份（enterprise fact id/versionId、`factType`）经片内容哈希 + `provenanceRefs` + build metadata 绑定并经 EP owning 读按 exact ref 回读。若未来需要 fact 级 canonical subject，须先经 additive 注册 canonical objectType（readiness 复核），不在本 Delta 发明。
    - `epistemicState :=` 固定映射表 `status {CONFIRMED→CONFIRMED, DISPUTED→DISPUTED, SUPERSEDED→SUPERSEDED, PROPOSED→INFERRED}`；表外值 → `EXECUTION_CONTEXT_SOURCE_INVALID`（#188 闭集 CHECK 已保证不外溢，映射表照常 fail closed）。
    - `sensitivity :=` 固定映射表 `riskLevel {LOW→INTERNAL, MEDIUM→CUSTOMER_CONFIDENTIAL, HIGH→RESTRICTED_PERSONAL, CRITICAL→REGULATED}`；`PUBLIC_AUTHORITY` 无 Enterprise Fact 来源（企业事实不低于 INTERNAL）。
-   - `permittedUses := {slice.purpose}`（单元素集合：capture purpose 即本次授权用途）。
+   - `permittedUses := {request.purpose}`（单元素集合；与 `slice.purpose` 恒等，第 2 条硬规则保证不与 projection 自相矛盾）。
    - `evidenceRefs := []`（#188 输出不携带 evidence；Fact 的 `sourceRefs` 已按政策 redact，不得重建）。
    - `value := factItem.value` 原样；`recordedTime := slice.capturedAt`；`provenanceRefs :=` 该片 ContentAddressedRef + `draftSnapshotRef`（有序集合）。
-   - `contextItemId :=` 确定性 UUIDv8（RFC 9562：取 `SHA-256(canonical_cv1(factItem) ‖ slice snapshotId ‖ 片内序号)` 的前 16 字节并置 version/variant；同输入必同 id）。
-   - `factType` 的去向：Core v1.0 `ContextItem` 无元数据槽，**不内联、不丢失**——该片内容哈希经每条 provenanceRefs 绑定，`factType` 随不可变 Slice 经 EP owning 读按 exact ref 可回读（同第 6 条成员矩阵的 two-layer 规则）。
+   - `contextItemId :=` 确定性 UUIDv7（Core `contextItemId` 只接受 uuidV7：取 `SHA-256(canonical_cv1(factItem) ‖ slice snapshotId ‖ 片内序号)` 的前 16 字节，置 version nibble `7` 与 variant `[89ab]`；同输入必同 id、必过 Core uuidV7 模式）。
    - `contextItems` 按 (片序, 片内序) 稳定追加；缺成员或成员非法 → `EXECUTION_CONTEXT_SOURCE_INVALID`。
 8. **omission/redaction 映射**（输入为 #188 真实形状）：`slice.source.omissions[j] = {kind, reasonCode}`（`kind` 为 SourceKind 闭集值，`reasonCode ∈ {KIND_NOT_REQUESTED, PURPOSE_FORBIDDEN}`）→ Core omission `{category := kind, reasonCode, effectOnTask := 固定常量 'see source slice for task effect', sourceRef := 该片 ContentAddressedRef}`；`slice.source.redactions[j] = {path, reasonCode}` → Core redaction `{fieldPath := path, policyRef := slice.capturePolicyRef, reasonCode}`。成员缺失/`reasonCode` 表外值 → `EXECUTION_CONTEXT_SOURCE_INVALID`；两者按 (片序, 片内序) 稳定追加。现行 #188 Slice 恒至少含一条 omission（未请求的 SourceKind），映射按上表正常纳入，不构成拒绝。
-9. **DRAFT `inputRefs` / `targetScope` 支持集**（显式采纳/裁剪/拒绝矩阵，不静默丢弃）：
-   - `inputRefs` 支持集 `:= { 与本次请求 `sourceSlices` 中某一 exact ref 相等的 ContentAddressedRef }`。逐条（排序去重后）：① 与某 `sourceSlices` exact ref 相等 → **已采纳**：内容由该片 contextItems 代表，不生成额外条目；② 为 `zhiju.project.context_source_slice` 的 ContentAddressedRef 但未在 `sourceSlices` → omission `{category := 'DRAFT_INPUT_REF', reasonCode := 'NOT_CAPTURED_IN_SOURCE_SLICES', effectOnTask := 固定常量, sourceRef := draftSnapshotRef}`；③ 其他 kind/objectType → omission `{category := 'DRAFT_INPUT_REF', reasonCode := 'KIND_NOT_SUPPORTED_IN_INITIAL_BUILD', effectOnTask := 固定常量, sourceRef := draftSnapshotRef}`。通用 inputRef 的存在性/生命周期/用途裁剪没有已批准的 owning 读与授权路径，不做隐式解析。
-   - `targetScope.targetObjectRefs` 支持集 `:= { 同 Scope DeliveryItem 的 OBJECT ref }`（拼写按 DeliveryItem 不可变创建事实）。逐条：非 DeliveryItem objectType 或 OBJECT 以外 kind → fail closed `EXECUTION_CONTEXT_TARGET_INVALID`（target 是必填语义输入，不可裁剪；其他类型须先经 owning capture 成 Slice）；DeliveryItem ref 经 EnterpriseProject owning 只读 Port（#202 同族）核验存在且生命周期允许，不可解析/不允许 → 同码 fail closed；全部合法 → `workContext.deliveryItemRefs :=` canonical 有序并集（0 条合法时为空集）。
+9. **DRAFT `inputRefs` / `targetScope` 支持集**（逐字段闭合，不静默丢弃、不静默省略）：
+   - `inputRefs[i]` 是 Core `InputRef` 必填六元组 `{inputRole, ref, required, permittedUse, contentAccessMode, integrityRequired}`（+可选 `epistemicExpectation`）。匹配键是 `ref` exact。逐条（按 `inputRole` 再按 ref canonical 排序去重）：
+     - **采纳**：`ref` 与某 `sourceSlices` exact ref 相等。核验：① `permittedUse` 逐字符等于 `request.purpose`（矛盾的授权用途 → `EXECUTION_CONTEXT_SOURCE_INVALID`）；② `contentAccessMode` 必须是 `REFERENCE_ONLY`（Slice 即引用内容；`INLINE_FRAGMENT`/`AUTHORIZED_FETCH` 没有已批准的获取路径 → 同码 fail closed）；③ `epistemicExpectation` 存在时必须等于由该片 fact 推导的 `epistemicState`，多 fact 混合时取确定性次序首个推导值，不等 → 同码 fail closed；④ `integrityRequired` 恒满足（Slice 内容地址哈希已核验），经 build metadata 观察记录；`inputRole` 为标签，随 metadata 观察记录。核验通过 → 内容由该片 contextItems 代表，无额外 payload 条目。
+     - **required=true 且未采纳**（未在 `sourceSlices` 或为不受支持的 kind）→ fail closed `EXECUTION_CONTEXT_INPUT_REQUIRED`：影响 Completion 的缺失不得静默省略（Core §3.10），不产出 omission/unresolved，也不允许以 `PARTIAL`/`COMPLETE_FOR_PURPOSE` 收场。
+     - **required=false 且未采纳**：为 `zhiju.project.context_source_slice` ContentAddressedRef → omission `{category := 'DRAFT_INPUT_REF', reasonCode := 'NOT_CAPTURED_IN_SOURCE_SLICES', effectOnTask := 固定常量, sourceRef := draftSnapshotRef}`；其他 kind/objectType → omission `{category := 'DRAFT_INPUT_REF', reasonCode := 'KIND_NOT_SUPPORTED_IN_INITIAL_BUILD', effectOnTask := 固定常量, sourceRef := draftSnapshotRef}`。通用 inputRef 的存在性/生命周期解析没有已批准的 owning 读与授权路径，不做隐式解析。
+   - `targetScope.targetObjectRefs` 支持集 `:= ∅`（本切片）：DeliveryItem target 的 owning 核验需要 EnterpriseProject additive Port（闭集键 + OBJECT 身份与生命周期证明 + 错误映射）与 IdentityPolicy 独立授权条目，二者均未交付（#202 已交付 Port 只覆盖 `create_task@1.0/@2.0` 的 VERSIONED Project/DeliveryItem 证明，不可直接复用）。因此：`workContext.deliveryItemRefs := []`；`targetObjectRefs` 非空 → fail closed `EXECUTION_CONTEXT_TARGET_INVALID`。恢复该支持路径须先交付 Spec 002 owning Port 增量与 Spec 001 授权条目增量（各自 readiness 复核），本 Delta 不做半成品接线。
    - `baseContentRefs`/`allowedUnitRefs`/`forbiddenUnitRefs`/`allowedCreateTypes`/`crossObjectReferencesAllowed`/`scopePolicyRef` 属执行期 Scope 约束（§18.6 创建期义务），初始 Context payload 无对应槽，**不进入 payload、不裁剪记录**；其核验留在创建期与后续 Validation/Freeze 边界（§11.2.2）。
-10. **fixture 契约**：实现切片必须落地干净正反 fixture——正例（1×`@1.1` DRAFT + 2×由 #188 真实 `assembleProjectContextSourceSlice` 输出构成的 Slice：共享 enterpriseProfile/qms、不同 `capturedAt` 与 purpose、各含现行 omission 与通配 redaction）产出 golden payload 并逐字段比对，覆盖 audience 编码、status/riskLevel 映射表、确定性 `contextItemId` 重算、manifest/coverage 并集（含 `PURPOSE_FORBIDDEN → PARTIAL` 分支）与 `sourceWatermarks` 合并；负例（空 `principalId`、`factItem` 缺成员或 status 表外值、manifest 公共值冲突、JSON null 冒充缺省、`targetObjectRefs` 非 DeliveryItem/不可解析、inputRef 未 capture）逐个拒绝或按第 9 条矩阵产出确定性 omission。矩阵行 `TE-214-D-003`/`004`/`017`/`018` 按本契约扩展。
+10. **fixture 契约**：实现切片必须落地干净正反 fixture——正例（1×`@1.1` DRAFT + 2×由 #188 真实 `assembleProjectContextSourceSlice` 输出构成的 Slice：**同 `request.purpose`**、不同 `capturedAt`、各含现行 omission 与通配 redaction；DRAFT `inputRefs` 覆盖 required 采纳与 required=false 裁剪两种）产出 golden payload 并**先经真实 `ContractRegistry` 对完整 payload 执行 ProjectContext v1.0 校验**（不只逐字段比对，uuidV7/namespaceCode 等形状约束必须由 Registry 探针证明全过），再逐字段比对 audience 编码、status/riskLevel 固定映射表、确定性 UUIDv7 `contextItemId` 重算、manifest/coverage 并集（含 `PURPOSE_FORBIDDEN → PARTIAL` 分支）与 `sourceWatermarks` 合并；负例（空 `principalId`、`factItem` 缺成员或 status/riskLevel 表外值、manifest 公共值冲突、`source.projectRef` 与 payload 身份不闭合、omission `reasonCode` 表外、JSON null 冒充缺省、**slice purpose 替换、`required:true` 未采纳、`permittedUse`/`contentAccessMode`/`epistemicExpectation` 不符、`targetObjectRefs` 非空**）逐个拒绝或按第 9 条矩阵产出确定性 omission。矩阵行 `TE-214-D-003`/`004`/`017`/`018` 按本契约扩展。
 11. **输入证明的边界**：Schema 有效或内容寻址只证明形状/存在，不等于已授权、可用或适用；授权（§19.3）、可用性（第 2 条）与 profile 匹配（第 3 条）相互独立、全部核验。
 
 ### 19.5 期限（R-214-5）
@@ -1677,7 +1679,7 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 1. **锁与重验**：Builder 对 WorkOrder Root 取只读依赖行锁（既定锁序 Task→WorkOrder→Run→Claim，不反序、不扩大），持有至 Context 事务结束；锁内重验 `status='DRAFT'` 且当前指针 `(snapshot_id, payload_hash)` 解析等于请求 `draftSnapshotRef`；并发 Freeze/合法 Draft 换代 → `EXECUTION_DRAFT_SNAPSHOT_STALE`/`AGGREGATE_STATE_NOT_ALLOWED`，无写入。
 2. **跨模块边界**：Slice 与 Policy 观测只经 owning 边界现读现签（§19.3），不呈现为分布式事务或跨 schema 锁；依赖不可用 → `DEPENDENCY_UNAVAILABLE` fail closed，不留 PENDING Receipt。
 3. **幂等**（沿用 #151/#212 runner）：同键同输入先重验当前授权、再返回原 committed 结果，不重组装、不重复 Snapshot/Event/Edge；同键异输入（含跨版本、跨 target）`IDEMPOTENCY_PAYLOAD_CONFLICT` + DENIED Audit；同 target 异键由 CREATE 目标唯一约束裁决；in-flight → `COMMAND_IN_PROGRESS`。
-4. **故障**：注入故障与响应丢失整事务回滚（§19.6 第 5 条）；过期/失效输入（Slice、Policy、Decision、期限）全部确定性 fail closed，稳定错误码按 §11.2.2/§11.2.5.2/§11.2.5.4 既有矩阵归类；增量码只有两个——`EXECUTION_DRAFT_SCHEMA_VERSION_MISMATCH`（§19.1）与 `EXECUTION_CONTEXT_TARGET_INVALID`（§19.4 第 9 条 `targetObjectRefs` 支持集），实现时随错误码表登记。
+4. **故障**：注入故障与响应丢失整事务回滚（§19.6 第 5 条）；过期/失效输入（Slice、Policy、Decision、期限）全部确定性 fail closed，稳定错误码按 §11.2.2/§11.2.5.2/§11.2.5.4 既有矩阵归类；增量码只有三个——`EXECUTION_DRAFT_SCHEMA_VERSION_MISMATCH`（§19.1）、`EXECUTION_CONTEXT_TARGET_INVALID` 与 `EXECUTION_CONTEXT_INPUT_REQUIRED`（§19.4 第 9 条），实现时随错误码表登记。
 
 ### 19.9 交付边界
 

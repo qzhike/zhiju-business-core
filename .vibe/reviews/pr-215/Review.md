@@ -267,3 +267,223 @@ Context→Validation→Freeze 链、外部 Provider/Runtime/飞书、公开 HTTP
 本轮仍存在 agent 可修复的设计阻断，不能进入 Issue #214 的最终人类设计/技术批准；
 修复后的新 exact head 必须再次独立审查。本轮未修改产品代码，未提交、推送或合并；
 只更新本地正式审查记录并发布 PR comment，记录在未获得提交/推送授权前保持本地未提交。
+
+---
+
+## 第 3 轮：`REQUEST_CHANGES`
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`11576c8144ed39df23dfca3f917d2939c047e674`
+- Base SHA：`0be76e0c62b722393d1c500772dab7dfa2a34db9`
+- PR：[#215](https://github.com/qzhike/zhiju-business-core/pull/215)
+- Work item：[#214](https://github.com/qzhike/zhiju-business-core/issues/214)（T2 design）
+- 审查日期：2026-09-18
+- GitHub handoff：[#issuecomment-5725679927](https://github.com/qzhike/zhiju-business-core/pull/215#issuecomment-5725679927)（同账号无法审查自己的 PR，因此使用 comment，不是 GitHub formal review）
+
+本轮独立复核了 `7382ece9...11576c8` 的修订、Issue #214、#188 已交付的 Source
+Slice Schema/owning implementation、Core ProjectContext v1.0、DRAFT InputRef、#202 已交付
+EnterpriseProject Port 以及 exact-head 验证证据。上一轮指出的 #188 顶层 payload 名称和
+omission/redaction 形状已被对齐，DRAFT `inputRefs`/`targetScope` 也增加了表面支持集；但新规则
+仍会生成不通过 Core ContractRegistry 的 payload，并在 Purpose、InputRef 语义和跨模块读取
+边界上留下必须由实现者猜测的规则，因此仍不能批准。
+
+## 阻断发现
+
+### 1. 规定生成的 `ContextItem` 仍无法通过已发布 Core v1.0
+
+§19.4 第 7 条规定 `contextItemId` 为确定性 UUIDv8；已发布 Core `ContextItem` 却把该字段
+绑定到 Common `uuidV7`，正则明确要求 version nibble 为 `7`。同一条还规定
+`subjectRef := factRef` 并声称会通过 Core 形状校验；但 #188 实际 assembly 产生的嵌套
+`factRef.objectType` 是大写 `EnterpriseFact`，而 Core TypedReference 的 objectType 使用
+只接受小写 namespace 的 `namespaceCode`。#188 发布边界只规范化顶层 Project/Profile/QMS/
+ProductScope/baseline refs，不递归规范化 `factItems[].factRef`，所以合法 Source Slice 确实会
+携带这个值。
+
+Reviewer 用现有 ContractRegistry 对合法 ProjectContext fixture 做单变量探针：把
+`contextItems[0].contextItemId` 改为符合本设计算法外观的 UUIDv8 后，在该字段按 uuidV7
+正则失败；把 `subjectRef.objectType` 改为 `EnterpriseFact` 后，在该字段按 namespaceCode
+正则失败。因此这不是命名建议，而是当前规则必然产出无效 ProjectContext 的直接反例。
+
+要求：`contextItemId` 必须生成满足已发布 UUIDv7 合同的确定性/持久身份，或先获得并发布
+additive Core 合同变更；`subjectRef` 必须来自已发布、可验证的 canonical typed reference
+映射/owning contract，不能直接复制不符合 Core NamespaceCode 的嵌套 ref。正向 golden
+fixture 必须把完整生成 payload 交给真实 ContractRegistry 验证，而不只是逐字段比对。
+
+证据位置：
+
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1638`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1640`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1646`
+- `contracts/src/core.schema.ts:46`
+- `contracts/src/core.schema.ts:157`
+- `contracts/src/common.schema.ts:13`
+- `contracts/src/common.schema.ts:14`
+- `modules/enterprise-project/src/business/source-slice-assembly.ts:269`
+- `modules/enterprise-project/src/business/source-slice-assembly.ts:272`
+- `modules/enterprise-project/src/business/context-source-slice-handlers.ts:76`
+- `modules/enterprise-project/src/business/context-source-slice-handlers.ts:101`
+
+### 2. Source Slice 的 Purpose 未绑定请求 Purpose，允许跨用途数据进入投影
+
+既有 §11.2.1 要求每个 Slice 与请求具有相同 Scope、purpose、audience，Issue #214 也要求
+Purpose matching 与 data minimization。新 §19.4 第 2 条却只检查每片 `slice.purpose` 属于
+其 capture policy 的允许集合，没有检查它等于本次 `request.purpose`；第 10 条甚至要求正例
+使用不同 purpose 的两片 Slice。之后设计把 `projection.purpose` 写成请求 purpose，却把每条
+`ContextItem.permittedUses` 写成各自的 slice purpose。这会允许例如为一个用途捕获的数据被
+装入另一个用途的投影，同时 payload 自己还声明该条目只允许原用途，直接破坏 Purpose 匹配、
+最小化与 permitted-use 自洽性。
+
+要求：至少规定每片 `slice.purpose == request.purpose` 并加入 purpose substitution 负例；若
+确实需要跨 Purpose 兼容关系，必须先由 owning policy/contract 明确批准闭集和授权语义，不能
+由 Builder 因两边分别“被某策略允许”就自行推导。
+
+证据位置：
+
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:435`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1592`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1594`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1628`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1643`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1654`
+
+### 3. `inputRefs` 只比较 `.ref`，会把 required/usage/integrity 缺口标成完整 Context
+
+Core `InputRef` 的 `required`、`permittedUse`、`contentAccessMode`、`integrityRequired` 是必填
+字段，`epistemicExpectation` 也承载消费语义；既有 §11.2.1 明确要求 Builder 按
+`inputRefs.permittedUse/contentAccessMode` 裁剪，§18.6 把存在性、版本、生命周期、可用性与
+Purpose 裁剪留给 Readiness/Context Builder。新第 9 条却只按 `.ref` 是否等于某个
+sourceSlices ref 判为采纳，完全忽略这些字段；同一个 ref 的多个、元数据不同的 InputRef
+如何排序/去重也未定义。
+
+更严重的是，未 capture 或不支持的 `required:true` 输入只产生 omission；`unresolvedItems`
+固定为空，coverage 只吸收 Slice omission，并且 completeness 只有出现 Slice
+`PURPOSE_FORBIDDEN` 才变成 `PARTIAL`。结果可以在必需输入未解析时仍声明
+`COMPLETE_FOR_PURPOSE`。这与 Core 规则“影响 WorkOrder Completion 的缺失不得静默省略，
+必须阻止 READY 或创建 InformationRequest”不相容。
+
+要求：逐字段定义 InputRef 的采纳/裁剪/冲突/排序语义；对 required input 的缺失明确规定
+fail、`PARTIAL`/`BLOCKED`、unresolved/InformationRequest 以及后续 READY 门禁，并让 coverage
+真实反映 DRAFT omission。为相同 ref 不同 metadata、required unsupported、permittedUse 与
+request purpose 不匹配、contentAccessMode/integrity/epistemicExpectation 各提供干净正反
+fixture。
+
+证据位置：
+
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:435`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1351`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1613`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1615`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1618`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1651`
+- `contracts/src/core.schema.ts:356`
+- `.vibe/high-level-docs/03-core-contracts.md:288`
+
+### 4. DeliveryItem target 新读取没有可消费的 Port 键或独立授权
+
+新第 9 条要求用 EnterpriseProject owning 只读 Port 核验同 Scope DeliveryItem OBJECT ref，
+并称其为“#202 同族”。但 #202 已交付 Port 的输入与闭集键只覆盖
+`execution.create_task@1.0/@2.0`，且 DeliveryItem 输入是 VERSIONED ref；当前请求是
+`execution.build_initial_context_snapshot@1.1` 的 OBJECT ref，不能复用现有键。设计没有定义
+新 Port/新键、canonical objectType、生命周期谓词、失败映射及消费接口。§19.3 又明确要求每个
+独立动作各自授权，却只列 DRAFT、Slice、Policy 和 Snapshot 读取，没有 DeliveryItem target
+读取授权。实现者若继续，只能自行扩大 #202 Port 或绕过授权边界。
+
+要求：明确由 EnterpriseProject 拥有的 additive Port/键表与 OBJECT→已提交 DeliveryItem
+身份、Scope、生命周期证明，定义 TaskExecution 的稳定失败映射，并在 IdentityPolicy 中加入
+该独立 read 的 Purpose/Grant/Decision 组成；或移除本切片的该支持路径并 fail closed，等待
+单独 readiness。
+
+证据位置：
+
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:890`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:893`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1584`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1652`
+- `.vibe/module-specs/Module-Spec-002-EnterpriseProject.md:373`
+- `.vibe/module-specs/Module-Spec-002-EnterpriseProject.md:377`
+- `.vibe/module-specs/Module-Spec-002-EnterpriseProject.md:381`
+
+## 上一轮发现状态
+
+1. 上一轮 Source Slice 字段形状问题已部分关闭：新 revision 改为使用 #188 的真实
+   fact/omission/redaction 字段；但生成的 subjectRef/UUID 仍无法通过 Core，故端到端契约断裂
+   未关闭。
+2. 上一轮 DRAFT support-set 问题已部分关闭：新 revision 列出了 ref-level 矩阵；但没有处理
+   InputRef 必填语义、coverage/READY 影响，也没有为 DeliveryItem 读取闭合 Port 与授权，故
+   不能判定关闭。
+3. 第 1 轮的 Query Purpose、@1.0 supersession 等问题维持关闭。
+
+## 验证证据
+
+- 发布前回读：PR 为 OPEN、非 Draft、MERGEABLE，merge state `CLEAN`；head 为
+  `11576c8144ed39df23dfca3f917d2939c047e674`，base 为
+  `0be76e0c62b722393d1c500772dab7dfa2a34db9`。
+- exact-head GitHub Actions run
+  [35310649423](https://github.com/qzhike/zhiju-business-core/actions/runs/35310649423) /
+  job `105491804143`：`SUCCESS`。
+- Reviewer 使用配置的完整 target 执行
+  `DOCKER_HOST=unix:///Users/galendai/.orbstack/run/docker.sock vibe verify full --json`：
+  `PASS`，resolved command `pnpm clean && pnpm verify`，exit 0。Catalog/Registry 215、
+  Compatibility Baseline 200；普通测试 62/62 files、1071/1071 tests passed（39 files、
+  456 tests skipped）；真实 PostgreSQL 18.6 gate 43/43 files、471/471 tests，second
+  migrate no-op，容器清理成功。
+- `git diff --check 0be76e0c...11576c8`：PASS；开始本轮复审时工作树 clean。
+- Reviewer ContractRegistry 单变量探针：UUIDv8 `contextItemId` 在 Core uuidV7 字段失败；
+  `EnterpriseFact` subject objectType 在 Common namespaceCode 字段失败。
+
+绿色 verifier 证明现有实现没有回归；本 PR 仍是 design-only Delta，`TE-214-D-*` 未由现有
+测试执行，尚未实现的 Builder 也不会在该 target 中生成并校验新 ProjectContext，因此不消除
+上述直接反例。
+
+## 未运行边界与后续门禁
+
+Initial Context Handler、增量授权/owning Port、`context_snapshot`/
+`context_snapshot_build` migration、权威 Context Query、真实 RLS/并发/重放、完整
+Context→Validation→Freeze 链、外部 Provider/Runtime/飞书、公开 HTTP、生产、负载/性能与
+独立人工业务验收均为 `NOT RUN`。
+
+本轮仍存在 agent 可修复的设计阻断，不能进入 Issue #214 的最终人类设计/技术批准；修复后的
+新 exact head 必须再次独立审查。本轮未修改产品代码，未提交、推送或合并；只更新本地正式
+审查记录并发布 PR comment，记录在未获得提交/推送授权前保持本地未提交。
+
+---
+
+## 第 4 轮：`REQUEST_CHANGES`（同一 revision 状态复核）
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`11576c8144ed39df23dfca3f917d2939c047e674`
+- Base SHA：`0be76e0c62b722393d1c500772dab7dfa2a34db9`
+- PR：[#215](https://github.com/qzhike/zhiju-business-core/pull/215)
+- Work item：[#214](https://github.com/qzhike/zhiju-business-core/issues/214)（T2 design）
+- 审查日期：2026-09-18
+- GitHub handoff：[#issuecomment-5725837276](https://github.com/qzhike/zhiju-business-core/pull/215#issuecomment-5725837276)（同账号无法审查自己的 PR，因此使用 comment，不是 GitHub formal review）
+
+本轮发布前通过 `vibe repo --json`、PR head/commit 列表和完整 comment 时间线重新核对：远端
+head 仍是第 3 轮已审查的 `11576c8`，第 3 轮 comment 后没有新增 commit 或修复说明，因此
+不存在可供“修复后复审”的新 diff。第 3 轮的四个直接合同/授权阻断在该 exact revision 上
+维持有效：
+
+1. `contextItemId` 规定为 UUIDv8，但 Core v1.0 要求 UUIDv7；#188 的嵌套
+   `factRef.objectType='EnterpriseFact'` 直接复制为 subjectRef 也不满足 Core NamespaceCode。
+2. Slice purpose 未要求等于 request purpose，跨用途 Slice 可以进入另一用途的 projection，
+   且与 `ContextItem.permittedUses` 自相矛盾。
+3. `inputRefs` 仅比较 `.ref`，忽略 required/permittedUse/contentAccessMode/integrityRequired/
+   epistemicExpectation，并可能在 required 输入缺失时仍产出 `COMPLETE_FOR_PURPOSE`。
+4. DeliveryItem OBJECT target 读取没有适用于
+   `execution.build_initial_context_snapshot@1.1` 的 EnterpriseProject Port 闭集键，也没有
+   §19.3 所要求的独立授权组成；#202 已交付的 create_task/VERSIONED Port 不能直接复用。
+
+完整反例、证据位置和修复要求见第 3 轮记录与
+[#issuecomment-5725679927](https://github.com/qzhike/zhiju-business-core/pull/215#issuecomment-5725679927)。
+没有新 revision 时重复执行同一未变 target 不会产生新的实现证据；按 Reviewer evidence-reuse
+规则复用该 exact head 的当前证据：GitHub Actions run `35310649423` / job `105491804143`
+`SUCCESS`；Reviewer `vibe verify full --json` `PASS`（普通测试 1071、Catalog/Registry 215、
+Baseline 200、PostgreSQL 43/43 files / 471/471 tests、second migrate no-op）；本轮
+`git diff --check` 继续 PASS。
+
+上述绿色证据仍不执行 design-only 的 `TE-214-D-*`，也不生成拟议 ProjectContext，因而不能
+关闭直接合同反例。Initial Context Handler、增量授权/owning Port、migration、权威 Query、
+RLS/并发/重放、完整 Context→Validation→Freeze、外部与人工验收继续为 `NOT RUN`。
+
+需要先推送包含修复的新 commit，再对新 exact head 做独立复审。本轮未修改产品代码，未提交、
+推送或合并；仅追加正式状态复核记录并发布 PR comment。
