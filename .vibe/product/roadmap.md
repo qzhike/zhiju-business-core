@@ -43,6 +43,8 @@
 
 首次构建、Runtime/状态协调、判断事实与跨模块读取边界的 TD-01–04 已批准,由 owning 规格与测试附录维护。剩余的 Query/Projection 快照与重建、Usage/安全来源、正常与阻塞恢复退出链已形成 TD-05–07 提案,见设计 §11 和 Spec 003 §12–14;尚待人类批准与独立审查,不改变首版来源/答案/质量条件范围。业务实现仍按实际依赖与 NOW + READY 滚动发布,Git 交付按用户授权范围推进。
 
+#214 设计更新（2026-09-18）：[Issue #214](https://github.com/qzhike/zhiju-business-core/issues/214) 已形成 TD-01 首次 Context 构建与精确快照读取的实现就绪闭合 Delta（[决定 §18](../decisions/task-execution-human-operated.md#18-td-01-首次-context-构建与精确快照读取边界闭合提案214)、[Spec 003 §19](../module-specs/Module-Spec-003-TaskExecution.md#19-首次-context-构建与精确快照读取边界闭合214-设计)、[Spec 001 §15.8](../module-specs/Module-Spec-001-IdentityPolicy.md#158-im06-ctxbuild-01-首次-context-构建与权威快照读取授权组成提案214)、PostgreSQL §33 的 #214 增量与 [Module-Test 003 的 `TE-214-D-*`](../module-tests/Module-Test-003-TaskExecution.md#首次-context-构建与精确快照读取设计矩阵214-设计)），对账基线 `main@0be76e0c62b722393d1c500772dab7dfa2a34db9`：`build_initial_context_snapshot@1.1` 判定为唯一可满足初始构建入口（只接受 `create_work_order@1.1` 的不可变 DRAFT），`@1.0` 判定为注册保留但无满足输入、冻结不实现、不建授权路径；`get_context_snapshot@1.0` 分类为足够、零改动，Core 03/共享 API 不要求改动；构建与权威读取授权组成、依赖读取独立授权、确定性组装边界、期限、持久化/事务、事件边界与并发/幂等/恢复矩阵已闭合。本次只改 durable 设计文档，未实现、未分配 migration；Catalog 215、TaskExecution 45 与历史 200 项 Baseline 不变（不新增公开 operation），唯一的 additive 注册是 HL-Doc 06 #214 段的 EP-owned objectType `zhiju.project.enterprise_fact` 设计注册行（承载 `subjectRef` 规范化拼写，executable 注册随实现 Issue 交付），首次 Context 业务链仍 `NOT RUN`，依赖实现 Issue 在该 exact design revision 获得显式人类设计批准与独立审查前保持 `NOT_READY`。
+
 ## Next / Later — 后续顺序
 
 - [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 仍开放，承接 IntegrationGateway 的剩余 Handler/Adapter/Persistence 与外部验收。其旧正文包含早期 23-operation 与 Renderer 未实现描述，不能直接作为下一项完整实现任务；需先与已交付 Renderer slice 和当前 Module-Spec-007 对账，再按所属阶段收敛验收范围。
