@@ -580,7 +580,10 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
   async function firstCommittedTaskId(): Promise<string> {
     const row = (
       await admin.query<{ task_id: string }>(
-        'SELECT task_id FROM task_execution.task ORDER BY created_at LIMIT 1',
+        `SELECT task_id FROM task_execution.task
+          WHERE project_id = $1
+          ORDER BY created_at, task_id LIMIT 1`,
+        [fixture.projectId],
       )
     ).rows.at(0);
     if (row === undefined) throw new Error('no committed Task fixture exists');
@@ -2671,7 +2674,7 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(214);
+    expect(catalog.operations).toHaveLength(215);
     const taskEvents = catalog.operations.filter(
       (operation) => operation.owner === 'task-execution' && operation.kind === 'EVENT',
     );

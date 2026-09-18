@@ -228,7 +228,7 @@ function frozenBuildFixture(name: string): JsonObject {
 describe('TaskExecution Draft and initial Context contracts', () => {
   it('registers exactly the approved operations and reference metadata', () => {
     assertTaskExecutionOperationRegistrations(publicApiOperations);
-    expect(registry.operationCount).toBe(214);
+    expect(registry.operationCount).toBe(215);
     expect(registry.getOperation('execution.get_work_order_draft', '1.0')).toMatchObject({
       owner: 'task-execution',
       kind: 'QUERY',
@@ -1608,6 +1608,139 @@ describe('Task Readiness producer contract', () => {
       registry.validateBuildTaskReadinessCommandResult(enterpriseOnlyTarget),
       '/data/readinessSnapshotRef',
       'TASK_READINESS_TARGET_MISMATCH',
+    );
+  });
+});
+
+describe('WorkOrder DRAFT exact read contract', () => {
+  const draftRead = 'execution.get_work_order_draft';
+  const draftReadVersion = '2.0';
+  const legacyQueryFixture = 'work-order-draft/get-work-order-draft-v2-query-valid.json';
+  const legacyResultFixture = 'work-order-draft/get-work-order-draft-v2-result-valid.json';
+
+  // Parsed per call: every case mutates the object it reads.
+  function draftReadFixture(base: string): JsonObject {
+    return fixture(base === 'result' ? legacyResultFixture : legacyQueryFixture);
+  }
+
+  function validate(base: string, input: unknown) {
+    return base === 'result'
+      ? registry.validateOperationResult(draftRead, draftReadVersion, input)
+      : registry.validateOperation(draftRead, draftReadVersion, input);
+  }
+
+  interface NegativeCase {
+    base: string;
+    path: string;
+    keyword: string;
+    expectedPath: string;
+    remove?: boolean;
+    value?: unknown;
+  }
+  const negativeCases = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../../tests/fixtures/contracts/work-order-draft/negative-cases.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ) as NegativeCase[];
+
+  function setPath(input: JsonObject, path: string, value: unknown, remove = false) {
+    const keys = path.split('/').slice(1);
+    const key = keys.pop();
+    if (key === undefined) throw new Error('missing fixture path');
+    let parent: JsonObject = input;
+    for (const name of keys) parent = parent[name] as JsonObject;
+    if (remove) Reflect.deleteProperty(parent, key);
+    else parent[key] = value;
+  }
+
+  it('registers the additive legacy-spelling read version', () => {
+    assertTaskExecutionOperationRegistrations(publicApiOperations);
+    expect(registry.getOperation(draftRead, draftReadVersion)).toMatchObject({
+      owner: 'task-execution',
+      kind: 'QUERY',
+      schemaStatus: 'FULL',
+      allowedConsistency: ['AUTHORITATIVE'],
+      authorizationPurpose: 'execution.work_order.draft.read',
+      dataClassification: 'INTERNAL',
+      resultReferences: [
+        {
+          path: '/draftSnapshotRef',
+          kind: 'CONTENT_ADDRESSED',
+          objectType: 'zhiju.execution.work_order_draft_snapshot',
+        },
+      ],
+    });
+    // §18.8: `/payload/workOrderRef` is deliberately undeclared, so no
+    // reference registers one of the two published WorkOrder spellings as a
+    // Catalog object type; the owning Handler closes the accept set.
+    expect(registry.getOperation(draftRead, draftReadVersion)?.references).toBeUndefined();
+    expect(
+      registry.getOperation(draftRead, draftReadVersion)?.payloadGuardPolicyRef,
+    ).toBeUndefined();
+  });
+
+  it('accepts the registered legacy query and its exact result fixture', () => {
+    expect(validate('query', draftReadFixture('query'))).toEqual({ valid: true, errors: [] });
+    expect(validate('result', draftReadFixture('result'))).toEqual({ valid: true, errors: [] });
+  });
+
+  it('leaves the legacy WorkOrder spelling to the owning Handler', () => {
+    // R-210-1 accepts exactly one of the two published spellings, chosen by the
+    // WorkOrder's creation major. All of them pass this Schema, and so does a
+    // spelling no major publishes: the closure is the Handler's, not the
+    // Schema's. A `const` here would have registered the other spelling as an
+    // alias of the canonical one.
+    for (const objectType of ['execution.work_order', 'zhiju.execution.work_order', 'work_order']) {
+      const query = draftReadFixture('query');
+      ((query.payload as JsonObject).workOrderRef as JsonObject).objectType = objectType;
+      expect(validate('query', query)).toEqual({ valid: true, errors: [] });
+    }
+  });
+
+  it('keeps the @2.0 draft shape distinct from the @1.1 InitialWorkOrderDraft', () => {
+    // The exact read returns the `@1.0` creation major's `WorkOrderDraft`, whose
+    // `versionPins` still requires `projectContextContractRef`; the `@1.1`
+    // shape replaces it with `contextBuilderPolicyRef`. A read version that
+    // accepted the other major's draft would be an alias path.
+    const asV11 = registry.validateOperationResult(draftRead, '1.1', draftReadFixture('result'));
+    expect(asV11.valid).toBe(false);
+    expect(asV11.errors).toContainEqual(
+      expect.objectContaining({
+        instancePath: '/draft/versionPins',
+        keyword: 'additionalProperties',
+      }),
+    );
+
+    const asV20 = draftReadFixture('result');
+    asV20.draft = initialWorkOrderDraft();
+    const initialAsV20 = validate('result', asV20);
+    expect(initialAsV20.valid).toBe(false);
+    expect(initialAsV20.errors).toContainEqual(
+      expect.objectContaining({ instancePath: '/draft/versionPins', keyword: 'required' }),
+    );
+
+    // The same InitialWorkOrderDraft is still the `@1.1` read's exact result.
+    expect(registry.validateOperationResult(draftRead, '1.1', asV20)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it.each(negativeCases)('rejects $base $path ($keyword)', (test) => {
+    const input = draftReadFixture(test.base);
+    expect(validate(test.base, input)).toEqual({ valid: true, errors: [] });
+    setPath(input, test.path, test.value, test.remove);
+    const outcome = validate(test.base, input);
+    expect(outcome.valid).toBe(false);
+    expect(outcome.errors).toContainEqual(
+      expect.objectContaining({
+        keyword: test.keyword,
+        instancePath: test.expectedPath,
+      }),
     );
   });
 });

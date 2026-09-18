@@ -184,3 +184,55 @@ export type {
   TaskReadyCasInput,
   TaskReadyCasResult,
 } from './persistence/task-readiness-repository.js';
+
+// IM-06 (#212): WorkOrder DRAFT creation and the exact draft reads
+// (Spec 003 §18). The creation handler consumes the IdentityPolicy-owned
+// Human-only classification boundary and writes the WorkOrder Root, its
+// immutable draft Snapshot and one Reference Edge; the read handler returns
+// committed facts only and writes nothing. Both entries revalidate their own
+// authorization at the composition boundary before the idempotency claim.
+export {
+  handleCreateWorkOrder,
+  createWorkOrderIdempotencyScope,
+  CREATE_WORK_ORDER_COMMAND,
+  WORK_ORDER_DRAFT_CREATION_BINDINGS,
+  EXECUTION_WORK_ORDER_REF_INVALID,
+  EXECUTION_WORK_ORDER_ALREADY_EXISTS,
+  EXECUTION_WORK_ORDER_SCOPE_INVALID,
+  HUMAN_ONLY_CAPABILITY,
+  API_VALUE_INVALID,
+  AUTHORIZATION_DECISION_INVALID,
+} from './business/work-order-draft-creation.js';
+export type {
+  WorkOrderCapabilityBoundaryPort,
+  WorkOrderCapabilityClassificationRequest,
+  WorkOrderCapabilityClassificationResult,
+  WorkOrderDraftCreationBinding,
+  WorkOrderDraftCreationPorts,
+  WorkOrderDraftPrincipalRef,
+} from './business/work-order-draft-creation.js';
+export {
+  handleGetWorkOrderDraft,
+  GET_WORK_ORDER_DRAFT_QUERY,
+  WORK_ORDER_DRAFT_READ_BINDINGS,
+  WORK_ORDER_DRAFT_SNAPSHOT_OBJECT_TYPE,
+  AGGREGATE_STATE_NOT_ALLOWED,
+  REFERENCE_INVALID,
+} from './business/work-order-draft-read.js';
+export type {
+  WorkOrderDraftReadBinding,
+  WorkOrderDraftReadInput,
+  WorkOrderDraftReadResult,
+} from './business/work-order-draft-read.js';
+export { WorkOrderDraftRepository } from './persistence/work-order-draft-repository.js';
+export type {
+  BoundTaskRow,
+  WorkOrderDraftSnapshotInsert,
+  WorkOrderDraftSnapshotRow,
+  WorkOrderRootInsert,
+  WorkOrderRootRow,
+} from './persistence/work-order-draft-repository.js';
+export type {
+  WorkOrderTable,
+  WorkOrderDraftSnapshotTable,
+} from './persistence/task-execution-db.js';

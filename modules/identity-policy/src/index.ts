@@ -212,6 +212,43 @@ export type {
   TaskExecutionReadinessSelectorType,
 } from './commands/task-execution-readiness-authorization.js';
 export {
+  createWorkOrderDraftReadAuthorizationPort,
+  WORK_ORDER_DRAFT_READ_BINDINGS,
+  WORK_ORDER_DRAFT_READ_PURPOSE,
+  IDENTITY_WORK_ORDER_DRAFT_READ_UNSUPPORTED,
+  IDENTITY_WORK_ORDER_DRAFT_READ_CAPABILITY_CONFIG_INVALID,
+  IDENTITY_WORK_ORDER_DRAFT_READ_TARGET_INVALID,
+} from './commands/work-order-draft-read-authorization.js';
+export type {
+  WorkOrderDraftReadAuthorizationConfig,
+  WorkOrderDraftReadAuthorizationInput,
+  WorkOrderDraftReadAuthorizationPort,
+  WorkOrderDraftReadAuthorizationView,
+  WorkOrderDraftReadBinding,
+  WorkOrderDraftReadCapabilityCodes,
+  WorkOrderDraftReadCapabilityKey,
+  WorkOrderDraftReadDenialReason,
+  WorkOrderDraftReadRevalidationFailure,
+  WorkOrderDraftReadRevalidationInput,
+  WorkOrderDraftReadRevalidationResult,
+  WorkOrderDraftReadSelectorType,
+} from './commands/work-order-draft-read-authorization.js';
+export {
+  createTaskExecutionCreationCapabilityBoundaryPort,
+  TASK_CREATION_CAPABILITY_HUMAN_ONLY,
+  IDENTITY_CAPABILITY_BOUNDARY_UNSUPPORTED,
+  IDENTITY_CAPABILITY_BOUNDARY_INPUT_INVALID,
+  IDENTITY_CAPABILITY_BOUNDARY_PRINCIPAL_INVALID,
+  IDENTITY_CAPABILITY_BOUNDARY_SCOPE_INVALID,
+} from './commands/task-execution-capability-boundary.js';
+export type {
+  TaskExecutionCreationCapabilityBoundaryConfig,
+  TaskExecutionCreationCapabilityBoundaryOutcome,
+  TaskExecutionCreationCapabilityBoundaryPort,
+  TaskExecutionCreationCapabilityBoundaryRequest,
+  TaskExecutionCreationCapabilityBoundaryResult,
+} from './commands/task-execution-capability-boundary.js';
+export {
   createActorSnapshot,
   authorizeCommand,
   validateAuthorizationDecision,

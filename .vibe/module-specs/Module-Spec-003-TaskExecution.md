@@ -2,7 +2,7 @@
 
 版本：v0.2
 日期：2026-08-17
-状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN MERGED 2026-09-16 (PR #207) / #208 TASK READINESS PRODUCER, READY CONSUMER, V3002 AND BOTH AUTHORIZATION ENTRIES IMPLEMENTED 2026-09-16 (CATALOG 214, TE-P206-001–018 EXECUTED ON REAL PostgreSQL; COMPLETED-DEPENDENCY AND BLOCKING-INFORMATIONREQUEST BRANCHES NOT RUN) / OTHER HANDLER IMPLEMENTATION NOT STARTED / #210 WORKORDER DRAFT CREATION, EXACT DRAFT READ AND PRINCIPAL-KIND PLATFORM DELTA DESIGN APPROVED 2026-09-17 (SECTION 18; REVIEWED 67e5df57; HUMAN APPROVAL RECORDED; NOT REGISTERED, NOT IMPLEMENTED)`
+状态：`FIELD-LEVEL IDL BASELINE / DESIGN VERIFIED / USER REVIEWED 2026-08-13 / PR #10 SCHEMA REMEDIATION USER REVIEWED 2026-08-17 / PR #12 INTEGRATION GATE PASSED / IM-06 WI-01 APPLICATION & PERSISTENCE FOUNDATION IMPLEMENTED 2026-09-08 / #165 DRAFT VERSION PINS @1.1 CONTRACT IMPLEMENTED 2026-09-11 / #202 TASK DRAFT CREATION REFERENCE AND PERSISTENCE BOUNDARY APPROVED AND IMPLEMENTED (#204, V3001) 2026-09-15 / #206 TASK READINESS PRODUCTION AND READY TRANSITION BOUNDARY DESIGN MERGED 2026-09-16 (PR #207) / #208 TASK READINESS PRODUCER, READY CONSUMER, V3002 AND BOTH AUTHORIZATION ENTRIES IMPLEMENTED 2026-09-16 (CATALOG 214, TE-P206-001–018 EXECUTED ON REAL PostgreSQL; COMPLETED-DEPENDENCY AND BLOCKING-INFORMATIONREQUEST BRANCHES NOT RUN) / OTHER HANDLER IMPLEMENTATION NOT STARTED / #210 WORKORDER DRAFT CREATION, EXACT DRAFT READ AND PRINCIPAL-KIND PLATFORM DELTA DESIGN APPROVED 2026-09-17 (SECTION 18; REVIEWED 67e5df57; HUMAN APPROVAL RECORDED) / #212 WORKORDER DRAFT CREATION AND EXACT DRAFT READ, IDENTITYPOLICY PORTS AND PLATFORM V0004 IMPLEMENTED 2026-09-18 (CATALOG 215, V3003, TE-P210-001–023 EXECUTED ON REAL PostgreSQL 18.6; TWO SUB-BRANCHES NOT RUN)`
 
 ## 1. 模块责任
 
@@ -1247,12 +1247,12 @@ EXECUTION_TASK_ALREADY_EXISTS
 **未运行边界**
 
 - `TE-P206-005` 的“依赖已 `COMPLETED` 且 Completion Evaluation 当前可用”分支与 `TE-P206-010` 的 blocking InformationRequest 分支保持 `NOT RUN`：`execution.evaluate_task_completion@1.0` 与 `information_request` 生产者未交付，当前不存在可产生这两个分支的合法事实；实现按设计把它们确定性映射为 `STALE`/`UNSATISFIED`，但“无事实可产生”不等于通过。
-- WorkOrder DRAFT、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection（TD-05–07）、受控退出 Fixture、外部 Provider/Runtime、飞书通道与人工业务验收仍 `NOT RUN`；`TaskCompleted` 等 Task 公开事件未注册也未发布。
+- 本切片未覆盖的边界仍 `NOT RUN`：WorkOrder DRAFT（其后由 [Issue #212](https://github.com/qzhike/zhiju-business-core/issues/212) 实现并执行，见 §18.14）、WorkOrder 校验/冻结、首次 Context、Run/Attempt/Result、InformationRequest、Completion、Query/Projection（TD-05–07）、受控退出 Fixture、外部 Provider/Runtime、飞书通道与人工业务验收；`TaskCompleted` 等 Task 公开事件未注册也未发布。
 - 迁移验证与 PostgreSQL 验收覆盖空库、既有 V3000/V3001 之上的 forward 迁移、二次 no-op、RLS/ACL、直 SQL 篡改、回滚与并发；这些证据随本切片的执行记录保存在 Issue/PR，不改变 TD-01–04 其他表的 `NOT RUN` 状态。
 
 ## 18. WorkOrder DRAFT 创建与精确 Draft 读取边界（#210 设计）
 
-状态：`T2 / DESIGN APPROVED 2026-09-17（Issue #210）/ INDEPENDENT REVIEW COMPLETED ON 67e5df57 / EXPLICIT HUMAN DESIGN APPROVAL RECORDED / HANDLER, REGISTRATION AND MIGRATION NOT IMPLEMENTED / TE-P210-* NOT RUN`。本节回应 [Issue #210](https://github.com/qzhike/zhiju-business-core/issues/210)：在 #158/#165 已注册的 WorkOrder DRAFT 契约、#190/#200 已交付的逐版本创建授权映射、#202/#204 的 Task DRAFT 创建事实先例与 #206/#208 的版本绑定寻址先例之上，固定 `execution.create_work_order@1.0`/`@1.1` 的创建边界与 `execution.get_work_order_draft@1.0`/`@1.1` 的精确读取规则。本节不注册任何 operation/objectType/Event、不分配 migration、不改写已发布接受集、注册 Schema、兼容元数据或历史 200 项 Compatibility Baseline；实现事实留待对应实现 Issue（§18.13）。依据、备选与被否方案见[决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)。
+状态：`T2 / DESIGN APPROVED 2026-09-17（Issue #210）/ INDEPENDENT REVIEW COMPLETED ON 67e5df57 / EXPLICIT HUMAN DESIGN APPROVAL RECORDED / IMPLEMENTED AND EXECUTED 2026-09-18 BY Issue #212 / TE-P210-001–023 EXECUTED ON REAL PostgreSQL 18.6 / INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW PENDING`。本节回应 [Issue #210](https://github.com/qzhike/zhiju-business-core/issues/210)：在 #158/#165 已注册的 WorkOrder DRAFT 契约、#190/#200 已交付的逐版本创建授权映射、#202/#204 的 Task DRAFT 创建事实先例与 #206/#208 的版本绑定寻址先例之上，固定 `execution.create_work_order@1.0`/`@1.1` 的创建边界与 `execution.get_work_order_draft@1.0`/`@1.1` 的精确读取规则。本节不注册任何 operation/objectType/Event、不分配 migration、不改写已发布接受集、注册 Schema、兼容元数据或历史 200 项 Compatibility Baseline；实现事实与验证边界见 §18.14。依据、备选与被否方案见[决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)。
 
 ### 18.1 对账事实（revision `bbfd2ceaab21d0d346d6f405be7f216bc6cdd276`）
 
@@ -1489,9 +1489,59 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 
 ### 18.13 验收矩阵与未运行边界
 
-- 设计/静态分量（身份派生、读取版本绑定、Task 跨 Major 绑定、生命周期集合、Actor 与 requester 规则、platform transaction-context 兼容增量、校验分工、持久化与幂等边界、增量分类）由 `TE-P210-D-*` 对账；可执行分量由 `TE-P210-001`–`023` 定义，全部为未来执行输入，见 [Module-Test-003](../module-tests/Module-Test-003-TaskExecution.md#workorder-draft-创建与精确-draft-读取210-设计)。
-- 本 revision **不改**代码、契约、Registry、生成物、migration 或 fixture：Catalog/Registry 保持 **214**、TaskExecution 保持 **44**、历史 Baseline 保持 **200**、v1 冻结 fixture 与两个 `create_task` Major 及全部既有 WorkOrder 契约条目逐字节不变；本节新增的 operation、错误码与 migration 均**未注册、未实现、未分配编号**。
-- 未运行边界：WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` 持久化、读取 Handler 与组成层、IdentityPolicy 读取授权条目、真实 PostgreSQL、RLS/ACL、直 SQL 篡改、回滚、并发、重放与权威读取全部 `NOT RUN`；首次 Context、WorkOrder 校验/冻结、Run/Attempt/Result、InformationRequest、Completion、Query/Projection（TD-05–07）、受控退出 Fixture、外部 Provider/Runtime/飞书与人工业务验收同样 `NOT RUN`。
+- 设计/静态分量（身份派生、读取版本绑定、Task 跨 Major 绑定、生命周期集合、Actor 与 requester 规则、platform transaction-context 兼容增量、校验分工、持久化与幂等边界、增量分类）由 `TE-P210-D-*` 对账；可执行分量由 `TE-P210-001`–`023` 定义（已于 2026-09-18 在真实 PostgreSQL 18.6 执行，见 §18.14），见 [Module-Test-003](../module-tests/Module-Test-003-TaskExecution.md#workorder-draft-创建与精确-draft-读取210-设计)。
+- 本设计 revision **不改**代码、契约、Registry、生成物、migration 或 fixture：当时 Catalog/Registry 保持 **214**、TaskExecution 保持 **44**、历史 Baseline 保持 **200**、v1 冻结 fixture 与两个 `create_task` Major 及全部既有 WorkOrder 契约条目逐字节不变；本节新增的 operation、错误码与 migration 在该 revision 均**未注册、未实现、未分配编号**，其后由 §18.14 的 #212 按设计注册与实现（Catalog 215、TaskExecution 45、Baseline 仍 200）。
+- 设计 revision 的未运行边界：WorkOrder DRAFT Handler、`work_order`/`work_order_draft_snapshot` 持久化、读取 Handler 与组成层、IdentityPolicy 读取授权条目、真实 PostgreSQL、RLS/ACL、直 SQL 篡改、回滚、并发、重放与权威读取当时全部 `NOT RUN`，其后由 #212 执行（见 §18.14 及该节保留的两个 `NOT RUN` 子分支）；首次 Context、WorkOrder 校验/冻结、Run/Attempt/Result、InformationRequest、Completion、Query/Projection（TD-05–07）、受控退出 Fixture、外部 Provider/Runtime/飞书与人工业务验收至今仍 `NOT RUN`。
 - 依赖的既有证据（#200 授权 Port、#204 Task 创建、#208 readiness）只证明各自切片，不证明本节的创建、读取或跨模块业务链已可运行。
 - **设计门禁已完成**：#210 的 durable scope 包含 [RLS 事务上下文决定 §3.5](../decisions/rls-transaction-context.md#35-210-principalkind-的向后兼容增量设计提案)、PostgreSQL §19.2 的 `principal_kind` 事实、11 参数 establish 重载与 `context_principal_kind()` helper，以及 TaskExecution WorkOrder 路径对新入口的消费。旧 10 参数入口兼容保留但产生 kind=NULL 的 legacy Context，不能通过 WorkOrder guard。该设计已在 revision `67e5df57db637953009ba21b2193114aec401ce6` 完成独立审查并取得明确人类设计批准；记录见 [Review.md](../reviews/pr-211/Review.md) 与 [Issue 评论](https://github.com/qzhike/zhiju-business-core/issues/210#issuecomment-5715698129)。
-- 实现前置：Planner 仍须基于合并后的 `main` 对 WorkOrder DRAFT 创建与精确读取执行新的 `NOW + READY` 复核，且只有另行发布的实现 Issue 才授权注册、migration、Handler、Port 或组成层工作；WorkOrder、首次 Context、Validation/Freeze 与 IM-06 均**不**因本设计获批而完成。
+- 实现前置（#210 设计期记录）：Planner 仍须基于合并后的 `main` 对 WorkOrder DRAFT 创建与精确读取执行新的 `NOW + READY` 复核，且只有另行发布的实现 Issue 才授权注册、migration、Handler、Port 或组成层工作；该复核与授权已由 [Issue #212](https://github.com/qzhike/zhiju-business-core/issues/212) 承接并落地，实现事实与验证边界见 §18.14。WorkOrder、首次 Context、Validation/Freeze 与 IM-06 均**不**因本设计获批或本切片实现而完成。
+
+### 18.14 实现事实与验证边界（#212，2026-09-18）
+
+状态：`IMPLEMENTED AND EXECUTED 2026-09-18 BY Issue #212 / TE-P210-001–023 EXECUTED ON REAL PostgreSQL 18.6 / INDEPENDENT REVIEW AND HUMAN TECHNICAL REVIEW PENDING`。[Issue #212](https://github.com/qzhike/zhiju-business-core/issues/212) 按 §18 的已批准设计交付本切片；本节只记录实现事实、必须的可核验点与仍然 `NOT RUN` 的边界，执行证据（revision、测试计数、PostgreSQL 版本与迁移路径、Catalog/Registry/Baseline 计数、独立审查结论与人类技术批准）保存在 Issue 与 PR，不另建并行报告。
+
+**注册与生成物**
+
+- `execution.get_work_order_draft@2.0` 已按 §18.12 注册为新增 operation 版本（additive，Purpose 复用 `execution.work_order.draft.read`）；`operation-compatibility-metadata.v1.json` 相应 +1 条目，`/payload/workOrderRef` 仍不声明。
+- 生成物：`public-api.v1.json`、`contracts/src/generated/public-api.ts` 与 TaskExecution 生成类型随新版本更新，`operation-registration.ts` 的断言扩展为四个 WorkOrder 条目的逐版本闭合；正/负例 fixture 相应补齐。
+- 计数：Catalog/Registry 214 → **215**，TaskExecution 44 → **45**；历史 **200** 项 Compatibility Baseline（200 operations / 200 envelopes）与 `compatible-minor` 归类不变，新版本按 `operation-added-as-minor` 归类。
+- 四个既有 WorkOrder 操作逐字节不变：`execution.create_work_order@1.0`（legacy 拼写、Baseline 成员）、`@1.1`（canonical）、`execution.get_work_order_draft@1.0`（保留不改）与 `@1.1` 的注册 Schema/Purpose/metadata 与 v1 冻结 fixture 均未改写。
+- 两个 `$defs` 按 §18.12 的唯一改动落地：`workOrderDraftSnapshot`/`initialWorkOrderDraftSnapshot` 的 `taskRef` 改为由创建 Major 派生的通用 `objectRef`；两者不被任何已注册 operation 引用、不在 Baseline，因此不改变任何已注册接受集、计数或 metadata。
+
+**IdentityPolicy Port（Spec 001 §15.6/§15.7）**
+
+- 读取授权：`createWorkOrderDraftReadAuthorizationPort` + `WORK_ORDER_DRAFT_READ_BINDINGS`（`modules/identity-policy/src/commands/work-order-draft-read-authorization.ts`），两条 `@1.1`/`@2.0` 条目互不替代，读取前 `revalidateWorkOrderDraftRead` 先于任何历史结果返回。
+- 分类边界：`createTaskExecutionCreationCapabilityBoundaryPort`（`modules/identity-policy/src/commands/task-execution-capability-boundary.ts`）只按精确 `capabilityType` 判定并返回闭集 `{outcome, classificationRegistryVersion}`。
+- 本切片**没有**新增公开 Command/Query、capability code、Catalog 条目、registry/metadata 变更或 IdentityPolicy 迁移（复用 V1006 的既有 target 列）。
+
+**平台事务上下文（V0004）**
+
+- `migrations/bootstrap/V0004__platform_principal_kind.sql` 给 `platform_security.tx_context` 增加可空 `principal_kind`，`CHECK (principal_kind IS NULL OR principal_kind IN ('HUMAN','AGENT','SERVICE','RUNTIME','EXTERNAL_PARTY'))`；10 参数 `establish_transaction_context` 以原签名与原权限重建并写 NULL kind；新增 11 参数重载（`p_principal_kind` 为第三个参数）与 `platform_security.context_principal_kind()`（`STABLE SECURITY DEFINER`，与 `context_principal_id()` 相同的过期重验与同一组 15 个 EXECUTE 角色）。
+- ACL 与错误行为：两条 establish 入口的 EXECUTE 仍只授予 `platform_context_establisher`，`tx_context` 表权限与普通 app/projection 角色权限不变；同事务混用两个入口或使用不同 kind 一律 `40001`，非法/NULL/空 kind `22023`；`V0003` 未被修改。
+
+**持久化（V3003）**
+
+- `migrations/task_execution/V3003__work_order_draft_creation.sql` 建立 `task_execution.work_order`（Root）与 `task_execution.work_order_draft_snapshot`（不可变事实），以及 `task_execution.work_order_draft_request_hash(jsonb)`；不修改 `V3000`/`V3001`/`V3002`。
+- Guard 集合：`SECURITY DEFINER` 的 mirror guard、`SECURITY INVOKER` 的 creation-identity guard、Scope/身份列的 immutable guard 与指针 `aggregate_version` 前进的 root-update guard；creation-identity guard 由 `canonical_payload` 重建 `{draft, expiresAt?}` 投影并与在途 Receipt 的 `request_payload_hash` 比较，同时把 Task 身份四处闭为同一事实。
+- 不可变与权限：快照 `REVOKE UPDATE, DELETE`、Root `REVOKE DELETE`（`task_execution_app`）；组合指针为 deferrable 组合 FK，只指向同一 WorkOrder 且同时绑定 id 与 hash。
+- RLS：两表 `FORCE RLS` + `context_allows_project`；INSERT/UPDATE 检查除 Scope 外还把 `created_by_principal_id`/`requested_by_principal_id` 锚定到 `platform_security.context_principal_id()`，归属 guard 进一步把两份 payload 的 `PrincipalRef` 绑定到 `context_principal_id()`/`context_principal_kind()`。
+- 一次成功创建恰写一条 Task Reference Edge、0 行 `outbox_event`（无已注册的 WorkOrder 草案事件）。
+
+**Handler 与组成层**
+
+- 入口：`createWorkOrderDraftEntry`（`apps/api/src/composition/work-order-draft-entry.ts`）提供 `create` 与 `read` 两个能力，校验注册 Envelope 的精确版本、绑定 Decision/Actor 并经对应 IdentityPolicy Port 重验后才进入幂等 Claim 与历史 Receipt 返回（§18.9）；`@1.0` 无 Handler。
+- 业务实现：`modules/task-execution/src/business/work-order-draft-creation.ts`、`work-order-draft-read.ts` 与 `persistence/work-order-draft-repository.ts`。
+- 创建：按 §18.2 的版本-拼写绑定寻址与 §18.3 的 Task 创建事实派生 `taskRef` 拼写（四种 WorkOrder × Task Major 组合各自合法）；按 §18.4 的闭合 status 集合拒绝 `{DRAFT, BACKLOG, COMPLETED, CANCELLED}`，并以 `Task → WorkOrder` 只读锁序序列化 Task 转换竞态；按 §18.5 第 2 条要求 `draft.requestedBy` 等于认证 principal（三角色正对照各自成立，`actingFor`/`initialAssignee`/他人 Decision 均不提权）；按 §18.5 第 4 条把非 Human 的 Human-only 声明收敛为共享码 `HUMAN_ONLY_CAPABILITY`，并把 Port 的 `{outcome, classificationRegistryVersion}` 原样记入 Audit（受控版本值证明未硬编码 owning 常量）；按 §18.6 只固化创建期义务，其余留给 Context/Validation/Freeze。
+- 读取：`@1.1`/`@2.0` 各自按 R-210-1 的版本绑定返回已提交事实的逐字段精确读回（`draftSnapshotRef`、`draft`、`expiresAt`、`status`、`rootAggregateVersion`），不补字段、不重建、不返回判断；`execution.get_work_order_draft@1.0` 保留既有注册 Schema 且实现期仍无 Handler，其请求在入口以 `API_CONTRACT_TYPE_UNKNOWN` 拒绝，不会被静默当作任一 Major 的读取。已过期但仍为 DRAFT 的 Root 仍按当前读取授权返回历史事实，不赋予任何执行资格。
+
+**实现期关闭的偏差与跨切片修复**
+
+- 偏差（i）：creation-identity guard 需要创建请求投影 Hash，因此 `V3003` 新增 `task_execution.work_order_draft_request_hash(jsonb)` 并把 EXECUTE 授予 `task_execution_app`；该函数是其参数的纯函数、不读任何表，owner-only 的 `task_execution.canonical_jsonb_text` 仍不授予 app 角色。
+- 归属闭合的层界（PR #213 第 1 轮审查修正）：creator/requester 只在 **INSERT** 锚定 `context_principal_id()`（两表 INSERT policy 的 `WITH CHECK` 与 creation-identity guard），并随后由 root-update guard 判为不可变列；`work_order_update` policy **只**检查 `context_allows_project`，不要求当前 principal 等于创建者。创建归属不是对象所有权——把 id 等式写进 UPDATE 会让非创建者的合法 owning transition（例如获准的 Validator/Process Manager）在 RLS 层被拒，与 §18.7 与 §18.5 第 7 条不符。回归见 `TE-P210-017b`：principal B 在其自己的合法 Project Context 下可执行被 root-update guard 接受的 transition（`rowCount = 1`，不含该 Project 的 Context 为 0 行），而 `created_by_principal_id`/`requested_by_principal_id` 仍不可改写（`23514`）。
+- 记录细节：PostgreSQL 的 trigger 名称顺序使 creation-identity guard 在两个 guard 都比较的维度上先于 mirror guard 求值；app 角色以他人 creator 列插入时断言的是数据库实际抛出的 SQLSTATE（RLS `WITH CHECK` 胜出为 `42501`，creation-identity guard 胜出为 `22023`）。
+- 跨切片修复（随本切片落地）：`tests/persistence/task-draft-creation.test.ts` 与 `tests/persistence/task-readiness.test.ts` 把 Catalog 计数 214 → 215（readiness 文件另含 TaskExecution 44 → 45）；`task-draft-creation.test.ts` 的 `firstCommittedTaskId()` 现只作用于本套件自己的 fixture Project，不再取共享 gate 数据库中最早创建的 Task（该查询会被本切片新增的 Task 破坏）。
+
+**未运行边界**
+
+- `TE-P210-006` 的 `EXECUTION_DEFINITION_REF_INVALID` 分支与 `TE-P210-020` 的 Root↔快照 / 指针↔payload 不一致分支保持 `NOT RUN`：`V3001` 的 creation-identity guard 加定义快照不可变与组合指针 FK 使“与创建 Receipt 不一致或不可读的绑定定义”和“单 WorkOrder 的第二张快照或无法解析的指针”都不存在合法事实生产者；两行改为断言这些闭包（`23514`/`23503`），不以替代结果冒充通过。
+- WorkOrder 校验/冻结/READY/queue、首次 Context、Run/Attempt/AgentResult、InformationRequest 与 retry、Completion、Query/Projection（TD-05–07）、受控退出 Fixture、外部 Provider/Runtime/飞书、生产、负载/性能与独立人工业务验收仍 `NOT RUN`。WorkOrder DRAFT 创建与精确读取的实现与通过**不得**被报告为首次 Context、Validation/Freeze、执行、Completion 或 IM-06 完成。
