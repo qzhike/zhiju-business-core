@@ -636,3 +636,197 @@ Context→Validation→Freeze 链、外部 Provider/Runtime/飞书、公开 HTTP
 本轮仍存在 agent 可修复的设计阻断，不能进入 Issue #214 的最终人类设计/技术批准；修复后的
 新 exact head 必须再次独立审查。本轮未修改产品代码，未提交、推送或合并；只更新本地正式
 审查记录并发布 PR comment，记录在未获得提交/推送授权前保持本地未提交。
+
+---
+
+## 第 6 轮：`REQUEST_CHANGES`
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`01bf26d1a6cc5da8edfd16eaa225bbcdde2e5798`
+- Base SHA：`0be76e0c62b722393d1c500772dab7dfa2a34db9`
+- PR：[#215](https://github.com/qzhike/zhiju-business-core/pull/215)
+- Work item：[#214](https://github.com/qzhike/zhiju-business-core/issues/214)（T2 design）
+- 审查日期：2026-09-18
+- GitHub handoff：[#issuecomment-5727632270](https://github.com/qzhike/zhiju-business-core/pull/215#issuecomment-5727632270)（同账号无法审查自己的 PR，因此使用 comment，不是 GitHub formal review）
+
+本轮独立复核了 `2553de8...01bf26d` 的实际 diff、Issue #214、Common `TypedReference`、Core
+`InputRef`、`get_work_order_draft@2.0` 的真实 Schema 与 exact-head 证据。上一轮的 RFC 9562
+UUIDv7、Fact subject/provenance 分离，以及 epistemic 零/混合 Fact 与同 exact ref 异 metadata
+冲突规则均已闭合；但新声明的 InputRef “total canonical comparator”仍不覆盖全部合法
+`TypedReference`，所以排列置换不变性尚未成立。
+
+## 阻断发现
+
+### 1. InputRef comparator 对合法 `ExternalRef` 不是全序
+
+§19.4 第 9 条声称排序键“覆盖全部字段”，但实际元组只读取
+`ref.kind/objectType/objectId/versionId|snapshotId|contentHash`。Common `TypedReference` 同时允许
+`ExternalRef`；该 variant 没有 `kind/objectType/objectId`，其身份字段是
+`system/resourceType/externalId/observedAt`，并可带 `tenantOrAccountRef/payloadHash/adapterVersion`。
+因此两个不同、合法的 ExternalRef 在其余 InputRef metadata 相同时会得到完全相同的排序键。
+同一缺口也表现在普通 typed ref 的 `scope`，以及 ContentAddressedRef 的可选
+`immutableVersionId` 等未列字段上。
+
+Reviewer 对当前 `get_work_order_draft@2.0` ContractRegistry 做了最小探针：把 DRAFT
+`inputRefs` 设为两个 `required=false`、其余 metadata 相同，但分别引用
+`{system:'feishu',resourceType:'message',externalId:'msg-1',...}` 与
+`{system:'slack',resourceType:'message',externalId:'msg-2',...}` 的 ExternalRef。Schema 返回
+`valid:true`；按 §19.4 的精确元组计算，两边 key 都是
+`[external.source,null,null,null,null,false,execution.context.build.initial,REFERENCE_ONLY,true,null]`。
+这两个 ref 不是 exact ref，因而也不会触发“同 `(inputRole, ref exact)` 异 metadata”拒绝。
+
+稳定排序在 comparator 返回相等时会保留 caller 数组原顺序；而 §19.4 又要求每个 input 的
+`inputRole/ref` 进入 build metadata 观察，并以 comparator 保证 metadata hash 对排列置换不变。
+所以交换这两个合法输入仍可能交换 metadata 观察次序并改变 hash，直接违反 Issue #214 的
+确定性组装要求和 TE-214-D-017 ⑨ 的声明。
+
+要求：把完整、判别 variant 的 TypedReference canonical identity 纳入排序键，例如对完整
+`canonical_cv1(ref)` 排序，或定义覆盖五个 variant 全部必填/可选字段（包括嵌套 Scope、Hash
+与 ExternalRef 字段）的闭集 comparator；随后增加至少两个不同 ExternalRef 的排列置换 fixture，
+并断言组装结果及 metadata hash 一致。建议同时加入仅 Scope 不同的普通 typed ref，以防把
+本次修复局限在 ExternalRef。
+
+证据位置：
+
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1650`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1651`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1656`
+- `.vibe/module-tests/Module-Test-003-TaskExecution.md:347`
+- `contracts/src/common.schema.ts:98`
+- `contracts/src/common.schema.ts:151`
+- `contracts/src/common.schema.ts:166`
+- `contracts/src/core.schema.ts:356`
+- `contracts/src/operations/task-execution.schema.ts:532`
+
+## 上一轮发现状态
+
+1. UUIDv7 已改为以本构建受信 `asOf` Unix 毫秒填充前 48 bit，并只在 rand 位使用确定性摘要；
+   fixture 也要求解码 timestamp，上一轮 Finding 1 已关闭。
+2. `subjectRef` 已改为 EP-owned additive canonical objectType 下的 Fact VERSIONED 身份，Slice
+   只保留为 provenance；设计 Catalog、owning pointer 与 fixture 同步，上一轮 Finding 2 已关闭。
+3. 零 Fact + expectation 已 fail closed，混合状态有固定聚合规则，同 exact ref 异 metadata
+   已 fail closed；但用于不同 ref 的 comparator 仍非全序，所以上一轮 Finding 3 仅部分关闭。
+
+## 验证证据
+
+- 发布前远端状态：PR `OPEN`、非 Draft、`MERGEABLE`，merge state `CLEAN`；exact head
+  `01bf26d1a6cc5da8edfd16eaa225bbcdde2e5798`，base
+  `0be76e0c62b722393d1c500772dab7dfa2a34db9`。
+- exact-head GitHub Actions run
+  [35325436200](https://github.com/qzhike/zhiju-business-core/actions/runs/35325436200) /
+  job `105537273479`：`SUCCESS`。
+- Reviewer 执行配置的
+  `DOCKER_HOST=unix:///Users/galendai/.orbstack/run/docker.sock vibe verify full --json`：`PASS`，
+  resolved command `pnpm clean && pnpm verify`，exit 0。普通测试 62/62 files、1071/1071 tests
+  passed（39 files、456 tests skipped）；Catalog/Registry 215、Compatibility Baseline 200；真实
+  PostgreSQL 18.6 gate 43/43 files、471/471 tests，second migrate no-op，容器清理成功。
+- `git diff --check 2553de8...01bf26d`：PASS；开始本轮复审时工作树 clean。
+- focused ContractRegistry 探针：两个不同 ExternalRef 的 DRAFT InputRef 同时合法，但 §19.4
+  comparator key 完全相等。
+
+绿色 verifier 证明现有实现没有回归；本 PR 仍是 design-only，`TE-214-D-*` 未由当前 target
+执行，尚未实现的 Builder 也不会排列上述合法 ExternalRef 或校验 metadata hash，因而不能消除
+该直接反例。
+
+Initial Context Handler、增量授权/owning Port、`context_snapshot`/
+`context_snapshot_build` migration、权威 Context Query、真实新路径 RLS/并发/重放、完整
+Context→Validation→Freeze 链、外部 Provider/Runtime/飞书、公开 HTTP、生产、负载/性能与
+独立人工业务验收均为 `NOT RUN`。
+
+本轮仍存在 agent 可修复的设计阻断，不能进入 Issue #214 的最终人类设计/技术批准；修复后的
+新 exact head 必须再次独立审查。本轮未修改产品代码，未提交、推送或合并；只更新本地正式
+审查记录并发布 PR comment，记录在未获得提交/推送授权前保持本地未提交。
+
+---
+
+## 第 7 轮：`HUMAN_REVIEW_REQUIRED`
+
+- 结论：`HUMAN_REVIEW_REQUIRED`
+- Reviewed SHA：`d0d060fbacb98a6e9fdac1d098792a6222de4cff`
+- Base SHA：`0be76e0c62b722393d1c500772dab7dfa2a34db9`
+- PR：[#215](https://github.com/qzhike/zhiju-business-core/pull/215)
+- Work item：[#214](https://github.com/qzhike/zhiju-business-core/issues/214)（T2 design）
+- 审查日期：2026-09-18
+- GitHub handoff：[#issuecomment-5727902738](https://github.com/qzhike/zhiju-business-core/pull/215#issuecomment-5727902738)（同账号无法审查自己的 PR，因此使用 comment，不是 GitHub formal review）
+
+本轮独立复核了 `01bf26d...d0d060f` 的三文件、5 insertions / 5 deletions 实际 diff，重新对照
+Issue #214、Common 五种 `TypedReference`、共享 canonicalization v1 与配置化验证证据。上一轮
+唯一的 agent-fixable 阻断已经关闭；未发现新的可由 Implementer 继续修正的合同、范围或确定性
+问题。由于本设计控制授权、跨模块数据最小化、不可变 Context 内容、RLS 与重放，Issue #214
+明确要求 exact final design revision 的人类设计/技术批准；因此 Reviewer outcome 进入
+`HUMAN_REVIEW_REQUIRED`，而不是 `APPROVE`。
+
+## 上一轮发现关闭证据
+
+§19.4 第 9 条已把 InputRef 排序键改为
+`(inputRole, canonical_cv1(ref), required, permittedUse, contentAccessMode, integrityRequired, epistemicExpectation)`。
+共享 canonicalization v1 对完整 JSON 值执行 NFC 规范化、UTF-8 key 稳定排序并保留所有存在的
+成员；`canonical_cv1(ref)` 因此覆盖五种 TypedReference variant 的全部必填/可选成员，包括：
+
+- ExternalRef 的 `system/resourceType/externalId/observedAt` 与可选
+  `tenantOrAccountRef/payloadHash/adapterVersion`；
+- Object/Versioned/ContentAddressed/Snapshot ref 的完整 `scope`；
+- ContentAddressedRef 的可选 `immutableVersionId` 与完整 `contentHash`。
+
+同 `(inputRole, canonical_cv1(ref))` 异 metadata 明确
+`EXECUTION_CONTEXT_SOURCE_INVALID` fail closed，全字段相同才去重。§19.4 第 10 条与
+`TE-214-D-017` 又要求置换集必须含两个不同 ExternalRef 及一对仅 Scope 不同的普通 typed ref，
+并断言 payload/metadata hash 与逐项组装结果不随排列改变。因此上一轮的 ExternalRef comparator
+反例已不可复现。
+
+Reviewer 以仓库共享 `canonicalize` 做 focused probe：
+
+- Feishu `msg-1` 与 Slack `msg-2` 的两个 ExternalRef 产生不同 canonical key；
+- objectType/objectId 相同、仅 Project Scope 不同的两个 ObjectRef 产生不同 canonical key；
+- 同一四引用集合正序/逆序经新 comparator 得到相同顺序。
+
+决定摘要、owning Spec 和测试矩阵三处同步，错误码与公开 operation/Catalog/Baseline 均未扩大；
+本修订没有修改产品代码或 executable Contract。
+
+## 验证证据
+
+- 发布前远端状态：PR `OPEN`、非 Draft、`MERGEABLE`，merge state `CLEAN`；exact head
+  `d0d060fbacb98a6e9fdac1d098792a6222de4cff`，base
+  `0be76e0c62b722393d1c500772dab7dfa2a34db9`。
+- exact-head GitHub Actions run
+  [35327830262](https://github.com/qzhike/zhiju-business-core/actions/runs/35327830262) /
+  job `105544955160`：`SUCCESS`（8m24s）。
+- Reviewer 执行配置的
+  `DOCKER_HOST=unix:///Users/galendai/.orbstack/run/docker.sock vibe verify full --json`：`PASS`，
+  resolved command `pnpm clean && pnpm verify`，exit 0。普通测试 62/62 files、1071/1071 tests
+  passed（39 files、456 tests skipped）；Catalog/Registry 215、Compatibility Baseline 200；真实
+  PostgreSQL 18.6 gate 43/43 files、471/471 tests，second migrate no-op，容器清理成功。
+- `git diff --check 01bf26d...d0d060f`：PASS。
+- focused canonical comparator probe：两个 ExternalRef key 不同、两个 Scope-only ObjectRef key
+  不同、正逆排列排序结果相同。
+
+绿色 verifier 证明当前仓库没有回归；本 PR 是 design-only，`TE-214-D-*` 仍为 `NOT RUN`，不应
+冒充 Initial Context Handler、授权/owning Port、`context_snapshot`/
+`context_snapshot_build` migration、权威 Context Query、真实新路径 RLS/并发/重放或完整
+Context→Validation→Freeze 链已经实现。
+
+## 人类批准门禁
+
+人类设计/技术 Reviewer 必须明确审查并批准 exact SHA
+`d0d060fbacb98a6e9fdac1d098792a6222de4cff`。批准至少确认授权组成、跨模块数据最小化、Fact
+subject 规范化 objectType、确定性 UUIDv7 与 InputRef canonical comparator、不可变持久化/RLS、
+并发/幂等/重放设计可进入后续实现 readiness。该批准不得由 agent 结论、绿色 CI、PR comment 或
+merge 授权替代；批准前依赖实现 Issue 继续 blocked。
+
+本轮未修改产品代码，未提交、推送或合并；只在保留第 6 轮本地未提交记录的基础上追加第 7 轮
+正式审查记录并发布 PR comment，记录在未获得提交/推送授权前保持本地未提交。
+
+### 人类设计/技术批准（门禁完成）
+
+- 批准日期：2026-09-18
+- 批准的 exact SHA：`d0d060fbacb98a6e9fdac1d098792a6222de4cff`
+- 前置独立审查：第 7 轮 `HUMAN_REVIEW_REQUIRED`；无剩余 agent-fixable finding；exact-head
+  GitHub Actions 与 Reviewer 配置化 full 均 `PASS`
+- 人类决定：用户在收到第 7 轮完整审查结论、exact SHA、验证证据、`NOT RUN` 边界与人类门禁
+  范围后明确回复“审核通过”，批准该 exact revision 的设计/技术门禁
+- GitHub approval record：[#issuecomment-5727949867](https://github.com/qzhike/zhiju-business-core/pull/215#issuecomment-5727949867)（同账号不能提交 formal review，使用明确区分的 PR comment）
+
+该批准满足 Issue #214 对 exact final design revision 的显式人类设计/技术批准要求；后续 Planner
+可以据此复核 implementation readiness。它不把 `TE-214-D-*` 改为 `PASS`，不表示 Initial
+Context 已实现，也不授权 commit、push、merge、部署、迁移或直接开始未发布的实现 Issue。若 PR
+HEAD 后续变化，本批准不自动延伸到新 revision，必须重新执行适用的独立审查与人类门禁。
