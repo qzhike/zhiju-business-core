@@ -487,3 +487,152 @@ RLS/并发/重放、完整 Context→Validation→Freeze、外部与人工验收
 
 需要先推送包含修复的新 commit，再对新 exact head 做独立复审。本轮未修改产品代码，未提交、
 推送或合并；仅追加正式状态复核记录并发布 PR comment。
+
+---
+
+## 第 5 轮：`REQUEST_CHANGES`
+
+- 结论：`REQUEST_CHANGES`
+- Reviewed SHA：`2553de827fff2a71fe1ce617e4a65855bab20a89`
+- Base SHA：`0be76e0c62b722393d1c500772dab7dfa2a34db9`
+- PR：[#215](https://github.com/qzhike/zhiju-business-core/pull/215)
+- Work item：[#214](https://github.com/qzhike/zhiju-business-core/issues/214)（T2 design）
+- 审查日期：2026-09-18
+- GitHub handoff：[#issuecomment-5726277588](https://github.com/qzhike/zhiju-business-core/pull/215#issuecomment-5726277588)（同账号无法审查自己的 PR，因此使用 comment，不是 GitHub formal review）
+
+本轮独立复核了 `11576c8...2553de8` 的实际 diff、Issue #214、Core ProjectContext/
+InputRef、#188 owning Source Slice 输出、仓库 UUIDv7 实现与 exact-head 验证证据。第 3 轮的
+Purpose 绑定与 DeliveryItem target Port 缺口已关闭；required input 缺失也已改为 fail closed。
+但 ContextItem 身份算法只满足当前正则外观、不满足仓库声明的 RFC 9562 UUIDv7，Source Slice
+被错误复用为 Fact 的 subject，同时 InputRef 对空/混合 fact 和同键不同 metadata 仍未闭合，
+因此尚不能批准。
+
+## 阻断发现
+
+### 1. 新“确定性 UUIDv7”只是改了 version nibble，不是 RFC 9562 UUIDv7
+
+§19.4 第 7 条仍取 SHA-256 的前 16 字节，只把 version/variant 位改成 `7`/`[89ab]`。仓库
+Common Schema 注释与 shared-kernel `parseUuidV7` 都把该类型声明为 RFC 9562 UUIDv7；RFC
+9562 §5.7 要求最前 48 位是 Unix Epoch 毫秒时间戳，而不是任意 hash 位。当前
+ContractRegistry/`isUuidV7` 只检查结构位，所以 fixture 的“Registry 全过”不能证明这个语义。
+
+Reviewer 用 §19.4 的精确算法对一条 #188 形状 Fact 做探针，得到
+`a68c537a-2eda-7ac1-9813-632473a71b13`：当前 `isUuidV7` 返回 true，但前 48 位
+`a68c537a2eda` 按 UUIDv7 解读为 Unix 毫秒 `183121626148570`，即
+`7772-11-22T06:22:28.570Z`，与 2026 年事实/切片时间完全无关。这是“通过正则但违反命名
+合同”的直接反例。
+
+要求：使用真实、稳定的 Unix 毫秒来源填充前 48 位（并仅在 UUIDv7 允许的余下位中使用
+hash/计数器来保证确定性与唯一性），或重新选择并批准符合 Core 的身份方案；新增不仅检查
+version nibble，还解码并断言 timestamp 来源/重放稳定性的 fixture。
+
+证据位置：
+
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1646`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1656`
+- `contracts/src/common.schema.ts:7`
+- `contracts/src/common.schema.ts:13`
+- `packages/shared-kernel/src/identifiers.ts:7`
+- `packages/shared-kernel/src/identifiers.ts:11`
+- [RFC 9562 §5.7](https://www.rfc-editor.org/rfc/rfc9562.html#section-5.7)
+
+### 2. `subjectRef := Source Slice ref` 把 provenance 当成 Fact subject
+
+新规则让每个 Fact ContextItem 的 `subjectRef` 等于整片 Source Slice 的
+ContentAddressedRef，同时 `provenanceRefs` 又包含同一 Slice ref。Core 把 `subjectRef` 与
+`provenanceRefs` 定义为两个独立字段；这里把来源容器同时冒充事实 subject，导致同一 Slice
+中的所有 Fact 具有同一 subject，Fact 的 `factRef`/`factType` 在 ProjectContext payload 中
+都不可识别，只能再次读取 owning Slice 才能猜回。结构通过 ContractRegistry 不等于这个
+FACT 的 subject 语义正确，也不满足 Issue 要求的确定性 Fact→ContextItem 内容映射。
+
+要求：为 Fact 选择已发布且语义正确的 subject reference，并把 Slice 仅保留在 provenance；
+如果 #188 没有提供 Core 可接受的 canonical subject，则必须在 readiness 中选择 additive
+owning Contract/object registration、明确的其他权威 subject，或不物化该 Fact 并正确反映
+omission/coverage，不能用 schema-valid 的来源 ref 填充不同语义的字段。正向 fixture 应断言
+两个不同 Fact 的 subject/identity 可从 ProjectContext 本身被区分，而不是只断言 Registry
+接受。
+
+证据位置：
+
+- `.vibe/high-level-docs/03-core-contracts.md:202`
+- `.vibe/high-level-docs/03-core-contracts.md:216`
+- `.vibe/high-level-docs/03-core-contracts.md:220`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1634`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1640`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1645`
+- `contracts/src/core.schema.ts:159`
+- `contracts/src/core.schema.ts:167`
+
+### 3. InputRef 的 epistemic 与同键 metadata 规则仍不是全域确定的
+
+§19.4 第 9 条规定：`epistemicExpectation` 与该片 Fact 推导值一致；多 Fact 混合时只取
+“确定性次序首个”状态。但 #188 合法 Slice 可以有零个 Fact，此时没有可比较值，规则未定义；
+有多个不同状态时只看第一个，则 `CONFIRMED` expectation 可以在第一条为 CONFIRMED、后续为
+DISPUTED/INFERRED 的同一输入上通过，没有验证“每个 Input 声明的信任级别”。必须明确空片
+行为以及多 Fact 的全量/聚合偏序规则，不能以数组第一项代表整片信任状态。
+
+同一段又只按 `(inputRole, ref)` 排序去重，却没有为其余 metadata 提供 tie-break 或冲突拒绝。
+Reviewer 用现有 ContractRegistry 验证 `get_work_order_draft@2.0`：同一 `inputRole` + exact
+`ref`，仅 `required` 分别为 true/false 的两条 InputRef 同时合法，因为 `uniqueItems` 比较完整
+对象。这两条在文档排序键上完全相等；“排序去重”和测试中的“逐项确定性处理”没有决定是保留
+两条、拒绝冲突、合并哪条或以何种全字段顺序进入 metadata/hash。排列不同仍可能产生不同结果。
+
+要求：给出覆盖全部合法 InputRef 的 total canonical comparator，或对同
+`(inputRole,ref)` 不同 metadata 明确 fail closed；为零 Fact + expectation、混合 epistemic
+states、同键 required/permittedUse/access/integrity/expectation 冲突及输入排列置换增加干净
+fixture，并断言相同集合得到相同结果/hash。
+
+证据位置：
+
+- `.vibe/high-level-docs/03-core-contracts.md:398`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1650`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1651`
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md:1656`
+- `.vibe/module-tests/Module-Test-003-TaskExecution.md:347`
+- `contracts/src/core.schema.ts:356`
+- `contracts/src/operations/task-execution.schema.ts:532`
+- `modules/enterprise-project/src/business/source-slice-assembly.ts:371`
+
+## 上一轮发现状态
+
+1. UUID version nibble 与 subjectRef 的结构错误被改写，但 UUIDv7 的 RFC 时间字段仍错误，
+   subjectRef 又被来源 Slice 取代，故 ContextItem 身份/语义问题未关闭。
+2. `slice.purpose == request.purpose` 与 `permittedUses := {request.purpose}` 已关闭 Purpose/数据
+   最小化发现。
+3. required 未采纳已 fail closed，optional omission 也保留；但 epistemic 空/多值和同键不同
+   metadata 仍未闭合，故 InputRef 发现仅部分关闭。
+4. `targetObjectRefs` 支持集改为 ∅，非空统一 fail closed，不再引用未交付 Port/授权；该发现
+   已关闭。
+
+## 验证证据
+
+- PR 发布前状态：OPEN、非 Draft、MERGEABLE，merge state `CLEAN`；exact head
+  `2553de827fff2a71fe1ce617e4a65855bab20a89`，base
+  `0be76e0c62b722393d1c500772dab7dfa2a34db9`。
+- exact-head GitHub Actions run
+  [35313743184](https://github.com/qzhike/zhiju-business-core/actions/runs/35313743184) /
+  job `105500884890`：`SUCCESS`，fresh checkout 上执行 `pnpm verify`。
+- Reviewer 执行配置的
+  `DOCKER_HOST=unix:///Users/galendai/.orbstack/run/docker.sock vibe verify full --json`：首次
+  静态/合同/普通测试全部通过，但 Docker Hub manifest 请求三次 `EOF`，exit 1；只读 preflight
+  随后证明 pnpm 11.19.0、Vibe、Docker 29.4.0、daemon 与两个 digest-pinned 缓存镜像均正常；
+  一次有界重试 `PASS`，resolved command `pnpm clean && pnpm verify`，exit 0。普通测试
+  1071 passed / 456 skipped；Catalog/Registry 215，Compatibility Baseline 200；真实
+  PostgreSQL 18.6 gate 43/43 files、471/471 tests，second migrate no-op，容器清理成功。
+- `git diff --check 0be76e0c...2553de8`：PASS；开始复审时工作树 clean。
+- focused probes：hash-derived 值被当前 `isUuidV7` 接受但时间字段解读为 7772 年；
+  ContractRegistry 接受同 `(inputRole,ref)`、不同 `required` 的两条 DRAFT InputRef。
+
+绿色 verifier 证明现有实现没有回归；本 PR 是 design-only，`TE-214-D-*` 仍为 `NOT RUN`，
+不会执行拟议 UUID/subject/InputRef 规则，因此不能消除上述直接反例。
+
+## 未运行边界与后续门禁
+
+Initial Context Handler、增量授权/owning Port、`context_snapshot`/
+`context_snapshot_build` migration、权威 Context Query、真实新路径 RLS/并发/重放、完整
+Context→Validation→Freeze 链、外部 Provider/Runtime/飞书、公开 HTTP、生产、负载/性能与
+独立人工业务验收均为 `NOT RUN`。
+
+本轮仍存在 agent 可修复的设计阻断，不能进入 Issue #214 的最终人类设计/技术批准；修复后的
+新 exact head 必须再次独立审查。本轮未修改产品代码，未提交、推送或合并；只更新本地正式
+审查记录并发布 PR comment，记录在未获得提交/推送授权前保持本地未提交。
