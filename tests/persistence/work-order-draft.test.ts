@@ -36,6 +36,10 @@
 //   TE-P210-015  'resolves concurrent creation'               (owning handler)
 //   TE-P210-016  'rolls back faults and dependencies'         (owning handler + runner)
 //   TE-P210-017  'rejects direct forgery at the database'     (V3003 guards, ACL, RLS)
+//   TE-P210-017b 'admits a non-creator owning transition'     (PR #213 review finding 1:
+//                                                             V3003 Scope-only UPDATE policy
+//                                                             and immutable trigger, at the
+//                                                             SQL layer — NOT RUN)
 //   TE-P210-018  'records the migration facts'                (V0004/V3003 applied objects)
 //   TE-P210-019  'returns the exact committed draft'          (owning query handler)
 //   TE-P210-020  'refuses every read counter-example'         (owning query handler)
@@ -59,6 +63,12 @@
 //     with the SQLSTATE the database actually raises (`42501` when the RLS
 //     `WITH CHECK` wins, `22023` when the creation-identity guard does); the
 //     asserted code is the observed one, never a substitute.
+//   * TE-P210-017b — the owning WorkOrder lifecycle transition is not delivered
+//     in this slice (V3003: the draft-pointer CAS transition "is not
+//     implemented in this slice"), so PR #213's review finding 1 is exercised
+//     as a database-level move that `guard_work_order_root_update()` accepts
+//     (`status` plus `aggregate_version`; the draft pointer is not touched),
+//     never as a delivered operation.
 //   * Status values without an owning producer that this slice can reach
 //     (`BACKLOG`, `READY`, `COMPLETED`, `CANCELLED`, `IN_PROGRESS`,
 //     `WAITING_INPUT`, `BLOCKED`, `IN_REVIEW`, `CHANGES_REQUIRED`,
@@ -3952,6 +3962,139 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     expect(legacyFailure?.code).toBe('22023');
     expect(legacyFailure?.message).toContain(identityMismatch);
     await expectNoWorkOrder(legacyTarget);
+  });
+
+  it('TE-P210-017b admits a non-creator owning transition while attribution stays unwritable', async () => {
+    // PR #213 independent review, round 1, finding 1: `work_order_update` in
+    // V3003 must stay Scope-only. Creation attribution is not object ownership,
+    // so a later principal other than the creator must be able to move the Root
+    // under its own Project Scope, and the immutable
+    // `guard_work_order_root_update()` trigger — not RLS — is what keeps
+    // `created_by_principal_id`/`requested_by_principal_id` from changing.
+    //
+    // NOT RUN: the owning WorkOrder lifecycle transition is not delivered in
+    // this slice (V3003: the draft-pointer CAS transition "is not implemented in
+    // this slice"), so the transition below is a database-level move built from
+    // the guard's own rules — `status` and `aggregate_version` are movable, the
+    // draft pointer is not touched — executed by `task_execution_app` under the
+    // real 11-argument Project Context of a principal that is NOT the creator.
+    // Every assertion of this row is observed at that SQL layer.
+    const secondHuman: Principal = {
+      principalId: OTHER_PRINCIPAL,
+      principalKind: 'HUMAN',
+      actorRef: otherActorRef,
+      authHash: OTHER_AUTH_HASH,
+    };
+    const secondHumanContext = {
+      principalId: secondHuman.principalId,
+      principalKind: secondHuman.principalKind,
+      actorSnapshotId: secondHuman.actorRef.snapshotId,
+      allowedProjectIds: [fixture.projectId],
+    };
+    const creation = await preparedCreation({
+      commandVersion: '1.0',
+      taskId: await createExecutableTask('1.0'),
+      taskMajor: '1.0',
+      idempotencyKey: 'wi212-017b-non-creator-transition',
+    });
+    const workOrderId = creation.targetRef.objectId as string;
+
+    // 1. Principal A (the operator) creates the DRAFT through the composition
+    // entry, so A owns this Root's creation attribution.
+    expect(await createThroughEntry(creation)).toMatchObject({ status: 'COMMITTED' });
+    expect(await workOrderRoot(workOrderId)).toMatchObject({
+      status: 'DRAFT',
+      aggregate_version: '1',
+      created_by_principal_id: OPERATOR,
+      requested_by_principal_id: OPERATOR,
+    });
+
+    // 2. Principal B (a different Human) moves the Root under B's own legal
+    // Project Context. `rowCount = 1` is the whole point: the UPDATE policy
+    // admitted the row to a principal that did not create it. A `rowCount` of 0
+    // would be the review's finding — RLS filtering on creation attribution —
+    // still present; the read-back below distinguishes that from "silently
+    // filtered" by observing the stored transition itself.
+    const transition = await asAppRole(
+      tePool,
+      'task_execution_app',
+      secondHumanContext,
+      async (client) => {
+        const context = await client.query<{
+          principal_id: string | null;
+          principal_kind: string | null;
+        }>(
+          `SELECT platform_security.context_principal_id()::text AS principal_id,
+                  platform_security.context_principal_kind() AS principal_kind`,
+        );
+        const updated = await client.query(
+          `UPDATE task_execution.work_order
+              SET status = 'READY', aggregate_version = aggregate_version + 1
+            WHERE work_order_id = $1`,
+          [workOrderId],
+        );
+        return { context: context.rows.at(0), rowCount: updated.rowCount };
+      },
+    );
+    expect(transition.context?.principal_id).toBe(OTHER_PRINCIPAL);
+    expect(transition.context?.principal_kind).toBe('HUMAN');
+    expect(transition.rowCount).toBe(1);
+    // The stored row carries B's transition with A's creation attribution: B's
+    // principal is written into neither attribution column.
+    expect(await workOrderRoot(workOrderId)).toMatchObject({
+      status: 'READY',
+      aggregate_version: '2',
+      created_by_principal_id: OPERATOR,
+      requested_by_principal_id: OPERATOR,
+    });
+
+    // The same movable statement under a Context that may not see this Project
+    // is still filtered, so the admitted row above is the Project Scope
+    // admitting a non-creator rather than an UPDATE policy that stopped
+    // filtering at all.
+    const foreignProjectTransition = await asAppRole(
+      tePool,
+      'task_execution_app',
+      {
+        principalId: OPERATOR,
+        actorSnapshotId: otherProjectOperatorActorRef.snapshotId,
+        allowedProjectIds: [fixture.otherProjectId],
+      },
+      (client) =>
+        client.query(
+          `UPDATE task_execution.work_order
+              SET status = 'DRAFT', aggregate_version = aggregate_version + 1
+            WHERE work_order_id = $1`,
+          [workOrderId],
+        ),
+    );
+    expect(foreignProjectTransition.rowCount).toBe(0);
+    expect(await workOrderRoot(workOrderId)).toMatchObject({
+      status: 'READY',
+      aggregate_version: '2',
+    });
+
+    // 3. Creation attribution stays unwritable. Both rewrites run under B's own
+    // Context — the principal that just moved the Root — and pass the
+    // Scope-only UPDATE policy, so the layer left to reject them is the
+    // immutable root-update trigger alone.
+    for (const column of ['created_by_principal_id', 'requested_by_principal_id'] as const) {
+      const rewrite = await asAppRoleFailure(
+        tePool,
+        'task_execution_app',
+        secondHumanContext,
+        `UPDATE task_execution.work_order SET ${column} = $2 WHERE work_order_id = $1`,
+        [workOrderId, OTHER_PRINCIPAL],
+      );
+      expect(rewrite.code, column).toBe('23514');
+      expect(rewrite.message, column).toContain('immutable');
+    }
+    expect(await workOrderRoot(workOrderId)).toMatchObject({
+      status: 'READY',
+      aggregate_version: '2',
+      created_by_principal_id: OPERATOR,
+      requested_by_principal_id: OPERATOR,
+    });
   });
 
   it('TE-P210-018 records the migration facts of the principal-kind increment', async () => {

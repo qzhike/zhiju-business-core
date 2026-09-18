@@ -1537,7 +1537,7 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 **实现期关闭的偏差与跨切片修复**
 
 - 偏差（i）：creation-identity guard 需要创建请求投影 Hash，因此 `V3003` 新增 `task_execution.work_order_draft_request_hash(jsonb)` 并把 EXECUTE 授予 `task_execution_app`；该函数是其参数的纯函数、不读任何表，owner-only 的 `task_execution.canonical_jsonb_text` 仍不授予 app 角色。
-- 偏差（ii）：`work_order_update` RLS policy 把 creator/requester 锚定到 `context_principal_id()`，而 `V3001` 的 `task_update` 无此锚定——按 §18.5 第 7 条有意为之，不回填历史行。
+- 归属闭合的层界（PR #213 第 1 轮审查修正）：creator/requester 只在 **INSERT** 锚定 `context_principal_id()`（两表 INSERT policy 的 `WITH CHECK` 与 creation-identity guard），并随后由 root-update guard 判为不可变列；`work_order_update` policy **只**检查 `context_allows_project`，不要求当前 principal 等于创建者。创建归属不是对象所有权——把 id 等式写进 UPDATE 会让非创建者的合法 owning transition（例如获准的 Validator/Process Manager）在 RLS 层被拒，与 §18.7 与 §18.5 第 7 条不符。回归见 `TE-P210-017b`：principal B 在其自己的合法 Project Context 下可执行被 root-update guard 接受的 transition（`rowCount = 1`，不含该 Project 的 Context 为 0 行），而 `created_by_principal_id`/`requested_by_principal_id` 仍不可改写（`23514`）。
 - 记录细节：PostgreSQL 的 trigger 名称顺序使 creation-identity guard 在两个 guard 都比较的维度上先于 mirror guard 求值；app 角色以他人 creator 列插入时断言的是数据库实际抛出的 SQLSTATE（RLS `WITH CHECK` 胜出为 `42501`，creation-identity guard 胜出为 `22023`）。
 - 跨切片修复（随本切片落地）：`tests/persistence/task-draft-creation.test.ts` 与 `tests/persistence/task-readiness.test.ts` 把 Catalog 计数 214 → 215（readiness 文件另含 TaskExecution 44 → 45）；`task-draft-creation.test.ts` 的 `firstCommittedTaskId()` 现只作用于本套件自己的 fixture Project，不再取共享 gate 数据库中最早创建的 Task（该查询会被本切片新增的 Task 破坏）。
 

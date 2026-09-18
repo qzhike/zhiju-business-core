@@ -655,10 +655,14 @@ REVOKE DELETE ON task_execution.work_order FROM task_execution_app;
 -- ---------------------------------------------------------------------------
 -- RLS: Project-scoped rows are visible only through the exact Project scope of
 -- the trusted transaction context (default-deny without a context, FORCE
--- applies to the owner as well). The creator/requester columns are additionally
--- tied to the context principal: the Receipt's own creator column is
--- caller-writable, so it can never be the anchor. No DELETE policy exists on
--- either table.
+-- applies to the owner as well). Creation attribution is anchored to the
+-- context principal on INSERT only: the Receipt's own creator column is
+-- caller-writable, so it can never be the anchor. The UPDATE policy stays
+-- Scope-only, because creation attribution is not object ownership -- a later
+-- authorized owning transition (for example a Human or Process Manager that is
+-- not the creator) must be able to move the Root under its own current
+-- authorization; the immutable trigger is what keeps the creator/requester
+-- columns from ever changing. No DELETE policy exists on either table.
 -- ---------------------------------------------------------------------------
 
 ALTER TABLE task_execution.work_order_draft_snapshot ENABLE ROW LEVEL SECURITY;
@@ -684,8 +688,6 @@ CREATE POLICY work_order_insert ON task_execution.work_order
 CREATE POLICY work_order_update ON task_execution.work_order
     FOR UPDATE TO task_execution_app
     USING (platform_security.context_allows_project(enterprise_id, project_id))
-    WITH CHECK (platform_security.context_allows_project(enterprise_id, project_id)
-        AND created_by_principal_id = platform_security.context_principal_id()
-        AND requested_by_principal_id = platform_security.context_principal_id());
+    WITH CHECK (platform_security.context_allows_project(enterprise_id, project_id));
 
 RESET ROLE;
