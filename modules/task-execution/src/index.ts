@@ -227,6 +227,7 @@ export type {
 export { WorkOrderDraftRepository } from './persistence/work-order-draft-repository.js';
 export type {
   BoundTaskRow,
+  WorkOrderDraftSnapshotIdentityRow,
   WorkOrderDraftSnapshotInsert,
   WorkOrderDraftSnapshotRow,
   WorkOrderRootInsert,
@@ -235,4 +236,71 @@ export type {
 export type {
   WorkOrderTable,
   WorkOrderDraftSnapshotTable,
+} from './persistence/task-execution-db.js';
+
+// IM-06 (#216): initial Context Snapshot build and the authoritative Snapshot
+// read (Spec 003 §19). The build handler consumes the EnterpriseProject-owned
+// Source Slice read Port and the IdentityPolicy-owned Policy resolve Port
+// through internal Ports; the deterministic assembly is pure and writes
+// nothing itself. The read returns committed facts only and writes nothing.
+// Both entries revalidate their own authorization at the composition boundary
+// before the idempotency claim or the read.
+export {
+  assembleInitialContext,
+  EXECUTION_CONTEXT_SOURCE_INVALID,
+  EXECUTION_CONTEXT_TARGET_INVALID,
+  EXECUTION_CONTEXT_INPUT_REQUIRED,
+  SLICE_OMISSION_EFFECT_ON_TASK,
+  DRAFT_INPUT_OMISSION_CATEGORY,
+  DRAFT_INPUT_OMISSION_EFFECT_ON_TASK,
+  DRAFT_INPUT_NOT_CAPTURED,
+  DRAFT_INPUT_KIND_NOT_SUPPORTED,
+  ENTERPRISE_FACT_OBJECT_TYPE,
+} from './business/initial-context-assembly.js';
+export type {
+  InitialContextAssemblyDraft,
+  InitialContextAssemblyInput,
+  InitialContextAssemblyOutcome,
+  InitialContextAssemblyPolicy,
+  InitialContextAssemblyRequest,
+  InitialContextAssemblySlice,
+} from './business/initial-context-assembly.js';
+export {
+  handleBuildInitialContext,
+  buildInitialContextIdempotencyScope,
+  BUILD_INITIAL_CONTEXT_SNAPSHOT_COMMAND,
+  BUILD_INITIAL_CONTEXT_SNAPSHOT_VERSION,
+  EXECUTION_DRAFT_SCHEMA_VERSION_MISMATCH,
+  EXECUTION_DRAFT_SNAPSHOT_STALE,
+  POLICY_NOT_EFFECTIVE,
+  POLICY_EXPIRED,
+} from './business/initial-context-build.js';
+export type {
+  ContextBuilderPolicyPort,
+  ContextBuilderPolicyResolution,
+  ContextSourceSliceObservation,
+  ContextSourceSliceReadPort,
+  InitialContextBuildPorts,
+} from './business/initial-context-build.js';
+export {
+  handleGetContextSnapshot,
+  GET_CONTEXT_SNAPSHOT_QUERY,
+  GET_CONTEXT_SNAPSHOT_VERSION,
+} from './business/context-snapshot-read.js';
+export type {
+  GetContextSnapshotInput,
+  GetContextSnapshotResult,
+} from './business/context-snapshot-read.js';
+export {
+  CONTEXT_SNAPSHOT_OBJECT_TYPE,
+  ContextSnapshotRepository,
+} from './persistence/context-snapshot-repository.js';
+export type {
+  ContextSnapshotBuildInsert,
+  ContextSnapshotInsert,
+  ContextSnapshotRow,
+} from './persistence/context-snapshot-repository.js';
+export type {
+  ContextSnapshotTable,
+  ContextSnapshotBuildTable,
 } from './persistence/task-execution-db.js';

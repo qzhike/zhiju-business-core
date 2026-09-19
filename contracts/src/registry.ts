@@ -8,6 +8,7 @@ import type {
 import Ajv2020Import from 'ajv/dist/2020.js';
 
 import {
+  assertInitialContextEnterpriseFactRegistration,
   assertPolicyVersionOperationRegistrations,
   assertResolutionReceiptOperationRegistrations,
   assertRevisionEligibilityOperationRegistrations,
@@ -100,6 +101,7 @@ export class ContractRegistry {
   constructor() {
     assertSliceOperationRegistrations(publicApiOperations);
     assertTaskExecutionOperationRegistrations(publicApiOperations);
+    assertInitialContextEnterpriseFactRegistration();
     assertTaskReadinessOperationRegistrations(publicApiOperations);
     assertPolicyVersionOperationRegistrations(publicApiOperations);
     assertResolutionReceiptOperationRegistrations(publicApiOperations);

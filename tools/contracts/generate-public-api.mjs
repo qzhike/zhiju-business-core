@@ -15,6 +15,7 @@ import {
   assertResolutionReceiptOperationRegistrations,
   assertRevisionEligibilityCompatibilityMetadata,
   assertRevisionEligibilityOperationRegistrations,
+  assertInitialContextEnterpriseFactRegistration,
   assertSliceOperationRegistrations,
   assertSliceCompatibilityMetadata,
   assertTaskExecutionCompatibilityMetadata,
@@ -67,6 +68,7 @@ const evaluatorRegistry = loadEvaluatorProfileRegistry(JSON.parse(evaluatorRegis
 const evaluatorRegistryOutputPath = join(root, 'contracts/src/generated/evaluator-profiles.json');
 assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
+assertInitialContextEnterpriseFactRegistration();
 assertTaskReadinessOperationRegistrations(registry.operations);
 assertTaskExecutionCreationPurposeRegistrations(registry.operations);
 assertPolicyVersionOperationRegistrations(registry.operations);

@@ -151,6 +151,10 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     // IM-06 (#212): WorkOrder Aggregate Root and its immutable Draft snapshot.
     'work_order',
     'work_order_draft_snapshot',
+    // IM-06 (#216): immutable initial Context Snapshot and its build metadata
+    // (V3004).
+    'context_snapshot',
+    'context_snapshot_build',
   ],
   artifact: [
     'business_probe',

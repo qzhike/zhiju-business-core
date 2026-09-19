@@ -42,7 +42,37 @@ export const taskExecutionObjectTypes = {
     owner: 'task-execution',
     kinds: ['VERSIONED'],
   },
+  // #214: the canonical spelling of the EnterpriseProject-owned Enterprise
+  // Fact versioned identity. The initial-Context assembler normalizes the
+  // published `factRef` spelling of a Source Slice onto this registered name
+  // for the Core-valid `subjectRef`; no operation declares a reference to it,
+  // so `assertInitialContextEnterpriseFactRegistration` pins the entry.
+  'zhiju.project.enterprise_fact': {
+    owner: 'enterprise-project',
+    kinds: ['VERSIONED'],
+  },
 } as const;
+
+/**
+ * #214 build-time registration assertion: the EnterpriseProject-owned
+ * canonical Enterprise Fact object type stays registered as VERSIONED so the
+ * initial-Context `subjectRef` normalization has an owned, registered target.
+ * No public operation, Catalog entry or Baseline change is attached.
+ */
+export function assertInitialContextEnterpriseFactRegistration(): void {
+  const registered = (
+    taskExecutionObjectTypes as Readonly<
+      Record<string, { readonly owner: string; readonly kinds: readonly string[] }>
+    >
+  )['zhiju.project.enterprise_fact'];
+  if (
+    registered?.owner !== 'enterprise-project' ||
+    registered.kinds.length !== 1 ||
+    registered.kinds[0] !== 'VERSIONED'
+  ) {
+    throw new Error('unregistered initial context enterprise fact object type');
+  }
+}
 
 /** Public object names for the approved PolicyVersion version-key/fact boundary. */
 export const policyVersionObjectTypes = {

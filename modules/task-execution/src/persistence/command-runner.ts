@@ -33,6 +33,11 @@ import {
   type WorkOrderDraftSnapshotInsert,
   type WorkOrderRootInsert,
 } from './work-order-draft-repository.js';
+import {
+  ContextSnapshotRepository,
+  type ContextSnapshotBuildInsert,
+  type ContextSnapshotInsert,
+} from './context-snapshot-repository.js';
 
 export const IDEMPOTENCY_PAYLOAD_CONFLICT = 'IDEMPOTENCY_PAYLOAD_CONFLICT';
 export const CONCURRENCY_CONFLICT = 'CONCURRENCY_CONFLICT';
@@ -237,6 +242,16 @@ export interface CommandExecution {
    */
   insertWorkOrderDraftRoot(row: WorkOrderRootInsert): Promise<boolean>;
   insertWorkOrderDraftSnapshot(row: WorkOrderDraftSnapshotInsert): Promise<void>;
+  /**
+   * Runner-bound Context Snapshot writes (IM-06 #216): the body supplies the
+   * row data only, and the runner closes over the open transaction, the frozen
+   * command target and the owning repository, exactly like the WorkOrder DRAFT
+   * inserts. A caller cannot write a Snapshot or its INITIAL build metadata for
+   * another CREATE identity, Project Scope or target spelling. `false` means the
+   * Scope-unique CREATE identity of the Snapshot was already taken.
+   */
+  insertContextSnapshot(row: ContextSnapshotInsert): Promise<boolean>;
+  insertContextSnapshotBuild(row: ContextSnapshotBuildInsert): Promise<void>;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -592,6 +607,7 @@ function createExecution(
   const taskDraftRepo = new TaskDraftRepository();
   const taskReadinessRepo = new TaskReadinessRepository();
   const workOrderDraftRepo = new WorkOrderDraftRepository();
+  const contextSnapshotRepo = new ContextSnapshotRepository();
   return {
     trx,
     async insertProcessInstance(row) {
@@ -614,6 +630,12 @@ function createExecution(
     },
     async insertWorkOrderDraftSnapshot(row) {
       await workOrderDraftRepo.insertWorkOrderDraftSnapshot(trx, commandFacts, row);
+    },
+    async insertContextSnapshot(row) {
+      return contextSnapshotRepo.insertContextSnapshot(trx, commandFacts, row);
+    },
+    async insertContextSnapshotBuild(row) {
+      await contextSnapshotRepo.insertContextSnapshotBuild(trx, commandFacts, row);
     },
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {
