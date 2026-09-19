@@ -1561,7 +1561,7 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 
 ## 19. 首次 Context 构建与精确快照读取边界闭合（#214 设计）
 
-状态：`T2 / DESIGN MERGED 2026-09-18（PR [#215](https://github.com/qzhike/zhiju-business-core/pull/215)，merge commit `a9421ada90408219a83bba2570ee2c00f920b894`）/ INDEPENDENT DESIGN REVIEW COMPLETED（七轮，第 7 轮 `HUMAN_REVIEW_REQUIRED` ON `d0d060fbacb98a6e9fdac1d098792a6222de4cff`；正式记录见 [`reviews/pr-215/Review.md`](../reviews/pr-215/Review.md)）/ EXPLICIT HUMAN DESIGN APPROVAL RECORDED 2026-09-18 ON `d0d060fbacb98a6e9fdac1d098792a6222de4cff` / IMPLEMENTED 2026-09-19 BY Issue #216（`V3004`、Spec 001 §15.8 授权 Port、确定性组装、build/read Handler 与组成层；实现事实与验证边界见 §19.10）/ TE-214-D-001–018 EXECUTED ON REAL PostgreSQL 18.6 / vibe verify full PASS 2026-09-19（`pnpm clean && pnpm verify`，exit 0，含 persistence gate 44/44 files、489/489 tests，见 §19.10）/ INDEPENDENT IMPLEMENTATION REVIEW、HUMAN TECHNICAL REVIEW AND PR PENDING（未创建 PR，不声称审查结论或合并）`。本节闭合 TD-01 在 #212 交付后的实现就绪缺口：构建版本绑定、Snapshot 身份与权威读取契约、授权组成、确定性组装边界、期限、持久化/事务边界、事件边界与并发/幂等/恢复。它不改动任何已注册 Contract/Registry 产物（Catalog 215、TaskExecution 45、历史 200 项 Compatibility Baseline 不变；唯一的 additive 注册是按 §19.9 落地的 EP-owned objectType `zhiju.project.enterprise_fact`）、#152/#165–#168/#188/#212 已交付实现或 `V3000`–`V3003`；未列出的行为沿用 §11、§18、[决定 §8](../decisions/task-execution-human-operated.md#8-wi-02-首次构建冻结与-retry-总序)与[决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)。实现事实与验证边界见 §19.10。
+状态：`T2 / DESIGN MERGED 2026-09-18（PR [#215](https://github.com/qzhike/zhiju-business-core/pull/215)，merge commit `a9421ada90408219a83bba2570ee2c00f920b894`）/ INDEPENDENT DESIGN REVIEW COMPLETED（七轮，第 7 轮 `HUMAN_REVIEW_REQUIRED` ON `d0d060fbacb98a6e9fdac1d098792a6222de4cff`；正式记录见 [`reviews/pr-215/Review.md`](../reviews/pr-215/Review.md)）/ EXPLICIT HUMAN DESIGN APPROVAL RECORDED 2026-09-18 ON `d0d060fbacb98a6e9fdac1d098792a6222de4cff` / IMPLEMENTED 2026-09-19 BY Issue #216（`V3004`、Spec 001 §15.8 授权 Port、确定性组装、build/read Handler 与组成层；实现事实与验证边界见 §19.10）/ TE-214-D-001–018 EXECUTED ON REAL PostgreSQL 18.6 / vibe verify full PASS 2026-09-19（`pnpm clean && pnpm verify`，exit 0，含 persistence gate 44/44 files、489/489 tests，见 §19.10）/ PR #217 INDEPENDENT IMPLEMENTATION REVIEW `PLANNING_REQUIRED` ON `bce56af9007e70ee79e46bcc90d49dd0fc5b35f5` / HUMAN TECHNICAL REVIEW NOT REACHED`。本节保留 #214 已批准设计与 Issue #216 的历史实现事实；PR #217 暴露的四项阻断由 §20 候选 Delta 修正，因此本节不再单独证明当前实现可验收。它不改动任何已注册 Contract/Registry 产物（Catalog 215、TaskExecution 45、历史 200 项 Compatibility Baseline 不变；唯一的 additive 注册是按 §19.9 落地的 EP-owned objectType `zhiju.project.enterprise_fact`）、#152/#165–#168/#188/#212 已交付实现或 `V3000`–`V3003`；未列出的行为沿用 §11、§18、[决定 §8](../decisions/task-execution-human-operated.md#8-wi-02-首次构建冻结与-retry-总序)与[决定 §17](../decisions/task-execution-human-operated.md#17-workorder-draft-创建与精确-draft-读取边界提案210)。实现事实与验证边界见 §19.10，待批准修正见 §20。
 
 ### 19.1 版本绑定与可满足性（R-214-1）
 
@@ -1695,7 +1695,7 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 
 ### 19.10 实现事实与验证边界（#216，2026-09-19）
 
-状态：`IMPLEMENTED 2026-09-19 BY Issue #216（按 exact design revision `d0d060fbacb98a6e9fdac1d098792a6222de4cff`）/ TE-214-D-001–018 EXECUTED ON REAL PostgreSQL 18.6（tests/persistence/initial-context.test.ts；persistence 目录 42 passed | 2 skipped files、463 passed | 26 skipped / 489 tests）/ vibe verify full PASS 2026-09-19（完整阶段计数与镜像 pin 漂移处理见下）/ INDEPENDENT IMPLEMENTATION REVIEW、HUMAN TECHNICAL REVIEW AND PR PENDING（未创建 PR，不声称审查结论或合并）`。[Issue #216](https://github.com/qzhike/zhiju-business-core/issues/216) 按 §19 的已批准设计交付本切片；本节只记录实现事实、必须的可核验点与仍然 `NOT RUN` 的边界，执行证据（测试计数、PostgreSQL 版本与迁移路径、Catalog/Registry/Baseline 计数）随 Issue 保存，不另建并行报告。
+状态：`IMPLEMENTED 2026-09-19 BY Issue #216（按 exact design revision `d0d060fbacb98a6e9fdac1d098792a6222de4cff`）/ TE-214-D-001–018 EXECUTED ON REAL PostgreSQL 18.6（tests/persistence/initial-context.test.ts；persistence 目录 42 passed | 2 skipped files、463 passed | 26 skipped / 489 tests）/ vibe verify full PASS 2026-09-19（完整阶段计数与镜像 pin 漂移处理见下）/ PR #217 INDEPENDENT IMPLEMENTATION REVIEW `PLANNING_REQUIRED` ON `bce56af9007e70ee79e46bcc90d49dd0fc5b35f5` / HUMAN TECHNICAL REVIEW NOT REACHED`。[Issue #216](https://github.com/qzhike/zhiju-business-core/issues/216) 按 §19 的已批准设计交付本切片；本节只记录历史实现事实、必须的可核验点与仍然 `NOT RUN` 的边界。PR #217 的四项阻断与待批准修正见 §20；在修正实现与 `TE-217-D-*` 证据完成前，本节不得作为合并或验收依据。
 
 - **注册与生成物**：EP-owned objectType `zhiju.project.enterprise_fact`（owner `enterprise-project`、VERSIONED）已注册于 `contracts/src/operation-registration.ts`，构建期断言 `assertInitialContextEnterpriseFactRegistration()` 接入 `contracts/src/registry.ts` 的 `ContractRegistry` 构造与 `tools/contracts/generate-public-api.mjs`，回归测试 `contracts/src/enterprise-fact-registration.test.ts`。无新增/改写公开 operation、Event、Schema、metadata 或 Baseline：Catalog 215、TaskExecution 45、历史 200 项 Compatibility Baseline 不变；裸 objectType 注册无 operation/Schema 生成物。
 - **IdentityPolicy Port（Spec 001 §15.8）**：`modules/identity-policy/src/commands/context-snapshot-authorization.ts` 交付 Port 工厂 `createTaskExecutionContextSnapshotAuthorizationPort` 与闭集键表 `TASK_EXECUTION_CONTEXT_SNAPSHOT_BINDINGS`。两条条目全字段：`build_initial_context_snapshot@1.1`（Purpose `execution.context.build.initial`、action `execution.context.build.initial.v1_1`、`CREATE_TARGET_TYPE` 闭集 `{zhiju.execution.context_snapshot}`、config key `contextSnapshotBuildV11`）与 `get_context_snapshot@1.0`（Purpose 逐字符复用已发布值 `task.execution.get_context_snapshot`、内部 action `execution.context.snapshot.read`、`TARGET_TYPE` 闭集 `{zhiju.execution.context_snapshot, zhiju.project.context_snapshot}`、config key `contextSnapshotRead`）；`build_initial_context_snapshot@1.0` 无 binding，任何 @1.0 构建尝试 fail closed。错误三联 `IDENTITY_CONTEXT_SNAPSHOT_AUTHORIZATION_UNSUPPORTED`/`IDENTITY_CONTEXT_SNAPSHOT_CAPABILITY_CONFIG_INVALID`/`IDENTITY_CONTEXT_SNAPSHOT_TARGET_INVALID`；拒绝路径只写同事务脱敏 `DENIED` Audit，不签发 Decision。无公开 Command/Query、capability code、Catalog 条目、registry/metadata 变更或 IdentityPolicy 迁移（复用 V1006 的既有 target 列）；单元测试 38 项、IdentityPolicy 模块 178/178 通过。
@@ -1707,3 +1707,61 @@ DRAFT 创建**有意不发布任何公开业务 Event**：本事务 `outbox_even
 - **观察到的矩阵偏差（均非生产缺陷）**：① 003 错哈希切片 ref：EP owning read 报 `PROJECT_QUERY_REF_INVALID`、入口重抛、Handler 映射 thrown `DEPENDENCY_UNAVAILABLE`（矩阵预期 rejected `EXECUTION_CONTEXT_SOURCE_INVALID`；错 id/Scope/kind 保持原码）；② 008/015 过期 Decision 分层：真实时钟已过期先被 `establish_transaction_context`（22023）拒绝、表面 thrown `DEPENDENCY_UNAVAILABLE`，`AUTHORIZATION_EXPIRED` 仅在受信时钟越过 TTL 时可达（套件以此执行）；③ 018 跨 Scope targetObjectRef：创建层先 `EXECUTION_WORK_ORDER_SCOPE_INVALID`，构建层码经入口不可达，改单元层在真实提交事实上断言；④ 016 基线事实修正：v1.0 Baseline（200 条）本已含 `execution.get_context_snapshot`（及 legacy `execution.build_context_snapshot`），仅 `execution.build_initial_context_snapshot` 为新增。
 - **已知后续项**：`execution.ContextSnapshotBuilt@1.0` 注册 Schema 把 `projectionType`/`coverageStatus` 定为 `namespaceCode`（lowercase pattern），§19.7/§11.2.5.3 要求逐字写入 uppercase enum（`DOCUMENT_WRITER`/`COMPLETE_FOR_PURPOSE`）；运行时 Outbox 不对照注册 Schema 校验 payload，Handler 按 §19.7 逐字写入；需后续契约修正 follow-up（本切片按 §19 禁止契约改动）。
 - **未运行边界**：五个 `NOT RUN` 子分支——002 提交点过期复检（`work_order.expires_at` 恒等于绑定快照 `expiresAt`，期限绑定先一步触发且列不可变 23514）、002 指针已前进（V3003 双向闭包 22023/23514）、004 Builder Policy 哈希不符（owning `identity.resolve_policy@1.0` 从不可变版本行重算，无合法事实生产者，42501 闭包）、008 grant Policy Snapshot 被取代（无 `superseded_at` 写入者，Port 单测覆盖）、010 Builder×Freeze/状态迁移竞争（无算子）；013 的空库应用/历史升级/二次 no-op 属持久化门禁自身证据（tools/persistence），不作为 NOT RUN 子分支。WorkOrder 校验/冻结/READY/queue、Run/Attempt/AgentResult、InformationRequest 与 retry、Completion、Query/Projection（TD-05–07）、受控退出 Fixture、Context→Validation→Freeze 完整业务链、外部 Provider/Runtime/飞书、公开 HTTP、生产、负载/性能与独立人工业务验收仍 `NOT RUN`；本切片的通过不得报告为 Validation/Freeze、执行、Completion 或 IM-06 完成。
+
+## 20. PR #217 首次 Context 实现审查修正 Delta（提案）
+
+状态：`T2 / PROPOSED 2026-09-19 / PR #217 INDEPENDENT REVIEW = PLANNING_REQUIRED ON bce56af9007e70ee79e46bcc90d49dd0fc5b35f5 / EXPLICIT HUMAN DESIGN APPROVAL RECORDED 2026-09-19 / PENDING INDEPENDENT DESIGN REVIEW / IMPLEMENTATION NOT UPDATED / ALL TE-217-D-* NOT RUN`。本节响应 [`reviews/pr-217/Review.md`](../reviews/pr-217/Review.md) 的四项阻断。它保留 §19 与 #216 的历史实现证据，不把已执行测试改写成未发生；在推送后的 exact revision 通过独立设计复审后，本节将对 §19.2、§19.3、§19.4 第 1/7 条、§19.6、§19.7 及 §19.10 中冲突的前向语义构成精确 supersession。独立设计复审完成前 PR #217 保持 `NOT_READY`，不得把本文提案当作已实现事实。
+
+### 20.1 Legacy Snapshot exact read-back
+
+`execution.get_context_snapshot@1.0` 的已发布请求/结果 Schema 保持不变；canonical `zhiju.execution.context_snapshot` 与 legacy `zhiju.project.context_snapshot` 仍是两个不同身份，不做 alias、大小写回退或仅按 id 互换。修正后的 owning read 必须按请求 objectType 路由到两个互不替代的 owning store：
+
+1. canonical ref 只查 `task_execution.context_snapshot`；
+2. legacy ref 只查 PostgreSQL §35 定义的只读兼容事实 `task_execution.context_snapshot_legacy`；
+3. 两条路径都按 objectId、snapshotId、Project Scope、完整 contentHash 与 cv1 payload 重算逐字段闭合，结果 `contextSnapshotRef` 原样等于请求；
+4. 任一 store 无行、Hash/Scope/identity/content mirror 不一致均为 `REFERENCE_INVALID`，不得转查另一 store；
+5. legacy store 没有应用写入者，只接收受控 migration/import manifest 已证明的历史 ProjectContext v1.0 事实。空 store 可以返回 not-found，但 Handler 不得因 objectType 为 legacy 而在查询前固定拒绝。
+
+必须增加真实 PostgreSQL 正例：以 migration-owner 受控 fixture 导入一条 legacy committed fact，经 legacy selector 的当前授权读取成功；相同 objectId/hash 换 canonical spelling 必须失败，反向替换亦失败。
+
+### 20.2 DRAFT 依赖读取的独立当前授权
+
+§19.3“复用 `workOrderDraftReadV11`”的文字不可执行，因为 build payload 只携带 exact `draftSnapshotRef`，而该公开 Query 的授权 target 是 WorkOrder。修正为 Spec 001 §15.9 的专用 owning 内部 Port：
+
+- 输入 target 是请求已经携带的完整 `zhiju.execution.work_order_draft_snapshot` ContentAddressedRef；组成层可在读取任何 TaskExecution DRAFT 行之前命名它；
+- build Decision 与 DRAFT dependency-read Decision 是两个不同 Decision。后者使用独立 action/config，必须覆盖完整 target ref、Project Scope、principal、authentication context、请求 payload hash、ALLOW、期限及当前 Grant/Policy；
+- 签发和重验完成后才允许进入 TaskExecution repository 读取；随后 Handler 仍须在自己的事务内核验 ref→Snapshot→WorkOrder Root→当前指针与 DRAFT 状态，并持 `FOR SHARE` 锁至提交；
+- 调用方过去通过 `get_work_order_draft` 取得 ref 不是当前授权证据。DRAFT-read Grant 缺失、撤销、过期、target/hash/Scope 替换或配置漂移必须在任何 DRAFT fact 读取、幂等 Claim 与历史 Receipt 返回之前 fail closed；
+- Slice 与 Policy 各自的现签 Decision 保持不变，任一依赖授权不隐含其他依赖能力。
+
+本项不修改公开 build payload、不新增公开 operation，也不把 build capability 扩大为 DRAFT-read capability；它新增一个受信内部 capability config key 与授权条目，详见 Spec 001 §15.9。
+
+### 20.3 注册 Event 的 additive 修正
+
+冻结 `execution.ContextSnapshotBuilt@1.0` 及其 `NamespaceCode` 字段接受集，不原地改写历史 Schema。新增 additive `execution.ContextSnapshotBuilt@1.1`，供修正后的 initial build 成功路径独占使用：
+
+| 字段 | `@1.1` Schema | 来源 |
+|---|---|---|
+| `contextSnapshotRef` | `SnapshotRef<ProjectContext>` | 已提交 canonical Snapshot ref，六字段逐项相等 |
+| `workOrderRef` | `ObjectRef<WorkOrder>` | 精确 DRAFT fact 的不可变创建拼写 |
+| `projectionType` | Common `ProjectionType` enum | 已提交 ProjectContext `projection.projectionType` |
+| `coverageStatus` | Common `CoverageCompleteness` enum | 已提交 ProjectContext `coverage.completeness` |
+
+payload `additionalProperties:false`，不得写入 `enterpriseId`/`projectId`；事件 Scope 只来自 Event envelope 的 `scopeRef`。成功事务必须先把完整 Event envelope 交给真实 `ContractRegistry` 验证，再写一条 `@1.1` Outbox；失败、冲突与同键重放写 0 条。`@1.0` 保留注册兼容但本修正路径不再发布。Catalog/Registry 215→216、TaskExecution 45→46，历史 200 项 Compatibility Baseline 不变，详见 Catalog 06 的 #217 Delta。
+
+### 20.4 Source Slice total order
+
+§19.4 第 1 条中的 `(objectType, objectId, snapshotId)` 不适用于 `CONTENT_ADDRESSED` Source Slice ref（该 variant 没有 snapshotId），其冲突文字被下列可执行全序取代：
+
+`(objectType, objectId, immutableVersionId-or-empty, contentHash.algorithm, contentHash.canonicalizationVersion, contentHash.digest, canonical_cv1(scope))`
+
+各字符串按 canonical UTF-8 byte order 比较；`objectType`、`objectId` 必须先于 Hash 决定顺序，完整 `canonical_cv1(ref)` 只在上述 tuple 全等时用于 exact-ref 一致性断言，不得作为首要 comparator。tuple 与完整 ref 都相等视为重复，拒绝 `EXECUTION_CONTEXT_SOURCE_INVALID`；tuple 相等而完整 ref 不等同样拒绝，禁止实现者发明未排序成员的择优规则。`contextItems`、metadata `sliceRefs`、reference-edge index 与所有相关 Hash 统一使用该顺序。
+
+第 7 条 UUIDv7 的摘要输入同步闭合为 `SHA-256(canonical_cv1(factItem) ‖ sliceRef.objectId ‖ 十进制片内序号)`；不再使用不存在的“slice snapshotId”措辞。
+
+### 20.5 分类、实施范围与 Gate
+
+- 分类保持 `T2`：跨 TaskExecution、IdentityPolicy、Contracts/Catalog 与 PostgreSQL，但不改变 Product Scope 或 Core ProjectContext v1.0。
+- 预期实现范围：修正 PR #217 内的组成层/Handler/Repository/V3004/测试；新增 Event `@1.1` Schema/Registry/metadata/generated types/fixtures；新增 Spec 001 §15.9 内部授权 Port。不得顺带实现 Validation/Freeze、Run 或其他 IM-06 行为。
+- 本 Delta 已于 2026-09-19 获得显式人类设计批准及本轮文档 commit/push 授权；推送后的 exact revision 仍须通过独立设计审查，之后才可继续修复 PR #217。该批准不授权产品代码修复、merge 或部署。
+- 修订后的 exact head 必须执行 Module-Test 003 `TE-217-D-001`–`004`、既有 `TE-214-D-*` 回归和 `vibe verify full --json`。人类技术审查只在无剩余 agent-fixable finding 后进行。

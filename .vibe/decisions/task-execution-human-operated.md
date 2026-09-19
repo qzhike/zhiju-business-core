@@ -861,7 +861,7 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 
 ## 18. TD-01 首次 Context 构建与精确快照读取边界闭合提案（#214）
 
-状态：`T2 / DESIGN APPROVED 2026-09-18（Issue #214；exact design revision `d0d060fbacb98a6e9fdac1d098792a6222de4cff` 经七轮独立审查并获显式人类设计批准，PR #215 已合并，merge commit `a9421ada90408219a83bba2570ee2c00f920b894`；正式记录见 [reviews/pr-215/Review.md](../reviews/pr-215/Review.md)）/ IMPLEMENTED 2026-09-19 BY Issue #216（`V3004`、Spec 001 §15.8 授权 Port、确定性组装、build/read Handler 与组成层；本地/单元/真实 PostgreSQL 证据完成）/ vibe verify full PASS 2026-09-19 / INDEPENDENT IMPLEMENTATION REVIEW、HUMAN TECHNICAL REVIEW AND PR PENDING`。权威细节见 [Spec 003 §19](../module-specs/Module-Spec-003-TaskExecution.md#19-首次-context-构建与精确快照读取边界闭合214-设计)、[Spec 001 §15.8](../module-specs/Module-Spec-001-IdentityPolicy.md#158-im06-ctxbuild-01-首次-context-构建与权威快照读取授权组成提案214)、[PostgreSQL §33](../high-level-docs/07-postgresql-logical-model-v0.1.md) 的 #214 增量与 Module-Test 003 `TE-214-D-*` 设计矩阵；本节是摘要与分类结论。
+状态：`T2 / DESIGN APPROVED 2026-09-18（Issue #214；exact design revision `d0d060fbacb98a6e9fdac1d098792a6222de4cff` 经七轮独立审查并获显式人类设计批准，PR #215 已合并，merge commit `a9421ada90408219a83bba2570ee2c00f920b894`；正式记录见 [reviews/pr-215/Review.md](../reviews/pr-215/Review.md)）/ IMPLEMENTED 2026-09-19 BY Issue #216（`V3004`、Spec 001 §15.8 授权 Port、确定性组装、build/read Handler 与组成层；本地/单元/真实 PostgreSQL 证据完成）/ vibe verify full PASS 2026-09-19 / PR #217 INDEPENDENT IMPLEMENTATION REVIEW `PLANNING_REQUIRED` ON `bce56af9007e70ee79e46bcc90d49dd0fc5b35f5` / HUMAN TECHNICAL REVIEW NOT REACHED`。本节保留 #214 的历史决策；PR #217 揭示的四项阻断与候选修正见 §19。权威细节见 [Spec 003 §19](../module-specs/Module-Spec-003-TaskExecution.md#19-首次-context-构建与精确快照读取边界闭合214-设计)、[Spec 001 §15.8](../module-specs/Module-Spec-001-IdentityPolicy.md#158-im06-ctxbuild-01-首次-context-构建与权威快照读取授权组成提案214)、[PostgreSQL §33](../high-level-docs/07-postgresql-logical-model-v0.1.md) 的 #214 增量与 Module-Test 003 `TE-214-D-*` 设计矩阵；这些历史事实不再单独证明当前实现可验收。
 
 ### 18.1 对账基线与增量定位
 
@@ -891,5 +891,26 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 | IdentityPolicy | 一个 owning 内部 Port 的两条条目（Spec 001 §15.8）；无公开 API、无 capability code、无迁移（复用 V1006 target 列） |
 | TaskExecution migration | 未来 forward-only，编号实现时分配；不改 `V3000`–`V3003` |
 
-- 本 Delta 只改 durable 设计文档；独立设计审查已对 exact proposed revision 完成（七轮，正式记录存 [`reviews/pr-215/Review.md`](../reviews/pr-215/Review.md)），显式人类设计批准已于 2026-09-18 在 `d0d060fbacb98a6e9fdac1d098792a6222de4cff` 记录；[Issue #216](https://github.com/qzhike/zhiju-business-core/issues/216) 已于 2026-09-19 按该范围交付实现，其 `vibe verify full --json` 已 PASS（2026-09-19），独立实现审查、人类技术批准与 PR 待完成。
+- 本 Delta 只记录 #214 的 durable 设计与历史批准；[Issue #216](https://github.com/qzhike/zhiju-business-core/issues/216) 已于 2026-09-19 按该范围交付实现，其 `vibe verify full --json` 已 PASS。PR #217 的独立实现审查已在 `bce56af9007e70ee79e46bcc90d49dd0fc5b35f5` 得出 `PLANNING_REQUIRED`；四项候选修正见 §19。其显式人类设计批准已于 2026-09-19 记录，独立设计复审仍须针对推送后的 exact revision 完成，之后才可进入实现或人类技术批准。
 - #152/#165–#168 与 #188/#212 的历史证据保留不改；`TE-214-D-001`–`018` 已由 #216 在真实 PostgreSQL 18.6 执行（五个无合法事实生产者/写入者/算子的 `NOT RUN` 子分支与四处分层/表面码偏差见 [Module-Test 003](../module-tests/Module-Test-003-TaskExecution.md) 与 [Spec 003 §19.10](../module-specs/Module-Spec-003-TaskExecution.md)）；本节不把 Validation/Freeze、执行、Completion 或 IM-06 报告为已实现。
+
+## 19. PR #217 首次 Context 审查阻断修正提案
+
+状态：`T2 / PROPOSED 2026-09-19 / INDEPENDENT IMPLEMENTATION REVIEW PLANNING_REQUIRED ON bce56af9007e70ee79e46bcc90d49dd0fc5b35f5 / EXPLICIT HUMAN DESIGN APPROVAL RECORDED 2026-09-19 / PENDING INDEPENDENT DESIGN REVIEW / NO CODE CHANGE AUTHORIZED BY THIS RECORD`。正式 finding 见 [`reviews/pr-217/Review.md`](../reviews/pr-217/Review.md)，字段级权威增量见 [Spec 003 §20](../module-specs/Module-Spec-003-TaskExecution.md#20-pr-217-首次-context-实现审查修正-delta提案)、授权见 [Spec 001 §15.9](../module-specs/Module-Spec-001-IdentityPolicy.md#159-im06-ctxbuild-02-draft-snapshot-依赖读取授权修正提案217)、存储见 PostgreSQL §35、验收见 Module-Test 003 `TE-217-D-*`。
+
+### 19.1 决定摘要
+
+1. **Legacy 读回不降级为“永远不存在”**：保留 `get_context_snapshot@1.0` 的双 identity 接受集；canonical 与 legacy 分别路由到独立 owning store，逐字段 exact read，不 alias。legacy store 只接受受控 migration/import 的历史 ProjectContext v1.0 事实，应用无写权限。
+2. **DRAFT 当前授权不由“过去拿到过 ref”替代**：不再声称复用 target 为 WorkOrder 的 `workOrderDraftReadV11`；新增 target 为完整 `draftSnapshotRef` 的 owning internal dependency Port，先授权后读事实，build capability 不隐含它。
+3. **公开 Event 不写无效 payload**：冻结 `ContextSnapshotBuilt@1.0`，additive 新增 `@1.1`，字段改用已注册的 `ProjectionType`/`CoverageCompleteness`，payload 不复制 Enterprise/Project；修正路径只发布 `@1.1`。
+4. **Slice 顺序必须可执行**：ContentAddressedRef 使用 objectType/objectId 优先、完整内容地址与 Scope 收尾的显式 tuple；full-ref canonicalization 只能用于 exact 比较/tiebreak 断言，不能让 contentHash 抢在 objectId 前排序。UUIDv7 摘要使用实际存在的 `sliceRef.objectId`。
+
+### 19.2 分类与边界
+
+- additive Event 使 Catalog 215→216、TaskExecution 45→46；历史 200 项 Compatibility Baseline 与 `ContextSnapshotBuilt@1.0` 接受集不变。
+- 不新增公开 build/query 版本，不改变 Core ProjectContext v1.0，不修改 `V3000`–`V3003`；PR #217 的未合并 `V3004` 可在获批后按 PostgreSQL §35 收敛。
+- 本提案不授权实现或 merge。用户已授权把本轮订正文档单独 commit 并 push；只有推送后的 exact revision 通过独立设计审查后，PR #217 才重新进入实现修复；修复后的新 head 必须重新独立审查和人类技术审查。
+
+### 19.3 批准记录
+
+**批准记录：2026-09-19，用户在本任务会话明确回复“批准文档的更改，单独将本轮订正的文档commit and push，完成后复审PR217”。** 批准对象是 §19 与其链接的 Spec 003 §20、Spec 001 §15.9、Contract Catalog #217、PostgreSQL §35、`TE-217-D-*` 及路线图状态修正；授权范围仅包含这些文档的单独 commit/push 与随后对 PR #217 的复审，不包含产品代码或 migration 修复，也不授权 merge。
