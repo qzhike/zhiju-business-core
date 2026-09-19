@@ -11,6 +11,7 @@
     { "path": "modules/release-publication" },
     { "path": "modules/integration-gateway" },
     { "path": "apps/api" },
+    { "path": "tools/verification" },
     { "path": "tests/types" },
     { "path": "tests/persistence" },
     { "path": "tests/business" }

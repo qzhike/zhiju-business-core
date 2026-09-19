@@ -55,9 +55,19 @@ status. Never silently resolve a conflict between an Issue and a contract.
 - Preserve module ownership and public contracts. Update affected authority
   documents and failure scenarios before implementation changes.
 - Use `vibe repo --json` for repository identity and revision.
-- Run the configured full verification with `vibe verify full --json`.
-  It includes a clean build and the Docker/PostgreSQL persistence gate.
-  Focused diagnostics do not replace this gate.
+- Use the smallest sufficient target named by the work item and run it only
+  through `vibe verify <target> --json`:
+  - `docs` for a strict documentation-only change limited to Markdown under
+    `.vibe/` or the repository README;
+  - `code` for non-persistence implementation while a Pull Request remains Draft;
+  - `full` for ready non-document Pull Requests, migrations, SQL, persistence
+    tests or tooling, module persistence code, verification-policy changes, and
+    unknown or mixed high-risk scope.
+    The `full` target includes a clean build and the Docker/PostgreSQL persistence
+    gate. Focused diagnostics do not replace the required configured target.
+- Prefer trustworthy current exact-revision CI evidence. Do not rerun the same
+  configured target locally merely to duplicate it; use a focused counterexample
+  when independent semantic review requires evidence beyond the configured gate.
 - Preserve distinct design, local, persistence, external, and manual evidence.
   Unexecuted acceptance remains `NOT RUN`.
 - Do not commit without explicit user authorization. Push and merge also require

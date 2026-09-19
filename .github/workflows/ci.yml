@@ -2,6 +2,7 @@ name: ci
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
@@ -14,6 +15,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 11.19.0
@@ -21,5 +24,21 @@ jobs:
         with:
           node-version: 24.19.0
           cache: pnpm
+      - name: Select verification target
+        id: verification
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PR_DRAFT: ${{ github.event.pull_request.draft || false }}
+        run: >-
+          node --experimental-strip-types tools/verification/select-target.mts
+          "$BASE_SHA" "$GITHUB_SHA" "$GITHUB_EVENT_NAME" "$PR_DRAFT"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm verify
+      - name: Verify documentation
+        if: steps.verification.outputs.target == 'docs'
+        run: pnpm verify:docs
+      - name: Verify code
+        if: steps.verification.outputs.target == 'code'
+        run: pnpm clean && pnpm verify:code
+      - name: Verify full repository
+        if: steps.verification.outputs.target == 'full'
+        run: pnpm clean && pnpm verify

@@ -35,6 +35,16 @@
 
 检查：文档入口、唯一权威、术语、编号、链接、模块所有权、Catalog 唯一性、Contract 兼容、Hash 自引用、状态和测试清单。结果只能是 `DESIGN VERIFIED`。
 
+#### 2.1.1 配置化验证目标与 CI 路由
+
+项目配置保留三个确定性目标，并始终选择覆盖当前变更风险边界的最小充分目标：
+
+- `docs`：严格限于 `.vibe/` 下 Markdown 或根 `README.md` 的文档变更，检查变更路径、diff whitespace、冲突标记、Markdown fence 和仓库既有格式 Gate；设计、Contract 语义与 `NOT RUN` 边界仍由独立审查和适用的人类门禁判断，不能由该自动化结果替代；
+- `code`：Draft Pull Request 中不触及 persistence 的实现变更，执行 clean、格式、lint、TypeScript、普通 Vitest、Architecture 与 Contract Gate；
+- `full`：ready 非文档 Pull Request、main 非文档 push、Migration/SQL、Persistence 测试或工具、模块 Persistence 实现、验证策略本身、无法分类或混合高风险变更；在 `code` 之上追加 PostgreSQL/Flyway Persistence Gate。
+
+CI 对 Pull Request 使用 base-to-head 的完整变更集合，不能仅凭最后一次提交把含代码的 PR 降级为文档 Gate。Persistence 或验证策略路径在 Draft 阶段也必须 `full`；未知、空集合或 diff 不可得时 fail closed 到 `full`。Reviewer 优先复用同一 exact revision 的可信 CI，不为重复取证再次运行相同目标；需要额外语义证据时使用 focused counterexample。绿色 `docs` 或 `code` 不表示 Persistence、外部系统、生产或人工验收通过。
+
 ### 2.2 Unit
 
 针对 Aggregate、Value Object、状态机、Invariant、Evaluator、Canonicalization、Reference Validation、Authorization 和纯映射逻辑。应覆盖成功与拒绝路径。
