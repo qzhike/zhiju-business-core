@@ -63,6 +63,11 @@ Planner, Implementer, and Reviewer use the agreed scope and acceptance consisten
 - Use `vibe repo --json` for repository identity and revision.
 - Use the smallest sufficient target named by the work item and run it only
   through `vibe verify <target> --json`:
+  - `environment` is a read-only Docker capability and pinned-image baseline
+    probe. Run it once before the first local `full` target in a new or materially
+    changed container runtime, or after a container/registry failure; reuse a
+    successful result. It does not replace `code`, `full`, CI or persistence
+    evidence;
   - `docs` for a strict documentation-only change limited to Markdown under
     `.vibe/` or the repository README;
   - `code` for non-persistence implementation while a Pull Request remains Draft;
@@ -71,6 +76,9 @@ Planner, Implementer, and Reviewer use the agreed scope and acceptance consisten
     unknown or mixed high-risk scope.
     The `full` target includes a clean build and the Docker/PostgreSQL persistence
     gate. Focused diagnostics do not replace the required configured target.
+    The persistence tooling respects an explicit `DOCKER_HOST` and otherwise
+    derives the active Docker context endpoint on macOS before Testcontainers is
+    loaded; it does not force OrbStack or rewrite global Docker configuration.
 - Prefer trustworthy current exact-revision CI evidence. Do not rerun the same
   configured target locally merely to duplicate it; use a focused counterexample
   when independent semantic review requires evidence beyond the configured gate.

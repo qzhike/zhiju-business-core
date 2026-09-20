@@ -4,6 +4,7 @@
 // tears the container down. Usage: `pnpm persistence:gate`.
 
 import { spawn } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
 import {
   assertServerVersion,
   DATABASE_NAME,
@@ -15,8 +16,7 @@ import {
   postgresImageReference,
 } from './baseline.mjs';
 import { flywayVersion, runFlyway } from './flyway.mjs';
-import { startPostgres, stopPostgres } from './postgres.mjs';
-import { docker, dockerInspectImage } from './docker.mjs';
+import { configureDockerHostFromCurrentContext, docker, dockerInspectImage } from './docker.mjs';
 import { historicalProviderResultSeedSql } from './provider-result-upgrade-fixture.mjs';
 
 function log(message) {
@@ -65,6 +65,15 @@ function runVitest(env) {
 }
 
 async function pullWithRetry(reference, attempts = 3) {
+  try {
+    await dockerInspectImage(reference);
+    log(`using locally cached image for ${reference}`);
+    return;
+  } catch {
+    // A missing exact digest may be pulled below. Other image-inspection errors
+    // are surfaced by the pull or the final inspection.
+  }
+
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -73,6 +82,12 @@ async function pullWithRetry(reference, attempts = 3) {
     } catch (error) {
       lastError = error;
       log(`pull attempt ${attempt} for ${reference} failed: ${error.message}`);
+      if (/429|too many requests|credential|unauthorized|denied/i.test(error.message)) {
+        break;
+      }
+      if (attempt < attempts) {
+        await delay(1000 * 2 ** (attempt - 1));
+      }
     }
   }
   // Digest-pinned references are content-addressed: if the exact image is
@@ -87,6 +102,12 @@ async function pullWithRetry(reference, attempts = 3) {
 }
 
 async function main() {
+  const dockerRuntime = await configureDockerHostFromCurrentContext();
+  log(
+    dockerRuntime.host
+      ? `docker host:    ${dockerRuntime.host} (${dockerRuntime.source})`
+      : `docker host:    ${dockerRuntime.source}`,
+  );
   const postgresReference = postgresImageReference();
   const flywayReference = flywayImageReference();
   log(`postgres image: ${postgresReference}`);
@@ -95,6 +116,9 @@ async function main() {
   await pullWithRetry(postgresReference);
   await pullWithRetry(flywayReference);
 
+  // Import Testcontainers only after the active Docker context has been made
+  // explicit through DOCKER_HOST.
+  const { startPostgres, stopPostgres } = await import('./postgres.mjs');
   let pg;
   try {
     pg = await startPostgres();

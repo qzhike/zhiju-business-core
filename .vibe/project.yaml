@@ -1,6 +1,7 @@
 workflow: vibe-v2
 
 verify:
+  environment: pnpm verify:environment
   docs: pnpm verify:docs
   code: pnpm clean && pnpm verify:code
   full: pnpm clean && pnpm verify

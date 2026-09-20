@@ -20,6 +20,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "typecheck": "tsc -b --pretty false",
+    "verify:environment": "node tools/persistence/preflight.mjs",
     "verify:docs": "node --experimental-strip-types tools/verification/check-docs.mts && pnpm format:check",
     "verify:code": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm architecture && pnpm contracts:check",
     "verify": "pnpm verify:code && pnpm persistence:gate",
