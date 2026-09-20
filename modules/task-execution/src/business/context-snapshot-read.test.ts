@@ -4,9 +4,11 @@
 // `assembleInitialContext` output, so the round-trip exercises the real
 // content-address closure and the real Core schema revalidation. The §20.1
 // legacy route is exercised against a canned `context_snapshot_legacy` row
-// whose historical contract column deliberately differs from the hashed cv1
-// payload. The read writes nothing: the suite asserts no mutating statement
-// is ever issued.
+// whose contract body and `contract_ref` are fully closed against the hashed
+// cv1 payload; every relaxation of that closure (a differing contract body, a
+// foreign `contractRef` digest or a wrong `contractRef` field) is its own
+// REFERENCE_INVALID negative. The read writes nothing: the suite asserts no
+// mutating statement is ever issued.
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -425,18 +427,43 @@ function expectRejected(result: GetContextSnapshotResult, errorCode: string): vo
 }
 
 /**
- * A canned legacy compatibility row of the harness identity. The historical
- * contract body is a Core-valid payload that deliberately differs from the
- * hashed cv1 payload (a changed `projection.purpose`), so a FOUND read proves
- * the stored column is returned verbatim rather than rebuilt; the stored
- * `contract_ref` carries a placeholder digest no recomputation could produce.
+ * The stored `contract_ref` of a fully closed legacy row: the
+ * CONTENT_ADDRESSED `zhiju.contract.project_context` reference whose objectId
+ * is the Snapshot identity, whose Scope is the row's Project Scope and whose
+ * contentHash triple is the recomputed cv1 SHA-256 of the stored contract
+ * body - the same binding the canonical route derives (§19.2, §35).
+ * `overrides` replace whole members so a negative can tamper exactly one
+ * field.
+ */
+function contractRefFor(
+  harness: ReadHarness,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    kind: 'CONTENT_ADDRESSED',
+    objectType: 'zhiju.contract.project_context',
+    objectId: SNAPSHOT_ID,
+    scope: { enterpriseId: ENT, projectId: PRJ },
+    contentHash: {
+      algorithm: 'SHA-256',
+      digest: harness.payloadHash.toString('hex'),
+      canonicalizationVersion: '1',
+    },
+    ...overrides,
+  };
+}
+
+/**
+ * A canned legacy compatibility row of the harness identity, closed exactly as
+ * the §35 import guard and the §20.1 read boundary require: the historical
+ * contract body is the hashed cv1 payload itself and `contract_ref` names its
+ * recomputed content address. `overrides` tamper one stored column at a time,
+ * so each negative isolates exactly one closure branch.
  */
 function legacyRowFor(
   harness: ReadHarness,
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  const contract = rec(JSON.parse(JSON.stringify(harness.payload)));
-  rec(contract.projection).purpose = 'document.review';
   return {
     snapshot_id: SNAPSHOT_ID,
     object_id: TARGET_ID,
@@ -446,18 +473,8 @@ function legacyRowFor(
     payload_hash_algorithm: 'SHA-256',
     canonicalization_version: '1',
     canonical_payload: harness.payload,
-    project_context_contract: contract,
-    contract_ref: {
-      kind: 'CONTENT_ADDRESSED',
-      objectType: 'zhiju.contract.project_context',
-      objectId: SNAPSHOT_ID,
-      scope: { enterpriseId: ENT, projectId: PRJ },
-      contentHash: {
-        algorithm: 'SHA-256',
-        digest: '9'.repeat(64),
-        canonicalizationVersion: '1',
-      },
-    },
+    project_context_contract: rec(JSON.parse(JSON.stringify(harness.payload))),
+    contract_ref: contractRefFor(harness),
     ...overrides,
   };
 }
@@ -625,7 +642,7 @@ describe('handleGetContextSnapshot (§19.2)', () => {
 });
 
 describe('handleGetContextSnapshot legacy route (§20.1)', () => {
-  it('returns the stored legacy contract body and contract reference verbatim', async () => {
+  it('returns the fully closed legacy row verbatim, echoing the requested ref field-for-field', async () => {
     const harness = new ReadHarness();
     const legacyRow = legacyRowFor(harness);
     harness.legacyRow = legacyRow;
@@ -634,11 +651,12 @@ describe('handleGetContextSnapshot legacy route (§20.1)', () => {
     if (result.status !== 'FOUND') {
       throw new Error(`expected FOUND, got ${result.status}`);
     }
-    // The echoed ref equals the request field for field, and the contract is
-    // the stored historical column - not the cv1 payload the hash covers.
+    // The echoed ref equals the request field for field, and the historical
+    // contract body and its reference come from their own stored columns -
+    // closed against the content address, never rebuilt or re-spelled.
     expect(result.resultPayload.contextSnapshotRef).toEqual(requestRef);
     expect(result.resultPayload.projectContextContract).toEqual(legacyRow.project_context_contract);
-    expect(result.resultPayload.projectContextContract).not.toEqual(harness.payload);
+    expect(result.resultPayload.projectContextContract).toEqual(harness.payload);
     expect(result.resultPayload.contractRef).toEqual(legacyRow.contract_ref);
     expect(harness.legacySelects()).toHaveLength(1);
     expect(harness.snapshotSelects()).toHaveLength(0);
@@ -705,10 +723,149 @@ describe('handleGetContextSnapshot legacy route (§20.1)', () => {
   });
 
   it('rejects a legacy row whose stored contract fails the registered Core schema', async () => {
+    // The broken body closes every content-address check (it IS the hashed
+    // payload and the stored ref names it), so only the Core schema
+    // revalidation can refuse it.
     const harness = new ReadHarness();
     const broken = rec(JSON.parse(JSON.stringify(harness.payload)));
     delete broken.coverage;
-    harness.legacyRow = legacyRowFor(harness, { project_context_contract: broken });
+    const brokenHash = digestCanonicalPayload(asCanonical(broken)).hash;
+    harness.legacyRow = legacyRowFor(harness, {
+      canonical_payload: broken,
+      payload_hash: brokenHash,
+      project_context_contract: broken,
+      contract_ref: contractRefFor(harness, {
+        contentHash: {
+          algorithm: 'SHA-256',
+          digest: brokenHash.toString('hex'),
+          canonicalizationVersion: '1',
+        },
+      }),
+    });
+    const ref = harness.legacySnapshotRef();
+    ref.contentHash = {
+      algorithm: 'SHA-256',
+      digest: brokenHash.toString('hex'),
+      canonicalizationVersion: '1',
+    };
+    expectRejected(await harness.run({ contextSnapshotRef: ref }), REFERENCE_INVALID);
+  });
+
+  it('rejects a legacy row whose contract body differs from the hashed payload', async () => {
+    // One differing member: the stored contract is no longer the content the
+    // hash covers, so the read must never return it.
+    const harness = new ReadHarness();
+    const contract = rec(JSON.parse(JSON.stringify(harness.payload)));
+    rec(contract.projection).purpose = 'document.review';
+    harness.legacyRow = legacyRowFor(harness, { project_context_contract: contract });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef digest does not name the contract content address', async () => {
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, {
+        contentHash: {
+          algorithm: 'SHA-256',
+          digest: '9'.repeat(64),
+          canonicalizationVersion: '1',
+        },
+      }),
+    });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef contentHash algorithm drifts', async () => {
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, {
+        contentHash: {
+          algorithm: 'SHA-512',
+          digest: harness.payloadHash.toString('hex'),
+          canonicalizationVersion: '1',
+        },
+      }),
+    });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef canonicalizationVersion drifts', async () => {
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, {
+        contentHash: {
+          algorithm: 'SHA-256',
+          digest: harness.payloadHash.toString('hex'),
+          canonicalizationVersion: '2',
+        },
+      }),
+    });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef kind is not CONTENT_ADDRESSED', async () => {
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, { kind: 'VERSIONED' }),
+    });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef objectType is not the ProjectContext contract', async () => {
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, { objectType: 'zhiju.contract.other' }),
+    });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef objectId is not the Snapshot identity', async () => {
+    // The Snapshot's CREATE object identity is not the Contract Record
+    // identity; the canonical route binds contractRef.objectId to snapshotId.
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, { objectId: TARGET_ID }),
+    });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef scope differs from the row scope', async () => {
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, {
+        scope: { enterpriseId: OTHER_ID, projectId: PRJ },
+      }),
+    });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef is not a reference object', async () => {
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, { contract_ref: 'not-a-ref' });
     expectRejected(
       await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
       REFERENCE_INVALID,

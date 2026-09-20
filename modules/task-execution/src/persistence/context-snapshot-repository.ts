@@ -105,8 +105,9 @@ export interface ContextSnapshotRow {
  * The committed legacy compatibility facts the §20.1 legacy read route
  * returns. The store has no application writer: rows arrive only through a
  * controlled migration/import, and `projectContextContract`/`contractRef` are
- * the historical contract body and reference, stored as-is and returned
- * verbatim (never rebuilt into the canonical spelling).
+ * the historical contract body and reference, stored as-is, closed against the
+ * stored content address by the V3004 import guard, re-closed by the read and
+ * returned verbatim (never rebuilt into the canonical spelling).
  */
 export interface ContextSnapshotLegacyRow {
   readonly snapshotId: string;

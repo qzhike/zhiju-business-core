@@ -1292,7 +1292,7 @@ Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 
 
 ### #217 `ContextSnapshotBuilt` additive Event 修正提案
 
-状态：`REGISTERED 2026-09-20（`execution.ContextSnapshotBuilt@1.1`，Owner `task-execution`、`EVENT`、`dataClassification=INTERNAL`）/ DESIGN APPROVED 2026-09-19（显式人类设计批准；独立设计复审于 PR #217 第 3 轮确认一致性）/ IMPLEMENTED 2026-09-20（修正路径只发布 `@1.1`，成功 envelope 先经真实 ContractRegistry 校验再写 Outbox）/ vibe verify full PASS 2026-09-20 / PR #217 新 head 独立复审与人类技术审查 PENDING（不声称审查结论或合并）`。本节回应 PR #217 对 `execution.ContextSnapshotBuilt@1.0` 实际 payload 与注册 Schema 不一致的阻断发现；`@1.1` 已注册并落地，设计约束与计数如下。
+状态：`REGISTERED 2026-09-20（`execution.ContextSnapshotBuilt@1.1`，Owner `task-execution`、`EVENT`、`dataClassification=INTERNAL`）/ DESIGN APPROVED 2026-09-19（显式人类设计批准；独立设计复审于 PR #217 第 3 轮确认一致性）/ IMPLEMENTED 2026-09-20（修正路径只发布 `@1.1`，成功 envelope 先经真实 ContractRegistry 校验再写 Outbox）/ vibe verify full PASS 2026-09-20 / ROUND-4 FINDINGS IMPLEMENTED 2026-09-21 / NEW vibe verify full PASS 2026-09-21（persistence gate 44/44 files、493/493 tests）/ PR #217 新 head 独立复审与人类技术审查 PENDING（不声称审查结论或合并）`。本节回应 PR #217 对 `execution.ContextSnapshotBuilt@1.0` 实际 payload 与注册 Schema 不一致的阻断发现；`@1.1` 已注册并落地，设计约束与计数如下。
 
 - 已发布的 `execution.ContextSnapshotBuilt@1.0` **冻结不改**；不得修改其 Schema、metadata、fixture 或接受集来适配当前实现。
 - additive 新增候选 `execution.ContextSnapshotBuilt@1.1`，Owner `task-execution`、`EVENT`、`dataClassification=INTERNAL`。修正后的首次 Context 构建成功路径只发出 `@1.1`；`@1.0` 仅保留为历史已发布版本，不由该修正路径继续产生。

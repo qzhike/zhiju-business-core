@@ -81,8 +81,14 @@ function reject(errorCode: string, safeSummary: string): GetContextSnapshotResul
  * `context_snapshot_legacy` store with the same field-by-field posture as the
  * canonical route - exact identity, Project Scope, the complete contentHash
  * triple and the cv1 recompute of the stored payload. The historical contract
- * body and its reference are returned from their own stored columns verbatim;
- * they are never rebuilt, extended or re-spelled into the canonical identity.
+ * body is returned from its own stored column verbatim only after it closes
+ * against the same content address: its cv1 digest must equal the row's
+ * `payload_hash` (the read never returns one body while hashing another), and
+ * the stored `contractRef` must name exactly that address - the
+ * CONTENT_ADDRESSED `zhiju.contract.project_context` binding the canonical
+ * route derives (objectId = the Snapshot identity, the row's Project Scope,
+ * the recomputed SHA-256/'1'/digest triple). The columns are never rebuilt,
+ * extended or re-spelled into the canonical identity (§35).
  */
 async function readLegacyContextSnapshot(
   trx: TaskExecutionTransaction,
@@ -119,6 +125,46 @@ async function readLegacyContextSnapshot(
     );
   }
   if (!digest.hash.equals(row.payloadHash)) {
+    return reject(
+      REFERENCE_INVALID,
+      'the stored Context payload does not match its content address',
+    );
+  }
+  // The returned contract body IS the hashed content: its cv1 digest must
+  // equal the content address the payload already closed against, so the read
+  // can never return one body while the request names another.
+  let contractDigest: CanonicalPayloadDigest;
+  try {
+    contractDigest = digestCanonicalPayload(row.projectContextContract as CanonicalJsonObject);
+  } catch {
+    return reject(
+      REFERENCE_INVALID,
+      'the stored Context payload cannot define its content address',
+    );
+  }
+  if (!contractDigest.hash.equals(row.payloadHash)) {
+    return reject(
+      REFERENCE_INVALID,
+      'the stored Context payload does not match its content address',
+    );
+  }
+  // The stored contract reference must name exactly that content address -
+  // the same CONTENT_ADDRESSED `zhiju.contract.project_context` binding the
+  // canonical route derives. Every mismatch is the same REFERENCE_INVALID and
+  // never leaks which stored field disagreed.
+  const contractRef = record(row.contractRef);
+  const contractRefScope = record(contractRef.scope);
+  const contractRefHash = record(contractRef.contentHash);
+  if (
+    contractRef.kind !== 'CONTENT_ADDRESSED' ||
+    contractRef.objectType !== PROJECT_CONTEXT_CONTRACT_TYPE ||
+    contractRef.objectId !== row.snapshotId ||
+    contractRefScope.enterpriseId !== row.enterpriseId ||
+    contractRefScope.projectId !== row.projectId ||
+    contractRefHash.algorithm !== 'SHA-256' ||
+    contractRefHash.canonicalizationVersion !== CANONICALIZATION_VERSION ||
+    contractRefHash.digest !== contractDigest.hash.toString('hex')
+  ) {
     return reject(
       REFERENCE_INVALID,
       'the stored Context payload does not match its content address',

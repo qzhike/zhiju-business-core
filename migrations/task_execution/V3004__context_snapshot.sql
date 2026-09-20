@@ -831,11 +831,20 @@ CREATE POLICY context_snapshot_build_insert ON task_execution.context_snapshot_b
 --
 -- Content: `canonical_payload` is the historical ProjectContext v1.0 body
 -- stored exactly as imported; `project_context_contract` and `contract_ref`
--- are the historical contract body and its reference, stored as-is. The
--- mirror guard below re-derives `snapshot_id`, the Project Scope and the
--- SnapshotRef digest from `canonical_payload`, so an import whose content
--- address disagrees with its own bytes is refused; reads never rebuild,
--- extend or convert the stored bytes into the canonical spelling (§35).
+-- are the historical contract body and its reference, stored as-is and closed
+-- against that payload by the mirror guard below (§35 content row: at write
+-- time the canonical hash is recomputed and the ref must equal it exactly).
+-- The guard re-derives `snapshot_id`, the Project Scope and the SnapshotRef
+-- digest from `canonical_payload`, requires the stored contract body to be the
+-- hashed payload itself (the two jsonb columns must not differ), and requires
+-- the stored `contract_ref` to name exactly that content address - the
+-- CONTENT_ADDRESSED `zhiju.contract.project_context` ref whose objectId is the
+-- Snapshot identity (the same binding the canonical read derives, §19.2), whose
+-- Scope is the row's Project Scope and whose contentHash triple is the
+-- recomputed cv1 SHA-256 of the contract body. An import whose stored contract
+-- would not close against its own content address is refused; reads never
+-- rebuild, extend or convert the stored bytes into the canonical spelling
+-- (§35).
 -- `object_id` is not derivable from the payload (the same posture as the
 -- canonical table, where the Receipt target binds it): here the UNIQUE
 -- constraint and the import manifest bind it.
@@ -898,6 +907,18 @@ CREATE TABLE task_execution.context_snapshot_legacy (
 -- stored bytes under canonicalization v1. A payload that cannot define these
 -- columns is reported as the single guard error, never as a bare cast error.
 --
+-- The historical contract columns close against the same content address
+-- (§35 content row): `project_context_contract` must not differ from the
+-- hashed `canonical_payload` (the read returns one body, never a second body
+-- the hash does not cover), and `contract_ref` must name exactly the
+-- recomputed cv1 SHA-256 of that contract body - kind CONTENT_ADDRESSED,
+-- objectType `zhiju.contract.project_context`, objectId equal to the Snapshot
+-- identity (the binding the canonical read derives, §19.2), the row's Project
+-- Scope, and the SHA-256/'1'/digest triple. The digest comparison is textual
+-- against `encode(..., 'hex')`, so the stored digest must be the exact
+-- lowercase 64-hex spelling; a missing member never survives because every
+-- comparison is null-safe `IS DISTINCT FROM`.
+--
 -- SECURITY DEFINER for the same reason as the canonical mirror guards: the
 -- guard runs the owner-only canonicalizer as its owner, so the application
 -- role can never call it, and trigger functions are trigger-only.
@@ -923,7 +944,27 @@ BEGIN
                 IS DISTINCT FROM NEW.canonical_payload->'projectRef'->'scope'->>'projectId'
             OR NEW.payload_hash
                 IS DISTINCT FROM sha256(convert_to(
-                       task_execution.canonical_jsonb_text(NEW.canonical_payload), 'UTF8')));
+                       task_execution.canonical_jsonb_text(NEW.canonical_payload), 'UTF8'))
+            OR NEW.project_context_contract
+                IS DISTINCT FROM NEW.canonical_payload
+            OR NEW.contract_ref->>'kind'
+                IS DISTINCT FROM 'CONTENT_ADDRESSED'
+            OR NEW.contract_ref->>'objectType'
+                IS DISTINCT FROM 'zhiju.contract.project_context'
+            OR NEW.contract_ref->>'objectId'
+                IS DISTINCT FROM NEW.snapshot_id::text
+            OR NEW.contract_ref->'scope'->>'enterpriseId'
+                IS DISTINCT FROM NEW.enterprise_id::text
+            OR NEW.contract_ref->'scope'->>'projectId'
+                IS DISTINCT FROM NEW.project_id::text
+            OR NEW.contract_ref->'contentHash'->>'algorithm'
+                IS DISTINCT FROM 'SHA-256'
+            OR NEW.contract_ref->'contentHash'->>'canonicalizationVersion'
+                IS DISTINCT FROM '1'
+            OR NEW.contract_ref->'contentHash'->>'digest'
+                IS DISTINCT FROM encode(sha256(convert_to(
+                       task_execution.canonical_jsonb_text(NEW.project_context_contract),
+                       'UTF8')), 'hex'));
     EXCEPTION
         WHEN invalid_text_representation
           OR invalid_datetime_format
