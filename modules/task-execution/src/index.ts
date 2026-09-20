@@ -281,6 +281,7 @@ export type {
   ContextSourceSliceObservation,
   ContextSourceSliceReadPort,
   InitialContextBuildPorts,
+  InitialContextDraftReadDecision,
 } from './business/initial-context-build.js';
 export {
   handleGetContextSnapshot,
@@ -298,9 +299,11 @@ export {
 export type {
   ContextSnapshotBuildInsert,
   ContextSnapshotInsert,
+  ContextSnapshotLegacyRow,
   ContextSnapshotRow,
 } from './persistence/context-snapshot-repository.js';
 export type {
   ContextSnapshotTable,
   ContextSnapshotBuildTable,
+  ContextSnapshotLegacyTable,
 } from './persistence/task-execution-db.js';

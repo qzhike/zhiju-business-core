@@ -1,7 +1,9 @@
 -- IM-06 (#216): TaskExecution-owned initial Context Snapshot facts.
 -- Design authority: Module-Spec-003 §19.6 (R-214-6, approved #214 design),
 -- Module-Spec-003 §19.1/§19.2/§19.4/§19.5 and the PostgreSQL logical model
--- §33 (#214 increment).
+-- §33 (#214 increment). The import-only legacy compatibility store at the end
+-- of this file follows PostgreSQL logical model §35 and Module-Spec-003 §20.1
+-- (PR #217 independent implementation review, finding 1).
 --
 -- One successful `execution.build_initial_context_snapshot@1.1` commits one
 -- immutable `context_snapshot` row (the ProjectContext v1.0 Contract Record of
@@ -10,7 +12,8 @@
 -- Audit, the DRAFT->Snapshot / Snapshot->Policy / Snapshot->Slice Reference
 -- Edges and the single registered `execution.ContextSnapshotBuilt@1.0` Outbox
 -- row are written by the owning runner into the existing V3000 tables; this
--- migration adds only the two fact tables. `build_initial_context_snapshot@1.0`
+-- migration adds the two fact tables plus the legacy compatibility store.
+-- `build_initial_context_snapshot@1.0`
 -- has no satisfiable input and no owning writer (§19.1), and the closed
 -- `builder_version`/`build_kind` CHECKs plus the Receipt binding below give it
 -- no row it could ever produce.
@@ -806,5 +809,185 @@ CREATE POLICY context_snapshot_build_insert ON task_execution.context_snapshot_b
     FOR INSERT TO task_execution_app
     WITH CHECK (platform_security.context_allows_project(enterprise_id, project_id)
         AND created_by_principal_id = platform_security.context_principal_id());
+
+-- ---------------------------------------------------------------------------
+-- task_execution.context_snapshot_legacy: read-back-only compatibility store
+-- for historical immutable Context Snapshots whose identity must stay the
+-- legacy `zhiju.project.context_snapshot` spelling (PostgreSQL logical model
+-- §35, PR #217 independent implementation review finding 1; read routing in
+-- Module-Spec-003 §20.1). Rows are created only by a migration or controlled
+-- import running as the schema owner under an established Project-scoped
+-- transaction context; no command handler, public API or outbox consumer can
+-- ever produce one, so the table carries no creation-identity guard and no
+-- Receipt binding - the controlled import manifest recorded on each row is
+-- the provenance authority.
+--
+-- Identity: the complete legacy SnapshotRef is mirrored in promoted columns
+-- (`object_type` closed to the legacy spelling, `object_id`, `snapshot_id`,
+-- the hash algorithm/canonicalization version/digest triple and the Project
+-- Scope). `snapshot_id` is the fact's primary key, and one object identity
+-- holds exactly one snapshot inside one Project Scope, the same adjudication
+-- shape as the canonical `context_snapshot` table.
+--
+-- Content: `canonical_payload` is the historical ProjectContext v1.0 body
+-- stored exactly as imported; `project_context_contract` and `contract_ref`
+-- are the historical contract body and its reference, stored as-is. The
+-- mirror guard below re-derives `snapshot_id`, the Project Scope and the
+-- SnapshotRef digest from `canonical_payload`, so an import whose content
+-- address disagrees with its own bytes is refused; reads never rebuild,
+-- extend or convert the stored bytes into the canonical spelling (§35).
+-- `object_id` is not derivable from the payload (the same posture as the
+-- canonical table, where the Receipt target binds it): here the UNIQUE
+-- constraint and the import manifest bind it.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE task_execution.context_snapshot_legacy (
+    snapshot_id uuid PRIMARY KEY,
+    object_type text NOT NULL,
+    object_id uuid NOT NULL,
+    enterprise_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    payload_hash bytea NOT NULL,
+    payload_hash_algorithm text NOT NULL,
+    canonicalization_version text NOT NULL DEFAULT '1',
+    canonical_payload jsonb NOT NULL,
+    project_context_contract jsonb NOT NULL,
+    contract_ref jsonb NOT NULL,
+    import_manifest_id text NOT NULL,
+    import_batch_id text NOT NULL,
+    source_system text NOT NULL,
+    imported_at timestamptz NOT NULL,
+    import_tool_version text NOT NULL,
+    -- The legacy spelling is the whole point of this store: a row labelled
+    -- with anything else (including the canonical spelling) has no place here.
+    CONSTRAINT context_snapshot_legacy_object_type_closed CHECK (
+        object_type = 'zhiju.project.context_snapshot'),
+    CONSTRAINT context_snapshot_legacy_hash_algorithm_closed CHECK (
+        payload_hash_algorithm = 'SHA-256'),
+    CONSTRAINT context_snapshot_legacy_canonicalization_version_closed CHECK (
+        canonicalization_version = '1'),
+    CONSTRAINT context_snapshot_legacy_hash_len CHECK (octet_length(payload_hash) = 32),
+    -- Every row answers to a controlled import: manifest and batch, the source
+    -- system, the import instant and the importing tool's version.
+    CONSTRAINT context_snapshot_legacy_provenance_nonempty CHECK (
+        btrim(import_manifest_id) <> ''
+        AND btrim(import_batch_id) <> ''
+        AND btrim(source_system) <> ''
+        AND btrim(import_tool_version) <> ''),
+    -- Closes the members the mirror guard dereferences, with the same
+    -- null-safe `IS NOT DISTINCT FROM` semantics as the canonical table: a
+    -- missing or wrongly-typed member must not survive as a NULL comparison.
+    CONSTRAINT context_snapshot_legacy_content_shape CHECK (
+        jsonb_typeof(canonical_payload) IS NOT DISTINCT FROM 'object'
+        AND jsonb_typeof(canonical_payload->'enterpriseRef') IS NOT DISTINCT FROM 'object'
+        AND jsonb_typeof(canonical_payload->'projectRef') IS NOT DISTINCT FROM 'object'
+        AND jsonb_typeof(canonical_payload->'projectRef'->'scope')
+                IS NOT DISTINCT FROM 'object'
+        AND jsonb_typeof(project_context_contract) IS NOT DISTINCT FROM 'object'
+        AND jsonb_typeof(contract_ref) IS NOT DISTINCT FROM 'object'),
+    -- The complete identity is unique: one snapshot (primary key) and one
+    -- snapshot per legacy object identity inside one Project Scope.
+    CONSTRAINT context_snapshot_legacy_identity_unique UNIQUE (
+        enterprise_id, project_id, object_id)
+);
+
+-- The promoted identity mirrors and the stored content address must agree with
+-- the canonical payload: `snapshot_id` mirrors `contextSnapshotId`, the Scope
+-- mirrors `enterpriseRef`/`projectRef` (with the `projectRef.scope` closure,
+-- same as the canonical table), and `payload_hash` must recompute from the
+-- stored bytes under canonicalization v1. A payload that cannot define these
+-- columns is reported as the single guard error, never as a bare cast error.
+--
+-- SECURITY DEFINER for the same reason as the canonical mirror guards: the
+-- guard runs the owner-only canonicalizer as its owner, so the application
+-- role can never call it, and trigger functions are trigger-only.
+CREATE FUNCTION task_execution.guard_context_snapshot_legacy_mirror() RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $guard$
+DECLARE
+    mirror_mismatch boolean;
+BEGIN
+    BEGIN
+        mirror_mismatch := (
+            NEW.snapshot_id::text
+                IS DISTINCT FROM NEW.canonical_payload->>'contextSnapshotId'
+            OR NEW.enterprise_id::text
+                IS DISTINCT FROM NEW.canonical_payload->'enterpriseRef'->>'objectId'
+            OR NEW.project_id::text
+                IS DISTINCT FROM NEW.canonical_payload->'projectRef'->>'objectId'
+            OR NEW.enterprise_id::text
+                IS DISTINCT FROM NEW.canonical_payload->'projectRef'->'scope'->>'enterpriseId'
+            OR NEW.project_id::text
+                IS DISTINCT FROM NEW.canonical_payload->'projectRef'->'scope'->>'projectId'
+            OR NEW.payload_hash
+                IS DISTINCT FROM sha256(convert_to(
+                       task_execution.canonical_jsonb_text(NEW.canonical_payload), 'UTF8')));
+    EXCEPTION
+        WHEN invalid_text_representation
+          OR invalid_datetime_format
+          OR datetime_field_overflow
+          OR numeric_value_out_of_range
+          OR invalid_parameter_value THEN
+            -- Includes 22023 raised by the canonicalizer itself (the same
+            -- class of defect as in the canonical mirror guards).
+            mirror_mismatch := true;
+    END;
+    IF mirror_mismatch THEN
+        RAISE EXCEPTION 'context snapshot legacy promoted mirror mismatch'
+            USING ERRCODE = '22023';
+    END IF;
+    RETURN NEW;
+END
+$guard$;
+
+REVOKE ALL ON FUNCTION task_execution.guard_context_snapshot_legacy_mirror() FROM PUBLIC;
+
+CREATE TRIGGER context_snapshot_legacy_mirror_guard
+    BEFORE INSERT OR UPDATE ON task_execution.context_snapshot_legacy
+    FOR EACH ROW EXECUTE FUNCTION task_execution.guard_context_snapshot_legacy_mirror();
+
+-- An imported legacy snapshot is history exactly like its canonical sibling:
+-- INSERT-only, never rewritten or removed (§35 immutability row).
+CREATE FUNCTION task_execution.guard_context_snapshot_legacy_immutable() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+BEGIN
+    RAISE EXCEPTION 'context_snapshot_legacy history is immutable' USING ERRCODE = '23514';
+END
+$guard$;
+
+REVOKE ALL ON FUNCTION task_execution.guard_context_snapshot_legacy_immutable() FROM PUBLIC;
+
+CREATE TRIGGER context_snapshot_legacy_immutable_guard
+    BEFORE UPDATE OR DELETE ON task_execution.context_snapshot_legacy
+    FOR EACH ROW EXECUTE FUNCTION task_execution.guard_context_snapshot_legacy_immutable();
+
+-- Read-back-only for the runtime: the V0002 default privileges grant the app
+-- role SELECT, INSERT and UPDATE on new owner-created tables, so INSERT,
+-- UPDATE and DELETE are revoked explicitly and the app role keeps SELECT
+-- alone. No command handler, public API or outbox consumer can become a
+-- legacy producer (§35 runtime ACL row).
+REVOKE INSERT, UPDATE, DELETE ON task_execution.context_snapshot_legacy
+    FROM task_execution_app;
+
+-- RLS: the same FORCE + Project-scoped posture as the canonical tables.
+-- SELECT is the runtime read path (the §20.1 legacy route) and is visible
+-- only through the exact Project scope of the trusted transaction context.
+-- INSERT is the controlled import path: only the schema owner (the migration
+-- or controlled-import role) may create rows, and only under an established
+-- context that allows the row's Project Scope, so an import session can never
+-- plant a fact into a scope its context does not cover. No UPDATE or DELETE
+-- policy exists - the immutable trigger and the ACL close those paths.
+ALTER TABLE task_execution.context_snapshot_legacy ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_execution.context_snapshot_legacy FORCE ROW LEVEL SECURITY;
+CREATE POLICY context_snapshot_legacy_select ON task_execution.context_snapshot_legacy
+    FOR SELECT TO task_execution_app
+    USING (platform_security.context_allows_project(enterprise_id, project_id));
+CREATE POLICY context_snapshot_legacy_insert ON task_execution.context_snapshot_legacy
+    FOR INSERT TO task_execution_owner
+    WITH CHECK (platform_security.context_allows_project(enterprise_id, project_id));
 
 RESET ROLE;

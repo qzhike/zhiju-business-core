@@ -16,23 +16,28 @@
 //      bound to the presented actor;
 //   3. the IdentityPolicy-owned Context Snapshot Port revalidates that this
 //      same Decision still covers this exact operation/version/Purpose,
-//      payload, authentication context, Project scope and target *now* —
-//      before TaskExecution claims idempotency or returns a historical
-//      Receipt, and before the read returns any fact;
-//   4. the owning TaskExecution handler runs inside one owning transaction;
-//      the build's Policy resolution and Source Slice reads re-enter through
-//      their own owning entries, each under a fresh Decision minted for that
-//      read, and the read path writes nothing at all: the success result of
-//      the read is the owning handler's own result payload.
+//      payload, authentication context, Project scope and target *now*;
+//   4. the IdentityPolicy-owned DRAFT dependency-read Port
+//      (`contextSnapshotDraftReadV11`, Spec 001 §15.9) then signs one fresh
+//      Decision for the request's *complete* `draftSnapshotRef` and
+//      immediately revalidates that exact Decision — never the build Decision,
+//      never a historical `workOrderDraftReadV11` Decision, and with no
+//      fallback when the trusted configuration key is missing;
+//   5. only then does the owning TaskExecution handler run, with the
+//      revalidated proof as `ports.draftRead`: inside one owning transaction
+//      it performs the DRAFT fact read/lock, the Policy resolution and the
+//      Source Slice reads re-enter through their own owning entries under
+//      fresh Decisions, and the idempotency claim follows — while the read
+//      path writes nothing at all: the success result of the read is the
+//      owning handler's own result payload.
 //
-// The exact WorkOrder DRAFT read of Spec 003 §19.3 item 2 is not a separate
-// dependency read of this entry: the merged owning handler reads the DRAFT
-// snapshot inside its own owning transaction through its own repository, and
-// the caller obtained the `draftSnapshotRef` it presents through the owning
-// `execution.get_work_order_draft` entry (`work-order-draft-entry.ts`), which
-// is where the workOrderDraftReadV11 authorization of that flow lives. This
-// entry could not name the WorkOrder target that read requires — the build
-// payload carries the snapshot id, not the WorkOrder identity.
+// The §15.9(3) ordering — build Decision revalidation, then the DRAFT
+// dependency Decision issue + immediate revalidation, then the handler — keeps
+// every TaskExecution DRAFT row untouched until both authorizations have
+// closed. The composition layer can name the DRAFT dependency target because
+// the build payload carries the complete ContentAddressedRef (snapshot id,
+// Project scope and content hash); the DRAFT *fact* read itself stays inside
+// the owning handler's transaction.
 
 import type { Kysely } from 'kysely';
 import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
@@ -63,9 +68,13 @@ import {
   SnapshotBoundaryError,
   TASK_EXECUTION_CONTEXT_SNAPSHOT_BINDINGS,
   authorizeCommand,
+  createContextSnapshotDraftReadAuthorizationPort,
   createTaskExecutionContextSnapshotAuthorizationPort,
   resolvePolicy,
   type AuthorizationDecisionView,
+  type ContextSnapshotDraftReadCapabilityCodes,
+  type ContextSnapshotDraftReadRevalidationFailure,
+  type ContextSnapshotDraftReadRevalidationResult,
   type IdentityCommandDeps,
   type IdentityCryptoPorts,
   type IdentityPolicyDb,
@@ -90,6 +99,7 @@ import {
   type ContextBuilderPolicyPort,
   type ContextSourceSliceReadPort,
   type InitialContextBuildPorts,
+  type InitialContextDraftReadDecision,
   type TaskExecutionDb,
   type TaskExecutionTransactionContext,
 } from '@zhiju/task-execution';
@@ -131,9 +141,7 @@ const CONTEXT_SNAPSHOT_BOUNDARY_CODES: Readonly<Record<string, true>> = {
 };
 
 /** Revocation-shaped revalidation failures: the covering Grant is gone. */
-const REVOKED_REVALIDATION_REASONS: Readonly<
-  Partial<Record<TaskExecutionContextSnapshotRevalidationFailure, true>>
-> = {
+const REVOKED_REVALIDATION_REASONS: Readonly<Record<string, true>> = {
   NOT_ALLOW: true,
   GRANT_NOT_CURRENT: true,
   POLICY_NOT_CURRENT: true,
@@ -141,6 +149,18 @@ const REVOKED_REVALIDATION_REASONS: Readonly<
   CONFIGURATION_CHANGED: true,
   PRINCIPAL_NOT_ACTIVE: true,
 };
+
+/**
+ * Trusted capability codes of this entry: the two Context Snapshot
+ * authorization entries of Spec 001 §15.8 plus the single approved DRAFT
+ * dependency-read entry of §15.9. The layer never falls back to a wildcard or
+ * to "the caller is a Service", no two entries ever share a value by
+ * construction of the owning Ports, and a missing DRAFT key fails closed
+ * inside the owning Port (`IDENTITY_CONTEXT_SNAPSHOT_CAPABILITY_CONFIG_INVALID`)
+ * instead of falling back to the build capability or a historical Decision.
+ */
+export type InitialContextCapabilityCodes = TaskExecutionContextSnapshotCapabilityCodes &
+  ContextSnapshotDraftReadCapabilityCodes;
 
 export interface InitialContextEntryConfig {
   /** Owning TaskExecution database handle over an application-owned pool. */
@@ -154,12 +174,10 @@ export interface InitialContextEntryConfig {
     readonly crypto: IdentityCryptoPorts;
   };
   /**
-   * Trusted capability codes of the two Context Snapshot authorization
-   * entries of Spec 001 §15.8. The layer never falls back to a wildcard or to
-   * "the caller is a Service", and the two entries never share a value by
-   * construction of the owning Port.
+   * Trusted capability codes of the Context Snapshot authorization entries of
+   * Spec 001 §15.8 and the DRAFT dependency-read entry of §15.9.
    */
-  readonly capabilityCodes: TaskExecutionContextSnapshotCapabilityCodes;
+  readonly capabilityCodes: InitialContextCapabilityCodes;
   /** Capability codes the transport evaluates for the two owning reads. */
   readonly capabilities: {
     readonly resolvePolicy: string;
@@ -268,7 +286,10 @@ function contextSnapshotReadTarget(
  * `AUTHORIZATION_REVOKED`, and every binding mismatch stays an invalid
  * Decision. The owning reason itself never leaves this boundary.
  */
-function revalidationErrorCode(reason: TaskExecutionContextSnapshotRevalidationFailure): string {
+function revalidationErrorCode(
+  reason:
+    TaskExecutionContextSnapshotRevalidationFailure | ContextSnapshotDraftReadRevalidationFailure,
+): string {
   if (reason === 'EXPIRED') return AUTHORIZATION_EXPIRED;
   if (REVOKED_REVALIDATION_REASONS[reason] === true) return AUTHORIZATION_REVOKED;
   return AUTHORIZATION_DECISION_INVALID;
@@ -278,6 +299,14 @@ export function createInitialContextEntry(config: InitialContextEntryConfig): In
   const registry = new ContractRegistry();
   const boundary: DecisionBoundary = createDecisionBoundary(config);
   const authorization = createTaskExecutionContextSnapshotAuthorizationPort({
+    capabilityCodes: config.capabilityCodes,
+    ...(config.now === undefined ? {} : { now: config.now }),
+  });
+  // The §15.9 DRAFT dependency-read Port of this build: it reads only its own
+  // `contextSnapshotDraftReadV11` key of the same trusted configuration, so a
+  // missing or drifted value fails closed inside the Port and never falls back
+  // to the build capability.
+  const draftReadAuthorization = createContextSnapshotDraftReadAuthorizationPort({
     capabilityCodes: config.capabilityCodes,
     ...(config.now === undefined ? {} : { now: config.now }),
   });
@@ -316,6 +345,96 @@ export function createInitialContextEntry(config: InitialContextEntryConfig): In
       enterpriseId: scope.enterpriseId,
       allowedProjectIds: [scope.projectId],
       correlationId,
+    };
+  }
+
+  /**
+   * The §15.9(3) DRAFT dependency-read authorization of one build: one fresh
+   * Decision signed for the request's complete `draftSnapshotRef` under this
+   * entry's own capability, immediately revalidated, then reduced to the
+   * proof the owning handler requires. Every negative path fails closed here —
+   * before the handler, and with it any TaskExecution DRAFT row read or lock,
+   * the idempotency claim and any historical Receipt return, is reached.
+   */
+  async function draftReadProof(
+    row: DecisionRow,
+    request: {
+      readonly commandVersion: string;
+      readonly draftSnapshotRef: unknown;
+      readonly payloadHash: Buffer;
+      readonly authenticationContextHash: Buffer;
+      readonly actorSnapshotRef: unknown;
+    },
+  ): Promise<InitialContextDraftReadDecision> {
+    const deps = boundary.identityDeps(decisionContext(row));
+    const draftSnapshotRef = request.draftSnapshotRef as Common.ContentAddressedRef;
+    let issued: Awaited<
+      ReturnType<typeof draftReadAuthorization.authorizeContextSnapshotDraftRead>
+    >;
+    try {
+      issued = await draftReadAuthorization.authorizeContextSnapshotDraftRead(deps, {
+        actorSnapshotRef: request.actorSnapshotRef as Common.SnapshotRef,
+        commandType: BUILD_INITIAL_CONTEXT_SNAPSHOT_COMMAND,
+        commandVersion: request.commandVersion,
+        draftSnapshotRef,
+        commandPayloadHash: request.payloadHash,
+        authenticationContextHash: request.authenticationContextHash,
+      });
+    } catch (error) {
+      if (
+        error instanceof SnapshotBoundaryError &&
+        CONTEXT_SNAPSHOT_BOUNDARY_CODES[error.code] === true
+      ) {
+        entryError(
+          error.code,
+          'the DRAFT dependency-read Decision cannot be issued for this build',
+        );
+      }
+      entryError(DEPENDENCY_UNAVAILABLE, 'draft dependency-read authorization is unavailable');
+    }
+    if (
+      issued.outcome !== 'ALLOW' ||
+      issued.authorizationDecisionRef === undefined ||
+      issued.expiresAt === undefined
+    ) {
+      // The owning Port's masked denial: no single Grant covers this read.
+      entryError(
+        AUTHORIZATION_REVOKED,
+        'the current capability grant does not cover the DRAFT dependency read',
+      );
+    }
+    let proof: ContextSnapshotDraftReadRevalidationResult;
+    try {
+      proof = await draftReadAuthorization.revalidateContextSnapshotDraftRead(deps, {
+        decisionRef: issued.authorizationDecisionRef,
+        expectedCommandType: BUILD_INITIAL_CONTEXT_SNAPSHOT_COMMAND,
+        expectedCommandVersion: request.commandVersion,
+        expectedCommandPayloadHash: request.payloadHash,
+        expectedAuthenticationContextHash: request.authenticationContextHash,
+        expectedDraftSnapshotRef: draftSnapshotRef,
+      });
+    } catch (error) {
+      if (
+        error instanceof SnapshotBoundaryError &&
+        CONTEXT_SNAPSHOT_BOUNDARY_CODES[error.code] === true
+      ) {
+        entryError(
+          error.code,
+          'the DRAFT dependency-read Decision cannot be revalidated for this build',
+        );
+      }
+      entryError(DEPENDENCY_UNAVAILABLE, 'draft dependency-read authorization is unavailable');
+    }
+    if (!proof.valid) {
+      entryError(
+        revalidationErrorCode(proof.reason),
+        'the DRAFT dependency-read Decision no longer covers this build request',
+      );
+    }
+    return {
+      draftSnapshotRef: proof.draftSnapshotRef as unknown as CanonicalJsonObject,
+      authorizationDecisionRef: proof.authorizationDecisionRef as unknown as CanonicalJsonObject,
+      expiresAt: proof.expiresAt,
     };
   }
 
@@ -721,6 +840,20 @@ export function createInitialContextEntry(config: InitialContextEntryConfig): In
         );
       }
 
+      // §15.9(3): the DRAFT dependency read is authorized now — after the
+      // build Decision revalidation and before the owning handler touches any
+      // TaskExecution DRAFT row, claims idempotency or returns a historical
+      // Receipt. The Decision is minted for the request's complete
+      // `draftSnapshotRef` under this entry's own capability and immediately
+      // revalidated; every negative path fails closed here.
+      const draftRead = await draftReadProof(row, {
+        commandVersion: binding.commandVersion,
+        draftSnapshotRef: record(payload.request).draftSnapshotRef,
+        payloadHash,
+        authenticationContextHash: sessionHash,
+        actorSnapshotRef: command.actor,
+      });
+
       const correlationId = command.correlationId as string;
       const internalEnvelope: CommandEnvelope = {
         commandId: command.commandId as string,
@@ -751,6 +884,7 @@ export function createInitialContextEntry(config: InitialContextEntryConfig): In
       const ports: InitialContextBuildPorts = {
         slices: sliceReadPort(row, session),
         policy: builderPolicyPort(row, session),
+        draftRead,
         // The owning handler samples the same trusted clock the authorization
         // Port and the owning reads above already use, so this entry never
         // leaves two clocks disagreeing about one request.

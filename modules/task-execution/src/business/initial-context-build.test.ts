@@ -4,7 +4,9 @@
 // and answered with canned rows, so the suite exercises the real handler, the
 // real assembly and the real runner wiring without a database. Source Slice
 // fixtures replicate the EnterpriseProject-published slice shape
-// (type-matched; no cross-module imports).
+// (type-matched; no cross-module imports). The PR #217 corrections add the
+// §20.2 DRAFT dependency-read proof preflight and the §20.3 additive
+// `execution.ContextSnapshotBuilt@1.1` envelope validation.
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -16,6 +18,7 @@ import {
   type Driver,
 } from 'kysely';
 import {
+  ContractRegistry,
   POLICY_PROFILE_REGISTRY_VERSION,
   registeredPolicyProfileReference,
 } from '@zhiju/contracts';
@@ -44,9 +47,16 @@ import {
   POLICY_NOT_EFFECTIVE,
   type ContextBuilderPolicyPort,
   type ContextSourceSliceReadPort,
+  type InitialContextBuildPorts,
+  type InitialContextDraftReadDecision,
 } from './initial-context-build.js';
 import { EXECUTION_CONTEXT_SOURCE_INVALID } from './initial-context-assembly.js';
-import { API_VALUE_INVALID, DEPENDENCY_UNAVAILABLE } from './work-order-draft-creation.js';
+import {
+  API_VALUE_INVALID,
+  AUTHORIZATION_DECISION_INVALID,
+  DEPENDENCY_UNAVAILABLE,
+} from './work-order-draft-creation.js';
+import { AUTHORIZATION_EXPIRED } from './task-readiness-production.js';
 import {
   AGGREGATE_STATE_NOT_ALLOWED,
   REFERENCE_INVALID,
@@ -83,6 +93,7 @@ const AUTH_DECISION = '019945f7-101a-7000-8000-00000000001a';
 const AUTH_POLICY_SNAPSHOT = '019945f7-101b-7000-8000-00000000001b';
 const CORRELATION = '019945f7-101c-7000-8000-00000000001c';
 const OTHER_PROJECT = '019945f7-101d-7000-8000-00000000001d';
+const DRAFT_READ_DECISION = '019945f7-101e-7000-8000-00000000001e';
 
 const PURPOSE = 'document.write';
 const COMMIT_AT = new Date('2026-09-19T08:15:30.123Z');
@@ -316,6 +327,10 @@ class BuildHarness {
   sliceThrows = false;
   policyStatus: 'USABLE' | 'NOT_YET_EFFECTIVE' | 'SUPERSEDED' | 'REVOKED' = 'USABLE';
   policyThrows = false;
+  /** When set, replaces the default §20.2 DRAFT dependency-read proof. */
+  draftReadOverride: InitialContextDraftReadDecision | undefined;
+  /** When true, the ports carry no DRAFT dependency-read proof at all. */
+  withholdDraftRead = false;
   readonly draftHash: Buffer;
   readonly draftPayload: Record<string, unknown>;
 
@@ -521,11 +536,42 @@ class BuildHarness {
   ): Promise<CommandResult> {
     const base = this.envelope(requestPayload);
     const envelope = envelopePatch === undefined ? base : envelopePatch(base);
-    return handleBuildInitialContext(this.db(), this.context(), envelope, {
+    const draftRead = this.withholdDraftRead
+      ? undefined
+      : (this.draftReadOverride ?? this.defaultDraftRead(requestPayload));
+    const ports = {
       slices: this.slicesPort(),
       policy: this.policyPort(),
+      // The §20.2 port member is required; the harness models its absence
+      // explicitly to prove the handler still fails closed.
+      draftRead,
       now: () => COMMIT_AT,
-    });
+    };
+    return handleBuildInitialContext(
+      this.db(),
+      this.context(),
+      envelope,
+      ports as InitialContextBuildPorts,
+    );
+  }
+
+  /**
+   * The default §20.2 proof the composition layer would supply: the exact
+   * `draftSnapshotRef` of the request under test, a well-formed
+   * AuthorizationDecision reference and an expiry past the trusted clock.
+   */
+  defaultDraftRead(requestPayload: CanonicalJsonObject): InitialContextDraftReadDecision {
+    return {
+      draftSnapshotRef: asCanonical(rec(requestPayload.request).draftSnapshotRef),
+      authorizationDecisionRef: asCanonical({
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'identity.authorization_decision',
+        objectId: DRAFT_READ_DECISION,
+        scope: { enterpriseId: ENT, projectId: PRJ },
+        contentHash: contentHash('7'),
+      }),
+      expiresAt: '2027-06-01T00:00:00Z',
+    };
   }
 }
 
@@ -599,8 +645,61 @@ describe('handleBuildInitialContext (§19)', () => {
 
     const outbox = harness.inserts('outbox_event');
     expect(outbox).toHaveLength(1);
-    expect(outbox[0]?.parameters[1]).toBe('execution.ContextSnapshotBuilt');
-    expect(outbox[0]?.parameters[2]).toBe('1.0');
+    const outboxParameters = outbox[0]?.parameters ?? [];
+    expect(outboxParameters[1]).toBe('execution.ContextSnapshotBuilt');
+    expect(outboxParameters[2]).toBe('1.1');
+    expect(outboxParameters[9]).toBe(COMMAND_ID); // no causation: runner falls back to commandId
+    const storedEventPayload = rec(JSON.parse(outboxParameters[10] as string));
+    expect(Object.keys(storedEventPayload).sort()).toEqual([
+      'contextSnapshotRef',
+      'coverageStatus',
+      'enterpriseId',
+      'projectId',
+      'projectionType',
+      'workOrderRef',
+    ]);
+    expect(storedEventPayload.enterpriseId).toBe(ENT);
+    expect(storedEventPayload.projectId).toBe(PRJ);
+    const publicEventPayload = { ...storedEventPayload };
+    delete publicEventPayload.enterpriseId;
+    delete publicEventPayload.projectId;
+    const eventEnvelope = {
+      eventId: outboxParameters[0],
+      eventType: 'execution.ContextSnapshotBuilt',
+      eventVersion: '1.1',
+      producerModule: 'task-execution',
+      aggregateType: CONTEXT_SNAPSHOT_OBJECT_TYPE,
+      aggregateId: TARGET_ID,
+      aggregateVersion: 1,
+      scopeRef: { enterpriseId: ENT, projectId: PRJ },
+      correlationId: CORRELATION,
+      causationId: COMMAND_ID,
+      commandId: COMMAND_ID,
+      actorRef: {
+        kind: 'OBJECT',
+        objectType: 'zhiju.identity.principal',
+        objectId: PRINCIPAL,
+        scope: { enterpriseId: ENT },
+      },
+      occurredAt: COMMIT_AT.toISOString(),
+      dataClassification: 'INTERNAL',
+      payload: publicEventPayload,
+      integrity: {
+        canonicalizationVersion: '1',
+        payloadHash: {
+          algorithm: 'SHA-256',
+          digest: digestCanonicalPayload(asCanonical(publicEventPayload)).hash.toString('hex'),
+          canonicalizationVersion: '1',
+        },
+      },
+    };
+    const eventValidation = new ContractRegistry().validateOperation(
+      'execution.ContextSnapshotBuilt',
+      '1.1',
+      eventEnvelope,
+    );
+    expect(eventValidation.errors).toEqual([]);
+    expect(eventValidation.valid).toBe(true);
 
     const audit = harness.inserts('audit_record');
     expect(audit).toHaveLength(1);
@@ -631,6 +730,7 @@ describe('handleBuildInitialContext (§19)', () => {
     expect(result.originalOutcome).toBe('COMMITTED');
     expect(result.resultPayload).toEqual({ data: { echoed: true } });
     expect(harness.inserts('context_snapshot')).toHaveLength(0);
+    expect(harness.inserts('outbox_event')).toHaveLength(0); // §20.3: replay appends nothing
   });
 
   it('throws COMMAND_TARGET_MISMATCH for the unsatisfiable @1.0 version', async () => {
@@ -792,5 +892,59 @@ describe('handleBuildInitialContext (§19)', () => {
     const harness = new BuildHarness();
     harness.snapshotInsertSucceeds = false;
     expectRejected(await harness.run(), CONCURRENCY_CONFLICT);
+    expect(harness.inserts('outbox_event')).toHaveLength(0);
+  });
+
+  it('fails closed before any claim when the DRAFT dependency-read proof is missing (§20.2)', async () => {
+    const harness = new BuildHarness();
+    harness.withholdDraftRead = true;
+    await expectCommandError(harness.run(), AUTHORIZATION_DECISION_INVALID);
+    expect(harness.executed).toHaveLength(0);
+  });
+
+  it('fails closed before any claim when the proof names another draft snapshot id (§20.2)', async () => {
+    const harness = new BuildHarness();
+    const proof = harness.defaultDraftRead(harness.requestPayload());
+    harness.draftReadOverride = {
+      ...proof,
+      draftSnapshotRef: asCanonical({ ...rec(proof.draftSnapshotRef), objectId: TARGET_ID }),
+    };
+    await expectCommandError(harness.run(), AUTHORIZATION_DECISION_INVALID);
+    expect(harness.executed).toHaveLength(0);
+  });
+
+  it('fails closed before any claim when the proof names another draft content hash (§20.2)', async () => {
+    const harness = new BuildHarness();
+    const proof = harness.defaultDraftRead(harness.requestPayload());
+    harness.draftReadOverride = {
+      ...proof,
+      draftSnapshotRef: asCanonical({
+        ...rec(proof.draftSnapshotRef),
+        contentHash: contentHash('8'),
+      }),
+    };
+    await expectCommandError(harness.run(), AUTHORIZATION_DECISION_INVALID);
+    expect(harness.executed).toHaveLength(0);
+  });
+
+  it('fails closed before any claim when the DRAFT dependency-read authorization has expired (§20.2)', async () => {
+    const harness = new BuildHarness();
+    harness.draftReadOverride = {
+      ...harness.defaultDraftRead(harness.requestPayload()),
+      expiresAt: '2026-01-01T00:00:00Z',
+    };
+    await expectCommandError(harness.run(), AUTHORIZATION_EXPIRED);
+    expect(harness.executed).toHaveLength(0);
+  });
+
+  it('rejects the build with zero inserts when the event envelope cannot close (§20.3)', async () => {
+    const harness = new BuildHarness();
+    const result = await harness.run(undefined, (envelope) => ({
+      ...envelope,
+      causationId: 'not-a-uuid',
+    }));
+    expectRejected(result, REFERENCE_INVALID);
+    expect(harness.inserts('context_snapshot')).toHaveLength(0);
+    expect(harness.inserts('outbox_event')).toHaveLength(0);
   });
 });

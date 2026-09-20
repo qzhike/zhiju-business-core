@@ -283,23 +283,23 @@ function instantMilliseconds(value: string): number | undefined {
 }
 
 /**
- * §19.4 item 7: the deterministic RFC 9562 UUIDv7 of one mapped fact. Bits
- * 0-47 are the real Unix milliseconds of this build's `asOf`; the version
- * nibble is fixed to 7, the variant to [89ab], and `rand_a`/`rand_b` are the
- * leading digest bits of
- * `SHA-256(canonical_cv1(factItem) ‖ slice snapshotId ‖ in-slice index)`
+ * §19.4 item 7, with the digest input wording fixed by §20.4: the
+ * deterministic RFC 9562 UUIDv7 of one mapped fact. Bits 0-47 are the real
+ * Unix milliseconds of this build's `asOf`; the version nibble is fixed to 7,
+ * the variant to [89ab], and `rand_a`/`rand_b` are the leading digest bits of
+ * `SHA-256(canonical_cv1(factItem) ‖ sliceRef.objectId ‖ in-slice index)`
  * (UTF-8 byte concatenation without separators - the design fixes the
  * concatenation order, and this slice is the only producer).
  */
 function deriveContextItemId(
   asOfMilliseconds: number,
   factItemCanonical: string,
-  sliceSnapshotId: string,
+  sliceObjectId: string,
   inSliceIndex: number,
 ): string {
   const digest = createHash('sha256')
     .update(factItemCanonical, 'utf8')
-    .update(sliceSnapshotId, 'utf8')
+    .update(sliceObjectId, 'utf8')
     .update(String(inSliceIndex), 'utf8')
     .digest();
   const bytes = Buffer.alloc(16);
@@ -323,14 +323,33 @@ interface SortedSlice {
   readonly ref: CanonicalJsonObject;
   readonly refCanonical: string;
   readonly refObjectId: string;
+  /** The §20.4 total-order key, compared member by member. */
+  readonly tuple: readonly string[];
   readonly slice: Record<string, unknown>;
 }
 
+/** Member-by-member UTF-8 byte-order comparison of two §20.4 order keys. */
+function compareSliceTuples(left: readonly string[], right: readonly string[]): number {
+  const width = Math.min(left.length, right.length);
+  for (let index = 0; index < width; index += 1) {
+    const byMember = compareCanonical(left[index] ?? '', right[index] ?? '');
+    if (byMember !== 0) return byMember;
+  }
+  return left.length - right.length;
+}
+
 /**
- * §19.4 item 1: sort by `(objectType, objectId, snapshotId)` with the full
- * canonical string as the final tiebreak (a CONTENT_ADDRESSED ref carries no
- * `snapshotId`, so the content address itself orders same-object refs), and
- * reject exact duplicates. Request-array permutations cannot change the result.
+ * §20.4 (superseding the §19.4 item 1 `(objectType, objectId, snapshotId)`
+ * tuple, which does not exist on a CONTENT_ADDRESSED ref): sort by the total
+ * order `(objectType, objectId, immutableVersionId-or-empty,
+ * contentHash.algorithm, contentHash.canonicalizationVersion,
+ * contentHash.digest, canonical_cv1(scope))`, each member compared in
+ * canonical UTF-8 byte order with objectType/objectId deciding before any
+ * hash member. The full `canonical_cv1(ref)` is only the exact-ref
+ * consistency assertion when the whole tuple is equal: identical refs are a
+ * duplicate and different refs with an equal tuple are inconsistent; both
+ * fail closed with the same code, and no unranked-member tiebreak is
+ * invented. Request-array permutations cannot change the result.
  */
 function sortSlices(
   entries: readonly InitialContextAssemblySlice[],
@@ -341,11 +360,22 @@ function sortSlices(
     const refCanonical = canonicalString(entry.ref);
     const objectType = ref.objectType;
     const objectId = ref.objectId;
+    const immutableVersionId = ref.immutableVersionId;
+    const contentHash = record(ref.contentHash);
+    const hashAlgorithm = contentHash.algorithm;
+    const hashCanonicalizationVersion = contentHash.canonicalizationVersion;
+    const hashDigest = contentHash.digest;
+    const scopeCanonical = canonicalString(ref.scope);
     if (
       ref.kind !== 'CONTENT_ADDRESSED' ||
       objectType !== CONTEXT_SOURCE_SLICE_OBJECT_TYPE ||
       typeof objectId !== 'string' ||
       !isUuidV7(objectId) ||
+      (immutableVersionId !== undefined && typeof immutableVersionId !== 'string') ||
+      typeof hashAlgorithm !== 'string' ||
+      typeof hashCanonicalizationVersion !== 'string' ||
+      typeof hashDigest !== 'string' ||
+      scopeCanonical === undefined ||
       refCanonical === undefined
     ) {
       return undefined;
@@ -354,17 +384,30 @@ function sortSlices(
       ref: entry.ref,
       refCanonical,
       refObjectId: objectId,
+      tuple: [
+        objectType,
+        objectId,
+        immutableVersionId ?? '',
+        hashAlgorithm,
+        hashCanonicalizationVersion,
+        hashDigest,
+        scopeCanonical,
+      ],
       slice: record(entry.slice),
     });
   }
   if (sorted.length === 0) return undefined;
-  sorted.sort((left, right) => {
-    const byRef = compareCanonical(left.refCanonical, right.refCanonical);
-    if (byRef !== 0) return byRef;
-    return 0;
-  });
+  sorted.sort((left, right) => compareSliceTuples(left.tuple, right.tuple));
   for (let index = 1; index < sorted.length; index += 1) {
-    if (sorted[index]?.refCanonical === sorted[index - 1]?.refCanonical) return undefined;
+    const current = sorted[index];
+    const previous = sorted[index - 1];
+    if (
+      current !== undefined &&
+      previous !== undefined &&
+      compareSliceTuples(current.tuple, previous.tuple) === 0
+    ) {
+      return undefined;
+    }
   }
   return sorted;
 }
@@ -473,7 +516,8 @@ export function assembleInitialContext(
     return rejected(API_VALUE_INVALID, 'the assembly instant must be an exact UtcInstant');
   }
 
-  // §19.4 item 1: closed sort + duplicate rejection of the exact slice refs.
+  // §20.4 (superseding §19.4 item 1): total-order sort + fail-closed
+  // rejection of duplicate or tuple-colliding exact slice refs.
   const sorted = sortSlices(input.slices);
   if (sorted === undefined) {
     return rejected(

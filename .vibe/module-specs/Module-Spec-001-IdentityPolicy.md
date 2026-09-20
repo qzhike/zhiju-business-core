@@ -681,7 +681,7 @@ TaskExecution 把 `INVALID` 收敛为公开共享码 `HUMAN_ONLY_CAPABILITY`（[
 
 ### 15.8 IM06-CTXBUILD-01 首次 Context 构建与权威快照读取授权组成提案（#214）
 
-状态：`T2 / DESIGN APPROVED 2026-09-18（Issue #214；exact design revision `d0d060fbacb98a6e9fdac1d098792a6222de4cff` 经七轮独立审查并获显式人类设计批准，PR [#215](https://github.com/qzhike/zhiju-business-core/pull/215) 已合并；正式记录见 [reviews/pr-215/Review.md](../reviews/pr-215/Review.md)）/ IMPLEMENTED 2026-09-19 BY Issue #216（Port、两条授权条目、错误三联与 DENIED Audit；38 项单元测试、模块 178/178 通过；组成层接线完成）/ vibe verify full PASS 2026-09-19 / PR #217 INDEPENDENT IMPLEMENTATION REVIEW `PLANNING_REQUIRED` ON `bce56af9007e70ee79e46bcc90d49dd0fc5b35f5` / HUMAN TECHNICAL REVIEW NOT REACHED`。本节保留 #214 的历史授权设计；PR #217 证明其中“构建期依赖读取独立授权”没有对 WorkOrder DRAFT snapshot 形成可执行的 exact-target Port，修正候选见 §15.9。字段级语义、版本绑定与可满足性判定见 [Spec 003 §19](../module-specs/Module-Spec-003-TaskExecution.md#19-首次-context-构建与精确快照读取边界闭合214-设计)；在 §15.9 获批并实现前，本节不得单独作为当前 build 路径授权充分性的证据。
+状态：`T2 / DESIGN APPROVED 2026-09-18（Issue #214；exact design revision `d0d060fbacb98a6e9fdac1d098792a6222de4cff` 经七轮独立审查并获显式人类设计批准，PR [#215](https://github.com/qzhike/zhiju-business-core/pull/215) 已合并；正式记录见 [reviews/pr-215/Review.md](../reviews/pr-215/Review.md)）/ IMPLEMENTED 2026-09-19 BY Issue #216（Port、两条授权条目、错误三联与 DENIED Audit；38 项单元测试、模块 178/178 通过；组成层接线完成）/ vibe verify full PASS 2026-09-19 / PR #217 CORRECTION IMPLEMENTED 2026-09-20 BY §15.9（新 verify full PASS 2026-09-20；新 head 独立复审与 HUMAN TECHNICAL REVIEW PENDING）`。本节保留 #214 的历史授权设计；PR #217 证明其中“构建期依赖读取独立授权”没有对 WorkOrder DRAFT snapshot 形成可执行的 exact-target Port，该阻断已由 §15.9 修正实现（2026-09-20）。字段级语义、版本绑定与可满足性判定见 [Spec 003 §19](../module-specs/Module-Spec-003-TaskExecution.md#19-首次-context-构建与精确快照读取边界闭合214-设计)；本节与 §15.9 共同构成当前 build 路径授权证据，PR #217 新 head 复审完成前不作为已审查事实。
 
 | operation/version | Purpose | Grant action | selector 类型与 target 闭集 | 受信 capability config key |
 |---|---|---|---|---|
@@ -700,7 +700,7 @@ TaskExecution 把 `INVALID` 收敛为公开共享码 `HUMAN_ONLY_CAPABILITY`（[
 
 ### 15.9 IM06-CTXBUILD-02 DRAFT Snapshot 依赖读取授权修正提案（#217）
 
-状态：`T2 / PROPOSED 2026-09-19 / PR #217 REVIEW = PLANNING_REQUIRED / EXPLICIT HUMAN DESIGN APPROVAL RECORDED 2026-09-19 / PENDING INDEPENDENT DESIGN REVIEW / PORT NOT IMPLEMENTED`。本节精确修正 §15.8 第 5 条“复用 `workOrderDraftReadV11`”的不可执行部分；公开 `execution.get_work_order_draft@1.1` 的现有条目、Schema、Purpose 与 target 闭集不变。
+状态：`T2 / DESIGN APPROVED 2026-09-19（PR #217 REVIEW = PLANNING_REQUIRED；显式人类设计批准 2026-09-19；独立设计复审于 PR #217 第 3 轮确认一致性）/ IMPLEMENTED 2026-09-20（Port、绑定表、Decision 完整 ref 绑定与组成层 fail-closed 顺序；IdentityPolicy 模块 216/216、组成层 23/23 通过）/ vibe verify full PASS 2026-09-20 / PR #217 新 head 独立复审与 HUMAN TECHNICAL REVIEW PENDING（不声称审查结论或合并）`。本节精确修正 §15.8 第 5 条“复用 `workOrderDraftReadV11`”的不可执行部分；公开 `execution.get_work_order_draft@1.1` 的现有条目、Schema、Purpose 与 target 闭集不变。
 
 | consumer / dependency | Purpose | Grant action | selector 与 target 闭集 | 受信 capability config key |
 |---|---|---|---|---|
@@ -711,5 +711,7 @@ TaskExecution 把 `INVALID` 收敛为公开共享码 `HUMAN_ONLY_CAPABILITY`（[
 3. **顺序**：build Decision 当前重验 → DRAFT dependency Decision 签发并立即重验 → TaskExecution DRAFT fact read/lock → Slice/Policy 各自授权读取 → 幂等 Claim/历史 Receipt 处理与 owning transaction。任何缺失、撤销、过期、配置漂移、target/hash/Scope 替换或依赖不可用都必须在 DRAFT fact 读取前 fail closed，只写脱敏 `DENIED` Audit，不签发可用 Decision。
 4. **能力隔离**：`contextSnapshotBuildV11` 不覆盖本条目；调用方过去持有的 `workOrderDraftReadV11` Decision 或曾成功取得 ref 不覆盖本次依赖读；本条目也不授权公开 `get_work_order_draft` Query、Slice、Policy 或 Snapshot read。
 5. **范围**：不新增公开 operation、capability code 或 IdentityPolicy migration；新增受信 config key/action 与 owning internal Port。若部署未配置该 key，构建 fail closed `IDENTITY_CONTEXT_SNAPSHOT_CAPABILITY_CONFIG_INVALID`，不得回退到 build capability 或历史 Decision。
-
 验收至少覆盖：独立 ALLOW；build ALLOW + DRAFT Grant 缺失；Grant 在签发后撤销；Decision 过期；配置漂移；ref objectId/hash/Scope 替换；合法 DRAFT Decision 不覆盖另一 snapshot；在全部拒绝分支中 TaskExecution DRAFT repository 调用计数为 0、Receipt/Snapshot/metadata/Edge/Outbox 为 0。
+
+**实现事实（#217 修正，2026-09-20）**：`modules/identity-policy/src/commands/context-snapshot-draft-read-authorization.ts` 交付 `createContextSnapshotDraftReadAuthorizationPort` 与闭集绑定表 `CONTEXT_SNAPSHOT_DRAFT_READ_BINDINGS`（Purpose `execution.work_order.draft.read`、action `execution.work_order.draft_snapshot.read.for_context_build.v1_1`、`TARGET_TYPE` 闭集 `{zhiju.execution.work_order_draft_snapshot}`、config key `contextSnapshotDraftReadV11`）。**解释决定**：canonical Decision payload 把完整 `draftSnapshotRef` ContentAddressedRef 作为独立成员保存；V1006 promoted targetRef 列保持 OBJECT 镜像形状——应用层 `validateAuthorizationDecisionMirror` 要求 `kind==='OBJECT'`，故不把 ContentAddressedRef 写入 promoted 列。组成层顺序按本节第 3 条：build Decision 当前重验 → DRAFT dependency Decision 签发并立即重验 → Handler（DRAFT 读/锁、Slice/Policy 现签、幂等）；Handler 要求出示证明（`InitialContextDraftReadDecision`），缺失/替换/过期时在任何 repository 读取前 fail closed。公开 `execution.get_work_order_draft@1.1` 的条目、Schema、Purpose 与 target 闭集不变；无公开 operation、capability code 或 IdentityPolicy migration。IdentityPolicy 模块测试 216/216；组成层测试 23/23（含 deny 分支 DRAFT repository 调用数为 0）；真实 PostgreSQL 验收见 Module-Test 003 `TE-217-D-002`。`vibe verify full --json` 已 PASS（2026-09-20，门禁细节见 Spec 003 §20.6）；PR #217 新 head 独立复审与人类技术批准待完成。
+

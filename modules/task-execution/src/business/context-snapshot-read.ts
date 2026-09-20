@@ -8,12 +8,13 @@
 // another, so an uncommitted ref or a replay with a foreign Hash is a
 // `REFERENCE_INVALID`, never a partial success (§19.2 item 3, TE-214-D-014).
 //
-// Only the canonical `zhiju.execution.context_snapshot` spelling can close
-// against this store: the V3004 table holds no object-type column because no
-// row of any other spelling can exist in it, and the legacy
-// `zhiju.project.context_snapshot` is Core v1.0 readback history this entry
-// never produced (§19.2 item 1). A legacy or otherwise foreign objectType is
-// therefore refused before any lookup, exactly like an uncommitted identity.
+// Two non-substitutable owning stores serve the read (§20.1): the requested
+// objectType routes to exactly one of them - the canonical
+// `zhiju.execution.context_snapshot` spelling reads `context_snapshot`, the
+// legacy `zhiju.project.context_snapshot` spelling reads the import-only
+// `context_snapshot_legacy` compatibility store. Any other spelling is
+// refused before any lookup, and a miss in one store never falls through to
+// the other.
 //
 // This path writes nothing: no Receipt, no Audit, no Edge, no Outbox row. The
 // read authorization is revalidated by the composition entry through the
@@ -25,8 +26,10 @@ import type { Kysely } from 'kysely';
 import {
   ContractRegistry,
   contextSnapshotObjectType,
+  legacyContextSnapshotObjectType,
   readSnapshotRef,
   validateContextSnapshotReadBinding,
+  type SnapshotRefParts,
   type SnapshotRefReadError,
 } from '@zhiju/contracts';
 import {
@@ -35,6 +38,7 @@ import {
   withTaskExecutionTransaction,
   type CanonicalPayloadDigest,
   type TaskExecutionDb,
+  type TaskExecutionTransaction,
   type TaskExecutionTransactionContext,
 } from '../persistence/task-execution-db.js';
 import { ContextSnapshotRepository } from '../persistence/context-snapshot-repository.js';
@@ -72,6 +76,85 @@ function reject(errorCode: string, safeSummary: string): GetContextSnapshotResul
   return { status: 'REJECTED', errorCode, safeSummary };
 }
 
+/**
+ * §20.1 route 2: the legacy read closes against the import-only
+ * `context_snapshot_legacy` store with the same field-by-field posture as the
+ * canonical route - exact identity, Project Scope, the complete contentHash
+ * triple and the cv1 recompute of the stored payload. The historical contract
+ * body and its reference are returned from their own stored columns verbatim;
+ * they are never rebuilt, extended or re-spelled into the canonical identity.
+ */
+async function readLegacyContextSnapshot(
+  trx: TaskExecutionTransaction,
+  repository: ContextSnapshotRepository,
+  payload: Record<string, unknown>,
+  ref: SnapshotRefParts,
+): Promise<GetContextSnapshotResult> {
+  const row = await repository.readContextSnapshotLegacy(trx, {
+    objectId: ref.objectId,
+    snapshotId: ref.snapshotId,
+    payloadHash: Buffer.from(ref.contentHash.digest, 'hex'),
+  });
+  if (
+    row === undefined ||
+    row.enterpriseId !== ref.scope.enterpriseId ||
+    row.projectId !== ref.scope.projectId ||
+    row.payloadHashAlgorithm !== ref.contentHash.algorithm ||
+    row.canonicalizationVersion !== ref.contentHash.canonicalizationVersion
+  ) {
+    return reject(
+      REFERENCE_INVALID,
+      'the Context Snapshot reference does not close against a committed Snapshot of this scope',
+    );
+  }
+  // The content address is recomputed from the stored cv1 bytes, so the
+  // request, the row and the payload are one fact or the read fails.
+  let digest: CanonicalPayloadDigest;
+  try {
+    digest = digestCanonicalPayload(row.canonicalPayload as CanonicalJsonObject);
+  } catch {
+    return reject(
+      REFERENCE_INVALID,
+      'the stored Context payload cannot define its content address',
+    );
+  }
+  if (!digest.hash.equals(row.payloadHash)) {
+    return reject(
+      REFERENCE_INVALID,
+      'the stored Context payload does not match its content address',
+    );
+  }
+  // The stored historical contract body leaves the module only after it
+  // revalidates against the registered ProjectContext v1.0 Core Schema.
+  const validation = new ContractRegistry().validateCoreContract(
+    PROJECT_CONTEXT_CORE_SCHEMA,
+    row.projectContextContract,
+  );
+  if (!validation.valid) {
+    return reject(
+      REFERENCE_INVALID,
+      'the stored Context payload is not a valid ProjectContext v1.0 contract',
+    );
+  }
+
+  const resultPayload: CanonicalJsonObject = {
+    // The returned ref equals the requested one in every field; it is echoed
+    // verbatim, never rebuilt from the row.
+    contextSnapshotRef: payload.contextSnapshotRef as CanonicalJsonObject,
+    projectContextContract: row.projectContextContract as CanonicalJsonObject,
+    contractRef: row.contractRef as CanonicalJsonObject,
+  };
+  if (
+    !validateContextSnapshotReadBinding({
+      payload: { contextSnapshotRef: payload.contextSnapshotRef },
+      data: resultPayload,
+    }).valid
+  ) {
+    return reject(REFERENCE_INVALID, 'the Context Snapshot read result does not close');
+  }
+  return { status: 'FOUND', resultPayload };
+}
+
 export async function handleGetContextSnapshot(
   db: Kysely<TaskExecutionDb>,
   context: TaskExecutionTransactionContext,
@@ -94,14 +177,19 @@ export async function handleGetContextSnapshot(
   if (ref === undefined || refErrors.length > 0) {
     return reject(REFERENCE_INVALID, 'contextSnapshotRef must be a complete SnapshotRef');
   }
-  // §19.2 item 1: the legacy `zhiju.project.context_snapshot` is not
-  // interchangeable with the canonical spelling by object id alone. This store
-  // holds only canonical rows, so a non-canonical spelling - legacy included -
-  // is refused here, before any lookup; the request can never close.
-  if (ref.objectType !== contextSnapshotObjectType) {
+  // §20.1: the requested objectType routes to exactly one of the two
+  // non-substitutable owning stores. The legacy spelling is Core v1.0 readback
+  // history this entry never produced, but it is not refused by spelling
+  // alone: it queries its own import-only store and fails closed on a miss,
+  // exactly like an uncommitted canonical identity. Any other spelling can
+  // never close against either store and is refused before any lookup.
+  if (
+    ref.objectType !== contextSnapshotObjectType &&
+    ref.objectType !== legacyContextSnapshotObjectType
+  ) {
     return reject(
       REFERENCE_INVALID,
-      'contextSnapshotRef objectType must be the canonical Context Snapshot spelling',
+      'contextSnapshotRef objectType must be a registered Context Snapshot spelling',
     );
   }
   if (ref.scope.enterpriseId === undefined || ref.scope.projectId === undefined) {
@@ -116,6 +204,12 @@ export async function handleGetContextSnapshot(
 
   return withTaskExecutionTransaction(db, context, async (trx) => {
     const repository = new ContextSnapshotRepository();
+    // §20.1 route 2: the legacy spelling reads only the import-only
+    // compatibility store; a miss there never falls through to the canonical
+    // table.
+    if (ref.objectType === legacyContextSnapshotObjectType) {
+      return readLegacyContextSnapshot(trx, repository, payload, ref);
+    }
     // The Hash is part of the lookup (§19.2 item 3): a stored payload whose
     // bytes changed can never be returned as the Snapshot the request named.
     const row = await repository.readContextSnapshot(trx, {
@@ -126,7 +220,9 @@ export async function handleGetContextSnapshot(
     if (
       row === undefined ||
       row.enterpriseId !== ref.scope.enterpriseId ||
-      row.projectId !== ref.scope.projectId
+      row.projectId !== ref.scope.projectId ||
+      row.payloadHashAlgorithm !== ref.contentHash.algorithm ||
+      row.canonicalizationVersion !== ref.contentHash.canonicalizationVersion
     ) {
       return reject(
         REFERENCE_INVALID,

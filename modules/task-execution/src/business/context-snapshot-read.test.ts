@@ -1,9 +1,12 @@
 // IM-06 (#216): `execution.get_context_snapshot@1.0` authoritative read tests
-// (Spec 003 §19.2). The same recording in-memory connection stands in for
-// PostgreSQL; the stored Snapshot is the real `assembleInitialContext` output,
-// so the round-trip exercises the real content-address closure and the real
-// Core schema revalidation. The read writes nothing: the suite asserts no
-// mutating statement is ever issued.
+// (Spec 003 §19.2, PR #217 corrections §20.1). The same recording in-memory
+// connection stands in for PostgreSQL; the stored Snapshot is the real
+// `assembleInitialContext` output, so the round-trip exercises the real
+// content-address closure and the real Core schema revalidation. The §20.1
+// legacy route is exercised against a canned `context_snapshot_legacy` row
+// whose historical contract column deliberately differs from the hashed cv1
+// payload. The read writes nothing: the suite asserts no mutating statement
+// is ever issued.
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -15,6 +18,7 @@ import {
   type Driver,
 } from 'kysely';
 import {
+  legacyContextSnapshotObjectType,
   POLICY_PROFILE_REGISTRY_VERSION,
   registeredPolicyProfileReference,
 } from '@zhiju/contracts';
@@ -257,6 +261,8 @@ class ReadHarness {
   readonly payloadHash: Buffer;
   /** The canned Snapshot row; `undefined` simulates an uncommitted identity. */
   row: Record<string, unknown> | undefined;
+  /** The canned legacy compatibility row; `undefined` simulates an empty legacy store. */
+  legacyRow: Record<string, unknown> | undefined;
 
   constructor() {
     this.payload = storedPayload();
@@ -267,8 +273,11 @@ class ReadHarness {
       enterprise_id: ENT,
       project_id: PRJ,
       payload_hash: this.payloadHash,
+      payload_hash_algorithm: 'SHA-256',
+      canonicalization_version: '1',
       canonical_payload: this.payload,
     };
+    this.legacyRow = undefined;
   }
 
   /** The exact six-field SnapshotRef that names the canned row. */
@@ -285,6 +294,11 @@ class ReadHarness {
         canonicalizationVersion: '1',
       },
     };
+  }
+
+  /** The same identity and content address under the legacy spelling (§20.1 route 2). */
+  legacySnapshotRef(): Record<string, unknown> {
+    return { ...this.snapshotRef(), objectType: legacyContextSnapshotObjectType };
   }
 
   context(): TaskExecutionTransactionContext {
@@ -310,6 +324,14 @@ class ReadHarness {
     );
   }
 
+  legacySelects(): RecordedQuery[] {
+    return this.executed.filter(
+      (query) =>
+        query.sql.startsWith('select') &&
+        query.sql.includes('"task_execution"."context_snapshot_legacy"'),
+    );
+  }
+
   mutatingStatements(): RecordedQuery[] {
     return this.executed.filter(
       (query) =>
@@ -332,6 +354,20 @@ class ReadHarness {
           if (row === undefined) return Promise.resolve({ rows: [] });
           // The repository puts the full identity, content Hash included, into
           // the WHERE clause; the canned row answers only to an exact match.
+          const [objectId, snapshotId, payloadHash] = compiledQuery.parameters;
+          const matches =
+            row.object_id === objectId &&
+            row.snapshot_id === snapshotId &&
+            Buffer.isBuffer(payloadHash) &&
+            (row.payload_hash as Buffer).equals(payloadHash);
+          return Promise.resolve({ rows: matches ? [row] : [] });
+        }
+        if (
+          sql.startsWith('select') &&
+          sql.includes('"task_execution"."context_snapshot_legacy"')
+        ) {
+          const row = this.legacyRow;
+          if (row === undefined) return Promise.resolve({ rows: [] });
           const [objectId, snapshotId, payloadHash] = compiledQuery.parameters;
           const matches =
             row.object_id === objectId &&
@@ -388,6 +424,44 @@ function expectRejected(result: GetContextSnapshotResult, errorCode: string): vo
   expect(result.errorCode).toBe(errorCode);
 }
 
+/**
+ * A canned legacy compatibility row of the harness identity. The historical
+ * contract body is a Core-valid payload that deliberately differs from the
+ * hashed cv1 payload (a changed `projection.purpose`), so a FOUND read proves
+ * the stored column is returned verbatim rather than rebuilt; the stored
+ * `contract_ref` carries a placeholder digest no recomputation could produce.
+ */
+function legacyRowFor(
+  harness: ReadHarness,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const contract = rec(JSON.parse(JSON.stringify(harness.payload)));
+  rec(contract.projection).purpose = 'document.review';
+  return {
+    snapshot_id: SNAPSHOT_ID,
+    object_id: TARGET_ID,
+    enterprise_id: ENT,
+    project_id: PRJ,
+    payload_hash: harness.payloadHash,
+    payload_hash_algorithm: 'SHA-256',
+    canonicalization_version: '1',
+    canonical_payload: harness.payload,
+    project_context_contract: contract,
+    contract_ref: {
+      kind: 'CONTENT_ADDRESSED',
+      objectType: 'zhiju.contract.project_context',
+      objectId: SNAPSHOT_ID,
+      scope: { enterpriseId: ENT, projectId: PRJ },
+      contentHash: {
+        algorithm: 'SHA-256',
+        digest: '9'.repeat(64),
+        canonicalizationVersion: '1',
+      },
+    },
+    ...overrides,
+  };
+}
+
 describe('handleGetContextSnapshot (§19.2)', () => {
   it('returns the committed Snapshot verbatim, echoing the requested ref field-for-field', async () => {
     const harness = new ReadHarness();
@@ -435,10 +509,11 @@ describe('handleGetContextSnapshot (§19.2)', () => {
     expectRejected(await harness.run({ contextSnapshotRef: 'not-a-ref' }), REFERENCE_INVALID);
   });
 
-  it('rejects the legacy objectType without any lookup', async () => {
+  it('routes the legacy objectType to its own store and fails closed on a miss', async () => {
     const harness = new ReadHarness();
-    const ref = { ...harness.snapshotRef(), objectType: 'zhiju.project.context_snapshot' };
-    expectRejected(await harness.run({ contextSnapshotRef: ref }), REFERENCE_INVALID);
+    const result = await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() });
+    expectRejected(result, REFERENCE_INVALID);
+    expect(harness.legacySelects()).toHaveLength(1);
     expect(harness.snapshotSelects()).toHaveLength(0);
   });
 
@@ -496,6 +571,18 @@ describe('handleGetContextSnapshot (§19.2)', () => {
     );
   });
 
+  it('rejects a stored row whose hash triple member drifts from the requested ref', async () => {
+    // The ref parser pins the triple to the registered values; the drift that
+    // must fail closed is store-side (§20.1 item 3).
+    const harness = new ReadHarness();
+    harness.row = { ...rec(harness.row), payload_hash_algorithm: 'SHA-512' };
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.snapshotRef() }),
+      REFERENCE_INVALID,
+    );
+    expect(harness.snapshotSelects()).toHaveLength(1);
+  });
+
   it('rejects a stored payload whose bytes no longer match its content address', async () => {
     const harness = new ReadHarness();
     const tampered = { ...rec(harness.payload), purpose: 'tampered' };
@@ -534,5 +621,97 @@ describe('handleGetContextSnapshot (§19.2)', () => {
       canonicalizationVersion: '1',
     };
     expectRejected(await harness.run({ contextSnapshotRef: ref }), REFERENCE_INVALID);
+  });
+});
+
+describe('handleGetContextSnapshot legacy route (§20.1)', () => {
+  it('returns the stored legacy contract body and contract reference verbatim', async () => {
+    const harness = new ReadHarness();
+    const legacyRow = legacyRowFor(harness);
+    harness.legacyRow = legacyRow;
+    const requestRef = harness.legacySnapshotRef();
+    const result = await harness.run({ contextSnapshotRef: requestRef });
+    if (result.status !== 'FOUND') {
+      throw new Error(`expected FOUND, got ${result.status}`);
+    }
+    // The echoed ref equals the request field for field, and the contract is
+    // the stored historical column - not the cv1 payload the hash covers.
+    expect(result.resultPayload.contextSnapshotRef).toEqual(requestRef);
+    expect(result.resultPayload.projectContextContract).toEqual(legacyRow.project_context_contract);
+    expect(result.resultPayload.projectContextContract).not.toEqual(harness.payload);
+    expect(result.resultPayload.contractRef).toEqual(legacyRow.contract_ref);
+    expect(harness.legacySelects()).toHaveLength(1);
+    expect(harness.snapshotSelects()).toHaveLength(0);
+    expect(harness.mutatingStatements()).toHaveLength(0);
+  });
+
+  it('never answers a legacy identity from the canonical store', async () => {
+    // The same object id, snapshot id and hash exist only as a canonical row.
+    const harness = new ReadHarness();
+    const result = await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() });
+    expectRejected(result, REFERENCE_INVALID);
+    expect(harness.legacySelects()).toHaveLength(1);
+    expect(harness.snapshotSelects()).toHaveLength(0);
+  });
+
+  it('never answers a canonical identity from the legacy store', async () => {
+    // The same identity and hash exist only as a legacy row.
+    const harness = new ReadHarness();
+    harness.row = undefined;
+    harness.legacyRow = legacyRowFor(harness);
+    const result = await harness.run({ contextSnapshotRef: harness.snapshotRef() });
+    expectRejected(result, REFERENCE_INVALID);
+    expect(harness.snapshotSelects()).toHaveLength(1);
+    expect(harness.legacySelects()).toHaveLength(0);
+  });
+
+  it('rejects a legacy read whose scope differs from the stored row', async () => {
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, { enterprise_id: OTHER_ID });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose payload bytes no longer match its content address', async () => {
+    const harness = new ReadHarness();
+    const tampered = { ...rec(harness.payload), purpose: 'tampered' };
+    harness.legacyRow = legacyRowFor(harness, { canonical_payload: tampered });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy read whose snapshotId names another snapshot', async () => {
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness);
+    const ref = { ...harness.legacySnapshotRef(), snapshotId: OTHER_ID };
+    expectRejected(await harness.run({ contextSnapshotRef: ref }), REFERENCE_INVALID);
+    expect(harness.legacySelects()).toHaveLength(1);
+  });
+
+  it('rejects a legacy row whose stored hash triple member drifts from the requested ref', async () => {
+    // The ref parser already pins algorithm/canonicalizationVersion to the
+    // registered values, so the drift that must fail closed is store-side.
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, { canonicalization_version: '2' });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+    expect(harness.legacySelects()).toHaveLength(1);
+  });
+
+  it('rejects a legacy row whose stored contract fails the registered Core schema', async () => {
+    const harness = new ReadHarness();
+    const broken = rec(JSON.parse(JSON.stringify(harness.payload)));
+    delete broken.coverage;
+    harness.legacyRow = legacyRowFor(harness, { project_context_contract: broken });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
   });
 });

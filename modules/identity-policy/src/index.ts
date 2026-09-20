@@ -257,6 +257,24 @@ export type {
   TaskExecutionContextSnapshotSelectorType,
 } from './commands/context-snapshot-authorization.js';
 export {
+  createContextSnapshotDraftReadAuthorizationPort,
+  CONTEXT_SNAPSHOT_DRAFT_READ_BINDINGS,
+} from './commands/context-snapshot-draft-read-authorization.js';
+export type {
+  ContextSnapshotDraftReadAuthorizationConfig,
+  ContextSnapshotDraftReadAuthorizationInput,
+  ContextSnapshotDraftReadAuthorizationPort,
+  ContextSnapshotDraftReadAuthorizationView,
+  ContextSnapshotDraftReadBinding,
+  ContextSnapshotDraftReadCapabilityCodes,
+  ContextSnapshotDraftReadCapabilityKey,
+  ContextSnapshotDraftReadDenialReason,
+  ContextSnapshotDraftReadRevalidationFailure,
+  ContextSnapshotDraftReadRevalidationInput,
+  ContextSnapshotDraftReadRevalidationResult,
+  ContextSnapshotDraftReadSelectorType,
+} from './commands/context-snapshot-draft-read-authorization.js';
+export {
   createTaskExecutionCreationCapabilityBoundaryPort,
   TASK_CREATION_CAPABILITY_HUMAN_ONLY,
   IDENTITY_CAPABILITY_BOUNDARY_UNSUPPORTED,

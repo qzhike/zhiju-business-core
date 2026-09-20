@@ -646,6 +646,17 @@ export namespace TaskExecution {
   readonly projectionType: Common.NamespaceCode;
   readonly coverageStatus: Common.NamespaceCode;
 }
+  /** Payload of `execution.ContextSnapshotBuilt` (EVENT). */
+  export type ExecutionContextSnapshotBuiltV11Payload = {
+  readonly contextSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.execution.context_snapshot";
+};
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+};
+  readonly projectionType: Common.ProjectionType;
+  readonly coverageStatus: Common.CoverageCompleteness;
+};
   /** Payload of `execution.RunStarted` (EVENT). */
   export interface ExecutionRunStartedPayload {
   readonly runRef: Common.ObjectRef;

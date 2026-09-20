@@ -1,6 +1,7 @@
 // IM-06 (#216): §19.4 deterministic assembly — golden ProjectContext v1.0
 // against the real ContractRegistry, deterministic identity assertions and the
-// fail-closed branch matrix. Source Slice fixtures replicate the
+// fail-closed branch matrix; the Source Slice ordering follows the §20.4
+// total order (PR #217 corrections). Source Slice fixtures replicate the
 // EnterpriseProject-published `canonicalSourceSlice` output byte-shape
 // (type-matched fixtures: no cross-module imports; the legacy `EnterpriseFact`
 // spelling inside `factItems` is exactly what the owning module publishes).
@@ -53,6 +54,8 @@ const FACT_A2_OBJECT = '019945f7-0012-7000-8000-000000000012';
 const FACT_A2_VERSION = '019945f7-0013-7000-8000-000000000013';
 const FACT_B1_OBJECT = '019945f7-0014-7000-8000-000000000014';
 const FACT_B1_VERSION = '019945f7-0015-7000-8000-000000000015';
+const FACT_G1_OBJECT = '019945f7-001e-7000-8000-00000000001e';
+const FACT_G1_VERSION = '019945f7-001f-7000-8000-00000000001f';
 const SNAPSHOT_ID = '019945f7-0016-7000-8000-000000000016';
 const PRINCIPAL = '019945f7-0017-7000-8000-000000000017';
 const CORRELATION = '019945f7-0018-7000-8000-000000000018';
@@ -236,6 +239,33 @@ function sliceB(): Record<string, unknown> {
         partition: PRJ,
         sequence: 42,
         observedAt: '2026-09-18T11:00:00Z',
+      },
+    },
+  };
+}
+
+function sliceGamma(): Record<string, unknown> {
+  return {
+    sliceId: SLICE_GAMMA,
+    scopeRef: { enterpriseId: ENT, projectId: PRJ },
+    projectRef: projectRef(),
+    purpose: PURPOSE,
+    audience: { ...AUDIENCE },
+    capturePolicyRef: capturePolicyRef(),
+    capturedAt: '2026-09-18T12:00:00Z',
+    validUntil: '2026-11-01T00:00:00Z',
+    source: {
+      projectRef: projectRef(),
+      enterpriseProfileSnapshotRef: enterpriseProfileSnapshotRef(),
+      qmsConfigurationRef: qmsConfigurationRef(),
+      factItems: [factItem(FACT_G1_OBJECT, FACT_G1_VERSION, 'CONFIRMED', 'LOW')],
+      omissions: [],
+      redactions: [],
+      sourceWatermark: {
+        sourceModule: 'enterprise_project',
+        partition: PRJ,
+        sequence: 43,
+        observedAt: '2026-09-18T12:00:00Z',
       },
     },
   };
@@ -610,6 +640,112 @@ describe('assembleInitialContext (§19.4)', () => {
     ).toBe(true);
   });
 
+  it('orders slices by the §20.4 total order (objectId decides before the content hash)', () => {
+    // Slice A carries digest 'f...' and slice B digest '0...': the historical
+    // canonical-string order would place B first, but the §20.4 tuple compares
+    // objectType/objectId before any hash member, so A stays ahead of B.
+    const base = validInput();
+    const input: InitialContextAssemblyInput = {
+      ...base,
+      slices: [
+        { ref: asCanonical(sliceRef(SLICE_A, 'f')), slice: asCanonical(sliceA()) },
+        { ref: asCanonical(sliceRef(SLICE_B, '0')), slice: asCanonical(sliceB()) },
+      ],
+      draft: {
+        ...base.draft,
+        draft: {
+          ...base.draft.draft,
+          inputRefs: [
+            inputRef('source.primary', sliceRef(SLICE_A, 'f'), {
+              required: true,
+              integrityRequired: true,
+            }),
+            inputRef('source.secondary', sliceRef(SLICE_B, '0'), {
+              epistemicExpectation: 'DISPUTED',
+            }),
+          ],
+        },
+      },
+    };
+    const { payload, metadata } = expectAssembled(assembleInitialContext(input));
+    expect(recArray(metadata.sliceRefs).map((ref) => rec(ref).objectId)).toEqual([
+      SLICE_A,
+      SLICE_B,
+    ]);
+    expect(recArray(payload.contextItems).map((item) => rec(item.subjectRef).objectId)).toEqual([
+      FACT_A1_OBJECT,
+      FACT_A2_OBJECT,
+      FACT_B1_OBJECT,
+    ]);
+
+    const rerun = expectAssembled(
+      assembleInitialContext({ ...input, slices: [...input.slices].reverse() }),
+    );
+    expect(
+      digestCanonicalPayload(rerun.payload).hash.equals(digestCanonicalPayload(payload).hash),
+    ).toBe(true);
+    expect(
+      digestCanonicalPayload(rerun.metadata).hash.equals(digestCanonicalPayload(metadata).hash),
+    ).toBe(true);
+  });
+
+  it('produces identical payload and metadata across all permutations of three slices', () => {
+    const base = validInput();
+    const slices = [
+      { ref: asCanonical(sliceRef(SLICE_A, 'a')), slice: asCanonical(sliceA()) },
+      { ref: asCanonical(sliceRef(SLICE_B, 'b')), slice: asCanonical(sliceB()) },
+      { ref: asCanonical(sliceRef(SLICE_GAMMA, 'c')), slice: asCanonical(sliceGamma()) },
+    ];
+    const draft = {
+      ...base.draft.draft,
+      inputRefs: [
+        inputRef('source.primary', sliceRef(SLICE_A, 'a'), {
+          required: true,
+          integrityRequired: true,
+        }),
+        inputRef('source.secondary', sliceRef(SLICE_B, 'b'), { epistemicExpectation: 'DISPUTED' }),
+        inputRef('slice.gamma', sliceRef(SLICE_GAMMA, 'c')),
+      ],
+    };
+    const permutations = [
+      [0, 1, 2],
+      [0, 2, 1],
+      [1, 0, 2],
+      [1, 2, 0],
+      [2, 0, 1],
+      [2, 1, 0],
+    ] as const;
+    let baselinePayloadHash: Buffer | undefined;
+    let baselineMetadataHash: Buffer | undefined;
+    for (const order of permutations) {
+      const input: InitialContextAssemblyInput = {
+        ...base,
+        slices: order.map((index) => {
+          const entry = slices[index];
+          if (entry === undefined) throw new Error(`bad permutation index ${index}`);
+          return entry;
+        }),
+        draft: { ...base.draft, draft },
+      };
+      const { payload, metadata } = expectAssembled(assembleInitialContext(input));
+      const payloadHash = digestCanonicalPayload(payload).hash;
+      const metadataHash = digestCanonicalPayload(metadata).hash;
+      if (baselinePayloadHash === undefined || baselineMetadataHash === undefined) {
+        baselinePayloadHash = payloadHash;
+        baselineMetadataHash = metadataHash;
+        // The tuple order follows objectId: A, B, gamma.
+        expect(recArray(metadata.sliceRefs).map((ref) => rec(ref).objectId)).toEqual([
+          SLICE_A,
+          SLICE_B,
+          SLICE_GAMMA,
+        ]);
+      } else {
+        expect(payloadHash.equals(baselinePayloadHash)).toBe(true);
+        expect(metadataHash.equals(baselineMetadataHash)).toBe(true);
+      }
+    }
+  });
+
   it('honours a declared request expiry as the effective expiry', () => {
     const base = validInput();
     const { payload, metadata } = expectAssembled(
@@ -682,6 +818,23 @@ describe('assembleInitialContext (§19.4)', () => {
     if (first === undefined) throw new Error('fixture slices missing');
     expectRejected(
       assembleInitialContext({ ...input, slices: [first, first] }),
+      EXECUTION_CONTEXT_SOURCE_INVALID,
+    );
+  });
+
+  it('rejects two slice refs whose §20.4 tuple collides under different exact refs', () => {
+    // Same tuple members, but the second ref carries an extra member: the full
+    // `canonical_cv1(ref)` differs, so the pair is inconsistent rather than a
+    // duplicate - both branches fail closed with the same code.
+    const input = validInput();
+    const first = input.slices[0];
+    if (first === undefined) throw new Error('fixture slices missing');
+    const colliding = { ...sliceRef(SLICE_A, 'a'), note: 'x' };
+    expectRejected(
+      assembleInitialContext({
+        ...input,
+        slices: [first, { ref: asCanonical(colliding), slice: first.slice }],
+      }),
       EXECUTION_CONTEXT_SOURCE_INVALID,
     );
   });

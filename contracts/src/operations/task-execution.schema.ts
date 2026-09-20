@@ -1337,6 +1337,19 @@ const versionedOperationSchemas: readonly VersionedOperationContractSchema[] = [
     }),
     result: localRef('initialContextCommandResult'),
   },
+  {
+    // #217 additive correction: the frozen `@1.0` event keeps its historical
+    // NamespaceCode fields; `@1.1` carries the exact snapshot/work-order refs
+    // and the shared Core enums, with scope carried only by the envelope.
+    type: 'execution.ContextSnapshotBuilt',
+    version: '1.1',
+    payload: object(['contextSnapshotRef', 'workOrderRef', 'projectionType', 'coverageStatus'], {
+      contextSnapshotRef: exactObjectType(snapshotReference, 'zhiju.execution.context_snapshot'),
+      workOrderRef: workOrderObjectReference,
+      projectionType: { $ref: `${common}projectionType` },
+      coverageStatus: { $ref: `${common}coverageCompleteness` },
+    }),
+  },
 ];
 
 const operationDefinitions = Object.fromEntries(

@@ -44,6 +44,8 @@ import {
   AUTHORIZATION_EXPIRED,
   AUTHORIZATION_REVOKED,
   DEPENDENCY_UNAVAILABLE,
+  IDENTITY_CONTEXT_SNAPSHOT_CAPABILITY_CONFIG_INVALID,
+  WORK_ORDER_DRAFT_READ_PURPOSE,
   createTaskExecutionContextSnapshotAuthorizationPort,
   type AuthorizationDecisionInsert,
   type IdentityCommandDeps,
@@ -67,6 +69,7 @@ import {
 } from '@zhiju/task-execution';
 import {
   createInitialContextEntry,
+  type InitialContextCapabilityCodes,
   type InitialContextEntry,
   type InitialContextSession,
 } from './initial-context-entry.js';
@@ -109,6 +112,10 @@ const BOOTSTRAP_DECISION = '019945f7-1025-7000-8000-000000000025';
 const SNAPSHOT_ID = '019945f7-1030-7000-8000-000000000030';
 const PRODUCT_SCOPE_OBJECT = '019945f7-1031-7000-8000-000000000031';
 const PRODUCT_SCOPE_SNAPSHOT = '019945f7-1032-7000-8000-000000000032';
+/** A second DRAFT snapshot identity, only ever substituted into a stored Decision. */
+const DRAFT_SNAPSHOT_B = '019945f7-1040-7000-8000-000000000040';
+/** A foreign Project identity, only ever substituted into a stored Decision. */
+const ALT_PRJ = '019945f7-1041-7000-8000-000000000041';
 
 const PURPOSE = 'document.write';
 const LEGACY_SNAPSHOT_OBJECT_TYPE = 'zhiju.project.context_snapshot';
@@ -117,6 +124,7 @@ const POLICY_EFFECTIVE_FROM = new Date('2026-01-01T00:00:00.000Z');
 /** One capability code per trusted configuration slot, all distinct. */
 const CAP_BUILD = 'execution.context.build.initial';
 const CAP_READ = 'execution.context.snapshot.read';
+const CAP_DRAFT_READ = 'execution.context.draft_read';
 const CAP_RESOLVE = 'identity.policy.resolve';
 const CAP_SLICE = 'project.context_source.read';
 
@@ -500,6 +508,15 @@ function sliceGrant(): Record<string, unknown> {
   return grantRow({ capabilityCode: CAP_SLICE });
 }
 
+/** The Grant covering the §15.9 DRAFT dependency read of the build. */
+function draftReadGrant(): Record<string, unknown> {
+  return grantRow({
+    capabilityCode: CAP_DRAFT_READ,
+    actions: ['execution.work_order.draft_snapshot.read.for_context_build.v1_1'],
+    selectors: [{ selectorType: 'TARGET_TYPE', objectType: WORK_ORDER_DRAFT_SNAPSHOT_OBJECT_TYPE }],
+  });
+}
+
 /**
  * The exact row the owning repository would have stored for one Decision: the
  * promoted columns plus the canonical payload the Port asked it to write.
@@ -655,6 +672,7 @@ class CompositionHarness {
     snapshotReadGrant(CONTEXT_SNAPSHOT_OBJECT_TYPE),
     resolveGrant(),
     sliceGrant(),
+    draftReadGrant(),
   ];
   draftRow: Record<string, unknown> | undefined = {
     snapshot_id: DRAFT_SNAPSHOT,
@@ -681,6 +699,15 @@ class CompositionHarness {
   /** The committed Snapshot row the read path returns, once captured. */
   snapshotRow: Record<string, unknown> | undefined;
   principalStatus: 'ACTIVE' | 'SUSPENDED' = 'ACTIVE';
+  /**
+   * Substitution hook for the §15.9 DRAFT dependency Decision: transforms the
+   * insert the Port asked for before the owning repository "stores" it, so a
+   * test can record a Decision whose stored target disagrees with the request.
+   */
+  tamperDraftDecision:
+    ((insert: AuthorizationDecisionInsert) => AuthorizationDecisionInsert) | undefined;
+  /** Fires once per minted DRAFT dependency Decision, after it was recorded. */
+  onDraftDecisionInserted: (() => void) | undefined;
 
   readonly taskExecutionDb = recordingDb<TaskExecutionDb>(this.teQueries, (sql, parameters) =>
     this.answerTaskExecution(sql, parameters),
@@ -798,8 +825,13 @@ class CompositionHarness {
         );
       },
       insertAuthorizationDecision: (_trx: unknown, insert: AuthorizationDecisionInsert) => {
-        this.decisionInserts.push(insert);
-        this.decisionRows.set(insert.authorizationDecisionId, decisionRow(insert));
+        const recorded =
+          insert.requestedCapability === CAP_DRAFT_READ && this.tamperDraftDecision !== undefined
+            ? this.tamperDraftDecision(insert)
+            : insert;
+        this.decisionInserts.push(recorded);
+        this.decisionRows.set(recorded.authorizationDecisionId, decisionRow(recorded));
+        if (insert.requestedCapability === CAP_DRAFT_READ) this.onDraftDecisionInserted?.();
         return Promise.resolve();
       },
       getPolicyVersionByKey: (_trx: unknown, key: { readonly policyObjectId: string }) =>
@@ -859,12 +891,19 @@ class CompositionHarness {
     return reference;
   }
 
-  entry(now: () => Date = () => this.now): InitialContextEntry {
+  entry(
+    now: () => Date = () => this.now,
+    capabilityCodes: InitialContextCapabilityCodes = {
+      contextSnapshotBuildV11: CAP_BUILD,
+      contextSnapshotRead: CAP_READ,
+      contextSnapshotDraftReadV11: CAP_DRAFT_READ,
+    },
+  ): InitialContextEntry {
     return createInitialContextEntry({
       taskExecutionDb: this.taskExecutionDb,
       enterpriseProjectDb: this.enterpriseProjectDb,
       identity: { db: this.identityDb, repo: this.repo, crypto: testCrypto() },
-      capabilityCodes: { contextSnapshotBuildV11: CAP_BUILD, contextSnapshotRead: CAP_READ },
+      capabilityCodes,
       capabilities: { resolvePolicy: CAP_RESOLVE, readContextSourceSlice: CAP_SLICE },
       now,
     });
@@ -996,10 +1035,13 @@ class CompositionHarness {
       row[name.replaceAll('"', '')] = insert.parameters[index];
     });
     // The insert stringifies the payload for the jsonb column; the pg driver
-    // returns jsonb parsed, so the served row must be parsed back.
+    // returns jsonb parsed, so the served row must be parsed back. And V3004
+    // defaults `canonicalization_version` to '1' on insert — the replay
+    // applies the same default the database would.
     if (typeof row.canonical_payload === 'string') {
       row.canonical_payload = JSON.parse(row.canonical_payload);
     }
+    row.canonicalization_version ??= '1';
     this.snapshotRow = row;
   }
 }
@@ -1090,6 +1132,33 @@ describe('initial context entry: build (§19)', () => {
         (decision) => decision.authorizationDecisionId !== presentedId,
       ),
     ).toBe(true);
+
+    // §15.9(3): the DRAFT dependency read carried its own Decision — minted
+    // for the request's complete draftSnapshotRef under this entry's own
+    // capability, immediately revalidated (the deny branches below close only
+    // through that revalidation), and consumed by the handler as
+    // `ports.draftRead`: the build committed, which requires the proof to
+    // name this exact ref through a current, well-formed Decision reference.
+    const draftDecisions = harness.decisionInserts.filter(
+      (decision) => decision.requestedCapability === CAP_DRAFT_READ,
+    );
+    expect(draftDecisions).toHaveLength(1);
+    const draftDecision = draftDecisions[0];
+    if (draftDecision === undefined) {
+      throw new Error('expected the minted DRAFT dependency Decision');
+    }
+    expect(draftDecision.authorizationDecisionId).not.toBe(presentedId);
+    expect(draftDecision.commandType).toBe(BUILD_INITIAL_CONTEXT_SNAPSHOT_COMMAND);
+    expect(draftDecision.commandVersion).toBe('1.1');
+    expect(draftDecision.purpose).toBe(WORK_ORDER_DRAFT_READ_PURPOSE);
+    expect(draftDecision.targetRef).toEqual({
+      objectType: WORK_ORDER_DRAFT_SNAPSHOT_OBJECT_TYPE,
+      objectId: DRAFT_SNAPSHOT,
+    });
+    expect(rec(draftDecision.decisionPayload).draftSnapshotRef).toEqual(
+      rec(rec(payload).request).draftSnapshotRef,
+    );
+    expect(harness.decisionInserts).toHaveLength(7);
   });
 
   it('refuses the registered-but-unroutable @1.0 build before any Receipt, fact or Decision read', async () => {
@@ -1165,7 +1234,12 @@ describe('initial context entry: build (§19)', () => {
   it('fails closed as DEPENDENCY_UNAVAILABLE when the Policy resolution entry is not authorized', async () => {
     const harness = new CompositionHarness();
     const { payload, decisionRef } = await harness.signedBuild();
-    harness.grants = [buildGrant(), snapshotReadGrant(CONTEXT_SNAPSHOT_OBJECT_TYPE), sliceGrant()];
+    harness.grants = [
+      buildGrant(),
+      snapshotReadGrant(CONTEXT_SNAPSHOT_OBJECT_TYPE),
+      sliceGrant(),
+      draftReadGrant(),
+    ];
     await expectCommandError(
       harness.entry().build(harness.buildEnvelope(payload, decisionRef), harness.session()),
       DEPENDENCY_UNAVAILABLE,
@@ -1179,6 +1253,7 @@ describe('initial context entry: build (§19)', () => {
       buildGrant(),
       snapshotReadGrant(CONTEXT_SNAPSHOT_OBJECT_TYPE),
       resolveGrant(),
+      draftReadGrant(),
     ];
     await expectCommandError(
       harness.entry().build(harness.buildEnvelope(payload, decisionRef), harness.session()),
@@ -1187,11 +1262,11 @@ describe('initial context entry: build (§19)', () => {
   });
 
   it('passes the owning handler draft-dependency rejection through as REFERENCE_INVALID', async () => {
-    // The exact DRAFT dependency read lives inside the owning TaskExecution
-    // transaction (the composition layer cannot name the WorkOrder target of
-    // workOrderDraftReadV11 from the snapshot id the payload carries), so a
-    // draft miss is the owning handler's business rejection, not a boundary
-    // failure — and it happens before any dependency Decision is minted.
+    // The DRAFT dependency-read Decision of §15.9 authorizes the read, but the
+    // DRAFT *fact* read itself lives inside the owning TaskExecution
+    // transaction, so a missing committed DRAFT snapshot is the owning
+    // handler's business rejection, not a boundary failure — after the
+    // presented Decision and the DRAFT dependency Decision were minted.
     const harness = new CompositionHarness();
     const { payload, decisionRef } = await harness.signedBuild();
     harness.draftRow = undefined;
@@ -1199,7 +1274,158 @@ describe('initial context entry: build (§19)', () => {
       await harness.entry().build(harness.buildEnvelope(payload, decisionRef), harness.session()),
       REFERENCE_INVALID,
     );
+    expect(harness.decisionInserts).toHaveLength(2);
+  });
+
+  it('denies the DRAFT dependency read as AUTHORIZATION_REVOKED when no Grant covers it, before the handler runs', async () => {
+    const harness = new CompositionHarness();
+    const { payload, decisionRef } = await harness.signedBuild();
+    harness.grants = [
+      buildGrant(),
+      snapshotReadGrant(CONTEXT_SNAPSHOT_OBJECT_TYPE),
+      resolveGrant(),
+      sliceGrant(),
+    ];
+    await expectBoundaryError(
+      harness.entry().build(harness.buildEnvelope(payload, decisionRef), harness.session()),
+      AUTHORIZATION_REVOKED,
+    );
+    // The handler was never invoked: no TaskExecution statement at all, so the
+    // DRAFT repository was never touched. A denial mints no Decision row.
+    expect(harness.teQueries).toHaveLength(0);
     expect(harness.decisionInserts).toHaveLength(1);
+  });
+
+  it('refuses the build when the DRAFT Grant is revoked after the dependency Decision was issued', async () => {
+    const harness = new CompositionHarness();
+    const { payload, decisionRef } = await harness.signedBuild();
+    harness.onDraftDecisionInserted = () => {
+      harness.grants = harness.grants.filter((grant) => grant.capability_code !== CAP_DRAFT_READ);
+    };
+    await expectBoundaryError(
+      harness.entry().build(harness.buildEnvelope(payload, decisionRef), harness.session()),
+      AUTHORIZATION_REVOKED,
+    );
+    expect(harness.teQueries).toHaveLength(0);
+    expect(harness.decisionInserts).toHaveLength(2);
+  });
+
+  it('refuses the build when the DRAFT dependency Decision has expired before its revalidation', async () => {
+    const harness = new CompositionHarness();
+    const { payload, decisionRef } = await harness.signedBuild();
+    let offset = 0;
+    harness.onDraftDecisionInserted = () => {
+      offset = 301_000;
+    };
+    const clock = (): Date => new Date(harness.now.getTime() + offset);
+    await expectBoundaryError(
+      harness.entry(clock).build(harness.buildEnvelope(payload, decisionRef), harness.session()),
+      AUTHORIZATION_EXPIRED,
+    );
+    expect(harness.teQueries).toHaveLength(0);
+    expect(harness.decisionInserts).toHaveLength(2);
+  });
+
+  it('refuses the build when the trusted DRAFT capability configuration drifts after issuance', async () => {
+    const harness = new CompositionHarness();
+    const { payload, decisionRef } = await harness.signedBuild();
+    const capabilityCodes = {
+      contextSnapshotBuildV11: CAP_BUILD,
+      contextSnapshotRead: CAP_READ,
+      contextSnapshotDraftReadV11: CAP_DRAFT_READ,
+    };
+    harness.onDraftDecisionInserted = () => {
+      capabilityCodes.contextSnapshotDraftReadV11 = 'execution.context.draft_read.drifted';
+    };
+    await expectBoundaryError(
+      harness
+        .entry(() => harness.now, capabilityCodes)
+        .build(harness.buildEnvelope(payload, decisionRef), harness.session()),
+      AUTHORIZATION_REVOKED,
+    );
+    expect(harness.teQueries).toHaveLength(0);
+    expect(harness.decisionInserts).toHaveLength(2);
+  });
+
+  it('fails closed with the owning Port code when the DRAFT capability key is not configured', async () => {
+    // Spec 001 §15.9 rule 5: no fallback to the build capability or to a
+    // historical Decision — the Port's own configuration error surfaces.
+    const harness = new CompositionHarness();
+    const { payload, decisionRef } = await harness.signedBuild();
+    const capabilityCodes = {
+      contextSnapshotBuildV11: CAP_BUILD,
+      contextSnapshotRead: CAP_READ,
+    } as unknown as InitialContextCapabilityCodes;
+    await expectBoundaryError(
+      harness
+        .entry(() => harness.now, capabilityCodes)
+        .build(harness.buildEnvelope(payload, decisionRef), harness.session()),
+      IDENTITY_CONTEXT_SNAPSHOT_CAPABILITY_CONFIG_INVALID,
+    );
+    expect(harness.teQueries).toHaveLength(0);
+    expect(harness.decisionInserts).toHaveLength(1);
+  });
+
+  it('never lets a DRAFT Decision recorded for snapshot B authorize a build naming snapshot A', async () => {
+    const harness = new CompositionHarness();
+    const { payload, decisionRef } = await harness.signedBuild();
+    harness.tamperDraftDecision = (insert) => ({
+      ...insert,
+      targetRef: { objectType: WORK_ORDER_DRAFT_SNAPSHOT_OBJECT_TYPE, objectId: DRAFT_SNAPSHOT_B },
+      decisionPayload: {
+        ...insert.decisionPayload,
+        targetRef: {
+          ...rec(insert.decisionPayload.targetRef),
+          objectId: DRAFT_SNAPSHOT_B,
+        },
+        draftSnapshotRef: {
+          ...rec(insert.decisionPayload.draftSnapshotRef),
+          objectId: DRAFT_SNAPSHOT_B,
+        },
+      },
+    });
+    await expectBoundaryError(
+      harness.entry().build(harness.buildEnvelope(payload, decisionRef), harness.session()),
+      AUTHORIZATION_DECISION_INVALID,
+    );
+    expect(harness.teQueries).toHaveLength(0);
+    expect(harness.decisionInserts).toHaveLength(2);
+  });
+
+  it('refuses a stored DRAFT Decision whose content hash was substituted behind the same snapshot id', async () => {
+    // Spec 001 §15.9 rule 2: the promoted columns still name the requested
+    // snapshot; only the complete reference stored in the canonical payload
+    // can see the substitution, and the field-by-field comparison refuses it.
+    const harness = new CompositionHarness();
+    const { payload, decisionRef } = await harness.signedBuild();
+    harness.tamperDraftDecision = (insert) => ({
+      ...insert,
+      decisionPayload: {
+        ...insert.decisionPayload,
+        draftSnapshotRef: {
+          ...rec(insert.decisionPayload.draftSnapshotRef),
+          contentHash: contentHashOf(Buffer.alloc(32, 0xdd)),
+        },
+      } as CanonicalJsonObject,
+    });
+    await expectBoundaryError(
+      harness.entry().build(harness.buildEnvelope(payload, decisionRef), harness.session()),
+      AUTHORIZATION_DECISION_INVALID,
+    );
+    expect(harness.teQueries).toHaveLength(0);
+    expect(harness.decisionInserts).toHaveLength(2);
+  });
+
+  it('refuses a stored DRAFT Decision whose Project scope was substituted', async () => {
+    const harness = new CompositionHarness();
+    const { payload, decisionRef } = await harness.signedBuild();
+    harness.tamperDraftDecision = (insert) => ({ ...insert, projectId: ALT_PRJ });
+    await expectBoundaryError(
+      harness.entry().build(harness.buildEnvelope(payload, decisionRef), harness.session()),
+      AUTHORIZATION_DECISION_INVALID,
+    );
+    expect(harness.teQueries).toHaveLength(0);
+    expect(harness.decisionInserts).toHaveLength(2);
   });
 });
 

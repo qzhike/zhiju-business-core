@@ -192,7 +192,7 @@ export function assertSliceCompatibilityMetadata(
 interface TaskExecutionRegistration {
   readonly type: string;
   readonly version?: '1.0' | '1.1' | '2.0';
-  readonly kind: 'COMMAND' | 'QUERY';
+  readonly kind: 'COMMAND' | 'QUERY' | 'EVENT';
   readonly owner: string;
   readonly schemaStatus: 'FULL';
   readonly targetObjectType?: string;
@@ -420,6 +420,30 @@ const taskExecutionRegistrations: readonly TaskExecutionRegistration[] = [
       },
     ],
     resultSchemaRef: initialContextResultSchemaRef['1.1'],
+  },
+  {
+    // #217 additive Event correction: `@1.0` stays frozen; `@1.1` carries the
+    // exact refs and the shared Core enums (Spec 003 §20.3).
+    type: 'execution.ContextSnapshotBuilt',
+    version: '1.1',
+    kind: 'EVENT',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    authorizationPurpose: 'task.execution.ContextSnapshotBuilt',
+    dataClassification: 'INTERNAL',
+    references: [
+      {
+        path: '/payload/contextSnapshotRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.execution.context_snapshot',
+      },
+      {
+        path: '/payload/workOrderRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.execution.work_order',
+      },
+    ],
+    resultReferences: [],
   },
 ] as const;
 

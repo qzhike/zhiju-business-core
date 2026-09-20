@@ -1,11 +1,16 @@
 // IM-06 (#216): `execution.build_initial_context_snapshot@1.1`, the initial
-// Context Snapshot build (Spec 003 §19, approved #214 design).
+// Context Snapshot build (Spec 003 §19, approved #214 design; PR #217 review
+// corrections §20.2/§20.3).
 //
 // One owning TaskExecution transaction commits the immutable
 // `context_snapshot` row (the ProjectContext v1.0 Contract Record), its
 // INITIAL `context_snapshot_build` metadata, the Receipt, the safe Audit, the
 // DRAFT/Policy/Slice Reference Edges and the single registered
-// `execution.ContextSnapshotBuilt@1.0` Outbox row. `build_initial_context_snapshot@1.0`
+// `execution.ContextSnapshotBuilt@1.1` Outbox row, whose complete Event
+// envelope is validated against the real ContractRegistry before anything is
+// written (§20.3). The DRAFT dependency read carries its own current
+// authorization proof, revalidated before the runner claims the Receipt
+// (§20.2). `build_initial_context_snapshot@1.0`
 // has no satisfiable input and no owning writer (§19.1): this handler throws
 // `COMMAND_TARGET_MISMATCH` for it, one layer below the authorization entry
 // that already refuses it.
@@ -21,14 +26,23 @@
 // database closes the same facts again through the V3004 mirror and
 // creation-identity guards.
 
-import { isUuidV7, newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import {
+  canonicalize,
+  isUuidV7,
+  newUuidV7,
+  type CanonicalJsonObject,
+  type CanonicalJsonValue,
+} from '@zhiju/shared-kernel';
 import type { Kysely } from 'kysely';
 import {
+  ContractRegistry,
   validateInitialContextCommandResult,
   validateInitialContextExpiryBinding,
 } from '@zhiju/contracts';
 import {
+  CANONICALIZATION_VERSION,
   digestCanonicalPayload,
+  PAYLOAD_HASH_ALGORITHM,
   type TaskExecutionDb,
   type TaskExecutionTransactionContext,
 } from '../persistence/task-execution-db.js';
@@ -43,7 +57,12 @@ import {
 import { WorkOrderDraftRepository } from '../persistence/work-order-draft-repository.js';
 import { CONTEXT_SNAPSHOT_OBJECT_TYPE } from '../persistence/context-snapshot-repository.js';
 import { exactProjectScope } from './task-readiness-plan.js';
-import { API_VALUE_INVALID, DEPENDENCY_UNAVAILABLE } from './work-order-draft-creation.js';
+import {
+  API_VALUE_INVALID,
+  AUTHORIZATION_DECISION_INVALID,
+  DEPENDENCY_UNAVAILABLE,
+} from './work-order-draft-creation.js';
+import { AUTHORIZATION_EXPIRED } from './task-readiness-production.js';
 import {
   AGGREGATE_STATE_NOT_ALLOWED,
   REFERENCE_INVALID,
@@ -69,8 +88,11 @@ export const POLICY_EXPIRED = 'POLICY_EXPIRED';
 
 const CONTEXT_SOURCE_SLICE_OBJECT_TYPE = 'zhiju.project.context_source_slice';
 const POLICY_OBJECT_TYPE = 'zhiju.identity.policy';
+const AUTHORIZATION_DECISION_OBJECT_TYPE = 'identity.authorization_decision';
 const CONTEXT_SNAPSHOT_BUILT_EVENT = 'execution.ContextSnapshotBuilt';
-const CONTEXT_SNAPSHOT_BUILT_EVENT_VERSION = '1.0';
+// §20.3: the corrected build publishes the additive @1.1 event only; the
+// frozen @1.0 stays registered for compatibility but is no longer produced.
+const CONTEXT_SNAPSHOT_BUILT_EVENT_VERSION = '1.1';
 
 const HEX_64 = /^[0-9a-f]{64}$/u;
 
@@ -114,9 +136,32 @@ export interface ContextBuilderPolicyPort {
   }): Promise<ContextBuilderPolicyResolution>;
 }
 
+/**
+ * §20.2 / Spec 001 §15.9: the composition-supplied proof of the current DRAFT
+ * dependency-read authorization. The composition layer obtains it from the
+ * IdentityPolicy-owned revalidation Port before calling this handler; the
+ * handler re-proves, before the runner claims anything, that the proof names
+ * the request's exact `draftSnapshotRef` through a well-formed
+ * AuthorizationDecision reference and a current trusted-time expiry.
+ */
+export interface InitialContextDraftReadDecision {
+  /** The complete DRAFT snapshot ContentAddressedRef the Decision covers. */
+  readonly draftSnapshotRef: CanonicalJsonObject;
+  /** The exact ContentAddressedRef of the ALLOW AuthorizationDecision. */
+  readonly authorizationDecisionRef: CanonicalJsonObject;
+  /** The Decision expiry (ISO instant), re-checked against the trusted clock. */
+  readonly expiresAt: string;
+}
+
 export interface InitialContextBuildPorts {
   readonly slices: ContextSourceSliceReadPort;
   readonly policy: ContextBuilderPolicyPort;
+  /**
+   * §20.2: the current DRAFT dependency-read authorization proof. It is a
+   * required port member precisely so a composition that never obtained the
+   * Decision cannot reach the DRAFT read.
+   */
+  readonly draftRead: InitialContextDraftReadDecision;
   /** Trusted server clock; the module's existing trusted-time semantics. */
   readonly now?: (() => Date) | undefined;
 }
@@ -228,6 +273,59 @@ function readBuilderPolicyRef(
   return { objectId: ref.objectId, versionId: ref.versionId };
 }
 
+/**
+ * §20.2 preflight: the composition-supplied DRAFT dependency-read proof must
+ * name the exact `draftSnapshotRef` the request carries, through a well-formed
+ * AuthorizationDecision reference and a current trusted-time expiry. Every
+ * defect throws before the runner is entered: no DRAFT fact is read, no
+ * idempotency Receipt is claimed and no historical Receipt is returned. A
+ * missing proof, a substituted ref, a malformed Decision reference or an
+ * unparseable expiry is `AUTHORIZATION_DECISION_INVALID`; a crossed expiry is
+ * `AUTHORIZATION_EXPIRED` (mirroring the owning revalidation's `expires_at <=
+ * now` semantics).
+ */
+function assertDraftReadProof(
+  proof: InitialContextDraftReadDecision | undefined,
+  draftSnapshotRef: unknown,
+  trustedNow: () => Date,
+): void {
+  const decisionRef = record(proof?.authorizationDecisionRef);
+  let sameRef: boolean;
+  try {
+    sameRef =
+      canonicalize(proof?.draftSnapshotRef as CanonicalJsonValue) ===
+      canonicalize(draftSnapshotRef as CanonicalJsonValue);
+  } catch {
+    sameRef = false;
+  }
+  if (
+    proof === undefined ||
+    decisionRef.kind !== 'CONTENT_ADDRESSED' ||
+    decisionRef.objectType !== AUTHORIZATION_DECISION_OBJECT_TYPE ||
+    typeof decisionRef.objectId !== 'string' ||
+    !isUuidV7(decisionRef.objectId) ||
+    !sameRef
+  ) {
+    throw new CommandExecutionError(
+      AUTHORIZATION_DECISION_INVALID,
+      'the DRAFT dependency-read authorization proof does not cover the requested draft snapshot',
+    );
+  }
+  const expiresAt = Date.parse(proof.expiresAt);
+  if (Number.isNaN(expiresAt)) {
+    throw new CommandExecutionError(
+      AUTHORIZATION_DECISION_INVALID,
+      'the DRAFT dependency-read authorization proof carries no parseable expiry',
+    );
+  }
+  if (expiresAt <= trustedNow().getTime()) {
+    throw new CommandExecutionError(
+      AUTHORIZATION_EXPIRED,
+      'the DRAFT dependency-read authorization has expired',
+    );
+  }
+}
+
 export async function handleBuildInitialContext(
   db: Kysely<TaskExecutionDb>,
   context: TaskExecutionTransactionContext,
@@ -257,6 +355,28 @@ export async function handleBuildInitialContext(
   }
   const scope = { enterpriseId: envelope.enterpriseId, projectId };
   const trustedNow = ports.now ?? ((): Date => new Date());
+
+  // §20.2: the DRAFT dependency read carries its own current authorization,
+  // independent of the build Decision. The composition-supplied proof is
+  // revalidated before the command runner claims the Receipt, so a missing,
+  // substituted, malformed or expired proof fails closed ahead of any DRAFT
+  // fact read, idempotency claim and historical Receipt return. A payload
+  // whose `draftSnapshotRef` cannot even parse skips this preflight: the body
+  // below rejects it with the same fail-closed codes and still reads no DRAFT
+  // fact.
+  const preflightPayload = record(envelope.requestPayload);
+  const preflightRequest = record(preflightPayload.request);
+  if (
+    Object.keys(preflightPayload).every((member) => member === 'request') &&
+    Object.keys(preflightRequest).every((member) => REQUEST_MEMBERS[member] === true) &&
+    readExactContentAddressedRef(
+      preflightRequest.draftSnapshotRef,
+      WORK_ORDER_DRAFT_SNAPSHOT_OBJECT_TYPE,
+      scope,
+    ) !== undefined
+  ) {
+    assertDraftReadProof(ports.draftRead, preflightRequest.draftSnapshotRef, trustedNow);
+  }
 
   return executeTaskExecutionCommand(db, context, envelope, async (execution) => {
     const payload = envelope.requestPayload;
@@ -647,6 +767,65 @@ export async function handleBuildInitialContext(
       typeof payloadExpiresAt === 'string' ? payloadExpiresAt : undefined;
     const requestPayloadHash = digestCanonicalPayload(envelope.requestPayload).hash;
 
+    // §20.3: the success path publishes exactly one additive
+    // `execution.ContextSnapshotBuilt@1.1`. Its payload is closed to the four
+    // registered members - the refs taken from the committed-payload facts and
+    // the two enums taken verbatim from the assembled ProjectContext - and
+    // carries no Scope members: the event Scope lives only on the envelope
+    // `scopeRef`. The complete Event envelope is validated against the real
+    // ContractRegistry before anything is written, so a build whose event
+    // cannot close fails here with zero inserts; a failure, conflict or
+    // same-key replay writes no Outbox row at all.
+    const eventPayload = {
+      contextSnapshotRef,
+      workOrderRef: stored.workOrderRef as CanonicalJsonObject,
+      projectionType: projection.projectionType,
+      coverageStatus: coverage.completeness,
+    } as unknown as CanonicalJsonObject;
+    const eventId = newUuidV7();
+    const eventCausationId = envelope.causationId ?? envelope.commandId;
+    const eventEnvelope = {
+      eventId,
+      eventType: CONTEXT_SNAPSHOT_BUILT_EVENT,
+      eventVersion: CONTEXT_SNAPSHOT_BUILT_EVENT_VERSION,
+      producerModule: 'task-execution',
+      aggregateType: envelope.targetType,
+      aggregateId: envelope.targetId,
+      aggregateVersion: 1,
+      scopeRef: { enterpriseId: scope.enterpriseId, projectId: scope.projectId },
+      correlationId: envelope.correlationId,
+      causationId: eventCausationId,
+      commandId: envelope.commandId,
+      actorRef: {
+        kind: 'OBJECT',
+        objectType: 'zhiju.identity.principal',
+        objectId: envelope.principalId,
+        scope: { enterpriseId: scope.enterpriseId },
+      },
+      occurredAt: asOf,
+      dataClassification: 'INTERNAL',
+      payload: eventPayload,
+      integrity: {
+        canonicalizationVersion: CANONICALIZATION_VERSION,
+        payloadHash: {
+          algorithm: PAYLOAD_HASH_ALGORITHM,
+          digest: digestCanonicalPayload(eventPayload).hash.toString('hex'),
+          canonicalizationVersion: CANONICALIZATION_VERSION,
+        },
+      },
+    } as unknown as CanonicalJsonObject;
+    const eventValidation = new ContractRegistry().validateOperation(
+      CONTEXT_SNAPSHOT_BUILT_EVENT,
+      CONTEXT_SNAPSHOT_BUILT_EVENT_VERSION,
+      eventEnvelope,
+    );
+    if (!eventValidation.valid) {
+      return reject(
+        REFERENCE_INVALID,
+        'the built Context Snapshot event does not close against its registered contract',
+      );
+    }
+
     // The Snapshot row is the database-adjudicated single winner for this
     // CREATE identity: a concurrent build of the same target under another
     // idempotency key inserts nothing and is recorded as the stable business
@@ -755,24 +934,20 @@ export async function handleBuildInitialContext(
       });
     }
 
-    // §19.7: exactly one `execution.ContextSnapshotBuilt@1.0` Outbox row, its
-    // payload fields taken verbatim from the committed payload.
+    // §20.3: exactly one `execution.ContextSnapshotBuilt@1.1` Outbox row of
+    // the envelope validated above - the same event id, the closed four-member
+    // payload and the envelope-derived causation; the runner mirrors the
+    // trusted envelope Scope into the stored payload.
     await execution.appendOutbox({
-      eventId: newUuidV7(),
+      eventId,
       eventType: CONTEXT_SNAPSHOT_BUILT_EVENT,
       eventVersion: CONTEXT_SNAPSHOT_BUILT_EVENT_VERSION,
       aggregateType: envelope.targetType,
       aggregateId: envelope.targetId,
       aggregateVersion: '1',
-      payload: {
-        contextSnapshotRef,
-        workOrderRef: stored.workOrderRef as CanonicalJsonObject,
-        projectionType: request.projectionType,
-        coverageStatus:
-          typeof coverage.completeness === 'string' ? coverage.completeness : 'PARTIAL',
-        enterpriseId: scope.enterpriseId,
-        projectId: scope.projectId,
-      },
+      payload: eventPayload,
+      scopeMirror: { enterpriseId: scope.enterpriseId, projectId: scope.projectId },
+      causationId: eventCausationId,
       occurredAt: commitAt,
     });
 

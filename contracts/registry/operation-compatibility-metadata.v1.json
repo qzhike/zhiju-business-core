@@ -649,6 +649,13 @@
       "semanticDeclaration": "v1.0-baseline"
     },
     {
+      "type": "execution.ContextSnapshotBuilt",
+      "version": "1.1",
+      "authorizationPurpose": "task.execution.ContextSnapshotBuilt",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-context-snapshot-built-event-v1.1"
+    },
+    {
       "type": "execution.RunStarted",
       "version": "1.0",
       "authorizationPurpose": "task.execution.RunStarted",

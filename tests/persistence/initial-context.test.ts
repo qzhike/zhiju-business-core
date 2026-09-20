@@ -1,9 +1,13 @@
-// IM-06 (#216): real PostgreSQL acceptance for the initial Context Snapshot
-// build (`execution.build_initial_context_snapshot@1.1`) and the authoritative
-// snapshot read (`execution.get_context_snapshot@1.0`) — the executable
-// evidence for the TE-214-D-001…018 matrix (Module-Test-003 §"首次 Context
-// 构建与精确快照读取设计矩阵", Spec 003 §19, Spec 001 §15.8, approved #214
-// design, PostgreSQL §33 V3004).
+// IM-06 (#216, #217 corrections): real PostgreSQL acceptance for the initial
+// Context Snapshot build (`execution.build_initial_context_snapshot@1.1`) and
+// the authoritative snapshot read (`execution.get_context_snapshot@1.0`) — the
+// executable evidence for the TE-214-D-001…018 matrix (Module-Test-003 §"首次
+// Context 构建与精确快照读取设计矩阵", Spec 003 §19, Spec 001 §15.8, approved
+// #214 design, PostgreSQL §33 V3004) and for the TE-217-D-001…004 correction
+// matrix (Spec 003 §20, Spec 001 §15.9, PostgreSQL §35; the PR #217 review
+// findings: the import-only legacy compatibility store, the separately
+// authorized DRAFT dependency read, the strict `ContextSnapshotBuilt@1.1`
+// event, and the §20.4 Source Slice total order).
 //
 // Every positive and negative path enters through the composition entry in
 // `@zhiju/api/composition` (`createInitialContextEntry`) — the same boundary a
@@ -57,6 +61,20 @@
 //   TE-214-D-018  'closes targetScope.targetObjectRefs to ∅'       (owning WorkOrder
 //                                                             creation scope closure;
 //                                                             owning assembly)
+//   TE-217-D-001  'reads the imported legacy snapshot by its original identity'
+//                                                             (controlled owner-role import;
+//                                                             owning query handler §20.1
+//                                                             route 2; V3004 legacy ACL/RLS)
+//   TE-217-D-002  'authorizes the DRAFT dependency read on its own grant'
+//                                                             (IdentityPolicy §15.9 DRAFT
+//                                                             dependency-read Port, before
+//                                                             any DRAFT fact read/lock)
+//   TE-217-D-003  'validates the complete ContextSnapshotBuilt@1.1 envelope'
+//                                                             (ContractRegistry strict
+//                                                             validation; Outbox row mirrors)
+//   TE-217-D-004  'determinizes the Source Slice total order'      (owning assembly
+//                                                             §20.4, unit layer on the
+//                                                             real committed facts)
 //
 // NOT RUN inventory and observed-layer notes (no PASS is inferred from other
 // green tests; every disagreement with the design-matrix expectation is
@@ -134,6 +152,39 @@
 //     closure asserted in TE-214-D-012. The constructible binding failures
 //     (POLICY_REF_MISMATCH, POLICY_EXPIRED, POLICY_NOT_EFFECTIVE,
 //     INVALID_POLICY_BINDING) are all executed.
+//
+// #217 corrections — the TE-214-D rows whose facts the corrections changed
+// (re-executed green in this suite; the matrix keeps the historical texts):
+//
+//   * TE-214-D-002 "wrong-scope": the foreign-Scope `draftSnapshotRef` is now
+//     refused one layer earlier — the §15.9 DRAFT dependency-read Port binds
+//     the *complete* ref and its Scope check fails before any TaskExecution
+//     DRAFT row is read or locked, so the case surfaces as a thrown
+//     IDENTITY_CONTEXT_SNAPSHOT_TARGET_INVALID with the Receipt ABSENT (the
+//     pre-#217 surface was the handler's rejected REFERENCE_INVALID). Fail
+//     closed either way; the new layer is the designed one (Spec 001 §15.9(3)).
+//   * TE-214-D-003/016: the single registered Outbox row is now
+//     `execution.ContextSnapshotBuilt@1.1` (the @1.0 event stays registered
+//     and frozen but is no longer emitted), and the stored payload is exactly
+//     six keys — the closed four public members plus the runner's
+//     `enterpriseId`/`projectId` Scope mirrors (§20.3). The §20.4 seven-member
+//     total order supersedes the §19.4 item 1 tuple in the sort assertion.
+//   * TE-214-D-014: the legacy `zhiju.project.context_snapshot` spelling no
+//     longer fails by spelling — §20.1 route 2 serves it from the import-only
+//     `context_snapshot_legacy` store, so the row now executes the controlled
+//     import plus the verbatim read-back the matrix's expectation column
+//     always described, and keeps the store-miss REFERENCE_INVALID for an
+//     identity the legacy store does not hold.
+//   * TE-217-D-002 layering note: the DRAFT dependency-read Port binds the
+//     complete `draftSnapshotRef` into its Decision, but only the owning
+//     TaskExecution store can answer *existence* — a substituted object id or
+//     content hash therefore passes the Port and fails one step later as the
+//     handler's by-identity REFERENCE_INVALID (with its own fresh DRAFT-read
+//     Decision, never the build Decision). The matrix's "DRAFT repository
+//     call count 0" is asserted for the grant/scope/shape cases at the
+//     composition layer (zero new TaskExecution facts and zero new
+//     DRAFT-purpose Decisions); the content-substitution pair is reported at
+//     its observed layer instead of being claimed at the Port.
 
 import { createHash, createHmac } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -148,6 +199,7 @@ import {
   type ContextSourceSliceEntry,
   type ContextSourceSliceSession,
   type CreateTaskEntry,
+  type InitialContextCapabilityCodes,
   type InitialContextEntry,
   type InitialContextSession,
   type WorkOrderDraftEntry,
@@ -163,6 +215,7 @@ import {
   createTaskExecutionContextSnapshotAuthorizationPort,
   createTaskExecutionCreationAuthorizationPort,
   grantCapability,
+  IDENTITY_CONTEXT_SNAPSHOT_TARGET_INVALID,
   IdentityPolicyRepository,
   recordPolicySnapshot,
   recordPolicyVersion,
@@ -246,10 +299,14 @@ const AUTH_HASH = Buffer.alloc(32, 0x75);
 const OTHER_AUTH_HASH = Buffer.alloc(32, 0x76);
 const DECISION_HASH = Buffer.alloc(32, 0x77);
 
-/** Trusted composition capability codes of the two Context Snapshot entries. */
-const contextSnapshotCapabilityCodes: TaskExecutionContextSnapshotCapabilityCodes = {
+/**
+ * Trusted composition capability codes of the two Context Snapshot entries
+ * plus the §15.9 DRAFT dependency-read entry of the build.
+ */
+const contextSnapshotCapabilityCodes: InitialContextCapabilityCodes = {
   contextSnapshotBuildV11: 'wi216.cap.ctxbuild.v1_1',
   contextSnapshotRead: 'wi216.cap.ctxread',
+  contextSnapshotDraftReadV11: 'wi216.cap.ctxdraftread',
 };
 
 /** Capability codes of the two owning reads the build re-enters through. */
@@ -280,6 +337,7 @@ const ACTIONS = {
   workOrderV11: 'execution.work_order.create.v1_1',
   ctxBuild: 'execution.context.build.initial.v1_1',
   ctxRead: 'execution.context.snapshot.read',
+  ctxDraftRead: 'execution.work_order.draft_snapshot.read.for_context_build.v1_1',
 } as const;
 
 const TASK_V1 = 'execution.task';
@@ -483,6 +541,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   let sliceSession: ContextSourceSliceSession;
   let grantCtxBuild: string;
   let grantCtxRead: string;
+  let grantCtxDraftRead: string;
   let grantResolve: string;
   let grantSliceRead: string;
   let sliceARef: Common.ContentAddressedRef;
@@ -587,7 +646,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   function entryFor(
     overrides: {
       now?: () => Date;
-      capabilityCodes?: TaskExecutionContextSnapshotCapabilityCodes;
+      capabilityCodes?: InitialContextCapabilityCodes;
       capabilities?: { resolvePolicy: string; readContextSourceSlice: string };
       taskExecutionDb?: Kysely<TaskExecutionDb>;
       enterpriseProjectDb?: Kysely<EnterpriseProjectDb>;
@@ -622,6 +681,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     selectorType: 'CREATE_TARGET_TYPE' | 'TARGET_TYPE';
     targetObjectType: string;
     action: string;
+    validTo?: Date;
+    grantPolicySnapshot?: { id: string; hash: Buffer };
   }): Promise<string> {
     const principal = input.principal ?? operator();
     const grantId = newUuidV7();
@@ -637,8 +698,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       resourceSelectors: [{ selectorType: input.selectorType, objectType: input.targetObjectType }],
       actions: [input.action],
       validFrom: PAST,
-      grantPolicySnapshotId: POLICY_SNAPSHOT_ID,
-      grantPolicySnapshotHash: grantPolicyHash,
+      ...(input.validTo === undefined ? {} : { validTo: input.validTo }),
+      grantPolicySnapshotId: input.grantPolicySnapshot?.id ?? POLICY_SNAPSHOT_ID,
+      grantPolicySnapshotHash: input.grantPolicySnapshot?.hash ?? grantPolicyHash,
       justification: 'IM-06 #216 initial Context fixture',
       idempotencyKey: `wi216:grant:${grantId}`,
     });
@@ -1302,6 +1364,13 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       action: ACTIONS.ctxRead,
       selectorType: 'TARGET_TYPE',
       targetObjectType: CONTEXT_SNAPSHOT_OBJECT,
+    });
+    // The §15.9 DRAFT dependency read of the build, under its own capability.
+    grantCtxDraftRead = await grant({
+      capabilityCode: contextSnapshotCapabilityCodes.contextSnapshotDraftReadV11,
+      action: ACTIONS.ctxDraftRead,
+      selectorType: 'TARGET_TYPE',
+      targetObjectType: DRAFT_SNAPSHOT_OBJECT,
     });
     grantResolve = await grantGeneric(dependencyCapabilities.resolvePolicy);
     grantSliceRead = await grantGeneric(dependencyCapabilities.readContextSourceSlice);
@@ -2151,16 +2220,99 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   async function outboxRows(aggregateId: string) {
     return (
       await admin.query<{
+        event_id: string;
         event_type: string;
         event_version: string;
         aggregate_version: string;
+        correlation_id: string;
+        causation_id: string | null;
+        source_command_id: string;
         payload: Record<string, unknown>;
+        payload_hash: Buffer;
+        canonicalization_version: string;
+        occurred_at: Date;
+        created_by_principal_id: string;
       }>(
-        `SELECT event_type, event_version, aggregate_version::text, payload
+        `SELECT event_id::text, event_type, event_version, aggregate_version::text,
+                correlation_id::text, causation_id::text, source_command_id::text,
+                payload, payload_hash, canonicalization_version, occurred_at,
+                created_by_principal_id::text
            FROM task_execution.outbox_event WHERE aggregate_id = $1 ORDER BY recorded_at`,
         [aggregateId],
       )
     ).rows;
+  }
+
+  /**
+   * The masked DENIED audits the IdentityPolicy side recorded for the §15.9
+   * DRAFT dependency read of one build attempt (`command_type` is the
+   * consuming build, the target the DRAFT snapshot the request named).
+   */
+  async function ipDraftReadDeniedAudits(principalId: string, targetObjectId: string) {
+    return (
+      await admin.query<{
+        outcome: string;
+        error_code: string | null;
+        command_type: string;
+        target_type: string | null;
+        target_id: string | null;
+        principal_id: string;
+        safe_summary: string | null;
+      }>(
+        `SELECT outcome, error_code, command_type, target_type, target_id::text,
+                principal_id::text, safe_summary
+           FROM identity_policy.audit_record
+          WHERE command_type = $1 AND principal_id = $2 AND target_id = $3
+          ORDER BY recorded_at`,
+        [BUILD_COMMAND, principalId, targetObjectId],
+      )
+    ).rows;
+  }
+
+  /** Every Decision this suite minted for the §15.9 DRAFT dependency read. */
+  async function draftReadDecisionRows() {
+    return (
+      await admin.query<{
+        authorization_decision_id: string;
+        command_type: string;
+        command_version: string;
+        purpose: string;
+        requested_capability: string;
+        target_object_type: string | null;
+        target_object_id: string | null;
+        command_payload_hash: Buffer;
+        policy_snapshot_id: string;
+        principal_id: string;
+        actor_snapshot_id: string;
+        canonical_payload: Record<string, unknown>;
+      }>(
+        `SELECT authorization_decision_id::text, command_type, command_version, purpose,
+                requested_capability, target_object_type, target_object_id::text,
+                command_payload_hash, policy_snapshot_id::text, principal_id::text,
+                actor_snapshot_id::text, canonical_payload
+           FROM identity_policy.authorization_decision
+          WHERE requested_capability = $1
+          ORDER BY created_at`,
+        [contextSnapshotCapabilityCodes.contextSnapshotDraftReadV11],
+      )
+    ).rows;
+  }
+
+  /** The five TaskExecution fact counts a refused build must never move. */
+  async function teFactCounts(): Promise<{
+    snapshots: number;
+    builds: number;
+    receipts: number;
+    audits: number;
+    outbox: number;
+  }> {
+    return {
+      snapshots: await countRows('task_execution.context_snapshot'),
+      builds: await countRows('task_execution.context_snapshot_build'),
+      receipts: await countRows('task_execution.command_receipt'),
+      audits: await countRows('task_execution.audit_record'),
+      outbox: await countRows('task_execution.outbox_event'),
+    };
   }
 
   async function slicePayloadOf(sliceId: string): Promise<Record<string, unknown>> {
@@ -2298,6 +2450,206 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   }
 
   // -----------------------------------------------------------------------
+  // The §35 controlled import of the legacy compatibility store: schema-owner
+  // role under an established Project-scoped context (V3004 INSERT policy).
+  // -----------------------------------------------------------------------
+
+  /** The stored row of one imported legacy Snapshot, read as the superuser. */
+  async function legacySnapshotRow(objectId: string) {
+    return (
+      await admin.query<{
+        snapshot_id: string;
+        object_type: string;
+        object_id: string;
+        enterprise_id: string;
+        project_id: string;
+        payload_hash: Buffer;
+        payload_hash_algorithm: string;
+        canonicalization_version: string;
+        canonical_payload: Record<string, unknown>;
+        project_context_contract: Record<string, unknown>;
+        contract_ref: Record<string, unknown>;
+        import_manifest_id: string;
+        import_batch_id: string;
+        source_system: string;
+        imported_at: Date;
+        import_tool_version: string;
+      }>(
+        `SELECT snapshot_id::text, object_type, object_id::text, enterprise_id::text,
+                project_id::text, payload_hash, payload_hash_algorithm,
+                canonicalization_version, canonical_payload, project_context_contract,
+                contract_ref, import_manifest_id, import_batch_id, source_system,
+                imported_at, import_tool_version
+           FROM task_execution.context_snapshot_legacy WHERE object_id = $1`,
+        [objectId],
+      )
+    ).rows.at(0);
+  }
+
+  interface LegacyImportRow {
+    readonly snapshotId: string;
+    readonly objectId: string;
+    readonly enterpriseId: string;
+    readonly projectId: string;
+    readonly payloadHash: Buffer;
+    readonly canonicalPayload: Record<string, unknown>;
+    readonly projectContextContract: Record<string, unknown>;
+    readonly contractRef: Record<string, unknown>;
+    readonly objectType?: string;
+    readonly provenance?: {
+      readonly manifestId?: string;
+      readonly batchId?: string;
+      readonly sourceSystem?: string;
+      readonly toolVersion?: string;
+    };
+  }
+
+  /**
+   * One controlled-import attempt exactly as a migration/import session runs
+   * it: the schema-owner role under an established transaction context (the
+   * V3004 legacy INSERT policy is `TO task_execution_owner`, so the app role
+   * can never take this path). Returns the failure instead of throwing.
+   */
+  async function importLegacySnapshot(
+    row: LegacyImportRow,
+    context: Partial<AppRoleContext> = {},
+  ): Promise<{ code: string; message: string } | null> {
+    try {
+      await admin.query('BEGIN');
+      await admin.query('SET LOCAL ROLE platform_context_establisher');
+      await admin.query(
+        `SELECT platform_security.establish_transaction_context(
+           'REQUEST', $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL)`,
+        [
+          context.principalId ?? OPERATOR,
+          context.principalKind ?? 'HUMAN',
+          context.actorSnapshotId ?? OPERATOR_ACTOR,
+          REQUEST_DECISION,
+          DECISION_HASH,
+          new Date(clock + 60 * 60 * 1000),
+          context.enterpriseId ?? fixture.enterpriseId,
+          [...(context.allowedProjectIds ?? [fixture.projectId])],
+          CORRELATION,
+        ],
+      );
+      await admin.query('SET LOCAL ROLE task_execution_owner');
+      await admin.query(
+        `INSERT INTO task_execution.context_snapshot_legacy (
+           snapshot_id, object_type, object_id, enterprise_id, project_id,
+           payload_hash, payload_hash_algorithm, canonicalization_version,
+           canonical_payload, project_context_contract, contract_ref,
+           import_manifest_id, import_batch_id, source_system, imported_at,
+           import_tool_version)
+         VALUES ($1, $2, $3, $4, $5, $6, 'SHA-256', '1', $7::jsonb, $8::jsonb,
+                 $9::jsonb, $10, $11, $12, $13, $14)`,
+        [
+          row.snapshotId,
+          row.objectType ?? CONTEXT_SNAPSHOT_LEGACY_OBJECT,
+          row.objectId,
+          row.enterpriseId,
+          row.projectId,
+          row.payloadHash,
+          JSON.stringify(row.canonicalPayload),
+          JSON.stringify(row.projectContextContract),
+          JSON.stringify(row.contractRef),
+          row.provenance?.manifestId ?? 'wi216-legacy-import-manifest',
+          row.provenance?.batchId ?? 'wi216-legacy-import-batch',
+          row.provenance?.sourceSystem ?? 'wi216-legacy-source-system',
+          new Date(clock).toISOString(),
+          row.provenance?.toolVersion ?? 'wi216-import-tool-1.0.0',
+        ],
+      );
+      await admin.query('COMMIT');
+      return null;
+    } catch (error) {
+      return failureOf(error);
+    } finally {
+      await admin.query('ROLLBACK').catch(() => undefined);
+      await admin.query('RESET ROLE').catch(() => undefined);
+    }
+  }
+
+  /**
+   * One probe statement under the same owner-role transaction the controlled
+   * import runs in, for the owner-side closures (immutable guard, RLS) that
+   * reject after the INSERT path. Returns the failure instead of throwing.
+   */
+  async function ownerStatement(
+    statement: string,
+    parameters: readonly unknown[],
+    context: Partial<AppRoleContext> = {},
+  ): Promise<{ failure: { code: string; message: string } | null; rowCount: number | null }> {
+    let rowCount: number | null = null;
+    try {
+      await admin.query('BEGIN');
+      await admin.query('SET LOCAL ROLE platform_context_establisher');
+      await admin.query(
+        `SELECT platform_security.establish_transaction_context(
+           'REQUEST', $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL)`,
+        [
+          context.principalId ?? OPERATOR,
+          context.principalKind ?? 'HUMAN',
+          context.actorSnapshotId ?? OPERATOR_ACTOR,
+          REQUEST_DECISION,
+          DECISION_HASH,
+          new Date(clock + 60 * 60 * 1000),
+          context.enterpriseId ?? fixture.enterpriseId,
+          [...(context.allowedProjectIds ?? [fixture.projectId])],
+          CORRELATION,
+        ],
+      );
+      await admin.query('SET LOCAL ROLE task_execution_owner');
+      rowCount = (await admin.query(statement, [...parameters])).rowCount;
+      await admin.query('COMMIT');
+      return { failure: null, rowCount };
+    } catch (error) {
+      return { failure: failureOf(error), rowCount };
+    } finally {
+      await admin.query('ROLLBACK').catch(() => undefined);
+      await admin.query('RESET ROLE').catch(() => undefined);
+    }
+  }
+
+  /**
+   * The legacy fixture of one committed Snapshot payload: the historical body
+   * with the Snapshot identity members re-pinned to the legacy identity (the
+   * V3004 legacy mirror guard re-derives `snapshot_id` and the content address
+   * from these bytes, exactly as the canonical table does). The historical
+   * contract body is the same ProjectContext v1.0 document and `contractRef`
+   * its content address under `zhiju.contract.project_context`.
+   */
+  function legacyFixtureOf(
+    storedPayload: Record<string, unknown>,
+    legacySnapshotId: string,
+  ): { payload: Record<string, unknown>; digest: string } {
+    const payload = structuredClone(storedPayload);
+    payload.contextSnapshotId = legacySnapshotId;
+    const header = record(payload.header);
+    header.contractId = legacySnapshotId;
+    const schemaRef = record(header.schemaRef);
+    schemaRef.objectId = legacySnapshotId;
+    schemaRef.versionId = legacySnapshotId;
+    const digest = digestCanonicalPayload(payload as CanonicalJsonObject).hash.toString('hex');
+    return { payload, digest };
+  }
+
+  /** The exact six-field legacy SnapshotRef one imported row answers to. */
+  function legacySnapshotRefOf(
+    legacyObjectId: string,
+    legacySnapshotId: string,
+    digest: string,
+  ): Common.SnapshotRef {
+    return {
+      kind: 'SNAPSHOT',
+      objectType: CONTEXT_SNAPSHOT_LEGACY_OBJECT,
+      objectId: legacyObjectId,
+      snapshotId: legacySnapshotId,
+      scope: scope(),
+      contentHash: contentHash(digest),
+    } as unknown as Common.SnapshotRef;
+  }
+
+  // -----------------------------------------------------------------------
   // Owning-assembly re-run inputs (unit layer of rows 003/004/017)
   // -----------------------------------------------------------------------
 
@@ -2395,6 +2747,39 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
+  /**
+   * The §20.4 total-order key of one CONTENT_ADDRESSED Slice ref:
+   * `(objectType, objectId, immutableVersionId-or-empty, hashAlgorithm,
+   * hashCanonicalizationVersion, hashDigest, canonical_cv1(scope))` — the
+   * object identity decides before any hash member, so a build can never
+   * fall back to comparing hashes first.
+   */
+  function sliceOrderTuple(ref: Common.ContentAddressedRef): string[] {
+    const hash = record(ref.contentHash);
+    const source = ref as unknown as Record<string, unknown>;
+    return [
+      ref.objectType,
+      ref.objectId,
+      (source.immutableVersionId as string | undefined) ?? '',
+      hash.algorithm as string,
+      hash.canonicalizationVersion as string,
+      hash.digest as string,
+      canonicalize(ref.scope as Parameters<typeof canonicalize>[0]),
+    ];
+  }
+
+  /** Member-by-member UTF-8 byte-order comparison of two §20.4 order keys. */
+  function compareOrderTuples(left: readonly string[], right: readonly string[]): number {
+    const width = Math.min(left.length, right.length);
+    for (let index = 0; index < width; index += 1) {
+      const a = left[index] ?? '';
+      const b = right[index] ?? '';
+      if (a < b) return -1;
+      if (a > b) return 1;
+    }
+    return left.length - right.length;
+  }
+
   it('TE-214-D-001 pairs the build version with the DRAFT major', async () => {
     // @1.1 build × @1.1 DRAFT of a v2 Task: the one initial build pair.
     const taskV2 = await createExecutableTask('2.0');
@@ -2487,7 +2872,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     };
 
     // A wrong object id and a wrong content hash both miss the by-identity
-    // read; a foreign Scope fails the handler's exact-ref gate.
+    // read; a foreign Scope is refused one layer earlier, by the §15.9 DRAFT
+    // dependency-read Port's Scope check, before any DRAFT fact is read or
+    // locked — thrown, with the Receipt ABSENT (header note).
     await rejectCase('wrong-id', { ...draftRef, objectId: newUuidV7() }, REFERENCE_INVALID, false);
     await rejectCase(
       'wrong-hash',
@@ -2498,8 +2885,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     await rejectCase(
       'wrong-scope',
       { ...draftRef, scope: { enterpriseId: newUuidV7(), projectId: newUuidV7() } },
-      REFERENCE_INVALID,
-      false,
+      IDENTITY_CONTEXT_SNAPSHOT_TARGET_INVALID,
+      true,
+      'ABSENT',
     );
     // The legacy spelling is pinned out by the registered Envelope Schema.
     await rejectCase(
@@ -2695,10 +3083,14 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(buildRow.slice_refs).toEqual(metadata.sliceRefs);
     const sliceRefs = buildRow.slice_refs;
     expect(sliceRefs).toHaveLength(2);
+    // §20.4: the stored order is the seven-member total order (object identity
+    // before any hash member), superseding the §19.4 item 1 tuple.
     expect(
-      canonicalize(sliceRefs[0] as CanonicalJsonObject) <=
-        canonicalize(sliceRefs[1] as CanonicalJsonObject),
-    ).toBe(true);
+      compareOrderTuples(
+        sliceOrderTuple(sliceRefs[0] as unknown as Common.ContentAddressedRef),
+        sliceOrderTuple(sliceRefs[1] as unknown as Common.ContentAddressedRef),
+      ),
+    ).toBeLessThan(0);
     expect(new Set(sliceRefs.map((ref) => ref.objectId))).toEqual(
       new Set([sliceARef.objectId, sliceBRef.objectId]),
     );
@@ -2773,14 +3165,24 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(edges[2]?.target_object_id).toBe(record(sliceRefs[0]).objectId);
     expect(edges[3]?.target_object_id).toBe(record(sliceRefs[1]).objectId);
 
-    // The single registered Outbox row (§19.7).
+    // The single registered Outbox row (§19.7/§20.3): the event is now
+    // `ContextSnapshotBuilt@1.1`, and the stored payload is exactly the closed
+    // four public members plus the runner's two Scope mirrors.
     const outbox = await outboxRows(targetId);
     expect(outbox).toHaveLength(1);
     expect(outbox[0]).toMatchObject({
       event_type: 'execution.ContextSnapshotBuilt',
-      event_version: '1.0',
+      event_version: '1.1',
       aggregate_version: '1',
     });
+    expect(Object.keys(record(outbox[0]?.payload)).sort()).toEqual([
+      'contextSnapshotRef',
+      'coverageStatus',
+      'enterpriseId',
+      'projectId',
+      'projectionType',
+      'workOrderRef',
+    ]);
     expect(outbox[0]?.payload).toMatchObject({
       projectionType: 'COORDINATOR',
       coverageStatus: 'COMPLETE_FOR_PURPOSE',
@@ -3967,7 +4369,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         await execution.appendOutbox({
           eventId: newUuidV7(),
           eventType: 'execution.ContextSnapshotBuilt',
-          eventVersion: '1.0',
+          // The runner drive skips the registry validation the real handler
+          // performs; the stored six-member payload keeps the historical
+          // no-`scopeMirror` posture (the runner's own mirror check).
+          eventVersion: '1.1',
           aggregateType: CONTEXT_SNAPSHOT_OBJECT,
           aggregateId: faultTarget,
           aggregateVersion: '1',
@@ -4426,7 +4831,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     const triggers = await admin.query<{ tgname: string }>(
       `SELECT tgname FROM pg_trigger
         WHERE tgrelid IN ('task_execution.context_snapshot'::regclass,
-                          'task_execution.context_snapshot_build'::regclass)
+                          'task_execution.context_snapshot_build'::regclass,
+                          'task_execution.context_snapshot_legacy'::regclass)
           AND NOT tgisinternal
         ORDER BY tgname`,
     );
@@ -4436,30 +4842,37 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       'context_snapshot_build_mirror_guard',
       'context_snapshot_creation_identity_guard',
       'context_snapshot_immutable_guard',
+      'context_snapshot_legacy_immutable_guard',
+      'context_snapshot_legacy_mirror_guard',
       'context_snapshot_mirror_guard',
     ]);
     const policies = await admin.query<{ polname: string }>(
       `SELECT polname FROM pg_policy
         WHERE polrelid IN ('task_execution.context_snapshot'::regclass,
-                           'task_execution.context_snapshot_build'::regclass)
+                           'task_execution.context_snapshot_build'::regclass,
+                           'task_execution.context_snapshot_legacy'::regclass)
         ORDER BY polname`,
     );
     expect(policies.rows.map((row) => row.polname)).toEqual([
       'context_snapshot_build_insert',
       'context_snapshot_build_select',
       'context_snapshot_insert',
+      'context_snapshot_legacy_insert',
+      'context_snapshot_legacy_select',
       'context_snapshot_select',
     ]);
     const rls = await admin.query<{ relname: string; enabled: boolean; forced: boolean }>(
       `SELECT relname, relrowsecurity AS enabled, relforcerowsecurity AS forced
          FROM pg_class
         WHERE relnamespace = 'task_execution'::regnamespace
-          AND relname IN ('context_snapshot', 'context_snapshot_build')
+          AND relname IN ('context_snapshot', 'context_snapshot_build',
+                          'context_snapshot_legacy')
         ORDER BY relname`,
     );
     expect(rls.rows).toEqual([
       { relname: 'context_snapshot', enabled: true, forced: true },
       { relname: 'context_snapshot_build', enabled: true, forced: true },
+      { relname: 'context_snapshot_legacy', enabled: true, forced: true },
     ]);
 
     // Every on-disk migration was applied exactly once and none failed (the
@@ -4527,14 +4940,14 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(await countRows('task_execution.outbox_event')).toBe(countsBefore.outbox);
     expect(await countRows('task_execution.context_snapshot')).toBe(countsBefore.snapshots);
 
-    // The legacy spelling passes the registered Envelope (a generic
-    // SnapshotRef) and gets its own Grant and Decision under the second
-    // principal — the V3004 store holds no object-type column, so the owning
-    // handler refuses the spelling. TE-214-D-015 relies on this Grant staying
-    // active for its legacy selector probe. (The operator already holds the
-    // canonical read Grant: a second ACTIVE Grant for the same principal,
-    // capability and Scope is refused as IDENTITY_CAPABILITY_ALREADY_ACTIVE
-    // regardless of the selector, so the legacy Grant belongs to other().)
+    // §20.1 route 2: the legacy spelling passes the registered Envelope (a
+    // generic SnapshotRef) and gets its own Grant and Decision under the
+    // second principal, then reads the import-only `context_snapshot_legacy`
+    // store. TE-214-D-015 relies on this Grant staying active for its legacy
+    // selector probe. (The operator already holds the canonical read Grant: a
+    // second ACTIVE Grant for the same principal, capability and Scope is
+    // refused as IDENTITY_CAPABILITY_ALREADY_ACTIVE regardless of the
+    // selector, so the legacy Grant belongs to other().)
     await grant({
       principal: other(),
       capabilityCode: contextSnapshotCapabilityCodes.contextSnapshotRead,
@@ -4542,7 +4955,59 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       selectorType: 'TARGET_TYPE',
       targetObjectType: CONTEXT_SNAPSHOT_LEGACY_OBJECT,
     });
+    // The controlled import of one historical Snapshot under its original
+    // legacy identity (the full negative import matrix is TE-217-D-001).
+    const legacyObjectId = newUuidV7();
+    const legacySnapshotId = newUuidV7();
+    const legacy = legacyFixtureOf(row.canonical_payload, legacySnapshotId);
+    const importFailure = await importLegacySnapshot({
+      snapshotId: legacySnapshotId,
+      objectId: legacyObjectId,
+      enterpriseId: fixture.enterpriseId,
+      projectId: fixture.projectId,
+      payloadHash: Buffer.from(legacy.digest, 'hex'),
+      canonicalPayload: legacy.payload,
+      projectContextContract: legacy.payload,
+      contractRef: {
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.contract.project_context',
+        objectId: legacySnapshotId,
+        scope: scope(),
+        contentHash: contentHash(legacy.digest),
+      },
+    });
+    expect(importFailure).toBeNull();
+    const legacyRef = legacySnapshotRefOf(legacyObjectId, legacySnapshotId, legacy.digest);
+    const legacyRow = await legacySnapshotRow(legacyObjectId);
+    if (legacyRow === undefined) throw new Error('the imported legacy row is missing');
+    // The exact read-back: the requested ref is echoed verbatim and the
+    // historical contract body and its reference come from their own stored
+    // columns — never rebuilt, extended or re-spelled.
     const legacyRead = await attemptRead(
+      await preparedRead({
+        snapshotRef: legacyRef,
+        principal: other(),
+        targetObjectType: CONTEXT_SNAPSHOT_LEGACY_OBJECT,
+      }),
+      initialContextEntry,
+      other(),
+    );
+    expect(legacyRead, JSON.stringify(legacyRead)).toMatchObject({
+      code: 'COMMITTED',
+      thrown: false,
+    });
+    if (legacyRead.result?.status !== 'COMMITTED') {
+      throw new Error('the 014 legacy read did not close');
+    }
+    const legacyResult = record(legacyRead.result.resultPayload);
+    expect(legacyResult.contextSnapshotRef).toEqual(legacyRef);
+    expect(legacyResult.projectContextContract).toEqual(legacyRow.project_context_contract);
+    expect(legacyResult.contractRef).toEqual(legacyRow.contract_ref);
+
+    // A miss in the legacy store — here the *canonical* Snapshot's identity
+    // under the legacy spelling — is the same REFERENCE_INVALID, and never
+    // falls through to the canonical table.
+    const legacyMiss = await attemptRead(
       await preparedRead({
         snapshotRef,
         principal: other(),
@@ -4552,7 +5017,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       initialContextEntry,
       other(),
     );
-    expect(legacyRead).toMatchObject({ code: REFERENCE_INVALID, thrown: false });
+    expect(legacyMiss).toMatchObject({ code: REFERENCE_INVALID, thrown: false });
 
     // An uncommitted identity and a foreign hash are the same refusal.
     const ghostRef = {
@@ -4724,15 +5189,15 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(215);
+    expect(catalog.operations).toHaveLength(216);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(45);
+    ).toHaveLength(46);
     expect(
       catalog.operations.filter(
         (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
       ),
-    ).toHaveLength(11);
+    ).toHaveLength(12);
 
     // The two registered build versions keep their published metadata; the
     // @1.0 entry stays registered (and unbuildable, TE-214-D-001).
@@ -4770,13 +5235,18 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       'version',
     ]);
     expect(readOperation).toMatchObject({ kind: 'QUERY', owner: 'task-execution' });
-    // The build event is registered; a @2.0 build is not.
-    expect(
-      catalog.operations.some(
-        (operation) =>
-          operation.type === 'execution.ContextSnapshotBuilt' && operation.version === '1.0',
-      ),
-    ).toBe(true);
+    // The build event is registered in both versions — @1.0 frozen (never
+    // emitted by the corrected build, TE-217-D-003) and @1.1 the strict
+    // correction; a @2.0 build is not registered.
+    for (const eventVersion of ['1.0', '1.1']) {
+      expect(
+        catalog.operations.some(
+          (operation) =>
+            operation.type === 'execution.ContextSnapshotBuilt' &&
+            operation.version === eventVersion,
+        ),
+      ).toBe(true);
+    }
     const unregistered = registry.validateOperation(BUILD_COMMAND, '2.0', {});
     expect(unregistered.valid).toBe(false);
     expect(unregistered.errors.some((error) => error.keyword === 'operationRegistry')).toBe(true);
@@ -4795,8 +5265,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(baselineOperations.some((operation) => operation.type === BUILD_COMMAND)).toBe(false);
     expect(baselineOperations.some((operation) => operation.type === READ_QUERY)).toBe(true);
 
-    // One committed build emits exactly one registered Outbox event; a
-    // rejected build and a replay emit none.
+    // One committed build emits exactly one registered Outbox event — the
+    // strict @1.1 with the six-key stored payload; a rejected build and a
+    // replay emit none.
     const outboxEnvelope = await preparedBuild({ idempotencyKey: 'wi216-016-outbox' });
     const built = await attemptBuild(outboxEnvelope);
     expect(built, JSON.stringify(built)).toMatchObject({ code: 'COMMITTED', thrown: false });
@@ -4807,9 +5278,17 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(outbox).toHaveLength(1);
     expect(outbox[0]).toMatchObject({
       event_type: 'execution.ContextSnapshotBuilt',
-      event_version: '1.0',
+      event_version: '1.1',
       aggregate_version: '1',
     });
+    expect(Object.keys(record(outbox[0]?.payload)).sort()).toEqual([
+      'contextSnapshotRef',
+      'coverageStatus',
+      'enterpriseId',
+      'projectId',
+      'projectionType',
+      'workOrderRef',
+    ]);
     expect(outbox[0]?.payload).toMatchObject({
       projectionType: 'COORDINATOR',
       coverageStatus: 'COMPLETE_FOR_PURPOSE',
@@ -5205,6 +5684,917 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(unitForeign).toMatchObject({
       outcome: 'REJECTED',
       errorCode: EXECUTION_CONTEXT_TARGET_INVALID,
+    });
+  });
+
+  it('TE-217-D-001 reads the imported legacy snapshot by its original identity', async () => {
+    // One committed canonical build supplies the historical body the
+    // controlled import carries into the legacy store.
+    const buildEnvelope = await preparedBuild({ idempotencyKey: 'wi216-217001-build' });
+    const built = await attemptBuild(buildEnvelope);
+    expect(built, JSON.stringify(built)).toMatchObject({ code: 'COMMITTED', thrown: false });
+    if (built.result === undefined) throw new Error('the 217-001 build did not commit');
+    const sourceRow = await contextSnapshotRow(record(buildEnvelope.targetRef).objectId as string);
+    if (sourceRow === undefined) throw new Error('the 217-001 source snapshot row is missing');
+    const sourceSnapshotRef = contextSnapshotRefOf(built.result);
+
+    // The controlled import: the schema-owner role under an established
+    // Project-scoped context, the provenance manifest recorded on the row.
+    const legacyCountBefore = await countRows('task_execution.context_snapshot_legacy');
+    const legacyObjectId = newUuidV7();
+    const legacySnapshotId = newUuidV7();
+    const legacy = legacyFixtureOf(sourceRow.canonical_payload, legacySnapshotId);
+    const baseImport: LegacyImportRow = {
+      snapshotId: legacySnapshotId,
+      objectId: legacyObjectId,
+      enterpriseId: fixture.enterpriseId,
+      projectId: fixture.projectId,
+      payloadHash: Buffer.from(legacy.digest, 'hex'),
+      canonicalPayload: legacy.payload,
+      projectContextContract: legacy.payload,
+      contractRef: {
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.contract.project_context',
+        objectId: legacySnapshotId,
+        scope: scope(),
+        contentHash: contentHash(legacy.digest),
+      },
+    };
+    expect(await importLegacySnapshot(baseImport)).toBeNull();
+    expect(await countRows('task_execution.context_snapshot_legacy')).toBe(legacyCountBefore + 1);
+    const legacyRef = legacySnapshotRefOf(legacyObjectId, legacySnapshotId, legacy.digest);
+    const legacyRow = await legacySnapshotRow(legacyObjectId);
+    if (legacyRow === undefined) throw new Error('the imported legacy row is missing');
+    expect(legacyRow).toMatchObject({
+      snapshot_id: legacySnapshotId,
+      object_type: CONTEXT_SNAPSHOT_LEGACY_OBJECT,
+      enterprise_id: fixture.enterpriseId,
+      project_id: fixture.projectId,
+      payload_hash_algorithm: 'SHA-256',
+      canonicalization_version: '1',
+      import_manifest_id: 'wi216-legacy-import-manifest',
+      import_batch_id: 'wi216-legacy-import-batch',
+      source_system: 'wi216-legacy-source-system',
+      import_tool_version: 'wi216-import-tool-1.0.0',
+    });
+    expect(legacyRow.payload_hash.equals(Buffer.from(legacy.digest, 'hex'))).toBe(true);
+
+    // The exact read-back by the original identity (the legacy read Grant of
+    // other() from TE-214-D-014 serves every legacy read of this row): the
+    // requested ref is echoed verbatim, the historical contract body and its
+    // reference come from their own stored columns, and the read writes
+    // nothing in either store.
+    const factsBefore = await teFactCounts();
+    const legacyRead = await attemptRead(
+      await preparedRead({
+        snapshotRef: legacyRef,
+        principal: other(),
+        targetObjectType: CONTEXT_SNAPSHOT_LEGACY_OBJECT,
+      }),
+      initialContextEntry,
+      other(),
+    );
+    expect(legacyRead, JSON.stringify(legacyRead)).toMatchObject({
+      code: 'COMMITTED',
+      thrown: false,
+    });
+    if (legacyRead.result?.status !== 'COMMITTED') {
+      throw new Error('the 217-001 legacy read did not close');
+    }
+    const legacyResult = record(legacyRead.result.resultPayload);
+    expect(legacyResult.contextSnapshotRef).toEqual(legacyRef);
+    expect(legacyResult.projectContextContract).toEqual(legacyRow.project_context_contract);
+    expect(legacyResult.contractRef).toEqual(legacyRow.contract_ref);
+    expect(await teFactCounts()).toEqual(factsBefore);
+    expect(await countRows('task_execution.context_snapshot_legacy')).toBe(legacyCountBefore + 1);
+
+    // The legacy identity never pollutes the canonical namespace: no
+    // canonical row exists under it, and the two one-member substitutions of
+    // the spelling fail closed in their own store — never a fall-through.
+    expect(await contextSnapshotRow(legacyObjectId)).toBeUndefined();
+    const readAs = async (
+      ref: unknown,
+      principal: Principal,
+      targetObjectType: string,
+    ): Promise<{ code: string; thrown: boolean; result?: CommandResult }> =>
+      attemptRead(
+        await preparedRead({
+          snapshotRef: legacyRef,
+          principal,
+          refOverride: ref,
+          targetObjectType,
+        }),
+        initialContextEntry,
+        principal,
+      );
+    expect(
+      await readAs(
+        { ...legacyRef, objectType: CONTEXT_SNAPSHOT_OBJECT },
+        operator(),
+        CONTEXT_SNAPSHOT_OBJECT,
+      ),
+    ).toMatchObject({ code: REFERENCE_INVALID, thrown: false });
+    expect(
+      await readAs(
+        { ...sourceSnapshotRef, objectType: CONTEXT_SNAPSHOT_LEGACY_OBJECT },
+        other(),
+        CONTEXT_SNAPSHOT_LEGACY_OBJECT,
+      ),
+    ).toMatchObject({ code: REFERENCE_INVALID, thrown: false });
+    // A substituted snapshot id, a foreign hash and a foreign Scope fail
+    // closed the same way (the Scope one at the entry's exact-scope gate).
+    expect(
+      await readAs(
+        { ...legacyRef, snapshotId: newUuidV7() },
+        other(),
+        CONTEXT_SNAPSHOT_LEGACY_OBJECT,
+      ),
+    ).toMatchObject({ code: REFERENCE_INVALID, thrown: false });
+    expect(
+      await readAs(
+        { ...legacyRef, contentHash: contentHash('0'.repeat(64)) },
+        other(),
+        CONTEXT_SNAPSHOT_LEGACY_OBJECT,
+      ),
+    ).toMatchObject({ code: REFERENCE_INVALID, thrown: false });
+    expect(
+      await readAs(
+        { ...legacyRef, scope: { enterpriseId: newUuidV7(), projectId: newUuidV7() } },
+        other(),
+        CONTEXT_SNAPSHOT_LEGACY_OBJECT,
+      ),
+    ).toMatchObject({ code: REFERENCE_INVALID, thrown: true });
+
+    // The runtime role is read-only on the store (V3004 §35 ACL row).
+    const appInsert = await appStatement(
+      `INSERT INTO task_execution.context_snapshot_legacy (
+         snapshot_id, object_type, object_id, enterprise_id, project_id,
+         payload_hash, payload_hash_algorithm, canonicalization_version,
+         canonical_payload, project_context_contract, contract_ref,
+         import_manifest_id, import_batch_id, source_system, imported_at,
+         import_tool_version)
+       VALUES ($1, $2, $3, $4, $5, $6, 'SHA-256', '1', $7::jsonb, $8::jsonb, $9::jsonb,
+               'm', 'b', 's', now(), 't')`,
+      [
+        newUuidV7(),
+        CONTEXT_SNAPSHOT_LEGACY_OBJECT,
+        newUuidV7(),
+        fixture.enterpriseId,
+        fixture.projectId,
+        Buffer.from(legacy.digest, 'hex'),
+        JSON.stringify(legacy.payload),
+        JSON.stringify(legacy.payload),
+        JSON.stringify(baseImport.contractRef),
+      ],
+    );
+    expect(appInsert?.code).toBe('42501');
+    const appUpdate = await appStatement(
+      'UPDATE task_execution.context_snapshot_legacy SET source_system = $2 WHERE object_id = $1',
+      [legacyObjectId, 'tampered'],
+    );
+    expect(appUpdate?.code).toBe('42501');
+    const appDelete = await appStatement(
+      'DELETE FROM task_execution.context_snapshot_legacy WHERE object_id = $1',
+      [legacyObjectId],
+    );
+    expect(appDelete?.code).toBe('42501');
+
+    // The owner-role closures: a content address or Scope that disagrees
+    // with the stored bytes is the mirror guard's 22023; UPDATE and DELETE
+    // close in two layers — under FORCE RLS the owner role sees no rows (no
+    // UPDATE/DELETE policy exists), so its rewrite affects zero rows, and a
+    // role that bypasses RLS meets the immutable guard's 23514; an import
+    // outside the established context's coverage is RLS; the legacy spelling
+    // and the provenance manifest are CHECK-closed.
+    const tamperedHashId = newUuidV7();
+    const tamperedHashFixture = legacyFixtureOf(sourceRow.canonical_payload, tamperedHashId);
+    const wrongHash = await importLegacySnapshot({
+      ...baseImport,
+      snapshotId: tamperedHashId,
+      objectId: newUuidV7(),
+      payloadHash: Buffer.alloc(32, 0),
+      canonicalPayload: tamperedHashFixture.payload,
+      projectContextContract: tamperedHashFixture.payload,
+    });
+    expect(wrongHash?.code).toBe('22023');
+    expect(wrongHash?.message).toContain('context snapshot legacy promoted mirror mismatch');
+
+    const tamperedScopeId = newUuidV7();
+    const tamperedScopeFixture = legacyFixtureOf(sourceRow.canonical_payload, tamperedScopeId);
+    record(tamperedScopeFixture.payload.projectRef).objectId = newUuidV7();
+    const wrongScope = await importLegacySnapshot({
+      ...baseImport,
+      snapshotId: tamperedScopeId,
+      objectId: newUuidV7(),
+      payloadHash: Buffer.from(tamperedScopeFixture.digest, 'hex'),
+      canonicalPayload: tamperedScopeFixture.payload,
+      projectContextContract: tamperedScopeFixture.payload,
+    });
+    expect(wrongScope?.code).toBe('22023');
+    expect(wrongScope?.message).toContain('context snapshot legacy promoted mirror mismatch');
+
+    const ownerUpdate = await ownerStatement(
+      'UPDATE task_execution.context_snapshot_legacy SET source_system = $2 WHERE object_id = $1',
+      [legacyObjectId, 'tampered'],
+    );
+    expect(ownerUpdate.failure).toBeNull();
+    expect(ownerUpdate.rowCount).toBe(0);
+    const ownerDelete = await ownerStatement(
+      'DELETE FROM task_execution.context_snapshot_legacy WHERE object_id = $1',
+      [legacyObjectId],
+    );
+    expect(ownerDelete.failure).toBeNull();
+    expect(ownerDelete.rowCount).toBe(0);
+    const superuserUpdate = await admin
+      .query(
+        'UPDATE task_execution.context_snapshot_legacy SET source_system = $2 WHERE object_id = $1',
+        [legacyObjectId, 'tampered'],
+      )
+      .then(
+        () => null,
+        (error: unknown) => failureOf(error),
+      );
+    expect(superuserUpdate?.code).toBe('23514');
+    const superuserDelete = await admin
+      .query('DELETE FROM task_execution.context_snapshot_legacy WHERE object_id = $1', [
+        legacyObjectId,
+      ])
+      .then(
+        () => null,
+        (error: unknown) => failureOf(error),
+      );
+    expect(superuserDelete?.code).toBe('23514');
+
+    const uncoveredId = newUuidV7();
+    const uncoveredFixture = legacyFixtureOf(sourceRow.canonical_payload, uncoveredId);
+    const rlsDenied = await importLegacySnapshot(
+      {
+        ...baseImport,
+        snapshotId: uncoveredId,
+        objectId: newUuidV7(),
+        payloadHash: Buffer.from(uncoveredFixture.digest, 'hex'),
+        canonicalPayload: uncoveredFixture.payload,
+        projectContextContract: uncoveredFixture.payload,
+      },
+      { allowedProjectIds: [newUuidV7()] },
+    );
+    expect(rlsDenied?.code).toBe('42501');
+
+    const mislabeledId = newUuidV7();
+    const mislabeledFixture = legacyFixtureOf(sourceRow.canonical_payload, mislabeledId);
+    const wrongObjectType = await importLegacySnapshot({
+      ...baseImport,
+      snapshotId: mislabeledId,
+      objectId: newUuidV7(),
+      objectType: CONTEXT_SNAPSHOT_OBJECT,
+      payloadHash: Buffer.from(mislabeledFixture.digest, 'hex'),
+      canonicalPayload: mislabeledFixture.payload,
+      projectContextContract: mislabeledFixture.payload,
+    });
+    expect(wrongObjectType?.code).toBe('23514');
+
+    const unprovenancedId = newUuidV7();
+    const unprovenancedFixture = legacyFixtureOf(sourceRow.canonical_payload, unprovenancedId);
+    const emptyProvenance = await importLegacySnapshot({
+      ...baseImport,
+      snapshotId: unprovenancedId,
+      objectId: newUuidV7(),
+      payloadHash: Buffer.from(unprovenancedFixture.digest, 'hex'),
+      canonicalPayload: unprovenancedFixture.payload,
+      projectContextContract: unprovenancedFixture.payload,
+      provenance: { manifestId: '' },
+    });
+    expect(emptyProvenance?.code).toBe('23514');
+
+    // None of the failed imports left a row, and the imported row kept its
+    // stored values through every tamper attempt.
+    expect(await countRows('task_execution.context_snapshot_legacy')).toBe(legacyCountBefore + 1);
+    expect((await legacySnapshotRow(legacyObjectId))?.source_system).toBe(
+      'wi216-legacy-source-system',
+    );
+  });
+
+  it('TE-217-D-002 authorizes the DRAFT dependency read on its own grant', async () => {
+    // The published Purpose this entry reuses verbatim (Spec 001 §15.9:
+    // `WORK_ORDER_DRAFT_READ_PURPOSE` of the owning IdentityPolicy module).
+    const DRAFT_READ_PURPOSE = 'execution.work_order.draft.read';
+    const draftCapability = contextSnapshotCapabilityCodes.contextSnapshotDraftReadV11;
+
+    // The positive build: one COMMITTED build carries two Decisions — the
+    // caller-presented build Decision and the fresh §15.9 DRAFT
+    // dependency-read Decision, minted for the *complete* draftSnapshotRef
+    // under this entry's own capability, never the build Decision reused.
+    const decisionsBefore = await draftReadDecisionRows();
+    const positiveEnvelope = await preparedBuild({ idempotencyKey: 'wi216-217002-ok' });
+    const buildDecisionId = record(positiveEnvelope.authorizationDecisionRef).objectId as string;
+    const payloadDigest = digestCanonicalPayload(
+      positiveEnvelope.payload as CanonicalJsonObject,
+    ).hash;
+    const positive = await attemptBuild(positiveEnvelope);
+    expect(positive, JSON.stringify(positive)).toMatchObject({ code: 'COMMITTED', thrown: false });
+    const decisionsAfter = await draftReadDecisionRows();
+    expect(decisionsAfter).toHaveLength(decisionsBefore.length + 1);
+    const draftDecision = decisionsAfter.find(
+      (row) =>
+        !decisionsBefore.some(
+          (prior) => prior.authorization_decision_id === row.authorization_decision_id,
+        ),
+    );
+    if (draftDecision === undefined)
+      throw new Error('the DRAFT dependency-read Decision is missing');
+    expect(draftDecision.authorization_decision_id).not.toBe(buildDecisionId);
+    expect(draftDecision).toMatchObject({
+      command_type: BUILD_COMMAND,
+      command_version: BUILD_VERSION,
+      purpose: DRAFT_READ_PURPOSE,
+      requested_capability: draftCapability,
+      target_object_type: DRAFT_SNAPSHOT_OBJECT,
+      target_object_id: goldenDraftRef.objectId,
+      policy_snapshot_id: POLICY_SNAPSHOT_ID,
+      principal_id: OPERATOR,
+      actor_snapshot_id: OPERATOR_ACTOR,
+    });
+    expect(draftDecision.command_payload_hash.equals(payloadDigest)).toBe(true);
+    // The canonical payload binds the complete draftSnapshotRef field by
+    // field (Spec 001 §15.9 rule 2; an absent immutableVersionId stays absent).
+    expect(record(draftDecision.canonical_payload).draftSnapshotRef).toEqual({
+      kind: 'CONTENT_ADDRESSED',
+      objectType: DRAFT_SNAPSHOT_OBJECT,
+      objectId: goldenDraftRef.objectId,
+      scope: { enterpriseId: fixture.enterpriseId, projectId: fixture.projectId },
+      contentHash: {
+        algorithm: 'SHA-256',
+        digest: goldenDraftRef.contentHash.digest,
+        canonicalizationVersion: '1',
+      },
+    });
+    // Exactly one Receipt — the build's own; the dependency read leaves no
+    // Receipt of its own and never replays a historical one.
+    expect(await receiptRows('wi216-217002-ok')).toHaveLength(1);
+
+    // Every refusal before the handler leaves zero TaskExecution facts, zero
+    // new DRAFT-purpose Decisions and no Receipt; a Grant-driven denial adds
+    // exactly one masked IdentityPolicy DENIED audit.
+    const denyCase = async (input: {
+      tag: string;
+      principal?: Principal;
+      entry?: InitialContextEntry;
+      draftRef?: unknown;
+      decisionNow?: Date;
+      code: string;
+      auditError?: string;
+    }): Promise<void> => {
+      const principal = input.principal ?? operator();
+      const factsBefore = await teFactCounts();
+      const priorDecisions = await draftReadDecisionRows();
+      const priorAudits = await ipDraftReadDeniedAudits(
+        principal.principalId,
+        goldenDraftRef.objectId,
+      );
+      const envelope = await preparedBuild({
+        idempotencyKey: `wi216-217002-${input.tag}`,
+        principal,
+        ...(input.draftRef !== undefined ? { draftRef: input.draftRef } : {}),
+        ...(input.decisionNow !== undefined ? { decisionNow: input.decisionNow } : {}),
+      });
+      const attempt = await attemptBuild(envelope, input.entry ?? initialContextEntry, principal);
+      expect(attempt, input.tag).toMatchObject({ code: input.code, thrown: true });
+      expect(await teFactCounts(), `${input.tag} moved TaskExecution facts`).toEqual(factsBefore);
+      expect(await draftReadDecisionRows(), `${input.tag} minted a DRAFT Decision`).toEqual(
+        priorDecisions,
+      );
+      const audits = await ipDraftReadDeniedAudits(principal.principalId, goldenDraftRef.objectId);
+      if (input.auditError === undefined) {
+        expect(audits, `${input.tag} wrote an IdentityPolicy audit`).toEqual(priorAudits);
+      } else {
+        expect(audits).toHaveLength(priorAudits.length + 1);
+        expect(audits.at(-1)).toMatchObject({
+          outcome: 'DENIED',
+          error_code: input.auditError,
+          command_type: BUILD_COMMAND,
+          target_type: DRAFT_SNAPSHOT_OBJECT,
+          target_id: goldenDraftRef.objectId,
+          principal_id: principal.principalId,
+        });
+      }
+      await expectNoContextSnapshot(
+        record(envelope.targetRef).objectId as string,
+        `wi216-217002-${input.tag}`,
+        'ABSENT',
+      );
+    };
+
+    // Grant missing: the second principal holds the build Grant (TE-214-D-007
+    // granted it and nothing revoked it — a second ACTIVE Grant of the same
+    // capability and Scope would be IDENTITY_CAPABILITY_ALREADY_ACTIVE) but no
+    // DRAFT dependency-read Grant at all. This case runs before the expired
+    // one, which leaves the second principal an expired DRAFT Grant row.
+    await denyCase({
+      tag: 'missing',
+      principal: other(),
+      code: AUTHORIZATION_REVOKED,
+      auditError: 'NO_ACTIVE_GRANT',
+    });
+
+    // Grant expired: a DRAFT Grant whose validity window has ended by the
+    // entry's trusted instant (the row exists — the denial is the expired
+    // window, not the missing Grant of the case above).
+    const expiringGrantId = await grant({
+      principal: other(),
+      capabilityCode: draftCapability,
+      action: ACTIONS.ctxDraftRead,
+      selectorType: 'TARGET_TYPE',
+      targetObjectType: DRAFT_SNAPSHOT_OBJECT,
+      validTo: new Date(Date.now() + 60_000),
+    });
+    const moved = new Date(Date.now() + 120_000);
+    await denyCase({
+      tag: 'expired',
+      principal: other(),
+      entry: entryFor({ now: () => moved }),
+      decisionNow: new Date(),
+      code: AUTHORIZATION_REVOKED,
+      auditError: 'NO_ACTIVE_GRANT',
+    });
+    const expiringGrant = (
+      await admin.query<{ valid_to: Date | null }>(
+        `SELECT valid_to FROM identity_policy.capability_grant
+          WHERE id = $1`,
+        [expiringGrantId],
+      )
+    ).rows.at(0);
+    if (expiringGrant?.valid_to == null) {
+      throw new Error('the expiring grant kept no valid_to');
+    }
+    expect(expiringGrant.valid_to.getTime()).toBeLessThan(moved.getTime());
+
+    // Grant revoked between the Decision and the build.
+    const revoked = await revokeCapability(identityDeps([fixture.projectId]), {
+      targetId: grantCtxDraftRead,
+      expectedAggregateVersion: '1',
+      scope: {
+        scopeKind: 'PROJECT',
+        enterpriseId: fixture.enterpriseId,
+        projectId: fixture.projectId,
+      },
+      reasonCode: 'WI216_REVOKE_DRAFT_READ',
+      effectiveAt: new Date(clock),
+      idempotencyKey: `wi216:revoke:${grantCtxDraftRead}`,
+    });
+    expect(revoked.status).toBe('COMMITTED');
+    await denyCase({ tag: 'revoked', code: AUTHORIZATION_REVOKED, auditError: 'NO_ACTIVE_GRANT' });
+    grantCtxDraftRead = await grant({
+      capabilityCode: draftCapability,
+      action: ACTIONS.ctxDraftRead,
+      selectorType: 'TARGET_TYPE',
+      targetObjectType: DRAFT_SNAPSHOT_OBJECT,
+    });
+
+    // Grant Policy Snapshot drift: the covering Grant is bound to a Policy
+    // Snapshot that is not current (not yet effective at the trusted
+    // instant), so no *current* Grant covers the read.
+    const driftSnapshotId = newUuidV7();
+    const driftSnapshot = await recordPolicySnapshot(identityDeps([]), {
+      policySnapshotId: driftSnapshotId,
+      policySetVersion: `wi216-drift-policy-set-${newUuidV7()}`,
+      policySchemaRefs: ['identity.PolicySnapshot@1.0'],
+      effectiveFrom: new Date(clock + 24 * 60 * 60 * 1000),
+      policyDocument: { rules: ['initial-context-authorization'], version: 2 },
+      idempotencyKey: `wi216:policy:${newUuidV7()}`,
+    });
+    expect(driftSnapshot.status).toBe('COMMITTED');
+    const driftSnapshotRow = (
+      await admin.query<{ payload_hash: Buffer }>(
+        'SELECT payload_hash FROM identity_policy.policy_snapshot WHERE policy_snapshot_id = $1',
+        [driftSnapshotId],
+      )
+    ).rows.at(0);
+    if (driftSnapshotRow === undefined) throw new Error('the drift Policy Snapshot row is missing');
+    const revokeForDrift = await revokeCapability(identityDeps([fixture.projectId]), {
+      targetId: grantCtxDraftRead,
+      expectedAggregateVersion: '1',
+      scope: {
+        scopeKind: 'PROJECT',
+        enterpriseId: fixture.enterpriseId,
+        projectId: fixture.projectId,
+      },
+      reasonCode: 'WI216_DRIFT_DRAFT_READ',
+      effectiveAt: new Date(clock),
+      idempotencyKey: `wi216:revoke:${grantCtxDraftRead}`,
+    });
+    expect(revokeForDrift.status).toBe('COMMITTED');
+    const driftGrantId = await grant({
+      capabilityCode: draftCapability,
+      action: ACTIONS.ctxDraftRead,
+      selectorType: 'TARGET_TYPE',
+      targetObjectType: DRAFT_SNAPSHOT_OBJECT,
+      grantPolicySnapshot: { id: driftSnapshotId, hash: driftSnapshotRow.payload_hash },
+    });
+    await denyCase({
+      tag: 'policy-drift',
+      code: AUTHORIZATION_REVOKED,
+      auditError: 'GRANT_POLICY_SNAPSHOT_NOT_CURRENT',
+    });
+    const revokeDrift = await revokeCapability(identityDeps([fixture.projectId]), {
+      targetId: driftGrantId,
+      expectedAggregateVersion: '1',
+      scope: {
+        scopeKind: 'PROJECT',
+        enterpriseId: fixture.enterpriseId,
+        projectId: fixture.projectId,
+      },
+      reasonCode: 'WI216_DRIFT_CLEANUP',
+      effectiveAt: new Date(clock),
+      idempotencyKey: `wi216:revoke:${driftGrantId}`,
+    });
+    expect(revokeDrift.status).toBe('COMMITTED');
+    grantCtxDraftRead = await grant({
+      capabilityCode: draftCapability,
+      action: ACTIONS.ctxDraftRead,
+      selectorType: 'TARGET_TYPE',
+      targetObjectType: DRAFT_SNAPSHOT_OBJECT,
+    });
+
+    // Target substitution, shape layer: the registered Envelope pins the
+    // object type spelling (the TE-214-D-002 legacy-spelling evidence), and
+    // a foreign Scope fails the Port's Scope check (the TE-214-D-002
+    // wrong-scope evidence) — both before any DRAFT fact read or Decision.
+    await denyCase({
+      tag: 'target-type',
+      draftRef: { ...goldenDraftRef, objectType: 'execution.work_order_draft_snapshot' },
+      code: API_VALUE_INVALID,
+    });
+    await denyCase({
+      tag: 'target-scope',
+      draftRef: {
+        ...goldenDraftRef,
+        scope: { enterpriseId: newUuidV7(), projectId: newUuidV7() },
+      },
+      code: IDENTITY_CONTEXT_SNAPSHOT_TARGET_INVALID,
+    });
+
+    // Target substitution, content layer (observed layer, header note): the
+    // Port binds the substituted address into a fresh Decision of its own
+    // and the owning store's by-identity read misses — never the build
+    // Decision, never a silent pass.
+    const handlerCase = async (tag: string, draftRef: unknown): Promise<void> => {
+      const priorDecisions = await draftReadDecisionRows();
+      const envelope = await preparedBuild({
+        idempotencyKey: `wi216-217002-${tag}`,
+        draftRef,
+      });
+      const attempt = await attemptBuild(envelope);
+      expect(attempt, tag).toMatchObject({ code: REFERENCE_INVALID, thrown: false });
+      expect((await draftReadDecisionRows()).length).toBe(priorDecisions.length + 1);
+      await expectNoContextSnapshot(
+        record(envelope.targetRef).objectId as string,
+        `wi216-217002-${tag}`,
+      );
+    };
+    await handlerCase('target-id', { ...goldenDraftRef, objectId: newUuidV7() });
+    await handlerCase('target-hash', {
+      ...goldenDraftRef,
+      contentHash: contentHash('0'.repeat(64)),
+    });
+  });
+
+  it('TE-217-D-003 validates the complete ContextSnapshotBuilt@1.1 envelope', async () => {
+    const buildEnvelope = await preparedBuild({ idempotencyKey: 'wi216-217003-build' });
+    const built = await attemptBuild(buildEnvelope);
+    expect(built, JSON.stringify(built)).toMatchObject({ code: 'COMMITTED', thrown: false });
+    if (built.result === undefined) throw new Error('the 217-003 build did not commit');
+    const targetId = record(buildEnvelope.targetRef).objectId as string;
+    const snapshotRow = await contextSnapshotRow(targetId);
+    if (snapshotRow === undefined) throw new Error('the 217-003 snapshot row is missing');
+    const outbox = await outboxRows(targetId);
+    expect(outbox).toHaveLength(1);
+    const event = outbox[0];
+    if (event === undefined) throw new Error('the 217-003 outbox row is missing');
+    expect(event).toMatchObject({
+      event_type: 'execution.ContextSnapshotBuilt',
+      event_version: '1.1',
+      aggregate_version: '1',
+      canonicalization_version: '1',
+      correlation_id: record(buildEnvelope).correlationId,
+      causation_id: record(buildEnvelope).commandId,
+      source_command_id: record(buildEnvelope).commandId,
+      created_by_principal_id: OPERATOR,
+    });
+
+    // The stored payload is exactly the closed four public members plus the
+    // runner's two Scope mirrors, and the stored hash recomputes over those
+    // six keys (§20.3).
+    const storedPayload = record(event.payload);
+    expect(Object.keys(storedPayload).sort()).toEqual([
+      'contextSnapshotRef',
+      'coverageStatus',
+      'enterpriseId',
+      'projectId',
+      'projectionType',
+      'workOrderRef',
+    ]);
+    expect(
+      event.payload_hash.equals(digestCanonicalPayload(event.payload as CanonicalJsonObject).hash),
+    ).toBe(true);
+    const publicPayload = {
+      contextSnapshotRef: storedPayload.contextSnapshotRef,
+      workOrderRef: storedPayload.workOrderRef,
+      projectionType: storedPayload.projectionType,
+      coverageStatus: storedPayload.coverageStatus,
+    } as unknown as CanonicalJsonObject;
+    const integrityOf = (payload: CanonicalJsonObject): CanonicalJsonObject => ({
+      canonicalizationVersion: '1',
+      payloadHash: {
+        algorithm: 'SHA-256',
+        digest: digestCanonicalPayload(payload).hash.toString('hex'),
+        canonicalizationVersion: '1',
+      },
+    });
+
+    // The complete public Event envelope, rebuilt member-by-member from the
+    // committed facts — the stored event id, causation, correlation, command
+    // and creator columns, the stored instant (the Snapshot payload's own
+    // `asOf`) and the four public payload members — validates strictly
+    // against the real ContractRegistry.
+    const occurredAt = event.occurred_at.toISOString();
+    expect(record(snapshotRow.canonical_payload).asOf).toBe(occurredAt);
+    const publicEnvelope = {
+      eventId: event.event_id,
+      eventType: 'execution.ContextSnapshotBuilt',
+      eventVersion: '1.1',
+      producerModule: 'task-execution',
+      aggregateType: CONTEXT_SNAPSHOT_OBJECT,
+      aggregateId: targetId,
+      aggregateVersion: 1,
+      scopeRef: { enterpriseId: fixture.enterpriseId, projectId: fixture.projectId },
+      correlationId: event.correlation_id,
+      causationId: event.causation_id,
+      commandId: event.source_command_id,
+      actorRef: {
+        kind: 'OBJECT',
+        objectType: PRINCIPAL_OBJECT,
+        objectId: event.created_by_principal_id,
+        scope: { enterpriseId: fixture.enterpriseId },
+      },
+      occurredAt,
+      dataClassification: 'INTERNAL',
+      payload: publicPayload,
+      integrity: integrityOf(publicPayload),
+    } as unknown as CanonicalJsonObject;
+    const validation = registry.validateOperation(
+      'execution.ContextSnapshotBuilt',
+      '1.1',
+      publicEnvelope,
+    );
+    expect(validation.valid, JSON.stringify(validation.errors)).toBe(true);
+
+    // A Scope member or any extra member inside the payload fails the closed
+    // four-member Schema; an off-table enum value fails even when it is a
+    // well-formed NamespaceCode.
+    const withPayload = (mutate: (payload: Record<string, unknown>) => void) => {
+      const mutated = structuredClone(publicPayload) as Record<string, unknown>;
+      mutate(mutated);
+      return registry.validateOperation('execution.ContextSnapshotBuilt', '1.1', {
+        ...publicEnvelope,
+        payload: mutated,
+        integrity: integrityOf(mutated as CanonicalJsonObject),
+      });
+    };
+    expect(
+      withPayload((mutated) => {
+        mutated.enterpriseId = fixture.enterpriseId;
+      }).valid,
+    ).toBe(false);
+    expect(
+      withPayload((mutated) => {
+        mutated.projectId = fixture.projectId;
+      }).valid,
+    ).toBe(false);
+    expect(
+      withPayload((mutated) => {
+        mutated.unexpectedMember = 'wi216';
+      }).valid,
+    ).toBe(false);
+    expect(
+      withPayload((mutated) => {
+        mutated.projectionType = 'coordinator';
+      }).valid,
+    ).toBe(false);
+    expect(
+      withPayload((mutated) => {
+        mutated.coverageStatus = 'complete_for_purpose';
+      }).valid,
+    ).toBe(false);
+
+    // @1.0 stays registered and frozen — its historical NamespaceCode fields
+    // still validate against the unchanged @1.0 Schema — but the corrected
+    // build never emits it: no @1.0 row of this event exists in the table.
+    const frozenPayload = {
+      contextSnapshotRef: storedPayload.contextSnapshotRef,
+      workOrderRef: storedPayload.workOrderRef,
+      projectionType: 'coordinator',
+      coverageStatus: 'complete_for_purpose',
+    } as unknown as CanonicalJsonObject;
+    const frozen = registry.validateOperation('execution.ContextSnapshotBuilt', '1.0', {
+      ...publicEnvelope,
+      eventVersion: '1.0',
+      payload: frozenPayload,
+      integrity: integrityOf(frozenPayload),
+    });
+    expect(frozen.valid, JSON.stringify(frozen.errors)).toBe(true);
+    const legacyEvents = await admin.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM task_execution.outbox_event
+        WHERE event_type = 'execution.ContextSnapshotBuilt' AND event_version = '1.0'`,
+    );
+    expect(legacyEvents.rows.at(0)?.n).toBe(0);
+
+    // The Catalog counts the matrix pins (also asserted in TE-214-D-016):
+    // 216 operations total, 46 owned by TaskExecution, the historical
+    // 200-entry v1.0 Baseline untouched.
+    const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
+      operations: { type: string; version: string; kind: string; owner: string }[];
+    };
+    expect(catalog.operations).toHaveLength(216);
+    expect(
+      catalog.operations.filter((operation) => operation.owner === 'task-execution'),
+    ).toHaveLength(46);
+    const baseline = JSON.parse(readFileSync(COMPATIBILITY_BASELINE, 'utf8')) as
+      { type: string }[] | { operations: { type: string }[] };
+    expect(Array.isArray(baseline) ? baseline : baseline.operations).toHaveLength(200);
+  });
+
+  it('TE-217-D-004 determinizes the Source Slice total order', async () => {
+    // Unit layer on the real committed slice payloads (the TE-214-D-017
+    // convention): the total order belongs to the owning assembly; the
+    // entry-level permutation stability of a real build is TE-214-D-003③.
+    const sliceA = await slicePayloadOf(sliceARef.objectId);
+    const sliceB = await slicePayloadOf(sliceBRef.objectId);
+    const refFor = (objectId: string, digest: string): Common.ContentAddressedRef =>
+      ({
+        kind: 'CONTENT_ADDRESSED',
+        objectType: SLICE_OBJECT,
+        objectId,
+        scope: scope(),
+        contentHash: contentHash(digest),
+      }) as unknown as Common.ContentAddressedRef;
+    const payloadFor = (
+      slice: Record<string, unknown>,
+      objectId: string,
+    ): Record<string, unknown> => {
+      const cloned = structuredClone(slice);
+      cloned.sliceId = objectId;
+      return cloned;
+    };
+
+    // A'' carries the smaller objectId with the LARGER hash digest, B'' the
+    // reverse: an implementation that compared any hash member before the
+    // object identity would order them backwards.
+    const aId = '00000000-0000-7000-8000-000000000001';
+    const bId = 'ffffffff-ffff-7fff-bfff-ffffffffffff';
+    const aRef = refFor(aId, 'f'.repeat(64));
+    const bRef = refFor(bId, '0'.repeat(64));
+    expect(compareOrderTuples(sliceOrderTuple(aRef), sliceOrderTuple(bRef))).toBeLessThan(0);
+
+    const pairForward = await unitAssemblyInput({
+      slices: [
+        { ref: aRef, slice: payloadFor(sliceA, aId) },
+        { ref: bRef, slice: payloadFor(sliceB, bId) },
+      ],
+    });
+    const pairReverse = await unitAssemblyInput({
+      slices: [
+        { ref: bRef, slice: payloadFor(sliceB, bId) },
+        { ref: aRef, slice: payloadFor(sliceA, aId) },
+      ],
+    });
+    const pairIdentity = {
+      snapshotId: pairForward.snapshotId,
+      asOf: pairForward.asOf,
+      correlationId: pairForward.correlationId,
+    };
+    const forward = assembleInitialContext(pairForward);
+    const reverse = assembleInitialContext({ ...pairReverse, ...pairIdentity });
+    if (forward.outcome !== 'ASSEMBLED' || reverse.outcome !== 'ASSEMBLED') {
+      throw new Error('the reverse-ordered fixture did not assemble');
+    }
+    // Every permutation produces the identical payload, metadata and hashes.
+    expect(reverse.payload).toEqual(forward.payload);
+    expect(reverse.metadata).toEqual(forward.metadata);
+    expect(
+      digestCanonicalPayload(reverse.payload).hash.equals(
+        digestCanonicalPayload(forward.payload).hash,
+      ),
+    ).toBe(true);
+    expect(
+      digestCanonicalPayload(reverse.metadata).hash.equals(
+        digestCanonicalPayload(forward.metadata).hash,
+      ),
+    ).toBe(true);
+    // sourceSlices[] opens with A'' — the object identity decides, not the
+    // reversed hash members.
+    const pairSliceRefs = forward.metadata.sliceRefs as Record<string, unknown>[];
+    expect(pairSliceRefs.map((ref) => ref.objectId)).toEqual([aId, bId]);
+    // The fact order is the slice's own array order and the deterministic
+    // contextItemIds recompute from A''.objectId at the in-slice indices —
+    // the UUIDv7 inputs never see the request's permutation.
+    const factItems = record(sliceA.source).factItems as unknown[];
+    const items = forward.payload.contextItems as Record<string, unknown>[];
+    expect(items).toHaveLength(factItems.length);
+    const asOfMilliseconds = new Date(forward.payload.asOf as string).getTime();
+    for (const [index, factItem] of factItems.entries()) {
+      expect(items[index]?.contextItemId).toBe(
+        recomputeContextItemId(asOfMilliseconds, factItem, aId, index),
+      );
+    }
+
+    // Three slices (C'' a second slice-B body under a middle identity) in
+    // all six permutations: one outcome.
+    const cId = '77777777-7777-7777-8777-777777777777';
+    const cRef = refFor(cId, '7'.repeat(64));
+    interface SliceEntry {
+      ref: Common.ContentAddressedRef;
+      slice: Record<string, unknown>;
+    }
+    const trio: [SliceEntry, SliceEntry, SliceEntry] = [
+      { ref: aRef, slice: payloadFor(sliceA, aId) },
+      { ref: cRef, slice: payloadFor(sliceB, cId) },
+      { ref: bRef, slice: payloadFor(sliceB, bId) },
+    ];
+    const trioInput = await unitAssemblyInput({ slices: trio });
+    const trioIdentity = {
+      snapshotId: trioInput.snapshotId,
+      asOf: trioInput.asOf,
+      correlationId: trioInput.correlationId,
+    };
+    const first = assembleInitialContext(trioInput);
+    if (first.outcome !== 'ASSEMBLED') throw new Error('the trio fixture did not assemble');
+    expect(
+      (first.metadata.sliceRefs as Record<string, unknown>[]).map((ref) => ref.objectId),
+    ).toEqual([aId, cId, bId]);
+    for (const order of [
+      [0, 1, 2],
+      [0, 2, 1],
+      [1, 0, 2],
+      [1, 2, 0],
+      [2, 0, 1],
+      [2, 1, 0],
+    ] as const) {
+      const permuted = assembleInitialContext({
+        ...(await unitAssemblyInput({ slices: order.map((index) => trio[index]) })),
+        ...trioIdentity,
+      });
+      expect(permuted.outcome).toBe('ASSEMBLED');
+      if (permuted.outcome === 'ASSEMBLED') {
+        expect(permuted.payload).toEqual(first.payload);
+        expect(permuted.metadata).toEqual(first.metadata);
+      }
+    }
+
+    // Fail closed: the exact duplicate pair, the tuple collision whose
+    // canonical refs differ (`immutableVersionId` absent vs present-as-empty
+    // bind to the same order key — no unranked-member tiebreak is invented),
+    // and the duplicated fact inside one slice (two items, one subject
+    // identity) all reject EXECUTION_CONTEXT_SOURCE_INVALID.
+    const duplicate = assembleInitialContext(
+      await unitAssemblyInput({
+        slices: [
+          { ref: aRef, slice: payloadFor(sliceA, aId) },
+          { ref: aRef, slice: payloadFor(sliceA, aId) },
+        ],
+      }),
+    );
+    expect(duplicate).toMatchObject({
+      outcome: 'REJECTED',
+      errorCode: EXECUTION_CONTEXT_SOURCE_INVALID,
+    });
+    const collision = assembleInitialContext(
+      await unitAssemblyInput({
+        slices: [
+          { ref: aRef, slice: payloadFor(sliceA, aId) },
+          { ref: { ...aRef, immutableVersionId: '' }, slice: payloadFor(sliceA, aId) },
+        ],
+      }),
+    );
+    expect(collision).toMatchObject({
+      outcome: 'REJECTED',
+      errorCode: EXECUTION_CONTEXT_SOURCE_INVALID,
+    });
+    const duplicatedFacts = payloadFor(sliceA, aId);
+    record(duplicatedFacts.source).factItems = [
+      structuredClone(factItems[0]),
+      ...factItems,
+    ] as unknown[];
+    const inSliceDuplicate = assembleInitialContext(
+      await unitAssemblyInput({
+        slices: [
+          { ref: aRef, slice: duplicatedFacts },
+          { ref: bRef, slice: payloadFor(sliceB, bId) },
+        ],
+      }),
+    );
+    expect(inSliceDuplicate).toMatchObject({
+      outcome: 'REJECTED',
+      errorCode: EXECUTION_CONTEXT_SOURCE_INVALID,
     });
   });
 });

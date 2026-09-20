@@ -96,7 +96,29 @@ export interface ContextSnapshotRow {
   readonly enterpriseId: string;
   readonly projectId: string;
   readonly payloadHash: Buffer;
+  readonly payloadHashAlgorithm: string;
+  readonly canonicalizationVersion: string;
   readonly canonicalPayload: unknown;
+}
+
+/**
+ * The committed legacy compatibility facts the §20.1 legacy read route
+ * returns. The store has no application writer: rows arrive only through a
+ * controlled migration/import, and `projectContextContract`/`contractRef` are
+ * the historical contract body and reference, stored as-is and returned
+ * verbatim (never rebuilt into the canonical spelling).
+ */
+export interface ContextSnapshotLegacyRow {
+  readonly snapshotId: string;
+  readonly objectId: string;
+  readonly enterpriseId: string;
+  readonly projectId: string;
+  readonly payloadHash: Buffer;
+  readonly payloadHashAlgorithm: string;
+  readonly canonicalizationVersion: string;
+  readonly canonicalPayload: unknown;
+  readonly projectContextContract: unknown;
+  readonly contractRef: unknown;
 }
 
 function assertRunnerBoundContextSnapshotFacts(
@@ -282,6 +304,8 @@ export class ContextSnapshotRepository {
         'enterprise_id',
         'project_id',
         'payload_hash',
+        'payload_hash_algorithm',
+        'canonicalization_version',
         'canonical_payload',
       ])
       .where('object_id', '=', identity.objectId)
@@ -296,7 +320,54 @@ export class ContextSnapshotRepository {
           enterpriseId: row.enterprise_id,
           projectId: row.project_id,
           payloadHash: row.payload_hash,
+          payloadHashAlgorithm: row.payload_hash_algorithm,
+          canonicalizationVersion: row.canonicalization_version,
           canonicalPayload: row.canonical_payload,
+        };
+  }
+
+  /**
+   * Reads one committed legacy Context Snapshot by its exact identity -
+   * `(object_id, snapshot_id, payload_hash)` - on the read-only compatibility
+   * store (§20.1 route 2). The same hash-in-lookup posture as the canonical
+   * read applies; the store has no application writer, and RLS keeps
+   * "invisible" and "missing" indistinguishable.
+   */
+  async readContextSnapshotLegacy(
+    trx: TaskExecutionTransaction,
+    identity: { objectId: string; snapshotId: string; payloadHash: Buffer },
+  ): Promise<ContextSnapshotLegacyRow | undefined> {
+    const row = await trx
+      .selectFrom('task_execution.context_snapshot_legacy')
+      .select([
+        'snapshot_id',
+        'object_id',
+        'enterprise_id',
+        'project_id',
+        'payload_hash',
+        'payload_hash_algorithm',
+        'canonicalization_version',
+        'canonical_payload',
+        'project_context_contract',
+        'contract_ref',
+      ])
+      .where('object_id', '=', identity.objectId)
+      .where('snapshot_id', '=', identity.snapshotId)
+      .where('payload_hash', '=', identity.payloadHash)
+      .executeTakeFirst();
+    return row === undefined
+      ? undefined
+      : {
+          snapshotId: row.snapshot_id,
+          objectId: row.object_id,
+          enterpriseId: row.enterprise_id,
+          projectId: row.project_id,
+          payloadHash: row.payload_hash,
+          payloadHashAlgorithm: row.payload_hash_algorithm,
+          canonicalizationVersion: row.canonicalization_version,
+          canonicalPayload: row.canonical_payload,
+          projectContextContract: row.project_context_contract,
+          contractRef: row.contract_ref,
         };
   }
 }

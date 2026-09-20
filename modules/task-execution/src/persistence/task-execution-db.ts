@@ -396,6 +396,37 @@ export interface ContextSnapshotBuildTable {
   created_by_principal_id: string;
 }
 
+/**
+ * PR #217 (§20.1): read-back-only compatibility store for historical
+ * immutable Context Snapshots under the legacy `zhiju.project.context_snapshot`
+ * spelling (V3004, PostgreSQL logical model §35). Rows are created only by a
+ * migration or controlled import running as the schema owner; the application
+ * role holds SELECT alone, so this table has no insert/update typing use here.
+ * `project_context_contract` and `contract_ref` are the historical contract
+ * body and its reference, stored as-is; the V3004 legacy mirror guard
+ * re-derives `snapshot_id`, the Project Scope and `payload_hash` from
+ * `canonical_payload`, and the `object_type` CHECK closes the spelling.
+ */
+export interface ContextSnapshotLegacyTable {
+  snapshot_id: string;
+  /** Closed to the legacy `zhiju.project.context_snapshot` spelling by V3004. */
+  object_type: string;
+  object_id: string;
+  enterprise_id: string;
+  project_id: string;
+  payload_hash: Buffer;
+  payload_hash_algorithm: string;
+  canonicalization_version: string;
+  canonical_payload: Json;
+  project_context_contract: Json;
+  contract_ref: Json;
+  import_manifest_id: string;
+  import_batch_id: string;
+  source_system: string;
+  imported_at: Date;
+  import_tool_version: string;
+}
+
 export interface TaskExecutionDb {
   'task_execution.task': TaskTable;
   'task_execution.task_definition_snapshot': TaskDefinitionSnapshotTable;
@@ -404,6 +435,7 @@ export interface TaskExecutionDb {
   'task_execution.work_order_draft_snapshot': WorkOrderDraftSnapshotTable;
   'task_execution.context_snapshot': ContextSnapshotTable;
   'task_execution.context_snapshot_build': ContextSnapshotBuildTable;
+  'task_execution.context_snapshot_legacy': ContextSnapshotLegacyTable;
   'task_execution.command_receipt': CommandReceiptTable;
   'task_execution.outbox_event': OutboxEventTable;
   'task_execution.inbox_message': InboxMessageTable;

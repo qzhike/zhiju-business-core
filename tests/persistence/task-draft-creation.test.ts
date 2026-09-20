@@ -2674,11 +2674,11 @@ describe.skipIf(!gateEnabled)('Task DRAFT creation (real PostgreSQL)', () => {
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(215);
+    expect(catalog.operations).toHaveLength(216);
     const taskEvents = catalog.operations.filter(
       (operation) => operation.owner === 'task-execution' && operation.kind === 'EVENT',
     );
-    expect(taskEvents).toHaveLength(11);
+    expect(taskEvents).toHaveLength(12);
     expect(taskEvents.some((event) => event.type === 'execution.TaskCreated')).toBe(false);
 
     const envelope = await preparedEnvelope({
