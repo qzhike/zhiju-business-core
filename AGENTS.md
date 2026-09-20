@@ -50,6 +50,12 @@ read sections 1–6 and 8–11. Otherwise locate relevant rules and authority se
 Historical sections retain useful constraints but do not define current execution
 status. Never silently resolve a conflict between an Issue and a contract.
 
+## Delivery planning
+
+Apply the shared Planner's independent delivery goal and first-version acceptance
+principles using the [project acceptance policy](.vibe/high-level-docs/08-verification-baseline.md#28-首版可用验收与任务粒度).
+Planner, Implementer, and Reviewer use the agreed scope and acceptance consistently.
+
 ## Project boundaries
 
 - Preserve module ownership and public contracts. Update affected authority

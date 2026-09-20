@@ -16,7 +16,7 @@
 开始实现前：
 
 1. 对账当前 TaskExecution Module Spec/Test、现有实现与 IM-06 退出标准。
-2. 处理实质性契约缺口；只有 NOW + READY 的独立切片才发布 Issue。
+2. 处理实质性契约缺口；按[首版可用验收与任务粒度](../high-level-docs/08-verification-baseline.md#28-首版可用验收与任务粒度)规划一个独立交付目标，只有 NOW + READY 的任务才发布 Issue。
 3. Issue 明确权威章节、可观察验收、非目标及 `full` 验证目标。
 
 已识别的首次 Context/Contract 构建、Human-operated Driver/Attempt 与控制入口、Readiness/Validation/Completion 判断事实来源，见 [IM-06 设计提案](../decisions/task-execution-human-operated.md)。第 2–4 节方向与约束已获用户批准；具体技术增量 TD-01–04（新增 API、Task v2、持久化与首版范围）已获用户批准，作为未来实现的设计基准；其中 [Issue #157](https://github.com/qzhike/zhiju-business-core/issues/157) 的 Source Slice capture/read Schema、Catalog 和技术 Guard 已实现，其 owning 字段与边界见 Module-Spec-002；其余可执行契约及业务能力继续按切片交付。[#188](https://github.com/qzhike/zhiju-business-core/issues/188) 已实现 Source Slice capture/read Handler、不可变持久化、真实授权组成层与 Policy 消费，并通过受控 PostgreSQL 验证；[#191](https://github.com/qzhike/zhiju-business-core/issues/191) 已实现 TD-04 的 `project.get_resolution_receipt@1.0` 窄权威 Query、规范 Receipt 材料（V2015）、真实授权组成层与精确可重算 backfill，并通过受控 PostgreSQL 验证；TE 的 answer/resolver 消费与完整首次 Context 业务链仍为 NOT RUN。
