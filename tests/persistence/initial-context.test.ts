@@ -194,8 +194,18 @@
 //     SHA-256/'1'/lowercase-hex digest triple). Every violation is the same
 //     guard 22023, so a closure-violating row is unwritable and the read
 //     boundary's own recomputation can never observe one (the "no legal fact
-//     producer" convention); the row runs the nine one-member tampers at the
-//     guard. The wrongHash/wrongScope/rlsDenied/wrongObjectType/emptyProvenance
+//     producer" convention); the row runs the one-member tampers at the
+//     guard — the round-4 nine (body/digest/object identity/scope/kind/
+//     algorithm/cv), extended in round 5 by the four member-set tampers of
+//     the registered `contentAddressedRef` shape the guard now enforces:
+//     `contract_ref` root exactly {contentHash, kind, objectId, objectType,
+//     scope}, `scope` exactly {enterpriseId, projectId}, `contentHash`
+//     exactly {algorithm, canonicalizationVersion, digest} — so an unknown
+//     member at any level, and even a schema-legal `immutableVersionId`, are
+//     the same guard 22023 (the read boundary revalidates the stored ref
+//     against the registered schema and forbids `immutableVersionId` too, but
+//     no violating row is writable). The
+//     wrongHash/wrongScope/rlsDenied/wrongObjectType/emptyProvenance
 //     fixtures close their `contract_ref` against their own case identity, so
 //     the closure each case targets still fires its own code.
 //   * Round-4 gate finding (timeout cascade): a timed-out test is abandoned,
@@ -6136,6 +6146,34 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       await closureCase('contract-ref-canonicalization-version', (row) =>
         tamperedContractRef(row, (ref) => {
           record(ref.contentHash).canonicalizationVersion = '2';
+        }),
+      );
+      // Round 5: the guard additionally closes `contract_ref` against the
+      // registered `contentAddressedRef` member sets — the root exactly the
+      // five keys (which also forbids the schema-optional
+      // `immutableVersionId`), `scope` exactly the Project pair,
+      // `contentHash` exactly the triple. Each row is otherwise fully closed,
+      // so exactly the key-set clause fires.
+      await closureCase('contract-ref-root-extra-member', (row) =>
+        tamperedContractRef(row, (ref) => {
+          ref.wi216UnknownMember = 'member';
+        }),
+      );
+      await closureCase('contract-ref-scope-extra-member', (row) =>
+        tamperedContractRef(row, (ref) => {
+          record(ref.scope).wi216UnknownMember = 'member';
+        }),
+      );
+      await closureCase('contract-ref-content-hash-extra-member', (row) =>
+        tamperedContractRef(row, (ref) => {
+          record(ref.contentHash).wi216UnknownMember = 'member';
+        }),
+      );
+      // A schema-legal uuidV7, still rejected: the canonical derivation never
+      // emits `immutableVersionId` and no authority binds a version id here.
+      await closureCase('contract-ref-immutable-version-id', (row) =>
+        tamperedContractRef(row, (ref) => {
+          ref.immutableVersionId = newUuidV7();
         }),
       );
 

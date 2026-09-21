@@ -50,6 +50,8 @@ export const GET_CONTEXT_SNAPSHOT_QUERY = 'execution.get_context_snapshot';
 export const GET_CONTEXT_SNAPSHOT_VERSION = '1.0';
 
 const PROJECT_CONTEXT_CORE_SCHEMA = 'https://schemas.zhiju.local/core/project-context/1.0';
+const CONTENT_ADDRESSED_REF_SCHEMA =
+  'https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef';
 const PROJECT_CONTEXT_CONTRACT_TYPE = 'zhiju.contract.project_context';
 
 export interface GetContextSnapshotInput {
@@ -87,8 +89,14 @@ function reject(errorCode: string, safeSummary: string): GetContextSnapshotResul
  * the stored `contractRef` must name exactly that address - the
  * CONTENT_ADDRESSED `zhiju.contract.project_context` binding the canonical
  * route derives (objectId = the Snapshot identity, the row's Project Scope,
- * the recomputed SHA-256/'1'/digest triple). The columns are never rebuilt,
- * extended or re-spelled into the canonical identity (§35).
+ * the recomputed SHA-256/'1'/digest triple). The reference additionally
+ * satisfies the registered `contentAddressedRef` member-set closure at the
+ * root, `scope` and `contentHash` levels through the real registry (PR #217
+ * round-5 finding: the field-equality closure alone cannot reject unknown
+ * members, but the Query's own registered Result reuses that closed type),
+ * with the schema-optional `immutableVersionId` forbidden - the same
+ * deliberately-stricter closure the V3004 import guard enforces. The columns
+ * are never rebuilt, extended or re-spelled into the canonical identity (§35).
  */
 async function readLegacyContextSnapshot(
   trx: TaskExecutionTransaction,
@@ -170,9 +178,36 @@ async function readLegacyContextSnapshot(
       'the stored Context payload does not match its content address',
     );
   }
+  // The field-equality closure alone does not close the reference's member
+  // sets (PR #217 round-5 finding): the registered `contentAddressedRef` is
+  // `additionalProperties:false` at the root, and its `scopeRef` and
+  // `contentHash` members are closed too, and the Query's own registered
+  // Result reuses that type - so the stored reference revalidates against the
+  // real registry before it can leave the module. The same registry instance
+  // revalidates the contract body below.
+  const registry = new ContractRegistry();
+  // `immutableVersionId` is schema-optional but forbidden in this
+  // canonical-derived reference: the canonical derivation never emits it and
+  // no authority binds a version id for a content-addressed contract ref, so
+  // an unbound optional member would weaken the content identity. This
+  // closure is deliberately stricter than the registered schema, which would
+  // accept a valid UuidV7 here, so the absence is checked explicitly before
+  // the registry validation.
+  if (contractRef.immutableVersionId !== undefined) {
+    return reject(
+      REFERENCE_INVALID,
+      'the stored contract reference is not a closed ContentAddressedRef',
+    );
+  }
+  if (!registry.validateCoreContract(CONTENT_ADDRESSED_REF_SCHEMA, row.contractRef).valid) {
+    return reject(
+      REFERENCE_INVALID,
+      'the stored contract reference is not a closed ContentAddressedRef',
+    );
+  }
   // The stored historical contract body leaves the module only after it
   // revalidates against the registered ProjectContext v1.0 Core Schema.
-  const validation = new ContractRegistry().validateCoreContract(
+  const validation = registry.validateCoreContract(
     PROJECT_CONTEXT_CORE_SCHEMA,
     row.projectContextContract,
   );

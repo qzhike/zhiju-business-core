@@ -834,6 +834,11 @@ CREATE POLICY context_snapshot_build_insert ON task_execution.context_snapshot_b
 -- are the historical contract body and its reference, stored as-is and closed
 -- against that payload by the mirror guard below (§35 content row: at write
 -- time the canonical hash is recomputed and the ref must equal it exactly).
+-- The ref is also closed against the registered `contentAddressedRef` member
+-- sets (root/scope/contentHash `additionalProperties:false`, PR #217 round-5
+-- finding), with the schema-optional `immutableVersionId` forbidden - this
+-- canonical-derived reference never carries it and no authority binds one, so
+-- accepting it would weaken the content identity the ref names.
 -- The guard re-derives `snapshot_id`, the Project Scope and the SnapshotRef
 -- digest from `canonical_payload`, requires the stored contract body to be the
 -- hashed payload itself (the two jsonb columns must not differ), and requires
@@ -919,6 +924,24 @@ CREATE TABLE task_execution.context_snapshot_legacy (
 -- lowercase 64-hex spelling; a missing member never survives because every
 -- comparison is null-safe `IS DISTINCT FROM`.
 --
+-- The reference is additionally closed against the registered
+-- `contentAddressedRef` shape (contracts/src/common.schema.ts, PR #217 round-5
+-- finding): its member set is exactly the five required keys
+-- {kind, objectType, objectId, scope, contentHash}, `scope` is exactly
+-- {enterpriseId, projectId} (the row is Project-scoped) and `contentHash` is
+-- exactly {algorithm, digest, canonicalizationVersion} - the root, `scopeRef`
+-- and `contentHash` `additionalProperties:false` closures of the schema the
+-- Query Result reuses. A member set is compared as the sorted key list of the
+-- object, so the closure is spelling-agnostic about key order. The schema's
+-- optional `immutableVersionId` is deliberately forbidden in this
+-- canonical-derived reference: the canonical derivation never emits it and no
+-- authority binds a version id for a content-addressed contract ref, so an
+-- unbound optional member would weaken the content identity; the exact root
+-- key set enforces its absence. `jsonb_object_keys` of a non-object raises
+-- the 22023 the nested block below already converts into this guard's own
+-- identity, and a missing member yields a key list that can never equal the
+-- closed set, so both stay fail-closed.
+--
 -- SECURITY DEFINER for the same reason as the canonical mirror guards: the
 -- guard runs the owner-only canonicalizer as its owner, so the application
 -- role can never call it, and trigger functions are trigger-only.
@@ -947,6 +970,21 @@ BEGIN
                        task_execution.canonical_jsonb_text(NEW.canonical_payload), 'UTF8'))
             OR NEW.project_context_contract
                 IS DISTINCT FROM NEW.canonical_payload
+            -- The three closed member sets of the registered
+            -- `contentAddressedRef` (see the header): the exact root five-key
+            -- set (which also forbids the schema-optional `immutableVersionId`),
+            -- the exact Project-scope pair and the exact contentHash triple.
+            OR (SELECT array_agg(ref_key ORDER BY ref_key)
+                  FROM jsonb_object_keys(NEW.contract_ref) AS ref_key)
+                   IS DISTINCT FROM
+                   ARRAY['contentHash', 'kind', 'objectId', 'objectType', 'scope']
+            OR (SELECT array_agg(ref_key ORDER BY ref_key)
+                  FROM jsonb_object_keys(NEW.contract_ref->'scope') AS ref_key)
+                   IS DISTINCT FROM ARRAY['enterpriseId', 'projectId']
+            OR (SELECT array_agg(ref_key ORDER BY ref_key)
+                  FROM jsonb_object_keys(NEW.contract_ref->'contentHash') AS ref_key)
+                   IS DISTINCT FROM
+                   ARRAY['algorithm', 'canonicalizationVersion', 'digest']
             OR NEW.contract_ref->>'kind'
                 IS DISTINCT FROM 'CONTENT_ADDRESSED'
             OR NEW.contract_ref->>'objectType'

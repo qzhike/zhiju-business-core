@@ -6,9 +6,10 @@
 // legacy route is exercised against a canned `context_snapshot_legacy` row
 // whose contract body and `contract_ref` are fully closed against the hashed
 // cv1 payload; every relaxation of that closure (a differing contract body, a
-// foreign `contractRef` digest or a wrong `contractRef` field) is its own
-// REFERENCE_INVALID negative. The read writes nothing: the suite asserts no
-// mutating statement is ever issued.
+// foreign `contractRef` digest, a wrong `contractRef` field, an unknown member
+// at the `contractRef` root/scope/contentHash level, or a schema-optional
+// `immutableVersionId`) is its own REFERENCE_INVALID negative. The read writes
+// nothing: the suite asserts no mutating statement is ever issued.
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -866,6 +867,70 @@ describe('handleGetContextSnapshot legacy route (§20.1)', () => {
   it('rejects a legacy row whose contractRef is not a reference object', async () => {
     const harness = new ReadHarness();
     harness.legacyRow = legacyRowFor(harness, { contract_ref: 'not-a-ref' });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef carries an unknown root member', async () => {
+    // The registered `contentAddressedRef` root is `additionalProperties:false`;
+    // every known field and the hash closure stay intact, so only the member-set
+    // closure against the registered schema refuses the row (PR #217 round 5).
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, { unexpected: true }),
+    });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef scope carries an unknown member', async () => {
+    // The registered `scopeRef` is closed the same way; the Scope values still
+    // equal the row's, so only the member-set closure can refuse it.
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, {
+        scope: { enterpriseId: ENT, projectId: PRJ, unexpected: true },
+      }),
+    });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef contentHash carries an unknown member', async () => {
+    // The registered `contentHash` is closed to exactly its three members; the
+    // triple itself stays intact, so only the member-set closure refuses it.
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, {
+        contentHash: {
+          algorithm: 'SHA-256',
+          digest: harness.payloadHash.toString('hex'),
+          canonicalizationVersion: '1',
+          unexpected: true,
+        },
+      }),
+    });
+    expectRejected(
+      await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
+      REFERENCE_INVALID,
+    );
+  });
+
+  it('rejects a legacy row whose contractRef carries a schema-optional immutableVersionId', async () => {
+    // The registered schema would accept a valid UuidV7 `immutableVersionId`;
+    // this closure is deliberately stricter - the canonical derivation never
+    // emits one and no authority binds a version id for a content-addressed
+    // contract ref, so its presence is REFERENCE_INVALID even when valid.
+    const harness = new ReadHarness();
+    harness.legacyRow = legacyRowFor(harness, {
+      contract_ref: contractRefFor(harness, { immutableVersionId: OTHER_ID }),
+    });
     expectRejected(
       await harness.run({ contextSnapshotRef: harness.legacySnapshotRef() }),
       REFERENCE_INVALID,
