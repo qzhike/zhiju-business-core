@@ -364,7 +364,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 ## WorkOrder Validation → Freeze/READY 设计矩阵
 
-状态：`T2 HUMAN DESIGN APPROVED 2026-09-21（决定 §20.3）/ PR #218 ROUND 1 REQUEST_CHANGES / NEW HEAD RE-REVIEW PENDING / RUNTIME NOT RUN`。行为唯一来源为 [Spec 003 §21](../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案)，授权为 Spec 001 §15.10，持久化为 PostgreSQL §36。本矩阵的预期不是测试执行结果；已有 `TE-WI02-D-*` 仍作为更广链路场景保留，不以本提案改写其状态。
+状态：`T2 HUMAN DESIGN APPROVED 2026-09-21（决定 §20.3）/ PR #218 ROUND 2 INDEPENDENT DESIGN REVIEW APPROVE 2026-09-21（reviewed 1acdf34） / RUNTIME NOT RUN`。行为唯一来源为 [Spec 003 §21](../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案)，授权为 Spec 001 §15.10，持久化为 PostgreSQL §36。本矩阵的预期不是测试执行结果；已有 `TE-WI02-D-*` 仍作为更广链路场景保留，不以本提案改写其状态。
 
 | ID | 层级 | 输入与单变量反例 | 可观察预期 | 实际 |
 |---|---|---|---|---|

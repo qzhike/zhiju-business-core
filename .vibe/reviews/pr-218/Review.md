@@ -19,3 +19,14 @@ Spec 003 §21.2 要求本次请求的 `policyRef`/`evaluatorRef` 与 candidate �
 ### 验证证据与未运行边界
 
 Reviewer 在该 SHA 独立执行 `vibe verify full --json`，结果 `PASS`：单元/契约 72 个文件、1313 项测试通过，Catalog/Registry 均为 216；真实 PostgreSQL 18.6 持久化 44 个文件、493 项测试通过，第二次 Flyway migrate no-op。GitHub CI `verify` 在该 head 为 `SUCCESS`。文档语义的反例不由现行自动测试覆盖。Validation、Freeze、READY 的运行时行为以及外部和人工业务验收均 `NOT RUN`。
+
+## 第 2 轮：`APPROVE`
+
+- Reviewed SHA：`1acdf34c1cddaf1f1346c707925b8a7f0459ae70`
+- 日期：2026-09-21
+- GitHub handoff：[#issuecomment-5757895877](https://github.com/qzhike/zhiju-business-core/pull/218#issuecomment-5757895877)（同账号 PR 评论，不是 GitHub formal review）
+- 人类修订批准：用户在第 1 轮具体阻断和拟议修正呈现后明确回复“批准”；范围与记录见[决定 §20.3](../../decisions/task-execution-human-operated.md#203-人类设计批准记录)。
+
+独立复审核对了新 head 相对第 1 轮的增量、Core §4.12、Spec 003 §11.9 与现行 Registry。Spec 003 §21.2 现在将 candidate 已有 VersionPins 的 Draft/Context/受信观察绑定，与本次 Validation Policy 及静态 Evaluator 的独立解析分开；`TE-VAL-D-004/005` 增加了两侧正例及错配反例。第 1 轮阻断已解除，本轮未发现新的设计阻断。
+
+该 head 的 GitHub CI `verify` 为 `SUCCESS`，Reviewer 独立执行 `vibe verify full --json` 为 `PASS`：普通测试 72 个文件、1313 项通过，Catalog/Registry 均为 216；PostgreSQL 18.6 持久化 44 个文件、493 项通过，二次 Flyway migrate no-op；`git diff --check` 通过。设计只定义后续实现边界，Validation、Freeze、READY 运行时行为和外部/人工业务验收仍 `NOT RUN`。本记录及状态事实增补后，合并前仍需核对最终 PR head 的差异、检查和合并条件。

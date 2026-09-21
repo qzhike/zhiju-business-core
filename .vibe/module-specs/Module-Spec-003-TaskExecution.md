@@ -1782,7 +1782,7 @@ payload `additionalProperties:false`，不得写入 `enterpriseId`/`projectId`�
 
 ## 21. WorkOrder Validation 与 Freeze/READY 设计提案
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21 / BASE main@002c3c8 / PR #218 ROUND 1 REQUEST_CHANGES / NEW HEAD RE-REVIEW PENDING / HANDLER AND PERSISTENCE NOT RUN`。本节将 §11.2–§11.3、§11.6、§11.9 已批准原则闭合为首个可执行 READY 切片；依据与取舍见[决定 §20](../decisions/task-execution-human-operated.md#20-im-06-workorder-validation--freezeready-设计提案)。本节尚未改变现行已实现行为。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21 / BASE main@002c3c8 / PR #218 ROUND 2 INDEPENDENT DESIGN REVIEW APPROVE 2026-09-21（reviewed 1acdf34） / HANDLER AND PERSISTENCE NOT RUN`。本节将 §11.2–§11.3、§11.6、§11.9 已批准原则闭合为首个可执行 READY 切片；依据与取舍见[决定 §20](../decisions/task-execution-human-operated.md#20-im-06-workorder-validation--freezeready-设计提案)。本节尚未改变现行已实现行为。
 
 ### 21.1 支持集与公开契约增量
 
@@ -1816,4 +1816,4 @@ Freeze 先重验自己的独立 Decision，并验证其 target 的 canonical 身
 
 未通过 Registry/Envelope、无独立 Decision 或依赖 Grant、跨 Scope/别名/错版本、伪造 Hash、当前 Draft pointer 改变、判断不匹配或过期、Policy 取代、长事务跨过期限、双 Freeze CAS 竞争，均不得留下 READY/Contract/成功 Receipt/Event 的部分事实。身份和授权错误不通过解释性判断泄露不可见对象；可解释业务不满足与输入不可证明分层。`EXECUTION_JUDGMENT_INVALID` 用于有事实但 subject/Hash/结论不匹配，`EXECUTION_JUDGMENT_STALE` 用于过期或当前依赖已失效；缺事实按既有 `REFERENCE_INVALID`/`NOT_FOUND` 安全外观处理，权限按共享授权码处理。具体新的表、guard、RLS 与 forward migration 由 PostgreSQL §36 固定；测试见 Module-Test-003 `TE-VAL-D-*`。
 
-本节不交付 Queue、Run、InformationRequest、Completion、Projection 或 TD-05–07；人类设计批准已记录于决定 §20.3；独立设计审查完成前，以上仍不是可发布实现 Issue 的就绪契约。真实 PostgreSQL、外部 Provider/Runtime/飞书与独立人工业务验收保持 `NOT RUN`。
+本节不交付 Queue、Run、InformationRequest、Completion、Projection 或 TD-05–07；人类设计批准已记录于决定 §20.3，PR #218 第 2 轮独立设计审查已 `APPROVE`；实现 Issue 仍须经 Planner 的 NOW + READY 复核后才能发布。真实 PostgreSQL、外部 Provider/Runtime/飞书与独立人工业务验收保持 `NOT RUN`。
