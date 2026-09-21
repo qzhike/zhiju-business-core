@@ -917,7 +917,7 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 
 ## 20. IM-06 WorkOrder Validation → Freeze/READY 设计提案
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21 / INDEPENDENT DESIGN REVIEW NOT RUN / IMPLEMENTATION NOT RUN`。基线为 `main@002c3c8368edfde60e7410f046f60b9102ddba5a`：#216 / PR #217 已合并，`create_work_order@1.1` DRAFT、首次 canonical Context 及精确读已交付；WorkOrder Validation、冻结与 READY 仍无 Handler。字段级规则由 [Spec 003 §21](../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案) 拥有，授权由 [Spec 001 §15.10](../module-specs/Module-Spec-001-IdentityPolicy.md#1510-im06-wovalidation-与-freeze-授权组成提案) 拥有，物理边界由 [PostgreSQL §36](../high-level-docs/07-postgresql-logical-model-v0.1.md#36-im-06-workorder-validation-与-freeze-存储提案) 拥有。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21 / PR #218 ROUND 1 REQUEST_CHANGES / NEW HEAD RE-REVIEW PENDING / IMPLEMENTATION NOT RUN`。基线为 `main@002c3c8368edfde60e7410f046f60b9102ddba5a`：#216 / PR #217 已合并，`create_work_order@1.1` DRAFT、首次 canonical Context 及精确读已交付；WorkOrder Validation、冻结与 READY 仍无 Handler。字段级规则由 [Spec 003 §21](../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案) 拥有，授权由 [Spec 001 §15.10](../module-specs/Module-Spec-001-IdentityPolicy.md#1510-im06-wovalidation-与-freeze-授权组成提案) 拥有，物理边界由 [PostgreSQL §36](../high-level-docs/07-postgresql-logical-model-v0.1.md#36-im-06-workorder-validation-与-freeze-存储提案) 拥有。
 
 ### 20.1 对账与交付目标
 
@@ -934,3 +934,5 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 ### 20.3 人类设计批准记录
 
 **批准记录：2026-09-21，用户在本任务会话对本轮 WorkOrder Validation → Freeze/READY 设计明确回复“审批通过”。** 批准对象是基于 `main@002c3c8368edfde60e7410f046f60b9102ddba5a` 的本节、Spec 003 §21、Spec 001 §15.10、Contract Catalog 的注册提案、PostgreSQL §36、Module-Test-003 `TE-VAL-D-*` 和路线图推进意图。批准使设计的人类决策门禁成立；独立设计审查仍为 `NOT RUN`，本次回复不授权创建 Issue、实现、commit、push 或 merge，也不使任何运行时验收变成 PASS。若审查导致实质语义或范围变化，应再取得对修订内容的明确批准。
+
+**审查后修订批准：2026-09-21，用户在 PR #218 第 1 轮 `REQUEST_CHANGES` 的具体阻断与修正方案呈现后明确回复“批准”。** 批准范围为把 Validator 本次 Policy/Evaluator 与 WorkOrder candidate 原有 VersionPins 的绑定分别写清，并在 `TE-VAL-D-004/005` 增加对应正反例；本次修订不新增公开操作或扩大首版业务范围。第 1 轮 reviewed SHA、发现和验证证据见 [reviews/pr-218/Review.md](../reviews/pr-218/Review.md)；修订后的新 head 仍须独立复审。

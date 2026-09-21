@@ -1311,7 +1311,7 @@ Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 
 
 ### IM-06 WorkOrder Validation → Freeze/READY 注册提案
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21（决定 §20.3）/ NOT REGISTERED / INDEPENDENT DESIGN REVIEW NOT RUN`。字段和业务语义见 [Spec 003 §21](../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案)，授权见 Spec 001 §15.10。当前 Catalog/Registry 仍为 `216`，TaskExecution `46`，历史 Baseline `200`。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21（决定 §20.3）/ NOT REGISTERED / PR #218 ROUND 1 REQUEST_CHANGES / NEW HEAD RE-REVIEW PENDING`。字段和业务语义见 [Spec 003 §21](../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案)，授权见 Spec 001 §15.10。当前 Catalog/Registry 仍为 `216`，TaskExecution `46`，历史 Baseline `200`。
 
 | 待实施的 additive 注册 | 唯一 Owner 与引用声明 |
 |---|---|

@@ -718,7 +718,7 @@ TaskExecution 把 `INVALID` 收敛为公开共享码 `HUMAN_ONLY_CAPABILITY`（[
 
 ### 15.10 IM06-WOVALIDATION 与 Freeze 授权组成提案
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21（决定 §20.3）/ INDEPENDENT DESIGN REVIEW NOT RUN / PORT NOT IMPLEMENTED`。字段和业务顺序见 [Spec 003 §21](Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案)。本节使用既有 ActorSnapshot、Decision、当前 covering Grant/Policy 与 V1006 target 镜像；不增加公开授权 API、Capability code 或 IdentityPolicy migration。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21（决定 §20.3）/ PR #218 ROUND 1 REQUEST_CHANGES / NEW HEAD RE-REVIEW PENDING / PORT NOT IMPLEMENTED`。字段和业务顺序见 [Spec 003 §21](Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案)。本节使用既有 ActorSnapshot、Decision、当前 covering Grant/Policy 与 V1006 target 镜像；不增加公开授权 API、Capability code 或 IdentityPolicy migration。
 
 | 消费边界 | Purpose | 内部 Grant action / selector / target 闭集 | 受信 config key |
 |---|---|---|---|
