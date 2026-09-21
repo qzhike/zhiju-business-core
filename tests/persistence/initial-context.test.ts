@@ -130,18 +130,20 @@
 //     half of the race is the unreachable-by-construction branch whose database
 //     closures TE-214-D-002 asserts.
 //   * TE-214-D-010 same-Envelope race — transient-escape convention (PR #217
-//     round-5 CI failure, round-6 review): the §19.8(3) claim protocol admits
-//     exactly one COMMITTED plus one DUPLICATE/COMMAND_IN_PROGRESS, and the
-//     concurrent pair itself must produce it — no serial recovery replay is
-//     accepted as race evidence. A thrown error outside that protocol is an
-//     escaped transient infrastructure failure (the composition boundary owns
-//     no stable code for a raw driver error — the TE-214-D-005 convention);
-//     such an attempt proves nothing about the race and is invalidated
-//     outright, and the pair is re-driven under a fresh Envelope identity (at
-//     most three attempts). A fulfilled result outside the protocol, a double
-//     COMMITTED, or a third consecutive escape fails the test with every
-//     attempt's exteriors attached; the never-more-than-one Snapshot row
-//     invariant is asserted for every attempt, valid or invalidated.
+//     round-5 CI failure, round-6/7 reviews): the §19.8(3) claim protocol
+//     admits exactly one COMMITTED plus one DUPLICATE/COMMAND_IN_PROGRESS,
+//     and the concurrent pair itself must produce it — no serial recovery
+//     replay is accepted as race evidence. A thrown error outside that
+//     protocol invalidates the attempt only when it is *positively
+//     identified* as infrastructure (`isInfrastructureFailure`: a Node errno,
+//     a pg driver connection-lifecycle message, or a connection /
+//     operator-intervention SQLSTATE); the pair is then re-driven under a
+//     fresh Envelope identity (at most three attempts). A fulfilled result
+//     outside the protocol, a thrown stable module/authorization code, an
+//     unclassified throw, a double COMMITTED, or a third consecutive escape
+//     fails closed with every attempt's exteriors attached; the
+//     never-more-than-one Snapshot row invariant is asserted for every
+//     attempt, valid or invalidated.
 //   * TE-214-D-013: the empty-database apply, the historical forward upgrade,
 //     the no-op second migrate and the V6002 seed are the persistence gate's
 //     own evidence (tools/persistence); this row asserts the on-database facts
@@ -533,6 +535,40 @@ function failureOf(error: unknown): { code: string; message: string } {
     code: typeof value.code === 'string' ? value.code : '',
     message: typeof value.message === 'string' ? value.message : String(error),
   };
+}
+
+/**
+ * Positive identification of an infrastructure-layer failure (the PR #217
+ * round-7 review): only a failure the layer can *prove* is infrastructure —
+ * a Node errno of the OS/network layer, a pg client-side connection lifecycle
+ * error (the driver emits no `code` for those, so the driver's own message
+ * prefix identifies them), or a SQLSTATE of the connection-exception class
+ * 08, the operator-intervention 57P0x, or the resource-capacity 53300/53400 —
+ * may invalidate a concurrent attempt. Every stable module, boundary or
+ * authorization code (words, never errno/SQLSTATE shapes, so a typed error
+ * can never pass this identification) and every unclassified throw is a
+ * defect and fails the test closed instead.
+ */
+const INFRASTRUCTURE_ERRNO = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ECONNABORTED',
+  'EPIPE',
+  'ETIMEDOUT',
+  'EAI_AGAIN',
+  'ENETDOWN',
+  'ENETRESET',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
+]);
+const INFRASTRUCTURE_SQLSTATE = /^(?:08[0-9A-Z]{3}|57P0[1-3]|53300|53400)$/u;
+const INFRASTRUCTURE_DRIVER_MESSAGE =
+  /^(?:Connection terminated|timeout exceeded when trying to connect|Client has encountered a connection error)/u;
+
+function isInfrastructureFailure(error: unknown): boolean {
+  const { code, message } = failureOf(error);
+  if (INFRASTRUCTURE_ERRNO.has(code) || INFRASTRUCTURE_SQLSTATE.test(code)) return true;
+  return code === '' && INFRASTRUCTURE_DRIVER_MESSAGE.test(message);
 }
 
 function resultCode(result: CommandResult): string {
@@ -4359,14 +4395,16 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     // the loser either observes the committed Receipt (DUPLICATE) or the
     // in-flight claim (COMMAND_IN_PROGRESS) — the §19.8(3) claim protocol is
     // the only accepted resolution, and the concurrent pair itself must
-    // produce it. A thrown error outside that protocol is an escaped transient
-    // infrastructure failure — the composition boundary owns no stable code
-    // for a raw driver error (the TE-214-D-005 convention; the PR #217 round-5
-    // CI failure carried no attempt exteriors). Such an attempt proves nothing
-    // about the race and is invalidated outright, and the pair is re-driven
-    // under a fresh Envelope identity; a fulfilled result outside the
-    // protocol, a double COMMITTED, or a third consecutive escape is a defect,
-    // never a retry.
+    // produce it. A thrown error outside that protocol invalidates the attempt
+    // only when it is positively identified as an infrastructure failure
+    // (`isInfrastructureFailure`: a Node errno, a pg driver connection
+    // lifecycle message, or a connection/operator-intervention SQLSTATE; the
+    // PR #217 round-5 CI failure carried no exteriors, so its code is
+    // unknowable and the identification stays strict); the pair is then
+    // re-driven under a fresh Envelope identity. A fulfilled result outside
+    // the protocol, a thrown stable module/authorization code or an
+    // unclassified throw (both fail closed below), a double COMMITTED, or a
+    // third consecutive escape is a defect, never a retry.
     const raceLog: { attempt: number; exteriors: { code: string; message?: string }[] }[] = [];
     let validTarget: string | undefined;
     for (let attempt = 1; attempt <= 3 && validTarget === undefined; attempt += 1) {
@@ -4391,6 +4429,19 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       // never a transient escape: fail instead of invalidating the attempt.
       expect(
         settled.filter((outcome, index) => outcome.status === 'fulfilled' && !inProtocol(index)),
+        JSON.stringify(raceLog),
+      ).toHaveLength(0);
+      // A thrown escape invalidates the attempt only on positive
+      // infrastructure identification; a thrown stable module or
+      // authorization code (a thrown COMMAND_IN_PROGRESS is a protocol
+      // result, not an escape) and every unclassified throw fail closed with
+      // both exteriors attached.
+      expect(
+        settled.filter((outcome, index) => {
+          if (outcome.status !== 'rejected') return false;
+          if (codes[index] === COMMAND_IN_PROGRESS) return false;
+          return !isInfrastructureFailure(outcome.reason);
+        }),
         JSON.stringify(raceLog),
       ).toHaveLength(0);
       // Exactly-once effect holds even for an invalidated attempt: never more
