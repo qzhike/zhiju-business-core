@@ -228,7 +228,7 @@ function frozenBuildFixture(name: string): JsonObject {
 describe('TaskExecution Draft and initial Context contracts', () => {
   it('registers exactly the approved operations and reference metadata', () => {
     assertTaskExecutionOperationRegistrations(publicApiOperations);
-    expect(registry.operationCount).toBe(215);
+    expect(registry.operationCount).toBe(216);
     expect(registry.getOperation('execution.get_work_order_draft', '1.0')).toMatchObject({
       owner: 'task-execution',
       kind: 'QUERY',
@@ -1742,5 +1742,205 @@ describe('WorkOrder DRAFT exact read contract', () => {
         instancePath: test.expectedPath,
       }),
     );
+  });
+});
+
+function snapshotRef(
+  objectType: string,
+  objectId = '018f22e2-7c15-7b2e-8d86-2de956a9d450',
+  snapshotId = '018f22e2-7c15-7b2e-8d86-2de956a9d451',
+): JsonObject {
+  return {
+    kind: 'SNAPSHOT',
+    objectType,
+    objectId,
+    snapshotId,
+    scope,
+    contentHash: { algorithm: 'SHA-256', digest, canonicalizationVersion: '1' },
+  };
+}
+
+function contextSnapshotBuiltV11Payload(): JsonObject {
+  return {
+    contextSnapshotRef: snapshotRef('zhiju.execution.context_snapshot'),
+    workOrderRef: objectRef('zhiju.execution.work_order'),
+    projectionType: 'DOCUMENT_WRITER',
+    coverageStatus: 'COMPLETE_FOR_PURPOSE',
+  };
+}
+
+function contextSnapshotEventEnvelope(payload: JsonObject, version: '1.0' | '1.1'): JsonObject {
+  return {
+    eventId: '018f22e2-7c15-7b2e-8d86-2de956a9d452',
+    eventType: 'execution.ContextSnapshotBuilt',
+    eventVersion: version,
+    producerModule: 'task-execution',
+    aggregateType: 'execution.context_snapshot',
+    aggregateId: '018f22e2-7c15-7b2e-8d86-2de956a9d453',
+    aggregateVersion: 1,
+    scopeRef: scope,
+    correlationId: '018f22e2-7c15-7b2e-8d86-2de956a9d454',
+    causationId: '018f22e2-7c15-7b2e-8d86-2de956a9d455',
+    commandId: '018f22e2-7c15-7b2e-8d86-2de956a9d456',
+    actorRef: objectRef('identity.principal', principalId, { enterpriseId }),
+    occurredAt: '2026-09-19T00:00:00Z',
+    dataClassification: 'INTERNAL',
+    payload,
+    integrity: {
+      canonicalizationVersion: '1',
+      payloadHash: {
+        algorithm: 'SHA-256',
+        digest: 'b'.repeat(64),
+        canonicalizationVersion: '1',
+      },
+    },
+  };
+}
+
+describe('ContextSnapshotBuilt additive Event contract', () => {
+  it('registers the additive @1.1 Event with its exact metadata and reference declarations', () => {
+    const operation = registry.getOperation('execution.ContextSnapshotBuilt', '1.1');
+    expect(operation).toMatchObject({
+      owner: 'task-execution',
+      kind: 'EVENT',
+      schemaStatus: 'FULL',
+      authorizationPurpose: 'task.execution.ContextSnapshotBuilt',
+      dataClassification: 'INTERNAL',
+      references: [
+        {
+          path: '/payload/contextSnapshotRef',
+          kind: 'SNAPSHOT',
+          objectType: 'zhiju.execution.context_snapshot',
+        },
+        {
+          path: '/payload/workOrderRef',
+          kind: 'OBJECT',
+          objectType: 'zhiju.execution.work_order',
+        },
+      ],
+    });
+    expect(operation?.payloadGuardPolicyRef).toBeUndefined();
+    expect(operation?.resultSchemaRef).toBeUndefined();
+    expect(taskExecutionOperationContracts['execution.ContextSnapshotBuilt@1.1']).toEqual({
+      payloadSchemaRef:
+        'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_ContextSnapshotBuilt_v1_1_payload',
+    });
+  });
+
+  it('accepts the complete @1.1 envelope through the real ContractRegistry', () => {
+    expect(
+      registry.validateOperation(
+        'execution.ContextSnapshotBuilt',
+        '1.1',
+        contextSnapshotEventEnvelope(contextSnapshotBuiltV11Payload(), '1.1'),
+      ),
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it('closes the @1.1 payload to the four declared fields', () => {
+    for (const extra of ['enterpriseId', 'projectId', 'purpose']) {
+      const payload = { ...contextSnapshotBuiltV11Payload(), [extra]: enterpriseId };
+      expectSchemaError(
+        registry.validateOperation(
+          'execution.ContextSnapshotBuilt',
+          '1.1',
+          contextSnapshotEventEnvelope(payload, '1.1'),
+        ),
+        '/payload',
+        'additionalProperties',
+        { additionalProperty: extra },
+      );
+    }
+
+    for (const field of [
+      'contextSnapshotRef',
+      'workOrderRef',
+      'projectionType',
+      'coverageStatus',
+    ] as const) {
+      const payload = omit(contextSnapshotBuiltV11Payload(), field);
+      expectSchemaError(
+        registry.validateOperation(
+          'execution.ContextSnapshotBuilt',
+          '1.1',
+          contextSnapshotEventEnvelope(payload, '1.1'),
+        ),
+        '/payload',
+        'required',
+        { missingProperty: field },
+      );
+    }
+  });
+
+  it('rejects NamespaceCode-shaped strings in place of the Core enums', () => {
+    const payload = {
+      ...contextSnapshotBuiltV11Payload(),
+      projectionType: 'coordinator',
+      coverageStatus: 'partial',
+    };
+    const result = registry.validateOperation(
+      'execution.ContextSnapshotBuilt',
+      '1.1',
+      contextSnapshotEventEnvelope(payload, '1.1'),
+    );
+    expectSchemaError(result, '/payload/projectionType', 'enum');
+    expectSchemaError(result, '/payload/coverageStatus', 'enum');
+  });
+
+  it('pins both payload refs to their exact object types', () => {
+    const wrongSnapshot = contextSnapshotBuiltV11Payload();
+    (wrongSnapshot.contextSnapshotRef as JsonObject).objectType = 'zhiju.project.context_snapshot';
+    expectSchemaError(
+      registry.validateOperation(
+        'execution.ContextSnapshotBuilt',
+        '1.1',
+        contextSnapshotEventEnvelope(wrongSnapshot, '1.1'),
+      ),
+      '/payload/contextSnapshotRef/objectType',
+      'const',
+      { allowedValue: 'zhiju.execution.context_snapshot' },
+    );
+
+    for (const spelling of ['execution.work_order', 'zhiju.execution.task']) {
+      const wrongWorkOrder = contextSnapshotBuiltV11Payload();
+      (wrongWorkOrder.workOrderRef as JsonObject).objectType = spelling;
+      expectSchemaError(
+        registry.validateOperation(
+          'execution.ContextSnapshotBuilt',
+          '1.1',
+          contextSnapshotEventEnvelope(wrongWorkOrder, '1.1'),
+        ),
+        '/payload/workOrderRef/objectType',
+        'const',
+        { allowedValue: 'zhiju.execution.work_order' },
+      );
+    }
+  });
+
+  it('keeps the frozen @1.0 acceptance set byte-identical', () => {
+    // The historical @1.0 shape stays valid untouched: generic refs and the
+    // NamespaceCode (lowercase) projection/coverage fields it was published with.
+    const frozenPayload: JsonObject = {
+      contextSnapshotRef: snapshotRef('zhiju.project.context_snapshot'),
+      workOrderRef: objectRef('execution.work_order'),
+      projectionType: 'coordinator',
+      coverageStatus: 'partial',
+    };
+    expect(
+      registry.validateOperation(
+        'execution.ContextSnapshotBuilt',
+        '1.0',
+        contextSnapshotEventEnvelope(frozenPayload, '1.0'),
+      ),
+    ).toEqual({ valid: true, errors: [] });
+
+    // The @1.1-only enum spellings were never accepted by the frozen @1.0 schema.
+    const v11OnlyPayload = contextSnapshotBuiltV11Payload();
+    const asV10 = registry.validateOperation(
+      'execution.ContextSnapshotBuilt',
+      '1.0',
+      contextSnapshotEventEnvelope(v11OnlyPayload, '1.0'),
+    );
+    expectSchemaError(asV10, '/payload/projectionType', 'pattern');
   });
 });

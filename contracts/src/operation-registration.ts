@@ -42,7 +42,37 @@ export const taskExecutionObjectTypes = {
     owner: 'task-execution',
     kinds: ['VERSIONED'],
   },
+  // #214: the canonical spelling of the EnterpriseProject-owned Enterprise
+  // Fact versioned identity. The initial-Context assembler normalizes the
+  // published `factRef` spelling of a Source Slice onto this registered name
+  // for the Core-valid `subjectRef`; no operation declares a reference to it,
+  // so `assertInitialContextEnterpriseFactRegistration` pins the entry.
+  'zhiju.project.enterprise_fact': {
+    owner: 'enterprise-project',
+    kinds: ['VERSIONED'],
+  },
 } as const;
+
+/**
+ * #214 build-time registration assertion: the EnterpriseProject-owned
+ * canonical Enterprise Fact object type stays registered as VERSIONED so the
+ * initial-Context `subjectRef` normalization has an owned, registered target.
+ * No public operation, Catalog entry or Baseline change is attached.
+ */
+export function assertInitialContextEnterpriseFactRegistration(): void {
+  const registered = (
+    taskExecutionObjectTypes as Readonly<
+      Record<string, { readonly owner: string; readonly kinds: readonly string[] }>
+    >
+  )['zhiju.project.enterprise_fact'];
+  if (
+    registered?.owner !== 'enterprise-project' ||
+    registered.kinds.length !== 1 ||
+    registered.kinds[0] !== 'VERSIONED'
+  ) {
+    throw new Error('unregistered initial context enterprise fact object type');
+  }
+}
 
 /** Public object names for the approved PolicyVersion version-key/fact boundary. */
 export const policyVersionObjectTypes = {
@@ -162,7 +192,7 @@ export function assertSliceCompatibilityMetadata(
 interface TaskExecutionRegistration {
   readonly type: string;
   readonly version?: '1.0' | '1.1' | '2.0';
-  readonly kind: 'COMMAND' | 'QUERY';
+  readonly kind: 'COMMAND' | 'QUERY' | 'EVENT';
   readonly owner: string;
   readonly schemaStatus: 'FULL';
   readonly targetObjectType?: string;
@@ -390,6 +420,30 @@ const taskExecutionRegistrations: readonly TaskExecutionRegistration[] = [
       },
     ],
     resultSchemaRef: initialContextResultSchemaRef['1.1'],
+  },
+  {
+    // #217 additive Event correction: `@1.0` stays frozen; `@1.1` carries the
+    // exact refs and the shared Core enums (Spec 003 §20.3).
+    type: 'execution.ContextSnapshotBuilt',
+    version: '1.1',
+    kind: 'EVENT',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    authorizationPurpose: 'task.execution.ContextSnapshotBuilt',
+    dataClassification: 'INTERNAL',
+    references: [
+      {
+        path: '/payload/contextSnapshotRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.execution.context_snapshot',
+      },
+      {
+        path: '/payload/workOrderRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.execution.work_order',
+      },
+    ],
+    resultReferences: [],
   },
 ] as const;
 

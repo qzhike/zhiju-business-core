@@ -829,6 +829,7 @@ execution.TaskReady@1.0
 execution.WorkOrderBecameReady@1.0
 execution.WorkOrderQueued@1.0
 execution.ContextSnapshotBuilt@1.0
+execution.ContextSnapshotBuilt@1.1
 execution.RunStarted@1.0
 execution.RunTerminated@1.0
 execution.AgentResultAccepted@1.0
@@ -1132,15 +1133,15 @@ Evidence/Representation/Package Ref
 
 Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、ProductScopeSnapshot 和 Platform Template/Regulatory Reference 冻结 EnterpriseProject Owner 的受控 Application Capability；逻辑名称、输入/输出、授权目的和错误码见 [EnterpriseProject Capability 决策](../decisions/enterprise-project-capabilities.md)。
 
-这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 215 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
+这些 Capability 目前不是本 Catalog 的 `name@1.0` 条目；本历史段落记录 IM-04 WI-01 的独立 `integration.get_render_attempt_binding@1.0` 增量曾将 Catalog 变更为 201 个公开 Contract，当前 Catalog 已为 216 项，Module Spec/Registry/生成类型集合必须保持同步。它们不得被测试、Migration 或跨 Schema Join 当作隐式公共入口。只有用户另行批准公共化后，才可按 API Contract 的兼容性流程新增公开名称并同步所有生成与负向验证产物。
 
 ## IM-06 注册与未注册设计路由
 
-当前 Catalog 为 215 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），#189 完成两个首版 Evaluator profile 选择器的构建期静态注册与纯解析（不新增公开 operation，计数不变），#191 注册 `project.get_resolution_receipt@1.0`（静态契约、Handler、授权、V2015 持久化与精确可重算 backfill 由 #191 交付；TE 消费仍 NOT RUN），#192 注册 `quality.get_revision_execution_eligibility@1.0`（静态契约、Handler、Purpose 授权边界与真实 PostgreSQL 正反例由 #192 交付；本模块条目由 37 增至 38，TE Completion 消费与跨模块业务链仍 NOT RUN），#208 注册 `execution.build_task_readiness@1.0`（静态契约、Registry 条目、生成类型与构建期注册断言，以及 `zhiju.execution.task_readiness`、`zhiju.execution.task_definition_snapshot`、`zhiju.execution.evaluator_profile` 三个 objectType 由 #208 交付；本模块条目由 43 增至 44，`execution.mark_task_ready@1.0` 零改动），#210 注册 `execution.get_work_order_draft@2.0`（静态契约、Registry 条目、生成类型与构建期注册断言由 #212 交付；本模块条目由 44 增至 45，`execution.create_work_order@1.0`/`@1.1` 与 `execution.get_work_order_draft@1.0`/`@1.1` 零改动），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 216 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），#189 完成两个首版 Evaluator profile 选择器的构建期静态注册与纯解析（不新增公开 operation，计数不变），#191 注册 `project.get_resolution_receipt@1.0`（静态契约、Handler、授权、V2015 持久化与精确可重算 backfill 由 #191 交付；TE 消费仍 NOT RUN），#192 注册 `quality.get_revision_execution_eligibility@1.0`（静态契约、Handler、Purpose 授权边界与真实 PostgreSQL 正反例由 #192 交付；本模块条目由 37 增至 38，TE Completion 消费与跨模块业务链仍 NOT RUN），#208 注册 `execution.build_task_readiness@1.0`（静态契约、Registry 条目、生成类型与构建期注册断言，以及 `zhiju.execution.task_readiness`、`zhiju.execution.task_definition_snapshot`、`zhiju.execution.evaluator_profile` 三个 objectType 由 #208 交付；本模块条目由 43 增至 44，`execution.mark_task_ready@1.0` 零改动），#210 注册 `execution.get_work_order_draft@2.0`（静态契约、Registry 条目、生成类型与构建期注册断言由 #212 交付；本模块条目由 44 增至 45，`execution.create_work_order@1.0`/`@1.1` 与 `execution.get_work_order_draft@1.0`/`@1.1` 零改动），#217 注册 additive `execution.ContextSnapshotBuilt@1.1`（冻结 `@1.0`、修正路径独占发布 `@1.1`；本模块条目由 45 增至 46，compatibility minor findings 由 80 增至 82，Baseline 200 不变），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
 
-### #214 初始 Context 组装的 objectType 注册（设计）
+### #214 初始 Context 组装的 objectType 注册
 
-#214（TD-01 设计 Delta，见 [Spec 003 §19](../module-specs/Module-Spec-003-TaskExecution.md#19-首次-context-构建与精确快照读取边界闭合214-设计)）设计 additive 注册以下 objectType，供 TaskExecution 组装 ProjectContext v1.0 时把 #188 Source Slice 内已发布的 Enterprise Fact VERSIONED 身份规范化为 Core-valid `subjectRef`。本项不新增公开 operation、不改写既有 `EnterpriseFact` legacy 拼写的既有接受集合，Catalog 215 与历史 200 项 Compatibility Baseline 不变；executable 注册（contracts 注册增量、生成类型、构建期断言）随 #214 实现 Issue 交付。
+#214（TD-01 设计 Delta，见 [Spec 003 §19](../module-specs/Module-Spec-003-TaskExecution.md#19-首次-context-构建与精确快照读取边界闭合214-设计)）additive 注册以下 objectType，供 TaskExecution 组装 ProjectContext v1.0 时把 #188 Source Slice 内已发布的 Enterprise Fact VERSIONED 身份规范化为 Core-valid `subjectRef`。本项不新增公开 operation、不改写既有 `EnterpriseFact` legacy 拼写的既有接受集合，Catalog 215、TaskExecution 45 与历史 200 项 Compatibility Baseline 不变；executable 注册已由 [Issue #216](https://github.com/qzhike/zhiju-business-core/issues/216) 于 2026-09-19 交付（`contracts/src/operation-registration.ts` 注册增量、`assertInitialContextEnterpriseFactRegistration()` 构建期断言接入 `ContractRegistry` 构造与 `tools/contracts/generate-public-api.mjs`、回归 `contracts/src/enterprise-fact-registration.test.ts`；裸 objectType 注册无 Schema/生成类型产物），本地/持久化证据完成，`vibe verify full --json` 已 PASS（2026-09-19）。PR #217 的独立实现审查曾得出 `PLANNING_REQUIRED`；Event 契约阻断已由文末 #217 小节的 additive 修正实现（2026-09-20 注册并发布 `@1.1`；verify full 已 PASS 2026-09-20，新 head 复审待完成），本 objectType 注册事实不变。
 
 | objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
 |---|---|---|---|
@@ -1288,3 +1289,22 @@ Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 
 - **发生层与稳定码**：创建 target 的错拼写在注册 Envelope（@1.1 的 `targetRef` `const` → `API_VALUE_INVALID`）或 `TaskExecutionCreationAuthorizationPort`（@1.0 → `IDENTITY_CREATION_TARGET_INVALID`）被拒；新增的 `EXECUTION_WORK_ORDER_REF_INVALID` 只属于读取路径，`EXECUTION_WORK_ORDER_ALREADY_EXISTS` 是同一 target 已存在/并发的唯一稳定码；Human-only 拒绝沿用共享码 `HUMAN_ONLY_CAPABILITY`，不新增 Catalog 条目。
 - **注册面增量（#212 已注册）**：新增 `execution.get_work_order_draft@2.0`，本 Catalog 由 214 增至 215；`execution.create_work_order@1.0`/`@1.1` 与 `execution.get_work_order_draft@1.0`/`@1.1` 的条目、注册 Schema 与 metadata 逐字节不变。`execution.get_work_order_draft@1.0` 的固定接受集（canonical 拼写 + `WorkOrderDraft` 结果形状）无法表示 `@1.0` 创建 Major 的对象，因此保留不改、本切片不实现其 Handler，也不改写为 legacy。`$defs.workOrderDraftSnapshot`/`initialWorkOrderDraftSnapshot` 的拼写固定改为创建 Major 派生、`taskRef` 通用化：这两个 def 无任何注册引用调用点且不在历史 Baseline 中，因此不改变任何已注册接受集、计数或 metadata。
 - 历史 200 项 Compatibility Baseline 不变（additive 追加）；本项不新增 PayloadGuard 技术 Policy，不新增错误码注册以外的任何公开名。
+
+### #217 `ContextSnapshotBuilt` additive Event 修正提案
+
+状态：`REGISTERED 2026-09-20（`execution.ContextSnapshotBuilt@1.1`，Owner `task-execution`、`EVENT`、`dataClassification=INTERNAL`）/ DESIGN APPROVED 2026-09-19（显式人类设计批准；独立设计复审于 PR #217 第 3 轮确认一致性）/ IMPLEMENTED 2026-09-20（修正路径只发布 `@1.1`，成功 envelope 先经真实 ContractRegistry 校验再写 Outbox）/ vibe verify full PASS 2026-09-20 / ROUND-4 FINDINGS IMPLEMENTED 2026-09-21 / NEW vibe verify full PASS 2026-09-21（persistence gate 44/44 files、493/493 tests）/ ROUND-5 FINDING IMPLEMENTED 2026-09-21 / NEW vibe verify full PASS 2026-09-21（persistence gate 44/44 files、493/493 tests）/ PR #217 新 head 独立复审与人类技术审查 PENDING（不声称审查结论或合并）`。本节回应 PR #217 对 `execution.ContextSnapshotBuilt@1.0` 实际 payload 与注册 Schema 不一致的阻断发现；`@1.1` 已注册并落地，设计约束与计数如下。
+
+- 已发布的 `execution.ContextSnapshotBuilt@1.0` **冻结不改**；不得修改其 Schema、metadata、fixture 或接受集来适配当前实现。
+- additive 新增候选 `execution.ContextSnapshotBuilt@1.1`，Owner `task-execution`、`EVENT`、`dataClassification=INTERNAL`。修正后的首次 Context 构建成功路径只发出 `@1.1`；`@1.0` 仅保留为历史已发布版本，不由该修正路径继续产生。
+- Event envelope 的 `scopeRef` 是企业 / 项目作用域的唯一权威来源；payload 不重复携带 `enterpriseId` 或 `projectId`。
+- payload 为 closed object（`additionalProperties: false`），恰含下列四个 required 字段：
+
+| 字段 | 类型 / 约束 | 语义 |
+|---|---|---|
+| `contextSnapshotRef` | `SnapshotRef`，`objectType = zhiju.execution.context_snapshot` | 本次构建产生的 canonical Context Snapshot |
+| `workOrderRef` | `ObjectRef`，objectType 必须等于该 WorkOrder 的不可变创建拼写 | 触发构建的 WorkOrder |
+| `projectionType` | Common `ProjectionType` enum | 复用 Core 已发布大小写与取值，不定义局部替代类型 |
+| `coverageStatus` | Common `CoverageCompleteness` enum | 复用 Core 已发布大小写与取值，不定义局部替代类型 |
+
+- 注册后计数（已实现）：Catalog `215 → 216`、TaskExecution `45 → 46`；历史 `200` 项 Compatibility Baseline 不变；compatibility minor findings `80 → 82`（新 operation 与 envelope 两条 additive finding，baseline 无 finding）。新增 Event 不新增 objectType，也不改变 `execution.build_initial_context_snapshot@1.0/@1.1`、`execution.get_context_snapshot@1.0` 或任何 v1 fixture 的既有接受集。
+- 最小契约门禁：完整实际 envelope 必须通过 `ContractRegistry`；额外字段、Common enum 表外值、用任意 `NamespaceCode` 替代强类型 enum、错误 ref objectType 与跨 Scope 必须 fail closed；目录计数、生成类型、兼容 fixture 和冻结 `@1.0` 必须独立回归。

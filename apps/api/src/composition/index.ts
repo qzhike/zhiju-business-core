@@ -44,3 +44,10 @@ export type {
   WorkOrderDraftEntryConfig,
   WorkOrderDraftSession,
 } from './work-order-draft-entry.js';
+export { createInitialContextEntry } from './initial-context-entry.js';
+export type {
+  InitialContextCapabilityCodes,
+  InitialContextEntry,
+  InitialContextEntryConfig,
+  InitialContextSession,
+} from './initial-context-entry.js';

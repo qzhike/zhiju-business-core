@@ -33,6 +33,11 @@ import {
   type WorkOrderDraftSnapshotInsert,
   type WorkOrderRootInsert,
 } from './work-order-draft-repository.js';
+import {
+  ContextSnapshotRepository,
+  type ContextSnapshotBuildInsert,
+  type ContextSnapshotInsert,
+} from './context-snapshot-repository.js';
 
 export const IDEMPOTENCY_PAYLOAD_CONFLICT = 'IDEMPOTENCY_PAYLOAD_CONFLICT';
 export const CONCURRENCY_CONFLICT = 'CONCURRENCY_CONFLICT';
@@ -113,6 +118,23 @@ export interface OutboxEventInput {
   aggregateId: string;
   aggregateVersion: string;
   payload: CanonicalJsonObject;
+  /**
+   * §20.3: present exactly when the registered event payload is closed to its
+   * business members and carries no `enterpriseId`/`projectId` - the event
+   * Scope lives only on the Event envelope `scopeRef`. The declared mirror
+   * must equal the command envelope scope; the runner then stores the payload
+   * with the trusted envelope scope mirrored in, so the V3000 outbox scope
+   * guard and the payload hash still cover the scope, without the public
+   * payload double-sourcing it.
+   */
+  scopeMirror?: { readonly enterpriseId: string; readonly projectId?: string | null } | undefined;
+  /**
+   * §20.3: the validated Event envelope's causation. When present it must
+   * equal the command causation or, absent one, the command id (the envelope
+   * fallback); the stored row then records this value instead of the bare
+   * command-envelope causation.
+   */
+  causationId?: string | undefined;
   declaredHash?: Buffer;
   occurredAt: Date;
 }
@@ -237,6 +259,16 @@ export interface CommandExecution {
    */
   insertWorkOrderDraftRoot(row: WorkOrderRootInsert): Promise<boolean>;
   insertWorkOrderDraftSnapshot(row: WorkOrderDraftSnapshotInsert): Promise<void>;
+  /**
+   * Runner-bound Context Snapshot writes (IM-06 #216): the body supplies the
+   * row data only, and the runner closes over the open transaction, the frozen
+   * command target and the owning repository, exactly like the WorkOrder DRAFT
+   * inserts. A caller cannot write a Snapshot or its INITIAL build metadata for
+   * another CREATE identity, Project Scope or target spelling. `false` means the
+   * Scope-unique CREATE identity of the Snapshot was already taken.
+   */
+  insertContextSnapshot(row: ContextSnapshotInsert): Promise<boolean>;
+  insertContextSnapshotBuild(row: ContextSnapshotBuildInsert): Promise<void>;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -592,6 +624,7 @@ function createExecution(
   const taskDraftRepo = new TaskDraftRepository();
   const taskReadinessRepo = new TaskReadinessRepository();
   const workOrderDraftRepo = new WorkOrderDraftRepository();
+  const contextSnapshotRepo = new ContextSnapshotRepository();
   return {
     trx,
     async insertProcessInstance(row) {
@@ -614,6 +647,12 @@ function createExecution(
     },
     async insertWorkOrderDraftSnapshot(row) {
       await workOrderDraftRepo.insertWorkOrderDraftSnapshot(trx, commandFacts, row);
+    },
+    async insertContextSnapshot(row) {
+      return contextSnapshotRepo.insertContextSnapshot(trx, commandFacts, row);
+    },
+    async insertContextSnapshotBuild(row) {
+      await contextSnapshotRepo.insertContextSnapshotBuild(trx, commandFacts, row);
     },
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {
@@ -682,16 +721,58 @@ function createExecution(
           'event aggregate identity and version must match the command target',
         );
       }
-      if (
-        event.payload.enterpriseId !== envelope.enterpriseId ||
-        (event.payload.projectId ?? null) !== (envelope.projectId ?? null)
-      ) {
+      // §20.3: with `scopeMirror` declared, the public payload must stay
+      // closed to its business members (a scope member here would double-source
+      // the scope) and the declared mirror must equal the trusted envelope
+      // scope; the stored payload then mirrors the envelope scope into the
+      // closed payload, so the database scope guard and the payload hash keep
+      // covering the scope. Without `scopeMirror` the historical posture
+      // applies unchanged: the payload itself must carry the scope members.
+      let storedPayload: CanonicalJsonObject;
+      if (event.scopeMirror !== undefined) {
+        if (
+          event.scopeMirror.enterpriseId !== envelope.enterpriseId ||
+          (event.scopeMirror.projectId ?? null) !== (envelope.projectId ?? null)
+        ) {
+          throw new CommandExecutionError(
+            PAYLOAD_HASH_MISMATCH,
+            'event scope mirror must equal the command envelope scope',
+          );
+        }
+        if ('enterpriseId' in event.payload || 'projectId' in event.payload) {
+          throw new CommandExecutionError(
+            PAYLOAD_HASH_MISMATCH,
+            'a scope-mirrored event payload must not carry scope members',
+          );
+        }
+        storedPayload = {
+          ...event.payload,
+          enterpriseId: envelope.enterpriseId,
+          ...(envelope.projectId === undefined ? {} : { projectId: envelope.projectId }),
+        };
+      } else {
+        if (
+          event.payload.enterpriseId !== envelope.enterpriseId ||
+          (event.payload.projectId ?? null) !== (envelope.projectId ?? null)
+        ) {
+          throw new CommandExecutionError(
+            PAYLOAD_HASH_MISMATCH,
+            'event payload scope mirror does not match the command scope',
+          );
+        }
+        storedPayload = event.payload;
+      }
+      // §20.3: the stored event causation is the command causation with the
+      // command id as its fallback; a declared causation naming anything else
+      // can never be the validated Event envelope's causation.
+      const expectedCausationId = envelope.causationId ?? envelope.commandId;
+      if (event.causationId !== undefined && event.causationId !== expectedCausationId) {
         throw new CommandExecutionError(
-          PAYLOAD_HASH_MISMATCH,
-          'event payload scope mirror does not match the command scope',
+          COMMAND_TARGET_MISMATCH,
+          'event causation must equal the command causation or its command-id fallback',
         );
       }
-      const digest = digestCanonicalPayload(event.payload);
+      const digest = digestCanonicalPayload(storedPayload);
       if (event.declaredHash && !event.declaredHash.equals(digest.hash)) {
         throw new CommandExecutionError(
           PAYLOAD_HASH_MISMATCH,
@@ -710,7 +791,7 @@ function createExecution(
           enterprise_id: envelope.enterpriseId,
           project_id: envelope.projectId ?? null,
           correlation_id: envelope.correlationId,
-          causation_id: envelope.causationId ?? null,
+          causation_id: event.causationId ?? envelope.causationId ?? null,
           payload: digest.canonicalJson,
           payload_hash: digest.hash,
           canonicalization_version: digest.canonicalizationVersion,

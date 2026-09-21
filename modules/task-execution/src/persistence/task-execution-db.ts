@@ -318,12 +318,124 @@ export interface WorkOrderDraftSnapshotTable {
   created_by_principal_id: string;
 }
 
+/**
+ * IM-06 (#216): immutable initial Context Snapshot of one CREATE target (V3004).
+ * `snapshot_id` is application-generated and independent of any aggregate CAS
+ * version; `object_id` is the validated CREATE `targetRef.objectId`. Every
+ * promoted column is re-derived inside the database from `canonical_payload` by
+ * the V3004 mirror guard, so the writer stores the payload and the mirrors it
+ * already computed - never a second derivation. `expires_at` and
+ * `effective_expires_at` both mirror the payload's single `expiresAt` member
+ * (§19.4 item 5: the payload member IS the effective expiry) and are written as
+ * the declared text for the same microsecond-precision reason as the WorkOrder
+ * expiry.
+ */
+export interface ContextSnapshotTable {
+  snapshot_id: string;
+  object_id: string;
+  purpose: string;
+  /** The encoded `projection.audience` string (the PrincipalRef principalId). */
+  audience: string;
+  enterprise_id: string;
+  project_id: string;
+  builder_version: string;
+  /** `projection.builderPolicyRef.versionId`. */
+  policy_snapshot_id: string;
+  source_manifest_count: number;
+  context_item_count: number;
+  omission_count: number;
+  redaction_count: number;
+  /** `coverage.completeness`. */
+  coverage_state: string;
+  payload_hash: Buffer;
+  canonicalization_version: Generated<string>;
+  payload_hash_algorithm: string;
+  expires_at: InstantColumn;
+  effective_expires_at: InstantColumn;
+  request_payload_hash: Buffer;
+  source_command_id: string;
+  created_at: Generated<Date>;
+  created_by_principal_id: string;
+  canonical_payload: Json;
+}
+
+/**
+ * IM-06 (#216): immutable INITIAL build metadata of one committed Context
+ * Snapshot (V3004). This slice writes INITIAL success rows only:
+ * `frozen_contract_ref` stays NULL (the FROZEN branch has no owning producer),
+ * and the canonical payload never carries a `frozenContractRef` member - the
+ * NULL column and the absent member are the same fact. The Policy observation
+ * columns are exact mirrors of the `builderPolicyRef`/`policyContentHash`/
+ * `policyEffectiveFrom`/`policySupersededAt` payload members, and both expiry
+ * columns mirror the #168 composition result. Expiry and Policy validity
+ * columns are written as declared text (microsecond precision, same as
+ * `expires_at` on the Snapshot).
+ */
+export interface ContextSnapshotBuildTable {
+  snapshot_id: string;
+  build_kind: string;
+  draft_snapshot_ref: Json;
+  frozen_contract_ref?: Json | null;
+  slice_refs: Json;
+  purpose: string;
+  /** The full audience PrincipalRef. */
+  audience: Json;
+  builder_policy_ref: Json;
+  policy_content_hash: Buffer;
+  policy_effective_from: InstantColumn;
+  policy_superseded_at: InstantColumn;
+  request_expires_at: InstantColumn;
+  effective_expires_at: InstantColumn;
+  canonical_payload: Json;
+  payload_hash: Buffer;
+  request_payload_hash: Buffer;
+  source_command_id: string;
+  enterprise_id: string;
+  project_id: string;
+  created_at: Generated<Date>;
+  created_by_principal_id: string;
+}
+
+/**
+ * PR #217 (§20.1): read-back-only compatibility store for historical
+ * immutable Context Snapshots under the legacy `zhiju.project.context_snapshot`
+ * spelling (V3004, PostgreSQL logical model §35). Rows are created only by a
+ * migration or controlled import running as the schema owner; the application
+ * role holds SELECT alone, so this table has no insert/update typing use here.
+ * `project_context_contract` and `contract_ref` are the historical contract
+ * body and its reference, stored as-is; the V3004 legacy mirror guard
+ * re-derives `snapshot_id`, the Project Scope and `payload_hash` from
+ * `canonical_payload`, and the `object_type` CHECK closes the spelling.
+ */
+export interface ContextSnapshotLegacyTable {
+  snapshot_id: string;
+  /** Closed to the legacy `zhiju.project.context_snapshot` spelling by V3004. */
+  object_type: string;
+  object_id: string;
+  enterprise_id: string;
+  project_id: string;
+  payload_hash: Buffer;
+  payload_hash_algorithm: string;
+  canonicalization_version: string;
+  canonical_payload: Json;
+  project_context_contract: Json;
+  contract_ref: Json;
+  import_manifest_id: string;
+  import_batch_id: string;
+  source_system: string;
+  imported_at: Date;
+  import_tool_version: string;
+}
+
 export interface TaskExecutionDb {
   'task_execution.task': TaskTable;
   'task_execution.task_definition_snapshot': TaskDefinitionSnapshotTable;
   'task_execution.execution_judgment': ExecutionJudgmentTable;
   'task_execution.work_order': WorkOrderTable;
   'task_execution.work_order_draft_snapshot': WorkOrderDraftSnapshotTable;
+  'task_execution.context_snapshot': ContextSnapshotTable;
+  'task_execution.context_snapshot_build': ContextSnapshotBuildTable;
+  'task_execution.context_snapshot_legacy': ContextSnapshotLegacyTable;
   'task_execution.command_receipt': CommandReceiptTable;
   'task_execution.outbox_event': OutboxEventTable;
   'task_execution.inbox_message': InboxMessageTable;

@@ -92,6 +92,12 @@ export interface WorkOrderDraftSnapshotRow {
   readonly canonicalPayload: unknown;
 }
 
+/** IM-06 (#216): the draft snapshot row resolved by its own identity, with Scope. */
+export interface WorkOrderDraftSnapshotIdentityRow extends WorkOrderDraftSnapshotRow {
+  readonly enterpriseId: string;
+  readonly projectId: string;
+}
+
 /** The bound Task as the §18.4 read-only dependency lock observes it. */
 export interface BoundTaskRow {
   readonly taskId: string;
@@ -333,6 +339,95 @@ export class WorkOrderDraftRepository {
           workOrderId: row.work_order_id,
           payloadHash: row.payload_hash,
           canonicalPayload: row.canonical_payload,
+        };
+  }
+
+  /**
+   * IM-06 (#216): reads one immutable draft snapshot by its own identity -
+   * `(snapshot_id, payload_hash)` - without naming its owning WorkOrder first.
+   * The initial Context build's `draftSnapshotRef` carries exactly this pair;
+   * the returned row's `workOrderId` is what the dependency lock then names. The
+   * Scope columns come back with the row so the caller can refuse a snapshot
+   * that does not belong to the command's Project Scope without trusting the
+   * request's own scope claim.
+   */
+  async readWorkOrderDraftSnapshotByIdentity(
+    trx: TaskExecutionTransaction,
+    snapshotId: string,
+    payloadHash: Buffer,
+  ): Promise<WorkOrderDraftSnapshotIdentityRow | undefined> {
+    const row = await trx
+      .selectFrom('task_execution.work_order_draft_snapshot')
+      .select([
+        'snapshot_id',
+        'work_order_id',
+        'enterprise_id',
+        'project_id',
+        'payload_hash',
+        'canonical_payload',
+      ])
+      .where('snapshot_id', '=', snapshotId)
+      .where('payload_hash', '=', payloadHash)
+      .executeTakeFirst();
+    return row === undefined
+      ? undefined
+      : {
+          snapshotId: row.snapshot_id,
+          workOrderId: row.work_order_id,
+          enterpriseId: row.enterprise_id,
+          projectId: row.project_id,
+          payloadHash: row.payload_hash,
+          canonicalPayload: row.canonical_payload,
+        };
+  }
+
+  /**
+   * IM-06 (#216): §19.8 read-only dependency lock of the initial Context build.
+   * Reads one WorkOrder Root under `FOR SHARE`, held until the command
+   * transaction ends, so the DRAFT status and the composite draft pointer the
+   * Builder revalidates are the facts the transaction commits under: a
+   * concurrent Freeze or draft rotation either committed first (and is observed)
+   * or blocks until this transaction ends. RLS stays the Scope authority - an
+   * invisible Root is indistinguishable from a missing one.
+   */
+  async readWorkOrderRootForShare(
+    trx: TaskExecutionTransaction,
+    workOrderId: string,
+  ): Promise<WorkOrderRootRow | undefined> {
+    const row = await trx
+      .selectFrom('task_execution.work_order')
+      .select([
+        'work_order_id',
+        'enterprise_id',
+        'project_id',
+        'work_order_object_type',
+        'task_id',
+        'task_object_type',
+        'status',
+        'aggregate_version',
+        'current_draft_snapshot_id',
+        'current_draft_snapshot_hash',
+        'draft_schema_version',
+        'expires_at',
+      ])
+      .where('work_order_id', '=', workOrderId)
+      .forShare()
+      .executeTakeFirst();
+    return row === undefined
+      ? undefined
+      : {
+          workOrderId: row.work_order_id,
+          enterpriseId: row.enterprise_id,
+          projectId: row.project_id,
+          workOrderObjectType: row.work_order_object_type,
+          taskId: row.task_id,
+          taskObjectType: row.task_object_type,
+          status: row.status,
+          aggregateVersion: row.aggregate_version,
+          currentDraftSnapshotId: row.current_draft_snapshot_id,
+          currentDraftSnapshotHash: row.current_draft_snapshot_hash,
+          draftSchemaVersion: row.draft_schema_version,
+          expiresAt: row.expires_at,
         };
   }
 

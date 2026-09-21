@@ -234,6 +234,47 @@ export type {
   WorkOrderDraftReadSelectorType,
 } from './commands/work-order-draft-read-authorization.js';
 export {
+  createTaskExecutionContextSnapshotAuthorizationPort,
+  TASK_EXECUTION_CONTEXT_SNAPSHOT_BINDINGS,
+  CONTEXT_SNAPSHOT_BUILD_PURPOSE,
+  CONTEXT_SNAPSHOT_READ_PURPOSE,
+  IDENTITY_CONTEXT_SNAPSHOT_AUTHORIZATION_UNSUPPORTED,
+  IDENTITY_CONTEXT_SNAPSHOT_CAPABILITY_CONFIG_INVALID,
+  IDENTITY_CONTEXT_SNAPSHOT_TARGET_INVALID,
+} from './commands/context-snapshot-authorization.js';
+export type {
+  TaskExecutionContextSnapshotAuthorizationConfig,
+  TaskExecutionContextSnapshotAuthorizationInput,
+  TaskExecutionContextSnapshotAuthorizationPort,
+  TaskExecutionContextSnapshotAuthorizationView,
+  TaskExecutionContextSnapshotBinding,
+  TaskExecutionContextSnapshotCapabilityCodes,
+  TaskExecutionContextSnapshotCapabilityKey,
+  TaskExecutionContextSnapshotDenialReason,
+  TaskExecutionContextSnapshotRevalidationFailure,
+  TaskExecutionContextSnapshotRevalidationInput,
+  TaskExecutionContextSnapshotRevalidationResult,
+  TaskExecutionContextSnapshotSelectorType,
+} from './commands/context-snapshot-authorization.js';
+export {
+  createContextSnapshotDraftReadAuthorizationPort,
+  CONTEXT_SNAPSHOT_DRAFT_READ_BINDINGS,
+} from './commands/context-snapshot-draft-read-authorization.js';
+export type {
+  ContextSnapshotDraftReadAuthorizationConfig,
+  ContextSnapshotDraftReadAuthorizationInput,
+  ContextSnapshotDraftReadAuthorizationPort,
+  ContextSnapshotDraftReadAuthorizationView,
+  ContextSnapshotDraftReadBinding,
+  ContextSnapshotDraftReadCapabilityCodes,
+  ContextSnapshotDraftReadCapabilityKey,
+  ContextSnapshotDraftReadDenialReason,
+  ContextSnapshotDraftReadRevalidationFailure,
+  ContextSnapshotDraftReadRevalidationInput,
+  ContextSnapshotDraftReadRevalidationResult,
+  ContextSnapshotDraftReadSelectorType,
+} from './commands/context-snapshot-draft-read-authorization.js';
+export {
   createTaskExecutionCreationCapabilityBoundaryPort,
   TASK_CREATION_CAPABILITY_HUMAN_ONLY,
   IDENTITY_CAPABILITY_BOUNDARY_UNSUPPORTED,
