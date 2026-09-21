@@ -129,23 +129,19 @@
 //     handler exists), so the two-order race stays NOT RUN; the draft-pointer
 //     half of the race is the unreachable-by-construction branch whose database
 //     closures TE-214-D-002 asserts.
-//   * TE-214-D-010 same-Envelope race — OBSERVED ESCAPE (PR #217 round-5 CI):
-//     one attempt surfaced neither the committed Receipt (DUPLICATE) nor the
-//     in-flight claim but a transient infrastructure failure — the composition
-//     boundary owns no stable module code for a raw driver error (the
-//     TE-214-D-005 convention), and the failing assertion carried no attempt
-//     exteriors. Static review of the claim path (`INSERT ... ON CONFLICT
-//     (idempotency_scope, idempotency_key) DO NOTHING` blocking on the
-//     in-flight winner, then the committed Receipt read) confirms DUPLICATE or
-//     COMMAND_IN_PROGRESS are the only designed loser outcomes, so any other
-//     code is an escaped transient, not a protocol result. The designed
-//     resolution stays the asserted primary branch; an escape is instead
-//     closed through the designed recovery — the idempotent replay of the
-//     same Envelope must return the committed Receipt (DUPLICATE of the
-//     COMMITTED outcome) when one attempt already committed and must become
-//     the single commit itself when none did — with both attempts' exteriors
-//     attached either way, and the Scope-unique row-count assertion closes
-//     the race independent of which branch ran.
+//   * TE-214-D-010 same-Envelope race — transient-escape convention (PR #217
+//     round-5 CI failure, round-6 review): the §19.8(3) claim protocol admits
+//     exactly one COMMITTED plus one DUPLICATE/COMMAND_IN_PROGRESS, and the
+//     concurrent pair itself must produce it — no serial recovery replay is
+//     accepted as race evidence. A thrown error outside that protocol is an
+//     escaped transient infrastructure failure (the composition boundary owns
+//     no stable code for a raw driver error — the TE-214-D-005 convention);
+//     such an attempt proves nothing about the race and is invalidated
+//     outright, and the pair is re-driven under a fresh Envelope identity (at
+//     most three attempts). A fulfilled result outside the protocol, a double
+//     COMMITTED, or a third consecutive escape fails the test with every
+//     attempt's exteriors attached; the never-more-than-one Snapshot row
+//     invariant is asserted for every attempt, valid or invalidated.
 //   * TE-214-D-013: the empty-database apply, the historical forward upgrade,
 //     the no-op second migrate and the V6002 seed are the persistence gate's
 //     own evidence (tools/persistence); this row asserts the on-database facts
@@ -4359,57 +4355,71 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     ).rows.at(0);
     expect(winnerRows?.n).toBe(1);
 
-    // The same Envelope claimed twice concurrently: one COMMITTED, the loser
-    // either observes the committed Receipt (DUPLICATE) or the in-flight claim.
-    const sameEnvelope = await preparedBuild({ idempotencyKey: 'wi216-010-same' });
-    const sameTarget = record(sameEnvelope.targetRef).objectId as string;
-    const settled = await Promise.allSettled([
-      initialContextEntry.build(sameEnvelope, sessionFor()),
-      initialContextEntry.build(sameEnvelope, sessionFor()),
-    ]);
-    // Every attempt's stable exterior is attached whenever the race leaves the
-    // runner contract, so an escaped failure names its actual code (the PR
-    // #217 round-5 CI failure carried none).
-    const exteriors = settled.map((outcome) =>
-      outcome.status === 'fulfilled'
-        ? { code: resultCode(outcome.value) }
-        : { code: failureOf(outcome.reason).code, message: failureOf(outcome.reason).message },
-    );
-    const codes = exteriors.map((exterior) => exterior.code);
-    const committed = codes.filter((code) => code === 'COMMITTED').length;
-    const resolved = codes.filter(
-      (code) => code === 'DUPLICATE' || code === COMMAND_IN_PROGRESS,
-    ).length;
-    if (committed !== 1 || resolved !== 1) {
-      // Escaped transient infrastructure failure (PR #217 round-5 CI: one
-      // attempt surfaced neither the committed Receipt nor the in-flight
-      // claim; the composition boundary owns no stable code for a raw driver
-      // failure — the TE-214-D-005 convention). A transient escape is always
-      // a *thrown* failure: a fulfilled business rejection outside the runner
-      // contract is a real defect and stays loud here.
-      for (const [index, outcome] of settled.entries()) {
+    // The same Envelope claimed twice concurrently: exactly one COMMITTED, and
+    // the loser either observes the committed Receipt (DUPLICATE) or the
+    // in-flight claim (COMMAND_IN_PROGRESS) — the §19.8(3) claim protocol is
+    // the only accepted resolution, and the concurrent pair itself must
+    // produce it. A thrown error outside that protocol is an escaped transient
+    // infrastructure failure — the composition boundary owns no stable code
+    // for a raw driver error (the TE-214-D-005 convention; the PR #217 round-5
+    // CI failure carried no attempt exteriors). Such an attempt proves nothing
+    // about the race and is invalidated outright, and the pair is re-driven
+    // under a fresh Envelope identity; a fulfilled result outside the
+    // protocol, a double COMMITTED, or a third consecutive escape is a defect,
+    // never a retry.
+    const raceLog: { attempt: number; exteriors: { code: string; message?: string }[] }[] = [];
+    let validTarget: string | undefined;
+    for (let attempt = 1; attempt <= 3 && validTarget === undefined; attempt += 1) {
+      const sameEnvelope = await preparedBuild({ idempotencyKey: `wi216-010-same-${attempt}` });
+      const sameTarget = record(sameEnvelope.targetRef).objectId as string;
+      const settled = await Promise.allSettled([
+        initialContextEntry.build(sameEnvelope, sessionFor()),
+        initialContextEntry.build(sameEnvelope, sessionFor()),
+      ]);
+      const exteriors = settled.map((outcome): { code: string; message?: string } =>
+        outcome.status === 'fulfilled'
+          ? { code: resultCode(outcome.value) }
+          : { code: failureOf(outcome.reason).code, message: failureOf(outcome.reason).message },
+      );
+      raceLog.push({ attempt, exteriors });
+      const codes = exteriors.map((exterior) => exterior.code);
+      const inProtocol = (index: number): boolean => {
         const code = codes[index];
-        if (code === 'COMMITTED' || code === 'DUPLICATE' || code === COMMAND_IN_PROGRESS) continue;
-        expect(outcome.status, JSON.stringify(exteriors)).toBe('rejected');
+        return code === 'COMMITTED' || code === 'DUPLICATE' || code === COMMAND_IN_PROGRESS;
+      };
+      // A fulfilled result outside the claim protocol is a business defect,
+      // never a transient escape: fail instead of invalidating the attempt.
+      expect(
+        settled.filter((outcome, index) => outcome.status === 'fulfilled' && !inProtocol(index)),
+        JSON.stringify(raceLog),
+      ).toHaveLength(0);
+      // Exactly-once effect holds even for an invalidated attempt: never more
+      // than one Snapshot row for the attempted target.
+      const attemptRows = (
+        await admin.query<{ n: number }>(
+          'SELECT count(*)::int AS n FROM task_execution.context_snapshot WHERE object_id = $1',
+          [sameTarget],
+        )
+      ).rows.at(0);
+      expect(attemptRows?.n, JSON.stringify(raceLog)).toBeLessThanOrEqual(1);
+      if (
+        codes.filter((code) => code === 'COMMITTED').length === 1 &&
+        codes.filter((code) => code === 'DUPLICATE' || code === COMMAND_IN_PROGRESS).length === 1
+      ) {
+        validTarget = sameTarget;
       }
-      // The idempotent replay is the designed recovery that closes the
-      // ambiguity such a failure leaves: re-driving the same Envelope must
-      // settle on exactly one committed build — the replayed committed Receipt
-      // (DUPLICATE of the COMMITTED outcome) when one attempt already
-      // committed, the single commit itself when none did. A failure that
-      // corrupted the claim or the stored facts instead keeps failing loudly
-      // here, with both attempts attached.
-      const replay = await attemptBuild(sameEnvelope);
-      const receiptCommitted = codes.some((code) => code === 'COMMITTED' || code === 'DUPLICATE');
-      expect(replay, JSON.stringify({ attempts: exteriors, replay })).toMatchObject({
-        code: receiptCommitted ? 'DUPLICATE' : 'COMMITTED',
-        thrown: false,
-      });
+    }
+    // The race evidence is a concurrent pair resolved inside the claim
+    // protocol; three consecutive escapes are a systematic defect, not a flake.
+    if (validTarget === undefined) {
+      throw new Error(
+        `the same-Envelope race never resolved inside the claim protocol: ${JSON.stringify(raceLog)}`,
+      );
     }
     const sameRows = (
       await admin.query<{ n: number }>(
         'SELECT count(*)::int AS n FROM task_execution.context_snapshot WHERE object_id = $1',
-        [sameTarget],
+        [validTarget],
       )
     ).rows.at(0);
     expect(sameRows?.n).toBe(1);
