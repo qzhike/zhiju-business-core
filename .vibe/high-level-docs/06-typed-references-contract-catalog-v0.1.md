@@ -1308,3 +1308,15 @@ Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 
 
 - 注册后计数（已实现）：Catalog `215 → 216`、TaskExecution `45 → 46`；历史 `200` 项 Compatibility Baseline 不变；compatibility minor findings `80 → 82`（新 operation 与 envelope 两条 additive finding，baseline 无 finding）。新增 Event 不新增 objectType，也不改变 `execution.build_initial_context_snapshot@1.0/@1.1`、`execution.get_context_snapshot@1.0` 或任何 v1 fixture 的既有接受集。
 - 最小契约门禁：完整实际 envelope 必须通过 `ContractRegistry`；额外字段、Common enum 表外值、用任意 `NamespaceCode` 替代强类型 enum、错误 ref objectType 与跨 Scope 必须 fail closed；目录计数、生成类型、兼容 fixture 和冻结 `@1.0` 必须独立回归。
+
+### IM-06 WorkOrder Validation → Freeze/READY 注册提案
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21（决定 §20.3）/ NOT REGISTERED / PR #218 ROUND 2 INDEPENDENT DESIGN REVIEW APPROVE 2026-09-21（reviewed 1acdf34）`。字段和业务语义见 [Spec 003 §21](../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案)，授权见 Spec 001 §15.10。当前 Catalog/Registry 仍为 `216`，TaskExecution `46`，历史 Baseline `200`。
+
+| 待实施的 additive 注册 | 唯一 Owner 与引用声明 |
+|---|---|
+| `execution.validate_work_order_draft@1.0` | `task-execution` / `COMMAND` / `CREATE` / `INTERNAL`，target 固定 `zhiju.execution.work_order_validation`，Purpose `execution.work_order.draft.validate`。Payload closed，引用 `/payload/draftSnapshotRef` 为 `CONTENT_ADDRESSED/zhiju.execution.work_order_draft_snapshot`、`/payload/policyRef` 为 `VERSIONED/zhiju.identity.policy`、`/payload/evaluatorRef` 为 `VERSIONED/zhiju.execution.evaluator_profile`；完整 `candidateContract` 复用 Core WorkOrderContract Schema，不退化为开放 CanonicalJson。Result.data 只有 `validationSnapshotRef`，固定 `SNAPSHOT/zhiju.execution.work_order_validation`，完整 Project Scope/hash 与 target id 绑定。|
+| `zhiju.execution.work_order_validation` | `task-execution` owning objectType，允许 `OBJECT` 与 `SNAPSHOT`；不作为 `zhiju.execution.task_readiness` 的别名。|
+| `zhiju.contract.work_order` | WorkOrderContract 的 `CONTENT_ADDRESSED` identity，Owner `task-execution`；Freeze 成功 Event 的 `workOrderContractRef` 与 frozen pointer 使用该唯一拼写和精确 Scope/hash。 |
+
+本提案已获明确人类设计批准；待独立审查通过并授权实施时，只新增一项公开 operation，Catalog/Registry `216→217`、TaskExecution `46→47`，历史 200 项 Baseline 不变。`execution.freeze_work_order@1.0`、`execution.get_work_order_contract@1.0`、`execution.WorkOrderBecameReady@1.0`、既有两个 `create_work_order` Major、DRAFT/Context 读取操作的注册 Schema、compat metadata 与 fixtures 不因本提案改动；Freeze Purpose 仍为已发布的 `task.execution.freeze_work_order`。实现前用真实 ContractRegistry 校验将发布的完整 `WorkOrderBecameReady@1.0` envelope。设计文本、批准或本节计数预测均不算运行时注册；真实 Schema/Registry、生成类型、兼容性 fixture 与正负契约测试均 `NOT RUN`。

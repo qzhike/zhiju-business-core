@@ -914,3 +914,25 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 ### 19.3 批准记录
 
 **批准记录：2026-09-19，用户在本任务会话明确回复“批准文档的更改，单独将本轮订正的文档commit and push，完成后复审PR217”。** 批准对象是 §19 与其链接的 Spec 003 §20、Spec 001 §15.9、Contract Catalog #217、PostgreSQL §35、`TE-217-D-*` 及路线图状态修正；授权范围仅包含这些文档的单独 commit/push 与随后对 PR #217 的复审，不包含产品代码或 migration 修复，也不授权 merge。
+
+## 20. IM-06 WorkOrder Validation → Freeze/READY 设计提案
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21 / PR #218 ROUND 2 INDEPENDENT DESIGN REVIEW APPROVE 2026-09-21（reviewed 1acdf34） / IMPLEMENTATION NOT RUN`。基线为 `main@002c3c8368edfde60e7410f046f60b9102ddba5a`：#216 / PR #217 已合并，`create_work_order@1.1` DRAFT、首次 canonical Context 及精确读已交付；WorkOrder Validation、冻结与 READY 仍无 Handler。字段级规则由 [Spec 003 §21](../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案) 拥有，授权由 [Spec 001 §15.10](../module-specs/Module-Spec-001-IdentityPolicy.md#1510-im06-wovalidation-与-freeze-授权组成提案) 拥有，物理边界由 [PostgreSQL §36](../high-level-docs/07-postgresql-logical-model-v0.1.md#36-im-06-workorder-validation-与-freeze-存储提案) 拥有。
+
+### 20.1 对账与交付目标
+
+`validate_work_order_draft@1.0` 仅见已批准的 §11 设计，尚未注册；`freeze_work_order@1.0` 已注册在历史 200 项 Baseline，Purpose 为 `task.execution.freeze_work_order`，但没有业务 Handler。`V3002` 的 `execution_judgment` 列和 CHECK 只容纳 `TASK_READINESS`，直接写 `WORK_ORDER_VALIDATION` 会失败；`V3003` 的 WorkOrder Root 尚无 frozen Contract pointer，`work_order_contract` 逻辑表尚未迁移。注册了 `WorkOrderBecameReady@1.0`，但没有生产者。目标是一个闭合的首版结果：已创建 `@1.1` DRAFT、真实首次 Context 和受信 Policy 可生成可解释的 Validation；通过的完整同一 candidate 可被独立授权的 Freeze 冻结为 READY 并精确读回。这个结果是后续 queue/Run 的前置工程能力，不声称现已可执行 Run。
+
+### 20.2 拟定决定
+
+1. **首版支持集**：只允许不可变创建事实为 `create_work_order@1.1`、Root 唯一拼写 `zhiju.execution.work_order`、`draft_schema_version='1.1'` 与 canonical `zhiju.execution.context_snapshot` 的 INITIAL Context。已发布 `create_work_order@1.0` 与 legacy `execution.work_order` 历史仍可精确读 DRAFT；它们在本轮无可满足的首次 Context，不进入 READY。`freeze_work_order@1.0` 的注册 payload、Purpose 与 Baseline 不改；Handler 对不支持的创建 Major fail closed。没有别名、跨版本回退或新 DRAFT 编辑入口。
+2. **一次完整交付**：新增设计 `execution.validate_work_order_draft@1.0`（CREATE、Owner TaskExecution、target `zhiju.execution.work_order_validation`、Purpose `execution.work_order.draft.validate`），并实现已注册 `execution.freeze_work_order@1.0`。两个动作各有当前授权；DRAFT、Context 与 Policy 的依赖读取另需对应 owning 授权，不能从任一动作 Decision 推导。Validator 的受信 Service 构造或逐字段重算完整 candidate，包括 header、签发归因、期限与两类 Hash；Freeze 只接受与该判断逐字节相同的 candidate，不重新签发。
+3. **判断事实**：采用已批准的 `execution_judgment` 共同根，通过 forward-only migration 加入 `WORK_ORDER_VALIDATION` 的独立 kind 分支与镜像，保留所有现有 `TASK_READINESS` 行、约束和读回。Validator 允许持久化“业务条件不满足”的解释性判断，但身份、Scope、授权、引用伪造、无法证明的来源或不支持的 profile 均拒绝创建可用判断。判断不是 READY，也没有 Outbox Event；Freeze 对未全部通过或已经失效的判断拒绝。
+4. **冻结事实与读回**：Freeze 在 WorkOrder Root 锁内重验当前 Draft pointer、Context/Policy、判断内容及期限，再以 expectedAggregateVersion 做单赢家 CAS；在同一 owning 事务插入不可变 `work_order_contract`、绑定 Root frozen pointer、更新 READY、写 Receipt/Audit/Edges 与恰一条通过真实 Registry 校验的 `execution.WorkOrderBecameReady@1.0`。已注册 `get_work_order_contract@1.0` 以独立当前授权只读该 frozen pointer 指向的精确 Contract，并核对返回 Ref/Hash/Scope 与 Root；无 frozen Contract 的 DRAFT 不伪造成功结果。重放返回原提交结果，不重复 Event；历史失败判断及失败冻结不改写既有 Snapshot/Context。不得跨 schema 写或以 Projection 判定成功。
+5. **范围**：本提案只使 WorkOrder 到达 READY。Queue、Run/Attempt/Result、Completion、InformationRequest/retry、TD-05–07、真实 Runtime/飞书与人工业务验收保持 `NOT RUN`。设计文档不注册 operation、不分配 migration、不创建实现 Issue。人类设计批准与 PR #218 第 2 轮独立设计审查 `APPROVE` 均已记录；实现任务仍须由 Planner 复核 NOW + READY，且实现需执行适用的 `vibe verify full --json` 与真实 PostgreSQL 正反例。
+
+### 20.3 人类设计批准记录
+
+**批准记录：2026-09-21，用户在本任务会话对本轮 WorkOrder Validation → Freeze/READY 设计明确回复“审批通过”。** 批准对象是基于 `main@002c3c8368edfde60e7410f046f60b9102ddba5a` 的本节、Spec 003 §21、Spec 001 §15.10、Contract Catalog 的注册提案、PostgreSQL §36、Module-Test-003 `TE-VAL-D-*` 和路线图推进意图。批准使设计的人类决策门禁成立；独立设计审查仍为 `NOT RUN`，本次回复不授权创建 Issue、实现、commit、push 或 merge，也不使任何运行时验收变成 PASS。若审查导致实质语义或范围变化，应再取得对修订内容的明确批准。
+
+**审查后修订批准：2026-09-21，用户在 PR #218 第 1 轮 `REQUEST_CHANGES` 的具体阻断与修正方案呈现后明确回复“批准”。** 批准范围为把 Validator 本次 Policy/Evaluator 与 WorkOrder candidate 原有 VersionPins 的绑定分别写清，并在 `TE-VAL-D-004/005` 增加对应正反例；本次修订不新增公开操作或扩大首版业务范围。第 1 轮 reviewed SHA、发现和验证证据见 [reviews/pr-218/Review.md](../reviews/pr-218/Review.md)；修订后的新 head 仍须独立复审。
