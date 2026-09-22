@@ -233,6 +233,7 @@
 //     (Vitest's aroundEach region includes the afterEach hooks, so the drain
 //     cannot await the test body itself; it tracks the drivers instead.)
 
+import { verifyWorkOrderValidationGuards } from './work-order-validation-guards.js';
 import { verifyWorkOrderValidationUpgrade } from './work-order-validation-upgrade.js';
 import { createWorkOrderValidationEntry, createTaskReadinessEntry } from '@zhiju/api/composition';
 import {
@@ -7535,6 +7536,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         )
       ).rows[0].canonical_payload as Record<string, unknown>;
       expect(record(judgmentPayload.validation).executable).toBe(true);
+      await verifyWorkOrderValidationGuards(admin, teDb, runnerContext(service), judgmentId);
       expect((judgmentPayload.dependencyObservations as unknown[]).length).toBe(7);
       expect(contextRef.objectId).not.toBe(contextRef.snapshotId);
       expect(

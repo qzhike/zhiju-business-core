@@ -63,6 +63,55 @@ SET ROLE task_execution_owner;
 -- nullability without rewriting any historical row.
 -- ---------------------------------------------------------------------------
 
+-- Private structural predicates for the new judgment kind only. They validate
+-- JSON bytes, not external Policy lifecycle or membership in a static registry.
+CREATE FUNCTION task_execution.work_order_validation_hash_valid(h jsonb)
+RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $body$
+  SELECT coalesce(
+    jsonb_typeof(h) = 'object'
+    AND h ?& ARRAY['algorithm','digest','canonicalizationVersion']
+    AND h - ARRAY['algorithm','digest','canonicalizationVersion'] = '{}'::jsonb
+    AND h->'algorithm' = '"SHA-256"'::jsonb
+    AND h->'canonicalizationVersion' = '"1"'::jsonb
+    AND jsonb_typeof(h->'digest') = 'string'
+    AND h->>'digest' ~ '^[0-9a-f]{64}$', false)
+$body$;
+REVOKE ALL ON FUNCTION task_execution.work_order_validation_hash_valid(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION task_execution.work_order_validation_hash_valid(jsonb) FROM task_execution_app;
+
+CREATE FUNCTION task_execution.work_order_validation_ref_valid(
+  r jsonb, expected_kind text, expected_type text, expected_scope jsonb)
+RETURNS boolean LANGUAGE plpgsql IMMUTABLE SET search_path = pg_catalog AS $body$
+DECLARE
+  keys text[] := ARRAY['kind','objectType','objectId','scope'];
+  identity_key text;
+  uuid_pattern constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+BEGIN
+  CASE expected_kind
+    WHEN 'OBJECT' THEN identity_key := 'objectId';
+    WHEN 'VERSIONED' THEN keys := array_append(keys,'versionId'); identity_key := 'versionId';
+    WHEN 'SNAPSHOT' THEN keys := keys || ARRAY['snapshotId','contentHash']; identity_key := 'snapshotId';
+    WHEN 'CONTENT_ADDRESSED' THEN keys := array_append(keys,'contentHash'); identity_key := 'objectId';
+    ELSE RETURN false;
+  END CASE;
+  IF jsonb_typeof(r) IS DISTINCT FROM 'object'
+     OR NOT r ?& keys OR r - keys <> '{}'::jsonb
+     OR r->>'kind' IS DISTINCT FROM expected_kind
+     OR r->>'objectType' IS DISTINCT FROM expected_type
+     OR r->'scope' IS DISTINCT FROM expected_scope
+     OR jsonb_typeof(r->'objectId') IS DISTINCT FROM 'string'
+     OR (r->>'objectId' ~ uuid_pattern) IS DISTINCT FROM true
+     OR jsonb_typeof(r->identity_key) IS DISTINCT FROM 'string'
+     OR (r->>identity_key ~ uuid_pattern) IS DISTINCT FROM true
+     OR (expected_kind IN ('SNAPSHOT','CONTENT_ADDRESSED')
+         AND NOT task_execution.work_order_validation_hash_valid(r->'contentHash'))
+  THEN RETURN false; END IF;
+  RETURN true;
+END
+$body$;
+REVOKE ALL ON FUNCTION task_execution.work_order_validation_ref_valid(jsonb,text,text,jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION task_execution.work_order_validation_ref_valid(jsonb,text,text,jsonb) FROM task_execution_app;
+
 -- New-kind closure only. Historical TASK_READINESS payloads retain their V3002
 -- contract; no existing row is rewritten to carry dependency observations.
 CREATE FUNCTION task_execution.work_order_validation_payload_valid(p jsonb)
@@ -75,6 +124,8 @@ DECLARE
     'evaluatedAt','validUntil','validation','checks','dependencyObservations'];
   item jsonb; roles text[] := ARRAY[]::text[]; code text; field text; prior text := '';
   reasons jsonb := '[]'::jsonb; passed boolean := true;
+  uuid_pattern constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+  static_type text;
 BEGIN
   IF jsonb_typeof(p) IS DISTINCT FROM 'object' OR NOT p ?& keys OR p - keys <> '{}'::jsonb
      OR jsonb_typeof(p->'dependencyObservations') IS DISTINCT FROM 'array'
@@ -84,6 +135,29 @@ BEGIN
         jsonb_build_object('subjectRefs',p->'subjectRefs','candidateContractHash',p->'candidateContractHash',
           'dependencyObservations',p->'dependencyObservations','sourceWatermarks',p->'sourceWatermarks')),'UTF8')),'hex')
   THEN RETURN false; END IF;
+  -- These three distinct kinds have one fixed UTF-8 order: CONTENT_ADDRESSED,
+  -- OBJECT, SNAPSHOT. Exact equality closes count, order, uniqueness and every
+  -- embedded member; a valid hash alone cannot establish this binding.
+  IF jsonb_typeof(p->'scope') IS DISTINCT FROM 'object'
+     OR NOT (p->'scope') ?& ARRAY['enterpriseId','projectId']
+     OR (p->'scope') - ARRAY['enterpriseId','projectId'] <> '{}'::jsonb
+     OR jsonb_typeof(p->'scope'->'enterpriseId') IS DISTINCT FROM 'string'
+     OR jsonb_typeof(p->'scope'->'projectId') IS DISTINCT FROM 'string'
+     OR (p->'scope'->>'enterpriseId' ~ uuid_pattern) IS DISTINCT FROM true
+     OR (p->'scope'->>'projectId' ~ uuid_pattern) IS DISTINCT FROM true
+     OR NOT task_execution.work_order_validation_ref_valid(p->'workOrderRef',
+       'OBJECT','zhiju.execution.work_order',p->'scope')
+     OR NOT task_execution.work_order_validation_ref_valid(p->'draftSnapshotRef',
+       'CONTENT_ADDRESSED','zhiju.execution.work_order_draft_snapshot',p->'scope')
+     OR NOT task_execution.work_order_validation_ref_valid(p->'contextSnapshotRef',
+       'SNAPSHOT','zhiju.execution.context_snapshot',p->'scope')
+     OR NOT task_execution.work_order_validation_ref_valid(p->'actorSnapshotRef',
+       'SNAPSHOT','identity.actor_snapshot',p->'scope')
+     OR NOT task_execution.work_order_validation_ref_valid(p->'authorizationDecisionRef',
+       'CONTENT_ADDRESSED','identity.authorization_decision',p->'scope')
+     OR p->'subjectRefs' IS DISTINCT FROM jsonb_build_array(
+       p->'draftSnapshotRef',p->'workOrderRef',p->'contextSnapshotRef')
+  THEN RETURN false; END IF;
   FOR item IN SELECT value FROM jsonb_array_elements(p->'dependencyObservations') LOOP
     code := (item->>'kind') || ':' || (item->>'role');
     IF code IS NULL OR code COLLATE "C" <= prior COLLATE "C" THEN RETURN false; END IF;
@@ -91,15 +165,11 @@ BEGIN
     IF item->>'kind' = 'POLICY' THEN
       keys := ARRAY['kind','role','reference','policyVersionRef','contentHash','effectiveFrom','supersededAt'];
       IF NOT item ?& keys OR item - keys <> '{}'::jsonb
-         OR item->'reference'->>'kind' IS DISTINCT FROM 'VERSIONED'
-         OR item->'reference'->>'objectType' IS DISTINCT FROM 'zhiju.identity.policy'
-         OR item->'reference'->'scope' IS DISTINCT FROM p->'scope'
-         OR item->'policyVersionRef'->>'kind' IS DISTINCT FROM 'SNAPSHOT'
-         OR item->'policyVersionRef'->>'objectType' IS DISTINCT FROM 'zhiju.identity.policy_version'
-         OR item->'policyVersionRef'->'scope' IS DISTINCT FROM p->'scope'
-         OR item->'contentHash'->>'algorithm' IS DISTINCT FROM 'SHA-256'
-         OR item->'contentHash'->>'canonicalizationVersion' IS DISTINCT FROM '1'
-         OR (item->'contentHash'->>'digest' ~ '^[0-9a-f]{64}$') IS DISTINCT FROM true
+         OR NOT task_execution.work_order_validation_ref_valid(item->'reference',
+           'VERSIONED','zhiju.identity.policy',p->'scope')
+         OR NOT task_execution.work_order_validation_ref_valid(item->'policyVersionRef',
+           'SNAPSHOT','zhiju.identity.policy_version',p->'scope')
+         OR NOT task_execution.work_order_validation_hash_valid(item->'contentHash')
          OR (item->>'effectiveFrom')::timestamptz > (p->>'evaluatedAt')::timestamptz
          OR (item->>'supersededAt' IS NOT NULL AND (item->>'supersededAt')::timestamptz < (p->>'validUntil')::timestamptz)
       THEN RETURN false; END IF;
@@ -111,12 +181,18 @@ BEGIN
          OR item->'supersededAt' IS DISTINCT FROM p->'policySupersededAt') THEN RETURN false; END IF;
     ELSIF item->>'kind' = 'STATIC' THEN
       keys := ARRAY['kind','role','reference','registryVersion','registryKey','descriptorHash'];
+      static_type := CASE item->>'role'
+        WHEN 'EVALUATOR' THEN 'zhiju.execution.evaluator_profile'
+        WHEN 'EXECUTION_RISK' THEN 'zhiju.execution.work_order_risk_profile'
+        WHEN 'RUNTIME_ADAPTER' THEN 'zhiju.runtime.adapter_contract'
+        WHEN 'WORK_ORDER_SCHEMA' THEN 'zhiju.contract.work_order_schema' END;
       IF NOT item ?& keys OR item - keys <> '{}'::jsonb
-         OR item->'reference'->>'kind' IS DISTINCT FROM 'VERSIONED'
-         OR item->'reference'->'scope' IS DISTINCT FROM '{}'::jsonb
-         OR item->'descriptorHash'->>'algorithm' IS DISTINCT FROM 'SHA-256'
-         OR item->'descriptorHash'->>'canonicalizationVersion' IS DISTINCT FROM '1'
-         OR (item->'descriptorHash'->>'digest' ~ '^[0-9a-f]{64}$') IS DISTINCT FROM true
+         OR static_type IS NULL
+         OR NOT task_execution.work_order_validation_ref_valid(item->'reference',
+           'VERSIONED',static_type,'{}'::jsonb)
+         OR NOT task_execution.work_order_validation_hash_valid(item->'descriptorHash')
+         OR jsonb_typeof(item->'registryVersion') IS DISTINCT FROM 'string'
+         OR jsonb_typeof(item->'registryKey') IS DISTINCT FROM 'string'
          OR nullif(item->>'registryVersion','') IS NULL OR nullif(item->>'registryKey','') IS NULL
          OR (item->>'role' = 'EVALUATOR' AND item->'reference' IS DISTINCT FROM p->'evaluatorRef')
       THEN RETURN false; END IF;
