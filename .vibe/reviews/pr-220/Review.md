@@ -84,3 +84,23 @@ Spec 003 §21.8 的三个 Policy observation 均要求 `effectiveFrom: UtcInstan
 - [CI run 35702148123](https://github.com/qzhike/zhiju-business-core/actions/runs/35702148123) 的 `headSha` 为 reviewed SHA，状态 `success`；PR 选择完整 `full`。该门禁为当前修订的自动证据，F2 为其测试尚未覆盖的语义反例，故不能据绿色门禁批准。
 - 外部 Provider/Runtime/飞书、生产、Run/Completion 与独立人工业务验收仍为 `NOT RUN`；人类技术审查仍待完成。
 - 本轮只修改正式审查记录，不修改产品实现，不 commit、push 或 merge。
+
+## 第 3 轮：`HUMAN_REVIEW_REQUIRED`
+
+- Reviewed SHA：`3ae20656569755b6e3cfa8dc1f8a0cae1160b98b`
+- 日期：2026-09-22
+- GitHub handoff：[本轮 PR comment](https://github.com/qzhike/zhiju-business-core/pull/220#issuecomment-5773855238) 已发布并读回；此评论是 Reviewer handoff，不是人类技术批准或 GitHub formal review。
+
+本轮独立核对 `f21f2ac..3ae2065` 的五个变更文件、Issue #219、Spec 003 §21.8、PostgreSQL §36.1、共享 `UtcInstant` 类型、V3005 及真实 app-role 回归。新增 SQL 检查覆盖三个 Policy role：`effectiveFrom` 是非空 UTC 时间，`supersededAt` 为显式 null 或有效 UTC 时间；随后保留原有上下界比较。测试包含缺值、JSON null、非有限/相对时间、非 UTC 格式、无效日历/时钟、越界以及合法闰日、带小数秒、相等边界。变更限于此检查、对应测试和权威文档，没有扩大公开 Contract 或修改已合并迁移。
+
+独立反例在新 PostgreSQL 18.6 容器加载本 head 的原始迁移至 V3005 后执行。沿用上一轮受信 SERVICE Project context、匹配 PENDING Receipt、`task_execution_app`、重算 `inputHash`/`payload_hash` 与事务回滚：正向结构对照 INSERT 1 行；仅把 CONTEXT_BUILDER `effectiveFrom` 改为 JSON null 时 INSERT 被 CHECK 以 SQLSTATE `23514` 拒绝、可见行数为 0。trigger/CHECK/RLS 全程启用。F1 的完整引用闭合仍在相同新迁移中，既有回归矩阵未删减。前两轮实现阻断在当前 head 均已解除，本轮未确认新的实现阻断。
+
+Issue #219 明确规定 authorization、RLS、不可变事实、并发、重放和 Contract 兼容还必须经过人类技术审查，且 PR 仍为 Draft。因此当前剩余门禁由人类技术审核者处理；本结论不代表人工批准或允许合并。外部 Provider/Runtime/飞书、生产、Run/Completion 和独立人工业务验收仍为 `NOT RUN`，不扩大本 READY 切片的验收范围。
+
+已核实当前 head 的 GitHub [full CI run 35707009594](https://github.com/qzhike/zhiju-business-core/actions/runs/35707009594)：`headSha=3ae20656569755b6e3cfa8dc1f8a0cae1160b98b`，状态 `success`，选择 `full` 并执行 `pnpm clean && pnpm verify`；普通测试 75 个文件 / 1379 项、真实 PostgreSQL 持久化测试 44 个文件 / 494 项通过，Catalog/Registry 217，第二次 migrate 报告无新迁移。复用该精确版本证据，没有重复运行本地 full。
+
+## 第 3 轮后人类技术批准
+
+用户在上述 `HUMAN_REVIEW_REQUIRED` 结论、Reviewed SHA `3ae20656569755b6e3cfa8dc1f8a0cae1160b98b`、独立反例与 full CI 证据呈现后，明确回复“批准”。本记录将该回复归于 Issue #219 所要求的本轮人类技术审查门禁，适用范围限于上述精确版本；若后续实现 head 改变，须重新核对适用审查与验证。[PR 批准记录 comment](https://github.com/qzhike/zhiju-business-core/pull/220#issuecomment-5773870583) 已发布并读回。
+
+该回复不包含“合并 PR #220”的指令；用户随后另行授权合并 PR #220、关闭关联 Issue 和清理本地/远端任务分支。外部与人工业务验收的 `NOT RUN` 边界不因技术审查批准而改变。
