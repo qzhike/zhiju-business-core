@@ -2,6 +2,7 @@ import type { AnySchemaObject, ErrorObject, Options, ValidateFunction } from 'aj
 import Ajv2020Import from 'ajv/dist/2020.js';
 
 import { commonSchema } from './common.schema.js';
+import { workOrderSchema } from './core.schema.js';
 import {
   policyProfileDocumentSchemaRef,
   policyProfileRegistry,
@@ -51,6 +52,7 @@ const Ajv2020 = Ajv2020Import as unknown as new (options?: Options) => AjvRuntim
 export function createPolicyProfileDocumentValidator(): PolicyProfileDocumentValidator {
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   ajv.addSchema(commonSchema);
+  ajv.addSchema(workOrderSchema);
   ajv.addSchema(policyProfileRegistrySchema(policyProfileRegistry));
   return {
     validate(registryVersion, registryKey, input): PolicyProfileDocumentValidationResult {

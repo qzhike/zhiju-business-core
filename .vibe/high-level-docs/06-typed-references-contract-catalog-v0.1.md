@@ -785,6 +785,7 @@ execution.create_task@1.0
 execution.create_task@2.0
 execution.mark_task_ready@1.0
 execution.build_task_readiness@1.0
+execution.validate_work_order_draft@1.0
 execution.create_work_order@1.0
 execution.create_work_order@1.1
 execution.freeze_work_order@1.0
@@ -1137,7 +1138,7 @@ Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、Produc
 
 ## IM-06 注册与未注册设计路由
 
-当前 Catalog 为 216 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），#189 完成两个首版 Evaluator profile 选择器的构建期静态注册与纯解析（不新增公开 operation，计数不变），#191 注册 `project.get_resolution_receipt@1.0`（静态契约、Handler、授权、V2015 持久化与精确可重算 backfill 由 #191 交付；TE 消费仍 NOT RUN），#192 注册 `quality.get_revision_execution_eligibility@1.0`（静态契约、Handler、Purpose 授权边界与真实 PostgreSQL 正反例由 #192 交付；本模块条目由 37 增至 38，TE Completion 消费与跨模块业务链仍 NOT RUN），#208 注册 `execution.build_task_readiness@1.0`（静态契约、Registry 条目、生成类型与构建期注册断言，以及 `zhiju.execution.task_readiness`、`zhiju.execution.task_definition_snapshot`、`zhiju.execution.evaluator_profile` 三个 objectType 由 #208 交付；本模块条目由 43 增至 44，`execution.mark_task_ready@1.0` 零改动），#210 注册 `execution.get_work_order_draft@2.0`（静态契约、Registry 条目、生成类型与构建期注册断言由 #212 交付；本模块条目由 44 增至 45，`execution.create_work_order@1.0`/`@1.1` 与 `execution.get_work_order_draft@1.0`/`@1.1` 零改动），#217 注册 additive `execution.ContextSnapshotBuilt@1.1`（冻结 `@1.0`、修正路径独占发布 `@1.1`；本模块条目由 45 增至 46，compatibility minor findings 由 80 增至 82，Baseline 200 不变），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+当前 Catalog 为 217 项：#157 注册 Source Slice capture/read 两项，#158 注册 WorkOrder Draft read 与 initial Context build 两项，#165 在旧 @1.0 合法调用之外新增三个 @1.1 兼容操作，#175 注册 `execution.create_task@2.0`，#176 的 Policy 版本解析两项（`identity.record_policy_version@1.0`、`identity.resolve_policy@1.0`）已由 #183 完成静态契约注册（Schema/Registry/PayloadGuard/生成类型；Handler、授权与持久化仍 NOT RUN），#189 完成两个首版 Evaluator profile 选择器的构建期静态注册与纯解析（不新增公开 operation，计数不变），#191 注册 `project.get_resolution_receipt@1.0`（静态契约、Handler、授权、V2015 持久化与精确可重算 backfill 由 #191 交付；TE 消费仍 NOT RUN），#192 注册 `quality.get_revision_execution_eligibility@1.0`（静态契约、Handler、Purpose 授权边界与真实 PostgreSQL 正反例由 #192 交付；本模块条目由 37 增至 38，TE Completion 消费与跨模块业务链仍 NOT RUN），#208 注册 `execution.build_task_readiness@1.0`（静态契约、Registry 条目、生成类型与构建期注册断言，以及 `zhiju.execution.task_readiness`、`zhiju.execution.task_definition_snapshot`、`zhiju.execution.evaluator_profile` 三个 objectType 由 #208 交付；本模块条目由 43 增至 44，`execution.mark_task_ready@1.0` 零改动），#210 注册 `execution.get_work_order_draft@2.0`（静态契约、Registry 条目、生成类型与构建期注册断言由 #212 交付；本模块条目由 44 增至 45，`execution.create_work_order@1.0`/`@1.1` 与 `execution.get_work_order_draft@1.0`/`@1.1` 零改动），#217 注册 additive `execution.ContextSnapshotBuilt@1.1`（冻结 `@1.0`、修正路径独占发布 `@1.1`；本模块条目由 45 增至 46，compatibility minor findings 由 80 增至 82，Baseline 200 不变），#219 注册 `execution.validate_work_order_draft@1.0`（静态契约、Registry 条目、生成类型与构建期注册断言，以及 `zhiju.execution.work_order_validation`、`zhiju.contract.work_order` 两个 objectType 由 #219 交付；本模块条目由 46 增至 47，compatibility minor findings 由 82 增至 86，Baseline 200 不变，Freeze/get/READY Event 零改动），其余未交付设计继续不计入 Registry。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；其余选定 operation type/version/Owner 与新增 Ref 类型将在对应实现修订纳入可执行 Catalog 并生成 Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
 
 ### #214 初始 Context 组装的 objectType 注册
 
@@ -1311,7 +1312,7 @@ Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 
 
 ### IM-06 WorkOrder Validation → Freeze/READY 注册提案
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21（决定 §20.3）/ NOT REGISTERED / PR #218 ROUND 2 INDEPENDENT DESIGN REVIEW APPROVE 2026-09-21（reviewed 1acdf34）`。字段和业务语义见 [Spec 003 §21](../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案)，授权见 Spec 001 §15.10。当前 Catalog/Registry 仍为 `216`，TaskExecution `46`，历史 Baseline `200`。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21（决定 §20.3）/ REGISTERED 2026-09-22 / PR #218 ROUND 2 INDEPENDENT DESIGN REVIEW APPROVE 2026-09-21（reviewed 1acdf34）/ CONTRACTS REGISTRATION IMPLEMENTED 2026-09-22（#219：Handler、七条授权映射与 V3005 同时实现；独立实现审查待完成）`。字段和业务语义见 [Spec 003 §21](../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案)，授权见 Spec 001 §15.10。Catalog/Registry 由 `216` 增至 `217`，TaskExecution 由 `46` 增至 `47`，历史 Baseline `200` 不变，compatibility minor findings 由 `82` 增至 `86`（新 operation、payload/result 两个新 `$defs` 与 `validateWorkOrderDraftCommandResult` 结果 def 四条 additive finding）。
 
 | 待实施的 additive 注册 | 唯一 Owner 与引用声明 |
 |---|---|
@@ -1319,4 +1320,20 @@ Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 
 | `zhiju.execution.work_order_validation` | `task-execution` owning objectType，允许 `OBJECT` 与 `SNAPSHOT`；不作为 `zhiju.execution.task_readiness` 的别名。|
 | `zhiju.contract.work_order` | WorkOrderContract 的 `CONTENT_ADDRESSED` identity，Owner `task-execution`；Freeze 成功 Event 的 `workOrderContractRef` 与 frozen pointer 使用该唯一拼写和精确 Scope/hash。 |
 
-本提案已获明确人类设计批准；待独立审查通过并授权实施时，只新增一项公开 operation，Catalog/Registry `216→217`、TaskExecution `46→47`，历史 200 项 Baseline 不变。`execution.freeze_work_order@1.0`、`execution.get_work_order_contract@1.0`、`execution.WorkOrderBecameReady@1.0`、既有两个 `create_work_order` Major、DRAFT/Context 读取操作的注册 Schema、compat metadata 与 fixtures 不因本提案改动；Freeze Purpose 仍为已发布的 `task.execution.freeze_work_order`。实现前用真实 ContractRegistry 校验将发布的完整 `WorkOrderBecameReady@1.0` envelope。设计文本、批准或本节计数预测均不算运行时注册；真实 Schema/Registry、生成类型、兼容性 fixture 与正负契约测试均 `NOT RUN`。
+本提案已获明确人类设计批准；注册切片只新增一项公开 operation，Catalog/Registry `216→217`、TaskExecution `46→47`，历史 200 项 Baseline 不变。`execution.freeze_work_order@1.0`、`execution.get_work_order_contract@1.0`、`execution.WorkOrderBecameReady@1.0`、既有两个 `create_work_order` Major、DRAFT/Context 读取操作的注册 Schema、compat metadata 与 fixtures 不因本提案改动；Freeze Purpose 仍为已发布的 `task.execution.freeze_work_order`。实现前用真实 ContractRegistry 校验将发布的完整 `WorkOrderBecameReady@1.0` envelope。`execution.validate_work_order_draft@1.0` 的真实 Schema/Registry、生成类型、兼容性检查与正负契约测试已于 2026-09-22 通过（#219）；Validator、Freeze、权威 Contract Query、授权与持久化已由 #219 实现；真实 PostgreSQL 与未运行边界见 Module-Test-003。
+
+
+## #219 READY 首版静态引用与 Controls profile 补充提案
+
+状态：`HUMAN DESIGN APPROVED 2026-09-22 / INDEPENDENT REVIEW PENDING / NOT REGISTERED`。字段与固定身份由 [Spec 003 §21.6–§21.7](../module-specs/Module-Spec-003-TaskExecution.md#issue-219-ready-selectors) 定义；本段固定引用登记边界，不复制业务规则。
+
+| 引用 | Owner | kind / Scope | 含义 |
+|---|---|---|---|
+| `zhiju.contract.work_order_schema` | contracts（共享 Contract Schema） | VERSIONED / Platform | exact Core WorkOrder 1.0 Schema selector |
+| `zhiju.runtime.adapter_contract` | IntegrationGateway | VERSIONED / Platform | exact Human-operated synthetic 技术协议描述，不证明 Driver 已可用 |
+| `zhiju.execution.work_order_risk_profile` | TaskExecution | VERSIONED / Platform | 首版 execution 风险控制 descriptor，不是 QualityGovernance 的 Risk/QualityProfile |
+| `execution.work_order_controls.policy@1.0` profile selector | TaskExecution 语义 / contracts 静态 registry | VERSIONED `identity.contract_schema` / Platform | 声明 closed Controls document Schema；业务版本仍经 `zhiju.identity.policy` + owning PolicyVersion 解析 |
+
+拟新增 READY 静态 registry `im06-work-order-ready-static-v1`（三项），Policy profile registry 则 additive 增加一项。所有 selector 要按完整 kind/objectType/objectId/versionId/Scope 精确匹配，拒绝未知版本、extra member、别名和 Project Scope 冒充；静态 descriptor 的内容 hash 不成为虚构的业务 SnapshotRef。保留既有 namespace/fixture 接受集，消费首版范围不扩大其运行时有效性。
+
+不新增公开 Command/Query/Event；#219 实现的 Catalog/Registry 217、TaskExecution 47、历史 Baseline 200 保持原目标。既有 Freeze、Contract Query、WorkOrderBecameReady@1.0 的版本、Schema、Purpose 与 compatibility metadata 不变。静态 registry 源文件、生成副本、exact resolver 与 Controls profile 已由 #219 注册；descriptor 不代表实际 Runtime 调用。

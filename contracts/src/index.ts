@@ -8,6 +8,7 @@ export * from './evaluator-profiles.js';
 export * from './task-definition-binding.js';
 export * from './task-readiness-binding.js';
 export * from './work-order-context-binding.js';
+export * from './work-order-validation-binding.js';
 export * from './generated/public-api.js';
 export type { CanonicalJson } from './generated/types/common.js';
 export type {
@@ -29,3 +30,5 @@ export * from './registry.js';
 export * from './schema-types.js';
 export * from './task-execution-creation-purpose.js';
 export * from './payload-guard.js';
+
+export * from './work-order-ready-profiles.js';

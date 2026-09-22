@@ -51,3 +51,5 @@ export type {
   InitialContextEntryConfig,
   InitialContextSession,
 } from './initial-context-entry.js';
+export { createWorkOrderValidationEntry } from './work-order-validation-entry.js';
+export type { WorkOrderValidationEntryConfig } from './work-order-validation-entry.js';

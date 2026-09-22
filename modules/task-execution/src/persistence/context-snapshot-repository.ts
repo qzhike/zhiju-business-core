@@ -102,6 +102,25 @@ export interface ContextSnapshotRow {
 }
 
 /**
+ * IM-06 (#219): the committed INITIAL build metadata of one Context Snapshot,
+ * as the WorkOrder Validation/Freeze consumer observes it (§21.2): the exact
+ * Draft ref the build consumed, the trusted builder Policy observation and the
+ * effective expiry the validity window is capped by.
+ */
+export interface ContextSnapshotBuildRow {
+  readonly snapshotId: string;
+  readonly buildKind: string;
+  readonly draftSnapshotRef: unknown;
+  readonly builderPolicyRef: unknown;
+  readonly policyContentHash: Buffer;
+  readonly policyEffectiveFrom: Date | null;
+  readonly policySupersededAt: Date | null;
+  readonly effectiveExpiresAt: Date | null;
+  readonly payloadHash: Buffer;
+  readonly canonicalPayload: unknown;
+}
+
+/**
  * The committed legacy compatibility facts the §20.1 legacy read route
  * returns. The store has no application writer: rows arrive only through a
  * controlled migration/import, and `projectContextContract`/`contractRef` are
@@ -323,6 +342,50 @@ export class ContextSnapshotRepository {
           payloadHash: row.payload_hash,
           payloadHashAlgorithm: row.payload_hash_algorithm,
           canonicalizationVersion: row.canonicalization_version,
+          canonicalPayload: row.canonical_payload,
+        };
+  }
+
+  /**
+   * IM-06 (#219): reads the INITIAL build metadata of one committed Context
+   * Snapshot by the Snapshot's own identity (`snapshot_id` is the build row's
+   * primary identity - one Snapshot has at most one INITIAL build). The
+   * Validation/Freeze consumer binds the trusted builder Policy observation and
+   * the consumed Draft ref from this row (§21.2); RLS stays the Scope
+   * authority, so "invisible" and "missing" are the same undefined result.
+   */
+  async readContextSnapshotBuild(
+    trx: TaskExecutionTransaction,
+    snapshotId: string,
+  ): Promise<ContextSnapshotBuildRow | undefined> {
+    const row = await trx
+      .selectFrom('task_execution.context_snapshot_build')
+      .select([
+        'snapshot_id',
+        'build_kind',
+        'draft_snapshot_ref',
+        'builder_policy_ref',
+        'policy_content_hash',
+        'policy_effective_from',
+        'policy_superseded_at',
+        'effective_expires_at',
+        'payload_hash',
+        'canonical_payload',
+      ])
+      .where('snapshot_id', '=', snapshotId)
+      .executeTakeFirst();
+    return row === undefined
+      ? undefined
+      : {
+          snapshotId: row.snapshot_id,
+          buildKind: row.build_kind,
+          draftSnapshotRef: row.draft_snapshot_ref,
+          builderPolicyRef: row.builder_policy_ref,
+          policyContentHash: row.policy_content_hash,
+          policyEffectiveFrom: row.policy_effective_from,
+          policySupersededAt: row.policy_superseded_at,
+          effectiveExpiresAt: row.effective_expires_at,
+          payloadHash: row.payload_hash,
           canonicalPayload: row.canonical_payload,
         };
   }

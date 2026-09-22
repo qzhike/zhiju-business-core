@@ -1957,7 +1957,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(216);
+    expect(catalog.operations).toHaveLength(217);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );
@@ -1967,7 +1967,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     ).toBe(false);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(46);
+    ).toHaveLength(47);
     expect(
       registry.validateOperation('execution.mark_task_ready', '1.0', {
         commandId: newUuidV7(),
@@ -2622,7 +2622,9 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     );
     // Exactly one registered TaskReady row exists for this conversion.
     expect(
-      await countRows(`task_execution.outbox_event WHERE event_type = '${TASK_READY_EVENT}'`),
+      await countRows(
+        `task_execution.outbox_event WHERE event_type = '${TASK_READY_EVENT}' AND aggregate_id = '${usable.taskId}'`,
+      ),
     ).toBe(1);
 
     // EXPIRED: the owning read reports the finite bound as passed.

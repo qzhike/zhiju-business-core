@@ -341,8 +341,9 @@ async function insertClassificationAudit(
     .execute();
 }
 
-export function createTaskExecutionCreationCapabilityBoundaryPort(
+function createCapabilityBoundaryPort(
   config: TaskExecutionCreationCapabilityBoundaryConfig,
+  execution: boolean,
 ): TaskExecutionCreationCapabilityBoundaryPort {
   return {
     async classifyDeclaredCapabilities(request) {
@@ -350,7 +351,21 @@ export function createTaskExecutionCreationCapabilityBoundaryPort(
       // unsupported key, a foreign principal and a foreign Scope are caller
       // mistakes, not classification results, so they never reach the owning
       // tables and are never reported as `INVALID`.
-      assertSupportedCreationKey(request.commandType, request.commandVersion);
+      if (execution) {
+        if (
+          request.commandVersion !== '1.0' ||
+          !['execution.validate_work_order_draft', 'execution.freeze_work_order'].includes(
+            request.commandType,
+          )
+        ) {
+          throw new SnapshotBoundaryError(
+            IDENTITY_CAPABILITY_BOUNDARY_UNSUPPORTED,
+            'unsupported WorkOrder execution classification key',
+          );
+        }
+      } else {
+        assertSupportedCreationKey(request.commandType, request.commandVersion);
+      }
       const declared = readDeclaredCapabilityTypes(request.declaredCapabilityTypes);
       const scope = readTrustedScope(request.scopeRef, config.context);
       const declaredKind = readDeclaredPrincipalKind(request.principalRef, config.context);
@@ -367,7 +382,7 @@ export function createTaskExecutionCreationCapabilityBoundaryPort(
           trx,
           config.context.principalId,
         );
-        if (authoritativeKind !== declaredKind) {
+        if (authoritativeKind !== declaredKind || (execution && authoritativeKind !== 'SERVICE')) {
           throw new SnapshotBoundaryError(
             IDENTITY_CAPABILITY_BOUNDARY_PRINCIPAL_INVALID,
             'the declared principal does not match the owning principal row',
@@ -387,4 +402,25 @@ export function createTaskExecutionCreationCapabilityBoundaryPort(
       });
     },
   };
+}
+
+export interface TaskExecutionExecutionCapabilityBoundaryPort {
+  classifyWorkOrderExecutionCapabilities(
+    request: TaskExecutionCreationCapabilityBoundaryRequest,
+  ): Promise<TaskExecutionCreationCapabilityBoundaryResult>;
+}
+
+export function createTaskExecutionExecutionCapabilityBoundaryPort(
+  config: TaskExecutionCreationCapabilityBoundaryConfig,
+): TaskExecutionExecutionCapabilityBoundaryPort {
+  const port = createCapabilityBoundaryPort(config, true);
+  return {
+    classifyWorkOrderExecutionCapabilities: (request) => port.classifyDeclaredCapabilities(request),
+  };
+}
+
+export function createTaskExecutionCreationCapabilityBoundaryPort(
+  config: TaskExecutionCreationCapabilityBoundaryConfig,
+): TaskExecutionCreationCapabilityBoundaryPort {
+  return createCapabilityBoundaryPort(config, false);
 }

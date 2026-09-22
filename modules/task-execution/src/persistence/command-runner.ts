@@ -38,6 +38,13 @@ import {
   type ContextSnapshotBuildInsert,
   type ContextSnapshotInsert,
 } from './context-snapshot-repository.js';
+import {
+  WorkOrderValidationRepository,
+  type WorkOrderContractInsert,
+  type WorkOrderFreezeCasInput,
+  type WorkOrderFreezeCasResult,
+  type WorkOrderValidationJudgmentInsert,
+} from './work-order-validation-repository.js';
 
 export const IDEMPOTENCY_PAYLOAD_CONFLICT = 'IDEMPOTENCY_PAYLOAD_CONFLICT';
 export const CONCURRENCY_CONFLICT = 'CONCURRENCY_CONFLICT';
@@ -269,6 +276,18 @@ export interface CommandExecution {
    */
   insertContextSnapshot(row: ContextSnapshotInsert): Promise<boolean>;
   insertContextSnapshotBuild(row: ContextSnapshotBuildInsert): Promise<void>;
+  /**
+   * Runner-bound WorkOrder Validation/Freeze writes (IM-06 #219): the body
+   * supplies the row data only, and the runner closes over the open
+   * transaction, the frozen command target and the owning repository, so a
+   * caller cannot write a validation judgment for another CREATE identity,
+   * freeze a WorkOrder other than the command target, or bind a Contract under
+   * a foreign Project Scope. `false` means the judgment identity was already
+   * taken / a frozen binding already exists.
+   */
+  insertWorkOrderValidationJudgment(row: WorkOrderValidationJudgmentInsert): Promise<boolean>;
+  insertWorkOrderContract(row: WorkOrderContractInsert): Promise<boolean>;
+  casWorkOrderStatusToReady(input: WorkOrderFreezeCasInput): Promise<WorkOrderFreezeCasResult>;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -394,13 +413,21 @@ export async function executeTaskExecutionCommand(
   context: TaskExecutionTransactionContext,
   envelope: CommandEnvelope,
   body: (execution: CommandExecution) => Promise<CommandBodyResult>,
+  currentAuthorization?: () => Promise<void>,
 ): Promise<CommandResult> {
   assertEnvelopeMatchesContext(context, envelope);
   const requestDigest = digestCanonicalPayload(envelope.requestPayload);
 
   let outcome: Awaited<ReturnType<typeof runCommandTransaction>>;
   try {
-    outcome = await runCommandTransaction(db, context, envelope, requestDigest.hash, body);
+    outcome = await runCommandTransaction(
+      db,
+      context,
+      envelope,
+      requestDigest.hash,
+      body,
+      currentAuthorization,
+    );
   } catch (error) {
     mapTransactionError(error);
   }
@@ -426,9 +453,11 @@ async function runCommandTransaction(
   envelope: CommandEnvelope,
   requestHash: Buffer,
   body: (execution: CommandExecution) => Promise<CommandBodyResult>,
+  currentAuthorization?: () => Promise<void>,
 ) {
   const envelopeSnapshot = freezeEnvelope(envelope);
   return withTaskExecutionTransaction(db, context, async (trx) => {
+    await currentAuthorization?.();
     const claimed = await claimReceipt(trx, envelopeSnapshot, requestHash);
     if (!claimed) {
       const existing = await readReceipt(trx, envelopeSnapshot);
@@ -467,6 +496,7 @@ async function runCommandTransaction(
       if (existing.outcome === 'PENDING') {
         return { kind: 'IN_PROGRESS' } as const;
       }
+      await currentAuthorization?.();
       return {
         kind: 'RESULT',
         result: {
@@ -481,6 +511,7 @@ async function runCommandTransaction(
 
     const commandFacts = makeCommandFacts(envelopeSnapshot);
     const bodyResult = await body(createExecution(trx, envelopeSnapshot, commandFacts));
+    await currentAuthorization?.();
     if (bodyResult.kind === 'REJECTED') {
       await finalizeReceipt(trx, envelopeSnapshot, {
         outcome: 'REJECTED',
@@ -523,6 +554,7 @@ async function runCommandTransaction(
       requestHash,
       resultHash: resultDigest.hash,
     });
+    await currentAuthorization?.();
     return {
       kind: 'RESULT',
       result: {
@@ -625,6 +657,7 @@ function createExecution(
   const taskReadinessRepo = new TaskReadinessRepository();
   const workOrderDraftRepo = new WorkOrderDraftRepository();
   const contextSnapshotRepo = new ContextSnapshotRepository();
+  const workOrderValidationRepo = new WorkOrderValidationRepository();
   return {
     trx,
     async insertProcessInstance(row) {
@@ -653,6 +686,15 @@ function createExecution(
     },
     async insertContextSnapshotBuild(row) {
       await contextSnapshotRepo.insertContextSnapshotBuild(trx, commandFacts, row);
+    },
+    async insertWorkOrderValidationJudgment(row) {
+      return workOrderValidationRepo.insertWorkOrderValidationJudgment(trx, commandFacts, row);
+    },
+    async insertWorkOrderContract(row) {
+      return workOrderValidationRepo.insertWorkOrderContract(trx, commandFacts, row);
+    },
+    async casWorkOrderStatusToReady(input) {
+      return workOrderValidationRepo.casWorkOrderStatusToReady(trx, commandFacts, input);
     },
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {

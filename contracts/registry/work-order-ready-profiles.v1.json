@@ -1,0 +1,53 @@
+{
+  "registryVersion": "im06-work-order-ready-static-v1",
+  "profiles": [
+    {
+      "registryKey": "core.work_order@1.0",
+      "owner": "contracts",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.contract.work_order_schema",
+        "objectId": "01996900-0000-7000-8000-000000000101",
+        "versionId": "01996900-0000-7000-8000-000000000111",
+        "scope": {}
+      },
+      "descriptor": {
+        "schemaId": "https://schemas.zhiju.local/core/work-order/1.0"
+      }
+    },
+    {
+      "registryKey": "te.human_operated.synthetic@1.0",
+      "owner": "integration-gateway",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.runtime.adapter_contract",
+        "objectId": "01996900-0000-7000-8000-000000000102",
+        "versionId": "01996900-0000-7000-8000-000000000112",
+        "scope": {}
+      },
+      "descriptor": {
+        "mode": "SYNTHETIC_TECHNICAL_ONLY",
+        "harness": "zhiju.runtime.synthetic",
+        "provider": "synthetic",
+        "model": "synthetic",
+        "resumePolicy": "new_run_only",
+        "fallbackPolicy": "human_intervention"
+      }
+    },
+    {
+      "registryKey": "te.work_order.human_review@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.work_order_risk_profile",
+        "objectId": "01996900-0000-7000-8000-000000000103",
+        "versionId": "01996900-0000-7000-8000-000000000113",
+        "scope": {}
+      },
+      "descriptor": {
+        "humanReviewRequired": true,
+        "technicalOnly": true
+      }
+    }
+  ]
+}

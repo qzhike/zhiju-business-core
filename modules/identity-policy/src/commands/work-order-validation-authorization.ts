@@ -1,0 +1,1776 @@
+// IM-06 (#219): WorkOrder Validation and Freeze authorization — the seven
+// mutually non-substitutable internal mappings of Module-Spec-001 §15.10.
+//
+// Design authority: Module-Spec-001 §15.10 and Spec 003 §21. This module is the
+// IdentityPolicy owning boundary of the seven approved authorization entries of
+// the WorkOrder Validation / Freeze slice:
+//
+// - the own CREATE Decision of `execution.validate_work_order_draft@1.0`,
+// - the own MUTATE Decision of `execution.freeze_work_order@1.0`,
+// - the authoritative-read Decision of `execution.get_work_order_contract@1.0`,
+// - the DRAFT snapshot dependency reads of validation and of freeze, and
+// - the Context snapshot dependency reads of validation and of freeze.
+//
+// Each boundary has its own authorize/revalidate pair: `authorize…` signs one
+// immutable AuthorizationDecision for the boundary's exact consumer
+// operation/version, the trusted composition capability configuration, the
+// exact ActorSnapshot, the exact target reference and the request facts;
+// `revalidate…` proves, before any TaskExecution dependency fact is read or
+// locked, before idempotency is claimed and before any historical Receipt is
+// returned, that the same exact Decision still covers this request *now*:
+// exact id/hash, actor and actual principal, authentication context, consumer
+// type/version/Purpose, payload hash, the complete target reference (not only
+// the promoted id), Project Scope, ALLOW and expiry, plus a fresh read of the
+// single covering Grant and its Policy Snapshot. A cached or historical result
+// never skips that step.
+//
+// A caller or an Envelope can never supply or override the capability code,
+// the required Grant action, the Grant selector type or the accepted target
+// object types, and the composition layer never has to read a TaskExecution
+// table to discover a WorkOrder id before it can name a dependency target.
+//
+// The dependency targets are full references, which the own boundaries never
+// handle: their targets are bare OBJECT references. The canonical Decision
+// payload of a dependency entry therefore carries the complete target
+// reference under `draftSnapshotRef` (ContentAddressedRef: kind, object type,
+// object id, the existence and value of `immutableVersionId`, the exact
+// Project Scope and the complete content hash triple) or `contextSnapshotRef`
+// (SnapshotRef: kind, object type, object id, the required `snapshotId`, the
+// exact Project Scope and the complete content hash triple; an
+// `immutableVersionId` member is refused). The V1006 promoted columns keep
+// mirroring only `objectType`/`objectId`, and the payload `targetRef` keeps
+// the V1006 OBJECT mirror shape: the owning read-side mirror check accepts
+// exactly that shape, so the complete reference is bound next to it instead of
+// replacing it — a SNAPSHOT or CONTENT_ADDRESSED ref is never stuffed into the
+// promoted OBJECT mirror columns (Spec 001 §15.10). Revalidation compares the
+// stored complete reference field by field, so a Decision signed for snapshot
+// A never authorizes snapshot B and a hash or version-id substitution behind
+// the same promoted id is refused.
+//
+// Capability isolation (Spec 001 §15.10): the seven entries never cover one
+// another — a validation Decision never authorizes a freeze, a build Decision
+// never authorizes a dependency read, and the §15.9 build-specific
+// `contextSnapshotDraftReadV11` entry, the public DRAFT/Context Query
+// Decisions, historical Receipts, a shared Purpose and a shared principal
+// never cover any of these entries either. The Validator Service and the
+// Freeze Service each hold their own covering Grant; there is no Service
+// wildcard.
+//
+// Everything fails closed. An unknown consumer version, an unusable trusted
+// configuration — including a deployment that never configures one entry's
+// key, which must not fall back to another entry's capability or to a
+// historical Decision — a malformed or substituted target and a request
+// outside the trusted transaction scope raise a stable error; a request that
+// no single Grant completely covers is denied with a masked in-scope Audit.
+// Neither path produces a success fact, a decision-carrying Outbox row or
+// execution eligibility when it does not pass.
+//
+// A denial produces no Decision row on purpose: a Decision of this Port binds
+// the exact Policy Snapshot of its covering Grant, and no Grant covered the
+// request, so there is no Policy Snapshot the row could carry. The denial is
+// recorded as a masked audit in the same transaction, exactly like the other
+// owning entries of this module record their rejected requests.
+//
+// The first version binds canonical `@1.1` WorkOrder and INITIAL Context
+// targets only: the legacy WorkOrder/Context spellings are not in the closed
+// target sets of any entry (Spec 001 §15.10).
+//
+// The port is internal: it is not a registered operation, it never enters the
+// Contract Catalog, and it does not change `identity.authorize_command@1.0`,
+// which keeps rejecting non-`1.0` command versions and keeps its own
+// acceptance set. TaskExecution consumes this port; it never reads these
+// tables or this Repository.
+
+import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import type { Common } from '@zhiju/contracts';
+import {
+  withIdentityTransaction,
+  type IdentityTransaction,
+  type IdentityTransactionContext,
+  type SelectedCapabilityGrant,
+  type SelectedPolicySnapshot,
+} from '../persistence/identity-db.js';
+import {
+  authorizationDecisionIntegrityHolds,
+  policySnapshotIntegrityHolds,
+} from '../persistence/identity-policy-repository.js';
+import {
+  assertSnapshotReference,
+  contentHash,
+  contentHashToBuffer,
+  DECISION_DEFAULT_TTL_SECONDS,
+  IDENTITY_ACTOR_SNAPSHOT_INVALID,
+  IDENTITY_DECISION_INPUT_INVALID,
+  sameScope,
+  SnapshotBoundaryError,
+  validateHash,
+  type ActorSnapshotRef,
+  type IdentityCommandDeps,
+} from './actor-snapshot.js';
+import { isHumanOnlyCapability } from './static-registry.js';
+import { WORK_ORDER_DRAFT_READ_PURPOSE } from './work-order-draft-read-authorization.js';
+
+export const IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED =
+  'IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED';
+export const IDENTITY_WORK_ORDER_VALIDATION_CAPABILITY_CONFIG_INVALID =
+  'IDENTITY_WORK_ORDER_VALIDATION_CAPABILITY_CONFIG_INVALID';
+export const IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID =
+  'IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID';
+
+/**
+ * The Purposes of the seven approved entries (Spec 001 §15.10), published so
+ * composition and the owning handlers never re-spell them. The DRAFT
+ * dependency reads reuse the already-published `execution.work_order.draft.read`
+ * value verbatim (`WORK_ORDER_DRAFT_READ_PURPOSE`); sharing a Purpose never
+ * merges entries. The Context dependency reads carry the internal Purpose
+ * `execution.context.snapshot.read`, which is deliberately *not* the published
+ * `task.execution.get_context_snapshot` Query Purpose of §15.8.
+ */
+export const WORK_ORDER_DRAFT_VALIDATE_PURPOSE = 'execution.work_order.draft.validate';
+export const WORK_ORDER_FREEZE_PURPOSE = 'task.execution.freeze_work_order';
+export const WORK_ORDER_CONTRACT_READ_PURPOSE = 'task.execution.get_work_order_contract';
+export const WORK_ORDER_CONTEXT_SNAPSHOT_READ_PURPOSE = 'execution.context.snapshot.read';
+
+/** The NamespaceCode shape of the shared contract (`Common.NamespaceCode`). */
+const namespaceCodePattern = /^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$/u;
+/** UuidV7, the identity shape every target and reference of this module uses. */
+const uuidV7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const authorizationDecisionObjectType = 'identity.authorization_decision';
+const policySnapshotObjectType = 'identity.policy_snapshot';
+const actorSnapshotObjectType = 'identity.actor_snapshot';
+
+/**
+ * Trusted configuration key of one approved entry. The seven keys are
+ * independent: no entry ever reads another entry's code.
+ */
+export type WorkOrderValidationCapabilityKey =
+  | 'workOrderValidationBuildV1'
+  | 'workOrderFreezeV1'
+  | 'workOrderContractReadV1'
+  | 'workOrderValidationDraftReadV1'
+  | 'workOrderFreezeDraftReadV1'
+  | 'workOrderValidationContextReadV1'
+  | 'workOrderFreezeContextReadV1';
+
+/**
+ * The Grant selector type each entry interprets. `CREATE_TARGET_TYPE` keeps its
+ * §15.2 meaning for the own CREATE of validation; `TARGET_TYPE` is interpreted
+ * by the MUTATE, read and dependency entries. The two types are never
+ * interchangeable.
+ */
+export type WorkOrderValidationSelectorType = 'CREATE_TARGET_TYPE' | 'TARGET_TYPE';
+
+/**
+ * The target reference kind of one entry: the own boundaries bind a bare
+ * `OBJECT` reference; the DRAFT dependency reads bind a complete
+ * `CONTENT_ADDRESSED` reference; the Context dependency reads bind a complete
+ * `SNAPSHOT` reference. The three kinds are never interchangeable.
+ */
+export type WorkOrderValidationTargetKind = 'OBJECT' | 'CONTENT_ADDRESSED' | 'SNAPSHOT';
+
+/**
+ * The consuming boundary of one approved entry. `(commandType, commandVersion)`
+ * alone does not identify an entry — validation and freeze each own one DRAFT
+ * and one Context dependency read under the same consumer operation/version —
+ * so this closed key is the entry's identity.
+ */
+export type WorkOrderValidationBoundary =
+  | 'validationBuild'
+  | 'freeze'
+  | 'contractRead'
+  | 'validationDraftRead'
+  | 'freezeDraftRead'
+  | 'validationContextRead'
+  | 'freezeContextRead';
+
+/**
+ * The exact identity, Purpose, Grant action, target kind, accepted target
+ * object types, Grant selector type and trusted configuration key of one
+ * approved entry (Spec 001 §15.10).
+ */
+export interface WorkOrderValidationBinding {
+  readonly boundary: WorkOrderValidationBoundary;
+  readonly commandType: string;
+  readonly commandVersion: string;
+  readonly authorizationPurpose: string;
+  readonly requiredGrantAction: string;
+  readonly targetKind: WorkOrderValidationTargetKind;
+  /**
+   * The closed accepted objectType set. The request's declared object type must
+   * equal one member exactly; the set is a closed list, never a pattern.
+   */
+  readonly targetObjectTypes: readonly string[];
+  readonly selectorType: WorkOrderValidationSelectorType;
+  readonly capabilityConfigKey: WorkOrderValidationCapabilityKey;
+}
+
+/**
+ * The closed approved mapping of Spec 001 §15.10. A consumer boundary outside
+ * this table has no approved authorization at all: there is no alias, prefix,
+ * case-insensitive, latest-version or implicit-default resolution, and the
+ * seven entries never inherit one another's Purpose, action, selector, target
+ * set or config key. The Grant actions are internal configuration tokens: they
+ * enter no public Catalog and no published metadata. Legacy WorkOrder/Context
+ * spellings are not in any closed target set.
+ */
+export const WORK_ORDER_VALIDATION_BINDINGS: readonly WorkOrderValidationBinding[] = Object.freeze([
+  Object.freeze({
+    boundary: 'validationBuild',
+    commandType: 'execution.validate_work_order_draft',
+    commandVersion: '1.0',
+    authorizationPurpose: WORK_ORDER_DRAFT_VALIDATE_PURPOSE,
+    requiredGrantAction: 'execution.work_order.validation.create.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['zhiju.execution.work_order_validation']),
+    selectorType: 'CREATE_TARGET_TYPE',
+    capabilityConfigKey: 'workOrderValidationBuildV1',
+  }),
+  Object.freeze({
+    boundary: 'freeze',
+    commandType: 'execution.freeze_work_order',
+    commandVersion: '1.0',
+    authorizationPurpose: WORK_ORDER_FREEZE_PURPOSE,
+    requiredGrantAction: 'execution.work_order.freeze.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['zhiju.execution.work_order']),
+    selectorType: 'TARGET_TYPE',
+    capabilityConfigKey: 'workOrderFreezeV1',
+  }),
+  Object.freeze({
+    boundary: 'contractRead',
+    commandType: 'execution.get_work_order_contract',
+    commandVersion: '1.0',
+    authorizationPurpose: WORK_ORDER_CONTRACT_READ_PURPOSE,
+    requiredGrantAction: 'execution.work_order.contract.read.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['zhiju.execution.work_order']),
+    selectorType: 'TARGET_TYPE',
+    capabilityConfigKey: 'workOrderContractReadV1',
+  }),
+  Object.freeze({
+    boundary: 'validationDraftRead',
+    commandType: 'execution.validate_work_order_draft',
+    commandVersion: '1.0',
+    authorizationPurpose: WORK_ORDER_DRAFT_READ_PURPOSE,
+    requiredGrantAction: 'execution.work_order.draft_snapshot.read.for_validation.v1',
+    targetKind: 'CONTENT_ADDRESSED',
+    targetObjectTypes: Object.freeze(['zhiju.execution.work_order_draft_snapshot']),
+    selectorType: 'TARGET_TYPE',
+    capabilityConfigKey: 'workOrderValidationDraftReadV1',
+  }),
+  Object.freeze({
+    boundary: 'freezeDraftRead',
+    commandType: 'execution.freeze_work_order',
+    commandVersion: '1.0',
+    authorizationPurpose: WORK_ORDER_DRAFT_READ_PURPOSE,
+    requiredGrantAction: 'execution.work_order.draft_snapshot.read.for_freeze.v1',
+    targetKind: 'CONTENT_ADDRESSED',
+    targetObjectTypes: Object.freeze(['zhiju.execution.work_order_draft_snapshot']),
+    selectorType: 'TARGET_TYPE',
+    capabilityConfigKey: 'workOrderFreezeDraftReadV1',
+  }),
+  Object.freeze({
+    boundary: 'validationContextRead',
+    commandType: 'execution.validate_work_order_draft',
+    commandVersion: '1.0',
+    authorizationPurpose: WORK_ORDER_CONTEXT_SNAPSHOT_READ_PURPOSE,
+    requiredGrantAction: 'execution.context.snapshot.read.for_validation.v1',
+    targetKind: 'SNAPSHOT',
+    targetObjectTypes: Object.freeze(['zhiju.execution.context_snapshot']),
+    selectorType: 'TARGET_TYPE',
+    capabilityConfigKey: 'workOrderValidationContextReadV1',
+  }),
+  Object.freeze({
+    boundary: 'freezeContextRead',
+    commandType: 'execution.freeze_work_order',
+    commandVersion: '1.0',
+    authorizationPurpose: WORK_ORDER_CONTEXT_SNAPSHOT_READ_PURPOSE,
+    requiredGrantAction: 'execution.context.snapshot.read.for_freeze.v1',
+    targetKind: 'SNAPSHOT',
+    targetObjectTypes: Object.freeze(['zhiju.execution.context_snapshot']),
+    selectorType: 'TARGET_TYPE',
+    capabilityConfigKey: 'workOrderFreezeContextReadV1',
+  }),
+]);
+
+/**
+ * The published Purpose indexed by the trusted configuration key, so a drift
+ * between the binding table and the constants above fails closed instead of
+ * signing a Decision under a Purpose no caller expects.
+ */
+const approvedPurposes: Readonly<Record<WorkOrderValidationCapabilityKey, string>> = Object.freeze({
+  workOrderValidationBuildV1: WORK_ORDER_DRAFT_VALIDATE_PURPOSE,
+  workOrderFreezeV1: WORK_ORDER_FREEZE_PURPOSE,
+  workOrderContractReadV1: WORK_ORDER_CONTRACT_READ_PURPOSE,
+  workOrderValidationDraftReadV1: WORK_ORDER_DRAFT_READ_PURPOSE,
+  workOrderFreezeDraftReadV1: WORK_ORDER_DRAFT_READ_PURPOSE,
+  workOrderValidationContextReadV1: WORK_ORDER_CONTEXT_SNAPSHOT_READ_PURPOSE,
+  workOrderFreezeContextReadV1: WORK_ORDER_CONTEXT_SNAPSHOT_READ_PURPOSE,
+});
+
+/**
+ * Trusted composition capability configuration: one capability code per
+ * approved entry. The values may be equal and are read from the composition
+ * layer, never from a caller or an Envelope. A missing, blank or
+ * non-NamespaceCode value fails closed for that entry; there is no fallback to
+ * another entry's capability or to a historical Decision.
+ */
+export type WorkOrderValidationCapabilityCodes = Readonly<
+  Record<WorkOrderValidationCapabilityKey, string>
+>;
+
+export interface WorkOrderValidationAuthorizationConfig {
+  readonly capabilityCodes: WorkOrderValidationCapabilityCodes;
+  /** Trusted server clock; defaults to the process clock. */
+  readonly now?: (() => Date) | undefined;
+}
+
+/** The single stable reason a request of this slice was not allowed to proceed. */
+export type WorkOrderValidationDenialReason =
+  | 'PRINCIPAL_NOT_ACTIVE'
+  | 'CAPABILITY_HUMAN_ONLY'
+  | 'NO_ACTIVE_GRANT'
+  | 'GRANT_POLICY_SNAPSHOT_INVALID'
+  | 'GRANT_POLICY_SNAPSHOT_NOT_CURRENT';
+
+/** The request fields every entry of this slice shares. */
+interface WorkOrderValidationEntryRequest {
+  /** Exact actor snapshot of the calling principal (id and payload hash). */
+  readonly actorSnapshotRef: ActorSnapshotRef;
+  readonly commandType: string;
+  readonly commandVersion: string;
+  readonly commandPayloadHash: Buffer;
+  readonly authenticationContextHash: Buffer;
+}
+
+/** The authorize input of the three own boundaries. */
+export interface WorkOrderValidationAuthorizationInput extends WorkOrderValidationEntryRequest {
+  /** The exact target of this request: object type, id and Project Scope. */
+  readonly targetRef: Common.ObjectRef;
+}
+
+/** The authorize input of the two DRAFT dependency-read boundaries. */
+export interface WorkOrderValidationDraftReadAuthorizationInput extends WorkOrderValidationEntryRequest {
+  /**
+   * The complete DRAFT snapshot reference the request already carries: object
+   * type, id, the existence and value of `immutableVersionId`, the exact
+   * Project Scope and the complete content hash.
+   */
+  readonly draftSnapshotRef: Common.ContentAddressedRef;
+}
+
+/** The authorize input of the two Context dependency-read boundaries. */
+export interface WorkOrderValidationContextReadAuthorizationInput extends WorkOrderValidationEntryRequest {
+  /**
+   * The complete Context snapshot reference the request already carries: object
+   * type, id, the required independent `snapshotId`, the exact
+   * Project Scope and the complete content hash. An `immutableVersionId` member
+   * is refused.
+   */
+  readonly contextSnapshotRef: Common.SnapshotRef;
+}
+
+export interface WorkOrderValidationAuthorizationView {
+  readonly outcome: 'ALLOW' | 'DENY';
+  readonly targetRef: Common.ObjectRef;
+  readonly reasons: readonly string[];
+  /** Present exactly when a Decision was issued. */
+  readonly authorizationDecisionRef?: Common.ContentAddressedRef | undefined;
+  readonly policySnapshotRef?: Common.SnapshotRef | undefined;
+  readonly expiresAt?: Common.UtcInstant | undefined;
+}
+
+export interface WorkOrderValidationDraftReadAuthorizationView {
+  readonly outcome: 'ALLOW' | 'DENY';
+  readonly draftSnapshotRef: Common.ContentAddressedRef;
+  readonly reasons: readonly string[];
+  readonly authorizationDecisionRef?: Common.ContentAddressedRef | undefined;
+  readonly policySnapshotRef?: Common.SnapshotRef | undefined;
+  readonly expiresAt?: Common.UtcInstant | undefined;
+}
+
+export interface WorkOrderValidationContextReadAuthorizationView {
+  readonly outcome: 'ALLOW' | 'DENY';
+  readonly contextSnapshotRef: Common.SnapshotRef;
+  readonly reasons: readonly string[];
+  readonly authorizationDecisionRef?: Common.ContentAddressedRef | undefined;
+  readonly policySnapshotRef?: Common.SnapshotRef | undefined;
+  readonly expiresAt?: Common.UtcInstant | undefined;
+}
+
+/** The revalidation fields every entry of this slice shares. */
+interface WorkOrderValidationEntryRevalidation {
+  readonly decisionRef: Common.ContentAddressedRef;
+  readonly expectedCommandType: string;
+  readonly expectedCommandVersion: string;
+  readonly expectedCommandPayloadHash: Buffer;
+  readonly expectedAuthenticationContextHash: Buffer;
+}
+
+/** The revalidation input of the three own boundaries. */
+export interface WorkOrderValidationRevalidationInput extends WorkOrderValidationEntryRevalidation {
+  /** The exact target this request would submit, with its exact Project Scope. */
+  readonly expectedTargetRef: Common.ObjectRef;
+}
+
+/** The revalidation input of the two DRAFT dependency-read boundaries. */
+export interface WorkOrderValidationDraftReadRevalidationInput extends WorkOrderValidationEntryRevalidation {
+  /**
+   * The complete DRAFT snapshot reference this request would submit, with its
+   * exact Project Scope and complete content hash.
+   */
+  readonly expectedDraftSnapshotRef: Common.ContentAddressedRef;
+}
+
+/** The revalidation input of the two Context dependency-read boundaries. */
+export interface WorkOrderValidationContextReadRevalidationInput extends WorkOrderValidationEntryRevalidation {
+  /**
+   * The complete Context snapshot reference this request would submit, with its
+   * required `snapshotId`, exact Project Scope and complete content hash.
+   */
+  readonly expectedContextSnapshotRef: Common.SnapshotRef;
+}
+
+/**
+ * The closed outcome of a revalidation. A `false` result is never an ALLOW and
+ * never restores eligibility; the reason names the single compared dimension
+ * that failed.
+ */
+export type WorkOrderValidationRevalidationFailure =
+  | 'NOT_FOUND'
+  | 'HASH_MISMATCH'
+  | 'NOT_ALLOW'
+  | 'TARGET_UNBOUND'
+  | 'TARGET_MISMATCH'
+  | 'SCOPE_MISMATCH'
+  | 'COMMAND_MISMATCH'
+  | 'PAYLOAD_HASH_MISMATCH'
+  | 'AUTH_CONTEXT_MISMATCH'
+  | 'ACTOR_MISMATCH'
+  | 'DECISION_INTEGRITY_MISMATCH'
+  | 'PRINCIPAL_NOT_ACTIVE'
+  | 'CONFIGURATION_CHANGED'
+  | 'EXPIRED'
+  | 'GRANT_NOT_CURRENT'
+  | 'POLICY_INTEGRITY_MISMATCH'
+  | 'POLICY_NOT_CURRENT';
+
+interface WorkOrderValidationRevalidationAllow {
+  readonly valid: true;
+  readonly authorizationDecisionRef: Common.ContentAddressedRef;
+  readonly policySnapshotRef: Common.SnapshotRef;
+  readonly expiresAt: Common.UtcInstant;
+}
+
+interface WorkOrderValidationRevalidationDeny {
+  readonly valid: false;
+  readonly reason: WorkOrderValidationRevalidationFailure;
+}
+
+export type WorkOrderValidationRevalidationResult =
+  | (WorkOrderValidationRevalidationAllow & { readonly targetRef: Common.ObjectRef })
+  | WorkOrderValidationRevalidationDeny;
+
+export type WorkOrderValidationDraftReadRevalidationResult =
+  | (WorkOrderValidationRevalidationAllow & {
+      readonly draftSnapshotRef: Common.ContentAddressedRef;
+    })
+  | WorkOrderValidationRevalidationDeny;
+
+export type WorkOrderValidationContextReadRevalidationResult =
+  | (WorkOrderValidationRevalidationAllow & { readonly contextSnapshotRef: Common.SnapshotRef })
+  | WorkOrderValidationRevalidationDeny;
+
+export interface WorkOrderValidationAuthorizationPort {
+  /** Signs the own CREATE Decision of `execution.validate_work_order_draft@1.0`, or denies it. */
+  authorizeWorkOrderValidation(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationAuthorizationInput,
+  ): Promise<WorkOrderValidationAuthorizationView>;
+  /** Proves that the presented validation-build Decision still covers this request now. */
+  revalidateWorkOrderValidation(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationRevalidationInput,
+  ): Promise<WorkOrderValidationRevalidationResult>;
+  /** Signs the own MUTATE Decision of `execution.freeze_work_order@1.0`, or denies it. */
+  authorizeWorkOrderFreeze(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationAuthorizationInput,
+  ): Promise<WorkOrderValidationAuthorizationView>;
+  /** Proves that the presented freeze Decision still covers this request now. */
+  revalidateWorkOrderFreeze(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationRevalidationInput,
+  ): Promise<WorkOrderValidationRevalidationResult>;
+  /** Signs the authoritative-read Decision of `execution.get_work_order_contract@1.0`, or denies it. */
+  authorizeWorkOrderContractRead(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationAuthorizationInput,
+  ): Promise<WorkOrderValidationAuthorizationView>;
+  /** Proves that the presented contract-read Decision still covers this request now. */
+  revalidateWorkOrderContractRead(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationRevalidationInput,
+  ): Promise<WorkOrderValidationRevalidationResult>;
+  /** Signs the validation DRAFT dependency-read Decision, or denies it. */
+  authorizeValidationDraftRead(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationDraftReadAuthorizationInput,
+  ): Promise<WorkOrderValidationDraftReadAuthorizationView>;
+  /** Proves that the presented validation DRAFT dependency-read Decision still covers this read now. */
+  revalidateValidationDraftRead(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationDraftReadRevalidationInput,
+  ): Promise<WorkOrderValidationDraftReadRevalidationResult>;
+  /** Signs the freeze DRAFT dependency-read Decision, or denies it. */
+  authorizeFreezeDraftRead(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationDraftReadAuthorizationInput,
+  ): Promise<WorkOrderValidationDraftReadAuthorizationView>;
+  /** Proves that the presented freeze DRAFT dependency-read Decision still covers this read now. */
+  revalidateFreezeDraftRead(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationDraftReadRevalidationInput,
+  ): Promise<WorkOrderValidationDraftReadRevalidationResult>;
+  /** Signs the validation Context dependency-read Decision, or denies it. */
+  authorizeValidationContextRead(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationContextReadAuthorizationInput,
+  ): Promise<WorkOrderValidationContextReadAuthorizationView>;
+  /** Proves that the presented validation Context dependency-read Decision still covers this read now. */
+  revalidateValidationContextRead(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationContextReadRevalidationInput,
+  ): Promise<WorkOrderValidationContextReadRevalidationResult>;
+  /** Signs the freeze Context dependency-read Decision, or denies it. */
+  authorizeFreezeContextRead(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationContextReadAuthorizationInput,
+  ): Promise<WorkOrderValidationContextReadAuthorizationView>;
+  /** Proves that the presented freeze Context dependency-read Decision still covers this read now. */
+  revalidateFreezeContextRead(
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationContextReadRevalidationInput,
+  ): Promise<WorkOrderValidationContextReadRevalidationResult>;
+}
+
+/** The validated target of one request of this slice, per target kind. */
+type WorkOrderValidationTarget =
+  | {
+      readonly kind: 'OBJECT';
+      readonly objectType: string;
+      readonly objectId: string;
+      readonly scope: Common.ScopeRef;
+      readonly enterpriseId: string;
+      readonly projectId: string;
+    }
+  | {
+      readonly kind: 'CONTENT_ADDRESSED';
+      readonly objectType: string;
+      readonly objectId: string;
+      readonly immutableVersionId: string | undefined;
+      readonly scope: Common.ScopeRef;
+      readonly enterpriseId: string;
+      readonly projectId: string;
+      readonly contentHash: Common.ContentHash;
+    }
+  | {
+      readonly kind: 'SNAPSHOT';
+      readonly objectType: string;
+      readonly objectId: string;
+      readonly snapshotId: string;
+      readonly scope: Common.ScopeRef;
+      readonly enterpriseId: string;
+      readonly projectId: string;
+      readonly contentHash: Common.ContentHash;
+    };
+
+interface WorkOrderValidationGrantQuery {
+  readonly principalId: string;
+  readonly enterpriseId: string;
+  readonly projectId: string;
+  readonly capabilityCode: string;
+  readonly requiredGrantAction: string;
+  readonly selectorType: WorkOrderValidationSelectorType;
+  readonly targetObjectType: string;
+  /** Exact Policy Snapshot the Decision is bound to, when one already exists. */
+  readonly policySnapshot?: { readonly id: string; readonly hash: Buffer } | undefined;
+  readonly now: Date;
+}
+
+type WorkOrderValidationGrantFinding =
+  | { readonly policySnapshot: SelectedPolicySnapshot }
+  | { readonly denial: WorkOrderValidationDenialReason };
+
+type IssuedEntryDecision =
+  | { readonly outcome: 'DENY'; readonly reasons: readonly string[] }
+  | {
+      readonly outcome: 'ALLOW';
+      readonly reasons: readonly string[];
+      readonly authorizationDecisionRef: Common.ContentAddressedRef;
+      readonly policySnapshotRef: Common.SnapshotRef;
+      readonly expiresAt: Common.UtcInstant;
+    };
+
+type RevalidatedEntryDecision =
+  | {
+      readonly valid: true;
+      readonly authorizationDecisionRef: Common.ContentAddressedRef;
+      readonly policySnapshotRef: Common.SnapshotRef;
+      readonly expiresAt: Common.UtcInstant;
+    }
+  | WorkOrderValidationRevalidationDeny;
+
+/**
+ * The owning port of the seven approved entries. The trusted configuration is
+ * resolved for every call, so a value that is missing, blank or not a
+ * NamespaceCode can never authorize anything, and the trusted clock is never a
+ * caller argument.
+ */
+export function createWorkOrderValidationAuthorizationPort(
+  config: WorkOrderValidationAuthorizationConfig,
+): WorkOrderValidationAuthorizationPort {
+  // A configuration object that is missing entirely must still fail closed
+  // (as an unusable capability configuration) instead of crashing here.
+  const configuredNow = (config as { readonly now?: unknown } | null | undefined)?.now;
+  const now: () => Date =
+    typeof configuredNow === 'function' ? (configuredNow as () => Date) : () => new Date();
+
+  const authorizeOwn = async (
+    boundary: WorkOrderValidationBoundary,
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationAuthorizationInput,
+  ): Promise<WorkOrderValidationAuthorizationView> => {
+    const issued = await issueEntryDecision(config, now, boundary, deps, input, input.targetRef);
+    if (issued.outcome === 'DENY') {
+      return { outcome: 'DENY', targetRef: input.targetRef, reasons: issued.reasons };
+    }
+    return { ...issued, targetRef: input.targetRef };
+  };
+
+  const revalidateOwn = async (
+    boundary: WorkOrderValidationBoundary,
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationRevalidationInput,
+  ): Promise<WorkOrderValidationRevalidationResult> => {
+    const result = await revalidateEntryDecision(
+      config,
+      now,
+      boundary,
+      deps,
+      input,
+      input.expectedTargetRef,
+    );
+    if (!result.valid) return result;
+    return { ...result, targetRef: input.expectedTargetRef };
+  };
+
+  const authorizeDraftRead = async (
+    boundary: WorkOrderValidationBoundary,
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationDraftReadAuthorizationInput,
+  ): Promise<WorkOrderValidationDraftReadAuthorizationView> => {
+    const issued = await issueEntryDecision(
+      config,
+      now,
+      boundary,
+      deps,
+      input,
+      input.draftSnapshotRef,
+    );
+    if (issued.outcome === 'DENY') {
+      return { outcome: 'DENY', draftSnapshotRef: input.draftSnapshotRef, reasons: issued.reasons };
+    }
+    return { ...issued, draftSnapshotRef: input.draftSnapshotRef };
+  };
+
+  const revalidateDraftRead = async (
+    boundary: WorkOrderValidationBoundary,
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationDraftReadRevalidationInput,
+  ): Promise<WorkOrderValidationDraftReadRevalidationResult> => {
+    const result = await revalidateEntryDecision(
+      config,
+      now,
+      boundary,
+      deps,
+      input,
+      input.expectedDraftSnapshotRef,
+    );
+    if (!result.valid) return result;
+    return { ...result, draftSnapshotRef: input.expectedDraftSnapshotRef };
+  };
+
+  const authorizeContextRead = async (
+    boundary: WorkOrderValidationBoundary,
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationContextReadAuthorizationInput,
+  ): Promise<WorkOrderValidationContextReadAuthorizationView> => {
+    const issued = await issueEntryDecision(
+      config,
+      now,
+      boundary,
+      deps,
+      input,
+      input.contextSnapshotRef,
+    );
+    if (issued.outcome === 'DENY') {
+      return {
+        outcome: 'DENY',
+        contextSnapshotRef: input.contextSnapshotRef,
+        reasons: issued.reasons,
+      };
+    }
+    return { ...issued, contextSnapshotRef: input.contextSnapshotRef };
+  };
+
+  const revalidateContextRead = async (
+    boundary: WorkOrderValidationBoundary,
+    deps: IdentityCommandDeps,
+    input: WorkOrderValidationContextReadRevalidationInput,
+  ): Promise<WorkOrderValidationContextReadRevalidationResult> => {
+    const result = await revalidateEntryDecision(
+      config,
+      now,
+      boundary,
+      deps,
+      input,
+      input.expectedContextSnapshotRef,
+    );
+    if (!result.valid) return result;
+    return { ...result, contextSnapshotRef: input.expectedContextSnapshotRef };
+  };
+
+  return {
+    authorizeWorkOrderValidation: (deps, input) => authorizeOwn('validationBuild', deps, input),
+    revalidateWorkOrderValidation: (deps, input) => revalidateOwn('validationBuild', deps, input),
+    authorizeWorkOrderFreeze: (deps, input) => authorizeOwn('freeze', deps, input),
+    revalidateWorkOrderFreeze: (deps, input) => revalidateOwn('freeze', deps, input),
+    authorizeWorkOrderContractRead: (deps, input) => authorizeOwn('contractRead', deps, input),
+    revalidateWorkOrderContractRead: (deps, input) => revalidateOwn('contractRead', deps, input),
+    authorizeValidationDraftRead: (deps, input) =>
+      authorizeDraftRead('validationDraftRead', deps, input),
+    revalidateValidationDraftRead: (deps, input) =>
+      revalidateDraftRead('validationDraftRead', deps, input),
+    authorizeFreezeDraftRead: (deps, input) => authorizeDraftRead('freezeDraftRead', deps, input),
+    revalidateFreezeDraftRead: (deps, input) => revalidateDraftRead('freezeDraftRead', deps, input),
+    authorizeValidationContextRead: (deps, input) =>
+      authorizeContextRead('validationContextRead', deps, input),
+    revalidateValidationContextRead: (deps, input) =>
+      revalidateContextRead('validationContextRead', deps, input),
+    authorizeFreezeContextRead: (deps, input) =>
+      authorizeContextRead('freezeContextRead', deps, input),
+    revalidateFreezeContextRead: (deps, input) =>
+      revalidateContextRead('freezeContextRead', deps, input),
+  };
+}
+
+/**
+ * Signs the exact target-bound Decision of one entry, or records the masked
+ * denial. The complete target reference of a dependency entry is bound in the
+ * canonical payload next to the V1006 OBJECT mirror; the promoted columns keep
+ * the OBJECT mirror shape only (Spec 001 §15.10).
+ */
+async function issueEntryDecision(
+  config: WorkOrderValidationAuthorizationConfig,
+  now: () => Date,
+  boundary: WorkOrderValidationBoundary,
+  deps: IdentityCommandDeps,
+  input: WorkOrderValidationEntryRequest,
+  rawTarget: unknown,
+): Promise<IssuedEntryDecision> {
+  const binding = approvedValidationBinding(boundary, input.commandType, input.commandVersion);
+  const capabilityCode = configuredCapabilityCode(config, binding.capabilityConfigKey);
+  const target = readValidationTarget(rawTarget, binding, deps.context);
+  assertValidationInput(input, target, deps.context);
+  const actorSnapshotPayloadHash = contentHashToBuffer(
+    input.actorSnapshotRef.contentHash,
+    IDENTITY_ACTOR_SNAPSHOT_INVALID,
+    'actor snapshot payload hash',
+  );
+
+  const decision = await withIdentityTransaction(deps.db, deps.context, async (trx) => {
+    const actor = await deps.repo.getActorSnapshotByIdAndHash(
+      trx,
+      input.actorSnapshotRef.snapshotId,
+      actorSnapshotPayloadHash,
+    );
+    if (!actor?.hashMatched) {
+      throw new SnapshotBoundaryError(
+        IDENTITY_ACTOR_SNAPSHOT_INVALID,
+        'actor snapshot ref does not match',
+      );
+    }
+    // The Decision is issued for the trusted transaction actor: a caller
+    // cannot present another principal's snapshot of the same Project.
+    if (actor.row.principal_id !== deps.context.principalId) {
+      throw new SnapshotBoundaryError(
+        IDENTITY_ACTOR_SNAPSHOT_INVALID,
+        'actor snapshot principal must be the trusted transaction principal',
+      );
+    }
+    if (
+      actor.row.scope_kind !== 'PROJECT' ||
+      actor.row.enterprise_id !== target.enterpriseId ||
+      actor.row.project_id !== target.projectId
+    ) {
+      throw new SnapshotBoundaryError(
+        IDENTITY_ACTOR_SNAPSHOT_INVALID,
+        'actor snapshot scope must be the exact request Project',
+      );
+    }
+    if (!actor.row.authentication_context_hash.equals(input.authenticationContextHash)) {
+      throw new SnapshotBoundaryError(
+        IDENTITY_DECISION_INPUT_INVALID,
+        'authentication context mismatch',
+      );
+    }
+
+    const principal = await deps.repo.getPrincipalById(trx, actor.row.principal_id);
+    const principalKind = principal?.principal_kind ?? actor.row.principal_kind;
+    // actingFor is metadata only: the kind stays the actor's real kind, and
+    // a Human-only capability never becomes available to another kind.
+    const principalInactive = principal?.status !== 'ACTIVE';
+    const humanOnlyViolation = isHumanOnlyCapability(capabilityCode) && principalKind !== 'HUMAN';
+    if (principalInactive || humanOnlyViolation) {
+      const reason = principalInactive
+        ? ('PRINCIPAL_NOT_ACTIVE' as const)
+        : ('CAPABILITY_HUMAN_ONLY' as const);
+      await appendWorkOrderValidationDeniedAudit(trx, deps, {
+        commandType: binding.commandType,
+        denial: reason,
+        target,
+        actorSnapshotId: actor.row.actor_snapshot_id,
+        actorPrincipalId: actor.row.principal_id,
+        commandPayloadHash: input.commandPayloadHash,
+      });
+      return { outcome: 'DENY' as const, reasons: [reason] };
+    }
+    const finding = await coveringValidationGrant(deps, trx, {
+      principalId: actor.row.principal_id,
+      enterpriseId: target.enterpriseId,
+      projectId: target.projectId,
+      capabilityCode,
+      requiredGrantAction: binding.requiredGrantAction,
+      selectorType: binding.selectorType,
+      targetObjectType: target.objectType,
+      now: now(),
+    });
+    if ('denial' in finding) {
+      await appendWorkOrderValidationDeniedAudit(trx, deps, {
+        commandType: binding.commandType,
+        denial: finding.denial,
+        target,
+        actorSnapshotId: actor.row.actor_snapshot_id,
+        actorPrincipalId: actor.row.principal_id,
+        commandPayloadHash: input.commandPayloadHash,
+      });
+      return { outcome: 'DENY' as const, reasons: [finding.denial] };
+    }
+
+    const decisionId = newUuidV7();
+    const expiresAt = new Date(now().getTime() + DECISION_DEFAULT_TTL_SECONDS * 1000);
+    const reasons = ['ALLOWED_BY_GRANT'];
+    const policySnapshot = finding.policySnapshot;
+    const dependencyMember = dependencyRefMember(target);
+    await deps.repo.insertAuthorizationDecision(trx, {
+      authorizationDecisionId: decisionId,
+      actorSnapshotId: actor.row.actor_snapshot_id,
+      actorSnapshotPayloadHash: actor.row.payload_hash,
+      principalId: actor.row.principal_id,
+      principalKind,
+      outcome: 'ALLOW',
+      reasonCodes: reasons,
+      commandType: binding.commandType,
+      commandVersion: binding.commandVersion,
+      scopeKind: 'PROJECT',
+      enterpriseId: target.enterpriseId,
+      projectId: target.projectId,
+      purpose: binding.authorizationPurpose,
+      requestedCapability: capabilityCode,
+      commandPayloadHash: input.commandPayloadHash,
+      policySnapshotId: policySnapshot.policy_snapshot_id,
+      policySnapshotPayloadHash: policySnapshot.payload_hash,
+      authenticationContextHash: input.authenticationContextHash,
+      expiresAt,
+      contractVersion: '1.0',
+      targetRef: { objectType: target.objectType, objectId: target.objectId },
+      decisionPayload: {
+        outcome: 'ALLOW',
+        actorSnapshotId: actor.row.actor_snapshot_id,
+        actorSnapshotPayloadHash: actor.row.payload_hash.toString('hex'),
+        principalId: actor.row.principal_id,
+        principalKind,
+        authenticationContextHash: input.authenticationContextHash.toString('hex'),
+        enterpriseId: target.enterpriseId,
+        projectId: target.projectId,
+        scopeKind: 'PROJECT',
+        commandType: binding.commandType,
+        commandVersion: binding.commandVersion,
+        purpose: binding.authorizationPurpose,
+        requestedCapability: capabilityCode,
+        commandPayloadHash: input.commandPayloadHash.toString('hex'),
+        policySnapshotId: policySnapshot.policy_snapshot_id,
+        policySnapshotPayloadHash: policySnapshot.payload_hash.toString('hex'),
+        expiresAt: expiresAt.toISOString(),
+        reasonCodes: reasons,
+        // The V1006 OBJECT mirror of the promoted target columns; the complete
+        // dependency reference is bound next to it below.
+        targetRef: {
+          kind: 'OBJECT',
+          objectType: target.objectType,
+          objectId: target.objectId,
+          scope: { enterpriseId: target.enterpriseId, projectId: target.projectId },
+        },
+        ...(dependencyMember === undefined ? {} : { [dependencyMember[0]]: dependencyMember[1] }),
+      },
+      createdByPrincipalId: deps.context.principalId,
+      sourceCommandId: newUuidV7(),
+    });
+    return {
+      outcome: 'ALLOW' as const,
+      reasons,
+      decisionId,
+      expiresAt,
+      policySnapshotId: policySnapshot.policy_snapshot_id,
+      policySnapshotPayloadHash: policySnapshot.payload_hash,
+    };
+  });
+
+  if (decision.outcome === 'DENY') {
+    return { outcome: 'DENY', reasons: decision.reasons };
+  }
+  // The stored canonical payload is authoritative; re-read the exact hash.
+  const stored = await withIdentityTransaction(deps.db, deps.context, async (trx) =>
+    trx
+      .selectFrom('identity_policy.authorization_decision')
+      .select(['authorization_decision_id', 'payload_hash'])
+      .where('authorization_decision_id', '=', decision.decisionId)
+      .executeTakeFirst(),
+  );
+  if (!stored) {
+    throw new SnapshotBoundaryError(IDENTITY_DECISION_INPUT_INVALID, 'decision persistence failed');
+  }
+  return {
+    outcome: 'ALLOW',
+    reasons: decision.reasons,
+    authorizationDecisionRef: {
+      kind: 'CONTENT_ADDRESSED',
+      objectType: authorizationDecisionObjectType,
+      objectId: stored.authorization_decision_id,
+      scope: target.scope,
+      contentHash: contentHash(stored.payload_hash),
+    },
+    policySnapshotRef: {
+      kind: 'SNAPSHOT',
+      objectType: policySnapshotObjectType,
+      objectId: decision.policySnapshotId,
+      snapshotId: decision.policySnapshotId,
+      scope: {},
+      contentHash: contentHash(decision.policySnapshotPayloadHash),
+    },
+    expiresAt: decision.expiresAt.toISOString(),
+  };
+}
+
+/**
+ * Proves that the presented Decision still covers this request now: exact
+ * id/hash, integrity recompute, actor and actual principal, ALLOW, target
+ * binding (promoted columns and, for a dependency entry, the complete stored
+ * reference), Project Scope, operation/version/Purpose, current configuration,
+ * payload and authentication-context hashes, expiry, a re-read ActorSnapshot,
+ * the current principal state and a fresh read of the covering Grant and its
+ * Policy Snapshot at the trusted time.
+ */
+async function revalidateEntryDecision(
+  config: WorkOrderValidationAuthorizationConfig,
+  now: () => Date,
+  boundary: WorkOrderValidationBoundary,
+  deps: IdentityCommandDeps,
+  input: WorkOrderValidationEntryRevalidation,
+  rawTarget: unknown,
+): Promise<RevalidatedEntryDecision> {
+  const binding = approvedValidationBinding(
+    boundary,
+    input.expectedCommandType,
+    input.expectedCommandVersion,
+  );
+  const capabilityCode = configuredCapabilityCode(config, binding.capabilityConfigKey);
+  const target = readValidationTarget(rawTarget, binding, deps.context);
+  validateHash(
+    input.expectedCommandPayloadHash,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'expected command payload hash',
+  );
+  validateHash(
+    input.expectedAuthenticationContextHash,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'expected authentication context hash',
+  );
+  assertDecisionReference(input.decisionRef);
+  const decisionPayloadHash = contentHashToBuffer(
+    input.decisionRef.contentHash,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'decision payload hash',
+  );
+
+  return withIdentityTransaction(deps.db, deps.context, async (trx) => {
+    const found = await deps.repo.getAuthorizationDecisionByIdAndHash(
+      trx,
+      input.decisionRef.objectId,
+      decisionPayloadHash,
+    );
+    if (!found) return invalid('NOT_FOUND');
+    if (!found.hashMatched) return invalid('HASH_MISMATCH');
+    const row = found.row;
+    // The stored hash column is not the canonical payload: the bytes must
+    // still hash to it before any field of the row is trusted.
+    if (!authorizationDecisionIntegrityHolds(row)) {
+      return invalid('DECISION_INTEGRITY_MISMATCH');
+    }
+    // The Decision must belong to the trusted transaction actor, not only
+    // to the same Project Scope.
+    if (
+      row.actor_snapshot_id !== deps.context.actorSnapshotId ||
+      row.principal_id !== deps.context.principalId
+    ) {
+      return invalid('ACTOR_MISMATCH');
+    }
+    if (row.outcome !== 'ALLOW') return invalid('NOT_ALLOW');
+    // A Decision without a target binding predates this Port: it stays
+    // readable history but never authorizes one of the seven entries.
+    if (row.target_object_type === null || row.target_object_id === null) {
+      return invalid('TARGET_UNBOUND');
+    }
+    if (row.target_object_type !== target.objectType || row.target_object_id !== target.objectId) {
+      return invalid('TARGET_MISMATCH');
+    }
+    // The promoted id is not the target: the complete reference stored in the
+    // canonical payload must equal the request ref field by field, so a hash,
+    // snapshot-id or version-id substitution behind the same id, or a Decision
+    // signed for another snapshot, is refused (Spec 001 §15.10).
+    if (!storedDependencyRefMatches(row.canonical_payload, target)) {
+      return invalid('TARGET_MISMATCH');
+    }
+    if (
+      row.scope_kind !== 'PROJECT' ||
+      row.enterprise_id !== target.enterpriseId ||
+      row.project_id !== target.projectId ||
+      !sameScope(input.decisionRef.scope, target.scope)
+    ) {
+      return invalid('SCOPE_MISMATCH');
+    }
+    if (
+      row.command_type !== binding.commandType ||
+      row.command_version !== binding.commandVersion ||
+      row.purpose !== binding.authorizationPurpose
+    ) {
+      return invalid('COMMAND_MISMATCH');
+    }
+    // A trusted configuration change is not silently tolerated: the
+    // Decision must still carry the capability code of this entry.
+    if (row.requested_capability !== capabilityCode) return invalid('CONFIGURATION_CHANGED');
+    if (!row.command_payload_hash.equals(input.expectedCommandPayloadHash)) {
+      return invalid('PAYLOAD_HASH_MISMATCH');
+    }
+    if (!row.authentication_context_hash.equals(input.expectedAuthenticationContextHash)) {
+      return invalid('AUTH_CONTEXT_MISMATCH');
+    }
+    const trustedNow = now();
+    if (row.expires_at <= trustedNow) return invalid('EXPIRED');
+
+    const actor = await deps.repo.getActorSnapshotByIdAndHash(
+      trx,
+      row.actor_snapshot_id,
+      row.actor_snapshot_payload_hash,
+    );
+    if (
+      !actor?.hashMatched ||
+      actor.row.principal_id !== row.principal_id ||
+      actor.row.principal_kind !== row.principal_kind ||
+      !actor.row.authentication_context_hash.equals(row.authentication_context_hash) ||
+      actor.row.scope_kind !== row.scope_kind ||
+      actor.row.enterprise_id !== row.enterprise_id ||
+      actor.row.project_id !== row.project_id
+    ) {
+      return invalid('ACTOR_MISMATCH');
+    }
+    const principal = await deps.repo.getPrincipalById(trx, row.principal_id);
+    if (principal?.status !== 'ACTIVE') return invalid('PRINCIPAL_NOT_ACTIVE');
+
+    const finding = await coveringValidationGrant(deps, trx, {
+      principalId: row.principal_id,
+      enterpriseId: row.enterprise_id,
+      projectId: target.projectId,
+      capabilityCode,
+      requiredGrantAction: binding.requiredGrantAction,
+      selectorType: binding.selectorType,
+      targetObjectType: row.target_object_type,
+      policySnapshot: { id: row.policy_snapshot_id, hash: row.policy_snapshot_payload_hash },
+      now: trustedNow,
+    });
+    if ('denial' in finding) {
+      return invalid(
+        finding.denial === 'GRANT_POLICY_SNAPSHOT_INVALID'
+          ? 'POLICY_INTEGRITY_MISMATCH'
+          : finding.denial === 'GRANT_POLICY_SNAPSHOT_NOT_CURRENT'
+            ? 'POLICY_NOT_CURRENT'
+            : 'GRANT_NOT_CURRENT',
+      );
+    }
+    return {
+      valid: true,
+      authorizationDecisionRef: {
+        kind: 'CONTENT_ADDRESSED',
+        objectType: authorizationDecisionObjectType,
+        objectId: row.authorization_decision_id,
+        scope: target.scope,
+        contentHash: contentHash(row.payload_hash),
+      },
+      policySnapshotRef: {
+        kind: 'SNAPSHOT',
+        objectType: policySnapshotObjectType,
+        objectId: finding.policySnapshot.policy_snapshot_id,
+        snapshotId: finding.policySnapshot.policy_snapshot_id,
+        scope: {},
+        contentHash: contentHash(finding.policySnapshot.payload_hash),
+      },
+      expiresAt: row.expires_at.toISOString(),
+    };
+  });
+}
+
+/**
+ * The closed negative revalidation outcome. Call sites stay in lockstep so the
+ * result shape cannot drift between the compared dimensions.
+ */
+function invalid(
+  reason: WorkOrderValidationRevalidationFailure,
+): WorkOrderValidationRevalidationDeny {
+  return { valid: false, reason };
+}
+
+/**
+ * Exact resolution of one approved entry of this slice. The boundary key is
+ * closed; the presented consumer operation/version must equal the entry's exact
+ * pair (no alias, prefix, case variant or latest fallback), and the binding
+ * must agree with the published Purpose of its trusted configuration key
+ * (drift fails closed).
+ */
+function approvedValidationBinding(
+  boundary: WorkOrderValidationBoundary,
+  commandType: unknown,
+  commandVersion: unknown,
+): WorkOrderValidationBinding {
+  const binding = WORK_ORDER_VALIDATION_BINDINGS.find(
+    (candidate) => candidate.boundary === boundary,
+  );
+  if (
+    binding === undefined ||
+    typeof commandType !== 'string' ||
+    typeof commandVersion !== 'string' ||
+    binding.commandType !== commandType ||
+    binding.commandVersion !== commandVersion
+  ) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
+      'work-order validation authorization must be an exact approved consumer operation and version',
+    );
+  }
+  if (approvedPurposes[binding.capabilityConfigKey] !== binding.authorizationPurpose) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
+      'work-order validation binding Purpose does not match the published Purpose',
+    );
+  }
+  return binding;
+}
+
+function configuredCapabilityCode(
+  config: WorkOrderValidationAuthorizationConfig,
+  key: WorkOrderValidationCapabilityKey,
+): string {
+  const capabilityCodes: unknown = (
+    config as { readonly capabilityCodes?: unknown } | null | undefined
+  )?.capabilityCodes;
+  const value =
+    capabilityCodes !== null && typeof capabilityCodes === 'object'
+      ? (capabilityCodes as Readonly<Record<string, unknown>>)[key]
+      : undefined;
+  if (typeof value !== 'string' || !namespaceCodePattern.test(value)) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_WORK_ORDER_VALIDATION_CAPABILITY_CONFIG_INVALID,
+      `trusted capability configuration for ${key} is missing or invalid`,
+    );
+  }
+  return value;
+}
+
+/** The target reader of one entry, dispatched by the entry's target kind. */
+function readValidationTarget(
+  rawTarget: unknown,
+  binding: WorkOrderValidationBinding,
+  context: IdentityTransactionContext,
+): WorkOrderValidationTarget {
+  if (binding.targetKind === 'CONTENT_ADDRESSED') {
+    return readDraftSnapshotTarget(rawTarget, binding, context);
+  }
+  if (binding.targetKind === 'SNAPSHOT') {
+    return readContextSnapshotTarget(rawTarget, binding, context);
+  }
+  return readObjectTarget(rawTarget, binding, context);
+}
+
+/**
+ * The target reference of an own boundary: an exact approved object type, a
+ * UuidV7 and the exact Project Scope the request runs in. Enterprise scope, an
+ * object type outside the entry's closed set (including a legacy spelling), a
+ * wildcard, a case variant and a target outside the trusted transaction scope
+ * are refused.
+ */
+function readObjectTarget(
+  rawTarget: unknown,
+  binding: WorkOrderValidationBinding,
+  context: IdentityTransactionContext,
+): WorkOrderValidationTarget {
+  const candidate = rawTarget as
+    | { kind?: unknown; objectType?: unknown; objectId?: unknown; scope?: unknown }
+    | null
+    | undefined;
+  const scope = readTargetScope(candidate?.scope);
+  const objectType = candidate?.objectType;
+  if (
+    candidate?.kind !== 'OBJECT' ||
+    typeof objectType !== 'string' ||
+    !binding.targetObjectTypes.includes(objectType) ||
+    typeof candidate.objectId !== 'string' ||
+    !uuidV7Pattern.test(candidate.objectId) ||
+    scope === undefined
+  ) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID,
+      'target must be an accepted object type, id and Project Scope',
+    );
+  }
+  assertTrustedScope(scope, context);
+  return {
+    kind: 'OBJECT',
+    objectType,
+    objectId: candidate.objectId,
+    scope: { enterpriseId: scope.enterpriseId, projectId: scope.projectId },
+    enterpriseId: scope.enterpriseId,
+    projectId: scope.projectId,
+  };
+}
+
+/**
+ * The target reference of a DRAFT dependency-read boundary: an exact
+ * ContentAddressedRef of the single approved object type, a UuidV7 object id,
+ * an optional UuidV7 `immutableVersionId`, the exact Project Scope the request
+ * runs in and a complete SHA-256 content hash. Enterprise scope, any other
+ * object type or kind, a wildcard, a case variant, a `null` masquerading as an
+ * absent version id, an unknown scope or content-hash member and a target
+ * outside the trusted transaction scope are refused.
+ */
+function readDraftSnapshotTarget(
+  rawTarget: unknown,
+  binding: WorkOrderValidationBinding,
+  context: IdentityTransactionContext,
+): WorkOrderValidationTarget {
+  const candidate = rawTarget as
+    | {
+        kind?: unknown;
+        objectType?: unknown;
+        objectId?: unknown;
+        immutableVersionId?: unknown;
+        scope?: unknown;
+        contentHash?: unknown;
+      }
+    | null
+    | undefined;
+  const scope = readTargetScope(candidate?.scope);
+  const hashShape = readHashShape(candidate?.contentHash);
+  const objectType = candidate?.objectType;
+  if (
+    candidate?.kind !== 'CONTENT_ADDRESSED' ||
+    typeof objectType !== 'string' ||
+    !binding.targetObjectTypes.includes(objectType) ||
+    typeof candidate.objectId !== 'string' ||
+    !uuidV7Pattern.test(candidate.objectId) ||
+    (candidate.immutableVersionId !== undefined &&
+      (typeof candidate.immutableVersionId !== 'string' ||
+        !uuidV7Pattern.test(candidate.immutableVersionId))) ||
+    scope === undefined ||
+    hashShape === undefined
+  ) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID,
+      'DRAFT snapshot target must be the accepted object type, id and Project Scope',
+    );
+  }
+  // The complete content hash is part of the target identity: it must be a
+  // SHA-256 / canonicalization-v1 digest before the ref can bind a Decision.
+  const contentHashDigest = contentHashToBuffer(
+    candidate.contentHash,
+    IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID,
+    'DRAFT snapshot content hash',
+  );
+  assertTrustedScope(scope, context);
+  return {
+    kind: 'CONTENT_ADDRESSED',
+    objectType,
+    objectId: candidate.objectId,
+    immutableVersionId: candidate.immutableVersionId,
+    scope: { enterpriseId: scope.enterpriseId, projectId: scope.projectId },
+    enterpriseId: scope.enterpriseId,
+    projectId: scope.projectId,
+    contentHash: contentHash(contentHashDigest),
+  };
+}
+
+/**
+ * The target reference of a Context dependency-read boundary: an exact
+ * SnapshotRef of the single approved object type, a UuidV7 object id, the
+ * required independent `snapshotId`, the exact Project Scope the
+ * request runs in and a complete SHA-256 content hash. An `immutableVersionId`
+ * member is refused — the Context snapshot ref never carries one — as are
+ * Enterprise scope, any other object type or kind (including the legacy
+ * `zhiju.project.context_snapshot` spelling), a wildcard, a case variant, an
+ * unknown scope or content-hash member and a target outside the trusted
+ * transaction scope.
+ */
+function readContextSnapshotTarget(
+  rawTarget: unknown,
+  binding: WorkOrderValidationBinding,
+  context: IdentityTransactionContext,
+): WorkOrderValidationTarget {
+  const candidate = rawTarget as
+    | {
+        kind?: unknown;
+        objectType?: unknown;
+        objectId?: unknown;
+        snapshotId?: unknown;
+        immutableVersionId?: unknown;
+        scope?: unknown;
+        contentHash?: unknown;
+      }
+    | null
+    | undefined;
+  const scope = readTargetScope(candidate?.scope);
+  const hashShape = readHashShape(candidate?.contentHash);
+  const objectType = candidate?.objectType;
+  if (
+    candidate?.kind !== 'SNAPSHOT' ||
+    typeof objectType !== 'string' ||
+    !binding.targetObjectTypes.includes(objectType) ||
+    typeof candidate.objectId !== 'string' ||
+    !uuidV7Pattern.test(candidate.objectId) ||
+    typeof candidate.snapshotId !== 'string' ||
+    !uuidV7Pattern.test(candidate.snapshotId) ||
+    candidate.immutableVersionId !== undefined ||
+    scope === undefined ||
+    hashShape === undefined
+  ) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID,
+      'Context snapshot target must be the accepted object type, id, snapshot id and Project Scope',
+    );
+  }
+  const contentHashDigest = contentHashToBuffer(
+    candidate.contentHash,
+    IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID,
+    'Context snapshot content hash',
+  );
+  assertTrustedScope(scope, context);
+  return {
+    kind: 'SNAPSHOT',
+    objectType,
+    objectId: candidate.objectId,
+    snapshotId: candidate.snapshotId,
+    scope: { enterpriseId: scope.enterpriseId, projectId: scope.projectId },
+    enterpriseId: scope.enterpriseId,
+    projectId: scope.projectId,
+    contentHash: contentHash(contentHashDigest),
+  };
+}
+
+/** The exact Project Scope of a target reference, or `undefined` when malformed. */
+function readTargetScope(
+  rawScope: unknown,
+): { readonly enterpriseId: string; readonly projectId: string } | undefined {
+  const scope = rawScope as { enterpriseId?: unknown; projectId?: unknown } | null | undefined;
+  if (
+    scope === null ||
+    scope === undefined ||
+    typeof scope !== 'object' ||
+    Array.isArray(scope) ||
+    typeof scope.enterpriseId !== 'string' ||
+    typeof scope.projectId !== 'string' ||
+    !Object.keys(scope).every((key) => key === 'enterpriseId' || key === 'projectId')
+  ) {
+    return undefined;
+  }
+  return { enterpriseId: scope.enterpriseId, projectId: scope.projectId };
+}
+
+/** The content-hash shape of a full reference, closed to the three members. */
+function readHashShape(rawHash: unknown): true | undefined {
+  const hashShape = rawHash as Record<string, unknown> | null | undefined;
+  if (
+    hashShape === null ||
+    hashShape === undefined ||
+    typeof hashShape !== 'object' ||
+    Array.isArray(hashShape) ||
+    !Object.keys(hashShape).every(
+      (key) => key === 'algorithm' || key === 'digest' || key === 'canonicalizationVersion',
+    )
+  ) {
+    return undefined;
+  }
+  return true;
+}
+
+/** The target scope must be the trusted transaction scope, exactly. */
+function assertTrustedScope(
+  scope: { readonly enterpriseId: string; readonly projectId: string },
+  context: IdentityTransactionContext,
+): void {
+  if (
+    scope.enterpriseId !== context.enterpriseId ||
+    !context.allowedProjectIds.includes(scope.projectId)
+  ) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID,
+      'target scope must match the trusted transaction scope',
+    );
+  }
+}
+
+/**
+ * The canonical-payload member that binds the complete target reference of a
+ * dependency entry (Spec 001 §15.10). An absent `immutableVersionId` is bound
+ * as absence: the member is not serialized at all, so a `null` can never
+ * impersonate it and the stored payload hash fixes the difference. An own
+ * boundary has no such member: its OBJECT mirror `targetRef` is the complete
+ * binding.
+ */
+function dependencyRefMember(
+  target: WorkOrderValidationTarget,
+): readonly [string, CanonicalJsonObject] | undefined {
+  if (target.kind === 'CONTENT_ADDRESSED') {
+    return [
+      'draftSnapshotRef',
+      {
+        kind: 'CONTENT_ADDRESSED',
+        objectType: target.objectType,
+        objectId: target.objectId,
+        ...(target.immutableVersionId === undefined
+          ? {}
+          : { immutableVersionId: target.immutableVersionId }),
+        scope: { enterpriseId: target.enterpriseId, projectId: target.projectId },
+        contentHash: {
+          algorithm: target.contentHash.algorithm,
+          digest: target.contentHash.digest,
+          canonicalizationVersion: target.contentHash.canonicalizationVersion,
+        },
+      },
+    ];
+  }
+  if (target.kind === 'SNAPSHOT') {
+    return [
+      'contextSnapshotRef',
+      {
+        kind: 'SNAPSHOT',
+        objectType: target.objectType,
+        objectId: target.objectId,
+        snapshotId: target.snapshotId,
+        scope: { enterpriseId: target.enterpriseId, projectId: target.projectId },
+        contentHash: {
+          algorithm: target.contentHash.algorithm,
+          digest: target.contentHash.digest,
+          canonicalizationVersion: target.contentHash.canonicalizationVersion,
+        },
+      },
+    ];
+  }
+  return undefined;
+}
+
+/**
+ * The complete target binding of a stored Decision: for a dependency entry the
+ * canonical payload member (`draftSnapshotRef` or `contextSnapshotRef`) must
+ * equal the validated request ref field by field — kind, object type, object
+ * id, the existence and value of `immutableVersionId` or the required
+ * `snapshotId`, the exact Project Scope and the complete content hash triple.
+ * The promoted columns alone cannot see a hash, snapshot-id or version-id
+ * substitution, which is exactly what this comparison exists to refuse
+ * (Spec 001 §15.10). An own boundary's promoted columns are the complete
+ * binding, so nothing more is compared.
+ */
+function storedDependencyRefMatches(
+  storedPayload: unknown,
+  expected: WorkOrderValidationTarget,
+): boolean {
+  if (expected.kind === 'OBJECT') return true;
+  const member = expected.kind === 'SNAPSHOT' ? 'contextSnapshotRef' : 'draftSnapshotRef';
+  const candidate = (storedPayload as Record<string, unknown> | null | undefined)?.[member] as
+    | {
+        kind?: unknown;
+        objectType?: unknown;
+        objectId?: unknown;
+        snapshotId?: unknown;
+        immutableVersionId?: unknown;
+        scope?: unknown;
+        contentHash?: unknown;
+      }
+    | null
+    | undefined;
+  if (candidate === null || candidate === undefined || typeof candidate !== 'object') {
+    return false;
+  }
+  const hash = candidate.contentHash as
+    { algorithm?: unknown; digest?: unknown; canonicalizationVersion?: unknown } | null | undefined;
+  const hashMatches =
+    hash !== null &&
+    hash !== undefined &&
+    typeof hash === 'object' &&
+    !Array.isArray(hash) &&
+    hash.algorithm === expected.contentHash.algorithm &&
+    hash.digest === expected.contentHash.digest &&
+    hash.canonicalizationVersion === expected.contentHash.canonicalizationVersion;
+  if (expected.kind === 'CONTENT_ADDRESSED') {
+    return (
+      candidate.kind === 'CONTENT_ADDRESSED' &&
+      candidate.objectType === expected.objectType &&
+      candidate.objectId === expected.objectId &&
+      (candidate.immutableVersionId === undefined
+        ? expected.immutableVersionId === undefined
+        : candidate.immutableVersionId === expected.immutableVersionId) &&
+      sameScope(candidate.scope, expected.scope) &&
+      hashMatches
+    );
+  }
+  return (
+    candidate.kind === 'SNAPSHOT' &&
+    candidate.objectType === expected.objectType &&
+    candidate.objectId === expected.objectId &&
+    candidate.snapshotId === expected.snapshotId &&
+    candidate.immutableVersionId === undefined &&
+    sameScope(candidate.scope, expected.scope) &&
+    hashMatches
+  );
+}
+
+function assertValidationInput(
+  input: WorkOrderValidationEntryRequest,
+  target: WorkOrderValidationTarget,
+  context: IdentityTransactionContext,
+): void {
+  assertSnapshotReference(
+    input.actorSnapshotRef,
+    actorSnapshotObjectType,
+    IDENTITY_ACTOR_SNAPSHOT_INVALID,
+    'actor snapshot',
+  );
+  if (input.actorSnapshotRef.snapshotId !== context.actorSnapshotId) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_ACTOR_SNAPSHOT_INVALID,
+      'actor snapshot must be the trusted transaction actor',
+    );
+  }
+  if (!sameScope(input.actorSnapshotRef.scope, target.scope)) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_ACTOR_SNAPSHOT_INVALID,
+      'actor snapshot scope must be the exact request Project',
+    );
+  }
+  validateHash(input.commandPayloadHash, IDENTITY_DECISION_INPUT_INVALID, 'command payload hash');
+  validateHash(
+    input.authenticationContextHash,
+    IDENTITY_DECISION_INPUT_INVALID,
+    'authentication context hash',
+  );
+}
+
+function assertDecisionReference(ref: Common.ContentAddressedRef): void {
+  const candidate = ref as unknown as
+    { kind?: unknown; objectType?: unknown; objectId?: unknown } | null | undefined;
+  if (
+    candidate?.kind !== 'CONTENT_ADDRESSED' ||
+    candidate.objectType !== authorizationDecisionObjectType ||
+    typeof candidate.objectId !== 'string' ||
+    !uuidV7Pattern.test(candidate.objectId)
+  ) {
+    throw new SnapshotBoundaryError(
+      IDENTITY_DECISION_INPUT_INVALID,
+      'decision reference must be an exact AuthorizationDecision reference',
+    );
+  }
+}
+
+/**
+ * The single covering Grant rule of Spec 001 §15.2. One Grant must satisfy
+ * every condition on its own: exact principal, configured capability code,
+ * exact Project Scope, ACTIVE inside the trusted time window, the exact entry
+ * action, the closed selector of that entry's selector type for the exact
+ * target object type, an empty `constraints`, no `maxUses`, and — when a
+ * Decision is already bound — exactly that Policy Snapshot, currently effective
+ * and not superseded. Coverage is never assembled from several partial Grants.
+ */
+async function coveringValidationGrant(
+  deps: IdentityCommandDeps,
+  trx: IdentityTransaction,
+  query: WorkOrderValidationGrantQuery,
+): Promise<WorkOrderValidationGrantFinding> {
+  const grants = await deps.repo.listActiveCapabilityGrants(
+    trx,
+    query.principalId,
+    query.enterpriseId,
+    query.now,
+  );
+  let sawStalePolicy = false;
+  let sawInvalidPolicy = false;
+  for (const grant of grants) {
+    if (!grantMatchesValidation(grant, query)) continue;
+    if (
+      query.policySnapshot !== undefined &&
+      (grant.grant_policy_snapshot_id !== query.policySnapshot.id ||
+        !grant.grant_policy_snapshot_hash.equals(query.policySnapshot.hash))
+    ) {
+      // The Grant still covers the action and target but is bound to another
+      // Policy Snapshot than the Decision carries.
+      sawStalePolicy = true;
+      continue;
+    }
+    const policySnapshot = await deps.repo.getPolicySnapshotById(
+      trx,
+      grant.grant_policy_snapshot_id,
+    );
+    // The Snapshot must be integrity-valid before it is interpreted: a
+    // rewritten document that no longer hashes to the stored hash is refused.
+    if (
+      policySnapshot === undefined ||
+      !policySnapshot.payload_hash.equals(grant.grant_policy_snapshot_hash) ||
+      !policySnapshotIntegrityHolds(policySnapshot)
+    ) {
+      sawInvalidPolicy = true;
+      continue;
+    }
+    if (
+      policySnapshot.effective_from > query.now ||
+      (policySnapshot.superseded_at !== null &&
+        policySnapshot.superseded_at !== undefined &&
+        query.now >= policySnapshot.superseded_at)
+    ) {
+      sawStalePolicy = true;
+      continue;
+    }
+    return { policySnapshot };
+  }
+  return {
+    denial: sawInvalidPolicy
+      ? 'GRANT_POLICY_SNAPSHOT_INVALID'
+      : sawStalePolicy
+        ? 'GRANT_POLICY_SNAPSHOT_NOT_CURRENT'
+        : 'NO_ACTIVE_GRANT',
+  };
+}
+
+function grantMatchesValidation(
+  grant: SelectedCapabilityGrant,
+  query: WorkOrderValidationGrantQuery,
+): boolean {
+  const constraints = grant.constraints as unknown;
+  const constraintsEmpty =
+    typeof constraints === 'object' &&
+    constraints !== null &&
+    !Array.isArray(constraints) &&
+    Object.keys(constraints).length === 0;
+  return (
+    grant.capability_code === query.capabilityCode &&
+    grant.scope_kind === 'PROJECT' &&
+    grant.enterprise_id === query.enterpriseId &&
+    grant.project_id === query.projectId &&
+    grant.actions.includes(query.requiredGrantAction) &&
+    grant.max_uses === null &&
+    constraintsEmpty &&
+    selectorsCoverValidationTarget(
+      grant.resource_selectors,
+      query.selectorType,
+      query.targetObjectType,
+    )
+  );
+}
+
+/**
+ * The closed selector shape of one entry. Every element of the array must be
+ * exactly `{selectorType, objectType}` with *this* entry's selector type and a
+ * NamespaceCode object type (no unknown field, no wildcard, no prefix, no
+ * alias, no case variant), and at least one element must equal the exact target
+ * object type of this request. The two selector types are never
+ * interchangeable: a Grant selector of the other type fails the shape here.
+ */
+function selectorsCoverValidationTarget(
+  selectors: unknown,
+  selectorType: WorkOrderValidationSelectorType,
+  targetObjectType: string,
+): boolean {
+  if (!Array.isArray(selectors) || selectors.length === 0) return false;
+  let matched = false;
+  for (const selector of selectors) {
+    if (selector === null || typeof selector !== 'object' || Array.isArray(selector)) return false;
+    const candidate = selector as Record<string, unknown>;
+    const keys = Object.keys(candidate);
+    if (
+      keys.length !== 2 ||
+      !keys.every((key) => key === 'selectorType' || key === 'objectType') ||
+      candidate.selectorType !== selectorType ||
+      typeof candidate.objectType !== 'string' ||
+      !namespaceCodePattern.test(candidate.objectType)
+    ) {
+      return false;
+    }
+    if (candidate.objectType === targetObjectType) matched = true;
+  }
+  return matched;
+}
+
+/**
+ * Masked, in-scope audit of a denied request of this slice. The entry stays
+ * inside the trusted transaction scope and never carries the request payload.
+ */
+async function appendWorkOrderValidationDeniedAudit(
+  trx: IdentityTransaction,
+  deps: IdentityCommandDeps,
+  input: {
+    readonly commandType: string;
+    readonly denial: WorkOrderValidationDenialReason;
+    readonly target: WorkOrderValidationTarget;
+    readonly actorSnapshotId: string;
+    readonly actorPrincipalId: string;
+    readonly commandPayloadHash: Buffer;
+  },
+): Promise<void> {
+  await trx
+    .insertInto('identity_policy.audit_record')
+    .values({
+      audit_id: newUuidV7(),
+      enterprise_id: input.target.enterpriseId,
+      project_id: input.target.projectId,
+      principal_id: input.actorPrincipalId,
+      actor_snapshot_id: input.actorSnapshotId,
+      authorization_decision_id: deps.context.authorizationDecisionId,
+      command_id: newUuidV7(),
+      command_type: input.commandType,
+      outcome: 'DENIED',
+      error_code: input.denial,
+      request_payload_hash: input.commandPayloadHash,
+      result_payload_hash: null,
+      target_type: input.target.objectType,
+      target_id: input.target.objectId,
+      correlation_id: deps.context.correlationId,
+      safe_summary: `work-order validation authorization denied: ${input.denial}`,
+      retention_class: 'REGULATED_AUDIT',
+    })
+    .execute();
+}

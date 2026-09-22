@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import profileRegistryData from './generated/policy-profiles.json' with { type: 'json' };
 import type { Common } from './generated/types/common.js';
 import type { JsonSchema } from './schema-types.js';
@@ -65,6 +66,12 @@ interface ApprovedEntry {
  * closed rule sets approved in design decision §12.4.
  */
 const approvedEntries: readonly ApprovedEntry[] = [
+  {
+    registryKey: 'execution.work_order_controls.policy@1.0',
+    owner: 'task-execution',
+    fields: ['controls'],
+    requiredFields: ['controls'],
+  },
   { registryKey: 'identity.PolicySnapshot@1.0', owner: 'identity-policy' },
   { registryKey: 'identity.RolePolicy@1.0', owner: 'identity-policy' },
   { registryKey: 'identity.CapabilityPolicy@1.0', owner: 'identity-policy' },
@@ -164,6 +171,39 @@ function parseDocumentSchema(value: unknown, approved: ApprovedEntry): JsonSchem
   ) {
     throw new Error(`policy profile fields drifted from the approved set: ${approved.registryKey}`);
   }
+  if (approved.registryKey === 'execution.work_order_controls.policy@1.0') {
+    const fields = [
+      'targetScope',
+      'allowedCapabilities',
+      'deniedCapabilities',
+      'expectedOutputs',
+      'riskAndQuality',
+      'executionPolicy',
+      'budget',
+      'harnessPolicy',
+      'modelPolicy',
+    ];
+    const expected = {
+      type: 'object',
+      additionalProperties: false,
+      required: ['controls'],
+      properties: {
+        controls: {
+          type: 'object',
+          additionalProperties: false,
+          required: fields,
+          properties: Object.fromEntries(
+            fields.map((field) => [
+              field,
+              { $ref: `https://schemas.zhiju.local/core/work-order/1.0#/properties/${field}` },
+            ]),
+          ),
+        },
+      },
+    };
+    if (!isDeepStrictEqual(value, expected))
+      throw new Error('WorkOrder controls policy schema drifted');
+  }
   return value;
 }
 
@@ -205,6 +245,14 @@ export function loadPolicyProfileRegistry(input: unknown): PolicyProfileRegistry
       throw new Error(`duplicate policy profile registry key: ${registryKey}`);
     }
     const reference = parseReference(entry.reference);
+    if (
+      registryKey === 'execution.work_order_controls.policy@1.0' &&
+      (reference.objectId !== '01996900-0000-7000-8000-000000000104' ||
+        reference.versionId !== '01996900-0000-7000-8000-000000000114')
+    ) {
+      throw new Error('WorkOrder controls policy selector identity drifted');
+    }
+
     if (objectIds.has(reference.objectId) || versionIds.has(reference.versionId)) {
       throw new Error(`duplicate policy profile identity: ${registryKey}`);
     }

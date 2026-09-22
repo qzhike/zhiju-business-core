@@ -603,3 +603,10 @@ AgentResult 的 header/schema/hash、FINAL、executionOutcome、provenance 和 s
 技术证据必须同时保留 Fixture 版本/Hash、实际输入 Hash、Driver 调用次数、ack/submission 原始内容 Hash 与 synthetic ExternalRef、屏障释放对应的已提交 Command Receipt，以及 owning Query 读回的 Attempt/Run/Result/Acceptance/Claim 结果。Claim 释放由 TE 的受控持久化验收在 owning 边界证明，不新增跨模块 Claim Query。缺少任何实际执行的项目保持 NOT RUN，静态样本不能充当 Driver 调用证据。ID/Hash 重复重放只复用原观察；同 ID 异 Hash、错 Scope/绑定、过期 lease 或旧 fencing 必须拒绝/隔离，禁止“修正”原 payload 后伪装同一次成功。
 
 输入/预期矩阵见 [TE WI-03](../module-tests/Module-Test-003-TaskExecution.md#wi-03-控制入口与拒绝反例)、[IG WI-03](../module-tests/Module-Test-007-IntegrationGateway.md#wi-03-driver-证据来源细化)。API/Gate 的完整适用性判断见 [设计决定 §9.2](../decisions/task-execution-human-operated.md#92-控制入口与-im-dg-006-适用性)。以上不批准 §15.1 六项操作、Runtime 默认 Policy、真实 CLI/Provider/Feishu、同 Run Resume 或 fallback，也不批准 TD-05–07。
+
+
+### #219 READY 静态协议 selector 补充（待审）
+
+状态：`HUMAN DESIGN APPROVED 2026-09-22 / STATIC SELECTOR REGISTERED 2026-09-22 / INDEPENDENT REVIEW PENDING / RUNTIME NOT RUN`。已将本节既有 Human-operated synthetic 技术协议登记为 `te.human_operated.synthetic@1.0` 的构建期 VersionedRef selector；完整身份及 closed descriptor 见 [Spec 003 §21.6](../module-specs/Module-Spec-003-TaskExecution.md#issue-219-ready-selectors)，objectType/Owner 见 Contract Catalog 的 #219 补充。Owner 仍为 IntegrationGateway；contracts 承载静态描述，不接管 RuntimeAttempt 或 Driver。
+
+该 selector 只允许 Validator 证明冻结计划采用已知技术协议和显式 synthetic Harness/Model 控制值。它不表示三种 CLI 的 conformance、已安装可执行程序、认证、Provider 可用、RuntimeBinding、Attempt 或真实调用；这些必须在后续 owning Run/Dispatch 边界证明。READY profile 不启用 fallback、同 Run resume 或租约默认值，也不修改本协议已批准的控制时序。

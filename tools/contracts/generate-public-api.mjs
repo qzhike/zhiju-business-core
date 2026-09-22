@@ -6,6 +6,8 @@ import {
   loadPayloadGuardPolicies,
   resolvePayloadGuardPolicy,
 } from '../../contracts/src/payload-guard.ts';
+import { workOrderSchema } from '../../contracts/src/core.schema.ts';
+import { loadWorkOrderReadyProfileRegistry } from '../../contracts/src/work-order-ready-profiles.ts';
 import { loadEvaluatorProfileRegistry } from '../../contracts/src/evaluator-profiles.ts';
 import { loadPolicyProfileRegistry } from '../../contracts/src/policy-profiles.ts';
 import {
@@ -24,6 +26,8 @@ import {
   assertTaskExecutionOperationRegistrations,
   assertTaskReadinessCompatibilityMetadata,
   assertTaskReadinessOperationRegistrations,
+  assertWorkOrderValidationCompatibilityMetadata,
+  assertWorkOrderValidationOperationRegistrations,
   taskExecutionCreationPurposes,
 } from '../../contracts/src/operation-registration.ts';
 
@@ -66,10 +70,22 @@ const evaluatorRegistrySource = readFileSync(
 );
 const evaluatorRegistry = loadEvaluatorProfileRegistry(JSON.parse(evaluatorRegistrySource));
 const evaluatorRegistryOutputPath = join(root, 'contracts/src/generated/evaluator-profiles.json');
+const readyRegistrySource = readFileSync(
+  join(root, 'contracts/registry/work-order-ready-profiles.v1.json'),
+  'utf8',
+);
+const readyRegistry = loadWorkOrderReadyProfileRegistry(JSON.parse(readyRegistrySource));
+if (readyRegistry.profiles[0].descriptor.schemaId !== workOrderSchema.$id)
+  throw new Error('READY WorkOrder schema is not registered');
+const readyRegistryOutputPath = join(
+  root,
+  'contracts/src/generated/work-order-ready-profiles.json',
+);
 assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
 assertInitialContextEnterpriseFactRegistration();
 assertTaskReadinessOperationRegistrations(registry.operations);
+assertWorkOrderValidationOperationRegistrations(registry.operations);
 assertTaskExecutionCreationPurposeRegistrations(registry.operations);
 assertPolicyVersionOperationRegistrations(registry.operations);
 assertResolutionReceiptOperationRegistrations(registry.operations);
@@ -85,6 +101,7 @@ for (const op of registry.operations) {
 assertSliceCompatibilityMetadata(registry.operations, metadata.operations);
 assertTaskExecutionCompatibilityMetadata(metadata.operations);
 assertTaskReadinessCompatibilityMetadata(metadata.operations);
+assertWorkOrderValidationCompatibilityMetadata(metadata.operations);
 assertTaskExecutionCreationPurposeMetadata(metadata.operations);
 assertPolicyVersionCompatibilityMetadata(metadata.operations);
 assertResolutionReceiptCompatibilityMetadata(metadata.operations);
@@ -173,6 +190,7 @@ if (process.argv.includes('--check')) {
   const current = readFileSync(outputPath, 'utf8').replaceAll('\r\n', '\n');
   if (
     current !== generated ||
+    readFileSync(readyRegistryOutputPath, 'utf8') !== readyRegistrySource ||
     readFileSync(guardOutputPath, 'utf8') !== guardSource ||
     readFileSync(profileRegistryOutputPath, 'utf8') !== profileRegistrySource ||
     readFileSync(evaluatorRegistryOutputPath, 'utf8') !== evaluatorRegistrySource ||
@@ -187,6 +205,7 @@ if (process.argv.includes('--check')) {
   }
 } else {
   writeFileSync(outputPath, generated, 'utf8');
+  writeFileSync(readyRegistryOutputPath, readyRegistrySource, 'utf8');
   writeFileSync(guardOutputPath, guardSource, 'utf8');
   writeFileSync(profileRegistryOutputPath, profileRegistrySource, 'utf8');
   writeFileSync(evaluatorRegistryOutputPath, evaluatorRegistrySource, 'utf8');

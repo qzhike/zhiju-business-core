@@ -239,15 +239,23 @@ export interface TaskDefinitionSnapshotTable {
  * the primary key is the database-adjudicated single-winner boundary for a
  * duplicate CREATE identity and every promoted column is a mirror of the
  * canonical payload (`V3002` re-derives them inside the database).
+ *
+ * IM-06 (#219, `V3005`): the table gains the mutually exclusive
+ * `WORK_ORDER_VALIDATION` kind branch. The four Task-kind mirrors
+ * (`task_id`, `task_definition_snapshot_id`, `task_definition_hash`, `ready`)
+ * are NULL on the new kind, and the WorkOrder-kind mirrors (exact Draft and
+ * Context refs by row id + payload hash, candidate/specification hashes and the
+ * seven Core §4.14 booleans) are NULL on the old kind; the branch CHECK and the
+ * branched guards re-derive and close both halves inside the database.
  */
 export interface ExecutionJudgmentTable {
   judgment_id: string;
   judgment_kind: string;
   enterprise_id: string;
   project_id: string;
-  task_id: string;
-  task_definition_snapshot_id: string;
-  task_definition_hash: Buffer;
+  task_id: string | null;
+  task_definition_snapshot_id: string | null;
+  task_definition_hash: Buffer | null;
   policy_version_ref: Json;
   policy_content_hash: Buffer;
   policy_effective_from: Date;
@@ -256,7 +264,21 @@ export interface ExecutionJudgmentTable {
   input_hash: Buffer;
   evaluated_at: Date;
   valid_until: Date;
-  ready: boolean;
+  ready: boolean | null;
+  work_order_id: string | null;
+  draft_snapshot_id: string | null;
+  draft_snapshot_hash: Buffer | null;
+  candidate_contract_hash: Buffer | null;
+  specification_hash: Buffer | null;
+  context_snapshot_id: string | null;
+  context_snapshot_hash: Buffer | null;
+  validation_valid: boolean | null;
+  validation_references_valid: boolean | null;
+  validation_specification_hash_valid: boolean | null;
+  validation_capability_valid: boolean | null;
+  validation_executable: boolean | null;
+  validation_budget_valid: boolean | null;
+  validation_context_coverage_valid: boolean | null;
   canonical_payload: Json;
   payload_hash: Buffer;
   canonicalization_version: Generated<string>;
@@ -288,6 +310,14 @@ export interface WorkOrderTable {
   current_draft_snapshot_hash: Buffer;
   draft_schema_version: string;
   expires_at: InstantColumn;
+  /**
+   * IM-06 (#219, `V3005`): write-once composite pointer to the frozen
+   * `work_order_contract` row. Both members are NULL for the whole DRAFT life
+   * and NOT NULL in every later state; the Root update guard makes the pointer
+   * NULL -> value exactly once and never change afterwards.
+   */
+  frozen_contract_id: string | null;
+  frozen_contract_hash: Buffer | null;
   created_at: Generated<Date>;
   created_by_principal_id: string;
   requested_by_principal_id: string;
@@ -427,12 +457,50 @@ export interface ContextSnapshotLegacyTable {
   import_tool_version: string;
 }
 
+/**
+ * IM-06 (#219, `V3005`): the one immutable frozen WorkOrder Contract of a
+ * WorkOrder. `contract_id` is the Contract's own identity
+ * (`header.contractId`); `UNIQUE (work_order_id)` makes a second frozen binding
+ * impossible, and `UNIQUE (work_order_id, contract_id, payload_hash)` is the
+ * composite identity the Root frozen pointer references. Every promoted column
+ * with a payload counterpart (identity, Scope, WorkOrder/Task spelling and the
+ * Context ref) plus both content addresses (`payload_hash` over the full
+ * payload, `specification_hash` over the Core §4.3 fifteen-member subset) are
+ * re-derived inside the database by the mirror guard; the Draft/Validation ref
+ * mirrors have no payload counterpart and are bound by the owning Freeze
+ * handler and the in-flight Receipt binding of the creation-identity guard.
+ */
+export interface WorkOrderContractTable {
+  contract_id: string;
+  work_order_id: string;
+  enterprise_id: string;
+  project_id: string;
+  work_order_object_type: string;
+  task_id: string;
+  task_object_type: string;
+  draft_snapshot_id: string;
+  draft_snapshot_hash: Buffer;
+  context_snapshot_id: string;
+  context_snapshot_hash: Buffer;
+  validation_judgment_id: string;
+  validation_judgment_hash: Buffer;
+  canonical_payload: Json;
+  payload_hash: Buffer;
+  specification_hash: Buffer;
+  canonicalization_version: Generated<string>;
+  request_payload_hash: Buffer;
+  source_command_id: string;
+  created_at: Generated<Date>;
+  created_by_principal_id: string;
+}
+
 export interface TaskExecutionDb {
   'task_execution.task': TaskTable;
   'task_execution.task_definition_snapshot': TaskDefinitionSnapshotTable;
   'task_execution.execution_judgment': ExecutionJudgmentTable;
   'task_execution.work_order': WorkOrderTable;
   'task_execution.work_order_draft_snapshot': WorkOrderDraftSnapshotTable;
+  'task_execution.work_order_contract': WorkOrderContractTable;
   'task_execution.context_snapshot': ContextSnapshotTable;
   'task_execution.context_snapshot_build': ContextSnapshotBuildTable;
   'task_execution.context_snapshot_legacy': ContextSnapshotLegacyTable;

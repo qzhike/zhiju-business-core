@@ -6,6 +6,7 @@ import { publicApiOperations } from '../generated/public-api.js';
 import {
   assertTaskExecutionOperationRegistrations,
   assertTaskReadinessOperationRegistrations,
+  assertWorkOrderValidationOperationRegistrations,
 } from '../operation-registration.js';
 import { ContractRegistry, type ContractValidationResult } from '../registry.js';
 import { operationSchemaDefinitionName } from '../schema-types.js';
@@ -228,7 +229,7 @@ function frozenBuildFixture(name: string): JsonObject {
 describe('TaskExecution Draft and initial Context contracts', () => {
   it('registers exactly the approved operations and reference metadata', () => {
     assertTaskExecutionOperationRegistrations(publicApiOperations);
-    expect(registry.operationCount).toBe(216);
+    expect(registry.operationCount).toBe(217);
     expect(registry.getOperation('execution.get_work_order_draft', '1.0')).toMatchObject({
       owner: 'task-execution',
       kind: 'QUERY',
@@ -1608,6 +1609,364 @@ describe('Task Readiness producer contract', () => {
       registry.validateBuildTaskReadinessCommandResult(enterpriseOnlyTarget),
       '/data/readinessSnapshotRef',
       'TASK_READINESS_TARGET_MISMATCH',
+    );
+  });
+});
+
+describe('WorkOrder Validation producer contract', () => {
+  const validateWorkOrderDraft = 'execution.validate_work_order_draft';
+  const resultSchemaRef = `https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/${operationSchemaDefinitionName(
+    validateWorkOrderDraft,
+    '1.0',
+    'result',
+  )}`;
+
+  // Parsed per call: every case mutates the object it reads, so a test cannot
+  // accidentally edit a throwaway copy and silently pass.
+  function validationCommand(): JsonObject {
+    return fixture('work-order-validation/validate-work-order-draft-command-valid.json');
+  }
+
+  function validationPayload(): JsonObject {
+    return validationCommand().payload as JsonObject;
+  }
+
+  function commandWithPayload(payload: JsonObject): JsonObject {
+    const command = validationCommand();
+    command.payload = payload;
+    return command;
+  }
+
+  function validationResult(): JsonObject {
+    return fixture('work-order-validation/validate-work-order-draft-result-valid.json');
+  }
+
+  function validationData(): JsonObject {
+    return validationResult().data as JsonObject;
+  }
+
+  /** The Result Ref of one already-parsed `data` object, never a fresh fixture. */
+  function snapshotRefOf(data: JsonObject): JsonObject {
+    return data.validationSnapshotRef as JsonObject;
+  }
+
+  function expectBindingError(
+    result: {
+      readonly valid: boolean;
+      readonly errors: readonly { readonly path: string; readonly code: string }[];
+    },
+    path: string,
+    code: string,
+  ): void {
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual(expect.objectContaining({ path, code }));
+  }
+
+  it('registers the CREATE command, its exact references and its result schema', () => {
+    assertWorkOrderValidationOperationRegistrations(publicApiOperations);
+    expect(registry.getOperation(validateWorkOrderDraft, '1.0')).toMatchObject({
+      owner: 'task-execution',
+      kind: 'COMMAND',
+      schemaStatus: 'FULL',
+      targetObjectType: 'zhiju.execution.work_order_validation',
+      concurrencyMode: 'CREATE',
+      authorizationPurpose: 'execution.work_order.draft.validate',
+      dataClassification: 'INTERNAL',
+      resultSchemaRef,
+      references: [
+        {
+          path: '/targetRef',
+          kind: 'OBJECT',
+          objectType: 'zhiju.execution.work_order_validation',
+        },
+        {
+          path: '/payload/draftSnapshotRef',
+          kind: 'CONTENT_ADDRESSED',
+          objectType: 'zhiju.execution.work_order_draft_snapshot',
+        },
+        { path: '/payload/policyRef', kind: 'VERSIONED', objectType: 'zhiju.identity.policy' },
+        {
+          path: '/payload/evaluatorRef',
+          kind: 'VERSIONED',
+          objectType: 'zhiju.execution.evaluator_profile',
+        },
+      ],
+      resultReferences: [
+        {
+          path: '/data/validationSnapshotRef',
+          kind: 'SNAPSHOT',
+          objectType: 'zhiju.execution.work_order_validation',
+        },
+      ],
+    });
+    // No dedicated build-time PayloadGuard technical Policy is approved here.
+    expect(
+      registry.getOperation(validateWorkOrderDraft, '1.0')?.payloadGuardPolicyRef,
+    ).toBeUndefined();
+  });
+
+  it('accepts the registered Command fixture and the bound result fixture', () => {
+    expect(registry.validateOperation(validateWorkOrderDraft, '1.0', validationCommand())).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(
+      registry.validateOperationResult(validateWorkOrderDraft, '1.0', validationData()),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(registry.validateWorkOrderValidationCommandResult(validationResult())).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('closes the payload to the four declared refs and the full Core candidate contract', () => {
+    const missingCandidate = validationPayload();
+    delete missingCandidate.candidateContract;
+    expectSchemaError(
+      registry.validateOperation(
+        validateWorkOrderDraft,
+        '1.0',
+        commandWithPayload(missingCandidate),
+      ),
+      '/payload',
+      'required',
+      { missingProperty: 'candidateContract' },
+    );
+
+    // The candidate is the full Core WorkOrderContract, not an open
+    // CanonicalJson: a structurally invalid candidate fails the Core schema.
+    const invalidCandidate = validationPayload();
+    delete (invalidCandidate.candidateContract as JsonObject).header;
+    expect(
+      registry.validateOperation(
+        validateWorkOrderDraft,
+        '1.0',
+        commandWithPayload(invalidCandidate),
+      ).valid,
+    ).toBe(false);
+
+    const foreignDraftType = validationPayload();
+    (foreignDraftType.draftSnapshotRef as JsonObject).objectType =
+      'zhiju.execution.task_definition_snapshot';
+    expectSchemaError(
+      registry.validateOperation(
+        validateWorkOrderDraft,
+        '1.0',
+        commandWithPayload(foreignDraftType),
+      ),
+      '/payload/draftSnapshotRef/objectType',
+      'const',
+      { allowedValue: 'zhiju.execution.work_order_draft_snapshot' },
+    );
+
+    const weakDraftRef = validationPayload();
+    (weakDraftRef.draftSnapshotRef as JsonObject).kind = 'OBJECT';
+    expectSchemaError(
+      registry.validateOperation(validateWorkOrderDraft, '1.0', commandWithPayload(weakDraftRef)),
+      '/payload/draftSnapshotRef/kind',
+      'const',
+      { allowedValue: 'CONTENT_ADDRESSED' },
+    );
+
+    const hashlessDraftRef = validationPayload();
+    delete (hashlessDraftRef.draftSnapshotRef as JsonObject).contentHash;
+    expectSchemaError(
+      registry.validateOperation(
+        validateWorkOrderDraft,
+        '1.0',
+        commandWithPayload(hashlessDraftRef),
+      ),
+      '/payload/draftSnapshotRef',
+      'required',
+      { missingProperty: 'contentHash' },
+    );
+
+    for (const [key, objectType, allowedValue] of [
+      ['policyRef', 'zhiju.identity.policy_version', 'zhiju.identity.policy'],
+      [
+        'evaluatorRef',
+        'zhiju.execution.work_order_validation',
+        'zhiju.execution.evaluator_profile',
+      ],
+    ] as const) {
+      const foreignVersionedRef = validationPayload();
+      (foreignVersionedRef[key] as JsonObject).objectType = objectType;
+      expectSchemaError(
+        registry.validateOperation(
+          validateWorkOrderDraft,
+          '1.0',
+          commandWithPayload(foreignVersionedRef),
+        ),
+        `/payload/${key}/objectType`,
+        'const',
+        { allowedValue },
+      );
+    }
+
+    const extraPayloadField = validationPayload();
+    extraPayloadField.requestedAt = '2026-09-22T00:00:00Z';
+    expectSchemaError(
+      registry.validateOperation(
+        validateWorkOrderDraft,
+        '1.0',
+        commandWithPayload(extraPayloadField),
+      ),
+      '/payload',
+      'additionalProperties',
+      { additionalProperty: 'requestedAt' },
+    );
+
+    // This entry is a CREATE: the judgment id is minted inside the
+    // transaction, so a caller-supplied CAS expectation is never accepted.
+    const commandWithCas = validationCommand();
+    commandWithCas.expectedAggregateVersion = 0;
+    expectSchemaError(
+      registry.validateOperation(validateWorkOrderDraft, '1.0', commandWithCas),
+      '/expectedAggregateVersion',
+      'false schema',
+    );
+  });
+
+  it('rejects a validation Result Ref that is not the Project-scoped judgment', () => {
+    const missingRef = validationData();
+    delete missingRef.validationSnapshotRef;
+    expectSchemaError(
+      registry.validateOperationResult(validateWorkOrderDraft, '1.0', missingRef),
+      '',
+      'required',
+      { missingProperty: 'validationSnapshotRef' },
+    );
+
+    const wrongKind = validationData();
+    snapshotRefOf(wrongKind).kind = 'CONTENT_ADDRESSED';
+    expectSchemaError(
+      registry.validateOperationResult(validateWorkOrderDraft, '1.0', wrongKind),
+      '/validationSnapshotRef/kind',
+      'const',
+      { allowedValue: 'SNAPSHOT' },
+    );
+
+    const foreignType = validationData();
+    snapshotRefOf(foreignType).objectType = 'zhiju.execution.task_readiness';
+    expectSchemaError(
+      registry.validateOperationResult(validateWorkOrderDraft, '1.0', foreignType),
+      '/validationSnapshotRef/objectType',
+      'const',
+      { allowedValue: 'zhiju.execution.work_order_validation' },
+    );
+
+    for (const testCase of [
+      { scope: {}, missingProperty: 'enterpriseId' },
+      { scope: { enterpriseId }, missingProperty: 'projectId' },
+    ]) {
+      const incompleteScope = validationData();
+      snapshotRefOf(incompleteScope).scope = testCase.scope;
+      expectSchemaError(
+        registry.validateOperationResult(validateWorkOrderDraft, '1.0', incompleteScope),
+        '/validationSnapshotRef/scope',
+        'required',
+        { missingProperty: testCase.missingProperty },
+      );
+    }
+
+    const extraField = validationData();
+    extraField.executable = true;
+    expectSchemaError(
+      registry.validateOperationResult(validateWorkOrderDraft, '1.0', extraField),
+      '',
+      'additionalProperties',
+      { additionalProperty: 'executable' },
+    );
+  });
+
+  it('binds the Result Ref to the envelope targetRef in the pure helper', () => {
+    const missingRef = validationResult();
+    delete (missingRef.data as JsonObject).validationSnapshotRef;
+    expectBindingError(
+      registry.validateWorkOrderValidationCommandResult(missingRef),
+      '/data/validationSnapshotRef',
+      'MISSING_CONTEXT_SNAPSHOT_REF',
+    );
+
+    const malformedRef = validationResult();
+    snapshotRefOf(malformedRef.data as JsonObject).kind = 'OBJECT';
+    expectBindingError(
+      registry.validateWorkOrderValidationCommandResult(malformedRef),
+      '/data/validationSnapshotRef/kind',
+      'INVALID_CONTEXT_SNAPSHOT_REF',
+    );
+
+    const foreignType = validationResult();
+    snapshotRefOf(foreignType.data as JsonObject).objectType = 'zhiju.execution.task_readiness';
+    expectBindingError(
+      registry.validateWorkOrderValidationCommandResult(foreignType),
+      '/data/validationSnapshotRef/objectType',
+      'FOREIGN_WORK_ORDER_VALIDATION_OBJECT_TYPE',
+    );
+
+    const incompleteScope = validationResult();
+    snapshotRefOf(incompleteScope.data as JsonObject).scope = { enterpriseId };
+    expectBindingError(
+      registry.validateWorkOrderValidationCommandResult(incompleteScope),
+      '/data/validationSnapshotRef/scope',
+      'MISSING_WORK_ORDER_VALIDATION_PROJECT_SCOPE',
+    );
+
+    // A judgment has no separate root: an id pair that disagrees with itself
+    // would address a snapshot the producer never created.
+    const splitIdentity = validationResult();
+    snapshotRefOf(splitIdentity.data as JsonObject).snapshotId =
+      '018f22e2-7c15-7b2e-8d86-2de956a9d511';
+    expectBindingError(
+      registry.validateWorkOrderValidationCommandResult(splitIdentity),
+      '/data/validationSnapshotRef/snapshotId',
+      'WORK_ORDER_VALIDATION_SNAPSHOT_IDENTITY_MISMATCH',
+    );
+
+    const nonObjectTarget = validationResult();
+    (nonObjectTarget.targetRef as JsonObject).kind = 'SNAPSHOT';
+    expectBindingError(
+      registry.validateWorkOrderValidationCommandResult(nonObjectTarget),
+      '/targetRef',
+      'WORK_ORDER_VALIDATION_TARGET_MISMATCH',
+    );
+
+    const foreignTarget = validationResult();
+    (foreignTarget.targetRef as JsonObject).objectType = 'zhiju.execution.work_order';
+    expectBindingError(
+      registry.validateWorkOrderValidationCommandResult(foreignTarget),
+      '/targetRef',
+      'WORK_ORDER_VALIDATION_TARGET_MISMATCH',
+    );
+
+    const otherObject = validationResult();
+    (otherObject.targetRef as JsonObject).objectId = '018f22e2-7c15-7b2e-8d86-2de956a9d512';
+    expectBindingError(
+      registry.validateWorkOrderValidationCommandResult(otherObject),
+      '/data/validationSnapshotRef',
+      'WORK_ORDER_VALIDATION_TARGET_MISMATCH',
+    );
+
+    const otherScope = validationResult();
+    (otherScope.targetRef as JsonObject).scope = {
+      enterpriseId,
+      projectId: '018f22e2-7c15-7b2e-8d86-2de956a9d299',
+    };
+    expectBindingError(
+      registry.validateWorkOrderValidationCommandResult(otherScope),
+      '/data/validationSnapshotRef',
+      'WORK_ORDER_VALIDATION_TARGET_MISMATCH',
+    );
+
+    const enterpriseOnlyTarget = validationResult();
+    (enterpriseOnlyTarget.targetRef as JsonObject).scope = { enterpriseId };
+    expectBindingError(
+      registry.validateWorkOrderValidationCommandResult(enterpriseOnlyTarget),
+      '/data/validationSnapshotRef',
+      'WORK_ORDER_VALIDATION_TARGET_MISMATCH',
     );
   });
 });

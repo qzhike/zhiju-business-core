@@ -223,3 +223,17 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 - 未运行边界：TaskExecution DRAFT Handler 的 Port 消费、业务表/Receipt/Outbox 链、真实 Provider/Runtime 与人工业务验收仍 `NOT RUN`，本表不将其计为已验收。
 
 独立设计审查须重点检查：内部 Port 是否保留公开 `authorize_command@1.0` 兼容边界；action/selector 是否真正区分 WorkOrder 同 Purpose 的两个版本；target 是否进入 Decision Hash；Grant/Policy 是否在每次高风险消费前完整重验；历史无 target Decision 是否只保留读回而不获得新资格。
+
+
+## #219 Controls Policy 与执行分类设计场景（待审）
+
+状态：`HUMAN DESIGN APPROVED 2026-09-22 / IMPLEMENTED 2026-09-22 / INDEPENDENT REVIEW PENDING`。依据 Spec 001 §15.11 和 Spec 003 §21.5–§21.9；既有创建授权及 §15.10 七条独立映射仍须回归。
+
+| ID | 输入 / 边界 | 预期 | 实际 |
+|---|---|---|---|
+| IP-WOV-S-001 | 通过真实 record_policy_version 登记 Controls profile，再由 Validation/Freeze 各自授权 resolve；缺 Grant、错 profile/ref、取代、跨 Project | 精确 PolicyVersion SnapshotRef/hash/生命周期由 owning 读取；缺权限时 Policy repository 0 次；无伪造 fallback 或跨动作缓存 | NOT RUN |
+| IP-WOV-S-002 | SERVICE 的 validate/freeze 分类调用；Human 创建 Draft 含 Human-only capability；改成 Human principal/actingFor 或 unsupported operation | 非 Human-only 正例 VALID；Human-only 声明 INVALID 且归因 owning 分类版本；身份伪造拒绝，不修改 creation 方法的 HUMAN 允许集 | NOT RUN |
+| IP-WOV-S-003 | 同 Service 分别持有七条 Grant；移除一个 dependency Grant；完整 Context Ref 的独立 objectId/snapshotId 及单字段置换 | 每项独立重验，不能借相同 principal/Purpose/旧 Receipt；合法独立身份通过，任何 Ref 置换拒绝 | NOT RUN |
+| IP-WOV-S-004 | 初次授权后在锁等待或历史结果返回前撤销 Grant/取代授权 Policy | 提交/返回前当前重验拒绝；无业务成功事实，不返回历史结果恢复资格 | NOT RUN |
+
+#219 实现分层：七条授权映射由 `work-order-validation-authorization.test.ts` 覆盖当前 Decision、Grant、Policy、ref/hash/Scope 与零 repository 读取拒绝；执行能力分类由 `task-execution-capability-boundary.test.ts` 覆盖 Service、Human-only 和未知消费操作。Controls 的真实登记/解析、同一 Service 独立动作和冻结后撤销 Draft 读取 Grant 由 TE-VAL-S-008 覆盖。IP-WOV-S 表中未逐项执行的 owning Policy 取代、另一 Service audience 与提交瞬间撤权组合仍 NOT RUN，不能由授权单测升级为持久化通过。

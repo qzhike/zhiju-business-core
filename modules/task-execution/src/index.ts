@@ -307,3 +307,13 @@ export type {
   ContextSnapshotBuildTable,
   ContextSnapshotLegacyTable,
 } from './persistence/task-execution-db.js';
+
+export {
+  handleValidateWorkOrderDraft,
+  handleFreezeWorkOrder,
+  handleGetWorkOrderContract,
+  readExactWorkOrderValidation,
+  readWorkOrderValidationContextMetadata,
+} from './business/work-order-validation.js';
+export type { WorkOrderValidationPorts } from './business/work-order-validation.js';
+export type { WorkOrderPolicyObservation } from './business/work-order-validation-plan.js';

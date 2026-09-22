@@ -1782,13 +1782,13 @@ payload `additionalProperties:false`，不得写入 `enterpriseId`/`projectId`�
 
 ## 21. WorkOrder Validation 与 Freeze/READY 设计提案
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21 / BASE main@002c3c8 / PR #218 ROUND 2 INDEPENDENT DESIGN REVIEW APPROVE 2026-09-21（reviewed 1acdf34） / HANDLER AND PERSISTENCE NOT RUN`。本节将 §11.2–§11.3、§11.6、§11.9 已批准原则闭合为首个可执行 READY 切片；依据与取舍见[决定 §20](../decisions/task-execution-human-operated.md#20-im-06-workorder-validation--freezeready-设计提案)。本节尚未改变现行已实现行为。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-21 / BASE main@002c3c8 / PR #218 ROUND 2 INDEPENDENT DESIGN REVIEW APPROVE 2026-09-21（reviewed 1acdf34） / HANDLER, AUTHORIZATION AND V3005 IMPLEMENTED 2026-09-22 / INDEPENDENT IMPLEMENTATION REVIEW PENDING`。本节将 §11.2–§11.3、§11.6、§11.9 已批准原则闭合为首个可执行 READY 切片；依据与取舍见[决定 §20](../decisions/task-execution-human-operated.md#20-im-06-workorder-validation--freezeready-设计提案)。本节已由 #219 实现，支持集与边界以 §21.5–§21.9 为准。
 
 ### 21.1 支持集与公开契约增量
 
 | 操作 | 设计决定 |
 |---|---|
-| `execution.validate_work_order_draft@1.0` | **待注册** CREATE；Owner `task-execution`；target 固定 `zhiju.execution.work_order_validation` 的 Project Scope OBJECT ref；Payload closed `{draftSnapshotRef: ContentAddressedRef<zhiju.execution.work_order_draft_snapshot>, candidateContract: WorkOrderContract, policyRef: VersionedRef<zhiju.identity.policy>, evaluatorRef: VersionedRef<zhiju.execution.evaluator_profile>}`；Result.data closed `{validationSnapshotRef: SnapshotRef<zhiju.execution.work_order_validation>}`，`objectId`/`snapshotId` 均等于 CREATE target id，hash 为已提交判断 payload 的 canonical hash；Purpose `execution.work_order.draft.validate`。该 objectType 新注册为 TaskExecution-owned `OBJECT`/`SNAPSHOT`，与 `zhiju.execution.task_readiness` 不混用。实现时 Catalog/Registry `216→217`、TaskExecution `46→47`，历史 Baseline `200` 不变。|
+| `execution.validate_work_order_draft@1.0` | **已注册** CREATE；Owner `task-execution`；target 固定 `zhiju.execution.work_order_validation` 的 Project Scope OBJECT ref；Payload closed `{draftSnapshotRef: ContentAddressedRef<zhiju.execution.work_order_draft_snapshot>, candidateContract: WorkOrderContract, policyRef: VersionedRef<zhiju.identity.policy>, evaluatorRef: VersionedRef<zhiju.execution.evaluator_profile>}`；Result.data closed `{validationSnapshotRef: SnapshotRef<zhiju.execution.work_order_validation>}`，`objectId`/`snapshotId` 均等于 CREATE target id，hash 为已提交判断 payload 的 canonical hash；Purpose `execution.work_order.draft.validate`。该 objectType 新注册为 TaskExecution-owned `OBJECT`/`SNAPSHOT`，与 `zhiju.execution.task_readiness` 不混用。实现时 Catalog/Registry `216→217`、TaskExecution `46→47`，历史 Baseline `200` 不变。|
 | `execution.freeze_work_order@1.0` | **已注册，零改动**：继续使用当前 payload/Schema/compat metadata，Purpose 必须逐字符复用 `task.execution.freeze_work_order`。Envelope target 是已有 WorkOrder、`MUTATE`、expectedAggregateVersion 只在 Envelope。首版 Handler 仅接受 `create_work_order@1.1` 所建的 canonical `zhiju.execution.work_order`，且其 DRAFT 和首次 Context 均为 canonical；`@1.0` 创建的 legacy WorkOrder 及未形成首次 Context 的 DRAFT fail closed，不凭相同 UUID 映射到 canonical。|
 | `execution.get_work_order_contract@1.0` | **已注册，零改动**：Purpose 逐字符复用 `task.execution.get_work_order_contract`；authoritative Query 只接受 canonical WorkOrder ref，必须在当前授权下从 Root 的 frozen pointer 读取完整 Contract 与 `CONTENT_ADDRESSED/zhiju.contract.work_order` Ref，并逐字段核对请求/Root/返回的 objectId、Project Scope 和 payload hash。DRAFT、不可见 Scope、悬空或错 Hash pointer 不返回伪造的 Contract。|
 
@@ -1806,7 +1806,7 @@ Validator 使用 §11.6 的首版 profile 检查 Core §4.13 可执行不变量�
 
 ### 21.3 Freeze 消费与原子提交
 
-Freeze 先重验自己的独立 Decision，并验证其 target 的 canonical 身份与创建事实；此后按当前授权读取 DRAFT、Context 与 Policy。Root 行锁与 §19 Builder 的只读依赖锁保持既定 Task→WorkOrder 顺序；锁内要求 `status='DRAFT'`、当前 Draft 指针/Task/Scope、实际过期时间和 expectedAggregateVersion 均仍匹配。每次消费都重算候选完整 payload hash 与 specificationHash，并要求二者、Context Ref、Draft Ref、Policy/Evaluator 观察及 `validationSnapshotRef` 的身份/hash/Scope 精确等于已提交判断。判断的七个 Core 布尔值必须全部为 true，`validation.executable=true`、无未满足的 required check，且 `now < validUntil`；历史通过不覆盖当前 Policy/Grant、Context、Task/Root 或期限的失效。Validator 授权不授权 Freeze。
+Freeze 先重验自己的独立 Decision；因既有请求不含 Draft Ref，随后仅按请求的完整 `validationSnapshotRef` 读取同一 WorkOrder/Scope/Hash 的精确判断，从中取得 `draftSnapshotRef`，再签发并立即重验 Freeze 专用 Draft/Context dependency Decision，之后才能进入幂等 Claim、Root 创建事实校验及 DRAFT/Context/Policy 读取。该判断预读顺序由用户于 2026-09-22 在 #219 实现会话明确批准，授权闭合见 Spec 001 §15.10。Root 行锁与 §19 Builder 的只读依赖锁保持既定 Task→WorkOrder 顺序；锁内要求 `status='DRAFT'`、当前 Draft 指针/Task/Scope、实际过期时间和 expectedAggregateVersion 均仍匹配。每次消费都重算候选完整 payload hash 与 specificationHash，并要求二者、Context Ref、Draft Ref、Policy/Evaluator 观察及 `validationSnapshotRef` 的身份/hash/Scope 精确等于已提交判断。判断的七个 Core 布尔值必须全部为 true，`validation.executable=true`、无未满足的 required check，且 `now < validUntil`；历史通过不覆盖当前 Policy/Grant、Context、Task/Root 或期限的失效。Validator 授权不授权 Freeze。
 
 成功事务在 `task_execution` 内插入唯一不可变 WorkOrderContract（canonical payload、完整 payload hash、specification hash、已提交 Context Ref、Draft Ref 与创建 identity 归因），以 Root CAS 将 `DRAFT→READY`、aggregateVersion `+1`、frozen pointer 指向该 Contract，同时写成功 Receipt/Audit、精确 Reference Edges 与恰一条 `execution.WorkOrderBecameReady@1.0` Outbox。`workOrderContractRef` 为 `CONTENT_ADDRESSED`、`objectType='zhiju.contract.work_order'`、`objectId=contract.header.contractId`、Project Scope 与完整 SHA-256/cv1 digest；Event/ref 的身份与新 frozen pointer 相同。冻结后 Contract、Context、DRAFT、判断都不可改写；以后只能按状态机推进 Root，不能换 frozen pointer。两个相同 expectedAggregateVersion 的 Freeze 只能一个成功，另一按现有 CAS/状态码拒绝；已提交成功的同键同输入重放先经当前授权再返回原 Receipt，不能重发事件。
 
@@ -1816,4 +1816,97 @@ Freeze 先重验自己的独立 Decision，并验证其 target 的 canonical 身
 
 未通过 Registry/Envelope、无独立 Decision 或依赖 Grant、跨 Scope/别名/错版本、伪造 Hash、当前 Draft pointer 改变、判断不匹配或过期、Policy 取代、长事务跨过期限、双 Freeze CAS 竞争，均不得留下 READY/Contract/成功 Receipt/Event 的部分事实。身份和授权错误不通过解释性判断泄露不可见对象；可解释业务不满足与输入不可证明分层。`EXECUTION_JUDGMENT_INVALID` 用于有事实但 subject/Hash/结论不匹配，`EXECUTION_JUDGMENT_STALE` 用于过期或当前依赖已失效；缺事实按既有 `REFERENCE_INVALID`/`NOT_FOUND` 安全外观处理，权限按共享授权码处理。具体新的表、guard、RLS 与 forward migration 由 PostgreSQL §36 固定；测试见 Module-Test-003 `TE-VAL-D-*`。
 
-本节不交付 Queue、Run、InformationRequest、Completion、Projection 或 TD-05–07；人类设计批准已记录于决定 §20.3，PR #218 第 2 轮独立设计审查已 `APPROVE`；实现 Issue 仍须经 Planner 的 NOW + READY 复核后才能发布。真实 PostgreSQL、外部 Provider/Runtime/飞书与独立人工业务验收保持 `NOT RUN`。
+本节不交付 Queue、Run、InformationRequest、Completion、Projection 或 TD-05–07；人类设计批准已记录于决定 §20.3，PR #218 第 2 轮独立设计审查已 `APPROVE`；实现任务由 Issue #219 承接；本轮补充的首版依赖支持集见 §21.5–§21.9，其设计批准状态单独标注，旧设计审查不自动覆盖新增决定。真实 PostgreSQL 的执行边界见 Module-Test-003；外部 Provider/Runtime/飞书与独立人工业务验收保持 `NOT RUN`。
+
+<a id="issue-219-ready-support"></a>
+
+### 21.5 首版依赖支持集补充（#219，待审）
+
+状态：`HUMAN DESIGN APPROVED 2026-09-22 / IMPLEMENTED 2026-09-22 / INDEPENDENT REVIEW PENDING`。用户在具体 Delta 呈现后明确回复“批准”，批准本节至 §21.9 的支持集、引用身份、控制规则和判断增量。§21.3 的 Freeze 判断预读顺序已单独获得明确批准；本 Delta 作为 #219 的同一 READY 交付目标实现，不拆成只有注册或只有数据库的交付。
+
+**首版结果**：同一 Project 内，Human 创建 canonical `@1.1` DRAFT，由受信 Service 验证一份声明“创建新 ArtifactRevision”的执行计划，独立 Freeze Service 冻结到 READY，并经权威 Query 读回。支持集限定为受控 Human-operated 技术计划；READY 不证明 Runtime/Provider 可用，也不生成 Artifact、完成判据结果、Quality Approval 或 Run。支持集外的现有合法 DRAFT 保持可读；不得修改历史公开 Schema 或 fixture 以使其看似属于本支持集。
+
+新增一种 TaskExecution-owned Policy document profile `execution.work_order_controls.policy@1.0`，沿用已有 `identity.record_policy_version@1.0` 与 `identity.resolve_policy@1.0`。它保存一组**精确允许的执行控制参数**，不引入表达式、范围匹配器或通用 Policy Engine。调用方不能把候选本身当 Policy；该版本必须先由独立授权的 owning Command 提交，Validator/Freeze 再分别经当前授权解析。Validation Policy 仍是原 `execution.work_order_validation.policy@1.0`，只拥有判断时限与 mandatoryCriterionTypes；Builder Policy 仍独立。三个 profile 的语义不互换。
+
+| candidate 字段 | 首版权威来源 / 读取 | 不满足时 |
+|---|---|---|
+| WorkOrder、Task、Draft、Context 身份及 Context build metadata | TaskExecution owning 精确事实与既定独立授权；Context 的 objectId、snapshotId 独立，不能要求相等 | 错身份/Scope/hash 拒绝；当前状态/期限失效不可用 |
+| `versionPins.contextBuilderPolicyRef` | 同一 INITIAL Context 的 build 观察 + 当前独立 `identity.resolve_policy`；重新核对 profile、exact Ref/hash/effectiveFrom/supersededAt | 缺失或身份错误拒绝；取代/失效为 STALE |
+| `versionPins.capabilityPolicyRef` | **Controls Policy 的唯一入口**：同 Project 的 `VERSIONED/zhiju.identity.policy`，必须解析为上述新 profile 的已提交版本 | 不回退到 Validator Policy、Grant Policy Snapshot 或其他 pin |
+| `targetScope.scopePolicyRef`、`budget.budgetPolicyRef`、`harnessPolicy.selectionPolicyRef`、`modelPolicy.selectionPolicyRef`、`executionPolicy.leasePolicyRef/cancellationPolicyRef`、`riskAndQuality.dataHandlingPolicyRef/escalationPolicyRef`、每个 capability 的 `grantPolicyRef`、每个 ExpectedOutput 的 `acceptancePolicyRef` | 首版均逐字段等于该 Controls Policy Ref；分别表示该文档中对应控制组，使用同一个 PolicyVersion 事实而非虚构多个角色对象 | 任一不同、别名或旧 fixture 拼写均拒绝；不能把同 UUID 当相同 Ref |
+| `header.schemaRef`、`versionPins.workOrderSchemaRef` | §21.6 的同一个 WorkOrder Core 1.0 静态 Schema selector | 未登记 exact selector 为 UNSUPPORTED |
+| `versionPins.runtimeAdapterContractRef` | §21.6 的 Human-operated synthetic 技术协议 selector | 只证明受支持的协议描述存在；不证明 Driver 部署、探测或调用成功 |
+| `riskAndQuality.riskProfileRef` | §21.6 的 TaskExecution 执行风险 selector；只规定强制 Human review 与受控技术用途，不冒充 QualityGovernance 的风险评级或 QualityProfile | 其他风险 profile 首版 UNSUPPORTED |
+| `skillRefs`、`templateRefs`、`regulatoryProfileRef`、两处 `qualityProfileRef` | 首版前两者必须为空，后三个可选字段必须缺省；不以不存在的 owning resolver 声称已解析 | 非空/存在即 UNSUPPORTED；后续新增支持需 owning 设计 |
+| `objective.relatedIssueRefs/deliveryItemRefs`、`targetScope.targetObjectRefs/baseContentRefs` | 首版为空集合，避免冻结未通过 owning read 证明的外部对象；业务目标文本允许，但不是事实证明 | 非空即 UNSUPPORTED；不查询或猜测其生命周期 |
+| `inputRefs` | 只接受 §19 INITIAL Builder 已支持且成功采用的 exact EnterpriseFact/SourceSlice 引用：使用 build metadata 的输入观察、Context 的 exact Slice refs 与已提交条目，按 §21.8 重读 Source Slice | ExternalRef、未支持类型或不可证明来源拒绝；已知且合法但 required 输入未采用产生业务失败判断 |
+| `constraints` | 恰含一条 closed `{constraintType:'execution.work_order_controls', policyRef:ControlsPolicyRef}`；强制按该精确 Policy 校验全部控制组 | 其他成员、引用或约束形状返回 UNSUPPORTED |
+
+2026-09-22 修正批准：用户明确“批准此修正，保持公开 Schema 不变”。Core WorkOrder 1.0 的 `constraints`、`inputRefs`、`allowedCapabilities`、`deniedCapabilities` 均保留 minItems=1；首版 inputRefs 至少一条已有 INITIAL 支持且有来源证明的输入，allow/deny 各至少一条且不重叠，constraints 使用上述唯一闭合声明。
+
+本支持集只收窄 #219 首个可执行 READY profile，不修改 §11.6 的全体 Criterion 类型或 DRAFT 接受集。首版 ExpectedOutput 为非空集合：每项 `allowedObjectTypes=['zhiju.artifact.artifact_revision']`、`requiredReferenceStrength='CONTENT_ADDRESSED'`、`creationRequired=true`；cardinality 使用 Core 已注册枚举；`schemaRef`、`qualityStageRequired`、`requiredTargetRelation` 缺省。outputSlot 唯一且按 UTF-8 字节序排序。`targetScope.allowedCreateTypes` 恰为有序集合 `[zhiju.artifact.artifact, zhiju.artifact.artifact_revision]`，允许后续创建 Artifact Root 及其新 Revision，其余 unit/cross-object 集合为空；Scope 来自同一 Project。
+
+首版 Criterion 支持 `EXPECTED_OUTPUT_PRESENT`、`OUTPUT_REF_VALID`、`OUTPUT_CREATED_BY_WORK_ORDER`、`OUTPUT_WITHIN_TARGET_SCOPE` 与 `NO_BLOCKING_INFORMATION_REQUEST` 的**计划可验证性**。前四类的绑定必须为已声明的 `expectedOutput.<outputSlot>`；每个 output slot 必须被四类 required criterion 各覆盖至少一次，并必须有一个 required `NO_BLOCKING_INFORMATION_REQUEST`，其唯一绑定为 `informationRequests`。所有 evaluatorRef 等于本次静态 Validation Evaluator；criterionId 唯一、集合按 criterionId 字节序排列；条件为 `satisfied`，历史明确别名仅按 §11.6 的 EXACTLY_ONE ArtifactRevision 分支接受。failureDisposition 沿用 §11.6 两个值。`OUTPUT_SCHEMA_VALID`、`REQUIRED_PROPOSAL_PROCESSED`、CustomerMaterial Receipt 输出和其他声明首版均 UNSUPPORTED，即使 required=false 也不跳过。若 Validation Policy 要求未支持的 mandatoryCriterionType，整次输入 UNSUPPORTED；支持类型缺 required 覆盖则为解释性业务失败。尚未创建实际输出不使计划判据失败；未来 Completion 必须重新验证真实输出。
+
+<a id="issue-219-ready-selectors"></a>
+
+### 21.6 静态 selector 的 exact 身份
+
+拟增加 `contracts/registry/work-order-ready-profiles.v1.json`，版本 `im06-work-order-ready-static-v1`，沿用 Evaluator registry 的构建期 source/generated 一致、exact resolver 和未知版本 fail closed 机制。它只有下表三条，均为 `VERSIONED`、Platform Scope `{}`，不创建业务表、PolicyVersion、Grant 或外部集成事实。对象名称在 Catalog 声明其 Owner 和只支持 VERSIONED 的静态用途；同名历史 fixture 的任意 UUID 不因名称相同获得登记资格。
+
+| registryKey | Owner / objectType | 固定 objectId / versionId | 被证明的内容 |
+|---|---|---|---|
+| `core.work_order@1.0` | contracts / `zhiju.contract.work_order_schema` | `01996900-0000-7000-8000-000000000101` / `01996900-0000-7000-8000-000000000111` | 真实 ContractRegistry Schema ID `https://schemas.zhiju.local/core/work-order/1.0` |
+| `te.human_operated.synthetic@1.0` | integration-gateway / `zhiju.runtime.adapter_contract` | `01996900-0000-7000-8000-000000000102` / `01996900-0000-7000-8000-000000000112` | Runtime Adapter Contract 的“IM-06 Human-operated 技术设计映射”；仅技术协议描述 |
+| `te.work_order.human_review@1.0` | task-execution / `zhiju.execution.work_order_risk_profile` | `01996900-0000-7000-8000-000000000103` / `01996900-0000-7000-8000-000000000113` | `humanReviewRequired=true`、不具备 Human-only Capability、仅受控技术用途 |
+
+每条保存 closed descriptor：Schema 条目为 `{schemaId}`；Runtime 为 `{mode:'SYNTHETIC_TECHNICAL_ONLY', harness:'zhiju.runtime.synthetic', provider:'synthetic', model:'synthetic', resumePolicy:'new_run_only', fallbackPolicy:'human_intervention'}`；Risk 为 `{humanReviewRequired:true, technicalOnly:true}`。登记内容的 `descriptorHash` 由 descriptor 的 canonical SHA-256 计算，不伪造 VersionedRef 的 contentHash 或对象持久化事实；构建拒绝重复 key/完整身份、错 Owner、错 Scope、descriptor 漂移和未知条目。schemaId 必须确实存在于真实 Registry；规则或描述改变必须登记新 selector version，不能保持旧 versionId 改值。持有 selector 不授予 API 或 Runtime 权限。
+
+### 21.7 Controls Policy 的闭合字段与七项结论
+
+`execution.work_order_controls.policy@1.0` 的 profile selector 加入既有 Policy profile registry；固定 Platform Ref 为 `VERSIONED/identity.contract_schema`，objectId=`01996900-0000-7000-8000-000000000104`、versionId=`01996900-0000-7000-8000-000000000114`。业务 Policy Ref 使用 `zhiju.identity.policy` 的同 Project 版本键，由 owning 登记命令分配和提交；不得使用 profile selector 代替业务 Policy。
+
+Document closed 为 `{controls}`；controls closed 且必填成员为 `{targetScope, allowedCapabilities, deniedCapabilities, expectedOutputs, riskAndQuality, executionPolicy, budget, harnessPolicy, modelPolicy}`，各字段复用对应 Core WorkOrder 子结构，再施加 §21.5 的首版支持约束。文档中的角色 Policy refs 必须等于本次已解析的业务 Policy Ref：这是 VersionedRef 自身份关联，不包含自身 Hash，因而不存在内容 Hash 自引用。登记 Schema 负责结构，TaskExecution consumer 负责本段语义。未知字段或不支持的 document 版本拒绝，不用 Policy 任意正文兜底。
+
+该 Policy 只允许一套**精确参数**，不表示“任意更小预算”或“任意权限子集也默认允许”。canonical 字段不同即不满足该组；需要另一组参数时，经已授权的 owning 命令登记一个新版本/独立 Policy，再创建新的 DRAFT。这样既不新增通用比较语言，也不会因字段未被解释而接受它。数组按以下顺序固定：capability 按 capabilityType，actions/resourceSelectors 为 UTF-8 有序去重集合；expectedOutputs 按 outputSlot；其它 set 字段按 canonical UTF-8 排序。调用方必须提供规范顺序，Validator 不重写已冻结 Draft 或 candidate；所有 Hash 仍针对其实际完整规范 payload。
+
+附加支持规则：Budget 至少显式提供一种有限上界；tokenLimit/toolCallLimit 为正整数，wallClockLimit 首版为 `PT<positive-integer>S`（无小数、日/月、组合单位），monetaryLimit.amountDecimal 为大于零的普通十进制字符串及显式 CurrencyCode，不用浮点或汇率换算。不得根据模型或 Runtime 填默认预算；比较使用 Policy 中的原始精确字段。harness 必须为上述 synthetic descriptor 的 requiredHarness 与单元素 preferredHarnesses，fallbackAllowed=false、fallbackRequiresHuman=true；model 的 allowedProviders/allowedModels 分别为 descriptor 单元素值，minimumCapabilities 为空，prohibitedDataClasses 必须包含 RESTRICTED_PERSONAL 与 REGULATED。executionPolicy 的 maxAttempts=1、retryableOutcomes=[]、resumePolicy/fallbackPolicy 使用 descriptor 固定字符串；lease/cancellation refs 是该 Policy 中计划限制的绑定，不在本切片赋予可启动 Run 的租约语义。
+
+能力集合是冻结计划的声明，不能替代未来 Run 的 Grant 签发。每个 capability 的 constraints=[]，resourceSelectors 只接受完整 objectType，不接受通配/前缀/外部路径，且属于 allowedCreateTypes；actions 只接受 `read`、`create`；allow/deny 不重叠，expiresAt 在受信当前时间之后。通过 IdentityPolicy owning 分类 Port 对所有声明作 Human-only 检查，包括 Human 创建的 Draft；以 Validator/Freeze 的受信 Service 身份调用，不借 requestedBy 或 actingFor 放行。Policy 的同意也不能覆盖 Human-only 拒绝。
+
+所有下列 checks 均 required=true，closed `{checkCode, outcome: SATISFIED|UNSATISFIED, reasonCodes: ReasonCode[]}`，按 checkCode UTF-8 顺序存储。身份/权限/unsupported/stale 在形成判断之前拒绝，不编码成 SATISFIED。
+
+| Core 布尔值 / checkCode | 确定性来源 |
+|---|---|
+| `valid` / `PLAN_VALID` | candidate 与 Root/Draft/Context 全字段映射、有效 Core Schema、规范集合、Controls 的 Scope/Risk/Execution/Harness/Model/ExpectedOutput 组逐字段相等、支持的 Criterion 与 mandatory 覆盖均满足；任一合法业务组不符则 false |
+| `referencesValid` / `REFERENCES_VALID` | §21.5 全部适用 Ref 从 owning 当前解析或静态 exact registry 得到证明；身份伪造、missing、unsupported 不得用 false 判断代替拒绝 |
+| `specificationHashValid` / `SPECIFICATION_HASH_VALID` | Core §4.3 objective 至 versionPins 的全部十五成员重算相等；完整 Contract Hash 使用 shared-kernel `hashContractPayload`（只排除自身 header.payloadHash），且声明值相等；Hash 伪造直接拒绝 |
+| `capabilityValid` / `CAPABILITY_VALID` | 与 Controls 的 allow/deny 组精确相等且 owning Human-only 分类通过；已知合法声明与 Policy 不符或包含 Human-only 得 false，不授予权限；分类服务不可用直接拒绝 |
+| `budgetValid` / `BUDGET_VALID` | 已解析、支持的 Controls 的 budget 与候选逐字段相等；没有假定上限、默认币种或省略 Policy；合法正预算但与已批准参数不同得 false |
+| `contextCoverageValid` / `CONTEXT_COVERAGE_VALID` | 当前可用的 exact INITIAL Context、所需输入有采用观察、用途/受信 audience 对应同一计划且 coverage 为 COMPLETE_FOR_PURPOSE；合法 PARTIAL/required omission 得 false；伪造来源拒绝 |
+| `executable` / `EXECUTABLE` | 前六项的逻辑 AND；EXECUTABLE check 与该结果一致，不把它自身作为递归输入；这里只是可 Freeze 的判断，不证明后续 queue/Run/Completion |
+
+violations 恰列 UNSATISFIED check 的 reasonCodes；使用稳定诊断码 `PLAN_CONTROL_MISMATCH`、`CRITERION_COVERAGE_MISSING`、`CAPABILITY_CONTROL_MISMATCH`、`HUMAN_ONLY_CAPABILITY`、`BUDGET_CONTROL_MISMATCH`、`CONTEXT_COVERAGE_INCOMPLETE`，不包含不可见对象信息、Policy 正文或 secret。`validatedAt=evaluatedAt`。七项布尔值须与 checks 重算一致；Freeze 不只读取 executable 一个字段。
+
+<a id="issue-219-ready-observations"></a>
+
+### 21.8 依赖观察、期限与重放
+
+新增内部 judgment 必填 `dependencyObservations`，只属于本轮新增的 WORK_ORDER_VALIDATION 闭集，不进入 Core WorkOrder、公开 Freeze payload 或 TASK_READINESS 历史行。两类 closed 观察为：
+
+- Policy：`{kind:'POLICY', role: VALIDATION|CONTEXT_BUILDER|CONTROLS, reference: VersionedRef, policyVersionRef: SnapshotRef<zhiju.identity.policy_version>, contentHash: ContentHash, effectiveFrom: UtcInstant, supersededAt: UtcInstant|null}`，各 role 恰一条，来自各自 owning 当前解析。
+- Static：`{kind:'STATIC', role: WORK_ORDER_SCHEMA|RUNTIME_ADAPTER|EXECUTION_RISK|EVALUATOR, reference: VersionedRef, registryVersion: NonEmptyString, registryKey: NonEmptyString, descriptorHash: ContentHash}`，各 role 恰一条；Evaluator descriptor 为 registry 原条目 `{registryKey,owner,reference}`，其 hash 是描述的规范 hash，不把 selector 当业务对象。
+
+按 `(kind,role)` 的 UTF-8 字节序排列，重复/缺失拒绝；判断原有顶层 Validation Policy/Evaluator 镜像必须等于对应 observation。`inputHash` 同时覆盖此数组、既定有序 subject refs、candidate 完整 payload hash 与受信 Context sourceWatermarks；不包含自身 judgmentId。新 migration 的 branch CHECK/mirror guard 关闭观察成员集并绑定上述镜像。Freeze 每次重新取相同角色的当前观察并逐字段比较；静态 registry 更新不能无视旧 selector 仍被固定登记的内容，未知旧版本 fail closed。
+
+Validator/Freeze 还通过 API composition 在本动作 principal 的独立授权下，对 build metadata.sliceRefs 每一项调用既有 `project.get_context_source_slice@1.0`；复用其当前 Policy/Grant、Scope/Purpose/audience、Hash 和生命周期校验。不新增 EP 业务代码、跨 schema read 或 snapshot 数据复制。既有 Slice Query 要求调用 principal 等于捕获时 audience，因此本首版 Builder、Validator、Freeze 必须使用同一个受信 SERVICE principal；三个动作及各依赖仍使用各自独立 Decision/Grant，不共享权限。Human 仅负责创建 DRAFT；Slice 由该 Service 经 owning capture 产生。不同 principal 的 Validator/Freeze 即使各有 Grant，也不能借代理 principal 或缓存绕过 audience，首版拒绝该组合；未来跨 principal 消费须另行批准 EP owning 委托读取设计。返回必须 USABLE、exact ref/hash 相等、sourceWatermark 与已提交 Context 的同源值相等；不能用重采集的新 Slice 替换原 Slice。由当前 owning Slice 证明的原始采集事实仍保持其 capture-time 语义，不把它说成所有 EnterpriseFact 的全局实时快照；撤销/更新对 Slice 的可用性按现有 owning 规则决定。
+
+在 §21.2 原上界基础上，`validUntil` 再取 Builder/Controls Policy supersededAt、全部消费 dependency Decision.expiresAt、SourceSlice.validUntil 与声明能力 expiresAt 的最小值。任何适用有限上界已到达则不产生可用判断。以受信服务端时间在持锁提交前重验所有当前授权和依赖，不能只在入口观察一次；跨模块不宣称分布式原子性，记录的是本次 owning 观测，后续 Run 必须再次授权。完整 candidate 的 issuedAt 是受信 Validator Service 签发并被该次 payload-bound Decision 固定的时间；必须等于 header.issuedAt、不晚于该 Decision 签发时间、不早于所绑定 Context.asOf，Freeze 不重新签发或修改这些字段。
+
+同键成功重放仍先完成自身与依赖当前授权；**已提交结果的历史重放不重跑 DRAFT-only 资格和有效期检查**，否则 READY Root 会使正常重放永远失败。若当前授权仍成立，返回原 Receipt/原 Ref；若权限失效则不返回。重放结果只证明历史提交，不恢复过期判断的新 Freeze 资格。异键请求无此豁免，必须走当前 DRAFT/CAS/Policy/期限检查。权威 Contract Query 的返回前重验与原 pointer/hash/Scope 检查不变。
+
+### 21.9 验收、影响与批准边界
+
+新增支持集需要同步 Contract Catalog（一个 Policy profile selector、三个 static selector 及其类型/Owner）、Spec 001（owning capability classifier 和 Policy 接口使用）、PostgreSQL §36（新判断分支观察字段）、Runtime Adapter 的静态描述边界及 Module-Test-003。公开操作计数仍为 217/47/200；Controls profile 与 static selector 不计为 operation。无 IdentityPolicy/EP/IG 新业务表，无新公开 Query，无 Run 或通用 resolver。执行实现时补齐 source/generated/fixtures/registry drift 测试，并以真实 Policy 登记、Task/WorkOrder 创建、Slice capture、Context build、Validation、Freeze、Contract Query 形成正链。
+
+本 Delta 是实质设计：新增 Controls profile 和静态身份、限定 ArtifactRevision 技术计划首版支持集、扩展判断内部观察与有限上界。用户于 2026-09-22 在本文及 `TE-VAL-S-*` 具体差异呈现后明确批准；按 #219 继续实现。独立设计审查、实现审查、人类技术审查和原 full gate 保持各自要求；未运行验收继续 NOT RUN。
