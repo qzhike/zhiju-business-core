@@ -12,6 +12,8 @@ import type { IdentityPolicyDb, IdentityTransactionContext } from '../persistenc
 import { HUMAN_ONLY_CAPABILITY_REGISTRY_VERSION } from './static-registry.js';
 import {
   createTaskExecutionCreationCapabilityBoundaryPort,
+  createTaskExecutionExecutionCapabilityBoundaryPort,
+  type TaskExecutionExecutionCapabilityBoundaryPort,
   IDENTITY_CAPABILITY_BOUNDARY_INPUT_INVALID,
   IDENTITY_CAPABILITY_BOUNDARY_PRINCIPAL_INVALID,
   IDENTITY_CAPABILITY_BOUNDARY_SCOPE_INVALID,
@@ -94,6 +96,7 @@ class CapabilityBoundaryHarness {
   /** `false` makes the owning principal read find no row at all. */
   principalRowPresent = true;
   readonly port: TaskExecutionCreationCapabilityBoundaryPort;
+  readonly executionPort: TaskExecutionExecutionCapabilityBoundaryPort;
 
   constructor() {
     const config: TaskExecutionCreationCapabilityBoundaryConfig = {
@@ -102,6 +105,7 @@ class CapabilityBoundaryHarness {
       commandId,
     };
     this.port = createTaskExecutionCreationCapabilityBoundaryPort(config);
+    this.executionPort = createTaskExecutionExecutionCapabilityBoundaryPort(config);
   }
 
   /** The masked Audit rows the Port wrote, as compiled statements. */
@@ -592,5 +596,50 @@ describe('the classification audit', () => {
     // The three RLS context statements of the owning transaction, the one
     // owning read and the one audit write — nothing else.
     expect(harness.statements()).toHaveLength(5);
+  });
+});
+
+describe('WorkOrder execution capability classification', () => {
+  for (const commandType of [
+    'execution.validate_work_order_draft',
+    'execution.freeze_work_order',
+  ]) {
+    it(`${commandType} classifies the authenticated Service and refuses Human-only declarations`, async () => {
+      const harness = new CapabilityBoundaryHarness();
+      harness.principalKind = 'SERVICE';
+      const request = boundaryRequest({
+        commandType,
+        commandVersion: '1.0',
+        principalRef: { principalId, principalKind: 'SERVICE' },
+        declaredCapabilityTypes: nonHumanOnlyCapabilityCodes,
+      });
+      await expect(
+        harness.executionPort.classifyWorkOrderExecutionCapabilities(request),
+      ).resolves.toMatchObject({ outcome: 'VALID' });
+      await expect(
+        harness.executionPort.classifyWorkOrderExecutionCapabilities({
+          ...request,
+          declaredCapabilityTypes: humanOnlyCapabilityCodes,
+        }),
+      ).resolves.toMatchObject({ outcome: 'INVALID' });
+      expect(harness.auditInserts()).toHaveLength(2);
+    });
+  }
+  it('does not accept creation keys, unsupported versions or Human proxy identities', async () => {
+    const harness = new CapabilityBoundaryHarness();
+    await expect(
+      harness.executionPort.classifyWorkOrderExecutionCapabilities(boundaryRequest()),
+    ).rejects.toMatchObject({ code: IDENTITY_CAPABILITY_BOUNDARY_UNSUPPORTED });
+    await expect(
+      harness.executionPort.classifyWorkOrderExecutionCapabilities(
+        boundaryRequest({ commandType: 'execution.freeze_work_order', commandVersion: '1.1' }),
+      ),
+    ).rejects.toMatchObject({ code: IDENTITY_CAPABILITY_BOUNDARY_UNSUPPORTED });
+    await expect(
+      harness.executionPort.classifyWorkOrderExecutionCapabilities(
+        boundaryRequest({ commandType: 'execution.freeze_work_order', commandVersion: '1.0' }),
+      ),
+    ).rejects.toMatchObject({ code: IDENTITY_CAPABILITY_BOUNDARY_PRINCIPAL_INVALID });
+    expect(harness.auditInserts()).toHaveLength(0);
   });
 });

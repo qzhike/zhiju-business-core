@@ -149,3 +149,26 @@ export function validateWorkOrderValidationPolicy(input: {
         }),
   }));
 }
+
+export const WORK_ORDER_CONTROLS_POLICY_PROFILE_KEY = 'execution.work_order_controls.policy@1.0';
+export type WorkOrderControls = Pick<
+  Core.WorkOrderContract,
+  | 'targetScope'
+  | 'allowedCapabilities'
+  | 'deniedCapabilities'
+  | 'expectedOutputs'
+  | 'riskAndQuality'
+  | 'executionPolicy'
+  | 'budget'
+  | 'harnessPolicy'
+  | 'modelPolicy'
+>;
+
+export function validateWorkOrderControlsPolicy(input: {
+  readonly policySchemaRefs: readonly unknown[];
+  readonly policyDocument: unknown;
+}): PolicyProfileValidationResult<{ readonly controls: WorkOrderControls }> {
+  return validateProfile(WORK_ORDER_CONTROLS_POLICY_PROFILE_KEY, input, (document) => ({
+    controls: structuredClone(document.controls) as WorkOrderControls,
+  }));
+}

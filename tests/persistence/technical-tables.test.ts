@@ -156,6 +156,7 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'context_snapshot',
     'context_snapshot_build',
     'context_snapshot_legacy',
+    'work_order_contract',
   ],
   artifact: [
     'business_probe',

@@ -123,7 +123,6 @@ import {
   type EnterpriseProjectTransactionContext,
 } from '@zhiju/enterprise-project';
 import {
-  AGGREGATE_STATE_NOT_ALLOWED,
   COMMAND_IN_PROGRESS,
   createTaskExecutionDatabase,
   DEPENDENCY_UNAVAILABLE,
@@ -3972,12 +3971,10 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     // `guard_work_order_root_update()` trigger — not RLS — is what keeps
     // `created_by_principal_id`/`requested_by_principal_id` from changing.
     //
-    // NOT RUN: the owning WorkOrder lifecycle transition is not delivered in
-    // this slice (V3003: the draft-pointer CAS transition "is not implemented in
-    // this slice"), so the transition below is a database-level move built from
-    // the guard's own rules — `status` and `aggregate_version` are movable, the
-    // draft pointer is not touched — executed by `task_execution_app` under the
-    // real 11-argument Project Context of a principal that is NOT the creator.
+    // V3005 requires a real frozen Contract for READY. Advance only the
+    // version here to prove the original Scope-only UPDATE policy still
+    // admits a non-creator. The owning Freeze transition is covered by
+    // TE-VAL-S-008; this remains an RLS/attribution test.
     // Every assertion of this row is observed at that SQL layer.
     const secondHuman: Principal = {
       principalId: OTHER_PRINCIPAL,
@@ -4029,7 +4026,7 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
         );
         const updated = await client.query(
           `UPDATE task_execution.work_order
-              SET status = 'READY', aggregate_version = aggregate_version + 1
+              SET aggregate_version = aggregate_version + 1
             WHERE work_order_id = $1`,
           [workOrderId],
         );
@@ -4042,7 +4039,7 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     // The stored row carries B's transition with A's creation attribution: B's
     // principal is written into neither attribution column.
     expect(await workOrderRoot(workOrderId)).toMatchObject({
-      status: 'READY',
+      status: 'DRAFT',
       aggregate_version: '2',
       created_by_principal_id: OPERATOR,
       requested_by_principal_id: OPERATOR,
@@ -4070,7 +4067,7 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     );
     expect(foreignProjectTransition.rowCount).toBe(0);
     expect(await workOrderRoot(workOrderId)).toMatchObject({
-      status: 'READY',
+      status: 'DRAFT',
       aggregate_version: '2',
     });
 
@@ -4090,7 +4087,7 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
       expect(rewrite.message, column).toContain('immutable');
     }
     expect(await workOrderRoot(workOrderId)).toMatchObject({
-      status: 'READY',
+      status: 'DRAFT',
       aggregate_version: '2',
       created_by_principal_id: OPERATOR,
       requested_by_principal_id: OPERATOR,
@@ -4562,23 +4559,15 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
       expect(attempt.thrown, label).toBe(true);
     }
 
-    // Only a DRAFT Root has a readable draft.
-    await admin.query(
-      `UPDATE task_execution.work_order SET status = 'READY' WHERE work_order_id = $1`,
-      [legacyId],
-    );
-    const nonDraft = await preparedRead({
-      queryVersion: '2.0',
-      workOrderId: legacyId,
-      spelling: WORK_ORDER_V1,
-    });
-    const nonDraftAttempt = await attemptRead(nonDraft);
-    expect(nonDraftAttempt.code).toBe(AGGREGATE_STATE_NOT_ALLOWED);
-    expect(nonDraftAttempt.thrown).toBe(false);
-    await admin.query(
-      `UPDATE task_execution.work_order SET status = 'DRAFT' WHERE work_order_id = $1`,
-      [legacyId],
-    );
+    // V3005 closes the old owner-SQL shortcut: a legacy Root cannot enter
+    // READY without a frozen Contract. Canonical non-DRAFT reads are covered
+    // after the real owning Freeze in TE-VAL-S-008.
+    await expect(
+      admin.query(
+        `UPDATE task_execution.work_order SET status = 'READY' WHERE work_order_id = $1`,
+        [legacyId],
+      ),
+    ).rejects.toMatchObject({ code: '23514', constraint: 'work_order_frozen_pointer_state' });
 
     // NOT RUN: the Root↔snapshot / pointer↔payload inconsistency branch. The
     // pointer can only move to a `(snapshot_id, payload_hash)` pair that exists
@@ -4903,10 +4892,10 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(216);
+    expect(catalog.operations).toHaveLength(217);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(46);
+    ).toHaveLength(47);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );

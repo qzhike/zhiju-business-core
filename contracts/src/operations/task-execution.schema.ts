@@ -177,6 +177,32 @@ const evaluatorProfileReference = exactObjectType(
   versionedReference,
   'zhiju.execution.evaluator_profile',
 );
+/**
+ * #219 validation refs. The validation judgment is Project-scoped for the same
+ * reason as the readiness judgment above: the shared `scopeRef` leaves both
+ * members optional, and an enterprise-only form would address a different fact.
+ * The draft snapshot, Policy and Evaluator refs reuse the exact shared shapes
+ * already pinned for the draft read and the readiness producer.
+ */
+const workOrderValidationSnapshotReference = {
+  allOf: [
+    snapshotReference,
+    {
+      type: 'object',
+      properties: {
+        objectType: { const: 'zhiju.execution.work_order_validation' },
+        scope: {
+          type: 'object',
+          required: ['enterpriseId', 'projectId'],
+          properties: {
+            enterpriseId: { $ref: `${common}uuidV7` },
+            projectId: { $ref: `${common}uuidV7` },
+          },
+        },
+      },
+    },
+  ],
+} as const;
 
 const taskStatus = {
   enum: [
@@ -879,6 +905,13 @@ const namedDefinitions = {
     // checked to mirror `objectId` by the pure binding helper.
     readinessSnapshotRef: taskReadinessSnapshotReference,
   }),
+  validateWorkOrderDraftCommandResult: object(['validationSnapshotRef'], {
+    // Operation-specific CommandResult data for the WorkOrder Validation
+    // producer. The judgment has no mutable root, so the returned SnapshotRef
+    // is bound to the envelope `targetRef` field by field outside Schema;
+    // `snapshotId` is checked to mirror `objectId` by the pure binding helper.
+    validationSnapshotRef: workOrderValidationSnapshotReference,
+  }),
   contextBuilderPolicyBinding: object(['builderPolicyRef', 'contentHash', 'effectiveFrom'], {
     // VersionedRef intentionally remains hash-free. The resolved Policy
     // content hash and validity window are persisted beside the exact ref so
@@ -937,6 +970,20 @@ const operationSchemas = {
       evaluatorRef: evaluatorProfileReference,
     }),
     result: localRef('buildTaskReadinessCommandResult'),
+  },
+  'execution.validate_work_order_draft': {
+    payload: object(['draftSnapshotRef', 'candidateContract', 'policyRef', 'evaluatorRef'], {
+      // §21.1: all four refs are declared. The draft snapshot is the same exact
+      // ContentAddressedRef the draft read returns; the candidate is the full
+      // Core WorkOrderContract under validation, not an open CanonicalJson; the
+      // Policy and Evaluator refs keep the exact versioned shapes the readiness
+      // producer already pins.
+      draftSnapshotRef: draftSnapshotReference,
+      candidateContract: workOrderContract,
+      policyRef: taskReadinessPolicyReference,
+      evaluatorRef: evaluatorProfileReference,
+    }),
+    result: localRef('validateWorkOrderDraftCommandResult'),
   },
   'execution.create_work_order': {
     payload: object(['draft'], {

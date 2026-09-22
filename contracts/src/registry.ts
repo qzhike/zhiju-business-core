@@ -15,6 +15,7 @@ import {
   assertSliceOperationRegistrations,
   assertTaskExecutionOperationRegistrations,
   assertTaskReadinessOperationRegistrations,
+  assertWorkOrderValidationOperationRegistrations,
 } from './operation-registration.js';
 import guardPolicyData from './generated/payload-guard-policies.json' with { type: 'json' };
 import { createPolicyProfileDocumentValidator } from './policy-profile-documents.js';
@@ -64,6 +65,10 @@ import {
   type TaskReadinessBindingValidationResult,
 } from './task-readiness-binding.js';
 import {
+  validateWorkOrderValidationCommandResult,
+  type WorkOrderValidationBindingValidationResult,
+} from './work-order-validation-binding.js';
+import {
   contextBuilderPolicyBindingSchemaRef,
   initialContextExpiryBindingSchemaRef,
 } from './operations/task-execution.schema.js';
@@ -103,6 +108,7 @@ export class ContractRegistry {
     assertTaskExecutionOperationRegistrations(publicApiOperations);
     assertInitialContextEnterpriseFactRegistration();
     assertTaskReadinessOperationRegistrations(publicApiOperations);
+    assertWorkOrderValidationOperationRegistrations(publicApiOperations);
     assertPolicyVersionOperationRegistrations(publicApiOperations);
     assertResolutionReceiptOperationRegistrations(publicApiOperations);
     assertRevisionEligibilityOperationRegistrations(publicApiOperations);
@@ -220,6 +226,12 @@ export class ContractRegistry {
 
   validateBuildTaskReadinessCommandResult(input: unknown): TaskReadinessBindingValidationResult {
     return validateBuildTaskReadinessCommandResult(input);
+  }
+
+  validateWorkOrderValidationCommandResult(
+    input: unknown,
+  ): WorkOrderValidationBindingValidationResult {
+    return validateWorkOrderValidationCommandResult(input);
   }
 
   validateContextSnapshotReadBinding(input: unknown): ContextSnapshotBindingValidationResult {

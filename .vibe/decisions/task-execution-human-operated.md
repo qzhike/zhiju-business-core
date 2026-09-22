@@ -936,3 +936,21 @@ DRAFT 创建有意不产生公开业务 Event（Outbox 0 行）。Domain §18.7 
 **批准记录：2026-09-21，用户在本任务会话对本轮 WorkOrder Validation → Freeze/READY 设计明确回复“审批通过”。** 批准对象是基于 `main@002c3c8368edfde60e7410f046f60b9102ddba5a` 的本节、Spec 003 §21、Spec 001 §15.10、Contract Catalog 的注册提案、PostgreSQL §36、Module-Test-003 `TE-VAL-D-*` 和路线图推进意图。批准使设计的人类决策门禁成立；独立设计审查仍为 `NOT RUN`，本次回复不授权创建 Issue、实现、commit、push 或 merge，也不使任何运行时验收变成 PASS。若审查导致实质语义或范围变化，应再取得对修订内容的明确批准。
 
 **审查后修订批准：2026-09-21，用户在 PR #218 第 1 轮 `REQUEST_CHANGES` 的具体阻断与修正方案呈现后明确回复“批准”。** 批准范围为把 Validator 本次 Policy/Evaluator 与 WorkOrder candidate 原有 VersionPins 的绑定分别写清，并在 `TE-VAL-D-004/005` 增加对应正反例；本次修订不新增公开操作或扩大首版业务范围。第 1 轮 reviewed SHA、发现和验证证据见 [reviews/pr-218/Review.md](../reviews/pr-218/Review.md)；修订后的新 head 仍须独立复审。
+
+
+<a id="issue-219-ready-design-delta"></a>
+
+### 20.4 #219 首版依赖支持集补全（2026-09-22，已获人类设计批准）
+
+用户先明确“批准你补全设计”，随后在本 Delta 的具体支持集、参数和持久化增量呈现后明确回复“批准”。本节记录该次人类设计批准；独立审查仍待完成。此前单独确认的 Freeze 顺序已写入 Spec 001 §15.10、Spec 003 §21.3：先重验自身 Decision，精确只读请求的 Validation 判断取 Draft Ref，再取得 Draft/Context 专用 Decision，最后进入 Claim 和业务事务。
+
+缺口是 DRAFT 只证明形状与 Scope，而 READY 必须证明 Policy/Profile/版本存在且受支持；原 §21 没有给出全部必填控制引用的 resolver 和预算判定规则。拟采用一个有限的 ArtifactRevision 创建技术计划，而非默许未知 Ref 或引入通用 Policy Engine：
+
+1. 一个新 TaskExecution-owned `execution.work_order_controls.policy@1.0` document profile，经已有 IdentityPolicy owning 登记/解析成为真实的 Project-scoped PolicyVersion；预算、能力、Scope、Risk/Execution/Harness/Model 与预期输出控制按该版本的精确允许值比较，无默认预算、Policy 或隐式权限收窄。
+2. 三个构建期 exact selector 分别登记 WorkOrder Schema、既有 Human-operated synthetic 协议描述和要求 Human review 的执行风险约束。静态描述不冒充持久化业务事实、Quality 风险评级或已部署 Runtime；旧 fixture 任意 UUID 不获得解析资格。
+3. 首版只支持五类计划 Criterion，暂不支持 OUTPUT_SCHEMA_VALID、REQUIRED_PROPOSAL_PROCESSED、CustomerMaterial Receipt 输出及未提供 owning resolver 的 skill/template/regulatory/quality pins。其历史 Schema/设计保留；本项显式调整 #219 支持集，不靠测试跳过掩盖限制。
+4. Judgment 增加闭合 dependencyObservations 和全部适用有限上界，Freeze 当前重读并逐字段比较。既有 Source Slice Query 限定 exact audience，因此首次链上的 Builder/Validator/Freeze 使用同一受信 Service principal，各动作仍各自独立授权，不新增代理 principal。
+
+唯一字段权威见 [Spec 003 §21.5–§21.9](../module-specs/Module-Spec-003-TaskExecution.md#issue-219-ready-support)，授权补充见 Spec 001 §15.11，Catalog 和 PostgreSQL §36.1 分别拥有静态登记与存储增量。验收为同一目标的 READY 正链、明确业务失败判断及授权/篡改/过期/并发/回滚反例，见 Module-Test-003 `TE-VAL-S-*`；不拆基础设施 Issue，不改 217/47/200 操作计数。该 Delta 已于 2026-09-22 获人类设计批准，独立审查待完成；原实现和 PR 交付授权保留，merge 仍未授权。
+
+2026-09-22 补充修正批准：用户明确“批准此修正，保持公开 Schema 不变”，确认 Core 四个非空数组约束继续有效；首版 constraints 使用唯一闭合 Controls Policy 声明，inputRefs 至少一个已有 INITIAL 支持且有来源证明的输入，allow/deny 各至少一项且互不重叠。具体字段以 Spec 003 §21.5 为准。

@@ -411,6 +411,13 @@
       "semanticDeclaration": "im-06-task-readiness-registration"
     },
     {
+      "type": "execution.validate_work_order_draft",
+      "version": "1.0",
+      "authorizationPurpose": "execution.work_order.draft.validate",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-work-order-validation-registration"
+    },
+    {
       "type": "execution.create_work_order",
       "version": "1.0",
       "authorizationPurpose": "task.execution.create_work_order",

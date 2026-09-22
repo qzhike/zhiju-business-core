@@ -1,0 +1,28 @@
+{
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.work_order_validation",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d610",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "data": {
+    "validationSnapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.execution.work_order_validation",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d610",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d610",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0",
+        "canonicalizationVersion": "1"
+      }
+    }
+  }
+}

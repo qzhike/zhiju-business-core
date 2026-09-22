@@ -80,9 +80,12 @@ export interface ExecutionJudgmentRow {
   readonly judgment_kind: string;
   readonly enterprise_id: string;
   readonly project_id: string;
-  readonly task_id: string;
-  readonly task_definition_snapshot_id: string;
-  readonly task_definition_hash: Buffer;
+  // IM-06 (#219, V3005): the four Task-kind mirrors are NULL on
+  // `WORK_ORDER_VALIDATION` rows, and the WorkOrder-kind mirrors are NULL on
+  // `TASK_READINESS` rows; the kind half is what the consumer checked first.
+  readonly task_id: string | null;
+  readonly task_definition_snapshot_id: string | null;
+  readonly task_definition_hash: Buffer | null;
   readonly policy_version_ref: unknown;
   readonly policy_content_hash: Buffer;
   readonly policy_effective_from: Date;
@@ -91,7 +94,21 @@ export interface ExecutionJudgmentRow {
   readonly input_hash: Buffer;
   readonly evaluated_at: Date;
   readonly valid_until: Date;
-  readonly ready: boolean;
+  readonly ready: boolean | null;
+  readonly work_order_id: string | null;
+  readonly draft_snapshot_id: string | null;
+  readonly draft_snapshot_hash: Buffer | null;
+  readonly candidate_contract_hash: Buffer | null;
+  readonly specification_hash: Buffer | null;
+  readonly context_snapshot_id: string | null;
+  readonly context_snapshot_hash: Buffer | null;
+  readonly validation_valid: boolean | null;
+  readonly validation_references_valid: boolean | null;
+  readonly validation_specification_hash_valid: boolean | null;
+  readonly validation_capability_valid: boolean | null;
+  readonly validation_executable: boolean | null;
+  readonly validation_budget_valid: boolean | null;
+  readonly validation_context_coverage_valid: boolean | null;
   readonly canonical_payload: unknown;
   readonly payload_hash: Buffer;
   readonly request_payload_hash: Buffer;

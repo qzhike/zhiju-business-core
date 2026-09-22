@@ -29,6 +29,7 @@ const captureKey = 'ep.context_source_slice_capture.policy@1.0';
 const builderKey = 'execution.context_builder.policy@1.0';
 const readinessKey = 'execution.task_readiness.policy@1.0';
 const validationKey = 'execution.work_order_validation.policy@1.0';
+const controlsKey = 'execution.work_order_controls.policy@1.0';
 const policySnapshotKey = 'identity.PolicySnapshot@1.0';
 const legacyKeys = [policySnapshotKey, 'identity.RolePolicy@1.0', 'identity.CapabilityPolicy@1.0'];
 
@@ -69,7 +70,7 @@ function mutatedRegistry(mutate: (profiles: RawProfileEntry[]) => void): unknown
 const documents = createPolicyProfileDocumentValidator();
 
 describe('policy profile registry artifact', () => {
-  it('registers the three historical entries and the four approved profiles', () => {
+  it('registers the three historical entries and the five approved profiles', () => {
     expect(policyProfileRegistry.registryVersion).toBe(POLICY_PROFILE_REGISTRY_VERSION);
     expect(policyProfileRegistry.profiles.map((profile) => profile.registryKey)).toEqual([
       ...legacyKeys,
@@ -77,6 +78,7 @@ describe('policy profile registry artifact', () => {
       builderKey,
       readinessKey,
       validationKey,
+      controlsKey,
     ]);
     expect(
       policyProfileRegistry.profiles.map((profile) => [profile.registryKey, profile.owner]),
@@ -88,6 +90,7 @@ describe('policy profile registry artifact', () => {
       [builderKey, 'task-execution'],
       [readinessKey, 'task-execution'],
       [validationKey, 'task-execution'],
+      [controlsKey, 'task-execution'],
     ]);
   });
 
@@ -107,7 +110,7 @@ describe('policy profile registry artifact', () => {
     expect(versionIds.size).toBe(policyProfileRegistry.profiles.length);
   });
 
-  it('exposes a closed document schema only for the four approved profiles', () => {
+  it('exposes a closed document schema only for the five approved profiles', () => {
     for (const key of legacyKeys) {
       expect(
         policyProfileRegistry.profiles.find((profile) => profile.registryKey === key)
@@ -117,7 +120,7 @@ describe('policy profile registry artifact', () => {
         policyProfileDocumentSchemaRef(policyProfileRegistry, POLICY_PROFILE_REGISTRY_VERSION, key),
       ).toBeUndefined();
     }
-    for (const key of [captureKey, builderKey, readinessKey, validationKey]) {
+    for (const key of [captureKey, builderKey, readinessKey, validationKey, controlsKey]) {
       expect(
         policyProfileDocumentSchemaRef(policyProfileRegistry, POLICY_PROFILE_REGISTRY_VERSION, key),
       ).toContain('#/$defs/');
@@ -520,9 +523,9 @@ describe('closed profile documents', () => {
 });
 
 describe('shared contract registry integration', () => {
-  it('applies the same closed schemas and keeps 216 public operations', () => {
+  it('applies the same closed schemas and keeps 217 public operations', () => {
     const registry = new ContractRegistry();
-    expect(registry.operationCount).toBe(216);
+    expect(registry.operationCount).toBe(217);
     expect(registry.policyProfileRegistry).toBe(policyProfileRegistry);
     expect(
       registry.validatePolicyProfileDocument(

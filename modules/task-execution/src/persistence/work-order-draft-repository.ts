@@ -82,6 +82,9 @@ export interface WorkOrderRootRow {
   readonly currentDraftSnapshotHash: Buffer;
   readonly draftSchemaVersion: string;
   readonly expiresAt: Date | null;
+  /** IM-06 (#219, V3005): write-once frozen Contract pointer; NULL in DRAFT. */
+  readonly frozenContractId: string | null;
+  readonly frozenContractHash: Buffer | null;
 }
 
 /** The committed snapshot facts the exact draft read compares against. */
@@ -292,6 +295,8 @@ export class WorkOrderDraftRepository {
         'current_draft_snapshot_hash',
         'draft_schema_version',
         'expires_at',
+        'frozen_contract_id',
+        'frozen_contract_hash',
       ])
       .where('work_order_id', '=', workOrderId)
       .executeTakeFirst();
@@ -310,6 +315,8 @@ export class WorkOrderDraftRepository {
           currentDraftSnapshotHash: row.current_draft_snapshot_hash,
           draftSchemaVersion: row.draft_schema_version,
           expiresAt: row.expires_at,
+          frozenContractId: row.frozen_contract_id,
+          frozenContractHash: row.frozen_contract_hash,
         };
   }
 
@@ -409,6 +416,8 @@ export class WorkOrderDraftRepository {
         'current_draft_snapshot_hash',
         'draft_schema_version',
         'expires_at',
+        'frozen_contract_id',
+        'frozen_contract_hash',
       ])
       .where('work_order_id', '=', workOrderId)
       .forShare()
@@ -428,6 +437,62 @@ export class WorkOrderDraftRepository {
           currentDraftSnapshotHash: row.current_draft_snapshot_hash,
           draftSchemaVersion: row.draft_schema_version,
           expiresAt: row.expires_at,
+          frozenContractId: row.frozen_contract_id,
+          frozenContractHash: row.frozen_contract_hash,
+        };
+  }
+
+  /**
+   * IM-06 (#219): the Freeze write lock of §21.3 / PostgreSQL §36 item 3. Reads
+   * one WorkOrder Root under `FOR UPDATE`, held until the command transaction
+   * ends and taken after the bound Task's `FOR SHARE` lock, so the established
+   * Task -> WorkOrder lock order is preserved and a concurrent Freeze either
+   * committed first (and is observed) or blocks until this transaction ends.
+   * RLS stays the Scope authority - an invisible Root is indistinguishable from
+   * a missing one.
+   */
+  async readWorkOrderRootForUpdate(
+    trx: TaskExecutionTransaction,
+    workOrderId: string,
+  ): Promise<WorkOrderRootRow | undefined> {
+    const row = await trx
+      .selectFrom('task_execution.work_order')
+      .select([
+        'work_order_id',
+        'enterprise_id',
+        'project_id',
+        'work_order_object_type',
+        'task_id',
+        'task_object_type',
+        'status',
+        'aggregate_version',
+        'current_draft_snapshot_id',
+        'current_draft_snapshot_hash',
+        'draft_schema_version',
+        'expires_at',
+        'frozen_contract_id',
+        'frozen_contract_hash',
+      ])
+      .where('work_order_id', '=', workOrderId)
+      .forUpdate()
+      .executeTakeFirst();
+    return row === undefined
+      ? undefined
+      : {
+          workOrderId: row.work_order_id,
+          enterpriseId: row.enterprise_id,
+          projectId: row.project_id,
+          workOrderObjectType: row.work_order_object_type,
+          taskId: row.task_id,
+          taskObjectType: row.task_object_type,
+          status: row.status,
+          aggregateVersion: row.aggregate_version,
+          currentDraftSnapshotId: row.current_draft_snapshot_id,
+          currentDraftSnapshotHash: row.current_draft_snapshot_hash,
+          draftSchemaVersion: row.draft_schema_version,
+          expiresAt: row.expires_at,
+          frozenContractId: row.frozen_contract_id,
+          frozenContractHash: row.frozen_contract_hash,
         };
   }
 

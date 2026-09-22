@@ -233,6 +233,20 @@
 //     (Vitest's aroundEach region includes the afterEach hooks, so the drain
 //     cannot await the test body itself; it tracks the drivers instead.)
 
+import { verifyWorkOrderValidationUpgrade } from './work-order-validation-upgrade.js';
+import { createWorkOrderValidationEntry, createTaskReadinessEntry } from '@zhiju/api/composition';
+import {
+  WORK_ORDER_VALIDATION_BINDINGS,
+  createWorkOrderValidationAuthorizationPort,
+  createTaskExecutionReadinessAuthorizationPort,
+  type WorkOrderValidationCapabilityCodes,
+} from '@zhiju/identity-policy';
+import {
+  workOrderReadyProfileRegistry,
+  registeredEvaluatorProfileReference,
+} from '@zhiju/contracts';
+import { withTaskExecutionTransaction } from '@zhiju/task-execution';
+import { hashContractPayload, sha256CanonicalJson } from '@zhiju/shared-kernel';
 import { createHash, createHmac } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -843,11 +857,14 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   }
 
   /** One generic capability grant (no selectors/actions closure) for the owning reads. */
-  async function grantGeneric(capabilityCode: string): Promise<string> {
+  async function grantGeneric(
+    capabilityCode: string,
+    principal: Principal = operator(),
+  ): Promise<string> {
     const grantId = newUuidV7();
-    const result = await grantCapabilityTracked(identityDeps([fixture.projectId]), {
+    const result = await grantCapabilityTracked(identityDeps([fixture.projectId], principal), {
       grantId,
-      principalId: OPERATOR,
+      principalId: principal.principalId,
       capabilityCode,
       scope: {
         scopeKind: 'PROJECT',
@@ -1318,11 +1335,13 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
    * own capture Decision (wi188 convention, Project-scoped actor).
    */
   async function captureSlice(input: {
+    principal?: Principal;
     purpose: string;
     capturePolicyRef: Common.VersionedRef;
     idempotencyKey: string;
     requestedKinds?: readonly string[];
   }): Promise<Common.ContentAddressedRef> {
+    const principal = input.principal ?? operator();
     const payload = {
       projectRef: {
         kind: 'OBJECT',
@@ -1331,12 +1350,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         scope: scope(),
       },
       purpose: input.purpose,
-      audience: { principalKind: 'HUMAN', principalId: OPERATOR },
+      audience: { principalKind: principal.principalKind, principalId: principal.principalId },
       requestedKinds: [...(input.requestedKinds ?? SLICE_KINDS)],
       capturePolicyRef: input.capturePolicyRef,
     } as unknown as EnterpriseProject.ProjectCaptureContextSourceSlicePayload;
-    const decision = await authorizeCommandTracked(identityDeps([fixture.projectId]), {
-      actorSnapshotRef: operatorActorRef,
+    const decision = await authorizeCommandTracked(identityDeps([fixture.projectId], principal), {
+      actorSnapshotRef: principal.actorRef,
       intent: {
         commandType: 'project.capture_context_source_slice',
         commandVersion: '1.0',
@@ -1349,7 +1368,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         requestedAt: new Date(),
         highRiskAction: false,
       },
-      authenticationContextHash: AUTH_HASH,
+      authenticationContextHash: principal.authHash,
       policySnapshotRef: grantPolicySnapshotReference(),
       ttlSeconds: 900,
     });
@@ -1365,7 +1384,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         objectId: newUuidV7(),
         scope: scope(),
       },
-      actor: operatorActorRef,
+      actor: principal.actorRef,
       authorizationDecisionRef: decision.authorizationDecisionRef,
       idempotencyKey: input.idempotencyKey,
       correlationId: CORRELATION,
@@ -1378,7 +1397,17 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         ),
       },
     } as unknown as CanonicalJsonObject;
-    const result = await track(sliceEntry.capture(envelope, sliceSession));
+    const result = await track(
+      sliceEntry.capture(
+        envelope,
+        input.principal === undefined
+          ? sliceSession
+          : {
+              authenticationContextHash: principal.authHash,
+              policyResolutionActorSnapshotRef: principal.actorRef,
+            },
+      ),
+    );
     const resultPayload =
       result.status === 'DUPLICATE' ? result.resultPayload : committedPayload(result);
     if (resultPayload === null) throw new Error('expected a stored slice result payload');
@@ -1820,11 +1849,19 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
    * DRAFT is moved into the executable set through owner SQL because the only
    * delivered transition belongs to the #208 slice).
    */
-  async function createExecutableTask(commandVersion: '1.0' | '2.0'): Promise<string> {
+  async function createExecutableTask(
+    commandVersion: '1.0' | '2.0',
+    owningReady = false,
+  ): Promise<string> {
     const payload = payloadOf(commandVersion === '1.0' ? V1_TASK_FIXTURE : V2_TASK_FIXTURE);
     rewriteFixtureScopes(payload, fixture);
     (payload.projectRef as Record<string, unknown>).objectId = fixture.projectId;
     delete record(payload.definition).deliveryItemRef;
+    if (owningReady) {
+      delete record(payload.definition).parentTaskRef;
+      record(payload.definition).dependencyTaskRefs = [];
+      record(payload.definition).inputRefs = [];
+    }
     const binding = TASK_DRAFT_CREATION_BINDINGS.find(
       (candidate) => candidate.commandVersion === commandVersion,
     );
@@ -1883,6 +1920,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       ),
     );
     expect(result, JSON.stringify(result)).toMatchObject({ status: 'COMMITTED' });
+    if (owningReady) {
+      await readyTaskForValidation(targetId);
+      return targetId;
+    }
     await track(
       admin.query('UPDATE task_execution.task SET status = $2 WHERE task_id = $1', [
         targetId,
@@ -1894,6 +1935,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
 
   /** One WorkOrder creation attempt through the owning `execution.create_work_order` entry. */
   async function createWorkOrderResult(input: {
+    customDraft?: Record<string, unknown>;
     taskId: string;
     taskMajor: '1.0' | '2.0';
     commandVersion?: '1.0' | '1.1';
@@ -1904,9 +1946,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   }): Promise<{ result: CommandResult; targetId: string }> {
     const commandVersion = input.commandVersion ?? '1.1';
     const draft =
-      commandVersion === '1.1'
+      input.customDraft ??
+      (commandVersion === '1.1'
         ? initialWorkOrderDraft(input)
-        : workOrderDraft({ taskId: input.taskId, taskMajor: input.taskMajor });
+        : workOrderDraft({ taskId: input.taskId, taskMajor: input.taskMajor }));
     const payload = {
       draft,
       expiresAt: input.expiresAt ?? new Date(clock + 24 * 60 * 60 * 1000).toISOString(),
@@ -3113,23 +3156,17 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(toUnknown?.code).toBe('23514');
     expect(toUnknown?.message).toContain('must reference a snapshot of this work order');
 
-    // The reachable staleness branch: the owning WorkOrder is no longer a DRAFT.
-    await track(
-      admin.query('UPDATE task_execution.work_order SET status = $2 WHERE work_order_id = $1', [
-        workOrderId,
-        'READY',
-      ]),
-    );
-    const staleEnvelope = await preparedBuild({
-      idempotencyKey: 'wi216-002-stale',
-      workOrderId,
-    });
-    const stale = await attemptBuild(staleEnvelope);
-    expect(stale).toMatchObject({ code: EXECUTION_DRAFT_SNAPSHOT_STALE, thrown: false });
-    await expectNoContextSnapshot(
-      record(staleEnvelope.targetRef).objectId as string,
-      'wi216-002-stale',
-    );
+    // V3005 rejects the old SQL shortcut that fabricated READY without a
+    // Contract. The non-DRAFT build rejection now follows a real owning
+    // Freeze in TE-VAL-S-008 below.
+    await expect(
+      track(
+        admin.query('UPDATE task_execution.work_order SET status = $2 WHERE work_order_id = $1', [
+          workOrderId,
+          'READY',
+        ]),
+      ),
+    ).rejects.toMatchObject({ code: '23514', constraint: 'work_order_frozen_pointer_state' });
 
     // "Expired DRAFT": the binding-layer rejection fires one step before the
     // unreachable commit-point WorkOrder re-check (header note), and the
@@ -5447,10 +5484,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(216);
+    expect(catalog.operations).toHaveLength(217);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(46);
+    ).toHaveLength(47);
     expect(
       catalog.operations.filter(
         (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
@@ -6819,15 +6856,15 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(legacyEvents.rows.at(0)?.n).toBe(0);
 
       // The Catalog counts the matrix pins (also asserted in TE-214-D-016):
-      // 216 operations total, 46 owned by TaskExecution, the historical
+      // 217 operations total, 47 owned by TaskExecution, the historical
       // 200-entry v1.0 Baseline untouched.
       const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
         operations: { type: string; version: string; kind: string; owner: string }[];
       };
-      expect(catalog.operations).toHaveLength(216);
+      expect(catalog.operations).toHaveLength(217);
       expect(
         catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-      ).toHaveLength(46);
+      ).toHaveLength(47);
       const baseline = JSON.parse(readFileSync(COMPATIBILITY_BASELINE, 'utf8')) as
         { type: string }[] | { operations: { type: string }[] };
       expect(Array.isArray(baseline) ? baseline : baseline.operations).toHaveLength(200);
@@ -7008,4 +7045,948 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       errorCode: EXECUTION_CONTEXT_SOURCE_INVALID,
     });
   });
+  async function readyTaskForValidation(taskId: string) {
+    const capabilityCodes = {
+      taskReadinessBuildV1: 'wi219.task.readiness',
+      taskReadyV1: 'wi219.task.ready',
+    };
+    await grant({
+      capabilityCode: capabilityCodes.taskReadinessBuildV1,
+      action: 'execution.task.readiness.build',
+      selectorType: 'CREATE_TARGET_TYPE',
+      targetObjectType: 'zhiju.execution.task_readiness',
+    });
+    await grant({
+      capabilityCode: capabilityCodes.taskReadyV1,
+      action: 'execution.task.mark_ready',
+      selectorType: 'TARGET_TYPE',
+      targetObjectType: TASK_V2,
+    });
+    const policyRef = policyKey([newUuidV7(), newUuidV7()], fixture);
+    await registerPolicyVersionAs({
+      key: policyRef,
+      factId: newUuidV7(),
+      idempotencyKey: newUuidV7(),
+      effectiveFrom: PAST,
+      policySchemaRefs: [profileReference('execution.task_readiness.policy@1.0')],
+      policyDocument: { maxReadinessValiditySeconds: 600 },
+    });
+    const entry = createTaskReadinessEntry({
+      taskExecutionDb: teDb,
+      enterpriseProjectDb,
+      identity: { db: identityDb, repo: identityRepo, crypto },
+      capabilityCodes,
+      capabilities: dependencyCapabilities,
+      now: () => new Date(clock),
+    });
+    const auth = createTaskExecutionReadinessAuthorizationPort({
+      capabilityCodes,
+      now: () => new Date(clock),
+    });
+    const root = (
+      await admin.query(
+        'SELECT current_definition_snapshot_id, current_definition_hash FROM task_execution.task WHERE task_id=$1',
+        [taskId],
+      )
+    ).rows[0] as { current_definition_snapshot_id: string; current_definition_hash: Buffer };
+    const taskRef = objectRef(TASK_V2, taskId, scope());
+    async function envelope(
+      commandType: string,
+      targetRef: Record<string, unknown>,
+      payload: CanonicalJsonObject,
+      expectedAggregateVersion?: number,
+    ) {
+      const payloadHash = digestCanonicalPayload(payload).hash;
+      const issued = await auth.authorizeReadiness(identityDeps([fixture.projectId]), {
+        actorSnapshotRef: operatorActorRef,
+        commandType,
+        commandVersion: '1.0',
+        targetRef: targetRef as unknown as Common.ObjectRef,
+        commandPayloadHash: payloadHash,
+        authenticationContextHash: AUTH_HASH,
+      });
+      expect(issued.outcome).toBe('ALLOW');
+      return {
+        commandId: newUuidV7(),
+        commandType,
+        commandVersion: '1.0',
+        scopeRef: scope(),
+        targetRef,
+        actor: operatorActorRef,
+        authorizationDecisionRef: issued.authorizationDecisionRef,
+        idempotencyKey: newUuidV7(),
+        correlationId: newUuidV7(),
+        requestedAt: new Date(clock).toISOString(),
+        ...(expectedAggregateVersion === undefined ? {} : { expectedAggregateVersion }),
+        payload,
+        integrity: {
+          canonicalizationVersion: '1',
+          payloadHash: contentHash(payloadHash.toString('hex')),
+        },
+      };
+    }
+    const build = await entry.build(
+      await envelope(
+        'execution.build_task_readiness',
+        objectRef('zhiju.execution.task_readiness', newUuidV7(), scope()),
+        {
+          taskRef,
+          taskDefinitionRef: {
+            kind: 'CONTENT_ADDRESSED',
+            objectType: 'zhiju.execution.task_definition_snapshot',
+            objectId: root.current_definition_snapshot_id,
+            scope: scope(),
+            contentHash: contentHash(root.current_definition_hash.toString('hex')),
+          },
+          policyRef,
+          evaluatorRef: registeredEvaluatorProfileReference(
+            'im06-evaluator-static-v1',
+            'te.task_readiness.evaluator@1.0',
+          ),
+        } as unknown as CanonicalJsonObject,
+      ),
+      sessionFor(),
+    );
+    expect(build, JSON.stringify(build)).toMatchObject({ status: 'COMMITTED' });
+    const readinessSnapshotRef = record(record(committedPayload(build)).data).readinessSnapshotRef;
+    const ready = await entry.markReady(
+      await envelope(
+        'execution.mark_task_ready',
+        taskRef,
+        { readinessSnapshotRef, requestedAt: new Date(clock).toISOString() } as CanonicalJsonObject,
+        1,
+      ),
+      sessionFor(),
+    );
+    expect(ready, JSON.stringify(ready)).toMatchObject({ status: 'COMMITTED' });
+  }
+
+  itIntegration(
+    'TE-VAL-S-008 completes the owning Validation, Freeze and authoritative Contract path',
+    async () => {
+      const serviceId = newUuidV7(),
+        actorId = newUuidV7();
+      await withIdentityTransaction(identityDb, identityContext([]), (trx) =>
+        identityRepo.insertPrincipal(trx, {
+          id: serviceId,
+          principalKind: 'SERVICE',
+          displayName: 'WI-219 controlled validator',
+          createdByPrincipalId: OPERATOR,
+          createdByActorSnapshotId: OPERATOR_ACTOR,
+        }),
+      );
+      const actorRef = await createActorSnapshot(identityDeps([fixture.projectId]), {
+        actorSnapshotId: actorId,
+        principalId: serviceId,
+        declaredPrincipalKind: 'SERVICE',
+        authenticationContextHash: AUTH_HASH,
+        scopeKind: 'PROJECT',
+        enterpriseId: fixture.enterpriseId,
+        projectId: fixture.projectId,
+      });
+      const service: Principal = {
+        principalId: serviceId,
+        principalKind: 'SERVICE',
+        actorSnapshotId: actorId,
+        actorRef,
+        authHash: AUTH_HASH,
+      };
+      for (const capability of [
+        dependencyCapabilities.resolvePolicy,
+        dependencyCapabilities.readContextSourceSlice,
+        CAPTURE_CAPABILITY,
+      ])
+        await grantGeneric(capability, service);
+      for (const [capabilityCode, action, targetObjectType, selectorType] of [
+        [
+          contextSnapshotCapabilityCodes.contextSnapshotBuildV11,
+          ACTIONS.ctxBuild,
+          CONTEXT_SNAPSHOT_OBJECT,
+          'CREATE_TARGET_TYPE',
+        ],
+        [
+          contextSnapshotCapabilityCodes.contextSnapshotDraftReadV11,
+          ACTIONS.ctxDraftRead,
+          DRAFT_SNAPSHOT_OBJECT,
+          'TARGET_TYPE',
+        ],
+      ] as const)
+        await grant({ principal: service, capabilityCode, action, targetObjectType, selectorType });
+      const codes = Object.fromEntries(
+        WORK_ORDER_VALIDATION_BINDINGS.map((b, i) => [b.capabilityConfigKey, `wi219.auth.c${i}`]),
+      ) as WorkOrderValidationCapabilityCodes;
+      const validationGrants = new Map<string, string>();
+      for (const binding of WORK_ORDER_VALIDATION_BINDINGS) {
+        const targetObjectType = binding.targetObjectTypes[0];
+        if (targetObjectType === undefined) throw new Error('missing target');
+        validationGrants.set(
+          binding.capabilityConfigKey,
+          await grant({
+            principal: service,
+            capabilityCode: codes[binding.capabilityConfigKey],
+            action: binding.requiredGrantAction,
+            selectorType: binding.selectorType,
+            targetObjectType,
+          }),
+        );
+      }
+      const captureRef = policyKey([newUuidV7(), newUuidV7()], fixture);
+      await registerPolicyVersionAs({
+        key: captureRef,
+        factId: newUuidV7(),
+        idempotencyKey: newUuidV7(),
+        effectiveFrom: PAST,
+        policySchemaRefs: [profileReference(CAPTURE_PROFILE)],
+        policyDocument: { maxSliceValiditySeconds: 3600, allowedPurposeCodes: [PURPOSE_DOCUMENT] },
+      });
+      const slice = await captureSlice({
+        principal: service,
+        purpose: PURPOSE_DOCUMENT,
+        capturePolicyRef: captureRef,
+        idempotencyKey: newUuidV7(),
+      });
+      const taskId = await createExecutableTask('2.0', true);
+      const candidate = JSON.parse(
+        readFileSync(
+          new URL(
+            '../fixtures/contracts/work-order-validation/ready-candidate-valid.json',
+            import.meta.url,
+          ),
+          'utf8',
+        ),
+      ) as Record<string, unknown>;
+      rewriteFixtureScopes(candidate, fixture);
+      const controlsRef = policyKey([newUuidV7(), newUuidV7()], fixture),
+        validationRef = policyKey([newUuidV7(), newUuidV7()], fixture);
+      const originalControls = record(record(candidate.versionPins).capabilityPolicyRef);
+      function replaceControls(value: unknown): unknown {
+        if (Array.isArray(value)) return value.map(replaceControls);
+        if (value !== null && typeof value === 'object') {
+          if (
+            record(value).objectId === originalControls.objectId &&
+            record(value).versionId === originalControls.versionId
+          )
+            return controlsRef;
+          return Object.fromEntries(
+            Object.entries(value).map(([key, v]) => [key, replaceControls(v)]),
+          );
+        }
+        return value;
+      }
+      const revised = replaceControls(candidate) as Record<string, unknown>;
+      // Static selectors are Platform-scoped; recursive fixture scope rewriting
+      // is restricted to business refs and must not turn them into Project refs.
+      for (const profile of workOrderReadyProfileRegistry.profiles) {
+        if (profile.registryKey === 'core.work_order@1.0') {
+          record(revised.header).schemaRef = profile.reference;
+          record(revised.versionPins).workOrderSchemaRef = profile.reference;
+        }
+        if (profile.registryKey === 'te.human_operated.synthetic@1.0')
+          record(revised.versionPins).runtimeAdapterContractRef = profile.reference;
+        if (profile.registryKey === 'te.work_order.human_review@1.0')
+          record(revised.riskAndQuality).riskProfileRef = profile.reference;
+      }
+      const evaluator = registeredEvaluatorProfileReference(
+        'im06-evaluator-static-v1',
+        'te.work_order_validation.evaluator@1.0',
+      );
+      for (const criterion of revised.completionCriteria as Record<string, unknown>[])
+        criterion.evaluatorRef = evaluator;
+      revised.taskRef = objectRef(TASK_V2, taskId, scope());
+      revised.projectRef = objectRef('zhiju.project.project', fixture.projectId, scope());
+      revised.requestedBy = { principalId: OPERATOR, principalKind: 'HUMAN' };
+      revised.inputRefs = [
+        {
+          inputRole: 'context',
+          ref: slice,
+          required: true,
+          permittedUse: PURPOSE_DOCUMENT,
+          contentAccessMode: 'REFERENCE_ONLY',
+          integrityRequired: true,
+        },
+      ];
+      record(revised.versionPins).contextBuilderPolicyRef = policyKey(BUILDER_POLICY.main, fixture);
+      for (const group of ['allowedCapabilities', 'deniedCapabilities'])
+        for (const cap of revised[group] as Record<string, unknown>[])
+          cap.expiresAt = new Date(clock + 3600_000).toISOString();
+      const controlFields = [
+        'targetScope',
+        'allowedCapabilities',
+        'deniedCapabilities',
+        'expectedOutputs',
+        'riskAndQuality',
+        'executionPolicy',
+        'budget',
+        'harnessPolicy',
+        'modelPolicy',
+      ];
+      await registerPolicyVersionAs({
+        key: controlsRef,
+        factId: newUuidV7(),
+        idempotencyKey: newUuidV7(),
+        effectiveFrom: PAST,
+        policySchemaRefs: [profileReference('execution.work_order_controls.policy@1.0')],
+        policyDocument: {
+          controls: Object.fromEntries(controlFields.map((k) => [k, revised[k]])),
+        } as CanonicalJsonObject,
+      });
+      await registerPolicyVersionAs({
+        key: validationRef,
+        factId: newUuidV7(),
+        idempotencyKey: newUuidV7(),
+        effectiveFrom: PAST,
+        policySchemaRefs: [profileReference('execution.work_order_validation.policy@1.0')],
+        policyDocument: { maxValidationValiditySeconds: 600 },
+      });
+      const draft = Object.fromEntries(
+        Object.entries(revised).filter(
+          ([key]) =>
+            ![
+              'header',
+              'workOrderRef',
+              'projectRef',
+              'contextSnapshotRef',
+              'issuedAt',
+              'expiresAt',
+              'specificationHash',
+            ].includes(key),
+        ),
+      );
+      const { projectContextContractRef: _, ...draftPins } = record(draft.versionPins);
+      void _;
+      draft.versionPins = draftPins;
+      const expiresAt = new Date(clock + 3600_000).toISOString();
+      const woId = await createWorkOrder({
+        taskId,
+        taskMajor: '2.0',
+        customDraft: draft,
+        expiresAt,
+      });
+      const draftRef = await draftSnapshotRefOf(woId);
+      const contextBuild = await initialContextEntry.build(
+        await preparedBuild({
+          workOrderId: woId,
+          draftRef,
+          principal: service,
+          sourceSlices: [slice],
+          idempotencyKey: newUuidV7(),
+        }),
+        sessionFor(service),
+      );
+      expect(contextBuild, JSON.stringify(contextBuild)).toMatchObject({ status: 'COMMITTED' });
+      const contextRef = contextSnapshotRefOf(contextBuild);
+      await verifyWorkOrderValidationUpgrade(admin, fixture.enterpriseId);
+      revised.workOrderRef = objectRef(WORK_ORDER_V11, woId, scope());
+      revised.contextSnapshotRef = contextRef;
+      record(revised.versionPins).projectContextContractRef = contextRef;
+      revised.expiresAt = expiresAt;
+      revised.issuedAt = new Date(clock).toISOString();
+      revised.header = {
+        ...record(revised.header),
+        contractId: newUuidV7(),
+        issuedAt: revised.issuedAt,
+        issuedBy: { principalId: serviceId, principalKind: 'SERVICE' },
+      };
+      const specFields = [
+        'objective',
+        'targetScope',
+        'inputRefs',
+        'contextSnapshotRef',
+        'constraints',
+        'allowedCapabilities',
+        'deniedCapabilities',
+        'expectedOutputs',
+        'completionCriteria',
+        'riskAndQuality',
+        'executionPolicy',
+        'budget',
+        'harnessPolicy',
+        'modelPolicy',
+        'versionPins',
+      ];
+      revised.specificationHash = contentHash(
+        sha256CanonicalJson(
+          Object.fromEntries(specFields.map((k) => [k, revised[k]])) as CanonicalJsonObject,
+        ),
+      );
+      record(revised.header).payloadHash = contentHash(
+        hashContractPayload(revised as CanonicalJsonObject),
+      );
+      const entry = createWorkOrderValidationEntry({
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        capabilityCodes: codes,
+        capabilities: dependencyCapabilities,
+        now: () => new Date(clock),
+      });
+      const auth = createWorkOrderValidationAuthorizationPort({
+        capabilityCodes: codes,
+        now: () => new Date(clock),
+      });
+      async function envelope(
+        commandType: string,
+        payload: CanonicalJsonObject,
+        targetRef: Common.ObjectRef,
+        freeze = false,
+      ) {
+        const payloadHash = digestCanonicalPayload(payload).hash;
+        const signed = await (
+          freeze
+            ? auth.authorizeWorkOrderFreeze.bind(auth)
+            : auth.authorizeWorkOrderValidation.bind(auth)
+        )(identityDeps([fixture.projectId], service), {
+          actorSnapshotRef: actorRef,
+          commandType,
+          commandVersion: '1.0',
+          commandPayloadHash: payloadHash,
+          authenticationContextHash: AUTH_HASH,
+          targetRef,
+        });
+        expect(signed.outcome).toBe('ALLOW');
+        return {
+          commandId: newUuidV7(),
+          commandType,
+          commandVersion: '1.0',
+          scopeRef: scope(),
+          targetRef,
+          actor: actorRef,
+          authorizationDecisionRef: signed.authorizationDecisionRef,
+          idempotencyKey: newUuidV7(),
+          correlationId: newUuidV7(),
+          requestedAt: new Date(clock).toISOString(),
+          ...(freeze ? { expectedAggregateVersion: 1 } : {}),
+          payload,
+          integrity: {
+            canonicalizationVersion: '1',
+            payloadHash: contentHash(payloadHash.toString('hex')),
+          },
+        };
+      }
+      const validationEnvelope = await envelope(
+        'execution.validate_work_order_draft',
+        {
+          draftSnapshotRef: draftRef,
+          candidateContract: revised,
+          policyRef: validationRef,
+          evaluatorRef: evaluator,
+        } as unknown as CanonicalJsonObject,
+        objectRef(
+          'zhiju.execution.work_order_validation',
+          newUuidV7(),
+          scope(),
+        ) as unknown as Common.ObjectRef,
+      );
+      // Own and dependency authorization failures precede the command claim.
+      for (const key of [
+        'workOrderValidationDraftReadV1',
+        'workOrderValidationContextReadV1',
+      ] as const) {
+        const deniedEntry = createWorkOrderValidationEntry({
+          taskExecutionDb: teDb,
+          enterpriseProjectDb,
+          identity: { db: identityDb, repo: identityRepo, crypto },
+          capabilityCodes: { ...codes, [key]: 'wi219.ungranted' },
+          capabilities: dependencyCapabilities,
+          now: () => new Date(clock),
+        });
+        await expect(
+          deniedEntry.validate(validationEnvelope, sessionFor(service)),
+        ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+        expect(await receiptRows(validationEnvelope.idempotencyKey)).toEqual([]);
+      }
+      await expect(
+        entry.validate(
+          {
+            ...validationEnvelope,
+            targetRef: objectRef('zhiju.execution.work_order_validation', newUuidV7(), scope()),
+          },
+          sessionFor(service),
+        ),
+      ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+      expect(await receiptRows(validationEnvelope.idempotencyKey)).toEqual([]);
+      const forged = structuredClone(revised);
+      record(forged.header).payloadHash = contentHash('f'.repeat(64));
+      const forgedEnvelope = await envelope(
+        'execution.validate_work_order_draft',
+        { ...validationEnvelope.payload, candidateContract: forged } as CanonicalJsonObject,
+        objectRef(
+          'zhiju.execution.work_order_validation',
+          newUuidV7(),
+          scope(),
+        ) as unknown as Common.ObjectRef,
+      );
+      await expect(entry.validate(forgedEnvelope, sessionFor(service))).rejects.toMatchObject({
+        code: 'PAYLOAD_HASH_MISMATCH',
+      });
+      expect(await receiptRows(forgedEnvelope.idempotencyKey)).toEqual([]);
+      const validated = await entry.validate(validationEnvelope, sessionFor(service));
+      expect(validated, JSON.stringify(validated)).toMatchObject({ status: 'COMMITTED' });
+      const judgmentRef = record(record(committedPayload(validated)).data).validationSnapshotRef;
+      const judgmentId = record(judgmentRef).objectId as string;
+      const judgmentPayload = (
+        await admin.query(
+          'SELECT canonical_payload FROM task_execution.execution_judgment WHERE judgment_id=$1',
+          [judgmentId],
+        )
+      ).rows[0].canonical_payload as Record<string, unknown>;
+      expect(record(judgmentPayload.validation).executable).toBe(true);
+      expect((judgmentPayload.dependencyObservations as unknown[]).length).toBe(7);
+      expect(contextRef.objectId).not.toBe(contextRef.snapshotId);
+      expect(
+        (
+          await admin.query(
+            'SELECT task_execution.work_order_validation_payload_valid($1::jsonb) AS valid',
+            [JSON.stringify(judgmentPayload)],
+          )
+        ).rows,
+      ).toEqual([{ valid: true }]);
+      for (const mutate of [
+        (p: Record<string, unknown>) => {
+          p.extra = true;
+        },
+        (p: Record<string, unknown>) => {
+          (p.dependencyObservations as unknown[]).reverse();
+        },
+        (p: Record<string, unknown>) => {
+          record((p.dependencyObservations as unknown[])[0]).extra = true;
+        },
+        (p: Record<string, unknown>) => {
+          record(p.validation).executable = false;
+        },
+        (p: Record<string, unknown>) => {
+          p.inputHash = 'f'.repeat(64);
+        },
+      ]) {
+        const value = structuredClone(judgmentPayload);
+        mutate(value);
+        expect(
+          (
+            await admin.query(
+              'SELECT task_execution.work_order_validation_payload_valid($1::jsonb) AS valid',
+              [JSON.stringify(value)],
+            )
+          ).rows,
+        ).toEqual([{ valid: false }]);
+      }
+      await expect(
+        admin.query(
+          'UPDATE task_execution.execution_judgment SET valid_until=valid_until WHERE judgment_id=$1',
+          [judgmentId],
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+      const badJudgment = await envelope(
+        'execution.freeze_work_order',
+        {
+          workOrderContract: revised,
+          validationSnapshotRef: {
+            ...record(judgmentRef),
+            contentHash: contentHash('f'.repeat(64)),
+          },
+          specificationHash: revised.specificationHash,
+        } as unknown as CanonicalJsonObject,
+        revised.workOrderRef as Common.ObjectRef,
+        true,
+      );
+      await expect(entry.freeze(badJudgment, sessionFor(service))).rejects.toMatchObject({
+        code: 'REFERENCE_INVALID',
+      });
+      expect(await receiptRows(badJudgment.idempotencyKey)).toEqual([]);
+      // A lawful, smaller budget still differs from the exact Controls Policy.
+      // Produce a separate owning Draft/Context so the mismatch is a business
+      // judgment, rather than a forged change to the original immutable Draft.
+      const businessCandidate = structuredClone(revised);
+      record(businessCandidate.budget).tokenLimit = 100;
+      const businessDraft = Object.fromEntries(
+        Object.entries(businessCandidate).filter(
+          ([key]) =>
+            ![
+              'header',
+              'workOrderRef',
+              'projectRef',
+              'contextSnapshotRef',
+              'issuedAt',
+              'expiresAt',
+              'specificationHash',
+            ].includes(key),
+        ),
+      );
+      const { projectContextContractRef: oldContext, ...businessPins } = record(
+        businessDraft.versionPins,
+      );
+      void oldContext;
+      businessDraft.versionPins = businessPins;
+      const businessWo = await createWorkOrder({
+        taskId,
+        taskMajor: '2.0',
+        customDraft: businessDraft,
+        expiresAt,
+      });
+      const businessDraftRef = await draftSnapshotRefOf(businessWo);
+      const businessBuild = await initialContextEntry.build(
+        await preparedBuild({
+          workOrderId: businessWo,
+          draftRef: businessDraftRef,
+          principal: service,
+          sourceSlices: [slice],
+          idempotencyKey: newUuidV7(),
+        }),
+        sessionFor(service),
+      );
+      const businessContext = contextSnapshotRefOf(businessBuild);
+      businessCandidate.workOrderRef = objectRef(WORK_ORDER_V11, businessWo, scope());
+      businessCandidate.contextSnapshotRef = businessContext;
+      record(businessCandidate.versionPins).projectContextContractRef = businessContext;
+      record(businessCandidate.header).contractId = newUuidV7();
+      businessCandidate.specificationHash = contentHash(
+        sha256CanonicalJson(
+          Object.fromEntries(
+            specFields.map((k) => [k, businessCandidate[k]]),
+          ) as CanonicalJsonObject,
+        ),
+      );
+      record(businessCandidate.header).payloadHash = contentHash(
+        hashContractPayload(businessCandidate as CanonicalJsonObject),
+      );
+      const businessEnvelope = await envelope(
+        'execution.validate_work_order_draft',
+        {
+          draftSnapshotRef: businessDraftRef,
+          candidateContract: businessCandidate,
+          policyRef: validationRef,
+          evaluatorRef: evaluator,
+        } as unknown as CanonicalJsonObject,
+        objectRef(
+          'zhiju.execution.work_order_validation',
+          newUuidV7(),
+          scope(),
+        ) as unknown as Common.ObjectRef,
+      );
+      const businessResult = await entry.validate(businessEnvelope, sessionFor(service));
+      expect(businessResult).toMatchObject({ status: 'COMMITTED' });
+      const businessJudgmentRef = record(
+        record(committedPayload(businessResult)).data,
+      ).validationSnapshotRef;
+      const businessRow = (
+        await admin.query(
+          'SELECT canonical_payload FROM task_execution.execution_judgment WHERE judgment_id=$1',
+          [record(businessJudgmentRef).objectId],
+        )
+      ).rows[0].canonical_payload;
+      expect(record(businessRow).validation).toMatchObject({
+        budgetValid: false,
+        executable: false,
+        violations: ['BUDGET_CONTROL_MISMATCH'],
+      });
+      const businessFreeze = await envelope(
+        'execution.freeze_work_order',
+        {
+          workOrderContract: businessCandidate,
+          validationSnapshotRef: businessJudgmentRef,
+          specificationHash: businessCandidate.specificationHash,
+        } as CanonicalJsonObject,
+        businessCandidate.workOrderRef as Common.ObjectRef,
+        true,
+      );
+      await expect(entry.freeze(businessFreeze, sessionFor(service))).rejects.toMatchObject({
+        code: 'EXECUTION_JUDGMENT_INVALID',
+      });
+      expect(await receiptRows(businessFreeze.idempotencyKey)).toEqual([]);
+      const shortPolicy = policyKey([newUuidV7(), newUuidV7()], fixture);
+      await registerPolicyVersionAs({
+        key: shortPolicy,
+        factId: newUuidV7(),
+        idempotencyKey: newUuidV7(),
+        effectiveFrom: PAST,
+        policySchemaRefs: [profileReference('execution.work_order_validation.policy@1.0')],
+        policyDocument: { maxValidationValiditySeconds: 2 },
+      });
+      const shortEnvelope = await envelope(
+        'execution.validate_work_order_draft',
+        { ...validationEnvelope.payload, policyRef: shortPolicy } as unknown as CanonicalJsonObject,
+        objectRef(
+          'zhiju.execution.work_order_validation',
+          newUuidV7(),
+          scope(),
+        ) as unknown as Common.ObjectRef,
+      );
+      const shortResult = await entry.validate(shortEnvelope, sessionFor(service));
+      const shortRef = record(record(committedPayload(shortResult)).data).validationSnapshotRef;
+      const expiredFreeze = await envelope(
+        'execution.freeze_work_order',
+        {
+          workOrderContract: revised,
+          validationSnapshotRef: shortRef,
+          specificationHash: revised.specificationHash,
+        } as CanonicalJsonObject,
+        revised.workOrderRef as Common.ObjectRef,
+        true,
+      );
+      const laterEntry = createWorkOrderValidationEntry({
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        capabilityCodes: codes,
+        capabilities: dependencyCapabilities,
+        now: () => new Date(clock + 10000),
+      });
+      await expect(laterEntry.freeze(expiredFreeze, sessionFor(service))).rejects.toMatchObject({
+        code: 'EXECUTION_JUDGMENT_STALE',
+      });
+      expect(await receiptRows(expiredFreeze.idempotencyKey)).toEqual([]);
+      // Hold the real WorkOrder row lock after authorization, then cross the
+      // judgment deadline before releasing it. No partial Freeze can commit.
+      let lockClock = clock;
+      const lockEntry = createWorkOrderValidationEntry({
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        capabilityCodes: codes,
+        capabilities: dependencyCapabilities,
+        now: () => new Date(lockClock),
+      });
+      const blocker = new pg.Client({ connectionString: databaseUrl });
+      await blocker.connect();
+      let pendingFreeze: Promise<unknown> | undefined;
+      try {
+        await blocker.query('BEGIN');
+        await blocker.query(
+          'SELECT work_order_id FROM task_execution.work_order WHERE work_order_id=$1 FOR UPDATE',
+          [woId],
+        );
+        pendingFreeze = lockEntry
+          .freeze(expiredFreeze, sessionFor(service))
+          .catch((error: unknown) => error);
+        await expect
+          .poll(
+            async () =>
+              (
+                await admin.query<{ n: number }>(
+                  "SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%work_order%'",
+                )
+              ).rows[0]?.n ?? 0,
+            { timeout: 10000 },
+          )
+          .toBeGreaterThan(0);
+        lockClock += 10000;
+        await blocker.query('ROLLBACK');
+        expect(await pendingFreeze).toMatchObject({ code: 'EXECUTION_JUDGMENT_STALE' });
+      } finally {
+        await blocker.query('ROLLBACK');
+        await blocker.end();
+        await pendingFreeze;
+      }
+      expect(await receiptRows(expiredFreeze.idempotencyKey)).toEqual([]);
+      const conflictEnvelope = await envelope(
+        'execution.validate_work_order_draft',
+        { ...validationEnvelope.payload, policyRef: shortPolicy } as unknown as CanonicalJsonObject,
+        validationEnvelope.targetRef,
+      );
+      await expect(
+        entry.validate(
+          { ...conflictEnvelope, idempotencyKey: validationEnvelope.idempotencyKey },
+          sessionFor(service),
+        ),
+      ).rejects.toMatchObject({ code: 'IDEMPOTENCY_PAYLOAD_CONFLICT' });
+      let freezeEnvelope = await envelope(
+        'execution.freeze_work_order',
+        {
+          workOrderContract: revised,
+          validationSnapshotRef: judgmentRef,
+          specificationHash: revised.specificationHash,
+        } as CanonicalJsonObject,
+        revised.workOrderRef as Common.ObjectRef,
+        true,
+      );
+      // A real owning call fails after the Outbox insert. All TE writes,
+      // including the claim, pointer, Contract and edges, must roll back.
+      await admin.query(
+        `CREATE FUNCTION public.wi219_freeze_fault() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN IF NEW.aggregate_id='${woId}'::uuid AND NEW.event_type='execution.WorkOrderBecameReady' THEN RAISE EXCEPTION 'WI219_FREEZE_FAULT'; END IF; RETURN NEW; END $f$`,
+      );
+      await admin.query(
+        'CREATE TRIGGER wi219_freeze_fault AFTER INSERT ON task_execution.outbox_event FOR EACH ROW EXECUTE FUNCTION public.wi219_freeze_fault()',
+      );
+      try {
+        await expect(entry.freeze(freezeEnvelope, sessionFor(service))).rejects.toThrow(
+          'WI219_FREEZE_FAULT',
+        );
+      } finally {
+        await admin.query('DROP TRIGGER wi219_freeze_fault ON task_execution.outbox_event');
+        await admin.query('DROP FUNCTION public.wi219_freeze_fault()');
+      }
+      expect(await receiptRows(freezeEnvelope.idempotencyKey)).toEqual([]);
+      expect(
+        (
+          await admin.query(
+            'SELECT count(*)::int AS n FROM task_execution.work_order_contract WHERE work_order_id=$1',
+            [woId],
+          )
+        ).rows,
+      ).toEqual([{ n: 0 }]);
+      expect(
+        (
+          await admin.query(
+            'SELECT status,frozen_contract_id FROM task_execution.work_order WHERE work_order_id=$1',
+            [woId],
+          )
+        ).rows,
+      ).toEqual([{ status: 'DRAFT', frozen_contract_id: null }]);
+      expect(await outboxRows(woId)).toEqual([]);
+      const competingEnvelope = await envelope(
+        'execution.freeze_work_order',
+        freezeEnvelope.payload,
+        revised.workOrderRef as Common.ObjectRef,
+        true,
+      );
+      const candidates = [freezeEnvelope, competingEnvelope];
+      const outcomes = await Promise.allSettled(
+        candidates.map((candidate) => entry.freeze(candidate, sessionFor(service))),
+      );
+      const winner = outcomes.findIndex(
+        (result) => result.status === 'fulfilled' && result.value.status === 'COMMITTED',
+      );
+      expect(winner, JSON.stringify(outcomes)).toBeGreaterThanOrEqual(0);
+      expect(
+        outcomes.filter(
+          (result) => result.status === 'fulfilled' && result.value.status === 'COMMITTED',
+        ),
+      ).toHaveLength(1);
+      const loser = outcomes[1 - winner];
+      expect(loser).toMatchObject({
+        status: 'rejected',
+        reason: { code: 'AGGREGATE_STATE_NOT_ALLOWED' },
+      });
+      const winningEnvelope = candidates[winner];
+      if (winningEnvelope === undefined) throw new Error('missing winning Envelope');
+      freezeEnvelope = winningEnvelope;
+      await expect(
+        entry.freeze(
+          competingEnvelope === winningEnvelope ? candidates[0] : competingEnvelope,
+          sessionFor(service),
+        ),
+      ).rejects.toMatchObject({ code: 'AGGREGATE_STATE_NOT_ALLOWED' });
+
+      expect(await entry.freeze(freezeEnvelope, sessionFor(service))).toMatchObject({
+        status: 'DUPLICATE',
+      });
+      expect(await entry.validate(validationEnvelope, sessionFor(service))).toMatchObject({
+        status: 'DUPLICATE',
+      });
+      const staleBuild = await initialContextEntry.build(
+        await preparedBuild({
+          workOrderId: woId,
+          draftRef,
+          principal: service,
+          sourceSlices: [slice],
+          idempotencyKey: newUuidV7(),
+        }),
+        sessionFor(service),
+      );
+      expect(staleBuild).toMatchObject({
+        status: 'REJECTED',
+        errorCode: EXECUTION_DRAFT_SNAPSHOT_STALE,
+      });
+      const queryPayload = { workOrderRef: revised.workOrderRef };
+      const readDecision = await auth.authorizeWorkOrderContractRead(
+        identityDeps([fixture.projectId], service),
+        {
+          actorSnapshotRef: actorRef,
+          commandType: 'execution.get_work_order_contract',
+          commandVersion: '1.0',
+          targetRef: revised.workOrderRef as Common.ObjectRef,
+          commandPayloadHash: digestCanonicalPayload(queryPayload as CanonicalJsonObject).hash,
+          authenticationContextHash: AUTH_HASH,
+        },
+      );
+      const read = await entry.read(
+        {
+          queryId: newUuidV7(),
+          queryType: 'execution.get_work_order_contract',
+          queryVersion: '1.0',
+          scopeRef: scope(),
+          requester: objectRef(PRINCIPAL_OBJECT, serviceId, scope()),
+          authenticationContextRef: {
+            kind: 'CONTENT_ADDRESSED',
+            objectType: 'zhiju.identity.authentication_context',
+            objectId: actorId,
+            scope: scope(),
+            contentHash: contentHash(AUTH_HASH.toString('hex')),
+          },
+          authorizationDecisionRef: readDecision.authorizationDecisionRef,
+          consistencyRequirement: 'AUTHORITATIVE',
+          correlationId: newUuidV7(),
+          requestedAt: new Date(clock).toISOString(),
+          payload: queryPayload,
+        },
+        sessionFor(service),
+      );
+      expect(read.workOrderContract).toEqual(revised);
+      // Historical success does not preserve a revoked dependency Grant.
+      const revokedGrant = validationGrants.get('workOrderFreezeDraftReadV1');
+      if (revokedGrant === undefined) throw new Error('missing Freeze Draft Grant');
+      expect(
+        await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+          targetId: revokedGrant,
+          expectedAggregateVersion: '1',
+          scope: {
+            scopeKind: 'PROJECT',
+            enterpriseId: fixture.enterpriseId,
+            projectId: fixture.projectId,
+          },
+          reasonCode: 'WI219_REVOKE_FREEZE_DRAFT_READ',
+          effectiveAt: new Date(clock),
+          idempotencyKey: newUuidV7(),
+        }),
+      ).toMatchObject({ status: 'COMMITTED' });
+      await expect(entry.freeze(freezeEnvelope, sessionFor(service))).rejects.toMatchObject({
+        code: 'AUTHORIZATION_REVOKED',
+      });
+
+      await expect(
+        withTaskExecutionTransaction(teDb, runnerContext(service), (trx) =>
+          sql`UPDATE task_execution.work_order_contract SET canonical_payload=canonical_payload WHERE work_order_id=${woId}::uuid`.execute(
+            trx,
+          ),
+        ),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(
+        admin.query(
+          'UPDATE task_execution.work_order_contract SET canonical_payload=canonical_payload WHERE work_order_id=$1',
+          [woId],
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+      await expect(
+        admin.query(
+          'UPDATE task_execution.work_order SET frozen_contract_hash=$2 WHERE work_order_id=$1',
+          [woId, Buffer.alloc(32, 7)],
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+      const hidden = await withTaskExecutionTransaction(
+        teDb,
+        { ...runnerContext(service), allowedProjectIds: [newUuidV7()] },
+        (trx) =>
+          sql`SELECT contract_id FROM task_execution.work_order_contract WHERE work_order_id=${woId}::uuid`.execute(
+            trx,
+          ),
+      );
+      expect(hidden.rows).toEqual([]);
+
+      expect(
+        (
+          await admin.query(
+            'SELECT status,aggregate_version FROM task_execution.work_order WHERE work_order_id=$1',
+            [woId],
+          )
+        ).rows,
+      ).toEqual([{ status: 'READY', aggregate_version: '2' }]);
+      expect(
+        (
+          await admin.query(
+            "SELECT count(*)::int AS n FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.WorkOrderBecameReady'",
+            [woId],
+          )
+        ).rows,
+      ).toEqual([{ n: 1 }]);
+    },
+  );
 });

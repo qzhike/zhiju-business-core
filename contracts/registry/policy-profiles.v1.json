@@ -55,7 +55,9 @@
           },
           "allowedPurposeCodes": {
             "type": "array",
-            "items": { "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode" },
+            "items": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/namespaceCode"
+            },
             "minItems": 1,
             "uniqueItems": true
           }
@@ -80,7 +82,9 @@
         "properties": {
           "allowedProjectionTypes": {
             "type": "array",
-            "items": { "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/projectionType" },
+            "items": {
+              "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/projectionType"
+            },
             "minItems": 1,
             "uniqueItems": true
           }
@@ -142,6 +146,68 @@
               ]
             },
             "uniqueItems": true
+          }
+        }
+      }
+    },
+    {
+      "registryKey": "execution.work_order_controls.policy@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "01996900-0000-7000-8000-000000000104",
+        "versionId": "01996900-0000-7000-8000-000000000114",
+        "scope": {}
+      },
+      "documentSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["controls"],
+        "properties": {
+          "controls": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "targetScope",
+              "allowedCapabilities",
+              "deniedCapabilities",
+              "expectedOutputs",
+              "riskAndQuality",
+              "executionPolicy",
+              "budget",
+              "harnessPolicy",
+              "modelPolicy"
+            ],
+            "properties": {
+              "targetScope": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/targetScope"
+              },
+              "allowedCapabilities": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/allowedCapabilities"
+              },
+              "deniedCapabilities": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/deniedCapabilities"
+              },
+              "expectedOutputs": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/expectedOutputs"
+              },
+              "riskAndQuality": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/riskAndQuality"
+              },
+              "executionPolicy": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/executionPolicy"
+              },
+              "budget": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/budget"
+              },
+              "harnessPolicy": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/harnessPolicy"
+              },
+              "modelPolicy": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/modelPolicy"
+              }
+            }
           }
         }
       }

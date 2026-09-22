@@ -336,6 +336,15 @@ export namespace TaskExecution {
 };
 };
 };
+  export type ValidateWorkOrderDraftCommandResult = {
+  readonly validationSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.execution.work_order_validation";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
   export type ContextBuilderPolicyBinding = {
   readonly builderPolicyRef: Common.VersionedRef & {
   readonly objectType?: "zhiju.identity.policy";
@@ -394,6 +403,21 @@ export namespace TaskExecution {
 };
   /** Result of `execution.build_task_readiness` (COMMAND). */
   export type ExecutionBuildTaskReadinessResult = TaskExecution.BuildTaskReadinessCommandResult;
+  /** Payload of `execution.validate_work_order_draft` (COMMAND). */
+  export type ExecutionValidateWorkOrderDraftPayload = {
+  readonly draftSnapshotRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.work_order_draft_snapshot";
+};
+  readonly candidateContract: Core.WorkOrderContract;
+  readonly policyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+};
+  readonly evaluatorRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.execution.evaluator_profile";
+};
+};
+  /** Result of `execution.validate_work_order_draft` (COMMAND). */
+  export type ExecutionValidateWorkOrderDraftResult = TaskExecution.ValidateWorkOrderDraftCommandResult;
   /** Payload of `execution.create_work_order` (COMMAND). */
   export interface ExecutionCreateWorkOrderPayload {
   readonly draft: TaskExecution.WorkOrderDraft;

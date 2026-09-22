@@ -42,6 +42,18 @@ export const taskExecutionObjectTypes = {
     owner: 'task-execution',
     kinds: ['VERSIONED'],
   },
+  // #219: the WorkOrder Validation judgment identity (OBJECT target / SNAPSHOT
+  // result) and the content-addressed identity of the frozen WorkOrderContract
+  // that the future Freeze event and Root pointer will use. The contract
+  // identity is not a reference entry of any baseline operation.
+  'zhiju.execution.work_order_validation': {
+    owner: 'task-execution',
+    kinds: ['OBJECT', 'SNAPSHOT'],
+  },
+  'zhiju.contract.work_order': {
+    owner: 'task-execution',
+    kinds: ['CONTENT_ADDRESSED'],
+  },
   // #214: the canonical spelling of the EnterpriseProject-owned Enterprise
   // Fact versioned identity. The initial-Context assembler normalizes the
   // published `factRef` spelling of a Source Slice onto this registered name
@@ -1169,6 +1181,156 @@ export function assertTaskReadinessCompatibilityMetadata(
       entry.dataClassification !== expected.dataClassification
     ) {
       throw new Error(`inconsistent task readiness compatibility metadata: ${expected.type}`);
+    }
+  }
+}
+
+interface WorkOrderValidationRegistration {
+  readonly type: string;
+  readonly kind: 'COMMAND';
+  readonly owner: string;
+  readonly schemaStatus: 'FULL';
+  readonly targetObjectType: string;
+  readonly concurrencyMode: 'CREATE';
+  readonly authorizationPurpose: string;
+  readonly dataClassification: string;
+  readonly resultSchemaRef: string;
+  readonly references: readonly OperationReferenceDeclaration[];
+  readonly resultReferences: readonly OperationReferenceDeclaration[];
+}
+
+/**
+ * Approved #219 registration for the WorkOrder Validation producer. The
+ * command creates one immutable judgment, so it is a CREATE with an
+ * operation-specific Result Schema and no dedicated build-time PayloadGuard
+ * technical Policy; unlike the readiness producer, all four payload refs are
+ * declared because their namespaces are version-independent (Spec 003 §21.1).
+ * One entry, so a second version, an added reference or a rewritten Purpose is
+ * a registration regression rather than an accepted extension.
+ */
+const workOrderValidationRegistrations: readonly WorkOrderValidationRegistration[] = [
+  {
+    type: 'execution.validate_work_order_draft',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.work_order_validation',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'execution.work_order.draft.validate',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_validate_work_order_draft_result',
+    references: [
+      {
+        path: '/targetRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.execution.work_order_validation',
+      },
+      {
+        path: '/payload/draftSnapshotRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.work_order_draft_snapshot',
+      },
+      {
+        path: '/payload/policyRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.identity.policy',
+      },
+      {
+        path: '/payload/evaluatorRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.execution.evaluator_profile',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/data/validationSnapshotRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.execution.work_order_validation',
+      },
+    ],
+  },
+] as const;
+
+export function assertWorkOrderValidationOperationRegistrations(
+  operations: readonly (Omit<PublicOperationDefinition, 'version'> & {
+    readonly version: string;
+  })[],
+): void {
+  // The frozen-Contract identity is registered but is not a reference entry of
+  // any baseline operation; pin the entry here so a removal or a kind change
+  // fails at build time instead of surfacing at the future Freeze slice.
+  const contractIdentity = (
+    taskExecutionObjectTypes as Readonly<
+      Record<string, { readonly owner: string; readonly kinds: readonly string[] }>
+    >
+  )['zhiju.contract.work_order'];
+  if (
+    contractIdentity?.owner !== 'task-execution' ||
+    contractIdentity.kinds.length !== 1 ||
+    contractIdentity.kinds[0] !== 'CONTENT_ADDRESSED'
+  ) {
+    throw new Error('unregistered work order contract object type');
+  }
+  for (const expected of workOrderValidationRegistrations) {
+    const matching = operations.filter(
+      (operation) => operation.type === expected.type && operation.version === '1.0',
+    );
+    if (matching.length !== 1)
+      throw new Error(`missing or duplicate work order validation operation: ${expected.type}`);
+    const operation = matching[0];
+    if (operation === undefined) throw new Error('missing work order validation operation');
+    if (
+      operation.kind !== expected.kind ||
+      operation.owner !== expected.owner ||
+      operation.schemaStatus !== expected.schemaStatus ||
+      operation.targetObjectType !== expected.targetObjectType ||
+      operation.concurrencyMode !== expected.concurrencyMode ||
+      operation.allowedConsistency !== undefined ||
+      operation.authorizationPurpose !== expected.authorizationPurpose ||
+      operation.dataClassification !== expected.dataClassification ||
+      operation.payloadGuardPolicyRef !== undefined ||
+      operation.resultSchemaRef !== expected.resultSchemaRef ||
+      !sameRegistrationValue(operation.references ?? [], expected.references) ||
+      !sameRegistrationValue(operation.resultReferences ?? [], expected.resultReferences)
+    ) {
+      throw new Error(`invalid work order validation registration: ${expected.type}`);
+    }
+    for (const ref of [...expected.references, ...expected.resultReferences]) {
+      const object = (
+        taskExecutionObjectTypes as Readonly<
+          Record<string, { readonly owner: string; readonly kinds: readonly string[] }>
+        >
+      )[ref.objectType];
+      if (!object?.kinds.includes(ref.kind))
+        throw new Error(
+          `unregistered work order validation reference object type: ${ref.objectType}`,
+        );
+    }
+  }
+}
+
+export function assertWorkOrderValidationCompatibilityMetadata(
+  metadata: readonly {
+    readonly type: string;
+    readonly version: string;
+    readonly authorizationPurpose: string;
+    readonly dataClassification: string;
+  }[],
+): void {
+  for (const expected of workOrderValidationRegistrations) {
+    const entries = metadata.filter(
+      (entry) => entry.type === expected.type && entry.version === '1.0',
+    );
+    const entry = entries[0];
+    if (
+      entries.length !== 1 ||
+      entry?.authorizationPurpose !== expected.authorizationPurpose ||
+      entry.dataClassification !== expected.dataClassification
+    ) {
+      throw new Error(
+        `inconsistent work order validation compatibility metadata: ${expected.type}`,
+      );
     }
   }
 }

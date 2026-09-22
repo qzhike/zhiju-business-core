@@ -469,6 +469,40 @@ export const publicApiOperations = [
     ],
   },
   {
+    type: 'execution.validate_work_order_draft',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.work_order_validation',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'execution.work_order.draft.validate',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_validate_work_order_draft_result',
+    references: [
+      { path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.execution.work_order_validation' },
+      {
+        path: '/payload/draftSnapshotRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.work_order_draft_snapshot',
+      },
+      { path: '/payload/policyRef', kind: 'VERSIONED', objectType: 'zhiju.identity.policy' },
+      {
+        path: '/payload/evaluatorRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.execution.evaluator_profile',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/data/validationSnapshotRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.execution.work_order_validation',
+      },
+    ],
+  },
+  {
     type: 'execution.create_work_order',
     version: '1.0',
     kind: 'COMMAND',
