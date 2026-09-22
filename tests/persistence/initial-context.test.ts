@@ -7164,6 +7164,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   itIntegration(
     'TE-VAL-S-008 completes the owning Validation, Freeze and authoritative Contract path',
     async () => {
+      // This independent chain must not inherit the time spent running the
+      // preceding 22 cases: the Decision lookup's bootstrap lease is 60s
+      // from the trusted instant, and PostgreSQL checks it against wall time.
+      clock = Date.now();
       const serviceId = newUuidV7(),
         actorId = newUuidV7();
       await withIdentityTransaction(identityDb, identityContext([]), (trx) =>
