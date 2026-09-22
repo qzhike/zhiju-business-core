@@ -131,3 +131,15 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 | IG-WI03-D-003 | 延迟 ack，超时 UNKNOWN，同稳定键重放三次，随后释放原调用 ack 并 readback | 无二次 dispatch；无 ack 时 Query 省略 acknowledgement；原调用读回后才追加 Observation。Run lease 已过期时仍不得 start | NOT RUN |
 | IG-WI03-D-004 | Raw Receipt 已提交但 Attempt success 事务前崩溃；另在 success/Outbox 提交后 Worker 确认前崩溃 | 前者孤立 Receipt 不证明成功，恢复核验原 ack 后补交 Attempt；后者原 Observation/Receipt 重放，无第二成功事件；相同 identity 异 Hash 拒绝 | NOT RUN |
 | IG-WI03-D-005 | 同稳定键不同 requestHash，或 Fixture 中途更换 Result 样本/合成 RuntimeBinding；延迟 final 仍携带原 token/submission | 冲突不替换原调用，原样本/Hash/来源可追溯；late final 交给 TE 接收边界隔离，不由 IG 修改 Run、Acceptance 或 Completion | NOT RUN |
+
+### 首个 READY Run 的 Attempt/Receipt 设计矩阵（提案）
+
+| ID | 层级与输入 | 预期 | 当前结果 |
+|---|---|---|---|
+| IG-RUN-D-001 | 已提交 TE Run/ACTIVE Claim 与当前 Bundle；IG 按独立授权读 Binding，提交 Attempt 后真实调用 synthetic Driver，再经 owning `record_external_receipt@1.0`/Observation 成功 | 原 request、binding、Raw Receipt、ack/session/Observation Hash 精确，SUCCEEDED 和唯一已注册成功 Event；新增 Query 完整读回且无 secret | NOT RUN |
+| IG-RUN-D-002 | TE Binding 权限或 Bundle 消费权限缺失、撤销、到期；request 中置换任一 Ref/RuntimeBinding/lease/fencing/Scope | protected read 前或提交前拒绝，Driver 调用 0 次；不以 caller CanonicalJson 或静态 selector 代替当前 TE/IP 权威 | NOT RUN |
+| IG-RUN-D-003 | Driver 未调用的 fixture SUCCEEDED、无原始 ack 的 caller Receipt、错 session/Hash/source、UNKNOWN 后同键重放 | 无可用 SUCCEEDED/ack；UNKNOWN 不二次调用；只有原调用真实 ack 可追加调和 Observation | NOT RUN |
+| IG-RUN-D-004 | `V7001` 历史 Renderer Receipt、未来 Runtime Receipt、错 kind/Attempt FK/Scope/Hash 与两类 Query | 历史 Renderer 行和约束保留；Runtime kind 只连真实 RuntimeAttempt；公开 RawExternalReceipt identity 唯一；错 kind 直 SQL 被拒绝 | NOT RUN |
+| IG-RUN-D-005 | Raw Receipt 已提交而 Attempt 状态未提交、Attempt SUCCEEDED 后 Worker 进度未提交、两次并发同键请求 | 原已提交事实不伪造 success；原键/Observation 恢复，唯一成功 Event/Driver 调用；异 payload 冲突 | NOT RUN |
+
+以上均须用真实 owning 入口与 PostgreSQL 约束执行；静态设计/合成样本本身不记录为运行通过。

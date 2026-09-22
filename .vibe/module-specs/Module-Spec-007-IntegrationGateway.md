@@ -312,3 +312,15 @@ Attempt invocationBinding 创建后不可变；success observation 必须复验 
 拥有关系、物理表和 guard 见 PostgreSQL 技术设计附录。旧 Renderer/FormalReceipt 行为保持原基准；本设计不授权 Runtime 六项控制命令。Runtime成功与 synthetic 技术证据必须分别标记。
 
 TD-02 受控 Driver 的完整输入/输出由 [Runtime profile](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md#受控-driver-输入输出与调度)拥有；Fixture 配置不能作为公开请求字段或成功证明。RawReceiptSubmission 的 attemptKind 为 RUNTIME，attemptRef 来自已提交 Attempt；providerReceiptRef 标识实际 synthetic receipt，receiptPayloadRef/hash 来自保存的安全原始 ack；occurredAt 仅在真实观察存在时填入，recordedAt 为受信记录时间。先由既有 record_external_receipt 提交 RawExternalReceipt，再由 IG Worker 在自己的 Attempt 事务校验 exact Receipt、追加 Observation、更新成功状态并写 Outbox。目标事务提交后、Worker 进度确认前崩溃时按原稳定键/Observation identity 重放；孤立 Receipt 不是 SUCCEEDED。该步骤是既有 owning Worker 的内部职责，不是调用方任意设置 status 的新公开 API；不得通过调用者自带 Receipt 反向构造可信 binding。
+
+### IM-06 READY Run 启动增量（提案，2026-09-22）
+
+状态：`T2 / PROPOSED / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-22 / HUMAN DESIGN APPROVED 2026-09-22 / NOT IMPLEMENTED`。本项把上述已批准 TD-02 Binding Query 用于 #219 后的首个 canonical READY Run，细节见[Spec 003 §22](Module-Spec-003-TaskExecution.md#22-ready--queued--受控-run-启动增量设计提案)和[决定 §21](../decisions/task-execution-human-operated.md#21-ready-workorder-到受控-run-启动的增量设计提案)。新增 `integration.get_runtime_attempt_binding@1.0` 的结果采用上文已批准 `RuntimeAttemptBindingView` 闭集；本波次仅支持 `source=SYNTHETIC_DRIVER`，Provider 分支留待 IM-08，不改变现有 `get_runtime_attempt@1.0` Schema。
+
+`request_runtime_dispatch@1.0` 仅由受信 IG Service 在独立当前授权下执行：先经 TE 的新 `get_run_dispatch_binding@1.0` 取得原 Run/ACTIVE Claim，再经 IdentityPolicy owning Port 重验 Bundle 与本次 IG 消费权限；原公开 request 的七个引用/RuntimeBinding 成员必须与 TE 精确读回逐字段一致，`stableIdempotencyKey` 固定到该 Run/attempt，`requestedAt` 取受信 Service 时刻。Attempt Ref 使用已发布的 `integration.runtime_attempt` spelling，原 request/hash、invocationBinding/hash、Project Scope 与稳定键先同事务提交，Receipt/Audit/Reference Edges 同事务；不得把还没执行的 Driver 标成 SUCCEEDED。不同 payload 复用稳定键拒绝，不能创建第二 Attempt。
+
+固定 synthetic RuntimeBinding：`adapterCode='te.human_operated.synthetic'`、`adapterVersion='1.0'`、`harnessId='zhiju.runtime.synthetic'`、`harnessVersion='1.0'`、`provider='synthetic'`、`modelId='synthetic'`、`modelConfigHash=SHA-256(canonicalization-v1({}))`，`executionNodeRef` 缺省。此映射使用 §21.6 静态 selector 的技术模式，但 Driver 是否确实安装、调用和返回 ack 必须由本模块的运行时事实证明。原 request 的 `runtimeBinding:CanonicalJson` 只允许此闭合集，任何额外字段、版本漂移或 caller 提供的另一个自洽 Hash 均拒绝。
+
+IG Worker 在 Attempt 提交后从自己的已提交原 request/Binding 形成最小 Driver 输入。实际调用产出的 session、ack 与 RawExternalReceipt 必须互相绑定 attempt、Run、lease/fencing、bindingHash；Raw Receipt 先由 owning 入口提交，然后 Attempt 事务追加不可变 Observation、状态 SUCCEEDED 与已注册成功 Event。超时/不明结果为 UNKNOWN，同稳定键重放不再调用；只有原调用真实 ack 的独立读回可追加调和 Observation。`get_runtime_attempt_binding@1.0` 在独立当前授权下按精确 Attempt Ref 返回原 request/hash、不可变 invocation/hash 和真实成功 Observation；缺 ack、错 Scope、过期或撤权不得伪造 SUCCEEDED 投影，未授权时 repository 读数为 0。Query 结果不带 token、密钥或可执行路径。Run lease 过期后仍可审计历史 Attempt，但 TE 不得因此 start。
+
+本切片的 IG 新表/权限与真实 PostgreSQL 正反例见 PostgreSQL §37、`IG-RUN-D-*`；真实 CLI/Provider、正式 Runtime Profile conformance、Result/Usage/Completion 保持 `NOT RUN`。

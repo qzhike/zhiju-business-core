@@ -1910,3 +1910,35 @@ Validator/Freeze 还通过 API composition 在本动作 principal 的独立授�
 新增支持集需要同步 Contract Catalog（一个 Policy profile selector、三个 static selector 及其类型/Owner）、Spec 001（owning capability classifier 和 Policy 接口使用）、PostgreSQL §36（新判断分支观察字段）、Runtime Adapter 的静态描述边界及 Module-Test-003。公开操作计数仍为 217/47/200；Controls profile 与 static selector 不计为 operation。无 IdentityPolicy/EP/IG 新业务表，无新公开 Query，无 Run 或通用 resolver。执行实现时补齐 source/generated/fixtures/registry drift 测试，并以真实 Policy 登记、Task/WorkOrder 创建、Slice capture、Context build、Validation、Freeze、Contract Query 形成正链。
 
 本 Delta 是实质设计：新增 Controls profile 和静态身份、限定 ArtifactRevision 技术计划首版支持集、扩展判断内部观察与有限上界。用户于 2026-09-22 在本文及 `TE-VAL-S-*` 具体差异呈现后明确批准；按 #219 继续实现。独立设计审查、实现审查、人类技术审查和原 full gate 保持各自要求；未运行验收继续 NOT RUN。
+
+## 22. READY → QUEUED → 受控 Run 启动增量设计提案
+
+状态：`T2 / PROPOSED 2026-09-22 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-22 / HUMAN DESIGN APPROVED 2026-09-22 / NOT IMPLEMENTED`。决定与范围见[设计决定 §21](../decisions/task-execution-human-operated.md#21-ready-workorder-到受控-run-启动的增量设计提案)。沿用 §11.4 的已批准状态/并发原则、§21 已交付的 canonical READY 事实；本节不改变现有已注册 @1.0 Command Schema 或既有 200 项 Compatibility Baseline。
+
+### 22.1 首版支持与闭合 Policy
+
+`queue_work_order@1.0` 只消费创建事实为 `create_work_order@1.1`、当前 Root READY、唯一冻结 Contract pointer/hash 正确、INITIAL Context 与 Contract 一致且均未过期的 WorkOrder。`queuePolicyRef` 必须逐字段等于冻结 Contract `versionPins.capabilityPolicyRef`，即本 Project 已提交的 `execution.work_order_controls.policy@1.0` 真实版本；由其中已批准的 synthetic Harness/Model 控制和静态 selector 得到唯一 class `te.human_operated.synthetic`，不新增 Queue Policy profile。`requestedRuntimeClass` 缺省或精确等于该值；首版 `notBefore` 必须缺省。Controls Policy、Context Builder Policy 和来源 Slice 各按其 owning 当前有效性重验。业务条件失败拒绝转换，不生成 `QUEUED`；身份/授权错误在 protected read 前拒绝。
+
+`create_run@1.0` 的 `leasePolicyRef` 必须等于冻结 Contract `executionPolicy.leasePolicyRef`，并按已批准 §21.5 同时等于 `versionPins.capabilityPolicyRef`；解析为同 Project 的 `execution.work_order_controls.policy@1.0`。`wallClockLimit` 对本执行子集必填并遵循 §21.7 的严格秒数语法；计算 deadline/lease 时使用精确整数与受信 UTC 时钟，不使用浮点或无限默认。已有合法但缺 wallClockLimit 的 READY WorkOrder 保持可读，不进入此子集。同一 Controls Policy 只表达计划控制，不签发 Runtime 能力；CapabilityGrantBundle 由 IdentityPolicy §15.12 单独证明。
+
+### 22.2 Queue 与 Run 创建
+
+Queue 在 WorkOrder 行锁下 CAS `READY` 与 expectedAggregateVersion，复查冻结指针、Scope/Hash、期限与同一 Controls Policy，保存该精确 Policy Ref、受信 `queuedAt` 和固定 runtime class；Root `aggregate_version` 前进。Root/状态事实、Receipt、Audit、Reference Edges、恰一个 Registry-valid `WorkOrderQueued@1.0` Outbox 同一事务。成功同键同 payload 重放须先重新授权，再返回历史结果；不同键不重复 queue。未达到 `QUEUED` 时不能 create_run。
+
+Dispatcher 预分配 `execution.run` UUIDv7 目标，经 IdentityPolicy owning `issue_execution_capability_bundle@1.0` 获得 exact `CONTENT_ADDRESSED/zhiju.identity.execution_capability_bundle`；此 Ref 必须等于 `creation.capabilityGrantRef`，Bundle 中的 target Run、WorkOrder、冻结 Contract、INITIAL Context、Project Scope 与签发 SERVICE subject 均须与本命令及其受信编排一致，消费 Service 另用自己的授权而不冒用该 subject。`creation.workOrderRef` 仅接受 canonical `zhiju.execution.work_order`；`creation.workOrderContractRef` 与 Root frozen pointer 完全一致，`creation.contextSnapshotRef` 等于该 Contract 的 INITIAL Context；`creation.attemptNumber` 等于同 WorkOrder 已提交最大 attempt 加 1，首版为 1。冻结 `maxAttempts=1`，任何第二次 attempt/retry 在本切片拒绝。`creation.runtimeBinding` 必须逐字段等于 Runtime 专项的固定 synthetic 映射，`executionNodeRef` 缺省；不存在的 Driver 或配置漂移拒绝，不因持有静态 selector 放行。
+
+创建时的 `executionDeadline` 与租约截止必须显式等于 `createdAt + wallClockLimit` 与 WorkOrder/Contract、Context、Bundle、Controls Policy、当前 Decision 有限上界的最小值，并严格晚于 `createdAt`；首版不续租。`createdAt` 是本次 owning 受信时刻，不取 caller `requestedAt`。对两个并发创建，在同 WorkOrder 稳定锁序下裁决 ACTIVE claim 与 `(work_order_id,attempt_number)`；成功事务只写 Run Root、不可变 security/lease binding、ACTIVE Claim、Receipt/Audit/Reference Edges，不修改 WorkOrder Root，也不发布未注册 RunCreated Event。失败事务无孤立 Run/Claim；过期但尚 ACTIVE 的旧 Claim 不能由新创建绕过。
+
+### 22.3 Dispatch Binding、Start 与 WorkOrder 协调
+
+新增 `execution.get_run_dispatch_binding@1.0` AUTHORITATIVE Query。请求 `{runRef: ObjectRef<execution.run>}`；结果 data 的闭集为 `{runRef,workOrderRef,workOrderContractRef,contextSnapshotRef,capabilityGrantRef,runtimeBinding,leaseId,fencingToken,leaseExpiresAt,executionDeadline?,status,aggregateVersion}`，字段类型沿用 §11.8；既有设计中的可选 `executionDeadline` 保持可选，但本受控子集每次均须返回该字段。仅在独立当前授权下从本模块 Run/ACTIVE Claim/不可变 binding 读取；Run 必须 CREATED/STARTING、Claim 当前 ACTIVE、各有限期限未到，Bundle 当前可用。错 Scope、悬空/篡改 Claim、已过期或 terminal 不返回敏感 binding；Query 不含 token、secret 或 workspace locator。
+
+IG 通过 §22.3 Query 建立实际 Attempt 后，TE 使用新增 `integration.get_runtime_attempt_binding@1.0` 的独立当前授权读取 IG-owned 原 request、不可变 invocation、成功 observation 与 Raw Receipt。`start_run@1.0` 不接受仅凭 `get_runtime_attempt@1.0` 的通用状态；须核对 Attempt `SUCCEEDED`、完整 Run/Contract/Context/Bundle/RuntimeBinding/lease/fencing、原 request hash、binding hash、ack session/source/receipt 的 owning 证明。`startedAt` 必须等于受信 Service 入口时刻并被本命令 Decision 固定；旧 `startedAt`、caller 时钟或 IG ack 时间不得覆盖。Run 行锁内重验 ACTIVE Claim、IdentityPolicy Bundle 当前有效性、Policy/Decision 与服务端时间；只允许 CREATED/STARTING→RUNNING，写单 Run 事务的 Receipt/Audit/状态事实和恰一个 `RunStarted@1.0` Outbox。相同命令重放先重新授权，返回原历史结果而不重新启动；错 Attempt、过期 lease、取消/终态、不同 final identity 均不产生 RUNNING。
+
+另注册已批准的 `execution.reconcile_work_order_execution@1.0`：本波次只支持以已提交、同 Scope 的 `ObjectRef<execution.run>` 为 `triggerRef`；`RunStarted` Event 可唤醒 Process，但其 Envelope 不充当 TypedRef 输入。Process 独立读取该 Run 当前 RUNNING 与有效 ACTIVE Claim，按 §11.5 在 WorkOrder Root 锁内将 QUEUED→RUNNING；重放相同事实无重复状态变化，尚无 Run、错误 Run、失效 Claim 或终态不推进。它不写 Run、不代替 RunStarted，也不引入通用状态设置。`get_run_state@1.0` 提供权威 RUNNING 读回；WorkOrder 的新状态由 reconcile Command Result 与 owning Root/审计验证，现有 `get_work_order_contract@1.0` 仍只读冻结 Contract。
+
+### 22.4 失败、兼容与验收
+
+四个写入 Root/Attempt 的命令和两个新增 Query 分别授权，历史 Receipt 返回前重验当前权限；IdentityPolicy Bundle、Policy 与 IG binding 的依赖读取各用消费专用 Decision。锁等待后的期限/撤权在提交点重验；IG 查询成功不使 TE 事务与 IG 事务跨模块原子。未知 dispatch 保留 Attempt UNKNOWN，不能 start；原调用的真实 ack 可独立调和，lease 到期后仍不能 start。Queue/Run/Start 失败不回滚此前合法 Bundle/Attempt，但不得留下本目标部分成功；Ref/Hash/Scope/版本/Policy/profile/Grant 任一不匹配 fail closed。
+
+实现时更新注册/生成类型与 fixtures、新增 forward-only migrations 和组成层接线；不改旧 @1.0 Schema、已应用 migration、#219 Contract/Context Hash 或 Runtime 六项未批准 Command。`TE-RUN-D-*` 与 `IG-RUN-D-*` 是设计预期，全部 `NOT RUN`；独立设计审查和明确人类设计批准先于实现 Issue。完整验证目标为 `vibe verify full --json`，包含真实 PostgreSQL 空库、升级与二次 no-op；外部 Provider/CLI/飞书、Result/Usage/Completion 和人工验收继续 `NOT RUN`。

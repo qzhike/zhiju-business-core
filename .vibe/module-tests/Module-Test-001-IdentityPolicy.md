@@ -237,3 +237,15 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 | IP-WOV-S-004 | 初次授权后在锁等待或历史结果返回前撤销 Grant/取代授权 Policy | 提交/返回前当前重验拒绝；无业务成功事实，不返回历史结果恢复资格 | NOT RUN |
 
 #219 实现分层：七条授权映射由 `work-order-validation-authorization.test.ts` 覆盖当前 Decision、Grant、Policy、ref/hash/Scope 与零 repository 读取拒绝；执行能力分类由 `task-execution-capability-boundary.test.ts` 覆盖 Service、Human-only 和未知消费操作。Controls 的真实登记/解析、同一 Service 独立动作和冻结后撤销 Draft 读取 Grant 由 TE-VAL-S-008 覆盖。IP-WOV-S 表中未逐项执行的 owning Policy 取代、另一 Service audience 与提交瞬间撤权组合仍 NOT RUN，不能由授权单测升级为持久化通过。
+
+### IM06-RUN-START 授权与 Bundle 设计矩阵（提案）
+
+| ID | 层级与输入 | 预期 | 当前结果 |
+|---|---|---|---|
+| IP-RUN-D-001 | 真实同 Project covering Grant/Policy 与 canonical frozen Contract，Dispatcher SERVICE 为预分配 Run 签发非 Human-only 能力 Bundle | 不可变 CONTENT_ADDRESSED Ref、完整 Grant/Policy/Decision/Scope/Run/Contract 观察、有限 validUntil；Receipt/Audit/Bundle 原子提交 | NOT RUN |
+| IP-RUN-D-002 | 部分未授权能力、deny 冲突、Human-only、空集合、错主体/Scope/Run、actingFor、伪造 Grant/Hash | 签发拒绝且无 Bundle；WorkOrder 的声明与单个 Grant 均不构成执行权 | NOT RUN |
+| IP-RUN-D-003 | 已签发 Bundle 后撤销 Grant、Policy 取代、Decision/能力期限到达，再分别 create_run、IG dispatch、start | 各消费独立当前重验拒绝；历史 Bundle 仍可审计；无 protected read/Claim/业务成功事实 | NOT RUN |
+| IP-RUN-D-004 | Queue/Run/IG/Start/两个 Binding Query/reconcile 的独立映射：逐一移除 Grant、置换完整 target/ref/hash、配置漂移 | 每条只能授权对应 operation/version/Purpose/target/Scope；缺权限时目标 repository 读数为 0；不借相同 SERVICE principal 或 Freeze Decision | NOT RUN |
+| IP-RUN-D-005 | app-role 直 SQL、无事务 Context、异 Project、Bundle payload/hash/source Receipt 篡改与签发事务回滚 | FORCE RLS/ACL/guard 拒绝；无残留成功 Bundle；原有 PolicyVersion/Grant/Decision 行不改写 | NOT RUN |
+
+这些是设计预期；实现后按 Unit、Contract、真实 PostgreSQL 和外部/人工层级分别填写实际结果，不以本提案记录 PASS。

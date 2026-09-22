@@ -747,3 +747,42 @@ TaskExecution 把 `INVALID` 收敛为公开共享码 `HUMAN_ONLY_CAPABILITY`（[
 - §15.10 七条当前授权映射不变。Freeze 的已批准判断预读只解出受当前自身授权保护的 exact judgment，不把该判断的 producer Decision 当权限。Builder/Validator/Freeze 使用相同 Service principal 只是为了满足 EP Slice audience 的现有约束，不允许动作之间共享 Decision/Grant。
 
 消费者测试必须涵盖真实 Controls Policy 登记/解析、无 resolve Grant 的零读、取代/到期/跨 Project、Human 创建却包含 Human-only 声明、相同 principal 但缺独立动作 Grant，以及依赖权限在入口后丢失的提交/返回拒绝。各场景按实际层级记录在 Module-Test-001/003，外部与人工验收仍 NOT RUN。
+
+### 15.12 IM06-RUN-START 执行能力 Bundle 与独立授权提案
+
+状态：`T2 / PROPOSED 2026-09-22 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-22 / HUMAN DESIGN APPROVED 2026-09-22 / NOT IMPLEMENTED`。服务 [Spec 003 §22](Module-Spec-003-TaskExecution.md#22-ready--queued--受控-run-启动增量设计提案)；本节只拥有 Grant/Decision/Policy 与 Bundle 的签发、当前重验和授权映射，不接管 WorkOrder、Run 或 RuntimeAttempt 状态。
+
+新增 `identity.issue_execution_capability_bundle@1.0`，`COMMAND/CREATE`，target `zhiju.identity.execution_capability_bundle`、Purpose `identity.execution_capability_bundle.issue`。闭集 payload 为 `{runRef:ObjectRef<execution.run>,workOrderRef:ObjectRef<zhiju.execution.work_order>,workOrderContractRef:ContentAddressedRef<zhiju.execution.work_order_contract>,contextSnapshotRef:SnapshotRef<zhiju.execution.context_snapshot>,servicePrincipalRef:PrincipalRef,requestedCapabilities:NonEmptySet<CapabilityGrant>}`；Result.data 只有 `bundleRef:ContentAddressedRef<zhiju.identity.execution_capability_bundle>`。签发前以本次主体的两条独立消费授权调用 TE `get_work_order_contract@1.0` 和 `get_context_snapshot@1.0`，核对 Root frozen pointer、Context/Contract 精确绑定、Scope/Hash/当前期限；缺任一授权时对应 TE repository 读数为 0。`requestedCapabilities` 使用 Core §4 的完整声明形状，但不得包含任意新权利：逐项精确包含于冻结 Contract 的 allow 集、与 deny 集不重叠，Scope/action/resource selector 被当前同 Project covering Grant/Policy 完整覆盖，且经 owning Human-only 分类拒绝受保留能力。命令只能由受信 Dispatcher SERVICE 以自身 ActorSnapshot/Decision 调用；`servicePrincipalRef` 必须等于认证主体，`runRef` 为本次预分配目标，不能用 WorkOrder requestedBy、actingFor 或任意代理主体签发。
+
+Bundle canonical payload 闭集为 `{runRef,workOrderRef,workOrderContractRef,contextSnapshotRef,servicePrincipalRef,capabilities,grantObservations,issuedDecisionRef,issuedAt,validUntil}`。每个 Core CapabilityGrant 的 `capabilityType` 必须等于一个当前 ScopedCapability 的 `capabilityCode`，其每个 action/resourceSelector 都由**同一个**当前 covering Grant 精确覆盖；Core 的 `constraints=[]`、`maxUses` 缺省，对应 IdentityPolicy Grant 的可执行 `constraints={}`、`maxUses` 缺省，不能把两个 Grant 的动作/资源拼成一次覆盖。Core `grantPolicyRef` 按已批准 §21.5 等于冻结 Controls Policy Ref，须独立解析并保持当前有效；IdentityPolicy Grant 自己绑定的 PolicySnapshot 是另一项来源观察，二者不得假定为同一种 Ref 或互相替代。`grantObservations` 对每个实际 covering Grant 保存完整 Grant Ref、PolicySnapshot Ref/hash、Grant/Policy 有效时间和精确覆盖的 capability；按 capability/action/resource/Grant ID 稳定排序，无重复。`validUntil` 为签发 Decision、所有参与 Grant/Policy、所有声明 capability 期限及冻结 Contract/Context 期限的有限最小值，必须严格晚于受信 `issuedAt`；无可验证有限上界拒绝。Bundle identity 独立 UUIDv7，内容地址 Hash 为完整 canonical payload 的 SHA-256，不含自身 Ref/Hash。写入与源命令 Receipt/Audit/Reference Edges 同一 IdentityPolicy 事务；app 角色不得 UPDATE/DELETE，Scope mirror、来源 Receipt、Hash 与 typed refs 在数据库守卫中闭合。签发不创建新 CapabilityGrant，也不允许 Bundle 被后续修改为更多权限。
+
+提供 owning 内部 `ExecutionCapabilityBundlePort` 的 `readExactForRun`、`revalidateForDispatch`、`revalidateForStart` 三个消费边界；返回最小完整 payload 与当前 useStatus，不提供跨模块 Repository。每次重新读取当前 Grant/Policy/撤销事实、签发主体、Scope、Run/Contract binding 与受信时间；历史 Bundle 存在不等于仍可用。TE create_run、IG dispatch、TE start_run 各须在自己的独立 Decision 下调用，且返回或提交前重验；任何 dependency read 权限缺失时在 Bundle repository 读前拒绝。跨模块观测只保证调用时点，不宣称分布式原子性；Run/Attempt/start 各次重新授权。
+
+| 消费边界 | Purpose / Actor | 独立 action / selector / target | 受信 config key |
+|---|---|---|---|
+| Bundle CREATE | `identity.execution_capability_bundle.issue` / Dispatcher SERVICE | `identity.execution_bundle.issue.v1` / `CREATE_TARGET_TYPE` / `zhiju.identity.execution_capability_bundle` | `executionBundleIssueV1` |
+| Queue | 已发布 `task.execution.queue_work_order` / HUMAN | `execution.work_order.queue.v1` / `TARGET_TYPE` / `zhiju.execution.work_order` | `workOrderQueueV1` |
+| Run CREATE | 已发布 `task.execution.create_run` / Dispatcher SERVICE | `execution.run.create.v1` / `CREATE_TARGET_TYPE` / `execution.run` | `runCreateV1` |
+| Dispatch Binding Query | `execution.run.dispatch_binding.read` / IG SERVICE | `execution.run.dispatch_binding.read.v1` / `TARGET_TYPE` / `execution.run` | `runDispatchBindingReadV1` |
+| Runtime dispatch | 已发布 `integration.gateway.request_runtime_dispatch` / IG SERVICE | `integration.runtime.dispatch.request.v1` / `CREATE_TARGET_TYPE` / `integration.runtime_attempt` | `runtimeDispatchV1` |
+| Runtime Raw Receipt CREATE | 已发布 `integration.gateway.record_external_receipt` / IG SERVICE | `integration.runtime.receipt.record.v1` / `CREATE_TARGET_TYPE` / `integration.raw_external_receipt` | `runtimeReceiptRecordV1` |
+| Attempt Binding Query | `integration.runtime.binding.read` / TE SERVICE | `integration.runtime.binding.read.v1` / `TARGET_TYPE` / `integration.runtime_attempt` | `runtimeAttemptBindingReadV1` |
+| Run start | 已发布 `task.execution.start_run` / TE SERVICE | `execution.run.start.v1` / `TARGET_TYPE` / `execution.run` | `runStartV1` |
+| WorkOrder reconcile | `execution.work_order.reconcile` / Process SERVICE | `execution.work_order.reconcile.v1` / `TARGET_TYPE` / `zhiju.execution.work_order` | `workOrderReconcileV1` |
+
+以下 dependency read 也须逐消费方单独授权；完整 ContentAddressed/Snapshot Ref 保存在 Decision payload，V1006 target 镜像只保存其 OBJECT 身份，不能丢弃 Hash 或把内容寻址 Ref 当成 OBJECT target。所列 action 与 config key 均为提案的新受信映射，不增加公开授权 Command。
+
+| 消费方 → 依赖 | Purpose / target | 独立 action / config key |
+|---|---|---|
+| Bundle issue → TE Contract | 已发布 `task.execution.get_work_order_contract` / `zhiju.execution.work_order` | `execution.work_order.contract.read.for_bundle_issue.v1` / `bundleIssueContractReadV1` |
+| Bundle issue → TE INITIAL Context | 已发布 `task.execution.get_context_snapshot` / `zhiju.execution.context_snapshot` | `execution.context.snapshot.read.for_bundle_issue.v1` / `bundleIssueContextReadV1` |
+| Queue → TE Contract/Context | 对应上述两条已发布 Query Purpose / canonical WorkOrder、Context | `execution.work_order.contract.read.for_queue.v1` / `queueContractReadV1`；`execution.context.snapshot.read.for_queue.v1` / `queueContextReadV1` |
+| Run CREATE → TE Contract/Context | 对应上述两条已发布 Query Purpose / canonical WorkOrder、Context | `execution.work_order.contract.read.for_run_create.v1` / `runCreateContractReadV1`；`execution.context.snapshot.read.for_run_create.v1` / `runCreateContextReadV1` |
+| Run CREATE → IP Bundle | `identity.execution_capability_bundle.read` / `zhiju.identity.execution_capability_bundle` | `identity.execution_bundle.read.for_run_create.v1` / `runCreateBundleReadV1` |
+| Runtime dispatch → IP Bundle | `identity.execution_capability_bundle.read` / 同上 | `identity.execution_bundle.read.for_dispatch.v1` / `runtimeDispatchBundleReadV1` |
+| Run start → IP Bundle、IG Attempt | `identity.execution_capability_bundle.read` / 同上；`integration.runtime.binding.read` / `integration.runtime_attempt` | `identity.execution_bundle.read.for_run_start.v1` / `runStartBundleReadV1`；`integration.runtime.binding.read.for_run_start.v1` / `runStartAttemptReadV1` |
+| WorkOrder reconcile → TE Run | 已发布 `task.execution.get_run_state` / `execution.run` | `execution.run.state.read.for_work_order_reconcile.v1` / `workOrderReconcileRunReadV1` |
+
+Queue、Run CREATE、Run start 读取各自拥有的 WorkOrder/Run Root 仍先重验自身命令 Decision；表中依赖读取不授权另一命令。每次 `identity.resolve_policy@1.0` 也使用该消费动作自身的当前 Policy-read Decision，不跨 Queue/Run/Start 或 Bundle issue 共享查询结果/历史 Decision。已有 TE/IG public Query 若在组成层被调用，必须同时满足该 Query 的注册 Purpose 与上述消费专用 action，不能只凭其中之一。
+
+Purpose 值以现行 compatibility metadata 的逐字符值为准；上表中新操作 Purpose 随其注册固定，既有操作若 metadata 与本设计文字冲突，须在设计审查中先调和而不得静默改写已发布值。Queue/Run/Start/IG 各自的 Contract、Context、Bundle、Policy/Grant 和跨模块 Query 读取使用**消费专用** Decision，不能由上述命令 Decision、相同 principal、Freeze Decision 或 Service 通配授权替代。自身与依赖 Decision 均绑定完整 operation/version、payload hash、target、Project Scope、ActorSnapshot；在目标 protected read/Claim 前重验，在持锁提交及历史 Receipt/Query 返回前再次重验。缺失、撤销、过期或配置漂移只留下脱敏 DENIED Audit，不产生成功业务事实。完整映射和零读负例见 Module-Test-001/003；不得修改现有 `authorize_command@1.0` 的公开接受集或已应用 V1006。
