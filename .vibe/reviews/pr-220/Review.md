@@ -56,3 +56,31 @@
 - 文档已列出的迟到撤权、Policy 取代、逐列 INSERT/source Receipt 等未执行组合仍为 `NOT RUN`；本次未将这些组合改记 PASS。
 - 人类技术审查仍待完成。外部 Provider/Runtime/飞书、生产部署、Run/Completion 与独立人工业务验收均为 `NOT RUN`，且不属于本次 READY 交付。
 - 本轮只新增正式审查记录，不修改产品实现或冻结设计，不 commit、push 或 merge。记录进入 PR 分支仍需相应 Git 交付授权；评论发布与文件入库是两项不同事实。
+
+## 第 2 轮：`REQUEST_CHANGES`
+
+- Reviewed SHA：`f21f2ac5828358117caada8cff9807cf3945a1e0`
+- 日期：2026-09-22
+- GitHub handoff：[本轮 PR comment](https://github.com/qzhike/zhiju-business-core/pull/220#issuecomment-5773573335) 已发布并读回；上一轮 comment 只对应 `a181543`。
+
+已独立核对 `a181543..f21f2ac` 的六个变更文件、新 `V3005` helper、真实 app-role INSERT 矩阵和权威 Spec 003 §21.8、PostgreSQL §36.1。此次修订没有改变公开 Operation、冻结/读取 Handler 或既有迁移。新版本的 source 和远端 PR head 均为上述 SHA。
+
+### 上轮 F1 复核
+
+在独立 PostgreSQL 18.6 容器重新加载原始迁移至新 V3005；对上轮的正向对照和四个反例保持相同的 Service/Project context、PENDING Receipt、app role、Hash 重算和事务回滚。正向判断 INSERT 1 行；缺 Policy `versionId`、缺 Policy Snapshot `snapshotId`、空 `subjectRefs`、异 Project Context Ref 均被 CHECK 以 SQLSTATE `23514` 拒绝，实际可见行数为 0。新测试也由真实 owning 判断驱动，逐个重新计算 Hash，并覆盖这些字段、相邻 Ref/Hash 结构、镜像与 source Receipt。F1 在本 head 已修复；历史 `REQUEST_CHANGES` 记录保持可追溯。
+
+### F2 — P2：Policy 观察的必填时间戳仍可为 JSON null
+
+位置：`migrations/task_execution/V3005__work_order_validation_freeze.sql:165–175`。
+
+Spec 003 §21.8 的三个 Policy observation 均要求 `effectiveFrom: UtcInstant`；只有 `supersededAt` 可以是 `UtcInstant|null`。新 guard 检查了 `effectiveFrom` 键存在及 `::timestamptz` 与 `evaluatedAt` 的先后关系，却没有检查其 JSON 类型/非空。`null::timestamptz > evaluatedAt` 得到 SQL NULL，PL/pgSQL 的 `IF ... THEN` 不把它当作拒绝条件。CONTEXT_BUILDER/CONTROLS 的该字段也没有独立 promoted mirror。
+
+独立复现：从上轮完整正向结构对照只将 CONTEXT_BUILDER observation 的 `effectiveFrom` 改为 JSON `null`，重算 `inputHash` 与 canonical `payload_hash`，其它 refs、Scope、Receipt 与列镜像保持一致。当前 `work_order_validation_payload_valid` 返回 `true`；在完整 V3005 表上以 `task_execution_app`、同 Project 受信 Service context 和匹配 PENDING Receipt INSERT 成功 1 行。正向对照同样成功；两个探针均 ROLLBACK，trigger/CHECK/RLS 未关闭。该反例证明必填时间来源可以在新的不可变判断里变成无值，无法满足该时间与 `validUntil` 的语义闭合；它不证明公开 API 已能提交这样的请求。
+
+修复要求：对三个 Policy role 的 `effectiveFrom` 做非空、有限且符合 `UtcInstant` 的结构/时间校验；`supersededAt` 仅允许明确的 null 或合法 `UtcInstant`，并维持已定义的时间上界关系。用真实 app-role INSERT 增加这一单字段负例与正向对照，保持 TASK_READINESS 历史兼容和现有 F1 反例。修正后需提供新 head 的 full 门禁并独立复审。
+
+### 本轮证据与门禁
+
+- [CI run 35702148123](https://github.com/qzhike/zhiju-business-core/actions/runs/35702148123) 的 `headSha` 为 reviewed SHA，状态 `success`；PR 选择完整 `full`。该门禁为当前修订的自动证据，F2 为其测试尚未覆盖的语义反例，故不能据绿色门禁批准。
+- 外部 Provider/Runtime/飞书、生产、Run/Completion 与独立人工业务验收仍为 `NOT RUN`；人类技术审查仍待完成。
+- 本轮只修改正式审查记录，不修改产品实现，不 commit、push 或 merge。

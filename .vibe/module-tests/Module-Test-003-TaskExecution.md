@@ -414,3 +414,16 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-220-F1-004 | promoted UUID/hash/结论镜像、Task-kind 列混入；不存在或错 operation/version/target/Scope/request hash/outcome 的 source Receipt；app 直接执行私有 Ref/Hash helper | 真实 INSERT 拒绝镜像与来源不匹配；私有 helper 调用 42501；每个探针都回滚；原 TASK_READINESS 与 owning READY 回归通过 | 执行：相关镜像、混合 kind、来源 Receipt 均拒绝，私有 helper 返回 42501；原 TASK_READINESS 完整回归以本修订 full 为准 |
 
 测试位于 `tests/persistence/work-order-validation-guards.ts`，由 TE-VAL-S-008 的真实已提交判断驱动；不关闭 trigger、CHECK 或 RLS。精确修订 head 的门禁与执行计数记录在 PR。此前未逐项执行的 Policy 取代、迟到撤权和其它控制组合保持各自 `NOT RUN`，不能由 F1 回归扩大为全矩阵 PASS。
+
+
+### PR #220 F2：Policy observation 时间值回归
+
+依据 Spec 003 §21.8 与 PostgreSQL §36.1，补齐必填 `effectiveFrom` 的非空/有限/合法 UtcInstant 校验，`supersededAt` 仅允许显式 null 或合法时间。
+
+| ID | 层级与样本 | 必须观测的结果 | 实际 |
+| --- | --- | --- | --- |
+| TE-220-F2-001 | 真实 owning 判断衍生的 app-role INSERT；CONTEXT_BUILDER/CONTROLS 的 effectiveFrom=null，其余来源与列镜像不变，重算双 Hash | helper=false，实际 judgment INSERT 23514，无残留；保留完整正向对照和 F1 回归 | 执行：两个角色的 null 单字段反例均 helper=false / INSERT 23514；正向对照与 F1 回归通过 |
+| TE-220-F2-002 | 两个无独立 promoted 时间镜像的 Policy role：缺字段、错误 JSON 类型、infinity/相对值、非 UTC/简写、不合法日历日期、24 点/闰秒；effectiveFrom 晚于 evaluatedAt、supersededAt 早于 validUntil | 真实 app-role INSERT 均拒绝，不能依靠旧 Hash、来源 Receipt 或镜像失败掩盖问题 | 执行：缺字段、类型/格式/日历/时钟/无限值和既定上下界负例均被 CHECK 拒绝，无残留 |
+| TE-220-F2-003 | 三个 Policy role：合法有限时间、显式 supersededAt=null、effectiveFrom=evaluatedAt、supersededAt=validUntil；Builder/Controls 合法无小数和多位小数/闰日值 | 正向结构 INSERT 1 行并回滚；已定义的非严格时间边界保持；历史 TASK_READINESS 与 owning READY 回归仍通过 | 执行：三个角色的合法时间/null/相等边界均 INSERT 1 行并回滚，多位小数和合法闰日通过；历史兼容完整门禁见 PR |
+
+探针位于 `tests/persistence/work-order-validation-guards.ts`，沿用真实 app role、同 Project SERVICE context、匹配 PENDING Receipt、Hash 重算与逐项回滚；trigger/CHECK/RLS 全程启用。独立审查记录保留原结论；本修订的 full 证据记录于 PR。

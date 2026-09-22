@@ -126,6 +126,7 @@ DECLARE
   reasons jsonb := '[]'::jsonb; passed boolean := true;
   uuid_pattern constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
   static_type text;
+  utc_instant_pattern constant text := '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]+)?Z$';
 BEGIN
   IF jsonb_typeof(p) IS DISTINCT FROM 'object' OR NOT p ?& keys OR p - keys <> '{}'::jsonb
      OR jsonb_typeof(p->'dependencyObservations') IS DISTINCT FROM 'array'
@@ -170,6 +171,16 @@ BEGIN
          OR NOT task_execution.work_order_validation_ref_valid(item->'policyVersionRef',
            'SNAPSHOT','zhiju.identity.policy_version',p->'scope')
          OR NOT task_execution.work_order_validation_hash_valid(item->'contentHash')
+         -- Check JSON shape before PostgreSQL's permissive timestamp parser.
+         -- The cast also rejects impossible calendar dates; the function's
+         -- exception handler turns those parser errors into a failed CHECK.
+         OR jsonb_typeof(item->'effectiveFrom') IS DISTINCT FROM 'string'
+         OR (item->>'effectiveFrom' ~ utc_instant_pattern) IS DISTINCT FROM true
+         OR NOT isfinite((item->>'effectiveFrom')::timestamptz)
+         OR (item->'supersededAt' IS DISTINCT FROM 'null'::jsonb AND (
+           jsonb_typeof(item->'supersededAt') IS DISTINCT FROM 'string'
+           OR (item->>'supersededAt' ~ utc_instant_pattern) IS DISTINCT FROM true
+           OR NOT isfinite((item->>'supersededAt')::timestamptz)))
          OR (item->>'effectiveFrom')::timestamptz > (p->>'evaluatedAt')::timestamptz
          OR (item->>'supersededAt' IS NOT NULL AND (item->>'supersededAt')::timestamptz < (p->>'validUntil')::timestamptz)
       THEN RETURN false; END IF;

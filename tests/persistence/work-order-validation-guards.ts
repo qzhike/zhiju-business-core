@@ -148,6 +148,77 @@ export async function verifyWorkOrderValidationGuards(
     ),
   ];
   await probe({ name: 'complete owning reference structure', valid: true });
+  const originalPayload = record(source.canonical_payload);
+  for (const [i, item] of observations(originalPayload).entries()) {
+    if (item.kind !== 'POLICY') continue;
+    for (const key of ['effectiveFrom', 'supersededAt'] as const) {
+      const boundary = originalPayload[key === 'effectiveFrom' ? 'evaluatedAt' : 'validUntil'];
+      const positiveValues =
+        key === 'effectiveFrom'
+          ? [boundary, '2000-02-29T00:00:00Z', '2000-02-29T00:00:00.123456789Z']
+          : [null, boundary, '9999-12-31T23:59:59Z', '9999-12-31T23:59:59.123456789Z'];
+      for (const value of positiveValues) {
+        await probe({
+          name: `${String(item.role)}.${key}: valid ${String(value)}`,
+          payload: (p) => {
+            const observation = record(observations(p)[i]);
+            observation[key] = value;
+            if (item.role === 'VALIDATION')
+              p[key === 'effectiveFrom' ? 'policyEffectiveFrom' : 'policySupersededAt'] = value;
+          },
+          row: (r) => {
+            const p = record(r.canonical_payload);
+            r.policy_effective_from = p.policyEffectiveFrom;
+            r.policy_superseded_at = p.policySupersededAt;
+          },
+          valid: true,
+        });
+      }
+      // These roles have no promoted timestamp mirror. Rejection must come
+      // from the payload CHECK with the remaining row and Receipt intact.
+      if (item.role === 'VALIDATION') continue;
+      const invalidValues: unknown[] = [
+        undefined,
+        ...(key === 'effectiveFrom' ? [null] : []),
+        false,
+        0,
+        [],
+        {},
+        '',
+        'infinity',
+        '-infinity',
+        'now',
+        'today',
+        'epoch',
+        '2026-01-01',
+        '2026-01-01T00:00:00',
+        '2026-01-01T00:00:00+00:00',
+        '2026-01-01T00:00:00+08:00',
+        '2026-01-01 00:00:00Z',
+        '2026-02-29T00:00:00Z',
+        '2026-02-30T00:00:00Z',
+        '1900-02-29T00:00:00Z',
+        '2026-04-31T00:00:00Z',
+        '2026-00-01T00:00:00Z',
+        '2026-13-01T00:00:00Z',
+        '2026-01-00T00:00:00Z',
+        '2026-01-32T00:00:00Z',
+        '2026-01-01T24:00:00Z',
+        '2026-01-01T00:60:00Z',
+        '2026-01-01T00:00:60Z',
+        new Date(Date.parse(String(boundary)) + (key === 'effectiveFrom' ? 1 : -1)).toISOString(),
+      ];
+      for (const value of invalidValues)
+        await probe({
+          name: `${String(item.role)}.${key}: invalid ${value === undefined ? 'missing' : JSON.stringify(value)}`,
+          payload: (p) => {
+            const observation = record(observations(p)[i]);
+            if (value === undefined) Reflect.deleteProperty(observation, key);
+            else observation[key] = value;
+          },
+        });
+    }
+  }
   for (const [name, select] of refs) {
     const original = select(record(source.canonical_payload));
     for (const key of Object.keys(original)) {
