@@ -430,11 +430,11 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 ### READY → 受控 Run 启动设计矩阵（提案）
 
-本矩阵只定义 [Spec 003 §22](../module-specs/Module-Spec-003-TaskExecution.md#22-ready--queued--受控-run-启动增量设计提案)的预期；所有运行结果均 `NOT RUN`，不复用 #219 READY 的 PASS 充当 Run 证据。正向链使用真实 owning Task/WorkOrder/Slice/Context/Validation/Freeze 入口和已提交 Policy/Grant/Bundle/Attempt；受控 Driver 调用与人工/外部验收分开记录。
+本矩阵定义 [Spec 003 §22](../module-specs/Module-Spec-003-TaskExecution.md#22-ready--queued--受控-run-启动增量设计提案)的预期；#222 当前仅将完整执行过的静态契约项标为 PASS，其余行的完整场景保持 `NOT RUN`，局部自动化执行证据见 PR #222，不复用 #219 READY 的 PASS 充当 Run 证据。正向链使用真实 owning Task/WorkOrder/Slice/Context/Validation/Freeze 入口和已提交 Policy/Grant/Bundle/Attempt；受控 Driver 调用与人工/外部验收分开记录。
 
 | ID | 层级与输入 | 必须观察的结果 | 当前结果 |
 |---|---|---|---|
-| TE-RUN-D-001 | Contract/Registry：四个新 operation、Bundle objectType、既有 Controls Policy profile 精确复用；旧七项 Run/Queue/IG/Event 契约回归 | 新请求/结果完整正反 Schema、Purpose/Owner/Ref 精确；Catalog/Registry 221、TE 49、IG 25、IP 23、历史 Baseline 200；旧 Schema/metadata/fixture 逐字节不变 | NOT RUN |
+| TE-RUN-D-001 | Contract/Registry：四个新 operation、Bundle objectType、既有 Controls Policy profile 精确复用；旧七项 Run/Queue/IG/Event 契约回归 | 新请求/结果完整正反 Schema、Purpose/Owner/Ref 精确；Catalog/Registry 221、TE 49、IG 25、IP 23、历史 Baseline 200；旧 Schema/metadata/fixture 逐字节不变 | PASS — PR #222 CI full，`8b4dfc0`，221/221 Catalog/Registry 与 200 Baseline；独立审查待执行 |
 | TE-RUN-D-002 | 正常 owning 链：canonical READY→queue→Bundle→create_run→IG 实际 synthetic ack→start→reconcile→get_run_state | WorkOrder QUEUED 后独立变 RUNNING；Run CREATED→RUNNING，唯一 ACTIVE Claim/attempt=1/fencing，精确 Contract/INITIAL Context/Bundle/Attempt、唯一 Queue/RunStarted Event；无 Result/Completion | NOT RUN |
 | TE-RUN-D-003 | READY 但 legacy、错 frozen pointer/hash、无 wallClockLimit、unsupported runtime class、未来 notBefore、Policy/profile 缺失或过期 | 可读历史 READY 保留；不 queue/create Run，不选择默认 Policy/Runtime/无限预算；按真实层级返回拒绝 | NOT RUN |
 | TE-RUN-D-004 | Queue/Run/Start/Reconcile 的自身 Grant/Decision 分别缺失、撤销、到期、配置漂移；依赖 Bundle/Policy/跨模块 Query 授权单独缺失 | 相应 protected repository 读数为 0 或提交前拒绝；无成功状态、Claim、Event；同 principal/历史 Receipt 不替代独立授权 | NOT RUN |

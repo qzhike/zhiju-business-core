@@ -1345,7 +1345,7 @@ execution.get_run_dispatch_binding@1.0
 integration.get_runtime_attempt_binding@1.0
 execution.reconcile_work_order_execution@1.0
 
-状态：`T2 / PROPOSED / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-22 / HUMAN DESIGN APPROVED 2026-09-22 / CONTRACT REGISTERED 2026-09-23 / EXACT-REVISION FULL VERIFICATION PENDING`。业务字段由 Spec 001 §15.12、Spec 003 §22、Spec 007 Runtime Binding 增量分别拥有；本节只固定公开名称、Owner、Ref 与兼容边界。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-22 / CONTRACT REGISTERED 2026-09-23 / PR #222 CI FULL PASS 2026-09-23（8b4dfc0）/ INDEPENDENT IMPLEMENTATION REVIEW PENDING`。业务字段由 Spec 001 §15.12、Spec 003 §22、Spec 007 Runtime Binding 增量分别拥有；本节只固定公开名称、Owner、Ref 与兼容边界。
 
 | 新增 operation | Owner / kind / Purpose | Target / payload 与 result 的精确引用 |
 |---|---|---|
@@ -1356,4 +1356,4 @@ execution.reconcile_work_order_execution@1.0
 
 新增 objectType `zhiju.identity.execution_capability_bundle`：Owner identity-policy；CREATE target 为 OBJECT、已提交 Bundle Ref 为 CONTENT_ADDRESSED，Project Scope 必填且完整 Enterprise/Project 镜像；不把旧 `CapabilityGrant` OBJECT 当作 Bundle。Queue 和 Lease 均逐字段复用冻结 Contract 已绑定的同一 `execution.work_order_controls.policy@1.0` 真实版本；不新增 Policy profile selector，也不改变其已注册 closed Schema。有限租约取该 Policy 的显式 `budget.wallClockLimit` 与其它真实上界，不从静态 selector、未注册默认值或 fixture 推断。
 
-当前计数为 Catalog/Registry 217→221，identity-policy 22→23、task-execution 47→49、integration-gateway 24→25；历史 200-operation Baseline 不变。现有 `queue_work_order@1.0`、`create_run@1.0`、`start_run@1.0`、`request_runtime_dispatch@1.0`、`get_run_state@1.0`、`WorkOrderQueued@1.0`、`RunStarted@1.0` 的注册 Schema/metadata 和 compatibility fixtures 保持逐字节不变；新查询/命令是 additive。现有 @1.0 公开 payload 允许的较宽输入仍由本次首版 Handler 明确拒绝 unsupported 子集，不能通过改旧 Schema 缩窄历史接受集。字段级新增 Schema/Result、引用声明、source/generated/fixtures/compatibility 正反例已随本次实现登记，完整门禁证据仍待当前修订验证。
+当前计数为 Catalog/Registry 217→221，identity-policy 22→23、task-execution 47→49、integration-gateway 24→25；历史 200-operation Baseline 不变。现有 `queue_work_order@1.0`、`create_run@1.0`、`start_run@1.0`、`request_runtime_dispatch@1.0`、`get_run_state@1.0`、`WorkOrderQueued@1.0`、`RunStarted@1.0` 的注册 Schema/metadata 和 compatibility fixtures 保持逐字节不变；新查询/命令是 additive。现有 @1.0 公开 payload 允许的较宽输入仍由本次首版 Handler 明确拒绝 unsupported 子集，不能通过改旧 Schema 缩窄历史接受集。字段级新增 Schema/Result、引用声明、source/generated/fixtures/compatibility 正反例已随本次实现登记；PR #222 的精确修订 `8b4dfc0` 已通过 CI full 门禁。

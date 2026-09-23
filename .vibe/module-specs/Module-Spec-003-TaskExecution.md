@@ -1913,7 +1913,7 @@ Validator/Freeze 还通过 API composition 在本动作 principal 的独立授�
 
 ## 22. READY → QUEUED → 受控 Run 启动增量设计提案
 
-状态：`T2 / PROPOSED 2026-09-22 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-22 / HUMAN DESIGN APPROVED 2026-09-22 / LOCAL IMPLEMENTATION 2026-09-23 / EXACT-REVISION FULL VERIFICATION PENDING`。决定与范围见[设计决定 §21](../decisions/task-execution-human-operated.md#21-ready-workorder-到受控-run-启动的增量设计提案)。沿用 §11.4 的已批准状态/并发原则、§21 已交付的 canonical READY 事实；本节不改变现有已注册 @1.0 Command Schema 或既有 200 项 Compatibility Baseline。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-22 / LOCAL IMPLEMENTATION 2026-09-23 / PR #222 CI FULL PASS 2026-09-23（8b4dfc0）/ INDEPENDENT IMPLEMENTATION REVIEW PENDING`。决定与范围见[设计决定 §21](../decisions/task-execution-human-operated.md#21-ready-workorder-到受控-run-启动的增量设计提案)。沿用 §11.4 的已批准状态/并发原则、§21 已交付的 canonical READY 事实；本节不改变现有已注册 @1.0 Command Schema 或既有 200 项 Compatibility Baseline。
 
 ### 22.1 首版支持与闭合 Policy
 
