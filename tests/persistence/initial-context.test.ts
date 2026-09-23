@@ -8133,6 +8133,55 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         code: 'AUTHORIZATION_REVOKED',
       });
       expect(await receiptRows(queueEnvelope.idempotencyKey)).toEqual([]);
+      await admin.query(`
+        CREATE OR REPLACE FUNCTION task_execution.wi221_pause_queue() RETURNS trigger
+        LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(8); RETURN NEW; END $$`);
+      await admin.query(`
+        CREATE TRIGGER wi221_pause_queue BEFORE UPDATE ON task_execution.work_order
+        FOR EACH ROW WHEN (NEW.work_order_id = '${workOrderRef.objectId}'::uuid AND NEW.status = 'QUEUED')
+        EXECUTE FUNCTION task_execution.wi221_pause_queue()`);
+      const queuedAttempt = firstRunEntry.queue(queueEnvelope, sessionFor()).then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+      try {
+        let paused = false;
+        for (let poll = 0; poll < 200 && !paused; poll += 1) {
+          const activity = await admin.query<{ paused: boolean }>(
+            `SELECT EXISTS (
+               SELECT 1 FROM pg_stat_activity
+               WHERE pid <> pg_backend_pid() AND wait_event = 'PgSleep'
+                 AND query ILIKE '%task_execution%work_order%'
+             ) AS paused`,
+          );
+          paused = activity.rows[0]?.paused === true;
+          if (!paused) await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        expect(paused).toBe(true);
+        expect(
+          await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+            targetId: grantResolve,
+            expectedAggregateVersion: '1',
+            scope: {
+              scopeKind: 'PROJECT',
+              enterpriseId: fixture.enterpriseId,
+              projectId: fixture.projectId,
+            },
+            reasonCode: 'WI221_REVOKE_POLICY_READ_AFTER_MINT',
+            effectiveAt: new Date(clock),
+            idempotencyKey: newUuidV7(),
+          }),
+        ).toMatchObject({ status: 'COMMITTED' });
+        expect(await queuedAttempt).toMatchObject({
+          error: { code: 'AUTHORIZATION_REVOKED' },
+        });
+      } finally {
+        await queuedAttempt;
+        await admin.query('DROP TRIGGER wi221_pause_queue ON task_execution.work_order');
+        await admin.query('DROP FUNCTION task_execution.wi221_pause_queue()');
+      }
+      expect(await receiptRows(queueEnvelope.idempotencyKey)).toEqual([]);
+      grantResolve = await grantGeneric(dependencyCapabilities.resolvePolicy);
       const queued = await firstRunEntry.queue(queueEnvelope, sessionFor());
       expect(queued, JSON.stringify(queued)).toMatchObject({ status: 'COMMITTED' });
       expect(await firstRunEntry.queue(queueEnvelope, sessionFor())).toMatchObject({

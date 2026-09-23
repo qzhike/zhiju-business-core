@@ -11,6 +11,9 @@ CREATE TABLE integration_gateway.runtime_attempt (
     request_payload_hash bytea NOT NULL,
     invocation_binding jsonb NOT NULL,
     binding_hash bytea NOT NULL,
+    source_command_id uuid NOT NULL
+        REFERENCES integration_gateway.command_receipt (command_id)
+        DEFERRABLE INITIALLY DEFERRED,
     status text NOT NULL DEFAULT 'CREATED',
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
@@ -73,6 +76,7 @@ BEGIN
        OR NEW.request_payload_hash IS DISTINCT FROM OLD.request_payload_hash
        OR NEW.invocation_binding IS DISTINCT FROM OLD.invocation_binding
        OR NEW.binding_hash IS DISTINCT FROM OLD.binding_hash
+       OR NEW.source_command_id IS DISTINCT FROM OLD.source_command_id
        OR NEW.created_at IS DISTINCT FROM OLD.created_at
        OR NOT ((OLD.status = 'CREATED' AND NEW.status IN ('SUCCEEDED', 'UNKNOWN'))
            OR (OLD.status = 'UNKNOWN' AND NEW.status = 'SUCCEEDED')) THEN
@@ -110,9 +114,36 @@ BEGIN
 END
 $guard$;
 
+CREATE FUNCTION integration_gateway.guard_runtime_attempt_source() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM integration_gateway.command_receipt receipt
+        WHERE receipt.command_id = NEW.source_command_id
+          AND receipt.command_type = 'integration.request_runtime_dispatch'
+          AND receipt.command_version = '1.0'
+          AND receipt.enterprise_id = NEW.enterprise_id
+          AND receipt.project_id = NEW.project_id
+          AND receipt.target_type = 'integration.runtime_attempt'
+          AND receipt.target_id = NEW.attempt_id
+    ) THEN
+        RAISE EXCEPTION 'runtime attempt source command receipt mismatch'
+            USING ERRCODE = '22023';
+    END IF;
+    RETURN NULL;
+END
+$guard$;
+
 CREATE TRIGGER runtime_attempt_insert_guard
     BEFORE INSERT ON integration_gateway.runtime_attempt
     FOR EACH ROW EXECUTE FUNCTION integration_gateway.guard_runtime_attempt_insert();
+
+CREATE CONSTRAINT TRIGGER runtime_attempt_source_guard
+    AFTER INSERT ON integration_gateway.runtime_attempt
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION integration_gateway.guard_runtime_attempt_source();
 
 CREATE TRIGGER runtime_attempt_update_guard
     BEFORE UPDATE ON integration_gateway.runtime_attempt
@@ -133,6 +164,7 @@ CREATE TRIGGER runtime_observation_immutable
 
 REVOKE ALL ON FUNCTION integration_gateway.guard_runtime_attempt_update() FROM PUBLIC;
 REVOKE ALL ON FUNCTION integration_gateway.guard_runtime_attempt_insert() FROM PUBLIC;
+REVOKE ALL ON FUNCTION integration_gateway.guard_runtime_attempt_source() FROM PUBLIC;
 REVOKE ALL ON FUNCTION integration_gateway.guard_runtime_observation_immutable() FROM PUBLIC;
 
 GRANT SELECT, INSERT, UPDATE ON integration_gateway.runtime_attempt TO integration_gateway_app;

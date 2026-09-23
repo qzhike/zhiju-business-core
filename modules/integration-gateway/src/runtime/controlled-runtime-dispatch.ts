@@ -17,6 +17,7 @@ import type { Kysely } from 'kysely';
 
 import {
   type IntegrationRendererDb,
+  type RenderTransaction,
   type RenderTransactionContext,
   withRenderTransaction,
 } from '../persistence/render-attempt-db.js';
@@ -81,6 +82,14 @@ export interface ControlledRuntimeDispatchPorts {
   ) => Promise<() => Promise<void>>;
 }
 
+export interface RuntimeDispatchCommand {
+  readonly commandId: string;
+  readonly idempotencyScope: string;
+  readonly idempotencyKey: string;
+  readonly correlationId: string;
+  readonly causationId?: string;
+}
+
 function invalid(code = 'INTEGRATION_RUNTIME_BINDING_INVALID'): never {
   throw new RenderPersistenceError(
     code,
@@ -93,6 +102,10 @@ function same(left: unknown, right: unknown): boolean {
 function object(value: unknown): CanonicalJsonObject {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) invalid();
   return value as CanonicalJsonObject;
+}
+function stringValue(value: unknown): string {
+  if (typeof value !== 'string') invalid();
+  return value;
 }
 function hash(digest: string): Common.ContentHash {
   return { algorithm: 'SHA-256', canonicalizationVersion: '1', digest };
@@ -144,6 +157,33 @@ function receiptRef(
     scope: subjectScope,
     contentHash: hash(digest),
   };
+}
+
+async function completeDispatchReceipt(
+  trx: RenderTransaction,
+  sourceCommandId: string,
+  result: Result,
+  completedAt: Date,
+): Promise<void> {
+  if (
+    !registry.validateOperationResult('integration.get_runtime_attempt_binding', '1.0', result)
+      .valid
+  )
+    invalid();
+  const payload = result as unknown as CanonicalJsonValue;
+  const updated = await trx
+    .updateTable('integration_gateway.command_receipt')
+    .set({
+      outcome: 'COMMITTED',
+      result_payload: canonicalize(payload),
+      result_payload_hash: Buffer.from(sha256CanonicalJson(payload), 'hex'),
+      completed_at: completedAt,
+    })
+    .where('command_id', '=', sourceCommandId)
+    .where('command_type', '=', 'integration.request_runtime_dispatch')
+    .where('target_id', '=', result.attemptRef.objectId)
+    .executeTakeFirst();
+  if (Number(updated.numUpdatedRows) !== 1) invalid();
 }
 
 async function validateDependencies(
@@ -203,6 +243,7 @@ export class ControlledRuntimeDispatchService {
     input: {
       readonly attemptRef: Common.ObjectRef;
       readonly request: IntegrationGateway.RuntimeDispatchRequest;
+      readonly command: RuntimeDispatchCommand;
     },
   ): Promise<Result> {
     await this.ports.revalidateAuthorization();
@@ -220,7 +261,18 @@ export class ControlledRuntimeDispatchService {
     const stableKeyHash = createHash('sha256')
       .update(input.request.stableIdempotencyKey, 'utf8')
       .digest();
+    if (
+      input.command.correlationId !== context.correlationId ||
+      !input.command.idempotencyScope ||
+      !input.command.idempotencyKey
+    )
+      invalid();
+    const commandPayloadHash = Buffer.from(
+      sha256CanonicalJson({ request: input.request as unknown as CanonicalJsonValue }),
+      'hex',
+    );
     const claimed = await withRenderTransaction(this.db, context, async (trx) => {
+      const claimedAt = this.ports.now();
       const inserted = await trx
         .insertInto('integration_gateway.runtime_attempt')
         .values({
@@ -232,8 +284,9 @@ export class ControlledRuntimeDispatchService {
           request_payload_hash: Buffer.from(requestHash.digest, 'hex'),
           invocation_binding: canonicalize(invocationBinding as unknown as CanonicalJsonValue),
           binding_hash: Buffer.from(bindingHash.digest, 'hex'),
-          created_at: this.ports.now(),
-          updated_at: this.ports.now(),
+          source_command_id: input.command.commandId,
+          created_at: claimedAt,
+          updated_at: claimedAt,
         })
         .onConflict((oc) => oc.doNothing())
         .returning('attempt_id')
@@ -251,6 +304,99 @@ export class ControlledRuntimeDispatchService {
         !row.binding_hash.equals(Buffer.from(bindingHash.digest, 'hex'))
       )
         invalid('INTEGRATION_ATTEMPT_IDEMPOTENCY_CONFLICT');
+      if (inserted !== undefined) {
+        await trx
+          .insertInto('integration_gateway.command_receipt')
+          .values({
+            command_id: input.command.commandId,
+            command_type: 'integration.request_runtime_dispatch',
+            command_version: '1.0',
+            idempotency_scope: input.command.idempotencyScope,
+            idempotency_key: input.command.idempotencyKey,
+            request_payload_hash: commandPayloadHash,
+            enterprise_id: context.enterpriseId,
+            project_id: subjectScope.projectId,
+            target_type: ATTEMPT,
+            target_id: input.attemptRef.objectId,
+            outcome: 'PENDING',
+            first_seen_at: claimedAt,
+            correlation_id: context.correlationId,
+            causation_id: input.command.causationId ?? null,
+            created_by_principal_id: context.principalId,
+            actor_snapshot_id: context.actorSnapshotId,
+            authorization_decision_id: context.authorizationDecisionId,
+          })
+          .execute();
+        await trx
+          .insertInto('integration_gateway.audit_record')
+          .values({
+            audit_id: newUuidV7(),
+            enterprise_id: context.enterpriseId,
+            project_id: subjectScope.projectId,
+            principal_id: context.principalId,
+            actor_snapshot_id: context.actorSnapshotId,
+            authorization_decision_id: context.authorizationDecisionId,
+            command_id: input.command.commandId,
+            command_type: 'integration.request_runtime_dispatch',
+            outcome: 'COMMITTED',
+            request_payload_hash: commandPayloadHash,
+            target_type: ATTEMPT,
+            target_id: input.attemptRef.objectId,
+            correlation_id: context.correlationId,
+            causation_id: input.command.causationId ?? null,
+            safe_summary: 'runtime attempt created before driver invocation',
+            recorded_at: claimedAt,
+            retention_class: 'BUSINESS_AUDIT',
+          })
+          .execute();
+        const references = [
+          { path: '/request/runRef', module: 'task-execution', ref: input.request.runRef },
+          {
+            path: '/request/workOrderRef',
+            module: 'task-execution',
+            ref: input.request.workOrderRef,
+          },
+          {
+            path: '/request/workOrderContractRef',
+            module: 'task-execution',
+            ref: input.request.workOrderContractRef,
+          },
+          {
+            path: '/request/contextSnapshotRef',
+            module: 'task-execution',
+            ref: input.request.contextSnapshotRef,
+          },
+          {
+            path: '/request/capabilityGrantRef',
+            module: 'identity-policy',
+            ref: input.request.capabilityGrantRef,
+          },
+        ];
+        for (const reference of references) {
+          const target = object(reference.ref);
+          await trx
+            .insertInto('integration_gateway.reference_edge')
+            .values({
+              owner_object_type: ATTEMPT,
+              owner_object_id: input.attemptRef.objectId,
+              owner_payload_hash: Buffer.from(bindingHash.digest, 'hex'),
+              reference_path: reference.path,
+              target_module: reference.module,
+              target_object_type: stringValue(target.objectType),
+              target_object_id: stringValue(target.objectId),
+              target_version_id: typeof target.snapshotId === 'string' ? target.snapshotId : null,
+              target_payload_hash:
+                target.contentHash === undefined
+                  ? null
+                  : Buffer.from(stringValue(object(target.contentHash).digest), 'hex'),
+              reference_purpose: 'RUNTIME_DISPATCH_BINDING',
+              enterprise_id: context.enterpriseId,
+              project_id: subjectScope.projectId,
+              source_command_id: input.command.commandId,
+            })
+            .execute();
+        }
+      }
       await this.ports.revalidateAuthorization();
       return inserted !== undefined;
     });
@@ -392,13 +538,29 @@ export class ControlledRuntimeDispatchService {
     bindingHash: Common.ContentHash,
   ): Promise<void> {
     await withRenderTransaction(this.db, context, async (trx) => {
-      await trx
+      const completedAt = this.ports.now();
+      const row = await trx
         .updateTable('integration_gateway.runtime_attempt')
-        .set({ status: 'UNKNOWN', updated_at: this.ports.now() })
+        .set({ status: 'UNKNOWN', updated_at: completedAt })
         .where('attempt_id', '=', ref.objectId)
         .where('binding_hash', '=', Buffer.from(bindingHash.digest, 'hex'))
         .where('status', '=', 'CREATED')
-        .execute();
+        .returningAll()
+        .executeTakeFirst();
+      if (row === undefined) invalid();
+      await completeDispatchReceipt(
+        trx,
+        row.source_command_id,
+        {
+          attemptRef: ref as Result['attemptRef'],
+          status: 'UNKNOWN',
+          request: object(row.request_payload) as unknown as Result['request'],
+          requestPayloadHash: hash(row.request_payload_hash.toString('hex')),
+          invocationBinding: object(row.invocation_binding) as unknown as InvocationBinding,
+          bindingHash,
+        },
+        completedAt,
+      );
       await this.ports.revalidateAuthorization();
     });
   }
@@ -531,6 +693,26 @@ export class ControlledRuntimeDispatchService {
         .set({ status: 'SUCCEEDED', updated_at: recordedAt })
         .where('attempt_id', '=', ref.objectId)
         .execute();
+      await completeDispatchReceipt(
+        trx,
+        row.source_command_id,
+        {
+          attemptRef: ref as Result['attemptRef'],
+          status: 'SUCCEEDED',
+          request,
+          requestPayloadHash: hash(row.request_payload_hash.toString('hex')),
+          invocationBinding,
+          bindingHash,
+          acknowledgement: {
+            observationId,
+            rawReceiptRef: receiptRef(receiptId, receiptHash.digest, scope(context)),
+            runtimeSessionRef: acknowledgement.runtimeSessionRef,
+            acknowledgedAt: acknowledgement.acknowledgedAt.toISOString(),
+            source: 'SYNTHETIC_DRIVER',
+          },
+        },
+        recordedAt,
+      );
       const eventPayload = {
         attemptRef: ref,
         workOrderRef: request.workOrderRef,
@@ -566,7 +748,7 @@ export class ControlledRuntimeDispatchService {
           last_error_code: null,
           published_at: null,
           created_by_principal_id: context.principalId,
-          source_command_id: ref.objectId,
+          source_command_id: row.source_command_id,
         })
         .execute();
       await this.ports.revalidateAuthorization();

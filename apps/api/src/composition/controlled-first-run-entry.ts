@@ -239,6 +239,10 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
   ): ControlledFirstRunPorts {
     const { row, context, mint, revalidateAll, expiries } = prepared;
     const readers = createWorkOrderDependencyReads(config, row, session);
+    const revalidateDependencies = async () => {
+      await revalidateAll();
+      await readers.revalidate();
+    };
     const consumer = prepared.internal.commandType;
     const prefix =
       consumer === 'identity.issue_execution_capability_bundle'
@@ -250,11 +254,11 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
             : undefined;
     const contractProof = async (ref: CanonicalJsonObject) =>
       prefix === undefined
-        ? { proof: revalidateAll, context }
+        ? { proof: revalidateDependencies, context }
         : mint(`${prefix}ContractReadV1` as Boundary, ref);
     const contextProof = async (ref: CanonicalJsonObject) =>
       prefix === undefined
-        ? { proof: revalidateAll, context }
+        ? { proof: revalidateDependencies, context }
         : mint(`${prefix}ContextReadV1` as Boundary, ref);
     return {
       now,
@@ -263,7 +267,7 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
           ? session.serviceEntryAt.toISOString()
           : undefined,
       decisionExpiresAt: row.expires_at.toISOString(),
-      revalidateAuthorization: revalidateAll,
+      revalidateAuthorization: revalidateDependencies,
       additionalExpiries: () => [...expiries, ...readers.decisionExpiries()],
       readContract: async (ref) => {
         const proof = await contractProof(ref);
@@ -334,7 +338,7 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
   async function command(type: string, value: unknown, session: ControlledFirstRunSession) {
     const prepared = await prepare(value, session, type);
     const p = ports(prepared, session);
-    const { context, internal, payload, mint, revalidateAll } = prepared;
+    const { context, internal, payload, mint } = prepared;
     if (type === 'execution.queue_work_order')
       return handleQueueWorkOrder(config.taskExecutionDb, context, internal, p);
     if (type === 'identity.issue_execution_capability_bundle')
@@ -359,7 +363,7 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
       config.receiptStorage,
       {
         now,
-        revalidateAuthorization: revalidateAll,
+        revalidateAuthorization: p.revalidateAuthorization,
         readDispatchBinding: async (runRef) => {
           const proof = await mint(
             'runDispatchBindingReadV1',
@@ -371,7 +375,13 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
             config.taskExecutionDb,
             proof.context,
             runRef as unknown as CanonicalJsonObject,
-            { ...p, revalidateAuthorization: proof.proof },
+            {
+              ...p,
+              revalidateAuthorization: async () => {
+                await proof.proof();
+                await p.revalidateAuthorization();
+              },
+            },
           )) as unknown as TaskExecution.ExecutionGetRunDispatchBindingResult;
         },
         readBundle: p.readBundle as never,
@@ -389,6 +399,13 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
     return service.dispatch(context, {
       attemptRef: prepared.target,
       request: request as never,
+      command: {
+        commandId: internal.commandId,
+        idempotencyScope: internal.idempotencyScope,
+        idempotencyKey: internal.idempotencyKey,
+        correlationId: internal.correlationId,
+        ...(internal.causationId === undefined ? {} : { causationId: internal.causationId }),
+      },
     });
   }
 

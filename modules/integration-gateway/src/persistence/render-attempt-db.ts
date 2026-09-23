@@ -12,6 +12,7 @@ import {
 } from 'kysely';
 
 type Json = ColumnType<unknown, string, never>;
+type MutableJson = ColumnType<unknown, string, string>;
 type Int8 = ColumnType<string, string | number, string | number>;
 
 export interface RenderAttemptTable {
@@ -55,9 +56,75 @@ export interface RuntimeAttemptTable {
   request_payload_hash: Buffer;
   invocation_binding: Json;
   binding_hash: Buffer;
+  source_command_id: string;
   status: Generated<'CREATED' | 'SUCCEEDED' | 'UNKNOWN'>;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface RenderCommandReceiptTable {
+  command_id: string;
+  command_type: string;
+  command_version: string;
+  idempotency_scope: string;
+  idempotency_key: string;
+  request_payload_hash: Buffer;
+  enterprise_id: string;
+  project_id: string | null;
+  target_type: string;
+  target_id: string;
+  expected_aggregate_version?: string | null;
+  outcome: 'PENDING' | 'COMMITTED' | 'REJECTED' | 'DUPLICATE';
+  result_payload?: MutableJson;
+  result_payload_hash?: Buffer | null;
+  first_seen_at: Generated<Date>;
+  completed_at?: Date | null;
+  correlation_id: string;
+  causation_id?: string | null;
+  created_by_principal_id: string;
+  actor_snapshot_id: string;
+  authorization_decision_id: string;
+}
+
+export interface RenderAuditRecordTable {
+  audit_id: string;
+  enterprise_id: string;
+  project_id: string | null;
+  principal_id: string;
+  actor_snapshot_id: string;
+  authorization_decision_id: string;
+  command_id?: string | null;
+  command_type?: string | null;
+  outcome: 'ALLOWED' | 'DENIED' | 'COMMITTED' | 'REJECTED' | 'INFO';
+  error_code?: string | null;
+  request_payload_hash?: Buffer | null;
+  result_payload_hash?: Buffer | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  target_aggregate_version?: string | null;
+  correlation_id: string;
+  causation_id?: string | null;
+  safe_summary?: string | null;
+  recorded_at: Generated<Date>;
+  retention_class: string;
+}
+
+export interface RenderReferenceEdgeTable {
+  owner_object_type: string;
+  owner_object_id: string;
+  owner_version_id?: string | null;
+  owner_payload_hash?: Buffer | null;
+  reference_path: string;
+  target_module: string;
+  target_object_type: string;
+  target_object_id: string;
+  target_version_id?: string | null;
+  target_payload_hash?: Buffer | null;
+  reference_purpose: string;
+  enterprise_id: string;
+  project_id: string | null;
+  created_at: Generated<Date>;
+  source_command_id: string;
 }
 
 export interface RuntimeAttemptObservationTable {
@@ -102,6 +169,9 @@ export interface RenderOutboxEventTable {
 }
 
 export interface IntegrationRendererDb {
+  'integration_gateway.command_receipt': RenderCommandReceiptTable;
+  'integration_gateway.audit_record': RenderAuditRecordTable;
+  'integration_gateway.reference_edge': RenderReferenceEdgeTable;
   'integration_gateway.render_attempt': RenderAttemptTable;
   'integration_gateway.raw_external_receipt': RawExternalReceiptTable;
   'integration_gateway.runtime_attempt': RuntimeAttemptTable;

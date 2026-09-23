@@ -100,7 +100,13 @@ function fixture() {
     stableIdempotencyKey: newUuidV7(),
     requestedAt: new Date().toISOString(),
   } as unknown as IntegrationGateway.RuntimeDispatchRequest;
-  return { attemptRef, binding, request, capabilityGrantRef, payload };
+  const command = {
+    commandId: newUuidV7(),
+    idempotencyScope: `integration.request_runtime_dispatch@1.0:${enterpriseId}:${projectId}`,
+    idempotencyKey: request.stableIdempotencyKey,
+    correlationId,
+  };
+  return { attemptRef, binding, request, command, capabilityGrantRef, payload };
 }
 
 function context(): RenderTransactionContext {
@@ -149,9 +155,36 @@ describe.skipIf(!databaseUrl)('controlled RuntimeAttempt persistence', () => {
   it('persists a real driver acknowledgement and replays without another invocation', async () => {
     const f = fixture();
     const driver = new LocalSyntheticRuntimeDriver();
+    const verifiedDriver: SyntheticRuntimeDriver = {
+      invoke: async (input) => {
+        const beforeDriver = await admin.query<{
+          source_command_id: string;
+          receipt_outcome: string;
+          audits: string;
+          edges: string;
+          events: string;
+        }>(
+          `SELECT (SELECT source_command_id::text FROM integration_gateway.runtime_attempt WHERE attempt_id=$1) AS source_command_id,
+                  (SELECT outcome FROM integration_gateway.command_receipt WHERE command_id=$2) AS receipt_outcome,
+                  (SELECT count(*)::text FROM integration_gateway.audit_record WHERE command_id=$2) AS audits,
+                  (SELECT count(*)::text FROM integration_gateway.reference_edge WHERE source_command_id=$2) AS edges,
+                  (SELECT count(*)::text FROM integration_gateway.outbox_event WHERE aggregate_id=$1) AS events`,
+          [f.attemptRef.objectId, f.command.commandId],
+        );
+        expect(beforeDriver.rows[0]).toEqual({
+          source_command_id: f.command.commandId,
+          receipt_outcome: 'PENDING',
+          audits: '1',
+          edges: '5',
+          events: '0',
+        });
+        return driver.invoke(input);
+      },
+      readBack: (ref) => driver.readBack(ref),
+    };
     const service = new ControlledRuntimeDispatchService(
       db,
-      driver,
+      verifiedDriver,
       new InMemoryRenderObjectStorage(),
       {
         now: () => new Date(),
@@ -169,6 +202,7 @@ describe.skipIf(!databaseUrl)('controlled RuntimeAttempt persistence', () => {
     const first = await service.dispatch(context(), {
       attemptRef: f.attemptRef,
       request: f.request,
+      command: f.command,
     });
     expect(first.status).toBe('SUCCEEDED');
     expect(first.acknowledgement?.source).toBe('SYNTHETIC_DRIVER');
@@ -176,6 +210,7 @@ describe.skipIf(!databaseUrl)('controlled RuntimeAttempt persistence', () => {
     const replay = await service.dispatch(context(), {
       attemptRef: f.attemptRef,
       request: f.request,
+      command: f.command,
     });
     expect(replay).toEqual(first);
     expect(driver.invokedAttemptIds).toHaveLength(1);
@@ -197,6 +232,34 @@ describe.skipIf(!databaseUrl)('controlled RuntimeAttempt persistence', () => {
       observations: '1',
       events: '1',
     });
+    const source = await admin.query<{
+      outcome: string;
+      result_payload: unknown;
+      event_command_id: string;
+    }>(
+      `SELECT receipt.outcome, receipt.result_payload,
+              (SELECT source_command_id::text FROM integration_gateway.outbox_event WHERE aggregate_id=$1) AS event_command_id
+         FROM integration_gateway.command_receipt receipt WHERE receipt.command_id=$2`,
+      [f.attemptRef.objectId, f.command.commandId],
+    );
+    expect(source.rows[0]).toEqual({
+      outcome: 'COMMITTED',
+      result_payload: first,
+      event_command_id: f.command.commandId,
+    });
+    await expect(
+      admin.query(
+        `INSERT INTO integration_gateway.runtime_attempt
+           (attempt_id, enterprise_id, project_id, stable_key_hash, request_payload,
+            request_payload_hash, invocation_binding, binding_hash, source_command_id,
+            created_at, updated_at)
+         SELECT $2::uuid, enterprise_id, project_id, $3::bytea, request_payload,
+                request_payload_hash, invocation_binding, binding_hash, $4::uuid,
+                now(), now()
+           FROM integration_gateway.runtime_attempt WHERE attempt_id=$1::uuid`,
+        [f.attemptRef.objectId, newUuidV7(), Buffer.alloc(32, 0x31), newUuidV7()],
+      ),
+    ).rejects.toMatchObject({ code: expect.stringMatching(/^(23503|22023)$/) });
   });
 
   it('keeps an uncertain invocation UNKNOWN and never calls the driver twice', async () => {
@@ -227,12 +290,30 @@ describe.skipIf(!databaseUrl)('controlled RuntimeAttempt persistence', () => {
       },
     );
     expect(
-      (await service.dispatch(context(), { attemptRef: f.attemptRef, request: f.request })).status,
+      (
+        await service.dispatch(context(), {
+          attemptRef: f.attemptRef,
+          request: f.request,
+          command: f.command,
+        })
+      ).status,
     ).toBe('UNKNOWN');
     expect(
-      (await service.dispatch(context(), { attemptRef: f.attemptRef, request: f.request })).status,
+      (
+        await service.dispatch(context(), {
+          attemptRef: f.attemptRef,
+          request: f.request,
+          command: f.command,
+        })
+      ).status,
     ).toBe('UNKNOWN');
     expect(calls).toBe(1);
+    const receipt = await admin.query<{ outcome: string; status: string }>(
+      `SELECT receipt.outcome, receipt.result_payload->>'status' AS status
+         FROM integration_gateway.command_receipt receipt WHERE command_id=$1`,
+      [f.command.commandId],
+    );
+    expect(receipt.rows).toEqual([{ outcome: 'COMMITTED', status: 'UNKNOWN' }]);
     await expect(
       withRenderTransaction(db, context(), (trx) =>
         trx
