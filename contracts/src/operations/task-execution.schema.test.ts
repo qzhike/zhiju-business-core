@@ -229,7 +229,7 @@ function frozenBuildFixture(name: string): JsonObject {
 describe('TaskExecution Draft and initial Context contracts', () => {
   it('registers exactly the approved operations and reference metadata', () => {
     assertTaskExecutionOperationRegistrations(publicApiOperations);
-    expect(registry.operationCount).toBe(217);
+    expect(registry.operationCount).toBe(221);
     expect(registry.getOperation('execution.get_work_order_draft', '1.0')).toMatchObject({
       owner: 'task-execution',
       kind: 'QUERY',

@@ -122,6 +122,9 @@ importers:
       '@zhiju/identity-policy':
         specifier: workspace:*
         version: link:../../modules/identity-policy
+      '@zhiju/integration-gateway':
+        specifier: workspace:*
+        version: link:../../modules/integration-gateway
       '@zhiju/quality-governance':
         specifier: workspace:*
         version: link:../../modules/quality-governance

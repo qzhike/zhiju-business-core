@@ -427,3 +427,24 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-220-F2-003 | 三个 Policy role：合法有限时间、显式 supersededAt=null、effectiveFrom=evaluatedAt、supersededAt=validUntil；Builder/Controls 合法无小数和多位小数/闰日值 | 正向结构 INSERT 1 行并回滚；已定义的非严格时间边界保持；历史 TASK_READINESS 与 owning READY 回归仍通过 | 执行：三个角色的合法时间/null/相等边界均 INSERT 1 行并回滚，多位小数和合法闰日通过；历史兼容完整门禁见 PR |
 
 探针位于 `tests/persistence/work-order-validation-guards.ts`，沿用真实 app role、同 Project SERVICE context、匹配 PENDING Receipt、Hash 重算与逐项回滚；trigger/CHECK/RLS 全程启用。独立审查记录保留原结论；本修订的 full 证据记录于 PR。
+
+### READY → 受控 Run 启动设计矩阵（提案）
+
+本矩阵定义 [Spec 003 §22](../module-specs/Module-Spec-003-TaskExecution.md#22-ready--queued--受控-run-启动增量设计提案)的预期；#222 当前仅将完整执行过的静态契约项标为 PASS，其余行的完整场景保持 `NOT RUN`，局部自动化执行证据见 PR #222，不复用 #219 READY 的 PASS 充当 Run 证据。正向链使用真实 owning Task/WorkOrder/Slice/Context/Validation/Freeze 入口和已提交 Policy/Grant/Bundle/Attempt；受控 Driver 调用与人工/外部验收分开记录。
+
+| ID | 层级与输入 | 必须观察的结果 | 当前结果 |
+|---|---|---|---|
+| TE-RUN-D-001 | Contract/Registry：四个新 operation、Bundle objectType、既有 Controls Policy profile 精确复用；旧七项 Run/Queue/IG/Event 契约回归 | 新请求/结果完整正反 Schema、Purpose/Owner/Ref 精确；Catalog/Registry 221、TE 49、IG 25、IP 23、历史 Baseline 200；旧 Schema/metadata/fixture 逐字节不变 | PASS — PR #222 CI full，`8b4dfc0`，221/221 Catalog/Registry 与 200 Baseline；独立审查待执行 |
+| TE-RUN-D-002 | 正常 owning 链：canonical READY→queue→Bundle→create_run→IG 实际 synthetic ack→start→reconcile→get_run_state | WorkOrder QUEUED 后独立变 RUNNING；Run CREATED→RUNNING，唯一 ACTIVE Claim/attempt=1/fencing，精确 Contract/INITIAL Context/Bundle/Attempt、唯一 Queue/RunStarted Event；无 Result/Completion | NOT RUN |
+| TE-RUN-D-003 | READY 但 legacy、错 frozen pointer/hash、无 wallClockLimit、unsupported runtime class、未来 notBefore、Policy/profile 缺失或过期 | 可读历史 READY 保留；不 queue/create Run，不选择默认 Policy/Runtime/无限预算；按真实层级返回拒绝 | NOT RUN |
+| TE-RUN-D-004 | Queue/Run/Start/Reconcile 的自身 Grant/Decision 分别缺失、撤销、到期、配置漂移；依赖 Bundle/Policy/跨模块 Query 授权单独缺失 | 相应 protected repository 读数为 0 或提交前拒绝；无成功状态、Claim、Event；同 principal/历史 Receipt 不替代独立授权 | NOT RUN |
+| TE-RUN-D-005 | Bundle 由真实 IP 签发；替换 Run/Contract/Scope/subject/capability/Grant/hash，或签发后撤权、Policy 取代 | create_run/dispatch/start 当前重验拒绝；旧 Bundle 可审计但无执行资格，不能由 WorkOrder allowed 声明或单 Grant 伪造 Bundle | NOT RUN |
+| TE-RUN-D-006 | Queue/Run/Start 同键同 payload 重放、同键异 payload、目标已推进后历史 Receipt 返回 | 当前授权通过时原 Receipt/Ref 返回且无重复 Outbox/Claim/Driver 调用；异 payload 冲突；撤权后历史 Receipt 不可返回 | NOT RUN |
+| TE-RUN-D-007 | 两个 create_run 并发、attemptNumber=2、active Claim 已过期但未 terminal；两个 start 对同 Attempt 竞争 | 同 WorkOrder 仅一个 ACTIVE/attempt=1；不得绕过未释放 Claim；一个 RunStarted，另一仅安全重放或状态冲突 | NOT RUN |
+| TE-RUN-D-008 | 租约与 deadline：显式有限 Lease/WallClock、Context/Contract/Bundle/Decision 上界；等待行锁时到期 | 正向精确 min 与服务端时钟；上界相等或过期时不产生可用 Run/start；旧 fencing/跨 Run ack 拒绝，无部分状态 | NOT RUN |
+| TE-RUN-D-009 | IG Attempt 仅 CREATED/UNKNOWN、伪造 SUCCEEDED/Receipt、替换原 request/hash/binding、错 Scope/RuntimeBinding/session | start fail closed；RUNNING/Event 为 0；原合法 Attempt/Receipt 历史不被改写 | NOT RUN |
+| TE-RUN-D-010 | Queue/Run/Start/Receipt/Outbox 后注入故障；Run 已提交但 Dispatcher 进度未记；IG ack 迟到 | 各 Owner 事务原子回滚；重放原稳定键恢复，跨 Owner 已提交事实保留；迟到 ack 若 lease 已过期仍不得 start | NOT RUN |
+| TE-RUN-D-011 | WorkOrder reconcile 收到错 Run、无 active Claim、Run 未 RUNNING、重复 trigger；Queue 与 reconcile 竞争 | 不跨 Root 改 Run；只由已提交 RUNNING Run 使 QUEUED→RUNNING，重复不增版本/事件；不借 Projection 推断状态 | NOT RUN |
+| TE-RUN-D-012 | 空库迁移、#219 升级库、二次 migrate、真实 app-role 直 SQL/RLS/ACL 与历史 Renderer/READY 回归 | 新 Bundle/Run/Claim/Attempt/Receipt kind 约束成立；旧行逐字节读回；第二次 no-op；无授权/错 Scope/Hash/来源的写入拒绝 | NOT RUN |
+
+实现验证目标为 `vibe verify full --json`，含真实 PostgreSQL persistence gate；真实 CLI/Provider/飞书、Result/Usage/Completion 与独立人工验收继续 `NOT RUN`。

@@ -1337,3 +1337,23 @@ Task 寻址规则（Spec 003 §17.3 的 R-206-1）：两个 Readiness 操作的 
 拟新增 READY 静态 registry `im06-work-order-ready-static-v1`（三项），Policy profile registry 则 additive 增加一项。所有 selector 要按完整 kind/objectType/objectId/versionId/Scope 精确匹配，拒绝未知版本、extra member、别名和 Project Scope 冒充；静态 descriptor 的内容 hash 不成为虚构的业务 SnapshotRef。保留既有 namespace/fixture 接受集，消费首版范围不扩大其运行时有效性。
 
 不新增公开 Command/Query/Event；#219 实现的 Catalog/Registry 217、TaskExecution 47、历史 Baseline 200 保持原目标。既有 Freeze、Contract Query、WorkOrderBecameReady@1.0 的版本、Schema、Purpose 与 compatibility metadata 不变。静态 registry 源文件、生成副本、exact resolver 与 Controls profile 已由 #219 注册；descriptor 不代表实际 Runtime 调用。
+
+## IM-06 READY Run 启动注册增量提案（2026-09-22）
+
+identity.issue_execution_capability_bundle@1.0
+execution.get_run_dispatch_binding@1.0
+integration.get_runtime_attempt_binding@1.0
+execution.reconcile_work_order_execution@1.0
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-22 / CONTRACT REGISTERED 2026-09-23 / PR #222 CI FULL PASS 2026-09-23（6a41b41）/ REVIEW APPROVE ON 6a41b41`。业务字段由 Spec 001 §15.12、Spec 003 §22、Spec 007 Runtime Binding 增量分别拥有；本节只固定公开名称、Owner、Ref 与兼容边界。
+
+| 新增 operation | Owner / kind / Purpose | Target / payload 与 result 的精确引用 |
+|---|---|---|
+| `identity.issue_execution_capability_bundle@1.0` | identity-policy / COMMAND / `identity.execution_capability_bundle.issue` | CREATE target `zhiju.identity.execution_capability_bundle` OBJECT；payload 的 Run、WorkOrder、Contract、INITIAL Context refs 及 Result.data 的 `bundleRef` CONTENT_ADDRESSED/同 objectType 均声明；Result 用专用 closed Schema |
+| `execution.get_run_dispatch_binding@1.0` | task-execution / AUTHORITATIVE QUERY / `execution.run.dispatch_binding.read` | payload `/runRef` OBJECT/`execution.run`；专用 closed Result.data 含 exact Contract/Context/Bundle、lease/fencing 与当前状态；不声明公开 bearer token |
+| `integration.get_runtime_attempt_binding@1.0` | integration-gateway / AUTHORITATIVE QUERY / `integration.runtime.binding.read` | payload `/attemptRef` OBJECT/`integration.runtime_attempt`；专用 closed Result.data 含原 request/hash、invocation/hash 与条件性 ack；不复用通用 AdapterAttemptView |
+| `execution.reconcile_work_order_execution@1.0` | task-execution / COMMAND / `execution.work_order.reconcile` | MUTATE target `zhiju.execution.work_order`；payload `/triggerRef` 本波次只接受同 Scope `OBJECT/execution.run`，目标状态由 owning 事实推导，专用 Result.data 含 WorkOrder Ref/status |
+
+新增 objectType `zhiju.identity.execution_capability_bundle`：Owner identity-policy；CREATE target 为 OBJECT、已提交 Bundle Ref 为 CONTENT_ADDRESSED，Project Scope 必填且完整 Enterprise/Project 镜像；不把旧 `CapabilityGrant` OBJECT 当作 Bundle。Queue 和 Lease 均逐字段复用冻结 Contract 已绑定的同一 `execution.work_order_controls.policy@1.0` 真实版本；不新增 Policy profile selector，也不改变其已注册 closed Schema。有限租约取该 Policy 的显式 `budget.wallClockLimit` 与其它真实上界，不从静态 selector、未注册默认值或 fixture 推断。
+
+当前计数为 Catalog/Registry 217→221，identity-policy 22→23、task-execution 47→49、integration-gateway 24→25；历史 200-operation Baseline 不变。现有 `queue_work_order@1.0`、`create_run@1.0`、`start_run@1.0`、`request_runtime_dispatch@1.0`、`get_run_state@1.0`、`WorkOrderQueued@1.0`、`RunStarted@1.0` 的注册 Schema/metadata 和 compatibility fixtures 保持逐字节不变；新查询/命令是 additive。现有 @1.0 公开 payload 允许的较宽输入仍由本次首版 Handler 明确拒绝 unsupported 子集，不能通过改旧 Schema 缩窄历史接受集。字段级新增 Schema/Result、引用声明、source/generated/fixtures/compatibility 正反例已随本次实现登记；PR #222 的精确修订 `8b4dfc0` 已通过 CI full 门禁。

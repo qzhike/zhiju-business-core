@@ -318,9 +318,50 @@ export interface WorkOrderTable {
    */
   frozen_contract_id: string | null;
   frozen_contract_hash: Buffer | null;
+  queue_policy_ref: ColumnType<unknown, string | null | undefined, string | null>;
+  queued_at: Generated<Date | null>;
+  requested_runtime_class: Generated<string | null>;
+  last_transition_command_id: Generated<string | null>;
   created_at: Generated<Date>;
   created_by_principal_id: string;
   requested_by_principal_id: string;
+}
+
+export interface RunTable {
+  run_id: string;
+  enterprise_id: string;
+  project_id: string;
+  work_order_id: string;
+  work_order_ref: Json;
+  work_order_contract_ref: Json;
+  context_snapshot_ref: Json;
+  capability_grant_ref: Json;
+  attempt_number: number;
+  runtime_binding: Json;
+  lease_policy_ref: Json;
+  lease_id: string;
+  fencing_token: Int8Default;
+  lease_expires_at: Date;
+  execution_deadline: Date;
+  status: 'CREATED' | 'STARTING' | 'RUNNING';
+  aggregate_version: Int8Default;
+  created_at: Date;
+  started_at: Date | null;
+  start_attempt_ref: Json | null;
+  source_command_id: string;
+  last_command_id: string | null;
+  created_by_principal_id: string;
+}
+
+export interface WorkOrderRunClaimTable {
+  work_order_id: string;
+  run_id: string;
+  enterprise_id: string;
+  project_id: string;
+  attempt_number: number;
+  fencing_token: Int8Default;
+  status: 'ACTIVE' | 'RELEASED' | 'EXPIRED';
+  source_command_id: string;
 }
 
 /**
@@ -495,6 +536,8 @@ export interface WorkOrderContractTable {
 }
 
 export interface TaskExecutionDb {
+  'task_execution.run': RunTable;
+  'task_execution.work_order_run_claim': WorkOrderRunClaimTable;
   'task_execution.task': TaskTable;
   'task_execution.task_definition_snapshot': TaskDefinitionSnapshotTable;
   'task_execution.execution_judgment': ExecutionJudgmentTable;

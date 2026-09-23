@@ -20,6 +20,9 @@
       "path": "../../modules/identity-policy"
     },
     {
+      "path": "../../modules/integration-gateway"
+    },
+    {
       "path": "../../modules/quality-governance"
     },
     {

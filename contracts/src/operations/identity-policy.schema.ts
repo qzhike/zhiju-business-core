@@ -52,6 +52,7 @@ const objectReference = { $ref: `${common}objectRef` } as const;
 const typedReference = { $ref: `${common}typedReference` } as const;
 const contentAddressedReference = { $ref: `${common}contentAddressedRef` } as const;
 const snapshotReference = { $ref: `${common}snapshotRef` } as const;
+const principalReference = { $ref: `${common}principalRef` } as const;
 const payloadHash = { $ref: `${common}contentHash` } as const;
 const canonicalJson = {} as const;
 
@@ -382,6 +383,63 @@ const operationSchemas = {
       ...object(['policyVersionRef'], { policyVersionRef: policyVersionSnapshotReference }),
       payloadGuard: policyVersionGuardRef,
     },
+  },
+  'identity.issue_execution_capability_bundle': {
+    payload: object(
+      [
+        'runRef',
+        'workOrderRef',
+        'workOrderContractRef',
+        'contextSnapshotRef',
+        'servicePrincipalRef',
+        'requestedCapabilities',
+      ],
+      {
+        runRef: {
+          allOf: [
+            objectReference,
+            { type: 'object', properties: { objectType: { const: 'execution.run' } } },
+          ],
+        },
+        workOrderRef: {
+          allOf: [
+            objectReference,
+            { type: 'object', properties: { objectType: { const: 'zhiju.execution.work_order' } } },
+          ],
+        },
+        workOrderContractRef: {
+          allOf: [
+            contentAddressedReference,
+            { type: 'object', properties: { objectType: { const: 'zhiju.contract.work_order' } } },
+          ],
+        },
+        contextSnapshotRef: {
+          allOf: [
+            snapshotReference,
+            {
+              type: 'object',
+              properties: { objectType: { const: 'zhiju.execution.context_snapshot' } },
+            },
+          ],
+        },
+        servicePrincipalRef: principalReference,
+        requestedCapabilities: array(
+          { $ref: 'https://schemas.zhiju.local/core/work-order/1.0#/$defs/capabilityGrant' },
+          { nonEmpty: true, unique: true },
+        ),
+      },
+    ),
+    result: object(['bundleRef'], {
+      bundleRef: {
+        allOf: [
+          contentAddressedReference,
+          {
+            type: 'object',
+            properties: { objectType: { const: 'zhiju.identity.execution_capability_bundle' } },
+          },
+        ],
+      },
+    }),
   },
   'identity.resolve_principal': {
     payload: object(['lookup', 'purpose'], {

@@ -610,3 +610,9 @@ AgentResult 的 header/schema/hash、FINAL、executionOutcome、provenance 和 s
 状态：`HUMAN DESIGN APPROVED 2026-09-22 / STATIC SELECTOR REGISTERED 2026-09-22 / INDEPENDENT REVIEW PENDING / RUNTIME NOT RUN`。已将本节既有 Human-operated synthetic 技术协议登记为 `te.human_operated.synthetic@1.0` 的构建期 VersionedRef selector；完整身份及 closed descriptor 见 [Spec 003 §21.6](../module-specs/Module-Spec-003-TaskExecution.md#issue-219-ready-selectors)，objectType/Owner 见 Contract Catalog 的 #219 补充。Owner 仍为 IntegrationGateway；contracts 承载静态描述，不接管 RuntimeAttempt 或 Driver。
 
 该 selector 只允许 Validator 证明冻结计划采用已知技术协议和显式 synthetic Harness/Model 控制值。它不表示三种 CLI 的 conformance、已安装可执行程序、认证、Provider 可用、RuntimeBinding、Attempt 或真实调用；这些必须在后续 owning Run/Dispatch 边界证明。READY profile 不启用 fallback、同 Run resume 或租约默认值，也不修改本协议已批准的控制时序。
+
+### 首个受控 Run 的 RuntimeBinding 映射（提案，2026-09-22）
+
+状态：`T2 / PROPOSED / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-22 / HUMAN DESIGN APPROVED 2026-09-22 / NOT IMPLEMENTED`。为了让已发布 `RunCreation.runtimeBinding` 与 `RuntimeDispatchRequest.runtimeBinding` 绑定同一可执行技术配置，首版仅接受：`adapterCode='te.human_operated.synthetic'`、`adapterVersion='1.0'`、`harnessId='zhiju.runtime.synthetic'`、`harnessVersion='1.0'`、`provider='synthetic'`、`modelId='synthetic'`、`modelConfigHash=SHA-256(canonicalization-v1({}))`，且不含 `executionNodeRef`。配置 `{}` 是闭合集，没有 Provider 参数；版本字段表示此受控 Driver 协议映射，不表示 CLI 或模型部署版本。TE、IG 和 Driver 输入逐字段保持一致，变更任何成员须引入新受控 profile，不得沿用同一 version/hash 偷换。
+
+本映射与上面的 `te.human_operated.synthetic@1.0` 静态 selector 同时成立才可选择 Driver；selector 证明协议描述，实际调用与 ack 仍按本节已有流程由 IG owning Attempt/Observation/Raw Receipt 证明。运行阶段只证明首个 synthetic Run START，Result、真实 Provider/CLI、Usage 与业务完成继续 `NOT RUN`。

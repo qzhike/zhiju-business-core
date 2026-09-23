@@ -235,13 +235,25 @@
 
 import { verifyWorkOrderValidationGuards } from './work-order-validation-guards.js';
 import { verifyWorkOrderValidationUpgrade } from './work-order-validation-upgrade.js';
-import { createWorkOrderValidationEntry, createTaskReadinessEntry } from '@zhiju/api/composition';
 import {
+  createWorkOrderValidationEntry,
+  createTaskReadinessEntry,
+  createControlledFirstRunEntry,
+} from '@zhiju/api/composition';
+import {
+  CONTROLLED_FIRST_RUN_BINDINGS,
+  createControlledFirstRunAuthorizationPort,
   WORK_ORDER_VALIDATION_BINDINGS,
   createWorkOrderValidationAuthorizationPort,
   createTaskExecutionReadinessAuthorizationPort,
   type WorkOrderValidationCapabilityCodes,
+  type ControlledFirstRunCapabilityCodes,
 } from '@zhiju/identity-policy';
+import {
+  createIntegrationRendererDatabase,
+  InMemoryRenderObjectStorage,
+  LocalSyntheticRuntimeDriver,
+} from '@zhiju/integration-gateway';
 import {
   workOrderReadyProfileRegistry,
   registeredEvaluatorProfileReference,
@@ -340,6 +352,7 @@ import {
   registeredPolicyProfileReference,
   type Common,
   type EnterpriseProject,
+  type IntegrationGateway,
 } from '@zhiju/contracts';
 import { canonicalize, newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 
@@ -1428,7 +1441,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
        END $do$`,
     );
     await admin.query(
-      `GRANT platform_context_establisher, task_execution_app, enterprise_project_app, identity_policy_app TO ${PROBE_ROLE}`,
+      `GRANT platform_context_establisher, task_execution_app, enterprise_project_app, identity_policy_app, integration_gateway_app TO ${PROBE_ROLE}`,
     );
     const url = new URL(databaseUrl ?? '');
     url.username = PROBE_ROLE;
@@ -5485,10 +5498,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(217);
+    expect(catalog.operations).toHaveLength(221);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(47);
+    ).toHaveLength(49);
     expect(
       catalog.operations.filter(
         (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
@@ -6857,15 +6870,15 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(legacyEvents.rows.at(0)?.n).toBe(0);
 
       // The Catalog counts the matrix pins (also asserted in TE-214-D-016):
-      // 217 operations total, 47 owned by TaskExecution, the historical
+      // 221 operations total, 49 owned by TaskExecution, the historical
       // 200-entry v1.0 Baseline untouched.
       const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
         operations: { type: string; version: string; kind: string; owner: string }[];
       };
-      expect(catalog.operations).toHaveLength(217);
+      expect(catalog.operations).toHaveLength(221);
       expect(
         catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-      ).toHaveLength(47);
+      ).toHaveLength(49);
       const baseline = JSON.parse(readFileSync(COMPATIBILITY_BASELINE, 'utf8')) as
         { type: string }[] | { operations: { type: string }[] };
       expect(Array.isArray(baseline) ? baseline : baseline.operations).toHaveLength(200);
@@ -7279,6 +7292,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         return value;
       }
       const revised = replaceControls(candidate) as Record<string, unknown>;
+      // The first Run subset requires a finite wall clock limit. The older
+      // READY fixture only carried tokenLimit, which remains legal for Freeze.
+      record(revised.budget).wallClockLimit = 'PT600S';
       // Static selectors are Platform-scoped; recursive fixture scope rewriting
       // is restricted to business refs and must not turn them into Project refs.
       for (const profile of workOrderReadyProfileRegistry.profiles) {
@@ -7993,6 +8009,395 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           )
         ).rows,
       ).toEqual([{ n: 1 }]);
+
+      // #221 starts from this committed READY fact. Each boundary receives
+      // its own current Grant and target-bound Decision.
+      clock = Date.now();
+      const firstRunCodes = Object.fromEntries(
+        CONTROLLED_FIRST_RUN_BINDINGS.map((binding, index) => [
+          binding.boundary,
+          `wi221.auth.c${index}`,
+        ]),
+      ) as ControlledFirstRunCapabilityCodes;
+      const firstRunGrants = new Map<string, string>();
+      for (const binding of CONTROLLED_FIRST_RUN_BINDINGS) {
+        const targetObjectType = binding.targetObjectTypes[0];
+        if (targetObjectType === undefined) throw new Error('missing first Run target');
+        firstRunGrants.set(
+          binding.boundary,
+          await grant({
+            principal: binding.expectedPrincipalKind === 'HUMAN' ? operator() : service,
+            capabilityCode: firstRunCodes[binding.boundary],
+            action: binding.requiredGrantAction,
+            selectorType: binding.selectorType,
+            targetObjectType,
+          }),
+        );
+      }
+      await grant({
+        principal: service,
+        capabilityCode: 'artifact.revision.create',
+        action: 'create',
+        selectorType: 'CREATE_TARGET_TYPE',
+        targetObjectType: 'zhiju.artifact.artifact_revision',
+      });
+      const firstRunAuth = createControlledFirstRunAuthorizationPort({
+        capabilityCodes: firstRunCodes,
+        now: () => new Date(clock),
+      });
+      const runtimeDriver = new LocalSyntheticRuntimeDriver();
+      const firstRunEntry = createControlledFirstRunEntry({
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        integrationGatewayDb: createIntegrationRendererDatabase(tePool),
+        runtimeDriver,
+        receiptStorage: new InMemoryRenderObjectStorage(),
+        capabilityCodes: firstRunCodes,
+        capabilities: dependencyCapabilities,
+        now: () => new Date(clock),
+      });
+      async function firstRunEnvelope(
+        commandType: string,
+        targetRef: Common.ObjectRef,
+        payload: CanonicalJsonObject,
+        principal: Principal,
+        expectedAggregateVersion?: number,
+      ) {
+        const payloadHash = digestCanonicalPayload(payload).hash;
+        const decision = await firstRunAuth.authorize(
+          identityDeps([fixture.projectId], principal),
+          CONTROLLED_FIRST_RUN_BINDINGS.find(
+            (binding) =>
+              binding.commandType === commandType &&
+              binding.targetObjectTypes.includes(targetRef.objectType) &&
+              [
+                'workOrderQueueV1',
+                'executionBundleIssueV1',
+                'runCreateV1',
+                'runtimeDispatchV1',
+                'runStartV1',
+                'workOrderReconcileV1',
+              ].includes(binding.boundary),
+          )?.boundary ?? '',
+          {
+            actorSnapshotRef: principal.actorRef,
+            commandType,
+            commandVersion: '1.0',
+            commandPayloadHash: payloadHash,
+            authenticationContextHash: principal.authHash,
+            targetRef,
+          },
+        );
+        expect(decision.outcome).toBe('ALLOW');
+        if (decision.outcome !== 'ALLOW') throw new Error('first Run Decision denied');
+        return {
+          commandId: newUuidV7(),
+          commandType,
+          commandVersion: '1.0',
+          scopeRef: scope(),
+          targetRef,
+          actor: principal.actorRef,
+          authorizationDecisionRef: decision.authorizationDecisionRef,
+          idempotencyKey: newUuidV7(),
+          correlationId: newUuidV7(),
+          requestedAt: new Date(clock).toISOString(),
+          ...(expectedAggregateVersion === undefined ? {} : { expectedAggregateVersion }),
+          payload,
+          integrity: {
+            canonicalizationVersion: '1',
+            payloadHash: contentHash(payloadHash.toString('hex')),
+          },
+        };
+      }
+      const workOrderRef = revised.workOrderRef as Common.ObjectRef;
+      const queueEnvelope = await firstRunEnvelope(
+        'execution.queue_work_order',
+        workOrderRef,
+        { queuePolicyRef: controlsRef as unknown as CanonicalJsonObject },
+        operator(),
+        2,
+      );
+      const deniedQueueEntry = createControlledFirstRunEntry({
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        integrationGatewayDb: createIntegrationRendererDatabase(tePool),
+        runtimeDriver,
+        receiptStorage: new InMemoryRenderObjectStorage(),
+        capabilityCodes: { ...firstRunCodes, queueContextReadV1: 'wi221.ungranted' },
+        capabilities: dependencyCapabilities,
+        now: () => new Date(clock),
+      });
+      await expect(deniedQueueEntry.queue(queueEnvelope, sessionFor())).rejects.toMatchObject({
+        code: 'AUTHORIZATION_REVOKED',
+      });
+      expect(await receiptRows(queueEnvelope.idempotencyKey)).toEqual([]);
+      await admin.query(`
+        CREATE OR REPLACE FUNCTION task_execution.wi221_pause_queue() RETURNS trigger
+        LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(8); RETURN NEW; END $$`);
+      await admin.query(`
+        CREATE TRIGGER wi221_pause_queue BEFORE UPDATE ON task_execution.work_order
+        FOR EACH ROW WHEN (NEW.work_order_id = '${workOrderRef.objectId}'::uuid AND NEW.status = 'QUEUED')
+        EXECUTE FUNCTION task_execution.wi221_pause_queue()`);
+      const queuedAttempt = firstRunEntry.queue(queueEnvelope, sessionFor()).then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+      try {
+        let paused = false;
+        for (let poll = 0; poll < 200 && !paused; poll += 1) {
+          const activity = await admin.query<{ paused: boolean }>(
+            `SELECT EXISTS (
+               SELECT 1 FROM pg_stat_activity
+               WHERE pid <> pg_backend_pid() AND wait_event = 'PgSleep'
+                 AND query ILIKE '%task_execution%work_order%'
+             ) AS paused`,
+          );
+          paused = activity.rows[0]?.paused === true;
+          if (!paused) await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        expect(paused).toBe(true);
+        expect(
+          await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+            targetId: grantResolve,
+            expectedAggregateVersion: '1',
+            scope: {
+              scopeKind: 'PROJECT',
+              enterpriseId: fixture.enterpriseId,
+              projectId: fixture.projectId,
+            },
+            reasonCode: 'WI221_REVOKE_POLICY_READ_AFTER_MINT',
+            effectiveAt: new Date(clock),
+            idempotencyKey: newUuidV7(),
+          }),
+        ).toMatchObject({ status: 'COMMITTED' });
+        expect(await queuedAttempt).toMatchObject({
+          error: { code: 'AUTHORIZATION_REVOKED' },
+        });
+      } finally {
+        await queuedAttempt;
+        await admin.query('DROP TRIGGER wi221_pause_queue ON task_execution.work_order');
+        await admin.query('DROP FUNCTION task_execution.wi221_pause_queue()');
+      }
+      expect(await receiptRows(queueEnvelope.idempotencyKey)).toEqual([]);
+      grantResolve = await grantGeneric(dependencyCapabilities.resolvePolicy);
+      const queued = await firstRunEntry.queue(queueEnvelope, sessionFor());
+      expect(queued, JSON.stringify(queued)).toMatchObject({ status: 'COMMITTED' });
+      expect(await firstRunEntry.queue(queueEnvelope, sessionFor())).toMatchObject({
+        status: 'DUPLICATE',
+      });
+      const runRef = objectRef('execution.run', newUuidV7(), scope()) as Common.ObjectRef;
+      const bundleEnvelope = await firstRunEnvelope(
+        'identity.issue_execution_capability_bundle',
+        objectRef(
+          'zhiju.identity.execution_capability_bundle',
+          newUuidV7(),
+          scope(),
+        ) as Common.ObjectRef,
+        {
+          runRef,
+          workOrderRef,
+          workOrderContractRef: read.contractRef,
+          contextSnapshotRef: contextRef,
+          servicePrincipalRef: { principalId: serviceId, principalKind: 'SERVICE' },
+          requestedCapabilities: revised.allowedCapabilities,
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
+      const bundle = await firstRunEntry.issueBundle(bundleEnvelope, sessionFor(service));
+      expect(bundle, JSON.stringify(bundle)).toMatchObject({ status: 'COMMITTED' });
+      const bundleRef = record(committedPayload(bundle as unknown as CommandResult)).bundleRef;
+      const bundleValidUntil = (
+        await admin.query<{ valid_until: Date }>(
+          'SELECT valid_until FROM identity_policy.execution_capability_bundle WHERE bundle_id=$1',
+          [record(bundleRef).objectId],
+        )
+      ).rows[0]?.valid_until;
+      if (bundleValidUntil === undefined) throw new Error('missing Bundle');
+      const runtimeBinding = {
+        adapterCode: 'te.human_operated.synthetic',
+        adapterVersion: '1.0',
+        harnessId: 'zhiju.runtime.synthetic',
+        harnessVersion: '1.0',
+        provider: 'synthetic',
+        modelId: 'synthetic',
+        modelConfigHash: contentHash(sha256CanonicalJson({})),
+      };
+      const createEnvelope = await firstRunEnvelope(
+        'execution.create_run',
+        runRef,
+        {
+          creation: {
+            workOrderRef,
+            workOrderContractRef: read.contractRef,
+            contextSnapshotRef: contextRef,
+            capabilityGrantRef: bundleRef,
+            leasePolicyRef: controlsRef,
+            attemptNumber: 1,
+            runtimeBinding,
+            executionDeadline: bundleValidUntil.toISOString(),
+          },
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
+      const created = await firstRunEntry.createRun(createEnvelope, sessionFor(service));
+      expect(created, JSON.stringify(created)).toMatchObject({ status: 'COMMITTED' });
+      expect(await firstRunEntry.createRun(createEnvelope, sessionFor(service))).toMatchObject({
+        status: 'DUPLICATE',
+      });
+      const createdData = record(committedPayload(created as unknown as CommandResult));
+      async function firstRunQuery(
+        queryType: string,
+        targetRef: Common.ObjectRef,
+        payload: CanonicalJsonObject,
+        key: 'runtimeAttemptBindingReadV1',
+      ) {
+        const decision = await firstRunAuth.authorize(
+          identityDeps([fixture.projectId], service),
+          key,
+          {
+            actorSnapshotRef: service.actorRef,
+            commandType: queryType,
+            commandVersion: '1.0',
+            commandPayloadHash: digestCanonicalPayload(payload).hash,
+            authenticationContextHash: AUTH_HASH,
+            targetRef,
+          },
+        );
+        if (decision.outcome !== 'ALLOW') throw new Error('first Run query Decision denied');
+        return {
+          queryId: newUuidV7(),
+          queryType,
+          queryVersion: '1.0',
+          scopeRef: scope(),
+          requester: objectRef(PRINCIPAL_OBJECT, serviceId, scope()),
+          authenticationContextRef: {
+            kind: 'CONTENT_ADDRESSED',
+            objectType: 'zhiju.identity.authentication_context',
+            objectId: actorId,
+            scope: scope(),
+            contentHash: contentHash(AUTH_HASH.toString('hex')),
+          },
+          authorizationDecisionRef: decision.authorizationDecisionRef,
+          consistencyRequirement: 'AUTHORITATIVE',
+          correlationId: newUuidV7(),
+          requestedAt: new Date(clock).toISOString(),
+          payload,
+        };
+      }
+      const attemptRef = objectRef(
+        'integration.runtime_attempt',
+        newUuidV7(),
+        scope(),
+      ) as Common.ObjectRef;
+      const dispatchEnvelope = await firstRunEnvelope(
+        'integration.request_runtime_dispatch',
+        attemptRef,
+        {
+          request: {
+            workOrderRef,
+            runRef,
+            workOrderContractRef: read.contractRef,
+            contextSnapshotRef: contextRef,
+            capabilityGrantRef: bundleRef,
+            runtimeBinding,
+            stableIdempotencyKey: newUuidV7(),
+            requestedAt: new Date(clock).toISOString(),
+          },
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
+      const dispatched = (await firstRunEntry.dispatch(
+        dispatchEnvelope,
+        sessionFor(service),
+      )) as IntegrationGateway.IntegrationGetRuntimeAttemptBindingResult;
+      expect(dispatched.status).toBe('SUCCEEDED');
+      expect(dispatched.acknowledgement?.source).toBe('SYNTHETIC_DRIVER');
+      expect(runtimeDriver.invokedAttemptIds).toEqual([attemptRef.objectId]);
+      const attemptBinding = await firstRunEntry.getRuntimeAttemptBinding(
+        await firstRunQuery(
+          'integration.get_runtime_attempt_binding',
+          attemptRef,
+          { attemptRef } as unknown as CanonicalJsonObject,
+          'runtimeAttemptBindingReadV1',
+        ),
+        sessionFor(service),
+      );
+      expect(attemptBinding).toEqual(dispatched);
+      const replayedDispatch = await firstRunEntry.dispatch(dispatchEnvelope, sessionFor(service));
+      expect(replayedDispatch).toEqual(dispatched);
+      expect(runtimeDriver.invokedAttemptIds).toHaveLength(1);
+      const startEnvelope = await firstRunEnvelope(
+        'execution.start_run',
+        runRef,
+        {
+          leaseId: createdData.leaseId,
+          fencingToken: 1,
+          runtimeAttemptRef: attemptRef,
+          startedAt: new Date(clock).toISOString(),
+        } as unknown as CanonicalJsonObject,
+        service,
+        1,
+      );
+      const startSession = { ...sessionFor(service), serviceEntryAt: new Date(clock) };
+      const started = await firstRunEntry.startRun(startEnvelope, startSession);
+      expect(started, JSON.stringify(started)).toMatchObject({ status: 'COMMITTED' });
+      expect(await firstRunEntry.startRun(startEnvelope, startSession)).toMatchObject({
+        status: 'DUPLICATE',
+      });
+      const reconcileEnvelope = await firstRunEnvelope(
+        'execution.reconcile_work_order_execution',
+        workOrderRef,
+        { triggerRef: runRef } as unknown as CanonicalJsonObject,
+        service,
+        3,
+      );
+      const reconciled = await firstRunEntry.reconcile(reconcileEnvelope, sessionFor(service));
+      expect(reconciled, JSON.stringify(reconciled)).toMatchObject({ status: 'COMMITTED' });
+      expect(
+        (
+          await admin.query<{ status: string; aggregate_version: string }>(
+            'SELECT status,aggregate_version FROM task_execution.work_order WHERE work_order_id=$1',
+            [woId],
+          )
+        ).rows,
+      ).toEqual([{ status: 'RUNNING', aggregate_version: '4' }]);
+      expect(
+        (
+          await admin.query<{ status: string; aggregate_version: string }>(
+            'SELECT status,aggregate_version FROM task_execution.run WHERE run_id=$1',
+            [runRef.objectId],
+          )
+        ).rows,
+      ).toEqual([{ status: 'RUNNING', aggregate_version: '2' }]);
+      expect(
+        (
+          await admin.query<{ count: string }>(
+            "SELECT count(*)::text FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.RunStarted'",
+            [runRef.objectId],
+          )
+        ).rows,
+      ).toEqual([{ count: '1' }]);
+      const queueGrantId = firstRunGrants.get('workOrderQueueV1');
+      if (queueGrantId === undefined) throw new Error('missing Queue Grant');
+      expect(
+        await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+          targetId: queueGrantId,
+          expectedAggregateVersion: '1',
+          scope: {
+            scopeKind: 'PROJECT',
+            enterpriseId: fixture.enterpriseId,
+            projectId: fixture.projectId,
+          },
+          reasonCode: 'WI221_REVOKE_QUEUE',
+          effectiveAt: new Date(clock),
+          idempotencyKey: newUuidV7(),
+        }),
+      ).toMatchObject({ status: 'COMMITTED' });
+      await expect(firstRunEntry.queue(queueEnvelope, sessionFor())).rejects.toMatchObject({
+        code: 'AUTHORIZATION_REVOKED',
+      });
     },
   );
 });

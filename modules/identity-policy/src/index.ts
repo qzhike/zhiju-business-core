@@ -3,6 +3,22 @@ export const identityPolicyModule = Object.freeze({
   status: 'PERSISTENCE_FOUNDATION' as const,
 });
 
+export {
+  issueExecutionCapabilityBundle,
+  readExecutionCapabilityBundle,
+} from './commands/execution-capability-bundle.js';
+export {
+  createControlledFirstRunAuthorizationPort,
+  CONTROLLED_FIRST_RUN_BINDINGS,
+} from './commands/work-order-validation-authorization.js';
+export type {
+  ControlledFirstRunAuthorizationConfig,
+  ControlledFirstRunAuthorizationInput,
+  ControlledFirstRunRevalidationInput,
+  ControlledFirstRunCapabilityCodes,
+} from './commands/work-order-validation-authorization.js';
+export type { ExecutionCapabilityBundlePorts } from './commands/execution-capability-bundle.js';
+
 // IM-02 WI-05 (issue #33): low-level persistence boundary. Business command
 // handlers (WI-07+) are layered on top; nothing here interprets domain
 // authorization semantics.

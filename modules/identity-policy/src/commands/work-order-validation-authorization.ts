@@ -188,7 +188,20 @@ export type WorkOrderValidationBoundary =
  * object types, Grant selector type and trusted configuration key of one
  * approved entry (Spec 001 §15.10).
  */
-export interface WorkOrderValidationBinding {
+interface AuthorizationEntryBinding {
+  readonly commandType: string;
+  readonly commandVersion: string;
+  readonly authorizationPurpose: string;
+  readonly requiredGrantAction: string;
+  readonly targetKind: WorkOrderValidationTargetKind;
+  readonly targetObjectTypes: readonly string[];
+  readonly selectorType: WorkOrderValidationSelectorType;
+  readonly capabilityConfigKey: string;
+  readonly targetPayloadMember?: string;
+  readonly expectedPrincipalKind?: 'HUMAN' | 'SERVICE';
+}
+
+export interface WorkOrderValidationBinding extends AuthorizationEntryBinding {
   readonly boundary: WorkOrderValidationBoundary;
   readonly commandType: string;
   readonly commandVersion: string;
@@ -774,12 +787,19 @@ export function createWorkOrderValidationAuthorizationPort(
 async function issueEntryDecision(
   config: WorkOrderValidationAuthorizationConfig,
   now: () => Date,
-  boundary: WorkOrderValidationBoundary,
+  boundary: WorkOrderValidationBoundary | undefined,
   deps: IdentityCommandDeps,
   input: WorkOrderValidationEntryRequest,
   rawTarget: unknown,
+  entryBinding?: AuthorizationEntryBinding,
 ): Promise<IssuedEntryDecision> {
-  const binding = approvedValidationBinding(boundary, input.commandType, input.commandVersion);
+  const binding =
+    entryBinding ??
+    approvedValidationBinding(
+      boundary ?? 'validationBuild',
+      input.commandType,
+      input.commandVersion,
+    );
   const capabilityCode = configuredCapabilityCode(config, binding.capabilityConfigKey);
   const target = readValidationTarget(rawTarget, binding, deps.context);
   assertValidationInput(input, target, deps.context);
@@ -830,7 +850,10 @@ async function issueEntryDecision(
     const principalKind = principal?.principal_kind ?? actor.row.principal_kind;
     // actingFor is metadata only: the kind stays the actor's real kind, and
     // a Human-only capability never becomes available to another kind.
-    const principalInactive = principal?.status !== 'ACTIVE';
+    const principalInactive =
+      principal?.status !== 'ACTIVE' ||
+      (binding.expectedPrincipalKind !== undefined &&
+        principalKind !== binding.expectedPrincipalKind);
     const humanOnlyViolation = isHumanOnlyCapability(capabilityCode) && principalKind !== 'HUMAN';
     if (principalInactive || humanOnlyViolation) {
       const reason = principalInactive
@@ -872,7 +895,7 @@ async function issueEntryDecision(
     const expiresAt = new Date(now().getTime() + DECISION_DEFAULT_TTL_SECONDS * 1000);
     const reasons = ['ALLOWED_BY_GRANT'];
     const policySnapshot = finding.policySnapshot;
-    const dependencyMember = dependencyRefMember(target);
+    const dependencyMember = dependencyRefMember(target, binding);
     await deps.repo.insertAuthorizationDecision(trx, {
       authorizationDecisionId: decisionId,
       actorSnapshotId: actor.row.actor_snapshot_id,
@@ -985,16 +1008,19 @@ async function issueEntryDecision(
 async function revalidateEntryDecision(
   config: WorkOrderValidationAuthorizationConfig,
   now: () => Date,
-  boundary: WorkOrderValidationBoundary,
+  boundary: WorkOrderValidationBoundary | undefined,
   deps: IdentityCommandDeps,
   input: WorkOrderValidationEntryRevalidation,
   rawTarget: unknown,
+  entryBinding?: AuthorizationEntryBinding,
 ): Promise<RevalidatedEntryDecision> {
-  const binding = approvedValidationBinding(
-    boundary,
-    input.expectedCommandType,
-    input.expectedCommandVersion,
-  );
+  const binding =
+    entryBinding ??
+    approvedValidationBinding(
+      boundary ?? 'validationBuild',
+      input.expectedCommandType,
+      input.expectedCommandVersion,
+    );
   const capabilityCode = configuredCapabilityCode(config, binding.capabilityConfigKey);
   const target = readValidationTarget(rawTarget, binding, deps.context);
   validateHash(
@@ -1049,7 +1075,7 @@ async function revalidateEntryDecision(
     // canonical payload must equal the request ref field by field, so a hash,
     // snapshot-id or version-id substitution behind the same id, or a Decision
     // signed for another snapshot, is refused (Spec 001 §15.10).
-    if (!storedDependencyRefMatches(row.canonical_payload, target)) {
+    if (!storedDependencyRefMatches(row.canonical_payload, target, binding)) {
       return invalid('TARGET_MISMATCH');
     }
     if (
@@ -1096,7 +1122,12 @@ async function revalidateEntryDecision(
       return invalid('ACTOR_MISMATCH');
     }
     const principal = await deps.repo.getPrincipalById(trx, row.principal_id);
-    if (principal?.status !== 'ACTIVE') return invalid('PRINCIPAL_NOT_ACTIVE');
+    if (
+      principal?.status !== 'ACTIVE' ||
+      (binding.expectedPrincipalKind !== undefined &&
+        principal.principal_kind !== binding.expectedPrincipalKind)
+    )
+      return invalid('PRINCIPAL_NOT_ACTIVE');
 
     const finding = await coveringValidationGrant(deps, trx, {
       principalId: row.principal_id,
@@ -1188,7 +1219,7 @@ function approvedValidationBinding(
 
 function configuredCapabilityCode(
   config: WorkOrderValidationAuthorizationConfig,
-  key: WorkOrderValidationCapabilityKey,
+  key: string,
 ): string {
   const capabilityCodes: unknown = (
     config as { readonly capabilityCodes?: unknown } | null | undefined
@@ -1209,7 +1240,7 @@ function configuredCapabilityCode(
 /** The target reader of one entry, dispatched by the entry's target kind. */
 function readValidationTarget(
   rawTarget: unknown,
-  binding: WorkOrderValidationBinding,
+  binding: AuthorizationEntryBinding,
   context: IdentityTransactionContext,
 ): WorkOrderValidationTarget {
   if (binding.targetKind === 'CONTENT_ADDRESSED') {
@@ -1230,7 +1261,7 @@ function readValidationTarget(
  */
 function readObjectTarget(
   rawTarget: unknown,
-  binding: WorkOrderValidationBinding,
+  binding: AuthorizationEntryBinding,
   context: IdentityTransactionContext,
 ): WorkOrderValidationTarget {
   const candidate = rawTarget as
@@ -1274,7 +1305,7 @@ function readObjectTarget(
  */
 function readDraftSnapshotTarget(
   rawTarget: unknown,
-  binding: WorkOrderValidationBinding,
+  binding: AuthorizationEntryBinding,
   context: IdentityTransactionContext,
 ): WorkOrderValidationTarget {
   const candidate = rawTarget as
@@ -1341,7 +1372,7 @@ function readDraftSnapshotTarget(
  */
 function readContextSnapshotTarget(
   rawTarget: unknown,
-  binding: WorkOrderValidationBinding,
+  binding: AuthorizationEntryBinding,
   context: IdentityTransactionContext,
 ): WorkOrderValidationTarget {
   const candidate = rawTarget as
@@ -1456,10 +1487,11 @@ function assertTrustedScope(
  */
 function dependencyRefMember(
   target: WorkOrderValidationTarget,
+  binding: AuthorizationEntryBinding,
 ): readonly [string, CanonicalJsonObject] | undefined {
   if (target.kind === 'CONTENT_ADDRESSED') {
     return [
-      'draftSnapshotRef',
+      binding.targetPayloadMember ?? 'draftSnapshotRef',
       {
         kind: 'CONTENT_ADDRESSED',
         objectType: target.objectType,
@@ -1478,7 +1510,7 @@ function dependencyRefMember(
   }
   if (target.kind === 'SNAPSHOT') {
     return [
-      'contextSnapshotRef',
+      binding.targetPayloadMember ?? 'contextSnapshotRef',
       {
         kind: 'SNAPSHOT',
         objectType: target.objectType,
@@ -1510,9 +1542,12 @@ function dependencyRefMember(
 function storedDependencyRefMatches(
   storedPayload: unknown,
   expected: WorkOrderValidationTarget,
+  binding: AuthorizationEntryBinding,
 ): boolean {
   if (expected.kind === 'OBJECT') return true;
-  const member = expected.kind === 'SNAPSHOT' ? 'contextSnapshotRef' : 'draftSnapshotRef';
+  const member =
+    binding.targetPayloadMember ??
+    (expected.kind === 'SNAPSHOT' ? 'contextSnapshotRef' : 'draftSnapshotRef');
   const candidate = (storedPayload as Record<string, unknown> | null | undefined)?.[member] as
     | {
         kind?: unknown;
@@ -1773,4 +1808,294 @@ async function appendWorkOrderValidationDeniedAudit(
       retention_class: 'REGULATED_AUDIT',
     })
     .execute();
+}
+
+// IM-06 #221 uses the same owning target-bound Decision and single covering
+// Grant machinery as WorkOrder validation. Every consumer has its own exact
+// operation, Purpose, action, selector, target and trusted configuration key.
+function firstRunBinding<const B extends string>(
+  boundary: B,
+  commandType: string,
+  authorizationPurpose: string,
+  requiredGrantAction: string,
+  targetObjectType: string,
+  selectorType: WorkOrderValidationSelectorType,
+  expectedPrincipalKind: 'HUMAN' | 'SERVICE',
+  targetKind: WorkOrderValidationTargetKind = 'OBJECT',
+  targetPayloadMember?: string,
+): AuthorizationEntryBinding & { readonly boundary: B } {
+  return Object.freeze({
+    boundary,
+    commandType,
+    commandVersion: '1.0',
+    authorizationPurpose,
+    requiredGrantAction,
+    targetKind,
+    targetObjectTypes: Object.freeze([targetObjectType]),
+    selectorType,
+    capabilityConfigKey: boundary,
+    expectedPrincipalKind,
+    ...(targetPayloadMember === undefined ? {} : { targetPayloadMember }),
+  });
+}
+
+export const CONTROLLED_FIRST_RUN_BINDINGS = Object.freeze([
+  firstRunBinding(
+    'workOrderQueueV1',
+    'execution.queue_work_order',
+    'task.execution.queue_work_order',
+    'execution.work_order.queue.v1',
+    'zhiju.execution.work_order',
+    'TARGET_TYPE',
+    'HUMAN',
+  ),
+  firstRunBinding(
+    'executionBundleIssueV1',
+    'identity.issue_execution_capability_bundle',
+    'identity.execution_capability_bundle.issue',
+    'identity.execution_bundle.issue.v1',
+    'zhiju.identity.execution_capability_bundle',
+    'CREATE_TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runCreateV1',
+    'execution.create_run',
+    'task.execution.create_run',
+    'execution.run.create.v1',
+    'execution.run',
+    'CREATE_TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runDispatchBindingReadV1',
+    'execution.get_run_dispatch_binding',
+    'execution.run.dispatch_binding.read',
+    'execution.run.dispatch_binding.read.v1',
+    'execution.run',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runtimeDispatchV1',
+    'integration.request_runtime_dispatch',
+    'integration.gateway.request_runtime_dispatch',
+    'integration.runtime.dispatch.request.v1',
+    'integration.runtime_attempt',
+    'CREATE_TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runtimeReceiptRecordV1',
+    'integration.record_external_receipt',
+    'integration.gateway.record_external_receipt',
+    'integration.runtime.receipt.record.v1',
+    'integration.raw_external_receipt',
+    'CREATE_TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runtimeAttemptBindingReadV1',
+    'integration.get_runtime_attempt_binding',
+    'integration.runtime.binding.read',
+    'integration.runtime.binding.read.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runStartV1',
+    'execution.start_run',
+    'task.execution.start_run',
+    'execution.run.start.v1',
+    'execution.run',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'workOrderReconcileV1',
+    'execution.reconcile_work_order_execution',
+    'execution.work_order.reconcile',
+    'execution.work_order.reconcile.v1',
+    'zhiju.execution.work_order',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'bundleIssueContractReadV1',
+    'identity.issue_execution_capability_bundle',
+    'task.execution.get_work_order_contract',
+    'execution.work_order.contract.read.for_bundle_issue.v1',
+    'zhiju.execution.work_order',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'bundleIssueContextReadV1',
+    'identity.issue_execution_capability_bundle',
+    'task.execution.get_context_snapshot',
+    'execution.context.snapshot.read.for_bundle_issue.v1',
+    'zhiju.execution.context_snapshot',
+    'TARGET_TYPE',
+    'SERVICE',
+    'SNAPSHOT',
+  ),
+  firstRunBinding(
+    'queueContractReadV1',
+    'execution.queue_work_order',
+    'task.execution.get_work_order_contract',
+    'execution.work_order.contract.read.for_queue.v1',
+    'zhiju.execution.work_order',
+    'TARGET_TYPE',
+    'HUMAN',
+  ),
+  firstRunBinding(
+    'queueContextReadV1',
+    'execution.queue_work_order',
+    'task.execution.get_context_snapshot',
+    'execution.context.snapshot.read.for_queue.v1',
+    'zhiju.execution.context_snapshot',
+    'TARGET_TYPE',
+    'HUMAN',
+    'SNAPSHOT',
+  ),
+  firstRunBinding(
+    'runCreateContractReadV1',
+    'execution.create_run',
+    'task.execution.get_work_order_contract',
+    'execution.work_order.contract.read.for_run_create.v1',
+    'zhiju.execution.work_order',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runCreateContextReadV1',
+    'execution.create_run',
+    'task.execution.get_context_snapshot',
+    'execution.context.snapshot.read.for_run_create.v1',
+    'zhiju.execution.context_snapshot',
+    'TARGET_TYPE',
+    'SERVICE',
+    'SNAPSHOT',
+  ),
+  firstRunBinding(
+    'runCreateBundleReadV1',
+    'execution.create_run',
+    'identity.execution_capability_bundle.read',
+    'identity.execution_bundle.read.for_run_create.v1',
+    'zhiju.identity.execution_capability_bundle',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+    'bundleRef',
+  ),
+  firstRunBinding(
+    'runtimeDispatchBundleReadV1',
+    'integration.request_runtime_dispatch',
+    'identity.execution_capability_bundle.read',
+    'identity.execution_bundle.read.for_dispatch.v1',
+    'zhiju.identity.execution_capability_bundle',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+    'bundleRef',
+  ),
+  firstRunBinding(
+    'runStartBundleReadV1',
+    'execution.start_run',
+    'identity.execution_capability_bundle.read',
+    'identity.execution_bundle.read.for_run_start.v1',
+    'zhiju.identity.execution_capability_bundle',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+    'bundleRef',
+  ),
+  firstRunBinding(
+    'runStartAttemptReadV1',
+    'execution.start_run',
+    'integration.runtime.binding.read',
+    'integration.runtime.binding.read.for_run_start.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'workOrderReconcileRunReadV1',
+    'execution.reconcile_work_order_execution',
+    'task.execution.get_run_state',
+    'execution.run.state.read.for_work_order_reconcile.v1',
+    'execution.run',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+]);
+
+export type ControlledFirstRunCapabilityCodes = Readonly<
+  Record<(typeof CONTROLLED_FIRST_RUN_BINDINGS)[number]['boundary'], string>
+>;
+
+export interface ControlledFirstRunAuthorizationConfig {
+  readonly capabilityCodes: ControlledFirstRunCapabilityCodes;
+  readonly now?: () => Date;
+}
+
+export interface ControlledFirstRunAuthorizationInput extends WorkOrderValidationEntryRequest {
+  readonly targetRef: Common.ObjectRef | Common.ContentAddressedRef | Common.SnapshotRef;
+}
+
+export interface ControlledFirstRunRevalidationInput extends WorkOrderValidationEntryRevalidation {
+  readonly expectedTargetRef: Common.ObjectRef | Common.ContentAddressedRef | Common.SnapshotRef;
+}
+
+export function createControlledFirstRunAuthorizationPort(
+  config: ControlledFirstRunAuthorizationConfig,
+) {
+  const now = config.now ?? (() => new Date());
+  const commonConfig = config as unknown as WorkOrderValidationAuthorizationConfig;
+  function bindingFor(boundary: string, operation: string, version: string) {
+    const binding = CONTROLLED_FIRST_RUN_BINDINGS.find(
+      (candidate) => candidate.boundary === boundary,
+    );
+    if (binding?.commandType !== operation || binding.commandVersion !== version)
+      throw new SnapshotBoundaryError(
+        IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
+        'controlled first Run authorization key is unsupported',
+      );
+    return binding;
+  }
+  return {
+    authorize: async (
+      deps: IdentityCommandDeps,
+      boundary: string,
+      input: ControlledFirstRunAuthorizationInput,
+    ) => {
+      const binding = bindingFor(boundary, input.commandType, input.commandVersion);
+      return issueEntryDecision(
+        commonConfig,
+        now,
+        undefined,
+        deps,
+        input,
+        input.targetRef,
+        binding,
+      );
+    },
+    revalidate: async (
+      deps: IdentityCommandDeps,
+      boundary: string,
+      input: ControlledFirstRunRevalidationInput,
+    ) => {
+      const binding = bindingFor(boundary, input.expectedCommandType, input.expectedCommandVersion);
+      return revalidateEntryDecision(
+        commonConfig,
+        now,
+        undefined,
+        deps,
+        input,
+        input.expectedTargetRef,
+        binding,
+      );
+    },
+  };
 }

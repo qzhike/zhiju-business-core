@@ -64,6 +64,7 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'authorization_decision',
     // IM-06 (#186) scoped PolicyVersion facts landed by V1005.
     'policy_version',
+    'execution_capability_bundle',
   ],
   enterprise_project: [
     'business_probe',
@@ -157,6 +158,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'context_snapshot_build',
     'context_snapshot_legacy',
     'work_order_contract',
+    'run',
+    'work_order_run_claim',
   ],
   artifact: [
     'business_probe',
@@ -239,6 +242,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     // IM-05 WI-05 (issue #125): owning Renderer business facts.
     'render_attempt',
     'raw_external_receipt',
+    'runtime_attempt',
+    'runtime_attempt_observation',
   ],
 };
 

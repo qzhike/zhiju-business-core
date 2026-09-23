@@ -212,6 +212,29 @@ export namespace IdentityPolicy {
 };
 };
 };
+  /** Payload of `identity.issue_execution_capability_bundle` (COMMAND). */
+  export type IdentityIssueExecutionCapabilityBundlePayload = {
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+};
+  readonly workOrderContractRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.contract.work_order";
+};
+  readonly contextSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.execution.context_snapshot";
+};
+  readonly servicePrincipalRef: Common.PrincipalRef;
+  readonly requestedCapabilities: readonly Core.CapabilityGrant[];
+};
+  /** Result of `identity.issue_execution_capability_bundle` (COMMAND). */
+  export type IdentityIssueExecutionCapabilityBundleResult = {
+  readonly bundleRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.identity.execution_capability_bundle";
+};
+};
   /** Payload of `identity.resolve_principal` (QUERY). */
   export interface IdentityResolvePrincipalPayload {
   readonly lookup: IdentityPolicy.PrincipalLookup;

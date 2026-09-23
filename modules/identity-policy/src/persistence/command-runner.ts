@@ -168,11 +168,13 @@ export async function executeIdentityCommand(
   context: IdentityTransactionContext,
   envelope: CommandEnvelope,
   body: (execution: CommandExecution) => Promise<CommandBodyResult>,
+  currentAuthorization?: () => Promise<void>,
 ): Promise<CommandResult> {
   validateEnvelopeContext(context, envelope);
   const requestDigest = digestCanonicalPayload(envelope.requestPayload);
 
   const outcome = await withIdentityTransaction(db, context, async (trx) => {
+    await currentAuthorization?.();
     // 1) Atomically claim through the database uniqueness constraint. A
     // concurrent loser waits for the winner, observes no inserted row and
     // adjudicates the now-committed receipt in this same transaction.
@@ -200,6 +202,7 @@ export async function executeIdentityCommand(
       if (existing.outcome === 'PENDING') {
         return { kind: 'IN_PROGRESS' } as const;
       }
+      await currentAuthorization?.();
       return {
         kind: 'RESULT',
         result: {
@@ -216,6 +219,7 @@ export async function executeIdentityCommand(
     // Any body failure (including injected faults) rolls the whole
     // transaction back — receipt included (PG-U-012).
     const bodyResult = await body(createExecution(trx, envelope, context));
+    await currentAuthorization?.();
 
     if (bodyResult.kind === 'REJECTED') {
       // 4a) Business rejection: the aggregate is untouched; the stable
@@ -262,6 +266,7 @@ export async function executeIdentityCommand(
       requestHash: requestDigest.hash,
       resultHash: resultDigest.hash,
     });
+    await currentAuthorization?.();
     return {
       kind: 'RESULT',
       result: {
