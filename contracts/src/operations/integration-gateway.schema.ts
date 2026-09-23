@@ -51,6 +51,7 @@ const reasonCode = { $ref: `${common}reasonCode` } as const;
 const text = { $ref: `${common}nonEmptyString` } as const;
 const safeSummary = { $ref: `${common}safeSummary` } as const;
 const instant = { $ref: `${common}utcInstant` } as const;
+const nonNegativeInt = { $ref: `${common}nonNegativeInteger` } as const;
 const contentHash = { $ref: `${common}contentHash` } as const;
 const opaqueCursor = { $ref: `${common}opaqueCursor` } as const;
 const pageRequest = { $ref: `${common}pageRequest` } as const;
@@ -766,6 +767,66 @@ const operationSchemas = {
       attemptRef: objectReference,
     }),
     result: localRef('adapterAttemptView'),
+  },
+  'integration.get_runtime_attempt_binding': {
+    payload: object(['attemptRef'], {
+      attemptRef: {
+        allOf: [
+          objectReference,
+          { type: 'object', properties: { objectType: { const: 'integration.runtime_attempt' } } },
+        ],
+      },
+    }),
+    result: object(
+      ['attemptRef', 'status', 'request', 'requestPayloadHash', 'invocationBinding', 'bindingHash'],
+      {
+        attemptRef: {
+          allOf: [
+            objectReference,
+            {
+              type: 'object',
+              properties: { objectType: { const: 'integration.runtime_attempt' } },
+            },
+          ],
+        },
+        status: attemptStatus,
+        request: localRef('runtimeDispatchRequest'),
+        requestPayloadHash: contentHash,
+        invocationBinding: object(
+          [
+            'runRef',
+            'workOrderContractRef',
+            'contextSnapshotRef',
+            'capabilityGrantRef',
+            'leaseId',
+            'fencingToken',
+            'leaseExpiresAt',
+            'runtimeBinding',
+          ],
+          {
+            runRef: objectReference,
+            workOrderContractRef: contentAddressedReference,
+            contextSnapshotRef: snapshotReference,
+            capabilityGrantRef: contentAddressedReference,
+            leaseId: uuid,
+            fencingToken: nonNegativeInt,
+            leaseExpiresAt: instant,
+            runtimeBinding: canonicalJson,
+          },
+        ),
+        acknowledgement: object(
+          ['observationId', 'rawReceiptRef', 'runtimeSessionRef', 'acknowledgedAt', 'source'],
+          {
+            observationId: uuid,
+            rawReceiptRef: contentAddressedReference,
+            runtimeSessionRef: externalReference,
+            acknowledgedAt: instant,
+            source: { enum: ['SYNTHETIC_DRIVER', 'PROVIDER'] },
+          },
+        ),
+        bindingHash: contentHash,
+      },
+    ),
   },
   'integration.get_render_attempt': {
     payload: object(['attemptRef'], {

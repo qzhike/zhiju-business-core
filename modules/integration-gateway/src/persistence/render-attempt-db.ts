@@ -34,7 +34,9 @@ export interface RawExternalReceiptTable {
   receipt_id: string;
   enterprise_id: string;
   project_id: string | null;
-  attempt_id: string;
+  attempt_id: Generated<string | null>;
+  attempt_kind: Generated<'RENDERER' | 'RUNTIME'>;
+  runtime_attempt_id: Generated<string | null>;
   provider_receipt_ref: Json;
   receipt_payload_ref: string;
   receipt_payload_hash: Buffer;
@@ -42,6 +44,33 @@ export interface RawExternalReceiptTable {
   observed_outcome: 'SUCCEEDED' | 'FAILED' | 'UNKNOWN';
   occurred_at: Date | null;
   recorded_at: Date;
+}
+
+export interface RuntimeAttemptTable {
+  attempt_id: string;
+  enterprise_id: string;
+  project_id: string;
+  stable_key_hash: Buffer;
+  request_payload: Json;
+  request_payload_hash: Buffer;
+  invocation_binding: Json;
+  binding_hash: Buffer;
+  status: Generated<'CREATED' | 'SUCCEEDED' | 'UNKNOWN'>;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface RuntimeAttemptObservationTable {
+  observation_id: string;
+  attempt_id: string;
+  enterprise_id: string;
+  project_id: string;
+  raw_receipt_id: string;
+  runtime_session_ref: Json;
+  acknowledgement_source: 'SYNTHETIC_DRIVER' | 'PROVIDER';
+  acknowledged_at: Date;
+  observation_payload: Json;
+  observation_hash: Buffer;
 }
 
 export interface RenderOutboxEventTable {
@@ -75,6 +104,8 @@ export interface RenderOutboxEventTable {
 export interface IntegrationRendererDb {
   'integration_gateway.render_attempt': RenderAttemptTable;
   'integration_gateway.raw_external_receipt': RawExternalReceiptTable;
+  'integration_gateway.runtime_attempt': RuntimeAttemptTable;
+  'integration_gateway.runtime_attempt_observation': RuntimeAttemptObservationTable;
   'integration_gateway.outbox_event': RenderOutboxEventTable;
 }
 

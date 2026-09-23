@@ -9,3 +9,4 @@ export * from './persistence/render-attempt-repository.js';
 export * from './renderer/deterministic-ooxml-renderer.js';
 export * from './renderer/in-memory-render-object-storage.js';
 export * from './renderer/render-attempt-service.js';
+export * from './runtime/controlled-runtime-dispatch.js';

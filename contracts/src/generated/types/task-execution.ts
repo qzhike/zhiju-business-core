@@ -467,6 +467,19 @@ export namespace TaskExecution {
   readonly runtimeAttemptRef: Common.ObjectRef;
   readonly startedAt: Common.UtcInstant;
 }
+  /** Payload of `execution.reconcile_work_order_execution` (COMMAND). */
+  export type ExecutionReconcileWorkOrderExecutionPayload = {
+  readonly triggerRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+};
+  /** Result of `execution.reconcile_work_order_execution` (COMMAND). */
+  export type ExecutionReconcileWorkOrderExecutionResult = {
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+};
+  readonly status: "RUNNING";
+};
   /** Payload of `execution.request_run_cancel` (COMMAND). */
   export interface ExecutionRequestRunCancelPayload {
   readonly reason: TaskExecution.Justification;
@@ -609,6 +622,41 @@ export namespace TaskExecution {
 }
   /** Result of `execution.get_run_state` (QUERY). */
   export type ExecutionGetRunStateResult = TaskExecution.RunStateView;
+  /** Payload of `execution.get_run_dispatch_binding` (QUERY). */
+  export type ExecutionGetRunDispatchBindingPayload = {
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+};
+  /** Result of `execution.get_run_dispatch_binding` (QUERY). */
+  export type ExecutionGetRunDispatchBindingResult = {
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+};
+  readonly workOrderContractRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.contract.work_order";
+};
+  readonly contextSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.execution.context_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly capabilityGrantRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.identity.execution_capability_bundle";
+};
+  readonly runtimeBinding: TaskExecution.RuntimeBinding;
+  readonly leaseId: Common.UuidV7;
+  readonly fencingToken: Common.NonNegativeInteger;
+  readonly leaseExpiresAt: Common.UtcInstant;
+  readonly executionDeadline?: Common.UtcInstant;
+  readonly status: "CREATED" | "STARTING";
+  readonly aggregateVersion: Common.NonNegativeInteger;
+};
   /** Payload of `execution.get_agent_result` (QUERY). */
   export interface ExecutionGetAgentResultPayload {
   readonly agentResultRef: Common.ContentAddressedRef;

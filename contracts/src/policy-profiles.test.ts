@@ -523,9 +523,9 @@ describe('closed profile documents', () => {
 });
 
 describe('shared contract registry integration', () => {
-  it('applies the same closed schemas and keeps 217 public operations', () => {
+  it('applies the same closed schemas and keeps 221 public operations', () => {
     const registry = new ContractRegistry();
-    expect(registry.operationCount).toBe(217);
+    expect(registry.operationCount).toBe(221);
     expect(registry.policyProfileRegistry).toBe(policyProfileRegistry);
     expect(
       registry.validatePolicyProfileDocument(

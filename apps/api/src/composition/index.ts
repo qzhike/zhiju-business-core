@@ -53,3 +53,8 @@ export type {
 } from './initial-context-entry.js';
 export { createWorkOrderValidationEntry } from './work-order-validation-entry.js';
 export type { WorkOrderValidationEntryConfig } from './work-order-validation-entry.js';
+export { createControlledFirstRunEntry } from './controlled-first-run-entry.js';
+export type {
+  ControlledFirstRunEntryConfig,
+  ControlledFirstRunSession,
+} from './controlled-first-run-entry.js';

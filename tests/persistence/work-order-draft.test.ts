@@ -4103,6 +4103,7 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
         ORDER BY tgname`,
     );
     expect(triggers.rows.map((row) => row.tgname)).toEqual([
+      'first_run_work_order_transition_guard',
       'work_order_draft_snapshot_creation_identity_guard',
       'work_order_draft_snapshot_immutable_guard',
       'work_order_draft_snapshot_mirror_guard',
@@ -4892,10 +4893,10 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(217);
+    expect(catalog.operations).toHaveLength(221);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(47);
+    ).toHaveLength(49);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );

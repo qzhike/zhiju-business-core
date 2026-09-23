@@ -61,6 +61,13 @@
       "semanticDeclaration": "im-06-policy-version-registration"
     },
     {
+      "type": "identity.issue_execution_capability_bundle",
+      "version": "1.0",
+      "authorizationPurpose": "identity.execution_capability_bundle.issue",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-controlled-first-run"
+    },
+    {
       "type": "identity.resolve_principal",
       "version": "1.0",
       "authorizationPurpose": "identity.policy.resolve_principal",
@@ -481,6 +488,13 @@
       "semanticDeclaration": "v1.0-baseline"
     },
     {
+      "type": "execution.reconcile_work_order_execution",
+      "version": "1.0",
+      "authorizationPurpose": "execution.work_order.reconcile",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-controlled-first-run"
+    },
+    {
       "type": "execution.request_run_cancel",
       "version": "1.0",
       "authorizationPurpose": "task.execution.request_run_cancel",
@@ -598,6 +612,13 @@
       "authorizationPurpose": "task.execution.get_run_state",
       "dataClassification": "INTERNAL",
       "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "execution.get_run_dispatch_binding",
+      "version": "1.0",
+      "authorizationPurpose": "execution.run.dispatch_binding.read",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-controlled-first-run"
     },
     {
       "type": "execution.get_agent_result",
@@ -1410,6 +1431,13 @@
       "authorizationPurpose": "integration.gateway.get_runtime_attempt",
       "dataClassification": "INTERNAL",
       "semanticDeclaration": "v1.0-baseline"
+    },
+    {
+      "type": "integration.get_runtime_attempt_binding",
+      "version": "1.0",
+      "authorizationPurpose": "integration.runtime.binding.read",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-controlled-first-run"
     },
     {
       "type": "integration.get_render_attempt",

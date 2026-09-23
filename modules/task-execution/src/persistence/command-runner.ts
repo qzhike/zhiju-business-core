@@ -45,6 +45,14 @@ import {
   type WorkOrderFreezeCasResult,
   type WorkOrderValidationJudgmentInsert,
 } from './work-order-validation-repository.js';
+import {
+  FirstRunRepository,
+  type FirstRunCreate,
+  type FirstRunClaim,
+  type FirstRunStart,
+  type WorkOrderQueue,
+  type WorkOrderReconcile,
+} from './first-run-repository.js';
 
 export const IDEMPOTENCY_PAYLOAD_CONFLICT = 'IDEMPOTENCY_PAYLOAD_CONFLICT';
 export const CONCURRENCY_CONFLICT = 'CONCURRENCY_CONFLICT';
@@ -288,6 +296,11 @@ export interface CommandExecution {
   insertWorkOrderValidationJudgment(row: WorkOrderValidationJudgmentInsert): Promise<boolean>;
   insertWorkOrderContract(row: WorkOrderContractInsert): Promise<boolean>;
   casWorkOrderStatusToReady(input: WorkOrderFreezeCasInput): Promise<WorkOrderFreezeCasResult>;
+  queueWorkOrder(input: WorkOrderQueue): Promise<boolean>;
+  insertFirstRun(input: FirstRunCreate): Promise<boolean>;
+  insertFirstRunClaim(input: FirstRunClaim): Promise<void>;
+  startFirstRun(input: FirstRunStart): Promise<boolean>;
+  reconcileWorkOrder(input: WorkOrderReconcile): Promise<boolean>;
   /** CAS on the technical process aggregate until business tables exist. */
   casProcessInstance(
     id: string,
@@ -312,6 +325,8 @@ export interface CommandExecution {
  */
 export interface CommandFacts {
   readonly [COMMAND_FACTS_BRAND]: true;
+  readonly commandId: string;
+  readonly commandType: string;
   readonly targetType: string;
   readonly targetId: string;
   readonly enterpriseId: string;
@@ -323,6 +338,8 @@ const COMMAND_FACTS_BRAND: unique symbol = Symbol('@zhiju/task-execution/Command
 function makeCommandFacts(envelope: CommandEnvelope): CommandFacts {
   return Object.freeze({
     [COMMAND_FACTS_BRAND]: true as const,
+    commandId: envelope.commandId,
+    commandType: envelope.commandType,
     targetType: envelope.targetType,
     targetId: envelope.targetId,
     enterpriseId: envelope.enterpriseId,
@@ -658,6 +675,7 @@ function createExecution(
   const workOrderDraftRepo = new WorkOrderDraftRepository();
   const contextSnapshotRepo = new ContextSnapshotRepository();
   const workOrderValidationRepo = new WorkOrderValidationRepository();
+  const firstRunRepo = new FirstRunRepository();
   return {
     trx,
     async insertProcessInstance(row) {
@@ -695,6 +713,21 @@ function createExecution(
     },
     async casWorkOrderStatusToReady(input) {
       return workOrderValidationRepo.casWorkOrderStatusToReady(trx, commandFacts, input);
+    },
+    async queueWorkOrder(input) {
+      return firstRunRepo.queueWorkOrder(trx, commandFacts, input);
+    },
+    async insertFirstRun(input) {
+      return firstRunRepo.insertRun(trx, commandFacts, input);
+    },
+    async insertFirstRunClaim(input) {
+      await firstRunRepo.insertClaim(trx, commandFacts, input);
+    },
+    async startFirstRun(input) {
+      return firstRunRepo.startRun(trx, commandFacts, input);
+    },
+    async reconcileWorkOrder(input) {
+      return firstRunRepo.reconcileWorkOrder(trx, commandFacts, input);
     },
     async casProcessInstance(id, expectedVersion, patch = {}) {
       if (id !== envelope.targetId || expectedVersion !== envelope.expectedAggregateVersion) {

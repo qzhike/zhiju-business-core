@@ -207,6 +207,25 @@ export interface PolicyVersionTable {
   retention_class: string;
 }
 
+export interface ExecutionCapabilityBundleTable {
+  bundle_id: string;
+  enterprise_id: string;
+  project_id: string;
+  run_id: string;
+  work_order_id: string;
+  contract_id: string;
+  contract_hash: Buffer;
+  context_snapshot_id: string;
+  context_hash: Buffer;
+  service_principal_id: string;
+  canonical_payload: Json;
+  payload_hash: Buffer;
+  issued_at: Date;
+  valid_until: Date;
+  source_command_id: string;
+  created_by_principal_id: string;
+}
+
 export interface ActorSnapshotTable {
   actor_snapshot_id: string;
   principal_id: string;
@@ -494,6 +513,7 @@ export interface ContractViolationTable {
 }
 
 export interface IdentityPolicyDb {
+  'identity_policy.execution_capability_bundle': ExecutionCapabilityBundleTable;
   'identity_policy.principal': PrincipalTable;
   'identity_policy.principal_state_transition': PrincipalStateTransitionTable;
   'identity_policy.external_identity_link': ExternalIdentityLinkTable;

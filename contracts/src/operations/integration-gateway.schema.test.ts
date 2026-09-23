@@ -336,9 +336,9 @@ describe('integration-gateway schema', () => {
       (operation) => operation.owner === 'integration-gateway',
     );
 
-    expect(integration).toHaveLength(24);
+    expect(integration).toHaveLength(25);
     expect(integration.filter((operation) => operation.kind === 'COMMAND')).toHaveLength(9);
-    expect(integration.filter((operation) => operation.kind === 'QUERY')).toHaveLength(6);
+    expect(integration.filter((operation) => operation.kind === 'QUERY')).toHaveLength(7);
     expect(integration.filter((operation) => operation.kind === 'EVENT')).toHaveLength(9);
     expect(Object.keys(integrationGatewayOperationContracts).sort()).toEqual(
       integration.map((operation) => operation.type).sort(),
@@ -350,7 +350,7 @@ describe('integration-gateway schema', () => {
       (operation) => operation.owner === 'integration-gateway' && operation.kind === 'QUERY',
     );
 
-    expect(queries).toHaveLength(6);
+    expect(queries).toHaveLength(7);
     for (const operation of queries) {
       const contract = integrationGatewayOperationContracts[operation.type];
       expect(contract?.resultSchemaRef).toBeDefined();

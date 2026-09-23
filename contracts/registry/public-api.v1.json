@@ -93,6 +93,53 @@
       ]
     },
     {
+      "type": "identity.issue_execution_capability_bundle",
+      "version": "1.0",
+      "kind": "COMMAND",
+      "owner": "identity-policy",
+      "schemaStatus": "FULL",
+      "targetObjectType": "zhiju.identity.execution_capability_bundle",
+      "concurrencyMode": "CREATE",
+      "authorizationPurpose": "identity.execution_capability_bundle.issue",
+      "dataClassification": "INTERNAL",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/identity-policy/1.0#/$defs/identity_issue_execution_capability_bundle_result",
+      "references": [
+        {
+          "path": "/targetRef",
+          "kind": "OBJECT",
+          "objectType": "zhiju.identity.execution_capability_bundle"
+        },
+        { "path": "/payload/runRef", "kind": "OBJECT", "objectType": "execution.run" },
+        {
+          "path": "/payload/workOrderRef",
+          "kind": "OBJECT",
+          "objectType": "zhiju.execution.work_order"
+        },
+        {
+          "path": "/payload/workOrderContractRef",
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.contract.work_order"
+        },
+        {
+          "path": "/payload/contextSnapshotRef",
+          "kind": "SNAPSHOT",
+          "objectType": "zhiju.execution.context_snapshot"
+        },
+        {
+          "path": "/payload/servicePrincipalRef",
+          "kind": "PRINCIPAL",
+          "objectType": "zhiju.identity.principal"
+        }
+      ],
+      "resultReferences": [
+        {
+          "path": "/bundleRef",
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.identity.execution_capability_bundle"
+        }
+      ]
+    },
+    {
       "type": "identity.resolve_principal",
       "version": "1.0",
       "kind": "QUERY",
@@ -712,6 +759,24 @@
       "schemaStatus": "FULL"
     },
     {
+      "type": "execution.reconcile_work_order_execution",
+      "version": "1.0",
+      "kind": "COMMAND",
+      "owner": "task-execution",
+      "schemaStatus": "FULL",
+      "targetObjectType": "zhiju.execution.work_order",
+      "authorizationPurpose": "execution.work_order.reconcile",
+      "dataClassification": "INTERNAL",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_reconcile_work_order_execution_result",
+      "references": [
+        { "path": "/targetRef", "kind": "OBJECT", "objectType": "zhiju.execution.work_order" },
+        { "path": "/payload/triggerRef", "kind": "OBJECT", "objectType": "execution.run" }
+      ],
+      "resultReferences": [
+        { "path": "/workOrderRef", "kind": "OBJECT", "objectType": "zhiju.execution.work_order" }
+      ]
+    },
+    {
       "type": "execution.request_run_cancel",
       "version": "1.0",
       "kind": "COMMAND",
@@ -873,6 +938,39 @@
       "kind": "QUERY",
       "owner": "task-execution",
       "schemaStatus": "FULL"
+    },
+    {
+      "type": "execution.get_run_dispatch_binding",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "task-execution",
+      "schemaStatus": "FULL",
+      "allowedConsistency": ["AUTHORITATIVE"],
+      "authorizationPurpose": "execution.run.dispatch_binding.read",
+      "dataClassification": "INTERNAL",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_run_dispatch_binding_result",
+      "references": [
+        { "path": "/payload/runRef", "kind": "OBJECT", "objectType": "execution.run" }
+      ],
+      "resultReferences": [
+        { "path": "/runRef", "kind": "OBJECT", "objectType": "execution.run" },
+        { "path": "/workOrderRef", "kind": "OBJECT", "objectType": "zhiju.execution.work_order" },
+        {
+          "path": "/workOrderContractRef",
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.contract.work_order"
+        },
+        {
+          "path": "/contextSnapshotRef",
+          "kind": "SNAPSHOT",
+          "objectType": "zhiju.execution.context_snapshot"
+        },
+        {
+          "path": "/capabilityGrantRef",
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.identity.execution_capability_bundle"
+        }
+      ]
     },
     {
       "type": "execution.get_agent_result",
@@ -1699,6 +1797,32 @@
       "kind": "QUERY",
       "owner": "integration-gateway",
       "schemaStatus": "FULL"
+    },
+    {
+      "type": "integration.get_runtime_attempt_binding",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "integration-gateway",
+      "schemaStatus": "FULL",
+      "allowedConsistency": ["AUTHORITATIVE"],
+      "authorizationPurpose": "integration.runtime.binding.read",
+      "dataClassification": "INTERNAL",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_runtime_attempt_binding_result",
+      "references": [
+        {
+          "path": "/payload/attemptRef",
+          "kind": "OBJECT",
+          "objectType": "integration.runtime_attempt"
+        }
+      ],
+      "resultReferences": [
+        { "path": "/attemptRef", "kind": "OBJECT", "objectType": "integration.runtime_attempt" },
+        {
+          "path": "/acknowledgement/rawReceiptRef",
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "integration.raw_external_receipt"
+        }
+      ]
     },
     {
       "type": "integration.get_render_attempt",

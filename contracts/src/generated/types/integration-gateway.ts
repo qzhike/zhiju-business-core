@@ -311,6 +311,39 @@ export namespace IntegrationGateway {
 }
   /** Result of `integration.get_runtime_attempt` (QUERY). */
   export type IntegrationGetRuntimeAttemptResult = IntegrationGateway.AdapterAttemptView;
+  /** Payload of `integration.get_runtime_attempt_binding` (QUERY). */
+  export type IntegrationGetRuntimeAttemptBindingPayload = {
+  readonly attemptRef: Common.ObjectRef & {
+  readonly objectType?: "integration.runtime_attempt";
+};
+};
+  /** Result of `integration.get_runtime_attempt_binding` (QUERY). */
+  export type IntegrationGetRuntimeAttemptBindingResult = {
+  readonly attemptRef: Common.ObjectRef & {
+  readonly objectType?: "integration.runtime_attempt";
+};
+  readonly status: "CREATED" | "DISPATCHABLE" | "CLAIMED" | "IN_FLIGHT" | "SUCCEEDED" | "FAILED" | "UNKNOWN" | "CANCELLED" | "QUARANTINED";
+  readonly request: IntegrationGateway.RuntimeDispatchRequest;
+  readonly requestPayloadHash: Common.ContentHash;
+  readonly invocationBinding: {
+  readonly runRef: Common.ObjectRef;
+  readonly workOrderContractRef: Common.ContentAddressedRef;
+  readonly contextSnapshotRef: Common.SnapshotRef;
+  readonly capabilityGrantRef: Common.ContentAddressedRef;
+  readonly leaseId: Common.UuidV7;
+  readonly fencingToken: Common.NonNegativeInteger;
+  readonly leaseExpiresAt: Common.UtcInstant;
+  readonly runtimeBinding: CanonicalJson;
+};
+  readonly acknowledgement?: {
+  readonly observationId: Common.UuidV7;
+  readonly rawReceiptRef: Common.ContentAddressedRef;
+  readonly runtimeSessionRef: Common.ExternalRef;
+  readonly acknowledgedAt: Common.UtcInstant;
+  readonly source: "SYNTHETIC_DRIVER" | "PROVIDER";
+};
+  readonly bindingHash: Common.ContentHash;
+};
   /** Payload of `integration.get_render_attempt` (QUERY). */
   export interface IntegrationGetRenderAttemptPayload {
   readonly attemptRef: Common.ObjectRef;

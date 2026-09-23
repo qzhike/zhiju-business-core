@@ -1029,6 +1029,15 @@ const operationSchemas = {
       startedAt: instant,
     }),
   },
+  'execution.reconcile_work_order_execution': {
+    payload: object(['triggerRef'], {
+      triggerRef: exactObjectType(objectReference, 'execution.run'),
+    }),
+    result: object(['workOrderRef', 'status'], {
+      workOrderRef: workOrderObjectReference,
+      status: { const: 'RUNNING' },
+    }),
+  },
   'execution.request_run_cancel': {
     payload: object(['reason', 'requestedAt', 'cancellationPolicyRef'], {
       reason: localRef('justification'),
@@ -1169,6 +1178,46 @@ const operationSchemas = {
       runRef: objectReference,
     }),
     result: localRef('runStateView'),
+  },
+  'execution.get_run_dispatch_binding': {
+    payload: object(['runRef'], {
+      runRef: exactObjectType(objectReference, 'execution.run'),
+    }),
+    result: object(
+      [
+        'runRef',
+        'workOrderRef',
+        'workOrderContractRef',
+        'contextSnapshotRef',
+        'capabilityGrantRef',
+        'runtimeBinding',
+        'leaseId',
+        'fencingToken',
+        'leaseExpiresAt',
+        'status',
+        'aggregateVersion',
+      ],
+      {
+        runRef: exactObjectType(objectReference, 'execution.run'),
+        workOrderRef: workOrderObjectReference,
+        workOrderContractRef: exactObjectType(
+          contentAddressedReference,
+          'zhiju.contract.work_order',
+        ),
+        contextSnapshotRef: contextSnapshotReference,
+        capabilityGrantRef: exactObjectType(
+          contentAddressedReference,
+          'zhiju.identity.execution_capability_bundle',
+        ),
+        runtimeBinding: localRef('runtimeBinding'),
+        leaseId: uuid,
+        fencingToken: nonNegativeInt,
+        leaseExpiresAt: instant,
+        executionDeadline: instant,
+        status: { enum: ['CREATED', 'STARTING'] },
+        aggregateVersion: losslessNonNegativeInt,
+      },
+    ),
   },
   'execution.get_agent_result': {
     payload: object(['agentResultRef'], {

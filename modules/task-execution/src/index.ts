@@ -317,3 +317,12 @@ export {
 } from './business/work-order-validation.js';
 export type { WorkOrderValidationPorts } from './business/work-order-validation.js';
 export type { WorkOrderPolicyObservation } from './business/work-order-validation-plan.js';
+export {
+  handleQueueWorkOrder,
+  handleCreateFirstRun,
+  handleStartFirstRun,
+  handleReconcileFirstRun,
+  handleGetRunDispatchBinding,
+  handleGetRunState,
+} from './business/controlled-first-run.js';
+export type { ControlledFirstRunPorts } from './business/controlled-first-run.js';

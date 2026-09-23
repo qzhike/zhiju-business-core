@@ -17,6 +17,7 @@
     "rxjs": "catalog:",
     "@zhiju/enterprise-project": "workspace:*",
     "@zhiju/identity-policy": "workspace:*",
+    "@zhiju/integration-gateway": "workspace:*",
     "@zhiju/quality-governance": "workspace:*",
     "@zhiju/shared-kernel": "workspace:*",
     "@zhiju/task-execution": "workspace:*",
