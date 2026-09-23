@@ -1345,7 +1345,7 @@ execution.get_run_dispatch_binding@1.0
 integration.get_runtime_attempt_binding@1.0
 execution.reconcile_work_order_execution@1.0
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-22 / CONTRACT REGISTERED 2026-09-23 / PR #222 CI FULL PASS 2026-09-23（8b4dfc0）/ REVIEW REQUEST_CHANGES ON 30cc501 / REMEDIATION RE-REVIEW PENDING`。业务字段由 Spec 001 §15.12、Spec 003 §22、Spec 007 Runtime Binding 增量分别拥有；本节只固定公开名称、Owner、Ref 与兼容边界。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-22 / CONTRACT REGISTERED 2026-09-23 / PR #222 CI FULL PASS 2026-09-23（6a41b41）/ REVIEW APPROVE ON 6a41b41`。业务字段由 Spec 001 §15.12、Spec 003 §22、Spec 007 Runtime Binding 增量分别拥有；本节只固定公开名称、Owner、Ref 与兼容边界。
 
 | 新增 operation | Owner / kind / Purpose | Target / payload 与 result 的精确引用 |
 |---|---|---|

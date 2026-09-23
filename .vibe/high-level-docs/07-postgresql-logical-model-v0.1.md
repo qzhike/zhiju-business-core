@@ -2294,7 +2294,7 @@ Freeze 锁 Root 并核验 Root/Snapshot/candidate 期限完全一致且未到期
 
 ## 37. IM-06 READY Run 启动的前向持久化提案
 
-状态：`T2 / PROPOSED 2026-09-22 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-22 / HUMAN DESIGN APPROVED 2026-09-22 / V1007-V3006-V7002 LOCAL IMPLEMENTATION 2026-09-23 / LOCAL FULL PASS / PR #222 RE-REVIEW PENDING`。配套 Spec 001 §15.12、Spec 003 §22、Spec 007 的受控 Runtime 增量。仅用新的 forward migrations；已应用 `V1000`–`V1006`、`V3000`–`V3005`、`V7000`–`V7001` 文件不改写。Migration 版本在实现分支分配；空库、从 #219 基线升级、历史行逐字节读回及第二次 migrate no-op 均须通过。
+状态：`T2 / PROPOSED 2026-09-22 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-22 / HUMAN DESIGN APPROVED 2026-09-22 / V1007-V3006-V7002 LOCAL IMPLEMENTATION 2026-09-23 / LOCAL FULL PASS / PR #222 EXACT-HEAD CI FULL PASS 2026-09-23（6a41b41）/ REVIEW APPROVE ON 6a41b41`。配套 Spec 001 §15.12、Spec 003 §22、Spec 007 的受控 Runtime 增量。仅用新的 forward migrations；已应用 `V1000`–`V1006`、`V3000`–`V3005`、`V7000`–`V7001` 文件不改写。Migration 版本在实现分支分配；空库、从 #219 基线升级、历史行逐字节读回及第二次 migrate no-op 均须通过。
 
 | Owner / 未来事实 | 最小字段与绑定 | 数据库和 owning 应共同证明的约束 |
 |---|---|---|

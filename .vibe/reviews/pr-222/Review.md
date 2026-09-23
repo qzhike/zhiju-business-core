@@ -1,10 +1,46 @@
 # PR #222 独立实现审查
 
-- 结论：`REQUEST_CHANGES`
+- 当前结论（第 2 轮复审）：`APPROVE`
 - PR：[#222](https://github.com/qzhike/zhiju-business-core/pull/222)，关联 Issue：[#221](https://github.com/qzhike/zhiju-business-core/issues/221)
+- 第 2 轮 Reviewed SHA：`6a41b414d9789b931d879f7a82dbddc91f7cb81d`（修复提交 `6a41b414` "fix(im-06): address first Run review findings"）
+- 第 1 轮结论：`REQUEST_CHANGES`（`30cc50144ecfbebd911dad96639d90cdbcc838c3`），记录保留在下方历史章节
+- 日期：第 1 轮 2026-09-23；第 2 轮 2026-09-23
+- GitHub handoff：第 1 轮 [comment](https://github.com/qzhike/zhiju-business-core/pull/222#issuecomment-5790444865)；第 2 轮 [comment](https://github.com/qzhike/zhiju-business-core/pull/222#issuecomment-5791387718)（均已发布并读回）。认证用户即 PR 作者，GitHub 不允许 formal review，故以 comment 发布；本记录不代表 GitHub formal review 或人类技术批准。
+- 入库状态：第 1 轮记录随修复提交 `6a41b414` 入库；第 2 轮记录随本次文档提交入库。
+
+## 第 2 轮复审（2026-09-23，head `6a41b414`）
+
+独立核对修复提交 `30cc501..6a41b414` 的完整 diff（12 文件，+498/-22）、相关权威设计与 Registry/Schema，以及 exact-head CI 证据。
+
+### 第 1 轮发现的处置
+
+- **F1 已修复**：`revalidateDependencies = revalidateAll() + readers.revalidate()` 接入 `ports().revalidateAuthorization` 与 contractProof/contextProof 回退（`controlled-first-run-entry.ts:242-270`），dispatch-binding 读取链改为 `proof.proof()` + `p.revalidateAuthorization()` 串联（`:375-385`）；查询路径无依赖 readers，`revalidateAll` 完备。新增真实 PostgreSQL 负例（`initial-context.test.ts`：`pg_sleep` 触发器暂停 queue 的 WorkOrder UPDATE，铸出后、提交前撤销 Policy-read Grant，断言 `AUTHORIZATION_REVOKED` 且无 Receipt 残留）。
+- **F2 已修复**（按已批准设计补齐，设计文本未改，无需 §21.4 再确认）：V7002 新增 `source_command_id` + deferrable FK + `guard_runtime_attempt_source`（AFTER INSERT DEFERRED，核对来源 Receipt 的 command_type/version/Scope/target），update guard 纳入不可变集；`dispatch` 提交事务同写 Attempt + `command_receipt`(PENDING) + `audit_record` + 5 条 `reference_edge`（覆盖 request 全部 5 个引用）；完成点（SUCCEEDED/UNKNOWN，含 `reconcileUnknown`）经 `completeDispatchReceipt` 写回 COMMITTED 与以已批准 `RuntimeAttemptBindingView` 闭集校验的 result；Outbox `source_command_id` 由误用的 attempt_id 订正为来源命令 id。持久化测试断言 Driver 调用前 `receipt=PENDING/audit=1/edges=5/events=0`、完成后 `receipt=COMMITTED + result_payload`、直 SQL 伪造 `source_command_id` 被 `23503/22023` 拒绝。
+- **F3 已修复**：Spec 001 §15.12 订正为 `zhiju.contract.work_order`；全仓剩余旧拼写仅在第 1 轮发现引用中（历史事实，保留）。
+
+### 本轮新增核对（非穷尽）
+
+- 范围与纪律：修复提交仅触及权威文档状态行、F3 拼写、第 1 轮 Review.md 入库与 F1/F2 代码/测试，无无关变更；V7002 为本 PR 新增文件原地修订，已应用 V1000–V7001 未改写；五份文档状态行与事实一致。
+- 语义相容性：Receipt `(idempotency_scope, idempotency_key)` 唯一约束与稳定键重放相容（重放不重复写 Receipt）；`request_runtime_dispatch@1.0` 无注册 Result，Receipt result 以已批准 Binding View 闭集校验为合理替代；PENDING→COMMITTED 生命周期与 §37/V3001 族先例一致；`markUnknown` 对非 CREATED 行 fail-closed；驱动异常经 `markUnknown` 收尾，崩溃遗留 PENDING 属设计内在语义。
+
+### 验证证据（exact head）
+
+- [CI run 35831917357](https://github.com/qzhike/zhiju-business-core/actions/runs/35831917357)：`headSha=6a41b414…`，`success`，完整 `full`：代码 75 文件/1379 测试；architecture_boundaries / public_api_generation（221）/ typescript_types PASS；Catalog/Registry 221/221 FULL；兼容性 Baseline 200 不变（minor 98）；持久化 PostgreSQL 18.6 + Flyway 11.20.3 空库迁移、V6003/V6004 升级、45 文件/496 测试、二次 migrate no-op 全通过。按证据复用规则未重复本地 full。
+
+### 非阻断备注与剩余门禁
+
+- N1：`reconcileUnknown` 调和成功会把同一 Receipt 的 `result_payload` 由 UNKNOWN 视图改写为 SUCCEEDED 视图（outcome 保持 COMMITTED）；本命令无公开 Receipt 读回路径，权威读路径为 `get_runtime_attempt_binding`；后续切片若新增 Receipt 读回需在设计中固定此语义。
+- N2：五份权威文档状态行仍为 `RE-REVIEW PENDING`，请在合并或下一次修订时推进。
+- 未执行边界保持：`IP-RUN-D-003/004` 整行矩阵、其余 `TE-RUN-D-*`、`IG-RUN-D-*` 仍 `NOT RUN`（本轮新增负例覆盖其中一个具体单元，不等于整行矩阵执行完毕）；外部 Provider/CLI/飞书、Result/Usage/Completion、生产部署与独立人工业务验收 `NOT RUN`。
+- 本轮 `APPROVE` 为独立 agent 审查结论，不授权合并/部署；合并授权按既有策略保留给人类。
+
+---
+
+# 历史：第 1 轮审查（2026-09-23，head `30cc501`）
+
+- 结论：`REQUEST_CHANGES`
 - Reviewed SHA：`30cc50144ecfbebd911dad96639d90cdbcc838c3`
-- 日期：2026-09-23
-- GitHub handoff：[已发布并读回的 PR comment](https://github.com/qzhike/zhiju-business-core/pull/222#issuecomment-5790444865)；认证用户即 PR 作者，GitHub 不允许 formal review，故以 comment 发布；本记录不代表 GitHub formal review 或人类技术批准。
+- GitHub handoff：[已发布并读回的 PR comment](https://github.com/qzhike/zhiju-business-core/pull/222#issuecomment-5790444865)
 
 ## 审查依据与范围
 
