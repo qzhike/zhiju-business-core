@@ -262,6 +262,7 @@ import {
   recoverControlledFinalRuns,
   scanControlledFinalCandidates,
   withTaskExecutionTransaction,
+  type ControlledFinalRecoveryCommand,
 } from '@zhiju/task-execution';
 import { hashContractPayload, sha256CanonicalJson } from '@zhiju/shared-kernel';
 import { createHash, createHmac } from 'node:crypto';
@@ -8728,51 +8729,99 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(runtimeDriver.invokedAttemptIds).toHaveLength(1);
       if (terminalScenario === 'RECOVERY') {
         const executed: string[] = [];
+        let failedKey: string | undefined;
+        const recoveryPorts = {
+          now: () => new Date(clock),
+          revalidateScan: scanProof,
+          readFinal: async (originalAttemptRef: CanonicalJsonObject) =>
+            (await restartedEntry.getRuntimeFinalObservation(
+              await firstRunQuery(
+                'integration.get_runtime_final_observation',
+                originalAttemptRef as unknown as Common.ObjectRef,
+                { attemptRef: originalAttemptRef },
+                'runtimeFinalReadV1',
+              ),
+              sessionFor(service),
+            )) as unknown as CanonicalJsonObject,
+          execute: async (next: ControlledFinalRecoveryCommand) => {
+            const envelope = {
+              ...(await firstRunEnvelope(
+                next.commandType,
+                next.targetRef as unknown as Common.ObjectRef,
+                next.payload,
+                service,
+                next.expectedAggregateVersion,
+              )),
+              idempotencyKey: next.idempotencyKey,
+            };
+            let outcome: { status: string; originalOutcome?: string };
+            switch (next.commandType) {
+              case 'execution.submit_agent_result':
+                outcome = await restartedEntry.submitAgentResult(envelope, sessionFor(service));
+                break;
+              case 'execution.record_run_result':
+                outcome = await restartedEntry.recordRunResult(envelope, sessionFor(service));
+                break;
+              case 'execution.validate_agent_result':
+                outcome = await restartedEntry.validateAgentResult(envelope, sessionFor(service));
+                break;
+              case 'execution.accept_agent_result':
+                failedKey = next.idempotencyKey;
+                outcome = await restartedEntry.acceptAgentResult(envelope, sessionFor(service));
+                break;
+              case 'execution.finalize_run_from_acceptance':
+                outcome = await restartedEntry.finalizeRun(envelope, sessionFor(service));
+                break;
+            }
+            executed.push(next.commandType);
+            return outcome;
+          },
+        };
         for (let step = 0; step < 5; step += 1) {
-          const advanced = await recoverControlledFinalRuns(
-            teDb,
-            scanContext,
-            {
-              now: () => new Date(clock),
-              revalidateScan: scanProof,
-              readFinal: async (originalAttemptRef) =>
-                (await restartedEntry.getRuntimeFinalObservation(
-                  await firstRunQuery(
-                    'integration.get_runtime_final_observation',
-                    originalAttemptRef as unknown as Common.ObjectRef,
-                    { attemptRef: originalAttemptRef },
-                    'runtimeFinalReadV1',
-                  ),
-                  sessionFor(service),
-                )) as unknown as CanonicalJsonObject,
-              execute: async (next) => {
-                const envelope = {
-                  ...(await firstRunEnvelope(
-                    next.commandType,
-                    next.targetRef as unknown as Common.ObjectRef,
-                    next.payload,
-                    service,
-                    next.expectedAggregateVersion,
-                  )),
-                  idempotencyKey: next.idempotencyKey,
-                };
-                executed.push(next.commandType);
-                switch (next.commandType) {
-                  case 'execution.submit_agent_result':
-                    return restartedEntry.submitAgentResult(envelope, sessionFor(service));
-                  case 'execution.record_run_result':
-                    return restartedEntry.recordRunResult(envelope, sessionFor(service));
-                  case 'execution.validate_agent_result':
-                    return restartedEntry.validateAgentResult(envelope, sessionFor(service));
-                  case 'execution.accept_agent_result':
-                    return restartedEntry.acceptAgentResult(envelope, sessionFor(service));
-                  case 'execution.finalize_run_from_acceptance':
-                    return restartedEntry.finalizeRun(envelope, sessionFor(service));
-                }
-              },
-            },
-            1,
-          );
+          if (step === 3) {
+            const resultId = String(record(finalView.agentResultContract).agentResultId);
+            await admin.query(`
+              CREATE OR REPLACE FUNCTION task_execution.wi224_fail_accept_event() RETURNS trigger
+              LANGUAGE plpgsql AS $$ BEGIN
+                IF NEW.event_type = 'execution.AgentResultAccepted'
+                   AND NEW.aggregate_id = '${resultId}'::uuid THEN
+                  RAISE EXCEPTION 'injected acceptance outbox failure';
+                END IF;
+                RETURN NEW;
+              END $$`);
+            await admin.query(`
+              CREATE TRIGGER wi224_fail_accept_event BEFORE INSERT ON task_execution.outbox_event
+              FOR EACH ROW EXECUTE FUNCTION task_execution.wi224_fail_accept_event()`);
+            try {
+              await expect(
+                recoverControlledFinalRuns(teDb, scanContext, recoveryPorts, 1),
+              ).rejects.toBeDefined();
+            } finally {
+              await admin.query(
+                'DROP TRIGGER wi224_fail_accept_event ON task_execution.outbox_event',
+              );
+              await admin.query('DROP FUNCTION task_execution.wi224_fail_accept_event()');
+            }
+            expect(failedKey).toBeDefined();
+            expect(await receiptRows(failedKey ?? '')).toEqual([]);
+            expect(
+              (
+                await admin.query<{ count: string }>(
+                  'SELECT count(*)::text FROM task_execution.agent_result_acceptance WHERE result_id=$1',
+                  [resultId],
+                )
+              ).rows,
+            ).toEqual([{ count: '0' }]);
+            expect(
+              (
+                await admin.query<{ count: string }>(
+                  "SELECT count(*)::text FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.AgentResultAccepted'",
+                  [resultId],
+                )
+              ).rows,
+            ).toEqual([{ count: '0' }]);
+          }
+          const advanced = await recoverControlledFinalRuns(teDb, scanContext, recoveryPorts, 1);
           expect(advanced).toBe(1);
         }
         expect(executed).toEqual([
