@@ -252,12 +252,12 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 ### IM06-FINAL 独立授权设计矩阵
 
-状态：`DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23`；依据 Spec 001 §15.13。以下逐项为设计预期，均 `NOT RUN`；#222 的 Bundle/start 授权执行证据不覆盖 Result/terminal 新消费动作。
+状态：`DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / DRAFT PR #226 PARTIAL EXECUTION / LOCAL FULL PASS 2026-09-24 / EXACT HEAD EVIDENCE IN PR #226`；依据 Spec 001 §15.13。下表保留完整设计预期；`PARTIAL` 只表示所列子场景已执行，其余仍 `NOT RUN`。#222 的 Bundle/start 授权执行证据不覆盖 Result/terminal 新消费动作。
 
 | ID | 层级与输入 | 必须观测的结果 | 实际 |
 |---|---|---|---|
-| IP-FINAL-D-001 | 同 Project SERVICE 分别取得 Run start→IG Adapter 身份 Port、TE final 候选扫描、IG final observe/read、submit、record、validate、accept、finalize、expire 与两个旧 Query 的独立 Grant；逐一去掉任一项或用另一操作的 Decision | 公开项绑定精确 operation/version/Purpose/action/target/ActorSnapshot/Scope，内部动作绑定自身 action/target/ActorSnapshot/Scope 且不伪称公开 Purpose；相同主体或旧 Receipt 不共享权；缺授权时相应 protected repository 调用 0 次 | NOT RUN |
-| IP-FINAL-D-002 | Run start 读原 IG 身份、Process 仅按 Project Scope 扫描 TE 自有 RUNNING/ACTIVE 无 reservation 候选，再按 Run 已存 Attempt Ref 读 IG final；每个 TE Result 步骤的 IG binding/final、IP Bundle/Controls Policy 与 TE 上游事实依赖读取；替换完整身份/Attempt Ref、Content Hash、Run/Project 或用 start 阶段 Bundle Decision | start 的原 Binding Query 与实例身份 Port 均独立当前授权，扫描权限不能当 final Query 权限；消费专用 Decision 与当前 owning 事实均须成立；自身命令 ALLOW 不覆盖依赖读；任一失败不读目标 repository，不提交 Result/判断/Acceptance/terminal | NOT RUN |
+| IP-FINAL-D-001 | 同 Project SERVICE 分别取得 Run start→IG Adapter 身份 Port、TE final 候选扫描、IG final observe/read、submit、record、validate、accept、finalize、expire 与两个旧 Query 的独立 Grant；逐一去掉任一项或用另一操作的 Decision | 公开项绑定精确 operation/version/Purpose/action/target/ActorSnapshot/Scope，内部动作绑定自身 action/target/ActorSnapshot/Scope 且不伪称公开 Purpose；相同主体或旧 Receipt 不共享权；缺授权时相应 protected repository 调用 0 次 | PARTIAL：各步独立 Grant/Decision 的成功链 PASS；逐项移除与跨 Decision 替换 NOT RUN |
+| IP-FINAL-D-002 | Run start 读原 IG 身份、Process 仅按 Project Scope 扫描 TE 自有 RUNNING/ACTIVE 无 reservation 候选，再按 Run 已存 Attempt Ref 读 IG final；每个 TE Result 步骤的 IG binding/final、IP Bundle/Controls Policy 与 TE 上游事实依赖读取；替换完整身份/Attempt Ref、Content Hash、Run/Project 或用 start 阶段 Bundle Decision | start 的原 Binding Query 与实例身份 Port 均独立当前授权，扫描权限不能当 final Query 权限；消费专用 Decision 与当前 owning 事实均须成立；自身命令 ALLOW 不覆盖依赖读；任一失败不读目标 repository，不提交 Result/判断/Acceptance/terminal | PARTIAL：候选扫描、IG/TE/IP 依赖读取正链 PASS；完整置换与拒绝矩阵 NOT RUN |
 | IP-FINAL-D-003 | 签发后撤销 Grant、取代 Policy、到期 Decision/Bundle/lease；分别在首次读前、持 Run 锁等待后、历史 Receipt/Query 返回前发生 | 各消费点当前重验拒绝；旧 Result/Bundle 可审计但不能恢复资格；旧公开 Purpose/Schema 与 V1006 target 镜像不变 | NOT RUN |
 | IP-FINAL-D-004 | 到期 Run 且原执行 Bundle 自然过期；LeaseMonitor 有/无独立 expiry 授权；伪造旧 Bundle hash/Run 绑定 | 有授权及完整历史绑定可 TIMED_OUT/EXPIRED 清理，无权限不得读取或释放；不要求过期 Bundle 重新获得执行能力，也不能让任何 SERVICE 通配清理 | NOT RUN |
-| IP-FINAL-D-005 | app-role 直 SQL、无受信 transaction context、跨 Project、另一 SERVICE/actingFor/PrincipalKind/target 替换 | RLS/ACL 与拥有者 guard 拒绝本 Schema 越权；授权来源不由 caller payload 或 SQL 自写 Decision 伪造；无残留成功业务事实 | NOT RUN |
+| IP-FINAL-D-005 | app-role 直 SQL、无受信 transaction context、跨 Project、另一 SERVICE/actingFor/PrincipalKind/target 替换 | RLS/ACL 与拥有者 guard 拒绝本 Schema 越权；授权来源不由 caller payload 或 SQL 自写 Decision 伪造；无残留成功业务事实 | PARTIAL：部分 app-role ACL/RLS 负例 PASS；完整主体/Context 置换矩阵 NOT RUN |

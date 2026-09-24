@@ -671,8 +671,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
    * test of the suite through the registration wrapper below.
    */
   const INTEGRATION_TEST_TIMEOUT = 60_000;
-  function itIntegration(name: string, run: () => Promise<void>): void {
-    it(name, { timeout: INTEGRATION_TEST_TIMEOUT }, run);
+  function itIntegration(
+    name: string,
+    run: () => Promise<void>,
+    timeout = INTEGRATION_TEST_TIMEOUT,
+  ): void {
+    it(name, { timeout }, run);
   }
 
   /**
@@ -7177,7 +7181,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   }
 
   describe('TE-VAL-S-008 first Run terminal paths', () => {
-    const runScenario = async (terminalScenario: 'SUCCEEDED' | 'TIMED_OUT') => {
+    const runScenario = async (terminalScenario: 'SUCCEEDED' | 'TIMED_OUT' | 'RACE') => {
       // This independent chain must not inherit the time spent running the
       // preceding 22 cases: the Decision lookup's bootstrap lease is 60s
       // from the trusted instant, and PostgreSQL checks it against wall time.
@@ -7303,7 +7307,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const revised = replaceControls(candidate) as Record<string, unknown>;
       // The first Run subset requires a finite wall clock limit. The older
       // READY fixture only carried tokenLimit, which remains legal for Freeze.
-      record(revised.budget).wallClockLimit = terminalScenario === 'TIMED_OUT' ? 'PT10S' : 'PT600S';
+      record(revised.budget).wallClockLimit =
+        terminalScenario === 'TIMED_OUT'
+          ? 'PT10S'
+          : terminalScenario === 'RACE'
+            ? 'PT30S'
+            : 'PT600S';
       // Static selectors are Platform-scoped; recursive fixture scope rewriting
       // is restricted to business refs and must not turn them into Project refs.
       for (const profile of workOrderReadyProfileRegistry.profiles) {
@@ -8264,7 +8273,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(await firstRunEntry.queue(queueEnvelope, sessionFor())).toMatchObject({
         status: 'DUPLICATE',
       });
-      if (terminalScenario === 'TIMED_OUT') clock = Date.now();
+      if (terminalScenario !== 'SUCCEEDED') clock = Date.now();
       const runRef = objectRef('execution.run', newUuidV7(), scope()) as Common.ObjectRef;
       const bundleEnvelope = await firstRunEnvelope(
         'identity.issue_execution_capability_bundle',
@@ -8296,7 +8305,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const runDeadline = new Date(
         Math.min(
           bundleValidUntil.getTime(),
-          clock + (terminalScenario === 'TIMED_OUT' ? 10_000 : 600_000),
+          clock +
+            (terminalScenario === 'TIMED_OUT'
+              ? 10_000
+              : terminalScenario === 'RACE'
+                ? 30_000
+                : 600_000),
         ),
       );
       const runtimeBinding = {
@@ -8636,6 +8650,38 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(await observingEntry.observeRuntimeFinal(finalQuery, sessionFor(service))).toEqual(
         finalView,
       );
+      const conflictingEntry = createControlledFirstRunEntry({
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        integrationGatewayDb: createIntegrationRendererDatabase(tePool),
+        runtimeDriver: {
+          invoke: () => Promise.reject(new Error('unexpected second synthetic invocation')),
+          readBack: (ref) => observingDriver.readBack(ref),
+          readFinal: async (ref) => {
+            const original = await observingDriver.readFinal(ref);
+            return original === undefined
+              ? undefined
+              : {
+                  ...original,
+                  runtimeSubmissionRef: {
+                    ...original.runtimeSubmissionRef,
+                    externalId: newUuidV7(),
+                  },
+                };
+          },
+        },
+        receiptStorage: runtimeJournal,
+        capabilityCodes: firstRunCodes,
+        capabilities: dependencyCapabilities,
+        now: () => new Date(clock),
+      });
+      await expect(
+        conflictingEntry.observeRuntimeFinal(finalQuery, sessionFor(service)),
+      ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_CONFLICT' });
+      expect(
+        await firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
+      ).toEqual(finalView);
       const restartedDriver = new LocalSyntheticRuntimeDriver();
       const restartedEntry = createControlledFirstRunEntry({
         taskExecutionDb: teDb,
@@ -8669,6 +8715,30 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         } as unknown as CanonicalJsonObject,
         service,
       );
+      const wrongSubmission = await firstRunEnvelope(
+        'execution.submit_agent_result',
+        resultTarget,
+        {
+          agentResultContract: resultBody,
+          runFencingToken: 1,
+          runtimeSubmissionRef: {
+            ...finalView.runtimeSubmissionRef,
+            externalId: newUuidV7(),
+          },
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
+      await expect(
+        firstRunEntry.submitAgentResult(wrongSubmission, sessionFor(service)),
+      ).rejects.toBeDefined();
+      expect(
+        (
+          await admin.query<{ count: string }>(
+            'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
+            [runRef.objectId],
+          )
+        ).rows,
+      ).toEqual([{ count: '0' }]);
       const submitted = await restartedEntry.submitAgentResult(submitEnvelope, sessionFor(service));
       expect(submitted, JSON.stringify(submitted)).toMatchObject({ status: 'COMMITTED' });
       expect(
@@ -8781,6 +8851,61 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const acceptanceRecordRef = record(
         committedPayload(accepted as CommandResult),
       ).acceptanceRecordRef;
+      if (terminalScenario === 'RACE') {
+        const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
+        if (deadlineWait > 0)
+          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        clock = Date.now();
+        const raceFinalize = await firstRunEnvelope(
+          'execution.finalize_run_from_acceptance',
+          runRef,
+          { acceptanceRecordRef } as unknown as CanonicalJsonObject,
+          service,
+          3,
+        );
+        const raceExpire = await firstRunEnvelope(
+          'execution.expire_run',
+          runRef,
+          { reason: 'DEADLINE_EXCEEDED' },
+          service,
+          3,
+        );
+        const race = await Promise.allSettled([
+          firstRunEntry.finalizeRun(raceFinalize, sessionFor(service)),
+          firstRunEntry.expireRun(raceExpire, sessionFor(service)),
+        ]);
+        expect(race[0].status).toBe('rejected');
+        if (race[1].status === 'rejected') throw race[1].reason;
+        expect(race[1].value).toMatchObject({ status: 'COMMITTED' });
+        expect(
+          await firstRunEntry.getRunState(
+            await firstRunQuery(
+              'execution.get_run_state',
+              runRef,
+              { runRef } as unknown as CanonicalJsonObject,
+              'runStateReadV1',
+            ),
+            sessionFor(service),
+          ),
+        ).toMatchObject({ status: 'TIMED_OUT', terminationReason: 'EXECUTION_DEADLINE_EXCEEDED' });
+        expect(
+          (
+            await admin.query<{ status: string }>(
+              'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ status: 'EXPIRED' }]);
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              "SELECT count(*)::text FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.RunTerminated'",
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '1' }]);
+        return;
+      }
       const finalizeEnvelope = await firstRunEnvelope(
         'execution.finalize_run_from_acceptance',
         runRef,
@@ -8978,5 +9103,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     };
     itIntegration('completes Validation, Freeze and SUCCEEDED Run', () => runScenario('SUCCEEDED'));
     itIntegration('expires a Run after a late synthetic final', () => runScenario('TIMED_OUT'));
+    itIntegration(
+      'serializes concurrent finalize and expire after the deadline',
+      () => runScenario('RACE'),
+      120_000,
+    );
   });
 });

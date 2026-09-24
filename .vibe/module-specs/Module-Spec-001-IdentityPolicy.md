@@ -789,7 +789,7 @@ Purpose 值以现行 compatibility metadata 的逐字符值为准；上表中新
 
 ### 15.13 IM06-FINAL Result 与 terminal 的独立授权提案
 
-状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / NOT IMPLEMENTED`。服务 [Spec 003 §23](Module-Spec-003-TaskExecution.md#23-受控-final-agentresult-接纳与-run-终结增量设计提案)和 Spec 007 final 观察。沿用 §15.12 的 ActorSnapshot、完整 target、Purpose、当前 covering Grant/Policy、签发及持锁/返回前重验；不改变既有公开授权 API、V1006 或 §15.12 的 action。相同 SERVICE 主体不得使各步共享 Decision。
+状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / IMPLEMENTED IN DRAFT PR #226 / LOCAL FULL PASS 2026-09-24 / EXACT HEAD EVIDENCE IN PR #226 / IMPLEMENTATION REVIEW PENDING`。服务 [Spec 003 §23](Module-Spec-003-TaskExecution.md#23-受控-final-agentresult-接纳与-run-终结增量设计提案)和 Spec 007 final 观察。沿用 §15.12 的 ActorSnapshot、完整 target、Purpose、当前 covering Grant/Policy、签发及持锁/返回前重验；不改变既有公开授权 API、V1006 或 §15.12 的 action。相同 SERVICE 主体不得使各步共享 Decision。
 
 | 消费边界 | 注册 Purpose / Actor | 新受信 action / target / config key |
 |---|---|---|

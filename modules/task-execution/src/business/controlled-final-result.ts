@@ -1327,8 +1327,6 @@ export async function handleExpireFirstRun(
         .where('status', '=', 'ACTIVE')
         .executeTakeFirst();
       requireThat(Number(claimUpdate.numUpdatedRows) === 1, 'CONCURRENCY_CONFLICT');
-      if (run.result_ref !== null)
-        await appendFinalEdge(execution, envelope, '/resultRef', object(run.result_ref));
       await appendEvent(
         execution,
         envelope,

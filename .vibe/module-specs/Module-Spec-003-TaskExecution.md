@@ -1945,7 +1945,7 @@ IG 通过 §22.3 Query 建立实际 Attempt 后，TE 使用新增 `integration.g
 
 ## 23. 受控 final AgentResult 接纳与 Run 终结增量设计提案
 
-状态：`T2 / DESIGN APPROVED 2026-09-23 / BASE main@28d1dfd / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / NOT REGISTERED / NOT IMPLEMENTED`。决定与取舍见[决定 §22](../decisions/task-execution-human-operated.md#22-受控-final-agentresult-到-terminal-run-的增量设计提案)。本节只为 #222 的首个 RUNNING synthetic Run 定义可执行的 final/terminal 技术链；Core §5 的 AgentResult 本体、§3/§4 已发布操作与事件 Schema 不改。Result/Run 状态不能代替 WorkOrder、Task 或 DeliveryItem 完成。
+状态：`T2 / DESIGN APPROVED 2026-09-23 / BASE main@28d1dfd / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / REGISTERED AND IMPLEMENTED IN DRAFT PR #226 / LOCAL FULL PASS 2026-09-24 / EXACT HEAD EVIDENCE IN PR #226 / IMPLEMENTATION REVIEW PENDING`。决定与取舍见[决定 §22](../decisions/task-execution-human-operated.md#22-受控-final-agentresult-到-terminal-run-的增量设计提案)。本节只为 #222 的首个 RUNNING synthetic Run 定义可执行的 final/terminal 技术链；Core §5 的 AgentResult 本体、§3/§4 已发布操作与事件 Schema 不改。Result/Run 状态不能代替 WorkOrder、Task 或 DeliveryItem 完成。
 
 ### 23.1 首版支持、身份与新操作
 

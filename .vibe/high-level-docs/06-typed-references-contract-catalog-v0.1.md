@@ -1366,7 +1366,7 @@ execution.validate_agent_result@1.0
 execution.finalize_run_from_acceptance@1.0
 execution.expire_run@1.0
 
-状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / NOT REGISTERED`。唯一字段与行为权威是 Spec 003 §23、Spec 007 final 增量；本表固定待注册的公开名称和引用边界。实施后 Catalog/Registry 预计由 `221→226`：TaskExecution `49→53`、IntegrationGateway `25→26`，历史 `200` 项 Compatibility Baseline 不变。
+状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / REGISTERED IN DRAFT PR #226 2026-09-24 / LOCAL FULL PASS 2026-09-24 / EXACT HEAD EVIDENCE IN PR #226 / IMPLEMENTATION REVIEW PENDING`。唯一字段与行为权威是 Spec 003 §23、Spec 007 final 增量；本表固定新增公开名称和引用边界。当前分支的 Catalog/Registry 已由 `221→226`：TaskExecution `49→53`、IntegrationGateway `25→26`，历史 `200` 项 Compatibility Baseline 不变。
 
 | 新增 operation | Owner / kind / Purpose | Target、引用和结果约束 |
 |---|---|---|
@@ -1378,4 +1378,4 @@ execution.expire_run@1.0
 
 新增 public objectType：`zhiju.runtime.runtime`（IG，OBJECT，Project Scope；原实际 invocation 的 Adapter 实例身份，与 Attempt 分离）、`zhiju.integration.runtime_final_observation`（IG，CONTENT_ADDRESSED）、`zhiju.execution.agent_result_validation_bundle`（TE，CREATE OBJECT 与已提交 CONTENT_ADDRESSED）、`zhiju.execution.validation_result`（TE，CONTENT_ADDRESSED）。前者在原真实 ack 后由 IG owning 事实确认，不能以预分配 ID、Attempt Ref 或静态 `zhiju.runtime.adapter_contract` selector 代替；TE Run start 通过内部独立授权 Port 保存其精确 Ref，已发布 `start_run@1.0`/`get_runtime_attempt_binding@1.0` Schema 不变。既有 v1 Result/Acceptance 身份精确拼写仍为 `execution.agent_result` 和 `execution.agent_result_acceptance`；注册引用声明时按此拼写，不用 `zhiju.*` 替换或把两者互当别名。每个 Ref 必须保留完整 kind/objectType/objectId/Scope 和适用 Hash；新 Result Schema 均 closed、Project Scope 必填。新静态 Evaluator 条目只加入既有 `im06-evaluator-static-v1` registry：`te.agent_result_validation.evaluator@1.0`，Owner task-execution、`VERSIONED/zhiju.execution.evaluator_profile`、Platform Scope `{}`，固定 objectId `018f22e2-7c15-7b2e-8d86-2de956a9d4a3`、versionId `018f22e2-7c15-7b2e-8d86-2de956a9d4b3`；不得改变原两项 selector，登记只证明本地静态版本而非已执行的判断。
 
-已注册 `submit_agent_result@1.0`、`accept_agent_result@1.0`、`get_agent_result@1.0`、`get_run_state@1.0`、`AgentResultAccepted@1.0`、`RunTerminated@1.0` 与 `get_runtime_attempt_binding@1.0` 的 Schema、metadata、fixture 和历史接受集逐字节不变。首版仅支持合法空 business output 的 synthetic FINAL/COMPLETED 正链，是 Handler 支持范围，不是旧 Contract Schema 缩窄；旧操作若传其它 Core-valid 内容返回稳定 unsupported/拒绝。新增操作注册前应以真实 ContractRegistry 对完整请求、结果、Event envelope 做正反校验并核对计数/生成副本/兼容门禁；设计表不声称已经注册。
+已注册 `submit_agent_result@1.0`、`accept_agent_result@1.0`、`get_agent_result@1.0`、`get_run_state@1.0`、`AgentResultAccepted@1.0`、`RunTerminated@1.0` 与 `get_runtime_attempt_binding@1.0` 的 Schema、metadata、fixture 和历史接受集逐字节不变。首版仅支持合法空 business output 的 synthetic FINAL/COMPLETED 正链，是 Handler 支持范围，不是旧 Contract Schema 缩窄；旧操作若传其它 Core-valid 内容返回稳定 unsupported/拒绝。当前分支已通过真实 ContractRegistry 的生成、计数与兼容门禁；完整正反矩阵仍按 Module-Test 003/007 的逐项证据判定，本设计表不替代独立实现审查。
