@@ -1980,4 +1980,4 @@ Process 复用决定 §9 的有限扫描，并增加一个明确候选集：TE �
 
 ### 23.4 交付和验证边界
 
-新增操作的 Registry/Result Schema、objectType 与 Purpose 见 Catalog 增量；IdentityPolicy 的每步独立授权见 Spec 001 §15.13，IG final 观察见 Spec 007，Run/Claim/Result/Acceptance 的 forward-only 存储见 PostgreSQL §38。不得改 V3000–V3006、旧 Event/Get Schema、历史 200 项 Baseline、#219 的冻结 Contract/Context Hash 或 #222 的原 Attempt/ack。Module-Test 003/001/007 已列出正常、重放、撤权、迟到、直 SQL、恢复和竞争失败的设计预期；人类设计批准与独立复审结论见决定 §22.5–§22.6。本节仍为设计、所有新增运行场景均 `NOT RUN`，不自动授权实现 Issue。
+新增操作的 Registry/Result Schema、objectType 与 Purpose 见 Catalog 增量；IdentityPolicy 的每步独立授权见 Spec 001 §15.13，IG final 观察见 Spec 007，Run/Claim/Result/Acceptance 的 forward-only 存储见 PostgreSQL §38。不得改 V3000–V3006、旧 Event/Get Schema、历史 200 项 Baseline、#219 的冻结 Contract/Context Hash 或 #222 的原 Attempt/ack。Module-Test 003/001/007 已列出正常、重放、撤权、迟到、直 SQL、恢复和竞争失败的设计预期；人类设计批准与独立复审结论见决定 §22.5–§22.6。Draft PR #226 已交付注册、Handler、存储和部分真实 PostgreSQL 正反场景；当前 Process 只验证候选扫描与手动逐步调用，逐步崩溃后的自动恢复及其余矩阵项仍 `NOT RUN`，完整执行状态以对应 Module-Test 行和 PR 证据为准。
