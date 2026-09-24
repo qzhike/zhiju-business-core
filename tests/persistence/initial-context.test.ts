@@ -8630,6 +8630,27 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       await expect(
         firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
       ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND' });
+      if (terminalScenario === 'RECOVERY') {
+        expect(
+          await recoverControlledFinalRuns(
+            teDb,
+            scanContext,
+            {
+              now: () => new Date(clock),
+              revalidateScan: scanProof,
+              readFinal: async (originalAttemptRef) => {
+                expect(originalAttemptRef).toEqual(attemptRef);
+                await expect(
+                  firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
+                ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND' });
+                return undefined;
+              },
+              execute: () => Promise.reject(new Error('unobserved final must not submit')),
+            },
+            1,
+          ),
+        ).toBe(0);
+      }
       const observingDriver = new LocalSyntheticRuntimeDriver(undefined, runtimeJournal);
       const observingEntry = createControlledFirstRunEntry({
         taskExecutionDb: teDb,
