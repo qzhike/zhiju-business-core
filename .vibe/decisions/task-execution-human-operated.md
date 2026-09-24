@@ -982,3 +982,49 @@ IntegrationGateway Service 使用新增 `execution.get_run_dispatch_binding@1.0`
 ### 21.4 人类设计批准记录（2026-09-22）
 
 用户对上一轮呈现的本 §21 增量设计明确回复“批准”。批准范围是基于 `main@969e44c83c0c3ae2d7b4918bcdb14e145bdc9276` 的当前隔离工作树设计：本决定 §21、Spec 001 §15.12、Spec 003 §22、Spec 007 的 IM-06 READY Run 启动增量、Catalog 的 IM-06 READY Run 启动注册增量、PostgreSQL §37、Runtime Adapter 的首个受控 Run 映射及对应 Module-Test 001/003/007 设计矩阵。该批准确认上述方案的人类设计门禁；独立设计审查已于 2026-09-22 对基线 `main@969e44c83c0c3ae2d7b4918bcdb14e145bdc9276` 上的 11 份文档增量给出 `APPROVE`；被审 `git diff --binary -- .vibe` 的 SHA-256 为 `145c334ffbcf888f880aec10162152ea305cbfcce3d01c6570b19ad9eb00c59e`；独立 Reviewer 对该对象的五项旧阻塞逐项复核并给出 `APPROVE`。先前针对旧工作树的 `PLANNING_REQUIRED` 不适用于本次被审增量；本次批准状态更新只记录审查结论，不改变设计语义。新注册、migration、Handler、运行时验收均未执行。若后续实质修改设计，须重新确认审查与人类批准的适用性；实现 Issue 仍须由 Planner 重新判定 `NOW + READY`。本次批准不授权 Issue 发布、commit、push、merge 或部署。
+
+后续推进记录（2026-09-23）：Planner 对本节完成 `NOW + READY` 复核，且用户另行授权设计文档提交、推送及实现 Issue 发布后，[Issue #221](https://github.com/qzhike/zhiju-business-core/issues/221) 创建。该次单独授权仅涵盖设计文档提交、推送和 Issue 发布，不涵盖合并或部署，也不追溯扩大上段人类设计批准的范围。Issue #221 已由 [PR #222](https://github.com/qzhike/zhiju-business-core/pull/222) 合入 `main@28d1dfd02e5f2df3794aae9c06df4cf943a36d75` 并关闭。§21.3 的“当前不创建 Issue”与上段的未执行状态只记录 2026-09-22 的设计时点；交付事实和仍未执行的完整验证矩阵见 roadmap 的 #221 合并后推进意图与 owning Spec/Test。
+
+## 22. 受控 final AgentResult 到 terminal Run 的增量设计提案
+
+状态：`T2 / DESIGN APPROVED 2026-09-23 / BASE main@28d1dfd02e5f2df3794aae9c06df4cf943a36d75 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / NOT IMPLEMENTED`。本节延续已批准 TD-02/03 的单 Run final、独立 Acceptance 与 Run/WorkOrder/Task 分层规则；字段级边界由 Spec 003 §23、Spec 007 的 final 观察增量和 PostgreSQL §38 拥有。#222 已交付真实 synthetic ack 与 RUNNING Run，但其 Driver 只有 ack/read-back，没有已提交 final 观察，V3006 的 Run/Claim 也不允许 terminal；现有 `get_agent_result@1.0` 必填 Acceptance Ref，不能用于读取尚未接纳的 Result。
+
+### 22.1 首版结果与非目标
+
+首版只让一个已 RUNNING 的 canonical synthetic Run 接纳实际 Driver 返回的 `FINAL / COMPLETED` AgentResult：`businessOutputs`、`workspaceOutputs`、`findings` 和三类 Proposal 均为空，`runtimeUsageRef` 与 `continuationProposal` 缺省；Header、HumanSummary、Provenance、Run/WorkOrder/Task/Project 和 `submittedByRuntime` 仍逐字段满足 Core §5；本受控 profile 为实际 synthetic invocation 建立独立的 IG owning `ObjectRef<zhiju.runtime.runtime>` Adapter 实例身份，与 Attempt 使用不同 objectId、不互为别名；Run start 从原成功 ack 的 owning 身份事实读取并持久绑定该 Ref，Result 的 `submittedByRuntime` 必须与之完全相等。`provenance.runtimeAdapterRef` 另绑定冻结的静态协议 selector。历史 RUNNING Run 若缺这项前向绑定不能接纳本轮 final，仍可由到期监控关闭。`agentDeclaredUsage` 如存在仅作为不可信声明封存，不在本项发布 Usage Query。这个闭合范围可证明“执行收据已被 Core 接纳且 Run 已终结”，不宣称 WorkOrder/Task/DeliveryItem 完成。非空正式 BusinessOutput 的首版正向验证须等其 owning Query、创建来源与 `zhiju.artifact.artifact_revision`（冻结 ExpectedOutput）/`artifact.artifact_revision`（现有 Artifact Query）拼写冲突另行闭合；不得在本项用字符串别名或跳过 Query 放行。
+
+本项不实现 InformationRequest、WorkOrder/Task terminal 后协调、Completion、真实 CLI/Provider、Runtime Usage、同 Run Resume 或 IM-DG-006 六个控制命令。`request_run_cancel@1.0` 仍未实现，不能用 Runtime 自报 `CANCELLED_BY_RUNTIME` 伪造 Cancel ACK。服务端到期可由已批准的 `expire_run@1.0` 关闭未接纳的本波次 Run；因 V3006 首版 `execution_deadline = lease_expires_at` 且没有 CANCELLING 正向路径，本项仅接受非 CANCELLING 的 `DEADLINE_EXCEEDED → TIMED_OUT`，其他原因留待相应控制切片。
+
+### 22.2 final 观察、接收与单事实链
+
+IG 在 Attempt 首次提交时预分配独立 Adapter 实例 ID，并作为原调用输入；只有真实 synthetic ack 与预分配 ID/原 binding 精确一致时，才与 ack 同事务提交 IG owning Adapter 实例身份事实。TE start 在原 Binding Query 之外，以独立当前授权通过 IG 内部只读 Port 取得该事实，并在同一 Run start 事务保存不可变 `runtime_adapter_identity_ref`；不能从 caller、静态 selector 或 Attempt Ref 推造。IG Worker 只在原 Attempt 已提交 SUCCEEDED/真实 ack 且自身 final 观察授权当前有效时，对**原 synthetic invocation** 调用可重复 `readFinal(attemptRef)`；该调用不重新 `invoke`。Driver 在 RUNNING 后或 Run 到期后的迟到释放都可成为历史观察，TE 再以自己的当前 Run/Claim/期限资格裁决是否接收。原 invocation 在调用前固定不含实际提交时间/最终 Hash 的版本化模板；Run 启动后的真实释放点由 Driver 生成完整 Core Result、`submittedAt`/Header Hash、稳定 `runtimeSubmissionRef`、原 fencing 与受信观察时刻，并保证原调用跨 Worker 重启可读回相同 bytes/ref/hash。IG 重算 Result Header/payload Hash，附原 `bindingHash`、Attempt/Run/Scope 与 `source=SYNTHETIC_DRIVER`，在自己的 Attempt Aggregate 事务追加唯一、不可变的 `runtime_final_observation`，保存完整受控 Result 正文与最小公开投影；不得保存 Secret、Prompt 或 stdout。IG Worker 自身进度丢失时可从原 Driver read-back 校验**同一** submission Ref/Hash；IG 观察已提交而向 TE 交接失败时，TE 只凭 Run 已存 Attempt Ref 查询 IG 已提交观察。不同内容或第二 final 只记脱敏冲突，不覆盖原观察。IG 尚未提交观察且没有真实 read-back 时保持未知，不按 fixture 预期制造成功。
+
+新增 IG owning 的 `integration.get_runtime_final_observation@1.0` AUTHORITATIVE Query；请求只含完整 `attemptRef`，因为本轮同一 Attempt 最多一份已提交 final，响应才给出 `runtimeSubmissionRef`。TE ResultIngestion/Validator 以独立当前授权和 Run 中的 `start_attempt_ref` 查询，核对观察 Ref、原 Attempt/ack、Adapter 实例 Ref、Run/Contract/Context/Bundle/RuntimeBinding、Project Scope、Result Hash、submission Ref、fencing 与当前期限；调用方提交的 `runtimeSubmissionRef` 单独不成立。Query 仅从 IG 已提交事实重建，向独立授权的 TE SERVICE 返回完整受控 `agentResultContract` 与 Hash 供崩溃恢复，不由待验证 Result 反向构造。跨模块仍只读 owning Query/Port，不建跨 Schema FK。
+
+TE 的 `submit_agent_result@1.0` 保持已发布 payload/metadata，受信 Ingestion Service 在 Run 锁内先完成独立自身/IG/Bundle/Policy 授权与绑定重验，再同一 TE 事务封存不可变 Result、一个 Run final reservation、Receipt/Audit/Edge；不改 Run Root。相同 Result identity/hash 与同一 observation 可返回原事实，任一不同 identity/hash 不替换 reservation，错来源、迟到、过期、终态或不支持的首版 Result 在 reservation 前拒绝/隔离并留脱敏审计，不能产生可用 Acceptance。随后 `record_run_result@1.0` 在独立 Run 事务以已提交唯一 reservation 推进 RUNNING→RESULT_RECORDED。崩溃恢复从已授权的 RUNNING Run/原 `start_attempt_ref` 扫描候选，以 Attempt-only IG Query 发现唯一已提交 final 的 submission Ref/body/hash，再用稳定的 `processType:sourceFactId:sourceFactHash:step` 键重放 owning Command/Receipt；没有 final 返回不可用，不跨 Aggregate 偷写。
+
+### 22.3 Validation、Acceptance 与 terminal 裁决
+
+`validate_agent_result@1.0` 使用 Run 冻结的同一 `execution.work_order_controls.policy@1.0` 精确业务 Policy Ref（含每个 ExpectedOutput 的 acceptancePolicyRef），不允许 caller 选择另一版本；Result Evaluator 使用新静态 selector `te.agent_result_validation.evaluator@1.0`，不复用 Task/WorkOrder Evaluator。Validator 在独立当前授权下读 Result/Run/reservation、IG final 观察、当前 Bundle/Policy，产生一个不可变 Bundle 和恰五个同 Bundle 子 Validation；`validUntil` 不晚于 Run lease/deadline、Validator Decision 与 Policy 取代时刻。首版 BusinessOutput 检查针对空集合为 SATISFIED，**不**把冻结 ExpectedOutput 是否全部交付纳入此检查。`replayValidation` 由 Acceptance consumer 从持久化 final reservation 重算，不由 caller 提交。跨模块观察后、目标提交前再重验授权/时效；旧判断可审计但不能恢复资格。
+
+`accept_agent_result@1.0` 保持已发布六个 Ref/Disposition/Reasons 字段，受信 Validator Service 在自己的事务内重读五份同 Bundle 判断、Result/Run/Attempt/reservation 和当前事实，重新计算而不信任 caller `disposition`。本项可执行正向只接受全五项有效且 `disposition=ACCEPTED`；`REJECTED/QUARANTINED` 的完整输出/安全分类留待扩大支持集，不允许调用者为绕过首版边界自填负面结论。Acceptance 独立不可变，只有 ACCEPTED 写现有 `AgentResultAccepted@1.0`，其中 `businessOutputRefs=[]`。已发布 `get_agent_result@1.0` 仅在 Acceptance 已提交后返回原 Result 与精确 Acceptance Ref；此前不泄露半成品。
+
+`finalize_run_from_acceptance@1.0` 在 Run 行锁、当前授权、同一 Result/Acceptance/Claim 和严格未到期复验后，单 Run 事务推进 RESULT_RECORDED→SUCCEEDED、ACTIVE→RELEASED，写 Receipt/Audit/唯一 `RunTerminated@1.0`；`executionOutcome=COMPLETED` 不推进 WorkOrder/Task。`expire_run@1.0` 按受信服务端时钟竞争同一 Run 锁：deadline 已到且尚非 terminal 时推进 TIMED_OUT、ACTIVE→EXPIRED，亦只写一次 RunTerminated；finalize 与 expire 至多一个终态获胜。不同键重复 finalize 仅在精确同 Result/Acceptance/终态时无新业务变化地读回；过期、撤权、错 Ref、旧 fencing 或不匹配 Acceptance 不能释放 Claim 或制造第二 Event。未接纳 Result 即使已封存也不具有业务输出资格。`get_run_state@1.0` 沿用旧 Schema 读回 terminal/status/resultRef/terminationReason，不修改历史数据。
+
+### 22.4 兼容、验证与批准边界
+
+计划新增四个 TE Command（`record_run_result`、`validate_agent_result`、`finalize_run_from_acceptance`、`expire_run`）和一个 IG Query，均为 `@1.0`；Catalog/Registry 预计 221→226，历史 200 项 Baseline 与 `submit/accept/get_agent_result/get_run_state`、两个现有 Event 的已发布 Schema/metadata 保持逐字节不变。只使用 V3006/V7002 **之后**的 forward migration；物理约束必须保护原 Run/Claim/Attempt、已应用迁移和 Renderer Receipt 历史。新增操作的 Payload/Result、Purpose、objectType 与授权组成见 owning Spec/Catalog；本提案本身不注册、不执行。
+
+设计验收以真实 owning 路径为判据：实际 synthetic final→IG observation→TE Result/reservation→Bundle→Acceptance→Run SUCCEEDED/Claim RELEASED 与两个权威 Query；同键重放只保留单事实；伪造 final、错 Scope/Hash/Attempt/Policy、撤权、到期、两份 final、finalize/expire 竞争均无假成功。受控 PostgreSQL 与 `vibe verify full --json` 是未来实现 Gate；真实 Provider/CLI/飞书、公开 HTTP、人工业务验收分别保持 `NOT RUN`。人类设计批准与独立复审结论分别记录于 §22.5、§22.6；本设计仍未注册或实现，不能据此改变现行 Handler 接受集。实现 Issue 须由 Planner 在权威文档可访问后另行复核 `NOW + READY`。
+
+### 22.5 人类设计批准记录（2026-09-23）
+
+用户对上一轮呈现、已按审查意见修订的本 §22 增量设计明确回复“批准设计了”。批准对象基于 `main@28d1dfd02e5f2df3794aae9c06df4cf943a36d75`：本决定 §22、Spec 001 §15.13、Spec 003 §23、Spec 007 的受控 final 增量、Catalog 的 final 注册提案、PostgreSQL §38、Runtime Adapter 的 final read-back 增量、Module-Test 001/003/007 的 `*-FINAL-D-*` 设计矩阵，以及 roadmap 的下一工作条目。批准前该 11 份文档的 `git diff --binary -- .vibe` SHA-256 为 `2326069efe546ecb05c42498e9b29a4a9eac89a943daa61baae09f7c3601a8f9`；本次状态和记录更新不改变被批准的设计语义。
+
+该回复满足此确切提案的人类设计批准门禁，本身不等于独立设计复审通过。此前 `PLANNING_REQUIRED` 针对修订前的设计；在该批准记录时，当前修订仍须单独审查，后续结论见 §22.6。审查若要求实质变更，应重新核对本批准是否覆盖变更。Catalog 注册、migration、Handler、`*-FINAL-D-*` 运行验收均未执行；Planner 在独立设计审查通过且权威文档可供实现任务引用后，才可重新判定 `NOW + READY`。本次批准不授权 Issue 发布、commit、push、merge 或部署。
+
+### 22.6 独立设计复审结论记录（2026-09-23）
+
+用户在本会话明确报告“独立设计复审批准”，并确认复审对象是 `main@28d1dfd02e5f2df3794aae9c06df4cf943a36d75` 上当前 11 份文档的未提交差异：`git diff --binary -- .vibe` 的 SHA-256 为 `c57c1e1f80c15b11947f2bb8d114d7ab5f1225c32a617438cf1baca12772a1d2`。该差异包含 §22.5 的人类批准状态记录；此次结论作为用户提供、绑定确切修订版的独立设计复审 `APPROVE` 记录。状态更新只改变审查元数据，不修改被审设计语义。此前针对修订前提案的 `PLANNING_REQUIRED` 不适用于这一复审对象。
+
+本会话没有另附审查报告、逐项 findings 或 PR，因此不宣称存在已发布的正式 PR Review。被审修订版的 `vibe verify docs --json` 已通过；上次语义相同的批准前版本曾通过完整门禁，当前版本的完整门禁在 1379 项代码测试与契约检查通过后，因 Docker Hub manifest 请求超时未进入 PostgreSQL 阶段，不能记录为本修订版 `full PASS`。人类设计批准与独立复审结论已分别记录；设计尚未注册、实现或完成运行验收。实现 Issue 的 `NOW + READY`、权威文档可访问性以及 Git 交付须另行处理，本结论不授权 Issue 发布、commit、push、merge 或部署。
