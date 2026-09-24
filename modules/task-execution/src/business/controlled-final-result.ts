@@ -398,6 +398,230 @@ export async function scanControlledFinalCandidates(
   });
 }
 
+export interface ControlledFinalRecoveryCommand {
+  readonly commandType:
+    | 'execution.submit_agent_result'
+    | 'execution.record_run_result'
+    | 'execution.validate_agent_result'
+    | 'execution.accept_agent_result'
+    | 'execution.finalize_run_from_acceptance';
+  readonly targetRef: CanonicalJsonObject;
+  readonly payload: CanonicalJsonObject;
+  readonly expectedAggregateVersion?: number;
+  readonly idempotencyKey: string;
+}
+
+export interface ControlledFinalRecoveryPorts {
+  readonly now: () => Date;
+  readonly revalidateScan: () => Promise<void>;
+  readonly readFinal: (attemptRef: CanonicalJsonObject) => Promise<CanonicalJsonObject | undefined>;
+  readonly execute: (command: ControlledFinalRecoveryCommand) => Promise<{
+    status: string;
+    originalOutcome?: string;
+  }>;
+}
+
+function recoveryKey(sourceId: string, sourceHash: string, step: string): string {
+  return `controlled-final:${sourceId}:${sourceHash}:${step}`;
+}
+
+function stableRecoveryTarget(key: string, sourceId: string): string {
+  const source = sourceId.replaceAll('-', '').toLowerCase();
+  requireThat(/^[0-9a-f]{32}$/.test(source), 'API_VALUE_INVALID');
+  const random = digest(key);
+  const bytes = `${source.slice(0, 12)}7${random.slice(0, 3)}8${random.slice(3, 6)}${random.slice(6, 18)}`;
+  return `${bytes.slice(0, 8)}-${bytes.slice(8, 12)}-${bytes.slice(12, 16)}-${bytes.slice(16, 20)}-${bytes.slice(20)}`;
+}
+
+/** One scan reads only TE-owned committed facts; every subsequent step enters its owning boundary. */
+export async function recoverControlledFinalRuns(
+  db: Kysely<TaskExecutionDb>,
+  context: TaskExecutionTransactionContext,
+  ports: ControlledFinalRecoveryPorts,
+  maxSteps = 5,
+): Promise<number> {
+  requireThat(Number.isSafeInteger(maxSteps) && maxSteps >= 0);
+  requireThat(context.allowedProjectIds.length === 1, 'SCOPE_MISMATCH');
+  const project = context.allowedProjectIds[0];
+  requireThat(project !== undefined, 'SCOPE_MISMATCH');
+  const subjectScope = { enterpriseId: context.enterpriseId, projectId: project };
+  let advanced = 0;
+  for (; advanced < maxSteps;) {
+    await ports.revalidateScan();
+    const rows = await withTaskExecutionTransaction(db, context, async (trx) => {
+      const found = await trx
+        .selectFrom('task_execution.run as run')
+        .innerJoin('task_execution.work_order_run_claim as claim', 'claim.run_id', 'run.run_id')
+        .leftJoin(
+          'task_execution.run_final_submission_claim as final',
+          'final.run_id',
+          'run.run_id',
+        )
+        .leftJoin('task_execution.agent_result as result', 'result.run_id', 'run.run_id')
+        .leftJoin(
+          'task_execution.result_validation_bundle as bundle',
+          'bundle.result_id',
+          'result.result_id',
+        )
+        .leftJoin(
+          'task_execution.agent_result_acceptance as acceptance',
+          'acceptance.result_id',
+          'result.result_id',
+        )
+        .select([
+          'run.run_id',
+          'run.status as run_status',
+          'run.aggregate_version',
+          'run.start_attempt_ref',
+          'run.runtime_adapter_identity_ref',
+          'run.lease_policy_ref',
+          'run.fencing_token',
+          'final.result_id as reserved_result_id',
+          'result.result_id',
+          'result.result_payload_hash',
+          'bundle.bundle_id',
+          'bundle.payload_hash as bundle_hash',
+          'bundle.canonical_payload as bundle_payload',
+          'acceptance.acceptance_id',
+          'acceptance.payload_hash as acceptance_hash',
+        ])
+        .where('run.enterprise_id', '=', context.enterpriseId)
+        .where('run.project_id', '=', project)
+        .where('run.status', 'in', ['RUNNING', 'RESULT_RECORDED'])
+        .where('claim.status', '=', 'ACTIVE')
+        .where('run.execution_deadline', '>', ports.now())
+        .where('run.lease_expires_at', '>', ports.now())
+        .execute();
+      await ports.revalidateScan();
+      return found;
+    });
+    let progressed = false;
+    for (const row of rows) {
+      if (row.start_attempt_ref === null || row.runtime_adapter_identity_ref === null) continue;
+      const runRef = ref('OBJECT', RUN, row.run_id, subjectScope);
+      const attemptRef = object(row.start_attempt_ref);
+      const version = Number(row.aggregate_version);
+      requireThat(Number.isSafeInteger(version));
+      let command: ControlledFinalRecoveryCommand;
+      if (row.result_id === null) {
+        requireThat(row.reserved_result_id === null);
+        const final = await ports.readFinal(attemptRef);
+        if (final === undefined) continue;
+        const result = object(final.agentResultContract);
+        const observationRef = object(final.observationRef);
+        const key = recoveryKey(
+          textValue(observationRef.objectId),
+          textValue(object(observationRef.contentHash).digest),
+          'submit',
+        );
+        command = {
+          commandType: 'execution.submit_agent_result',
+          targetRef: ref('OBJECT', RESULT, textValue(result.agentResultId), subjectScope),
+          payload: {
+            agentResultContract: result,
+            runFencingToken: Number(row.fencing_token),
+            runtimeSubmissionRef: object(final.runtimeSubmissionRef),
+          },
+          idempotencyKey: key,
+        };
+      } else {
+        requireThat(row.reserved_result_id === row.result_id && row.result_payload_hash !== null);
+        const resultHash = row.result_payload_hash.toString('hex');
+        const resultRef = ref('CONTENT_ADDRESSED', RESULT, row.result_id, subjectScope, resultHash);
+        if (row.run_status === 'RUNNING') {
+          command = {
+            commandType: 'execution.record_run_result',
+            targetRef: runRef,
+            payload: { agentResultRef: resultRef },
+            expectedAggregateVersion: version,
+            idempotencyKey: recoveryKey(row.result_id, resultHash, 'record'),
+          };
+        } else if (row.bundle_id === null) {
+          const key = recoveryKey(row.result_id, resultHash, 'validate');
+          const evaluatorRef = registeredEvaluatorProfileReference(
+            'im06-evaluator-static-v1',
+            'te.agent_result_validation.evaluator@1.0',
+          );
+          requireThat(evaluatorRef !== undefined);
+          command = {
+            commandType: 'execution.validate_agent_result',
+            targetRef: ref(
+              'OBJECT',
+              BUNDLE,
+              stableRecoveryTarget(key, row.result_id),
+              subjectScope,
+            ),
+            payload: {
+              agentResultRef: resultRef,
+              runRef,
+              attemptRef,
+              policyRef: object(row.lease_policy_ref),
+              evaluatorRef: evaluatorRef as unknown as CanonicalJsonObject,
+            },
+            idempotencyKey: key,
+          };
+        } else {
+          requireThat(row.bundle_hash !== null && row.bundle_payload !== null);
+          const bundleHash = row.bundle_hash.toString('hex');
+          if (row.acceptance_id === null) {
+            const refs = object(row.bundle_payload).validationRefs;
+            requireThat(Array.isArray(refs) && refs.length === 5);
+            const key = recoveryKey(row.bundle_id, bundleHash, 'accept');
+            command = {
+              commandType: 'execution.accept_agent_result',
+              targetRef: ref(
+                'OBJECT',
+                ACCEPTANCE,
+                stableRecoveryTarget(key, row.bundle_id),
+                subjectScope,
+              ),
+              payload: {
+                agentResultRef: resultRef,
+                schemaValidationRef: object(refs[0]),
+                identityValidationRef: object(refs[1]),
+                runBindingValidationRef: object(refs[2]),
+                scopeValidationRef: object(refs[3]),
+                businessOutputValidationRef: object(refs[4]),
+                disposition: 'ACCEPTED',
+                reasons: [],
+              },
+              idempotencyKey: key,
+            };
+          } else {
+            requireThat(row.acceptance_hash !== null);
+            const acceptanceHash = row.acceptance_hash.toString('hex');
+            command = {
+              commandType: 'execution.finalize_run_from_acceptance',
+              targetRef: runRef,
+              payload: {
+                acceptanceRecordRef: ref(
+                  'CONTENT_ADDRESSED',
+                  ACCEPTANCE,
+                  row.acceptance_id,
+                  subjectScope,
+                  acceptanceHash,
+                ),
+              },
+              expectedAggregateVersion: version,
+              idempotencyKey: recoveryKey(row.acceptance_id, acceptanceHash, 'finalize'),
+            };
+          }
+        }
+      }
+      const result = await ports.execute(command);
+      requireThat(
+        result.status === 'COMMITTED' ||
+          (result.status === 'DUPLICATE' && result.originalOutcome === 'COMMITTED'),
+      );
+      advanced += 1;
+      progressed = true;
+      break;
+    }
+    if (!progressed) break;
+  }
+  return advanced;
+}
+
 export async function handleSubmitFinalResult(
   db: Kysely<TaskExecutionDb>,
   context: TaskExecutionTransactionContext,

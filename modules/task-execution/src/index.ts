@@ -328,6 +328,7 @@ export {
 export type { ControlledFirstRunPorts } from './business/controlled-first-run.js';
 export {
   scanControlledFinalCandidates,
+  recoverControlledFinalRuns,
   handleSubmitFinalResult,
   handleRecordRunResult,
   handleValidateFinalResult,
@@ -336,4 +337,8 @@ export {
   handleExpireFirstRun,
   handleGetAcceptedAgentResult,
 } from './business/controlled-final-result.js';
-export type { ControlledFinalPorts } from './business/controlled-final-result.js';
+export type {
+  ControlledFinalPorts,
+  ControlledFinalRecoveryCommand,
+  ControlledFinalRecoveryPorts,
+} from './business/controlled-final-result.js';

@@ -258,7 +258,11 @@ import {
   workOrderReadyProfileRegistry,
   registeredEvaluatorProfileReference,
 } from '@zhiju/contracts';
-import { scanControlledFinalCandidates, withTaskExecutionTransaction } from '@zhiju/task-execution';
+import {
+  recoverControlledFinalRuns,
+  scanControlledFinalCandidates,
+  withTaskExecutionTransaction,
+} from '@zhiju/task-execution';
 import { hashContractPayload, sha256CanonicalJson } from '@zhiju/shared-kernel';
 import { createHash, createHmac } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -7181,7 +7185,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   }
 
   describe('TE-VAL-S-008 first Run terminal paths', () => {
-    const runScenario = async (terminalScenario: 'SUCCEEDED' | 'TIMED_OUT' | 'RACE') => {
+    const runScenario = async (
+      terminalScenario: 'SUCCEEDED' | 'TIMED_OUT' | 'RACE' | 'RECOVERY',
+    ) => {
       // This independent chain must not inherit the time spent running the
       // preceding 22 cases: the Decision lookup's bootstrap lease is 60s
       // from the trusted instant, and PostgreSQL checks it against wall time.
@@ -8699,6 +8705,104 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       ).toEqual(finalView);
       expect(restartedDriver.invokedAttemptIds).toEqual([]);
       expect(runtimeDriver.invokedAttemptIds).toHaveLength(1);
+      if (terminalScenario === 'RECOVERY') {
+        const executed: string[] = [];
+        for (let step = 0; step < 5; step += 1) {
+          const advanced = await recoverControlledFinalRuns(
+            teDb,
+            scanContext,
+            {
+              now: () => new Date(clock),
+              revalidateScan: scanProof,
+              readFinal: async (originalAttemptRef) =>
+                (await restartedEntry.getRuntimeFinalObservation(
+                  await firstRunQuery(
+                    'integration.get_runtime_final_observation',
+                    originalAttemptRef as unknown as Common.ObjectRef,
+                    { attemptRef: originalAttemptRef },
+                    'runtimeFinalReadV1',
+                  ),
+                  sessionFor(service),
+                )) as unknown as CanonicalJsonObject,
+              execute: async (next) => {
+                const envelope = {
+                  ...(await firstRunEnvelope(
+                    next.commandType,
+                    next.targetRef as unknown as Common.ObjectRef,
+                    next.payload,
+                    service,
+                    next.expectedAggregateVersion,
+                  )),
+                  idempotencyKey: next.idempotencyKey,
+                };
+                executed.push(next.commandType);
+                switch (next.commandType) {
+                  case 'execution.submit_agent_result':
+                    return restartedEntry.submitAgentResult(envelope, sessionFor(service));
+                  case 'execution.record_run_result':
+                    return restartedEntry.recordRunResult(envelope, sessionFor(service));
+                  case 'execution.validate_agent_result':
+                    return restartedEntry.validateAgentResult(envelope, sessionFor(service));
+                  case 'execution.accept_agent_result':
+                    return restartedEntry.acceptAgentResult(envelope, sessionFor(service));
+                  case 'execution.finalize_run_from_acceptance':
+                    return restartedEntry.finalizeRun(envelope, sessionFor(service));
+                }
+              },
+            },
+            1,
+          );
+          expect(advanced).toBe(1);
+        }
+        expect(executed).toEqual([
+          'execution.submit_agent_result',
+          'execution.record_run_result',
+          'execution.validate_agent_result',
+          'execution.accept_agent_result',
+          'execution.finalize_run_from_acceptance',
+        ]);
+        expect(
+          await recoverControlledFinalRuns(teDb, scanContext, {
+            now: () => new Date(clock),
+            revalidateScan: scanProof,
+            readFinal: () => Promise.reject(new Error('terminal Run must not query IG')),
+            execute: () => Promise.reject(new Error('terminal Run must not execute')),
+          }),
+        ).toBe(0);
+        expect(
+          await restartedEntry.getRunState(
+            await firstRunQuery(
+              'execution.get_run_state',
+              runRef,
+              { runRef } as unknown as CanonicalJsonObject,
+              'runStateReadV1',
+            ),
+            sessionFor(service),
+          ),
+        ).toMatchObject({ status: 'SUCCEEDED' });
+        expect(
+          (
+            await admin.query<{ status: string }>(
+              'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ status: 'RELEASED' }]);
+        expect(
+          (
+            await admin.query<{ event_type: string; count: string }>(
+              "SELECT event_type,count(*)::text FROM task_execution.outbox_event WHERE aggregate_id IN ($1,$2) AND event_type IN ('execution.AgentResultAccepted','execution.RunTerminated') GROUP BY event_type ORDER BY event_type",
+              [runRef.objectId, record(finalView.agentResultContract).agentResultId],
+            )
+          ).rows,
+        ).toEqual([
+          { event_type: 'execution.AgentResultAccepted', count: '1' },
+          { event_type: 'execution.RunTerminated', count: '1' },
+        ]);
+        expect(runtimeDriver.invokedAttemptIds).toHaveLength(1);
+        expect(restartedDriver.invokedAttemptIds).toEqual([]);
+        return;
+      }
       const resultBody = record(finalView.agentResultContract);
       const resultTarget = objectRef(
         'execution.agent_result',
@@ -9157,6 +9261,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     itIntegration(
       'serializes concurrent finalize and expire after the deadline',
       () => runScenario('RACE'),
+      240_000,
+    );
+    itIntegration(
+      'recovers each committed final step after Process restart',
+      () => runScenario('RECOVERY'),
       240_000,
     );
   });
