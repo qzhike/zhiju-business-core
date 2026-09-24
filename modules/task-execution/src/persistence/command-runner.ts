@@ -633,9 +633,7 @@ async function claimReceipt(
       actor_snapshot_id: envelope.actorSnapshotId,
       authorization_decision_id: envelope.authorizationDecisionId,
     })
-    .onConflict((conflict) =>
-      conflict.columns(['idempotency_scope', 'idempotency_key']).doNothing(),
-    )
+    .onConflict((conflict) => conflict.doNothing())
     .returning('command_id')
     .executeTakeFirst();
   return inserted !== undefined;
