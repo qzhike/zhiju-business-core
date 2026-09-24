@@ -9142,12 +9142,22 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         code: 'AUTHORIZATION_REVOKED',
       });
     };
-    itIntegration('completes Validation, Freeze and SUCCEEDED Run', () => runScenario('SUCCEEDED'));
-    itIntegration('expires a Run after a late synthetic final', () => runScenario('TIMED_OUT'));
+    // The full owning chain includes the queue lock probe and a real server deadline.
+    // Keep the broader suite's 60s default while giving these paths CI headroom.
+    itIntegration(
+      'completes Validation, Freeze and SUCCEEDED Run',
+      () => runScenario('SUCCEEDED'),
+      180_000,
+    );
+    itIntegration(
+      'expires a Run after a late synthetic final',
+      () => runScenario('TIMED_OUT'),
+      180_000,
+    );
     itIntegration(
       'serializes concurrent finalize and expire after the deadline',
       () => runScenario('RACE'),
-      120_000,
+      240_000,
     );
   });
 });
