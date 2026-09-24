@@ -56,10 +56,45 @@ export interface RuntimeAttemptTable {
   request_payload_hash: Buffer;
   invocation_binding: Json;
   binding_hash: Buffer;
+  planned_runtime_instance_id: string | null;
   source_command_id: string;
   status: Generated<'CREATED' | 'SUCCEEDED' | 'UNKNOWN'>;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface RuntimeAdapterIdentityTable {
+  instance_id: string;
+  attempt_id: string;
+  enterprise_id: string;
+  project_id: string;
+  adapter_code: string;
+  adapter_version: string;
+  binding_hash: Buffer;
+  ack_observation_id: string;
+  source: 'SYNTHETIC_DRIVER';
+  source_command_id: string;
+  canonical_payload: Json;
+  payload_hash: Buffer;
+}
+
+export interface RuntimeFinalObservationTable {
+  observation_id: string;
+  attempt_id: string;
+  enterprise_id: string;
+  project_id: string;
+  ack_observation_id: string;
+  runtime_adapter_identity_id: string;
+  runtime_submission_ref: Json;
+  result_payload: Json;
+  result_payload_hash: Buffer;
+  binding_hash: Buffer;
+  fencing_token: Int8;
+  observed_at: Date;
+  source: 'SYNTHETIC_DRIVER';
+  source_command_id: string;
+  canonical_payload: Json;
+  payload_hash: Buffer;
 }
 
 export interface RenderCommandReceiptTable {
@@ -176,6 +211,8 @@ export interface IntegrationRendererDb {
   'integration_gateway.raw_external_receipt': RawExternalReceiptTable;
   'integration_gateway.runtime_attempt': RuntimeAttemptTable;
   'integration_gateway.runtime_attempt_observation': RuntimeAttemptObservationTable;
+  'integration_gateway.runtime_adapter_identity': RuntimeAdapterIdentityTable;
+  'integration_gateway.runtime_final_observation': RuntimeFinalObservationTable;
   'integration_gateway.outbox_event': RenderOutboxEventTable;
 }
 

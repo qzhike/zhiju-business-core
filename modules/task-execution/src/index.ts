@@ -326,3 +326,14 @@ export {
   handleGetRunState,
 } from './business/controlled-first-run.js';
 export type { ControlledFirstRunPorts } from './business/controlled-first-run.js';
+export {
+  scanControlledFinalCandidates,
+  handleSubmitFinalResult,
+  handleRecordRunResult,
+  handleValidateFinalResult,
+  handleAcceptFinalResult,
+  handleFinalizeFirstRun,
+  handleExpireFirstRun,
+  handleGetAcceptedAgentResult,
+} from './business/controlled-final-result.js';
+export type { ControlledFinalPorts } from './business/controlled-final-result.js';

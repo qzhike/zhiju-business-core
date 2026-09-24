@@ -786,10 +786,26 @@ function createExecution(
         envelope.expectedAggregateVersion === undefined
           ? '1'
           : nextEventAggregateVersion(envelope.expectedAggregateVersion);
+      const acceptanceRef = event.payload.acceptanceRecordRef;
+      const resultRef = event.payload.agentResultRef;
+      const resultAcceptanceEvent =
+        envelope.commandType === 'execution.accept_agent_result' &&
+        event.eventType === 'execution.AgentResultAccepted' &&
+        event.aggregateType === 'execution.agent_result' &&
+        event.aggregateVersion === '1' &&
+        typeof acceptanceRef === 'object' &&
+        acceptanceRef !== null &&
+        !Array.isArray(acceptanceRef) &&
+        (acceptanceRef as CanonicalJsonObject).objectId === envelope.targetId &&
+        typeof resultRef === 'object' &&
+        resultRef !== null &&
+        !Array.isArray(resultRef) &&
+        (resultRef as CanonicalJsonObject).objectId === event.aggregateId;
       if (
-        event.aggregateType !== envelope.targetType ||
-        event.aggregateId !== envelope.targetId ||
-        event.aggregateVersion !== expectedEventVersion
+        !resultAcceptanceEvent &&
+        (event.aggregateType !== envelope.targetType ||
+          event.aggregateId !== envelope.targetId ||
+          event.aggregateVersion !== expectedEventVersion)
       ) {
         throw new CommandExecutionError(
           COMMAND_TARGET_MISMATCH,

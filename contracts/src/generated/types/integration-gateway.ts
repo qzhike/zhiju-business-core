@@ -344,6 +344,35 @@ export namespace IntegrationGateway {
 };
   readonly bindingHash: Common.ContentHash;
 };
+  /** Payload of `integration.get_runtime_final_observation` (QUERY). */
+  export type IntegrationGetRuntimeFinalObservationPayload = {
+  readonly attemptRef: Common.ObjectRef & {
+  readonly objectType?: "integration.runtime_attempt";
+};
+};
+  /** Result of `integration.get_runtime_final_observation` (QUERY). */
+  export type IntegrationGetRuntimeFinalObservationResult = {
+  readonly observationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.integration.runtime_final_observation";
+};
+  readonly attemptRef: Common.ObjectRef & {
+  readonly objectType?: "integration.runtime_attempt";
+};
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly runtimeSubmissionRef: Common.ExternalRef;
+  readonly resultPayloadHash: Common.ContentHash;
+  readonly bindingHash: Common.ContentHash;
+  readonly runFencingToken: Common.NonNegativeInteger;
+  readonly ackObservationId: Common.UuidV7;
+  readonly runtimeAdapterIdentityRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.runtime.runtime";
+};
+  readonly agentResultContract: Core.AgentResultContract;
+  readonly observedAt: Common.UtcInstant;
+  readonly source: "SYNTHETIC_DRIVER";
+};
   /** Payload of `integration.get_render_attempt` (QUERY). */
   export interface IntegrationGetRenderAttemptPayload {
   readonly attemptRef: Common.ObjectRef;

@@ -828,6 +828,91 @@ const operationSchemas = {
       },
     ),
   },
+  'integration.get_runtime_final_observation': {
+    payload: object(['attemptRef'], {
+      attemptRef: {
+        allOf: [
+          objectReference,
+          {
+            type: 'object',
+            properties: {
+              objectType: { const: 'integration.runtime_attempt' },
+            },
+          },
+        ],
+      },
+    }),
+    result: object(
+      [
+        'observationRef',
+        'attemptRef',
+        'runRef',
+        'runtimeSubmissionRef',
+        'resultPayloadHash',
+        'bindingHash',
+        'runFencingToken',
+        'ackObservationId',
+        'runtimeAdapterIdentityRef',
+        'agentResultContract',
+        'observedAt',
+        'source',
+      ],
+      {
+        observationRef: {
+          allOf: [
+            contentAddressedReference,
+            {
+              type: 'object',
+              properties: {
+                objectType: { const: 'zhiju.integration.runtime_final_observation' },
+              },
+            },
+          ],
+        },
+        attemptRef: {
+          allOf: [
+            objectReference,
+            {
+              type: 'object',
+              properties: {
+                objectType: { const: 'integration.runtime_attempt' },
+              },
+            },
+          ],
+        },
+        runRef: {
+          allOf: [
+            objectReference,
+            {
+              type: 'object',
+              properties: {
+                objectType: { const: 'execution.run' },
+              },
+            },
+          ],
+        },
+        runtimeSubmissionRef: externalReference,
+        resultPayloadHash: contentHash,
+        bindingHash: contentHash,
+        runFencingToken: nonNegativeInt,
+        ackObservationId: uuid,
+        runtimeAdapterIdentityRef: {
+          allOf: [
+            objectReference,
+            {
+              type: 'object',
+              properties: {
+                objectType: { const: 'zhiju.runtime.runtime' },
+              },
+            },
+          ],
+        },
+        agentResultContract: { $ref: 'https://schemas.zhiju.local/core/agent-result/1.0' },
+        observedAt: instant,
+        source: { const: 'SYNTHETIC_DRIVER' },
+      },
+    ),
+  },
   'integration.get_render_attempt': {
     payload: object(['attemptRef'], {
       attemptRef: objectReference,

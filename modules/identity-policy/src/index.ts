@@ -6,6 +6,7 @@ export const identityPolicyModule = Object.freeze({
 export {
   issueExecutionCapabilityBundle,
   readExecutionCapabilityBundle,
+  readIntegrityForExpiry,
 } from './commands/execution-capability-bundle.js';
 export {
   createControlledFirstRunAuthorizationPort,

@@ -80,13 +80,14 @@ function reference(registryKey: string): Record<string, unknown> {
 }
 
 describe('evaluator profile registry artifact', () => {
-  it('registers exactly the two first-version selectors owned by task-execution', () => {
+  it('registers exactly the three first-version selectors owned by task-execution', () => {
     expect(evaluatorProfileRegistry.registryVersion).toBe(EVALUATOR_PROFILE_REGISTRY_VERSION);
     expect(
       evaluatorProfileRegistry.profiles.map((profile) => [profile.registryKey, profile.owner]),
     ).toEqual([
       [readinessKey, 'task-execution'],
       [validationKey, 'task-execution'],
+      ['te.agent_result_validation.evaluator@1.0', 'task-execution'],
     ]);
   });
 
@@ -103,8 +104,8 @@ describe('evaluator profile registry artifact', () => {
       objectIds.add(profile.reference.objectId);
       versionIds.add(profile.reference.versionId);
     }
-    expect(objectIds.size).toBe(2);
-    expect(versionIds.size).toBe(2);
+    expect(objectIds.size).toBe(3);
+    expect(versionIds.size).toBe(3);
   });
 
   it('keeps the generated build artifact byte-identical to the registry source', () => {

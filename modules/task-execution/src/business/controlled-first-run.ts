@@ -71,6 +71,15 @@ export interface ControlledFirstRunPorts {
     useStatus: string;
   }>;
   readonly readAttempt: (ref: CanonicalJsonObject) => Promise<CanonicalJsonObject>;
+  readonly readRuntimeAdapterIdentity: (ref: CanonicalJsonObject) => Promise<{
+    runtimeAdapterIdentityRef: CanonicalJsonObject;
+    attemptRef: CanonicalJsonObject;
+    runRef: CanonicalJsonObject;
+    bindingHash: CanonicalJsonObject;
+    runtimeBinding: CanonicalJsonObject;
+    ackObservationId: string;
+    source: string;
+  }>;
   readonly readRunState: (ref: CanonicalJsonObject) => Promise<CanonicalJsonObject>;
   readonly additionalExpiries?: () => readonly string[];
   readonly failAfterOutbox?: boolean;
@@ -519,6 +528,7 @@ export async function handleStartFirstRun(
       const bundle = await ports.readBundle(bundleRef, runRef);
       requireThat(bundle.useStatus === 'USABLE' && same(bundle.bundleRef, bundleRef));
       const attempt = await ports.readAttempt(attemptRef);
+      const runtimeIdentity = await ports.readRuntimeAdapterIdentity(attemptRef);
       const invocation = object(attempt.invocationBinding),
         ack = object(attempt.acknowledgement);
       requireThat(
@@ -543,6 +553,20 @@ export async function handleStartFirstRun(
           ack.source === 'SYNTHETIC_DRIVER' &&
           object(ack.rawReceiptRef).objectType === 'integration.raw_external_receipt',
       );
+      requireThat(
+        same(runtimeIdentity.attemptRef, attemptRef) &&
+          same(runtimeIdentity.runRef, runRef) &&
+          same(runtimeIdentity.bindingHash, attempt.bindingHash) &&
+          same(runtimeIdentity.runtimeBinding, run.runtime_binding) &&
+          runtimeIdentity.ackObservationId === ack.observationId &&
+          runtimeIdentity.source === 'SYNTHETIC_DRIVER',
+      );
+      requireRef(
+        runtimeIdentity.runtimeAdapterIdentityRef,
+        'OBJECT',
+        'zhiju.runtime.runtime',
+        subjectScope,
+      );
       const requestedStart = Date.parse(textValue(request.startedAt));
       requireThat(
         Number.isFinite(requestedStart) &&
@@ -561,6 +585,7 @@ export async function handleStartFirstRun(
           leaseId: run.lease_id,
           fencingToken: run.fencing_token,
           attemptRef,
+          runtimeAdapterIdentityRef: runtimeIdentity.runtimeAdapterIdentityRef,
           startedAt,
         }),
         'CONCURRENCY_CONFLICT',
@@ -746,6 +771,8 @@ export async function handleGetRunState(
       contextSnapshotRef: object(run.context_snapshot_ref),
       runtimeBinding: object(run.runtime_binding),
       currentFencingToken: Number(run.fencing_token),
+      ...(run.result_ref === null ? {} : { resultRef: object(run.result_ref) }),
+      ...(run.termination_reason === null ? {} : { terminationReason: run.termination_reason }),
       leaseExpiresAt: run.lease_expires_at.toISOString(),
       aggregateVersion: Number(run.aggregate_version),
     };

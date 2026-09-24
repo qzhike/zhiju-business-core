@@ -22,6 +22,17 @@
         "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d4b2",
         "scope": {}
       }
+    },
+    {
+      "registryKey": "te.agent_result_validation.evaluator@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.evaluator_profile",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d4a3",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d4b3",
+        "scope": {}
+      }
     }
   ]
 }

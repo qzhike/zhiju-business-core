@@ -63,6 +63,19 @@ export const taskExecutionObjectTypes = {
     owner: 'enterprise-project',
     kinds: ['VERSIONED'],
   },
+  'zhiju.runtime.runtime': { owner: 'integration-gateway', kinds: ['OBJECT'] },
+  'zhiju.integration.runtime_final_observation': {
+    owner: 'integration-gateway',
+    kinds: ['CONTENT_ADDRESSED'],
+  },
+  'zhiju.execution.agent_result_validation_bundle': {
+    owner: 'task-execution',
+    kinds: ['OBJECT', 'CONTENT_ADDRESSED'],
+  },
+  'zhiju.execution.validation_result': {
+    owner: 'task-execution',
+    kinds: ['CONTENT_ADDRESSED'],
+  },
 } as const;
 
 /**

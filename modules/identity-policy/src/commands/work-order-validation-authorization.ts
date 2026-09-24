@@ -166,7 +166,8 @@ export type WorkOrderValidationSelectorType = 'CREATE_TARGET_TYPE' | 'TARGET_TYP
  * `CONTENT_ADDRESSED` reference; the Context dependency reads bind a complete
  * `SNAPSHOT` reference. The three kinds are never interchangeable.
  */
-export type WorkOrderValidationTargetKind = 'OBJECT' | 'CONTENT_ADDRESSED' | 'SNAPSHOT';
+export type WorkOrderValidationTargetKind =
+  'OBJECT' | 'CONTENT_ADDRESSED' | 'SNAPSHOT' | 'VERSIONED';
 
 /**
  * The consuming boundary of one approved entry. `(commandType, commandVersion)`
@@ -573,6 +574,15 @@ type WorkOrderValidationTarget =
       readonly kind: 'OBJECT';
       readonly objectType: string;
       readonly objectId: string;
+      readonly scope: Common.ScopeRef;
+      readonly enterpriseId: string;
+      readonly projectId: string;
+    }
+  | {
+      readonly kind: 'VERSIONED';
+      readonly objectType: string;
+      readonly objectId: string;
+      readonly versionId: string;
       readonly scope: Common.ScopeRef;
       readonly enterpriseId: string;
       readonly projectId: string;
@@ -1249,6 +1259,41 @@ function readValidationTarget(
   if (binding.targetKind === 'SNAPSHOT') {
     return readContextSnapshotTarget(rawTarget, binding, context);
   }
+  if (binding.targetKind === 'VERSIONED') {
+    const candidate = rawTarget as {
+      kind?: unknown;
+      objectType?: unknown;
+      objectId?: unknown;
+      versionId?: unknown;
+      scope?: unknown;
+    } | null;
+    const projectScope = readTargetScope(candidate?.scope);
+    if (
+      candidate?.kind !== 'VERSIONED' ||
+      typeof candidate.objectType !== 'string' ||
+      !binding.targetObjectTypes.includes(candidate.objectType) ||
+      typeof candidate.objectId !== 'string' ||
+      !uuidV7Pattern.test(candidate.objectId) ||
+      typeof candidate.versionId !== 'string' ||
+      !uuidV7Pattern.test(candidate.versionId) ||
+      projectScope === undefined
+    ) {
+      throw new SnapshotBoundaryError(
+        IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID,
+        'versioned target must have exact identity and Project Scope',
+      );
+    }
+    assertTrustedScope(projectScope, context);
+    return {
+      kind: 'VERSIONED',
+      objectType: candidate.objectType,
+      objectId: candidate.objectId,
+      versionId: candidate.versionId,
+      scope: { enterpriseId: projectScope.enterpriseId, projectId: projectScope.projectId },
+      enterpriseId: projectScope.enterpriseId,
+      projectId: projectScope.projectId,
+    };
+  }
   return readObjectTarget(rawTarget, binding, context);
 }
 
@@ -1489,6 +1534,18 @@ function dependencyRefMember(
   target: WorkOrderValidationTarget,
   binding: AuthorizationEntryBinding,
 ): readonly [string, CanonicalJsonObject] | undefined {
+  if (target.kind === 'VERSIONED') {
+    return [
+      binding.targetPayloadMember ?? 'policyRef',
+      {
+        kind: 'VERSIONED',
+        objectType: target.objectType,
+        objectId: target.objectId,
+        versionId: target.versionId,
+        scope: { enterpriseId: target.enterpriseId, projectId: target.projectId },
+      },
+    ];
+  }
   if (target.kind === 'CONTENT_ADDRESSED') {
     return [
       binding.targetPayloadMember ?? 'draftSnapshotRef',
@@ -1547,13 +1604,18 @@ function storedDependencyRefMatches(
   if (expected.kind === 'OBJECT') return true;
   const member =
     binding.targetPayloadMember ??
-    (expected.kind === 'SNAPSHOT' ? 'contextSnapshotRef' : 'draftSnapshotRef');
+    (expected.kind === 'SNAPSHOT'
+      ? 'contextSnapshotRef'
+      : expected.kind === 'VERSIONED'
+        ? 'policyRef'
+        : 'draftSnapshotRef');
   const candidate = (storedPayload as Record<string, unknown> | null | undefined)?.[member] as
     | {
         kind?: unknown;
         objectType?: unknown;
         objectId?: unknown;
         snapshotId?: unknown;
+        versionId?: unknown;
         immutableVersionId?: unknown;
         scope?: unknown;
         contentHash?: unknown;
@@ -1562,6 +1624,15 @@ function storedDependencyRefMatches(
     | undefined;
   if (candidate === null || candidate === undefined || typeof candidate !== 'object') {
     return false;
+  }
+  if (expected.kind === 'VERSIONED') {
+    return (
+      candidate.kind === 'VERSIONED' &&
+      candidate.objectType === expected.objectType &&
+      candidate.objectId === expected.objectId &&
+      candidate.versionId === expected.versionId &&
+      sameScope(candidate.scope, expected.scope)
+    );
   }
   const hash = candidate.contentHash as
     { algorithm?: unknown; digest?: unknown; canonicalizationVersion?: unknown } | null | undefined;
@@ -2021,6 +2092,15 @@ export const CONTROLLED_FIRST_RUN_BINDINGS = Object.freeze([
     'SERVICE',
   ),
   firstRunBinding(
+    'runStartAdapterIdentityReadV1',
+    'execution.start_run',
+    'integration.runtime.adapter_identity.read',
+    'integration.runtime.adapter_identity.read.for_run_start.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
     'workOrderReconcileRunReadV1',
     'execution.reconcile_work_order_execution',
     'task.execution.get_run_state',
@@ -2028,6 +2108,352 @@ export const CONTROLLED_FIRST_RUN_BINDINGS = Object.freeze([
     'execution.run',
     'TARGET_TYPE',
     'SERVICE',
+  ),
+  firstRunBinding(
+    'runtimeFinalObserveV1',
+    'integration.get_runtime_final_observation',
+    'integration.runtime.final_observation.read',
+    'integration.runtime.final.observe.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runtimeFinalReadV1',
+    'integration.get_runtime_final_observation',
+    'integration.runtime.final_observation.read',
+    'integration.runtime.final.read.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runFinalCandidateScanV1',
+    'execution.submit_agent_result',
+    'execution.run.final_candidate.scan',
+    'execution.run.final_candidate.scan.v1',
+    'zhiju.project.project',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'agentResultSubmitV1',
+    'execution.submit_agent_result',
+    'task.execution.submit_agent_result',
+    'execution.agent_result.submit.v1',
+    'execution.agent_result',
+    'CREATE_TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runResultRecordV1',
+    'execution.record_run_result',
+    'execution.run.result.record',
+    'execution.run.result.record.v1',
+    'execution.run',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'agentResultValidateV1',
+    'execution.validate_agent_result',
+    'execution.agent_result.validate',
+    'execution.agent_result.validate.v1',
+    'zhiju.execution.agent_result_validation_bundle',
+    'CREATE_TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'agentResultAcceptV1',
+    'execution.accept_agent_result',
+    'task.execution.accept_agent_result',
+    'execution.agent_result.accept.v1',
+    'execution.agent_result_acceptance',
+    'CREATE_TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runFinalizeV1',
+    'execution.finalize_run_from_acceptance',
+    'execution.run.finalize',
+    'execution.run.finalize.v1',
+    'execution.run',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runExpireV1',
+    'execution.expire_run',
+    'execution.run.expire',
+    'execution.run.expire.v1',
+    'execution.run',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'agentResultReadV1',
+    'execution.get_agent_result',
+    'task.execution.get_agent_result',
+    'execution.agent_result.read.v1',
+    'execution.agent_result',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+  ),
+  firstRunBinding(
+    'runStateReadV1',
+    'execution.get_run_state',
+    'task.execution.get_run_state',
+    'execution.run.state.read.v1',
+    'execution.run',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'resultSubmitBindingReadV1',
+    'execution.submit_agent_result',
+    'integration.runtime.binding.read',
+    'integration.runtime.binding.read.for_result_submit.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'resultSubmitFinalReadV1',
+    'execution.submit_agent_result',
+    'integration.runtime.final_observation.read',
+    'integration.runtime.final.read.for_result_submit.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'resultSubmitBundleReadV1',
+    'execution.submit_agent_result',
+    'identity.execution_capability_bundle.read',
+    'identity.execution_bundle.read.for_result_submit.v1',
+    'zhiju.identity.execution_capability_bundle',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+    'bundleRef',
+  ),
+  firstRunBinding(
+    'resultSubmitPolicyReadV1',
+    'execution.submit_agent_result',
+    'identity.policy.resolve_policy',
+    'identity.policy.resolve.for_result_submit.v1',
+    'zhiju.identity.policy',
+    'TARGET_TYPE',
+    'SERVICE',
+    'VERSIONED',
+  ),
+  firstRunBinding(
+    'resultRecordBindingReadV1',
+    'execution.record_run_result',
+    'integration.runtime.binding.read',
+    'integration.runtime.binding.read.for_result_record.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'resultRecordFinalReadV1',
+    'execution.record_run_result',
+    'integration.runtime.final_observation.read',
+    'integration.runtime.final.read.for_result_record.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'resultRecordBundleReadV1',
+    'execution.record_run_result',
+    'identity.execution_capability_bundle.read',
+    'identity.execution_bundle.read.for_result_record.v1',
+    'zhiju.identity.execution_capability_bundle',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+    'bundleRef',
+  ),
+  firstRunBinding(
+    'resultRecordPolicyReadV1',
+    'execution.record_run_result',
+    'identity.policy.resolve_policy',
+    'identity.policy.resolve.for_result_record.v1',
+    'zhiju.identity.policy',
+    'TARGET_TYPE',
+    'SERVICE',
+    'VERSIONED',
+  ),
+  firstRunBinding(
+    'resultValidateBindingReadV1',
+    'execution.validate_agent_result',
+    'integration.runtime.binding.read',
+    'integration.runtime.binding.read.for_result_validate.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'resultValidateFinalReadV1',
+    'execution.validate_agent_result',
+    'integration.runtime.final_observation.read',
+    'integration.runtime.final.read.for_result_validate.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'resultValidateBundleReadV1',
+    'execution.validate_agent_result',
+    'identity.execution_capability_bundle.read',
+    'identity.execution_bundle.read.for_result_validate.v1',
+    'zhiju.identity.execution_capability_bundle',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+    'bundleRef',
+  ),
+  firstRunBinding(
+    'resultValidatePolicyReadV1',
+    'execution.validate_agent_result',
+    'identity.policy.resolve_policy',
+    'identity.policy.resolve.for_result_validate.v1',
+    'zhiju.identity.policy',
+    'TARGET_TYPE',
+    'SERVICE',
+    'VERSIONED',
+  ),
+  firstRunBinding(
+    'resultAcceptBindingReadV1',
+    'execution.accept_agent_result',
+    'integration.runtime.binding.read',
+    'integration.runtime.binding.read.for_result_accept.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'resultAcceptFinalReadV1',
+    'execution.accept_agent_result',
+    'integration.runtime.final_observation.read',
+    'integration.runtime.final.read.for_result_accept.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'resultAcceptBundleReadV1',
+    'execution.accept_agent_result',
+    'identity.execution_capability_bundle.read',
+    'identity.execution_bundle.read.for_result_accept.v1',
+    'zhiju.identity.execution_capability_bundle',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+    'bundleRef',
+  ),
+  firstRunBinding(
+    'resultAcceptPolicyReadV1',
+    'execution.accept_agent_result',
+    'identity.policy.resolve_policy',
+    'identity.policy.resolve.for_result_accept.v1',
+    'zhiju.identity.policy',
+    'TARGET_TYPE',
+    'SERVICE',
+    'VERSIONED',
+  ),
+  firstRunBinding(
+    'runFinalizeBindingReadV1',
+    'execution.finalize_run_from_acceptance',
+    'integration.runtime.binding.read',
+    'integration.runtime.binding.read.for_result_finalize.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runFinalizeFinalReadV1',
+    'execution.finalize_run_from_acceptance',
+    'integration.runtime.final_observation.read',
+    'integration.runtime.final.read.for_result_finalize.v1',
+    'integration.runtime_attempt',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
+    'runFinalizeBundleReadV1',
+    'execution.finalize_run_from_acceptance',
+    'identity.execution_capability_bundle.read',
+    'identity.execution_bundle.read.for_result_finalize.v1',
+    'zhiju.identity.execution_capability_bundle',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+    'bundleRef',
+  ),
+  firstRunBinding(
+    'runFinalizePolicyReadV1',
+    'execution.finalize_run_from_acceptance',
+    'identity.policy.resolve_policy',
+    'identity.policy.resolve.for_result_finalize.v1',
+    'zhiju.identity.policy',
+    'TARGET_TYPE',
+    'SERVICE',
+    'VERSIONED',
+  ),
+  firstRunBinding(
+    'resultRecordSourceReadV1',
+    'execution.record_run_result',
+    'execution.final.source.read',
+    'execution.agent_result.source.read.for_record.v1',
+    'execution.agent_result',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+  ),
+  firstRunBinding(
+    'resultValidateSourceReadV1',
+    'execution.validate_agent_result',
+    'execution.final.source.read',
+    'execution.agent_result.source.read.for_validate.v1',
+    'execution.agent_result',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+  ),
+  firstRunBinding(
+    'resultAcceptSourceReadV1',
+    'execution.accept_agent_result',
+    'execution.final.source.read',
+    'execution.result_validation.source.read.for_accept.v1',
+    'execution.agent_result',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+  ),
+  firstRunBinding(
+    'runFinalizeSourceReadV1',
+    'execution.finalize_run_from_acceptance',
+    'execution.final.source.read',
+    'execution.agent_result_acceptance.source.read.for_finalize.v1',
+    'execution.agent_result_acceptance',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+  ),
+  firstRunBinding(
+    'runExpireBundleInspectV1',
+    'execution.expire_run',
+    'identity.execution_capability_bundle.inspect',
+    'identity.execution_bundle.inspect.for_run_expire.v1',
+    'zhiju.identity.execution_capability_bundle',
+    'TARGET_TYPE',
+    'SERVICE',
+    'CONTENT_ADDRESSED',
+    'bundleRef',
   ),
 ]);
 
@@ -2041,11 +2467,13 @@ export interface ControlledFirstRunAuthorizationConfig {
 }
 
 export interface ControlledFirstRunAuthorizationInput extends WorkOrderValidationEntryRequest {
-  readonly targetRef: Common.ObjectRef | Common.ContentAddressedRef | Common.SnapshotRef;
+  readonly targetRef:
+    Common.ObjectRef | Common.ContentAddressedRef | Common.SnapshotRef | Common.VersionedRef;
 }
 
 export interface ControlledFirstRunRevalidationInput extends WorkOrderValidationEntryRevalidation {
-  readonly expectedTargetRef: Common.ObjectRef | Common.ContentAddressedRef | Common.SnapshotRef;
+  readonly expectedTargetRef:
+    Common.ObjectRef | Common.ContentAddressedRef | Common.SnapshotRef | Common.VersionedRef;
 }
 
 export function createControlledFirstRunAuthorizationPort(

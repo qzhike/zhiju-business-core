@@ -1360,6 +1360,12 @@ execution.reconcile_work_order_execution@1.0
 
 ## IM-06 final Result → terminal Run additive 注册提案（2026-09-23）
 
+integration.get_runtime_final_observation@1.0
+execution.record_run_result@1.0
+execution.validate_agent_result@1.0
+execution.finalize_run_from_acceptance@1.0
+execution.expire_run@1.0
+
 状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / NOT REGISTERED`。唯一字段与行为权威是 Spec 003 §23、Spec 007 final 增量；本表固定待注册的公开名称和引用边界。实施后 Catalog/Registry 预计由 `221→226`：TaskExecution `49→53`、IntegrationGateway `25→26`，历史 `200` 项 Compatibility Baseline 不变。
 
 | 新增 operation | Owner / kind / Purpose | Target、引用和结果约束 |

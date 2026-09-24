@@ -1057,6 +1057,85 @@ const operationSchemas = {
       runtimeSubmissionRef: externalReference,
     }),
   },
+  'execution.record_run_result': {
+    payload: object(['agentResultRef'], {
+      agentResultRef: exactObjectType(contentAddressedReference, 'execution.agent_result'),
+    }),
+    result: object(['runRef', 'status', 'agentResultRef'], {
+      runRef: exactObjectType(objectReference, 'execution.run'),
+      status: { const: 'RESULT_RECORDED' },
+      agentResultRef: exactObjectType(contentAddressedReference, 'execution.agent_result'),
+    }),
+  },
+  'execution.validate_agent_result': {
+    payload: object(['agentResultRef', 'runRef', 'attemptRef', 'policyRef', 'evaluatorRef'], {
+      agentResultRef: exactObjectType(contentAddressedReference, 'execution.agent_result'),
+      runRef: exactObjectType(objectReference, 'execution.run'),
+      attemptRef: exactObjectType(objectReference, 'integration.runtime_attempt'),
+      policyRef: exactObjectType(versionedReference, 'zhiju.identity.policy'),
+      evaluatorRef: exactObjectType(versionedReference, 'zhiju.execution.evaluator_profile'),
+    }),
+    result: object(
+      [
+        'bundleRef',
+        'schemaValidationRef',
+        'identityValidationRef',
+        'runBindingValidationRef',
+        'scopeValidationRef',
+        'businessOutputValidationRef',
+      ],
+      {
+        bundleRef: exactObjectType(
+          contentAddressedReference,
+          'zhiju.execution.agent_result_validation_bundle',
+        ),
+        schemaValidationRef: exactObjectType(
+          contentAddressedReference,
+          'zhiju.execution.validation_result',
+        ),
+        identityValidationRef: exactObjectType(
+          contentAddressedReference,
+          'zhiju.execution.validation_result',
+        ),
+        runBindingValidationRef: exactObjectType(
+          contentAddressedReference,
+          'zhiju.execution.validation_result',
+        ),
+        scopeValidationRef: exactObjectType(
+          contentAddressedReference,
+          'zhiju.execution.validation_result',
+        ),
+        businessOutputValidationRef: exactObjectType(
+          contentAddressedReference,
+          'zhiju.execution.validation_result',
+        ),
+      },
+    ),
+  },
+  'execution.finalize_run_from_acceptance': {
+    payload: object(['acceptanceRecordRef'], {
+      acceptanceRecordRef: exactObjectType(
+        contentAddressedReference,
+        'execution.agent_result_acceptance',
+      ),
+    }),
+    result: object(['runRef', 'status', 'acceptanceRecordRef'], {
+      runRef: exactObjectType(objectReference, 'execution.run'),
+      status: { const: 'SUCCEEDED' },
+      acceptanceRecordRef: exactObjectType(
+        contentAddressedReference,
+        'execution.agent_result_acceptance',
+      ),
+    }),
+  },
+  'execution.expire_run': {
+    payload: object(['reason'], { reason: { enum: ['LEASE_EXPIRED', 'DEADLINE_EXCEEDED'] } }),
+    result: object(['runRef', 'status', 'endedAt'], {
+      runRef: exactObjectType(objectReference, 'execution.run'),
+      status: { const: 'TIMED_OUT' },
+      endedAt: instant,
+    }),
+  },
   'execution.accept_agent_result': {
     payload: object(
       [

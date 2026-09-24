@@ -4,6 +4,7 @@ import {
   createControlledFirstRunAuthorizationPort,
   issueExecutionCapabilityBundle,
   readExecutionCapabilityBundle,
+  readIntegrityForExpiry,
   type ControlledFirstRunCapabilityCodes,
   type IdentityTransactionContext,
 } from '@zhiju/identity-policy';
@@ -12,12 +13,20 @@ import {
   handleGetContextSnapshot,
   handleGetRunDispatchBinding,
   handleGetRunState,
+  handleGetAcceptedAgentResult,
+  handleSubmitFinalResult,
+  handleRecordRunResult,
+  handleValidateFinalResult,
+  handleAcceptFinalResult,
+  handleFinalizeFirstRun,
+  handleExpireFirstRun,
   handleGetWorkOrderContract,
   handleQueueWorkOrder,
   handleReconcileFirstRun,
   handleStartFirstRun,
   type CommandEnvelope,
   type ControlledFirstRunPorts,
+  type ControlledFinalPorts,
   type TaskExecutionTransactionContext,
 } from '@zhiju/task-execution';
 import {
@@ -84,7 +93,11 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
 
   async function prepare(value: unknown, session: InitialContextSession, type: string) {
     const envelope = record(structuredClone(value));
-    const query = type === 'integration.get_runtime_attempt_binding';
+    const query =
+      type === 'integration.get_runtime_attempt_binding' ||
+      type === 'integration.get_runtime_final_observation' ||
+      type === 'execution.get_agent_result' ||
+      type === 'execution.get_run_state';
     if (
       (query ? envelope.queryType : envelope.commandType) !== type ||
       (query ? envelope.queryVersion : envelope.commandVersion) !== '1.0'
@@ -114,7 +127,7 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
     assertActorBinding(query ? envelope.requester : envelope.actor, row);
     assertActorBinding(session.resolutionActorSnapshotRef, row);
     const target = (
-      query ? (payload.runRef ?? payload.attemptRef) : envelope.targetRef
+      query ? (payload.runRef ?? payload.attemptRef ?? payload.agentResultRef) : envelope.targetRef
     ) as Common.ObjectRef;
     const deps = boundary.identityDeps(identityContext(row));
     const common = {
@@ -141,6 +154,15 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
         'integration.get_runtime_attempt_binding': 'runtimeAttemptBindingReadV1',
         'execution.start_run': 'runStartV1',
         'execution.reconcile_work_order_execution': 'workOrderReconcileV1',
+        'integration.get_runtime_final_observation': 'runtimeFinalReadV1',
+        'execution.submit_agent_result': 'agentResultSubmitV1',
+        'execution.record_run_result': 'runResultRecordV1',
+        'execution.validate_agent_result': 'agentResultValidateV1',
+        'execution.accept_agent_result': 'agentResultAcceptV1',
+        'execution.finalize_run_from_acceptance': 'runFinalizeV1',
+        'execution.expire_run': 'runExpireV1',
+        'execution.get_agent_result': 'agentResultReadV1',
+        'execution.get_run_state': 'runStateReadV1',
       } as Record<string, Boundary>
     )[type];
     if (ownKey === undefined)
@@ -328,9 +350,147 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
           ref as unknown as Common.ObjectRef,
         )) as unknown as CanonicalJsonObject;
       },
+      readRuntimeAdapterIdentity: async (ref) => {
+        const proof = await mint('runStartAdapterIdentityReadV1', ref);
+        const service = new ControlledRuntimeDispatchService(
+          config.integrationGatewayDb,
+          config.runtimeDriver,
+          config.receiptStorage,
+          {
+            now,
+            revalidateAuthorization: proof.proof,
+            readDispatchBinding: () => Promise.reject(new Error('unused')),
+            readBundle: () => Promise.reject(new Error('unused')),
+            authorizeReceipt: () => Promise.reject(new Error('unused')),
+          },
+        );
+        return service.readRuntimeAdapterIdentityForAttempt(
+          proof.context,
+          ref as unknown as Common.ObjectRef,
+        ) as unknown as Promise<
+          Awaited<ReturnType<ControlledFirstRunPorts['readRuntimeAdapterIdentity']>>
+        >;
+      },
       readRunState: async (ref) => {
         const proof = await mint('workOrderReconcileRunReadV1', ref);
         return handleGetRunState(config.taskExecutionDb, proof.context, ref, proof.proof);
+      },
+    };
+  }
+
+  function finalPorts(
+    prepared: Awaited<ReturnType<typeof prepare>>,
+    session: ControlledFirstRunSession,
+  ): ControlledFinalPorts {
+    const { mint, revalidateAll, row } = prepared;
+    const consumer = prepared.internal.commandType;
+    const readers = createWorkOrderDependencyReads(config, row, session);
+    const keys = (
+      {
+        'execution.submit_agent_result': [
+          'resultSubmitBindingReadV1',
+          'resultSubmitFinalReadV1',
+          'resultSubmitBundleReadV1',
+          'resultSubmitPolicyReadV1',
+          undefined,
+        ],
+        'execution.record_run_result': [
+          'resultRecordBindingReadV1',
+          'resultRecordFinalReadV1',
+          'resultRecordBundleReadV1',
+          'resultRecordPolicyReadV1',
+          'resultRecordSourceReadV1',
+        ],
+        'execution.validate_agent_result': [
+          'resultValidateBindingReadV1',
+          'resultValidateFinalReadV1',
+          'resultValidateBundleReadV1',
+          'resultValidatePolicyReadV1',
+          'resultValidateSourceReadV1',
+        ],
+        'execution.accept_agent_result': [
+          'resultAcceptBindingReadV1',
+          'resultAcceptFinalReadV1',
+          'resultAcceptBundleReadV1',
+          'resultAcceptPolicyReadV1',
+          'resultAcceptSourceReadV1',
+        ],
+        'execution.finalize_run_from_acceptance': [
+          'runFinalizeBindingReadV1',
+          'runFinalizeFinalReadV1',
+          'runFinalizeBundleReadV1',
+          'runFinalizePolicyReadV1',
+          'runFinalizeSourceReadV1',
+        ],
+      } as Record<string, readonly [Boundary, Boundary, Boundary, Boundary, Boundary | undefined]>
+    )[consumer];
+    const runtimeService = (proof: Awaited<ReturnType<typeof mint>>) =>
+      new ControlledRuntimeDispatchService(
+        config.integrationGatewayDb,
+        config.runtimeDriver,
+        config.receiptStorage,
+        {
+          now,
+          revalidateAuthorization: proof.proof,
+          readDispatchBinding: () => Promise.reject(new Error('unused')),
+          readBundle: () => Promise.reject(new Error('unused')),
+          authorizeReceipt: () => Promise.reject(new Error('unused')),
+        },
+      );
+    const proofFor = async (key: Boundary, ref: CanonicalJsonObject) => mint(key, ref);
+    return {
+      now,
+      authorizationValidUntil: () =>
+        new Date(Math.min(...prepared.expiries.map((expiry) => Date.parse(expiry)))),
+      revalidateAuthorization: async () => {
+        await revalidateAll();
+        await readers.revalidate();
+      },
+      readBinding: async (ref) => {
+        if (keys === undefined) entryError('API_CONTRACT_TYPE_UNKNOWN', 'binding read unavailable');
+        const proof = await proofFor(keys[0], ref);
+        return runtimeService(proof).getBinding(
+          proof.context,
+          ref as unknown as Common.ObjectRef,
+        ) as unknown as Promise<CanonicalJsonObject>;
+      },
+      readFinal: async (ref) => {
+        if (keys === undefined) entryError('API_CONTRACT_TYPE_UNKNOWN', 'final read unavailable');
+        const proof = await proofFor(keys[1], ref);
+        return runtimeService(proof).getFinal(
+          proof.context,
+          ref as unknown as Common.ObjectRef,
+        ) as unknown as Promise<CanonicalJsonObject>;
+      },
+      readBundle: async (ref, runRef) => {
+        if (keys === undefined) entryError('API_CONTRACT_TYPE_UNKNOWN', 'bundle read unavailable');
+        const proof = await proofFor(keys[2], ref);
+        return readExecutionCapabilityBundle(
+          config.identity.db,
+          proof.context,
+          ref,
+          runRef,
+          proof.proof,
+          now,
+        );
+      },
+      resolveControls: async (ref) => {
+        if (keys === undefined) entryError('API_CONTRACT_TYPE_UNKNOWN', 'policy read unavailable');
+        const proof = await proofFor(keys[3], ref);
+        await proof.proof();
+        const view = await readers.resolvePolicy(ref);
+        await proof.proof();
+        return view as unknown as Awaited<ReturnType<ControlledFinalPorts['resolveControls']>>;
+      },
+      readSource: async (ref) => {
+        if (keys?.[4] === undefined)
+          entryError('API_CONTRACT_TYPE_UNKNOWN', 'source read unavailable');
+        const proof = await proofFor(keys[4], ref);
+        await proof.proof();
+      },
+      inspectExpiredBundle: async (ref, runRef) => {
+        const proof = await proofFor('runExpireBundleInspectV1', ref);
+        await readIntegrityForExpiry(config.identity.db, proof.context, ref, runRef, proof.proof);
       },
     };
   }
@@ -339,6 +499,48 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
     const prepared = await prepare(value, session, type);
     const p = ports(prepared, session);
     const { context, internal, payload, mint } = prepared;
+    if (type === 'execution.submit_agent_result')
+      return handleSubmitFinalResult(
+        config.taskExecutionDb,
+        context,
+        internal,
+        finalPorts(prepared, session),
+      );
+    if (type === 'execution.record_run_result')
+      return handleRecordRunResult(
+        config.taskExecutionDb,
+        context,
+        internal,
+        finalPorts(prepared, session),
+      );
+    if (type === 'execution.validate_agent_result')
+      return handleValidateFinalResult(
+        config.taskExecutionDb,
+        context,
+        internal,
+        finalPorts(prepared, session),
+      );
+    if (type === 'execution.accept_agent_result')
+      return handleAcceptFinalResult(
+        config.taskExecutionDb,
+        context,
+        internal,
+        finalPorts(prepared, session),
+      );
+    if (type === 'execution.finalize_run_from_acceptance')
+      return handleFinalizeFirstRun(
+        config.taskExecutionDb,
+        context,
+        internal,
+        finalPorts(prepared, session),
+      );
+    if (type === 'execution.expire_run')
+      return handleExpireFirstRun(
+        config.taskExecutionDb,
+        context,
+        internal,
+        finalPorts(prepared, session),
+      );
     if (type === 'execution.queue_work_order')
       return handleQueueWorkOrder(config.taskExecutionDb, context, internal, p);
     if (type === 'identity.issue_execution_capability_bundle')
@@ -350,8 +552,18 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
       );
     if (type === 'execution.create_run')
       return handleCreateFirstRun(config.taskExecutionDb, context, internal, p);
-    if (type === 'execution.start_run')
-      return handleStartFirstRun(config.taskExecutionDb, context, internal, p);
+    if (type === 'execution.start_run') {
+      const result = await handleStartFirstRun(config.taskExecutionDb, context, internal, p);
+      if (
+        (result.status === 'COMMITTED' ||
+          (result.status === 'DUPLICATE' && result.originalOutcome === 'COMMITTED')) &&
+        config.runtimeDriver.releaseFinal !== undefined
+      )
+        await config.runtimeDriver.releaseFinal(
+          record(payload.runtimeAttemptRef) as unknown as Common.ObjectRef,
+        );
+      return result;
+    }
     if (type === 'execution.reconcile_work_order_execution')
       return handleReconcileFirstRun(config.taskExecutionDb, context, internal, p);
     if (type !== 'integration.request_runtime_dispatch')
@@ -422,6 +634,74 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
       command('execution.start_run', value, session),
     reconcile: (value: unknown, session: InitialContextSession) =>
       command('execution.reconcile_work_order_execution', value, session),
+    submitAgentResult: (value: unknown, session: ControlledFirstRunSession) =>
+      command('execution.submit_agent_result', value, session),
+    recordRunResult: (value: unknown, session: ControlledFirstRunSession) =>
+      command('execution.record_run_result', value, session),
+    validateAgentResult: (value: unknown, session: ControlledFirstRunSession) =>
+      command('execution.validate_agent_result', value, session),
+    acceptAgentResult: (value: unknown, session: ControlledFirstRunSession) =>
+      command('execution.accept_agent_result', value, session),
+    finalizeRun: (value: unknown, session: ControlledFirstRunSession) =>
+      command('execution.finalize_run_from_acceptance', value, session),
+    expireRun: (value: unknown, session: ControlledFirstRunSession) =>
+      command('execution.expire_run', value, session),
+    async getAgentResult(value: unknown, session: ControlledFirstRunSession) {
+      const prepared = await prepare(value, session, 'execution.get_agent_result');
+      return handleGetAcceptedAgentResult(
+        config.taskExecutionDb,
+        prepared.context,
+        record(prepared.payload.agentResultRef) as CanonicalJsonObject,
+        prepared.revalidateAll,
+      );
+    },
+    async getRunState(value: unknown, session: ControlledFirstRunSession) {
+      const prepared = await prepare(value, session, 'execution.get_run_state');
+      return handleGetRunState(
+        config.taskExecutionDb,
+        prepared.context,
+        record(prepared.payload.runRef) as CanonicalJsonObject,
+        prepared.revalidateAll,
+      );
+    },
+    async getRuntimeFinalObservation(value: unknown, session: ControlledFirstRunSession) {
+      const prepared = await prepare(value, session, 'integration.get_runtime_final_observation');
+      const service = new ControlledRuntimeDispatchService(
+        config.integrationGatewayDb,
+        config.runtimeDriver,
+        config.receiptStorage,
+        {
+          now,
+          revalidateAuthorization: prepared.revalidateAll,
+          readDispatchBinding: () => Promise.reject(new Error('unused')),
+          readBundle: () => Promise.reject(new Error('unused')),
+          authorizeReceipt: () => Promise.reject(new Error('unused')),
+        },
+      );
+      return service.getFinal(prepared.context, prepared.target);
+    },
+    async observeRuntimeFinal(value: unknown, session: ControlledFirstRunSession) {
+      const prepared = await prepare(value, session, 'integration.get_runtime_final_observation');
+      const proof = await prepared.mint(
+        'runtimeFinalObserveV1',
+        prepared.target as unknown as CanonicalJsonObject,
+        'integration.get_runtime_final_observation',
+        prepared.payload,
+      );
+      const service = new ControlledRuntimeDispatchService(
+        config.integrationGatewayDb,
+        config.runtimeDriver,
+        config.receiptStorage,
+        {
+          now,
+          revalidateAuthorization: proof.proof,
+          readDispatchBinding: () => Promise.reject(new Error('unused')),
+          readBundle: () => Promise.reject(new Error('unused')),
+          authorizeReceipt: () => Promise.reject(new Error('unused')),
+        },
+      );
+      return service.observeFinal(proof.context, prepared.target);
+    },
     async getRuntimeAttemptBinding(value: unknown, session: InitialContextSession) {
       const prepared = await prepare(value, session, 'integration.get_runtime_attempt_binding');
       const service = new ControlledRuntimeDispatchService(

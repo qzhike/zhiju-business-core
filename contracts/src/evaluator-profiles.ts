@@ -28,9 +28,11 @@ export const EVALUATOR_PROFILE_REGISTRY_VERSION = 'im06-evaluator-static-v1';
 /** Canonical `objectType` of every build-time registered Evaluator profile. */
 export const EVALUATOR_PROFILE_REFERENCE_OBJECT_TYPE = 'zhiju.execution.evaluator_profile';
 
-/** The approved first-version Evaluator profile selectors, and only these two. */
+/** The approved first-version Evaluator profile selectors. */
 export type EvaluatorProfileRegistryKey =
-  'te.task_readiness.evaluator@1.0' | 'te.work_order_validation.evaluator@1.0';
+  | 'te.task_readiness.evaluator@1.0'
+  | 'te.work_order_validation.evaluator@1.0'
+  | 'te.agent_result_validation.evaluator@1.0';
 
 const registryKeyPattern = /^[a-z][A-Za-z0-9]*(?:[._][A-Za-z0-9]+)*@\d+\.\d+$/u;
 const uuidV7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -46,10 +48,11 @@ export interface EvaluatorProfileRegistry {
   readonly profiles: readonly EvaluatorProfileEntry[];
 }
 
-/** The approved registry contents: two selectors, no more and no fewer. */
+/** The approved registry contents. */
 const approvedEntries: readonly { registryKey: EvaluatorProfileRegistryKey; owner: string }[] = [
   { registryKey: 'te.task_readiness.evaluator@1.0', owner: 'task-execution' },
   { registryKey: 'te.work_order_validation.evaluator@1.0', owner: 'task-execution' },
+  { registryKey: 'te.agent_result_validation.evaluator@1.0', owner: 'task-execution' },
 ];
 
 function record(value: unknown): value is Record<string, unknown> {
