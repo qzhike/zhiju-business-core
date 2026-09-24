@@ -8705,7 +8705,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         String(resultBody.agentResultId),
         scope(),
       ) as Common.ObjectRef;
-      const submitEnvelope = await firstRunEnvelope(
+      let submitEnvelope = await firstRunEnvelope(
         'execution.submit_agent_result',
         resultTarget,
         {
@@ -8739,6 +8739,47 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           )
         ).rows,
       ).toEqual([{ count: '0' }]);
+      const submitGrantId = firstRunGrants.get('agentResultSubmitV1');
+      const submitBinding = CONTROLLED_FIRST_RUN_BINDINGS.find(
+        (binding) => binding.boundary === 'agentResultSubmitV1',
+      );
+      if (submitGrantId === undefined || submitBinding === undefined)
+        throw new Error('missing Result submit Grant');
+      expect(
+        await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+          targetId: submitGrantId,
+          expectedAggregateVersion: '1',
+          scope: {
+            scopeKind: 'PROJECT',
+            enterpriseId: fixture.enterpriseId,
+            projectId: fixture.projectId,
+          },
+          reasonCode: 'WI224_REVOKE_RESULT_SUBMIT',
+          effectiveAt: new Date(clock),
+          idempotencyKey: newUuidV7(),
+        }),
+      ).toMatchObject({ status: 'COMMITTED' });
+      await expect(
+        firstRunEntry.submitAgentResult(submitEnvelope, sessionFor(service)),
+      ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+      expect(await receiptRows(submitEnvelope.idempotencyKey)).toEqual([]);
+      await grant({
+        principal: service,
+        capabilityCode: firstRunCodes.agentResultSubmitV1,
+        action: submitBinding.requiredGrantAction,
+        selectorType: submitBinding.selectorType,
+        targetObjectType: 'execution.agent_result',
+      });
+      submitEnvelope = await firstRunEnvelope(
+        'execution.submit_agent_result',
+        resultTarget,
+        {
+          agentResultContract: resultBody,
+          runFencingToken: 1,
+          runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
       const submitted = await restartedEntry.submitAgentResult(submitEnvelope, sessionFor(service));
       expect(submitted, JSON.stringify(submitted)).toMatchObject({ status: 'COMMITTED' });
       expect(
