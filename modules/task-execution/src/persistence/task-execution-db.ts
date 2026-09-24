@@ -113,6 +113,15 @@ export interface ProcessInstanceTable {
   retry_count: Generated<number>;
   last_consumed_event_id?: string | null;
   blocked_reason_code?: string | null;
+  controlled_final_source_ref?: Json | null;
+  controlled_final_attempt_ref?: Json | null;
+  controlled_final_policy_ref?: Json | null;
+  controlled_final_run_version?: string | null;
+  controlled_final_result_ref?: Json | null;
+  controlled_final_bundle_ref?: Json | null;
+  controlled_final_validation_refs?: Json | null;
+  controlled_final_acceptance_ref?: Json | null;
+  controlled_final_step?: 'SUBMIT' | 'RECORD' | 'VALIDATE' | 'ACCEPT' | 'FINALIZE' | 'DONE' | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
   created_by_principal_id: string;
@@ -131,6 +140,8 @@ export interface ProcessStepTable {
   outcome: 'STARTED' | 'COMPLETED' | 'FAILED' | 'AWAITING_HUMAN' | 'SKIPPED';
   failure_code: string | null;
   human_intervention: string | null;
+  source_fact_ref?: Json | null;
+  stable_idempotency_key?: string | null;
   recorded_at: Generated<Date>;
   created_by_principal_id: string;
 }

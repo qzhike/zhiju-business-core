@@ -1,7 +1,50 @@
+import {
+  recoverControlledFinalRuns,
+  type ControlledFinalRecoveryPorts,
+  type TaskExecutionDb,
+  type TaskExecutionTransactionContext,
+} from '@zhiju/task-execution';
+import type { Kysely } from 'kysely';
+
 export interface ControlledFinalRecoveryWorkerConfig {
   readonly intervalMs: number;
   readonly recover: () => Promise<void>;
   readonly onError: (error: unknown) => void | Promise<void>;
+}
+
+export interface ControlledFinalRecoveryHostConfig {
+  readonly taskExecutionDb: Kysely<TaskExecutionDb>;
+  readonly projects: readonly {
+    readonly scanContext: TaskExecutionTransactionContext;
+    readonly ports: ControlledFinalRecoveryPorts;
+  }[];
+  readonly intervalMs: number;
+  readonly maxStepsPerProject?: number;
+  readonly onError: (error: unknown) => void | Promise<void>;
+}
+
+/** Connects the timer to the project-scoped, independently authorized Process entry. */
+export function createControlledFinalRecoveryWorker(
+  config: ControlledFinalRecoveryHostConfig,
+): ControlledFinalRecoveryWorker {
+  const maxSteps = config.maxStepsPerProject ?? 5;
+  if (!Number.isSafeInteger(maxSteps) || maxSteps <= 0) {
+    throw new TypeError('controlled final recovery step limit must be a positive integer');
+  }
+  return new ControlledFinalRecoveryWorker({
+    intervalMs: config.intervalMs,
+    onError: config.onError,
+    recover: async () => {
+      for (const project of config.projects) {
+        await recoverControlledFinalRuns(
+          config.taskExecutionDb,
+          project.scanContext,
+          project.ports,
+          maxSteps,
+        );
+      }
+    },
+  });
 }
 
 /** Polls the authorized recovery entry without overlapping runs. */

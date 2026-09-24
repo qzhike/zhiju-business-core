@@ -22,6 +22,10 @@ import {
   type TaskExecutionTransactionContext,
 } from '../persistence/task-execution-db.js';
 import { hash, object, requireThat, same, textValue } from './work-order-validation-plan.js';
+import type {
+  ControlledFinalProgress,
+  ControlledFinalProgressAdvance,
+} from './controlled-final-progress.js';
 
 const registry = new ContractRegistry();
 const RUN = 'execution.run';
@@ -370,7 +374,7 @@ export async function scanControlledFinalCandidates(
       .selectFrom('task_execution.run as run')
       .innerJoin('task_execution.work_order_run_claim as claim', 'claim.run_id', 'run.run_id')
       .leftJoin('task_execution.run_final_submission_claim as final', 'final.run_id', 'run.run_id')
-      .select(['run.run_id', 'run.start_attempt_ref', 'run.runtime_adapter_identity_ref'])
+      .select(['run.run_id', 'run.start_attempt_ref'])
       .where('run.enterprise_id', '=', context.enterpriseId)
       .where('run.project_id', '=', projectId)
       .where('run.status', '=', 'RUNNING')
@@ -380,7 +384,7 @@ export async function scanControlledFinalCandidates(
       .where('run.lease_expires_at', '>', now())
       .execute();
     const candidates = rows.flatMap((row) =>
-      row.start_attempt_ref === null || row.runtime_adapter_identity_ref === null
+      row.start_attempt_ref === null
         ? []
         : [
             {
@@ -389,7 +393,6 @@ export async function scanControlledFinalCandidates(
                 projectId,
               }),
               attemptRef: object(row.start_attempt_ref),
-              runtimeAdapterIdentityRef: object(row.runtime_adapter_identity_ref),
             },
           ],
     );
@@ -415,9 +418,30 @@ export interface ControlledFinalRecoveryPorts {
   readonly now: () => Date;
   readonly revalidateScan: () => Promise<void>;
   readonly readFinal: (attemptRef: CanonicalJsonObject) => Promise<CanonicalJsonObject | undefined>;
+  readonly readRun: (runRef: CanonicalJsonObject) => Promise<{
+    status: string;
+    aggregateVersion: number;
+    currentFencingToken: number;
+    workOrderRef: CanonicalJsonObject;
+  }>;
+  readonly readPolicy: (workOrderRef: CanonicalJsonObject) => Promise<CanonicalJsonObject>;
+  readonly listProgress: () => Promise<readonly ControlledFinalProgress[]>;
+  readonly createProgress: (input: {
+    runRef: CanonicalJsonObject;
+    attemptRef: CanonicalJsonObject;
+    sourceRef: CanonicalJsonObject;
+    policyRef: CanonicalJsonObject;
+    runVersion: string;
+  }) => Promise<void>;
+  readonly advanceProgress: (
+    progress: ControlledFinalProgress,
+    transition: ControlledFinalProgressAdvance,
+  ) => Promise<void>;
+  readonly suspendTimedOutProgress: (progress: ControlledFinalProgress) => Promise<void>;
   readonly execute: (command: ControlledFinalRecoveryCommand) => Promise<{
     status: string;
     originalOutcome?: string;
+    resultPayload?: CanonicalJsonObject | null;
   }>;
 }
 
@@ -433,7 +457,7 @@ function stableRecoveryTarget(key: string, sourceId: string): string {
   return `${bytes.slice(0, 8)}-${bytes.slice(8, 12)}-${bytes.slice(12, 16)}-${bytes.slice(16, 20)}-${bytes.slice(20)}`;
 }
 
-/** One scan reads only TE-owned committed facts; every subsequent step enters its owning boundary. */
+/** Recovers from authorized Process progress and owning command Receipts. */
 export async function recoverControlledFinalRuns(
   db: Kysely<TaskExecutionDb>,
   context: TaskExecutionTransactionContext,
@@ -444,180 +468,212 @@ export async function recoverControlledFinalRuns(
   requireThat(context.allowedProjectIds.length === 1, 'SCOPE_MISMATCH');
   const project = context.allowedProjectIds[0];
   requireThat(project !== undefined, 'SCOPE_MISMATCH');
-  const subjectScope = { enterpriseId: context.enterpriseId, projectId: project };
   let advanced = 0;
   for (; advanced < maxSteps;) {
-    await ports.revalidateScan();
-    const rows = await withTaskExecutionTransaction(db, context, async (trx) => {
-      const found = await trx
-        .selectFrom('task_execution.run as run')
-        .innerJoin('task_execution.work_order_run_claim as claim', 'claim.run_id', 'run.run_id')
-        .leftJoin(
-          'task_execution.run_final_submission_claim as final',
-          'final.run_id',
-          'run.run_id',
-        )
-        .leftJoin('task_execution.agent_result as result', 'result.run_id', 'run.run_id')
-        .leftJoin(
-          'task_execution.result_validation_bundle as bundle',
-          'bundle.result_id',
-          'result.result_id',
-        )
-        .leftJoin(
-          'task_execution.agent_result_acceptance as acceptance',
-          'acceptance.result_id',
-          'result.result_id',
-        )
-        .select([
-          'run.run_id',
-          'run.status as run_status',
-          'run.aggregate_version',
-          'run.start_attempt_ref',
-          'run.runtime_adapter_identity_ref',
-          'run.lease_policy_ref',
-          'run.fencing_token',
-          'final.result_id as reserved_result_id',
-          'result.result_id',
-          'result.result_payload_hash',
-          'bundle.bundle_id',
-          'bundle.payload_hash as bundle_hash',
-          'bundle.canonical_payload as bundle_payload',
-          'acceptance.acceptance_id',
-          'acceptance.payload_hash as acceptance_hash',
-        ])
-        .where('run.enterprise_id', '=', context.enterpriseId)
-        .where('run.project_id', '=', project)
-        .where('run.status', 'in', ['RUNNING', 'RESULT_RECORDED'])
-        .where('claim.status', '=', 'ACTIVE')
-        .where('run.execution_deadline', '>', ports.now())
-        .where('run.lease_expires_at', '>', ports.now())
-        .execute();
-      await ports.revalidateScan();
-      return found;
-    });
-    let progressed = false;
-    for (const row of rows) {
-      if (row.start_attempt_ref === null || row.runtime_adapter_identity_ref === null) continue;
-      const runRef = ref('OBJECT', RUN, row.run_id, subjectScope);
-      const attemptRef = object(row.start_attempt_ref);
-      const version = Number(row.aggregate_version);
-      requireThat(Number.isSafeInteger(version));
-      let command: ControlledFinalRecoveryCommand;
-      if (row.result_id === null) {
-        requireThat(row.reserved_result_id === null);
-        const final = await ports.readFinal(attemptRef);
-        if (final === undefined) continue;
-        const result = object(final.agentResultContract);
-        const observationRef = object(final.observationRef);
-        const key = recoveryKey(
-          textValue(observationRef.objectId),
-          textValue(object(observationRef.contentHash).digest),
-          'submit',
-        );
+    let progressRows = await ports.listProgress();
+    const active = new Set(progressRows.map((row) => textValue(row.runRef.objectId)));
+    const candidates = await scanControlledFinalCandidates(
+      db,
+      context,
+      ports.now,
+      ports.revalidateScan,
+    );
+    for (const candidate of candidates) {
+      if (active.has(textValue(candidate.runRef.objectId))) continue;
+      const final = await ports.readFinal(candidate.attemptRef);
+      if (final === undefined) continue;
+      requireThat(same(final.attemptRef, candidate.attemptRef));
+      const state = await ports.readRun(candidate.runRef);
+      requireThat(state.status === 'RUNNING' && Number.isSafeInteger(state.aggregateVersion));
+      const policyRef = await ports.readPolicy(state.workOrderRef);
+      await ports.createProgress({
+        runRef: candidate.runRef,
+        attemptRef: candidate.attemptRef,
+        sourceRef: object(final.observationRef),
+        policyRef,
+        runVersion: String(state.aggregateVersion),
+      });
+      active.add(textValue(candidate.runRef.objectId));
+    }
+    progressRows = await ports.listProgress();
+    const progress = progressRows.find((row) => row.step !== 'DONE');
+    if (progress === undefined) break;
+    const state = await ports.readRun(progress.runRef);
+    if (state.status === 'TIMED_OUT') {
+      await ports.suspendTimedOutProgress(progress);
+      continue;
+    }
+    const final = await ports.readFinal(progress.attemptRef);
+    requireThat(
+      final !== undefined &&
+        same(final.observationRef, progress.sourceRef) &&
+        same(final.attemptRef, progress.attemptRef) &&
+        same(final.runRef, progress.runRef),
+      'EXECUTION_FINAL_CONFLICT',
+    );
+    const subjectScope = { enterpriseId: context.enterpriseId, projectId: project };
+    const resultRef = progress.resultRef;
+    let command: ControlledFinalRecoveryCommand;
+    let sourceFactRef: CanonicalJsonObject;
+    let nextStep: ControlledFinalProgressAdvance['nextStep'];
+    switch (progress.step) {
+      case 'SUBMIT': {
+        const resultBody = object(final.agentResultContract);
+        sourceFactRef = progress.sourceRef;
+        nextStep = 'RECORD';
         command = {
           commandType: 'execution.submit_agent_result',
-          targetRef: ref('OBJECT', RESULT, textValue(result.agentResultId), subjectScope),
+          targetRef: ref('OBJECT', RESULT, textValue(resultBody.agentResultId), subjectScope),
           payload: {
-            agentResultContract: result,
-            runFencingToken: Number(row.fencing_token),
+            agentResultContract: resultBody,
+            runFencingToken: state.currentFencingToken,
             runtimeSubmissionRef: object(final.runtimeSubmissionRef),
+          },
+          idempotencyKey: recoveryKey(
+            textValue(sourceFactRef.objectId),
+            textValue(object(sourceFactRef.contentHash).digest),
+            'submit',
+          ),
+        };
+        break;
+      }
+      case 'RECORD': {
+        requireThat(resultRef !== undefined);
+        sourceFactRef = resultRef;
+        nextStep = 'VALIDATE';
+        command = {
+          commandType: 'execution.record_run_result',
+          targetRef: progress.runRef,
+          payload: { agentResultRef: resultRef },
+          expectedAggregateVersion: Number(progress.runVersion),
+          idempotencyKey: recoveryKey(
+            textValue(resultRef.objectId),
+            textValue(object(resultRef.contentHash).digest),
+            'record',
+          ),
+        };
+        break;
+      }
+      case 'VALIDATE': {
+        requireThat(resultRef !== undefined);
+        sourceFactRef = resultRef;
+        nextStep = 'ACCEPT';
+        const key = recoveryKey(
+          textValue(resultRef.objectId),
+          textValue(object(resultRef.contentHash).digest),
+          'validate',
+        );
+        const evaluatorRef = registeredEvaluatorProfileReference(
+          'im06-evaluator-static-v1',
+          'te.agent_result_validation.evaluator@1.0',
+        );
+        requireThat(evaluatorRef !== undefined);
+        command = {
+          commandType: 'execution.validate_agent_result',
+          targetRef: ref(
+            'OBJECT',
+            BUNDLE,
+            stableRecoveryTarget(key, textValue(resultRef.objectId)),
+            subjectScope,
+          ),
+          payload: {
+            agentResultRef: resultRef,
+            runRef: progress.runRef,
+            attemptRef: progress.attemptRef,
+            policyRef: progress.policyRef,
+            evaluatorRef: evaluatorRef as unknown as CanonicalJsonObject,
           },
           idempotencyKey: key,
         };
-      } else {
-        requireThat(row.reserved_result_id === row.result_id && row.result_payload_hash !== null);
-        const resultHash = row.result_payload_hash.toString('hex');
-        const resultRef = ref('CONTENT_ADDRESSED', RESULT, row.result_id, subjectScope, resultHash);
-        if (row.run_status === 'RUNNING') {
-          command = {
-            commandType: 'execution.record_run_result',
-            targetRef: runRef,
-            payload: { agentResultRef: resultRef },
-            expectedAggregateVersion: version,
-            idempotencyKey: recoveryKey(row.result_id, resultHash, 'record'),
-          };
-        } else if (row.bundle_id === null) {
-          const key = recoveryKey(row.result_id, resultHash, 'validate');
-          const evaluatorRef = registeredEvaluatorProfileReference(
-            'im06-evaluator-static-v1',
-            'te.agent_result_validation.evaluator@1.0',
-          );
-          requireThat(evaluatorRef !== undefined);
-          command = {
-            commandType: 'execution.validate_agent_result',
-            targetRef: ref(
-              'OBJECT',
-              BUNDLE,
-              stableRecoveryTarget(key, row.result_id),
-              subjectScope,
-            ),
-            payload: {
-              agentResultRef: resultRef,
-              runRef,
-              attemptRef,
-              policyRef: object(row.lease_policy_ref),
-              evaluatorRef: evaluatorRef as unknown as CanonicalJsonObject,
-            },
-            idempotencyKey: key,
-          };
-        } else {
-          requireThat(row.bundle_hash !== null && row.bundle_payload !== null);
-          const bundleHash = row.bundle_hash.toString('hex');
-          if (row.acceptance_id === null) {
-            const refs = object(row.bundle_payload).validationRefs;
-            requireThat(Array.isArray(refs) && refs.length === 5);
-            const key = recoveryKey(row.bundle_id, bundleHash, 'accept');
-            command = {
-              commandType: 'execution.accept_agent_result',
-              targetRef: ref(
-                'OBJECT',
-                ACCEPTANCE,
-                stableRecoveryTarget(key, row.bundle_id),
-                subjectScope,
-              ),
-              payload: {
-                agentResultRef: resultRef,
-                schemaValidationRef: object(refs[0]),
-                identityValidationRef: object(refs[1]),
-                runBindingValidationRef: object(refs[2]),
-                scopeValidationRef: object(refs[3]),
-                businessOutputValidationRef: object(refs[4]),
-                disposition: 'ACCEPTED',
-                reasons: [],
-              },
-              idempotencyKey: key,
-            };
-          } else {
-            requireThat(row.acceptance_hash !== null);
-            const acceptanceHash = row.acceptance_hash.toString('hex');
-            command = {
-              commandType: 'execution.finalize_run_from_acceptance',
-              targetRef: runRef,
-              payload: {
-                acceptanceRecordRef: ref(
-                  'CONTENT_ADDRESSED',
-                  ACCEPTANCE,
-                  row.acceptance_id,
-                  subjectScope,
-                  acceptanceHash,
-                ),
-              },
-              expectedAggregateVersion: version,
-              idempotencyKey: recoveryKey(row.acceptance_id, acceptanceHash, 'finalize'),
-            };
-          }
-        }
+        break;
       }
-      const result = await ports.execute(command);
-      requireThat(
-        result.status === 'COMMITTED' ||
-          (result.status === 'DUPLICATE' && result.originalOutcome === 'COMMITTED'),
-      );
-      advanced += 1;
-      progressed = true;
-      break;
+      case 'ACCEPT': {
+        requireThat(resultRef !== undefined && progress.bundleRef !== undefined);
+        const refs = progress.validationRefs;
+        requireThat(refs?.length === 5);
+        sourceFactRef = progress.bundleRef;
+        nextStep = 'FINALIZE';
+        const key = recoveryKey(
+          textValue(sourceFactRef.objectId),
+          textValue(object(sourceFactRef.contentHash).digest),
+          'accept',
+        );
+        command = {
+          commandType: 'execution.accept_agent_result',
+          targetRef: ref(
+            'OBJECT',
+            ACCEPTANCE,
+            stableRecoveryTarget(key, textValue(sourceFactRef.objectId)),
+            subjectScope,
+          ),
+          payload: {
+            agentResultRef: resultRef,
+            schemaValidationRef: object(refs[0]),
+            identityValidationRef: object(refs[1]),
+            runBindingValidationRef: object(refs[2]),
+            scopeValidationRef: object(refs[3]),
+            businessOutputValidationRef: object(refs[4]),
+            disposition: 'ACCEPTED',
+            reasons: [],
+          },
+          idempotencyKey: key,
+        };
+        break;
+      }
+      case 'FINALIZE': {
+        requireThat(progress.acceptanceRef !== undefined);
+        sourceFactRef = progress.acceptanceRef;
+        nextStep = 'DONE';
+        command = {
+          commandType: 'execution.finalize_run_from_acceptance',
+          targetRef: progress.runRef,
+          payload: { acceptanceRecordRef: progress.acceptanceRef },
+          expectedAggregateVersion: Number(progress.runVersion),
+          idempotencyKey: recoveryKey(
+            textValue(sourceFactRef.objectId),
+            textValue(object(sourceFactRef.contentHash).digest),
+            'finalize',
+          ),
+        };
+        break;
+      }
+      default:
+        throw new Error('completed process cannot issue another command');
     }
-    if (!progressed) break;
+    const result = await ports.execute(command);
+    requireThat(
+      (result.status === 'COMMITTED' ||
+        (result.status === 'DUPLICATE' && result.originalOutcome === 'COMMITTED')) &&
+        result.resultPayload !== undefined &&
+        result.resultPayload !== null,
+    );
+    const output = object(result.resultPayload);
+    const transition: ControlledFinalProgressAdvance = {
+      expectedStep: progress.step,
+      nextStep,
+      sourceFactRef,
+      stableIdempotencyKey: command.idempotencyKey,
+      issuedCommandType: command.commandType,
+      ...(progress.step === 'SUBMIT' ? { resultRef: object(output.agentResultRef) } : {}),
+      ...(progress.step === 'RECORD'
+        ? { runVersion: String(BigInt(progress.runVersion) + 1n) }
+        : {}),
+      ...(progress.step === 'VALIDATE'
+        ? {
+            bundleRef: object(output.bundleRef),
+            validationRefs: [
+              object(output.schemaValidationRef),
+              object(output.identityValidationRef),
+              object(output.runBindingValidationRef),
+              object(output.scopeValidationRef),
+              object(output.businessOutputValidationRef),
+            ],
+          }
+        : {}),
+      ...(progress.step === 'ACCEPT' ? { acceptanceRef: object(output.acceptanceRecordRef) } : {}),
+    };
+    await ports.advanceProgress(progress, transition);
+    advanced += 1;
   }
   return advanced;
 }

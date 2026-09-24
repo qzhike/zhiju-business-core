@@ -58,5 +58,11 @@ export type {
   ControlledFirstRunEntryConfig,
   ControlledFirstRunSession,
 } from './controlled-first-run-entry.js';
-export { ControlledFinalRecoveryWorker } from './controlled-final-recovery-worker.js';
-export type { ControlledFinalRecoveryWorkerConfig } from './controlled-final-recovery-worker.js';
+export {
+  ControlledFinalRecoveryWorker,
+  createControlledFinalRecoveryWorker,
+} from './controlled-final-recovery-worker.js';
+export type {
+  ControlledFinalRecoveryWorkerConfig,
+  ControlledFinalRecoveryHostConfig,
+} from './controlled-final-recovery-worker.js';

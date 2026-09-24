@@ -239,6 +239,7 @@ import {
   createWorkOrderValidationEntry,
   createTaskReadinessEntry,
   createControlledFirstRunEntry,
+  createControlledFinalRecoveryWorker,
 } from '@zhiju/api/composition';
 import {
   CONTROLLED_FIRST_RUN_BINDINGS,
@@ -261,8 +262,16 @@ import {
 import {
   recoverControlledFinalRuns,
   scanControlledFinalCandidates,
+  controlledFinalProcessId,
+  listControlledFinalProgress,
+  createControlledFinalProgress,
+  advanceControlledFinalProgress,
+  suspendTimedOutControlledFinalProgress,
+  handleGetWorkOrderContract,
   withTaskExecutionTransaction,
   type ControlledFinalRecoveryCommand,
+  type ControlledFinalProgress,
+  type ControlledFinalProgressAdvance,
 } from '@zhiju/task-execution';
 import { hashContractPayload, sha256CanonicalJson } from '@zhiju/shared-kernel';
 import { createHash, createHmac } from 'node:crypto';
@@ -7187,7 +7196,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
 
   describe('TE-VAL-S-008 first Run terminal paths', () => {
     const runScenario = async (
-      terminalScenario: 'SUCCEEDED' | 'TIMED_OUT' | 'RACE' | 'RECOVERY' | 'RECOVERY_EXPIRE',
+      terminalScenario:
+        'SUCCEEDED' | 'TIMED_OUT' | 'RACE' | 'RECOVERY' | 'RECOVERY_WORKER' | 'RECOVERY_EXPIRE',
     ) => {
       // This independent chain must not inherit the time spent running the
       // preceding 22 cases: the Decision lookup's bootstrap lease is 60s
@@ -8530,6 +8540,113 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         ),
         authorizationDecisionExpiresAt: new Date(scanDecision.expiresAt),
       };
+      const progressTarget = objectRef(
+        'zhiju.project.project',
+        fixture.projectId,
+        scope(),
+      ) as Common.ObjectRef;
+      async function progressAuthorization(payload: CanonicalJsonObject) {
+        const payloadHash = digestCanonicalPayload(payload).hash;
+        const decision = await firstRunAuth.authorize(
+          identityDeps([fixture.projectId], service),
+          'runFinalProcessProgressV1',
+          {
+            actorSnapshotRef: service.actorRef,
+            commandType: 'execution.process_final_progress',
+            commandVersion: '1.0',
+            commandPayloadHash: payloadHash,
+            authenticationContextHash: AUTH_HASH,
+            targetRef: progressTarget,
+          },
+        );
+        expect(decision.outcome).toBe('ALLOW');
+        if (decision.outcome !== 'ALLOW') throw new Error('final progress denied');
+        const proof = async () => {
+          const validity = await firstRunAuth.revalidate(
+            identityDeps([fixture.projectId], service),
+            'runFinalProcessProgressV1',
+            {
+              decisionRef: decision.authorizationDecisionRef,
+              expectedCommandType: 'execution.process_final_progress',
+              expectedCommandVersion: '1.0',
+              expectedCommandPayloadHash: payloadHash,
+              expectedAuthenticationContextHash: AUTH_HASH,
+              expectedTargetRef: progressTarget,
+            },
+          );
+          expect(validity.valid).toBe(true);
+        };
+        return {
+          decisionRef: decision.authorizationDecisionRef,
+          context: {
+            ...runnerContext(service),
+            authorizationDecisionId: decision.authorizationDecisionRef.objectId,
+            authorizationDecisionHash: Buffer.from(
+              decision.authorizationDecisionRef.contentHash.digest,
+              'hex',
+            ),
+            authorizationDecisionExpiresAt: new Date(decision.expiresAt),
+          },
+          proof,
+        };
+      }
+      const progressListPayload = { projectRef: progressTarget } as unknown as CanonicalJsonObject;
+      let progressListAuthorization = await progressAuthorization(progressListPayload);
+      expect(
+        await firstRunAuth.revalidate(
+          identityDeps([fixture.projectId], service),
+          'runFinalProcessProgressV1',
+          {
+            decisionRef: scanDecision.authorizationDecisionRef,
+            expectedCommandType: 'execution.process_final_progress',
+            expectedCommandVersion: '1.0',
+            expectedCommandPayloadHash: digestCanonicalPayload(progressListPayload).hash,
+            expectedAuthenticationContextHash: AUTH_HASH,
+            expectedTargetRef: progressTarget,
+          },
+        ),
+      ).toMatchObject({ valid: false });
+      expect(
+        await firstRunAuth.revalidate(
+          identityDeps([fixture.projectId], service),
+          'runFinalCandidateScanV1',
+          {
+            decisionRef: progressListAuthorization.decisionRef,
+            expectedCommandType: 'execution.submit_agent_result',
+            expectedCommandVersion: '1.0',
+            expectedCommandPayloadHash: scanPayloadHash,
+            expectedAuthenticationContextHash: AUTH_HASH,
+            expectedTargetRef: scanTarget,
+          },
+        ),
+      ).toMatchObject({ valid: false });
+      function progressEnvelope(
+        context: TaskExecutionTransactionContext,
+        processId: string,
+        payload: CanonicalJsonObject,
+        idempotencyKey: string,
+        expectedAggregateVersion?: string,
+      ) {
+        return {
+          commandId: newUuidV7(),
+          commandType: 'execution.process_final_progress',
+          commandVersion: '1.0',
+          idempotencyScope: `execution.process_final_progress@1.0:${fixture.enterpriseId}:${fixture.projectId}`,
+          idempotencyKey,
+          requestPayload: payload,
+          enterpriseId: fixture.enterpriseId,
+          projectId: fixture.projectId,
+          targetType: 'ProcessInstance',
+          targetId: processId,
+          ...(expectedAggregateVersion === undefined ? {} : { expectedAggregateVersion }),
+          correlationId: context.correlationId,
+          principalId: context.principalId,
+          principalKind: context.principalKind,
+          actorSnapshotId: context.actorSnapshotId,
+          authorizationDecisionId: context.authorizationDecisionId,
+          policySnapshotId: context.policySnapshotId,
+        };
+      }
       expect(
         await scanControlledFinalCandidates(teDb, scanContext, () => new Date(clock), scanProof),
       ).toMatchObject([{ runRef, attemptRef }]);
@@ -8635,7 +8752,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       await expect(
         firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
       ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND' });
-      if (terminalScenario === 'RECOVERY') {
+      if (terminalScenario === 'RECOVERY' || terminalScenario === 'RECOVERY_WORKER') {
         expect(
           await recoverControlledFinalRuns(
             teDb,
@@ -8650,6 +8767,20 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                 ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND' });
                 return undefined;
               },
+              readRun: () => Promise.reject(new Error('unobserved final must not read Run')),
+              readPolicy: () => Promise.reject(new Error('unobserved final must not read Policy')),
+              listProgress: () =>
+                listControlledFinalProgress(
+                  teDb,
+                  progressListAuthorization.context,
+                  progressListAuthorization.proof,
+                ),
+              createProgress: () =>
+                Promise.reject(new Error('unobserved final must not create Process')),
+              advanceProgress: () =>
+                Promise.reject(new Error('unobserved final must not advance Process')),
+              suspendTimedOutProgress: () =>
+                Promise.reject(new Error('unobserved final must not suspend Process')),
               execute: () => Promise.reject(new Error('unobserved final must not submit')),
             },
             1,
@@ -8732,6 +8863,32 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(restartedDriver.invokedAttemptIds).toEqual([]);
       expect(runtimeDriver.invokedAttemptIds).toHaveLength(1);
       if (terminalScenario === 'RECOVERY_EXPIRE') {
+        const progressPayload = {
+          runRef,
+          attemptRef,
+          sourceRef: finalView.observationRef,
+          policyRef: controlsRef,
+          runVersion: '2',
+        } as unknown as CanonicalJsonObject;
+        const progressCreation = await progressAuthorization(progressPayload);
+        const observationHash = record(record(finalView.observationRef).contentHash).digest;
+        if (typeof observationHash !== 'string') throw new Error('missing final observation Hash');
+        expect(
+          await createControlledFinalProgress(
+            teDb,
+            progressCreation.context,
+            scanContext,
+            progressEnvelope(
+              progressCreation.context,
+              controlledFinalProcessId(runRef.objectId),
+              progressPayload,
+              `controlled-final:create:${runRef.objectId}:${observationHash}`,
+            ),
+            () => new Date(clock),
+            progressCreation.proof,
+            scanProof,
+          ),
+        ).toMatchObject({ status: 'COMMITTED' });
         const resultBody = record(finalView.agentResultContract);
         const resultTarget = objectRef(
           'execution.agent_result',
@@ -8809,11 +8966,78 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             )
           ).rows,
         ).toEqual([{ count: '0' }]);
+        const readExpiredRun = async (currentRunRef: CanonicalJsonObject) =>
+          restartedEntry.getRunState(
+            await firstRunQuery(
+              'execution.get_run_state',
+              currentRunRef as unknown as Common.ObjectRef,
+              { runRef: currentRunRef },
+              'runStateReadV1',
+            ),
+            sessionFor(service),
+          );
+        expect(
+          await recoverControlledFinalRuns(teDb, scanContext, {
+            now: () => new Date(clock),
+            revalidateScan: scanProof,
+            readFinal: () => Promise.reject(new Error('timed-out Process must not query IG')),
+            readRun: async (currentRunRef) => {
+              const state = await readExpiredRun(currentRunRef);
+              return state;
+            },
+            readPolicy: () => Promise.reject(new Error('timed-out Process must not read Policy')),
+            listProgress: () =>
+              listControlledFinalProgress(
+                teDb,
+                progressListAuthorization.context,
+                progressListAuthorization.proof,
+              ),
+            createProgress: () =>
+              Promise.reject(new Error('timed-out Process must not be recreated')),
+            advanceProgress: () =>
+              Promise.reject(new Error('timed-out Process must not advance owning steps')),
+            suspendTimedOutProgress: async (progress) => {
+              const payload = {
+                runRef: progress.runRef,
+                sourceRef: progress.sourceRef,
+                step: progress.step,
+                observedStatus: 'TIMED_OUT',
+              } as CanonicalJsonObject;
+              const authorized = await progressAuthorization(payload);
+              expect(
+                await suspendTimedOutControlledFinalProgress(
+                  teDb,
+                  authorized.context,
+                  progressEnvelope(
+                    authorized.context,
+                    progress.processId,
+                    payload,
+                    `controlled-final:suspend:${progress.processId}:${progress.aggregateVersion}`,
+                    progress.aggregateVersion,
+                  ),
+                  progress,
+                  async (currentRunRef) => (await readExpiredRun(currentRunRef)).status,
+                  authorized.proof,
+                ),
+              ).toMatchObject({ status: 'COMMITTED' });
+            },
+            execute: () => Promise.reject(new Error('timed-out Process must not execute')),
+          }),
+        ).toBe(0);
+        expect(
+          (
+            await admin.query<{ state: string; blocked_reason_code: string }>(
+              'SELECT state,blocked_reason_code FROM task_execution.process_instance WHERE process_id=$1',
+              [controlledFinalProcessId(runRef.objectId)],
+            )
+          ).rows,
+        ).toEqual([{ state: 'SUSPENDED', blocked_reason_code: 'RUN_TIMED_OUT' }]);
         return;
       }
-      if (terminalScenario === 'RECOVERY') {
+      if (terminalScenario === 'RECOVERY' || terminalScenario === 'RECOVERY_WORKER') {
         const executed: string[] = [];
         let failedKey: string | undefined;
+        let failProgressAfterSubmit = terminalScenario === 'RECOVERY';
         const recoveryPorts = {
           now: () => new Date(clock),
           revalidateScan: scanProof,
@@ -8827,6 +9051,164 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               ),
               sessionFor(service),
             )) as unknown as CanonicalJsonObject,
+          readRun: async (currentRunRef: CanonicalJsonObject) =>
+            (await restartedEntry.getRunState(
+              await firstRunQuery(
+                'execution.get_run_state',
+                currentRunRef as unknown as Common.ObjectRef,
+                { runRef: currentRunRef },
+                'runStateReadV1',
+              ),
+              sessionFor(service),
+            )) as {
+              status: string;
+              aggregateVersion: number;
+              currentFencingToken: number;
+              workOrderRef: CanonicalJsonObject;
+            },
+          readPolicy: async (currentWorkOrderRef: CanonicalJsonObject) => {
+            expect(currentWorkOrderRef).toEqual(workOrderRef);
+            const payload = { workOrderRef: currentWorkOrderRef } as CanonicalJsonObject;
+            const payloadHash = digestCanonicalPayload(payload).hash;
+            const signed = await auth.authorizeWorkOrderContractRead(
+              identityDeps([fixture.projectId], service),
+              {
+                actorSnapshotRef: service.actorRef,
+                commandType: 'execution.get_work_order_contract',
+                commandVersion: '1.0',
+                commandPayloadHash: payloadHash,
+                authenticationContextHash: AUTH_HASH,
+                targetRef: currentWorkOrderRef as unknown as Common.ObjectRef,
+              },
+            );
+            expect(signed.outcome).toBe('ALLOW');
+            if (
+              signed.outcome !== 'ALLOW' ||
+              signed.authorizationDecisionRef === undefined ||
+              signed.expiresAt === undefined
+            )
+              throw new Error('Contract read denied');
+            const decisionRef = signed.authorizationDecisionRef;
+            const proof = async () => {
+              const validity = await auth.revalidateWorkOrderContractRead(
+                identityDeps([fixture.projectId], service),
+                {
+                  decisionRef,
+                  expectedCommandType: 'execution.get_work_order_contract',
+                  expectedCommandVersion: '1.0',
+                  expectedCommandPayloadHash: payloadHash,
+                  expectedAuthenticationContextHash: AUTH_HASH,
+                  expectedTargetRef: currentWorkOrderRef as unknown as Common.ObjectRef,
+                },
+              );
+              expect(validity.valid).toBe(true);
+            };
+            const context = {
+              ...runnerContext(service),
+              authorizationDecisionId: signed.authorizationDecisionRef.objectId,
+              authorizationDecisionHash: Buffer.from(
+                signed.authorizationDecisionRef.contentHash.digest,
+                'hex',
+              ),
+              authorizationDecisionExpiresAt: new Date(signed.expiresAt),
+            };
+            const view = await handleGetWorkOrderContract(
+              teDb,
+              context,
+              currentWorkOrderRef,
+              proof,
+            );
+            return record(record(view.workOrderContract).executionPolicy)
+              .leasePolicyRef as CanonicalJsonObject;
+          },
+          listProgress: () =>
+            listControlledFinalProgress(
+              teDb,
+              progressListAuthorization.context,
+              progressListAuthorization.proof,
+            ),
+          createProgress: async (input: {
+            runRef: CanonicalJsonObject;
+            attemptRef: CanonicalJsonObject;
+            sourceRef: CanonicalJsonObject;
+            policyRef: CanonicalJsonObject;
+            runVersion: string;
+          }) => {
+            const payload = input as unknown as CanonicalJsonObject;
+            const authorized = await progressAuthorization(payload);
+            const runId = input.runRef.objectId;
+            const sourceHash = record(input.sourceRef.contentHash).digest;
+            if (typeof runId !== 'string' || typeof sourceHash !== 'string')
+              throw new Error('invalid controlled final source');
+            const processId = controlledFinalProcessId(runId);
+            const outcome = await createControlledFinalProgress(
+              teDb,
+              authorized.context,
+              scanContext,
+              progressEnvelope(
+                authorized.context,
+                processId,
+                payload,
+                `controlled-final:create:${runId}:${sourceHash}`,
+              ),
+              () => new Date(clock),
+              authorized.proof,
+              scanProof,
+            );
+            expect(outcome.status).toBe('COMMITTED');
+          },
+          advanceProgress: async (
+            progress: ControlledFinalProgress,
+            transition: ControlledFinalProgressAdvance,
+          ) => {
+            if (transition.expectedStep === 'SUBMIT' && failProgressAfterSubmit) {
+              failProgressAfterSubmit = false;
+              throw new Error('injected crash after Result commit before Process progress');
+            }
+            const payload = transition as unknown as CanonicalJsonObject;
+            const authorized = await progressAuthorization(payload);
+            const outcome = await advanceControlledFinalProgress(
+              teDb,
+              authorized.context,
+              progressEnvelope(
+                authorized.context,
+                progress.processId,
+                payload,
+                `controlled-final:progress:${progress.processId}:${transition.expectedStep}:${transition.stableIdempotencyKey}`,
+                progress.aggregateVersion,
+              ),
+              transition,
+              authorized.proof,
+            );
+            expect(outcome.status).toBe('COMMITTED');
+          },
+          suspendTimedOutProgress: async (progress: ControlledFinalProgress) => {
+            const payload = {
+              runRef: progress.runRef,
+              sourceRef: progress.sourceRef,
+              step: progress.step,
+              observedStatus: 'TIMED_OUT',
+            } as CanonicalJsonObject;
+            const authorized = await progressAuthorization(payload);
+            const outcome = await suspendTimedOutControlledFinalProgress(
+              teDb,
+              authorized.context,
+              progressEnvelope(
+                authorized.context,
+                progress.processId,
+                payload,
+                `controlled-final:suspend:${progress.processId}:${progress.aggregateVersion}`,
+                progress.aggregateVersion,
+              ),
+              progress,
+              async (currentRunRef) => {
+                const state = await recoveryPorts.readRun(currentRunRef);
+                return state.status;
+              },
+              authorized.proof,
+            );
+            expect(outcome.status).toBe('COMMITTED');
+          },
           execute: async (next: ControlledFinalRecoveryCommand) => {
             const envelope = {
               ...(await firstRunEnvelope(
@@ -8838,7 +9220,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               )),
               idempotencyKey: next.idempotencyKey,
             };
-            let outcome: { status: string; originalOutcome?: string };
+            let outcome: {
+              status: string;
+              originalOutcome?: string;
+              resultPayload?: CanonicalJsonObject | null;
+            };
             switch (next.commandType) {
               case 'execution.submit_agent_result':
                 outcome = await restartedEntry.submitAgentResult(envelope, sessionFor(service));
@@ -8861,6 +9247,155 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             return outcome;
           },
         };
+        if (terminalScenario === 'RECOVERY_WORKER') {
+          const errors: unknown[] = [];
+          const worker = createControlledFinalRecoveryWorker({
+            taskExecutionDb: teDb,
+            projects: [{ scanContext, ports: recoveryPorts }],
+            intervalMs: 10,
+            maxStepsPerProject: 1,
+            onError: (error) => {
+              errors.push(error);
+            },
+          });
+          worker.start();
+          try {
+            const until = Date.now() + 90_000;
+            let status = '';
+            while (Date.now() < until) {
+              const current = await admin.query<{ status: string }>(
+                'SELECT status FROM task_execution.run WHERE run_id=$1',
+                [runRef.objectId],
+              );
+              status = current.rows[0]?.status ?? '';
+              if (status === 'SUCCEEDED') break;
+              await new Promise<void>((resolve) => setTimeout(resolve, 25));
+            }
+            expect(status).toBe('SUCCEEDED');
+          } finally {
+            await worker.stop();
+          }
+          expect(errors).toEqual([]);
+          expect(executed).toEqual([
+            'execution.submit_agent_result',
+            'execution.record_run_result',
+            'execution.validate_agent_result',
+            'execution.accept_agent_result',
+            'execution.finalize_run_from_acceptance',
+          ]);
+          expect(
+            (
+              await admin.query<{ count: string }>(
+                'SELECT count(*)::text FROM task_execution.process_step WHERE process_id=$1',
+                [controlledFinalProcessId(runRef.objectId)],
+              )
+            ).rows,
+          ).toEqual([{ count: '5' }]);
+          expect(await recoveryPorts.listProgress()).toEqual([]);
+          expect(restartedDriver.invokedAttemptIds).toEqual([]);
+          return;
+        }
+        const progressGrantId = firstRunGrants.get('runFinalProcessProgressV1');
+        const progressBinding = CONTROLLED_FIRST_RUN_BINDINGS.find(
+          (binding) => binding.boundary === 'runFinalProcessProgressV1',
+        );
+        if (progressGrantId === undefined || progressBinding === undefined)
+          throw new Error('missing final Process progress Grant');
+        expect(
+          await revokeCapabilityTracked(identityDeps([fixture.projectId], service), {
+            targetId: progressGrantId,
+            expectedAggregateVersion: '1',
+            scope: {
+              scopeKind: 'PROJECT',
+              enterpriseId: fixture.enterpriseId,
+              projectId: fixture.projectId,
+            },
+            reasonCode: 'WI224_REVOKE_FINAL_PROGRESS',
+            effectiveAt: new Date(clock),
+            idempotencyKey: newUuidV7(),
+          }),
+        ).toMatchObject({ status: 'COMMITTED' });
+        await expect(
+          recoverControlledFinalRuns(teDb, scanContext, recoveryPorts, 1),
+        ).rejects.toBeDefined();
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              "SELECT count(*)::text FROM task_execution.process_instance WHERE process_type='controlled-final@1' AND correlation_key=$1",
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '0' }]);
+        await grant({
+          principal: service,
+          capabilityCode: firstRunCodes.runFinalProcessProgressV1,
+          action: progressBinding.requiredGrantAction,
+          selectorType: progressBinding.selectorType,
+          targetObjectType: 'zhiju.project.project',
+        });
+        progressListAuthorization = await progressAuthorization(progressListPayload);
+        await expect(
+          recoverControlledFinalRuns(teDb, scanContext, recoveryPorts, 1),
+        ).rejects.toThrow('injected crash after Result commit before Process progress');
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '1' }]);
+        expect((await recoveryPorts.listProgress()).map((row) => row.step)).toEqual(['SUBMIT']);
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              'SELECT count(*)::text FROM task_execution.process_step WHERE process_id=$1',
+              [controlledFinalProcessId(runRef.objectId)],
+            )
+          ).rows,
+        ).toEqual([{ count: '0' }]);
+        const pendingProgress = (await recoveryPorts.listProgress())[0];
+        if (pendingProgress === undefined) throw new Error('missing pending final Process');
+        const forgedSource = structuredClone(pendingProgress.sourceRef);
+        record(forgedSource.contentHash).digest = '0'.repeat(64);
+        const forgedSourceId = forgedSource.objectId;
+        const forgedSourceHash = record(forgedSource.contentHash).digest;
+        if (typeof forgedSourceId !== 'string' || typeof forgedSourceHash !== 'string')
+          throw new Error('invalid forged source Ref');
+        const forgedTransition: ControlledFinalProgressAdvance = {
+          expectedStep: 'SUBMIT',
+          nextStep: 'RECORD',
+          sourceFactRef: forgedSource,
+          stableIdempotencyKey: `controlled-final:${forgedSourceId}:${forgedSourceHash}:submit`,
+          issuedCommandType: 'execution.submit_agent_result',
+          resultRef: {
+            kind: 'CONTENT_ADDRESSED',
+            objectType: 'execution.agent_result',
+            objectId: record(finalView.agentResultContract).agentResultId,
+            scope: scope(),
+            contentHash: contentHash(
+              hashContractPayload(record(finalView.agentResultContract) as CanonicalJsonObject),
+            ),
+          } as unknown as CanonicalJsonObject,
+        };
+        const forgedPayload = forgedTransition as unknown as CanonicalJsonObject;
+        const forgedAuthorization = await progressAuthorization(forgedPayload);
+        await expect(
+          advanceControlledFinalProgress(
+            teDb,
+            forgedAuthorization.context,
+            progressEnvelope(
+              forgedAuthorization.context,
+              pendingProgress.processId,
+              forgedPayload,
+              `controlled-final:forged:${newUuidV7()}`,
+              pendingProgress.aggregateVersion,
+            ),
+            forgedTransition,
+            forgedAuthorization.proof,
+          ),
+        ).rejects.toMatchObject({ code: 'CONCURRENCY_CONFLICT' });
+        expect((await recoveryPorts.listProgress()).map((row) => row.step)).toEqual(['SUBMIT']);
         for (let step = 0; step < 5; step += 1) {
           if (step === 3) {
             const resultId = String(record(finalView.agentResultContract).agentResultId);
@@ -8910,6 +9445,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         }
         expect(executed).toEqual([
           'execution.submit_agent_result',
+          'execution.submit_agent_result',
           'execution.record_run_result',
           'execution.validate_agent_result',
           'execution.accept_agent_result',
@@ -8917,8 +9453,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         ]);
         expect(
           await recoverControlledFinalRuns(teDb, scanContext, {
-            now: () => new Date(clock),
-            revalidateScan: scanProof,
+            ...recoveryPorts,
             readFinal: () => Promise.reject(new Error('terminal Run must not query IG')),
             execute: () => Promise.reject(new Error('terminal Run must not execute')),
           }),
@@ -9420,6 +9955,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     itIntegration(
       'recovers each committed final step after Process restart',
       () => runScenario('RECOVERY'),
+      240_000,
+    );
+    itIntegration(
+      'periodically recovers the controlled final Process without overlapping ticks',
+      () => runScenario('RECOVERY_WORKER'),
       240_000,
     );
     itIntegration(

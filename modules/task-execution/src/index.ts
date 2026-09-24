@@ -342,3 +342,15 @@ export type {
   ControlledFinalRecoveryCommand,
   ControlledFinalRecoveryPorts,
 } from './business/controlled-final-result.js';
+export {
+  controlledFinalProcessId,
+  listControlledFinalProgress,
+  createControlledFinalProgress,
+  advanceControlledFinalProgress,
+  suspendTimedOutControlledFinalProgress,
+} from './business/controlled-final-progress.js';
+export type {
+  ControlledFinalProgress,
+  ControlledFinalProgressAdvance,
+  ControlledFinalStep,
+} from './business/controlled-final-progress.js';

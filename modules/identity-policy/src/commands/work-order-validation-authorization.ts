@@ -2137,6 +2137,15 @@ export const CONTROLLED_FIRST_RUN_BINDINGS = Object.freeze([
     'SERVICE',
   ),
   firstRunBinding(
+    'runFinalProcessProgressV1',
+    'execution.process_final_progress',
+    'execution.process.final_progress',
+    'execution.process.final_progress.v1',
+    'zhiju.project.project',
+    'TARGET_TYPE',
+    'SERVICE',
+  ),
+  firstRunBinding(
     'agentResultSubmitV1',
     'execution.submit_agent_result',
     'task.execution.submit_agent_result',

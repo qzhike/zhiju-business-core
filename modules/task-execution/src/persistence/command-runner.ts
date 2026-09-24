@@ -190,6 +190,8 @@ export interface ProcessStepInput {
   outcome: 'STARTED' | 'COMPLETED' | 'FAILED' | 'AWAITING_HUMAN' | 'SKIPPED';
   failureCode?: string | undefined;
   humanIntervention?: string | undefined;
+  sourceFactRef?: string | undefined;
+  stableIdempotencyKey?: string | undefined;
 }
 
 export type CommandBodyResult =
@@ -305,7 +307,16 @@ export interface CommandExecution {
   casProcessInstance(
     id: string,
     expectedVersion: string,
-    patch?: { state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED' },
+    patch?: {
+      state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED';
+      controlledFinalStep?: 'SUBMIT' | 'RECORD' | 'VALIDATE' | 'ACCEPT' | 'FINALIZE' | 'DONE';
+      controlledFinalResultRef?: string;
+      controlledFinalBundleRef?: string;
+      controlledFinalValidationRefs?: string;
+      controlledFinalAcceptanceRef?: string;
+      controlledFinalRunVersion?: string;
+      blockedReasonCode?: string;
+    },
   ): Promise<'OK' | 'NOT_FOUND' | 'CONFLICT'>;
   appendOutbox(event: OutboxEventInput): Promise<void>;
   appendReferenceEdge(edge: ReferenceEdgeInput): Promise<void>;
@@ -372,7 +383,16 @@ export interface CommandExecution {
   casProcessInstance(
     id: string,
     expectedVersion: string,
-    patch?: { state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED' },
+    patch?: {
+      state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED';
+      controlledFinalStep?: 'SUBMIT' | 'RECORD' | 'VALIDATE' | 'ACCEPT' | 'FINALIZE' | 'DONE';
+      controlledFinalResultRef?: string;
+      controlledFinalBundleRef?: string;
+      controlledFinalValidationRefs?: string;
+      controlledFinalAcceptanceRef?: string;
+      controlledFinalRunVersion?: string;
+      blockedReasonCode?: string;
+    },
   ): Promise<'OK' | 'NOT_FOUND' | 'CONFLICT'>;
   appendOutbox(event: OutboxEventInput): Promise<void>;
   appendReferenceEdge(edge: ReferenceEdgeInput): Promise<void>;
@@ -748,6 +768,27 @@ function createExecution(
           aggregate_version: nextVersion,
           updated_at: new Date(),
           ...(patch.state === undefined ? {} : { state: patch.state }),
+          ...(patch.controlledFinalStep === undefined
+            ? {}
+            : { controlled_final_step: patch.controlledFinalStep }),
+          ...(patch.controlledFinalResultRef === undefined
+            ? {}
+            : { controlled_final_result_ref: patch.controlledFinalResultRef }),
+          ...(patch.controlledFinalBundleRef === undefined
+            ? {}
+            : { controlled_final_bundle_ref: patch.controlledFinalBundleRef }),
+          ...(patch.controlledFinalValidationRefs === undefined
+            ? {}
+            : { controlled_final_validation_refs: patch.controlledFinalValidationRefs }),
+          ...(patch.controlledFinalAcceptanceRef === undefined
+            ? {}
+            : { controlled_final_acceptance_ref: patch.controlledFinalAcceptanceRef }),
+          ...(patch.controlledFinalRunVersion === undefined
+            ? {}
+            : { controlled_final_run_version: patch.controlledFinalRunVersion }),
+          ...(patch.blockedReasonCode === undefined
+            ? {}
+            : { blocked_reason_code: patch.blockedReasonCode }),
         })
         .where('process_id', '=', id)
         .where('aggregate_version', '=', expectedVersion)
@@ -957,6 +998,8 @@ function createExecution(
           outcome: step.outcome,
           failure_code: step.failureCode ?? null,
           human_intervention: step.humanIntervention ?? null,
+          source_fact_ref: step.sourceFactRef ?? null,
+          stable_idempotency_key: step.stableIdempotencyKey ?? null,
           created_by_principal_id: envelope.principalId,
         })
         .execute();
