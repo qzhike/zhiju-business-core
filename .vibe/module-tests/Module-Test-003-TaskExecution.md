@@ -428,13 +428,13 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 探针位于 `tests/persistence/work-order-validation-guards.ts`，沿用真实 app role、同 Project SERVICE context、匹配 PENDING Receipt、Hash 重算与逐项回滚；trigger/CHECK/RLS 全程启用。独立审查记录保留原结论；本修订的 full 证据记录于 PR。
 
-### READY → 受控 Run 启动设计矩阵（提案）
+### READY → 受控 Run 启动验证矩阵
 
 本矩阵定义 [Spec 003 §22](../module-specs/Module-Spec-003-TaskExecution.md#22-ready--queued--受控-run-启动增量设计提案)的预期；#222 当前仅将完整执行过的静态契约项标为 PASS，其余行的完整场景保持 `NOT RUN`，局部自动化执行证据见 PR #222，不复用 #219 READY 的 PASS 充当 Run 证据。正向链使用真实 owning Task/WorkOrder/Slice/Context/Validation/Freeze 入口和已提交 Policy/Grant/Bundle/Attempt；受控 Driver 调用与人工/外部验收分开记录。
 
 | ID | 层级与输入 | 必须观察的结果 | 当前结果 |
 |---|---|---|---|
-| TE-RUN-D-001 | Contract/Registry：四个新 operation、Bundle objectType、既有 Controls Policy profile 精确复用；旧七项 Run/Queue/IG/Event 契约回归 | 新请求/结果完整正反 Schema、Purpose/Owner/Ref 精确；Catalog/Registry 221、TE 49、IG 25、IP 23、历史 Baseline 200；旧 Schema/metadata/fixture 逐字节不变 | PASS — PR #222 CI full，`8b4dfc0`，221/221 Catalog/Registry 与 200 Baseline；独立审查待执行 |
+| TE-RUN-D-001 | Contract/Registry：四个新 operation、Bundle objectType、既有 Controls Policy profile 精确复用；旧七项 Run/Queue/IG/Event 契约回归 | 新请求/结果完整正反 Schema、Purpose/Owner/Ref 精确；Catalog/Registry 221、TE 49、IG 25、IP 23、历史 Baseline 200；旧 Schema/metadata/fixture 逐字节不变 | PASS — PR #222 final head `7732200` 的 `verify` 成功，221/221 Catalog/Registry 与 200 Baseline；独立实现复审在产品提交 `6a41b41` 得出 `APPROVE`。其余完整运行矩阵仍 `NOT RUN` |
 | TE-RUN-D-002 | 正常 owning 链：canonical READY→queue→Bundle→create_run→IG 实际 synthetic ack→start→reconcile→get_run_state | WorkOrder QUEUED 后独立变 RUNNING；Run CREATED→RUNNING，唯一 ACTIVE Claim/attempt=1/fencing，精确 Contract/INITIAL Context/Bundle/Attempt、唯一 Queue/RunStarted Event；无 Result/Completion | NOT RUN |
 | TE-RUN-D-003 | READY 但 legacy、错 frozen pointer/hash、无 wallClockLimit、unsupported runtime class、未来 notBefore、Policy/profile 缺失或过期 | 可读历史 READY 保留；不 queue/create Run，不选择默认 Policy/Runtime/无限预算；按真实层级返回拒绝 | NOT RUN |
 | TE-RUN-D-004 | Queue/Run/Start/Reconcile 的自身 Grant/Decision 分别缺失、撤销、到期、配置漂移；依赖 Bundle/Policy/跨模块 Query 授权单独缺失 | 相应 protected repository 读数为 0 或提交前拒绝；无成功状态、Claim、Event；同 principal/历史 Receipt 不替代独立授权 | NOT RUN |
@@ -448,3 +448,23 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-RUN-D-012 | 空库迁移、#219 升级库、二次 migrate、真实 app-role 直 SQL/RLS/ACL 与历史 Renderer/READY 回归 | 新 Bundle/Run/Claim/Attempt/Receipt kind 约束成立；旧行逐字节读回；第二次 no-op；无授权/错 Scope/Hash/来源的写入拒绝 | NOT RUN |
 
 实现验证目标为 `vibe verify full --json`，含真实 PostgreSQL persistence gate；真实 CLI/Provider/飞书、Result/Usage/Completion 与独立人工验收继续 `NOT RUN`。
+
+### 受控 final AgentResult → Acceptance → terminal Run 设计矩阵
+
+状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23`。依据 [Spec 003 §23](../module-specs/Module-Spec-003-TaskExecution.md#23-受控-final-agentresult-接纳与-run-终结增量设计提案)；以下均为预期，不能继承 `TE-RUN-D-*` 的执行结果。受控正链必须从真实 owning READY/Bundle/Attempt/Run 入口开始，Driver 实际释放 final；不以直写 Result、Acceptance 或改 Run 表制造正例。
+
+| ID | 层级与输入 | 必须观察的结果 | 当前结果 |
+|---|---|---|---|
+| TE-FINAL-D-001 | Contract/Registry：五个新增 operation、四个新增 objectType 与静态 Result Evaluator；已发布 start/submit/accept/read/两 Event/IG Binding Query 全部正反 fixture | Catalog/Registry 226、TE 53、IG 26、历史 Baseline 200；final Query 请求仅有 Attempt Ref、响应返回 submission/Adapter 实例 Ref；新增 Schema/Result/Ref/Purpose closed；旧 Schema/metadata/fixture 逐字节不变；未知 selector 拒绝 | NOT RUN |
+| TE-FINAL-D-002 | 实际 synthetic ack 建立独立 Adapter 实例身份；TE start 经 IG 独立授权 Port 将该 Ref 与原 Attempt 一起绑定 Run；Driver 实际释放 FINAL/COMPLETED 空输出，从原 Attempt final 观察→submit→record→validate 五项→accept→finalize；分别在各事务后查询 | `submittedByRuntime` 精确等于 Run 的不可变 `runtime_adapter_identity_ref` 与 IG final 响应的 Ref，且不等于 Attempt Ref/静态 selector；同 Run 唯一 Result/Claim/Bundle/五子事实/Acceptance；accept 前 get_agent_result 不可用，accept 后精确读回；Run RUNNING→RESULT_RECORDED→SUCCEEDED、Claim ACTIVE→RELEASED；唯一 AgentResultAccepted 与 RunTerminated；WorkOrder/Task 不进入 COMPLETED | NOT RUN |
+| TE-FINAL-D-003 | 同键相同/不同请求、不同键同一 observation/result、同 id 异 Hash、不同 id 同 Hash、第二 final、IG observation 换 Hash | 真正同事实重放只返回原 Receipt/Result/Event，当前授权先重验；任一冲突不改唯一 reservation/Root/Claim，脱敏审计可定位；不再次 Driver invoke | NOT RUN |
+| TE-FINAL-D-004 | 伪造 caller final、错 Attempt/ack/Adapter 实例 Ref/session/Run/Contract/Context/Bundle/Scope/fencing、以 Attempt Ref 或静态 selector 充当 `submittedByRuntime`、原 Hash 与自洽替代 request/Result、未提交 IG observation、Query body 与 submit body 不一致 | start 缺真实实例身份或独立授权即拒绝；submit 前 fail closed，Result/Claim/Acceptance/Run 成功变更为 0；IG Query 与 TE 自身独立授权，不能用 Result body 反向造 IG 成功事实 | NOT RUN |
+| TE-FINAL-D-005 | Core-valid 但非本轮 FINAL/COMPLETED、非空 BusinessOutput/Workspace/Finding/Proposal、runtimeUsageRef/continuation、错 Header/Provenance/时间 | 不支持项稳定拒绝且不占 final reservation；无 Artifact spelling alias 或假的 owning Query；agentDeclaredUsage 只作为非权威原文封存 | NOT RUN |
+| TE-FINAL-D-006 | Validator 五项分别错 kind/bundle/result/Run/Attempt/policy/evaluator/Scope/hash/validUntil；混拼两次判断；caller 自报 valid/disposition=REJECTED/QUARANTINED；单项判断过期或来源变更 | 只有完整同一有效 Bundle 的五项 SATISFIED + 当前事实重验可 ACCEPTED；Bundle/子事实原子提交；无半套判断、第二 Acceptance 或伪造 Event；ExpectedOutput 未交付不自动使空输出无效 | NOT RUN |
+| TE-FINAL-D-007 | Run 锁等待后 lease/deadline 跨期，Policy/Grant/Bundle/Decision 撤销或取代；重放已有 Receipt；IG final 在到期后才释放 | 所有新执行资格与历史结果返回前当前重验；迟到观察可审计但不能封存可用 Result/Acceptance/terminal SUCCEEDED；无越权 protected read；已存事实不被改写 | NOT RUN |
+| TE-FINAL-D-008 | finalize 与 expire 并发；两个 finalize 不同 Acceptance；尚无 Acceptance、仅 Result reservation、仅 RESULT_RECORDED、已经 SUCCEEDED 的重复/冲突请求 | 单一 terminal 赢；SUCCEEDED+RELEASED 或 TIMED_OUT+EXPIRED 成对提交，绝无交叉状态；RunTerminated 恰一次；未到 deadline 不能 expire，超期不能 finalize；同事实重放不增版本 | NOT RUN |
+| TE-FINAL-D-009 | IG final 事务已提交但 TE handoff/Process 进度从未提交即崩溃，重启只扫描 RUNNING/ACTIVE、已有 Attempt Ref、无 reservation、未过期的 Run；另在 TE submit/record/Bundle/accept/terminal 每步提交后模拟崩溃；Receipt/Outbox 插入后故障 | Process 仅凭 Run 保存的 Attempt Ref，经独立授权 IG Query 取得唯一 final 的 submission Ref/body/hash 后恢复；无 final 保持等待；后续以原 source fact/hash/step 恢复，不生成第二 Result/Driver 调用/Event；目标事务失败整体回滚、上游事实保留；到期按独立监控资格清理 | NOT RUN |
+| TE-FINAL-D-010 | PostgreSQL 空库/#222 升级/二次 no-op；新 Run 实例身份 Ref 错配、历史 RUNNING 行无该前向 Ref；原 TaskReadiness/Validation/Run/Claim/Renderer 行无损读回；app-role 直 SQL 缺来源、错 Hash/Scope/ref、UPDATE/DELETE、无 Context/跨 Project | forward migrations 不改 V3006/V7002；新 Run start 将实例 Ref 与原 Attempt 同事务绑定，历史无绑定 Run 不进入 final 正链但可按期限 expire；本 Schema 内镜像、唯一性、状态转移、source Receipt、FORCE RLS/ACL 真正拒绝；IG 实际调用和跨模块授权另由 owning 集成证据证明 | NOT RUN |
+| TE-FINAL-D-011 | 查询与业务边界：已接纳但未 finalize、Run SUCCEEDED 但 ExpectedOutput 缺失、Usage 查询、Completion 查询 | 两个权威 Query 精确反映各自已提交状态；Result 接纳与 Run 终结不等于 WorkOrder/Task/DeliveryItem 完成；Runtime Usage 维持 UNKNOWN/UNAVAILABLE；外部/人工验收单独 NOT RUN | NOT RUN |
+
+实现时先执行新增 Contract/授权/IG/TE 定向单元与真实 PostgreSQL 正负例，再执行 `vibe verify full --json`（clean build 与持久化 gate）；每行只在其完整输入、输出和证据层级均执行后记录实际。设计阶段不把文档矩阵写为 PASS。

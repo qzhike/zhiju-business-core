@@ -143,3 +143,16 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 | IG-RUN-D-005 | Raw Receipt 已提交而 Attempt 状态未提交、Attempt SUCCEEDED 后 Worker 进度未提交、两次并发同键请求 | 原已提交事实不伪造 success；原键/Observation 恢复，唯一成功 Event/Driver 调用；异 payload 冲突 | NOT RUN |
 
 以上均须用真实 owning 入口与 PostgreSQL 约束执行；静态设计/合成样本本身不记录为运行通过。
+
+### IM06-FINAL 原调用 final 观察设计矩阵
+
+状态：`DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23`。依据 Spec 007 final 增量与 Runtime Adapter 受控 Driver addendum；本矩阵不把静态 fixture 当作实际 Driver 证据，所有行目前 `NOT RUN`。
+
+| ID | 层级与输入 | 必须观测的结果 | 实际 |
+|---|---|---|---|
+| IG-FINAL-D-001 | 新 Attempt 预分配独立实例 ID 并传给实际 synthetic Driver；真实 ack 回显后 IG 同事务提交 Adapter 实例身份；Run 启动后 Driver 实际释放 FINAL；IG `readFinal(attemptRef)`、持久化、以仅含 Attempt Ref 的独立 Query 读回 | 实例身份 `ObjectRef<zhiju.runtime.runtime>` 与 Attempt 不同且一对一，内部授权 Port 返回原 ack 的同一 Ref；final `submittedByRuntime`、观察与 Query 身份 Ref 完全一致；原 invocation 的稳定 submission Ref、完整 payload Hash、ack observation ID、bindingHash/fencing/Run/Scope 闭合；一个不可变 final Observation；Query 返回已提交完整受控 Result body 与 Hash/Ref/来源，不返回秘密或原始 Prompt/stdout | NOT RUN |
+| IG-FINAL-D-002 | 仅预分配实例 ID 但 Driver 未调用/无真实 ack、ack 回显另一 ID 或原 binding、final 尚未释放、Attempt UNKNOWN、错 Driver profile、caller 仅提供 Result body 或预期 fixture Hash | 预分配不成为有效 Adapter 身份；内部 Port/final Query 不产生成功视图；没有原调用观察不得构造 final；不存在第二次 invoke；无授权 protected read 为 0 | NOT RUN |
+| IG-FINAL-D-003 | 同 Attempt/ack/实例身份/submission 重读、ack/final 事务提交后响应/进度丢失；同 id 异 Hash、第二实例或第二 final、换 ack/session/Run/fencing/Adapter Ref、错 Scope | 合法重读精确原身份 Ref、submission Ref/Hash/时间且各只有一行；冲突安全隔离，不覆盖原观察/ack/身份；TE 不能用新的自洽 payload 冒名 | NOT RUN |
+| IG-FINAL-D-004 | 原调用在 Run 到期后才释放 final，或写入 final 时 TE 已 terminal；IG 与 TE 异步/暂时不可用 | IG 可以保留真实迟到历史观察；TE 按当前 Run/Claim/期限单独拒绝执行资格；IG Query 不投影 Run SUCCEEDED | NOT RUN |
+| IG-FINAL-D-005 | PostgreSQL 空库/#222 升级/二次 no-op；app-role 直 SQL 将预分配 ID 伪造为实例、缺 source Receipt、错原 Attempt/ack FK/Hash/Scope、UPDATE/DELETE、异 Project/无 Context；Renderer 旧行 | 本 Schema 内实例身份与原 Attempt/ack/Receipt 的镜像、source、唯一性、不可变、RLS/ACL 拒绝；历史 Runtime ack 可读但不凭空补实例，Renderer Receipt/Attempt 查询无损；Driver 实际调用由集成证据另证 | NOT RUN |
+| IG-FINAL-D-006 | IG final 观察已提交而 TE handoff 未开始/失败，TE 重启以原 Run 已存 Attempt Ref 查询；未提交 final 或另一个 Attempt Ref 查询；模拟 Worker 重启 | 仅凭同一 Attempt Ref 精确取回唯一 final 的 submission Ref、实例 Ref、原 body/hash；未提交或错 Ref 不可用；Driver 不二次 invoke、不以 TE 待提交 Result 反向生成观察 | NOT RUN |
