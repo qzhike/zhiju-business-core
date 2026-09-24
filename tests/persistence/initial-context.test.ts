@@ -7060,9 +7060,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     });
   });
   async function readyTaskForValidation(taskId: string) {
+    const taskCodeSuffix = taskId.replaceAll('-', '');
     const capabilityCodes = {
-      taskReadinessBuildV1: 'wi219.task.readiness',
-      taskReadyV1: 'wi219.task.ready',
+      taskReadinessBuildV1: `wi219.task.readiness.${taskCodeSuffix}`,
+      taskReadyV1: `wi219.task.ready.${taskCodeSuffix}`,
     };
     await grant({
       capabilityCode: capabilityCodes.taskReadinessBuildV1,
@@ -7175,9 +7176,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(ready, JSON.stringify(ready)).toMatchObject({ status: 'COMMITTED' });
   }
 
-  itIntegration(
-    'TE-VAL-S-008 completes the owning Validation, Freeze and authoritative Contract path',
-    async () => {
+  describe('TE-VAL-S-008 first Run terminal paths', () => {
+    const runScenario = async (terminalScenario: 'SUCCEEDED' | 'TIMED_OUT') => {
       // This independent chain must not inherit the time spent running the
       // preceding 22 cases: the Decision lookup's bootstrap lease is 60s
       // from the trusted instant, and PostgreSQL checks it against wall time.
@@ -7229,7 +7229,13 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           'TARGET_TYPE',
         ],
       ] as const)
-        await grant({ principal: service, capabilityCode, action, targetObjectType, selectorType });
+        await grant({
+          principal: service,
+          capabilityCode,
+          action,
+          targetObjectType,
+          selectorType,
+        });
       const codes = Object.fromEntries(
         WORK_ORDER_VALIDATION_BINDINGS.map((b, i) => [b.capabilityConfigKey, `wi219.auth.c${i}`]),
       ) as WorkOrderValidationCapabilityCodes;
@@ -7255,7 +7261,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         idempotencyKey: newUuidV7(),
         effectiveFrom: PAST,
         policySchemaRefs: [profileReference(CAPTURE_PROFILE)],
-        policyDocument: { maxSliceValiditySeconds: 3600, allowedPurposeCodes: [PURPOSE_DOCUMENT] },
+        policyDocument: {
+          maxSliceValiditySeconds: 3600,
+          allowedPurposeCodes: [PURPOSE_DOCUMENT],
+        },
       });
       const slice = await captureSlice({
         principal: service,
@@ -7294,7 +7303,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const revised = replaceControls(candidate) as Record<string, unknown>;
       // The first Run subset requires a finite wall clock limit. The older
       // READY fixture only carried tokenLimit, which remains legal for Freeze.
-      record(revised.budget).wallClockLimit = 'PT600S';
+      record(revised.budget).wallClockLimit = terminalScenario === 'TIMED_OUT' ? 'PT10S' : 'PT600S';
       // Static selectors are Platform-scoped; recursive fixture scope rewriting
       // is restricted to business refs and must not turn them into Project refs.
       for (const profile of workOrderReadyProfileRegistry.profiles) {
@@ -7396,7 +7405,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       );
       expect(contextBuild, JSON.stringify(contextBuild)).toMatchObject({ status: 'COMMITTED' });
       const contextRef = contextSnapshotRefOf(contextBuild);
-      await verifyWorkOrderValidationUpgrade(admin, fixture.enterpriseId);
+      if (terminalScenario === 'SUCCEEDED')
+        await verifyWorkOrderValidationUpgrade(admin, fixture.enterpriseId);
       revised.workOrderRef = objectRef(WORK_ORDER_V11, woId, scope());
       revised.contextSnapshotRef = contextRef;
       record(revised.versionPins).projectContextContractRef = contextRef;
@@ -7725,7 +7735,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       });
       const shortEnvelope = await envelope(
         'execution.validate_work_order_draft',
-        { ...validationEnvelope.payload, policyRef: shortPolicy } as unknown as CanonicalJsonObject,
+        {
+          ...validationEnvelope.payload,
+          policyRef: shortPolicy,
+        } as unknown as CanonicalJsonObject,
         objectRef(
           'zhiju.execution.work_order_validation',
           newUuidV7(),
@@ -7801,7 +7814,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(await receiptRows(expiredFreeze.idempotencyKey)).toEqual([]);
       const conflictEnvelope = await envelope(
         'execution.validate_work_order_draft',
-        { ...validationEnvelope.payload, policyRef: shortPolicy } as unknown as CanonicalJsonObject,
+        {
+          ...validationEnvelope.payload,
+          policyRef: shortPolicy,
+        } as unknown as CanonicalJsonObject,
         validationEnvelope.targetRef,
       );
       await expect(
@@ -8016,7 +8032,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const firstRunCodes = Object.fromEntries(
         CONTROLLED_FIRST_RUN_BINDINGS.map((binding, index) => [
           binding.boundary,
-          `wi221.auth.c${index}`,
+          `wi221.auth.c${index}.${serviceId.replaceAll('-', '')}`,
         ]),
       ) as ControlledFirstRunCapabilityCodes;
       const firstRunGrants = new Map<string, string>();
@@ -8045,6 +8061,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         capabilityCodes: firstRunCodes,
         now: () => new Date(clock),
       });
+      const runtimeJournal = new InMemoryRenderObjectStorage();
       const runtimeDriver = new LocalSyntheticRuntimeDriver(
         (input, ack) =>
           ({
@@ -8096,14 +8113,17 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             },
             humanSummary: 'Controlled synthetic execution completed.',
           }) as unknown as CanonicalJsonObject,
+        runtimeJournal,
+        () => new Date(clock),
       );
+      if (terminalScenario === 'TIMED_OUT') runtimeDriver.releaseFinal = () => Promise.resolve();
       const firstRunEntry = createControlledFirstRunEntry({
         taskExecutionDb: teDb,
         enterpriseProjectDb,
         identity: { db: identityDb, repo: identityRepo, crypto },
         integrationGatewayDb: createIntegrationRendererDatabase(tePool),
         runtimeDriver,
-        receiptStorage: new InMemoryRenderObjectStorage(),
+        receiptStorage: runtimeJournal,
         capabilityCodes: firstRunCodes,
         capabilities: dependencyCapabilities,
         now: () => new Date(clock),
@@ -8244,6 +8264,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(await firstRunEntry.queue(queueEnvelope, sessionFor())).toMatchObject({
         status: 'DUPLICATE',
       });
+      if (terminalScenario === 'TIMED_OUT') clock = Date.now();
       const runRef = objectRef('execution.run', newUuidV7(), scope()) as Common.ObjectRef;
       const bundleEnvelope = await firstRunEnvelope(
         'identity.issue_execution_capability_bundle',
@@ -8272,6 +8293,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         )
       ).rows[0]?.valid_until;
       if (bundleValidUntil === undefined) throw new Error('missing Bundle');
+      const runDeadline = new Date(
+        Math.min(
+          bundleValidUntil.getTime(),
+          clock + (terminalScenario === 'TIMED_OUT' ? 10_000 : 600_000),
+        ),
+      );
       const runtimeBinding = {
         adapterCode: 'te.human_operated.synthetic',
         adapterVersion: '1.0',
@@ -8293,7 +8320,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             leasePolicyRef: controlsRef,
             attemptNumber: 1,
             runtimeBinding,
-            executionDeadline: bundleValidUntil.toISOString(),
+            executionDeadline: runDeadline.toISOString(),
           },
         } as unknown as CanonicalJsonObject,
         service,
@@ -8487,17 +8514,126 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         { attemptRef } as unknown as CanonicalJsonObject,
         'runtimeFinalReadV1',
       );
+      if (terminalScenario === 'TIMED_OUT') {
+        const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
+        if (deadlineWait > 0)
+          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        clock = Date.now();
+        const lateDriver = new LocalSyntheticRuntimeDriver(
+          undefined,
+          runtimeJournal,
+          () => new Date(clock),
+        );
+        await lateDriver.releaseFinal(attemptRef);
+        expect((await lateDriver.readFinal(attemptRef))?.observedAt).toEqual(new Date(clock));
+        const lateFinalQuery = await firstRunQuery(
+          'integration.get_runtime_final_observation',
+          attemptRef,
+          { attemptRef } as unknown as CanonicalJsonObject,
+          'runtimeFinalReadV1',
+        );
+        const lateFinal = await firstRunEntry.observeRuntimeFinal(
+          lateFinalQuery,
+          sessionFor(service),
+        );
+        expect(lateFinal).toBeDefined();
+        const expiredEnvelope = await firstRunEnvelope(
+          'execution.expire_run',
+          runRef,
+          { reason: 'DEADLINE_EXCEEDED' },
+          service,
+          2,
+        );
+        const expired = await firstRunEntry.expireRun(expiredEnvelope, sessionFor(service));
+        expect(expired, JSON.stringify(expired)).toMatchObject({ status: 'COMMITTED' });
+        expect(await firstRunEntry.expireRun(expiredEnvelope, sessionFor(service))).toMatchObject({
+          status: 'DUPLICATE',
+        });
+        const lateBody = record(lateFinal?.agentResultContract);
+        const lateSubmit = await firstRunEnvelope(
+          'execution.submit_agent_result',
+          objectRef(
+            'execution.agent_result',
+            String(lateBody.agentResultId),
+            scope(),
+          ) as Common.ObjectRef,
+          {
+            agentResultContract: lateBody,
+            runFencingToken: 1,
+            runtimeSubmissionRef: lateFinal?.runtimeSubmissionRef,
+          } as unknown as CanonicalJsonObject,
+          service,
+        );
+        await expect(
+          firstRunEntry.submitAgentResult(lateSubmit, sessionFor(service)),
+        ).rejects.toBeDefined();
+        expect(
+          await firstRunEntry.getRunState(
+            await firstRunQuery(
+              'execution.get_run_state',
+              runRef,
+              { runRef } as unknown as CanonicalJsonObject,
+              'runStateReadV1',
+            ),
+            sessionFor(service),
+          ),
+        ).toMatchObject({
+          status: 'TIMED_OUT',
+          terminationReason: 'EXECUTION_DEADLINE_EXCEEDED',
+        });
+        expect(
+          (
+            await admin.query<{ status: string }>(
+              'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ status: 'EXPIRED' }]);
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '0' }]);
+        expect(
+          (
+            await admin.query<{ event_type: string; count: string }>(
+              "SELECT event_type,count(*)::text FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.RunTerminated' GROUP BY event_type",
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ event_type: 'execution.RunTerminated', count: '1' }]);
+        return;
+      }
       await expect(
         firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
       ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND' });
-      const observed = await firstRunEntry.observeRuntimeFinal(finalQuery, sessionFor(service));
+      const observingDriver = new LocalSyntheticRuntimeDriver(undefined, runtimeJournal);
+      const observingEntry = createControlledFirstRunEntry({
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        integrationGatewayDb: createIntegrationRendererDatabase(tePool),
+        runtimeDriver: observingDriver,
+        receiptStorage: runtimeJournal,
+        capabilityCodes: firstRunCodes,
+        capabilities: dependencyCapabilities,
+        now: () => new Date(clock),
+      });
+      expect(await observingDriver.readFinal(attemptRef)).toEqual(
+        await runtimeDriver.readFinal(attemptRef),
+      );
+      expect(observingDriver.invokedAttemptIds).toEqual([]);
+      const observed = await observingEntry.observeRuntimeFinal(finalQuery, sessionFor(service));
       expect(observed).toBeDefined();
       const finalView = await firstRunEntry.getRuntimeFinalObservation(
         finalQuery,
         sessionFor(service),
       );
       expect(finalView.observationRef).toEqual(observed?.observationRef);
-      expect(await firstRunEntry.observeRuntimeFinal(finalQuery, sessionFor(service))).toEqual(
+      expect(await observingEntry.observeRuntimeFinal(finalQuery, sessionFor(service))).toEqual(
         finalView,
       );
       const restartedDriver = new LocalSyntheticRuntimeDriver();
@@ -8606,7 +8742,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         validateEnvelope,
         sessionFor(service),
       );
-      expect(validatedFinal, JSON.stringify(validatedFinal)).toMatchObject({ status: 'COMMITTED' });
+      expect(validatedFinal, JSON.stringify(validatedFinal)).toMatchObject({
+        status: 'COMMITTED',
+      });
       expect(
         (
           await admin.query<{ judgment_kind: string; result_id: string }>(
@@ -8837,6 +8975,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       await expect(firstRunEntry.queue(queueEnvelope, sessionFor())).rejects.toMatchObject({
         code: 'AUTHORIZATION_REVOKED',
       });
-    },
-  );
+    };
+    itIntegration('completes Validation, Freeze and SUCCEEDED Run', () => runScenario('SUCCEEDED'));
+    itIntegration('expires a Run after a late synthetic final', () => runScenario('TIMED_OUT'));
+  });
 });

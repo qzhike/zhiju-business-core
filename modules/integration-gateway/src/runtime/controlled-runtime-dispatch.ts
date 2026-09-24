@@ -1105,9 +1105,43 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
       input: Parameters<SyntheticRuntimeDriver['invoke']>[0],
       acknowledgement: SyntheticRuntimeAcknowledgement,
     ) => CanonicalJsonObject,
+    private readonly journal?: RenderObjectStoragePort,
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
-  invoke(input: {
+  private locator(ref: Common.ObjectRef, kind: 'invocation' | 'final'): string {
+    return `integration/runtime/synthetic/${ref.objectId}/${kind}.json`;
+  }
+
+  private async writeJournal(
+    ref: Common.ObjectRef,
+    kind: 'invocation' | 'final',
+    value: CanonicalJsonObject,
+  ): Promise<void> {
+    if (this.journal === undefined) return;
+    await this.journal.putImmutable({
+      locator: this.locator(ref, kind),
+      bytes: Buffer.from(canonicalize(value), 'utf8'),
+      mediaType: 'application/json',
+    });
+  }
+
+  private async readJournal(
+    ref: Common.ObjectRef,
+    kind: 'invocation' | 'final',
+  ): Promise<CanonicalJsonObject | undefined> {
+    if (this.journal === undefined) return undefined;
+    const stored = await this.journal.read(this.locator(ref, kind));
+    if (stored === undefined) return undefined;
+    if (
+      stored.mediaType !== 'application/json' ||
+      createHash('sha256').update(stored.bytes).digest('hex') !== stored.checksum.digest
+    )
+      invalid();
+    return object(JSON.parse(stored.bytes.toString('utf8')));
+  }
+
+  async invoke(input: {
     readonly attemptRef: Common.ObjectRef;
     readonly runtimeAdapterIdentityRef: Common.ObjectRef;
     readonly request: IntegrationGateway.RuntimeDispatchRequest;
@@ -1115,7 +1149,7 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
     readonly bindingHash: Common.ContentHash;
   }): Promise<SyntheticRuntimeAcknowledgement> {
     this.invokedAttemptIds.push(input.attemptRef.objectId);
-    const acknowledgedAt = new Date();
+    const acknowledgedAt = this.now();
     const runtimeSessionRef: Common.ExternalRef = {
       system: 'zhiju.runtime.synthetic',
       resourceType: 'runtime_session',
@@ -1142,35 +1176,76 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
       } as unknown as CanonicalJsonObject,
       acknowledgedAt,
     };
-    this.observations.set(input.attemptRef.objectId, result);
+    let template:
+      | {
+          content: CanonicalJsonObject;
+          templateHash: string;
+          input: Parameters<SyntheticRuntimeDriver['invoke']>[0];
+        }
+      | undefined;
     if (this.finalTemplate !== undefined) {
       const content = structuredClone(this.finalTemplate(input, result));
       if ('submittedAt' in content || 'submittedByRuntime' in content) invalid();
-      this.templates.set(input.attemptRef.objectId, {
+      template = {
         content,
         templateHash: sha256CanonicalJson(content),
         input,
-      });
+      };
     }
-    return Promise.resolve(result);
+    await this.writeJournal(input.attemptRef, 'invocation', {
+      input: input as unknown as CanonicalJsonObject,
+      acknowledgement: {
+        ...result,
+        acknowledgedAt: acknowledgedAt.toISOString(),
+      } as unknown as CanonicalJsonObject,
+      ...(template === undefined
+        ? {}
+        : { content: template.content, templateHash: template.templateHash }),
+    });
+    this.observations.set(input.attemptRef.objectId, result);
+    if (template !== undefined) this.templates.set(input.attemptRef.objectId, template);
+    return result;
   }
 
-  readBack(ref: Common.ObjectRef): Promise<SyntheticRuntimeAcknowledgement | undefined> {
-    return Promise.resolve(this.observations.get(ref.objectId));
+  async readBack(ref: Common.ObjectRef): Promise<SyntheticRuntimeAcknowledgement | undefined> {
+    const current = this.observations.get(ref.objectId);
+    if (current !== undefined) return structuredClone(current);
+    const stored = await this.readJournal(ref, 'invocation');
+    if (stored === undefined) return undefined;
+    const acknowledgement = object(stored.acknowledgement);
+    if (!same(acknowledgement.attemptRef, ref)) invalid();
+    const result = {
+      ...acknowledgement,
+      acknowledgedAt: new Date(stringValue(acknowledgement.acknowledgedAt)),
+    } as unknown as SyntheticRuntimeAcknowledgement;
+    if (!Number.isFinite(result.acknowledgedAt.getTime())) invalid();
+    this.observations.set(ref.objectId, result);
+    return structuredClone(result);
   }
 
-  releaseFinal(ref: Common.ObjectRef): Promise<void> {
-    const acknowledgement = this.observations.get(ref.objectId);
-    const template = this.templates.get(ref.objectId);
-    if (template === undefined) return Promise.resolve();
+  async releaseFinal(ref: Common.ObjectRef): Promise<void> {
+    const acknowledgement = await this.readBack(ref);
+    const stored = await this.readJournal(ref, 'invocation');
+    const template =
+      this.templates.get(ref.objectId) ??
+      (stored?.content === undefined
+        ? undefined
+        : {
+            content: object(stored.content),
+            templateHash: stringValue(stored.templateHash),
+            input: object(stored.input) as unknown as Parameters<
+              SyntheticRuntimeDriver['invoke']
+            >[0],
+          });
+    if (template === undefined) return;
     if (
       acknowledgement === undefined ||
       !same(acknowledgement.attemptRef, ref) ||
       sha256CanonicalJson(template.content) !== template.templateHash
     )
       invalid();
-    if (this.finals.has(ref.objectId)) return Promise.resolve();
-    const observedAt = new Date();
+    if ((await this.readFinal(ref)) !== undefined) return;
+    const observedAt = this.now();
     const runtimeSubmissionRef: Common.ExternalRef = {
       system: 'zhiju.runtime.synthetic',
       resourceType: 'runtime_submission',
@@ -1205,7 +1280,7 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
           .join(','),
       );
     }
-    this.finals.set(ref.objectId, {
+    const result = {
       attemptRef: ref,
       runtimeAdapterIdentityRef: acknowledgement.runtimeAdapterIdentityRef,
       bindingHash: acknowledgement.bindingHash,
@@ -1213,12 +1288,26 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
       runFencingToken: template.input.invocationBinding.fencingToken,
       agentResultContract,
       observedAt,
-    });
-    return Promise.resolve();
+    };
+    await this.writeJournal(ref, 'final', {
+      ...result,
+      observedAt: observedAt.toISOString(),
+    } as unknown as CanonicalJsonObject);
+    this.finals.set(ref.objectId, result);
   }
 
-  readFinal(ref: Common.ObjectRef): Promise<SyntheticRuntimeFinal | undefined> {
+  async readFinal(ref: Common.ObjectRef): Promise<SyntheticRuntimeFinal | undefined> {
     const result = this.finals.get(ref.objectId);
-    return Promise.resolve(result === undefined ? undefined : structuredClone(result));
+    if (result !== undefined) return structuredClone(result);
+    const stored = await this.readJournal(ref, 'final');
+    if (stored === undefined) return undefined;
+    if (!same(stored.attemptRef, ref)) invalid();
+    const recovered = {
+      ...stored,
+      observedAt: new Date(stringValue(stored.observedAt)),
+    } as unknown as SyntheticRuntimeFinal;
+    if (!Number.isFinite(recovered.observedAt.getTime())) invalid();
+    this.finals.set(ref.objectId, recovered);
+    return structuredClone(recovered);
   }
 }
