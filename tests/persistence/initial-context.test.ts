@@ -7187,7 +7187,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
 
   describe('TE-VAL-S-008 first Run terminal paths', () => {
     const runScenario = async (
-      terminalScenario: 'SUCCEEDED' | 'TIMED_OUT' | 'RACE' | 'RECOVERY',
+      terminalScenario: 'SUCCEEDED' | 'TIMED_OUT' | 'RACE' | 'RECOVERY' | 'RECOVERY_EXPIRE',
     ) => {
       // This independent chain must not inherit the time spent running the
       // preceding 22 cases: the Decision lookup's bootstrap lease is 60s
@@ -7317,9 +7317,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       record(revised.budget).wallClockLimit =
         terminalScenario === 'TIMED_OUT'
           ? 'PT10S'
-          : terminalScenario === 'RACE'
+          : terminalScenario === 'RECOVERY_EXPIRE'
             ? 'PT30S'
-            : 'PT600S';
+            : terminalScenario === 'RACE'
+              ? 'PT30S'
+              : 'PT600S';
       // Static selectors are Platform-scoped; recursive fixture scope rewriting
       // is restricted to business refs and must not turn them into Project refs.
       for (const profile of workOrderReadyProfileRegistry.profiles) {
@@ -8315,9 +8317,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           clock +
             (terminalScenario === 'TIMED_OUT'
               ? 10_000
-              : terminalScenario === 'RACE'
+              : terminalScenario === 'RECOVERY_EXPIRE'
                 ? 30_000
-                : 600_000),
+                : terminalScenario === 'RACE'
+                  ? 30_000
+                  : 600_000),
         ),
       );
       const runtimeBinding = {
@@ -8727,6 +8731,86 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       ).toEqual(finalView);
       expect(restartedDriver.invokedAttemptIds).toEqual([]);
       expect(runtimeDriver.invokedAttemptIds).toHaveLength(1);
+      if (terminalScenario === 'RECOVERY_EXPIRE') {
+        const resultBody = record(finalView.agentResultContract);
+        const resultTarget = objectRef(
+          'execution.agent_result',
+          String(resultBody.agentResultId),
+          scope(),
+        ) as Common.ObjectRef;
+        const submitted = await restartedEntry.submitAgentResult(
+          await firstRunEnvelope(
+            'execution.submit_agent_result',
+            resultTarget,
+            {
+              agentResultContract: resultBody,
+              runFencingToken: 1,
+              runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+            } as unknown as CanonicalJsonObject,
+            service,
+          ),
+          sessionFor(service),
+        );
+        expect(submitted, JSON.stringify(submitted)).toMatchObject({ status: 'COMMITTED' });
+        const resultRef = record(committedPayload(submitted as CommandResult))
+          .agentResultRef as Common.ContentAddressedRef;
+        const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
+        if (deadlineWait > 0)
+          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        clock = Date.now();
+        await expect(
+          restartedEntry.recordRunResult(
+            await firstRunEnvelope(
+              'execution.record_run_result',
+              runRef,
+              { agentResultRef: resultRef } as unknown as CanonicalJsonObject,
+              service,
+              2,
+            ),
+            sessionFor(service),
+          ),
+        ).rejects.toMatchObject({ code: 'EXECUTION_JUDGMENT_STALE' });
+        expect(
+          await restartedEntry.expireRun(
+            await firstRunEnvelope(
+              'execution.expire_run',
+              runRef,
+              { reason: 'DEADLINE_EXCEEDED' },
+              service,
+              2,
+            ),
+            sessionFor(service),
+          ),
+        ).toMatchObject({ status: 'COMMITTED' });
+        expect(
+          await restartedEntry.getRunState(
+            await firstRunQuery(
+              'execution.get_run_state',
+              runRef,
+              { runRef } as unknown as CanonicalJsonObject,
+              'runStateReadV1',
+            ),
+            sessionFor(service),
+          ),
+        ).toMatchObject({ status: 'TIMED_OUT', terminationReason: 'EXECUTION_DEADLINE_EXCEEDED' });
+        expect(
+          (
+            await admin.query<{ status: string }>(
+              'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ status: 'EXPIRED' }]);
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              'SELECT count(*)::text FROM task_execution.agent_result_acceptance WHERE result_id=$1',
+              [resultTarget.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '0' }]);
+        return;
+      }
       if (terminalScenario === 'RECOVERY') {
         const executed: string[] = [];
         let failedKey: string | undefined;
@@ -9337,6 +9421,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       'recovers each committed final step after Process restart',
       () => runScenario('RECOVERY'),
       240_000,
+    );
+    itIntegration(
+      'expires a Run with a reserved Result before recovery records it',
+      () => runScenario('RECOVERY_EXPIRE'),
+      180_000,
     );
   });
 });
