@@ -82,3 +82,46 @@ Implementer 认同 2026-09-23 批准 diff SHA 不覆盖 worker/progress 增量�
 ## 交接
 
 执行交回 Implementer/项目侧：解决 `postgres:18.6` pin 与 registry 的漂移后，对新 head 取得当前 `vibe verify full --json`（或等价精确修订 CI `full`）通过证据；Reviewer 届时复审。矩阵 NOT RUN 边界同第 1 轮（IG-FINAL-D-005 的 SQL 负例子项现正确保持 NOT RUN）。GitHub 侧以 PR 评论发布本结论（仍非 formal review）。
+
+---
+
+# 第 3 轮复审（2026-09-25）
+
+- 被审 Head SHA：`b5138bac1021e10b4147a80cbd747cf13666943e`（Base `aa6784062949424668b88b7a4eefab0da0aa447d` 不变；相对第 2 轮仅 1 个提交 `b5138ba` "Record controlled final scope approval and review round two"，纯文档：`.vibe/decisions/task-execution-human-operated.md` +6、`.vibe/reviews/pr-226/Review.md` +28；后者已核对与本地所撰第 2 轮记录逐字节一致）
+- 角色结论：`REQUEST_CHANGES`（唯一剩余阻断项仍为必需验证证据缺失，非实现缺陷）
+
+## 发现 5 的关闭
+
+新增决定 §22.7（2026-09-24）记录：用户在实现会话中明确选择「本 Issue 新增 worker（推荐）」，并明确「批准独立进度授权（推荐）」——即限于 TE SERVICE 读写精确 ProcessInstance 进度的内部 action/config key，原 `runFinalCandidateScanV1` 候选集与权限不扩大；V3008 持久化该已批准进度。该记录如实声明：不改变 §22.5–§22.6 绑定的原设计 diff SHA，不声称新增量已获独立设计复审、`full` 验证或 ready/merge 批准，并把本记录与用户原回复区分为不同证据来源。发现 5 据此关闭；ready/merge 的人类门禁不受本审查影响。
+
+## 本论验证证据（绑定 b5138ba）
+
+- CI [run 36080292542](https://github.com/qzhike/zhiju-business-core/actions/runs/36080292542)：`target=full`，FAILURE。代码阶段 PASS：1,381 测试、catalog/registry 226/226 FULL、compatibility baseline 200 PASS（与第 2 轮相同）。持久化门禁仍在启动前失败：`postgres:18.6` 当前解析 `sha256:5a5a84b1…`，固定 digest `sha256:86c951e0…`（漂移未变；PR 按请求者决定不改 pin/门禁，基线问题另行处理）。
+- PR body 验证节已更新并如实声明当前 head 无完整 PostgreSQL/full PASS。
+- 判定同第 2 轮：验证配置有效、证据当前无法产出；不批准。b5138ba 相对 04abd49 为纯文档增量，基线修复后对新 head 重跑一次 `full` 即可补齐证据。
+
+## 交接
+
+项目侧处理 `postgres:18.6` pin 漂移后，对当前 head 取得 CI `full`（或 `vibe verify full --json`）通过证据；Reviewer 复审后即无剩余 agent 级阻断项。矩阵 NOT RUN 边界不变。本结论已发布为 PR 评论（仍非 formal review）。
+
+---
+
+# 第 4 轮复审（2026-09-25）
+
+- 被审 Head SHA：`b5138bac1021e10b4147a80cbd747cf13666943e`（与第 3 轮相同，Base `aa6784062949424668b88b7a4eefab0da0aa447d` 不变；PR 分支自第 3 轮起无新提交、无新评论）
+- 角色结论：`APPROVE`（agent 级；不授权 ready/merge）
+
+## 基线漂移的处置核对
+
+PR #227（`postgres:18.6` pin 更新）已于 2026-09-25 合并入 main（merge `ff859482411c41c8ccfc4c439db539cd8a936ff4`），其独立审查记录见 [`pr-227/Review.md`](../pr-227/Review.md)，新 pin `sha256:5a5a84b1…` 经 Docker Hub Registry API 独立核实。第 2/3 轮唯一阻断项（pin 漂移导致持久化门禁无法启动）的外部条件已解除。
+
+## 本轮验证证据（绑定 b5138ba + main@ff859482 合并态）
+
+- PR head 未变。为取得「被审 head + 已修复基线」证据，在临时 worktree 将 main 合入 `b5138ba`（合并提交 `e5f8975`；相对被审 head 的增量仅 `tools/persistence/baseline.mjs` 一行与 `.vibe/reviews/pr-227/Review.md`），等价于分支下次同步后 CI 将测试的合并态。
+- `vibe verify environment --json` PASS：PostgreSQL 与 Flyway 均 `PIN_MATCH`。
+- `vibe verify full --json` PASS（exit 0）：代码阶段 76 passed | 41 skipped files、1381 passed | 486 skipped tests；architecture_boundaries=PASS；public_api_generation=PASS（226 操作）；typescript_types=PASS；catalog_registry=PASS（226/226 FULL）；compatibility=PASS（v1.0 基线 200 项不变）。真实 Docker/PostgreSQL 持久化门禁：新 pin 镜像 `server_version=180006`，空库 migrate 经 V6002（含本 PR 的 V3007/V3008/V7003），历史 V6003/V6004 升级执行，45/45 文件、501/501 测试通过（含受控 final 全链 SUCCEEDED、过期、并发 finalize/expire 序列化、崩溃恢复与周期 worker），二次 migrate no-op，容器已清理。
+- PR 自身 CI 检查仍为基线修复前的 FAILURE（run 36080292542）；分支下次同步后 CI 将以相同合并态重跑，预期与本证据一致，ready 前应读回确认。
+
+## 结论与交接
+
+第 1–3 轮全部阻断项闭环：发现 1–4 于第 2 轮确认解决，发现 5 于第 3 轮经决定 §22.7 关闭，唯一剩余证据缺口由本轮 `full` PASS 补齐；无剩余 agent 级阻断项。矩阵 NOT RUN 边界不变（4 行整体 NOT RUN 与各 PARTIAL 子项；外部 Provider、公开 HTTP、跨模块业务 E2E、生产、独立人工业务验收保持 NOT RUN）。`APPROVE` 为独立 agent 审查结论，不授权 ready/merge，人类门禁不变。本记录入库不授权 commit/push；GitHub 侧以 PR 评论发布（认证用户即 PR 作者，仍非 formal review）。
