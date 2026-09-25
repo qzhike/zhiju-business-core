@@ -54,3 +54,31 @@
 ## 交接
 
 结论 REQUEST_CHANGES，执行交回 Implementer：修正发现 1–3（及第 4 项文档事实）后在同一 PR 更新，Reviewer 将复审新 head。发现 5 留给 ready/合并前的人类门禁。本记录入库不授权 commit/push/merge；GitHub 侧以 PR 评论发布同一结论（认证用户即 PR 作者，未形成 formal review）。
+
+---
+
+# 第 2 轮复审（2026-09-25）
+
+- 被审 Head SHA：`04abd491e06f61f72471bc8194c521cb43405f8b`（Base `aa6784062949424668b88b7a4eefab0da0aa447d` 不变；相对第 1 轮仅 1 个新提交 `04abd49` "Align final validation contract and authorization actions with design"，12 文件、+99/-17，其中含按原样入库的第 1 轮 Review.md，已核对与本记录逐字节一致）
+- 角色结论：`REQUEST_CHANGES`（唯一剩余阻断项为必需验证证据缺失，非实现缺陷）
+
+## 第 1 轮发现的处置核对
+
+1. `validate_agent_result@1.0` payload 字段已改为 `runtimeAttemptRef`：`contracts/src/operations/task-execution.schema.ts`、`contracts/registry/public-api.v1.json`（`/payload/runtimeAttemptRef`）、`contracts/src/generated/public-api.ts`、`contracts/src/generated/types/task-execution.ts`、`modules/task-execution/src/business/controlled-final-result.ts:582,949,981`、`tests/persistence/initial-context.test.ts:9639`。与 §23.1/§11.1 一致，**已解决**。
+2. finalize 四条依赖 action 已改为 `*.for_run_finalize.v1`（`modules/identity-policy/src/commands/work-order-validation-authorization.ts:2381,2390,2399,2410`），并新增独立单测 `work-order-validation-authorization.test.ts` 以硬编码期望值断言四条 token（不再从绑定表自身取值，消除了第 1 轮指出的结构性盲区）。**已解决**。
+3. Module-Test-007 IG-FINAL-D-005 已改为「V7003 空库、历史升级、二次 no-op PASS；针对新增 IG 身份与 final 观察表的直 SQL、RLS/不可变负例及完整 SQL 矩阵 NOT RUN」，不再声称未执行的证据。**已解决**（未执行的 SQL 负例保持 NOT RUN 跟踪）。
+4. §38 状态行已计入 `V3008`，并把评审状态更新为 `IMPLEMENTATION REVIEW REQUEST_CHANGES`，与事实一致。**已解决**。
+
+## 本论验证证据（绑定 04abd49）
+
+- CI [run 36076381393](https://github.com/qzhike/zhiju-business-core/actions/runs/36076381393)：`target=full`，**FAILURE**。代码阶段全部 PASS：1,381 测试通过（486 个持久化门控跳过）、architecture boundaries PASS、public-api 生成 PASS（226 操作）、TypeScript 类型生成 PASS（226 payload）、catalog/registry 226/226 FULL、**compatibility baseline 200 PASS**——契约改名在确定性门禁内自洽。
+- 持久化门禁未能开始：`postgres:18.6` tag 当前解析 digest `sha256:5a5a84b1…` 与项目固定 digest `sha256:86c951e0…` 不一致（registry 漂移，非实现失败）。Implementer 报告本地 `environment` 只读探针同样确认 `PIN_MISMATCH`，本地 `full` 无法进入 PostgreSQL。
+- 判定：项目验证配置本身有效（digest 固定是有意的基线保护），但当前环境无法产出 `full` 通过证据；按「没有全部必需目标的当前通过证据不得 APPROVE」，本论结论 REQUEST_CHANGES，要求在镜像 pin/注册表问题解决后取得新 head 的当前 `full` 通过证据。pin  digest 是否更新属项目验证基线决策，须人类授权，且不属于本 PR 的实现范围。
+
+## 发现 5 的反馈评估
+
+Implementer 认同 2026-09-23 批准 diff SHA 不覆盖 worker/progress 增量，并报告：Issue #224 实现期间请求者明确选择在本 Issue 加入周期 worker，且单独批准了限于 TE SERVICE 读写精确 ProcessInstance 进度的内部 action/config key（保留原候选扫描授权），V3008 即持久化该已批准进度。Reviewer 无法从仓库独立核实该会话事实；该声明与实现形态一致（进度授权只读写 ProcessInstance/Step、候选扫描独立）。此项仍待用户本人确认后关闭，不阻断本轮结论，保留给 ready/merge 人类门禁。
+
+## 交接
+
+执行交回 Implementer/项目侧：解决 `postgres:18.6` pin 与 registry 的漂移后，对新 head 取得当前 `vibe verify full --json`（或等价精确修订 CI `full`）通过证据；Reviewer 届时复审。矩阵 NOT RUN 边界同第 1 轮（IG-FINAL-D-005 的 SQL 负例子项现正确保持 NOT RUN）。GitHub 侧以 PR 评论发布本结论（仍非 formal review）。
