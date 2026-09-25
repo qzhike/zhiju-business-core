@@ -2313,7 +2313,7 @@ Freeze 锁 Root 并核验 Root/Snapshot/candidate 期限完全一致且未到期
 
 ## 38. IM-06 final Result、Acceptance 与 Run terminal 的前向持久化提案
 
-状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / NO MIGRATION WRITTEN`。仅在已交付 V3006/V7002 后新增 forward-only TE/IG migrations；不修改已应用文件、历史行、Renderer Receipt 路由或 IdentityPolicy Bundle 表。以下是逻辑/约束设计，具体 migration 号在实现时分配；空库、#222 基线升级及二次 no-op 都须验证。
+状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / V3007, V3008 AND V7003 IN DRAFT PR #226 / LOCAL FULL PASS 2026-09-24 / EXACT HEAD EVIDENCE IN PR #226 / IMPLEMENTATION REVIEW REQUEST_CHANGES`。在已交付 V3006/V7002 后新增 forward-only TE/IG migrations；不修改已应用文件、历史行、Renderer Receipt 路由或 IdentityPolicy Bundle 表。当前实现分配 `V3007`、`V3008` 与 `V7003`；`full` 门禁已验证空库、历史升级和二次 no-op，完整正反矩阵仍按对应 Module-Test 逐项验收。
 
 | Owner / 事实 | 最小新增字段与唯一性 | 原子性、guard 与消费 |
 |---|---|---|
@@ -2330,4 +2330,4 @@ Freeze 锁 Root 并核验 Root/Snapshot/candidate 期限完全一致且未到期
 
 finalize 的 Run、Claim、RunTerminated Outbox、Receipt/Audit/Edge 一次事务提交；expire 的 TIMED_OUT、EXPIRED Claim、同一 Event/Receipt/Audit 一次事务提交。先取得 Run 锁的一方按当前时间/资格决定，后取得的一方只能返回同一事实重放或冲突；不得出现 SUCCEEDED + EXPIRED 或 TIMED_OUT + RELEASED。`get_agent_result@1.0` 在 Acceptance 尚未提交时维持不可用，`get_run_state@1.0` 从已提交 Root 返回原 schema 支持的 Result Ref/terminal 原因。WorkOrder Root 不随该事务修改，Completion 另由后续 owning evaluator 决定。
 
-真实 PostgreSQL 正反验收须覆盖当前 synthetic 正链、预分配但无真实 ack 的身份拒绝、ack 事务回滚/重放的同一实例、错 Attempt/Adapter ID/Scope/ack 的 final 拒绝、两个 submit/finalize/expire 并发、持锁跨期限、IG final 已提交而 TE handoff 前崩溃的 Attempt-only 恢复、Outbox/Receipt 写入后故障回滚、不同键同事实重放、冲突 Hash/Ref、混合五个子判断、直 SQL 缺/错 Context、异 Project/RLS、旧 Run/Claim/Runtime ack/Renderer/Validation 行升级和无损读回；不得用直写 IG final/TE Result 表制造正向链。所有上述执行与外部/人工验收目前 `NOT RUN`。
+真实 PostgreSQL 正反验收须覆盖当前 synthetic 正链、预分配但无真实 ack 的身份拒绝、ack 事务回滚/重放的同一实例、错 Attempt/Adapter ID/Scope/ack 的 final 拒绝、两个 submit/finalize/expire 并发、持锁跨期限、IG final 已提交而 TE handoff 前崩溃的 Attempt-only 恢复、Outbox/Receipt 写入后故障回滚、不同键同事实重放、冲突 Hash/Ref、混合五个子判断、直 SQL 缺/错 Context、异 Project/RLS、旧 Run/Claim/Runtime ack/Renderer/Validation 行升级和无损读回；不得用直写 IG final/TE Result 表制造正向链。当前分支已执行 synthetic 正链、真实 server deadline、迟到 final、到期后 finalize/expire 并发单赢家、Worker 重建读回、同事实重放、冲突 final/错误 submission Ref 与部分 RLS/不可变负例，以及 `full` 的空库、历史升级、二次 no-op；其余矩阵项与外部/人工验收保持 `NOT RUN`，PR #226 仍为 Draft。

@@ -113,6 +113,15 @@ export interface ProcessInstanceTable {
   retry_count: Generated<number>;
   last_consumed_event_id?: string | null;
   blocked_reason_code?: string | null;
+  controlled_final_source_ref?: Json | null;
+  controlled_final_attempt_ref?: Json | null;
+  controlled_final_policy_ref?: Json | null;
+  controlled_final_run_version?: string | null;
+  controlled_final_result_ref?: Json | null;
+  controlled_final_bundle_ref?: Json | null;
+  controlled_final_validation_refs?: Json | null;
+  controlled_final_acceptance_ref?: Json | null;
+  controlled_final_step?: 'SUBMIT' | 'RECORD' | 'VALIDATE' | 'ACCEPT' | 'FINALIZE' | 'DONE' | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
   created_by_principal_id: string;
@@ -131,6 +140,8 @@ export interface ProcessStepTable {
   outcome: 'STARTED' | 'COMPLETED' | 'FAILED' | 'AWAITING_HUMAN' | 'SKIPPED';
   failure_code: string | null;
   human_intervention: string | null;
+  source_fact_ref?: Json | null;
+  stable_idempotency_key?: string | null;
   recorded_at: Generated<Date>;
   created_by_principal_id: string;
 }
@@ -251,6 +262,10 @@ export interface TaskDefinitionSnapshotTable {
 export interface ExecutionJudgmentTable {
   judgment_id: string;
   judgment_kind: string;
+  run_id: Generated<string | null>;
+  result_id: Generated<string | null>;
+  attempt_ref: Generated<Json | string | null>;
+  observation_ref: Generated<Json | string | null>;
   enterprise_id: string;
   project_id: string;
   task_id: string | null;
@@ -343,14 +358,83 @@ export interface RunTable {
   fencing_token: Int8Default;
   lease_expires_at: Date;
   execution_deadline: Date;
-  status: 'CREATED' | 'STARTING' | 'RUNNING';
+  status: 'CREATED' | 'STARTING' | 'RUNNING' | 'RESULT_RECORDED' | 'SUCCEEDED' | 'TIMED_OUT';
   aggregate_version: Int8Default;
   created_at: Date;
   started_at: Date | null;
   start_attempt_ref: Json | null;
+  runtime_adapter_identity_ref: Json | null;
+  result_ref: Json | null;
+  acceptance_ref: Json | null;
+  ended_at: Date | null;
+  termination_reason: string | null;
   source_command_id: string;
   last_command_id: string | null;
   created_by_principal_id: string;
+}
+
+export interface AgentResultTable {
+  result_id: string;
+  run_id: string;
+  enterprise_id: string;
+  project_id: string;
+  attempt_ref: Json;
+  observation_ref: Json;
+  adapter_identity_ref: Json;
+  runtime_submission_ref: Json;
+  fencing_token: Int8Default;
+  result_payload: Json;
+  result_payload_hash: Buffer;
+  source_command_id: string;
+}
+
+export interface RunFinalSubmissionClaimTable {
+  run_id: string;
+  result_id: string;
+  enterprise_id: string;
+  project_id: string;
+  observation_ref: Json;
+  result_payload_hash: Buffer;
+  source_command_id: string;
+}
+
+export interface ResultValidationBundleTable {
+  bundle_id: string;
+  run_id: string;
+  result_id: string;
+  enterprise_id: string;
+  project_id: string;
+  attempt_ref: Json;
+  observation_ref: Json;
+  policy_ref: Json;
+  evaluator_ref: Json;
+  valid_until: Date;
+  canonical_payload: Json;
+  payload_hash: Buffer;
+  source_command_id: string;
+}
+
+export interface ResultValidationFactTable {
+  validation_id: string;
+  bundle_id: string;
+  enterprise_id: string;
+  project_id: string;
+  kind: 'SCHEMA' | 'IDENTITY' | 'RUN_BINDING' | 'SCOPE' | 'BUSINESS_OUTPUT';
+  canonical_payload: Json;
+  payload_hash: Buffer;
+  source_command_id: string;
+}
+
+export interface AgentResultAcceptanceTable {
+  acceptance_id: string;
+  result_id: string;
+  bundle_id: string;
+  run_id: string;
+  enterprise_id: string;
+  project_id: string;
+  canonical_payload: Json;
+  payload_hash: Buffer;
+  source_command_id: string;
 }
 
 export interface WorkOrderRunClaimTable {
@@ -538,6 +622,11 @@ export interface WorkOrderContractTable {
 export interface TaskExecutionDb {
   'task_execution.run': RunTable;
   'task_execution.work_order_run_claim': WorkOrderRunClaimTable;
+  'task_execution.agent_result': AgentResultTable;
+  'task_execution.run_final_submission_claim': RunFinalSubmissionClaimTable;
+  'task_execution.result_validation_bundle': ResultValidationBundleTable;
+  'task_execution.result_validation_fact': ResultValidationFactTable;
+  'task_execution.agent_result_acceptance': AgentResultAcceptanceTable;
   'task_execution.task': TaskTable;
   'task_execution.task_definition_snapshot': TaskDefinitionSnapshotTable;
   'task_execution.execution_judgment': ExecutionJudgmentTable;

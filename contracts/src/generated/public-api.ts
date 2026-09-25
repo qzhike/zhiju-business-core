@@ -727,6 +727,141 @@ export const publicApiOperations = [
     schemaStatus: 'FULL',
   },
   {
+    type: 'execution.record_run_result',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'execution.run',
+    authorizationPurpose: 'execution.run.result.record',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_record_run_result_result',
+    references: [
+      { path: '/targetRef', kind: 'OBJECT', objectType: 'execution.run' },
+      {
+        path: '/payload/agentResultRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.agent_result',
+      },
+    ],
+    resultReferences: [
+      { path: '/runRef', kind: 'OBJECT', objectType: 'execution.run' },
+      { path: '/agentResultRef', kind: 'CONTENT_ADDRESSED', objectType: 'execution.agent_result' },
+    ],
+  },
+  {
+    type: 'execution.validate_agent_result',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.agent_result_validation_bundle',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'execution.agent_result.validate',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_validate_agent_result_result',
+    references: [
+      {
+        path: '/targetRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.execution.agent_result_validation_bundle',
+      },
+      {
+        path: '/payload/agentResultRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.agent_result',
+      },
+      { path: '/payload/runRef', kind: 'OBJECT', objectType: 'execution.run' },
+      {
+        path: '/payload/runtimeAttemptRef',
+        kind: 'OBJECT',
+        objectType: 'integration.runtime_attempt',
+      },
+      { path: '/payload/policyRef', kind: 'VERSIONED', objectType: 'zhiju.identity.policy' },
+      {
+        path: '/payload/evaluatorRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.execution.evaluator_profile',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/bundleRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.agent_result_validation_bundle',
+      },
+      {
+        path: '/schemaValidationRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.validation_result',
+      },
+      {
+        path: '/identityValidationRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.validation_result',
+      },
+      {
+        path: '/runBindingValidationRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.validation_result',
+      },
+      {
+        path: '/scopeValidationRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.validation_result',
+      },
+      {
+        path: '/businessOutputValidationRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.validation_result',
+      },
+    ],
+  },
+  {
+    type: 'execution.finalize_run_from_acceptance',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'execution.run',
+    authorizationPurpose: 'execution.run.finalize',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_finalize_run_from_acceptance_result',
+    references: [
+      { path: '/targetRef', kind: 'OBJECT', objectType: 'execution.run' },
+      {
+        path: '/payload/acceptanceRecordRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.agent_result_acceptance',
+      },
+    ],
+    resultReferences: [
+      { path: '/runRef', kind: 'OBJECT', objectType: 'execution.run' },
+      {
+        path: '/acceptanceRecordRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.agent_result_acceptance',
+      },
+    ],
+  },
+  {
+    type: 'execution.expire_run',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'execution.run',
+    authorizationPurpose: 'execution.run.expire',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_expire_run_result',
+    references: [{ path: '/targetRef', kind: 'OBJECT', objectType: 'execution.run' }],
+    resultReferences: [{ path: '/runRef', kind: 'OBJECT', objectType: 'execution.run' }],
+  },
+  {
     type: 'execution.accept_agent_result',
     version: '1.0',
     kind: 'COMMAND',
@@ -1735,6 +1870,31 @@ export const publicApiOperations = [
         kind: 'CONTENT_ADDRESSED',
         objectType: 'integration.raw_external_receipt',
       },
+    ],
+  },
+  {
+    type: 'integration.get_runtime_final_observation',
+    version: '1.0',
+    kind: 'QUERY',
+    owner: 'integration-gateway',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'integration.runtime.final_observation.read',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/integration_get_runtime_final_observation_result',
+    references: [
+      { path: '/payload/attemptRef', kind: 'OBJECT', objectType: 'integration.runtime_attempt' },
+    ],
+    resultReferences: [
+      { path: '/attemptRef', kind: 'OBJECT', objectType: 'integration.runtime_attempt' },
+      { path: '/runRef', kind: 'OBJECT', objectType: 'execution.run' },
+      {
+        path: '/observationRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.integration.runtime_final_observation',
+      },
+      { path: '/runtimeAdapterIdentityRef', kind: 'OBJECT', objectType: 'zhiju.runtime.runtime' },
     ],
   },
   {

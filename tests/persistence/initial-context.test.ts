@@ -239,6 +239,7 @@ import {
   createWorkOrderValidationEntry,
   createTaskReadinessEntry,
   createControlledFirstRunEntry,
+  createControlledFinalRecoveryWorker,
 } from '@zhiju/api/composition';
 import {
   CONTROLLED_FIRST_RUN_BINDINGS,
@@ -258,7 +259,20 @@ import {
   workOrderReadyProfileRegistry,
   registeredEvaluatorProfileReference,
 } from '@zhiju/contracts';
-import { withTaskExecutionTransaction } from '@zhiju/task-execution';
+import {
+  recoverControlledFinalRuns,
+  scanControlledFinalCandidates,
+  controlledFinalProcessId,
+  listControlledFinalProgress,
+  createControlledFinalProgress,
+  advanceControlledFinalProgress,
+  suspendTimedOutControlledFinalProgress,
+  handleGetWorkOrderContract,
+  withTaskExecutionTransaction,
+  type ControlledFinalRecoveryCommand,
+  type ControlledFinalProgress,
+  type ControlledFinalProgressAdvance,
+} from '@zhiju/task-execution';
 import { hashContractPayload, sha256CanonicalJson } from '@zhiju/shared-kernel';
 import { createHash, createHmac } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -671,8 +685,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
    * test of the suite through the registration wrapper below.
    */
   const INTEGRATION_TEST_TIMEOUT = 60_000;
-  function itIntegration(name: string, run: () => Promise<void>): void {
-    it(name, { timeout: INTEGRATION_TEST_TIMEOUT }, run);
+  function itIntegration(
+    name: string,
+    run: () => Promise<void>,
+    timeout = INTEGRATION_TEST_TIMEOUT,
+  ): void {
+    it(name, { timeout }, run);
   }
 
   /**
@@ -5498,10 +5516,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(221);
+    expect(catalog.operations).toHaveLength(226);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(49);
+    ).toHaveLength(53);
     expect(
       catalog.operations.filter(
         (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
@@ -6875,10 +6893,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
         operations: { type: string; version: string; kind: string; owner: string }[];
       };
-      expect(catalog.operations).toHaveLength(221);
+      expect(catalog.operations).toHaveLength(226);
       expect(
         catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-      ).toHaveLength(49);
+      ).toHaveLength(53);
       const baseline = JSON.parse(readFileSync(COMPATIBILITY_BASELINE, 'utf8')) as
         { type: string }[] | { operations: { type: string }[] };
       expect(Array.isArray(baseline) ? baseline : baseline.operations).toHaveLength(200);
@@ -7060,9 +7078,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     });
   });
   async function readyTaskForValidation(taskId: string) {
+    const taskCodeSuffix = taskId.replaceAll('-', '');
     const capabilityCodes = {
-      taskReadinessBuildV1: 'wi219.task.readiness',
-      taskReadyV1: 'wi219.task.ready',
+      taskReadinessBuildV1: `wi219.task.readiness.${taskCodeSuffix}`,
+      taskReadyV1: `wi219.task.ready.${taskCodeSuffix}`,
     };
     await grant({
       capabilityCode: capabilityCodes.taskReadinessBuildV1,
@@ -7175,9 +7194,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(ready, JSON.stringify(ready)).toMatchObject({ status: 'COMMITTED' });
   }
 
-  itIntegration(
-    'TE-VAL-S-008 completes the owning Validation, Freeze and authoritative Contract path',
-    async () => {
+  describe('TE-VAL-S-008 first Run terminal paths', () => {
+    const runScenario = async (
+      terminalScenario:
+        'SUCCEEDED' | 'TIMED_OUT' | 'RACE' | 'RECOVERY' | 'RECOVERY_WORKER' | 'RECOVERY_EXPIRE',
+    ) => {
       // This independent chain must not inherit the time spent running the
       // preceding 22 cases: the Decision lookup's bootstrap lease is 60s
       // from the trusted instant, and PostgreSQL checks it against wall time.
@@ -7229,7 +7250,13 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           'TARGET_TYPE',
         ],
       ] as const)
-        await grant({ principal: service, capabilityCode, action, targetObjectType, selectorType });
+        await grant({
+          principal: service,
+          capabilityCode,
+          action,
+          targetObjectType,
+          selectorType,
+        });
       const codes = Object.fromEntries(
         WORK_ORDER_VALIDATION_BINDINGS.map((b, i) => [b.capabilityConfigKey, `wi219.auth.c${i}`]),
       ) as WorkOrderValidationCapabilityCodes;
@@ -7255,7 +7282,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         idempotencyKey: newUuidV7(),
         effectiveFrom: PAST,
         policySchemaRefs: [profileReference(CAPTURE_PROFILE)],
-        policyDocument: { maxSliceValiditySeconds: 3600, allowedPurposeCodes: [PURPOSE_DOCUMENT] },
+        policyDocument: {
+          maxSliceValiditySeconds: 3600,
+          allowedPurposeCodes: [PURPOSE_DOCUMENT],
+        },
       });
       const slice = await captureSlice({
         principal: service,
@@ -7294,7 +7324,14 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const revised = replaceControls(candidate) as Record<string, unknown>;
       // The first Run subset requires a finite wall clock limit. The older
       // READY fixture only carried tokenLimit, which remains legal for Freeze.
-      record(revised.budget).wallClockLimit = 'PT600S';
+      record(revised.budget).wallClockLimit =
+        terminalScenario === 'TIMED_OUT'
+          ? 'PT10S'
+          : terminalScenario === 'RECOVERY_EXPIRE'
+            ? 'PT30S'
+            : terminalScenario === 'RACE'
+              ? 'PT30S'
+              : 'PT600S';
       // Static selectors are Platform-scoped; recursive fixture scope rewriting
       // is restricted to business refs and must not turn them into Project refs.
       for (const profile of workOrderReadyProfileRegistry.profiles) {
@@ -7396,7 +7433,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       );
       expect(contextBuild, JSON.stringify(contextBuild)).toMatchObject({ status: 'COMMITTED' });
       const contextRef = contextSnapshotRefOf(contextBuild);
-      await verifyWorkOrderValidationUpgrade(admin, fixture.enterpriseId);
+      if (terminalScenario === 'SUCCEEDED')
+        await verifyWorkOrderValidationUpgrade(admin, fixture.enterpriseId);
       revised.workOrderRef = objectRef(WORK_ORDER_V11, woId, scope());
       revised.contextSnapshotRef = contextRef;
       record(revised.versionPins).projectContextContractRef = contextRef;
@@ -7725,7 +7763,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       });
       const shortEnvelope = await envelope(
         'execution.validate_work_order_draft',
-        { ...validationEnvelope.payload, policyRef: shortPolicy } as unknown as CanonicalJsonObject,
+        {
+          ...validationEnvelope.payload,
+          policyRef: shortPolicy,
+        } as unknown as CanonicalJsonObject,
         objectRef(
           'zhiju.execution.work_order_validation',
           newUuidV7(),
@@ -7801,7 +7842,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(await receiptRows(expiredFreeze.idempotencyKey)).toEqual([]);
       const conflictEnvelope = await envelope(
         'execution.validate_work_order_draft',
-        { ...validationEnvelope.payload, policyRef: shortPolicy } as unknown as CanonicalJsonObject,
+        {
+          ...validationEnvelope.payload,
+          policyRef: shortPolicy,
+        } as unknown as CanonicalJsonObject,
         validationEnvelope.targetRef,
       );
       await expect(
@@ -8016,7 +8060,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const firstRunCodes = Object.fromEntries(
         CONTROLLED_FIRST_RUN_BINDINGS.map((binding, index) => [
           binding.boundary,
-          `wi221.auth.c${index}`,
+          `wi221.auth.c${index}.${serviceId.replaceAll('-', '')}`,
         ]),
       ) as ControlledFirstRunCapabilityCodes;
       const firstRunGrants = new Map<string, string>();
@@ -8045,14 +8089,69 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         capabilityCodes: firstRunCodes,
         now: () => new Date(clock),
       });
-      const runtimeDriver = new LocalSyntheticRuntimeDriver();
+      const runtimeJournal = new InMemoryRenderObjectStorage();
+      const runtimeDriver = new LocalSyntheticRuntimeDriver(
+        (input, ack) =>
+          ({
+            header: {
+              contractId: newUuidV7(),
+              contractType: 'zhiju.contract.agent_result',
+              contractVersion: '1.0',
+              schemaRef: {
+                kind: 'VERSIONED',
+                objectType: 'zhiju.contract.schema',
+                objectId: '018f22e2-7c15-7b12-8d86-2de956a9d207',
+                versionId: '018f22e2-7c15-7d42-8d86-2de956a9d22a',
+                scope: { enterpriseId: fixture.enterpriseId },
+              },
+              scopeRef: scope(),
+              issuedBy: { principalKind: 'SERVICE', principalId: serviceId },
+              correlationId: CORRELATION,
+              dataClassification: 'INTERNAL',
+              canonicalizationVersion: '1',
+            },
+            agentResultId: newUuidV7(),
+            runRef: input.request.runRef as unknown as CanonicalJsonObject,
+            workOrderRef: input.request.workOrderRef as unknown as CanonicalJsonObject,
+            taskRef: revised.taskRef as CanonicalJsonObject,
+            projectRef: revised.projectRef as CanonicalJsonObject,
+            submissionKind: 'FINAL',
+            executionOutcome: 'COMPLETED',
+            businessOutputs: [],
+            workspaceOutputs: [],
+            findings: [],
+            knowledgeProposals: [],
+            inputRequestProposals: [],
+            followUpProposals: [],
+            provenance: {
+              contextSnapshotRef: input.request.contextSnapshotRef,
+              workOrderContractRef: input.request.workOrderContractRef,
+              capabilityGrantRef: input.request.capabilityGrantRef,
+              runtimeAdapterRef: record(revised.versionPins).runtimeAdapterContractRef,
+              harness: { harnessId: 'zhiju.runtime.synthetic', harnessVersion: '1.0' },
+              provider: 'synthetic',
+              model: {
+                modelId: 'synthetic',
+                modelConfigHash: record(input.request.runtimeBinding).modelConfigHash,
+              },
+              skillRefs: [],
+              policyRefs: [],
+              templateRefs: [],
+              runtimeSessionExternalRef: ack.runtimeSessionRef,
+            },
+            humanSummary: 'Controlled synthetic execution completed.',
+          }) as unknown as CanonicalJsonObject,
+        runtimeJournal,
+        () => new Date(clock),
+      );
+      if (terminalScenario === 'TIMED_OUT') runtimeDriver.releaseFinal = () => Promise.resolve();
       const firstRunEntry = createControlledFirstRunEntry({
         taskExecutionDb: teDb,
         enterpriseProjectDb,
         identity: { db: identityDb, repo: identityRepo, crypto },
         integrationGatewayDb: createIntegrationRendererDatabase(tePool),
         runtimeDriver,
-        receiptStorage: new InMemoryRenderObjectStorage(),
+        receiptStorage: runtimeJournal,
         capabilityCodes: firstRunCodes,
         capabilities: dependencyCapabilities,
         now: () => new Date(clock),
@@ -8078,6 +8177,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                 'runtimeDispatchV1',
                 'runStartV1',
                 'workOrderReconcileV1',
+                'agentResultSubmitV1',
+                'runResultRecordV1',
+                'agentResultValidateV1',
+                'agentResultAcceptV1',
+                'runFinalizeV1',
+                'runExpireV1',
               ].includes(binding.boundary),
           )?.boundary ?? '',
           {
@@ -8187,6 +8292,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(await firstRunEntry.queue(queueEnvelope, sessionFor())).toMatchObject({
         status: 'DUPLICATE',
       });
+      if (terminalScenario !== 'SUCCEEDED') clock = Date.now();
       const runRef = objectRef('execution.run', newUuidV7(), scope()) as Common.ObjectRef;
       const bundleEnvelope = await firstRunEnvelope(
         'identity.issue_execution_capability_bundle',
@@ -8215,6 +8321,19 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         )
       ).rows[0]?.valid_until;
       if (bundleValidUntil === undefined) throw new Error('missing Bundle');
+      const runDeadline = new Date(
+        Math.min(
+          bundleValidUntil.getTime(),
+          clock +
+            (terminalScenario === 'TIMED_OUT'
+              ? 10_000
+              : terminalScenario === 'RECOVERY_EXPIRE'
+                ? 30_000
+                : terminalScenario === 'RACE'
+                  ? 30_000
+                  : 600_000),
+        ),
+      );
       const runtimeBinding = {
         adapterCode: 'te.human_operated.synthetic',
         adapterVersion: '1.0',
@@ -8236,7 +8355,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             leasePolicyRef: controlsRef,
             attemptNumber: 1,
             runtimeBinding,
-            executionDeadline: bundleValidUntil.toISOString(),
+            executionDeadline: runDeadline.toISOString(),
           },
         } as unknown as CanonicalJsonObject,
         service,
@@ -8249,9 +8368,13 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const createdData = record(committedPayload(created as unknown as CommandResult));
       async function firstRunQuery(
         queryType: string,
-        targetRef: Common.ObjectRef,
+        targetRef: Common.ObjectRef | Common.ContentAddressedRef,
         payload: CanonicalJsonObject,
-        key: 'runtimeAttemptBindingReadV1',
+        key:
+          | 'runtimeAttemptBindingReadV1'
+          | 'runtimeFinalReadV1'
+          | 'agentResultReadV1'
+          | 'runStateReadV1',
       ) {
         const decision = await firstRunAuth.authorize(
           identityDeps([fixture.projectId], service),
@@ -8371,6 +8494,1419 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           )
         ).rows,
       ).toEqual([{ status: 'RUNNING', aggregate_version: '2' }]);
+      const scanTarget = objectRef(
+        'zhiju.project.project',
+        fixture.projectId,
+        scope(),
+      ) as Common.ObjectRef;
+      const scanPayloadHash = digestCanonicalPayload({
+        projectRef: scanTarget as unknown as CanonicalJsonObject,
+      }).hash;
+      const scanDecision = await firstRunAuth.authorize(
+        identityDeps([fixture.projectId], service),
+        'runFinalCandidateScanV1',
+        {
+          actorSnapshotRef: service.actorRef,
+          commandType: 'execution.submit_agent_result',
+          commandVersion: '1.0',
+          commandPayloadHash: scanPayloadHash,
+          authenticationContextHash: AUTH_HASH,
+          targetRef: scanTarget,
+        },
+      );
+      expect(scanDecision.outcome).toBe('ALLOW');
+      if (scanDecision.outcome !== 'ALLOW') throw new Error('final scan denied');
+      const scanProof = async () => {
+        const validity = await firstRunAuth.revalidate(
+          identityDeps([fixture.projectId], service),
+          'runFinalCandidateScanV1',
+          {
+            decisionRef: scanDecision.authorizationDecisionRef,
+            expectedCommandType: 'execution.submit_agent_result',
+            expectedCommandVersion: '1.0',
+            expectedCommandPayloadHash: scanPayloadHash,
+            expectedAuthenticationContextHash: AUTH_HASH,
+            expectedTargetRef: scanTarget,
+          },
+        );
+        expect(validity.valid).toBe(true);
+      };
+      const scanContext = {
+        ...runnerContext(service),
+        authorizationDecisionId: scanDecision.authorizationDecisionRef.objectId,
+        authorizationDecisionHash: Buffer.from(
+          scanDecision.authorizationDecisionRef.contentHash.digest,
+          'hex',
+        ),
+        authorizationDecisionExpiresAt: new Date(scanDecision.expiresAt),
+      };
+      const progressTarget = objectRef(
+        'zhiju.project.project',
+        fixture.projectId,
+        scope(),
+      ) as Common.ObjectRef;
+      async function progressAuthorization(payload: CanonicalJsonObject) {
+        const payloadHash = digestCanonicalPayload(payload).hash;
+        const decision = await firstRunAuth.authorize(
+          identityDeps([fixture.projectId], service),
+          'runFinalProcessProgressV1',
+          {
+            actorSnapshotRef: service.actorRef,
+            commandType: 'execution.process_final_progress',
+            commandVersion: '1.0',
+            commandPayloadHash: payloadHash,
+            authenticationContextHash: AUTH_HASH,
+            targetRef: progressTarget,
+          },
+        );
+        expect(decision.outcome).toBe('ALLOW');
+        if (decision.outcome !== 'ALLOW') throw new Error('final progress denied');
+        const proof = async () => {
+          const validity = await firstRunAuth.revalidate(
+            identityDeps([fixture.projectId], service),
+            'runFinalProcessProgressV1',
+            {
+              decisionRef: decision.authorizationDecisionRef,
+              expectedCommandType: 'execution.process_final_progress',
+              expectedCommandVersion: '1.0',
+              expectedCommandPayloadHash: payloadHash,
+              expectedAuthenticationContextHash: AUTH_HASH,
+              expectedTargetRef: progressTarget,
+            },
+          );
+          expect(validity.valid).toBe(true);
+        };
+        return {
+          decisionRef: decision.authorizationDecisionRef,
+          context: {
+            ...runnerContext(service),
+            authorizationDecisionId: decision.authorizationDecisionRef.objectId,
+            authorizationDecisionHash: Buffer.from(
+              decision.authorizationDecisionRef.contentHash.digest,
+              'hex',
+            ),
+            authorizationDecisionExpiresAt: new Date(decision.expiresAt),
+          },
+          proof,
+        };
+      }
+      const progressListPayload = { projectRef: progressTarget } as unknown as CanonicalJsonObject;
+      let progressListAuthorization = await progressAuthorization(progressListPayload);
+      expect(
+        await firstRunAuth.revalidate(
+          identityDeps([fixture.projectId], service),
+          'runFinalProcessProgressV1',
+          {
+            decisionRef: scanDecision.authorizationDecisionRef,
+            expectedCommandType: 'execution.process_final_progress',
+            expectedCommandVersion: '1.0',
+            expectedCommandPayloadHash: digestCanonicalPayload(progressListPayload).hash,
+            expectedAuthenticationContextHash: AUTH_HASH,
+            expectedTargetRef: progressTarget,
+          },
+        ),
+      ).toMatchObject({ valid: false });
+      expect(
+        await firstRunAuth.revalidate(
+          identityDeps([fixture.projectId], service),
+          'runFinalCandidateScanV1',
+          {
+            decisionRef: progressListAuthorization.decisionRef,
+            expectedCommandType: 'execution.submit_agent_result',
+            expectedCommandVersion: '1.0',
+            expectedCommandPayloadHash: scanPayloadHash,
+            expectedAuthenticationContextHash: AUTH_HASH,
+            expectedTargetRef: scanTarget,
+          },
+        ),
+      ).toMatchObject({ valid: false });
+      function progressEnvelope(
+        context: TaskExecutionTransactionContext,
+        processId: string,
+        payload: CanonicalJsonObject,
+        idempotencyKey: string,
+        expectedAggregateVersion?: string,
+      ) {
+        return {
+          commandId: newUuidV7(),
+          commandType: 'execution.process_final_progress',
+          commandVersion: '1.0',
+          idempotencyScope: `execution.process_final_progress@1.0:${fixture.enterpriseId}:${fixture.projectId}`,
+          idempotencyKey,
+          requestPayload: payload,
+          enterpriseId: fixture.enterpriseId,
+          projectId: fixture.projectId,
+          targetType: 'ProcessInstance',
+          targetId: processId,
+          ...(expectedAggregateVersion === undefined ? {} : { expectedAggregateVersion }),
+          correlationId: context.correlationId,
+          principalId: context.principalId,
+          principalKind: context.principalKind,
+          actorSnapshotId: context.actorSnapshotId,
+          authorizationDecisionId: context.authorizationDecisionId,
+          policySnapshotId: context.policySnapshotId,
+        };
+      }
+      expect(
+        await scanControlledFinalCandidates(teDb, scanContext, () => new Date(clock), scanProof),
+      ).toMatchObject([{ runRef, attemptRef }]);
+      const finalQuery = await firstRunQuery(
+        'integration.get_runtime_final_observation',
+        attemptRef,
+        { attemptRef } as unknown as CanonicalJsonObject,
+        'runtimeFinalReadV1',
+      );
+      if (terminalScenario === 'TIMED_OUT') {
+        const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
+        if (deadlineWait > 0)
+          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        clock = Date.now();
+        const lateDriver = new LocalSyntheticRuntimeDriver(
+          undefined,
+          runtimeJournal,
+          () => new Date(clock),
+        );
+        await lateDriver.releaseFinal(attemptRef);
+        expect((await lateDriver.readFinal(attemptRef))?.observedAt).toEqual(new Date(clock));
+        const lateFinalQuery = await firstRunQuery(
+          'integration.get_runtime_final_observation',
+          attemptRef,
+          { attemptRef } as unknown as CanonicalJsonObject,
+          'runtimeFinalReadV1',
+        );
+        const lateFinal = await firstRunEntry.observeRuntimeFinal(
+          lateFinalQuery,
+          sessionFor(service),
+        );
+        expect(lateFinal).toBeDefined();
+        const expiredEnvelope = await firstRunEnvelope(
+          'execution.expire_run',
+          runRef,
+          { reason: 'DEADLINE_EXCEEDED' },
+          service,
+          2,
+        );
+        const expired = await firstRunEntry.expireRun(expiredEnvelope, sessionFor(service));
+        expect(expired, JSON.stringify(expired)).toMatchObject({ status: 'COMMITTED' });
+        expect(await firstRunEntry.expireRun(expiredEnvelope, sessionFor(service))).toMatchObject({
+          status: 'DUPLICATE',
+        });
+        const lateBody = record(lateFinal?.agentResultContract);
+        const lateSubmit = await firstRunEnvelope(
+          'execution.submit_agent_result',
+          objectRef(
+            'execution.agent_result',
+            String(lateBody.agentResultId),
+            scope(),
+          ) as Common.ObjectRef,
+          {
+            agentResultContract: lateBody,
+            runFencingToken: 1,
+            runtimeSubmissionRef: lateFinal?.runtimeSubmissionRef,
+          } as unknown as CanonicalJsonObject,
+          service,
+        );
+        await expect(
+          firstRunEntry.submitAgentResult(lateSubmit, sessionFor(service)),
+        ).rejects.toBeDefined();
+        expect(
+          await firstRunEntry.getRunState(
+            await firstRunQuery(
+              'execution.get_run_state',
+              runRef,
+              { runRef } as unknown as CanonicalJsonObject,
+              'runStateReadV1',
+            ),
+            sessionFor(service),
+          ),
+        ).toMatchObject({
+          status: 'TIMED_OUT',
+          terminationReason: 'EXECUTION_DEADLINE_EXCEEDED',
+        });
+        expect(
+          (
+            await admin.query<{ status: string }>(
+              'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ status: 'EXPIRED' }]);
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '0' }]);
+        expect(
+          (
+            await admin.query<{ event_type: string; count: string }>(
+              "SELECT event_type,count(*)::text FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.RunTerminated' GROUP BY event_type",
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ event_type: 'execution.RunTerminated', count: '1' }]);
+        return;
+      }
+      await expect(
+        firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
+      ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND' });
+      if (terminalScenario === 'RECOVERY' || terminalScenario === 'RECOVERY_WORKER') {
+        expect(
+          await recoverControlledFinalRuns(
+            teDb,
+            scanContext,
+            {
+              now: () => new Date(clock),
+              revalidateScan: scanProof,
+              readFinal: async (originalAttemptRef) => {
+                expect(originalAttemptRef).toEqual(attemptRef);
+                await expect(
+                  firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
+                ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND' });
+                return undefined;
+              },
+              readRun: () => Promise.reject(new Error('unobserved final must not read Run')),
+              readPolicy: () => Promise.reject(new Error('unobserved final must not read Policy')),
+              listProgress: () =>
+                listControlledFinalProgress(
+                  teDb,
+                  progressListAuthorization.context,
+                  progressListAuthorization.proof,
+                ),
+              createProgress: () =>
+                Promise.reject(new Error('unobserved final must not create Process')),
+              advanceProgress: () =>
+                Promise.reject(new Error('unobserved final must not advance Process')),
+              suspendTimedOutProgress: () =>
+                Promise.reject(new Error('unobserved final must not suspend Process')),
+              execute: () => Promise.reject(new Error('unobserved final must not submit')),
+            },
+            1,
+          ),
+        ).toBe(0);
+      }
+      const observingDriver = new LocalSyntheticRuntimeDriver(undefined, runtimeJournal);
+      const observingEntry = createControlledFirstRunEntry({
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        integrationGatewayDb: createIntegrationRendererDatabase(tePool),
+        runtimeDriver: observingDriver,
+        receiptStorage: runtimeJournal,
+        capabilityCodes: firstRunCodes,
+        capabilities: dependencyCapabilities,
+        now: () => new Date(clock),
+      });
+      expect(await observingDriver.readFinal(attemptRef)).toEqual(
+        await runtimeDriver.readFinal(attemptRef),
+      );
+      expect(observingDriver.invokedAttemptIds).toEqual([]);
+      const observed = await observingEntry.observeRuntimeFinal(finalQuery, sessionFor(service));
+      expect(observed).toBeDefined();
+      const finalView = await firstRunEntry.getRuntimeFinalObservation(
+        finalQuery,
+        sessionFor(service),
+      );
+      expect(finalView.observationRef).toEqual(observed?.observationRef);
+      expect(await observingEntry.observeRuntimeFinal(finalQuery, sessionFor(service))).toEqual(
+        finalView,
+      );
+      const conflictingEntry = createControlledFirstRunEntry({
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        integrationGatewayDb: createIntegrationRendererDatabase(tePool),
+        runtimeDriver: {
+          invoke: () => Promise.reject(new Error('unexpected second synthetic invocation')),
+          readBack: (ref) => observingDriver.readBack(ref),
+          readFinal: async (ref) => {
+            const original = await observingDriver.readFinal(ref);
+            return original === undefined
+              ? undefined
+              : {
+                  ...original,
+                  runtimeSubmissionRef: {
+                    ...original.runtimeSubmissionRef,
+                    externalId: newUuidV7(),
+                  },
+                };
+          },
+        },
+        receiptStorage: runtimeJournal,
+        capabilityCodes: firstRunCodes,
+        capabilities: dependencyCapabilities,
+        now: () => new Date(clock),
+      });
+      await expect(
+        conflictingEntry.observeRuntimeFinal(finalQuery, sessionFor(service)),
+      ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_CONFLICT' });
+      expect(
+        await firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
+      ).toEqual(finalView);
+      const restartedDriver = new LocalSyntheticRuntimeDriver();
+      const restartedEntry = createControlledFirstRunEntry({
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        integrationGatewayDb: createIntegrationRendererDatabase(tePool),
+        runtimeDriver: restartedDriver,
+        receiptStorage: new InMemoryRenderObjectStorage(),
+        capabilityCodes: firstRunCodes,
+        capabilities: dependencyCapabilities,
+        now: () => new Date(clock),
+      });
+      expect(
+        await restartedEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
+      ).toEqual(finalView);
+      expect(restartedDriver.invokedAttemptIds).toEqual([]);
+      expect(runtimeDriver.invokedAttemptIds).toHaveLength(1);
+      if (terminalScenario === 'RECOVERY_EXPIRE') {
+        const progressPayload = {
+          runRef,
+          attemptRef,
+          sourceRef: finalView.observationRef,
+          policyRef: controlsRef,
+          runVersion: '2',
+        } as unknown as CanonicalJsonObject;
+        const progressCreation = await progressAuthorization(progressPayload);
+        const observationHash = record(record(finalView.observationRef).contentHash).digest;
+        if (typeof observationHash !== 'string') throw new Error('missing final observation Hash');
+        expect(
+          await createControlledFinalProgress(
+            teDb,
+            progressCreation.context,
+            scanContext,
+            progressEnvelope(
+              progressCreation.context,
+              controlledFinalProcessId(runRef.objectId),
+              progressPayload,
+              `controlled-final:create:${runRef.objectId}:${observationHash}`,
+            ),
+            () => new Date(clock),
+            progressCreation.proof,
+            scanProof,
+          ),
+        ).toMatchObject({ status: 'COMMITTED' });
+        const resultBody = record(finalView.agentResultContract);
+        const resultTarget = objectRef(
+          'execution.agent_result',
+          String(resultBody.agentResultId),
+          scope(),
+        ) as Common.ObjectRef;
+        const submitted = await restartedEntry.submitAgentResult(
+          await firstRunEnvelope(
+            'execution.submit_agent_result',
+            resultTarget,
+            {
+              agentResultContract: resultBody,
+              runFencingToken: 1,
+              runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+            } as unknown as CanonicalJsonObject,
+            service,
+          ),
+          sessionFor(service),
+        );
+        expect(submitted, JSON.stringify(submitted)).toMatchObject({ status: 'COMMITTED' });
+        const resultRef = record(committedPayload(submitted as CommandResult))
+          .agentResultRef as Common.ContentAddressedRef;
+        const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
+        if (deadlineWait > 0)
+          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        clock = Date.now();
+        await expect(
+          restartedEntry.recordRunResult(
+            await firstRunEnvelope(
+              'execution.record_run_result',
+              runRef,
+              { agentResultRef: resultRef } as unknown as CanonicalJsonObject,
+              service,
+              2,
+            ),
+            sessionFor(service),
+          ),
+        ).rejects.toMatchObject({ code: 'EXECUTION_JUDGMENT_STALE' });
+        expect(
+          await restartedEntry.expireRun(
+            await firstRunEnvelope(
+              'execution.expire_run',
+              runRef,
+              { reason: 'DEADLINE_EXCEEDED' },
+              service,
+              2,
+            ),
+            sessionFor(service),
+          ),
+        ).toMatchObject({ status: 'COMMITTED' });
+        expect(
+          await restartedEntry.getRunState(
+            await firstRunQuery(
+              'execution.get_run_state',
+              runRef,
+              { runRef } as unknown as CanonicalJsonObject,
+              'runStateReadV1',
+            ),
+            sessionFor(service),
+          ),
+        ).toMatchObject({ status: 'TIMED_OUT', terminationReason: 'EXECUTION_DEADLINE_EXCEEDED' });
+        expect(
+          (
+            await admin.query<{ status: string }>(
+              'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ status: 'EXPIRED' }]);
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              'SELECT count(*)::text FROM task_execution.agent_result_acceptance WHERE result_id=$1',
+              [resultTarget.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '0' }]);
+        const readExpiredRun = async (currentRunRef: CanonicalJsonObject) =>
+          restartedEntry.getRunState(
+            await firstRunQuery(
+              'execution.get_run_state',
+              currentRunRef as unknown as Common.ObjectRef,
+              { runRef: currentRunRef },
+              'runStateReadV1',
+            ),
+            sessionFor(service),
+          );
+        expect(
+          await recoverControlledFinalRuns(teDb, scanContext, {
+            now: () => new Date(clock),
+            revalidateScan: scanProof,
+            readFinal: () => Promise.reject(new Error('timed-out Process must not query IG')),
+            readRun: async (currentRunRef) => {
+              const state = await readExpiredRun(currentRunRef);
+              return state;
+            },
+            readPolicy: () => Promise.reject(new Error('timed-out Process must not read Policy')),
+            listProgress: () =>
+              listControlledFinalProgress(
+                teDb,
+                progressListAuthorization.context,
+                progressListAuthorization.proof,
+              ),
+            createProgress: () =>
+              Promise.reject(new Error('timed-out Process must not be recreated')),
+            advanceProgress: () =>
+              Promise.reject(new Error('timed-out Process must not advance owning steps')),
+            suspendTimedOutProgress: async (progress) => {
+              const payload = {
+                runRef: progress.runRef,
+                sourceRef: progress.sourceRef,
+                step: progress.step,
+                observedStatus: 'TIMED_OUT',
+              } as CanonicalJsonObject;
+              const authorized = await progressAuthorization(payload);
+              expect(
+                await suspendTimedOutControlledFinalProgress(
+                  teDb,
+                  authorized.context,
+                  progressEnvelope(
+                    authorized.context,
+                    progress.processId,
+                    payload,
+                    `controlled-final:suspend:${progress.processId}:${progress.aggregateVersion}`,
+                    progress.aggregateVersion,
+                  ),
+                  progress,
+                  async (currentRunRef) => (await readExpiredRun(currentRunRef)).status,
+                  authorized.proof,
+                ),
+              ).toMatchObject({ status: 'COMMITTED' });
+            },
+            execute: () => Promise.reject(new Error('timed-out Process must not execute')),
+          }),
+        ).toBe(0);
+        expect(
+          (
+            await admin.query<{ state: string; blocked_reason_code: string }>(
+              'SELECT state,blocked_reason_code FROM task_execution.process_instance WHERE process_id=$1',
+              [controlledFinalProcessId(runRef.objectId)],
+            )
+          ).rows,
+        ).toEqual([{ state: 'SUSPENDED', blocked_reason_code: 'RUN_TIMED_OUT' }]);
+        return;
+      }
+      if (terminalScenario === 'RECOVERY' || terminalScenario === 'RECOVERY_WORKER') {
+        const executed: string[] = [];
+        let failedKey: string | undefined;
+        let failProgressAfterSubmit = terminalScenario === 'RECOVERY';
+        const recoveryPorts = {
+          now: () => new Date(clock),
+          revalidateScan: scanProof,
+          readFinal: async (originalAttemptRef: CanonicalJsonObject) =>
+            (await restartedEntry.getRuntimeFinalObservation(
+              await firstRunQuery(
+                'integration.get_runtime_final_observation',
+                originalAttemptRef as unknown as Common.ObjectRef,
+                { attemptRef: originalAttemptRef },
+                'runtimeFinalReadV1',
+              ),
+              sessionFor(service),
+            )) as unknown as CanonicalJsonObject,
+          readRun: async (currentRunRef: CanonicalJsonObject) =>
+            (await restartedEntry.getRunState(
+              await firstRunQuery(
+                'execution.get_run_state',
+                currentRunRef as unknown as Common.ObjectRef,
+                { runRef: currentRunRef },
+                'runStateReadV1',
+              ),
+              sessionFor(service),
+            )) as {
+              status: string;
+              aggregateVersion: number;
+              currentFencingToken: number;
+              workOrderRef: CanonicalJsonObject;
+            },
+          readPolicy: async (currentWorkOrderRef: CanonicalJsonObject) => {
+            expect(currentWorkOrderRef).toEqual(workOrderRef);
+            const payload = { workOrderRef: currentWorkOrderRef } as CanonicalJsonObject;
+            const payloadHash = digestCanonicalPayload(payload).hash;
+            const signed = await auth.authorizeWorkOrderContractRead(
+              identityDeps([fixture.projectId], service),
+              {
+                actorSnapshotRef: service.actorRef,
+                commandType: 'execution.get_work_order_contract',
+                commandVersion: '1.0',
+                commandPayloadHash: payloadHash,
+                authenticationContextHash: AUTH_HASH,
+                targetRef: currentWorkOrderRef as unknown as Common.ObjectRef,
+              },
+            );
+            expect(signed.outcome).toBe('ALLOW');
+            if (
+              signed.outcome !== 'ALLOW' ||
+              signed.authorizationDecisionRef === undefined ||
+              signed.expiresAt === undefined
+            )
+              throw new Error('Contract read denied');
+            const decisionRef = signed.authorizationDecisionRef;
+            const proof = async () => {
+              const validity = await auth.revalidateWorkOrderContractRead(
+                identityDeps([fixture.projectId], service),
+                {
+                  decisionRef,
+                  expectedCommandType: 'execution.get_work_order_contract',
+                  expectedCommandVersion: '1.0',
+                  expectedCommandPayloadHash: payloadHash,
+                  expectedAuthenticationContextHash: AUTH_HASH,
+                  expectedTargetRef: currentWorkOrderRef as unknown as Common.ObjectRef,
+                },
+              );
+              expect(validity.valid).toBe(true);
+            };
+            const context = {
+              ...runnerContext(service),
+              authorizationDecisionId: signed.authorizationDecisionRef.objectId,
+              authorizationDecisionHash: Buffer.from(
+                signed.authorizationDecisionRef.contentHash.digest,
+                'hex',
+              ),
+              authorizationDecisionExpiresAt: new Date(signed.expiresAt),
+            };
+            const view = await handleGetWorkOrderContract(
+              teDb,
+              context,
+              currentWorkOrderRef,
+              proof,
+            );
+            return record(record(view.workOrderContract).executionPolicy)
+              .leasePolicyRef as CanonicalJsonObject;
+          },
+          listProgress: () =>
+            listControlledFinalProgress(
+              teDb,
+              progressListAuthorization.context,
+              progressListAuthorization.proof,
+            ),
+          createProgress: async (input: {
+            runRef: CanonicalJsonObject;
+            attemptRef: CanonicalJsonObject;
+            sourceRef: CanonicalJsonObject;
+            policyRef: CanonicalJsonObject;
+            runVersion: string;
+          }) => {
+            const payload = input as unknown as CanonicalJsonObject;
+            const authorized = await progressAuthorization(payload);
+            const runId = input.runRef.objectId;
+            const sourceHash = record(input.sourceRef.contentHash).digest;
+            if (typeof runId !== 'string' || typeof sourceHash !== 'string')
+              throw new Error('invalid controlled final source');
+            const processId = controlledFinalProcessId(runId);
+            const outcome = await createControlledFinalProgress(
+              teDb,
+              authorized.context,
+              scanContext,
+              progressEnvelope(
+                authorized.context,
+                processId,
+                payload,
+                `controlled-final:create:${runId}:${sourceHash}`,
+              ),
+              () => new Date(clock),
+              authorized.proof,
+              scanProof,
+            );
+            expect(outcome.status).toBe('COMMITTED');
+          },
+          advanceProgress: async (
+            progress: ControlledFinalProgress,
+            transition: ControlledFinalProgressAdvance,
+          ) => {
+            if (transition.expectedStep === 'SUBMIT' && failProgressAfterSubmit) {
+              failProgressAfterSubmit = false;
+              throw new Error('injected crash after Result commit before Process progress');
+            }
+            const payload = transition as unknown as CanonicalJsonObject;
+            const authorized = await progressAuthorization(payload);
+            const outcome = await advanceControlledFinalProgress(
+              teDb,
+              authorized.context,
+              progressEnvelope(
+                authorized.context,
+                progress.processId,
+                payload,
+                `controlled-final:progress:${progress.processId}:${transition.expectedStep}:${transition.stableIdempotencyKey}`,
+                progress.aggregateVersion,
+              ),
+              transition,
+              authorized.proof,
+            );
+            expect(outcome.status).toBe('COMMITTED');
+          },
+          suspendTimedOutProgress: async (progress: ControlledFinalProgress) => {
+            const payload = {
+              runRef: progress.runRef,
+              sourceRef: progress.sourceRef,
+              step: progress.step,
+              observedStatus: 'TIMED_OUT',
+            } as CanonicalJsonObject;
+            const authorized = await progressAuthorization(payload);
+            const outcome = await suspendTimedOutControlledFinalProgress(
+              teDb,
+              authorized.context,
+              progressEnvelope(
+                authorized.context,
+                progress.processId,
+                payload,
+                `controlled-final:suspend:${progress.processId}:${progress.aggregateVersion}`,
+                progress.aggregateVersion,
+              ),
+              progress,
+              async (currentRunRef) => {
+                const state = await recoveryPorts.readRun(currentRunRef);
+                return state.status;
+              },
+              authorized.proof,
+            );
+            expect(outcome.status).toBe('COMMITTED');
+          },
+          execute: async (next: ControlledFinalRecoveryCommand) => {
+            const envelope = {
+              ...(await firstRunEnvelope(
+                next.commandType,
+                next.targetRef as unknown as Common.ObjectRef,
+                next.payload,
+                service,
+                next.expectedAggregateVersion,
+              )),
+              idempotencyKey: next.idempotencyKey,
+            };
+            let outcome: {
+              status: string;
+              originalOutcome?: string;
+              resultPayload?: CanonicalJsonObject | null;
+            };
+            switch (next.commandType) {
+              case 'execution.submit_agent_result':
+                outcome = await restartedEntry.submitAgentResult(envelope, sessionFor(service));
+                break;
+              case 'execution.record_run_result':
+                outcome = await restartedEntry.recordRunResult(envelope, sessionFor(service));
+                break;
+              case 'execution.validate_agent_result':
+                outcome = await restartedEntry.validateAgentResult(envelope, sessionFor(service));
+                break;
+              case 'execution.accept_agent_result':
+                failedKey = next.idempotencyKey;
+                outcome = await restartedEntry.acceptAgentResult(envelope, sessionFor(service));
+                break;
+              case 'execution.finalize_run_from_acceptance':
+                outcome = await restartedEntry.finalizeRun(envelope, sessionFor(service));
+                break;
+            }
+            executed.push(next.commandType);
+            return outcome;
+          },
+        };
+        if (terminalScenario === 'RECOVERY_WORKER') {
+          const errors: unknown[] = [];
+          const worker = createControlledFinalRecoveryWorker({
+            taskExecutionDb: teDb,
+            projects: [{ scanContext, ports: recoveryPorts }],
+            intervalMs: 10,
+            maxStepsPerProject: 1,
+            onError: (error) => {
+              errors.push(error);
+            },
+          });
+          worker.start();
+          try {
+            const until = Date.now() + 90_000;
+            let status = '';
+            while (Date.now() < until) {
+              const current = await admin.query<{ status: string }>(
+                'SELECT status FROM task_execution.run WHERE run_id=$1',
+                [runRef.objectId],
+              );
+              status = current.rows[0]?.status ?? '';
+              if (status === 'SUCCEEDED') break;
+              await new Promise<void>((resolve) => setTimeout(resolve, 25));
+            }
+            expect(status).toBe('SUCCEEDED');
+          } finally {
+            await worker.stop();
+          }
+          expect(errors).toEqual([]);
+          expect(executed).toEqual([
+            'execution.submit_agent_result',
+            'execution.record_run_result',
+            'execution.validate_agent_result',
+            'execution.accept_agent_result',
+            'execution.finalize_run_from_acceptance',
+          ]);
+          expect(
+            (
+              await admin.query<{ count: string }>(
+                'SELECT count(*)::text FROM task_execution.process_step WHERE process_id=$1',
+                [controlledFinalProcessId(runRef.objectId)],
+              )
+            ).rows,
+          ).toEqual([{ count: '5' }]);
+          expect(await recoveryPorts.listProgress()).toEqual([]);
+          expect(restartedDriver.invokedAttemptIds).toEqual([]);
+          return;
+        }
+        const progressGrantId = firstRunGrants.get('runFinalProcessProgressV1');
+        const progressBinding = CONTROLLED_FIRST_RUN_BINDINGS.find(
+          (binding) => binding.boundary === 'runFinalProcessProgressV1',
+        );
+        if (progressGrantId === undefined || progressBinding === undefined)
+          throw new Error('missing final Process progress Grant');
+        expect(
+          await revokeCapabilityTracked(identityDeps([fixture.projectId], service), {
+            targetId: progressGrantId,
+            expectedAggregateVersion: '1',
+            scope: {
+              scopeKind: 'PROJECT',
+              enterpriseId: fixture.enterpriseId,
+              projectId: fixture.projectId,
+            },
+            reasonCode: 'WI224_REVOKE_FINAL_PROGRESS',
+            effectiveAt: new Date(clock),
+            idempotencyKey: newUuidV7(),
+          }),
+        ).toMatchObject({ status: 'COMMITTED' });
+        await expect(
+          recoverControlledFinalRuns(teDb, scanContext, recoveryPorts, 1),
+        ).rejects.toBeDefined();
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              "SELECT count(*)::text FROM task_execution.process_instance WHERE process_type='controlled-final@1' AND correlation_key=$1",
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '0' }]);
+        await grant({
+          principal: service,
+          capabilityCode: firstRunCodes.runFinalProcessProgressV1,
+          action: progressBinding.requiredGrantAction,
+          selectorType: progressBinding.selectorType,
+          targetObjectType: 'zhiju.project.project',
+        });
+        progressListAuthorization = await progressAuthorization(progressListPayload);
+        await expect(
+          recoverControlledFinalRuns(teDb, scanContext, recoveryPorts, 1),
+        ).rejects.toThrow('injected crash after Result commit before Process progress');
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '1' }]);
+        expect((await recoveryPorts.listProgress()).map((row) => row.step)).toEqual(['SUBMIT']);
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              'SELECT count(*)::text FROM task_execution.process_step WHERE process_id=$1',
+              [controlledFinalProcessId(runRef.objectId)],
+            )
+          ).rows,
+        ).toEqual([{ count: '0' }]);
+        const pendingProgress = (await recoveryPorts.listProgress())[0];
+        if (pendingProgress === undefined) throw new Error('missing pending final Process');
+        const forgedSource = structuredClone(pendingProgress.sourceRef);
+        record(forgedSource.contentHash).digest = '0'.repeat(64);
+        const forgedSourceId = forgedSource.objectId;
+        const forgedSourceHash = record(forgedSource.contentHash).digest;
+        if (typeof forgedSourceId !== 'string' || typeof forgedSourceHash !== 'string')
+          throw new Error('invalid forged source Ref');
+        const forgedTransition: ControlledFinalProgressAdvance = {
+          expectedStep: 'SUBMIT',
+          nextStep: 'RECORD',
+          sourceFactRef: forgedSource,
+          stableIdempotencyKey: `controlled-final:${forgedSourceId}:${forgedSourceHash}:submit`,
+          issuedCommandType: 'execution.submit_agent_result',
+          resultRef: {
+            kind: 'CONTENT_ADDRESSED',
+            objectType: 'execution.agent_result',
+            objectId: record(finalView.agentResultContract).agentResultId,
+            scope: scope(),
+            contentHash: contentHash(
+              hashContractPayload(record(finalView.agentResultContract) as CanonicalJsonObject),
+            ),
+          } as unknown as CanonicalJsonObject,
+        };
+        const forgedPayload = forgedTransition as unknown as CanonicalJsonObject;
+        const forgedAuthorization = await progressAuthorization(forgedPayload);
+        await expect(
+          advanceControlledFinalProgress(
+            teDb,
+            forgedAuthorization.context,
+            progressEnvelope(
+              forgedAuthorization.context,
+              pendingProgress.processId,
+              forgedPayload,
+              `controlled-final:forged:${newUuidV7()}`,
+              pendingProgress.aggregateVersion,
+            ),
+            forgedTransition,
+            forgedAuthorization.proof,
+          ),
+        ).rejects.toMatchObject({ code: 'CONCURRENCY_CONFLICT' });
+        expect((await recoveryPorts.listProgress()).map((row) => row.step)).toEqual(['SUBMIT']);
+        for (let step = 0; step < 5; step += 1) {
+          if (step === 3) {
+            const resultId = String(record(finalView.agentResultContract).agentResultId);
+            await admin.query(`
+              CREATE OR REPLACE FUNCTION task_execution.wi224_fail_accept_event() RETURNS trigger
+              LANGUAGE plpgsql AS $$ BEGIN
+                IF NEW.event_type = 'execution.AgentResultAccepted'
+                   AND NEW.aggregate_id = '${resultId}'::uuid THEN
+                  RAISE EXCEPTION 'injected acceptance outbox failure';
+                END IF;
+                RETURN NEW;
+              END $$`);
+            await admin.query(`
+              CREATE TRIGGER wi224_fail_accept_event BEFORE INSERT ON task_execution.outbox_event
+              FOR EACH ROW EXECUTE FUNCTION task_execution.wi224_fail_accept_event()`);
+            try {
+              await expect(
+                recoverControlledFinalRuns(teDb, scanContext, recoveryPorts, 1),
+              ).rejects.toBeDefined();
+            } finally {
+              await admin.query(
+                'DROP TRIGGER wi224_fail_accept_event ON task_execution.outbox_event',
+              );
+              await admin.query('DROP FUNCTION task_execution.wi224_fail_accept_event()');
+            }
+            expect(failedKey).toBeDefined();
+            expect(await receiptRows(failedKey ?? '')).toEqual([]);
+            expect(
+              (
+                await admin.query<{ count: string }>(
+                  'SELECT count(*)::text FROM task_execution.agent_result_acceptance WHERE result_id=$1',
+                  [resultId],
+                )
+              ).rows,
+            ).toEqual([{ count: '0' }]);
+            expect(
+              (
+                await admin.query<{ count: string }>(
+                  "SELECT count(*)::text FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.AgentResultAccepted'",
+                  [resultId],
+                )
+              ).rows,
+            ).toEqual([{ count: '0' }]);
+          }
+          const advanced = await recoverControlledFinalRuns(teDb, scanContext, recoveryPorts, 1);
+          expect(advanced).toBe(1);
+        }
+        expect(executed).toEqual([
+          'execution.submit_agent_result',
+          'execution.submit_agent_result',
+          'execution.record_run_result',
+          'execution.validate_agent_result',
+          'execution.accept_agent_result',
+          'execution.finalize_run_from_acceptance',
+        ]);
+        expect(
+          await recoverControlledFinalRuns(teDb, scanContext, {
+            ...recoveryPorts,
+            readFinal: () => Promise.reject(new Error('terminal Run must not query IG')),
+            execute: () => Promise.reject(new Error('terminal Run must not execute')),
+          }),
+        ).toBe(0);
+        expect(
+          await restartedEntry.getRunState(
+            await firstRunQuery(
+              'execution.get_run_state',
+              runRef,
+              { runRef } as unknown as CanonicalJsonObject,
+              'runStateReadV1',
+            ),
+            sessionFor(service),
+          ),
+        ).toMatchObject({ status: 'SUCCEEDED' });
+        expect(
+          (
+            await admin.query<{ status: string }>(
+              'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ status: 'RELEASED' }]);
+        expect(
+          (
+            await admin.query<{ event_type: string; count: string }>(
+              "SELECT event_type,count(*)::text FROM task_execution.outbox_event WHERE aggregate_id IN ($1,$2) AND event_type IN ('execution.AgentResultAccepted','execution.RunTerminated') GROUP BY event_type ORDER BY event_type",
+              [runRef.objectId, record(finalView.agentResultContract).agentResultId],
+            )
+          ).rows,
+        ).toEqual([
+          { event_type: 'execution.AgentResultAccepted', count: '1' },
+          { event_type: 'execution.RunTerminated', count: '1' },
+        ]);
+        expect(runtimeDriver.invokedAttemptIds).toHaveLength(1);
+        expect(restartedDriver.invokedAttemptIds).toEqual([]);
+        return;
+      }
+      const resultBody = record(finalView.agentResultContract);
+      const resultTarget = objectRef(
+        'execution.agent_result',
+        String(resultBody.agentResultId),
+        scope(),
+      ) as Common.ObjectRef;
+      let submitEnvelope = await firstRunEnvelope(
+        'execution.submit_agent_result',
+        resultTarget,
+        {
+          agentResultContract: resultBody,
+          runFencingToken: 1,
+          runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
+      const wrongSubmission = await firstRunEnvelope(
+        'execution.submit_agent_result',
+        resultTarget,
+        {
+          agentResultContract: resultBody,
+          runFencingToken: 1,
+          runtimeSubmissionRef: {
+            ...finalView.runtimeSubmissionRef,
+            externalId: newUuidV7(),
+          },
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
+      await expect(
+        firstRunEntry.submitAgentResult(wrongSubmission, sessionFor(service)),
+      ).rejects.toBeDefined();
+      expect(
+        (
+          await admin.query<{ count: string }>(
+            'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
+            [runRef.objectId],
+          )
+        ).rows,
+      ).toEqual([{ count: '0' }]);
+      const submitGrantId = firstRunGrants.get('agentResultSubmitV1');
+      const submitBinding = CONTROLLED_FIRST_RUN_BINDINGS.find(
+        (binding) => binding.boundary === 'agentResultSubmitV1',
+      );
+      if (submitGrantId === undefined || submitBinding === undefined)
+        throw new Error('missing Result submit Grant');
+      expect(
+        await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+          targetId: submitGrantId,
+          expectedAggregateVersion: '1',
+          scope: {
+            scopeKind: 'PROJECT',
+            enterpriseId: fixture.enterpriseId,
+            projectId: fixture.projectId,
+          },
+          reasonCode: 'WI224_REVOKE_RESULT_SUBMIT',
+          effectiveAt: new Date(clock),
+          idempotencyKey: newUuidV7(),
+        }),
+      ).toMatchObject({ status: 'COMMITTED' });
+      await expect(
+        firstRunEntry.submitAgentResult(submitEnvelope, sessionFor(service)),
+      ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+      expect(await receiptRows(submitEnvelope.idempotencyKey)).toEqual([]);
+      await grant({
+        principal: service,
+        capabilityCode: firstRunCodes.agentResultSubmitV1,
+        action: submitBinding.requiredGrantAction,
+        selectorType: submitBinding.selectorType,
+        targetObjectType: 'execution.agent_result',
+      });
+      submitEnvelope = await firstRunEnvelope(
+        'execution.submit_agent_result',
+        resultTarget,
+        {
+          agentResultContract: resultBody,
+          runFencingToken: 1,
+          runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
+      const submitted = await restartedEntry.submitAgentResult(submitEnvelope, sessionFor(service));
+      expect(submitted, JSON.stringify(submitted)).toMatchObject({ status: 'COMMITTED' });
+      expect(
+        await scanControlledFinalCandidates(teDb, scanContext, () => new Date(clock), scanProof),
+      ).toEqual([]);
+      const forgedBody = { ...resultBody, humanSummary: 'Forged final body.' };
+      const forgedSubmit = await firstRunEnvelope(
+        'execution.submit_agent_result',
+        resultTarget,
+        {
+          agentResultContract: forgedBody,
+          runFencingToken: 1,
+          runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+        },
+        service,
+      );
+      await expect(
+        firstRunEntry.submitAgentResult(forgedSubmit, sessionFor(service)),
+      ).rejects.toBeDefined();
+      expect(
+        (
+          await admin.query<{ count: string }>(
+            'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
+            [runRef.objectId],
+          )
+        ).rows,
+      ).toEqual([{ count: '1' }]);
+      const resultRef = record(committedPayload(submitted as CommandResult))
+        .agentResultRef as Common.ContentAddressedRef;
+      const resultQuery = await firstRunQuery(
+        'execution.get_agent_result',
+        resultRef,
+        { agentResultRef: resultRef } as unknown as CanonicalJsonObject,
+        'agentResultReadV1',
+      );
+      await expect(
+        firstRunEntry.getAgentResult(resultQuery, sessionFor(service)),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      const recordEnvelope = await firstRunEnvelope(
+        'execution.record_run_result',
+        runRef,
+        { agentResultRef: resultRef } as unknown as CanonicalJsonObject,
+        service,
+        2,
+      );
+      const recorded = await firstRunEntry.recordRunResult(recordEnvelope, sessionFor(service));
+      expect(recorded, JSON.stringify(recorded)).toMatchObject({ status: 'COMMITTED' });
+      const finalEvaluator = registeredEvaluatorProfileReference(
+        'im06-evaluator-static-v1',
+        'te.agent_result_validation.evaluator@1.0',
+      );
+      expect(finalEvaluator).toBeDefined();
+      const validationTarget = objectRef(
+        'zhiju.execution.agent_result_validation_bundle',
+        newUuidV7(),
+        scope(),
+      ) as Common.ObjectRef;
+      const validateEnvelope = await firstRunEnvelope(
+        'execution.validate_agent_result',
+        validationTarget,
+        {
+          agentResultRef: resultRef,
+          runRef,
+          runtimeAttemptRef: attemptRef,
+          policyRef: controlsRef,
+          evaluatorRef: finalEvaluator,
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
+      const validatedFinal = await firstRunEntry.validateAgentResult(
+        validateEnvelope,
+        sessionFor(service),
+      );
+      expect(validatedFinal, JSON.stringify(validatedFinal)).toMatchObject({
+        status: 'COMMITTED',
+      });
+      expect(
+        (
+          await admin.query<{ judgment_kind: string; result_id: string }>(
+            'SELECT judgment_kind,result_id FROM task_execution.execution_judgment WHERE judgment_id=$1',
+            [validationTarget.objectId],
+          )
+        ).rows,
+      ).toEqual([{ judgment_kind: 'RESULT_VALIDATION_BUNDLE', result_id: resultTarget.objectId }]);
+      const finalValidations = record(committedPayload(validatedFinal as CommandResult));
+      const acceptanceTarget = objectRef(
+        'execution.agent_result_acceptance',
+        newUuidV7(),
+        scope(),
+      ) as Common.ObjectRef;
+      const acceptEnvelope = await firstRunEnvelope(
+        'execution.accept_agent_result',
+        acceptanceTarget,
+        {
+          agentResultRef: resultRef,
+          schemaValidationRef: finalValidations.schemaValidationRef,
+          identityValidationRef: finalValidations.identityValidationRef,
+          runBindingValidationRef: finalValidations.runBindingValidationRef,
+          scopeValidationRef: finalValidations.scopeValidationRef,
+          businessOutputValidationRef: finalValidations.businessOutputValidationRef,
+          disposition: 'ACCEPTED',
+          reasons: [],
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
+      const accepted = await firstRunEntry.acceptAgentResult(acceptEnvelope, sessionFor(service));
+      expect(accepted, JSON.stringify(accepted)).toMatchObject({ status: 'COMMITTED' });
+      const acceptedView = await firstRunEntry.getAgentResult(resultQuery, sessionFor(service));
+      expect(acceptedView.agentResultContract).toEqual(finalView.agentResultContract);
+      const acceptanceRecordRef = record(
+        committedPayload(accepted as CommandResult),
+      ).acceptanceRecordRef;
+      if (terminalScenario === 'RACE') {
+        const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
+        if (deadlineWait > 0)
+          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        clock = Date.now();
+        const raceFinalize = await firstRunEnvelope(
+          'execution.finalize_run_from_acceptance',
+          runRef,
+          { acceptanceRecordRef } as unknown as CanonicalJsonObject,
+          service,
+          3,
+        );
+        const raceExpire = await firstRunEnvelope(
+          'execution.expire_run',
+          runRef,
+          { reason: 'DEADLINE_EXCEEDED' },
+          service,
+          3,
+        );
+        const race = await Promise.allSettled([
+          firstRunEntry.finalizeRun(raceFinalize, sessionFor(service)),
+          firstRunEntry.expireRun(raceExpire, sessionFor(service)),
+        ]);
+        expect(race[0].status).toBe('rejected');
+        if (race[1].status === 'rejected') throw race[1].reason;
+        expect(race[1].value).toMatchObject({ status: 'COMMITTED' });
+        expect(
+          await firstRunEntry.getRunState(
+            await firstRunQuery(
+              'execution.get_run_state',
+              runRef,
+              { runRef } as unknown as CanonicalJsonObject,
+              'runStateReadV1',
+            ),
+            sessionFor(service),
+          ),
+        ).toMatchObject({ status: 'TIMED_OUT', terminationReason: 'EXECUTION_DEADLINE_EXCEEDED' });
+        expect(
+          (
+            await admin.query<{ status: string }>(
+              'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ status: 'EXPIRED' }]);
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              "SELECT count(*)::text FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.RunTerminated'",
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '1' }]);
+        return;
+      }
+      const finalizeEnvelope = await firstRunEnvelope(
+        'execution.finalize_run_from_acceptance',
+        runRef,
+        { acceptanceRecordRef } as unknown as CanonicalJsonObject,
+        service,
+        3,
+      );
+      const finalized = await firstRunEntry.finalizeRun(finalizeEnvelope, sessionFor(service));
+      expect(finalized, JSON.stringify(finalized)).toMatchObject({ status: 'COMMITTED' });
+      const replayFinalize = await firstRunEnvelope(
+        'execution.finalize_run_from_acceptance',
+        runRef,
+        { acceptanceRecordRef } as unknown as CanonicalJsonObject,
+        service,
+        3,
+      );
+      expect(await firstRunEntry.finalizeRun(replayFinalize, sessionFor(service))).toMatchObject({
+        status: 'COMMITTED',
+        resultPayload: committedPayload(finalized as CommandResult),
+      });
+      const replaySubmit = await firstRunEnvelope(
+        'execution.submit_agent_result',
+        resultTarget,
+        {
+          agentResultContract: resultBody,
+          runFencingToken: 1,
+          runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+        } as unknown as CanonicalJsonObject,
+        service,
+      );
+      expect(
+        await firstRunEntry.submitAgentResult(replaySubmit, sessionFor(service)),
+      ).toMatchObject({
+        status: 'COMMITTED',
+        resultPayload: committedPayload(submitted as CommandResult),
+      });
+      const replayRecord = await firstRunEnvelope(
+        'execution.record_run_result',
+        runRef,
+        { agentResultRef: resultRef } as unknown as CanonicalJsonObject,
+        service,
+        2,
+      );
+      expect(await firstRunEntry.recordRunResult(replayRecord, sessionFor(service))).toMatchObject({
+        status: 'COMMITTED',
+        resultPayload: committedPayload(recorded as CommandResult),
+      });
+      const replayValidate = await firstRunEnvelope(
+        'execution.validate_agent_result',
+        validationTarget,
+        record(validateEnvelope.payload) as CanonicalJsonObject,
+        service,
+      );
+      expect(
+        await firstRunEntry.validateAgentResult(replayValidate, sessionFor(service)),
+      ).toMatchObject({
+        status: 'COMMITTED',
+        resultPayload: committedPayload(validatedFinal as CommandResult),
+      });
+      const replayAccept = await firstRunEnvelope(
+        'execution.accept_agent_result',
+        acceptanceTarget,
+        record(acceptEnvelope.payload) as CanonicalJsonObject,
+        service,
+      );
+      expect(
+        await firstRunEntry.acceptAgentResult(replayAccept, sessionFor(service)),
+      ).toMatchObject({
+        status: 'COMMITTED',
+        resultPayload: committedPayload(accepted as CommandResult),
+      });
+      const prematureExpire = await firstRunEnvelope(
+        'execution.expire_run',
+        runRef,
+        { reason: 'DEADLINE_EXCEEDED' },
+        service,
+        4,
+      );
+      await expect(
+        firstRunEntry.expireRun(prematureExpire, sessionFor(service)),
+      ).rejects.toMatchObject({
+        code: 'EXECUTION_JUDGMENT_STALE',
+      });
+      expect(
+        await firstRunEntry.submitAgentResult(submitEnvelope, sessionFor(service)),
+      ).toMatchObject({
+        status: 'DUPLICATE',
+      });
+      expect(
+        await firstRunEntry.acceptAgentResult(acceptEnvelope, sessionFor(service)),
+      ).toMatchObject({
+        status: 'DUPLICATE',
+      });
+      expect(await firstRunEntry.finalizeRun(finalizeEnvelope, sessionFor(service))).toMatchObject({
+        status: 'DUPLICATE',
+      });
+      const runQuery = await firstRunQuery(
+        'execution.get_run_state',
+        runRef,
+        { runRef } as unknown as CanonicalJsonObject,
+        'runStateReadV1',
+      );
+      expect(await firstRunEntry.getRunState(runQuery, sessionFor(service))).toMatchObject({
+        status: 'SUCCEEDED',
+        resultRef,
+        terminationReason: 'EXECUTION_RESULT_ACCEPTED',
+      });
+      expect(
+        (
+          await admin.query<{ status: string }>(
+            'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+            [runRef.objectId],
+          )
+        ).rows,
+      ).toEqual([{ status: 'RELEASED' }]);
+      await expect(
+        withTaskExecutionTransaction(teDb, runnerContext(service), (trx) =>
+          sql`UPDATE task_execution.agent_result SET result_payload=result_payload WHERE result_id=${resultTarget.objectId}::uuid`.execute(
+            trx,
+          ),
+        ),
+      ).rejects.toMatchObject({ code: '42501' });
+      const hiddenFinal = await withTaskExecutionTransaction(
+        teDb,
+        { ...runnerContext(service), allowedProjectIds: [newUuidV7()] },
+        (trx) =>
+          sql`SELECT result_id FROM task_execution.agent_result WHERE result_id=${resultTarget.objectId}::uuid`.execute(
+            trx,
+          ),
+      );
+      expect(hiddenFinal.rows).toEqual([]);
+      expect(runtimeDriver.invokedAttemptIds).toHaveLength(1);
+      expect(
+        (
+          await admin.query<{ event_type: string; count: string }>(
+            "SELECT event_type,count(*)::text FROM task_execution.outbox_event WHERE aggregate_id IN ($1,$2) AND event_type IN ('execution.AgentResultAccepted','execution.RunTerminated') GROUP BY event_type ORDER BY event_type",
+            [runRef.objectId, resultTarget.objectId],
+          )
+        ).rows,
+      ).toEqual([
+        { event_type: 'execution.AgentResultAccepted', count: '1' },
+        { event_type: 'execution.RunTerminated', count: '1' },
+      ]);
+      expect(
+        (
+          await admin.query<{ count: string }>(
+            'SELECT count(*)::text FROM integration_gateway.reference_edge WHERE owner_object_id=$1',
+            [record(finalView.observationRef).objectId],
+          )
+        ).rows,
+      ).toEqual([{ count: '3' }]);
+      expect(
+        (
+          await admin.query<{ count: string }>(
+            'SELECT count(*)::text FROM task_execution.reference_edge WHERE source_command_id = ANY($1::uuid[])',
+            [
+              [
+                submitEnvelope.commandId,
+                recordEnvelope.commandId,
+                validateEnvelope.commandId,
+                acceptEnvelope.commandId,
+                finalizeEnvelope.commandId,
+              ],
+            ],
+          )
+        ).rows,
+      ).toEqual([{ count: '10' }]);
       expect(
         (
           await admin.query<{ count: string }>(
@@ -8398,6 +9934,38 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       await expect(firstRunEntry.queue(queueEnvelope, sessionFor())).rejects.toMatchObject({
         code: 'AUTHORIZATION_REVOKED',
       });
-    },
-  );
+    };
+    // The full owning chain includes the queue lock probe and a real server deadline.
+    // Keep the broader suite's 60s default while giving these paths CI headroom.
+    itIntegration(
+      'completes Validation, Freeze and SUCCEEDED Run',
+      () => runScenario('SUCCEEDED'),
+      180_000,
+    );
+    itIntegration(
+      'expires a Run after a late synthetic final',
+      () => runScenario('TIMED_OUT'),
+      180_000,
+    );
+    itIntegration(
+      'serializes concurrent finalize and expire after the deadline',
+      () => runScenario('RACE'),
+      240_000,
+    );
+    itIntegration(
+      'recovers each committed final step after Process restart',
+      () => runScenario('RECOVERY'),
+      240_000,
+    );
+    itIntegration(
+      'periodically recovers the controlled final Process without overlapping ticks',
+      () => runScenario('RECOVERY_WORKER'),
+      240_000,
+    );
+    itIntegration(
+      'expires a Run with a reserved Result before recovery records it',
+      () => runScenario('RECOVERY_EXPIRE'),
+      180_000,
+    );
+  });
 });

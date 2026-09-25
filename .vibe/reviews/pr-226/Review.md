@@ -1,0 +1,127 @@
+# PR #226 独立实现审查记录（第 1 轮）
+
+- PR：[#226](https://github.com/qzhike/zhiju-business-core/pull/226)（Draft，Refs #224）
+- Base SHA：`aa6784062949424668b88b7a4eefab0da0aa447d`（origin/main）
+- 被审 Head SHA：`dbe2eb4800eeb19e5af5f89b9880bcaeb2a1cf31`
+- 日期：2026-09-25
+- 角色结论：`REQUEST_CHANGES`
+
+## 审查范围与依据
+
+工作项 Issue #224（Goal/Acceptance/Scope/Non-goals/Verify）。独立对照的权威来源：
+
+- `.vibe/module-specs/Module-Spec-003-TaskExecution.md` §23（含 §23.1 操作表、§23.2 接收/判断/Acceptance、§23.3 terminal/到期/恢复、§23.4 边界）与 §11.1；
+- `.vibe/module-specs/Module-Spec-001-IdentityPolicy.md` §15.13（含依赖 action 表）；
+- `.vibe/module-specs/Module-Spec-007-IntegrationGateway.md` final 观察增量；
+- `.vibe/high-level-docs/06-typed-references-contract-catalog-v0.1.md` final 注册增量、`.vibe/high-level-docs/07-postgresql-logical-model-v0.1.md` §38；
+- `.vibe/decisions/task-execution-human-operated.md` §22；
+- 实际 diff（53 文件，+7101/-116）、CI 与 Module-Test 矩阵。
+
+## 验证证据（绑定被审修订）
+
+- 必需目标：Issue Verify 声明 `full`；PR 含 migration/SQL/持久化代码，CI 目标选择器亦判定 `target=full`（reason=persistence-or-verification-sensitive，changed_path_count=53）。
+- CI [run 35989912496](https://github.com/qzhike/zhiju-business-core/actions/runs/35989912496)：`head_sha=dbe2eb4800eeb19e5af5f89b9880bcaeb2a1cf31`、`conclusion=success`、耗时 18m41s，覆盖 clean build、代码测试与真实 Docker/PostgreSQL 持久化门禁（空库、历史升级、二次 no-op）。
+- PR body 另行声明同修订本地 `vibe verify full --json` PASS（1,380 代码测试 + 501 真实 PostgreSQL 持久化测试）；本审查以 CI 精确修订证据为准，未本地复跑。
+- 契约/注册事实经直接检查确认：Catalog/Registry 221→226（TE 49→53、IG 25→26）、四个新 objectType、静态 Evaluator `te.agent_result_validation.evaluator@1.0`（固定 objectId/versionId 与 Catalog 一致）、历史 200 项 Baseline 文件未改、既有操作 Schema/metadata diff 为纯追加。
+
+## 阻断发现（REQUEST_CHANGES）
+
+1. **`execution.validate_agent_result@1.0` 注册 payload 字段名偏离已批准设计。** 权威字段为 `runtimeAttemptRef`（Module-Spec-003 §23.1 操作表与 §11.1 均固定 `payload {agentResultRef, runRef, runtimeAttemptRef, policyRef, evaluatorRef}`；Catalog 增量声明「唯一字段与行为权威是 Spec 003 §23」），但注册为 `attemptRef`：`contracts/src/operations/task-execution.schema.ts`（payload 键）、`contracts/registry/public-api.v1.json`（`/payload/attemptRef`）、`contracts/src/generated/types/task-execution.ts`（`ExecutionValidateAgentResultPayload.attemptRef`）、构造/消费处 `modules/task-execution/src/business/controlled-final-result.ts:582,920,949,981`。该 Schema 为 FULL closed，合并后即成为已发布契约；兼容门禁无法发现（新操作无 Baseline 条目）。应在 Draft 阶段把注册字段改回 `runtimeAttemptRef`（改动权威设计文本则需重新设计批准）。
+2. **finalize 四条依赖 action token 与 §15.13 权威表不符。** §15.13 依赖表（`.vibe/module-specs/Module-Spec-001-IdentityPolicy.md:820`）固定 `integration.runtime.binding.read.for_run_finalize.v1`、`integration.runtime.final.read.for_run_finalize.v1`、`identity.execution_bundle.read.for_run_finalize.v1`、`identity.policy.resolve.for_run_finalize.v1`；实现写作 `*.for_result_finalize.v1`（`modules/identity-policy/src/commands/work-order-validation-authorization.ts:2381,2390,2399,2410`）。方向 fail-closed、无越权，但按规范文本配发 Grant 的部署将使 finalize 依赖读全部 DENY；现有测试从同一绑定表取 action 配发 Grant，结构性掩盖该漂移。submit/record/validate/accept 四行 16 条 token 与规范一致，仅 finalize 行偏离。
+3. **Module-Test-007 IG-FINAL-D-005 标记了无证据的执行。** 该行声称「部分 RLS/不可变负例 PASS」（`.vibe/module-tests/Module-Test-007-IntegrationGateway.md:157`），但 `tests/` 中不存在任何针对 `integration_gateway.runtime_adapter_identity` / `runtime_final_observation` 的 SQL 负例（仅 `tests/persistence/technical-tables.test.ts:252-253` 清表列表与 query type 字符串）。按「未执行的验收保持 NOT RUN」规则，应补真实 SQL 负例（app-role 直写/无 Context/跨 Project/UPDATE/DELETE）或把该子句改回 NOT RUN。
+
+## 非阻断修正项
+
+4. §38 状态行写「当前实现分配 `V3007` 与 `V7003`」，未计入本 PR 实际新增的 `V3008__controlled_final_process_progress.sql`（Module-Spec-003 §23.4 与 Module-Test-003 TE-FINAL-D-010 均已提 V3008）。请在同一修订内使 §38 与事实一致。
+
+## 需人类门禁确认的事项
+
+5. 本 PR 在实现同时扩充了 2026-09-23 已批准设计：§23.3 新增周期 worker 与 `controlled-final@1` ProcessInstance 段落、§15.13 新增 `runFinalProcessProgressV1` 行、新增 V3008。人类设计批准与独立设计复审绑定 `.vibe` diff SHA `c57c1e1f80c15b11947f2bb8d114d7ab5f1225c32a617438cf1baca12772a1d2`（决定 §22.5/§22.6，pr-223 记录）。按 §22.5 自身条款，转为 ready/合并前应由人类设计权威确认批准覆盖该设计增量。实现内容与 PR 更新后的文档一致，此项非代码缺陷。
+
+## 已核对无阻断问题的要点
+
+- 接收链语义与 §23 一致：submit 只插不可变 Result + `run_final_submission_claim`（Run Root 不动），同/异键同事实重放返回原事实、冲突拒绝；record CAS `RUNNING→RESULT_RECORDED`；validate 只接受静态 Evaluator selector、Bundle+五子事实同事务、`validUntil=min(lease, deadline, Decision 有效期, Policy supersededAt)`；accept 逐字段重核同 Bundle 五项 SATISFIED 且 `disposition=ACCEPTED/reasons=[]`；finalize 与 expire 经同一 Run 锁/CAS 序列化，`SUCCEEDED+RELEASED` / `TIMED_OUT+EXPIRED` 配对，终态不可覆盖。
+- V3007/V7003 守卫与 §38 镜像/唯一性/不可变/RLS 要求一致；历史 RUNNING 行无前向身份列被排除在 final 正链之外；V3008 进度列与稳定键唯一索引符合 §23.3。
+- IG 侧 `observeFinal`/`getFinal` 不二次调用 Driver；身份行只在真实 ack 后提交；`planned_runtime_instance_id` 预分配不构成有效身份。
+- 恢复路径只以候选扫描发现未预占 Run，凭 Run 已存 Attempt Ref 经独立授权 Query 取回唯一 final，五步按 `controlled-final:sourceFactId:sourceFactHash:step` 稳定键重放 owning Command Receipt；进度授权不联查业务事实（测试证明交叉使用拒绝）。
+- 周期 worker tick 不重叠、停止等待当前 tick；PR 不声称已部署 worker 引导。
+
+## 未执行边界（保持 NOT RUN）
+
+- Module-Test 矩阵 23 行中 4 行整体 NOT RUN（IP-FINAL-D-004、TE-FINAL-D-005、TE-FINAL-D-006、IG-FINAL-D-002），19 行 PARTIAL 且各自列明剩余 NOT RUN 子项；上述发现 3 修正前 IG-FINAL-D-005 的 RLS/不可变子项亦属未执行。
+- 外部 Provider/CLI/Feishu 与独立人工业务验收 NOT RUN；Composition worker 无业务进程引导配置。
+
+## 交接
+
+结论 REQUEST_CHANGES，执行交回 Implementer：修正发现 1–3（及第 4 项文档事实）后在同一 PR 更新，Reviewer 将复审新 head。发现 5 留给 ready/合并前的人类门禁。本记录入库不授权 commit/push/merge；GitHub 侧以 PR 评论发布同一结论（认证用户即 PR 作者，未形成 formal review）。
+
+---
+
+# 第 2 轮复审（2026-09-25）
+
+- 被审 Head SHA：`04abd491e06f61f72471bc8194c521cb43405f8b`（Base `aa6784062949424668b88b7a4eefab0da0aa447d` 不变；相对第 1 轮仅 1 个新提交 `04abd49` "Align final validation contract and authorization actions with design"，12 文件、+99/-17，其中含按原样入库的第 1 轮 Review.md，已核对与本记录逐字节一致）
+- 角色结论：`REQUEST_CHANGES`（唯一剩余阻断项为必需验证证据缺失，非实现缺陷）
+
+## 第 1 轮发现的处置核对
+
+1. `validate_agent_result@1.0` payload 字段已改为 `runtimeAttemptRef`：`contracts/src/operations/task-execution.schema.ts`、`contracts/registry/public-api.v1.json`（`/payload/runtimeAttemptRef`）、`contracts/src/generated/public-api.ts`、`contracts/src/generated/types/task-execution.ts`、`modules/task-execution/src/business/controlled-final-result.ts:582,949,981`、`tests/persistence/initial-context.test.ts:9639`。与 §23.1/§11.1 一致，**已解决**。
+2. finalize 四条依赖 action 已改为 `*.for_run_finalize.v1`（`modules/identity-policy/src/commands/work-order-validation-authorization.ts:2381,2390,2399,2410`），并新增独立单测 `work-order-validation-authorization.test.ts` 以硬编码期望值断言四条 token（不再从绑定表自身取值，消除了第 1 轮指出的结构性盲区）。**已解决**。
+3. Module-Test-007 IG-FINAL-D-005 已改为「V7003 空库、历史升级、二次 no-op PASS；针对新增 IG 身份与 final 观察表的直 SQL、RLS/不可变负例及完整 SQL 矩阵 NOT RUN」，不再声称未执行的证据。**已解决**（未执行的 SQL 负例保持 NOT RUN 跟踪）。
+4. §38 状态行已计入 `V3008`，并把评审状态更新为 `IMPLEMENTATION REVIEW REQUEST_CHANGES`，与事实一致。**已解决**。
+
+## 本论验证证据（绑定 04abd49）
+
+- CI [run 36076381393](https://github.com/qzhike/zhiju-business-core/actions/runs/36076381393)：`target=full`，**FAILURE**。代码阶段全部 PASS：1,381 测试通过（486 个持久化门控跳过）、architecture boundaries PASS、public-api 生成 PASS（226 操作）、TypeScript 类型生成 PASS（226 payload）、catalog/registry 226/226 FULL、**compatibility baseline 200 PASS**——契约改名在确定性门禁内自洽。
+- 持久化门禁未能开始：`postgres:18.6` tag 当前解析 digest `sha256:5a5a84b1…` 与项目固定 digest `sha256:86c951e0…` 不一致（registry 漂移，非实现失败）。Implementer 报告本地 `environment` 只读探针同样确认 `PIN_MISMATCH`，本地 `full` 无法进入 PostgreSQL。
+- 判定：项目验证配置本身有效（digest 固定是有意的基线保护），但当前环境无法产出 `full` 通过证据；按「没有全部必需目标的当前通过证据不得 APPROVE」，本论结论 REQUEST_CHANGES，要求在镜像 pin/注册表问题解决后取得新 head 的当前 `full` 通过证据。pin  digest 是否更新属项目验证基线决策，须人类授权，且不属于本 PR 的实现范围。
+
+## 发现 5 的反馈评估
+
+Implementer 认同 2026-09-23 批准 diff SHA 不覆盖 worker/progress 增量，并报告：Issue #224 实现期间请求者明确选择在本 Issue 加入周期 worker，且单独批准了限于 TE SERVICE 读写精确 ProcessInstance 进度的内部 action/config key（保留原候选扫描授权），V3008 即持久化该已批准进度。Reviewer 无法从仓库独立核实该会话事实；该声明与实现形态一致（进度授权只读写 ProcessInstance/Step、候选扫描独立）。此项仍待用户本人确认后关闭，不阻断本轮结论，保留给 ready/merge 人类门禁。
+
+## 交接
+
+执行交回 Implementer/项目侧：解决 `postgres:18.6` pin 与 registry 的漂移后，对新 head 取得当前 `vibe verify full --json`（或等价精确修订 CI `full`）通过证据；Reviewer 届时复审。矩阵 NOT RUN 边界同第 1 轮（IG-FINAL-D-005 的 SQL 负例子项现正确保持 NOT RUN）。GitHub 侧以 PR 评论发布本结论（仍非 formal review）。
+
+---
+
+# 第 3 轮复审（2026-09-25）
+
+- 被审 Head SHA：`b5138bac1021e10b4147a80cbd747cf13666943e`（Base `aa6784062949424668b88b7a4eefab0da0aa447d` 不变；相对第 2 轮仅 1 个提交 `b5138ba` "Record controlled final scope approval and review round two"，纯文档：`.vibe/decisions/task-execution-human-operated.md` +6、`.vibe/reviews/pr-226/Review.md` +28；后者已核对与本地所撰第 2 轮记录逐字节一致）
+- 角色结论：`REQUEST_CHANGES`（唯一剩余阻断项仍为必需验证证据缺失，非实现缺陷）
+
+## 发现 5 的关闭
+
+新增决定 §22.7（2026-09-24）记录：用户在实现会话中明确选择「本 Issue 新增 worker（推荐）」，并明确「批准独立进度授权（推荐）」——即限于 TE SERVICE 读写精确 ProcessInstance 进度的内部 action/config key，原 `runFinalCandidateScanV1` 候选集与权限不扩大；V3008 持久化该已批准进度。该记录如实声明：不改变 §22.5–§22.6 绑定的原设计 diff SHA，不声称新增量已获独立设计复审、`full` 验证或 ready/merge 批准，并把本记录与用户原回复区分为不同证据来源。发现 5 据此关闭；ready/merge 的人类门禁不受本审查影响。
+
+## 本论验证证据（绑定 b5138ba）
+
+- CI [run 36080292542](https://github.com/qzhike/zhiju-business-core/actions/runs/36080292542)：`target=full`，FAILURE。代码阶段 PASS：1,381 测试、catalog/registry 226/226 FULL、compatibility baseline 200 PASS（与第 2 轮相同）。持久化门禁仍在启动前失败：`postgres:18.6` 当前解析 `sha256:5a5a84b1…`，固定 digest `sha256:86c951e0…`（漂移未变；PR 按请求者决定不改 pin/门禁，基线问题另行处理）。
+- PR body 验证节已更新并如实声明当前 head 无完整 PostgreSQL/full PASS。
+- 判定同第 2 轮：验证配置有效、证据当前无法产出；不批准。b5138ba 相对 04abd49 为纯文档增量，基线修复后对新 head 重跑一次 `full` 即可补齐证据。
+
+## 交接
+
+项目侧处理 `postgres:18.6` pin 漂移后，对当前 head 取得 CI `full`（或 `vibe verify full --json`）通过证据；Reviewer 复审后即无剩余 agent 级阻断项。矩阵 NOT RUN 边界不变。本结论已发布为 PR 评论（仍非 formal review）。
+
+---
+
+# 第 4 轮复审（2026-09-25）
+
+- 被审 Head SHA：`b5138bac1021e10b4147a80cbd747cf13666943e`（与第 3 轮相同，Base `aa6784062949424668b88b7a4eefab0da0aa447d` 不变；PR 分支自第 3 轮起无新提交、无新评论）
+- 角色结论：`APPROVE`（agent 级；不授权 ready/merge）
+
+## 基线漂移的处置核对
+
+PR #227（`postgres:18.6` pin 更新）已于 2026-09-25 合并入 main（merge `ff859482411c41c8ccfc4c439db539cd8a936ff4`），其独立审查记录见 [`pr-227/Review.md`](../pr-227/Review.md)，新 pin `sha256:5a5a84b1…` 经 Docker Hub Registry API 独立核实。第 2/3 轮唯一阻断项（pin 漂移导致持久化门禁无法启动）的外部条件已解除。
+
+## 本轮验证证据（绑定 b5138ba + main@ff859482 合并态）
+
+- PR head 未变。为取得「被审 head + 已修复基线」证据，在临时 worktree 将 main 合入 `b5138ba`（合并提交 `e5f8975`；相对被审 head 的增量仅 `tools/persistence/baseline.mjs` 一行与 `.vibe/reviews/pr-227/Review.md`），等价于分支下次同步后 CI 将测试的合并态。
+- `vibe verify environment --json` PASS：PostgreSQL 与 Flyway 均 `PIN_MATCH`。
+- `vibe verify full --json` PASS（exit 0）：代码阶段 76 passed | 41 skipped files、1381 passed | 486 skipped tests；architecture_boundaries=PASS；public_api_generation=PASS（226 操作）；typescript_types=PASS；catalog_registry=PASS（226/226 FULL）；compatibility=PASS（v1.0 基线 200 项不变）。真实 Docker/PostgreSQL 持久化门禁：新 pin 镜像 `server_version=180006`，空库 migrate 经 V6002（含本 PR 的 V3007/V3008/V7003），历史 V6003/V6004 升级执行，45/45 文件、501/501 测试通过（含受控 final 全链 SUCCEEDED、过期、并发 finalize/expire 序列化、崩溃恢复与周期 worker），二次 migrate no-op，容器已清理。
+- PR 自身 CI 检查仍为基线修复前的 FAILURE（run 36080292542）；分支下次同步后 CI 将以相同合并态重跑，预期与本证据一致，ready 前应读回确认。
+
+## 结论与交接
+
+第 1–3 轮全部阻断项闭环：发现 1–4 于第 2 轮确认解决，发现 5 于第 3 轮经决定 §22.7 关闭，唯一剩余证据缺口由本轮 `full` PASS 补齐；无剩余 agent 级阻断项。矩阵 NOT RUN 边界不变（4 行整体 NOT RUN 与各 PARTIAL 子项；外部 Provider、公开 HTTP、跨模块业务 E2E、生产、独立人工业务验收保持 NOT RUN）。`APPROVE` 为独立 agent 审查结论，不授权 ready/merge，人类门禁不变。本记录入库不授权 commit/push；GitHub 侧以 PR 评论发布（认证用户即 PR 作者，仍非 formal review）。

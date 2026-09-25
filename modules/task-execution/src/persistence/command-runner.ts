@@ -190,6 +190,8 @@ export interface ProcessStepInput {
   outcome: 'STARTED' | 'COMPLETED' | 'FAILED' | 'AWAITING_HUMAN' | 'SKIPPED';
   failureCode?: string | undefined;
   humanIntervention?: string | undefined;
+  sourceFactRef?: string | undefined;
+  stableIdempotencyKey?: string | undefined;
 }
 
 export type CommandBodyResult =
@@ -305,7 +307,16 @@ export interface CommandExecution {
   casProcessInstance(
     id: string,
     expectedVersion: string,
-    patch?: { state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED' },
+    patch?: {
+      state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED';
+      controlledFinalStep?: 'SUBMIT' | 'RECORD' | 'VALIDATE' | 'ACCEPT' | 'FINALIZE' | 'DONE';
+      controlledFinalResultRef?: string;
+      controlledFinalBundleRef?: string;
+      controlledFinalValidationRefs?: string;
+      controlledFinalAcceptanceRef?: string;
+      controlledFinalRunVersion?: string;
+      blockedReasonCode?: string;
+    },
   ): Promise<'OK' | 'NOT_FOUND' | 'CONFLICT'>;
   appendOutbox(event: OutboxEventInput): Promise<void>;
   appendReferenceEdge(edge: ReferenceEdgeInput): Promise<void>;
@@ -372,7 +383,16 @@ export interface CommandExecution {
   casProcessInstance(
     id: string,
     expectedVersion: string,
-    patch?: { state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED' },
+    patch?: {
+      state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED';
+      controlledFinalStep?: 'SUBMIT' | 'RECORD' | 'VALIDATE' | 'ACCEPT' | 'FINALIZE' | 'DONE';
+      controlledFinalResultRef?: string;
+      controlledFinalBundleRef?: string;
+      controlledFinalValidationRefs?: string;
+      controlledFinalAcceptanceRef?: string;
+      controlledFinalRunVersion?: string;
+      blockedReasonCode?: string;
+    },
   ): Promise<'OK' | 'NOT_FOUND' | 'CONFLICT'>;
   appendOutbox(event: OutboxEventInput): Promise<void>;
   appendReferenceEdge(edge: ReferenceEdgeInput): Promise<void>;
@@ -633,9 +653,7 @@ async function claimReceipt(
       actor_snapshot_id: envelope.actorSnapshotId,
       authorization_decision_id: envelope.authorizationDecisionId,
     })
-    .onConflict((conflict) =>
-      conflict.columns(['idempotency_scope', 'idempotency_key']).doNothing(),
-    )
+    .onConflict((conflict) => conflict.doNothing())
     .returning('command_id')
     .executeTakeFirst();
   return inserted !== undefined;
@@ -750,6 +768,27 @@ function createExecution(
           aggregate_version: nextVersion,
           updated_at: new Date(),
           ...(patch.state === undefined ? {} : { state: patch.state }),
+          ...(patch.controlledFinalStep === undefined
+            ? {}
+            : { controlled_final_step: patch.controlledFinalStep }),
+          ...(patch.controlledFinalResultRef === undefined
+            ? {}
+            : { controlled_final_result_ref: patch.controlledFinalResultRef }),
+          ...(patch.controlledFinalBundleRef === undefined
+            ? {}
+            : { controlled_final_bundle_ref: patch.controlledFinalBundleRef }),
+          ...(patch.controlledFinalValidationRefs === undefined
+            ? {}
+            : { controlled_final_validation_refs: patch.controlledFinalValidationRefs }),
+          ...(patch.controlledFinalAcceptanceRef === undefined
+            ? {}
+            : { controlled_final_acceptance_ref: patch.controlledFinalAcceptanceRef }),
+          ...(patch.controlledFinalRunVersion === undefined
+            ? {}
+            : { controlled_final_run_version: patch.controlledFinalRunVersion }),
+          ...(patch.blockedReasonCode === undefined
+            ? {}
+            : { blocked_reason_code: patch.blockedReasonCode }),
         })
         .where('process_id', '=', id)
         .where('aggregate_version', '=', expectedVersion)
@@ -786,10 +825,26 @@ function createExecution(
         envelope.expectedAggregateVersion === undefined
           ? '1'
           : nextEventAggregateVersion(envelope.expectedAggregateVersion);
+      const acceptanceRef = event.payload.acceptanceRecordRef;
+      const resultRef = event.payload.agentResultRef;
+      const resultAcceptanceEvent =
+        envelope.commandType === 'execution.accept_agent_result' &&
+        event.eventType === 'execution.AgentResultAccepted' &&
+        event.aggregateType === 'execution.agent_result' &&
+        event.aggregateVersion === '1' &&
+        typeof acceptanceRef === 'object' &&
+        acceptanceRef !== null &&
+        !Array.isArray(acceptanceRef) &&
+        (acceptanceRef as CanonicalJsonObject).objectId === envelope.targetId &&
+        typeof resultRef === 'object' &&
+        resultRef !== null &&
+        !Array.isArray(resultRef) &&
+        (resultRef as CanonicalJsonObject).objectId === event.aggregateId;
       if (
-        event.aggregateType !== envelope.targetType ||
-        event.aggregateId !== envelope.targetId ||
-        event.aggregateVersion !== expectedEventVersion
+        !resultAcceptanceEvent &&
+        (event.aggregateType !== envelope.targetType ||
+          event.aggregateId !== envelope.targetId ||
+          event.aggregateVersion !== expectedEventVersion)
       ) {
         throw new CommandExecutionError(
           COMMAND_TARGET_MISMATCH,
@@ -943,6 +998,8 @@ function createExecution(
           outcome: step.outcome,
           failure_code: step.failureCode ?? null,
           human_intervention: step.humanIntervention ?? null,
+          source_fact_ref: step.sourceFactRef ?? null,
+          stable_idempotency_key: step.stableIdempotencyKey ?? null,
           created_by_principal_id: envelope.principalId,
         })
         .execute();

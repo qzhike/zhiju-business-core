@@ -44,6 +44,7 @@ export interface FirstRunStart {
   leaseId: string;
   fencingToken: string;
   attemptRef: CanonicalJsonObject;
+  runtimeAdapterIdentityRef: CanonicalJsonObject;
   startedAt: Date;
 }
 
@@ -160,6 +161,11 @@ export class FirstRunRepository {
         created_at: input.createdAt,
         started_at: null,
         start_attempt_ref: null,
+        runtime_adapter_identity_ref: null,
+        result_ref: null,
+        acceptance_ref: null,
+        ended_at: null,
+        termination_reason: null,
         source_command_id: facts.commandId,
         last_command_id: null,
         created_by_principal_id: input.principalId,
@@ -196,6 +202,7 @@ export class FirstRunRepository {
         aggregate_version: nextVersion,
         started_at: input.startedAt,
         start_attempt_ref: canonicalize(input.attemptRef),
+        runtime_adapter_identity_ref: canonicalize(input.runtimeAdapterIdentityRef),
         last_command_id: facts.commandId,
       })
       .where('run_id', '=', input.runId)

@@ -559,3 +559,36 @@ export async function readExecutionCapabilityBundle(
     return { bundleRef, payload, useStatus: 'USABLE' as const };
   });
 }
+
+/** Read historical binding integrity for expiry without renewing execution rights. */
+export async function readIntegrityForExpiry(
+  db: Kysely<IdentityPolicyDb>,
+  context: IdentityTransactionContext,
+  bundleRef: CanonicalJsonObject,
+  runRef: CanonicalJsonObject,
+  revalidateAuthorization: () => Promise<void>,
+) {
+  await revalidateAuthorization();
+  const subjectScope = record(bundleRef.scope);
+  exactRef(bundleRef, 'CONTENT_ADDRESSED', BUNDLE, subjectScope);
+  exactRef(runRef, 'OBJECT', 'execution.run', subjectScope);
+  return withIdentityTransaction(db, context, async (trx) => {
+    const row = await trx
+      .selectFrom('identity_policy.execution_capability_bundle')
+      .selectAll()
+      .where('bundle_id', '=', text(bundleRef.objectId))
+      .executeTakeFirst();
+    if (
+      row === undefined ||
+      row.enterprise_id !== subjectScope.enterpriseId ||
+      row.project_id !== subjectScope.projectId ||
+      row.run_id !== runRef.objectId ||
+      row.payload_hash.toString('hex') !== digest(bundleRef.contentHash) ||
+      row.payload_hash.toString('hex') !== sha256CanonicalJson(record(row.canonical_payload)) ||
+      !same(record(row.canonical_payload).runRef, runRef)
+    )
+      throw invalid();
+    await revalidateAuthorization();
+    return { bundleRef, runRef };
+  });
+}

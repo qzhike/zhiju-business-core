@@ -789,12 +789,13 @@ Purpose 值以现行 compatibility metadata 的逐字符值为准；上表中新
 
 ### 15.13 IM06-FINAL Result 与 terminal 的独立授权提案
 
-状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / NOT IMPLEMENTED`。服务 [Spec 003 §23](Module-Spec-003-TaskExecution.md#23-受控-final-agentresult-接纳与-run-终结增量设计提案)和 Spec 007 final 观察。沿用 §15.12 的 ActorSnapshot、完整 target、Purpose、当前 covering Grant/Policy、签发及持锁/返回前重验；不改变既有公开授权 API、V1006 或 §15.12 的 action。相同 SERVICE 主体不得使各步共享 Decision。
+状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / IMPLEMENTED IN DRAFT PR #226 / LOCAL FULL PASS 2026-09-24 / EXACT HEAD EVIDENCE IN PR #226 / IMPLEMENTATION REVIEW PENDING`。服务 [Spec 003 §23](Module-Spec-003-TaskExecution.md#23-受控-final-agentresult-接纳与-run-终结增量设计提案)和 Spec 007 final 观察。沿用 §15.12 的 ActorSnapshot、完整 target、Purpose、当前 covering Grant/Policy、签发及持锁/返回前重验；不改变既有公开授权 API、V1006 或 §15.12 的 action。相同 SERVICE 主体不得使各步共享 Decision。
 
 | 消费边界 | 注册 Purpose / Actor | 新受信 action / target / config key |
 |---|---|---|
 | Run start → IG 原 Adapter 实例身份 | 内部 owning read / TE Start SERVICE | `integration.runtime.adapter_identity.read.for_run_start.v1` / `integration.runtime_attempt` / `runStartAdapterIdentityReadV1` |
 | TE final 候选扫描 | 内部 Process read / TE Process SERVICE | `execution.run.final_candidate.scan.v1` / 本 Project `zhiju.project.project` / `runFinalCandidateScanV1` |
+| TE final Process 进度 | 内部 Process read/write / TE Process SERVICE | `execution.process.final_progress.v1` / 本 Project `zhiju.project.project` / `runFinalProcessProgressV1` |
 | IG 原调用 final 观察的内部写入 | 内部 owning action / IG Worker SERVICE | `integration.runtime.final.observe.v1` / `integration.runtime_attempt` / `runtimeFinalObserveV1` |
 | IG final Query | `integration.runtime.final_observation.read` / TE SERVICE | `integration.runtime.final.read.v1` / `integration.runtime_attempt` / `runtimeFinalReadV1` |
 | Result submit | 已发布 `task.execution.submit_agent_result` / Ingestion SERVICE | `execution.agent_result.submit.v1` / CREATE `execution.agent_result` / `agentResultSubmitV1` |
@@ -806,7 +807,7 @@ Purpose 值以现行 compatibility metadata 的逐字符值为准；上表中新
 | Result authoritative read | 已发布 `task.execution.get_agent_result` / 独立授权消费者 | `execution.agent_result.read.v1` / `execution.agent_result` / `agentResultReadV1` |
 | Run authoritative read | 已发布 `task.execution.get_run_state` / 独立授权消费者 | `execution.run.state.read.v1` / `execution.run` / `runStateReadV1` |
 
-Run start 的 Adapter 身份 Port 与候选扫描均为受信内部能力，不新增公开 operation；前者仍须先满足已发布 start 自身 Decision 与原 IG Binding Query 的独立当前授权，后者只按 Project Scope 读取未到期 RUNNING/ACTIVE、尚无 final reservation 的 Run/Attempt Ref，不返回 Result body。IG 原 ack 事务建立身份行沿用本次受信 Worker/dispatch 授权，不由 caller 传入 Adapter Ref。缺任一内部 action 时相应 IG/TE protected repository 读取为 0。新增操作的 Purpose 随 Catalog 注册；旧四项 Purpose 必须逐字符复用当前 compatibility metadata，不能因本设计改动。Query 拒绝和任何 dependency read 拒绝均发生在 protected repository 读取之前。IG Worker 的内部观察 action 只授权读取原 Attempt 与写自身 final Observation，不成为 caller 可调用的 final 写入口。
+Run start 的 Adapter 身份 Port 与候选扫描均为受信内部能力，不新增公开 operation；前者仍须先满足已发布 start 自身 Decision 与原 IG Binding Query 的独立当前授权，后者只按 Project Scope 读取未到期 RUNNING/ACTIVE、尚无 final reservation 的 Run/Attempt Ref，不返回 Result body。已批准的独立 Process 进度 action 也不新增公开 operation：它仅按本 Project 读取/创建/以版本 CAS 更新 `controlled-final@1` 的 `process_instance` 与对应 `process_step`，不得借此查询 Run、Result、Bundle、Acceptance 或 CommandReceipt 业务/技术事实，不能替代候选扫描或 owning Command/Query 的 Decision。目标 Command 以原稳定键重放时仍由自身独立授权和既有 Command runner 精确读取原 Receipt。Process 建立前须经原候选扫描及独立 IG final Query；所需当前 Run 状态和冻结 WorkOrder Contract 分别经其既有独立读取授权取得。两项内部 action 的 Decision 均绑定 Project target、TE Process SERVICE ActorSnapshot、完整 operation/version/payload Hash 与 Scope，缺失或失效时各自 protected repository 读取和进度写入为 0。IG 原 ack 事务建立身份行沿用本次受信 Worker/dispatch 授权，不由 caller 传入 Adapter Ref。新增操作的 Purpose 随 Catalog 注册；旧四项 Purpose 必须逐字符复用当前 compatibility metadata，不能因本设计改动。Query 拒绝和任何 dependency read 拒绝均发生在 protected repository 读取之前。IG Worker 的内部观察 action 只授权读取原 Attempt 与写自身 final Observation，不成为 caller 可调用的 final 写入口。
 
 每个 TE 步骤按其消费关系分别取得以下**依赖**资格。下表每格为受信 action / config key；目标与 Purpose 分别沿用已注册 IG Binding Query 的 `integration.runtime.binding.read`、本项新 IG final Query 的 `integration.runtime.final_observation.read`、IP Bundle owning read 的 `identity.execution_capability_bundle.read`、已注册 `identity.resolve_policy@1.0` 的 `identity.policy.resolve_policy`。各自绑定完整 Attempt、Bundle 或 Policy Ref 和 Project Scope，两个 IG Query 不能合并为一次授权。五个步骤的 static Evaluator 由 exact 构建期 registry 解析，不把静态 selector 伪称为 Policy/Grant。
 

@@ -21,6 +21,11 @@ export interface ProcessInstanceInsert {
   enterpriseId: string;
   projectId?: string | undefined;
   state?: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'SUSPENDED';
+  controlledFinalSourceRef?: string;
+  controlledFinalAttemptRef?: string;
+  controlledFinalPolicyRef?: string;
+  controlledFinalRunVersion?: string;
+  controlledFinalStep?: 'SUBMIT' | 'RECORD' | 'VALIDATE' | 'ACCEPT' | 'FINALIZE' | 'DONE';
   createdByPrincipalId: string;
 }
 
@@ -169,6 +174,11 @@ export class TaskExecutionRepository {
         enterprise_id: row.enterpriseId,
         project_id: requestedProjectId,
         state: row.state ?? 'ACTIVE',
+        controlled_final_source_ref: row.controlledFinalSourceRef ?? null,
+        controlled_final_attempt_ref: row.controlledFinalAttemptRef ?? null,
+        controlled_final_policy_ref: row.controlledFinalPolicyRef ?? null,
+        controlled_final_run_version: row.controlledFinalRunVersion ?? null,
+        controlled_final_step: row.controlledFinalStep ?? null,
         created_by_principal_id: row.createdByPrincipalId,
       })
       .execute();

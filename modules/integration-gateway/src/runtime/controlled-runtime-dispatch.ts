@@ -8,15 +8,17 @@ import {
 } from '@zhiju/contracts';
 import {
   canonicalize,
+  hashContractPayload,
   newUuidV7,
   sha256CanonicalJson,
   type CanonicalJsonObject,
   type CanonicalJsonValue,
 } from '@zhiju/shared-kernel';
-import type { Kysely } from 'kysely';
+import type { Kysely, Selectable } from 'kysely';
 
 import {
   type IntegrationRendererDb,
+  type RuntimeFinalObservationTable,
   type RenderTransaction,
   type RenderTransactionContext,
   withRenderTransaction,
@@ -47,6 +49,7 @@ type InvocationBinding = Result['invocationBinding'];
 
 export interface SyntheticRuntimeAcknowledgement {
   readonly attemptRef: Common.ObjectRef;
+  readonly runtimeAdapterIdentityRef: Common.ObjectRef;
   readonly bindingHash: Common.ContentHash;
   readonly runtimeSessionRef: Common.ExternalRef;
   readonly providerReceiptRef: Common.ExternalRef;
@@ -54,14 +57,27 @@ export interface SyntheticRuntimeAcknowledgement {
   readonly acknowledgedAt: Date;
 }
 
+export interface SyntheticRuntimeFinal {
+  readonly attemptRef: Common.ObjectRef;
+  readonly runtimeAdapterIdentityRef: Common.ObjectRef;
+  readonly bindingHash: Common.ContentHash;
+  readonly runtimeSubmissionRef: Common.ExternalRef;
+  readonly runFencingToken: number;
+  readonly agentResultContract: CanonicalJsonObject;
+  readonly observedAt: Date;
+}
+
 export interface SyntheticRuntimeDriver {
   invoke(input: {
     readonly attemptRef: Common.ObjectRef;
+    readonly runtimeAdapterIdentityRef: Common.ObjectRef;
     readonly request: IntegrationGateway.RuntimeDispatchRequest;
     readonly invocationBinding: InvocationBinding;
     readonly bindingHash: Common.ContentHash;
   }): Promise<SyntheticRuntimeAcknowledgement>;
   readBack(attemptRef: Common.ObjectRef): Promise<SyntheticRuntimeAcknowledgement | undefined>;
+  readFinal?(attemptRef: Common.ObjectRef): Promise<SyntheticRuntimeFinal | undefined>;
+  releaseFinal?(attemptRef: Common.ObjectRef): Promise<void>;
 }
 
 export interface ControlledRuntimeDispatchPorts {
@@ -261,6 +277,7 @@ export class ControlledRuntimeDispatchService {
     const stableKeyHash = createHash('sha256')
       .update(input.request.stableIdempotencyKey, 'utf8')
       .digest();
+    const plannedInstanceId = newUuidV7();
     if (
       input.command.correlationId !== context.correlationId ||
       !input.command.idempotencyScope ||
@@ -284,6 +301,7 @@ export class ControlledRuntimeDispatchService {
           request_payload_hash: Buffer.from(requestHash.digest, 'hex'),
           invocation_binding: canonicalize(invocationBinding as unknown as CanonicalJsonValue),
           binding_hash: Buffer.from(bindingHash.digest, 'hex'),
+          planned_runtime_instance_id: plannedInstanceId,
           source_command_id: input.command.commandId,
           created_at: claimedAt,
           updated_at: claimedAt,
@@ -401,10 +419,17 @@ export class ControlledRuntimeDispatchService {
       return inserted !== undefined;
     });
     if (!claimed) return this.getBinding(context, input.attemptRef);
+    const runtimeAdapterIdentityRef: Common.ObjectRef = {
+      kind: 'OBJECT',
+      objectType: 'zhiju.runtime.runtime',
+      objectId: plannedInstanceId,
+      scope: subjectScope,
+    };
     let acknowledgement: SyntheticRuntimeAcknowledgement;
     try {
       acknowledgement = await this.driver.invoke({
         attemptRef: input.attemptRef,
+        runtimeAdapterIdentityRef,
         request: input.request,
         invocationBinding,
         bindingHash,
@@ -532,6 +557,278 @@ export class ControlledRuntimeDispatchService {
     });
   }
 
+  async readRuntimeAdapterIdentityForAttempt(
+    context: RenderTransactionContext,
+    ref: Common.ObjectRef,
+  ) {
+    await this.ports.revalidateAuthorization();
+    const subjectScope = scope(context);
+    if (ref.objectType !== ATTEMPT || !same(ref.scope, subjectScope)) invalid();
+    return withRenderTransaction(this.db, context, async (trx) => {
+      const row = await trx
+        .selectFrom('integration_gateway.runtime_attempt')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      const identity = await trx
+        .selectFrom('integration_gateway.runtime_adapter_identity')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if (row?.status !== 'SUCCEEDED' || identity === undefined) invalid();
+      if (
+        identity.instance_id !== row.planned_runtime_instance_id ||
+        row.enterprise_id !== subjectScope.enterpriseId ||
+        row.project_id !== subjectScope.projectId ||
+        !identity.binding_hash.equals(row.binding_hash)
+      )
+        invalid();
+      const result = {
+        runtimeAdapterIdentityRef: {
+          kind: 'OBJECT',
+          objectType: 'zhiju.runtime.runtime',
+          objectId: identity.instance_id,
+          scope: subjectScope,
+        },
+        attemptRef: ref,
+        runRef: object(object(row.invocation_binding).runRef),
+        bindingHash: hash(row.binding_hash.toString('hex')),
+        runtimeBinding: object(object(row.invocation_binding).runtimeBinding),
+        ackObservationId: identity.ack_observation_id,
+        source: identity.source,
+      };
+      await this.ports.revalidateAuthorization();
+      return result;
+    });
+  }
+
+  async observeFinal(context: RenderTransactionContext, ref: Common.ObjectRef) {
+    await this.ports.revalidateAuthorization();
+    if (this.driver.readFinal === undefined) invalid('INTEGRATION_RUNTIME_FINAL_UNAVAILABLE');
+    const subjectScope = scope(context);
+    if (ref.objectType !== ATTEMPT || !same(ref.scope, subjectScope)) invalid();
+    const actual = await this.driver.readFinal(ref);
+    if (actual === undefined) return undefined;
+    return withRenderTransaction(this.db, context, async (trx) => {
+      const attempt = await trx
+        .selectFrom('integration_gateway.runtime_attempt')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .forUpdate()
+        .executeTakeFirst();
+      const identity = await trx
+        .selectFrom('integration_gateway.runtime_adapter_identity')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if (
+        attempt?.status !== 'SUCCEEDED' ||
+        identity === undefined ||
+        attempt.enterprise_id !== subjectScope.enterpriseId ||
+        attempt.project_id !== subjectScope.projectId ||
+        !same(actual.attemptRef, ref) ||
+        !same(actual.runtimeAdapterIdentityRef, {
+          kind: 'OBJECT',
+          objectType: 'zhiju.runtime.runtime',
+          objectId: identity.instance_id,
+          scope: subjectScope,
+        }) ||
+        !same(actual.bindingHash, hash(attempt.binding_hash.toString('hex'))) ||
+        !Number.isSafeInteger(actual.runFencingToken) ||
+        actual.runFencingToken !== object(attempt.invocation_binding).fencingToken ||
+        actual.agentResultContract.submittedByRuntime === undefined ||
+        !same(actual.agentResultContract.submittedByRuntime, actual.runtimeAdapterIdentityRef) ||
+        !same(actual.agentResultContract.runRef, object(attempt.invocation_binding).runRef) ||
+        !same(
+          object(object(actual.agentResultContract.header).payloadHash),
+          hash(hashContractPayload(actual.agentResultContract)),
+        ) ||
+        !same(object(actual.agentResultContract.header).scopeRef, subjectScope) ||
+        !registry.validateCoreContract(
+          'https://schemas.zhiju.local/core/agent-result/1.0',
+          actual.agentResultContract,
+        ).valid
+      )
+        invalid();
+      const resultHash = hash(hashContractPayload(actual.agentResultContract));
+      const current = await trx
+        .selectFrom('integration_gateway.runtime_final_observation')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if (current !== undefined) {
+        if (
+          !current.result_payload_hash.equals(Buffer.from(resultHash.digest, 'hex')) ||
+          !same(current.runtime_submission_ref, actual.runtimeSubmissionRef)
+        )
+          invalid('INTEGRATION_RUNTIME_FINAL_CONFLICT');
+        await this.ports.revalidateAuthorization();
+        return this.finalFromRow(ref, subjectScope, current);
+      }
+      const observationId = newUuidV7();
+      const payload = {
+        observationId,
+        attemptId: ref.objectId,
+        runtimeAdapterIdentityRef: actual.runtimeAdapterIdentityRef,
+        runtimeSubmissionRef: actual.runtimeSubmissionRef,
+        resultPayloadHash: resultHash,
+        bindingHash: actual.bindingHash,
+        observedAt: actual.observedAt.toISOString(),
+        source: 'SYNTHETIC_DRIVER',
+      } as unknown as CanonicalJsonObject;
+      await trx
+        .insertInto('integration_gateway.runtime_final_observation')
+        .values({
+          observation_id: observationId,
+          attempt_id: ref.objectId,
+          enterprise_id: context.enterpriseId,
+          project_id: subjectScope.projectId,
+          ack_observation_id: identity.ack_observation_id,
+          runtime_adapter_identity_id: identity.instance_id,
+          runtime_submission_ref: canonicalize(
+            actual.runtimeSubmissionRef as unknown as CanonicalJsonValue,
+          ),
+          result_payload: canonicalize(actual.agentResultContract),
+          result_payload_hash: Buffer.from(resultHash.digest, 'hex'),
+          binding_hash: attempt.binding_hash,
+          fencing_token: String(actual.runFencingToken),
+          observed_at: actual.observedAt,
+          source: 'SYNTHETIC_DRIVER',
+          source_command_id: attempt.source_command_id,
+          canonical_payload: canonicalize(payload),
+          payload_hash: Buffer.from(sha256CanonicalJson(payload), 'hex'),
+        })
+        .execute();
+      await trx
+        .insertInto('integration_gateway.audit_record')
+        .values({
+          audit_id: newUuidV7(),
+          enterprise_id: context.enterpriseId,
+          project_id: subjectScope.projectId,
+          principal_id: context.principalId,
+          actor_snapshot_id: context.actorSnapshotId,
+          authorization_decision_id: context.authorizationDecisionId,
+          command_id: attempt.source_command_id,
+          command_type: 'integration.request_runtime_dispatch',
+          outcome: 'INFO',
+          result_payload_hash: Buffer.from(resultHash.digest, 'hex'),
+          target_type: 'zhiju.integration.runtime_final_observation',
+          target_id: observationId,
+          correlation_id: context.correlationId,
+          safe_summary: 'synthetic final observation committed',
+          recorded_at: this.ports.now(),
+          retention_class: 'BUSINESS_AUDIT',
+        })
+        .execute();
+      for (const reference of [
+        { path: '/attemptRef', module: 'integration-gateway', ref },
+        {
+          path: '/runRef',
+          module: 'task-execution',
+          ref: object(actual.agentResultContract.runRef),
+        },
+        {
+          path: '/runtimeAdapterIdentityRef',
+          module: 'integration-gateway',
+          ref: actual.runtimeAdapterIdentityRef,
+        },
+      ]) {
+        await trx
+          .insertInto('integration_gateway.reference_edge')
+          .values({
+            owner_object_type: 'zhiju.integration.runtime_final_observation',
+            owner_object_id: observationId,
+            owner_payload_hash: Buffer.from(sha256CanonicalJson(payload), 'hex'),
+            reference_path: reference.path,
+            target_module: reference.module,
+            target_object_type: stringValue(reference.ref.objectType),
+            target_object_id: stringValue(reference.ref.objectId),
+            reference_purpose: 'RUNTIME_FINAL_BINDING',
+            enterprise_id: context.enterpriseId,
+            project_id: subjectScope.projectId,
+            source_command_id: attempt.source_command_id,
+          })
+          .execute();
+      }
+      await this.ports.revalidateAuthorization();
+      return this.finalFromRow(ref, subjectScope, {
+        observation_id: observationId,
+        attempt_id: ref.objectId,
+        enterprise_id: context.enterpriseId,
+        project_id: subjectScope.projectId,
+        ack_observation_id: identity.ack_observation_id,
+        runtime_adapter_identity_id: identity.instance_id,
+        runtime_submission_ref: actual.runtimeSubmissionRef,
+        result_payload: actual.agentResultContract,
+        result_payload_hash: Buffer.from(resultHash.digest, 'hex'),
+        binding_hash: attempt.binding_hash,
+        fencing_token: String(actual.runFencingToken),
+        observed_at: actual.observedAt,
+        source: 'SYNTHETIC_DRIVER',
+        source_command_id: attempt.source_command_id,
+        canonical_payload: payload,
+        payload_hash: Buffer.from(sha256CanonicalJson(payload), 'hex'),
+      });
+    });
+  }
+
+  async getFinal(context: RenderTransactionContext, ref: Common.ObjectRef) {
+    await this.ports.revalidateAuthorization();
+    const subjectScope = scope(context);
+    if (ref.objectType !== ATTEMPT || !same(ref.scope, subjectScope)) invalid();
+    return withRenderTransaction(this.db, context, async (trx) => {
+      const row = await trx
+        .selectFrom('integration_gateway.runtime_final_observation')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if (row === undefined) invalid('INTEGRATION_RUNTIME_FINAL_NOT_FOUND');
+      if (row.enterprise_id !== context.enterpriseId || row.project_id !== subjectScope.projectId)
+        invalid('INTEGRATION_RUNTIME_FINAL_NOT_FOUND');
+      const result = this.finalFromRow(ref, subjectScope, row);
+      await this.ports.revalidateAuthorization();
+      return result;
+    });
+  }
+
+  private finalFromRow(
+    ref: Common.ObjectRef,
+    subjectScope: Common.ScopeRef,
+    row: Selectable<RuntimeFinalObservationTable>,
+  ) {
+    const result = {
+      observationRef: {
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.integration.runtime_final_observation',
+        objectId: row.observation_id,
+        scope: subjectScope,
+        contentHash: hash(row.payload_hash.toString('hex')),
+      },
+      attemptRef: ref,
+      runRef: object(object(row.result_payload).runRef),
+      runtimeSubmissionRef: object(row.runtime_submission_ref),
+      resultPayloadHash: hash(row.result_payload_hash.toString('hex')),
+      bindingHash: hash(row.binding_hash.toString('hex')),
+      runFencingToken: Number(row.fencing_token),
+      ackObservationId: row.ack_observation_id,
+      runtimeAdapterIdentityRef: {
+        kind: 'OBJECT',
+        objectType: 'zhiju.runtime.runtime',
+        objectId: row.runtime_adapter_identity_id,
+        scope: subjectScope,
+      },
+      agentResultContract: object(row.result_payload),
+      observedAt: row.observed_at.toISOString(),
+      source: row.source,
+    };
+    if (
+      !registry.validateOperationResult('integration.get_runtime_final_observation', '1.0', result)
+        .valid
+    )
+      invalid();
+    return result;
+  }
+
   private async markUnknown(
     context: RenderTransactionContext,
     ref: Common.ObjectRef,
@@ -648,7 +945,14 @@ export class ControlledRuntimeDispatchService {
         .executeTakeFirst();
       if (
         row?.status !== (reconcile ? 'UNKNOWN' : 'CREATED') ||
-        !row.binding_hash.equals(Buffer.from(bindingHash.digest, 'hex'))
+        !row.binding_hash.equals(Buffer.from(bindingHash.digest, 'hex')) ||
+        row.planned_runtime_instance_id === null ||
+        !same(acknowledgement.runtimeAdapterIdentityRef, {
+          kind: 'OBJECT',
+          objectType: 'zhiju.runtime.runtime',
+          objectId: row.planned_runtime_instance_id,
+          scope: scope(context),
+        })
       )
         invalid();
       await trx
@@ -686,6 +990,32 @@ export class ControlledRuntimeDispatchService {
           acknowledged_at: acknowledgement.acknowledgedAt,
           observation_payload: canonicalize(observationPayload),
           observation_hash: Buffer.from(sha256CanonicalJson(observationPayload), 'hex'),
+        })
+        .execute();
+      const identityPayload = {
+        instanceId: row.planned_runtime_instance_id,
+        attemptId: ref.objectId,
+        ackObservationId: observationId,
+        bindingHash: bindingHash.digest,
+        adapterCode: RUNTIME.adapterCode,
+        adapterVersion: RUNTIME.adapterVersion,
+        source: 'SYNTHETIC_DRIVER',
+      } as const;
+      await trx
+        .insertInto('integration_gateway.runtime_adapter_identity')
+        .values({
+          instance_id: row.planned_runtime_instance_id,
+          attempt_id: ref.objectId,
+          enterprise_id: context.enterpriseId,
+          project_id: scope(context).projectId,
+          adapter_code: RUNTIME.adapterCode,
+          adapter_version: RUNTIME.adapterVersion,
+          binding_hash: Buffer.from(bindingHash.digest, 'hex'),
+          ack_observation_id: observationId,
+          source: 'SYNTHETIC_DRIVER',
+          source_command_id: row.source_command_id,
+          canonical_payload: canonicalize(identityPayload),
+          payload_hash: Buffer.from(sha256CanonicalJson(identityPayload), 'hex'),
         })
         .execute();
       await trx
@@ -759,16 +1089,67 @@ export class ControlledRuntimeDispatchService {
 
 export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
   private readonly observations = new Map<string, SyntheticRuntimeAcknowledgement>();
+  private readonly templates = new Map<
+    string,
+    {
+      readonly content: CanonicalJsonObject;
+      readonly templateHash: string;
+      readonly input: Parameters<SyntheticRuntimeDriver['invoke']>[0];
+    }
+  >();
+  private readonly finals = new Map<string, SyntheticRuntimeFinal>();
   readonly invokedAttemptIds: string[] = [];
 
-  invoke(input: {
+  constructor(
+    private readonly finalTemplate?: (
+      input: Parameters<SyntheticRuntimeDriver['invoke']>[0],
+      acknowledgement: SyntheticRuntimeAcknowledgement,
+    ) => CanonicalJsonObject,
+    private readonly journal?: RenderObjectStoragePort,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
+
+  private locator(ref: Common.ObjectRef, kind: 'invocation' | 'final'): string {
+    return `integration/runtime/synthetic/${ref.objectId}/${kind}.json`;
+  }
+
+  private async writeJournal(
+    ref: Common.ObjectRef,
+    kind: 'invocation' | 'final',
+    value: CanonicalJsonObject,
+  ): Promise<void> {
+    if (this.journal === undefined) return;
+    await this.journal.putImmutable({
+      locator: this.locator(ref, kind),
+      bytes: Buffer.from(canonicalize(value), 'utf8'),
+      mediaType: 'application/json',
+    });
+  }
+
+  private async readJournal(
+    ref: Common.ObjectRef,
+    kind: 'invocation' | 'final',
+  ): Promise<CanonicalJsonObject | undefined> {
+    if (this.journal === undefined) return undefined;
+    const stored = await this.journal.read(this.locator(ref, kind));
+    if (stored === undefined) return undefined;
+    if (
+      stored.mediaType !== 'application/json' ||
+      createHash('sha256').update(stored.bytes).digest('hex') !== stored.checksum.digest
+    )
+      invalid();
+    return object(JSON.parse(stored.bytes.toString('utf8')));
+  }
+
+  async invoke(input: {
     readonly attemptRef: Common.ObjectRef;
+    readonly runtimeAdapterIdentityRef: Common.ObjectRef;
     readonly request: IntegrationGateway.RuntimeDispatchRequest;
     readonly invocationBinding: InvocationBinding;
     readonly bindingHash: Common.ContentHash;
   }): Promise<SyntheticRuntimeAcknowledgement> {
     this.invokedAttemptIds.push(input.attemptRef.objectId);
-    const acknowledgedAt = new Date();
+    const acknowledgedAt = this.now();
     const runtimeSessionRef: Common.ExternalRef = {
       system: 'zhiju.runtime.synthetic',
       resourceType: 'runtime_session',
@@ -777,6 +1158,7 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
     };
     const result: SyntheticRuntimeAcknowledgement = {
       attemptRef: input.attemptRef,
+      runtimeAdapterIdentityRef: input.runtimeAdapterIdentityRef,
       bindingHash: input.bindingHash,
       runtimeSessionRef,
       providerReceiptRef: {
@@ -794,11 +1176,138 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
       } as unknown as CanonicalJsonObject,
       acknowledgedAt,
     };
+    let template:
+      | {
+          content: CanonicalJsonObject;
+          templateHash: string;
+          input: Parameters<SyntheticRuntimeDriver['invoke']>[0];
+        }
+      | undefined;
+    if (this.finalTemplate !== undefined) {
+      const content = structuredClone(this.finalTemplate(input, result));
+      if ('submittedAt' in content || 'submittedByRuntime' in content) invalid();
+      template = {
+        content,
+        templateHash: sha256CanonicalJson(content),
+        input,
+      };
+    }
+    await this.writeJournal(input.attemptRef, 'invocation', {
+      input: input as unknown as CanonicalJsonObject,
+      acknowledgement: {
+        ...result,
+        acknowledgedAt: acknowledgedAt.toISOString(),
+      } as unknown as CanonicalJsonObject,
+      ...(template === undefined
+        ? {}
+        : { content: template.content, templateHash: template.templateHash }),
+    });
     this.observations.set(input.attemptRef.objectId, result);
-    return Promise.resolve(result);
+    if (template !== undefined) this.templates.set(input.attemptRef.objectId, template);
+    return result;
   }
 
-  readBack(ref: Common.ObjectRef): Promise<SyntheticRuntimeAcknowledgement | undefined> {
-    return Promise.resolve(this.observations.get(ref.objectId));
+  async readBack(ref: Common.ObjectRef): Promise<SyntheticRuntimeAcknowledgement | undefined> {
+    const current = this.observations.get(ref.objectId);
+    if (current !== undefined) return structuredClone(current);
+    const stored = await this.readJournal(ref, 'invocation');
+    if (stored === undefined) return undefined;
+    const acknowledgement = object(stored.acknowledgement);
+    if (!same(acknowledgement.attemptRef, ref)) invalid();
+    const result = {
+      ...acknowledgement,
+      acknowledgedAt: new Date(stringValue(acknowledgement.acknowledgedAt)),
+    } as unknown as SyntheticRuntimeAcknowledgement;
+    if (!Number.isFinite(result.acknowledgedAt.getTime())) invalid();
+    this.observations.set(ref.objectId, result);
+    return structuredClone(result);
+  }
+
+  async releaseFinal(ref: Common.ObjectRef): Promise<void> {
+    const acknowledgement = await this.readBack(ref);
+    const stored = await this.readJournal(ref, 'invocation');
+    const template =
+      this.templates.get(ref.objectId) ??
+      (stored?.content === undefined
+        ? undefined
+        : {
+            content: object(stored.content),
+            templateHash: stringValue(stored.templateHash),
+            input: object(stored.input) as unknown as Parameters<
+              SyntheticRuntimeDriver['invoke']
+            >[0],
+          });
+    if (template === undefined) return;
+    if (
+      acknowledgement === undefined ||
+      !same(acknowledgement.attemptRef, ref) ||
+      sha256CanonicalJson(template.content) !== template.templateHash
+    )
+      invalid();
+    if ((await this.readFinal(ref)) !== undefined) return;
+    const observedAt = this.now();
+    const runtimeSubmissionRef: Common.ExternalRef = {
+      system: 'zhiju.runtime.synthetic',
+      resourceType: 'runtime_submission',
+      externalId: newUuidV7(),
+      observedAt: observedAt.toISOString(),
+    };
+    const contentWithRuntimeFields = {
+      ...template.content,
+      header: {
+        ...object(template.content.header),
+        issuedAt: observedAt.toISOString(),
+      },
+      submittedAt: observedAt.toISOString(),
+      submittedByRuntime: acknowledgement.runtimeAdapterIdentityRef,
+    } as unknown as CanonicalJsonObject;
+    const agentResultContract = {
+      ...contentWithRuntimeFields,
+      header: {
+        ...object(contentWithRuntimeFields.header),
+        payloadHash: hash(hashContractPayload(contentWithRuntimeFields)),
+      },
+    } as unknown as CanonicalJsonObject;
+    const validation = registry.validateCoreContract(
+      'https://schemas.zhiju.local/core/agent-result/1.0',
+      agentResultContract,
+    );
+    if (!validation.valid) {
+      throw new RenderPersistenceError(
+        'INTEGRATION_RUNTIME_FINAL_SCHEMA_INVALID',
+        validation.errors
+          .map((error) => `${error.instancePath}:${error.keyword}:${JSON.stringify(error.params)}`)
+          .join(','),
+      );
+    }
+    const result = {
+      attemptRef: ref,
+      runtimeAdapterIdentityRef: acknowledgement.runtimeAdapterIdentityRef,
+      bindingHash: acknowledgement.bindingHash,
+      runtimeSubmissionRef,
+      runFencingToken: template.input.invocationBinding.fencingToken,
+      agentResultContract,
+      observedAt,
+    };
+    await this.writeJournal(ref, 'final', {
+      ...result,
+      observedAt: observedAt.toISOString(),
+    } as unknown as CanonicalJsonObject);
+    this.finals.set(ref.objectId, result);
+  }
+
+  async readFinal(ref: Common.ObjectRef): Promise<SyntheticRuntimeFinal | undefined> {
+    const result = this.finals.get(ref.objectId);
+    if (result !== undefined) return structuredClone(result);
+    const stored = await this.readJournal(ref, 'final');
+    if (stored === undefined) return undefined;
+    if (!same(stored.attemptRef, ref)) invalid();
+    const recovered = {
+      ...stored,
+      observedAt: new Date(stringValue(stored.observedAt)),
+    } as unknown as SyntheticRuntimeFinal;
+    if (!Number.isFinite(recovered.observedAt.getTime())) invalid();
+    this.finals.set(ref.objectId, recovered);
+    return structuredClone(recovered);
   }
 }

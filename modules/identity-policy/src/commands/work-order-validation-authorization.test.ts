@@ -35,6 +35,7 @@ import {
 import { TASK_EXECUTION_CONTEXT_SNAPSHOT_BINDINGS } from './context-snapshot-authorization.js';
 import { CONTEXT_SNAPSHOT_DRAFT_READ_BINDINGS } from './context-snapshot-draft-read-authorization.js';
 import {
+  CONTROLLED_FIRST_RUN_BINDINGS,
   createWorkOrderValidationAuthorizationPort,
   IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
   IDENTITY_WORK_ORDER_VALIDATION_CAPABILITY_CONFIG_INVALID,
@@ -50,6 +51,27 @@ import {
   type WorkOrderValidationBoundary,
   type WorkOrderValidationCapabilityKey,
 } from './work-order-validation-authorization.js';
+
+it('keeps finalization dependency actions aligned with Spec 001 §15.13', () => {
+  const dependencyBoundaries = new Set([
+    'runFinalizeBindingReadV1',
+    'runFinalizeFinalReadV1',
+    'runFinalizeBundleReadV1',
+    'runFinalizePolicyReadV1',
+  ]);
+  expect(
+    Object.fromEntries(
+      CONTROLLED_FIRST_RUN_BINDINGS.filter((binding) =>
+        dependencyBoundaries.has(binding.boundary),
+      ).map((binding) => [binding.boundary, binding.requiredGrantAction]),
+    ),
+  ).toEqual({
+    runFinalizeBindingReadV1: 'integration.runtime.binding.read.for_run_finalize.v1',
+    runFinalizeFinalReadV1: 'integration.runtime.final.read.for_run_finalize.v1',
+    runFinalizeBundleReadV1: 'identity.execution_bundle.read.for_run_finalize.v1',
+    runFinalizePolicyReadV1: 'identity.policy.resolve.for_run_finalize.v1',
+  });
+});
 
 // Every refusal in the first half of this suite happens before the trusted
 // transaction is opened: an unknown consumer version, an unusable trusted

@@ -496,6 +496,89 @@ export namespace TaskExecution {
   readonly runFencingToken: Common.NonNegativeInteger;
   readonly runtimeSubmissionRef: Common.ExternalRef;
 }
+  /** Payload of `execution.record_run_result` (COMMAND). */
+  export type ExecutionRecordRunResultPayload = {
+  readonly agentResultRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result";
+};
+};
+  /** Result of `execution.record_run_result` (COMMAND). */
+  export type ExecutionRecordRunResultResult = {
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly status: "RESULT_RECORDED";
+  readonly agentResultRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result";
+};
+};
+  /** Payload of `execution.validate_agent_result` (COMMAND). */
+  export type ExecutionValidateAgentResultPayload = {
+  readonly agentResultRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result";
+};
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly runtimeAttemptRef: Common.ObjectRef & {
+  readonly objectType?: "integration.runtime_attempt";
+};
+  readonly policyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+};
+  readonly evaluatorRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.execution.evaluator_profile";
+};
+};
+  /** Result of `execution.validate_agent_result` (COMMAND). */
+  export type ExecutionValidateAgentResultResult = {
+  readonly bundleRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.agent_result_validation_bundle";
+};
+  readonly schemaValidationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.validation_result";
+};
+  readonly identityValidationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.validation_result";
+};
+  readonly runBindingValidationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.validation_result";
+};
+  readonly scopeValidationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.validation_result";
+};
+  readonly businessOutputValidationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.validation_result";
+};
+};
+  /** Payload of `execution.finalize_run_from_acceptance` (COMMAND). */
+  export type ExecutionFinalizeRunFromAcceptancePayload = {
+  readonly acceptanceRecordRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result_acceptance";
+};
+};
+  /** Result of `execution.finalize_run_from_acceptance` (COMMAND). */
+  export type ExecutionFinalizeRunFromAcceptanceResult = {
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly status: "SUCCEEDED";
+  readonly acceptanceRecordRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result_acceptance";
+};
+};
+  /** Payload of `execution.expire_run` (COMMAND). */
+  export type ExecutionExpireRunPayload = {
+  readonly reason: "LEASE_EXPIRED" | "DEADLINE_EXCEEDED";
+};
+  /** Result of `execution.expire_run` (COMMAND). */
+  export type ExecutionExpireRunResult = {
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly status: "TIMED_OUT";
+  readonly endedAt: Common.UtcInstant;
+};
   /** Payload of `execution.accept_agent_result` (COMMAND). */
   export interface ExecutionAcceptAgentResultPayload {
   readonly agentResultRef: Common.ContentAddressedRef;

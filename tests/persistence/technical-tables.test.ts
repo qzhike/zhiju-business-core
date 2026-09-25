@@ -158,6 +158,11 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'context_snapshot_build',
     'context_snapshot_legacy',
     'work_order_contract',
+    'agent_result',
+    'run_final_submission_claim',
+    'result_validation_bundle',
+    'result_validation_fact',
+    'agent_result_acceptance',
     'run',
     'work_order_run_claim',
   ],
@@ -244,6 +249,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'raw_external_receipt',
     'runtime_attempt',
     'runtime_attempt_observation',
+    'runtime_adapter_identity',
+    'runtime_final_observation',
   ],
 };
 

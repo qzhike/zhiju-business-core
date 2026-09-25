@@ -1550,6 +1550,41 @@
       "authorizationPurpose": "quality.revision.execution_eligibility.read",
       "dataClassification": "INTERNAL",
       "semanticDeclaration": "im-06-revision-execution-eligibility-v1.0"
+    },
+    {
+      "type": "integration.get_runtime_final_observation",
+      "version": "1.0",
+      "authorizationPurpose": "integration.runtime.final_observation.read",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-controlled-final-v1.0"
+    },
+    {
+      "type": "execution.record_run_result",
+      "version": "1.0",
+      "authorizationPurpose": "execution.run.result.record",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-controlled-final-v1.0"
+    },
+    {
+      "type": "execution.validate_agent_result",
+      "version": "1.0",
+      "authorizationPurpose": "execution.agent_result.validate",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-controlled-final-v1.0"
+    },
+    {
+      "type": "execution.finalize_run_from_acceptance",
+      "version": "1.0",
+      "authorizationPurpose": "execution.run.finalize",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-controlled-final-v1.0"
+    },
+    {
+      "type": "execution.expire_run",
+      "version": "1.0",
+      "authorizationPurpose": "execution.run.expire",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-controlled-final-v1.0"
     }
   ]
 }

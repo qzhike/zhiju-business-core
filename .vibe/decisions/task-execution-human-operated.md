@@ -1028,3 +1028,9 @@ TE 的 `submit_agent_result@1.0` 保持已发布 payload/metadata，受信 Inges
 用户在本会话明确报告“独立设计复审批准”，并确认复审对象是 `main@28d1dfd02e5f2df3794aae9c06df4cf943a36d75` 上当前 11 份文档的未提交差异：`git diff --binary -- .vibe` 的 SHA-256 为 `c57c1e1f80c15b11947f2bb8d114d7ab5f1225c32a617438cf1baca12772a1d2`。该差异包含 §22.5 的人类批准状态记录；此次结论作为用户提供、绑定确切修订版的独立设计复审 `APPROVE` 记录。状态更新只改变审查元数据，不修改被审设计语义。此前针对修订前提案的 `PLANNING_REQUIRED` 不适用于这一复审对象。
 
 本会话没有另附审查报告、逐项 findings 或 PR，因此不宣称存在已发布的正式 PR Review。被审修订版的 `vibe verify docs --json` 已通过；上次语义相同的批准前版本曾通过完整门禁，当前版本的完整门禁在 1379 项代码测试与契约检查通过后，因 Docker Hub manifest 请求超时未进入 PostgreSQL 阶段，不能记录为本修订版 `full PASS`。人类设计批准与独立复审结论已分别记录；设计尚未注册、实现或完成运行验收。实现 Issue 的 `NOW + READY`、权威文档可访问性以及 Git 交付须另行处理，本结论不授权 Issue 发布、commit、push、merge 或部署。
+
+### 22.7 Issue #224 实现阶段的范围补充确认（2026-09-24）
+
+Issue #224 实现会话中，用户对“本 Issue 新增定时 worker 宿主，还是把调度与独立进度/Inbox 留给后续任务”的选择明确回复“本 Issue 新增 worker（推荐）”。随后用户对“增加一个仅供 TE SERVICE 读写精确 ProcessInstance 进度的内部 action/config key，并保持原 scan 授权不变”明确回复“批准独立进度授权（推荐）”。据此，本 Issue 可实现周期 worker、独立 `runFinalProcessProgressV1` 授权以及持久化该进度的 V3008；原 `runFinalCandidateScanV1` 候选集与权限不扩大。
+
+这是对上述增量的单独人类确认，不改变 §22.5–§22.6 绑定的原设计 diff SHA，也不声称新增增量已获独立设计复审、完整 `full` 验证或 ready/merge 批准。PR #226 的独立实现复审对会话事实无法仅凭仓库核实，须把本记录与用户原回复区分为不同证据来源。
