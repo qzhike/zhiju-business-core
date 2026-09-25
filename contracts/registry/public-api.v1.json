@@ -860,7 +860,7 @@
           "objectType": "execution.run"
         },
         {
-          "path": "/payload/attemptRef",
+          "path": "/payload/runtimeAttemptRef",
           "kind": "OBJECT",
           "objectType": "integration.runtime_attempt"
         },

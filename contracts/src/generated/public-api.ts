@@ -774,7 +774,11 @@ export const publicApiOperations = [
         objectType: 'execution.agent_result',
       },
       { path: '/payload/runRef', kind: 'OBJECT', objectType: 'execution.run' },
-      { path: '/payload/attemptRef', kind: 'OBJECT', objectType: 'integration.runtime_attempt' },
+      {
+        path: '/payload/runtimeAttemptRef',
+        kind: 'OBJECT',
+        objectType: 'integration.runtime_attempt',
+      },
       { path: '/payload/policyRef', kind: 'VERSIONED', objectType: 'zhiju.identity.policy' },
       {
         path: '/payload/evaluatorRef',

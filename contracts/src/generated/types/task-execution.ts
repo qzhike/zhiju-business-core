@@ -520,7 +520,7 @@ export namespace TaskExecution {
   readonly runRef: Common.ObjectRef & {
   readonly objectType?: "execution.run";
 };
-  readonly attemptRef: Common.ObjectRef & {
+  readonly runtimeAttemptRef: Common.ObjectRef & {
   readonly objectType?: "integration.runtime_attempt";
 };
   readonly policyRef: Common.VersionedRef & {

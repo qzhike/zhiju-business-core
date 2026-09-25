@@ -579,7 +579,7 @@ export async function recoverControlledFinalRuns(
           payload: {
             agentResultRef: resultRef,
             runRef: progress.runRef,
-            attemptRef: progress.attemptRef,
+            runtimeAttemptRef: progress.attemptRef,
             policyRef: progress.policyRef,
             evaluatorRef: evaluatorRef as unknown as CanonicalJsonObject,
           },
@@ -946,7 +946,7 @@ export async function handleValidateFinalResult(
           prior.bundle_id === envelope.targetId &&
             prior.run_id === run.run_id &&
             same(run.result_ref, resultRef) &&
-            same(prior.attempt_ref, request.attemptRef) &&
+            same(prior.attempt_ref, request.runtimeAttemptRef) &&
             same(prior.policy_ref, request.policyRef) &&
             same(prior.evaluator_ref, request.evaluatorRef),
           'EXECUTION_FINAL_CONFLICT',
@@ -978,7 +978,7 @@ export async function handleValidateFinalResult(
         run.status === 'RESULT_RECORDED' &&
           same(run.result_ref, resultRef) &&
           same(run.lease_policy_ref, request.policyRef) &&
-          same(run.start_attempt_ref, request.attemptRef),
+          same(run.start_attempt_ref, request.runtimeAttemptRef),
       );
       const proof = await evidence(execution.trx, run, envelope, ports);
       requireThat(proof.policyObservation !== undefined);

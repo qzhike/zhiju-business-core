@@ -1068,13 +1068,16 @@ const operationSchemas = {
     }),
   },
   'execution.validate_agent_result': {
-    payload: object(['agentResultRef', 'runRef', 'attemptRef', 'policyRef', 'evaluatorRef'], {
-      agentResultRef: exactObjectType(contentAddressedReference, 'execution.agent_result'),
-      runRef: exactObjectType(objectReference, 'execution.run'),
-      attemptRef: exactObjectType(objectReference, 'integration.runtime_attempt'),
-      policyRef: exactObjectType(versionedReference, 'zhiju.identity.policy'),
-      evaluatorRef: exactObjectType(versionedReference, 'zhiju.execution.evaluator_profile'),
-    }),
+    payload: object(
+      ['agentResultRef', 'runRef', 'runtimeAttemptRef', 'policyRef', 'evaluatorRef'],
+      {
+        agentResultRef: exactObjectType(contentAddressedReference, 'execution.agent_result'),
+        runRef: exactObjectType(objectReference, 'execution.run'),
+        runtimeAttemptRef: exactObjectType(objectReference, 'integration.runtime_attempt'),
+        policyRef: exactObjectType(versionedReference, 'zhiju.identity.policy'),
+        evaluatorRef: exactObjectType(versionedReference, 'zhiju.execution.evaluator_profile'),
+      },
+    ),
     result: object(
       [
         'bundleRef',

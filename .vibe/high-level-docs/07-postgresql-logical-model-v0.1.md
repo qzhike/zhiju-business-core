@@ -2313,7 +2313,7 @@ Freeze 锁 Root 并核验 Root/Snapshot/candidate 期限完全一致且未到期
 
 ## 38. IM-06 final Result、Acceptance 与 Run terminal 的前向持久化提案
 
-状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / V3007 AND V7003 IN DRAFT PR #226 / LOCAL FULL PASS 2026-09-24 / EXACT HEAD EVIDENCE IN PR #226 / IMPLEMENTATION REVIEW PENDING`。在已交付 V3006/V7002 后新增 forward-only TE/IG migrations；不修改已应用文件、历史行、Renderer Receipt 路由或 IdentityPolicy Bundle 表。当前实现分配 `V3007` 与 `V7003`；`full` 门禁已验证空库、历史升级和二次 no-op，完整正反矩阵仍按对应 Module-Test 逐项验收。
+状态：`T2 / DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / V3007, V3008 AND V7003 IN DRAFT PR #226 / LOCAL FULL PASS 2026-09-24 / EXACT HEAD EVIDENCE IN PR #226 / IMPLEMENTATION REVIEW REQUEST_CHANGES`。在已交付 V3006/V7002 后新增 forward-only TE/IG migrations；不修改已应用文件、历史行、Renderer Receipt 路由或 IdentityPolicy Bundle 表。当前实现分配 `V3007`、`V3008` 与 `V7003`；`full` 门禁已验证空库、历史升级和二次 no-op，完整正反矩阵仍按对应 Module-Test 逐项验收。
 
 | Owner / 事实 | 最小新增字段与唯一性 | 原子性、guard 与消费 |
 |---|---|---|

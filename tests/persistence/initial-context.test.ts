@@ -9636,7 +9636,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         {
           agentResultRef: resultRef,
           runRef,
-          attemptRef,
+          runtimeAttemptRef: attemptRef,
           policyRef: controlsRef,
           evaluatorRef: finalEvaluator,
         } as unknown as CanonicalJsonObject,
