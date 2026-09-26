@@ -897,6 +897,363 @@ describe('TaskExecution Draft and initial Context contracts', () => {
     );
   });
 });
+
+describe('controlled final command and result fixtures', () => {
+  const runRef = objectRef('execution.run');
+  const resultRef = contentRef('execution.agent_result');
+  const acceptanceRef = contentRef('execution.agent_result_acceptance');
+  const validationRef = contentRef('zhiju.execution.validation_result');
+  const validationRefs = {
+    schemaValidationRef: validationRef,
+    identityValidationRef: validationRef,
+    runBindingValidationRef: validationRef,
+    scopeValidationRef: validationRef,
+    businessOutputValidationRef: validationRef,
+  };
+  const cases = [
+    {
+      operation: 'execution.record_run_result',
+      target: runRef,
+      payload: { agentResultRef: resultRef },
+      result: { runRef, status: 'RESULT_RECORDED', agentResultRef: resultRef },
+      wrongRef: { agentResultRef: objectRef('execution.agent_result') },
+    },
+    {
+      operation: 'execution.validate_agent_result',
+      target: objectRef('zhiju.execution.agent_result_validation_bundle'),
+      payload: {
+        agentResultRef: resultRef,
+        runRef,
+        runtimeAttemptRef: objectRef('integration.runtime_attempt'),
+        policyRef: versionedRef('zhiju.identity.policy'),
+        evaluatorRef: versionedRef('zhiju.execution.evaluator_profile'),
+      },
+      result: {
+        bundleRef: contentRef('zhiju.execution.agent_result_validation_bundle'),
+        ...validationRefs,
+      },
+      wrongRef: { runtimeAttemptRef: objectRef('execution.run') },
+    },
+    {
+      operation: 'execution.finalize_run_from_acceptance',
+      target: runRef,
+      payload: { acceptanceRecordRef: acceptanceRef },
+      result: { runRef, status: 'SUCCEEDED', acceptanceRecordRef: acceptanceRef },
+      wrongRef: { acceptanceRecordRef: contentRef('execution.agent_result') },
+    },
+    {
+      operation: 'execution.expire_run',
+      target: runRef,
+      payload: { reason: 'DEADLINE_EXCEEDED' },
+      result: { runRef, status: 'TIMED_OUT', endedAt: '2026-08-17T00:01:00Z' },
+      wrongRef: { reason: 'UNSUPPORTED_EXPIRY' },
+    },
+  ] as const;
+
+  for (const { operation, target, payload, result, wrongRef } of cases) {
+    it(`accepts the closed ${operation} command and result and rejects malformed inputs`, () => {
+      expect(
+        registry.validateOperation(operation, '1.0', commandEnvelope(operation, payload, target)),
+      ).toEqual({ valid: true, errors: [] });
+      expect(registry.validateOperationResult(operation, '1.0', result)).toEqual({
+        valid: true,
+        errors: [],
+      });
+      for (const field of Object.keys(payload)) {
+        const missing = Object.fromEntries(
+          Object.entries(payload).filter(([key]) => key !== field),
+        );
+        expect(
+          registry.validateOperation(operation, '1.0', commandEnvelope(operation, missing, target))
+            .valid,
+        ).toBe(false);
+      }
+      for (const field of Object.keys(result)) {
+        const missing = Object.fromEntries(Object.entries(result).filter(([key]) => key !== field));
+        expect(registry.validateOperationResult(operation, '1.0', missing).valid).toBe(false);
+      }
+      for (const field of Object.keys(payload))
+        expect(
+          registry.validateOperation(
+            operation,
+            '1.0',
+            commandEnvelope(operation, { ...payload, [field]: null }, target),
+          ).valid,
+          `${operation} ${field} null`,
+        ).toBe(false);
+      for (const field of Object.keys(result))
+        expect(
+          registry.validateOperationResult(operation, '1.0', { ...result, [field]: null }).valid,
+          `${operation} result ${field} null`,
+        ).toBe(false);
+      for (const [field, original] of Object.entries(payload)) {
+        if (original === null || typeof original !== 'object' || !('kind' in original)) continue;
+        for (const changed of [
+          { ...original, kind: 'UNSUPPORTED' },
+          { ...original, objectType: 'unknown.ref' },
+          { ...original, objectId: 'invalid-uuid' },
+          ...('contentHash' in original
+            ? [
+                {
+                  ...original,
+                  contentHash: {
+                    algorithm: 'SHA-1',
+                    canonicalizationVersion: '1',
+                    digest: '0'.repeat(64),
+                  },
+                },
+                {
+                  ...original,
+                  contentHash: {
+                    algorithm: 'SHA-256',
+                    canonicalizationVersion: '1',
+                    digest: 'invalid-digest',
+                  },
+                },
+              ]
+            : []),
+          ...('versionId' in original ? [{ ...original, versionId: 'invalid-uuid' }] : []),
+        ])
+          expect(
+            registry.validateOperation(
+              operation,
+              '1.0',
+              commandEnvelope(operation, { ...payload, [field]: changed }, target),
+            ).valid,
+            `${operation} ${field} changed Ref`,
+          ).toBe(false);
+      }
+      for (const malformed of [
+        { ...payload, extra: true },
+        { ...payload, ...wrongRef },
+      ])
+        expect(
+          registry.validateOperation(
+            operation,
+            '1.0',
+            commandEnvelope(operation, malformed, target),
+          ).valid,
+        ).toBe(false);
+      expect(
+        registry.validateOperationResult(operation, '1.0', { ...result, extra: true }).valid,
+      ).toBe(false);
+    });
+  }
+
+  it('keeps submit and accept inputs closed at their published command boundaries', () => {
+    const agentResultContract = fixture('core/agent-result-valid.json');
+    const submitPayload = {
+      agentResultContract,
+      runFencingToken: 1,
+      runtimeSubmissionRef: {
+        system: 'synthetic',
+        resourceType: 'submission',
+        externalId: 'fixture-final-submission',
+        observedAt: '2026-08-17T00:10:00Z',
+      },
+    };
+    const submitTarget = objectRef(
+      'execution.agent_result',
+      String(agentResultContract.agentResultId),
+    );
+    expect(
+      registry.validateOperation(
+        'execution.submit_agent_result',
+        '1.0',
+        commandEnvelope('execution.submit_agent_result', submitPayload, submitTarget),
+      ),
+    ).toEqual({ valid: true, errors: [] });
+    for (const field of Object.keys(submitPayload)) {
+      const missing = Object.fromEntries(
+        Object.entries(submitPayload).filter(([key]) => key !== field),
+      );
+      expect(
+        registry.validateOperation(
+          'execution.submit_agent_result',
+          '1.0',
+          commandEnvelope('execution.submit_agent_result', missing, submitTarget),
+        ).valid,
+      ).toBe(false);
+    }
+    for (const malformed of [
+      { ...submitPayload, runFencingToken: -1 },
+      { ...submitPayload, extra: true },
+    ])
+      expect(
+        registry.validateOperation(
+          'execution.submit_agent_result',
+          '1.0',
+          commandEnvelope('execution.submit_agent_result', malformed, submitTarget),
+        ).valid,
+      ).toBe(false);
+
+    const acceptPayload = {
+      agentResultRef: resultRef,
+      ...validationRefs,
+      disposition: 'ACCEPTED',
+      reasons: [],
+    };
+    const acceptTarget = objectRef('execution.agent_result_acceptance');
+    expect(
+      registry.validateOperation(
+        'execution.accept_agent_result',
+        '1.0',
+        commandEnvelope('execution.accept_agent_result', acceptPayload, acceptTarget),
+      ),
+    ).toEqual({ valid: true, errors: [] });
+    for (const field of Object.keys(acceptPayload)) {
+      const missing = Object.fromEntries(
+        Object.entries(acceptPayload).filter(([key]) => key !== field),
+      );
+      expect(
+        registry.validateOperation(
+          'execution.accept_agent_result',
+          '1.0',
+          commandEnvelope('execution.accept_agent_result', missing, acceptTarget),
+        ).valid,
+      ).toBe(false);
+    }
+    for (const malformed of [
+      { ...acceptPayload, disposition: 'INVALID' },
+      { ...acceptPayload, extra: true },
+    ])
+      expect(
+        registry.validateOperation(
+          'execution.accept_agent_result',
+          '1.0',
+          commandEnvelope('execution.accept_agent_result', malformed, acceptTarget),
+        ).valid,
+      ).toBe(false);
+  });
+
+  it('validates start and accepted Result read fixtures at their published boundaries', () => {
+    const startPayload = {
+      leaseId: '018f22e2-7c15-7b2e-8d86-2de956a9d470',
+      fencingToken: 1,
+      runtimeAttemptRef: objectRef('integration.runtime_attempt'),
+      startedAt: '2026-08-17T00:00:00Z',
+    };
+    expect(
+      registry.validateOperation(
+        'execution.start_run',
+        '1.0',
+        commandEnvelope('execution.start_run', startPayload, runRef),
+      ),
+    ).toEqual({ valid: true, errors: [] });
+    for (const field of Object.keys(startPayload)) {
+      const missing = Object.fromEntries(
+        Object.entries(startPayload).filter(([key]) => key !== field),
+      );
+      expect(
+        registry.validateOperation(
+          'execution.start_run',
+          '1.0',
+          commandEnvelope('execution.start_run', missing, runRef),
+        ).valid,
+      ).toBe(false);
+    }
+    expect(
+      registry.validateOperation(
+        'execution.start_run',
+        '1.0',
+        commandEnvelope('execution.start_run', { ...startPayload, fencingToken: -1 }, runRef),
+      ).valid,
+    ).toBe(false);
+
+    const query = {
+      ...draftQuery(),
+      queryType: 'execution.get_agent_result',
+      payload: { agentResultRef: resultRef },
+    };
+    expect(registry.validateOperation('execution.get_agent_result', '1.0', query)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    const readResult = {
+      agentResultRef: resultRef,
+      agentResultContract: fixture('core/agent-result-valid.json'),
+      acceptanceRecordRef: acceptanceRef,
+    };
+    expect(
+      registry.validateOperationResult('execution.get_agent_result', '1.0', readResult),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+    for (const field of Object.keys(readResult)) {
+      const missing = Object.fromEntries(
+        Object.entries(readResult).filter(([key]) => key !== field),
+      );
+      expect(
+        registry.validateOperationResult('execution.get_agent_result', '1.0', missing).valid,
+      ).toBe(false);
+    }
+    expect(
+      registry.validateOperation('execution.get_agent_result', '1.0', {
+        ...query,
+        payload: { ...(query.payload as JsonObject), extra: true },
+      }).valid,
+    ).toBe(false);
+    expect(
+      registry.validateOperationResult('execution.get_agent_result', '1.0', {
+        agentResultRef: resultRef,
+        agentResultContract: readResult.agentResultContract,
+      }).valid,
+    ).toBe(false);
+  });
+
+  it('validates the closed accepted and terminal Event fixtures', () => {
+    for (const [eventType, aggregateType, payload] of [
+      [
+        'execution.RunTerminated',
+        'execution.run',
+        {
+          runRef,
+          workOrderRef: objectRef('zhiju.execution.work_order'),
+          terminalStatus: 'SUCCEEDED',
+          terminationReason: 'EXECUTION_RESULT_ACCEPTED',
+          agentResultRef: resultRef,
+          endedAt: '2026-08-17T00:10:00Z',
+        },
+      ],
+      [
+        'execution.AgentResultAccepted',
+        'execution.agent_result',
+        {
+          agentResultRef: resultRef,
+          acceptanceRecordRef: acceptanceRef,
+          runRef,
+          workOrderRef: objectRef('zhiju.execution.work_order'),
+          businessOutputRefs: [],
+        },
+      ],
+    ] as const) {
+      const event = {
+        ...contextSnapshotEventEnvelope(payload, '1.0'),
+        eventType,
+        aggregateType,
+      };
+      expect(registry.validateOperation(eventType, '1.0', event)).toEqual({
+        valid: true,
+        errors: [],
+      });
+      for (const field of Object.keys(payload)) {
+        const missing = Object.fromEntries(
+          Object.entries(payload).filter(([key]) => key !== field),
+        );
+        expect(
+          registry.validateOperation(eventType, '1.0', { ...event, payload: missing }).valid,
+        ).toBe(eventType === 'execution.RunTerminated' && field === 'agentResultRef');
+      }
+      expect(
+        registry.validateOperation(eventType, '1.0', {
+          ...event,
+          payload: { ...payload, extra: true },
+        }).valid,
+      ).toBe(false);
+    }
+  });
+});
 describe('Task v2 creation contract', () => {
   function taskV2(): {
     readonly command: JsonObject;

@@ -11,6 +11,7 @@ import type { Kysely, Selectable } from 'kysely';
 
 import {
   executeTaskExecutionCommand,
+  CommandExecutionError,
   type CommandEnvelope,
   type CommandExecution,
 } from '../persistence/command-runner.js';
@@ -58,6 +59,57 @@ export interface ControlledFinalPorts {
     bundleRef: CanonicalJsonObject,
     runRef: CanonicalJsonObject,
   ) => Promise<void>;
+}
+
+/** A rejected final transaction leaves no Receipt or business facts. Preserve
+ * only a masked security record, under the same current command authority. */
+async function executeFinalCommand(
+  ...args: Parameters<typeof executeTaskExecutionCommand>
+): ReturnType<typeof executeTaskExecutionCommand> {
+  try {
+    return await executeTaskExecutionCommand(...args);
+  } catch (error) {
+    if (
+      !(error instanceof CommandExecutionError) ||
+      ![
+        'EXECUTION_FINAL_CONFLICT',
+        'REFERENCE_INVALID',
+        'EXECUTION_CRITERION_UNSUPPORTED',
+        'EXECUTION_JUDGMENT_STALE',
+        'API_VALUE_INVALID',
+      ].includes(error.code)
+    )
+      throw error;
+    const [db, context, envelope, , revalidate] = args;
+    await revalidate?.();
+    await withTaskExecutionTransaction(db, context, async (trx) => {
+      await revalidate?.();
+      await trx
+        .insertInto('task_execution.audit_record')
+        .values({
+          audit_id: newUuidV7(),
+          enterprise_id: envelope.enterpriseId,
+          project_id: envelope.projectId ?? null,
+          principal_id: envelope.principalId,
+          actor_snapshot_id: envelope.actorSnapshotId,
+          authorization_decision_id: envelope.authorizationDecisionId,
+          command_id: envelope.commandId,
+          command_type: envelope.commandType,
+          outcome: 'DENIED',
+          error_code: error.code,
+          request_payload_hash: Buffer.from(sha256CanonicalJson(envelope.requestPayload), 'hex'),
+          target_type: envelope.targetType,
+          target_id: envelope.targetId,
+          correlation_id: envelope.correlationId,
+          causation_id: envelope.causationId ?? null,
+          safe_summary: 'controlled final request rejected; business transaction rolled back',
+          retention_class: 'REGULATED_AUDIT',
+        })
+        .execute();
+      await revalidate?.();
+    });
+    throw error;
+  }
 }
 
 function scope(envelope: CommandEnvelope): CanonicalJsonObject {
@@ -695,7 +747,7 @@ export async function handleSubmitFinalResult(
       submitted.agentResultId === envelope.targetId,
   );
   await ports.revalidateAuthorization();
-  return executeTaskExecutionCommand(
+  return executeFinalCommand(
     db,
     context,
     envelope,
@@ -828,7 +880,7 @@ export async function handleRecordRunResult(
   const resultRef = object(envelope.requestPayload.agentResultRef);
   await ports.revalidateAuthorization();
   await ports.readSource(resultRef);
-  return executeTaskExecutionCommand(
+  return executeFinalCommand(
     db,
     context,
     envelope,
@@ -930,7 +982,7 @@ export async function handleValidateFinalResult(
   );
   await ports.revalidateAuthorization();
   await ports.readSource(resultRef);
-  return executeTaskExecutionCommand(
+  return executeFinalCommand(
     db,
     context,
     envelope,
@@ -1199,18 +1251,19 @@ export async function handleAcceptFinalResult(
   );
   const request = envelope.requestPayload;
   const resultRef = object(request.agentResultRef);
-  requireThat(
-    request.disposition === 'ACCEPTED' &&
-      Array.isArray(request.reasons) &&
-      request.reasons.length === 0,
-  );
   await ports.revalidateAuthorization();
   await ports.readSource(resultRef);
-  return executeTaskExecutionCommand(
+  return executeFinalCommand(
     db,
     context,
     envelope,
     async (execution) => {
+      requireThat(
+        request.disposition === 'ACCEPTED' &&
+          Array.isArray(request.reasons) &&
+          request.reasons.length === 0,
+      );
+
       const result = await execution.trx
         .selectFrom('task_execution.agent_result')
         .selectAll()
@@ -1416,7 +1469,7 @@ export async function handleFinalizeFirstRun(
   const acceptanceRef = object(envelope.requestPayload.acceptanceRecordRef);
   await ports.revalidateAuthorization();
   await ports.readSource(acceptanceRef);
-  return executeTaskExecutionCommand(
+  return executeFinalCommand(
     db,
     context,
     envelope,
@@ -1551,7 +1604,7 @@ export async function handleExpireFirstRun(
     'EXECUTION_CRITERION_UNSUPPORTED',
   );
   await ports.revalidateAuthorization();
-  return executeTaskExecutionCommand(
+  return executeFinalCommand(
     db,
     context,
     envelope,

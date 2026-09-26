@@ -25,6 +25,8 @@ import {
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { verifyControlledFinalUpgrade } from './controlled-final-upgrade.js';
+
 const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const gateEnabled = Boolean(databaseUrl);
 
@@ -245,6 +247,35 @@ describe.skipIf(!gateEnabled)('IntegrationGateway Renderer slice (real PostgreSQ
     expect(first.rawReceiptRef?.contentHash.digest).toMatch(/^[0-9a-f]{64}$/);
     expect(provider.calls).toBe(1);
     expect(provider.verifications).toBe(1);
+    await verifyControlledFinalUpgrade(admin, {
+      schema: 'integration_gateway',
+      version: '7002',
+      enterpriseId: ENTERPRISE,
+      requiredTables: ['render_attempt', 'raw_external_receipt', 'outbox_event'],
+      afterMigrate: async (legacyAdmin, connectionUri) => {
+        await legacyAdmin.query(
+          "CREATE ROLE wi224_legacy_renderer LOGIN PASSWORD 'wi224-legacy-renderer' NOSUPERUSER NOBYPASSRLS",
+        );
+        await legacyAdmin.query(
+          'GRANT platform_context_establisher, integration_gateway_app TO wi224_legacy_renderer',
+        );
+        const url = new URL(connectionUri);
+        url.username = 'wi224_legacy_renderer';
+        url.password = 'wi224-legacy-renderer';
+        const pool = new pg.Pool({ connectionString: url.toString(), max: 3 });
+        try {
+          const legacy = new RenderAttemptService(
+            createIntegrationRendererDatabase(pool),
+            provider,
+          );
+          expect(await legacy.getRenderAttemptBinding(context(), first.attemptRef)).toEqual(first);
+          expect(provider.calls).toBe(1);
+        } finally {
+          await pool.end();
+        }
+      },
+    });
+    expect(await service.getRenderAttemptBinding(context(), first.attemptRef)).toEqual(first);
     const replay = await service.requestRender(context(), {
       attemptRef: attemptRef(newUuidV7()),
       request,
@@ -362,7 +393,7 @@ describe.skipIf(!gateEnabled)('IntegrationGateway Renderer slice (real PostgreSQ
         [unverifiedRef.objectId],
       ),
     ).toBe(0);
-  });
+  }, 180_000);
 
   it('keeps timeout UNKNOWN, never repeats it, and reconciles only authoritative readback', async () => {
     const storage = new InMemoryRenderObjectStorage();

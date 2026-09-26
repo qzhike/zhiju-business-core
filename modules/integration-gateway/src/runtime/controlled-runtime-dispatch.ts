@@ -418,7 +418,21 @@ export class ControlledRuntimeDispatchService {
       await this.ports.revalidateAuthorization();
       return inserted !== undefined;
     });
-    if (!claimed) return this.getBinding(context, input.attemptRef);
+    if (!claimed) {
+      const original = await this.getBinding(context, input.attemptRef);
+      if (original.status !== 'CREATED') return original;
+      const acknowledgement = await this.driver.readBack(input.attemptRef);
+      if (acknowledgement === undefined) return original;
+      await this.commitAcknowledgement(
+        context,
+        input.attemptRef,
+        original.request,
+        original.invocationBinding,
+        original.bindingHash,
+        acknowledgement,
+      );
+      return this.getBinding(context, input.attemptRef);
+    }
     const runtimeAdapterIdentityRef: Common.ObjectRef = {
       kind: 'OBJECT',
       objectType: 'zhiju.runtime.runtime',
@@ -609,7 +623,7 @@ export class ControlledRuntimeDispatchService {
     if (ref.objectType !== ATTEMPT || !same(ref.scope, subjectScope)) invalid();
     const actual = await this.driver.readFinal(ref);
     if (actual === undefined) return undefined;
-    return withRenderTransaction(this.db, context, async (trx) => {
+    const outcome = await withRenderTransaction(this.db, context, async (trx) => {
       const attempt = await trx
         .selectFrom('integration_gateway.runtime_attempt')
         .selectAll()
@@ -621,9 +635,20 @@ export class ControlledRuntimeDispatchService {
         .selectAll()
         .where('attempt_id', '=', ref.objectId)
         .executeTakeFirst();
+      const acknowledgement =
+        identity === undefined
+          ? undefined
+          : await trx
+              .selectFrom('integration_gateway.runtime_attempt_observation')
+              .selectAll()
+              .where('observation_id', '=', identity.ack_observation_id)
+              .executeTakeFirst();
       if (
         attempt?.status !== 'SUCCEEDED' ||
         identity === undefined ||
+        acknowledgement?.attempt_id !== ref.objectId ||
+        acknowledgement.enterprise_id !== subjectScope.enterpriseId ||
+        acknowledgement.project_id !== subjectScope.projectId ||
         attempt.enterprise_id !== subjectScope.enterpriseId ||
         attempt.project_id !== subjectScope.projectId ||
         !same(actual.attemptRef, ref) ||
@@ -639,6 +664,10 @@ export class ControlledRuntimeDispatchService {
         actual.agentResultContract.submittedByRuntime === undefined ||
         !same(actual.agentResultContract.submittedByRuntime, actual.runtimeAdapterIdentityRef) ||
         !same(actual.agentResultContract.runRef, object(attempt.invocation_binding).runRef) ||
+        !same(
+          object(actual.agentResultContract.provenance).runtimeSessionExternalRef,
+          object(acknowledgement.runtime_session_ref),
+        ) ||
         !same(
           object(object(actual.agentResultContract.header).payloadHash),
           hash(hashContractPayload(actual.agentResultContract)),
@@ -660,8 +689,33 @@ export class ControlledRuntimeDispatchService {
         if (
           !current.result_payload_hash.equals(Buffer.from(resultHash.digest, 'hex')) ||
           !same(current.runtime_submission_ref, actual.runtimeSubmissionRef)
-        )
-          invalid('INTEGRATION_RUNTIME_FINAL_CONFLICT');
+        ) {
+          await this.ports.revalidateAuthorization();
+          await trx
+            .insertInto('integration_gateway.audit_record')
+            .values({
+              audit_id: newUuidV7(),
+              enterprise_id: context.enterpriseId,
+              project_id: subjectScope.projectId,
+              principal_id: context.principalId,
+              actor_snapshot_id: context.actorSnapshotId,
+              authorization_decision_id: context.authorizationDecisionId,
+              command_id: attempt.source_command_id,
+              command_type: 'integration.request_runtime_dispatch',
+              outcome: 'DENIED',
+              error_code: 'INTEGRATION_RUNTIME_FINAL_CONFLICT',
+              request_payload_hash: Buffer.from(resultHash.digest, 'hex'),
+              target_type: ATTEMPT,
+              target_id: ref.objectId,
+              correlation_id: context.correlationId,
+              safe_summary: 'synthetic final conflicts with the immutable observation',
+              recorded_at: this.ports.now(),
+              retention_class: 'BUSINESS_AUDIT',
+            })
+            .execute();
+          await this.ports.revalidateAuthorization();
+          return { conflict: true } as const;
+        }
         await this.ports.revalidateAuthorization();
         return this.finalFromRow(ref, subjectScope, current);
       }
@@ -770,6 +824,8 @@ export class ControlledRuntimeDispatchService {
         payload_hash: Buffer.from(sha256CanonicalJson(payload), 'hex'),
       });
     });
+    if ('conflict' in outcome) invalid('INTEGRATION_RUNTIME_FINAL_CONFLICT');
+    return outcome;
   }
 
   async getFinal(context: RenderTransactionContext, ref: Common.ObjectRef) {
@@ -943,6 +999,47 @@ export class ControlledRuntimeDispatchService {
         .where('attempt_id', '=', ref.objectId)
         .forUpdate()
         .executeTakeFirst();
+      if (row?.status === 'SUCCEEDED') {
+        const observation = await trx
+          .selectFrom('integration_gateway.runtime_attempt_observation')
+          .selectAll()
+          .where('attempt_id', '=', ref.objectId)
+          .executeTakeFirst();
+        const receipt =
+          observation === undefined
+            ? undefined
+            : await trx
+                .selectFrom('integration_gateway.raw_external_receipt')
+                .selectAll()
+                .where('receipt_id', '=', observation.raw_receipt_id)
+                .executeTakeFirst();
+        const identity = await trx
+          .selectFrom('integration_gateway.runtime_adapter_identity')
+          .selectAll()
+          .where('attempt_id', '=', ref.objectId)
+          .executeTakeFirst();
+        if (
+          !row.binding_hash.equals(Buffer.from(bindingHash.digest, 'hex')) ||
+          observation === undefined ||
+          receipt === undefined ||
+          identity === undefined ||
+          !same(object(observation.runtime_session_ref), acknowledgement.runtimeSessionRef) ||
+          observation.acknowledged_at.getTime() !== acknowledgement.acknowledgedAt.getTime() ||
+          !same(object(receipt.provider_receipt_ref), acknowledgement.providerReceiptRef) ||
+          !receipt.receipt_payload_hash.equals(Buffer.from(stored.checksum.digest, 'hex')) ||
+          identity.instance_id !== row.planned_runtime_instance_id ||
+          !same(acknowledgement.runtimeAdapterIdentityRef, {
+            kind: 'OBJECT',
+            objectType: 'zhiju.runtime.runtime',
+            objectId: identity.instance_id,
+            scope: scope(context),
+          })
+        )
+          invalid('INTEGRATION_ATTEMPT_IDEMPOTENCY_CONFLICT');
+        await this.ports.revalidateAuthorization();
+        await revalidateReceipt();
+        return;
+      }
       if (
         row?.status !== (reconcile ? 'UNKNOWN' : 'CREATED') ||
         !row.binding_hash.equals(Buffer.from(bindingHash.digest, 'hex')) ||
