@@ -1,0 +1,49 @@
+import { pathToFileURL } from 'node:url';
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+export function ciVerificationFailures(needs: unknown, workflowCancelled: boolean): string[] {
+  const failures: string[] = workflowCancelled ? ['workflow was cancelled'] : [];
+  const dependencies = record(needs);
+  if (!dependencies) return [...failures, 'invalid CI dependency data'];
+  const names = ['select', 'checks', 'persistence'];
+  if (Object.keys(dependencies).some((name) => !names.includes(name))) {
+    failures.push('unexpected CI dependency; update the required verification set');
+  }
+  const target = record(record(dependencies.select)?.outputs)?.target;
+  if (target !== 'docs' && target !== 'code' && target !== 'full') {
+    return [...failures, 'missing or invalid verification target'];
+  }
+  for (const name of names) {
+    const expected = name === 'persistence' && target !== 'full' ? 'skipped' : 'success';
+    if (record(dependencies[name])?.result !== expected) {
+      failures.push(`${name}: expected ${expected}`);
+    }
+  }
+  return failures;
+}
+
+function main(): void {
+  try {
+    const cancellation = process.env.WORKFLOW_CANCELLED;
+    if (cancellation !== 'true' && cancellation !== 'false') {
+      throw new Error('missing or invalid workflow cancellation state');
+    }
+    const needs: unknown = JSON.parse(process.env.NEEDS_JSON ?? '');
+    const failures = ciVerificationFailures(needs, cancellation === 'true');
+    process.stdout.write(
+      `${JSON.stringify({ status: failures.length ? 'FAIL' : 'PASS', failures })}\n`,
+    );
+    if (failures.length) process.exitCode = 1;
+  } catch {
+    process.stderr.write('CI verification failed: invalid dependency or cancellation data\n');
+    process.exitCode = 1;
+  }
+}
+
+const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : undefined;
+if (invokedPath === import.meta.url) main();

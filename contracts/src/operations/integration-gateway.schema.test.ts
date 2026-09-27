@@ -1152,3 +1152,169 @@ describe('integration-gateway schema', () => {
     expect(result.errors.some((error) => error.keyword === 'uniqueItems')).toBe(true);
   });
 });
+
+describe('controlled final observation Query fixture', () => {
+  const registry = new ContractRegistry();
+  const operation = 'integration.get_runtime_final_observation';
+  const attemptRef = objectRef(
+    'integration.runtime_attempt',
+    '018f22e2-7c15-7b2e-8d86-2de956a9d410',
+  );
+
+  it('validates the original Attempt binding Query and closed view', () => {
+    const operation = 'integration.get_runtime_attempt_binding';
+    expect(
+      registry.validateOperation(operation, '1.0', queryEnvelope(operation, { attemptRef })),
+    ).toEqual({ valid: true, errors: [] });
+    const runRef = objectRef('execution.run', '018f22e2-7c15-7b2e-8d86-2de956a9d412');
+    const workOrderContractRef = contentAddressedRef(
+      'zhiju.contract.work_order',
+      '018f22e2-7c15-7b2e-8d86-2de956a9d415',
+      ZERO_DIGEST,
+    );
+    const contextSnapshotRef = snapshotRef(
+      'zhiju.execution.context_snapshot',
+      '018f22e2-7c15-7b2e-8d86-2de956a9d416',
+      '018f22e2-7c15-7b2e-8d86-2de956a9d417',
+      ZERO_DIGEST,
+    );
+    const capabilityGrantRef = contentAddressedRef(
+      'zhiju.identity.execution_capability_bundle',
+      '018f22e2-7c15-7b2e-8d86-2de956a9d418',
+      ZERO_DIGEST,
+    );
+    const runtimeBinding = { adapterCode: 'te.human_operated.synthetic' };
+    const result = {
+      attemptRef,
+      status: 'CREATED',
+      request: {
+        workOrderRef: objectRef(
+          'zhiju.execution.work_order',
+          '018f22e2-7c15-7b2e-8d86-2de956a9d419',
+        ),
+        runRef,
+        workOrderContractRef,
+        contextSnapshotRef,
+        capabilityGrantRef,
+        runtimeBinding,
+        stableIdempotencyKey: 'fixture-dispatch',
+        requestedAt: '2026-08-17T00:00:00Z',
+      },
+      requestPayloadHash: {
+        algorithm: 'SHA-256',
+        digest: ZERO_DIGEST,
+        canonicalizationVersion: '1',
+      },
+      invocationBinding: {
+        runRef,
+        workOrderContractRef,
+        contextSnapshotRef,
+        capabilityGrantRef,
+        leaseId: '018f22e2-7c15-7b2e-8d86-2de956a9d420',
+        fencingToken: 1,
+        leaseExpiresAt: '2026-08-17T00:10:00Z',
+        runtimeBinding,
+      },
+      bindingHash: { algorithm: 'SHA-256', digest: ZERO_DIGEST, canonicalizationVersion: '1' },
+    };
+    expect(registry.validateOperationResult(operation, '1.0', result)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(registry.validateOperation(operation, '1.0', queryEnvelope(operation, {})).valid).toBe(
+      false,
+    );
+    for (const field of Object.keys(result)) {
+      const missing = Object.fromEntries(Object.entries(result).filter(([key]) => key !== field));
+      expect(registry.validateOperationResult(operation, '1.0', missing).valid).toBe(false);
+    }
+    for (const payload of [
+      { attemptRef: objectRef('execution.run', attemptRef.objectId) },
+      { attemptRef, agentResultContract: fixture('core/agent-result-valid.json') },
+    ])
+      expect(
+        registry.validateOperation(operation, '1.0', queryEnvelope(operation, payload)).valid,
+      ).toBe(false);
+    expect(
+      registry.validateOperationResult(operation, '1.0', { ...result, extra: true }).valid,
+    ).toBe(false);
+  });
+
+  it('accepts the Attempt-only Query and closed final view', () => {
+    const query = queryEnvelope(operation, { attemptRef });
+    expect(registry.validateOperation(operation, '1.0', query)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    const finalView = {
+      observationRef: contentAddressedRef(
+        'zhiju.integration.runtime_final_observation',
+        '018f22e2-7c15-7b2e-8d86-2de956a9d411',
+        ZERO_DIGEST,
+      ),
+      attemptRef,
+      runRef: objectRef('execution.run', '018f22e2-7c15-7b2e-8d86-2de956a9d412'),
+      runtimeSubmissionRef: externalRef('synthetic', 'submission', 'fixture-final'),
+      resultPayloadHash: {
+        algorithm: 'SHA-256',
+        digest: ZERO_DIGEST,
+        canonicalizationVersion: '1',
+      },
+      bindingHash: { algorithm: 'SHA-256', digest: ZERO_DIGEST, canonicalizationVersion: '1' },
+      runFencingToken: 1,
+      ackObservationId: '018f22e2-7c15-7b2e-8d86-2de956a9d413',
+      runtimeAdapterIdentityRef: objectRef(
+        'zhiju.runtime.runtime',
+        '018f22e2-7c15-7b2e-8d86-2de956a9d414',
+      ),
+      agentResultContract: fixture('core/agent-result-valid.json'),
+      observedAt: '2026-08-17T00:10:00Z',
+      source: 'SYNTHETIC_DRIVER',
+    };
+    expect(registry.validateOperationResult(operation, '1.0', finalView)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(registry.validateOperation(operation, '1.0', queryEnvelope(operation, {})).valid).toBe(
+      false,
+    );
+    for (const field of Object.keys(finalView)) {
+      const missing = Object.fromEntries(
+        Object.entries(finalView).filter(([key]) => key !== field),
+      );
+      expect(registry.validateOperationResult(operation, '1.0', missing).valid).toBe(false);
+    }
+    for (const field of Object.keys(finalView))
+      expect(
+        registry.validateOperationResult(operation, '1.0', { ...finalView, [field]: null }).valid,
+        `final view ${field} null`,
+      ).toBe(false);
+    for (const [field, original] of Object.entries(finalView)) {
+      if (typeof original !== 'object' || !('kind' in original)) continue;
+      for (const changed of [
+        { ...original, kind: 'UNSUPPORTED' },
+        { ...original, objectType: 'unknown.ref' },
+        { ...original, objectId: 'invalid-uuid' },
+      ])
+        expect(
+          registry.validateOperationResult(operation, '1.0', { ...finalView, [field]: changed })
+            .valid,
+          `final view ${field} changed Ref`,
+        ).toBe(false);
+    }
+    for (const payload of [
+      { attemptRef: objectRef('execution.run', attemptRef.objectId) },
+      { attemptRef, agentResultContract: finalView.agentResultContract },
+      { attemptRef, resultPayloadHash: finalView.resultPayloadHash },
+    ])
+      expect(
+        registry.validateOperation(operation, '1.0', queryEnvelope(operation, payload)).valid,
+      ).toBe(false);
+    expect(
+      registry.validateOperationResult(operation, '1.0', {
+        ...finalView,
+        runtimeAdapterIdentityRef: attemptRef,
+      }).valid,
+    ).toBe(false);
+  });
+});

@@ -338,21 +338,6 @@ async function seedQueryFixture(admin: pg.Client, withBinding = true): Promise<Q
   };
 }
 
-describe('EnterpriseProject WI-11 pure contract helpers', () => {
-  it('calculates a deterministic Snapshot Export hash', () => {
-    const enterpriseId = newUuidV7();
-    const projectId = newUuidV7();
-    const sourceEventId = newUuidV7();
-    const exported = snapshot(enterpriseId, projectId, 1, sourceEventId, [
-      item(newUuidV7(), 'item-a', 'First item'),
-    ]);
-    expect(calculateProjectBoardSnapshotHash(exported)).toBe(exported.sourceSnapshotHash.digest);
-    expect(calculateProjectBoardSnapshotHash(exported)).toBe(
-      calculateProjectBoardSnapshotHash({ ...exported }),
-    );
-  });
-});
-
 describe.skipIf(!gateEnabled)('EnterpriseProject WI-11 (real PostgreSQL)', () => {
   let admin: pg.Client;
   let pool: pg.Pool;

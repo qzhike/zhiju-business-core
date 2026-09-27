@@ -36,6 +36,8 @@ import { TASK_EXECUTION_CONTEXT_SNAPSHOT_BINDINGS } from './context-snapshot-aut
 import { CONTEXT_SNAPSHOT_DRAFT_READ_BINDINGS } from './context-snapshot-draft-read-authorization.js';
 import {
   CONTROLLED_FIRST_RUN_BINDINGS,
+  createControlledFirstRunAuthorizationPort,
+  type ControlledFirstRunCapabilityCodes,
   createWorkOrderValidationAuthorizationPort,
   IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
   IDENTITY_WORK_ORDER_VALIDATION_CAPABILITY_CONFIG_INVALID,
@@ -634,7 +636,7 @@ class ValidationHarness {
   /** Policy Snapshot rows by id, as the owning read returns them. */
   policySnapshots: Record<string, unknown> = { [policySnapshotId]: policySnapshotRow() };
   principalStatus: 'ACTIVE' | 'SUSPENDED' = 'ACTIVE';
-  principalKind: 'HUMAN' | 'AGENT' = 'HUMAN';
+  principalKind: 'HUMAN' | 'AGENT' | 'SERVICE' = 'HUMAN';
   actorHashMatched = true;
   /** `undefined` derives the stored Decision from the last signed one. */
   decisionOverride: unknown = undefined;
@@ -2543,3 +2545,152 @@ function expectedFieldOf(entry: EntryCase): string {
       ? 'expectedDraftSnapshotRef'
       : 'expectedContextSnapshotRef';
 }
+
+describe('IP-FINAL current authorization and complete target matrix', () => {
+  const finalOperations = new Set([
+    'execution.start_run',
+    'integration.get_runtime_attempt_binding',
+    'integration.get_runtime_final_observation',
+    'execution.submit_agent_result',
+    'execution.process_final_progress',
+    'execution.record_run_result',
+    'execution.validate_agent_result',
+    'execution.accept_agent_result',
+    'execution.finalize_run_from_acceptance',
+    'execution.expire_run',
+    'execution.get_agent_result',
+    'execution.get_run_state',
+  ]);
+  const bindings = CONTROLLED_FIRST_RUN_BINDINGS.filter((binding) =>
+    finalOperations.has(binding.commandType),
+  );
+  const codes = Object.fromEntries(
+    CONTROLLED_FIRST_RUN_BINDINGS.map((binding, index) => [
+      binding.boundary,
+      `wi224.controlled.authorization.c${index}`,
+    ]),
+  ) as ControlledFirstRunCapabilityCodes;
+  type Binding = (typeof bindings)[number];
+  function finalTarget(
+    binding: Binding,
+  ): Common.ObjectRef | Common.ContentAddressedRef | Common.VersionedRef {
+    const type = binding.targetObjectTypes[0];
+    if (type === undefined) throw new Error('missing final target type');
+    const base = targetRef(type, otherUuid);
+    if (binding.targetKind === 'OBJECT') return base;
+    if (binding.targetKind === 'CONTENT_ADDRESSED')
+      return { ...base, kind: 'CONTENT_ADDRESSED', contentHash: contentHash(6) };
+    if (binding.targetKind === 'VERSIONED')
+      return { ...base, kind: 'VERSIONED', versionId: immutableVersionId };
+    throw new Error(`unsupported final target kind ${binding.targetKind}`);
+  }
+  async function finalHarness(binding: Binding) {
+    const harness = new ValidationHarness();
+    harness.principalKind = 'SERVICE';
+    harness.grants = [
+      grantRow({
+        capabilityCode: codes[binding.boundary],
+        actions: [binding.requiredGrantAction],
+        selectors: [
+          { selectorType: binding.selectorType, objectType: binding.targetObjectTypes[0] },
+        ],
+      }),
+    ];
+    const port = createControlledFirstRunAuthorizationPort({
+      capabilityCodes: codes,
+      now: () => harness.now,
+    });
+    const target = finalTarget(binding);
+    const signed = await port.authorize(harness.deps, binding.boundary, {
+      actorSnapshotRef: actorSnapshotRef(),
+      commandType: binding.commandType,
+      commandVersion: '1.0',
+      commandPayloadHash,
+      authenticationContextHash,
+      targetRef: target,
+    });
+    expect(signed.outcome).toBe('ALLOW');
+    if (signed.outcome !== 'ALLOW') throw new Error('owning final authorization denied');
+    const input = {
+      decisionRef: signed.authorizationDecisionRef,
+      expectedCommandType: binding.commandType,
+      expectedCommandVersion: '1.0',
+      expectedCommandPayloadHash: commandPayloadHash,
+      expectedAuthenticationContextHash: authenticationContextHash,
+      expectedTargetRef: target,
+    };
+    expect(await port.revalidate(harness.deps, binding.boundary, input)).toMatchObject({
+      valid: true,
+    });
+    return { harness, port, target, input };
+  }
+  for (const binding of bindings) {
+    it(`${binding.boundary} refuses complete target, hash, capability and audience substitutions`, async () => {
+      const { harness, port, target, input } = await finalHarness(binding);
+      const replacements = [
+        { ...input, expectedCommandPayloadHash: Buffer.alloc(32, 9) },
+        { ...input, expectedAuthenticationContextHash: Buffer.alloc(32, 10) },
+        { ...input, expectedTargetRef: { ...target, objectId: newUuidV7() } },
+        ...(target.kind === 'CONTENT_ADDRESSED'
+          ? [{ ...input, expectedTargetRef: { ...target, contentHash: contentHash(12) } }]
+          : []),
+        ...(target.kind === 'VERSIONED'
+          ? [{ ...input, expectedTargetRef: { ...target, versionId: newUuidV7() } }]
+          : []),
+      ];
+      for (const replaced of replacements)
+        expect(await port.revalidate(harness.deps, binding.boundary, replaced)).toMatchObject({
+          valid: false,
+        });
+      await expect(
+        port.revalidate(harness.deps, binding.boundary, {
+          ...input,
+          expectedTargetRef: { ...target, scope: { enterpriseId, projectId: foreignProjectId } },
+        }),
+      ).rejects.toMatchObject({ code: IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID });
+      const changedConfig = createControlledFirstRunAuthorizationPort({
+        capabilityCodes: { ...codes, [binding.boundary]: 'wi224.controlled.authorization.other' },
+        now: () => harness.now,
+      });
+      expect(await changedConfig.revalidate(harness.deps, binding.boundary, input)).toMatchObject({
+        valid: false,
+        reason: 'CONFIGURATION_CHANGED',
+      });
+      for (const kind of ['HUMAN', 'AGENT'] as const) {
+        harness.principalKind = kind;
+        expect(await port.revalidate(harness.deps, binding.boundary, input)).toMatchObject({
+          valid: false,
+        });
+      }
+    });
+    it(`${binding.boundary} revalidates Grant, Policy Snapshot, principal and exact Decision expiry`, async () => {
+      const { harness, port, input } = await finalHarness(binding);
+      const validGrants = harness.grants;
+      harness.grants = [];
+      expect(await port.revalidate(harness.deps, binding.boundary, input)).toMatchObject({
+        valid: false,
+        reason: 'GRANT_NOT_CURRENT',
+      });
+      harness.grants = validGrants;
+      harness.policySnapshots[policySnapshotId] = policySnapshotRow({
+        supersededAt: new Date(clock.getTime() - 1),
+      });
+      expect(await port.revalidate(harness.deps, binding.boundary, input)).toMatchObject({
+        valid: false,
+        reason: 'POLICY_NOT_CURRENT',
+      });
+      harness.policySnapshots[policySnapshotId] = policySnapshotRow();
+      harness.principalStatus = 'SUSPENDED';
+      expect(await port.revalidate(harness.deps, binding.boundary, input)).toMatchObject({
+        valid: false,
+        reason: 'PRINCIPAL_NOT_ACTIVE',
+      });
+      harness.principalStatus = 'ACTIVE';
+      harness.now = new Date(harness.lastSigned().expiresAt);
+      expect(await port.revalidate(harness.deps, binding.boundary, input)).toMatchObject({
+        valid: false,
+        reason: 'EXPIRED',
+      });
+    });
+  }
+});

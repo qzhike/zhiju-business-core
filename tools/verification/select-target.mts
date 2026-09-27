@@ -29,7 +29,8 @@ function requiresFullVerification(path: string): boolean {
     path === 'package.json' ||
     path === 'pnpm-lock.yaml' ||
     path === 'pnpm-workspace.yaml' ||
-    path === 'vitest.config.ts'
+    path === 'vitest.config.ts' ||
+    path === 'vitest.persistence.config.ts'
   ) {
     return true;
   }

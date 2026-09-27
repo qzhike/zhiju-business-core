@@ -1034,3 +1034,14 @@ TE 的 `submit_agent_result@1.0` 保持已发布 payload/metadata，受信 Inges
 Issue #224 实现会话中，用户对“本 Issue 新增定时 worker 宿主，还是把调度与独立进度/Inbox 留给后续任务”的选择明确回复“本 Issue 新增 worker（推荐）”。随后用户对“增加一个仅供 TE SERVICE 读写精确 ProcessInstance 进度的内部 action/config key，并保持原 scan 授权不变”明确回复“批准独立进度授权（推荐）”。据此，本 Issue 可实现周期 worker、独立 `runFinalProcessProgressV1` 授权以及持久化该进度的 V3008；原 `runFinalCandidateScanV1` 候选集与权限不扩大。
 
 这是对上述增量的单独人类确认，不改变 §22.5–§22.6 绑定的原设计 diff SHA，也不声称新增增量已获独立设计复审、完整 `full` 验证或 ready/merge 批准。PR #226 的独立实现复审对会话事实无法仅凭仓库核实，须把本记录与用户原回复区分为不同证据来源。
+
+
+### 22.8 Issue #224 关闭验收边界确认（2026-09-26）
+
+用户明确批准本节的 #224 验收边界，并授权将已完成的本地增量提交、推送、创建关联 #224 的 Draft PR、记录证据及进入独立审查。本次批准只确认下列验收适用性，不替代独立审查、精确 revision 的验证、人类技术批准或合并授权。
+
+- `IP-FINAL-D-003` 与 `TE-FINAL-D-007` 的当前可执行范围包括真实执行 Grant 撤销、Controls Policy 后继取代、期限跨越、锁后重验及历史 Receipt/Query 重放拒绝。真实 grant PolicySnapshot 取代尚无 owning 写入者，继续保留 `NOT RUN`，随其 owning 写入能力后续验收；UNIT 的 PolicySnapshot 拒绝证据不替代该真实生命周期证据。
+- 首 Run 的 owning 创建入口保持 `lease_expires_at = execution_deadline`；独立 lease 跨期不是本支持集可产生的状态，验收实际同界期限，不通过直写构造合法正向状态。
+- `TE-FINAL-D-011` 的独立 Usage、WorkOrder/Task/DeliveryItem Completion Query、外部及人工验收保持 §22.1 和 Issue 的既有非目标及 `NOT RUN`。本 Issue 仍须证明权威 Run/Result 查询与“Run 终结不导致 WorkOrder/Task 完成”。
+
+三个 owning 矩阵继续保留完整设计预期及各证据层级；这项适用性决定不将 `PARTIAL` 整行改写为完整 `PASS`，也不允许延期当前可达受控路径的越权、事实损坏、事务或幂等缺陷。后续 owning 写入能力进入实现前必须纳入上述真实 PolicySnapshot 取代验收。正式交付和关闭证据记录在 #224 及其增量 PR。

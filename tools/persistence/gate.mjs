@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 // IM-02 WI-01 persistence gate: one version-locked command that starts the
 // pinned PostgreSQL 18.6 container, verifies the image digest, runs Flyway
 // migrations, executes the persistence tests, prints diagnostics and always
@@ -23,6 +24,16 @@ function log(message) {
   process.stdout.write(`[persistence-gate] ${message}\n`);
 }
 
+async function timed(label, operation) {
+  const started = performance.now();
+  log(`stage start: ${label}`);
+  try {
+    return await operation();
+  } finally {
+    log(`stage end: ${label}; elapsedMs=${Math.round(performance.now() - started)}`);
+  }
+}
+
 async function query(containerId, sql) {
   return docker([
     'exec',
@@ -44,6 +55,20 @@ async function seedHistoricalProviderResultData(containerId) {
   log('seeded synthetic V6002 historical Provider Result rows');
 }
 
+const filters = process.argv.slice(2).filter((arg) => arg !== '--diagnostics');
+const fileArgument = filters.find((arg) => arg.startsWith('--test-file='));
+const nameArgument = filters.find((arg) => arg.startsWith('--test-name-pattern='));
+if (filters.some((arg) => arg !== fileArgument && arg !== nameArgument)) {
+  throw new Error('unknown persistence diagnostic argument');
+}
+if (nameArgument && !fileArgument) throw new Error('test name filter requires an explicit file');
+const testFile = fileArgument?.slice('--test-file='.length) ?? 'tests/persistence';
+if (fileArgument && !/^tests\/persistence\/[a-z0-9-]+\.test\.ts$/.test(testFile)) {
+  throw new Error('diagnostics must select one persistence test file');
+}
+if (fileArgument)
+  log(`FOCUSED DIAGNOSTIC ONLY: ${testFile}; ${nameArgument ?? 'all tests in file'}`);
+
 function runVitest(env) {
   return new Promise((resolve, reject) => {
     // Persistence fixtures share one disposable database. Some negative ACL
@@ -51,9 +76,19 @@ function runVitest(env) {
     // could make an unrelated transaction observe that deliberate failure.
     const child = spawn(
       'pnpm',
-      ['exec', 'vitest', 'run', 'tests/persistence', '--no-file-parallelism'],
+      [
+        'exec',
+        'vitest',
+        'run',
+        '--config=vitest.persistence.config.ts',
+        testFile,
+        '--no-file-parallelism',
+        ...(nameArgument
+          ? ['--testNamePattern', nameArgument.slice('--test-name-pattern='.length)]
+          : []),
+      ],
       {
-        env: { ...process.env, ...env },
+        env: { ...process.env, ...env, ZJU_PERSISTENCE_FOCUSED: fileArgument ? '1' : '0' },
         stdio: 'inherit',
       },
     );
@@ -121,7 +156,7 @@ async function main() {
   const { startPostgres, stopPostgres } = await import('./postgres.mjs');
   let pg;
   try {
-    pg = await startPostgres();
+    pg = await timed('PostgreSQL startup and image verification', () => startPostgres());
     log(`postgres container ${pg.containerId.slice(0, 12)} ready on ${pg.host}:${pg.port}`);
 
     const serverVersion = (await query(pg.containerId, 'SHOW server_version_num;')).trim();
@@ -137,32 +172,40 @@ async function main() {
     }
     log(`flyway version: ${flywayVersionLine.trim()}`);
 
-    await runFlyway(pg.containerId, {
-      command: 'migrate',
-      database: pg.database,
-      username: pg.username,
-      password: pg.password,
-      target: '6002',
-    });
+    await timed('migration through V6002', () =>
+      runFlyway(pg.containerId, {
+        command: 'migrate',
+        database: pg.database,
+        username: pg.username,
+        password: pg.password,
+        target: '6002',
+      }),
+    );
     log('flyway migrate (empty database through V6002) completed');
 
-    await seedHistoricalProviderResultData(pg.containerId);
+    await timed('historical Provider Result seed', () =>
+      seedHistoricalProviderResultData(pg.containerId),
+    );
 
-    await runFlyway(pg.containerId, {
-      command: 'migrate',
-      database: pg.database,
-      username: pg.username,
-      password: pg.password,
-    });
+    await timed('historical forward migration', () =>
+      runFlyway(pg.containerId, {
+        command: 'migrate',
+        database: pg.database,
+        username: pg.username,
+        password: pg.password,
+      }),
+    );
     log('flyway migrate (V6003/V6004 historical Provider Result upgrade) completed');
 
-    await runVitest({
-      ZJU_PERSISTENCE_DATABASE_URL: `postgres://${pg.username}:${pg.password}@${pg.host}:${pg.port}/${pg.database}`,
-      ZJU_PERSISTENCE_CONTAINER_ID: pg.containerId,
-      ZJU_PERSISTENCE_IMAGE_TAG: POSTGRES_IMAGE_TAG,
-      ZJU_PERSISTENCE_IMAGE_DIGEST: POSTGRES_IMAGE_DIGEST,
-      ZJU_PERSISTENCE_FLYWAY_TAG: FLYWAY_IMAGE_TAG,
-    });
+    await timed('persistence tests', () =>
+      runVitest({
+        ZJU_PERSISTENCE_DATABASE_URL: `postgres://${pg.username}:${pg.password}@${pg.host}:${pg.port}/${pg.database}`,
+        ZJU_PERSISTENCE_CONTAINER_ID: pg.containerId,
+        ZJU_PERSISTENCE_IMAGE_TAG: POSTGRES_IMAGE_TAG,
+        ZJU_PERSISTENCE_IMAGE_DIGEST: POSTGRES_IMAGE_DIGEST,
+        ZJU_PERSISTENCE_FLYWAY_TAG: FLYWAY_IMAGE_TAG,
+      }),
+    );
 
     // Second migrate run: must be a no-op. The normalized no-pending line is
     // printed as manual-acceptance evidence (runbook), without credentials.
@@ -195,7 +238,7 @@ async function main() {
     for (const line of applied) {
       log(`  ${line}`);
     }
-    log('gate passed');
+    log(fileArgument ? 'focused diagnostic passed (not the full gate)' : 'gate passed');
   } catch (error) {
     if (pg) {
       try {
@@ -208,7 +251,7 @@ async function main() {
     throw error;
   } finally {
     if (pg) {
-      await stopPostgres(pg.container);
+      await timed('container cleanup', () => stopPostgres(pg.container));
       log('postgres container removed');
     }
   }
