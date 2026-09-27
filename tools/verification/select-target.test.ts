@@ -55,6 +55,7 @@ describe('verification target selection', () => {
     'AGENTS.md',
     'package.json',
     'tools/verification/select-target.mts',
+    'vitest.persistence.config.ts',
   ])('routes verification-policy path %s to full', (path) => {
     expect(selectVerificationTarget([path], draftPullRequest).target).toBe('full');
   });

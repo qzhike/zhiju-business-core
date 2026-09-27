@@ -8675,6 +8675,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         )
       ).rows[0]?.valid_until;
       if (bundleValidUntil === undefined) throw new Error('missing Bundle');
+      // The eligibility case's unchanged Run budget begins at Run preparation,
+      // after the independently committed Bundle has finished being prepared.
+      if (terminalScenario === 'ELIGIBILITY_CHANGE') clock = Date.now();
       const runDeadline = new Date(
         Math.min(
           bundleValidUntil.getTime(),
@@ -8727,6 +8730,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         service,
       );
       phase('Run creation');
+      progress('Run deadline', `remainingMs=${runDeadline.getTime() - Date.now()}`);
       const created = await firstRunEntry.createRun(createEnvelope, sessionFor(service));
       expect(created, JSON.stringify(created)).toMatchObject({ status: 'COMMITTED' });
       expect(await firstRunEntry.createRun(createEnvelope, sessionFor(service))).toMatchObject({
@@ -9110,8 +9114,13 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         sessionFor(service),
       );
       expect(attemptBinding).toEqual(dispatched);
-      const replayedDispatch = await firstRunEntry.dispatch(dispatchEnvelope, sessionFor(service));
-      expect(replayedDispatch).toEqual(dispatched);
+      if (exercisePreparationMatrix) {
+        const replayedDispatch = await firstRunEntry.dispatch(
+          dispatchEnvelope,
+          sessionFor(service),
+        );
+        expect(replayedDispatch).toEqual(dispatched);
+      }
       expect(runtimeDriver.invokedAttemptIds).toHaveLength(1);
       if (terminalScenario === 'UNSUPPORTED_FINAL' && negativeFinalCase === 'TIME')
         emitEarlyFinal = true;
@@ -10444,6 +10453,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         execute: (value: unknown) => Promise<unknown>,
       ) {
         if (eligibilityChange?.step !== step) return false;
+        phase(`eligibility boundary ${step}/${eligibilityChange.source}`);
         const facts = async () =>
           (
             await admin.query<{ facts: unknown }>(
@@ -10465,6 +10475,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           )
         ).rows;
         clock = Date.now();
+        expect(Date.now(), 'eligibility preparation precedes the Run deadline').toBeLessThan(
+          runDeadline.getTime(),
+        );
         const blocker =
           eligibilityChange.whileLocked === true
             ? new pg.Client({ connectionString: databaseUrl })
@@ -10499,6 +10512,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           }
         }
         try {
+          progress(
+            'eligibility change',
+            `${step}/${eligibilityChange.source}; remainingMs=${runDeadline.getTime() - Date.now()}`,
+          );
           if (eligibilityChange.source === 'GRANT') {
             expect(
               await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
@@ -10563,6 +10580,13 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             execute(envelope),
             `${step} ${eligibilityChange.source}`,
           ).rejects.toBeDefined();
+        expect(Date.now(), 'eligibility refusal precedes the Run deadline').toBeLessThan(
+          runDeadline.getTime(),
+        );
+        progress(
+          'eligibility refusal',
+          `${step}/${eligibilityChange.source}; remainingMs=${runDeadline.getTime() - Date.now()}`,
+        );
         expect(await receiptRows(envelope.idempotencyKey)).toEqual([]);
         expect(await facts()).toEqual(originalFacts);
         expect(
@@ -10965,9 +10989,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         sessionFor(service),
       );
       expect(finalView.observationRef).toEqual(observed?.observationRef);
-      expect(await observingEntry.observeRuntimeFinal(finalQuery, sessionFor(service))).toEqual(
-        finalView,
-      );
+      if (exercisePreparationMatrix) {
+        expect(await observingEntry.observeRuntimeFinal(finalQuery, sessionFor(service))).toEqual(
+          finalView,
+        );
+      }
       if (exercisePreparationMatrix) {
         const unknownAttemptRef = objectRef(
           'integration.runtime_attempt',
@@ -11039,53 +11065,55 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         await expireRejectedFinalRun();
         return;
       }
-      const conflictAudits = async () =>
-        (
-          await admin.query<{ safe_summary: string }>(
-            `SELECT safe_summary FROM integration_gateway.audit_record WHERE target_id=$1
-         AND error_code='INTEGRATION_RUNTIME_FINAL_CONFLICT' ORDER BY audit_id`,
-            [attemptRef.objectId],
-          )
-        ).rows;
-      const priorConflictAudits = await conflictAudits();
-      const conflictingEntry = createControlledFirstRunEntry({
-        taskExecutionDb: guardedTeDb,
-        enterpriseProjectDb,
-        identity: { db: identityDb, repo: identityRepo, crypto },
-        integrationGatewayDb: createIntegrationRendererDatabase(tePool).withPlugin(queryProbe),
-        runtimeDriver: {
-          invoke: () => Promise.reject(new Error('unexpected second synthetic invocation')),
-          readBack: (ref) => observingDriver.readBack(ref),
-          readFinal: async (ref) => {
-            const original = await observingDriver.readFinal(ref);
-            return original === undefined
-              ? undefined
-              : {
-                  ...original,
-                  runtimeSubmissionRef: {
-                    ...original.runtimeSubmissionRef,
-                    externalId: newUuidV7(),
-                  },
-                };
+      if (exercisePreparationMatrix) {
+        const conflictAudits = async () =>
+          (
+            await admin.query<{ safe_summary: string }>(
+              `SELECT safe_summary FROM integration_gateway.audit_record WHERE target_id=$1
+           AND error_code='INTEGRATION_RUNTIME_FINAL_CONFLICT' ORDER BY audit_id`,
+              [attemptRef.objectId],
+            )
+          ).rows;
+        const priorConflictAudits = await conflictAudits();
+        const conflictingEntry = createControlledFirstRunEntry({
+          taskExecutionDb: guardedTeDb,
+          enterpriseProjectDb,
+          identity: { db: identityDb, repo: identityRepo, crypto },
+          integrationGatewayDb: createIntegrationRendererDatabase(tePool).withPlugin(queryProbe),
+          runtimeDriver: {
+            invoke: () => Promise.reject(new Error('unexpected second synthetic invocation')),
+            readBack: (ref) => observingDriver.readBack(ref),
+            readFinal: async (ref) => {
+              const original = await observingDriver.readFinal(ref);
+              return original === undefined
+                ? undefined
+                : {
+                    ...original,
+                    runtimeSubmissionRef: {
+                      ...original.runtimeSubmissionRef,
+                      externalId: newUuidV7(),
+                    },
+                  };
+            },
           },
-        },
-        receiptStorage: runtimeJournal,
-        capabilityCodes: firstRunCodes,
-        capabilities: dependencyCapabilities,
-        now: () => new Date(clock),
-      });
-      await expect(
-        conflictingEntry.observeRuntimeFinal(finalQuery, sessionFor(service)),
-      ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_CONFLICT' });
-      const retainedConflictAudits = await conflictAudits();
-      expect(retainedConflictAudits).toHaveLength(priorConflictAudits.length + 1);
-      expect(retainedConflictAudits.at(-1)).toEqual({
-        safe_summary: 'synthetic final conflicts with the immutable observation',
-      });
+          receiptStorage: runtimeJournal,
+          capabilityCodes: firstRunCodes,
+          capabilities: dependencyCapabilities,
+          now: () => new Date(clock),
+        });
+        await expect(
+          conflictingEntry.observeRuntimeFinal(finalQuery, sessionFor(service)),
+        ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_CONFLICT' });
+        const retainedConflictAudits = await conflictAudits();
+        expect(retainedConflictAudits).toHaveLength(priorConflictAudits.length + 1);
+        expect(retainedConflictAudits.at(-1)).toEqual({
+          safe_summary: 'synthetic final conflicts with the immutable observation',
+        });
 
-      expect(
-        await firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
-      ).toEqual(finalView);
+        expect(
+          await firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
+        ).toEqual(finalView);
+      }
       if (exercisePreparationMatrix) {
         const originalFinal = await observingDriver.readFinal(attemptRef);
         if (originalFinal === undefined) throw new Error('missing synthetic final');
@@ -12128,30 +12156,32 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         } as unknown as CanonicalJsonObject,
         service,
       );
-      const wrongSubmission = await firstRunEnvelope(
-        'execution.submit_agent_result',
-        resultTarget,
-        {
-          agentResultContract: resultBody,
-          runFencingToken: 1,
-          runtimeSubmissionRef: {
-            ...finalView.runtimeSubmissionRef,
-            externalId: newUuidV7(),
-          },
-        } as unknown as CanonicalJsonObject,
-        service,
-      );
-      await expect(
-        firstRunEntry.submitAgentResult(wrongSubmission, sessionFor(service)),
-      ).rejects.toBeDefined();
-      expect(
-        (
-          await admin.query<{ count: string }>(
-            'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
-            [runRef.objectId],
-          )
-        ).rows,
-      ).toEqual([{ count: '0' }]);
+      if (exercisePreparationMatrix) {
+        const wrongSubmission = await firstRunEnvelope(
+          'execution.submit_agent_result',
+          resultTarget,
+          {
+            agentResultContract: resultBody,
+            runFencingToken: 1,
+            runtimeSubmissionRef: {
+              ...finalView.runtimeSubmissionRef,
+              externalId: newUuidV7(),
+            },
+          } as unknown as CanonicalJsonObject,
+          service,
+        );
+        await expect(
+          firstRunEntry.submitAgentResult(wrongSubmission, sessionFor(service)),
+        ).rejects.toBeDefined();
+        expect(
+          (
+            await admin.query<{ count: string }>(
+              'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ count: '0' }]);
+      }
       if (exercisePreparationMatrix) {
         const alteredCases: readonly (readonly [
           string,
@@ -12285,119 +12315,123 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ).rows,
         ).toEqual([{ count: '0' }]);
       }
-      const submitGrantId = firstRunGrants.get('agentResultSubmitV1');
-      const submitBinding = CONTROLLED_FIRST_RUN_BINDINGS.find(
-        (binding) => binding.boundary === 'agentResultSubmitV1',
-      );
-      if (submitGrantId === undefined || submitBinding === undefined)
-        throw new Error('missing Result submit Grant');
-      const runBlocker = new pg.Client({ connectionString: databaseUrl });
-      await runBlocker.connect();
-      let pendingSubmit: Promise<unknown> | undefined;
-      try {
-        await runBlocker.query('BEGIN');
-        await runBlocker.query('SELECT run_id FROM task_execution.run WHERE run_id=$1 FOR UPDATE', [
-          runRef.objectId,
-        ]);
-        pendingSubmit = firstRunEntry
-          .submitAgentResult(submitEnvelope, sessionFor(service))
-          .catch((error: unknown) => error);
-        await expect
-          .poll(
-            async () =>
-              (
-                await admin.query<{ n: number }>(
-                  "SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%run%'",
-                )
-              ).rows[0]?.n ?? 0,
-            { timeout: 10_000 },
-          )
-          .toBeGreaterThan(0);
-        if (terminalScenario === 'LOCK_DEADLINE') {
-          const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-          if (deadlineWait > 0) await waitForDeadline(deadlineWait, 'server deadline/deadlineWait');
-          clock = Date.now();
-          await runBlocker.query('ROLLBACK');
-          expect(await pendingSubmit).toMatchObject({ code: 'EXECUTION_JUDGMENT_STALE' });
-        } else {
-          expect(
-            await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
-              targetId: submitGrantId,
-              expectedAggregateVersion: '1',
-              scope: {
-                scopeKind: 'PROJECT',
-                enterpriseId: fixture.enterpriseId,
-                projectId: fixture.projectId,
-              },
-              reasonCode: 'WI224_REVOKE_RESULT_SUBMIT_DURING_LOCK',
-              effectiveAt: new Date(clock),
-              idempotencyKey: newUuidV7(),
-            }),
-          ).toMatchObject({ status: 'COMMITTED' });
-          await runBlocker.query('ROLLBACK');
-          expect(await pendingSubmit).toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
-        }
-      } finally {
-        await runBlocker.query('ROLLBACK');
-        await runBlocker.end();
-        await pendingSubmit;
-      }
-      expect(await receiptRows(submitEnvelope.idempotencyKey)).toEqual([]);
-      if (terminalScenario === 'LOCK_DEADLINE') {
-        expect(
-          (
-            await admin.query<{ count: string }>(
-              'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
-              [runRef.objectId],
-            )
-          ).rows,
-        ).toEqual([{ count: '0' }]);
-        const expired = await firstRunEntry.expireRun(
-          await firstRunEnvelope(
-            'execution.expire_run',
-            runRef,
-            { reason: 'DEADLINE_EXCEEDED' },
-            service,
-            2,
-          ),
-          sessionFor(service),
+      if (exercisePreparationMatrix || terminalScenario === 'LOCK_DEADLINE') {
+        const submitGrantId = firstRunGrants.get('agentResultSubmitV1');
+        const submitBinding = CONTROLLED_FIRST_RUN_BINDINGS.find(
+          (binding) => binding.boundary === 'agentResultSubmitV1',
         );
-        expect(expired).toMatchObject({ status: 'COMMITTED' });
-        expect(
-          (
-            await admin.query<{ status: string }>(
-              'SELECT status FROM task_execution.run WHERE run_id=$1',
-              [runRef.objectId],
+        if (submitGrantId === undefined || submitBinding === undefined)
+          throw new Error('missing Result submit Grant');
+        const runBlocker = new pg.Client({ connectionString: databaseUrl });
+        await runBlocker.connect();
+        let pendingSubmit: Promise<unknown> | undefined;
+        try {
+          await runBlocker.query('BEGIN');
+          await runBlocker.query(
+            'SELECT run_id FROM task_execution.run WHERE run_id=$1 FOR UPDATE',
+            [runRef.objectId],
+          );
+          pendingSubmit = firstRunEntry
+            .submitAgentResult(submitEnvelope, sessionFor(service))
+            .catch((error: unknown) => error);
+          await expect
+            .poll(
+              async () =>
+                (
+                  await admin.query<{ n: number }>(
+                    "SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%run%'",
+                  )
+                ).rows[0]?.n ?? 0,
+              { timeout: 10_000 },
             )
-          ).rows,
-        ).toEqual([{ status: 'TIMED_OUT' }]);
-        expect(
-          (
-            await admin.query<{ status: string }>(
-              'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
-              [runRef.objectId],
-            )
-          ).rows,
-        ).toEqual([{ status: 'EXPIRED' }]);
-        return;
+            .toBeGreaterThan(0);
+          if (terminalScenario === 'LOCK_DEADLINE') {
+            const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
+            if (deadlineWait > 0)
+              await waitForDeadline(deadlineWait, 'server deadline/deadlineWait');
+            clock = Date.now();
+            await runBlocker.query('ROLLBACK');
+            expect(await pendingSubmit).toMatchObject({ code: 'EXECUTION_JUDGMENT_STALE' });
+          } else {
+            expect(
+              await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+                targetId: submitGrantId,
+                expectedAggregateVersion: '1',
+                scope: {
+                  scopeKind: 'PROJECT',
+                  enterpriseId: fixture.enterpriseId,
+                  projectId: fixture.projectId,
+                },
+                reasonCode: 'WI224_REVOKE_RESULT_SUBMIT_DURING_LOCK',
+                effectiveAt: new Date(clock),
+                idempotencyKey: newUuidV7(),
+              }),
+            ).toMatchObject({ status: 'COMMITTED' });
+            await runBlocker.query('ROLLBACK');
+            expect(await pendingSubmit).toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+          }
+        } finally {
+          await runBlocker.query('ROLLBACK');
+          await runBlocker.end();
+          await pendingSubmit;
+        }
+        expect(await receiptRows(submitEnvelope.idempotencyKey)).toEqual([]);
+        if (terminalScenario === 'LOCK_DEADLINE') {
+          expect(
+            (
+              await admin.query<{ count: string }>(
+                'SELECT count(*)::text FROM task_execution.agent_result WHERE run_id=$1',
+                [runRef.objectId],
+              )
+            ).rows,
+          ).toEqual([{ count: '0' }]);
+          const expired = await firstRunEntry.expireRun(
+            await firstRunEnvelope(
+              'execution.expire_run',
+              runRef,
+              { reason: 'DEADLINE_EXCEEDED' },
+              service,
+              2,
+            ),
+            sessionFor(service),
+          );
+          expect(expired).toMatchObject({ status: 'COMMITTED' });
+          expect(
+            (
+              await admin.query<{ status: string }>(
+                'SELECT status FROM task_execution.run WHERE run_id=$1',
+                [runRef.objectId],
+              )
+            ).rows,
+          ).toEqual([{ status: 'TIMED_OUT' }]);
+          expect(
+            (
+              await admin.query<{ status: string }>(
+                'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+                [runRef.objectId],
+              )
+            ).rows,
+          ).toEqual([{ status: 'EXPIRED' }]);
+          return;
+        }
+        await grant({
+          principal: service,
+          capabilityCode: firstRunCodes.agentResultSubmitV1,
+          action: submitBinding.requiredGrantAction,
+          selectorType: submitBinding.selectorType,
+          targetObjectType: 'execution.agent_result',
+        });
+        submitEnvelope = await firstRunEnvelope(
+          'execution.submit_agent_result',
+          resultTarget,
+          {
+            agentResultContract: resultBody,
+            runFencingToken: 1,
+            runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+          } as unknown as CanonicalJsonObject,
+          service,
+        );
       }
-      await grant({
-        principal: service,
-        capabilityCode: firstRunCodes.agentResultSubmitV1,
-        action: submitBinding.requiredGrantAction,
-        selectorType: submitBinding.selectorType,
-        targetObjectType: 'execution.agent_result',
-      });
-      submitEnvelope = await firstRunEnvelope(
-        'execution.submit_agent_result',
-        resultTarget,
-        {
-          agentResultContract: resultBody,
-          runFencingToken: 1,
-          runtimeSubmissionRef: finalView.runtimeSubmissionRef,
-        } as unknown as CanonicalJsonObject,
-        service,
-      );
       if (
         await finalEligibilityLoss('SUBMIT', submitEnvelope, (value) =>
           firstRunEntry.submitAgentResult(value, sessionFor(service)),
@@ -12426,21 +12460,21 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           scanProof,
         ),
       ).toEqual([]);
-      const forgedBody = { ...resultBody, humanSummary: 'Forged final body.' };
-      const forgedSubmit = await firstRunEnvelope(
-        'execution.submit_agent_result',
-        resultTarget,
-        {
-          agentResultContract: forgedBody,
-          runFencingToken: 1,
-          runtimeSubmissionRef: finalView.runtimeSubmissionRef,
-        },
-        service,
-      );
-      await expect(
-        firstRunEntry.submitAgentResult(forgedSubmit, sessionFor(service)),
-      ).rejects.toBeDefined();
       if (exercisePreparationMatrix) {
+        const forgedBody = { ...resultBody, humanSummary: 'Forged final body.' };
+        const forgedSubmit = await firstRunEnvelope(
+          'execution.submit_agent_result',
+          resultTarget,
+          {
+            agentResultContract: forgedBody,
+            runFencingToken: 1,
+            runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+          },
+          service,
+        );
+        await expect(
+          firstRunEntry.submitAgentResult(forgedSubmit, sessionFor(service)),
+        ).rejects.toBeDefined();
         const alternateId = newUuidV7();
         for (const [label, body, target] of [
           [
@@ -12538,6 +12572,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const reservedRunView = await readCurrentRun();
       expect(reservedRunView).toMatchObject({ status: 'RUNNING', aggregateVersion: 2 });
       expect(reservedRunView).not.toHaveProperty('resultRef');
+      phase('Result record boundary');
       const recordEnvelope = await firstRunEnvelope(
         'execution.record_run_result',
         runRef,

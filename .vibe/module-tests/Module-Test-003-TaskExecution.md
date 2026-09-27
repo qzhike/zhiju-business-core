@@ -486,3 +486,5 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | 13 类 Core-valid unsupported final、非 FINAL、混拼判断、Acceptance 并发、五阶段授权资格变化 | 原对应名称用例逐项保留，不合并不同语义的 final 来源 | 每个场景独立 Driver/Attempt/Run、原判断/Receipt/reservation/终态断言和 owning expiry cleanup；无 mock 数据库竞态 |
 
 上述组织只消除相同前置失败矩阵的重复执行，不改变上表各业务行的 PASS/PARTIAL/NOT RUN 口径。固定 PostgreSQL/Flyway 摘要、历史 migrations、公共 Contract、业务实现和权限隔离要求保持原基准；性能与最终 full 的执行证据跟随交付上下文，不能由本说明推断优化后远端 CI 已通过。
+
+授权资格变化用例保持原 10 秒 Run budget（持锁用例 30 秒）；在真实 Bundle 已提交后取当前时间准备 Run，不把前置 Bundle 准备耗时计入 Run budget。目标 Grant/Policy 变化和 owning 拒绝都必须发生在真实 deadline 前，并输出剩余毫秒，随后仍等待真实到期并验证独立 expiry、事实不变和 Claim 配对。dispatch 重放、final observation 重放/冲突及其 Audit、错 Submission/伪造 body、submit 行锁期间撤权/恢复属于完整成功场景的共同矩阵；专门 LOCK_DEADLINE 仍执行真实 submit 行锁跨期限拒绝。其他场景不重复这些与其目标无关的探针；没有扩大测试超时、Run budget 或授权有效期。

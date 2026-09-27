@@ -10,7 +10,29 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  select:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      target: ${{ steps.verification.outputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+      - name: Select verification target
+        id: verification
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PR_DRAFT: ${{ github.event.pull_request.draft || false }}
+        run: >-
+          node --experimental-strip-types tools/verification/select-target.mts
+          "$BASE_SHA" "$GITHUB_SHA" "$GITHUB_EVENT_NAME" "$PR_DRAFT"
+
+  checks:
+    needs: select
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -24,21 +46,56 @@ jobs:
         with:
           node-version: 24.19.0
           cache: pnpm
-      - name: Select verification target
-        id: verification
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          PR_DRAFT: ${{ github.event.pull_request.draft || false }}
-        run: >-
-          node --experimental-strip-types tools/verification/select-target.mts
-          "$BASE_SHA" "$GITHUB_SHA" "$GITHUB_EVENT_NAME" "$PR_DRAFT"
       - run: pnpm install --frozen-lockfile
       - name: Verify documentation
-        if: steps.verification.outputs.target == 'docs'
+        if: needs.select.outputs.target == 'docs'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: pnpm verify:docs
       - name: Verify code
-        if: steps.verification.outputs.target == 'code'
+        if: needs.select.outputs.target == 'code' || needs.select.outputs.target == 'full'
         run: pnpm clean && pnpm verify:code
-      - name: Verify full repository
-        if: steps.verification.outputs.target == 'full'
-        run: pnpm clean && pnpm verify
+
+  persistence:
+    needs: select
+    if: needs.select.outputs.target == 'full'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Independent runners need fresh workspace libraries for owning entries.
+      # Static checks and ordinary tests execute only in the checks job.
+      - name: Build persistence prerequisites
+        run: pnpm clean && pnpm build
+      - name: Verify persistence
+        run: pnpm persistence:gate
+
+  verify:
+    needs: [select, checks, persistence]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ !cancelled() }}
+      - uses: actions/setup-node@v4
+        if: ${{ !cancelled() }}
+        with:
+          node-version: 24.19.0
+      - name: Reject workflow cancellation
+        if: ${{ cancelled() }}
+        run: exit 1
+      - name: Require all selected verification results
+        if: ${{ always() && !cancelled() }}
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          WORKFLOW_CANCELLED: 'false'
+        run: node --experimental-strip-types tools/verification/check-ci-results.mts
