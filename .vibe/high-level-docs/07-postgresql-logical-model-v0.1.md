@@ -2342,7 +2342,7 @@ finalize 的 Run、Claim、RunTerminated Outbox、Receipt/Audit/Edge 一次事�
 
 ## 39. BLOCKED_INPUT 有限恢复的前向持久化设计（#229）
 
-状态：`T2 DESIGN ONLY / PROPOSED / HUMAN DESIGN APPROVAL PENDING / NO MIGRATION / NOT RUN`。只拥有 [Spec003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229) 的物理边界；历史§33/§35–38与V3000–V3010、V1000–V1007、V2015及V7001–V7004不改写。新migration编号在实际实现时分配，不能把本设计当已存在表/column。
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NO MIGRATION / NOT RUN`。只拥有 [Spec003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229) 的物理边界；历史§33/§35–38与V3000–V3010、V1000–V1007、V2015及V7001–V7004不改写。新migration编号在实际实现时分配，不能把本设计当已存在表/column。
 
 | Owner / 新增或前向附属事实 | 精确字段与约束 | 单事务写边界 |
 |---|---|---|

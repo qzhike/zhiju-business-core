@@ -538,6 +538,6 @@ WI-08 复核命令和实际输出见 [`Synthetic-QMS-REL-801-Exit-Report.md`](..
 
 ## #229 设计与恢复执行证据的出口
 
-状态：`T2 DESIGN ONLY / PROPOSED / INDEPENDENT DESIGN REVIEW PENDING / HUMAN DESIGN APPROVAL PENDING / RUNTIME NOT RUN`。本设计交付仅Markdown under `.vibe/`，配置验证目标为 `docs`，另做registered request/result/error/ref/Purpose与[Spec003§24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)的focused semantic comparison。其成功不能代替独立设计审查/人类批准，不写为新runtime/persistence PASS；正式review按项目规则归档在未来PR的`.vibe/reviews/pr-<number>/Review.md`。
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / RUNTIME NOT RUN`。本设计交付仅Markdown under `.vibe/`，配置验证目标为 `docs`，另做registered request/result/error/ref/Purpose与[Spec003§24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)的focused semantic comparison。其成功不能代替独立设计审查/人类批准，不写为新runtime/persistence PASS；正式review按项目规则归档在未来PR的`.vibe/reviews/pr-<number>/Review.md`。
 
 未来实施必须完整交付限定Human恢复动作及owning读回，配置验证为 `full`（新/变化容器环境先 `environment`）；最小业务出口与必要反例/fault分别由Module-Test003 `TE-REC-D-001–011`、001 `IP-REC-D-001–003`、002 `EP-REC-D-001/002`、007 `IG-REC-D-001–003`拥有。Contract/Unit、真实PostgreSQL/owningentry、controlledsynthetic、External、Manual证据分开，未执行子项保持NOT RUN。#224最终20 tiered PASS/3 PARTIAL、actual grant PolicySnapshot生命周期延后及§22.8边界不被本提案重标；TD-05–07、正式输出、Completion、Provider/CLI/Feishu/publicHTTP/部署/独立人工验收仍非本Issue出口。

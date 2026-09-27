@@ -1422,6 +1422,6 @@ TaskCompleted沿用现有v1.0事件字段，由TE Task事务的Outbox真实派�
 
 ## #229 有限恢复 Process 的事务路由（提案）
 
-状态：`T2 DESIGN ONLY / PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`。[Spec003§24.3–24.6](../module-specs/Module-Spec-003-TaskExecution.md#243-source--request-的不可变关联与独立协调)定义一个受限blocked-input recovery Process，原final五步仍复用已交付Process。EP确认、TERequest/Answer/Resolution、Context、WorkOrder schedule、IPBundle、Run/IGAttempt及两个Root reconcile分别提交；每步只写自身Root及附属事实。Process进度是独立技术事务，目标已提交而进度未记时以原source Result/proposal/step稳定键和完整bytes重放owningReceipt，不制造第二业务事实/Invocation；Human answer/resolve/schedule只观察其真实提交，不由Process自动批准。
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`。[Spec003§24.3–24.6](../module-specs/Module-Spec-003-TaskExecution.md#243-source--request-的不可变关联与独立协调)定义一个受限blocked-input recovery Process，原final五步仍复用已交付Process。EP确认、TERequest/Answer/Resolution、Context、WorkOrder schedule、IPBundle、Run/IGAttempt及两个Root reconcile分别提交；每步只写自身Root及附属事实。Process进度是独立技术事务，目标已提交而进度未记时以原source Result/proposal/step稳定键和完整bytes重放owningReceipt，不制造第二业务事实/Invocation；Human answer/resolve/schedule只观察其真实提交，不由Process自动批准。
 
 跨Owner只使用权限裁剪owningPort/Query及真实已发布Event Inbox；无IGfinal Event则有限扫描，不制造源事件。当前授权、来源时效、Scope/hash、local CAS与Claim在每次目标消费点重验；跨模块观测仍按TD-04记录时点一致，不能把多个Query拼成分布式原子事务。forward存储、源唯一关系与commit-before-progress fault唯一见PostgreSQL§39及owning Module-Test，非通用Workflow/Saga注册系统。

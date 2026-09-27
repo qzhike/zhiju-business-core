@@ -1382,7 +1382,7 @@ execution.expire_run@1.0
 
 ## #229 BLOCKED_INPUT 恢复的 additive 注册提案
 
-状态：`T2 DESIGN ONLY / PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT REGISTERED / NOT RUN`。本设计未改可执行Registry；实际全仓226/TaskExecution53/历史Baseline200。完整字段/结果/错误只由 [Spec003 §24.7](../module-specs/Module-Spec-003-TaskExecution.md#247-public-requestresultref-delta-与权威读回)拥有。
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT REGISTERED / NOT RUN`。本设计未改可执行Registry；实际全仓226/TaskExecution53/历史Baseline200。完整字段/结果/错误只由 [Spec003 §24.7](../module-specs/Module-Spec-003-TaskExecution.md#247-public-requestresultref-delta-与权威读回)拥有。
 
 拟新增四项，Owner task-execution：`execution.build_context_snapshot@1.1`（CREATE canonical Context，已发布Purpose `task.execution.build_context_snapshot`，请求不变、新专用canonical Snapshot Result）；`execution.reconcile_task_execution@1.0`（MUTATE canonical Task，Purpose `execution.task.reconcile`）；`execution.get_task_state@1.0`（AUTHORITATIVE，Purpose `execution.task.read`，复用TD-01–04 TaskStateView，非TD-05 Board）；`execution.get_work_order_execution_state@1.0`（AUTHORITATIVE，Purpose `execution.work_order.execution_state.read`，frozen Root状态与当前有限retry资格）。注册后才为230/57/200；本节不将这些名字加入当前已注册Catalog列表，也不批准TD-05–07。
 

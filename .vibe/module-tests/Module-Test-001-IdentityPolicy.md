@@ -267,7 +267,7 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 ## #229 有限恢复授权设计矩阵
 
-状态：`PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`；[Spec001 §15.14](../module-specs/Module-Spec-001-IdentityPolicy.md#1514-im06-recovery-有限恢复授权组成提案229)。复用现有IP-RUN/IP-FINAL基础，不扩大#224已执行/延后口径。
+状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`；[Spec001 §15.14](../module-specs/Module-Spec-001-IdentityPolicy.md#1514-im06-recovery-有限恢复授权组成提案229)。复用现有IP-RUN/IP-FINAL基础，不扩大#224已执行/延后口径。
 
 | ID | 输入 / 必需证据层级 | 预期 / 结果 |
 |---|---|---|

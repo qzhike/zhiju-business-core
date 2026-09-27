@@ -1990,7 +1990,7 @@ Process 复用决定 §9 的有限扫描，并增加一个明确候选集：TE �
 
 ## 24. BLOCKED_INPUT → CustomerMaterial → Context-2 / Run-2 Spec Delta（#229）
 
-状态：`T2 DESIGN ONLY / PROPOSED / BASE main@9d00d01db5abe024e333cbc72f435ef284665e5c / INDEPENDENT DESIGN REVIEW PENDING / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / RUNTIME NOT RUN`。本节是依照已批准 TD-01–04 补齐的有限提案；不追认本次新增字段、profile 或公开操作已获批准。取舍及批准 Gate 见[决定 §23](../decisions/task-execution-human-operated.md#23-blocked_input-恢复设计闭合提案229)。旧 §21–§23 的首版限制仍描述已交付行为；仅在未来实现本节后，新 profile 才适用。
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / BASE main@9d00d01db5abe024e333cbc72f435ef284665e5c / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / RUNTIME NOT RUN`。本节是依照已批准 TD-01–04 补齐的有限提案；不追认本次新增字段、profile 或公开操作已获批准。取舍及批准 Gate 见[决定 §23](../decisions/task-execution-human-operated.md#23-blocked_input-恢复设计闭合提案229)。旧 §21–§23 的首版限制仍描述已交付行为；仅在未来实现本节后，新 profile 才适用。
 
 ### 24.1 当前实现对账与增量分类
 

@@ -161,7 +161,7 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 
 ## #229 两 invocation 恢复来源矩阵
 
-状态：`PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`；[Spec007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射提案)。原IG-FINAL矩阵的证据层级和PARTIAL保留。
+状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`；[Spec007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射提案)。原IG-FINAL矩阵的证据层级和PARTIAL保留。
 
 | ID | 输入 / 层级 | 预期 / 结果 |
 |---|---|---|

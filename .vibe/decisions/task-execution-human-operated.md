@@ -1048,7 +1048,7 @@ Issue #224 实现会话中，用户对“本 Issue 新增定时 worker 宿主，
 
 ## 23. BLOCKED_INPUT 恢复设计闭合提案（#229）
 
-状态：`T2 DESIGN ONLY / PROPOSED / INDEPENDENT DESIGN REVIEW PENDING / HUMAN DESIGN APPROVAL PENDING / IMPLEMENTATION NOT READY / NOT IMPLEMENTED`。执行对账基线为 `main@9d00d01db5abe024e333cbc72f435ef284665e5c`；#224 已随 #226/#228 关闭，其最终证据仍为 **20 tiered PASS / 3 PARTIAL**。§22.8 的 actual grant PolicySnapshot lifecycle 延后、首 Run 同界 lease/deadline、Usage/Completion/外部/人工 NOT RUN 均保留，本设计不提升这些结论。
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION READINESS REVIEW PENDING / NOT IMPLEMENTED`。执行对账基线为 `main@9d00d01db5abe024e333cbc72f435ef284665e5c`；#224 已随 #226/#228 关闭，其最终证据仍为 **20 tiered PASS / 3 PARTIAL**。§22.8 的 actual grant PolicySnapshot lifecycle 延后、首 Run 同界 lease/deadline、Usage/Completion/外部/人工 NOT RUN 均保留，本设计不提升这些结论。
 
 ### 23.1 有限目标与取舍
 
@@ -1076,4 +1076,11 @@ Issue #224 实现会话中，用户对“本 Issue 新增定时 worker 宿主，
 
 ### 23.3 批准状态
 
-TD-01–04及§22.8既有批准保留；**#229新增Spec Delta的独立设计审查与人类设计批准均PENDING**，不能从Issue存在、设计PR创建、docs PASS或未来merge授权推导批准。审查或人类决定改变提案时同步owning规格，不覆盖历史批准文本。未来runtime/persistence验证目标为 `full`，首次新容器环境先按项目规定运行 `environment`；真实Provider/CLI/Feishu/public HTTP、Completion、TD-05–07及独立人工业务验收仍NOT RUN。
+TD-01–04及§22.8既有批准保留；**#229 新增 Spec Delta 的独立设计审查已完成且无阻塞 finding，人类设计批准已于 2026-09-27 明确取得**，不能从Issue存在、设计PR创建、docs PASS或未来merge授权推导批准。审查或人类决定改变提案时同步owning规格，不覆盖历史批准文本。未来runtime/persistence验证目标为 `full`，首次新容器环境先按项目规定运行 `environment`；真实Provider/CLI/Feishu/public HTTP、Completion、TD-05–07及独立人工业务验收仍NOT RUN。
+
+
+### 23.4 人类批准与设计交付（2026-09-27）
+
+独立审查对象为 PR #230 的 `fe7d8389e9ae738592d251302083fafe4d91c59d`，完整记录见 [Review.md](../reviews/pr-230/Review.md) 与 [PR comment](https://github.com/qzhike/zhiju-business-core/pull/230#issuecomment-5856287072)。审查未发现阻塞性 finding，因尚缺显式人类设计批准而报告 HUMAN_REVIEW_REQUIRED。用户随后在同一会话明确回复“批准，可合并PR并关闭issue及local/remote branch”，满足该确切 Spec Delta 的人类设计批准，并授权其审查记录/批准状态交付、PR 合并、Issue #229 关闭及对应分支清理。
+
+本轮只归档正式审查、更新批准状态及后续推进意图，不改设计字段或运行语义；两个非阻塞文字澄清保留在正式审查中。上述审查与本批准取代本节及配套 #229 附录原先的 PENDING 状态。设计已批准不等于实现 READY：Planner 仍须基于合并后的 main 检查依赖和完整实现目标，单独发布获授权的实现 Issue。新 Registry/Handler/migration/运行验收仍未交付，IM-06 未完成。

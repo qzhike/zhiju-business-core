@@ -625,7 +625,7 @@ AgentResult 的 header/schema/hash、FINAL、executionOutcome、provenance 和 s
 
 ### #229 两次受控 invocation 的有限恢复 profile（提案）
 
-状态：`T2 DESIGN ONLY / PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`。详细Result/profile由 [Spec003 §24.2](../module-specs/Module-Spec-003-TaskExecution.md#242-唯一正向-profile冻结和实际-driver-final)拥有，IG observation由 [Spec007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射提案)拥有。
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`。详细Result/profile由 [Spec003 §24.2](../module-specs/Module-Spec-003-TaskExecution.md#242-唯一正向-profile冻结和实际-driver-final)拥有，IG observation由 [Spec007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射提案)拥有。
 
 | 本地版本化配置（不进入公开请求） | 实际Driver动作及完整边界 |
 |---|---|

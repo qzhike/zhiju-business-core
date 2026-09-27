@@ -491,7 +491,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 ## #229 BLOCKED_INPUT 有限恢复设计矩阵
 
-状态：`PROPOSED / INDEPENDENT DESIGN REVIEW PENDING / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / ALL NEW RUNTIME CASES NOT RUN`。权威 [Spec003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)。以下11行保持必要语义，不复制旧final矩阵所有排列。对应 `TE-TD-017–020`、`TE-WI02-D-007`、`TE-TD-036` 的恢复/Receipt/历史不变约束仅定位到本矩阵，不删除旧预期或将其标PASS；TD-05–07仍提案。#224三Owner矩阵20 tiered PASS/3 PARTIAL及§22.8延后保持原状态。
+状态：`DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / ALL NEW RUNTIME CASES NOT RUN`。权威 [Spec003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)。以下11行保持必要语义，不复制旧final矩阵所有排列。对应 `TE-TD-017–020`、`TE-WI02-D-007`、`TE-TD-036` 的恢复/Receipt/历史不变约束仅定位到本矩阵，不删除旧预期或将其标PASS；TD-05–07仍提案。#224三Owner矩阵20 tiered PASS/3 PARTIAL及§22.8延后保持原状态。
 
 | ID | 必需层级 / 真实输入或fault | 预期与owning读回 | 实际 / 结果 |
 |---|---|---|---|

@@ -577,7 +577,7 @@ Schema/Registry/生成类型/fixture 证据：`contracts/src/operations/quality-
 
 ### #229 有限恢复的兼容与证明边界（提案）
 
-状态：`T2 DESIGN ONLY / PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT REGISTERED / NOT RUN`。字段唯一权威为 [Spec003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)，名称/Owner/ref注册由 [Catalog #229](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#229-blocked_input-恢复的-additive-注册提案)拥有。
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT REGISTERED / NOT RUN`。字段唯一权威为 [Spec003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)，名称/Owner/ref注册由 [Catalog #229](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#229-blocked_input-恢复的-additive-注册提案)拥有。
 
 既有open/submit-answer/resolve/schedule/submit-result/accept/create-run/get-request@1.0请求及通用CommandResult不变；其Purpose逐字符使用compat metadata的 `task.execution.*`，不能用Module Spec早期设计短拼写替代。expectedAnswerSpec/answerContent的closed customer-material支持集是明确handler profile，不是把历史CanonicalJson Schema收窄；SourceRefs与Receipt集合仍遵循各Owner真实引用形状。已提交历史Result/Acceptance/Answer/Resolution的可读性与当前恢复可用性分开，Receipt重放先重验当前动作权限，不重新获得执行资格。
 

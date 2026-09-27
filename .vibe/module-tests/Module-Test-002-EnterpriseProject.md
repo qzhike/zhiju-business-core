@@ -522,7 +522,7 @@ pnpm persistence:gate
 
 ## #229 恢复证明消费边界
 
-状态：`PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`；[Spec002 #229](../module-specs/Module-Spec-002-EnterpriseProject.md#229-确认-receipt-ref-的授权发现与复用边界提案)。#191已通过的原attestation矩阵保留，不因本设计复用变为TE端执行通过。
+状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`；[Spec002 #229](../module-specs/Module-Spec-002-EnterpriseProject.md#229-确认-receipt-ref-的授权发现与复用边界提案)。#191已通过的原attestation矩阵保留，不因本设计复用变为TE端执行通过。
 
 | ID | 输入 / 层级 | 预期 / 结果 |
 |---|---|---|
