@@ -687,13 +687,73 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
    * shared runner; the slowest test here is ~4s locally). Applies to every
    * test of the suite through the registration wrapper below.
    */
+  function progress(event: string, detail: string): void {
+    process.stdout.write(`[initial-context] ${event}: ${detail}\n`);
+  }
+  const cleanupResources: (pg.Pool | pg.Client)[] = [];
+  let currentPhase = 'idle';
+  let phaseStarted = performance.now();
+  function phaseEnd(): void {
+    if (currentPhase === 'idle') return;
+    progress(
+      'phase end',
+      `${currentPhase}; elapsedMs=${Math.round(performance.now() - phaseStarted)}`,
+    );
+    currentPhase = 'idle';
+  }
+  function phase(name: string): void {
+    phaseEnd();
+    currentPhase = name;
+    phaseStarted = performance.now();
+    progress('phase start', name);
+  }
+  async function databaseWaits(): Promise<void> {
+    // No SQL text, business payloads, credentials or connection URLs.
+    const result = await admin.query(
+      `SELECT pid, state, wait_event_type, wait_event, pg_blocking_pids(pid) AS blockers,
+              extract(epoch FROM clock_timestamp()-xact_start)::int AS transaction_seconds
+       FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()`,
+    );
+    progress('database activity', JSON.stringify(result.rows));
+  }
+  async function waitForDeadline(milliseconds: number, label: string): Promise<void> {
+    const started = performance.now();
+    progress('wait start', `${label}; requestedMs=${milliseconds}`);
+    try {
+      await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+    } finally {
+      progress('wait end', `${label}; elapsedMs=${Math.round(performance.now() - started)}`);
+    }
+  }
   const INTEGRATION_TEST_TIMEOUT = 60_000;
   function itIntegration(
     name: string,
     run: () => Promise<void>,
     timeout = INTEGRATION_TEST_TIMEOUT,
   ): void {
-    it(name, { timeout }, run);
+    it(name, { timeout }, async () => {
+      const started = performance.now();
+      progress('test start', name);
+      phase('test body');
+      const heartbeat = setInterval(() => {
+        progress('heartbeat', `${name}; phase=${currentPhase}; pending=${pendingOperations.size}`);
+        void databaseWaits().catch(() => {
+          // Diagnostics are best effort; preserve the original failure.
+        });
+      }, 30_000);
+      try {
+        await run();
+      } catch (error) {
+        await databaseWaits().catch(() => {
+          // Diagnostics are best effort; preserve the original failure.
+        });
+        throw error;
+      } finally {
+        clearInterval(heartbeat);
+        phaseEnd();
+        progress('test body end', `${name}; elapsedMs=${Math.round(performance.now() - started)}`);
+      }
+    });
   }
 
   /**
@@ -728,6 +788,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   const authorizeCommandTracked: typeof authorizeCommand = (...args) =>
     track(authorizeCommand(...args));
   afterEach(async () => {
+    phase('pending operation drain');
     // Drain until two consecutive quiescent passes: an abandoned helper can
     // sit between two tracked drivers with its continuation not yet queued.
     let quiescentPasses = 0;
@@ -736,7 +797,29 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       await new Promise((resolve) => setImmediate(resolve));
       quiescentPasses = pendingOperations.size === 0 ? quiescentPasses + 1 : 0;
     }
+    phaseEnd();
   }, 120_000);
+
+  function observeEntry<T extends object>(entry: T): T {
+    return new Proxy(entry, {
+      get(target, key, receiver) {
+        const value: unknown = Reflect.get(target, key, receiver);
+        if (typeof value !== 'function') return value;
+        return (...args: unknown[]) => {
+          const started = performance.now();
+          progress('command start', String(key));
+          return track(
+            Promise.resolve().then(() => Reflect.apply(value, target, args) as unknown),
+          ).finally(() => {
+            progress(
+              'command end',
+              `${String(key)}; elapsedMs=${Math.round(performance.now() - started)}`,
+            );
+          });
+        };
+      },
+    });
+  }
 
   /** Uniform principal description used by every helper of this suite. */
   interface Principal {
@@ -1450,7 +1533,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   }
 
   beforeAll(async () => {
+    phase('suite business preparation');
     admin = new pg.Client({ connectionString: databaseUrl });
+    cleanupResources.push(admin);
     await admin.connect();
     await admin.query(
       `DO $do$
@@ -1470,8 +1555,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     const probeConnectionUrl = url.toString();
     probeUrl = probeConnectionUrl;
     tePool = new pg.Pool({ connectionString: probeConnectionUrl, max: 6 });
+    cleanupResources.push(tePool);
     ipPool = new pg.Pool({ connectionString: probeConnectionUrl, max: 6 });
+    cleanupResources.push(ipPool);
     epPool = new pg.Pool({ connectionString: probeConnectionUrl, max: 6 });
+    cleanupResources.push(epPool);
     teDb = createTaskExecutionDatabase(tePool);
     identityDb = createIdentityPolicyDatabase(ipPool);
     enterpriseProjectDb = createEnterpriseProjectDatabase(epPool);
@@ -1769,13 +1857,22 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     const goldenTaskId = await createExecutableTask('2.0');
     goldenWorkOrderId = await createWorkOrder({ taskId: goldenTaskId, taskMajor: '2.0' });
     goldenDraftRef = await draftSnapshotRefOf(goldenWorkOrderId);
+    phaseEnd();
   }, 300_000);
 
   afterAll(async () => {
-    await tePool.end();
-    await ipPool.end();
-    await epPool.end();
-    await admin.end();
+    phase('suite cleanup');
+    try {
+      // Setup can fail before a pool exists. Close every initialized resource
+      // even if another close fails, and preserve cleanup failures for Vitest.
+      const settled = await Promise.allSettled(cleanupResources.map((resource) => resource.end()));
+      const failures = settled.flatMap((result) =>
+        result.status === 'rejected' ? [result.reason as unknown] : [],
+      );
+      if (failures.length) throw new AggregateError(failures, 'initial Context cleanup failed');
+    } finally {
+      phaseEnd();
+    }
   });
 
   // -----------------------------------------------------------------------
@@ -7251,9 +7348,13 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       },
       observeRecovery?: (value: RecoveryFixture) => Promise<void>,
     ) => {
+      phase(`scenario ${terminalScenario}/${negativeFinalCase}: business preparation`);
       // This independent chain must not inherit the time spent running the
       // preceding 22 cases: the Decision lookup's bootstrap lease is 60s
       // from the trusted instant, and PostgreSQL checks it against wall time.
+      // Run common precondition refusals once; every other case still produces
+      // its own live Task/Draft/Context/READY/Run through the owning entries.
+      const exercisePreparationMatrix = terminalScenario === 'SUCCEEDED';
       const positiveFinalScenario =
         terminalScenario === 'SUCCEEDED' ||
         terminalScenario === 'MIX_VALIDATIONS' ||
@@ -7287,7 +7388,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         authHash: AUTH_HASH,
       };
       const borrowedActors: Principal[] = [];
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const otherServiceId = newUuidV7();
         await withIdentityTransaction(identityDb, identityContext([]), (trx) =>
           identityRepo.insertPrincipal(trx, {
@@ -7542,8 +7643,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       );
       expect(contextBuild, JSON.stringify(contextBuild)).toMatchObject({ status: 'COMMITTED' });
       const contextRef = contextSnapshotRefOf(contextBuild);
-      if (terminalScenario === 'LEGACY_UPGRADE')
+      if (terminalScenario === 'LEGACY_UPGRADE') {
+        phase('historical WorkOrder Validation upgrade');
         await verifyWorkOrderValidationUpgrade(admin, fixture.enterpriseId);
+        phase('Validation preparation');
+      }
       revised.workOrderRef = objectRef(WORK_ORDER_V11, woId, scope());
       revised.contextSnapshotRef = contextRef;
       record(revised.versionPins).projectContextContractRef = contextRef;
@@ -7645,49 +7749,53 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           scope(),
         ) as unknown as Common.ObjectRef,
       );
-      // Own and dependency authorization failures precede the command claim.
-      for (const key of [
-        'workOrderValidationDraftReadV1',
-        'workOrderValidationContextReadV1',
-      ] as const) {
-        const deniedEntry = createWorkOrderValidationEntry({
-          taskExecutionDb: teDb,
-          enterpriseProjectDb,
-          identity: { db: identityDb, repo: identityRepo, crypto },
-          capabilityCodes: { ...codes, [key]: 'wi219.ungranted' },
-          capabilities: dependencyCapabilities,
-          now: () => new Date(clock),
-        });
+      if (exercisePreparationMatrix) {
+        phase('Validation refusal matrix');
+        // Own and dependency authorization failures precede the command claim.
+        for (const key of [
+          'workOrderValidationDraftReadV1',
+          'workOrderValidationContextReadV1',
+        ] as const) {
+          const deniedEntry = createWorkOrderValidationEntry({
+            taskExecutionDb: teDb,
+            enterpriseProjectDb,
+            identity: { db: identityDb, repo: identityRepo, crypto },
+            capabilityCodes: { ...codes, [key]: 'wi219.ungranted' },
+            capabilities: dependencyCapabilities,
+            now: () => new Date(clock),
+          });
+          await expect(
+            deniedEntry.validate(validationEnvelope, sessionFor(service)),
+          ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+          expect(await receiptRows(validationEnvelope.idempotencyKey)).toEqual([]);
+        }
         await expect(
-          deniedEntry.validate(validationEnvelope, sessionFor(service)),
+          entry.validate(
+            {
+              ...validationEnvelope,
+              targetRef: objectRef('zhiju.execution.work_order_validation', newUuidV7(), scope()),
+            },
+            sessionFor(service),
+          ),
         ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
         expect(await receiptRows(validationEnvelope.idempotencyKey)).toEqual([]);
+        const forged = structuredClone(revised);
+        record(forged.header).payloadHash = contentHash('f'.repeat(64));
+        const forgedEnvelope = await envelope(
+          'execution.validate_work_order_draft',
+          { ...validationEnvelope.payload, candidateContract: forged } as CanonicalJsonObject,
+          objectRef(
+            'zhiju.execution.work_order_validation',
+            newUuidV7(),
+            scope(),
+          ) as unknown as Common.ObjectRef,
+        );
+        await expect(entry.validate(forgedEnvelope, sessionFor(service))).rejects.toMatchObject({
+          code: 'PAYLOAD_HASH_MISMATCH',
+        });
+        expect(await receiptRows(forgedEnvelope.idempotencyKey)).toEqual([]);
       }
-      await expect(
-        entry.validate(
-          {
-            ...validationEnvelope,
-            targetRef: objectRef('zhiju.execution.work_order_validation', newUuidV7(), scope()),
-          },
-          sessionFor(service),
-        ),
-      ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
-      expect(await receiptRows(validationEnvelope.idempotencyKey)).toEqual([]);
-      const forged = structuredClone(revised);
-      record(forged.header).payloadHash = contentHash('f'.repeat(64));
-      const forgedEnvelope = await envelope(
-        'execution.validate_work_order_draft',
-        { ...validationEnvelope.payload, candidateContract: forged } as CanonicalJsonObject,
-        objectRef(
-          'zhiju.execution.work_order_validation',
-          newUuidV7(),
-          scope(),
-        ) as unknown as Common.ObjectRef,
-      );
-      await expect(entry.validate(forgedEnvelope, sessionFor(service))).rejects.toMatchObject({
-        code: 'PAYLOAD_HASH_MISMATCH',
-      });
-      expect(await receiptRows(forgedEnvelope.idempotencyKey)).toEqual([]);
+      phase('Validation and SQL guard matrix');
       const validated = await entry.validate(validationEnvelope, sessionFor(service));
       expect(validated, JSON.stringify(validated)).toMatchObject({ status: 'COMMITTED' });
       const judgmentRef = record(record(committedPayload(validated)).data).validationSnapshotRef;
@@ -7699,270 +7807,273 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         )
       ).rows[0].canonical_payload as Record<string, unknown>;
       expect(record(judgmentPayload.validation).executable).toBe(true);
-      await verifyWorkOrderValidationGuards(admin, teDb, runnerContext(service), judgmentId);
-      expect((judgmentPayload.dependencyObservations as unknown[]).length).toBe(7);
-      expect(contextRef.objectId).not.toBe(contextRef.snapshotId);
-      expect(
-        (
-          await admin.query(
-            'SELECT task_execution.work_order_validation_payload_valid($1::jsonb) AS valid',
-            [JSON.stringify(judgmentPayload)],
-          )
-        ).rows,
-      ).toEqual([{ valid: true }]);
-      for (const mutate of [
-        (p: Record<string, unknown>) => {
-          p.extra = true;
-        },
-        (p: Record<string, unknown>) => {
-          (p.dependencyObservations as unknown[]).reverse();
-        },
-        (p: Record<string, unknown>) => {
-          record((p.dependencyObservations as unknown[])[0]).extra = true;
-        },
-        (p: Record<string, unknown>) => {
-          record(p.validation).executable = false;
-        },
-        (p: Record<string, unknown>) => {
-          p.inputHash = 'f'.repeat(64);
-        },
-      ]) {
-        const value = structuredClone(judgmentPayload);
-        mutate(value);
+      if (exercisePreparationMatrix) {
+        await verifyWorkOrderValidationGuards(admin, teDb, runnerContext(service), judgmentId);
+        expect((judgmentPayload.dependencyObservations as unknown[]).length).toBe(7);
+        expect(contextRef.objectId).not.toBe(contextRef.snapshotId);
         expect(
           (
             await admin.query(
               'SELECT task_execution.work_order_validation_payload_valid($1::jsonb) AS valid',
-              [JSON.stringify(value)],
+              [JSON.stringify(judgmentPayload)],
             )
           ).rows,
-        ).toEqual([{ valid: false }]);
-      }
-      await expect(
-        admin.query(
-          'UPDATE task_execution.execution_judgment SET valid_until=valid_until WHERE judgment_id=$1',
-          [judgmentId],
-        ),
-      ).rejects.toMatchObject({ code: '23514' });
-      const badJudgment = await envelope(
-        'execution.freeze_work_order',
-        {
-          workOrderContract: revised,
-          validationSnapshotRef: {
-            ...record(judgmentRef),
-            contentHash: contentHash('f'.repeat(64)),
+        ).toEqual([{ valid: true }]);
+        for (const mutate of [
+          (p: Record<string, unknown>) => {
+            p.extra = true;
           },
-          specificationHash: revised.specificationHash,
-        } as unknown as CanonicalJsonObject,
-        revised.workOrderRef as Common.ObjectRef,
-        true,
-      );
-      await expect(entry.freeze(badJudgment, sessionFor(service))).rejects.toMatchObject({
-        code: 'REFERENCE_INVALID',
-      });
-      expect(await receiptRows(badJudgment.idempotencyKey)).toEqual([]);
-      // A lawful, smaller budget still differs from the exact Controls Policy.
-      // Produce a separate owning Draft/Context so the mismatch is a business
-      // judgment, rather than a forged change to the original immutable Draft.
-      const businessCandidate = structuredClone(revised);
-      record(businessCandidate.budget).tokenLimit = 100;
-      const businessDraft = Object.fromEntries(
-        Object.entries(businessCandidate).filter(
-          ([key]) =>
-            ![
-              'header',
-              'workOrderRef',
-              'projectRef',
-              'contextSnapshotRef',
-              'issuedAt',
-              'expiresAt',
-              'specificationHash',
-            ].includes(key),
-        ),
-      );
-      const { projectContextContractRef: oldContext, ...businessPins } = record(
-        businessDraft.versionPins,
-      );
-      void oldContext;
-      businessDraft.versionPins = businessPins;
-      const businessWo = await createWorkOrder({
-        taskId,
-        taskMajor: '2.0',
-        customDraft: businessDraft,
-        expiresAt,
-      });
-      const businessDraftRef = await draftSnapshotRefOf(businessWo);
-      const businessBuild = await initialContextEntry.build(
-        await preparedBuild({
-          workOrderId: businessWo,
-          draftRef: businessDraftRef,
-          principal: service,
-          sourceSlices: [slice],
-          idempotencyKey: newUuidV7(),
-        }),
-        sessionFor(service),
-      );
-      const businessContext = contextSnapshotRefOf(businessBuild);
-      businessCandidate.workOrderRef = objectRef(WORK_ORDER_V11, businessWo, scope());
-      businessCandidate.contextSnapshotRef = businessContext;
-      record(businessCandidate.versionPins).projectContextContractRef = businessContext;
-      record(businessCandidate.header).contractId = newUuidV7();
-      businessCandidate.specificationHash = contentHash(
-        sha256CanonicalJson(
-          Object.fromEntries(
-            specFields.map((k) => [k, businessCandidate[k]]),
-          ) as CanonicalJsonObject,
-        ),
-      );
-      record(businessCandidate.header).payloadHash = contentHash(
-        hashContractPayload(businessCandidate as CanonicalJsonObject),
-      );
-      const businessEnvelope = await envelope(
-        'execution.validate_work_order_draft',
-        {
-          draftSnapshotRef: businessDraftRef,
-          candidateContract: businessCandidate,
-          policyRef: validationRef,
-          evaluatorRef: evaluator,
-        } as unknown as CanonicalJsonObject,
-        objectRef(
-          'zhiju.execution.work_order_validation',
-          newUuidV7(),
-          scope(),
-        ) as unknown as Common.ObjectRef,
-      );
-      const businessResult = await entry.validate(businessEnvelope, sessionFor(service));
-      expect(businessResult).toMatchObject({ status: 'COMMITTED' });
-      const businessJudgmentRef = record(
-        record(committedPayload(businessResult)).data,
-      ).validationSnapshotRef;
-      const businessRow = (
-        await admin.query(
-          'SELECT canonical_payload FROM task_execution.execution_judgment WHERE judgment_id=$1',
-          [record(businessJudgmentRef).objectId],
-        )
-      ).rows[0].canonical_payload;
-      expect(record(businessRow).validation).toMatchObject({
-        budgetValid: false,
-        executable: false,
-        violations: ['BUDGET_CONTROL_MISMATCH'],
-      });
-      const businessFreeze = await envelope(
-        'execution.freeze_work_order',
-        {
-          workOrderContract: businessCandidate,
-          validationSnapshotRef: businessJudgmentRef,
-          specificationHash: businessCandidate.specificationHash,
-        } as CanonicalJsonObject,
-        businessCandidate.workOrderRef as Common.ObjectRef,
-        true,
-      );
-      await expect(entry.freeze(businessFreeze, sessionFor(service))).rejects.toMatchObject({
-        code: 'EXECUTION_JUDGMENT_INVALID',
-      });
-      expect(await receiptRows(businessFreeze.idempotencyKey)).toEqual([]);
-      const shortPolicy = policyKey([newUuidV7(), newUuidV7()], fixture);
-      await registerPolicyVersionAs({
-        key: shortPolicy,
-        factId: newUuidV7(),
-        idempotencyKey: newUuidV7(),
-        effectiveFrom: PAST,
-        policySchemaRefs: [profileReference('execution.work_order_validation.policy@1.0')],
-        policyDocument: { maxValidationValiditySeconds: 2 },
-      });
-      const shortEnvelope = await envelope(
-        'execution.validate_work_order_draft',
-        {
-          ...validationEnvelope.payload,
-          policyRef: shortPolicy,
-        } as unknown as CanonicalJsonObject,
-        objectRef(
-          'zhiju.execution.work_order_validation',
-          newUuidV7(),
-          scope(),
-        ) as unknown as Common.ObjectRef,
-      );
-      const shortResult = await entry.validate(shortEnvelope, sessionFor(service));
-      const shortRef = record(record(committedPayload(shortResult)).data).validationSnapshotRef;
-      const expiredFreeze = await envelope(
-        'execution.freeze_work_order',
-        {
-          workOrderContract: revised,
-          validationSnapshotRef: shortRef,
-          specificationHash: revised.specificationHash,
-        } as CanonicalJsonObject,
-        revised.workOrderRef as Common.ObjectRef,
-        true,
-      );
-      const laterEntry = createWorkOrderValidationEntry({
-        taskExecutionDb: teDb,
-        enterpriseProjectDb,
-        identity: { db: identityDb, repo: identityRepo, crypto },
-        capabilityCodes: codes,
-        capabilities: dependencyCapabilities,
-        now: () => new Date(clock + 10000),
-      });
-      await expect(laterEntry.freeze(expiredFreeze, sessionFor(service))).rejects.toMatchObject({
-        code: 'EXECUTION_JUDGMENT_STALE',
-      });
-      expect(await receiptRows(expiredFreeze.idempotencyKey)).toEqual([]);
-      // Hold the real WorkOrder row lock after authorization, then cross the
-      // judgment deadline before releasing it. No partial Freeze can commit.
-      let lockClock = clock;
-      const lockEntry = createWorkOrderValidationEntry({
-        taskExecutionDb: teDb,
-        enterpriseProjectDb,
-        identity: { db: identityDb, repo: identityRepo, crypto },
-        capabilityCodes: codes,
-        capabilities: dependencyCapabilities,
-        now: () => new Date(lockClock),
-      });
-      const blocker = new pg.Client({ connectionString: databaseUrl });
-      await blocker.connect();
-      let pendingFreeze: Promise<unknown> | undefined;
-      try {
-        await blocker.query('BEGIN');
-        await blocker.query(
-          'SELECT work_order_id FROM task_execution.work_order WHERE work_order_id=$1 FOR UPDATE',
-          [woId],
+          (p: Record<string, unknown>) => {
+            (p.dependencyObservations as unknown[]).reverse();
+          },
+          (p: Record<string, unknown>) => {
+            record((p.dependencyObservations as unknown[])[0]).extra = true;
+          },
+          (p: Record<string, unknown>) => {
+            record(p.validation).executable = false;
+          },
+          (p: Record<string, unknown>) => {
+            p.inputHash = 'f'.repeat(64);
+          },
+        ]) {
+          const value = structuredClone(judgmentPayload);
+          mutate(value);
+          expect(
+            (
+              await admin.query(
+                'SELECT task_execution.work_order_validation_payload_valid($1::jsonb) AS valid',
+                [JSON.stringify(value)],
+              )
+            ).rows,
+          ).toEqual([{ valid: false }]);
+        }
+        await expect(
+          admin.query(
+            'UPDATE task_execution.execution_judgment SET valid_until=valid_until WHERE judgment_id=$1',
+            [judgmentId],
+          ),
+        ).rejects.toMatchObject({ code: '23514' });
+        const badJudgment = await envelope(
+          'execution.freeze_work_order',
+          {
+            workOrderContract: revised,
+            validationSnapshotRef: {
+              ...record(judgmentRef),
+              contentHash: contentHash('f'.repeat(64)),
+            },
+            specificationHash: revised.specificationHash,
+          } as unknown as CanonicalJsonObject,
+          revised.workOrderRef as Common.ObjectRef,
+          true,
         );
-        pendingFreeze = lockEntry
-          .freeze(expiredFreeze, sessionFor(service))
-          .catch((error: unknown) => error);
-        await expect
-          .poll(
-            async () =>
-              (
-                await admin.query<{ n: number }>(
-                  "SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%work_order%'",
-                )
-              ).rows[0]?.n ?? 0,
-            { timeout: 10000 },
-          )
-          .toBeGreaterThan(0);
-        lockClock += 10000;
-        await blocker.query('ROLLBACK');
-        expect(await pendingFreeze).toMatchObject({ code: 'EXECUTION_JUDGMENT_STALE' });
-      } finally {
-        await blocker.query('ROLLBACK');
-        await blocker.end();
-        await pendingFreeze;
-      }
-      expect(await receiptRows(expiredFreeze.idempotencyKey)).toEqual([]);
-      const conflictEnvelope = await envelope(
-        'execution.validate_work_order_draft',
-        {
-          ...validationEnvelope.payload,
-          policyRef: shortPolicy,
-        } as unknown as CanonicalJsonObject,
-        validationEnvelope.targetRef,
-      );
-      await expect(
-        entry.validate(
-          { ...conflictEnvelope, idempotencyKey: validationEnvelope.idempotencyKey },
+        await expect(entry.freeze(badJudgment, sessionFor(service))).rejects.toMatchObject({
+          code: 'REFERENCE_INVALID',
+        });
+        expect(await receiptRows(badJudgment.idempotencyKey)).toEqual([]);
+        // A lawful, smaller budget still differs from the exact Controls Policy.
+        // Produce a separate owning Draft/Context so the mismatch is a business
+        // judgment, rather than a forged change to the original immutable Draft.
+        const businessCandidate = structuredClone(revised);
+        record(businessCandidate.budget).tokenLimit = 100;
+        const businessDraft = Object.fromEntries(
+          Object.entries(businessCandidate).filter(
+            ([key]) =>
+              ![
+                'header',
+                'workOrderRef',
+                'projectRef',
+                'contextSnapshotRef',
+                'issuedAt',
+                'expiresAt',
+                'specificationHash',
+              ].includes(key),
+          ),
+        );
+        const { projectContextContractRef: oldContext, ...businessPins } = record(
+          businessDraft.versionPins,
+        );
+        void oldContext;
+        businessDraft.versionPins = businessPins;
+        const businessWo = await createWorkOrder({
+          taskId,
+          taskMajor: '2.0',
+          customDraft: businessDraft,
+          expiresAt,
+        });
+        const businessDraftRef = await draftSnapshotRefOf(businessWo);
+        const businessBuild = await initialContextEntry.build(
+          await preparedBuild({
+            workOrderId: businessWo,
+            draftRef: businessDraftRef,
+            principal: service,
+            sourceSlices: [slice],
+            idempotencyKey: newUuidV7(),
+          }),
           sessionFor(service),
-        ),
-      ).rejects.toMatchObject({ code: 'IDEMPOTENCY_PAYLOAD_CONFLICT' });
+        );
+        const businessContext = contextSnapshotRefOf(businessBuild);
+        businessCandidate.workOrderRef = objectRef(WORK_ORDER_V11, businessWo, scope());
+        businessCandidate.contextSnapshotRef = businessContext;
+        record(businessCandidate.versionPins).projectContextContractRef = businessContext;
+        record(businessCandidate.header).contractId = newUuidV7();
+        businessCandidate.specificationHash = contentHash(
+          sha256CanonicalJson(
+            Object.fromEntries(
+              specFields.map((k) => [k, businessCandidate[k]]),
+            ) as CanonicalJsonObject,
+          ),
+        );
+        record(businessCandidate.header).payloadHash = contentHash(
+          hashContractPayload(businessCandidate as CanonicalJsonObject),
+        );
+        const businessEnvelope = await envelope(
+          'execution.validate_work_order_draft',
+          {
+            draftSnapshotRef: businessDraftRef,
+            candidateContract: businessCandidate,
+            policyRef: validationRef,
+            evaluatorRef: evaluator,
+          } as unknown as CanonicalJsonObject,
+          objectRef(
+            'zhiju.execution.work_order_validation',
+            newUuidV7(),
+            scope(),
+          ) as unknown as Common.ObjectRef,
+        );
+        const businessResult = await entry.validate(businessEnvelope, sessionFor(service));
+        expect(businessResult).toMatchObject({ status: 'COMMITTED' });
+        const businessJudgmentRef = record(
+          record(committedPayload(businessResult)).data,
+        ).validationSnapshotRef;
+        const businessRow = (
+          await admin.query(
+            'SELECT canonical_payload FROM task_execution.execution_judgment WHERE judgment_id=$1',
+            [record(businessJudgmentRef).objectId],
+          )
+        ).rows[0].canonical_payload;
+        expect(record(businessRow).validation).toMatchObject({
+          budgetValid: false,
+          executable: false,
+          violations: ['BUDGET_CONTROL_MISMATCH'],
+        });
+        const businessFreeze = await envelope(
+          'execution.freeze_work_order',
+          {
+            workOrderContract: businessCandidate,
+            validationSnapshotRef: businessJudgmentRef,
+            specificationHash: businessCandidate.specificationHash,
+          } as CanonicalJsonObject,
+          businessCandidate.workOrderRef as Common.ObjectRef,
+          true,
+        );
+        await expect(entry.freeze(businessFreeze, sessionFor(service))).rejects.toMatchObject({
+          code: 'EXECUTION_JUDGMENT_INVALID',
+        });
+        expect(await receiptRows(businessFreeze.idempotencyKey)).toEqual([]);
+        const shortPolicy = policyKey([newUuidV7(), newUuidV7()], fixture);
+        await registerPolicyVersionAs({
+          key: shortPolicy,
+          factId: newUuidV7(),
+          idempotencyKey: newUuidV7(),
+          effectiveFrom: PAST,
+          policySchemaRefs: [profileReference('execution.work_order_validation.policy@1.0')],
+          policyDocument: { maxValidationValiditySeconds: 2 },
+        });
+        const shortEnvelope = await envelope(
+          'execution.validate_work_order_draft',
+          {
+            ...validationEnvelope.payload,
+            policyRef: shortPolicy,
+          } as unknown as CanonicalJsonObject,
+          objectRef(
+            'zhiju.execution.work_order_validation',
+            newUuidV7(),
+            scope(),
+          ) as unknown as Common.ObjectRef,
+        );
+        const shortResult = await entry.validate(shortEnvelope, sessionFor(service));
+        const shortRef = record(record(committedPayload(shortResult)).data).validationSnapshotRef;
+        const expiredFreeze = await envelope(
+          'execution.freeze_work_order',
+          {
+            workOrderContract: revised,
+            validationSnapshotRef: shortRef,
+            specificationHash: revised.specificationHash,
+          } as CanonicalJsonObject,
+          revised.workOrderRef as Common.ObjectRef,
+          true,
+        );
+        const laterEntry = createWorkOrderValidationEntry({
+          taskExecutionDb: teDb,
+          enterpriseProjectDb,
+          identity: { db: identityDb, repo: identityRepo, crypto },
+          capabilityCodes: codes,
+          capabilities: dependencyCapabilities,
+          now: () => new Date(clock + 10000),
+        });
+        await expect(laterEntry.freeze(expiredFreeze, sessionFor(service))).rejects.toMatchObject({
+          code: 'EXECUTION_JUDGMENT_STALE',
+        });
+        expect(await receiptRows(expiredFreeze.idempotencyKey)).toEqual([]);
+        // Hold the real WorkOrder row lock after authorization, then cross the
+        // judgment deadline before releasing it. No partial Freeze can commit.
+        let lockClock = clock;
+        const lockEntry = createWorkOrderValidationEntry({
+          taskExecutionDb: teDb,
+          enterpriseProjectDb,
+          identity: { db: identityDb, repo: identityRepo, crypto },
+          capabilityCodes: codes,
+          capabilities: dependencyCapabilities,
+          now: () => new Date(lockClock),
+        });
+        const blocker = new pg.Client({ connectionString: databaseUrl });
+        await blocker.connect();
+        let pendingFreeze: Promise<unknown> | undefined;
+        try {
+          await blocker.query('BEGIN');
+          await blocker.query(
+            'SELECT work_order_id FROM task_execution.work_order WHERE work_order_id=$1 FOR UPDATE',
+            [woId],
+          );
+          pendingFreeze = lockEntry
+            .freeze(expiredFreeze, sessionFor(service))
+            .catch((error: unknown) => error);
+          await expect
+            .poll(
+              async () =>
+                (
+                  await admin.query<{ n: number }>(
+                    "SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%work_order%'",
+                  )
+                ).rows[0]?.n ?? 0,
+              { timeout: 10000 },
+            )
+            .toBeGreaterThan(0);
+          lockClock += 10000;
+          await blocker.query('ROLLBACK');
+          expect(await pendingFreeze).toMatchObject({ code: 'EXECUTION_JUDGMENT_STALE' });
+        } finally {
+          await blocker.query('ROLLBACK');
+          await blocker.end();
+          await pendingFreeze;
+        }
+        expect(await receiptRows(expiredFreeze.idempotencyKey)).toEqual([]);
+        const conflictEnvelope = await envelope(
+          'execution.validate_work_order_draft',
+          {
+            ...validationEnvelope.payload,
+            policyRef: shortPolicy,
+          } as unknown as CanonicalJsonObject,
+          validationEnvelope.targetRef,
+        );
+        await expect(
+          entry.validate(
+            { ...conflictEnvelope, idempotencyKey: validationEnvelope.idempotencyKey },
+            sessionFor(service),
+          ),
+        ).rejects.toMatchObject({ code: 'IDEMPOTENCY_PAYLOAD_CONFLICT' });
+      }
+      phase('Freeze fault and concurrency matrix');
       let freezeEnvelope = await envelope(
         'execution.freeze_work_order',
         {
@@ -7973,94 +8084,102 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         revised.workOrderRef as Common.ObjectRef,
         true,
       );
-      // A real owning call fails after the Outbox insert. All TE writes,
-      // including the claim, pointer, Contract and edges, must roll back.
-      await admin.query(
-        `CREATE FUNCTION public.wi219_freeze_fault() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN IF NEW.aggregate_id='${woId}'::uuid AND NEW.event_type='execution.WorkOrderBecameReady' THEN RAISE EXCEPTION 'WI219_FREEZE_FAULT'; END IF; RETURN NEW; END $f$`,
-      );
-      await admin.query(
-        'CREATE TRIGGER wi219_freeze_fault AFTER INSERT ON task_execution.outbox_event FOR EACH ROW EXECUTE FUNCTION public.wi219_freeze_fault()',
-      );
-      try {
-        await expect(entry.freeze(freezeEnvelope, sessionFor(service))).rejects.toThrow(
-          'WI219_FREEZE_FAULT',
+      if (exercisePreparationMatrix) {
+        // A real owning call fails after the Outbox insert. All TE writes,
+        // including the claim, pointer, Contract and edges, must roll back.
+        await admin.query(
+          `CREATE FUNCTION public.wi219_freeze_fault() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN IF NEW.aggregate_id='${woId}'::uuid AND NEW.event_type='execution.WorkOrderBecameReady' THEN RAISE EXCEPTION 'WI219_FREEZE_FAULT'; END IF; RETURN NEW; END $f$`,
         );
-      } finally {
-        await admin.query('DROP TRIGGER wi219_freeze_fault ON task_execution.outbox_event');
-        await admin.query('DROP FUNCTION public.wi219_freeze_fault()');
-      }
-      expect(await receiptRows(freezeEnvelope.idempotencyKey)).toEqual([]);
-      expect(
-        (
-          await admin.query(
-            'SELECT count(*)::int AS n FROM task_execution.work_order_contract WHERE work_order_id=$1',
-            [woId],
-          )
-        ).rows,
-      ).toEqual([{ n: 0 }]);
-      expect(
-        (
-          await admin.query(
-            'SELECT status,frozen_contract_id FROM task_execution.work_order WHERE work_order_id=$1',
-            [woId],
-          )
-        ).rows,
-      ).toEqual([{ status: 'DRAFT', frozen_contract_id: null }]);
-      expect(await outboxRows(woId)).toEqual([]);
-      const competingEnvelope = await envelope(
-        'execution.freeze_work_order',
-        freezeEnvelope.payload,
-        revised.workOrderRef as Common.ObjectRef,
-        true,
-      );
-      const candidates = [freezeEnvelope, competingEnvelope];
-      const outcomes = await Promise.allSettled(
-        candidates.map((candidate) => entry.freeze(candidate, sessionFor(service))),
-      );
-      const winner = outcomes.findIndex(
-        (result) => result.status === 'fulfilled' && result.value.status === 'COMMITTED',
-      );
-      expect(winner, JSON.stringify(outcomes)).toBeGreaterThanOrEqual(0);
-      expect(
-        outcomes.filter(
+        await admin.query(
+          'CREATE TRIGGER wi219_freeze_fault AFTER INSERT ON task_execution.outbox_event FOR EACH ROW EXECUTE FUNCTION public.wi219_freeze_fault()',
+        );
+        try {
+          await expect(entry.freeze(freezeEnvelope, sessionFor(service))).rejects.toThrow(
+            'WI219_FREEZE_FAULT',
+          );
+        } finally {
+          await admin.query('DROP TRIGGER wi219_freeze_fault ON task_execution.outbox_event');
+          await admin.query('DROP FUNCTION public.wi219_freeze_fault()');
+        }
+        expect(await receiptRows(freezeEnvelope.idempotencyKey)).toEqual([]);
+        expect(
+          (
+            await admin.query(
+              'SELECT count(*)::int AS n FROM task_execution.work_order_contract WHERE work_order_id=$1',
+              [woId],
+            )
+          ).rows,
+        ).toEqual([{ n: 0 }]);
+        expect(
+          (
+            await admin.query(
+              'SELECT status,frozen_contract_id FROM task_execution.work_order WHERE work_order_id=$1',
+              [woId],
+            )
+          ).rows,
+        ).toEqual([{ status: 'DRAFT', frozen_contract_id: null }]);
+        expect(await outboxRows(woId)).toEqual([]);
+        const competingEnvelope = await envelope(
+          'execution.freeze_work_order',
+          freezeEnvelope.payload,
+          revised.workOrderRef as Common.ObjectRef,
+          true,
+        );
+        const candidates = [freezeEnvelope, competingEnvelope];
+        const outcomes = await Promise.allSettled(
+          candidates.map((candidate) => entry.freeze(candidate, sessionFor(service))),
+        );
+        const winner = outcomes.findIndex(
           (result) => result.status === 'fulfilled' && result.value.status === 'COMMITTED',
-        ),
-      ).toHaveLength(1);
-      const loser = outcomes[1 - winner];
-      expect(loser).toMatchObject({
-        status: 'rejected',
-        reason: { code: 'AGGREGATE_STATE_NOT_ALLOWED' },
-      });
-      const winningEnvelope = candidates[winner];
-      if (winningEnvelope === undefined) throw new Error('missing winning Envelope');
-      freezeEnvelope = winningEnvelope;
-      await expect(
-        entry.freeze(
-          competingEnvelope === winningEnvelope ? candidates[0] : competingEnvelope,
-          sessionFor(service),
-        ),
-      ).rejects.toMatchObject({ code: 'AGGREGATE_STATE_NOT_ALLOWED' });
-
+        );
+        expect(winner, JSON.stringify(outcomes)).toBeGreaterThanOrEqual(0);
+        expect(
+          outcomes.filter(
+            (result) => result.status === 'fulfilled' && result.value.status === 'COMMITTED',
+          ),
+        ).toHaveLength(1);
+        const loser = outcomes[1 - winner];
+        expect(loser).toMatchObject({
+          status: 'rejected',
+          reason: { code: 'AGGREGATE_STATE_NOT_ALLOWED' },
+        });
+        const winningEnvelope = candidates[winner];
+        if (winningEnvelope === undefined) throw new Error('missing winning Envelope');
+        freezeEnvelope = winningEnvelope;
+        await expect(
+          entry.freeze(
+            competingEnvelope === winningEnvelope ? candidates[0] : competingEnvelope,
+            sessionFor(service),
+          ),
+        ).rejects.toMatchObject({ code: 'AGGREGATE_STATE_NOT_ALLOWED' });
+      }
+      if (!exercisePreparationMatrix) {
+        expect(await entry.freeze(freezeEnvelope, sessionFor(service))).toMatchObject({
+          status: 'COMMITTED',
+        });
+      }
       expect(await entry.freeze(freezeEnvelope, sessionFor(service))).toMatchObject({
         status: 'DUPLICATE',
       });
       expect(await entry.validate(validationEnvelope, sessionFor(service))).toMatchObject({
         status: 'DUPLICATE',
       });
-      const staleBuild = await initialContextEntry.build(
-        await preparedBuild({
-          workOrderId: woId,
-          draftRef,
-          principal: service,
-          sourceSlices: [slice],
-          idempotencyKey: newUuidV7(),
-        }),
-        sessionFor(service),
-      );
-      expect(staleBuild).toMatchObject({
-        status: 'REJECTED',
-        errorCode: EXECUTION_DRAFT_SNAPSHOT_STALE,
-      });
+      if (exercisePreparationMatrix) {
+        const staleBuild = await initialContextEntry.build(
+          await preparedBuild({
+            workOrderId: woId,
+            draftRef,
+            principal: service,
+            sourceSlices: [slice],
+            idempotencyKey: newUuidV7(),
+          }),
+          sessionFor(service),
+        );
+        expect(staleBuild).toMatchObject({
+          status: 'REJECTED',
+          errorCode: EXECUTION_DRAFT_SNAPSHOT_STALE,
+        });
+      }
       const queryPayload = { workOrderRef: revised.workOrderRef };
       const readDecision = await auth.authorizeWorkOrderContractRead(
         identityDeps([fixture.projectId], service),
@@ -8096,56 +8215,57 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         sessionFor(service),
       );
       expect(read.workOrderContract).toEqual(revised);
-      // Historical success does not preserve a revoked dependency Grant.
-      const revokedGrant = validationGrants.get('workOrderFreezeDraftReadV1');
-      if (revokedGrant === undefined) throw new Error('missing Freeze Draft Grant');
-      expect(
-        await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
-          targetId: revokedGrant,
-          expectedAggregateVersion: '1',
-          scope: {
-            scopeKind: 'PROJECT',
-            enterpriseId: fixture.enterpriseId,
-            projectId: fixture.projectId,
-          },
-          reasonCode: 'WI219_REVOKE_FREEZE_DRAFT_READ',
-          effectiveAt: new Date(clock),
-          idempotencyKey: newUuidV7(),
-        }),
-      ).toMatchObject({ status: 'COMMITTED' });
-      await expect(entry.freeze(freezeEnvelope, sessionFor(service))).rejects.toMatchObject({
-        code: 'AUTHORIZATION_REVOKED',
-      });
+      if (exercisePreparationMatrix) {
+        // Historical success does not preserve a revoked dependency Grant.
+        const revokedGrant = validationGrants.get('workOrderFreezeDraftReadV1');
+        if (revokedGrant === undefined) throw new Error('missing Freeze Draft Grant');
+        expect(
+          await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+            targetId: revokedGrant,
+            expectedAggregateVersion: '1',
+            scope: {
+              scopeKind: 'PROJECT',
+              enterpriseId: fixture.enterpriseId,
+              projectId: fixture.projectId,
+            },
+            reasonCode: 'WI219_REVOKE_FREEZE_DRAFT_READ',
+            effectiveAt: new Date(clock),
+            idempotencyKey: newUuidV7(),
+          }),
+        ).toMatchObject({ status: 'COMMITTED' });
+        await expect(entry.freeze(freezeEnvelope, sessionFor(service))).rejects.toMatchObject({
+          code: 'AUTHORIZATION_REVOKED',
+        });
 
-      await expect(
-        withTaskExecutionTransaction(teDb, runnerContext(service), (trx) =>
-          sql`UPDATE task_execution.work_order_contract SET canonical_payload=canonical_payload WHERE work_order_id=${woId}::uuid`.execute(
-            trx,
+        await expect(
+          withTaskExecutionTransaction(teDb, runnerContext(service), (trx) =>
+            sql`UPDATE task_execution.work_order_contract SET canonical_payload=canonical_payload WHERE work_order_id=${woId}::uuid`.execute(
+              trx,
+            ),
           ),
-        ),
-      ).rejects.toMatchObject({ code: '42501' });
-      await expect(
-        admin.query(
-          'UPDATE task_execution.work_order_contract SET canonical_payload=canonical_payload WHERE work_order_id=$1',
-          [woId],
-        ),
-      ).rejects.toMatchObject({ code: '23514' });
-      await expect(
-        admin.query(
-          'UPDATE task_execution.work_order SET frozen_contract_hash=$2 WHERE work_order_id=$1',
-          [woId, Buffer.alloc(32, 7)],
-        ),
-      ).rejects.toMatchObject({ code: '23514' });
-      const hidden = await withTaskExecutionTransaction(
-        teDb,
-        { ...runnerContext(service), allowedProjectIds: [newUuidV7()] },
-        (trx) =>
-          sql`SELECT contract_id FROM task_execution.work_order_contract WHERE work_order_id=${woId}::uuid`.execute(
-            trx,
+        ).rejects.toMatchObject({ code: '42501' });
+        await expect(
+          admin.query(
+            'UPDATE task_execution.work_order_contract SET canonical_payload=canonical_payload WHERE work_order_id=$1',
+            [woId],
           ),
-      );
-      expect(hidden.rows).toEqual([]);
-
+        ).rejects.toMatchObject({ code: '23514' });
+        await expect(
+          admin.query(
+            'UPDATE task_execution.work_order SET frozen_contract_hash=$2 WHERE work_order_id=$1',
+            [woId, Buffer.alloc(32, 7)],
+          ),
+        ).rejects.toMatchObject({ code: '23514' });
+        const hidden = await withTaskExecutionTransaction(
+          teDb,
+          { ...runnerContext(service), allowedProjectIds: [newUuidV7()] },
+          (trx) =>
+            sql`SELECT contract_id FROM task_execution.work_order_contract WHERE work_order_id=${woId}::uuid`.execute(
+              trx,
+            ),
+        );
+        expect(hidden.rows).toEqual([]);
+      }
       expect(
         (
           await admin.query(
@@ -8163,6 +8283,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         ).rows,
       ).toEqual([{ n: 1 }]);
 
+      phase('Run authorization and preparation');
       // #221 starts from this committed READY fact. Each boundary receives
       // its own current Grant and target-bound Decision.
       clock = Date.now();
@@ -8349,17 +8470,19 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         queryReads.filter((query) =>
           /"name":"(?:task_execution|integration_gateway|artifact)"/u.test(query),
         );
-      const firstRunEntry = createControlledFirstRunEntry({
-        taskExecutionDb: guardedTeDb,
-        enterpriseProjectDb,
-        identity: { db: identityDb, repo: identityRepo, crypto },
-        integrationGatewayDb: createIntegrationRendererDatabase(tePool).withPlugin(queryProbe),
-        runtimeDriver,
-        receiptStorage: runtimeJournal,
-        capabilityCodes: firstRunCodes,
-        capabilities: dependencyCapabilities,
-        now: () => new Date(clock),
-      });
+      const firstRunEntry = observeEntry(
+        createControlledFirstRunEntry({
+          taskExecutionDb: guardedTeDb,
+          enterpriseProjectDb,
+          identity: { db: identityDb, repo: identityRepo, crypto },
+          integrationGatewayDb: createIntegrationRendererDatabase(tePool).withPlugin(queryProbe),
+          runtimeDriver,
+          receiptStorage: runtimeJournal,
+          capabilityCodes: firstRunCodes,
+          capabilities: dependencyCapabilities,
+          now: () => new Date(clock),
+        }),
+      );
       async function firstRunEnvelope(
         commandType: string,
         targetRef: Common.ObjectRef,
@@ -8431,70 +8554,92 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         operator(),
         2,
       );
-      const deniedQueueEntry = createControlledFirstRunEntry({
-        taskExecutionDb: guardedTeDb,
-        enterpriseProjectDb,
-        identity: { db: identityDb, repo: identityRepo, crypto },
-        integrationGatewayDb: createIntegrationRendererDatabase(tePool).withPlugin(queryProbe),
-        runtimeDriver,
-        receiptStorage: new InMemoryRenderObjectStorage(),
-        capabilityCodes: { ...firstRunCodes, queueContextReadV1: 'wi221.ungranted' },
-        capabilities: dependencyCapabilities,
-        now: () => new Date(clock),
-      });
-      await expect(deniedQueueEntry.queue(queueEnvelope, sessionFor())).rejects.toMatchObject({
-        code: 'AUTHORIZATION_REVOKED',
-      });
-      expect(await receiptRows(queueEnvelope.idempotencyKey)).toEqual([]);
-      await admin.query(`
+      if (exercisePreparationMatrix) {
+        phase('queue revocation probe');
+        const deniedQueueEntry = createControlledFirstRunEntry({
+          taskExecutionDb: guardedTeDb,
+          enterpriseProjectDb,
+          identity: { db: identityDb, repo: identityRepo, crypto },
+          integrationGatewayDb: createIntegrationRendererDatabase(tePool).withPlugin(queryProbe),
+          runtimeDriver,
+          receiptStorage: new InMemoryRenderObjectStorage(),
+          capabilityCodes: { ...firstRunCodes, queueContextReadV1: 'wi221.ungranted' },
+          capabilities: dependencyCapabilities,
+          now: () => new Date(clock),
+        });
+        await expect(deniedQueueEntry.queue(queueEnvelope, sessionFor())).rejects.toMatchObject({
+          code: 'AUTHORIZATION_REVOKED',
+        });
+        expect(await receiptRows(queueEnvelope.idempotencyKey)).toEqual([]);
+        await admin.query(`
         CREATE OR REPLACE FUNCTION task_execution.wi221_pause_queue() RETURNS trigger
-        LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(8); RETURN NEW; END $$`);
-      await admin.query(`
+        LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(221); RETURN NEW; END $$`);
+        await admin.query(`
         CREATE TRIGGER wi221_pause_queue BEFORE UPDATE ON task_execution.work_order
         FOR EACH ROW WHEN (NEW.work_order_id = '${workOrderRef.objectId}'::uuid AND NEW.status = 'QUEUED')
         EXECUTE FUNCTION task_execution.wi221_pause_queue()`);
-      const queuedAttempt = firstRunEntry.queue(queueEnvelope, sessionFor()).then(
-        (value) => ({ value }),
-        (error: unknown) => ({ error }),
-      );
-      try {
-        let paused = false;
-        for (let poll = 0; poll < 200 && !paused; poll += 1) {
-          const activity = await admin.query<{ paused: boolean }>(
-            `SELECT EXISTS (
-               SELECT 1 FROM pg_stat_activity
-               WHERE pid <> pg_backend_pid() AND wait_event = 'PgSleep'
-                 AND query ILIKE '%task_execution%work_order%'
-             ) AS paused`,
+        const queueBlocker = new pg.Client({ connectionString: databaseUrl });
+        let queuedAttempt: Promise<unknown> | undefined;
+        try {
+          await queueBlocker.connect();
+          const blockerPid = (
+            await queueBlocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+          ).rows[0]?.pid;
+          if (blockerPid === undefined) throw new Error('missing queue blocker backend');
+          await queueBlocker.query('SELECT pg_advisory_lock(221)');
+          queuedAttempt = track(firstRunEntry.queue(queueEnvelope, sessionFor())).then(
+            (value) => ({ value }),
+            (error: unknown) => ({ error }),
           );
-          paused = activity.rows[0]?.paused === true;
-          if (!paused) await new Promise((resolve) => setTimeout(resolve, 25));
+          let paused = false;
+          for (let poll = 0; poll < 200 && !paused; poll += 1) {
+            const activity = await admin.query<{ paused: boolean }>(
+              `SELECT EXISTS (
+               SELECT 1 FROM pg_stat_activity
+               WHERE pid <> pg_backend_pid() AND wait_event_type='Lock'
+                 AND $1::int = ANY(pg_blocking_pids(pid))
+             ) AS paused`,
+              [blockerPid],
+            );
+            paused = activity.rows[0]?.paused === true;
+            if (!paused) await new Promise((resolve) => setTimeout(resolve, 25));
+          }
+          expect(paused).toBe(true);
+          expect(
+            await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+              targetId: grantResolve,
+              expectedAggregateVersion: '1',
+              scope: {
+                scopeKind: 'PROJECT',
+                enterpriseId: fixture.enterpriseId,
+                projectId: fixture.projectId,
+              },
+              reasonCode: 'WI221_REVOKE_POLICY_READ_AFTER_MINT',
+              effectiveAt: new Date(clock),
+              idempotencyKey: newUuidV7(),
+            }),
+          ).toMatchObject({ status: 'COMMITTED' });
+          await queueBlocker.query('SELECT pg_advisory_unlock(221)');
+          expect(await queuedAttempt).toMatchObject({
+            error: { code: 'AUTHORIZATION_REVOKED' },
+          });
+        } finally {
+          // Release before draining, including assertion/timeout failures.
+          try {
+            await queueBlocker.end();
+          } finally {
+            await queuedAttempt;
+            await admin.query(
+              'DROP TRIGGER IF EXISTS wi221_pause_queue ON task_execution.work_order',
+            );
+            await admin.query('DROP FUNCTION IF EXISTS task_execution.wi221_pause_queue()');
+            // Restore the shared dependency even when a probe assertion fails.
+            grantResolve = await grantGeneric(dependencyCapabilities.resolvePolicy);
+          }
         }
-        expect(paused).toBe(true);
-        expect(
-          await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
-            targetId: grantResolve,
-            expectedAggregateVersion: '1',
-            scope: {
-              scopeKind: 'PROJECT',
-              enterpriseId: fixture.enterpriseId,
-              projectId: fixture.projectId,
-            },
-            reasonCode: 'WI221_REVOKE_POLICY_READ_AFTER_MINT',
-            effectiveAt: new Date(clock),
-            idempotencyKey: newUuidV7(),
-          }),
-        ).toMatchObject({ status: 'COMMITTED' });
-        expect(await queuedAttempt).toMatchObject({
-          error: { code: 'AUTHORIZATION_REVOKED' },
-        });
-      } finally {
-        await queuedAttempt;
-        await admin.query('DROP TRIGGER wi221_pause_queue ON task_execution.work_order');
-        await admin.query('DROP FUNCTION task_execution.wi221_pause_queue()');
+        expect(await receiptRows(queueEnvelope.idempotencyKey)).toEqual([]);
       }
-      expect(await receiptRows(queueEnvelope.idempotencyKey)).toEqual([]);
-      grantResolve = await grantGeneric(dependencyCapabilities.resolvePolicy);
+      phase('queue and Run creation');
       const queued = await firstRunEntry.queue(queueEnvelope, sessionFor());
       expect(queued, JSON.stringify(queued)).toMatchObject({ status: 'COMMITTED' });
       expect(await firstRunEntry.queue(queueEnvelope, sessionFor())).toMatchObject({
@@ -8519,6 +8664,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         } as unknown as CanonicalJsonObject,
         service,
       );
+      phase('Bundle issue');
       const bundle = await firstRunEntry.issueBundle(bundleEnvelope, sessionFor(service));
       expect(bundle, JSON.stringify(bundle)).toMatchObject({ status: 'COMMITTED' });
       const bundleRef = record(committedPayload(bundle as unknown as CommandResult)).bundleRef;
@@ -8580,6 +8726,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         } as unknown as CanonicalJsonObject,
         service,
       );
+      phase('Run creation');
       const created = await firstRunEntry.createRun(createEnvelope, sessionFor(service));
       expect(created, JSON.stringify(created)).toMatchObject({ status: 'COMMITTED' });
       expect(await firstRunEntry.createRun(createEnvelope, sessionFor(service))).toMatchObject({
@@ -8635,7 +8782,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         newUuidV7(),
         scope(),
       ) as Common.ObjectRef;
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const uninvokedBinding = await firstRunQuery(
           'integration.get_runtime_attempt_binding',
           attemptRef,
@@ -8656,7 +8803,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         ).rejects.toBeDefined();
         expect(runtimeDriver.invokedAttemptIds).toEqual([]);
       }
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         for (const invalidAck of ['INSTANCE_ID', 'BINDING_HASH'] as const) {
           const invalidAttemptRef = objectRef(
             'integration.runtime_attempt',
@@ -8945,6 +9092,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             .toContain(outcome.code);
       }
 
+      phase('runtime dispatch and start');
       const dispatched = (await firstRunEntry.dispatch(
         dispatchEnvelope,
         sessionFor(service),
@@ -8980,7 +9128,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         1,
       );
       const startSession = { ...sessionFor(service), serviceEntryAt: new Date(clock) };
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const unacknowledgedAttempt = objectRef(
           'integration.runtime_attempt',
           newUuidV7(),
@@ -9073,7 +9221,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           )
         ).rows,
       ).toEqual([{ status: 'RUNNING', aggregate_version: '2' }]);
+      phase('final boundary and recovery body');
       if (terminalScenario === 'LEGACY_UPGRADE') {
+        phase('historical Run backup/upgrade');
         let upgradeFailure: unknown;
         try {
           await verifyControlledFinalUpgrade(admin, {
@@ -9155,7 +9305,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                   ).rows,
                 ).toEqual([{ count: '0' }]);
                 const wait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-                if (wait > 0) await new Promise<void>((resolve) => setTimeout(resolve, wait));
+                if (wait > 0) await waitForDeadline(wait, 'server deadline/wait');
                 clock = Date.now();
                 expect(
                   (
@@ -9263,7 +9413,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         // Always close this source through the owning expiry path, including a
         // failed backup assertion, so it cannot poison later project scans.
         const cleanupWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-        if (cleanupWait > 0) await new Promise<void>((resolve) => setTimeout(resolve, cleanupWait));
+        if (cleanupWait > 0) await waitForDeadline(cleanupWait, 'server deadline/cleanupWait');
         clock = Date.now();
         const expireSource = await firstRunEnvelope(
           'execution.expire_run',
@@ -9450,8 +9600,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       );
       async function expireRejectedFinalRun() {
         const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-        if (deadlineWait > 0)
-          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        if (deadlineWait > 0) await waitForDeadline(deadlineWait, 'server deadline/deadlineWait');
         clock = Date.now();
         const expireEnvelope = await firstRunEnvelope(
           'execution.expire_run',
@@ -9495,8 +9644,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         terminalScenario === 'TIMED_OUT_BUNDLE_EXPIRED'
       ) {
         const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-        if (deadlineWait > 0)
-          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        if (deadlineWait > 0) await waitForDeadline(deadlineWait, 'server deadline/deadlineWait');
         clock = Date.now();
         if (terminalScenario === 'TERMINAL_BEFORE_FINAL') {
           const closed = await firstRunEntry.expireRun(
@@ -9582,7 +9730,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         }
         if (terminalScenario === 'TIMED_OUT_BUNDLE_EXPIRED') {
           const bundleWait = Math.max(0, bundleValidUntil.getTime() - Date.now() + 100);
-          if (bundleWait > 0) await new Promise<void>((resolve) => setTimeout(resolve, bundleWait));
+          if (bundleWait > 0) await waitForDeadline(bundleWait, 'server deadline/bundleWait');
           clock = Date.now();
           expect(clock).toBeGreaterThan(bundleValidUntil.getTime());
           expect(
@@ -9878,7 +10026,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         await runtimeDriver.readFinal(attemptRef),
       );
       expect(observingDriver.invokedAttemptIds).toEqual([]);
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const unobservedFinal = await observingDriver.readFinal(attemptRef);
         if (unobservedFinal === undefined) throw new Error('missing unobserved synthetic final');
         const unobservedBody = record(unobservedFinal.agentResultContract);
@@ -9960,7 +10108,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         await expireRejectedFinalRun();
         return;
       }
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const igDb = createIntegrationRendererDatabase(tePool);
         const actualFinal = await observingDriver.readFinal(attemptRef);
         if (actualFinal === undefined) throw new Error('missing SQL final guard source');
@@ -10129,7 +10277,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           session: InitialContextSession,
         ) => Promise<unknown>,
       ) {
-        if (!positiveFinalScenario) return;
+        if (!exercisePreparationMatrix) return;
         const reads: string[] = [];
         const probePlugin: KyselyPlugin = {
           transformQuery(args) {
@@ -10434,8 +10582,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ).rows,
         ).toEqual([{ status: 'ACTIVE' }]);
         const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-        if (deadlineWait > 0)
-          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        if (deadlineWait > 0) await waitForDeadline(deadlineWait, 'server deadline/deadlineWait');
         clock = Date.now();
         const state = await firstRunEntry.getRunState(
           await firstRunQuery(
@@ -10763,7 +10910,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         envelope: Awaited<ReturnType<typeof firstRunEnvelope>>,
         execute: (value: unknown) => Promise<unknown>,
       ) {
-        if (!positiveFinalScenario) return;
+        if (!exercisePreparationMatrix) return;
         const snapshot = async () =>
           (
             await admin.query<{ run: unknown; claim: unknown }>(
@@ -10821,7 +10968,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(await observingEntry.observeRuntimeFinal(finalQuery, sessionFor(service))).toEqual(
         finalView,
       );
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const unknownAttemptRef = objectRef(
           'integration.runtime_attempt',
           newUuidV7(),
@@ -10939,7 +11086,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       expect(
         await firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
       ).toEqual(finalView);
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const originalFinal = await observingDriver.readFinal(attemptRef);
         if (originalFinal === undefined) throw new Error('missing synthetic final');
         const changedBody = {
@@ -11174,8 +11321,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         const resultRef = record(committedPayload(submitted as CommandResult))
           .agentResultRef as Common.ContentAddressedRef;
         const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-        if (deadlineWait > 0)
-          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        if (deadlineWait > 0) await waitForDeadline(deadlineWait, 'server deadline/deadlineWait');
         clock = Date.now();
         await expect(
           restartedEntry.recordRunResult(
@@ -11971,6 +12117,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         String(resultBody.agentResultId),
         scope(),
       ) as Common.ObjectRef;
+      phase('Result submit boundary');
       let submitEnvelope = await firstRunEnvelope(
         'execution.submit_agent_result',
         resultTarget,
@@ -12005,7 +12152,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           )
         ).rows,
       ).toEqual([{ count: '0' }]);
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const alteredCases: readonly (readonly [
           string,
           (body: Record<string, unknown>) => void,
@@ -12168,8 +12315,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           .toBeGreaterThan(0);
         if (terminalScenario === 'LOCK_DEADLINE') {
           const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-          if (deadlineWait > 0)
-            await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+          if (deadlineWait > 0) await waitForDeadline(deadlineWait, 'server deadline/deadlineWait');
           clock = Date.now();
           await runBlocker.query('ROLLBACK');
           expect(await pendingSubmit).toMatchObject({ code: 'EXECUTION_JUDGMENT_STALE' });
@@ -12294,7 +12440,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       await expect(
         firstRunEntry.submitAgentResult(forgedSubmit, sessionFor(service)),
       ).rejects.toBeDefined();
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const alternateId = newUuidV7();
         for (const [label, body, target] of [
           [
@@ -12349,7 +12495,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       ).toEqual([{ count: '1' }]);
       const resultRef = record(committedPayload(submitted as CommandResult))
         .agentResultRef as Common.ContentAddressedRef;
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const resultOnlyFinalize = await firstRunEnvelope(
           'execution.finalize_run_from_acceptance',
           runRef,
@@ -12437,6 +12583,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         newUuidV7(),
         scope(),
       ) as Common.ObjectRef;
+      phase('Result validation boundary');
       const validateEnvelope = await firstRunEnvelope(
         'execution.validate_agent_result',
         validationTarget,
@@ -12449,7 +12596,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         } as unknown as CanonicalJsonObject,
         service,
       );
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         for (const [field, replacement] of [
           ['runtimeAttemptRef', objectRef('integration.runtime_attempt', newUuidV7(), scope())],
           ['policyRef', policyKey([newUuidV7(), newUuidV7()], fixture)],
@@ -12527,7 +12674,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         ).rows,
       ).toEqual([{ judgment_kind: 'RESULT_VALIDATION_BUNDLE', result_id: resultTarget.objectId }]);
       const finalValidations = record(committedPayload(validatedFinal as CommandResult));
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const secondBundle = await firstRunEnvelope(
           'execution.validate_agent_result',
           objectRef(
@@ -12583,6 +12730,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         newUuidV7(),
         scope(),
       ) as Common.ObjectRef;
+      phase('Result acceptance boundary');
       let acceptEnvelope = await firstRunEnvelope(
         'execution.accept_agent_result',
         acceptanceTarget,
@@ -12600,8 +12748,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       );
       if (terminalScenario === 'VALIDATION_EXPIRED') {
         const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-        if (deadlineWait > 0)
-          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        if (deadlineWait > 0) await waitForDeadline(deadlineWait, 'server deadline/deadlineWait');
         clock = Date.now();
         await expect(
           firstRunEntry.acceptAgentResult(acceptEnvelope, sessionFor(service)),
@@ -12628,7 +12775,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         expect(expiredValidationRun).toMatchObject({ status: 'COMMITTED' });
         return;
       }
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const original = acceptEnvelope.payload;
         for (const [field, replacement] of [
           [
@@ -12796,7 +12943,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         accepted = await firstRunEntry.acceptAgentResult(acceptEnvelope, sessionFor(service));
       }
       expect(accepted, JSON.stringify(accepted)).toMatchObject({ status: 'COMMITTED' });
-      if (positiveFinalScenario) {
+      if (exercisePreparationMatrix) {
         const secondAcceptance = await firstRunEnvelope(
           'execution.accept_agent_result',
           objectRef('execution.agent_result_acceptance', newUuidV7(), scope()) as Common.ObjectRef,
@@ -12828,8 +12975,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       ).acceptanceRecordRef;
       if (terminalScenario === 'RACE') {
         const deadlineWait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-        if (deadlineWait > 0)
-          await new Promise<void>((resolve) => setTimeout(resolve, deadlineWait));
+        if (deadlineWait > 0) await waitForDeadline(deadlineWait, 'server deadline/deadlineWait');
         clock = Date.now();
         const raceFinalize = await firstRunEnvelope(
           'execution.finalize_run_from_acceptance',
@@ -12905,6 +13051,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           )
         ).rows,
       ).toEqual([{ status: 'RESULT_RECORDED' }]);
+      phase('Run finalize boundary');
       const finalizeEnvelope = await firstRunEnvelope(
         'execution.finalize_run_from_acceptance',
         runRef,

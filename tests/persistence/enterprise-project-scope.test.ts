@@ -31,7 +31,6 @@ import {
   handleValidateObjectScope,
   withEnterpriseProjectTransaction,
   IDEMPOTENCY_PAYLOAD_CONFLICT,
-  PROJECT_MATERIAL_SOURCE_INVALID,
   PROJECT_SOURCE_ALREADY_ACCEPTED,
   PROJECT_SOURCE_NOT_TRUSTED,
   PROJECT_PROJECT_DISPLAY_CODE_CONFLICT,
@@ -1869,54 +1868,3 @@ describe.skipIf(!gateEnabled)(
     });
   },
 );
-
-describe('IM-03 WI-05 SourceMaterial unit validation', () => {
-  it('EP-WI05-U-001 rejects an invalid descriptor before opening a database transaction', async () => {
-    const enterpriseId = newUuidV7();
-    const projectId = newUuidV7();
-    currentEnterpriseId = enterpriseId;
-    await expect(
-      handleRegisterSourceMaterial(
-        null as unknown as ReturnType<typeof createEnterpriseProjectDatabase>,
-        contextFor(enterpriseId, [projectId]),
-        payloadEnvelope(
-          'wi05-unit-invalid-descriptor',
-          {
-            projectRef: {
-              kind: 'OBJECT' as const,
-              objectType: 'Project' as const,
-              objectId: projectId,
-              scope: { enterpriseId, projectId },
-            },
-            descriptor: {
-              originRef: {
-                system: 'feishu',
-                resourceType: 'message_attachment',
-                externalId: 'wi05-u001-origin',
-                observedAt: '2026-08-26T00:00:00.000Z',
-              },
-              submittedBy: {
-                kind: 'OBJECT' as const,
-                objectType: 'Principal' as const,
-                objectId: HUMAN_PRINCIPAL,
-                scope: { enterpriseId },
-              },
-              receivedAt: '2026-08-26T00:00:00.000Z',
-              originalName: 'u001.pdf',
-              mediaType: 'application/pdf',
-              byteLength: -1,
-              checksum: {
-                algorithm: 'SHA-256' as const,
-                digest: 'a'.repeat(64),
-                canonicalizationVersion: '1' as const,
-              },
-              stagedObjectRef: 'staging://wi05/u001',
-              retentionClass: 'CUSTOMER_RECORD',
-            },
-          },
-          { enterpriseId, projectId },
-        ),
-      ),
-    ).rejects.toMatchObject({ code: PROJECT_MATERIAL_SOURCE_INVALID });
-  });
-});

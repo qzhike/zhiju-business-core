@@ -43,7 +43,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['vitest.config.ts'],
+    files: ['vitest.config.ts', 'vitest.persistence.config.ts'],
     ...tseslint.configs.disableTypeChecked,
   },
   {

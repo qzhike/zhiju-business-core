@@ -470,3 +470,19 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-FINAL-D-011 | 查询与业务边界：已接纳但未 finalize、Run SUCCEEDED 但 ExpectedOutput 缺失、Usage 查询、Completion 查询 | 两个权威 Query 精确反映各自已提交状态；Result 接纳与 Run 终结不等于 WorkOrder/Task/DeliveryItem 完成；Runtime Usage 维持 UNKNOWN/UNAVAILABLE；外部/人工验收单独 NOT RUN | PARTIAL（#224 内查询 PASS）：每阶段 Run 与接纳前后 Result 精确读回；冻结 Contract 有一项 ExpectedOutput 而 Result 空输出，Run 仍按支持集 SUCCEEDED，WorkOrder RUNNING、Task 非 COMPLETED。独立 Runtime Usage、WorkOrder/Task/DeliveryItem Completion Query 与外部/人工验收为 #224 非目标，继续 NOT RUN。 |
 
 本地增量 `full` 已通过 clean build、常规测试与真实 PostgreSQL gate，并按上表区分 CONTRACT、UNIT、owning/PG、静态架构和未具备生产者的边界。`PARTIAL` 行不因配置门禁通过而成为完整 PASS；PolicySnapshot 的真实取代仍无 owning 写入者，独立 Usage/Completion 与外部/人工验收仍为非目标 NOT RUN。PR #226 已合并；本次增量的精确 head、远端 CI 与独立审查结果以关联 #224 的增量 PR 为准，本地门禁不替代这些证据。
+
+
+### 受控运行测试准备与覆盖归属
+
+`tests/persistence/initial-context.test.ts` 的 63 个用例、其中 41 个受控运行用例保留名称和各自业务断言。每个场景通过 owning 入口独立生成 Service/Actor、Grant/Decision、Policy、Slice、Task/Draft/Context、READY WorkOrder、Bundle/Run/Attempt；可变生命周期对象、运行时存储和时钟不跨场景复用。共用的 suite 基础事实保持既有边界；队列探针撤销的共用 Policy-read Grant 在同一场景的 finally 中重新通过 owning grant 能力恢复，包含探针断言失败路径。文件继续串行，所有被跟踪业务操作在下一测试前 drain；不能把 abandoned test body 本身加入其 afterEach 等待集合。
+
+| 原重复覆盖 | 保留的测试归属 | 其他场景的准备与独立覆盖 |
+| --- | --- | --- |
+| Validation dependency Grant/target/hash 拒绝、SQL 完整 Ref/Scope/time/subject/source Receipt guards、判断不可变、合法较小预算失败 Draft、判断到期和 Freeze 行锁重验、幂等冲突 | `completes Validation, Freeze and SUCCEEDED Run` 的 `exercisePreparationMatrix` 分支，原断言与负例不变；对应 TE-VAL-D、TE-VAL-S、TE-220-F1/F2 | 每个其他场景仍通过真实 validate 取得 executable 判断，不重跑与其目标无关的反例矩阵 |
+| Freeze Outbox 后故障回滚、双 writer 单赢家、历史重放撤权、Contract ACL/RLS/不可变、非 DRAFT Context 重建拒绝 | 同一完整成功场景的 Freeze 矩阵，保留原行、Receipt、Contract、Outbox 断言 | 每个其他场景以一次 owning Freeze 建立独立 READY，仍校验 exact Contract、状态/版本和单次 Event，以及原键 DUPLICATE |
+| 队列 dependency Grant 拒绝、写入 QUEUED 期间 Policy-read Grant 撤销、失败无 Receipt、恢复后 Queue/replay | 同一完整成功场景；触发器内部真实事务 advisory lock 代替 `pg_sleep(8)`，确认该连接由指定 blocker 阻塞后撤权，再释放并 drain | 每个其他场景独立 owning Queue/Bundle/createRun/startRun/reconcile，不重复该探针；仍各自执行其 final 拒绝、锁竞争、Grant/Policy 变化、超时或恢复边界 |
+| 通用 ack/实例身份拒绝、未观察 final、IG final SQL 来源镜像、主体/Ref/Hash/Scope 置换、五阶段独立依赖拒绝与 Receipt 后故障回滚、重复 Bundle/Acceptance | 同一完整成功场景的共同 final 边界矩阵，原负例与断言保留 | MIX_VALIDATIONS 仍独立产生两条真实 Run 和五项判断并逐项混拼拒绝；ACCEPT_RACE 仍以真实并发请求验证单一 Acceptance。两类场景不重复共同矩阵，实际 final body、五步正链、状态/Event/Driver 与 ACL/RLS 断言保留 |
+| 历史 Task/WorkOrder/Run/Claim/ack 升级与回读、实际 deadline、Bundle 到期、finalize/expire 竞争、恢复五步和多 Process worker | 原专门 LEGACY_UPGRADE、TIMED_OUT、LOCK_DEADLINE、RECOVERY 等用例逐项保留 | 不使用历史恢复夹具生成普通业务状态，不伪造中间事实，不缩短既有业务有效期；真实等待独立计时 |
+| 13 类 Core-valid unsupported final、非 FINAL、混拼判断、Acceptance 并发、五阶段授权资格变化 | 原对应名称用例逐项保留，不合并不同语义的 final 来源 | 每个场景独立 Driver/Attempt/Run、原判断/Receipt/reservation/终态断言和 owning expiry cleanup；无 mock 数据库竞态 |
+
+上述组织只消除相同前置失败矩阵的重复执行，不改变上表各业务行的 PASS/PARTIAL/NOT RUN 口径。固定 PostgreSQL/Flyway 摘要、历史 migrations、公共 Contract、业务实现和权限隔离要求保持原基准；性能与最终 full 的执行证据跟随交付上下文，不能由本说明推断优化后远端 CI 已通过。
