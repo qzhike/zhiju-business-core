@@ -1045,3 +1045,35 @@ Issue #224 实现会话中，用户对“本 Issue 新增定时 worker 宿主，
 - `TE-FINAL-D-011` 的独立 Usage、WorkOrder/Task/DeliveryItem Completion Query、外部及人工验收保持 §22.1 和 Issue 的既有非目标及 `NOT RUN`。本 Issue 仍须证明权威 Run/Result 查询与“Run 终结不导致 WorkOrder/Task 完成”。
 
 三个 owning 矩阵继续保留完整设计预期及各证据层级；这项适用性决定不将 `PARTIAL` 整行改写为完整 `PASS`，也不允许延期当前可达受控路径的越权、事实损坏、事务或幂等缺陷。后续 owning 写入能力进入实现前必须纳入上述真实 PolicySnapshot 取代验收。正式交付和关闭证据记录在 #224 及其增量 PR。
+
+## 23. BLOCKED_INPUT 恢复设计闭合提案（#229）
+
+状态：`T2 DESIGN ONLY / PROPOSED / INDEPENDENT DESIGN REVIEW PENDING / HUMAN DESIGN APPROVAL PENDING / IMPLEMENTATION NOT READY / NOT IMPLEMENTED`。执行对账基线为 `main@9d00d01db5abe024e333cbc72f435ef284665e5c`；#224 已随 #226/#228 关闭，其最终证据仍为 **20 tiered PASS / 3 PARTIAL**。§22.8 的 actual grant PolicySnapshot lifecycle 延后、首 Run 同界 lease/deadline、Usage/Completion/外部/人工 NOT RUN 均保留，本设计不提升这些结论。
+
+### 23.1 有限目标与取舍
+
+本提案在 TD-01–04 已批准原则内闭合一个新冻结计划的技术恢复：实际 synthetic Run-1 final BLOCKED_INPUT，经 IG 真实 observation、TE 五项独立 Validation/Acceptance 和 terminal裁决；授权 Human 经 EP 确认已存在 candidate、提交结构化答案并采纳；Context-2 采用确切 Resolution/Answer/Receipt与当前 Slice，在原 frozen Contract 下授权产生唯一 Run-2。Run-2 限定空输出 COMPLETED；两 Run 的 SUCCEEDED都不建立业务完成。后续工作必须先通过独立设计评审与显式人类设计批准，不能把“实现 #229 并提交 PR”的设计交付授权解读为批准新语义或 Handler。
+
+对账发现三项不能静默放宽的已交付限制：final只接纳空COMPLETED；READY只支持 maxAttempts=1/retryableOutcomes=[]；create_run与Bundle只消费INITIAL/attempt1。选定新增 Controls @1.1、冻结 maxAttempts=2/仅BLOCKED_INPUT、单Request/单恢复Run，保留旧单次profile和历史Contract。未选择修改原Contract、same-Run resume、多retry/fallback、通用Policy Engine或改写旧Schema。
+
+现有 `execution.answer.customer_material.v1` 要求 candidate 精确身份，因此最小路径在final前经EP准备真实candidate/accepted Sources，阻塞Human确认；请求后供应confirmed version，不另造一个不同candidate。采用Reference-only答案映射，确认事实经#191 Receipt attestation读回；不把当前Source Slice误称含CustomerMaterial正文。这让EP只补候选/Source验证与确认Receipt Ref的授权发现内部Port，无新增EP Query、Slice kind或公开结果字段。若需求改为请求后任意上传/替换candidate，须另行设计，不由此Issue默许。
+
+### 23.2 owning Delta 与审查出口
+
+| 唯一权威 | 待评审内容 |
+|---|---|
+| [Spec 003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229) | 现状/分类表、profile、proposal→Request、Human answer/Resolution、FROZEN Context、retry intent/预算、四个public增量的完整request/result/error、权威读回 |
+| [Spec 001 §15.14](../module-specs/Module-Spec-001-IdentityPolicy.md#1514-im06-recovery-有限恢复授权组成提案229) | Human/Service各步精确Purpose/action/config/target，历史确认证明与当前权限分离，Bundle新Context资格 |
+| [Spec 002 #229](../module-specs/Module-Spec-002-EnterpriseProject.md#229-确认-receipt-ref-的授权发现与复用边界提案) | 真实confirmation规范Receipt Ref可取得的窄Port；复用已发布attestation及Source路径 |
+| [Spec 007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射提案) / [Runtime专项](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md#229-两次受控-invocation-的有限恢复-profile提案) | 固定模板、真实调用、原final字节与Session来源、两次独立Invocation，IG不判断恢复资格 |
+| [Catalog #229](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#229-blocked_input-恢复的-additive-注册提案) / [共享API](../api-contract-v0.1/API-Contract-v0.1.md#229-有限恢复的兼容与证明边界提案) | 四项新增operation/version、Ref/profile身份与现行226/53/200冻结边界 |
+| [PostgreSQL §39](../high-level-docs/07-postgresql-logical-model-v0.1.md#39-blocked_input-有限恢复的前向持久化设计229) | 单Root/附属事实事务、source/answer/resolution/intent唯一性、frozen metadata、累计预算、Process commit-before-progress |
+| owning Module-Test 001/002/003/007 的 `*-REC-D-*` | 少量正向、必要反例和fault；逐层证据全部NOT RUN，复用旧矩阵约束不复制全部组合 |
+
+审批前的设计成功条件：每项Issue acceptance可定位到上表的拥有者；新增字段、ref type、Purpose、profile支持及错误无隐含选择；现状、未来提案、执行证据分离；`docs`通过及focused registered-contract语义比较完成；提供确切revision供独立评审。独立审查须正式记录在未来PR的 `.vibe/reviews/pr-<number>/Review.md`，本实现角色不自行撰写独立结论。
+
+后续Planner仅在本提案确切revision独立设计review通过且取得显式人类设计批准后，基于当前main、依赖可用性与 `TE-REC-D-*` 可观察出口决定NOW + READY。实现目标应完整交付这个Human恢复动作所需Registry/fixtures、组成入口、Handler、forward migration/Process与owning读回，不拆成无法使用的注册-only步骤；需要独立基础依赖时说明其支撑的同一结果。没有新Issue创建授权，本设计不发布实现Issue，不宣称IM-06完成。
+
+### 23.3 批准状态
+
+TD-01–04及§22.8既有批准保留；**#229新增Spec Delta的独立设计审查与人类设计批准均PENDING**，不能从Issue存在、设计PR创建、docs PASS或未来merge授权推导批准。审查或人类决定改变提案时同步owning规格，不覆盖历史批准文本。未来runtime/persistence验证目标为 `full`，首次新容器环境先按项目规定运行 `environment`；真实Provider/CLI/Feishu/public HTTP、Completion、TD-05–07及独立人工业务验收仍NOT RUN。

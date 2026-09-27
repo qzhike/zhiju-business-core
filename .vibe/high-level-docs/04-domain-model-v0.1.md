@@ -5735,3 +5735,9 @@ DeliveryItem Completion 是由 EnterpriseProject owning Evaluator 根据冻结 `
 新增设计明确COMPLETED为历史完成事实，当前useStatus/Impact与历史分开；依赖Readiness必须检查当前有效性。final BLOCKED_INPUT的Run可SUCCEEDED但WorkOrder仍阻塞，答案后新Context/Run；Runtime取消未确认不能CANCELLED。Task typed criteria首版、答案CustomerMaterial限制与具体控制入口属于TD-01–04已批准增量。
 
 **#206 Task Readiness 与 READY 转换（2026-09-16 设计，已合入 PR #207；已由 #208 实现）**：Task READY 的判定对象是不变判断事实而非调用者结论，生产与转换是两次独立授权的入口，见 [Spec 003 §17](../module-specs/Module-Spec-003-TaskExecution.md#17-task-readiness-生产与-ready-转换边界206-设计)。Domain 侧不新增状态、Invariant、Command 或 Domain Event：§18.5 的状态机、§18.6 的 16 条 Invariant、§18.7 的事件词汇、§27 的错误码表都保持不变。两处命名对照仅作路由记录，不改变任一侧：§27 的 `CYCLIC_TASK_DEPENDENCY` 在 TaskExecution 公开面上表现为模块稳定码 `EXECUTION_TASK_DEPENDENCY_CYCLE`，`TASK_NOT_EXECUTABLE` 对应 `EXECUTION_TASK_NOT_EXECUTABLE`，`TASK_COMPLETION_CRITERIA_NOT_MET` 仍属 Completion 而非 Readiness；Readiness 未满足使用模块稳定码 `EXECUTION_TASK_READINESS_UNSATISFIED`，不新增 Domain 错误码。§18.7 的 `TaskBecameReady` 不是公开事件：唯一已注册的公开事件是 `execution.TaskReady@1.0`，判断生产不发布任何公开事件。
+
+## #229 Request 与 final 保守屏障的分层澄清（提案）
+
+状态：`T2 DESIGN ONLY / PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED`。消费已批准TD-01–04的[Spec003§11.5](../module-specs/Module-Spec-003-TaskExecution.md#115-workorder-与-task-跨-aggregate-推进)，有限细化见[Spec003§24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)。历史§26的“proposal本身不能成为正式blocking Request”继续成立；已提交final Result/reservation产生的Completion/新执行安全屏障是另一个owning guard，覆盖Request创建前窗口，不将Agent proposal自行提升为业务Request。创建正式Request及其他proposal副作用仍必须等精确ACCEPTED和匹配SUCCEEDED terminal裁决。
+
+一个合法已接纳BLOCKED_INPUT可使Run终态SUCCEEDED、释放Claim，而WorkOrder/Task各自独立WAITING_INPUT；Human Resolution、新FROZEN Context、已授权retry及唯一新Run保持单Root事务。原final屏障只有在对应Resolution被Context-2采用且Run-2合法ACCEPTED/SUCCEEDED COMPLETED后才派生处理完毕。状态协调最多进入COMPLETION_PENDING，Completion依然独立；历史Run不resume，旧Contract/Context/Result/Acceptance不覆盖，不新增Domain状态。本段不是TD-05–07或Completion实现批准。

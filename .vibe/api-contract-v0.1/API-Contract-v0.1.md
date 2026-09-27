@@ -574,3 +574,13 @@ CREATE Envelope 必须省略 expectedAggregateVersion，targetRef 为 ObjectRef<
 `revisionAcceptanceUsable` 与 `approvalBundleUsable` 只复用 owning 应用逻辑的当前有效性检查：RAS 的最新性/READY/未失效 Gate/当前适用 mandatory Gate，以及 ABS 的最新性/FULLY_APPROVED/Approval `EFFECTIVE` 与精确 Revision/Profile/该 bundle 自身 READY-RAS 锚定绑定（锚定同 Revision/Profile 其他 RAS 的 Approval 既不计入 ABS 构建，也使资格判定 fail-closed）。历史 READY 或 FULLY_APPROVED 在上游 GateInvalidation、Approval revocation 或更新快照后返回 `false` 与 registered reason codes，不重算 Gate、不创建 Approval、不写回 Snapshot；未请求 ABS 时返回 `NOT_APPLICABLE` 而非 `true`/`false`。观测一致性只承诺该次读事务的记录时点与 `sourceWatermarks`，不虚构跨模块原子快照（[设计 §10.1](../decisions/task-execution-human-operated.md#101-判断顺序与时效)）。
 
 Schema/Registry/生成类型/fixture 证据：`contracts/src/operations/quality-governance.schema.test.ts` 与 `tests/fixtures/contracts/revision-eligibility/`（2 正例 + 22 负例）；Handler、Purpose 授权边界与真实 PostgreSQL 正反例证据见 [Module Test 005](../module-tests/Module-Test-005-QualityGovernance.md#im-06-revision-eligibility-用例)。TE Evaluator 的 Completion 消费、跨模块业务链、外部 Provider 与人工业务验收仍为 `NOT RUN`。
+
+### #229 有限恢复的兼容与证明边界（提案）
+
+状态：`T2 DESIGN ONLY / PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT REGISTERED / NOT RUN`。字段唯一权威为 [Spec003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)，名称/Owner/ref注册由 [Catalog #229](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#229-blocked_input-恢复的-additive-注册提案)拥有。
+
+既有open/submit-answer/resolve/schedule/submit-result/accept/create-run/get-request@1.0请求及通用CommandResult不变；其Purpose逐字符使用compat metadata的 `task.execution.*`，不能用Module Spec早期设计短拼写替代。expectedAnswerSpec/answerContent的closed customer-material支持集是明确handler profile，不是把历史CanonicalJson Schema收窄；SourceRefs与Receipt集合仍遵循各Owner真实引用形状。已提交历史Result/Acceptance/Answer/Resolution的可读性与当前恢复可用性分开，Receipt重放先重验当前动作权限，不重新获得执行资格。
+
+Frozen Context新增@1.1的canonical target与专用Result，不在旧@1.0偷偷补要求或改变namespace；Context payload与FROZEN metadata分开避免Hash环。两个state Query和Task reconcile是显式新增Contract；权威状态只来自owning Root/完整blocker事实，不由成功Event、Board或Runtime outcome推断。所有新操作/refs需在未来实现Issue注册、生成、fixture/兼容验证后才能调用，本revision没有可执行Registry Delta。
+
+EP Receipt attestation的Hash基于规范receipt材料，不基于requestHash；ActorSnapshot/Decision只声明EP真正保存的精确身份，不补造IP内容Hash。TE以独立当前权限从IPowning Port证明历史confirm归因和Human当前role/Grant，从EP Query证明真正committed candidate→confirmed/source链，不能凭correlationId或actorId相同采纳。Source/Answer/Resolution以及新Context/Run各有不同Purpose与独立权限，Service读取证明不能变为Agent采纳或Humanapproval替身。跨Owner只承诺各次查询记录的观测时点，目标提交前再查询/本模块锁后重验，不声称分布式原子授权。

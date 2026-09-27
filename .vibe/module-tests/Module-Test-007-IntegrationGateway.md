@@ -158,3 +158,13 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 | IG-FINAL-D-004 | 原调用在 Run 到期后才释放 final，或写入 final 时 TE 已 terminal；IG 与 TE 异步/暂时不可用 | IG 可以保留真实迟到历史观察；TE 按当前 Run/Claim/期限单独拒绝执行资格；IG Query 不投影 Run SUCCEEDED | PASS（OWNING/PG，限定路径）：真实 Run 到期后释放 final、TE 已 TIMED_OUT/EXPIRED 后才保存 final 均只保留 IG 历史观察，TE submit 拒绝、无 Result/Receipt，原终态不变。IG Driver final 读取暂时故障恢复原调用；IG 已提交而 TE submit 暂时不可用时按原键/Attempt 恢复且不再 invoke。IG Query 不投影 TE 成功。 |
 | IG-FINAL-D-005 | PostgreSQL 空库/#222 升级/二次 no-op；app-role 直 SQL 将预分配 ID 伪造为实例、缺 source Receipt、错原 Attempt/ack FK/Hash/Scope/fencing/Result Run/session、UPDATE/DELETE、异 Project/无 Context；Renderer 旧行 | 本 Schema 内实例身份与原 Attempt/ack/Receipt 的镜像、source、唯一性、不可变、RLS/ACL 拒绝；历史 Runtime ack 可读但不凭空补实例，Renderer Receipt/Attempt 查询无损；Driver 实际调用由集成证据另证 | PASS（PERSISTENCE/OWNING）：V7003/V7004 空库、V7002 原 ack 备份升级、二次 no-op，历史列逐项保留、planned identity NULL、不自动造身份/final；owning ack Query 原样读回。Renderer 旧 Attempt/Receipt/Outbox 列无损且 owning Binding Query/replay 相同。RLS/ACL/无 Context/跨 Project/不可变拒绝；原 actual ack/PENDING source 的合法 SQL 基线回滚，15 项实例来源和 14 项 final FK/Scope/hash/fencing/Run/session/Adapter 镜像置换均拒绝且无残留。真实 Driver 调用另由 owning 链证明。 |
 | IG-FINAL-D-006 | IG final 观察已提交而 TE handoff 未开始/失败，TE 重启以原 Run 已存 Attempt Ref 查询；未提交 final 或另一个 Attempt Ref 查询；模拟 Worker 重启 | 仅凭同一 Attempt Ref 精确取回唯一 final 的 submission Ref、实例 Ref、原 body/hash；未提交或错 Ref 不可用；Driver 不二次 invoke、不以 TE 待提交 Result 反向生成观察 | PASS（OWNING/PG）：IG 提交前后 Driver/入口重建、无 final 等待与错 Attempt 拒绝；已提交 final 只按原 Run Attempt 取原 submission/实例/body/hash。TE submit 前故障以及五个目标提交后 Process 未记步均按原稳定键恢复至 terminal；定时 worker 和两个真实 Process 运行不再 invoke，不以 TE 请求反造 IG 观察。 |
+
+## #229 两 invocation 恢复来源矩阵
+
+状态：`PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`；[Spec007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射提案)。原IG-FINAL矩阵的证据层级和PARTIAL保留。
+
+| ID | 输入 / 层级 | 预期 / 结果 |
+|---|---|---|
+| IG-REC-D-001 | Controlled Driver+owningdispatch/Observation/Query+PostgreSQL；Run-1固定blocking模板，合法Run-2新Context/Bundle/Attempt的空COMPLETED模板 | 实际恰两invoke，各一次ack/final、不同实例/session/submission，原模板与finalbytes/hash固定；Query返回原文由TE独立Validation，IG不确认答案/完成WorkOrder；NOT RUN |
+| IG-REC-D-002 | 实际Driver负例+PostgreSQL；同Run换session/Context/fencing、Run-1final送Run-2、未schedule/Resolution或撤权/过期资格的dispatch | 自洽Header hash不覆盖原来源绑定；缺当前资格不invoke；迟到final仅历史不恢复执行；不存在的Source/candidate不能靠fixture成为Core事实；NOT RUN |
+| IG-REC-D-003 | 两真实Worker/Process；ack/final observation提交前故障与提交后handoff/progress丢失、同键并发读回 | 原Attempt readBack/readFinal，无第二invoke或重复身份/Receipt/Observation/Event；frozen eligibility从TE Port获取而非跨SchemaSQL；真实Provider/CLI/Feishu/HTTP/manual仍NOT RUN |
