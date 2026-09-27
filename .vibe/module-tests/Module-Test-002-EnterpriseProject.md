@@ -519,3 +519,12 @@ pnpm persistence:gate
 | `EP-WI191-M-001` | Manual | 脱敏 Project 上 Service 确认后按 exact Receipt Ref 读取，并观察撤销/历史不足 | 人工可区分 COMMITTED attestation 与不可用；TE 消费、真实 Provider 与人工业务验收仍 `NOT RUN` | 未执行 | `NOT RUN` |
 
 本轮 PostgreSQL 容器已清理，未保留临时数据库、临时脚本或临时测试文件。TE 的 InformationRequest/答案/resolver 消费链（Spec 003 §11.7）、跨模块完整业务链、真实 Provider、公开 HTTP、生产与独立人工 Reference Project 验收保持 `NOT RUN`，不能由本表推断为 `PASS`。
+
+## #229 恢复证明消费边界
+
+状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`；[Spec002 #229](../module-specs/Module-Spec-002-EnterpriseProject.md#229-确认-receipt-ref-的授权发现与复用边界提案)。#191已通过的原attestation矩阵保留，不因本设计复用变为TE端执行通过。
+
+| ID | 输入 / 层级 | 预期 / 结果 |
+|---|---|---|
+| EP-REC-D-001 | Owning确认command+授权内部ReceiptRef Port+注册Query+PostgreSQL；同Human取得真实规范Receipt，对照wrongScope/hash/uncommitted/同correlation另一material/他人session/撤销Grant | canonicalReceipt Ref来自材料重算，不从requestHash/commandId推导；candidate→confirmed/source/BusinessDecision真实可联核；仅当前授权读取成功，拒绝无protected read/无新EP业务事实；NOT RUN |
+| EP-REC-D-002 | EP sources/propose/confirm/capture/read entry+TE controlled integration；候选及Sources来自正常入口，确认后新Slice与Receipt进入Context-2 | currentSource ACCEPTED、版本与Scope完整匹配；Receipt重用原Schema，Slice不增加customer_material kind/正文，TE reference-only材料item不冒充EPSource；同源内容Hash及历史确认不被恢复修改；NOT RUN |

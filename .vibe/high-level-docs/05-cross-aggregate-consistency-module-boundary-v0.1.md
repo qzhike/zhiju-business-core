@@ -1419,3 +1419,9 @@ EnterpriseProject / Artifact
 TaskCompleted沿用现有v1.0事件字段，由TE Task事务的Outbox真实派发至既有EP DeliveryCompletionEventInput，SourceWatermark来自持久游标。EP只消费事实，不同步回查TE形成依赖环。跨模块即时Query与本模块CAS不能保证分布式同一时刻的撤销原子性；只声明可审计观测时点，失效事件推动Impact/重评估，当前权威Query阻止后续误用。需要跨模块原子授权reservation时另立设计，不把当前方案误称强一致。
 
 首次 Context 的期限同样按观测时点组合：WorkOrder 期限来自 TE 自己的 Draft/Root 事实，Source Slice 的 `validUntil` 来自 EP owning 事实，Builder Policy 的有限上界来自 IdentityPolicy exact snapshot；TE 在同一 Context 事务内按各自 owning 读取的那次观察组合出 effective expiresAt，并把观察到的请求期限与该结果写入 INITIAL build metadata。组合只依赖已提交事实，不建立跨模块锁定或分布式原子到期：任一来源在观察后提前失效由该来源的后续 Query/失效处理阻止新消费，已提交 Context 仍是不可变历史，不因其他 Aggregate 变化而被重写或删除。消费前按受信服务端时间重验 effective expiresAt 与其他独立时限，任一不满足即拒绝；不得因为写入时组合成功而假定仍然有效。规则由 [Spec 003 §11.2.5.4](../module-specs/Module-Spec-003-TaskExecution.md#11254-首次-context-的期限上界与-effective-expiresat) 拥有。
+
+## #229 有限恢复 Process 的事务路由（提案）
+
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`。[Spec003§24.3–24.6](../module-specs/Module-Spec-003-TaskExecution.md#243-source--request-的不可变关联与独立协调)定义一个受限blocked-input recovery Process，原final五步仍复用已交付Process。EP确认、TERequest/Answer/Resolution、Context、WorkOrder schedule、IPBundle、Run/IGAttempt及两个Root reconcile分别提交；每步只写自身Root及附属事实。Process进度是独立技术事务，目标已提交而进度未记时以原source Result/proposal/step稳定键和完整bytes重放owningReceipt，不制造第二业务事实/Invocation；Human answer/resolve/schedule只观察其真实提交，不由Process自动批准。
+
+跨Owner只使用权限裁剪owningPort/Query及真实已发布Event Inbox；无IGfinal Event则有限扫描，不制造源事件。当前授权、来源时效、Scope/hash、local CAS与Claim在每次目标消费点重验；跨模块观测仍按TD-04记录时点一致，不能把多个Query拼成分布式原子事务。forward存储、源唯一关系与commit-before-progress fault唯一见PostgreSQL§39及owning Module-Test，非通用Workflow/Saga注册系统。

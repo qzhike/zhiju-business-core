@@ -622,3 +622,14 @@ AgentResult 的 header/schema/hash、FINAL、executionOutcome、provenance 和 s
 状态：`DESIGN APPROVED 2026-09-23 / INDEPENDENT DESIGN REVIEW APPROVE 2026-09-23 / HUMAN DESIGN APPROVED 2026-09-23 / DRIVER FINAL NOT IMPLEMENTED`。上述 Driver 表已规定 final 样本来源，但 #222 的实际 `SyntheticRuntimeDriver` 仅实现 ack `invoke/readBack`。下一技术切片在同一已提交 invocation 上添加 `readFinal(attemptRef)`：调用前固定版本化模板/templateHash，实际 `submittedAt` 和完整 Result/Header Hash 只在 Run start 后的释放点生成并持久留给原调用读回；该 Port 返回已实际释放的完整 AgentResultContract、稳定 `runtimeSubmissionRef`、原 fencingToken 与观察时间；尚未释放返回无观察，同一 Attempt 跨 Worker 重启重读返回同一 bytes/hash/ref。此项明确修正上文“调用前固定完整样本/Hash”的技术设想，人类设计批准与独立复审结论见决定 §22.5–§22.6；实现交付前不能将其当作已运行的 final 路径。延迟释放或 IG 写入失败后的恢复都只读原调用，不再次 invoke，不改变 ack/UNKNOWN 历史。IG 封存完整受控 final body/hash 并只向独立授权的 TE SERVICE 提供权威 Query，以便进度丢失时重建提交；TE 比对实际 payload Hash 后独立完成 Result/Validation/Acceptance/Run terminal。迟到 final 可留历史但不恢复已过期 Run 的执行资格。对应字段和失败语义见 Spec 007 final 增量、Spec 003 §23；现有 CLI/Provider conformance 与 Usage 证据不因本提案增加。
 
 本增量把原调用的 Adapter **实例**与 Attempt 分别建模。IG 在 Attempt 创建时预分配不同于 attemptId 的 UUIDv7 并传给实际 synthetic Driver；预分配本身无可信身份。Driver 的真实 ack 必须回显同一 ID 与原 binding，IG 才与 ack 一起提交 Project-scoped `ObjectRef<zhiju.runtime.runtime>` owning 身份。`readFinal` 只返回该原调用已确认的实例 Ref，AgentResult 的 `submittedByRuntime` 精确等于它；`provenance.runtimeAdapterRef` 仍是独立的静态协议 selector。TE `start_run` 通过 IG 独立授权内部 Port 将该实例 Ref 与 Run 原 Attempt 同事务绑定，旧公开 Binding Query 不增加字段。final 观察的公开 Query 只用已保存 `attemptRef` 定位唯一已提交 final，并在响应中给出尚未预知的 `runtimeSubmissionRef`、实例 Ref、原文和 Hash；因此 IG 观察提交后若交接失败，TE 可从 RUNNING Run 的 Attempt Ref 恢复，不能从待提交 Result 或 fixture 推断 submission Ref。
+
+### #229 两次受控 invocation 的有限恢复 profile（提案）
+
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`。详细Result/profile由 [Spec003 §24.2](../module-specs/Module-Spec-003-TaskExecution.md#242-唯一正向-profile冻结和实际-driver-final)拥有，IG observation由 [Spec007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射提案)拥有。
+
+| 本地版本化配置（不进入公开请求） | 实际Driver动作及完整边界 |
+|---|---|
+| `blocked_customer_material_v1` | 原Run start提交后释放FINAL/BLOCKED_INPUT模板，唯一proposal引用真实既有candidate与ACCEPTED Sources、原Task/WorkOrder；实际submittedAt/Result/Header hash仅在释放时生成，固定原invocation submission/session/Adapter/fencing，`readFinal`重读同bytes |
+| `recovery_completed_v1` | Run-2经新的实际invoke/ack/start后释放空FINAL/COMPLETED；引用新Run/Context/Bundle与同original frozen Contract，独立实例/session/submission；不得复制Run-1 final或resume terminal Run |
+
+两模板只证明技术恢复。模板和原文hash、Driver实际输入/调用次数、两次ack/final观察、Human confirmation/answer/Resolution/schedule真实Receipt、Context-2权威读回及不变的历史链必须分层保存为未来执行证据。原Driver在每Attempt至多invoke一次（全链正常为两次），recover只readBack/readFinal；IG或TE提交失败不会产生第三次调用。BLOCKED_INPUT尚未Resolution、新Context/Bundle/schedule/current资格不齐全时没有Run-2 invoke；Run-2 unsupported outcome不形成第三Run/fallback。synthetic命名、无Provider权威Usage、无六项Runtime控制批准、无Feishu/HTTP/manual验收的边界继续保持；同Run Resume依然禁止。

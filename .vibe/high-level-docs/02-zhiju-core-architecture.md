@@ -2084,3 +2084,7 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 WI-08 将 Issue #57 中的 Platform Reference 入口具体化为 EnterpriseProject 内的受控 Application Capability：Reference Admin/Publisher 通过独立 writer role 导入和发布无 Enterprise Scope 的模板/法规版本；Enterprise Runtime 只能读取已发布的精确 hash ref。writer 所使用的保留技术 Scope 仅服务于 RLS Context、Receipt、Audit、Outbox 和 Reference Edge，不代表任何业务 Enterprise。
 
 TemplateBaseline 和 RegulatoryProfile 是 Project-owned immutable version chains。Human 请求必须在可信事务 Context 中完成，Root expected aggregate version CAS 是唯一指针推进机制；新 Platform 版本不会隐式改变旧 Project。模板只能作为 TemplateSelection，不能作为 Regulatory Evidence；监管适用性项目的 Evidence 必须是独立受控引用。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工验收不随本实现自动提升为 `PASS`。
+
+## #229 有限恢复的 owning Port 路由（提案）
+
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED`。[决定§23](../decisions/task-execution-human-operated.md#23-blocked_input-恢复设计闭合提案229)仅细化已有TaskExecution→IdentityPolicy/EnterpriseProject/IntegrationGateway授权读取及受控Runtime路径，不改变七模块职责/数据所有权。TE拥有Request/Answer/Resolution、新Context/Run及独立Task/WorkOrder协调；EP以窄candidate/Source和confirmation Receipt Ref内部Port补齐当前读取缺口，正式证明继续使用已发布Receipt Query；IP拥有历史Decision证明/当前Human资格与新Bundle；IG拥有两次真实invocation/ack/final来源。新增公开读取仅为TE owning state，完整边界见Spec003§24.7；不读Board作执行资格，不共享Repository、跨Schema写或新建工作流引擎。实施和独立审批状态仍分开。
