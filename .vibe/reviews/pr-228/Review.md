@@ -92,3 +92,49 @@
 3. 获得 applicable 人类技术批准；ready、merge 和 #224 closure 仍依各自授权与门禁执行。
 
 本记录和 PR 结论均只描述被审 SHA；没有执行 commit、push、merge 或 Issue closure。
+
+---
+
+# 第 2 轮复审（最终 head 94ca167）
+
+- 日期：2026-09-27。被审 Head：`94ca167136f4ead33f0a557f0f46de44bf147ca3`；增量 `3421c5c5..94ca167` 仅含本记录归档（文档级 94 行），产品 head 不变。
+- Role outcome：**REQUEST_CHANGES**（一个阻塞 durable-knowledge finding；实现、契约、迁移、测试无缺陷）。
+- 阻塞 finding：`.vibe/high-level-docs/07-postgresql-logical-model-v0.1.md` §38 末段「PR #226 已合入，本地增量尚未提交/推送、没有远端 CI 或独立审查证据」在被审 head 为虚假陈述（增量即本 PR 已推送、远端 exact-head CI run 36252570368 存在（结论 cancelled）、独立审查证据存在）；§38 状态行「LOCAL CHANGES INDEPENDENT REVIEW PENDING」同样过期。修复方式为对齐 Module-Test-003 的写法（执行证据指向交付上下文而非冻结瞬态），文档级增量即可，无需产品代码变更。
+- 验证证据：Reviewer 在隔离 worktree 对精确 head `94ca167` 执行 `vibe verify environment --json` PASS 与 `vibe verify full --json` PASS（exit 0）；远端 exact-head CI run 36252570368 结论 cancelled（不记为 PASS）。
+- 完整结论已作为 PR 评论发布（comment id 5851659574）；认证用户即 PR 作者，GitHub 不允许对自有 PR 提交 formal review，故以评论形式发布，不声称 formal review。
+
+# 第 3 轮复审（head b09cf36）
+
+- 日期：2026-09-27。被审 Head：`b09cf36ae4a89220488df06c918b5e02c59efca2`；Base：`facef11e4bc87224d52a6c5816785c65f6bd62f1`（当前 main）；PR 仍为 Draft。
+- Role outcome：**REQUEST_CHANGES**。第 2 轮唯一阻塞 finding 未解决；本轮新增 CI/测试工具增量经逐文件独立审查无新缺陷。
+
+## 阻塞 finding（沿用第 2 轮，未修复）
+
+增量 `94ca167..b09cf36` 未触碰 07 文档；经 `git show` 在被审 head 逐字确认：
+
+- §38 末段（2341 行）仍为「PR #226 已合入，本地增量尚未提交/推送、没有远端 CI 或独立审查证据。」——在 b09cf36 为虚假陈述：该增量即本 PR 已推送；远端 exact-head CI [run 36294103436](https://github.com/qzhike/zhiju-business-core/actions/runs/36294103436) 存在且全绿；独立审查证据（本 PR 已发布评论与 head 树内归档的本记录）存在。
+- §38 状态行（2316 行）仍含「LOCAL CHANGES INDEPENDENT REVIEW PENDING」，同样过期。
+
+修复仅需更正该句与状态行（对齐 Module-Test-003 写法），文档级增量，复审后即可；无需产品代码变更。
+
+## 增量独立审查（94ca167..b09cf36，19 文件，+1550/-851，无新 finding）
+
+- `tools/verification/check-ci-results.mts`（新）+ 测试：CI 结果聚合 fail-closed——未知依赖 job 名、非法 target、非预期 result、取消、坏 JSON 全部拒绝；测试覆盖完整。CI 新增 `verify` 聚合 job 在本 head 的实际运行中已被自身逻辑执行。
+- `tools/persistence/gate.mjs`：新增分阶段计时与聚焦诊断参数（`--test-file` 正则限定 `tests/persistence/[a-z0-9-]+.test.ts`，name 过滤必须带文件，未知参数抛错）；完整 gate 默认仍跑全部 `tests/persistence`，聚焦模式明确输出「not the full gate」。
+- `tools/persistence/progress-reporter.mjs`（新）：30s 心跳；pg_stat_activity 采样不含 SQL 文本/凭据（符合 08 基线允许范围）；完整模式下有 skipped 即抛错。
+- `vitest.config.ts` 排除 `tests/persistence/**`；新 `vitest.persistence.config.ts` 只含该目录、串行、挂进度 reporter。`package.json` 的 `verify = verify:code && persistence:gate`。
+- `pinned-baseline`、`migration-isolation` 为纯 rename 至 `tests/business/`；`project-board-hash`（+92）与 `source-material-validation`（+125）系从 `query-projection`（-15）/`enterprise-project-scope`（-52）逐字抽取，已比对一致。
+- `tests/persistence/initial-context.test.ts`（+926/-744）：核心为 `exercisePreparationMatrix = terminalScenario === 'SUCCEEDED'`——共享负向矩阵只在综合场景执行一次，其余场景仍经 owning entry 自建 Task/Draft/Context/READY/Run 并保留各自终态断言；freeze COMMITTED/DUPLICATE、validate DUPLICATE、read-back `toEqual(revised)` 对所有场景保留；queue 探针由 `pg_sleep(8)` 改为 advisory lock + `pg_blocking_pids` 检测（finally 中 IF EXISTS 清理并恢复 grant）；ELIGIBILITY_CHANGE 在 Bundle 提交后重置 `clock = Date.now()` 使 Run budget 不含 Bundle 准备耗时，并新增「准备/拒绝先于 Run 截止」断言；超时/预算/授权有效期均未扩大；LOCK_DEADLINE 持锁跨期限用例保留。
+
+## 验证证据（绑定被审修订）
+
+- 远端 exact-head CI [run 36294103436](https://github.com/qzhike/zhiju-business-core/actions/runs/36294103436)：`head_sha=b09cf36`，select/checks/persistence/verify 四个 job 全部 SUCCESS。
+- persistence job 日志实际读回：**43 个测试文件、521 个测试全部 passed、0 skipped**，末尾 `[persistence-gate] gate passed`；initial-context 套件完整实际执行（含 LEGACY_UPGRADE ~165s、SUCCEEDED 综合场景 ~129s 等全部场景用例通过）。
+- 第 2 轮 Reviewer 产出的 exact-head 本地 full PASS 保留其 `94ca167` 修订边界；本轮增量为 CI/测试工具与测试重组，配置化目标证据即上述 exact-head 全绿运行，未本地重复执行已配置目标。
+
+## 后续门禁
+
+1. Implementer 更正 §38 证据句与状态行（文档级增量），Reviewer 复审新 head。
+2. 决定 §22.8 保留的人类技术批准。本 PR 仍为 Draft；本结论不授权 ready、merge、deploy 或关闭 Issue #224。
+
+本记录只描述被审 SHA；Reviewer 未修改产品代码、测试、迁移或权威文档，未执行 commit、push、merge 或 Issue closure。
