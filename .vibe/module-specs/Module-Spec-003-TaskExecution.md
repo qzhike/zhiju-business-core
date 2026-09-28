@@ -1990,7 +1990,7 @@ Process 复用决定 §9 的有限扫描，并增加一个明确候选集：TE �
 
 ## 24. BLOCKED_INPUT → CustomerMaterial → Context-2 / Run-2 Spec Delta（#229）
 
-状态：`T2 / DESIGN APPROVED / BASE main@9d00d01db5abe024e333cbc72f435ef284665e5c / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / CONFIGURED VERIFICATION PENDING`。本节是依照已批准 TD-01–04 补齐的有限实现契约；新增字段、profile 和公开操作限于已批准的 §24 设计及用户确认的兼容映射。取舍及批准 Gate 见[决定 §23](../decisions/task-execution-human-operated.md#23-blocked_input-恢复设计闭合提案229)。旧 §21–§23 的首版限制仍描述已交付行为；本 revision 新 profile 只用于新建计划；历史单次 frozen 计划支持集保持。
+状态：`T2 / DESIGN APPROVED / BASE main@9d00d01db5abe024e333cbc72f435ef284665e5c / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / EXACT REVISION VERIFICATION AND REVIEW EVIDENCE IN PR #232`。本节是依照已批准 TD-01–04 补齐的有限实现契约；新增字段、profile 和公开操作限于已批准的 §24 设计及用户确认的兼容映射。取舍及批准 Gate 见[决定 §23](../decisions/task-execution-human-operated.md#23-blocked_input-恢复设计闭合提案229)。旧 §21–§23 的首版限制仍描述已交付行为；本 revision 新 profile 只用于新建计划；历史单次 frozen 计划支持集保持。
 
 ### 24.1 当前实现对账与增量分类
 
@@ -2087,7 +2087,7 @@ Run-2 创建还要求 RETRY_PENDING 未消费 intent、请求 Context FROZEN met
 | forged/unrelated/uncommitted Receipt、同 correlation 错材料、历史 IP 证明错 subject/purpose | `EXECUTION_RESOLUTION_RECEIPT_INVALID`（模块稳定业务拒绝码）；保持 blocker；跨 Scope 先用共享授权/安全不可用外观 |
 | 未映射 final、未 RESOLVED、未完成 terminal arbitration | `EXECUTION_INFORMATION_REQUEST_UNRESOLVED`；无 Context/intent/Run-2 |
 | 同 source/answer/resolution 改输入、重复 retry 改绑定 | source：`EXECUTION_AGENT_RESULT_REPLAY_CONFLICT`；answer/resolution：`EXECUTION_INFORMATION_ANSWER_CONFLICT`；retry：`EXECUTION_RUN_ATTEMPT_CONFLICT`；同命令键异 payload 为 `IDEMPOTENCY_PAYLOAD_CONFLICT` |
-| Context 旧/异 Contract/错 Resolution/hash/Scope；Slice stale | `EXECUTION_CONTEXT_SOURCE_INVALID` / `EXECUTION_CONTEXT_TARGET_INVALID`；当前失效不重写历史 |
+| Context 旧/异 Contract/错 Resolution/hash/Scope；Slice stale；消费已 RESOLVED 但到期的 Request | `EXECUTION_CONTEXT_SOURCE_INVALID` / `EXECUTION_CONTEXT_TARGET_INVALID`；当前失效不重写历史 |
 | 授权撤销/过期、Controls/Builder 被取代；Contract/预算到期 | 共享授权码 / `POLICY_EXPIRED` / `EXECUTION_WORK_ORDER_EXPIRED` / `EXECUTION_WORK_ORDER_BUDGET_EXHAUSTED`，提交/重放返回前重验 |
 | 并发 create、CAS loser、旧 fencing、terminal resume | `EXECUTION_ACTIVE_RUN_EXISTS` / `EXECUTION_RUN_ATTEMPT_CONFLICT` / `AGGREGATE_VERSION_CONFLICT` / `EXECUTION_RUN_FENCING_TOKEN_STALE` / `EXECUTION_TERMINAL_RUN_IMMUTABLE` |
 
@@ -2106,7 +2106,7 @@ Run-2 创建还要求 RETRY_PENDING 未消费 intent、请求 Context FROZEN met
 | `execution.get_task_state@1.0` | QUERY；`{taskRef:OBJECT/zhiju.execution.task}` | §11.6 TaskStateView，closed 必填 `{taskRef,aggregateVersion,definitionRef:CONTENT_ADDRESSED/zhiju.execution.task_definition_snapshot,status,dependencyTaskRefs,workOrderRefs,blockerRefs,completionUseStatus}`；`completionEvaluationRef?` 保留既有设计 CONTENT_ADDRESSED；本有限实现仅 NOT_EVALUATED 且该 ref 缺省，不伪造 Completion；`execution.task.read` |
 | `execution.get_work_order_execution_state@1.0` | QUERY；`{workOrderRef:OBJECT/zhiju.execution.work_order}` | closed 必填 `{workOrderRef,aggregateVersion,status:WorkOrderStatus,workOrderContractRef:CONTENT_ADDRESSED/zhiju.contract.work_order,runRefs:ObjectRef<execution.run>[],informationRequestRefs:ObjectRef<execution.information_request>[],blockerRefs:TypedReference[],retryEligibility:NOT_APPLICABLE\|WAITING_INPUT\|READY_TO_SCHEDULE\|SCHEDULED\|CONSUMED\|EXHAUSTED\|STALE,checkedAt:UtcInstant}`，`activeRunRef?:OBJECT/execution.run`；`execution.work_order.execution_state.read`；仅 frozen canonical，非 DRAFT |
 
-两个 Root state Query 的列表都是 owning 全量、去重 canonical UTF-8 排序；blocked final 尚无 Request时 blockerRefs 使用 source Result，Request形成后使用 Request，答案已解但后继未完成时仍保留 source Result屏障，不能把数组空当作业务完成。retryEligibility 是当前派生资格，不是 caller 输入：首 Run前 NOT_APPLICABLE；未解/未建Request WAITING_INPUT；已解且全部当前资格/余额有效 READY_TO_SCHEDULE；intent 已提交未消费 SCHEDULED；Run-2已创建 CONSUMED；次数/余额不足 EXHAUSTED；当前授权以外的依赖失效 STALE。自身权限缺失直接拒绝，不返回 STALE 泄露对象。两 Query按各自 Root及其本模块输入一致观测读取，Task 输出 aggregateVersion，观测时刻使用共享 QueryResult.snapshotAt；WorkOrder data 保留 checkedAt，不声称与另一 Root 同时刻原子读；跨模块资格按 §10.1 保存观察，不用 Projection。
+两个 Root state Query 的列表都是 owning 全量、去重 canonical UTF-8 排序；Task 全量 child WorkOrder 包含尚无冻结 Contract/Run 的 DRAFT，不能因其尚未执行而省略或报对象不存在；blocked final 尚无 Request时 blockerRefs 使用 source Result，Request形成后使用 Request，答案已解但后继未完成时仍保留 source Result屏障，不能把数组空当作业务完成。retryEligibility 是当前派生资格，不是 caller 输入：首 Run前 NOT_APPLICABLE；未解/未建Request WAITING_INPUT；已解且全部当前资格/余额有效 READY_TO_SCHEDULE；intent 已提交未消费 SCHEDULED；Run-2已创建 CONSUMED；次数/余额不足 EXHAUSTED；当前授权以外的依赖失效 STALE。自身权限缺失直接拒绝，不返回 STALE 泄露对象。两 Query按各自 Root及其本模块输入一致观测读取，Task 输出 aggregateVersion，观测时刻使用共享 QueryResult.snapshotAt；WorkOrder data 保留 checkedAt，不声称与另一 Root 同时刻原子读；跨模块资格按 §10.1 保存观察，不用 Projection。
 
 新公开 objectType：`execution.information_request`（OBJECT，既有 v1 Request 拼写的显式 owning 注册）、`execution.information_answer`（CONTENT_ADDRESSED）、`execution.information_request_resolution`（CONTENT_ADDRESSED）；Owner task-execution，Project Scope，独立 UUIDv7，Answer/Resolution canonical payload 排除自身 Ref/hash。前者不建立 `zhiju.*` alias；后三类 Ref不能互换。Source/EP Receipt/IP 证明沿用各 owning已注册类型；canonical Task/WorkOrder/Context 与 legacy Run/Result/Acceptance 的精确拼写继续按已发布契约区分。
 

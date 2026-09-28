@@ -39,10 +39,7 @@ async function workOrderFacts(
     .where('work_order_id', '=', id)
     .executeTakeFirst();
   requireThat(
-    root &&
-      root.enterprise_id === scope.enterpriseId &&
-      root.project_id === scope.projectId &&
-      root.frozen_contract_id !== null,
+    root && root.enterprise_id === scope.enterpriseId && root.project_id === scope.projectId,
     'NOT_FOUND',
   );
   await ports.authorizeLocalRead('source', recoveryRef('zhiju.execution.work_order', id, scope), {
@@ -180,6 +177,10 @@ export async function handleGetWorkOrderExecutionState(
     requireThat(ref.kind === 'OBJECT' && ref.objectType === 'zhiju.execution.work_order');
     const facts = await workOrderFacts(trx, textValue(ref.objectId), scope, ports);
     const root = facts.root;
+    requireThat(
+      root.frozen_contract_id !== null && root.frozen_contract_hash !== null,
+      'NOT_FOUND',
+    );
     const view = {
       workOrderRef: ref,
       aggregateVersion: Number(root.aggregate_version),

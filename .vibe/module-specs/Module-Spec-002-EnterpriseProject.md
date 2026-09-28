@@ -862,7 +862,7 @@ Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；
 
 ### #229 确认 Receipt Ref 的授权发现与复用边界（实现契约）
 
-状态：`T2 / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / CONFIGURED VERIFICATION PENDING`。#191 Receipt Query已实现；本段只闭合 [Spec003 §24.4](Module-Spec-003-TaskExecution.md#244-human-答案验证receipt-与-resolution) 所需Human实际取得其Ref的缺口：现行confirmation通用CommandResult不能被当作已返回规范content-addressed Receipt，commandId/request hash不能推导Receipt hash。
+状态：`T2 / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / EXACT REVISION VERIFICATION AND REVIEW EVIDENCE IN PR #232`。#191 Receipt Query已实现；本段只闭合 [Spec003 §24.4](Module-Spec-003-TaskExecution.md#244-human-答案验证receipt-与-resolution) 所需Human实际取得其Ref的缺口：现行confirmation通用CommandResult不能被当作已返回规范content-addressed Receipt，commandId/request hash不能推导Receipt hash。
 
 已交付 EP 内部 `readConfirmationReceiptRef(commandId)`，受信输入closed `{commandId:UuidV7,scopeRef:ProjectScope}`，result closed `{commandReceiptRef:CONTENT_ADDRESSED/zhiju.project.command_receipt}`。认证HUMAN必须等于该confirmation的actor，持有当前本Project Receipt-read权限；受信SERVICE使用自身独立consumer-read权限读取时不得冒用Humansession。动作 `project.confirmation_receipt.ref.read.v1`，Purpose `project.resolution_receipt.read`，target是该命令Receipt OBJECT镜像身份，config `confirmationReceiptRefReadV1`，完整scope/payload/session/Decision在protected read前与返回前复验。实现复用 `resolution_receipt_material` 与#191 exact canonical重算/owning联核，只对COMMITTED `project.confirm_customer_material@1.0`返回真实Ref，其他/未知/无法证明统一 `PROJECT_QUERY_NOT_FOUND`；授权错误沿用共享码。组成层将结果交给Human后仍通过已注册 `project.get_resolution_receipt@1.0`读取证明；不改公开confirmation/query结果，不提供SQL/Repository。
 

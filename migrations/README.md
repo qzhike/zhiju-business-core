@@ -17,6 +17,8 @@ Forward-only Expand/Contract；一个业务 migration 只允许改一个 owning 
 | `release_publication/` | `V6000`–`V6999` | release_publication owning Schema                                                                                                                                                                 |
 | `integration_gateway/` | `V7000`–`V7999` | integration_gateway owning Schema                                                                                                                                                                 |
 
+Issue #231 reserves exactly `V7005`–`V7007` for the three TaskExecution recovery migrations. These files remain under `task_execution/` and change only that owning Schema. The IntegrationGateway range excludes these three reserved versions. This bounded allocation keeps the shared Flyway history forward-only after `V7004`; it does not enable out-of-order execution or renumber applied migrations.
+
 命名规则：`V<4位版本>__<snake_case_description>.sql`。projection 的可重建对象随各模块区间发布，不单独拥有版本区间。
 
 `V0003` 的 Context 写入口只授予 NOLOGIN 的 `platform_context_establisher`；七模块

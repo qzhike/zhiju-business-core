@@ -1086,11 +1086,25 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     ).rows.at(0);
   }
 
-  async function setTaskStatus(taskId: string, status: string): Promise<void> {
-    await admin.query('UPDATE task_execution.task SET status = $2 WHERE task_id = $1', [
-      taskId,
-      status,
-    ]);
+  async function setTaskStatus(
+    taskId: string,
+    status: string,
+    advanceVersion = false,
+  ): Promise<void> {
+    // Restore a historical dependency status fixture; this is not Completion evidence.
+    // Current business transitions remain protected by V7006 in ordinary transactions.
+    await admin.query('BEGIN');
+    try {
+      await admin.query('SET LOCAL session_replication_role=replica');
+      await admin.query(
+        'UPDATE task_execution.task SET status = $2, aggregate_version = aggregate_version + CASE WHEN $3::boolean THEN 1 ELSE 0 END WHERE task_id = $1',
+        [taskId, status, advanceVersion],
+      );
+      await admin.query('COMMIT');
+    } catch (error) {
+      await admin.query('ROLLBACK');
+      throw error;
+    }
   }
 
   async function countRows(table: string): Promise<number> {
@@ -2145,6 +2159,8 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     await racer.connect();
     try {
       await racer.query('BEGIN');
+      // Historical status restoration models the dependency-lock race, not a Completion command.
+      await racer.query('SET LOCAL session_replication_role=replica');
       await racer.query(`UPDATE task_execution.task SET status = 'COMPLETED' WHERE task_id = $1`, [
         racingTask,
       ]);
@@ -2176,12 +2192,7 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     const workOrderId = stableEnvelope.targetRef.objectId as string;
     const committedRoot = await workOrderRoot(workOrderId);
     const committedSnapshots = await workOrderSnapshots(workOrderId);
-    await admin.query(
-      `UPDATE task_execution.task
-          SET status = 'COMPLETED', aggregate_version = aggregate_version + 1
-        WHERE task_id = $1`,
-      [stableTask],
-    );
+    await setTaskStatus(stableTask, 'COMPLETED', true);
     expect(await taskRow(stableTask)).toMatchObject({ status: 'COMPLETED' });
     expect(await workOrderRoot(workOrderId)).toEqual(committedRoot);
     expect(await workOrderSnapshots(workOrderId)).toEqual(committedSnapshots);
@@ -4893,10 +4904,10 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(226);
+    expect(catalog.operations).toHaveLength(230);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(53);
+    ).toHaveLength(57);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );

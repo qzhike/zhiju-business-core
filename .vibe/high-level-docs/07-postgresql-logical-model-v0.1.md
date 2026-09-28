@@ -2342,7 +2342,7 @@ finalize 的 Run、Claim、RunTerminated Outbox、Receipt/Audit/Edge 一次事�
 
 ## 39. BLOCKED_INPUT 有限恢复的前向持久化契约（#229 / #231）
 
-状态：`T2 / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / V3011–V3013 PRESENT / CONFIGURED VERIFICATION PENDING`。只拥有 [Spec003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229) 的物理边界；历史§33/§35–38与V3000–V3010、V1000–V1007、V2015及V7001–V7004不改写。本 revision 的 V3011 创建 Request/Answer/Resolution 事实，V3012 扩展 FROZEN metadata、retry intent、累计预算与本地 Root guard，V3013 增加有界 Process 及预分配命令材料。旧 row 不回填 recovery 资格。
+状态：`T2 / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / V7005–V7007 PRESENT / EXACT REVISION VERIFICATION AND REVIEW EVIDENCE IN PR #232`。只拥有 [Spec003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229) 的物理边界；历史§33/§35–38与V3000–V3010、V1000–V1007、V2015及V7001–V7004不改写。本 revision 的 V7005 创建 Request/Answer/Resolution 事实，V7006 扩展 FROZEN metadata、retry intent、累计预算与本地 Root guard，V7007 增加有界 Process 及预分配命令材料。FROZEN build metadata 的 root/recovery 字段集闭合，并独立校验 frozenContractRef 与列、Policy Hash/时间和有限期限镜像；不接受额外 canonical 成员或 JSON null 完整引用。旧 row 不回填 recovery 资格。本次有限编号例外已由用户在 #231 实现会话中明确批准：V7005、V7006、V7007 专用于 task_execution 的三个恢复迁移，integration_gateway 不得重用这三个编号；其余模块号段保持迁移布局契约。编号晚于共用 history 的既有最高版本 V7004，不改变 TaskExecution 单 Schema 所有权、不改已应用迁移，也不启用 Flyway out-of-order。
 
 | Owner / 新增或前向附属事实 | 精确字段与约束 | 单事务写边界 |
 |---|---|---|

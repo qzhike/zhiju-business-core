@@ -933,7 +933,6 @@ export async function readRecoveryResolution(
   const q = await readRecoveryRequest(trx, row.request_id);
   requireThat(
     q?.status === 'RESOLVED' &&
-      q.expires_at > ports.now() &&
       same(q.resolution_ref, resolutionRef) &&
       same(scope, { enterpriseId: q.enterprise_id, projectId: q.project_id }),
     'EXECUTION_INFORMATION_REQUEST_UNRESOLVED',
@@ -942,6 +941,7 @@ export async function readRecoveryResolution(
     resolutionRef,
     acceptedAnswerRef: definedValue(row.canonical_payload.acceptedAnswerRef),
   });
+  requireThat(q.expires_at > ports.now(), 'EXECUTION_CONTEXT_SOURCE_INVALID');
   const a = (
     await sql<RecoveryFactRow>`SELECT canonical_payload,payload_hash FROM task_execution.answer_submission WHERE request_id=${q.request_id}`.execute(
       trx,

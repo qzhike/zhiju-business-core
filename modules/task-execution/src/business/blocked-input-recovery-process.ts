@@ -294,6 +294,13 @@ export async function recoverBlockedInput(
           requireThat(typeof command.commandType === 'string', 'COMMAND_TARGET_MISMATCH');
         }
         const result = await ports.execute(command);
+        if (humanWait) {
+          requireThat(
+            result.retryEligibility !== 'EXHAUSTED',
+            'EXECUTION_WORK_ORDER_BUDGET_EXHAUSTED',
+          );
+          requireThat(result.retryEligibility !== 'STALE', 'EXECUTION_CONTEXT_SOURCE_INVALID');
+        }
         if (
           humanWait &&
           (result.status !== 'RETRY_PENDING' || result.retryEligibility !== 'SCHEDULED')

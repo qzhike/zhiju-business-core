@@ -188,6 +188,16 @@ BEGIN
  SELECT * INTO q FROM task_execution.information_request WHERE request_id=x.request_id;
  IF (c.command_type<>'execution.build_context_snapshot' OR c.command_version<>'1.1' OR c.outcome<>'PENDING'
   OR b.payload_hash IS DISTINCT FROM task_execution.recovery_payload_hash(b.canonical_payload)
+  OR b.canonical_payload - ARRAY['buildKind','frozenContractRef','sliceRefs','purpose','audience','builderPolicyRef','policyContentHash','policyEffectiveFrom','policySupersededAt','requestExpiresAt','effectiveExpiresAt','inputRefObservations','scopeRef','recovery'] IS DISTINCT FROM '{}'::jsonb
+  OR b.canonical_payload->>'buildKind' IS DISTINCT FROM 'FROZEN'
+  OR b.canonical_payload->'frozenContractRef' IS DISTINCT FROM b.frozen_contract_ref
+  OR b.canonical_payload->>'policyContentHash' IS DISTINCT FROM encode(b.policy_content_hash,'hex')
+  OR (b.canonical_payload->>'policyEffectiveFrom')::timestamptz IS DISTINCT FROM b.policy_effective_from
+  OR (b.canonical_payload->>'policySupersededAt')::timestamptz IS DISTINCT FROM b.policy_superseded_at
+  OR (b.canonical_payload->>'requestExpiresAt')::timestamptz IS DISTINCT FROM b.request_expires_at
+  OR (b.canonical_payload->>'effectiveExpiresAt')::timestamptz IS DISTINCT FROM b.effective_expires_at
+  OR b.canonical_payload->'inputRefObservations' IS DISTINCT FROM '[]'::jsonb
+  OR recovery - ARRAY['previousRunRef','sourceAgentResultRef','sourceAcceptanceRef','resolutionRefs','answerRefs','receiptRefs','receiptObservationHashes','requestAggregateVersions','sourceWatermarks'] IS DISTINCT FROM '{}'::jsonb
   OR b.purpose IS DISTINCT FROM b.canonical_payload->>'purpose' OR b.purpose IS DISTINCT FROM s.purpose
   OR b.audience IS DISTINCT FROM b.canonical_payload->'audience' OR b.audience->>'principalId' IS DISTINCT FROM s.audience
   OR b.builder_policy_ref IS DISTINCT FROM b.canonical_payload->'builderPolicyRef'

@@ -824,7 +824,7 @@ Bundle Port 消费动作对应 `revalidateForResultSubmit/Record/Validate/Accept
 
 ### 15.14 IM06-RECOVERY 有限恢复授权组成实现契约（#229）
 
-状态：`T2 / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / CONFIGURED VERIFICATION PENDING`。仅服务 [Spec 003 §24](Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)。已交付 §15.12/15.13 当前权限、完整Ref/Scope/hash/session/ActorSnapshot/Decision、锁后与Receipt返回前重验规则不变。新增映射是受信组成配置，不是公开authorize API变化；主动作和每项依赖均先通过自己的Decision，缺任一时对应protected read为0。不能由Process进度权限读取业务表。
+状态：`T2 / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / EXACT REVISION VERIFICATION AND REVIEW EVIDENCE IN PR #232`。仅服务 [Spec 003 §24](Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)。已交付 §15.12/15.13 当前权限、完整Ref/Scope/hash/session/ActorSnapshot/Decision、锁后与Receipt返回前重验规则不变。新增映射是受信组成配置，不是公开authorize API变化；主动作和每项依赖均先通过自己的Decision，缺任一时对应protected read为0。不能由Process进度权限读取业务表。
 
 | 主动作 | 精确注册Purpose / Actor | action / target / config key |
 |---|---|---|

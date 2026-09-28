@@ -165,6 +165,18 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'agent_result_acceptance',
     'run',
     'work_order_run_claim',
+    // IM-06 (#231): owning recovery facts and saved command material (V7005–V7007).
+    'recovery_command_material',
+    'information_request',
+    'information_request_origin',
+    'answer_submission',
+    'answer_resolution',
+    'resolution_receipt_observation',
+    'work_order_retry_intent',
+    'run_retry_intent_consumption',
+    'run_budget_reservation',
+    'run_budget_consumption',
+    'recovery_process_command',
   ],
   artifact: [
     'business_probe',
