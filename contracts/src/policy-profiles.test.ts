@@ -30,6 +30,7 @@ const builderKey = 'execution.context_builder.policy@1.0';
 const readinessKey = 'execution.task_readiness.policy@1.0';
 const validationKey = 'execution.work_order_validation.policy@1.0';
 const controlsKey = 'execution.work_order_controls.policy@1.0';
+const recoveryControlsKey = 'execution.work_order_controls.policy@1.1';
 const policySnapshotKey = 'identity.PolicySnapshot@1.0';
 const legacyKeys = [policySnapshotKey, 'identity.RolePolicy@1.0', 'identity.CapabilityPolicy@1.0'];
 
@@ -79,6 +80,7 @@ describe('policy profile registry artifact', () => {
       readinessKey,
       validationKey,
       controlsKey,
+      recoveryControlsKey,
     ]);
     expect(
       policyProfileRegistry.profiles.map((profile) => [profile.registryKey, profile.owner]),
@@ -91,6 +93,7 @@ describe('policy profile registry artifact', () => {
       [readinessKey, 'task-execution'],
       [validationKey, 'task-execution'],
       [controlsKey, 'task-execution'],
+      [recoveryControlsKey, 'task-execution'],
     ]);
   });
 
@@ -106,7 +109,7 @@ describe('policy profile registry artifact', () => {
       objectIds.add(profile.reference.objectId);
       versionIds.add(profile.reference.versionId);
     }
-    expect(objectIds.size).toBe(policyProfileRegistry.profiles.length);
+    expect(objectIds.size).toBe(policyProfileRegistry.profiles.length - 1);
     expect(versionIds.size).toBe(policyProfileRegistry.profiles.length);
   });
 
@@ -151,6 +154,7 @@ describe('deterministic registry rejection', () => {
           const reference = target.reference;
           if (reference === undefined) throw new Error('missing reference fixture');
           reference.objectId = entry(profiles, builderKey).reference?.objectId;
+          reference.versionId = entry(profiles, builderKey).reference?.versionId;
         }),
       ),
     ).toThrow(/duplicate policy profile identity/u);
@@ -523,9 +527,9 @@ describe('closed profile documents', () => {
 });
 
 describe('shared contract registry integration', () => {
-  it('applies the same closed schemas and keeps 226 public operations', () => {
+  it('applies the same closed schemas and keeps 230 public operations', () => {
     const registry = new ContractRegistry();
-    expect(registry.operationCount).toBe(226);
+    expect(registry.operationCount).toBe(230);
     expect(registry.policyProfileRegistry).toBe(policyProfileRegistry);
     expect(
       registry.validatePolicyProfileDocument(

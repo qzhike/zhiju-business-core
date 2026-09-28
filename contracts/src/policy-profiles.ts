@@ -67,6 +67,12 @@ interface ApprovedEntry {
  */
 const approvedEntries: readonly ApprovedEntry[] = [
   {
+    registryKey: 'execution.work_order_controls.policy@1.1',
+    owner: 'task-execution',
+    fields: ['controls', 'recovery'],
+    requiredFields: ['controls', 'recovery'],
+  },
+  {
     registryKey: 'execution.work_order_controls.policy@1.0',
     owner: 'task-execution',
     fields: ['controls'],
@@ -171,7 +177,10 @@ function parseDocumentSchema(value: unknown, approved: ApprovedEntry): JsonSchem
   ) {
     throw new Error(`policy profile fields drifted from the approved set: ${approved.registryKey}`);
   }
-  if (approved.registryKey === 'execution.work_order_controls.policy@1.0') {
+  if (
+    approved.registryKey === 'execution.work_order_controls.policy@1.0' ||
+    approved.registryKey === 'execution.work_order_controls.policy@1.1'
+  ) {
     const fields = [
       'targetScope',
       'allowedCapabilities',
@@ -201,6 +210,25 @@ function parseDocumentSchema(value: unknown, approved: ApprovedEntry): JsonSchem
         },
       },
     };
+    if (approved.registryKey.endsWith('@1.1')) {
+      const recovery = {
+        answerSpecProfile: 'execution.answer.customer_material.v1',
+        requestType: 'execution.input.customer_material_confirmation',
+        responderRole: 'project.customer_material.confirmer',
+        maxBlockingRequests: 1,
+        maxRecoveryRuns: 1,
+        retryReason: 'BLOCKED_INPUT_RESOLVED',
+        run2Outcome: 'COMPLETED',
+        materialUse: 'REFERENCE_ONLY',
+      };
+      expected.required.push('recovery');
+      (expected.properties as Record<string, unknown>).recovery = {
+        type: 'object',
+        additionalProperties: false,
+        required: Object.keys(recovery),
+        properties: Object.fromEntries(Object.entries(recovery).map(([k, v]) => [k, { const: v }])),
+      };
+    }
     if (!isDeepStrictEqual(value, expected))
       throw new Error('WorkOrder controls policy schema drifted');
   }
@@ -221,7 +249,7 @@ export function loadPolicyProfileRegistry(input: unknown): PolicyProfileRegistry
   }
 
   const profiles: PolicyProfileEntry[] = [];
-  const objectIds = new Set<string>();
+  const identities = new Set<string>();
   const versionIds = new Set<string>();
   for (const entry of input.profiles as unknown[]) {
     if (
@@ -253,10 +281,29 @@ export function loadPolicyProfileRegistry(input: unknown): PolicyProfileRegistry
       throw new Error('WorkOrder controls policy selector identity drifted');
     }
 
-    if (objectIds.has(reference.objectId) || versionIds.has(reference.versionId)) {
+    if (
+      registryKey === 'execution.work_order_controls.policy@1.1' &&
+      (reference.objectId !== '01996900-0000-7000-8000-000000000104' ||
+        reference.versionId !== '01996900-0000-7000-8000-000000000115')
+    )
+      throw new Error('Recovery controls selector identity drifted');
+    if (
+      identities.has(`${reference.objectId}:${reference.versionId}`) ||
+      versionIds.has(reference.versionId)
+    ) {
       throw new Error(`duplicate policy profile identity: ${registryKey}`);
     }
-    objectIds.add(reference.objectId);
+    const sameRoot = profiles.find((profile) => profile.reference.objectId === reference.objectId);
+    if (
+      sameRoot !== undefined &&
+      ![sameRoot.registryKey, registryKey].every(
+        (key) =>
+          key === 'execution.work_order_controls.policy@1.0' ||
+          key === 'execution.work_order_controls.policy@1.1',
+      )
+    )
+      throw new Error(`duplicate policy profile object identity: ${registryKey}`);
+    identities.add(`${reference.objectId}:${reference.versionId}`);
     versionIds.add(reference.versionId);
 
     if (approved.fields === undefined) {

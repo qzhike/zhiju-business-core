@@ -341,9 +341,9 @@ final Result 的 `provenance.runtimeSessionExternalRef` 必须精确等于原成
 
 本轮仅允许已登记的 `te.human_operated.synthetic@1.0` 与 `source=SYNTHETIC_DRIVER`；无 Provider/CLI conformance、公开 final 写入命令或外部回执升级。存储和独立授权见 PostgreSQL §38、Spec 001 §15.13；实际执行子集与剩余 `NOT RUN` 项见 `IG-FINAL-D-*`。当前分支已在真实 PostgreSQL 验证原调用、Worker 重建读回和迟到 final；外部与人工验收仍 `NOT RUN`。
 
-### #229 受控 BLOCKED_INPUT 与第二 invocation 映射（提案）
+### #229 受控 BLOCKED_INPUT 与第二 invocation 映射（实现契约）
 
-状态：`T2 DESIGN ONLY / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`。消费 [Spec003 §24.2](Module-Spec-003-TaskExecution.md#242-唯一正向-profile冻结和实际-driver-final) 的两个有限final profile；本模块仍只拥有真实invocation/ack/final observation，不确认答案或协调WorkOrder/Task。
+状态：`T2 / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / CONFIGURED VERIFICATION PENDING`。消费 [Spec003 §24.2](Module-Spec-003-TaskExecution.md#242-唯一正向-profile冻结和实际-driver-final) 的两个有限final profile；本模块仍只拥有真实invocation/ack/final observation，不确认答案或协调WorkOrder/Task。
 
 现有 `request_runtime_dispatch@1.0`、Attempt/Adapter identity、RawReceipt、`get_runtime_attempt_binding@1.0`、`get_runtime_final_observation@1.0` 的payload/result/Purpose不变。Run-1模板为一个既有candidate/accepted Sources的blocking proposal；Run-2模板为空COMPLETED。模板版本/完整hash在各自实际invoke前固定，Run-2由实际Run/Context-2/Bundle-2/lease/fencing形成全新dispatch/Attempt/Adapter实例/session/submission，不能把Run-1 Session、Observation、模板finalbytes作为第二次来源。两次RuntimeBinding仍为原synthetic固定值，adapter_contract静态selector仍@1.0；template支持集扩展是内部Driver增量，不冒充CLI/profile conformance。
 

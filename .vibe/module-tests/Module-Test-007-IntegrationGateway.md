@@ -161,10 +161,10 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 
 ## #229 两 invocation 恢复来源矩阵
 
-状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`；[Spec007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射提案)。原IG-FINAL矩阵的证据层级和PARTIAL保留。
+状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / CONFIGURED FULL VERIFICATION PENDING / REQUIRED SUBCASES PENDING`；[Spec007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射实现契约)。原IG-FINAL矩阵的证据层级和PARTIAL保留。
 
 | ID | 输入 / 层级 | 预期 / 结果 |
 |---|---|---|
-| IG-REC-D-001 | Controlled Driver+owningdispatch/Observation/Query+PostgreSQL；Run-1固定blocking模板，合法Run-2新Context/Bundle/Attempt的空COMPLETED模板 | 实际恰两invoke，各一次ack/final、不同实例/session/submission，原模板与finalbytes/hash固定；Query返回原文由TE独立Validation，IG不确认答案/完成WorkOrder；NOT RUN |
-| IG-REC-D-002 | 实际Driver负例+PostgreSQL；同Run换session/Context/fencing、Run-1final送Run-2、未schedule/Resolution或撤权/过期资格的dispatch | 自洽Header hash不覆盖原来源绑定；缺当前资格不invoke；迟到final仅历史不恢复执行；不存在的Source/candidate不能靠fixture成为Core事实；NOT RUN |
-| IG-REC-D-003 | 两真实Worker/Process；ack/final observation提交前故障与提交后handoff/progress丢失、同键并发读回 | 原Attempt readBack/readFinal，无第二invoke或重复身份/Receipt/Observation/Event；frozen eligibility从TE Port获取而非跨SchemaSQL；真实Provider/CLI/Feishu/HTTP/manual仍NOT RUN |
+| IG-REC-D-001 | Controlled Driver+owningdispatch/Observation/Query+PostgreSQL；Run-1固定blocking模板，合法Run-2新Context/Bundle/Attempt的空COMPLETED模板 | 实际恰两invoke，各一次ack/final、不同实例/session/submission，原模板与finalbytes/hash固定；Query返回原文由TE独立Validation，IG不确认答案/完成WorkOrder；OWNING/PG/CONTROLLED：实际两次 invoke、独立 Attempt/实例/session/submission 与原 Query body/hash、两条独立 TE 验证链。配置 full 待确认。 |
+| IG-REC-D-002 | 实际Driver负例+PostgreSQL；同Run换session/Context/fencing、Run-1final送Run-2、未schedule/Resolution或撤权/过期资格的dispatch | 自洽Header hash不覆盖原来源绑定；缺当前资格不invoke；迟到final仅历史不恢复执行；不存在的Source/candidate不能靠fixture成为Core事实；PARTIAL：late Run-1 body 不得用于 Run-2，实际第二 final 三种不支持 outcome 拒绝；新 Run-2 的错 session/fencing/当前资格 dispatch 专门负例 NOT RUN，原 IG-FINAL 基础矩阵保持。 |
+| IG-REC-D-003 | 两真实Worker/Process；ack/final observation提交前故障与提交后handoff/progress丢失、同键并发读回 | 原Attempt readBack/readFinal，无第二invoke或重复身份/Receipt/Observation/Event；frozen eligibility从TE Port获取而非跨SchemaSQL；真实Provider/CLI/Feishu/HTTP/manual仍NOT RUN  OWNING/PG/CONTROLLED：两个真实 Worker，ack COMMITTED 事务回滚后原调用 readBack、13 个 target 提交后进度丢失原键恢复，无二次 invoke；外部 Provider/CLI/Feishu/HTTP/manual 继续 NOT RUN。 |

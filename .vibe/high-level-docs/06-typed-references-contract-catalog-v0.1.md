@@ -1380,12 +1380,21 @@ execution.expire_run@1.0
 
 已注册 `submit_agent_result@1.0`、`accept_agent_result@1.0`、`get_agent_result@1.0`、`get_run_state@1.0`、`AgentResultAccepted@1.0`、`RunTerminated@1.0` 与 `get_runtime_attempt_binding@1.0` 的 Schema、metadata、fixture 和历史接受集逐字节不变。首版仅支持合法空 business output 的 synthetic FINAL/COMPLETED 正链，是 Handler 支持范围，不是旧 Contract Schema 缩窄；旧操作若传其它 Core-valid 内容返回稳定 unsupported/拒绝。当前分支已通过真实 ContractRegistry 的生成、计数与兼容门禁；完整正反矩阵仍按 Module-Test 003/007 的逐项证据判定，本设计表不替代独立实现审查。
 
-## #229 BLOCKED_INPUT 恢复的 additive 注册提案
+## #229 BLOCKED_INPUT 恢复的 additive 注册
 
-状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT REGISTERED / NOT RUN`。本设计未改可执行Registry；实际全仓226/TaskExecution53/历史Baseline200。完整字段/结果/错误只由 [Spec003 §24.7](../module-specs/Module-Spec-003-TaskExecution.md#247-public-requestresultref-delta-与权威读回)拥有。
+状态：`T2 / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / REGISTERED (#231) / RUNTIME ACCEPTANCE PENDING`。本 revision 已注册四个 additive 操作；全仓230/TaskExecution57/历史Baseline200。完整字段/结果/错误只由 [Spec003 §24.7](../module-specs/Module-Spec-003-TaskExecution.md#247-public-requestresultref-delta-与权威读回)拥有。
 
-拟新增四项，Owner task-execution：`execution.build_context_snapshot@1.1`（CREATE canonical Context，已发布Purpose `task.execution.build_context_snapshot`，请求不变、新专用canonical Snapshot Result）；`execution.reconcile_task_execution@1.0`（MUTATE canonical Task，Purpose `execution.task.reconcile`）；`execution.get_task_state@1.0`（AUTHORITATIVE，Purpose `execution.task.read`，复用TD-01–04 TaskStateView，非TD-05 Board）；`execution.get_work_order_execution_state@1.0`（AUTHORITATIVE，Purpose `execution.work_order.execution_state.read`，frozen Root状态与当前有限retry资格）。注册后才为230/57/200；本节不将这些名字加入当前已注册Catalog列表，也不批准TD-05–07。
+新增四项，Owner task-execution：`execution.build_context_snapshot@1.1`（CREATE canonical Context，已发布Purpose `task.execution.build_context_snapshot`，请求不变、新专用canonical Snapshot Result）；`execution.reconcile_task_execution@1.0`（MUTATE canonical Task，Purpose `execution.task.reconcile`）；`execution.get_task_state@1.0`（AUTHORITATIVE，Purpose `execution.task.read`，复用TD-01–04 TaskStateView，非TD-05 Board）；`execution.get_work_order_execution_state@1.0`（AUTHORITATIVE，Purpose `execution.work_order.execution_state.read`，frozen Root状态与当前有限retry资格）。当前计数为230/57/200；TD-05–07不在本实现支持集。
 
 显式owning注册 `execution.information_request`：OBJECT；新增 `execution.information_answer`、`execution.information_request_resolution`：CONTENT_ADDRESSED；均TaskExecution-owned/Project Scope、独立UUIDv7。既有v1Request拼写保持，不能登记 `zhiju.*`别名替代；Resolution、Answer、Request、EP `zhiju.project.command_receipt`不同kind/type/id/hash/purpose不能混用。canonical Context/Task/WorkOrder与既有 `execution.run/agent_result/agent_result_acceptance`拼写继续分开；@1.0 SourceSlice/Receipt查询/AgentResult本体/旧操作Schema和200baseline全部保留。
 
 Controls Policy profile新增 `execution.work_order_controls.policy@1.1` 与Platform `VERSIONED/identity.contract_schema` selector（完整identity/closeddocument见Spec003 §24.2）；@1.0版本和历史单次计划不原地升级。其它静态Schema/Evaluator/Runtime adapter selector不变，不增加Runtime六项控制Command。注册交付应同步source/generated/types、Result/ref path metadata、正负独立fixtures与旧版本兼容counterexample；任一语义或引用不匹配必须在设计Gate解决，不能修改旧fixture让其冒充新profile。
+
+本实现 revision 的新增 Catalog 条目（历史 200 baseline 不变）：
+
+```text
+execution.build_context_snapshot@1.1
+execution.reconcile_task_execution@1.0
+execution.get_task_state@1.0
+execution.get_work_order_execution_state@1.0
+```

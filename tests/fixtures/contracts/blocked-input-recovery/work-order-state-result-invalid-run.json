@@ -1,0 +1,67 @@
+{
+  "workOrderRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.work_order",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "aggregateVersion": 3,
+  "status": "WAITING_INPUT",
+  "workOrderContractRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.contract.work_order",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d432",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "runRefs": [
+    {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "execution.information_answer",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ],
+  "informationRequestRefs": [
+    {
+      "kind": "OBJECT",
+      "objectType": "execution.information_request",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    }
+  ],
+  "blockerRefs": [
+    {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    }
+  ],
+  "retryEligibility": "WAITING_INPUT",
+  "checkedAt": "2026-09-27T00:00:00Z"
+}

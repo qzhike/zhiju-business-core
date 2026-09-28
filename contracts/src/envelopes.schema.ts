@@ -25,6 +25,31 @@ function payloadSchema(operation: PublicOperationDefinition): JsonSchema {
   return schemaRef === undefined ? { type: 'object' } : { $ref: schemaRef };
 }
 
+function operationScopeSchema(operation: PublicOperationDefinition): JsonSchema {
+  const projectRequired =
+    (operation.type === 'execution.build_context_snapshot' && operation.version === '1.1') ||
+    [
+      'execution.reconcile_task_execution',
+      'execution.get_task_state',
+      'execution.get_work_order_execution_state',
+    ].includes(operation.type);
+  return projectRequired
+    ? {
+        allOf: [
+          { $ref: `${common}scopeRef` },
+          {
+            type: 'object',
+            required: ['enterpriseId', 'projectId'],
+            properties: {
+              enterpriseId: { $ref: `${common}uuidV7` },
+              projectId: { $ref: `${common}uuidV7` },
+            },
+          },
+        ],
+      }
+    : { $ref: `${common}scopeRef` };
+}
+
 function commandSchema(operation: PublicOperationDefinition): JsonSchema {
   return {
     $id: operationEnvelopeSchemaId(operation),
@@ -44,12 +69,13 @@ function commandSchema(operation: PublicOperationDefinition): JsonSchema {
       'requestedAt',
       'payload',
       'integrity',
+      ...(operation.concurrencyMode === 'MUTATE' ? ['expectedAggregateVersion'] : []),
     ],
     properties: {
       commandId: { $ref: `${common}uuidV7` },
       commandType: { const: operation.type },
       commandVersion: { const: operation.version },
-      scopeRef: { $ref: `${common}scopeRef` },
+      scopeRef: operationScopeSchema(operation),
       targetRef:
         operation.targetObjectType === undefined
           ? { $ref: `${common}objectRef` }
@@ -99,7 +125,7 @@ function querySchema(operation: PublicOperationDefinition): JsonSchema {
       queryId: { $ref: `${common}uuidV7` },
       queryType: { const: operation.type },
       queryVersion: { const: operation.version },
-      scopeRef: { $ref: `${common}scopeRef` },
+      scopeRef: operationScopeSchema(operation),
       requester: { $ref: `${common}typedReference` },
       authenticationContextRef: { $ref: `${common}typedReference` },
       authorizationDecisionRef: { $ref: `${common}typedReference` },

@@ -22,7 +22,7 @@ export interface PublicOperationDefinition {
   readonly owner: string;
   readonly schemaStatus: 'ENVELOPE_ONLY' | 'FULL';
   readonly targetObjectType?: string;
-  readonly concurrencyMode?: 'CREATE';
+  readonly concurrencyMode?: 'CREATE' | 'MUTATE';
   readonly allowedConsistency?: readonly (
     'AUTHORITATIVE' | 'SNAPSHOT_AT_LEAST' | 'PROJECTION_OK'
   )[];

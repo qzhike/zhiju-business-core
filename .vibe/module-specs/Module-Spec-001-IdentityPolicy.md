@@ -822,9 +822,9 @@ Run start 的 Adapter 身份 Port 与候选扫描均为受信内部能力，不�
 Bundle Port 消费动作对应 `revalidateForResultSubmit/Record/Validate/Accept/Finalize`；expire 只用 `readIntegrityForExpiry` 和独立 `identity.execution_bundle.inspect.for_run_expire.v1` / `runExpireBundleInspectV1` 验证历史绑定，不重获执行能力。record/validate/accept/finalize 对上游 TE Result、判断 Bundle 或 Acceptance 的读取采用独立内部 source-read Decision，固定 action 分别为 `execution.agent_result.source.read.for_record.v1`、`execution.agent_result.source.read.for_validate.v1`、`execution.result_validation.source.read.for_accept.v1`、`execution.agent_result_acceptance.source.read.for_finalize.v1`，config key 为对应 `resultRecordSourceReadV1`、`resultValidateSourceReadV1`、`resultAcceptSourceReadV1`、`runFinalizeSourceReadV1`；这些 Port 不调用需要 Acceptance 的公开 `get_agent_result@1.0` 来读取半成品。各步自己的 Run Root 读取须先通过该步自身命令 Decision。缺任一源读取授权时不进入该源 repository；查询 IG 的 Attempt target 可从已授权 Run/Result 中取得，不先做无权发现。不能用 start Decision、历史 Receipt、Result Ref、Agent 自报 Usage 或 Event 代替任何一项。
 授权顺序：自身 Decision 和全部必需依赖 Decision 当前重验 → 各 Owner 权威读 → TE Run/Result/Claim 锁与比较 → 提交/历史 Receipt 返回前再次重验。Policy 取代、Grant 撤销、Bundle/Decision 到期或 Scope/ref/hash/actor 换绑，均不产生新 Result、Validation、Acceptance 或 terminal 成功事实；对已到期 Run 的 `expire_run`，不能要求已失效的执行 Bundle 重新获得**执行**资格，监控服务只需独立的 expiry/Run 读取授权和历史 Bundle 完整性证明，否则会使到期资源永久无法释放。历史事实保留审计，拒绝只产生脱敏 Audit。独立映射与零 protected read、持锁后撤权以及到期清理回归见 `IP-FINAL-D-*`；当前全部 `NOT RUN`。
 
-### 15.14 IM06-RECOVERY 有限恢复授权组成提案（#229）
+### 15.14 IM06-RECOVERY 有限恢复授权组成实现契约（#229）
 
-状态：`T2 DESIGN ONLY / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`。仅服务 [Spec 003 §24](Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)。已交付 §15.12/15.13 当前权限、完整Ref/Scope/hash/session/ActorSnapshot/Decision、锁后与Receipt返回前重验规则不变。新增映射是受信组成配置，不是公开authorize API变化；主动作和每项依赖均先通过自己的Decision，缺任一时对应protected read为0。不能由Process进度权限读取业务表。
+状态：`T2 / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / CONFIGURED VERIFICATION PENDING`。仅服务 [Spec 003 §24](Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)。已交付 §15.12/15.13 当前权限、完整Ref/Scope/hash/session/ActorSnapshot/Decision、锁后与Receipt返回前重验规则不变。新增映射是受信组成配置，不是公开authorize API变化；主动作和每项依赖均先通过自己的Decision，缺任一时对应protected read为0。不能由Process进度权限读取业务表。
 
 | 主动作 | 精确注册Purpose / Actor | action / target / config key |
 |---|---|---|
@@ -842,7 +842,7 @@ Bundle Port 消费动作对应 `revalidateForResultSubmit/Record/Validate/Accept
 
 EP propose/confirm逐字符复用metadata：`enterprise.project.propose_customer_material`、`enterprise.project.confirm_customer_material`，Actor HUMAN、完整 `zhiju.project.customer_material` target、EP自身covering Grant/CAS；不得使用Spec设计期短Purpose替换已发布值。EP Receipt Query继续 `project.resolution_receipt.read`。roleCode精确 `project.customer_material.confirmer`，是已有RoleAssignment机制的一项受控配置，不新增Role管理API；Runtime不能决定角色拥有者。Human retry也须当前显式 `execution.work_order.retry.schedule.v1` grant，不因confirmer role存在默认赋予retry。Agent和actingFor不代替上述Human动作；Service承载Resolver依赖读取不得替换Human的业务归因。
 
-以下表格定义每个consumer独立的完整依赖映射，避免跨步共享Decision。`<c>` 取值闭集为 `request_open`、`answer_submit`、`request_resolve`、`frozen_context_build`、`retry_schedule`、`work_order_reconcile`、`task_reconcile`、`work_order_state`、`task_state`、`bundle_issue`、`run_create`、`runtime_dispatch`、`run_start`、`result_submit`、`result_validate`、`driver_template`；config key=`recovery.<c>.<d>.v1`，action=表中模板替换值。每个组合仅授权所列Port的窄返回，不授权相同Root的其他读写；本设计要求配置文件逐条展开，不引入动态通配Grant/Policy解释器。
+以下表格定义每个consumer独立的完整依赖映射，避免跨步共享Decision。`<c>` 取值闭集为 `request_open`、`answer_submit`、`request_resolve`、`frozen_context_build`、`retry_schedule`、`work_order_reconcile`、`task_reconcile`、`work_order_state`、`task_state`、`bundle_issue`、`run_create`、`runtime_dispatch`、`run_start`、`result_submit`、`result_record`、`result_validate`、`result_accept`、`run_finalize`、`driver_template`；config key=`recovery.<c>.<d>.v1`，action=表中模板替换值。每个组合仅授权所列Port的窄返回，不授权相同Root的其他读写；本设计要求配置文件逐条展开，不引入动态通配Grant/Policy解释器。
 
 | dependency `<d>` / Purpose、精确target | 必需consumer `<c>` | 独立action模板 |
 |---|---|---|

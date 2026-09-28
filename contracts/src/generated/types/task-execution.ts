@@ -167,6 +167,59 @@ export namespace TaskExecution {
 };
   readonly expiresAt?: Common.UtcInstant;
 };
+  export type FrozenContextBuildRequestV11 = {
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+} & {
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly workOrderContractRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.contract.work_order";
+} & {
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly projectionType: Common.ProjectionType;
+  readonly purpose: Common.NamespaceCode;
+  readonly audience: Common.ObjectRef & {
+  readonly objectType?: "zhiju.identity.principal";
+} & {
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly sourceSlices: readonly (Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.context_source_slice";
+} & {
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+})[];
+  readonly answeredInformationRefs: readonly (Common.ContentAddressedRef & {
+  readonly objectType?: "execution.information_request_resolution";
+} & {
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+})[];
+  readonly builderPolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+} & {
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly expiresAt?: Common.UtcInstant;
+};
   export interface ContextBuildRequest {
   readonly workOrderRef: Common.ObjectRef;
   readonly workOrderContractRef: Common.ContentAddressedRef;
@@ -866,4 +919,86 @@ export namespace TaskExecution {
   readonly satisfiedFactRefs: readonly Common.TypedReference[];
   readonly completedAt: Common.UtcInstant;
 }
+  /** Payload of `execution.build_context_snapshot` (COMMAND). */
+  export interface ExecutionBuildContextSnapshotV11Payload {
+  readonly request: TaskExecution.FrozenContextBuildRequestV11;
+}
+  /** Result of `execution.build_context_snapshot` (COMMAND). */
+  export type ExecutionBuildContextSnapshotV11Result = {
+  readonly contextSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.execution.context_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
+  /** Payload of `execution.reconcile_task_execution` (COMMAND). */
+  export interface ExecutionReconcileTaskExecutionPayload {
+  readonly triggerRef: Common.TypedReference;
+}
+  /** Result of `execution.reconcile_task_execution` (COMMAND). */
+  export type ExecutionReconcileTaskExecutionResult = {
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+};
+  readonly status: "DRAFT" | "BACKLOG" | "READY" | "IN_PROGRESS" | "WAITING_INPUT" | "BLOCKED" | "IN_REVIEW" | "CHANGES_REQUIRED" | "COMPLETION_PENDING" | "COMPLETED" | "CANCELLED";
+};
+  /** Payload of `execution.get_task_state` (QUERY). */
+  export type ExecutionGetTaskStatePayload = {
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+};
+};
+  /** Result of `execution.get_task_state` (QUERY). */
+  export type ExecutionGetTaskStateResult = {
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+};
+  readonly aggregateVersion: Common.NonNegativeInteger;
+  readonly definitionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.task_definition_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly status: "DRAFT" | "BACKLOG" | "READY" | "IN_PROGRESS" | "WAITING_INPUT" | "BLOCKED" | "IN_REVIEW" | "CHANGES_REQUIRED" | "COMPLETION_PENDING" | "COMPLETED" | "CANCELLED";
+  readonly dependencyTaskRefs: readonly Common.ObjectRef[];
+  readonly workOrderRefs: readonly (Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+})[];
+  readonly blockerRefs: readonly Common.TypedReference[];
+  readonly completionUseStatus: "NOT_EVALUATED" | "USABLE" | "STALE" | "INVALIDATED";
+  readonly completionEvaluationRef?: Common.ContentAddressedRef;
+};
+  /** Payload of `execution.get_work_order_execution_state` (QUERY). */
+  export type ExecutionGetWorkOrderExecutionStatePayload = {
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+};
+};
+  /** Result of `execution.get_work_order_execution_state` (QUERY). */
+  export type ExecutionGetWorkOrderExecutionStateResult = {
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+};
+  readonly aggregateVersion: Common.NonNegativeInteger;
+  readonly status: "DRAFT" | "READY" | "QUEUED" | "RUNNING" | "WAITING_INPUT" | "COMPLETION_PENDING" | "RETRY_PENDING" | "COMPLETED" | "FAILED" | "CANCELLED" | "EXPIRED";
+  readonly workOrderContractRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.contract.work_order";
+};
+  readonly runRefs: readonly (Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+})[];
+  readonly informationRequestRefs: readonly (Common.ObjectRef & {
+  readonly objectType?: "execution.information_request";
+})[];
+  readonly blockerRefs: readonly Common.TypedReference[];
+  readonly retryEligibility: "NOT_APPLICABLE" | "WAITING_INPUT" | "READY_TO_SCHEDULE" | "SCHEDULED" | "CONSUMED" | "EXHAUSTED" | "STALE";
+  readonly checkedAt: Common.UtcInstant;
+  readonly activeRunRef?: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+};
 }

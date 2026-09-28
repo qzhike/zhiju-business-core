@@ -60,6 +60,27 @@ function exactObjectType(reference: unknown, objectType: string): JsonSchema {
   };
 }
 
+function projectReference(reference: unknown, objectType: string): JsonSchema {
+  return {
+    allOf: [
+      exactObjectType(reference, objectType),
+      {
+        type: 'object',
+        properties: {
+          scope: {
+            type: 'object',
+            required: ['enterpriseId', 'projectId'],
+            properties: {
+              enterpriseId: { $ref: `${common}uuidV7` },
+              projectId: { $ref: `${common}uuidV7` },
+            },
+          },
+        },
+      },
+    ],
+  };
+}
+
 const uuid = { $ref: `${common}uuidV7` } as const;
 const namespace = { $ref: `${common}namespaceCode` } as const;
 const reasonCode = { $ref: `${common}reasonCode` } as const;
@@ -638,6 +659,38 @@ const namedDefinitions = {
       audience: principalReference,
       sourceSlices: array(sourceSliceReference, { nonEmpty: true, unique: true }),
       builderPolicyRef: builderPolicyReference,
+      expiresAt: instant,
+    },
+  ),
+  frozenContextBuildRequestV11: object(
+    [
+      'workOrderRef',
+      'workOrderContractRef',
+      'projectionType',
+      'purpose',
+      'audience',
+      'sourceSlices',
+      'answeredInformationRefs',
+      'builderPolicyRef',
+    ],
+    {
+      workOrderRef: projectReference(objectReference, 'zhiju.execution.work_order'),
+      workOrderContractRef: projectReference(
+        contentAddressedReference,
+        'zhiju.contract.work_order',
+      ),
+      projectionType: { $ref: `${common}projectionType` },
+      purpose: namespace,
+      audience: projectReference(objectReference, 'zhiju.identity.principal'),
+      sourceSlices: array(
+        projectReference(contentAddressedReference, 'zhiju.project.context_source_slice'),
+        { nonEmpty: true, unique: true },
+      ),
+      answeredInformationRefs: array(
+        projectReference(contentAddressedReference, 'execution.information_request_resolution'),
+        { nonEmpty: true, unique: true },
+      ),
+      builderPolicyRef: projectReference(versionedReference, 'zhiju.identity.policy'),
       expiresAt: instant,
     },
   ),
@@ -1452,6 +1505,97 @@ const versionedOperationSchemas: readonly VersionedOperationContractSchema[] = [
     version: '1.0' as const,
     ...contract,
   })),
+  {
+    type: 'execution.build_context_snapshot',
+    version: '1.1',
+    payload: object(['request'], { request: localRef('frozenContextBuildRequestV11') }),
+    result: object(['contextSnapshotRef'], { contextSnapshotRef: contextSnapshotReference }),
+  },
+  {
+    type: 'execution.reconcile_task_execution',
+    version: '1.0',
+    payload: object(['triggerRef'], { triggerRef: typedReference }),
+    result: object(['taskRef', 'status'], {
+      taskRef: exactObjectType(objectReference, 'zhiju.execution.task'),
+      status: taskStatus,
+    }),
+  },
+  {
+    type: 'execution.get_task_state',
+    version: '1.0',
+    payload: object(['taskRef'], {
+      taskRef: exactObjectType(objectReference, 'zhiju.execution.task'),
+    }),
+    result: object(
+      [
+        'taskRef',
+        'aggregateVersion',
+        'definitionRef',
+        'status',
+        'dependencyTaskRefs',
+        'workOrderRefs',
+        'blockerRefs',
+        'completionUseStatus',
+      ],
+      {
+        taskRef: exactObjectType(objectReference, 'zhiju.execution.task'),
+        aggregateVersion: losslessNonNegativeInt,
+        definitionRef: taskDefinitionSnapshotReference,
+        status: taskStatus,
+        dependencyTaskRefs: array(objectReference, { unique: true }),
+        workOrderRefs: array(workOrderObjectReference, { unique: true }),
+        blockerRefs: array(typedReference, { unique: true }),
+        completionUseStatus: { enum: ['NOT_EVALUATED', 'USABLE', 'STALE', 'INVALIDATED'] },
+        completionEvaluationRef: contentAddressedReference,
+      },
+    ),
+  },
+  {
+    type: 'execution.get_work_order_execution_state',
+    version: '1.0',
+    payload: object(['workOrderRef'], { workOrderRef: workOrderObjectReference }),
+    result: object(
+      [
+        'workOrderRef',
+        'aggregateVersion',
+        'status',
+        'workOrderContractRef',
+        'runRefs',
+        'informationRequestRefs',
+        'blockerRefs',
+        'retryEligibility',
+        'checkedAt',
+      ],
+      {
+        workOrderRef: workOrderObjectReference,
+        aggregateVersion: losslessNonNegativeInt,
+        status: workOrderStatus,
+        workOrderContractRef: exactObjectType(
+          contentAddressedReference,
+          'zhiju.contract.work_order',
+        ),
+        runRefs: array(exactObjectType(objectReference, 'execution.run'), { unique: true }),
+        informationRequestRefs: array(
+          exactObjectType(objectReference, 'execution.information_request'),
+          { unique: true },
+        ),
+        blockerRefs: array(typedReference, { unique: true }),
+        retryEligibility: {
+          enum: [
+            'NOT_APPLICABLE',
+            'WAITING_INPUT',
+            'READY_TO_SCHEDULE',
+            'SCHEDULED',
+            'CONSUMED',
+            'EXHAUSTED',
+            'STALE',
+          ],
+        },
+        checkedAt: instant,
+        activeRunRef: exactObjectType(objectReference, 'execution.run'),
+      },
+    ),
+  },
   {
     type: 'execution.create_task',
     version: '2.0',

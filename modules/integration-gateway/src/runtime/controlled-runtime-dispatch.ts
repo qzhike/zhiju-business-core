@@ -84,6 +84,10 @@ export interface ControlledRuntimeDispatchPorts {
   readonly now: () => Date;
   readonly revalidateAuthorization: () => Promise<void>;
   readonly readDispatchBinding: (runRef: Common.ObjectRef) => Promise<Binding>;
+  readonly readFrozenEligibility?: (
+    contextRef: CanonicalJsonObject,
+    contractRef: CanonicalJsonObject,
+  ) => Promise<CanonicalJsonObject>;
   readonly readBundle: (
     bundleRef: Common.ContentAddressedRef,
     runRef: Common.ObjectRef,
@@ -219,7 +223,7 @@ async function validateDependencies(
     !same(binding.capabilityGrantRef, request.capabilityGrantRef) ||
     !same(binding.runtimeBinding, request.runtimeBinding) ||
     !same(binding.runtimeBinding, RUNTIME) ||
-    binding.fencingToken !== 1 ||
+    ![1, 2].includes(binding.fencingToken) ||
     binding.aggregateVersion !== 1 ||
     !binding.leaseId ||
     !request.stableIdempotencyKey ||
@@ -227,6 +231,21 @@ async function validateDependencies(
   )
     invalid();
   assertLive(now, binding.leaseExpiresAt, binding.executionDeadline);
+  if (binding.fencingToken === 2) {
+    if (!ports.readFrozenEligibility) invalid();
+    const eligibility = await ports.readFrozenEligibility(
+      request.contextSnapshotRef as unknown as CanonicalJsonObject,
+      request.workOrderContractRef as unknown as CanonicalJsonObject,
+    );
+    if (
+      eligibility.useStatus !== 'USABLE' ||
+      typeof eligibility.validUntil !== 'string' ||
+      !same(eligibility.contextSnapshotRef, request.contextSnapshotRef) ||
+      !same(eligibility.workOrderContractRef, request.workOrderContractRef)
+    )
+      invalid();
+    assertLive(ports.now(), eligibility.validUntil);
+  }
   const bundle = await ports.readBundle(request.capabilityGrantRef, request.runRef);
   if (
     bundle.useStatus !== 'USABLE' ||

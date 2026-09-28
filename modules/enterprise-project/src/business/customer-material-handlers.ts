@@ -216,10 +216,11 @@ function customerMaterialRef(
   projectId: string,
   customerMaterialId: string,
   versionId: string,
+  canonical = false,
 ): Common.VersionedRef {
   return {
     kind: 'VERSIONED',
-    objectType: 'CustomerMaterial',
+    objectType: canonical ? 'zhiju.project.customer_material' : 'CustomerMaterial',
     objectId: customerMaterialId,
     versionId,
     scope: { enterpriseId, projectId },
@@ -251,7 +252,7 @@ function assertProjectRef(
   const projectId = reference.objectId;
   if (
     reference.kind !== 'OBJECT' ||
-    reference.objectType !== 'Project' ||
+    !['Project', 'zhiju.project.project'].includes(String(reference.objectType)) ||
     typeof projectId !== 'string' ||
     !isUuidV7(projectId) ||
     scope?.enterpriseId !== context.enterpriseId ||
@@ -278,7 +279,9 @@ function assertCandidateRef(
   const projectId = scope?.projectId;
   if (
     reference.kind !== 'VERSIONED' ||
-    reference.objectType !== 'CustomerMaterial' ||
+    !['CustomerMaterial', 'zhiju.project.customer_material'].includes(
+      String(reference.objectType),
+    ) ||
     typeof reference.objectId !== 'string' ||
     !isUuidV7(reference.objectId) ||
     typeof reference.versionId !== 'string' ||
@@ -419,7 +422,9 @@ function validateSourceSelection(
   const scope = asScopeLike(sourceMaterial.scope);
   if (
     sourceMaterial.kind !== 'CONTENT_ADDRESSED' ||
-    sourceMaterial.objectType !== 'SourceMaterial' ||
+    !['SourceMaterial', 'zhiju.project.source_material'].includes(
+      String(sourceMaterial.objectType),
+    ) ||
     typeof sourceMaterial.objectId !== 'string' ||
     !isUuidV7(sourceMaterial.objectId) ||
     sourceMaterial.immutableVersionId !== undefined ||
@@ -918,6 +923,7 @@ export async function handleProposeCustomerMaterial(
   db: Kysely<EnterpriseProjectDb>,
   context: EnterpriseProjectTransactionContext,
   envelope: CommandEnvelope & { payload: ProposeCustomerMaterialPayload },
+  revalidateAuthorization?: () => Promise<void>,
 ): Promise<CommandResult> {
   const projectId = assertProjectRef(envelope.payload.projectRef, context, envelope);
   const classification = validateClassification(
@@ -925,7 +931,8 @@ export async function handleProposeCustomerMaterial(
     context.enterpriseId,
     projectId,
   );
-  const customerMaterialId = newUuidV7();
+  const canonical = envelope.targetType === 'zhiju.project.customer_material';
+  const customerMaterialId = canonical ? envelope.targetId : newUuidV7();
   const versionId = newUuidV7();
   const decisionId = newUuidV7();
   const versionPayload = {
@@ -963,7 +970,7 @@ export async function handleProposeCustomerMaterial(
     targetId: customerMaterialId,
   };
 
-  return executeEnterpriseProjectCommand(db, context, normalizedEnvelope, async (execution) => {
+  const body: Parameters<typeof executeEnterpriseProjectCommand>[3] = async (execution) => {
     const project = await repo.getProjectById(execution.trx, projectId);
     if (project?.enterprise_id !== context.enterpriseId || project.status !== 'ACTIVE') {
       return {
@@ -1099,6 +1106,7 @@ export async function handleProposeCustomerMaterial(
           projectId,
           customerMaterialId,
           versionId,
+          canonical,
         ),
         projectRef: projectRef(context.enterpriseId, projectId),
         proposalDecisionRef: businessDecisionRef(
@@ -1113,7 +1121,14 @@ export async function handleProposeCustomerMaterial(
         payloadHash: versionDigest.hash.toString('hex'),
       } as unknown as CanonicalJsonObject,
     };
-  });
+  };
+  return executeEnterpriseProjectCommand(
+    db,
+    context,
+    normalizedEnvelope,
+    body,
+    revalidateAuthorization,
+  );
 }
 
 // =====================================================================
@@ -1282,9 +1297,19 @@ export async function handleConfirmCustomerMaterial(
   db: Kysely<EnterpriseProjectDb>,
   context: EnterpriseProjectTransactionContext,
   envelope: CommandEnvelope & { payload: ConfirmCustomerMaterialPayload },
+  revalidateAuthorization?: () => Promise<void>,
 ): Promise<CommandResult> {
   assertHumanOnly(context, envelope, envelope.payload);
   const candidate = assertCandidateRef(envelope.payload.candidateVersionRef, context, envelope);
+  if (
+    envelope.targetType === 'zhiju.project.customer_material' &&
+    envelope.targetId !== candidate.customerMaterialId
+  ) {
+    throw new CommandExecutionError(
+      'COMMAND_TARGET_MISMATCH',
+      'confirmation target must match the exact candidate root',
+    );
+  }
   const completeness = validateCompleteness(envelope.payload.completeness);
   const declaredStatus = nonEmptyString(envelope.payload.declaredStatus, 'declaredStatus');
   const evidenceRefs = validateEvidenceRefs(
@@ -1308,6 +1333,7 @@ export async function handleConfirmCustomerMaterial(
     declaredStatus,
     evidenceRefs,
     justification,
+    revalidateAuthorization,
   );
 }
 
@@ -1320,6 +1346,7 @@ async function confirmCustomerMaterialAfterRead(
   declaredStatus: string,
   evidenceRefs: readonly CanonicalJsonValue[],
   justification: CanonicalJsonObject,
+  revalidateAuthorization?: () => Promise<void>,
 ): Promise<CommandResult> {
   const current = await withEnterpriseProjectTransaction(db, context, (trx) =>
     repo.getCustomerMaterialById(trx, candidate.customerMaterialId),
@@ -1333,7 +1360,7 @@ async function confirmCustomerMaterialAfterRead(
     targetId: candidate.customerMaterialId,
     ...(expectedAggregateVersion === undefined ? {} : { expectedAggregateVersion }),
   };
-  return executeEnterpriseProjectCommand(db, context, normalizedEnvelope, async (execution) => {
+  const body: Parameters<typeof executeEnterpriseProjectCommand>[3] = async (execution) => {
     const root = await repo.getCustomerMaterialById(execution.trx, candidate.customerMaterialId);
     if (root === undefined) {
       return {
@@ -1707,6 +1734,7 @@ async function confirmCustomerMaterialAfterRead(
           candidate.projectId,
           candidate.customerMaterialId,
           newVersionId,
+          envelope.targetType === 'zhiju.project.customer_material',
         ),
         projectRef: projectRef(context.enterpriseId, candidate.projectId),
         materialType: candidateVersion.material_type,
@@ -1719,5 +1747,12 @@ async function confirmCustomerMaterialAfterRead(
         payloadHash: versionDigest.hash.toString('hex'),
       } as unknown as CanonicalJsonObject,
     };
-  });
+  };
+  return executeEnterpriseProjectCommand(
+    db,
+    context,
+    normalizedEnvelope,
+    body,
+    revalidateAuthorization,
+  );
 }

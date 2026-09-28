@@ -121,6 +121,8 @@ export interface ProcessInstanceTable {
   controlled_final_bundle_ref?: Json | null;
   controlled_final_validation_refs?: Json | null;
   controlled_final_acceptance_ref?: Json | null;
+  recovery_step?: number | null;
+  last_recovery_command_id?: string | null;
   controlled_final_step?: 'SUBMIT' | 'RECORD' | 'VALIDATE' | 'ACCEPT' | 'FINALIZE' | 'DONE' | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;

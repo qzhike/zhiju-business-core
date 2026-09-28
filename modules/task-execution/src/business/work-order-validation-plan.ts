@@ -323,11 +323,12 @@ export function evaluateWorkOrderPlan(input: WorkOrderPlanInput) {
         risk.humanReviewRequired === true,
     );
     supported(
-      execution.maxAttempts === 1 &&
+      execution.maxAttempts === (controls.rules.recovery === undefined ? 1 : 2) &&
         execution.resumePolicy === 'new_run_only' &&
         execution.fallbackPolicy === 'human_intervention',
     );
-    empty(execution.retryableOutcomes);
+    if (controls.rules.recovery === undefined) empty(execution.retryableOutcomes);
+    else supported(same(execution.retryableOutcomes, ['BLOCKED_INPUT']));
     supported(
       harness.requiredHarness === 'zhiju.runtime.synthetic' &&
         same(harness.preferredHarnesses, ['zhiju.runtime.synthetic']) &&
@@ -346,6 +347,11 @@ export function evaluateWorkOrderPlan(input: WorkOrderPlanInput) {
         (k) => budget[k] !== undefined,
       ),
     );
+    if (controls.rules.recovery !== undefined)
+      supported(
+        budget.wallClockLimit !== undefined &&
+          ['tokenLimit', 'toolCallLimit', 'monetaryLimit'].every((k) => budget[k] === undefined),
+      );
     if (budget.wallClockLimit !== undefined)
       supported(
         typeof budget.wallClockLimit === 'string' &&

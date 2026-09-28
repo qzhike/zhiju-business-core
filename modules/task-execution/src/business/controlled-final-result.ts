@@ -8,6 +8,8 @@ import {
   type CanonicalJsonValue,
 } from '@zhiju/shared-kernel';
 import type { Kysely, Selectable } from 'kysely';
+import { sql } from 'kysely';
+import { validateRecoveryFinal } from './recovery-final-profile.js';
 
 import {
   executeTaskExecutionCommand,
@@ -38,6 +40,11 @@ const validationKinds = ['SCHEMA', 'IDENTITY', 'RUN_BINDING', 'SCOPE', 'BUSINESS
 type RunRow = Selectable<RunTable>;
 
 export interface ControlledFinalPorts {
+  readonly readRecoveryMaterial?: (input: CanonicalJsonObject) => Promise<CanonicalJsonObject>;
+  readonly readFrozenEligibility?: (
+    contextRef: CanonicalJsonObject,
+    contractRef: CanonicalJsonObject,
+  ) => Promise<CanonicalJsonObject>;
   readonly now: () => Date;
   readonly authorizationValidUntil: () => Date;
   readonly revalidateAuthorization: () => Promise<void>;
@@ -245,7 +252,6 @@ async function evidence(
       same(result.projectRef, frozenContract.projectRef) &&
       same(result.submittedByRuntime, adapterRef) &&
       result.submissionKind === 'FINAL' &&
-      result.executionOutcome === 'COMPLETED' &&
       Array.isArray(result.businessOutputs) &&
       result.businessOutputs.length === 0 &&
       Array.isArray(result.workspaceOutputs) &&
@@ -255,13 +261,26 @@ async function evidence(
       Array.isArray(result.knowledgeProposals) &&
       result.knowledgeProposals.length === 0 &&
       Array.isArray(result.inputRequestProposals) &&
-      result.inputRequestProposals.length === 0 &&
       Array.isArray(result.followUpProposals) &&
       result.followUpProposals.length === 0 &&
       result.runtimeUsageRef === undefined &&
       result.continuationProposal === undefined,
     'EXECUTION_CRITERION_UNSUPPORTED',
   );
+  await validateRecoveryFinal(
+    result,
+    frozenContract,
+    run.attempt_number,
+    ports.readRecoveryMaterial,
+  );
+  if (requireCurrent && run.attempt_number === 2) {
+    requireThat(ports.readFrozenEligibility !== undefined);
+    const eligibility = await ports.readFrozenEligibility(
+      object(run.context_snapshot_ref),
+      object(run.work_order_contract_ref),
+    );
+    requireThat(eligibility.useStatus === 'USABLE', 'EXECUTION_CONTEXT_SOURCE_INVALID');
+  }
   requireThat(
     registry.validateCoreContract('https://schemas.zhiju.local/core/agent-result/1.0', result)
       .valid,
@@ -1556,6 +1575,13 @@ export async function handleFinalizeFirstRun(
         .where('status', '=', 'ACTIVE')
         .executeTakeFirst();
       requireThat(Number(claimUpdate.numUpdatedRows) === 1, 'CONCURRENCY_CONFLICT');
+      await sql`INSERT INTO task_execution.run_budget_consumption(run_id,enterprise_id,project_id,ended_at,effective_bound,consumed_seconds,source_command_id)
+        SELECT r.run_id,r.enterprise_id,r.project_id,${endedAt},least(${endedAt},r.execution_deadline,r.lease_expires_at),
+        least(b.reserved_seconds,greatest(0,ceil(extract(epoch FROM (least(${endedAt},r.execution_deadline,r.lease_expires_at)-r.created_at)))::integer)),${envelope.commandId}
+        FROM task_execution.run r JOIN task_execution.run_budget_reservation b USING(run_id) WHERE r.run_id=${run.run_id}`.execute(
+        execution.trx,
+      );
+
       await appendFinalEdge(execution, envelope, '/acceptanceRecordRef', acceptanceRef);
       await appendEvent(
         execution,
@@ -1660,6 +1686,13 @@ export async function handleExpireFirstRun(
         .where('status', '=', 'ACTIVE')
         .executeTakeFirst();
       requireThat(Number(claimUpdate.numUpdatedRows) === 1, 'CONCURRENCY_CONFLICT');
+      await sql`INSERT INTO task_execution.run_budget_consumption(run_id,enterprise_id,project_id,ended_at,effective_bound,consumed_seconds,source_command_id)
+        SELECT r.run_id,r.enterprise_id,r.project_id,${endedAt},least(${endedAt},r.execution_deadline,r.lease_expires_at),
+        least(b.reserved_seconds,greatest(0,ceil(extract(epoch FROM (least(${endedAt},r.execution_deadline,r.lease_expires_at)-r.created_at)))::integer)),${envelope.commandId}
+        FROM task_execution.run r JOIN task_execution.run_budget_reservation b USING(run_id) WHERE r.run_id=${run.run_id}`.execute(
+        execution.trx,
+      );
+
       await appendEvent(
         execution,
         envelope,

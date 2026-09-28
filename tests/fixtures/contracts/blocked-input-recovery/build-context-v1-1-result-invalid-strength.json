@@ -1,0 +1,17 @@
+{
+  "contextSnapshotRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.execution.context_snapshot",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d439",
+    "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d443",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

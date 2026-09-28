@@ -1063,10 +1063,10 @@ Issue #224 实现会话中，用户对“本 Issue 新增定时 worker 宿主，
 | 唯一权威 | 待评审内容 |
 |---|---|
 | [Spec 003 §24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229) | 现状/分类表、profile、proposal→Request、Human answer/Resolution、FROZEN Context、retry intent/预算、四个public增量的完整request/result/error、权威读回 |
-| [Spec 001 §15.14](../module-specs/Module-Spec-001-IdentityPolicy.md#1514-im06-recovery-有限恢复授权组成提案229) | Human/Service各步精确Purpose/action/config/target，历史确认证明与当前权限分离，Bundle新Context资格 |
-| [Spec 002 #229](../module-specs/Module-Spec-002-EnterpriseProject.md#229-确认-receipt-ref-的授权发现与复用边界提案) | 真实confirmation规范Receipt Ref可取得的窄Port；复用已发布attestation及Source路径 |
-| [Spec 007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射提案) / [Runtime专项](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md#229-两次受控-invocation-的有限恢复-profile提案) | 固定模板、真实调用、原final字节与Session来源、两次独立Invocation，IG不判断恢复资格 |
-| [Catalog #229](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#229-blocked_input-恢复的-additive-注册提案) / [共享API](../api-contract-v0.1/API-Contract-v0.1.md#229-有限恢复的兼容与证明边界提案) | 四项新增operation/version、Ref/profile身份与现行226/53/200冻结边界 |
+| [Spec 001 §15.14](../module-specs/Module-Spec-001-IdentityPolicy.md#1514-im06-recovery-有限恢复授权组成实现契约229) | Human/Service各步精确Purpose/action/config/target，历史确认证明与当前权限分离，Bundle新Context资格 |
+| [Spec 002 #229](../module-specs/Module-Spec-002-EnterpriseProject.md#229-确认-receipt-ref-的授权发现与复用边界实现契约) | 真实confirmation规范Receipt Ref可取得的窄Port；复用已发布attestation及Source路径 |
+| [Spec 007 #229](../module-specs/Module-Spec-007-IntegrationGateway.md#229-受控-blocked_input-与第二-invocation-映射实现契约) / [Runtime专项](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md#229-两次受控-invocation-的有限恢复-profile提案) | 固定模板、真实调用、原final字节与Session来源、两次独立Invocation，IG不判断恢复资格 |
+| [Catalog #229](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#229-blocked_input-恢复的-additive-注册) / [共享API](../api-contract-v0.1/API-Contract-v0.1.md#229-有限恢复的兼容与证明边界提案) | 四项新增operation/version、Ref/profile身份与现行226/53/200冻结边界 |
 | [PostgreSQL §39](../high-level-docs/07-postgresql-logical-model-v0.1.md#39-blocked_input-有限恢复的前向持久化设计229) | 单Root/附属事实事务、source/answer/resolution/intent唯一性、frozen metadata、累计预算、Process commit-before-progress |
 | owning Module-Test 001/002/003/007 的 `*-REC-D-*` | 少量正向、必要反例和fault；逐层证据全部NOT RUN，复用旧矩阵约束不复制全部组合 |
 

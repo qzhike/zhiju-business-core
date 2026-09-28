@@ -1585,6 +1585,34 @@
       "authorizationPurpose": "execution.run.expire",
       "dataClassification": "INTERNAL",
       "semanticDeclaration": "im-06-controlled-final-v1.0"
+    },
+    {
+      "type": "execution.build_context_snapshot",
+      "version": "1.1",
+      "authorizationPurpose": "task.execution.build_context_snapshot",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im06-bounded-recovery-v1"
+    },
+    {
+      "type": "execution.reconcile_task_execution",
+      "version": "1.0",
+      "authorizationPurpose": "execution.task.reconcile",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im06-bounded-recovery-v1"
+    },
+    {
+      "type": "execution.get_task_state",
+      "version": "1.0",
+      "authorizationPurpose": "execution.task.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "im06-bounded-recovery-v1"
+    },
+    {
+      "type": "execution.get_work_order_execution_state",
+      "version": "1.0",
+      "authorizationPurpose": "execution.work_order.execution_state.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "im06-bounded-recovery-v1"
     }
   ]
 }

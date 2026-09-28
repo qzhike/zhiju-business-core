@@ -267,10 +267,10 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 ## #229 有限恢复授权设计矩阵
 
-状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`；[Spec001 §15.14](../module-specs/Module-Spec-001-IdentityPolicy.md#1514-im06-recovery-有限恢复授权组成提案229)。复用现有IP-RUN/IP-FINAL基础，不扩大#224已执行/延后口径。
+状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / CONFIGURED FULL VERIFICATION PENDING / REQUIRED SUBCASES PENDING`；[Spec001 §15.14](../module-specs/Module-Spec-001-IdentityPolicy.md#1514-im06-recovery-有限恢复授权组成实现契约229)。复用现有IP-RUN/IP-FINAL基础，不扩大#224已执行/延后口径。
 
 | ID | 输入 / 必需证据层级 | 预期 / 结果 |
 |---|---|---|
-| IP-REC-D-001 | Unit/entry+PostgreSQL；合法同Human confirmation/responder/resolver/currentRole，对照Agent、actingFor、他人session、role缺失/撤销、旧Decision替代当前依赖Decision | Human-only与逐consumer action/Purpose/target/hash/Scope/session映射成立；缺一Grant对应protected read为0，Service读proof不能成为业务resolver；NOT RUN |
-| IP-REC-D-002 | Owning历史Decision/ActorSnapshot与EPReceipt；真实confirm旧Decision已到期，但当时有效；对照错confirm operation/payloadHash/target/Scope、历史不可查及当前Role/Grant撤销 | 历史committedAt证明与当下权限分离；合法旧证明不因时间流逝消失，当前撤权仍禁止新恢复；不构造EP未保存的IP Hash；NOT RUN |
-| IP-REC-D-003 | PostgreSQL/current Ports；Run-2Bundle新Context/原Contract/Resolution/Service target合法，对照旧Bundle、Context-1/错Resolution、Controls/Builder取代、锁后期限/撤权、重放 | Bundle不增权限，当前覆盖/有限最小期限/Context eligibility必需；坏绑定无Bundle或Run成功；真实grant PolicySnapshot supersession随owning写能力继续NOT RUN，现有UNIT不可替代；NOT RUN |
+| IP-REC-D-001 | Unit/entry+PostgreSQL；合法同Human confirmation/responder/resolver/currentRole，对照Agent、actingFor、他人session、role缺失/撤销、旧Decision替代当前依赖Decision | Human-only与逐consumer action/Purpose/target/hash/Scope/session映射成立；缺一Grant对应protected read为0，Service读proof不能成为业务resolver；PARTIAL：同 Human、wrong responder/session、逐 consumer 当前依赖映射与 Grant 拒绝、Role 撤销已实现 owning 断言；Agent/actingFor 及其它未列 Human 变体的专门场景 NOT RUN。 |
+| IP-REC-D-002 | Owning历史Decision/ActorSnapshot与EPReceipt；真实confirm旧Decision已到期，但当时有效；对照错confirm operation/payloadHash/target/Scope、历史不可查及当前Role/Grant撤销 | 历史committedAt证明与当下权限分离；合法旧证明不因时间流逝消失，当前撤权仍禁止新恢复；不构造EP未保存的IP Hash；PARTIAL：真实 EP committedAt/原 Decision/Actor、历史 Decision 已到期仍有效、错 target/hash/Actor/Decision/time 与当前 Role/Grant 撤销已实现 owning 断言；错确认 operation/purpose 的专门变体 NOT RUN。 |
+| IP-REC-D-003 | PostgreSQL/current Ports；Run-2Bundle新Context/原Contract/Resolution/Service target合法，对照旧Bundle、Context-1/错Resolution、Controls/Builder取代、锁后期限/撤权、重放 | Bundle不增权限，当前覆盖/有限最小期限/Context eligibility必需；坏绑定无Bundle或Run成功；真实grant PolicySnapshot supersession随owning写能力继续NOT RUN，现有UNIT不可替代；PARTIAL：真实新 Context/Bundle/有限上界、当前失效 Context Bundle 拒绝与历史 bytes 保留已实现 owning 断言；Controls/Builder 取代与持锁跨期恢复专门场景 NOT RUN；真实 Grant PolicySnapshot lifecycle 继续 NOT RUN。 |

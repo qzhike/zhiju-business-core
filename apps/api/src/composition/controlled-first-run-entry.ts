@@ -23,6 +23,8 @@ import {
   handleGetWorkOrderContract,
   handleQueueWorkOrder,
   handleReconcileFirstRun,
+  handleReconcileRecoveryRoot,
+  type RecoveryConsumer,
   handleStartFirstRun,
   type CommandEnvelope,
   type ControlledFirstRunPorts,
@@ -47,6 +49,12 @@ import {
   sessionAuthenticationContextHash,
   type DecisionRow,
 } from './decision-boundary.js';
+import {
+  createRecoveryDependencyPorts,
+  readFrozenEligibilityForConsumer,
+  type BlockedInputRecoveryEntryConfig,
+  type RecoverySession,
+} from './blocked-input-recovery-entry.js';
 import type { InitialContextEntryConfig, InitialContextSession } from './initial-context-entry.js';
 import { createWorkOrderDependencyReads } from './work-order-dependency-reads.js';
 
@@ -59,6 +67,10 @@ export interface ControlledFirstRunEntryConfig extends Omit<
   readonly integrationGatewayDb: Kysely<IntegrationRendererDb>;
   readonly runtimeDriver: SyntheticRuntimeDriver;
   readonly receiptStorage: RenderObjectStoragePort;
+  readonly recovery?: Pick<
+    BlockedInputRecoveryEntryConfig,
+    'recoveryCapabilityCodes' | 'humanCapabilityCodes'
+  >;
 }
 
 /** The transport records the trusted start instant before signing the Decision. */
@@ -255,11 +267,58 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
     return { envelope, payload, target, row, context, internal, mint, revalidateAll, expiries };
   }
 
+  function recoveryPorts(
+    prepared: Awaited<ReturnType<typeof prepare>>,
+    session: ControlledFirstRunSession,
+  ) {
+    if (config.recovery === undefined) return undefined;
+    const consumer = (
+      {
+        'identity.issue_execution_capability_bundle': 'bundle_issue',
+        'execution.create_run': 'run_create',
+        'integration.request_runtime_dispatch': 'runtime_dispatch',
+        'execution.start_run': 'run_start',
+        'execution.reconcile_work_order_execution': 'work_order_reconcile',
+        'execution.submit_agent_result': 'result_submit',
+        'execution.record_run_result': 'result_record',
+        'execution.validate_agent_result': 'result_validate',
+        'execution.accept_agent_result': 'result_accept',
+        'execution.finalize_run_from_acceptance': 'run_finalize',
+      } as Record<string, RecoveryConsumer>
+    )[prepared.internal.commandType];
+    if (consumer === undefined) return undefined;
+    if (!(session.serviceEntryAt instanceof Date))
+      entryError('API_VALUE_INVALID', 'trusted recovery entry time required');
+    const recoveryConfig = { ...config, ...config.recovery };
+    const recoverySession = session as RecoverySession;
+    const ports = createRecoveryDependencyPorts(
+      recoveryConfig,
+      prepared.row,
+      recoverySession,
+      consumer,
+      prepared.revalidateAll,
+    );
+    return {
+      ports,
+      eligibility: (contextRef: CanonicalJsonObject, contractRef: CanonicalJsonObject) =>
+        readFrozenEligibilityForConsumer(
+          recoveryConfig,
+          prepared.row,
+          recoverySession,
+          consumer,
+          prepared.revalidateAll,
+          contextRef,
+          contractRef,
+        ),
+    };
+  }
+
   function ports(
     prepared: Awaited<ReturnType<typeof prepare>>,
     session: ControlledFirstRunSession,
   ): ControlledFirstRunPorts {
     const { row, context, mint, revalidateAll, expiries } = prepared;
+    const recovery = recoveryPorts(prepared, session);
     const readers = createWorkOrderDependencyReads(config, row, session);
     const revalidateDependencies = async () => {
       await revalidateAll();
@@ -284,6 +343,9 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
         : mint(`${prefix}ContextReadV1` as Boundary, ref);
     return {
       now,
+      ...(recovery === undefined
+        ? {}
+        : { recovery: recovery.ports, readFrozenEligibility: recovery.eligibility }),
       trustedStartedAt:
         session.serviceEntryAt instanceof Date && Number.isFinite(session.serviceEntryAt.getTime())
           ? session.serviceEntryAt.toISOString()
@@ -383,6 +445,7 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
     session: ControlledFirstRunSession,
   ): ControlledFinalPorts {
     const { mint, revalidateAll, row } = prepared;
+    const recovery = recoveryPorts(prepared, session);
     const consumer = prepared.internal.commandType;
     const readers = createWorkOrderDependencyReads(config, row, session);
     const keys = (
@@ -440,6 +503,12 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
     const proofFor = async (key: Boundary, ref: CanonicalJsonObject) => mint(key, ref);
     return {
       now,
+      ...(recovery === undefined
+        ? {}
+        : {
+            readRecoveryMaterial: recovery.ports.readMaterial,
+            readFrozenEligibility: recovery.eligibility,
+          }),
       authorizationValidUntil: () =>
         new Date(Math.min(...prepared.expiries.map((expiry) => Date.parse(expiry)))),
       revalidateAuthorization: async () => {
@@ -565,7 +634,9 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
       return result;
     }
     if (type === 'execution.reconcile_work_order_execution')
-      return handleReconcileFirstRun(config.taskExecutionDb, context, internal, p);
+      return p.recovery === undefined
+        ? handleReconcileFirstRun(config.taskExecutionDb, context, internal, p)
+        : handleReconcileRecoveryRoot(config.taskExecutionDb, context, internal, p.recovery);
     if (type !== 'integration.request_runtime_dispatch')
       entryError('API_CONTRACT_TYPE_UNKNOWN', 'unsupported first Run command');
     const request = record(payload.request) as CanonicalJsonObject;
@@ -576,6 +647,9 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
       {
         now,
         revalidateAuthorization: p.revalidateAuthorization,
+        ...(p.readFrozenEligibility === undefined
+          ? {}
+          : { readFrozenEligibility: p.readFrozenEligibility }),
         readDispatchBinding: async (runRef) => {
           const proof = await mint(
             'runDispatchBindingReadV1',

@@ -13,6 +13,8 @@ export interface WorkOrderQueue {
 }
 
 export interface FirstRunCreate {
+  attemptNumber?: number;
+  fencingToken?: string;
   runId: string;
   enterpriseId: string;
   projectId: string;
@@ -30,6 +32,8 @@ export interface FirstRunCreate {
 }
 
 export interface FirstRunClaim {
+  attemptNumber?: number;
+  fencingToken?: string;
   runId: string;
   workOrderId: string;
   enterpriseId: string;
@@ -149,11 +153,11 @@ export class FirstRunRepository {
         work_order_contract_ref: canonicalize(input.workOrderContractRef),
         context_snapshot_ref: canonicalize(input.contextSnapshotRef),
         capability_grant_ref: canonicalize(input.capabilityGrantRef),
-        attempt_number: 1,
+        attempt_number: input.attemptNumber ?? 1,
         runtime_binding: canonicalize(input.runtimeBinding),
         lease_policy_ref: canonicalize(input.leasePolicyRef),
         lease_id: input.leaseId,
-        fencing_token: '1',
+        fencing_token: input.fencingToken ?? '1',
         lease_expires_at: input.leaseExpiresAt,
         execution_deadline: input.leaseExpiresAt,
         status: 'CREATED',
@@ -184,8 +188,8 @@ export class FirstRunRepository {
         run_id: input.runId,
         enterprise_id: input.enterpriseId,
         project_id: input.projectId,
-        attempt_number: 1,
-        fencing_token: '1',
+        attempt_number: input.attemptNumber ?? 1,
+        fencing_token: input.fencingToken ?? '1',
         status: 'ACTIVE',
         source_command_id: facts.commandId,
       })

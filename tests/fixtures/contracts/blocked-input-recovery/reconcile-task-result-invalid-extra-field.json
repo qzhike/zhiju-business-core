@@ -1,0 +1,13 @@
+{
+  "taskRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.task",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "status": "WAITING_INPUT",
+  "untrusted": true
+}
