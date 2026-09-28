@@ -36,8 +36,34 @@ describe('TE-REC-D-002 additive recovery contract fixtures', () => {
     });
   }
   for (const name of [
-    'answer-instead-of-resolution',
-    'empty-resolution-set',
+    'valid',
+    'valid-empty-array',
+    'valid-duplicate-refs',
+    'valid-answer-ref',
+    'valid-object-ref',
+  ]) {
+    for (const version of ['1.0', '1.1']) {
+      it(`accepts ${name} as an ordinary TypedReference array at @${version}`, () => {
+        const input = fixture(`build-context-v1-1-${name}`) as {
+          commandVersion: string;
+          payload: { request: { projectionType: string; answeredInformationRefs: unknown[] } };
+        };
+        input.commandVersion = version;
+        if (version === '1.0') input.payload.request.projectionType = 'context.coordinator';
+        const original = structuredClone(input);
+        expect(
+          registry.validateOperation('execution.build_context_snapshot', version, input),
+        ).toEqual({
+          valid: true,
+          errors: [],
+        });
+        expect(input).toEqual(original);
+      });
+    }
+  }
+  for (const name of [
+    'non-array-answered-refs',
+    'malformed-answered-ref',
     'principal-ref-instead-of-typed-ref',
     'unknown-field',
     'null-builder',

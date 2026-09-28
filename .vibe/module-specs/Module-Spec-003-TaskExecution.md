@@ -2099,6 +2099,8 @@ Run-2 创建还要求 RETRY_PENDING 未消费 intent、请求 Context FROZEN met
 
 所有以下新增操作均 Owner task-execution；Envelope 仍按共享 API，Project Scope 必填，closed payload/result，拒绝未知字段，Query AUTHORITATIVE。四项已注册：Catalog **230**、TaskExecution **57**；历史 Compatibility Baseline 仍为 **200**。既有同名 @1.0 bytes、compat metadata、fixture、200 baseline 不改。
 
+`ContextBuildRequest.answeredInformationRefs` 在 @1.0 与 @1.1 均保持 §2 的普通 `TypedReference[]` 契约：空数组、重复合法 Ref 和其它合法 TypedReference 在 Schema 层接受，validator 不去重或改写输入；非数组与畸形 Ref 仍拒绝。§24.5 的单一精确 Resolution 是本恢复 Handler 的业务支持集，Schema 合法不代表恢复资格满足；不符合该支持集的输入由 Handler 拒绝，不提交 Snapshot 或成功 Receipt。
+
 | operation | target/mode，payload | Result.data 与 Purpose |
 |---|---|---|
 | `execution.build_context_snapshot@1.1` | CREATE `zhiju.execution.context_snapshot`；`{request:ContextBuildRequest}`，完整八个必填成员及 expiresAt? 沿用 §2，handler 支持集见 §24.5 | closed `{contextSnapshotRef:SNAPSHOT/zhiju.execution.context_snapshot}`，objectId=CREATE target、Scope 全等、snapshotId 独立、hash=实际 Core payloadHash；复用已发布 `task.execution.build_context_snapshot` |

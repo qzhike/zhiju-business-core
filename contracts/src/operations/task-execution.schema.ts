@@ -686,10 +686,7 @@ const namedDefinitions = {
         projectReference(contentAddressedReference, 'zhiju.project.context_source_slice'),
         { nonEmpty: true, unique: true },
       ),
-      answeredInformationRefs: array(
-        projectReference(contentAddressedReference, 'execution.information_request_resolution'),
-        { nonEmpty: true, unique: true },
-      ),
+      answeredInformationRefs: array(typedReference),
       builderPolicyRef: projectReference(versionedReference, 'zhiju.identity.policy'),
       expiresAt: instant,
     },

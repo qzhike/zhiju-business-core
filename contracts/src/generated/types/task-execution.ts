@@ -202,14 +202,7 @@ export namespace TaskExecution {
   readonly projectId: Common.UuidV7;
 };
 })[];
-  readonly answeredInformationRefs: readonly (Common.ContentAddressedRef & {
-  readonly objectType?: "execution.information_request_resolution";
-} & {
-  readonly scope?: {
-  readonly enterpriseId: Common.UuidV7;
-  readonly projectId: Common.UuidV7;
-};
-})[];
+  readonly answeredInformationRefs: readonly Common.TypedReference[];
   readonly builderPolicyRef: Common.VersionedRef & {
   readonly objectType?: "zhiju.identity.policy";
 } & {

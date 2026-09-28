@@ -15773,9 +15773,42 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           { request: buildRequest } as unknown as CanonicalJsonObject,
           service,
         );
+        // The public request accepts ordinary TypedReference arrays. The finite
+        // recovery profile rejects unsupported arrays at the owning Handler.
+        for (const answeredInformationRefs of [
+          [],
+          [resolutionRef, resolutionRef],
+          [record(committedPayload(answered)).answerRef],
+          [workOrderRef],
+        ]) {
+          const target = objectRef(
+            'zhiju.execution.context_snapshot',
+            newUuidV7(),
+            scope(),
+          ) as Common.ObjectRef;
+          const envelope = await recoveryEnvelope(
+            'frozenContextBuildV1_1',
+            target,
+            {
+              request: { ...buildRequest, answeredInformationRefs },
+            } as unknown as CanonicalJsonObject,
+            service,
+          );
+          expect(
+            registry.validateOperation('execution.build_context_snapshot', '1.1', envelope),
+          ).toEqual({
+            valid: true,
+            errors: [],
+          });
+          await expect(
+            recoveryEntryRaw.command(envelope, sessionFor(service)),
+          ).rejects.toMatchObject({
+            code: 'EXECUTION_INFORMATION_REQUEST_UNRESOLVED',
+          });
+          expect(await receiptRows(String(envelope.idempotencyKey))).toEqual([]);
+          expect(await contextSnapshotRow(target.objectId)).toBeUndefined();
+        }
         for (const change of [
-          { answeredInformationRefs: [] },
-          { answeredInformationRefs: [record(committedPayload(answered)).answerRef] },
           { sourceSlices: [slice] },
           {
             workOrderContractRef: {
