@@ -995,6 +995,16 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     return grantId;
   }
 
+  async function prepareIndependentGrants<T>(
+    entries: readonly T[],
+    prepare: (entry: T) => Promise<void>,
+  ): Promise<void> {
+    // Distinct grant targets/codes have independent owning transactions. Bound
+    // preparation concurrency and await every grant before any Run deadline.
+    for (let index = 0; index < entries.length; index += 4)
+      await Promise.all(entries.slice(index, index + 4).map(prepare));
+  }
+
   /** One generic capability grant (no selectors/actions closure) for the owning reads. */
   async function grantGeneric(
     capabilityCode: string,
@@ -7502,7 +7512,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         WORK_ORDER_VALIDATION_BINDINGS.map((b, i) => [b.capabilityConfigKey, `wi219.auth.c${i}`]),
       ) as WorkOrderValidationCapabilityCodes;
       const validationGrants = new Map<string, string>();
-      for (const binding of WORK_ORDER_VALIDATION_BINDINGS) {
+      await prepareIndependentGrants(WORK_ORDER_VALIDATION_BINDINGS, async (binding) => {
         const targetObjectType = binding.targetObjectTypes[0];
         if (targetObjectType === undefined) throw new Error('missing target');
         validationGrants.set(
@@ -7515,7 +7525,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             targetObjectType,
           }),
         );
-      }
+      });
       const captureRef = policyKey([newUuidV7(), newUuidV7()], fixture);
       await registerPolicyVersionAs({
         key: captureRef,
@@ -8456,7 +8466,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         ]),
       ) as ControlledFirstRunCapabilityCodes;
       const firstRunGrants = new Map<string, string>();
-      for (const binding of CONTROLLED_FIRST_RUN_BINDINGS) {
+      await prepareIndependentGrants(CONTROLLED_FIRST_RUN_BINDINGS, async (binding) => {
         const targetObjectType = binding.targetObjectTypes[0];
         if (targetObjectType === undefined) throw new Error('missing first Run target');
         firstRunGrants.set(
@@ -8469,7 +8479,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             targetObjectType,
           }),
         );
-      }
+      });
       const executionCapabilityGrantId = await grant({
         principal: service,
         capabilityCode: 'artifact.revision.create',
@@ -8823,7 +8833,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         processResult = undefined;
         if (!processWorkers) {
           processWorkers = [];
-          for (let worker = 0; worker < 2; worker++) {
+          const workerCount =
+            exerciseRecoveryFaultMatrix || ['SUSPEND', 'STALE_CONTEXT'].includes(recoveryVariant)
+              ? 2
+              : 1;
+          for (let worker = 0; worker < workerCount; worker++) {
             const target = objectRef(
               'zhiju.project.project',
               fixture.projectId,
@@ -8920,10 +8934,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                 );
               }),
           ).rejects.toThrow('WI231_PROGRESS_LOST');
-        await Promise.all([
-          definedValue(processWorkers[0]).tick(),
-          definedValue(processWorkers[1]).tick(),
-        ]);
+        await Promise.all(definedValue(processWorkers).map((worker) => worker.tick()));
         processStep++;
         processPending = undefined;
         return processResult;
@@ -9154,43 +9165,52 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       let otherChildAttemptRef: Common.ObjectRef | undefined;
       const proposalId = newUuidV7();
       if (bounded) {
-        for (const b of BLOCKED_INPUT_RECOVERY_BINDINGS)
-          for (const principal of b.expectedPrincipalKind === 'HUMAN'
+        const grantEntries = BLOCKED_INPUT_RECOVERY_BINDINGS.flatMap((b) =>
+          (b.expectedPrincipalKind === 'HUMAN'
             ? [operator()]
             : b.expectedPrincipalKind === 'SERVICE'
               ? [service]
-              : [operator(), service]) {
-            if (
-              recoveryVariant === 'NORMAL' &&
-              b.capabilityConfigKey === 'informationRequestResolveV1'
-            )
-              continue;
-            const targetObjectType = definedValue(b.targetObjectTypes[0]);
-            const id = await grant({
-              principal,
-              capabilityCode: definedValue(recoveryCodes[b.capabilityConfigKey]),
-              action: b.requiredGrantAction,
-              ...(recoveryVariant === 'NORMAL' &&
-              b.capabilityConfigKey === 'informationAnswerSubmitV1'
-                ? { actions: [b.requiredGrantAction, 'execution.information_request.resolve.v1'] }
-                : {}),
-              selectorType: b.selectorType,
-              targetObjectType,
-              targetObjectTypes: b.targetObjectTypes,
-            });
+              : b.capabilityConfigKey.startsWith('recovery.')
+                ? exerciseRecoveryFaultMatrix &&
+                  b.capabilityConfigKey === 'recovery.request_resolve.human.v1'
+                  ? [operator(), service]
+                  : /^recovery\.(?:answer_submit|request_resolve|retry_schedule)\./u.test(
+                        b.capabilityConfigKey,
+                      )
+                    ? [operator()]
+                    : [service]
+                : [operator(), service]
+          ).map((principal) => ({ b, principal })),
+        );
+        await prepareIndependentGrants(grantEntries, async ({ b, principal }) => {
+          if (
+            recoveryVariant === 'NORMAL' &&
+            b.capabilityConfigKey === 'informationRequestResolveV1'
+          )
+            return;
+          const targetObjectType = definedValue(b.targetObjectTypes[0]);
+          const id = await grant({
+            principal,
+            capabilityCode: definedValue(recoveryCodes[b.capabilityConfigKey]),
+            action: b.requiredGrantAction,
+            ...(recoveryVariant === 'NORMAL' &&
+            b.capabilityConfigKey === 'informationAnswerSubmitV1'
+              ? { actions: [b.requiredGrantAction, 'execution.information_request.resolve.v1'] }
+              : {}),
+            selectorType: b.selectorType,
+            targetObjectType,
+            targetObjectTypes: b.targetObjectTypes,
+          });
+          recoveryGrants.set(
+            `${principal.principalId}:${b.capabilityConfigKey}:${targetObjectType}`,
+            id,
+          );
+          if (recoveryVariant === 'NORMAL' && b.capabilityConfigKey === 'informationAnswerSubmitV1')
             recoveryGrants.set(
-              `${principal.principalId}:${b.capabilityConfigKey}:${targetObjectType}`,
+              `${principal.principalId}:informationRequestResolveV1:${targetObjectType}`,
               id,
             );
-            if (
-              recoveryVariant === 'NORMAL' &&
-              b.capabilityConfigKey === 'informationAnswerSubmitV1'
-            )
-              recoveryGrants.set(
-                `${principal.principalId}:informationRequestResolveV1:${targetObjectType}`,
-                id,
-              );
-          }
+        });
         if (
           (
             await admin.query(
