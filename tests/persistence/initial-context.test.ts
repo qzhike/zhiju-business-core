@@ -965,6 +965,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     targetObjectType: string;
     targetObjectTypes?: readonly string[];
     action: string;
+    actions?: readonly string[];
     validTo?: Date;
     grantPolicySnapshot?: { id: string; hash: Buffer };
   }): Promise<string> {
@@ -982,7 +983,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       resourceSelectors: (input.targetObjectTypes ?? [input.targetObjectType]).map(
         (objectType) => ({ selectorType: input.selectorType, objectType }),
       ),
-      actions: [input.action],
+      actions: [...(input.actions ?? [input.action])],
       validFrom: PAST,
       ...(input.validTo === undefined ? {} : { validTo: input.validTo }),
       grantPolicySnapshotId: input.grantPolicySnapshot?.id ?? POLICY_SNAPSHOT_ID,
@@ -8523,6 +8524,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           `wi231.c${i}.${serviceId.replaceAll('-', '')}`,
         ]),
       );
+      if (bounded && recoveryVariant === 'NORMAL')
+        recoveryCodes.informationRequestResolveV1 = definedValue(
+          recoveryCodes.informationAnswerSubmitV1,
+        );
       const recoveryAuth = createRecoveryAuthorizationPort({
         capabilityCodes: recoveryCodes,
         now: () => new Date(clock),
@@ -9125,11 +9130,20 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             : b.expectedPrincipalKind === 'SERVICE'
               ? [service]
               : [operator(), service]) {
+            if (
+              recoveryVariant === 'NORMAL' &&
+              b.capabilityConfigKey === 'informationRequestResolveV1'
+            )
+              continue;
             const targetObjectType = definedValue(b.targetObjectTypes[0]);
             const id = await grant({
               principal,
               capabilityCode: definedValue(recoveryCodes[b.capabilityConfigKey]),
               action: b.requiredGrantAction,
+              ...(recoveryVariant === 'NORMAL' &&
+              b.capabilityConfigKey === 'informationAnswerSubmitV1'
+                ? { actions: [b.requiredGrantAction, 'execution.information_request.resolve.v1'] }
+                : {}),
               selectorType: b.selectorType,
               targetObjectType,
               targetObjectTypes: b.targetObjectTypes,
@@ -9138,6 +9152,14 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               `${principal.principalId}:${b.capabilityConfigKey}:${targetObjectType}`,
               id,
             );
+            if (
+              recoveryVariant === 'NORMAL' &&
+              b.capabilityConfigKey === 'informationAnswerSubmitV1'
+            )
+              recoveryGrants.set(
+                `${principal.principalId}:informationRequestResolveV1:${targetObjectType}`,
+                id,
+              );
           }
         if (
           (
@@ -15309,11 +15331,19 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                   principal: operator(),
                   capabilityCode: definedValue(recoveryCodes.informationAnswerSubmitV1),
                   action: binding.requiredGrantAction,
+                  actions: [
+                    binding.requiredGrantAction,
+                    'execution.information_request.resolve.v1',
+                  ],
                   selectorType: binding.selectorType,
                   targetObjectType: 'execution.information_request',
                 });
                 recoveryGrants.set(
                   `${OPERATOR}:informationAnswerSubmitV1:execution.information_request`,
+                  restored,
+                );
+                recoveryGrants.set(
+                  `${OPERATOR}:informationRequestResolveV1:execution.information_request`,
                   restored,
                 );
               }
@@ -15656,6 +15686,94 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             historyAuthority,
           ),
         ).toMatchObject({ confirmationProvenanceValid: true });
+        if (recoveryVariant === 'NORMAL') {
+          // Real owning Grants isolate same-code action/selector coverage without
+          // replacing the repository, Policy integrity or historical proof.
+          const sharedCode = `wi231.r2.${serviceId.replaceAll('-', '')}`;
+          const answerBinding = {
+            capabilityCode: sharedCode,
+            action: 'execution.information_request.answer.submit.v1',
+            targetObjectType: 'execution.information_request',
+          };
+          const resolveBinding = {
+            capabilityCode: sharedCode,
+            action: 'execution.information_request.resolve.v1',
+            targetObjectType: 'execution.information_request',
+          };
+          const probeAuthority = {
+            ...historyAuthority,
+            requiredCapabilities: [answerBinding, resolveBinding],
+          };
+          const readProbe = (requiredCapabilities = probeAuthority.requiredCapabilities) =>
+            readRecoveryHumanEligibility(
+              identityDeps([fixture.projectId], service),
+              eligibilityInput,
+              { ...probeAuthority, requiredCapabilities },
+            );
+          const revokeProbe = async (targetId: string) => {
+            expect(
+              await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+                targetId,
+                expectedAggregateVersion: '1',
+                scope: {
+                  scopeKind: 'PROJECT',
+                  enterpriseId: fixture.enterpriseId,
+                  projectId: fixture.projectId,
+                },
+                reasonCode: 'WI232_R2_REVOKE_PROBE',
+                effectiveAt: new Date(clock),
+                idempotencyKey: newUuidV7(),
+              }),
+            ).toMatchObject({ status: 'COMMITTED' });
+          };
+          const answerOnly = () => grant({ ...answerBinding, selectorType: 'TARGET_TYPE' });
+          const answerGrant = await answerOnly();
+          await expect(
+            readProbe(),
+            'same code cannot supply a missing action',
+          ).rejects.toMatchObject({
+            code: 'AUTHORIZATION_DECISION_INVALID',
+          });
+          await revokeProbe(answerGrant);
+          const combinedGrant = await grant({
+            ...answerBinding,
+            actions: [answerBinding.action, resolveBinding.action],
+            selectorType: 'TARGET_TYPE',
+          });
+          const usable = await readProbe();
+          expect(usable).toMatchObject({ useStatus: 'USABLE', confirmationProvenanceValid: true });
+          expect(usable.grantRefs.map((ref) => ref.objectId)).toEqual([combinedGrant]);
+          await expect(
+            readProbe([
+              answerBinding,
+              { ...resolveBinding, targetObjectType: 'zhiju.execution.work_order' },
+            ]),
+            'same code cannot cover a different target',
+          ).rejects.toMatchObject({
+            code: 'AUTHORIZATION_DECISION_INVALID',
+          });
+          await revokeProbe(combinedGrant);
+          const remainingAnswer = await answerOnly();
+          expect(await readProbe([answerBinding])).toMatchObject({ useStatus: 'USABLE' });
+          await expect(
+            readProbe(),
+            'same code cannot mask removed resolve rights',
+          ).rejects.toMatchObject({
+            code: 'AUTHORIZATION_DECISION_INVALID',
+          });
+          await revokeProbe(remainingAnswer);
+          await grant({
+            ...answerBinding,
+            actions: [answerBinding.action, resolveBinding.action],
+            selectorType: 'CREATE_TARGET_TYPE',
+          });
+          await expect(
+            readProbe(),
+            'CREATE selector does not cover TARGET_TYPE',
+          ).rejects.toMatchObject({
+            code: 'AUTHORIZATION_DECISION_INVALID',
+          });
+        }
         for (const change of [
           { confirmationTargetRef: { ...record(attestation.targetRef), objectId: newUuidV7() } },
           { confirmationRequestPayloadHash: contentHash('0'.repeat(64)) },
@@ -16272,6 +16390,138 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           } as unknown as CanonicalJsonObject,
           service,
         );
+        if (recoveryVariant === 'NORMAL') {
+          // A saved Resolution/Context/Bundle must not hide current Human
+          // resolve revocation behind an answer Grant with the same code.
+          expect(recoveryConfig.humanCapabilityCodes.requestResolve).toBe(
+            recoveryConfig.humanCapabilityCodes.answerSubmit,
+          );
+          const grantKey = `${OPERATOR}:informationRequestResolveV1:execution.information_request`;
+          const resolvedBeforeRevoke = await denialSnapshot();
+          expect(
+            await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+              targetId: definedValue(recoveryGrants.get(grantKey)),
+              expectedAggregateVersion: '1',
+              scope: {
+                scopeKind: 'PROJECT',
+                enterpriseId: fixture.enterpriseId,
+                projectId: fixture.projectId,
+              },
+              reasonCode: 'WI232_R2_REVOKE_CURRENT_RESOLVE',
+              effectiveAt: new Date(clock),
+              idempotencyKey: newUuidV7(),
+            }),
+          ).toMatchObject({ status: 'COMMITTED' });
+          const remainingAnswerGrant = await grant({
+            capabilityCode: recoveryConfig.humanCapabilityCodes.answerSubmit,
+            action: 'execution.information_request.answer.submit.v1',
+            selectorType: 'TARGET_TYPE',
+            targetObjectType: 'execution.information_request',
+          });
+          expect(
+            await readRecoveryHumanEligibility(
+              identityDeps([fixture.projectId], service),
+              eligibilityInput,
+              {
+                ...historyAuthority,
+                requiredCapabilities: [definedValue(historyAuthority.requiredCapabilities[0])],
+              },
+            ),
+          ).toMatchObject({ useStatus: 'USABLE' });
+          const refusedContextTarget = objectRef(
+            'zhiju.execution.context_snapshot',
+            newUuidV7(),
+            scope(),
+          ) as Common.ObjectRef;
+          const refusedContext = await recoveryEnvelope(
+            'frozenContextBuildV1_1',
+            refusedContextTarget,
+            { request: buildRequest } as unknown as CanonicalJsonObject,
+            service,
+          );
+          await expect(
+            recoveryEntryRaw.command(refusedContext, sessionFor(service)),
+          ).rejects.toMatchObject({
+            code: 'AUTHORIZATION_DECISION_INVALID',
+          });
+          expect(await contextSnapshotRow(refusedContextTarget.objectId)).toBeUndefined();
+          expect(await receiptRows(String(refusedContext.idempotencyKey))).toEqual([]);
+          const refusedBundleTarget = objectRef(
+            'zhiju.identity.execution_capability_bundle',
+            newUuidV7(),
+            scope(),
+          ) as Common.ObjectRef;
+          const refusedBundle = await firstRunEnvelope(
+            'identity.issue_execution_capability_bundle',
+            refusedBundleTarget,
+            bundle2Envelope.payload,
+            service,
+          );
+          await expect(
+            firstRunEntryRaw.issueBundle(refusedBundle, sessionFor(service)),
+          ).rejects.toMatchObject({
+            code: 'AUTHORIZATION_DECISION_INVALID',
+          });
+          expect(
+            (
+              await admin.query(
+                'SELECT bundle_id FROM identity_policy.execution_capability_bundle WHERE bundle_id=$1',
+                [refusedBundleTarget.objectId],
+              )
+            ).rows,
+          ).toEqual([]);
+          expect(
+            (
+              await admin.query(
+                'SELECT command_id FROM identity_policy.command_receipt WHERE idempotency_key=$1',
+                [refusedBundle.idempotencyKey],
+              )
+            ).rows,
+          ).toEqual([]);
+          await expect(
+            firstRunEntryRaw.createRun(create2, sessionFor(service)),
+          ).rejects.toMatchObject({
+            code: 'AUTHORIZATION_DECISION_INVALID',
+          });
+          expect(
+            (
+              await admin.query('SELECT run_id FROM task_execution.run WHERE run_id=$1', [
+                run2.objectId,
+              ])
+            ).rows,
+          ).toEqual([]);
+          expect(await receiptRows(create2.idempotencyKey)).toEqual([]);
+          expect(await denialSnapshot()).toEqual(resolvedBeforeRevoke);
+          expect(
+            await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+              targetId: remainingAnswerGrant,
+              expectedAggregateVersion: '1',
+              scope: {
+                scopeKind: 'PROJECT',
+                enterpriseId: fixture.enterpriseId,
+                projectId: fixture.projectId,
+              },
+              reasonCode: 'WI232_R2_RESTORE_FULL_RIGHTS',
+              effectiveAt: new Date(clock),
+              idempotencyKey: newUuidV7(),
+            }),
+          ).toMatchObject({ status: 'COMMITTED' });
+          const restoredGrant = await grant({
+            capabilityCode: recoveryConfig.humanCapabilityCodes.requestResolve,
+            action: 'execution.information_request.resolve.v1',
+            actions: [
+              'execution.information_request.answer.submit.v1',
+              'execution.information_request.resolve.v1',
+            ],
+            selectorType: 'TARGET_TYPE',
+            targetObjectType: 'execution.information_request',
+          });
+          recoveryGrants.set(grantKey, restoredGrant);
+          recoveryGrants.set(
+            `${OPERATOR}:informationAnswerSubmitV1:execution.information_request`,
+            restoredGrant,
+          );
+        }
         if (recoveryVariant === 'NORMAL')
           for (const change of [
             { contextSnapshotRef: contextRef },

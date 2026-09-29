@@ -5,7 +5,10 @@ import {
   type CanonicalJsonValue,
   type CanonicalJsonObject,
 } from '@zhiju/shared-kernel';
-import { withIdentityTransaction } from '../persistence/identity-db.js';
+import {
+  withIdentityTransaction,
+  type SelectedCapabilityGrant,
+} from '../persistence/identity-db.js';
 import {
   authorizationDecisionIntegrityHolds,
   policySnapshotIntegrityHolds,
@@ -39,6 +42,23 @@ function unavailable(code = 'INVALID_PROVENANCE'): never {
 }
 function same(a: unknown, b: unknown) {
   return canonicalize(a as CanonicalJsonValue) === canonicalize(b as CanonicalJsonValue);
+}
+
+function coversBinding(
+  grant: SelectedCapabilityGrant,
+  binding: RecoveryHumanEligibilityAuthority['requiredCapabilities'][number],
+): boolean {
+  return (
+    grant.capability_code === binding.capabilityCode &&
+    grant.actions.includes(binding.action) &&
+    grant.max_uses === null &&
+    same(grant.constraints, {}) &&
+    Array.isArray(grant.resource_selectors) &&
+    grant.resource_selectors.some((selector) => {
+      const s = selector as Record<string, unknown>;
+      return s.selectorType === 'TARGET_TYPE' && s.objectType === binding.targetObjectType;
+    })
+  );
 }
 
 /** Historical confirmation proof and current Human authority are separate observations. */
@@ -101,22 +121,11 @@ export async function readRecoveryHumanEligibility(
       (g) =>
         g.scope_kind === 'PROJECT' &&
         g.project_id === scope.projectId &&
-        authority.requiredCapabilities.some(
-          (binding) =>
-            binding.capabilityCode === g.capability_code &&
-            g.actions.includes(binding.action) &&
-            g.max_uses === null &&
-            same(g.constraints, {}) &&
-            Array.isArray(g.resource_selectors) &&
-            g.resource_selectors.some((selector) => {
-              const s = selector as Record<string, unknown>;
-              return s.selectorType === 'TARGET_TYPE' && s.objectType === binding.targetObjectType;
-            }),
-        ),
+        authority.requiredCapabilities.some((binding) => coversBinding(g, binding)),
     );
     if (
       !authority.requiredCapabilities.every((binding) =>
-        grants.some((g) => g.capability_code === binding.capabilityCode),
+        grants.some((g) => coversBinding(g, binding)),
       )
     )
       unavailable('AUTHORIZATION_DECISION_INVALID');
