@@ -192,3 +192,71 @@ Reviewed / approved SHA: `dc5f8dca35188595906905343925d9b346ddfdba`.
 [第四轮复审与完整证据](https://github.com/qzhike/zhiju-business-core/pull/232#issuecomment-5888129002)继续适用；持久化 job 的时间余量风险及 External/Manual 的 NOT RUN 边界保持原记录。本批准不将未执行验收提升为 PASS。
 
 此 comment 记录会话中的明确人类批准，不等于通过 GitHub review API 提交正式 APPROVED review。PR 仍为 Draft；本次未授权或执行 merge、commit、push。正式审查记录已在本地 `.vibe/reviews/pr-232/Review.md` 追加，尚待获授权后提交和推送。
+
+## 最终交付 CI 阻塞补证（2026-09-29）
+
+**REQUEST_CHANGES**。最终交付 head：`e8af9068bc5e4252b89118b23e3da0a7ba66559e`。用户已授权合并、关闭 #231 和删除任务分支；但新 head 必需检查失败，未执行这些动作。相对已批准 `dc5f8dc` 仅增加正式审查归档并协调路线图，两文档增量的配置 docs 验证通过。产品代码、测试和验证配置不变。
+
+[完整失败记录](https://github.com/qzhike/zhiju-business-core/pull/232#issuecomment-5889254667)已发布并保留具体堆栈来源。[CI 36557783773](https://github.com/qzhike/zhiju-business-core/actions/runs/36557783773)：select SUCCESS、checks FAILURE、persistence CANCELLED、verify FAILURE。
+
+- checks：1562/1563 通过；`enterprise-project.schema.test.ts:312` 的 result 字节边界字符 `a` 用例超过 5000 ms。Reviewer 本地聚焦五种 result 字符边界 PASS（5 selected / 208 filtered），不代替 full。重复序列化增长到 4 MiB 的 fixture 对 runner 成本敏感是合理线索，不宣称已证明唯一根因。
+- persistence：超过未修改的 30m0s 上限；取消前已有四项失败：SECOND_EXPIRY_RACE（74533 ms）、Run-2 BLOCKED_INPUT（77486 ms）、PARTIAL（79715 ms）、FAILED_EXECUTION（82169 ms）。
+- SECOND_EXPIRY_RACE 堆栈定位到 `controlled-final-result.ts:805` 调用 `live()`（156 行），该 guard 要求当前时间早于 lease 和 execution deadline，失败码为 EXECUTION_JUDGMENT_STALE。失败发生在 Result 提交，尚未达到预期的 finalization/expiry 竞争边界。
+- 三个不支持 outcome 的用例在 `initial-context.test.ts:16867` 期望 EXECUTION_CRITERION_UNSUPPORTED，却收到不同 CommandExecutionError。可用 reporter 堆栈省略实际 code，不把三者根因全部断言为同一原因。
+- 其余十个 TE-REC 场景 PASS，包括 NORMAL（161839 ms）、BUDGET_EXHAUSTED、SECOND_WRONG_SESSION。R1/R2 保持关闭；V1 重新打开，原先单次成功不能替代本次失败证据。没有继续盲目 full 重跑；此前工作流执行中尝试的单 job 重试被 GitHub 拒绝，未形成新 attempt。
+
+后续须定位 Run-2 创建至 Result 提交之间的耗时，使各变体在合法 lease/budget 内到达自身语义边界；保留真实期限检查、必要矩阵和无第三 Run 断言，同时处理字节 fixture 超时及全套时长，取得新 head 的完整 CI 并复审。不得改成泛化拒绝断言、过滤必需场景或仅扩大 CI timeout。
+
+已有显式人类批准和合并授权继续保留，但不豁免失败检查。PR 已恢复 Draft，Issue #231 和两个任务分支保留。本节为新发现证据的本地补充，尚未提交/推送，避免仅为记录已知失败而再触发完整 CI。
+
+## 第五轮复审（2026-09-30）
+
+HUMAN_REVIEW_REQUIRED
+
+Reviewed SHA：`4467330a0a5bc47771089ff45ebd19f39e51e411`；base：`84d1bd4d92ddb5aa7c337960d380a03fb511fbd5`。复审日期：2026-09-30（Asia/Shanghai）。
+
+本轮未发现新的阻塞性实现或契约问题。R1、R2 保持 CLOSED；上轮 e8af906 的四个恢复失败、字节边界测试超时及完整 CI 未收束问题已由本轮代码检查和当前完整 CI 证据关闭，V1 再次 CLOSED。最新 revision 包含真实授权查询和 Process 实现变更，不能沿用仅绑定 dc5f8dc 的人类技术批准；剩余门禁是对本次最终 revision 的人类技术审查。
+
+### 独立复核范围与结论
+
+基于 Issue #231 的现行验收、Spec 001 §15.14、Spec 003 §24.5–24.6，以及既有 R1/R2 审查上下文，检查相对 e8af906 的全部 19 文件增量，重点为：
+
+- **Grant 查询候选缩窄**：SQL 增加调用方已要求的 capability code / code 集合筛选；principal、Enterprise、ACTIVE、as-of 条件不变，事务与 RLS 路径不变。检查全部修改调用点：原有精确 code、Scope、action、selector、Hash 和 Policy 检查仍保留，Human eligibility 对每个完整 binding 执行覆盖检查，不以 code 集合替代 action/target 检验。默认无筛选行为保留，空集合返回空。新增真实 owning/PG 断言比较单 code、多 code/重复 code 与默认查询集合，覆盖同 code Enterprise/Project 并存、错误主体/Enterprise 和时间边界。
+- **恢复 Process 重复扫描**：先以独立当前进度权限读取现有 process_id，仅跳过已存在实例的创建命令；ACTIVE 仍在后续进度循环推进原保存 bytes/CAS，COMPLETED/SUSPENDED 不重建。创建事务内存在性检查继续保留。正常双 Worker 链仍验证 13 步提交后进度丢失，新增完成后并发 idle tick 断言 Process、进度 Decision、Receipt 和 invocation 均不增长。Spec/Test 已同步说明。
+- **测试成本修复**：Grant 准备批次上限为四个独立 owning 事务；公共无限次 Grant/Service 准备仅在指定变体复用，撤权后移除对应准备引用，后续重新 owning grant；每个业务链与当前 Decision 保持独立。公共 replay/拒绝矩阵保留在完整正常链，其他变体保留其精确失败码、终态及无第三 Run 断言。SECOND_* 仍使用累计 30 秒预算、60 秒 Context 和真实 deadline；没有扩大 CI/test timeout。
+- **历史升级覆盖**：五个基线备份/迁移/读回仍存在。批量 jsonb recordset 恢复保持全部历史列逐项比较；各备份使用独立临时 PostgreSQL 容器。V3006 先验证缺 Adapter 的精确拒绝，再让真实到期等待与其它独立备份重叠；allSettled/失败路径等待后台备份收束，之后才执行后续 V7002 与源 Run expiry。
+- **字节边界 fixture**：由反复全量序列化改为原生 JSON 片段长度累计，末尾仍用完整原生序列化独立核对字节数；六个精确边界/多一字节断言及 5 秒 timeout 不变。未改变公开 Schema、普通数组语义或历史兼容基线。
+
+### 当前 revision 的独立 CI 证据
+
+Reviewer 已下载并核对 [CI 36605307060](https://github.com/qzhike/zhiju-business-core/actions/runs/36605307060) 完整日志和元数据，run.headSha 等于上述 reviewed SHA。实际 checkout 为 GitHub 针对该 head/base 生成的 PR merge revision `f5700b2`；不声称 CI 直接 checkout 分支 head。select 选择 full，四个 job 均 SUCCESS。
+
+| 检查 | 结果 |
+|---|---|
+| 普通代码测试 | 79 文件，1563/1563 PASS |
+| PostgreSQL 全套 | 43 文件，535/535 PASS；无 failed/skipped testcase |
+| TE-REC 恢复矩阵 | 14/14 PASS |
+| SECOND_EXPIRY_RACE | PASS，38940 ms |
+| Run-2 BLOCKED_INPUT / PARTIAL / FAILED_EXECUTION | PASS，38797 / 38860 / 38822 ms |
+| 迁移/二次 migrate/清理 | PASS；second migrate 无待迁移，postgres container removed |
+| 最终 verify | PASS，failures=[] |
+
+上轮到期竞争用例本次 Result 提交前真实余量为 19697 ms，并完成后续真实到期竞争；三个不支持 outcome 用例日志分别明确输出 EXECUTION_CRITERION_UNSUPPORTED，未以泛化拒绝代替期望。持久化测试耗时 1523.19 秒，job 26 分 35 秒，距固定 30 分钟上限约 3 分 25 秒；本次耗时改善可核查，但单次通过不保证任意 runner 负载下稳定。没有将更早的成功运行或 Implementer 的本地摘要替代本次证据；本轮没有重复运行本地 full。
+
+### 剩余门禁与交付边界
+
+`vibe-development/SKILL.md` 要求 “high-risk work requires human technical review”；Issue #231 同样要求独立审查与适用的人类门禁绑定最终 revision。此前的人类技术批准绑定 dc5f8dc，本次新增 IP 授权查询/TE Process 产品代码变更，须对 4467330 明确完成最终技术批准。已有合并、关闭 Issue 和清理分支的授权仍保留，但须先通过这个门禁。PR 仍为 Draft；本轮不合并或清理分支。
+
+External/Manual、实际 Grant PolicySnapshot lifecycle 及 #224 的既有分层限制保持原 NOT RUN/延后口径；CI 成功不扩大这些边界。已在本地 `.vibe/reviews/pr-232/Review.md` 追加本轮记录，保留上轮未提交的失败补证；本轮新增记录尚未 commit/push，不属于被审 SHA。发布的是 PR comment，不是 GitHub 正式 APPROVED review。
+
+## 最终实现人类技术批准（2026-09-30）
+
+APPROVE
+
+Approved implementation SHA: `4467330a0a5bc47771089ff45ebd19f39e51e411`.
+
+用户在最新复审后明确回复“批准更改”。据此记录该 revision 的最终人类技术批准，关闭 HUMAN_REVIEW_REQUIRED 门禁；[独立复审](https://github.com/qzhike/zhiju-business-core/pull/232#issuecomment-5900213634)未发现新增阻塞项，R1/R2/V1 已关闭，[完整 CI 36605307060](https://github.com/qzhike/zhiju-business-core/actions/runs/36605307060) 全部通过。批准前再次读回远端 head 未变。
+
+此前明确的 PR 合并、Issue #231 关闭及 local/remote 任务分支清理授权继续有效。交付将归档上轮失败补证、本轮复审及本次批准，文档增量验证和最终 head 的必需 CI 通过后执行合并与清理。该归档不改变产品实现、测试或验证配置，亦不扩大外部/人工验收范围。
+
+此 comment 记录会话中的人类技术批准及 Reviewer APPROVE 结论，不等于通过 GitHub review API 提交正式 APPROVED review。
