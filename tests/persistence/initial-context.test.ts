@@ -7336,8 +7336,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       driver: LocalSyntheticRuntimeDriver;
     }
 
-    let unsupportedFinalService: Principal | undefined;
-    const unsupportedFinalGrantIds = new Map<string, string>();
+    let independentScenarioService: Principal | undefined;
+    const independentScenarioGrantIds = new Map<string, string>();
 
     const runScenario = async (
       terminalScenario:
@@ -7412,14 +7412,23 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const shortRecoveryBudget = recoveryVariant.startsWith('SECOND_');
       const exercisePreparationMatrix = terminalScenario === 'SUCCEEDED';
       const exerciseCommonReplayMatrix = exercisePreparationMatrix || exerciseRecoveryFaultMatrix;
-      const reuseUnsupportedPreparation =
-        terminalScenario === 'UNSUPPORTED_FINAL' || terminalScenario === 'NON_FINAL_CORE_REJECT';
+      // These scenarios never revoke or replace the shared Service's Grants.
+      // Eligibility-loss, recovery and common fault matrices retain fresh subjects.
+      const reuseIndependentPreparation = [
+        'UNSUPPORTED_FINAL',
+        'NON_FINAL_CORE_REJECT',
+        'RACE',
+        'LOCK_DEADLINE',
+        'VALIDATION_EXPIRED',
+        'IG_WRONG_SESSION',
+        'TERMINAL_BEFORE_FINAL',
+      ].includes(terminalScenario);
       const positiveFinalScenario =
         terminalScenario === 'SUCCEEDED' ||
         terminalScenario === 'MIX_VALIDATIONS' ||
         terminalScenario === 'ACCEPT_RACE';
       clock = Date.now();
-      const preparedService = reuseUnsupportedPreparation ? unsupportedFinalService : undefined;
+      const preparedService = reuseIndependentPreparation ? independentScenarioService : undefined;
       const serviceId = preparedService?.principalId ?? newUuidV7();
       let service: Principal;
       if (preparedService) service = preparedService;
@@ -7450,7 +7459,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           actorRef,
           authHash: AUTH_HASH,
         };
-        if (reuseUnsupportedPreparation) unsupportedFinalService = service;
+        if (reuseIndependentPreparation) independentScenarioService = service;
       }
       const actorId = service.actorSnapshotId;
       const actorRef = service.actorRef;
@@ -7461,19 +7470,19 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ...input,
           principal: input.principal?.principalId ?? OPERATOR,
         });
-        const prepared = reuseUnsupportedPreparation
-          ? unsupportedFinalGrantIds.get(key)
+        const prepared = reuseIndependentPreparation
+          ? independentScenarioGrantIds.get(key)
           : undefined;
         if (prepared !== undefined) return prepared;
         const id = await grant(input);
-        if (reuseUnsupportedPreparation) unsupportedFinalGrantIds.set(key, id);
+        if (reuseIndependentPreparation) independentScenarioGrantIds.set(key, id);
         return id;
       }
       async function prepareScenarioGeneric(capabilityCode: string): Promise<void> {
         const key = `generic:${serviceId}:${capabilityCode}`;
-        if (reuseUnsupportedPreparation && unsupportedFinalGrantIds.has(key)) return;
+        if (reuseIndependentPreparation && independentScenarioGrantIds.has(key)) return;
         const id = await grantGeneric(capabilityCode, service);
-        if (reuseUnsupportedPreparation) unsupportedFinalGrantIds.set(key, id);
+        if (reuseIndependentPreparation) independentScenarioGrantIds.set(key, id);
       }
       const borrowedActors: Principal[] = [];
       if (exercisePreparationMatrix || exerciseRecoveryFaultMatrix) {
@@ -7612,7 +7621,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       // READY fixture only carried tokenLimit, which remains legal for Freeze.
       record(revised.budget).wallClockLimit =
         terminalScenario === 'LEGACY_UPGRADE'
-          ? 'PT30S'
+          ? 'PT120S'
           : terminalScenario === 'ELIGIBILITY_CHANGE' ||
               terminalScenario === 'TIMED_OUT' ||
               terminalScenario === 'TERMINAL_BEFORE_FINAL' ||
@@ -9841,7 +9850,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             : []),
           clock +
             (terminalScenario === 'LEGACY_UPGRADE'
-              ? 30_000
+              ? 120_000
               : terminalScenario === 'ELIGIBILITY_CHANGE' ||
                   terminalScenario === 'TIMED_OUT' ||
                   terminalScenario === 'TERMINAL_BEFORE_FINAL' ||

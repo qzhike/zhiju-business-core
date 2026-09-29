@@ -822,8 +822,9 @@ export class IdentityPolicyRepository {
     principalId: string,
     enterpriseId: string,
     asOf: Date,
-    capabilityCode?: string,
+    capabilityCode?: string | readonly string[],
   ): Promise<SelectedCapabilityGrant[]> {
+    if (Array.isArray(capabilityCode) && capabilityCode.length === 0) return [];
     let query = trx
       .selectFrom('identity_policy.capability_grant')
       .selectAll()
@@ -832,7 +833,10 @@ export class IdentityPolicyRepository {
       .where('status', '=', 'ACTIVE')
       .where('valid_from', '<=', asOf)
       .where((eb) => eb.or([eb('valid_to', 'is', null), eb('valid_to', '>', asOf)]));
-    if (capabilityCode !== undefined) query = query.where('capability_code', '=', capabilityCode);
+    if (typeof capabilityCode === 'string')
+      query = query.where('capability_code', '=', capabilityCode);
+    else if (capabilityCode !== undefined)
+      query = query.where('capability_code', 'in', capabilityCode);
     return query.execute();
   }
 

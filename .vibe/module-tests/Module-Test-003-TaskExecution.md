@@ -474,7 +474,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 ### 受控运行测试准备与覆盖归属
 
-`tests/persistence/initial-context.test.ts` 的 63 个用例、其中 41 个受控运行用例保留名称和各自业务断言。每个场景通过 owning 入口独立生成 Service/Actor、Grant/Decision、Policy、Slice、Task/Draft/Context、READY WorkOrder、Bundle/Run/Attempt；可变生命周期对象、运行时存储和时钟不跨场景复用。共用的 suite 基础事实保持既有边界；队列探针撤销的共用 Policy-read Grant 在同一场景的 finally 中重新通过 owning grant 能力恢复，包含探针断言失败路径。文件继续串行，所有被跟踪业务操作在下一测试前 drain；不能把 abandoned test body 本身加入其 afterEach 等待集合。
+`tests/persistence/initial-context.test.ts` 的 77 个用例、其中 55 个受控运行用例保留名称和各自业务断言。每个场景通过 owning 入口生成 Service/Actor、Grant 与独立 Decision、Policy、Slice、Task/Draft/Context、READY WorkOrder、Bundle/Run/Attempt；除下述未撤权分支可复用的准备事实外，可变生命周期对象、运行时存储和时钟不跨场景复用。共用的 suite 基础事实保持既有边界；队列探针撤销的共用 Policy-read Grant 在同一场景的 finally 中重新通过 owning grant 能力恢复，包含探针断言失败路径。文件继续串行，所有被跟踪业务操作在下一测试前 drain；不能把 abandoned test body 本身加入其 afterEach 等待集合。
 
 | 原重复覆盖 | 保留的测试归属 | 其他场景的准备与独立覆盖 |
 | --- | --- | --- |
@@ -513,7 +513,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 fixture 的不同 capability code/主体 Grant 创建互不依赖，按最多四条的批次调用真实 owning Command；每个 Grant 仍有独立事务/Receipt/完整校验，全部完成后才准备 Run deadline。测试文件与测试用例保持串行，不合并事务、不改全套选择或 timeout。每条恢复 fixture 的 Grant 均由真实 owning 命令准备；内部依赖按实际 consumer 主体分配：answer_submit/request_resolve/retry_schedule 的 Human，其他内部 consumer 的 Service。未限定 principalKind 的公开 state/request Query 保留两主体 Grant；不为没有执行该 consumer 的另一主体重复创建依赖 Grant。NORMAL 的独立历史 Human proof 读继续有 Service 自身 Grant；完整 NORMAL、撤权与 Context 失效变体保留两个真实 Worker；其它变体使用一个真实 Worker 独立推进同样的保存命令与 owning 步骤，保留各自期限、失败码、终态与无第三 Run 断言。
 
-通用 Validation/Freeze、queue/create/start 幂等及 scan/progress 错用途 proof 反例在普通 SUCCEEDED 与 bounded NORMAL 各执行一次；每个其它变体仍有自己的真实首次 owning 写入和当前授权。普通 unsupported-final/Core 非 final 反例可共用一次真实 owning 准备的 Service/Actor/无限次 Grant 事实，但每个反例仍独立创建 Task/WorkOrder/Controls/Validation/Context/Bundle/Run、Runtime 实例与 final observation，不共用 Decision 或当前有效性结论。历史升级场景使用 30 秒合法有限预算并等待真实期限，以 owning expiry 收尾；仅准备实际 retry-schedule 入口及其 consumer 主体权限。历史备份在独立临时数据库以等价的 jsonb recordset 批量恢复，仍比较每张表每个历史列；三个不推进时钟的 V3010/V7004 备份最多两个并行、全部完成和清理后才执行旧 V3006/V7002 读回与 expiry，不改变测试文件/用例串行策略或迁移事实。
+通用 Validation/Freeze、queue/create/start 幂等及 scan/progress 错用途 proof 反例在普通 SUCCEEDED 与 bounded NORMAL 各执行一次；每个其它变体仍有自己的真实首次 owning 写入和当前授权。普通 unsupported-final/Core 非 final、finalize/expire 竞争、锁后期限、Validation 过期、IG session 与 terminal-before-final 反例可共用一次真实 owning 准备的 Service/Actor/无限次 Grant 事实；这些分支不撤销或替换该主体的 Grant，撤权、恢复与公共故障矩阵仍使用独立主体，但每个反例仍独立创建 Task/WorkOrder/Controls/Validation/Context/Bundle/Run、Runtime 实例与 final observation，不共用 Decision 或当前有效性结论。历史升级场景使用原有 120 秒合法有限预算，保证备份迁移后缺失旧 Adapter 身份的精确拒绝检查先于期限检查可达，并等待真实期限，以 owning expiry 收尾；仅准备实际 retry-schedule 入口及其 consumer 主体权限。历史备份在独立临时数据库以等价的 jsonb recordset 批量恢复，仍比较每张表每个历史列；三个不推进时钟的 V3010/V7004 备份最多两个并行、全部完成和清理后才执行旧 V3006/V7002 读回与 expiry，不改变测试文件/用例串行策略或迁移事实。
 
 恢复 Worker 使用独立当前进度读回识别已存在 Process；重复 tick 不重新签发创建命令或新增成功 Receipt，ACTIVE 的原命令/进度仍可恢复，COMPLETED/SUSPENDED 不重建。完整正常链的双 Worker 重放矩阵验证原进度推进，另在完成后并发 tick 验证无新增 Process、进度 AuthorizationDecision、Receipt 或 Driver invocation。Run-2 各阶段输出耗时和剩余真实 deadline，失败保留预期的精确拒绝码。
 

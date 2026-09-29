@@ -269,7 +269,7 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / OWNING RECOVERY DIAGNOSTICS EXECUTED / EXACT REVISION FULL AND REVIEW EVIDENCE IN PR #232`；[Spec001 §15.14](../module-specs/Module-Spec-001-IdentityPolicy.md#1514-im06-recovery-有限恢复授权组成实现契约229)。复用现有IP-RUN/IP-FINAL基础，不扩大#224已执行/延后口径。
 
-单 capability covering-Grant 路径可按调用方已明确要求的精确 code 在 SQL 层缩窄候选；后续主体、Scope、action、selector、Hash、Grant/Policy 当前有效性及拒绝优先级保持原规则。省略筛选参数的默认全量查询和 Human 完整多能力覆盖查询不变。`identity-policy-roles.test.ts` 用真实 owning Grant 校验筛选与默认查询的集合等价、同 code 的 Enterprise/Project 事实并存、错主体/Enterprise 及时间边界，避免候选缩窄扩大权限或遗漏合法 Scope。
+单 capability covering-Grant 路径可按调用方已明确要求的精确 code 在 SQL 层缩窄候选；后续主体、Scope、action、selector、Hash、Grant/Policy 当前有效性及拒绝优先级保持原规则。通用命令授权同样下推其精确 requestedCapability；Human 查询按全部受信 required binding 的 code 集合下推候选，每个 binding 的完整覆盖与逐 Grant Policy 校验不变，不缓存当前资格。省略筛选参数的默认全量查询不变，空 code 集合返回空集合。`identity-policy-roles.test.ts` 用真实 owning Grant 校验单 code、多 code（含重复 code）与默认查询的集合等价及空集合、同 code 的 Enterprise/Project 事实并存、错主体/Enterprise 及时间边界，避免候选缩窄扩大权限或遗漏合法 Scope。
 
 | ID | 输入 / 必需证据层级 | 预期 / 结果 |
 |---|---|---|

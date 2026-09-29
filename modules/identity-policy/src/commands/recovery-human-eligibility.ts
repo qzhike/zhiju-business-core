@@ -116,6 +116,7 @@ export async function readRecoveryHumanEligibility(
         principal.id,
         definedValue(scope.enterpriseId),
         now,
+        authority.requiredCapabilities.map((binding) => binding.capabilityCode),
       )
     ).filter(
       (g) =>

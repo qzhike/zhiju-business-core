@@ -484,6 +484,32 @@ describe.skipIf(!gateEnabled)(
         );
         expect(review.map((row) => row.scope_kind).sort()).toEqual(['ENTERPRISE', 'PROJECT']);
         expect(all.some((row) => row.capability_code === 'release.authorize')).toBe(true);
+        const codes = ['wi08.document.review', 'release.authorize', 'wi08.document.review'];
+        const required = await repo.listActiveCapabilityGrants(
+          trx,
+          HUMAN,
+          ENTERPRISE_A,
+          now,
+          codes,
+        );
+        expect(required.map((row) => row.id).sort()).toEqual(
+          all
+            .filter((row) => codes.includes(row.capability_code))
+            .map((row) => row.id)
+            .sort(),
+        );
+        expect(await repo.listActiveCapabilityGrants(trx, HUMAN, ENTERPRISE_A, now, [])).toEqual(
+          [],
+        );
+        expect(await repo.listActiveCapabilityGrants(trx, HUMAN, ENTERPRISE_B, now, codes)).toEqual(
+          [],
+        );
+        expect(await repo.listActiveCapabilityGrants(trx, AGENT, ENTERPRISE_A, now, codes)).toEqual(
+          [],
+        );
+        expect(
+          await repo.listActiveCapabilityGrants(trx, HUMAN, ENTERPRISE_A, new Date(0), codes),
+        ).toEqual([]);
         expect(
           await repo.listActiveCapabilityGrants(
             trx,
