@@ -7396,6 +7396,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       // Repeating it in every variant consumes the short-lived Context before
       // the variant reaches its own session/outcome/expiry boundary.
       const exerciseRecoveryFaultMatrix = bounded && recoveryVariant === 'NORMAL';
+      const shortRecoveryBudget = recoveryVariant.startsWith('SECOND_');
       const exercisePreparationMatrix = terminalScenario === 'SUCCEEDED';
       const positiveFinalScenario =
         terminalScenario === 'SUCCEEDED' ||
@@ -7584,7 +7585,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                 : terminalScenario === 'RACE' || terminalScenario === 'LOCK_DEADLINE'
                   ? 'PT30S'
                   : 'PT600S';
-      if (['BUDGET_EXHAUSTED', 'EXPIRE_SOURCE'].includes(recoveryVariant))
+      if (shortRecoveryBudget || ['BUDGET_EXHAUSTED', 'EXPIRE_SOURCE'].includes(recoveryVariant))
         record(revised.budget).wallClockLimit = 'PT30S';
       // Static selectors are Platform-scoped; recursive fixture scope rewriting
       // is restricted to business refs and must not turn them into Project refs.
@@ -9769,13 +9770,14 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       // after the independently committed Bundle has finished being prepared.
       if (
         terminalScenario === 'ELIGIBILITY_CHANGE' ||
+        shortRecoveryBudget ||
         ['BUDGET_EXHAUSTED', 'EXPIRE_SOURCE'].includes(recoveryVariant)
       )
         clock = Date.now();
       const runDeadline = new Date(
         Math.min(
           bundleValidUntil.getTime(),
-          ...(['BUDGET_EXHAUSTED', 'EXPIRE_SOURCE'].includes(recoveryVariant)
+          ...(shortRecoveryBudget || ['BUDGET_EXHAUSTED', 'EXPIRE_SOURCE'].includes(recoveryVariant)
             ? [clock + 30_000]
             : []),
           clock +
@@ -14712,69 +14714,71 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ).rejects.toBeDefined();
           expect(await receiptRows(String(envelope.idempotencyKey))).toEqual([]);
         };
-        const stateBeforeRequest = await recoveryEntryRaw.read(
-          await recoveryEnvelope(
-            'workOrderExecutionStateReadV1',
-            workOrderRef,
-            { workOrderRef } as unknown as CanonicalJsonObject,
-            service,
-            undefined,
-            true,
-          ),
-          sessionFor(service),
-        );
-        expect(stateBeforeRequest).toMatchObject({
-          blockerRefs: [resultRef],
-          retryEligibility: 'WAITING_INPUT',
-        });
-        await rejectRecovery(
-          'workOrderRetryScheduleV1',
-          workOrderRef,
-          {
-            previousRunRef: runRef,
-            nextAttemptNumber: 2,
-            retryReason: 'BLOCKED_INPUT_RESOLVED',
-            retryPolicyRef: controlsRef,
-          } as unknown as CanonicalJsonObject,
-          operator(),
-          4,
-        );
-        // Both Roots derive WAITING_INPUT from the terminal source before a Request exists.
-        expect(
-          await firstRunEntryRaw.reconcile(
-            await firstRunEnvelope(
-              'execution.reconcile_work_order_execution',
-              workOrderRef,
-              { triggerRef: runRef } as unknown as CanonicalJsonObject,
-              service,
-              Number(record(stateBeforeRequest).aggregateVersion),
-            ),
-            sessionFor(service),
-          ),
-        ).toMatchObject({ status: 'COMMITTED', resultPayload: { status: 'WAITING_INPUT' } });
-        const taskBeforeRequest = await recoveryEntryRaw.read(
-          await recoveryEnvelope(
-            'taskStateReadV1',
-            revised.taskRef as Common.ObjectRef,
-            { taskRef: revised.taskRef } as unknown as CanonicalJsonObject,
-            service,
-            undefined,
-            true,
-          ),
-          sessionFor(service),
-        );
-        expect(
-          await recoveryEntryRaw.command(
+        if (exerciseRecoveryFaultMatrix) {
+          const stateBeforeRequest = await recoveryEntryRaw.read(
             await recoveryEnvelope(
-              'taskReconcileV1',
-              revised.taskRef as Common.ObjectRef,
-              { triggerRef: runRef } as unknown as CanonicalJsonObject,
+              'workOrderExecutionStateReadV1',
+              workOrderRef,
+              { workOrderRef } as unknown as CanonicalJsonObject,
               service,
-              Number(record(taskBeforeRequest).aggregateVersion),
+              undefined,
+              true,
             ),
             sessionFor(service),
-          ),
-        ).toMatchObject({ status: 'COMMITTED', resultPayload: { status: 'WAITING_INPUT' } });
+          );
+          expect(stateBeforeRequest).toMatchObject({
+            blockerRefs: [resultRef],
+            retryEligibility: 'WAITING_INPUT',
+          });
+          await rejectRecovery(
+            'workOrderRetryScheduleV1',
+            workOrderRef,
+            {
+              previousRunRef: runRef,
+              nextAttemptNumber: 2,
+              retryReason: 'BLOCKED_INPUT_RESOLVED',
+              retryPolicyRef: controlsRef,
+            } as unknown as CanonicalJsonObject,
+            operator(),
+            4,
+          );
+          // Both Roots derive WAITING_INPUT from the terminal source before a Request exists.
+          expect(
+            await firstRunEntryRaw.reconcile(
+              await firstRunEnvelope(
+                'execution.reconcile_work_order_execution',
+                workOrderRef,
+                { triggerRef: runRef } as unknown as CanonicalJsonObject,
+                service,
+                Number(record(stateBeforeRequest).aggregateVersion),
+              ),
+              sessionFor(service),
+            ),
+          ).toMatchObject({ status: 'COMMITTED', resultPayload: { status: 'WAITING_INPUT' } });
+          const taskBeforeRequest = await recoveryEntryRaw.read(
+            await recoveryEnvelope(
+              'taskStateReadV1',
+              revised.taskRef as Common.ObjectRef,
+              { taskRef: revised.taskRef } as unknown as CanonicalJsonObject,
+              service,
+              undefined,
+              true,
+            ),
+            sessionFor(service),
+          );
+          expect(
+            await recoveryEntryRaw.command(
+              await recoveryEnvelope(
+                'taskReconcileV1',
+                revised.taskRef as Common.ObjectRef,
+                { triggerRef: runRef } as unknown as CanonicalJsonObject,
+                service,
+                Number(record(taskBeforeRequest).aggregateVersion),
+              ),
+              sessionFor(service),
+            ),
+          ).toMatchObject({ status: 'COMMITTED', resultPayload: { status: 'WAITING_INPUT' } });
+        }
         definition.expiresAt = new Date(clock + 300_000).toISOString();
         const open = await recoveryEnvelope(
           'informationRequestOpenV1',
@@ -15651,103 +15655,111 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           aggregateVersion: 3,
           resolutionRef,
         });
-        // Historical integrity uses the actual committed time, independently of current expiry.
-        const attestation = record(
-          (
-            await admin.query(
-              'SELECT canonical_payload FROM task_execution.resolution_receipt_observation WHERE resolution_id=$1',
-              [record(resolutionRef).objectId],
+        let historicalProof:
+          | {
+              input: RecoveryHumanEligibilityInput;
+              authority: Parameters<typeof readRecoveryHumanEligibility>[2];
+            }
+          | undefined;
+        if (exerciseRecoveryFaultMatrix) {
+          // Historical integrity uses the actual committed time, independently of current expiry.
+          const attestation = record(
+            (
+              await admin.query(
+                'SELECT canonical_payload FROM task_execution.resolution_receipt_observation WHERE resolution_id=$1',
+                [record(resolutionRef).objectId],
+              )
+            ).rows[0].canonical_payload,
+          );
+          const confirmationDecisionExpiry = (
+            await admin.query<{ expires_at: Date }>(
+              'SELECT expires_at FROM identity_policy.authorization_decision WHERE authorization_decision_id=$1',
+              [record(attestation.authorizationDecisionRef).objectId],
             )
-          ).rows[0].canonical_payload,
-        );
-        const confirmationDecisionExpiry = (
-          await admin.query<{ expires_at: Date }>(
-            'SELECT expires_at FROM identity_policy.authorization_decision WHERE authorization_decision_id=$1',
-            [record(attestation.authorizationDecisionRef).objectId],
-          )
-        ).rows[0]?.expires_at;
-        const historyNow = new Date(definedValue(confirmationDecisionExpiry).getTime() + 1);
-        const historicalAuth = createRecoveryAuthorizationPort({
-          capabilityCodes: recoveryCodes,
-          now: () => historyNow,
-        });
-        const eligibilityInput = {
-          principalRef: { principalKind: 'HUMAN', principalId: OPERATOR },
-          scopeRef: scope(),
-          roleCode: 'project.customer_material.confirmer',
-          confirmationActorSnapshotRef: attestation.actorSnapshotRef,
-          confirmationAuthorizationDecisionRef: attestation.authorizationDecisionRef,
-          confirmationTargetRef: attestation.targetRef,
-          confirmationRequestPayloadHash: attestation.requestPayloadHash,
-          confirmationCommittedAt: attestation.committedAt,
-        } as unknown as RecoveryHumanEligibilityInput;
-        const historyTarget = objectRef(
-          'zhiju.identity.principal',
-          OPERATOR,
-          scope(),
-        ) as Common.ObjectRef;
-        const historicalDecision = await historicalAuth.authorize(
-          identityDeps([fixture.projectId], service),
-          'recovery.request_resolve.human.v1',
-          {
-            actorSnapshotRef: service.actorRef,
-            commandType: 'execution.recovery.request_resolve.human',
-            commandVersion: '1.0',
-            commandPayloadHash: digestCanonicalPayload(
-              eligibilityInput as unknown as CanonicalJsonObject,
-            ).hash,
-            authenticationContextHash: AUTH_HASH,
-            targetRef: historyTarget,
-          },
-        );
-        if (historicalDecision.outcome !== 'ALLOW') throw new Error('Historical proof read denied');
-        const historyProof = async () => {
-          const view = await historicalAuth.revalidate(
+          ).rows[0]?.expires_at;
+          const historyNow = new Date(definedValue(confirmationDecisionExpiry).getTime() + 1);
+          const historicalAuth = createRecoveryAuthorizationPort({
+            capabilityCodes: recoveryCodes,
+            now: () => historyNow,
+          });
+          const eligibilityInput = {
+            principalRef: { principalKind: 'HUMAN', principalId: OPERATOR },
+            scopeRef: scope(),
+            roleCode: 'project.customer_material.confirmer',
+            confirmationActorSnapshotRef: attestation.actorSnapshotRef,
+            confirmationAuthorizationDecisionRef: attestation.authorizationDecisionRef,
+            confirmationTargetRef: attestation.targetRef,
+            confirmationRequestPayloadHash: attestation.requestPayloadHash,
+            confirmationCommittedAt: attestation.committedAt,
+          } as unknown as RecoveryHumanEligibilityInput;
+          const historyTarget = objectRef(
+            'zhiju.identity.principal',
+            OPERATOR,
+            scope(),
+          ) as Common.ObjectRef;
+          const historicalDecision = await historicalAuth.authorize(
             identityDeps([fixture.projectId], service),
             'recovery.request_resolve.human.v1',
             {
-              decisionRef: historicalDecision.authorizationDecisionRef,
-              expectedCommandType: 'execution.recovery.request_resolve.human',
-              expectedCommandVersion: '1.0',
-              expectedCommandPayloadHash: digestCanonicalPayload(
+              actorSnapshotRef: service.actorRef,
+              commandType: 'execution.recovery.request_resolve.human',
+              commandVersion: '1.0',
+              commandPayloadHash: digestCanonicalPayload(
                 eligibilityInput as unknown as CanonicalJsonObject,
               ).hash,
-              expectedAuthenticationContextHash: AUTH_HASH,
-              expectedTargetRef: historyTarget,
+              authenticationContextHash: AUTH_HASH,
+              targetRef: historyTarget,
             },
           );
-          expect(view.valid).toBe(true);
-        };
-        const historyAuthority = {
-          now: () => historyNow,
-          validUntil: () => new Date(historicalDecision.expiresAt),
-          revalidateAuthorization: historyProof,
-          requiredCapabilities: [
-            {
-              capabilityCode: recoveryConfig.humanCapabilityCodes.answerSubmit,
-              action: 'execution.information_request.answer.submit.v1',
-              targetObjectType: 'execution.information_request',
-            },
-            {
-              capabilityCode: recoveryConfig.humanCapabilityCodes.requestResolve,
-              action: 'execution.information_request.resolve.v1',
-              targetObjectType: 'execution.information_request',
-            },
-            {
-              capabilityCode: recoveryConfig.humanCapabilityCodes.materialRead,
-              action: 'project.customer_material.recovery_refs.read.for_answer_submit.v1',
-              targetObjectType: 'zhiju.project.customer_material',
-            },
-          ],
-        };
-        expect(
-          await readRecoveryHumanEligibility(
-            identityDeps([fixture.projectId], service),
-            eligibilityInput,
-            historyAuthority,
-          ),
-        ).toMatchObject({ confirmationProvenanceValid: true });
-        if (recoveryVariant === 'NORMAL') {
+          if (historicalDecision.outcome !== 'ALLOW')
+            throw new Error('Historical proof read denied');
+          const historyProof = async () => {
+            const view = await historicalAuth.revalidate(
+              identityDeps([fixture.projectId], service),
+              'recovery.request_resolve.human.v1',
+              {
+                decisionRef: historicalDecision.authorizationDecisionRef,
+                expectedCommandType: 'execution.recovery.request_resolve.human',
+                expectedCommandVersion: '1.0',
+                expectedCommandPayloadHash: digestCanonicalPayload(
+                  eligibilityInput as unknown as CanonicalJsonObject,
+                ).hash,
+                expectedAuthenticationContextHash: AUTH_HASH,
+                expectedTargetRef: historyTarget,
+              },
+            );
+            expect(view.valid).toBe(true);
+          };
+          const historyAuthority = {
+            now: () => historyNow,
+            validUntil: () => new Date(historicalDecision.expiresAt),
+            revalidateAuthorization: historyProof,
+            requiredCapabilities: [
+              {
+                capabilityCode: recoveryConfig.humanCapabilityCodes.answerSubmit,
+                action: 'execution.information_request.answer.submit.v1',
+                targetObjectType: 'execution.information_request',
+              },
+              {
+                capabilityCode: recoveryConfig.humanCapabilityCodes.requestResolve,
+                action: 'execution.information_request.resolve.v1',
+                targetObjectType: 'execution.information_request',
+              },
+              {
+                capabilityCode: recoveryConfig.humanCapabilityCodes.materialRead,
+                action: 'project.customer_material.recovery_refs.read.for_answer_submit.v1',
+                targetObjectType: 'zhiju.project.customer_material',
+              },
+            ],
+          };
+          historicalProof = { input: eligibilityInput, authority: historyAuthority };
+          expect(
+            await readRecoveryHumanEligibility(
+              identityDeps([fixture.projectId], service),
+              eligibilityInput,
+              historyAuthority,
+            ),
+          ).toMatchObject({ confirmationProvenanceValid: true });
           // Real owning Grants isolate same-code action/selector coverage without
           // replacing the repository, Policy integrity or historical proof.
           const sharedCode = `wi231.r2.${serviceId.replaceAll('-', '')}`;
@@ -15802,7 +15814,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             selectorType: 'TARGET_TYPE',
           });
           const usable = await readProbe();
-          expect(usable).toMatchObject({ useStatus: 'USABLE', confirmationProvenanceValid: true });
+          expect(usable).toMatchObject({
+            useStatus: 'USABLE',
+            confirmationProvenanceValid: true,
+          });
           expect(usable.grantRefs.map((ref) => ref.objectId)).toEqual([combinedGrant]);
           await expect(
             readProbe([
@@ -15834,10 +15849,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ).rejects.toMatchObject({
             code: 'AUTHORIZATION_DECISION_INVALID',
           });
-        }
-        if (exerciseRecoveryFaultMatrix) {
           for (const change of [
-            { confirmationTargetRef: { ...record(attestation.targetRef), objectId: newUuidV7() } },
+            {
+              confirmationTargetRef: { ...record(attestation.targetRef), objectId: newUuidV7() },
+            },
             { confirmationRequestPayloadHash: contentHash('0'.repeat(64)) },
             {
               confirmationActorSnapshotRef: {
@@ -16441,7 +16456,25 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             [record(bundle2Ref).objectId],
           )
         ).rows[0];
-        const deadline2 = (bundle2Row.valid_until as Date).toISOString();
+        let deadline2 = (bundle2Row.valid_until as Date).toISOString();
+        let remainingRecoverySeconds: number | undefined;
+        if (shortRecoveryBudget) {
+          const consumed = definedValue(
+            (
+              await admin.query<{ total_seconds: number; consumed_seconds: number }>(
+                'SELECT b.total_seconds,c.consumed_seconds FROM task_execution.run_budget_reservation b JOIN task_execution.run_budget_consumption c USING(run_id) WHERE b.run_id=$1',
+                [runRef.objectId],
+              )
+            ).rows[0],
+          );
+          expect(consumed.total_seconds).toBe(30);
+          remainingRecoverySeconds = consumed.total_seconds - consumed.consumed_seconds;
+          expect(remainingRecoverySeconds).toBeGreaterThan(0);
+          clock = Math.max(clock, Date.now());
+          deadline2 = new Date(
+            Math.min(Date.parse(deadline2), clock + remainingRecoverySeconds * 1000),
+          ).toISOString();
+        }
         const create2 = await firstRunEnvelope(
           'execution.create_run',
           run2,
@@ -16490,10 +16523,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           expect(
             await readRecoveryHumanEligibility(
               identityDeps([fixture.projectId], service),
-              eligibilityInput,
+              definedValue(historicalProof).input,
               {
-                ...historyAuthority,
-                requiredCapabilities: [definedValue(historyAuthority.requiredCapabilities[0])],
+                ...definedValue(historicalProof).authority,
+                requiredCapabilities: [
+                  definedValue(definedValue(historicalProof).authority.requiredCapabilities[0]),
+                ],
               },
             ),
           ).toMatchObject({ useStatus: 'USABLE' });
@@ -16632,6 +16667,16 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           }
         const created2 = await firstRunEntry.createRun(create2, sessionFor(service));
         expect(created2).toMatchObject({ status: 'COMMITTED' });
+        if (remainingRecoverySeconds !== undefined) {
+          expect(
+            (
+              await admin.query<{ reserved_seconds: number; total_seconds: number }>(
+                'SELECT reserved_seconds,total_seconds FROM task_execution.run_budget_reservation WHERE run_id=$1',
+                [run2.objectId],
+              )
+            ).rows,
+          ).toEqual([{ reserved_seconds: remainingRecoverySeconds, total_seconds: 30 }]);
+        }
         const created2Data = record(committedPayload(created2 as CommandResult));
         expect(created2Data.fencingToken).toBe(2);
         expect(await firstRunEntry.createRun(create2, sessionFor(service))).toMatchObject({
@@ -17165,57 +17210,59 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ),
         ).toMatchObject({ rows: savedHistory.rows });
         expect(runtimeDriver.invokedAttemptIds).toEqual([attemptRef.objectId, attempt2.objectId]);
-        for (const table of [
-          'recovery_command_material',
-          'information_request_origin',
-          'answer_submission',
-          'answer_resolution',
-          'resolution_receipt_observation',
-          'work_order_retry_intent',
-          'run_retry_intent_consumption',
-          'run_budget_reservation',
-          'run_budget_consumption',
-          'recovery_process_command',
-        ]) {
-          const tableName = `task_execution.${table}`;
-          expect(
-            (
-              await admin.query<{ n: number }>(
-                `SELECT count(*)::int n FROM ${tableName} WHERE project_id=$1`,
-                [fixture.projectId],
-              )
-            ).rows[0]?.n,
-            table,
-          ).toBeGreaterThan(0);
-          const hidden = await withTaskExecutionTransaction(
-            teDb,
-            { ...runnerContext(service), allowedProjectIds: [newUuidV7()] },
-            (trx) =>
-              sql`SELECT project_id FROM ${sql.table(tableName)} WHERE project_id=${fixture.projectId}::uuid`.execute(
-                trx,
-              ),
-          );
-          expect(hidden.rows, `TE-REC-D-011 ${table} foreign Project`).toEqual([]);
-          for (const verb of ['UPDATE', 'DELETE']) {
-            await expect(
-              withTaskExecutionTransaction(teDb, runnerContext(service), (trx) =>
-                verb === 'UPDATE'
-                  ? sql`UPDATE ${sql.table(tableName)} SET project_id=project_id WHERE project_id=${fixture.projectId}::uuid`.execute(
-                      trx,
-                    )
-                  : sql`DELETE FROM ${sql.table(tableName)} WHERE project_id=${fixture.projectId}::uuid`.execute(
-                      trx,
-                    ),
-              ),
-            ).rejects.toMatchObject({ code: '42501' });
-            await expect(
-              admin.query(
-                verb === 'UPDATE'
-                  ? `UPDATE ${tableName} SET project_id=project_id WHERE project_id=$1`
-                  : `DELETE FROM ${tableName} WHERE project_id=$1`,
-                [fixture.projectId],
-              ),
-            ).rejects.toMatchObject({ code: '55000' });
+        if (exerciseRecoveryFaultMatrix) {
+          for (const table of [
+            'recovery_command_material',
+            'information_request_origin',
+            'answer_submission',
+            'answer_resolution',
+            'resolution_receipt_observation',
+            'work_order_retry_intent',
+            'run_retry_intent_consumption',
+            'run_budget_reservation',
+            'run_budget_consumption',
+            'recovery_process_command',
+          ]) {
+            const tableName = `task_execution.${table}`;
+            expect(
+              (
+                await admin.query<{ n: number }>(
+                  `SELECT count(*)::int n FROM ${tableName} WHERE project_id=$1`,
+                  [fixture.projectId],
+                )
+              ).rows[0]?.n,
+              table,
+            ).toBeGreaterThan(0);
+            const hidden = await withTaskExecutionTransaction(
+              teDb,
+              { ...runnerContext(service), allowedProjectIds: [newUuidV7()] },
+              (trx) =>
+                sql`SELECT project_id FROM ${sql.table(tableName)} WHERE project_id=${fixture.projectId}::uuid`.execute(
+                  trx,
+                ),
+            );
+            expect(hidden.rows, `TE-REC-D-011 ${table} foreign Project`).toEqual([]);
+            for (const verb of ['UPDATE', 'DELETE']) {
+              await expect(
+                withTaskExecutionTransaction(teDb, runnerContext(service), (trx) =>
+                  verb === 'UPDATE'
+                    ? sql`UPDATE ${sql.table(tableName)} SET project_id=project_id WHERE project_id=${fixture.projectId}::uuid`.execute(
+                        trx,
+                      )
+                    : sql`DELETE FROM ${sql.table(tableName)} WHERE project_id=${fixture.projectId}::uuid`.execute(
+                        trx,
+                      ),
+                ),
+              ).rejects.toMatchObject({ code: '42501' });
+              await expect(
+                admin.query(
+                  verb === 'UPDATE'
+                    ? `UPDATE ${tableName} SET project_id=project_id WHERE project_id=$1`
+                    : `DELETE FROM ${tableName} WHERE project_id=$1`,
+                  [fixture.projectId],
+                ),
+              ).rejects.toMatchObject({ code: '55000' });
+            }
           }
         }
         const budgetRows = (
@@ -17298,82 +17345,83 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
           expect(receiptReads.filter((query) => query.includes('enterprise_project'))).toEqual([]);
         }
-        const resolvedFactsBeforeRevoke = await denialSnapshot();
-        const resolveGrant = definedValue(
-          recoveryGrants.get(
-            `${OPERATOR}:informationRequestResolveV1:execution.information_request`,
-          ),
-        );
-        expect(
-          await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
-            targetId: resolveGrant,
-            expectedAggregateVersion: '1',
-            scope: {
-              scopeKind: 'PROJECT',
-              enterpriseId: fixture.enterpriseId,
-              projectId: fixture.projectId,
-            },
-            reasonCode: 'WI231_REVOKE_RESOLVE',
-            effectiveAt: new Date(clock),
-            idempotencyKey: newUuidV7(),
-          }),
-        ).toMatchObject({ status: 'COMMITTED' });
-        queryReads.length = 0;
-        await expect(
-          createBlockedInputRecoveryEntry({
+        if (exerciseRecoveryFaultMatrix) {
+          const resolvedFactsBeforeRevoke = await denialSnapshot();
+          const resolveGrant = definedValue(
+            recoveryGrants.get(
+              `${OPERATOR}:informationRequestResolveV1:execution.information_request`,
+            ),
+          );
+          expect(
+            await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+              targetId: resolveGrant,
+              expectedAggregateVersion: '1',
+              scope: {
+                scopeKind: 'PROJECT',
+                enterpriseId: fixture.enterpriseId,
+                projectId: fixture.projectId,
+              },
+              reasonCode: 'WI231_REVOKE_RESOLVE',
+              effectiveAt: new Date(clock),
+              idempotencyKey: newUuidV7(),
+            }),
+          ).toMatchObject({ status: 'COMMITTED' });
+          queryReads.length = 0;
+          await expect(
+            createBlockedInputRecoveryEntry({
+              ...recoveryConfig,
+              taskExecutionDb: guardedTeDb,
+            }).command(resolve, sessionFor()),
+          ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+          expect(protectedReads()).toEqual([]);
+          await expect(
+            readRecoveryHumanEligibility(
+              identityDeps([fixture.projectId], service),
+              definedValue(historicalProof).input,
+              definedValue(historicalProof).authority,
+            ),
+          ).rejects.toBeDefined();
+          expect(await denialSnapshot()).toEqual(resolvedFactsBeforeRevoke);
+          const roleId = definedValue(
+            (
+              await admin.query<{ assignment_id: string }>(
+                "SELECT id AS assignment_id FROM identity_policy.role_assignment WHERE principal_id=$1 AND project_id=$2 AND role_code='project.customer_material.confirmer' AND status='ACTIVE'",
+                [OPERATOR, fixture.projectId],
+              )
+            ).rows[0]?.assignment_id,
+          );
+          expect(
+            await revokeRole(identityDeps([fixture.projectId]), {
+              targetId: roleId,
+              expectedAggregateVersion: '1',
+              scope: {
+                scopeKind: 'PROJECT',
+                enterpriseId: fixture.enterpriseId,
+                projectId: fixture.projectId,
+              },
+              reasonCode: 'WI231_REVOKE_CONFIRMER',
+              effectiveAt: new Date(clock),
+              idempotencyKey: newUuidV7(),
+            }),
+          ).toMatchObject({ status: 'COMMITTED' });
+          queryReads.length = 0;
+          const roleGuardedEntry = createBlockedInputRecoveryEntry({
             ...recoveryConfig,
             taskExecutionDb: guardedTeDb,
-          }).command(resolve, sessionFor()),
-        ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
-        expect(protectedReads()).toEqual([]);
-        await expect(
-          readRecoveryHumanEligibility(
-            identityDeps([fixture.projectId], service),
-            eligibilityInput,
-            historyAuthority,
-          ),
-        ).rejects.toBeDefined();
-        expect(await denialSnapshot()).toEqual(resolvedFactsBeforeRevoke);
-        const roleId = definedValue(
-          (
-            await admin.query<{ assignment_id: string }>(
-              "SELECT id AS assignment_id FROM identity_policy.role_assignment WHERE principal_id=$1 AND project_id=$2 AND role_code='project.customer_material.confirmer' AND status='ACTIVE'",
-              [OPERATOR, fixture.projectId],
-            )
-          ).rows[0]?.assignment_id,
-        );
-        expect(
-          await revokeRole(identityDeps([fixture.projectId]), {
-            targetId: roleId,
-            expectedAggregateVersion: '1',
-            scope: {
-              scopeKind: 'PROJECT',
-              enterpriseId: fixture.enterpriseId,
-              projectId: fixture.projectId,
-            },
-            reasonCode: 'WI231_REVOKE_CONFIRMER',
-            effectiveAt: new Date(clock),
-            idempotencyKey: newUuidV7(),
-          }),
-        ).toMatchObject({ status: 'COMMITTED' });
-        queryReads.length = 0;
-        const roleGuardedEntry = createBlockedInputRecoveryEntry({
-          ...recoveryConfig,
-          taskExecutionDb: guardedTeDb,
-        });
-        const deniedRead = await recoveryEnvelope(
-          'informationRequestReadV1',
-          requestRef,
-          { informationRequestRef: requestRef } as unknown as CanonicalJsonObject,
-          operator(),
-          undefined,
-          true,
-        );
-        await expect(roleGuardedEntry.read(deniedRead, sessionFor())).rejects.toMatchObject({
-          code: 'AUTHORIZATION_DECISION_INVALID',
-        });
-        expect(protectedReads()).toEqual([]);
-
+          });
+          const deniedRead = await recoveryEnvelope(
+            'informationRequestReadV1',
+            requestRef,
+            { informationRequestRef: requestRef } as unknown as CanonicalJsonObject,
+            operator(),
+            undefined,
+            true,
+          );
+          await expect(roleGuardedEntry.read(deniedRead, sessionFor())).rejects.toMatchObject({
+            code: 'AUTHORIZATION_DECISION_INVALID',
+          });
+          expect(protectedReads()).toEqual([]);
+        }
         expect(processStep).toBe(13);
         expect(processHandoffs.size).toBe(exerciseRecoveryFaultMatrix ? 13 : 0);
         for (const worker of definedValue(processWorkers)) await worker.stop();
