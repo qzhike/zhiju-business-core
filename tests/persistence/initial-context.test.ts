@@ -7392,7 +7392,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       // Run common precondition refusals once; every other case still produces
       // its own live Task/Draft/Context/READY/Run through the owning entries.
       const bounded = terminalScenario === 'BOUNDED_RECOVERY';
-      // Exercise the complete shared fault matrix once on the normal chain.
+      // Exercise shared refusal, replay and fault matrices once on the normal chain.
       // Repeating it in every variant consumes the short-lived Context before
       // the variant reaches its own session/outcome/expiry boundary.
       const exerciseRecoveryFaultMatrix = bounded && recoveryVariant === 'NORMAL';
@@ -7430,7 +7430,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         authHash: AUTH_HASH,
       };
       const borrowedActors: Principal[] = [];
-      if (exercisePreparationMatrix || bounded) {
+      if (exercisePreparationMatrix || exerciseRecoveryFaultMatrix) {
         const otherServiceId = newUuidV7();
         await withIdentityTransaction(identityDb, identityContext([]), (trx) =>
           identityRepo.insertPrincipal(trx, {
@@ -8508,14 +8508,38 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       };
       const queryReads: string[] = [];
       const queryWrites: string[] = [];
+      let budgetFinalizationWaitAt: number | undefined;
+      let budgetAcceptanceRead = false;
+      let budgetWaitQueryId: Parameters<KyselyPlugin['transformQuery']>[0]['queryId'] | undefined;
       const queryProbe: KyselyPlugin = {
         transformQuery(args) {
-          if (args.node.kind === 'SelectQueryNode') queryReads.push(JSON.stringify(args.node));
+          if (args.node.kind === 'SelectQueryNode') {
+            const query = JSON.stringify(args.node);
+            queryReads.push(query);
+            if (budgetFinalizationWaitAt !== undefined) {
+              if (query.includes('"name":"agent_result_acceptance"')) budgetAcceptanceRead = true;
+              else if (budgetAcceptanceRead && query.includes('"name":"agent_result"'))
+                budgetWaitQueryId = args.queryId;
+            }
+          }
           if (['InsertQueryNode', 'UpdateQueryNode', 'DeleteQueryNode'].includes(args.node.kind))
             queryWrites.push(JSON.stringify(args.node));
           return args.node;
         },
-        transformResult: (args) => Promise.resolve(args.result),
+        async transformResult(args) {
+          if (args.queryId === budgetWaitQueryId && budgetFinalizationWaitAt !== undefined) {
+            // Keep the actual owning result and wall clock. Wait after dependency
+            // preparation, immediately before the real terminal SQL transition.
+            await waitForDeadline(
+              Math.max(0, budgetFinalizationWaitAt - Date.now()),
+              'finite Run-1 budget consumption',
+            );
+            clock = Date.now();
+            budgetFinalizationWaitAt = undefined;
+            budgetWaitQueryId = undefined;
+          }
+          return args.result;
+        },
       };
       const guardedTeDb = teDb.withPlugin(queryProbe);
       const protectedReads = () =>
@@ -14400,21 +14424,6 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ).rows,
         ).toEqual([]);
       }
-      if (recoveryVariant === 'BUDGET_EXHAUSTED') {
-        const createdAt = definedValue(
-          (
-            await admin.query<{ created_at: Date }>(
-              'SELECT created_at FROM task_execution.run WHERE run_id=$1',
-              [runRef.objectId],
-            )
-          ).rows[0],
-        ).created_at;
-        await waitForDeadline(
-          Math.max(0, createdAt.getTime() + 29_100 - Date.now()),
-          'finite Run-1 budget consumption',
-        );
-        clock = Date.now();
-      }
       if (recoveryVariant === 'EXPIRE_SOURCE') {
         await waitForDeadline(
           Math.max(0, runDeadline.getTime() - Date.now() + 100),
@@ -14587,6 +14596,17 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       await finalReceiptRollback(finalizeEnvelope, (value) =>
         firstRunEntry.finalizeRun(value, sessionFor(service)),
       );
+      if (recoveryVariant === 'BUDGET_EXHAUSTED') {
+        const createdAt = definedValue(
+          (
+            await admin.query<{ created_at: Date }>(
+              'SELECT created_at FROM task_execution.run WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows[0],
+        ).created_at;
+        budgetFinalizationWaitAt = createdAt.getTime() + 29_100;
+      }
       let finalized: Awaited<ReturnType<typeof firstRunEntry.finalizeRun>>;
       const foreignAcceptance = foreignValidations?.acceptanceRecordRef;
       if (foreignAcceptance !== undefined) {
@@ -14609,6 +14629,31 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         expect(await receiptRows(competing.idempotencyKey)).toEqual([]);
       } else finalized = await firstRunEntry.finalizeRun(finalizeEnvelope, sessionFor(service));
       expect(finalized, JSON.stringify(finalized)).toMatchObject({ status: 'COMMITTED' });
+      if (recoveryVariant === 'BUDGET_EXHAUSTED') {
+        expect(budgetFinalizationWaitAt).toBeUndefined();
+        const consumption = definedValue(
+          (
+            await admin.query<{
+              consumed_seconds: number;
+              reserved_seconds: number;
+              total_seconds: number;
+              ended_at: Date;
+              execution_deadline: Date;
+            }>(
+              'SELECT c.consumed_seconds,b.reserved_seconds,b.total_seconds,r.ended_at,r.execution_deadline FROM task_execution.run r JOIN task_execution.run_budget_reservation b USING(run_id) JOIN task_execution.run_budget_consumption c USING(run_id) WHERE r.run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows[0],
+        );
+        expect(consumption).toMatchObject({
+          consumed_seconds: 30,
+          reserved_seconds: 30,
+          total_seconds: 30,
+        });
+        expect(consumption.ended_at.getTime()).toBeLessThan(
+          consumption.execution_deadline.getTime(),
+        );
+      }
       if (bounded) {
         phase('bounded recovery after terminal Run-1');
         processEnabled = true;
@@ -14740,35 +14785,37 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         expect(await recoveryEntry.command(open, sessionFor(service))).toMatchObject({
           status: 'COMMITTED',
         });
-        expect(await recoveryEntry.command(open, sessionFor(service))).toMatchObject({
-          status: 'DUPLICATE',
-        });
-        // A different target/key for the same accepted source returns the original winner.
-        const alternateOpen = await recoveryEnvelope(
-          'informationRequestOpenV1',
-          objectRef('execution.information_request', newUuidV7(), scope()) as Common.ObjectRef,
-          { definition } as unknown as CanonicalJsonObject,
-          service,
-        );
-        expect(await recoveryEntryRaw.command(alternateOpen, sessionFor(service))).toMatchObject({
-          status: 'COMMITTED',
-          resultPayload: { informationRequestRef: requestRef },
-        });
-        expect(
-          (
-            await admin.query(
-              'SELECT request_id FROM task_execution.information_request_origin WHERE source_result_id=$1',
-              [resultRef.objectId],
-            )
-          ).rows,
-        ).toEqual([{ request_id: requestRef.objectId }]);
-        await rejectRecovery(
-          'informationRequestOpenV1',
-          objectRef('execution.information_request', newUuidV7(), scope()) as Common.ObjectRef,
-          {
-            definition: { ...definition, question: 'A conflicting request question.' },
-          } as unknown as CanonicalJsonObject,
-        );
+        if (exerciseRecoveryFaultMatrix) {
+          expect(await recoveryEntry.command(open, sessionFor(service))).toMatchObject({
+            status: 'DUPLICATE',
+          });
+          // A different target/key for the same accepted source returns the original winner.
+          const alternateOpen = await recoveryEnvelope(
+            'informationRequestOpenV1',
+            objectRef('execution.information_request', newUuidV7(), scope()) as Common.ObjectRef,
+            { definition } as unknown as CanonicalJsonObject,
+            service,
+          );
+          expect(await recoveryEntryRaw.command(alternateOpen, sessionFor(service))).toMatchObject({
+            status: 'COMMITTED',
+            resultPayload: { informationRequestRef: requestRef },
+          });
+          expect(
+            (
+              await admin.query(
+                'SELECT request_id FROM task_execution.information_request_origin WHERE source_result_id=$1',
+                [resultRef.objectId],
+              )
+            ).rows,
+          ).toEqual([{ request_id: requestRef.objectId }]);
+          await rejectRecovery(
+            'informationRequestOpenV1',
+            objectRef('execution.information_request', newUuidV7(), scope()) as Common.ObjectRef,
+            {
+              definition: { ...definition, question: 'A conflicting request question.' },
+            } as unknown as CanonicalJsonObject,
+          );
+        }
         const requestQuery = async () =>
           recoveryEntry.read(
             await recoveryEnvelope(
@@ -15160,67 +15207,69 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             )
           ).rows;
         const openBefore = await denialSnapshot();
-        for (const change of [
-          { responder: objectRef('zhiju.identity.principal', newUuidV7(), scope()) },
-          { sourceRefs: [] },
-          {
-            answerContent: {
-              candidateMaterialRef: { ...record(candidateMaterial), versionId: newUuidV7() },
-              confirmedMaterialRef: confirmedRef,
+        if (exerciseRecoveryFaultMatrix) {
+          for (const change of [
+            { responder: objectRef('zhiju.identity.principal', newUuidV7(), scope()) },
+            { sourceRefs: [] },
+            {
+              answerContent: {
+                candidateMaterialRef: { ...record(candidateMaterial), versionId: newUuidV7() },
+                confirmedMaterialRef: confirmedRef,
+              },
             },
-          },
-          { submittedAt: new Date(clock + 1).toISOString() },
-        ]) {
-          const invalidAnswer = { ...answer, ...change };
-          const payload = {
-            answer: {
-              ...invalidAnswer,
-              payloadHash: contentHash(
-                sha256CanonicalJson(invalidAnswer as unknown as CanonicalJsonObject),
-              ),
-            },
-          } as unknown as CanonicalJsonObject;
-          const envelope = await recoveryEnvelope(
-            'informationAnswerSubmitV1',
-            requestRef,
-            payload,
-            operator(),
-            1,
-          );
-          await expect(
-            recoveryEntryRaw.command(envelope, sessionFor()),
-            'TE-REC-D-005 invalid answer',
-          ).rejects.toBeDefined();
-          expect(await denialSnapshot()).toEqual(openBefore);
-          expect(await receiptRows(String(envelope.idempotencyKey))).toEqual([]);
-        }
-        queryReads.length = 0;
-        await expect(
-          createBlockedInputRecoveryEntry({
-            ...recoveryConfig,
-            taskExecutionDb: guardedTeDb,
-            recoveryCapabilityCodes: {
-              ...recoveryCodes,
-              informationAnswerSubmitV1: 'wi231.missing',
-            },
-          }).command(answerEnv, sessionFor()),
-        ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
-        expect(protectedReads()).toEqual([]);
-        await expect(
-          recoveryEntryRaw.command(answerEnv, sessionFor(service)),
-        ).rejects.toBeDefined();
-        expect(await denialSnapshot()).toEqual(openBefore);
-        for (const borrower of borrowedActors) {
+            { submittedAt: new Date(clock + 1).toISOString() },
+          ]) {
+            const invalidAnswer = { ...answer, ...change };
+            const payload = {
+              answer: {
+                ...invalidAnswer,
+                payloadHash: contentHash(
+                  sha256CanonicalJson(invalidAnswer as unknown as CanonicalJsonObject),
+                ),
+              },
+            } as unknown as CanonicalJsonObject;
+            const envelope = await recoveryEnvelope(
+              'informationAnswerSubmitV1',
+              requestRef,
+              payload,
+              operator(),
+              1,
+            );
+            await expect(
+              recoveryEntryRaw.command(envelope, sessionFor()),
+              'TE-REC-D-005 invalid answer',
+            ).rejects.toBeDefined();
+            expect(await denialSnapshot()).toEqual(openBefore);
+            expect(await receiptRows(String(envelope.idempotencyKey))).toEqual([]);
+          }
           queryReads.length = 0;
           await expect(
-            recoveryEntryRaw.command(
-              { ...answerEnv, actor: borrower.actorRef },
-              sessionFor(borrower),
-            ),
-          ).rejects.toBeDefined();
+            createBlockedInputRecoveryEntry({
+              ...recoveryConfig,
+              taskExecutionDb: guardedTeDb,
+              recoveryCapabilityCodes: {
+                ...recoveryCodes,
+                informationAnswerSubmitV1: 'wi231.missing',
+              },
+            }).command(answerEnv, sessionFor()),
+          ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
           expect(protectedReads()).toEqual([]);
+          await expect(
+            recoveryEntryRaw.command(answerEnv, sessionFor(service)),
+          ).rejects.toBeDefined();
           expect(await denialSnapshot()).toEqual(openBefore);
-          expect(await receiptRows(String(answerEnv.idempotencyKey))).toEqual([]);
+          for (const borrower of borrowedActors) {
+            queryReads.length = 0;
+            await expect(
+              recoveryEntryRaw.command(
+                { ...answerEnv, actor: borrower.actorRef },
+                sessionFor(borrower),
+              ),
+            ).rejects.toBeDefined();
+            expect(protectedReads()).toEqual([]);
+            expect(await denialSnapshot()).toEqual(openBefore);
+            expect(await receiptRows(String(answerEnv.idempotencyKey))).toEqual([]);
+          }
         }
         if (recoveryVariant === 'NORMAL') {
           const agent = definedValue(
@@ -15376,41 +15425,45 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           await recoveryReceiptRollback(answerEnv, () =>
             recoveryEntryRaw.command(answerEnv, sessionFor()),
           );
-        const concurrentAnswer = await recoveryEnvelope(
-          'informationAnswerSubmitV1',
-          requestRef,
-          answerPayload,
-          operator(),
-          1,
-        );
-        const [answered, answerWinner] = await Promise.all([
-          recoveryEntry.command(answerEnv, sessionFor()),
-          recoveryEntryRaw.command(concurrentAnswer, sessionFor()),
-        ]);
-        expect(answerWinner).toMatchObject({
-          status: 'COMMITTED',
-          resultPayload: committedPayload(answered),
-        });
-        const conflictingAnswer = { ...answer, answerId: newUuidV7() };
-        await rejectRecovery(
-          'informationAnswerSubmitV1',
-          requestRef,
-          {
-            answer: {
-              ...conflictingAnswer,
-              payloadHash: contentHash(
-                sha256CanonicalJson(conflictingAnswer as unknown as CanonicalJsonObject),
-              ),
-            },
-          } as unknown as CanonicalJsonObject,
-          operator(),
-          2,
-        );
+        let answered: CommandResult;
+        if (exerciseRecoveryFaultMatrix) {
+          const concurrentAnswer = await recoveryEnvelope(
+            'informationAnswerSubmitV1',
+            requestRef,
+            answerPayload,
+            operator(),
+            1,
+          );
+          const [winner, answerWinner] = await Promise.all([
+            recoveryEntry.command(answerEnv, sessionFor()),
+            recoveryEntryRaw.command(concurrentAnswer, sessionFor()),
+          ]);
+          expect(answerWinner).toMatchObject({
+            status: 'COMMITTED',
+            resultPayload: committedPayload(winner),
+          });
+          answered = winner;
+          const conflictingAnswer = { ...answer, answerId: newUuidV7() };
+          await rejectRecovery(
+            'informationAnswerSubmitV1',
+            requestRef,
+            {
+              answer: {
+                ...conflictingAnswer,
+                payloadHash: contentHash(
+                  sha256CanonicalJson(conflictingAnswer as unknown as CanonicalJsonObject),
+                ),
+              },
+            } as unknown as CanonicalJsonObject,
+            operator(),
+            2,
+          );
 
+          expect(await recoveryEntry.command(answerEnv, sessionFor())).toMatchObject({
+            status: 'DUPLICATE',
+          });
+        } else answered = await recoveryEntry.command(answerEnv, sessionFor());
         expect(answered).toMatchObject({ status: 'COMMITTED' });
-        expect(await recoveryEntry.command(answerEnv, sessionFor())).toMatchObject({
-          status: 'DUPLICATE',
-        });
         expect(await requestQuery()).toMatchObject({ status: 'ANSWERED', aggregateVersion: 2 });
         clock = Math.max(clock, Date.now());
         const resolvePayload = {
@@ -15532,59 +15585,61 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
         }
 
-        for (const change of [
-          {
-            domainCommandRefs: [
-              {
-                ...record(receipt),
-                contentHash: contentHash(sha256CanonicalJson({ forged: true })),
-              },
-            ],
-          },
-          { domainCommandRefs: [{ ...record(receipt), objectId: newUuidV7() }] },
-          {
-            domainCommandRefs: [
-              {
-                ...record(receipt),
-                scope: { enterpriseId: fixture.enterpriseId, projectId: newUuidV7() },
-              },
-            ],
-          },
-          {
-            acceptedAnswerRef: {
-              ...record(resolvePayload.acceptedAnswerRef),
-              objectId: newUuidV7(),
+        if (exerciseRecoveryFaultMatrix) {
+          for (const change of [
+            {
+              domainCommandRefs: [
+                {
+                  ...record(receipt),
+                  contentHash: contentHash(sha256CanonicalJson({ forged: true })),
+                },
+              ],
             },
-          },
-          { resolvedBy: objectRef('zhiju.identity.principal', newUuidV7(), scope()) },
-          { resolvedAt: new Date(clock + 1).toISOString() },
-        ]) {
-          const envelope = await recoveryEnvelope(
-            'informationRequestResolveV1',
-            requestRef,
-            { ...resolvePayload, ...change } as CanonicalJsonObject,
+            { domainCommandRefs: [{ ...record(receipt), objectId: newUuidV7() }] },
+            {
+              domainCommandRefs: [
+                {
+                  ...record(receipt),
+                  scope: { enterpriseId: fixture.enterpriseId, projectId: newUuidV7() },
+                },
+              ],
+            },
+            {
+              acceptedAnswerRef: {
+                ...record(resolvePayload.acceptedAnswerRef),
+                objectId: newUuidV7(),
+              },
+            },
+            { resolvedBy: objectRef('zhiju.identity.principal', newUuidV7(), scope()) },
+            { resolvedAt: new Date(clock + 1).toISOString() },
+          ]) {
+            const envelope = await recoveryEnvelope(
+              'informationRequestResolveV1',
+              requestRef,
+              { ...resolvePayload, ...change } as CanonicalJsonObject,
+              operator(),
+              2,
+            );
+            await expect(
+              recoveryEntryRaw.command(envelope, sessionFor()),
+              'TE-REC-D-004 forged or unrelated resolution',
+            ).rejects.toBeDefined();
+            expect(await denialSnapshot()).toEqual(answeredBefore);
+            expect(await receiptRows(String(envelope.idempotencyKey))).toEqual([]);
+          }
+          await rejectRecovery(
+            'workOrderRetryScheduleV1',
+            workOrderRef,
+            {
+              previousRunRef: runRef,
+              nextAttemptNumber: 2,
+              retryReason: 'BLOCKED_INPUT_RESOLVED',
+              retryPolicyRef: controlsRef,
+            } as unknown as CanonicalJsonObject,
             operator(),
-            2,
+            await woVersion(),
           );
-          await expect(
-            recoveryEntryRaw.command(envelope, sessionFor()),
-            'TE-REC-D-004 forged or unrelated resolution',
-          ).rejects.toBeDefined();
-          expect(await denialSnapshot()).toEqual(answeredBefore);
-          expect(await receiptRows(String(envelope.idempotencyKey))).toEqual([]);
         }
-        await rejectRecovery(
-          'workOrderRetryScheduleV1',
-          workOrderRef,
-          {
-            previousRunRef: runRef,
-            nextAttemptNumber: 2,
-            retryReason: 'BLOCKED_INPUT_RESOLVED',
-            retryPolicyRef: controlsRef,
-          } as unknown as CanonicalJsonObject,
-          operator(),
-          await woVersion(),
-        );
         const resolved = await recoveryEntry.command(resolve, sessionFor());
         expect(resolved).toMatchObject({ status: 'COMMITTED' });
         const resolutionRef = record(committedPayload(resolved)).resolutionRef;
@@ -15780,83 +15835,86 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             code: 'AUTHORIZATION_DECISION_INVALID',
           });
         }
-        for (const change of [
-          { confirmationTargetRef: { ...record(attestation.targetRef), objectId: newUuidV7() } },
-          { confirmationRequestPayloadHash: contentHash('0'.repeat(64)) },
-          {
-            confirmationActorSnapshotRef: {
-              ...record(attestation.actorSnapshotRef),
-              objectId: newUuidV7(),
-            },
-          },
-          {
-            confirmationAuthorizationDecisionRef: {
-              ...record(attestation.authorizationDecisionRef),
-              objectId: newUuidV7(),
-            },
-          },
-          { confirmationCommittedAt: new Date(historyNow.getTime() + 1).toISOString() },
-          // An actual propose Decision has intact hashes, actor, Scope and target, but the wrong operation/Purpose.
-          {
-            confirmationAuthorizationDecisionRef:
-              definedValue(recoveryProposeEnvelope).authorizationDecisionRef,
-            confirmationTargetRef: definedValue(recoveryProposeEnvelope).targetRef,
-            confirmationRequestPayloadHash: record(definedValue(recoveryProposeEnvelope).integrity)
-              .payloadHash,
-          },
-        ]) {
-          const changed = { ...eligibilityInput, ...change } as RecoveryHumanEligibilityInput;
-          const payloadHash = digestCanonicalPayload(
-            changed as unknown as CanonicalJsonObject,
-          ).hash;
-          const proof = await historicalAuth.authorize(
-            identityDeps([fixture.projectId], service),
-            'recovery.request_resolve.human.v1',
+        if (exerciseRecoveryFaultMatrix) {
+          for (const change of [
+            { confirmationTargetRef: { ...record(attestation.targetRef), objectId: newUuidV7() } },
+            { confirmationRequestPayloadHash: contentHash('0'.repeat(64)) },
             {
-              actorSnapshotRef: service.actorRef,
-              commandType: 'execution.recovery.request_resolve.human',
-              commandVersion: '1.0',
-              commandPayloadHash: payloadHash,
-              authenticationContextHash: AUTH_HASH,
-              targetRef: historyTarget,
-            },
-          );
-          if (proof.outcome !== 'ALLOW') throw new Error('history consumer proof denied');
-          await expect(
-            readRecoveryHumanEligibility(identityDeps([fixture.projectId], service), changed, {
-              ...historyAuthority,
-              validUntil: () => new Date(proof.expiresAt),
-              revalidateAuthorization: async () => {
-                expect(
-                  await historicalAuth.revalidate(
-                    identityDeps([fixture.projectId], service),
-                    'recovery.request_resolve.human.v1',
-                    {
-                      decisionRef: proof.authorizationDecisionRef,
-                      expectedCommandType: 'execution.recovery.request_resolve.human',
-                      expectedCommandVersion: '1.0',
-                      expectedCommandPayloadHash: payloadHash,
-                      expectedAuthenticationContextHash: AUTH_HASH,
-                      expectedTargetRef: historyTarget,
-                    },
-                  ),
-                ).toMatchObject({ valid: true });
+              confirmationActorSnapshotRef: {
+                ...record(attestation.actorSnapshotRef),
+                objectId: newUuidV7(),
               },
-            }),
-          ).rejects.toBeDefined();
+            },
+            {
+              confirmationAuthorizationDecisionRef: {
+                ...record(attestation.authorizationDecisionRef),
+                objectId: newUuidV7(),
+              },
+            },
+            { confirmationCommittedAt: new Date(historyNow.getTime() + 1).toISOString() },
+            // An actual propose Decision has intact hashes, actor, Scope and target, but the wrong operation/Purpose.
+            {
+              confirmationAuthorizationDecisionRef:
+                definedValue(recoveryProposeEnvelope).authorizationDecisionRef,
+              confirmationTargetRef: definedValue(recoveryProposeEnvelope).targetRef,
+              confirmationRequestPayloadHash: record(
+                definedValue(recoveryProposeEnvelope).integrity,
+              ).payloadHash,
+            },
+          ]) {
+            const changed = { ...eligibilityInput, ...change } as RecoveryHumanEligibilityInput;
+            const payloadHash = digestCanonicalPayload(
+              changed as unknown as CanonicalJsonObject,
+            ).hash;
+            const proof = await historicalAuth.authorize(
+              identityDeps([fixture.projectId], service),
+              'recovery.request_resolve.human.v1',
+              {
+                actorSnapshotRef: service.actorRef,
+                commandType: 'execution.recovery.request_resolve.human',
+                commandVersion: '1.0',
+                commandPayloadHash: payloadHash,
+                authenticationContextHash: AUTH_HASH,
+                targetRef: historyTarget,
+              },
+            );
+            if (proof.outcome !== 'ALLOW') throw new Error('history consumer proof denied');
+            await expect(
+              readRecoveryHumanEligibility(identityDeps([fixture.projectId], service), changed, {
+                ...historyAuthority,
+                validUntil: () => new Date(proof.expiresAt),
+                revalidateAuthorization: async () => {
+                  expect(
+                    await historicalAuth.revalidate(
+                      identityDeps([fixture.projectId], service),
+                      'recovery.request_resolve.human.v1',
+                      {
+                        decisionRef: proof.authorizationDecisionRef,
+                        expectedCommandType: 'execution.recovery.request_resolve.human',
+                        expectedCommandVersion: '1.0',
+                        expectedCommandPayloadHash: payloadHash,
+                        expectedAuthenticationContextHash: AUTH_HASH,
+                        expectedTargetRef: historyTarget,
+                      },
+                    ),
+                  ).toMatchObject({ valid: true });
+                },
+              }),
+            ).rejects.toBeDefined();
+          }
+          // Different-key replay keeps original effectiveAt and Event/version.
+          const resolveAgain = await recoveryEnvelope(
+            'informationRequestResolveV1',
+            requestRef,
+            resolvePayload,
+            operator(),
+            3,
+          );
+          expect(await recoveryEntry.command(resolveAgain, sessionFor())).toMatchObject({
+            status: 'COMMITTED',
+            resultPayload: { resolutionRef },
+          });
         }
-        // Different-key replay keeps original effectiveAt and Event/version.
-        const resolveAgain = await recoveryEnvelope(
-          'informationRequestResolveV1',
-          requestRef,
-          resolvePayload,
-          operator(),
-          3,
-        );
-        expect(await recoveryEntry.command(resolveAgain, sessionFor())).toMatchObject({
-          status: 'COMMITTED',
-          resultPayload: { resolutionRef },
-        });
         clock = Math.max(clock, Date.now());
         const freshSlice = await captureSlice({
           principal: service,
@@ -15897,58 +15955,63 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           { request: buildRequest } as unknown as CanonicalJsonObject,
           service,
         );
-        // The public request accepts ordinary TypedReference arrays. The finite
-        // recovery profile rejects unsupported arrays at the owning Handler.
-        for (const answeredInformationRefs of [
-          [],
-          [resolutionRef, resolutionRef],
-          [record(committedPayload(answered)).answerRef],
-          [workOrderRef],
-        ]) {
-          const target = objectRef(
-            'zhiju.execution.context_snapshot',
-            newUuidV7(),
-            scope(),
-          ) as Common.ObjectRef;
-          const envelope = await recoveryEnvelope(
-            'frozenContextBuildV1_1',
-            target,
+        if (exerciseRecoveryFaultMatrix) {
+          // The public request accepts ordinary TypedReference arrays. The finite
+          // recovery profile rejects unsupported arrays at the owning Handler.
+          for (const answeredInformationRefs of [
+            [],
+            [resolutionRef, resolutionRef],
+            [record(committedPayload(answered)).answerRef],
+            [workOrderRef],
+          ]) {
+            const target = objectRef(
+              'zhiju.execution.context_snapshot',
+              newUuidV7(),
+              scope(),
+            ) as Common.ObjectRef;
+            const envelope = await recoveryEnvelope(
+              'frozenContextBuildV1_1',
+              target,
+              {
+                request: { ...buildRequest, answeredInformationRefs },
+              } as unknown as CanonicalJsonObject,
+              service,
+            );
+            expect(
+              registry.validateOperation('execution.build_context_snapshot', '1.1', envelope),
+            ).toEqual({
+              valid: true,
+              errors: [],
+            });
+            await expect(
+              recoveryEntryRaw.command(envelope, sessionFor(service)),
+            ).rejects.toMatchObject({
+              code: 'EXECUTION_INFORMATION_REQUEST_UNRESOLVED',
+            });
+            expect(await receiptRows(String(envelope.idempotencyKey))).toEqual([]);
+            expect(await contextSnapshotRow(target.objectId)).toBeUndefined();
+          }
+          for (const change of [
+            { sourceSlices: [slice] },
             {
-              request: { ...buildRequest, answeredInformationRefs },
-            } as unknown as CanonicalJsonObject,
-            service,
-          );
-          expect(
-            registry.validateOperation('execution.build_context_snapshot', '1.1', envelope),
-          ).toEqual({
-            valid: true,
-            errors: [],
-          });
-          await expect(
-            recoveryEntryRaw.command(envelope, sessionFor(service)),
-          ).rejects.toMatchObject({
-            code: 'EXECUTION_INFORMATION_REQUEST_UNRESOLVED',
-          });
-          expect(await receiptRows(String(envelope.idempotencyKey))).toEqual([]);
-          expect(await contextSnapshotRow(target.objectId)).toBeUndefined();
-        }
-        for (const change of [
-          { sourceSlices: [slice] },
-          {
-            workOrderContractRef: {
-              ...record(read.contractRef),
-              contentHash: contentHash('0'.repeat(64)),
+              workOrderContractRef: {
+                ...record(read.contractRef),
+                contentHash: contentHash('0'.repeat(64)),
+              },
             },
-          },
-          { purpose: 'execution.other_purpose' },
-          { audience: objectRef('zhiju.identity.principal', OPERATOR, scope()) },
-        ])
-          await rejectRecovery(
-            'frozenContextBuildV1_1',
-            objectRef('zhiju.execution.context_snapshot', newUuidV7(), scope()) as Common.ObjectRef,
-            { request: { ...buildRequest, ...change } } as unknown as CanonicalJsonObject,
-          );
-
+            { purpose: 'execution.other_purpose' },
+            { audience: objectRef('zhiju.identity.principal', OPERATOR, scope()) },
+          ])
+            await rejectRecovery(
+              'frozenContextBuildV1_1',
+              objectRef(
+                'zhiju.execution.context_snapshot',
+                newUuidV7(),
+                scope(),
+              ) as Common.ObjectRef,
+              { request: { ...buildRequest, ...change } } as unknown as CanonicalJsonObject,
+            );
+        }
         if (
           ['REQUEST_EXPIRED', 'CONTROLS_SUPERSEDED', 'BUILDER_SUPERSEDED'].includes(recoveryVariant)
         ) {
@@ -16221,26 +16284,28 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         expect(await recoveryEntry.command(schedule, sessionFor())).toMatchObject({
           status: 'COMMITTED',
         });
-        expect(await recoveryEntry.command(schedule, sessionFor())).toMatchObject({
-          status: 'DUPLICATE',
-        });
-        const scheduleAgain = await recoveryEnvelope(
-          'workOrderRetryScheduleV1',
-          workOrderRef,
-          record(schedule.payload) as CanonicalJsonObject,
-          operator(),
-          await woVersion(),
-        );
-        expect(await recoveryEntryRaw.command(scheduleAgain, sessionFor())).toMatchObject({
-          status: 'COMMITTED',
-        });
-        await rejectRecovery(
-          'workOrderRetryScheduleV1',
-          workOrderRef,
-          { ...record(schedule.payload), nextAttemptNumber: 3 },
-          operator(),
-          await woVersion(),
-        );
+        if (exerciseRecoveryFaultMatrix) {
+          expect(await recoveryEntry.command(schedule, sessionFor())).toMatchObject({
+            status: 'DUPLICATE',
+          });
+          const scheduleAgain = await recoveryEnvelope(
+            'workOrderRetryScheduleV1',
+            workOrderRef,
+            record(schedule.payload) as CanonicalJsonObject,
+            operator(),
+            await woVersion(),
+          );
+          expect(await recoveryEntryRaw.command(scheduleAgain, sessionFor())).toMatchObject({
+            status: 'COMMITTED',
+          });
+          await rejectRecovery(
+            'workOrderRetryScheduleV1',
+            workOrderRef,
+            { ...record(schedule.payload), nextAttemptNumber: 3 },
+            operator(),
+            await woVersion(),
+          );
+        }
         expect(
           (
             await admin.query(
@@ -16725,20 +16790,22 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             String(record(final2.agentResultContract).agentResultId),
             scope(),
           ) as Common.ObjectRef;
-        const lateRun1 = await firstRunEnvelope(
-          'execution.submit_agent_result',
-          resultTarget,
-          {
-            agentResultContract: resultBody,
-            runFencingToken: 2,
-            runtimeSubmissionRef: finalView.runtimeSubmissionRef,
-          } as unknown as CanonicalJsonObject,
-          service,
-        );
-        await expect(
-          firstRunEntryRaw.submitAgentResult(lateRun1, sessionFor(service)),
-        ).rejects.toBeDefined();
-        expect(await receiptRows(lateRun1.idempotencyKey)).toEqual([]);
+        if (exerciseRecoveryFaultMatrix) {
+          const lateRun1 = await firstRunEnvelope(
+            'execution.submit_agent_result',
+            resultTarget,
+            {
+              agentResultContract: resultBody,
+              runFencingToken: 2,
+              runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+            } as unknown as CanonicalJsonObject,
+            service,
+          );
+          await expect(
+            firstRunEntryRaw.submitAgentResult(lateRun1, sessionFor(service)),
+          ).rejects.toBeDefined();
+          expect(await receiptRows(lateRun1.idempotencyKey)).toEqual([]);
+        }
         if (['SECOND_BLOCKED', 'SECOND_PARTIAL', 'SECOND_FAILED'].includes(recoveryVariant)) {
           const unsupportedSecond = await firstRunEnvelope(
             'execution.submit_agent_result',
