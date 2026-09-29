@@ -810,6 +810,7 @@ async function coveringCreationGrant(
     query.principalId,
     query.enterpriseId,
     query.now,
+    query.capabilityCode,
   );
   let sawStalePolicy = false;
   let sawInvalidPolicy = false;

@@ -7336,6 +7336,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       driver: LocalSyntheticRuntimeDriver;
     }
 
+    let unsupportedFinalService: Principal | undefined;
+    const unsupportedFinalGrantIds = new Map<string, string>();
+
     const runScenario = async (
       terminalScenario:
         | 'BOUNDED_RECOVERY'
@@ -7408,38 +7411,70 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const exerciseRecoveryFaultMatrix = bounded && recoveryVariant === 'NORMAL';
       const shortRecoveryBudget = recoveryVariant.startsWith('SECOND_');
       const exercisePreparationMatrix = terminalScenario === 'SUCCEEDED';
+      const exerciseCommonReplayMatrix = exercisePreparationMatrix || exerciseRecoveryFaultMatrix;
+      const reuseUnsupportedPreparation =
+        terminalScenario === 'UNSUPPORTED_FINAL' || terminalScenario === 'NON_FINAL_CORE_REJECT';
       const positiveFinalScenario =
         terminalScenario === 'SUCCEEDED' ||
         terminalScenario === 'MIX_VALIDATIONS' ||
         terminalScenario === 'ACCEPT_RACE';
       clock = Date.now();
-      const serviceId = newUuidV7(),
-        actorId = newUuidV7();
-      await withIdentityTransaction(identityDb, identityContext([]), (trx) =>
-        identityRepo.insertPrincipal(trx, {
-          id: serviceId,
+      const preparedService = reuseUnsupportedPreparation ? unsupportedFinalService : undefined;
+      const serviceId = preparedService?.principalId ?? newUuidV7();
+      let service: Principal;
+      if (preparedService) service = preparedService;
+      else {
+        const actorId = newUuidV7();
+        await withIdentityTransaction(identityDb, identityContext([]), (trx) =>
+          identityRepo.insertPrincipal(trx, {
+            id: serviceId,
+            principalKind: 'SERVICE',
+            displayName: 'WI-219 controlled validator',
+            createdByPrincipalId: OPERATOR,
+            createdByActorSnapshotId: OPERATOR_ACTOR,
+          }),
+        );
+        const actorRef = await createActorSnapshot(identityDeps([fixture.projectId]), {
+          actorSnapshotId: actorId,
+          principalId: serviceId,
+          declaredPrincipalKind: 'SERVICE',
+          authenticationContextHash: AUTH_HASH,
+          scopeKind: 'PROJECT',
+          enterpriseId: fixture.enterpriseId,
+          projectId: fixture.projectId,
+        });
+        service = {
+          principalId: serviceId,
           principalKind: 'SERVICE',
-          displayName: 'WI-219 controlled validator',
-          createdByPrincipalId: OPERATOR,
-          createdByActorSnapshotId: OPERATOR_ACTOR,
-        }),
-      );
-      const actorRef = await createActorSnapshot(identityDeps([fixture.projectId]), {
-        actorSnapshotId: actorId,
-        principalId: serviceId,
-        declaredPrincipalKind: 'SERVICE',
-        authenticationContextHash: AUTH_HASH,
-        scopeKind: 'PROJECT',
-        enterpriseId: fixture.enterpriseId,
-        projectId: fixture.projectId,
-      });
-      const service: Principal = {
-        principalId: serviceId,
-        principalKind: 'SERVICE',
-        actorSnapshotId: actorId,
-        actorRef,
-        authHash: AUTH_HASH,
-      };
+          actorSnapshotId: actorId,
+          actorRef,
+          authHash: AUTH_HASH,
+        };
+        if (reuseUnsupportedPreparation) unsupportedFinalService = service;
+      }
+      const actorId = service.actorSnapshotId;
+      const actorRef = service.actorRef;
+      async function prepareScenarioGrant(input: Parameters<typeof grant>[0]): Promise<string> {
+        // Already prepared unlimited Grants can authorize independent Runs.
+        // Every actual entry still issues and revalidates its own current Decision.
+        const key = JSON.stringify({
+          ...input,
+          principal: input.principal?.principalId ?? OPERATOR,
+        });
+        const prepared = reuseUnsupportedPreparation
+          ? unsupportedFinalGrantIds.get(key)
+          : undefined;
+        if (prepared !== undefined) return prepared;
+        const id = await grant(input);
+        if (reuseUnsupportedPreparation) unsupportedFinalGrantIds.set(key, id);
+        return id;
+      }
+      async function prepareScenarioGeneric(capabilityCode: string): Promise<void> {
+        const key = `generic:${serviceId}:${capabilityCode}`;
+        if (reuseUnsupportedPreparation && unsupportedFinalGrantIds.has(key)) return;
+        const id = await grantGeneric(capabilityCode, service);
+        if (reuseUnsupportedPreparation) unsupportedFinalGrantIds.set(key, id);
+      }
       const borrowedActors: Principal[] = [];
       if (exercisePreparationMatrix || exerciseRecoveryFaultMatrix) {
         const otherServiceId = newUuidV7();
@@ -7486,7 +7521,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         dependencyCapabilities.readContextSourceSlice,
         CAPTURE_CAPABILITY,
       ])
-        await grantGeneric(capability, service);
+        await prepareScenarioGeneric(capability);
       for (const [capabilityCode, action, targetObjectType, selectorType] of [
         [
           contextSnapshotCapabilityCodes.contextSnapshotBuildV11,
@@ -7501,7 +7536,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           'TARGET_TYPE',
         ],
       ] as const)
-        await grant({
+        await prepareScenarioGrant({
           principal: service,
           capabilityCode,
           action,
@@ -7517,7 +7552,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         if (targetObjectType === undefined) throw new Error('missing target');
         validationGrants.set(
           binding.capabilityConfigKey,
-          await grant({
+          await prepareScenarioGrant({
             principal: service,
             capabilityCode: codes[binding.capabilityConfigKey],
             action: binding.requiredGrantAction,
@@ -7577,7 +7612,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       // READY fixture only carried tokenLimit, which remains legal for Freeze.
       record(revised.budget).wallClockLimit =
         terminalScenario === 'LEGACY_UPGRADE'
-          ? 'PT120S'
+          ? 'PT30S'
           : terminalScenario === 'ELIGIBILITY_CHANGE' ||
               terminalScenario === 'TIMED_OUT' ||
               terminalScenario === 'TERMINAL_BEFORE_FINAL' ||
@@ -8263,12 +8298,14 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           status: 'COMMITTED',
         });
       }
-      expect(await entry.freeze(freezeEnvelope, sessionFor(service))).toMatchObject({
-        status: 'DUPLICATE',
-      });
-      expect(await entry.validate(validationEnvelope, sessionFor(service))).toMatchObject({
-        status: 'DUPLICATE',
-      });
+      if (exerciseCommonReplayMatrix) {
+        expect(await entry.freeze(freezeEnvelope, sessionFor(service))).toMatchObject({
+          status: 'DUPLICATE',
+        });
+        expect(await entry.validate(validationEnvelope, sessionFor(service))).toMatchObject({
+          status: 'DUPLICATE',
+        });
+      }
       if (exercisePreparationMatrix) {
         const staleBuild = await initialContextEntry.build(
           await preparedBuild({
@@ -8471,7 +8508,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         if (targetObjectType === undefined) throw new Error('missing first Run target');
         firstRunGrants.set(
           binding.boundary,
-          await grant({
+          await prepareScenarioGrant({
             principal: binding.expectedPrincipalKind === 'HUMAN' ? operator() : service,
             capabilityCode: firstRunCodes[binding.boundary],
             action: binding.requiredGrantAction,
@@ -8480,7 +8517,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           }),
         );
       });
-      const executionCapabilityGrantId = await grant({
+      const executionCapabilityGrantId = await prepareScenarioGrant({
         principal: service,
         capabilityCode: 'artifact.revision.create',
         action: 'create',
@@ -9753,9 +9790,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       phase('queue and Run creation');
       const queued = await firstRunEntry.queue(queueEnvelope, sessionFor());
       expect(queued, JSON.stringify(queued)).toMatchObject({ status: 'COMMITTED' });
-      expect(await firstRunEntry.queue(queueEnvelope, sessionFor())).toMatchObject({
-        status: 'DUPLICATE',
-      });
+      if (exerciseCommonReplayMatrix) {
+        expect(await firstRunEntry.queue(queueEnvelope, sessionFor())).toMatchObject({
+          status: 'DUPLICATE',
+        });
+      }
       if (terminalScenario !== 'SUCCEEDED') clock = Date.now();
       const runRef = objectRef('execution.run', newUuidV7(), scope()) as Common.ObjectRef;
       const bundleEnvelope = await firstRunEnvelope(
@@ -9802,7 +9841,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             : []),
           clock +
             (terminalScenario === 'LEGACY_UPGRADE'
-              ? 120_000
+              ? 30_000
               : terminalScenario === 'ELIGIBILITY_CHANGE' ||
                   terminalScenario === 'TIMED_OUT' ||
                   terminalScenario === 'TERMINAL_BEFORE_FINAL' ||
@@ -9857,9 +9896,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           throw error;
         });
       expect(created, JSON.stringify(created)).toMatchObject({ status: 'COMMITTED' });
-      expect(await firstRunEntry.createRun(createEnvelope, sessionFor(service))).toMatchObject({
-        status: 'DUPLICATE',
-      });
+      if (exerciseCommonReplayMatrix) {
+        expect(await firstRunEntry.createRun(createEnvelope, sessionFor(service))).toMatchObject({
+          status: 'DUPLICATE',
+        });
+      }
       const createdData = record(committedPayload(created as unknown as CommandResult));
       async function firstRunQuery(
         queryType: string,
@@ -10342,9 +10383,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       }
       const started = await firstRunEntry.startRun(startEnvelope, startSession);
       expect(started, JSON.stringify(started)).toMatchObject({ status: 'COMMITTED' });
-      expect(await firstRunEntry.startRun(startEnvelope, startSession)).toMatchObject({
-        status: 'DUPLICATE',
-      });
+      if (exerciseCommonReplayMatrix) {
+        expect(await firstRunEntry.startRun(startEnvelope, startSession)).toMatchObject({
+          status: 'DUPLICATE',
+        });
+      }
       const reconcileEnvelope = await firstRunEnvelope(
         'execution.reconcile_work_order_execution',
         workOrderRef,
@@ -10375,20 +10418,21 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         phase('historical Run backup/upgrade');
         let upgradeFailure: unknown;
         try {
-          for (const binding of BLOCKED_INPUT_RECOVERY_BINDINGS)
-            for (const principal of binding.expectedPrincipalKind === 'HUMAN'
-              ? [operator()]
-              : binding.expectedPrincipalKind === 'SERVICE'
-                ? [service]
-                : [operator(), service])
-              await grant({
-                principal,
-                capabilityCode: definedValue(recoveryCodes[binding.capabilityConfigKey]),
-                action: binding.requiredGrantAction,
-                selectorType: binding.selectorType,
-                targetObjectType: definedValue(binding.targetObjectTypes[0]),
-                targetObjectTypes: binding.targetObjectTypes,
-              });
+          const legacyBindings = BLOCKED_INPUT_RECOVERY_BINDINGS.filter(
+            (binding) =>
+              binding.capabilityConfigKey === 'workOrderRetryScheduleV1' ||
+              binding.capabilityConfigKey.startsWith('recovery.retry_schedule.'),
+          );
+          await prepareIndependentGrants(legacyBindings, async (binding) => {
+            await grant({
+              principal: operator(),
+              capabilityCode: definedValue(recoveryCodes[binding.capabilityConfigKey]),
+              action: binding.requiredGrantAction,
+              selectorType: binding.selectorType,
+              targetObjectType: definedValue(binding.targetObjectTypes[0]),
+              targetObjectTypes: binding.targetObjectTypes,
+            });
+          });
           const legacyRetry = await recoveryEnvelope(
             'workOrderRetryScheduleV1',
             workOrderRef,
@@ -10414,56 +10458,60 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             ).rows,
           ).toEqual([]);
           // Restore actual one-attempt facts from both deployed baselines before adding recovery storage.
-          for (const version of ['3010', '7004'] as const)
-            await verifyControlledFinalUpgrade(admin, {
-              schema: 'task_execution',
-              version,
-              enterpriseId: fixture.enterpriseId,
-              requiredTables: [
-                'task',
-                'work_order',
-                'work_order_contract',
-                'context_snapshot',
-                'run',
-                'work_order_run_claim',
-                'command_receipt',
-              ],
-              afterMigrate: async (legacyAdmin, connectionUri) => {
-                await legacyAdmin.query(
-                  "CREATE ROLE wi231_upgrade_probe LOGIN PASSWORD 'wi231-upgrade-probe' NOSUPERUSER NOBYPASSRLS",
-                );
-                await legacyAdmin.query(
-                  'GRANT platform_context_establisher, task_execution_app TO wi231_upgrade_probe',
-                );
-                const url = new URL(connectionUri);
-                url.username = 'wi231_upgrade_probe';
-                url.password = 'wi231-upgrade-probe';
-                const pool = new pg.Pool({ connectionString: url.toString(), max: 3 });
-                try {
-                  const restored = createControlledFirstRunEntry({
-                    ...firstRunConfig,
-                    taskExecutionDb: createTaskExecutionDatabase(pool),
-                  });
-                  expect(
-                    await restored.getRunState(
-                      await firstRunQuery(
-                        'execution.get_run_state',
-                        runRef,
-                        { runRef } as unknown as CanonicalJsonObject,
-                        'runStateReadV1',
+          const recentBackups = await Promise.allSettled(
+            (['3010', '7004'] as const).map(async (version) => {
+              await verifyControlledFinalUpgrade(admin, {
+                schema: 'task_execution',
+                version,
+                enterpriseId: fixture.enterpriseId,
+                requiredTables: [
+                  'task',
+                  'work_order',
+                  'work_order_contract',
+                  'context_snapshot',
+                  'run',
+                  'work_order_run_claim',
+                  'command_receipt',
+                ],
+                afterMigrate: async (legacyAdmin, connectionUri) => {
+                  await legacyAdmin.query(
+                    "CREATE ROLE wi231_upgrade_probe LOGIN PASSWORD 'wi231-upgrade-probe' NOSUPERUSER NOBYPASSRLS",
+                  );
+                  await legacyAdmin.query(
+                    'GRANT platform_context_establisher, task_execution_app TO wi231_upgrade_probe',
+                  );
+                  const url = new URL(connectionUri);
+                  url.username = 'wi231_upgrade_probe';
+                  url.password = 'wi231-upgrade-probe';
+                  const pool = new pg.Pool({ connectionString: url.toString(), max: 3 });
+                  try {
+                    const restored = createControlledFirstRunEntry({
+                      ...firstRunConfig,
+                      taskExecutionDb: createTaskExecutionDatabase(pool),
+                    });
+                    expect(
+                      await restored.getRunState(
+                        await firstRunQuery(
+                          'execution.get_run_state',
+                          runRef,
+                          { runRef } as unknown as CanonicalJsonObject,
+                          'runStateReadV1',
+                        ),
+                        sessionFor(service),
                       ),
-                      sessionFor(service),
-                    ),
-                  ).toMatchObject({
-                    status: 'RUNNING',
-                    aggregateVersion: 2,
-                    contextSnapshotRef: contextRef,
-                  });
-                } finally {
-                  await pool.end();
-                }
-              },
-            });
+                    ).toMatchObject({
+                      status: 'RUNNING',
+                      aggregateVersion: 2,
+                      contextSnapshotRef: contextRef,
+                    });
+                  } finally {
+                    await pool.end();
+                  }
+                },
+              });
+            }),
+          );
+          for (const backup of recentBackups) if (backup.status === 'rejected') throw backup.reason;
           await verifyControlledFinalUpgrade(admin, {
             schema: 'integration_gateway',
             version: '7004',
@@ -10828,34 +10876,36 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       }
       const progressListPayload = { projectRef: progressTarget } as unknown as CanonicalJsonObject;
       let progressListAuthorization = await progressAuthorization(progressListPayload);
-      expect(
-        await firstRunAuth.revalidate(
-          identityDeps([fixture.projectId], service),
-          'runFinalProcessProgressV1',
-          {
-            decisionRef: scanDecision.authorizationDecisionRef,
-            expectedCommandType: 'execution.process_final_progress',
-            expectedCommandVersion: '1.0',
-            expectedCommandPayloadHash: digestCanonicalPayload(progressListPayload).hash,
-            expectedAuthenticationContextHash: AUTH_HASH,
-            expectedTargetRef: progressTarget,
-          },
-        ),
-      ).toMatchObject({ valid: false });
-      expect(
-        await firstRunAuth.revalidate(
-          identityDeps([fixture.projectId], service),
-          'runFinalCandidateScanV1',
-          {
-            decisionRef: progressListAuthorization.decisionRef,
-            expectedCommandType: 'execution.submit_agent_result',
-            expectedCommandVersion: '1.0',
-            expectedCommandPayloadHash: scanPayloadHash,
-            expectedAuthenticationContextHash: AUTH_HASH,
-            expectedTargetRef: scanTarget,
-          },
-        ),
-      ).toMatchObject({ valid: false });
+      if (exerciseCommonReplayMatrix) {
+        expect(
+          await firstRunAuth.revalidate(
+            identityDeps([fixture.projectId], service),
+            'runFinalProcessProgressV1',
+            {
+              decisionRef: scanDecision.authorizationDecisionRef,
+              expectedCommandType: 'execution.process_final_progress',
+              expectedCommandVersion: '1.0',
+              expectedCommandPayloadHash: digestCanonicalPayload(progressListPayload).hash,
+              expectedAuthenticationContextHash: AUTH_HASH,
+              expectedTargetRef: progressTarget,
+            },
+          ),
+        ).toMatchObject({ valid: false });
+        expect(
+          await firstRunAuth.revalidate(
+            identityDeps([fixture.projectId], service),
+            'runFinalCandidateScanV1',
+            {
+              decisionRef: progressListAuthorization.decisionRef,
+              expectedCommandType: 'execution.submit_agent_result',
+              expectedCommandVersion: '1.0',
+              expectedCommandPayloadHash: scanPayloadHash,
+              expectedAuthenticationContextHash: AUTH_HASH,
+              expectedTargetRef: scanTarget,
+            },
+          ),
+        ).toMatchObject({ valid: false });
+      }
       function progressEnvelope(
         context: TaskExecutionTransactionContext,
         processId: string,

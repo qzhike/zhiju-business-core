@@ -866,6 +866,7 @@ async function coveringDraftReadGrant(
     query.principalId,
     query.enterpriseId,
     query.now,
+    query.capabilityCode,
   );
   let sawStalePolicy = false;
   let sawInvalidPolicy = false;

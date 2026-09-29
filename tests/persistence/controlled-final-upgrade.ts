@@ -84,10 +84,10 @@ export async function verifyControlledFinalUpgrade(
           [input.enterpriseId],
         )
       ).rows.map((row) => row.payload);
-      for (const row of rows)
+      if (rows.length > 0)
         await target.query(
-          `INSERT INTO ${qualified} SELECT * FROM jsonb_populate_record(NULL::${qualified}, $1::jsonb)`,
-          [JSON.stringify(row)],
+          `INSERT INTO ${qualified} SELECT * FROM jsonb_populate_recordset(NULL::${qualified}, $1::jsonb)`,
+          [JSON.stringify(rows)],
         );
       history.set(table, { columns, rows });
     }

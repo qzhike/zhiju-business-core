@@ -876,6 +876,7 @@ async function coveringContextSnapshotGrant(
     query.principalId,
     query.enterpriseId,
     query.now,
+    query.capabilityCode,
   );
   let sawStalePolicy = false;
   let sawInvalidPolicy = false;
