@@ -510,3 +510,5 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 证据分层：Contract/Unit只证明相应shape/算法；真实owning入口+PostgreSQL证明事务/身份/权限/约束；controlled integration证明两真实synthetic invocation和Process恢复；External与Manual分别NOT RUN。每行需保留未执行子项及其层级，不因其他层PASS整行提升。本实现最终配置验证必须 `vibe verify full --json`，docs PASS只证明设计文档检查，不替代本矩阵。Design review与Human批准绑定未来确切revision，不能写成运行结果。
 
 本矩阵的运行入口为 `tests/persistence/initial-context.test.ts` 中 `TE-REC-D-*` 场景；正向链同时承载 `IP-REC-D-*`、`EP-REC-D-*` 和 `IG-REC-D-*` 的 owning 子项。独立 Contract fixtures 位于 `tests/fixtures/contracts/blocked-input-recovery/`，有限 profile Unit 位于 `recovery-final-profile.test.ts`。上述层级不能互相替代；必需可达子项的 owning 诊断已执行；完整验收仍须配置 full、独立审查与适用的人类技术审核。精确 revision、配置门禁及审查证据保存在 [PR #232](https://github.com/qzhike/zhiju-business-core/pull/232)。
+
+共同的逐 consumer 缺权探针、SQL guard 反例、每目标 Receipt 提交故障回滚、13 步提交后进度丢失与双 Worker 重放、Run-2 并发创建矩阵在完整正常恢复链各执行一次。其它变体仍独立通过真实 owning 入口准备并执行两 Run 或对应停止边界及 Process，不重复与变体目标无关的完整故障矩阵。`SECOND_*` 的 Context 仍保持 60 秒有效期，真实 deadline 等待、expiry/finalize 竞争、错误 session、三个不支持 outcome 的拒绝与无第三 Run 断言保留；不扩大 Context/Decision/Run budget 或测试/CI timeout。持久化 reporter 在失败用例结束时输出异常与堆栈，不依赖整个文件结束后的最终汇总；完整门禁继续禁止过滤或跳过测试。

@@ -7392,6 +7392,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       // Run common precondition refusals once; every other case still produces
       // its own live Task/Draft/Context/READY/Run through the owning entries.
       const bounded = terminalScenario === 'BOUNDED_RECOVERY';
+      // Exercise the complete shared fault matrix once on the normal chain.
+      // Repeating it in every variant consumes the short-lived Context before
+      // the variant reaches its own session/outcome/expiry boundary.
+      const exerciseRecoveryFaultMatrix = bounded && recoveryVariant === 'NORMAL';
       const exercisePreparationMatrix = terminalScenario === 'SUCCEEDED';
       const positiveFinalScenario =
         terminalScenario === 'SUCCEEDED' ||
@@ -8861,7 +8865,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                           : (result as CanonicalJsonObject);
                       },
                       afterTargetCommit: () => {
-                        if (!processHandoffs.has(processStep)) {
+                        if (exerciseRecoveryFaultMatrix && !processHandoffs.has(processStep)) {
                           processHandoffs.add(processStep);
                           return Promise.reject(new Error('WI231_PROGRESS_LOST'));
                         }
@@ -8877,19 +8881,20 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             );
           }
         }
-        await expect(
-          definedValue(processWorkers[0])
-            .tick()
-            .then(async () => {
-              const rows = await admin.query(
-                "SELECT state,recovery_step,blocked_reason_code FROM task_execution.process_instance WHERE process_type='blocked-input-recovery@1' AND project_id=$1",
-                [fixture.projectId],
-              );
-              throw new Error(
-                `Unexpected recovery wait at ${processStep}: ${JSON.stringify(rows.rows)}`,
-              );
-            }),
-        ).rejects.toThrow('WI231_PROGRESS_LOST');
+        if (exerciseRecoveryFaultMatrix)
+          await expect(
+            definedValue(processWorkers[0])
+              .tick()
+              .then(async () => {
+                const rows = await admin.query(
+                  "SELECT state,recovery_step,blocked_reason_code FROM task_execution.process_instance WHERE process_type='blocked-input-recovery@1' AND project_id=$1",
+                  [fixture.projectId],
+                );
+                throw new Error(
+                  `Unexpected recovery wait at ${processStep}: ${JSON.stringify(rows.rows)}`,
+                );
+              }),
+          ).rejects.toThrow('WI231_PROGRESS_LOST');
         await Promise.all([
           definedValue(processWorkers[0]).tick(),
           definedValue(processWorkers[1]).tick(),
@@ -8905,7 +8910,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         arguments_: unknown[],
         firstRun: boolean,
       ) {
-        if (!bounded || !processEnabled) return;
+        if (!exerciseRecoveryFaultMatrix || !processEnabled) return;
         const type = typeof envelope.commandType === 'string' ? envelope.commandType : '';
         const consumers: Record<string, string> = {
           'execution.open_information_request': 'request_open',
@@ -8995,7 +9000,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                   firstRun,
                 );
                 if (
-                  bounded &&
+                  exerciseRecoveryFaultMatrix &&
                   (!firstRun || faultFirstRunCommands) &&
                   typeof command.commandType === 'string' &&
                   typeof command.commandId === 'string' &&
@@ -9003,7 +9008,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                 )
                   await recoveryReceiptRollback(command, commandInvoke);
                 if (
-                  bounded &&
+                  exerciseRecoveryFaultMatrix &&
                   faultFirstRunCommands &&
                   command.commandType === 'execution.create_run' &&
                   !recoveryCreateRaceDone
@@ -15367,9 +15372,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             1,
           );
         }
-        await recoveryReceiptRollback(answerEnv, () =>
-          recoveryEntryRaw.command(answerEnv, sessionFor()),
-        );
+        if (exerciseRecoveryFaultMatrix)
+          await recoveryReceiptRollback(answerEnv, () =>
+            recoveryEntryRaw.command(answerEnv, sessionFor()),
+          );
         const concurrentAnswer = await recoveryEnvelope(
           'informationAnswerSubmitV1',
           requestRef,
@@ -15982,9 +15988,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             for (const worker of definedValue(processWorkers)) await worker.stop();
             processWorkers = undefined;
             processAuthorities.length = 0;
-            await expect(throughRecoveryProcess(buildEnv, processExecute)).rejects.toThrow(
-              'Unexpected recovery wait at 3',
-            );
+            expect(await throughRecoveryProcess(buildEnv, processExecute)).toBeUndefined();
           } else for (const worker of definedValue(processWorkers)) await worker.tick();
           const authority = definedValue(processAuthorities[0]);
           expect(
@@ -17304,7 +17308,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         expect(protectedReads()).toEqual([]);
 
         expect(processStep).toBe(13);
-        expect(processHandoffs.size).toBe(13);
+        expect(processHandoffs.size).toBe(exerciseRecoveryFaultMatrix ? 13 : 0);
         for (const worker of definedValue(processWorkers)) await worker.stop();
         expect(final2.runtimeAdapterIdentityRef).not.toEqual(finalView.runtimeAdapterIdentityRef);
         expect(record(binding2.acknowledgement).runtimeSessionRef).not.toEqual(
