@@ -7414,15 +7414,17 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const exerciseCommonReplayMatrix = exercisePreparationMatrix || exerciseRecoveryFaultMatrix;
       // These scenarios never revoke or replace the shared Service's Grants.
       // Eligibility-loss, recovery and common fault matrices retain fresh subjects.
-      const reuseIndependentPreparation = [
-        'UNSUPPORTED_FINAL',
-        'NON_FINAL_CORE_REJECT',
-        'RACE',
-        'LOCK_DEADLINE',
-        'VALIDATION_EXPIRED',
-        'IG_WRONG_SESSION',
-        'TERMINAL_BEFORE_FINAL',
-      ].includes(terminalScenario);
+      const reuseIndependentPreparation =
+        (terminalScenario === 'ELIGIBILITY_CHANGE' && eligibilityChange?.source === 'POLICY') ||
+        [
+          'UNSUPPORTED_FINAL',
+          'NON_FINAL_CORE_REJECT',
+          'RACE',
+          'LOCK_DEADLINE',
+          'VALIDATION_EXPIRED',
+          'IG_WRONG_SESSION',
+          'TERMINAL_BEFORE_FINAL',
+        ].includes(terminalScenario);
       const positiveFinalScenario =
         terminalScenario === 'SUCCEEDED' ||
         terminalScenario === 'MIX_VALIDATIONS' ||
@@ -7621,7 +7623,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       // READY fixture only carried tokenLimit, which remains legal for Freeze.
       record(revised.budget).wallClockLimit =
         terminalScenario === 'LEGACY_UPGRADE'
-          ? 'PT120S'
+          ? 'PT60S'
           : terminalScenario === 'ELIGIBILITY_CHANGE' ||
               terminalScenario === 'TIMED_OUT' ||
               terminalScenario === 'TERMINAL_BEFORE_FINAL' ||
@@ -9850,7 +9852,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             : []),
           clock +
             (terminalScenario === 'LEGACY_UPGRADE'
-              ? 120_000
+              ? 60_000
               : terminalScenario === 'ELIGIBILITY_CHANGE' ||
                   terminalScenario === 'TIMED_OUT' ||
                   terminalScenario === 'TERMINAL_BEFORE_FINAL' ||
@@ -10426,6 +10428,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       if (terminalScenario === 'LEGACY_UPGRADE') {
         phase('historical Run backup/upgrade');
         let upgradeFailure: unknown;
+        let legacyUpgradeResult: Promise<PromiseSettledResult<void>> | undefined;
         try {
           const legacyBindings = BLOCKED_INPUT_RECOVERY_BINDINGS.filter(
             (binding) =>
@@ -10466,6 +10469,154 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               )
             ).rows,
           ).toEqual([]);
+          // Check the old Adapter binding before the finite deadline; the clone's
+          // owning expiry can wait while independent historical backups proceed.
+          let signalLegacyChecked: (() => void) | undefined;
+          const legacyChecked = new Promise<void>((resolve) => {
+            signalLegacyChecked = resolve;
+          });
+          legacyUpgradeResult = verifyControlledFinalUpgrade(admin, {
+            schema: 'task_execution',
+            version: '3006',
+            enterpriseId: fixture.enterpriseId,
+            requiredTables: [
+              'execution_judgment',
+              'work_order_draft_snapshot',
+              'context_snapshot',
+              'work_order_contract',
+              'run',
+              'work_order_run_claim',
+            ],
+            afterMigrate: async (legacyAdmin, connectionUri) => {
+              await legacyAdmin.query(
+                "CREATE ROLE wi224_legacy_probe LOGIN PASSWORD 'wi224-legacy-probe' NOSUPERUSER NOBYPASSRLS",
+              );
+              await legacyAdmin.query(
+                'GRANT platform_context_establisher, task_execution_app TO wi224_legacy_probe',
+              );
+              const url = new URL(connectionUri);
+              url.username = 'wi224_legacy_probe';
+              url.password = 'wi224-legacy-probe';
+              const pool = new pg.Pool({ connectionString: url.toString(), max: 3 });
+              const previousClock = clock;
+              try {
+                const legacyDb = createTaskExecutionDatabase(pool);
+                const legacyEntry = createControlledFirstRunEntry({
+                  taskExecutionDb: legacyDb,
+                  enterpriseProjectDb,
+                  identity: { db: identityDb, repo: identityRepo, crypto },
+                  integrationGatewayDb:
+                    createIntegrationRendererDatabase(tePool).withPlugin(queryProbe),
+                  runtimeDriver,
+                  receiptStorage: runtimeJournal,
+                  capabilityCodes: firstRunCodes,
+                  ...(bounded
+                    ? {
+                        recovery: {
+                          recoveryCapabilityCodes: recoveryCodes,
+                          humanCapabilityCodes: recoveryConfig.humanCapabilityCodes,
+                        },
+                      }
+                    : {}),
+                  capabilities: dependencyCapabilities,
+                  now: () => new Date(clock),
+                });
+                const query = await firstRunQuery(
+                  'execution.get_run_state',
+                  runRef,
+                  { runRef } as unknown as CanonicalJsonObject,
+                  'runStateReadV1',
+                );
+                expect(await legacyEntry.getRunState(query, sessionFor(service))).toMatchObject({
+                  status: 'RUNNING',
+                  aggregateVersion: 2,
+                });
+                const actual = await runtimeDriver.readFinal(attemptRef);
+                if (actual === undefined)
+                  throw new Error('missing current Driver source for legacy refusal');
+                const body = actual.agentResultContract;
+                if (typeof body.agentResultId !== 'string')
+                  throw new Error('missing actual Result ID');
+                const attemptSubmit = await firstRunEnvelope(
+                  'execution.submit_agent_result',
+                  objectRef(
+                    'execution.agent_result',
+                    body.agentResultId,
+                    scope(),
+                  ) as Common.ObjectRef,
+                  {
+                    agentResultContract: body,
+                    runFencingToken: 1,
+                    runtimeSubmissionRef: actual.runtimeSubmissionRef,
+                  } as unknown as CanonicalJsonObject,
+                  service,
+                );
+                await expect(
+                  legacyEntry.submitAgentResult(attemptSubmit, sessionFor(service)),
+                ).rejects.toMatchObject({ code: 'REFERENCE_INVALID' });
+                expect(
+                  (
+                    await legacyAdmin.query<{ count: string }>(
+                      'SELECT count(*)::text FROM task_execution.agent_result',
+                    )
+                  ).rows,
+                ).toEqual([{ count: '0' }]);
+                if (signalLegacyChecked === undefined)
+                  throw new Error('missing V3006 check signal');
+                signalLegacyChecked();
+                const wait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
+                if (wait > 0) await waitForDeadline(wait, 'server deadline/wait');
+                clock = Date.now();
+                expect(
+                  (
+                    await legacyAdmin.query<{ expired: boolean }>(
+                      'SELECT clock_timestamp() >= execution_deadline AS expired FROM task_execution.run WHERE run_id=$1',
+                      [runRef.objectId],
+                    )
+                  ).rows,
+                ).toEqual([{ expired: true }]);
+                const expire = await firstRunEnvelope(
+                  'execution.expire_run',
+                  runRef,
+                  { reason: 'DEADLINE_EXCEEDED' },
+                  service,
+                  2,
+                );
+                expect(await legacyEntry.expireRun(expire, sessionFor(service))).toMatchObject({
+                  status: 'COMMITTED',
+                });
+                expect(
+                  (
+                    await legacyAdmin.query<{ status: string; identity: unknown }>(
+                      'SELECT status,runtime_adapter_identity_ref AS identity FROM task_execution.run WHERE run_id=$1',
+                      [runRef.objectId],
+                    )
+                  ).rows,
+                ).toEqual([{ status: 'TIMED_OUT', identity: null }]);
+                expect(
+                  (
+                    await legacyAdmin.query<{ status: string }>(
+                      'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
+                      [runRef.objectId],
+                    )
+                  ).rows,
+                ).toEqual([{ status: 'EXPIRED' }]);
+              } finally {
+                clock = Math.max(clock, previousClock);
+                await pool.end();
+              }
+            },
+          }).then(
+            () => ({ status: 'fulfilled' as const, value: undefined }),
+            (reason: unknown) => ({ status: 'rejected' as const, reason }),
+          );
+          await Promise.race([
+            legacyChecked,
+            legacyUpgradeResult.then((result) => {
+              if (result.status === 'rejected') throw result.reason;
+              throw new Error('V3006 upgrade finished before the refusal check');
+            }),
+          ]);
           // Restore actual one-attempt facts from both deployed baselines before adding recovery storage.
           const recentBackups = await Promise.allSettled(
             (['3010', '7004'] as const).map(async (version) => {
@@ -10565,135 +10716,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             },
           });
 
-          await verifyControlledFinalUpgrade(admin, {
-            schema: 'task_execution',
-            version: '3006',
-            enterpriseId: fixture.enterpriseId,
-            requiredTables: [
-              'execution_judgment',
-              'work_order_draft_snapshot',
-              'context_snapshot',
-              'work_order_contract',
-              'run',
-              'work_order_run_claim',
-            ],
-            afterMigrate: async (legacyAdmin, connectionUri) => {
-              await legacyAdmin.query(
-                "CREATE ROLE wi224_legacy_probe LOGIN PASSWORD 'wi224-legacy-probe' NOSUPERUSER NOBYPASSRLS",
-              );
-              await legacyAdmin.query(
-                'GRANT platform_context_establisher, task_execution_app TO wi224_legacy_probe',
-              );
-              const url = new URL(connectionUri);
-              url.username = 'wi224_legacy_probe';
-              url.password = 'wi224-legacy-probe';
-              const pool = new pg.Pool({ connectionString: url.toString(), max: 3 });
-              const previousClock = clock;
-              try {
-                const legacyDb = createTaskExecutionDatabase(pool);
-                const legacyEntry = createControlledFirstRunEntry({
-                  taskExecutionDb: legacyDb,
-                  enterpriseProjectDb,
-                  identity: { db: identityDb, repo: identityRepo, crypto },
-                  integrationGatewayDb:
-                    createIntegrationRendererDatabase(tePool).withPlugin(queryProbe),
-                  runtimeDriver,
-                  receiptStorage: runtimeJournal,
-                  capabilityCodes: firstRunCodes,
-                  ...(bounded
-                    ? {
-                        recovery: {
-                          recoveryCapabilityCodes: recoveryCodes,
-                          humanCapabilityCodes: recoveryConfig.humanCapabilityCodes,
-                        },
-                      }
-                    : {}),
-                  capabilities: dependencyCapabilities,
-                  now: () => new Date(clock),
-                });
-                const query = await firstRunQuery(
-                  'execution.get_run_state',
-                  runRef,
-                  { runRef } as unknown as CanonicalJsonObject,
-                  'runStateReadV1',
-                );
-                expect(await legacyEntry.getRunState(query, sessionFor(service))).toMatchObject({
-                  status: 'RUNNING',
-                  aggregateVersion: 2,
-                });
-                const actual = await runtimeDriver.readFinal(attemptRef);
-                if (actual === undefined)
-                  throw new Error('missing current Driver source for legacy refusal');
-                const body = actual.agentResultContract;
-                if (typeof body.agentResultId !== 'string')
-                  throw new Error('missing actual Result ID');
-                const attemptSubmit = await firstRunEnvelope(
-                  'execution.submit_agent_result',
-                  objectRef(
-                    'execution.agent_result',
-                    body.agentResultId,
-                    scope(),
-                  ) as Common.ObjectRef,
-                  {
-                    agentResultContract: body,
-                    runFencingToken: 1,
-                    runtimeSubmissionRef: actual.runtimeSubmissionRef,
-                  } as unknown as CanonicalJsonObject,
-                  service,
-                );
-                await expect(
-                  legacyEntry.submitAgentResult(attemptSubmit, sessionFor(service)),
-                ).rejects.toMatchObject({ code: 'REFERENCE_INVALID' });
-                expect(
-                  (
-                    await legacyAdmin.query<{ count: string }>(
-                      'SELECT count(*)::text FROM task_execution.agent_result',
-                    )
-                  ).rows,
-                ).toEqual([{ count: '0' }]);
-                const wait = Math.max(0, runDeadline.getTime() - Date.now() + 100);
-                if (wait > 0) await waitForDeadline(wait, 'server deadline/wait');
-                clock = Date.now();
-                expect(
-                  (
-                    await legacyAdmin.query<{ expired: boolean }>(
-                      'SELECT clock_timestamp() >= execution_deadline AS expired FROM task_execution.run WHERE run_id=$1',
-                      [runRef.objectId],
-                    )
-                  ).rows,
-                ).toEqual([{ expired: true }]);
-                const expire = await firstRunEnvelope(
-                  'execution.expire_run',
-                  runRef,
-                  { reason: 'DEADLINE_EXCEEDED' },
-                  service,
-                  2,
-                );
-                expect(await legacyEntry.expireRun(expire, sessionFor(service))).toMatchObject({
-                  status: 'COMMITTED',
-                });
-                expect(
-                  (
-                    await legacyAdmin.query<{ status: string; identity: unknown }>(
-                      'SELECT status,runtime_adapter_identity_ref AS identity FROM task_execution.run WHERE run_id=$1',
-                      [runRef.objectId],
-                    )
-                  ).rows,
-                ).toEqual([{ status: 'TIMED_OUT', identity: null }]);
-                expect(
-                  (
-                    await legacyAdmin.query<{ status: string }>(
-                      'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
-                      [runRef.objectId],
-                    )
-                  ).rows,
-                ).toEqual([{ status: 'EXPIRED' }]);
-              } finally {
-                clock = previousClock;
-                await pool.end();
-              }
-            },
-          });
+          const legacyUpgrade = await legacyUpgradeResult;
+          if (legacyUpgrade.status === 'rejected') throw legacyUpgrade.reason;
           await verifyControlledFinalUpgrade(admin, {
             schema: 'integration_gateway',
             version: '7002',
@@ -10763,6 +10787,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             },
           });
         } catch (error) {
+          if (legacyUpgradeResult !== undefined) await legacyUpgradeResult;
           upgradeFailure = error;
         }
         // Always close this source through the owning expiry path, including a
@@ -17919,100 +17944,108 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           clock = Math.max(currentClock, Date.now());
         }
       }
-      for (const [boundary, replay] of [
-        ['runStartV1', () => firstRunEntry.startRun(startEnvelope, startSession)],
-        [
-          'runResultRecordV1',
-          () => firstRunEntry.recordRunResult(recordEnvelope, sessionFor(service)),
-        ],
-        [
-          'agentResultValidateV1',
-          () => firstRunEntry.validateAgentResult(validateEnvelope, sessionFor(service)),
-        ],
-        [
-          'agentResultAcceptV1',
-          () => firstRunEntry.acceptAgentResult(acceptEnvelope, sessionFor(service)),
-        ],
-        ['runFinalizeV1', () => firstRunEntry.finalizeRun(finalizeEnvelope, sessionFor(service))],
-        ['agentResultReadV1', () => firstRunEntry.getAgentResult(resultQuery, sessionFor(service))],
-        ['runStateReadV1', () => firstRunEntry.getRunState(terminalRunQuery, sessionFor(service))],
-        [
-          'runtimeFinalReadV1',
-          () => firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
-        ],
-      ] as const) {
-        const grantId = firstRunGrants.get(boundary);
-        const binding = CONTROLLED_FIRST_RUN_BINDINGS.find(
-          (candidate) => candidate.boundary === boundary,
-        );
-        const targetObjectType = binding?.targetObjectTypes[0];
-        if (grantId === undefined || binding === undefined || targetObjectType === undefined)
-          throw new Error(`missing independent ${boundary} Grant`);
+      if (terminalScenario === 'SUCCEEDED') {
+        for (const [boundary, replay] of [
+          ['runStartV1', () => firstRunEntry.startRun(startEnvelope, startSession)],
+          [
+            'runResultRecordV1',
+            () => firstRunEntry.recordRunResult(recordEnvelope, sessionFor(service)),
+          ],
+          [
+            'agentResultValidateV1',
+            () => firstRunEntry.validateAgentResult(validateEnvelope, sessionFor(service)),
+          ],
+          [
+            'agentResultAcceptV1',
+            () => firstRunEntry.acceptAgentResult(acceptEnvelope, sessionFor(service)),
+          ],
+          ['runFinalizeV1', () => firstRunEntry.finalizeRun(finalizeEnvelope, sessionFor(service))],
+          [
+            'agentResultReadV1',
+            () => firstRunEntry.getAgentResult(resultQuery, sessionFor(service)),
+          ],
+          [
+            'runStateReadV1',
+            () => firstRunEntry.getRunState(terminalRunQuery, sessionFor(service)),
+          ],
+          [
+            'runtimeFinalReadV1',
+            () => firstRunEntry.getRuntimeFinalObservation(finalQuery, sessionFor(service)),
+          ],
+        ] as const) {
+          const grantId = firstRunGrants.get(boundary);
+          const binding = CONTROLLED_FIRST_RUN_BINDINGS.find(
+            (candidate) => candidate.boundary === boundary,
+          );
+          const targetObjectType = binding?.targetObjectTypes[0];
+          if (grantId === undefined || binding === undefined || targetObjectType === undefined)
+            throw new Error(`missing independent ${boundary} Grant`);
+          expect(
+            await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+              targetId: grantId,
+              expectedAggregateVersion: '1',
+              scope: {
+                scopeKind: 'PROJECT',
+                enterpriseId: fixture.enterpriseId,
+                projectId: fixture.projectId,
+              },
+              reasonCode: 'WI224_REVOKE_FINAL_BOUNDARY',
+              effectiveAt: new Date(clock),
+              idempotencyKey: newUuidV7(),
+            }),
+          ).toMatchObject({ status: 'COMMITTED' });
+          queryReads.length = 0;
+          await expect(replay()).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+          expect(protectedReads(), boundary).toEqual([]);
+          await grant({
+            principal: service,
+            capabilityCode: firstRunCodes[boundary],
+            action: binding.requiredGrantAction,
+            selectorType: binding.selectorType,
+            targetObjectType,
+          });
+        }
+        const queueGrantId = firstRunGrants.get('workOrderQueueV1');
+        if (queueGrantId === undefined) throw new Error('missing Queue Grant');
         expect(
           await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
-            targetId: grantId,
+            targetId: queueGrantId,
             expectedAggregateVersion: '1',
             scope: {
               scopeKind: 'PROJECT',
               enterpriseId: fixture.enterpriseId,
               projectId: fixture.projectId,
             },
-            reasonCode: 'WI224_REVOKE_FINAL_BOUNDARY',
+            reasonCode: 'WI221_REVOKE_QUEUE',
+            effectiveAt: new Date(clock),
+            idempotencyKey: newUuidV7(),
+          }),
+        ).toMatchObject({ status: 'COMMITTED' });
+        await expect(firstRunEntry.queue(queueEnvelope, sessionFor())).rejects.toMatchObject({
+          code: 'AUTHORIZATION_REVOKED',
+        });
+        const scanGrantId = firstRunGrants.get('runFinalCandidateScanV1');
+        if (scanGrantId === undefined) throw new Error('missing final scan Grant');
+        expect(
+          await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+            targetId: scanGrantId,
+            expectedAggregateVersion: '1',
+            scope: {
+              scopeKind: 'PROJECT',
+              enterpriseId: fixture.enterpriseId,
+              projectId: fixture.projectId,
+            },
+            reasonCode: 'WI224_REVOKE_FINAL_SCAN',
             effectiveAt: new Date(clock),
             idempotencyKey: newUuidV7(),
           }),
         ).toMatchObject({ status: 'COMMITTED' });
         queryReads.length = 0;
-        await expect(replay()).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
-        expect(protectedReads(), boundary).toEqual([]);
-        await grant({
-          principal: service,
-          capabilityCode: firstRunCodes[boundary],
-          action: binding.requiredGrantAction,
-          selectorType: binding.selectorType,
-          targetObjectType,
-        });
+        await expect(
+          scanControlledFinalCandidates(guardedTeDb, scanContext, () => new Date(clock), scanProof),
+        ).rejects.toBeDefined();
+        expect(protectedReads(), 'scan Grant revoked').toEqual([]);
       }
-      const queueGrantId = firstRunGrants.get('workOrderQueueV1');
-      if (queueGrantId === undefined) throw new Error('missing Queue Grant');
-      expect(
-        await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
-          targetId: queueGrantId,
-          expectedAggregateVersion: '1',
-          scope: {
-            scopeKind: 'PROJECT',
-            enterpriseId: fixture.enterpriseId,
-            projectId: fixture.projectId,
-          },
-          reasonCode: 'WI221_REVOKE_QUEUE',
-          effectiveAt: new Date(clock),
-          idempotencyKey: newUuidV7(),
-        }),
-      ).toMatchObject({ status: 'COMMITTED' });
-      await expect(firstRunEntry.queue(queueEnvelope, sessionFor())).rejects.toMatchObject({
-        code: 'AUTHORIZATION_REVOKED',
-      });
-      const scanGrantId = firstRunGrants.get('runFinalCandidateScanV1');
-      if (scanGrantId === undefined) throw new Error('missing final scan Grant');
-      expect(
-        await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
-          targetId: scanGrantId,
-          expectedAggregateVersion: '1',
-          scope: {
-            scopeKind: 'PROJECT',
-            enterpriseId: fixture.enterpriseId,
-            projectId: fixture.projectId,
-          },
-          reasonCode: 'WI224_REVOKE_FINAL_SCAN',
-          effectiveAt: new Date(clock),
-          idempotencyKey: newUuidV7(),
-        }),
-      ).toMatchObject({ status: 'COMMITTED' });
-      queryReads.length = 0;
-      await expect(
-        scanControlledFinalCandidates(guardedTeDb, scanContext, () => new Date(clock), scanProof),
-      ).rejects.toBeDefined();
-      expect(protectedReads(), 'scan Grant revoked').toEqual([]);
       observeValidations?.({ ...finalValidations, acceptanceRecordRef } as CanonicalJsonObject);
     };
     // The full owning chain includes the queue lock probe and a real server deadline.
