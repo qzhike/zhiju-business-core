@@ -7412,10 +7412,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const shortRecoveryBudget = recoveryVariant.startsWith('SECOND_');
       const exercisePreparationMatrix = terminalScenario === 'SUCCEEDED';
       const exerciseCommonReplayMatrix = exercisePreparationMatrix || exerciseRecoveryFaultMatrix;
-      // These scenarios never revoke or replace the shared Service's Grants.
-      // Eligibility-loss, recovery and common fault matrices retain fresh subjects.
+      // Only the GRANT-loss variant revokes a shared Service Grant. Discard that
+      // one cached fact after the owning revoke; all other Grants stay current.
+      // Recovery and common fault matrices retain fresh subjects.
       const reuseIndependentPreparation =
-        (terminalScenario === 'ELIGIBILITY_CHANGE' && eligibilityChange?.source === 'POLICY') ||
+        terminalScenario === 'ELIGIBILITY_CHANGE' ||
         [
           'UNSUPPORTED_FINAL',
           'NON_FINAL_CORE_REJECT',
@@ -11928,6 +11929,13 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                 idempotencyKey: newUuidV7(),
               }),
             ).toMatchObject({ status: 'COMMITTED' });
+            let discarded = false;
+            for (const [key, id] of independentScenarioGrantIds)
+              if (id === executionCapabilityGrantId) {
+                independentScenarioGrantIds.delete(key);
+                discarded = true;
+              }
+            expect(discarded, 'revoked Grant must not be reused by another scenario').toBe(true);
           } else {
             await registerPolicyVersionAs({
               key: { ...controlsRef, versionId: newUuidV7() },
