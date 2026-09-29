@@ -2093,7 +2093,7 @@ Run-2 创建还要求 RETRY_PENDING 未消费 intent、请求 Context FROZEN met
 
 受限 `blocked-input-recovery@1` Process 只从本 Project 已提交 terminal source/Reservation、Request/Resolution、retry intent/Run 查询发现候选；进度独立 CAS，业务/Receipt读取各自授权。固定 step key=`blocked-input-recovery:sourceResultId:sourceResultHash:proposalId:step`；预分配 Request/Context/Run target 与完整命令 bytes/hash 在调用前存进度。final 五步仍复用 §23 Process。依次 Request-open、两个 reconcile、Context-build、等待并读取已由 Human schedule 的 intent、Bundle-issue、Run-create、dispatch/start 和后续 reconcile，各目标提交与进度提交是两个事务；跨窗口崩溃重放原键，先由 owning runner 当前授权读原 Receipt，无重复 Root/事实/Event/invoke。Human submit/resolve 是独立用户动作，Process 不自动供应/采纳答案、不替 Human批准 retry；Human schedule Receipt 已存在才能发现 retry intent并执行后续步骤。
 
-进度未建前的扫描须能恢复已 terminal source；已预分配但目标未提交的进度重试原 bytes；目标已提交进度未记则返回原 Receipt；Context已 stale时原成功 Receipt只是历史，后继消费失败，独立新 capture/build 要新 identity/key并记录替代候选，不覆盖旧 Context。长期不可用授权/到期把进度 SUSPENDED 并保存脱敏原因；不忙循环、不自动升级 Policy或WorkOrder。公开已发生的 Opened/Resolved/Run Event 可用真实 Inbox 唤醒；无 IG final 源 Event时继续有限扫描，不能伪造 eventId。各 fault 的 target rollback 与 commit-before-progress 场景归于 `TE-REC-D-010`，见 Module-Test。
+进度未建前的扫描须能恢复已 terminal source；扫描与独立授权的进度读回确认 Process 已存在时，不重复签发/提交创建进度命令，ACTIVE 仍按已保存 bytes 推进，COMPLETED/SUSPENDED 不重建。并发扫描仍在创建事务内重查存在性，不能仅凭先前观测保证唯一。已预分配但目标未提交的进度重试原 bytes；目标已提交进度未记则返回原 Receipt；Context已 stale时原成功 Receipt只是历史，后继消费失败，独立新 capture/build 要新 identity/key并记录替代候选，不覆盖旧 Context。长期不可用授权/到期把进度 SUSPENDED 并保存脱敏原因；不忙循环、不自动升级 Policy或WorkOrder。公开已发生的 Opened/Resolved/Run Event 可用真实 Inbox 唤醒；无 IG final 源 Event时继续有限扫描，不能伪造 eventId。各 fault 的 target rollback 与 commit-before-progress 场景归于 `TE-REC-D-010`，见 Module-Test。
 
 ### 24.7 public request/result/ref Delta 与权威读回
 

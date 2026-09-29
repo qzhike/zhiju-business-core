@@ -191,13 +191,22 @@ export async function recoverBlockedInput(
       maxSteps <= BLOCKED_INPUT_RECOVERY_STEPS.length,
   );
   let completed = 0;
-  for (const candidate of await scanBlockedInputRecoveryCandidates(
+  const candidates = await scanBlockedInputRecoveryCandidates(
     db,
     scanContext,
     ports.revalidateScan,
-  )) {
-    const id = blockedInputRecoveryProcessId(candidate.sourceRef, candidate.proposalId),
-      env = await ports.progressEnvelope(id, undefined, candidate);
+  );
+  const existingProcesses = new Set(
+    (await readBlockedInputRecoveryProgress(db, progressContext, ports.revalidateProgress)).map(
+      (progress) => progress.process_id,
+    ),
+  );
+  for (const candidate of candidates) {
+    const id = blockedInputRecoveryProcessId(candidate.sourceRef, candidate.proposalId);
+    // Progress has its own current authority. Existing instances resume below;
+    // they need no fresh creation command or no-op Receipt on every scan.
+    if (existingProcesses.has(id)) continue;
+    const env = await ports.progressEnvelope(id, undefined, candidate);
     const authority = await ports.progressAuthority(env);
     await authority.revalidate();
     await executeTaskExecutionCommand(

@@ -288,21 +288,17 @@ describe('slice resource limits through the public Registry', () => {
     else if (base === 'capture') input.payload.requestedKinds = padding;
     else throw new Error('use the dedicated bounded Query fixture');
     // Independent fixture sizing uses native JSON serialization, not the guard's counter.
-    while (Buffer.byteLength(JSON.stringify(input), 'utf8') < bytes) {
-      const before = Buffer.byteLength(JSON.stringify(input), 'utf8');
+    let remaining = bytes - Buffer.byteLength(JSON.stringify(input), 'utf8');
+    const perChar = Buffer.byteLength(JSON.stringify(character), 'utf8') - 2;
+    while (remaining > 0) {
       const index = padding.length;
       const prefix = base === 'capture' ? `kind_${index}_` : '';
-      padding.push(prefix);
-      const remaining = bytes - Buffer.byteLength(JSON.stringify(input), 'utf8');
-      const perChar = Buffer.byteLength(JSON.stringify(character), 'utf8') - 2;
+      remaining -= Buffer.byteLength(JSON.stringify(prefix), 'utf8') + (index === 0 ? 0 : 1);
       const count = Math.min(15000, Math.floor(remaining / perChar));
       if (count < 0) throw new Error('fixture padding overshot');
-      padding[index] =
-        String(padding[index]) +
-        character.repeat(count) +
-        'a'.repeat(Math.min(remaining - count * perChar, perChar - 1));
-      if (Buffer.byteLength(JSON.stringify(input), 'utf8') === before)
-        throw new Error('fixture padding made no progress');
+      const tail = Math.min(remaining - count * perChar, perChar - 1);
+      padding.push(prefix + character.repeat(count) + 'a'.repeat(tail));
+      remaining -= count * perChar + tail;
     }
     expect(Buffer.byteLength(JSON.stringify(input), 'utf8')).toBe(bytes);
     return input;

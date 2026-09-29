@@ -16665,6 +16665,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               ).rows,
             ).toEqual([]);
           }
+        phase(`Run-2 ${recoveryVariant}: create and dispatch`);
+        progress('Run-2 deadline', `remainingMs=${Date.parse(deadline2) - Date.now()}`);
         const created2 = await firstRunEntry.createRun(create2, sessionFor(service));
         expect(created2).toMatchObject({ status: 'COMMITTED' });
         if (remainingRecoverySeconds !== undefined) {
@@ -16726,6 +16728,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         expect(await firstRunEntry.dispatch(dispatch2, sessionFor(service))).toMatchObject({
           status: 'SUCCEEDED',
         });
+        phase(`Run-2 ${recoveryVariant}: binding and start`);
+        progress('Run-2 deadline', `remainingMs=${Date.parse(deadline2) - Date.now()}`);
         const binding2 = await firstRunEntry.getRuntimeAttemptBinding(
           await firstRunQuery(
             'integration.get_runtime_attempt_binding',
@@ -16772,6 +16776,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           status: 'COMMITTED',
           resultPayload: { status: otherChildId ? 'WAITING_INPUT' : 'IN_PROGRESS' },
         });
+        phase(`Run-2 ${recoveryVariant}: final observation and submission`);
+        progress('Run-2 deadline', `remainingMs=${Date.parse(deadline2) - Date.now()}`);
         const finalQuery2 = await firstRunQuery(
           'integration.get_runtime_final_observation',
           attempt2,
@@ -16863,7 +16869,17 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             service,
           );
           await expect(
-            firstRunEntryRaw.submitAgentResult(unsupportedSecond, sessionFor(service)),
+            firstRunEntryRaw
+              .submitAgentResult(unsupportedSecond, sessionFor(service))
+              .catch((error: unknown) => {
+                progress(
+                  'Run-2 submission refusal',
+                  error !== null && typeof error === 'object' && 'code' in error
+                    ? String(error.code)
+                    : 'no error code',
+                );
+                throw error;
+              }),
           ).rejects.toMatchObject({ code: 'EXECUTION_CRITERION_UNSUPPORTED' });
           expect(await receiptRows(unsupportedSecond.idempotencyKey)).toEqual([]);
           expect(
@@ -16927,6 +16943,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           for (const worker of definedValue(processWorkers)) await worker.stop();
           return;
         }
+        progress('Run-2 submission deadline', `remainingMs=${Date.parse(deadline2) - Date.now()}`);
         const submit2 = await firstRunEntry.submitAgentResult(
           await firstRunEnvelope(
             'execution.submit_agent_result',
@@ -17424,6 +17441,18 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         }
         expect(processStep).toBe(13);
         expect(processHandoffs.size).toBe(exerciseRecoveryFaultMatrix ? 13 : 0);
+        if (exerciseRecoveryFaultMatrix) {
+          const coordinationFacts = () =>
+            admin.query(
+              `SELECT (SELECT count(*)::int FROM task_execution.process_instance WHERE project_id=$1) processes,(SELECT count(*)::int FROM task_execution.command_receipt WHERE project_id=$1) receipts,(SELECT count(*)::int FROM identity_policy.authorization_decision WHERE project_id=$1 AND principal_id=$2 AND command_type='execution.process.recovery_progress') progress_decisions`,
+              [fixture.projectId, serviceId],
+            );
+          const beforeIdleTicks = (await coordinationFacts()).rows;
+          const invocationsBeforeIdleTicks = [...runtimeDriver.invokedAttemptIds];
+          await Promise.all(definedValue(processWorkers).map((worker) => worker.tick()));
+          expect((await coordinationFacts()).rows).toEqual(beforeIdleTicks);
+          expect(runtimeDriver.invokedAttemptIds).toEqual(invocationsBeforeIdleTicks);
+        }
         for (const worker of definedValue(processWorkers)) await worker.stop();
         expect(final2.runtimeAdapterIdentityRef).not.toEqual(finalView.runtimeAdapterIdentityRef);
         expect(record(binding2.acknowledgement).runtimeSessionRef).not.toEqual(
