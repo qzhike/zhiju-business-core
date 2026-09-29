@@ -563,6 +563,7 @@ export async function grantCapability(
         input.principalId,
         input.scope.enterpriseId,
         new Date(),
+        input.capabilityCode,
       );
       if (
         active.some(

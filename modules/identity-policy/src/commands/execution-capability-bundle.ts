@@ -36,6 +36,10 @@ export interface ExecutionCapabilityBundlePorts {
     useStatus: string;
     supersededAt?: string;
   }>;
+  readonly readFrozenEligibility?: (
+    contextRef: CanonicalJsonObject,
+    contractRef: CanonicalJsonObject,
+  ) => Promise<CanonicalJsonObject>;
   readonly additionalExpiries?: () => readonly string[];
 }
 
@@ -317,10 +321,20 @@ export async function issueExecutionCapabilityBundle(
       if (
         !same(contractView.contractRef, contractRef) ||
         !same(contract.workOrderRef, workOrderRef) ||
-        !same(contract.contextSnapshotRef, contextRef) ||
         hashContractPayload(contract) !== digest(contractRef.contentHash)
       )
         throw invalid();
+      const frozen = !same(contract.contextSnapshotRef, contextRef);
+      const eligibility = frozen
+        ? await ports.readFrozenEligibility?.(contextRef, contractRef)
+        : undefined;
+      if (
+        frozen &&
+        (eligibility?.useStatus !== 'USABLE' ||
+          !same(eligibility.contextSnapshotRef, contextRef) ||
+          !same(eligibility.workOrderContractRef, contractRef))
+      )
+        throw Object.assign(invalid(), { code: 'EXECUTION_CONTEXT_SOURCE_INVALID' });
       const contextView = await ports.readContext(contextRef);
       if (!same(contextView.contextSnapshotRef, contextRef)) throw invalid();
       const controlsRef = record(record(contract.versionPins).capabilityPolicyRef);
@@ -344,6 +358,7 @@ export async function issueExecutionCapabilityBundle(
         optionalText(contract.expiresAt),
         optionalText(record(contextView.projectContextContract).expiresAt),
         controls.supersededAt,
+        eligibility === undefined ? undefined : text(eligibility.validUntil),
         ...(ports.additionalExpiries?.() ?? []),
       ];
       for (const value of requested) {

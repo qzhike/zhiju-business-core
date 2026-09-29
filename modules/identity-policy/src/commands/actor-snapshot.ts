@@ -360,6 +360,7 @@ export async function authorizeCommand(
         actor.row.principal_id,
         input.intent.enterpriseId,
         input.intent.requestedAt,
+        input.intent.requestedCapability,
       );
       const covering = grants.some(
         (grant) =>

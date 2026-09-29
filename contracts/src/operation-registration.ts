@@ -13,6 +13,12 @@ export const contextSliceObjectTypes = {
 
 /** Public object names for the approved WorkOrder Draft / initial Context boundary. */
 export const taskExecutionObjectTypes = {
+  'execution.information_request': { owner: 'task-execution', kinds: ['OBJECT'] },
+  'execution.information_answer': { owner: 'task-execution', kinds: ['CONTENT_ADDRESSED'] },
+  'execution.information_request_resolution': {
+    owner: 'task-execution',
+    kinds: ['CONTENT_ADDRESSED'],
+  },
   'zhiju.execution.context_snapshot': {
     owner: 'task-execution',
     kinds: ['OBJECT', 'SNAPSHOT'],
@@ -29,7 +35,7 @@ export const taskExecutionObjectTypes = {
     kinds: ['CONTENT_ADDRESSED'],
   },
   'zhiju.identity.policy': { owner: 'identity-policy', kinds: ['VERSIONED'] },
-  'zhiju.identity.principal': { owner: 'identity-policy', kinds: ['PRINCIPAL'] },
+  'zhiju.identity.principal': { owner: 'identity-policy', kinds: ['PRINCIPAL', 'OBJECT'] },
   'zhiju.execution.task_readiness': {
     owner: 'task-execution',
     kinds: ['OBJECT', 'SNAPSHOT'],

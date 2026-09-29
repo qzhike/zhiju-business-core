@@ -1,0 +1,52 @@
+{
+  "taskRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.task",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "aggregateVersion": 3,
+  "definitionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.execution.task_definition_snapshot",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "status": "WAITING_INPUT",
+  "dependencyTaskRefs": [],
+  "workOrderRefs": [
+    {
+      "kind": "OBJECT",
+      "objectType": "zhiju.execution.work_order",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    }
+  ],
+  "blockerRefs": [
+    {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    }
+  ],
+  "completionUseStatus": "NOT_EVALUATED",
+  "checkedAt": "2026-09-27T00:00:00Z"
+}

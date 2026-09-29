@@ -267,10 +267,12 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 ## #229 有限恢复授权设计矩阵
 
-状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`；[Spec001 §15.14](../module-specs/Module-Spec-001-IdentityPolicy.md#1514-im06-recovery-有限恢复授权组成提案229)。复用现有IP-RUN/IP-FINAL基础，不扩大#224已执行/延后口径。
+状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / OWNING RECOVERY DIAGNOSTICS EXECUTED / EXACT REVISION FULL AND REVIEW EVIDENCE IN PR #232`；[Spec001 §15.14](../module-specs/Module-Spec-001-IdentityPolicy.md#1514-im06-recovery-有限恢复授权组成实现契约229)。复用现有IP-RUN/IP-FINAL基础，不扩大#224已执行/延后口径。
+
+单 capability covering-Grant 路径可按调用方已明确要求的精确 code 在 SQL 层缩窄候选；后续主体、Scope、action、selector、Hash、Grant/Policy 当前有效性及拒绝优先级保持原规则。通用命令授权同样下推其精确 requestedCapability；Human 查询按全部受信 required binding 的 code 集合下推候选，每个 binding 的完整覆盖与逐 Grant Policy 校验不变，不缓存当前资格。省略筛选参数的默认全量查询不变，空 code 集合返回空集合。`identity-policy-roles.test.ts` 用真实 owning Grant 校验单 code、多 code（含重复 code）与默认查询的集合等价及空集合、同 code 的 Enterprise/Project 事实并存、错主体/Enterprise 及时间边界，避免候选缩窄扩大权限或遗漏合法 Scope。
 
 | ID | 输入 / 必需证据层级 | 预期 / 结果 |
 |---|---|---|
-| IP-REC-D-001 | Unit/entry+PostgreSQL；合法同Human confirmation/responder/resolver/currentRole，对照Agent、actingFor、他人session、role缺失/撤销、旧Decision替代当前依赖Decision | Human-only与逐consumer action/Purpose/target/hash/Scope/session映射成立；缺一Grant对应protected read为0，Service读proof不能成为业务resolver；NOT RUN |
-| IP-REC-D-002 | Owning历史Decision/ActorSnapshot与EPReceipt；真实confirm旧Decision已到期，但当时有效；对照错confirm operation/payloadHash/target/Scope、历史不可查及当前Role/Grant撤销 | 历史committedAt证明与当下权限分离；合法旧证明不因时间流逝消失，当前撤权仍禁止新恢复；不构造EP未保存的IP Hash；NOT RUN |
-| IP-REC-D-003 | PostgreSQL/current Ports；Run-2Bundle新Context/原Contract/Resolution/Service target合法，对照旧Bundle、Context-1/错Resolution、Controls/Builder取代、锁后期限/撤权、重放 | Bundle不增权限，当前覆盖/有限最小期限/Context eligibility必需；坏绑定无Bundle或Run成功；真实grant PolicySnapshot supersession随owning写能力继续NOT RUN，现有UNIT不可替代；NOT RUN |
+| IP-REC-D-001 | Unit/entry+PostgreSQL；合法同Human confirmation/responder/resolver/currentRole，对照Agent、actingFor、他人session、role缺失/撤销、旧Decision替代当前依赖Decision | OWNING/PG PASS：同 Human、实际 AGENT 与 HUMAN actingFor SERVICE、wrong responder/session、逐 consumer 当前依赖映射/缺 Grant 0 protected reads、Role 撤销；Service proof 读取不授予业务 resolver 资格。 |
+| IP-REC-D-002 | Owning历史Decision/ActorSnapshot与EPReceipt；真实confirm旧Decision已到期，但当时有效；对照错confirm operation/payloadHash/target/Scope、历史不可查及当前Role/Grant撤销 | OWNING/PG PASS：真实 EP committedAt 与原 IP Decision/Actor，历史 Decision 已到期仍有效；错 target/hash/Actor/Decision/time 及实际 propose operation/purpose 拒绝；当前 Role/Grant 撤销仍禁止恢复；同 code 的不同 action/target 必须逐项完整覆盖，真实 Grant 正例与缺 action、错 TARGET_TYPE/objectType、owning revoke 后重新授予仅答复 action 的反例通过 owning Port 验证。 |
+| IP-REC-D-003 | PostgreSQL/current Ports；Run-2Bundle新Context/原Contract/Resolution/Service target合法，对照旧Bundle、Context-1/错Resolution、Controls/Builder取代、锁后期限/撤权、重放 | OWNING/PG PASS（可达恢复子项）：新 Context/Bundle/有限上界与历史 bytes；Controls/Builder owning supersession、失效 Context/Request、实际 row lock 后撤权/受信时钟跨期，坏绑定无新 Bundle/Run。PARTIAL 仅保留真实 Grant PolicySnapshot lifecycle NOT RUN（无 owning writer，UNIT 不替代）。 |

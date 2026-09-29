@@ -397,3 +397,15 @@ export type {
   ConsumeEventDeps,
   ConsumeEventOutcome,
 } from './messaging/inbox.js';
+
+export { readRecoveryHumanEligibility } from './commands/recovery-human-eligibility.js';
+export type {
+  RecoveryHumanEligibilityInput,
+  RecoveryHumanEligibilityAuthority,
+} from './commands/recovery-human-eligibility.js';
+
+export {
+  BLOCKED_INPUT_RECOVERY_BINDINGS,
+  createRecoveryAuthorizationPort,
+  type RecoveryCapabilityCodes,
+} from './commands/work-order-validation-authorization.js';

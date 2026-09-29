@@ -1,6 +1,15 @@
 import type { Kysely } from 'kysely';
+import { sql } from 'kysely';
+import {
+  insertRecoveryCommandMaterial,
+  readRecoveryBudget,
+  readRecoveryBlockers,
+  readRecoveryResolution,
+  type RecoveryPorts,
+} from './blocked-input-recovery.js';
 import { ContractRegistry } from '@zhiju/contracts';
 import {
+  canonicalize,
   hashContractPayload,
   newUuidV7,
   sha256CanonicalJson,
@@ -42,6 +51,11 @@ const RUNTIME = {
 } as const;
 
 export interface ControlledFirstRunPorts {
+  readonly recovery?: RecoveryPorts;
+  readonly readFrozenEligibility?: (
+    contextRef: CanonicalJsonObject,
+    contractRef: CanonicalJsonObject,
+  ) => Promise<CanonicalJsonObject>;
   readonly now: () => Date;
   readonly trustedStartedAt: string | undefined;
   readonly decisionExpiresAt: string;
@@ -118,7 +132,11 @@ function deadline(now: Date, values: readonly (string | undefined | null)[]) {
 function expiryOf(value: CanonicalJsonObject) {
   return typeof value.expiresAt === 'string' ? value.expiresAt : undefined;
 }
-async function dependencies(workOrderRef: CanonicalJsonObject, ports: ControlledFirstRunPorts) {
+async function dependencies(
+  workOrderRef: CanonicalJsonObject,
+  ports: ControlledFirstRunPorts,
+  overrideContext?: CanonicalJsonObject,
+) {
   const contractView = await ports.readContract(workOrderRef);
   const contract = contractView.workOrderContract;
   requireThat(
@@ -127,7 +145,12 @@ async function dependencies(workOrderRef: CanonicalJsonObject, ports: Controlled
       registry.validateCoreContract('https://schemas.zhiju.local/core/work-order/1.0', contract)
         .valid,
   );
-  const contextRef = object(contract.contextSnapshotRef);
+  const contextRef = overrideContext ?? object(contract.contextSnapshotRef);
+  if (overrideContext !== undefined) {
+    requireThat(ports.readFrozenEligibility !== undefined);
+    const eligibility = await ports.readFrozenEligibility(contextRef, contractView.contractRef);
+    requireThat(eligibility.useStatus === 'USABLE', 'EXECUTION_CONTEXT_SOURCE_INVALID');
+  }
   requireRef(
     contextRef,
     'SNAPSHOT',
@@ -145,7 +168,14 @@ async function dependencies(workOrderRef: CanonicalJsonObject, ports: Controlled
   const limits = object(validated.rules.controls.budget);
   const secondsText = limits.wallClockLimit;
   requireThat(typeof secondsText === 'string' && /^PT[1-9][0-9]*S$/u.test(secondsText));
-  const seconds = BigInt(secondsText.slice(2, -1));
+  let seconds = BigInt(secondsText.slice(2, -1));
+  if (object(contract.executionPolicy).maxAttempts === 2) {
+    const frozenBudget = object(contract.budget).wallClockLimit;
+    requireThat(typeof frozenBudget === 'string' && /^PT[1-9][0-9]*S$/u.test(frozenBudget));
+    const frozenSeconds = BigInt(frozenBudget.slice(2, -1));
+    requireThat(frozenSeconds <= seconds, 'EXECUTION_WORK_ORDER_BUDGET_EXHAUSTED');
+    seconds = frozenSeconds;
+  }
   requireThat(seconds <= BigInt(Math.floor(Number.MAX_SAFE_INTEGER / 1000)));
   return {
     contract,
@@ -370,13 +400,18 @@ export async function handleCreateFirstRun(
         'NOT_FOUND',
       );
       requireThat(
-        root.status === 'QUEUED' &&
+        (root.status === 'QUEUED' ||
+          (creation.attemptNumber === 2 && root.status === 'RETRY_PENDING')) &&
           root.frozen_contract_id !== null &&
           root.frozen_contract_hash !== null &&
           root.queue_policy_ref !== null,
         'AGGREGATE_STATE_NOT_ALLOWED',
       );
-      const deps = await dependencies(workOrderRef, ports);
+      const deps = await dependencies(
+        workOrderRef,
+        ports,
+        creation.attemptNumber === 2 ? object(creation.contextSnapshotRef) : undefined,
+      );
       requireThat(
         same(creation.workOrderContractRef, deps.contractRef) &&
           same(creation.contextSnapshotRef, deps.contextRef) &&
@@ -386,10 +421,74 @@ export async function handleCreateFirstRun(
           digest(object(deps.contractRef.contentHash)) ===
             root.frozen_contract_hash.toString('hex') &&
           same(creation.runtimeBinding, RUNTIME) &&
-          creation.attemptNumber === 1 &&
-          object(deps.contract.executionPolicy).maxAttempts === 1,
+          (creation.attemptNumber === 1 || creation.attemptNumber === 2) &&
+          creation.attemptNumber <= Number(object(deps.contract.executionPolicy).maxAttempts),
         'AGGREGATE_STATE_NOT_ALLOWED',
       );
+      const recoveryPlan = object(deps.contract.executionPolicy).maxAttempts === 2;
+      let remainingSeconds = Number(deps.seconds);
+      let intent: { intent_id: string; canonical_payload: CanonicalJsonObject } | undefined;
+      if (creation.attemptNumber === 2) {
+        requireThat(recoveryPlan && ports.recovery !== undefined, 'EXECUTION_RUN_ATTEMPT_CONFLICT');
+        const blockers = await readRecoveryBlockers(
+          execution.trx,
+          root.work_order_id,
+          subjectScope,
+        );
+        requireThat(
+          !blockers.unresolved && blockers.resolutionRefs.length === 1,
+          'EXECUTION_INFORMATION_REQUEST_UNRESOLVED',
+        );
+        await readRecoveryResolution(
+          execution.trx,
+          definedValue(blockers.resolutionRefs[0]),
+          ports.recovery,
+        );
+        intent = (
+          await sql<{
+            intent_id: string;
+            canonical_payload: CanonicalJsonObject;
+          }>`SELECT i.* FROM task_execution.work_order_retry_intent i LEFT JOIN task_execution.run_retry_intent_consumption c USING(intent_id) WHERE i.work_order_id=${root.work_order_id} AND c.intent_id IS NULL`.execute(
+            execution.trx,
+          )
+        ).rows[0];
+        requireThat(
+          intent && same(intent.canonical_payload.resolutionRefs, blockers.resolutionRefs),
+          'EXECUTION_RUN_ATTEMPT_CONFLICT',
+        );
+        const budget = await readRecoveryBudget(
+          execution.trx,
+          root.work_order_id,
+          Number(deps.seconds),
+        );
+        requireThat(
+          budget.activeReservations === 0 && budget.remainingSeconds > 0,
+          'EXECUTION_WORK_ORDER_BUDGET_EXHAUSTED',
+        );
+        remainingSeconds = budget.remainingSeconds;
+        const claims = await execution.trx
+          .selectFrom('task_execution.work_order_run_claim')
+          .selectAll()
+          .where('work_order_id', '=', root.work_order_id)
+          .execute();
+        requireThat(
+          claims.length === 1 && claims[0]?.status === 'RELEASED',
+          'EXECUTION_ACTIVE_RUN_EXISTS',
+        );
+      }
+      const fencing =
+        creation.attemptNumber === 2
+          ? await execution.trx
+              .selectFrom('task_execution.run')
+              .select('fencing_token')
+              .where('work_order_id', '=', root.work_order_id)
+              .orderBy('fencing_token', 'desc')
+              .executeTakeFirst()
+          : undefined;
+      const fencingToken =
+        creation.attemptNumber === 2
+          ? (BigInt(fencing?.fencing_token ?? '0') + 1n).toString()
+          : '1';
       const bundleRef = object(creation.capabilityGrantRef);
       requireRef(
         bundleRef,
@@ -408,7 +507,7 @@ export async function handleCreateFirstRun(
           same(bundle.payload.contextSnapshotRef, deps.contextRef),
       );
       const createdAt = ports.now();
-      const wallUntil = createdAt.getTime() + Number(deps.seconds) * 1000;
+      const wallUntil = createdAt.getTime() + remainingSeconds * 1000;
       requireThat(Number.isSafeInteger(wallUntil));
       const leaseExpiresAt = deadline(createdAt, [
         new Date(wallUntil).toISOString(),
@@ -426,6 +525,8 @@ export async function handleCreateFirstRun(
       requireThat(
         await execution.insertFirstRun({
           runId: envelope.targetId,
+          attemptNumber: creation.attemptNumber,
+          fencingToken,
           ...subjectScope,
           workOrderId: root.work_order_id,
           workOrderRef,
@@ -443,9 +544,31 @@ export async function handleCreateFirstRun(
       );
       await execution.insertFirstRunClaim({
         runId: envelope.targetId,
+        attemptNumber: creation.attemptNumber,
+        fencingToken,
         workOrderId: root.work_order_id,
         ...subjectScope,
       });
+      if (recoveryPlan) {
+        await sql`INSERT INTO task_execution.run_budget_reservation(run_id,work_order_id,attempt_number,reserved_seconds,total_seconds,enterprise_id,project_id,source_command_id)
+          VALUES(${envelope.targetId},${root.work_order_id},${creation.attemptNumber},${remainingSeconds},${Number(deps.seconds)},${envelope.enterpriseId},${envelope.projectId},${envelope.commandId})`.execute(
+          execution.trx,
+        );
+      }
+      if (intent) {
+        await insertRecoveryCommandMaterial(execution, envelope);
+        const payload: CanonicalJsonObject = {
+          intentId: intent.intent_id,
+          runRef,
+          contextSnapshotRef: deps.contextRef,
+          workOrderContractRef: deps.contractRef,
+          resolutionRefs: definedValue(intent.canonical_payload.resolutionRefs),
+        };
+        await sql`INSERT INTO task_execution.run_retry_intent_consumption(intent_id,run_id,enterprise_id,project_id,canonical_payload,payload_hash,source_command_id)
+          VALUES(${intent.intent_id},${envelope.targetId},${envelope.enterpriseId},${envelope.projectId},${canonicalize(payload)}::jsonb,${Buffer.from(sha256CanonicalJson(payload), 'hex')},${envelope.commandId})`.execute(
+          execution.trx,
+        );
+      }
       for (const [path, value, module] of [
         ['/workOrderRef', workOrderRef, 'task-execution'],
         ['/workOrderContractRef', deps.contractRef, 'task-execution'],
@@ -460,7 +583,7 @@ export async function handleCreateFirstRun(
           runRef,
           status: 'CREATED',
           leaseId,
-          fencingToken: 1,
+          fencingToken: Number(fencingToken),
           leaseExpiresAt: leaseExpiresAt.toISOString(),
         },
       };
@@ -518,7 +641,11 @@ export async function handleStartFirstRun(
           claim.fencing_token === run.fencing_token,
       );
       const workOrderRef = object(run.work_order_ref);
-      const deps = await dependencies(workOrderRef, ports);
+      const deps = await dependencies(
+        workOrderRef,
+        ports,
+        run.attempt_number === 2 ? object(run.context_snapshot_ref) : undefined,
+      );
       requireThat(
         same(run.work_order_contract_ref, deps.contractRef) &&
           same(run.context_snapshot_ref, deps.contextRef) &&
@@ -715,7 +842,11 @@ export async function handleGetRunDispatchBinding(
       'NOT_FOUND',
     );
     const bundleRef = object(run.capability_grant_ref);
-    const deps = await dependencies(object(run.work_order_ref), ports);
+    const deps = await dependencies(
+      object(run.work_order_ref),
+      ports,
+      run.attempt_number === 2 ? object(run.context_snapshot_ref) : undefined,
+    );
     requireThat(
       same(deps.contractRef, run.work_order_contract_ref) &&
         same(deps.contextRef, run.context_snapshot_ref) &&
@@ -783,4 +914,9 @@ export async function handleGetRunState(
     await revalidate();
     return result;
   });
+}
+
+function definedValue<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) throw new Error('REFERENCE_INVALID');
+  return value;
 }

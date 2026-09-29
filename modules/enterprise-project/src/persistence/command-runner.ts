@@ -235,13 +235,22 @@ export async function executeEnterpriseProjectCommand(
   context: EnterpriseProjectTransactionContext,
   envelope: CommandEnvelope,
   body: (execution: CommandExecution) => Promise<CommandBodyResult>,
+  revalidateAuthorization?: () => Promise<void>,
 ): Promise<CommandResult> {
+  await revalidateAuthorization?.();
   assertEnvelopeMatchesContext(context, envelope);
   const requestDigest = digestCanonicalPayload(envelope.requestPayload);
 
   let outcome: Awaited<ReturnType<typeof runCommandTransaction>>;
   try {
-    outcome = await runCommandTransaction(db, context, envelope, requestDigest.hash, body);
+    outcome = await runCommandTransaction(
+      db,
+      context,
+      envelope,
+      requestDigest.hash,
+      body,
+      revalidateAuthorization,
+    );
   } catch (error) {
     mapTransactionError(error);
   }
@@ -258,6 +267,7 @@ export async function executeEnterpriseProjectCommand(
       'a command with the same idempotency key is still in flight',
     );
   }
+  await revalidateAuthorization?.();
   return outcome.result;
 }
 
@@ -267,12 +277,14 @@ async function runCommandTransaction(
   envelope: CommandEnvelope,
   requestHash: Buffer,
   body: (execution: CommandExecution) => Promise<CommandBodyResult>,
+  revalidateAuthorization?: () => Promise<void>,
 ) {
   const transaction =
     envelope.platform === true
       ? withEnterpriseProjectPlatformTransaction
       : withEnterpriseProjectTransaction;
   return transaction(db, context, async (trx) => {
+    await revalidateAuthorization?.();
     const claimed = await claimReceipt(trx, envelope, requestHash);
     if (!claimed) {
       const existing = await readReceipt(trx, envelope);
@@ -297,6 +309,7 @@ async function runCommandTransaction(
       if (existing.outcome === 'PENDING') {
         return { kind: 'IN_PROGRESS' } as const;
       }
+      await revalidateAuthorization?.();
       return {
         kind: 'RESULT',
         result: {
@@ -310,6 +323,7 @@ async function runCommandTransaction(
     }
 
     const bodyResult = await body(createExecution(trx, envelope));
+    await revalidateAuthorization?.();
 
     if (bodyResult.kind === 'REJECTED') {
       await finalizeReceipt(trx, envelope, {
@@ -366,6 +380,7 @@ async function runCommandTransaction(
       const payloadHash = digestCanonicalPayload(payload).hash;
       await bodyResult.receiptMaterial.persist(trx, { payload, payloadHash, committedAt });
     }
+    await revalidateAuthorization?.();
     return {
       kind: 'RESULT',
       result: {

@@ -164,11 +164,37 @@ export type WorkOrderControls = Pick<
   | 'modelPolicy'
 >;
 
+export const RECOVERY_CONTROLS_POLICY_PROFILE_KEY = 'execution.work_order_controls.policy@1.1';
+export interface RecoveryControls {
+  readonly answerSpecProfile: 'execution.answer.customer_material.v1';
+  readonly requestType: 'execution.input.customer_material_confirmation';
+  readonly responderRole: 'project.customer_material.confirmer';
+  readonly maxBlockingRequests: 1;
+  readonly maxRecoveryRuns: 1;
+  readonly retryReason: 'BLOCKED_INPUT_RESOLVED';
+  readonly run2Outcome: 'COMPLETED';
+  readonly materialUse: 'REFERENCE_ONLY';
+}
+
 export function validateWorkOrderControlsPolicy(input: {
   readonly policySchemaRefs: readonly unknown[];
   readonly policyDocument: unknown;
-}): PolicyProfileValidationResult<{ readonly controls: WorkOrderControls }> {
-  return validateProfile(WORK_ORDER_CONTROLS_POLICY_PROFILE_KEY, input, (document) => ({
-    controls: structuredClone(document.controls) as WorkOrderControls,
-  }));
+}): PolicyProfileValidationResult<{
+  readonly controls: WorkOrderControls;
+  readonly recovery?: RecoveryControls;
+}> {
+  const declared = input.policySchemaRefs.map((ref) =>
+    registeredPolicyProfileKey(POLICY_PROFILE_REGISTRY_VERSION, ref),
+  );
+  const recovery = declared.includes(RECOVERY_CONTROLS_POLICY_PROFILE_KEY);
+  if (recovery && declared.includes(WORK_ORDER_CONTROLS_POLICY_PROFILE_KEY))
+    return { valid: false, ...profileNotDeclared('ambiguous controls version') };
+  return validateProfile(
+    recovery ? RECOVERY_CONTROLS_POLICY_PROFILE_KEY : WORK_ORDER_CONTROLS_POLICY_PROFILE_KEY,
+    input,
+    (document) => ({
+      controls: structuredClone(document.controls) as WorkOrderControls,
+      ...(recovery ? { recovery: structuredClone(document.recovery) as RecoveryControls } : {}),
+    }),
+  );
 }

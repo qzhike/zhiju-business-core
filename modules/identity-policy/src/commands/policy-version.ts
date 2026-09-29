@@ -464,6 +464,7 @@ async function currentAuthorizationError(
     decision.principal_id,
     decision.enterprise_id,
     expected.now,
+    decision.requested_capability,
   );
   const covering = grants.some(
     (grant) =>

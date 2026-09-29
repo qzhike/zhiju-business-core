@@ -451,6 +451,94 @@ describe.skipIf(!gateEnabled)(
       });
       expect(humanOnlyForHuman).toMatchObject({ status: 'COMMITTED' });
 
+      expect(
+        await grantCapability(deps(), {
+          grantId: 'b3b3b3b3-b3b3-73b3-83b3-b3b3b3b3b318',
+          principalId: HUMAN,
+          capabilityCode: 'wi08.document.review',
+          scope: { scopeKind: 'ENTERPRISE', enterpriseId: ENTERPRISE_A },
+          resourceSelectors: [{ type: 'Artifact' }],
+          actions: ['wi08.review'],
+          validFrom: new Date(),
+          grantPolicySnapshotId: POLICY_ID,
+          grantPolicySnapshotHash: policyHash,
+          justification: 'same code in an independent scope',
+          idempotencyKey: 'wi08:grant:review-enterprise',
+        }),
+      ).toMatchObject({ status: 'COMMITTED' });
+      await withIdentityTransaction(db, context, async (trx) => {
+        const now = new Date();
+        const all = await repo.listActiveCapabilityGrants(trx, HUMAN, ENTERPRISE_A, now);
+        const review = await repo.listActiveCapabilityGrants(
+          trx,
+          HUMAN,
+          ENTERPRISE_A,
+          now,
+          'wi08.document.review',
+        );
+        expect(review.map((row) => row.id).sort()).toEqual(
+          all
+            .filter((row) => row.capability_code === 'wi08.document.review')
+            .map((row) => row.id)
+            .sort(),
+        );
+        expect(review.map((row) => row.scope_kind).sort()).toEqual(['ENTERPRISE', 'PROJECT']);
+        expect(all.some((row) => row.capability_code === 'release.authorize')).toBe(true);
+        const codes = ['wi08.document.review', 'release.authorize', 'wi08.document.review'];
+        const required = await repo.listActiveCapabilityGrants(
+          trx,
+          HUMAN,
+          ENTERPRISE_A,
+          now,
+          codes,
+        );
+        expect(required.map((row) => row.id).sort()).toEqual(
+          all
+            .filter((row) => codes.includes(row.capability_code))
+            .map((row) => row.id)
+            .sort(),
+        );
+        expect(await repo.listActiveCapabilityGrants(trx, HUMAN, ENTERPRISE_A, now, [])).toEqual(
+          [],
+        );
+        expect(await repo.listActiveCapabilityGrants(trx, HUMAN, ENTERPRISE_B, now, codes)).toEqual(
+          [],
+        );
+        expect(await repo.listActiveCapabilityGrants(trx, AGENT, ENTERPRISE_A, now, codes)).toEqual(
+          [],
+        );
+        expect(
+          await repo.listActiveCapabilityGrants(trx, HUMAN, ENTERPRISE_A, new Date(0), codes),
+        ).toEqual([]);
+        expect(
+          await repo.listActiveCapabilityGrants(
+            trx,
+            HUMAN,
+            ENTERPRISE_B,
+            now,
+            'wi08.document.review',
+          ),
+        ).toEqual([]);
+        expect(
+          await repo.listActiveCapabilityGrants(
+            trx,
+            AGENT,
+            ENTERPRISE_A,
+            now,
+            'wi08.document.review',
+          ),
+        ).toEqual([]);
+        expect(
+          await repo.listActiveCapabilityGrants(
+            trx,
+            HUMAN,
+            ENTERPRISE_A,
+            new Date(0),
+            'wi08.document.review',
+          ),
+        ).toEqual([]);
+      });
+
       // AGENT can never receive a human-only capability; the kind stays AGENT.
       const agentHumanOnly = await grantCapability(deps(), {
         grantId: 'b3b3b3b3-b3b3-73b3-83b3-b3b3b3b3b313',

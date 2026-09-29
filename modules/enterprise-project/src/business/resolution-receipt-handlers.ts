@@ -16,6 +16,7 @@
 import type { Kysely } from 'kysely';
 import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
 import { isUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import { canonicalize, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 import {
   digestCanonicalPayload,
   withEnterpriseProjectTransaction,
@@ -375,4 +376,169 @@ export async function handleGetResolutionReceipt(
     }
     return attestation;
   });
+}
+
+/** Discover the canonical content address of an already committed confirmation. */
+export async function readConfirmationReceiptRef(
+  db: Kysely<EnterpriseProjectDb>,
+  context: EnterpriseProjectTransactionContext,
+  input: { readonly commandId: string; readonly scopeRef: Common.ScopeRef },
+  revalidateAuthorization: () => Promise<void>,
+): Promise<{ readonly commandReceiptRef: CommandReceiptRef }> {
+  await revalidateAuthorization();
+  requireRegisteredPurpose(context, GET_RESOLUTION_RECEIPT_PURPOSE);
+  if (
+    !isUuidV7(input.commandId) ||
+    input.scopeRef.enterpriseId !== context.enterpriseId ||
+    !context.allowedProjectIds.includes(input.scopeRef.projectId ?? '')
+  )
+    receiptError(PROJECT_QUERY_NOT_FOUND, 'confirmation is unavailable');
+  const commandReceiptRef = await withEnterpriseProjectTransaction(db, context, async (trx) => {
+    const material = await repo.getResolutionReceiptMaterialById(trx, input.commandId);
+    if (
+      material?.command_type !== CONFIRM_CUSTOMER_MATERIAL_COMMAND ||
+      material.command_version !== '1.0' ||
+      material.outcome !== 'COMMITTED' ||
+      material.project_id !== input.scopeRef.projectId
+    )
+      receiptError(PROJECT_QUERY_NOT_FOUND, 'confirmation is unavailable');
+    const receipt = await repo.getCommandReceiptById(trx, input.commandId);
+    if (receipt === undefined) receiptError(PROJECT_QUERY_NOT_FOUND, 'confirmation is unavailable');
+    assertReceiptAgrees(material, receipt as unknown as ReceiptRow);
+    // A Human may discover only their own confirmation; the transport pins
+    // the authenticated principal kind from IdentityPolicy, never caller input.
+    if (
+      context.principalKind !== 'HUMAN' ||
+      context.principalId !== material.created_by_principal_id
+    )
+      receiptError(PROJECT_QUERY_NOT_FOUND, 'confirmation is unavailable');
+    const canonicalHash = digestCanonicalPayload(
+      material.receipt_payload as CanonicalJsonObject,
+    ).hash;
+    if (!canonicalHash.equals(material.receipt_payload_hash))
+      receiptError(PROJECT_QUERY_NOT_FOUND, 'confirmation is unavailable');
+    return {
+      kind: 'CONTENT_ADDRESSED' as const,
+      objectType: 'zhiju.project.command_receipt' as const,
+      objectId: material.command_id,
+      scope: { enterpriseId: material.enterprise_id, projectId: material.project_id },
+      contentHash: contentHashValue(canonicalHash.toString('hex')),
+    };
+  });
+  await handleGetResolutionReceipt(db, context, { commandReceiptRef });
+  await revalidateAuthorization();
+  return { commandReceiptRef };
+}
+
+/** Read only exact material identities and current Source custody, without content. */
+export async function readCustomerMaterialRecoveryReferences(
+  db: Kysely<EnterpriseProjectDb>,
+  context: EnterpriseProjectTransactionContext,
+  input: {
+    readonly candidateMaterialRef: Common.VersionedRef;
+    readonly requiredSourceRefs: readonly Common.ContentAddressedRef[];
+    readonly confirmedMaterialRef?: Common.VersionedRef;
+  },
+  revalidateAuthorization: () => Promise<void>,
+) {
+  await revalidateAuthorization();
+  requireRegisteredPurpose(context, 'project.customer_material.recovery_refs.read');
+  const candidate = input.candidateMaterialRef;
+  const subjectScope = candidate.scope;
+  const equals = (a: unknown, b: unknown) =>
+    canonicalize(a as CanonicalJsonValue) === canonicalize(b as CanonicalJsonValue);
+  const unavailable = () =>
+    receiptError('PROJECT_MATERIAL_VERSION_NOT_FOUND', 'material references are unavailable');
+  if (
+    !hasReferenceKind(candidate, 'VERSIONED') ||
+    candidate.objectType !== 'zhiju.project.customer_material' ||
+    !isUuidV7(candidate.objectId) ||
+    !isUuidV7(candidate.versionId) ||
+    subjectScope.enterpriseId !== context.enterpriseId ||
+    !context.allowedProjectIds.includes(subjectScope.projectId ?? '') ||
+    input.requiredSourceRefs.length === 0
+  )
+    unavailable();
+  const result = await withEnterpriseProjectTransaction(db, context, async (trx) => {
+    const root = await repo.getCustomerMaterialById(trx, candidate.objectId);
+    const version = await repo.getCustomerMaterialVersion(trx, candidate.versionId);
+    if (
+      root === undefined ||
+      version?.version_status !== 'PROPOSED' ||
+      root.enterprise_id !== subjectScope.enterpriseId ||
+      root.project_id !== subjectScope.projectId ||
+      version.customer_material_id !== candidate.objectId ||
+      version.enterprise_id !== root.enterprise_id ||
+      version.project_id !== root.project_id ||
+      !['PROPOSED', 'CONFIRMED'].includes(root.classification_status)
+    )
+      return unavailable();
+    const candidateSourceRefs = confirmedSourceMaterialRefs(version, subjectScope).map(
+      (source) => source.ref,
+    );
+    const sorted = (refs: readonly unknown[]) =>
+      refs.map((value) => canonicalize(value as CanonicalJsonValue)).sort();
+    if (!equals(sorted(candidateSourceRefs), sorted(input.requiredSourceRefs)))
+      receiptError('PROJECT_MATERIAL_SOURCE_INVALID', 'material sources are unavailable');
+    for (const sourceRef of input.requiredSourceRefs) {
+      const source = await repo.getSourceMaterialById(trx, sourceRef.objectId);
+      if (
+        !hasReferenceKind(sourceRef, 'CONTENT_ADDRESSED') ||
+        sourceRef.objectType !== 'zhiju.project.source_material' ||
+        !equals(sourceRef.scope, subjectScope) ||
+        source?.custody_status !== 'ACCEPTED' ||
+        source.enterprise_id !== root.enterprise_id ||
+        source.project_id !== root.project_id ||
+        !source.content_hash.equals(hashFromContentHash(sourceRef.contentHash) ?? Buffer.alloc(0))
+      )
+        receiptError('PROJECT_MATERIAL_SOURCE_INVALID', 'material sources are unavailable');
+    }
+    if (input.confirmedMaterialRef !== undefined) {
+      const confirmedRef = input.confirmedMaterialRef;
+      const confirmed = await repo.getCustomerMaterialVersion(trx, confirmedRef.versionId);
+      if (
+        !hasReferenceKind(confirmedRef, 'VERSIONED') ||
+        confirmedRef.objectType !== candidate.objectType ||
+        confirmedRef.objectId !== candidate.objectId ||
+        !equals(confirmedRef.scope, subjectScope) ||
+        confirmed?.version_status !== 'CONFIRMED' ||
+        confirmed.previous_version_id !== candidate.versionId ||
+        confirmed.customer_material_id !== root.customer_material_id ||
+        confirmed.enterprise_id !== root.enterprise_id ||
+        confirmed.project_id !== root.project_id ||
+        !equals(
+          sorted(confirmedSourceMaterialRefs(confirmed, subjectScope).map((s) => s.ref)),
+          sorted(candidateSourceRefs),
+        )
+      )
+        return unavailable();
+    }
+    return {
+      candidateMaterialRef: candidate,
+      candidateStatus: root.classification_status as 'PROPOSED' | 'CONFIRMED',
+      candidateSourceRefs,
+      sourceStatuses: input.requiredSourceRefs.map((sourceMaterialRef) => ({
+        sourceMaterialRef,
+        status: 'ACCEPTED' as const,
+      })),
+      ...(input.confirmedMaterialRef === undefined
+        ? {}
+        : {
+            confirmedMaterialRef: input.confirmedMaterialRef,
+            confirmedStatus: 'CONFIRMED' as const,
+          }),
+      checkedAt: new Date().toISOString(),
+    };
+  });
+  await revalidateAuthorization();
+  return result;
+}
+
+function hasReferenceKind(value: unknown, kind: string): boolean {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).kind === kind
+  );
 }

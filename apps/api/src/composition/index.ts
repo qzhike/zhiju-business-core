@@ -66,3 +66,17 @@ export type {
   ControlledFinalRecoveryWorkerConfig,
   ControlledFinalRecoveryHostConfig,
 } from './controlled-final-recovery-worker.js';
+
+export {
+  createBlockedInputRecoveryEntry,
+  createRecoveryProcessAuthorities,
+  createRecoveryDependencyPorts,
+  readFrozenEligibilityForConsumer,
+} from './blocked-input-recovery-entry.js';
+export type {
+  BlockedInputRecoveryEntryConfig,
+  RecoverySession,
+} from './blocked-input-recovery-entry.js';
+
+export { createBlockedInputRecoveryWorker } from './blocked-input-recovery-worker.js';
+export type { BlockedInputRecoveryWorkerConfig } from './blocked-input-recovery-worker.js';

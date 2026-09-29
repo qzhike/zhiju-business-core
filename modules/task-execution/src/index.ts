@@ -354,3 +354,19 @@ export type {
   ControlledFinalProgressAdvance,
   ControlledFinalStep,
 } from './business/controlled-final-progress.js';
+
+export * from './business/blocked-input-recovery.js';
+
+export * from './business/frozen-recovery-context.js';
+
+export * from './business/recovery-root-state.js';
+
+export {
+  BLOCKED_INPUT_RECOVERY_STEPS,
+  blockedInputRecoveryProcessId,
+  scanBlockedInputRecoveryCandidates,
+  recoverBlockedInput,
+  readBlockedInputRecoveryProgress,
+  type RecoveryProcessProgress,
+  type RecoveryProcessPorts,
+} from './business/blocked-input-recovery-process.js';

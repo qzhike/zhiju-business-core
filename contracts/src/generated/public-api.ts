@@ -2084,4 +2084,138 @@ export const publicApiOperations = [
     authorizationPurpose: 'quality.revision.execution_eligibility.read',
     dataClassification: 'INTERNAL',
   },
+  {
+    type: 'execution.build_context_snapshot',
+    version: '1.1',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.context_snapshot',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'task.execution.build_context_snapshot',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_build_context_snapshot_v1_1_result',
+    references: [
+      { path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.execution.context_snapshot' },
+      {
+        path: '/payload/request/workOrderRef',
+        kind: 'OBJECT',
+        objectType: 'zhiju.execution.work_order',
+      },
+      {
+        path: '/payload/request/workOrderContractRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.contract.work_order',
+      },
+      {
+        path: '/payload/request/sourceSlices',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.project.context_source_slice',
+      },
+      {
+        path: '/payload/request/builderPolicyRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.identity.policy',
+      },
+      { path: '/payload/request/audience', kind: 'OBJECT', objectType: 'zhiju.identity.principal' },
+      {
+        path: '/payload/request/answeredInformationRefs',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.information_request_resolution',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/contextSnapshotRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.execution.context_snapshot',
+      },
+    ],
+  },
+  {
+    type: 'execution.reconcile_task_execution',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.task',
+    concurrencyMode: 'MUTATE',
+    authorizationPurpose: 'execution.task.reconcile',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_reconcile_task_execution_result',
+    references: [
+      { path: '/targetRef', kind: 'OBJECT', objectType: 'zhiju.execution.task' },
+      { path: '/payload/triggerRef', kind: 'OBJECT', objectType: 'execution.run' },
+      {
+        path: '/payload/triggerRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.agent_result_acceptance',
+      },
+      {
+        path: '/payload/triggerRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.information_request_resolution',
+      },
+    ],
+    resultReferences: [{ path: '/taskRef', kind: 'OBJECT', objectType: 'zhiju.execution.task' }],
+  },
+  {
+    type: 'execution.get_task_state',
+    version: '1.0',
+    kind: 'QUERY',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'execution.task.read',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_task_state_result',
+    references: [{ path: '/payload/taskRef', kind: 'OBJECT', objectType: 'zhiju.execution.task' }],
+    resultReferences: [
+      { path: '/taskRef', kind: 'OBJECT', objectType: 'zhiju.execution.task' },
+      {
+        path: '/definitionRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.task_definition_snapshot',
+      },
+      { path: '/workOrderRefs', kind: 'OBJECT', objectType: 'zhiju.execution.work_order' },
+      { path: '/dependencyTaskRefs', kind: 'OBJECT', objectType: 'zhiju.execution.task' },
+      { path: '/blockerRefs', kind: 'OBJECT', objectType: 'execution.information_request' },
+      { path: '/blockerRefs', kind: 'CONTENT_ADDRESSED', objectType: 'execution.agent_result' },
+    ],
+  },
+  {
+    type: 'execution.get_work_order_execution_state',
+    version: '1.0',
+    kind: 'QUERY',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'execution.work_order.execution_state.read',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_work_order_execution_state_result',
+    references: [
+      { path: '/payload/workOrderRef', kind: 'OBJECT', objectType: 'zhiju.execution.work_order' },
+    ],
+    resultReferences: [
+      { path: '/workOrderRef', kind: 'OBJECT', objectType: 'zhiju.execution.work_order' },
+      {
+        path: '/workOrderContractRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.contract.work_order',
+      },
+      {
+        path: '/informationRequestRefs',
+        kind: 'OBJECT',
+        objectType: 'execution.information_request',
+      },
+      { path: '/runRefs', kind: 'OBJECT', objectType: 'execution.run' },
+      { path: '/activeRunRef', kind: 'OBJECT', objectType: 'execution.run' },
+      { path: '/blockerRefs', kind: 'OBJECT', objectType: 'execution.information_request' },
+      { path: '/blockerRefs', kind: 'CONTENT_ADDRESSED', objectType: 'execution.agent_result' },
+    ],
+  },
 ] as const satisfies readonly PublicOperationDefinition[];

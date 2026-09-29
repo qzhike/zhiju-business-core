@@ -1990,7 +1990,7 @@ Process 复用决定 §9 的有限扫描，并增加一个明确候选集：TE �
 
 ## 24. BLOCKED_INPUT → CustomerMaterial → Context-2 / Run-2 Spec Delta（#229）
 
-状态：`T2 DESIGN ONLY / DESIGN APPROVED / BASE main@9d00d01db5abe024e333cbc72f435ef284665e5c / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / RUNTIME NOT RUN`。本节是依照已批准 TD-01–04 补齐的有限提案；不追认本次新增字段、profile 或公开操作已获批准。取舍及批准 Gate 见[决定 §23](../decisions/task-execution-human-operated.md#23-blocked_input-恢复设计闭合提案229)。旧 §21–§23 的首版限制仍描述已交付行为；仅在未来实现本节后，新 profile 才适用。
+状态：`T2 / DESIGN APPROVED / BASE main@9d00d01db5abe024e333cbc72f435ef284665e5c / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / EXACT REVISION VERIFICATION AND REVIEW EVIDENCE IN PR #232`。本节是依照已批准 TD-01–04 补齐的有限实现契约；新增字段、profile 和公开操作限于已批准的 §24 设计及用户确认的兼容映射。取舍及批准 Gate 见[决定 §23](../decisions/task-execution-human-operated.md#23-blocked_input-恢复设计闭合提案229)。旧 §21–§23 的首版限制仍描述已交付行为；本 revision 新 profile 只用于新建计划；历史单次 frozen 计划支持集保持。
 
 ### 24.1 当前实现对账与增量分类
 
@@ -2011,7 +2011,7 @@ Process 复用决定 §9 的有限扫描，并增加一个明确候选集：TE �
 
 新计划沿用 `create_work_order@1.1`、Core WorkOrder 1.0、§21 的 INITIAL Context/ExpectedOutput/required Criteria、同一 synthetic RuntimeBinding、静态 schema/risk/adapter selector。正式 Artifact 输出仍是冻结计划要求，但本次两次技术执行均不产生它；Result 可接纳，Completion 尚不满足。不解决 Artifact reference 拼写，不减少 required criterion。
 
-提议 `execution.work_order_controls.policy@1.1`：closed `{controls, recovery}`；`controls` 的九组字段、规范排序、角色 Policy refs 与同一个 Project `VERSIONED/zhiju.identity.policy` 全等规则沿用 §21.7。差异恰为 `executionPolicy.maxAttempts=2`、`retryableOutcomes=['BLOCKED_INPUT']`，仍 `resumePolicy='new_run_only'`、`fallbackPolicy='human_intervention'`；`budget` 仅有 `budgetPolicyRef` 与显式正整数秒 `wallClockLimit='PT<n>S'`，token/tool/monetary 上限缺省。其它预算组合在此 profile UNSUPPORTED，不能用未知 Usage 假造余额。closed recovery 全部必填：
+已注册 `execution.work_order_controls.policy@1.1`：closed `{controls, recovery}`；`controls` 的九组字段、规范排序、角色 Policy refs 与同一个 Project `VERSIONED/zhiju.identity.policy` 全等规则沿用 §21.7。差异恰为 `executionPolicy.maxAttempts=2`、`retryableOutcomes=['BLOCKED_INPUT']`，仍 `resumePolicy='new_run_only'`、`fallbackPolicy='human_intervention'`；`budget` 仅有 `budgetPolicyRef` 与显式正整数秒 `wallClockLimit='PT<n>S'`，token/tool/monetary 上限缺省。其它预算组合在此 profile UNSUPPORTED，不能用未知 Usage 假造余额。closed recovery 全部必填：
 
 ```text
 recovery = {
@@ -2050,6 +2050,8 @@ WorkOrder 与 Task 各用独立 reconcile 命令、Decision、Root CAS/事务：
 
 Human 自己通过正常 EP confirming 入口确认请求 candidate，使用当前 EP Human-only Decision/CAS，得到真实 CONFIRMED version 和 `CONTENT_ADDRESSED/zhiju.project.command_receipt`。confirmation Receipt 的取得沿用 #191 规范材料边界：EP owning 窄内部 `readConfirmationReceiptRef(commandId)` 在该 Human 的独立当前 Receipt-read 授权下，仅对该已提交 confirmation 返回规范 Receipt Ref；值从 `resolution_receipt_material` 读取并重算，不由 commandId/requestHash 构造 Hash。它不开放 Repository、不新增 EP public operation、不修改旧 CommandResult。Request Query 与本地受信 EP/TE Command 入口组成 Human 可用操作路径，不能靠直接插表取得答案材料。
 
+本实现的兼容映射已由用户于 2026-09-27 明确确认：已发布 `@1.0` 的 `answer.responder`、`resolvedBy` 保持 `TypedReference`，本有限 profile 只接受完整 `OBJECT/zhiju.identity.principal`（objectId=authenticated principalId、scope=本 Project）。IP owning 证明该引用主体为 HUMAN 后，将它映射为 `{principalKind:HUMAN,principalId:objectId}` 与 EP attestation.actorRef 逐字段比较；不可直接把 PrincipalRef 放入旧公开请求，不扩大旧 Schema 接受集。Resolution 中 resolvedBy 保留公开请求的完整 OBJECT 引用，历史与当前证明保留 owning 身份。
+
 `submit_information_answer@1.0` 的 authenticated actor 必须 HUMAN、等于 answer.responder，持有当前本 Project 上述 role 与 submit capability；不能用 `actingFor` 降低主身份。answerContent closed `{candidateMaterialRef,confirmedMaterialRef}`，candidate 逐字段等于 Request；confirmed 是该 Root 的另一确切 version。sourceRefs 只接受原非空 required Sources，规范集合与 Request 全等；channelSourceRef 缺省。submittedAt 在首次新事实写入时等于受信入口固定时间且早于 Request expiresAt；同键重放经当前授权后复用已提交原时间，不要求历史时间等于重放时钟；payloadHash 按 canonical cv1 对整个 AnswerSubmission **仅排除自身 payloadHash**计算。答案业务 identity 为 answerId，新增 Answer Ref 的 objectId=answerId、Hash 是下述完整持久事实的 Hash，二者不混用。
 
 submit 在 Request 行锁/CAS 下只接受 OPEN/ANSWERED，存 immutable Answer fact：closed `{answerId,informationRequestRef,answer,actorSnapshotRef,authorizationDecisionRef,recordedAt}`；不以确认文本推进 RESOLVED。candidate/confirmed 关系的最终 attestation 在 resolve 检查；submit 的 shape/身份/Source 错误不写成功 Answer/Receipt，Request 保持原状态并留脱敏 DENIED Audit。重复同 answerId 同 body/responder 返回原事实，异 body/responder 为 ANSWER_CONFLICT；本有限 profile 只允许一份有效答案，另一 answerId 的新答案拒绝，不覆盖已提交答案。若 immutable answer 无法被 Receipt 证明，Request 保持 ANSWERED，允许重试同一 resolution；换材料/重答不属于本 profile。
@@ -2082,20 +2084,22 @@ Run-2 创建还要求 RETRY_PENDING 未消费 intent、请求 Context FROZEN met
 |---|---|
 | 未支持 profile/outcome/多个 proposal/旧单次 WorkOrder retry | `EXECUTION_CRITERION_UNSUPPORTED`；旧单次次数不足也可用 `EXECUTION_RUN_ATTEMPT_CONFLICT`；无新成功事实 |
 | answer shape/candidate/source mismatch；actor 非 Human/无 role | `EXECUTION_INFORMATION_ANSWER_SPEC_MISMATCH` / `EXECUTION_INFORMATION_ANSWER_UNAUTHORIZED`；无 Answer/Resolution |
-| forged/unrelated/uncommitted Receipt、同 correlation 错材料、历史 IP 证明错 subject/purpose | `EXECUTION_RESOLUTION_RECEIPT_INVALID`（§11.7 已设计，尚须注册）；保持 blocker；跨 Scope 先用共享授权/安全不可用外观 |
+| forged/unrelated/uncommitted Receipt、同 correlation 错材料、历史 IP 证明错 subject/purpose | `EXECUTION_RESOLUTION_RECEIPT_INVALID`（模块稳定业务拒绝码）；保持 blocker；跨 Scope 先用共享授权/安全不可用外观 |
 | 未映射 final、未 RESOLVED、未完成 terminal arbitration | `EXECUTION_INFORMATION_REQUEST_UNRESOLVED`；无 Context/intent/Run-2 |
 | 同 source/answer/resolution 改输入、重复 retry 改绑定 | source：`EXECUTION_AGENT_RESULT_REPLAY_CONFLICT`；answer/resolution：`EXECUTION_INFORMATION_ANSWER_CONFLICT`；retry：`EXECUTION_RUN_ATTEMPT_CONFLICT`；同命令键异 payload 为 `IDEMPOTENCY_PAYLOAD_CONFLICT` |
-| Context 旧/异 Contract/错 Resolution/hash/Scope；Slice stale | `EXECUTION_CONTEXT_SOURCE_INVALID` / `EXECUTION_CONTEXT_TARGET_INVALID`；当前失效不重写历史 |
+| Context 旧/异 Contract/错 Resolution/hash/Scope；Slice stale；消费已 RESOLVED 但到期的 Request | `EXECUTION_CONTEXT_SOURCE_INVALID` / `EXECUTION_CONTEXT_TARGET_INVALID`；当前失效不重写历史 |
 | 授权撤销/过期、Controls/Builder 被取代；Contract/预算到期 | 共享授权码 / `POLICY_EXPIRED` / `EXECUTION_WORK_ORDER_EXPIRED` / `EXECUTION_WORK_ORDER_BUDGET_EXHAUSTED`，提交/重放返回前重验 |
 | 并发 create、CAS loser、旧 fencing、terminal resume | `EXECUTION_ACTIVE_RUN_EXISTS` / `EXECUTION_RUN_ATTEMPT_CONFLICT` / `AGGREGATE_VERSION_CONFLICT` / `EXECUTION_RUN_FENCING_TOKEN_STALE` / `EXECUTION_TERMINAL_RUN_IMMUTABLE` |
 
 受限 `blocked-input-recovery@1` Process 只从本 Project 已提交 terminal source/Reservation、Request/Resolution、retry intent/Run 查询发现候选；进度独立 CAS，业务/Receipt读取各自授权。固定 step key=`blocked-input-recovery:sourceResultId:sourceResultHash:proposalId:step`；预分配 Request/Context/Run target 与完整命令 bytes/hash 在调用前存进度。final 五步仍复用 §23 Process。依次 Request-open、两个 reconcile、Context-build、等待并读取已由 Human schedule 的 intent、Bundle-issue、Run-create、dispatch/start 和后续 reconcile，各目标提交与进度提交是两个事务；跨窗口崩溃重放原键，先由 owning runner 当前授权读原 Receipt，无重复 Root/事实/Event/invoke。Human submit/resolve 是独立用户动作，Process 不自动供应/采纳答案、不替 Human批准 retry；Human schedule Receipt 已存在才能发现 retry intent并执行后续步骤。
 
-进度未建前的扫描须能恢复已 terminal source；已预分配但目标未提交的进度重试原 bytes；目标已提交进度未记则返回原 Receipt；Context已 stale时原成功 Receipt只是历史，后继消费失败，独立新 capture/build 要新 identity/key并记录替代候选，不覆盖旧 Context。长期不可用授权/到期把进度 SUSPENDED 并保存脱敏原因；不忙循环、不自动升级 Policy或WorkOrder。公开已发生的 Opened/Resolved/Run Event 可用真实 Inbox 唤醒；无 IG final 源 Event时继续有限扫描，不能伪造 eventId。各 fault 的 target rollback 与 commit-before-progress 场景归于 `TE-REC-D-010`，见 Module-Test。
+进度未建前的扫描须能恢复已 terminal source；扫描与独立授权的进度读回确认 Process 已存在时，不重复签发/提交创建进度命令，ACTIVE 仍按已保存 bytes 推进，COMPLETED/SUSPENDED 不重建。并发扫描仍在创建事务内重查存在性，不能仅凭先前观测保证唯一。已预分配但目标未提交的进度重试原 bytes；目标已提交进度未记则返回原 Receipt；Context已 stale时原成功 Receipt只是历史，后继消费失败，独立新 capture/build 要新 identity/key并记录替代候选，不覆盖旧 Context。长期不可用授权/到期把进度 SUSPENDED 并保存脱敏原因；不忙循环、不自动升级 Policy或WorkOrder。公开已发生的 Opened/Resolved/Run Event 可用真实 Inbox 唤醒；无 IG final 源 Event时继续有限扫描，不能伪造 eventId。各 fault 的 target rollback 与 commit-before-progress 场景归于 `TE-REC-D-010`，见 Module-Test。
 
 ### 24.7 public request/result/ref Delta 与权威读回
 
-所有以下新增操作均 Owner task-execution；Envelope 仍按共享 API，Project Scope 必填，closed payload/result，拒绝未知字段，Query AUTHORITATIVE。以下只是提案：四项注册后 Catalog **226→230**、TaskExecution **53→57**；本设计 revision 实际仍226/53。既有同名 @1.0 bytes、compat metadata、fixture、200 baseline 不改。
+所有以下新增操作均 Owner task-execution；Envelope 仍按共享 API，Project Scope 必填，closed payload/result，拒绝未知字段，Query AUTHORITATIVE。四项已注册：Catalog **230**、TaskExecution **57**；历史 Compatibility Baseline 仍为 **200**。既有同名 @1.0 bytes、compat metadata、fixture、200 baseline 不改。
+
+`ContextBuildRequest.answeredInformationRefs` 在 @1.0 与 @1.1 均保持 §2 的普通 `TypedReference[]` 契约：空数组、重复合法 Ref 和其它合法 TypedReference 在 Schema 层接受，validator 不去重或改写输入；非数组与畸形 Ref 仍拒绝。§24.5 的单一精确 Resolution 是本恢复 Handler 的业务支持集，Schema 合法不代表恢复资格满足；不符合该支持集的输入由 Handler 拒绝，不提交 Snapshot 或成功 Receipt。
 
 | operation | target/mode，payload | Result.data 与 Purpose |
 |---|---|---|
@@ -2104,10 +2108,18 @@ Run-2 创建还要求 RETRY_PENDING 未消费 intent、请求 Context FROZEN met
 | `execution.get_task_state@1.0` | QUERY；`{taskRef:OBJECT/zhiju.execution.task}` | §11.6 TaskStateView，closed 必填 `{taskRef,aggregateVersion,definitionRef:CONTENT_ADDRESSED/zhiju.execution.task_definition_snapshot,status,dependencyTaskRefs,workOrderRefs,blockerRefs,completionUseStatus}`；`completionEvaluationRef?` 保留既有设计 CONTENT_ADDRESSED；本有限实现仅 NOT_EVALUATED 且该 ref 缺省，不伪造 Completion；`execution.task.read` |
 | `execution.get_work_order_execution_state@1.0` | QUERY；`{workOrderRef:OBJECT/zhiju.execution.work_order}` | closed 必填 `{workOrderRef,aggregateVersion,status:WorkOrderStatus,workOrderContractRef:CONTENT_ADDRESSED/zhiju.contract.work_order,runRefs:ObjectRef<execution.run>[],informationRequestRefs:ObjectRef<execution.information_request>[],blockerRefs:TypedReference[],retryEligibility:NOT_APPLICABLE\|WAITING_INPUT\|READY_TO_SCHEDULE\|SCHEDULED\|CONSUMED\|EXHAUSTED\|STALE,checkedAt:UtcInstant}`，`activeRunRef?:OBJECT/execution.run`；`execution.work_order.execution_state.read`；仅 frozen canonical，非 DRAFT |
 
-两个 Root state Query 的列表都是 owning 全量、去重 canonical UTF-8 排序；blocked final 尚无 Request时 blockerRefs 使用 source Result，Request形成后使用 Request，答案已解但后继未完成时仍保留 source Result屏障，不能把数组空当作业务完成。retryEligibility 是当前派生资格，不是 caller 输入：首 Run前 NOT_APPLICABLE；未解/未建Request WAITING_INPUT；已解且全部当前资格/余额有效 READY_TO_SCHEDULE；intent 已提交未消费 SCHEDULED；Run-2已创建 CONSUMED；次数/余额不足 EXHAUSTED；当前授权以外的依赖失效 STALE。自身权限缺失直接拒绝，不返回 STALE 泄露对象。两 Query按各自 Root及其本模块输入一致观测读取，输出 aggregateVersion/checkedAt，不声称与另一 Root 同时刻原子读；跨模块资格按 §10.1 保存观察，不用 Projection。
+两个 Root state Query 的列表都是 owning 全量、去重 canonical UTF-8 排序；Task 全量 child WorkOrder 包含尚无冻结 Contract/Run 的 DRAFT，不能因其尚未执行而省略或报对象不存在；blocked final 尚无 Request时 blockerRefs 使用 source Result，Request形成后使用 Request，答案已解但后继未完成时仍保留 source Result屏障，不能把数组空当作业务完成。retryEligibility 是当前派生资格，不是 caller 输入：首 Run前 NOT_APPLICABLE；未解/未建Request WAITING_INPUT；已解且全部当前资格/余额有效 READY_TO_SCHEDULE；intent 已提交未消费 SCHEDULED；Run-2已创建 CONSUMED；次数/余额不足 EXHAUSTED；当前授权以外的依赖失效 STALE。自身权限缺失直接拒绝，不返回 STALE 泄露对象。两 Query按各自 Root及其本模块输入一致观测读取，Task 输出 aggregateVersion，观测时刻使用共享 QueryResult.snapshotAt；WorkOrder data 保留 checkedAt，不声称与另一 Root 同时刻原子读；跨模块资格按 §10.1 保存观察，不用 Projection。
 
 新公开 objectType：`execution.information_request`（OBJECT，既有 v1 Request 拼写的显式 owning 注册）、`execution.information_answer`（CONTENT_ADDRESSED）、`execution.information_request_resolution`（CONTENT_ADDRESSED）；Owner task-execution，Project Scope，独立 UUIDv7，Answer/Resolution canonical payload 排除自身 Ref/hash。前者不建立 `zhiju.*` alias；后三类 Ref不能互换。Source/EP Receipt/IP 证明沿用各 owning已注册类型；canonical Task/WorkOrder/Context 与 legacy Run/Result/Acceptance 的精确拼写继续按已发布契约区分。
 
 新增操作共用现有 ErrorEnvelope 与 error security 外观：非法 Registry/Envelope/字段→共享 API错误；错 Ref/hash/Scope/不可见→REFERENCE_INVALID/NOT_FOUND 或共享授权拒绝；CAS/状态按共享码；Context及业务拒绝见 §24.6；依赖暂不可查询→DEPENDENCY_UNAVAILABLE，返回前撤权/过期→AUTHORIZATION_DECISION_INVALID。新 Query/Task reconcile不另造错误族。新增 Registry metadata 必须声明完整 target、concurrency、Purpose、dataClassification（新 state Query CUSTOMER_CONFIDENTIAL；新 build/Task reconcile INTERNAL，与继承共享边界一致）、所有 payload/result reference paths 和专用 Result Schema；本次不新增 PayloadGuardPolicy，四项新操作沿用公共 Envelope/Schema 校验；现行 #157 Guard 只绑定 EP Source Slice，不能声称存在 initial-context Guard 或为新操作注入未批准的默认尺寸 Policy。具体正负 fixtures必须独立文件，含旧 @1.0/新 @1.1 并存、ref type/Scope/hash/null/额外字段/跨字段绑定反例；只改文档时不生成它们。
 
-权威验收读回按链取实际结果：IG 两 Attempt/final Observation原文；TE 两 Run state、两 accepted Result/Acceptance；Request View 的 OPEN→ANSWERED→RESOLVED 与 immutable Answer/Resolution owning Port；EP Receipt；Context-2 Query原文 + owning FROZEN metadata证明；原 Contract Query；两个新增 Root state Query。最后确认两 Run均 SUCCEEDED、attempt1/2且不同Context/Attempt/Bundle/fencing、原五项历史hash不变、唯一ACTIVE已释放、WorkOrder/Task仅COMPLETION_PENDING。Claim/metadata/budget/不可变子事实由 owning持久化验收读取，不开放跨模块 SQL；不把 Board、Event或成功 Command当作权威状态Query。测试与证据分层见 Module-Test-003 `TE-REC-D-*`；本节运行、外部、人工业务验收全部 NOT RUN。
+权威验收读回按链取实际结果：IG 两 Attempt/final Observation原文；TE 两 Run state、两 accepted Result/Acceptance；Request View 的 OPEN→ANSWERED→RESOLVED 与 immutable Answer/Resolution owning Port；EP Receipt；Context-2 Query原文 + owning FROZEN metadata证明；原 Contract Query；两个新增 Root state Query。最后确认两 Run均 SUCCEEDED、attempt1/2且不同Context/Attempt/Bundle/fencing、原五项历史hash不变、唯一ACTIVE已释放、WorkOrder/Task仅COMPLETION_PENDING。Claim/metadata/budget/不可变子事实由 owning持久化验收读取，不开放跨模块 SQL；不把 Board、Event或成功 Command当作权威状态Query。测试与证据分层见 Module-Test-003 `TE-REC-D-*`；运行证据与未执行子项按 Module-Test-003 的对应行分别记录；配置 full、外部与人工验收不由局部诊断替代。
+
+### 24.8 实现组成与当前支持边界（#231）
+
+恢复入口 `createBlockedInputRecoveryEntry` 组合各 owner 的正常命令/查询及独立依赖授权；TE `blocked-input-recovery`、`frozen-recovery-context`、`recovery-root-state` 分别拥有 Request 生命周期、FROZEN 构建/当前资格与全量 Root 协调。`createBlockedInputRecoveryWorker` 使用独立候选扫描与进度权限；目标命令预分配并不可变保存，目标提交与 Process CAS 是两个事务。授权动作的完整有限映射由 Spec001 §15.14 与可执行 `BLOCKED_INPUT_RECOVERY_BINDINGS` 对账。
+
+FROZEN 构建复用 INITIAL assembler 的确定性裁剪与 ContextItem 规范，但临时组装输入只消费本次确切 fresh Slices；原 Contract 的 INITIAL input pins 继续封存在原 Contract/Context-1，不再把这些旧 Slice 引用加入 Context-2 的 fresh source manifest。该临时投影不写回原 Contract/Draft。Snapshot 的 expiresAt 取 assembler 的 effectiveExpiresAt（含 Builder TTL）；只有公开请求实际带 expiresAt 时，metadata 才记录 requestExpiresAt，保留缺省与显式值的 Hash 差别。
+
+恢复关系 SQL guard 不联查 EP/IP；外部当前权利与历史确认在 owning Port 证明，TE 持久化规范 attestation 及 observation hash。ContextBuilt@1.1 与 Request Opened/Resolved 的完整 Event Envelope 在 appendOutbox 前按 Registry 校验。权威 Root 查询及有限 Process 不发布 Completion，也不改变历史 one-attempt 支持集。逐场景验收继续按 Module-Test 的实际执行层级记录，配置门禁未完成时不得把本节当 PASS 证据。

@@ -316,6 +316,8 @@ export interface CommandExecution {
       controlledFinalAcceptanceRef?: string;
       controlledFinalRunVersion?: string;
       blockedReasonCode?: string;
+      recoveryStep?: number;
+      recoveryCommandId?: string;
     },
   ): Promise<'OK' | 'NOT_FOUND' | 'CONFLICT'>;
   appendOutbox(event: OutboxEventInput): Promise<void>;
@@ -392,6 +394,8 @@ export interface CommandExecution {
       controlledFinalAcceptanceRef?: string;
       controlledFinalRunVersion?: string;
       blockedReasonCode?: string;
+      recoveryStep?: number;
+      recoveryCommandId?: string;
     },
   ): Promise<'OK' | 'NOT_FOUND' | 'CONFLICT'>;
   appendOutbox(event: OutboxEventInput): Promise<void>;
@@ -786,6 +790,10 @@ function createExecution(
           ...(patch.controlledFinalRunVersion === undefined
             ? {}
             : { controlled_final_run_version: patch.controlledFinalRunVersion }),
+          ...(patch.recoveryStep === undefined ? {} : { recovery_step: patch.recoveryStep }),
+          ...(patch.recoveryCommandId === undefined
+            ? {}
+            : { last_recovery_command_id: patch.recoveryCommandId }),
           ...(patch.blockedReasonCode === undefined
             ? {}
             : { blocked_reason_code: patch.blockedReasonCode }),

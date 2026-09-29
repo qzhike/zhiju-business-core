@@ -396,6 +396,8 @@ export { ResolutionReceiptRepository } from './persistence/resolution-receipt-re
 export type { ResolutionReceiptMaterialInsert } from './persistence/resolution-receipt-repository.js';
 export {
   handleGetResolutionReceipt,
+  readConfirmationReceiptRef,
+  readCustomerMaterialRecoveryReferences,
   GET_RESOLUTION_RECEIPT_QUERY,
   GET_RESOLUTION_RECEIPT_PURPOSE,
   COMMAND_RECEIPT_OBJECT_TYPE,

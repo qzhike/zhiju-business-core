@@ -1847,6 +1847,23 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
   // TE-P206-001 / 002 — the two positive producer paths
   // -------------------------------------------------------------------------
 
+  async function setHistoricalTaskStatus(taskId: string, status: string) {
+    // Seed an historical dependency state; no cancellation or Completion action is claimed.
+    await admin.query('BEGIN');
+    try {
+      await admin.query('SET LOCAL session_replication_role=replica');
+      const result = await admin.query(
+        'UPDATE task_execution.task SET status=$2 WHERE task_id=$1',
+        [taskId, status],
+      );
+      await admin.query('COMMIT');
+      return result;
+    } catch (error) {
+      await admin.query('ROLLBACK');
+      throw error;
+    }
+  }
+
   it('TE-P206-001 produces a ready judgment for a v1 DRAFT Task', async () => {
     const draft = await createDraft('1.0');
     const outboxBefore = await countRows('task_execution.outbox_event');
@@ -1957,7 +1974,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(226);
+    expect(catalog.operations).toHaveLength(230);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );
@@ -1967,7 +1984,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     ).toBe(false);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(53);
+    ).toHaveLength(57);
     expect(
       registry.validateOperation('execution.mark_task_ready', '1.0', {
         commandId: newUuidV7(),
@@ -2497,10 +2514,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
 
     // A dependency that was cancelled.
     const cancelledDependency = await createDraft('1.0');
-    const cancelledUpdate = await admin.query(
-      `UPDATE task_execution.task SET status = 'CANCELLED' WHERE task_id = $1`,
-      [cancelledDependency.taskId],
-    );
+    const cancelledUpdate = await setHistoricalTaskStatus(cancelledDependency.taskId, 'CANCELLED');
     expect(cancelledUpdate.rowCount).toBe(1);
     const cancelled = await observeDependency(
       objectRef(TASK_OBJECT_V1, cancelledDependency.taskId, scope),
@@ -3914,9 +3928,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     // A Task that was cancelled.
     const cancelledDraft = await createDraft('1.0');
     const cancelledJudgment = await buildTaskJudgment(cancelledDraft);
-    await admin.query(`UPDATE task_execution.task SET status = 'CANCELLED' WHERE task_id = $1`, [
-      cancelledDraft.taskId,
-    ]);
+    await setHistoricalTaskStatus(cancelledDraft.taskId, 'CANCELLED');
     const beforeCancelled = await taskState(cancelledDraft.taskId);
     const cancelledOutcome = await attempt(() =>
       markReady({

@@ -1,0 +1,190 @@
+{
+  "controls": {
+    "targetScope": {
+      "targetObjectRefs": [],
+      "baseContentRefs": [],
+      "allowedUnitRefs": [],
+      "forbiddenUnitRefs": [],
+      "allowedCreateTypes": ["zhiju.artifact.artifact", "zhiju.artifact.artifact_revision"],
+      "crossObjectReferencesAllowed": [],
+      "scopePolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.identity.policy",
+        "objectId": "01996900-0000-7000-8000-000000000121",
+        "versionId": "01996900-0000-7000-8000-000000000122",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    },
+    "allowedCapabilities": [
+      {
+        "capabilityType": "artifact.revision.create",
+        "actions": ["create"],
+        "resourceSelectors": ["zhiju.artifact.artifact_revision"],
+        "constraints": [],
+        "expiresAt": "2026-09-23T00:00:00.000Z",
+        "grantPolicyRef": {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.identity.policy",
+          "objectId": "01996900-0000-7000-8000-000000000121",
+          "versionId": "01996900-0000-7000-8000-000000000122",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        }
+      }
+    ],
+    "deniedCapabilities": [
+      {
+        "capabilityType": "artifact.revision.read",
+        "actions": ["read"],
+        "resourceSelectors": ["zhiju.artifact.artifact_revision"],
+        "constraints": [],
+        "expiresAt": "2026-09-23T00:00:00.000Z",
+        "grantPolicyRef": {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.identity.policy",
+          "objectId": "01996900-0000-7000-8000-000000000121",
+          "versionId": "01996900-0000-7000-8000-000000000122",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        }
+      }
+    ],
+    "expectedOutputs": [
+      {
+        "outputSlot": "revision",
+        "allowedObjectTypes": ["zhiju.artifact.artifact_revision"],
+        "cardinality": "EXACTLY_ONE",
+        "requiredReferenceStrength": "CONTENT_ADDRESSED",
+        "creationRequired": true,
+        "acceptancePolicyRef": {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.identity.policy",
+          "objectId": "01996900-0000-7000-8000-000000000121",
+          "versionId": "01996900-0000-7000-8000-000000000122",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        }
+      }
+    ],
+    "riskAndQuality": {
+      "riskProfileRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.work_order_risk_profile",
+        "objectId": "01996900-0000-7000-8000-000000000103",
+        "versionId": "01996900-0000-7000-8000-000000000113",
+        "scope": {}
+      },
+      "dataHandlingPolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.identity.policy",
+        "objectId": "01996900-0000-7000-8000-000000000121",
+        "versionId": "01996900-0000-7000-8000-000000000122",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "humanReviewRequired": true,
+      "escalationPolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.identity.policy",
+        "objectId": "01996900-0000-7000-8000-000000000121",
+        "versionId": "01996900-0000-7000-8000-000000000122",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    },
+    "executionPolicy": {
+      "maxAttempts": 2,
+      "retryableOutcomes": ["BLOCKED_INPUT"],
+      "resumePolicy": "new_run_only",
+      "fallbackPolicy": "human_intervention",
+      "leasePolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.identity.policy",
+        "objectId": "01996900-0000-7000-8000-000000000121",
+        "versionId": "01996900-0000-7000-8000-000000000122",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "cancellationPolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.identity.policy",
+        "objectId": "01996900-0000-7000-8000-000000000121",
+        "versionId": "01996900-0000-7000-8000-000000000122",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    },
+    "budget": {
+      "budgetPolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.identity.policy",
+        "objectId": "01996900-0000-7000-8000-000000000121",
+        "versionId": "01996900-0000-7000-8000-000000000122",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "wallClockLimit": "PT600S"
+    },
+    "harnessPolicy": {
+      "requiredHarness": "zhiju.runtime.synthetic",
+      "preferredHarnesses": ["zhiju.runtime.synthetic"],
+      "fallbackAllowed": false,
+      "fallbackRequiresHuman": true,
+      "selectionPolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.identity.policy",
+        "objectId": "01996900-0000-7000-8000-000000000121",
+        "versionId": "01996900-0000-7000-8000-000000000122",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    },
+    "modelPolicy": {
+      "allowedProviders": ["synthetic"],
+      "allowedModels": ["synthetic"],
+      "prohibitedDataClasses": ["REGULATED", "RESTRICTED_PERSONAL"],
+      "minimumCapabilities": [],
+      "selectionPolicyRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.identity.policy",
+        "objectId": "01996900-0000-7000-8000-000000000121",
+        "versionId": "01996900-0000-7000-8000-000000000122",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      }
+    }
+  },
+  "recovery": {
+    "answerSpecProfile": "execution.answer.customer_material.v1",
+    "requestType": "execution.input.customer_material_confirmation",
+    "responderRole": "project.customer_material.confirmer",
+    "maxBlockingRequests": 1,
+    "maxRecoveryRuns": 1,
+    "retryReason": "BLOCKED_INPUT_RESOLVED",
+    "run2Outcome": "COMPLETED",
+    "materialUse": "REFERENCE_ONLY"
+  }
+}

@@ -522,9 +522,9 @@ pnpm persistence:gate
 
 ## #229 恢复证明消费边界
 
-状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`；[Spec002 #229](../module-specs/Module-Spec-002-EnterpriseProject.md#229-确认-receipt-ref-的授权发现与复用边界提案)。#191已通过的原attestation矩阵保留，不因本设计复用变为TE端执行通过。
+状态：`DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION PRESENT (#231) / OWNING RECOVERY DIAGNOSTICS EXECUTED / EXACT REVISION FULL AND REVIEW EVIDENCE IN PR #232`；[Spec002 #229](../module-specs/Module-Spec-002-EnterpriseProject.md#229-确认-receipt-ref-的授权发现与复用边界实现契约)。#191已通过的原attestation矩阵保留，不因本设计复用变为TE端执行通过。
 
 | ID | 输入 / 层级 | 预期 / 结果 |
 |---|---|---|
-| EP-REC-D-001 | Owning确认command+授权内部ReceiptRef Port+注册Query+PostgreSQL；同Human取得真实规范Receipt，对照wrongScope/hash/uncommitted/同correlation另一material/他人session/撤销Grant | canonicalReceipt Ref来自材料重算，不从requestHash/commandId推导；candidate→confirmed/source/BusinessDecision真实可联核；仅当前授权读取成功，拒绝无protected read/无新EP业务事实；NOT RUN |
-| EP-REC-D-002 | EP sources/propose/confirm/capture/read entry+TE controlled integration；候选及Sources来自正常入口，确认后新Slice与Receipt进入Context-2 | currentSource ACCEPTED、版本与Scope完整匹配；Receipt重用原Schema，Slice不增加customer_material kind/正文，TE reference-only材料item不冒充EPSource；同源内容Hash及历史确认不被恢复修改；NOT RUN |
+| EP-REC-D-001 | Owning确认command+授权内部ReceiptRef Port+注册Query+PostgreSQL；同Human取得真实规范Receipt，对照wrongScope/hash/uncommitted/同correlation另一material/他人session/撤销Grant | OWNING/PG PASS：同 Human 取得实际 canonical Receipt/attestation；wrong Receipt hash/id、未提交 command、同 correlation 另一真实 material、wrong Scope/session/missing capability Grant 及已签 Decision 后实际 discovery Grant 撤销拒绝；授权拒绝 protected reads=0，无新 EP 业务事实。 |
+| EP-REC-D-002 | EP sources/propose/confirm/capture/read entry+TE controlled integration；候选及Sources来自正常入口，确认后新Slice与Receipt进入Context-2 | OWNING/PG/CONTROLLED PASS：真实 ACCEPTED Sources、PROPOSED→CONFIRMED、当前 fresh Slice 与 reference-only MATERIAL Context；原 Receipt/source 和五项历史 bytes/hash 不变。 |

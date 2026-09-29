@@ -291,7 +291,7 @@ function instantMilliseconds(value: string): number | undefined {
  * (UTF-8 byte concatenation without separators - the design fixes the
  * concatenation order, and this slice is the only producer).
  */
-function deriveContextItemId(
+export function deriveContextItemId(
   asOfMilliseconds: number,
   factItemCanonical: string,
   sliceObjectId: string,

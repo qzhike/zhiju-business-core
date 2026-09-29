@@ -59,10 +59,18 @@ export default class PersistenceProgressReporter {
   }
   onTestCaseResult(test) {
     this.active.delete(test.fullName);
-    if (test.result().state === 'skipped') this.skipped += 1;
+    const result = test.result();
+    if (result.state === 'skipped') this.skipped += 1;
     process.stdout.write(
-      `[persistence-test] end: ${test.fullName}; state=${test.result().state}; elapsedMs=${Math.round(test.diagnostic()?.duration ?? 0)}\n`,
+      `[persistence-test] end: ${test.fullName}; state=${result.state}; elapsedMs=${Math.round(test.diagnostic()?.duration ?? 0)}\n`,
     );
+    // Preserve failures before a long-running file or CI cancellation can
+    // prevent Vitest's final summary from being printed.
+    if (result.state === 'failed')
+      for (const error of result.errors)
+        process.stderr.write(
+          `[persistence-test] failure: ${test.fullName}\n${error.stack || `${error.name}: ${error.message}`}\n`,
+        );
   }
   onTestModuleEnd(module) {
     this.active.delete(`file ${module.moduleId} (including setup/cleanup)`);

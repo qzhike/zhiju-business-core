@@ -11,7 +11,7 @@ export async function verifyControlledFinalUpgrade(
   source: pg.Client,
   input: {
     schema: 'task_execution' | 'integration_gateway';
-    version: '3006' | '7002';
+    version: '3006' | '3010' | '7002' | '7004';
     enterpriseId: string;
     requiredTables: readonly string[];
     afterMigrate?: (target: pg.Client, connectionUri: string) => Promise<void>;
@@ -34,7 +34,7 @@ export async function verifyControlledFinalUpgrade(
     });
   const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
   try {
-    if (input.schema === 'task_execution') {
+    if (input.schema === 'task_execution' && input.version === '3006') {
       expect(
         (
           await source.query<{ count: string }>(
@@ -84,10 +84,10 @@ export async function verifyControlledFinalUpgrade(
           [input.enterpriseId],
         )
       ).rows.map((row) => row.payload);
-      for (const row of rows)
+      if (rows.length > 0)
         await target.query(
-          `INSERT INTO ${qualified} SELECT * FROM jsonb_populate_record(NULL::${qualified}, $1::jsonb)`,
-          [JSON.stringify(row)],
+          `INSERT INTO ${qualified} SELECT * FROM jsonb_populate_recordset(NULL::${qualified}, $1::jsonb)`,
+          [JSON.stringify(rows)],
         );
       history.set(table, { columns, rows });
     }
@@ -110,7 +110,7 @@ export async function verifyControlledFinalUpgrade(
         rows.map((row) => JSON.stringify(row)).sort(),
       );
     }
-    if (input.schema === 'task_execution') {
+    if (input.schema === 'task_execution' && input.version === '3006') {
       expect(
         (
           await target.query<{ count: string }>(
@@ -135,7 +135,7 @@ export async function verifyControlledFinalUpgrade(
           ).rows,
           `${table} receives no fabricated facts`,
         ).toEqual([{ count: '0' }]);
-    } else {
+    } else if (input.version === '7002') {
       expect(
         (
           await target.query<{ count: string }>(
@@ -155,6 +155,24 @@ export async function verifyControlledFinalUpgrade(
           `${table} receives no fabricated facts`,
         ).toEqual([{ count: '0' }]);
     }
+    if (input.version === '3010' || input.version === '7004')
+      for (const table of [
+        'information_request',
+        'information_request_origin',
+        'answer_submission',
+        'answer_resolution',
+        'work_order_retry_intent',
+        'run_budget_reservation',
+        'recovery_process_command',
+      ])
+        expect(
+          (
+            await target.query<{ count: string }>(
+              `SELECT count(*)::text FROM task_execution.${quote(table)}`,
+            )
+          ).rows,
+          `${table} has no fabricated recovery facts after upgrade`,
+        ).toEqual([{ count: '0' }]);
     expect(
       (
         await target.query<{ count: string }>(
