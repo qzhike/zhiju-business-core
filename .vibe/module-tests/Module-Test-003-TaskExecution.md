@@ -530,14 +530,14 @@ fixture 的不同 capability code/主体 Grant 创建互不依赖，按最多四
 |---|---|---|---|
 | TE-COMP-D-001 | Contract / 新Completion v2及三Query正负standalone fixtures | closed请求/结果；v1保留；错kind/hash/scope/unknown字段、caller事实/时间/结论被拒绝；237/62/200仅未来注册后检查 | 未执行 / NOT RUN |
 | TE-COMP-D-002 | Application + PostgreSQL / normal production fixture | 实际Human Artifact创建/读回、原invocation非空final、五项Bundle/Acceptance、Run SUCCEEDED；WO与Task各独立Evaluation/transition/event；exact root/judgment读回USABLE | 未执行 / NOT RUN |
-| TE-COMP-D-003 | Application + PostgreSQL / recovered fixture | Run-1 BLOCKED_INPUT→实际EP确认Receipt/Answer/Resolution→Context-2→独立Human retry→Run-2新输出；终态Run-1不恢复、原blocker已处理、两Root完成 | 未执行 / NOT RUN |
+| TE-COMP-D-003 | Application + PostgreSQL / recovered fixture | Run-1 BLOCKED_INPUT→实际EP确认Receipt/Answer/Resolution→Context-2→独立Human retry→Run-2新输出；终态Run-1不恢复、原blocker在Run-2输出创建时仍保留但不阻止精确后继创建，额外/未采用Resolution blocker仍拒绝；Run-2成功后原blocker才processed，两Root完成 | 未执行 / NOT RUN |
 | TE-COMP-D-004 | Application + PostgreSQL / 空COMPLETED、复用input/普通Revision/错Run/WO/Task/Context/Contract/Receipt | 合法空Result可ACCEPTED/SUCCEEDED但Completion UNSATISFIED；wrong-source非空不产可用Acceptance，不补写provenance | 未执行 / NOT RUN |
 | TE-COMP-D-005 | Contract + Application / 新旧spelling、旧frozenprofile、未知Policy/Evaluator/schema/condition/required=false/qualityStage组合 | 无别名；旧资料原Hash可读，不能新Completion；明确unsupported、无usable Evaluation | 未执行 / NOT RUN |
 | TE-COMP-D-006 | Application + PostgreSQL / output不存在/错Hash/Scope/source镜像/canonical schema | 授权失败或masked错误不泄露；合法当前失效为UNSATISFIED，非空fact要求不由Receipt/placeholder顶替 | 未执行 / NOT RUN |
 | TE-COMP-D-007 | Application + PostgreSQL / active Run/Claim、未映射reserved BLOCKED_INPUT、OPEN/ANSWERED/EXPIRED/RESOLVED但Run-2未成功 | 全集来源blocking安全检查失败；caller省略Request/Run不影响结果，WO/Task不完成 | 未执行 / NOT RUN |
 | TE-COMP-D-008 | Application + PostgreSQL / cancel/expiry已赢、迟到新Result/final、错误finalize Acceptance | 无可用输出/Completion；已sealed Artifact可保留孤立事实，无第二Run terminal/Completed event | 未执行 / NOT RUN |
 | TE-COMP-D-009 | Application + PostgreSQL / 不同child完成状态、缺child Evaluation、多个输出超EXACTLY_ONE | Task枚举全部child，非空且各自当前USABLE；不因选一child或空集合成功 | 未执行 / NOT RUN |
-| TE-COMP-D-010 | Application + PostgreSQL / 当前RAS READY与ABS FULLY_APPROVED；GateInvalidation/ApprovalRevocation/新快照/错Profile | 实际调用#192 eligibility，适用条件才读取；NOT_APPLICABLE不满足FULLY_APPROVED；current不可用，历史不变 | 未执行 / NOT RUN |
+| TE-COMP-D-010 | Application + PostgreSQL / 当前RAS READY与ABS FULLY_APPROVED；GateInvalidation/ApprovalRevocation/新快照/错Profile | 两个Profile同时有READY/ABS时只选冻结Profile；同Profile新快照使旧Evaluation失效、refresh才选择新Refs；实际调用内部SelectionPort和#192 eligibility，适用条件才读取；NOT_APPLICABLE不满足FULLY_APPROVED；current不可用，历史不变 | 未执行 / NOT RUN |
 | TE-COMP-D-011 | Application + PostgreSQL / 完成后output withdrawn/invalidated/归档，Evaluation过期/Policy真实后继、refresh | historical COMPLETED/首次Evaluation/Event/时间不变；Root与exact Query区分STALE/REVOKED；新授权refresh仅新Evaluation/pointer、无第二Completed Event | 未执行 / NOT RUN |
 | TE-COMP-D-012 | Application + PostgreSQL / 新Task依赖真实Completed Task，随后output/Quality失效 | build与mark readiness各独立current重验；USABLE才ready，失效/依赖不可达不放行；inputHash/version/TTL包含真实Completion | 未执行 / NOT RUN |
 | TE-COMP-D-013 | Application + PostgreSQL / Completion持parent锁并发child WO、Task Request、Run Request INSERT（分别双连接调度） | 赢者明确；集合重读/父锁阻止phantom，完成后新成员拒绝；至多一个有效transition/event，单Root写边界 | 未执行 / NOT RUN |

@@ -13,7 +13,7 @@
 | Artifact 普通 creation 的 provenance 只验证 shape/Scope/principal，不能证明 Run owning 关联 | 新 execution-revision owning creation 与 exact output-fact Query；创建时绑定已存在 Run，Result 通过后向引用建立关联 | additive 公开契约及 Artifact/TE 内部授权读边界 |
 | 两项 `evaluate_*_completion@1.0` 已注册但未实现，输入含 caller fact/blocker/time 且缺 Policy | 保留 v1；新增 @2.0 闭集请求，服务端派生所有事实、集合与时间，返回精确 Evaluation | 显式 Major 操作增量，既有 200 契约保持原样 |
 | `recovery-root-state.ts` TaskState 仅返回 NOT_EVALUATED；`task-readiness-plan.ts` 将 COMPLETED dependency 视为 STALE | WorkOrderState、Judgment exact Query；TaskState 沿用已注册形状；Readiness 实际消费当前 Completion | 已有契约实现 + additive Query；不批准 Board/Usage |
-| #192 已交付 quality current eligibility | 可选质量 Task 判据消费 exact RAS/ABS 与当前 eligibility | 既有契约消费，无 Quality 新操作/表 |
+| #192 已交付 quality current eligibility，但没有提供初次Completion的RAS/ABS来源选择 | 新冻结Profile pin、Quality owning内部exact snapshot发现，然后消费已有current eligibility | 既有契约消费 + 有限内部read增量，无Quality新公开操作/表 |
 
 ## 2. 提案与支持边界
 

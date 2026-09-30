@@ -2376,7 +2376,7 @@ Process 顺序为 Request open、WorkOrder wait、Task wait、Context build、Hu
 |---|---|
 | artifact / execution_revision_creation_binding | revision_id为同schema强FK且唯一；immutable canonical payload/hash；完整TE Task/WO/Run/Contract/Context refs/Scope、observedRunVersion、binding观察hash/窗口、actual创建时间、规范Receipt ref；Ref与provenance/实际source command镜像一致，TE refs无FK |
 | artifact / execution_revision_command_receipt | commandId唯一、canonical payload/hash/source command id、target与已SEALED Revision exact Ref；outcome COMMITTED，实际actor/ActorSnapshot/Decision与context/source receipt一致；附属材料和普通runner Receipt同事务，双向完整性guard |
-| task_execution / completion_evaluation | 独立evaluation UUID、owning target_kind/id/Scope、完整JudgmentHeader及§25.3 payload/hash；target当前definition/criteria/policy/input/collection hash与所有版本镜像闭合；INSERT-only，不覆写历史outcome/check/expiry/actor |
+| task_execution / completion_evaluation | 独立evaluation UUID、owning target_kind/id/Scope、完整JudgmentHeader及§25.3 payload/hash（适用Task qualitySelection保存冻结Profile/选定每个Revision的exact RAS/ABS/selectionHash）；target当前definition/criteria/policy/input/collection hash与所有版本镜像闭合；INSERT-only，不覆写历史outcome/check/expiry/actor |
 | task_execution / task与work_order增量 | current_completion_evaluation_id/hash可空、first_completion_evaluation_id/hash及completed_at仅首次转换写；同schema复合FK加deferred guard严格same target/scope/payloadHash。current pointer可随合法refresh CAS移动，first pointer/完成时间不可改 |
 | task_execution / completion_source_observation | Evaluation附属immutable localSources/sourceFacts，按ref唯一；本地fact/version/pointer镜像强约束，外部权威observation payload/hash作为attestation，不用外部Id声称已查验 |
 
@@ -2389,3 +2389,6 @@ Evaluation canonicalization=1、全payload hash重算（非只查digest长度）
 Artifact与TE创建不原子：Artifact先读TE binding并提交新Revision/真实Receipt；IG原Invocation后释放final；TE各步独立校验。TE之后拒绝或崩溃时Artifact合法孤立输出保留，不rewind内容或伪造ResultRef。外部current facts仅保证观测时点一致性，后续撤销按current检查影响新消费；不宣称跨模块同瞬时reservation。
 
 normal与recovered真实PostgreSQL正链均需空库/升级/二次no-op、RLS、wrong source/hash/Scope、collection竞态（child WO/Task Request/Run Request三种INSERT及Result/resolution变化）、锁后撤权、Evaluation/Event/Receipt故障、目标commit-before-process-progress重放、current expiry/refresh与历史查询。collection parent deadlock避免与既有生产handler回归同验收；不通过直写完成状态构造合法正链。全部未来案例NOT RUN，配置目标full及独立人类技术审查；本次只有docs，不提升旧#224/#231证据层级。
+
+
+#233新冻结Profile持久化细化：WorkOrder Contract/Controls的riskAndQuality.qualityProfileRef与versionPins.qualityProfileRef在Task质量criteria适用时必填且exact同一quality.quality_profile版本；无适用criteria时仍缺省，旧frozen Contract不改。Quality内部SelectionPort复用已有RAS/ABS own repository按exact Revision/Profile的evaluated_at/snapshot_id降序规则发现真实snapshot，不新增表/公共operation，不跨Schema回查；Task Evaluation保存选定Refs，current消费不择新Snapshot覆盖历史。source collection不包含目标自身completion pointer/新判断版本，own Root版本单独CAS；child refresh须使parent当前判断STALE，显式parent refresh重新获得资格。

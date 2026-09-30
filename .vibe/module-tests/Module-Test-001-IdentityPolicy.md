@@ -284,6 +284,6 @@ authority为Spec 001 §15.15，以下当前全部NOT RUN；#224实际Grant Polic
 
 | ID | 层级 / 输入 | 预期 | 实际 / 结果 |
 |---|---|---|---|---|
-| IP-COMP-D-001 | Contract + Application + PostgreSQL / Human或固定TE SERVICE自身及每项dependency Decision | operation/version/purpose/action/target/payloadHash/Scope完整匹配；Human-onlyArtifact/Driver入口不可代理 | 未执行 / NOT RUN |
+| IP-COMP-D-001 | Contract + Application + PostgreSQL / Human或固定TE SERVICE自身及每项dependency Decision | operation/version/purpose/action/target/payloadHash/Scope完整匹配；Human-onlyArtifact/Driver入口不可代理；qualityProfile exact read/SelectionPort独立授权，缺授权零read | 未执行 / NOT RUN |
 | IP-COMP-D-002 | Application + PostgreSQL / AGENT/RUNTIME/未知SERVICE、actingFor、借producer Decision、错purpose/hash/Scope、历史receipt | protected读前拒绝为0，current授权不可用时masked拒绝；旧事实存在不授予新Completion/read权 | 未执行 / NOT RUN |
 | IP-COMP-D-003 | Application + PostgreSQL / Grant真实撤销、PolicyVersion真实后继、Decision到期及持锁后撤权 | 提交/原Receipt返回前拒绝，无半事实；terminal历史Bundle inspect不要求ACTIVE/过期执行权重新签发 | 未执行 / NOT RUN |
