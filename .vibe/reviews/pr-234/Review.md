@@ -84,3 +84,9 @@ R2 的引用来源与选择语义已修复：新冻结 profile 显式替换旧 q
 当前门禁：独立技术设计审查PASS；明确人类详细设计批准APPROVED。上述HUMAN_REVIEW_REQUIRED是批准前的独立角色结论，不重写审查历史或伪造Reviewer新的结论。本次仅同步批准状态、保留全部运行NOT RUN；不修改业务设计、注册契约或产品实现。
 
 当时最终head的实际CI为[run 36676733610](https://github.com/qzhike/zhiju-business-core/actions/runs/36676733610)，交付方REST读回select/checks/verify SUCCESS、persistence SKIPPED；本批准记录提交后的docs/新head CI证据另由PR保存。此批准解除具体设计门禁，不授权合并、后续Issue发布或产品实现；Issue/IM-06完成与后续NOW + READY按各自流程处理。
+
+## 批准记录后的独立交付复审 — 2026-09-30
+
+Reviewed SHA：`9c6aaa40b320470c196202d168494bd0a2d788f2`。独立 Reviewer 角色结论：`APPROVE`。复审确认 `f0cc2b2` 至本 SHA 的 15 个 Markdown 文件仅同步批准状态与会话批准记录，无新增业务或契约设计语义；先前三项 blocking finding 已解决，正式记录保留历史与证据来源。明确人类详细设计批准门禁已满足。
+
+独立 REST 读回本 SHA 的 [CI run 36677892246](https://github.com/qzhike/zhiju-business-core/actions/runs/36677892246)：select/checks/verify completed SUCCESS，persistence completed SKIPPED，与 docs-only 范围一致。新增应用/PostgreSQL Completion、外部及人工验收继续 NOT RUN；本结论只覆盖设计交付。合并授权由用户随后明确提出的“合并PR”提供，后续实现 Issue 发布与产品实现仍须各自授权及届时 main 的 NOW + READY 复核。
