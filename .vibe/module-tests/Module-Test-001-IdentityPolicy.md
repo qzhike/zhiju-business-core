@@ -276,3 +276,14 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 | IP-REC-D-001 | Unit/entry+PostgreSQL；合法同Human confirmation/responder/resolver/currentRole，对照Agent、actingFor、他人session、role缺失/撤销、旧Decision替代当前依赖Decision | OWNING/PG PASS：同 Human、实际 AGENT 与 HUMAN actingFor SERVICE、wrong responder/session、逐 consumer 当前依赖映射/缺 Grant 0 protected reads、Role 撤销；Service proof 读取不授予业务 resolver 资格。 |
 | IP-REC-D-002 | Owning历史Decision/ActorSnapshot与EPReceipt；真实confirm旧Decision已到期，但当时有效；对照错confirm operation/payloadHash/target/Scope、历史不可查及当前Role/Grant撤销 | OWNING/PG PASS：真实 EP committedAt 与原 IP Decision/Actor，历史 Decision 已到期仍有效；错 target/hash/Actor/Decision/time 及实际 propose operation/purpose 拒绝；当前 Role/Grant 撤销仍禁止恢复；同 code 的不同 action/target 必须逐项完整覆盖，真实 Grant 正例与缺 action、错 TARGET_TYPE/objectType、owning revoke 后重新授予仅答复 action 的反例通过 owning Port 验证。 |
 | IP-REC-D-003 | PostgreSQL/current Ports；Run-2Bundle新Context/原Contract/Resolution/Service target合法，对照旧Bundle、Context-1/错Resolution、Controls/Builder取代、锁后期限/撤权、重放 | OWNING/PG PASS（可达恢复子项）：新 Context/Bundle/有限上界与历史 bytes；Controls/Builder owning supersession、失效 Context/Request、实际 row lock 后撤权/受信时钟跨期，坏绑定无新 Bundle/Run。PARTIAL 仅保留真实 Grant PolicySnapshot lifecycle NOT RUN（无 owning writer，UNIT 不替代）。 |
+
+
+## #233 Completion 授权设计用例
+
+authority为Spec 001 §15.15，以下当前全部NOT RUN；#224实际Grant PolicySnapshot lifecycle延后继续保留。
+
+| ID | 层级 / 输入 | 预期 | 实际 / 结果 |
+|---|---|---|---|---|
+| IP-COMP-D-001 | Contract + Application + PostgreSQL / Human或固定TE SERVICE自身及每项dependency Decision | operation/version/purpose/action/target/payloadHash/Scope完整匹配；Human-onlyArtifact/Driver入口不可代理 | 未执行 / NOT RUN |
+| IP-COMP-D-002 | Application + PostgreSQL / AGENT/RUNTIME/未知SERVICE、actingFor、借producer Decision、错purpose/hash/Scope、历史receipt | protected读前拒绝为0，current授权不可用时masked拒绝；旧事实存在不授予新Completion/read权 | 未执行 / NOT RUN |
+| IP-COMP-D-003 | Application + PostgreSQL / Grant真实撤销、PolicyVersion真实后继、Decision到期及持锁后撤权 | 提交/原Receipt返回前拒绝，无半事实；terminal历史Bundle inspect不要求ACTIVE/过期执行权重新签发 | 未执行 / NOT RUN |

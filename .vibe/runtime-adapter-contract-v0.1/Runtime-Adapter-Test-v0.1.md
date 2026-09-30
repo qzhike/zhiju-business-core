@@ -70,3 +70,11 @@
 - 32 个用例：4 Design、8 Unit、8 Contract、8 E2E、4 Manual。
 - 4 个 Design Gate 已完成静态 `DESIGN VERIFIED`；其余 28 个 Unit/Contract/E2E/Manual 保持 `NOT RUN`。
 - 不存在 Runtime Adapter、Process Driver、Schema、Fixture 或真实 CLI 执行；CLI 安装和认证是部署前提，不由本项目实现。
+
+
+## #233 正式输出 profile 设计用例
+
+| ID | 层级 / 输入 | 预期 | 实际 / 结果 |
+|---|---|---|---|---|
+| RT-COMP-D-001 | Controlled Application + PostgreSQL / 三份实际调用的versioned模板及normal/recovered owning fixture | 调用前固定模板Hash，Artifact提交后才计算Result Header/提交时间；无虚构receipt或先引用未来Result，Run-2独立Context/invocation | 未执行 / NOT RUN |
+| RT-COMP-D-002 | Controlled Application + PostgreSQL / release错误身份/Ref、readFinal跨restart/期限后释放 | protected依赖读先授权，同键稳定原文，第二final拒绝，expiry由TE决定；不是Provider conformance或manual business acceptance | 未执行 / NOT RUN |

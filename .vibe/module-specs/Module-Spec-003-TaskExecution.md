@@ -2123,3 +2123,116 @@ Run-2 创建还要求 RETRY_PENDING 未消费 intent、请求 Context FROZEN met
 FROZEN 构建复用 INITIAL assembler 的确定性裁剪与 ContextItem 规范，但临时组装输入只消费本次确切 fresh Slices；原 Contract 的 INITIAL input pins 继续封存在原 Contract/Context-1，不再把这些旧 Slice 引用加入 Context-2 的 fresh source manifest。该临时投影不写回原 Contract/Draft。Snapshot 的 expiresAt 取 assembler 的 effectiveExpiresAt（含 Builder TTL）；只有公开请求实际带 expiresAt 时，metadata 才记录 requestExpiresAt，保留缺省与显式值的 Hash 差别。
 
 恢复关系 SQL guard 不联查 EP/IP；外部当前权利与历史确认在 owning Port 证明，TE 持久化规范 attestation 及 observation hash。ContextBuilt@1.1 与 Request Opened/Resolved 的完整 Event Envelope 在 appendOutbox 前按 Registry 校验。权威 Root 查询及有限 Process 不发布 Completion，也不改变历史 one-attempt 支持集。逐场景验收继续按 Module-Test 的实际执行层级记录，配置门禁未完成时不得把本节当 PASS 证据。
+
+
+## 25. 正式输出与独立 Completion Spec Delta（#233）
+
+状态：`T2 / PROPOSED / HUMAN DESIGN APPROVAL PENDING / IMPLEMENTATION NOT STARTED`。提案/对账与批准范围见[正式输出设计](../decisions/task-execution-formal-completion.md)。本节是未来字段级权威；§23/24 当前空输出实现与所有历史已批准支持集不变。
+
+### 25.1 有限冻结 profile 与精确 selectors
+
+新 Task 必须由 `create_task@2.0` 创建，WorkOrder 必须由 `create_work_order@1.1` 创建；Task/WorkOrder 公开身份分别为 `zhiju.execution.task`、`zhiju.execution.work_order`，Run 仍为 `execution.run`。新 frozen Contract 使用 Core WorkOrder 1.0 shape、canonicalization 1、实际已提交 Context，**只接受 owning** `artifact.artifact_revision` 输出类型；targetScope.allowedCreateTypes 固定 `[artifact.artifact, artifact.artifact_revision]`，其他 TargetScope 限制沿用 §21 的同 Project 空目标集合。一个 outputSlot、EXACTLY_ONE、CONTENT_ADDRESSED、creationRequired=true，schemaRef 必填且精确等于本节拟注册的 Artifact STRUCTURED_DOCUMENT structure selector；qualityStageRequired 与 requiredTargetRelation 缺省。Task 的 outputs 与 child frozen ExpectedOutput 逐字段相等。它是有限支持集，不改变 Core 的通用 Schema。
+
+新 `execution.work_order_controls.policy@2.0` document 为 closed `{controls, completionPolicyRef, recovery?}`。controls 字段与 @1.0 同形状，机械绑定上述 owning 拼写与 schema、所有既有安全/预算限制。recovery 若存在，字段/两次预算/CustomerMaterial profile 逐字段复用 @1.1 recovery；缺省仅一次 COMPLETED，存在仅两次 BLOCKED_INPUT→COMPLETED，禁止额外 retry。新 Contract.constraints 恰一个 closed `{profile:"execution.completion_binding.v1", policyRef:VersionedRef<zhiju.identity.policy>}`，等于 Controls completionPolicyRef；该 Ref 在 Validation/Freeze 独立 resolve 当前有效，Hash 进入 candidate/Contract。各 ExpectedOutput.acceptancePolicyRef、leasePolicyRef、capabilityPolicyRef 与 Core capability grantPolicyRef 继续等于**同一 Controls business Policy version**，不把 Completion Policy 混入执行授权。创建/INITIAL Context shape不变；Freeze profile 必须独立验证 constraints pin。
+
+以下为拟登记的构建期精确 Platform selectors，**目前未注册**。`kind=VERSIONED,scope={}`；Policy schema selector objectType=`identity.contract_schema`，Evaluator=`zhiju.execution.evaluator_profile`，Runtime=`zhiju.runtime.runtime_adapter`。业务 PolicyRef 仍是 `zhiju.identity.policy`，须经 `identity.resolve_policy@1.0` 独立当前授权解析真实 version/contentHash/effectiveFrom/supersededAt/useStatus；schema/evaluator selector 不冒充 Policy 事实。
+
+| key | objectId | versionId |
+|---|---|---|
+| `execution.work_order_controls.policy@2.0` | `0199b600-0000-7000-8000-000000000101` | `0199b600-0000-7000-8000-000000000111` |
+| `execution.completion.policy@1.0` | `0199b600-0000-7000-8000-000000000102` | `0199b600-0000-7000-8000-000000000112` |
+| `te.work_order_validation.evaluator@2.0` | `0199b600-0000-7000-8000-000000000201` | `0199b600-0000-7000-8000-000000000211` |
+| `te.agent_result_validation.evaluator@2.0` | `0199b600-0000-7000-8000-000000000202` | `0199b600-0000-7000-8000-000000000212` |
+| `te.work_order_completion.evaluator@1.0` | `0199b600-0000-7000-8000-000000000203` | `0199b600-0000-7000-8000-000000000213` |
+| `te.task_completion.evaluator@1.0` | `0199b600-0000-7000-8000-000000000204` | `0199b600-0000-7000-8000-000000000214` |
+| `artifact.execution_document.schema@1.0` | `0199b600-0000-7000-8000-000000000401` | `0199b600-0000-7000-8000-000000000411` |
+| `te.human_operated.synthetic.formal@1.0` | `0199b600-0000-7000-8000-000000000301` | `0199b600-0000-7000-8000-000000000311` |
+
+Artifact structure selector例外：objectType=`artifact.canonical_document_schema`，scope恰 `{enterpriseId:本次Enterprise}`（无projectId），固定上述objectId/versionId；属于绑定既有CanonicalDocument确定性校验器的有限代码schema selector，不声称已有Schema业务记录，不用测试synthetic默认Ref冒充登记。新Selector将随未来实现登记，旧SchemaRef与Artifact normalizer不变。
+
+Completion Policy document 恰 closed `{maxCompletionValiditySeconds:PositiveInt}`，无默认值、waiver 或条件表达式。新 planning Validator @2.0 只支持本节 profile，沿用 §21 检查但逐项 Criterion.evaluatorRef 等于 WorkOrder Completion selector，**不再**等于 planning Validator；五类 output criterion 与 NO_BLOCKING_INFORMATION_REQUEST 全部 required=true。OUTPUT_SCHEMA_VALID 精确解析新 schemaRef；OUTPUT_CREATED_BY_WORK_ORDER 等待真实新建输出，计划检查只证明可执行要求。REQUIRED_PROPOSAL_PROCESSED 仅在 recovery 存在时允许一项 required=true、inputBindings=[requiredProposals]，机械 expectedCondition=satisfied；其余条件/绑定与 §11.6 相同。Task 必须 required=true 覆盖 EXPECTED_OUTPUTS_SATISFIED、NO_BLOCKING_INFORMATION_REQUEST、REQUIRED_WORK_ORDERS_COMPLETED；所有 Task criterion evaluatorRef 等于 Task Completion selector，可额外 required=true 选择 REVISION_ACCEPTANCE_READY、REVISION_FULLY_APPROVED，后者隐含必须满足前者。不支持任何 required=false、未知 profile/condition/qualityStage/criterion、多个 slot 或混合 selector；创建可保留 DRAFT 意图，Validation/Freeze/Completion 均 `EXECUTION_CRITERION_UNSUPPORTED`，不能产出 usable 判断。
+
+旧 Task v1、旧 spelling/无 schema 的 v2 definition、旧 frozen WorkOrder/Contract/Context、旧 Run/Result 均保持可审计与原支持集消费；不能对其转换 spelling、补 constraints/更改 Hash 或用新 profile 完成。需要新 Task definition、新 WorkOrder 与正常首次/恢复执行。普通既有 Artifact Revision 可作历史读取/输入，不能代替本轮 creationRequired 输出。
+
+### 25.2 创建、final 与独立 BUSINESS_OUTPUT 判断
+
+`execution.get_output_creation_binding@1.0` 为 AUTHORITATIVE Query，closed payload `{runRef:OBJECT/execution.run}`。closed data `{runRef,runAggregateVersion,taskRef,workOrderRef,workOrderContractRef,contextSnapshotRef,outputSpec:ExpectedOutput,controlsPolicyRef,capabilityGrantRef,startedAt,validUntil}`；validUntil=min(当前读 Decision、Run lease/deadline、当前 Bundle/Controls/Context 有限期限)，受信 now 必须严格小于它。仅支持本节新 frozen profile、RUNNING/ACTIVE、无 final reservation、无未处理 blocker；依据 Root/Claim/Contract/Context/Bundle owning 事实，不接受 caller 的身份/时间。Artifact SERVICE 以自身 Decision 调用，先读当前 binding再创建；只读 Query 不保留跨模块执行 reservation，观测后 Run 失效可能留下合法孤立 Revision，后续 TE 拒绝接纳；不回滚已提交 Artifact。
+
+Artifact 新 owning creation/来源事实见 Spec 004 §12。创建返回 exact Revision Ref 和已提交 creation Receipt Ref；两者均 Project Scope且保留实际创建 actor/authorization 与 observed TE binding。Revision.provenance 不含未来 agentResultRef。IG 原 invocation 由受控 Driver 接收已提交的两 Ref 后，生成并固定完整 `FINAL/COMPLETED` Result bytes/hash/submission；businessOutputs 恰一个 `{outputSlot,ref,objectType:"artifact.artifact_revision",creationCommandRef,createdByRunRef,relationToTarget:"created_for_work_order",declaredPurpose}`，declaredPurpose 为安全摘要、不作为 authority。其余集合为空，无 Usage/continuation。recovery 的 Run-1 仍为空 BLOCKED_INPUT，Run-2 才允许此非空 final。
+
+Result submit/record/validate/accept/finalize 保留既有操作版本、公开形状与各步自身授权；根据冻结新 selector 分派 @2.0 Result Evaluator。五项 Bundle/Validation、run reservation、lease/fencing 和 IG exact bytes 检查沿用 §23/24；不得就地扩展旧 @1.0 Evaluator 支持集。新 BUSINESS_OUTPUT 经独立 Artifact output-fact Query 验证 ref/hash/Scope、ACTIVE/SEALED/FROZEN 内容、schema、actual creation Receipt、task/workOrder/run/Context/Contract、observedRunVersion、actual actor与 source command 相符。不得信任 Result.creationCommandRef 或 createdByRunRef 自报；错来源/Receipt/schema/当前失效拒绝可用 Bundle/Acceptance，当前有限正链不支持 REJECTED/QUARANTINED payload生产。合法但**缺输出**的空 COMPLETED仍可沿既有语义成为 ACCEPTED/SUCCEEDED，后续 Completion 为 UNSATISFIED；不把 Required ExpectedOutput completeness 塞进 BUSINESS_OUTPUT。accept/finalize 再读 owning output事实与当前授权，保存 observation hash，不能只用旧 valid=true。Result 和 immutable Artifact creation binding 的后向 join 证明 Result 来源；不补写 sealed provenance，也不把 `agentResultRef` 缺省解释为来源不明。
+
+### 25.3 Completion 命令、事实与结果
+
+新增同名 Major `execution.evaluate_work_order_completion@2.0`、`execution.evaluate_task_completion@2.0`，Owner TE、COMMAND/EVALUATE，target分别 OBJECT/zhiju.execution.work_order、OBJECT/zhiju.execution.task，expectedAggregateVersion 必填。两者 closed payload 恰 `{policyRef:VERSIONED/zhiju.identity.policy,evaluatorRef:VERSIONED/zhiju.execution.evaluator_profile}`；无 factRefs、blockerRefs、criteriaHash、time 或 desiredStatus。policyRef必须等于目标 WO frozen constraints pin；Task 必须有非空完整 child WO集合，所有 child pin 精确相同并等于请求。criterion evaluator须与该 target 类型selector逐字段相等；producer 的 selector不是 actor。
+
+两项 closed CommandResult.data 恰 `{evaluationRef:CONTENT_ADDRESSED/zhiju.execution.completion_evaluation,outcome:SATISFIED|UNSATISFIED,transitioned:boolean,completionUseStatus:USABLE|STALE|REVOKED}`。新判断 ID 由受信 producer 分配 UUIDv7，Root target 不是 Evaluation ID；同键 replay返回原 ID/Hash。source mutation race/授权失败/不支持组合拒绝且不产出 Evaluation。合法不满足业务条件产出 immutable UNSATISFIED（STALE 当前值，transitioned=false），不推进 Root；成功 Result 的 observed version是该实际提交后的版本。只能从 COMPLETION_PENDING 首次完成；从 COMPLETED 可显式重评估当前资格（见 §25.6），其他状态返回 `EXECUTION_COMPLETION_STATE_CONFLICT`。
+
+CompletionEvaluation 是 §11.3 JudgmentHeader 加 closed：
+
+```text
+targetRef: OBJECT/zhiju.execution.work_order | OBJECT/zhiju.execution.task
+targetKind: WORK_ORDER | TASK
+definitionRef: exact frozen WorkOrderContract | TaskDefinitionSnapshot
+criteriaHash: SHA-256(canonical criteria)
+observedTargetVersion: NonNegativeInt
+committedTargetVersion: NonNegativeInt
+collectionHash: PayloadHash
+observedLocalSources: {ref:TypedReference,aggregateVersion?:NonNegativeInt,payloadHash?:PayloadHash}[]
+policyObservation: {policyRef,contentHash,effectiveFrom,supersededAt?}
+sourceFacts: {ref:TypedReference,owner:NamespaceCode,observationHash:PayloadHash,observedAt:UtcInstant}[]
+factRefs: TypedReference[]
+blockerRefs: TypedReference[]
+criterionResults: {criterionId:UuidV7|NamespaceCode,criterionType,required:true,
+  outcome:SATISFIED|UNSATISFIED|STALE,factRefs:TypedReference[],reasonCodes:ReasonCode[]}[]
+outcome: SATISFIED | UNSATISFIED
+completionTransition: boolean
+```
+
+header judgmentKind=COMPLETION_EVALUATION；subjectRefs 恰 target + definition；producedBy是授权 Human 或 TE Evaluator SERVICE 自身，actorSnapshotRef/authorizationDecisionRef不可省略。checks 对应 criterionResults，另固定 ACTIVE_RUN_ABSENT、UNPROCESSED_FINAL_BLOCKER_ABSENT、FORMAL_FACTS_NONEMPTY 三个必需安全检查。unsupported在产出前拒绝，不以 UNKNOWN/SATISFIED 或略过条件消化。criterionResults按criterionId排序；所有Ref集合去重按canonical字节序，observedLocalSources/sourceFacts 同序。inputHash覆盖target/definition/criteriaHash、Policy observation/Evaluator、完整本地集合/版本及外部事实/当前观察，排除 judgmentId与自身Hash；contentHash覆盖**完整** Evaluation payload含header时间/身份/observations，排除自身Ref/Hash；canonicalization=1。Hash域不与Revision内容Hash/Receipt结果Hash混用。
+
+`evaluatedAt`与全体observation时间为受信服务器时间；`validUntil=min(evaluatedAt+Policy.maxCompletionValiditySeconds,本次producer及必要dependency Decision expiresAt,Policy supersededAt若存在,当前输出/质量事实若有有限上界)`；必须有限且严格晚于提交重验时刻。成功 Run 的旧 lease、已在 finalize 前有效的 Validation/Acceptance TTL 不作为**新的 Completion TTL**：消费其不可变成功历史和最终匹配，当前 Completion自己的授权/Policy及输出/质量资格另行重验。不能要求terminal Run重新ACTIVE或expired execution Bundle重新授予执行权；也不能用历史授权证明当前读取/完成权。执行关联已 invalidated/错终态/错Acceptance则不满足。
+
+### 25.4 owning 条件与完整集合
+
+WorkOrder 从自身 frozen Contract/全部 Run、final reservation、Result/Acceptance、InformationRequest/Resolution/recovery facts 派生，绝不由caller枚举。Run 必须SUCCEEDED且finalize绑定同一ACCEPTED Result；本profile有效最后Run的outcome=COMPLETED，正式输出已被新BUSINESS_OUTPUT验过且当前仍有效。早先BLOCKED_INPUT必须已映射处理、Request有效RESOLVED、Context-2明确采用该Resolution、Run-2成功；只有Request resolved不表示原final blocker已处理。任何CREATED/STARTING/RUNNING/SUSPENDED/CANCELLING/RESULT_RECORDED或ACTIVE Claim阻止完成；迟到未接纳Result不是output来源。以下条件独立 required：
+
+| 条件 | SATISFIED 来源 |
+|---|---|
+| EXPECTED_OUTPUT_PRESENT | 所选最后成功ACCEPTED Result按slot分组，恰一个distinct exact Revision |
+| OUTPUT_REF_VALID | Artifact output-fact owning Query exact hash/Scope/当前ACTIVE、SEALED/FROZEN，Artifact未归档 |
+| OUTPUT_CREATED_BY_WORK_ORDER | Artifact immutable creation binding与真实COMMITTED Receipt；当前链Run/WO/Task/Context/Contract + Result后向join；Ref不属于冻结input/base/parent refs，创建观测发生在本Run运行窗口 |
+| OUTPUT_SCHEMA_VALID | Artifact output事实携带exact结构Schema与canonical payload，按冻结schema确定性校验；不能仅看schema名称或Hash长度 |
+| OUTPUT_WITHIN_TARGET_SCOPE | 完整Enterprise/Project、Artifact businessScope/originProject与冻结TargetScope；不只比较projectId |
+| NO_BLOCKING_INFORMATION_REQUEST | 完整WO与其全部Run关联的blocking requests均有效RESOLVED，且所有reserved/accepted BLOCKED_INPUT proposals已有效处理；EXPIRED/CANCELLED/ANSWERED不作豁免 |
+| REQUIRED_PROPOSAL_PROCESSED（仅recovery） | §24同链CustomerMaterial Request/AcceptedAnswer/真实EP Receipt/Resolution/Context-2/Run-2全部精确匹配；其他proposal显式unsupported |
+
+Task读取自己的definition和**所有**同Scope归属child WorkOrder/Run/Requests。全部child非空、历史COMPLETED且当前Evaluation USABLE；不容许FAILED/CANCELLED/EXPIRED或选择性遗漏child。Task output集合来自各child有效Evaluation的verified正式outputs去重，并逐slot满足Task ExpectedOutput；同一Ref不能满足不同创建来源。Task/child/Run无active执行、未解blocking Request或未处理final blocker。若存在quality criterion，每个绑定slot的exact Revision经Quality历史RAS/ABS Query授权解析同Revision/Profile，再调用 #192 `quality.get_revision_execution_eligibility@1.0`；RAS usable且ABS（请求时）PRESENT/true才SATISFIED；NOT_APPLICABLE不能满足FULLY_APPROVED。同target不同Hash/Profile、当前Gate失效/Approval撤销/new latest snapshot均fail closed；不更改历史RAS/ABS/Approval。Completion不创建Quality事实、不授予Release或Delivery完成。
+
+### 25.5 并发、单 Root 提交与 replay
+
+所有会改变Completion输入集合/版本的TE写入路径（child WO创建、Run创建/Result reservation/终结、Request创建/答案/Resolution、recovery processing/Root reconcile）共同采用锁序：**Task行 → WorkOrder行（按ID）→ Run行（按ID）→ Request/附属事实（按ID）**。父行锁只读保护membership，不能在child Command顺带改父Root。Task终态后拒绝新child WO、Run和blocking/nonblocking Request；WO终态后拒绝新Run/Request；其他写入仍受本身已批准状态条件。Request经Task/WO/Run任一关联发现同一父链并锁全体；不接受错链请求，不留未列入集合的关联入口。已有Result final链的receipt/progress重放不新造membership。
+
+Evaluator先独立授权/owning跨模块观察，随后按同一锁序锁本地来源，重读**集合成员及每项版本/immutable pointer**；与观察不符返回 `EXECUTION_JUDGMENT_STALE`，不提交旧成功。不能只锁已有child而忽略新插入的phantom：每个插入也须竞争相同parent锁。提交点重新校验全部自身/依赖授权、TTL/Policy及当前可读外部事实。外部跨Owner只承诺 §10.1 的观测时点一致性，随后撤销使新消费STALE/REVOKED，不宣称分布式原子锁。
+
+目标Root CAS、附属Evaluation/当前pointer、Receipt、Audit、Edges、适用Outbox在**一个 owning Root事务**完成。UNSATISFIED也追加Evaluation并CAS更新判断pointer/aggregateVersion，状态不变；成功首次COMPLETION_PENDING→COMPLETED，恰一份 `execution.WorkOrderCompleted@1.0` 或 `execution.TaskCompleted@1.0`，字段与现行Schema不变。WO satisfiedOutputRefs必须非空verified正式Revision；Task satisfiedFactRefs必须非空verified正式Revision和适用quality事实（不以child Evaluation或Receipt占位替代正式outputs）。Event Evaluation Ref/hash、Scope/producer/aggregate/version与本事务精确一致；completedAt为首次成功受信时刻，不随refresh改变。EventEnvelope按Registry校验后append；EP existing consumer可继续消费，但本轮不dispatch。
+
+同键同payload先当前授权再读原Receipt；同键异Hash=`IDEMPOTENCY_KEY_CONFLICT`。不同键持旧expected version=`AGGREGATE_VERSION_CONFLICT`；COMPLETED上的合法refresh只能追加Evaluation/CAS pointer，不发第二Completed Event。事务故障回滚Evaluation/pointer/state/Receipt/Event整体；跨步骤Artifact/Run已提交事实不回滚。Process若自动完成，复用Project限定候选扫描与独立owning commands，用稳定`formal-completion:targetId:definitionHash:observedVersion:step`键，目标提交后才记进度；WorkOrder与Task分别推进，不能从progress自报成功。
+
+### 25.6 权威读回、当前可用性与依赖 Readiness
+
+| 操作 / closed payload | closed data / 规则 |
+|---|---|
+| 新 `execution.get_work_order_state@1.0` `{workOrderRef:OBJECT/zhiju.execution.work_order}` | `{workOrderRef,aggregateVersion,contractRef:CONTENT_ADDRESSED/zhiju.contract.work_order,status:WorkOrderStatus,runRefs:OBJECT/execution.run[],blockerRefs:TypedReference[],completionUseStatus:NOT_EVALUATED|USABLE|STALE|REVOKED,completionEvaluationRef?:CONTENT_ADDRESSED/zhiju.execution.completion_evaluation}`；本query只支持已有frozen @1.1 WO，DRAFT/旧spelling masked NOT_FOUND |
+| 已有 `execution.get_task_state@1.0` | 既有§24.7所有字段/版本/Identity不变；实现真实completionEvaluationRef/current status，COMPLETED仍是历史状态 |
+| 新 `execution.get_execution_judgment@1.0` `{judgmentRef:CONTENT_ADDRESSED/zhiju.execution.completion_evaluation}` | `{judgmentRef,evaluation:CompletionEvaluation,useStatus:USABLE|STALE|REVOKED,reasonCodes:ReasonCode[],checkedAt:UtcInstant,sourceWatermarks:SourceWatermark[]}`；本次只支持Completion kind，其他四类暂不暴露，不用跨类型ID fallback |
+
+所有Query为AUTHORITATIVE；新增Judgment/Binding为INTERNAL，WorkOrderState为CUSTOMER_CONFIDENTIAL，TaskState保留现行CUSTOMER_CONFIDENTIAL。逐次自身与依赖授权后读取。历史Evaluation本体原样返回；current useStatus不写历史。UNSATISFIED/过期/Policy superseded/当前pointer被refresh替换/来源集合或版本变化/输出失效或quality过时=`STALE`；可确立的output invalidation/withdrawal、qualityApproval撤销或业务Policy revoked=`REVOKED`，优先于STALE；不存在Evaluation=NOT_EVALUATED（仅Root View）。revokedGrant使Query**拒绝读取**，不能返回REVOKED泄露他方事实。owning依赖暂不可达=`DEPENDENCY_UNAVAILABLE`，不能当作USABLE/空集合/事实不存在。
+
+当前检查重读目标definition/首次完成记录/当前pointer、完整集合/来源、Policy/Evaluator、Artifact与适用Quality；自己的版本比较允许Evaluation.committedTargetVersion等于Root版本（不是observedTargetVersion）；后续无关Process技术进度不影响业务源版本。Task检查递归child WO current Evaluation；不依赖Board freshness。依赖Readiness（build与mark消费都）调用同一内部CompletionUsePort，用该**消费方**各项独立授权和current output/quality observations；不复用对用户Query的Decision。COMPLETED且Evaluation USABLE才DEPENDENCY_SATISFIED；STALE/REVOKED为STALE/DEPENDENCY_COMPLETION_STALE。inputHash/期限追加精确Evaluation Ref/hash、dependency aggregateVersion、最新observation hash与有限validUntil；mark_task_ready锁后重验集合/versions/当前资格。保持已有Readiness profile与非Completion输入支持集，不批准TD-05 Query/Board。
+
+Evaluation TTL到期后授权主体可用同一Completion @2.0对COMPLETED Root重评估。所有required条件与当前自身/依赖授权仍需通过；追加新immutable Evaluation/CAS当前pointer，无状态转换、无新Completed事件、无新completedAt。失败refresh记录UNSATISFIED/current STALE，不撤销历史COMPLETED；原成功Evaluation与Event永久可精确审计。Root View给当前pointer；exact旧Evaluation Query显示历史与当前不可用原因。没有以refresh绕过新建输出/required criterion或旧frozen profile。
+
+统一不可见/不存在/错Hash/Scope/subject的Judgment外观=`EXECUTION_JUDGMENT_INVALID`；Root/Artifact source Query统一masked NOT_FOUND；unsupported selector/profile=`EXECUTION_CRITERION_UNSUPPORTED`；合法当前事实失效生成解释性UNSATISFIED或读取STALE/REVOKED，reasonCodes闭集为 `COMPLETION_OUTPUT_MISSING`, `COMPLETION_OUTPUT_INVALID`, `COMPLETION_PROVENANCE_INVALID`, `COMPLETION_SCHEMA_INVALID`, `COMPLETION_SCOPE_INVALID`, `COMPLETION_ACTIVE_RUN`, `COMPLETION_BLOCKING_REQUEST`, `COMPLETION_UNPROCESSED_FINAL`, `COMPLETION_CHILD_NOT_USABLE`, `COMPLETION_QUALITY_NOT_USABLE`, `COMPLETION_EXPIRED`, `COMPLETION_POLICY_NOT_USABLE`, `COMPLETION_SOURCE_CHANGED`, `COMPLETION_EVALUATION_SUPERSEDED`。授权公共外观沿用 `AUTHORIZATION_DECISION_INVALID`/既有Human-only拒绝，细节脱敏Audit。调用方输入错误、授权失败、依赖不可达不生成貌似普通UNSATISFIED事实。
+
+实现验收见 [#233矩阵](../module-tests/Module-Test-003-TaskExecution.md#233-正式输出与-completion-设计验收矩阵)，required target为full；本设计只执行docs。历史#224分层证据、实际Grant PolicySnapshot lifecycle延后、外部/人工与IM-06 Cancel/late-result退出要求不变。

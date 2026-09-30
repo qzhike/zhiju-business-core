@@ -1247,3 +1247,8 @@ TaskDefinition的开放CanonicalJson若收敛为首版typed criteria，采用exe
 ## #229 原 Contract 与新 Context 的有限消费映射（提案）
 
 状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED`。四个Core Contract v1.0字段和hash规则不变。[Spec003§24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)仅新增冻结时即声明两次/仅BLOCKED_INPUT的Controls支持profile、既有InputRequestProposal/CanonicalJson的有限handler映射，以及Reference-only的CONFIRMED MATERIAL ContextItem。其value只含真实candidate/confirmed identity，provenance指向实际Resolution/Answer/EPReceipt/Decision/Source，不证明文件正文或正式输出。Context-2 metadata绑定原Contract，原Contract的顶层与versionPins中Context-1不变；每Run的Result provenance匹配其实际creation.contextSnapshotRef。final BLOCKED_INPUT仍可ACCEPTED、Run SUCCEEDED但业务未完成；不通过改Core Schema使旧单次计划获得retry资格。
+
+
+## #233 新冻结正式输出 profile 的提案边界
+
+状态：`PROPOSED / HUMAN DESIGN APPROVAL PENDING / NO CORE SCHEMA CHANGE`。Core WorkOrder/AgentResult 1.0字段、七类CompletionCriterion、Hash域和历史字节保持不变。未来 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)采用新Controls/Runtime/Validator selector，ExpectedOutput.allowedObjectTypes在新冻结资料明确采用Artifact owning `artifact.artifact_revision`，不把旧`zhiju.artifact.artifact_revision`当别名。BusinessOutput回指已提交Revision及实际creationCommandRef；Revision创建时agentResultRef缺省，通过owning creation binding与后向Result join证明来源，不形成循环Hash/未来事实。该支持集不重写旧Contract/Context/Result或生成Schema，细节由owning Spec维护。

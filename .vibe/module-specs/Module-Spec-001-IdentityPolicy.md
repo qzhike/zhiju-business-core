@@ -865,3 +865,41 @@ IP内部 `readRecoveryHumanEligibility` payload closed `{principalRef,scopeRef,r
 Bundle issue的新Context分支只接受Spec003 §24.5的FROZEN eligibility Port，读取仍从TE owning边界；新的Bundle canonical payload不增字段，Run-2的ContextRef、original ContractRef、预分配RunRef、SERVICE subject与当前covering Grants精确一致。validUntil同时受原Contract/Context/Resolution当前资格、Policy/Decision和Capability期限约束；旧Bundle/Grant不因Human答案获得新权限。由本profile选中的控制Policy @1.1必须真实登记且当前精确有效，不由旧@1.0或历史freeze授权回退。
 
 历史IP证明的实现缺口须明确作为内部增量交付：EP只保存Decision/ActorSnapshot identity，而现行 `validateAuthorizationDecision` 入口要求caller提供contentHash且按当前now检查expiry，不能直接拿它消费无Hash的EP attestation或在其中加历史放行开关。`readRecoveryHumanEligibility` 在自身当前授权下由IP新增窄 identity+ProjectScope 定位读取，先对真实Decision row执行 `authorizationDecisionIntegrityHolds` 的canonical hash/列镜像校验，再按该已验证row保存的actor_snapshot_id+payload_hash调用owning ActorSnapshot exact读取，核对EP的ActorSnapshot identity/Scope和Human归因；时间比较使用真实committedAt与持久决定的签发/expiry，不更改旧current validator。其当前Role/Grant部分继续调用现有IP current access/分类边界，不能因历史ALLOW跳过。任何身份不可查、storedhash不符、operation/version/target/Scope/session/requestHash错配均返回内部INVALID_PROVENANCE，TE映射EXECUTION_RESOLUTION_RECEIPT_INVALID；当前读取无权/到期沿用共享授权拒绝。无新IP public Query、无跨SchemaSQL、无Caller自报Policy状态，也不把新增内部读取说成已存在功能。
+
+
+### 15.15 IM06-COMPLETION 独立授权组成（提案，#233）
+
+状态：`T2 / PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED`。服务 [Spec 003 §25](Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233) / Spec 004 §12；没有IdentityPolicy新增公开操作/Grant/PolicySnapshot lifecycle。本节所有映射为待登记的受信composition配置；不采用自由purpose/action通配，不能从caller配置生成授权。
+
+| 自身边界 | Principal allowlist | 精确Purpose | action / config key | target selector |
+|---|---|---|---|---|
+| evaluate_work_order_completion@2.0 | HUMAN或TE Evaluator SERVICE | `execution.work_order.evaluate_completion` | `execution.work_order.completion.evaluate.v2` / `workOrderCompletionEvaluateV2` | TARGET_TYPE/zhiju.execution.work_order |
+| evaluate_task_completion@2.0 | HUMAN或TE Evaluator SERVICE | `execution.task.evaluate_completion` | `execution.task.completion.evaluate.v2` / `taskCompletionEvaluateV2` | TARGET_TYPE/zhiju.execution.task |
+| get_output_creation_binding@1.0 | Artifact SERVICE | `execution.run.output_creation_binding.read` | `execution.run.output_creation_binding.read.v1` / `outputCreationBindingReadV1` | TARGET_TYPE/execution.run |
+| create_execution_revision@1.0 | HUMAN | `artifact.execution_revision.create` | `artifact.execution_revision.create.v1` / `executionRevisionCreateV1` | CREATE_TARGET_TYPE/artifact.artifact_revision |
+| get_execution_output_fact@1.0 | HUMAN或明确TE Evaluator/Validator或受控Driver SERVICE | `artifact.execution_output.read` | `artifact.execution_output.read.v1` / `executionOutputReadV1` | TARGET_TYPE/artifact.artifact_revision |
+| get_work_order_state@1.0 | HUMAN或明确TE SERVICE | `execution.work_order.state.read` | `execution.work_order.state.read.v1` / `workOrderStateReadV1` | TARGET_TYPE/zhiju.execution.work_order |
+| get_execution_judgment@1.0 | HUMAN或明确TE SERVICE | `execution.judgment.read` | `execution.completion_judgment.read.v1` / `completionJudgmentReadV1` | TARGET_TYPE/zhiju.execution.completion_evaluation |
+| get_task_state@1.0 | 既有Human/Service allowlist | 既有 `execution.task.read` | 既有TaskState配置不变；其Completion依赖读取用下表task_state | 既有Task creation身份 |
+| Driver releaseFormalOutput 内部入口 | HUMAN | `integration.runtime.formal_output.release` | `integration.runtime.formal_output.release.v1` / `formalOutputReleaseV1` | TARGET_TYPE/integration.runtime_attempt（绑定真实原invocation） |
+| Completion Process候选扫描 / 进度 | TE Process SERVICE | `execution.completion.candidates.scan` / `execution.completion.process.progress` | `execution.completion.candidates.scan.v1` / `completionCandidatesScanV1`；`execution.completion.process.progress.v1` / `completionProcessProgressV1` | TARGET_TYPE/zhiju.project.project |
+
+Policy/Evaluator静态selectors不授予权利。服务身份allowlist按受信servicePrincipalRef配置精确比对，不能因为kind=SERVICE就通行；HUMAN-only creation/release不允许Agent/Runtime/External、actingFor或SERVICE代理。completion SERVICE使用自己的ActorSnapshot/Decision，不转述WorkOrder.requestedBy或Human creation Decision。每个自身Decision绑定operation/version、完整payloadHash、target identity/Scope、认证session、ALLOW/expiry和当前covering Grant/PolicySnapshot；完整content-addressed Ref进入Decision payload，V1006 target mirror仅存OBJECT身份。
+
+依赖读取集合是有限的。以下consumer token/configStem闭集：`output_creation/outputCreation`、`result_validate/resultValidate`、`result_accept/resultAccept`、`run_finalize/runFinalize`、`work_order_completion/workOrderCompletion`、`task_completion/taskCompletion`、`work_order_state/workOrderState`、`task_state/taskState`、`judgment_read/judgmentRead`、`readiness_build/readinessBuild`、`readiness_consume/readinessConsume`、`driver_release/driverRelease`。每个**实际需要的**依赖都由消费方自身principal单独取得Decision；相同purpose也不合并不同target/Ref。下表action中C及config中S仅由上述构建期闭集展开，不接受外部插值。
+
+| owning依赖 / Purpose | 精确action / config key | target及适用consumer |
+|---|---|---|
+| Artifact output-fact / `artifact.execution_output.read` | `artifact.execution_output.read.for_C.v1` / `SExecutionOutputReadV1` | artifact.artifact_revision完整exact Ref；除output_creation外所有上述consumer（有Completion来源时） |
+| business Policy resolve / 既有 `identity.policy.resolve_policy` | `identity.policy.resolve.for_C.v1` / `SCompletionPolicyReadV1` | zhiju.identity.policy完整VersionedRef；Completion生产/读取/Readiness；output_creation解析Controls用`identity.policy.resolve.for_output_creation.v1` / `outputCreationControlsReadV1` |
+| RAS / 既有 `quality.governance.get_revision_acceptance_snapshot` | `quality.ras.read.for_C.v1` / `SRevisionAcceptanceReadV1` | 完整RAS Snapshot identity/Hash/Scope；Task Completion/所有current Completion消费仅在criteria适用时 |
+| ABS / 既有 `quality.governance.get_approval_bundle_snapshot` | `quality.abs.read.for_C.v1` / `SApprovalBundleReadV1` | 完整ABS Snapshot identity/Hash/Scope；仅FULLY_APPROVED适用时 |
+| current Quality eligibility / `quality.revision.execution_eligibility.read` | `quality.execution_eligibility.read.for_C.v1` / `SRevisionEligibilityReadV1` | exact Revision+RAS/ABS在payload，OBJECT target为Revision身份；仅质量criteria适用时 |
+| TE Completion本地源集内部Port / `execution.completion.sources.read` | `execution.completion.sources.read.for_C.v1` / `SCompletionSourcesReadV1` | target Task或WO OBJECT，完整criteria/definition/Scope在payload；Completion生产/WOState/TaskState/Judgment/Readiness；protected child/Run/Result/Acceptance/Request/Resolution读前 |
+| IP terminal执行历史完整性内部Port / `identity.execution_capability_bundle.inspect` | `identity.execution_bundle.inspect.for_C.v1` / `SCompletionBundleInspectV1` | 完整Bundle Ref；WO Completion生产/current WO消费，不要求terminal Bundle新execution资格 |
+
+Artifact创建的TE Query使用自身`outputCreationBindingReadV1`，Artifact protected root/content来源读取由该creation自身Decision与其owningScope覆盖；Driver release须Driver SERVICE独立`driver_release` output-fact读取，不借HUMAN release Decision。TE binding Query内部Bundle当前read沿用§15.12独立Purpose，新增 `identity.execution_bundle.read.for_output_creation.v1` / `outputCreationBundleReadV1`；它读当前Run/Contract/Context归本Query自身授权，Source读取先授权再访问。Result submit/record不检查output current来源（IG bytes与Run绑定沿用原映射），validate/accept/finalize使用本表相应consumer独立output read；其既有Policy/Bundle/IG/TE source映射§15.13仍全部required。
+
+Task Completion及其Query/Readiness消费以自身授权读全体child来源再调用同一内部CompletionUsePort，**相同consumer**独立展开各child output/Policy/Quality/Bundle Decision；不能把child历史Evaluation.producedBy Decision当授权。自身与全部dependency Decision在protected读前、锁后提交前及历史Receipt返回前按受信now/current Grant/Policy重验，缺任何必需授权protected repository读取/写入为0。source dependency不可达返回DEPENDENCY_UNAVAILABLE；缺权/错误actor/hash/Scope/过期统一AUTHORIZATION_DECISION_INVALID或既有Human-only码，不提供私有来源详情。
+
+Receipt replay只重验当前**读取原命令结果**资格与自身Decision，不能重新要求已完成Run ACTIVE；不执行新的owning source查询来重造结果。新键refresh重新取得全部dependency资格，不把历史Decision/TTL传递给新判断。实际Grant撤销和Controls/Completion Policy真实后继必须验收；Grant PolicySnapshot取代仍遵守#224已批准无owning写入者的延后，不宣称本次交付。

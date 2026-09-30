@@ -168,3 +168,13 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 | IG-REC-D-001 | Controlled Driver+owningdispatch/Observation/Query+PostgreSQL；Run-1固定blocking模板，合法Run-2新Context/Bundle/Attempt的空COMPLETED模板 | OWNING/PG/CONTROLLED PASS：两实际 invoke，独立 Attempt/实例/session/submission 与 Query 原 body/hash、两条 TE 独立验证链；IG 不确认答案或完成 WorkOrder。 |
 | IG-REC-D-002 | 实际Driver负例+PostgreSQL；同Run换session/Context/fencing、Run-1final送Run-2、未schedule/Resolution或撤权/过期资格的dispatch | OWNING/PG/CONTROLLED PASS：Run-2 actual Driver wrong session 回调无 final Observation/TE Result；旧 fencing/Attempt/Context/Bundle/runtime binding 拒绝、late Run-1 body 不绑定 Run-2；缺 Resolution/schedule 或失效资格无新 invocation；三种不支持第二 outcome 拒绝。 |
 | IG-REC-D-003 | 两真实Worker/Process；ack/final observation提交前故障与提交后handoff/progress丢失、同键并发读回 | OWNING/PG/CONTROLLED PASS：两个实际 Worker、ack COMMITTED 事务回滚后同实例 readBack、13 target 交接丢失原键恢复，无二次 invoke/重复 Observation；TE owning eligibility Port 保持。真实 Provider/CLI/Feishu/HTTP/manual NOT RUN。 |
+
+
+## #233 非空受控 final 设计用例
+
+authority为Spec 007 #233与Runtime Contract #233；当前全部NOT RUN。
+
+| ID | 层级 / 输入 | 预期 | 实际 / 结果 |
+|---|---|---|---|---|
+| IG-COMP-D-001 | Application + PostgreSQL / 实际normal/recovered invocation、Human已提交output release | 原ack/adapter实例/attempt/session/Run/fencing不变，实际Artifact Ref/Receipt后才生成固定final bytes/hash，IG只封存观察 | 未执行 / NOT RUN |
+| IG-COMP-D-002 | Application + PostgreSQL / 预分配未提交输出、错invocation/Receipt/hash、双release、restart与late release | release独立授权/读取拒绝wrong-source；同原调用重读同bytes不重新invoke；迟到仅历史、TE不接纳，无第二final | 未执行 / NOT RUN |

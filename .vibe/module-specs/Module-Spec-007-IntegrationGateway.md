@@ -350,3 +350,12 @@ final Result 的 `provenance.runtimeSessionExternalRef` 必须精确等于原成
 Worker/dispatch binding资格读须接受Run已固定的Context-2；通过TE frozen eligibility与IP新Bundle当前验证，而非要求等于Contract.contextSnapshotRef。完整原Contract保留Context-1，原dispatch ack/finalprovenance则逐字段比较本Run.creation.contextSnapshotRef。每次protected read/dispatch前当前授权与期限重验；缺资格不invoke。实际final释放后IG按原ack/session/Adapter、Run/Context/Bundle/fencing/headerHash验证封存；IG不依据confirmation Receipt产生成功Result。TE独立验证proposalprofile/候选来源、Acceptance与终态。
 
 每Attempt最多一final；IG observation事务故障或交接进度丢失只读回同一原调用，同键不再次invoke。Run-1迟到final不得绑定到Run-2；自洽重算Hash仍不能覆盖错Session/Context/fencing。无final则保持等待；final observation可保存历史但不给已terminal/expired Run执行资格。不增IG public操作/结果字段/虚构final Event，恢复仍用已有Query和受限扫描；forward guard只扩展两受控模板的已发生来源，不更新V7001–V7004。测试 `IG-REC-D-001–003` 与Runtime专项 #229 保持NOT RUN。
+
+
+### #233 非空正式输出的受控 final profile（提案）
+
+状态：`PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT RUN`。冻结 `te.human_operated.synthetic.formal@1.0` selector的精确身份见 [Spec 003 §25.1](Module-Spec-003-TaskExecution.md#251-有限冻结-profile-与精确-selectors)。RuntimeBinding adapterCode=`te.human_operated.synthetic.formal`、adapterVersion=`1.0`，harnessId=`zhiju.runtime.synthetic`、harnessVersion=`1.0`、provider/modelId=`synthetic`；modelConfigHash由实际冻结配置产生，不用旧Invocation的Hash。正常模板final=COMPLETED，恢复模板两次分别BLOCKED_INPUT与COMPLETED；其余原ack、adapter实例、session、fencing、IG final observation、公开Query与五步Process读取边界沿用已交付§23/24，不新增IG public operation或Source Event。
+
+原Driver invocation启动时固定template/version/hash、Run/Contract/Context/Attempt/security identity，但未有Revision时不能预填一个业务Ref。Human实际Artifact提交后，受控Driver的有限释放入口绑定**原invocation**并持久记录实际revisionRef/creationCommandRef与release请求Hash；这是可重复readFinal的输入记录，不是IG/TE业务成功事实。第一次合法释放固定完整AgentResult bytes/hash/submissionRef/submittedAt；同键同输入返回原文，异输入拒绝，重启仍可读回，同Run无第二final。恢复Run-1不等待Artifact输出；Run-2只在新Context/独立Invocation启动后接受新输出。最终输出严格遵守Spec 003 §25.2的一个BusinessOutput；secret/prompt/stdout不存储，无虚构Provider Usage。
+
+IG仅独立重验Core shape/Hash、冻结模板与实际原Invocation来源、时间/fencing/adapter绑定，按原owning Attempt事务封存final observation；不解释Receipt真实性、Revision current生命周期、business acceptance或Completion。Driver可观察迟到final为历史；TE以自身授权、Run/Claim/expiry与owning output事实裁决，不把释放成功当Core成功。释放授权为同Scope授权Human；依赖Artifact exact事实由Driver SERVICE自身读取授权取得，不借Human Decision；缺授权protected reads为0。规范与故障场景见Runtime Contract/Test #233、IG Module-Test，全部NOT RUN。

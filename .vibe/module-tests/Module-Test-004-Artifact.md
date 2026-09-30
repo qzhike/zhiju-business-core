@@ -240,3 +240,14 @@ Revision/Content Object、对象存储、Renderer、跨模块业务 E2E、人工
 | AF-IM05-WI05-I-002 | Integration/Negative | 替换 revision/content/input/format/renderer/output checksum/scope/Raw Receipt，或 Binding 为 FAILED/UNKNOWN/contract-invalid | 返回既有稳定 Representation binding 错误；无 Representation/validation/outbox/edge 半成品 | 本轮 live Binding 正例与既有 revision/input/format/renderer/checksum/scope/receipt/非成功状态 fail-closed 矩阵共同通过；故障回滚无半成品 | `PASS` |
 | AF-IM05-WI05-I-003 | Architecture | Artifact 组合只注入 `RenderAttemptBindingQueryPort` | Artifact 不导入 IntegrationGateway Repository，不跨 Schema SQL；Architecture Gate 通过 | `architecture_boundaries=PASS source_roots=10`；IntegrationGateway app 直接读取 Artifact Schema 返回 `42501` | `PASS` |
 | AF-IM05-WI05-M-001 | Manual | 脱敏 DOCX/XLSX 的 exact Revision、Attempt、Binding、Representation、input/output hash 清单 | 审核者可独立复核身份与 checksum；不把文件可打开性写成 Quality/Approval/Release PASS | input hashes 为 Document `902a88d2b1ebfd0614454d0bd6a9e6f4124adba2d94bb7b94189787484a985b7`、Workbook `e3e0f7357a3fcd6c18063081128913b0cd8983e75d6455d4aa6664284f30a818`；Office 打开与输出 checksum 本地复核通过，临时文件已删除；未产生 Quality/Approval/Release/EffectiveBinding | `PASS (LOCAL TECHNICAL OPENABILITY) / INDEPENDENT BUSINESS MANUAL NOT RUN` |
+
+
+## #233 正式执行输出设计用例
+
+authority为Spec 004 §12；当前全部NOT RUN，Artifact历史已交付用例不改。
+
+| ID | 层级 / 输入 | 预期 | 实际 / 结果 |
+|---|---|---|---|---|
+| ART-COMP-D-001 | Contract + Application + PostgreSQL / 授权Human实际root/content创建及新execution revision | 自身/TE独立授权，provenance只用owning Run来源且无未来Result；Revision/binding/真实Receipt同事务，可exact重读canonical内容与current状态 | 未执行 / NOT RUN |
+| ART-COMP-D-002 | Application + PostgreSQL / 旧normal Revision/复用input/伪造Run/Receipt/actor/hash/Scope/schema、binding过期/锁后撤权 | 不提供execution output资格；masked NOT_FOUND/绑定错误；SEALED不可补ResultRef，不跨Schema查询/写表 | 未执行 / NOT RUN |
+| ART-COMP-D-003 | PostgreSQL / 创建Receipt/binding/Event故障、同键重放、Direct SQL镜像/Hash欺骗、内容withdraw/invalidate | 原子rollback/replay、Hash域分开、RLS/immutable guard；current失效不覆写原snapshot/provenance/receipt | 未执行 / NOT RUN |
