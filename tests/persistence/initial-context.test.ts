@@ -8571,6 +8571,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         let pendingFreeze: Promise<unknown> | undefined;
         try {
           await blocker.query('BEGIN');
+          const blockerPid = definedValue(
+            (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() pid')).rows[0],
+          ).pid;
           await blocker.query(
             'SELECT work_order_id FROM task_execution.work_order WHERE work_order_id=$1 FOR UPDATE',
             [woId],
@@ -8583,7 +8586,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               async () =>
                 (
                   await admin.query<{ n: number }>(
-                    "SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%work_order%'",
+                    'SELECT count(*)::int AS n FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid))',
+                    [blockerPid],
                   )
                 ).rows[0]?.n ?? 0,
               { timeout: 10000 },
