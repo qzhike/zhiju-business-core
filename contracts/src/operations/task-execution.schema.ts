@@ -479,6 +479,8 @@ const formalCompletionDefinitions = {
       },
       subjectRefs: {
         type: 'array',
+        minItems: 2,
+        maxItems: 2,
         items: {
           $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/typedReference',
         },
@@ -549,7 +551,6 @@ const formalCompletionDefinitions = {
         items: {
           $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/sourceWatermark',
         },
-        uniqueItems: true,
       },
       checks: {
         type: 'array',
@@ -2682,7 +2683,6 @@ const versionedOperationSchemas: readonly VersionedOperationContractSchema[] = [
           items: {
             $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/sourceWatermark',
           },
-          uniqueItems: true,
         },
       },
     },

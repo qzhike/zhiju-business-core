@@ -51,3 +51,49 @@ Reviewer 随后独立复核基于该 head 的限定代码 diff：仅 customerMat
 最终产品 revision 配置 full 要求已满足，无未解决语义 finding，独立角色结论为 `HUMAN_REVIEW_REQUIRED`。人类实施技术批准仍 PENDING；会话中的限定设计修正和发布 PR 批准不替代该批准，无合并授权。复审当时 [CI run 36733859219](https://github.com/qzhike/zhiju-business-core/actions/runs/36733859219) 的 select/checks 为 success，persistence 为 in_progress；本地 full PASS 不把远端 required checks 改写为通过，最新状态继续在 PR 记录。
 
 此后若严格只提交本 Review.md 的实际复审记录，Reviewer 允许复用上述产品 revision 的完整配置验证，并独立核对单文件差异及相应文档检查；不为审查 metadata 重复 PostgreSQL。整个 PR 仍保持原完整风险路由，未降为 docs。所有前述 NOT RUN 边界继续保留，本交付不关闭 IM-06。
+
+## 2026-10-01 最新 head 独立审查
+
+- Reviewer：本次用户请求的独立 Reviewer `/root`；未沿用前轮审查结论作为批准依据。
+- Reviewed SHA：`0e2c35356cf52999017ca7720188238e83a1461b`，本地 `vibe repo --json` 与 GitHub PR head 一致。
+- 本轮结论：`REQUEST_CHANGES`。下列契约反例推翻前轮“无未解决契约 finding”的当前结论；前文保留为历史审查事实。
+- 审查依据：最新 Issue #235 正文/评论、Spec 003 §§11.3、25、Spec 004 §12、Spec 001 §15.15、Spec 005 #233、实际 PR diff、Completion owning 实现/SQL guards、Schema/Registry/fixtures 与直接 CI 读回。
+- 独立预期：新 Completion 只能消费真实精确输出及完整 owning 来源；历史与 current 资格分离；公开字段校验保持批准的 required/optional、类型、集合基数与数组语义。既有 SQL guard 不替代公开 ContractRegistry 边界的正确性。
+
+### 阻塞 findings
+
+1. **R1 / P2：CompletionEvaluation 接受空 subjectRefs，违反 NonEmptySet 与本 profile 的 subject 锚定契约。** `contracts/src/operations/task-execution.schema.ts:480–486` 只有 `uniqueItems: true`，缺少非空/本 profile 基数约束。Spec 003 §11.3 定义 `NonEmptySet<TypedReference>`，§25.3 进一步规定恰 target + definition。直接将既有合法 judgment result fixture 的 `evaluation.subjectRefs` 改为 `[]`，`ContractRegistry.validateOperationResult('execution.get_execution_judgment', '1.0', value)` 仍返回 `valid=true`。因此公开 validator 能把没有 subject 锚点的 Evaluation 认作合法完整结果。owning SQL 的精确 subject 检查不能补齐这一独立验收边界。修复 schema 的非空及有限 profile 基数校验，增加干净的空/错误基数反例，并同步生成产物。
+2. **R2 / P2：sourceWatermarks 普通数组被静默收窄为 Set。** 同文件 `:547–552` 与 `:2680–2685` 给 Evaluation 和 Judgment readback 的 `SourceWatermark[]` 增加 `uniqueItems: true`。Spec 003 §§11.3、25.6 没有把这两个字段改为 Set；§25.3 的 Ref 集合去重规则不适用于 SourceWatermark。对合法基线仅添加两份相同合法 watermark，两个位置分别因 `uniqueItems` 被拒绝，错误路径明确为 `/evaluation/sourceWatermarks` 与 `/sourceWatermarks`。去掉未经批准的唯一性限制，保留逐元素 SourceWatermark 校验，并增加重复合法元素的正例。producer 自行输出去重数据不构成收窄公开接受集合的依据。
+3. **R3 / P2：Artifact 当前实现状态仍错误标为 NOT IMPLEMENTED。** `Module-Spec-004-Artifact.md:429` 仍宣称 §12 未实现，但本 PR 已交付 create_execution_revision、output-fact、来源事实持久化及 production composition；同节末尾也已更新为 #235 实际 owning/受控 PostgreSQL 证据。该 owning 权威的当前状态与实现及 Module-Test 相互矛盾，违反 Issue Handoff 与项目 durable-current-state 要求。更新为准确的 implementation-present 状态，保留尚待修正/复审/人类批准的门禁，不提前宣称整体验收通过。
+
+### 字段矩阵
+
+逐项对照 Spec 003 §25 / Spec 004 §12 的公开字段与实际 properties/required；下表中的字段均为必填，括号中明确列出的 optional 除外。所有新对象均检查 closed shape；TypedRef kind/type、Hash、时间、枚举和嵌套契约另外核对，矩阵不代表 PostgreSQL 或人工验收。
+
+| Named contract / boundary | 字段逐项对应 | 基数/嵌套核对与 finding |
+|---|---|---|
+| Completion @2.0 input（WO/Task 共用） | policyRef、evaluatorRef | VERSIONED Policy/Evaluator；不接受 caller facts/time |
+| Completion @2.0 result（WO/Task 共用） | evaluationRef、outcome、transitioned、completionUseStatus | CONTENT_ADDRESSED Evaluation；SATISFIED/UNSATISFIED；boolean；USABLE/STALE/REVOKED |
+| OutputCreationBinding | runRef、runAggregateVersion、taskRef、workOrderRef、workOrderContractRef、contextSnapshotRef、outputSpec、controlsPolicyRef、capabilityGrantRef、startedAt、validUntil | OBJECT Run/Task/WO；exact Contract/Context/Bundle；ExpectedOutput 复用；版本与时限 |
+| WorkOrderState | workOrderRef、aggregateVersion、contractRef、status、runRefs、blockerRefs、completionUseStatus；optional completionEvaluationRef | Run/Ref 集合与状态枚举；historical/current 分离 |
+| Judgment result | judgmentRef、evaluation、useStatus、reasonCodes、checkedAt、sourceWatermarks | 完整 Evaluation 顶层嵌套；SourceWatermark 元素正确，但数组唯一性错误（R2） |
+| ExecutionRevisionContent | artifactRef、branchId、parentRevisionRefs、contentType、contentRef、contentHash、structureSchemaRef、semanticMetadata、changedUnits、changeSummary | STRUCTURED_DOCUMENT；parents 恰空；metadata 恰空；changedUnits 非空；无 caller provenance |
+| ExecutionRevisionCreationReceipt | commandId、commandType、commandVersion、targetRef、scopeRef、requestPayloadHash、outcome、revisionRef、actorRef、actorSnapshotRef、authorizationDecisionRef、committedAt | 既定 creation command/version、COMMITTED、exact Revision/Actor/Decision |
+| ExecutionRevisionCreationBinding | revisionRef、creationCommandRef、taskRef、workOrderRef、runRef、workOrderContractRef、contextSnapshotRef、controlsPolicyRef、observedRunVersion、startedAt、bindingObservedAt、bindingValidUntil、bindingObservationHash、createdAt | TypedRef 类型、来源窗口、观察/Receipt 独立 Hash 域 |
+| ExecutionOutputFact | revision、artifactRef、artifactAggregateVersion、artifactLifecycle、businessScope、originProjectRef、contentState、canonicalContent、creationBinding、creationBindingHash、creationReceipt、observedAt、useStatus、reasonCodes | 完整 RevisionSnapshot/CanonicalContentPayload；FROZEN；USABLE/STALE/REVOKED |
+| CompletionEvaluation header | judgmentId、judgmentKind、scopeRef、subjectRefs、inputHash、policyRef、evaluatorRef、producedBy、actorSnapshotRef、authorizationDecisionRef、evaluatedAt、validUntil、sourceWatermarks、checks | COMPLETION_EVALUATION；subject 非空约束遗漏（R1）；watermark 数组收窄（R2） |
+| CompletionEvaluation body | targetRef、targetKind、definitionRef、criteriaHash、observedTargetVersion、committedTargetVersion、collectionHash、observedLocalSources、policyObservation、sourceFacts、factRefs、blockerRefs、criterionResults、outcome、completionTransition；optional qualitySelection | Target union、版本/Hash、结果枚举；nested fields 见下两行 |
+| Evaluation nested source/criterion/check | local source：ref，optional aggregateVersion/payloadHash；Policy：policyRef/contentHash/effectiveFrom，optional supersededAt；source fact：ref/owner/observationHash/observedAt；criterion：criterionId/criterionType/required/outcome/factRefs/reasonCodes；check：checkCode/outcome/factRefs/reasonCodes | 对应必填/optional 均存在；required=true；闭集条件与解释码；Ref 集合遵守本 profile 去重规则 |
+| Evaluation optional qualitySelection | qualityProfileRef、selectionHash、outputSnapshots；每个 output snapshot：revisionRef，optional revisionAcceptanceRef/approvalBundleRef | 固定 Profile、exact Revision/RAS/ABS；不把 SourceWatermark 当 Ref 集合 |
+| 七项 operation payload | 两 Completion：policyRef/evaluatorRef；binding：runRef；WO state：workOrderRef；judgment：judgmentRef；creation：runRef/revision；output fact：revisionRef | closed request、相应 kind/type/Project scope；Completion 的 CAS 在 Envelope 必填，creation 不要求 CAS |
+| Creation command result | revisionRef、creationCommandRef | 两个 Project-scope CONTENT_ADDRESSED Ref；Receipt Hash 域独立 |
+
+### 本轮直接证据与边界
+
+公开 validator 定向探针使用仓库当前构建的 ContractRegistry 与 `judgment-result-valid.json`。合法原 fixture 为 `valid=true`；仅空 subject 仍 `true`；仅在 Evaluation 或结果顶层加入重复合法 watermark 均 `false`，只报相应 `uniqueItems` 错误。该探针没有写产品代码或测试文件；它证明 schema 反例，不声称重跑完整配置验证。
+
+直接从 GitHub 读回产品 revision `cf2c5da2f72148becb75057d6e24b95b4679536c` 的 [CI run 36733859219](https://github.com/qzhike/zhiju-business-core/actions/runs/36733859219)：select/checks/persistence/verify 全部 SUCCESS。本次独立检查该 revision 到 Reviewed SHA 的完整路径差异，只含本 Review.md，因此可复用其产品验证证据；无需为文档 metadata 重跑 PostgreSQL。
+
+最新 head 的 [CI run 36737725574](https://github.com/qzhike/zhiju-business-core/actions/runs/36737725574) 已结束：select/checks SUCCESS，persistence CANCELLED，verify FAILURE。persistence job 在 Verify persistence 步骤约 30 分钟后取消；不是持久化测试 assertion failure 或 full PASS 的证据。PR body 中“最新 CI IN PROGRESS”已过时，应在后续交付更新。绿色产品 CI 不能消除本轮独立成立的契约 findings；最新 required checks 也未全部通过。
+
+本轮未重跑 environment/full，未执行新的 owning/PG/controlled-runtime 验收；沿用既有已执行证据的分层与全部 NOT RUN 子项。真实 Provider/CLI/Feishu、public HTTP/UI、生产/部署/负载、独立人工业务验收仍 NOT RUN。人类实施技术批准继续 PENDING；用户本次审查/发布 comments 请求不构成该批准或合并授权。修正后必须审查新 head，并取得适用的最终验证和人类门禁证据。

@@ -13,6 +13,29 @@ const operations = [
   ['create-revision', 'artifact.create_execution_revision', '1.0'],
   ['output-fact', 'artifact.get_execution_output_fact', '1.0'],
 ] as const;
+const expectedBoundaryErrors: Readonly<Record<string, { instancePath: string; keyword: string }>> =
+  {
+    'judgment-result-invalid-empty-subjects.json': {
+      instancePath: '/evaluation/subjectRefs',
+      keyword: 'minItems',
+    },
+    'judgment-result-invalid-single-subject.json': {
+      instancePath: '/evaluation/subjectRefs',
+      keyword: 'minItems',
+    },
+    'judgment-result-invalid-extra-subject.json': {
+      instancePath: '/evaluation/subjectRefs',
+      keyword: 'maxItems',
+    },
+    'judgment-result-invalid-evaluation-watermark.json': {
+      instancePath: '/evaluation/sourceWatermarks/1/observedAt',
+      keyword: 'type',
+    },
+    'judgment-result-invalid-readback-watermark.json': {
+      instancePath: '/sourceWatermarks/1/observedAt',
+      keyword: 'type',
+    },
+  };
 describe('TE-COMP-D-001 / ART-COMP-D-001 closed standalone formal completion fixtures', () => {
   for (const [prefix, type, version] of operations) {
     for (const filename of readdirSync(directory).filter((f) => f.startsWith(prefix + '-'))) {
@@ -24,6 +47,11 @@ describe('TE-COMP-D-001 / ART-COMP-D-001 closed standalone formal completion fix
         expect(validation.valid, JSON.stringify(validation.errors)).toBe(
           filename.includes('-valid.json'),
         );
+        const expectedError = expectedBoundaryErrors[filename];
+        if (expectedError !== undefined)
+          expect(
+            validation.errors.map(({ instancePath, keyword }) => ({ instancePath, keyword })),
+          ).toEqual([expectedError]);
       });
     }
   }

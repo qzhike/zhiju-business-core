@@ -424,9 +424,9 @@ WI-05 复用已经交付的 `artifact.register_representation@1.0` Handler、`Re
 当前状态：`CONTROLLED PUBLIC-PORT COMPOSITION, PERSISTENCE AND GIT DELIVERY COMPLETE / PR #135 MERGED / ISSUE #125 CLOSED`。实现 head `d3a1394663d3f953e4c686385b0ef9d8d280aefb` 已由 merge commit `1ef1303be233901c73a0bcc8f97bce8edf7e93a7` 纳入 `main`；真实外部 Provider、公开 HTTP、生产、真实客户适用性和独立人工业务验收仍为 `NOT RUN`。
 
 
-## 12. IM-06 正式执行输出的 owning 创建与精确事实（提案，#233）
+## 12. IM-06 正式执行输出的 owning 创建与精确事实（已批准设计 #233；实施 #235）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / NOT IMPLEMENTED`。消费 [Spec 003 §25](Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)。普通既有create_and_seal_revision与历史provenance语义不变；它们没有TE来源验证，不能冒充本路径新输出。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION PRESENT (#235 / PR #236) / VERIFICATION AND REVIEW EVIDENCE IN PR #236 / HUMAN TECHNICAL APPROVAL PENDING`。实现存在不表示验收或技术批准完成；阻塞 finding 的修订复验与独立复审结论以 PR 及正式审查记录为准。消费 [Spec 003 §25](Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)。普通既有create_and_seal_revision与历史provenance语义不变；它们没有TE来源验证，不能冒充本路径新输出。
 
 新增 `artifact.create_execution_revision@1.0`，COMMAND/CREATE、target OBJECT/artifact.artifact_revision，Project Scope，expectedAggregateVersion省略。closed payload `{runRef:OBJECT/execution.run,revision:ExecutionRevisionContent}`；ExecutionRevisionContent恰RevisionContent除provenance外的字段，contentType固定STRUCTURED_DOCUMENT，parentRevisionRefs=[]，semanticMetadata={}，changedUnits非空。canonical body在既有Content Object staging/link/freeze流程提供；该Command不接收bytes、caller principal、WorkOrder/Task/Context/Result或completion结论。Revision依赖的Artifact root必须经实际create_artifact创建、Project businessScope/originProject正确且ACTIVE；content manifest必须为同Artifact FROZEN，hash/body/schema三者精确一致。无需移动Branch head、不写TE表。
 
