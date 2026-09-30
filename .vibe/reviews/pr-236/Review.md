@@ -3,7 +3,8 @@
 - Issue：[#235](https://github.com/qzhike/zhiju-business-core/issues/235)；PR：[#236](https://github.com/qzhike/zhiju-business-core/pull/236)。
 - 审查日期：2026-09-30。
 - 初轮 Reviewed SHA：`3b88120cf6ca505c33e3bfb40089fc3ae566b203`。
-- 最终 Reviewed SHA：`cf2c5da2f72148becb75057d6e24b95b4679536c`。
+- 初次交付最终 Reviewed SHA：`cf2c5da2f72148becb75057d6e24b95b4679536c`。
+- R1–R3 修订 Reviewed SHA：`e5443de8442110f5d0c64ce40d892107b4edb88b`；最新结论见末节。
 - Base SHA：`04d0d7e84bb1327730553dfb4b575d178ac1fa14`。
 - 角色：独立 Reviewer `/root/formal_completion_review`。Reviewer 只读检查，未修改产品代码、提交、推送或发布 GitHub 评论；本文件由交付方依据其实际返回落地。
 - 初轮独立角色结论：`REQUEST_CHANGES`。初轮没有新的、有代码证据的安全或正确性阻塞；当时尚缺修正后最终 revision 的配置 `full` 通过证据。后续实际失败与限定修正复核见下文。
@@ -97,3 +98,33 @@ Reviewer 随后独立复核基于该 head 的限定代码 diff：仅 customerMat
 最新 head 的 [CI run 36737725574](https://github.com/qzhike/zhiju-business-core/actions/runs/36737725574) 已结束：select/checks SUCCESS，persistence CANCELLED，verify FAILURE。persistence job 在 Verify persistence 步骤约 30 分钟后取消；不是持久化测试 assertion failure 或 full PASS 的证据。PR body 中“最新 CI IN PROGRESS”已过时，应在后续交付更新。绿色产品 CI 不能消除本轮独立成立的契约 findings；最新 required checks 也未全部通过。
 
 本轮未重跑 environment/full，未执行新的 owning/PG/controlled-runtime 验收；沿用既有已执行证据的分层与全部 NOT RUN 子项。真实 Provider/CLI/Feishu、public HTTP/UI、生产/部署/负载、独立人工业务验收仍 NOT RUN。人类实施技术批准继续 PENDING；用户本次审查/发布 comments 请求不构成该批准或合并授权。修正后必须审查新 head，并取得适用的最终验证和人类门禁证据。
+
+## 2026-10-01 R1–R3 修订最终独立复审
+
+- Reviewer：独立 Reviewer `/root/formal_completion_review`。本轮只读核对，不修改产品代码或测试，不代交付方运行完整 verifier，不发布 GitHub 评论。本节由 Implementer 按其实际返回落地。
+- Reviewed SHA：`e5443de8442110f5d0c64ce40d892107b4edb88b`。Reviewer 独立核对本地 HEAD、PR 远端 head 和保存的 `vibe repo --json` 证据一致，工作树干净。
+- 角色结论：`HUMAN_REVIEW_REQUIRED`。R1–R3 均已解决，本轮没有新的未解决 finding；修订后产品 revision 的完整配置 `full` 已通过。适用人类实施技术批准仍为 `PENDING`。
+- 前节 `0e2c353…` 的 `REQUEST_CHANGES` 与反例保留为历史事实，不因旧绿色验证而撤销；本节结论仅适用于实际读回的修订 revision。
+
+### 修订与独立正负控制
+
+**R1 已解决。** 公开 CompletionEvaluation Schema 的 `subjectRefs` 增加 `minItems: 2`、`maxItems: 2`，保留 `uniqueItems: true`。独立公开 ContractRegistry 探针确认合法基线接受，空/单项只报 `minItems`，三个不同合法 Ref 只报 `maxItems`，重复双项只报 `uniqueItems`，路径均为 `/evaluation/subjectRefs`。精确 target/definition 成员关系仍由 owning producer 与 SQL guard 绑定，不把静态基数校验写成动态成员关系的全部证明。
+
+**R2 已解决。** 仅移除 Evaluation 和 Judgment readback 两处 `sourceWatermarks` 的未经批准唯一性限制。两处空数组及三份重复合法元素均接受；两处畸形 `observedAt` 与未知元素字段分别在正确元素路径被 `type`、`additionalProperties` 拒绝，逐元素契约保持。owning producer 和持久化完整性守卫未改动。
+
+**R3 已解决。** Artifact Spec §12 准确记录 `IMPLEMENTATION PRESENT (#235 / PR #236)`，验证和审查证据指向 PR，保留人类技术批准 `PENDING`；没有提前宣称外部/人工或全部未执行子项完成。
+
+Reviewer 共执行 **13 个独立公开 validator 正负控制**。七个新增 standalone fixture 的差异仅落在预期 collection 路径；负例断言精确错误路径和 keyword，没有夹带其他缺陷。交付方 focused contract 回归修订前 5 FAIL / 37 PASS，修订后 **42 PASS**；这些是公开契约/单元证据，不冒充 owning 或 PostgreSQL 验收。两项 contract generator 已执行，生成产物无字节差异，237 / 62 / 200 注册及兼容边界不变。
+
+### 精确 revision 完整验证与后续记录边界
+
+交付方在上述干净 revision 通过原生 `vibe verify full --json` 执行完整配置链，保留完整原始输出。Reviewer 直接读取并核对末尾原生结果 `status=PASS,target=full,command=pnpm clean && pnpm verify,exit_code=0`；不声称该执行来自 Reviewer。
+
+- 普通测试 **82 files / 1,618 tests** 全部通过。
+- PostgreSQL **43 files / 547 tests** 全部通过；547 个结束标记均为 passed，0 failed / 0 skipped，无名称过滤或 focused 运行标记。
+- V7008/V7009/V7010 均迁移成功；第二次 migrate 明确 `No migration necessary`，没有 checksum drift；Persistence gate 通过，容器清理完成。
+- 格式、lint、TypeScript、architecture、生成契约与 compatibility 检查均包含在正常完成的配置链。成功的 PostgreSQL 18.6 / Flyway 11.20.3 环境基线在未变更 runtime 下复用。
+
+复审读回时，同一产品 SHA 的 [CI run 36779594467](https://github.com/qzhike/zhiju-business-core/actions/runs/36779594467) 为 select/checks SUCCESS、persistence IN PROGRESS。本地 full PASS 不将远端 required checks 改写为全绿；最新终态与执行证据继续在 PR 记录。
+
+Reviewer 明确允许后续严格只提交本 Review.md 的实际复审记录，复用 `e5443de…` 产品 revision 的完整配置验证；须独立读回最终单文件 delta，并完成相应文档检查，不为审查 metadata 重复 PostgreSQL。整个 PR 的完整风险路由保持，不能按 docs-only 降级。设计及发布批准不替代人类实施技术批准，本轮不授权合并。前述所有外部、人工和明确未执行子项继续 `NOT RUN`，不关闭 IM-06。
