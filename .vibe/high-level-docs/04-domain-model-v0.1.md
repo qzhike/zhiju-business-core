@@ -5741,3 +5741,8 @@ DeliveryItem Completion 是由 EnterpriseProject owning Evaluator 根据冻结 `
 状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED`。消费已批准TD-01–04的[Spec003§11.5](../module-specs/Module-Spec-003-TaskExecution.md#115-workorder-与-task-跨-aggregate-推进)，有限细化见[Spec003§24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)。历史§26的“proposal本身不能成为正式blocking Request”继续成立；已提交final Result/reservation产生的Completion/新执行安全屏障是另一个owning guard，覆盖Request创建前窗口，不将Agent proposal自行提升为业务Request。创建正式Request及其他proposal副作用仍必须等精确ACCEPTED和匹配SUCCEEDED terminal裁决。
 
 一个合法已接纳BLOCKED_INPUT可使Run终态SUCCEEDED、释放Claim，而WorkOrder/Task各自独立WAITING_INPUT；Human Resolution、新FROZEN Context、已授权retry及唯一新Run保持单Root事务。原final屏障只有在对应Resolution被Context-2采用且Run-2合法ACCEPTED/SUCCEEDED COMPLETED后才派生处理完毕。状态协调最多进入COMPLETION_PENDING，Completion依然独立；历史Run不resume，旧Contract/Context/Result/Acceptance不覆盖，不新增Domain状态。本段不是TD-05–07或Completion实现批准。
+
+
+## #233 Completion 与历史状态的未来细化（提案）
+
+状态：`HUMAN DESIGN APPROVED 2026-09-30 / NOT IMPLEMENTED`。Task/WorkOrder只能经owningCompletion Evaluator由全部required正式事实与完整blocker/child集合派生，首次COMPLETION_PENDING→COMPLETED；Run SUCCEEDED或空输出不会自动推进。详细有限支持、单Root/CAS、source collection父锁协议由 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)拥有。COMPLETED历史不回退，首次completedAt/成功Evaluation/Event不覆盖；授权显式refresh只追加immutable新Evaluation/CAS当前pointer，不发第二Completed事件、不重开执行。current usability与历史状态分开，依赖Readiness重验当前output/适用quality，Board不拥有完成权。现有其他终态规则、Cancel/late-result及DeliveryItem独立完成不被此提案修改。

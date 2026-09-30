@@ -518,3 +518,35 @@ fixture 的不同 capability code/主体 Grant 创建互不依赖，按最多四
 恢复 Worker 使用独立当前进度读回识别已存在 Process；重复 tick 不重新签发创建命令或新增成功 Receipt，ACTIVE 的原命令/进度仍可恢复，COMPLETED/SUSPENDED 不重建。完整正常链的双 Worker 重放矩阵验证原进度推进，另在完成后并发 tick 验证无新增 Process、进度 AuthorizationDecision、Receipt 或 Driver invocation。Run-2 各阶段输出耗时和剩余真实 deadline，失败保留预期的精确拒绝码。
 
 共同的逐 consumer 缺权探针、SQL guard 反例、每目标 Receipt 提交故障回滚、13 步提交后进度丢失与双 Worker 重放、Run-2 并发创建，以及 Answer/Resolution/Context 输入反例、Request 创建前 Root gap、过期历史确认 proof、命令幂等/并发和恢复表 RLS/不可变性矩阵在完整正常恢复链各执行一次。其它变体仍独立通过真实 owning 入口准备并执行两 Run 或对应停止边界及 Process；每个消费者仍实际检查历史来源和当前权限，不重复与变体目标无关的直接公共探针。`SECOND_*` 的 Context 保持 60 秒有效期，测试 WorkOrder 的累计有限预算为 30 秒；Run-2 deadline 按真实 Run-1 已提交消费后的剩余预算、Bundle 与 Context 期限取最早值，真实 SQL deadline guard 和到期等待不变。expiry/finalize 竞争、错误 session、三个不支持 outcome 的拒绝与无第三 Run 断言保留；不扩大 Context/Decision/Run budget 或测试/CI timeout。预算耗尽变体先完成反例与合法 Finalize 授权准备，再在 Handler 读取真实 Acceptance 对应 Result 后等待到 Run 创建后 29.1 秒，以真实当前时间终结并实际消费 30 秒有限预算；暂停只延迟真实查询结果的返回，不替换结果或修改数据库时钟。持久化 reporter 在失败用例结束时输出异常与堆栈，不依赖整个文件结束后的最终汇总；完整门禁继续禁止过滤或跳过测试。
+
+
+## #233 正式输出与 Completion 设计验收矩阵
+
+状态：`DESIGN CASES / HUMAN DESIGN APPROVED 2026-09-30 / ALL RUNTIME NOT RUN`。authority为 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)。每行应用/Contract/真实PostgreSQL/外部/人工证据分开记录；docs PASS只验证Markdown。复用TE-TD-022/023/026、FINAL/REC的完整约束，不把#224的20 tiered PASS / 3 PARTIAL或#231有限恢复通过升级成Completion PASS。
+
+未来独立named fixtures为共享API #233列出的Contract目录、`normal.json`与`recovered.json`及三个Runtime模板；所有合法事实从生产composition/owning Command/Query读回真实id/hash。只有外部Runtime可替换为实际被调用的受控Driver；授权、Policy/Receipt、Artifact创建、Validation/Acceptance、Completion不得mock为正链，也不得直写Root到COMPLETED。
+
+| ID | 层级 / 输入 | 可观察预期 | 实际 / 结果 |
+|---|---|---|---|
+| TE-COMP-D-001 | Contract / 新Completion v2及三Query正负standalone fixtures | closed请求/结果；v1保留；错kind/hash/scope/unknown字段、caller事实/时间/结论被拒绝；237/62/200仅未来注册后检查 | 未执行 / NOT RUN |
+| TE-COMP-D-002 | Application + PostgreSQL / normal production fixture | 实际Human Artifact创建/读回、原invocation非空final、五项Bundle/Acceptance、Run SUCCEEDED；WO与Task各独立Evaluation/transition/event；exact root/judgment读回USABLE | 未执行 / NOT RUN |
+| TE-COMP-D-003 | Application + PostgreSQL / recovered fixture | Run-1 BLOCKED_INPUT→实际EP确认Receipt/Answer/Resolution→Context-2→独立Human retry→Run-2新输出；终态Run-1不恢复、原blocker在Run-2输出创建时仍保留但不阻止精确后继创建，额外/未采用Resolution blocker仍拒绝；Run-2成功后原blocker才processed，两Root完成 | 未执行 / NOT RUN |
+| TE-COMP-D-004 | Application + PostgreSQL / 空COMPLETED、复用input/普通Revision/错Run/WO/Task/Context/Contract/Receipt | 合法空Result可ACCEPTED/SUCCEEDED但Completion UNSATISFIED；wrong-source非空不产可用Acceptance，不补写provenance | 未执行 / NOT RUN |
+| TE-COMP-D-005 | Contract + Application / 新旧spelling、旧frozenprofile、未知Policy/Evaluator/schema/condition/required=false/qualityStage组合 | 无别名；旧资料原Hash可读，不能新Completion；明确unsupported、无usable Evaluation | 未执行 / NOT RUN |
+| TE-COMP-D-006 | Application + PostgreSQL / output不存在/错Hash/Scope/source镜像/canonical schema | 授权失败或masked错误不泄露；合法当前失效为UNSATISFIED，非空fact要求不由Receipt/placeholder顶替 | 未执行 / NOT RUN |
+| TE-COMP-D-007 | Application + PostgreSQL / active Run/Claim、未映射reserved BLOCKED_INPUT、OPEN/ANSWERED/EXPIRED/RESOLVED但Run-2未成功 | 全集来源blocking安全检查失败；caller省略Request/Run不影响结果，WO/Task不完成 | 未执行 / NOT RUN |
+| TE-COMP-D-008 | Application + PostgreSQL / cancel/expiry已赢、迟到新Result/final、错误finalize Acceptance | 无可用输出/Completion；已sealed Artifact可保留孤立事实，无第二Run terminal/Completed event | 未执行 / NOT RUN |
+| TE-COMP-D-009 | Application + PostgreSQL / 不同child完成状态、缺child Evaluation、多个输出超EXACTLY_ONE | Task枚举全部child，非空且各自当前USABLE；不因选一child或空集合成功 | 未执行 / NOT RUN |
+| TE-COMP-D-010 | Application + PostgreSQL / 当前RAS READY与ABS FULLY_APPROVED；GateInvalidation/ApprovalRevocation/新快照/错Profile | 两个Profile同时有READY/ABS时只选冻结Profile；同Profile新快照使旧Evaluation失效、refresh才选择新Refs；实际调用内部SelectionPort和#192 eligibility，适用条件才读取；NOT_APPLICABLE不满足FULLY_APPROVED；current不可用，历史不变 | 未执行 / NOT RUN |
+| TE-COMP-D-011 | Application + PostgreSQL / 完成后output withdrawn/invalidated/归档，Evaluation过期/Policy真实后继、refresh | historical COMPLETED/首次Evaluation/Event/时间不变；Root与exact Query区分STALE/REVOKED；新授权refresh仅新Evaluation/pointer、无第二Completed Event | 未执行 / NOT RUN |
+| TE-COMP-D-012 | Application + PostgreSQL / 新Task依赖真实Completed Task，随后output/Quality失效 | build与mark readiness各独立current重验；USABLE才ready，失效/依赖不可达不放行；inputHash/version/TTL包含真实Completion | 未执行 / NOT RUN |
+| TE-COMP-D-013 | Application + PostgreSQL / Completion持parent锁并发child WO、Task Request、Run Request INSERT（分别双连接调度） | 赢者明确；集合重读/父锁阻止phantom，完成后新成员拒绝；至多一个有效transition/event，单Root写边界 | 未执行 / NOT RUN |
+| TE-COMP-D-014 | Application + PostgreSQL / 集合已读后Run/result reservation/Resolution/reconcile源版本竞争 | 源版本/collectionHash变更拒绝旧成功；锁序无deadlock，原已提交来源保留 | 未执行 / NOT RUN |
+| TE-COMP-D-015 | Application + PostgreSQL / 本人/服务/依赖Grant撤销、Completion/Controls真实Policy后继、Deadline/TTL跨界、锁后撤权 | protected读前拒绝为0；提交/历史Receipt返回前重验，无过期成功；terminal旧lease到期不要求新执行权 | 未执行 / NOT RUN |
+| TE-COMP-D-016 | PostgreSQL / Evaluation、Root pointer、Receipt、Audit/Edges、Outbox每点故障注入 | 全事务rollback、无半Evaluation/PENDING成功Receipt/状态或孤立Event；重试原键只一份真实事实 | 未执行 / NOT RUN |
+| TE-COMP-D-017 | PostgreSQL / 同键同输入、异Hash、新键旧CAS、双Worker目标提交后progress丢失 | 原Receipt/Ref/hash精确重放；异Hash/旧版本稳定拒绝；两个Root各最多一次Completed event，refresh无event | 未执行 / NOT RUN |
+| TE-COMP-D-018 | PostgreSQL / direct SQL wrong hash/Scope/target/sourceReceipt/mirror/pointer及UPDATE/DELETE历史、RLS pool reuse | owning guards/FORCE RLS拒绝、immutable历史和crossSchema边界保持；空库/升级/二次no-op通过后方可记PASS | 未执行 / NOT RUN |
+| TE-COMP-D-019 | Query / Board stale/rebuilding/缺失，Root历史与current事实不一致 | 只用owning Query/Port判断；Board不供authority，masked errors与current checkedAt可解释 | 未执行 / NOT RUN |
+| TE-COMP-D-020 | External / 真CLI/Provider/飞书、public HTTP、生产/负载、独立人工业务验收及IM-06退出Cancel/late-result全范围 | 单独证据；不由controlled PostgreSQL或docs替代，不在#233执行 | 未执行 / NOT RUN |
+
+真实Grant PolicySnapshot生命周期取代仍无owning写入者，按#224已批准延后；本次的实际Grant撤销及可达PolicyVersion后继必须运行，不把该延后扩张为泛化豁免。TE-TD-022/023/026在未来上述对应应用/PostgreSQL案例实际运行后才按层级更新原行，未运行分支仍NOT RUN。

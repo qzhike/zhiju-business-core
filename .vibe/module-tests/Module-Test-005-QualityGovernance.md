@@ -225,3 +225,13 @@ WI-02 非目标：GateResult evaluation、ReviewIssue、Human Approval decision�
 | QG-TD-007 | 持有精确 Purpose/Scope/payload 与 active grant 的 AGENT、RUNTIME（以及 owning Handler 的 EXTERNAL_PARTY）调用方 | 仅 TE Evaluator Service/授权 Human 可读，其他 principal kind 拒绝 | `PASS — DISPOSABLE POSTGRESQL`：真实 IdentityPolicy 对 AGENT/RUNTIME 的该 capability 签发 ALLOW Decision（该 capability 不在 Human-only Registry 内），组合入口仍以 `AUTHORIZATION_DECISION_INVALID` 拒绝，同一批 SERVICE 调用方读取成功；owning Handler 在 `authorizationPurposes` 精确匹配时对 AGENT/RUNTIME/EXTERNAL_PARTY 返回 `QUALITY_EXECUTION_ELIGIBILITY_UNAUTHORIZED`。修复前基线：AGENT 的可信 Decision 通过入口并返回结果 |
 
 测试与证据边界：#192 的真实 PostgreSQL 用例为 `tests/persistence/quality-governance-revision-eligibility.test.ts`（6 个用例，纳入 `tests/persistence` pinned gate），正向事实全部经既有 owning Handler 建立，读取经 `apps/api/src/composition/revision-eligibility-entry.ts` 与真实 IdentityPolicy Decision/capability 端口，未以手填 `eligibility=true` 证明端口正确；QG-TD-006 的修复前形态历史 Bundle 仅用于负例，其引用的 RAS/Approval/Profile 均为真实 owning Handler 事实；数据为 `SYNTHETIC / TECHNICAL ONLY`。TE Evaluator 的 Completion 消费、跨模块业务链、公开 HTTP、外部 Provider、生产与独立人工业务验收仍为 `NOT RUN`。
+
+
+## #233 Completion 的现行资格消费设计用例
+
+不改变QG-TD已交付owning证据；新增TE消费层全部NOT RUN。
+
+| ID | 层级 / 输入 | 预期 | 实际 / 结果 |
+|---|---|---|---|---|
+| QG-COMP-D-001 | Cross-module Application + PostgreSQL / exact正式Revision/RAS、可选ABS与真实current eligibility | 适用criterion才读取、HUMAN与固定TE SERVICE均用自身独立Decision；冻结Profile/P1-P2分离、SelectionPort实际Refs与最新规则一致、同Revision/Profile/anchor且当前usable，未请求ABS为NOT_APPLICABLE | 未执行 / NOT RUN |
+| QG-COMP-D-002 | Cross-module Application + PostgreSQL / Gate失效、Approval撤销/new snapshot、错Hash/Scope、quality权限撤销/不可达 | Completion/Readiness current不可用或依赖拒绝；历史Snapshot/Evaluation不改；没有以历史READY覆盖false；current读取不重选Refs，refresh才生成新Evaluation.qualitySelection | 未执行 / NOT RUN |

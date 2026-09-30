@@ -1084,3 +1084,8 @@ TD-01–04及§22.8既有批准保留；**#229 新增 Spec Delta 的独立设计
 独立审查对象为 PR #230 的 `fe7d8389e9ae738592d251302083fafe4d91c59d`，完整记录见 [Review.md](../reviews/pr-230/Review.md) 与 [PR comment](https://github.com/qzhike/zhiju-business-core/pull/230#issuecomment-5856287072)。审查未发现阻塞性 finding，因尚缺显式人类设计批准而报告 HUMAN_REVIEW_REQUIRED。用户随后在同一会话明确回复“批准，可合并PR并关闭issue及local/remote branch”，满足该确切 Spec Delta 的人类设计批准，并授权其审查记录/批准状态交付、PR 合并、Issue #229 关闭及对应分支清理。
 
 本轮只归档正式审查、更新批准状态及后续推进意图，不改设计字段或运行语义；两个非阻塞文字澄清保留在正式审查中。上述审查与本批准取代本节及配套 #229 附录原先的 PENDING 状态。设计已批准不等于实现 READY：Planner 仍须基于合并后的 main 检查依赖和完整实现目标，单独发布获授权的实现 Issue。新 Registry/Handler/migration/运行验收仍未交付，IM-06 未完成。
+
+
+## 24. 正式输出与独立 Completion 详细提案（#233）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION NOT STARTED`。完整Spec Delta见 [正式输出与Completion](task-execution-formal-completion.md)。以current main@8d15943为基线，补齐§10已批准总体规则尚未闭合的字段/来源/selector/授权/持久化/读回细节；旧§22空输出与§23有限恢复批准不扩张。新路径使用Artifact owning拼写、新冻结profile与真实创建绑定，Revision创建时不含未来Result Ref，Result回指已提交Revision/Receipt并由TE独立join；§11.6旧provenance文字的新profile细化已于2026-09-30明确批准。Completion/Readiness/权威Query是同一未来实现结果，Board/Usage、TE→EP dispatch/DeliveryItem完成与IM-06整体退出继续独立；#224的20 tiered PASS / 3 PARTIAL和实际Grant PolicySnapshot lifecycle延后不变。独立技术设计复审已PASS（design revision f7d9406，正式记录见[PR #234](../reviews/pr-234/Review.md)），审批前角色结果HUMAN_REVIEW_REQUIRED；用户于2026-09-30对PR #234的具体详细设计明确回复“批准了”，批准证据见正式记录，不宣称NOW + READY实现或runtime PASS。

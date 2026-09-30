@@ -633,3 +633,12 @@ AgentResult 的 header/schema/hash、FINAL、executionOutcome、provenance 和 s
 | `recovery_completed_v1` | Run-2经新的实际invoke/ack/start后释放空FINAL/COMPLETED；引用新Run/Context/Bundle与同original frozen Contract，独立实例/session/submission；不得复制Run-1 final或resume terminal Run |
 
 两模板只证明技术恢复。模板和原文hash、Driver实际输入/调用次数、两次ack/final观察、Human confirmation/answer/Resolution/schedule真实Receipt、Context-2权威读回及不变的历史链必须分层保存为未来执行证据。原Driver在每Attempt至多invoke一次（全链正常为两次），recover只readBack/readFinal；IG或TE提交失败不会产生第三次调用。BLOCKED_INPUT尚未Resolution、新Context/Bundle/schedule/current资格不齐全时没有Run-2 invoke；Run-2 unsupported outcome不形成第三Run/fallback。synthetic命名、无Provider权威Usage、无六项Runtime控制批准、无Feishu/HTTP/manual验收的边界继续保持；同Run Resume依然禁止。
+
+
+### #233 正式输出 final 的有限协议（提案）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / NOT RUN`。新正式profile由 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)拥有业务支持集，IG owning封存见Spec 007 #233。新增受控Driver内部协议 `releaseFormalOutput({invocationRef,revisionRef,creationCommandRef}, idempotencyKey)`，不是公开Core Command，也不让Runtime自行创建Artifact；受信release入口先验证认证HUMAN对原Invocation/Project的精确授权，再由Driver SERVICE当前授权读Artifact output-fact，核对same run/Contract/Context的已提交creation binding与Receipt，之后持久记录原Invocation的release输入。拒绝预分配但未提交Ref、不同Invocation、wrong Receipt、异Hash重放。该读取仅确定输出来自实际owning创建，不替代TE Validator。
+
+原invocation的template使用 `formal-completed-v1`；恢复使用 `formal-blocked-input-v1`（第一次仍复用现行single CustomerMaterial proposal）与 `formal-recovered-completed-v1`。模板内容/version/hash是未来named standalone fixture与构建输入，Driver通过真实invoke产生ack/身份；release之后才计算submittedAt/Header Hash并固定readFinal bytes。正常与恢复fixture分别走生产owning入口、真实PostgreSQL、真实受控Driver invocation，不可预造Run/Receipt/Evaluation。Invocation/source/body不可变，跨restart重读不invoke第二次。lease以后释放可形成历史观察，但TE不得接纳；缺输出的普通成功Run不能Completion。
+
+新结构Schema/Controls/Evaluator是显式新selector，旧empty-output Runtime profile/bytes/200-contract基线不变。真实CLI/Provider/飞书、Usage、取消ACK与人工业务验收仍NOT RUN，设计不批准IM-DG-006或TD-05–07。

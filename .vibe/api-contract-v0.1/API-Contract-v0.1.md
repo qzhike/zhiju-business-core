@@ -584,3 +584,14 @@ Schema/Registry/生成类型/fixture 证据：`contracts/src/operations/quality-
 Frozen Context新增@1.1的canonical target与专用Result，不在旧@1.0偷偷补要求或改变namespace；Context payload与FROZEN metadata分开避免Hash环。两个state Query和Task reconcile是显式新增Contract；权威状态只来自owning Root/完整blocker事实，不由成功Event、Board或Runtime outcome推断。所有新操作/refs需在未来实现Issue注册、生成、fixture/兼容验证后才能调用，本revision没有可执行Registry Delta。
 
 EP Receipt attestation的Hash基于规范receipt材料，不基于requestHash；ActorSnapshot/Decision只声明EP真正保存的精确身份，不补造IP内容Hash。TE以独立当前权限从IPowning Port证明历史confirm归因和Human当前role/Grant，从EP Query证明真正committed candidate→confirmed/source链，不能凭correlationId或actorId相同采纳。Source/Answer/Resolution以及新Context/Run各有不同Purpose与独立权限，Service读取证明不能变为Agent采纳或Humanapproval替身。跨Owner只承诺各次查询记录的观测时点，目标提交前再查询/本模块锁后重验，不声称分布式原子授权。
+
+
+### #233 Completion 兼容与读回（提案）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / NO EXECUTABLE CONTRACT CHANGE`。新增操作见[Catalog #233](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#233-正式输出与-completion-契约提案)，请求/结果唯一维护于Spec 003 §25和Spec 004 §12。旧Completion input `{criteriaHash,factRefs,blockingRefs,sourceWatermarks,evaluatorRef,evaluatedAt}`保持@1.0，@2.0完全独立closed `{policyRef,evaluatorRef}`；旧合法请求不得经@2.0路由，@2.0拒绝旧caller集合/时间/结论。两新Completion均owning Root EVALUATE、expectedAggregateVersion必填、UUIDv7 Evaluation由producer分配，operation-specific data显式resultSchemaRef并按shared CommandResult.data校验；不同targetKind/subject/source/版本不允许fallback。
+
+Completion payload不含criteriaHash不等于无绑定：owning current definition/Contract产生criteriaHash、完整collection/observed versions/inputHash，Root CAS与source rechecks保证提交一致性。Query/Judgment historical payload不可变，current status/check时间独立返回；错Hash/Scope/不可见Judgment统一EXECUTION_JUDGMENT_INVALID、Root/Artifact Query masked NOT_FOUND，permission拒绝统一AUTHORIZATION_DECISION_INVALID，依赖不可达明确DEPENDENCY_UNAVAILABLE。历史过期不改outcome，不从Projection freshness或Caller conclusion授权。
+
+兼容分类：@2.0新请求/response为Major增量；新Artifact/TE Query/creation为additive；新有限业务support/profile用独立selector；TaskState既有shape实现与Readiness completed分支是existing-contract实现。全部旧@1.0接受集合、200 compatibility baseline、已冻结payloadHash/specificationHash与旧Runtime原文不更改。后向Result→Revision/真实Receipt join是新profile的明确provenance细化，不能改SEALED Revision或让普通无TE creation-binding Revision完成。
+
+未来实现须有named standalone Contract正负fixtures：`tests/fixtures/contracts/formal-completion/`（completion-v2、root/judgment query、execution-revision/output-fact、错kind/hash/scope/unknown字段）、生产owning acceptance fixtures `tests/fixtures/task-execution/formal-completion/normal.json` 与 `recovered.json`、受控Runtime三份versioned模板。fixture只给合法输入/预期、不得冒充尚未提交receipt/policy/业务fact；真实UUID/Hash由生产创建读回。Schema/Registry/generated types/compat metadata/fixtures在同一未来实现revision同步；本设计不生成这些可执行文件。

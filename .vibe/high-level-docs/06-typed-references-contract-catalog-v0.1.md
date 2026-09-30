@@ -1398,3 +1398,24 @@ execution.reconcile_task_execution@1.0
 execution.get_task_state@1.0
 execution.get_work_order_execution_state@1.0
 ```
+
+
+### #233 正式输出与 Completion 契约（提案）
+
+状态：`HUMAN DESIGN APPROVED 2026-09-30 / NOT REGISTERED`。当前Registry **230**、TE **57**、历史compatibility **200**均不变；未来批准实现新增7项为 **237 / 62 / 200**。operation-specific closed payload/data、错误与selectors唯一维护于 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)、Spec 004 §12；本表拥有精确名称/Owner/target/Ref注册路由。Query无Command target/concurrency metadata，target仅表示授权资源；所有新Command除Artifact CREATE外为EVALUATE且必填expectedAggregateVersion。
+
+| operation/version | Owner / kind | target或Query授权资源 | Purpose / Classification |
+|---|---|---|---|
+| `execution.evaluate_work_order_completion@2.0` | task-execution / COMMAND EVALUATE | OBJECT/zhiju.execution.work_order | execution.work_order.evaluate_completion / INTERNAL |
+| `execution.evaluate_task_completion@2.0` | task-execution / COMMAND EVALUATE | OBJECT/zhiju.execution.task | execution.task.evaluate_completion / INTERNAL |
+| `execution.get_output_creation_binding@1.0` | task-execution / QUERY AUTHORITATIVE | execution.run | execution.run.output_creation_binding.read / INTERNAL |
+| `execution.get_work_order_state@1.0` | task-execution / QUERY AUTHORITATIVE | zhiju.execution.work_order | execution.work_order.state.read / CUSTOMER_CONFIDENTIAL |
+| `execution.get_execution_judgment@1.0` | task-execution / QUERY AUTHORITATIVE | zhiju.execution.completion_evaluation | execution.judgment.read / INTERNAL |
+| `artifact.create_execution_revision@1.0` | artifact / COMMAND CREATE | OBJECT/artifact.artifact_revision | artifact.execution_revision.create / CUSTOMER_CONFIDENTIAL |
+| `artifact.get_execution_output_fact@1.0` | artifact / QUERY AUTHORITATIVE | artifact.artifact_revision | artifact.execution_output.read / CUSTOMER_CONFIDENTIAL |
+
+新owning类型：`zhiju.execution.completion_evaluation`（TE、CONTENT_ADDRESSED/Project、独立UUIDv7）；`zhiju.artifact.command_receipt`（Artifact、CONTENT_ADDRESSED/Project、objectId=实际commandId）。creation binding仅Artifact内部附属事实，非公共TypedRef；其Hash与Receipt规范Hash不同。Artifact root/revision仍用已实现owning `artifact.artifact` / `artifact.artifact_revision`，Run/Result/Acceptance分别 `execution.run/agent_result/agent_result_acceptance`；Task/WO/Contract/Context仍用各已批准canonical类型。所有Exact/Snapshot Ref带完整SHA-256 ContentHash和Project Scope，错误kind/type/spelling不能用别名解析。
+
+Spec 003 §25.1的8项新静态selector须在未来相应policy/evaluator/runtime/schema registry登记：Controls @2.0、Completion Policy profile、两个新Validator、两个Completion Evaluator、正式Runtime adapter与Artifact document schema。static selector不是业务事实，不计operation，不伪造contentHash。Artifact schema selector用Enterprise Scope；其他Platform Scope。IdentityPolicy仍实际解析独立业务Policy version、当前lifecycle/hash；未登记selector不可执行。
+
+旧两项Completion@1.0、200 baseline bytes/metadata/fixtures、旧Artifact generic创建/读取、旧empty-outputprofile完全保留；v1 Completion Handler仍未交付，不借此设计虚构旧入口支持。旧WorkOrder frozen `zhiju.artifact.*`输出要求不变，只在新冻结profile采用owning spelling。TaskState@1.0的当前字段/身份/Classification原样，新增实现真实current Completion。两个Completed@1.0与Artifact RevisionSealed@1.0不改shape/owner，正式fact集合保持非空，新增Evaluator必须按Registry校验Event。TE→EP派发不在本结果中。
