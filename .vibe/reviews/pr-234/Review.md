@@ -1,10 +1,10 @@
 # PR #234 独立设计审查
 
-状态：`REQUEST_CHANGES / HUMAN DESIGN APPROVAL PENDING / RUNTIME NOT RUN`。
+状态：`HUMAN_REVIEW_REQUIRED / TECHNICAL DESIGN REVIEW PASS / HUMAN DESIGN APPROVAL PENDING / RUNTIME NOT RUN`。
 
 - Issue：[#233](https://github.com/qzhike/zhiju-business-core/issues/233)；设计 PR：[#234](https://github.com/qzhike/zhiju-business-core/pull/234)，Draft。
 - 审查日期：2026-09-30。
-- Reviewed SHA：`d10927d3531ea8f284cb96aee6b1bb8d55dba497`。
+- 最新 Reviewed SHA：`f7d9406b6640e3aea4e86be77d6c0d3a53430eea`；首轮 SHA：`d10927d3531ea8f284cb96aee6b1bb8d55dba497`；第二轮 SHA：`beff2668a33903eaf72abc3a55280302f14df32a`。
 - Base SHA：`8d15943f4c28a6a7b4c177571d04c773f74d5238`。
 - 角色：独立 Reviewer；未修改产品代码或 owning 设计文档，未提交、推送或发布 GitHub 评论。
 
@@ -14,7 +14,7 @@
 
 重点核对新 selector/公开身份、创建与 Result 依赖及 Hash 域、producer/consumer 独立授权、所有 child/Run/Request 集合与并发序列化、当前资格/刷新和 #192 质量消费。读取的必要实现包括 `controlled-final-result.ts`、`recovery-final-profile.ts`、`task-readiness-plan.ts`、`work-order-validation-plan.ts` 的支持边界及 Artifact `revision-service.ts`；现行 Event Schema 确认 Completed 正式事实集合为非空。审查没有把尚待人类批准当作阻止审查设计提案本身的前置循环。
 
-## Blocking findings
+## 首轮 Blocking findings（历史记录）
 
 ### R1 — P1：恢复输出创建资格与原 final blocker 形成循环
 
@@ -45,3 +45,33 @@
 技术设计审查：`REQUEST_CHANGES`，须修复 R1/R2 后对新完整 SHA 独立复审。明确人类设计批准：`PENDING`，不制造批准事实。Issue #233 及 IM-06 未关闭；此记录不授权合并或后续实现。
 
 未来 Contract/application/真实 PostgreSQL Completion、正常与恢复业务正链、Readiness/current quality 消费、并发/回滚/重放全部 `NOT RUN`；真实 CLI/Provider/飞书、public HTTP、生产/负载、独立人工业务验收亦 `NOT RUN`。既有 #224 分层证据、Grant PolicySnapshot lifecycle 延后、TD-05–07 及 milestone Cancel/late-result 退出要求未被升级或豁免。
+
+## 第二轮复审 — beff2668a33903eaf72abc3a55280302f14df32a
+
+结论：`REQUEST_CHANGES / HUMAN DESIGN APPROVAL PENDING / RUNTIME NOT RUN`。
+
+已通过 `vibe repo --json` 及远端 PR readback 核对完整 SHA。R1 已修复：§25.2 只要求当前 Run 无自身 final reservation，并允许唯一已有效 RESOLVED、被 Context-2/retry intent 精确采用的原 BLOCKED_INPUT 屏障保留到 Run-2 成功；额外、未解决或未采用的来源仍拒绝。原 Completion 屏障没有因输出创建例外而提前消除。
+
+R2 的引用来源与选择语义已修复：新冻结 profile 显式替换旧 qualityProfileRef 缺省限制，全部 child 的两处 exact Enterprise Profile pin 必须一致；Quality owning 内部发现仅在该 Profile/Revision 下选择已提交 Snapshot，不向旧 ABS 或其他 Profile回退；Evaluation 保存 qualitySelection，current 只检验历史精确锚点，显式 refresh 才形成新选择及新 Evaluation。独立检查 `quality-business-repository.ts` 确认 RAS/ABS 现行降序规则确为 evaluated_at、snapshot_id，与新 Port 一致。新来源集合排除目标自身新判断/pointer/版本、保留 child current pointer/版本；重读观察时间变化不会自动成为业务源变更，避免自失效循环。
+
+### R3 — P1：SelectionPort 的 Service-only allowlist 与 Human Completion 支持冲突
+
+位置：`Module-Spec-005-QualityGovernance.md` CompletionQualitySelectionPort（本 SHA 第 404 行）；对照 `Module-Spec-003-TaskExecution.md` §25.3 及 `Module-Spec-001-IdentityPolicy.md` §15.15。
+
+新 SelectionPort “只允许固定TE Evaluator SERVICE”，而 Completion producer 明确允许授权 HUMAN，依赖授权规则要求每项实际 dependency 由消费方自身 principal 取得独立 Decision。具体反例是拥有合法 Task Completion 及全部质量读取 capability 的 Human，对带 REVISION_FULLY_APPROVED 的 Task 发起首次 Completion 或显式 refresh：必须调用 SelectionPort，却因 Human principal 被拒绝。以 Service 身份代理此依赖又违反“消费方自身 principal”的已声明规则。此矛盾使已支持的人类路径不能实施。
+
+需使 SelectionPort 的 principal allowlist 与支持的 Completion caller 一致，保留每个实际 consumer 的独立授权；或在 owning Completion 规则中明确收窄并解释不支持的组合。修订后的 Human 和固定 Service 两种正向、Agent/未知 Service 及借身份的反例必须同步验收。
+
+配置 docs 目标在 20 文件设计及首轮 Review 文件集记录为 PASS；本轮复用，不重复运行。远端 [CI run 36676047869](https://github.com/qzhike/zhiju-business-core/actions/runs/36676047869) 精确绑定本 SHA，select/checks/verify SUCCESS，persistence SKIPPED。除 R3 外未发现新的具体阻断反例；这不代替未来完整 Contract/application/PostgreSQL 实施验证。人类详细设计批准仍 PENDING，所有新增运行和外部/人工场景仍 NOT RUN。
+
+## 最终复审 — f7d9406b6640e3aea4e86be77d6c0d3a53430eea
+
+角色结论：`HUMAN_REVIEW_REQUIRED`。独立技术设计审查：`PASS`；明确人类详细设计批准：`PENDING`；全部新增运行验收：`NOT RUN`。
+
+`vibe repo --json` 确认本完整 SHA。相较第二轮仅 Quality Spec/Test 两行 allowlist 修订：SelectionPort 现允许目标 Scope 内授权 HUMAN 或固定 TE Evaluator SERVICE，QG-COMP-D-001 明确两类 producer 都使用自身独立 Decision。该修订与 Completion 命令、自身归因、consumer dependency 授权及 #192 allowlist 一致，不引入借用 Service 身份或未授权读取；R3 已解决。第一轮 R1/R2 的修订未变，继续成立。新增 Port 是已证明必要的 owning 内部增量，不新增公开 Quality operation/table，也不绕过现行 exact Query/#192 current eligibility。
+
+对本最终设计范围未发现剩余 blocking finding。正常及恢复创建、BUSINESS_OUTPUT 与独立完整性、固定 Profile/精确 Snapshot 来源、current 与 refresh、source collection/parent 锁协议及 Readiness 消费已具备可定位的实施规则；旧 identity/hash/compatibility、非空正式 Completion fact 和单 Root/一次 Event 边界保持。批准后的 Planner 仍须在届时 main 重验 NOW + READY，未来完整实施仍须 full、真实 PostgreSQL、独立实施审查及适用人类技术审查。
+
+配置 `vibe verify docs --json` 的最终同一 20 文件集 PASS 证据由 Implementer 提供（target=docs，exit_code=0），本 Reviewer 复用已有目标结果；最终角色记录交付后的必要格式验证由交付方执行。上述 CI run 36676047869 仅对应第二轮 SHA，不能声称它覆盖最终 SHA。Reviewer 对最终 SHA 的独立 GraphQL 读回因连接超时未能取得；随后交付方实际执行 REST `gh api repos/qzhike/zhiju-business-core/commits/f7d9406b6640e3aea4e86be77d6c0d3a53430eea/check-runs`，读回精确最终 SHA 的 [CI run 36676266071](https://github.com/qzhike/zhiju-business-core/actions/runs/36676266071)：verify/checks/select 全部 completed/SUCCESS，persistence completed/SKIPPED。这是交付方 REST readback，非 Reviewer 独立 GraphQL 读回；该实际成功结果补齐最终 SHA 的 CI 证据，不改变先前超时事实，也不将 SKIPPED persistence 或 docs PASS 解释为运行时完成验证。
+
+本记录保存技术审查及其历史，不能替代明确人类详细设计批准。因该具体设计批准仍待取得，最终角色按 Reviewer outcome 规则为 HUMAN_REVIEW_REQUIRED；这不是因人类批准未取得而拒绝审查提案，也不把技术 PASS 称为全部 Issue Acceptance 完成。PR 保持 Draft、Issue/IM-06 未关闭；没有合并、后续实施或发布授权的推定。所有未来 Contract/application/PostgreSQL、外部及人工边界继续 NOT RUN。

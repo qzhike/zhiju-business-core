@@ -41,4 +41,4 @@
 
 ## 4. 批准与未决状态
 
-本提案不存在交给 Implementer 自行选择的业务分支。公开兼容变化、新 profile、后向 Result 关联与观察时点一致性界限均是本次须批准的具体设计决定。**独立设计审查与明确人类设计批准待取得**；Review 记录必须绑定具体 design revision，批准前不得生成依赖实现 Issue或启动其 T2 实现。#224 的 20 tiered PASS / 3 PARTIAL、实际 Grant PolicySnapshot lifecycle 延后和 TD-05–07 未批准边界均保留；Cancel/late-result 的 IM-06 退出要求不因本设计被关闭。
+本提案不存在交给 Implementer 自行选择的业务分支。公开兼容变化、新 profile、后向 Result 关联与观察时点一致性界限均是本次须批准的具体设计决定。**独立技术设计复审已 PASS，明确人类详细设计批准 PENDING**（reviewed design revision `f7d9406b6640e3aea4e86be77d6c0d3a53430eea`；角色结果 HUMAN_REVIEW_REQUIRED，三轮审查与修订证据见[PR #234正式记录](../reviews/pr-234/Review.md)）；Review 记录必须绑定具体 design revision，批准前不得生成依赖实现 Issue或启动其 T2 实现。#224 的 20 tiered PASS / 3 PARTIAL、实际 Grant PolicySnapshot lifecycle 延后和 TD-05–07 未批准边界均保留；Cancel/late-result 的 IM-06 退出要求不因本设计被关闭。
