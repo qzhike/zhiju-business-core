@@ -2370,7 +2370,7 @@ Process 顺序为 Request open、WorkOrder wait、Task wait、Context build、Hu
 
 ## 40. 正式输出与 Completion 前向持久化（提案，#233）
 
-状态：`T2 / PROPOSED / HUMAN DESIGN APPROVAL PENDING / NO MIGRATION / NOT RUN`。字段级authority为 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)、Spec 004 §12。只新增forward migration，编号在未来实现分配；旧已应用migration、旧frozen Contract/Context/Result与200 compatibility baseline不改写。禁止跨Schema FK、跨模块Repository或双Root写事务。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / NO MIGRATION / NOT RUN`。字段级authority为 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)、Spec 004 §12。只新增forward migration，编号在未来实现分配；旧已应用migration、旧frozen Contract/Context/Result与200 compatibility baseline不改写。禁止跨Schema FK、跨模块Repository或双Root写事务。
 
 | owning schema / 逻辑表或增量 | canonical/mirror及约束 |
 |---|---|

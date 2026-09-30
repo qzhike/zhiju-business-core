@@ -1,6 +1,6 @@
 # IM-06 正式输出与独立 Completion Spec Delta（#233）
 
-状态：`T2 / PROPOSED / HUMAN DESIGN APPROVAL PENDING / IMPLEMENTATION NOT STARTED`。基线为执行时读回的 `main@8d15943f4c28a6a7b4c177571d04c773f74d5238`。本设计只交付一个可用结果的详细语义：授权 Human 经 Artifact owning 入口创建正式输出，受控 Run 真实报告该输出，TE 独立完成 WorkOrder/Task，并提供历史 Evaluation 与当前可用性权威读回。设计审查、明确人类设计批准、未来实现与业务验收是不同门禁；发布本 PR 不关闭 #233 或 IM-06。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION NOT STARTED`。基线为执行时读回的 `main@8d15943f4c28a6a7b4c177571d04c773f74d5238`。本设计只交付一个可用结果的详细语义：授权 Human 经 Artifact owning 入口创建正式输出，受控 Run 真实报告该输出，TE 独立完成 WorkOrder/Task，并提供历史 Evaluation 与当前可用性权威读回。设计审查、明确人类设计批准、未来实现与业务验收是不同门禁；发布本 PR 不关闭 #233 或 IM-06。
 
 ## 1. 对账与变更分类
 
@@ -41,4 +41,11 @@
 
 ## 4. 批准与未决状态
 
-本提案不存在交给 Implementer 自行选择的业务分支。公开兼容变化、新 profile、后向 Result 关联与观察时点一致性界限均是本次须批准的具体设计决定。**独立技术设计复审已 PASS，明确人类详细设计批准 PENDING**（reviewed design revision `f7d9406b6640e3aea4e86be77d6c0d3a53430eea`；角色结果 HUMAN_REVIEW_REQUIRED，三轮审查与修订证据见[PR #234正式记录](../reviews/pr-234/Review.md)）；Review 记录必须绑定具体 design revision，批准前不得生成依赖实现 Issue或启动其 T2 实现。#224 的 20 tiered PASS / 3 PARTIAL、实际 Grant PolicySnapshot lifecycle 延后和 TD-05–07 未批准边界均保留；Cancel/late-result 的 IM-06 退出要求不因本设计被关闭。
+本提案不存在交给 Implementer 自行选择的业务分支。公开兼容变化、新 profile、后向 Result 关联与观察时点一致性界限均是本次明确批准的具体设计决定。**独立技术设计复审已 PASS，明确人类详细设计批准已于 2026-09-30 取得**（reviewed design revision `f7d9406b6640e3aea4e86be77d6c0d3a53430eea`；审批前的独立角色结果 HUMAN_REVIEW_REQUIRED，当前批准证据见正式记录的人类批准章节，三轮审查与修订证据见[PR #234正式记录](../reviews/pr-234/Review.md)）；Review 记录必须绑定具体 design revision，批准前不得生成依赖实现 Issue或启动其 T2 实现。#224 的 20 tiered PASS / 3 PARTIAL、实际 Grant PolicySnapshot lifecycle 延后和 TD-05–07 未批准边界均保留；Cancel/late-result 的 IM-06 退出要求不因本设计被关闭。
+
+
+### 4.1 明确人类设计批准（2026-09-30）
+
+用户在收到PR #234、最终head `f0cc2b29a326e526602dbdc30fbb9215670e973d`、独立技术复审PASS及明确批准请求后，于本协作会话回复“批准了”。批准对应该PR呈现的具体详细设计；其业务语义为独立reviewed revision `f7d9406b6640e3aea4e86be77d6c0d3a53430eea`，f0cc2b2只增加正式审查记录与状态metadata。本次更新只记录批准事实，不改变设计语义。
+
+批准范围涵盖上述新冻结profile/owning身份、后向Result来源关联、Completion v2与immutable Evaluation、授权/集合并发、Quality exact选择/current有效性、refresh、权威Query/Readiness及未来验收矩阵。TD-05–07、实际Grant PolicySnapshot lifecycle延后及既有非目标不被扩张。明确设计批准门禁已满足；合并、后续实现Issue发布及产品实现仍须各自授权与届时main的NOW + READY复核，所有新增运行验收继续NOT RUN。

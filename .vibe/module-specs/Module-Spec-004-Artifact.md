@@ -426,7 +426,7 @@ WI-05 复用已经交付的 `artifact.register_representation@1.0` Handler、`Re
 
 ## 12. IM-06 正式执行输出的 owning 创建与精确事实（提案，#233）
 
-状态：`T2 / PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED`。消费 [Spec 003 §25](Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)。普通既有create_and_seal_revision与历史provenance语义不变；它们没有TE来源验证，不能冒充本路径新输出。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / NOT IMPLEMENTED`。消费 [Spec 003 §25](Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)。普通既有create_and_seal_revision与历史provenance语义不变；它们没有TE来源验证，不能冒充本路径新输出。
 
 新增 `artifact.create_execution_revision@1.0`，COMMAND/CREATE、target OBJECT/artifact.artifact_revision，Project Scope，expectedAggregateVersion省略。closed payload `{runRef:OBJECT/execution.run,revision:ExecutionRevisionContent}`；ExecutionRevisionContent恰RevisionContent除provenance外的字段，contentType固定STRUCTURED_DOCUMENT，parentRevisionRefs=[]，semanticMetadata={}，changedUnits非空。canonical body在既有Content Object staging/link/freeze流程提供；该Command不接收bytes、caller principal、WorkOrder/Task/Context/Result或completion结论。Revision依赖的Artifact root必须经实际create_artifact创建、Project businessScope/originProject正确且ACTIVE；content manifest必须为同Artifact FROZEN，hash/body/schema三者精确一致。无需移动Branch head、不写TE表。
 

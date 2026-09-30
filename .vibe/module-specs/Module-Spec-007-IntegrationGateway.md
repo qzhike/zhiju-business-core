@@ -354,7 +354,7 @@ Worker/dispatch binding资格读须接受Run已固定的Context-2；通过TE fro
 
 ### #233 非空正式输出的受控 final profile（提案）
 
-状态：`PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT RUN`。冻结 `te.human_operated.synthetic.formal@1.0` selector的精确身份见 [Spec 003 §25.1](Module-Spec-003-TaskExecution.md#251-有限冻结-profile-与精确-selectors)。RuntimeBinding adapterCode=`te.human_operated.synthetic.formal`、adapterVersion=`1.0`，harnessId=`zhiju.runtime.synthetic`、harnessVersion=`1.0`、provider/modelId=`synthetic`；modelConfigHash由实际冻结配置产生，不用旧Invocation的Hash。正常模板final=COMPLETED，恢复模板两次分别BLOCKED_INPUT与COMPLETED；其余原ack、adapter实例、session、fencing、IG final observation、公开Query与五步Process读取边界沿用已交付§23/24，不新增IG public operation或Source Event。
+状态：`HUMAN DESIGN APPROVED 2026-09-30 / NOT RUN`。冻结 `te.human_operated.synthetic.formal@1.0` selector的精确身份见 [Spec 003 §25.1](Module-Spec-003-TaskExecution.md#251-有限冻结-profile-与精确-selectors)。RuntimeBinding adapterCode=`te.human_operated.synthetic.formal`、adapterVersion=`1.0`，harnessId=`zhiju.runtime.synthetic`、harnessVersion=`1.0`、provider/modelId=`synthetic`；modelConfigHash由实际冻结配置产生，不用旧Invocation的Hash。正常模板final=COMPLETED，恢复模板两次分别BLOCKED_INPUT与COMPLETED；其余原ack、adapter实例、session、fencing、IG final observation、公开Query与五步Process读取边界沿用已交付§23/24，不新增IG public operation或Source Event。
 
 原Driver invocation启动时固定template/version/hash、Run/Contract/Context/Attempt/security identity，但未有Revision时不能预填一个业务Ref。Human实际Artifact提交后，受控Driver的有限释放入口绑定**原invocation**并持久记录实际revisionRef/creationCommandRef与release请求Hash；这是可重复readFinal的输入记录，不是IG/TE业务成功事实。第一次合法释放固定完整AgentResult bytes/hash/submissionRef/submittedAt；同键同输入返回原文，异输入拒绝，重启仍可读回，同Run无第二final。恢复Run-1不等待Artifact输出；Run-2只在新Context/独立Invocation启动后接受新输出。最终输出严格遵守Spec 003 §25.2的一个BusinessOutput；secret/prompt/stdout不存储，无虚构Provider Usage。
 

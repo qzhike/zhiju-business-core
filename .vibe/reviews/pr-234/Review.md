@@ -1,6 +1,6 @@
 # PR #234 独立设计审查
 
-状态：`HUMAN_REVIEW_REQUIRED / TECHNICAL DESIGN REVIEW PASS / HUMAN DESIGN APPROVAL PENDING / RUNTIME NOT RUN`。
+状态：`TECHNICAL DESIGN REVIEW PASS / HUMAN DESIGN APPROVED 2026-09-30 / RUNTIME NOT RUN`。此前各轮角色结论与待批准状态按当时事实保留，当前批准见下文。
 
 - Issue：[#233](https://github.com/qzhike/zhiju-business-core/issues/233)；设计 PR：[#234](https://github.com/qzhike/zhiju-business-core/pull/234)，Draft。
 - 审查日期：2026-09-30。
@@ -75,3 +75,12 @@ R2 的引用来源与选择语义已修复：新冻结 profile 显式替换旧 q
 配置 `vibe verify docs --json` 的最终同一 20 文件集 PASS 证据由 Implementer 提供（target=docs，exit_code=0），本 Reviewer 复用已有目标结果；最终角色记录交付后的必要格式验证由交付方执行。上述 CI run 36676047869 仅对应第二轮 SHA，不能声称它覆盖最终 SHA。Reviewer 对最终 SHA 的独立 GraphQL 读回因连接超时未能取得；随后交付方实际执行 REST `gh api repos/qzhike/zhiju-business-core/commits/f7d9406b6640e3aea4e86be77d6c0d3a53430eea/check-runs`，读回精确最终 SHA 的 [CI run 36676266071](https://github.com/qzhike/zhiju-business-core/actions/runs/36676266071)：verify/checks/select 全部 completed/SUCCESS，persistence completed/SKIPPED。这是交付方 REST readback，非 Reviewer 独立 GraphQL 读回；该实际成功结果补齐最终 SHA 的 CI 证据，不改变先前超时事实，也不将 SKIPPED persistence 或 docs PASS 解释为运行时完成验证。
 
 本记录保存技术审查及其历史，不能替代明确人类详细设计批准。因该具体设计批准仍待取得，最终角色按 Reviewer outcome 规则为 HUMAN_REVIEW_REQUIRED；这不是因人类批准未取得而拒绝审查提案，也不把技术 PASS 称为全部 Issue Acceptance 完成。PR 保持 Draft、Issue/IM-06 未关闭；没有合并、后续实施或发布授权的推定。所有未来 Contract/application/PostgreSQL、外部及人工边界继续 NOT RUN。
+
+
+## 明确人类详细设计批准 — 2026-09-30
+
+交付方记录：用户在本协作会话审阅最终交付说明后明确回复“批准了”，对应PR #234详细设计、当时远端head `f0cc2b29a326e526602dbdc30fbb9215670e973d`。独立审查的业务设计revision为 `f7d9406b6640e3aea4e86be77d6c0d3a53430eea`；独立Reviewer已只读确认f7d9406至f0cc2b2仅三文件metadata/正式记录变化、无新增设计语义。
+
+当前门禁：独立技术设计审查PASS；明确人类详细设计批准APPROVED。上述HUMAN_REVIEW_REQUIRED是批准前的独立角色结论，不重写审查历史或伪造Reviewer新的结论。本次仅同步批准状态、保留全部运行NOT RUN；不修改业务设计、注册契约或产品实现。
+
+当时最终head的实际CI为[run 36676733610](https://github.com/qzhike/zhiju-business-core/actions/runs/36676733610)，交付方REST读回select/checks/verify SUCCESS、persistence SKIPPED；本批准记录提交后的docs/新head CI证据另由PR保存。此批准解除具体设计门禁，不授权合并、后续Issue发布或产品实现；Issue/IM-06完成与后续NOW + READY按各自流程处理。

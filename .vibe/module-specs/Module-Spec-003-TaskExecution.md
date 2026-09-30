@@ -2127,7 +2127,7 @@ FROZEN 构建复用 INITIAL assembler 的确定性裁剪与 ContextItem 规范�
 
 ## 25. 正式输出与独立 Completion Spec Delta（#233）
 
-状态：`T2 / PROPOSED / HUMAN DESIGN APPROVAL PENDING / IMPLEMENTATION NOT STARTED`。提案/对账与批准范围见[正式输出设计](../decisions/task-execution-formal-completion.md)。本节是未来字段级权威；§23/24 当前空输出实现与所有历史已批准支持集不变。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION NOT STARTED`。提案/对账与批准范围见[正式输出设计](../decisions/task-execution-formal-completion.md)。本节是未来字段级权威；§23/24 当前空输出实现与所有历史已批准支持集不变。
 
 ### 25.1 有限冻结 profile 与精确 selectors
 

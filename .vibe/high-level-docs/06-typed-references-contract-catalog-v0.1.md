@@ -1402,7 +1402,7 @@ execution.get_work_order_execution_state@1.0
 
 ### #233 正式输出与 Completion 契约（提案）
 
-状态：`PROPOSED / HUMAN DESIGN APPROVAL PENDING / NOT REGISTERED`。当前Registry **230**、TE **57**、历史compatibility **200**均不变；未来批准实现新增7项为 **237 / 62 / 200**。operation-specific closed payload/data、错误与selectors唯一维护于 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)、Spec 004 §12；本表拥有精确名称/Owner/target/Ref注册路由。Query无Command target/concurrency metadata，target仅表示授权资源；所有新Command除Artifact CREATE外为EVALUATE且必填expectedAggregateVersion。
+状态：`HUMAN DESIGN APPROVED 2026-09-30 / NOT REGISTERED`。当前Registry **230**、TE **57**、历史compatibility **200**均不变；未来批准实现新增7项为 **237 / 62 / 200**。operation-specific closed payload/data、错误与selectors唯一维护于 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)、Spec 004 §12；本表拥有精确名称/Owner/target/Ref注册路由。Query无Command target/concurrency metadata，target仅表示授权资源；所有新Command除Artifact CREATE外为EVALUATE且必填expectedAggregateVersion。
 
 | operation/version | Owner / kind | target或Query授权资源 | Purpose / Classification |
 |---|---|---|---|

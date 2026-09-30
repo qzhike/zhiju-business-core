@@ -522,7 +522,7 @@ fixture 的不同 capability code/主体 Grant 创建互不依赖，按最多四
 
 ## #233 正式输出与 Completion 设计验收矩阵
 
-状态：`DESIGN CASES / PROPOSED / ALL RUNTIME NOT RUN`。authority为 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)。每行应用/Contract/真实PostgreSQL/外部/人工证据分开记录；docs PASS只验证Markdown。复用TE-TD-022/023/026、FINAL/REC的完整约束，不把#224的20 tiered PASS / 3 PARTIAL或#231有限恢复通过升级成Completion PASS。
+状态：`DESIGN CASES / HUMAN DESIGN APPROVED 2026-09-30 / ALL RUNTIME NOT RUN`。authority为 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)。每行应用/Contract/真实PostgreSQL/外部/人工证据分开记录；docs PASS只验证Markdown。复用TE-TD-022/023/026、FINAL/REC的完整约束，不把#224的20 tiered PASS / 3 PARTIAL或#231有限恢复通过升级成Completion PASS。
 
 未来独立named fixtures为共享API #233列出的Contract目录、`normal.json`与`recovered.json`及三个Runtime模板；所有合法事实从生产composition/owning Command/Query读回真实id/hash。只有外部Runtime可替换为实际被调用的受控Driver；授权、Policy/Receipt、Artifact创建、Validation/Acceptance、Completion不得mock为正链，也不得直写Root到COMPLETED。
 

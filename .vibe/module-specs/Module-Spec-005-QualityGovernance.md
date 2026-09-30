@@ -396,7 +396,7 @@ WI-08 不新增 QualityGovernance 公共 Contract、业务表或 Migration；它
 
 ### #233 Completion 消费现行 current eligibility（提案）
 
-状态：`PROPOSED / TE CONSUMPTION NOT RUN`。#192 current eligibility的公开接口不变，不增Quality public Operation/表/Policy；独立设计审查发现精确RAS/ABS的**来源发现**与冻结Profile尚未闭合，新增下述有限owning内部只读Port作为同一实现结果的必要增量。TE [Spec 003 §25.4–25.6](Module-Spec-003-TaskExecution.md#254-owning-条件与完整集合)逐个exact正式Revision、RAS/适用ABS独立授权读取既有历史Snapshot及 `quality.get_revision_execution_eligibility@1.0`。PRESENT/true与READY/FULLY_APPROVED历史值不能互相替代；缺ABS只在未要求FULLY_APPROVED时NOT_APPLICABLE。观察Hash/observedAt/sourceWatermarks进入Completion输入；完成后GateInvalidation/ApprovalRevocation或新Snapshot使后续消费不可用，原Evaluation/RAS/ABS历史不覆盖。与Artifact当前检查共同保证观测时点语义；TE不通过Query触发重跑Gate/批准或Release。跨模块正常/撤销/不可达证据新增于Module-Test，当前NOT RUN。
+状态：`HUMAN DESIGN APPROVED 2026-09-30 / TE CONSUMPTION NOT RUN`。#192 current eligibility的公开接口不变，不增Quality public Operation/表/Policy；独立设计审查发现精确RAS/ABS的**来源发现**与冻结Profile尚未闭合，新增下述有限owning内部只读Port作为同一实现结果的必要增量。TE [Spec 003 §25.4–25.6](Module-Spec-003-TaskExecution.md#254-owning-条件与完整集合)逐个exact正式Revision、RAS/适用ABS独立授权读取既有历史Snapshot及 `quality.get_revision_execution_eligibility@1.0`。PRESENT/true与READY/FULLY_APPROVED历史值不能互相替代；缺ABS只在未要求FULLY_APPROVED时NOT_APPLICABLE。观察Hash/observedAt/sourceWatermarks进入Completion输入；完成后GateInvalidation/ApprovalRevocation或新Snapshot使后续消费不可用，原Evaluation/RAS/ABS历史不覆盖。与Artifact当前检查共同保证观测时点语义；TE不通过Query触发重跑Gate/批准或Release。跨模块正常/撤销/不可达证据新增于Module-Test，当前NOT RUN。
 
 
 #### #233 CompletionQualitySelectionPort（提案）
