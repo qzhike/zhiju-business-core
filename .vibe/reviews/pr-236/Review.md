@@ -2,10 +2,12 @@
 
 - Issue：[#235](https://github.com/qzhike/zhiju-business-core/issues/235)；PR：[#236](https://github.com/qzhike/zhiju-business-core/pull/236)。
 - 审查日期：2026-09-30。
-- Reviewed SHA：`3b88120cf6ca505c33e3bfb40089fc3ae566b203`。
+- 初轮 Reviewed SHA：`3b88120cf6ca505c33e3bfb40089fc3ae566b203`。
+- 最终 Reviewed SHA：`cf2c5da2f72148becb75057d6e24b95b4679536c`。
 - Base SHA：`04d0d7e84bb1327730553dfb4b575d178ac1fa14`。
 - 角色：独立 Reviewer `/root/formal_completion_review`。Reviewer 只读检查，未修改产品代码、提交、推送或发布 GitHub 评论；本文件由交付方依据其实际返回落地。
 - 初轮独立角色结论：`REQUEST_CHANGES`。初轮没有新的、有代码证据的安全或正确性阻塞；当时尚缺修正后最终 revision 的配置 `full` 通过证据。后续实际失败与限定修正复核见下文。
+- 最终独立角色结论：`HUMAN_REVIEW_REQUIRED`。完整配置验证的阻塞已解除，无未解决代码、契约或安全 finding；适用人类实施技术批准仍为 PENDING。
 - 适用人类技术批准：`PENDING`。会话中的设计限定修正及提交 PR 批准不替代人类实施技术审查。
 
 ## 范围与独立预期
@@ -38,4 +40,14 @@ Reviewer 同时读回工作树唯一未提交修正：`initial-context.test.ts` 
 
 Reviewer 随后独立复核基于该 head 的限定代码 diff：仅 customerMaterialConfirmV1 新 canonical Decision 记录 owning 受信 requestedAt，并与 expiry 同次采样；历史 reader 比较、旧 created_at 回退、来源身份/Hash/Scope/Purpose/权限和已发布 Registry 不变。未发现新增语义或安全问题。真实 owning 确认与恢复回归为 2 PASS / 87 SKIPPED，新增插件只模拟技术 created_at 领先，保留真实 canonical/Actor/Receipt/Hash，并保留签发前和过期后拒绝。
 
-该反例证明双时间域结构缺口，但未从已清理的旧失败容器取得具体失败 predicate 或时间值；不能声称原 full 已证实因某个毫秒偏差失败。当前角色结论仍为 `REQUEST_CHANGES`，修复后完整代码 revision 的配置 full 尚待通过及独立最终复审。
+该反例证明双时间域结构缺口，但未从已清理的旧失败容器取得具体失败 predicate 或时间值；不能声称原 full 已证实因某个毫秒偏差失败。此轮角色结论为 `REQUEST_CHANGES`，当时修复后完整代码 revision 的配置 full 尚待通过及独立最终复审。
+
+## 最终完整验证与独立复审
+
+独立 Reviewer 核对本地 HEAD、PR 远端 head 和 `vibe repo --json` 保存证据，均为 `cf2c5da2f72148becb75057d6e24b95b4679536c`，工作树干净。直接读取交付方保留的 CLI 原生完整输出，末尾结果为 `status=PASS,target=full,exit_code=0`。Reviewer 未代称自己执行了该验证。
+
+完整验证为 82 files / 1,611 普通测试以及 43 files / 547 PostgreSQL 测试全部通过。547 个持久化结束标记均为 passed，零 failed、零 skipped，无名称过滤或 focused 标记；此前失败的 recovered 正链实际通过（22,115ms）。V7008/V7009/V7010 均迁移成功；第二次 migrate 无需迁移，未发生 checksum drift；Persistence gate 通过，容器清理完成。限定确认时间修正没有放宽身份、来源、Hash、Scope、Purpose、当前权限或历史时间比较。
+
+最终产品 revision 配置 full 要求已满足，无未解决语义 finding，独立角色结论为 `HUMAN_REVIEW_REQUIRED`。人类实施技术批准仍 PENDING；会话中的限定设计修正和发布 PR 批准不替代该批准，无合并授权。复审当时 [CI run 36733859219](https://github.com/qzhike/zhiju-business-core/actions/runs/36733859219) 的 select/checks 为 success，persistence 为 in_progress；本地 full PASS 不把远端 required checks 改写为通过，最新状态继续在 PR 记录。
+
+此后若严格只提交本 Review.md 的实际复审记录，Reviewer 允许复用上述产品 revision 的完整配置验证，并独立核对单文件差异及相应文档检查；不为审查 metadata 重复 PostgreSQL。整个 PR 仍保持原完整风险路由，未降为 docs。所有前述 NOT RUN 边界继续保留，本交付不关闭 IM-06。
