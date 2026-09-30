@@ -17598,6 +17598,18 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         );
         const confirmed = await recoveryEntry.command(confirm, sessionFor());
         expect(confirmed).toMatchObject({ status: 'COMMITTED' });
+        const confirmationDecision = definedValue(
+          (
+            await admin.query<{ canonical_payload: CanonicalJsonObject }>(
+              'SELECT canonical_payload FROM identity_policy.authorization_decision WHERE authorization_decision_id=$1',
+              [record(confirm.authorizationDecisionRef).objectId],
+            )
+          ).rows[0],
+        ).canonical_payload;
+        const confirmationIssuedAt = confirmationDecision.requestedAt;
+        expect(confirmationIssuedAt).toBe(confirm.requestedAt);
+        if (typeof confirmationIssuedAt !== 'string')
+          throw new Error('missing owning confirmation issuance time');
         const confirmedRef = record(committedPayload(confirmed)).customerMaterialRef;
         const discoverPayload = { commandId: String(confirm.commandId), scopeRef: scope() },
           discoverTarget = objectRef(
@@ -18212,6 +18224,32 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               historyAuthority,
             ),
           ).toMatchObject({ confirmationProvenanceValid: true });
+          // Simulate a database insertion clock ahead of the application clock.
+          // The actual owning Decision, canonical hash, Actor and Receipt stay
+          // intact; technical created_at must not replace its signed issuance.
+          const databaseClockAhead: KyselyPlugin = {
+            transformQuery: (args) => args.node,
+            transformResult: (args) =>
+              Promise.resolve({
+                ...args.result,
+                rows: args.result.rows.map((row) =>
+                  row.authorization_decision_id ===
+                  record(attestation.authorizationDecisionRef).objectId
+                    ? { ...row, created_at: new Date(historyNow.getTime() + 1_000) }
+                    : row,
+                ),
+              }),
+          };
+          expect(
+            await readRecoveryHumanEligibility(
+              {
+                ...identityDeps([fixture.projectId], service),
+                db: identityDb.withPlugin(databaseClockAhead),
+              },
+              eligibilityInput,
+              historyAuthority,
+            ),
+          ).toMatchObject({ confirmationProvenanceValid: true });
           // Real owning Grants isolate same-code action/selector coverage without
           // replacing the repository, Policy integrity or historical proof.
           const sharedCode = `wi231.r2.${serviceId.replaceAll('-', '')}`;
@@ -18319,6 +18357,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               },
             },
             { confirmationCommittedAt: new Date(historyNow.getTime() + 1).toISOString() },
+            {
+              confirmationCommittedAt: new Date(Date.parse(confirmationIssuedAt) - 1).toISOString(),
+            },
             // An actual propose Decision has intact hashes, actor, Scope and target, but the wrong operation/Purpose.
             {
               confirmationAuthorizationDecisionRef:

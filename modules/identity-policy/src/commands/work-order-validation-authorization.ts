@@ -912,7 +912,8 @@ async function issueEntryDecision(
     }
 
     const decisionId = newUuidV7();
-    const expiresAt = new Date(now().getTime() + DECISION_DEFAULT_TTL_SECONDS * 1000);
+    const issuedAt = now();
+    const expiresAt = new Date(issuedAt.getTime() + DECISION_DEFAULT_TTL_SECONDS * 1000);
     const reasons = ['ALLOWED_BY_GRANT'];
     const policySnapshot = finding.policySnapshot;
     const dependencyMember = dependencyRefMember(target, binding);
@@ -955,6 +956,11 @@ async function issueEntryDecision(
         commandPayloadHash: input.commandPayloadHash.toString('hex'),
         policySnapshotId: policySnapshot.policy_snapshot_id,
         policySnapshotPayloadHash: policySnapshot.payload_hash.toString('hex'),
+        // Historical confirmation and its Receipt use the trusted application
+        // clock, independently of PostgreSQL's technical insertion timestamp.
+        ...(binding.capabilityConfigKey === 'customerMaterialConfirmV1'
+          ? { requestedAt: issuedAt.toISOString() }
+          : {}),
         expiresAt: expiresAt.toISOString(),
         reasonCodes: reasons,
         // The V1006 OBJECT mirror of the promoted target columns; the complete

@@ -5,7 +5,7 @@
 - Reviewed SHA：`3b88120cf6ca505c33e3bfb40089fc3ae566b203`。
 - Base SHA：`04d0d7e84bb1327730553dfb4b575d178ac1fa14`。
 - 角色：独立 Reviewer `/root/formal_completion_review`。Reviewer 只读检查，未修改产品代码、提交、推送或发布 GitHub 评论；本文件由交付方依据其实际返回落地。
-- 当前独立角色结论：`REQUEST_CHANGES`。本轮没有新的、有代码证据的安全或正确性阻塞；尚缺修正后最终 revision 的配置 `full` 通过证据。
+- 初轮独立角色结论：`REQUEST_CHANGES`。初轮没有新的、有代码证据的安全或正确性阻塞；当时尚缺修正后最终 revision 的配置 `full` 通过证据。后续实际失败与限定修正复核见下文。
 - 适用人类技术批准：`PENDING`。会话中的设计限定修正及提交 PR 批准不替代人类实施技术审查。
 
 ## 范围与独立预期
@@ -31,3 +31,11 @@ Reviewer 同时读回工作树唯一未提交修正：`initial-context.test.ts` 
 最终修正需纳入提交，取得最终代码 revision 的 full PASS，再由独立 Reviewer 读回最终 head、证据与差异。最终 CI、验收与独立复审结果保存在 PR；本正式记录保留本次实际 reviewed SHA 与当时结论，不伪造提前批准。
 
 人类技术批准仍待取得；无合并授权。真实 Provider/CLI/Feishu、public HTTP/UI、部署、生产/负载、独立人工验收及 TE-COMP-D-020 继续 NOT RUN。本实施交付不关闭 IM-06，不升级旧 #224/#231 的有限证据，不证明 EnterpriseProject Inbox dispatch 或 DeliveryItem COMPLETED。
+
+## 确认签发时间限定修正复核
+
+独立 Reviewer 读回 `aa9f2cee1cd32adb6dff35a61fc4a4e28fb10318` 的实际配置 full 原始结果：代码 82 files / 1,611 tests PASS，持久化 546 PASS / 1 FAIL（547）。失败为 recovered 正链 `EXECUTION_RESOLUTION_RECEIPT_INVALID` / `INVALID_PROVENANCE`，是真实验收失败；不能继续描述为仅缺执行证据。两次该 head 的 CI persistence 因官方 30 分钟执行预算取消，也不是 full PASS。
+
+Reviewer 随后独立复核基于该 head 的限定代码 diff：仅 customerMaterialConfirmV1 新 canonical Decision 记录 owning 受信 requestedAt，并与 expiry 同次采样；历史 reader 比较、旧 created_at 回退、来源身份/Hash/Scope/Purpose/权限和已发布 Registry 不变。未发现新增语义或安全问题。真实 owning 确认与恢复回归为 2 PASS / 87 SKIPPED，新增插件只模拟技术 created_at 领先，保留真实 canonical/Actor/Receipt/Hash，并保留签发前和过期后拒绝。
+
+该反例证明双时间域结构缺口，但未从已清理的旧失败容器取得具体失败 predicate 或时间值；不能声称原 full 已证实因某个毫秒偏差失败。当前角色结论仍为 `REQUEST_CHANGES`，修复后完整代码 revision 的配置 full 尚待通过及独立最终复审。
