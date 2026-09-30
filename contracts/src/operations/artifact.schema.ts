@@ -65,6 +65,450 @@ const snapshotReference = { $ref: `${common}snapshotRef` } as const;
 const canonicalJson = {} as const;
 
 const namedDefinitions = {
+  executionRevisionContent: {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'artifactRef',
+      'branchId',
+      'parentRevisionRefs',
+      'contentType',
+      'contentRef',
+      'contentHash',
+      'structureSchemaRef',
+      'semanticMetadata',
+      'changedUnits',
+      'changeSummary',
+    ],
+    properties: {
+      artifactRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/objectRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'artifact.artifact',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      branchId: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+      },
+      parentRevisionRefs: {
+        type: 'array',
+        items: {
+          $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef',
+        },
+        maxItems: 0,
+      },
+      contentType: {
+        const: 'STRUCTURED_DOCUMENT',
+      },
+      contentRef: {
+        $ref: 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/objectLocator',
+      },
+      contentHash: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentHash',
+      },
+      structureSchemaRef: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/versionedRef',
+      },
+      semanticMetadata: {
+        type: 'object',
+        additionalProperties: false,
+        required: [],
+        properties: {},
+      },
+      changedUnits: {
+        type: 'array',
+        items: {
+          $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString',
+        },
+        minItems: 1,
+        uniqueItems: true,
+      },
+      changeSummary: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/nonEmptyString',
+      },
+    },
+  },
+  executionRevisionCreationReceipt: {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'commandId',
+      'commandType',
+      'commandVersion',
+      'targetRef',
+      'scopeRef',
+      'requestPayloadHash',
+      'outcome',
+      'revisionRef',
+      'actorRef',
+      'actorSnapshotRef',
+      'authorizationDecisionRef',
+      'committedAt',
+    ],
+    properties: {
+      commandId: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+      },
+      commandType: {
+        const: 'artifact.create_execution_revision',
+      },
+      commandVersion: {
+        const: '1.0',
+      },
+      targetRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/objectRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'artifact.artifact_revision',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      scopeRef: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/scopeRef',
+      },
+      requestPayloadHash: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentHash',
+      },
+      outcome: {
+        const: 'COMMITTED',
+      },
+      revisionRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'artifact.artifact_revision',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      actorRef: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/objectRef',
+      },
+      actorSnapshotRef: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef',
+      },
+      authorizationDecisionRef: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef',
+      },
+      committedAt: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/utcInstant',
+      },
+    },
+  },
+  executionRevisionCreationBinding: {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'revisionRef',
+      'creationCommandRef',
+      'taskRef',
+      'workOrderRef',
+      'runRef',
+      'workOrderContractRef',
+      'contextSnapshotRef',
+      'controlsPolicyRef',
+      'observedRunVersion',
+      'startedAt',
+      'bindingObservedAt',
+      'bindingValidUntil',
+      'bindingObservationHash',
+      'createdAt',
+    ],
+    properties: {
+      revisionRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'artifact.artifact_revision',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      creationCommandRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'zhiju.artifact.command_receipt',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      taskRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/objectRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'zhiju.execution.task',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      workOrderRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/objectRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'zhiju.execution.work_order',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      runRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/objectRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'execution.run',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      workOrderContractRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'zhiju.contract.work_order',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      contextSnapshotRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/snapshotRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'zhiju.execution.context_snapshot',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      controlsPolicyRef: {
+        allOf: [
+          {
+            $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/versionedRef',
+          },
+          {
+            type: 'object',
+            properties: {
+              objectType: {
+                const: 'zhiju.identity.policy',
+              },
+              scope: {
+                type: 'object',
+                required: ['enterpriseId', 'projectId'],
+                properties: {
+                  enterpriseId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                  projectId: {
+                    $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      observedRunVersion: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/nonNegativeInteger',
+      },
+      startedAt: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/utcInstant',
+      },
+      bindingObservedAt: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/utcInstant',
+      },
+      bindingValidUntil: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/utcInstant',
+      },
+      bindingObservationHash: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentHash',
+      },
+      createdAt: {
+        $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/utcInstant',
+      },
+    },
+  },
   artifactScope: { enum: ['PROJECT_DELIVERABLE', 'ENTERPRISE_CONTROLLED'] },
   artifactLifecycle: { enum: ['ACTIVE', 'ARCHIVED', 'CANCELLED'] },
   revisionDisposition: { enum: ['ACTIVE', 'SUPERSEDED', 'WITHDRAWN', 'INVALIDATED'] },
@@ -422,6 +866,258 @@ const namedDefinitions = {
 } as const satisfies Readonly<Record<string, JsonSchema>>;
 
 const operationSchemas = {
+  'artifact.create_execution_revision': {
+    payload: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['runRef', 'revision'],
+      properties: {
+        runRef: {
+          allOf: [
+            {
+              $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/objectRef',
+            },
+            {
+              type: 'object',
+              properties: {
+                objectType: {
+                  const: 'execution.run',
+                },
+                scope: {
+                  type: 'object',
+                  required: ['enterpriseId', 'projectId'],
+                  properties: {
+                    enterpriseId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                    projectId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+        revision: {
+          $ref: 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/executionRevisionContent',
+        },
+      },
+    },
+    result: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['revisionRef', 'creationCommandRef'],
+      properties: {
+        revisionRef: {
+          allOf: [
+            {
+              $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef',
+            },
+            {
+              type: 'object',
+              properties: {
+                objectType: {
+                  const: 'artifact.artifact_revision',
+                },
+                scope: {
+                  type: 'object',
+                  required: ['enterpriseId', 'projectId'],
+                  properties: {
+                    enterpriseId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                    projectId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+        creationCommandRef: {
+          allOf: [
+            {
+              $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef',
+            },
+            {
+              type: 'object',
+              properties: {
+                objectType: {
+                  const: 'zhiju.artifact.command_receipt',
+                },
+                scope: {
+                  type: 'object',
+                  required: ['enterpriseId', 'projectId'],
+                  properties: {
+                    enterpriseId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                    projectId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+  },
+  'artifact.get_execution_output_fact': {
+    payload: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['revisionRef'],
+      properties: {
+        revisionRef: {
+          allOf: [
+            {
+              $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentAddressedRef',
+            },
+            {
+              type: 'object',
+              properties: {
+                objectType: {
+                  const: 'artifact.artifact_revision',
+                },
+                scope: {
+                  type: 'object',
+                  required: ['enterpriseId', 'projectId'],
+                  properties: {
+                    enterpriseId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                    projectId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+    result: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'revision',
+        'artifactRef',
+        'artifactAggregateVersion',
+        'artifactLifecycle',
+        'businessScope',
+        'originProjectRef',
+        'contentState',
+        'canonicalContent',
+        'creationBinding',
+        'creationBindingHash',
+        'creationReceipt',
+        'observedAt',
+        'useStatus',
+        'reasonCodes',
+      ],
+      properties: {
+        revision: {
+          $ref: 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/revisionSnapshot',
+        },
+        artifactRef: {
+          allOf: [
+            {
+              $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/objectRef',
+            },
+            {
+              type: 'object',
+              properties: {
+                objectType: {
+                  const: 'artifact.artifact',
+                },
+                scope: {
+                  type: 'object',
+                  required: ['enterpriseId', 'projectId'],
+                  properties: {
+                    enterpriseId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                    projectId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+        artifactAggregateVersion: {
+          $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/nonNegativeInteger',
+        },
+        artifactLifecycle: {
+          $ref: 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifactLifecycle',
+        },
+        businessScope: {
+          $ref: 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifactScope',
+        },
+        originProjectRef: {
+          allOf: [
+            {
+              $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/objectRef',
+            },
+            {
+              type: 'object',
+              properties: {
+                objectType: {
+                  const: 'zhiju.project.project',
+                },
+                scope: {
+                  type: 'object',
+                  required: ['enterpriseId', 'projectId'],
+                  properties: {
+                    enterpriseId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                    projectId: {
+                      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/uuidV7',
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+        contentState: {
+          const: 'FROZEN',
+        },
+        canonicalContent: {
+          $ref: 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/canonicalContentPayload',
+        },
+        creationBinding: {
+          $ref: 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/executionRevisionCreationBinding',
+        },
+        creationBindingHash: {
+          $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/contentHash',
+        },
+        creationReceipt: {
+          $ref: 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/executionRevisionCreationReceipt',
+        },
+        observedAt: {
+          $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/utcInstant',
+        },
+        useStatus: {
+          enum: ['USABLE', 'STALE', 'REVOKED'],
+        },
+        reasonCodes: {
+          type: 'array',
+          items: {
+            enum: ['ARTIFACT_EXECUTION_OUTPUT_STALE', 'ARTIFACT_EXECUTION_OUTPUT_REVOKED'],
+          },
+          uniqueItems: true,
+        },
+      },
+    },
+  },
   'artifact.create_artifact': {
     payload: object(['enterpriseRef', 'definition'], {
       enterpriseRef: objectReference,

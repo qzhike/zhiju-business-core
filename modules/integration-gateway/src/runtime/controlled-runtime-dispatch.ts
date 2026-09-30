@@ -67,6 +67,17 @@ export interface SyntheticRuntimeFinal {
   readonly observedAt: Date;
 }
 
+export interface FormalOutputReleasePorts {
+  readonly revalidateAuthorization: () => Promise<void>;
+  readonly readExecutionOutput: (
+    revisionRef: Common.ContentAddressedRef,
+  ) => Promise<CanonicalJsonObject>;
+}
+export const FORMAL_RUNTIME_TEMPLATES = [
+  'formal-completed-v1',
+  'formal-blocked-input-v1',
+  'formal-recovered-completed-v1',
+] as const;
 export interface SyntheticRuntimeDriver {
   invoke(input: {
     readonly attemptRef: Common.ObjectRef;
@@ -78,6 +89,11 @@ export interface SyntheticRuntimeDriver {
   readBack(attemptRef: Common.ObjectRef): Promise<SyntheticRuntimeAcknowledgement | undefined>;
   readFinal?(attemptRef: Common.ObjectRef): Promise<SyntheticRuntimeFinal | undefined>;
   releaseFinal?(attemptRef: Common.ObjectRef): Promise<void>;
+  releaseFormalOutput?(
+    attemptRef: Common.ObjectRef,
+    output: CanonicalJsonObject,
+    ports: FormalOutputReleasePorts,
+  ): Promise<void>;
 }
 
 export interface ControlledRuntimeDispatchPorts {
@@ -222,7 +238,11 @@ async function validateDependencies(
     !same(binding.contextSnapshotRef, request.contextSnapshotRef) ||
     !same(binding.capabilityGrantRef, request.capabilityGrantRef) ||
     !same(binding.runtimeBinding, request.runtimeBinding) ||
-    !same(binding.runtimeBinding, RUNTIME) ||
+    (!same(binding.runtimeBinding, RUNTIME) &&
+      !same(binding.runtimeBinding, {
+        ...RUNTIME,
+        adapterCode: 'te.human_operated.synthetic.formal',
+      })) ||
     ![1, 2].includes(binding.fencingToken) ||
     binding.aggregateVersion !== 1 ||
     !binding.leaseId ||
@@ -1113,7 +1133,7 @@ export class ControlledRuntimeDispatchService {
         attemptId: ref.objectId,
         ackObservationId: observationId,
         bindingHash: bindingHash.digest,
-        adapterCode: RUNTIME.adapterCode,
+        adapterCode: stringValue(object(invocationBinding.runtimeBinding).adapterCode),
         adapterVersion: RUNTIME.adapterVersion,
         source: 'SYNTHETIC_DRIVER',
       } as const;
@@ -1124,7 +1144,7 @@ export class ControlledRuntimeDispatchService {
           attempt_id: ref.objectId,
           enterprise_id: context.enterpriseId,
           project_id: scope(context).projectId,
-          adapter_code: RUNTIME.adapterCode,
+          adapter_code: stringValue(object(invocationBinding.runtimeBinding).adapterCode),
           adapter_version: RUNTIME.adapterVersion,
           binding_hash: Buffer.from(bindingHash.digest, 'hex'),
           ack_observation_id: observationId,
@@ -1264,6 +1284,12 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
     readonly invocationBinding: InvocationBinding;
     readonly bindingHash: Common.ContentHash;
   }): Promise<SyntheticRuntimeAcknowledgement> {
+    if (
+      object(input.invocationBinding.runtimeBinding).adapterCode ===
+        'te.human_operated.synthetic.formal' &&
+      this.journal === undefined
+    )
+      invalid();
     this.invokedAttemptIds.push(input.attemptRef.objectId);
     const acknowledgedAt = this.now();
     const runtimeSessionRef: Common.ExternalRef = {
@@ -1340,6 +1366,74 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
   }
 
   async releaseFinal(ref: Common.ObjectRef): Promise<void> {
+    await this.materializeFinal(ref);
+  }
+
+  async releaseFormalOutput(
+    ref: Common.ObjectRef,
+    output: CanonicalJsonObject,
+    ports: FormalOutputReleasePorts,
+  ): Promise<void> {
+    if (this.journal === undefined) invalid();
+    await ports.revalidateAuthorization();
+    const previous = await this.readFinal(ref);
+    if (previous) {
+      if (!same(previous.agentResultContract.businessOutputs, [output]))
+        invalid('INTEGRATION_RUNTIME_FINAL_CONFLICT');
+      await ports.revalidateAuthorization();
+      return;
+    }
+    const stored = await this.readJournal(ref, 'invocation');
+    const template =
+      this.templates.get(ref.objectId) ??
+      (stored?.content
+        ? {
+            content: object(stored.content),
+            templateHash: stringValue(stored.templateHash),
+            input: object(stored.input) as unknown as Parameters<
+              SyntheticRuntimeDriver['invoke']
+            >[0],
+          }
+        : undefined);
+    if (
+      template?.content === undefined ||
+      sha256CanonicalJson(template.content) !== template.templateHash ||
+      !same(template.input.invocationBinding.runtimeBinding, {
+        ...RUNTIME,
+        adapterCode: 'te.human_operated.synthetic.formal',
+      }) ||
+      template.content.executionOutcome !== 'COMPLETED'
+    )
+      invalid();
+    const fact = await ports.readExecutionOutput(
+        object(output.ref) as unknown as Common.ContentAddressedRef,
+      ),
+      binding = object(fact.creationBinding),
+      receipt = object(fact.creationReceipt);
+    if (
+      fact.useStatus !== 'USABLE' ||
+      !same(object(fact.revision).revisionRef, output.ref) ||
+      !same(binding.creationCommandRef, output.creationCommandRef) ||
+      !same(binding.runRef, template.input.invocationBinding.runRef) ||
+      !same(binding.workOrderContractRef, template.input.invocationBinding.workOrderContractRef) ||
+      !same(binding.contextSnapshotRef, template.input.invocationBinding.contextSnapshotRef) ||
+      !same(output.createdByRunRef, binding.runRef) ||
+      receipt.outcome !== 'COMMITTED' ||
+      !same(receipt.revisionRef, output.ref) ||
+      object(output.creationCommandRef).objectId !== receipt.commandId ||
+      !same(object(output.creationCommandRef).contentHash, hash(sha256CanonicalJson(receipt))) ||
+      !same(fact.creationBindingHash, hash(sha256CanonicalJson(binding)))
+    )
+      invalid();
+    await ports.revalidateAuthorization();
+    await this.materializeFinal(ref, output);
+    await ports.revalidateAuthorization();
+  }
+
+  private async materializeFinal(
+    ref: Common.ObjectRef,
+    formalOutput?: CanonicalJsonObject,
+  ): Promise<void> {
     const acknowledgement = await this.readBack(ref);
     const stored = await this.readJournal(ref, 'invocation');
     const template =
@@ -1361,6 +1455,12 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
     )
       invalid();
     if ((await this.readFinal(ref)) !== undefined) return;
+    const formal = same(template.input.invocationBinding.runtimeBinding, {
+      ...RUNTIME,
+      adapterCode: 'te.human_operated.synthetic.formal',
+    });
+    if (formal && template.content.executionOutcome === 'COMPLETED' && formalOutput === undefined)
+      return;
     const observedAt = this.now();
     const runtimeSubmissionRef: Common.ExternalRef = {
       system: 'zhiju.runtime.synthetic',
@@ -1370,6 +1470,7 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
     };
     const contentWithRuntimeFields = {
       ...template.content,
+      ...(formalOutput ? { businessOutputs: [formalOutput] } : {}),
       header: {
         ...object(template.content.header),
         issuedAt: observedAt.toISOString(),
@@ -1405,10 +1506,23 @@ export class LocalSyntheticRuntimeDriver implements SyntheticRuntimeDriver {
       agentResultContract,
       observedAt,
     };
-    await this.writeJournal(ref, 'final', {
-      ...result,
-      observedAt: observedAt.toISOString(),
-    } as unknown as CanonicalJsonObject);
+    try {
+      await this.writeJournal(ref, 'final', {
+        ...result,
+        observedAt: observedAt.toISOString(),
+      } as unknown as CanonicalJsonObject);
+    } catch (error) {
+      const winner = await this.readFinal(ref);
+      if (
+        !winner ||
+        !same(
+          winner.agentResultContract.businessOutputs,
+          result.agentResultContract.businessOutputs,
+        )
+      )
+        throw error;
+      return;
+    }
     this.finals.set(ref.objectId, result);
   }
 

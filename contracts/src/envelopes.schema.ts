@@ -28,9 +28,18 @@ function payloadSchema(operation: PublicOperationDefinition): JsonSchema {
 function operationScopeSchema(operation: PublicOperationDefinition): JsonSchema {
   const projectRequired =
     (operation.type === 'execution.build_context_snapshot' && operation.version === '1.1') ||
+    (operation.version === '2.0' &&
+      ['execution.evaluate_task_completion', 'execution.evaluate_work_order_completion'].includes(
+        operation.type,
+      )) ||
     [
       'execution.reconcile_task_execution',
       'execution.get_task_state',
+      'execution.get_output_creation_binding',
+      'execution.get_work_order_state',
+      'execution.get_execution_judgment',
+      'artifact.create_execution_revision',
+      'artifact.get_execution_output_fact',
       'execution.get_work_order_execution_state',
     ].includes(operation.type);
   return projectRequired

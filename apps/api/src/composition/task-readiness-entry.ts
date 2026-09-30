@@ -1,3 +1,8 @@
+import {
+  createFormalCompletionDependencyPorts,
+  type FormalCompletionEntryConfig,
+} from './formal-completion-entry.js';
+import type { DependencyCompletionPort } from '@zhiju/task-execution';
 // IM-06 (#208) composition entries for the Task Readiness production and the
 // `DRAFT` → `READY` transition.
 //
@@ -123,6 +128,12 @@ const REVOKED_REVALIDATION_REASONS: Readonly<
 };
 
 export interface TaskReadinessEntryConfig {
+  readonly formalCompletion?: FormalCompletionEntryConfig;
+  readonly completion?: (
+    row: DecisionRow,
+    session: TaskReadinessSession,
+    consumer: 'readiness_build' | 'readiness_consume',
+  ) => DependencyCompletionPort;
   /** Owning TaskExecution database handle over an application-owned pool. */
   readonly taskExecutionDb: Kysely<TaskExecutionDb>;
   /** Owning EnterpriseProject database handle for the input-reference read. */
@@ -578,6 +589,7 @@ export function createTaskReadinessEntry(config: TaskReadinessEntryConfig): Task
     readonly payloadHash: Buffer;
     readonly targetRef: Common.ObjectRef;
     readonly correlationId: string;
+    readonly revalidate: () => Promise<void>;
   }> {
     const violation = registeredViolation(
       registry,
@@ -604,31 +616,37 @@ export function createTaskReadinessEntry(config: TaskReadinessEntryConfig): Task
     // Decision, a drifted trusted configuration, a substituted target and an
     // unavailable IdentityPolicy all fail closed here, and the producer entry
     // never authorizes the consumer (or the reverse).
-    let revalidation: TaskExecutionReadinessRevalidationResult;
-    try {
-      revalidation = await authorization.revalidateReadiness(decisionDeps(row), {
-        decisionRef,
-        expectedCommandType: entry.commandType,
-        expectedCommandVersion: entry.commandVersion,
-        expectedCommandPayloadHash: payloadHash,
-        expectedAuthenticationContextHash: sessionHash,
-        expectedTargetRef: targetRef,
-      });
-    } catch (error) {
-      if (error instanceof SnapshotBoundaryError && READINESS_BOUNDARY_CODES[error.code] === true) {
+    const revalidate = async () => {
+      let revalidation: TaskExecutionReadinessRevalidationResult;
+      try {
+        revalidation = await authorization.revalidateReadiness(decisionDeps(row), {
+          decisionRef,
+          expectedCommandType: entry.commandType,
+          expectedCommandVersion: entry.commandVersion,
+          expectedCommandPayloadHash: payloadHash,
+          expectedAuthenticationContextHash: sessionHash,
+          expectedTargetRef: targetRef,
+        });
+      } catch (error) {
+        if (
+          error instanceof SnapshotBoundaryError &&
+          READINESS_BOUNDARY_CODES[error.code] === true
+        ) {
+          entryError(
+            error.code === IDENTITY_READINESS_TARGET_INVALID ? targetErrorCode : error.code,
+            'the readiness Decision cannot be revalidated for this request',
+          );
+        }
+        entryError(DEPENDENCY_UNAVAILABLE, 'readiness authorization is unavailable');
+      }
+      if (!revalidation.valid) {
         entryError(
-          error.code === IDENTITY_READINESS_TARGET_INVALID ? targetErrorCode : error.code,
-          'the readiness Decision cannot be revalidated for this request',
+          revalidationErrorCode(revalidation.reason),
+          'the presented Decision no longer covers this readiness request',
         );
       }
-      entryError(DEPENDENCY_UNAVAILABLE, 'readiness authorization is unavailable');
-    }
-    if (!revalidation.valid) {
-      entryError(
-        revalidationErrorCode(revalidation.reason),
-        'the presented Decision no longer covers this readiness request',
-      );
-    }
+    };
+    await revalidate();
     return {
       row,
       scope,
@@ -636,6 +654,7 @@ export function createTaskReadinessEntry(config: TaskReadinessEntryConfig): Task
       payloadHash,
       targetRef,
       correlationId: command.correlationId as string,
+      revalidate,
     };
   }
 
@@ -674,6 +693,15 @@ export function createTaskReadinessEntry(config: TaskReadinessEntryConfig): Task
         authorizationDecisionId: bound.row.authorization_decision_id,
         policySnapshotId: bound.row.policy_snapshot_id,
       };
+      const completion = config.formalCompletion
+        ? createFormalCompletionDependencyPorts(
+            config.formalCompletion,
+            bound.row,
+            session,
+            'readiness_build',
+            bound.revalidate,
+          ).completion
+        : config.completion?.(bound.row, session, 'readiness_build');
       return handleBuildTaskReadiness(
         config.taskExecutionDb,
         taskExecutionContext(bound.row, bound.scope, bound.correlationId),
@@ -681,6 +709,11 @@ export function createTaskReadinessEntry(config: TaskReadinessEntryConfig): Task
         {
           policy: policyPort(bound.row, session),
           inputRefs: inputRefPort(bound.row, session),
+          ...(completion ? { completion } : {}),
+          revalidateAuthorization: async () => {
+            await bound.revalidate();
+            await completion?.revalidate?.();
+          },
           now,
         },
       );
@@ -724,6 +757,15 @@ export function createTaskReadinessEntry(config: TaskReadinessEntryConfig): Task
         authorizationDecisionId: bound.row.authorization_decision_id,
         policySnapshotId: bound.row.policy_snapshot_id,
       };
+      const completion = config.formalCompletion
+        ? createFormalCompletionDependencyPorts(
+            config.formalCompletion,
+            bound.row,
+            session,
+            'readiness_consume',
+            bound.revalidate,
+          ).completion
+        : config.completion?.(bound.row, session, 'readiness_consume');
       return handleMarkTaskReady(
         config.taskExecutionDb,
         taskExecutionContext(bound.row, bound.scope, bound.correlationId),
@@ -731,6 +773,11 @@ export function createTaskReadinessEntry(config: TaskReadinessEntryConfig): Task
         {
           policy: policyPort(bound.row, session),
           inputRefs: inputRefPort(bound.row, session),
+          ...(completion ? { completion } : {}),
+          revalidateAuthorization: async () => {
+            await bound.revalidate();
+            await completion?.revalidate?.();
+          },
           now,
         },
       );

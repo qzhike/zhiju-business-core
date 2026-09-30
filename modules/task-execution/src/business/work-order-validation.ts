@@ -34,6 +34,8 @@ import {
   requireThat,
   type WorkOrderPolicyObservation,
 } from './work-order-validation-plan.js';
+import { isFormalContract, formalCriteria, validateFormalTaskDefinition } from './formal-output.js';
+import { sql } from 'kysely';
 import type { ContextSourceSliceReadPort } from './initial-context-build.js';
 
 const registry = new ContractRegistry();
@@ -41,6 +43,8 @@ const bytes = (value: string) => Buffer.from(value, 'hex');
 const VALIDATION_TYPE = 'zhiju.execution.work_order_validation';
 const WORK_ORDER_TYPE = 'zhiju.execution.work_order';
 export interface WorkOrderValidationPorts {
+  readonly authorizeTaskDefinition?: (ref: CanonicalJsonObject) => Promise<void>;
+  readonly readQualityProfile?: (ref: CanonicalJsonObject) => Promise<CanonicalJsonObject>;
   readonly now: () => Date;
   readonly decisionIssuedAt: string;
   readonly actorSnapshotRef: CanonicalJsonObject;
@@ -249,6 +253,62 @@ async function evaluate(
     builderPolicy = await ports.resolvePolicy(object(pins.contextBuilderPolicyRef)),
     controlsPolicy = await ports.resolvePolicy(object(pins.capabilityPolicyRef));
   requireThat(same(validationPolicy.policyRef, policyRef));
+  if (isFormalContract(candidate)) {
+    requireThat(ports.authorizeTaskDefinition, 'DEPENDENCY_UNAVAILABLE');
+    await ports.authorizeTaskDefinition(object(candidate.taskRef));
+    const task = await execution.trx
+      .selectFrom('task_execution.task')
+      .selectAll()
+      .where('task_id', '=', textValue(object(candidate.taskRef).objectId))
+      .executeTakeFirst();
+    requireThat(task?.current_definition_snapshot_id, 'NOT_FOUND');
+    const definition = await execution.trx
+      .selectFrom('task_execution.task_definition_snapshot')
+      .selectAll()
+      .where('snapshot_id', '=', task.current_definition_snapshot_id)
+      .executeTakeFirst();
+    requireThat(
+      definition?.schema_version === '2.0' &&
+        sha256CanonicalJson(object(definition.canonical_payload)) ===
+          definition.payload_hash.toString('hex'),
+      'EXECUTION_JUDGMENT_INVALID',
+    );
+    formalCriteria(candidate, object(object(definition.canonical_payload).definition));
+    const taskPlan = validateFormalTaskDefinition(
+      object(object(definition.canonical_payload).definition),
+    );
+    const profile = pins.qualityProfileRef;
+    if (taskPlan.quality) {
+      requireThat(
+        profile &&
+          same(profile, object(candidate.riskAndQuality).qualityProfileRef) &&
+          ports.readQualityProfile,
+        'EXECUTION_CRITERION_UNSUPPORTED',
+      );
+      const view = await ports.readQualityProfile(object(profile));
+      requireThat(view.usable === true, 'EXECUTION_CRITERION_UNSUPPORTED');
+      const siblings = (
+        await sql<{
+          canonical_payload: CanonicalJsonObject;
+        }>`SELECT c.canonical_payload FROM task_execution.work_order w JOIN task_execution.work_order_contract c ON c.contract_id=w.frozen_contract_id WHERE w.task_id=${task.task_id}::uuid AND w.work_order_id<>${object(candidate.workOrderRef).objectId}::uuid`.execute(
+          execution.trx,
+        )
+      ).rows;
+      requireThat(
+        siblings.every(
+          (c) =>
+            isFormalContract(c.canonical_payload) &&
+            same(object(c.canonical_payload.versionPins).qualityProfileRef, profile) &&
+            same(object(c.canonical_payload.riskAndQuality).qualityProfileRef, profile),
+        ),
+        'EXECUTION_CRITERION_UNSUPPORTED',
+      );
+    } else
+      requireThat(
+        profile === undefined && object(candidate.riskAndQuality).qualityProfileRef === undefined,
+        'EXECUTION_CRITERION_UNSUPPORTED',
+      );
+  }
   const caps = [
     ...(candidate.allowedCapabilities as CanonicalJsonValue[]),
     ...(candidate.deniedCapabilities as CanonicalJsonValue[]),

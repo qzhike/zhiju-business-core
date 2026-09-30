@@ -1,3 +1,25 @@
+import { formalQualityFixture } from './formal-completion-quality-fixture.js';
+import {
+  createFormalCompletionEntry,
+  type FormalCompletionEntryConfig,
+} from '@zhiju/api/composition';
+import {
+  formalCompletionBindings,
+  createFormalCompletionAuthorizationPort,
+  FORMAL_OUTPUT_RECOVERY_BINDINGS,
+} from '@zhiju/identity-policy';
+import { executionDocumentSchemaReference } from '@zhiju/contracts';
+import {
+  createArtifactDatabase,
+  withArtifactTransaction,
+  InMemoryObjectStorage,
+  handleCreateArtifact,
+  handleWithdrawRevision,
+  stageCanonicalContent,
+  linkCanonicalContent,
+  freezeCanonicalContent,
+} from '@zhiju/artifact';
+import { createQualityGovernanceDatabase } from '@zhiju/quality-governance';
 // IM-06 (#216, #217 corrections): real PostgreSQL acceptance for the initial
 // Context Snapshot build (`execution.build_initial_context_snapshot@1.1`) and
 // the authoritative snapshot read (`execution.get_context_snapshot@1.0`) — the
@@ -1578,7 +1600,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
        END $do$`,
     );
     await admin.query(
-      `GRANT platform_context_establisher, task_execution_app, enterprise_project_app, identity_policy_app, integration_gateway_app TO ${PROBE_ROLE}`,
+      `GRANT platform_context_establisher, task_execution_app, enterprise_project_app, identity_policy_app, integration_gateway_app, artifact_app, quality_governance_app TO ${PROBE_ROLE}`,
     );
     const url = new URL(databaseUrl ?? '');
     url.username = PROBE_ROLE;
@@ -2015,6 +2037,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   async function createExecutableTask(
     commandVersion: '1.0' | '2.0',
     owningReady = false,
+    formalDefinition?: Record<string, unknown>,
+    deferReadiness = false,
   ): Promise<string> {
     const payload = payloadOf(commandVersion === '1.0' ? V1_TASK_FIXTURE : V2_TASK_FIXTURE);
     rewriteFixtureScopes(payload, fixture);
@@ -2025,6 +2049,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       record(payload.definition).dependencyTaskRefs = [];
       record(payload.definition).inputRefs = [];
     }
+    if (formalDefinition) Object.assign(record(payload.definition), formalDefinition);
     const binding = TASK_DRAFT_CREATION_BINDINGS.find(
       (candidate) => candidate.commandVersion === commandVersion,
     );
@@ -2083,6 +2108,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       ),
     );
     expect(result, JSON.stringify(result)).toMatchObject({ status: 'COMMITTED' });
+    if (deferReadiness) return targetId;
     if (owningReady) {
       await readyTaskForValidation(targetId);
       return targetId;
@@ -5647,10 +5673,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(230);
+    expect(catalog.operations).toHaveLength(237);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(57);
+    ).toHaveLength(62);
     expect(
       catalog.operations.filter(
         (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
@@ -7024,10 +7050,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
         operations: { type: string; version: string; kind: string; owner: string }[];
       };
-      expect(catalog.operations).toHaveLength(230);
+      expect(catalog.operations).toHaveLength(237);
       expect(
         catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-      ).toHaveLength(57);
+      ).toHaveLength(62);
       const baseline = JSON.parse(readFileSync(COMPATIBILITY_BASELINE, 'utf8')) as
         { type: string }[] | { operations: { type: string }[] };
       expect(Array.isArray(baseline) ? baseline : baseline.operations).toHaveLength(200);
@@ -7208,7 +7234,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       errorCode: EXECUTION_CONTEXT_SOURCE_INVALID,
     });
   });
-  async function readyTaskForValidation(taskId: string) {
+  async function readyTaskForValidation(
+    taskId: string,
+    completionConfig?: FormalCompletionEntryConfig,
+    afterBuild?: () => Promise<void>,
+    expectBuildUnavailable = false,
+  ) {
     const taskCodeSuffix = taskId.replaceAll('-', '');
     const capabilityCodes = {
       taskReadinessBuildV1: `wi219.task.readiness.${taskCodeSuffix}`,
@@ -7236,6 +7267,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       policyDocument: { maxReadinessValiditySeconds: 600 },
     });
     const entry = createTaskReadinessEntry({
+      ...(completionConfig ? { formalCompletion: completionConfig } : {}),
       taskExecutionDb: teDb,
       enterpriseProjectDb,
       identity: { db: identityDb, repo: identityRepo, crypto },
@@ -7312,17 +7344,48 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       sessionFor(),
     );
     expect(build, JSON.stringify(build)).toMatchObject({ status: 'COMMITTED' });
+    if (expectBuildUnavailable) {
+      const snapshotRef = record(record(committedPayload(build)).data).readinessSnapshotRef;
+      expect(
+        (
+          await admin.query(
+            'SELECT ready FROM task_execution.execution_judgment WHERE judgment_id=$1',
+            [record(snapshotRef).objectId],
+          )
+        ).rows,
+      ).toEqual([{ ready: false }]);
+      expect(
+        (await admin.query('SELECT status FROM task_execution.task WHERE task_id=$1', [taskId]))
+          .rows,
+      ).toEqual([{ status: 'DRAFT' }]);
+      return;
+    }
     const readinessSnapshotRef = record(record(committedPayload(build)).data).readinessSnapshotRef;
-    const ready = await entry.markReady(
-      await envelope(
-        'execution.mark_task_ready',
-        taskRef,
-        { readinessSnapshotRef, requestedAt: new Date(clock).toISOString() } as CanonicalJsonObject,
-        1,
-      ),
-      sessionFor(),
+    await afterBuild?.();
+    const readyCommand = await envelope(
+      'execution.mark_task_ready',
+      taskRef,
+      { readinessSnapshotRef, requestedAt: new Date(clock).toISOString() } as CanonicalJsonObject,
+      1,
     );
-    expect(ready, JSON.stringify(ready)).toMatchObject({ status: 'COMMITTED' });
+    if (afterBuild) {
+      const result = await Promise.allSettled([entry.markReady(readyCommand, sessionFor())]);
+      const actual = definedValue(result[0]);
+      if (actual.status === 'rejected')
+        expect(actual.reason).toMatchObject({ code: 'DEPENDENCY_UNAVAILABLE' });
+      else
+        expect(actual.value).toMatchObject({
+          status: 'REJECTED',
+          errorCode: 'EXECUTION_JUDGMENT_STALE',
+        });
+      expect(
+        (await admin.query('SELECT status FROM task_execution.task WHERE task_id=$1', [taskId]))
+          .rows,
+      ).toEqual([{ status: 'DRAFT' }]);
+    } else {
+      const ready = await entry.markReady(readyCommand, sessionFor());
+      expect(ready, JSON.stringify(ready)).toMatchObject({ status: 'COMMITTED' });
+    }
   }
 
   describe('TE-VAL-S-008 first Run terminal paths', () => {
@@ -7341,6 +7404,18 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
 
     const runScenario = async (
       terminalScenario:
+        | 'FORMAL_QUALITY'
+        | 'FORMAL_NORMAL'
+        | 'FORMAL_GRANT_LOCK'
+        | 'FORMAL_DEPENDENCY_LOCK'
+        | 'FORMAL_CHILD_FIRST'
+        | 'FORMAL_POLICY'
+        | 'FORMAL_TTL'
+        | 'FORMAL_EMPTY'
+        | 'FORMAL_LATE'
+        | 'FORMAL_RECOVERED'
+        | 'FORMAL_REQUEST_COMPLETION_FIRST'
+        | 'FORMAL_REQUEST_OPEN_FIRST'
         | 'BOUNDED_RECOVERY'
         | 'SUCCEEDED'
         | 'MIX_VALIDATIONS'
@@ -7404,11 +7479,37 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       // from the trusted instant, and PostgreSQL checks it against wall time.
       // Run common precondition refusals once; every other case still produces
       // its own live Task/Draft/Context/READY/Run through the owning entries.
-      const bounded = terminalScenario === 'BOUNDED_RECOVERY';
+      const formal = terminalScenario.startsWith('FORMAL_');
+      const formalFixture = formal
+        ? (JSON.parse(
+            readFileSync(
+              new URL(
+                `../fixtures/task-execution/formal-completion/${terminalScenario === 'FORMAL_RECOVERED' || terminalScenario.startsWith('FORMAL_REQUEST_') ? 'recovered' : 'normal'}.json`,
+                import.meta.url,
+              ),
+              'utf8',
+            ),
+          ) as {
+            taskCriteria: string[];
+            workOrderCriteria: string[];
+            runtimeTemplates: string[];
+            expected: {
+              runCount: number;
+              workOrderStatus: string;
+              taskStatus: string;
+              completionUseStatus: string;
+              completedEventsPerRoot: number;
+            };
+          })
+        : undefined;
+      const bounded =
+        terminalScenario === 'BOUNDED_RECOVERY' ||
+        terminalScenario === 'FORMAL_RECOVERED' ||
+        terminalScenario.startsWith('FORMAL_REQUEST_');
       // Exercise shared refusal, replay and fault matrices once on the normal chain.
       // Repeating it in every variant consumes the short-lived Context before
       // the variant reaches its own session/outcome/expiry boundary.
-      const exerciseRecoveryFaultMatrix = bounded && recoveryVariant === 'NORMAL';
+      const exerciseRecoveryFaultMatrix = !formal && bounded && recoveryVariant === 'NORMAL';
       const shortRecoveryBudget = recoveryVariant.startsWith('SECOND_');
       const exercisePreparationMatrix = terminalScenario === 'SUCCEEDED';
       const exerciseCommonReplayMatrix = exercisePreparationMatrix || exerciseRecoveryFaultMatrix;
@@ -7488,19 +7589,23 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         if (reuseIndependentPreparation) independentScenarioGrantIds.set(key, id);
       }
       const borrowedActors: Principal[] = [];
-      if (exercisePreparationMatrix || exerciseRecoveryFaultMatrix) {
+      if (
+        exercisePreparationMatrix ||
+        exerciseRecoveryFaultMatrix ||
+        terminalScenario === 'FORMAL_NORMAL'
+      ) {
         const otherServiceId = newUuidV7();
         await withIdentityTransaction(identityDb, identityContext([]), (trx) =>
           identityRepo.insertPrincipal(trx, {
             id: otherServiceId,
-            principalKind: bounded ? 'AGENT' : 'SERVICE',
+            principalKind: bounded || formal ? 'AGENT' : 'SERVICE',
             displayName: 'WI-224 unrelated service',
             createdByPrincipalId: OPERATOR,
             createdByActorSnapshotId: OPERATOR_ACTOR,
           }),
         );
         for (const subject of [
-          { principalId: otherServiceId, kind: bounded ? 'AGENT' : 'SERVICE' },
+          { principalId: otherServiceId, kind: bounded || formal ? 'AGENT' : 'SERVICE' },
           { principalId: OPERATOR, kind: 'HUMAN' },
         ] as const) {
           const snapshotId = newUuidV7();
@@ -7591,7 +7696,6 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         capturePolicyRef: captureRef,
         idempotencyKey: newUuidV7(),
       });
-      const taskId = await createExecutableTask('2.0', true);
       const candidate = JSON.parse(
         readFileSync(
           new URL(
@@ -7628,6 +7732,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           : terminalScenario === 'ELIGIBILITY_CHANGE' ||
               terminalScenario === 'TIMED_OUT' ||
               terminalScenario === 'TERMINAL_BEFORE_FINAL' ||
+              terminalScenario === 'FORMAL_LATE' ||
               terminalScenario === 'IG_WRONG_SESSION' ||
               terminalScenario === 'TIMED_OUT_BUNDLE_EXPIRED' ||
               terminalScenario === 'UNSUPPORTED_FINAL' ||
@@ -7639,9 +7744,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               ? 'PT30S'
               : terminalScenario === 'VALIDATION_EXPIRED'
                 ? 'PT30S'
-                : terminalScenario === 'RACE' || terminalScenario === 'LOCK_DEADLINE'
+                : terminalScenario === 'RACE' ||
+                    terminalScenario === 'LOCK_DEADLINE' ||
+                    terminalScenario === 'FORMAL_TTL'
                   ? 'PT30S'
                   : 'PT600S';
+      if (terminalScenario === 'FORMAL_TTL') record(revised.budget).wallClockLimit = 'PT30S';
       if (shortRecoveryBudget || ['BUDGET_EXHAUSTED', 'EXPIRE_SOURCE'].includes(recoveryVariant))
         record(revised.budget).wallClockLimit = 'PT30S';
       // Static selectors are Platform-scoped; recursive fixture scope rewriting
@@ -7656,12 +7764,107 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         if (profile.registryKey === 'te.work_order.human_review@1.0')
           record(revised.riskAndQuality).riskProfileRef = profile.reference;
       }
+      const quality = formalQualityFixture(
+        createQualityGovernanceDatabase(tePool),
+        runnerContext(),
+        () => new Date(clock),
+      );
+      const qualityProfile =
+        terminalScenario === 'FORMAL_QUALITY' ? await quality.createProfile() : undefined;
+      const completionRef = policyKey([newUuidV7(), newUuidV7()], fixture);
+      if (formal) {
+        const output = record((revised.expectedOutputs as unknown[])[0]);
+        output.allowedObjectTypes = ['artifact.artifact_revision'];
+        output.schemaRef = executionDocumentSchemaReference(fixture.enterpriseId);
+        record(revised.targetScope).allowedCreateTypes = [
+          'artifact.artifact',
+          'artifact.artifact_revision',
+        ];
+        for (const group of ['allowedCapabilities', 'deniedCapabilities'])
+          for (const cap of revised[group] as Record<string, unknown>[])
+            cap.resourceSelectors = (cap.resourceSelectors as string[]).map((type) =>
+              type.replace(/^zhiju\.artifact\./u, 'artifact.'),
+            );
+        record(revised.versionPins).runtimeAdapterContractRef =
+          workOrderReadyProfileRegistry.profiles.find(
+            (p) => p.registryKey === 'te.human_operated.synthetic.formal@1.0',
+          )?.reference;
+        revised.constraints = [
+          { profile: 'execution.completion_binding.v1', policyRef: completionRef },
+        ];
+        if (qualityProfile) {
+          record(revised.versionPins).qualityProfileRef = qualityProfile.profileRef;
+          record(revised.riskAndQuality).qualityProfileRef = qualityProfile.profileRef;
+        }
+        revised.completionCriteria = definedValue(formalFixture).workOrderCriteria.map((type) => ({
+          criterionId: newUuidV7(),
+          criterionType: type,
+          required: true,
+          expectedCondition: 'satisfied',
+          failureDisposition: 'block_until_satisfied',
+          evaluatorRef: registeredEvaluatorProfileReference(
+            'im06-evaluator-static-v1',
+            'te.work_order_completion.evaluator@1.0',
+          ),
+          inputBindings: [
+            type === 'NO_BLOCKING_INFORMATION_REQUEST'
+              ? 'informationRequests'
+              : type === 'REQUIRED_PROPOSAL_PROCESSED'
+                ? 'requiredProposals'
+                : `expectedOutput.${String(output.outputSlot)}`,
+          ],
+        }));
+        await registerPolicyVersionAs({
+          key: completionRef,
+          factId: newUuidV7(),
+          idempotencyKey: newUuidV7(),
+          effectiveFrom: PAST,
+          policySchemaRefs: [profileReference('execution.completion.policy@1.0')],
+          policyDocument: { maxCompletionValiditySeconds: 600 },
+        });
+      }
       const evaluator = registeredEvaluatorProfileReference(
         'im06-evaluator-static-v1',
-        'te.work_order_validation.evaluator@1.0',
+        formal
+          ? 'te.work_order_validation.evaluator@2.0'
+          : 'te.work_order_validation.evaluator@1.0',
       );
       for (const criterion of revised.completionCriteria as Record<string, unknown>[])
-        criterion.evaluatorRef = evaluator;
+        if (!formal) criterion.evaluatorRef = evaluator;
+      const taskId = await createExecutableTask(
+        '2.0',
+        true,
+        formal
+          ? {
+              expectedOutputSpec: { schemaVersion: '1.0', outputs: revised.expectedOutputs },
+              completionCriteria: {
+                schemaVersion: '1.0',
+                criteria: [
+                  ...definedValue(formalFixture).taskCriteria,
+                  ...(qualityProfile
+                    ? ['REVISION_ACCEPTANCE_READY', 'REVISION_FULLY_APPROVED']
+                    : []),
+                ].map((type) => ({
+                  criterionId: `criterion.${type.toLowerCase()}`,
+                  criterionType: type,
+                  required: true,
+                  evaluatorRef: registeredEvaluatorProfileReference(
+                    'im06-evaluator-static-v1',
+                    'te.task_completion.evaluator@1.0',
+                  ),
+                  bindings:
+                    type === 'NO_BLOCKING_INFORMATION_REQUEST'
+                      ? { scope: 'TASK_AND_CHILD_WORK_ORDERS' }
+                      : type === 'REQUIRED_WORK_ORDERS_COMPLETED'
+                        ? { scope: 'ALL_CHILD_WORK_ORDERS' }
+                        : { outputSlots: ['revision'] },
+                  expectedCondition: { satisfied: true },
+                  failureDisposition: 'BLOCK',
+                })),
+              },
+            }
+          : undefined,
+      );
       revised.taskRef = objectRef(TASK_V2, taskId, scope());
       revised.projectRef = objectRef('zhiju.project.project', fixture.projectId, scope());
       revised.requestedBy = { principalId: OPERATOR, principalKind: 'HUMAN' };
@@ -7717,12 +7920,15 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         effectiveFrom: PAST,
         policySchemaRefs: [
           profileReference(
-            bounded
-              ? 'execution.work_order_controls.policy@1.1'
-              : 'execution.work_order_controls.policy@1.0',
+            formal
+              ? 'execution.work_order_controls.policy@2.0'
+              : bounded
+                ? 'execution.work_order_controls.policy@1.1'
+                : 'execution.work_order_controls.policy@1.0',
           ),
         ],
         policyDocument: {
+          ...(formal ? { completionPolicyRef: completionRef } : {}),
           ...(bounded
             ? {
                 recovery: {
@@ -7738,7 +7944,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               }
             : {}),
           controls: Object.fromEntries(controlFields.map((k) => [k, revised[k]])),
-        } as CanonicalJsonObject,
+        } as unknown as CanonicalJsonObject,
       });
       await registerPolicyVersionAs({
         key: validationRef,
@@ -7836,6 +8042,187 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       record(revised.header).payloadHash = contentHash(
         hashContractPayload(revised as CanonicalJsonObject),
       );
+      const artifactDb = createArtifactDatabase(tePool);
+      const artifactStorage = new InMemoryObjectStorage();
+      const formalCodes = Object.fromEntries(
+        formalCompletionBindings().map((b, i) => [
+          b.capabilityConfigKey,
+          `wi235.auth.c${i}.${serviceId.replaceAll('-', '')}`,
+        ]),
+      );
+      const formalAuthorization = {
+        capabilityCodes: formalCodes,
+        servicePrincipalIds: {
+          artifact: serviceId,
+          evaluator: serviceId,
+          validator: serviceId,
+          driver: serviceId,
+          taskExecution: [serviceId],
+        },
+        now: () => new Date(clock),
+      };
+      const formalAuth = createFormalCompletionAuthorizationPort(formalAuthorization);
+      let bindingProof: (() => Promise<void>) | undefined;
+      let outputProof: (() => Promise<void>) | undefined;
+      async function formalEnvelope(
+        key: string,
+        targetRef: Common.ObjectRef | Common.ContentAddressedRef,
+        payload: CanonicalJsonObject,
+        principal = service,
+        expectedAggregateVersion?: number,
+        query = false,
+      ) {
+        clock = Math.max(clock, Date.now());
+        const mapping = definedValue(
+          formalCompletionBindings().find((b) => b.capabilityConfigKey === key),
+        );
+        const payloadHash = digestCanonicalPayload(payload).hash;
+        const issued = await formalAuth.authorize(
+          identityDeps([fixture.projectId], principal),
+          key,
+          {
+            actorSnapshotRef: principal.actorRef,
+            commandType: mapping.commandType,
+            commandVersion: mapping.commandVersion,
+            commandPayloadHash: payloadHash,
+            authenticationContextHash: AUTH_HASH,
+            targetRef: targetRef,
+          },
+        );
+        expect(issued.outcome, JSON.stringify(issued)).toBe('ALLOW');
+        if (issued.outcome !== 'ALLOW') throw new Error('Formal authorization denied');
+        const revalidate = async () => {
+          const r = await formalAuth.revalidate(identityDeps([fixture.projectId], principal), key, {
+            decisionRef: issued.authorizationDecisionRef,
+            expectedCommandType: mapping.commandType,
+            expectedCommandVersion: mapping.commandVersion,
+            expectedCommandPayloadHash: payloadHash,
+            expectedAuthenticationContextHash: AUTH_HASH,
+            expectedTargetRef: targetRef,
+          });
+          if (!r.valid) throw new Error(`Formal authorization revoked: ${key}`);
+        };
+        if (key === 'outputCreationBindingReadV1') bindingProof = revalidate;
+        if (key === 'executionOutputReadV1') outputProof = revalidate;
+        return query
+          ? {
+              queryId: newUuidV7(),
+              queryType: mapping.commandType,
+              queryVersion: mapping.commandVersion,
+              scopeRef: scope(),
+              requester: principal.actorRef,
+              authorizationDecisionRef: issued.authorizationDecisionRef,
+              authenticationContextRef: {
+                kind: 'CONTENT_ADDRESSED',
+                objectType: 'identity.authentication_context',
+                objectId: principal.principalId,
+                scope: scope(),
+                contentHash: contentHash(AUTH_HASH.toString('hex')),
+              },
+              consistencyRequirement: 'AUTHORITATIVE',
+              correlationId: newUuidV7(),
+              requestedAt: new Date(clock).toISOString(),
+              payload,
+            }
+          : {
+              commandId: newUuidV7(),
+              commandType: mapping.commandType,
+              commandVersion: mapping.commandVersion,
+              scopeRef: scope(),
+              targetRef,
+              actor: principal.actorRef,
+              authorizationDecisionRef: issued.authorizationDecisionRef,
+              idempotencyKey: newUuidV7(),
+              correlationId: newUuidV7(),
+              requestedAt: new Date(clock).toISOString(),
+              ...(expectedAggregateVersion === undefined ? {} : { expectedAggregateVersion }),
+              payload,
+              integrity: {
+                canonicalizationVersion: '1',
+                payloadHash: contentHash(payloadHash.toString('hex')),
+              },
+            };
+      }
+      const formalConfig: FormalCompletionEntryConfig = {
+        taskExecutionDb: teDb,
+        enterpriseProjectDb,
+        identity: { db: identityDb, repo: identityRepo, crypto },
+        capabilities: dependencyCapabilities,
+        formalAuthorization,
+        artifactDb,
+        artifactStorage,
+        qualityDb: createQualityGovernanceDatabase(tePool),
+        now: () => new Date(clock),
+        revalidateOutputCreationBinding: async () => {
+          if (!bindingProof) throw new Error('Missing Artifact Service binding proof');
+          await bindingProof();
+        },
+        readOutputCreationBinding: async (runRef) =>
+          formalEntry.readBinding(
+            await formalEnvelope(
+              'outputCreationBindingReadV1',
+              runRef,
+              { runRef } as unknown as CanonicalJsonObject,
+              service,
+              undefined,
+              true,
+            ),
+            sessionFor(service),
+          ),
+        ...(bounded ? { recoveryConfig: () => recoveryConfig } : {}),
+        get driver() {
+          return {
+            runtime: runtimeDriver,
+            ports: {
+              revalidateAuthorization: async () => {
+                if (outputProof) await outputProof();
+              },
+              readExecutionOutput: async (revisionRef: Common.ContentAddressedRef) =>
+                formalEntry.readOutput(
+                  await formalEnvelope(
+                    'executionOutputReadV1',
+                    revisionRef,
+                    { revisionRef } as unknown as CanonicalJsonObject,
+                    service,
+                    undefined,
+                    true,
+                  ),
+                  sessionFor(service),
+                ) as unknown as Promise<CanonicalJsonObject>,
+            },
+          };
+        },
+      };
+      const formalEntry = createFormalCompletionEntry(formalConfig);
+      const formalGrants = new Map<string, string>();
+      if (formal)
+        await prepareIndependentGrants(formalCompletionBindings(), async (b) => {
+          const principal = b.expectedPrincipalKind === 'HUMAN' ? operator() : service;
+          formalGrants.set(
+            b.capabilityConfigKey,
+            await grant({
+              principal,
+              capabilityCode: definedValue(formalCodes[b.capabilityConfigKey]),
+              action: b.requiredGrantAction,
+              selectorType: b.selectorType,
+              targetObjectType: definedValue(b.targetObjectTypes[0]),
+              targetObjectTypes: b.targetObjectTypes,
+            }),
+          );
+          if (
+            b.capabilityConfigKey.startsWith('readinessBuild') ||
+            b.capabilityConfigKey.startsWith('readinessConsume')
+          ) {
+            await grant({
+              principal: operator(),
+              capabilityCode: definedValue(formalCodes[b.capabilityConfigKey]),
+              action: b.requiredGrantAction,
+              selectorType: b.selectorType,
+              targetObjectType: definedValue(b.targetObjectTypes[0]),
+              targetObjectTypes: b.targetObjectTypes,
+            });
+          }
+        });
       const entry = createWorkOrderValidationEntry({
         taskExecutionDb: teDb,
         enterpriseProjectDb,
@@ -7843,6 +8230,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         capabilityCodes: codes,
         capabilities: dependencyCapabilities,
         now: () => new Date(clock),
+        ...(formal ? { formalCompletion: formalConfig } : {}),
       });
       const auth = createWorkOrderValidationAuthorizationPort({
         capabilityCodes: codes,
@@ -8534,7 +8922,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         capabilityCode: 'artifact.revision.create',
         action: 'create',
         selectorType: 'CREATE_TARGET_TYPE',
-        targetObjectType: 'zhiju.artifact.artifact_revision',
+        targetObjectType: formal
+          ? 'artifact.artifact_revision'
+          : 'zhiju.artifact.artifact_revision',
         ...(terminalScenario === 'TIMED_OUT_BUNDLE_EXPIRED'
           ? { validTo: new Date(clock + 45_000) }
           : {}),
@@ -8607,12 +8997,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           /"name":"(?:task_execution|integration_gateway|artifact)"/u.test(query),
         );
       const recoveryCodes = Object.fromEntries(
-        BLOCKED_INPUT_RECOVERY_BINDINGS.map((b, i) => [
+        [...BLOCKED_INPUT_RECOVERY_BINDINGS, ...FORMAL_OUTPUT_RECOVERY_BINDINGS].map((b, i) => [
           b.capabilityConfigKey,
           `wi231.c${i}.${serviceId.replaceAll('-', '')}`,
         ]),
       );
-      if (bounded && recoveryVariant === 'NORMAL')
+      if (!formal && bounded && recoveryVariant === 'NORMAL')
         recoveryCodes.informationRequestResolveV1 = definedValue(
           recoveryCodes.informationAnswerSubmitV1,
         );
@@ -9213,6 +9603,28 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       let otherChildResultRef: unknown;
       let otherChildAttemptRef: Common.ObjectRef | undefined;
       const proposalId = newUuidV7();
+      if (formal && !bounded)
+        await prepareIndependentGrants(BLOCKED_INPUT_RECOVERY_BINDINGS, async (b) => {
+          await grant({
+            principal: b.expectedPrincipalKind === 'HUMAN' ? operator() : service,
+            capabilityCode: definedValue(recoveryCodes[b.capabilityConfigKey]),
+            action: b.requiredGrantAction,
+            selectorType: b.selectorType,
+            targetObjectType: definedValue(b.targetObjectTypes[0]),
+            targetObjectTypes: b.targetObjectTypes,
+          });
+        });
+      if (formal && bounded)
+        await prepareIndependentGrants(FORMAL_OUTPUT_RECOVERY_BINDINGS, async (b) => {
+          await grant({
+            principal: service,
+            capabilityCode: definedValue(recoveryCodes[b.capabilityConfigKey]),
+            action: b.requiredGrantAction,
+            selectorType: b.selectorType,
+            targetObjectType: definedValue(b.targetObjectTypes[0]),
+            targetObjectTypes: b.targetObjectTypes,
+          });
+        });
       if (bounded) {
         const grantEntries = BLOCKED_INPUT_RECOVERY_BINDINGS.flatMap((b) =>
           (b.expectedPrincipalKind === 'HUMAN'
@@ -9233,6 +9645,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         );
         await prepareIndependentGrants(grantEntries, async ({ b, principal }) => {
           if (
+            !formal &&
             recoveryVariant === 'NORMAL' &&
             b.capabilityConfigKey === 'informationRequestResolveV1'
           )
@@ -9242,7 +9655,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             principal,
             capabilityCode: definedValue(recoveryCodes[b.capabilityConfigKey]),
             action: b.requiredGrantAction,
-            ...(recoveryVariant === 'NORMAL' &&
+            ...(!formal &&
+            recoveryVariant === 'NORMAL' &&
             b.capabilityConfigKey === 'informationAnswerSubmitV1'
               ? { actions: [b.requiredGrantAction, 'execution.information_request.resolve.v1'] }
               : {}),
@@ -9254,7 +9668,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             `${principal.principalId}:${b.capabilityConfigKey}:${targetObjectType}`,
             id,
           );
-          if (recoveryVariant === 'NORMAL' && b.capabilityConfigKey === 'informationAnswerSubmitV1')
+          if (
+            !formal &&
+            recoveryVariant === 'NORMAL' &&
+            b.capabilityConfigKey === 'informationAnswerSubmitV1'
+          )
             recoveryGrants.set(
               `${principal.principalId}:informationRequestResolveV1:${targetObjectType}`,
               id,
@@ -9478,6 +9896,30 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       }
       let emitEarlyFinal = false;
       const runtimeJournal = new InMemoryRenderObjectStorage();
+      function formalRuntimeOutcome(actualRunId: string): string {
+        const templateName = definedValue(
+          definedValue(formalFixture).runtimeTemplates[actualRunId === runRef.objectId ? 0 : 1],
+        );
+        const descriptor = record(
+          JSON.parse(
+            readFileSync(
+              new URL(
+                `../fixtures/task-execution/formal-completion/runtime/${templateName}.json`,
+                import.meta.url,
+              ),
+              'utf8',
+            ),
+          ),
+        );
+        expect(descriptor).toMatchObject({
+          templateId: templateName,
+          templateVersion: '1.0',
+          runtimeAdapterProfile: 'te.human_operated.synthetic.formal@1.0',
+        });
+        if (typeof descriptor.executionOutcome !== 'string')
+          throw new Error('Invalid formal Runtime template');
+        return descriptor.executionOutcome;
+      }
       const runtimeDriver = new LocalSyntheticRuntimeDriver(
         (input, ack) =>
           ({
@@ -9507,10 +9949,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             taskRef: revised.taskRef as CanonicalJsonObject,
             projectRef: revised.projectRef as CanonicalJsonObject,
             submissionKind: terminalScenario === 'NON_FINAL_CORE_REJECT' ? 'INTERIM' : 'FINAL',
-            executionOutcome:
-              bounded &&
-              (input.request.runRef.objectId === runRef.objectId ||
-                input.request.workOrderRef.objectId === otherChildId)
+            executionOutcome: formal
+              ? formalRuntimeOutcome(input.request.runRef.objectId)
+              : bounded &&
+                  (input.request.runRef.objectId === runRef.objectId ||
+                    input.request.workOrderRef.objectId === otherChildId)
                 ? 'BLOCKED_INPUT'
                 : bounded && recoveryVariant === 'SECOND_BLOCKED'
                   ? 'BLOCKED_INPUT'
@@ -9618,11 +10061,59 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       if (
         terminalScenario === 'TIMED_OUT' ||
         terminalScenario === 'TERMINAL_BEFORE_FINAL' ||
+        terminalScenario === 'FORMAL_LATE' ||
         terminalScenario === 'TIMED_OUT_BUNDLE_EXPIRED' ||
         terminalScenario === 'NON_FINAL_CORE_REJECT'
       )
         runtimeDriver.releaseFinal = () => Promise.resolve();
+      if (terminalScenario === 'FORMAL_EMPTY') {
+        // Replace only the external Runtime final producer. Invoke, acknowledgement,
+        // immutable journal and every IG/TE owning consumer remain real.
+        runtimeDriver.releaseFinal = async (attempt) => {
+          const stored = definedValue(
+            await runtimeJournal.read(
+              `integration/runtime/synthetic/${attempt.objectId}/invocation.json`,
+            ),
+          );
+          const invocation = record(JSON.parse(stored.bytes.toString('utf8')));
+          const acknowledgement = record(invocation.acknowledgement);
+          const observedAt = new Date(clock).toISOString();
+          const template = record(invocation.content);
+          const body = {
+            ...template,
+            businessOutputs: [],
+            header: { ...record(template.header), issuedAt: observedAt },
+            submittedAt: observedAt,
+            submittedByRuntime: acknowledgement.runtimeAdapterIdentityRef,
+          } as CanonicalJsonObject;
+          const agentResultContract = {
+            ...body,
+            header: { ...record(body.header), payloadHash: contentHash(hashContractPayload(body)) },
+          } as unknown as CanonicalJsonObject;
+          await runtimeJournal.putImmutable({
+            locator: `integration/runtime/synthetic/${attempt.objectId}/final.json`,
+            bytes: Buffer.from(
+              canonicalize({
+                attemptRef: attempt,
+                runtimeAdapterIdentityRef: acknowledgement.runtimeAdapterIdentityRef,
+                bindingHash: acknowledgement.bindingHash,
+                runtimeSubmissionRef: {
+                  system: 'zhiju.runtime.synthetic',
+                  resourceType: 'runtime_submission',
+                  externalId: newUuidV7(),
+                  observedAt,
+                },
+                runFencingToken: record(record(invocation.input).invocationBinding).fencingToken,
+                agentResultContract,
+                observedAt,
+              } as unknown as CanonicalJsonObject),
+            ),
+            mediaType: 'application/json',
+          });
+        };
+      }
       const firstRunConfig = {
+        ...(formal ? { formalCompletion: formalConfig } : {}),
         taskExecutionDb: guardedTeDb,
         enterpriseProjectDb,
         identity: { db: identityDb, repo: identityRepo, crypto },
@@ -9630,7 +10121,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         runtimeDriver,
         receiptStorage: runtimeJournal,
         capabilityCodes: firstRunCodes,
-        ...(bounded
+        ...(bounded || formal
           ? {
               recovery: {
                 recoveryCapabilityCodes: recoveryCodes,
@@ -9643,6 +10134,1616 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       } satisfies Parameters<typeof createControlledFirstRunEntry>[0];
       const firstRunEntryRaw = createControlledFirstRunEntry(firstRunConfig);
       const firstRunEntry = observeEntry(withRecoveryReceiptFaults(firstRunEntryRaw, true));
+      let replayFormalCreation: (() => Promise<unknown>) | undefined;
+      let actualFormalOutput: CanonicalJsonObject | undefined;
+      let actualFormalArtifact: Common.ObjectRef | undefined;
+      let actualQuality: Awaited<ReturnType<typeof quality.accept>> | undefined;
+      async function createAndReleaseFormalOutput(
+        actualRun: Common.ObjectRef,
+        actualAttempt: Common.ObjectRef,
+      ) {
+        clock = Math.max(clock, Date.now());
+        if (terminalScenario === 'FORMAL_RECOVERED') {
+          const beforeCreation = await recoveryEntryRaw.read(
+            await recoveryEnvelope(
+              'workOrderExecutionStateReadV1',
+              workOrderRef,
+              { workOrderRef } as unknown as CanonicalJsonObject,
+              service,
+              undefined,
+              true,
+            ),
+            sessionFor(service),
+          );
+          expect(record(beforeCreation).blockerRefs).toHaveLength(1);
+          const key = 'outputCreationBundleReadV1';
+          expect(
+            await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+              targetId: definedValue(formalGrants.get(key)),
+              expectedAggregateVersion: '1',
+              scope: {
+                scopeKind: 'PROJECT',
+                enterpriseId: fixture.enterpriseId,
+                projectId: fixture.projectId,
+              },
+              reasonCode: 'FORMAL_BINDING_DEPENDENCY_REVOKED',
+              effectiveAt: new Date(clock),
+              idempotencyKey: newUuidV7(),
+            }),
+          ).toMatchObject({ status: 'COMMITTED' });
+          const proof = await formalEnvelope(
+            'outputCreationBindingReadV1',
+            actualRun,
+            { runRef: actualRun } as unknown as CanonicalJsonObject,
+            service,
+            undefined,
+            true,
+          );
+          await expect(formalEntry.readBinding(proof, sessionFor(service))).rejects.toMatchObject({
+            code: 'AUTHORIZATION_DECISION_INVALID',
+          });
+          const mapping = definedValue(
+            formalCompletionBindings().find((b) => b.capabilityConfigKey === key),
+          );
+          await grant({
+            principal: service,
+            capabilityCode: definedValue(formalCodes[key]),
+            action: mapping.requiredGrantAction,
+            selectorType: mapping.selectorType,
+            targetObjectType: definedValue(mapping.targetObjectTypes[0]),
+          });
+          expect(
+            await formalEntry.readBinding(
+              await formalEnvelope(
+                'outputCreationBindingReadV1',
+                actualRun,
+                { runRef: actualRun } as unknown as CanonicalJsonObject,
+                service,
+                undefined,
+                true,
+              ),
+              sessionFor(service),
+            ),
+          ).toMatchObject({ runRef: actualRun });
+          expect(
+            record(
+              await recoveryEntryRaw.read(
+                await recoveryEnvelope(
+                  'workOrderExecutionStateReadV1',
+                  workOrderRef,
+                  { workOrderRef } as unknown as CanonicalJsonObject,
+                  service,
+                  undefined,
+                  true,
+                ),
+                sessionFor(service),
+              ),
+            ).blockerRefs,
+          ).toHaveLength(1);
+        }
+        const ctx = runnerContext();
+        let artifactId: string = newUuidV7();
+        const revisionId = newUuidV7(),
+          contentId = newUuidV7();
+        const artifactCommand = (
+          type: string,
+          targetType: string,
+          targetId: string,
+          payload: CanonicalJsonObject,
+        ) => ({
+          commandId: newUuidV7(),
+          commandType: type,
+          commandVersion: '1.0',
+          idempotencyScope: type,
+          idempotencyKey: newUuidV7(),
+          requestPayload: payload,
+          payload,
+          enterpriseId: fixture.enterpriseId,
+          projectId: fixture.projectId,
+          targetType,
+          targetId,
+          correlationId: CORRELATION,
+          principalId: OPERATOR,
+          principalKind: 'HUMAN' as const,
+          actorSnapshotId: OPERATOR_ACTOR,
+          authorizationDecisionId: REQUEST_DECISION,
+          policySnapshotId: POLICY_SNAPSHOT_ID,
+        });
+        const createdRoot = await handleCreateArtifact(
+          artifactDb,
+          ctx,
+          artifactCommand('artifact.create_artifact', 'Artifact', artifactId, {
+            enterpriseRef: objectRef('Enterprise', fixture.enterpriseId, {
+              enterpriseId: fixture.enterpriseId,
+            }),
+            definition: {
+              businessScope: 'PROJECT_DELIVERABLE',
+              originProjectRef: objectRef('Project', fixture.projectId, scope()),
+              artifactType: 'CONTROL_PROCEDURE',
+              title: `Formal completion output ${actualRun.objectId}`,
+              classification: 'CUSTOMER_DELIVERY',
+              deliveryItemRefs: [],
+              metadata: {},
+            },
+          }) as unknown as Parameters<typeof handleCreateArtifact>[2],
+        );
+        expect(createdRoot, JSON.stringify(createdRoot)).toMatchObject({ status: 'COMMITTED' });
+        const createdArtifact = committedPayload(createdRoot);
+        artifactId = String(record(createdArtifact.artifactRef).objectId);
+        const branch = String(
+          record((createdArtifact.workingHeads as CanonicalJsonObject[])[0]).branchId,
+        );
+        const canonical = JSON.parse(
+          readFileSync(
+            new URL(
+              '../fixtures/contracts/canonical-content/document-golden.json',
+              import.meta.url,
+            ),
+            'utf8',
+          ),
+        ).payload as Record<string, unknown>;
+        canonical.schemaRef = executionDocumentSchemaReference(fixture.enterpriseId);
+        record(canonical.body).documentId = newUuidV7();
+        const contentDigest = contentHash(sha256CanonicalJson(canonical as CanonicalJsonObject));
+        expect(
+          await stageCanonicalContent(
+            artifactDb,
+            ctx,
+            artifactCommand(
+              'artifact.stage_canonical_content',
+              'CanonicalContentObject',
+              contentId,
+              {
+                content: canonical,
+                declaredContentHash: contentDigest,
+              } as unknown as CanonicalJsonObject,
+            ) as unknown as Parameters<typeof stageCanonicalContent>[2],
+            artifactStorage,
+          ),
+        ).toMatchObject({ status: 'COMMITTED' });
+        expect(
+          await linkCanonicalContent(
+            artifactDb,
+            ctx,
+            artifactCommand(
+              'artifact.link_canonical_content',
+              'CanonicalContentObject',
+              contentId,
+              {
+                ownerObjectType: 'ArtifactRevision',
+                ownerObjectId: revisionId,
+                ownerVersionId: revisionId,
+              },
+            ) as unknown as Parameters<typeof linkCanonicalContent>[2],
+            artifactStorage,
+          ),
+        ).toMatchObject({ commandResult: { status: 'COMMITTED' }, finalizationState: 'FINALIZED' });
+        const frozen = await freezeCanonicalContent(
+          artifactDb,
+          ctx,
+          artifactCommand(
+            'artifact.freeze_canonical_content',
+            'CanonicalContentObject',
+            contentId,
+            {},
+          ),
+        );
+        const payload = {
+          runRef: actualRun,
+          revision: {
+            artifactRef: objectRef('artifact.artifact', artifactId, scope()),
+            branchId: branch,
+            parentRevisionRefs: [],
+            contentType: 'STRUCTURED_DOCUMENT',
+            contentRef: record(committedPayload(frozen)).objectRef,
+            contentHash: contentDigest,
+            structureSchemaRef: canonical.schemaRef,
+            semanticMetadata: {},
+            changedUnits: ['document-root'],
+            changeSummary: 'Human created formal output',
+          },
+        } as unknown as CanonicalJsonObject;
+        const create = await formalEnvelope(
+          'executionRevisionCreateV1',
+          objectRef('artifact.artifact_revision', revisionId, scope()) as Common.ObjectRef,
+          payload,
+          operator(),
+        );
+        if (terminalScenario === 'FORMAL_NORMAL') {
+          if (!('commandId' in create)) throw new Error('Expected creation Command');
+          await expect(
+            formalEntry.createRevision({ ...create, actor: service.actorRef }, sessionFor(service)),
+          ).rejects.toBeDefined();
+          const deniedEntry = createFormalCompletionEntry({
+            ...formalConfig,
+            artifactDb: artifactDb.withPlugin(queryProbe),
+            taskExecutionDb: guardedTeDb,
+          });
+          for (const borrower of [service, ...borrowedActors]) {
+            for (const key of ['executionRevisionCreateV1', 'formalOutputReleaseV1']) {
+              const mapping = definedValue(
+                formalCompletionBindings().find((b) => b.capabilityConfigKey === key),
+              );
+              if (borrower.principalKind !== 'HUMAN')
+                await grant({
+                  principal: borrower,
+                  capabilityCode: definedValue(formalCodes[key]),
+                  action: mapping.requiredGrantAction,
+                  selectorType: mapping.selectorType,
+                  targetObjectType: definedValue(mapping.targetObjectTypes[0]),
+                });
+              const target = key === 'executionRevisionCreateV1' ? create.targetRef : actualAttempt;
+              const body =
+                key === 'executionRevisionCreateV1'
+                  ? payload
+                  : { attemptRef: actualAttempt, output: {} };
+              queryReads.length = 0;
+              const issued = await formalAuth.authorize(
+                identityDeps([fixture.projectId], borrower),
+                key,
+                {
+                  actorSnapshotRef: borrower.actorRef,
+                  commandType: mapping.commandType,
+                  commandVersion: mapping.commandVersion,
+                  commandPayloadHash: digestCanonicalPayload(body as CanonicalJsonObject).hash,
+                  authenticationContextHash: AUTH_HASH,
+                  targetRef: target,
+                },
+              );
+              expect(issued.outcome).toBe('DENY');
+              if (key === 'executionRevisionCreateV1')
+                await expect(
+                  deniedEntry.createRevision(
+                    { ...create, actor: borrower.actorRef },
+                    sessionFor(borrower),
+                  ),
+                ).rejects.toBeDefined();
+              else
+                await expect(
+                  deniedEntry.releaseFormalOutput(
+                    body as CanonicalJsonObject,
+                    create.authorizationDecisionRef,
+                    sessionFor(borrower),
+                  ),
+                ).rejects.toBeDefined();
+              expect(protectedReads()).toEqual([]);
+            }
+          }
+          const premature = {
+            attemptRef: actualAttempt,
+            output: {
+              outputSlot: 'revision',
+              objectType: 'artifact.artifact_revision',
+              ref: {
+                kind: 'CONTENT_ADDRESSED',
+                objectType: 'artifact.artifact_revision',
+                objectId: revisionId,
+                scope: scope(),
+                contentHash: contentDigest,
+              },
+              relationToTarget: 'created_for_work_order',
+              declaredPurpose: 'Formal work order output',
+              createdByRunRef: actualRun,
+              creationCommandRef: {
+                kind: 'CONTENT_ADDRESSED',
+                objectType: 'zhiju.artifact.command_receipt',
+                objectId: newUuidV7(),
+                scope: scope(),
+                contentHash: contentHash('0'.repeat(64)),
+              },
+            },
+          } as unknown as CanonicalJsonObject;
+          const prematureProof = await formalEnvelope(
+            'formalOutputReleaseV1',
+            actualAttempt,
+            premature,
+            operator(),
+          );
+          await expect(
+            formalEntry.releaseFormalOutput(
+              premature,
+              prematureProof.authorizationDecisionRef,
+              sessionFor(),
+            ),
+          ).rejects.toBeDefined();
+          expect(await runtimeDriver.readFinal(actualAttempt)).toBeUndefined();
+          if (!('commandId' in create)) throw new Error('Expected creation Command');
+          for (const [table, event, condition] of [
+            ['artifact_revision', 'INSERT', `NEW.revision_id='${revisionId}'::uuid`],
+            [
+              'execution_revision_command_receipt',
+              'INSERT',
+              `NEW.command_id='${create.commandId}'::uuid`,
+            ],
+            [
+              'execution_revision_creation_binding',
+              'INSERT',
+              `NEW.command_id='${create.commandId}'::uuid`,
+            ],
+            ['outbox_event', 'INSERT', `NEW.source_command_id='${create.commandId}'::uuid`],
+            [
+              'command_receipt',
+              'UPDATE',
+              `NEW.command_id='${create.commandId}'::uuid AND NEW.outcome='COMMITTED'`,
+            ],
+          ]) {
+            await admin.query(
+              "CREATE FUNCTION artifact.wi235_fault() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION 'wi235 creation fault' USING ERRCODE='P0001'; END $f$",
+            );
+            await admin.query(
+              `CREATE TRIGGER zz_wi235_fault AFTER ${event} ON artifact.${table} FOR EACH ROW WHEN (${condition}) EXECUTE FUNCTION artifact.wi235_fault()`,
+            );
+            try {
+              await expect(formalEntry.createRevision(create, sessionFor())).rejects.toMatchObject({
+                code: 'P0001',
+              });
+            } finally {
+              await admin.query(`DROP TRIGGER zz_wi235_fault ON artifact.${table}`);
+              await admin.query('DROP FUNCTION artifact.wi235_fault()');
+            }
+            expect(
+              (
+                await admin.query(
+                  'SELECT revision_id FROM artifact.artifact_revision WHERE revision_id=$1',
+                  [revisionId],
+                )
+              ).rows,
+            ).toEqual([]);
+            expect(
+              (
+                await admin.query(
+                  'SELECT command_id FROM artifact.command_receipt WHERE command_id=$1',
+                  [create.commandId],
+                )
+              ).rows,
+            ).toEqual([]);
+          }
+        }
+        const result = await formalEntry.createRevision(create, sessionFor());
+        expect(result, JSON.stringify(result)).toMatchObject({ status: 'COMMITTED' });
+        const refs = committedPayload(result);
+        if (terminalScenario === 'FORMAL_NORMAL') {
+          for (const table of [
+            'execution_revision_creation_binding',
+            'execution_revision_command_receipt',
+          ] as const) {
+            const rows = (allowedProjectIds: readonly string[]) =>
+              withArtifactTransaction(artifactDb, { ...ctx, allowedProjectIds }, (trx) =>
+                sql`SELECT revision_id FROM ${sql.table(`artifact.${table}`)} WHERE revision_id=${revisionId}::uuid`.execute(
+                  trx,
+                ),
+              );
+            expect((await rows([fixture.projectId])).rows).toEqual([{ revision_id: revisionId }]);
+            expect((await rows([newUuidV7()])).rows).toEqual([]);
+            expect((await rows([fixture.projectId])).rows).toEqual([{ revision_id: revisionId }]);
+            for (const action of ['UPDATE', 'DELETE']) {
+              const statement =
+                action === 'UPDATE'
+                  ? `UPDATE artifact.${table} SET canonical_payload=canonical_payload WHERE revision_id=$1`
+                  : `DELETE FROM artifact.${table} WHERE revision_id=$1`;
+              await expect(
+                withArtifactTransaction(artifactDb, ctx, (trx) =>
+                  sql.raw(statement.replace('$1', `'${revisionId}'::uuid`)).execute(trx),
+                ),
+              ).rejects.toMatchObject({ code: '42501' });
+              await expect(admin.query(statement, [revisionId])).rejects.toMatchObject({
+                code: '55000',
+              });
+            }
+          }
+        }
+        replayFormalCreation = () => formalEntry.createRevision(create, sessionFor());
+        const output = {
+          outputSlot: 'revision',
+          objectType: 'artifact.artifact_revision',
+          ref: refs.revisionRef,
+          relationToTarget: 'created_for_work_order',
+          declaredPurpose: 'Formal work order output',
+          createdByRunRef: actualRun,
+          creationCommandRef: refs.creationCommandRef,
+        } as unknown as CanonicalJsonObject;
+        actualFormalOutput = output;
+        actualFormalArtifact = objectRef(
+          'artifact.artifact',
+          artifactId,
+          scope(),
+        ) as Common.ObjectRef;
+        if (qualityProfile) {
+          const otherProfile = await quality.createProfile();
+          const otherAcceptance = await quality.accept(
+            otherProfile,
+            actualFormalArtifact,
+            refs.revisionRef as unknown as Common.ContentAddressedRef,
+          );
+          await quality.approve(
+            otherProfile,
+            actualFormalArtifact,
+            refs.revisionRef as unknown as Common.ContentAddressedRef,
+            otherAcceptance.acceptanceRef,
+            runnerContext(other()),
+          );
+          actualQuality = await quality.accept(
+            qualityProfile,
+            actualFormalArtifact,
+            refs.revisionRef as unknown as Common.ContentAddressedRef,
+          );
+          await quality.approve(
+            qualityProfile,
+            actualFormalArtifact,
+            refs.revisionRef as unknown as Common.ContentAddressedRef,
+            actualQuality.acceptanceRef,
+            runnerContext(other()),
+          );
+        }
+        const release = { attemptRef: actualAttempt, output } as unknown as CanonicalJsonObject;
+        const proof = await formalEnvelope(
+          'formalOutputReleaseV1',
+          actualAttempt,
+          release,
+          operator(),
+        );
+        if (terminalScenario === 'FORMAL_NORMAL') {
+          const denied = createFormalCompletionEntry({
+            ...formalConfig,
+            artifactDb: artifactDb.withPlugin(queryProbe),
+            taskExecutionDb: guardedTeDb,
+          });
+          for (const borrower of [service, ...borrowedActors]) {
+            queryReads.length = 0;
+            await expect(
+              denied.releaseFormalOutput(
+                release,
+                proof.authorizationDecisionRef,
+                sessionFor(borrower),
+              ),
+            ).rejects.toBeDefined();
+            expect(protectedReads()).toEqual([]);
+          }
+        }
+        await formalEntry.releaseFormalOutput(
+          release,
+          proof.authorizationDecisionRef,
+          sessionFor(),
+        );
+        if (terminalScenario === 'FORMAL_NORMAL') {
+          const otherOutput = { ...output, declaredPurpose: 'Conflicting second final' };
+          const conflictRelease = {
+            attemptRef: actualAttempt,
+            output: otherOutput,
+          } as unknown as CanonicalJsonObject;
+          const conflictProof = await formalEnvelope(
+            'formalOutputReleaseV1',
+            actualAttempt,
+            conflictRelease,
+            operator(),
+          );
+          await expect(
+            formalEntry.releaseFormalOutput(
+              conflictRelease,
+              conflictProof.authorizationDecisionRef,
+              sessionFor(),
+            ),
+          ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_CONFLICT' });
+        }
+        const restartedDriver = new LocalSyntheticRuntimeDriver(
+          undefined,
+          runtimeJournal,
+          () => new Date(clock),
+        );
+        const savedFinal = await runtimeDriver.readFinal(actualAttempt);
+        expect(savedFinal).toBeDefined();
+        expect(await restartedDriver.readFinal(actualAttempt)).toEqual(savedFinal);
+        await restartedDriver.releaseFormalOutput(actualAttempt, output, {
+          revalidateAuthorization: async () => {
+            if (!outputProof) throw new Error('Missing current output proof');
+            await outputProof();
+          },
+          readExecutionOutput: async (revisionRef) =>
+            (await formalEntry.readOutput(
+              await formalEnvelope(
+                'executionOutputReadV1',
+                revisionRef,
+                { revisionRef } as unknown as CanonicalJsonObject,
+                service,
+                undefined,
+                true,
+              ),
+              sessionFor(service),
+            )) as unknown as CanonicalJsonObject,
+        });
+        expect(await restartedDriver.readFinal(actualAttempt)).toEqual(savedFinal);
+        expect(restartedDriver.invokedAttemptIds).toEqual([]);
+        expect(await formalEntry.createRevision(create, sessionFor())).toMatchObject({
+          status: 'DUPLICATE',
+          resultPayload: refs,
+        });
+        return output;
+      }
+      async function completeFormal() {
+        if (terminalScenario !== 'FORMAL_EMPTY')
+          expect(await definedValue(replayFormalCreation)()).toMatchObject({ status: 'DUPLICATE' });
+        if (!bounded) {
+          const version = Number(
+            definedValue(
+              (
+                await admin.query<{ aggregate_version: string }>(
+                  'SELECT aggregate_version FROM task_execution.work_order WHERE work_order_id=$1',
+                  [woId],
+                )
+              ).rows[0],
+            ).aggregate_version,
+          );
+          expect(
+            await firstRunEntry.reconcile(
+              await firstRunEnvelope(
+                'execution.reconcile_work_order_execution',
+                workOrderRef,
+                { triggerRef: runRef } as unknown as CanonicalJsonObject,
+                service,
+                version,
+              ),
+              sessionFor(service),
+            ),
+          ).toMatchObject({ status: 'COMMITTED' });
+          const taskVersion = Number(
+            definedValue(
+              (
+                await admin.query<{ aggregate_version: string }>(
+                  'SELECT aggregate_version FROM task_execution.task WHERE task_id=$1',
+                  [taskId],
+                )
+              ).rows[0],
+            ).aggregate_version,
+          );
+          expect(
+            await recoveryEntry.command(
+              await recoveryEnvelope(
+                'taskReconcileV1',
+                revised.taskRef as Common.ObjectRef,
+                { triggerRef: runRef } as unknown as CanonicalJsonObject,
+                service,
+                taskVersion,
+              ),
+              sessionFor(service),
+            ),
+          ).toMatchObject({ status: 'COMMITTED' });
+        }
+        const payload = {
+          policyRef: completionRef,
+          evaluatorRef: registeredEvaluatorProfileReference(
+            'im06-evaluator-static-v1',
+            'te.work_order_completion.evaluator@1.0',
+          ),
+        } as unknown as CanonicalJsonObject;
+        const woVersion = Number(
+          definedValue(
+            (
+              await admin.query<{ aggregate_version: string }>(
+                'SELECT aggregate_version FROM task_execution.work_order WHERE work_order_id=$1',
+                [woId],
+              )
+            ).rows[0],
+          ).aggregate_version,
+        );
+        const woEnvelope = await formalEnvelope(
+          'workOrderCompletionEvaluateV2',
+          workOrderRef,
+          payload,
+          service,
+          woVersion,
+        );
+        if (!('commandId' in woEnvelope)) throw new Error('Expected a Completion command');
+        if (terminalScenario === 'FORMAL_NORMAL') {
+          const evaluationInputKeys = [
+            'targetRef',
+            'definitionRef',
+            'criteriaHash',
+            'policyObservation',
+            'evaluatorRef',
+            'collectionHash',
+            'observedLocalSources',
+            'sourceFacts',
+          ];
+          const rehash = `NEW.canonical_payload := jsonb_set(NEW.canonical_payload,'{collectionHash,digest}',to_jsonb(encode(task_execution.recovery_payload_hash(NEW.canonical_payload->'observedLocalSources'),'hex')));
+            NEW.canonical_payload := jsonb_set(NEW.canonical_payload,'{inputHash,digest}',to_jsonb(encode(task_execution.recovery_payload_hash((SELECT jsonb_object_agg(k,NEW.canonical_payload->k) FROM unnest(ARRAY[${evaluationInputKeys.map((k) => `'${k}'`).join(',')}]) k) || CASE WHEN NEW.canonical_payload ? 'qualitySelection' THEN jsonb_build_object('qualitySelection',NEW.canonical_payload->'qualitySelection') ELSE '{}'::jsonb END),'hex')));
+            NEW.payload_hash:=task_execution.recovery_payload_hash(NEW.canonical_payload);`;
+          for (const [label, mutation] of [
+            ['wrong hash', "NEW.payload_hash:=decode(repeat('0',64),'hex');"],
+            ['wrong Scope', `NEW.project_id:='${newUuidV7()}'::uuid;`],
+            ['wrong Receipt', `NEW.source_command_id:='${newUuidV7()}'::uuid;`],
+            [
+              'unknown member',
+              `NEW.canonical_payload:=NEW.canonical_payload||'{"unexpected":true}'::jsonb; ${rehash}`,
+            ],
+            [
+              'wrong definition',
+              `NEW.canonical_payload:=jsonb_set(NEW.canonical_payload,'{definitionRef,objectId}',to_jsonb('${newUuidV7()}'::text)); ${rehash}`,
+            ],
+            [
+              'omitted source',
+              `NEW.canonical_payload:=jsonb_set(NEW.canonical_payload,'{observedLocalSources}',(NEW.canonical_payload->'observedLocalSources')-0); ${rehash}`,
+            ],
+            [
+              'wrong source owner',
+              `NEW.canonical_payload:=jsonb_set(NEW.canonical_payload,'{observedLocalSources,0,ref,objectId}',to_jsonb('${newUuidV7()}'::text)); ${rehash}`,
+            ],
+            [
+              'wrong Decision hash',
+              `NEW.canonical_payload:=jsonb_set(NEW.canonical_payload,'{authorizationDecisionRef,contentHash,digest}',to_jsonb(repeat('0',64))); ${rehash}`,
+            ],
+            [
+              'wrong Decision Scope',
+              `NEW.canonical_payload:=jsonb_set(NEW.canonical_payload,'{authorizationDecisionRef,scope,projectId}',to_jsonb('${newUuidV7()}'::text)); ${rehash}`,
+            ],
+            [
+              'wrong Decision type',
+              `NEW.canonical_payload:=jsonb_set(NEW.canonical_payload,'{authorizationDecisionRef,objectType}','"identity.unrelated_fact"'::jsonb); ${rehash}`,
+            ],
+            [
+              'wrong Actor Scope',
+              `NEW.canonical_payload:=jsonb_set(NEW.canonical_payload,'{actorSnapshotRef,scope,projectId}',to_jsonb('${newUuidV7()}'::text)); ${rehash}`,
+            ],
+            [
+              'false criterion',
+              `NEW.canonical_payload:=jsonb_set(NEW.canonical_payload,'{criterionResults,0,outcome}','"UNSATISFIED"'::jsonb); ${rehash}`,
+            ],
+          ]) {
+            await admin.query(
+              `CREATE FUNCTION task_execution.wi235_mutation() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN ${mutation} RETURN NEW; END $f$`,
+            );
+            await admin.query(
+              `CREATE TRIGGER aa_wi235_mutation BEFORE INSERT ON task_execution.completion_evaluation FOR EACH ROW WHEN (NEW.source_command_id='${woEnvelope.commandId}'::uuid) EXECUTE FUNCTION task_execution.wi235_mutation()`,
+            );
+            try {
+              await expect(
+                formalEntry.evaluateWorkOrder(woEnvelope, sessionFor(service)),
+                `TE-COMP-D-018 ${label}`,
+              ).rejects.toMatchObject({ code: '23514' });
+            } finally {
+              await admin.query(
+                'DROP TRIGGER aa_wi235_mutation ON task_execution.completion_evaluation',
+              );
+              await admin.query('DROP FUNCTION task_execution.wi235_mutation()');
+            }
+            expect(await receiptRows(woEnvelope.idempotencyKey)).toEqual([]);
+          }
+          for (const [table, timing, event, condition] of [
+            [
+              'completion_evaluation',
+              'AFTER',
+              'INSERT',
+              `NEW.source_command_id='${woEnvelope.commandId}'::uuid`,
+            ],
+            ['completion_source_observation', 'AFTER', 'INSERT', 'true'],
+            [
+              'work_order',
+              'AFTER',
+              'UPDATE',
+              `NEW.work_order_id='${woId}'::uuid AND NEW.current_completion_evaluation_id IS DISTINCT FROM OLD.current_completion_evaluation_id`,
+            ],
+            [
+              'reference_edge',
+              'AFTER',
+              'INSERT',
+              `NEW.source_command_id='${woEnvelope.commandId}'::uuid`,
+            ],
+            [
+              'outbox_event',
+              'AFTER',
+              'INSERT',
+              `NEW.source_command_id='${woEnvelope.commandId}'::uuid`,
+            ],
+            [
+              'command_receipt',
+              'AFTER',
+              'UPDATE',
+              `NEW.command_id='${woEnvelope.commandId}'::uuid AND NEW.outcome='COMMITTED'`,
+            ],
+            ['audit_record', 'AFTER', 'INSERT', `NEW.command_id='${woEnvelope.commandId}'::uuid`],
+          ]) {
+            await admin.query(
+              "CREATE FUNCTION task_execution.wi235_fault() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION 'wi235 atomic fault' USING ERRCODE='P0001'; END $f$",
+            );
+            await admin.query(
+              `CREATE TRIGGER zz_wi235_fault ${timing} ${event} ON task_execution.${table} FOR EACH ROW WHEN (${condition}) EXECUTE FUNCTION task_execution.wi235_fault()`,
+            );
+            try {
+              await expect(
+                formalEntry.evaluateWorkOrder(woEnvelope, sessionFor(service)),
+                `TE-COMP-D-016 ${table}`,
+              ).rejects.toMatchObject({ code: 'P0001' });
+            } finally {
+              await admin.query(`DROP TRIGGER zz_wi235_fault ON task_execution.${table}`);
+              await admin.query('DROP FUNCTION task_execution.wi235_fault()');
+            }
+            expect(await receiptRows(woEnvelope.idempotencyKey)).toEqual([]);
+            expect(
+              (
+                await admin.query(
+                  'SELECT evaluation_id FROM task_execution.completion_evaluation WHERE source_command_id=$1',
+                  [woEnvelope.commandId],
+                )
+              ).rows,
+            ).toEqual([]);
+            expect(
+              (
+                await admin.query(
+                  'SELECT aggregate_version,current_completion_evaluation_id FROM task_execution.work_order WHERE work_order_id=$1',
+                  [woId],
+                )
+              ).rows,
+            ).toEqual([
+              { aggregate_version: String(woVersion), current_completion_evaluation_id: null },
+            ]);
+          }
+        }
+        const woResult = await formalEntry.evaluateWorkOrder(woEnvelope, sessionFor(service));
+        if (terminalScenario === 'FORMAL_EMPTY') {
+          expect(woResult).toMatchObject({
+            status: 'COMMITTED',
+            resultPayload: { outcome: 'UNSATISFIED', transitioned: false },
+          });
+          const taskVersion = Number(
+            definedValue(
+              (
+                await admin.query<{ aggregate_version: string }>(
+                  'SELECT aggregate_version FROM task_execution.task WHERE task_id=$1',
+                  [taskId],
+                )
+              ).rows[0],
+            ).aggregate_version,
+          );
+          const taskNegative = await formalEntry.evaluateTask(
+            await formalEnvelope(
+              'taskCompletionEvaluateV2',
+              revised.taskRef as Common.ObjectRef,
+              {
+                ...payload,
+                evaluatorRef: registeredEvaluatorProfileReference(
+                  'im06-evaluator-static-v1',
+                  'te.task_completion.evaluator@1.0',
+                ),
+              } as unknown as CanonicalJsonObject,
+              service,
+              taskVersion,
+            ),
+            sessionFor(service),
+          );
+          expect(taskNegative).toMatchObject({
+            status: 'COMMITTED',
+            resultPayload: { outcome: 'UNSATISFIED', transitioned: false },
+          });
+          expect(
+            (
+              await admin.query(
+                "SELECT run.status,ac.canonical_payload->>'disposition' acceptance_status,result_payload->'businessOutputs' outputs FROM task_execution.run JOIN task_execution.agent_result USING(run_id) JOIN task_execution.agent_result_acceptance ac USING(run_id) WHERE run_id=$1",
+                [runRef.objectId],
+              )
+            ).rows,
+          ).toEqual([{ status: 'SUCCEEDED', acceptance_status: 'ACCEPTED', outputs: [] }]);
+          expect(
+            (
+              await admin.query(
+                "SELECT count(*)::int n FROM task_execution.outbox_event WHERE aggregate_id=ANY($1::uuid[]) AND event_type IN('execution.WorkOrderCompleted','execution.TaskCompleted')",
+                [[woId, taskId]],
+              )
+            ).rows,
+          ).toEqual([{ n: 0 }]);
+          return;
+        }
+        expect(woResult, JSON.stringify(woResult)).toMatchObject({
+          status: 'COMMITTED',
+          resultPayload: { outcome: 'SATISFIED', transitioned: true },
+        });
+        if (terminalScenario === 'FORMAL_NORMAL') {
+          const readRows = (context: TaskExecutionTransactionContext) =>
+            withTaskExecutionTransaction(teDb, context, (trx) =>
+              sql`SELECT evaluation_id FROM task_execution.completion_evaluation WHERE target_id=${woId}::uuid`.execute(
+                trx,
+              ),
+            );
+          expect((await readRows(runnerContext(service))).rows).toHaveLength(1);
+          expect(
+            (await readRows({ ...runnerContext(service), allowedProjectIds: [newUuidV7()] })).rows,
+          ).toEqual([]);
+          expect((await readRows(runnerContext(service))).rows).toHaveLength(1);
+          for (const action of ['UPDATE', 'DELETE'])
+            await expect(
+              admin.query(
+                action === 'UPDATE'
+                  ? 'UPDATE task_execution.completion_evaluation SET canonical_payload=canonical_payload WHERE target_id=$1'
+                  : 'DELETE FROM task_execution.completion_evaluation WHERE target_id=$1',
+                [woId],
+              ),
+            ).rejects.toMatchObject({ code: '55000' });
+        }
+        expect(await formalEntry.evaluateWorkOrder(woEnvelope, sessionFor(service))).toMatchObject({
+          status: 'DUPLICATE',
+          resultPayload: committedPayload(woResult),
+        });
+        const taskVersion = Number(
+          definedValue(
+            (
+              await admin.query<{ aggregate_version: string }>(
+                'SELECT aggregate_version FROM task_execution.task WHERE task_id=$1',
+                [taskId],
+              )
+            ).rows[0],
+          ).aggregate_version,
+        );
+        const taskEnvelope = await formalEnvelope(
+          'taskCompletionEvaluateV2',
+          revised.taskRef as Common.ObjectRef,
+          {
+            ...payload,
+            evaluatorRef: definedValue(
+              registeredEvaluatorProfileReference(
+                'im06-evaluator-static-v1',
+                'te.task_completion.evaluator@1.0',
+              ),
+            ) as unknown as CanonicalJsonObject,
+          },
+          service,
+          taskVersion,
+        );
+        if (terminalScenario === 'FORMAL_CHILD_FIRST') {
+          const blocker = new pg.Client({ connectionString: databaseUrl });
+          await blocker.connect();
+          let child: ReturnType<typeof createWorkOrderResult> | undefined;
+          let completion:
+            | Promise<PromiseSettledResult<Awaited<ReturnType<typeof formalEntry.evaluateTask>>>>
+            | undefined;
+          try {
+            await blocker.query('BEGIN');
+            const pid = definedValue(
+              (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() pid')).rows[0],
+            ).pid;
+            await blocker.query(
+              'SELECT task_id FROM task_execution.task WHERE task_id=$1 FOR UPDATE',
+              [taskId],
+            );
+            const waiting = async () =>
+              definedValue(
+                (
+                  await admin.query<{ n: number }>(
+                    'WITH RECURSIVE blocked AS (SELECT pid FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid)) UNION SELECT a.pid FROM pg_stat_activity a JOIN blocked b ON b.pid=ANY(pg_blocking_pids(a.pid))) SELECT count(*)::int n FROM blocked',
+                    [pid],
+                  )
+                ).rows[0],
+              ).n;
+            child = createWorkOrderResult({
+              taskId,
+              taskMajor: '2.0',
+              customDraft: structuredClone(draft),
+            });
+            await expect.poll(waiting, { timeout: 10000 }).toBeGreaterThan(0);
+            completion = Promise.allSettled([
+              formalEntry.evaluateTask(taskEnvelope, sessionFor(service)),
+            ]).then((r) => definedValue(r[0]));
+            await expect.poll(waiting, { timeout: 10000 }).toBeGreaterThan(1);
+            await blocker.query('ROLLBACK');
+            expect(await child).toMatchObject({ result: { status: 'COMMITTED' } });
+            const result = await completion;
+            expect(result).toMatchObject({ status: 'rejected', reason: { code: 'NOT_FOUND' } });
+            if (!('commandId' in taskEnvelope)) throw new Error('Expected Completion command');
+            expect(await receiptRows(String(taskEnvelope.idempotencyKey))).toEqual([]);
+            expect(
+              (
+                await admin.query(
+                  'SELECT evaluation_id FROM task_execution.completion_evaluation WHERE source_command_id=$1',
+                  [taskEnvelope.commandId],
+                )
+              ).rows,
+            ).toEqual([]);
+            expect(
+              (
+                await admin.query(
+                  'SELECT count(*)::int n FROM task_execution.work_order WHERE task_id=$1',
+                  [taskId],
+                )
+              ).rows,
+            ).toEqual([{ n: 2 }]);
+            expect(
+              (
+                await admin.query('SELECT status FROM task_execution.task WHERE task_id=$1', [
+                  taskId,
+                ])
+              ).rows,
+            ).toEqual([{ status: 'COMPLETION_PENDING' }]);
+            expect(
+              (
+                await admin.query(
+                  "SELECT count(*)::int n FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.TaskCompleted'",
+                  [taskId],
+                )
+              ).rows,
+            ).toEqual([{ n: 0 }]);
+          } finally {
+            await blocker.query('ROLLBACK');
+            await blocker.end();
+            await Promise.allSettled([
+              ...(child ? [child] : []),
+              ...(completion ? [completion] : []),
+            ]);
+          }
+          return;
+        }
+        if (
+          terminalScenario === 'FORMAL_GRANT_LOCK' ||
+          terminalScenario === 'FORMAL_DEPENDENCY_LOCK'
+        ) {
+          const blocker = new pg.Client({ connectionString: databaseUrl });
+          await blocker.connect();
+          let pending:
+            | Promise<PromiseSettledResult<Awaited<ReturnType<typeof formalEntry.evaluateTask>>>>
+            | undefined;
+          try {
+            await blocker.query('BEGIN');
+            const pid = definedValue(
+              (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() pid')).rows[0],
+            ).pid;
+            await blocker.query(
+              'SELECT task_id FROM task_execution.task WHERE task_id=$1 FOR UPDATE',
+              [taskId],
+            );
+            pending = Promise.allSettled([
+              formalEntry.evaluateTask(taskEnvelope, sessionFor(service)),
+            ]).then((r) => definedValue(r[0]));
+            await expect
+              .poll(
+                async () =>
+                  definedValue(
+                    (
+                      await admin.query<{ n: number }>(
+                        'SELECT count(*)::int n FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid))',
+                        [pid],
+                      )
+                    ).rows[0],
+                  ).n,
+                { timeout: 10000 },
+              )
+              .toBeGreaterThan(0);
+            const key =
+              terminalScenario === 'FORMAL_GRANT_LOCK'
+                ? 'taskCompletionEvaluateV2'
+                : 'taskCompletionCompletionSourcesReadV1';
+            expect(
+              await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+                targetId: definedValue(formalGrants.get(key)),
+                expectedAggregateVersion: '1',
+                scope: {
+                  scopeKind: 'PROJECT',
+                  enterpriseId: fixture.enterpriseId,
+                  projectId: fixture.projectId,
+                },
+                reasonCode: 'FORMAL_LOCKED_AUTHORITY_REVOKED',
+                effectiveAt: new Date(clock),
+                idempotencyKey: newUuidV7(),
+              }),
+            ).toMatchObject({ status: 'COMMITTED' });
+            await blocker.query('ROLLBACK');
+            expect(await pending).toMatchObject({
+              status: 'rejected',
+              reason: { code: 'AUTHORIZATION_DECISION_INVALID' },
+            });
+            if (!('commandId' in taskEnvelope)) throw new Error('Expected Completion command');
+            expect(await receiptRows(String(taskEnvelope.idempotencyKey))).toEqual([]);
+            expect(
+              (
+                await admin.query(
+                  'SELECT evaluation_id FROM task_execution.completion_evaluation WHERE source_command_id=$1',
+                  [taskEnvelope.commandId],
+                )
+              ).rows,
+            ).toEqual([]);
+            expect(
+              (
+                await admin.query(
+                  'SELECT status,aggregate_version,current_completion_evaluation_id FROM task_execution.task WHERE task_id=$1',
+                  [taskId],
+                )
+              ).rows,
+            ).toEqual([
+              {
+                status: 'COMPLETION_PENDING',
+                aggregate_version: String(taskVersion),
+                current_completion_evaluation_id: null,
+              },
+            ]);
+            expect(
+              (
+                await admin.query(
+                  "SELECT count(*)::int n FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.TaskCompleted'",
+                  [taskId],
+                )
+              ).rows,
+            ).toEqual([{ n: 0 }]);
+          } finally {
+            await blocker.query('ROLLBACK');
+            await blocker.end();
+            if (pending) await Promise.allSettled([pending]);
+          }
+          return;
+        }
+        let taskResult: Awaited<ReturnType<typeof formalEntry.evaluateTask>>;
+        if (terminalScenario === 'FORMAL_NORMAL') {
+          const blocker = new pg.Client({ connectionString: databaseUrl });
+          await blocker.connect();
+          let completion: Promise<Awaited<ReturnType<typeof formalEntry.evaluateTask>>> | undefined;
+          let child: ReturnType<typeof createWorkOrderResult> | undefined;
+          try {
+            await blocker.query('BEGIN');
+            const pid = definedValue(
+              (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() pid')).rows[0],
+            ).pid;
+            await blocker.query(
+              'SELECT task_id FROM task_execution.task WHERE task_id=$1 FOR UPDATE',
+              [taskId],
+            );
+            completion = track(formalEntry.evaluateTask(taskEnvelope, sessionFor(service)));
+            const waiting = async () =>
+              (
+                await admin.query<{ n: number }>(
+                  'WITH RECURSIVE blocked AS (SELECT pid FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid)) UNION SELECT a.pid FROM pg_stat_activity a JOIN blocked b ON b.pid=ANY(pg_blocking_pids(a.pid))) SELECT count(*)::int n FROM blocked',
+                  [pid],
+                )
+              ).rows[0]?.n ?? 0;
+            await expect.poll(waiting, { timeout: 10000 }).toBeGreaterThan(0);
+            // This is a distinct owning Command/connection, queued behind Completion.
+            child = createWorkOrderResult({
+              taskId,
+              taskMajor: '2.0',
+              customDraft: structuredClone(draft),
+            });
+            let earlyChild: unknown;
+            const childSettled = child.then(
+              (value) => {
+                earlyChild = value;
+                return { value };
+              },
+              (error: unknown) => {
+                earlyChild = error;
+                return { error };
+              },
+            );
+            await expect
+              .poll(
+                async () => {
+                  if (earlyChild !== undefined)
+                    throw new Error(
+                      `Child failed before lock competition: ${JSON.stringify(earlyChild)}`,
+                    );
+                  return waiting();
+                },
+                { timeout: 10000 },
+              )
+              .toBeGreaterThan(1);
+            await blocker.query('ROLLBACK');
+            taskResult = await completion;
+            const rejected = await childSettled;
+            expect(
+              'error' in rejected ||
+                ('value' in rejected && rejected.value.result.status === 'REJECTED'),
+            ).toBe(true);
+            expect(
+              (
+                await admin.query(
+                  'SELECT count(*)::int n FROM task_execution.work_order WHERE task_id=$1',
+                  [taskId],
+                )
+              ).rows,
+            ).toEqual([{ n: 1 }]);
+          } finally {
+            await blocker.query('ROLLBACK');
+            await blocker.end();
+            if (completion) await Promise.allSettled([completion]);
+            if (child) await Promise.allSettled([child]);
+          }
+        } else taskResult = await formalEntry.evaluateTask(taskEnvelope, sessionFor(service));
+        expect(taskResult, JSON.stringify(taskResult)).toMatchObject({
+          status: 'COMMITTED',
+          resultPayload: { outcome: 'SATISFIED', transitioned: true },
+        });
+        for (const result of [woResult, taskResult]) {
+          const judgmentRef = committedPayload(result)
+            .evaluationRef as unknown as Common.ContentAddressedRef;
+          const current = await formalEntry.readJudgment(
+            await formalEnvelope(
+              'completionJudgmentReadV1',
+              judgmentRef,
+              { judgmentRef } as unknown as CanonicalJsonObject,
+              service,
+              undefined,
+              true,
+            ),
+            sessionFor(service),
+          );
+          expect(current).toMatchObject({
+            useStatus: 'USABLE',
+            evaluation: { outcome: 'SATISFIED', completionTransition: true },
+          });
+        }
+        const state = await formalEntry.readWorkOrder(
+          await formalEnvelope(
+            'workOrderStateReadV1',
+            workOrderRef,
+            { workOrderRef } as unknown as CanonicalJsonObject,
+            service,
+            undefined,
+            true,
+          ),
+          sessionFor(service),
+        );
+        expect(state).toMatchObject({
+          status: definedValue(formalFixture).expected.workOrderStatus,
+          completionUseStatus: definedValue(formalFixture).expected.completionUseStatus,
+        });
+        expect(
+          (
+            await admin.query(
+              'SELECT count(*)::int n FROM task_execution.run WHERE work_order_id=$1',
+              [woId],
+            )
+          ).rows,
+        ).toEqual([{ n: definedValue(formalFixture).expected.runCount }]);
+        const dependent = await createExecutableTask(
+          '2.0',
+          true,
+          { dependencyTaskRefs: [revised.taskRef] },
+          true,
+        );
+        await readyTaskForValidation(dependent, formalConfig);
+        expect(
+          (
+            await admin.query('SELECT status FROM task_execution.task WHERE task_id=$1', [
+              dependent,
+            ])
+          ).rows,
+        ).toEqual([{ status: 'READY' }]);
+        if (terminalScenario === 'FORMAL_NORMAL') {
+          async function exact(result: unknown) {
+            const judgmentRef = record(record(result).resultPayload)
+              .evaluationRef as Common.ContentAddressedRef;
+            return formalEntry.readJudgment(
+              await formalEnvelope(
+                'completionJudgmentReadV1',
+                judgmentRef,
+                { judgmentRef } as unknown as CanonicalJsonObject,
+                service,
+                undefined,
+                true,
+              ),
+              sessionFor(service),
+            );
+          }
+          const historicalWo = await exact(woResult);
+          const firstPointers = (
+            await admin.query(
+              'SELECT first_completion_evaluation_id,first_completion_evaluation_hash,completed_at FROM task_execution.work_order WHERE work_order_id=$1',
+              [woId],
+            )
+          ).rows;
+          const refreshEnvelope = await formalEnvelope(
+            'workOrderCompletionEvaluateV2',
+            workOrderRef,
+            payload,
+            service,
+            woVersion + 1,
+          );
+          if (!('idempotencyKey' in refreshEnvelope)) throw new Error('Expected refresh command');
+          const refreshed = await Promise.all([
+            formalEntry.evaluateWorkOrder(refreshEnvelope, sessionFor(service)),
+            formalEntry.evaluateWorkOrder(refreshEnvelope, sessionFor(service)),
+          ]);
+          expect(refreshed.map((r) => r.status).sort()).toEqual(['COMMITTED', 'DUPLICATE']);
+          const refreshResult = definedValue(refreshed.find((r) => r.status === 'COMMITTED'));
+          expect(refreshResult.resultPayload).toMatchObject({
+            outcome: 'SATISFIED',
+            transitioned: false,
+          });
+          expect(await exact(refreshResult)).toMatchObject({
+            useStatus: 'USABLE',
+            evaluation: { completionTransition: false },
+          });
+          expect(await exact(woResult)).toMatchObject({
+            useStatus: 'STALE',
+            evaluation: historicalWo.evaluation,
+          });
+          expect(
+            (
+              await admin.query(
+                'SELECT first_completion_evaluation_id,first_completion_evaluation_hash,completed_at FROM task_execution.work_order WHERE work_order_id=$1',
+                [woId],
+              )
+            ).rows,
+          ).toEqual(firstPointers);
+          expect(await exact(taskResult)).toMatchObject({ useStatus: 'STALE' });
+          const oldCas = await formalEnvelope(
+            'workOrderCompletionEvaluateV2',
+            workOrderRef,
+            payload,
+            service,
+            woVersion,
+          );
+          await expect(
+            formalEntry.evaluateWorkOrder(oldCas, sessionFor(service)),
+          ).rejects.toMatchObject({ code: 'AGGREGATE_VERSION_CONFLICT' });
+          const conflictPayload = {
+            ...payload,
+            policyRef: policyKey([newUuidV7(), newUuidV7()], fixture),
+          } as unknown as CanonicalJsonObject;
+          const conflict = await formalEnvelope(
+            'workOrderCompletionEvaluateV2',
+            workOrderRef,
+            conflictPayload,
+            service,
+            woVersion + 1,
+          );
+          await expect(
+            formalEntry.evaluateWorkOrder(
+              { ...conflict, idempotencyKey: refreshEnvelope.idempotencyKey },
+              sessionFor(service),
+            ),
+          ).rejects.toMatchObject({ code: 'IDEMPOTENCY_PAYLOAD_CONFLICT' });
+          for (const action of ['UPDATE', 'DELETE']) {
+            await expect(
+              withTaskExecutionTransaction(teDb, runnerContext(service), (trx) =>
+                sql
+                  .raw(
+                    action === 'UPDATE'
+                      ? `UPDATE task_execution.completion_evaluation SET canonical_payload=canonical_payload WHERE target_id='${woId}'::uuid`
+                      : `DELETE FROM task_execution.completion_evaluation WHERE target_id='${woId}'::uuid`,
+                  )
+                  .execute(trx),
+              ),
+            ).rejects.toMatchObject({ code: '42501' });
+          }
+          const sourceKey = 'workOrderCompletionCompletionSourcesReadV1';
+          const revoke = async (key: string) => {
+            expect(
+              await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+                targetId: definedValue(formalGrants.get(key)),
+                expectedAggregateVersion: '1',
+                scope: {
+                  scopeKind: 'PROJECT',
+                  enterpriseId: fixture.enterpriseId,
+                  projectId: fixture.projectId,
+                },
+                reasonCode: 'FORMAL_COMPLETION_REVOKE',
+                effectiveAt: new Date(clock),
+                idempotencyKey: newUuidV7(),
+              }),
+            ).toMatchObject({ status: 'COMMITTED' });
+          };
+          await revoke(sourceKey);
+          // Historical replay requires its current own authority, not a new source read.
+          expect(
+            await formalEntry.evaluateWorkOrder(refreshEnvelope, sessionFor(service)),
+          ).toMatchObject({ status: 'DUPLICATE', resultPayload: refreshResult.resultPayload });
+          const missingSource = await formalEnvelope(
+            'workOrderCompletionEvaluateV2',
+            workOrderRef,
+            payload,
+            service,
+            woVersion + 2,
+          );
+          await expect(
+            formalEntry.evaluateWorkOrder(missingSource, sessionFor(service)),
+          ).rejects.toMatchObject({ code: 'AUTHORIZATION_DECISION_INVALID' });
+          const binding = definedValue(
+            formalCompletionBindings().find((b) => b.capabilityConfigKey === sourceKey),
+          );
+          await grant({
+            principal: service,
+            capabilityCode: definedValue(formalCodes[sourceKey]),
+            action: binding.requiredGrantAction,
+            selectorType: binding.selectorType,
+            targetObjectType: definedValue(binding.targetObjectTypes[0]),
+          });
+          await revoke('workOrderCompletionEvaluateV2');
+          await expect(
+            formalEntry.evaluateWorkOrder(refreshEnvelope, sessionFor(service)),
+          ).rejects.toMatchObject({ code: 'AUTHORIZATION_DECISION_INVALID' });
+          const taskRefresh = await formalEntry.evaluateTask(
+            await formalEnvelope(
+              'taskCompletionEvaluateV2',
+              revised.taskRef as Common.ObjectRef,
+              {
+                ...payload,
+                evaluatorRef: registeredEvaluatorProfileReference(
+                  'im06-evaluator-static-v1',
+                  'te.task_completion.evaluator@1.0',
+                ),
+              } as unknown as CanonicalJsonObject,
+              service,
+              taskVersion + 1,
+            ),
+            sessionFor(service),
+          );
+          expect(await exact(taskRefresh)).toMatchObject({ useStatus: 'USABLE' });
+          const dependentDuringWithdrawal = await createExecutableTask(
+            '2.0',
+            true,
+            { dependencyTaskRefs: [revised.taskRef] },
+            true,
+          );
+          await readyTaskForValidation(dependentDuringWithdrawal, formalConfig, async () => {
+            const revisionRef = record(
+              definedValue(actualFormalOutput).ref,
+            ) as unknown as Common.ContentAddressedRef;
+            const context = runnerContext();
+            const withdrawal = {
+              withdrawalReason: {
+                reasonCode: 'FORMAL_OUTPUT_WITHDRAWN',
+                summary: 'Actual owning withdrawal between Readiness build and mark.',
+                evidenceRefs: [],
+              },
+            } as unknown as CanonicalJsonObject;
+            expect(
+              await handleWithdrawRevision(artifactDb, context, {
+                commandId: newUuidV7(),
+                commandType: 'artifact.withdraw_revision',
+                commandVersion: '1.0',
+                idempotencyScope: 'formal.withdrawal',
+                idempotencyKey: newUuidV7(),
+                requestPayload: withdrawal,
+                payload: withdrawal,
+                enterpriseId: fixture.enterpriseId,
+                projectId: fixture.projectId,
+                targetType: 'ArtifactRevision',
+                targetId: revisionRef.objectId,
+                correlationId: CORRELATION,
+                principalId: OPERATOR,
+                principalKind: 'HUMAN',
+                actorSnapshotId: OPERATOR_ACTOR,
+                authorizationDecisionId: REQUEST_DECISION,
+                policySnapshotId: POLICY_SNAPSHOT_ID,
+              } as unknown as Parameters<typeof handleWithdrawRevision>[2]),
+            ).toMatchObject({ status: 'COMMITTED' });
+          });
+          expect(await exact(refreshResult)).toMatchObject({ useStatus: 'REVOKED' });
+          expect(await exact(taskRefresh)).toMatchObject({ useStatus: 'REVOKED' });
+          const dependentAfterWithdrawal = await createExecutableTask(
+            '2.0',
+            true,
+            { dependencyTaskRefs: [revised.taskRef] },
+            true,
+          );
+          await readyTaskForValidation(dependentAfterWithdrawal, formalConfig, undefined, true);
+        }
+        if (terminalScenario === 'FORMAL_POLICY' || terminalScenario === 'FORMAL_TTL') {
+          const judgmentRef = committedPayload(woResult)
+            .evaluationRef as unknown as Common.ContentAddressedRef;
+          const read = async () =>
+            formalEntry.readJudgment(
+              await formalEnvelope(
+                'completionJudgmentReadV1',
+                judgmentRef,
+                { judgmentRef } as unknown as CanonicalJsonObject,
+                service,
+                undefined,
+                true,
+              ),
+              sessionFor(service),
+            );
+          const before = await read();
+          expect(before.useStatus).toBe('USABLE');
+          const firstFacts = (
+            await admin.query(
+              'SELECT first_completion_evaluation_id,first_completion_evaluation_hash,completed_at FROM task_execution.work_order WHERE work_order_id=$1',
+              [woId],
+            )
+          ).rows;
+          if (terminalScenario === 'FORMAL_POLICY') {
+            await registerPolicyVersionAs({
+              key: { ...completionRef, versionId: newUuidV7() },
+              factId: newUuidV7(),
+              idempotencyKey: newUuidV7(),
+              effectiveFrom: new Date(clock),
+              supersedesRef: completionRef,
+              policySchemaRefs: [profileReference('execution.completion.policy@1.0')],
+              policyDocument: { maxCompletionValiditySeconds: 600 },
+            });
+          } else {
+            const lease = definedValue(
+              (
+                await admin.query<{ lease_expires_at: Date }>(
+                  'SELECT lease_expires_at FROM task_execution.run WHERE run_id=$1',
+                  [runRef.objectId],
+                )
+              ).rows[0],
+            ).lease_expires_at;
+            clock = lease.getTime() + 1;
+            expect(clock).toBeLessThan(Date.parse(before.evaluation.validUntil as string));
+            expect(await read()).toMatchObject({
+              useStatus: 'USABLE',
+              evaluation: before.evaluation,
+            });
+            const until = before.evaluation.validUntil;
+            if (typeof until !== 'string') throw new Error('Missing Evaluation expiry');
+            clock = new Date(until).getTime() + 1;
+          }
+          expect(await read()).toMatchObject({ useStatus: 'STALE', evaluation: before.evaluation });
+          if (terminalScenario === 'FORMAL_TTL') {
+            const refreshed = await formalEntry.evaluateWorkOrder(
+              await formalEnvelope(
+                'workOrderCompletionEvaluateV2',
+                workOrderRef,
+                payload,
+                service,
+                woVersion + 1,
+              ),
+              sessionFor(service),
+            );
+            expect(refreshed).toMatchObject({
+              status: 'COMMITTED',
+              resultPayload: { outcome: 'SATISFIED', transitioned: false },
+            });
+            const newRef = committedPayload(refreshed)
+              .evaluationRef as unknown as Common.ContentAddressedRef;
+            expect(
+              await formalEntry.readJudgment(
+                await formalEnvelope(
+                  'completionJudgmentReadV1',
+                  newRef,
+                  { judgmentRef: newRef } as unknown as CanonicalJsonObject,
+                  service,
+                  undefined,
+                  true,
+                ),
+                sessionFor(service),
+              ),
+            ).toMatchObject({ useStatus: 'USABLE' });
+          }
+          expect(
+            (
+              await admin.query(
+                'SELECT first_completion_evaluation_id,first_completion_evaluation_hash,completed_at FROM task_execution.work_order WHERE work_order_id=$1',
+                [woId],
+              )
+            ).rows,
+          ).toEqual(firstFacts);
+        }
+        if (qualityProfile) {
+          const judgmentRef = committedPayload(taskResult)
+            .evaluationRef as unknown as Common.ContentAddressedRef;
+          async function query(ref: Common.ContentAddressedRef) {
+            return formalEntry.readJudgment(
+              await formalEnvelope(
+                'completionJudgmentReadV1',
+                ref,
+                { judgmentRef: ref } as unknown as CanonicalJsonObject,
+                service,
+                undefined,
+                true,
+              ),
+              sessionFor(service),
+            );
+          }
+          const before = await query(judgmentRef);
+          expect(before.useStatus).toBe('USABLE');
+          expect(record(before.evaluation.qualitySelection).qualityProfileRef).toEqual(
+            qualityProfile.profileRef,
+          );
+          const selectionKey = 'taskCompletionCompletionQualitySelectionReadV1';
+          expect(
+            await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+              targetId: definedValue(formalGrants.get(selectionKey)),
+              expectedAggregateVersion: '1',
+              scope: {
+                scopeKind: 'PROJECT',
+                enterpriseId: fixture.enterpriseId,
+                projectId: fixture.projectId,
+              },
+              reasonCode: 'FORMAL_QUALITY_SELECTION_REVOKED',
+              effectiveAt: new Date(clock),
+              idempotencyKey: newUuidV7(),
+            }),
+          ).toMatchObject({ status: 'COMMITTED' });
+          await expect(
+            formalEntry.evaluateTask(
+              await formalEnvelope(
+                'taskCompletionEvaluateV2',
+                revised.taskRef as Common.ObjectRef,
+                {
+                  ...payload,
+                  evaluatorRef: registeredEvaluatorProfileReference(
+                    'im06-evaluator-static-v1',
+                    'te.task_completion.evaluator@1.0',
+                  ),
+                } as unknown as CanonicalJsonObject,
+                service,
+                taskVersion + 1,
+              ),
+              sessionFor(service),
+            ),
+          ).rejects.toMatchObject({ code: 'AUTHORIZATION_DECISION_INVALID' });
+          const selectionBinding = definedValue(
+            formalCompletionBindings().find((b) => b.capabilityConfigKey === selectionKey),
+          );
+          await grant({
+            principal: service,
+            capabilityCode: definedValue(formalCodes[selectionKey]),
+            action: selectionBinding.requiredGrantAction,
+            selectorType: selectionBinding.selectorType,
+            targetObjectType: definedValue(selectionBinding.targetObjectTypes[0]),
+          });
+          expect((await query(judgmentRef)).useStatus).toBe('USABLE');
+          const newer = await quality.accept(
+            qualityProfile,
+            definedValue(actualFormalArtifact),
+            record(definedValue(actualFormalOutput).ref) as unknown as Common.ContentAddressedRef,
+            2,
+          );
+          const newerApproval = await quality.approve(
+            qualityProfile,
+            definedValue(actualFormalArtifact),
+            record(definedValue(actualFormalOutput).ref) as unknown as Common.ContentAddressedRef,
+            newer.acceptanceRef,
+            runnerContext(other()),
+          );
+          const superseded = await query(judgmentRef);
+          expect(superseded.useStatus).toBe('STALE');
+          expect(superseded.evaluation).toEqual(before.evaluation);
+          const refresh = await formalEntry.evaluateTask(
+            await formalEnvelope(
+              'taskCompletionEvaluateV2',
+              revised.taskRef as Common.ObjectRef,
+              {
+                ...payload,
+                evaluatorRef: registeredEvaluatorProfileReference(
+                  'im06-evaluator-static-v1',
+                  'te.task_completion.evaluator@1.0',
+                ),
+              } as unknown as CanonicalJsonObject,
+              service,
+              taskVersion + 1,
+            ),
+            sessionFor(service),
+          );
+          expect(refresh).toMatchObject({
+            status: 'COMMITTED',
+            resultPayload: { outcome: 'SATISFIED', transitioned: false },
+          });
+          const newRef = committedPayload(refresh)
+            .evaluationRef as unknown as Common.ContentAddressedRef;
+          const refreshed = await query(newRef);
+          expect(refreshed.useStatus).toBe('USABLE');
+          expect(record(refreshed.evaluation.qualitySelection).outputSnapshots).not.toEqual(
+            record(before.evaluation.qualitySelection).outputSnapshots,
+          );
+          expect(await quality.revoke(newerApproval.approvalRef)).toMatchObject({
+            status: 'COMMITTED',
+          });
+          expect(await query(newRef)).toMatchObject({
+            useStatus: 'REVOKED',
+            evaluation: refreshed.evaluation,
+          });
+          expect(await quality.invalidate(newer.gateRef)).toMatchObject({ status: 'COMMITTED' });
+          expect(await query(newRef)).toMatchObject({
+            useStatus: 'REVOKED',
+            evaluation: refreshed.evaluation,
+          });
+          await quality.supersedeProfile(qualityProfile.profileRef);
+          expect((await query(newRef)).useStatus).not.toBe('USABLE');
+        }
+
+        expect(
+          (await admin.query('SELECT status FROM task_execution.task WHERE task_id=$1', [taskId]))
+            .rows,
+        ).toEqual([{ status: 'COMPLETED' }]);
+        expect(
+          (
+            await admin.query<{ aggregate_id: string; n: number }>(
+              "SELECT aggregate_id,count(*)::int n FROM task_execution.outbox_event WHERE aggregate_id=ANY($1::uuid[]) AND event_type IN('execution.WorkOrderCompleted','execution.TaskCompleted') GROUP BY aggregate_id",
+              [[woId, taskId]],
+            )
+          ).rows.map((r) => r.n),
+        ).toEqual([
+          definedValue(formalFixture).expected.completedEventsPerRoot,
+          definedValue(formalFixture).expected.completedEventsPerRoot,
+        ]);
+      }
       async function firstRunEnvelope(
         commandType: string,
         targetRef: Common.ObjectRef,
@@ -9857,6 +11958,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               : terminalScenario === 'ELIGIBILITY_CHANGE' ||
                   terminalScenario === 'TIMED_OUT' ||
                   terminalScenario === 'TERMINAL_BEFORE_FINAL' ||
+                  terminalScenario === 'FORMAL_LATE' ||
                   terminalScenario === 'IG_WRONG_SESSION' ||
                   terminalScenario === 'TIMED_OUT_BUNDLE_EXPIRED' ||
                   terminalScenario === 'UNSUPPORTED_FINAL' ||
@@ -9868,13 +11970,15 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                   ? 30_000
                   : terminalScenario === 'VALIDATION_EXPIRED'
                     ? 30_000
-                    : terminalScenario === 'RACE' || terminalScenario === 'LOCK_DEADLINE'
+                    : terminalScenario === 'RACE' ||
+                        terminalScenario === 'LOCK_DEADLINE' ||
+                        terminalScenario === 'FORMAL_TTL'
                       ? 30_000
                       : 600_000),
         ),
       );
       const runtimeBinding = {
-        adapterCode: 'te.human_operated.synthetic',
+        adapterCode: formal ? 'te.human_operated.synthetic.formal' : 'te.human_operated.synthetic',
         adapterVersion: '1.0',
         harnessId: 'zhiju.runtime.synthetic',
         harnessVersion: '1.0',
@@ -10425,6 +12529,100 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           )
         ).rows,
       ).toEqual([{ status: 'RUNNING', aggregate_version: '2' }]);
+      if (formal && !bounded && terminalScenario !== 'FORMAL_EMPTY')
+        await createAndReleaseFormalOutput(runRef, attemptRef);
+      if (terminalScenario === 'FORMAL_LATE') {
+        const savedFinal = definedValue(await runtimeDriver.readFinal(attemptRef));
+        const delay = Math.max(0, runDeadline.getTime() - Date.now() + 100);
+        if (delay > 0) await waitForDeadline(delay, 'formal source Run deadline');
+        clock = Date.now();
+        const expire = await firstRunEnvelope(
+          'execution.expire_run',
+          runRef,
+          { reason: 'DEADLINE_EXCEEDED' },
+          service,
+          2,
+        );
+        expect(await firstRunEntryRaw.expireRun(expire, sessionFor(service))).toMatchObject({
+          status: 'COMMITTED',
+        });
+        const submit = await firstRunEnvelope(
+          'execution.submit_agent_result',
+          objectRef(
+            'execution.agent_result',
+            String(record(savedFinal.agentResultContract).agentResultId),
+            scope(),
+          ) as Common.ObjectRef,
+          {
+            agentResultContract: savedFinal.agentResultContract,
+            runFencingToken: savedFinal.runFencingToken,
+            runtimeSubmissionRef: savedFinal.runtimeSubmissionRef,
+          } as unknown as CanonicalJsonObject,
+          service,
+        );
+        await expect(
+          firstRunEntryRaw.submitAgentResult(submit, sessionFor(service)),
+        ).rejects.toMatchObject({ code: 'EXECUTION_JUDGMENT_STALE' });
+        const version = Number(
+          definedValue(
+            (
+              await admin.query<{ aggregate_version: string }>(
+                'SELECT aggregate_version FROM task_execution.work_order WHERE work_order_id=$1',
+                [woId],
+              )
+            ).rows[0],
+          ).aggregate_version,
+        );
+        const complete = await formalEnvelope(
+          'workOrderCompletionEvaluateV2',
+          workOrderRef,
+          {
+            policyRef: completionRef,
+            evaluatorRef: registeredEvaluatorProfileReference(
+              'im06-evaluator-static-v1',
+              'te.work_order_completion.evaluator@1.0',
+            ),
+          } as unknown as CanonicalJsonObject,
+          service,
+          version,
+        );
+        await expect(
+          formalEntry.evaluateWorkOrder(complete, sessionFor(service)),
+        ).rejects.toMatchObject({ code: 'EXECUTION_COMPLETION_STATE_CONFLICT' });
+        expect(
+          (
+            await admin.query('SELECT status FROM task_execution.run WHERE run_id=$1', [
+              runRef.objectId,
+            ])
+          ).rows,
+        ).toEqual([{ status: 'TIMED_OUT' }]);
+        expect(
+          (
+            await admin.query(
+              'SELECT count(*)::int n FROM task_execution.agent_result WHERE run_id=$1',
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ n: 0 }]);
+        expect(
+          (
+            await admin.query(
+              "SELECT count(*)::int n FROM task_execution.outbox_event WHERE aggregate_id=ANY($1::uuid[]) AND event_type IN('execution.TaskCompleted','execution.WorkOrderCompleted')",
+              [[taskId, woId]],
+            )
+          ).rows,
+        ).toEqual([{ n: 0 }]);
+        expect(
+          (
+            await admin.query(
+              "SELECT count(*)::int n FROM artifact.execution_revision_creation_binding WHERE canonical_payload->'runRef'->>'objectId'=$1",
+              [runRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ n: 1 }]);
+        expect(await runtimeDriver.readFinal(attemptRef)).toEqual(savedFinal);
+        return;
+      }
       phase('final boundary and recovery body');
       if (terminalScenario === 'LEGACY_UPGRADE') {
         phase('historical Run backup/upgrade');
@@ -11887,6 +14085,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           await blocker.query('SELECT run_id FROM task_execution.run WHERE run_id=$1 FOR UPDATE', [
             runRef.objectId,
           ]);
+          const blockerPid = definedValue(
+            (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() pid')).rows[0],
+          ).pid;
           waiting = execute(envelope).then(
             (value) => ({ value }),
             (error: unknown) => ({ error }),
@@ -11896,8 +14097,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             locked =
               (
                 await admin.query<{ locked: boolean }>(
-                  `SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock'
-               AND query ILIKE '%task_execution%run%') AS locked`,
+                  `SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid))) AS locked`,
+                  [blockerPid],
                 )
               ).rows[0]?.locked === true;
             if (!locked) await new Promise<void>((resolve) => setTimeout(resolve, 25));
@@ -13763,12 +15964,16 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           pendingSubmit = firstRunEntry
             .submitAgentResult(submitEnvelope, sessionFor(service))
             .catch((error: unknown) => error);
+          const blockerPid = definedValue(
+            (await runBlocker.query<{ pid: number }>('SELECT pg_backend_pid() pid')).rows[0],
+          ).pid;
           await expect
             .poll(
               async () =>
                 (
                   await admin.query<{ n: number }>(
-                    "SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%run%'",
+                    'SELECT count(*)::int AS n FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid))',
+                    [blockerPid],
                   )
                 ).rows[0]?.n ?? 0,
               { timeout: 10_000 },
@@ -14070,7 +16275,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       ).rejects.toMatchObject({ code: 'NOT_FOUND' });
       const finalEvaluator = registeredEvaluatorProfileReference(
         'im06-evaluator-static-v1',
-        'te.agent_result_validation.evaluator@1.0',
+        formal
+          ? 'te.agent_result_validation.evaluator@2.0'
+          : 'te.agent_result_validation.evaluator@1.0',
       );
       expect(finalEvaluator).toBeDefined();
       const validationTarget = objectRef(
@@ -14898,8 +17105,137 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           { definition } as unknown as CanonicalJsonObject,
           service,
         );
+        if (terminalScenario.startsWith('FORMAL_REQUEST_')) {
+          const taskVersion = Number(
+            definedValue(
+              (
+                await admin.query<{ aggregate_version: string }>(
+                  'SELECT aggregate_version FROM task_execution.task WHERE task_id=$1',
+                  [taskId],
+                )
+              ).rows[0],
+            ).aggregate_version,
+          );
+          expect(
+            await recoveryEntryRaw.command(
+              await recoveryEnvelope(
+                'taskReconcileV1',
+                revised.taskRef as Common.ObjectRef,
+                { triggerRef: runRef } as unknown as CanonicalJsonObject,
+                service,
+                taskVersion,
+              ),
+              sessionFor(service),
+            ),
+          ).toMatchObject({ status: 'COMMITTED', resultPayload: { status: 'WAITING_INPUT' } });
+          const beforeTask = (
+            await admin.query(
+              'SELECT status,aggregate_version FROM task_execution.task WHERE task_id=$1',
+              [taskId],
+            )
+          ).rows;
+          const completion = await formalEnvelope(
+            'taskCompletionEvaluateV2',
+            revised.taskRef as Common.ObjectRef,
+            {
+              policyRef: completionRef,
+              evaluatorRef: registeredEvaluatorProfileReference(
+                'im06-evaluator-static-v1',
+                'te.task_completion.evaluator@1.0',
+              ),
+            } as unknown as CanonicalJsonObject,
+            service,
+            taskVersion + 1,
+          );
+          if (!('commandId' in completion)) throw new Error('Expected Completion command');
+          const blocker = new pg.Client({ connectionString: databaseUrl });
+          await blocker.connect();
+          let opening: ReturnType<typeof recoveryEntryRaw.command> | undefined;
+          const refuse = async () => {
+            await expect(
+              formalEntry.evaluateTask(completion, sessionFor(service)),
+            ).rejects.toMatchObject({ code: 'EXECUTION_COMPLETION_STATE_CONFLICT' });
+            expect(await receiptRows(String(completion.idempotencyKey))).toEqual([]);
+            expect(
+              (
+                await admin.query(
+                  'SELECT evaluation_id FROM task_execution.completion_evaluation WHERE source_command_id=$1',
+                  [completion.commandId],
+                )
+              ).rows,
+            ).toEqual([]);
+          };
+          try {
+            await blocker.query('BEGIN');
+            const pid = definedValue(
+              (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() pid')).rows[0],
+            ).pid;
+            await blocker.query(
+              'SELECT task_id FROM task_execution.task WHERE task_id=$1 FOR UPDATE',
+              [taskId],
+            );
+            if (terminalScenario === 'FORMAL_REQUEST_COMPLETION_FIRST') await refuse();
+            opening = recoveryEntryRaw.command(open, sessionFor(service));
+            await expect
+              .poll(
+                async () =>
+                  definedValue(
+                    (
+                      await admin.query<{ n: number }>(
+                        'SELECT count(*)::int n FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid))',
+                        [pid],
+                      )
+                    ).rows[0],
+                  ).n,
+                { timeout: 10000 },
+              )
+              .toBeGreaterThan(0);
+            if (terminalScenario === 'FORMAL_REQUEST_OPEN_FIRST') await refuse();
+            await blocker.query('ROLLBACK');
+            expect(await opening).toMatchObject({ status: 'COMMITTED' });
+            expect(
+              (
+                await admin.query(
+                  "SELECT request_id,task_id,definition->'runRef'->>'objectId' run_id FROM task_execution.information_request WHERE request_id=$1",
+                  [requestRef.objectId],
+                )
+              ).rows,
+            ).toEqual([
+              { request_id: requestRef.objectId, task_id: taskId, run_id: runRef.objectId },
+            ]);
+            expect(
+              (
+                await admin.query(
+                  'SELECT request_id FROM task_execution.information_request_origin WHERE request_id=$1',
+                  [requestRef.objectId],
+                )
+              ).rows,
+            ).toEqual([{ request_id: requestRef.objectId }]);
+            expect(
+              (
+                await admin.query(
+                  'SELECT status,aggregate_version FROM task_execution.task WHERE task_id=$1',
+                  [taskId],
+                )
+              ).rows,
+            ).toEqual(beforeTask);
+            expect(
+              (
+                await admin.query(
+                  "SELECT count(*)::int n FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.TaskCompleted'",
+                  [taskId],
+                )
+              ).rows,
+            ).toEqual([{ n: 0 }]);
+          } finally {
+            await blocker.query('ROLLBACK');
+            await blocker.end();
+            if (opening) await Promise.allSettled([opening]);
+          }
+          return;
+        }
         expect(await recoveryEntry.command(open, sessionFor(service))).toMatchObject({
-          status: 'COMMITTED',
+          status: terminalScenario.startsWith('FORMAL_REQUEST_') ? 'DUPLICATE' : 'COMMITTED',
         });
         if (exerciseRecoveryFaultMatrix) {
           expect(await recoveryEntry.command(open, sessionFor(service))).toMatchObject({
@@ -15387,7 +17723,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             expect(await receiptRows(String(answerEnv.idempotencyKey))).toEqual([]);
           }
         }
-        if (recoveryVariant === 'NORMAL') {
+        if (exerciseRecoveryFaultMatrix) {
           const agent = definedValue(
             borrowedActors.find((actor) => actor.principalKind === 'AGENT'),
           );
@@ -15421,7 +17757,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           expect(await denialSnapshot()).toEqual(openBefore);
           expect(await receiptRows(String(actingAnswer.idempotencyKey))).toEqual([]);
         }
-        if (recoveryVariant === 'NORMAL')
+        if (exerciseRecoveryFaultMatrix)
           for (const change of ['GRANT', 'REQUEST_EXPIRY'] as const) {
             const locked = await recoveryEnvelope(
               'informationAnswerSubmitV1',
@@ -15519,7 +17855,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               }
             }
           }
-        if (recoveryVariant === 'NORMAL') {
+        if (exerciseRecoveryFaultMatrix) {
           answer.submittedAt = new Date(clock).toISOString();
           answerPayload = {
             answer: {
@@ -15602,7 +17938,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           2,
         );
         const answeredBefore = await denialSnapshot();
-        if (recoveryVariant === 'NORMAL') {
+        if (exerciseRecoveryFaultMatrix) {
           const secondPropose = await recoveryEnvelope(
             'customerMaterialProposeV1',
             objectRef('zhiju.project.customer_material', newUuidV7(), scope()) as Common.ObjectRef,
@@ -16604,7 +18940,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           } as unknown as CanonicalJsonObject,
           service,
         );
-        if (recoveryVariant === 'NORMAL') {
+        if (exerciseRecoveryFaultMatrix) {
           // A saved Resolution/Context/Bundle must not hide current Human
           // resolve revocation behind an answer Grant with the same code.
           expect(recoveryConfig.humanCapabilityCodes.requestResolve).toBe(
@@ -16738,7 +19074,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             restoredGrant,
           );
         }
-        if (recoveryVariant === 'NORMAL')
+        if (exerciseRecoveryFaultMatrix)
           for (const change of [
             { contextSnapshotRef: contextRef },
             { runtimeBinding: { ...runtimeBinding, modelId: 'synthetic.other' } },
@@ -16818,7 +19154,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           } as unknown as CanonicalJsonObject,
           service,
         );
-        if (recoveryVariant === 'NORMAL')
+        if (exerciseRecoveryFaultMatrix)
           for (const change of [
             { contextSnapshotRef: contextRef },
             { capabilityGrantRef: bundleRef },
@@ -16863,7 +19199,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           service,
           1,
         );
-        if (recoveryVariant === 'NORMAL')
+        if (exerciseRecoveryFaultMatrix)
           for (const change of [{ fencingToken: 1 }, { runtimeAttemptRef: attemptRef }]) {
             const refused = await firstRunEnvelope(
               'execution.start_run',
@@ -16943,6 +19279,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           for (const worker of definedValue(processWorkers)) await worker.stop();
           return;
         }
+        if (formal) await createAndReleaseFormalOutput(run2, attempt2);
         const final2 = await firstRunEntry.observeRuntimeFinal(finalQuery2, sessionFor(service));
         if (final2 === undefined) throw new Error('Run-2 final absent');
         if (!['SECOND_BLOCKED', 'SECOND_PARTIAL', 'SECOND_FAILED'].includes(recoveryVariant))
@@ -17432,7 +19769,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             )
           ).rows,
         ).toEqual([{ attempt_number: 1 }, { attempt_number: 2 }]);
-        if (recoveryVariant === 'NORMAL') {
+        if (exerciseRecoveryFaultMatrix) {
           const receiptGrant = definedValue(
             recoveryGrants.get(
               `${OPERATOR}:confirmationReceiptDiscoverV1:zhiju.project.command_receipt`,
@@ -17570,7 +19907,11 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         expect(record(binding2.acknowledgement).runtimeSessionRef).not.toEqual(
           record(attemptBinding.acknowledgement).runtimeSessionRef,
         );
-
+        if (formal) await completeFormal();
+        return;
+      }
+      if (formal) {
+        await completeFormal();
         return;
       }
       const boundIdentity = await admin.query<{
@@ -18064,6 +20405,58 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       'upgrades historical Run/Claim/ack facts without fabricating identities and expires the legacy Run',
       () => runScenario('LEGACY_UPGRADE'),
       360_000,
+    );
+    itIntegration(
+      'TE-COMP-D-010 optional Quality uses exact owning selection and current eligibility',
+      () => runScenario('FORMAL_QUALITY'),
+      420_000,
+    );
+    itIntegration(
+      'TE-COMP-D-002 normal production formal output completes both Roots',
+      () => runScenario('FORMAL_NORMAL'),
+      420_000,
+    );
+    for (const boundary of ['GRANT_LOCK', 'DEPENDENCY_LOCK'] as const)
+      itIntegration(
+        `TE-COMP-D-015 Completion refuses current authority revoked while waiting for parent lock ${boundary}`,
+        () => runScenario(`FORMAL_${boundary}`),
+        420_000,
+      );
+    itIntegration(
+      'TE-COMP-D-013 child membership wins before Completion and prevents a stale success',
+      () => runScenario('FORMAL_CHILD_FIRST'),
+      420_000,
+    );
+    itIntegration(
+      'TE-COMP-D-008 sealed formal output does not rescue a deadline-expired Run or late Result',
+      () => runScenario('FORMAL_LATE'),
+      420_000,
+    );
+    itIntegration(
+      'TE-COMP-D-004 formal empty COMPLETED remains accepted but cannot complete Roots',
+      () => runScenario('FORMAL_EMPTY'),
+      420_000,
+    );
+    itIntegration(
+      'TE-COMP-D-011 isolated Completion Policy successor invalidates current use',
+      () => runScenario('FORMAL_POLICY'),
+      420_000,
+    );
+    itIntegration(
+      'TE-COMP-D-011 isolated Completion expiry refresh preserves first completion',
+      () => runScenario('FORMAL_TTL'),
+      420_000,
+    );
+    for (const order of ['COMPLETION_FIRST', 'OPEN_FIRST'] as const)
+      itIntegration(
+        `TE-COMP-D-013 ineligible Task Completion and actual Task/Run Request INSERT ${order}`,
+        () => runScenario(`FORMAL_REQUEST_${order}`),
+        420_000,
+      );
+    itIntegration(
+      'TE-COMP-D-003 recovered production formal output completes both Roots',
+      () => runScenario('FORMAL_RECOVERED'),
+      420_000,
     );
     itIntegration(
       'TE-REC-D-001 bounded BLOCKED_INPUT Human recovery reaches two SUCCEEDED Runs and COMPLETION_PENDING',

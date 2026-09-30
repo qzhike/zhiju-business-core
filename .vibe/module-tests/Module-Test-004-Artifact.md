@@ -244,10 +244,10 @@ Revision/Content Object、对象存储、Renderer、跨模块业务 E2E、人工
 
 ## #233 正式执行输出设计用例
 
-authority为Spec 004 §12；当前全部NOT RUN，Artifact历史已交付用例不改。
+authority为Spec 004 §12；#235当前有限owning/PG证据如下，历史已交付用例不改。
 
 | ID | 层级 / 输入 | 预期 | 实际 / 结果 |
 |---|---|---|---|---|
-| ART-COMP-D-001 | Contract + Application + PostgreSQL / 授权Human实际root/content创建及新execution revision | 自身/TE独立授权，provenance只用owning Run来源且无未来Result；Revision/binding/真实Receipt同事务，可exact重读canonical内容与current状态 | 未执行 / NOT RUN |
-| ART-COMP-D-002 | Application + PostgreSQL / 旧normal Revision/复用input/伪造Run/Receipt/actor/hash/Scope/schema、binding过期/锁后撤权 | 不提供execution output资格；masked NOT_FOUND/绑定错误；SEALED不可补ResultRef，不跨Schema查询/写表 | 未执行 / NOT RUN |
-| ART-COMP-D-003 | PostgreSQL / 创建Receipt/binding/Event故障、同键重放、Direct SQL镜像/Hash欺骗、内容withdraw/invalidate | 原子rollback/replay、Hash域分开、RLS/immutable guard；current失效不覆写原snapshot/provenance/receipt | 未执行 / NOT RUN |
+| ART-COMP-D-001 | Contract + Application + PostgreSQL / 授权Human实际root/content创建及新execution revision | 自身/TE独立授权，provenance只用owning Run来源且无未来Result；Revision/binding/真实Receipt同事务，可exact重读canonical内容与current状态 | OWNING/PG PASS：normal/recovered Human真实root/content/stage/link/freeze→execution Revision、creation binding与Receipt；canonical content Hash域保留，exact owning output读回与创建来源镜像独立复验。 |
+| ART-COMP-D-002 | Application + PostgreSQL / 旧normal Revision/复用input/伪造Run/Receipt/actor/hash/Scope/schema、binding过期/锁后撤权 | 不提供execution output资格；masked NOT_FOUND/绑定错误；SEALED不可补ResultRef，不跨Schema查询/写表 | CONTRACT/APPLICATION/PG PASS（已执行）：Human-only实际AGENT/SERVICE/actingFor有Grant仍DENY，借Human Decision protected SQL为0；premature未提交Ref/Receipt拒绝；错误source/Scope/Hash/schema拒绝。逐一锁后撤权与全部旧normal Revision消费子项NOT RUN。 |
+| ART-COMP-D-003 | PostgreSQL / 创建Receipt/binding/Event故障、同键重放、Direct SQL镜像/Hash欺骗、内容withdraw/invalidate | 原子rollback/replay、Hash域分开、RLS/immutable guard；current失效不覆写原snapshot/provenance/receipt | PG/CONTROLLED PASS（已执行）：五个创建原子点故障全rollback，原键replay；actual owning withdraw后Completion REVOKED而历史Revision/Receipt不变；新增有限forward migration。两张新Artifact fact表对真实已存在Revision实际app UPDATE/DELETE 42501、owner immutable 55000、RLS pool跨Scope隐藏/恢复均PASS；全部Direct SQL欺骗置换子项未穷举，NOT RUN；full gate状态见PR。 |

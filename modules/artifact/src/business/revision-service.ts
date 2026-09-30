@@ -2,7 +2,14 @@
 // queries. Canonical bodies remain in the frozen Content Object Manifest.
 
 import type { Kysely } from 'kysely';
-import type { Artifact, Common } from '@zhiju/contracts';
+import {
+  ContractRegistry,
+  isExecutionDocumentSchema,
+  operationPayloadSchemaRef,
+  type Artifact,
+  type Common,
+} from '@zhiju/contracts';
+import type { ObjectStoragePort } from '../storage/object-storage.js';
 import {
   canonicalize,
   isUuidV7,
@@ -1174,7 +1181,11 @@ async function revisionSnapshotInTransaction(
 
 async function appendTypedReferenceEdge(
   execution: Parameters<Parameters<typeof executeArtifactCommand>[3]>[0],
-  owner: { readonly ownerObjectId: string; readonly ownerPayloadHash: Buffer },
+  owner: {
+    readonly ownerObjectId: string;
+    readonly ownerPayloadHash: Buffer;
+    readonly ownerObjectType?: string;
+  },
   referencePath: string,
   value: unknown,
   referencePurpose: string,
@@ -1214,20 +1225,23 @@ async function appendTypedReferenceEdge(
         })()
       : undefined;
   await execution.appendReferenceEdge({
-    ownerObjectType: REVISION_OBJECT_TYPE,
+    ownerObjectType: owner.ownerObjectType ?? REVISION_OBJECT_TYPE,
     ownerObjectId: owner.ownerObjectId,
     ownerVersionId: owner.ownerObjectId,
     ownerPayloadHash: owner.ownerPayloadHash,
     referencePath,
-    targetModule: ref.objectType.startsWith('identity.')
-      ? 'identity_policy'
-      : ref.objectType.startsWith('project.') || ref.objectType.startsWith('enterprise.')
-        ? 'enterprise_project'
-        : ref.objectType.startsWith('task.')
-          ? 'task_execution'
-          : ref.objectType.startsWith('artifact.')
-            ? 'artifact'
-            : 'artifact',
+    targetModule:
+      ref.objectType.startsWith('identity.') || ref.objectType.startsWith('zhiju.identity.')
+        ? 'identity_policy'
+        : ref.objectType.startsWith('project.') || ref.objectType.startsWith('enterprise.')
+          ? 'enterprise_project'
+          : ref.objectType.startsWith('task.') ||
+              ref.objectType.startsWith('execution.') ||
+              ref.objectType.startsWith('zhiju.execution.')
+            ? 'task_execution'
+            : ref.objectType.startsWith('artifact.')
+              ? 'artifact'
+              : 'artifact',
     targetObjectType: ref.objectType,
     targetObjectId: ref.objectId,
     ...(targetVersionId === undefined ? {} : { targetVersionId }),
@@ -1245,10 +1259,11 @@ async function appendRevisionEdges(
   parentRefs: readonly Common.ContentAddressedRef[],
   provenance: Artifact.RevisionProvenance,
   resultHash: Buffer,
+  ownerObjectType = REVISION_OBJECT_TYPE,
 ): Promise<void> {
-  const owner = { ownerObjectId: row.revision_id, ownerPayloadHash: resultHash };
+  const owner = { ownerObjectId: row.revision_id, ownerPayloadHash: resultHash, ownerObjectType };
   await execution.appendReferenceEdge({
-    ownerObjectType: REVISION_OBJECT_TYPE,
+    ownerObjectType,
     ownerObjectId: row.revision_id,
     ownerVersionId: row.revision_id,
     ownerPayloadHash: resultHash,
@@ -1259,7 +1274,7 @@ async function appendRevisionEdges(
     referencePurpose: 'ARTIFACT_REVISION_ROOT',
   });
   await execution.appendReferenceEdge({
-    ownerObjectType: REVISION_OBJECT_TYPE,
+    ownerObjectType,
     ownerObjectId: row.revision_id,
     ownerVersionId: row.revision_id,
     ownerPayloadHash: resultHash,
@@ -2212,5 +2227,414 @@ export async function handleValidateRevisionRef(
       contentAvailable,
       reasons,
     };
+  });
+}
+
+export interface ExecutionRevisionPorts {
+  readonly revalidateBindingAuthorization: () => Promise<void>;
+  readonly now: () => Date;
+  readonly revalidateAuthorization: () => Promise<void>;
+  readonly readOutputCreationBinding: (runRef: Common.ObjectRef) => Promise<CanonicalJsonObject>;
+  readonly actorSnapshotRef: Common.SnapshotRef;
+  readonly authorizationDecisionRef: Common.ContentAddressedRef;
+  readonly storage: ObjectStoragePort;
+  readonly failAt?: (point: string) => void;
+}
+const executionRegistry = new ContractRegistry();
+function executionRequire(
+  value: unknown,
+  code = 'ARTIFACT_EXECUTION_BINDING_INVALID',
+): asserts value {
+  if (!value) throw new ArtifactBusinessError(code, 'Execution output is unavailable');
+}
+function executionSame(a: unknown, b: unknown) {
+  return (
+    a !== undefined &&
+    b !== undefined &&
+    canonicalize(a as CanonicalJsonValue) === canonicalize(b as CanonicalJsonValue)
+  );
+}
+async function readExecutionContent(
+  row: NonNullable<Awaited<ReturnType<ArtifactRepository['getContentObjectById']>>>,
+  storage: ObjectStoragePort,
+): Promise<CanonicalJsonObject> {
+  const value = await storage.read({
+    storageProvider: row.storage_provider,
+    objectLocator: row.object_locator,
+    objectVersionId: row.object_version_id,
+  });
+  const payload = canonicalObject(JSON.parse(value.bytes.toString('utf8')), 'canonicalContent');
+  executionRequire(
+    row.storage_state === 'FROZEN' &&
+      value.storageProvider === row.storage_provider &&
+      value.objectLocator === row.object_locator &&
+      value.objectVersionId === row.object_version_id &&
+      value.byteSize === value.bytes.length &&
+      value.bytes.equals(Buffer.from(canonicalize(payload))) &&
+      digestCanonicalPayload(payload).hash.equals(row.content_hash),
+    ARTIFACT_CONTENT_HASH_MISMATCH,
+  );
+  executionRequire(
+    executionRegistry.validateCanonicalContent(payload).valid &&
+      isExecutionDocumentSchema(payload.schemaRef, row.enterprise_id) &&
+      executionSame(payload.schemaRef, row.payload_schema_ref),
+    ARTIFACT_STRUCTURE_SCHEMA_INVALID,
+  );
+  return payload;
+}
+/** Human creation owns the Revision and its Receipt; the Run is an observation. */
+export async function handleCreateExecutionRevision(
+  db: Kysely<ArtifactDb>,
+  context: ArtifactTransactionContext,
+  envelope: RevisionCommandEnvelope<Artifact.ArtifactCreateExecutionRevisionPayload>,
+  ports: ExecutionRevisionPorts,
+): Promise<CommandResult> {
+  await ports.revalidateAuthorization();
+  executionRequire(
+    context.principalKind === 'HUMAN' && envelope.principalKind === 'HUMAN',
+    ARTIFACT_HUMAN_ONLY_DENIED,
+  );
+  executionRequire(
+    envelope.commandType === 'artifact.create_execution_revision' &&
+      envelope.commandVersion === '1.0' &&
+      envelope.targetType === 'artifact.artifact_revision' &&
+      envelope.projectId !== undefined,
+  );
+  const operation = executionRegistry.getOperation('artifact.create_execution_revision', '1.0');
+  executionRequire(operation, ARTIFACT_STRUCTURE_SCHEMA_INVALID);
+  const payloadSchema = operationPayloadSchemaRef(operation);
+  executionRequire(payloadSchema, ARTIFACT_STRUCTURE_SCHEMA_INVALID);
+  executionRequire(
+    executionRegistry.validateCoreContract(payloadSchema, envelope.requestPayload).valid,
+    ARTIFACT_STRUCTURE_SCHEMA_INVALID,
+  );
+  return executeArtifactCommand(
+    db,
+    context,
+    envelope,
+    async (ex) => {
+      await ports.revalidateAuthorization();
+      const binding = await ports.readOutputCreationBinding(envelope.payload.runRef);
+      const observedAt = ports.now();
+      const bindingUntil = new Date(nonEmptyString(binding.validUntil, 'binding.validUntil'));
+      executionRequire(
+        executionRegistry.validateOperationResult(
+          'execution.get_output_creation_binding',
+          '1.0',
+          binding,
+        ).valid &&
+          executionSame(binding.runRef, envelope.payload.runRef) &&
+          observedAt < bindingUntil &&
+          executionSame(record(binding.runRef).scope, {
+            enterpriseId: envelope.enterpriseId,
+            projectId: envelope.projectId,
+          }),
+      );
+      const provenance = {
+        principal: {
+          kind: 'OBJECT',
+          objectType: 'identity.principal',
+          objectId: context.principalId,
+          scope: { enterpriseId: context.enterpriseId },
+        },
+        taskRef: binding.taskRef,
+        workOrderRef: binding.workOrderRef,
+        runRef: binding.runRef,
+        contextSnapshotRef: binding.contextSnapshotRef,
+        sourceMaterialRefs: [],
+        toolchainVersions: [],
+      };
+      const revision = validateRevisionContent(
+        { ...envelope.payload.revision, provenance },
+        context,
+        envelope.projectId,
+        false,
+      );
+      executionRequire(
+        isExecutionDocumentSchema(revision.structureSchemaRef, envelope.enterpriseId) &&
+          executionSame(record(binding.outputSpec).schemaRef, revision.structureSchemaRef),
+        ARTIFACT_STRUCTURE_SCHEMA_INVALID,
+      );
+      const root = await repo.getArtifactById(ex.trx, revision.artifactId);
+      executionRequire(
+        root?.lifecycle_status === 'ACTIVE' &&
+          root.project_id === envelope.projectId &&
+          root.business_scope === 'PROJECT_DELIVERABLE' &&
+          executionSame(root.origin_project_ref, {
+            kind: 'OBJECT',
+            objectType: 'Project',
+            objectId: envelope.projectId,
+            scope: { enterpriseId: envelope.enterpriseId, projectId: envelope.projectId },
+          }),
+        ARTIFACT_SCOPE_INVALID,
+      );
+      const manifest = await repo.getFrozenContentObjectByIdentity(ex.trx, {
+        enterpriseId: envelope.enterpriseId,
+        projectId: envelope.projectId,
+        contentType: revision.contentType,
+        objectLocator: revision.contentLocator,
+        contentHash: revision.contentHashBytes,
+      });
+      executionRequire(manifest, ARTIFACT_CONTENT_OWNER_INVALID);
+      const contentLink = await ex.trx
+        .selectFrom('artifact.artifact_content_object_link')
+        .selectAll()
+        .where('content_object_id', '=', manifest.content_object_id)
+        .executeTakeFirst();
+      executionRequire(
+        contentLink?.owner_object_type === 'ArtifactRevision' &&
+          contentLink.owner_object_id === envelope.targetId &&
+          contentLink.enterprise_id === envelope.enterpriseId &&
+          contentLink.project_id === envelope.projectId,
+        ARTIFACT_CONTENT_OWNER_INVALID,
+      );
+      await readExecutionContent(manifest, ports.storage);
+      await ports.revalidateAuthorization();
+      const createdAt = ports.now();
+      executionRequire(
+        createdAt < bindingUntil &&
+          createdAt >= observedAt &&
+          createdAt >= new Date(nonEmptyString(binding.startedAt, 'startedAt')),
+      );
+      const result = await repo.createArtifactRevision(ex.trx, {
+        revisionId: envelope.targetId,
+        artifactId: root.artifact_id,
+        branchId: revision.branchId,
+        enterpriseId: envelope.enterpriseId,
+        projectId: envelope.projectId,
+        revisionKind: 'INITIAL',
+        contentObjectId: manifest.content_object_id,
+        contentType: 'STRUCTURED_DOCUMENT',
+        objectLocator: revision.contentLocator,
+        contentHash: revision.contentHashBytes,
+        structureSchemaRef: revision.structureSchemaRef,
+        canonicalizationVersion: '1',
+        byteSize: Number(manifest.byte_size),
+        mediaType: manifest.media_type,
+        semanticMetadata: {},
+        changedUnits: revision.changedUnits,
+        changeSummary: revision.changeSummary,
+        provenance: revision.provenance,
+        parentRefs: [],
+        createdByPrincipalId: context.principalId,
+        createdByActorSnapshotId: context.actorSnapshotId,
+        createdAuthorizationDecisionId: context.authorizationDecisionId,
+        sourceCommandId: envelope.commandId,
+      });
+      if (result.outcome !== 'OK')
+        return revisionCreateRejection(result.outcome, String(Number(root.aggregate_version)));
+      ports.failAt?.('revision');
+      const row = await repo.getRevisionById(ex.trx, envelope.targetId);
+      executionRequire(row);
+      const snapshot = await revisionSnapshotInTransaction(ex.trx, row, root);
+      const scopeRef = { enterpriseId: envelope.enterpriseId, projectId: envelope.projectId };
+      const receipt = {
+        commandId: envelope.commandId,
+        commandType: 'artifact.create_execution_revision',
+        commandVersion: '1.0',
+        targetRef: {
+          kind: 'OBJECT',
+          objectType: 'artifact.artifact_revision',
+          objectId: envelope.targetId,
+          scope: scopeRef,
+        },
+        scopeRef,
+        requestPayloadHash: contentHashForBytes(
+          digestCanonicalPayload(envelope.requestPayload).hash,
+        ),
+        outcome: 'COMMITTED',
+        revisionRef: snapshot.revisionRef,
+        actorRef: provenance.principal,
+        actorSnapshotRef: ports.actorSnapshotRef,
+        authorizationDecisionRef: ports.authorizationDecisionRef,
+        committedAt: createdAt.toISOString(),
+      } as unknown as CanonicalJsonObject;
+      const receiptHash = digestCanonicalPayload(receipt).hash;
+      const creationCommandRef: Common.ContentAddressedRef = {
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.artifact.command_receipt',
+        objectId: envelope.commandId,
+        scope: scopeRef,
+        contentHash: contentHashForBytes(receiptHash),
+      };
+      const creationBinding = {
+        revisionRef: snapshot.revisionRef,
+        creationCommandRef,
+        taskRef: binding.taskRef,
+        workOrderRef: binding.workOrderRef,
+        runRef: binding.runRef,
+        workOrderContractRef: binding.workOrderContractRef,
+        contextSnapshotRef: binding.contextSnapshotRef,
+        controlsPolicyRef: binding.controlsPolicyRef,
+        observedRunVersion: binding.runAggregateVersion,
+        startedAt: binding.startedAt,
+        bindingObservedAt: observedAt.toISOString(),
+        bindingValidUntil: binding.validUntil,
+        bindingObservationHash: contentHashForBytes(digestCanonicalPayload(binding).hash),
+        createdAt: createdAt.toISOString(),
+      } as unknown as CanonicalJsonObject;
+      const values = {
+        revision_id: envelope.targetId,
+        command_id: envelope.commandId,
+        enterprise_id: envelope.enterpriseId,
+        project_id: envelope.projectId,
+      };
+      await ex.trx
+        .insertInto('artifact.execution_revision_command_receipt')
+        .values({ ...values, canonical_payload: canonicalize(receipt), payload_hash: receiptHash })
+        .execute();
+      ports.failAt?.('receipt');
+      await ex.trx
+        .insertInto('artifact.execution_revision_creation_binding')
+        .values({
+          ...values,
+          canonical_payload: canonicalize(creationBinding),
+          payload_hash: digestCanonicalPayload(creationBinding).hash,
+        })
+        .execute();
+      ports.failAt?.('binding');
+      const eventPayload = {
+        artifactRef: { ...artifactRefForRoot(root), objectType: 'artifact.artifact' },
+        revisionRef: snapshot.revisionRef,
+        branchId: revision.branchId,
+        parentRevisionRefs: [],
+        changedUnits: revision.changedUnits,
+      };
+      executionRequire(
+        executionRegistry.validateCoreContract(
+          'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_ArtifactRevisionSealed_payload',
+          eventPayload,
+        ).valid,
+        ARTIFACT_STRUCTURE_SCHEMA_INVALID,
+      );
+      await ex.appendOutbox({
+        eventId: newUuidV7(),
+        eventType: 'artifact.ArtifactRevisionSealed',
+        eventVersion: '1.0',
+        aggregateType: 'ArtifactRevision',
+        aggregateId: envelope.targetId,
+        aggregateVersion: '1',
+        payload: { ...eventPayload, ...scopeRef } as unknown as CanonicalJsonObject,
+        occurredAt: createdAt,
+      });
+      ports.failAt?.('outbox');
+      await appendRevisionEdges(
+        ex,
+        root,
+        row,
+        manifest.content_object_id,
+        revision.structureSchemaRef,
+        [],
+        revision.provenance,
+        receiptHash,
+        envelope.targetType,
+      );
+      await appendTypedReferenceEdge(
+        ex,
+        {
+          ownerObjectId: envelope.targetId,
+          ownerPayloadHash: receiptHash,
+          ownerObjectType: envelope.targetType,
+        },
+        '/creationCommandRef',
+        creationCommandRef,
+        'ARTIFACT_REVISION_CREATION_COMMAND',
+      );
+      ports.failAt?.('edges');
+      await ports.revalidateBindingAuthorization();
+      await ports.revalidateAuthorization();
+      executionRequire(ports.now() < bindingUntil);
+      return {
+        kind: 'COMMITTED',
+        resultPayload: {
+          revisionRef: snapshot.revisionRef,
+          creationCommandRef,
+        } as unknown as CanonicalJsonObject,
+      };
+    },
+    ports.revalidateAuthorization,
+  );
+}
+
+export async function handleGetExecutionOutputFact(
+  db: Kysely<ArtifactDb>,
+  context: ArtifactTransactionContext,
+  revisionRef: Common.ContentAddressedRef,
+  ports: Pick<ExecutionRevisionPorts, 'now' | 'storage' | 'revalidateAuthorization'>,
+): Promise<Artifact.ArtifactGetExecutionOutputFactResult> {
+  await ports.revalidateAuthorization();
+  executionRequire(
+    revisionRef.objectType === 'artifact.artifact_revision',
+    ARTIFACT_QUERY_NOT_FOUND,
+  );
+  return withArtifactTransaction(db, context, async (trx) => {
+    const row = await repo.getRevisionById(trx, revisionRef.objectId);
+    executionRequire(row, ARTIFACT_QUERY_NOT_FOUND);
+    const root = await repo.getArtifactById(trx, row.artifact_id);
+    executionRequire(
+      root !== undefined && executionSame(revisionRef, revisionRefForRow(row, root)),
+      ARTIFACT_QUERY_NOT_FOUND,
+    );
+    const binding = await trx
+      .selectFrom('artifact.execution_revision_creation_binding')
+      .selectAll()
+      .where('revision_id', '=', row.revision_id)
+      .executeTakeFirst();
+    const receipt = await trx
+      .selectFrom('artifact.execution_revision_command_receipt')
+      .selectAll()
+      .where('revision_id', '=', row.revision_id)
+      .executeTakeFirst();
+    executionRequire(
+      binding?.command_id === receipt?.command_id &&
+        binding !== undefined &&
+        receipt !== undefined &&
+        digestCanonicalPayload(canonicalObject(binding.canonical_payload, 'binding')).hash.equals(
+          binding.payload_hash,
+        ) &&
+        digestCanonicalPayload(canonicalObject(receipt.canonical_payload, 'receipt')).hash.equals(
+          receipt.payload_hash,
+        ),
+      ARTIFACT_QUERY_NOT_FOUND,
+    );
+    const manifest = await repo.getContentObjectById(trx, row.content_object_id);
+    executionRequire(manifest, ARTIFACT_QUERY_NOT_FOUND);
+    executionRequire(manifest.content_hash.equals(row.content_hash), ARTIFACT_QUERY_NOT_FOUND);
+    const canonicalContent = await readExecutionContent(manifest, ports.storage);
+    const revision = await revisionSnapshotInTransaction(trx, row, root);
+    const revoked = ['WITHDRAWN', 'INVALIDATED'].includes(revision.disposition);
+    const useStatus = revoked
+      ? 'REVOKED'
+      : root.lifecycle_status === 'ACTIVE' && revision.disposition === 'ACTIVE'
+        ? 'USABLE'
+        : 'STALE';
+    const result = {
+      revision,
+      artifactRef: { ...artifactRefForRoot(root), objectType: 'artifact.artifact' },
+      artifactAggregateVersion: Number(root.aggregate_version),
+      artifactLifecycle: root.lifecycle_status,
+      businessScope: root.business_scope,
+      originProjectRef: {
+        kind: 'OBJECT',
+        objectType: 'zhiju.project.project',
+        objectId: root.project_id,
+        scope: { enterpriseId: root.enterprise_id, projectId: root.project_id },
+      },
+      contentState: 'FROZEN',
+      canonicalContent,
+      creationBinding: binding.canonical_payload,
+      creationBindingHash: contentHashForBytes(binding.payload_hash),
+      creationReceipt: receipt.canonical_payload,
+      observedAt: ports.now().toISOString(),
+      useStatus,
+      reasonCodes: useStatus === 'USABLE' ? [] : [`ARTIFACT_EXECUTION_OUTPUT_${useStatus}`],
+    };
+    executionRequire(
+      executionRegistry.validateOperationResult('artifact.get_execution_output_fact', '1.0', result)
+        .valid,
+      ARTIFACT_QUERY_NOT_FOUND,
+    );
+    await ports.revalidateAuthorization();
+    return result as unknown as Artifact.ArtifactGetExecutionOutputFactResult;
   });
 }

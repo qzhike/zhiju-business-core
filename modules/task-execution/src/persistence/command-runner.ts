@@ -5,7 +5,7 @@
 // IdentityPolicy or another owning schema.
 
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import {
   digestCanonicalPayload,
   withTaskExecutionTransaction,
@@ -550,6 +550,15 @@ async function runCommandTransaction(
       } as const;
     }
 
+    if (
+      !['execution.evaluate_work_order_completion', 'execution.evaluate_task_completion'].includes(
+        envelopeSnapshot.commandType,
+      )
+    ) {
+      await sql`SELECT task_execution.lock_command_sources(${envelopeSnapshot.targetType},${envelopeSnapshot.targetId}::uuid,${JSON.stringify(envelopeSnapshot.requestPayload)}::jsonb)`.execute(
+        trx,
+      );
+    }
     const commandFacts = makeCommandFacts(envelopeSnapshot);
     const bodyResult = await body(createExecution(trx, envelopeSnapshot, commandFacts));
     await currentAuthorization?.();

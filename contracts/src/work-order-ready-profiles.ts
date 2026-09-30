@@ -5,7 +5,10 @@ import type { Common } from './generated/types/common.js';
 
 export const WORK_ORDER_READY_REGISTRY_VERSION = 'im06-work-order-ready-static-v1';
 export type WorkOrderReadyProfileKey =
-  'core.work_order@1.0' | 'te.human_operated.synthetic@1.0' | 'te.work_order.human_review@1.0';
+  | 'core.work_order@1.0'
+  | 'te.human_operated.synthetic@1.0'
+  | 'te.work_order.human_review@1.0'
+  | 'te.human_operated.synthetic.formal@1.0';
 
 export interface WorkOrderReadyProfile {
   readonly registryKey: WorkOrderReadyProfileKey;
@@ -57,6 +60,24 @@ const approved: WorkOrderReadyProfile[] = declarations.map(
     },
   }),
 );
+
+approved.push({
+  registryKey: 'te.human_operated.synthetic.formal@1.0',
+  owner: 'integration-gateway',
+  descriptor: {
+    ...(approved.find((p) => p.registryKey === 'te.human_operated.synthetic@1.0')?.descriptor ??
+      (() => {
+        throw new Error('Missing synthetic descriptor');
+      })()),
+  },
+  reference: {
+    kind: 'VERSIONED',
+    objectType: 'zhiju.runtime.adapter_contract',
+    objectId: '0199b600-0000-7000-8000-000000000301',
+    versionId: '0199b600-0000-7000-8000-000000000311',
+    scope: {},
+  },
+});
 
 function freeze<T>(value: T): T {
   if (value !== null && typeof value === 'object') {

@@ -396,7 +396,7 @@ WI-08 不新增 QualityGovernance 公共 Contract、业务表或 Migration；它
 
 ### #233 Completion 消费现行 current eligibility（提案）
 
-状态：`HUMAN DESIGN APPROVED 2026-09-30 / TE CONSUMPTION NOT RUN`。#192 current eligibility的公开接口不变，不增Quality public Operation/表/Policy；独立设计审查发现精确RAS/ABS的**来源发现**与冻结Profile尚未闭合，新增下述有限owning内部只读Port作为同一实现结果的必要增量。TE [Spec 003 §25.4–25.6](Module-Spec-003-TaskExecution.md#254-owning-条件与完整集合)逐个exact正式Revision、RAS/适用ABS独立授权读取既有历史Snapshot及 `quality.get_revision_execution_eligibility@1.0`。PRESENT/true与READY/FULLY_APPROVED历史值不能互相替代；缺ABS只在未要求FULLY_APPROVED时NOT_APPLICABLE。观察Hash/observedAt/sourceWatermarks进入Completion输入；完成后GateInvalidation/ApprovalRevocation或新Snapshot使后续消费不可用，原Evaluation/RAS/ABS历史不覆盖。与Artifact当前检查共同保证观测时点语义；TE不通过Query触发重跑Gate/批准或Release。跨模块正常/撤销/不可达证据新增于Module-Test，当前NOT RUN。
+状态：`HUMAN DESIGN APPROVED 2026-09-30 / TE CONSUMPTION IMPLEMENTED IN #235 / FINAL VERIFICATION AND REVIEW PENDING`。#192 current eligibility的公开接口不变，不增Quality public Operation/表/Policy；独立设计审查发现精确RAS/ABS的**来源发现**与冻结Profile尚未闭合，新增下述有限owning内部只读Port作为同一实现结果的必要增量。TE [Spec 003 §25.4–25.6](Module-Spec-003-TaskExecution.md#254-owning-条件与完整集合)逐个exact正式Revision、RAS/适用ABS独立授权读取既有历史Snapshot及 `quality.get_revision_execution_eligibility@1.0`。PRESENT/true与READY/FULLY_APPROVED历史值不能互相替代；缺ABS只在未要求FULLY_APPROVED时NOT_APPLICABLE。观察Hash/observedAt/sourceWatermarks进入Completion输入；完成后GateInvalidation/ApprovalRevocation或新Snapshot使后续消费不可用，原Evaluation/RAS/ABS历史不覆盖。与Artifact当前检查共同保证观测时点语义；TE不通过Query触发重跑Gate/批准或Release。跨模块 Selection、exact Query、current eligibility 与生命周期证据分层记入 Module-Test；未执行子项仍 NOT RUN。
 
 
 #### #233 CompletionQualitySelectionPort（提案）
@@ -408,3 +408,5 @@ closed返回 `{revisionRef,qualityProfileRef,profileUsable:boolean,revisionAccep
 selectionHash为canonicalization=1 SHA-256，覆盖返回的revisionRef/qualityProfileRef/profileUsable/RAS/适用ABS完整Ref（缺省明确），不含observedAt/sourceWatermarks中的观测时间或自身Hash；observation时刻由受信服务器提供。该Hash是读取证据，非Snapshot或PolicyHash；Port不授予Completion/Approval。TE记录这些exact Ref/hash后分别调用既有exact Query及#192当前资格，并在目标提交前重新观测选择结果/当前资格；选择改变则EXECUTION_JUDGMENT_STALE拒绝旧成功。成功Evaluation永久保存qualitySelection；后续current检查只对这些Ref调用#192，新Snapshot使其STALE，只有显式refresh才能选择新Ref并形成新Evaluation。Profile不可用、所需RAS/ABS缺失或当前eligibility false均产生可解释UNSATISFIED，不从其它Profile借事实。
 
 该Port必须同时覆盖production composition授权、实际Quality创建RAS/ABS的normal/refresh路径与真实PostgreSQL，不能用fixture预置选择结果；不同Profile同时拥有READY RAS/FULLY_APPROVED ABS的负例须证明固定Profile不会漂移。
+
+#235 的有限 Completion 消费额外在既有 owning current-eligibility 事务内重验冻结 Profile 的 ACTIVE/current-version，以及已选择 ABS 引用的实际 Approval 是否 REVOKED。撤销判定只通过内部回调提供给 Completion，用于区分 REVOKED 与 STALE；公开 `RevisionExecutionEligibilityResult` 闭集与历史 #192 解释不变。

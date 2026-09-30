@@ -32,7 +32,11 @@ export const EVALUATOR_PROFILE_REFERENCE_OBJECT_TYPE = 'zhiju.execution.evaluato
 export type EvaluatorProfileRegistryKey =
   | 'te.task_readiness.evaluator@1.0'
   | 'te.work_order_validation.evaluator@1.0'
-  | 'te.agent_result_validation.evaluator@1.0';
+  | 'te.agent_result_validation.evaluator@1.0'
+  | 'te.work_order_validation.evaluator@2.0'
+  | 'te.agent_result_validation.evaluator@2.0'
+  | 'te.work_order_completion.evaluator@1.0'
+  | 'te.task_completion.evaluator@1.0';
 
 const registryKeyPattern = /^[a-z][A-Za-z0-9]*(?:[._][A-Za-z0-9]+)*@\d+\.\d+$/u;
 const uuidV7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -50,6 +54,14 @@ export interface EvaluatorProfileRegistry {
 
 /** The approved registry contents. */
 const approvedEntries: readonly { registryKey: EvaluatorProfileRegistryKey; owner: string }[] = [
+  ...(
+    [
+      'te.work_order_validation.evaluator@2.0',
+      'te.agent_result_validation.evaluator@2.0',
+      'te.work_order_completion.evaluator@1.0',
+      'te.task_completion.evaluator@1.0',
+    ] as const
+  ).map((registryKey) => ({ registryKey, owner: 'task-execution' })),
   { registryKey: 'te.task_readiness.evaluator@1.0', owner: 'task-execution' },
   { registryKey: 'te.work_order_validation.evaluator@1.0', owner: 'task-execution' },
   { registryKey: 'te.agent_result_validation.evaluator@1.0', owner: 'task-execution' },

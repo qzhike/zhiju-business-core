@@ -33,6 +33,50 @@
         "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d4b3",
         "scope": {}
       }
+    },
+    {
+      "registryKey": "te.work_order_validation.evaluator@2.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.evaluator_profile",
+        "objectId": "0199b600-0000-7000-8000-000000000201",
+        "versionId": "0199b600-0000-7000-8000-000000000211",
+        "scope": {}
+      }
+    },
+    {
+      "registryKey": "te.agent_result_validation.evaluator@2.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.evaluator_profile",
+        "objectId": "0199b600-0000-7000-8000-000000000202",
+        "versionId": "0199b600-0000-7000-8000-000000000212",
+        "scope": {}
+      }
+    },
+    {
+      "registryKey": "te.work_order_completion.evaluator@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.evaluator_profile",
+        "objectId": "0199b600-0000-7000-8000-000000000203",
+        "versionId": "0199b600-0000-7000-8000-000000000213",
+        "scope": {}
+      }
+    },
+    {
+      "registryKey": "te.task_completion.evaluator@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.evaluator_profile",
+        "objectId": "0199b600-0000-7000-8000-000000000204",
+        "versionId": "0199b600-0000-7000-8000-000000000214",
+        "scope": {}
+      }
     }
   ]
 }

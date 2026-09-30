@@ -66,8 +66,8 @@ function validTaskExecutionWorkOrderDraft(): {
 describe('contract registry', () => {
   const registry = new ContractRegistry();
 
-  it('registers exactly the current 230 public operations', () => {
-    expect(registry.operationCount).toBe(230);
+  it('registers exactly the current 237 public operations', () => {
+    expect(registry.operationCount).toBe(237);
   });
 
   it('exposes implemented module operations as matching FULL schemas', () => {
@@ -81,11 +81,11 @@ describe('contract registry', () => {
     const release = full.filter((operation) => operation.owner === 'release-publication');
     const integration = full.filter((operation) => operation.owner === 'integration-gateway');
 
-    expect(full).toHaveLength(230);
+    expect(full).toHaveLength(237);
     expect(identity).toHaveLength(23);
     expect(project).toHaveLength(35);
-    expect(execution).toHaveLength(57);
-    expect(artifact).toHaveLength(26);
+    expect(execution).toHaveLength(62);
+    expect(artifact).toHaveLength(28);
     expect(quality).toHaveLength(38);
     expect(release).toHaveLength(25);
     expect(integration).toHaveLength(26);
@@ -652,7 +652,7 @@ describe('contract registry', () => {
       const operation = full.find((entry) => entry.type === type);
       expect(operation?.schemaStatus).toBe('FULL');
     }
-    expect(full).toHaveLength(57);
+    expect(full).toHaveLength(62);
   });
 
   it('validates embedded TaskExecution Core Contracts through their registered schemas', () => {

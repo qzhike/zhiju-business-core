@@ -57,12 +57,17 @@ import {
 } from './blocked-input-recovery-entry.js';
 import type { InitialContextEntryConfig, InitialContextSession } from './initial-context-entry.js';
 import { createWorkOrderDependencyReads } from './work-order-dependency-reads.js';
+import {
+  createFormalCompletionDependencyPorts,
+  type FormalCompletionEntryConfig,
+} from './formal-completion-entry.js';
 
 /** The transport supplies trusted module handles and one code for each approved boundary. */
 export interface ControlledFirstRunEntryConfig extends Omit<
   InitialContextEntryConfig,
   'capabilityCodes'
 > {
+  readonly formalCompletion?: FormalCompletionEntryConfig;
   readonly capabilityCodes: ControlledFirstRunCapabilityCodes;
   readonly integrationGatewayDb: Kysely<IntegrationRendererDb>;
   readonly runtimeDriver: SyntheticRuntimeDriver;
@@ -447,6 +452,23 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
     const { mint, revalidateAll, row } = prepared;
     const recovery = recoveryPorts(prepared, session);
     const consumer = prepared.internal.commandType;
+    const formalConsumer = (
+      {
+        'execution.validate_agent_result': 'result_validate',
+        'execution.accept_agent_result': 'result_accept',
+        'execution.finalize_run_from_acceptance': 'run_finalize',
+      } as Record<string, string>
+    )[consumer];
+    const formal =
+      config.formalCompletion && formalConsumer
+        ? createFormalCompletionDependencyPorts(
+            config.formalCompletion,
+            row,
+            session,
+            formalConsumer,
+            revalidateAll,
+          )
+        : undefined;
     const readers = createWorkOrderDependencyReads(config, row, session);
     const keys = (
       {
@@ -509,11 +531,18 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
             readRecoveryMaterial: recovery.ports.readMaterial,
             readFrozenEligibility: recovery.eligibility,
           }),
+      ...(formal ? { readExecutionOutput: formal.output } : {}),
       authorizationValidUntil: () =>
-        new Date(Math.min(...prepared.expiries.map((expiry) => Date.parse(expiry)))),
+        new Date(
+          Math.min(
+            ...prepared.expiries.map((expiry) => Date.parse(expiry)),
+            formal?.ports.authorizationValidUntil().getTime() ?? Infinity,
+          ),
+        ),
       revalidateAuthorization: async () => {
         await revalidateAll();
         await readers.revalidate();
+        await formal?.revalidateAll();
       },
       readBinding: async (ref) => {
         if (keys === undefined) entryError('API_CONTRACT_TYPE_UNKNOWN', 'binding read unavailable');

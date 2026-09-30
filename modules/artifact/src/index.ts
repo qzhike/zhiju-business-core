@@ -281,3 +281,9 @@ export {
   ARTIFACT_REPRESENTATION_FORMAT_INVALID,
   ARTIFACT_REPRESENTATION_IDENTITY_CONFLICT,
 } from './business/artifact-business-errors.js';
+
+export {
+  handleCreateExecutionRevision,
+  handleGetExecutionOutputFact,
+  type ExecutionRevisionPorts,
+} from './business/revision-service.js';

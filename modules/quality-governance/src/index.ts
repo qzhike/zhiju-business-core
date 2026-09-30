@@ -253,3 +253,5 @@ export type {
   QualityAuthorityValidationInput,
   QualityAuthorityValidation,
 } from './application/authority-ports.js';
+
+export * from './business/completion-quality-selection.js';

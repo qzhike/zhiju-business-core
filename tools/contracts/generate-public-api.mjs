@@ -8,6 +8,7 @@ import {
 } from '../../contracts/src/payload-guard.ts';
 import { workOrderSchema } from '../../contracts/src/core.schema.ts';
 import { loadWorkOrderReadyProfileRegistry } from '../../contracts/src/work-order-ready-profiles.ts';
+import { loadArtifactExecutionSchema } from '../../contracts/src/formal-output-profile.ts';
 import { loadEvaluatorProfileRegistry } from '../../contracts/src/evaluator-profiles.ts';
 import { loadPolicyProfileRegistry } from '../../contracts/src/policy-profiles.ts';
 import {
@@ -32,6 +33,14 @@ import {
 } from '../../contracts/src/operation-registration.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const schemaRegistrySource = readFileSync(
+  join(root, 'contracts/registry/artifact-execution-schemas.v1.json'),
+  'utf8',
+);
+const schemaRegistryOutputPath = join(
+  root,
+  'contracts/src/generated/artifact-execution-schemas.json',
+);
 const registryPath = join(root, 'contracts', 'registry', 'public-api.v1.json');
 const outputPath = join(root, 'contracts', 'src', 'generated', 'public-api.ts');
 const creationPurposeOutputPath = join(
@@ -81,6 +90,7 @@ const readyRegistryOutputPath = join(
   root,
   'contracts/src/generated/work-order-ready-profiles.json',
 );
+loadArtifactExecutionSchema(JSON.parse(schemaRegistrySource));
 assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
 assertInitialContextEnterpriseFactRegistration();
@@ -190,6 +200,7 @@ if (process.argv.includes('--check')) {
   const current = readFileSync(outputPath, 'utf8').replaceAll('\r\n', '\n');
   if (
     current !== generated ||
+    readFileSync(schemaRegistryOutputPath, 'utf8') !== schemaRegistrySource ||
     readFileSync(readyRegistryOutputPath, 'utf8') !== readyRegistrySource ||
     readFileSync(guardOutputPath, 'utf8') !== guardSource ||
     readFileSync(profileRegistryOutputPath, 'utf8') !== profileRegistrySource ||
@@ -204,6 +215,7 @@ if (process.argv.includes('--check')) {
     );
   }
 } else {
+  writeFileSync(schemaRegistryOutputPath, schemaRegistrySource, 'utf8');
   writeFileSync(outputPath, generated, 'utf8');
   writeFileSync(readyRegistryOutputPath, readyRegistrySource, 'utf8');
   writeFileSync(guardOutputPath, guardSource, 'utf8');

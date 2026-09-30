@@ -81,6 +81,8 @@ describe('policy profile registry artifact', () => {
       validationKey,
       controlsKey,
       recoveryControlsKey,
+      'execution.work_order_controls.policy@2.0',
+      'execution.completion.policy@1.0',
     ]);
     expect(
       policyProfileRegistry.profiles.map((profile) => [profile.registryKey, profile.owner]),
@@ -94,6 +96,8 @@ describe('policy profile registry artifact', () => {
       [validationKey, 'task-execution'],
       [controlsKey, 'task-execution'],
       [recoveryControlsKey, 'task-execution'],
+      ['execution.work_order_controls.policy@2.0', 'task-execution'],
+      ['execution.completion.policy@1.0', 'task-execution'],
     ]);
   });
 
@@ -527,9 +531,9 @@ describe('closed profile documents', () => {
 });
 
 describe('shared contract registry integration', () => {
-  it('applies the same closed schemas and keeps 230 public operations', () => {
+  it('applies the same closed schemas and keeps 237 public operations', () => {
     const registry = new ContractRegistry();
-    expect(registry.operationCount).toBe(230);
+    expect(registry.operationCount).toBe(237);
     expect(registry.policyProfileRegistry).toBe(policyProfileRegistry);
     expect(
       registry.validatePolicyProfileDocument(

@@ -172,9 +172,9 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 
 ## #233 非空受控 final 设计用例
 
-authority为Spec 007 #233与Runtime Contract #233；当前全部NOT RUN。
+authority为Spec 007 #233与Runtime Contract #233；#235有限受控运行证据如下。
 
 | ID | 层级 / 输入 | 预期 | 实际 / 结果 |
 |---|---|---|---|---|
-| IG-COMP-D-001 | Application + PostgreSQL / 实际normal/recovered invocation、Human已提交output release | 原ack/adapter实例/attempt/session/Run/fencing不变，实际Artifact Ref/Receipt后才生成固定final bytes/hash，IG只封存观察 | 未执行 / NOT RUN |
-| IG-COMP-D-002 | Application + PostgreSQL / 预分配未提交输出、错invocation/Receipt/hash、双release、restart与late release | release独立授权/读取拒绝wrong-source；同原调用重读同bytes不重新invoke；迟到仅历史、TE不接纳，无第二final | 未执行 / NOT RUN |
+| IG-COMP-D-001 | Application + PostgreSQL / 实际normal/recovered invocation、Human已提交output release | 原ack/adapter实例/attempt/session/Run/fencing不变，实际Artifact Ref/Receipt后才生成固定final bytes/hash，IG只封存观察 | OWNING/PG/CONTROLLED PASS：normal/recovered三个versioned模板真实invoke；Human actual Artifact提交后原session/attempt/实例/fencing释放非空final，IG只封存；Run-2独立Context/instance/session。 |
+| IG-COMP-D-002 | Application + PostgreSQL / 预分配未提交输出、错invocation/Receipt/hash、双release、restart与late release | release独立授权/读取拒绝wrong-source；同原调用重读同bytes不重新invoke；迟到仅历史、TE不接纳，无第二final | APPLICATION/PG/CONTROLLED PASS（已执行）：premature未提交output拒绝、Human-only实际有Grant非Human/actingFor拒绝、冲突第二release拒绝、journal restart同原final/无新invoke；formal sealed output在Run已expire后仍不能产生TE Result/Completion。全部wrong invocation绑定与expiry后首次release子项NOT RUN。 |

@@ -37,6 +37,7 @@ import {
   textValue,
 } from './work-order-validation-plan.js';
 
+import { isFormalContract } from './formal-output.js';
 const registry = new ContractRegistry();
 const WORK_ORDER = 'zhiju.execution.work_order';
 const RUN = 'execution.run';
@@ -49,6 +50,15 @@ const RUNTIME = {
   modelId: 'synthetic',
   modelConfigHash: hash(sha256CanonicalJson({})),
 } as const;
+
+function runtimeFor(contract: CanonicalJsonObject) {
+  return {
+    ...RUNTIME,
+    adapterCode: isFormalContract(contract)
+      ? 'te.human_operated.synthetic.formal'
+      : RUNTIME.adapterCode,
+  };
+}
 
 export interface ControlledFirstRunPorts {
   readonly recovery?: RecoveryPorts;
@@ -275,7 +285,9 @@ export async function handleQueueWorkOrder(
       envelope.targetType === WORK_ORDER &&
       request.notBefore === undefined &&
       (request.requestedRuntimeClass === undefined ||
-        request.requestedRuntimeClass === RUNTIME.adapterCode),
+        ['te.human_operated.synthetic', 'te.human_operated.synthetic.formal'].includes(
+          textValue(request.requestedRuntimeClass),
+        )),
     'AGGREGATE_STATE_NOT_ALLOWED',
   );
   const subjectScope = scope(envelope);
@@ -420,7 +432,7 @@ export async function handleCreateFirstRun(
           deps.contractRef.objectId === root.frozen_contract_id &&
           digest(object(deps.contractRef.contentHash)) ===
             root.frozen_contract_hash.toString('hex') &&
-          same(creation.runtimeBinding, RUNTIME) &&
+          same(creation.runtimeBinding, runtimeFor(deps.contract)) &&
           (creation.attemptNumber === 1 || creation.attemptNumber === 2) &&
           creation.attemptNumber <= Number(object(deps.contract.executionPolicy).maxAttempts),
         'AGGREGATE_STATE_NOT_ALLOWED',
@@ -533,7 +545,7 @@ export async function handleCreateFirstRun(
           workOrderContractRef: deps.contractRef,
           contextSnapshotRef: deps.contextRef,
           capabilityGrantRef: bundleRef,
-          runtimeBinding: RUNTIME,
+          runtimeBinding: runtimeFor(deps.contract),
           leasePolicyRef: deps.controlsRef,
           leaseId,
           leaseExpiresAt,

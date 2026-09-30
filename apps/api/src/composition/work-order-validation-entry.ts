@@ -30,12 +30,18 @@ import {
   type RequestScope,
 } from './decision-boundary.js';
 import type { InitialContextEntryConfig, InitialContextSession } from './initial-context-entry.js';
+import {
+  createFormalCompletionDependencyPorts,
+  type FormalCompletionEntryConfig,
+} from './formal-completion-entry.js';
+import { handleReadCompletionQualityProfile } from '@zhiju/quality-governance';
 import { createWorkOrderDependencyReads } from './work-order-dependency-reads.js';
 
 export interface WorkOrderValidationEntryConfig extends Omit<
   InitialContextEntryConfig,
   'capabilityCodes'
 > {
+  readonly formalCompletion?: FormalCompletionEntryConfig;
   readonly capabilityCodes: WorkOrderValidationCapabilityCodes;
 }
 function identityContext(row: DecisionRow): IdentityTransactionContext {
@@ -322,7 +328,37 @@ export function createWorkOrderValidationEntry(config: WorkOrderValidationEntryC
     const issuedAt = (row as DecisionRow & { readonly created_at: Date }).created_at;
     if (!(issuedAt instanceof Date))
       entryError('AUTHORIZATION_DECISION_INVALID', 'Decision issuance instant unavailable');
+    const formalConfig = config.formalCompletion;
+    const formal = formalConfig
+      ? createFormalCompletionDependencyPorts(
+          config.formalCompletion,
+          row,
+          session,
+          operation === 'validate' ? 'work_order_validation' : 'work_order_freeze',
+          revalidate,
+        )
+      : undefined;
+    const stem = operation === 'validate' ? 'workOrderValidation' : 'workOrderFreeze';
     const ports: WorkOrderValidationPorts = {
+      ...(formal
+        ? {
+            authorizeTaskDefinition: async (taskRef: CanonicalJsonObject) => {
+              await formal.mint(`${stem}TaskDefinitionReadV1`, taskRef, { taskRef });
+            },
+            readQualityProfile: async (qualityProfileRef: CanonicalJsonObject) => {
+              const proof = await formal.mint(`${stem}QualityProfileReadV1`, qualityProfileRef, {
+                qualityProfileRef,
+              });
+              return handleReadCompletionQualityProfile(
+                formalConfig?.qualityDb ??
+                  entryError('DEPENDENCY_UNAVAILABLE', 'Quality boundary unavailable'),
+                proof.context,
+                qualityProfileRef as unknown as Common.VersionedRef,
+                proof.proof,
+              );
+            },
+          }
+        : {}),
       now,
       decisionIssuedAt: issuedAt.toISOString(),
       actorSnapshotRef: session.resolutionActorSnapshotRef as unknown as CanonicalJsonObject,
@@ -335,7 +371,10 @@ export function createWorkOrderValidationEntry(config: WorkOrderValidationEntryC
         contextExpiry,
         ...readers.decisionExpiries(),
       ],
-      revalidateAuthorization: revalidate,
+      revalidateAuthorization: async () => {
+        await revalidate();
+        await formal?.revalidateAll();
+      },
       slices: readers.slices,
       resolvePolicy: async (policyRef) =>
         (await readers.resolvePolicy(policyRef)) as unknown as WorkOrderPolicyObservation,

@@ -200,6 +200,10 @@ interface AuthorizationEntryBinding {
   readonly capabilityConfigKey: string;
   readonly targetPayloadMember?: string;
   readonly expectedPrincipalKind?: 'HUMAN' | 'SERVICE';
+  readonly forbidActingFor?: boolean;
+  readonly principalKinds?: readonly string[];
+  readonly allowedServicePrincipalIds?: readonly string[];
+  readonly enterpriseResource?: boolean;
 }
 
 export interface WorkOrderValidationBinding extends AuthorizationEntryBinding {
@@ -580,6 +584,7 @@ type WorkOrderValidationTarget =
     }
   | {
       readonly kind: 'VERSIONED';
+      readonly resourceScope?: Common.ScopeRef;
       readonly objectType: string;
       readonly objectId: string;
       readonly versionId: string;
@@ -862,8 +867,13 @@ async function issueEntryDecision(
     // a Human-only capability never becomes available to another kind.
     const principalInactive =
       principal?.status !== 'ACTIVE' ||
+      (binding.forbidActingFor === true && actor.row.acting_for_principal_id !== null) ||
       (binding.expectedPrincipalKind !== undefined &&
-        principalKind !== binding.expectedPrincipalKind);
+        principalKind !== binding.expectedPrincipalKind) ||
+      (binding.principalKinds !== undefined && !binding.principalKinds.includes(principalKind)) ||
+      (principalKind === 'SERVICE' &&
+        binding.allowedServicePrincipalIds !== undefined &&
+        !binding.allowedServicePrincipalIds.includes(actor.row.principal_id));
     const humanOnlyViolation = isHumanOnlyCapability(capabilityCode) && principalKind !== 'HUMAN';
     if (principalInactive || humanOnlyViolation) {
       const reason = principalInactive
@@ -1134,8 +1144,14 @@ async function revalidateEntryDecision(
     const principal = await deps.repo.getPrincipalById(trx, row.principal_id);
     if (
       principal?.status !== 'ACTIVE' ||
+      (binding.forbidActingFor === true && actor.row.acting_for_principal_id !== null) ||
       (binding.expectedPrincipalKind !== undefined &&
-        principal.principal_kind !== binding.expectedPrincipalKind)
+        principal.principal_kind !== binding.expectedPrincipalKind) ||
+      (binding.principalKinds !== undefined &&
+        !binding.principalKinds.includes(principal.principal_kind)) ||
+      (principal.principal_kind === 'SERVICE' &&
+        binding.allowedServicePrincipalIds !== undefined &&
+        !binding.allowedServicePrincipalIds.includes(row.principal_id))
     )
       return invalid('PRINCIPAL_NOT_ACTIVE');
 
@@ -1260,6 +1276,28 @@ function readValidationTarget(
     return readContextSnapshotTarget(rawTarget, binding, context);
   }
   if (binding.targetKind === 'VERSIONED') {
+    if (binding.enterpriseResource) {
+      const v = rawTarget as Common.VersionedRef;
+      if (
+        v.scope.enterpriseId !== context.enterpriseId ||
+        Object.keys(v.scope).length !== 1 ||
+        context.allowedProjectIds.length !== 1
+      )
+        throw new SnapshotBoundaryError(
+          IDENTITY_WORK_ORDER_VALIDATION_TARGET_INVALID,
+          'Exact Enterprise resource required',
+        );
+      const target = readValidationTarget(
+        {
+          ...v,
+          scope: { enterpriseId: context.enterpriseId, projectId: context.allowedProjectIds[0] },
+        },
+        { ...binding, enterpriseResource: false },
+        context,
+      );
+      if (target.kind !== 'VERSIONED') throw new Error('Versioned resource required');
+      return { ...target, resourceScope: { enterpriseId: context.enterpriseId } };
+    }
     const candidate = rawTarget as {
       kind?: unknown;
       objectType?: unknown;
@@ -1542,7 +1580,7 @@ function dependencyRefMember(
         objectType: target.objectType,
         objectId: target.objectId,
         versionId: target.versionId,
-        scope: { enterpriseId: target.enterpriseId, projectId: target.projectId },
+        scope: (target.resourceScope ?? target.scope) as unknown as CanonicalJsonObject,
       },
     ];
   }
@@ -1631,7 +1669,7 @@ function storedDependencyRefMatches(
       candidate.objectType === expected.objectType &&
       candidate.objectId === expected.objectId &&
       candidate.versionId === expected.versionId &&
-      sameScope(candidate.scope, expected.scope)
+      sameScope(candidate.scope, expected.resourceScope ?? expected.scope)
     );
   }
   const hash = candidate.contentHash as
@@ -4128,6 +4166,17 @@ export const BLOCKED_INPUT_RECOVERY_BINDINGS: readonly AuthorizationEntryBinding
     selectorType: 'TARGET_TYPE',
   },
 ]);
+// Formal output creation consumes the same owning frozen-recovery facts under distinct actions.
+export const FORMAL_OUTPUT_RECOVERY_BINDINGS = Object.freeze(
+  BLOCKED_INPUT_RECOVERY_BINDINGS.filter((b) =>
+    b.capabilityConfigKey.startsWith('recovery.run_finalize.'),
+  ).map((b) => ({
+    ...b,
+    capabilityConfigKey: b.capabilityConfigKey.replace('run_finalize', 'output_creation'),
+    commandType: b.commandType.replace('run_finalize', 'output_creation'),
+    requiredGrantAction: b.requiredGrantAction.replace('run_finalize', 'output_creation'),
+  })),
+);
 export type RecoveryCapabilityCodes = Readonly<Record<string, string>>;
 export function createRecoveryAuthorizationPort(config: {
   readonly capabilityCodes: RecoveryCapabilityCodes;
@@ -4136,7 +4185,9 @@ export function createRecoveryAuthorizationPort(config: {
   const now = config.now ?? (() => new Date());
   const common = config as unknown as WorkOrderValidationAuthorizationConfig;
   function binding(key: string, operation: string, version: string) {
-    const found = BLOCKED_INPUT_RECOVERY_BINDINGS.find((b) => b.capabilityConfigKey === key);
+    const found = [...BLOCKED_INPUT_RECOVERY_BINDINGS, ...FORMAL_OUTPUT_RECOVERY_BINDINGS].find(
+      (b) => b.capabilityConfigKey === key,
+    );
     if (found?.commandType !== operation || found.commandVersion !== version)
       throw new SnapshotBoundaryError(
         IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
@@ -4172,6 +4223,362 @@ export function createRecoveryAuthorizationPort(config: {
         input,
         input.expectedTargetRef,
         binding(key, input.expectedCommandType, input.expectedCommandVersion),
+      ),
+  };
+}
+
+export const FORMAL_COMPLETION_CONSUMERS = [
+  ['output_creation', 'outputCreation'],
+  ['result_validate', 'resultValidate'],
+  ['result_accept', 'resultAccept'],
+  ['run_finalize', 'runFinalize'],
+  ['work_order_completion', 'workOrderCompletion'],
+  ['task_completion', 'taskCompletion'],
+  ['work_order_state', 'workOrderState'],
+  ['task_state', 'taskState'],
+  ['judgment_read', 'judgmentRead'],
+  ['readiness_build', 'readinessBuild'],
+  ['readiness_consume', 'readinessConsume'],
+  ['driver_release', 'driverRelease'],
+  ['work_order_validation', 'workOrderValidation'],
+  ['work_order_freeze', 'workOrderFreeze'],
+] as const;
+export type FormalCompletionConsumer = (typeof FORMAL_COMPLETION_CONSUMERS)[number][0];
+export interface FormalCompletionAuthorizationConfig {
+  readonly capabilityCodes: Readonly<Record<string, string>>;
+  readonly servicePrincipalIds: {
+    readonly artifact: string;
+    readonly evaluator: string;
+    readonly validator: string;
+    readonly driver: string;
+    readonly taskExecution: readonly string[];
+  };
+  readonly now?: () => Date;
+}
+/** The finite approved mappings are code, never caller-controlled configuration. */
+export function formalCompletionBindings(): readonly AuthorizationEntryBinding[] {
+  function binding(
+    key: string,
+    type: string,
+    version: string,
+    purpose: string,
+    action: string,
+    target: string,
+    kind: WorkOrderValidationTargetKind = 'OBJECT',
+    create = false,
+  ): AuthorizationEntryBinding {
+    return {
+      capabilityConfigKey: key,
+      commandType: type,
+      commandVersion: version,
+      authorizationPurpose: purpose,
+      requiredGrantAction: action,
+      targetKind: kind,
+      targetObjectTypes: [target],
+      selectorType: create ? 'CREATE_TARGET_TYPE' : 'TARGET_TYPE',
+      ...(kind === 'OBJECT' ? {} : { targetPayloadMember: 'sourceRef' }),
+    };
+  }
+  const result: AuthorizationEntryBinding[] = [
+    binding(
+      'workOrderCompletionEvaluateV2',
+      'execution.evaluate_work_order_completion',
+      '2.0',
+      'execution.work_order.evaluate_completion',
+      'execution.work_order.completion.evaluate.v2',
+      'zhiju.execution.work_order',
+    ),
+    binding(
+      'taskCompletionEvaluateV2',
+      'execution.evaluate_task_completion',
+      '2.0',
+      'execution.task.evaluate_completion',
+      'execution.task.completion.evaluate.v2',
+      'zhiju.execution.task',
+    ),
+    {
+      ...binding(
+        'outputCreationBindingReadV1',
+        'execution.get_output_creation_binding',
+        '1.0',
+        'execution.run.output_creation_binding.read',
+        'execution.run.output_creation_binding.read.v1',
+        'execution.run',
+      ),
+      expectedPrincipalKind: 'SERVICE',
+    },
+    {
+      ...binding(
+        'executionRevisionCreateV1',
+        'artifact.create_execution_revision',
+        '1.0',
+        'artifact.execution_revision.create',
+        'artifact.execution_revision.create.v1',
+        'artifact.artifact_revision',
+        'OBJECT',
+        true,
+      ),
+      expectedPrincipalKind: 'HUMAN',
+    },
+    binding(
+      'executionOutputReadV1',
+      'artifact.get_execution_output_fact',
+      '1.0',
+      'artifact.execution_output.read',
+      'artifact.execution_output.read.v1',
+      'artifact.artifact_revision',
+      'CONTENT_ADDRESSED',
+    ),
+    binding(
+      'workOrderStateReadV1',
+      'execution.get_work_order_state',
+      '1.0',
+      'execution.work_order.state.read',
+      'execution.work_order.state.read.v1',
+      'zhiju.execution.work_order',
+    ),
+    binding(
+      'completionJudgmentReadV1',
+      'execution.get_execution_judgment',
+      '1.0',
+      'execution.judgment.read',
+      'execution.completion_judgment.read.v1',
+      'zhiju.execution.completion_evaluation',
+      'CONTENT_ADDRESSED',
+    ),
+    {
+      ...binding(
+        'formalOutputReleaseV1',
+        'integration.runtime.formal_output.release',
+        '1.0',
+        'integration.runtime.formal_output.release',
+        'integration.runtime.formal_output.release.v1',
+        'integration.runtime_attempt',
+      ),
+      expectedPrincipalKind: 'HUMAN',
+    },
+  ];
+  const currentConsumers = [
+    'work_order_completion',
+    'task_completion',
+    'work_order_state',
+    'task_state',
+    'judgment_read',
+    'readiness_build',
+    'readiness_consume',
+  ];
+  for (const [c, stem] of FORMAL_COMPLETION_CONSUMERS) {
+    if (c !== 'output_creation')
+      result.push(
+        binding(
+          `${stem}ExecutionOutputReadV1`,
+          'artifact.get_execution_output_fact',
+          '1.0',
+          'artifact.execution_output.read',
+          `artifact.execution_output.read.for_${c}.v1`,
+          'artifact.artifact_revision',
+          'CONTENT_ADDRESSED',
+        ),
+      );
+    if (currentConsumers.includes(c)) {
+      result.push(
+        binding(
+          `${stem}CompletionPolicyReadV1`,
+          'identity.resolve_policy',
+          '1.0',
+          'identity.policy.resolve_policy',
+          `identity.policy.resolve.for_${c}.v1`,
+          'zhiju.identity.policy',
+          'VERSIONED',
+        ),
+      );
+      result.push({
+        ...binding(
+          `${stem}CompletionSourcesReadV1`,
+          'execution.completion.sources.read',
+          '1.0',
+          'execution.completion.sources.read',
+          `execution.completion.sources.read.for_${c}.v1`,
+          'zhiju.execution.work_order',
+        ),
+        targetObjectTypes: ['zhiju.execution.work_order', 'zhiju.execution.task'],
+      });
+      result.push(
+        binding(
+          `${stem}CompletionBundleInspectV1`,
+          'identity.execution_capability_bundle.inspect',
+          '1.0',
+          'identity.execution_capability_bundle.inspect',
+          `identity.execution_bundle.inspect.for_${c}.v1`,
+          'zhiju.identity.execution_capability_bundle',
+          'CONTENT_ADDRESSED',
+        ),
+      );
+      result.push(
+        binding(
+          `${stem}RevisionAcceptanceReadV1`,
+          'quality.get_revision_acceptance_snapshot',
+          '1.0',
+          'quality.governance.get_revision_acceptance_snapshot',
+          `quality.ras.read.for_${c}.v1`,
+          'quality.revision_acceptance_snapshot',
+          'SNAPSHOT',
+        ),
+      );
+      result.push(
+        binding(
+          `${stem}ApprovalBundleReadV1`,
+          'quality.get_approval_bundle_snapshot',
+          '1.0',
+          'quality.governance.get_approval_bundle_snapshot',
+          `quality.abs.read.for_${c}.v1`,
+          'quality.approval_bundle_snapshot',
+          'SNAPSHOT',
+        ),
+      );
+      result.push(
+        binding(
+          `${stem}RevisionEligibilityReadV1`,
+          'quality.get_revision_execution_eligibility',
+          '1.0',
+          'quality.revision.execution_eligibility.read',
+          `quality.execution_eligibility.read.for_${c}.v1`,
+          'artifact.artifact_revision',
+        ),
+      );
+    }
+    if (['work_order_validation', 'work_order_freeze'].includes(c)) {
+      result.push({
+        ...binding(
+          `${stem}QualityProfileReadV1`,
+          'quality.get_quality_profile',
+          '1.0',
+          'quality.governance.get_quality_profile',
+          `quality.profile.read.for_${c}.v1`,
+          'quality.quality_profile',
+          'VERSIONED',
+        ),
+        enterpriseResource: true,
+      });
+      result.push(
+        binding(
+          `${stem}TaskDefinitionReadV1`,
+          'execution.task.definition.read',
+          '1.0',
+          'execution.task.definition.read',
+          `execution.task.definition.read.for_${c}.v1`,
+          'zhiju.execution.task',
+        ),
+      );
+    }
+    if (c === 'task_completion')
+      result.push(
+        binding(
+          `${stem}CompletionQualitySelectionReadV1`,
+          'quality.completion_selection.read',
+          '1.0',
+          'quality.completion_selection.read',
+          `quality.completion_selection.read.for_${c}.v1`,
+          'artifact.artifact_revision',
+        ),
+      );
+  }
+  result.push(
+    binding(
+      'outputCreationControlsReadV1',
+      'identity.resolve_policy',
+      '1.0',
+      'identity.policy.resolve_policy',
+      'identity.policy.resolve.for_output_creation.v1',
+      'zhiju.identity.policy',
+      'VERSIONED',
+    ),
+  );
+  result.push(
+    binding(
+      'outputCreationBundleReadV1',
+      'identity.execution_capability_bundle.read',
+      '1.0',
+      'identity.execution_capability_bundle.read',
+      'identity.execution_bundle.read.for_output_creation.v1',
+      'zhiju.identity.execution_capability_bundle',
+      'CONTENT_ADDRESSED',
+    ),
+  );
+  return Object.freeze(result);
+}
+export function createFormalCompletionAuthorizationPort(
+  config: FormalCompletionAuthorizationConfig,
+) {
+  const now = config.now ?? (() => new Date()),
+    common = config as unknown as WorkOrderValidationAuthorizationConfig;
+  function mapping(key: string, type: string, version: string) {
+    const b = formalCompletionBindings().find(
+      (v) =>
+        v.capabilityConfigKey === key && v.commandType === type && v.commandVersion === version,
+    );
+    if (!b)
+      throw new SnapshotBoundaryError(
+        IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
+        'Unsupported formal completion boundary',
+      );
+    const ids =
+      key === 'outputCreationBindingReadV1'
+        ? [config.servicePrincipalIds.artifact]
+        : key === 'executionOutputReadV1'
+          ? [
+              config.servicePrincipalIds.evaluator,
+              config.servicePrincipalIds.validator,
+              config.servicePrincipalIds.driver,
+            ]
+          : [
+                'workOrderCompletionEvaluateV2',
+                'taskCompletionEvaluateV2',
+                'taskCompletionCompletionQualitySelectionReadV1',
+              ].includes(key)
+            ? [config.servicePrincipalIds.evaluator]
+            : [
+                config.servicePrincipalIds.artifact,
+                config.servicePrincipalIds.evaluator,
+                config.servicePrincipalIds.validator,
+                config.servicePrincipalIds.driver,
+                ...config.servicePrincipalIds.taskExecution,
+              ];
+    return {
+      ...b,
+      ...(b.expectedPrincipalKind === 'HUMAN' ? { forbidActingFor: true } : {}),
+      principalKinds: b.expectedPrincipalKind ? [b.expectedPrincipalKind] : ['HUMAN', 'SERVICE'],
+      allowedServicePrincipalIds: ids,
+    };
+  }
+  return {
+    authorize: (
+      deps: IdentityCommandDeps,
+      key: string,
+      input: ControlledFirstRunAuthorizationInput,
+    ) =>
+      issueEntryDecision(
+        common,
+        now,
+        undefined,
+        deps,
+        input,
+        input.targetRef,
+        mapping(key, input.commandType, input.commandVersion),
+      ),
+    revalidate: (
+      deps: IdentityCommandDeps,
+      key: string,
+      input: ControlledFirstRunRevalidationInput,
+    ) =>
+      revalidateEntryDecision(
+        common,
+        now,
+        undefined,
+        deps,
+        input,
+        input.expectedTargetRef,
+        mapping(key, input.expectedCommandType, input.expectedCommandVersion),
       ),
   };
 }

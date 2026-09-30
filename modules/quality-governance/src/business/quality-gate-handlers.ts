@@ -2580,6 +2580,8 @@ export async function handleGetRevisionExecutionEligibility(
   db: Kysely<QualityGovernanceDb>,
   context: QualityTransactionContext,
   payload: GetRevisionExecutionEligibilityPayload,
+  completionProfileRef?: Common.VersionedRef,
+  onCompletionApprovalRevocation?: (revoked: boolean) => void,
 ): Promise<QualityGovernance.RevisionExecutionEligibilityResult> {
   assertExecutionEligibilityAuthorized(context);
   const revisionRef = validateContentAddressedRef(
@@ -2624,7 +2626,23 @@ export async function handleGetRevisionExecutionEligibility(
       revisionRef,
       acceptanceRow,
     );
+    let completionProfileUsable = true;
+    // Completion consumes a frozen Profile under its current eligibility authority.
+    // The existing public Query keeps its historical Profile interpretation.
+    if (completionProfileRef !== undefined) {
+      const currentProfile = await exactProfile(trx, context, completionProfileRef, true);
+      const root = await repo.getQualityProfileById(trx, completionProfileRef.objectId);
+      if (
+        !exactJsonEqual(acceptanceRow.quality_profile_ref, completionProfileRef) ||
+        !currentProfile ||
+        root?.status !== 'ACTIVE' ||
+        root.active_version_id !== completionProfileRef.versionId
+      ) {
+        completionProfileUsable = false;
+      }
+    }
     const reasons = new Set(acceptance.reasons);
+    if (!completionProfileUsable) reasons.add(QUALITY_REVISION_ACCEPTANCE_NOT_READY);
     let observedFacts = acceptance.observedFacts;
     let approvalBundleUsable: QualityGovernance.ValueEnvelopeBoolean = {
       presence: 'NOT_APPLICABLE',
@@ -2650,17 +2668,41 @@ export async function handleGetRevisionExecutionEligibility(
           'ApprovalBundleSnapshot is not bound to the exact Revision, Scope and Profile',
         );
       }
+      if (completionProfileRef !== undefined && onCompletionApprovalRevocation !== undefined) {
+        let revoked = false;
+        for (const value of storedArray(
+          bundleRow.approval_refs,
+          'ApprovalBundleSnapshot.approvalRefs',
+        )) {
+          const ref = validateContentAddressedRef(
+            value,
+            context,
+            'ApprovalBundleSnapshot.approvalRef',
+            new Set([APPROVAL_OBJECT_TYPE]),
+          );
+          const row = await repo.getApprovalById(trx, ref.objectId);
+          revoked ||=
+            row?.status === 'REVOKED' &&
+            row.payload_hash.equals(contentRefHash(ref)) &&
+            exactJsonEqual(row.revision_ref, revisionRef) &&
+            exactJsonEqual(row.quality_profile_ref, completionProfileRef);
+        }
+        onCompletionApprovalRevocation(revoked);
+      }
       const bundle = await approvalBundleEligibility(trx, context, revisionRef, bundleRow);
       observedFacts += bundle.observedFacts;
       for (const reason of bundle.reasons) reasons.add(reason);
-      approvalBundleUsable = { presence: 'PRESENT', value: bundle.usable };
+      approvalBundleUsable = {
+        presence: 'PRESENT',
+        value: bundle.usable && (completionProfileRef === undefined || completionProfileUsable),
+      };
     }
     const observedAt = new Date().toISOString();
     return {
       revisionRef,
       revisionAcceptanceRef,
       ...(approvalBundleRef === undefined ? {} : { approvalBundleRef }),
-      revisionAcceptanceUsable: acceptance.usable,
+      revisionAcceptanceUsable: acceptance.usable && completionProfileUsable,
       approvalBundleUsable,
       reasonCodes: [...reasons].sort(),
       observedAt,

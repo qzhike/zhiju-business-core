@@ -32,3 +32,5 @@ export * from './task-execution-creation-purpose.js';
 export * from './payload-guard.js';
 
 export * from './work-order-ready-profiles.js';
+
+export * from './formal-output-profile.js';

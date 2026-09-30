@@ -67,6 +67,18 @@ interface ApprovedEntry {
  */
 const approvedEntries: readonly ApprovedEntry[] = [
   {
+    registryKey: 'execution.work_order_controls.policy@2.0',
+    owner: 'task-execution',
+    fields: ['controls', 'completionPolicyRef', 'recovery'],
+    requiredFields: ['controls', 'completionPolicyRef'],
+  },
+  {
+    registryKey: 'execution.completion.policy@1.0',
+    owner: 'task-execution',
+    fields: ['maxCompletionValiditySeconds'],
+    requiredFields: ['maxCompletionValiditySeconds'],
+  },
+  {
     registryKey: 'execution.work_order_controls.policy@1.1',
     owner: 'task-execution',
     fields: ['controls', 'recovery'],

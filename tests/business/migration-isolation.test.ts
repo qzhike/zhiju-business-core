@@ -62,6 +62,11 @@ const MIGRATION_VERSION_RANGES: Record<string, [number, number]> = {
 
 // Issue #231 reserves these exact forward versions for TaskExecution; IG cannot reuse them.
 const TASK_EXECUTION_RECOVERY_VERSIONS = new Set([7005, 7006, 7007]);
+// Issue #235 reserves exactly these two forward versions for formal completion.
+const FORMAL_COMPLETION_ALLOCATIONS = new Map([
+  [7008, 'artifact'],
+  [7009, 'task_execution'],
+]);
 
 const MIGRATION_NAME_PATTERN = /^V(\d{4})__[a-z][a-z0-9_]*\.sql$/;
 const MIGRATION_ROOT_FILES = new Set(['README.md']);
@@ -89,6 +94,14 @@ export function validateMigrationEntry(directory: string, fileName: string): str
   const range = MIGRATION_VERSION_RANGES[directory] ?? [0, 0];
   const [min, max] = range;
   const recoveryAllocation = TASK_EXECUTION_RECOVERY_VERSIONS.has(version);
+  const completionOwner = FORMAL_COMPLETION_ALLOCATIONS.get(version);
+  if (completionOwner) {
+    return directory === completionOwner
+      ? []
+      : [
+          `'${directory}/${fileName}': version ${version} reserved for ${completionOwner} formal completion`,
+        ];
+  }
   if (directory === 'integration_gateway' && recoveryAllocation) {
     violations.push(
       `'${directory}/${fileName}': version ${version} reserved for task_execution recovery`,
@@ -210,9 +223,15 @@ describe('migration layout follows the frozen directory/version contract', () =>
       ]);
     }
     expect(validateMigrationEntry('task_execution', 'V7008__unapproved.sql')).toEqual([
-      "'task_execution/V7008__unapproved.sql': version 7008 outside task_execution range 3000-3999",
+      "'task_execution/V7008__unapproved.sql': version 7008 reserved for artifact formal completion",
     ]);
-    expect(validateMigrationEntry('integration_gateway', 'V7008__next.sql')).toEqual([]);
+    for (const [version, owner] of FORMAL_COMPLETION_ALLOCATIONS) {
+      expect(validateMigrationEntry(owner, `V${version}__completion.sql`)).toEqual([]);
+      expect(validateMigrationEntry('integration_gateway', `V${version}__completion.sql`)).toEqual([
+        `'integration_gateway/V${version}__completion.sql': version ${version} reserved for ${owner} formal completion`,
+      ]);
+    }
+    expect(validateMigrationEntry('integration_gateway', 'V7010__next.sql')).toEqual([]);
     expect(validateMigrationEntry('identity_policy', '.gitkeep')).toEqual([]);
 
     expect(validateMigrationEntry('not_a_schema', 'V8001__x.sql')).toEqual([

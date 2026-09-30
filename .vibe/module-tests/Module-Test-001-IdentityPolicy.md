@@ -280,10 +280,10 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 
 ## #233 Completion 授权设计用例
 
-authority为Spec 001 §15.15，以下当前全部NOT RUN；#224实际Grant PolicySnapshot lifecycle延后继续保留。
+authority为Spec 001 §15.15，#235当前有限owning/PG证据如下；#224实际Grant PolicySnapshot lifecycle延后继续保留。
 
 | ID | 层级 / 输入 | 预期 | 实际 / 结果 |
 |---|---|---|---|---|
-| IP-COMP-D-001 | Contract + Application + PostgreSQL / Human或固定TE SERVICE自身及每项dependency Decision | operation/version/purpose/action/target/payloadHash/Scope完整匹配；Human-onlyArtifact/Driver入口不可代理；qualityProfile exact read/SelectionPort独立授权，缺授权零read | 未执行 / NOT RUN |
-| IP-COMP-D-002 | Application + PostgreSQL / AGENT/RUNTIME/未知SERVICE、actingFor、借producer Decision、错purpose/hash/Scope、历史receipt | protected读前拒绝为0，current授权不可用时masked拒绝；旧事实存在不授予新Completion/read权 | 未执行 / NOT RUN |
-| IP-COMP-D-003 | Application + PostgreSQL / Grant真实撤销、PolicyVersion真实后继、Decision到期及持锁后撤权 | 提交/原Receipt返回前拒绝，无半事实；terminal历史Bundle inspect不要求ACTIVE/过期执行权重新签发 | 未执行 / NOT RUN |
+| IP-COMP-D-001 | Contract + Application + PostgreSQL / Human或固定TE SERVICE自身及每项dependency Decision | operation/version/purpose/action/target/payloadHash/Scope完整匹配；Human-onlyArtifact/Driver入口不可代理；qualityProfile exact read/SelectionPort独立授权，缺授权零read | OWNING/PG PASS：当前自身及consumer独立真实Decision/Grant，精确operation/version/purpose/action/target/hash/Scope；Artifact/Driver Human-only；Quality Selection/Profile/#192各自授权。 |
+| IP-COMP-D-002 | Application + PostgreSQL / AGENT/RUNTIME/未知SERVICE、actingFor、借producer Decision、错purpose/hash/Scope、历史receipt | protected读前拒绝为0，current授权不可用时masked拒绝；旧事实存在不授予新Completion/read权 | OWNING/PG PASS（已执行）：实际有code Grant的AGENT/SERVICE、真实HUMAN actingFor不能取得Human-only权限；借Human Decision在Artifact/TE protected SQL前拒绝；不同operation、Actor/Decision Hash/Scope错误SQL及历史replay边界。RUNTIME/所有未知SERVICE新接口子项NOT RUN。 |
+| IP-COMP-D-003 | Application + PostgreSQL / Grant真实撤销、PolicyVersion真实后继、Decision到期及持锁后撤权 | 提交/原Receipt返回前拒绝，无半事实；terminal历史Bundle inspect不要求ACTIVE/过期执行权重新签发 | OWNING/PG PASS（已执行）：自身/依赖Grant revoke、output_creation新Bundle consumer revoke、business PolicyVersion successor、Completion TTL、terminal旧lease到期USABLE；旧Receipt原授权当前复验。新Completion自身/sources Grant持锁后实际撤销拒绝；真实Grant PolicySnapshot lifecycle沿既有批准延后。 |
