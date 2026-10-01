@@ -1,14 +1,14 @@
 # PR #240 — TaskCompleted / DeliveryItem Completion 实现审查
 
-状态：`DRAFT / INDEPENDENT IMPLEMENTATION REVIEW REQUEST_CHANGES ON 17e8ae6969e229930df86498b46e172826fd2ce5 / FIXES PROPOSED / INDEPENDENT RE-REVIEW PENDING / HUMAN TECHNICAL REVIEW PENDING / NOT APPROVED FOR MERGE`。
+状态：`INDEPENDENT RE-REVIEW COMPLETED ON f1868668db60cf2dfb32a87d88bef30d6c815003 / ROUND-1 F1–F3 CLOSED / EXPLICIT HUMAN TECHNICAL APPROVAL AND MERGE AUTHORIZATION RECORDED 2026-10-01 / FINAL DOCUMENT-HEAD REVIEW AND CHECKS REQUIRED BEFORE MERGE`。
 
-本文为项目要求的正式审查记录入口。第 1–4 节保留 Implementer 在取得实际 PR 编号后建立的准备记录与当时门禁，不构成独立审查结论或人类技术批准；本轮独立审查结果与发布证据见第 5 节，不把作者验证作为 Reviewer APPROVE。
+本文为项目要求的正式审查记录入口。第 1–4 节保留 Implementer 在取得实际 PR 编号后建立的准备记录与当时门禁，不构成独立审查结论或人类技术批准；第 1 轮与第 2 轮独立审查结果见第 5、7 节，不把作者验证作为 Reviewer APPROVE。
 
 ## 1. 工作项与修订
 
 - 工作项：[Issue #239](https://github.com/qzhike/zhiju-business-core/issues/239)。交付：[PR #240](https://github.com/qzhike/zhiju-business-core/pull/240)，Draft，base `main@caa9bd6525bfd577369efe3ae84acc2e8dbdc2df`。
 - 首次提交实现的代码修订：`845e531ef5bee12af50e06c527bfde168802f0a9`。本记录加入后 PR head 会前进；正式 Reviewer 必须独立读回最新 head，绑定当时实际完整 SHA，并审查包括本记录在内的最终 diff。
-- 第1轮独立审查实现 SHA：`17e8ae6969e229930df86498b46e172826fd2ce5`，结果 `REQUEST_CHANGES`，详见 §5；修复后最新 head 的独立复审仍 `PENDING`。
+- 第1轮独立审查实现 SHA：`17e8ae6969e229930df86498b46e172826fd2ce5`，结果 `REQUEST_CHANGES`，详见 §5；第2轮 reviewed SHA 为 `f1868668db60cf2dfb32a87d88bef30d6c815003`，结果 `HUMAN_REVIEW_REQUIRED`，F1–F3 已关闭，详见 §7。
 
 ## 2. 已有设计权威与本次边界
 
@@ -76,3 +76,36 @@
 - F3：新增真实 owning producer 暂停于 Outbox INSERT 后/pre-commit 的晚提交调度；同一已批准 ACTIVE Plan 内两个独立预分配 Task/Item，高 UUID 可见源先 allocation，低 UUID 晚 commit 源后 allocation。按高 sequence→低 sequence 消费并独立评估另一 Item，核对 binding/sequence/observedAt 原材料重放及不重复事实/评估/事件；剩余不同层级子项继续 PARTIAL/NOT RUN。处置：补充可达验收，待独立复审。
 
 最新修订仍须独立 Reviewer 绑定实际完整 head SHA 复审，授权/RLS/persistence 人类技术审查继续 PENDING；没有合并授权，也不关闭 IM-06。
+
+## 7. 独立实现复审第 2 轮（2026-10-01）
+
+- Reviewer：本次用户请求的独立 Codex Reviewer；对修订实际 diff、未变更的 Issue #239 与 owning 契约独立核对，未修改产品代码。
+- Reviewed SHA：`f1868668db60cf2dfb32a87d88bef30d6c815003`；发布前 GitHub 读回为同一 head、OPEN / Draft。前轮基线为 `17e8ae6969e229930df86498b46e172826fd2ce5`。
+- 结论：`HUMAN_REVIEW_REQUIRED`。前轮 F1–F3 在该修订上 CLOSED；本轮未发现新的阻塞实现问题。项目明确要求的授权 / RLS / persistence 人类技术审查仍为 PENDING，既有详细设计批准不替代当前实现批准。
+- [已发布并读回的复审总结](https://github.com/qzhike/zhiju-business-core/pull/240#pullrequestreview-5377208288)，GitHub state 为 `COMMENTED`，commit_id 与 reviewed SHA 一致；不是 GitHub APPROVE review event 或人类批准。
+
+### 7.1 Findings 处置
+
+| Finding | 本轮独立证据                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | 结论                                                                |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| F1 / P1 | V7012 先读取 exact Item 冻结 profile；exact-task profile 缺失 discriminator 仍走完整 v2 guard，真正 legacy Item 保留兼容路径。负例从正常 owning Evaluation 复制，仅删除 `taskFactSemantics` 并重算 payload/fingerprint Hash，确认 app role 与合法 Project context，要求 23514 且 pointer 不变；legacy owning 正例确认其成功 Evaluation 无 discriminator。两者纳入当前 exact-head CI。                                                                                                            | CLOSED；本轮复用真实 PostgreSQL CI，不声称重新本地执行该 SQL 反例。 |
+| F2 / P2 | Result 普通数组移除 uniqueness，request NonEmptySet 保留。独立 Registry probe：原结果 PASS、新 standalone duplicate-array 结果 PASS；duplicate request 在 `/payload/factRefs/uniqueItems` 拒绝。复核请求三个必填字段、结果四个必填字段/optional Impact、closed shape、Ref 与 PositiveInt 范围仍符合 Spec 002 §23.3。                                                                                                                                                                             | CLOSED。                                                            |
+| F3 / P2 | 新 isolated owning 测试在同一合法 Human-approved ACTIVE Plan 创建两个独立 Task/Item，以 Kysely result hook 暂停真实 producer 的 Outbox INSERT 后/pre-commit；未提交源不可见，高 UUID 可见源先 sequence1，低 UUID 晚提交后仍被发现并 sequence2。先消费/评估 sequence2，再处理另一个 Item 的 sequence1，两者 owning readback SATISFIED、pointer1→2、各一份 Fact/association/Evaluation/CompletionEvent；DUPLICATE 重放和原 binding/watermark 不变。CI 日志明确记录该 named schedule state=passed。 | CLOSED；不将剩余同关联多源等子项升级为 PASS。                       |
+
+### 7.2 验证与当前门禁
+
+复用 [full CI run 36830102436](https://github.com/qzhike/zhiju-business-core/actions/runs/36830102436)：独立读回 `headSha` 为 reviewed SHA；`select`、`checks`、`persistence`、汇总 `verify` 均 SUCCESS，实际 Verify code / Verify persistence steps 成功。独立查阅 CI 日志确认普通 83 files / 1641 tests、真实 PostgreSQL 43 files / 550 tests；新增 late-commit/cross-Item schedule、两个 normal/recovered owning delivery fixtures（含 F1 负例）以及 `EP-WI12-P-005` legacy control 均通过。未为重复取证再运行本地 configured full。
+
+剩余 PARTIAL / NOT RUN 子项保持原有分层限定；LOCAL SYNTHETIC revocation 不冒充 owning 撤销生产者证据。外部 Provider/CLI/飞书、生产/负载及独立人工业务验收继续 NOT RUN。下一门禁为当前授权 / RLS / persistence 实现的人类技术审查，再按适用交付门禁与明确合并授权推进；本轮未提交、推送、合并或关闭 IM-06。本节为本地正式记录更新，尚未提交或推送。
+
+## 8. 人类批准与交付授权（2026-10-01）
+
+第 2 轮复审已向用户明确说明：F1–F3 在 `f1868668db60cf2dfb32a87d88bef30d6c815003` 关闭，无新阻塞实现 finding；剩余门禁为当前授权、RLS、持久化实现的人类技术审查。用户随后明确回复：
+
+> 批准更改，合并PR并关闭local/remote branch及issue
+
+该批准在上述复审上下文中绑定 `f1868668db60cf2dfb32a87d88bef30d6c815003` 的当前变更及已说明的人类技术门禁，并授权 PR #240 合并、Issue #239 关闭与对应本地/远端 task branch 清理。批准包含为满足正式记录门禁而提交、推送本记录的必要交付动作；不授权 unrelated branch/worktree 清理、部署或 IM-06 整体关闭。
+
+本次最后提交仅保存第 2 轮正式复审记录与本批准，不修改实现、契约、迁移或测试。记录提交后仍须从 GitHub 读回实际最终 head、独立检查文档增量与原实现一致性，并取得该 head 的 required full CI 成功；最终 reviewed SHA、检查和真实合并/关闭结果记录在 PR/Issue，不预写未来合并事实。
+
+此前 §1–7 的 PENDING / NOT RUN / 未提交等表述保留各轮当时事实，由本节的明确批准与后续 GitHub 交付证据 supersede；未执行的 external/manual/PARTIAL 子项不因批准升级为 PASS。
