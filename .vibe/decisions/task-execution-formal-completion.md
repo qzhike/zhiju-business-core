@@ -1,6 +1,6 @@
 # IM-06 正式输出与独立 Completion Spec Delta（#233）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION PRESENT IN #235 / FINAL VERIFICATION AND REVIEW PENDING`。基线为执行时读回的 `main@8d15943f4c28a6a7b4c177571d04c773f74d5238`。本设计及 #235 实现限定一个可用结果的详细语义：授权 Human 经 Artifact owning 入口创建正式输出，受控 Run 真实报告该输出，TE 独立完成 WorkOrder/Task，并提供历史 Evaluation 与当前可用性权威读回。设计审查、明确人类设计批准、未来实现与业务验收是不同门禁；发布本 PR 不关闭 #233 或 IM-06。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION MERGED (#235 / PR #236) / VERIFICATION AND REVIEW EVIDENCE IN PR #236 / HUMAN TECHNICAL APPROVAL APPROVED`。设计基线为执行时读回的 `main@8d15943f4c28a6a7b4c177571d04c773f74d5238`。本设计及 #235 实现限定一个可用结果的详细语义：授权 Human 经 Artifact owning 入口创建正式输出，受控 Run 真实报告该输出，TE 独立完成 WorkOrder/Task，并提供历史 Evaluation 与当前可用性权威读回。设计审查、人类设计批准、实现技术批准与业务验收是不同门禁；#235 的限定交付不关闭 IM-06，未执行子项仍为 NOT RUN。
 
 ## 1. 对账与变更分类
 

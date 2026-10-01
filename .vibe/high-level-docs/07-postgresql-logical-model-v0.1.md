@@ -2370,7 +2370,7 @@ Process 顺序为 Request open、WorkOrder wait、Task wait、Context build、Hu
 
 ## 40. 正式输出与 Completion 前向持久化（提案，#233）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / NO MIGRATION / NOT RUN`。字段级authority为 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)、Spec 004 §12。只新增forward migration。本次有限编号例外由用户在 #235 实现会话于2026-09-30明确批准：`V7008`专用于`artifact`执行Revision事实，`V7009`专用于`task_execution`正式Completion；各自只修改owning Schema，`integration_gateway`不得重用这两个编号，其余号段保持迁移布局契约，不启用out-of-order；旧已应用migration、旧frozen Contract/Context/Result与200 compatibility baseline不改写。禁止跨Schema FK、跨模块Repository或双Root写事务。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / V7008–V7010 MERGED (#235 / PR #236) / POSTGRESQL EVIDENCE IN PR #236`。字段级authority为 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)、Spec 004 §12。只新增forward migration。本次有限编号例外由用户在 #235 实现会话于2026-09-30明确批准：`V7008`专用于`artifact`执行Revision事实，`V7009`专用于`task_execution`正式Completion；各自只修改owning Schema，`integration_gateway`不得重用这两个编号，其余号段保持迁移布局契约，不启用out-of-order；旧已应用migration、旧frozen Contract/Context/Result与200 compatibility baseline不改写。禁止跨Schema FK、跨模块Repository或双Root写事务。
 
 | owning schema / 逻辑表或增量 | canonical/mirror及约束 |
 |---|---|

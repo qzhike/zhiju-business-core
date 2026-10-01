@@ -165,3 +165,9 @@ Reviewer 明确允许后续严格只提交本 Review.md 的实际复审记录，
 - 代码 delta 仅为 `.github/workflows/ci.yml` 的 persistence job `timeout-minutes: 30 → 60`；其命令、测试收集、固定镜像、文件串行、失败/取消处理以及汇总 gate 均未变。验证基准 §2.1.1 同步记录 checks=30 / persistence=60。已有 T2 产品范围与分类保留，未新增产品/契约/数据库语义。
 - 产品独立审查与人类技术批准绑定 `87e2e76…`；本段是该精确产品修订之后的已明确授权执行预算 delta，不伪称另一个 Reviewer 已独立审查此修改。交付时须核对最终 head 与上述唯一预算修改、批准/复审记录及权威文字同步一致，并使用最终 head 的完整 CI 结果；旧 revision 的绿色证据不替代新 CI 执行预算的实际验证。
 - 修正前各次 CANCELLED / verify FAILURE 保留为实际历史结果；修正后 CI 尚未运行，不能提前记 PASS。实际修订 SHA 与执行终态进入 PR。合并、Issue 关闭及分支删除只在最终 Gate 满足后执行。
+
+## 2026-10-01 最终交付修订绑定
+
+最终交付 SHA 为 `fe7ef7b6b3aafabb1a87e67aa8288aaeba306915`；相对独立复审并取得人类技术批准的 `87e2e76…`，实际路径恰为 CI persistence 预算单行修改、验证基准文字及本正式审查/批准记录，未改产品、契约、测试或 SQL。该预算 delta 已获用户明确授权；不将此交付核对称为另一个 Reviewer 的独立产品复审。
+
+最终 SHA 的 [完整 CI run 36795576467](https://github.com/qzhike/zhiju-business-core/actions/runs/36795576467) 已终结，select/checks/persistence/verify 全部 SUCCESS；原始代码与 PostgreSQL 日志、执行计数及迁移/清理证据在 PR 记录。上述独立产品复审、人类技术批准、预算授权和最终完整 CI 共同满足本次限定交付门禁。PR #236 已按用户合并授权合入 `93822fae63ae69b909635c81768760d0057c241f`，#235 已关闭；既有 NOT RUN 子项和 IM-06 Current 边界不变。前文所有 PENDING、未提交和旧 CI 终态保留为当时的历史事实。

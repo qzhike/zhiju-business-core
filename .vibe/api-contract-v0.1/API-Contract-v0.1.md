@@ -588,7 +588,7 @@ EP Receipt attestation的Hash基于规范receipt材料，不基于requestHash；
 
 ### #233 Completion 兼容与读回（提案）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / NO EXECUTABLE CONTRACT CHANGE`。新增操作见[Catalog #233](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#233-正式输出与-completion-契约提案)，请求/结果唯一维护于Spec 003 §25和Spec 004 §12。旧Completion input `{criteriaHash,factRefs,blockingRefs,sourceWatermarks,evaluatorRef,evaluatedAt}`保持@1.0，@2.0完全独立closed `{policyRef,evaluatorRef}`；旧合法请求不得经@2.0路由，@2.0拒绝旧caller集合/时间/结论。两新Completion均owning Root EVALUATE、expectedAggregateVersion必填、UUIDv7 Evaluation由producer分配，operation-specific data显式resultSchemaRef并按shared CommandResult.data校验；不同targetKind/subject/source/版本不允许fallback。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / EXECUTABLE CONTRACTS MERGED (#235 / PR #236)`。新增操作见[Catalog #233](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#233-正式输出与-completion-契约提案)，请求/结果唯一维护于Spec 003 §25和Spec 004 §12。旧Completion input `{criteriaHash,factRefs,blockingRefs,sourceWatermarks,evaluatorRef,evaluatedAt}`保持@1.0，@2.0完全独立closed `{policyRef,evaluatorRef}`；旧合法请求不得经@2.0路由，@2.0拒绝旧caller集合/时间/结论。两新Completion均owning Root EVALUATE、expectedAggregateVersion必填、UUIDv7 Evaluation由producer分配，operation-specific data显式resultSchemaRef并按shared CommandResult.data校验；不同targetKind/subject/source/版本不允许fallback。
 
 Completion payload不含criteriaHash不等于无绑定：owning current definition/Contract产生criteriaHash、完整collection/observed versions/inputHash，Root CAS与source rechecks保证提交一致性。Query/Judgment historical payload不可变，current status/check时间独立返回；错Hash/Scope/不可见Judgment统一EXECUTION_JUDGMENT_INVALID、Root/Artifact Query masked NOT_FOUND，permission拒绝统一AUTHORIZATION_DECISION_INVALID，依赖不可达明确DEPENDENCY_UNAVAILABLE。历史过期不改outcome，不从Projection freshness或Caller conclusion授权。
 

@@ -869,7 +869,7 @@ Bundle issue的新Context分支只接受Spec003 §24.5的FROZEN eligibility Port
 
 ### 15.15 IM06-COMPLETION 独立授权组成（提案，#233）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION PRESENT IN #235 / FINAL VERIFICATION AND REVIEW PENDING`。服务 [Spec 003 §25](Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233) / Spec 004 §12；没有IdentityPolicy新增公开操作/Grant/PolicySnapshot lifecycle。本节所有映射已实现为受信composition配置；不采用自由purpose/action通配，不能从caller配置生成授权。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION MERGED (#235 / PR #236) / VERIFICATION AND REVIEW EVIDENCE IN PR #236 / HUMAN TECHNICAL APPROVAL APPROVED`。服务 [Spec 003 §25](Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233) / Spec 004 §12；没有IdentityPolicy新增公开操作/Grant/PolicySnapshot lifecycle。本节所有映射已实现为受信composition配置；不采用自由purpose/action通配，不能从caller配置生成授权。
 
 | 自身边界 | Principal allowlist | 精确Purpose | action / config key | target selector |
 |---|---|---|---|---|
