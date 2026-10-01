@@ -729,13 +729,13 @@ DeliveryItem 的 `completionCriteria` 在不可变 DeliveryItem 行中冻结，W
 
 受控 Consumer 的输入是已注册 Event Envelope 加一个受信 `SourceWatermark`，且 Event Consumer Context 必须绑定同一 `sourceEventId`。允许事件和 producer/source module 为：
 
-| Event | Producer module | Lifecycle | 用途 |
+| Event | producerModule / watermark sourceModule | Lifecycle | 用途 |
 |---|---|---|---|
-| `execution.TaskCompleted@1.0` | `task_execution` | `ACTIVE` | Task formal completion fact |
-| `release.ReleaseCompleted@1.0` | `release_publication` | `ACTIVE` | Release formal completion fact |
-| `quality.RevisionFullyApproved@1.0` | `quality_governance` | `ACTIVE` | exact approved revision fact |
-| `quality.RevisionApprovalLost@1.0` | `quality_governance` | `REVOKED` | revoke matching revision approval |
-| `release.ReleaseRecalled@1.0` | `release_publication` | `REVOKED` | revoke matching release completion |
+| `execution.TaskCompleted@1.0` | `task-execution` / `task_execution` | `ACTIVE` | Task formal completion fact |
+| `release.ReleaseCompleted@1.0` | `release-publication` / `release_publication` | `ACTIVE` | Release formal completion fact |
+| `quality.RevisionFullyApproved@1.0` | `quality-governance` / `quality_governance` | `ACTIVE` | exact approved revision fact |
+| `quality.RevisionApprovalLost@1.0` | `quality-governance` / `quality_governance` | `REVOKED` | revoke matching revision approval |
+| `release.ReleaseRecalled@1.0` | `release-publication` / `release_publication` | `REVOKED` | revoke matching release completion |
 
 Consumer 必须检查 event id/type/version、producer module、Envelope scope 与可信事务 Context、payload contract shape、`integrity.payloadHash`、SourceWatermark module/partition/sequence/instant，以及每个 embedded TypedReference 的 Scope 和 exact kind。Source watermark 允许 late event，但不能被静默改写或覆盖。
 
@@ -869,3 +869,64 @@ Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；
 恢复只复用既有register/accept/propose/confirm材料、capture/read Source Slice与Receipt Query：Sources必须当前ACCEPTED，candidate→confirmed为真实previousVersion/source_command/BusinessDecision链。Slice的registered requestedKinds集合不增加customer_material，不向现有factItems注入未定义材料shape；TE从attestation构建reference-only MATERIAL item，EP不宣称该item具备正文/文件读取能力。本段无EP schema/migration/public-operation增量，V2015/旧fixture完全保留。跨Scope、相同correlation不同材料、伪Receipt/未提交/错误Hash以及撤销/过期读权限仍拒绝；TE消费不会修改EP对象、Source或confirmation历史。运行边界见 `EP-REC-D-001/002`。
 
 已交付可供 TE 验证 PROPOSED candidate/current Source 的权限裁剪 owning 读路径；Receipt仅对已确认命令可用，不能在Run-1 final前充当candidate证明。内部 `readCustomerMaterialRecoveryReferences`：closed输入 `{candidateMaterialRef:VERSIONED/zhiju.project.customer_material,requiredSourceRefs:NonEmptySet<CONTENT_ADDRESSED/zhiju.project.source_material>,confirmedMaterialRef?:VERSIONED/zhiju.project.customer_material}`；closed结果 `{candidateMaterialRef,candidateStatus:PROPOSED|CONFIRMED,candidateSourceRefs:NonEmptySet<SourceMaterialRef>,sourceStatuses:NonEmptySet<{sourceMaterialRef,status:ACCEPTED}>,checkedAt:UtcInstant}`，带confirmedRef时结果另必填 `{confirmedMaterialRef,confirmedStatus:'CONFIRMED'}` 并证明同Root previousVersion关系。candidateStatus表述当前Root分类状态，candidate本身仍是不可变PROPOSED version；不把确认后的Root状态写回该旧版本。Port从现有CustomerMaterial/Version/Source的owning读取及精确ref校验逻辑组合，不新增表/Schema；不返回正文、storage locator或任意查询条件。Purpose `project.customer_material.recovery_refs.read`、SERVICE actor、action按Spec001 §15.14逐consumer配置，target=候选material OBJECT身份，完整VERSIONED/Source refs在Decision payload固定；先授权后读及返回前重验，错Hash/Scope/Source非ACCEPTED或版本链不可证按既有 `PROJECT_MATERIAL_SOURCE_INVALID` / `PROJECT_MATERIAL_VERSION_NOT_FOUND` 的安全外观拒绝，依赖暂不可读为共享DEPENDENCY_UNAVAILABLE。该 internal Port 与 Receipt Ref Port 均为 #231 交付的 EP 内部增量；无新增 public operation。
+
+
+## 23. 精确 TaskCompleted 关联与 DeliveryItem Completion 设计（#237）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。本节是[设计决定](../decisions/task-completed-delivery-completion.md)的 EP 唯一字段权威。§21现有grammar、v1与历史Plan/Evaluation不改写。新增profile与Major Command明确隔离新的精确语义；只有内部有权限的composition支持首版，公开HTTP/UI不在范围。
+
+### 23.1 新冻结标准与精确关联
+
+新 DeliveryItem `completionCriteria` 为 closed `{profile:"ep.delivery_item.exact_task_completion@1.0",allOf:NonEmptySet<criterion>}`。首版恰一 Task criterion：closed `{eventType:"execution.TaskCompleted",taskRef:ObjectRef<zhiju.execution.task>}`，可再含恰一 Release criterion：closed `{eventType:"release.ReleaseCompleted",factRef:ObjectRef<release.release>}`（`release.release`沿用Release owning实现自身Ref拼写，不引入别名）；同Project Scope、预分配真实UUIDv7，未知profile/criterion、重复/额外字段拒绝。Task UUID在Plan起草前预分配，Human批准/激活的是该具体标准；随后TE用该UUID创建Task，definition指向这个 exact Item/version。Plan不要求尚未创建的Task存在，不制造反向同步Query。旧 `allOf` grammar不能自动变新profile，@1.0原unknown-key检查会拒绝新profile，无法覆盖此Item新pointer；@2.0拒绝旧grammar。
+
+TE的immutable sidecar定义唯一见Spec003 §26.1。EP受信消费入口先证明composition所持材料由TE owning readClaimed取得，拒绝caller传入任意JSON/自报SERVICE/Producer字符串。它不由EP回查TE；受信composition依次调用Owner Port、验证结果并建立私有调用上下文。Dispatcher自身身份和EP Consumer SERVICE身份可不同，各持自己的Decision/Actor，不转让producer Command的授权。
+
+EP在自身事务从sidecar exact Item `(objectId,versionId,enterpriseId,projectId)`查行，取得该版本所属 `delivery_plan_id`，构造规范 VERSIONED/zhiju.project.delivery_plan；不查询activeVersion来替代请求Version。核对event.taskRef、aggregateType/id、taskEvaluationRef、Scope和完整bindingHash；只接受首版canonical Task。一个成功消费追加与 Fact 一对一 immutable `delivery_completion_task_association`，保存原Task/definition/Evaluation/Item refs、EP解析的Plan Ref、event/public/stored/envelope/binding Hash和watermark Hash。它保存历史归属，不要求该版本此刻仍active，也不直接改变Item。后续评估要求 exact Plan仍active。
+
+选中 Task Fact 必须同时满足：TaskRef全等冻结criterion.taskRef；association Item/Version/Plan/Scope全等本次目标；Event taskRef/evaluationRef及aggregate镜像一致；非空satisfiedFactRefs为Event中原正式refs。另一Task、同Task另一个Item、同Item另一Version或Plan不能替代；只有Project-wide eventType或UUID相等不够。无binding的旧合成Fact可继续旧§21技术测试，但不能经新入口满足标准。
+
+### 23.2 Inbox、完整性与并发
+
+沿用consumer=`enterprise-project.delivery-item-completion`和既有Fact Ref objectType=`DeliveryItemCompletionFact`；其Hash继续是**源public Event payload Hash**（不是整个Fact Row/sidecar Hash），Ref objectId与immutableVersionId均为factId。新增association Hash独立覆盖关联；readback不能凭FactRef Hash断言关联完整。
+
+同consumer/eventId并发必须先用数据库唯一claim或等价串行锁裁决，输家等winner提交后读取原结果；winner回滚则允许重新claim，不泄漏23505。相同event public payload/envelope/binding/watermark全部Hash和Scope全等→DUPLICATE，返回原factRef；任一身份/Hash/水位冲突→QUARANTINED和append-only `INBOX_HASH_CONFLICT` violation，保留原PROCESSED Inbox/Fact/Association/Process不变。不能把合法原Inbox改成QUARANTINED，也不能用同payload掩盖另一aggregate/actor/binding。
+
+成功事务原子写Inbox PROCESSED、immutable Fact、Association、消费Process/Step及安全Audit。提交前任一点故障全部回滚；此事务不写Item pointer、不发布DeliveryItemCompletionSatisfied。无权拒绝发生在protected repository读取前；bad contract/Hash/scope不存客户payload至violation，使用受信Scope的安全码。合法但未绑定Task的Event不被新consumer假称PROCESSED。
+
+低/迟到watermark仍追加历史Fact，不覆盖已有事实。最新选择按**同一 exact PlanVersion/Item/Task关联**的source sequence（同源同partition），不按Project全局max丢弃别的Item事实。v2选集含本关联较旧的Task Fact且已有较新同关联Fact时返回PROJECT_DELIVERY_COMPLETION_WATERMARK_INVALID，0新Evaluation/pointer/Event；新高序Fact可新评估。不同partition/source水位不可比，observedAt和completedAt不是版本序。EP拥有本Project Completion ledger串行锁，消费与v2评估都按 ledger→Item 的固定锁序，锁后重读关联最高水位与revocation集；避免消费已提交而评估漏看新事实。分区最大observed序号只作诊断，不声明完整checkpoint。
+
+### 23.3 新公开 Command 与不可变评估
+
+新增 `project.evaluate_delivery_item_completion@2.0`，COMMAND/EVALUATE，target为OBJECT/zhiju.project.delivery_item，expectedAggregateVersion必填（独立completion_aggregate_version）；Purpose沿用`project.delivery_item.evaluate_completion`。closed payload：
+
+```text
+{deliveryPlanRef:VersionedRef<zhiju.project.delivery_plan>,
+ deliveryItemRef:VersionedRef<zhiju.project.delivery_item>,
+ factRefs:NonEmptySet<ContentAddressedRef<DeliveryItemCompletionFact>>}
+```
+
+Item.versionId必须等Plan.versionId，target.objectId/Scope等Item，Plan与实际行全等且版本为ACTIVE/Root.active_version_id等该exactVersion（此处只作eligibility检查，不做目标选择）。事实选集由caller给exact EP ledger refs，服务端从EP读取并完整验证，不能提交外部输出ref、TE Evaluationref或假Fact；选集只能包含这个Task关联的TaskCompleted，及新criteria指定精确ReleaseRef的ReleaseCompleted，其他Task/Item/事件或额外事实拒绝。缺Release允许合法只选Task Fact并派生UNSATISFIED，不强制提交不存在的Release Fact。Fact集合非空，未知/不可见/错Hash统一安全拒绝。
+
+criteriaHash沿用既有域 `SHA256(cv1({criteria: storedCompletionCriteria}))`；sourceWatermarks从selected ledger派生并去重，evaluatedAt/recordedAt来自受信服务端clock（数据库记录时间不冒充caller时间）。server evaluator固定为构建期`ep.delivery_item_completion.evaluator@2.0`，VERSIONED/zhiju.project.evaluator_profile、scope={}、objectId=`0199b700-0000-7000-8000-000000000201`、versionId=`0199b700-0000-7000-8000-000000000211`；Profile code/版本绑定由EP构建期registry精确解析，不是IP业务Policy或客户自报Evaluator。其算法只应用本节冻结criteria，不引入通用Policy Engine。
+
+Evaluation沿用owning `delivery_item_completion_evaluation`/CONTENT_ADDRESSED `CompletionEvaluation`。v2 closed canonical payload=`{enterpriseId,projectId,deliveryPlanRef,deliveryItemRef,criteriaHash,evaluatorRef,factRefs,associationHashes,sourceWatermarks,revocationFactRefs,outcome,satisfiedFactRefs,evaluatedAt,taskFactSemantics:"HISTORICAL_COMPLETION"}`，不含自身ref/hash。集合按cv1 UTF-8字节序稳定排序，重复拒绝；associationHashes按对应factRef顺序。input fingerprint覆盖上述除outcome/satisfiedFactRefs/evaluatedAt外的全部字段（其中revocationFactRefs是当前与selectedsubjects精确相交的已消费撤销事实），不使用localeCompare；fact/source/evaluator/ref/hash逐层校验。相同fingerprint复用immutable Evaluation；若它已不是current pointer，返回历史ref但不把pointer回退，Result另给本次实际aggregateVersion。
+
+新判断、pointer CAS、Receipt/Audit/Edges、必要Impact和已注册Completion Event保持一个EP事务；UNSATISFIED也保存Evaluation并推进pointer，satisfiedFactRefs=[]，不发CompletionSatisfied。非SATISFIED→SATISFIED才发1条；相同事实重放0条、已SATISFIED的新历史评估不再发，撤销后再次满足沿用§21。Release-required永不因Task完成跳过Release；existingRelease/Quality REVOKED排除规则保留。fingerprint含相关撤销集，避免沿用旧v1遗漏撤销的缓存结果。Evaluation事务回滚不撤回先前Inbox/TE事实。直接execution_status=COMPLETED仍拒绝。
+
+Result.data closed `{evaluationRef:ContentAddressedRef<CompletionEvaluation>,outcome:SATISFIED|UNSATISFIED,satisfiedFactRefs:ContentAddressedRef<DeliveryItemCompletionFact>[],aggregateVersion:PositiveInt,impactReviewRef?:ContentAddressedRef<DeliveryItemImpactReview>}`；合法command沿用共享CommandResult/Receipt语义，同键同输入DUPLICATE返回原精确结果，同键异输入IDEMPOTENCY_PAYLOAD_CONFLICT。当前授权先于原Receipt读取/返回，replay不要求历史Plan仍active或重造事实；新键重新检查当前active/criteria/ledger/CAS。
+
+### 23.4 EP owning authoritative readback
+
+新增**内部** `DeliveryItemCompletionReadbackPort.readExact`，非公开Query、不进Catalog。独立HUMAN或明确EP Reader SERVICE授权；closed输入 `{deliveryPlanRef,deliveryItemRef,factRefs,evaluationRef?:ContentAddressedRef<CompletionEvaluation>}`，前两Ref沿用v2类型，factRefs为非空exactFact集合；evaluationRef省略时只读取该exactItem pointer，提供时读取该immutable历史Evaluation。不接受latest/current作为身份、不把optional省略当跨版本选择。
+
+closed结果：`{deliveryPlanRef,deliveryItemRef,criteriaHash,facts,evaluation?,currentEvaluationRef?,completionAggregateVersion,derivedStatus:NOT_EVALUATED|SATISFIED|UNSATISFIED,selectedEvaluationIsCurrent,taskFactSemantics:HISTORICAL_COMPLETION,taskCurrentUseStatus:UNKNOWN,checkedAt}`。facts只含请求的精确事实：每项`{factRef,eventId,eventType,eventVersion,taskRef?,taskEvaluationRef?,deliveryPlanRef?,deliveryItemRef?,bindingHash?,payloadHash,sourceWatermark,lifecycle}`；Task项的optional关联成员全部必需，Release项无Task关联；evaluation若有为`{evaluationRef,deliveryPlanRef,deliveryItemRef,criteriaHash,evaluatorRef,factRefs,satisfiedFactRefs,sourceWatermarks,revocationFactRefs,outcome,evaluatedAt}`。Ref与返回EvaluationHash都基于完整存储payload重算，安全投影不另造Hash。事实Ref的原payload Hash与关联/镜像单独复验，pointer必须同Plan/Version/Item；当前pointer Evaluation的所有源refs也在本次独立read授权下核验，不只校验caller给的facts。
+
+derivedStatus由本Item当前pointer和已消费revocation的独立重算给出，不能直接用caller选择的历史Evaluation.outcome；无pointer=NOT_EVALUATED，有历史SATISFIED而当前所需fact已被消费撤销=UNSATISFIED，可返回历史outcome供追溯但不改写它。若新Fact尚未评估且会改变当前解释，读回重新计算当前pointer的精确criteria/事实集（不自动添加未被pointer选择的新Task/Release），不能把待评估新Fact直接升格为SATISFIED。脱离activePlan/Project可保留授权后的历史Evaluation，当前derivedStatus按冻结支持资格返回UNSATISFIED，selectedEvaluationIsCurrent只表示pointer identity。此Port只断言EP ledger观测时点，TE current usability未知；Projection freshness不构成证据。
+
+### 23.5 兼容、安全外观与交付
+
+新profile、新staticselector和@2.0是显式提案；不改已发布@1.0/TaskCompleted/200基线，不生成executable schema或migration。后续Schema需closed请求/Result、全部typedRef paths、CUSTOMER_CONFIDENTIAL分类、EVALUATE concurrency与operation-specific resultSchemaRef，无新PayloadGuard参数。
+
+错误复用：注册/Envelope错误→共享API；unknown profile/grammar/缺条件→PROJECT_DELIVERY_ITEM_CRITERIA_UNSATISFIED；wrong exact Task/Item/Plan/association/fact/hash→PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND或PROJECT_DELIVERY_REFERENCE_INVALID，跨Scope/不可见对象统一NOT_FOUND/授权拒绝；水位旧选集→PROJECT_DELIVERY_COMPLETION_WATERMARK_INVALID；CAS→CONCURRENCY_CONFLICT；暂不可用→DEPENDENCY_UNAVAILABLE；Decision/Actor/session/撤权/过期→AUTHORIZATION_DECISION_INVALID；同event冲突→既有QUARANTINED结果。不得在safeSummary区分其他Scope对象存在性、返回客户正文或TE内部状态。
+
+当前taskDefinition不可变关联保证历史一致性，不证明TE当前USABLE；没有Task invalidation事件时不虚称失效闭环。Module-Test 002 #237定义上述正反例、late/replay与事务effects；所有新runtime NOT RUN。

@@ -2392,3 +2392,33 @@ normal与recovered真实PostgreSQL正链均需空库/升级/二次no-op、RLS、
 
 
 #233新冻结Profile持久化细化：WorkOrder Contract/Controls的riskAndQuality.qualityProfileRef与versionPins.qualityProfileRef在Task质量criteria适用时必填且exact同一quality.quality_profile版本；无适用criteria时仍缺省，旧frozen Contract不改。Quality内部SelectionPort复用已有RAS/ABS own repository按exact Revision/Profile的evaluated_at/snapshot_id降序规则发现真实snapshot，不新增表/公共operation，不跨Schema回查；Task Evaluation保存选定Refs，current消费不择新Snapshot覆盖历史。source collection不包含目标自身completion pointer/新判断版本，own Root版本单独CAS；child refresh须使parent当前判断STALE，显式parent refresh重新获得资格。
+
+
+## 41. TaskCompleted 派发与精确 Delivery Completion 持久化提案（#237）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。归属：TE Spec003 §26、EP Spec002 §23、IP Spec001 §15.16；只设计forward增量，不改已应用V3000/V2013/V7009，不分配migration编号（共用Flyway history编号由后续实现时按现行规则处理，不假定可直接用300x/200x）。所有新Project row显式enterprise_id/project_id、FORCE RLS、同Owner组合FK/unique与Hash/Scope mirror；不跨SchemaFK/join，不建shared message Schema。
+
+### 41.1 TE owning记录与最小权限
+
+| 实体 / 形态 | 不变量与权限 |
+|---|---|
+| `task_execution.task_completed_dispatch_cursor` | `(enterprise_id,project_id,source_module)` PK，source_module固定task_execution，last_sequence从0单调递增且<=9007199254740991；锁住当前可见committed集合的allocation，cursor不是消费checkpoint |
+| `task_execution.task_completed_dispatch_binding` | event_id唯一且同Schema FK到Outbox，partition sequence组合唯一；保存original canonical Event Envelope、storage/public/envelope Hash、immutable sidecar/bindingHash、sourceWatermark/Hash、Scope及allocation时间；INSERT-only，两层Hash独立重算与column mirror；公共causation按Spec003 §26.1的Receipt镜像/NULL fallback推导后封存；definitionRef保留原CONTENT_ADDRESSED；绑定source COMMITTED Receipt、TaskEvaluation/definition identities，禁止同event重配sequence或observedAt |
+| `task_execution.task_completed_dispatch_attempt` | `(event_id,lease_token)`唯一，claim principal/owner、claimedAt/leaseUntil及窗口编号immutable；attempt起点与Outbox lease metadata同事务写；超时后新claim仍append，不改旧attempt |
+| `task_execution.task_completed_dispatch_outcome` | append-only每attempt最终观测（PROCESSED/DUPLICATE/UNKNOWN/DEAD/STALE），原request/binding/watermark Hash、实际consumer factRef/resultHash、checkedAt和安全failureCode；明确缺ACK时UNKNOWN不能编造PROCESSED；当前token确认的成功outcome+Outbox PUBLISHED同事务 |
+
+Outbox原业务列/存储payload/Hash不改；继续用现有delivery_state/available_at/attempt_count/lease_owner/lease_until/lease_token等，但只窄函数可改TaskCompleted metadata。增加自动retry窗口附属状态：window_start_attempt_count、max_attempts=5、resume identity；manual resume不重置累计attempt_count/fencing。lease token为精确bigint、不能Number舍入。budget/lease参数为受信配置的有限值；同锁下以实际current time裁决，不用transaction-start timestamp掩盖等待后的到期。
+
+新增scoped窄owning事务/SQL函数供Dispatcher执行，收回`task_execution_dispatcher`的Outbox宽SELECT/metadata直接UPDATE及USING(true)策略，改为已建立trustedProject context下`context_allows_project`。仅有task_completed_dispatch.*相关表/函数权利；模块app无dispatcher metadata写权限，dispatcher无Task/WorkOrder/Receipt/Evaluation业务表通读/写权。必要source读取经窄SECURITY DEFINER函数：固定pg_catalog search_path、owning表全限定、显式validated context+Scope/Service/lease条件、无动态SQL、PUBLIC无EXECUTE，不能成为任意principal建立Context的后门。runtime登录按既有NOINHERIT/SET LOCAL角色/可信context establisher模式；RLS不替代IP revalidation。
+
+allocation严格cursor→Outbox→关联source本地锁序，写cursor/binding/claim/attempt一个TE事务；锁失败/授权/Hash不符0提交。存储以TE canonical重新计算Hash与来源mirror，无pgcrypto需求；函数/guard必须阻止dispatcher传入任意payload构造binding。confirm/failure/resume遵守同一锁序（不分配新sequence），各自ack/outcome/Audit和metadata原子。故障后保留合法旧commit，无UPDATE/DELETE历史。
+
+### 41.2 EP owning关联、Evaluation与并发
+
+新增 `enterprise_project.delivery_completion_task_association`，fact_id唯一，local FK指向Fact及exact DeliveryItem `(enterprise_id,project_id,version_id,item_id)`，并核对同Plan；与Inbox/Facts/消费Process/Audit同事务INSERT。保存Spec003原sidecar与Hash、eventEnvelopeHash、sourceWatermarkHash及EP解析PlanRef/association canonical Hash；schema mirror逐项绑定Fact event/Task/aggregate/publicpayload/Scope。旧syntheticFact无association，不backfill为新真实来源；新接口无association拒绝。
+
+v2复用既有Evaluation/Impact/Item独立CAS存储，加v2 payload/profile/selector guards和必要附属associationHashes/revocation fingerprint来源；v1行不重写。immutable Evaluation payloadHash覆盖完整v2payload、fingerprint按Spec002§23.3；列镜像、完整ref Hash和samePlanVersionItem pointer组合约束保留。v2输入expectedAggregateVersion精确bigint；新版本Schema/结果数值继续按共享契约可表达范围，溢出fail closed。
+
+增加Project Completion ledger锁行（enterprise_id,project_id唯一），新Consumer与v2Evaluation按ledger→Item顺序；legacyConsumer也参加同一ledger锁以免已消费Release/Quality撤销并发漏看。新增EP consumer使用唯一Inbox claim，并发同event提交后一份原结果；冲突只append violation，不损坏成功Inbox。低水位Facts仅append；同exactTaskItem关联查max sequence，不能用Project max过滤其他Item。应用读取在RLS内，不以recorded_at排序判断优先。
+
+原FactRef Hash域仍publicEventpayload；association separate Hash防错归属。Readback复验完整payload/Hash/mirror、currentpointer与所需sources；只返回Spec002安全projection。Fact/Evaluation/association/attempt/outcome app UPDATE/DELETE拒绝、owner immutable guard拒绝；crossProject/noContext/池复用不得泄漏，dispatcher及EPapp不能读取/写对方Schema。不存在运行时已通过声明；空库/合法历史upgrade/二次no-op和原V3000/V2013兼容必须由未来full执行。

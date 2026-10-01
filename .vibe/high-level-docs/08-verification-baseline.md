@@ -541,3 +541,12 @@ WI-08 复核命令和实际输出见 [`Synthetic-QMS-REL-801-Exit-Report.md`](..
 状态：`T2 DESIGN ONLY / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / RUNTIME NOT RUN`。本设计交付仅Markdown under `.vibe/`，配置验证目标为 `docs`，另做registered request/result/error/ref/Purpose与[Spec003§24](../module-specs/Module-Spec-003-TaskExecution.md#24-blocked_input--customermaterial--context-2--run-2-spec-delta229)的focused semantic comparison。其成功不能代替独立设计审查/人类批准，不写为新runtime/persistence PASS；正式review按项目规则归档在未来PR的`.vibe/reviews/pr-<number>/Review.md`。
 
 未来实施必须完整交付限定Human恢复动作及owning读回，配置验证为 `full`（新/变化容器环境先 `environment`）；最小业务出口与必要反例/fault分别由Module-Test003 `TE-REC-D-001–011`、001 `IP-REC-D-001–003`、002 `EP-REC-D-001/002`、007 `IG-REC-D-001–003`拥有。Contract/Unit、真实PostgreSQL/owningentry、controlledsynthetic、External、Manual证据分开，未执行子项保持NOT RUN。#224最终20 tiered PASS/3 PARTIAL、actual grant PolicySnapshot生命周期延后及§22.8边界不被本提案重标；TD-05–07、正式输出、Completion、Provider/CLI/Feishu/publicHTTP/部署/独立人工验收仍非本Issue出口。
+
+
+## #237 真实派发与独立 DeliveryItem Completion 的验收边界（提案）
+
+状态：`HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NEW RUNTIME CASES NOT RUN`。[决定](../decisions/task-completed-delivery-completion.md)的bounded结果按既有§2.8首版原则交付：一个后续实现候选包含normal与一次BLOCKED_INPUTrecovered的owning链，真实TEOutbox→EPInbox/精确关联→独立Evaluation→EPReadback。Task-only可SATISFIED，另需Release的合法目标UNSATISFIED。字段/失败唯一见Spec003 §26、Spec002 §23、Spec001 §15.16、PostgreSQL §41；必要运行矩阵TE-DEL-D-*、EP-DEL-D-*、IP-DEL-D-*在各Module-Test，不以现有EPsyntheticEvent或#235CompletionPASS替代。
+
+设计交付仍按现行strictMarkdown`docs`路由，另需独立语义设计审查和revision-bound明确人类设计批准、真实PR编号下的正式Review记录。这里只新增验收场景和证据边界，不改变§2.1.1验证策略/targets。后续实现需`full`及适用首次`environment`，standaloneinput/contractfixtures、实际controlledDriver、正负/并发/commit前与commit后故障、ACL/RLS/immutable/升级证据分层保存。OnlyexternalRuntime可替换；Event/Decision/Receipt/fact不能伪造或direct-table构造positivechain。
+
+EP结论的Task语义是历史正式完成，不宣称TE当前USABLE或尚不存在的Task invalidation follow-up；已有Release/Quality撤销证据单独记录。外部Provider/CLI/飞书/publicHTTP/UI、部署/生产/负载、独立人工、Cancel/late-result和IM-06整体退出仍NOT RUN；Grant PolicySnapshot lifecycle既有延后不泛化。设计批准不等于实现NOW+READY或IM-06关闭。

@@ -907,3 +907,32 @@ Artifact创建的TE Query使用自身`outputCreationBindingReadV1`，Artifact pr
 Task Completion及其Query/Readiness消费以自身授权读全体child来源再调用同一内部CompletionUsePort，**相同consumer**独立展开各child output/Policy/Quality/Bundle Decision；不能把child历史Evaluation.producedBy Decision当授权。自身与全部dependency Decision在protected读前、锁后提交前及历史Receipt返回前按受信now/current Grant/Policy重验，缺任何必需授权protected repository读取/写入为0。source dependency不可达返回DEPENDENCY_UNAVAILABLE；缺权/错误actor/hash/Scope/过期统一AUTHORIZATION_DECISION_INVALID或既有Human-only码，不提供私有来源详情。
 
 Receipt replay只重验当前**读取原命令结果**资格与自身Decision，不能重新要求已完成Run ACTIVE；不执行新的owning source查询来重造结果。新键refresh重新取得全部dependency资格，不把历史Decision/TTL传递给新判断。实际Grant撤销和Controls/Completion Policy真实后继必须验收；Grant PolicySnapshot取代仍遵守#224已批准无owning写入者的延后，不宣称本次交付。
+
+
+### 15.16 IM06-DELIVERY-COMPLETION 授权组成提案（#237）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。服务Spec003 §26 / Spec002 §23；复用owning Decision签发、完整性校验、ActorSnapshot/session绑定、target mirror和当前covering Grant/Policy检查，不新增IP公开API/业务Policy Engine，不改变实际Grant PolicySnapshot lifecycle的原延后。
+
+新增owning内部 `TaskCompletedDeliveryAuthorizationPort`，静态有限映射如下。所有内部operation version为`1.0`、type为表中Purpose；@2.0公开命令使用真实operation/version。target全部OBJECT；Project target=`zhiju.project.project`（objectId=projectId），Task target=`zhiju.execution.task`（objectId=event aggregateId），Item target=`zhiju.project.delivery_item`（objectId=exactItemId）。完整Version/Hash/关联保留在授权payload，不能只依赖V1006 OBJECT mirror。
+
+| 边界 / Purpose | principal allowlist | action / config key | target / closed authorization payload |
+|---|---|---|---|
+| `execution.task_completed.dispatch.scan` | 配置的TE Dispatcher SERVICE | `execution.task_completed.dispatch.scan.v1` / `taskCompletedScanV1` | Project / `{projectRef}`，只返回candidate EventId |
+| `execution.task_completed.dispatch.claim` | 同上 | `execution.task_completed.dispatch.claim.v1` / `taskCompletedClaimV1` | Project / `{projectRef,eventId,workerOwner}`，event来源检查发生在owningScope内 |
+| `execution.task_completed.dispatch.read` | 同上 | `execution.task_completed.dispatch.read.v1` / `taskCompletedReadV1` | Task / `{taskRef,eventId,workerOwner,leaseToken}`，保护Outbox/Receipt/Evaluation/definition与stable binding读取 |
+| `execution.task_completed.dispatch.confirm` | 同上 | `execution.task_completed.dispatch.confirm.v1` / `taskCompletedConfirmV1` | Task / `{taskRef,eventId,workerOwner,leaseToken,bindingHash,sourceWatermark,consumerResult}` |
+| `execution.task_completed.dispatch.failure` | 同上 | `execution.task_completed.dispatch.failure.v1` / `taskCompletedFailureV1` | Task / `{taskRef,eventId,workerOwner,leaseToken,errorCode}`，attempt/budget来自存储 |
+| `execution.task_completed.dispatch.resume` | HUMAN operator | `execution.task_completed.dispatch.resume.v1` / `taskCompletedResumeV1` | Task / `{taskRef,eventId,reason}`，审计+resume原子 |
+| `project.delivery_completion.consume` | 配置的EP Consumer SERVICE | `project.delivery_completion.consume.v1` / `deliveryCompletionConsumeV1` | Project / `{event,sidecar,bindingHash,sourceWatermark}`完整bytes及Hash；sourceEventId/correlation从已验证材料派生 |
+| `project.evaluate_delivery_item_completion@2.0` / 既有Purpose `project.delivery_item.evaluate_completion` | HUMAN或配置的EP Evaluator SERVICE | `project.delivery_item.completion.evaluate.v2` / `deliveryItemCompletionEvaluateV2` | Item / 完整公开payload，targetVersion包含在payload；expectedAggregateVersion另进入command binding |
+| `project.delivery_completion.read_exact` | HUMAN或配置的EP Reader SERVICE | `project.delivery_completion.read_exact.v1` / `deliveryCompletionReadExactV1` | Item / Spec002 §23.4完整request，fact/evaluation/Plan/Version均进入Hash |
+
+claim只允许project-scoped候选检查及TE附属binding生成，不借Project权限开放任意Task正文；read自身再次授权Task来源，不与claim共用Decision。claim内部读取最小Task Evaluation/definition关联时也需以同Dispatcher另签发`dispatch.read`，payload使用被claim锁定的event/owner/token；缺其权限claim事务不得提交lease/binding/cursor。confirm/failure/resume只改本event metadata/ack，不开放其他业务Root。Consumer和Evaluator对自己的EP Facts/criteria/关联/撤销集的有限读取由各自自身Decision覆盖；不查询其他Owner。Readback授权覆盖精确目标的历史/current ledger证明，必须在protected repository读取前核对fullScope，不是全Project任意body权限。
+
+composition先校验注册Event/公开Command的真实Registry形状、内部closed输入、canonical Hash与Scope，再调用IP owning签发/validate；校验ALLOW、operation/version、Purpose/action/config、精确target、完整request payloadHash、ActorSnapshot Ref/hash、principalId/kind、认证session Hash、有限expiry及single covering当前Grant/PolicySnapshot。角色名和SERVICE kind不构成授权，allowlist为受信配置中的exact PrincipalRef，Human actingFor不能供给Service权限；workerOwner从认证Worker实例派生且绑定该principal，不由请求任意覆盖。
+
+Consumer会话只由受信composition获得TE owning readClaimed后的私有材料handle；EP配置仅接受该handle并比对event/binding/watermark完整Hash，不能调用通用EventConsumer context factory把任意JSON提升为来源事实。此handle不是公开可序列化token，也不持有跨模块Repository；TE producer历史Decision仅用于事件来源校验，EP Consumer仍用自己的当前Decision/Actor。跨事务observer不宣称分布式同一时刻授权原子性。
+
+每一步自身Decision在protected读前、数据库锁等待后提交前、历史成功/重复返回前按受信current clock/current Grant重验；claim的独立read也在上述点重验。禁止只在组成入口检查一次或在事务中持有过期Decision。缺/错操作/错Actor/认证Hash/Scope/target/payload/过期/撤权统一AUTHORIZATION_DECISION_INVALID、protected读/写为0（已合法完成的前一步不回滚）。Readback返回前重验；Evaluation replay先重验原结果读取资格再查Receipt，不重新要求terminal执行或原Planactive。临时IP依赖不可达DEPENDENCY_UNAVAILABLE，不把旧ALLOW当缓存fallback。
+
+v1既有授权/接受集不改，v1不能解释新profile；本节新增SERVICE动作不能被Agent/Runtime直接调用。真实Role/Grant撤销、锁后expiry、错service/跨Scope/session及replay撤权证据见Module-Test001 #237；实际PolicySnapshot lifecycle依旧不宣称PASS。

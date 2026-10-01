@@ -528,3 +528,21 @@ pnpm persistence:gate
 |---|---|---|
 | EP-REC-D-001 | Owning确认command+授权内部ReceiptRef Port+注册Query+PostgreSQL；同Human取得真实规范Receipt，对照wrongScope/hash/uncommitted/同correlation另一material/他人session/撤销Grant | OWNING/PG PASS：同 Human 取得实际 canonical Receipt/attestation；wrong Receipt hash/id、未提交 command、同 correlation 另一真实 material、wrong Scope/session/missing capability Grant 及已签 Decision 后实际 discovery Grant 撤销拒绝；授权拒绝 protected reads=0，无新 EP 业务事实。 |
 | EP-REC-D-002 | EP sources/propose/confirm/capture/read entry+TE controlled integration；候选及Sources来自正常入口，确认后新Slice与Receipt进入Context-2 | OWNING/PG/CONTROLLED PASS：真实 ACCEPTED Sources、PROPOSED→CONFIRMED、当前 fresh Slice 与 reference-only MATERIAL Context；原 Receipt/source 和五项历史 bytes/hash 不变。 |
+
+
+## #237 exact TaskCompleted / DeliveryItem owning 用例
+
+状态：`HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / ALL NEW RUNTIME CASES NOT RUN`。字段见Spec002 §23。正常/一次恢复的真实source输入由Module-Test003 #237两个named fixture供给，不复制或伪造TEEvent。旧EP-WI12-*的synthetic/controlledevidence仍保留，其Task+Release结果不等于新Task-only真实跨模块能力。
+
+| ID | 层级 / 输入或故障 | 预期Receipt、不可变facts、pointer/event和部分进度 | 当前实际 / 结果 |
+|---|---|---|---|
+| EP-DEL-D-001 | Owning + PostgreSQL；真实normal/recoveredTask-only及Release-requiredfixture | 每条合法消费PROCESSED、1Inbox/Fact/association/消费Process；独立CommandCOMMITTED，Task-only SATISFIED+1CompletionEvent，Release-required UNSATISFIED+0CompletionEvent；readExact一致，两个目标各pointer1→2、execution_status不直接变COMPLETED | 未执行 / NOT RUN |
+| EP-DEL-D-002 | PostgreSQL；合法Project另一个真实TaskFact、别的Item、同Item错Version/Plan、新旧profile | v2不按ProjecteventType代替；wrongTask/Item/Version/Plan/无association/criteriaHash不符拒绝，0新Evaluation/pointer/CompletionEvent；Fact已合法消费则保留，不删它掩盖拒绝；v1新profile拒绝不改pointer | 未执行 / NOT RUN |
+| EP-DEL-D-003 | PostgreSQL；同event并发/replay、异payloadHash/watermark/envelope/binding副本 | 同输入一份事实、输家DUPLICATE；winnerrollback可再处理；冲突QUARANTINED+安全Violation且原Inbox仍PROCESSED、原Fact/association/Hash不变；无23505泄漏或二次业务效果 | 未执行 / NOT RUN |
+| EP-DEL-D-004 | PostgreSQL；sequence高先消费、低后消费；另一Item低seq；旧选集评估 | 低Fact保留历史，同关联低选集拒绝且不覆盖新pointer；另一Item低seq仍可正常SATISFIED；拒绝seq0/错partition/source/改observedAt重放；sourcewatermarks从真实binding，不用时间戳比较替代 | 未执行 / NOT RUN |
+| EP-DEL-D-005 | PostgreSQL；两个v2Evaluator同CAS、Evaluation/pointer/Impact/Outbox/Receipt/Audit故障 | 只1CASwinner；失败本事务全rollback，新Evaluation/Impact/Event/成功Receipt0，先前Inbox/TEfact保留；同键DUPLICATE原ref；异HashIDEMPOTENCY_PAYLOAD_CONFLICT；新键同fingerprint不追加Evaluation/Event，历史ref不是current则不回退pointer | 未执行 / NOT RUN |
+| EP-DEL-D-006 | Owning Readback；精确历史Evaluation/currentpointer不同、已消费Quality/Release撤销、TEPolicy失效对照 | 历史outcome/hash保持；derivedStatus由EPpointer精确选集及revocation独立重算；v2fingerprint含相关撤销集，不复用过时SATISFIED；TEcurrent可失效但EP声明HISTORICAL_COMPLETION/UNKNOWN；不查询TE/Board、不当发布授权 | 未执行 / NOT RUN |
+| EP-DEL-D-007 | PostgreSQL / ACL/RLS；direct COMPLETED、historyUPDATE/DELETE、wrongHash/Scope/mirror/FK、池复用 | 应用roleACL42501、ownerimmutableguard、FORCERLS/noContext/crossProject隔离；association/pointer只能samePlanVersionItem；dispatcher不能跨Schema读写；空库/合法历史upgrade/secondno-op当前证据 | 未执行 / NOT RUN |
+| EP-DEL-D-008 | Security / readExactwrongRefHash/Scope、跨项目对象存在与不存在、返回前撤权 | 不泄露存在性或正文；先当前授权再protectedread，返回前复验；FactRef publicHash/associationHash/EvaluationfullHash各复算；historicalref与currentderived区分、未评估NOT_EVALUATED | 未执行 / NOT RUN |
+
+追加Release/Quality撤销反例必须经既有真正owningproducer产生可达事实，或明确保留已有EPsyntheticfixture作为受控局部ledger算法证据；后者不能标真实跨模块PASS。新正链只替换外部Runtime为实际调用的controlledDriver。所有unreachable/unexecuted子项保留NOT RUN，独立人工/外部另列，不把整行覆盖默认为PASS。
