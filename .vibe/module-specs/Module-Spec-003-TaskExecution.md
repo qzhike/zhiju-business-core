@@ -2248,7 +2248,7 @@ Evaluation TTL到期后授权主体可用同一Completion @2.0对COMPLETED Root�
 
 ## 26. TaskCompleted 受限派发设计（#237）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。对账/兼容与边界见[决定](../decisions/task-completed-delivery-completion.md)。只消费 §25 producer 的已提交 `execution.TaskCompleted@1.0`；本节拥有 TE selection、来源材料与投递生命周期，不拥有 EP criteria/Evaluation。IP Dispatcher 的 SQL/Schema 不可直接复用为 TE 已交付能力。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / DESIGN REVIEW PASSED / IMPLEMENTED IN #239 PROPOSED REVISION / RUNTIME EVIDENCE IN MODULE-TEST`。对账/兼容与边界见[决定](../decisions/task-completed-delivery-completion.md)。只消费 §25 producer 的已提交 `execution.TaskCompleted@1.0`；本节拥有 TE selection、来源材料与投递生命周期，不拥有 EP criteria/Evaluation。IP Dispatcher 的 SQL/Schema 不可直接复用为 TE 已交付能力。
 
 ### 26.1 选择、来源与稳定材料
 
@@ -2282,4 +2282,4 @@ Human `resumeDead`是内部操作，需独立当前权限、1..256字符安全re
 
 ### 26.4 后续交付与证据
 
-未来完整 composition入口顺序：TE authorized scan/claim/read → IP独立EPConsumer Decision → EP consume真实 Event+sidecar+Watermark → TE confirm；随后独立Human/EP Evaluator调用新@2.0与EP Readback Port。最小fixture/故障矩阵见 Module-Test 003 #237。没有注册Schema、migration或worker已交付的声明；外部、人工、TD-05–07和IM-06退出边界不改变。
+本实现 composition入口顺序：TE authorized scan/claim/read → IP独立EPConsumer Decision → EP consume真实 Event+sidecar+Watermark → TE confirm；随后独立Human/EP Evaluator调用新@2.0与EP Readback Port。最小fixture/故障矩阵见 Module-Test 003 #237。实现为 `createTaskCompletedDispatchPort`、`createTaskCompletedDeliveryEntry` 和 `V7011__task_completed_dispatch.sql`；composition 导出于 `@zhiju/api/composition`。确认只接受 EP owning consumer 实际返回的已提交结果 handle，调用者 JSON 不能伪造成功 ACK。实现、运行证据和独立审查分别记录；外部、人工、TD-05–07和IM-06退出边界不改变。

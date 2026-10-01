@@ -77,6 +77,17 @@
         "versionId": "0199b600-0000-7000-8000-000000000214",
         "scope": {}
       }
+    },
+    {
+      "registryKey": "ep.delivery_item_completion.evaluator@2.0",
+      "owner": "enterprise-project",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.project.evaluator_profile",
+        "objectId": "0199b700-0000-7000-8000-000000000201",
+        "versionId": "0199b700-0000-7000-8000-000000000211",
+        "scope": {}
+      }
     }
   ]
 }

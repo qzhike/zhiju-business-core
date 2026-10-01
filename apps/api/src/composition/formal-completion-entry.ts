@@ -531,6 +531,7 @@ export function createFormalCompletionEntry(config: FormalCompletionEntryConfig)
             ),
           }),
       correlationId: String(envelope.correlationId),
+      ...(typeof envelope.causationId === 'string' ? { causationId: envelope.causationId } : {}),
       principalId: row.principal_id,
       principalKind: context.principalKind,
       actorSnapshotId: row.actor_snapshot_id,

@@ -137,6 +137,9 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'delivery_item_completion_fact',
     'delivery_item_completion_evaluation',
     'delivery_item_impact_review',
+    // IM-06 (#239): exact completion ledger serialization and Task association.
+    'delivery_completion_ledger_lock',
+    'delivery_completion_task_association',
     'delivery_item_artifact_requirement',
     'delivery_item_dependency',
     'delivery_plan_decision',
@@ -179,6 +182,12 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'run_budget_reservation',
     'run_budget_consumption',
     'recovery_process_command',
+    // IM-06 (#239): scoped TaskCompleted dispatch and immutable delivery history.
+    'task_completed_dispatch_cursor',
+    'task_completed_dispatch_binding',
+    'task_completed_dispatch_window',
+    'task_completed_dispatch_attempt',
+    'task_completed_dispatch_outcome',
   ],
   artifact: [
     'execution_revision_command_receipt',
@@ -545,7 +554,7 @@ describe.skipIf(!gateEnabled)(
       }
     });
 
-    it('restricts the dispatcher to outbox delivery metadata columns only', async () => {
+    it('restricts dispatchers to metadata columns or the scoped TaskCompleted owning Port', async () => {
       for (const module of MODULES) {
         const dispatcher = `${module}_dispatcher`;
         const outbox = module === 'identity_policy' ? 'platform_outbox_event' : 'outbox_event';
@@ -554,7 +563,9 @@ describe.skipIf(!gateEnabled)(
           `SELECT has_table_privilege($1, $2, 'SELECT') AS can`,
           [dispatcher, `${module}.${outbox}`],
         );
-        expect(select.rows[0]?.can).toBe(true);
+        expect(select.rows[0]?.can, `${dispatcher} SELECT ${module}.${outbox}`).toBe(
+          module !== 'task_execution',
+        );
 
         const insert = await admin.query<{ can: boolean }>(
           `SELECT has_table_privilege($1, $2, 'INSERT') AS can`,
@@ -580,7 +591,26 @@ describe.skipIf(!gateEnabled)(
             `SELECT has_column_privilege($1, $2, $3, 'UPDATE') AS can`,
             [dispatcher, `${module}.${outbox}`, column],
           );
-          expect(col.rows[0]?.can, `${dispatcher} UPDATE ${column}`).toBe(true);
+          expect(col.rows[0]?.can, `${dispatcher} UPDATE ${column}`).toBe(
+            module !== 'task_execution',
+          );
+        }
+
+        if (module === 'task_execution') {
+          for (const signature of [
+            'task_execution.dispatch_scan(uuid,uuid)',
+            'task_execution.dispatch_lock(uuid,uuid,uuid,boolean)',
+            'task_execution.dispatch_claim(uuid,uuid,uuid,text,integer)',
+            'task_execution.dispatch_read(uuid,uuid,uuid,text,bigint,uuid)',
+            'task_execution.dispatch_finish(uuid,uuid,uuid,text,bigint,uuid,jsonb,text,boolean)',
+            'task_execution.dispatch_resume(uuid,uuid,uuid,uuid,text)',
+          ]) {
+            const execute = await admin.query<{ can: boolean }>(
+              `SELECT has_function_privilege($1, $2, 'EXECUTE') AS can`,
+              [dispatcher, signature],
+            );
+            expect(execute.rows[0]?.can, `${dispatcher} EXECUTE ${signature}`).toBe(true);
+          }
         }
 
         for (const table of TECHNICAL_TABLES.filter((t) => t !== 'outbox_event')) {

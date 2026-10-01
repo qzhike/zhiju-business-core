@@ -1,0 +1,36 @@
+{
+  "evaluationRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "CompletionEvaluation",
+    "objectId": "0199b700-0000-7000-8000-000000000221",
+    "immutableVersionId": "0199b700-0000-7000-8000-000000000221",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "outcome": "SATISFIED",
+  "satisfiedFactRefs": [
+    {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "DeliveryItemCompletionFact",
+      "objectId": "0199b700-0000-7000-8000-000000000221",
+      "immutableVersionId": "0199b700-0000-7000-8000-000000000221",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ],
+  "aggregateVersion": "2"
+}

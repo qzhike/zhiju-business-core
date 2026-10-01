@@ -2439,6 +2439,14 @@ describe.skipIf(!gateEnabled)('DeliveryPlan WI-10 (real PostgreSQL)', () => {
     const evaluationId = (
       committedPayload(evaluation.result).evaluationRef as unknown as Common.ContentAddressedRef
     ).objectId;
+    // PR #240 F1 compatibility control: the real v1 owning command above
+    // commits a legacy Item Evaluation without the v2 discriminator.
+    const legacyPayload = await admin.query<{ payload: Record<string, unknown> }>(
+      'SELECT payload FROM enterprise_project.delivery_item_completion_evaluation WHERE evaluation_id=$1',
+      [evaluationId],
+    );
+    expect(legacyPayload.rows[0]?.payload).toBeDefined();
+    expect(legacyPayload.rows[0]?.payload).not.toHaveProperty('taskFactSemantics');
     const factIdRows = await admin.query<{ fact_id: string }>(
       `SELECT fact_id
          FROM enterprise_project.delivery_item_completion_fact

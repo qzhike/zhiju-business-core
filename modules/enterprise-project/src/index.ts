@@ -536,3 +536,12 @@ export type {
   TaskExecutionCreationProjectScopePort,
   TaskExecutionCreationProjectScopeRequest,
 } from './business/task-execution-creation-scope-port.js';
+
+export {
+  isCommittedDeliveryCompletionConsumption,
+  createExactDeliveryCompletionConsumer,
+  handleEvaluateExactDeliveryItemCompletion,
+  createDeliveryItemCompletionReadbackPort,
+  type ExactTaskCompletionMaterial,
+  type ExactDeliveryCompletionRequest,
+} from './business/delivery-item-completion-handlers.js';

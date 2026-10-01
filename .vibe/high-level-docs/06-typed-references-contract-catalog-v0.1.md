@@ -1435,7 +1435,7 @@ artifact.get_execution_output_fact@1.0
 
 ## #237 精确 DeliveryItem Completion 契约提案
 
-状态：`HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT REGISTERED / NOT IMPLEMENTED / NOT RUN`；字段唯一见Spec002 §23。[设计决定](../decisions/task-completed-delivery-completion.md)明确Registry237/TE62/历史Baseline200是当前实际数；未来只新增下列公开版本，Registry238、EP增加1、TE62与历史200不变。
+状态：`HUMAN DESIGN APPROVED 2026-10-01 / DESIGN REVIEW PASSED / REGISTERED AND IMPLEMENTED IN #239 PROPOSED REVISION / RUNTIME EVIDENCE IN MODULE-TEST`；字段唯一见Spec002 §23。[设计决定](../decisions/task-completed-delivery-completion.md)保留设计冻结基线237/62/200；#239本修订只新增下列公开版本，当前Registry238、EP36、TE62与历史200不变。
 
 | 操作 | Owner / kind / target | Purpose / 兼容 |
 |---|---|---|---|
@@ -1443,4 +1443,8 @@ artifact.get_execution_output_fact@1.0
 
 引用：新payload Plan=`VERSIONED/zhiju.project.delivery_plan`、Item=`VERSIONED/zhiju.project.delivery_item`，Scope均Project且version一致；Fact=`CONTENT_ADDRESSED/DeliveryItemCompletionFact`、Evaluation=`CONTENT_ADDRESSED/CompletionEvaluation`、Impact=`CONTENT_ADDRESSED/DeliveryItemImpactReview`沿用EP既有内部/事件拼写，不添加相互可交换别名。唯一新增typedidentity为构建期selector`zhiju.project.evaluator_profile`（VERSIONED、Platform Scope，静态值见Spec002 §23.3）；不是业务Policy。新closedcriteria profile pin exact Task=`OBJECT/zhiju.execution.task`、Release=`OBJECT/release.release`；不向旧validate_object_scope@1.0接受集加入这些拼写。
 
-TaskCompleted@1.0完整合同/四字段零变；TE sidecar、dispatch函数、IP authorization port、EP Consumer/Readback都是内部边界，不新增公开Query/Event/Command。后续实现须同步@2.0 Schema/IDL/generated metadata/Result Schema与全部reference paths、compat报告及standalone正负fixtures；本设计不改任何生成文件、selector registry或currentoperationCount。
+TaskCompleted@1.0完整合同/四字段零变；TE sidecar、dispatch函数、IP authorization port、EP Consumer/Readback都是内部边界，不新增公开Query/Event/Command。本修订已同步@2.0 Schema/IDL/generated metadata/Result Schema、reference paths、compatibility metadata和standalone正负fixtures；构建期Evaluator registry新增一个EP selector，原七个TE selector及TaskCompleted@1.0字段不变。有限EP历史Ref拼写在新domain schema闭集定义，不放宽共享namespace grammar。
+
+```text
+project.evaluate_delivery_item_completion@2.0
+```

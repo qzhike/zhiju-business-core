@@ -873,7 +873,7 @@ Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；
 
 ## 23. 精确 TaskCompleted 关联与 DeliveryItem Completion 设计（#237）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。本节是[设计决定](../decisions/task-completed-delivery-completion.md)的 EP 唯一字段权威。§21现有grammar、v1与历史Plan/Evaluation不改写。新增profile与Major Command明确隔离新的精确语义；只有内部有权限的composition支持首版，公开HTTP/UI不在范围。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / DESIGN REVIEW PASSED / IMPLEMENTED IN #239 PROPOSED REVISION / RUNTIME EVIDENCE IN MODULE-TEST`。本节是[设计决定](../decisions/task-completed-delivery-completion.md)的 EP 唯一字段权威。§21现有grammar、v1与历史Plan/Evaluation不改写。新增profile与Major Command明确隔离新的精确语义；只有内部有权限的composition支持首版，公开HTTP/UI不在范围。
 
 ### 23.1 新冻结标准与精确关联
 
@@ -925,8 +925,8 @@ derivedStatus由本Item当前pointer和已消费revocation的独立重算给出�
 
 ### 23.5 兼容、安全外观与交付
 
-新profile、新staticselector和@2.0是显式提案；不改已发布@1.0/TaskCompleted/200基线，不生成executable schema或migration。后续Schema需closed请求/Result、全部typedRef paths、CUSTOMER_CONFIDENTIAL分类、EVALUATE concurrency与operation-specific resultSchemaRef，无新PayloadGuard参数。
+新profile、新staticselector和@2.0已在本修订实现；不改已发布@1.0/TaskCompleted/200基线。Schema包含closed请求/Result、全部typedRef paths、CUSTOMER_CONFIDENTIAL分类、EVALUATE concurrency与operation-specific resultSchemaRef，无新PayloadGuard参数。
 
 错误复用：注册/Envelope错误→共享API；unknown profile/grammar/缺条件→PROJECT_DELIVERY_ITEM_CRITERIA_UNSATISFIED；wrong exact Task/Item/Plan/association/fact/hash→PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND或PROJECT_DELIVERY_REFERENCE_INVALID，跨Scope/不可见对象统一NOT_FOUND/授权拒绝；水位旧选集→PROJECT_DELIVERY_COMPLETION_WATERMARK_INVALID；CAS→CONCURRENCY_CONFLICT；暂不可用→DEPENDENCY_UNAVAILABLE；Decision/Actor/session/撤权/过期→AUTHORIZATION_DECISION_INVALID；同event冲突→既有QUARANTINED结果。不得在safeSummary区分其他Scope对象存在性、返回客户正文或TE内部状态。
 
-当前taskDefinition不可变关联保证历史一致性，不证明TE当前USABLE；没有Task invalidation事件时不虚称失效闭环。Module-Test 002 #237定义上述正反例、late/replay与事务effects；所有新runtime NOT RUN。
+当前taskDefinition不可变关联保证历史一致性，不证明TE当前USABLE；没有Task invalidation事件时不虚称失效闭环。Module-Test 002 #237定义上述正反例、late/replay与事务effects；实现入口为 `createExactDeliveryCompletionConsumer`、`handleEvaluateExactDeliveryItemCompletion`、`createDeliveryItemCompletionReadbackPort`，持久化为 `V7012__exact_delivery_completion.sql`；具体运行层级见该矩阵，未执行子项保持 NOT RUN。

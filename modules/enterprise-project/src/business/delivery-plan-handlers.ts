@@ -1,3 +1,4 @@
+import { exactCompletionCriteria } from '@zhiju/contracts';
 // IM-03 WI-10 (issue #66): DeliveryPlan/DeliveryItem draft, Human approval,
 // activation and criteria query handlers. Recommendations remain proposals
 // until an exact Human decision is persisted and consumed by activation.
@@ -568,6 +569,16 @@ function validateItemDefinitions(
       item.completionCriteria,
       `${label}.completionCriteria`,
     );
+    if (asReferenceLike(completionCriteria).profile !== undefined) {
+      try {
+        exactCompletionCriteria(completionCriteria, { enterpriseId, projectId });
+      } catch {
+        throw new EnterpriseBusinessError(
+          PROJECT_DELIVERY_ITEM_INVALID,
+          'Invalid exact completion criteria',
+        );
+      }
+    }
     const dueConstraint =
       item.dueConstraint === undefined
         ? undefined

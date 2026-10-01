@@ -4588,3 +4588,144 @@ export function createFormalCompletionAuthorizationPort(
       ),
   };
 }
+
+// #239: finite owning mappings; Service identities come from trusted deployment configuration.
+export interface TaskCompletedDeliveryAuthorizationConfig {
+  readonly capabilityCodes: Readonly<Record<string, string>>;
+  readonly servicePrincipalIds: {
+    dispatcher: string;
+    consumer: string;
+    evaluator: string;
+    reader: string;
+  };
+  readonly now?: () => Date;
+}
+export function taskCompletedDeliveryBindings(): readonly AuthorizationEntryBinding[] {
+  const operations = [
+    [
+      'taskCompletedScanV1',
+      'execution.task_completed.dispatch.scan',
+      'zhiju.project.project',
+      'dispatcher',
+    ],
+    [
+      'taskCompletedClaimV1',
+      'execution.task_completed.dispatch.claim',
+      'zhiju.project.project',
+      'dispatcher',
+    ],
+    [
+      'taskCompletedReadV1',
+      'execution.task_completed.dispatch.read',
+      'zhiju.execution.task',
+      'dispatcher',
+    ],
+    [
+      'taskCompletedConfirmV1',
+      'execution.task_completed.dispatch.confirm',
+      'zhiju.execution.task',
+      'dispatcher',
+    ],
+    [
+      'taskCompletedFailureV1',
+      'execution.task_completed.dispatch.failure',
+      'zhiju.execution.task',
+      'dispatcher',
+    ],
+    [
+      'taskCompletedResumeV1',
+      'execution.task_completed.dispatch.resume',
+      'zhiju.execution.task',
+      'human',
+    ],
+    [
+      'deliveryCompletionConsumeV1',
+      'project.delivery_completion.consume',
+      'zhiju.project.project',
+      'consumer',
+    ],
+    [
+      'deliveryItemCompletionEvaluateV2',
+      'project.evaluate_delivery_item_completion',
+      'zhiju.project.delivery_item',
+      'evaluator',
+    ],
+    [
+      'deliveryCompletionReadExactV1',
+      'project.delivery_completion.read_exact',
+      'zhiju.project.delivery_item',
+      'reader',
+    ],
+  ] as const;
+  return operations.map(([key, type, target, role]) => ({
+    capabilityConfigKey: key,
+    commandType: type,
+    commandVersion: role === 'evaluator' ? '2.0' : '1.0',
+    authorizationPurpose: role === 'evaluator' ? 'project.delivery_item.evaluate_completion' : type,
+    requiredGrantAction:
+      role === 'evaluator' ? 'project.delivery_item.completion.evaluate.v2' : type + '.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: [target],
+    selectorType: 'TARGET_TYPE',
+    ...(role === 'human'
+      ? { expectedPrincipalKind: 'HUMAN', forbidActingFor: true }
+      : role === 'evaluator' || role === 'reader'
+        ? { principalKinds: ['HUMAN', 'SERVICE'] as const }
+        : { expectedPrincipalKind: 'SERVICE' }),
+  }));
+}
+export function createTaskCompletedDeliveryAuthorizationPort(
+  config: TaskCompletedDeliveryAuthorizationConfig,
+) {
+  const now = config.now ?? (() => new Date()),
+    common = config as unknown as WorkOrderValidationAuthorizationConfig;
+  function mapping(key: string, type: string, version: string) {
+    const b = taskCompletedDeliveryBindings().find(
+      (v) =>
+        v.capabilityConfigKey === key && v.commandType === type && v.commandVersion === version,
+    );
+    if (!b)
+      throw new SnapshotBoundaryError(
+        IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
+        'Unsupported delivery completion boundary',
+      );
+    const role = key.startsWith('taskCompleted')
+      ? 'dispatcher'
+      : key === 'deliveryCompletionConsumeV1'
+        ? 'consumer'
+        : key === 'deliveryItemCompletionEvaluateV2'
+          ? 'evaluator'
+          : 'reader';
+    return { ...b, allowedServicePrincipalIds: [config.servicePrincipalIds[role]] };
+  }
+  return {
+    authorize: (
+      deps: IdentityCommandDeps,
+      key: string,
+      input: ControlledFirstRunAuthorizationInput,
+    ) =>
+      issueEntryDecision(
+        common,
+        now,
+        undefined,
+        deps,
+        input,
+        input.targetRef,
+        mapping(key, input.commandType, input.commandVersion),
+      ),
+    revalidate: (
+      deps: IdentityCommandDeps,
+      key: string,
+      input: ControlledFirstRunRevalidationInput,
+    ) =>
+      revalidateEntryDecision(
+        common,
+        now,
+        undefined,
+        deps,
+        input,
+        input.expectedTargetRef,
+        mapping(key, input.expectedCommandType, input.expectedCommandVersion),
+      ),
+  };
+}

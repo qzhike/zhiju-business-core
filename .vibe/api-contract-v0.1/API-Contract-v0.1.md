@@ -601,7 +601,7 @@ Completion payload不含criteriaHash不等于无绑定：owning current definiti
 
 ## #237 DeliveryItem Completion 的 Major 与内部读回提案
 
-状态：`HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT REGISTERED / NOT IMPLEMENTED / NOT RUN`。新`project.evaluate_delivery_item_completion@2.0`的closedpayload/Result、profile/selector、exactPlan/Item/Task/fact/Scope/CAS语义唯一见Spec002 §23；Catalog #237分类并存版本增量，历史200/@1.0/Event接受集不变。新profile让旧v1按原unknownkey规则拒绝，避免旧Project-wide eventType机制覆盖新Itempointer；不能仅以Schema兼容宣称业务语义可互换。
+状态：`HUMAN DESIGN APPROVED 2026-10-01 / DESIGN REVIEW PASSED / REGISTERED AND IMPLEMENTED IN #239 PROPOSED REVISION / RUNTIME EVIDENCE IN MODULE-TEST`。新`project.evaluate_delivery_item_completion@2.0`的closedpayload/Result、profile/selector、exactPlan/Item/Task/fact/Scope/CAS语义唯一见Spec002 §23；Catalog #237分类并存版本增量，历史200/@1.0/Event接受集不变。新profile让旧v1按原unknownkey规则拒绝，避免旧Project-wide eventType机制覆盖新Itempointer；不能仅以Schema兼容宣称业务语义可互换。
 
 `DeliveryItemCompletionReadbackPort.readExact`是EP owning AUTHORITATIVE内部Port，完整输入/安全结果见Spec002 §23.4，不伪装成已注册Query，不经Projection/Board读回。指定immutable Evaluation的历史outcome与当前pointer的derivedStatus、selectedEvaluationIsCurrent分开；EP只证明HISTORICAL_COMPLETION，TEtaskCurrentUseStatus=UNKNOWN。权限先于protected读和历史success返回，safe错误不泄漏对象是否存在/客户正文。
 

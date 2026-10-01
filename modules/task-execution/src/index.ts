@@ -375,3 +375,5 @@ export * from './business/formal-completion.js';
 export * from './business/output-creation-binding.js';
 
 export type { DependencyCompletionPort } from './business/task-readiness-plan.js';
+
+export * from './business/task-completed-dispatch.js';

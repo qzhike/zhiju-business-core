@@ -71,6 +71,20 @@ const sourceSliceRef = exactObjectType(
   'zhiju.project.context_source_slice',
 );
 const principalRef = { $ref: `${common}principalRef` };
+// Preserve the existing EP ledger identities approved in Spec 002 §23.3.
+// These finite legacy spellings do not widen the shared namespace grammar.
+function completionContentRef(
+  objectType: 'DeliveryItemCompletionFact' | 'CompletionEvaluation' | 'DeliveryItemImpactReview',
+): JsonSchema {
+  return object(['kind', 'objectType', 'objectId', 'scope', 'contentHash'], {
+    kind: { const: 'CONTENT_ADDRESSED' },
+    objectType: { const: objectType },
+    objectId: uuid,
+    immutableVersionId: uuid,
+    scope: object(['enterpriseId', 'projectId'], { enterpriseId: uuid, projectId: uuid }),
+    contentHash,
+  });
+}
 // IM-06 (#191) resolution receipt boundary: the exact receipt content address
 // and the owning confirmation facts it is bound to. The ActorSnapshot and the
 // AuthorizationDecision are EnterpriseProject-visible identities only: their
@@ -857,5 +871,50 @@ export const enterpriseProjectOperationContracts = Object.freeze(
 export const enterpriseProjectSchema = {
   $id: schemaId,
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $defs: { ...namedDefinitions, ...operationDefinitions },
+  $defs: {
+    ...namedDefinitions,
+    ...operationDefinitions,
+    exactTaskCompletionCriteria: object(['profile', 'allOf'], {
+      profile: { const: 'ep.delivery_item.exact_task_completion@1.0' },
+      allOf: {
+        ...array(
+          {
+            oneOf: [
+              object(['eventType', 'taskRef'], {
+                eventType: { const: 'execution.TaskCompleted' },
+                taskRef: exactObjectType(objectReference, 'zhiju.execution.task'),
+              }),
+              object(['eventType', 'factRef'], {
+                eventType: { const: 'release.ReleaseCompleted' },
+                factRef: exactObjectType(objectReference, 'release.release'),
+              }),
+            ],
+          },
+          { nonEmpty: true, unique: true },
+        ),
+        maxItems: 2,
+      },
+    }),
+    project_evaluate_delivery_item_completion_v2_0_payload: object(
+      ['deliveryPlanRef', 'deliveryItemRef', 'factRefs'],
+      {
+        deliveryPlanRef: exactObjectType(versionedReference, 'zhiju.project.delivery_plan'),
+        deliveryItemRef: exactObjectType(versionedReference, 'zhiju.project.delivery_item'),
+        factRefs: array(completionContentRef('DeliveryItemCompletionFact'), {
+          nonEmpty: true,
+          unique: true,
+        }),
+      },
+    ),
+    project_evaluate_delivery_item_completion_v2_0_result: object(
+      ['evaluationRef', 'outcome', 'satisfiedFactRefs', 'aggregateVersion'],
+      {
+        evaluationRef: completionContentRef('CompletionEvaluation'),
+        outcome: { enum: ['SATISFIED', 'UNSATISFIED'] },
+        satisfiedFactRefs: array(completionContentRef('DeliveryItemCompletionFact')),
+        aggregateVersion: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+        impactReviewRef: completionContentRef('DeliveryItemImpactReview'),
+      },
+    ),
+  },
 } as const satisfies JsonSchema;

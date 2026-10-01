@@ -82,3 +82,5 @@ export { createBlockedInputRecoveryWorker } from './blocked-input-recovery-worke
 export type { BlockedInputRecoveryWorkerConfig } from './blocked-input-recovery-worker.js';
 
 export * from './formal-completion-entry.js';
+
+export * from './task-completed-delivery-entry.js';

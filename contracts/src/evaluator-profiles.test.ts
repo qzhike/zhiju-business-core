@@ -92,6 +92,7 @@ describe('evaluator profile registry artifact', () => {
       ['te.agent_result_validation.evaluator@2.0', 'task-execution'],
       ['te.work_order_completion.evaluator@1.0', 'task-execution'],
       ['te.task_completion.evaluator@1.0', 'task-execution'],
+      ['ep.delivery_item_completion.evaluator@2.0', 'enterprise-project'],
     ]);
   });
 
@@ -100,7 +101,11 @@ describe('evaluator profile registry artifact', () => {
     const versionIds = new Set<string>();
     for (const profile of evaluatorProfileRegistry.profiles) {
       expect(profile.reference.kind).toBe('VERSIONED');
-      expect(profile.reference.objectType).toBe(EVALUATOR_PROFILE_REFERENCE_OBJECT_TYPE);
+      expect(profile.reference.objectType).toBe(
+        profile.owner === 'enterprise-project'
+          ? 'zhiju.project.evaluator_profile'
+          : EVALUATOR_PROFILE_REFERENCE_OBJECT_TYPE,
+      );
       expect(profile.reference.objectId).toMatch(uuidV7Pattern);
       expect(profile.reference.versionId).toMatch(uuidV7Pattern);
       expect(profile.reference.scope).toEqual({});
@@ -108,8 +113,8 @@ describe('evaluator profile registry artifact', () => {
       objectIds.add(profile.reference.objectId);
       versionIds.add(profile.reference.versionId);
     }
-    expect(objectIds.size).toBe(7);
-    expect(versionIds.size).toBe(7);
+    expect(objectIds.size).toBe(8);
+    expect(versionIds.size).toBe(8);
   });
 
   it('keeps the generated build artifact byte-identical to the registry source', () => {

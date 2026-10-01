@@ -36,7 +36,8 @@ export type EvaluatorProfileRegistryKey =
   | 'te.work_order_validation.evaluator@2.0'
   | 'te.agent_result_validation.evaluator@2.0'
   | 'te.work_order_completion.evaluator@1.0'
-  | 'te.task_completion.evaluator@1.0';
+  | 'te.task_completion.evaluator@1.0'
+  | 'ep.delivery_item_completion.evaluator@2.0';
 
 const registryKeyPattern = /^[a-z][A-Za-z0-9]*(?:[._][A-Za-z0-9]+)*@\d+\.\d+$/u;
 const uuidV7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -65,6 +66,7 @@ const approvedEntries: readonly { registryKey: EvaluatorProfileRegistryKey; owne
   { registryKey: 'te.task_readiness.evaluator@1.0', owner: 'task-execution' },
   { registryKey: 'te.work_order_validation.evaluator@1.0', owner: 'task-execution' },
   { registryKey: 'te.agent_result_validation.evaluator@1.0', owner: 'task-execution' },
+  { registryKey: 'ep.delivery_item_completion.evaluator@2.0', owner: 'enterprise-project' },
 ];
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -104,7 +106,7 @@ function isPlatformScope(value: unknown): boolean {
  * objectType, a non-UuidV7 id or a non-`VERSIONED` kind cannot enter the
  * registry, so no entry can describe a look-alike identity.
  */
-function parseReference(value: unknown): Common.VersionedRef {
+function parseReference(value: unknown, objectType: string): Common.VersionedRef {
   if (
     !record(value) ||
     !exactKeys(value, ['kind', 'objectType', 'objectId', 'versionId', 'scope'])
@@ -113,7 +115,7 @@ function parseReference(value: unknown): Common.VersionedRef {
   }
   if (
     value.kind !== 'VERSIONED' ||
-    value.objectType !== EVALUATOR_PROFILE_REFERENCE_OBJECT_TYPE ||
+    value.objectType !== objectType ||
     typeof value.objectId !== 'string' ||
     !uuidV7Pattern.test(value.objectId) ||
     typeof value.versionId !== 'string' ||
@@ -124,7 +126,7 @@ function parseReference(value: unknown): Common.VersionedRef {
   }
   return Object.freeze({
     kind: 'VERSIONED',
-    objectType: EVALUATOR_PROFILE_REFERENCE_OBJECT_TYPE,
+    objectType,
     objectId: value.objectId,
     versionId: value.versionId,
     scope: Object.freeze({}),
@@ -162,7 +164,12 @@ export function loadEvaluatorProfileRegistry(input: unknown): EvaluatorProfileRe
     if (profiles.some((profile) => profile.registryKey === registryKey)) {
       throw new Error(`duplicate evaluator profile registry key: ${registryKey}`);
     }
-    const reference = parseReference(entry.reference);
+    const reference = parseReference(
+      entry.reference,
+      approved.owner === 'enterprise-project'
+        ? 'zhiju.project.evaluator_profile'
+        : EVALUATOR_PROFILE_REFERENCE_OBJECT_TYPE,
+    );
     if (objectIds.has(reference.objectId) || versionIds.has(reference.versionId)) {
       throw new Error(`duplicate evaluator profile identity: ${registryKey}`);
     }

@@ -2396,7 +2396,9 @@ normal与recovered真实PostgreSQL正链均需空库/升级/二次no-op、RLS、
 
 ## 41. TaskCompleted 派发与精确 Delivery Completion 持久化提案（#237）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。归属：TE Spec003 §26、EP Spec002 §23、IP Spec001 §15.16；只设计forward增量，不改已应用V3000/V2013/V7009，不分配migration编号（共用Flyway history编号由后续实现时按现行规则处理，不假定可直接用300x/200x）。所有新Project row显式enterprise_id/project_id、FORCE RLS、同Owner组合FK/unique与Hash/Scope mirror；不跨SchemaFK/join，不建shared message Schema。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / DESIGN REVIEW PASSED / IMPLEMENTED IN #239 PROPOSED REVISION / RUNTIME EVIDENCE IN MODULE-TEST`。归属：TE Spec003 §26、EP Spec002 §23、IP Spec001 §15.16；forward增量为 TE `V7011__task_completed_dispatch.sql` 与 EP `V7012__exact_delivery_completion.sql`；不改已应用V3000/V2013/V7009。所有新Project row显式enterprise_id/project_id、FORCE RLS、同Owner组合FK/unique与Hash/Scope mirror；不跨SchemaFK/join，不建shared message Schema。
+
+#239 的有限编号例外已由用户在实现会话于 2026-10-01 明确批准：V7011 专用于 task_execution dispatcher，V7012 专用于 enterprise_project exact completion；IntegrationGateway 与其他目录不得重用这两个编号，其余号段不变。该分配晚于共用 Flyway history 的 V7010，不改已应用迁移、不启用 out-of-order；布局契约与其严格负例同步于 `migrations/README.md`、`tests/business/migration-isolation.test.ts`。
 
 ### 41.1 TE owning记录与最小权限
 
@@ -2419,6 +2421,8 @@ allocation严格cursor→Outbox→关联source本地锁序，写cursor/binding/c
 
 v2复用既有Evaluation/Impact/Item独立CAS存储，加v2 payload/profile/selector guards和必要附属associationHashes/revocation fingerprint来源；v1行不重写。immutable Evaluation payloadHash覆盖完整v2payload、fingerprint按Spec002§23.3；列镜像、完整ref Hash和samePlanVersionItem pointer组合约束保留。v2输入expectedAggregateVersion精确bigint；新版本Schema/结果数值继续按共享契约可表达范围，溢出fail closed。
 
+Evaluation INSERT guard先读取同Scope/exact Version/Item的冻结criteria：exact-task profile必须校验完整v2 shape，即使待插入payload省略`taskFactSemantics`也不得进入legacy路径。只有真正legacy Item且payload不声明v2语义时保留旧路径；legacy Item自报v2语义仍拒绝。该选择依赖owning Item事实，不依赖caller可省略的discriminator。
+
 增加Project Completion ledger锁行（enterprise_id,project_id唯一），新Consumer与v2Evaluation按ledger→Item顺序；legacyConsumer也参加同一ledger锁以免已消费Release/Quality撤销并发漏看。新增EP consumer使用唯一Inbox claim，并发同event提交后一份原结果；冲突只append violation，不损坏成功Inbox。低水位Facts仅append；同exactTaskItem关联查max sequence，不能用Project max过滤其他Item。应用读取在RLS内，不以recorded_at排序判断优先。
 
-原FactRef Hash域仍publicEventpayload；association separate Hash防错归属。Readback复验完整payload/Hash/mirror、currentpointer与所需sources；只返回Spec002安全projection。Fact/Evaluation/association/attempt/outcome app UPDATE/DELETE拒绝、owner immutable guard拒绝；crossProject/noContext/池复用不得泄漏，dispatcher及EPapp不能读取/写对方Schema。不存在运行时已通过声明；空库/合法历史upgrade/二次no-op和原V3000/V2013兼容必须由未来full执行。
+原FactRef Hash域仍publicEventpayload；association separate Hash防错归属。Readback复验完整payload/Hash/mirror、currentpointer与所需sources；只返回Spec002安全projection。Fact/Evaluation/association/attempt/outcome app UPDATE/DELETE拒绝、owner immutable guard拒绝；crossProject/noContext/池复用不得泄漏，dispatcher及EPapp不能读取/写对方Schema。新正链与局部负例的实际层级见三个Module-Test的#237矩阵；空库/合法历史upgrade/二次no-op和原V3000/V2013兼容必须由当前revision的configured full或可信exact-revision CI验证，定向诊断不替代。
