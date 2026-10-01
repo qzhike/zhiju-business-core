@@ -178,3 +178,28 @@ $ prettier --check .
 ```
 
 初始sandbox命令在pnpm自动依赖同步阶段失败，未进入docs；只读pnpm固定版本预检通过。offline install缺@types/pg缓存，随后按原frozen lockfile恢复依赖、在获准环境执行原target通过。没有锁文件/验证脚本改动，没有把环境失败写成业务assertion failure或抹除。最终metadata/正式记录修订的验证和审查由后续章节与PR exact-head CI记录，不将上述15文件设计验证夸大为未核验的最终head。
+
+## 9. 真实 PR final-head 独立审查（2026-10-01）
+
+APPROVE
+
+Reviewed SHA：`8299bd72dbc8d2e39a15dc94922bd80ea7ce2047`；base=`cd2a249cff5e8bc0406321863b39b8cbe5141a2e`；真实PR=[#238](https://github.com/qzhike/zhiju-business-core/pull/238)。Reviewer重新执行`vibe repo --json`核对本地repository/branch/head，并通过`gh pr view 238 --json title,body,state,isDraft,headRefOid,baseRefOid,comments,reviews,statusCheckRollup,url`独立读回远端同一head/base：OPEN、Draft，尚无评论或正式GitHubreview；审查时CI select为QUEUED。此APPROVE是独立Reviewer技术结论，不伪称已经提交GitHubformal approval，也不把queuedCI写成PASS。合并前Delivery仍需核对最终实际head、requiredchecks和已授权范围。
+
+批准来源为第8节记录的当前会话用户明确“批准设计，合并PR并更新issue”；该决定实际解除T2human设计gate，不沿用第7节历史HUMAN_REVIEW_REQUIRED作为当前阻塞。Reviewer独立重算`a38e66f2df60d45079a093f08fed4e4f12732ef1`的15文件Gitblob SHA256，全部与附录B批准manifest匹配；同时逐字段比对内联附录A/B与原完整manifest，均相等。因此批准覆盖的语义修订可从仓库与本文自包含定位，不依赖临时文件存活。
+
+独立检查批准设计commit→reviewedhead的全部16文件差异：15设计/权威文件仅更新真实人类批准/独立审查状态、decision新增具体批准及scope记录、roadmap记录基于获批设计重新评估一个完整实现候选的forwardintent；第16文件为本正式Review记录。没有变更field/Hash/codec/association/lease/fencing/retry/auth/criteria/readback语义或normal/recovered验收，也没有新增runtime/schema/generated/migration/lockfile或无关模块变化。原F1/F2仍CLOSED；其余第4/7节语义结论可复用，没有新增blockingfinding。Issue#237的独立设计review、人类批准和真实PR正式记录要求在此head已满足；配置docs已具当前本地证据，GitHub合并/Issue关闭仍由Delivery读回实际结果。
+
+当前reviewedhead验证复用：native exec session24143，exacttree随后未改内容提交为`8299bd72dbc8d2e39a15dc94922bd80ea7ce2047`；直接调用原配置`CI=true PATH=/Users/galendai/Library/pnpm/.tools/pnpm/11.19.0/bin:$PATH vibe verify docs --json`，原生完成exit0。完整16文件PR的输出为：
+
+```text
+[docs-verification] PASS files=16
+Checking formatting...
+All matched files use Prettier code style!
+$ node --experimental-strip-types tools/verification/check-docs.mts && pnpm format:check
+$ prettier --check .
+{"status":"PASS","target":"docs","command":"pnpm verify:docs","exit_code":0}
+```
+
+Reviewer复用该exacttree原生docs证据，没有重复执行同一充分target，也没有因docs-onlyscope要求full/environment。本文本节是reviewrecord-only追加，不自动宣称其未来提交head已经取得CI；追加交付后Reviewer应只读确认最终record-onlydiff，Delivery核对新head当前docs/checks后再合并。不得为了把本文件自身最终SHA写入自身而制造无穷reviewcommit循环；最新review结论可通过授权PRcomment精确绑定最终head，随后读回。
+
+未执行边界保持：全部新TaskCompleteddispatch、EPexactassociation/v2Evaluation/readback、normal/recovered真实owning链、persistence/concurrency/fault、授权撤销与迁移RLS/ACL均NOT RUN；Provider/CLI/Feishu/publicHTTP/UI、部署/生产/负载、独立人工业务验收仍NOT RUN。旧GrantPolicySnapshot延后、Cancel/late-result及IM-06整体退出要求保留。APPROVE不批准runtime实现或依赖Issuepublication，不关闭IM-06；用户对本设计PRmerge及Issue#237更新的授权由Delivery在requiredgates通过后执行。
