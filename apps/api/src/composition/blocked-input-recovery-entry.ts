@@ -3,7 +3,7 @@ import {
   type FormalCompletionEntryConfig,
 } from './formal-completion-entry.js';
 import type { FormalCompletionPorts } from '@zhiju/task-execution';
-import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
+import { getContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
 import { newUuidV7, sha256CanonicalJson, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   createRecoveryAuthorizationPort,
@@ -251,7 +251,7 @@ export function createRecoveryDependencyPorts(
     now = config.now ?? (() => new Date());
   const context = identityContext(row),
     deps = boundary.identityDeps(context),
-    checks: (() => Promise<void>)[] = [revalidateOwn],
+    checks: Parameters<typeof auth.revalidateBatch>[1][number][] = [],
     expiries = [row.expires_at.getTime()];
   const readers = createWorkOrderDependencyReads(config, row, session);
   async function mint(dependency: string, ref: CanonicalJsonObject, payload: CanonicalJsonObject) {
@@ -270,19 +270,20 @@ export function createRecoveryDependencyPorts(
     });
     if (result.outcome !== 'ALLOW')
       entryError('AUTHORIZATION_REVOKED', 'recovery dependency denied');
+    const checkInput = {
+      decisionRef: result.authorizationDecisionRef,
+      expectedCommandType: type,
+      expectedCommandVersion: '1.0',
+      expectedCommandPayloadHash: payloadHash,
+      expectedAuthenticationContextHash: sessionHash,
+      expectedTargetRef: target,
+    };
     const proof = async () => {
-      const validity = await auth.revalidate(deps, key, {
-        decisionRef: result.authorizationDecisionRef,
-        expectedCommandType: type,
-        expectedCommandVersion: '1.0',
-        expectedCommandPayloadHash: payloadHash,
-        expectedAuthenticationContextHash: sessionHash,
-        expectedTargetRef: target,
-      });
+      const validity = await auth.revalidate(deps, key, checkInput);
       if (!validity.valid) entryError('AUTHORIZATION_REVOKED', 'recovery dependency revoked');
     };
     await proof();
-    checks.push(proof);
+    checks.push({ key: key, input: checkInput });
     expiries.push(Date.parse(result.expiresAt));
     const ownContext = {
       ...context,
@@ -317,7 +318,9 @@ export function createRecoveryDependencyPorts(
     validUntil: () =>
       new Date(Math.min(...expiries, ...readers.decisionExpiries().map(Date.parse))),
     revalidateAuthorization: async () => {
-      for (const check of checks) await check();
+      await revalidateOwn();
+      const result = await auth.revalidateBatch(deps, checks);
+      if (!result.valid) entryError('AUTHORIZATION_REVOKED', 'recovery dependency revoked');
       await readers.revalidate();
     },
     authorizeLocalRead: async (dependency, target, payload) => {
@@ -426,7 +429,7 @@ export function createRecoveryDependencyPorts(
 
 /** Authenticated local transport for the bounded recovery operations. */
 export function createBlockedInputRecoveryEntry(config: BlockedInputRecoveryEntryConfig) {
-  const registry = new ContractRegistry(),
+  const registry = getContractRegistry(),
     boundary = createDecisionBoundary(config),
     auth = createRecoveryAuthorizationPort({
       capabilityCodes: config.recoveryCapabilityCodes,

@@ -1039,6 +1039,7 @@ async function revalidateEntryDecision(
   input: WorkOrderValidationEntryRevalidation,
   rawTarget: unknown,
   entryBinding?: AuthorizationEntryBinding,
+  transaction?: IdentityTransaction,
 ): Promise<RevalidatedEntryDecision> {
   const binding =
     entryBinding ??
@@ -1066,7 +1067,7 @@ async function revalidateEntryDecision(
     'decision payload hash',
   );
 
-  return withIdentityTransaction(deps.db, deps.context, async (trx) => {
+  const check = async (trx: IdentityTransaction): Promise<RevalidatedEntryDecision> => {
     const found = await deps.repo.getAuthorizationDecisionByIdAndHash(
       trx,
       input.decisionRef.objectId,
@@ -1200,7 +1201,8 @@ async function revalidateEntryDecision(
       },
       expiresAt: row.expires_at.toISOString(),
     };
-  });
+  };
+  return transaction ? check(transaction) : withIdentityTransaction(deps.db, deps.context, check);
 }
 
 /**
@@ -2530,6 +2532,47 @@ export interface ControlledFirstRunRevalidationInput extends WorkOrderValidation
     Common.ObjectRef | Common.ContentAddressedRef | Common.SnapshotRef | Common.VersionedRef;
 }
 
+interface EntryDecisionRevalidation {
+  readonly key: string;
+  readonly input: ControlledFirstRunRevalidationInput;
+}
+
+/** Reuse setup within one checkpoint; never retain an authorization result. */
+async function revalidateEntryBatch(
+  config: WorkOrderValidationAuthorizationConfig,
+  now: () => Date,
+  binding: (key: string, operation: string, version: string) => AuthorizationEntryBinding,
+  deps: IdentityCommandDeps,
+  requests: readonly EntryDecisionRevalidation[],
+): Promise<
+  | { readonly valid: true }
+  | (WorkOrderValidationRevalidationDeny & { readonly failedIndex: number })
+> {
+  if (requests.length === 0) return { valid: true };
+  return withIdentityTransaction(
+    deps.db,
+    deps.context,
+    async (trx) => {
+      for (const [failedIndex, request] of requests.entries()) {
+        const input = request.input;
+        const result = await revalidateEntryDecision(
+          config,
+          now,
+          undefined,
+          deps,
+          input,
+          input.expectedTargetRef,
+          binding(request.key, input.expectedCommandType, input.expectedCommandVersion),
+          trx,
+        );
+        if (!result.valid) return { ...result, failedIndex };
+      }
+      return { valid: true };
+    },
+    'read committed',
+  );
+}
+
 export function createControlledFirstRunAuthorizationPort(
   config: ControlledFirstRunAuthorizationConfig,
 ) {
@@ -2563,6 +2606,8 @@ export function createControlledFirstRunAuthorizationPort(
         binding,
       );
     },
+    revalidateBatch: (deps: IdentityCommandDeps, requests: readonly EntryDecisionRevalidation[]) =>
+      revalidateEntryBatch(commonConfig, now, bindingFor, deps, requests),
     revalidate: async (
       deps: IdentityCommandDeps,
       boundary: string,
@@ -4216,6 +4261,8 @@ export function createRecoveryAuthorizationPort(config: {
         input.targetRef,
         binding(key, input.commandType, input.commandVersion),
       ),
+    revalidateBatch: (deps: IdentityCommandDeps, requests: readonly EntryDecisionRevalidation[]) =>
+      revalidateEntryBatch(common, now, binding, deps, requests),
     revalidate: (
       deps: IdentityCommandDeps,
       key: string,
@@ -4572,6 +4619,8 @@ export function createFormalCompletionAuthorizationPort(
         input.targetRef,
         mapping(key, input.commandType, input.commandVersion),
       ),
+    revalidateBatch: (deps: IdentityCommandDeps, requests: readonly EntryDecisionRevalidation[]) =>
+      revalidateEntryBatch(common, now, mapping, deps, requests),
     revalidate: (
       deps: IdentityCommandDeps,
       key: string,

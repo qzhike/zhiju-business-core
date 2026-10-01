@@ -1,5 +1,5 @@
 import {
-  ContractRegistry,
+  getContractRegistry,
   EVALUATOR_PROFILE_REGISTRY_VERSION,
   evaluatorProfileRegistry,
   resolveWorkOrderReadyProfile,
@@ -21,7 +21,7 @@ import {
 
 import { isFormalContract, formalCriteria, FORMAL_VALIDATOR } from './formal-output.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 
 export function object(value: unknown): CanonicalJsonObject {
   if (value === null || typeof value !== 'object' || Array.isArray(value))

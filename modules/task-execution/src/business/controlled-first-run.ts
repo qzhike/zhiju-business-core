@@ -7,7 +7,7 @@ import {
   readRecoveryResolution,
   type RecoveryPorts,
 } from './blocked-input-recovery.js';
-import { ContractRegistry } from '@zhiju/contracts';
+import { getContractRegistry } from '@zhiju/contracts';
 import {
   canonicalize,
   hashContractPayload,
@@ -38,7 +38,7 @@ import {
 } from './work-order-validation-plan.js';
 
 import { isFormalContract } from './formal-output.js';
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const WORK_ORDER = 'zhiju.execution.work_order';
 const RUN = 'execution.run';
 const RUNTIME = {

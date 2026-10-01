@@ -936,3 +936,9 @@ Consumer会话只由受信composition获得TE owning readClaimed后的私有材�
 每一步自身Decision在protected读前、数据库锁等待后提交前、历史成功/重复返回前按受信current clock/current Grant重验；claim的独立read也在上述点重验。禁止只在组成入口检查一次或在事务中持有过期Decision。缺/错操作/错Actor/认证Hash/Scope/target/payload/过期/撤权统一AUTHORIZATION_DECISION_INVALID、protected读/写为0（已合法完成的前一步不回滚）。Readback返回前重验；Evaluation replay先重验原结果读取资格再查Receipt，不重新要求terminal执行或原Planactive。临时IP依赖不可达DEPENDENCY_UNAVAILABLE，不把旧ALLOW当缓存fallback。
 
 v1既有授权/接受集不改，v1不能解释新profile；本节新增SERVICE动作不能被Agent/Runtime直接调用。真实Role/Grant撤销、锁后expiry、错service/跨Scope/session及replay撤权证据见Module-Test001 #237；实际PolicySnapshot lifecycle依旧不宣称PASS。
+
+## 同一授权检查点的事务复用
+
+同一受信身份、Scope 与检查点内的依赖 Decision 当前资格复查，可以复用一个短 READ COMMITTED 事务及安全上下文。每份 Decision 仍按原顺序独立读取完整绑定、Actor、Principal、Grant、Policy，并单独获取受信当前时间；首项拒绝立即停止，后续项不读取。此事务不签发 Decision、不读取其他 Owner 的业务事实，不包含业务锁等待或业务写入。
+
+自身授权先独立重验，再复查依赖组；单项依赖读取前后的独立重验保留。protected read、锁等待后的提交点和历史成功/重复返回前的原有检查点全部保留，每次调用重新建立事务、逐语句读取当前已提交状态；不得缓存 ALLOW、资格数据或跨调用共享事务。不同身份、Scope、请求与检查点不得共用该事务。异常必须回滚并释放连接。

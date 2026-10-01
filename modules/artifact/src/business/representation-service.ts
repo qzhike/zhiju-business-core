@@ -3,7 +3,7 @@
 
 import type { Kysely } from 'kysely';
 import {
-  ContractRegistry,
+  getContractRegistry,
   type Artifact,
   type Common,
   type IntegrationGateway,
@@ -45,7 +45,7 @@ import {
   type CommandResult,
 } from '../persistence/command-runner.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const repo = new ArtifactRepository();
 const REPRESENTATION_OBJECT_TYPES = new Set(['Representation', 'artifact.representation']);
 const REVISION_OBJECT_TYPES = new Set(['artifact.artifact_revision']);

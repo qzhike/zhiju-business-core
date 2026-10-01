@@ -1,4 +1,4 @@
-import { ContractRegistry } from '@zhiju/contracts';
+import { getContractRegistry } from '@zhiju/contracts';
 import type { CanonicalJsonObject, CanonicalJsonValue } from '@zhiju/shared-kernel';
 import { sql, type Kysely } from 'kysely';
 import {
@@ -11,7 +11,7 @@ import { formalCriteria } from './formal-output.js';
 import { validateWorkOrderControlsPolicy } from './policy-profiles.js';
 import type { ControlledFirstRunPorts } from './controlled-first-run.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 export interface OutputCreationBindingPorts extends Pick<
   ControlledFirstRunPorts,
   | 'now'

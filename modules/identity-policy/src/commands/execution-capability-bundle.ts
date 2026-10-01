@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import { ContractRegistry } from '@zhiju/contracts';
+import { getContractRegistry } from '@zhiju/contracts';
 import {
   canonicalize,
   hashContractPayload,
@@ -17,7 +17,7 @@ import {
 import { policySnapshotIntegrityHolds } from '../persistence/identity-policy-repository.js';
 import { isHumanOnlyCapability } from './static-registry.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const BUNDLE = 'zhiju.identity.execution_capability_bundle';
 
 export interface ExecutionCapabilityBundlePorts {

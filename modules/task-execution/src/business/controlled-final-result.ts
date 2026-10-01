@@ -1,4 +1,4 @@
-import { ContractRegistry, registeredEvaluatorProfileReference } from '@zhiju/contracts';
+import { getContractRegistry, registeredEvaluatorProfileReference } from '@zhiju/contracts';
 import {
   canonicalize,
   hashContractPayload,
@@ -38,7 +38,7 @@ import {
   FORMAL_RESULT_VALIDATOR,
   verifyFormalOutput,
 } from './formal-output.js';
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const RUN = 'execution.run';
 const RESULT = 'execution.agent_result';
 const ACCEPTANCE = 'execution.agent_result_acceptance';

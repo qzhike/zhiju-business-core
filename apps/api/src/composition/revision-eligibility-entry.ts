@@ -13,7 +13,7 @@
 // unregistered or wildcard Purpose never reaches the owning module.
 
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Common, type QualityGovernance } from '@zhiju/contracts';
+import { getContractRegistry, type Common, type QualityGovernance } from '@zhiju/contracts';
 import {
   handleGetRevisionExecutionEligibility,
   REVISION_EXECUTION_ELIGIBILITY_PURPOSE,
@@ -200,7 +200,7 @@ function eligibilityRequest(
 export function createRevisionEligibilityEntry(
   config: RevisionEligibilityEntryConfig,
 ): RevisionEligibilityEntry {
-  const registry = new ContractRegistry();
+  const registry = getContractRegistry();
   const boundary: DecisionBoundary = createDecisionBoundary(config);
 
   return {

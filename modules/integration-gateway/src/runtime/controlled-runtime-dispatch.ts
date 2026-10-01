@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import {
-  ContractRegistry,
+  getContractRegistry,
   type Common,
   type IntegrationGateway,
   type TaskExecution,
@@ -26,7 +26,7 @@ import {
 import { RenderPersistenceError } from '../persistence/render-attempt-repository.js';
 import type { RenderObjectStoragePort } from '../renderer/in-memory-render-object-storage.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const ATTEMPT = 'integration.runtime_attempt';
 const RECEIPT = 'integration.raw_external_receipt';
 const RUNTIME = {

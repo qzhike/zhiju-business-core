@@ -1,4 +1,4 @@
-import { ContractRegistry, type Common, type TaskExecution } from '@zhiju/contracts';
+import { getContractRegistry, type Common, type TaskExecution } from '@zhiju/contracts';
 import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   createControlledFirstRunAuthorizationPort,
@@ -100,7 +100,7 @@ function identityContext(row: DecisionRow): IdentityTransactionContext {
 }
 
 export function createControlledFirstRunEntry(config: ControlledFirstRunEntryConfig) {
-  const registry = new ContractRegistry();
+  const registry = getContractRegistry();
   const boundary = createDecisionBoundary(config);
   const auth = createControlledFirstRunAuthorizationPort({
     capabilityCodes: config.capabilityCodes,
@@ -223,7 +223,7 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
       policySnapshotId: row.policy_snapshot_id,
     };
     const expiries: string[] = [row.expires_at.toISOString()];
-    const checks: (() => Promise<void>)[] = [revalidateOwn];
+    const checks: Parameters<typeof auth.revalidateBatch>[1][number][] = [];
     const mint = async (
       key: Boundary,
       ref: CanonicalJsonObject,
@@ -241,19 +241,20 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
       });
       if (result.outcome !== 'ALLOW')
         entryError('AUTHORIZATION_REVOKED', 'first Run dependency read denied');
+      const checkInput = {
+        ...revalidation,
+        decisionRef: result.authorizationDecisionRef,
+        expectedCommandType: consumer,
+        expectedCommandPayloadHash: consumerHash,
+        expectedTargetRef: ref as unknown as Common.ObjectRef,
+      };
       const proof = async () => {
-        const validity = await auth.revalidate(deps, key, {
-          ...revalidation,
-          decisionRef: result.authorizationDecisionRef,
-          expectedCommandType: consumer,
-          expectedCommandPayloadHash: consumerHash,
-          expectedTargetRef: ref as unknown as Common.ObjectRef,
-        });
+        const validity = await auth.revalidate(deps, key, checkInput);
         if (!validity.valid)
           entryError('AUTHORIZATION_REVOKED', 'first Run dependency read revoked');
       };
       await proof();
-      checks.push(proof);
+      checks.push({ key: key, input: checkInput });
       expiries.push(result.expiresAt);
       const ownContext = {
         ...context,
@@ -267,7 +268,9 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
       return { proof, context: ownContext };
     };
     const revalidateAll = async () => {
-      for (const check of checks) await check();
+      await revalidateOwn();
+      const result = await auth.revalidateBatch(deps, checks);
+      if (!result.valid) entryError('AUTHORIZATION_REVOKED', 'first Run dependency read revoked');
     };
     return { envelope, payload, target, row, context, internal, mint, revalidateAll, expiries };
   }

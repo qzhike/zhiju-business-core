@@ -1,4 +1,4 @@
-import { ContractRegistry, operationPayloadSchemaRef } from '@zhiju/contracts';
+import { getContractRegistry, operationPayloadSchemaRef } from '@zhiju/contracts';
 import {
   canonicalize,
   hashContractPayload,
@@ -38,7 +38,7 @@ import {
   TASK_COMPLETION,
 } from './formal-output.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const WO = 'zhiju.execution.work_order',
   TASK = 'zhiju.execution.task',
   EVALUATION = 'zhiju.execution.completion_evaluation';

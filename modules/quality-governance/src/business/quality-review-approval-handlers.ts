@@ -4,7 +4,7 @@
 
 import type { Kysely } from 'kysely';
 import type { Common, Core, QualityGovernance } from '@zhiju/contracts';
-import { ContractRegistry } from '@zhiju/contracts';
+import { getContractRegistry } from '@zhiju/contracts';
 import {
   canonicalize,
   isUuidV7,
@@ -586,7 +586,7 @@ function contractHeader(
 }
 
 function ensureApprovalBundleContract(snapshot: Core.ApprovalBundleSnapshot): void {
-  const validation = new ContractRegistry().validateCoreContract(
+  const validation = getContractRegistry().validateCoreContract(
     'https://schemas.zhiju.local/core/approval-bundle/1.0',
     snapshot,
   );

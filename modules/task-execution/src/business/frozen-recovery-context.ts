@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
-import { ContractRegistry } from '@zhiju/contracts';
+import { getContractRegistry } from '@zhiju/contracts';
 import {
   canonicalize,
   newUuidV7,
@@ -46,7 +46,7 @@ import {
   type RecoveryPorts,
 } from './blocked-input-recovery.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 export interface FrozenRecoveryContextPorts extends RecoveryPorts {
   readonly resolveBuilder: (ref: CanonicalJsonObject) => Promise<InitialContextAssemblyPolicy>;
   readonly readSlice: (

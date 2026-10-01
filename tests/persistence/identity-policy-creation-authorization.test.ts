@@ -3,11 +3,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import type { Common } from '@zhiju/contracts';
 import pg from 'pg';
+import { sql } from 'kysely';
 import {
   authorizeCommand,
   createActorSnapshot,
   createIdentityPolicyDatabase,
   createTaskExecutionCreationAuthorizationPort,
+  createControlledFirstRunAuthorizationPort,
+  CONTROLLED_FIRST_RUN_BINDINGS,
+  type ControlledFirstRunCapabilityCodes,
   digestCanonicalPayload,
   grantCapability,
   IdentityPolicyRepository,
@@ -364,6 +368,172 @@ describe.skipIf(!gateEnabled)('version-bound creation authorization (real Postgr
   afterAll(async () => {
     await pool.end();
     await admin.end();
+  });
+
+  async function batchFixture() {
+    const binding = CONTROLLED_FIRST_RUN_BINDINGS.find(
+      (entry) => entry.boundary === 'queueContractReadV1',
+    );
+    if (binding === undefined) throw new Error('missing batch binding');
+    const objectType = binding.targetObjectTypes[0];
+    if (objectType === undefined) throw new Error('missing batch target type');
+    const namespace = `ci.batch.c${newUuidV7().replaceAll('-', '')}`;
+    const codes = Object.fromEntries(
+      CONTROLLED_FIRST_RUN_BINDINGS.map((entry, index) => [
+        entry.boundary,
+        `${namespace}.c${index}`,
+      ]),
+    ) as ControlledFirstRunCapabilityCodes;
+    const grantId = await grantCreation({
+      principalId: OPERATOR,
+      capabilityCode: codes[binding.boundary],
+      actions: [binding.requiredGrantAction],
+      selectors: [{ selectorType: binding.selectorType, objectType: objectType }],
+    });
+    const port = createControlledFirstRunAuthorizationPort({
+      capabilityCodes: codes,
+      now: () => new Date(clock.getTime()),
+    });
+    const entries: Parameters<typeof port.revalidateBatch>[1][number][] = [];
+    for (let index = 0; index < 2; index += 1) {
+      const target = targetRef(objectType);
+      const signed = await port.authorize(deps, binding.boundary, {
+        actorSnapshotRef: operatorActorRef,
+        commandType: binding.commandType,
+        commandVersion: binding.commandVersion,
+        commandPayloadHash: COMMAND_HASH,
+        authenticationContextHash: AUTH_HASH_OPERATOR,
+        targetRef: target,
+      });
+      expect(signed.outcome).toBe('ALLOW');
+      if (signed.outcome !== 'ALLOW') throw new Error('batch fixture authorization denied');
+      entries.push({
+        key: binding.boundary,
+        input: {
+          decisionRef: signed.authorizationDecisionRef,
+          expectedCommandType: binding.commandType,
+          expectedCommandVersion: binding.commandVersion,
+          expectedCommandPayloadHash: COMMAND_HASH,
+          expectedAuthenticationContextHash: AUTH_HASH_OPERATOR,
+          expectedTargetRef: target,
+        },
+      });
+    }
+    return { port, entries, grantId };
+  }
+
+  it('IP-BATCH observes concurrent revocation between distinct Decisions and stops before the next read', async () => {
+    const { port, entries, grantId } = await batchFixture();
+    const firstEntry = entries[0];
+    if (firstEntry === undefined) throw new Error('missing batch entry');
+    const reads: { id: string; isolation: string; transaction_id: string }[] = [];
+    let revoked = false;
+    class RevokingRepository extends IdentityPolicyRepository {
+      override async getAuthorizationDecisionByIdAndHash(
+        ...args: Parameters<IdentityPolicyRepository['getAuthorizationDecisionByIdAndHash']>
+      ) {
+        const metadata = await sql<{
+          isolation: string;
+          transaction_id: string;
+        }>`SELECT current_setting('transaction_isolation') AS isolation, pg_current_xact_id()::text AS transaction_id`.execute(
+          args[0],
+        );
+        const row = metadata.rows[0];
+        if (row === undefined) throw new Error('missing transaction metadata');
+        reads.push({ id: args[1], ...row });
+        return super.getAuthorizationDecisionByIdAndHash(...args);
+      }
+      override async getPolicySnapshotById(
+        ...args: Parameters<IdentityPolicyRepository['getPolicySnapshotById']>
+      ) {
+        const row = await super.getPolicySnapshotById(...args);
+        if (!revoked) {
+          revoked = true;
+          // A separate pooled connection commits while the batch transaction remains open.
+          const result = await revokeCapability(deps, {
+            targetId: grantId,
+            expectedAggregateVersion: '1',
+            scope: { scopeKind: 'PROJECT', enterpriseId: ENTERPRISE, projectId: PROJECT_A },
+            reasonCode: 'CI_BATCH_CONCURRENT_REVOCATION',
+            effectiveAt: new Date(clock.getTime()),
+            idempotencyKey: `ci:batch:revoke:${grantId}`,
+          });
+          expect(result.status).toBe('COMMITTED');
+        }
+        return row;
+      }
+    }
+    expect(
+      await port.revalidateBatch({ ...deps, repo: new RevokingRepository(crypto) }, [
+        ...entries,
+        firstEntry,
+      ]),
+    ).toEqual({ valid: false, reason: 'GRANT_NOT_CURRENT', failedIndex: 1 });
+    expect(reads.map((read) => read.id)).toEqual(
+      entries.map((entry) => entry.input.decisionRef.objectId),
+    );
+    expect(reads.map((read) => read.isolation)).toEqual(['read committed', 'read committed']);
+    expect(new Set(reads.map((read) => read.transaction_id)).size).toBe(1);
+    expect(await port.revalidateBatch(deps, entries)).toEqual({
+      valid: false,
+      reason: 'GRANT_NOT_CURRENT',
+      failedIndex: 0,
+    });
+  });
+
+  it('IP-BATCH starts a fresh transaction at each checkpoint and preserves identity and project isolation', async () => {
+    const { port, entries } = await batchFixture();
+    const firstEntry = entries[0];
+    if (firstEntry === undefined) throw new Error('missing batch entry');
+    const transactionIds: string[] = [];
+    class ObservingRepository extends IdentityPolicyRepository {
+      override async getAuthorizationDecisionByIdAndHash(
+        ...args: Parameters<IdentityPolicyRepository['getAuthorizationDecisionByIdAndHash']>
+      ) {
+        const metadata = await sql<{ id: string }>`SELECT pg_current_xact_id()::text AS id`.execute(
+          args[0],
+        );
+        const row = metadata.rows[0];
+        if (row === undefined) throw new Error('missing transaction metadata');
+        transactionIds.push(row.id);
+        return super.getAuthorizationDecisionByIdAndHash(...args);
+      }
+    }
+    const observed = { ...deps, repo: new ObservingRepository(crypto) };
+    expect(await port.revalidateBatch(observed, entries)).toEqual({ valid: true });
+    expect(await port.revalidateBatch(observed, [firstEntry])).toEqual({ valid: true });
+    expect(transactionIds[0]).toBe(transactionIds[1]);
+    expect(transactionIds[2]).not.toBe(transactionIds[0]);
+    expect(await port.revalidateBatch(depsFor(SECOND_HUMAN, SECOND_ACTOR), entries)).toMatchObject({
+      valid: false,
+      failedIndex: 0,
+    });
+    await expect(
+      port.revalidateBatch(
+        { ...deps, context: { ...context, allowedProjectIds: [PROJECT_B] } },
+        entries,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('IP-BATCH rolls back database errors and clears the local role before connection reuse', async () => {
+    const { port, entries } = await batchFixture();
+    class FailingRepository extends IdentityPolicyRepository {
+      override async getPolicySnapshotById(
+        ...args: Parameters<IdentityPolicyRepository['getPolicySnapshotById']>
+      ) {
+        await sql`SELECT 1 / 0`.execute(args[0]);
+        return super.getPolicySnapshotById(...args);
+      }
+    }
+    await expect(
+      port.revalidateBatch({ ...deps, repo: new FailingRepository(crypto) }, entries),
+    ).rejects.toMatchObject({ code: '22012' });
+    expect(await port.revalidateBatch(deps, entries)).toEqual({ valid: true });
+    expect(pool.waitingCount).toBe(0);
+    expect(
+      (await pool.query<{ current_user: string }>('SELECT current_user')).rows[0]?.current_user,
+    ).toBe('wi200_probe_ip');
   });
 
   it('IP-TAUTH-001 signs one exact ALLOW per approved creation version and keeps the target bound', async () => {

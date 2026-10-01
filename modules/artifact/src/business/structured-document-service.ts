@@ -3,7 +3,7 @@
 
 import { createHash } from 'node:crypto';
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Artifact, type Common } from '@zhiju/contracts';
+import { getContractRegistry, type Artifact, type Common } from '@zhiju/contracts';
 import {
   canonicalize,
   canonicalizeCanonicalContentPayload,
@@ -65,7 +65,7 @@ import {
 import type { ObjectStoragePort, ObjectStorageReadback } from '../storage/object-storage.js';
 
 const repo = new ArtifactRepository();
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const ROOT_OBJECT_TYPES = new Set(['Artifact', 'artifact.artifact']);
 const REVISION_OBJECT_TYPES = new Set(['ArtifactRevision', 'artifact.artifact_revision']);
 const ROOT_OBJECT_TYPE = 'Artifact';

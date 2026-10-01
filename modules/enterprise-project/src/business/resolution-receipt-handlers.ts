@@ -14,7 +14,7 @@
 // purpose of the operation, exactly like the Source Slice read.
 
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
+import { getContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
 import { isUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import { canonicalize, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 import {
@@ -42,7 +42,7 @@ import {
 } from './enterprise-business-errors.js';
 
 const repo = new ResolutionReceiptRepository();
-const CONTRACT_REGISTRY = new ContractRegistry();
+const CONTRACT_REGISTRY = getContractRegistry();
 
 export const GET_RESOLUTION_RECEIPT_QUERY = 'project.get_resolution_receipt';
 export const GET_RESOLUTION_RECEIPT_PURPOSE = 'project.resolution_receipt.read';

@@ -35,7 +35,7 @@ import {
 } from '@zhiju/shared-kernel';
 import type { Kysely } from 'kysely';
 import {
-  ContractRegistry,
+  getContractRegistry,
   validateInitialContextCommandResult,
   validateInitialContextExpiryBinding,
 } from '@zhiju/contracts';
@@ -814,7 +814,7 @@ export async function handleBuildInitialContext(
         },
       },
     } as unknown as CanonicalJsonObject;
-    const eventValidation = new ContractRegistry().validateOperation(
+    const eventValidation = getContractRegistry().validateOperation(
       CONTEXT_SNAPSHOT_BUILT_EVENT,
       CONTEXT_SNAPSHOT_BUILT_EVENT_VERSION,
       eventEnvelope,

@@ -1,4 +1,4 @@
-import { ContractRegistry, type Common } from '@zhiju/contracts';
+import { getContractRegistry, type Common } from '@zhiju/contracts';
 import { canonicalize, sha256CanonicalJson, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   createFormalCompletionAuthorizationPort,
@@ -136,7 +136,7 @@ export function createFormalCompletionDependencyPorts(
   };
   const dependencyProofs = new Map<string, Awaited<ReturnType<typeof issueDependency>>>();
   const expiries = [row.expires_at.toISOString()],
-    checks = [revalidateOwn];
+    checks: Parameters<typeof auth.revalidateBatch>[1][number][] = [];
   async function mint(dependencyKey: string, ref: Ref, payload: Ref) {
     const key = canonicalize({ dependencyKey, ref, payload });
     let proof = dependencyProofs.get(key);
@@ -165,20 +165,21 @@ export function createFormalCompletionDependencyPorts(
     const allowed = await auth.authorize(deps, dependencyKey, input);
     if (allowed.outcome !== 'ALLOW')
       entryError('AUTHORIZATION_DECISION_INVALID', 'Formal dependency authorization denied');
+    const checkInput = {
+      ...revalidation,
+      decisionRef: allowed.authorizationDecisionRef,
+      expectedCommandType: mapping.commandType,
+      expectedCommandVersion: mapping.commandVersion,
+      expectedCommandPayloadHash: digest,
+      expectedTargetRef: targetRef as unknown as Common.ObjectRef,
+    };
     const proof = async () => {
-      const current = await auth.revalidate(deps, dependencyKey, {
-        ...revalidation,
-        decisionRef: allowed.authorizationDecisionRef,
-        expectedCommandType: mapping.commandType,
-        expectedCommandVersion: mapping.commandVersion,
-        expectedCommandPayloadHash: digest,
-        expectedTargetRef: targetRef as unknown as Common.ObjectRef,
-      });
+      const current = await auth.revalidate(deps, dependencyKey, checkInput);
       if (!current.valid)
         entryError('AUTHORIZATION_DECISION_INVALID', 'Formal dependency authorization revoked');
     };
     await proof();
-    checks.push(proof);
+    checks.push({ key: dependencyKey, input: checkInput });
     expiries.push(allowed.expiresAt);
     return {
       proof,
@@ -196,7 +197,10 @@ export function createFormalCompletionDependencyPorts(
   }
   const readers = createWorkOrderDependencyReads(config, row, session);
   const revalidateAll = async () => {
-    for (const proof of checks) await proof();
+    await revalidateOwn();
+    const result = await auth.revalidateBatch(deps, checks);
+    if (!result.valid)
+      entryError('AUTHORIZATION_DECISION_INVALID', 'Formal dependency authorization revoked');
     await readers.revalidate();
   };
   const stem = (
@@ -430,7 +434,7 @@ export function createFormalCompletionDependencyPorts(
 
 /** Trusted composition proves own and every finite consumer-specific dependency Decision. */
 export function createFormalCompletionEntry(config: FormalCompletionEntryConfig) {
-  const registry = new ContractRegistry(),
+  const registry = getContractRegistry(),
     boundary = createDecisionBoundary(config),
     auth = createFormalCompletionAuthorizationPort(config.formalAuthorization),
     now = config.now ?? (() => new Date());

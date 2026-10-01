@@ -19,7 +19,7 @@
 //      after the claim and before its first business write.
 
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Common } from '@zhiju/contracts';
+import { getContractRegistry, type ContractRegistry, type Common } from '@zhiju/contracts';
 import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   createTaskExecutionCreationProjectScopePort,
@@ -172,7 +172,7 @@ function revalidationErrorCode(reason: TaskExecutionCreationRevalidationFailure)
 }
 
 export function createCreateTaskEntry(config: CreateTaskEntryConfig): CreateTaskEntry {
-  const registry = new ContractRegistry();
+  const registry = getContractRegistry();
   const boundary: DecisionBoundary = createDecisionBoundary(config);
   const authorization = createTaskExecutionCreationAuthorizationPort({
     capabilityCodes: config.capabilityCodes,

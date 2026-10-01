@@ -40,7 +40,12 @@
 // the owning handler's transaction.
 
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
+import {
+  getContractRegistry,
+  type ContractRegistry,
+  type Common,
+  type EnterpriseProject,
+} from '@zhiju/contracts';
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   EnterpriseBusinessError,
@@ -296,7 +301,7 @@ function revalidationErrorCode(
 }
 
 export function createInitialContextEntry(config: InitialContextEntryConfig): InitialContextEntry {
-  const registry = new ContractRegistry();
+  const registry = getContractRegistry();
   const boundary: DecisionBoundary = createDecisionBoundary(config);
   const authorization = createTaskExecutionContextSnapshotAuthorizationPort({
     capabilityCodes: config.capabilityCodes,

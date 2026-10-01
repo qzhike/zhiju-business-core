@@ -3,7 +3,7 @@
 
 import type { Kysely } from 'kysely';
 import {
-  ContractRegistry,
+  getContractRegistry,
   isExecutionDocumentSchema,
   operationPayloadSchemaRef,
   type Artifact,
@@ -2240,7 +2240,7 @@ export interface ExecutionRevisionPorts {
   readonly storage: ObjectStoragePort;
   readonly failAt?: (point: string) => void;
 }
-const executionRegistry = new ContractRegistry();
+const executionRegistry = getContractRegistry();
 function executionRequire(
   value: unknown,
   code = 'ARTIFACT_EXECUTION_BINDING_INVALID',

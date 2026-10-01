@@ -27,7 +27,7 @@
 // read is the owning handler's own result payload.
 
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Common } from '@zhiju/contracts';
+import { getContractRegistry, type ContractRegistry, type Common } from '@zhiju/contracts';
 import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   API_CONTRACT_TYPE_UNKNOWN,
@@ -273,7 +273,7 @@ function readRevalidationErrorCode(reason: WorkOrderDraftReadRevalidationFailure
 }
 
 export function createWorkOrderDraftEntry(config: WorkOrderDraftEntryConfig): WorkOrderDraftEntry {
-  const registry = new ContractRegistry();
+  const registry = getContractRegistry();
   const boundary: DecisionBoundary = createDecisionBoundary(config);
   const creation = createTaskExecutionCreationAuthorizationPort({
     capabilityCodes: config.capabilityCodes,
