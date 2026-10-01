@@ -12,7 +12,7 @@
 // `identity.policy.resolve_policy` Decision minted for the same principal.
 
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
+import { getContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
 import {
   CAPTURE_CONTEXT_SOURCE_SLICE_COMMAND,
   CAPTURE_CONTEXT_SOURCE_SLICE_IDEMPOTENCY_SCOPE,
@@ -218,7 +218,7 @@ function sliceReference(value: unknown): Common.ContentAddressedRef {
 export function createContextSourceSliceEntry(
   config: ContextSourceSliceEntryConfig,
 ): ContextSourceSliceEntry {
-  const registry = new ContractRegistry();
+  const registry = getContractRegistry();
   const boundary: DecisionBoundary = createDecisionBoundary(config);
 
   /**

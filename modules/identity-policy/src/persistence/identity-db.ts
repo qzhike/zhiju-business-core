@@ -594,9 +594,12 @@ export async function withIdentityTransaction<T>(
   db: Kysely<IdentityPolicyDb>,
   context: IdentityTransactionContext,
   fn: (trx: IdentityTransaction) => Promise<T>,
+  isolationLevel?: 'read committed',
 ): Promise<T> {
-  return db.connection().execute(async (connection) =>
-    connection.transaction().execute(async (trx) => {
+  return db.connection().execute(async (connection) => {
+    const transaction = connection.transaction();
+    const configured = isolationLevel ? transaction.setIsolationLevel(isolationLevel) : transaction;
+    return configured.execute(async (trx) => {
       await sql.raw('SET LOCAL ROLE platform_context_establisher').execute(trx);
       await sql`SELECT platform_security.establish_transaction_context(
           ${context.kind},
@@ -611,6 +614,6 @@ export async function withIdentityTransaction<T>(
           ${context.sourceEventId ?? null})`.execute(trx);
       await sql.raw('SET LOCAL ROLE identity_policy_app').execute(trx);
       return fn(trx);
-    }),
-  );
+    });
+  });
 }

@@ -11836,6 +11836,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         return output;
       }
       async function completeFormal() {
+        phase('formal completion: reconciliation and preparation');
         if (terminalScenario !== 'FORMAL_EMPTY')
           expect(await definedValue(replayFormalCreation)()).toMatchObject({ status: 'DUPLICATE' });
         if (!bounded) {
@@ -11910,6 +11911,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         );
         if (!('commandId' in woEnvelope)) throw new Error('Expected a Completion command');
         if (terminalScenario === 'FORMAL_NORMAL') {
+          phase('formal completion: evaluation input refusal matrix');
           const evaluationInputKeys = [
             'targetRef',
             'definitionRef',
@@ -11983,6 +11985,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             }
             expect(await receiptRows(woEnvelope.idempotencyKey)).toEqual([]);
           }
+          phase('formal completion: atomic rollback matrix');
           for (const [table, timing, event, condition] of [
             [
               'completion_evaluation',
@@ -12032,27 +12035,38 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               await admin.query(`DROP TRIGGER zz_wi235_fault ON task_execution.${table}`);
               await admin.query('DROP FUNCTION task_execution.wi235_fault()');
             }
-            expect(await receiptRows(woEnvelope.idempotencyKey)).toEqual([]);
-            expect(
+            // Observe all rollback invariants at the same checkpoint in one round trip.
+            const rollback = definedValue(
               (
-                await admin.query(
-                  'SELECT evaluation_id FROM task_execution.completion_evaluation WHERE source_command_id=$1',
-                  [woEnvelope.commandId],
+                await admin.query<{
+                  receipt_count: number;
+                  evaluation_count: number;
+                  work_orders: {
+                    aggregate_version: string;
+                    current_completion_evaluation_id: string | null;
+                  }[];
+                }>(
+                  `SELECT
+                     (SELECT count(*)::int FROM task_execution.command_receipt
+                       WHERE idempotency_key=$1) AS receipt_count,
+                     (SELECT count(*)::int FROM task_execution.completion_evaluation
+                       WHERE source_command_id=$2) AS evaluation_count,
+                     (SELECT coalesce(jsonb_agg(row_to_json(w)), '[]'::jsonb)
+                        FROM (SELECT aggregate_version::text, current_completion_evaluation_id
+                                FROM task_execution.work_order WHERE work_order_id=$3) w)
+                       AS work_orders`,
+                  [woEnvelope.idempotencyKey, woEnvelope.commandId, woId],
                 )
-              ).rows,
-            ).toEqual([]);
-            expect(
-              (
-                await admin.query(
-                  'SELECT aggregate_version,current_completion_evaluation_id FROM task_execution.work_order WHERE work_order_id=$1',
-                  [woId],
-                )
-              ).rows,
-            ).toEqual([
+              ).rows[0],
+            );
+            expect(rollback.receipt_count).toBe(0);
+            expect(rollback.evaluation_count).toBe(0);
+            expect(rollback.work_orders).toEqual([
               { aggregate_version: String(woVersion), current_completion_evaluation_id: null },
             ]);
           }
         }
+        phase('formal completion: WorkOrder evaluation');
         const woResult = await formalEntry.evaluateWorkOrder(woEnvelope, sessionFor(service));
         if (terminalScenario === 'FORMAL_EMPTY') {
           expect(woResult).toMatchObject({
@@ -12147,6 +12161,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             ).rows[0],
           ).aggregate_version,
         );
+        phase('formal completion: Task evaluation and concurrency');
         const taskEnvelope = await formalEnvelope(
           'taskCompletionEvaluateV2',
           revised.taskRef as Common.ObjectRef,
@@ -12494,6 +12509,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ).rows,
         ).toEqual([{ status: 'READY' }]);
         if (terminalScenario === 'FORMAL_NORMAL') {
+          phase('formal completion: judgment freshness and withdrawal');
           async function exact(result: unknown) {
             const judgmentRef = record(record(result).resultPayload)
               .evaluationRef as Common.ContentAddressedRef;
@@ -18764,6 +18780,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           ).toMatchObject({ status: 'COMMITTED', resultPayload: { status: 'WAITING_INPUT' } });
         }
         clock = Math.max(clock, Date.now());
+        phase('bounded recovery: material confirmation and answer');
         const confirm = await recoveryEnvelope(
           'customerMaterialConfirmV1',
           objectRef(
@@ -19123,6 +19140,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         expect(answered).toMatchObject({ status: 'COMMITTED' });
         expect(await requestQuery()).toMatchObject({ status: 'ANSWERED', aggregateVersion: 2 });
         clock = Math.max(clock, Date.now());
+        phase('bounded recovery: resolution and refusal matrix');
         const resolvePayload = {
           acceptedAnswerRef: record(committedPayload(answered)).answerRef,
           domainCommandRefs: [receipt],
@@ -19613,6 +19631,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           });
         }
         clock = Math.max(clock, Date.now());
+        phase('bounded recovery: Context-2 build and validation');
         const freshSlice = await captureSlice({
           principal: service,
           purpose: PURPOSE_DOCUMENT,

@@ -24,7 +24,12 @@ import type { DependencyCompletionPort } from '@zhiju/task-execution';
 //      their own owning entries, each with its own Decision.
 
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
+import {
+  getContractRegistry,
+  type ContractRegistry,
+  type Common,
+  type EnterpriseProject,
+} from '@zhiju/contracts';
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   GET_CONTEXT_SOURCE_SLICE_PURPOSE,
@@ -224,7 +229,7 @@ function revalidationErrorCode(reason: TaskExecutionReadinessRevalidationFailure
 }
 
 export function createTaskReadinessEntry(config: TaskReadinessEntryConfig): TaskReadinessEntry {
-  const registry = new ContractRegistry();
+  const registry = getContractRegistry();
   const boundary: DecisionBoundary = createDecisionBoundary(config);
   const authorization = createTaskExecutionReadinessAuthorizationPort({
     capabilityCodes: config.capabilityCodes,

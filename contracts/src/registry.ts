@@ -328,3 +328,10 @@ export class ContractRegistry {
     return { valid, errors: valid ? [] : [...(validate.errors ?? [])] };
   }
 }
+
+let sharedRegistry: ContractRegistry | undefined;
+
+/** Reuse build-time schemas within this process; no authorization or business state is cached. */
+export function getContractRegistry(): ContractRegistry {
+  return (sharedRegistry ??= new ContractRegistry());
+}

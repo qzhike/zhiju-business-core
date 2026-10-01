@@ -11,7 +11,7 @@ import { integrationGatewayOperationContracts } from './operations/integration-g
 import { qualityGovernanceOperationContracts } from './operations/quality-governance.schema.js';
 import { releasePublicationOperationContracts } from './operations/release-publication.schema.js';
 import { taskExecutionOperationContracts } from './operations/task-execution.schema.js';
-import { ContractRegistry } from './registry.js';
+import { ContractRegistry, getContractRegistry } from './registry.js';
 
 const uuid = '018f22e2-7c15-7b2e-8d86-2de956a9d201';
 const digest = '0'.repeat(64);
@@ -65,6 +65,23 @@ function validTaskExecutionWorkOrderDraft(): {
 
 describe('contract registry', () => {
   const registry = new ContractRegistry();
+
+  it('shares static validators without retaining another caller validation errors', () => {
+    const first = getContractRegistry();
+    const second = getContractRegistry();
+    expect(second).toBe(first);
+    expect(first).not.toBe(registry);
+    const invalid = first.validateOperation('identity.register_principal', '1.0', {});
+    expect(invalid.valid).toBe(false);
+    const savedErrors = structuredClone(invalid.errors);
+    expect(second.validateOperation('identity.register_principal', '1.0', validCommand())).toEqual({
+      valid: true,
+      errors: [],
+    });
+    second.validateOperation('identity.register_principal', '1.0', { payload: null });
+    expect(invalid.errors).toEqual(savedErrors);
+    expect(first.operationCount).toBe(registry.operationCount);
+  });
 
   it('registers exactly the current 238 public operations', () => {
     expect(registry.operationCount).toBe(238);

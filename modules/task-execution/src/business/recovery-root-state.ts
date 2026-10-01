@@ -1,7 +1,7 @@
 import type { FormalCompletionPorts } from './formal-completion.js';
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
-import { ContractRegistry } from '@zhiju/contracts';
+import { getContractRegistry } from '@zhiju/contracts';
 import type { CanonicalJsonObject, CanonicalJsonValue } from '@zhiju/shared-kernel';
 import {
   executeTaskExecutionCommand,
@@ -27,7 +27,7 @@ import {
   type RecoveryPorts,
 } from './blocked-input-recovery.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 async function workOrderFacts(
   trx: TaskExecutionTransaction,
   id: string,

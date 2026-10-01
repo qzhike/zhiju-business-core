@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto';
 
 import {
-  ContractRegistry,
+  getContractRegistry,
   type Artifact,
   type Common,
   type IntegrationGateway,
@@ -32,7 +32,7 @@ import {
 import { renderCanonicalContent, resolveRendererProfile } from './deterministic-ooxml-renderer.js';
 import type { RenderObjectStoragePort } from './in-memory-render-object-storage.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const repo = new RenderAttemptRepository();
 const LOCATOR = /^[a-z0-9][a-z0-9._-]*(?:\/[A-Za-z0-9._-]+)+$/;
 

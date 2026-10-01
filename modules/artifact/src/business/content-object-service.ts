@@ -4,7 +4,7 @@
 
 import type { Kysely } from 'kysely';
 import {
-  ContractRegistry,
+  getContractRegistry,
   isExecutionDocumentSchema,
   type Artifact,
   type Common,
@@ -60,7 +60,7 @@ import type {
 } from '../storage/object-storage.js';
 
 const repo = new ArtifactRepository();
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const CANONICAL_OBJECT_TYPE = 'CanonicalContentObject';
 const REVISION_OBJECT_TYPE = 'ArtifactRevision';
 const CANONICAL_MEDIA_TYPE = 'application/json';

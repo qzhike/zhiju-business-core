@@ -4,7 +4,7 @@
 
 import { sql, type Kysely } from 'kysely';
 import { exactCompletionCriteria, DELIVERY_COMPLETION_EVALUATOR } from '@zhiju/contracts';
-import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
+import { getContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
 import {
   canonicalize,
   isUuidV7,
@@ -50,7 +50,7 @@ import {
 
 const COMPLETION_CONSUMER = 'enterprise-project.delivery-item-completion';
 const COMPLETION_PROCESS_VERSION = '1.0';
-const CONTRACT_REGISTRY = new ContractRegistry();
+const CONTRACT_REGISTRY = getContractRegistry();
 const UTC_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
 const EVENT_RULES = {

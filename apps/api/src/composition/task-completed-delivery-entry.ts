@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Common } from '@zhiju/contracts';
+import { getContractRegistry, type Common } from '@zhiju/contracts';
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   createTaskCompletedDeliveryAuthorizationPort,
@@ -49,7 +49,7 @@ export interface TaskCompletedDeliveryEntryConfig extends IdentityBoundaryConfig
   readonly leaseSeconds?: number;
 }
 export function createTaskCompletedDeliveryEntry(config: TaskCompletedDeliveryEntryConfig) {
-  const registry = new ContractRegistry(),
+  const registry = getContractRegistry(),
     boundary = createDecisionBoundary(config),
     auth = createTaskCompletedDeliveryAuthorizationPort({
       ...config.authorization,

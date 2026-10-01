@@ -1,4 +1,4 @@
-import { ContractRegistry, type Common } from '@zhiju/contracts';
+import { getContractRegistry, type Common } from '@zhiju/contracts';
 import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   createWorkOrderValidationAuthorizationPort,
@@ -65,7 +65,7 @@ function requireValid(result: { readonly valid: boolean; readonly reason?: strin
     );
 }
 export function createWorkOrderValidationEntry(config: WorkOrderValidationEntryConfig) {
-  const registry = new ContractRegistry(),
+  const registry = getContractRegistry(),
     boundary = createDecisionBoundary(config),
     now = config.now ?? (() => new Date());
   const auth = createWorkOrderValidationAuthorizationPort({

@@ -15,7 +15,7 @@
 
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
-import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
+import { getContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
 import { isUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   digestCanonicalPayload,
@@ -64,7 +64,7 @@ import {
 } from './enterprise-business-errors.js';
 
 const repo = new ContextSourceSliceRepository();
-const CONTRACT_REGISTRY = new ContractRegistry();
+const CONTRACT_REGISTRY = getContractRegistry();
 
 /**
  * Canonical public object names of the Project source references. The captured

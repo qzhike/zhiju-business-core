@@ -6,6 +6,7 @@ import {
   PostgresQueryCompiler,
   type CompiledQuery,
   type Driver,
+  type TransactionSettings,
 } from 'kysely';
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import type { Common } from '@zhiju/contracts';
@@ -641,6 +642,11 @@ class ValidationHarness {
   /** `undefined` derives the stored Decision from the last signed one. */
   decisionOverride: unknown = undefined;
   now: Date = clock;
+  readonly transactions: TransactionSettings[] = [];
+  decisionReads = 0;
+  rollbacks = 0;
+  releases = 0;
+  afterPolicyRead: (() => void) | undefined;
 
   constructor() {
     this.deps = {
@@ -711,10 +717,19 @@ class ValidationHarness {
     return {
       init: () => Promise.resolve(),
       acquireConnection: () => Promise.resolve(connection),
-      beginTransaction: () => Promise.resolve(),
+      beginTransaction: (_connection: unknown, settings: TransactionSettings) => {
+        this.transactions.push(settings);
+        return Promise.resolve();
+      },
       commitTransaction: () => Promise.resolve(),
-      rollbackTransaction: () => Promise.resolve(),
-      releaseConnection: () => Promise.resolve(),
+      rollbackTransaction: () => {
+        this.rollbacks += 1;
+        return Promise.resolve();
+      },
+      releaseConnection: () => {
+        this.releases += 1;
+        return Promise.resolve();
+      },
       destroy: () => Promise.resolve(),
     } as unknown as Driver;
   }
@@ -762,9 +777,13 @@ class ValidationHarness {
               (grant as SelectedCapabilityGrant).enterprise_id === enterpriseId_,
           ),
         ),
-      getPolicySnapshotById: (_trx: unknown, id: string) =>
-        Promise.resolve(this.policySnapshots[id]),
+      getPolicySnapshotById: (_trx: unknown, id: string) => {
+        const row = this.policySnapshots[id];
+        this.afterPolicyRead?.();
+        return Promise.resolve(row);
+      },
       getAuthorizationDecisionByIdAndHash: (_trx: unknown, id: string, expectedHash: Buffer) => {
+        this.decisionReads += 1;
         const row = this.storedDecisionRow();
         if (row?.authorization_decision_id !== id) return Promise.resolve(undefined);
         return Promise.resolve({ row, hashMatched: row.payload_hash.equals(expectedHash) });
@@ -2624,6 +2643,83 @@ describe('IP-FINAL current authorization and complete target matrix', () => {
     });
     return { harness, port, target, input };
   }
+  it('batch revalidation uses one READ COMMITTED context and rereads each Decision', async () => {
+    const binding = bindings[0];
+    if (binding === undefined) throw new Error('missing final binding');
+    const { harness, port, input } = await finalHarness(binding);
+    const transactions = harness.transactions.length;
+    const queries = harness.executed.length;
+    const reads = harness.decisionReads;
+    const entry = { key: binding.boundary, input };
+    expect(await port.revalidateBatch(harness.deps, [entry, entry, entry])).toEqual({
+      valid: true,
+    });
+    expect(harness.transactions.slice(transactions)).toEqual([
+      { isolationLevel: 'read committed' },
+    ]);
+    expect(
+      harness.executed
+        .slice(queries)
+        .filter(({ sql }) => sql.includes('establish_transaction_context')),
+    ).toHaveLength(1);
+    expect(harness.decisionReads - reads).toBe(3);
+  });
+
+  it.each(['grant', 'principal', 'policy', 'expiry'] as const)(
+    'batch revalidation detects %s changes between entries and stops immediately',
+    async (change) => {
+      const binding = bindings[0];
+      if (binding === undefined) throw new Error('missing final binding');
+      const { harness, port, input } = await finalHarness(binding);
+      const reads = harness.decisionReads;
+      harness.afterPolicyRead = () => {
+        harness.afterPolicyRead = undefined;
+        if (change === 'grant') harness.grants = [];
+        if (change === 'principal') harness.principalStatus = 'SUSPENDED';
+        if (change === 'policy')
+          harness.policySnapshots[policySnapshotId] = policySnapshotRow({ supersededAt: clock });
+        if (change === 'expiry') harness.now = new Date(clock.getTime() + 60 * 60 * 1000);
+      };
+      const reasons = {
+        grant: 'GRANT_NOT_CURRENT',
+        principal: 'PRINCIPAL_NOT_ACTIVE',
+        policy: 'POLICY_NOT_CURRENT',
+        expiry: 'EXPIRED',
+      };
+      const entry = { key: binding.boundary, input };
+      expect(await port.revalidateBatch(harness.deps, [entry, entry, entry])).toEqual({
+        valid: false,
+        reason: reasons[change],
+        failedIndex: 1,
+      });
+      expect(harness.decisionReads - reads).toBe(2);
+      expect(await port.revalidateBatch(harness.deps, [entry])).toEqual({
+        valid: false,
+        reason: reasons[change],
+        failedIndex: 0,
+      });
+    },
+  );
+
+  it('batch revalidation rolls back exceptions, releases the connection and starts fresh', async () => {
+    const binding = bindings[0];
+    if (binding === undefined) throw new Error('missing final binding');
+    const { harness, port, input } = await finalHarness(binding);
+    const releases = harness.releases;
+    const rollbacks = harness.rollbacks;
+    const entry = { key: binding.boundary, input };
+    harness.afterPolicyRead = () => {
+      throw new Error('injected owning read failure');
+    };
+    await expect(port.revalidateBatch(harness.deps, [entry])).rejects.toThrow(
+      'injected owning read failure',
+    );
+    expect(harness.rollbacks - rollbacks).toBe(1);
+    expect(harness.releases - releases).toBe(1);
+    harness.afterPolicyRead = undefined;
+    expect(await port.revalidateBatch(harness.deps, [entry])).toEqual({ valid: true });
+  });
+
   for (const binding of bindings) {
     it(`${binding.boundary} refuses complete target, hash, capability and audience substitutions`, async () => {
       const { harness, port, target, input } = await finalHarness(binding);

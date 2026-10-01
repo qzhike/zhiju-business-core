@@ -2,14 +2,14 @@
 
 import { createHash } from 'node:crypto';
 
-import { ContractRegistry, type Artifact, type Common } from '@zhiju/contracts';
+import { getContractRegistry, type Artifact, type Common } from '@zhiju/contracts';
 import {
   canonicalize,
   hashCanonicalContentPayload,
   type CanonicalContentPayload,
 } from '@zhiju/shared-kernel';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const UTF8_FLAG = 0x0800;
 const STORED_METHOD = 0;
 const DOS_TIME = 0;

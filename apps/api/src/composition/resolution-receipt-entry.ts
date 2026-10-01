@@ -10,7 +10,7 @@
 // another operation, session, Scope or payload can never be replayed here.
 
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
+import { getContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
 import {
   COMMAND_RECEIPT_OBJECT_TYPE,
   GET_RESOLUTION_RECEIPT_PURPOSE,
@@ -120,7 +120,7 @@ function receiptReference(
 export function createResolutionReceiptEntry(
   config: ResolutionReceiptEntryConfig,
 ): ResolutionReceiptEntry {
-  const registry = new ContractRegistry();
+  const registry = getContractRegistry();
   const boundary: DecisionBoundary = createDecisionBoundary(config);
 
   return {

@@ -302,3 +302,10 @@ authority为Spec 001 §15.15，#235当前有限owning/PG证据如下；#224实�
 | IP-DEL-D-005 | Persistence/Security；DispatcherRole直接业务表读写/错ScopeContext、无establisher、IP不可达 | 最小ACL/FORCERLS拒绝；窄function不允许任意建立Context、动态SQL或跨Schema；IPdependency不可达failclosed且无默认成功；actualGrantPolicySnapshotlifecycle未执行不升级 | SECURITY/PG PARTIAL：dispatcher直接Outbox/Task/EP Fact读与无Context scan42501；实际不可连接IP池scan失败且0binding。错Scope/无establisher/pool复用完整矩阵 NOT RUN；actual Grant PolicySnapshot lifecycle仍按已批准延后NOT RUN。 |
 
 #239 当前执行位置：`tests/persistence/initial-context.test.ts` 的两个 `isolated normal/recovered owning delivery fixture`，criteria/Envelope fixtures见 `tests/fixtures/contracts/delivery-completion/`。当前定向诊断使用缓存的固定digest PostgreSQL/Flyway镜像，因Docker Hub tag解析429而不等于configured full；required full及exact-revision CI证据记录在PR。`PARTIAL`行剩余子项保持NOT RUN；外部Runtime/Provider/CLI/飞书、publicHTTP、生产/负载和独立人工业务验收均NOT RUN。
+
+## 同一检查点授权事务复用回归
+
+- 多份独立 Decision 顺序复查只建立一次安全上下文，显式使用 READ COMMITTED；每份仍执行当前资格读取。
+- 组内两项检查之间发生 Grant 撤销、Principal 停用、Policy 失效或期限变化时，后续项必须拒绝；失败后不读后续 Decision。
+- 下一个检查点必须新建事务并看到撤权；数据库错误必须回滚、释放连接，后续调用可正常执行。
+- 真实 PostgreSQL 下验证组内并发撤权及跨检查点隔离；原有锁等待后撤权、错会话/Scope/完整 Ref、恢复和 Completion 测试继续全量执行。

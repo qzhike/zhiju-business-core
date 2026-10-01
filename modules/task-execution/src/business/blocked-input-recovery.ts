@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
-import { ContractRegistry } from '@zhiju/contracts';
+import { getContractRegistry } from '@zhiju/contracts';
 import {
   canonicalize,
   sha256CanonicalJson,
@@ -30,7 +30,7 @@ import {
 } from './work-order-validation-plan.js';
 import { validateWorkOrderControlsPolicy } from './policy-profiles.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const REQUEST = 'execution.information_request';
 const ANSWER = 'execution.information_answer';
 const RESOLUTION = 'execution.information_request_resolution';

@@ -1,5 +1,5 @@
 import {
-  ContractRegistry,
+  getContractRegistry,
   EVALUATOR_PROFILE_REGISTRY_VERSION,
   registeredEvaluatorProfileReference,
   registeredEvaluatorProfileKey,
@@ -13,7 +13,7 @@ import {
 import { object, requireThat, same, hash, textValue } from './work-order-validation-plan.js';
 import { canonicalSet } from './blocked-input-recovery.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 export const FORMAL_VALIDATOR = 'te.work_order_validation.evaluator@2.0';
 export const FORMAL_RESULT_VALIDATOR = 'te.agent_result_validation.evaluator@2.0';
 export const WORK_ORDER_COMPLETION = 'te.work_order_completion.evaluator@1.0';

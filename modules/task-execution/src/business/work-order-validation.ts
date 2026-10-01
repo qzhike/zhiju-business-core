@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import { ContractRegistry } from '@zhiju/contracts';
+import { getContractRegistry } from '@zhiju/contracts';
 import {
   canonicalize,
   hashContractPayload,
@@ -38,7 +38,7 @@ import { isFormalContract, formalCriteria, validateFormalTaskDefinition } from '
 import { sql } from 'kysely';
 import type { ContextSourceSliceReadPort } from './initial-context-build.js';
 
-const registry = new ContractRegistry();
+const registry = getContractRegistry();
 const bytes = (value: string) => Buffer.from(value, 'hex');
 const VALIDATION_TYPE = 'zhiju.execution.work_order_validation';
 const WORK_ORDER_TYPE = 'zhiju.execution.work_order';

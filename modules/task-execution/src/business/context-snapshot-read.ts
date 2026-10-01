@@ -24,7 +24,7 @@
 import { isUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import type { Kysely } from 'kysely';
 import {
-  ContractRegistry,
+  getContractRegistry,
   contextSnapshotObjectType,
   legacyContextSnapshotObjectType,
   readSnapshotRef,
@@ -185,7 +185,7 @@ async function readLegacyContextSnapshot(
   // Result reuses that type - so the stored reference revalidates against the
   // real registry before it can leave the module. The same registry instance
   // revalidates the contract body below.
-  const registry = new ContractRegistry();
+  const registry = getContractRegistry();
   // `immutableVersionId` is schema-optional but forbidden in this
   // canonical-derived reference: the canonical derivation never emits it and
   // no authority binds a version id for a content-addressed contract ref, so
@@ -330,7 +330,7 @@ export async function handleGetContextSnapshot(
     }
     // The stored payload is returned verbatim only after it revalidates
     // against the registered ProjectContext v1.0 Core Schema.
-    const validation = new ContractRegistry().validateCoreContract(
+    const validation = getContractRegistry().validateCoreContract(
       PROJECT_CONTEXT_CORE_SCHEMA,
       row.canonicalPayload,
     );

@@ -1,5 +1,5 @@
 import { sql, type Kysely } from 'kysely';
-import { ContractRegistry } from '@zhiju/contracts';
+import { getContractRegistry } from '@zhiju/contracts';
 import { canonicalize, sha256CanonicalJson, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   type TaskExecutionDb,
@@ -44,7 +44,7 @@ function fail(code: string): never {
 }
 function verifyMaterial(value: TaskCompletedDeliveryMaterial) {
   const { event, sidecar, bindingHash, sourceWatermark } = value;
-  const registry = new ContractRegistry();
+  const registry = getContractRegistry();
   if (
     !registry.validateOperation('execution.TaskCompleted', '1.0', event).valid ||
     object(object(event.integrity).payloadHash).digest !==

@@ -22,7 +22,8 @@
 
 import { newUuidV7, type CanonicalJsonObject, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 import {
-  ContractRegistry,
+  getContractRegistry,
+  type ContractRegistry,
   POLICY_PROFILE_REGISTRY_VERSION,
   type CanonicalJson,
   type Common,
@@ -82,16 +83,13 @@ const canonicalInstantPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})
 // against the registered result schema before the owning transaction commits.
 // ---------------------------------------------------------------------------
 
-let sharedContractRegistry: ContractRegistry | undefined;
-
 /**
  * The registered contract implementation used by these owning entries: the
  * wiring-level dependency when supplied, otherwise the shared build-time
  * registry. Both call sites keep the same validation order and error shape.
  */
 function contractRegistry(deps?: IdentityCommandDeps): ContractRegistry {
-  sharedContractRegistry ??= new ContractRegistry();
-  return deps?.contracts ?? sharedContractRegistry;
+  return deps?.contracts ?? getContractRegistry();
 }
 
 /**
