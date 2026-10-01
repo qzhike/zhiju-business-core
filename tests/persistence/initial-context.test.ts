@@ -7779,6 +7779,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(consumed.map((r) => r.status).sort()).toEqual(['DUPLICATE', 'PROCESSED']);
     const receipt = definedValue(consumed.find((r) => r.status === 'PROCESSED'));
     if (!('factRef' in receipt)) throw new Error('Missing owning fact');
+    expect(Object.isFrozen(receipt.factRef)).toBe(true);
+    expect(Object.isFrozen(receipt.factRef.contentHash)).toBe(true);
+    expect(Object.isFrozen(receipt.factRef.scope)).toBe(true);
+    expect(() => Object.assign(receipt.factRef, { objectId: newUuidV7() })).toThrow(TypeError);
     await expect(
       claimOwner.confirm(
         claimed,

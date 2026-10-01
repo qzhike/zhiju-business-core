@@ -1538,6 +1538,13 @@ export interface ExactTaskCompletionMaterial {
   readonly bindingHash: Common.ContentHash;
   readonly sourceWatermark: EnterpriseProject.SourceWatermark;
 }
+function freezeCompletionResult<T>(value: T): T {
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach(freezeCompletionResult);
+    Object.freeze(value);
+  }
+  return value;
+}
 const committedCompletionConsumptions = new WeakSet<object>();
 export function isCommittedDeliveryCompletionConsumption(value: unknown): boolean {
   return typeof value === 'object' && value !== null && committedCompletionConsumptions.has(value);
@@ -1698,7 +1705,7 @@ export function createExactDeliveryCompletionConsumer(
         },
       );
       await revalidate();
-      const result = Object.freeze({
+      const result = freezeCompletionResult({
         ...consumed,
         eventId: event.eventId,
         bindingHash,

@@ -7,7 +7,7 @@
 ## 1. 工作项与修订
 
 - 工作项：[Issue #239](https://github.com/qzhike/zhiju-business-core/issues/239)。交付：[PR #240](https://github.com/qzhike/zhiju-business-core/pull/240)，Draft，base `main@caa9bd6525bfd577369efe3ae84acc2e8dbdc2df`。
-- 提交实现的代码修订：`845e531ef5bee12af50e06c527bfde168802f0a9`。本记录加入后 PR head 会前进；正式 Reviewer 必须独立读回最新 head，绑定当时实际完整 SHA，并审查包括本记录在内的最终 diff。
+- 首次提交实现的代码修订：`845e531ef5bee12af50e06c527bfde168802f0a9`。本记录加入后 PR head 会前进；正式 Reviewer 必须独立读回最新 head，绑定当时实际完整 SHA，并审查包括本记录在内的最终 diff。
 - 已独立审查的实现 SHA：`NOT RUN`。独立实现 Reviewer 与其结果：`PENDING`。
 
 ## 2. 已有设计权威与本次边界
