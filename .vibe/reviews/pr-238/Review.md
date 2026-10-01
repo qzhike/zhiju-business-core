@@ -1,6 +1,6 @@
 # PR #238 — TaskCompleted / DeliveryItem Completion 正式设计审查
 
-当前：`INDEPENDENT SEMANTIC DESIGN REVIEW PASSED / HUMAN DESIGN APPROVED 2026-10-01 / FINAL DELIVERY-HEAD REVIEW AND CHECKS PENDING / NOT IMPLEMENTED / NEW RUNTIME CASES NOT RUN`。本文保存历史REQUEST_CHANGES与人类批准；历史PENDING是当时事实，不覆盖第8节当前批准。
+当前：`INDEPENDENT SEMANTIC DESIGN REVIEW PASSED / HUMAN DESIGN APPROVED 2026-10-01 / FINAL DELIVERY-HEAD APPROVE / EXACT-HEAD DOCS CI PASS / PR #238 MERGED / NOT IMPLEMENTED / NEW RUNTIME CASES NOT RUN`。本文保存历史REQUEST_CHANGES与人类批准；历史PENDING是当时事实，不覆盖第8节当前批准。
 
 REQUEST_CHANGES
 
@@ -203,3 +203,12 @@ $ prettier --check .
 Reviewer复用该exacttree原生docs证据，没有重复执行同一充分target，也没有因docs-onlyscope要求full/environment。本文本节是reviewrecord-only追加，不自动宣称其未来提交head已经取得CI；追加交付后Reviewer应只读确认最终record-onlydiff，Delivery核对新head当前docs/checks后再合并。不得为了把本文件自身最终SHA写入自身而制造无穷reviewcommit循环；最新review结论可通过授权PRcomment精确绑定最终head，随后读回。
 
 未执行边界保持：全部新TaskCompleteddispatch、EPexactassociation/v2Evaluation/readback、normal/recovered真实owning链、persistence/concurrency/fault、授权撤销与迁移RLS/ACL均NOT RUN；Provider/CLI/Feishu/publicHTTP/UI、部署/生产/负载、独立人工业务验收仍NOT RUN。旧GrantPolicySnapshot延后、Cancel/late-result及IM-06整体退出要求保留。APPROVE不批准runtime实现或依赖Issuepublication，不关闭IM-06；用户对本设计PRmerge及Issue#237更新的授权由Delivery在requiredgates通过后执行。
+
+
+## 10. 最终head复核与授权交付读回（2026-10-01）
+
+独立Reviewer对最终发布head `60a5e00d764e3990ae8356959e4a13029be05dd5` 只读复核后返回APPROVE，确认`8299bd7→60a5e00`只有其§9的25行正式记录追加，其余设计/批准内容不变，工作区干净。最新review outcome与SHA已按授权发布为[PR审查comment](https://github.com/qzhike/zhiju-business-core/pull/238#issuecomment-5923785749)，它不是GitHub formal approval review；真实人类详细设计批准仍由第8节记录。
+
+最终head [CI run36807856564](https://github.com/qzhike/zhiju-business-core/actions/runs/36807856564)为SUCCESS：select/checks/verify均SUCCESS，persistence按strictdocs route预期SKIPPED。原生日志确认BASE_SHA=cd2a249、`[docs-verification] PASS files=16`、Prettier全部通过；同head push run36807838893也SUCCESS。旧head证据未替代finalhead gate。没有运行新增业务/persistence用例，NOT RUN边界不变。
+
+在用户明确合并授权、finalhead审查与checks通过后，PR #238于2026-10-01T02:54:28Z MERGED，merge commit `e80a8f467152a6869e177a53428f052d583bc3cc`；Issue #237于02:54:29Z CLOSED。远端PR/Issue/main状态均已读回。Planner将forwardintent保留为基于获批且已合入设计复核完整实现候选NOW+READY，不自动发布依赖Issue或关闭IM-06。此段及当前状态只是授权交付事实更新，不改变已批准设计语义或reviewedSHA；后续metadata核验记录在Git/PR/Issue，不制造新的业务验收结论。
