@@ -128,3 +128,40 @@ Reviewer 共执行 **13 个独立公开 validator 正负控制**。七个新增 
 复审读回时，同一产品 SHA 的 [CI run 36779594467](https://github.com/qzhike/zhiju-business-core/actions/runs/36779594467) 为 select/checks SUCCESS、persistence IN PROGRESS。本地 full PASS 不将远端 required checks 改写为全绿；最新终态与执行证据继续在 PR 记录。
 
 Reviewer 明确允许后续严格只提交本 Review.md 的实际复审记录，复用 `e5443de…` 产品 revision 的完整配置验证；须独立读回最终单文件 delta，并完成相应文档检查，不为审查 metadata 重复 PostgreSQL。整个 PR 的完整风险路由保持，不能按 docs-only 降级。设计及发布批准不替代人类实施技术批准，本轮不授权合并。前述所有外部、人工和明确未执行子项继续 `NOT RUN`，不关闭 IM-06。
+
+## 2026-10-01 最新发布 head 复审（87e2e76）
+
+- Reviewer：本次用户复审请求的 `/root`。Reviewed SHA：`87e2e767d573f64cc749c987e86b9776c85c283d`，通过本轮 `vibe repo --json` 与 GitHub 最新 head 独立核对，进入复审时工作树干净。
+- 角色结论：`HUMAN_REVIEW_REQUIRED`。上轮 R1–R3 均已解决；本轮限定修订复审未发现新的阻塞 finding。适用人类实施技术批准仍 PENDING，最新远端 required checks 也未全部通过。
+- 范围：完整读取 `0e2c353…` 到最新 head 的 12 个变更路径，核对实际 schema/test/fixture/authority 修订；另读回 `e5443de…` 到最新 head 的完整差异，仅为本 Review.md。业务 handler、SQL、注册版本与其他公开字段未在该修订中改变。
+
+本轮先按 Spec 003 §§11.3、25.3、25.6 重建预期：subject 恰两个唯一 Ref；watermarks 为允许重复的普通数组，逐元素闭合校验保持；再对照实际四行 schema delta、测试错误断言和七份新增 fixture。前轮完整字段矩阵仍适用，以下矩阵更新本轮受影响边界：
+
+| Named boundary | 本轮逐字段/约束核对 | 结果 |
+|---|---|---|
+| CompletionEvaluation | 原 header/body 的 properties、required/optional、Ref/Hash/时间/枚举及嵌套结构保持；subjectRefs 增加 minItems=2/maxItems=2，保留 uniqueItems；sourceWatermarks 保留 SourceWatermark 元素 $ref，只移除 uniqueItems | R1/R2 resolved；owning target+definition 精确成员校验仍独立存在 |
+| Judgment result | judgmentRef、evaluation、useStatus、reasonCodes、checkedAt、sourceWatermarks 全部必填、closed shape 保持；顶层 watermarks 仅移除 uniqueItems，完整 Evaluation 仍直接嵌套 | R2 resolved，无 wrapper/元素契约回退 |
+| Artifact Spec §12 | IMPLEMENTATION PRESENT、证据归 PR #236、human technical approval PENDING；没有改动批准的业务字段/Hash 域 | R3 resolved，未升级外部/人工证据 |
+
+本轮实际执行 **13 项公开 ContractRegistry 正负控制，全部符合预期**：合法基线；空/单项/三项/重复双项 subject；两处空 watermark 数组、三份重复合法元素、畸形 observedAt、未知元素字段。负例只报预期的 collection/element 路径及 minItems/maxItems/uniqueItems/type/additionalProperties。另逐份对比七份新增 fixture 与原合法基线，差异仅为预期 subject 或 watermark 字段，没有其他非法字段污染反例。该证据属于公开契约层，不宣称新增 owning/PG 执行。
+
+独立读取保存的 `/private/tmp/pr236-r1-r3-verification-head.json`，绑定产品修订 `e5443de8442110f5d0c64ce40d892107b4edb88b`；直接读取 `/private/tmp/pr236-r1-r3-full.raw.log` 的原始完整输出，核对配置链、测试结束标记、迁移和原生结果。结果为 `status=PASS,target=full,command=pnpm clean && pnpm verify,exit_code=0`；普通测试 82 files / 1,618 tests，PostgreSQL 43 files / 547 tests 全部通过，547 个 persistence 结束标记为 passed，零 failed/skipped。normal 与 recovered formal Completion 正链均有实际 passed 标记；V7008–V7010 成功、second migrate no-op、gate passed、container cleanup 完成。上述为交付方实际执行、Reviewer 本轮直接核验的证据；没有代称本轮重新执行 full。最终 head 仅增加正式审查文档，因此复用该产品验证，不为 metadata 重跑 PostgreSQL。
+
+本轮直接从 GitHub 读回最新 head 的 [CI run 36782941324](https://github.com/qzhike/zhiju-business-core/actions/runs/36782941324)：select/checks SUCCESS，persistence CANCELLED，verify FAILURE；persistence 从 22:00:19 至 22:30:38 UTC，工作流该 job 配置 timeout-minutes=30。取消与时间预算一致，不能据此声称产品 assertion failure，也不代表 full PASS。PR body/comment 中该 run 的 IN PROGRESS 描述已过时；本轮交接 comment 记录当前终态，不代写历史审查时刻。精确产品本地 full PASS 与远端 required-check 状态保持分开；合并前仍须满足 checks 和人类技术批准门禁。
+
+本轮仅追加正式审查记录并按既有授权发布 PR comment；不改产品代码、不 commit/push、不合并。原有 NOT RUN 子项、外部/人工边界、IM-06 未关闭事实不变。后续若修改产品代码，需重新核对新 head 和适用验证。
+
+## 2026-10-01 人类实施技术批准
+
+- 批准来源：会话用户在上述最新 head 复审结论后明确回复“批准”。按该上下文记录为人类实施技术批准，不推定为 commit、push 或 merge 授权。
+- 批准对象：PR #236，Reviewed SHA `87e2e767d573f64cc749c987e86b9776c85c283d`；记录前重新读取本地 `vibe repo --json` 与远端 PR head，均仍为该修订。
+- 人类实施技术批准：`APPROVED`。结合上节独立复审、R1–R3 resolved 和精确产品修订的配置 full PASS，审查结论更新为 `APPROVE`；前文 PENDING/HUMAN_REVIEW_REQUIRED 保留为当时的历史事实。
+- 交付门禁保持：最新 CI run 36782941324 仍为 select/checks SUCCESS、persistence CANCELLED、verify FAILURE，required checks 未全部通过；该批准不豁免 checks 或代替合并授权。PR 保持 OPEN/Draft，未合并。
+- 本地正式审查/批准记录尚未 commit/push；GitHub 通过 PR comment 记录该批准事实，不声称已提交 GitHub formal approval review。既有 NOT RUN 子项与 IM-06 未关闭边界不变。
+
+## 2026-10-01 合并前 CI 执行预算限定修正
+
+- 用户先授权合并 PR #236、关闭 #235 并清理任务分支；在明确提出将 persistence 预算由 30 改为 60 分钟、提交推送正式记录及该修正后继续交付的方案后，用户明确回复“授权修改CI的执行预算”。该限定授权不豁免完整验证或合并门禁。
+- 代码 delta 仅为 `.github/workflows/ci.yml` 的 persistence job `timeout-minutes: 30 → 60`；其命令、测试收集、固定镜像、文件串行、失败/取消处理以及汇总 gate 均未变。验证基准 §2.1.1 同步记录 checks=30 / persistence=60。已有 T2 产品范围与分类保留，未新增产品/契约/数据库语义。
+- 产品独立审查与人类技术批准绑定 `87e2e76…`；本段是该精确产品修订之后的已明确授权执行预算 delta，不伪称另一个 Reviewer 已独立审查此修改。交付时须核对最终 head 与上述唯一预算修改、批准/复审记录及权威文字同步一致，并使用最终 head 的完整 CI 结果；旧 revision 的绿色证据不替代新 CI 执行预算的实际验证。
+- 修正前各次 CANCELLED / verify FAILURE 保留为实际历史结果；修正后 CI 尚未运行，不能提前记 PASS。实际修订 SHA 与执行终态进入 PR。合并、Issue 关闭及分支删除只在最终 Gate 满足后执行。
