@@ -5,6 +5,114 @@ import type { CanonicalJson, Common } from './common.js';
 import type { Core } from './core.js';
 
 export namespace Artifact {
+  export type ExecutionRevisionContent = {
+  readonly artifactRef: Common.ObjectRef & {
+  readonly objectType?: "artifact.artifact";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly branchId: Common.UuidV7;
+  readonly parentRevisionRefs: readonly Common.ContentAddressedRef[];
+  readonly contentType: "STRUCTURED_DOCUMENT";
+  readonly contentRef: Artifact.ObjectLocator;
+  readonly contentHash: Common.ContentHash;
+  readonly structureSchemaRef: Common.VersionedRef;
+  readonly semanticMetadata: Record<string, never>;
+  readonly changedUnits: readonly Common.NonEmptyString[];
+  readonly changeSummary: Common.NonEmptyString;
+};
+  export type ExecutionRevisionCreationReceipt = {
+  readonly commandId: Common.UuidV7;
+  readonly commandType: "artifact.create_execution_revision";
+  readonly commandVersion: "1.0";
+  readonly targetRef: Common.ObjectRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly scopeRef: Common.ScopeRef;
+  readonly requestPayloadHash: Common.ContentHash;
+  readonly outcome: "COMMITTED";
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly actorRef: Common.ObjectRef;
+  readonly actorSnapshotRef: Common.SnapshotRef;
+  readonly authorizationDecisionRef: Common.ContentAddressedRef;
+  readonly committedAt: Common.UtcInstant;
+};
+  export type ExecutionRevisionCreationBinding = {
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly creationCommandRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.artifact.command_receipt";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly workOrderContractRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.contract.work_order";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly contextSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.execution.context_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly controlsPolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly observedRunVersion: Common.NonNegativeInteger;
+  readonly startedAt: Common.UtcInstant;
+  readonly bindingObservedAt: Common.UtcInstant;
+  readonly bindingValidUntil: Common.UtcInstant;
+  readonly bindingObservationHash: Common.ContentHash;
+  readonly createdAt: Common.UtcInstant;
+};
   export type ArtifactScope = "PROJECT_DELIVERABLE" | "ENTERPRISE_CONTROLLED";
   export type ArtifactLifecycle = "ACTIVE" | "ARCHIVED" | "CANCELLED";
   export type RevisionDisposition = "ACTIVE" | "SUPERSEDED" | "WITHDRAWN" | "INVALIDATED";
@@ -409,4 +517,71 @@ export namespace Artifact {
   readonly releaseRef: Common.ObjectRef;
   readonly effectiveAt: Common.UtcInstant;
 }
+  /** Payload of `artifact.create_execution_revision` (COMMAND). */
+  export type ArtifactCreateExecutionRevisionPayload = {
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly revision: Artifact.ExecutionRevisionContent;
+};
+  /** Result of `artifact.create_execution_revision` (COMMAND). */
+  export type ArtifactCreateExecutionRevisionResult = {
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly creationCommandRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.artifact.command_receipt";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
+  /** Payload of `artifact.get_execution_output_fact` (QUERY). */
+  export type ArtifactGetExecutionOutputFactPayload = {
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
+  /** Result of `artifact.get_execution_output_fact` (QUERY). */
+  export type ArtifactGetExecutionOutputFactResult = {
+  readonly revision: Artifact.RevisionSnapshot;
+  readonly artifactRef: Common.ObjectRef & {
+  readonly objectType?: "artifact.artifact";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly artifactAggregateVersion: Common.NonNegativeInteger;
+  readonly artifactLifecycle: Artifact.ArtifactLifecycle;
+  readonly businessScope: Artifact.ArtifactScope;
+  readonly originProjectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly contentState: "FROZEN";
+  readonly canonicalContent: Artifact.CanonicalContentPayload;
+  readonly creationBinding: Artifact.ExecutionRevisionCreationBinding;
+  readonly creationBindingHash: Common.ContentHash;
+  readonly creationReceipt: Artifact.ExecutionRevisionCreationReceipt;
+  readonly observedAt: Common.UtcInstant;
+  readonly useStatus: "USABLE" | "STALE" | "REVOKED";
+  readonly reasonCodes: readonly ("ARTIFACT_EXECUTION_OUTPUT_STALE" | "ARTIFACT_EXECUTION_OUTPUT_REVOKED")[];
+};
 }

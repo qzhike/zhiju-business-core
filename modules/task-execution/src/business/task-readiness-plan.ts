@@ -48,7 +48,8 @@ export type DependencyCompletionUseStatus =
 export interface DependencyObservation {
   readonly taskRef: CanonicalJsonObject;
   readonly aggregateVersion: string | null;
-  readonly completionEvaluationRef: null;
+  readonly completionEvaluationRef: CanonicalJsonObject | null;
+  readonly completionValidUntil?: string;
   readonly completionUseStatus: DependencyCompletionUseStatus;
 }
 
@@ -95,7 +96,16 @@ export interface TaskReadinessInputRefPort {
   }): Promise<TaskReadinessInputRefResolution>;
 }
 
+export interface DependencyCompletionPort {
+  readonly revalidate?: () => Promise<void>;
+  read(taskRef: CanonicalJsonObject): Promise<{
+    evaluationRef: CanonicalJsonObject;
+    useStatus: 'USABLE' | 'STALE' | 'REVOKED';
+    validUntil: string;
+  }>;
+}
 export interface ReadinessPlanningPorts {
+  readonly completion?: DependencyCompletionPort;
   readonly inputRefs: TaskReadinessInputRefPort;
 }
 
@@ -207,10 +217,7 @@ function dependencyObservation(
       completionUseStatus: 'MISSING',
     };
   }
-  // The Completion Evaluation producer (`execution.evaluate_task_completion@1.0`)
-  // is not delivered, so no committed fact can make a COMPLETED dependency
-  // usable: `completionEvaluationRef` stays absent and a COMPLETED dependency is
-  // recorded as STALE until that owning slice exists (Spec 003 §17.5 step 4).
+  // Historical state alone cannot authorize a dependency; the current owning Port upgrades it.
   const completionUseStatus: DependencyCompletionUseStatus =
     row.status === 'CANCELLED'
       ? 'CANCELLED'
@@ -458,8 +465,20 @@ export async function observeReadiness(
     dependencies.map((dependency) => dependency.taskId),
   );
   const rowByTaskId = new Map(dependencyRows.map((row) => [row.taskId, row]));
-  const dependencyObservations = dependencies.map((dependency) =>
-    dependencyObservation(dependency, rowByTaskId.get(dependency.taskId)),
+  const dependencyObservations = await Promise.all(
+    dependencies.map(async (dependency) => {
+      const row = rowByTaskId.get(dependency.taskId),
+        observation = dependencyObservation(dependency, row);
+      if (row?.status !== 'COMPLETED' || !input.ports.completion) return observation;
+      const current = await input.ports.completion.read(dependency.ref);
+      return {
+        ...observation,
+        completionEvaluationRef: current.evaluationRef,
+        completionUseStatus:
+          current.useStatus === 'USABLE' ? ('USABLE' as const) : ('STALE' as const),
+        completionValidUntil: current.validUntil,
+      };
+    }),
   );
 
   const declaredInputs = input.subject.definitionInputRefs;

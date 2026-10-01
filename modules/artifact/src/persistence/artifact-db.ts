@@ -199,7 +199,18 @@ export interface ContractViolationTable {
   created_by_principal_id: string;
 }
 
+export interface ExecutionRevisionFactTable {
+  revision_id: string;
+  command_id: string;
+  enterprise_id: string;
+  project_id: string;
+  canonical_payload: ColumnType<unknown, string, never>;
+  payload_hash: Buffer;
+}
+
 export interface ArtifactDb {
+  'artifact.execution_revision_creation_binding': ExecutionRevisionFactTable;
+  'artifact.execution_revision_command_receipt': ExecutionRevisionFactTable;
   'artifact.artifact': ArtifactTable;
   'artifact.artifact_branch': ArtifactBranchTable;
   'artifact.artifact_content_object': ArtifactContentObjectTable;
@@ -285,6 +296,7 @@ export async function withArtifactTransaction<T>(
       await sql`SELECT platform_security.establish_transaction_context(
           ${context.kind},
           ${context.principalId},
+          ${context.principalKind},
           ${context.actorSnapshotId},
           ${context.authorizationDecisionId},
           ${context.authorizationDecisionHash},

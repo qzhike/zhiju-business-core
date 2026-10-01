@@ -313,6 +313,144 @@
           }
         }
       }
+    },
+    {
+      "registryKey": "execution.work_order_controls.policy@2.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "0199b600-0000-7000-8000-000000000101",
+        "versionId": "0199b600-0000-7000-8000-000000000111",
+        "scope": {}
+      },
+      "documentSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["controls", "completionPolicyRef"],
+        "properties": {
+          "controls": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "targetScope",
+              "allowedCapabilities",
+              "deniedCapabilities",
+              "expectedOutputs",
+              "riskAndQuality",
+              "executionPolicy",
+              "budget",
+              "harnessPolicy",
+              "modelPolicy"
+            ],
+            "properties": {
+              "targetScope": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/targetScope"
+              },
+              "allowedCapabilities": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/allowedCapabilities"
+              },
+              "deniedCapabilities": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/deniedCapabilities"
+              },
+              "expectedOutputs": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/expectedOutputs"
+              },
+              "riskAndQuality": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/riskAndQuality"
+              },
+              "executionPolicy": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/executionPolicy"
+              },
+              "budget": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/budget"
+              },
+              "harnessPolicy": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/harnessPolicy"
+              },
+              "modelPolicy": {
+                "$ref": "https://schemas.zhiju.local/core/work-order/1.0#/properties/modelPolicy"
+              }
+            }
+          },
+          "recovery": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "answerSpecProfile",
+              "requestType",
+              "responderRole",
+              "maxBlockingRequests",
+              "maxRecoveryRuns",
+              "retryReason",
+              "run2Outcome",
+              "materialUse"
+            ],
+            "properties": {
+              "answerSpecProfile": {
+                "const": "execution.answer.customer_material.v1"
+              },
+              "requestType": {
+                "const": "execution.input.customer_material_confirmation"
+              },
+              "responderRole": {
+                "const": "project.customer_material.confirmer"
+              },
+              "maxBlockingRequests": {
+                "const": 1
+              },
+              "maxRecoveryRuns": {
+                "const": 1
+              },
+              "retryReason": {
+                "const": "BLOCKED_INPUT_RESOLVED"
+              },
+              "run2Outcome": {
+                "const": "COMPLETED"
+              },
+              "materialUse": {
+                "const": "REFERENCE_ONLY"
+              }
+            }
+          },
+          "completionPolicyRef": {
+            "allOf": [
+              {
+                "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/versionedRef"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "objectType": {
+                    "const": "zhiju.identity.policy"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "registryKey": "execution.completion.policy@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "0199b600-0000-7000-8000-000000000102",
+        "versionId": "0199b600-0000-7000-8000-000000000112",
+        "scope": {}
+      },
+      "documentSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["maxCompletionValiditySeconds"],
+        "properties": {
+          "maxCompletionValiditySeconds": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger"
+          }
+        }
+      }
     }
   ]
 }

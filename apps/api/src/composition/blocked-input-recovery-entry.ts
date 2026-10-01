@@ -1,3 +1,8 @@
+import {
+  createFormalCompletionDependencyPorts,
+  type FormalCompletionEntryConfig,
+} from './formal-completion-entry.js';
+import type { FormalCompletionPorts } from '@zhiju/task-execution';
 import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
 import { newUuidV7, sha256CanonicalJson, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
@@ -48,6 +53,12 @@ export interface BlockedInputRecoveryEntryConfig extends Omit<
   InitialContextEntryConfig,
   'capabilityCodes'
 > {
+  readonly formalCompletion?: FormalCompletionEntryConfig;
+  readonly completion?: (
+    row: DecisionRow,
+    session: RecoverySession,
+    revalidate: () => Promise<void>,
+  ) => FormalCompletionPorts;
   readonly recoveryCapabilityCodes: RecoveryCapabilityCodes;
   readonly humanCapabilityCodes: {
     readonly answerSubmit: string;
@@ -657,6 +668,15 @@ export function createBlockedInputRecoveryEntry(config: BlockedInputRecoveryEntr
             p.context,
             p.target as unknown as CanonicalJsonObject,
             p.ports,
+            config.formalCompletion
+              ? createFormalCompletionDependencyPorts(
+                  config.formalCompletion,
+                  p.row,
+                  session,
+                  'task_state',
+                  p.ports.revalidateAuthorization,
+                ).ports
+              : config.completion?.(p.row, session, p.ports.revalidateAuthorization),
           );
         case 'execution.get_work_order_execution_state':
           return handleGetWorkOrderExecutionState(

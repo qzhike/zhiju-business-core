@@ -1,3 +1,4 @@
+import type { DependencyCompletionPort } from './task-readiness-plan.js';
 // IM-06 (#208): `execution.build_task_readiness@1.0`, the Task Readiness
 // producer.
 //
@@ -105,6 +106,8 @@ export interface TaskReadinessPolicyPort {
 }
 
 export interface TaskReadinessProducerPorts {
+  readonly revalidateAuthorization?: () => Promise<void>;
+  readonly completion?: DependencyCompletionPort;
   readonly policy: TaskReadinessPolicyPort;
   readonly inputRefs: TaskReadinessInputRefPort;
   /** Trusted server clock; the module's existing trusted-time semantics. */
@@ -257,306 +260,321 @@ export async function handleBuildTaskReadiness(
   const payload = envelope.requestPayload;
   const repository = new TaskReadinessRepository();
 
-  return executeTaskExecutionCommand(db, context, envelope, async (execution) => {
-    const taskRef = payload.taskRef;
-    const definitionRef = readExactDefinitionRef(payload.taskDefinitionRef, scope);
-    if (definitionRef === undefined) {
-      return reject(
-        EXECUTION_JUDGMENT_INVALID,
-        'taskDefinitionRef must be the exact Project-scoped snapshot reference of this Task',
-      );
-    }
-    if (!policyRefWithinTrustedScope(payload.policyRef, scope)) {
-      return reject(
-        EXECUTION_JUDGMENT_INVALID,
-        'policyRef must be the exact version key of the trusted Enterprise',
-      );
-    }
-    // §17.6: the Evaluator selector is matched against the build-time registered
-    // profile in every field. The observation is the registered reference, never
-    // the caller's bytes, and any other selector is unsupported.
-    const evaluatorRef = resolveTaskReadinessEvaluatorProfile(payload.evaluatorRef);
-    if (evaluatorRef === undefined) {
-      return reject(
-        EXECUTION_CRITERION_UNSUPPORTED,
-        'evaluatorRef is not the registered task readiness evaluator profile of this version',
-      );
-    }
+  return executeTaskExecutionCommand(
+    db,
+    context,
+    envelope,
+    async (execution) => {
+      const taskRef = payload.taskRef;
+      const definitionRef = readExactDefinitionRef(payload.taskDefinitionRef, scope);
+      if (definitionRef === undefined) {
+        return reject(
+          EXECUTION_JUDGMENT_INVALID,
+          'taskDefinitionRef must be the exact Project-scoped snapshot reference of this Task',
+        );
+      }
+      if (!policyRefWithinTrustedScope(payload.policyRef, scope)) {
+        return reject(
+          EXECUTION_JUDGMENT_INVALID,
+          'policyRef must be the exact version key of the trusted Enterprise',
+        );
+      }
+      // §17.6: the Evaluator selector is matched against the build-time registered
+      // profile in every field. The observation is the registered reference, never
+      // the caller's bytes, and any other selector is unsupported.
+      const evaluatorRef = resolveTaskReadinessEvaluatorProfile(payload.evaluatorRef);
+      if (evaluatorRef === undefined) {
+        return reject(
+          EXECUTION_CRITERION_UNSUPPORTED,
+          'evaluatorRef is not the registered task readiness evaluator profile of this version',
+        );
+      }
 
-    // §17.5 step 2: the Task Root is read under RLS, so "invisible" and
-    // "missing" are the same NOT_FOUND and no other Scope's existence leaks.
-    const taskShape = record(taskRef);
-    const taskId = taskShape.objectId;
-    if (typeof taskId !== 'string' || !isUuidV7(taskId)) {
-      return reject(EXECUTION_TASK_REF_INVALID, 'taskRef must carry an exact Task identity');
-    }
-    const initialScope = exactProjectScope(taskShape.scope);
-    if (
-      taskShape.kind !== 'OBJECT' ||
-      initialScope?.enterpriseId !== scope.enterpriseId ||
-      initialScope.projectId !== scope.projectId
-    ) {
-      return reject(
-        EXECUTION_TASK_REF_INVALID,
-        'taskRef must be the Task OBJECT of this exact Project scope',
-      );
-    }
-    const subject = (await repository.readTaskGraphNodes(execution.trx, [taskId])).at(0);
-    if (subject === undefined) {
-      return reject(NOT_FOUND, 'no Task is visible for taskRef in this Project scope');
-    }
-    const expectedObjectType =
-      subject.definitionSchemaVersion === null
-        ? undefined
-        : taskSpellingForSchemaVersion(subject.definitionSchemaVersion);
-    if (expectedObjectType === undefined) {
-      return reject(
-        EXECUTION_DEFINITION_REF_INVALID,
-        'the Task definition does not carry a known creation major',
-      );
-    }
-    // R-206-1: the accepted spelling is the one the Task's own creation major
-    // fixed. The other published major's spelling, a bare local name, a prefix
-    // change and a case variant are all refused with the same exterior, and
-    // nothing is normalized or looked up again under another spelling.
-    if (readTaskRefClosure(taskRef, expectedObjectType, scope) === undefined) {
-      return reject(
-        EXECUTION_TASK_REF_INVALID,
-        'taskRef must be spelled exactly as the Task creation major spelled it',
-      );
-    }
-    if (subject.status !== 'DRAFT') {
-      return reject(EXECUTION_TASK_NOT_EXECUTABLE, 'only a DRAFT Task can be judged for readiness');
-    }
-    if (
-      subject.currentDefinitionSnapshotId !== definitionRef.snapshotId ||
-      !subject.currentDefinitionHash.equals(definitionRef.hash)
-    ) {
-      return reject(
-        EXECUTION_JUDGMENT_INVALID,
-        'taskDefinitionRef must be the exact definition the Task currently commits to',
-      );
-    }
+      // §17.5 step 2: the Task Root is read under RLS, so "invisible" and
+      // "missing" are the same NOT_FOUND and no other Scope's existence leaks.
+      const taskShape = record(taskRef);
+      const taskId = taskShape.objectId;
+      if (typeof taskId !== 'string' || !isUuidV7(taskId)) {
+        return reject(EXECUTION_TASK_REF_INVALID, 'taskRef must carry an exact Task identity');
+      }
+      const initialScope = exactProjectScope(taskShape.scope);
+      if (
+        taskShape.kind !== 'OBJECT' ||
+        initialScope?.enterpriseId !== scope.enterpriseId ||
+        initialScope.projectId !== scope.projectId
+      ) {
+        return reject(
+          EXECUTION_TASK_REF_INVALID,
+          'taskRef must be the Task OBJECT of this exact Project scope',
+        );
+      }
+      const subject = (await repository.readTaskGraphNodes(execution.trx, [taskId])).at(0);
+      if (subject === undefined) {
+        return reject(NOT_FOUND, 'no Task is visible for taskRef in this Project scope');
+      }
+      const expectedObjectType =
+        subject.definitionSchemaVersion === null
+          ? undefined
+          : taskSpellingForSchemaVersion(subject.definitionSchemaVersion);
+      if (expectedObjectType === undefined) {
+        return reject(
+          EXECUTION_DEFINITION_REF_INVALID,
+          'the Task definition does not carry a known creation major',
+        );
+      }
+      // R-206-1: the accepted spelling is the one the Task's own creation major
+      // fixed. The other published major's spelling, a bare local name, a prefix
+      // change and a case variant are all refused with the same exterior, and
+      // nothing is normalized or looked up again under another spelling.
+      if (readTaskRefClosure(taskRef, expectedObjectType, scope) === undefined) {
+        return reject(
+          EXECUTION_TASK_REF_INVALID,
+          'taskRef must be spelled exactly as the Task creation major spelled it',
+        );
+      }
+      if (subject.status !== 'DRAFT') {
+        return reject(
+          EXECUTION_TASK_NOT_EXECUTABLE,
+          'only a DRAFT Task can be judged for readiness',
+        );
+      }
+      if (
+        subject.currentDefinitionSnapshotId !== definitionRef.snapshotId ||
+        !subject.currentDefinitionHash.equals(definitionRef.hash)
+      ) {
+        return reject(
+          EXECUTION_JUDGMENT_INVALID,
+          'taskDefinitionRef must be the exact definition the Task currently commits to',
+        );
+      }
 
-    // §17.6: the Policy observation comes only from the owning resolution, with
-    // its own authorization, and its lifecycle decides whether a judgment may be
-    // produced at all.
-    let resolution: TaskReadinessPolicyResolution;
-    try {
-      resolution = await ports.policy.resolvePolicy({
-        policyRef: payload.policyRef as CanonicalJsonObject,
+      // §17.6: the Policy observation comes only from the owning resolution, with
+      // its own authorization, and its lifecycle decides whether a judgment may be
+      // produced at all.
+      let resolution: TaskReadinessPolicyResolution;
+      try {
+        resolution = await ports.policy.resolvePolicy({
+          policyRef: payload.policyRef as CanonicalJsonObject,
+        });
+      } catch {
+        throw new CommandExecutionError(
+          DEPENDENCY_UNAVAILABLE,
+          'the IdentityPolicy resolution entry is unavailable',
+        );
+      }
+      if (resolution.status !== 'USABLE') {
+        return reject(
+          EXECUTION_JUDGMENT_STALE,
+          'the requested Policy version is not currently usable',
+        );
+      }
+      const policyVersionRef = resolution.policyVersionRef;
+      const policyContentHash = resolution.contentHash;
+      const effectiveFrom = resolution.effectiveFrom;
+      if (
+        policyVersionRef === undefined ||
+        typeof policyContentHash !== 'string' ||
+        !HEX_64.test(policyContentHash) ||
+        typeof effectiveFrom !== 'string' ||
+        resolution.supersededAt === undefined ||
+        !sameScopeValue(resolution.scopeRef, record(payload.policyRef).scope)
+      ) {
+        return reject(
+          EXECUTION_JUDGMENT_INVALID,
+          'the resolved Policy observation is not the exact reference this request declared',
+        );
+      }
+      const profile = validateTaskReadinessPolicy({
+        policySchemaRefs: resolution.policySchemaRefs ?? [],
+        policyDocument: resolution.policyDocument,
       });
-    } catch {
-      throw new CommandExecutionError(
-        DEPENDENCY_UNAVAILABLE,
-        'the IdentityPolicy resolution entry is unavailable',
-      );
-    }
-    if (resolution.status !== 'USABLE') {
-      return reject(
-        EXECUTION_JUDGMENT_STALE,
-        'the requested Policy version is not currently usable',
-      );
-    }
-    const policyVersionRef = resolution.policyVersionRef;
-    const policyContentHash = resolution.contentHash;
-    const effectiveFrom = resolution.effectiveFrom;
-    if (
-      policyVersionRef === undefined ||
-      typeof policyContentHash !== 'string' ||
-      !HEX_64.test(policyContentHash) ||
-      typeof effectiveFrom !== 'string' ||
-      resolution.supersededAt === undefined ||
-      !sameScopeValue(resolution.scopeRef, record(payload.policyRef).scope)
-    ) {
-      return reject(
-        EXECUTION_JUDGMENT_INVALID,
-        'the resolved Policy observation is not the exact reference this request declared',
-      );
-    }
-    const profile = validateTaskReadinessPolicy({
-      policySchemaRefs: resolution.policySchemaRefs ?? [],
-      policyDocument: resolution.policyDocument,
-    });
-    if (!profile.valid) {
-      return reject(
-        EXECUTION_CRITERION_UNSUPPORTED,
-        'the resolved Policy document is not the registered task readiness profile',
-      );
-    }
+      if (!profile.valid) {
+        return reject(
+          EXECUTION_CRITERION_UNSUPPORTED,
+          'the resolved Policy document is not the registered task readiness profile',
+        );
+      }
 
-    const observation = await observeReadiness({
-      repository,
-      trx: execution.trx,
-      subject,
-      expectedObjectType,
-      scope,
-      ports: { inputRefs: ports.inputRefs },
-    });
-    if (observation.outcome === 'REJECTED') {
-      return reject(observation.errorCode, observation.safeSummary);
-    }
-
-    const evaluatedAt = (ports.now ?? ((): Date => new Date()))();
-    // The judgment records both the resolved Policy fact identity
-    // (`policyVersionRef`) and the exact version key it was resolved from.
-    // Without the key a later consumer could not re-resolve the Policy at its own
-    // commit point, and §17.8 step 3 requires exactly that re-resolution before
-    // the READY transition. Both values are covered by the judgment content hash.
-    const observedPolicyRef = payload.policyRef as CanonicalJsonObject;
-    const inputHashBody = {
-      taskRef: taskRef as CanonicalJsonObject,
-      taskDefinitionRef: payload.taskDefinitionRef as CanonicalJsonObject,
-      taskAggregateVersion: subject.aggregateVersion,
-      policyRef: observedPolicyRef,
-      policyVersionRef,
-      policyContentHash,
-      policyEffectiveFrom: effectiveFrom,
-      policySupersededAt: resolution.supersededAt ?? null,
-      evaluatorRef,
-      dependencies: observation.dependencies as unknown as CanonicalJsonObject[],
-      inputs: observation.inputs as unknown as CanonicalJsonObject[],
-      blockers: observation.blockers as unknown as CanonicalJsonObject[],
-    } as unknown as CanonicalJsonObject;
-    const inputHash = digestCanonicalPayload(inputHashBody).hash;
-
-    // §17.6: `validUntil` is the minimum of the Policy bound, the producing
-    // Decision's expiry and every applicable finite input bound. A term that has
-    // no finite bound simply does not participate — it never becomes infinity.
-    const bounds: number[] = [
-      evaluatedAt.getTime() + profile.rules.maxReadinessValiditySeconds * 1000,
-      context.authorizationDecisionExpiresAt.getTime(),
-    ];
-    for (const input of observation.inputs) {
-      if (input.resolution !== 'USABLE' || input.validUntil === null) continue;
-      const bound = Date.parse(input.validUntil);
-      if (!Number.isNaN(bound)) bounds.push(bound);
-    }
-    const validUntil = new Date(Math.min(...bounds));
-
-    const canonicalPayload = {
-      judgmentId: envelope.targetId,
-      judgmentKind: TASK_READINESS_JUDGMENT_KIND,
-      scope: { enterpriseId: scope.enterpriseId, projectId: scope.projectId },
-      taskRef,
-      taskDefinitionRef: payload.taskDefinitionRef,
-      taskAggregateVersion: subject.aggregateVersion,
-      policyRef: observedPolicyRef,
-      policyVersionRef,
-      policyContentHash,
-      policyEffectiveFrom: effectiveFrom,
-      policySupersededAt: resolution.supersededAt ?? null,
-      evaluatorRef,
-      dependencies: observation.dependencies,
-      inputs: observation.inputs,
-      blockers: observation.blockers,
-      checks: orderedChecks(observation.checks),
-      inputHash: inputHash.toString('hex'),
-      evaluatedAt: evaluatedAt.toISOString(),
-      validUntil: validUntil.toISOString(),
-      ready: observation.ready,
-    } as unknown as CanonicalJsonObject;
-    const digest = digestCanonicalPayload(canonicalPayload);
-
-    const inserted = await execution.insertExecutionJudgment({
-      judgmentId: envelope.targetId,
-      judgmentKind: TASK_READINESS_JUDGMENT_KIND,
-      enterpriseId: scope.enterpriseId,
-      projectId: scope.projectId,
-      taskId,
-      taskDefinitionSnapshotId: definitionRef.snapshotId,
-      taskDefinitionHash: definitionRef.hash,
-      policyVersionRef,
-      policyContentHash: Buffer.from(policyContentHash, 'hex'),
-      policyEffectiveFrom: new Date(effectiveFrom),
-      policySupersededAt:
-        resolution.supersededAt == null ? null : new Date(resolution.supersededAt),
-      evaluatorRef: evaluatorRef as unknown as CanonicalJsonObject,
-      inputHash,
-      evaluatedAt,
-      validUntil,
-      ready: observation.ready,
-      canonicalPayload,
-      payloadHash: digest.hash,
-      requestPayloadHash: digestCanonicalPayload(envelope.requestPayload).hash,
-      sourceCommandId: envelope.commandId,
-      createdByPrincipalId: envelope.principalId,
-    });
-    if (!inserted) {
-      return reject(
-        CONCURRENCY_CONFLICT,
-        'the readiness identity already exists in this Project scope',
-      );
-    }
-
-    // Only references this transaction proved exist become Edges. Dependencies,
-    // inputs and blockers stay inside the immutable payload: their existence and
-    // current validity are proved by the owning actions in their own
-    // transactions, which write the Edges, so no dangling Edge is created here.
-    const edgeBase = {
-      ownerObjectType: TASK_READINESS_TARGET_TYPE,
-      ownerObjectId: envelope.targetId,
-      ownerVersionId: envelope.targetId,
-      ownerPayloadHash: digest.hash,
-    };
-    await execution.appendReferenceEdge({
-      ...edgeBase,
-      referencePath: '/taskRef',
-      targetModule: 'TaskExecution',
-      targetObjectType: expectedObjectType,
-      targetObjectId: taskId,
-      referencePurpose: 'TASK_READINESS_TASK',
-    });
-    await execution.appendReferenceEdge({
-      ...edgeBase,
-      referencePath: '/taskDefinitionRef',
-      targetModule: 'TaskExecution',
-      targetObjectType: TASK_DEFINITION_SNAPSHOT_OBJECT_TYPE,
-      targetObjectId: definitionRef.snapshotId,
-      targetPayloadHash: definitionRef.hash,
-      referencePurpose: 'TASK_READINESS_DEFINITION',
-    });
-    const policyRefRecord = record(policyVersionRef);
-    await execution.appendReferenceEdge({
-      ...edgeBase,
-      referencePath: '/policyVersionRef',
-      targetModule: 'IdentityPolicy',
-      targetObjectType: POLICY_VERSION_OBJECT_TYPE,
-      targetObjectId: String(policyRefRecord.objectId),
-      targetPayloadHash: Buffer.from(policyContentHash, 'hex'),
-      referencePurpose: 'TASK_READINESS_POLICY',
-    });
-    const evaluatorRefRecord = record(evaluatorRef);
-    await execution.appendReferenceEdge({
-      ...edgeBase,
-      referencePath: '/evaluatorRef',
-      targetModule: 'TaskExecution',
-      targetObjectType: EVALUATOR_PROFILE_OBJECT_TYPE,
-      targetObjectId: String(evaluatorRefRecord.objectId),
-      targetVersionId: String(evaluatorRefRecord.versionId),
-      referencePurpose: 'TASK_READINESS_EVALUATOR',
-    });
-
-    return {
-      kind: 'COMMITTED',
-      resultPayload: {
-        targetRef: {
-          kind: 'OBJECT',
-          objectType: TASK_READINESS_OBJECT_TYPE,
-          objectId: envelope.targetId,
-          scope: { enterpriseId: scope.enterpriseId, projectId: scope.projectId },
+      const observation = await observeReadiness({
+        repository,
+        trx: execution.trx,
+        subject,
+        expectedObjectType,
+        scope,
+        ports: {
+          inputRefs: ports.inputRefs,
+          ...(ports.completion ? { completion: ports.completion } : {}),
         },
-        data: {
-          readinessSnapshotRef: {
-            kind: 'SNAPSHOT',
+      });
+      if (observation.outcome === 'REJECTED') {
+        return reject(observation.errorCode, observation.safeSummary);
+      }
+
+      const evaluatedAt = (ports.now ?? ((): Date => new Date()))();
+      // The judgment records both the resolved Policy fact identity
+      // (`policyVersionRef`) and the exact version key it was resolved from.
+      // Without the key a later consumer could not re-resolve the Policy at its own
+      // commit point, and §17.8 step 3 requires exactly that re-resolution before
+      // the READY transition. Both values are covered by the judgment content hash.
+      const observedPolicyRef = payload.policyRef as CanonicalJsonObject;
+      const inputHashBody = {
+        taskRef: taskRef as CanonicalJsonObject,
+        taskDefinitionRef: payload.taskDefinitionRef as CanonicalJsonObject,
+        taskAggregateVersion: subject.aggregateVersion,
+        policyRef: observedPolicyRef,
+        policyVersionRef,
+        policyContentHash,
+        policyEffectiveFrom: effectiveFrom,
+        policySupersededAt: resolution.supersededAt ?? null,
+        evaluatorRef,
+        dependencies: observation.dependencies as unknown as CanonicalJsonObject[],
+        inputs: observation.inputs as unknown as CanonicalJsonObject[],
+        blockers: observation.blockers as unknown as CanonicalJsonObject[],
+      } as unknown as CanonicalJsonObject;
+      const inputHash = digestCanonicalPayload(inputHashBody).hash;
+
+      // §17.6: `validUntil` is the minimum of the Policy bound, the producing
+      // Decision's expiry and every applicable finite input bound. A term that has
+      // no finite bound simply does not participate — it never becomes infinity.
+      const bounds: number[] = [
+        evaluatedAt.getTime() + profile.rules.maxReadinessValiditySeconds * 1000,
+        context.authorizationDecisionExpiresAt.getTime(),
+      ];
+      for (const input of observation.inputs) {
+        if (input.resolution !== 'USABLE' || input.validUntil === null) continue;
+        const bound = Date.parse(input.validUntil);
+        if (!Number.isNaN(bound)) bounds.push(bound);
+      }
+      for (const dependency of observation.dependencies)
+        if (dependency.completionValidUntil)
+          bounds.push(Date.parse(dependency.completionValidUntil));
+      const validUntil = new Date(Math.min(...bounds));
+
+      const canonicalPayload = {
+        judgmentId: envelope.targetId,
+        judgmentKind: TASK_READINESS_JUDGMENT_KIND,
+        scope: { enterpriseId: scope.enterpriseId, projectId: scope.projectId },
+        taskRef,
+        taskDefinitionRef: payload.taskDefinitionRef,
+        taskAggregateVersion: subject.aggregateVersion,
+        policyRef: observedPolicyRef,
+        policyVersionRef,
+        policyContentHash,
+        policyEffectiveFrom: effectiveFrom,
+        policySupersededAt: resolution.supersededAt ?? null,
+        evaluatorRef,
+        dependencies: observation.dependencies,
+        inputs: observation.inputs,
+        blockers: observation.blockers,
+        checks: orderedChecks(observation.checks),
+        inputHash: inputHash.toString('hex'),
+        evaluatedAt: evaluatedAt.toISOString(),
+        validUntil: validUntil.toISOString(),
+        ready: observation.ready,
+      } as unknown as CanonicalJsonObject;
+      const digest = digestCanonicalPayload(canonicalPayload);
+
+      const inserted = await execution.insertExecutionJudgment({
+        judgmentId: envelope.targetId,
+        judgmentKind: TASK_READINESS_JUDGMENT_KIND,
+        enterpriseId: scope.enterpriseId,
+        projectId: scope.projectId,
+        taskId,
+        taskDefinitionSnapshotId: definitionRef.snapshotId,
+        taskDefinitionHash: definitionRef.hash,
+        policyVersionRef,
+        policyContentHash: Buffer.from(policyContentHash, 'hex'),
+        policyEffectiveFrom: new Date(effectiveFrom),
+        policySupersededAt:
+          resolution.supersededAt == null ? null : new Date(resolution.supersededAt),
+        evaluatorRef: evaluatorRef as unknown as CanonicalJsonObject,
+        inputHash,
+        evaluatedAt,
+        validUntil,
+        ready: observation.ready,
+        canonicalPayload,
+        payloadHash: digest.hash,
+        requestPayloadHash: digestCanonicalPayload(envelope.requestPayload).hash,
+        sourceCommandId: envelope.commandId,
+        createdByPrincipalId: envelope.principalId,
+      });
+      if (!inserted) {
+        return reject(
+          CONCURRENCY_CONFLICT,
+          'the readiness identity already exists in this Project scope',
+        );
+      }
+
+      // Only references this transaction proved exist become Edges. Dependencies,
+      // inputs and blockers stay inside the immutable payload: their existence and
+      // current validity are proved by the owning actions in their own
+      // transactions, which write the Edges, so no dangling Edge is created here.
+      const edgeBase = {
+        ownerObjectType: TASK_READINESS_TARGET_TYPE,
+        ownerObjectId: envelope.targetId,
+        ownerVersionId: envelope.targetId,
+        ownerPayloadHash: digest.hash,
+      };
+      await execution.appendReferenceEdge({
+        ...edgeBase,
+        referencePath: '/taskRef',
+        targetModule: 'TaskExecution',
+        targetObjectType: expectedObjectType,
+        targetObjectId: taskId,
+        referencePurpose: 'TASK_READINESS_TASK',
+      });
+      await execution.appendReferenceEdge({
+        ...edgeBase,
+        referencePath: '/taskDefinitionRef',
+        targetModule: 'TaskExecution',
+        targetObjectType: TASK_DEFINITION_SNAPSHOT_OBJECT_TYPE,
+        targetObjectId: definitionRef.snapshotId,
+        targetPayloadHash: definitionRef.hash,
+        referencePurpose: 'TASK_READINESS_DEFINITION',
+      });
+      const policyRefRecord = record(policyVersionRef);
+      await execution.appendReferenceEdge({
+        ...edgeBase,
+        referencePath: '/policyVersionRef',
+        targetModule: 'IdentityPolicy',
+        targetObjectType: POLICY_VERSION_OBJECT_TYPE,
+        targetObjectId: String(policyRefRecord.objectId),
+        targetPayloadHash: Buffer.from(policyContentHash, 'hex'),
+        referencePurpose: 'TASK_READINESS_POLICY',
+      });
+      const evaluatorRefRecord = record(evaluatorRef);
+      await execution.appendReferenceEdge({
+        ...edgeBase,
+        referencePath: '/evaluatorRef',
+        targetModule: 'TaskExecution',
+        targetObjectType: EVALUATOR_PROFILE_OBJECT_TYPE,
+        targetObjectId: String(evaluatorRefRecord.objectId),
+        targetVersionId: String(evaluatorRefRecord.versionId),
+        referencePurpose: 'TASK_READINESS_EVALUATOR',
+      });
+
+      return {
+        kind: 'COMMITTED',
+        resultPayload: {
+          targetRef: {
+            kind: 'OBJECT',
             objectType: TASK_READINESS_OBJECT_TYPE,
             objectId: envelope.targetId,
-            snapshotId: envelope.targetId,
             scope: { enterpriseId: scope.enterpriseId, projectId: scope.projectId },
-            contentHash: contentHashOf(digest.hash.toString('hex')),
           },
-        },
-      } as unknown as CanonicalJsonObject,
-    };
-  });
+          data: {
+            readinessSnapshotRef: {
+              kind: 'SNAPSHOT',
+              objectType: TASK_READINESS_OBJECT_TYPE,
+              objectId: envelope.targetId,
+              snapshotId: envelope.targetId,
+              scope: { enterpriseId: scope.enterpriseId, projectId: scope.projectId },
+              contentHash: contentHashOf(digest.hash.toString('hex')),
+            },
+          },
+        } as unknown as CanonicalJsonObject,
+      };
+    },
+    ports.revalidateAuthorization,
+  );
 }

@@ -1,0 +1,95 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d437",
+  "commandType": "artifact.create_execution_revision",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "artifact.artifact_revision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d450",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d432",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "execution-build-context-snapshot-fixture",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d438",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "runRef": {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d450",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "revision": {
+      "artifactRef": {
+        "kind": "OBJECT",
+        "objectType": "artifact.artifact",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d401",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "branchId": "018f22e2-7c15-7b2e-8d86-2de956a9d407",
+      "parentRevisionRefs": [],
+      "contentType": "STRUCTURED_DOCUMENT",
+      "contentRef": "artifact-content/018f22e2/revision-002.canonical.json",
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "canonicalizationVersion": "1"
+      },
+      "structureSchemaRef": {
+        "kind": "VERSIONED",
+        "objectType": "artifact.canonical_document_schema",
+        "objectId": "0199b600-0000-7000-8000-000000000401",
+        "versionId": "0199b600-0000-7000-8000-000000000411",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+        }
+      },
+      "semanticMetadata": {},
+      "changedUnits": ["section.4.2", "section.5.1"],
+      "changeSummary": "Revised sterilization validation sections.",
+      "provenance": {}
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "ddd7b6bfd13f1dfee27f389d1fcb37aceab62a79eb3e8dece7a5988c20328147"
+    }
+  }
+}

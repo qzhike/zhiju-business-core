@@ -1,0 +1,7 @@
+{
+  "templateId": "formal-recovered-completed-v1",
+  "templateVersion": "1.0",
+  "runtimeAdapterProfile": "te.human_operated.synthetic.formal@1.0",
+  "executionOutcome": "COMPLETED",
+  "businessOutputs": "OWNING_ARTIFACT_EXECUTION_REVISION"
+}

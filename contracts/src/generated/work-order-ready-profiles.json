@@ -48,6 +48,25 @@
         "humanReviewRequired": true,
         "technicalOnly": true
       }
+    },
+    {
+      "registryKey": "te.human_operated.synthetic.formal@1.0",
+      "owner": "integration-gateway",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.runtime.adapter_contract",
+        "objectId": "0199b600-0000-7000-8000-000000000301",
+        "versionId": "0199b600-0000-7000-8000-000000000311",
+        "scope": {}
+      },
+      "descriptor": {
+        "mode": "SYNTHETIC_TECHNICAL_ONLY",
+        "harness": "zhiju.runtime.synthetic",
+        "provider": "synthetic",
+        "model": "synthetic",
+        "resumePolicy": "new_run_only",
+        "fallbackPolicy": "human_intervention"
+      }
     }
   ]
 }

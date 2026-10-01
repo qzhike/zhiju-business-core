@@ -76,5 +76,5 @@
 
 | ID | 层级 / 输入 | 预期 | 实际 / 结果 |
 |---|---|---|---|---|
-| RT-COMP-D-001 | Controlled Application + PostgreSQL / 三份实际调用的versioned模板及normal/recovered owning fixture | 调用前固定模板Hash，Artifact提交后才计算Result Header/提交时间；无虚构receipt或先引用未来Result，Run-2独立Context/invocation | 未执行 / NOT RUN |
-| RT-COMP-D-002 | Controlled Application + PostgreSQL / release错误身份/Ref、readFinal跨restart/期限后释放 | protected依赖读先授权，同键稳定原文，第二final拒绝，expiry由TE决定；不是Provider conformance或manual business acceptance | 未执行 / NOT RUN |
+| RT-COMP-D-001 | Controlled Application + PostgreSQL / 三份实际调用的versioned模板及normal/recovered owning fixture | 调用前固定模板Hash，Artifact提交后才计算Result Header/提交时间；无虚构receipt或先引用未来Result，Run-2独立Context/invocation | OWNING/PG/CONTROLLED PASS：normal/recovered独立fixture和三个固定versioned模板被实际调用；真实新Artifact Receipt提交后才冻结原invocation final，Run-2新Context/实例/session；Core合法空COMPLETED负例独立执行。 |
+| RT-COMP-D-002 | Controlled Application + PostgreSQL / release错误身份/Ref、readFinal跨restart/期限后释放 | protected依赖读先授权，同键稳定原文，第二final拒绝，expiry由TE决定；不是Provider conformance或manual business acceptance | APPLICATION/PG/CONTROLLED PASS（已执行）：Human-only、未提交Ref/Receipt、冲突第二final、restart原文与无再invoke；实际deadline赢后sealed output不救late Result/Completion。期限后首次release子项NOT RUN；External Provider/manual仍NOT RUN。 |

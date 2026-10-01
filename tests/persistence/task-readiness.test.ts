@@ -392,6 +392,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
       resolvePolicyCapability?: string;
       readContextSourceSliceCapability?: string;
       identityDb?: Kysely<IdentityPolicyDb>;
+      taskExecutionDb?: Kysely<TaskExecutionDb>;
     } = {},
   ): TaskReadinessEntry {
     const codes: TaskExecutionReadinessCapabilityCodes = {
@@ -399,7 +400,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
       taskReadyV1: overrides.readyCapability ?? readinessCapabilities.taskReadyV1,
     };
     return createTaskReadinessEntry({
-      taskExecutionDb: teDb,
+      taskExecutionDb: overrides.taskExecutionDb ?? teDb,
       enterpriseProjectDb: epDb,
       identity: {
         db: overrides.identityDb ?? identityDb,
@@ -1974,7 +1975,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(230);
+    expect(catalog.operations).toHaveLength(237);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );
@@ -1984,7 +1985,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     ).toBe(false);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(57);
+    ).toHaveLength(62);
     expect(
       registry.validateOperation('execution.mark_task_ready', '1.0', {
         commandId: newUuidV7(),
@@ -3365,14 +3366,9 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     // conversion observed one millisecond past the bound does not — a long
     // transaction must not pass on a timestamp read before its owning reads.
     //
-    // The two runs are the same request against two fresh judgements, so the
-    // clock's *call index* is the only variable: the control run records how many
-    // times the entry consults the trusted clock, and the boundary run returns a
-    // still-valid instant for every call but the last. The last call is the
-    // commit-point re-read (it is the final clock read before the CAS), so the
-    // boundary run fails only if that read is guarded. A removal of the guard
-    // makes the boundary run commit and the test fail; a guard moved earlier
-    // makes the control run fail instead.
+    // The positive control captures the clock read immediately before the
+    // actual Task CAS. Authorization is also revalidated after the body, so
+    // its later clock reads must not be mistaken for the transition boundary.
     const controlDraft = await createDraft('1.0');
     const controlJudgment = await buildTaskJudgment(controlDraft, {
       policyRefValue: shortTtlPolicyKey as unknown as CanonicalJsonObject,
@@ -3381,6 +3377,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     if (controlRow === undefined) throw new Error('the judgment row is not readable');
     const controlEarly = new Date(controlRow.evaluated_at.getTime() + 1000);
     let controlCalls = 0;
+    let commitClockCalls = 0;
     const controlState = await attempt(() =>
       markReady({
         taskId: controlDraft.taskId,
@@ -3389,6 +3386,17 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
         aggregateVersion: Number(controlJudgment.judgment.taskAggregateVersion),
         idempotencyKey: `wi208-012-control-${controlJudgment.judgment.judgmentId}`,
         entry: readinessEntryFor({
+          taskExecutionDb: teDb.withPlugin({
+            transformQuery(args) {
+              if (
+                args.node.kind === 'UpdateQueryNode' &&
+                JSON.stringify(args.node).includes('"name":"task"')
+              )
+                commitClockCalls = controlCalls;
+              return args.node;
+            },
+            transformResult: (args) => Promise.resolve(args.result),
+          }),
           now: () => {
             controlCalls += 1;
             return controlEarly;
@@ -3397,7 +3405,8 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
       }),
     );
     expect(controlState.code, JSON.stringify(controlState)).toBe('COMMITTED');
-    expect(controlCalls).toBeGreaterThan(1);
+    expect(commitClockCalls).toBeGreaterThan(1);
+    expect(controlCalls).toBeGreaterThanOrEqual(commitClockCalls);
     const convertedControl = await taskState(controlDraft.taskId);
     expect(convertedControl.status).toBe('READY');
     expect(convertedControl.outbox).toHaveLength(1);
@@ -3422,13 +3431,13 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
         entry: readinessEntryFor({
           now: () => {
             boundaryCalls += 1;
-            return boundaryCalls === controlCalls ? boundaryLate : boundaryEarly;
+            return boundaryCalls >= commitClockCalls ? boundaryLate : boundaryEarly;
           },
         }),
       }),
     );
     expect(boundaryOutcome.code, JSON.stringify(boundaryOutcome)).toBe(EXECUTION_JUDGMENT_STALE);
-    expect(boundaryCalls).toBe(controlCalls);
+    expect(boundaryCalls).toBeGreaterThanOrEqual(commitClockCalls);
     // No side effect at all: the Task keeps its status and version, and no
     // TaskReady row was published. The Receipt records the refusal, not a
     // success result.

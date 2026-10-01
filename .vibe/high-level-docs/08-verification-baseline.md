@@ -47,7 +47,7 @@ CI 对 Pull Request 使用 base-to-head 的完整变更集合，不能仅凭最�
 
 普通 Vitest 只收集无需数据库的测试。原 `tests/persistence/pinned-baseline.test.ts`、`migration-isolation.test.ts`，以及 `query-projection.test.ts` 的 Snapshot hash 和 `enterprise-project-scope.test.ts` 的 SourceMaterial 输入拒绝纯测试，分别迁到 `tests/business/` 的 `pinned-baseline`、`migration-isolation`、`project-board-hash`、`source-material-validation` 文件；断言与测试名称保留。新增无需数据库用例必须进入普通收集范围，不能放入被普通配置排除的数据库目录。
 
-Persistence Gate 使用独立 `vitest.persistence.config.ts` 收集 `tests/persistence/**/*.test.ts`，保持同一临时数据库内文件串行与 worker 隔离，防止角色权限负例交叉影响；不重复普通检查。完整数据库 Gate 不允许意外 skipped 用例，退出失败或异常取消仍是失败；仅明确选定文件的聚焦诊断允许测试名称过滤，并明确输出非完整 Gate。`docs/code/full` 路由与重验证任务的 30 分钟上限不变。
+Persistence Gate 使用独立 `vitest.persistence.config.ts` 收集 `tests/persistence/**/*.test.ts`，保持同一临时数据库内文件串行与 worker 隔离，防止角色权限负例交叉影响；不重复普通检查。完整数据库 Gate 不允许意外 skipped 用例，退出失败或异常取消仍是失败；仅明确选定文件的聚焦诊断允许测试名称过滤，并明确输出非完整 Gate。`docs/code/full` 路由不变；CI 的 `checks` 执行预算为 30 分钟，`persistence` 执行预算为 60 分钟。增加数据库任务预算不改变测试收集、串行执行、固定镜像或失败/取消判定。
 
 数据库验证必须流式输出文件/测试开始、结束和耗时，长测试及 setup/cleanup 每 30 秒输出当前执行项；等待诊断只允许连接状态、等待事件、阻塞 PID 和事务持续时间，禁止 SQL 文本、连接凭据或业务 payload。`initial-context` 另记录业务准备、Validation/Freeze 矩阵、队列探针、Run/Result 业务边界、真实期限等待、历史升级和 pending-operation drain；测试正常退出前的汇总报告不能替代这些进度。真实队列竞态以指定 PostgreSQL 后端的阻塞关系同步，释放锁后等待后台操作完成；服务端到期测试继续等待实际 deadline，不改变数据库时钟或跳过 cleanup。
 

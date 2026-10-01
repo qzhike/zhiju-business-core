@@ -5,6 +5,191 @@ import type { CanonicalJson, Common } from './common.js';
 import type { Core } from './core.js';
 
 export namespace TaskExecution {
+  export type CompletionEvaluation = {
+  readonly judgmentId: Common.UuidV7;
+  readonly judgmentKind: "COMPLETION_EVALUATION";
+  readonly scopeRef: Common.ScopeRef;
+  readonly subjectRefs: readonly Common.TypedReference[];
+  readonly inputHash: Common.ContentHash;
+  readonly policyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly evaluatorRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.execution.evaluator_profile";
+};
+  readonly producedBy: Common.PrincipalRef;
+  readonly actorSnapshotRef: Common.SnapshotRef;
+  readonly authorizationDecisionRef: Common.ContentAddressedRef;
+  readonly evaluatedAt: Common.UtcInstant;
+  readonly validUntil: Common.UtcInstant;
+  readonly sourceWatermarks: readonly Common.SourceWatermark[];
+  readonly checks: readonly ({
+  readonly checkCode: Common.ReasonCode;
+  readonly outcome: "SATISFIED" | "UNSATISFIED" | "STALE";
+  readonly factRefs: readonly Common.TypedReference[];
+  readonly reasonCodes: readonly ("COMPLETION_OUTPUT_MISSING" | "COMPLETION_OUTPUT_INVALID" | "COMPLETION_PROVENANCE_INVALID" | "COMPLETION_SCHEMA_INVALID" | "COMPLETION_SCOPE_INVALID" | "COMPLETION_ACTIVE_RUN" | "COMPLETION_BLOCKING_REQUEST" | "COMPLETION_UNPROCESSED_FINAL" | "COMPLETION_CHILD_NOT_USABLE" | "COMPLETION_QUALITY_NOT_USABLE" | "COMPLETION_EXPIRED" | "COMPLETION_POLICY_NOT_USABLE" | "COMPLETION_SOURCE_CHANGED" | "COMPLETION_EVALUATION_SUPERSEDED")[];
+})[];
+  readonly targetRef: (Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+} | Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+});
+  readonly targetKind: "WORK_ORDER" | "TASK";
+  readonly definitionRef: Common.ContentAddressedRef;
+  readonly criteriaHash: Common.ContentHash;
+  readonly qualitySelection?: {
+  readonly qualityProfileRef: Common.VersionedRef & {
+  readonly objectType?: "quality.quality_profile";
+};
+  readonly selectionHash: Common.ContentHash;
+  readonly outputSnapshots: readonly ({
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly revisionAcceptanceRef?: Common.SnapshotRef & {
+  readonly objectType?: "quality.revision_acceptance_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly approvalBundleRef?: Common.SnapshotRef & {
+  readonly objectType?: "quality.approval_bundle_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+})[];
+};
+  readonly observedTargetVersion: Common.NonNegativeInteger;
+  readonly committedTargetVersion: Common.NonNegativeInteger;
+  readonly collectionHash: Common.ContentHash;
+  readonly observedLocalSources: readonly {
+  readonly ref: Common.TypedReference;
+  readonly aggregateVersion?: Common.NonNegativeInteger;
+  readonly payloadHash?: Common.ContentHash;
+}[];
+  readonly policyObservation: {
+  readonly policyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly contentHash: Common.ContentHash;
+  readonly effectiveFrom: Common.UtcInstant;
+  readonly supersededAt?: Common.UtcInstant;
+};
+  readonly sourceFacts: readonly {
+  readonly ref: Common.TypedReference;
+  readonly owner: Common.NamespaceCode;
+  readonly observationHash: Common.ContentHash;
+  readonly observedAt: Common.UtcInstant;
+}[];
+  readonly factRefs: readonly Common.TypedReference[];
+  readonly blockerRefs: readonly Common.TypedReference[];
+  readonly criterionResults: readonly ({
+  readonly criterionId: string;
+  readonly criterionType: "EXPECTED_OUTPUT_PRESENT" | "OUTPUT_REF_VALID" | "OUTPUT_CREATED_BY_WORK_ORDER" | "OUTPUT_SCHEMA_VALID" | "OUTPUT_WITHIN_TARGET_SCOPE" | "NO_BLOCKING_INFORMATION_REQUEST" | "REQUIRED_PROPOSAL_PROCESSED" | "EXPECTED_OUTPUTS_SATISFIED" | "REQUIRED_WORK_ORDERS_COMPLETED" | "REVISION_ACCEPTANCE_READY" | "REVISION_FULLY_APPROVED";
+  readonly required: true;
+  readonly outcome: "SATISFIED" | "UNSATISFIED" | "STALE";
+  readonly factRefs: readonly Common.TypedReference[];
+  readonly reasonCodes: readonly ("COMPLETION_OUTPUT_MISSING" | "COMPLETION_OUTPUT_INVALID" | "COMPLETION_PROVENANCE_INVALID" | "COMPLETION_SCHEMA_INVALID" | "COMPLETION_SCOPE_INVALID" | "COMPLETION_ACTIVE_RUN" | "COMPLETION_BLOCKING_REQUEST" | "COMPLETION_UNPROCESSED_FINAL" | "COMPLETION_CHILD_NOT_USABLE" | "COMPLETION_QUALITY_NOT_USABLE" | "COMPLETION_EXPIRED" | "COMPLETION_POLICY_NOT_USABLE" | "COMPLETION_SOURCE_CHANGED" | "COMPLETION_EVALUATION_SUPERSEDED")[];
+})[];
+  readonly outcome: "SATISFIED" | "UNSATISFIED";
+  readonly completionTransition: boolean;
+};
+  export type FormalCompletionInput = {
+  readonly policyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly evaluatorRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.execution.evaluator_profile";
+};
+};
+  export type FormalCompletionResult = {
+  readonly evaluationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.completion_evaluation";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly outcome: "SATISFIED" | "UNSATISFIED";
+  readonly transitioned: boolean;
+  readonly completionUseStatus: "USABLE" | "STALE" | "REVOKED";
+};
+  export type OutputCreationBinding = {
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly runAggregateVersion: Common.NonNegativeInteger;
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly workOrderContractRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.contract.work_order";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly contextSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.execution.context_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly outputSpec: Core.ExpectedOutput;
+  readonly controlsPolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly capabilityGrantRef: Common.ContentAddressedRef;
+  readonly startedAt: Common.UtcInstant;
+  readonly validUntil: Common.UtcInstant;
+};
   export type TaskStatus = "DRAFT" | "BACKLOG" | "READY" | "IN_PROGRESS" | "WAITING_INPUT" | "BLOCKED" | "IN_REVIEW" | "CHANGES_REQUIRED" | "COMPLETION_PENDING" | "COMPLETED" | "CANCELLED";
   export type WorkOrderStatus = "DRAFT" | "READY" | "QUEUED" | "RUNNING" | "WAITING_INPUT" | "COMPLETION_PENDING" | "RETRY_PENDING" | "COMPLETED" | "FAILED" | "CANCELLED" | "EXPIRED";
   export type RunStatus = "CREATED" | "STARTING" | "RUNNING" | "SUSPENDED" | "CANCELLING" | "RESULT_RECORDED" | "SUCCEEDED" | "INVALID_RESULT" | "FAILED" | "TIMED_OUT" | "CANCELLED" | "ABANDONED" | "INVALIDATED";
@@ -993,5 +1178,95 @@ export namespace TaskExecution {
   readonly activeRunRef?: Common.ObjectRef & {
   readonly objectType?: "execution.run";
 };
+};
+  /** Payload of `execution.evaluate_work_order_completion` (COMMAND). */
+  export type ExecutionEvaluateWorkOrderCompletionV20Payload = TaskExecution.FormalCompletionInput;
+  /** Result of `execution.evaluate_work_order_completion` (COMMAND). */
+  export type ExecutionEvaluateWorkOrderCompletionV20Result = TaskExecution.FormalCompletionResult;
+  /** Payload of `execution.evaluate_task_completion` (COMMAND). */
+  export type ExecutionEvaluateTaskCompletionV20Payload = TaskExecution.FormalCompletionInput;
+  /** Result of `execution.evaluate_task_completion` (COMMAND). */
+  export type ExecutionEvaluateTaskCompletionV20Result = TaskExecution.FormalCompletionResult;
+  /** Payload of `execution.get_output_creation_binding` (QUERY). */
+  export type ExecutionGetOutputCreationBindingPayload = {
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
+  /** Result of `execution.get_output_creation_binding` (QUERY). */
+  export type ExecutionGetOutputCreationBindingResult = TaskExecution.OutputCreationBinding;
+  /** Payload of `execution.get_work_order_state` (QUERY). */
+  export type ExecutionGetWorkOrderStatePayload = {
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
+  /** Result of `execution.get_work_order_state` (QUERY). */
+  export type ExecutionGetWorkOrderStateResult = {
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly aggregateVersion: Common.NonNegativeInteger;
+  readonly contractRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.contract.work_order";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly status: TaskExecution.WorkOrderStatus;
+  readonly runRefs: readonly (Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+})[];
+  readonly blockerRefs: readonly Common.TypedReference[];
+  readonly completionUseStatus: "NOT_EVALUATED" | "USABLE" | "STALE" | "REVOKED";
+  readonly completionEvaluationRef?: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.completion_evaluation";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
+  /** Payload of `execution.get_execution_judgment` (QUERY). */
+  export type ExecutionGetExecutionJudgmentPayload = {
+  readonly judgmentRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.completion_evaluation";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
+  /** Result of `execution.get_execution_judgment` (QUERY). */
+  export type ExecutionGetExecutionJudgmentResult = {
+  readonly judgmentRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.completion_evaluation";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly evaluation: TaskExecution.CompletionEvaluation;
+  readonly useStatus: "USABLE" | "STALE" | "REVOKED";
+  readonly reasonCodes: readonly ("COMPLETION_OUTPUT_MISSING" | "COMPLETION_OUTPUT_INVALID" | "COMPLETION_PROVENANCE_INVALID" | "COMPLETION_SCHEMA_INVALID" | "COMPLETION_SCOPE_INVALID" | "COMPLETION_ACTIVE_RUN" | "COMPLETION_BLOCKING_REQUEST" | "COMPLETION_UNPROCESSED_FINAL" | "COMPLETION_CHILD_NOT_USABLE" | "COMPLETION_QUALITY_NOT_USABLE" | "COMPLETION_EXPIRED" | "COMPLETION_POLICY_NOT_USABLE" | "COMPLETION_SOURCE_CHANGED" | "COMPLETION_EVALUATION_SUPERSEDED")[];
+  readonly checkedAt: Common.UtcInstant;
+  readonly sourceWatermarks: readonly Common.SourceWatermark[];
 };
 }

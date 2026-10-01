@@ -80,3 +80,5 @@ export type {
 
 export { createBlockedInputRecoveryWorker } from './blocked-input-recovery-worker.js';
 export type { BlockedInputRecoveryWorkerConfig } from './blocked-input-recovery-worker.js';
+
+export * from './formal-completion-entry.js';

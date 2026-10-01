@@ -1,0 +1,71 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d437",
+  "commandType": "execution.evaluate_task_completion",
+  "commandVersion": "2.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.task",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d432",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "execution-build-context-snapshot-fixture",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d438",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "policyRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.identity.policy",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d451",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d452",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "evaluatorRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.execution.evaluator_profile",
+      "objectId": "0199b600-0000-7000-8000-000000000204",
+      "versionId": "0199b600-0000-7000-8000-000000000214",
+      "scope": {}
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "ae70004f246e6a909334d927d748ecc8977a23ffea15741e72de1bfe808f1b8c"
+    }
+  },
+  "expectedAggregateVersion": 1
+}

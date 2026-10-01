@@ -55,7 +55,8 @@ export type RecoveryConsumer =
   | 'result_validate'
   | 'result_accept'
   | 'run_finalize'
-  | 'driver_template';
+  | 'driver_template'
+  | 'output_creation';
 export interface RecoveryPorts {
   readonly now: () => Date;
   readonly trustedEntryAt: string;

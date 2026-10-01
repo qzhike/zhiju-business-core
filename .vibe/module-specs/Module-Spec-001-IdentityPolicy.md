@@ -864,12 +864,12 @@ IP内部 `readRecoveryHumanEligibility` payload closed `{principalRef,scopeRef,r
 
 Bundle issue的新Context分支只接受Spec003 §24.5的FROZEN eligibility Port，读取仍从TE owning边界；新的Bundle canonical payload不增字段，Run-2的ContextRef、original ContractRef、预分配RunRef、SERVICE subject与当前covering Grants精确一致。validUntil同时受原Contract/Context/Resolution当前资格、Policy/Decision和Capability期限约束；旧Bundle/Grant不因Human答案获得新权限。由本profile选中的控制Policy @1.1必须真实登记且当前精确有效，不由旧@1.0或历史freeze授权回退。
 
-历史IP证明的实现缺口须明确作为内部增量交付：EP只保存Decision/ActorSnapshot identity，而现行 `validateAuthorizationDecision` 入口要求caller提供contentHash且按当前now检查expiry，不能直接拿它消费无Hash的EP attestation或在其中加历史放行开关。`readRecoveryHumanEligibility` 在自身当前授权下由IP新增窄 identity+ProjectScope 定位读取，先对真实Decision row执行 `authorizationDecisionIntegrityHolds` 的canonical hash/列镜像校验，再按该已验证row保存的actor_snapshot_id+payload_hash调用owning ActorSnapshot exact读取，核对EP的ActorSnapshot identity/Scope和Human归因；时间比较使用真实committedAt与持久决定的签发/expiry，不更改旧current validator。其当前Role/Grant部分继续调用现有IP current access/分类边界，不能因历史ALLOW跳过。任何身份不可查、storedhash不符、operation/version/target/Scope/session/requestHash错配均返回内部INVALID_PROVENANCE，TE映射EXECUTION_RESOLUTION_RECEIPT_INVALID；当前读取无权/到期沿用共享授权拒绝。无新IP public Query、无跨SchemaSQL、无Caller自报Policy状态，也不把新增内部读取说成已存在功能。
+历史IP证明的实现缺口须明确作为内部增量交付：EP只保存Decision/ActorSnapshot identity，而现行 `validateAuthorizationDecision` 入口要求caller提供contentHash且按当前now检查expiry，不能直接拿它消费无Hash的EP attestation或在其中加历史放行开关。`readRecoveryHumanEligibility` 在自身当前授权下由IP新增窄 identity+ProjectScope 定位读取，先对真实Decision row执行 `authorizationDecisionIntegrityHolds` 的canonical hash/列镜像校验，再按该已验证row保存的actor_snapshot_id+payload_hash调用owning ActorSnapshot exact读取，核对EP的ActorSnapshot identity/Scope和Human归因；时间比较使用真实committedAt与持久决定的签发/expiry，不更改旧current validator。新确认 Decision 的 canonical `requestedAt` 由 owning 签发入口的受信应用时钟记录，与 expiry 使用同一次时钟观察；它作为历史签发起点，避免将数据库插入时间 `created_at` 与应用提交时间混作同一时钟。旧无该字段的已发布 Decision 保留既有 `created_at` 回退，提交早于签发或达到 expiry 仍拒绝。其当前Role/Grant部分继续调用现有IP current access/分类边界，不能因历史ALLOW跳过。任何身份不可查、storedhash不符、operation/version/target/Scope/session/requestHash错配均返回内部INVALID_PROVENANCE，TE映射EXECUTION_RESOLUTION_RECEIPT_INVALID；当前读取无权/到期沿用共享授权拒绝。无新IP public Query、无跨SchemaSQL、无Caller自报Policy状态，也不把新增内部读取说成已存在功能。
 
 
 ### 15.15 IM06-COMPLETION 独立授权组成（提案，#233）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / NOT IMPLEMENTED`。服务 [Spec 003 §25](Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233) / Spec 004 §12；没有IdentityPolicy新增公开操作/Grant/PolicySnapshot lifecycle。本节所有映射为待登记的受信composition配置；不采用自由purpose/action通配，不能从caller配置生成授权。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION PRESENT IN #235 / FINAL VERIFICATION AND REVIEW PENDING`。服务 [Spec 003 §25](Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233) / Spec 004 §12；没有IdentityPolicy新增公开操作/Grant/PolicySnapshot lifecycle。本节所有映射已实现为受信composition配置；不采用自由purpose/action通配，不能从caller配置生成授权。
 
 | 自身边界 | Principal allowlist | 精确Purpose | action / config key | target selector |
 |---|---|---|---|---|

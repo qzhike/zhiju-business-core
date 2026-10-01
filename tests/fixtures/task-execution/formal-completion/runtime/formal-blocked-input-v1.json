@@ -1,0 +1,7 @@
+{
+  "templateId": "formal-blocked-input-v1",
+  "templateVersion": "1.0",
+  "runtimeAdapterProfile": "te.human_operated.synthetic.formal@1.0",
+  "executionOutcome": "BLOCKED_INPUT",
+  "businessOutputs": "EMPTY"
+}

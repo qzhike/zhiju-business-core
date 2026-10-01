@@ -11,7 +11,8 @@
     "src/generated/policy-profiles.json",
     "src/generated/evaluator-profiles.json",
     "src/generated/task-execution-creation-purposes.json",
-    "src/generated/work-order-ready-profiles.json"
+    "src/generated/work-order-ready-profiles.json",
+    "src/generated/artifact-execution-schemas.json"
   ],
   "references": [
     {

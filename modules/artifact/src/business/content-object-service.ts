@@ -3,7 +3,12 @@
 // this service. The object-storage port is never treated as a database.
 
 import type { Kysely } from 'kysely';
-import { ContractRegistry, type Artifact, type Common } from '@zhiju/contracts';
+import {
+  ContractRegistry,
+  isExecutionDocumentSchema,
+  type Artifact,
+  type Common,
+} from '@zhiju/contracts';
 import {
   canonicalizeCanonicalContentPayload,
   contentHash,
@@ -162,7 +167,12 @@ function validatedSchemaRef(
   const schemaRef = record(payload.schemaRef);
   const scope = record(schemaRef.scope);
   const enterpriseId = scope.enterpriseId;
-  const projectId = scope.projectId;
+  const projectId =
+    isExecutionDocumentSchema(payload.schemaRef, context.enterpriseId) &&
+    envelope.projectId !== undefined &&
+    context.allowedProjectIds.includes(envelope.projectId)
+      ? envelope.projectId
+      : scope.projectId;
   const expectedObjectType =
     payload.contentType === 'STRUCTURED_DOCUMENT'
       ? 'artifact.canonical_document_schema'

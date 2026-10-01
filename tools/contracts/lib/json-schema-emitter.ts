@@ -210,6 +210,8 @@ function renderVariantBody(
 
 export function renderObject(schema: SchemaObject, context: EmitContext): string {
   const props = isObject(schema.properties) ? schema.properties : {};
+  if (Object.keys(props).length === 0 && schema.additionalProperties === false)
+    return 'Record<string, never>';
   const required = Array.isArray(schema.required)
     ? schema.required.filter((v): v is string => typeof v === 'string')
     : [];

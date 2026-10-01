@@ -30,6 +30,14 @@ import type {
   ControlledFinalProgressAdvance,
 } from './controlled-final-progress.js';
 
+import {
+  isFormalContract,
+  formalCriteria,
+  formalEvaluator,
+  formalSelector,
+  FORMAL_RESULT_VALIDATOR,
+  verifyFormalOutput,
+} from './formal-output.js';
 const registry = new ContractRegistry();
 const RUN = 'execution.run';
 const RESULT = 'execution.agent_result';
@@ -40,6 +48,7 @@ const validationKinds = ['SCHEMA', 'IDENTITY', 'RUN_BINDING', 'SCOPE', 'BUSINESS
 type RunRow = Selectable<RunTable>;
 
 export interface ControlledFinalPorts {
+  readonly readExecutionOutput?: (revisionRef: CanonicalJsonObject) => Promise<CanonicalJsonObject>;
   readonly readRecoveryMaterial?: (input: CanonicalJsonObject) => Promise<CanonicalJsonObject>;
   readonly readFrozenEligibility?: (
     contextRef: CanonicalJsonObject,
@@ -192,6 +201,7 @@ async function evidence(
   envelope: CommandEnvelope,
   ports: ControlledFinalPorts,
   requireCurrent = true,
+  verifyOutputs = false,
 ) {
   const subjectScope = scope(envelope);
   const runRef = ref('OBJECT', RUN, run.run_id, subjectScope);
@@ -253,7 +263,9 @@ async function evidence(
       same(result.submittedByRuntime, adapterRef) &&
       result.submissionKind === 'FINAL' &&
       Array.isArray(result.businessOutputs) &&
-      result.businessOutputs.length === 0 &&
+      (isFormalContract(frozenContract)
+        ? result.businessOutputs.length <= 1
+        : result.businessOutputs.length === 0) &&
       Array.isArray(result.workspaceOutputs) &&
       result.workspaceOutputs.length === 0 &&
       Array.isArray(result.findings) &&
@@ -316,6 +328,28 @@ async function evidence(
       object(provenance.model).modelId === 'synthetic' &&
       same(object(provenance.model).modelConfigHash, object(run.runtime_binding).modelConfigHash),
   );
+  const outputFacts: CanonicalJsonObject[] = [];
+  if (isFormalContract(frozenContract)) {
+    formalCriteria(frozenContract);
+    if (verifyOutputs) {
+      for (const output of result.businessOutputs as CanonicalJsonValue[]) {
+        requireThat(ports.readExecutionOutput !== undefined, 'DEPENDENCY_UNAVAILABLE');
+        const fact = await ports.readExecutionOutput(object(object(output).ref));
+        const verified = verifyFormalOutput({
+          contract: frozenContract,
+          runRef,
+          contextRef: object(run.context_snapshot_ref),
+          contractRef: object(run.work_order_contract_ref),
+          output: object(output),
+          fact,
+          submittedAt: textValue(result.submittedAt),
+          startedAt: run.started_at.toISOString(),
+        });
+        requireThat(verified.usable, 'EXECUTION_JUDGMENT_STALE');
+        outputFacts.push(fact);
+      }
+    }
+  }
   const bundleRef = object(run.capability_grant_ref);
   let policyObservation: Awaited<ReturnType<ControlledFinalPorts['resolveControls']>> | undefined;
   let validUntil = Math.min(run.execution_deadline.getTime(), run.lease_expires_at.getTime());
@@ -349,6 +383,8 @@ async function evidence(
     resultHash,
     validUntil,
     policyObservation,
+    outputFacts,
+    frozenContract,
   };
 }
 
@@ -636,7 +672,15 @@ export async function recoverControlledFinalRuns(
         );
         const evaluatorRef = registeredEvaluatorProfileReference(
           'im06-evaluator-static-v1',
-          'te.agent_result_validation.evaluator@1.0',
+          same(object(object(object(final.agentResultContract).provenance).runtimeAdapterRef), {
+            kind: 'VERSIONED',
+            objectType: 'zhiju.runtime.adapter_contract',
+            objectId: '0199b600-0000-7000-8000-000000000301',
+            versionId: '0199b600-0000-7000-8000-000000000311',
+            scope: {},
+          })
+            ? FORMAL_RESULT_VALIDATOR
+            : 'te.agent_result_validation.evaluator@1.0',
         );
         requireThat(evaluatorRef !== undefined);
         command = {
@@ -995,7 +1039,8 @@ export async function handleValidateFinalResult(
   );
   requireThat(
     evaluator !== undefined &&
-      same(evaluator, request.evaluatorRef) &&
+      (same(evaluator, request.evaluatorRef) ||
+        formalEvaluator(request.evaluatorRef, FORMAL_RESULT_VALIDATOR)) &&
       runRef.objectType === RUN &&
       same(runRef.scope, scope(envelope)),
   );
@@ -1051,7 +1096,7 @@ export async function handleValidateFinalResult(
           same(run.lease_policy_ref, request.policyRef) &&
           same(run.start_attempt_ref, request.runtimeAttemptRef),
       );
-      const proof = await evidence(execution.trx, run, envelope, ports);
+      const proof = await evidence(execution.trx, run, envelope, ports, true, true);
       requireThat(proof.policyObservation !== undefined);
       const result = await execution.trx
         .selectFrom('task_execution.agent_result')
@@ -1090,6 +1135,15 @@ export async function handleValidateFinalResult(
           },
         } as const;
       }
+      requireThat(
+        same(
+          request.evaluatorRef,
+          isFormalContract(proof.frozenContract)
+            ? formalSelector(FORMAL_RESULT_VALIDATOR)
+            : evaluator,
+        ),
+        'EXECUTION_CRITERION_UNSUPPORTED',
+      );
       const now = ports.now();
       const validUntil = new Date(proof.validUntil).toISOString();
       requireThat(now.getTime() < proof.validUntil);
@@ -1113,6 +1167,9 @@ export async function handleValidateFinalResult(
           policyRef: object(request.policyRef),
           evaluatorRef: object(request.evaluatorRef),
           status: 'SATISFIED',
+          ...(kind === 'BUSINESS_OUTPUT' && isFormalContract(proof.frozenContract)
+            ? { outputFacts: proof.outputFacts }
+            : {}),
           evaluatedAt: now.toISOString(),
           validUntil,
         };
@@ -1330,7 +1387,7 @@ export async function handleAcceptFinalResult(
       live(run, ports.now());
       await activeClaim(execution.trx, run);
       requireThat(run.status === 'RESULT_RECORDED' && same(run.result_ref, resultRef));
-      const proof = await evidence(execution.trx, run, envelope, ports);
+      const proof = await evidence(execution.trx, run, envelope, ports, true, true);
       requireThat(result.result_payload_hash.toString('hex') === proof.resultHash);
       const bundle = await execution.trx
         .selectFrom('task_execution.result_validation_bundle')
@@ -1458,7 +1515,9 @@ export async function handleAcceptFinalResult(
             acceptanceRecordRef: committedRef,
             runRef: proof.runRef,
             workOrderRef: object(run.work_order_ref),
-            businessOutputRefs: [],
+            businessOutputRefs: (proof.result.businessOutputs as CanonicalJsonValue[]).map(
+              (output) => object(output).ref as CanonicalJsonObject,
+            ),
           },
           ports.now(),
         ),
@@ -1518,7 +1577,7 @@ export async function handleFinalizeFirstRun(
         run.status === 'RESULT_RECORDED' &&
           run.aggregate_version === envelope.expectedAggregateVersion,
       );
-      const proof = await evidence(execution.trx, run, envelope, ports);
+      const proof = await evidence(execution.trx, run, envelope, ports, true, true);
       const acceptance = await execution.trx
         .selectFrom('task_execution.agent_result_acceptance')
         .selectAll()

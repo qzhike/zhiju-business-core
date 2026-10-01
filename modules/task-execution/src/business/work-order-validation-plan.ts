@@ -19,6 +19,8 @@ import {
   validateContextBuilderPolicy,
 } from './policy-profiles.js';
 
+import { isFormalContract, formalCriteria, FORMAL_VALIDATOR } from './formal-output.js';
+
 const registry = new ContractRegistry();
 
 export function object(value: unknown): CanonicalJsonObject {
@@ -225,9 +227,14 @@ export function evaluateWorkOrderPlan(input: WorkOrderPlanInput) {
       (metadata.policySupersededAt ?? null) === (bp.supersededAt ?? null),
   );
   requireThat(same(pins.capabilityPolicyRef, cp.policyRef));
+  const formal = isFormalContract(c);
   const staticInputs = [
     ['WORK_ORDER_SCHEMA', pins.workOrderSchemaRef, 'core.work_order@1.0'],
-    ['RUNTIME_ADAPTER', pins.runtimeAdapterContractRef, 'te.human_operated.synthetic@1.0'],
+    [
+      'RUNTIME_ADAPTER',
+      pins.runtimeAdapterContractRef,
+      formal ? 'te.human_operated.synthetic.formal@1.0' : 'te.human_operated.synthetic@1.0',
+    ],
     ['EXECUTION_RISK', object(c.riskAndQuality).riskProfileRef, 'te.work_order.human_review@1.0'],
   ] as const;
   for (const [role, ref, key] of staticInputs) {
@@ -245,7 +252,7 @@ export function evaluateWorkOrderPlan(input: WorkOrderPlanInput) {
   requireThat(same(header.schemaRef, pins.workOrderSchemaRef));
   const evaluator = evaluatorProfileRegistry.profiles.find(
     (p) =>
-      p.registryKey === 'te.work_order_validation.evaluator@1.0' &&
+      p.registryKey === (formal ? FORMAL_VALIDATOR : 'te.work_order_validation.evaluator@1.0') &&
       same(p.reference, input.evaluatorRef),
   );
   supported(evaluator !== undefined);
@@ -267,15 +274,24 @@ export function evaluateWorkOrderPlan(input: WorkOrderPlanInput) {
   empty(pins.templateRefs);
   supported(
     pins.regulatoryProfileRef === undefined &&
-      pins.qualityProfileRef === undefined &&
-      object(c.riskAndQuality).qualityProfileRef === undefined,
+      (formal
+        ? same(pins.qualityProfileRef ?? null, object(c.riskAndQuality).qualityProfileRef ?? null)
+        : pins.qualityProfileRef === undefined &&
+          object(c.riskAndQuality).qualityProfileRef === undefined),
   );
   empty(object(c.objective).relatedIssueRefs);
   empty(object(c.objective).deliveryItemRefs);
   supported(
-    same(c.constraints, [
-      { constraintType: 'execution.work_order_controls', policyRef: cp.policyRef },
-    ]),
+    formal
+      ? same(c.constraints, [
+          {
+            profile: 'execution.completion_binding.v1',
+            policyRef: controls.rules.completionPolicyRef,
+          },
+        ])
+      : same(c.constraints, [
+          { constraintType: 'execution.work_order_controls', policyRef: cp.policyRef },
+        ]),
   );
   const controlsValue = controls.rules.controls as unknown as CanonicalJsonObject;
   const policyRefs = (value: CanonicalJsonObject) => {
@@ -313,10 +329,12 @@ export function evaluateWorkOrderPlan(input: WorkOrderPlanInput) {
     ])
       empty(target[k]);
     supported(
-      same(target.allowedCreateTypes, [
-        'zhiju.artifact.artifact',
-        'zhiju.artifact.artifact_revision',
-      ]),
+      same(
+        target.allowedCreateTypes,
+        formal
+          ? ['artifact.artifact', 'artifact.artifact_revision']
+          : ['zhiju.artifact.artifact', 'zhiju.artifact.artifact_revision'],
+      ),
     );
     supported(
       same(risk.riskProfileRef, object(c.riskAndQuality).riskProfileRef) &&
@@ -393,22 +411,29 @@ export function evaluateWorkOrderPlan(input: WorkOrderPlanInput) {
     for (const outValue of outputs) {
       const out = object(outValue);
       supported(
-        same(out.allowedObjectTypes, ['zhiju.artifact.artifact_revision']) &&
+        same(out.allowedObjectTypes, [
+          formal ? 'artifact.artifact_revision' : 'zhiju.artifact.artifact_revision',
+        ]) &&
           out.requiredReferenceStrength === 'CONTENT_ADDRESSED' &&
           out.creationRequired === true &&
-          out.schemaRef === undefined &&
+          (formal
+            ? same(out.schemaRef, object(array(c.expectedOutputs)[0]).schemaRef)
+            : out.schemaRef === undefined) &&
           out.qualityStageRequired === undefined &&
           out.requiredTargetRelation === undefined,
       );
     }
   }
+  if (formal) formalCriteria(c);
   const criteria = array(c.completionCriteria);
   ordered(criteria, (x) => textValue(object(x).criterionId));
   for (const val of criteria) {
     const crit = object(val);
     supported(
-      criterionTypes.includes(textValue(crit.criterionType)) &&
-        same(crit.evaluatorRef, input.evaluatorRef),
+      formal
+        ? true
+        : criterionTypes.includes(textValue(crit.criterionType)) &&
+            same(crit.evaluatorRef, input.evaluatorRef),
     );
     supported(
       crit.failureDisposition === 'block_until_satisfied' ||
@@ -421,9 +446,11 @@ export function evaluateWorkOrderPlan(input: WorkOrderPlanInput) {
       (out) => `expectedOutput.${textValue(object(out).outputSlot)}` === binding[0],
     );
     supported(
-      crit.criterionType === 'NO_BLOCKING_INFORMATION_REQUEST'
-        ? binding[0] === 'informationRequests'
-        : slot !== undefined,
+      crit.criterionType === 'REQUIRED_PROPOSAL_PROCESSED' && formal
+        ? binding[0] === 'requiredProposals'
+        : crit.criterionType === 'NO_BLOCKING_INFORMATION_REQUEST'
+          ? binding[0] === 'informationRequests'
+          : slot !== undefined,
     );
     supported(
       crit.expectedCondition === 'satisfied' ||

@@ -1,3 +1,4 @@
+import type { FormalCompletionPorts } from './formal-completion.js';
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import { ContractRegistry } from '@zhiju/contracts';
@@ -220,6 +221,7 @@ export async function handleGetTaskExecutionState(
   context: TaskExecutionTransactionContext,
   ref: CanonicalJsonObject,
   ports: RecoveryPorts,
+  completion?: FormalCompletionPorts,
 ) {
   await recoveryGuard(ports);
   const result = await withTaskExecutionTransaction(db, context, async (trx) => {
@@ -272,6 +274,21 @@ export async function handleGetTaskExecutionState(
       ),
       blockerRefs: canonicalSet(blockerRefs),
       completionUseStatus: 'NOT_EVALUATED',
+      ...(root.current_completion_evaluation_id && root.current_completion_evaluation_hash
+        ? {
+            completionEvaluationRef: {
+              kind: 'CONTENT_ADDRESSED',
+              objectType: 'zhiju.execution.completion_evaluation',
+              objectId: root.current_completion_evaluation_id,
+              scope,
+              contentHash: {
+                algorithm: 'SHA-256',
+                canonicalizationVersion: '1',
+                digest: root.current_completion_evaluation_hash.toString('hex'),
+              },
+            },
+          }
+        : {}),
     };
     requireThat(
       registry.validateOperationResult('execution.get_task_state', '1.0', view).valid,
@@ -279,6 +296,18 @@ export async function handleGetTaskExecutionState(
     );
     return view;
   });
+  if (result.completionEvaluationRef) {
+    requireThat(completion, 'DEPENDENCY_UNAVAILABLE');
+    const { handleGetFormalCompletionJudgment } = await import('./formal-completion.js');
+    const current = await handleGetFormalCompletionJudgment(
+      db,
+      context,
+      result.completionEvaluationRef,
+      completion,
+    );
+    result.completionUseStatus =
+      current.useStatus === 'REVOKED' ? 'INVALIDATED' : current.useStatus;
+  }
   await recoveryGuard(ports);
   return result;
 }

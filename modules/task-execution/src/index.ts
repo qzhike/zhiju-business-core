@@ -370,3 +370,8 @@ export {
   type RecoveryProcessProgress,
   type RecoveryProcessPorts,
 } from './business/blocked-input-recovery-process.js';
+
+export * from './business/formal-completion.js';
+export * from './business/output-creation-binding.js';
+
+export type { DependencyCompletionPort } from './business/task-readiness-plan.js';

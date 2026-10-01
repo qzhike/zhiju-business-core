@@ -1,10 +1,10 @@
 # IM-06 正式输出与独立 Completion Spec Delta（#233）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION NOT STARTED`。基线为执行时读回的 `main@8d15943f4c28a6a7b4c177571d04c773f74d5238`。本设计只交付一个可用结果的详细语义：授权 Human 经 Artifact owning 入口创建正式输出，受控 Run 真实报告该输出，TE 独立完成 WorkOrder/Task，并提供历史 Evaluation 与当前可用性权威读回。设计审查、明确人类设计批准、未来实现与业务验收是不同门禁；发布本 PR 不关闭 #233 或 IM-06。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-09-30 / IMPLEMENTATION PRESENT IN #235 / FINAL VERIFICATION AND REVIEW PENDING`。基线为执行时读回的 `main@8d15943f4c28a6a7b4c177571d04c773f74d5238`。本设计及 #235 实现限定一个可用结果的详细语义：授权 Human 经 Artifact owning 入口创建正式输出，受控 Run 真实报告该输出，TE 独立完成 WorkOrder/Task，并提供历史 Evaluation 与当前可用性权威读回。设计审查、明确人类设计批准、未来实现与业务验收是不同门禁；发布本 PR 不关闭 #233 或 IM-06。
 
 ## 1. 对账与变更分类
 
-当前 Registry 230 项、TaskExecution 57 项，历史 compatibility baseline 200 项不变。对账来源为 `contracts/src/operations/{task-execution,artifact}.schema.ts`、`contracts/registry/{public-api,evaluator-profiles,policy-profiles}.v1.json` 及 owning 实现，不能从设计清单推断 Handler 已交付。
+设计前基线 Registry 230 项、TaskExecution 57 项；#235 实现后的 Registry 237 项、TaskExecution 62 项，历史 compatibility baseline 200 项不变。对账来源为 `contracts/src/operations/{task-execution,artifact}.schema.ts`、`contracts/registry/{public-api,evaluator-profiles,policy-profiles}.v1.json` 及 owning 实现，不能从设计清单推断 Handler 已交付。
 
 | 当前事实 / 证据位置 | 本轮拟议 Delta | 分类 |
 |---|---|---|
@@ -49,3 +49,15 @@
 用户在收到PR #234、最终head `f0cc2b29a326e526602dbdc30fbb9215670e973d`、独立技术复审PASS及明确批准请求后，于本协作会话回复“批准了”。批准对应该PR呈现的具体详细设计；其业务语义为独立reviewed revision `f7d9406b6640e3aea4e86be77d6c0d3a53430eea`，f0cc2b2只增加正式审查记录与状态metadata。本次更新只记录批准事实，不改变设计语义。
 
 批准范围涵盖上述新冻结profile/owning身份、后向Result来源关联、Completion v2与immutable Evaluation、授权/集合并发、Quality exact选择/current有效性、refresh、权威Query/Readiness及未来验收矩阵。TD-05–07、实际Grant PolicySnapshot lifecycle延后及既有非目标不被扩张。明确设计批准门禁已满足；合并、后续实现Issue发布及产品实现仍须各自授权与届时main的NOW + READY复核，所有新增运行验收继续NOT RUN。
+
+### 4.2 TaskState兼容映射批准（2026-09-30）
+
+#235执行前真实Registry诊断确认：既有`get_task_state@1.0`仅接受`NOT_EVALUATED|USABLE|STALE|INVALIDATED`，而新Completion当前语义使用`REVOKED`。用户对明确修正方案回复“批准通过”：仅既有TaskState以`INVALIDATED`表达内部`REVOKED`；新增接口保留`REVOKED`，同步Spec 003 §25.6和API #233，不改变既有操作契约或237/62/200计数。该批准只修正兼容外观，不放宽当前资格或授权判据。
+
+### #235 forward migration 编号分配
+
+用户于2026-09-30明确批准两个有限编号例外：Artifact `V7008`与TaskExecution `V7009`，分别保留在各自目录并只修改各自Schema；IntegrationGateway不得重用。该分配在共用Flyway history既有`V7007`之后，不重编号已应用迁移、不启用out-of-order，也不改变其他模块号段。
+
+### 4.3 RevisionRef Hash 域限定修正批准（2026-09-30）
+
+#235 实现核对发现 Spec 004 §12 的“完整 snapshot Hash”与既有 §4.1、已发布 RevisionRef 及 SQL 的 CanonicalContentPayload Hash 域冲突，且完整 snapshot 包含自身 RevisionRef。用户在具体方案呈现后明确回复“批准限定修正，保持既有 Hash 域”。按此批准，RevisionRef 继续使用既有 CanonicalContentPayload Hash；owning Query 分别复验完整 RevisionSnapshot 的来源镜像、CreationBinding Hash 和 CreationReceipt Hash。该修正不改历史 Ref/Hash、已应用 migration 或 200 项兼容基线，不允许 caller 用 Ref Hash 替代来源绑定复验。

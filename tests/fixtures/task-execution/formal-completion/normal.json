@@ -1,0 +1,25 @@
+{
+  "fixtureVersion": "1.0",
+  "profile": "te.human_operated.synthetic.formal@1.0",
+  "taskCriteria": [
+    "EXPECTED_OUTPUTS_SATISFIED",
+    "NO_BLOCKING_INFORMATION_REQUEST",
+    "REQUIRED_WORK_ORDERS_COMPLETED"
+  ],
+  "workOrderCriteria": [
+    "EXPECTED_OUTPUT_PRESENT",
+    "OUTPUT_REF_VALID",
+    "OUTPUT_CREATED_BY_WORK_ORDER",
+    "OUTPUT_SCHEMA_VALID",
+    "OUTPUT_WITHIN_TARGET_SCOPE",
+    "NO_BLOCKING_INFORMATION_REQUEST"
+  ],
+  "runtimeTemplates": ["formal-completed-v1"],
+  "expected": {
+    "runCount": 1,
+    "workOrderStatus": "COMPLETED",
+    "taskStatus": "COMPLETED",
+    "completionUseStatus": "USABLE",
+    "completedEventsPerRoot": 1
+  }
+}

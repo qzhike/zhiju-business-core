@@ -1613,6 +1613,55 @@
       "authorizationPurpose": "execution.work_order.execution_state.read",
       "dataClassification": "CUSTOMER_CONFIDENTIAL",
       "semanticDeclaration": "im06-bounded-recovery-v1"
+    },
+    {
+      "type": "execution.evaluate_work_order_completion",
+      "version": "2.0",
+      "authorizationPurpose": "execution.work_order.evaluate_completion",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im06-formal-completion-v1"
+    },
+    {
+      "type": "execution.evaluate_task_completion",
+      "version": "2.0",
+      "authorizationPurpose": "execution.task.evaluate_completion",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im06-formal-completion-v1"
+    },
+    {
+      "type": "execution.get_output_creation_binding",
+      "version": "1.0",
+      "authorizationPurpose": "execution.run.output_creation_binding.read",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im06-formal-completion-v1"
+    },
+    {
+      "type": "execution.get_work_order_state",
+      "version": "1.0",
+      "authorizationPurpose": "execution.work_order.state.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "im06-formal-completion-v1"
+    },
+    {
+      "type": "execution.get_execution_judgment",
+      "version": "1.0",
+      "authorizationPurpose": "execution.judgment.read",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im06-formal-completion-v1"
+    },
+    {
+      "type": "artifact.create_execution_revision",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.execution_revision.create",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "im06-formal-completion-v1"
+    },
+    {
+      "type": "artifact.get_execution_output_fact",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.execution_output.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "im06-formal-completion-v1"
     }
   ]
 }

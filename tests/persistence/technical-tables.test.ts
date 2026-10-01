@@ -142,6 +142,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'delivery_plan_decision',
   ],
   task_execution: [
+    'completion_evaluation',
+    'completion_source_observation',
     'business_probe',
     'outbox_probe',
     // IM-06 (#204): Task Aggregate Root and its immutable TaskDefinition.
@@ -179,6 +181,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'recovery_process_command',
   ],
   artifact: [
+    'execution_revision_command_receipt',
+    'execution_revision_creation_binding',
     'business_probe',
     'outbox_probe',
     // IM-04 WI-03 (issue #92): Artifact Root and default Branch.

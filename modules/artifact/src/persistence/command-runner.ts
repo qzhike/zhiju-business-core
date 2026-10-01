@@ -194,13 +194,22 @@ export async function executeArtifactCommand(
   context: ArtifactTransactionContext,
   envelope: CommandEnvelope,
   body: (execution: CommandExecution) => Promise<CommandBodyResult>,
+  revalidate?: () => Promise<void>,
 ): Promise<CommandResult> {
+  await revalidate?.();
   assertEnvelopeMatchesContext(context, envelope);
   const requestDigest = digestCanonicalPayload(envelope.requestPayload);
 
   let outcome: Awaited<ReturnType<typeof runCommandTransaction>>;
   try {
-    outcome = await runCommandTransaction(db, context, envelope, requestDigest.hash, body);
+    outcome = await runCommandTransaction(
+      db,
+      context,
+      envelope,
+      requestDigest.hash,
+      body,
+      revalidate,
+    );
   } catch (error) {
     mapTransactionError(error);
   }
@@ -217,6 +226,7 @@ export async function executeArtifactCommand(
       'a command with the same idempotency key is still in flight',
     );
   }
+  await revalidate?.();
   return outcome.result;
 }
 
@@ -226,8 +236,10 @@ async function runCommandTransaction(
   envelope: CommandEnvelope,
   requestHash: Buffer,
   body: (execution: CommandExecution) => Promise<CommandBodyResult>,
+  revalidate?: () => Promise<void>,
 ) {
   return withArtifactTransaction(db, context, async (trx) => {
+    await revalidate?.();
     const claimed = await claimReceipt(trx, envelope, requestHash);
     if (!claimed) {
       const existing = await readReceipt(trx, envelope);
@@ -294,6 +306,7 @@ async function runCommandTransaction(
       } as const;
     }
 
+    await revalidate?.();
     const resultDigest = digestCanonicalPayload(bodyResult.resultPayload);
     await finalizeReceipt(trx, envelope, {
       outcome: 'COMMITTED',
@@ -306,6 +319,7 @@ async function runCommandTransaction(
       requestHash,
       resultHash: resultDigest.hash,
     });
+    await revalidate?.();
     return {
       kind: 'RESULT',
       result: {
@@ -428,8 +442,14 @@ function createExecution(trx: ArtifactTransaction, envelope: CommandEnvelope): C
         envelope.expectedAggregateVersion === undefined
           ? '1'
           : nextEventAggregateVersion(envelope.expectedAggregateVersion);
+      const aggregateType =
+        envelope.commandType === 'artifact.create_execution_revision' &&
+        envelope.commandVersion === '1.0' &&
+        envelope.targetType === 'artifact.artifact_revision'
+          ? 'ArtifactRevision'
+          : envelope.targetType;
       if (
-        event.aggregateType !== envelope.targetType ||
+        event.aggregateType !== aggregateType ||
         event.aggregateId !== envelope.targetId ||
         event.aggregateVersion !== expectedEventVersion
       ) {

@@ -1,0 +1,8 @@
+{
+  "registryKey": "artifact.execution_document.schema@1.0",
+  "owner": "artifact",
+  "objectType": "artifact.canonical_document_schema",
+  "objectId": "0199b600-0000-7000-8000-000000000401",
+  "versionId": "0199b600-0000-7000-8000-000000000411",
+  "schemaId": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/canonicalDocumentContent"
+}

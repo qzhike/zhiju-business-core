@@ -19,6 +19,8 @@ Forward-only Expand/Contract；一个业务 migration 只允许改一个 owning 
 
 Issue #231 reserves exactly `V7005`–`V7007` for the three TaskExecution recovery migrations. These files remain under `task_execution/` and change only that owning Schema. The IntegrationGateway range excludes these three reserved versions. This bounded allocation keeps the shared Flyway history forward-only after `V7004`; it does not enable out-of-order execution or renumber applied migrations.
 
+Issue #235 reserves exactly `V7008` for the Artifact execution-revision facts and `V7009` for TaskExecution formal completion, as explicitly approved by the user on 2026-09-30. Each migration remains in its owning directory and Schema. IntegrationGateway must not reuse either version. Other ranges remain unchanged; applied migrations are immutable and out-of-order execution remains disabled.
+
 命名规则：`V<4位版本>__<snake_case_description>.sql`。projection 的可重建对象随各模块区间发布，不单独拥有版本区间。
 
 `V0003` 的 Context 写入口只授予 NOLOGIN 的 `platform_context_establisher`；七模块

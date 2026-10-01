@@ -4114,6 +4114,8 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
         ORDER BY tgname`,
     );
     expect(triggers.rows.map((row) => row.tgname)).toEqual([
+      'completion_root_guard',
+      'completion_work_order_membership',
       'first_run_work_order_transition_guard',
       'work_order_draft_snapshot_creation_identity_guard',
       'work_order_draft_snapshot_immutable_guard',
@@ -4127,6 +4129,8 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
         ORDER BY polname`,
     );
     expect(policies.rows.map((row) => row.polname)).toEqual([
+      'completion_work_order_owner_select',
+      'completion_work_order_owner_update',
       'work_order_draft_snapshot_insert',
       'work_order_draft_snapshot_select',
       'work_order_insert',
@@ -4904,10 +4908,10 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(230);
+    expect(catalog.operations).toHaveLength(237);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(57);
+    ).toHaveLength(62);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );

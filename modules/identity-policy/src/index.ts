@@ -406,6 +406,15 @@ export type {
 
 export {
   BLOCKED_INPUT_RECOVERY_BINDINGS,
+  FORMAL_OUTPUT_RECOVERY_BINDINGS,
   createRecoveryAuthorizationPort,
   type RecoveryCapabilityCodes,
+} from './commands/work-order-validation-authorization.js';
+
+export {
+  createFormalCompletionAuthorizationPort,
+  formalCompletionBindings,
+  FORMAL_COMPLETION_CONSUMERS,
+  type FormalCompletionConsumer,
+  type FormalCompletionAuthorizationConfig,
 } from './commands/work-order-validation-authorization.js';

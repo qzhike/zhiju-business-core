@@ -229,9 +229,9 @@ WI-02 非目标：GateResult evaluation、ReviewIssue、Human Approval decision�
 
 ## #233 Completion 的现行资格消费设计用例
 
-不改变QG-TD已交付owning证据；新增TE消费层全部NOT RUN。
+不改变QG-TD已交付owning证据；#235新增TE消费层的有限owning/PG证据如下。
 
 | ID | 层级 / 输入 | 预期 | 实际 / 结果 |
 |---|---|---|---|---|
-| QG-COMP-D-001 | Cross-module Application + PostgreSQL / exact正式Revision/RAS、可选ABS与真实current eligibility | 适用criterion才读取、HUMAN与固定TE SERVICE均用自身独立Decision；冻结Profile/P1-P2分离、SelectionPort实际Refs与最新规则一致、同Revision/Profile/anchor且当前usable，未请求ABS为NOT_APPLICABLE | 未执行 / NOT RUN |
-| QG-COMP-D-002 | Cross-module Application + PostgreSQL / Gate失效、Approval撤销/new snapshot、错Hash/Scope、quality权限撤销/不可达 | Completion/Readiness current不可用或依赖拒绝；历史Snapshot/Evaluation不改；没有以历史READY覆盖false；current读取不重选Refs，refresh才生成新Evaluation.qualitySelection | 未执行 / NOT RUN |
+| QG-COMP-D-001 | Cross-module Application + PostgreSQL / exact正式Revision/RAS、可选ABS与真实current eligibility | 适用criterion才读取、HUMAN与固定TE SERVICE均用自身独立Decision；冻结Profile/P1-P2分离、SelectionPort实际Refs与最新规则一致、同Revision/Profile/anchor且当前usable，未请求ABS为NOT_APPLICABLE | OWNING/PG PASS：真实P1/P2 Profile、Gate/RAS/Approval/ABS，TE只选择frozen P1并消费已有#192 current eligibility；Selection/actual refs来自Quality owning事实，输出无Quality criterion不读取。 |
+| QG-COMP-D-002 | Cross-module Application + PostgreSQL / Gate失效、Approval撤销/new snapshot、错Hash/Scope、quality权限撤销/不可达 | Completion/Readiness current不可用或依赖拒绝；历史Snapshot/Evaluation不改；没有以历史READY覆盖false；current读取不重选Refs，refresh才生成新Evaluation.qualitySelection | OWNING/PG PASS（已执行）：同Profile新RAS/ABS使旧Evaluation STALE，refresh选新Refs；实际Approval revoke/Gate invalidate/Profile successor导致current不可用，历史不变。新TE Selection Grant真实撤销拒绝refresh、重新授予后恢复；新TE层逐项错Hash/Scope/不可达子项NOT RUN；已有#192相应用例单独保留。 |

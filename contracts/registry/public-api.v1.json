@@ -2501,6 +2501,82 @@
       ],
       "allowedConsistency": ["AUTHORITATIVE"],
       "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_work_order_execution_state_result"
+    },
+    {
+      "type": "execution.evaluate_work_order_completion",
+      "version": "2.0",
+      "kind": "COMMAND",
+      "owner": "task-execution",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "execution.work_order.evaluate_completion",
+      "dataClassification": "INTERNAL",
+      "targetObjectType": "zhiju.execution.work_order",
+      "concurrencyMode": "MUTATE",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_evaluate_work_order_completion_v2_0_result"
+    },
+    {
+      "type": "execution.evaluate_task_completion",
+      "version": "2.0",
+      "kind": "COMMAND",
+      "owner": "task-execution",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "execution.task.evaluate_completion",
+      "dataClassification": "INTERNAL",
+      "targetObjectType": "zhiju.execution.task",
+      "concurrencyMode": "MUTATE",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_evaluate_task_completion_v2_0_result"
+    },
+    {
+      "type": "execution.get_output_creation_binding",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "task-execution",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "execution.run.output_creation_binding.read",
+      "dataClassification": "INTERNAL",
+      "allowedConsistency": ["AUTHORITATIVE"]
+    },
+    {
+      "type": "execution.get_work_order_state",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "task-execution",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "execution.work_order.state.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "allowedConsistency": ["AUTHORITATIVE"]
+    },
+    {
+      "type": "execution.get_execution_judgment",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "task-execution",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "execution.judgment.read",
+      "dataClassification": "INTERNAL",
+      "allowedConsistency": ["AUTHORITATIVE"]
+    },
+    {
+      "type": "artifact.create_execution_revision",
+      "version": "1.0",
+      "kind": "COMMAND",
+      "owner": "artifact",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "artifact.execution_revision.create",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "targetObjectType": "artifact.artifact_revision",
+      "concurrencyMode": "CREATE",
+      "resultSchemaRef": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/artifact_create_execution_revision_result"
+    },
+    {
+      "type": "artifact.get_execution_output_fact",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "artifact",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "artifact.execution_output.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "allowedConsistency": ["AUTHORITATIVE"]
     }
   ]
 }

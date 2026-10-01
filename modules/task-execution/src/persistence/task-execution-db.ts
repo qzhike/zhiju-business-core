@@ -216,6 +216,12 @@ export interface ContractViolationTable {
  * satisfy the pointer by reusing the same `snapshot_id`.
  */
 export interface TaskTable {
+  current_completion_evaluation_id: Generated<string | null>;
+  current_completion_evaluation_hash: Generated<Buffer | null>;
+  first_completion_evaluation_id: Generated<string | null>;
+  first_completion_evaluation_hash: Generated<Buffer | null>;
+  completed_at: Generated<Date | null>;
+
   task_id: string;
   enterprise_id: string;
   project_id: string;
@@ -315,6 +321,12 @@ export interface ExecutionJudgmentTable {
  * may move in a later CAS transition.
  */
 export interface WorkOrderTable {
+  current_completion_evaluation_id: Generated<string | null>;
+  current_completion_evaluation_hash: Generated<Buffer | null>;
+  first_completion_evaluation_id: Generated<string | null>;
+  first_completion_evaluation_hash: Generated<Buffer | null>;
+  completed_at: Generated<Date | null>;
+
   work_order_id: string;
   enterprise_id: string;
   project_id: string;

@@ -182,19 +182,45 @@ export function validateWorkOrderControlsPolicy(input: {
 }): PolicyProfileValidationResult<{
   readonly controls: WorkOrderControls;
   readonly recovery?: RecoveryControls;
+  readonly completionPolicyRef?: Common.VersionedRef;
 }> {
   const declared = input.policySchemaRefs.map((ref) =>
     registeredPolicyProfileKey(POLICY_PROFILE_REGISTRY_VERSION, ref),
   );
+  const formal = declared.includes('execution.work_order_controls.policy@2.0');
   const recovery = declared.includes(RECOVERY_CONTROLS_POLICY_PROFILE_KEY);
+  if (formal && (recovery || declared.includes(WORK_ORDER_CONTROLS_POLICY_PROFILE_KEY)))
+    return { valid: false, ...profileNotDeclared('ambiguous controls version') };
   if (recovery && declared.includes(WORK_ORDER_CONTROLS_POLICY_PROFILE_KEY))
     return { valid: false, ...profileNotDeclared('ambiguous controls version') };
   return validateProfile(
-    recovery ? RECOVERY_CONTROLS_POLICY_PROFILE_KEY : WORK_ORDER_CONTROLS_POLICY_PROFILE_KEY,
+    formal
+      ? 'execution.work_order_controls.policy@2.0'
+      : recovery
+        ? RECOVERY_CONTROLS_POLICY_PROFILE_KEY
+        : WORK_ORDER_CONTROLS_POLICY_PROFILE_KEY,
     input,
     (document) => ({
       controls: structuredClone(document.controls) as WorkOrderControls,
-      ...(recovery ? { recovery: structuredClone(document.recovery) as RecoveryControls } : {}),
+      ...(recovery || (formal && document.recovery !== undefined)
+        ? { recovery: structuredClone(document.recovery) as RecoveryControls }
+        : {}),
+      ...(formal
+        ? {
+            completionPolicyRef: structuredClone(
+              document.completionPolicyRef,
+            ) as Common.VersionedRef,
+          }
+        : {}),
     }),
   );
+}
+
+export function validateCompletionPolicy(input: {
+  policySchemaRefs: readonly unknown[];
+  policyDocument: unknown;
+}) {
+  return validateProfile('execution.completion.policy@1.0', input, (document) => ({
+    maxCompletionValiditySeconds: document.maxCompletionValiditySeconds as number,
+  }));
 }
