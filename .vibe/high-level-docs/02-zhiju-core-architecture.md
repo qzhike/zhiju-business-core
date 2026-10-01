@@ -2092,6 +2092,6 @@ TemplateBaseline 和 RegulatoryProfile 是 Project-owned immutable version chain
 
 ## #237 TaskCompleted 派发与 DeliveryItem 的 owning 路由（提案）
 
-状态：`T2 / PROPOSED / NOT IMPLEMENTED / NOT RUN`。TE拥有已提交TaskCompleted的窄Dispatcher、Project游标/immutable binding/lease与确认；EP拥有Inbox/FormalFact/精确Task-Item-Version关联、新profile/@2.0独立Evaluation及内部authoritative Readback；IP提供分别授权的静态composition映射。字段唯一见Spec003 §26、Spec002 §23、Spec001 §15.16和PostgreSQL §41；概要见[决定](../decisions/task-completed-delivery-completion.md)。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。TE拥有已提交TaskCompleted的窄Dispatcher、Project游标/immutable binding/lease与确认；EP拥有Inbox/FormalFact/精确Task-Item-Version关联、新profile/@2.0独立Evaluation及内部authoritative Readback；IP提供分别授权的静态composition映射。字段唯一见Spec003 §26、Spec002 §23、Spec001 §15.16和PostgreSQL §41；概要见[决定](../decisions/task-completed-delivery-completion.md)。
 
 应用composition顺序调用TE owning已提交材料Port和EP owningConsumer，不共享Repository/事务、不令EP同步回查TE。sidecar不成为公共TaskCompleted字段，不建立新反向同步依赖。EP结论是已消费历史Task完成满足其冻结标准，TE当前USABLE未知；没有Task invalidation事件闭环时禁止把此结论提升为执行/审批/发布资格。Release要求仍独立满足。首版使用真实controlledDriver的owning链，不新增Runtime交付目标/通用Workflow/Event框架；七模块所有权不变。

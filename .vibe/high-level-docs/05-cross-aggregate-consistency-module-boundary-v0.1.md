@@ -1429,7 +1429,7 @@ TaskCompleted沿用现有v1.0事件字段，由TE Task事务的Outbox真实派�
 
 ## #237 TaskCompleted 投递与精确关联一致性（提案）
 
-状态：`T2 / PROPOSED / NOT IMPLEMENTED / NOT RUN`。本段细化已批准TE→EP方向，字段/事务分别由Spec003 §26、Spec002 §23与PostgreSQL §41拥有：TE首次allocation只观察已提交Outbox并原子保存event-to-watermark/binding，独立EP事务存Inbox/Fact/association，TE再独立确认PUBLISHED，最后另一个授权EPCommand评估Item。EPcommit-before-confirm重放原EventId/原public及storedHash/原binding/原watermark，Inbox吸收重复；Evaluation失败不回滚先前合法facts，也不能让PUBLISHED声称Item完成。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。本段细化已批准TE→EP方向，字段/事务分别由Spec003 §26、Spec002 §23与PostgreSQL §41拥有：TE首次allocation只观察已提交Outbox并原子保存event-to-watermark/binding，独立EP事务存Inbox/Fact/association，TE再独立确认PUBLISHED，最后另一个授权EPCommand评估Item。EPcommit-before-confirm重放原EventId/原public及storedHash/原binding/原watermark，Inbox吸收重复；Evaluation失败不回滚先前合法facts，也不能让PUBLISHED声称Item完成。
 
 sequence为partition分配/观察序，不承诺全局producercommit序或完整消费checkpoint；晚提交低键仍扫到、迟到低序保留历史，只有同exactTask/Item/PlanVersion关联的新旧水位可比较，别的Item不被Projectmax跳过。lease/fencing只裁决TE metadata owner，不能撤销EP已合法commit；两worker最多一个当前confirm，重复传输由EP业务幂等吸收。
 

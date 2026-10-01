@@ -873,7 +873,7 @@ Ref 注册与 Schema 约束：capture.targetRef 为 OBJECT/ContextSourceSlice；
 
 ## 23. 精确 TaskCompleted 关联与 DeliveryItem Completion 设计（#237）
 
-状态：`T2 / PROPOSED / REVIEW AND HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`。本节是[设计决定](../decisions/task-completed-delivery-completion.md)的 EP 唯一字段权威。§21现有grammar、v1与历史Plan/Evaluation不改写。新增profile与Major Command明确隔离新的精确语义；只有内部有权限的composition支持首版，公开HTTP/UI不在范围。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。本节是[设计决定](../decisions/task-completed-delivery-completion.md)的 EP 唯一字段权威。§21现有grammar、v1与历史Plan/Evaluation不改写。新增profile与Major Command明确隔离新的精确语义；只有内部有权限的composition支持首版，公开HTTP/UI不在范围。
 
 ### 23.1 新冻结标准与精确关联
 

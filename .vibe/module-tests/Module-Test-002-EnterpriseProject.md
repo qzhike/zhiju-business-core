@@ -532,7 +532,7 @@ pnpm persistence:gate
 
 ## #237 exact TaskCompleted / DeliveryItem owning 用例
 
-状态：`PROPOSED / REVIEW AND HUMAN DESIGN APPROVAL PENDING / ALL NEW RUNTIME CASES NOT RUN`。字段见Spec002 §23。正常/一次恢复的真实source输入由Module-Test003 #237两个named fixture供给，不复制或伪造TEEvent。旧EP-WI12-*的synthetic/controlledevidence仍保留，其Task+Release结果不等于新Task-only真实跨模块能力。
+状态：`HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / ALL NEW RUNTIME CASES NOT RUN`。字段见Spec002 §23。正常/一次恢复的真实source输入由Module-Test003 #237两个named fixture供给，不复制或伪造TEEvent。旧EP-WI12-*的synthetic/controlledevidence仍保留，其Task+Release结果不等于新Task-only真实跨模块能力。
 
 | ID | 层级 / 输入或故障 | 预期Receipt、不可变facts、pointer/event和部分进度 | 当前实际 / 结果 |
 |---|---|---|---|

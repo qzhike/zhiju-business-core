@@ -2248,7 +2248,7 @@ Evaluation TTL到期后授权主体可用同一Completion @2.0对COMPLETED Root�
 
 ## 26. TaskCompleted 受限派发设计（#237）
 
-状态：`T2 / PROPOSED / REVIEW AND HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`。对账/兼容与边界见[决定](../decisions/task-completed-delivery-completion.md)。只消费 §25 producer 的已提交 `execution.TaskCompleted@1.0`；本节拥有 TE selection、来源材料与投递生命周期，不拥有 EP criteria/Evaluation。IP Dispatcher 的 SQL/Schema 不可直接复用为 TE 已交付能力。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。对账/兼容与边界见[决定](../decisions/task-completed-delivery-completion.md)。只消费 §25 producer 的已提交 `execution.TaskCompleted@1.0`；本节拥有 TE selection、来源材料与投递生命周期，不拥有 EP criteria/Evaluation。IP Dispatcher 的 SQL/Schema 不可直接复用为 TE 已交付能力。
 
 ### 26.1 选择、来源与稳定材料
 

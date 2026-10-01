@@ -291,7 +291,7 @@ authority为Spec 001 §15.15，#235当前有限owning/PG证据如下；#224实�
 
 ## #237 Dispatcher / EP Consumer / Evaluation / Readback 授权用例
 
-状态：`PROPOSED / REVIEW AND HUMAN DESIGN APPROVAL PENDING / ALL NEW RUNTIME CASES NOT RUN`。Spec001 §15.16映射为唯一权威；production composition须真实IP owning创建Grant/ActorSnapshot/Decision，不能mock/fabricateDecision替代positivechain。
+状态：`HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / ALL NEW RUNTIME CASES NOT RUN`。Spec001 §15.16映射为唯一权威；production composition须真实IP owning创建Grant/ActorSnapshot/Decision，不能mock/fabricateDecision替代positivechain。
 
 | ID | 层级 / 输入或故障 | 预期结果 | 当前实际 / 结果 |
 |---|---|---|---|

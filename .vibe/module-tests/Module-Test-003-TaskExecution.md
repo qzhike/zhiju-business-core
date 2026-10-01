@@ -556,7 +556,7 @@ fixture 的不同 capability code/主体 Grant 创建互不依赖，按最多四
 
 ## #237 真实 TaskCompleted 派发与独立 EP Completion 验收矩阵
 
-状态：`PROPOSED / DESIGN REVIEW AND HUMAN APPROVAL PENDING / ALL NEW RUNTIME CASES NOT RUN`。权威Spec003 §26、Spec002 §23、Spec001 §15.16、PostgreSQL §41；不是TD-05–07的整体批准。TE-TD-024、035–038只在本矩阵相应行为实际执行后按层级更新，不把#235的normal/recovered formal输出PASS当TE→EP dispatchPASS。
+状态：`HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / ALL NEW RUNTIME CASES NOT RUN`。权威Spec003 §26、Spec002 §23、Spec001 §15.16、PostgreSQL §41；不是TD-05–07的整体批准。TE-TD-024、035–038只在本矩阵相应行为实际执行后按层级更新，不把#235的normal/recovered formal输出PASS当TE→EP dispatchPASS。
 
 未来必须交付named standalone owning fixtures `tests/fixtures/task-execution/delivery-completion/normal.json`、`recovered.json`；每份只含合法输入/实际预期及profile，动态UUID/Hash/Receipt来自owning创建读回，不预写Event/Decision/Receipt。normal：空TE业务库→真实IPPolicy/Grant/Decision与EPProject/Plan前置→预分配TaskUUID且Plan冻结exactcriterion→Task@2/WorkOrder@1.1/Context/READY→真实Driver invocation/final→HumanArtifact输出→独立WO/TaskCompletion→真实Outbox→TE Dispatcher→EP consumer→独立v2Evaluation→EPreadExact。recovered：复用#231/#235合法BLOCKED_INPUT→HumanCustomerMaterial确认/答案/采纳→Context-2→Humanretry→真实Run-2/输出，然后同一尾链。必须保留原Contract/Context-1/Run-1/Result历史Hash。每链另起合法Task+Release-required Item；不把一个Task复用给另一Item，不伪造Release fact达成成功。
 

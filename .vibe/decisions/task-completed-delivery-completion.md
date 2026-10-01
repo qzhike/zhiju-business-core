@@ -1,6 +1,6 @@
 # TaskCompleted 派发与精确 DeliveryItem Completion 设计（#237）
 
-状态：`T2 / PROPOSED / HUMAN DESIGN APPROVAL PENDING / INDEPENDENT DESIGN REVIEW PENDING / NOT IMPLEMENTED / NEW RUNTIME CASES NOT RUN`。对账基线：`main@cd2a249cff5e8bc0406321863b39b8cbe5141a2e`（2026-10-01 远端读回）。本轮只交付设计；目标是一个后续完整实现结果：真实 TE TaskCompleted Outbox → EP Inbox/关联事实 → 独立 Evaluation → EP 权威读回。正常和一次 BLOCKED_INPUT 恢复链都必须实际调用 controlled Driver；Task-only Item 可 SATISFIED，另需 Release 的 Item 保持 UNSATISFIED。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NEW RUNTIME CASES NOT RUN`。对账基线：`main@cd2a249cff5e8bc0406321863b39b8cbe5141a2e`（2026-10-01 远端读回）。本轮只交付设计；目标是一个后续完整实现结果：真实 TE TaskCompleted Outbox → EP Inbox/关联事实 → 独立 Evaluation → EP 权威读回。正常和一次 BLOCKED_INPUT 恢复链都必须实际调用 controlled Driver；Task-only Item 可 SATISFIED，另需 Release 的 Item 保持 UNSATISFIED。
 
 ## 1. 当前事实、缺口与 Spec Delta
 
@@ -31,3 +31,10 @@
 本轮 `docs — vibe verify docs --json`；独立设计语义审查及人类详细设计批准另行绑定实际文档修订（已提交 SHA，或未提交树的 base SHA + 完整文件 hash manifest）。审查记录在 PR 取得真实编号后保存于 `.vibe/reviews/pr-<number>/Review.md`，不得发明编号或把作者自检当独立审查。
 
 设计获批并成为后续任务可访问的权威版本后，Planner 再复核 NOW + READY；一个 coherent 实现候选须包含新 @2.0 注册/生成/正负 fixtures、两 Owner forward migrations、IP 授权/Composition、TE dispatch、EP Inbox/关联/独立评估/readback、正常及一次恢复全链和故障矩阵。实现 Verify 为 `full`，新/变化容器运行时先 `environment`；不在此 Issue 实现、不预先发布依赖 Issue、不自动关闭 IM-06。
+
+
+## 4. 明确人类设计批准与修订绑定（2026-10-01）
+
+用户在收到两轮独立审查、F1/F2关闭、新docs PASS及具体base+15文件Hash manifest后，明确回复“批准设计，合并PR并更新issue”。本次批准对应manifest SHA256 `fdc8dac48d6f993599203fcdb054b388ec8e301c588d33d068c89bed741b67a7`、base `cd2a249cff5e8bc0406321863b39b8cbe5141a2e`；批准后提交为 `a38e66f2df60d45079a093f08fed4e4f12732ef1`，15文件Git blob SHA256均与批准manifest逐项相等。完整manifest、独立审查和本批准事实归档于[PR #238正式记录](../reviews/pr-238/Review.md)。
+
+批准涵盖本设计的TE窄dispatch/两个Hash域/NULL causation codec/原CONTENT_ADDRESSED definition关联、EP exact profile与Major @2.0/内部readback、IP独立授权及未来normal/recovered/fault矩阵。用户同时授权该设计PR的提交、推送、PR交付、门禁通过后的合并和Issue #237更新；这不是产品实现、依赖Issue发布或IM-06退出批准。除记录批准/审查状态外不改变已复审语义，新增运行仍NOT RUN。

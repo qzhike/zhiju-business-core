@@ -2396,7 +2396,7 @@ normal与recovered真实PostgreSQL正链均需空库/升级/二次no-op、RLS、
 
 ## 41. TaskCompleted 派发与精确 Delivery Completion 持久化提案（#237）
 
-状态：`T2 / PROPOSED / NOT IMPLEMENTED / NOT RUN`。归属：TE Spec003 §26、EP Spec002 §23、IP Spec001 §15.16；只设计forward增量，不改已应用V3000/V2013/V7009，不分配migration编号（共用Flyway history编号由后续实现时按现行规则处理，不假定可直接用300x/200x）。所有新Project row显式enterprise_id/project_id、FORCE RLS、同Owner组合FK/unique与Hash/Scope mirror；不跨SchemaFK/join，不建shared message Schema。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。归属：TE Spec003 §26、EP Spec002 §23、IP Spec001 §15.16；只设计forward增量，不改已应用V3000/V2013/V7009，不分配migration编号（共用Flyway history编号由后续实现时按现行规则处理，不假定可直接用300x/200x）。所有新Project row显式enterprise_id/project_id、FORCE RLS、同Owner组合FK/unique与Hash/Scope mirror；不跨SchemaFK/join，不建shared message Schema。
 
 ### 41.1 TE owning记录与最小权限
 

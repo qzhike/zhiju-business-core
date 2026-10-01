@@ -1435,7 +1435,7 @@ artifact.get_execution_output_fact@1.0
 
 ## #237 精确 DeliveryItem Completion 契约提案
 
-状态：`PROPOSED / NOT REGISTERED / NOT IMPLEMENTED / NOT RUN`；字段唯一见Spec002 §23。[设计决定](../decisions/task-completed-delivery-completion.md)明确Registry237/TE62/历史Baseline200是当前实际数；未来只新增下列公开版本，Registry238、EP增加1、TE62与历史200不变。
+状态：`HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT REGISTERED / NOT IMPLEMENTED / NOT RUN`；字段唯一见Spec002 §23。[设计决定](../decisions/task-completed-delivery-completion.md)明确Registry237/TE62/历史Baseline200是当前实际数；未来只新增下列公开版本，Registry238、EP增加1、TE62与历史200不变。
 
 | 操作 | Owner / kind / target | Purpose / 兼容 |
 |---|---|---|---|

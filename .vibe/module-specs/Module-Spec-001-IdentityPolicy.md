@@ -911,7 +911,7 @@ Receipt replay只重验当前**读取原命令结果**资格与自身Decision，
 
 ### 15.16 IM06-DELIVERY-COMPLETION 授权组成提案（#237）
 
-状态：`T2 / PROPOSED / REVIEW AND HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`。服务Spec003 §26 / Spec002 §23；复用owning Decision签发、完整性校验、ActorSnapshot/session绑定、target mirror和当前covering Grant/Policy检查，不新增IP公开API/业务Policy Engine，不改变实际Grant PolicySnapshot lifecycle的原延后。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NOT RUN`。服务Spec003 §26 / Spec002 §23；复用owning Decision签发、完整性校验、ActorSnapshot/session绑定、target mirror和当前covering Grant/Policy检查，不新增IP公开API/业务Policy Engine，不改变实际Grant PolicySnapshot lifecycle的原延后。
 
 新增owning内部 `TaskCompletedDeliveryAuthorizationPort`，静态有限映射如下。所有内部operation version为`1.0`、type为表中Purpose；@2.0公开命令使用真实operation/version。target全部OBJECT；Project target=`zhiju.project.project`（objectId=projectId），Task target=`zhiju.execution.task`（objectId=event aggregateId），Item target=`zhiju.project.delivery_item`（objectId=exactItemId）。完整Version/Hash/关联保留在授权payload，不能只依赖V1006 OBJECT mirror。
 
