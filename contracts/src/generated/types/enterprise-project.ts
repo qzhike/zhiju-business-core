@@ -261,6 +261,20 @@ export namespace EnterpriseProject {
 };
   readonly committedAt: Common.UtcInstant;
 };
+  export type ExactTaskCompletionCriteria = {
+  readonly profile: "ep.delivery_item.exact_task_completion@1.0";
+  readonly allOf: readonly ({
+  readonly eventType: "execution.TaskCompleted";
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+};
+} | {
+  readonly eventType: "release.ReleaseCompleted";
+  readonly factRef: Common.ObjectRef & {
+  readonly objectType?: "release.release";
+};
+})[];
+};
   /** Payload of `project.create_enterprise` (COMMAND). */
   export interface ProjectCreateEnterprisePayload {
   readonly displayCode: Common.NonEmptyString;
@@ -520,4 +534,62 @@ export namespace EnterpriseProject {
 };
   /** Result of `project.get_resolution_receipt` (QUERY). */
   export type ProjectGetResolutionReceiptResult = EnterpriseProject.ResolutionReceiptAttestation;
+  /** Payload of `project.evaluate_delivery_item_completion` (COMMAND). */
+  export type ProjectEvaluateDeliveryItemCompletionV20Payload = {
+  readonly deliveryPlanRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.delivery_plan";
+};
+  readonly deliveryItemRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.delivery_item";
+};
+  readonly factRefs: readonly {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "DeliveryItemCompletionFact";
+  readonly objectId: Common.UuidV7;
+  readonly immutableVersionId?: Common.UuidV7;
+  readonly scope: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+  readonly contentHash: Common.ContentHash;
+}[];
+};
+  /** Result of `project.evaluate_delivery_item_completion` (COMMAND). */
+  export type ProjectEvaluateDeliveryItemCompletionV20Result = {
+  readonly evaluationRef: {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "CompletionEvaluation";
+  readonly objectId: Common.UuidV7;
+  readonly immutableVersionId?: Common.UuidV7;
+  readonly scope: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+  readonly contentHash: Common.ContentHash;
+};
+  readonly outcome: "SATISFIED" | "UNSATISFIED";
+  readonly satisfiedFactRefs: readonly {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "DeliveryItemCompletionFact";
+  readonly objectId: Common.UuidV7;
+  readonly immutableVersionId?: Common.UuidV7;
+  readonly scope: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+  readonly contentHash: Common.ContentHash;
+}[];
+  readonly aggregateVersion: number;
+  readonly impactReviewRef?: {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "DeliveryItemImpactReview";
+  readonly objectId: Common.UuidV7;
+  readonly immutableVersionId?: Common.UuidV7;
+  readonly scope: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+  readonly contentHash: Common.ContentHash;
+};
+};
 }

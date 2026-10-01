@@ -2,9 +2,11 @@
 // DeliveryItem Completion Evaluator. Completion is derived only from frozen
 // criteria and exact persisted facts; callers cannot submit a completion flag.
 
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
+import { exactCompletionCriteria, DELIVERY_COMPLETION_EVALUATOR } from '@zhiju/contracts';
 import { ContractRegistry, type Common, type EnterpriseProject } from '@zhiju/contracts';
 import {
+  canonicalize,
   isUuidV7,
   newUuidV7,
   type CanonicalJsonObject,
@@ -629,138 +631,165 @@ export async function consumeDeliveryItemCompletionEvent(
   db: Kysely<EnterpriseProjectDb>,
   context: EnterpriseProjectTransactionContext,
   input: DeliveryCompletionEventInput,
+  internal?: {
+    revalidate: () => Promise<void>;
+    matches: (
+      trx: EnterpriseProjectTransaction,
+      fact: DeliveryItemCompletionFactTable,
+    ) => Promise<boolean>;
+    afterFact: (
+      trx: EnterpriseProjectTransaction,
+      factRef: Common.ContentAddressedRef,
+    ) => Promise<void>;
+  },
 ): Promise<DeliveryCompletionEventResult> {
+  await internal?.revalidate();
   const normalized = normalizeEvent(context, input);
-  return withEnterpriseProjectTransaction(db, context, async (trx) => {
-    const existingInbox = await trx
-      .selectFrom('enterprise_project.inbox_message')
-      .selectAll()
-      .where('consumer_name', '=', COMPLETION_CONSUMER)
-      .where('event_id', '=', normalized.eventId)
-      .executeTakeFirst();
-    const existingFact = await repo.getCompletionFactByEvent(
-      trx,
-      COMPLETION_CONSUMER,
-      normalized.eventId,
-    );
-    if (existingInbox !== undefined) {
-      if (
-        existingInbox.payload_hash.equals(normalized.payloadHash) &&
-        existingFact?.source_watermark_hash.equals(normalized.sourceWatermarkHash) === true
-      ) {
+  const consumed = await withEnterpriseProjectTransaction<DeliveryCompletionEventResult>(
+    db,
+    context,
+    async (trx) => {
+      await sql`SELECT enterprise_project.lock_completion_ledger(${context.enterpriseId}::uuid,${normalized.projectId}::uuid)`.execute(
+        trx,
+      );
+      await internal?.revalidate();
+      const existingInbox = await trx
+        .selectFrom('enterprise_project.inbox_message')
+        .selectAll()
+        .where('consumer_name', '=', COMPLETION_CONSUMER)
+        .where('event_id', '=', normalized.eventId)
+        .executeTakeFirst();
+      const existingFact = await repo.getCompletionFactByEvent(
+        trx,
+        COMPLETION_CONSUMER,
+        normalized.eventId,
+      );
+      if (existingInbox !== undefined) {
+        if (
+          existingInbox.payload_hash.equals(normalized.payloadHash) &&
+          existingFact?.source_watermark_hash.equals(normalized.sourceWatermarkHash) === true &&
+          (!internal || (await internal.matches(trx, existingFact)))
+        ) {
+          await internal?.revalidate();
+          return {
+            status: 'DUPLICATE' as const,
+            factRef: asCanonicalJson(
+              existingFact.fact_ref,
+              PROJECT_DELIVERY_COMPLETION_EVENT_INVALID,
+              'stored factRef',
+            ) as unknown as Common.ContentAddressedRef,
+          };
+        }
+        await insertInboxConflict(trx, normalized, normalized.payloadHash, context.principalId);
+        await internal?.revalidate();
         return {
-          status: 'DUPLICATE',
-          factRef: asCanonicalJson(
-            existingFact.fact_ref,
-            PROJECT_DELIVERY_COMPLETION_EVENT_INVALID,
-            'stored factRef',
-          ) as unknown as Common.ContentAddressedRef,
+          status: 'QUARANTINED' as const,
+          failureCode: PROJECT_DELIVERY_COMPLETION_INBOX_CONFLICT,
         };
       }
-      await insertInboxConflict(trx, normalized, normalized.payloadHash, context.principalId);
-      return {
-        status: 'QUARANTINED',
-        failureCode: PROJECT_DELIVERY_COMPLETION_INBOX_CONFLICT,
-      };
-    }
-    await trx
-      .insertInto('enterprise_project.inbox_message')
-      .values({
-        consumer_name: COMPLETION_CONSUMER,
-        event_id: normalized.eventId,
-        event_type: normalized.eventType,
-        event_version: normalized.eventVersion,
-        payload_hash: normalized.payloadHash,
-        source_module: normalized.rule.sourceModule,
-        enterprise_id: normalized.enterpriseId,
-        project_id: normalized.projectId,
-        status: 'PENDING',
-        correlation_id: normalized.event.correlationId,
-        created_by_principal_id: context.principalId,
-      })
-      .execute();
+      await trx
+        .insertInto('enterprise_project.inbox_message')
+        .values({
+          consumer_name: COMPLETION_CONSUMER,
+          event_id: normalized.eventId,
+          event_type: normalized.eventType,
+          event_version: normalized.eventVersion,
+          payload_hash: normalized.payloadHash,
+          source_module: normalized.rule.sourceModule,
+          enterprise_id: normalized.enterpriseId,
+          project_id: normalized.projectId,
+          status: 'PENDING',
+          correlation_id: normalized.event.correlationId,
+          created_by_principal_id: context.principalId,
+        })
+        .execute();
 
-    const factId = newUuidV7();
-    const factRef = syntheticFactRef(
-      factId,
-      normalized.enterpriseId,
-      normalized.projectId,
-      normalized.payloadHash,
-    );
-    await repo.insertCompletionFact(trx, {
-      factId,
-      consumerName: COMPLETION_CONSUMER,
-      eventId: normalized.eventId,
-      eventType: normalized.eventType,
-      eventVersion: normalized.eventVersion,
-      producerModule: normalized.rule.producerModule,
-      aggregateType: normalized.aggregateType,
-      aggregateId: normalized.aggregateId,
-      aggregateVersion: normalized.aggregateVersion,
-      enterpriseId: normalized.enterpriseId,
-      projectId: normalized.projectId,
-      factRef,
-      factRefs: normalized.factRefs,
-      subjectRefs: normalized.subjectRefs,
-      lifecycle: normalized.rule.lifecycle,
-      payload: normalized.payload,
-      payloadHash: normalized.payloadHash,
-      sourceWatermark: sourceWatermarkObject(normalized.sourceWatermark),
-      sourceWatermarkHash: normalized.sourceWatermarkHash,
-      correlationId: normalized.event.correlationId,
-      causationId: normalized.event.causationId,
-      recordedByPrincipalId: context.principalId,
-      recordedByActorSnapshotId: context.actorSnapshotId,
-      authorizationDecisionId: context.authorizationDecisionId,
-      sourceCommandId: normalized.event.commandId,
-    });
-    const processId = newUuidV7();
-    await trx
-      .insertInto('enterprise_project.process_instance')
-      .values({
-        process_id: processId,
-        process_type: COMPLETION_CONSUMER,
-        process_version: COMPLETION_PROCESS_VERSION,
-        correlation_key: normalized.eventId,
-        enterprise_id: normalized.enterpriseId,
-        project_id: normalized.projectId,
-        state: 'COMPLETED',
-        aggregate_version: '1',
-        last_consumed_event_id: normalized.eventId,
-        blocked_reason_code: null,
-        created_by_principal_id: context.principalId,
-      })
-      .execute();
-    await trx
-      .insertInto('enterprise_project.process_step')
-      .values({
-        process_step_id: newUuidV7(),
-        process_id: processId,
-        step_no: 1,
-        enterprise_id: normalized.enterpriseId,
-        project_id: normalized.projectId,
-        input_event_id: normalized.eventId,
-        input_event_type: normalized.eventType,
-        issued_command_id: null,
-        issued_command_type: null,
-        outcome: 'COMPLETED',
-        failure_code: null,
-        human_intervention: null,
-        created_by_principal_id: context.principalId,
-      })
-      .execute();
-    await trx
-      .updateTable('enterprise_project.inbox_message')
-      .set({
-        status: 'PROCESSED',
-        processed_at: new Date(),
-        result_command_id: normalized.event.commandId,
-      })
-      .where('consumer_name', '=', COMPLETION_CONSUMER)
-      .where('event_id', '=', normalized.eventId)
-      .execute();
-    return { status: 'PROCESSED', factRef, processId };
-  });
+      const factId = newUuidV7();
+      const factRef = syntheticFactRef(
+        factId,
+        normalized.enterpriseId,
+        normalized.projectId,
+        normalized.payloadHash,
+      );
+      await repo.insertCompletionFact(trx, {
+        factId,
+        consumerName: COMPLETION_CONSUMER,
+        eventId: normalized.eventId,
+        eventType: normalized.eventType,
+        eventVersion: normalized.eventVersion,
+        producerModule: normalized.rule.producerModule,
+        aggregateType: normalized.aggregateType,
+        aggregateId: normalized.aggregateId,
+        aggregateVersion: normalized.aggregateVersion,
+        enterpriseId: normalized.enterpriseId,
+        projectId: normalized.projectId,
+        factRef,
+        factRefs: normalized.factRefs,
+        subjectRefs: normalized.subjectRefs,
+        lifecycle: normalized.rule.lifecycle,
+        payload: normalized.payload,
+        payloadHash: normalized.payloadHash,
+        sourceWatermark: sourceWatermarkObject(normalized.sourceWatermark),
+        sourceWatermarkHash: normalized.sourceWatermarkHash,
+        correlationId: normalized.event.correlationId,
+        causationId: normalized.event.causationId,
+        recordedByPrincipalId: context.principalId,
+        recordedByActorSnapshotId: context.actorSnapshotId,
+        authorizationDecisionId: context.authorizationDecisionId,
+        sourceCommandId: normalized.event.commandId,
+      });
+      await internal?.afterFact(trx, factRef);
+      const processId = newUuidV7();
+      await trx
+        .insertInto('enterprise_project.process_instance')
+        .values({
+          process_id: processId,
+          process_type: COMPLETION_CONSUMER,
+          process_version: COMPLETION_PROCESS_VERSION,
+          correlation_key: normalized.eventId,
+          enterprise_id: normalized.enterpriseId,
+          project_id: normalized.projectId,
+          state: 'COMPLETED',
+          aggregate_version: '1',
+          last_consumed_event_id: normalized.eventId,
+          blocked_reason_code: null,
+          created_by_principal_id: context.principalId,
+        })
+        .execute();
+      await trx
+        .insertInto('enterprise_project.process_step')
+        .values({
+          process_step_id: newUuidV7(),
+          process_id: processId,
+          step_no: 1,
+          enterprise_id: normalized.enterpriseId,
+          project_id: normalized.projectId,
+          input_event_id: normalized.eventId,
+          input_event_type: normalized.eventType,
+          issued_command_id: null,
+          issued_command_type: null,
+          outcome: 'COMPLETED',
+          failure_code: null,
+          human_intervention: null,
+          created_by_principal_id: context.principalId,
+        })
+        .execute();
+      await trx
+        .updateTable('enterprise_project.inbox_message')
+        .set({
+          status: 'PROCESSED',
+          processed_at: new Date(),
+          result_command_id: normalized.event.commandId,
+        })
+        .where('consumer_name', '=', COMPLETION_CONSUMER)
+        .where('event_id', '=', normalized.eventId)
+        .execute();
+      await internal?.revalidate();
+      return { status: 'PROCESSED' as const, factRef, processId };
+    },
+  );
+  await internal?.revalidate();
+  return consumed;
 }
 
 function exactVersionedReference(
@@ -1139,6 +1168,9 @@ export async function handleEvaluateDeliveryItemCompletion(
     expectedAggregateVersion,
   };
   return executeEnterpriseProjectCommand(db, context, normalizedEnvelope, async (execution) => {
+    await sql`SELECT enterprise_project.lock_completion_ledger(${context.enterpriseId}::uuid,${input.projectId}::uuid)`.execute(
+      execution.trx,
+    );
     const item = await repo.getDeliveryItemForUpdate(
       execution.trx,
       input.versionId,
@@ -1497,4 +1529,937 @@ export async function handleEvaluateDeliveryItemCompletion(
       ),
     };
   });
+}
+
+// #239: this constructor is wired only by trusted application composition.
+export interface ExactTaskCompletionMaterial {
+  readonly event: DeliveryCompletionEventEnvelope;
+  readonly sidecar: CanonicalJsonObject;
+  readonly bindingHash: Common.ContentHash;
+  readonly sourceWatermark: EnterpriseProject.SourceWatermark;
+}
+const committedCompletionConsumptions = new WeakSet<object>();
+export function isCommittedDeliveryCompletionConsumption(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && committedCompletionConsumptions.has(value);
+}
+interface AssociationRow {
+  fact_id: string;
+  enterprise_id: string;
+  project_id: string;
+  delivery_plan_id: string;
+  version_id: string;
+  delivery_item_id: string;
+  task_id: string;
+  event_id: string;
+  canonical_payload: CanonicalJsonObject;
+  payload_hash: Buffer;
+}
+async function association(trx: EnterpriseProjectTransaction, id: string) {
+  return (
+    await sql<AssociationRow>`SELECT * FROM enterprise_project.delivery_completion_task_association WHERE fact_id=${id}::uuid`.execute(
+      trx,
+    )
+  ).rows[0];
+}
+const exactKey = (value: unknown) =>
+  canonicalize(asCanonicalJson(value, PROJECT_DELIVERY_REFERENCE_INVALID, 'exact material'));
+function sortedExact<T>(values: readonly T[]): T[] {
+  return [...values].sort((a, b) =>
+    Buffer.compare(Buffer.from(exactKey(a), 'utf8'), Buffer.from(exactKey(b), 'utf8')),
+  );
+}
+function sameExact(a: unknown, b: unknown) {
+  return exactKey(a) === exactKey(b);
+}
+function exactCriteria(value: unknown, scope: Common.ScopeRef) {
+  try {
+    return exactCompletionCriteria(value, scope);
+  } catch {
+    completionError(
+      PROJECT_DELIVERY_ITEM_CRITERIA_UNSATISFIED,
+      'Unsupported exact completion criteria',
+    );
+  }
+}
+export function createExactDeliveryCompletionConsumer(
+  db: Kysely<EnterpriseProjectDb>,
+  config: { assertTrustedMaterial: (value: unknown) => void },
+) {
+  return {
+    consume: async (
+      context: EnterpriseProjectTransactionContext,
+      material: ExactTaskCompletionMaterial,
+      revalidate: () => Promise<void>,
+    ) => {
+      config.assertTrustedMaterial(material);
+      await revalidate();
+      const { event, sidecar, bindingHash, sourceWatermark } = material;
+      if (
+        event.eventType !== 'execution.TaskCompleted' ||
+        event.aggregateType !== 'zhiju.execution.task' ||
+        Object.keys(sidecar).sort().join() !==
+          'deliveryItemRef,eventEnvelopeHash,eventId,publicPayloadHash,storedPayloadHash,taskDefinitionSnapshotRef,taskEvaluationRef,taskRef' ||
+        sidecar.eventId !== event.eventId ||
+        !sameExact(sidecar.taskRef, event.payload.taskRef) ||
+        !sameExact(sidecar.taskEvaluationRef, event.payload.evaluationRef) ||
+        !sameExact(sidecar.publicPayloadHash, event.integrity.payloadHash) ||
+        !contentHashBytes(
+          sidecar.eventEnvelopeHash,
+          PROJECT_DELIVERY_COMPLETION_EVENT_INVALID,
+          'envelopeHash',
+        ).equals(digestCanonicalPayload(event as unknown as CanonicalJsonObject).hash) ||
+        !contentHashBytes(
+          bindingHash,
+          PROJECT_DELIVERY_COMPLETION_EVENT_INVALID,
+          'bindingHash',
+        ).equals(digestCanonicalPayload(sidecar).hash) ||
+        asRecord(sidecar.taskDefinitionSnapshotRef).kind !== 'CONTENT_ADDRESSED' ||
+        asRecord(sidecar.taskDefinitionSnapshotRef).objectType !==
+          'zhiju.execution.task_definition_snapshot' ||
+        asRecord(sidecar.taskRef).objectId !== event.aggregateId
+      )
+        completionError(
+          PROJECT_DELIVERY_COMPLETION_EVENT_INVALID,
+          'Invalid trusted TaskCompleted material',
+        );
+      const item = exactVersionedReference(
+        sidecar.deliveryItemRef,
+        'zhiju.project.delivery_item',
+        context,
+        'deliveryItemRef',
+      );
+      let planRef: CanonicalJsonObject | undefined;
+      const consumed = await consumeDeliveryItemCompletionEvent(
+        db,
+        context,
+        { event, sourceWatermark },
+        {
+          revalidate,
+          matches: async (trx, fact) => {
+            const stored = await association(trx, fact.fact_id);
+            if (!stored?.payload_hash.equals(digestCanonicalPayload(stored.canonical_payload).hash))
+              return false;
+            const b = stored.canonical_payload;
+            return (
+              sameExact(b.event, event) &&
+              sameExact(b.sidecar, sidecar) &&
+              sameExact(b.bindingHash, bindingHash) &&
+              sameExact(b.sourceWatermark, sourceWatermark)
+            );
+          },
+          afterFact: async (trx, factRef) => {
+            const target = await repo.getDeliveryItem(trx, item.versionId, item.objectId);
+            if (
+              target?.enterprise_id !== context.enterpriseId ||
+              target.project_id !== item.projectId
+            )
+              completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Exact Item unavailable');
+            planRef = {
+              kind: 'VERSIONED',
+              objectType: 'zhiju.project.delivery_plan',
+              objectId: target.delivery_plan_id,
+              versionId: item.versionId,
+              scope: { enterpriseId: context.enterpriseId, projectId: item.projectId },
+            };
+            const body = {
+              enterpriseId: context.enterpriseId,
+              projectId: item.projectId,
+              deliveryPlanRef: planRef,
+              event,
+              sidecar,
+              bindingHash,
+              sourceWatermark,
+              sourceWatermarkHash: hashValue(
+                digestCanonicalPayload(sourceWatermark as unknown as CanonicalJsonObject).hash,
+              ),
+            } as unknown as CanonicalJsonObject;
+            await sql`INSERT INTO enterprise_project.delivery_completion_task_association(fact_id,enterprise_id,project_id,delivery_plan_id,version_id,delivery_item_id,task_id,event_id,canonical_payload,payload_hash) VALUES(${factRef.objectId}::uuid,${context.enterpriseId}::uuid,${item.projectId}::uuid,${target.delivery_plan_id}::uuid,${item.versionId}::uuid,${item.objectId}::uuid,${event.aggregateId}::uuid,${event.eventId}::uuid,${exactKey(body)}::jsonb,${digestCanonicalPayload(body).hash})`.execute(
+              trx,
+            );
+            await trx
+              .insertInto('enterprise_project.audit_record')
+              .values({
+                audit_id: newUuidV7(),
+                enterprise_id: context.enterpriseId,
+                project_id: item.projectId,
+                principal_id: context.principalId,
+                actor_snapshot_id: context.actorSnapshotId,
+                authorization_decision_id: context.authorizationDecisionId,
+                outcome: 'INFO',
+                command_type: 'project.delivery_completion.consume',
+                target_type: 'zhiju.project.delivery_item',
+                target_id: item.objectId,
+                correlation_id: event.correlationId,
+                safe_summary: 'Consumed exact historical Task completion',
+                retention_class: 'OPERATIONAL',
+              })
+              .execute();
+          },
+        },
+      );
+      await revalidate();
+      const result = Object.freeze({
+        ...consumed,
+        eventId: event.eventId,
+        bindingHash,
+        sourceWatermark,
+      });
+      if (consumed.status === 'PROCESSED' || consumed.status === 'DUPLICATE')
+        committedCompletionConsumptions.add(result);
+      return result;
+    },
+  };
+}
+export interface ExactDeliveryCompletionRequest {
+  readonly deliveryPlanRef: Common.VersionedRef;
+  readonly deliveryItemRef: Common.VersionedRef;
+  readonly factRefs: readonly Common.ContentAddressedRef[];
+}
+function exactRequest(context: EnterpriseProjectTransactionContext, value: unknown, read = false) {
+  const request = canonicalObject(value, PROJECT_DELIVERY_REFERENCE_INVALID, 'request');
+  const keys = Object.keys(request).sort().join();
+  if (
+    keys !== 'deliveryItemRef,deliveryPlanRef,factRefs' &&
+    !(read && keys === 'deliveryItemRef,deliveryPlanRef,evaluationRef,factRefs')
+  )
+    completionError(PROJECT_DELIVERY_REFERENCE_INVALID, 'Closed exact request required');
+  const plan = exactVersionedReference(
+    request.deliveryPlanRef,
+    'zhiju.project.delivery_plan',
+    context,
+    'deliveryPlanRef',
+  );
+  const item = exactVersionedReference(
+    request.deliveryItemRef,
+    'zhiju.project.delivery_item',
+    context,
+    'deliveryItemRef',
+  );
+  if (plan.versionId !== item.versionId || plan.projectId !== item.projectId)
+    completionError(PROJECT_DELIVERY_REFERENCE_INVALID, 'Exact Plan and Item mismatch');
+  const refs = referenceArray(request.factRefs, 'factRefs').map((r) =>
+    validateTypedReference(
+      r,
+      context.enterpriseId,
+      item.projectId,
+      'factRef',
+      PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+    ),
+  );
+  if (
+    refs.some(
+      (r) => r.kind !== 'CONTENT_ADDRESSED' || r.objectType !== 'DeliveryItemCompletionFact',
+    ) ||
+    new Set(refs.map(exactKey)).size !== refs.length
+  )
+    completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Invalid exact facts');
+  return { request, plan, item, refs: sortedExact(refs) };
+}
+function verifyLedgerFact(
+  row: DeliveryItemCompletionFactTable,
+  context: EnterpriseProjectTransactionContext,
+  projectId: string,
+) {
+  const payload = canonicalObject(
+    jsonValue(row.payload),
+    PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+    'fact payload',
+  );
+  const watermark = canonicalObject(
+    jsonValue(row.source_watermark),
+    PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+    'watermark',
+  );
+  const ref = rowFactReference(row);
+  if (
+    row.enterprise_id !== context.enterpriseId ||
+    row.project_id !== projectId ||
+    !row.payload_hash.equals(digestCanonicalPayload(payload).hash) ||
+    !row.source_watermark_hash.equals(digestCanonicalPayload(watermark).hash) ||
+    !sameExact(
+      ref,
+      syntheticFactRef(row.fact_id, context.enterpriseId, projectId, row.payload_hash),
+    )
+  )
+    completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Fact unavailable');
+  normalizeWatermark(watermark, EVENT_RULES[row.event_type as SupportedEventType], projectId);
+  return { payload, watermark, ref };
+}
+async function exactSources(
+  trx: EnterpriseProjectTransaction,
+  context: EnterpriseProjectTransactionContext,
+  input: ReturnType<typeof exactRequest>,
+  refs = input.refs,
+  checkNewest = true,
+) {
+  const all = await repo.getCompletionFacts(trx, context.enterpriseId, input.item.projectId);
+  const selected: DeliveryItemCompletionFactTable[] = [],
+    associations: AssociationRow[] = [];
+  const item = await repo.getDeliveryItem(trx, input.item.versionId, input.item.objectId);
+  if (
+    item?.delivery_plan_id !== input.plan.objectId ||
+    item.enterprise_id !== context.enterpriseId ||
+    item.project_id !== input.item.projectId
+  )
+    completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Item unavailable');
+  const criteria = exactCriteria(jsonValue(item.completion_criteria), {
+    enterpriseId: context.enterpriseId,
+    projectId: input.item.projectId,
+  });
+  const criteriaHash = digestCanonicalPayload({
+    criteria: jsonValue(item.completion_criteria) as CanonicalJsonValue,
+  }).hash;
+  for (const ref of refs) {
+    const row = all.find((r) => sameExact(rowFactReference(r), ref));
+    if (!row) completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Fact unavailable');
+    const fact = verifyLedgerFact(row, context, input.item.projectId);
+    if (row.event_type === 'execution.TaskCompleted') {
+      const a = await association(trx, row.fact_id);
+      if (
+        a?.version_id !== input.item.versionId ||
+        a.delivery_item_id !== input.item.objectId ||
+        a.delivery_plan_id !== input.plan.objectId ||
+        a.enterprise_id !== context.enterpriseId ||
+        a.project_id !== input.item.projectId ||
+        !a.payload_hash.equals(digestCanonicalPayload(a.canonical_payload).hash)
+      )
+        completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Association unavailable');
+      const b = a.canonical_payload,
+        s = asRecord(b.sidecar),
+        ev = asRecord(b.event);
+      if (
+        !sameExact(s.taskRef, criteria.taskRef) ||
+        !sameExact(s.taskRef, fact.payload.taskRef) ||
+        !sameExact(s.taskEvaluationRef, fact.payload.evaluationRef) ||
+        !sameExact(s.deliveryItemRef, input.item.ref) ||
+        !sameExact(b.deliveryPlanRef, input.plan.ref) ||
+        !sameExact(b.sourceWatermark, fact.watermark) ||
+        !sameExact(ev.payload, fact.payload) ||
+        ev.eventId !== row.event_id ||
+        ev.aggregateId !== row.aggregate_id ||
+        a.task_id !== row.aggregate_id ||
+        ev.aggregateType !== row.aggregate_type ||
+        String(ev.aggregateVersion) !== aggregateVersionToString(row.aggregate_version) ||
+        ev.producerModule !== row.producer_module ||
+        ev.commandId !== row.source_command_id ||
+        ev.causationId !== row.causation_id ||
+        ev.correlationId !== row.correlation_id ||
+        !contentHashBytes(
+          s.eventEnvelopeHash,
+          PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+          'envelopeHash',
+        ).equals(digestCanonicalPayload(ev as CanonicalJsonObject).hash) ||
+        !contentHashBytes(
+          b.bindingHash,
+          PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+          'bindingHash',
+        ).equals(digestCanonicalPayload(s as CanonicalJsonObject).hash) ||
+        !contentHashBytes(
+          s.publicPayloadHash,
+          PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+          'publicHash',
+        ).equals(row.payload_hash) ||
+        !contentHashBytes(
+          b.sourceWatermarkHash,
+          PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+          'watermarkHash',
+        ).equals(row.source_watermark_hash)
+      )
+        completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Association unavailable');
+      if (checkNewest) {
+        const newer = (
+          await sql<{
+            sequence: string;
+          }>`SELECT f.source_watermark->>'sequence' AS sequence FROM enterprise_project.delivery_completion_task_association a JOIN enterprise_project.delivery_item_completion_fact f USING(fact_id) WHERE a.enterprise_id=${context.enterpriseId}::uuid AND a.project_id=${input.item.projectId}::uuid AND a.delivery_plan_id=${input.plan.objectId}::uuid AND a.version_id=${input.item.versionId}::uuid AND a.delivery_item_id=${input.item.objectId}::uuid AND a.task_id=${row.aggregate_id}::uuid`.execute(
+            trx,
+          )
+        ).rows.some((r) => BigInt(r.sequence) > BigInt(fact.watermark.sequence as number));
+        if (newer)
+          completionError(
+            PROJECT_DELIVERY_COMPLETION_WATERMARK_INVALID,
+            'A newer exact association has been consumed',
+          );
+      }
+      associations.push(a);
+    } else if (
+      row.event_type !== 'release.ReleaseCompleted' ||
+      !criteria.releaseRef ||
+      !sameExact(fact.payload.releaseRef, criteria.releaseRef)
+    )
+      completionError(
+        PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+        'Fact does not belong to the frozen criteria',
+      );
+    selected.push(row);
+  }
+  const revocations = all.filter(
+    (r) =>
+      r.lifecycle === 'REVOKED' &&
+      selected.some((s) => referencesOverlap(rowSubjects(s), rowSubjects(r))),
+  );
+  revocations.forEach((r) => verifyLedgerFact(r, context, input.item.projectId));
+  const task = selected.find(
+    (r) => r.event_type === 'execution.TaskCompleted' && !revokedByFacts(r, all),
+  );
+  const release = selected.find(
+    (r) => r.event_type === 'release.ReleaseCompleted' && !revokedByFacts(r, all),
+  );
+  const outcome =
+    task && (!criteria.releaseRef || release) ? ('SATISFIED' as const) : ('UNSATISFIED' as const);
+  return {
+    item,
+    all,
+    selected,
+    associations,
+    criteriaHash,
+    revocations,
+    outcome,
+    satisfiedFactRefs: outcome === 'SATISFIED' ? sortedExact(selected.map(rowFactReference)) : [],
+  };
+}
+export async function handleEvaluateExactDeliveryItemCompletion(
+  db: Kysely<EnterpriseProjectDb>,
+  context: EnterpriseProjectTransactionContext,
+  envelope: CommandEnvelope,
+  ports: { revalidate: () => Promise<void>; now: () => Date },
+) {
+  await ports.revalidate();
+  const input = exactRequest(context, envelope.requestPayload);
+  if (
+    envelope.commandType !== 'project.evaluate_delivery_item_completion' ||
+    envelope.commandVersion !== '2.0' ||
+    envelope.targetType !== 'zhiju.project.delivery_item' ||
+    envelope.targetId !== input.item.objectId ||
+    envelope.projectId !== input.item.projectId ||
+    !envelope.expectedAggregateVersion
+  )
+    completionError(PROJECT_DELIVERY_REFERENCE_INVALID, 'Invalid exact completion command');
+  positiveInteger(
+    envelope.expectedAggregateVersion,
+    CONCURRENCY_CONFLICT,
+    'expectedAggregateVersion',
+  );
+  return executeEnterpriseProjectCommand(
+    db,
+    context,
+    envelope,
+    async (execution) => {
+      await sql`SELECT enterprise_project.lock_completion_ledger(${context.enterpriseId}::uuid,${input.item.projectId}::uuid)`.execute(
+        execution.trx,
+      );
+      await repo.getDeliveryItemForUpdate(execution.trx, input.item.versionId, input.item.objectId);
+      await ports.revalidate();
+      const sources = await exactSources(execution.trx, context, input);
+      const version = aggregateVersionToString(sources.item.completion_aggregate_version);
+      if (version !== envelope.expectedAggregateVersion)
+        return safeRejection(
+          new EnterpriseBusinessError(CONCURRENCY_CONFLICT, 'Completion pointer changed'),
+          version,
+        );
+      const plan = await repo.getDeliveryPlanById(execution.trx, input.plan.objectId),
+        pv = await repo.getDeliveryPlanVersion(execution.trx, input.plan.versionId),
+        project = await repo.getProjectById(execution.trx, input.item.projectId);
+      if (
+        pv?.delivery_plan_id !== input.plan.objectId ||
+        plan?.active_version_id !== input.plan.versionId ||
+        pv.version_status !== 'ACTIVE' ||
+        project?.status !== 'ACTIVE'
+      )
+        completionError(PROJECT_DELIVERY_REFERENCE_INVALID, 'Exact active Plan unavailable');
+      const watermarks = sortedExact([
+        ...new Map(
+          sources.selected.map((r) => {
+            const wm = canonicalObject(
+              jsonValue(r.source_watermark),
+              PROJECT_DELIVERY_REFERENCE_INVALID,
+              'watermark',
+            );
+            return [exactKey(wm), wm] as const;
+          }),
+        ).values(),
+      ]);
+      const fingerprintPayload = {
+        enterpriseId: context.enterpriseId,
+        projectId: input.item.projectId,
+        deliveryPlanRef: input.plan.ref,
+        deliveryItemRef: input.item.ref,
+        criteriaHash: hashValue(sources.criteriaHash),
+        evaluatorRef: DELIVERY_COMPLETION_EVALUATOR,
+        factRefs: input.refs,
+        associationHashes: sources.associations.map((a) => hashValue(a.payload_hash)),
+        sourceWatermarks: watermarks,
+        revocationFactRefs: sortedExact(sources.revocations.map(rowFactReference)),
+        taskFactSemantics: 'HISTORICAL_COMPLETION',
+      } as unknown as CanonicalJsonObject;
+      const fingerprint = digestCanonicalPayload(fingerprintPayload).hash;
+      const old = await repo.getCompletionEvaluationByFingerprint(
+        execution.trx,
+        context.enterpriseId,
+        input.item.projectId,
+        input.item.versionId,
+        input.item.objectId,
+        fingerprint,
+      );
+      if (old) {
+        await verifyExactEvaluationSources(
+          execution.trx,
+          context,
+          input,
+          verifyExactEvaluation(old, context, input),
+        );
+        await ports.revalidate();
+        return {
+          kind: 'COMMITTED' as const,
+          resultPayload: exactCompletionResult(
+            evaluationReference(old, context.enterpriseId, input.item.projectId),
+            old.outcome,
+            asRecord(jsonValue(old.payload)).satisfiedFactRefs as CanonicalJsonObject[],
+            version,
+          ),
+        };
+      }
+      const time = ports.now(),
+        id = newUuidV7();
+      const payload = {
+        ...fingerprintPayload,
+        outcome: sources.outcome,
+        satisfiedFactRefs: sources.satisfiedFactRefs,
+        evaluatedAt: time.toISOString(),
+      };
+      const payloadHash = digestCanonicalPayload(payload).hash;
+      await repo.insertCompletionEvaluation(execution.trx, {
+        evaluationId: id,
+        deliveryPlanId: input.plan.objectId,
+        versionId: input.item.versionId,
+        deliveryItemId: input.item.objectId,
+        enterpriseId: context.enterpriseId,
+        projectId: input.item.projectId,
+        criteriaHash: sources.criteriaHash,
+        evaluatorRef: DELIVERY_COMPLETION_EVALUATOR,
+        evaluatorRefHash: digestCanonicalPayload(
+          DELIVERY_COMPLETION_EVALUATOR as unknown as CanonicalJsonObject,
+        ).hash,
+        evaluatorId: DELIVERY_COMPLETION_EVALUATOR.objectId,
+        evaluatorVersionId: DELIVERY_COMPLETION_EVALUATOR.versionId,
+        factRefs: input.refs,
+        factRefsHash: digestCanonicalPayload({ factRefs: input.refs }).hash,
+        sourceWatermarks: watermarks,
+        sourceWatermarksHash: digestCanonicalPayload({ sourceWatermarks: watermarks }).hash,
+        outcome: sources.outcome,
+        payload,
+        payloadHash,
+        inputFingerprint: fingerprint,
+        evaluatedAt: time,
+        recordedByPrincipalId: context.principalId,
+        recordedByActorSnapshotId: context.actorSnapshotId,
+        authorizationDecisionId: context.authorizationDecisionId,
+        sourceCommandId: envelope.commandId,
+      });
+      const prior = sources.item.current_completion_evaluation_id
+        ? await repo.getCompletionEvaluationById(
+            execution.trx,
+            sources.item.current_completion_evaluation_id,
+          )
+        : undefined;
+      const cas = await repo.casCurrentCompletionEvaluation(execution.trx, {
+        deliveryPlanId: input.plan.objectId,
+        versionId: input.item.versionId,
+        enterpriseId: context.enterpriseId,
+        projectId: input.item.projectId,
+        deliveryItemId: input.item.objectId,
+        expectedAggregateVersion: version,
+        expectedEvaluationId: sources.item.current_completion_evaluation_id,
+        nextEvaluationId: id,
+        commandId: envelope.commandId,
+      });
+      if (!cas.ok) completionError(CONCURRENCY_CONFLICT, 'Completion pointer changed');
+      const evalRef = evaluationReference(
+        { evaluation_id: id, payload_hash: payloadHash },
+        context.enterpriseId,
+        input.item.projectId,
+      );
+      let impactRef: Common.ContentAddressedRef | undefined;
+      if (prior) {
+        const impactId = newUuidV7(),
+          priorRef = evaluationReference(prior, context.enterpriseId, input.item.projectId),
+          triggeringRef = sources.revocations.length
+            ? canonicalObject(
+                jsonValue(sources.revocations.at(-1)?.fact_ref),
+                PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+                'revocation factRef',
+              )
+            : input.refs[0];
+        if (!triggeringRef)
+          completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Fact unavailable');
+        const reason = sources.revocations.length
+          ? 'DELIVERY_ITEM_COMPLETION_FACT_REVOKED'
+          : 'DELIVERY_ITEM_COMPLETION_FACT_CHANGED';
+        const body = {
+          enterpriseId: context.enterpriseId,
+          projectId: input.item.projectId,
+          deliveryItemRef: input.item.ref,
+          triggeringRef,
+          priorEvaluationRef: priorRef,
+          newEvaluationRef: evalRef,
+          impactReason: reason,
+          affectedFactRefs: input.refs,
+          sourceWatermarks: watermarks,
+        } as unknown as CanonicalJsonObject;
+        const hash = digestCanonicalPayload(body).hash;
+        impactRef = {
+          kind: 'CONTENT_ADDRESSED',
+          objectType: 'DeliveryItemImpactReview',
+          objectId: impactId,
+          immutableVersionId: impactId,
+          scope: { enterpriseId: context.enterpriseId, projectId: input.item.projectId },
+          contentHash: hashValue(hash),
+        };
+        await repo.insertImpactReview(execution.trx, {
+          impactReviewId: impactId,
+          deliveryPlanId: input.plan.objectId,
+          versionId: input.item.versionId,
+          deliveryItemId: input.item.objectId,
+          enterpriseId: context.enterpriseId,
+          projectId: input.item.projectId,
+          triggeringRef,
+          priorEvaluationRef: priorRef,
+          priorEvaluationId: prior.evaluation_id,
+          newEvaluationRef: evalRef,
+          newEvaluationId: id,
+          impactReason: reason,
+          affectedFactRefs: input.refs,
+          sourceWatermarks: watermarks,
+          payload: body,
+          payloadHash: hash,
+          recordedByPrincipalId: context.principalId,
+          recordedByActorSnapshotId: context.actorSnapshotId,
+          authorizationDecisionId: context.authorizationDecisionId,
+          sourceCommandId: envelope.commandId,
+        });
+        await execution.appendOutbox({
+          eventId: newUuidV7(),
+          eventType: 'project.DeliveryItemImpactReviewRequested',
+          eventVersion: '1.0',
+          aggregateType: 'zhiju.project.delivery_item',
+          aggregateId: input.item.objectId,
+          aggregateVersion: cas.nextVersion,
+          payload: {
+            enterpriseId: context.enterpriseId,
+            projectId: input.item.projectId,
+            deliveryItemRef: input.item.ref,
+            triggeringRef,
+            priorEvaluationRef: priorRef as unknown as CanonicalJsonObject,
+            impactReason: reason,
+          },
+          occurredAt: time,
+        });
+      }
+      if (sources.outcome === 'SATISFIED' && prior?.outcome !== 'SATISFIED')
+        await execution.appendOutbox({
+          eventId: newUuidV7(),
+          eventType: 'project.DeliveryItemCompletionSatisfied',
+          eventVersion: '1.0',
+          aggregateType: 'zhiju.project.delivery_item',
+          aggregateId: input.item.objectId,
+          aggregateVersion: cas.nextVersion,
+          payload: {
+            enterpriseId: context.enterpriseId,
+            projectId: input.item.projectId,
+            deliveryItemRef: input.item.ref,
+            evaluationRef: evalRef as unknown as CanonicalJsonObject,
+            satisfiedFactRefs: sources.satisfiedFactRefs,
+            satisfiedAt: time.toISOString(),
+          },
+          occurredAt: time,
+        });
+      await ports.revalidate();
+      return {
+        kind: 'COMMITTED' as const,
+        resultPayload: exactCompletionResult(
+          evalRef,
+          sources.outcome,
+          sources.satisfiedFactRefs,
+          cas.nextVersion,
+          impactRef,
+        ),
+      };
+    },
+    ports.revalidate,
+  );
+}
+function exactCompletionResult(
+  ref: Common.ContentAddressedRef,
+  outcome: string,
+  facts: readonly CanonicalJsonObject[],
+  version: string,
+  impact?: Common.ContentAddressedRef,
+): CanonicalJsonObject {
+  const result = {
+    evaluationRef: ref,
+    outcome,
+    satisfiedFactRefs: facts,
+    aggregateVersion: positiveInteger(version, CONCURRENCY_CONFLICT, 'aggregateVersion'),
+    ...(impact ? { impactReviewRef: impact } : {}),
+  } as unknown as CanonicalJsonObject;
+  if (
+    !CONTRACT_REGISTRY.validateOperationResult(
+      'project.evaluate_delivery_item_completion',
+      '2.0',
+      result,
+    ).valid
+  )
+    completionError(PROJECT_DELIVERY_REFERENCE_INVALID, 'Invalid completion result');
+  return result;
+}
+function verifyExactEvaluation(
+  row: DeliveryItemCompletionEvaluationTable,
+  context: EnterpriseProjectTransactionContext,
+  input: ReturnType<typeof exactRequest>,
+) {
+  const b = canonicalObject(
+    jsonValue(row.payload),
+    PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+    'evaluation',
+  );
+  const fingerprint = { ...b };
+  delete fingerprint.outcome;
+  delete fingerprint.satisfiedFactRefs;
+  delete fingerprint.evaluatedAt;
+  if (
+    Object.keys(b).sort().join() !==
+      'associationHashes,criteriaHash,deliveryItemRef,deliveryPlanRef,enterpriseId,evaluatedAt,evaluatorRef,factRefs,outcome,projectId,revocationFactRefs,satisfiedFactRefs,sourceWatermarks,taskFactSemantics' ||
+    b.taskFactSemantics !== 'HISTORICAL_COMPLETION' ||
+    b.enterpriseId !== context.enterpriseId ||
+    b.projectId !== input.item.projectId ||
+    row.enterprise_id !== context.enterpriseId ||
+    row.project_id !== input.item.projectId ||
+    row.delivery_plan_id !== input.plan.objectId ||
+    row.version_id !== input.item.versionId ||
+    row.delivery_item_id !== input.item.objectId ||
+    !sameExact(b.deliveryPlanRef, input.plan.ref) ||
+    !sameExact(b.deliveryItemRef, input.item.ref) ||
+    !row.payload_hash.equals(digestCanonicalPayload(b).hash) ||
+    !row.input_fingerprint.equals(digestCanonicalPayload(fingerprint).hash) ||
+    !sameExact(b.criteriaHash, hashValue(row.criteria_hash)) ||
+    !sameExact(b.factRefs, jsonValue(row.fact_refs)) ||
+    !row.fact_refs_hash.equals(digestCanonicalPayload({ factRefs: b.factRefs ?? null }).hash) ||
+    !sameExact(b.sourceWatermarks, jsonValue(row.source_watermarks)) ||
+    !row.source_watermarks_hash.equals(
+      digestCanonicalPayload({ sourceWatermarks: b.sourceWatermarks ?? null }).hash,
+    ) ||
+    !sameExact(b.evaluatorRef, jsonValue(row.evaluator_ref)) ||
+    !row.evaluator_ref_hash.equals(
+      digestCanonicalPayload({ ...(b.evaluatorRef as CanonicalJsonObject) }).hash,
+    ) ||
+    row.evaluator_id !== DELIVERY_COMPLETION_EVALUATOR.objectId ||
+    row.evaluator_version_id !== DELIVERY_COMPLETION_EVALUATOR.versionId ||
+    typeof b.evaluatedAt !== 'string' ||
+    new Date(b.evaluatedAt).getTime() !== new Date(row.evaluated_at).getTime() ||
+    b.outcome !== row.outcome ||
+    !sameExact(b.evaluatorRef, DELIVERY_COMPLETION_EVALUATOR)
+  )
+    completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Evaluation unavailable');
+  return b;
+}
+async function verifyExactEvaluationSources(
+  trx: EnterpriseProjectTransaction,
+  context: EnterpriseProjectTransactionContext,
+  input: ReturnType<typeof exactRequest>,
+  evaluation: CanonicalJsonObject,
+) {
+  const sourceInput = exactRequest(
+    context,
+    { ...input.request, factRefs: evaluation.factRefs },
+    true,
+  );
+  const sources = await exactSources(trx, context, sourceInput, sourceInput.refs, false);
+  const watermarks = sortedExact([
+    ...new Map(
+      sources.selected.map((row) => {
+        const watermark = canonicalObject(
+          jsonValue(row.source_watermark),
+          PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+          'watermark',
+        );
+        return [exactKey(watermark), watermark] as const;
+      }),
+    ).values(),
+  ]);
+  const revocations = evaluation.revocationFactRefs;
+  if (
+    !Array.isArray(revocations) ||
+    !sameExact(evaluation.factRefs, sourceInput.refs) ||
+    !sameExact(evaluation.criteriaHash, hashValue(sources.criteriaHash)) ||
+    !sameExact(
+      evaluation.associationHashes,
+      sources.associations.map((row) => hashValue(row.payload_hash)),
+    ) ||
+    !sameExact(evaluation.sourceWatermarks, watermarks) ||
+    !sameExact(revocations, sortedExact(revocations as CanonicalJsonObject[]))
+  )
+    completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Evaluation sources unavailable');
+  const frozenRevocations = revocations.map((ref) => {
+    const row = sources.revocations.find((candidate) =>
+      sameExact(rowFactReference(candidate), ref),
+    );
+    if (!row)
+      completionError(
+        PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND,
+        'Evaluation revocation unavailable',
+      );
+    verifyLedgerFact(row, context, input.item.projectId);
+    return row;
+  });
+  const criteria = exactCriteria(jsonValue(sources.item.completion_criteria), {
+    enterpriseId: context.enterpriseId,
+    projectId: input.item.projectId,
+  });
+  const active = sources.selected.filter((row) => !revokedByFacts(row, frozenRevocations));
+  const satisfied =
+    active.some((row) => row.event_type === 'execution.TaskCompleted') &&
+    (!criteria.releaseRef || active.some((row) => row.event_type === 'release.ReleaseCompleted'));
+  if (
+    evaluation.outcome !== (satisfied ? 'SATISFIED' : 'UNSATISFIED') ||
+    !sameExact(
+      evaluation.satisfiedFactRefs,
+      satisfied ? sortedExact(sources.selected.map(rowFactReference)) : [],
+    )
+  )
+    completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Evaluation outcome unavailable');
+  return sources;
+}
+function requireSelected(value: DeliveryItemCompletionEvaluationTable | undefined) {
+  if (!value) completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Evaluation unavailable');
+  return value;
+}
+export function createDeliveryItemCompletionReadbackPort(db: Kysely<EnterpriseProjectDb>) {
+  return {
+    readExact: async (
+      context: EnterpriseProjectTransactionContext,
+      request: ExactDeliveryCompletionRequest & {
+        readonly evaluationRef?: Common.ContentAddressedRef;
+      },
+      ports: { revalidate: () => Promise<void>; now: () => Date },
+    ) => {
+      await ports.revalidate();
+      const input = exactRequest(context, request, true);
+      const result = await withEnterpriseProjectTransaction(db, context, async (trx) => {
+        await sql`SELECT enterprise_project.lock_completion_ledger(${context.enterpriseId}::uuid,${input.item.projectId}::uuid)`.execute(
+          trx,
+        );
+        await ports.revalidate();
+        const s = await exactSources(trx, context, input, input.refs, false),
+          current = s.item.current_completion_evaluation_id
+            ? await repo.getCompletionEvaluationById(trx, s.item.current_completion_evaluation_id)
+            : undefined;
+        const wanted = request.evaluationRef;
+        const selected = wanted
+          ? await repo.getCompletionEvaluationById(trx, wanted.objectId)
+          : current;
+        if (
+          wanted &&
+          (!selected ||
+            !sameExact(
+              wanted,
+              evaluationReference(selected, context.enterpriseId, input.item.projectId),
+            ))
+        )
+          completionError(PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND, 'Evaluation unavailable');
+        const evaluation = selected ? verifyExactEvaluation(selected, context, input) : undefined;
+        if (evaluation) await verifyExactEvaluationSources(trx, context, input, evaluation);
+        let derivedStatus: 'NOT_EVALUATED' | 'SATISFIED' | 'UNSATISFIED' = 'NOT_EVALUATED';
+        if (current) {
+          const c = verifyExactEvaluation(current, context, input);
+          const currentSources = await verifyExactEvaluationSources(trx, context, input, c);
+          const plan = await repo.getDeliveryPlanById(trx, input.plan.objectId),
+            pv = await repo.getDeliveryPlanVersion(trx, input.plan.versionId),
+            project = await repo.getProjectById(trx, input.item.projectId);
+          derivedStatus =
+            plan?.active_version_id === input.plan.versionId &&
+            pv?.version_status === 'ACTIVE' &&
+            project?.status === 'ACTIVE'
+              ? currentSources.outcome
+              : 'UNSATISFIED';
+        }
+        const facts = s.selected.map((row) => {
+          const f = verifyLedgerFact(row, context, input.item.projectId),
+            a = s.associations.find((x) => x.fact_id === row.fact_id),
+            b = a?.canonical_payload,
+            side = b ? asRecord(b.sidecar) : undefined;
+          return {
+            factRef: f.ref,
+            eventId: row.event_id,
+            eventType: row.event_type,
+            eventVersion: row.event_version,
+            ...(side
+              ? {
+                  taskRef: side.taskRef,
+                  taskEvaluationRef: side.taskEvaluationRef,
+                  deliveryPlanRef: b?.deliveryPlanRef,
+                  deliveryItemRef: side.deliveryItemRef,
+                  bindingHash: b?.bindingHash,
+                }
+              : {}),
+            payloadHash: hashValue(row.payload_hash),
+            sourceWatermark: f.watermark,
+            lifecycle: row.lifecycle,
+          };
+        });
+        await ports.revalidate();
+        return {
+          deliveryPlanRef: input.plan.ref,
+          deliveryItemRef: input.item.ref,
+          criteriaHash: hashValue(s.criteriaHash),
+          facts,
+          ...(evaluation
+            ? {
+                evaluation: {
+                  evaluationRef: evaluationReference(
+                    requireSelected(selected),
+                    context.enterpriseId,
+                    input.item.projectId,
+                  ),
+                  ...Object.fromEntries(
+                    [
+                      'deliveryPlanRef',
+                      'deliveryItemRef',
+                      'criteriaHash',
+                      'evaluatorRef',
+                      'factRefs',
+                      'satisfiedFactRefs',
+                      'sourceWatermarks',
+                      'revocationFactRefs',
+                      'outcome',
+                      'evaluatedAt',
+                    ].map((k) => [k, evaluation[k]]),
+                  ),
+                },
+              }
+            : {}),
+          ...(current
+            ? {
+                currentEvaluationRef: evaluationReference(
+                  current,
+                  context.enterpriseId,
+                  input.item.projectId,
+                ),
+              }
+            : {}),
+          completionAggregateVersion: positiveInteger(
+            s.item.completion_aggregate_version,
+            CONCURRENCY_CONFLICT,
+            'aggregateVersion',
+          ),
+          derivedStatus,
+          selectedEvaluationIsCurrent:
+            !!selected && selected.evaluation_id === current?.evaluation_id,
+          taskFactSemantics: 'HISTORICAL_COMPLETION',
+          taskCurrentUseStatus: 'UNKNOWN',
+          checkedAt: ports.now().toISOString(),
+        };
+      });
+      await ports.revalidate();
+      return result;
+    },
+  };
 }

@@ -836,7 +836,7 @@ export async function handleEvaluateFormalCompletion(
           aggregateVersion: Number(version),
           scopeRef: observed.root.scope,
           correlationId: envelope.correlationId,
-          causationId: envelope.commandId,
+          causationId: envelope.causationId ?? envelope.commandId,
           commandId: envelope.commandId,
           occurredAt: now.toISOString(),
           actorRef: reference('zhiju.identity.principal', envelope.principalId, {

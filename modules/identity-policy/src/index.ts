@@ -418,3 +418,9 @@ export {
   type FormalCompletionConsumer,
   type FormalCompletionAuthorizationConfig,
 } from './commands/work-order-validation-authorization.js';
+
+export {
+  createTaskCompletedDeliveryAuthorizationPort,
+  taskCompletedDeliveryBindings,
+  type TaskCompletedDeliveryAuthorizationConfig,
+} from './commands/work-order-validation-authorization.js';

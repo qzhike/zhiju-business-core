@@ -2297,4 +2297,51 @@ export const publicApiOperations = [
     authorizationPurpose: 'artifact.execution_output.read',
     dataClassification: 'CUSTOMER_CONFIDENTIAL',
   },
+  {
+    type: 'project.evaluate_delivery_item_completion',
+    version: '2.0',
+    kind: 'COMMAND',
+    owner: 'enterprise-project',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.project.delivery_item',
+    concurrencyMode: 'MUTATE',
+    authorizationPurpose: 'project.delivery_item.evaluate_completion',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_evaluate_delivery_item_completion_v2_0_result',
+    references: [
+      {
+        path: '/payload/deliveryPlanRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.project.delivery_plan',
+      },
+      {
+        path: '/payload/deliveryItemRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.project.delivery_item',
+      },
+      {
+        path: '/payload/factRefs/*',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'DeliveryItemCompletionFact',
+      },
+    ],
+    resultReferences: [
+      {
+        path: '/data/evaluationRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'CompletionEvaluation',
+      },
+      {
+        path: '/data/satisfiedFactRefs/*',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'DeliveryItemCompletionFact',
+      },
+      {
+        path: '/data/impactReviewRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'DeliveryItemImpactReview',
+      },
+    ],
+  },
 ] as const satisfies readonly PublicOperationDefinition[];

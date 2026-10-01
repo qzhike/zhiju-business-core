@@ -1,0 +1,34 @@
+{
+  "fixtureVersion": "1.0",
+  "profile": "te.human_operated.synthetic.formal@1.0",
+  "taskCriteria": [
+    "EXPECTED_OUTPUTS_SATISFIED",
+    "NO_BLOCKING_INFORMATION_REQUEST",
+    "REQUIRED_WORK_ORDERS_COMPLETED"
+  ],
+  "workOrderCriteria": [
+    "EXPECTED_OUTPUT_PRESENT",
+    "OUTPUT_REF_VALID",
+    "OUTPUT_CREATED_BY_WORK_ORDER",
+    "OUTPUT_SCHEMA_VALID",
+    "OUTPUT_WITHIN_TARGET_SCOPE",
+    "NO_BLOCKING_INFORMATION_REQUEST"
+  ],
+  "runtimeTemplates": ["formal-completed-v1"],
+  "expected": {
+    "runCount": 1,
+    "workOrderStatus": "COMPLETED",
+    "taskStatus": "COMPLETED",
+    "completionUseStatus": "USABLE",
+    "completedEventsPerRoot": 1
+  },
+  "deliveryCompletion": {
+    "criteriaProfile": "ep.delivery_item.exact_task_completion@1.0",
+    "evaluator": "ep.delivery_item_completion.evaluator@2.0",
+    "taskOnlyOutcome": "SATISFIED",
+    "releaseRequiredOutcome": "UNSATISFIED",
+    "completionAggregateVersion": 2,
+    "taskFactSemantics": "HISTORICAL_COMPLETION",
+    "taskCurrentUseStatus": "UNKNOWN"
+  }
+}

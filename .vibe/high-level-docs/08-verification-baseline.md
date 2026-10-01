@@ -545,7 +545,7 @@ WI-08 复核命令和实际输出见 [`Synthetic-QMS-REL-801-Exit-Report.md`](..
 
 ## #237 真实派发与独立 DeliveryItem Completion 的验收边界（提案）
 
-状态：`HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / NOT IMPLEMENTED / NEW RUNTIME CASES NOT RUN`。[决定](../decisions/task-completed-delivery-completion.md)的bounded结果按既有§2.8首版原则交付：一个后续实现候选包含normal与一次BLOCKED_INPUTrecovered的owning链，真实TEOutbox→EPInbox/精确关联→独立Evaluation→EPReadback。Task-only可SATISFIED，另需Release的合法目标UNSATISFIED。字段/失败唯一见Spec003 §26、Spec002 §23、Spec001 §15.16、PostgreSQL §41；必要运行矩阵TE-DEL-D-*、EP-DEL-D-*、IP-DEL-D-*在各Module-Test，不以现有EPsyntheticEvent或#235CompletionPASS替代。
+状态：`HUMAN DESIGN APPROVED 2026-10-01 / DESIGN REVIEW PASSED / IMPLEMENTED IN #239 PROPOSED REVISION / TIERED RUNTIME EVIDENCE IN MODULE-TEST`。[决定](../decisions/task-completed-delivery-completion.md)的bounded结果按既有§2.8首版原则交付：本实现包含normal与一次BLOCKED_INPUTrecovered的owning链，真实TEOutbox→EPInbox/精确关联→独立Evaluation→EPReadback。Task-only可SATISFIED，另需Release的合法目标UNSATISFIED。字段/失败唯一见Spec003 §26、Spec002 §23、Spec001 §15.16、PostgreSQL §41；必要运行矩阵TE-DEL-D-*、EP-DEL-D-*、IP-DEL-D-*在各Module-Test，不以现有EPsyntheticEvent或#235CompletionPASS替代。
 
 设计交付仍按现行strictMarkdown`docs`路由，另需独立语义设计审查和revision-bound明确人类设计批准、真实PR编号下的正式Review记录。这里只新增验收场景和证据边界，不改变§2.1.1验证策略/targets。后续实现需`full`及适用首次`environment`，standaloneinput/contractfixtures、实际controlledDriver、正负/并发/commit前与commit后故障、ACL/RLS/immutable/升级证据分层保存。OnlyexternalRuntime可替换；Event/Decision/Receipt/fact不能伪造或direct-table构造positivechain。
 

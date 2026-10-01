@@ -1,3 +1,12 @@
+import { createDeliveryCompletionPlanFixture } from './delivery-completion-plan-fixture.js';
+import {
+  createTaskCompletedDeliveryEntry,
+  type DeliveryCompletionSession,
+} from '@zhiju/api/composition';
+import { taskCompletedDeliveryBindings } from '@zhiju/identity-policy';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import { postgresImageReference } from '../../tools/persistence/baseline.mjs';
+import { runFlyway } from '../../tools/persistence/flyway.mjs';
 import { formalQualityFixture } from './formal-completion-quality-fixture.js';
 import {
   createFormalCompletionEntry,
@@ -354,6 +363,7 @@ import {
   type WorkOrderDraftReadCapabilityCodes,
 } from '@zhiju/identity-policy';
 import {
+  consumeDeliveryItemCompletionEvent,
   handleRegisterSourceMaterial,
   handleAcceptSourceMaterial,
   EnterpriseBusinessRepository,
@@ -413,6 +423,7 @@ import { canonicalize, newUuidV7, type CanonicalJsonObject } from '@zhiju/shared
 
 const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const gateEnabled = Boolean(databaseUrl);
+let activeDatabaseUrl = databaseUrl;
 
 const PROBE_ROLE = 'im06_wi216_probe';
 const PROBE_PASSWORD = 'im06-wi216-probe';
@@ -1585,9 +1596,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     return record(resultPayload).sourceSliceRef as Common.ContentAddressedRef;
   }
 
-  beforeAll(async () => {
+  async function prepareSuite(deliveryOnly = false) {
     phase('suite business preparation');
-    admin = new pg.Client({ connectionString: databaseUrl });
+    admin = new pg.Client({ connectionString: activeDatabaseUrl });
     cleanupResources.push(admin);
     await admin.connect();
     await admin.query(
@@ -1600,9 +1611,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
        END $do$`,
     );
     await admin.query(
-      `GRANT platform_context_establisher, task_execution_app, enterprise_project_app, identity_policy_app, integration_gateway_app, artifact_app, quality_governance_app TO ${PROBE_ROLE}`,
+      `GRANT platform_context_establisher, task_execution_app, enterprise_project_app, identity_policy_app, integration_gateway_app, artifact_app, quality_governance_app, task_execution_dispatcher, enterprise_project_platform_reference_writer TO ${PROBE_ROLE}`,
     );
-    const url = new URL(databaseUrl ?? '');
+    const url = new URL(activeDatabaseUrl ?? '');
     url.username = PROBE_ROLE;
     url.password = PROBE_PASSWORD;
     const probeConnectionUrl = url.toString();
@@ -1907,11 +1918,14 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     });
 
     // The golden WorkOrder: one @1.1 DRAFT every unit assembly input reuses.
-    const goldenTaskId = await createExecutableTask('2.0');
-    goldenWorkOrderId = await createWorkOrder({ taskId: goldenTaskId, taskMajor: '2.0' });
-    goldenDraftRef = await draftSnapshotRefOf(goldenWorkOrderId);
+    if (!deliveryOnly) {
+      const goldenTaskId = await createExecutableTask('2.0');
+      goldenWorkOrderId = await createWorkOrder({ taskId: goldenTaskId, taskMajor: '2.0' });
+      goldenDraftRef = await draftSnapshotRefOf(goldenWorkOrderId);
+    }
     phaseEnd();
-  }, 300_000);
+  }
+  beforeAll(() => prepareSuite(), 300_000);
 
   afterAll(async () => {
     phase('suite cleanup');
@@ -2039,6 +2053,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     owningReady = false,
     formalDefinition?: Record<string, unknown>,
     deferReadiness = false,
+    preallocatedId?: string,
   ): Promise<string> {
     const payload = payloadOf(commandVersion === '1.0' ? V1_TASK_FIXTURE : V2_TASK_FIXTURE);
     rewriteFixtureScopes(payload, fixture);
@@ -2054,7 +2069,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       (candidate) => candidate.commandVersion === commandVersion,
     );
     if (binding === undefined) throw new Error('unsupported Task creation version');
-    const targetId = newUuidV7();
+    const targetId = preallocatedId ?? newUuidV7();
     const digest = digestCanonicalPayload(payload as CanonicalJsonObject);
     const port = createTaskExecutionCreationAuthorizationPort({
       capabilityCodes: creationCapabilityCodes,
@@ -5673,7 +5688,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(237);
+    expect(catalog.operations).toHaveLength(238);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
     ).toHaveLength(62);
@@ -7050,7 +7065,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
         operations: { type: string; version: string; kind: string; owner: string }[];
       };
-      expect(catalog.operations).toHaveLength(237);
+      expect(catalog.operations).toHaveLength(238);
       expect(
         catalog.operations.filter((operation) => operation.owner === 'task-execution'),
       ).toHaveLength(62);
@@ -7388,6 +7403,1013 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     }
   }
 
+  async function verifyDeliveryTail(
+    plan: Awaited<ReturnType<typeof createDeliveryCompletionPlanFixture>>,
+    taskId: string,
+    sourceService: Principal,
+    requiresRelease: boolean,
+  ) {
+    phase('delivery completion owning tail');
+    const roles = {} as Record<'dispatcher' | 'consumer' | 'evaluator' | 'reader', Principal>;
+    for (const role of ['dispatcher', 'consumer', 'evaluator', 'reader'] as const) {
+      const id = newUuidV7(),
+        actorId = newUuidV7(),
+        authHash = Buffer.from(digestCanonicalPayload({ role, id }).hash);
+      await withIdentityTransaction(identityDb, identityContext([fixture.projectId]), (trx) =>
+        identityRepo.insertPrincipal(trx, {
+          id,
+          principalKind: 'SERVICE',
+          displayName: `Delivery ${role}`,
+          createdByPrincipalId: OPERATOR,
+          createdByActorSnapshotId: OPERATOR_ACTOR,
+        }),
+      );
+      const actorRef = await createActorSnapshot(identityDeps([fixture.projectId]), {
+        actorSnapshotId: actorId,
+        principalId: id,
+        declaredPrincipalKind: 'SERVICE',
+        authenticationContextHash: authHash,
+        scopeKind: 'PROJECT',
+        enterpriseId: fixture.enterpriseId,
+        projectId: fixture.projectId,
+      });
+      roles[role] = {
+        principalId: id,
+        principalKind: 'SERVICE',
+        actorSnapshotId: actorId,
+        actorRef,
+        authHash,
+      };
+    }
+    const bindings = taskCompletedDeliveryBindings(),
+      capabilityCodes: Record<string, string> = {},
+      grants = new Map<string, string>();
+    for (const b of bindings) {
+      const capabilityCode = `wi239.cap.${b.capabilityConfigKey.toLowerCase()}.${taskId.replace(/-/g, '')}`;
+      capabilityCodes[b.capabilityConfigKey] = capabilityCode;
+      const principal =
+        b.expectedPrincipalKind === 'HUMAN'
+          ? operator()
+          : b.capabilityConfigKey.startsWith('taskCompleted')
+            ? roles.dispatcher
+            : b.capabilityConfigKey === 'deliveryCompletionConsumeV1'
+              ? roles.consumer
+              : b.capabilityConfigKey === 'deliveryItemCompletionEvaluateV2'
+                ? roles.evaluator
+                : roles.reader;
+      grants.set(
+        b.capabilityConfigKey,
+        await grant({
+          principal,
+          capabilityCode,
+          action: b.requiredGrantAction,
+          selectorType: b.selectorType,
+          targetObjectType: definedValue(b.targetObjectTypes[0]),
+        }),
+      );
+    }
+    const authorization = {
+      capabilityCodes,
+      servicePrincipalIds: Object.fromEntries(
+        Object.entries(roles).map(([k, v]) => [k, v.principalId]),
+      ) as Record<keyof typeof roles, string>,
+      now: () => new Date(clock),
+    };
+    const config = {
+      taskExecutionDb: teDb,
+      enterpriseProjectDb,
+      identity: { db: identityDb, repo: identityRepo, crypto },
+      authorization,
+      now: () => new Date(clock),
+      workerInstanceId: 'worker_a',
+    };
+    const entry = createTaskCompletedDeliveryEntry(config),
+      second = createTaskCompletedDeliveryEntry({ ...config, workerInstanceId: 'worker_b' });
+    const session = (p: Principal): DeliveryCompletionSession => ({
+      ...sessionFor(p),
+      identityContext: identityContext([fixture.projectId], p),
+    });
+    const projectRef = objectRef(
+      'zhiju.project.project',
+      fixture.projectId,
+      scope(),
+    ) as Common.ObjectRef;
+    const eventRow = definedValue(
+      (
+        await admin.query<{
+          event_id: string;
+          payload: CanonicalJsonObject;
+          payload_hash: Buffer;
+          causation_id: string | null;
+          source_command_id: string;
+        }>(
+          "SELECT event_id,payload,payload_hash,causation_id,source_command_id FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.TaskCompleted'",
+          [taskId],
+        )
+      ).rows[0],
+    );
+    const candidates = await entry.scan(projectRef, session(roles.dispatcher));
+    expect(candidates).toContain(eventRow.event_id);
+    await expect(entry.scan(projectRef, session(roles.consumer))).rejects.toMatchObject({
+      code: 'AUTHORIZATION_DECISION_INVALID',
+    });
+    const cursorBeforeDeniedClaim = (
+      await admin.query(
+        'SELECT * FROM task_execution.task_completed_dispatch_cursor WHERE project_id=$1',
+        [fixture.projectId],
+      )
+    ).rows;
+    await expect(
+      entry.scan(projectRef, {
+        ...session(roles.dispatcher),
+        resolutionActorSnapshotRef: { ...roles.dispatcher.actorRef, snapshotId: newUuidV7() },
+      }),
+    ).rejects.toMatchObject({ code: 'AUTHORIZATION_DECISION_INVALID' });
+    await expect(
+      entry.scan(projectRef, {
+        ...session(roles.dispatcher),
+        authenticationContextHash: Buffer.alloc(32, 9),
+      }),
+    ).rejects.toBeDefined();
+    const missingRead = createTaskCompletedDeliveryEntry({
+      ...config,
+      authorization: {
+        ...authorization,
+        capabilityCodes: { ...capabilityCodes, taskCompletedReadV1: 'wi239.cap.missing_read' },
+      },
+    });
+    await expect(
+      missingRead.claim(projectRef, eventRow.event_id, session(roles.dispatcher)),
+    ).rejects.toMatchObject({ code: 'AUTHORIZATION_DECISION_INVALID' });
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int n FROM task_execution.task_completed_dispatch_binding WHERE event_id=$1',
+          [eventRow.event_id],
+        )
+      ).rows,
+    ).toEqual([{ n: 0 }]);
+    expect(
+      (
+        await admin.query(
+          'SELECT * FROM task_execution.task_completed_dispatch_cursor WHERE project_id=$1',
+          [fixture.projectId],
+        )
+      ).rows,
+    ).toEqual(cursorBeforeDeniedClaim);
+    // Negative source corruption only: restore the bytes created by the real producer.
+    await admin.query('UPDATE task_execution.outbox_event SET causation_id=$2 WHERE event_id=$1', [
+      eventRow.event_id,
+      newUuidV7(),
+    ]);
+    try {
+      await expect(
+        entry.claim(projectRef, eventRow.event_id, session(roles.dispatcher)),
+      ).rejects.toThrow('DISPATCH_SOURCE_INVALID');
+    } finally {
+      await admin.query(
+        'UPDATE task_execution.outbox_event SET causation_id=$2 WHERE event_id=$1',
+        [eventRow.event_id, eventRow.causation_id],
+      );
+    }
+    for (const statement of [
+      'SELECT * FROM task_execution.outbox_event',
+      'SELECT * FROM task_execution.task',
+      'SELECT * FROM enterprise_project.delivery_item_completion_fact',
+      `SELECT task_execution.dispatch_scan('${fixture.enterpriseId}'::uuid,'${fixture.projectId}'::uuid)`,
+    ]) {
+      await admin.query('BEGIN');
+      try {
+        await admin.query('SET LOCAL ROLE task_execution_dispatcher');
+        await expect(
+          admin.query(statement),
+          'IP-DEL-D-005 dispatcher ACL/no Context',
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await admin.query('ROLLBACK');
+      }
+    }
+    const unavailableIpPool = new pg.Pool({
+      connectionString: 'postgres://invalid:invalid@127.0.0.1:1/unavailable',
+      connectionTimeoutMillis: 500,
+    });
+    try {
+      const unavailableIp = createTaskCompletedDeliveryEntry({
+        ...config,
+        identity: { ...config.identity, db: createIdentityPolicyDatabase(unavailableIpPool) },
+      });
+      await expect(unavailableIp.scan(projectRef, session(roles.dispatcher))).rejects.toBeDefined();
+      expect(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM task_execution.task_completed_dispatch_binding WHERE event_id=$1',
+            [eventRow.event_id],
+          )
+        ).rows,
+      ).toEqual([{ n: 0 }]);
+    } finally {
+      await unavailableIpPool.end();
+    }
+    if (!requiresRelease) {
+      const blocker = new pg.Client({ connectionString: activeDatabaseUrl });
+      await blocker.connect();
+      let waitingClaim:
+        Promise<PromiseSettledResult<Awaited<ReturnType<typeof entry.claim>>>> | undefined;
+      try {
+        await blocker.query('BEGIN');
+        const pid = definedValue(
+          (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() pid')).rows[0],
+        ).pid;
+        await blocker.query(
+          'SELECT event_id FROM task_execution.outbox_event WHERE event_id=$1 FOR UPDATE',
+          [eventRow.event_id],
+        );
+        waitingClaim = Promise.allSettled([
+          entry.claim(projectRef, eventRow.event_id, session(roles.dispatcher)),
+        ]).then((results) => definedValue(results[0]));
+        const until = Date.now() + 15000;
+        let blocked = false;
+        while (Date.now() < until) {
+          blocked =
+            definedValue(
+              (
+                await admin.query<{ n: number }>(
+                  'SELECT count(*)::int n FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid))',
+                  [pid],
+                )
+              ).rows[0],
+            ).n > 0;
+          if (blocked) break;
+          await waitForDeadline(25, 'claim row-lock coordination');
+        }
+        expect(blocked).toBe(true);
+        expect(
+          await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+            targetId: definedValue(grants.get('taskCompletedClaimV1')),
+            expectedAggregateVersion: '1',
+            scope: {
+              scopeKind: 'PROJECT',
+              enterpriseId: fixture.enterpriseId,
+              projectId: fixture.projectId,
+            },
+            reasonCode: 'REVOKED_WHILE_CLAIM_WAITING',
+            effectiveAt: new Date(clock),
+            idempotencyKey: newUuidV7(),
+          }),
+        ).toMatchObject({ status: 'COMMITTED' });
+      } finally {
+        await blocker.query('ROLLBACK');
+        await blocker.end();
+      }
+      const denied = await definedValue(waitingClaim);
+      expect(denied).toMatchObject({
+        status: 'rejected',
+        reason: { code: 'AUTHORIZATION_DECISION_INVALID' },
+      });
+      expect(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM task_execution.task_completed_dispatch_binding WHERE event_id=$1',
+            [eventRow.event_id],
+          )
+        ).rows,
+      ).toEqual([{ n: 0 }]);
+      const binding = definedValue(
+        bindings.find((b) => b.capabilityConfigKey === 'taskCompletedClaimV1'),
+      );
+      grants.set(
+        binding.capabilityConfigKey,
+        await grant({
+          principal: roles.dispatcher,
+          capabilityCode: definedValue(capabilityCodes[binding.capabilityConfigKey]),
+          action: binding.requiredGrantAction,
+          selectorType: binding.selectorType,
+          targetObjectType: definedValue(binding.targetObjectTypes[0]),
+        }),
+      );
+    }
+    const claims = await Promise.all([
+      entry.claim(projectRef, eventRow.event_id, session(roles.dispatcher)),
+      second.claim(projectRef, eventRow.event_id, session(roles.dispatcher)),
+    ]);
+    expect(claims.map((claim) => claim.status).sort()).toEqual(['CLAIMED', 'UNAVAILABLE']);
+    const claimOwner = claims[0].status === 'CLAIMED' ? entry : second;
+    const retryOwner = claims[0].status === 'CLAIMED' ? second : entry;
+    const claimed = definedValue(claims.find((claim) => claim.status === 'CLAIMED'));
+    const material = await claimOwner.readClaimed(claimed, session(roles.dispatcher));
+    expect(material.event.causationId).toBe(eventRow.causation_id ?? eventRow.source_command_id);
+    expect(eventRow.causation_id === null).toBe(!requiresRelease);
+    expect(record(material.sidecar.taskDefinitionSnapshotRef).kind).toBe('CONTENT_ADDRESSED');
+    expect(record(material.sidecar.storedPayloadHash).digest).toBe(
+      eventRow.payload_hash.toString('hex'),
+    );
+    expect(record(record(material.event.integrity).payloadHash).digest).toBe(
+      digestCanonicalPayload(record(material.event.payload) as CanonicalJsonObject).hash.toString(
+        'hex',
+      ),
+    );
+    expect(record(material.sidecar.eventEnvelopeHash).digest).toBe(
+      digestCanonicalPayload(material.event).hash.toString('hex'),
+    );
+    await expect(
+      entry.consume(structuredClone(material), session(roles.consumer)),
+    ).rejects.toMatchObject({ code: 'PROJECT_DELIVERY_COMPLETION_EVENT_INVALID' });
+    if (!requiresRelease) {
+      for (const [table, condition] of [
+        ['inbox_message', `NEW.event_id='${eventRow.event_id}'::uuid`],
+        ['delivery_item_completion_fact', `NEW.event_id='${eventRow.event_id}'::uuid`],
+        ['delivery_completion_task_association', `NEW.event_id='${eventRow.event_id}'::uuid`],
+        ['process_instance', `NEW.correlation_key='${eventRow.event_id}'`],
+        ['process_step', `NEW.input_event_id='${eventRow.event_id}'::uuid`],
+        ['audit_record', `NEW.target_id='${plan.deliveryItemRef.objectId}'::uuid`],
+      ]) {
+        await admin.query(
+          "CREATE FUNCTION enterprise_project.wi239_consume_fault() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION 'wi239 consumer atomic fault' USING ERRCODE='P0001'; END $f$",
+        );
+        await admin.query(
+          `CREATE TRIGGER zz_wi239_fault AFTER INSERT ON enterprise_project.${table} FOR EACH ROW WHEN (${condition}) EXECUTE FUNCTION enterprise_project.wi239_consume_fault()`,
+        );
+        try {
+          await expect(
+            entry.consume(material, session(roles.consumer)),
+            `TE-DEL-D-006 ${table}`,
+          ).rejects.toMatchObject({ code: 'P0001' });
+        } finally {
+          await admin.query(`DROP TRIGGER zz_wi239_fault ON enterprise_project.${table}`);
+          await admin.query('DROP FUNCTION enterprise_project.wi239_consume_fault()');
+        }
+        expect(
+          (
+            await admin.query(
+              'SELECT count(*)::int n FROM enterprise_project.delivery_item_completion_fact WHERE event_id=$1',
+              [eventRow.event_id],
+            )
+          ).rows,
+        ).toEqual([{ n: 0 }]);
+        expect(
+          (
+            await admin.query(
+              'SELECT count(*)::int n FROM enterprise_project.inbox_message WHERE event_id=$1',
+              [eventRow.event_id],
+            )
+          ).rows,
+        ).toEqual([{ n: 0 }]);
+        expect(
+          (
+            await admin.query(
+              'SELECT count(*)::int n FROM enterprise_project.delivery_completion_task_association WHERE event_id=$1',
+              [eventRow.event_id],
+            )
+          ).rows,
+        ).toEqual([{ n: 0 }]);
+        expect(
+          (
+            await admin.query(
+              'SELECT count(*)::int n FROM enterprise_project.process_instance WHERE correlation_key=$1',
+              [eventRow.event_id],
+            )
+          ).rows,
+        ).toEqual([{ n: 0 }]);
+      }
+    }
+    const consumed = await Promise.all([
+      entry.consume(material, session(roles.consumer)),
+      entry.consume(material, session(roles.consumer)),
+    ]);
+    expect(consumed.map((r) => r.status).sort()).toEqual(['DUPLICATE', 'PROCESSED']);
+    const receipt = definedValue(consumed.find((r) => r.status === 'PROCESSED'));
+    if (!('factRef' in receipt)) throw new Error('Missing owning fact');
+    await expect(
+      claimOwner.confirm(
+        claimed,
+        material,
+        structuredClone(receipt) as unknown as CanonicalJsonObject,
+        session(roles.dispatcher),
+      ),
+    ).rejects.toMatchObject({ code: 'DISPATCH_ACK_INVALID' });
+    const request = {
+      deliveryPlanRef: plan.deliveryPlanRef,
+      deliveryItemRef: plan.deliveryItemRef,
+      factRefs: [receipt.factRef],
+    };
+    expect(await entry.readExact(request, session(roles.reader))).toMatchObject({
+      derivedStatus: 'NOT_EVALUATED',
+      completionAggregateVersion: 1,
+      taskFactSemantics: 'HISTORICAL_COMPLETION',
+      taskCurrentUseStatus: 'UNKNOWN',
+    });
+    for (const table of [
+      'task_execution.task_completed_dispatch_binding',
+      'task_execution.task_completed_dispatch_attempt',
+      'enterprise_project.delivery_completion_task_association',
+    ]) {
+      await expect(
+        admin.query(`UPDATE ${table} SET event_id=event_id WHERE event_id=$1`, [eventRow.event_id]),
+        'immutable owning history',
+      ).rejects.toMatchObject({ code: '55000' });
+      await expect(
+        admin.query(`DELETE FROM ${table} WHERE event_id=$1`, [eventRow.event_id]),
+        'immutable owning history',
+      ).rejects.toMatchObject({ code: '55000' });
+    }
+    const { handleEvaluateDeliveryItemCompletion } = await import('@zhiju/enterprise-project');
+    const legacyPayload = {
+      input: {
+        deliveryPlanRef: { ...plan.deliveryPlanRef, objectType: 'DeliveryPlan' },
+        deliveryItemId: plan.deliveryItemRef.objectId,
+        criteriaHash: contentHash(
+          digestCanonicalPayload({ criteria: plan.completionCriteria }).hash.toString('hex'),
+        ),
+        factRefs: [receipt.factRef],
+        sourceWatermarks: [material.sourceWatermark],
+        evaluatorRef: {
+          kind: 'VERSIONED',
+          objectType: 'zhiju.quality.evaluator',
+          objectId: newUuidV7(),
+          versionId: newUuidV7(),
+          scope: scope(),
+        },
+        evaluatedAt: new Date(clock).toISOString(),
+      },
+    };
+    const legacyCapability = `wi239.legacy.${taskId.replaceAll('-', '')}`;
+    await grantGeneric(legacyCapability);
+    const legacyDecision = await authorizeCommandTracked(identityDeps([fixture.projectId]), {
+      actorSnapshotRef: operatorActorRef,
+      intent: {
+        commandType: 'project.evaluate_delivery_item_completion',
+        commandVersion: '1.0',
+        scopeKind: 'PROJECT',
+        enterpriseId: fixture.enterpriseId,
+        projectId: fixture.projectId,
+        purpose: 'project.evaluate_delivery_item_completion',
+        requestedCapability: legacyCapability,
+        commandPayloadHash: digestCanonicalPayload(legacyPayload as unknown as CanonicalJsonObject)
+          .hash,
+        requestedAt: new Date(clock),
+        highRiskAction: false,
+      },
+      authenticationContextHash: AUTH_HASH,
+      policySnapshotRef: grantPolicySnapshotReference(),
+      ttlSeconds: 900,
+    });
+    expect(legacyDecision.outcome).toBe('ALLOW');
+    const legacyContext = {
+      ...runnerContext(),
+      authorizationDecisionId: legacyDecision.authorizationDecisionRef.objectId,
+      authorizationDecisionHash: Buffer.from(
+        legacyDecision.authorizationDecisionRef.contentHash.digest,
+        'hex',
+      ),
+      authorizationDecisionExpiresAt: new Date(legacyDecision.expiresAt),
+    };
+    await expect(
+      handleEvaluateDeliveryItemCompletion(enterpriseProjectDb, legacyContext, {
+        commandId: newUuidV7(),
+        commandType: 'project.evaluate_delivery_item_completion',
+        commandVersion: '1.0',
+        idempotencyScope: `wi239:legacy:${taskId}`,
+        idempotencyKey: newUuidV7(),
+        requestPayload: legacyPayload as unknown as CanonicalJsonObject,
+        payload:
+          legacyPayload as unknown as EnterpriseProject.ProjectEvaluateDeliveryItemCompletionPayload,
+        enterpriseId: fixture.enterpriseId,
+        projectId: fixture.projectId,
+        targetType: 'DeliveryItem',
+        targetId: plan.deliveryItemRef.objectId,
+        expectedAggregateVersion: '1',
+        correlationId: legacyContext.correlationId,
+        principalId: OPERATOR,
+        principalKind: 'HUMAN',
+        actorSnapshotId: OPERATOR_ACTOR,
+        authorizationDecisionId: legacyContext.authorizationDecisionId,
+        policySnapshotId: legacyContext.policySnapshotId,
+      }),
+    ).rejects.toMatchObject({ code: 'PROJECT_DELIVERY_ITEM_CRITERIA_UNSATISFIED' });
+    for (const field of ['objectId', 'versionId'] as const) {
+      const wrong = structuredClone(request);
+      wrong.deliveryItemRef = { ...wrong.deliveryItemRef, [field]: newUuidV7() };
+      await expect(entry.readExact(wrong, session(roles.reader))).rejects.toMatchObject({
+        code:
+          field === 'versionId'
+            ? 'PROJECT_DELIVERY_REFERENCE_INVALID'
+            : 'PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND',
+      });
+    }
+    if (requiresRelease) {
+      const otherFact = definedValue(
+        (
+          await admin.query<{ fact_ref: Common.ContentAddressedRef }>(
+            "SELECT fact_ref FROM enterprise_project.delivery_item_completion_fact WHERE project_id=$1 AND event_id<>$2 AND event_type='execution.TaskCompleted' ORDER BY recorded_at LIMIT 1",
+            [fixture.projectId, eventRow.event_id],
+          )
+        ).rows[0],
+      ).fact_ref;
+      await expect(
+        entry.readExact({ ...request, factRefs: [otherFact] }, session(roles.reader)),
+      ).rejects.toMatchObject({ code: 'PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND' });
+      await expect(
+        entry.evaluate(
+          {
+            payload: { ...request, factRefs: [otherFact] },
+            expectedAggregateVersion: 1,
+            idempotencyKey: newUuidV7(),
+          },
+          session(roles.evaluator),
+        ),
+      ).rejects.toMatchObject({ code: 'PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND' });
+      expect(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM enterprise_project.delivery_item_completion_evaluation WHERE delivery_item_id=$1',
+            [plan.deliveryItemRef.objectId],
+          )
+        ).rows,
+      ).toEqual([{ n: 0 }]);
+      expect(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM enterprise_project.delivery_item_completion_fact WHERE fact_id=$1',
+            [otherFact.objectId],
+          )
+        ).rows,
+      ).toEqual([{ n: 1 }]);
+    }
+    // Commit-before-confirm transport loss: original materials are delivered again.
+    expect(
+      await claimOwner.markFailure(
+        claimed,
+        'DISPATCH_TRANSPORT_UNKNOWN',
+        session(roles.dispatcher),
+      ),
+    ).toBe('UNKNOWN');
+    await waitForDeadline(2100, 'bounded delivery retry backoff');
+    clock = Date.now();
+    let reclaimed = await retryOwner.claim(
+      projectRef,
+      eventRow.event_id,
+      session(roles.dispatcher),
+    );
+    if (reclaimed.status !== 'CLAIMED') throw new Error(JSON.stringify(reclaimed));
+    expect(BigInt(reclaimed.leaseToken)).toBeGreaterThan(BigInt(claimed.leaseToken));
+    let replay = await retryOwner.readClaimed(reclaimed, session(roles.dispatcher));
+    expect(replay).toEqual(material);
+    const duplicate = await retryOwner.consume(replay, session(roles.consumer));
+    expect(duplicate).toMatchObject({ status: 'DUPLICATE', factRef: receipt.factRef });
+    await expect(
+      claimOwner.confirm(
+        claimed,
+        material,
+        receipt as unknown as CanonicalJsonObject,
+        session(roles.dispatcher),
+      ),
+    ).rejects.toThrow('DISPATCHER_STALE_LEASE');
+    await expect(
+      claimOwner.markFailure(claimed, 'DISPATCH_TIMEOUT', session(roles.dispatcher)),
+    ).rejects.toThrow('DISPATCHER_STALE_LEASE');
+    if (!requiresRelease) {
+      for (let attempt = 2; attempt <= 5; attempt++) {
+        expect(
+          await retryOwner.markFailure(reclaimed, 'DISPATCH_TIMEOUT', session(roles.dispatcher)),
+        ).toBe(attempt === 5 ? 'DEAD' : 'UNKNOWN');
+        if (attempt < 5) {
+          await waitForDeadline(2 ** attempt * 1000 + 100, 'finite automatic delivery retry');
+          clock = Date.now();
+          const next = await retryOwner.claim(
+            projectRef,
+            eventRow.event_id,
+            session(roles.dispatcher),
+          );
+          if (next.status !== 'CLAIMED') throw new Error(JSON.stringify(next));
+          expect(BigInt(next.leaseToken)).toBeGreaterThan(BigInt(reclaimed.leaseToken));
+          reclaimed = next;
+          expect(await retryOwner.readClaimed(reclaimed, session(roles.dispatcher))).toEqual(
+            material,
+          );
+        }
+      }
+      expect(
+        await retryOwner.claim(projectRef, eventRow.event_id, session(roles.dispatcher)),
+      ).toMatchObject({ status: 'UNAVAILABLE' });
+      await expect(
+        retryOwner.resumeDead(
+          claimed.taskRef as unknown as Common.ObjectRef,
+          eventRow.event_id,
+          'Approved retry window',
+          session(roles.dispatcher),
+        ),
+      ).rejects.toMatchObject({ code: 'AUTHORIZATION_DECISION_INVALID' });
+      await admin.query(
+        "CREATE FUNCTION task_execution.wi239_resume_fault() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION 'wi239 resume atomic fault' USING ERRCODE='P0001'; END $f$",
+      );
+      await admin.query(
+        `CREATE TRIGGER zz_wi239_resume_fault AFTER INSERT ON task_execution.audit_record FOR EACH ROW WHEN (NEW.command_type='execution.task_completed.dispatch.resume') EXECUTE FUNCTION task_execution.wi239_resume_fault()`,
+      );
+      try {
+        await expect(
+          retryOwner.resumeDead(
+            claimed.taskRef as unknown as Common.ObjectRef,
+            eventRow.event_id,
+            'Approved retry window',
+            session(operator()),
+          ),
+        ).rejects.toMatchObject({ code: 'P0001' });
+      } finally {
+        await admin.query('DROP TRIGGER zz_wi239_resume_fault ON task_execution.audit_record');
+        await admin.query('DROP FUNCTION task_execution.wi239_resume_fault()');
+      }
+      expect(
+        (
+          await admin.query(
+            'SELECT delivery_state,attempt_count,lease_token FROM task_execution.outbox_event WHERE event_id=$1',
+            [eventRow.event_id],
+          )
+        ).rows,
+      ).toEqual([{ delivery_state: 'DEAD', attempt_count: 5, lease_token: '5' }]);
+      await retryOwner.resumeDead(
+        claimed.taskRef as unknown as Common.ObjectRef,
+        eventRow.event_id,
+        'Approved retry window',
+        session(operator()),
+      );
+      const expiring = createTaskCompletedDeliveryEntry({
+        ...config,
+        workerInstanceId: 'expiry_worker',
+        leaseSeconds: 1,
+      });
+      const resumed = await expiring.claim(
+        projectRef,
+        eventRow.event_id,
+        session(roles.dispatcher),
+      );
+      if (resumed.status !== 'CLAIMED') throw new Error(JSON.stringify(resumed));
+      expect(resumed.leaseToken).toBe('6');
+      expect(await expiring.readClaimed(resumed, session(roles.dispatcher))).toEqual(material);
+      await waitForDeadline(1100, 'actual finite delivery lease expiry');
+      clock = Date.now();
+      await expect(
+        expiring.markFailure(resumed, 'DISPATCH_TIMEOUT', session(roles.dispatcher)),
+      ).rejects.toThrow('DISPATCHER_STALE_LEASE');
+      const takeover = await retryOwner.claim(
+        projectRef,
+        eventRow.event_id,
+        session(roles.dispatcher),
+      );
+      if (takeover.status !== 'CLAIMED') throw new Error(JSON.stringify(takeover));
+      expect(takeover.leaseToken).toBe('7');
+      reclaimed = takeover;
+      replay = await retryOwner.readClaimed(reclaimed, session(roles.dispatcher));
+      expect(replay).toEqual(material);
+    }
+    await retryOwner.confirm(
+      reclaimed,
+      replay,
+      duplicate as unknown as CanonicalJsonObject,
+      session(roles.dispatcher),
+    );
+    let evaluationInput = {
+      payload: request,
+      expectedAggregateVersion: 1,
+      idempotencyKey: newUuidV7(),
+    };
+    if (!requiresRelease) {
+      for (const [table, timing, event, condition] of [
+        [
+          'delivery_item_completion_evaluation',
+          'AFTER',
+          'INSERT',
+          `NEW.delivery_item_id='${plan.deliveryItemRef.objectId}'::uuid`,
+        ],
+        [
+          'delivery_item',
+          'AFTER',
+          'UPDATE',
+          `NEW.delivery_item_id='${plan.deliveryItemRef.objectId}'::uuid AND NEW.current_completion_evaluation_id IS NOT NULL`,
+        ],
+        [
+          'outbox_event',
+          'AFTER',
+          'INSERT',
+          `NEW.aggregate_id='${plan.deliveryItemRef.objectId}'::uuid AND NEW.event_type='project.DeliveryItemCompletionSatisfied'`,
+        ],
+        [
+          'command_receipt',
+          'AFTER',
+          'UPDATE',
+          `NEW.target_id='${plan.deliveryItemRef.objectId}'::uuid AND NEW.outcome='COMMITTED'`,
+        ],
+        [
+          'audit_record',
+          'AFTER',
+          'INSERT',
+          `NEW.target_id='${plan.deliveryItemRef.objectId}'::uuid AND NEW.outcome='COMMITTED'`,
+        ],
+      ]) {
+        await admin.query(
+          "CREATE FUNCTION enterprise_project.wi239_evaluate_fault() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION 'wi239 evaluation atomic fault' USING ERRCODE='P0001'; END $f$",
+        );
+        await admin.query(
+          `CREATE TRIGGER zz_wi239_fault ${timing} ${event} ON enterprise_project.${table} FOR EACH ROW WHEN (${condition}) EXECUTE FUNCTION enterprise_project.wi239_evaluate_fault()`,
+        );
+        try {
+          await expect(
+            entry.evaluate(evaluationInput, session(roles.evaluator)),
+            `EP-DEL-D-005 ${table}`,
+          ).rejects.toMatchObject({ code: 'P0001' });
+        } finally {
+          await admin.query(`DROP TRIGGER zz_wi239_fault ON enterprise_project.${table}`);
+          await admin.query('DROP FUNCTION enterprise_project.wi239_evaluate_fault()');
+        }
+        expect(
+          (
+            await admin.query(
+              'SELECT count(*)::int n FROM enterprise_project.delivery_item_completion_evaluation WHERE delivery_item_id=$1',
+              [plan.deliveryItemRef.objectId],
+            )
+          ).rows,
+        ).toEqual([{ n: 0 }]);
+        expect(await entry.readExact(request, session(roles.reader))).toMatchObject({
+          derivedStatus: 'NOT_EVALUATED',
+          completionAggregateVersion: 1,
+        });
+        expect(
+          (
+            await admin.query(
+              'SELECT count(*)::int n FROM enterprise_project.delivery_completion_task_association WHERE event_id=$1',
+              [eventRow.event_id],
+            )
+          ).rows,
+        ).toEqual([{ n: 1 }]);
+      }
+    }
+    const contenderInput = { ...evaluationInput, idempotencyKey: newUuidV7() };
+    const evaluationRace = await Promise.all([
+      entry.evaluate(evaluationInput, session(roles.evaluator)),
+      entry.evaluate(contenderInput, session(roles.evaluator)),
+    ]);
+    expect(evaluationRace.map((result) => result.status).sort()).toEqual(['COMMITTED', 'REJECTED']);
+    const evaluation = definedValue(evaluationRace.find((result) => result.status === 'COMMITTED'));
+    if (evaluationRace[0].status !== 'COMMITTED') evaluationInput = contenderInput;
+    expect(evaluation).toMatchObject({
+      status: 'COMMITTED',
+      resultPayload: {
+        outcome: requiresRelease ? 'UNSATISFIED' : 'SATISFIED',
+        aggregateVersion: 2,
+        ...(requiresRelease ? { satisfiedFactRefs: [] } : { satisfiedFactRefs: [receipt.factRef] }),
+      },
+    });
+    expect(await entry.evaluate(evaluationInput, session(roles.evaluator))).toMatchObject({
+      status: 'DUPLICATE',
+      resultPayload: committedPayload(evaluation),
+    });
+    const differentHash = structuredClone(evaluationInput);
+    differentHash.payload.factRefs[0] = {
+      ...receipt.factRef,
+      contentHash: contentHash('e'.repeat(64)),
+    };
+    await expect(entry.evaluate(differentHash, session(roles.evaluator))).rejects.toMatchObject({
+      code: 'IDEMPOTENCY_PAYLOAD_CONFLICT',
+    });
+    const sameFingerprint = await entry.evaluate(
+      { ...evaluationInput, expectedAggregateVersion: 2, idempotencyKey: newUuidV7() },
+      session(roles.evaluator),
+    );
+    expect(sameFingerprint).toMatchObject({
+      status: 'COMMITTED',
+      resultPayload: committedPayload(evaluation),
+    });
+    const readback = await entry.readExact(
+      {
+        ...request,
+        evaluationRef: committedPayload(evaluation)
+          .evaluationRef as unknown as Common.ContentAddressedRef,
+      },
+      session(roles.reader),
+    );
+    expect(readback).toMatchObject({
+      deliveryPlanRef: plan.deliveryPlanRef,
+      deliveryItemRef: plan.deliveryItemRef,
+      derivedStatus: requiresRelease ? 'UNSATISFIED' : 'SATISFIED',
+      selectedEvaluationIsCurrent: true,
+      completionAggregateVersion: 2,
+    });
+    expect(readback.facts[0]).toMatchObject({
+      factRef: receipt.factRef,
+      taskRef: claimed.taskRef,
+      deliveryPlanRef: plan.deliveryPlanRef,
+      deliveryItemRef: plan.deliveryItemRef,
+      bindingHash: material.bindingHash,
+    });
+    const storedEval = definedValue(
+      (
+        await admin.query<{ payload: CanonicalJsonObject; payload_hash: Buffer }>(
+          'SELECT payload,payload_hash FROM enterprise_project.delivery_item_completion_evaluation WHERE delivery_item_id=$1',
+          [plan.deliveryItemRef.objectId],
+        )
+      ).rows[0],
+    );
+    expect(storedEval.payload_hash.toString('hex')).toBe(
+      digestCanonicalPayload(storedEval.payload).hash.toString('hex'),
+    );
+    expect(record(record(readback.evaluation?.evaluationRef).contentHash).digest).toBe(
+      storedEval.payload_hash.toString('hex'),
+    );
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int n FROM enterprise_project.delivery_item_completion_fact WHERE event_id=$1',
+          [eventRow.event_id],
+        )
+      ).rows,
+    ).toEqual([{ n: 1 }]);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int n FROM enterprise_project.delivery_completion_task_association WHERE event_id=$1',
+          [eventRow.event_id],
+        )
+      ).rows,
+    ).toEqual([{ n: 1 }]);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int n FROM enterprise_project.process_instance WHERE correlation_key=$1',
+          [eventRow.event_id],
+        )
+      ).rows,
+    ).toEqual([{ n: 1 }]);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int n FROM enterprise_project.delivery_item_completion_evaluation WHERE delivery_item_id=$1',
+          [plan.deliveryItemRef.objectId],
+        )
+      ).rows,
+    ).toEqual([{ n: 1 }]);
+    expect(
+      (
+        await admin.query(
+          "SELECT count(*)::int n FROM enterprise_project.outbox_event WHERE aggregate_id=$1 AND event_type='project.DeliveryItemCompletionSatisfied'",
+          [plan.deliveryItemRef.objectId],
+        )
+      ).rows,
+    ).toEqual([{ n: requiresRelease ? 0 : 1 }]);
+    expect(
+      (
+        await admin.query(
+          'SELECT delivery_state FROM task_execution.outbox_event WHERE event_id=$1',
+          [eventRow.event_id],
+        )
+      ).rows,
+    ).toEqual([{ delivery_state: 'PUBLISHED' }]);
+    const epItemState = definedValue(
+      (
+        await admin.query<{ execution_status: string }>(
+          'SELECT execution_status FROM enterprise_project.delivery_item WHERE version_id=$1 AND delivery_item_id=$2',
+          [plan.deliveryItemRef.versionId, plan.deliveryItemRef.objectId],
+        )
+      ).rows[0],
+    );
+    expect(epItemState.execution_status).not.toBe('COMPLETED');
+    await expect(entry.evaluate(evaluationInput, session(roles.consumer))).rejects.toMatchObject({
+      code: 'AUTHORIZATION_DECISION_INVALID',
+    });
+    const broken = structuredClone(request);
+    broken.factRefs[0] = {
+      ...definedValue(broken.factRefs[0]),
+      contentHash: { ...definedValue(broken.factRefs[0]).contentHash, digest: 'f'.repeat(64) },
+    };
+    await expect(entry.readExact(broken, session(roles.reader))).rejects.toMatchObject({
+      code: 'PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND',
+    });
+    if (!requiresRelease) {
+      // LOCAL SYNTHETIC ledger counterexample only. This is not an owning
+      // Quality revocation producer or evidence of production revoke delivery.
+      const revisionRef = definedValue(
+        (material.event.payload as CanonicalJsonObject).satisfiedFactRefs as CanonicalJsonObject[],
+      )[0];
+      if (!revisionRef) throw new Error('Missing real output revision');
+      const revocationId = newUuidV7(),
+        correlationId = newUuidV7();
+      const revocationPayload = {
+        artifactRef: objectRef('artifact.artifact', newUuidV7(), scope()),
+        revisionRef,
+        priorApprovalBundleSnapshotRef: {
+          kind: 'SNAPSHOT',
+          objectType: 'quality.approval_bundle_snapshot',
+          objectId: newUuidV7(),
+          snapshotId: newUuidV7(),
+          scope: scope(),
+          contentHash: contentHash('a'.repeat(64)),
+        },
+        triggeringRef: revisionRef,
+        reasonCode: 'LOCAL_SYNTHETIC_REVOCATION',
+      } as unknown as CanonicalJsonObject;
+      const revocationEvent = {
+        eventId: revocationId,
+        eventType: 'quality.RevisionApprovalLost',
+        eventVersion: '1.0',
+        producerModule: 'quality-governance',
+        aggregateType: 'artifact.artifact_revision',
+        aggregateId: revisionRef.objectId as string,
+        aggregateVersion: 2,
+        scopeRef: scope(),
+        correlationId,
+        causationId: newUuidV7(),
+        commandId: newUuidV7(),
+        actorRef: objectRef('identity.principal', roles.consumer.principalId, scope()),
+        occurredAt: new Date(clock).toISOString(),
+        dataClassification: 'INTERNAL',
+        payload: revocationPayload,
+        integrity: {
+          canonicalizationVersion: '1',
+          payloadHash: contentHash(digestCanonicalPayload(revocationPayload).hash.toString('hex')),
+        },
+      };
+      const syntheticContext = {
+        ...runnerContext(roles.consumer),
+        kind: 'EVENT_CONSUMER' as const,
+        sourceEventId: revocationId,
+        correlationId,
+      };
+      expect(
+        await consumeDeliveryItemCompletionEvent(enterpriseProjectDb, syntheticContext, {
+          event: revocationEvent,
+          sourceWatermark: {
+            sourceModule: 'quality_governance',
+            partition: fixture.projectId,
+            sequence: 1,
+            observedAt: new Date(clock).toISOString(),
+          },
+        }),
+      ).toMatchObject({ status: 'PROCESSED' });
+      const historicalRef = committedPayload(evaluation)
+        .evaluationRef as unknown as Common.ContentAddressedRef;
+      expect(
+        await entry.readExact({ ...request, evaluationRef: historicalRef }, session(roles.reader)),
+      ).toMatchObject({
+        derivedStatus: 'UNSATISFIED',
+        completionAggregateVersion: 2,
+        evaluation: { outcome: 'SATISFIED' },
+        selectedEvaluationIsCurrent: true,
+      });
+      const reevaluated = await entry.evaluate(
+        { ...evaluationInput, expectedAggregateVersion: 2, idempotencyKey: newUuidV7() },
+        session(roles.evaluator),
+      );
+      expect(reevaluated).toMatchObject({
+        status: 'COMMITTED',
+        resultPayload: { outcome: 'UNSATISFIED', aggregateVersion: 3, satisfiedFactRefs: [] },
+      });
+      expect(committedPayload(reevaluated).evaluationRef).not.toEqual(historicalRef);
+      expect(await entry.evaluate(evaluationInput, session(roles.evaluator))).toMatchObject({
+        status: 'DUPLICATE',
+        resultPayload: committedPayload(evaluation),
+      });
+      expect(
+        await entry.readExact({ ...request, evaluationRef: historicalRef }, session(roles.reader)),
+      ).toMatchObject({
+        derivedStatus: 'UNSATISFIED',
+        completionAggregateVersion: 3,
+        evaluation: { outcome: 'SATISFIED' },
+        selectedEvaluationIsCurrent: false,
+        taskFactSemantics: 'HISTORICAL_COMPLETION',
+        taskCurrentUseStatus: 'UNKNOWN',
+      });
+    }
+    for (const key of [
+      'deliveryCompletionConsumeV1',
+      'deliveryItemCompletionEvaluateV2',
+      'deliveryCompletionReadExactV1',
+    ]) {
+      expect(
+        await revokeCapabilityTracked(identityDeps([fixture.projectId]), {
+          targetId: definedValue(grants.get(key)),
+          expectedAggregateVersion: '1',
+          scope: {
+            scopeKind: 'PROJECT',
+            enterpriseId: fixture.enterpriseId,
+            projectId: fixture.projectId,
+          },
+          reasonCode: 'DELIVERY_CURRENT_AUTHORITY_REVOKED',
+          effectiveAt: new Date(clock),
+          idempotencyKey: newUuidV7(),
+        }),
+      ).toMatchObject({ status: 'COMMITTED' });
+    }
+    await expect(entry.consume(material, session(roles.consumer))).rejects.toMatchObject({
+      code: 'AUTHORIZATION_DECISION_INVALID',
+    });
+    await expect(entry.evaluate(evaluationInput, session(roles.evaluator))).rejects.toMatchObject({
+      code: 'AUTHORIZATION_DECISION_INVALID',
+    });
+    await expect(entry.readExact(request, session(roles.reader))).rejects.toMatchObject({
+      code: 'AUTHORIZATION_DECISION_INVALID',
+    });
+    expect(sourceService.principalKind).toBe('SERVICE');
+    // Positive evidence is always an owning read; SQL above only checks immutable bytes/counts.
+  }
+
   describe('TE-VAL-S-008 first Run terminal paths', () => {
     interface RecoveryFixture {
       runRef: Common.ObjectRef;
@@ -7405,6 +8427,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     const runScenario = async (
       terminalScenario:
         | 'FORMAL_QUALITY'
+        | 'FORMAL_DELIVERY_NORMAL'
+        | 'FORMAL_DELIVERY_RECOVERED'
         | 'FORMAL_NORMAL'
         | 'FORMAL_GRANT_LOCK'
         | 'FORMAL_DEPENDENCY_LOCK'
@@ -7472,6 +8496,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         | 'SECOND_BLOCKED'
         | 'SECOND_PARTIAL'
         | 'SECOND_FAILED' = 'NORMAL',
+      deliveryRequiredRelease = false,
     ) => {
       phase(`scenario ${terminalScenario}/${negativeFinalCase}: business preparation`);
       // This independent chain must not inherit the time spent running the
@@ -7480,11 +8505,12 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       // Run common precondition refusals once; every other case still produces
       // its own live Task/Draft/Context/READY/Run through the owning entries.
       const formal = terminalScenario.startsWith('FORMAL_');
+      const delivery = terminalScenario.startsWith('FORMAL_DELIVERY_');
       const formalFixture = formal
         ? (JSON.parse(
             readFileSync(
               new URL(
-                `../fixtures/task-execution/formal-completion/${terminalScenario === 'FORMAL_RECOVERED' || terminalScenario.startsWith('FORMAL_REQUEST_') ? 'recovered' : 'normal'}.json`,
+                `../fixtures/task-execution/${delivery ? 'delivery-completion' : 'formal-completion'}/${terminalScenario === 'FORMAL_RECOVERED' || terminalScenario === 'FORMAL_DELIVERY_RECOVERED' || terminalScenario.startsWith('FORMAL_REQUEST_') ? 'recovered' : 'normal'}.json`,
                 import.meta.url,
               ),
               'utf8',
@@ -7505,6 +8531,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       const bounded =
         terminalScenario === 'BOUNDED_RECOVERY' ||
         terminalScenario === 'FORMAL_RECOVERED' ||
+        terminalScenario === 'FORMAL_DELIVERY_RECOVERED' ||
         terminalScenario.startsWith('FORMAL_REQUEST_');
       // Exercise shared refusal, replay and fault matrices once on the normal chain.
       // Repeating it in every variant consumes the short-lived Context before
@@ -7831,11 +8858,54 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       );
       for (const criterion of revised.completionCriteria as Record<string, unknown>[])
         if (!formal) criterion.evaluatorRef = evaluator;
+      const preallocatedTask = delivery ? newUuidV7() : undefined;
+      const deliveryPlan = delivery
+        ? await createDeliveryCompletionPlanFixture(
+            enterpriseProjectDb,
+            runnerContext(),
+            definedValue(preallocatedTask),
+            deliveryRequiredRelease,
+            () => new Date(clock),
+            async (type, payload) => {
+              const capability = `wi239.plan.${type.replaceAll('.', '_')}.${definedValue(preallocatedTask).replaceAll('-', '')}`;
+              await grantGeneric(capability);
+              const decision = await authorizeCommandTracked(identityDeps([fixture.projectId]), {
+                actorSnapshotRef: operatorActorRef,
+                intent: {
+                  commandType: type,
+                  commandVersion: '1.0',
+                  scopeKind: 'PROJECT',
+                  enterpriseId: fixture.enterpriseId,
+                  projectId: fixture.projectId,
+                  purpose: type,
+                  requestedCapability: capability,
+                  commandPayloadHash: digestCanonicalPayload(payload).hash,
+                  requestedAt: new Date(clock),
+                  highRiskAction: false,
+                },
+                authenticationContextHash: AUTH_HASH,
+                policySnapshotRef: grantPolicySnapshotReference(),
+                ttlSeconds: 900,
+              });
+              expect(decision.outcome, JSON.stringify(decision)).toBe('ALLOW');
+              return {
+                ...runnerContext(),
+                authorizationDecisionId: decision.authorizationDecisionRef.objectId,
+                authorizationDecisionHash: Buffer.from(
+                  decision.authorizationDecisionRef.contentHash.digest,
+                  'hex',
+                ),
+                authorizationDecisionExpiresAt: new Date(decision.expiresAt),
+              };
+            },
+          )
+        : undefined;
       const taskId = await createExecutableTask(
         '2.0',
         true,
         formal
           ? {
+              ...(deliveryPlan ? { deliveryItemRef: deliveryPlan.deliveryItemRef } : {}),
               expectedOutputSpec: { schemaVersion: '1.0', outputs: revised.expectedOutputs },
               completionCriteria: {
                 schemaVersion: '1.0',
@@ -7864,6 +8934,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               },
             }
           : undefined,
+        false,
+        preallocatedTask,
       );
       revised.taskRef = objectRef(TASK_V2, taskId, scope());
       revised.projectRef = objectRef('zhiju.project.project', fixture.projectId, scope());
@@ -8566,7 +9638,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           capabilities: dependencyCapabilities,
           now: () => new Date(lockClock),
         });
-        const blocker = new pg.Client({ connectionString: databaseUrl });
+        const blocker = new pg.Client({ connectionString: activeDatabaseUrl });
         await blocker.connect();
         let pendingFreeze: Promise<unknown> | undefined;
         try {
@@ -10990,8 +12062,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           service,
           taskVersion,
         );
+        if (delivery && deliveryRequiredRelease)
+          (taskEnvelope as unknown as Record<string, unknown>).causationId = newUuidV7();
         if (terminalScenario === 'FORMAL_CHILD_FIRST') {
-          const blocker = new pg.Client({ connectionString: databaseUrl });
+          const blocker = new pg.Client({ connectionString: activeDatabaseUrl });
           await blocker.connect();
           let child: ReturnType<typeof createWorkOrderResult> | undefined;
           let completion:
@@ -11076,7 +12150,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           terminalScenario === 'FORMAL_GRANT_LOCK' ||
           terminalScenario === 'FORMAL_DEPENDENCY_LOCK'
         ) {
-          const blocker = new pg.Client({ connectionString: databaseUrl });
+          const blocker = new pg.Client({ connectionString: activeDatabaseUrl });
           await blocker.connect();
           let pending:
             | Promise<PromiseSettledResult<Awaited<ReturnType<typeof formalEntry.evaluateTask>>>>
@@ -11171,7 +12245,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         }
         let taskResult: Awaited<ReturnType<typeof formalEntry.evaluateTask>>;
         if (terminalScenario === 'FORMAL_NORMAL') {
-          const blocker = new pg.Client({ connectionString: databaseUrl });
+          const blocker = new pg.Client({ connectionString: activeDatabaseUrl });
           await blocker.connect();
           let completion: Promise<Awaited<ReturnType<typeof formalEntry.evaluateTask>>> | undefined;
           let child: ReturnType<typeof createWorkOrderResult> | undefined;
@@ -11248,6 +12322,13 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
           status: 'COMMITTED',
           resultPayload: { outcome: 'SATISFIED', transitioned: true },
         });
+        if (delivery)
+          await verifyDeliveryTail(
+            definedValue(deliveryPlan),
+            taskId,
+            service,
+            deliveryRequiredRelease,
+          );
         for (const result of [woResult, taskResult]) {
           const judgmentRef = committedPayload(result)
             .evaluationRef as unknown as Common.ContentAddressedRef;
@@ -11843,7 +12924,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         CREATE TRIGGER wi221_pause_queue BEFORE UPDATE ON task_execution.work_order
         FOR EACH ROW WHEN (NEW.work_order_id = '${workOrderRef.objectId}'::uuid AND NEW.status = 'QUEUED')
         EXECUTE FUNCTION task_execution.wi221_pause_queue()`);
-        const queueBlocker = new pg.Client({ connectionString: databaseUrl });
+        const queueBlocker = new pg.Client({ connectionString: activeDatabaseUrl });
         let queuedAttempt: Promise<unknown> | undefined;
         try {
           await queueBlocker.connect();
@@ -14080,7 +15161,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         );
         const blocker =
           eligibilityChange.whileLocked === true
-            ? new pg.Client({ connectionString: databaseUrl })
+            ? new pg.Client({ connectionString: activeDatabaseUrl })
             : undefined;
         let waiting: Promise<{ value?: unknown; error?: unknown }> | undefined;
         if (blocker !== undefined) {
@@ -15956,7 +17037,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         );
         if (submitGrantId === undefined || submitBinding === undefined)
           throw new Error('missing Result submit Grant');
-        const runBlocker = new pg.Client({ connectionString: databaseUrl });
+        const runBlocker = new pg.Client({ connectionString: activeDatabaseUrl });
         await runBlocker.connect();
         let pendingSubmit: Promise<unknown> | undefined;
         try {
@@ -17152,7 +18233,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             taskVersion + 1,
           );
           if (!('commandId' in completion)) throw new Error('Expected Completion command');
-          const blocker = new pg.Client({ connectionString: databaseUrl });
+          const blocker = new pg.Client({ connectionString: activeDatabaseUrl });
           await blocker.connect();
           let opening: ReturnType<typeof recoveryEntryRaw.command> | undefined;
           const refuse = async () => {
@@ -17782,7 +18863,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
               operator(),
               1,
             );
-            const blocker = new pg.Client({ connectionString: databaseUrl });
+            const blocker = new pg.Client({ connectionString: activeDatabaseUrl });
             await blocker.connect();
             const savedClock = clock;
             let pending: Promise<unknown> | undefined;
@@ -20832,6 +21913,49 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       () => runScenario('NON_FINAL_CORE_REJECT'),
       180_000,
     );
+    for (const recovered of [false, true])
+      itIntegration(
+        `TE-DEL-D-001/002/003 isolated ${recovered ? 'recovered' : 'normal'} owning delivery fixture`,
+        async () => {
+          await Promise.all(cleanupResources.splice(0).map((r) => r.end()));
+          const container = await new PostgreSqlContainer(postgresImageReference())
+            .withDatabase('zhiju_core')
+            .withUsername('postgres')
+            .withPassword('zhiju-gate-test')
+            .withStartupTimeout(120_000)
+            .start();
+          try {
+            await runFlyway(container.getId(), {
+              command: 'migrate',
+              database: 'zhiju_core',
+              username: 'postgres',
+              password: 'zhiju-gate-test',
+            });
+            activeDatabaseUrl = container.getConnectionUri();
+            await prepareSuite(true);
+            expect(
+              (await admin.query('SELECT count(*)::int n FROM task_execution.task')).rows,
+            ).toEqual([{ n: 0 }]);
+            const scenario = recovered ? 'FORMAL_DELIVERY_RECOVERED' : 'FORMAL_DELIVERY_NORMAL';
+            await runScenario(scenario);
+            await runScenario(
+              scenario,
+              'RUNTIME_USAGE',
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              'NORMAL',
+              true,
+            );
+          } finally {
+            await Promise.allSettled(cleanupResources.splice(0).map((r) => r.end()));
+            await container.stop();
+            activeDatabaseUrl = databaseUrl;
+          }
+        },
+        600_000,
+      );
   });
 });
 
