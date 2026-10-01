@@ -7403,13 +7403,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     }
   }
 
-  async function verifyDeliveryTail(
-    plan: Awaited<ReturnType<typeof createDeliveryCompletionPlanFixture>>,
-    taskId: string,
-    sourceService: Principal,
-    requiresRelease: boolean,
-  ) {
-    phase('delivery completion owning tail');
+  async function deliveryTestEntries(taskId: string) {
     const roles = {} as Record<'dispatcher' | 'consumer' | 'evaluator' | 'reader', Principal>;
     for (const role of ['dispatcher', 'consumer', 'evaluator', 'reader'] as const) {
       const id = newUuidV7(),
@@ -7494,6 +7488,39 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       fixture.projectId,
       scope(),
     ) as Common.ObjectRef;
+    return {
+      bindings,
+      roles,
+      capabilityCodes,
+      grants,
+      authorization,
+      config,
+      entry,
+      second,
+      session,
+      projectRef,
+    };
+  }
+
+  async function verifyDeliveryTail(
+    plan: Awaited<ReturnType<typeof createDeliveryCompletionPlanFixture>>,
+    taskId: string,
+    sourceService: Principal,
+    requiresRelease: boolean,
+  ) {
+    phase('delivery completion owning tail');
+    const {
+      bindings,
+      roles,
+      capabilityCodes,
+      grants,
+      authorization,
+      config,
+      entry,
+      second,
+      session,
+      projectRef,
+    } = await deliveryTestEntries(taskId);
     const eventRow = definedValue(
       (
         await admin.query<{
@@ -8215,6 +8242,58 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
     expect(storedEval.payload_hash.toString('hex')).toBe(
       digestCanonicalPayload(storedEval.payload).hash.toString('hex'),
     );
+    // Negative SQL control: keep the legitimate owning row and every mirror,
+    // omit only the discriminator, and recompute its derived hashes. A missing
+    // discriminator must never turn an exact-profile Item into a legacy Item.
+    const evaluationId = record(committedPayload(evaluation).evaluationRef).objectId as string;
+    const pointerBefore = (
+      await admin.query(
+        'SELECT current_completion_evaluation_id,completion_aggregate_version FROM enterprise_project.delivery_item WHERE version_id=$1 AND delivery_item_id=$2',
+        [plan.deliveryItemRef.versionId, plan.deliveryItemRef.objectId],
+      )
+    ).rows;
+    await expect(
+      withEnterpriseProjectTransaction(
+        enterpriseProjectDb,
+        runnerContext(roles.evaluator),
+        async (trx) => {
+          const role = await sql<{ role: string; allowed: boolean }>`
+            SELECT current_user AS role,
+              platform_security.context_allows_project(${fixture.enterpriseId}::uuid,${fixture.projectId}::uuid) AS allowed
+          `.execute(trx);
+          expect(role.rows).toEqual([{ role: 'enterprise_project_app', allowed: true }]);
+          await sql`
+            INSERT INTO enterprise_project.delivery_item_completion_evaluation (
+              evaluation_id,delivery_plan_id,version_id,delivery_item_id,enterprise_id,project_id,
+              criteria_hash,evaluator_ref,evaluator_ref_hash,evaluator_id,evaluator_version_id,
+              fact_refs,fact_refs_hash,source_watermarks,source_watermarks_hash,outcome,
+              payload,payload_hash,input_fingerprint,evaluated_at,recorded_by_principal_id,
+              recorded_by_actor_snapshot_id,authorization_decision_id,source_command_id,source_event_id
+            ) SELECT ${newUuidV7()}::uuid,delivery_plan_id,version_id,delivery_item_id,enterprise_id,project_id,
+              criteria_hash,evaluator_ref,evaluator_ref_hash,evaluator_id,evaluator_version_id,
+              fact_refs,fact_refs_hash,source_watermarks,source_watermarks_hash,outcome,
+              payload-'taskFactSemantics',enterprise_project.completion_hash(payload-'taskFactSemantics'),
+              enterprise_project.completion_hash(payload-'taskFactSemantics'-'outcome'-'satisfiedFactRefs'-'evaluatedAt'),
+              evaluated_at,recorded_by_principal_id,recorded_by_actor_snapshot_id,authorization_decision_id,
+              source_command_id,source_event_id
+            FROM enterprise_project.delivery_item_completion_evaluation WHERE evaluation_id=${evaluationId}::uuid
+          `.execute(trx);
+          // Roll back even if the regression is present, so the counterexample
+          // cannot contaminate the following owning readback assertions.
+          throw Object.assign(new Error('Exact-profile guard was bypassed'), {
+            code: 'WI239_GUARD_BYPASSED',
+          });
+        },
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
+    expect(
+      (
+        await admin.query(
+          'SELECT current_completion_evaluation_id,completion_aggregate_version FROM enterprise_project.delivery_item WHERE version_id=$1 AND delivery_item_id=$2',
+          [plan.deliveryItemRef.versionId, plan.deliveryItemRef.objectId],
+        )
+      ).rows,
+    ).toEqual(pointerBefore);
     expect(record(record(readback.evaluation?.evaluationRef).contentHash).digest).toBe(
       storedEval.payload_hash.toString('hex'),
     );
@@ -8415,6 +8494,18 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
   }
 
   describe('TE-VAL-S-008 first Run terminal paths', () => {
+    interface PreparedDeliverySource {
+      plan: Awaited<ReturnType<typeof createDeliveryCompletionPlanFixture>>;
+      taskId: string;
+      complete: () => ReturnType<ReturnType<typeof createFormalCompletionEntry>['evaluateTask']>;
+    }
+    interface DeliveryScheduleHooks {
+      completionPlugin?: KyselyPlugin;
+      taskId?: string;
+      plan?: PreparedDeliverySource['plan'];
+      additionalTaskIds?: readonly string[];
+      onPrepared: (source: PreparedDeliverySource) => void;
+    }
     interface RecoveryFixture {
       runRef: Common.ObjectRef;
       attemptRef: Common.ObjectRef;
@@ -8501,6 +8592,7 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
         | 'SECOND_PARTIAL'
         | 'SECOND_FAILED' = 'NORMAL',
       deliveryRequiredRelease = false,
+      deliverySchedule?: DeliveryScheduleHooks,
     ) => {
       phase(`scenario ${terminalScenario}/${negativeFinalCase}: business preparation`);
       // This independent chain must not inherit the time spent running the
@@ -8862,9 +8954,10 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       );
       for (const criterion of revised.completionCriteria as Record<string, unknown>[])
         if (!formal) criterion.evaluatorRef = evaluator;
-      const preallocatedTask = delivery ? newUuidV7() : undefined;
+      const preallocatedTask = delivery ? (deliverySchedule?.taskId ?? newUuidV7()) : undefined;
       const deliveryPlan = delivery
-        ? await createDeliveryCompletionPlanFixture(
+        ? (deliverySchedule?.plan ??
+          (await createDeliveryCompletionPlanFixture(
             enterpriseProjectDb,
             runnerContext(),
             definedValue(preallocatedTask),
@@ -8902,7 +8995,8 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
                 authorizationDecisionExpiresAt: new Date(decision.expiresAt),
               };
             },
-          )
+            deliverySchedule?.additionalTaskIds,
+          )))
         : undefined;
       const taskId = await createExecutableTask(
         '2.0',
@@ -9220,7 +9314,9 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             };
       }
       const formalConfig: FormalCompletionEntryConfig = {
-        taskExecutionDb: teDb,
+        taskExecutionDb: deliverySchedule?.completionPlugin
+          ? teDb.withPlugin(deliverySchedule.completionPlugin)
+          : teDb,
         enterpriseProjectDb,
         identity: { db: identityDb, repo: identityRepo, crypto },
         capabilities: dependencyCapabilities,
@@ -12245,6 +12341,14 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
             await blocker.end();
             if (pending) await Promise.allSettled([pending]);
           }
+          return;
+        }
+        if (deliverySchedule) {
+          deliverySchedule.onPrepared({
+            plan: definedValue(deliveryPlan),
+            taskId,
+            complete: () => formalEntry.evaluateTask(taskEnvelope, sessionFor(service)),
+          });
           return;
         }
         let taskResult: Awaited<ReturnType<typeof formalEntry.evaluateTask>>;
@@ -21916,6 +22020,238 @@ describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real Pos
       'rejects a non-final Result at the Core contract boundary before IG observation',
       () => runScenario('NON_FINAL_CORE_REJECT'),
       180_000,
+    );
+    itIntegration(
+      'TE-DEL-D-004/EP-DEL-D-004 isolated late-commit and cross-Item out-of-order schedule',
+      async () => {
+        await Promise.all(cleanupResources.splice(0).map((r) => r.end()));
+        const container = await new PostgreSqlContainer(postgresImageReference())
+          .withDatabase('zhiju_core')
+          .withUsername('postgres')
+          .withPassword('zhiju-gate-test')
+          .withStartupTimeout(120_000)
+          .start();
+        let releaseProducer!: () => void;
+        const held = new Promise<void>((resolve) => {
+          releaseProducer = resolve;
+        });
+        let producerWriteObserved = false;
+        let heldQueryId: Parameters<KyselyPlugin['transformQuery']>[0]['queryId'] | undefined;
+        const pauseAfterEventInsert: KyselyPlugin = {
+          transformQuery(args) {
+            if (
+              args.node.kind === 'InsertQueryNode' &&
+              JSON.stringify(args.node).includes('execution.TaskCompleted')
+            )
+              heldQueryId = args.queryId;
+            return args.node;
+          },
+          async transformResult(args) {
+            if (args.queryId === heldQueryId) {
+              producerWriteObserved = true;
+              // Pause the actual producer after its Outbox INSERT, before
+              // its owning transaction can commit. No source row is seeded.
+              await held;
+            }
+            return args.result;
+          },
+        };
+        let pendingCompletion: ReturnType<PreparedDeliverySource['complete']> | undefined;
+        try {
+          await runFlyway(container.getId(), {
+            command: 'migrate',
+            database: 'zhiju_core',
+            username: 'postgres',
+            password: 'zhiju-gate-test',
+          });
+          activeDatabaseUrl = container.getConnectionUri();
+          await prepareSuite(true);
+          let lateSource: PreparedDeliverySource | undefined;
+          let visibleSource: PreparedDeliverySource | undefined;
+          const prepare = (hooks: DeliveryScheduleHooks) =>
+            runScenario(
+              'FORMAL_DELIVERY_NORMAL',
+              'RUNTIME_USAGE',
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              'NORMAL',
+              false,
+              hooks,
+            );
+          const visibleTaskId = newUuidV7();
+          await prepare({
+            completionPlugin: pauseAfterEventInsert,
+            additionalTaskIds: [visibleTaskId],
+            onPrepared: (source) => {
+              lateSource = source;
+            },
+          });
+          const first = definedValue(lateSource);
+          const secondItem = definedValue(first.plan.additionalItems[0]);
+          await prepare({
+            taskId: visibleTaskId,
+            plan: { ...first.plan, ...secondItem },
+            onPrepared: (source) => {
+              visibleSource = source;
+            },
+          });
+          const late = definedValue(lateSource),
+            visible = definedValue(visibleSource);
+          expect(late.taskId).not.toBe(visible.taskId);
+          expect(late.plan.deliveryItemRef).not.toEqual(visible.plan.deliveryItemRef);
+          expect(late.plan.deliveryPlanRef).toEqual(visible.plan.deliveryPlanRef);
+          const { entry, roles, session, projectRef } = await deliveryTestEntries(late.taskId);
+          pendingCompletion = track(late.complete());
+          await expect.poll(() => producerWriteObserved, { timeout: 30_000 }).toBe(true);
+          expect(
+            (
+              await admin.query(
+                "SELECT count(*)::int n FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.TaskCompleted'",
+                [late.taskId],
+              )
+            ).rows,
+          ).toEqual([{ n: 0 }]);
+          expect(await entry.scan(projectRef, session(roles.dispatcher))).toEqual([]);
+          expect(await visible.complete()).toMatchObject({
+            status: 'COMMITTED',
+            resultPayload: { outcome: 'SATISFIED', transitioned: true },
+          });
+          const eventFor = async (taskId: string) =>
+            definedValue(
+              (
+                await admin.query<{ event_id: string }>(
+                  "SELECT event_id FROM task_execution.outbox_event WHERE aggregate_id=$1 AND event_type='execution.TaskCompleted'",
+                  [taskId],
+                )
+              ).rows[0],
+            ).event_id;
+          const visibleEvent = await eventFor(visible.taskId);
+          expect(await entry.scan(projectRef, session(roles.dispatcher))).toEqual([visibleEvent]);
+          const visibleClaim = await entry.claim(
+            projectRef,
+            visibleEvent,
+            session(roles.dispatcher),
+          );
+          if (visibleClaim.status !== 'CLAIMED') throw new Error('Visible source was not claimed');
+          const visibleMaterial = await entry.readClaimed(visibleClaim, session(roles.dispatcher));
+          expect(visibleMaterial.sourceWatermark.sequence).toBe(1);
+          releaseProducer();
+          expect(await pendingCompletion).toMatchObject({
+            status: 'COMMITTED',
+            resultPayload: { outcome: 'SATISFIED', transitioned: true },
+          });
+          const lateEvent = await eventFor(late.taskId);
+          expect(lateEvent < visibleEvent, 'The lower UUID sort key really committed later').toBe(
+            true,
+          );
+          expect(await entry.scan(projectRef, session(roles.dispatcher))).toContain(lateEvent);
+          const lateClaim = await entry.claim(projectRef, lateEvent, session(roles.dispatcher));
+          if (lateClaim.status !== 'CLAIMED') throw new Error('Late source was not discovered');
+          const lateMaterial = await entry.readClaimed(lateClaim, session(roles.dispatcher));
+          expect(lateMaterial.sourceWatermark.sequence).toBe(2);
+          for (const material of [lateMaterial, visibleMaterial])
+            expect(material.sourceWatermark).toMatchObject({
+              sourceModule: 'task_execution',
+              partition: fixture.projectId,
+            });
+          const bindingsBefore = (
+            await admin.query(
+              'SELECT * FROM task_execution.task_completed_dispatch_binding ORDER BY event_id',
+            )
+          ).rows;
+          expect(bindingsBefore).toHaveLength(2);
+          // Deliver and evaluate the higher allocation first. The subsequent
+          // lower allocation belongs to a different exact Item and stays usable.
+          for (const [source, claim, material] of [
+            [late, lateClaim, lateMaterial],
+            [visible, visibleClaim, visibleMaterial],
+          ] as const) {
+            expect(await entry.readClaimed(claim, session(roles.dispatcher))).toEqual(material);
+            const consumed = await entry.consume(material, session(roles.consumer));
+            if (consumed.status !== 'PROCESSED') throw new Error('Expected owning consumption');
+            expect(await entry.consume(material, session(roles.consumer))).toMatchObject({
+              status: 'DUPLICATE',
+              factRef: consumed.factRef,
+            });
+            await entry.confirm(
+              claim,
+              material,
+              consumed as unknown as CanonicalJsonObject,
+              session(roles.dispatcher),
+            );
+            const request = {
+              deliveryPlanRef: source.plan.deliveryPlanRef,
+              deliveryItemRef: source.plan.deliveryItemRef,
+              factRefs: [consumed.factRef],
+            };
+            const evaluated = await entry.evaluate(
+              { payload: request, expectedAggregateVersion: 1, idempotencyKey: newUuidV7() },
+              session(roles.evaluator),
+            );
+            expect(evaluated).toMatchObject({
+              status: 'COMMITTED',
+              resultPayload: { outcome: 'SATISFIED', aggregateVersion: 2 },
+            });
+            const readback = await entry.readExact(request, session(roles.reader));
+            expect(readback).toMatchObject({
+              derivedStatus: 'SATISFIED',
+              completionAggregateVersion: 2,
+              selectedEvaluationIsCurrent: true,
+            });
+            expect(readback.facts[0]).toMatchObject({
+              taskRef: material.sidecar.taskRef,
+              deliveryItemRef: source.plan.deliveryItemRef,
+              sourceWatermark: material.sourceWatermark,
+              bindingHash: material.bindingHash,
+            });
+            expect(
+              (
+                await admin.query(
+                  `SELECT
+                    (SELECT count(*)::int FROM enterprise_project.delivery_item_completion_fact WHERE event_id=$1) facts,
+                    (SELECT count(*)::int FROM enterprise_project.delivery_completion_task_association WHERE event_id=$1) associations,
+                    (SELECT count(*)::int FROM enterprise_project.delivery_item_completion_evaluation WHERE delivery_item_id=$2) evaluations,
+                    (SELECT count(*)::int FROM enterprise_project.outbox_event WHERE aggregate_id=$2 AND event_type='project.DeliveryItemCompletionSatisfied') events`,
+                  [claim.eventId, source.plan.deliveryItemRef.objectId],
+                )
+              ).rows,
+            ).toEqual([{ facts: 1, associations: 1, evaluations: 1, events: 1 }]);
+            if (source === late)
+              expect(
+                (
+                  await admin.query(
+                    'SELECT count(*)::int n FROM enterprise_project.delivery_item_completion_fact WHERE event_id=$1',
+                    [visibleEvent],
+                  )
+                ).rows,
+              ).toEqual([{ n: 0 }]);
+          }
+          expect(
+            (
+              await admin.query(
+                'SELECT * FROM task_execution.task_completed_dispatch_binding ORDER BY event_id',
+              )
+            ).rows,
+          ).toEqual(bindingsBefore);
+          expect(
+            (
+              await admin.query(
+                'SELECT completion_aggregate_version::int v FROM enterprise_project.delivery_item WHERE delivery_item_id=ANY($1::uuid[]) ORDER BY delivery_item_id',
+                [[late.plan.deliveryItemRef.objectId, visible.plan.deliveryItemRef.objectId]],
+              )
+            ).rows,
+          ).toEqual([{ v: 2 }, { v: 2 }]);
+        } finally {
+          releaseProducer();
+          if (pendingCompletion) await Promise.allSettled([pendingCompletion]);
+          await Promise.allSettled(cleanupResources.splice(0).map((r) => r.end()));
+          await container.stop();
+          activeDatabaseUrl = databaseUrl;
+        }
+      },
+      600_000,
     );
     for (const recovered of [false, true])
       itIntegration(

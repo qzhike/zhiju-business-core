@@ -911,9 +911,7 @@ export const enterpriseProjectSchema = {
       {
         evaluationRef: completionContentRef('CompletionEvaluation'),
         outcome: { enum: ['SATISFIED', 'UNSATISFIED'] },
-        satisfiedFactRefs: array(completionContentRef('DeliveryItemCompletionFact'), {
-          unique: true,
-        }),
+        satisfiedFactRefs: array(completionContentRef('DeliveryItemCompletionFact')),
         aggregateVersion: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
         impactReviewRef: completionContentRef('DeliveryItemImpactReview'),
       },

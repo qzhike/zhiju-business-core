@@ -65,9 +65,10 @@ DECLARE b jsonb; i enterprise_project.delivery_item%ROWTYPE; expected_keys text[
  task_ref jsonb; release_ref jsonb; associations jsonb; watermarks jsonb; revocations jsonb; satisfied boolean;
 BEGIN
  b:=NEW.payload;
- IF NOT b ? 'taskFactSemantics' THEN RETURN NEW; END IF;
- expected_keys:=ARRAY['associationHashes','criteriaHash','deliveryItemRef','deliveryPlanRef','enterpriseId','evaluatedAt','evaluatorRef','factRefs','outcome','projectId','revocationFactRefs','satisfiedFactRefs','sourceWatermarks','taskFactSemantics'];
  SELECT * INTO i FROM enterprise_project.delivery_item WHERE enterprise_id=NEW.enterprise_id AND project_id=NEW.project_id AND version_id=NEW.version_id AND delivery_item_id=NEW.delivery_item_id;
+ IF i.completion_criteria->>'profile' IS DISTINCT FROM 'ep.delivery_item.exact_task_completion@1.0'
+ AND NOT (b ? 'taskFactSemantics') THEN RETURN NEW; END IF;
+ expected_keys:=ARRAY['associationHashes','criteriaHash','deliveryItemRef','deliveryPlanRef','enterpriseId','evaluatedAt','evaluatorRef','factRefs','outcome','projectId','revocationFactRefs','satisfiedFactRefs','sourceWatermarks','taskFactSemantics'];
  IF (SELECT array_agg(key ORDER BY key) FROM jsonb_object_keys(b) key) IS DISTINCT FROM expected_keys
  OR b->>'taskFactSemantics' IS DISTINCT FROM 'HISTORICAL_COMPLETION' OR i.completion_criteria->>'profile' IS DISTINCT FROM 'ep.delivery_item.exact_task_completion@1.0'
  OR NEW.payload_hash IS DISTINCT FROM enterprise_project.completion_hash(b) OR NEW.input_fingerprint IS DISTINCT FROM enterprise_project.completion_hash(b-'outcome'-'satisfiedFactRefs'-'evaluatedAt')

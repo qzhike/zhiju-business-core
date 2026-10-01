@@ -33,6 +33,7 @@ export async function createDeliveryCompletionPlanFixture(
   requireRelease: boolean,
   now: () => Date,
   authorize: (type: string, payload: Ref) => Promise<ep.EnterpriseProjectTransactionContext>,
+  additionalTaskIds: readonly string[] = [],
 ) {
   context = { ...context };
   const scope = {
@@ -425,19 +426,24 @@ export async function createDeliveryCompletionPlanFixture(
   planInputs.set(key, inputs);
   const { baselineRef, templateBaseline, regProfile, qmsRef, productScopeRef, gapRef, findingId } =
     inputs;
-  const itemId = newUuidV7(),
-    planId = newUuidV7(),
+  const planId = newUuidV7(),
     releaseRef = ref('OBJECT', 'release.release');
-  const completionCriteria = {
-    profile: 'ep.delivery_item.exact_task_completion@1.0',
-    allOf: [
-      {
-        eventType: 'execution.TaskCompleted',
-        taskRef: ref('OBJECT', 'zhiju.execution.task', taskId),
-      },
-      ...(requireRelease ? [{ eventType: 'release.ReleaseCompleted', factRef: releaseRef }] : []),
-    ],
-  };
+  const taskItems = [taskId, ...additionalTaskIds].map((id) => ({
+    itemId: newUuidV7(),
+    completionCriteria: {
+      profile: 'ep.delivery_item.exact_task_completion@1.0',
+      allOf: [
+        {
+          eventType: 'execution.TaskCompleted',
+          taskRef: ref('OBJECT', 'zhiju.execution.task', id),
+        },
+        ...(requireRelease ? [{ eventType: 'release.ReleaseCompleted', factRef: releaseRef }] : []),
+      ],
+    },
+  }));
+  const firstItem = taskItems[0];
+  if (!firstItem) throw new Error('At least one Task Item required');
+  const { itemId, completionCriteria } = firstItem;
   const draft = committed(
     await ep.handleCreateDeliveryPlanDraft(
       db,
@@ -446,21 +452,19 @@ export async function createDeliveryCompletionPlanFixture(
         projectRef: ref('OBJECT', 'Project', scope.projectId),
         acceptedGapAnalysisRef: gapRef,
         baselineRefs: [baselineRef, templateBaseline, regProfile, qmsRef, productScopeRef],
-        items: [
-          {
-            itemId,
-            itemKey: 'controlled-output',
-            itemType: 'CONTROL_PROCEDURE',
-            title: 'Controlled output',
-            objective: 'Completion delivery acceptance',
-            sourceGapItemRefs: [ref('VERSIONED', 'GapItem', findingId, gapRef.versionId as string)],
-            dependencyItemIds: [],
-            targetArtifactTypes: ['artifact.artifact_revision'],
-            qualityProfileRef: ref('VERSIONED', 'QualityProfile'),
-            completionCriteria,
-            commitmentStatus: 'PROPOSED',
-          },
-        ],
+        items: taskItems.map(({ itemId, completionCriteria }, index) => ({
+          itemId,
+          itemKey: index === 0 ? 'controlled-output' : `controlled-output-${index}`,
+          itemType: 'CONTROL_PROCEDURE',
+          title: 'Controlled output',
+          objective: 'Completion delivery acceptance',
+          sourceGapItemRefs: [ref('VERSIONED', 'GapItem', findingId, gapRef.versionId as string)],
+          dependencyItemIds: [],
+          targetArtifactTypes: ['artifact.artifact_revision'],
+          qualityProfileRef: ref('VERSIONED', 'QualityProfile'),
+          completionCriteria,
+          commitmentStatus: 'PROPOSED',
+        })),
         assumptions: [],
         exclusions: [],
         planQualityPolicyRef: policy,
@@ -518,5 +522,15 @@ export async function createDeliveryCompletionPlanFixture(
     } as Common.VersionedRef,
     completionCriteria,
     releaseRef,
+    additionalItems: taskItems.slice(1).map((item) => ({
+      completionCriteria: item.completionCriteria,
+      deliveryItemRef: {
+        kind: 'VERSIONED',
+        objectType: 'zhiju.project.delivery_item',
+        objectId: item.itemId,
+        versionId: planRef.versionId as string,
+        scope,
+      } satisfies Common.VersionedRef,
+    })),
   };
 }

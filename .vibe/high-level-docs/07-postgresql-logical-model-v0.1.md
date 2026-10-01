@@ -2421,6 +2421,8 @@ allocation严格cursor→Outbox→关联source本地锁序，写cursor/binding/c
 
 v2复用既有Evaluation/Impact/Item独立CAS存储，加v2 payload/profile/selector guards和必要附属associationHashes/revocation fingerprint来源；v1行不重写。immutable Evaluation payloadHash覆盖完整v2payload、fingerprint按Spec002§23.3；列镜像、完整ref Hash和samePlanVersionItem pointer组合约束保留。v2输入expectedAggregateVersion精确bigint；新版本Schema/结果数值继续按共享契约可表达范围，溢出fail closed。
 
+Evaluation INSERT guard先读取同Scope/exact Version/Item的冻结criteria：exact-task profile必须校验完整v2 shape，即使待插入payload省略`taskFactSemantics`也不得进入legacy路径。只有真正legacy Item且payload不声明v2语义时保留旧路径；legacy Item自报v2语义仍拒绝。该选择依赖owning Item事实，不依赖caller可省略的discriminator。
+
 增加Project Completion ledger锁行（enterprise_id,project_id唯一），新Consumer与v2Evaluation按ledger→Item顺序；legacyConsumer也参加同一ledger锁以免已消费Release/Quality撤销并发漏看。新增EP consumer使用唯一Inbox claim，并发同event提交后一份原结果；冲突只append violation，不损坏成功Inbox。低水位Facts仅append；同exactTaskItem关联查max sequence，不能用Project max过滤其他Item。应用读取在RLS内，不以recorded_at排序判断优先。
 
 原FactRef Hash域仍publicEventpayload；association separate Hash防错归属。Readback复验完整payload/Hash/mirror、currentpointer与所需sources；只返回Spec002安全projection。Fact/Evaluation/association/attempt/outcome app UPDATE/DELETE拒绝、owner immutable guard拒绝；crossProject/noContext/池复用不得泄漏，dispatcher及EPapp不能读取/写对方Schema。新正链与局部负例的实际层级见三个Module-Test的#237矩阵；空库/合法历史upgrade/二次no-op和原V3000/V2013兼容必须由当前revision的configured full或可信exact-revision CI验证，定向诊断不替代。
