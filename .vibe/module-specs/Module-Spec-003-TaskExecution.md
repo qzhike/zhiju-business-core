@@ -2244,3 +2244,42 @@ Evaluation TTL到期后授权主体可用同一Completion @2.0对COMPLETED Root�
 统一不可见/不存在/错Hash/Scope/subject的Judgment外观=`EXECUTION_JUDGMENT_INVALID`；Root/Artifact source Query统一masked NOT_FOUND；unsupported selector/profile=`EXECUTION_CRITERION_UNSUPPORTED`；合法当前事实失效生成解释性UNSATISFIED或读取STALE/REVOKED，reasonCodes闭集为 `COMPLETION_OUTPUT_MISSING`, `COMPLETION_OUTPUT_INVALID`, `COMPLETION_PROVENANCE_INVALID`, `COMPLETION_SCHEMA_INVALID`, `COMPLETION_SCOPE_INVALID`, `COMPLETION_ACTIVE_RUN`, `COMPLETION_BLOCKING_REQUEST`, `COMPLETION_UNPROCESSED_FINAL`, `COMPLETION_CHILD_NOT_USABLE`, `COMPLETION_QUALITY_NOT_USABLE`, `COMPLETION_EXPIRED`, `COMPLETION_POLICY_NOT_USABLE`, `COMPLETION_SOURCE_CHANGED`, `COMPLETION_EVALUATION_SUPERSEDED`。授权公共外观沿用 `AUTHORIZATION_DECISION_INVALID`/既有Human-only拒绝，细节脱敏Audit。调用方输入错误、授权失败、依赖不可达不生成貌似普通UNSATISFIED事实。
 
 实现验收见 [#233矩阵](../module-tests/Module-Test-003-TaskExecution.md#233-正式输出与-completion-设计验收矩阵)，required target为full；本设计只执行docs。历史#224分层证据、实际Grant PolicySnapshot lifecycle延后、外部/人工与IM-06 Cancel/late-result退出要求不变。
+
+
+## 26. TaskCompleted 受限派发设计（#237）
+
+状态：`T2 / PROPOSED / REVIEW AND HUMAN DESIGN APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`。对账/兼容与边界见[决定](../decisions/task-completed-delivery-completion.md)。只消费 §25 producer 的已提交 `execution.TaskCompleted@1.0`；本节拥有 TE selection、来源材料与投递生命周期，不拥有 EP criteria/Evaluation。IP Dispatcher 的 SQL/Schema 不可直接复用为 TE 已交付能力。
+
+### 26.1 选择、来源与稳定材料
+
+TE owning `TaskCompletedDispatchPort` 提供 `scan/claim/readClaimed/confirm/markFailure/resumeDead` 内部能力。scan 只返回受信 Project 内候选 EventId，claim/read 使用独立当前授权；只选该 type@version、canonical `zhiju.execution.task`、Project Scope 的已提交 Outbox，earliest-unpublished 顺序仅在本 supported TaskCompleted typed aggregate 内约束（不让未支持的 TaskReady 阻断首版）。不更新其他 Event 的 delivery state；无 Item binding 的合法 Task completion 不属于此 dispatch 支持集，保留原 Outbox 并返回可观察 `UNSUPPORTED_ASSOCIATION`，不假称已投递。
+
+readClaimed 联合 TE 自有事实核对：Outbox aggregate id/type/version = source COMMITTED `evaluate_task_completion@2.0` Receipt target/结果/Scope；Event evaluationRef 等于该次不可变 Task Evaluation、其 Hash/Scope/target/definition 完整匹配，Evaluation outcome SATISFIED；Task creation kind/version为 @2.0；**从这份 Evaluation 的 definition Snapshot**（而非 current pointer）取得 `definition.deliveryItemRef`。Root item/version mirror只作一致性校验；不把 Request 自报 Item、correlationId、reference_edge 单列或另一个 Task Evaluation 当证明。合法但 TE current useStatus 后续失效不抹除原 completion 事实；不要求 terminal Run 再次 ACTIVE。
+
+来源 Hash 域分别验证，不混用：
+
+- V3000 Outbox `payload_hash = SHA256(cv1(storedPayload))`，storedPayload 含 `enterpriseId/projectId` scope mirror；先重算该 Hash并校验提升 Scope。
+- 公共 payload 仅删除这两个已校验镜像键，保留原四字段 `taskRef/evaluationRef/satisfiedFactRefs/completedAt`；重算 `publicPayloadHash = SHA256(cv1(publicPayload))`，不得拿 stored Hash 填公共 integrity。使用原 EventId、typed aggregate/version、Scope、correlation/causation、sourceCommandId、occurredAt；`producerModule=task-execution`、`dataClassification=INTERNAL`、actorRef 为 source created_by Principal 的原 owning 拼写 `zhiju.identity.principal`（Enterprise Scope），由固定该 type@version codec 推导，不由 worker caller 提供。完整 Event 经实际 Registry 校验。 当前 #235 appendOutbox 可保存 NULL causation_id；codec 必须先核对 Outbox.source_command_id 等 COMMITTED Receipt.command_id，Outbox.causation_id 与该 Receipt.causation_id（包括 NULL）镜像相等，再令公共 causationId = 非 NULL 的原 causation_id，否则等原 source_command_id。NULL fallback 是固定 Envelope 重建规则，非新 Event/新 command；非 NULL 必须是原 Receipt 记录的 UUIDv7，不可由 worker 提供或换成另一个 Command。封存后的 Envelope bytes/Hash 在重试、resume 与新 owner 下不变，不回填或改写原 Outbox/Receipt。
+- immutable sidecar 闭集 `{eventId, storedPayloadHash, publicPayloadHash, eventEnvelopeHash, taskRef, taskEvaluationRef, taskDefinitionSnapshotRef, deliveryItemRef}`；definition 为 exact CONTENT_ADDRESSED/zhiju.execution.task_definition_snapshot，原样保留 Task Evaluation.definitionRef 的 kind/objectId/可选 immutableVersionId/Scope/contentHash，不生成 snapshotId 或转换 Ref kind，Item 为 VERSIONED/zhiju.project.delivery_item，task/Evaluation等于 Event。`bindingHash=SHA256(cv1(sidecar))`；sidecar 不含自己的 Hash。两 Hash和原 canonical Envelope bytes与 binding在首次分配事务持久化，后续不重新构造字节。
+
+### 26.2 游标、claim 与 fencing
+
+持久化实体/权限唯一见 PostgreSQL §41。分区键 `(enterpriseId,projectId,sourceModule=task_execution)`，partition 恰 Project UUID。首次 allocation 在窄 TE 事务锁定本 partition cursor，再锁定已提交 candidate Outbox 和检查 typed-aggregate earliest 状态；对尚无 binding 的 event 分配 cursor+1、受信数据库 observedAt，写 immutable binding/Watermark并 CAS cursor、claim metadata后提交，**提交后**才调用 EP。sequence 范围 1..Number.MAX_SAFE_INTEGER，与现行 EP SourceWatermark 对齐；到上界 fail closed，无重置/舍入。同 event 唯一 binding，同 partition sequence 唯一；重试/新owner/人工恢复复用全部原材料及 original observedAt，不再推进 cursor。
+
+allocation 序列只表示已提交事件的观察顺序，不能宣称 producer 严格 commit-order。候选每轮按当前可见未绑定/可重试集合扫描，不按 UUID、recorded_at、occurred_at 高水位截断；低排序键的事务晚提交仍可发现。一个 partition cursor 锁串行 allocation，claim 提交后释放，发送可并行、乱序或暂停；不能因为 sequence=N 已投递而声称 <=N 全部已消费。
+
+claim state 为 PENDING/UNKNOWN且 available_at已到，或 LEASED且 lease_until已到；每次 claim 写真实 principal对应 worker owner、单调 `lease_token`、有限 lease与数据库 attempt_count。默认沿用 IP 的 60s lease、5次自动尝试、2s base exponential backoff；配置只来自受信部署参数，非 payload/调用者 attempt。预算到尽头的过期LEASED由下一次窄回收转 DEAD，不再产生第6次自动调用。事务内锁后用受信实际当前时间检查（不能用锁等待前冻结的 now() 替代），fencing不因resume重置。
+
+每个 confirm/failure 必须满足 event/Scope、LEASED、当前 owner+token、lease_until严格晚于当前时刻及当前授权；旧owner/过期token返回 `DISPATCHER_STALE_LEASE`，写入0。投递前 readClaimed也重验；若调用开始后 lease到期，EP可以已经合法提交，旧owner仍不能确认或回写，新owner只重放原 event。EP幂等吸收第二次传输，不声称 exactly-once。
+
+### 26.3 成功、UNKNOWN、失败与恢复
+
+EP仅返回实际已提交 `PROCESSED` 或当前授权后的 `DUPLICATE`，携带 exact factRef（及相同 event/binding/watermark身份）。TE confirm核对原 request与该 response，持久化不可变 delivery acknowledgment 和 PUBLISHED（与当前 token CAS同事务）；响应/确认丢失不能伪造 Receipt，重投原材料。该 ack **不包含** Item已完成承诺；Evaluation是另外一个 EP Command。
+
+超时/传输失败/EP提交点未知 → UNKNOWN/backoff；提交前EP故障回滚EP整笔，TE已提交 Outbox/游标/binding仍保留。提交后确认前故障 → 重投返回DUPLICATE，EP只有一份Inbox/Fact/Association/消费Process，TE追加实际新attempt结果后可确认。明确 wrong Producer/Scope/Hash、binding冲突、QUARANTINED为非重试错误：写安全失败码并 DEAD，不重造EventId。临时DEPENDENCY_UNAVAILABLE按有限预算重试；无权/授权过期暂停为可恢复DEAD，绝不默认成功。
+
+Human `resumeDead`是内部操作，需独立当前权限、1..256字符安全reason与不可变Audit；同 TE owning事务锁定DEAD、写Audit并改PENDING，审计故障则两者回滚。每次显式resume开新有限5次窗口，累计attempt_count/token仍递增；原binding/Watermark/Hash不变，冲突修正需新的合法业务输入，不能编辑历史payload恢复。Worker crash不必先记失败，过期lease按上述规则回收。
+
+### 26.4 后续交付与证据
+
+未来完整 composition入口顺序：TE authorized scan/claim/read → IP独立EPConsumer Decision → EP consume真实 Event+sidecar+Watermark → TE confirm；随后独立Human/EP Evaluator调用新@2.0与EP Readback Port。最小fixture/故障矩阵见 Module-Test 003 #237。没有注册Schema、migration或worker已交付的声明；外部、人工、TD-05–07和IM-06退出边界不改变。

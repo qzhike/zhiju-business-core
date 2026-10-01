@@ -597,3 +597,12 @@ Completion payload不含criteriaHash不等于无绑定：owning current definiti
 2026-09-30用户明确批准的兼容例外：`execution.get_task_state@1.0`保留`NOT_EVALUATED|USABLE|STALE|INVALIDATED`既有枚举，以`INVALIDATED`表达内部Completion的`REVOKED`；新增WorkOrderState、Judgment与Completion @2.0仍使用`REVOKED`。不新增操作、不改既有版本或237/62/200计数。
 
 本实现包含 named standalone Contract 正负 fixtures：`tests/fixtures/contracts/formal-completion/`（completion-v2、root/judgment query、execution-revision/output-fact、错kind/hash/scope/unknown字段）、生产owning acceptance fixtures `tests/fixtures/task-execution/formal-completion/normal.json` 与 `recovered.json`、受控Runtime三份versioned模板。fixture只给合法输入/预期、不得冒充尚未提交receipt/policy/业务fact；真实UUID/Hash由生产创建读回。Schema/Registry/generated types/compat metadata/fixtures 已在 #235 同一实现 revision 同步；定义与执行证据分别记录。
+
+
+## #237 DeliveryItem Completion 的 Major 与内部读回提案
+
+状态：`PROPOSED / NOT REGISTERED / NOT IMPLEMENTED / NOT RUN`。新`project.evaluate_delivery_item_completion@2.0`的closedpayload/Result、profile/selector、exactPlan/Item/Task/fact/Scope/CAS语义唯一见Spec002 §23；Catalog #237分类并存版本增量，历史200/@1.0/Event接受集不变。新profile让旧v1按原unknownkey规则拒绝，避免旧Project-wide eventType机制覆盖新Itempointer；不能仅以Schema兼容宣称业务语义可互换。
+
+`DeliveryItemCompletionReadbackPort.readExact`是EP owning AUTHORITATIVE内部Port，完整输入/安全结果见Spec002 §23.4，不伪装成已注册Query，不经Projection/Board读回。指定immutable Evaluation的历史outcome与当前pointer的derivedStatus、selectedEvaluationIsCurrent分开；EP只证明HISTORICAL_COMPLETION，TEtaskCurrentUseStatus=UNKNOWN。权限先于protected读和历史success返回，safe错误不泄漏对象是否存在/客户正文。
+
+Hash域必须分开：TEstoredPayload含scopeMirror，publicTaskCompletedpayload仅四字段；canonicalSHA256各自校验后封存stableEnvelope及associationbinding。EPFactRef仍publicpayloadHash，另校验binding/associationHash与所有提升列，不更改历史RefHash域；CompletionEvaluationRef仍完整immutableEvaluationpayloadHash。公开v2结构错误共享ErrorEnvelope，semantic/maskederror复用Spec002 §23.5，不新造共享错误族或放宽既有Scope。

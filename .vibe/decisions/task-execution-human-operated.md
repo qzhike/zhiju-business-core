@@ -275,7 +275,7 @@ Completion 不只看 `AgentResultAccepted` Event：必须读回 exact Result/Acc
 
 TE 在 Task CAS 到 COMPLETED 的同一事务保存 Task Evaluation、Audit、Reference Edge 与现有 `execution.TaskCompleted@1.0` Outbox；字段保持 `taskRef/evaluationRef/satisfiedFactRefs/completedAt`。Producer `task-execution`、Scope、Aggregate/version、payload integrity、correlation/causation 均来自 owning 事务。只含正式非空 satisfiedFactRefs；空输出不能伪造占位 Ref 通过当前 EP Consumer。
 
-Dispatcher 将已提交 Event Envelope 与真实 outbox 游标映射为 `sourceModule=task_execution`、分区、单调 sequence、observedAt 的 SourceWatermark，调用既有 EP `DeliveryCompletionEventInput` 边界。sequence 由持久化派发游标分配/复用，不从调用者时间戳或随机测试数生成。EP 的 Inbox/Completion Fact/Process 在 EP 事务落库；至少一次重复返回原结果，同 eventId 异 Hash 隔离，低 watermark 保留历史但不覆盖较新事实，错 Producer/Scope 拒绝。EP 继续按自己的冻结 DeliveryItem Criteria 判断，TaskCompleted 单独不保证交付完成，不同步回查 TE 形成依赖环。
+Dispatcher 将已提交 Event Envelope 与真实 outbox 游标映射为 `sourceModule=task_execution`、分区、单调 sequence、observedAt 的 SourceWatermark，调用既有 EP `DeliveryCompletionEventInput` 边界。sequence 由持久化派发游标分配/复用，不从调用者时间戳或随机测试数生成。EP 的 Inbox/Completion Fact/Process 在 EP 事务落库；至少一次重复返回原结果，同 eventId 异 Hash 隔离，低 watermark 保留历史但不覆盖较新事实，错 Producer/Scope 拒绝。EP 继续按自己的冻结 DeliveryItem Criteria 判断，TaskCompleted 单独不保证交付完成，不同步回查 TE 形成依赖环。 具体派发游标/claim、immutable关联、精确EP版本评估及读回的未批准增量见[设计#237](task-completed-delivery-completion.md)，不是此处总体原则已经交付的能力。
 
 ### 10.4 本轮完成度与后续设计输入
 

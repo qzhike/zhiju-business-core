@@ -552,3 +552,25 @@ fixture 的不同 capability code/主体 Grant 创建互不依赖，按最多四
 真实Grant PolicySnapshot生命周期取代仍无owning写入者，按#224已批准延后；本次的实际Grant撤销及可达PolicyVersion后继必须运行，不把该延后扩张为泛化豁免。TE-TD-022/023/026在未来上述对应应用/PostgreSQL案例实际运行后才按层级更新原行，未运行分支仍NOT RUN。
 
 #235 的 Request 竞态适用边界：唯一生产 Open 入口同时要求 Task/WorkOrder/Run 与真实 ACCEPTED BLOCKED_INPUT 来源。Task 首次进入 COMPLETION_PENDING 需所有 child 有 SUCCEEDED Run 且无 active/blocker；晚建 DRAFT 的 validation/freeze 又要求父 Task READY/IN_PROGRESS，因此不能在已具 Completion 资格的 Task 下产生新的 blocked child。已处理来源再次 Open 是既有 Origin replay，不是 INSERT。同 WorkOrder 正向新Request亦不能同时满足Completion的无blocker前置。本轮不扩大上述生命周期、不直写成功Root；执行合法Open与无Completion资格调用的并发拒绝，并保持不可达正向子项NOT RUN。child WorkOrder membership本身的两个竞争顺序仍需真实执行。
+
+
+## #237 真实 TaskCompleted 派发与独立 EP Completion 验收矩阵
+
+状态：`PROPOSED / DESIGN REVIEW AND HUMAN APPROVAL PENDING / ALL NEW RUNTIME CASES NOT RUN`。权威Spec003 §26、Spec002 §23、Spec001 §15.16、PostgreSQL §41；不是TD-05–07的整体批准。TE-TD-024、035–038只在本矩阵相应行为实际执行后按层级更新，不把#235的normal/recovered formal输出PASS当TE→EP dispatchPASS。
+
+未来必须交付named standalone owning fixtures `tests/fixtures/task-execution/delivery-completion/normal.json`、`recovered.json`；每份只含合法输入/实际预期及profile，动态UUID/Hash/Receipt来自owning创建读回，不预写Event/Decision/Receipt。normal：空TE业务库→真实IPPolicy/Grant/Decision与EPProject/Plan前置→预分配TaskUUID且Plan冻结exactcriterion→Task@2/WorkOrder@1.1/Context/READY→真实Driver invocation/final→HumanArtifact输出→独立WO/TaskCompletion→真实Outbox→TE Dispatcher→EP consumer→独立v2Evaluation→EPreadExact。recovered：复用#231/#235合法BLOCKED_INPUT→HumanCustomerMaterial确认/答案/采纳→Context-2→Humanretry→真实Run-2/输出，然后同一尾链。必须保留原Contract/Context-1/Run-1/Result历史Hash。每链另起合法Task+Release-required Item；不把一个Task复用给另一Item，不伪造Release fact达成成功。
+
+| ID | 层级 / 输入或故障 | 可验证预期与允许部分进度 | 当前实际 / 结果 |
+|---|---|---|---|
+| TE-DEL-D-001 | Contract + owning；normal named fixture、真实Driver/Outbox | TE sourceCompletion COMMITTED；publicEvent四字段/Hash与storedScopeMirror/Hash分开；normal真实NULL causation_id经Receipt镜像校验fallback为sourceCommandId，原CONTENT_ADDRESSED definitionRef不变；EP Inbox PROCESSED、Fact/Association/消费Process各1；独立v2Receipt COMMITTED、Task-only Evaluation SATISFIED、pointer version1→2、CompletionSatisfied event1；readExact完整ref/hash可追溯，无directCOMPLETED | 未执行 / NOT RUN |
+| TE-DEL-D-002 | Controlled + PostgreSQL；recovered named fixture | 真实两次Invocation/Run/Attempt，旧Runterminal不恢复；Context-2/Run-2新fact，原五类Hash不变；尾链与D-001相同，恢复真实NULL causation_id按同规则封存；另验证合法非NULL原Receipt causation保留，不重复TaskCompleted/EPFact | 未执行 / NOT RUN |
+| TE-DEL-D-003 | Owning + PostgreSQL；两链分别新建Task+Releasecriteria，无Release | EPFact/association消费成功，v2 COMMITTED但Evaluation UNSATISFIED、satisfiedFactRefs=[]、pointer1→2、CompletionSatisfied0；TE完成不豁免Release，不造ReleaseReceipt；readExact解释缺条件 | 未执行 / NOT RUN |
+| TE-DEL-D-004 | PostgreSQL；uncommittedOutbox、低排序键事务晚commit，两个Worker首次allocation | 未提交行不可扫描；高可见event先分配，晚提交行随后新sequence不丢；同event binding唯一、分区sequence唯一，observedAt可信；allocation rollback无cursor/claim/binding半写入，不声称producercommit序 | 未执行 / NOT RUN |
+| TE-DEL-D-005 | PostgreSQL；lease实际到期/newowner，旧ownerconfirm/failure；并发重复发送 | token严格递增、只有currentowner能更新metadata；旧ownerDISPATCHER_STALE_LEASE写0；EP仅一份Inbox/Fact/association，其他WorkerDUPLICATE；旧owner迟到不能回退PUBLISHED/新lease | 未执行 / NOT RUN |
+| TE-DEL-D-006 | PostgreSQL；EP Inbox/Fact/association/Process/Audit各写点commit前失败 | 本EP事务全rollback，TE原Completion/Outbox及已分配binding/cursor保留；UNKNOWN有限retry原bytes后PROCESSED，一份事实；Evaluation尚未执行不是失败回滚TE的理由 | 未执行 / NOT RUN |
+| TE-DEL-D-007 | PostgreSQL；EPcommit之后、response或TEconfirm前崩溃 | 原EventId/public+storedHash/envelopeHash/bindingHash/watermark/observedAt全等重投；EP DUPLICATE返回原factRef，Consumer effects各1；currentownerconfirm后PUBLISHED+真实ack，独立Evaluation replay原Receipt，0第二业务效果 | 未执行 / NOT RUN |
+| TE-DEL-D-008 | PostgreSQL；timeout持续至5次预算、已耗尽过期lease、Humanresume与Audit故障 | UNKNOWN/backoff按真实attempt，最多5次自动invoke，耗尽DEAD；6次不自动发送；authorizedresume原Audit/state原子且新5次窗口，token/累计attempt不清零、原event/watermark不改；Audit故障保持DEAD | 未执行 / NOT RUN |
+| TE-DEL-D-009 | Contract / closed @2.0 standalone正负fixture；旧v1/newprofile对照 | 未来238/62/200；old合法v1保留、newprofile在v1semantic拒绝；wrongkind/scope/Task/Item/PlanVersion/Hash、calleroutcome/time/watermark/evaluator/unknown字段拒绝；Result实际schema验证；TaskCompleted@1.0零schema变更 | 未执行 / NOT RUN |
+| TE-DEL-D-010 | Security / actualowningComposition；wrongProducer/Scope/stored或publicHash/sidecar/envelope/causation/Decision | 正链只接受真实TEPort材料；任意自报SERVICE/Envelope无handle拒绝，EPprotected读取0；source/association/causation单字段tamper、Outbox与Receipt causation镜像不符、sidecar转换definition为SNAPSHOT均拒绝，无EPfact/evaluation/成功Receipt；同event合法shape异payload或watermark=QUARANTINED，原成功facts不变 | 未执行 / NOT RUN |
+
+故障注入只允许在真实owning事务/传输界面暂停或抛错，不以直接business-tableINSERT制造正链。sourceEnvelope的恶意副本仅用于拒绝反例，不能充当positiveEvent。实际readback用生产Port，Owner scopedSQL只补充ACL/immutable/count等持久化证据。未来必需configured`full`，新/变化容器baseline先`environment`；局部diagnostic不替代。真实Provider/CLI/飞书、publicHTTP/UI、生产/负载、独立人工和IM-06Cancel/late-result继续NOT RUN。

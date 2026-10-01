@@ -287,3 +287,16 @@ authority为Spec 001 §15.15，#235当前有限owning/PG证据如下；#224实�
 | IP-COMP-D-001 | Contract + Application + PostgreSQL / Human或固定TE SERVICE自身及每项dependency Decision | operation/version/purpose/action/target/payloadHash/Scope完整匹配；Human-onlyArtifact/Driver入口不可代理；qualityProfile exact read/SelectionPort独立授权，缺授权零read | OWNING/PG PASS：当前自身及consumer独立真实Decision/Grant，精确operation/version/purpose/action/target/hash/Scope；Artifact/Driver Human-only；Quality Selection/Profile/#192各自授权。 |
 | IP-COMP-D-002 | Application + PostgreSQL / AGENT/RUNTIME/未知SERVICE、actingFor、借producer Decision、错purpose/hash/Scope、历史receipt | protected读前拒绝为0，current授权不可用时masked拒绝；旧事实存在不授予新Completion/read权 | OWNING/PG PASS（已执行）：实际有code Grant的AGENT/SERVICE、真实HUMAN actingFor不能取得Human-only权限；借Human Decision在Artifact/TE protected SQL前拒绝；不同operation、Actor/Decision Hash/Scope错误SQL及历史replay边界。RUNTIME/所有未知SERVICE新接口子项NOT RUN。 |
 | IP-COMP-D-003 | Application + PostgreSQL / Grant真实撤销、PolicyVersion真实后继、Decision到期及持锁后撤权 | 提交/原Receipt返回前拒绝，无半事实；terminal历史Bundle inspect不要求ACTIVE/过期执行权重新签发 | OWNING/PG PASS（已执行）：自身/依赖Grant revoke、output_creation新Bundle consumer revoke、business PolicyVersion successor、Completion TTL、terminal旧lease到期USABLE；旧Receipt原授权当前复验。新Completion自身/sources Grant持锁后实际撤销拒绝；真实Grant PolicySnapshot lifecycle沿既有批准延后。 |
+
+
+## #237 Dispatcher / EP Consumer / Evaluation / Readback 授权用例
+
+状态：`PROPOSED / REVIEW AND HUMAN DESIGN APPROVAL PENDING / ALL NEW RUNTIME CASES NOT RUN`。Spec001 §15.16映射为唯一权威；production composition须真实IP owning创建Grant/ActorSnapshot/Decision，不能mock/fabricateDecision替代positivechain。
+
+| ID | 层级 / 输入或故障 | 预期结果 | 当前实际 / 结果 |
+|---|---|---|---|
+| IP-DEL-D-001 | Owning + PostgreSQL；两named正链不同Dispatcher/Consumer/Evaluator/ReaderService | 每步各持自己的精确operation/version/Scope/action/Purpose/target/payloadHash/Actor/认证Hash，正常允许；consumer不用TEProducer历史Decision，Evaluation/readback不借consumer权限 | 未执行 / NOT RUN |
+| IP-DEL-D-002 | Security；SERVICE非allowlist、AGENT/Runtime/actingFor、wrongaction/Purpose/config/target/version/Task/Item/Scope/hash/session/Actor | AUTHORIZATION_DECISION_INVALID，protectedrepo读取/写入0；只有shape合法不是来源证明，无法用callercontext绕过TEmaterialhandle；ConsumerDecision不授予Evaluate/read权限 | 未执行 / NOT RUN |
+| IP-DEL-D-003 | PostgreSQL；扫描后撤销claimGrant、claim关联readGrant缺失，锁等待中expiry/撤权 | 每步当前revalidate；claim缺read权限0cursor/binding/leasecommit，read不泄露事实；锁后Decision过期/Grant撤销0目标commit，历史Outbox/前一步合法事实保留 | 未执行 / NOT RUN |
+| IP-DEL-D-004 | PostgreSQL；EP已commit后Consumer撤权重放，Evaluation历史Receipt/readback返回前撤权 | 原Fact/association/Evaluation不改写，DUPLICATE/历史success返回前当前授权拒绝，不能以历史ALLOW返回；新授权重放原结果且不要求terminalRunactive或历史Planactive | 未执行 / NOT RUN |
+| IP-DEL-D-005 | Persistence/Security；DispatcherRole直接业务表读写/错ScopeContext、无establisher、IP不可达 | 最小ACL/FORCERLS拒绝；窄function不允许任意建立Context、动态SQL或跨Schema；IPdependency不可达failclosed且无默认成功；actualGrantPolicySnapshotlifecycle未执行不升级 | 未执行 / NOT RUN |

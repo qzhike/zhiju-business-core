@@ -68,3 +68,6 @@
 ## 维护规则
 
 Planner 在阶段启动/关闭或优先级变化时协调本文件；普通实现不重复抄写进度。GitHub Issue/PR 与 Git 是执行状态来源。旧 Task-Plan、Issue 草稿和报告是历史材料，不能覆盖本文件的推进方向或最新 GitHub 事实。
+
+
+#237 设计推进意图（2026-10-01）：下一候选仍是实际TaskCompleted派发与独立DeliveryItemCompletion。[bounded提案](../decisions/task-completed-delivery-completion.md)对账main@cd2a249，具体TE/EP/IP owning设计及normal/recovered验收已提出，独立设计审查与绑定具体修订的人类设计批准待完成。后续一个完整实现候选须在设计交付后重新复核NOW+READY；本轮不发布依赖Issue、不实现runtime、不关闭IM-06，原外部/人工/GrantPolicySnapshot和Cancel/late-result边界保持。

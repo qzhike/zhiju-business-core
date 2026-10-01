@@ -1425,3 +1425,12 @@ TaskCompleted沿用现有v1.0事件字段，由TE Task事务的Outbox真实派�
 状态：`T2 DESIGN ONLY / DESIGN APPROVED / HUMAN DESIGN APPROVED 2026-09-27 / NOT IMPLEMENTED / NOT RUN`。[Spec003§24.3–24.6](../module-specs/Module-Spec-003-TaskExecution.md#243-source--request-的不可变关联与独立协调)定义一个受限blocked-input recovery Process，原final五步仍复用已交付Process。EP确认、TERequest/Answer/Resolution、Context、WorkOrder schedule、IPBundle、Run/IGAttempt及两个Root reconcile分别提交；每步只写自身Root及附属事实。Process进度是独立技术事务，目标已提交而进度未记时以原source Result/proposal/step稳定键和完整bytes重放owningReceipt，不制造第二业务事实/Invocation；Human answer/resolve/schedule只观察其真实提交，不由Process自动批准。
 
 跨Owner只使用权限裁剪owningPort/Query及真实已发布Event Inbox；无IGfinal Event则有限扫描，不制造源事件。当前授权、来源时效、Scope/hash、local CAS与Claim在每次目标消费点重验；跨模块观测仍按TD-04记录时点一致，不能把多个Query拼成分布式原子事务。forward存储、源唯一关系与commit-before-progress fault唯一见PostgreSQL§39及owning Module-Test，非通用Workflow/Saga注册系统。
+
+
+## #237 TaskCompleted 投递与精确关联一致性（提案）
+
+状态：`T2 / PROPOSED / NOT IMPLEMENTED / NOT RUN`。本段细化已批准TE→EP方向，字段/事务分别由Spec003 §26、Spec002 §23与PostgreSQL §41拥有：TE首次allocation只观察已提交Outbox并原子保存event-to-watermark/binding，独立EP事务存Inbox/Fact/association，TE再独立确认PUBLISHED，最后另一个授权EPCommand评估Item。EPcommit-before-confirm重放原EventId/原public及storedHash/原binding/原watermark，Inbox吸收重复；Evaluation失败不回滚先前合法facts，也不能让PUBLISHED声称Item完成。
+
+sequence为partition分配/观察序，不承诺全局producercommit序或完整消费checkpoint；晚提交低键仍扫到、迟到低序保留历史，只有同exactTask/Item/PlanVersion关联的新旧水位可比较，别的Item不被Projectmax跳过。lease/fencing只裁决TE metadata owner，不能撤销EP已合法commit；两worker最多一个当前confirm，重复传输由EP业务幂等吸收。
+
+历史TaskCompleted不等于当前TECompletion USABLE。当前可用性失效事件推动EPImpact的原则需要对应真实producer；本bounded首版尚无Task invalidation事件，不能声称存在该闭环。EP读取明确HISTORICAL_COMPLETION/UNKNOWN，只证明自己已消费ledger及独立评估，不查询TE制造依赖环，不用Projection/直接execution_status作为Completion。
