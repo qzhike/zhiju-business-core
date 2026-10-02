@@ -472,9 +472,33 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 本地增量 `full` 已通过 clean build、常规测试与真实 PostgreSQL gate，并按上表区分 CONTRACT、UNIT、owning/PG、静态架构和未具备生产者的边界。`PARTIAL` 行不因配置门禁通过而成为完整 PASS；PolicySnapshot 的真实取代仍无 owning 写入者，独立 Usage/Completion 与外部/人工验收仍为非目标 NOT RUN。PR #226 已合并；本次增量的精确 head、远端 CI 与独立审查结果以关联 #224 的增量 PR 为准，本地门禁不替代这些证据。
 
 
+### initial-context 测试代码定位与执行边界
+
+持久化入口仍为 `tests/persistence/initial-context.test.ts`，统一注册 92 个用例：22 个 Context/SourceSlice 用例与 70 个受控运行用例。以下文件均在 `tests/persistence/`；辅助文件不使用 `.test.ts` 后缀，避免被测试发现器重复注册。
+
+| 业务范围 | 维护位置 |
+| --- | --- |
+| Context 构建、版本与输入边界 | `initial-context-context-build.ts` |
+| 权限、事务失败、并发与隔离 | `initial-context-context-security.ts` |
+| 精确快照读取、归属与版本 | `initial-context-context-read.ts` |
+| SourceSlice 来源与授权 | `initial-context-source-slices.ts` |
+| 历史升级 | `initial-context-legacy-cases.ts` |
+| 正式输出与 Completion | `initial-context-completion-cases.ts` |
+| 补充材料、恢复与第二次运行 | `initial-context-material-recovery-cases.ts` |
+| Result 生命周期、撤权、到期与竞争 | `initial-context-result-lifecycle-cases.ts` |
+| Process 持久化与重启恢复 | `initial-context-process-cases.ts` |
+| 不支持的 final 与过期 Acceptance | `initial-context-result-rejection-cases.ts` |
+| 独立交付库、延迟提交与乱序 | `initial-context-delivery-cases.ts` |
+
+`initial-context-fixtures.ts` 保存常量、数据类型与纯辅助函数；`initial-context-suite.ts` 创建一套连接、owning 准备能力、操作跟踪和清理流程；`initial-context-scenario.ts` 编排独立业务链。授权准备、正式输出、Result 边界、恢复、Run-2 等长步骤分别位于 `initial-context-prepare-*`、`initial-context-create-*`、`initial-context-execute-*`、`initial-context-verify-*`；步骤接口只列出实际依赖。跨步骤变化的时钟和业务引用使用实时访问器，不能在创建步骤依赖时复制快照。
+
+拆分保持原用例名称、注册顺序、断言与真实 PostgreSQL 等待。统一入口继续串行执行；每例之后仍排空被跟踪操作。三个独立交付场景各自创建 suite 与 Run 编排器，在退出时依次 drain、关闭全部连接、停止容器，不再替换外层数据库连接或共享场景缓存。独立环境中的被跟踪操作也交给外层 drain 观察，保留超时后延续操作的排空保障；不把整个测试体作为待排空 Promise。此隔离不构成启用文件并行的证据。
+
+日常修改可先通过持久化门禁的单文件与名称过滤执行相关业务组；修改共用环境、业务链编排或准备缓存，以及交付前，仍须完成 clean build 与完整持久化门禁。局部用例通过不等于全量回归、远端 CI、外部 Runtime 或人工验收通过。
+
 ### 受控运行测试准备与覆盖归属
 
-`tests/persistence/initial-context.test.ts` 的 77 个用例、其中 55 个受控运行用例保留名称和各自业务断言。每个场景通过 owning 入口生成 Service/Actor、Grant 与独立 Decision、Policy、Slice、Task/Draft/Context、READY WorkOrder、Bundle/Run/Attempt；除下述未撤权分支可复用的准备事实外，可变生命周期对象、运行时存储和时钟不跨场景复用。共用的 suite 基础事实保持既有边界；队列探针撤销的共用 Policy-read Grant 在同一场景的 finally 中重新通过 owning grant 能力恢复，包含探针断言失败路径。文件继续串行，所有被跟踪业务操作在下一测试前 drain；不能把 abandoned test body 本身加入其 afterEach 等待集合。
+当前统一入口的 92 个用例、其中 70 个受控运行用例保留名称和各自业务断言。每个场景通过 owning 入口生成 Service/Actor、Grant 与独立 Decision、Policy、Slice、Task/Draft/Context、READY WorkOrder、Bundle/Run/Attempt；除下述未撤权分支可复用的准备事实外，可变生命周期对象、运行时存储和时钟不跨场景复用。共用的 suite 基础事实保持既有边界；队列探针撤销的共用 Policy-read Grant 在同一场景的 finally 中重新通过 owning grant 能力恢复，包含探针断言失败路径。文件继续串行，所有被跟踪业务操作在下一测试前 drain；不能把 abandoned test body 本身加入其 afterEach 等待集合。
 
 | 原重复覆盖 | 保留的测试归属 | 其他场景的准备与独立覆盖 |
 | --- | --- | --- |
