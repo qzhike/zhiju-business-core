@@ -144,6 +144,7 @@ export function createInitialContextSuite(
   options: {
     databaseUrl?: string;
     registerHooks?: boolean;
+    diagnosticLabel?: string;
     observeOperation?: (operation: Promise<unknown>) => void;
   } = {},
 ) {
@@ -222,7 +223,9 @@ export function createInitialContextSuite(
   let goldenDraftRef: Common.ContentAddressedRef;
 
   function progress(event: string, detail: string): void {
-    process.stdout.write(`[initial-context] ${event}: ${detail}\n`);
+    process.stdout.write(
+      `[initial-context] ${event}: ${detail}${options.diagnosticLabel ? `; environment=${options.diagnosticLabel}` : ''}\n`,
+    );
   }
 
   const cleanupResources: (pg.Pool | pg.Client)[] = [];
@@ -274,29 +277,31 @@ export function createInitialContextSuite(
     run: () => Promise<void>,
     timeout = INTEGRATION_TEST_TIMEOUT,
   ): void {
-    it(name, { timeout }, async () => {
-      const started = performance.now();
-      progress('test start', name);
-      phase('test body');
-      const heartbeat = setInterval(() => {
-        progress('heartbeat', `${name}; phase=${currentPhase}; pending=${pendingOperations.size}`);
-        void databaseWaits().catch(() => {
-          // Diagnostics are best effort; preserve the original failure.
-        });
-      }, 30_000);
-      try {
-        await run();
-      } catch (error) {
-        await databaseWaits().catch(() => {
-          // Diagnostics are best effort; preserve the original failure.
-        });
-        throw error;
-      } finally {
-        clearInterval(heartbeat);
-        phaseEnd();
-        progress('test body end', `${name}; elapsedMs=${Math.round(performance.now() - started)}`);
-      }
-    });
+    it(name, { timeout }, () => runIntegrationCase(name, run));
+  }
+
+  async function runIntegrationCase(name: string, run: () => Promise<void>): Promise<void> {
+    const started = performance.now();
+    progress('test start', name);
+    phase('test body');
+    const heartbeat = setInterval(() => {
+      progress('heartbeat', `${name}; phase=${currentPhase}; pending=${pendingOperations.size}`);
+      void databaseWaits().catch(() => {
+        // Diagnostics are best effort; preserve the original failure.
+      });
+    }, 30_000);
+    try {
+      await run();
+    } catch (error) {
+      await databaseWaits().catch(() => {
+        // Diagnostics are best effort; preserve the original failure.
+      });
+      throw error;
+    } finally {
+      clearInterval(heartbeat);
+      phaseEnd();
+      progress('test body end', `${name}; elapsedMs=${Math.round(performance.now() - started)}`);
+    }
   }
 
   const pendingOperations = new Set<Promise<unknown>>();
@@ -3787,6 +3792,7 @@ export function createInitialContextSuite(
     // Positive evidence is always an owning read; SQL above only checks immutable bytes/counts.
   }
   return {
+    runIntegrationCase,
     get itIntegration() {
       return itIntegration;
     },

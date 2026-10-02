@@ -49,6 +49,8 @@ CI 对 Pull Request 使用 base-to-head 的完整变更集合，不能仅凭最�
 
 Persistence Gate 使用独立 `vitest.persistence.config.ts` 收集 `tests/persistence/**/*.test.ts`，保持同一临时数据库内文件串行与 worker 隔离，防止角色权限负例交叉影响；不重复普通检查。完整数据库 Gate 不允许意外 skipped 用例，退出失败或异常取消仍是失败；仅明确选定文件的聚焦诊断允许测试名称过滤，并明确输出非完整 Gate。`docs/code/full` 路由不变；CI 的 `checks` 执行预算为 30 分钟，`persistence` 执行预算为 60 分钟。增加数据库任务预算不改变测试收集、串行执行、固定镜像或失败/取消判定。
 
+13 类 Core-valid unsupported final 使用 `initial-context-unsupported-final.test.ts` 中的两个独立 PostgreSQL 容器组交错执行真实等待。每组内部测试仍串行；连接、角色、迁移、时钟、业务准备缓存和运行时存储各自独立。开始前验证实例身份不同，角色撤销、同一业务键行锁、时钟变化与 SQL 异常不跨组传播。每例后 drain；失败、超时或 drain 异常后，该组后续用例显式失败且不再执行业务操作。setup 部分失败和整组退出均关闭已创建的资源。其他持久化文件及共用数据库保持原串行配置，不改变业务期限、清理断言或完整门禁要求。
+
 数据库验证必须流式输出文件/测试开始、结束和耗时，长测试及 setup/cleanup 每 30 秒输出当前执行项；等待诊断只允许连接状态、等待事件、阻塞 PID 和事务持续时间，禁止 SQL 文本、连接凭据或业务 payload。`initial-context` 另记录业务准备、Validation/Freeze 矩阵、队列探针、Run/Result 业务边界、正式完成的输入拒绝/原子回滚/评价与竞态/判定失效阶段、恢复链的材料确认/解决/Context-2 构建阶段、真实期限等待、历史升级和 pending-operation drain；测试正常退出前的汇总报告不能替代这些进度。真实队列竞态以指定 PostgreSQL 后端的阻塞关系同步，释放锁后等待后台操作完成；服务端到期测试继续等待实际 deadline，不改变数据库时钟或跳过 cleanup。
 
 CI 的 `select` 先按相同 base-to-head 风险路由选择目标；`checks` 执行 docs 或完整 code 检查，`persistence` 仅在 full 时执行固定镜像 PostgreSQL/Flyway Gate，两者独立 runner 并行。数据库任务先 clean build 自己的 workspace libraries；不重复普通测试、格式、lint、Architecture 或 Contract Gate，也不把数据库文件并行化。本地配置的 full 仍是 code + persistence 的完整顺序验证。原 `verify` 检查作为 always 汇总，必须确认 select/checks 成功，full 的 persistence 成功，docs/code 的 persistence 为预期 skipped；失败、取消、缺失/非法结果、未知目标和意外跳过不能通过。文档任务传入同一 BASE_SHA/GITHUB_SHA 边界；根 `vitest.persistence.config.ts` 单独变化也必须 full。

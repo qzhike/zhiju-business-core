@@ -6,7 +6,7 @@ import { registerExecution } from './initial-context-execution.js';
 import { gateEnabled } from './initial-context-fixtures.js';
 import { registerSourceSlices } from './initial-context-source-slices.js';
 import { createInitialContextSuite } from './initial-context-suite.js';
-// One registration entry preserves serial execution, fixture lifetime and case order.
+// Shared-database cases preserve serial execution, fixture lifetime and relative order.
 describe.skipIf(!gateEnabled)('initial Context Snapshot build and read (real PostgreSQL)', () => {
   const suite = createInitialContextSuite();
   registerContextBuild(suite);
