@@ -606,3 +606,15 @@ Completion payload不含criteriaHash不等于无绑定：owning current definiti
 `DeliveryItemCompletionReadbackPort.readExact`是EP owning AUTHORITATIVE内部Port，完整输入/安全结果见Spec002 §23.4，不伪装成已注册Query，不经Projection/Board读回。指定immutable Evaluation的历史outcome与当前pointer的derivedStatus、selectedEvaluationIsCurrent分开；EP只证明HISTORICAL_COMPLETION，TEtaskCurrentUseStatus=UNKNOWN。权限先于protected读和历史success返回，safe错误不泄漏对象是否存在/客户正文。
 
 Hash域必须分开：TEstoredPayload含scopeMirror，publicTaskCompletedpayload仅四字段；canonicalSHA256各自校验后封存stableEnvelope及associationbinding。EPFactRef仍publicpayloadHash，另校验binding/associationHash与所有提升列，不更改历史RefHash域；CompletionEvaluationRef仍完整immutableEvaluationpayloadHash。公开v2结构错误共享ErrorEnvelope，semantic/maskederror复用Spec002 §23.5，不新造共享错误族或放宽既有Scope。
+
+## IM06-CANCEL 取消与历史隔离的兼容边界
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-03 / INDEPENDENT DESIGN REVIEW APPROVE 2026-10-03 / IMPLEMENTED IN #244 PROPOSED REVISION / RUNTIME EVIDENCE IN THE PULL REQUEST`。
+
+字段唯一见 [Spec 003 §27](../module-specs/Module-Spec-003-TaskExecution.md#27-run-取消请求与迟到-final-隔离已批准设计)，注册归属见 Catalog 的 IM06-CANCEL 节，批准绑定见取消设计决定 §5。
+
+新增 expire_run@2.0 是 §9.1 closed enum 变化所需 Major，不用 Minor 扩展 @1.0 的 TIMED_OUT 常量。新/旧 version 路由与授权组成分别解析；@2.0 caller 不可提交 desiredStatus/endedAt/now，CommandResult.data 按独立专用 Result Schema 验证。cancel @1.0 仍使用原 payload、通用 CommandResult 和公开 Purpose `task.execution.request_run_cancel`；内部 Grant action `execution.run.cancel.request.v1` 与 Purpose 分字段，不接受别名；Human state read 使用原 Query Schema/Purpose 与新的独立 HUMAN 内部映射，不改变既有 SERVICE 映射。Intent、late source inspection 与 Audit 不伪装公开 API。
+
+新 cancellation/expiry/late-isolation 入口只支持 Spec 003 §27.1 中已有 creation reservation 的两次执行 profile，不生成历史 reservation、不放宽原预算 guard；单次 profile 保持旧入口支持，作为新入口的 unsupported 负例。
+
+隔离审计不能返回 submit COMMITTED、制造 agentResultRef/Acceptance 或伪装 Runtime ACK；旧 Result/Receipt 的历史重放不授予新的执行资格。自身当前命令/Query 权限与历史 source integrity 在到期 cleanup 时仍需通过，过期 execution Bundle 不被要求重新有效。共用公共 Envelope/CAS/幂等/Error/受限 Scope 语义，不引入新的公开错误族。旧 Contract/Context/Result/Observation/Event Hash 与历史 200 项基线不重写，新 runtime 矩阵全部 NOT RUN。

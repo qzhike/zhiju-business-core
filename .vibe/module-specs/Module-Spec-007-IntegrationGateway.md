@@ -362,3 +362,13 @@ IG仅独立重验Core shape/Hash、冻结模板与实际原Invocation来源、�
 
 
 #233 Driver持久化复用原synthetic invocation/final的受控对象journal（现有putImmutable/read边界），新增独立release输入journal记录，包含原Invocation identity/hash、实际Ref/Receipt、release请求Hash与第一次受信release时刻；不新增业务表或伪造Core Receipt。release/final以同Invocation稳定locator的atomic put-if-absent竞争；输者重读已提交记录，字节相同才重放，异输入拒绝；首次成功release记录提供固定submittedAt，多个Worker不能各自按now写不同final。journal写后final未写/IG未封存的崩溃，从原immutable release记录恢复同一模板/Ref/时间计算相同final并readFinal，不重新invoke。
+
+### IM06-CANCEL 原 invocation 的迟到 final 历史观察（已批准设计）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-03 / INDEPENDENT DESIGN REVIEW APPROVE 2026-10-03 / IMPLEMENTED IN #244 PROPOSED REVISION / RUNTIME EVIDENCE IN THE PULL REQUEST`。
+
+批准修订与原始 Hash 见 [取消设计决定 §5](../decisions/task-execution-cancellation.md#5-人类设计批准与修订绑定2026-10-03)。实现见 #244：复用现有 IG Query/Observation 与新增 late-final 读取边界；运行证据记录在对应 Issue/PR。 TE 的接纳/隔离语义唯一见 [Spec 003 §27.3](Module-Spec-003-TaskExecution.md#273-历史来源隔离与-process-停止)，IP 依赖读取映射见 Spec 001 §15.17。
+
+复用原实际调用的 Attempt、immutable invocation/ack、Runtime Adapter identity/session、final Observation 与两个 existing authoritative Binding/final Query；payload/result/Purpose 不变，不增加 IG public operation、final Event 或 Cancel ACK。本切片 late-isolation 的业务支持集为 TE §27.1 有既有 reservation 的两次执行 profile，IG 的原 Query/Observation 支持集不变。受控 Driver 在 ack/start 之后固定原模板/Hash，以真实取消或到期提交屏障延迟原 final，不替换 Run/Contract/Context/Bundle/fencing/submission identity，不再次 invoke。IG 只封存确实发生的原来源，允许迟到 Observation 保留历史；执行资格由 TE 判断，保存 Observation 不证明 Result 可用。
+
+late consumer 的两个 Query 各以自身 current IP Decision 读取 exact Attempt；没有权限、来源不可验证或暂时不可用则 fail closed，不能由 caller JSON 或另一 Run 的自洽 Hash 补足。原执行租约到期不抹除 IG 历史 Observation，但并不豁免查询自身当前权限。来源异常与合法 LATE_RESULT 区分，IG 不替 TE 创建隔离 Audit、不改变 TE Root、不调用未批准 Runtime cancel/ACK。实际次数、原 bytes/Hash、历史保留及授权反例在 IG Module-Test 的 IG-CANCEL-D 行独立记录，全部 NOT RUN。

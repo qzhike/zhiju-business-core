@@ -166,7 +166,7 @@ CompletionEvaluationInput
 | `execution.build_context_snapshot@1.0` | `ContextSnapshot / CREATE` | `request: ContextBuildRequest` | `execution.context.build`；Source Slice 精确版本、同 Scope、按 Purpose 裁剪；创建后不可变 |
 | `execution.create_run@1.0` | `Run / CREATE` | `creation: RunCreation` | `execution.run.create`；同 WorkOrder 默认只有一个 active claim；attempt 单调 |
 | `execution.start_run@1.0` | `Run / MUTATE` | `leaseId: UuidV7; fencingToken: NonNegativeInt; runtimeAttemptRef: ObjectRef<RuntimeAttempt>; startedAt: UtcInstant` | `execution.run.start`；Token/Context/Runtime Binding 固定；过期 lease 拒绝 |
-| `execution.request_run_cancel@1.0` | `Run / MUTATE` | `reason: Justification; requestedAt: UtcInstant; cancellationPolicyRef: VersionedRef<Policy>` | `execution.run.cancel.request`；进入 CANCELLING，不虚构 Runtime 已取消 |
+| `execution.request_run_cancel@1.0` | `Run / MUTATE` | `reason: Justification; requestedAt: UtcInstant; cancellationPolicyRef: VersionedRef<Policy>` | `task.execution.request_run_cancel`；进入 CANCELLING，不虚构 Runtime 已取消 |
 | `execution.record_runtime_input_required@1.0` | `Run / MUTATE` | `inputRequired: RuntimeInputRequired` | `execution.run.input_required.record`；控制事件不是 final AgentResult；是否可 Resume 由 Policy 判定 |
 | `execution.submit_agent_result@1.0` | `AgentResult / CREATE` | `agentResultContract: AgentResultContract; runFencingToken: NonNegativeInt; runtimeSubmissionRef: ExternalRef` | `execution.agent_result.submit`；绑定精确 Run；同 Result ID/Hash 幂等，不同 Hash Quarantine |
 | `execution.accept_agent_result@1.0` | `AgentResultAcceptanceRecord / CREATE` | `agentResultRef: ContentAddressedRef<AgentResult>; schemaValidationRef: ContentAddressedRef<ValidationResult>; identityValidationRef: ContentAddressedRef<ValidationResult>; runBindingValidationRef: ContentAddressedRef<ValidationResult>; scopeValidationRef: ContentAddressedRef<ValidationResult>; businessOutputValidationRef: ContentAddressedRef<ValidationResult>; disposition: Closed<ACCEPTED \| REJECTED \| QUARANTINED>; reasons: ReasonCode[]` | `execution.agent_result.accept`；仅 Validator Service；ACCEPTED 不等于 WorkOrder 完成 |
@@ -2283,3 +2283,47 @@ Human `resumeDead`是内部操作，需独立当前权限、1..256字符安全re
 ### 26.4 后续交付与证据
 
 本实现 composition入口顺序：TE authorized scan/claim/read → IP独立EPConsumer Decision → EP consume真实 Event+sidecar+Watermark → TE confirm；随后独立Human/EP Evaluator调用新@2.0与EP Readback Port。最小fixture/故障矩阵见 Module-Test 003 #237。实现为 `createTaskCompletedDispatchPort`、`createTaskCompletedDeliveryEntry` 和 `V7011__task_completed_dispatch.sql`；composition 导出于 `@zhiju/api/composition`。确认只接受 EP owning consumer 实际返回的已提交结果 handle，调用者 JSON 不能伪造成功 ACK。实现、运行证据和独立审查分别记录；外部、人工、TD-05–07和IM-06退出边界不改变。
+
+## 27. Run 取消请求与迟到 final 隔离（已批准设计）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-03 / INDEPENDENT DESIGN REVIEW APPROVE 2026-10-03 / IMPLEMENTED IN #244 PROPOSED REVISION / RUNTIME EVIDENCE IN THE PULL REQUEST`。
+
+批准修订与原始 Hash 见 [取消设计决定 §5](../decisions/task-execution-cancellation.md#5-人类设计批准与修订绑定2026-10-03)。实现见 #244：`execution.request_run_cancel@1.0` Handler、additive `execution.expire_run@2.0`、`V7013__run_cancellation_isolation.sql` 与 late-final isolation；运行证据记录在对应 Issue/PR。 本节拥有取消支持集、Command 请求/结果、状态/重放与迟到隔离业务语义；授权见 Spec 001 §15.17、真实观察来源见 Spec 007 的取消增量、持久化见 PostgreSQL §42、验收见 Module-Test 003 的 CANCEL-D 矩阵。
+
+### 27.1 取消 Intent 与竞态
+
+`execution.request_run_cancel@1.0` 复用已注册 closed payload `{reason: Justification, requestedAt: UtcInstant, cancellationPolicyRef: VersionedRef}`，target 为 MUTATE / OBJECT `execution.run`，Purpose 为 `task.execution.request_run_cancel`，内部 Grant action 单独为 `execution.run.cancel.request.v1`，不得作为公开 Purpose 别名；成功使用既有通用 CommandResult；不新增专用 Result Schema 或公开 cancellation Event。`get_run_state@1.0` 的原 RunStateView 负责独立授权后的 CANCELLING/ABANDONED 与 terminationReason 读回，旧 schema/metadata 逐字节保留。
+
+首版只支持已交付两次执行 profile 中 canonical 受控 Run 的 `RUNNING → CANCELLING`，由 HUMAN 发起：冻结 Contract 的 maxAttempts=2、单项有限 wallClockLimit、恢复约束严格来自 §24.2 的 Controls @1.1 或 §25.1 Controls @2.0 的 recovery 分支；Run attemptNumber 为 1 或 2，创建时已由真实 create_run 事务提交同 Scope/Run/WorkOrder 的不可变 run_budget_reservation。reservation 的 attemptNumber、totalSeconds、reservedSeconds、source Receipt/Hash 与冻结 Contract/Run 镜像必须完整有效。本文不新增 Controls profile，也不只凭 caller maxAttempts 或任意 reservation 行放行。
+
+本切片的 request_run_cancel@1.0 Handler、expire_run@2.0 及内部 late-isolation 都限于上述已有预算事实的 profile；不支持 maxAttempts=1 或无 reservation 的历史 Run。单次执行 profile 返回既有 `EXECUTION_CRITERION_UNSUPPORTED`，支持 profile 中 reservation 缺失/错误则按来源完整性安全拒绝，不能补建历史预算事实继续成功。CREATED/STARTING/SUSPENDED 的取消、自动 Service cancel、WorkOrder/Task cancel、取消后重试仍不在本结果支持集。该限制是新 Handler 支持范围，不收窄已发布 Schema；旧 expire_run@1.0 与其他既有单次执行路径保持原支持集。Human get_run_state 的新授权不会改变其公开 RunStateView，取消权限与读取权限仍分别授予。
+
+请求必须使用 Run 所绑定不可变 Contract 的 exact `executionPolicy.cancellationPolicyRef`，其值沿用已交付 Controls profile 的同一 Project Policy Ref；经独立 Policy resolve 验证当前有效和已支持 profile，不另选默认取消 Policy 或 grace。`requestedAt` 只保存为 Human 声明时间；受信接收/提交时间由服务端产生，前者不能延长 lease、改变竞争先后或让已到期请求成功。
+
+取消与 submit/record/expire 使用同一 Run 行锁/CAS，取得锁后重读状态、ACTIVE Claim、当前授权与原 lease/deadline。新取消要求 `now < min(lease, deadline)`。成功只推进 Run 版本与 CANCELLING，并原子保存一份不可变取消 Intent、Receipt、Audit；Claim 保持 ACTIVE、预算 reservation 保持占用，不写 endedAt、不发 RunTerminated、不调用 Runtime cancel Adapter。Intent 保存完整 Scope/Run、reason/requestedAt、受信 committedAt、exact Policy Ref、source command/request Hash、ActorSnapshot/Decision 与 canonical intent Hash；同 Owner 组合约束及 guard 绑定真实 Receipt，不能凭同名列作为来源证明。
+
+同键同请求在当前取消授权复验后返回原 Receipt；同键异请求保持既有幂等冲突语义。不同键对已 CANCELLING 或 terminal 的 Run 拒绝，不创建第二 Intent。取消先取得锁并提交，后续 record/validate/accept/finalize 不得接纳；record 先提交 RESULT_RECORDED，取消返回 `AGGREGATE_STATE_NOT_ALLOWED`，不制造取消确认。submit 先提交但尚未 record 时仍可取消，已存在 immutable Result/reservation 只保留历史，不删除、改写或转为可用 Acceptance。
+
+### 27.2 有限期限与 expire_run Major 2
+
+选择 **additive `execution.expire_run@2.0`**，不放宽 @1.0 的常量结果。新 Major 依据共享 API §9 的 closed enum 变化规则；它保留 owning TE、MUTATE target `execution.run` 和 Purpose `execution.run.expire`，closed 请求仍仅 `{reason: LEASE_EXPIRED | DEADLINE_EXCEEDED}`。专用 closed Result.data 为 `{runRef: ObjectRef<execution.run>, status: TIMED_OUT | ABANDONED, endedAt: UtcInstant}`，无 caller 时钟/terminalStatus 字段。已随 #244 注册 `execution.expire_run@2.0`：Registry 239 / TE 63 / Baseline 保持 200。
+
+- 非 CANCELLING 的当前支持态 `{CREATED, STARTING, RUNNING, RESULT_RECORDED}`，仅 `DEADLINE_EXCEEDED` 且服务端已到原 deadline 时 → TIMED_OUT，沿用 `EXECUTION_DEADLINE_EXCEEDED`。
+- CANCELLING 且服务端已到原 lease，仅 `LEASE_EXPIRED` → ABANDONED，terminationReason 提案为 `EXECUTION_CANCELLATION_UNACKNOWLEDGED`。当前 lease=deadline 仍优先按 CANCELLING 分类，不因两界相等而显示 TIMED_OUT。
+- 原因未成立、CANCELLING 使用 DEADLINE_EXCEEDED、非 CANCELLING 使用 LEASE_EXPIRED 均拒绝；本次不扩展不同 lease/deadline 的非取消 ABANDONED 支持。
+
+Run terminal、ACTIVE→EXPIRED Claim、唯一预算 consumption、Receipt/Audit 与唯一 `RunTerminated@1.0` 在一个 Run 事务提交。本版本仅消费上述创建时已有的 reservation；预算按既有 elapsed-to-effective-bound 公式消费，不退款或为第三 Run重置次数；server tick 晚到不得超出 reservation。不同键 exact terminal 重放仅在原 terminal/reason 已匹配时返回原结果，当前 expiry 授权必须复验，版本/Event/预算不重复；其他 terminal 或 reason 冲突拒绝。forward guard 同时验证 source command **version**，@1.0 Receipt 不能写 ABANDONED。
+
+### 27.3 历史来源隔离与 Process 停止
+
+选择复用 **IG 不可变 final Observation + TE 隔离 Audit**，不创建另一份可用 AgentResult、不新增公开 quarantine API 或任意正文表。隔离事实明确为 `LATE_RESULT`，不把拒绝等同于无观察。原完整 final 和 Hash 保留在 IG owning 存储；TE Audit 的 `runtime_ref` 保存经 owning read 验证的 exact Observation Ref，`result_payload_hash` 保存原 Result body Hash，target 为原 Run，并保存完整认证归因、request Hash 与固定脱敏 safe_summary。它是拒绝尝试的审计，不是 Acceptance disposition 或终态来源。
+
+该路径仅用于受信 Ingestion/late-observation 内部边界。先取得独立当前隔离授权，再授权读取原 Run、IG Attempt/final 与历史 Bundle 完整性；严格比对 Scope、原 Attempt/session、Run/Contract/Context/Capability/RuntimeBinding、leaseId/fencing、submission Ref、原 body/Observation/binding Hash。状态只接受 CANCELLING、ABANDONED 或 TIMED_OUT；时间和已提交取消/终结事实必须匹配。来源异常不伪装为合法 LATE_RESULT，只留安全拒绝 Audit；未知/无权目标在 protected read 前拒绝。
+
+隔离不调用 live/current-execution eligibility，不要求已到期执行 Grant/Bundle/Policy 恢复有效；自身当前隔离权限与历史来源完整性仍必须成立。没有来源读/隔离授权或依赖不可用时 fail closed，不标记已隔离，保留 IG 已提交源以原 source Ref/Hash 重试。隔离 Audit 单独事务，提交前复验当前授权；写失败保留原源、无业务变化。每次真实拒绝尝试可有独立 Audit，不承诺 Audit exactly-once，但业务 Result/Acceptance/Event 数必须不增加。未批准公开接收字段或成功结果不改变；隔离流程不能返回 submit COMMITTED 或伪造 agentResultRef。
+
+已有 Result 在 submit 后取消的路径，仍保留原 Result 与 reservation Hash；record 及后续消费检查 CANCELLING/terminal 后拒绝，不能借同键历史成功恢复执行资格。final worker 对 CANCELLING/ABANDONED 以其独立 Process 权限挂起已有进度并记录原因，不能重建进度、再次 invoke Driver、重复隔离同一 tick或阻断其他 Run 的 tick。无进度的迟到 Observation 由显式受控 Ingestion 调用处理；本首版不要求新增跨 Project scanner 或自动发现框架。
+
+### 27.4 交付范围与证据
+
+取消 Run 不直接取消或完成 WorkOrder/Task/DeliveryItem；本首版不加入取消后 retry 或自动 Runtime stop/ACK。独立权威状态与必要隔离审计构成完整 Run 取消结果，既有 Completion 不能由取消/ABANDONED 推断 SATISFIED。批准前已有正常/一次 BLOCKED_INPUT 恢复及 #239 的证据保持其原层级与 PARTIAL/NOT RUN。实现 required target 为 full；新/变化容器先 environment；外部/人工及 TD-05–07/IM-DG-006 未批准边界不扩张。

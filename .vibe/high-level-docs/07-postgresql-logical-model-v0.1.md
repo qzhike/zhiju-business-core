@@ -2426,3 +2426,27 @@ Evaluation INSERT guard先读取同Scope/exact Version/Item的冻结criteria：e
 增加Project Completion ledger锁行（enterprise_id,project_id唯一），新Consumer与v2Evaluation按ledger→Item顺序；legacyConsumer也参加同一ledger锁以免已消费Release/Quality撤销并发漏看。新增EP consumer使用唯一Inbox claim，并发同event提交后一份原结果；冲突只append violation，不损坏成功Inbox。低水位Facts仅append；同exactTaskItem关联查max sequence，不能用Project max过滤其他Item。应用读取在RLS内，不以recorded_at排序判断优先。
 
 原FactRef Hash域仍publicEventpayload；association separate Hash防错归属。Readback复验完整payload/Hash/mirror、currentpointer与所需sources；只返回Spec002安全projection。Fact/Evaluation/association/attempt/outcome app UPDATE/DELETE拒绝、owner immutable guard拒绝；crossProject/noContext/池复用不得泄漏，dispatcher及EPapp不能读取/写对方Schema。新正链与局部负例的实际层级见三个Module-Test的#237矩阵；空库/合法历史upgrade/二次no-op和原V3000/V2013兼容必须由当前revision的configured full或可信exact-revision CI验证，定向诊断不替代。
+
+## 42. Run 取消 Intent、ABANDONED 与隔离 Audit 前向设计
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-03 / INDEPENDENT DESIGN REVIEW APPROVE 2026-10-03 / IMPLEMENTED IN #244 PROPOSED REVISION / RUNTIME EVIDENCE IN THE PULL REQUEST`。
+
+批准绑定见 [取消设计决定 §5](../decisions/task-execution-cancellation.md#5-人类设计批准与修订绑定2026-10-03)。业务语义唯一见 Spec 003 §27，授权唯一见 Spec 001 §15.17。以下 owning 存储增量已由 #244 交付为 forward migration `V7013__run_cancellation_isolation.sql`（task_execution）；未修改 V3000–V3010、V7005–V7012 或任何 applied migration。
+
+### 42.1 不可变取消 Intent 与 Run source guard
+
+TaskExecution owning 新 `run_cancellation_intent`，每 Run 最多一份。逻辑字段为 intent identity、enterprise_id/project_id/run_id、reason/requestedAt、受信 committedAt、exact cancellationPolicyRef、source_command_id/request_payload_hash、Principal/ActorSnapshot/AuthorizationDecision 归因与完整 canonical intent payload/hash。完整 Scope/Run 组合 FK 属于同 Schema；Actor/Decision/Policy 仍为精确外部引用，不加跨 Schema FK。INSERT guard 绑定同 Scope 的真实在途 request_run_cancel@1.0 Receipt、target Run、完整请求 Hash 与 trusted context；Intent immutable，不允许 UPDATE/DELETE。
+
+Run 新增合法 CANCELLING/ABANDONED 形状：CANCELLING 来自 RUNNING 的当前取消命令，与唯一 Intent、CAS、原 binding/期限全等；started/Attempt/runtime identity 保留，result_ref/acceptance_ref/ended_at 不产生新值，已有 final submission/reservation 仅历史。ABANDONED 只来自 CANCELLING 的 expire_run@2.0/LEASE_EXPIRED，在真实服务端 lease 已到后写 ended_at 和 EXECUTION_CANCELLATION_UNACKNOWLEDGED。guard 校验 source command version/request reason，不让 @1.0 Receipt 或直接 SQL 假造该 terminal。既有 transition、TIMED_OUT 与 SUCCEEDED 的来源 guard 保留，terminal 不互改；Root immutable binding 和精确 bigint CAS 不变。
+
+### 42.2 Claim、预算与单事务闭合
+
+本切片只消费 Spec 003 §27.1 两次执行 profile 的既有预算事实；cancel Intent guard、ABANDONED source guard 及相应预算闭包必须核对原 reservation 与 Run/Contract/source Receipt 的完整镜像。不存在、非该 profile 或历史无 reservation 时不得补写/回填 reservation，不改变原 maxAttempts=2 创建 guard。CANCELLING 的 WorkOrder Run Claim 保持 ACTIVE；ABANDONED 同一个 Run 事务改为 EXPIRED。扩展 Claim terminal guard 与 run_budget_consumption 的 source/status/mirror/deferred completeness guards，允许合法 ABANDONED 的唯一消费记录，不减弱既有 SUCCEEDED/TIMED_OUT 闭包。消费仍按原 reservation、createdAt 与 earliest effective bound 的 elapsed-ceil-seconds 公式，最多 reservedSeconds，不退款、不重置总预算/attempt。锁序复用现行 Run→Claim/附属事实，cancel×submit/record/expiry 共享 Run 锁，跨提交等待后用真实 clock 重验。
+
+取消 Intent/Run/Receipt/Audit 同事务；终结的 Run/Claim/consumption/Receipt/Audit/唯一 RunTerminated 同事务。任一失败全部 rollback，同键历史 Receipt 与 exact terminal 重放均不新增业务行、预算消费或 Event。
+
+### 42.3 最小隔离、角色与验证
+
+复用 task_execution.audit_record，不新建可用失败 AgentResult、quarantine Aggregate、公共 Query 或正文表。合法 LATE_RESULT 的 runtime_ref 为原已验证 IG Observation exact Ref，result_payload_hash 为原 body Hash，target 为原 Run；request Hash、Principal/Actor/Decision、固定脱敏 safe_summary 与受信 recorded_at 保留。每次真实拒绝尝试可追加审计；不承诺 Audit exactly-once。IG 原 Observation 是独立已提交历史源，无跨 Owner 原子写；TE Audit 写失败保留该源以原身份重试。
+
+新表 FORCE RLS、显式 Enterprise/Project scope、context_allows_project、owner INSERT guard、最小 app 读写 ACL、禁止 runtime UPDATE/DELETE 与 PUBLIC 执行；不扩大 dispatcher/table 通读权。隔离只由有独立当前授权的 owning 内部边界写审计，不能借 cleanup 修改业务 Root/Result/Claim。无 Context、跨 Project/Enterprise、pool 复用、来源 Receipt/Hash 篡改及每个写点故障必须在真实 PostgreSQL 验证。完整新场景均 NOT RUN；未来 required full 包含空库/合法历史升级/二次 no-op，不以本文结构检查冒充持久化 PASS。
