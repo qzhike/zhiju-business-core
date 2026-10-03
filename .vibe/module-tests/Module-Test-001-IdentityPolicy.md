@@ -318,8 +318,8 @@ authority 为 [Spec 001 §15.17](../module-specs/Module-Spec-001-IdentityPolicy.
 
 | ID | 输入 / 层级 | 必需预期 | 当前结果 |
 |---|---|---|---|
-| IP-CANCEL-D-001 | 各 Human cancel/Policy/state、Service expiry/Bundle/late-source action 独立 Grant 与 target；Agent/actingFor/错 Purpose 或主体 | 公开取消 Purpose task.execution.request_run_cancel 与内部 action execution.run.cancel.request.v1 分开，另一公开 Purpose 不放行；每项独立 Decision，缺一 protected read 为 0；不能用 cancel Grant 读状态或沿原 Service key 读取 Human 状态 | NOT RUN |
-| IP-CANCEL-D-002 | Grant 当前撤销/Decision 到期、锁等待后撤权、历史 Receipt/Query 返回前失效；Scope/Hash/session 变体 | 提交/返回前当前重验拒绝，无部分 Intent/terminal/Audit 成功；跨 Scope 外观安全一致 | NOT RUN |
-| IP-CANCEL-D-003 | 执行 Bundle/Policy 已到期但有有效独立 expiry/late-isolation 权限；对照 cleanup Grant 不可用 | 有效 cleanup 只验证原历史完整性即可终结/隔离，不恢复执行；无 cleanup 当前权限仍拒绝，IP 不可用 fail closed | NOT RUN |
+| IP-CANCEL-D-001 | 各 Human cancel/Policy/state、Service expiry/Bundle/late-source action 独立 Grant 与 target；Agent/actingFor/错 Purpose 或主体 | 公开取消 Purpose task.execution.request_run_cancel 与内部 action execution.run.cancel.request.v1 分开，另一公开 Purpose 不放行；每项独立 Decision，缺一 protected read 为 0；不能用 cancel Grant 读状态或沿原 Service key 读取 Human 状态 | PASS（#244 真实 PostgreSQL，见 PR）：九项边界各自缺 Grant 时 protected read 为 0；Human 用 SERVICE runStateReadV1 拒绝、cancel Decision 不能读 state |
+| IP-CANCEL-D-002 | Grant 当前撤销/Decision 到期、锁等待后撤权、历史 Receipt/Query 返回前失效；Scope/Hash/session 变体 | 提交/返回前当前重验拒绝，无部分 Intent/terminal/Audit 成功；跨 Scope 外观安全一致 | PASS（#244 真实 PostgreSQL，见 PR）：锁等待后撤权在提交前拒绝且无部分 Intent/Receipt；Scope/session/hash 变体拒绝 |
+| IP-CANCEL-D-003 | 执行 Bundle/Policy 已到期但有有效独立 expiry/late-isolation 权限；对照 cleanup Grant 不可用 | 有效 cleanup 只验证原历史完整性即可终结/隔离，不恢复执行；无 cleanup 当前权限仍拒绝，IP 不可用 fail closed | PASS（#244 真实 PostgreSQL，见 PR）：执行 Bundle 过期时有效 cleanup 权限仍可终结/隔离，无 cleanup 权限 fail closed 且不恢复执行资格 |
 
 新/旧 expiry 和 state 映射兼容单独断言；实际 Grant PolicySnapshot lifecycle、外部与独立人工验收的历史 NOT RUN/延后边界不变。实现 configured full 包含对应真实 owning/PostgreSQL 证据。
