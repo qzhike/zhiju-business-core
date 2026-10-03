@@ -349,6 +349,14 @@ BEGIN
       OR c.authorization_decision_id IS DISTINCT FROM
            (SELECT decision_id FROM platform_security.context_authorization_decision_ref())
       OR c.request_payload_hash IS DISTINCT FROM NEW.request_payload_hash
+      -- The stored request fields must reproduce the authorized command
+      -- payload, so a genuine Receipt hash cannot be copied onto a different
+      -- reason/requestedAt/policy triple.
+      OR c.request_payload_hash IS DISTINCT FROM sha256(convert_to(
+           task_execution.canonical_jsonb_text(jsonb_build_object(
+             'reason', NEW.reason,
+             'requestedAt', NEW.canonical_payload->>'requestedAt',
+             'cancellationPolicyRef', NEW.cancellation_policy_ref)), 'UTF8'))
       OR r.enterprise_id IS DISTINCT FROM NEW.enterprise_id
       OR r.project_id IS DISTINCT FROM NEW.project_id
       OR r.status IS DISTINCT FROM 'RUNNING'
@@ -362,6 +370,18 @@ BEGIN
       OR NEW.canonical_payload->'cancellationPolicyRef' IS DISTINCT FROM NEW.cancellation_policy_ref
       OR NEW.canonical_payload->>'requestedAt' IS NULL
       OR NEW.requested_at IS DISTINCT FROM (NEW.canonical_payload->>'requestedAt')::timestamptz
+      OR NEW.canonical_payload->>'enterpriseId' IS DISTINCT FROM NEW.enterprise_id::text
+      OR NEW.canonical_payload->>'projectId' IS DISTINCT FROM NEW.project_id::text
+      OR NEW.canonical_payload->>'runId' IS DISTINCT FROM NEW.run_id::text
+      OR NEW.canonical_payload->>'sourceCommandId' IS DISTINCT FROM NEW.source_command_id::text
+      OR NEW.canonical_payload->>'requestPayloadHash' IS DISTINCT FROM
+           encode(NEW.request_payload_hash, 'hex')
+      OR NEW.canonical_payload->>'principalId' IS DISTINCT FROM NEW.principal_id::text
+      OR NEW.canonical_payload->>'actorSnapshotId' IS DISTINCT FROM NEW.actor_snapshot_id::text
+      OR NEW.canonical_payload->>'authorizationDecisionId' IS DISTINCT FROM
+           NEW.authorization_decision_id::text
+      OR NEW.canonical_payload->>'committedAt' IS NULL
+      OR NEW.committed_at IS DISTINCT FROM (NEW.canonical_payload->>'committedAt')::timestamptz
       OR NEW.payload_hash IS DISTINCT FROM
            sha256(convert_to(task_execution.canonical_jsonb_text(NEW.canonical_payload), 'UTF8')))
      IS DISTINCT FROM FALSE THEN

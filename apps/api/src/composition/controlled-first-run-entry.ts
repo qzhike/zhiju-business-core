@@ -862,6 +862,7 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
         expectedAuthenticationContextHash: sessionHash,
         expectedTargetRef: runRef as unknown as Common.ObjectRef,
       };
+      const dependencyChecks: Parameters<typeof auth.revalidateBatch>[1][number][] = [];
       const revalidateIsolation = async () => {
         const result = await auth.revalidate(deps, 'runLateFinalIsolateV1', revalidation);
         if (!result.valid)
@@ -869,6 +870,10 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
             'AUTHORIZATION_REVOKED',
             'late final isolation authorization is no longer current',
           );
+        if (dependencyChecks.length === 0) return;
+        const batch = await auth.revalidateBatch(deps, dependencyChecks);
+        if (!batch.valid)
+          entryError('AUTHORIZATION_REVOKED', 'late final dependency read is no longer current');
       };
       await revalidateIsolation();
       const context: TaskExecutionTransactionContext = {
@@ -899,6 +904,7 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
             entryError('AUTHORIZATION_REVOKED', 'late final dependency read revoked');
         };
         await proof();
+        dependencyChecks.push({ key, input: checkInput });
         return {
           proof,
           context: {

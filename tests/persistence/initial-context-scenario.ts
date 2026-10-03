@@ -166,6 +166,7 @@ import {
 import { verifyCancelArbitration } from './initial-context-verify-cancel-arbitration.js';
 import { verifyCancelAuthorization } from './initial-context-verify-cancel-authorization.js';
 import { verifyCancelLateFinal } from './initial-context-verify-cancel-late-final.js';
+import { verifyCancelReview } from './initial-context-verify-cancel-review.js';
 import {
   verifyRunCreation,
   type VerifyRunCreationContext,
@@ -3675,6 +3676,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       return;
     }
     if (await verifyTerminalExpiry(stageDependencies)) return;
+    if (await verifyCancelReview(stageDependencies)) return;
     if (await verifyRunCancellation(stageDependencies)) return;
     if (await verifyCancelArbitration(stageDependencies)) return;
     if (await verifyCancelAuthorization(stageDependencies)) return;

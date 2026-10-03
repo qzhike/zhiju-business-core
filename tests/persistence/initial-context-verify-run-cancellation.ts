@@ -58,7 +58,11 @@ export type CancelPhase =
   | 'UNSUPPORTED'
   | CancelArbitrationPhase
   | CancelAuthorizationPhase
-  | CancelLateFinalPhase;
+  | CancelLateFinalPhase
+  // PR #245 review-fix negatives (F1/F2/F3).
+  | 'DEP_REVOKE'
+  | 'INTENT_FORGERY'
+  | 'PROFILE_BOUND';
 
 /**
  * Per-invocation discriminator. `bounded` selects the two-attempt Controls

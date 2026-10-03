@@ -143,5 +143,23 @@ describe.skipIf(!gateEnabled)(
       () => runCancel({ row: 'CANCEL-D-008', bounded: true }),
       600_000,
     );
+    suite.itIntegration(
+      'CANCEL-D-006 read-then-revoke dependency authority leaves no LATE_RESULT Audit',
+      () => runCancel({ row: 'CANCEL-D-006', bounded: true, phase: 'DEP_REVOKE' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'CANCEL-D-007 a forged Intent candidate rolls back the whole cancellation',
+      () => runCancel({ row: 'CANCEL-D-007', bounded: true, phase: 'INTENT_FORGERY' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'CANCEL-D-005 late isolation accepts only the supported profile with its reservation',
+      async () => {
+        await runCancel({ row: 'CANCEL-D-005', bounded: true, phase: 'PROFILE_BOUND' });
+        await runCancel({ row: 'CANCEL-D-005', bounded: false, phase: 'PROFILE_BOUND' });
+      },
+      900_000,
+    );
   },
 );

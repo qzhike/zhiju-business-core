@@ -1,6 +1,7 @@
 import { canonicalize, newUuidV7, sha256CanonicalJson } from '@zhiju/shared-kernel';
 import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
 import type { Kysely, Selectable } from 'kysely';
+import { sql } from 'kysely';
 
 import {
   withTaskExecutionTransaction,
@@ -94,6 +95,66 @@ export async function isolateLateFinalResult(
     );
     if (run.status === 'ABANDONED' || run.status === 'TIMED_OUT')
       requireThat(run.ended_at !== null);
+    // §27.1 support boundary: this slice only isolates sources of the delivered
+    // two-attempt Controls profile with a genuine creation-time reservation.
+    // The expired execution Bundle is never asked to become current again, but
+    // the frozen profile and budget facts must still be intact.
+    const contractRow = await trx
+      .selectFrom('task_execution.work_order_contract')
+      .select(['contract_id', 'enterprise_id', 'project_id', 'canonical_payload', 'payload_hash'])
+      .where('work_order_id', '=', run.work_order_id)
+      .executeTakeFirst();
+    requireThat(
+      contractRow?.enterprise_id === run.enterprise_id &&
+        contractRow.project_id === run.project_id &&
+        contractRow.contract_id === object(run.work_order_contract_ref).objectId &&
+        contractRow.payload_hash.toString('hex') ===
+          object(object(run.work_order_contract_ref).contentHash).digest,
+      'REFERENCE_INVALID',
+    );
+    const contract = object(contractRow.canonical_payload);
+    const executionPolicy = object(contract.executionPolicy);
+    requireThat(executionPolicy.maxAttempts === 2, 'EXECUTION_CRITERION_UNSUPPORTED');
+    const reservations = await sql<{
+      work_order_id: string;
+      attempt_number: number;
+      reserved_seconds: number;
+      total_seconds: number;
+      source_command_id: string;
+      enterprise_id: string;
+      project_id: string;
+    }>`SELECT b.work_order_id,b.attempt_number,b.reserved_seconds,b.total_seconds,
+          b.source_command_id,b.enterprise_id,b.project_id
+        FROM task_execution.run_budget_reservation b WHERE b.run_id=${run.run_id}`.execute(trx);
+    const reservation = reservations.rows[0];
+    requireThat(reservation !== undefined, 'EXECUTION_FINAL_CONFLICT');
+    const wallClockLimit = object(contract.budget).wallClockLimit;
+    const reservedTotal =
+      typeof wallClockLimit === 'string'
+        ? /^PT([1-9][0-9]*)S$/.exec(wallClockLimit)?.[1]
+        : undefined;
+    requireThat(
+      reservation.enterprise_id === run.enterprise_id &&
+        reservation.project_id === run.project_id &&
+        reservation.work_order_id === run.work_order_id &&
+        reservation.attempt_number === run.attempt_number &&
+        reservedTotal !== undefined &&
+        reservation.total_seconds === Number(reservedTotal) &&
+        run.execution_deadline.getTime() <=
+          run.created_at.getTime() + reservation.reserved_seconds * 1000,
+      'EXECUTION_FINAL_CONFLICT',
+    );
+    const reservationSource = await trx
+      .selectFrom('task_execution.command_receipt')
+      .select(['command_type', 'command_version', 'target_type', 'target_id', 'outcome'])
+      .where('command_id', '=', reservation.source_command_id)
+      .executeTakeFirst();
+    requireThat(
+      reservationSource?.command_type === 'execution.create_run' &&
+        reservationSource.target_type === RUN &&
+        reservationSource.target_id === run.run_id,
+      'EXECUTION_FINAL_CONFLICT',
+    );
     const binding = await ports.readBinding(attemptRef);
     const final = await ports.readFinal(attemptRef);
     const invocation = object(binding.invocationBinding);
