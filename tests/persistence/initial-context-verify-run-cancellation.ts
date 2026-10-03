@@ -1,4 +1,5 @@
 import type { Common } from '@zhiju/contracts';
+import type { createControlledFirstRunEntry } from '@zhiju/api/composition';
 import { LocalSyntheticRuntimeDriver } from '@zhiju/integration-gateway';
 import { type CanonicalJsonObject, newUuidV7 } from '@zhiju/shared-kernel';
 import {
@@ -31,7 +32,33 @@ import type { VerifyTerminalExpiryContext } from './initial-context-verify-termi
 
 /** #244 acceptance rows, one per focused itIntegration case. */
 export type CancelAcceptanceRow =
-  'CANCEL-D-002' | 'CANCEL-D-003' | 'CANCEL-D-005' | 'CANCEL-D-007' | 'CANCEL-D-008';
+  | 'CANCEL-D-002'
+  | 'CANCEL-D-003'
+  | 'CANCEL-D-004'
+  | 'CANCEL-D-005'
+  | 'CANCEL-D-006'
+  | 'CANCEL-D-007'
+  | 'CANCEL-D-008'
+  | 'IG-CANCEL-D-001'
+  | 'IG-CANCEL-D-002'
+  | 'IG-CANCEL-D-003';
+
+/** CANCEL-D-004 arbitration and replay sub-schedules. */
+export type CancelArbitrationPhase =
+  'CANCEL_WINS' | 'RECORD_WINS' | 'EXPIRE_WINS' | 'LEASE_CROSS' | 'REPLAY';
+
+/** CANCEL-D-006 independent-authorization sub-schedules. */
+export type CancelAuthorizationPhase = 'AUTH' | 'CLEANUP' | 'LOCK_REVOKE';
+
+/** IG-CANCEL-D-001..003 late-final isolation sub-schedules. */
+export type CancelLateFinalPhase = 'CANCELLING' | 'ABANDONED' | 'MISMATCH' | 'AUDIT_FAULT';
+
+export type CancelPhase =
+  | 'SUPPORTED'
+  | 'UNSUPPORTED'
+  | CancelArbitrationPhase
+  | CancelAuthorizationPhase
+  | CancelLateFinalPhase;
 
 /**
  * Per-invocation discriminator. `bounded` selects the two-attempt Controls
@@ -41,7 +68,7 @@ export type CancelAcceptanceRow =
 export interface CancelVariant {
   readonly row: CancelAcceptanceRow;
   readonly bounded: boolean;
-  readonly phase?: 'SUPPORTED' | 'UNSUPPORTED';
+  readonly phase?: CancelPhase;
 }
 
 export interface VerifyRunCancellationContext extends VerifyTerminalExpiryContext {
@@ -49,6 +76,9 @@ export interface VerifyRunCancellationContext extends VerifyTerminalExpiryContex
   readonly operator: InitialContextSuite['operator'];
   readonly teDb: InitialContextSuite['teDb'];
   readonly guardedTeDb: Kysely<TaskExecutionDb>;
+  readonly activeDatabaseUrl: InitialContextSuite['activeDatabaseUrl'];
+  readonly tePool: InitialContextSuite['tePool'];
+  readonly firstRunConfig: Parameters<typeof createControlledFirstRunEntry>[0];
   readonly scanContext: ScenarioScanContext;
   readonly scanProof: () => Promise<void>;
   readonly progressAuthorization: ScenarioProgressAuthorization;
@@ -57,12 +87,12 @@ export interface VerifyRunCancellationContext extends VerifyTerminalExpiryContex
 }
 
 /** The subset of an ALLOW Decision the cancel scenario presents onward. */
-interface AllowedDecision {
+export interface AllowedDecision {
   readonly outcome: 'ALLOW';
   readonly authorizationDecisionRef: Common.ContentAddressedRef;
 }
 
-interface RunRow {
+export interface RunRow {
   readonly status: string;
   readonly aggregate_version: string;
   readonly ended_at: Date | null;
@@ -71,7 +101,23 @@ interface RunRow {
   readonly capability_grant_ref: unknown;
 }
 
-async function readRunRow(state: VerifyRunCancellationContext): Promise<RunRow> {
+/**
+ * The cancel envelope builders only need the trusted clock/admin/authorization
+ * seam, so the arbitration and authorization acceptance files share them.
+ */
+export interface CancelEnvelopeContext {
+  readonly admin: VerifyRunCancellationContext['admin'];
+  readonly runRef: Common.ObjectRef;
+  clock: number;
+  readonly firstRunAuth: VerifyRunCancellationContext['firstRunAuth'];
+  readonly identityDeps: VerifyRunCancellationContext['identityDeps'];
+  readonly fixture: VerifyRunCancellationContext['fixture'];
+  readonly firstRunEntry: VerifyRunCancellationContext['firstRunEntry'];
+  readonly sessionFor: VerifyRunCancellationContext['sessionFor'];
+  readonly scope: VerifyRunCancellationContext['scope'];
+}
+
+export async function readRunRow(state: CancelEnvelopeContext): Promise<RunRow> {
   const rows = await state.admin.query<RunRow>(
     `SELECT status, aggregate_version::text AS aggregate_version, ended_at,
             termination_reason, work_order_contract_ref, capability_grant_ref
@@ -83,8 +129,8 @@ async function readRunRow(state: VerifyRunCancellationContext): Promise<RunRow> 
   return row;
 }
 
-async function countWhere(
-  state: VerifyRunCancellationContext,
+export async function countWhere(
+  state: CancelEnvelopeContext,
   table: string,
   where: string,
   params: readonly unknown[],
@@ -96,8 +142,8 @@ async function countWhere(
   return rows.rows[0]?.n ?? -1;
 }
 
-async function authorizeCommand(
-  state: VerifyRunCancellationContext,
+export async function authorizeCommand(
+  state: CancelEnvelopeContext,
   boundary: string,
   principal: Principal,
   commandType: string,
@@ -122,8 +168,8 @@ async function authorizeCommand(
   return decision;
 }
 
-function commandEnvelope(
-  state: VerifyRunCancellationContext,
+export function commandEnvelope(
+  state: CancelEnvelopeContext,
   decision: AllowedDecision,
   principal: Principal,
   input: {
@@ -163,8 +209,8 @@ function commandEnvelope(
  * from the owning contract row so the Handler's deep-equal and the USABLE
  * VERSIONED resolution both hold.
  */
-async function cancellationPolicyRef(
-  state: VerifyRunCancellationContext,
+export async function cancellationPolicyRef(
+  state: CancelEnvelopeContext,
 ): Promise<CanonicalJsonObject> {
   const run = await readRunRow(state);
   const contractId = String(record(run.work_order_contract_ref).objectId);
@@ -178,8 +224,8 @@ async function cancellationPolicyRef(
   return ref;
 }
 
-async function buildCancelEnvelope(
-  state: VerifyRunCancellationContext,
+export async function buildCancelEnvelope(
+  state: CancelEnvelopeContext,
   principal: Principal,
   expectedAggregateVersion: number,
   idempotencyKey?: string,
@@ -214,12 +260,13 @@ async function buildCancelEnvelope(
   });
 }
 
-async function buildExpireEnvelope(
-  state: VerifyRunCancellationContext,
+export async function buildExpireEnvelope(
+  state: CancelEnvelopeContext,
   principal: Principal,
   reason: 'LEASE_EXPIRED' | 'DEADLINE_EXCEEDED',
   version: '1.0' | '2.0',
   expectedAggregateVersion: number,
+  idempotencyKey?: string,
 ) {
   const payload = { reason } as unknown as CanonicalJsonObject;
   const decision = await authorizeCommand(
@@ -237,11 +284,12 @@ async function buildExpireEnvelope(
     targetRef: state.runRef,
     payload,
     expectedAggregateVersion,
+    ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
   });
 }
 
 /** HUMAN `execution.get_run_state@1.0` mapped to the cancel-specific boundary. */
-async function humanRunState(state: VerifyRunCancellationContext, principal: Principal) {
+export async function humanRunState(state: CancelEnvelopeContext, principal: Principal) {
   const payload = { runRef: state.runRef } as unknown as CanonicalJsonObject;
   const decision = await authorizeCommand(
     state,
@@ -276,7 +324,7 @@ async function humanRunState(state: VerifyRunCancellationContext, principal: Pri
   );
 }
 
-async function claimStatus(state: VerifyRunCancellationContext): Promise<string | undefined> {
+export async function claimStatus(state: CancelEnvelopeContext): Promise<string | undefined> {
   return (
     await state.admin.query<{ status: string }>(
       'SELECT status FROM task_execution.work_order_run_claim WHERE run_id=$1',
@@ -285,7 +333,7 @@ async function claimStatus(state: VerifyRunCancellationContext): Promise<string 
   ).rows[0]?.status;
 }
 
-async function terminatedEvents(state: VerifyRunCancellationContext) {
+export async function terminatedEvents(state: CancelEnvelopeContext) {
   return (
     await state.admin.query<{ payload: Record<string, unknown> }>(
       `SELECT payload FROM task_execution.outbox_event
@@ -842,5 +890,8 @@ export async function verifyRunCancellation(
     case 'CANCEL-D-008':
       await cancelRow008(scenarioState);
       return true;
+    default:
+      // CANCEL-D-004/006 and IG-CANCEL-D-* are routed after this hook.
+      return false;
   }
 }

@@ -51,6 +51,66 @@ describe.skipIf(!gateEnabled)(
       600_000,
     );
     suite.itIntegration(
+      'CANCEL-D-004 cancel vs record_run_result: cancel wins the Run row lock first',
+      () => runCancel({ row: 'CANCEL-D-004', bounded: true, phase: 'CANCEL_WINS' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'CANCEL-D-004 cancel vs record_run_result: record wins the Run row lock first',
+      () => runCancel({ row: 'CANCEL-D-004', bounded: true, phase: 'RECORD_WINS' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'CANCEL-D-004 cancel vs expire_run@2.0: exactly one terminal wins',
+      () => runCancel({ row: 'CANCEL-D-004', bounded: true, phase: 'EXPIRE_WINS' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'CANCEL-D-004 cancel lock wait across the lease bound re-reads the clock and refuses',
+      () => runCancel({ row: 'CANCEL-D-004', bounded: true, phase: 'LEASE_CROSS' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'CANCEL-D-004 exact terminal replay is side-effect free and conflicting replay refused',
+      () => runCancel({ row: 'CANCEL-D-004', bounded: true, phase: 'REPLAY' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'CANCEL-D-006 each cancellation boundary gates its protected read',
+      () => runCancel({ row: 'CANCEL-D-006', bounded: true, phase: 'AUTH' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'CANCEL-D-006 independent cleanup authority commits with an expired Bundle',
+      () => runCancel({ row: 'CANCEL-D-006', bounded: true, phase: 'CLEANUP' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'CANCEL-D-006 revocation between the Run lock and commit is refused',
+      () => runCancel({ row: 'CANCEL-D-006', bounded: true, phase: 'LOCK_REVOKE' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'IG-CANCEL-D-001 late final aged while CANCELLING is isolated as LATE_RESULT',
+      () => runCancel({ row: 'IG-CANCEL-D-001', bounded: true, phase: 'CANCELLING' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'IG-CANCEL-D-001 late final aged after ABANDONED is isolated as LATE_RESULT',
+      () => runCancel({ row: 'IG-CANCEL-D-001', bounded: true, phase: 'ABANDONED' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'IG-CANCEL-D-002 wrong Attempt/Scope/session/hash or caller JSON never becomes LATE_RESULT',
+      () => runCancel({ row: 'IG-CANCEL-D-002', bounded: true, phase: 'MISMATCH' }),
+      600_000,
+    );
+    suite.itIntegration(
+      'IG-CANCEL-D-003 Audit write failure keeps the IG source readable and retryable',
+      () => runCancel({ row: 'IG-CANCEL-D-003', bounded: true, phase: 'AUDIT_FAULT' }),
+      600_000,
+    );
+    suite.itIntegration(
       'CANCEL-D-008 cancelling Run suspends existing Process progress without re-invoking',
       () => runCancel({ row: 'CANCEL-D-008', bounded: true }),
       600_000,

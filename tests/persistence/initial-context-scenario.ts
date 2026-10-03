@@ -163,6 +163,9 @@ import {
   verifyRunCancellation,
   type VerifyRunCancellationContext,
 } from './initial-context-verify-run-cancellation.js';
+import { verifyCancelArbitration } from './initial-context-verify-cancel-arbitration.js';
+import { verifyCancelAuthorization } from './initial-context-verify-cancel-authorization.js';
+import { verifyCancelLateFinal } from './initial-context-verify-cancel-late-final.js';
 import {
   verifyRunCreation,
   type VerifyRunCreationContext,
@@ -1509,7 +1512,15 @@ export function createRunScenario(suite: InitialContextSuite) {
     const { projectContextContractRef: _, ...draftPins } = record(draft.versionPins);
     void _;
     draft.versionPins = draftPins;
-    const expiresAt = new Date(suite.clock + 3600_000).toISOString();
+    // The CANCEL-D-006 CLEANUP row needs a naturally expired execution Bundle
+    // and lease: the row-level Bundle is immutable, so its validity and the
+    // lease bound are shortened at issue time instead.
+    const expiresAt = new Date(
+      suite.clock +
+        (terminalScenario === 'RUN_CANCEL' && cancelVariant?.phase === 'CLEANUP'
+          ? 15_000
+          : 3600_000),
+    ).toISOString();
     const woId = await suite.createWorkOrder({
       taskId,
       taskMajor: '2.0',
@@ -3665,6 +3676,9 @@ export function createRunScenario(suite: InitialContextSuite) {
     }
     if (await verifyTerminalExpiry(stageDependencies)) return;
     if (await verifyRunCancellation(stageDependencies)) return;
+    if (await verifyCancelArbitration(stageDependencies)) return;
+    if (await verifyCancelAuthorization(stageDependencies)) return;
+    if (await verifyCancelLateFinal(stageDependencies)) return;
     await expect(
       firstRunEntry.getRuntimeFinalObservation(finalQuery, suite.sessionFor(service)),
     ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND' });
