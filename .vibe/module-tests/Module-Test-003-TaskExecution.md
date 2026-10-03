@@ -474,7 +474,7 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 ### initial-context 测试代码定位与执行边界
 
-持久化入口仍为 `tests/persistence/initial-context.test.ts`，统一注册 92 个用例：22 个 Context/SourceSlice 用例与 70 个受控运行用例。以下文件均在 `tests/persistence/`；辅助文件不使用 `.test.ts` 后缀，避免被测试发现器重复注册。
+原有 92 个用例由两个入口承载：`tests/persistence/initial-context.test.ts` 注册 79 个共用数据库用例（22 个 Context/SourceSlice 与 57 个受控运行用例）；`initial-context-unsupported-final.test.ts` 注册其余 13 个 unsupported final 用例。以下文件均在 `tests/persistence/`；辅助文件不使用 `.test.ts` 后缀，避免被测试发现器重复注册。
 
 | 业务范围 | 维护位置 |
 | --- | --- |
@@ -487,18 +487,19 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | 补充材料、恢复与第二次运行 | `initial-context-material-recovery-cases.ts` |
 | Result 生命周期、撤权、到期与竞争 | `initial-context-result-lifecycle-cases.ts` |
 | Process 持久化与重启恢复 | `initial-context-process-cases.ts` |
-| 不支持的 final 与过期 Acceptance | `initial-context-result-rejection-cases.ts` |
+| 过期 Acceptance 与非 final 结果拒绝 | `initial-context-result-rejection-cases.ts` |
+| 13 类不支持的 final，两个独立数据库组 | `initial-context-unsupported-final.test.ts` |
 | 独立交付库、延迟提交与乱序 | `initial-context-delivery-cases.ts` |
 
 `initial-context-fixtures.ts` 保存常量、数据类型与纯辅助函数；`initial-context-suite.ts` 创建一套连接、owning 准备能力、操作跟踪和清理流程；`initial-context-scenario.ts` 编排独立业务链。授权准备、正式输出、Result 边界、恢复、Run-2 等长步骤分别位于 `initial-context-prepare-*`、`initial-context-create-*`、`initial-context-execute-*`、`initial-context-verify-*`；步骤接口只列出实际依赖。跨步骤变化的时钟和业务引用使用实时访问器，不能在创建步骤依赖时复制快照。
 
-拆分保持原用例名称、注册顺序、断言与真实 PostgreSQL 等待。统一入口继续串行执行；每例之后仍排空被跟踪操作。三个独立交付场景各自创建 suite 与 Run 编排器，在退出时依次 drain、关闭全部连接、停止容器，不再替换外层数据库连接或共享场景缓存。独立环境中的被跟踪操作也交给外层 drain 观察，保留超时后延续操作的排空保障；不把整个测试体作为待排空 Promise。此隔离不构成启用文件并行的证据。
+共用数据库的 79 个用例保留原相对顺序并继续串行；13 个 unsupported final 保留原叶级名称、业务链、断言与真实 PostgreSQL 等待，完整名称增加独立数据库组定位。每组各自串行，两组交错执行。每例之后仍排空被跟踪操作。三个独立交付场景各自创建 suite 与 Run 编排器，在退出时依次 drain、关闭全部连接、停止容器，不再替换外层数据库连接或共享场景缓存。独立环境中的被跟踪操作也交给外层 drain 观察，保留超时后延续操作的排空保障；不把整个测试体作为待排空 Promise。该交付场景隔离不改变文件并行配置。13 类 unsupported final 的两组环境另行验证 PostgreSQL 实例、角色权限、业务行锁、时钟和异常隔离；任何失败或超时都会停止该组后续业务操作并显式失败，避免重用不确定环境。部分 setup 失败也须关闭已经创建的连接和容器。
 
 日常修改可先通过持久化门禁的单文件与名称过滤执行相关业务组；修改共用环境、业务链编排或准备缓存，以及交付前，仍须完成 clean build 与完整持久化门禁。局部用例通过不等于全量回归、远端 CI、外部 Runtime 或人工验收通过。
 
 ### 受控运行测试准备与覆盖归属
 
-当前统一入口的 92 个用例、其中 70 个受控运行用例保留名称和各自业务断言。每个场景通过 owning 入口生成 Service/Actor、Grant 与独立 Decision、Policy、Slice、Task/Draft/Context、READY WorkOrder、Bundle/Run/Attempt；除下述未撤权分支可复用的准备事实外，可变生命周期对象、运行时存储和时钟不跨场景复用。共用的 suite 基础事实保持既有边界；队列探针撤销的共用 Policy-read Grant 在同一场景的 finally 中重新通过 owning grant 能力恢复，包含探针断言失败路径。文件继续串行，所有被跟踪业务操作在下一测试前 drain；不能把 abandoned test body 本身加入其 afterEach 等待集合。
+两个入口合计保留 92 个用例、其中 70 个受控运行用例的叶级名称和各自业务断言。每个场景通过 owning 入口生成 Service/Actor、Grant 与独立 Decision、Policy、Slice、Task/Draft/Context、READY WorkOrder、Bundle/Run/Attempt；除下述未撤权分支可复用的准备事实外，可变生命周期对象、运行时存储和时钟不跨场景复用。共用的 suite 基础事实保持既有边界；队列探针撤销的共用 Policy-read Grant 在同一场景的 finally 中重新通过 owning grant 能力恢复，包含探针断言失败路径。持久化文件之间继续串行，同一数据库组的所有被跟踪业务操作在下一测试前 drain；不能把 abandoned test body 本身加入其 afterEach 等待集合。
 
 | 原重复覆盖 | 保留的测试归属 | 其他场景的准备与独立覆盖 |
 | --- | --- | --- |
