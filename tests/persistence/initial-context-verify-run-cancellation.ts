@@ -31,11 +31,7 @@ import type { VerifyTerminalExpiryContext } from './initial-context-verify-termi
 
 /** #244 acceptance rows, one per focused itIntegration case. */
 export type CancelAcceptanceRow =
-  | 'CANCEL-D-002'
-  | 'CANCEL-D-003'
-  | 'CANCEL-D-005'
-  | 'CANCEL-D-007'
-  | 'CANCEL-D-008';
+  'CANCEL-D-002' | 'CANCEL-D-003' | 'CANCEL-D-005' | 'CANCEL-D-007' | 'CANCEL-D-008';
 
 /**
  * Per-invocation discriminator. `bounded` selects the two-attempt Controls
@@ -167,7 +163,9 @@ function commandEnvelope(
  * from the owning contract row so the Handler's deep-equal and the USABLE
  * VERSIONED resolution both hold.
  */
-async function cancellationPolicyRef(state: VerifyRunCancellationContext): Promise<CanonicalJsonObject> {
+async function cancellationPolicyRef(
+  state: VerifyRunCancellationContext,
+): Promise<CanonicalJsonObject> {
   const run = await readRunRow(state);
   const contractId = String(record(run.work_order_contract_ref).objectId);
   const rows = await state.admin.query<{ ref: CanonicalJsonObject }>(
@@ -306,10 +304,10 @@ async function cancelRow002(state: VerifyRunCancellationContext): Promise<void> 
   expect(record(committed).resultPayload).toMatchObject({ status: 'CANCELLING' });
 
   // Same-key replay returns the original committed receipt.
-  expect(
-    await state.firstRunEntry.cancelRun(envelope, state.sessionFor(principal)),
-  ).toMatchObject({ status: 'DUPLICATE' });
-  const receipts = await state.receiptRows(String(envelope.idempotencyKey));
+  expect(await state.firstRunEntry.cancelRun(envelope, state.sessionFor(principal))).toMatchObject({
+    status: 'DUPLICATE',
+  });
+  const receipts = await state.receiptRows(envelope.idempotencyKey);
   expect(receipts).toHaveLength(1);
   expect(receipts[0]).toMatchObject({
     outcome: 'COMMITTED',
@@ -320,12 +318,17 @@ async function cancelRow002(state: VerifyRunCancellationContext): Promise<void> 
   const run = await readRunRow(state);
   expect(run).toMatchObject({ status: 'CANCELLING', ended_at: null });
   expect(run.aggregate_version).toBe('3');
-  expect(await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId])).toBe(1);
+  expect(
+    await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId]),
+  ).toBe(1);
   expect(await claimStatus(state)).toBe('ACTIVE');
   expect(
-    await countWhere(state, 'outbox_event', "aggregate_id=$1 AND event_type='execution.RunTerminated'", [
-      state.runRef.objectId,
-    ]),
+    await countWhere(
+      state,
+      'outbox_event',
+      "aggregate_id=$1 AND event_type='execution.RunTerminated'",
+      [state.runRef.objectId],
+    ),
   ).toBe(0);
   expect(await countWhere(state, 'agent_result', 'run_id=$1', [state.runRef.objectId])).toBe(0);
   expect(
@@ -348,8 +351,10 @@ async function cancelRow002(state: VerifyRunCancellationContext): Promise<void> 
   await expect(
     state.firstRunEntry.cancelRun(conflicting, state.sessionFor(principal)),
   ).rejects.toMatchObject({ code: 'AGGREGATE_STATE_NOT_ALLOWED' });
-  expect(await state.receiptRows(String(conflicting.idempotencyKey))).toEqual([]);
-  expect(await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId])).toBe(1);
+  expect(await state.receiptRows(conflicting.idempotencyKey)).toEqual([]);
+  expect(
+    await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId]),
+  ).toBe(1);
 }
 
 /** CANCEL-D-003: lease-expiry abandonment plus late-final isolation. */
@@ -509,7 +514,7 @@ async function cancelRow005Supported(state: VerifyRunCancellationContext): Promi
   await expect(
     state.firstRunEntry.expireRun(early, state.sessionFor(state.service)),
   ).rejects.toMatchObject({ code: 'EXECUTION_JUDGMENT_STALE' });
-  expect(await state.receiptRows(String(early.idempotencyKey))).toEqual([]);
+  expect(await state.receiptRows(early.idempotencyKey)).toEqual([]);
   expect((await readRunRow(state)).status).toBe('CANCELLING');
   expect(
     await countWhere(state, 'run_budget_consumption', 'run_id=$1', [state.runRef.objectId]),
@@ -523,10 +528,14 @@ async function cancelRow005Supported(state: VerifyRunCancellationContext): Promi
   if (wait > 0) await state.waitForDeadline(wait, 'server deadline/cancelExpiryWait');
   state.clock = Date.now();
   const legacy = await buildExpireEnvelope(state, state.service, 'DEADLINE_EXCEEDED', '1.0', 3);
-  await expect(
-    state.firstRunEntry.expireRun(legacy, state.sessionFor(state.service)),
-  ).rejects.toMatchObject({ code: expect.any(String) });
-  expect(await state.receiptRows(String(legacy.idempotencyKey))).toEqual([]);
+  const legacyError = await state.firstRunEntry
+    .expireRun(legacy, state.sessionFor(state.service))
+    .then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+  expect(typeof (legacyError as { code?: unknown }).code).toBe('string');
+  expect(await state.receiptRows(legacy.idempotencyKey)).toEqual([]);
   const run = await readRunRow(state);
   expect(run).toMatchObject({ status: 'CANCELLING', ended_at: null });
   expect(run.aggregate_version).toBe('3');
@@ -544,12 +553,14 @@ async function cancelRow005Unsupported(state: VerifyRunCancellationContext): Pro
   await expect(
     state.firstRunEntry.cancelRun(envelope, state.sessionFor(principal)),
   ).rejects.toMatchObject({ code: 'EXECUTION_CRITERION_UNSUPPORTED' });
-  expect(await state.receiptRows(String(envelope.idempotencyKey))).toEqual([]);
+  expect(await state.receiptRows(envelope.idempotencyKey)).toEqual([]);
   const run = await readRunRow(state);
   expect(run).toMatchObject({ status: 'RUNNING', ended_at: null });
   expect(run.aggregate_version).toBe('2');
   // No Intent and no reservation backfill on the unsupported profile.
-  expect(await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId])).toBe(0);
+  expect(
+    await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId]),
+  ).toBe(0);
   expect(
     await countWhere(state, 'run_budget_reservation', 'run_id=$1', [state.runRef.objectId]),
   ).toBe(0);
@@ -579,8 +590,10 @@ async function cancelRow007(state: VerifyRunCancellationContext): Promise<void> 
   }
   // The forced failure after the Intent insert but before the Run CAS rolls
   // back the whole cancel: zero Intent, Run still RUNNING.
-  expect(await state.receiptRows(String(rollbackEnvelope.idempotencyKey))).toEqual([]);
-  expect(await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId])).toBe(0);
+  expect(await state.receiptRows(rollbackEnvelope.idempotencyKey)).toEqual([]);
+  expect(
+    await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId]),
+  ).toBe(0);
   const run = await readRunRow(state);
   expect(run).toMatchObject({ status: 'RUNNING', ended_at: null });
   expect(run.aggregate_version).toBe('2');
@@ -708,7 +721,7 @@ async function cancelRow008(state: VerifyRunCancellationContext): Promise<void> 
         progressAuthorization.context,
         processId,
         progressPayload,
-        `controlled-final:create:${state.runRef.objectId}:${record(observationRef.contentHash).digest}`,
+        `controlled-final:create:${state.runRef.objectId}:${String(record(observationRef.contentHash).digest)}`,
       ),
       () => new Date(state.clock),
       progressAuthorization.proof,
@@ -734,17 +747,12 @@ async function cancelRow008(state: VerifyRunCancellationContext): Promise<void> 
         await state.firstRunQuery(
           'execution.get_run_state',
           currentRunRef as unknown as Common.ObjectRef,
-          { runRef: currentRunRef } as unknown as CanonicalJsonObject,
+          { runRef: currentRunRef },
           'runStateReadV1',
         ),
         state.sessionFor(state.service),
       );
-      return view as {
-        status: string;
-        aggregateVersion: number;
-        currentFencingToken: number;
-        workOrderRef: CanonicalJsonObject;
-      };
+      return view;
     },
     readPolicy: () => Promise.reject(new Error('unexpected recovery policy read')),
     listProgress: () =>
@@ -782,7 +790,7 @@ async function cancelRow008(state: VerifyRunCancellationContext): Promise<void> 
             await state.firstRunQuery(
               'execution.get_run_state',
               currentRunRef as unknown as Common.ObjectRef,
-              { runRef: currentRunRef } as unknown as CanonicalJsonObject,
+              { runRef: currentRunRef },
               'runStateReadV1',
             ),
             state.sessionFor(state.service),
@@ -799,9 +807,7 @@ async function cancelRow008(state: VerifyRunCancellationContext): Promise<void> 
 
   // The CANCELLING Run's progress is suspended in the same tick without
   // blocking or re-invoking anything else.
-  expect(
-    await recoverControlledFinalRuns(state.teDb, state.scanContext, recoveryPorts, 1),
-  ).toBe(0);
+  expect(await recoverControlledFinalRuns(state.teDb, state.scanContext, recoveryPorts, 1)).toBe(0);
   const process = (
     await state.admin.query<{ state: string; blocked_reason_code: string | null }>(
       'SELECT state, blocked_reason_code FROM task_execution.process_instance WHERE process_id=$1',

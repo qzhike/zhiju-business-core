@@ -1439,8 +1439,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       // The Human cancel Handler deep-equals payload.cancellationPolicyRef
       // against the frozen contract and requires it to resolve USABLE, so pin
       // it to the registered Controls PolicyVersion.
-      record(revised.executionPolicy).cancellationPolicyRef =
-        controlsRef as unknown as CanonicalJsonObject;
+      record(revised.executionPolicy).cancellationPolicyRef = controlsRef;
     const controlFields = [
       'targetScope',
       'allowedCapabilities',
