@@ -1,15 +1,43 @@
-import { describe } from 'vitest';
-import { gateEnabled } from './initial-context-fixtures.js';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { afterAll, beforeAll, describe } from 'vitest';
+import { postgresImageReference } from '../../tools/persistence/baseline.mjs';
+import { runFlyway } from '../../tools/persistence/flyway.mjs';
+import { definedValue, gateEnabled } from './initial-context-fixtures.js';
 import { createRunScenario } from './initial-context-scenario.js';
 import { createInitialContextSuite } from './initial-context-suite.js';
 import type { CancelVariant } from './initial-context-verify-run-cancellation.js';
 
-// One registration entry preserves serial execution, fixture lifetime and
-// case order against the single focused PostgreSQL database.
+// The seeded enterprise/principal fixture set is per database, so this file
+// owns an isolated PostgreSQL container instead of sharing the gate database
+// with tests/persistence/initial-context.test.ts. One registration entry still
+// preserves serial execution, fixture lifetime and case order.
+const container: StartedPostgreSqlContainer | undefined = gateEnabled
+  ? await new PostgreSqlContainer(postgresImageReference())
+      .withDatabase('zhiju_core')
+      .withUsername('postgres')
+      .withPassword('zhiju-gate-test')
+      .withStartupTimeout(120_000)
+      .start()
+  : undefined;
+
+beforeAll(async () => {
+  await runFlyway(definedValue(container).getId(), {
+    command: 'migrate',
+    database: 'zhiju_core',
+    username: 'postgres',
+    password: 'zhiju-gate-test',
+  });
+}, 600_000);
+
+afterAll(async () => {
+  await container?.stop();
+}, 120_000);
+
 describe.skipIf(!gateEnabled)(
-  'Human Run cancellation, lease-expiry abandonment and late-final isolation (real PostgreSQL)',
+  'Human Run cancellation, lease-expiry abandonment and late-final isolation (isolated PostgreSQL)',
   () => {
-    const suite = createInitialContextSuite();
+    const databaseUrl = container?.getConnectionUri();
+    const suite = createInitialContextSuite(databaseUrl === undefined ? {} : { databaseUrl });
     const runScenario = createRunScenario(suite);
     const runCancel = (variant: CancelVariant) =>
       runScenario(
