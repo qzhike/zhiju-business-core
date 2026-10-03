@@ -378,6 +378,10 @@ BEGIN
            encode(NEW.request_payload_hash, 'hex')
       OR NEW.canonical_payload->>'principalId' IS DISTINCT FROM NEW.principal_id::text
       OR NEW.canonical_payload->>'actorSnapshotId' IS DISTINCT FROM NEW.actor_snapshot_id::text
+      -- The ActorSnapshot attribution must come from the authentic source and
+      -- the trusted transaction context, not from a self-consistent mirror.
+      OR NEW.actor_snapshot_id IS DISTINCT FROM c.actor_snapshot_id
+      OR NEW.actor_snapshot_id IS DISTINCT FROM platform_security.context_actor_snapshot_id()
       OR NEW.canonical_payload->>'authorizationDecisionId' IS DISTINCT FROM
            NEW.authorization_decision_id::text
       OR NEW.canonical_payload->>'committedAt' IS NULL

@@ -153,40 +153,58 @@ async function reviewDependencyRevocation(state: VerifyRunCancellationContext): 
 }
 
 /**
- * F2: a candidate Intent whose stored request fields do not reproduce the
- * authorized Receipt request Hash must roll back the whole cancellation.
+ * F2 / F2-R1: a candidate Intent whose stored request fields do not reproduce
+ * the authorized Receipt request Hash, or whose ActorSnapshot attribution is a
+ * self-consistent mirror of another principal's snapshot, must roll back the
+ * whole cancellation. The genuine Human attribution still commits.
  */
 async function reviewIntentForgery(state: VerifyRunCancellationContext): Promise<void> {
   const operator = state.operator();
-  await state.admin.query(`CREATE FUNCTION task_execution.a_wi244_review_forged_intent()
-    RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $f$ BEGIN
-      NEW.reason := jsonb_set(NEW.reason, '{reasonCode}', '"REVIEW_FORGED_REASON"'::jsonb);
-      NEW.canonical_payload := jsonb_set(NEW.canonical_payload, '{reason}', NEW.reason);
-      NEW.payload_hash := sha256(convert_to(
-        task_execution.canonical_jsonb_text(NEW.canonical_payload), 'UTF8'));
-      RETURN NEW;
-    END $f$`);
-  await state.admin.query(`CREATE TRIGGER a_wi244_review_forged_intent
-    BEFORE INSERT ON task_execution.run_cancellation_intent
-    FOR EACH ROW EXECUTE FUNCTION task_execution.a_wi244_review_forged_intent()`);
-  const forged = await buildCancelEnvelope(state, operator, 2);
-  try {
-    await expect(state.firstRunEntry.cancelRun(forged, state.sessionFor(operator))).rejects.toThrow(
-      /Run cancellation intent source mismatch/u,
-    );
-  } finally {
-    await state.admin.query(
-      'DROP TRIGGER a_wi244_review_forged_intent ON task_execution.run_cancellation_intent',
-    );
-    await state.admin.query('DROP FUNCTION task_execution.a_wi244_review_forged_intent()');
+  const serviceActorSnapshotId = state.service.actorSnapshotId;
+  expect(serviceActorSnapshotId).not.toBe(operator.actorSnapshotId);
+  const forgedVariants = [
+    {
+      label: 'request reason',
+      mutate: `NEW.reason := jsonb_set(NEW.reason, '{reasonCode}', '"REVIEW_FORGED_REASON"'::jsonb);
+        NEW.canonical_payload := jsonb_set(NEW.canonical_payload, '{reason}', NEW.reason);`,
+    },
+    {
+      label: 'actor snapshot',
+      mutate: `NEW.actor_snapshot_id := '${serviceActorSnapshotId}'::uuid;
+        NEW.canonical_payload := jsonb_set(NEW.canonical_payload, '{actorSnapshotId}',
+          to_jsonb('${serviceActorSnapshotId}'::text));`,
+    },
+  ] as const;
+  for (const variant of forgedVariants) {
+    await state.admin.query(`CREATE FUNCTION task_execution.a_wi244_review_forged_intent()
+      RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $f$ BEGIN
+        ${variant.mutate}
+        NEW.payload_hash := sha256(convert_to(
+          task_execution.canonical_jsonb_text(NEW.canonical_payload), 'UTF8'));
+        RETURN NEW;
+      END $f$`);
+    await state.admin.query(`CREATE TRIGGER a_wi244_review_forged_intent
+      BEFORE INSERT ON task_execution.run_cancellation_intent
+      FOR EACH ROW EXECUTE FUNCTION task_execution.a_wi244_review_forged_intent()`);
+    const forged = await buildCancelEnvelope(state, operator, 2);
+    try {
+      await expect(
+        state.firstRunEntry.cancelRun(forged, state.sessionFor(operator)),
+      ).rejects.toThrow(/Run cancellation intent source mismatch/u);
+    } finally {
+      await state.admin.query(
+        'DROP TRIGGER a_wi244_review_forged_intent ON task_execution.run_cancellation_intent',
+      );
+      await state.admin.query('DROP FUNCTION task_execution.a_wi244_review_forged_intent()');
+    }
+    expect(
+      await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId]),
+    ).toBe(0);
+    expect(await state.receiptRows(forged.idempotencyKey)).toEqual([]);
+    const afterForgery = await readRunRow(state);
+    expect(afterForgery).toMatchObject({ status: 'RUNNING', ended_at: null });
+    expect(afterForgery.aggregate_version).toBe('2');
   }
-  expect(
-    await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId]),
-  ).toBe(0);
-  expect(await state.receiptRows(forged.idempotencyKey)).toEqual([]);
-  const afterForgery = await readRunRow(state);
-  expect(afterForgery).toMatchObject({ status: 'RUNNING', ended_at: null });
-  expect(afterForgery.aggregate_version).toBe('2');
 
   const genuine = await buildCancelEnvelope(state, operator, 2);
   expect(await state.firstRunEntry.cancelRun(genuine, state.sessionFor(operator))).toMatchObject({
@@ -196,12 +214,27 @@ async function reviewIntentForgery(state: VerifyRunCancellationContext): Promise
     await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId]),
   ).toBe(1);
   const stored = (
-    await state.admin.query<{ reason: CanonicalJsonObject }>(
-      'SELECT reason FROM task_execution.run_cancellation_intent WHERE run_id=$1',
+    await state.admin.query<{
+      reason: CanonicalJsonObject;
+      actor_snapshot_id: string;
+      canonical_payload: CanonicalJsonObject;
+    }>(
+      `SELECT reason, actor_snapshot_id::text, canonical_payload
+         FROM task_execution.run_cancellation_intent WHERE run_id=$1`,
       [state.runRef.objectId],
     )
   ).rows[0];
-  expect(record(definedValue(stored).reason).reasonCode).toBe('HUMAN_REQUEST');
+  const intent = definedValue(stored);
+  expect(record(intent.reason).reasonCode).toBe('HUMAN_REQUEST');
+  expect(intent.actor_snapshot_id).toBe(operator.actorSnapshotId);
+  const receipt = (
+    await state.admin.query<{ actor_snapshot_id: string }>(
+      'SELECT actor_snapshot_id::text FROM task_execution.command_receipt WHERE command_id=$1',
+      [genuine.commandId],
+    )
+  ).rows[0];
+  expect(definedValue(receipt).actor_snapshot_id).toBe(operator.actorSnapshotId);
+  expect(intent.canonical_payload.actorSnapshotId).toBe(operator.actorSnapshotId);
   expect((await readRunRow(state)).status).toBe('CANCELLING');
 }
 
