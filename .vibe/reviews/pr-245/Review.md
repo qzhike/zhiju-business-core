@@ -1,6 +1,40 @@
 # PR #245 独立实现审查
 
-## 结论与修订绑定
+## 最新复审（2026-10-04）
+
+**REQUEST_CHANGES**。F1、F3 的原阻断项关闭；F2 的请求内容 Hash 修复有效，但 ActorSnapshot 的真实来源绑定仍不完整，保留一个 P2 阻断项。此处是当前结论，下方保留首轮历史证据。
+
+- Reviewed head：`6066d971a3e555c49756fa8b361e56e46a859153`；PR base 仍为 `1fb64357660f2fbceaf60344c544e6ac3558dd21`。
+- 复审对照：首轮 head `0e6fe5b819f6d9de331401cad3262e031204707f` 至当前 head 的实际修复 diff、最新 Issue/PR、原 owning 契约及 current revision CI。
+- 原记录已随修复提交进入当前 head；本次只修改这份正式审查记录，没有修复业务实现，也没有 commit/push/merge。
+
+| Finding | 当前判断 | 独立依据 |
+| --- | --- | --- |
+| F1 / P1：隔离依赖权限提交前复验 | CLOSED | dependencyChecks 累积本次依赖 Decision；revalidateIsolation 复验自身并 revalidateBatch 全部已使用依赖，TE Audit 前后调用。新 PostgreSQL read-then-revoke 用例验证 AUTHORIZATION_REVOKED、0 Audit、原 Observation 保留及重新授权后重试。 |
+| F2 / P2：Intent 来源绑定 | PARTIALLY FIXED / BLOCKING | 从 reason/requestedAt/cancellationPolicyRef 重建请求 Hash 后，原 reason 篡改负例被拒绝且整个取消回滚；但新 ActorSnapshot mirror 只比较 canonical 与 NEW.actor_snapshot_id，仍未比较真实 Receipt/受信 Context。 |
+| F3 / P2：late-isolation 支持范围 | CLOSED | 冻结 Contract 与原 reservation 检查先于 IG 来源读取；实际两次执行 TIMED_OUT 正对照通过，单次/0 reservation 负例拒绝且不补建预算事实。既有 creation/immutable guards 继续保护这些上游来源。 |
+
+### F2-R1 / P2：Intent ActorSnapshot 可以与源 Receipt 和受信 Context 不一致
+
+位置：`migrations/task_execution/V7013__run_cancellation_isolation.sql:339–386`，重点为 `NEW.canonical_payload->>'actorSnapshotId'` 与 `NEW.actor_snapshot_id` 的自镜像检查（第 380 行）。该 guard 绑定了 principal/Decision 与源 Receipt、Context，却没有为 ActorSnapshot 建立相同来源绑定。
+
+真实 PostgreSQL 反例：通过正常 owning Task/WorkOrder/Run/Driver/ack/start 与合法 Human Decision 发起取消。在一次性数据库中，临时 BEFORE INSERT 诊断仅把待插入 Intent 的 actor_snapshot_id 改成当前已存在的 Service ActorSnapshot，同步 canonical.actorSnapshotId 并重算 Intent 自身 Hash；真实请求字段、request Hash、Principal、Decision 与源 Receipt 均未更改。产品 guard 未改动。取消返回 COMMITTED、Run 进入 CANCELLING；读回 Receipt.actor_snapshot_id 为真实 Human，而 Intent.actor_snapshot_id/canonical.actorSnapshotId 为 Service。两者明确不同。
+
+这是同一 F2 来源完整性问题的剩余部分，不是新产品需求，也不意味着普通调用者能安装数据库函数。诊断只生成自洽但来源错误的候选，实际插入和提交仍经 app-context 与未修改的产品 guard。
+
+违反 Issue Acceptance 7、TE Spec §27.1 与 PostgreSQL §42.1 要求的真实 Receipt、认证归因和 trusted context 绑定。修复应同时校验 `NEW.actor_snapshot_id` 与源 `c.actor_snapshot_id`、`platform_security.context_actor_snapshot_id()`，保留 canonical mirror，并补已存在的其他主体 ActorSnapshot 负例。预期整个取消回滚为 0 Intent/Receipt、原 Run RUNNING/Claim ACTIVE；合法 Human ActorSnapshot 正对照仍正常提交。
+
+### 本轮验证与剩余门禁
+
+- [CI run 37137715731](https://github.com/qzhike/zhiju-business-core/actions/runs/37137715731) 的 headSha 等于当前 reviewed head，select/checks/persistence/verify 全 SUCCESS，覆盖 required configured full；未为重复取证重跑 full。
+- 独立读回 persistence 日志：45 files / 573 tests PASS；run-cancellation.test.ts 的 20 tests 全通过，含三个新修复负例；second migrate no-op。原三类精确反例得到回归覆盖，但未覆盖 F2-R1 的 ActorSnapshot 来源不一致。
+- 新 focused counterexample：`node tools/persistence/gate.mjs --test-file=tests/persistence/pr-review-245-actor.test.ts`，1 passed / 1；PASS 表示上述错误归因确实能提交，不是新 full PASS。固定镜像 PostgreSQL 18.6/Flyway 11.20.3、V7013 前向迁移及二次 no-op 均执行；一次性容器已移除。
+- 临时诊断已移出仓库，保存在 `/private/tmp/pr-review-245-actor-counterexample.test.ts`，SHA-256 `072bf27528d9de4da3e68596a8b8dc1133d47a521a09dca584972ce486377034`。
+- 本次修复没有修改公共 Contract Schema、registry、generated artifacts；首轮字段矩阵与兼容结论继续有效。V7013 仍为本 PR 未合并的前向迁移，未修改 main 已应用的 migration。
+- 外部 Provider/CLI/飞书、公开 HTTP/UI、生产/负载和独立人工业务验收仍 NOT RUN；实际授权/RLS/persistence 的人类技术审查仍缺完成证据。先修复 F2-R1，再复审新 head 并完成该人类门禁。
+- [本轮复审评论已发布](https://github.com/qzhike/zhiju-business-core/pull/245#issuecomment-5971615918)，正文读回逐字核对一致，PR head 未变化；这是普通 PR comment，不是 GitHub 的正式 REQUEST_CHANGES Review。本次记录修改仍未提交/推送。
+
+## 结论与修订绑定（2026-10-03 首轮历史）
 
 **REQUEST_CHANGES**。三个阻断项均在已批准范围内修复，不需要改变取消设计或扩大 Issue 范围。修复后需对新 head 独立复审；Issue 要求的授权/RLS/persistence 人类技术审查仍待完成。
 

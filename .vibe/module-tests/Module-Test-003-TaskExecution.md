@@ -608,7 +608,7 @@ fixture 的不同 capability code/主体 Grant 创建互不依赖，按最多四
 
 authority 为 [Spec 003 §27](../module-specs/Module-Spec-003-TaskExecution.md#27-run-取消请求与迟到-final-隔离已批准设计)，批准绑定见取消设计决定 §5；新设计场景不会覆盖原已执行矩阵或改变 PARTIAL/NOT RUN。
 
-以下为 #244 交付的验收矩阵；结果记录在对应 Issue/PR，不替换旧矩阵的执行记录。当前结果：CANCEL-D-001 由契约 standalone 正负 fixtures 覆盖（PASS）；CANCEL-D-002..008 已由 #244 在真实 PostgreSQL 验证（证据在 PR）。PR #245 首轮独立实现审查的三个阻断项已有对应真实 PostgreSQL 负例：隔离提交前撤销依赖权限不产生 LATE_RESULT Audit、伪造 Intent 候选整体回滚、late isolation 仅接受两次执行 profile 及其原 reservation。本矩阵归入 Module-Test 003，并关联原 `TE-TD-014/016`、`TE-WI03-D-007/009/011/012`；IP/IG 各自记录对应授权与来源证据。
+以下为 #244 交付的验收矩阵；结果记录在对应 Issue/PR，不替换旧矩阵的执行记录。当前结果：CANCEL-D-001 由契约 standalone 正负 fixtures 覆盖（PASS）；CANCEL-D-002..008 已由 #244 在真实 PostgreSQL 验证（证据在 PR）。PR #245 独立实现审查的阻断项（首轮 F1/F2/F3 与复审 F2-R1）均已有对应真实 PostgreSQL 负例：隔离提交前撤销依赖权限不产生 LATE_RESULT Audit、伪造 Intent 候选（请求内容与 ActorSnapshot 来源）整体回滚、late isolation 仅接受两次执行 profile 及其原 reservation；合法 Human 归因与来源正对照仍正常提交。本矩阵归入 Module-Test 003，并关联原 `TE-TD-014/016`、`TE-WI03-D-007/009/011/012`；IP/IG 各自记录对应授权与来源证据。
 
 | ID | 场景 | PASS / FAIL 判据 |
 |---|---|---|
