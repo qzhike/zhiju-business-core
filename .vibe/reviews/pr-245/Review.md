@@ -1,8 +1,49 @@
 # PR #245 独立实现审查
 
-## 最新复审（2026-10-04）
+## 人类技术批准（2026-10-04）
 
-**REQUEST_CHANGES**。F1、F3 的原阻断项关闭；F2 的请求内容 Hash 修复有效，但 ActorSnapshot 的真实来源绑定仍不完整，保留一个 P2 阻断项。此处是当前结论，下方保留首轮历史证据。
+用户在收到下方独立复审结论、全部 finding 关闭、精确提交 full CI 成功，以及尚需实际授权/RLS/persistence 人类技术判断的说明后回复：
+
+> 批准，关闭PR及Issue并删除local/remote branch
+
+该批准绑定本轮已呈现的实现 head `f6060b1a9904258c118c69997574245aa81194f1`，完成此前待定的人类技术批准门禁；不追溯改变下方历史 HUMAN_REVIEW_REQUIRED 结论。批准后独立技术结论为 **APPROVE**：全部原 finding 关闭，无新增技术阻断，required full 证据见本轮 CI。此处不声称用户进行了额外测试或已提交 GitHub 正式 Review。
+
+用户随后明确选择“合并到 main，关闭 PR 和 Issue #244，再删除本地及远端任务分支”。该授权覆盖本次必要的正式审查文档交付及指定 PR/Issue/分支操作；合并执行仍须核对最终 head 的审查与 required checks。最终文档提交仅记录已完成的复审与批准，不改变业务实现或批准语义。远端执行结果记录在 Issue/PR，并按项目规则读回核对；不由本文预先声称已合并。
+
+## 最新复审（2026-10-04，ActorSnapshot 修复后）
+
+**HUMAN_REVIEW_REQUIRED**。独立技术复审未发现新的阻断项，首轮 F1/F2/F3 与上轮剩余 F2-R1 均关闭；Issue #244 明确要求的实际授权/RLS/persistence 人类技术审查尚无完成证据，因此不能给出最终 APPROVE。下方保留各轮历史结论与反例。
+
+- Reviewed head：`f6060b1a9904258c118c69997574245aa81194f1`；PR base：`1fb64357660f2fbceaf60344c544e6ac3558dd21`。
+- 本轮独立核对最新 Issue/PR、上轮 head 至当前 head 的五文件 diff、TE Spec §27.1 与 PostgreSQL §42.1，以及绑定当前 head 的 CI。成功判据为：Intent ActorSnapshot 同时来自真实 Receipt 与受信 Context，自身 canonical mirror 继续一致；自洽但错误的其他主体 ActorSnapshot 候选整体回滚；合法 Human 归因仍提交。
+- `V7013__run_cancellation_isolation.sql:383–384` 新增 `NEW.actor_snapshot_id IS DISTINCT FROM c.actor_snapshot_id` 和 `NEW.actor_snapshot_id IS DISTINCT FROM platform_security.context_actor_snapshot_id()`，继续保留完整请求 Hash、canonical ActorSnapshot mirror、Principal/Decision/Scope 与其他源约束。V7013 仍为本 PR 未合并的 forward migration，没有改动 main 已应用的 migration。
+
+| Finding | 当前判断 | 独立依据 |
+| --- | --- | --- |
+| F1 / P1：隔离依赖权限提交前复验 | CLOSED | 上轮已确认的 dependencyChecks 与 revalidateBatch 修复未改变；当前 CI 继续执行 read-then-revoke 负例。 |
+| F2 / P2：Intent 请求内容与来源绑定 | CLOSED | 上轮完整请求 Hash 修复保留；请求 reason 篡改负例继续整体回滚；归因剩余项见 F2-R1。 |
+| F2-R1 / P2：ActorSnapshot 真实来源绑定 | CLOSED | 两个新增 guard 条件将 ActorSnapshot 绑定到真实源 Receipt 与 trusted Context；当前 PostgreSQL 用例覆盖上轮精确反例及合法 Human 正对照。 |
+| F3 / P2：late-isolation 支持范围 | CLOSED | 支持 profile 与原 reservation 检查未改变；当前 CI 继续执行单次/无 reservation 拒绝及两次执行正对照。 |
+
+### 当前回归与修订证据
+
+- 独立读取 `initial-context-verify-cancel-review.ts`：临时 BEFORE INSERT injector 只将 Intent 的 ActorSnapshot 替换成已存在且与 Human 不同的 Service ActorSnapshot，同步 canonical mirror 与自身 Hash，真实请求、Receipt、Principal 和 Decision 保持原值；产品 guard 拒绝 source mismatch。该变体与请求 reason 篡改变体分别断言 0 Intent、无取消 Receipt、Run 保持 RUNNING / version 2 / endedAt null；injector 在 finally 中清理。
+- 同一回归用例随后经真实 Human owning cancellation 返回 COMMITTED，读回 Intent.actorSnapshot、canonical.actorSnapshot、Receipt.actorSnapshot 均等于真实 Human，reason 为 HUMAN_REQUEST，Run 为 CANCELLING。未用直接业务表写入替代正链。
+- [CI run 37142524111](https://github.com/qzhike/zhiju-business-core/actions/runs/37142524111) 的 headSha 精确等于 reviewed head；select/checks/persistence/verify 全 SUCCESS。独立核对 workflow 的 clean + code checks、clean build + PostgreSQL persistence 与最终汇总，覆盖项目 required full；本轮没有重复运行本地 full。
+- 独立读回 persistence 日志：PostgreSQL 18.6 / Flyway 11.20.3 使用固定 digest；45 files / 573 tests PASS；run-cancellation.test.ts 的 20 tests PASS，包含 `CANCEL-D-007 a forged Intent candidate rolls back the whole cancellation`，state=passed；second migrate no-op。
+- 本轮没有改动公共 Contract Schema、registry、generated artifacts 或业务实现；首轮字段矩阵与兼容结论保持有效，历史 F2 缺陷由上方当前结论明确关闭。
+
+### 尚需完成的人类门禁与交付边界
+
+[Issue #244 的 Scope 与 Verify](https://github.com/qzhike/zhiju-business-core/issues/244) 明确要求 actual authorization/RLS/persistence implementation 的 required human technical review；取消设计决定 §4 与 §7 保留相同要求。既有 Human design approval 不替代实际实现审查。当前 PR 无正式 Review、Issue 无完成此门禁的评论，最新实现报告也明确其待完成；应由所需人类审查者对本 reviewed SHA 完成并记录技术判断。
+
+外部 Provider/CLI/飞书、公开 HTTP/UI、生产/负载与独立人工业务验收仍 NOT RUN；本切片的技术复审不关闭整个 IM-06。本次仅更新正式审查记录及发布授权范围内的 PR comment，没有 commit/push/merge。
+
+[本轮复审评论已发布](https://github.com/qzhike/zhiju-business-core/pull/245#issuecomment-5974671811)，正文已读回逐字核对一致，PR head 未变化。这是普通 PR comment，不是 GitHub 正式 Approval Review；本次正式记录修改仍未提交/推送。
+
+## 上轮复审（2026-10-04，历史 head 6066d971）
+
+**REQUEST_CHANGES**。该历史 head 的 F1、F3 原阻断项关闭；F2 请求内容 Hash 修复有效，但 ActorSnapshot 真实来源绑定仍不完整，保留一个 P2 阻断项。此段保留当轮证据，当前结论见上方最新复审。
 
 - Reviewed head：`6066d971a3e555c49756fa8b361e56e46a859153`；PR base 仍为 `1fb64357660f2fbceaf60344c544e6ac3558dd21`。
 - 复审对照：首轮 head `0e6fe5b819f6d9de331401cad3262e031204707f` 至当前 head 的实际修复 diff、最新 Issue/PR、原 owning 契约及 current revision CI。
