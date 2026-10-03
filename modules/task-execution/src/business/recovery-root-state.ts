@@ -54,7 +54,7 @@ async function workOrderFacts(
     .execute();
   const blockers = await readRecoveryBlockers(trx, id, scope);
   const active = runs.find((r) =>
-    ['CREATED', 'STARTING', 'RUNNING', 'RESULT_RECORDED'].includes(r.status),
+    ['CREATED', 'STARTING', 'RUNNING', 'CANCELLING', 'RESULT_RECORDED'].includes(r.status),
   );
   const intent = (
     await sql<{

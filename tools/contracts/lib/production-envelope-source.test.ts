@@ -27,7 +27,7 @@ describe('production envelope builder is the Gate source of truth', () => {
     expect(source).not.toMatch(/live-envelopes/);
   });
 
-  it('keeps envelope payload $ref parity with schema-types for all 238 operations', () => {
+  it('keeps envelope payload $ref parity with schema-types for all 239 operations', () => {
     for (const operation of publicApiOperations) {
       const envelope = operationEnvelopeSchema(operation) as {
         readonly properties?: {
@@ -45,7 +45,7 @@ describe('production envelope builder is the Gate source of truth', () => {
 
   it('makes loadCurrentEnvelopeDocuments identical to production operationEnvelopeSchema', () => {
     const documents = loadCurrentEnvelopeDocuments();
-    expect(documents).toHaveLength(238);
+    expect(documents).toHaveLength(239);
 
     for (const operation of publicApiOperations) {
       const relativePath = envelopeSchemaRelativePath(operation.type, operation.version);

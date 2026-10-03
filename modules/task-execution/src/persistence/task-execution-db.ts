@@ -372,7 +372,15 @@ export interface RunTable {
   fencing_token: Int8Default;
   lease_expires_at: Date;
   execution_deadline: Date;
-  status: 'CREATED' | 'STARTING' | 'RUNNING' | 'RESULT_RECORDED' | 'SUCCEEDED' | 'TIMED_OUT';
+  status:
+    | 'CREATED'
+    | 'STARTING'
+    | 'RUNNING'
+    | 'RESULT_RECORDED'
+    | 'SUCCEEDED'
+    | 'TIMED_OUT'
+    | 'CANCELLING'
+    | 'ABANDONED';
   aggregate_version: Int8Default;
   created_at: Date;
   started_at: Date | null;

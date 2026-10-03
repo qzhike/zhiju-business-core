@@ -810,6 +810,18 @@ export namespace TaskExecution {
   readonly status: "TIMED_OUT";
   readonly endedAt: Common.UtcInstant;
 };
+  /** Payload of `execution.expire_run` (COMMAND). */
+  export type ExecutionExpireRunV20Payload = {
+  readonly reason: "LEASE_EXPIRED" | "DEADLINE_EXCEEDED";
+};
+  /** Result of `execution.expire_run` (COMMAND). */
+  export type ExecutionExpireRunV20Result = {
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly status: "TIMED_OUT" | "ABANDONED";
+  readonly endedAt: Common.UtcInstant;
+};
   /** Payload of `execution.accept_agent_result` (COMMAND). */
   export interface ExecutionAcceptAgentResultPayload {
   readonly agentResultRef: Common.ContentAddressedRef;

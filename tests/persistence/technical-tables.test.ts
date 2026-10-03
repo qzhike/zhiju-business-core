@@ -181,6 +181,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'run_retry_intent_consumption',
     'run_budget_reservation',
     'run_budget_consumption',
+    // IM-06 (#244): immutable Human cancellation Intent (V7013).
+    'run_cancellation_intent',
     'recovery_process_command',
     // IM-06 (#239): scoped TaskCompleted dispatch and immutable delivery history.
     'task_completed_dispatch_cursor',

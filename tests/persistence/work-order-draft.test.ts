@@ -4908,10 +4908,10 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(238);
+    expect(catalog.operations).toHaveLength(239);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(62);
+    ).toHaveLength(63);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );

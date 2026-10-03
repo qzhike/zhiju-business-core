@@ -544,7 +544,10 @@ export interface ControlledFinalRecoveryPorts {
     progress: ControlledFinalProgress,
     transition: ControlledFinalProgressAdvance,
   ) => Promise<void>;
-  readonly suspendTimedOutProgress: (progress: ControlledFinalProgress) => Promise<void>;
+  readonly suspendTimedOutProgress: (
+    progress: ControlledFinalProgress,
+    observedStatus: 'TIMED_OUT' | 'CANCELLING' | 'ABANDONED',
+  ) => Promise<void>;
   readonly execute: (command: ControlledFinalRecoveryCommand) => Promise<{
     status: string;
     originalOutcome?: string;
@@ -606,8 +609,12 @@ export async function recoverControlledFinalRuns(
     const progress = progressRows.find((row) => row.step !== 'DONE');
     if (progress === undefined) break;
     const state = await ports.readRun(progress.runRef);
-    if (state.status === 'TIMED_OUT') {
-      await ports.suspendTimedOutProgress(progress);
+    if (
+      state.status === 'TIMED_OUT' ||
+      state.status === 'CANCELLING' ||
+      state.status === 'ABANDONED'
+    ) {
+      await ports.suspendTimedOutProgress(progress, state.status);
       continue;
     }
     const final = await ports.readFinal(progress.attemptRef);
@@ -1780,6 +1787,290 @@ export async function handleExpireFirstRun(
           status: 'TIMED_OUT',
           endedAt: endedAt.toISOString(),
         },
+      } as const;
+    },
+    ports.revalidateAuthorization,
+  );
+}
+
+export interface CancellationPolicyResolution {
+  readonly policyRef: CanonicalJsonObject;
+  readonly useStatus: string;
+  readonly contentHash: CanonicalJsonObject;
+  readonly effectiveFrom: string;
+  readonly supersededAt?: string;
+}
+
+export interface ControlledFirstRunCancelPorts {
+  readonly now: () => Date;
+  readonly revalidateAuthorization: () => Promise<void>;
+  readonly resolveCancellationPolicy: (
+    policyRef: CanonicalJsonObject,
+  ) => Promise<CancellationPolicyResolution>;
+}
+
+/**
+ * §27.1 Human cancellation: RUNNING -> CANCELLING with one immutable Intent.
+ * The Claim stays ACTIVE and the reservation stays occupied; no endedAt, no
+ * RunTerminated, no CANCELLED fact and no Runtime cancel call. Only the
+ * delivered two-attempt Controls profile with a real creation-time reservation
+ * is supported; the single-attempt profile and missing reservation facts fail
+ * closed without backfilling any budget fact.
+ */
+export async function handleCancelFirstRun(
+  db: Kysely<TaskExecutionDb>,
+  context: TaskExecutionTransactionContext,
+  envelope: CommandEnvelope,
+  ports: ControlledFirstRunCancelPorts,
+) {
+  requireThat(
+    envelope.commandType === 'execution.request_run_cancel' &&
+      envelope.commandVersion === '1.0' &&
+      envelope.targetType === RUN,
+    'EXECUTION_CRITERION_UNSUPPORTED',
+  );
+  await ports.revalidateAuthorization();
+  return executeFinalCommand(
+    db,
+    context,
+    envelope,
+    async (execution) => {
+      const run = await lockedRun(execution.trx, envelope.targetId, envelope);
+      const subjectScope = scope(envelope),
+        request = envelope.requestPayload;
+      const runRef = ref('OBJECT', RUN, run.run_id, subjectScope);
+      const contractRow = await execution.trx
+        .selectFrom('task_execution.work_order_contract')
+        .select(['contract_id', 'enterprise_id', 'project_id', 'canonical_payload', 'payload_hash'])
+        .where('work_order_id', '=', run.work_order_id)
+        .executeTakeFirst();
+      requireThat(
+        contractRow?.enterprise_id === envelope.enterpriseId &&
+          contractRow.project_id === envelope.projectId &&
+          contractRow.contract_id === object(run.work_order_contract_ref).objectId &&
+          contractRow.payload_hash.toString('hex') ===
+            object(object(run.work_order_contract_ref).contentHash).digest,
+        'REFERENCE_INVALID',
+      );
+      const executionPolicy = object(object(contractRow.canonical_payload).executionPolicy);
+      requireThat(executionPolicy.maxAttempts === 2, 'EXECUTION_CRITERION_UNSUPPORTED');
+      const reservation = await sql`SELECT 1 FROM task_execution.run_budget_reservation
+        WHERE run_id=${run.run_id} AND work_order_id=${run.work_order_id}
+          AND attempt_number=${run.attempt_number}`.execute(execution.trx);
+      requireThat(reservation.rows.length === 1, 'EXECUTION_FINAL_CONFLICT');
+      const cancellationPolicyRef = object(request.cancellationPolicyRef);
+      requireThat(
+        same(cancellationPolicyRef, object(executionPolicy.cancellationPolicyRef)),
+        'API_VALUE_INVALID',
+      );
+      const policy = await ports.resolveCancellationPolicy(cancellationPolicyRef);
+      requireThat(
+        policy.useStatus === 'USABLE' && same(policy.policyRef, cancellationPolicyRef),
+        'EXECUTION_JUDGMENT_STALE',
+      );
+      requireThat(
+        run.status === 'RUNNING' && run.aggregate_version === envelope.expectedAggregateVersion,
+        'AGGREGATE_STATE_NOT_ALLOWED',
+      );
+      live(run, ports.now());
+      await activeClaim(execution.trx, run);
+      await ports.revalidateAuthorization();
+      const committedAt = ports.now();
+      const reason = object(request.reason);
+      requireThat(typeof reason.reasonCode === 'string', 'API_VALUE_INVALID');
+      const requestedAt = textValue(request.requestedAt);
+      requireThat(Number.isFinite(Date.parse(requestedAt)), 'API_VALUE_INVALID');
+      const intentPayload: CanonicalJsonObject = {
+        enterpriseId: envelope.enterpriseId,
+        projectId: projectId(envelope),
+        runId: run.run_id,
+        reason,
+        requestedAt,
+        committedAt: committedAt.toISOString(),
+        cancellationPolicyRef,
+        sourceCommandId: envelope.commandId,
+        requestPayloadHash: digest(request),
+        principalId: envelope.principalId,
+        actorSnapshotId: envelope.actorSnapshotId,
+        authorizationDecisionId: envelope.authorizationDecisionId,
+      };
+      // The Intent guard binds the still-RUNNING Run and the in-flight
+      // request_run_cancel@1.0 Receipt, so it is written before the Run CAS.
+      await sql`INSERT INTO task_execution.run_cancellation_intent(
+          intent_id,run_id,enterprise_id,project_id,reason,requested_at,committed_at,
+          cancellation_policy_ref,source_command_id,request_payload_hash,principal_id,
+          actor_snapshot_id,authorization_decision_id,correlation_id,canonical_payload,payload_hash)
+        VALUES(${newUuidV7()},${run.run_id},${envelope.enterpriseId},${projectId(envelope)},
+          ${canonicalize(reason)}::jsonb,${requestedAt}::timestamptz,${committedAt},${canonicalize(cancellationPolicyRef)}::jsonb,
+          ${envelope.commandId},${Buffer.from(digest(request), 'hex')},${envelope.principalId},
+          ${envelope.actorSnapshotId},${envelope.authorizationDecisionId},${envelope.correlationId},
+          ${canonicalize(intentPayload)}::jsonb,${Buffer.from(sha256CanonicalJson(intentPayload), 'hex')})`.execute(
+        execution.trx,
+      );
+      const nextVersion = (BigInt(run.aggregate_version) + 1n).toString();
+      const updated = await execution.trx
+        .updateTable('task_execution.run')
+        .set({
+          status: 'CANCELLING',
+          aggregate_version: nextVersion,
+          last_command_id: envelope.commandId,
+        })
+        .where('run_id', '=', run.run_id)
+        .where('status', '=', 'RUNNING')
+        .executeTakeFirst();
+      requireThat(Number(updated.numUpdatedRows) === 1, 'CONCURRENCY_CONFLICT');
+      await ports.revalidateAuthorization();
+      return {
+        kind: 'COMMITTED',
+        resultPayload: { runRef, status: 'CANCELLING', aggregateVersion: nextVersion },
+      } as const;
+    },
+    ports.revalidateAuthorization,
+  );
+}
+
+/**
+ * §27.2 additive `expire_run@2.0`: the only source that may write ABANDONED.
+ * `CANCELLING` + `LEASE_EXPIRED` after the real original lease commits
+ * ABANDONED with the cancellation reason; the other current supported states
+ * keep the historical TIMED_OUT outcome under `DEADLINE_EXCEEDED`.
+ */
+export async function handleExpireFirstRunV2(
+  db: Kysely<TaskExecutionDb>,
+  context: TaskExecutionTransactionContext,
+  envelope: CommandEnvelope,
+  ports: ControlledFinalPorts,
+) {
+  requireThat(
+    envelope.commandType === 'execution.expire_run' &&
+      envelope.commandVersion === '2.0' &&
+      envelope.targetType === RUN,
+    'EXECUTION_CRITERION_UNSUPPORTED',
+  );
+  const reason = envelope.requestPayload.reason;
+  requireThat(reason === 'LEASE_EXPIRED' || reason === 'DEADLINE_EXCEEDED', 'API_VALUE_INVALID');
+  await ports.revalidateAuthorization();
+  return executeFinalCommand(
+    db,
+    context,
+    envelope,
+    async (execution) => {
+      const run = await lockedRun(execution.trx, envelope.targetId, envelope);
+      const subjectScope = scope(envelope);
+      const runRef = ref('OBJECT', RUN, run.run_id, subjectScope);
+      const contractRow = await execution.trx
+        .selectFrom('task_execution.work_order_contract')
+        .select(['contract_id', 'enterprise_id', 'project_id', 'canonical_payload', 'payload_hash'])
+        .where('work_order_id', '=', run.work_order_id)
+        .executeTakeFirst();
+      requireThat(
+        contractRow?.enterprise_id === envelope.enterpriseId &&
+          contractRow.project_id === envelope.projectId &&
+          contractRow.contract_id === object(run.work_order_contract_ref).objectId &&
+          contractRow.payload_hash.toString('hex') ===
+            object(object(run.work_order_contract_ref).contentHash).digest,
+        'REFERENCE_INVALID',
+      );
+      requireThat(
+        object(object(contractRow.canonical_payload).executionPolicy).maxAttempts === 2,
+        'EXECUTION_CRITERION_UNSUPPORTED',
+      );
+      const reservation = await sql`SELECT 1 FROM task_execution.run_budget_reservation
+        WHERE run_id=${run.run_id} AND work_order_id=${run.work_order_id}
+          AND attempt_number=${run.attempt_number}`.execute(execution.trx);
+      requireThat(reservation.rows.length === 1, 'EXECUTION_FINAL_CONFLICT');
+      await ports.inspectExpiredBundle(object(run.capability_grant_ref), runRef);
+      if (run.status === 'TIMED_OUT' || run.status === 'ABANDONED') {
+        requireThat(
+          (run.status === 'TIMED_OUT' && reason === 'DEADLINE_EXCEEDED') ||
+            (run.status === 'ABANDONED' && reason === 'LEASE_EXPIRED'),
+          'EXECUTION_CRITERION_UNSUPPORTED',
+        );
+        const claim = await execution.trx
+          .selectFrom('task_execution.work_order_run_claim')
+          .select('status')
+          .where('run_id', '=', run.run_id)
+          .executeTakeFirst();
+        requireThat(claim?.status === 'EXPIRED' && run.ended_at !== null);
+        await ports.revalidateAuthorization();
+        return {
+          kind: 'COMMITTED',
+          resultPayload: { runRef, status: run.status, endedAt: run.ended_at.toISOString() },
+        } as const;
+      }
+      const now = ports.now();
+      const abandoned = reason === 'LEASE_EXPIRED';
+      if (abandoned) {
+        requireThat(run.status === 'CANCELLING', 'EXECUTION_CRITERION_UNSUPPORTED');
+        requireThat(now.getTime() >= run.lease_expires_at.getTime(), 'EXECUTION_JUDGMENT_STALE');
+      } else {
+        requireThat(
+          ['CREATED', 'STARTING', 'RUNNING', 'RESULT_RECORDED'].includes(run.status),
+          'EXECUTION_CRITERION_UNSUPPORTED',
+        );
+        requireThat(now.getTime() >= run.execution_deadline.getTime(), 'EXECUTION_JUDGMENT_STALE');
+      }
+      const terminalStatus = abandoned ? 'ABANDONED' : 'TIMED_OUT';
+      const terminationReason = abandoned
+        ? 'EXECUTION_CANCELLATION_UNACKNOWLEDGED'
+        : 'EXECUTION_DEADLINE_EXCEEDED';
+      requireThat(
+        run.aggregate_version === envelope.expectedAggregateVersion,
+        'AGGREGATE_STATE_NOT_ALLOWED',
+      );
+      await activeClaim(execution.trx, run);
+      const endedAt = now;
+      const nextVersion = (BigInt(run.aggregate_version) + 1n).toString();
+      const updated = await execution.trx
+        .updateTable('task_execution.run')
+        .set({
+          status: terminalStatus,
+          ended_at: endedAt,
+          termination_reason: terminationReason,
+          aggregate_version: nextVersion,
+          last_command_id: envelope.commandId,
+        })
+        .where('run_id', '=', run.run_id)
+        .where('status', '=', run.status)
+        .executeTakeFirst();
+      requireThat(Number(updated.numUpdatedRows) === 1, 'CONCURRENCY_CONFLICT');
+      const claimUpdate = await execution.trx
+        .updateTable('task_execution.work_order_run_claim')
+        .set({ status: 'EXPIRED' })
+        .where('run_id', '=', run.run_id)
+        .where('status', '=', 'ACTIVE')
+        .executeTakeFirst();
+      requireThat(Number(claimUpdate.numUpdatedRows) === 1, 'CONCURRENCY_CONFLICT');
+      await sql`INSERT INTO task_execution.run_budget_consumption(run_id,enterprise_id,project_id,ended_at,effective_bound,consumed_seconds,source_command_id)
+        SELECT r.run_id,r.enterprise_id,r.project_id,${endedAt},least(${endedAt},r.execution_deadline,r.lease_expires_at),
+        least(b.reserved_seconds,greatest(0,ceil(extract(epoch FROM (least(${endedAt},r.execution_deadline,r.lease_expires_at)-r.created_at)))::integer)),${envelope.commandId}
+        FROM task_execution.run r JOIN task_execution.run_budget_reservation b USING(run_id) WHERE r.run_id=${run.run_id}`.execute(
+        execution.trx,
+      );
+      await appendEvent(
+        execution,
+        envelope,
+        eventEnvelope(
+          envelope,
+          'execution.RunTerminated',
+          run.run_id,
+          RUN,
+          nextVersion,
+          {
+            runRef,
+            workOrderRef: object(run.work_order_ref),
+            terminalStatus,
+            terminationReason,
+            ...(run.result_ref === null ? {} : { agentResultRef: object(run.result_ref) }),
+            endedAt: endedAt.toISOString(),
+          },
+          endedAt,
+        ),
+      );
+      await ports.revalidateAuthorization();
+      return {
+        kind: 'COMMITTED',
+        resultPayload: { runRef, status: terminalStatus, endedAt: endedAt.toISOString() },
       } as const;
     },
     ports.revalidateAuthorization,

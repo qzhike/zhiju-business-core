@@ -335,13 +335,23 @@ export {
   handleAcceptFinalResult,
   handleFinalizeFirstRun,
   handleExpireFirstRun,
+  handleExpireFirstRunV2,
+  handleCancelFirstRun,
   handleGetAcceptedAgentResult,
 } from './business/controlled-final-result.js';
 export type {
+  CancellationPolicyResolution,
   ControlledFinalPorts,
   ControlledFinalRecoveryCommand,
   ControlledFinalRecoveryPorts,
+  ControlledFirstRunCancelPorts,
 } from './business/controlled-final-result.js';
+export { isolateLateFinalResult } from './business/late-final-isolation.js';
+export type {
+  LateFinalIsolationInput,
+  LateFinalIsolationPorts,
+  LateFinalIsolationResult,
+} from './business/late-final-isolation.js';
 export {
   controlledFinalProcessId,
   listControlledFinalProgress,

@@ -2859,6 +2859,19 @@ const versionedOperationSchemas: readonly VersionedOperationContractSchema[] = [
       coverageStatus: { $ref: `${common}coverageCompleteness` },
     }),
   },
+  {
+    // #244 additive Major: `@1.0` pins the TIMED_OUT constant, so the
+    // cancellation-abandonment outcome needs its own closed result. The
+    // request stays the frozen `{reason}` enum and the Run target is unchanged.
+    type: 'execution.expire_run',
+    version: '2.0',
+    payload: object(['reason'], { reason: { enum: ['LEASE_EXPIRED', 'DEADLINE_EXCEEDED'] } }),
+    result: object(['runRef', 'status', 'endedAt'], {
+      runRef: exactObjectType(objectReference, 'execution.run'),
+      status: { enum: ['TIMED_OUT', 'ABANDONED'] },
+      endedAt: instant,
+    }),
+  },
 ];
 
 const operationDefinitions = Object.fromEntries(

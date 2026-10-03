@@ -60,8 +60,8 @@ export function registerProcess(suite: InitialContextSuite, runScenario: RunScen
         createProgress: (input) => byRun(input.runRef).ports.createProgress(input),
         advanceProgress: (progress, transition) =>
           byRun(progress.runRef).ports.advanceProgress(progress, transition),
-        suspendTimedOutProgress: (progress) =>
-          byRun(progress.runRef).ports.suspendTimedOutProgress(progress),
+        suspendTimedOutProgress: (progress, observedStatus) =>
+          byRun(progress.runRef).ports.suspendTimedOutProgress(progress, observedStatus),
         execute: (command) => {
           const resultRef = command.payload.agentResultRef;
           const contract = command.payload.agentResultContract;

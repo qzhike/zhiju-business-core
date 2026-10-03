@@ -9,6 +9,7 @@ import {
   type IdentityTransactionContext,
 } from '@zhiju/identity-policy';
 import {
+  handleCancelFirstRun,
   handleCreateFirstRun,
   handleGetContextSnapshot,
   handleGetRunDispatchBinding,
@@ -20,15 +21,20 @@ import {
   handleAcceptFinalResult,
   handleFinalizeFirstRun,
   handleExpireFirstRun,
+  handleExpireFirstRunV2,
   handleGetWorkOrderContract,
   handleQueueWorkOrder,
   handleReconcileFirstRun,
   handleReconcileRecoveryRoot,
+  isolateLateFinalResult,
   type RecoveryConsumer,
   handleStartFirstRun,
   type CommandEnvelope,
+  type CancellationPolicyResolution,
+  type ControlledFirstRunCancelPorts,
   type ControlledFirstRunPorts,
   type ControlledFinalPorts,
+  type LateFinalIsolationPorts,
   type TaskExecutionTransactionContext,
 } from '@zhiju/task-execution';
 import {
@@ -115,12 +121,17 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
       type === 'integration.get_runtime_final_observation' ||
       type === 'execution.get_agent_result' ||
       type === 'execution.get_run_state';
+    // #244: `execution.expire_run` keeps its frozen @1.0 path and adds the
+    // additive @2.0 Major that may write ABANDONED. Every other operation
+    // stays pinned to its single registered version.
+    const version =
+      type === 'execution.expire_run' && envelope.commandVersion === '2.0' ? '2.0' : '1.0';
     if (
       (query ? envelope.queryType : envelope.commandType) !== type ||
-      (query ? envelope.queryVersion : envelope.commandVersion) !== '1.0'
+      (query ? envelope.queryVersion : envelope.commandVersion) !== version
     )
       entryError('API_CONTRACT_TYPE_UNKNOWN', 'unsupported first Run operation');
-    if (!registry.validateOperation(type, '1.0', envelope).valid)
+    if (!registry.validateOperation(type, version, envelope).valid)
       entryError('API_VALUE_INVALID', 'invalid first Run envelope');
     const payload = record(envelope.payload) as CanonicalJsonObject;
     const payloadHash = payloadHashOf(payload);
@@ -150,38 +161,43 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
     const common = {
       actorSnapshotRef: session.resolutionActorSnapshotRef,
       commandType: type,
-      commandVersion: '1.0',
+      commandVersion: version,
       commandPayloadHash: payloadHash,
       authenticationContextHash: sessionHash,
     };
     const revalidation = {
       decisionRef,
       expectedCommandType: type,
-      expectedCommandVersion: '1.0',
+      expectedCommandVersion: version,
       expectedCommandPayloadHash: payloadHash,
       expectedAuthenticationContextHash: sessionHash,
       expectedTargetRef: target,
     };
-    const ownKey = (
-      {
-        'execution.queue_work_order': 'workOrderQueueV1',
-        'identity.issue_execution_capability_bundle': 'executionBundleIssueV1',
-        'execution.create_run': 'runCreateV1',
-        'integration.request_runtime_dispatch': 'runtimeDispatchV1',
-        'integration.get_runtime_attempt_binding': 'runtimeAttemptBindingReadV1',
-        'execution.start_run': 'runStartV1',
-        'execution.reconcile_work_order_execution': 'workOrderReconcileV1',
-        'integration.get_runtime_final_observation': 'runtimeFinalReadV1',
-        'execution.submit_agent_result': 'agentResultSubmitV1',
-        'execution.record_run_result': 'runResultRecordV1',
-        'execution.validate_agent_result': 'agentResultValidateV1',
-        'execution.accept_agent_result': 'agentResultAcceptV1',
-        'execution.finalize_run_from_acceptance': 'runFinalizeV1',
-        'execution.expire_run': 'runExpireV1',
-        'execution.get_agent_result': 'agentResultReadV1',
-        'execution.get_run_state': 'runStateReadV1',
-      } as Record<string, Boundary>
-    )[type];
+    const ownKey =
+      type === 'execution.expire_run' && version === '2.0'
+        ? 'runExpireV2'
+        : (
+            {
+              'execution.queue_work_order': 'workOrderQueueV1',
+              'identity.issue_execution_capability_bundle': 'executionBundleIssueV1',
+              'execution.create_run': 'runCreateV1',
+              'integration.request_runtime_dispatch': 'runtimeDispatchV1',
+              'integration.get_runtime_attempt_binding': 'runtimeAttemptBindingReadV1',
+              'execution.start_run': 'runStartV1',
+              'execution.reconcile_work_order_execution': 'workOrderReconcileV1',
+              'integration.get_runtime_final_observation': 'runtimeFinalReadV1',
+              'execution.submit_agent_result': 'agentResultSubmitV1',
+              'execution.record_run_result': 'runResultRecordV1',
+              'execution.validate_agent_result': 'agentResultValidateV1',
+              'execution.accept_agent_result': 'agentResultAcceptV1',
+              'execution.finalize_run_from_acceptance': 'runFinalizeV1',
+              'execution.request_run_cancel': 'runCancelRequestV1',
+              'execution.expire_run': 'runExpireV1',
+              'execution.get_agent_result': 'agentResultReadV1',
+              'execution.get_run_state':
+                row.principal_kind === 'HUMAN' ? 'runStateReadForCancelHumanV1' : 'runStateReadV1',
+            } as Record<string, Boundary>
+          )[type];
     if (ownKey === undefined)
       entryError('API_CONTRACT_TYPE_UNKNOWN', 'unsupported first Run operation');
     const revalidateOwn = async () => {
@@ -199,8 +215,8 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
     const internal: CommandEnvelope = {
       commandId: String(envelope.commandId),
       commandType: type,
-      commandVersion: '1.0',
-      idempotencyScope: `${type}@1.0:${scope.enterpriseId}:${scope.projectId}`,
+      commandVersion: version,
+      idempotencyScope: `${type}@${version}:${scope.enterpriseId}:${scope.projectId}`,
       idempotencyKey: String(envelope.idempotencyKey),
       requestPayload: payload,
       enterpriseId: scope.enterpriseId,
@@ -590,8 +606,34 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
         await proof.proof();
       },
       inspectExpiredBundle: async (ref, runRef) => {
-        const proof = await proofFor('runExpireBundleInspectV1', ref);
+        const inspectKey: Boundary =
+          consumer === 'execution.expire_run' && prepared.internal.commandVersion === '2.0'
+            ? 'runExpireBundleInspectV2'
+            : 'runExpireBundleInspectV1';
+        const proof = await proofFor(inspectKey, ref);
         await readIntegrityForExpiry(config.identity.db, proof.context, ref, runRef, proof.proof);
+      },
+    };
+  }
+
+  /** #244: the Human cancel command's own Decision, cancellation Policy
+   * resolve and current revalidation. The Run state read stays the frozen
+   * `get_run_state@1.0` HANDLER; only the trusted mapping is Human-specific. */
+  function cancelPorts(
+    prepared: Awaited<ReturnType<typeof prepare>>,
+    session: ControlledFirstRunSession,
+  ): ControlledFirstRunCancelPorts {
+    const { mint, revalidateAll, row } = prepared;
+    const readers = createWorkOrderDependencyReads(config, row, session);
+    return {
+      now,
+      revalidateAuthorization: revalidateAll,
+      resolveCancellationPolicy: async (ref) => {
+        const proof = await mint('runCancelPolicyReadV1', ref);
+        await proof.proof();
+        const view = await readers.resolvePolicy(ref);
+        await proof.proof();
+        return view as unknown as CancellationPolicyResolution;
       },
     };
   }
@@ -636,11 +678,25 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
         finalPorts(prepared, session),
       );
     if (type === 'execution.expire_run')
-      return handleExpireFirstRun(
+      return internal.commandVersion === '2.0'
+        ? handleExpireFirstRunV2(
+            config.taskExecutionDb,
+            context,
+            internal,
+            finalPorts(prepared, session),
+          )
+        : handleExpireFirstRun(
+            config.taskExecutionDb,
+            context,
+            internal,
+            finalPorts(prepared, session),
+          );
+    if (type === 'execution.request_run_cancel')
+      return handleCancelFirstRun(
         config.taskExecutionDb,
         context,
         internal,
-        finalPorts(prepared, session),
+        cancelPorts(prepared, session),
       );
     if (type === 'execution.queue_work_order')
       return handleQueueWorkOrder(config.taskExecutionDb, context, internal, p);
@@ -752,6 +808,8 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
       command('execution.finalize_run_from_acceptance', value, session),
     expireRun: (value: unknown, session: ControlledFirstRunSession) =>
       command('execution.expire_run', value, session),
+    cancelRun: (value: unknown, session: ControlledFirstRunSession) =>
+      command('execution.request_run_cancel', value, session),
     async getAgentResult(value: unknown, session: ControlledFirstRunSession) {
       const prepared = await prepare(value, session, 'execution.get_agent_result');
       return handleGetAcceptedAgentResult(
@@ -769,6 +827,135 @@ export function createControlledFirstRunEntry(config: ControlledFirstRunEntryCon
         record(prepared.payload.runRef) as CanonicalJsonObject,
         prepared.revalidateAll,
       );
+    },
+    /**
+     * #244 controlled late-observation ingestion. There is no public operation:
+     * the transport presents its own trusted `runLateFinalIsolateV1` Decision
+     * for the exact `{runRef, attemptRef, requestedAt}` request, and the entry
+     * mints the independent IG/bundle dependency Decisions before any protected
+     * read. The owning TE handler only appends the redacted LATE_RESULT audit.
+     */
+    async isolateLateFinal(value: unknown, session: ControlledFirstRunSession) {
+      const request = record(structuredClone(value));
+      const runRef = record(request.runRef) as CanonicalJsonObject;
+      const attemptRef = record(request.attemptRef) as CanonicalJsonObject;
+      const requestedAt = String(request.requestedAt);
+      const scope = record(runRef.scope);
+      if (typeof scope.enterpriseId !== 'string' || typeof scope.projectId !== 'string')
+        entryError('SCOPE_MISMATCH', 'Project scope required');
+      const isolationPayload = { runRef, attemptRef, requestedAt } as CanonicalJsonObject;
+      const payloadHash = payloadHashOf(isolationPayload);
+      const sessionHash = sessionAuthenticationContextHash(session);
+      const decisionRef = decisionReference(request.authorizationDecisionRef);
+      const row = await boundary.readDecisionRow(decisionRef, {
+        scopeKind: 'PROJECT',
+        enterpriseId: scope.enterpriseId,
+        projectId: scope.projectId,
+      });
+      assertActorBinding(session.resolutionActorSnapshotRef, row);
+      const deps = boundary.identityDeps(identityContext(row));
+      const revalidation = {
+        decisionRef,
+        expectedCommandType: 'execution.run.late_final.isolate',
+        expectedCommandVersion: '1.0',
+        expectedCommandPayloadHash: payloadHash,
+        expectedAuthenticationContextHash: sessionHash,
+        expectedTargetRef: runRef as unknown as Common.ObjectRef,
+      };
+      const revalidateIsolation = async () => {
+        const result = await auth.revalidate(deps, 'runLateFinalIsolateV1', revalidation);
+        if (!result.valid)
+          entryError(
+            'AUTHORIZATION_REVOKED',
+            'late final isolation authorization is no longer current',
+          );
+      };
+      await revalidateIsolation();
+      const context: TaskExecutionTransactionContext = {
+        ...identityContext(row),
+        principalKind: row.principal_kind as TaskExecutionTransactionContext['principalKind'],
+        policySnapshotId: row.policy_snapshot_id,
+        correlationId: String(request.correlationId),
+      };
+      const dependency = async (key: Boundary, ref: CanonicalJsonObject) => {
+        const result = await auth.authorize(deps, key, {
+          actorSnapshotRef: session.resolutionActorSnapshotRef,
+          commandType: 'execution.run.late_final.isolate',
+          commandVersion: '1.0',
+          commandPayloadHash: payloadHash,
+          authenticationContextHash: sessionHash,
+          targetRef: ref as unknown as Common.ObjectRef,
+        });
+        if (result.outcome !== 'ALLOW')
+          entryError('AUTHORIZATION_REVOKED', 'late final dependency read denied');
+        const checkInput = {
+          ...revalidation,
+          decisionRef: result.authorizationDecisionRef,
+          expectedTargetRef: ref as unknown as Common.ObjectRef,
+        };
+        const proof = async () => {
+          const validity = await auth.revalidate(deps, key, checkInput);
+          if (!validity.valid)
+            entryError('AUTHORIZATION_REVOKED', 'late final dependency read revoked');
+        };
+        await proof();
+        return {
+          proof,
+          context: {
+            ...context,
+            authorizationDecisionId: result.authorizationDecisionRef.objectId,
+            authorizationDecisionHash: Buffer.from(
+              result.authorizationDecisionRef.contentHash.digest,
+              'hex',
+            ),
+            authorizationDecisionExpiresAt: new Date(result.expiresAt),
+          },
+        };
+      };
+      const runtimeService = (proof: {
+        context: TaskExecutionTransactionContext;
+        proof: () => Promise<void>;
+      }) =>
+        new ControlledRuntimeDispatchService(
+          config.integrationGatewayDb,
+          config.runtimeDriver,
+          config.receiptStorage,
+          {
+            now,
+            revalidateAuthorization: proof.proof,
+            readDispatchBinding: () => Promise.reject(new Error('unused')),
+            readBundle: () => Promise.reject(new Error('unused')),
+            authorizeReceipt: () => Promise.reject(new Error('unused')),
+          },
+        );
+      return isolateLateFinalResult(config.taskExecutionDb, context, { runRef, attemptRef }, {
+        now,
+        revalidateIsolation,
+        readBinding: async (ref) => {
+          const proof = await dependency('lateFinalBindingReadV1', ref);
+          return (await runtimeService(proof).getBinding(
+            proof.context,
+            ref as unknown as Common.ObjectRef,
+          )) as unknown as CanonicalJsonObject;
+        },
+        readFinal: async (ref) => {
+          const proof = await dependency('lateFinalObservationReadV1', ref);
+          return (await runtimeService(proof).getFinal(
+            proof.context,
+            ref as unknown as Common.ObjectRef,
+          )) as unknown as CanonicalJsonObject;
+        },
+        inspectBundle: async (ref, isolationRunRef) => {
+          const proof = await dependency('lateFinalBundleInspectV1', ref);
+          await readIntegrityForExpiry(
+            config.identity.db,
+            proof.context,
+            ref,
+            isolationRunRef,
+            proof.proof,
+          );
+        },
+      } satisfies LateFinalIsolationPorts);
     },
     async getRuntimeFinalObservation(value: unknown, session: ControlledFirstRunSession) {
       const prepared = await prepare(value, session, 'integration.get_runtime_final_observation');

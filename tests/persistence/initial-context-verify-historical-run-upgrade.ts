@@ -94,69 +94,7 @@ export interface VerifyHistoricalRunUpgradeContext {
     integrationGatewayDb: Kysely<IntegrationRendererDb>;
     runtimeDriver: LocalSyntheticRuntimeDriver;
     receiptStorage: InMemoryRenderObjectStorage;
-    capabilityCodes: Readonly<
-      Record<
-        | 'workOrderQueueV1'
-        | 'executionBundleIssueV1'
-        | 'runCreateV1'
-        | 'runDispatchBindingReadV1'
-        | 'runtimeDispatchV1'
-        | 'runtimeReceiptRecordV1'
-        | 'runtimeAttemptBindingReadV1'
-        | 'runStartV1'
-        | 'workOrderReconcileV1'
-        | 'bundleIssueContractReadV1'
-        | 'bundleIssueContextReadV1'
-        | 'queueContractReadV1'
-        | 'queueContextReadV1'
-        | 'runCreateContractReadV1'
-        | 'runCreateContextReadV1'
-        | 'runCreateBundleReadV1'
-        | 'runtimeDispatchBundleReadV1'
-        | 'runStartBundleReadV1'
-        | 'runStartAttemptReadV1'
-        | 'runStartAdapterIdentityReadV1'
-        | 'workOrderReconcileRunReadV1'
-        | 'runtimeFinalObserveV1'
-        | 'runtimeFinalReadV1'
-        | 'runFinalCandidateScanV1'
-        | 'runFinalProcessProgressV1'
-        | 'agentResultSubmitV1'
-        | 'runResultRecordV1'
-        | 'agentResultValidateV1'
-        | 'agentResultAcceptV1'
-        | 'runFinalizeV1'
-        | 'runExpireV1'
-        | 'agentResultReadV1'
-        | 'runStateReadV1'
-        | 'resultSubmitBindingReadV1'
-        | 'resultSubmitFinalReadV1'
-        | 'resultSubmitBundleReadV1'
-        | 'resultSubmitPolicyReadV1'
-        | 'resultRecordBindingReadV1'
-        | 'resultRecordFinalReadV1'
-        | 'resultRecordBundleReadV1'
-        | 'resultRecordPolicyReadV1'
-        | 'resultValidateBindingReadV1'
-        | 'resultValidateFinalReadV1'
-        | 'resultValidateBundleReadV1'
-        | 'resultValidatePolicyReadV1'
-        | 'resultAcceptBindingReadV1'
-        | 'resultAcceptFinalReadV1'
-        | 'resultAcceptBundleReadV1'
-        | 'resultAcceptPolicyReadV1'
-        | 'runFinalizeBindingReadV1'
-        | 'runFinalizeFinalReadV1'
-        | 'runFinalizeBundleReadV1'
-        | 'runFinalizePolicyReadV1'
-        | 'resultRecordSourceReadV1'
-        | 'resultValidateSourceReadV1'
-        | 'resultAcceptSourceReadV1'
-        | 'runFinalizeSourceReadV1'
-        | 'runExpireBundleInspectV1',
-        string
-      >
-    >;
+    capabilityCodes: ScenarioFirstRunCodes;
     formalCompletion?: FormalCompletionEntryConfig;
   };
   readonly contextRef: Common.SnapshotRef;

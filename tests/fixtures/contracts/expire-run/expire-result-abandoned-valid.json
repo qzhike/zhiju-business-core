@@ -1,0 +1,13 @@
+{
+  "runRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.run",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d511",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "status": "ABANDONED",
+  "endedAt": "2026-08-17T01:30:00Z"
+}

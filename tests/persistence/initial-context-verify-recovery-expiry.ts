@@ -188,12 +188,15 @@ export async function verifyRecoveryExpiry(
         createProgress: () => Promise.reject(new Error('timed-out Process must not be recreated')),
         advanceProgress: () =>
           Promise.reject(new Error('timed-out Process must not advance owning steps')),
-        suspendTimedOutProgress: async (progress) => {
+        suspendTimedOutProgress: async (
+          progress,
+          observedStatus: 'TIMED_OUT' | 'CANCELLING' | 'ABANDONED',
+        ) => {
           const payload = {
             runRef: progress.runRef,
             sourceRef: progress.sourceRef,
             step: progress.step,
-            observedStatus: 'TIMED_OUT',
+            observedStatus,
           } as CanonicalJsonObject;
           const authorized = await scenarioState.progressAuthorization(payload);
           expect(
@@ -210,6 +213,7 @@ export async function verifyRecoveryExpiry(
               progress,
               async (currentRunRef) => (await readExpiredRun(currentRunRef)).status,
               authorized.proof,
+              observedStatus,
             ),
           ).toMatchObject({ status: 'COMMITTED' });
         },

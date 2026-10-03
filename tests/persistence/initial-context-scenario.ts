@@ -159,6 +159,11 @@ import {
   type VerifyRecoverySqlContext,
 } from './initial-context-verify-recovery-sql.js';
 import {
+  type CancelVariant,
+  verifyRunCancellation,
+  type VerifyRunCancellationContext,
+} from './initial-context-verify-run-cancellation.js';
+import {
   verifyRunCreation,
   type VerifyRunCreationContext,
 } from './initial-context-verify-run-creation.js';
@@ -216,7 +221,8 @@ export function createRunScenario(suite: InitialContextSuite) {
       | 'VALIDATION_EXPIRED'
       | 'UNSUPPORTED_FINAL'
       | 'TIMED_OUT_BUNDLE_EXPIRED'
-      | 'NON_FINAL_CORE_REJECT',
+      | 'NON_FINAL_CORE_REJECT'
+      | 'RUN_CANCEL',
     negativeFinalCase:
       | 'RUNTIME_USAGE'
       | 'OUTCOME'
@@ -256,6 +262,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       | 'SECOND_FAILED' = 'NORMAL',
     deliveryRequiredRelease = false,
     deliverySchedule?: DeliveryScheduleHooks,
+    cancelVariant?: CancelVariant,
   ) => {
     const stageDependencies: VerifyPreparationValidationContext &
       VerifyRecoverySqlContext &
@@ -278,7 +285,8 @@ export function createRunScenario(suite: InitialContextSuite) {
       VerifySubmissionBindingContext &
       VerifySubmissionConcurrencyContext &
       VerifyBoundedRecoveryContext &
-      VerifyHistoricalReadPermissionsContext = {
+      VerifyHistoricalReadPermissionsContext &
+      VerifyRunCancellationContext = {
       get exercisePreparationMatrix() {
         return exercisePreparationMatrix;
       },
@@ -551,6 +559,9 @@ export function createRunScenario(suite: InitialContextSuite) {
       },
       get terminalScenario() {
         return terminalScenario;
+      },
+      get cancelVariant() {
+        return cancelVariant;
       },
       get workOrderRef() {
         return workOrderRef;
@@ -975,7 +986,12 @@ export function createRunScenario(suite: InitialContextSuite) {
       terminalScenario === 'BOUNDED_RECOVERY' ||
       terminalScenario === 'FORMAL_RECOVERED' ||
       terminalScenario === 'FORMAL_DELIVERY_RECOVERED' ||
-      terminalScenario.startsWith('FORMAL_REQUEST_');
+      terminalScenario.startsWith('FORMAL_REQUEST_') ||
+      // #244: the supported Human cancel path needs the two-attempt Controls
+      // @1.1 profile and a real creation-time budget reservation. The
+      // CANCEL-D-005 unsupported-profile phase deliberately uses the
+      // single-attempt profile instead.
+      (terminalScenario === 'RUN_CANCEL' && cancelVariant?.bounded !== false);
     // Exercise shared refusal, replay and fault matrices once on the normal chain.
     // Repeating it in every variant consumes the short-lived Context before
     // the variant reaches its own session/outcome/expiry boundary.
@@ -1216,7 +1232,8 @@ export function createRunScenario(suite: InitialContextSuite) {
               ? 'PT30S'
               : terminalScenario === 'RACE' ||
                   terminalScenario === 'LOCK_DEADLINE' ||
-                  terminalScenario === 'FORMAL_TTL'
+                  terminalScenario === 'FORMAL_TTL' ||
+                  terminalScenario === 'RUN_CANCEL'
                 ? 'PT30S'
                 : 'PT600S';
     if (terminalScenario === 'FORMAL_TTL') record(revised.budget).wallClockLimit = 'PT30S';
@@ -1418,6 +1435,12 @@ export function createRunScenario(suite: InitialContextSuite) {
       delete record(revised.budget).toolCallLimit;
       delete record(revised.budget).monetaryLimit;
     }
+    if (terminalScenario === 'RUN_CANCEL')
+      // The Human cancel Handler deep-equals payload.cancellationPolicyRef
+      // against the frozen contract and requires it to resolve USABLE, so pin
+      // it to the registered Controls PolicyVersion.
+      record(revised.executionPolicy).cancellationPolicyRef =
+        controlsRef as unknown as CanonicalJsonObject;
     const controlFields = [
       'targetScope',
       'allowedCapabilities',
@@ -2744,7 +2767,10 @@ export function createRunScenario(suite: InitialContextSuite) {
       terminalScenario === 'TERMINAL_BEFORE_FINAL' ||
       terminalScenario === 'FORMAL_LATE' ||
       terminalScenario === 'TIMED_OUT_BUNDLE_EXPIRED' ||
-      terminalScenario === 'NON_FINAL_CORE_REJECT'
+      terminalScenario === 'NON_FINAL_CORE_REJECT' ||
+      // #244: the original final is released only after cancellation so the
+      // late-observation isolation path sees a real delayed final.
+      terminalScenario === 'RUN_CANCEL'
     )
       runtimeDriver.releaseFinal = () => Promise.resolve();
     if (terminalScenario === 'FORMAL_EMPTY') {
@@ -3060,7 +3086,8 @@ export function createRunScenario(suite: InitialContextSuite) {
                   ? 30_000
                   : terminalScenario === 'RACE' ||
                       terminalScenario === 'LOCK_DEADLINE' ||
-                      terminalScenario === 'FORMAL_TTL'
+                      terminalScenario === 'FORMAL_TTL' ||
+                      terminalScenario === 'RUN_CANCEL'
                     ? 30_000
                     : 600_000),
       ),
@@ -3638,6 +3665,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       return;
     }
     if (await verifyTerminalExpiry(stageDependencies)) return;
+    if (await verifyRunCancellation(stageDependencies)) return;
     await expect(
       firstRunEntry.getRuntimeFinalObservation(finalQuery, suite.sessionFor(service)),
     ).rejects.toMatchObject({ code: 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND' });
