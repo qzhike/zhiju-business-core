@@ -1,5 +1,62 @@
 # PR #247 独立实现审查
 
+## 最新复审（2026-10-04，修复 head dd8fc115）
+
+**REQUEST_CHANGES**。F1 关闭；F2 两个原始反例已修复，但 ack 的完整来源绑定仍有缺口；F3 有新增执行证据，但尚未满足全部明确验收。下方首轮记录保留为历史，不代表当前 head 的全部判断。
+
+- Reviewed head：`dd8fc1150d3c986d4af83fac67d6ce922e4ab692`；base 仍为 `e1b201ef85f0e75d3f816d94600f9810116b22ab`。
+- 独立读取最新 Issue/PR、上轮 `69bc935` 到当前 head 的 12 文件修复 diff、owning 规格、测试实现和当前提交 CI。Issue 验收没有修改；PR 原 Verification 摘要仍描述首轮范围，不能用其旧文字判断新证据。
+- 用户授权本轮复审及 PR comment 发布。本轮只修改正式审查记录，没有修复实现、commit、push 或 merge。
+
+| 首轮 finding | 当前判断 | 依据 |
+| --- | --- | --- |
+| F1 / P1：原 final 与 TE Result/Claim 关联 | CLOSED | `finalBindsCommittedFacts` 在 evidence 构造前关联原 final、Run/冻结 Contract、实际 Context、Capability、runtime/session/time 及 Result/Claim 的身份、body Hash、提交引用和 fencing；对应 intact 正对照与逐项负例已进入当前 CI。原不同 body Hash 的声明不再可达 PRESENT 分支。 |
+| F2 / P2：canonical 与返回镜像 | PARTIALLY FIXED / BLOCKING | 新增 final/ack mirror 校验，独立复跑两个原始反例均返回 owning integrity error；完整 RawReceipt Ref/hash 与 ack bindingHash 仍未绑定，见 F2-R1。 |
+| F3 / P2：明确验收缺口 | PARTIALLY FIXED / BLOCKING | 当前 CI 执行 7 个 Usage PostgreSQL 测试，新增 Run-2、ABANDONED、首次 Run SELECT 后撤 Human Grant；已接纳历史保留仍 NOT RUN，快照调度缺少到达屏障的等待，见 F3-R1/R2。 |
+
+### F2-R1 / P2：ack 自身 Hash 正确但原调用/RawReceipt 来源错误仍通过
+
+位置：`modules/integration-gateway/src/runtime/controlled-runtime-dispatch.ts:1254–1288`。
+
+新增检查对 canonical ack 的 Attempt/RawReceipt 只比较 objectId 和 Scope，没有将 canonical `bindingHash` 关联到原 runtime_attempt 的 binding_hash，也没有将 canonical `rawReceiptRef` 的完整 kind/objectType/contentHash 与真实 RawReceipt 完整 Ref 比较。后续独立重算 receipt 自身 Hash 不能替代 ack→receipt 的精确来源绑定。
+
+两项独立纯反例均以当前 intact fixture 为基线，只改 ack canonical 的一项来源引用并重算 ack 自身 observation_hash，其他行和 mirrors 保持原值：
+
+1. 将 ack payload.bindingHash 换成另一合法 SHA-256。`getUsageRuntimeBinding` 仍返回成功 acknowledgement，返回 bindingHash 与 ack payload.bindingHash 不同；`getUsageFinalObservation` 也成功。
+2. 将 ack payload.rawReceiptRef.contentHash 换成另一合法 SHA-256。Binding read 仍返回成功并重建真实 receipt hash，该值与 ack 内引用 hash 不同；final read 也成功。
+
+这证明严格读取仍接受“自洽但来源错误”的 ack。不是要求普通调用者能改库，也没有执行 PostgreSQL guard/注入诊断；Spec 007 IM06-USAGE 与 Issue Acceptance 6 明确要求验证原 Binding/ack/Receipt 关系，不能只验证各对象自己的 Hash。
+
+修复：把预期原 invocation bindingHash 传入 ack 校验，并比较完整 Attempt Ref、完整 RawReceipt Ref（含 kind/objectType/Scope/contentHash）与已验证 owning 事实；补上述自洽错源负例及 intact 正对照。损坏继续 no data/owning integrity error，不降级 not-found。
+
+### F3-R1 / P2：已接纳历史到期/拒绝重交的验收仍未执行
+
+位置：Module-Test-003 USAGE-D-004（第 637 行）与 `tests/persistence/usage-provenance.test.ts`。
+
+新增 ABANDONED 和 submit-only 对照已有当前证据，但 owning 矩阵仍明确记录“原已接纳历史在到期/迟到重交后不被抹除仍未执行”。Issue Acceptance 4 要求保留早先 ACCEPTED Result/Acceptance 与声明；Acceptance 5 要求旧执行资格失效后以新当前读权读取合法历史。没有获授权放宽验收，故首轮 F3 的这一部分仍阻断。补合法 owning 历史、实际到期/后续拒绝重交与新 read authority 的读回，不能直接写业务表制造正例。
+
+另须纠正当前证据表述：`expireAfterIssue` 在进入 composition 前将 fixture clock 增加一天，并断言 protectedReads=[]，证明入口前 Decision 到期拒绝，不证明“返回检查点到期”。若要声称读取中到期的 checkpoint 覆盖，应在实际 protected-read 屏障后使 Decision 到期并断言无 data。新测试实际已执行的到期/读取后 Human 撤权、Run-2 与 ABANDONED 证据，应同步 owning IP/IG 矩阵；其当前部分 NOT RUN 文字仍落后于真实执行。
+
+### F3-R2 / P2：快照竞争没有等待旧 snapshot 到达屏障
+
+位置：`tests/persistence/usage-provenance.test.ts:220–229`、`:448–458`、`:707–718`。
+
+两处 hook 均 `armGate(); paused = h.runUsage(runRef); return;`，随后 scenario 开始 owning Acceptance/isolation 写入。runUsage 在业务 SELECT 前仍需异步签发 Human/source Decision 和多次当前授权检查；`armGate` 只创建 release Promise，没有“Run SELECT 已完成”的 reached Promise。写入侧没有 await reached，因此不保证 snapshot 已建立再提交 child。调度可先提交 child，再释放尚未到达的 gate；Query 随后看到新事实，预期 UNKNOWN 断言取决于运行时序。
+
+当前 CI 确实跑过且断言通过，但这不能支持 Issue Acceptance 7 / Module-Test-003 所声称的确定性两连接安排。修复：从首次 Run SELECT 的 transformResult 发出独立 reached 信号，writer 在提交 child 前等待该信号，再 commit→release→await Query；失败路径保证 release/drain，随后新 Query 确认新 fact。不用延时或增加测试预算代替屏障。
+
+### 本轮证据与边界
+
+- [CI run 37197255379](https://github.com/qzhike/zhiju-business-core/actions/runs/37197255379) headSha 精确等于本轮 reviewed head；select/checks/persistence/verify 均 SUCCESS。沿用已核对的 full workflow；本轮不重复运行本地 full。
+- 持久化：46 files / 580 tests PASS；Usage 文件 7 tests PASS，实际包含 normal、CANCELLING、ABANDONED、BLOCKED_INPUT recovery、late-audit snapshot、权限、allowlist；second migrate no-op。语义与调度问题不被绿色 gate 消除。
+- 独立 focused diagnostic：本地 Vitest 临时 probe 7 tests PASS，包括 intact 正对照、两个原始 mirror 反例的拒绝，以及 F2-R1 两项错源仍通过的复现断言；另外两个既有安全正例保留。PASS 表示这些断言被执行，不提升为 PostgreSQL guard 证据。仓库 probe 已移除，副本保留 `/private/tmp/pr247-rereview-probe.test.ts`（相对 imports 基于原 `modules/integration-gateway/src/runtime/`）。
+- 公共 Schema/metadata/fixture/registry/migration 与授权 composition 本轮修复未改，首轮兼容字段矩阵继续有效。外部 Provider/CLI/飞书、public HTTP/UI、transport wrapper、生产/负载及独立人工验收保持 NOT RUN。
+- 适用的人类实现技术审查与交付门禁仍独立存在；先修复当前已知阻断，再复审新 head，不以设计批准代替实现批准。
+
+[本轮复审 comment 已发布](https://github.com/qzhike/zhiju-business-core/pull/247#issuecomment-5979989775)，读回正文与发布稿一致；发布后 head 仍为 `dd8fc1150d3c986d4af83fac67d6ce922e4ab692`，PR OPEN。这是普通 comment，不是 GitHub 正式 REQUEST_CHANGES Review；正式记录本轮修改未提交。
+
+## 首轮审查（历史 head 69bc935）
+
 日期：2026-10-04。结果：**REQUEST_CHANGES**。
 
 - PR：[Human Run Usage and Provenance readback](https://github.com/qzhike/zhiju-business-core/pull/247)，关联 [Issue #246](https://github.com/qzhike/zhiju-business-core/issues/246)。

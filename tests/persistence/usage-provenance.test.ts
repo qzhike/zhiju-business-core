@@ -75,6 +75,7 @@ interface UsageHarness {
       readonly decisionTarget?: Common.ObjectRef;
       readonly revokeAfterIssue?: boolean;
       readonly expireAfterIssue?: boolean;
+      readonly expireAtBarrier?: boolean;
       readonly barrier?: () => Promise<void>;
     },
   ) => Promise<CanonicalJsonObject>;
@@ -87,7 +88,7 @@ interface UsageHarness {
   ) => Promise<{ status: string; aggregate_version: string } | undefined>;
   readonly revokeGrant: (key: keyof UsageProvenanceCapabilityCodes) => Promise<void>;
   readonly restoreGrant: (key: keyof UsageProvenanceCapabilityCodes) => Promise<void>;
-  readonly armGate: (action?: () => Promise<void>) => void;
+  readonly armGate: (action?: () => Promise<void>) => Promise<void>;
   readonly releaseGate: () => void;
   readonly humanDecisionForAgent: (runRef: Common.ObjectRef) => Promise<string>;
 }
@@ -163,6 +164,7 @@ describe.skipIf(!gateEnabled)(
       let gateAction: (() => Promise<void>) | undefined;
       let gatePromise: Promise<void> | undefined;
       let gateRelease: (() => void) | undefined;
+      let gateReach: (() => void) | undefined;
       let gateQueryId: QueryId | undefined;
       const queryProbe: KyselyPlugin = {
         transformQuery(args) {
@@ -182,8 +184,11 @@ describe.skipIf(!gateEnabled)(
             gateQueryId = undefined;
             const action = gateAction;
             const pending = gatePromise;
+            const reach = gateReach;
             gateAction = undefined;
             gatePromise = undefined;
+            gateReach = undefined;
+            reach?.();
             if (action !== undefined) await action();
             else if (pending !== undefined) await pending;
           }
@@ -217,12 +222,16 @@ describe.skipIf(!gateEnabled)(
        * read keeps its REPEATABLE READ snapshot. `action` runs at the barrier
        * instead of waiting for an explicit release.
        */
-      function armGate(action?: () => Promise<void>): void {
+      function armGate(action?: () => Promise<void>): Promise<void> {
         gateAction = action;
+        const reached = new Promise<void>((resolve) => {
+          gateReach = resolve;
+        });
         gatePromise = new Promise<void>((resolve) => {
           gateRelease = resolve;
         });
         gateQueryId = undefined;
+        return reached;
       }
 
       function releaseGate(): void {
@@ -235,6 +244,7 @@ describe.skipIf(!gateEnabled)(
           readonly decisionTarget?: Common.ObjectRef;
           readonly revokeAfterIssue?: boolean;
           readonly expireAfterIssue?: boolean;
+          readonly expireAtBarrier?: boolean;
           readonly barrier?: () => Promise<void>;
         } = {},
       ): Promise<CanonicalJsonObject> {
@@ -296,8 +306,20 @@ describe.skipIf(!gateEnabled)(
           requestedAt: new Date(suite.clock).toISOString(),
           payload,
         };
+        if (options.expireAtBarrier === true) {
+          const saved = suite.clock;
+          void armGate(() => {
+            suite.clock = saved + 86_400_000;
+            return Promise.resolve();
+          });
+          try {
+            return await entry.getUsageAndProvenance(envelope, session);
+          } finally {
+            suite.clock = saved;
+          }
+        }
         if (options.expireAfterIssue !== true) {
-          if (options.barrier !== undefined) armGate(options.barrier);
+          if (options.barrier !== undefined) void armGate(options.barrier);
           return entry.getUsageAndProvenance(envelope, session);
         }
         const issuedClock = suite.clock;
@@ -446,11 +468,14 @@ describe.skipIf(!gateEnabled)(
           undefined,
           async (stage, runRef) => {
             if (stage === 'SUBMITTED') {
-              // Deterministic two-connection Acceptance schedule: fix the read
-              // snapshot before the owning Acceptance commits, then pause it
-              // after its first Run read while the scenario keeps running.
-              h.armGate();
+              // Deterministic two-connection Acceptance schedule: wait for the
+              // read to reach its first Run SELECT (snapshot fixed) before the
+              // owning Acceptance commits, then pause it while the scenario
+              // keeps running.
+              const reached = h.armGate();
               paused = h.runUsage(runRef);
+              paused.catch(() => undefined);
+              await reached;
               return;
             }
             if (stage === 'ACCEPTED') {
@@ -554,6 +579,22 @@ describe.skipIf(!gateEnabled)(
         expect(await h.counts()).toEqual(before);
         expect(await h.runRow(runId)).toEqual(beforeRow);
         expect(h.writes()).toEqual([]);
+        // The later conflicting resubmission was rejected and left the accepted
+        // declaration intact.
+        const acceptedEvidence = (finalized.provenance as CanonicalJsonObject)
+          .resultEvidence as CanonicalJsonObject;
+        const acceptedValue = acceptedEvidence.value as CanonicalJsonObject;
+        const acceptedResultId = (acceptedValue.agentResultRef as CanonicalJsonObject).objectId;
+        const rejected = (
+          await suite.admin.query<{ count: string }>(
+            `SELECT count(*)::text AS count FROM task_execution.audit_record
+             WHERE target_id=$1 AND command_type='execution.submit_agent_result'
+               AND outcome='DENIED' AND error_code='EXECUTION_FINAL_CONFLICT'`,
+            [acceptedResultId],
+          )
+        ).rows[0];
+        expect(Number(rejected?.count ?? 0)).toBeGreaterThan(0);
+        expect(reread.agentDeclaredUsage).toMatchObject({ presence: 'PRESENT' });
       },
       900_000,
     );
@@ -619,6 +660,35 @@ describe.skipIf(!gateEnabled)(
         });
         expect(result.authoritativeSource).toBe('UNAVAILABLE');
         expect(result.runtimeUsageRef).toBeUndefined();
+      },
+      900_000,
+    );
+
+    suite.itIntegration(
+      'USAGE-D-004 accepted history survives execution eligibility expiry',
+      async () => {
+        const h = await usageHarness();
+        const runId = succeededRunId ?? (await latestRunId(['SUCCEEDED']));
+        const runRef = runRefOf(runId);
+        const before = await h.runUsage(runRef);
+        expect(before.agentDeclaredUsage).toMatchObject({ presence: 'PRESENT' });
+        const saved = suite.clock;
+        // Advance the trusted clock far past the Run lease/deadline: the
+        // historical read must not require current execution eligibility, and
+        // must not rewrite the accepted declaration.
+        suite.clock = saved + 365 * 24 * 60 * 60 * 1000;
+        try {
+          const after = await h.runUsage(runRef);
+          expect(after.agentDeclaredUsage).toMatchObject({ presence: 'PRESENT' });
+          const stable = (value: CanonicalJsonObject) => {
+            const provenance = { ...(value.provenance as CanonicalJsonObject) };
+            delete provenance.snapshotAt;
+            return { ...value, provenance };
+          };
+          expect(stable(after)).toEqual(stable(before));
+        } finally {
+          suite.clock = saved;
+        }
       },
       900_000,
     );
@@ -705,12 +775,14 @@ describe.skipIf(!gateEnabled)(
           { row: 'IG-CANCEL-D-001', bounded: true, phase: 'CANCELLING' },
           async (stage, runRef) => {
             if (stage === 'CANCELLED') {
-              // The original IG final is committed; start a read whose snapshot
-              // is fixed here, then pause it after its first Run read while the
+              // The original IG final is committed; wait for the read to reach
+              // its first Run SELECT (snapshot fixed), then pause it while the
               // owning isolation command commits the LATE_RESULT audit on
               // another connection.
-              h.armGate();
+              const reached = h.armGate();
               paused = h.runUsage(runRef);
+              paused.catch(() => undefined);
+              await reached;
               return;
             }
             if (stage === 'ISOLATED') {
@@ -763,11 +835,22 @@ describe.skipIf(!gateEnabled)(
           presence: 'PRESENT',
         });
 
-        // An expired Decision fails the return checkpoint without data.
+        // An already-expired Decision is rejected at entry time, before any
+        // protected read.
         await expect(h.runUsage(runRef, { expireAfterIssue: true })).rejects.toMatchObject({
           code: 'AUTHORIZATION_REVOKED',
         });
         expect(h.protectedReads()).toEqual([]);
+        expect((await h.runUsage(runRef)).agentDeclaredUsage).toMatchObject({
+          presence: 'PRESENT',
+        });
+
+        // A Decision that expires after the read barrier fails the return
+        // checkpoint: the protected reads already ran, but no data is returned.
+        await expect(h.runUsage(runRef, { expireAtBarrier: true })).rejects.toMatchObject({
+          code: 'AUTHORIZATION_REVOKED',
+        });
+        expect(h.protectedReads().length).toBeGreaterThan(0);
         expect((await h.runUsage(runRef)).agentDeclaredUsage).toMatchObject({
           presence: 'PRESENT',
         });

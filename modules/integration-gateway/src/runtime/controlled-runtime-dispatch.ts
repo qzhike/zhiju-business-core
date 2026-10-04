@@ -952,6 +952,7 @@ export class ControlledRuntimeDispatchService {
           subjectScope,
           USAGE_CODES.bindingInvalid,
           observation,
+          row.binding_hash.toString('hex'),
         );
         acknowledgement = {
           observationId: observation.observation_id,
@@ -1241,6 +1242,7 @@ export class ControlledRuntimeDispatchService {
     subjectScope: Common.ScopeRef,
     code: string,
     observation: Selectable<RuntimeAttemptObservationTable>,
+    expectedBindingHashHex: string,
   ): Promise<Selectable<RawExternalReceiptTable>> {
     if (
       observation.attempt_id !== ref.objectId ||
@@ -1254,16 +1256,6 @@ export class ControlledRuntimeDispatchService {
     const canonicalObservation = objectWith(code, observation.observation_payload);
     const canonicalAttemptRef = objectWith(code, canonicalObservation.attemptRef);
     const canonicalRawReceiptRef = objectWith(code, canonicalObservation.rawReceiptRef);
-    if (
-      canonicalAttemptRef.objectId !== observation.attempt_id ||
-      !same(canonicalAttemptRef.scope, subjectScope) ||
-      canonicalRawReceiptRef.objectId !== observation.raw_receipt_id ||
-      !same(canonicalRawReceiptRef.scope, subjectScope) ||
-      !same(canonicalObservation.runtimeSessionRef, observation.runtime_session_ref) ||
-      canonicalObservation.acknowledgedAt !== observation.acknowledged_at.toISOString() ||
-      canonicalObservation.source !== observation.acknowledgement_source
-    )
-      invalid(code);
     const receipt = await trx
       .selectFrom('integration_gateway.raw_external_receipt')
       .selectAll()
@@ -1283,6 +1275,25 @@ export class ControlledRuntimeDispatchService {
         receiptPayloadHash: hash(receipt.receipt_payload_hash.toString('hex')),
         recordedAt: receipt.recorded_at.toISOString(),
       } as unknown as CanonicalJsonValue) !== receipt.receipt_content_hash.toString('hex')
+    )
+      invalid(code);
+    // The canonical acknowledgement must bind its own source, not merely be
+    // self-consistent: its binding hash must equal the verified attempt's
+    // binding hash and its complete RawReceipt reference must equal the
+    // independently verified receipt reference.
+    if (
+      canonicalAttemptRef.objectId !== observation.attempt_id ||
+      !same(canonicalAttemptRef.scope, subjectScope) ||
+      canonicalRawReceiptRef.objectId !== observation.raw_receipt_id ||
+      !same(canonicalRawReceiptRef.scope, subjectScope) ||
+      !same(canonicalObservation.bindingHash, hash(expectedBindingHashHex)) ||
+      !same(
+        canonicalRawReceiptRef,
+        receiptRef(receipt.receipt_id, receipt.receipt_content_hash.toString('hex'), subjectScope),
+      ) ||
+      !same(canonicalObservation.runtimeSessionRef, observation.runtime_session_ref) ||
+      canonicalObservation.acknowledgedAt !== observation.acknowledged_at.toISOString() ||
+      canonicalObservation.source !== observation.acknowledgement_source
     )
       invalid(code);
     return receipt;
@@ -1325,7 +1336,14 @@ export class ControlledRuntimeDispatchService {
       .where('observation_id', '=', identity.ack_observation_id)
       .executeTakeFirst();
     if (observation === undefined) invalid(code);
-    await this.validateUsageAcknowledgement(trx, ref, subjectScope, code, observation);
+    await this.validateUsageAcknowledgement(
+      trx,
+      ref,
+      subjectScope,
+      code,
+      observation,
+      attempt.binding_hash.toString('hex'),
+    );
     return observation;
   }
 

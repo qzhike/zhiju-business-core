@@ -5587,6 +5587,23 @@ export function createRunScenario(suite: InitialContextSuite) {
       }
     }
     if (await verifyHistoricalReadPermissions(stageDependencies)) return;
+    if (usageProbe !== undefined && terminalScenario === 'SUCCEEDED') {
+      // A later conflicting resubmission is rejected by the owning handler and
+      // cannot erase the accepted immutable Result/Acceptance.
+      const conflicting = await firstRunEnvelope(
+        'execution.submit_agent_result',
+        resultTarget,
+        {
+          agentResultContract: { ...resultBody, humanSummary: 'Conflicting late body.' },
+          runFencingToken: 1,
+          runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+        },
+        service,
+      );
+      await expect(
+        firstRunEntry.submitAgentResult(conflicting, suite.sessionFor(service)),
+      ).rejects.toBeDefined();
+    }
     await usageProbe?.('FINALIZED', runRef);
     observeValidations?.({ ...finalValidations, acceptanceRecordRef } as CanonicalJsonObject);
   };

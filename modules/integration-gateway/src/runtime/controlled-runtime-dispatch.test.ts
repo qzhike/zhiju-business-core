@@ -589,6 +589,64 @@ describe('ControlledRuntimeDispatchService strict usage reads', () => {
     ).rejects.toMatchObject({ code: BINDING_INVALID });
   });
 
+  it('rejects a self-consistent acknowledgement whose source hash differs from the verified facts', async () => {
+    const bindingSource = makeFixture();
+    const bindingRow = fixtureRow(
+      bindingSource.tables,
+      'integration_gateway.runtime_attempt_observation',
+    );
+    const bindingPayload = bindingRow.observation_payload as Record<string, unknown>;
+    bindingPayload.bindingHash = {
+      algorithm: 'SHA-256',
+      canonicalizationVersion: '1',
+      digest: 'f'.repeat(64),
+    };
+    bindingRow.observation_hash = Buffer.from(
+      sha256CanonicalJson(bindingPayload as unknown as CanonicalJsonValue),
+      'hex',
+    );
+    await expect(
+      makeService(bindingSource.tables).getUsageRuntimeBinding(
+        bindingSource.context,
+        bindingSource.ref,
+      ),
+    ).rejects.toMatchObject({ code: BINDING_INVALID });
+    await expect(
+      makeService(bindingSource.tables).getUsageFinalObservation(
+        bindingSource.context,
+        bindingSource.ref,
+      ),
+    ).rejects.toMatchObject({ code: FINAL_INVALID });
+
+    const receiptSource = makeFixture();
+    const receiptRow = fixtureRow(
+      receiptSource.tables,
+      'integration_gateway.runtime_attempt_observation',
+    );
+    const receiptPayload = receiptRow.observation_payload as Record<string, unknown>;
+    (receiptPayload.rawReceiptRef as Record<string, unknown>).contentHash = {
+      algorithm: 'SHA-256',
+      canonicalizationVersion: '1',
+      digest: 'e'.repeat(64),
+    };
+    receiptRow.observation_hash = Buffer.from(
+      sha256CanonicalJson(receiptPayload as unknown as CanonicalJsonValue),
+      'hex',
+    );
+    await expect(
+      makeService(receiptSource.tables).getUsageRuntimeBinding(
+        receiptSource.context,
+        receiptSource.ref,
+      ),
+    ).rejects.toMatchObject({ code: BINDING_INVALID });
+    await expect(
+      makeService(receiptSource.tables).getUsageFinalObservation(
+        receiptSource.context,
+        receiptSource.ref,
+      ),
+    ).rejects.toMatchObject({ code: FINAL_INVALID });
+  });
+
   it('distinguishes an owning not-found from an integrity failure for the final observation', async () => {
     const missing = makeFixture();
     missing.tables['integration_gateway.runtime_final_observation'] = [];
