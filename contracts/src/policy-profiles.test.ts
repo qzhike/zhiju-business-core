@@ -83,6 +83,7 @@ describe('policy profile registry artifact', () => {
       recoveryControlsKey,
       'execution.work_order_controls.policy@2.0',
       'execution.completion.policy@1.0',
+      'execution.task_board.policy@1.0',
     ]);
     expect(
       policyProfileRegistry.profiles.map((profile) => [profile.registryKey, profile.owner]),
@@ -98,6 +99,7 @@ describe('policy profile registry artifact', () => {
       [recoveryControlsKey, 'task-execution'],
       ['execution.work_order_controls.policy@2.0', 'task-execution'],
       ['execution.completion.policy@1.0', 'task-execution'],
+      ['execution.task_board.policy@1.0', 'task-execution'],
     ]);
   });
 
@@ -127,7 +129,14 @@ describe('policy profile registry artifact', () => {
         policyProfileDocumentSchemaRef(policyProfileRegistry, POLICY_PROFILE_REGISTRY_VERSION, key),
       ).toBeUndefined();
     }
-    for (const key of [captureKey, builderKey, readinessKey, validationKey, controlsKey]) {
+    for (const key of [
+      captureKey,
+      builderKey,
+      readinessKey,
+      validationKey,
+      controlsKey,
+      'execution.task_board.policy@1.0',
+    ]) {
       expect(
         policyProfileDocumentSchemaRef(policyProfileRegistry, POLICY_PROFILE_REGISTRY_VERSION, key),
       ).toContain('#/$defs/');

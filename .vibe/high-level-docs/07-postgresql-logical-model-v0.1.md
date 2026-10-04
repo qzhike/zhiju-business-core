@@ -2234,7 +2234,7 @@ Freeze 锁 Root 并核验 Root/Snapshot/candidate 期限完全一致且未到期
 
 ## 34. IM-06 TD-05 Task Board 存储提案
 
-状态：`PROPOSED / NOT IMPLEMENTED`，详细语义见 [Spec 003 §12](../module-specs/Module-Spec-003-TaskExecution.md#12-td-05-query--task-board-补充设计)。本节不改变 §33 TD-01–04 批准状态，不分配 migration 编号，不修改既有 EnterpriseProject Board 表。
+状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED 2026-10-05 (Issue #248) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / REAL OWNING-PRODUCER END-TO-END, IP GRANT LIFECYCLE, MANUAL NOT RUN`，精确化见本文IM06-BOARD段，详细语义见 [Spec 003 §12](../module-specs/Module-Spec-003-TaskExecution.md#12-td-05-query--task-board-补充设计)。本节不改变 §33 TD-01–04 批准状态，不分配 migration 编号，不修改既有 EnterpriseProject Board 表。
 
 | Owner / 逻辑存储 | 内容与约束 |
 |---|---|
@@ -2462,3 +2462,23 @@ TE 新查询边界使用专用 REPEATABLE READ 事务，从一个快照取得 Ro
 本次 snapshotAt 从同事务 transaction_timestamp() 取得，Run.aggregate_version 按既有输出标量无损编码；若公开 NonNegativeInt 无法无损表示，拒绝 INTERNAL_CONTRACT_VIOLATION，不做精度截断。串行语句和并发 Acceptance/Audit 提交只能呈现一个 TE 快照；外部 IG 事实依自身已提交不可变版本关联，不宣称跨 Schema 全局快照。IP 当前重验在独立 READ COMMITTED 检查点完成，不使用 TE 的旧 MVCC 快照缓存当前 Grant/Policy。
 
 复用 task_execution_app 和 integration_gateway_app 的现有 scoped SELECT、FORCE RLS、Context/最小 ACL，不新增 schema/table/index、migration、GRANT 或 audit_reader 扩权；来源读取验证 canonical hash/mirror、Scope/Run/Attempt/Receipt 关系，SQL 约束不能替代真实 Driver owning 证据。实现若发现必须新增持久化权限或结构，应先回到本节及 owning Spec 的设计审查，不静默加权限。真实 PostgreSQL 必须验证无 Context/跨 Scope/连接池复用、两连接快照与当前撤权，以及查询前后业务表无变化；required full 中既有迁移空库/升级/no-op 证据保持，docs PASS 不算本节运行通过。
+
+## IM06-BOARD TD-05 存储精确化
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED 2026-10-05 (Issue #248) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / REAL OWNING-PRODUCER END-TO-END, IP GRANT LIFECYCLE, MANUAL NOT RUN (V7014/V7015)`。本段精确化§34并取代其过时的Policy/retention/fence概括；字段算法见Spec003 §12，授权唯一见Spec001 §15.19。未来forward-only migration，不分配编号、不改已应用DDL/EP Board。
+
+| Owner/逻辑表 | 精确约束 |
+|---|---|
+| TE task_board_dirty | markerId UUIDv7 PK、enterprise/project、sourceType/sourceId/sourceVersion?、sourceHash?、createdAt；实际源事务AFTER触发追加，业务回滚一并回滚。app不能手造/改/删除marker；确认另存covered集合。无MAX序号确认 |
+| TE task_board_export_dispatch | Project唯一lease/control：单调安全整数token、owner principal、leaseUntil、version CAS；manifest/exportId/hash的不可变记录与publication ack/coveredDirtyIds；按完整exportId/hash幂等，确认只接受同Project已发布manifest证明覆盖的ids |
+| Projection task_board_generation/row | generationId、exportId唯一、完整ProjectRef/Scope、canonical manifest/hash/rowsHash/count/sourceFingerprint、原policyObservation、snapshotAt、发布sequence、publishedAt/retentionUntil；(Project,sequence)、(generationId,taskId)唯一；完整内部row与可选deliveryRef镜像INSERT-only。镜像需全Ref规范相等，NULL仅代表缺省 |
+| Projection task_board_alias/checkpoint/fence | (enterprise,project)单alias；本地fence含token/owner/leaseUntil/CAS version。注册/续约单调，trusted now>=leaseUntil不能发布；发布与alias/checkpoint/sequence在同事务。相同export重放复用原结果，不重切alias |
+| Projection publication outcome/failure | exportId/hash/generation/sequence结果保留，即使清理rows也不丢幂等证明；错误仅code+安全summary+scope/time/ref，无正文或Secret。未过期旧generation仍可读；失败不切有效alias |
+
+dirty覆盖：task INSERT/可见root状态、version、definition/completion pointer变化；task_definition_snapshot INSERT；work_order INSERT/状态/version/Task归属/冻结指针变化及创建Receipt提交；information_request状态/关联/resolution字段、information_request_origin；agent_result、run_final_submission_claim、agent_result_acceptance、run状态；work_order_retry_intent、run_retry_intent_consumption；当前completion_evaluation及其pointer提交。仅追踪实际改变row/sourceFingerprint或recovery_work_order_blocked来源的变化，允许保守多标，不允许漏标。所有这些表scope与child→Task关联从owning行取得，不能由事件或caller推导；trigger只写TE技术marker，不改Root/Projection。历史Source升级由首次/定期完整Export覆盖，不回填业务状态或Event。
+
+canonical hash为共享cv1 SHA-256，manifestHash排除仅自身Hash，包含完整ordered rows、filterKeys/字段有无、policyObservation、sourceFingerprint及coveredDirtyIds；rowsHash只对完整ordered internal row数组，二者不能混用。promoted镜像、count、bytes预算、Scope与完整Ref在应用和SQL写边界重验；整数溢出拒绝。完整导出必须有权威起点，Projection不得接受自由外部rows作真实来源。
+
+所有新增表FORCE RLS，Project必须同时校验enterprise/project与当前context；所有FK只在owning Schema内。task_execution_app只读所需源/技术查询或执行受限owning函数；marker触发函数固定search_path、最小definer权限、从受控源行导出scope，禁止caller直接执行写marker函数。dispatch技术更新仅经其受限SERVICE函数，不能给app任意Root更新权限。projection_app无TE SELECT，source Export无Projection写权；独立受限publish/maintain函数限制其scope/主体/fence/目标。SQL Context/RLS不替代IP当前Decision。
+
+retentionUntil固定为publishedAt+原Policy TTL；Query不能延长，cleanup仅删非当前alias且到期的generation/rows，并保存publication outcome、TE历史manifest与业务事实。Policy更替不重写旧canonical，新的读取仍按当前Policy/authority判断资格。读技术Context建立与业务Query无写分开。

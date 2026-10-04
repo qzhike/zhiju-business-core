@@ -32,6 +32,8 @@ import { validateWorkOrderControlsPolicy } from './policy-profiles.js';
 
 const registry = getContractRegistry();
 const REQUEST = 'execution.information_request';
+/** Canonical object type of an Immutable Information Request ref. */
+export { REQUEST as REQUEST_OBJECT_TYPE };
 const ANSWER = 'execution.information_answer';
 const RESOLUTION = 'execution.information_request_resolution';
 const INVALID_RECEIPT = 'EXECUTION_RESOLUTION_RECEIPT_INVALID';

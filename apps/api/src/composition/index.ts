@@ -89,3 +89,14 @@ export type { BlockedInputRecoveryWorkerConfig } from './blocked-input-recovery-
 export * from './formal-completion-entry.js';
 
 export * from './task-completed-delivery-entry.js';
+
+// IM-06 TD-05 (#248): the Human Project Task Board read entry and the finite
+// export/publish and retention-maintenance passes.
+export { createTaskBoardEntry, verifyBoardResult } from './task-board-entry.js';
+export type { TaskBoardEntryConfig, TaskBoardSession } from './task-board-entry.js';
+export { runTaskBoardExportPass, runTaskBoardMaintenancePass } from './task-board-dispatcher.js';
+export type {
+  TaskBoardDispatcherConfig,
+  TaskBoardDispatcherProject,
+  TaskBoardExportResult,
+} from './task-board-dispatcher.js';

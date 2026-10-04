@@ -77,6 +77,12 @@ const DELIVERY_COMPLETION_ALLOCATIONS = new Map([
 // Issue #244 explicitly reserves this forward version for the cancellation slice.
 const RUN_CANCELLATION_ALLOCATIONS = new Map([[7013, 'task_execution']]);
 
+// Issue #248 explicitly reserves these forward versions for the Task Board slice.
+const TASK_BOARD_ALLOCATIONS = new Map([
+  [7014, 'task_execution'],
+  [7015, 'task_execution'],
+]);
+
 const MIGRATION_NAME_PATTERN = /^V(\d{4})__[a-z][a-z0-9_]*\.sql$/;
 const MIGRATION_ROOT_FILES = new Set(['README.md']);
 
@@ -109,6 +115,14 @@ export function validateMigrationEntry(directory: string, fileName: string): str
       ? []
       : [
           `'${directory}/${fileName}': version ${version} reserved for ${cancellationOwner} run cancellation`,
+        ];
+  }
+  const taskBoardOwner = TASK_BOARD_ALLOCATIONS.get(version);
+  if (taskBoardOwner) {
+    return directory === taskBoardOwner
+      ? []
+      : [
+          `'${directory}/${fileName}': version ${version} reserved for ${taskBoardOwner} Task Board`,
         ];
   }
   const deliveryOwner = DELIVERY_COMPLETION_ALLOCATIONS.get(version);

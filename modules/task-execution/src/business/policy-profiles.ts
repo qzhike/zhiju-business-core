@@ -7,6 +7,7 @@ import {
   type Core,
   type PolicyProfileValidationError,
 } from '@zhiju/contracts';
+import { TASK_BOARD_POLICY_PROFILE_KEY, type TaskBoardPolicyRules } from './task-board-types.js';
 
 // =============================================================================
 // IM-06 (#179) TaskExecution owning validation of the first-version consumer
@@ -148,6 +149,41 @@ export function validateWorkOrderValidationPolicy(input: {
           ],
         }),
   }));
+}
+
+/**
+ * Validate the finite Task Board profile. Every bound is a positive safe
+ * integer and the closed schema already rejects missing/unknown fields and the
+ * approved upper bounds; the cross-field `maxPageSize <= maxSnapshotRows` rule
+ * stays an owning rule applied here.
+ */
+export function validateTaskBoardPolicy(input: {
+  readonly policySchemaRefs: readonly unknown[];
+  readonly policyDocument: unknown;
+}): PolicyProfileValidationResult<TaskBoardPolicyRules> {
+  const validated = validateProfile(TASK_BOARD_POLICY_PROFILE_KEY, input, (document) => ({
+    maxPageSize: document.maxPageSize as number,
+    maxSnapshotRows: document.maxSnapshotRows as number,
+    maxSnapshotBytes: document.maxSnapshotBytes as number,
+    freshnessMaxAgeSeconds: document.freshnessMaxAgeSeconds as number,
+    cursorTtlSeconds: document.cursorTtlSeconds as number,
+    refreshIntervalSeconds: document.refreshIntervalSeconds as number,
+    workerLeaseSeconds: document.workerLeaseSeconds as number,
+  }));
+  if (!validated.valid) return validated;
+  if (validated.rules.maxPageSize <= validated.rules.maxSnapshotRows) return validated;
+  return {
+    valid: false,
+    errors: [
+      {
+        keyword: 'maxPageSize',
+        instancePath: '/maxPageSize',
+        schemaPath: '#/properties/maxPageSize',
+        params: {},
+        message: 'maxPageSize must not exceed maxSnapshotRows',
+      },
+    ],
+  };
 }
 
 export const WORK_ORDER_CONTROLS_POLICY_PROFILE_KEY = 'execution.work_order_controls.policy@1.0';

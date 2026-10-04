@@ -28,6 +28,22 @@ export type {
   UsageProvenanceCapabilityCodes,
   UsageProvenanceCapabilityKey,
 } from './commands/work-order-validation-authorization.js';
+export {
+  createTaskBoardAuthorizationPort,
+  TASK_BOARD_BINDINGS,
+  TASK_BOARD_PURPOSES,
+} from './commands/work-order-validation-authorization.js';
+export { taskBoardAuthorizationSourceHash } from './commands/task-board-source-hash.js';
+export type {
+  TaskBoardAuthorizationSource,
+  TaskBoardAuthorizationSourceEntry,
+} from './commands/task-board-source-hash.js';
+export type {
+  TaskBoardAuthorizationConfig,
+  TaskBoardBinding,
+  TaskBoardCapabilityCodes,
+  TaskBoardCapabilityKey,
+} from './commands/work-order-validation-authorization.js';
 export type { ExecutionCapabilityBundlePorts } from './commands/execution-capability-bundle.js';
 
 // IM-02 WI-05 (issue #33): low-level persistence boundary. Business command

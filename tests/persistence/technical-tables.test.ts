@@ -190,6 +190,12 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'task_completed_dispatch_window',
     'task_completed_dispatch_attempt',
     'task_completed_dispatch_outcome',
+    // IM-06 TD-05 (#248): Board dirty markers and export dispatch/manifest
+    // control (V7014). The published generations live in the shared
+    // `projection` schema, which owns no version range.
+    'task_board_dirty',
+    'task_board_export_dispatch',
+    'task_board_export_manifest',
   ],
   artifact: [
     'execution_revision_command_receipt',

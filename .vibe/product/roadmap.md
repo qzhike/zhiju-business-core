@@ -17,6 +17,8 @@
 
 当前 IM-06 技术基础已交付，继续推进业务切片的 readiness 检查。目标是 Human 发起、owning Service 执行的 Task/WorkOrder/Context/Run/Result/InformationRequest 流程，以及独立 Completion 与 Usage/Provenance；不提前引入真实 Agent 自动化。
 
+Usage/Provenance 交付后的下一步（2026-10-05）：当前main@917723f54757a5f17209095d4c68b6d5959f855e，下一独立目标为Human的Project Task Board读取、精确筛选/分页与真实freshness。[TD-05 Spec Delta](../decisions/task-execution-task-board.md)的B-01–05与implementation草稿已获用户明确设计批准及Issue发布授权；Project/版本身份、独立授权mapping、来源健康/alias竞态与有限Policy配置已落实到owning Spec/Test。设计技术审查已完成且无剩余阻断，当前有限实现候选已复核NOW + READY，现由 [Issue #248](https://github.com/qzhike/zhiju-business-core/issues/248) 承接完整实现目标（已按授权创建并读回OPEN）；不把设计或文档PASS当作实现完成。Board后复核TD-07统一退出/恢复证据，保持IM-06 Current与外部/人工边界。
+
 开始实现前：
 
 1. 对账当前 TaskExecution Module Spec/Test、现有实现与 IM-06 退出标准。

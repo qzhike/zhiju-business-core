@@ -644,3 +644,21 @@ authority 为 [Spec 003 §27](../module-specs/Module-Spec-003-TaskExecution.md#2
 并发验收在 TE 查询首次 business SELECT 后、原事务结束前提交另一连接的 Acceptance 或合法隔离审计，旧查询不得混入新子事实，下一查询须能看到它；IP 撤权用独立 owning Grant revoke 在新的当前检查点实际拒绝。无法合法产生的来源子分支保持 NOT RUN，并说明其 producer/支持集，不以直接写 Root、改时钟或伪造 Receipt 代替。
 
 未来实现 required `vibe verify full --json`，按项目要求在新/变化容器运行时先 environment；设计 docs 只检链接/格式。Contract/Unit、Application、PostgreSQL、controlled、external/manual 分层写在实际 Issue/PR。Provider/CLI/Feishu、public HTTP/UI、生产/负载、独立人工验收与 TD-05/TD-07 仍不由本矩阵提升。
+
+## IM06-BOARD 首版实现验收
+
+状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / 下表端到端与外部/人工 NOT RUN`。authority Spec003 §12、IP §15.19、PostgreSQL IM06-BOARD、共享API IM06-BOARD。本矩阵保留并精确化旧TE-TD-027–032、039–042，旧表结果不升级。
+
+| ID/关联 | 可观察输入与必要预期 | 当前结果 |
+|---|---|---|
+| BOARD-D-001 / 027 | Task v1/v2及WO两种创建事实、合法空Project、DRAFT/READY/正常完成/有限恢复/取消来源，经真实owning入口和完整QueryResult读取；Ref/version/status/未终结WO/blocker/current Evaluation准确，初始任意assignee不显示；显式assignee拒绝。不把终结Run或历史Completion当四层当前资格 | NOT RUN |
+| BOARD-D-002 / 040–042 | 非空statuses、同Item不同版本/不同拼写/未绑定源；多于一页；完整filter先排序分页；单字段filterKey/mirror/Hash/count/bytes变体各拒绝；内部filterKeys不漏入data；空statuses遵守旧Schema拒绝 | NOT RUN |
+| BOARD-D-003 / 028–029 | G1翻页期间源更新发布G2，cursor仍读G1无重复/漏项；身份/Scope/filter/Purpose/Policy变更、篡改和过期分别稳定拒绝；authority指纹改变明确重启，新短期同源Decision不使cursor失效；保留/cleanup期限准确且查询无续期写 | NOT RUN |
+| BOARD-D-004 / 030 | 暂停、pending dirty、source故障、无alias、重建失败与超限；P1→H改变源、H→P2切alias的确定性屏障，均不假FRESH；最低水位未达/asOf不可满足无data；QueryResult与Page元数据/Hash一致 | NOT RUN |
+| BOARD-D-005 / 031–032 | REPEATABLE READ首次业务读取后第二连接提交child；旧Export完整旧事实、下一Export看到新事实。低序号marker晚提交、旧lease/fence、发布rollback、alias切换后确认前崩溃；重放原export/hash/sequence且不退alias、不丢dirty，不用sleep代替reached屏障 | NOT RUN |
+| BOARD-D-006 / 039 | 当前Human/source/health/Policy权限缺失或返回前撤权/期限跨越；跨Enterprise/Project、直接Projection读TE/写Root、自由source DTO、旧worker无publish权均拒绝，权限失败无data；区分Query业务无写与IP/context技术写 | NOT RUN |
+| BOARD-D-007 / 027,031,042 | 完整公开字段/旧fixture/registry不变、三个consistency路径及closed Envelope运行验证；fixture正常/恶意单变化相配；合法source完整性与SQLguard/ACL故障分别报告，不以绿色格式/Unit声称PG安全 | NOT RUN |
+
+未来required full；所有正source由真实owningCommand产生，纯Schema/恶意DTO反例与PostgreSQL两连接/guard分层。External/HTTP/UI/生产负载/独立人工、真实Grant PolicySnapshot lifecycle和TD-07未执行边界不变。
+
+BOARD-D-003/007同时验证compact cursor长度264且满足共享16–512 base64url模式；合法最小/最大配置、完整Project/PolicyRef均可绑定，分别篡改单字段、未知mode/keyId、截断/非canonical编码/signature失败及logical binding错误。不得因旧TaskBoard字段是string就跳过共享OpaqueCursor规则。
