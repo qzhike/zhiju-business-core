@@ -11,6 +11,8 @@
 
 ## Current — IM-06 TaskExecution Human-operated Core
 
+当前推进意图（2026-10-04）：#239 / PR #240 已交付正常与一次 BLOCKED_INPUT 恢复的 TaskCompleted 实际派发、独立 DeliveryItem Completion 与权威读回。[Issue #244](https://github.com/qzhike/zhiju-business-core/issues/244) / [PR #245](https://github.com/qzhike/zhiju-business-core/pull/245) 已实现完整的 **Human 请求 Run 取消 → CANCELLING → 无 ACK 到期 ABANDONED → 迟到 final 隔离审计与权威状态读回**，实现 head `f6060b1a9904258c118c69997574245aa81194f1` 的独立技术复审无剩余 finding、required full CI 成功，用户已明确人类技术批准并授权合并交付；正式审查与批准绑定见 [PR #245 Review](../reviews/pr-245/Review.md)，设计与支持集见 [取消决定](../decisions/task-execution-cancellation.md)。公开取消 Purpose 保留旧 metadata，首版取消/新 expiry/隔离限定为创建时已有 reservation 的两次执行 profile，不回填历史预算、不引入 Runtime ACK。下一步复核 Query/Usage/退出证据的剩余必需范围，先对账当前 main 与 IM-06 退出标准，再决定可独立交付的 NOW + READY 目标；不提前展开 backlog，也不关闭 IM-06。
+
 当前 IM-06 技术基础已交付，继续推进业务切片的 readiness 检查。目标是 Human 发起、owning Service 执行的 Task/WorkOrder/Context/Run/Result/InformationRequest 流程，以及独立 Completion 与 Usage/Provenance；不提前引入真实 Agent 自动化。
 
 开始实现前：
@@ -70,4 +72,4 @@
 Planner 在阶段启动/关闭或优先级变化时协调本文件；普通实现不重复抄写进度。GitHub Issue/PR 与 Git 是执行状态来源。旧 Task-Plan、Issue 草稿和报告是历史材料，不能覆盖本文件的推进方向或最新 GitHub 事实。
 
 
-#237 设计推进意图（2026-10-01）：设计已由[PR #238](https://github.com/qzhike/zhiju-business-core/pull/238)合入main（`e80a8f467152a6869e177a53428f052d583bc3cc`），Issue #237已关闭；仅完成设计交付。下一候选转为基于[已获批bounded设计](../decisions/task-completed-delivery-completion.md)复核一个完整TaskCompleted派发与独立DeliveryItemCompletion实现结果的NOW+READY。设计对账main@cd2a249，独立复审关闭两项finding后通过，人类详细设计批准绑定design commit `a38e66f2df60d45079a093f08fed4e4f12732ef1`；[PR #238正式记录](../reviews/pr-238/Review.md)保留精确修订、manifest与批准事实。Planner须重新核对届时主分支、前置及normal/recovered验收，不因设计批准自动宣称实现READY；本轮不发布依赖Issue、不实现runtime、不关闭IM-06，原外部/人工/GrantPolicySnapshot和Cancel/late-result边界保持。
+#239 交付后的边界与顺序（2026-10-03）：[Issue #239](https://github.com/qzhike/zhiju-business-core/issues/239) 已关闭，[PR #240](https://github.com/qzhike/zhiju-business-core/pull/240) 已于 2026-10-01 合入 `main@aa6f6ec88fa7aeae4a9a10f4936462e8e1a838eb`。受控正常/恢复链已到 EP exact readback：Task-only Item 为 SATISFIED，独立的 Task+Release Item 在缺 Release 时仍 UNSATISFIED；Registry / TaskExecution / 历史兼容 Baseline 为 238 / 62 / 200。最终 head `d4f865b7bc211a5a1b1cabc6a804c013a2c88cdf` 的独立 APPROVE、人类技术批准与完整 CI 见 [PR #240 正式记录](../reviews/pr-240/Review.md)及 Issue/PR。已有 PARTIAL / NOT RUN、历史 Task 完成事实不证明当前 USABLE、真实 owning revocation 与 Grant PolicySnapshot lifecycle、外部/人工边界均保留。下一目标见本节开头；TD-05–07 未批准的 Query/Board/Usage/退出方案不会因本次派发交付而被追认。取消切片只请求取消与隔离迟到结果，不引入 Runtime ACK 或绕过 IM-DG-006。

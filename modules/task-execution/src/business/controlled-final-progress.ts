@@ -333,7 +333,15 @@ export async function advanceControlledFinalProgress(
   );
 }
 
-/** A terminal Run leaves its unfinished technical Process for inspection. */
+/** A terminal or cancelling Run leaves its unfinished technical Process for
+ * inspection. `observedStatus` distinguishes the deadline terminal from the
+ * cancelled/abandoned outcomes; the Process is only suspended, never rebuilt. */
+const suspensionReasonByStatus: Record<'TIMED_OUT' | 'CANCELLING' | 'ABANDONED', string> = {
+  TIMED_OUT: 'RUN_TIMED_OUT',
+  CANCELLING: 'RUN_CANCELLING',
+  ABANDONED: 'RUN_ABANDONED',
+};
+
 export async function suspendTimedOutControlledFinalProgress(
   db: Kysely<TaskExecutionDb>,
   context: TaskExecutionTransactionContext,
@@ -341,6 +349,7 @@ export async function suspendTimedOutControlledFinalProgress(
   progress: ControlledFinalProgress,
   readRunStatus: (runRef: CanonicalJsonObject) => Promise<string>,
   revalidateProgress: () => Promise<void>,
+  observedStatus: 'TIMED_OUT' | 'CANCELLING' | 'ABANDONED' = 'TIMED_OUT',
 ): Promise<CommandResult> {
   assertEnvelope(context, envelope, progress.processId);
   requireThat(
@@ -348,12 +357,16 @@ export async function suspendTimedOutControlledFinalProgress(
       runRef: progress.runRef,
       sourceRef: progress.sourceRef,
       step: progress.step,
-      observedStatus: 'TIMED_OUT',
+      observedStatus,
     }) && envelope.expectedAggregateVersion === progress.aggregateVersion,
     'COMMAND_TARGET_MISMATCH',
   );
   await revalidateProgress();
-  requireThat((await readRunStatus(progress.runRef)) === 'TIMED_OUT', 'EXECUTION_JUDGMENT_STALE');
+  requireThat(
+    (await readRunStatus(progress.runRef)) === observedStatus,
+    'EXECUTION_JUDGMENT_STALE',
+  );
+  const reason = suspensionReasonByStatus[observedStatus];
   return executeTaskExecutionCommand(
     db,
     context,
@@ -378,7 +391,7 @@ export async function suspendTimedOutControlledFinalProgress(
       const changed = await execution.casProcessInstance(
         progress.processId,
         progress.aggregateVersion,
-        { state: 'SUSPENDED', blockedReasonCode: 'RUN_TIMED_OUT' },
+        { state: 'SUSPENDED', blockedReasonCode: reason },
       );
       requireThat(changed === 'OK', 'CONCURRENCY_CONFLICT');
       await execution.appendProcessStep({
@@ -386,7 +399,7 @@ export async function suspendTimedOutControlledFinalProgress(
         processId: progress.processId,
         stepNo: steps.indexOf(progress.step) + 1,
         outcome: 'SKIPPED',
-        failureCode: 'RUN_TIMED_OUT',
+        failureCode: reason,
         sourceFactRef: canonicalize(progress.runRef),
       });
       await revalidateProgress();

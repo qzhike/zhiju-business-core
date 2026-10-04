@@ -242,12 +242,15 @@ export async function verifyProcessRecovery(
         );
         expect(outcome.status).toBe('COMMITTED');
       },
-      suspendTimedOutProgress: async (progress: ControlledFinalProgress) => {
+      suspendTimedOutProgress: async (
+        progress: ControlledFinalProgress,
+        observedStatus: 'TIMED_OUT' | 'CANCELLING' | 'ABANDONED',
+      ) => {
         const payload = {
           runRef: progress.runRef,
           sourceRef: progress.sourceRef,
           step: progress.step,
-          observedStatus: 'TIMED_OUT',
+          observedStatus,
         } as CanonicalJsonObject;
         const authorized = await scenarioState.progressAuthorization(payload);
         const outcome = await suspendTimedOutControlledFinalProgress(
@@ -266,6 +269,7 @@ export async function verifyProcessRecovery(
             return state.status;
           },
           authorized.proof,
+          observedStatus,
         );
         expect(outcome.status).toBe('COMMITTED');
       },

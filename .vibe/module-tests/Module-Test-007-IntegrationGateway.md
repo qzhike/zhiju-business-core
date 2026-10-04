@@ -178,3 +178,17 @@ authority为Spec 007 #233与Runtime Contract #233；#235有限受控运行证据
 |---|---|---|---|---|
 | IG-COMP-D-001 | Application + PostgreSQL / 实际normal/recovered invocation、Human已提交output release | 原ack/adapter实例/attempt/session/Run/fencing不变，实际Artifact Ref/Receipt后才生成固定final bytes/hash，IG只封存观察 | OWNING/PG/CONTROLLED PASS：normal/recovered三个versioned模板真实invoke；Human actual Artifact提交后原session/attempt/实例/fencing释放非空final，IG只封存；Run-2独立Context/instance/session。 |
 | IG-COMP-D-002 | Application + PostgreSQL / 预分配未提交输出、错invocation/Receipt/hash、双release、restart与late release | release独立授权/读取拒绝wrong-source；同原调用重读同bytes不重新invoke；迟到仅历史、TE不接纳，无第二final | APPLICATION/PG/CONTROLLED PASS（已执行）：premature未提交output拒绝、Human-only实际有Grant非Human/actingFor拒绝、冲突第二release拒绝、journal restart同原final/无新invoke；formal sealed output在Run已expire后仍不能产生TE Result/Completion。全部wrong invocation绑定与expiry后首次release子项NOT RUN。 |
+
+## IM06-CANCEL 迟到 final 来源验收
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-03 / INDEPENDENT DESIGN REVIEW APPROVE 2026-10-03 / IMPLEMENTED IN #244 PROPOSED REVISION / RUNTIME EVIDENCE IN THE PULL REQUEST`。
+
+authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-IntegrationGateway.md#im06-cancel-原-invocation-的迟到-final-历史观察已批准设计)，关联 TE CANCEL-D-003/004/006/008。
+
+| ID | 输入 / 层级 | 必需预期 | 当前结果 |
+|---|---|---|---|
+| IG-CANCEL-D-001 | 支持两次执行 profile 的真实 Run/reservation 与 invocation/ack/start，原 final 固定后延迟至取消及 expiry 提交；两种原 final 释放次序 | 原 Attempt/session/模板/body/submission/Observation Hash 可读回，晚到只证明历史；无第二 invoke、无 Cancel ACK 或伪造 Provider Receipt | PASS（#244 真实 PostgreSQL，见 PR）：CANCELLING 与 ABANDONED 两种次序的迟到 final 均只读回历史 Observation，无第二 invoke/Cancel ACK |
+| IG-CANCEL-D-002 | late consumer 分别缺 Binding/final Grant，wrong Attempt/Scope/session/fencing/hash 或复制 caller JSON | protected read 先授权；自洽错来源不成为合法 LATE_RESULT，原历史与另一 Run 不覆盖 | PASS（#244 真实 PostgreSQL，见 PR）：错 Attempt/Run/Scope/session/hash 或缺 caller JSON 均不成为合法 LATE_RESULT，原历史不被覆盖 |
+| IG-CANCEL-D-003 | IG Observation 提交后 TE Audit 写失败/依赖不可用，原 source 重试与 worker 重启 | 源保持不可变、读回同原 bytes/Hash，不重新调用 Driver；未实际提交隔离 Audit 不宣称已处理，TE 业务无接纳 | PASS（#244 真实 PostgreSQL，见 PR）：Audit 写失败后原 source 仍按原身份读回并可重试，Driver 不重新调用、TE 无接纳 |
+
+原 Query/Observation Schema、公开契约与现行 runtime 证据保持；#244 的 IG-CANCEL-D 行结果记录在对应 Issue/PR，外部/人工维持各自 NOT RUN。

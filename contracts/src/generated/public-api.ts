@@ -862,6 +862,21 @@ export const publicApiOperations = [
     resultReferences: [{ path: '/runRef', kind: 'OBJECT', objectType: 'execution.run' }],
   },
   {
+    type: 'execution.expire_run',
+    version: '2.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'execution.run',
+    concurrencyMode: 'MUTATE',
+    authorizationPurpose: 'execution.run.expire',
+    dataClassification: 'INTERNAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_expire_run_v2_0_result',
+    references: [{ path: '/targetRef', kind: 'OBJECT', objectType: 'execution.run' }],
+    resultReferences: [{ path: '/data/runRef', kind: 'OBJECT', objectType: 'execution.run' }],
+  },
+  {
     type: 'execution.accept_agent_result',
     version: '1.0',
     kind: 'COMMAND',

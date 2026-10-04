@@ -23,6 +23,8 @@ Issue #235 reserves exactly `V7008` for the Artifact execution-revision facts an
 
 Issue #239 reserves exactly `V7011` for the TaskExecution TaskCompleted dispatcher and `V7012` for EnterpriseProject exact DeliveryItem completion, as explicitly approved by the user on 2026-10-01. Each file remains in its owning directory and modifies only its owning Schema. No other directory, including IntegrationGateway, may reuse either version. This bounded allocation continues the shared history after `V7010`; applied migrations and other ranges remain unchanged, and out-of-order execution remains disabled.
 
+Issue #244 reserves exactly `V7013` for the TaskExecution Run cancellation, lease-expiry abandonment and late-final isolation slice, as authorized by the user on 2026-10-03 through the implementation Issue. The file remains in `task_execution/` and modifies only that owning Schema. No other directory, including IntegrationGateway, may reuse the version. This bounded allocation continues the shared history after `V7012`; applied migrations and other ranges remain unchanged, and out-of-order execution remains disabled.
+
 命名规则：`V<4位版本>__<snake_case_description>.sql`。projection 的可重建对象随各模块区间发布，不单独拥有版本区间。
 
 `V0003` 的 Context 写入口只授予 NOLOGIN 的 `platform_context_establisher`；七模块

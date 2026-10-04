@@ -601,3 +601,26 @@ fixture 的不同 capability code/主体 Grant 创建互不依赖，按最多四
 故障注入只允许在真实owning事务/传输界面暂停或抛错，不以直接business-tableINSERT制造正链。sourceEnvelope的恶意副本仅用于拒绝反例，不能充当positiveEvent。实际readback用生产Port，Owner scopedSQL只补充ACL/immutable/count等持久化证据。必需configured`full`，新/变化容器baseline先`environment`；局部diagnostic不替代。真实Provider/CLI/飞书、publicHTTP/UI、生产/负载、独立人工和IM-06Cancel/late-result继续NOT RUN。
 
 #239 当前执行位置：`tests/persistence/initial-context.test.ts` 的两个 `isolated normal/recovered owning delivery fixture` 及 `isolated late-commit and cross-Item out-of-order schedule`，criteria/Envelope fixtures见 `tests/fixtures/contracts/delivery-completion/`。定向诊断使用缓存的固定digest PostgreSQL/Flyway镜像，独立environment preflight当前为PIN_MATCH；定向诊断不等于configured full，required full及exact-revision CI证据记录在PR。`PARTIAL`行剩余子项保持NOT RUN；外部Runtime/Provider/CLI/飞书、publicHTTP、生产/负载和独立人工业务验收均NOT RUN。
+
+## Run 取消与迟到 final 隔离验收矩阵
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-03 / INDEPENDENT DESIGN REVIEW APPROVE 2026-10-03 / IMPLEMENTED IN #244 PROPOSED REVISION / RUNTIME EVIDENCE IN THE PULL REQUEST`。
+
+authority 为 [Spec 003 §27](../module-specs/Module-Spec-003-TaskExecution.md#27-run-取消请求与迟到-final-隔离已批准设计)，批准绑定见取消设计决定 §5；新设计场景不会覆盖原已执行矩阵或改变 PARTIAL/NOT RUN。
+
+以下为 #244 交付的验收矩阵；结果记录在对应 Issue/PR，不替换旧矩阵的执行记录。当前结果：CANCEL-D-001 由契约 standalone 正负 fixtures 覆盖（PASS）；CANCEL-D-002..008 已由 #244 在真实 PostgreSQL 验证（证据在 PR）。PR #245 独立实现审查的阻断项（首轮 F1/F2/F3 与复审 F2-R1）均已有对应真实 PostgreSQL 负例：隔离提交前撤销依赖权限不产生 LATE_RESULT Audit、伪造 Intent 候选（请求内容与 ActorSnapshot 来源）整体回滚、late isolation 仅接受两次执行 profile 及其原 reservation；合法 Human 归因与来源正对照仍正常提交。本矩阵归入 Module-Test 003，并关联原 `TE-TD-014/016`、`TE-WI03-D-007/009/011/012`；IP/IG 各自记录对应授权与来源证据。
+
+| ID | 场景 | PASS / FAIL 判据 |
+|---|---|---|
+| CANCEL-D-001 | Registry 正负 fixtures、旧版本字节兼容 | @2.0 两种结果合法；未知字段/status、caller endedAt 拒绝；@1.0 ABANDONED 仍不合法；公开 cancel Purpose 精确等于冻结 metadata 的 task.execution.request_run_cancel，另一拼写不得作为别名；239/63/200 仅实现注册后核对 |
+| CANCEL-D-002 | 合法两次执行 profile 及原 creation reservation；实际 Driver ack/start，Human cancel，权威读回；同/异键重放 | RUNNING→CANCELLING，一 Intent/Receipt；ACTIVE Claim 不提前释放；无 Cancel ACK/CANCELLED/RunTerminated；同键返回原事实，不同键状态冲突 |
+| CANCEL-D-003 | 创建时已有 reservation 的 supported Run 无 ACK，等待真实原 lease，再 @2.0 LEASE_EXPIRED；前后释放原 final | ABANDONED、Claim EXPIRED、唯一 consumption/RunTerminated；迟到源和 LATE_RESULT Audit Hash 可逐项读回，无新可用 Result/Acceptance/输出/Completion；原绑定 Hash 不变 |
+| CANCEL-D-004 | 双连接 cancel×record 两种确定提交次序，含 submit 已提交未 record | cancel 赢则 record 不成立；record 赢则 cancel 拒绝；既有 Result/reservation 不改写，旧 Receipt 不恢复资格；失败方无部分状态/Intent/Event |
+| CANCEL-D-005 | cancel×expiry；提前/错误 reason；锁等待跨原期限；terminal 重放 | 同一锁/CAS裁决；maxAttempts=1 的 cancel/@2.0/late-isolation 拒绝且不补 reservation，原 @1.0 expiry 仍正常；支持 profile 错/缺 reservation 安全拒绝；过期 cancel 不成立；CANCELLING 不变 TIMED_OUT；无第二 terminal/预算消费/版本；@1.0 不能写 ABANDONED |
+| CANCEL-D-006 | 当前取消/expiry/隔离/read Grant 撤销、错主体/actingFor/Policy/Scope/Hash、依赖不可用 | protected read 前 fail closed；锁后/返回前撤权拒绝；过期执行 Bundle 不阻止有独立 cleanup 权限的合法 expiry/隔离，未授权 cleanup 仍拒绝 |
+| CANCEL-D-007 | forward migration、RLS/ACL/immutable/Receipt/guard 与每个提交点故障 | 空库/合法历史升级/no-op；跨 Scope/无 Context/池复用拒绝；Run/Claim/consumption/Intent/Receipt/Event 全回滚；隔离写失败保留源且可重试 |
+| CANCEL-D-008 | 原 final worker 进度已存在后 cancel；其他 Run 同 tick；现有正链回归 | 原进度挂起、不续原 Run、不再次 invoke、不阻断其他 Run；正常与一次 BLOCKED_INPUT 恢复、#239 dispatch 的既有事实/行为不变 |
+
+验收的 Driver 屏障只改变到达次序；使用真实 owning Policy/Grant/Task/WorkOrder/Run/Attempt/Observation，不直接更新 Root、伪造来源/Receipt、改系统时钟或公开 caller now。取消正链 fixture 使用 §24.2 已交付 Controls @1.1 的两次执行/无正式输出 synthetic profile，真实 create_run 先提交 reservation，延迟原 final；不得用 maxAttempts=1 fixture 或直写预算事实制造正链。另验证 §25.1 Controls @2.0 recovery 分支的现有预算绑定与正常/恢复回归，不要求在隔离路径制造正式输出。单次 profile 作为 unsupported 负例，旧 @1.0 expiry 作合法对照；历史无 reservation 不迁移。
+
+每行的 Contract/Application/PostgreSQL/controlled/external/manual 证据分别记录并可独立报告。required target full；docs PASS 只验证文档完整性。实际执行 evidence 在真实 Issue/PR，不创建平行报告。IP/IG 对应的当前权限与来源反例分别见其 CANCEL-D 矩阵。

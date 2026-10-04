@@ -1587,6 +1587,13 @@
       "semanticDeclaration": "im-06-controlled-final-v1.0"
     },
     {
+      "type": "execution.expire_run",
+      "version": "2.0",
+      "authorizationPurpose": "execution.run.expire",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "im-06-run-cancellation-abandoned-v2.0"
+    },
+    {
       "type": "execution.build_context_snapshot",
       "version": "1.1",
       "authorizationPurpose": "task.execution.build_context_snapshot",

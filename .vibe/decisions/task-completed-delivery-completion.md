@@ -2,7 +2,7 @@
 
 设计交付时状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / INDEPENDENT DESIGN REVIEW PASSED / DESIGN MERGED PR #238 / NOT IMPLEMENTED / NEW RUNTIME CASES NOT RUN`。对账基线：`main@cd2a249cff5e8bc0406321863b39b8cbe5141a2e`（2026-10-01 远端读回）。本轮只交付设计；目标是一个后续完整实现结果：真实 TE TaskCompleted Outbox → EP Inbox/关联事实 → 独立 Evaluation → EP 权威读回。正常和一次 BLOCKED_INPUT 恢复链都必须实际调用 controlled Driver；Task-only Item 可 SATISFIED，另需 Release 的 Item 保持 UNSATISFIED。
 
-当前实现提案由 #239 承载：TE/EP/IP 内部 Port、@2.0 Registry/生成文件与 V7011/V7012 已实现，当前计数为 238/62/200；设计冻结基线与 §4 的批准绑定保留。当前能力与运行证据分别由三个 owning Spec/Test 的 #237 章节记录，尚未合并或完成独立实现/人类技术审查。以下“本轮”“未来”指原设计交付轮次，不作为 #239 当前运行状态。
+当前实现已由 #239 / PR #240 交付并于 2026-10-01 合入 `main@aa6f6ec88fa7aeae4a9a10f4936462e8e1a838eb`，#239 已关闭：TE/EP/IP 内部 Port、@2.0 Registry/生成文件与 V7011/V7012 已实现，当前计数为 238/62/200。最终 head `d4f865b7bc211a5a1b1cabc6a804c013a2c88cdf` 的独立 APPROVE、人类技术批准与 exact-head full CI 见 [PR #240 正式记录](../reviews/pr-240/Review.md)及 Issue/PR。设计冻结基线与 §4 的批准绑定保留；当前能力与分层运行证据由三个 owning Spec/Test 的 #237 章节记录，PARTIAL / NOT RUN 不因合并升级。以下“本轮”“未来”指原设计交付轮次，不作为 #239 当前运行状态。
 
 ## 1. 当前事实、缺口与 Spec Delta
 

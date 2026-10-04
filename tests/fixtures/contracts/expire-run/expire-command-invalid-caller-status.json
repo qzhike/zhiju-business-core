@@ -1,0 +1,55 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d510",
+  "commandType": "execution.expire_run",
+  "commandVersion": "2.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.run",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d511",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    }
+  },
+  "expectedAggregateVersion": 3,
+  "callerEndedAt": "2026-08-17T01:05:00Z",
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d512",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "8888888888888888888888888888888888888888888888888888888888888888"
+    }
+  },
+  "idempotencyKey": "expire-run-2-0-004",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d513",
+  "requestedAt": "2026-08-17T01:05:00Z",
+  "payload": {
+    "reason": "LEASE_EXPIRED"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "4040404040404040404040404040404040404040404040404040404040404040",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

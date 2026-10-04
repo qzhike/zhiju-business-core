@@ -942,3 +942,27 @@ v1既有授权/接受集不改，v1不能解释新profile；本节新增SERVICE�
 同一受信身份、Scope 与检查点内的依赖 Decision 当前资格复查，可以复用一个短 READ COMMITTED 事务及安全上下文。每份 Decision 仍按原顺序独立读取完整绑定、Actor、Principal、Grant、Policy，并单独获取受信当前时间；首项拒绝立即停止，后续项不读取。此事务不签发 Decision、不读取其他 Owner 的业务事实，不包含业务锁等待或业务写入。
 
 自身授权先独立重验，再复查依赖组；单项依赖读取前后的独立重验保留。protected read、锁等待后的提交点和历史成功/重复返回前的原有检查点全部保留，每次调用重新建立事务、逐语句读取当前已提交状态；不得缓存 ALLOW、资格数据或跨调用共享事务。不同身份、Scope、请求与检查点不得共用该事务。异常必须回滚并释放连接。
+
+### 15.17 IM06-CANCEL 独立授权组成（已批准设计）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-03 / INDEPENDENT DESIGN REVIEW APPROVE 2026-10-03 / IMPLEMENTED IN #244 PROPOSED REVISION / RUNTIME EVIDENCE IN THE PULL REQUEST`。
+
+批准修订与原始 Hash 见 [取消设计决定 §5](../decisions/task-execution-cancellation.md#5-人类设计批准与修订绑定2026-10-03)。实现见 #244：`CONTROLLED_FIRST_RUN_BINDINGS` 新增九项取消/expiry/isolation/read 映射与 composition 入口；运行证据记录在对应 Issue/PR。 服务 [Spec 003 §27](Module-Spec-003-TaskExecution.md#27-run-取消请求与迟到-final-隔离已批准设计)。本节是授权映射与当前重验的唯一维护位置；不新增公开 IP API、不改变原 runStateReadV1 / runExpireV1 的主体、action 或版本。
+
+下表为已获人类设计批准并通过独立设计复审的受信组成映射，精确 target/Scope、current single covering Grant、Actor/session 与 Decision 绑定沿用 [IP §15.12–§15.13](../module-specs/Module-Spec-001-IdentityPolicy.md#1513-im06-final-result-与-terminal-的独立授权提案)。新增 key/action 不替代旧版本；每个 protected 依赖先授权再读取，锁后/提交与历史返回前重验。
+
+| 边界 / 主体 | action / config key | target 与依赖 |
+|---|---|---|
+| cancel @1.0 / HUMAN | `execution.run.cancel.request.v1` / `runCancelRequestV1` | TARGET_TYPE `execution.run`；公开 Purpose 精确 `task.execution.request_run_cancel`，内部 action 为本行 .v1；自身覆盖 Run/Intent，Agent 与 actingFor 无旁路 |
+| cancel Policy resolve / 同一 HUMAN | `identity.policy.resolve.for_run_cancel.v1` / `runCancelPolicyReadV1` | exact VERSIONED Policy；公开 resolve Purpose 不改 |
+| expire @2.0 / LeaseMonitor SERVICE | `execution.run.expire.v2` / `runExpireV2` | TARGET_TYPE `execution.run`；原 @1.0 独立映射保留 |
+| expire @2.0 历史 Bundle inspect / 同一 SERVICE | `identity.execution_bundle.inspect.for_run_expire.v2` / `runExpireBundleInspectV2` | exact CONTENT_ADDRESSED Bundle；只验历史完整性，不重新授予执行 |
+| Run state read / HUMAN | `execution.run.state.read.for_cancel.v1` / `runStateReadForCancelHumanV1` | TARGET_TYPE `execution.run`；沿用 `task.execution.get_run_state` Purpose，Human 组成入口独立于原 SERVICE key |
+| late isolation / Ingestion SERVICE | `execution.run.late_final.isolate.v1` / `runLateFinalIsolateV1` | TARGET_TYPE 原 Run；只允许拒绝审计，不可创建有效 Result/改 Root |
+| late IG Binding read / 同一 SERVICE | `integration.runtime.binding.read.for_late_final.v1` / `lateFinalBindingReadV1` | 原 Attempt；沿用 registered binding Query Purpose |
+| late IG final read / 同一 SERVICE | `integration.runtime.final.read.for_late_final.v1` / `lateFinalObservationReadV1` | 原 Attempt；沿用 registered final Query Purpose |
+| late Bundle integrity inspect / 同一 SERVICE | `identity.execution_bundle.inspect.for_late_final.v1` / `lateFinalBundleInspectV1` | 原 Bundle；不读当前业务输出，不解除 blocker |
+
+`get_run_state@1.0` 的公开 read Purpose、Schema 与现有 SERVICE 映射保持不变；当前 `runStateReadV1` 组成映射明确为 SERVICE，不能直接拿 Human Grant 通过它。本提案增加独立 HUMAN read 映射和 Human 组成入口，绑定同一精确 Run target；取消授权不授予读回权限，也不将原 SERVICE 映射改成两主体共用。WorkOrder/Task/DeliveryItem 的完成与取消不由本事务推进；取消 Run 的执行事实不产生 SATISFIED，原 Completion 仍按自己的有限支持集判断。真实 Runtime ACK、六项 Runtime Command 与 IM-DG-006 不被本提案批准。
+
+late-isolation、late-Bundle-inspect 是内部 owning action，Purpose/type 取表中精确 action，operation version 为 1.0；取消、expiry、state 与 IG/Policy Query 使用表列公开版本及其既有 registered Purpose。各 config key 绑定受信 capability code，caller 不能指定 action、capability 或把 SERVICE kind 当授权。公开取消 Purpose 与内部 action 是不同字段，不能改旧 metadata 或接受两个 Purpose 互换。业务消费者先有自身授权再检查 Spec 003 §27.1 的已有预算 profile 支持集，cleanup 只验冻结来源与原 reservation 完整性，不要求执行 Bundle/Controls Policy 当前有效。每个 action/target/config key 分别签发 Decision；依赖 Ref 的完整 identity/Scope/hash 必须与该次 target 匹配。历史返回与隔离 Audit 提交前仍复验自身当前权限；过期执行资格不能被当作 cleanup 权限，cleanup 自身有效也不恢复执行资格。

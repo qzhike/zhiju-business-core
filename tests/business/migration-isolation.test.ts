@@ -74,6 +74,9 @@ const DELIVERY_COMPLETION_ALLOCATIONS = new Map([
   [7012, 'enterprise_project'],
 ]);
 
+// Issue #244 explicitly reserves this forward version for the cancellation slice.
+const RUN_CANCELLATION_ALLOCATIONS = new Map([[7013, 'task_execution']]);
+
 const MIGRATION_NAME_PATTERN = /^V(\d{4})__[a-z][a-z0-9_]*\.sql$/;
 const MIGRATION_ROOT_FILES = new Set(['README.md']);
 
@@ -100,6 +103,14 @@ export function validateMigrationEntry(directory: string, fileName: string): str
   const range = MIGRATION_VERSION_RANGES[directory] ?? [0, 0];
   const [min, max] = range;
   const recoveryAllocation = TASK_EXECUTION_RECOVERY_VERSIONS.has(version);
+  const cancellationOwner = RUN_CANCELLATION_ALLOCATIONS.get(version);
+  if (cancellationOwner) {
+    return directory === cancellationOwner
+      ? []
+      : [
+          `'${directory}/${fileName}': version ${version} reserved for ${cancellationOwner} run cancellation`,
+        ];
+  }
   const deliveryOwner = DELIVERY_COMPLETION_ALLOCATIONS.get(version);
   if (deliveryOwner) {
     return directory === deliveryOwner
@@ -255,6 +266,15 @@ describe('migration layout follows the frozen directory/version contract', () =>
         ]);
     }
     expect(validateMigrationEntry('integration_gateway', 'V7010__next.sql')).toEqual([]);
+    for (const [version, owner] of RUN_CANCELLATION_ALLOCATIONS) {
+      expect(validateMigrationEntry(owner, `V${version}__cancellation.sql`)).toEqual([]);
+      for (const directory of Object.keys(MIGRATION_VERSION_RANGES).filter(
+        (value) => value !== owner,
+      ))
+        expect(validateMigrationEntry(directory, `V${version}__cancellation.sql`)).toEqual([
+          `'${directory}/V${version}__cancellation.sql': version ${version} reserved for ${owner} run cancellation`,
+        ]);
+    }
     expect(validateMigrationEntry('identity_policy', '.gitkeep')).toEqual([]);
 
     expect(validateMigrationEntry('not_a_schema', 'V8001__x.sql')).toEqual([

@@ -76,6 +76,122 @@ it('keeps finalization dependency actions aligned with Spec 001 §15.13', () => 
   });
 });
 
+it('keeps the IM-06 #244 cancellation boundaries aligned with Spec 001 §15.17', () => {
+  const reviewed = [
+    'runCancelRequestV1',
+    'runCancelPolicyReadV1',
+    'runExpireV2',
+    'runExpireBundleInspectV2',
+    'runStateReadForCancelHumanV1',
+    'runLateFinalIsolateV1',
+    'lateFinalBindingReadV1',
+    'lateFinalObservationReadV1',
+    'lateFinalBundleInspectV1',
+  ] as const;
+  const rows = CONTROLLED_FIRST_RUN_BINDINGS.filter((binding) =>
+    (reviewed as readonly string[]).includes(binding.boundary),
+  );
+  expect(rows.map((binding) => binding.boundary)).toEqual([...reviewed]);
+  expect(
+    Object.fromEntries(
+      rows.map((binding) => [
+        binding.boundary,
+        {
+          commandType: binding.commandType,
+          commandVersion: binding.commandVersion,
+          purpose: binding.authorizationPurpose,
+          action: binding.requiredGrantAction,
+          principalKind: binding.expectedPrincipalKind,
+          target: binding.targetObjectTypes[0],
+          capabilityConfigKey: binding.capabilityConfigKey,
+        },
+      ]),
+    ),
+  ).toEqual({
+    runCancelRequestV1: {
+      commandType: 'execution.request_run_cancel',
+      commandVersion: '1.0',
+      purpose: 'task.execution.request_run_cancel',
+      action: 'execution.run.cancel.request.v1',
+      principalKind: 'HUMAN',
+      target: 'execution.run',
+      capabilityConfigKey: 'runCancelRequestV1',
+    },
+    runCancelPolicyReadV1: {
+      commandType: 'execution.request_run_cancel',
+      commandVersion: '1.0',
+      purpose: 'identity.policy.resolve_policy',
+      action: 'identity.policy.resolve.for_run_cancel.v1',
+      principalKind: 'HUMAN',
+      target: 'zhiju.identity.policy',
+      capabilityConfigKey: 'runCancelPolicyReadV1',
+    },
+    runExpireV2: {
+      commandType: 'execution.expire_run',
+      commandVersion: '2.0',
+      purpose: 'execution.run.expire',
+      action: 'execution.run.expire.v2',
+      principalKind: 'SERVICE',
+      target: 'execution.run',
+      capabilityConfigKey: 'runExpireV2',
+    },
+    runExpireBundleInspectV2: {
+      commandType: 'execution.expire_run',
+      commandVersion: '2.0',
+      purpose: 'identity.execution_capability_bundle.inspect',
+      action: 'identity.execution_bundle.inspect.for_run_expire.v2',
+      principalKind: 'SERVICE',
+      target: 'zhiju.identity.execution_capability_bundle',
+      capabilityConfigKey: 'runExpireBundleInspectV2',
+    },
+    runStateReadForCancelHumanV1: {
+      commandType: 'execution.get_run_state',
+      commandVersion: '1.0',
+      purpose: 'task.execution.get_run_state',
+      action: 'execution.run.state.read.for_cancel.v1',
+      principalKind: 'HUMAN',
+      target: 'execution.run',
+      capabilityConfigKey: 'runStateReadForCancelHumanV1',
+    },
+    runLateFinalIsolateV1: {
+      commandType: 'execution.run.late_final.isolate',
+      commandVersion: '1.0',
+      purpose: 'execution.run.late_final.isolate',
+      action: 'execution.run.late_final.isolate.v1',
+      principalKind: 'SERVICE',
+      target: 'execution.run',
+      capabilityConfigKey: 'runLateFinalIsolateV1',
+    },
+    lateFinalBindingReadV1: {
+      commandType: 'execution.run.late_final.isolate',
+      commandVersion: '1.0',
+      purpose: 'integration.runtime.binding.read',
+      action: 'integration.runtime.binding.read.for_late_final.v1',
+      principalKind: 'SERVICE',
+      target: 'integration.runtime_attempt',
+      capabilityConfigKey: 'lateFinalBindingReadV1',
+    },
+    lateFinalObservationReadV1: {
+      commandType: 'execution.run.late_final.isolate',
+      commandVersion: '1.0',
+      purpose: 'integration.runtime.final_observation.read',
+      action: 'integration.runtime.final.read.for_late_final.v1',
+      principalKind: 'SERVICE',
+      target: 'integration.runtime_attempt',
+      capabilityConfigKey: 'lateFinalObservationReadV1',
+    },
+    lateFinalBundleInspectV1: {
+      commandType: 'execution.run.late_final.isolate',
+      commandVersion: '1.0',
+      purpose: 'identity.execution_capability_bundle.inspect',
+      action: 'identity.execution_bundle.inspect.for_late_final.v1',
+      principalKind: 'SERVICE',
+      target: 'zhiju.identity.execution_capability_bundle',
+      capabilityConfigKey: 'lateFinalBundleInspectV1',
+    },
+  });
+});
+
 // Every refusal in the first half of this suite happens before the trusted
 // transaction is opened: an unknown consumer version, an unusable trusted
 // configuration, a target outside the entry's closed objectType set, a
@@ -2579,6 +2695,8 @@ describe('IP-FINAL current authorization and complete target matrix', () => {
     'execution.expire_run',
     'execution.get_agent_result',
     'execution.get_run_state',
+    'execution.request_run_cancel',
+    'execution.run.late_final.isolate',
   ]);
   const bindings = CONTROLLED_FIRST_RUN_BINDINGS.filter((binding) =>
     finalOperations.has(binding.commandType),
@@ -2605,7 +2723,7 @@ describe('IP-FINAL current authorization and complete target matrix', () => {
   }
   async function finalHarness(binding: Binding) {
     const harness = new ValidationHarness();
-    harness.principalKind = 'SERVICE';
+    harness.principalKind = binding.expectedPrincipalKind ?? 'SERVICE';
     harness.grants = [
       grantRow({
         capabilityCode: codes[binding.boundary],
@@ -2623,7 +2741,7 @@ describe('IP-FINAL current authorization and complete target matrix', () => {
     const signed = await port.authorize(harness.deps, binding.boundary, {
       actorSnapshotRef: actorSnapshotRef(),
       commandType: binding.commandType,
-      commandVersion: '1.0',
+      commandVersion: binding.commandVersion,
       commandPayloadHash,
       authenticationContextHash,
       targetRef: target,
@@ -2633,7 +2751,7 @@ describe('IP-FINAL current authorization and complete target matrix', () => {
     const input = {
       decisionRef: signed.authorizationDecisionRef,
       expectedCommandType: binding.commandType,
-      expectedCommandVersion: '1.0',
+      expectedCommandVersion: binding.commandVersion,
       expectedCommandPayloadHash: commandPayloadHash,
       expectedAuthenticationContextHash: authenticationContextHash,
       expectedTargetRef: target,
@@ -2752,7 +2870,10 @@ describe('IP-FINAL current authorization and complete target matrix', () => {
         valid: false,
         reason: 'CONFIGURATION_CHANGED',
       });
-      for (const kind of ['HUMAN', 'AGENT'] as const) {
+      const wrongKinds = (['HUMAN', 'AGENT', 'SERVICE'] as const).filter(
+        (kind) => kind !== (binding.expectedPrincipalKind ?? 'SERVICE'),
+      );
+      for (const kind of wrongKinds) {
         harness.principalKind = kind;
         expect(await port.revalidate(harness.deps, binding.boundary, input)).toMatchObject({
           valid: false,

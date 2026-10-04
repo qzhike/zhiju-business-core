@@ -1448,3 +1448,23 @@ TaskCompleted@1.0完整合同/四字段零变；TE sidecar、dispatch函数、IP
 ```text
 project.evaluate_delivery_item_completion@2.0
 ```
+
+## IM06-CANCEL expire_run Major 2 契约设计
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-03 / INDEPENDENT DESIGN REVIEW APPROVE 2026-10-03 / IMPLEMENTED IN #244 PROPOSED REVISION / RUNTIME EVIDENCE IN THE PULL REQUEST`。
+
+请求/结果与支持集唯一见 [Spec 003 §27](../module-specs/Module-Spec-003-TaskExecution.md#27-run-取消请求与迟到-final-隔离已批准设计)；批准绑定见取消设计决定 §5。
+
+| 新版本 | Owner / kind / target | Purpose / 兼容 |
+|---|---|---|
+| `execution.expire_run@2.0` | task-execution / COMMAND MUTATE / OBJECT `execution.run`，expectedAggregateVersion 必填 | `execution.run.expire`；closed Result 从 TIMED_OUT 常量改为 TIMED_OUT/ABANDONED 需独立 Major；@1.0 保留 |
+
+```text
+execution.expire_run@2.0
+```
+
+请求 closed {reason: LEASE_EXPIRED|DEADLINE_EXCEEDED}；Result.data closed {runRef:ObjectRef<execution.run>,status:TIMED_OUT|ABANDONED,endedAt:UtcInstant}。引用路径为 /targetRef（OBJECT execution.run）与 /data/runRef（OBJECT execution.run）；reason/status/endedAt 不是 Ref。不新增 public objectType、Query/Event 或 IP/IG 操作。request_run_cancel@1.0、get_run_state@1.0、RunTerminated@1.0 及 expire_run@1.0 的 Schema/metadata/fixtures 接受集逐字节保留。
+
+cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.request_run_cancel`，内部 Grant action `execution.run.cancel.request.v1` 不作为别名；new expire@2.0、cancel Handler 与 late-isolation 的首版支持集唯一见 Spec 003 §27.1，仅包含真实创建已有 reservation 的两次执行 profile。上述限制不改旧 Schema 或 @1.0 expiry 支持集。
+
+本设计已随 #244 注册 `execution.expire_run@2.0`；当前计数 239/63/200，historical baseline 保持 200。注册、生成产物、version metadata、Result validation 与 standalone 正负 fixtures 必须同修订交付；Intent 与 late isolation/Audit 为内部边界，不能当成已注册操作。IM-DG-006 与六个 Runtime Command/ACK 不因本项获得批准。
