@@ -1,6 +1,53 @@
 # PR #247 独立实现审查
 
-## 最新复审（2026-10-04，修复 head 6f8cac5）
+## 合并交付授权与最终文档边界（2026-10-04）
+
+用户在批准后明确要求“合并PR，关闭Issue及local/remote branch”，目标为 PR #247、Issue #246 与任务分支 `galendai/IM-06-3`。该授权覆盖本次必要的正式审查记录交付、当前 Usage/Provenance 事实对账及指定 PR/Issue/分支操作，不包含其他 worktree 或分支清理。
+
+交付文档增量仅更新本 Review、Usage/Provenance 决定的已执行/剩余边界，以及 roadmap 的当前推进事实；不修改业务实现、测试、公开契约或已批准技术语义。人类批准继续绑定实现 head `0bb40b2ee68653eb3072c6ebe7960373edb4b915`。最终文档提交的 exact-head 独立复核与 required full CI 结果保存在 PR，未通过前不得合并；远端合并与 Issue/分支结果在执行后读回，不在本记录预先声称完成。
+
+## 人类实现批准补记（2026-10-04）
+
+用户在本轮复审结果、具体 reviewed SHA、授权/来源/快照边界与剩余门禁呈现后明确回复“批准”。该批准绑定 `0bb40b2ee68653eb3072c6ebe7960373edb4b915` 的实现技术审查交付物；已核对远端 PR head 未变，人类实现批准门禁现为 **APPROVED**。这是用户对所呈现技术审查结果的明确批准，不声称另有独立人工测试或额外人工审查已执行。
+
+批准后读回 [CI run 37207808529](https://github.com/qzhike/zhiju-business-core/actions/runs/37207808529)：headSha 与批准 SHA 一致，select/checks SUCCESS，persistence IN_PROGRESS，最终 verify 尚未完成。required full 仍为 **PENDING**，尚不能将整体审查结果更新为 APPROVE；下方 HUMAN_REVIEW_REQUIRED 保留为批准前的历史结论，人类批准这一项已由本补记解除。未执行验收边界保持不变。
+
+本次批准没有扩展到 commit、push 或 merge。正式记录仍为本地未提交修改。
+
+[批准补记已发布](https://github.com/qzhike/zhiju-business-core/pull/247#issuecomment-5980965428)，读回正文与发布稿一致。
+
+## 最新复审（2026-10-04，修复 head 0bb40b2）
+
+**HUMAN_REVIEW_REQUIRED**。本轮未发现新的代码阻断，F2-R2 的完整 TypedRef 缺口关闭。仍需完成精确 head 的 required full 证据确认，以及高风险授权/敏感来源读取实现的人类技术审查；不把设计批准、实现者摘要或本轮 agent 结论当作这些门禁的完成。
+
+- Reviewed head：`0bb40b2ee68653eb3072c6ebe7960373edb4b915`；base：`e1b201ef85f0e75d3f816d94600f9810116b22ab`。
+- 独立核对最新 Issue/PR 与 reviews、`6f8cac5` 至本 head 的 5 文件 diff、当前 owning 读取实现/回归、既有验收屏障与历史保留测试、原始本地 full 日志及当前 CI。Issue #246 既定验收与公开契约没有修改。
+- 本次只更新正式 Review 并发布授权内 PR comment；临时独立诊断已移除，没有修改产品实现，没有 commit、push 或 merge。
+
+| 上轮 finding | 当前判断 | 依据 |
+| --- | --- | --- |
+| F1：原 final 与 TE Result/Claim | 保持 CLOSED | `finalBindsCommittedFacts` 修复未变；本轮没有放宽关联检查。 |
+| F2-R1：ack binding/RawReceipt hash | 保持 CLOSED | 独立复跑两项自洽错 hash，Binding/final 均拒绝；intact 正对照通过。 |
+| F2-R2：完整 Attempt/Adapter TypedRef | CLOSED | ack 比较 `same(canonicalAttemptRef, ref)`；final 在 owning identity 校验、构造实际 Ref 后比较 `same(canonicalFinalIdentity, identityRef)`。独立单字段 objectType 与 kind 四项负例重算自身 hash 后均拒绝，未连带修改授权输入或 Result body。 |
+| F3-R1/R2：历史保留、expiry 与确定性快照 | 实现/测试修订已确认；当前 required full 仍 PENDING | 当前测试包含拒绝重交的 DENIED/EXECUTION_FINAL_CONFLICT audit、旧执行资格到期后的已接纳历史读取、读取屏障后 Decision 到期，以及两处 writer await 首个 Run SELECT 的 reached 握手。原始本地日志中 8 项 Usage PostgreSQL 用例全部执行通过，但日志未嵌入 SHA，不能据此认定当前精确 head 的 full 已完成。 |
+
+### 本轮独立验证
+
+- 临时 focused Vitest diagnostic：**1 file / 8 tests PASS**。包含两个既有 Driver 安全正例、intact Binding/final 正对照、F2-R1 两个错 hash 的拒绝，以及 ack Attempt/final Adapter 各自只改 objectType 或 kind 的四项拒绝。所有反例都重算 canonical 自身 hash；使用独立 Ref 对象避免 fixture alias 连带改变。它们证明应用读取边界，不声称 PostgreSQL 损坏可注入或 guard 可绕过。
+- [当前 CI run 37207808529](https://github.com/qzhike/zhiju-business-core/actions/runs/37207808529) 的 headSha 精确等于 reviewed head。取证时 select/checks SUCCESS，persistence IN_PROGRESS，最终 verify 尚未完成；required full 为 **PENDING**。前一 head 的成功 CI 不批准此 head；正常进行中的 CI 不是新的实现 finding。本轮未重复运行 full。
+- 已直接检查 `/private/tmp/full5.log`：配置目标 `full`、命令 `pnpm clean && pnpm verify`、exit_code=0、status=PASS；86 files / 1700 unit/contract tests，46 files / **581** persistence tests，8 个 Usage 用例全部 PASS，second migrate no-op，persistence gate passed。作者 comment 中的 580 是过期计数。该日志于当前 commit 前生成，但没有 SHA 绑定，保留为补充原始执行证据，不替代精确 revision CI。
+- 独立诊断副本 `/private/tmp/pr247-fourth-review-probe.test.ts`（relative imports 基于原 `modules/integration-gateway/src/runtime/`）；仓库内临时 probe 已删除。
+- 公共 Schema/metadata/fixture/registry/migration 与授权 composition 在本轮修复中未改变。Provider/CLI/Feishu、public HTTP/UI、transport wrapper、生产/负载、PG 损坏注入/guard 诊断及独立人工业务验收，本轮 **NOT RUN**；不宣称 IM-06 完成。
+
+### 人类技术审查依据与剩余交付
+
+`vibe-development` SKILL 的规则为 “high-risk work requires human technical review”；Reviewer 的 Human Review 段要求在高风险或需要人类技术判断的安全敏感工作中报告 HUMAN_REVIEW_REQUIRED。本 PR 不仅是最后一次 TypedRef 小修补：完整 PR 新增六项独立当前读权、跨 Owner 来源关联、TE REPEATABLE READ 与 IP 当前撤权检查，决定敏感历史来源能否披露，属于此规则适用的高风险安全实现。需要人类复核这些实际实现边界与证据；这不是仅因 T2 分类、普通合并授权或 CI 等待而增加的门禁。
+
+当前 PR reviews 为空，comments 未提供绑定此实现 head 的明确人类技术审查。设计批准已成立，但不替代实现复核。下一步核对当前精确 SHA 的 full 完成结果，再由人类技术审查确认上述授权/来源/快照边界。正式 Review 本轮更新仍未提交，交付须另按已有 Git 授权规则处理。
+
+[本轮复审 comment 已发布](https://github.com/qzhike/zhiju-business-core/pull/247#issuecomment-5980911862)，读回正文与发布稿一致；发布后 head 仍为 `0bb40b2ee68653eb3072c6ebe7960373edb4b915`，PR OPEN。这是普通 comment，不是 GitHub 正式 Review；正式记录本轮修改未提交。
+
+## 上轮复审（2026-10-04，历史 head 6f8cac5）
 
 **REQUEST_CHANGES**。上轮 F2-R1 的 binding/RawReceipt hash 反例已修复；F3-R1/R2 已补测试与屏障握手，但当前精确提交的 persistence CI 尚未完成。本轮独立反例确认 F2 的完整 TypedRef 绑定仍有剩余阻断 F2-R2，不因等待 CI 而扩大审查或重复 full。
 
