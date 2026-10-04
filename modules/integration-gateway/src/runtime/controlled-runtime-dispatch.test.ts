@@ -647,6 +647,56 @@ describe('ControlledRuntimeDispatchService strict usage reads', () => {
     ).rejects.toMatchObject({ code: FINAL_INVALID });
   });
 
+  it('rejects a self-consistent canonical reference whose objectType differs', async () => {
+    const attemptSource = makeFixture();
+    const attemptRow = fixtureRow(
+      attemptSource.tables,
+      'integration_gateway.runtime_attempt_observation',
+    );
+    const attemptPayload = attemptRow.observation_payload as Record<string, unknown>;
+    attemptPayload.attemptRef = {
+      ...(attemptPayload.attemptRef as Record<string, unknown>),
+      objectType: 'execution.run',
+    };
+    attemptRow.observation_hash = Buffer.from(
+      sha256CanonicalJson(attemptPayload as unknown as CanonicalJsonValue),
+      'hex',
+    );
+    await expect(
+      makeService(attemptSource.tables).getUsageRuntimeBinding(
+        attemptSource.context,
+        attemptSource.ref,
+      ),
+    ).rejects.toMatchObject({ code: BINDING_INVALID });
+    await expect(
+      makeService(attemptSource.tables).getUsageFinalObservation(
+        attemptSource.context,
+        attemptSource.ref,
+      ),
+    ).rejects.toMatchObject({ code: FINAL_INVALID });
+
+    const adapterSource = makeFixture();
+    const adapterRow = fixtureRow(
+      adapterSource.tables,
+      'integration_gateway.runtime_final_observation',
+    );
+    const adapterPayload = adapterRow.canonical_payload as Record<string, unknown>;
+    adapterPayload.runtimeAdapterIdentityRef = {
+      ...(adapterPayload.runtimeAdapterIdentityRef as Record<string, unknown>),
+      objectType: 'execution.run',
+    };
+    adapterRow.payload_hash = Buffer.from(
+      sha256CanonicalJson(adapterPayload as unknown as CanonicalJsonValue),
+      'hex',
+    );
+    await expect(
+      makeService(adapterSource.tables).getUsageFinalObservation(
+        adapterSource.context,
+        adapterSource.ref,
+      ),
+    ).rejects.toMatchObject({ code: FINAL_INVALID });
+  });
+
   it('distinguishes an owning not-found from an integrity failure for the final observation', async () => {
     const missing = makeFixture();
     missing.tables['integration_gateway.runtime_final_observation'] = [];

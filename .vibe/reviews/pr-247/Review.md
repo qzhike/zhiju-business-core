@@ -1,6 +1,45 @@
 # PR #247 独立实现审查
 
-## 最新复审（2026-10-04，修复 head dd8fc115）
+## 最新复审（2026-10-04，修复 head 6f8cac5）
+
+**REQUEST_CHANGES**。上轮 F2-R1 的 binding/RawReceipt hash 反例已修复；F3-R1/R2 已补测试与屏障握手，但当前精确提交的 persistence CI 尚未完成。本轮独立反例确认 F2 的完整 TypedRef 绑定仍有剩余阻断 F2-R2，不因等待 CI 而扩大审查或重复 full。
+
+- Reviewed head：`6f8cac584d44a2700556c8d5df9de30d7489c85a`；base：`e1b201ef85f0e75d3f816d94600f9810116b22ab`。
+- 独立核对最新 Issue/PR、`dd8fc115` 至本 head 的 9 文件 diff、owning Spec/Test、实际新测试与当前 CI。Issue 验收未变；F1 修复及公开兼容未改。
+- 本次只修改本正式审查记录并发布授权内 PR comment，没有实现修复、commit、push 或 merge。
+
+| 上轮 finding | 当前判断 | 依据 |
+| --- | --- | --- |
+| F2-R1：ack binding/RawReceipt hash | CLOSED | owning ack 校验接收已验证 attempt.binding_hash，比较 canonical bindingHash 和完整 RawReceipt Ref；独立复跑两个自洽错 hash 反例，Binding/final 均拒绝，intact 正对照通过。 |
+| F3-R1：历史保留与 expiry 证据 | 测试已补，精确 revision persistence 结果 PENDING | 新增 terminal 后 conflicting resubmission 及 DENIED/EXECUTION_FINAL_CONFLICT audit 断言、独立当前读权越过旧 execution 期限的历史读取、首次 Run SELECT 后 Decision 到期拒绝；owning IP/TE/IG 矩阵已同步。新执行证据尚待独立核对，不能用实现者的 full PASS 摘要替代。 |
+| F3-R2：确定性 snapshot handshake | 调度实现已修复，精确 revision persistence 结果 PENDING | 首次 Run SELECT 的 result hook 解析 reached；两个 writer hook 都 await reached，再允许 Acceptance/isolation 提交，然后 release/await paused Query，下一查询检查新 child。不再依赖启动异步 Query 后立即写入的时序。 |
+
+### F2-R2 / P2：canonical Attempt/Adapter TypedRef 仍只按 id 与 Scope 关联
+
+位置：`modules/integration-gateway/src/runtime/controlled-runtime-dispatch.ts:1088–1093`、`:1284–1286`。
+
+ack 的 canonicalAttemptRef 校验仅比较 objectId/Scope；final 的 canonical runtimeAdapterIdentityRef 同样仅比较 objectId/Scope。两处都未关联完整 TypedRef 的 kind/objectType，而返回 DTO 用受信信息重建正确类型的引用。这会把来源 canonical 中错误类型的 Ref 隐藏为可信返回，而 final Observation contentHash 仍绑定那份错误的 canonical 来源。
+
+两项独立单字段纯反例从 intact 当前 fixture 开始，替换一份独立 Ref 对象，避免 fixture 共享引用造成输入或 body 被连带改变：
+
+1. 仅把 ack observation_payload.attemptRef.objectType 从 `integration.runtime_attempt` 改为 `execution.run`，id/Scope/原 bindingHash/RawReceipt/session 均不改，重算 ack observation_hash。Binding read 仍返回成功 acknowledgement，final read 也成功，返回 Attempt Ref 为原正确类型。
+2. 仅把 final canonical_payload.runtimeAdapterIdentityRef.objectType 从 `zhiju.runtime.runtime` 改为 `execution.run`，id/Scope/实际 Adapter/body/各列均不改，重算 canonical Observation payload_hash。final read 成功，返回 Adapter Ref 为正确类型，Observation contentHash 却绑定错误类型的 canonical Ref。
+
+这不是新增风格要求。Spec 003 §13.4 要求精确关联完整原引用，Spec 007 IM06-USAGE 要求 stored canonical Observation 与返回来源 mirrors 一致；Issue Acceptance 6 要求错误 Attempt/实例来源不得成为可信证据。相同 UUID/Scope 不使不同 objectType 成为同一个 TypedRef。
+
+修复：ack 将完整 canonicalAttemptRef 与本次已授权 exact Attempt Ref 比较；final 将完整 canonical runtimeAdapterIdentityRef 与已验证 identity.instance_id/Scope 构成的实际 Adapter Ref 比较（含 kind/objectType），并补单字段 kind/objectType 的正负对照。保留 owning integrity error/no data，与 not-found 分开。以上反例只证明应用读取边界，不声称 PostgreSQL guard 可绕过或正常调用者可改库。
+
+### 本轮验证与交付边界
+
+- [CI run 37205223902](https://github.com/qzhike/zhiju-business-core/actions/runs/37205223902) 的 headSha 精确等于 reviewed head；截至本轮取证 select/checks SUCCESS，persistence IN_PROGRESS，verify 尚无完成结果。因此 required full 的本轮独立 CI 证据为 PENDING，不能复用前一 head 的成功结果批准新 head。
+- 修复者 comment 声明本地 full PASS（46 files / 580 tests、1699 unit/contract），但本轮未获取其原始 revision-bound 执行输出，未据该摘要认定当前 persistence PASS。已存在确定的 F2-R2 来源完整性阻断，按 Reviewer 规则停止扩大取证，没有重跑本地 full，也不把正常进行中的 CI 作为新的实现缺陷。
+- 独立 focused diagnostic 6 tests PASS：两个既有安全正例、intact Binding/final 正对照、F2-R1 两个自洽错 hash 的拒绝、F2-R2 两项错 objectType 仍成功的复现断言。首版 probe 原地修改共享 Ref，连带改变输入/body，两个测试因无关错误失败；已改为独立替换 Ref 对象并确认实际输入/body不变后重跑，全 PASS。仅修正临时诊断，未改产品代码。
+- 临时仓库 probe 已移除；副本 `/private/tmp/pr247-third-review-probe.test.ts`，相对 imports 基于原 `modules/integration-gateway/src/runtime/`。PostgreSQL 损坏注入/guard、外部 Provider/CLI/飞书、public HTTP/UI、transport wrapper、生产/负载与独立人工验收本轮 NOT RUN。
+- 适用的人类实现技术审查与交付门禁继续独立存在，设计批准不替代实现批准。修复 F2-R2 后复审新 head，并核对其 required full 结果与尚未运行的契约验收边界。
+
+[本轮复审 comment 已发布](https://github.com/qzhike/zhiju-business-core/pull/247#issuecomment-5980467965)，读回正文与发布稿一致；发布后 head 仍为 `6f8cac584d44a2700556c8d5df9de30d7489c85a`，PR OPEN。这是普通 comment，不是 GitHub 正式 REQUEST_CHANGES Review；正式记录本轮修改未提交。
+
+## 上轮复审（2026-10-04，历史 head dd8fc115）
 
 **REQUEST_CHANGES**。F1 关闭；F2 两个原始反例已修复，但 ack 的完整来源绑定仍有缺口；F3 有新增执行证据，但尚未满足全部明确验收。下方首轮记录保留为历史，不代表当前 head 的全部判断。
 

@@ -85,3 +85,5 @@ Planner 重新读取远端 main，仍为 `e1b201ef85f0e75d3f816d94600f9810116b22
 评审修订（2026-10-04，PR #247 首轮 REQUEST_CHANGES 后）：TE Handler 在构造 evidence/声明前把原 IG final 与已提交 Result/Claim/Contract 逐项关联（`finalBindsCommittedFacts`），关联失败按跨 Owner SOURCE_CONFLICT 返回、不产生 PRESENT；IG 严格读把 canonical payload 字段与返回 mirror 列逐项比对；验收补齐 BOUNDED_RECOVERY Run-1/Context-2 Run-2 独立读回、CANCELLING/ABANDONED 迟到隔离、Decision 到期与读取屏障后撤权、以及 owning Acceptance 与 late-audit 的确定性双连接快照调度。逐行结果见 Module-Test-003/007。
 
 第二轮评审修订（2026-10-04，PR #247 复核后）：IG ack 校验改为把 canonical `bindingHash` 绑定到已验证 attempt 的 binding hash、把完整 canonical `rawReceiptRef` 绑定到独立验证的 receipt Ref（self-consistent 但错误来源也拒绝）；双连接快照调度增加「已到达首个 Run SELECT」handshake，writer 在旧快照建立后才提交；验收补已接纳历史在执行资格到期后仍可读、finalize 后 conflicting resubmission 被 owning Handler 拒绝且不抹除已接纳历史、以及读取屏障后 Decision 到期的返回检查点拒绝；同步修正 IP/IG/TE 矩阵中已执行与仍 NOT RUN 的描述。
+
+第三轮评审修订（2026-10-04，PR #247 复核后）：IG 严格读的 canonical 引用改为完整 TypedRef 绑定——canonical ack 的完整 `attemptRef` 必须等于已授权 exact Attempt，canonical final 的完整 `runtimeAdapterIdentityRef` 必须等于已验证 owning identity Ref（含 kind/objectType/id/scope），不再只比 id/scope；新增只改 objectType 并重算自身 hash 的负例。

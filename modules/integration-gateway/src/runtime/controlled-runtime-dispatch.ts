@@ -1089,8 +1089,6 @@ export class ControlledRuntimeDispatchService {
       if (
         canonicalFinal.observationId !== row.observation_id ||
         canonicalFinal.attemptId !== row.attempt_id ||
-        canonicalFinalIdentity.objectId !== row.runtime_adapter_identity_id ||
-        !same(canonicalFinalIdentity.scope, subjectScope) ||
         !same(canonicalFinal.runtimeSubmissionRef, row.runtime_submission_ref) ||
         !same(canonicalFinal.resultPayloadHash, hash(row.result_payload_hash.toString('hex'))) ||
         !same(canonicalFinal.bindingHash, hash(row.binding_hash.toString('hex'))) ||
@@ -1162,6 +1160,7 @@ export class ControlledRuntimeDispatchService {
       };
       if (
         identity.ack_observation_id !== row.ack_observation_id ||
+        !same(canonicalFinalIdentity, identityRef) ||
         !same(agentResultContract.submittedByRuntime, identityRef) ||
         !same(
           objectWith(
@@ -1278,14 +1277,12 @@ export class ControlledRuntimeDispatchService {
     )
       invalid(code);
     // The canonical acknowledgement must bind its own source, not merely be
-    // self-consistent: its binding hash must equal the verified attempt's
-    // binding hash and its complete RawReceipt reference must equal the
-    // independently verified receipt reference.
+    // self-consistent: its complete Attempt reference must equal the
+    // authorized exact Attempt, its binding hash must equal the verified
+    // attempt's binding hash, and its complete RawReceipt reference must equal
+    // the independently verified receipt reference.
     if (
-      canonicalAttemptRef.objectId !== observation.attempt_id ||
-      !same(canonicalAttemptRef.scope, subjectScope) ||
-      canonicalRawReceiptRef.objectId !== observation.raw_receipt_id ||
-      !same(canonicalRawReceiptRef.scope, subjectScope) ||
+      !same(canonicalAttemptRef, ref) ||
       !same(canonicalObservation.bindingHash, hash(expectedBindingHashHex)) ||
       !same(
         canonicalRawReceiptRef,
