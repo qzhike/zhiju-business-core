@@ -752,3 +752,53 @@ export async function withTaskExecutionTransaction<T>(
     }),
   );
 }
+
+/**
+ * Runs one TaskExecution read-only *snapshot* on one connection.
+ *
+ * The RLS context establishment is identical to
+ * {@link withTaskExecutionTransaction}; only the isolation level differs, and
+ * it is scoped to this query helper so no command transaction changes. The
+ * platform transaction context keeps its existing INSERT/DELETE housekeeping,
+ * so the access mode stays read-write: PostgreSQL `READ ONLY` would make the
+ * Context establishment fail. "Read-only" here means the owning handler
+ * performs no business/source DML, no Driver call and no state advance.
+ *
+ * The PostgreSQL `transaction_timestamp()` observed by this snapshot is
+ * returned so the caller can bind it as the read baseline (`snapshotAt`)
+ * instead of inventing one from the application clock.
+ */
+export async function withTaskExecutionSnapshotTransaction<T>(
+  db: Kysely<TaskExecutionDb>,
+  context: TaskExecutionTransactionContext,
+  fn: (trx: TaskExecutionTransaction, snapshotAt: Date) => Promise<T>,
+): Promise<T> {
+  return db.connection().execute(async (connection) =>
+    connection
+      .transaction()
+      .setIsolationLevel('repeatable read')
+      .execute(async (trx) => {
+        await sql.raw('SET LOCAL ROLE platform_context_establisher').execute(trx);
+        await sql`SELECT platform_security.establish_transaction_context(
+          ${context.kind},
+          ${context.principalId},
+          ${context.principalKind},
+          ${context.actorSnapshotId},
+          ${context.authorizationDecisionId},
+          ${context.authorizationDecisionHash},
+          ${context.authorizationDecisionExpiresAt},
+          ${context.enterpriseId},
+          ${[...context.allowedProjectIds]},
+          ${context.correlationId},
+          ${context.sourceEventId ?? null})`.execute(trx);
+        await sql.raw('SET LOCAL ROLE task_execution_app').execute(trx);
+        const stamp = await sql<{ readonly snapshot_at: Date }>`
+          SELECT transaction_timestamp() AS snapshot_at`.execute(trx);
+        const snapshotAt = stamp.rows[0]?.snapshot_at;
+        if (!(snapshotAt instanceof Date) || !Number.isFinite(snapshotAt.getTime())) {
+          throw new Error('task execution snapshot timestamp is unavailable');
+        }
+        return fn(trx, snapshotAt);
+      }),
+  );
+}

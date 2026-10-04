@@ -88,6 +88,8 @@ export interface VerifyRunCancellationContext extends VerifyTerminalExpiryContex
   readonly progressAuthorization: ScenarioProgressAuthorization;
   readonly progressListAuthorization: ScenarioProgressListAuthorization;
   readonly progressEnvelope: ScenarioProgressEnvelope;
+  readonly usageProbe?:
+    ((stage: 'CANCELLED' | 'ISOLATED', runRef: Common.ObjectRef) => Promise<void>) | undefined;
 }
 
 /** The subset of an ALLOW Decision the cancel scenario presents onward. */
@@ -470,6 +472,7 @@ async function cancelRow003(state: VerifyRunCancellationContext): Promise<void> 
     state.sessionFor(state.service),
   );
 
+  await state.usageProbe?.('CANCELLED', state.runRef);
   const requestedAt = new Date(state.clock).toISOString();
   const isolationPayload = {
     runRef: state.runRef,
@@ -527,6 +530,7 @@ async function cancelRow003(state: VerifyRunCancellationContext): Promise<void> 
   });
   expect(record(audit?.runtime_ref).observationRef).toEqual(isolation.observationRef);
   expect(audit?.result_payload_hash).toBe(record(isolation.resultPayloadHash).digest);
+  await state.usageProbe?.('ISOLATED', state.runRef);
 
   // No new eligible Result/Acceptance/output and no Run mutation.
   expect(await countWhere(state, 'agent_result', 'run_id=$1', [state.runRef.objectId])).toBe(0);

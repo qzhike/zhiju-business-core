@@ -267,6 +267,11 @@ export function createRunScenario(suite: InitialContextSuite) {
     deliveryRequiredRelease = false,
     deliverySchedule?: DeliveryScheduleHooks,
     cancelVariant?: CancelVariant,
+    usageProbe?: (
+      stage:
+        'CREATED' | 'STARTED' | 'SUBMITTED' | 'ACCEPTED' | 'FINALIZED' | 'CANCELLED' | 'ISOLATED',
+      runRef: Common.ObjectRef,
+    ) => Promise<void>,
   ) => {
     const stageDependencies: VerifyPreparationValidationContext &
       VerifyRecoverySqlContext &
@@ -782,6 +787,9 @@ export function createRunScenario(suite: InitialContextSuite) {
       },
       get finalView() {
         return finalView;
+      },
+      get usageProbe() {
+        return usageProbe;
       },
       get progressAuthorization() {
         return progressAuthorization;
@@ -3217,6 +3225,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       expect(runtimeDriver.invokedAttemptIds).toEqual([]);
     }
     if (await verifyRunCreation(stageDependencies)) return;
+    await usageProbe?.('CREATED', runRef);
     const dispatchEnvelope = await firstRunEnvelope(
       'integration.request_runtime_dispatch',
       attemptRef,
@@ -3368,6 +3377,7 @@ export function createRunScenario(suite: InitialContextSuite) {
         )
       ).rows,
     ).toEqual([{ status: 'RUNNING', aggregate_version: '2' }]);
+    await usageProbe?.('STARTED', runRef);
     if (formal && !bounded && terminalScenario !== 'FORMAL_EMPTY')
       await createAndReleaseFormalOutput(runRef, attemptRef);
     if (terminalScenario === 'FORMAL_LATE') {
@@ -4839,9 +4849,11 @@ export function createRunScenario(suite: InitialContextSuite) {
       acceptanceTarget = winnerEnvelope.targetRef;
       acceptEnvelope = winnerEnvelope;
     } else {
+      await usageProbe?.('SUBMITTED', runRef);
       accepted = await firstRunEntry.acceptAgentResult(acceptEnvelope, suite.sessionFor(service));
     }
     expect(accepted, JSON.stringify(accepted)).toMatchObject({ status: 'COMMITTED' });
+    await usageProbe?.('ACCEPTED', runRef);
     if (exercisePreparationMatrix) {
       const secondAcceptance = await firstRunEnvelope(
         'execution.accept_agent_result',
@@ -5575,6 +5587,24 @@ export function createRunScenario(suite: InitialContextSuite) {
       }
     }
     if (await verifyHistoricalReadPermissions(stageDependencies)) return;
+    if (usageProbe !== undefined && terminalScenario === 'SUCCEEDED') {
+      // A later conflicting resubmission is rejected by the owning handler and
+      // cannot erase the accepted immutable Result/Acceptance.
+      const conflicting = await firstRunEnvelope(
+        'execution.submit_agent_result',
+        resultTarget,
+        {
+          agentResultContract: { ...resultBody, humanSummary: 'Conflicting late body.' },
+          runFencingToken: 1,
+          runtimeSubmissionRef: finalView.runtimeSubmissionRef,
+        },
+        service,
+      );
+      await expect(
+        firstRunEntry.submitAgentResult(conflicting, suite.sessionFor(service)),
+      ).rejects.toBeDefined();
+    }
+    await usageProbe?.('FINALIZED', runRef);
     observeValidations?.({ ...finalValidations, acceptanceRecordRef } as CanonicalJsonObject);
   };
   return runScenario;
