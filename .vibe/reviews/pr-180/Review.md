@@ -1,5 +1,18 @@
 # PR #180 独立审查
 
+## 最新复审（2026-09-12）
+
+- 结论：`APPROVE`
+- Reviewed SHA：`7fe8936be2cd556f032d019faf3e2b915d3b438d`
+- 原 P2 已关闭：§12 状态行与 §12.9 已明确记录 #179 交付的静态 registry/schema/纯校验，并从仍缺少的能力清单中移除对应条目；历史设计批准及其余未实现业务能力的 NOT RUN 边界保留。
+- 独立检查相对首轮 reviewed SHA 的完整差异，仅设计决定和首轮审查记录发生变化；产品代码、Schema、Registry 与测试未变化，首轮字段核对继续适用。未发现新增阻塞项。
+- 新 SHA 的完整本地验证证据见 [修复 Comment](https://github.com/qzhike/zhiju-business-core/pull/180#issuecomment-5646163800)：`vibe verify full --json` PASS，包含 clean build 与 Docker/PostgreSQL gate。本次复审采用该版本绑定证据，不重复执行 full。
+- 同 head 的 [CI verify](https://github.com/qzhike/zhiju-business-core/actions/runs/34696360699/job/103560418542) 已确认 SUCCESS；增量 `git diff --check` 通过。
+- PolicyVersion 存在性、授权、生命周期、解析、Evaluator 执行、真实业务链、外部集成和人工验收继续 NOT RUN。
+- 复审结论通过 PR Comment 发布；本地仅更新此正式审查记录，未提交、推送或合并。
+
+## 首轮审查（历史记录）
+
 - 结论：`REQUEST_CHANGES`
 - Reviewed SHA：`7e94c571bd772fb2dc68cf9cf298cb31df3379a1`
 - 日期：2026-09-12
