@@ -105,6 +105,7 @@ async function ageingOrder(state: VerifyRunCancellationContext, abandoned: boole
   // eligible for a Result.
   expect(record(record(finalView).runRef).objectId).toBe(state.runRef.objectId);
 
+  await state.usageProbe?.('CANCELLED', state.runRef);
   const requestedAt = new Date(state.clock).toISOString();
   const decision = await isolationDecisionFor(state, requestedAt, state.attemptRef, state.runRef);
   const isolated = (await state.firstRunEntry.isolateLateFinal(
@@ -132,6 +133,7 @@ async function ageingOrder(state: VerifyRunCancellationContext, abandoned: boole
   expect(audit).toMatchObject({ outcome: 'REJECTED', error_code: 'LATE_RESULT' });
   expect(record(audit?.runtime_ref).observationRef).toEqual(observationRef);
   expect(await lateFinalAudits(state)).toBe(1);
+  await state.usageProbe?.('ISOLATED', state.runRef);
   expect(await countWhere(state, 'agent_result', 'run_id=$1', [state.runRef.objectId])).toBe(0);
   expect(
     await countWhere(state, 'agent_result_acceptance', 'run_id=$1', [state.runRef.objectId]),

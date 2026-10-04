@@ -558,6 +558,37 @@ describe('ControlledRuntimeDispatchService strict usage reads', () => {
     ).rejects.toMatchObject({ code: FINAL_INVALID });
   });
 
+  it('rejects a mirror column that disagrees with its stored canonical payload', async () => {
+    const finalSubmission = makeFixture();
+    const finalRow = fixtureRow(
+      finalSubmission.tables,
+      'integration_gateway.runtime_final_observation',
+    );
+    finalRow.runtime_submission_ref = {
+      ...(finalRow.runtime_submission_ref as Record<string, unknown>),
+      externalId: 'other-submission',
+    };
+    await expect(
+      makeService(finalSubmission.tables).getUsageFinalObservation(
+        finalSubmission.context,
+        finalSubmission.ref,
+      ),
+    ).rejects.toMatchObject({ code: FINAL_INVALID });
+
+    const acknowledgement = makeFixture();
+    const observationRow = fixtureRow(
+      acknowledgement.tables,
+      'integration_gateway.runtime_attempt_observation',
+    );
+    observationRow.acknowledged_at = new Date('2030-01-01T00:00:00.000Z');
+    await expect(
+      makeService(acknowledgement.tables).getUsageRuntimeBinding(
+        acknowledgement.context,
+        acknowledgement.ref,
+      ),
+    ).rejects.toMatchObject({ code: BINDING_INVALID });
+  });
+
   it('distinguishes an owning not-found from an integrity failure for the final observation', async () => {
     const missing = makeFixture();
     missing.tables['integration_gateway.runtime_final_observation'] = [];

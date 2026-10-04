@@ -22,7 +22,7 @@ import {
 } from '@zhiju/integration-gateway';
 import { digestCanonicalPayload } from '@zhiju/task-execution';
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
-import type { KyselyPlugin } from 'kysely';
+import type { KyselyPlugin, QueryId } from 'kysely';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect } from 'vitest';
 import { postgresImageReference } from '../../tools/persistence/baseline.mjs';
@@ -71,7 +71,12 @@ function contentHash(digest: string): Common.ContentHash {
 interface UsageHarness {
   readonly runUsage: (
     runRef: Common.ObjectRef,
-    options?: { readonly decisionTarget?: Common.ObjectRef; readonly revokeAfterIssue?: boolean },
+    options?: {
+      readonly decisionTarget?: Common.ObjectRef;
+      readonly revokeAfterIssue?: boolean;
+      readonly expireAfterIssue?: boolean;
+      readonly barrier?: () => Promise<void>;
+    },
   ) => Promise<CanonicalJsonObject>;
   readonly counts: () => Promise<Record<string, number>>;
   readonly protectedReads: () => readonly string[];
@@ -82,6 +87,8 @@ interface UsageHarness {
   ) => Promise<{ status: string; aggregate_version: string } | undefined>;
   readonly revokeGrant: (key: keyof UsageProvenanceCapabilityCodes) => Promise<void>;
   readonly restoreGrant: (key: keyof UsageProvenanceCapabilityCodes) => Promise<void>;
+  readonly armGate: (action?: () => Promise<void>) => void;
+  readonly releaseGate: () => void;
   readonly humanDecisionForAgent: (runRef: Common.ObjectRef) => Promise<string>;
 }
 
@@ -93,6 +100,7 @@ describe.skipIf(!gateEnabled)(
     const runScenario = createRunScenario(suite);
     let harness: UsageHarness | undefined;
     let usageIgPool: pg.Pool | undefined;
+    let succeededRunId: string | undefined;
 
     afterAll(async () => {
       await usageIgPool?.end();
@@ -152,12 +160,35 @@ describe.skipIf(!gateEnabled)(
       });
 
       const reads: string[] = [];
+      let gateAction: (() => Promise<void>) | undefined;
+      let gatePromise: Promise<void> | undefined;
+      let gateRelease: (() => void) | undefined;
+      let gateQueryId: QueryId | undefined;
       const queryProbe: KyselyPlugin = {
         transformQuery(args) {
-          reads.push(JSON.stringify(args.node));
+          const serialized = JSON.stringify(args.node);
+          reads.push(serialized);
+          if (
+            gatePromise !== undefined &&
+            gateQueryId === undefined &&
+            serialized.includes('"name":"task_execution"') &&
+            serialized.includes('"name":"run"')
+          )
+            gateQueryId = args.queryId;
           return args.node;
         },
-        transformResult: (args) => Promise.resolve(args.result),
+        async transformResult(args) {
+          if (gateQueryId !== undefined && args.queryId === gateQueryId) {
+            gateQueryId = undefined;
+            const action = gateAction;
+            const pending = gatePromise;
+            gateAction = undefined;
+            gatePromise = undefined;
+            if (action !== undefined) await action();
+            else if (pending !== undefined) await pending;
+          }
+          return args.result;
+        },
       };
       const driver: SyntheticRuntimeDriver = {
         invoke: () => Promise.reject(new Error('the usage read must never invoke the Driver')),
@@ -180,11 +211,31 @@ describe.skipIf(!gateEnabled)(
         now: () => new Date(suite.clock),
       });
 
+      /**
+       * Pauses the next usage read after its first TaskExecution Run read, so a
+       * test can commit another owning fact on a second connection while the
+       * read keeps its REPEATABLE READ snapshot. `action` runs at the barrier
+       * instead of waiting for an explicit release.
+       */
+      function armGate(action?: () => Promise<void>): void {
+        gateAction = action;
+        gatePromise = new Promise<void>((resolve) => {
+          gateRelease = resolve;
+        });
+        gateQueryId = undefined;
+      }
+
+      function releaseGate(): void {
+        gateRelease?.();
+      }
+
       async function runUsage(
         runRef: Common.ObjectRef,
         options: {
           readonly decisionTarget?: Common.ObjectRef;
           readonly revokeAfterIssue?: boolean;
+          readonly expireAfterIssue?: boolean;
+          readonly barrier?: () => Promise<void>;
         } = {},
       ): Promise<CanonicalJsonObject> {
         reads.length = 0;
@@ -245,7 +296,17 @@ describe.skipIf(!gateEnabled)(
           requestedAt: new Date(suite.clock).toISOString(),
           payload,
         };
-        return entry.getUsageAndProvenance(envelope, session);
+        if (options.expireAfterIssue !== true) {
+          if (options.barrier !== undefined) armGate(options.barrier);
+          return entry.getUsageAndProvenance(envelope, session);
+        }
+        const issuedClock = suite.clock;
+        suite.clock = issuedClock + 86_400_000;
+        try {
+          return await entry.getUsageAndProvenance(envelope, session);
+        } finally {
+          suite.clock = issuedClock;
+        }
       }
 
       async function counts(): Promise<Record<string, number>> {
@@ -338,6 +399,8 @@ describe.skipIf(!gateEnabled)(
           ).rows[0],
         revokeGrant,
         restoreGrant,
+        armGate,
+        releaseGate,
         humanDecisionForAgent,
       };
       return harness;
@@ -369,6 +432,7 @@ describe.skipIf(!gateEnabled)(
       async () => {
         const h = await usageHarness();
         const seen: Record<string, CanonicalJsonObject> = {};
+        let paused: Promise<CanonicalJsonObject> | undefined;
         await runScenario(
           'SUCCEEDED',
           undefined,
@@ -381,6 +445,21 @@ describe.skipIf(!gateEnabled)(
           undefined,
           undefined,
           async (stage, runRef) => {
+            if (stage === 'SUBMITTED') {
+              // Deterministic two-connection Acceptance schedule: fix the read
+              // snapshot before the owning Acceptance commits, then pause it
+              // after its first Run read while the scenario keeps running.
+              h.armGate();
+              paused = h.runUsage(runRef);
+              return;
+            }
+            if (stage === 'ACCEPTED') {
+              h.releaseGate();
+              const snapshot = await (paused ?? Promise.reject(new Error('no paused read')));
+              seen.SNAPSHOT = snapshot;
+              seen.SUBMITTED = snapshot;
+              return;
+            }
             const result = await h.runUsage(runRef);
             seen[stage] = result;
             expect(result.runRef).toEqual(runRef);
@@ -394,6 +473,16 @@ describe.skipIf(!gateEnabled)(
             }
           },
         );
+
+        // The paused read kept its old snapshot across the newly committed
+        // Acceptance child; the later FINALIZED read observes it.
+        expect(seen.SNAPSHOT?.agentDeclaredUsage).toMatchObject({
+          presence: 'UNKNOWN',
+          reasonCode: 'RESULT_NOT_ACCEPTED',
+        });
+        expect(seen.SNAPSHOT?.provenance).toMatchObject({
+          resultEvidence: { presence: 'UNKNOWN', reasonCode: 'RESULT_NOT_ACCEPTED' },
+        });
 
         const created = seen.CREATED;
         const started = seen.STARTED;
@@ -450,6 +539,7 @@ describe.skipIf(!gateEnabled)(
         const finalRunRef = finalized.runRef as CanonicalJsonObject;
         const runId = finalRunRef.objectId;
         if (typeof runId !== 'string') throw new Error('missing finalized Run id');
+        succeededRunId = runId;
         const before = await h.counts();
         const beforeRow = await h.runRow(runId);
         const reread = await h.runUsage(runRefOf(runId));
@@ -503,10 +593,152 @@ describe.skipIf(!gateEnabled)(
     );
 
     suite.itIntegration(
+      'USAGE-D-004 the abandoned Run isolates its late final and reads UNKNOWN / LATE_RESULT',
+      async () => {
+        const h = await usageHarness();
+        await runScenario(
+          'RUN_CANCEL',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'NORMAL',
+          false,
+          undefined,
+          { row: 'IG-CANCEL-D-001', bounded: true, phase: 'ABANDONED' },
+        );
+        const runId = await latestRunId(['ABANDONED']);
+        const result = await h.runUsage(runRefOf(runId));
+        expect(result.agentDeclaredUsage).toMatchObject({
+          presence: 'UNKNOWN',
+          reasonCode: 'LATE_RESULT',
+        });
+        expect(result.provenance).toMatchObject({
+          resultEvidence: { presence: 'UNKNOWN', reasonCode: 'LATE_RESULT' },
+        });
+        expect(result.authoritativeSource).toBe('UNAVAILABLE');
+        expect(result.runtimeUsageRef).toBeUndefined();
+      },
+      900_000,
+    );
+
+    suite.itIntegration(
+      'USAGE-D-003 the recovery chain reads Run-1 and its Context-2 Run-2 independently',
+      async () => {
+        const h = await usageHarness();
+        await runScenario(
+          'BOUNDED_RECOVERY',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'NORMAL',
+          false,
+          undefined,
+          undefined,
+        );
+        const rows = (
+          await suite.admin.query<{
+            run_id: string;
+            attempt_number: number;
+            status: string;
+          }>(
+            `SELECT run_id, attempt_number, status FROM task_execution.run
+             WHERE work_order_id = (
+               SELECT work_order_id FROM task_execution.run ORDER BY created_at DESC LIMIT 1
+             )
+             ORDER BY attempt_number`,
+          )
+        ).rows;
+        const firstRun = rows.find((row) => row.attempt_number === 1);
+        const secondRun = rows.find((row) => row.attempt_number === 2);
+        if (firstRun === undefined || secondRun === undefined)
+          throw new Error('missing BLOCKED_INPUT recovery Runs');
+        const first = await h.runUsage(runRefOf(firstRun.run_id));
+        const second = await h.runUsage(runRefOf(secondRun.run_id));
+        const firstProvenance = first.provenance as CanonicalJsonObject;
+        const secondProvenance = second.provenance as CanonicalJsonObject;
+        expect(firstProvenance.runRef).toEqual(first.runRef);
+        expect(secondProvenance.runRef).toEqual(second.runRef);
+        expect(firstProvenance.contextSnapshotRef).not.toEqual(secondProvenance.contextSnapshotRef);
+        expect(firstProvenance.resultEvidence).toMatchObject({ presence: 'PRESENT' });
+        expect(secondProvenance.resultEvidence).toMatchObject({ presence: 'PRESENT' });
+        expect(first.agentDeclaredUsage).toMatchObject({
+          presence: 'UNKNOWN',
+          reasonCode: 'USAGE_NOT_DECLARED',
+        });
+        expect(second.agentDeclaredUsage).toMatchObject({
+          presence: 'UNKNOWN',
+          reasonCode: 'USAGE_NOT_DECLARED',
+        });
+        // Run-1 history is preserved and independent of the Run-2 read.
+        const firstAgain = await h.runUsage(runRefOf(firstRun.run_id));
+        const stable = (value: CanonicalJsonObject) => {
+          const provenance = { ...(value.provenance as CanonicalJsonObject) };
+          delete provenance.snapshotAt;
+          return { ...value, provenance };
+        };
+        expect(stable(firstAgain)).toEqual(stable(first));
+      },
+      900_000,
+    );
+
+    suite.itIntegration(
+      'USAGE-D-007 a paused read keeps its old TE snapshot across the owning late-audit commit',
+      async () => {
+        const h = await usageHarness();
+        let paused: Promise<CanonicalJsonObject> | undefined;
+        let beforeIsolation: CanonicalJsonObject | undefined;
+        let afterIsolation: CanonicalJsonObject | undefined;
+        await runScenario(
+          'RUN_CANCEL',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'NORMAL',
+          false,
+          undefined,
+          { row: 'IG-CANCEL-D-001', bounded: true, phase: 'CANCELLING' },
+          async (stage, runRef) => {
+            if (stage === 'CANCELLED') {
+              // The original IG final is committed; start a read whose snapshot
+              // is fixed here, then pause it after its first Run read while the
+              // owning isolation command commits the LATE_RESULT audit on
+              // another connection.
+              h.armGate();
+              paused = h.runUsage(runRef);
+              return;
+            }
+            if (stage === 'ISOLATED') {
+              h.releaseGate();
+              beforeIsolation = await (paused ?? Promise.reject(new Error('no paused read')));
+              afterIsolation = await h.runUsage(runRef);
+            }
+          },
+        );
+        expect(beforeIsolation?.provenance).toMatchObject({
+          resultEvidence: { presence: 'UNKNOWN', reasonCode: 'RESULT_NOT_ACCEPTED' },
+        });
+        expect(afterIsolation?.provenance).toMatchObject({
+          resultEvidence: { presence: 'UNKNOWN', reasonCode: 'LATE_RESULT' },
+        });
+        expect(afterIsolation?.agentDeclaredUsage).toMatchObject({
+          presence: 'UNKNOWN',
+          reasonCode: 'LATE_RESULT',
+        });
+      },
+      900_000,
+    );
+
+    suite.itIntegration(
       'USAGE-D-005 the independent Human read authority gates the whole query',
       async () => {
         const h = await usageHarness();
-        const runId = await latestRunId(['SUCCEEDED']);
+        const runId = succeededRunId ?? (await latestRunId(['SUCCEEDED']));
         const runRef = runRefOf(runId);
         expect((await h.runUsage(runRef)).agentDeclaredUsage).toMatchObject({
           presence: 'PRESENT',
@@ -526,6 +758,28 @@ describe.skipIf(!gateEnabled)(
           code: 'AUTHORIZATION_REVOKED',
         });
         expect(h.protectedReads()).toEqual([]);
+        await h.restoreGrant('runUsageProvenanceReadHumanV1');
+        expect((await h.runUsage(runRef)).agentDeclaredUsage).toMatchObject({
+          presence: 'PRESENT',
+        });
+
+        // An expired Decision fails the return checkpoint without data.
+        await expect(h.runUsage(runRef, { expireAfterIssue: true })).rejects.toMatchObject({
+          code: 'AUTHORIZATION_REVOKED',
+        });
+        expect(h.protectedReads()).toEqual([]);
+        expect((await h.runUsage(runRef)).agentDeclaredUsage).toMatchObject({
+          presence: 'PRESENT',
+        });
+
+        // A revocation after the read barrier fails the return checkpoint: the
+        // query has already performed its protected reads, but returns no data.
+        await expect(
+          h.runUsage(runRef, {
+            barrier: async () => h.revokeGrant('runUsageProvenanceReadHumanV1'),
+          }),
+        ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+        expect(h.protectedReads().length).toBeGreaterThan(0);
         await h.restoreGrant('runUsageProvenanceReadHumanV1');
         expect((await h.runUsage(runRef)).agentDeclaredUsage).toMatchObject({
           presence: 'PRESENT',
@@ -576,7 +830,7 @@ describe.skipIf(!gateEnabled)(
       'USAGE-D-006 the Human output is an allowlist without session, prompt or token material',
       async () => {
         const h = await usageHarness();
-        const runId = await latestRunId(['SUCCEEDED']);
+        const runId = succeededRunId ?? (await latestRunId(['SUCCEEDED']));
         const result = await h.runUsage(runRefOf(runId));
         const serialized = JSON.stringify(result);
         for (const forbidden of [

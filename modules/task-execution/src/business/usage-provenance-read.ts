@@ -324,18 +324,27 @@ async function readUsageSnapshot(
     }
     if (result !== undefined) {
       const payload = object(result.result_payload);
+      const provenance = object(payload.provenance);
       requireThat(
         result.enterprise_id === subjectScope.enterpriseId &&
           result.project_id === subjectScope.projectId &&
           result.run_id === run.run_id &&
           same(object(result.attempt_ref), object(run.start_attempt_ref)) &&
           same(object(result.adapter_identity_ref), object(run.runtime_adapter_identity_ref)) &&
+          Number(result.fencing_token) === Number(run.fencing_token) &&
           hashContractPayload(payload) === result.result_payload_hash.toString('hex') &&
           same(
             object(object(payload.header).payloadHash),
             hash(result.result_payload_hash.toString('hex')),
           ) &&
-          same(object(payload.runRef), ref('OBJECT', RUN, run.run_id, subjectScope)),
+          object(payload.header).contractType === 'zhiju.contract.agent_result' &&
+          payload.submissionKind === 'FINAL' &&
+          payload.runtimeUsageRef === undefined &&
+          same(payload.runRef, ref('OBJECT', RUN, run.run_id, subjectScope)) &&
+          same(provenance.contextSnapshotRef, object(run.context_snapshot_ref)) &&
+          same(provenance.workOrderContractRef, object(run.work_order_contract_ref)) &&
+          same(provenance.capabilityGrantRef, object(run.capability_grant_ref)) &&
+          same(payload.submittedByRuntime, object(run.runtime_adapter_identity_ref)),
         'INTERNAL_CONTRACT_VIOLATION',
       );
       if (claim !== undefined) {
@@ -399,6 +408,92 @@ function supportedRuntimeBinding(contract: CanonicalJsonObject): CanonicalJsonOb
     modelId: 'synthetic',
     modelConfigHash: hash(sha256CanonicalJson({})),
   };
+}
+
+/**
+ * Binds the original IntegrationGateway final to the committed TaskExecution
+ * facts before any evidence or declaration is constructed (Spec 003 §13.4
+ * steps 5–6). A mismatch is a cross-owner source conflict, never a PRESENT
+ * Usage/result: the caller reports UNAVAILABLE/SOURCE_CONFLICT and no data.
+ */
+export function finalBindsCommittedFacts(input: {
+  readonly final: CanonicalJsonObject;
+  readonly binding: CanonicalJsonObject;
+  readonly run: Selectable<RunTable>;
+  readonly runRef: CanonicalJsonObject;
+  readonly attemptRef: CanonicalJsonObject;
+  readonly adapterRef: CanonicalJsonObject;
+  readonly frozenContract: CanonicalJsonObject;
+  readonly result: Selectable<AgentResultTable> | undefined;
+  readonly claim: Selectable<RunFinalSubmissionClaimTable> | undefined;
+}): boolean {
+  const { final, binding, run, runRef, attemptRef, adapterRef, frozenContract } = input;
+  const acknowledgement = object(binding.acknowledgement);
+  const contract = object(final.agentResultContract);
+  const provenance = object(contract.provenance);
+  const resultPayloadDigest = textValue(object(final.resultPayloadHash).digest);
+  if (
+    !same(final.attemptRef, attemptRef) ||
+    !same(final.runRef, runRef) ||
+    !same(final.runtimeAdapterIdentityRef, adapterRef) ||
+    !same(final.bindingHash, binding.bindingHash) ||
+    final.runFencingToken !== Number(run.fencing_token) ||
+    final.ackObservationId !== textValue(acknowledgement.observationId) ||
+    final.source !== 'SYNTHETIC_DRIVER' ||
+    hashContractPayload(contract) !== resultPayloadDigest
+  )
+    return false;
+  if (
+    !same(contract.runRef, runRef) ||
+    !same(contract.workOrderRef, object(run.work_order_ref)) ||
+    !same(contract.taskRef, object(frozenContract.taskRef)) ||
+    !same(contract.projectRef, object(frozenContract.projectRef)) ||
+    !same(contract.submittedByRuntime, adapterRef) ||
+    contract.submissionKind !== 'FINAL' ||
+    !same(provenance.contextSnapshotRef, object(run.context_snapshot_ref)) ||
+    !same(provenance.workOrderContractRef, object(run.work_order_contract_ref)) ||
+    !same(provenance.capabilityGrantRef, object(run.capability_grant_ref)) ||
+    !same(provenance.runtimeSessionExternalRef, acknowledgement.runtimeSessionRef) ||
+    !same(
+      provenance.runtimeAdapterRef,
+      object(object(frozenContract.versionPins).runtimeAdapterContractRef),
+    ) ||
+    !same(provenance.harness, { harnessId: 'zhiju.runtime.synthetic', harnessVersion: '1.0' }) ||
+    provenance.provider !== 'synthetic' ||
+    textValue(object(provenance.model).modelId) !== 'synthetic' ||
+    !same(object(provenance.model).modelConfigHash, object(run.runtime_binding).modelConfigHash)
+  )
+    return false;
+  const submittedAt = Date.parse(textValue(contract.submittedAt));
+  if (
+    !Number.isFinite(submittedAt) ||
+    run.started_at === null ||
+    run.started_at.getTime() > submittedAt ||
+    submittedAt > Date.parse(textValue(final.observedAt))
+  )
+    return false;
+  if (input.result !== undefined) {
+    const result = input.result;
+    if (
+      !same(object(result.observation_ref), object(final.observationRef)) ||
+      !same(object(result.attempt_ref), object(final.attemptRef)) ||
+      !same(object(result.adapter_identity_ref), object(final.runtimeAdapterIdentityRef)) ||
+      !same(object(result.runtime_submission_ref), object(final.runtimeSubmissionRef)) ||
+      !result.result_payload_hash.equals(Buffer.from(resultPayloadDigest, 'hex')) ||
+      !same(object(result.result_payload), contract) ||
+      Number(result.fencing_token) !== final.runFencingToken
+    )
+      return false;
+  }
+  if (input.claim !== undefined) {
+    const claim = input.claim;
+    if (
+      !same(object(claim.observation_ref), object(final.observationRef)) ||
+      !claim.result_payload_hash.equals(Buffer.from(resultPayloadDigest, 'hex'))
+    )
+      return false;
+  }
+  return true;
 }
 
 /**
@@ -488,6 +583,19 @@ export async function handleGetUsageAndProvenance(
         if (errorCode(error) === 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND') final = undefined;
         else throw error;
       }
+    }
+    if (!conflict && final !== undefined && binding !== undefined) {
+      conflict = !finalBindsCommittedFacts({
+        final,
+        binding,
+        run,
+        runRef,
+        attemptRef,
+        adapterRef,
+        frozenContract: object(contract.workOrderContract),
+        result,
+        claim,
+      });
     }
   }
   const finalObserved = final !== undefined;

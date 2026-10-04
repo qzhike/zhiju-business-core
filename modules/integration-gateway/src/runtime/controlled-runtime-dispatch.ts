@@ -1083,6 +1083,20 @@ export class ControlledRuntimeDispatchService {
       if (row.enterprise_id !== context.enterpriseId || row.project_id !== subjectScope.projectId)
         invalid(USAGE_CODES.finalNotFound);
       const fail = USAGE_CODES.finalInvalid;
+      const canonicalFinal = objectWith(fail, row.canonical_payload);
+      const canonicalFinalIdentity = objectWith(fail, canonicalFinal.runtimeAdapterIdentityRef);
+      if (
+        canonicalFinal.observationId !== row.observation_id ||
+        canonicalFinal.attemptId !== row.attempt_id ||
+        canonicalFinalIdentity.objectId !== row.runtime_adapter_identity_id ||
+        !same(canonicalFinalIdentity.scope, subjectScope) ||
+        !same(canonicalFinal.runtimeSubmissionRef, row.runtime_submission_ref) ||
+        !same(canonicalFinal.resultPayloadHash, hash(row.result_payload_hash.toString('hex'))) ||
+        !same(canonicalFinal.bindingHash, hash(row.binding_hash.toString('hex'))) ||
+        canonicalFinal.observedAt !== row.observed_at.toISOString() ||
+        canonicalFinal.source !== row.source
+      )
+        invalid(fail);
       const recomputedPayloadHash = sha256CanonicalJson(objectWith(fail, row.canonical_payload));
       if (recomputedPayloadHash !== row.payload_hash.toString('hex')) invalid(fail);
       const agentResultContract = objectWith(fail, row.result_payload);
@@ -1235,6 +1249,19 @@ export class ControlledRuntimeDispatchService {
       observation.acknowledgement_source !== 'SYNTHETIC_DRIVER' ||
       sha256CanonicalJson(objectWith(code, observation.observation_payload)) !==
         observation.observation_hash.toString('hex')
+    )
+      invalid(code);
+    const canonicalObservation = objectWith(code, observation.observation_payload);
+    const canonicalAttemptRef = objectWith(code, canonicalObservation.attemptRef);
+    const canonicalRawReceiptRef = objectWith(code, canonicalObservation.rawReceiptRef);
+    if (
+      canonicalAttemptRef.objectId !== observation.attempt_id ||
+      !same(canonicalAttemptRef.scope, subjectScope) ||
+      canonicalRawReceiptRef.objectId !== observation.raw_receipt_id ||
+      !same(canonicalRawReceiptRef.scope, subjectScope) ||
+      !same(canonicalObservation.runtimeSessionRef, observation.runtime_session_ref) ||
+      canonicalObservation.acknowledgedAt !== observation.acknowledged_at.toISOString() ||
+      canonicalObservation.source !== observation.acknowledgement_source
     )
       invalid(code);
     const receipt = await trx

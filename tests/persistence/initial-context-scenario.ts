@@ -268,7 +268,8 @@ export function createRunScenario(suite: InitialContextSuite) {
     deliverySchedule?: DeliveryScheduleHooks,
     cancelVariant?: CancelVariant,
     usageProbe?: (
-      stage: 'CREATED' | 'STARTED' | 'SUBMITTED' | 'FINALIZED',
+      stage:
+        'CREATED' | 'STARTED' | 'SUBMITTED' | 'ACCEPTED' | 'FINALIZED' | 'CANCELLED' | 'ISOLATED',
       runRef: Common.ObjectRef,
     ) => Promise<void>,
   ) => {
@@ -786,6 +787,9 @@ export function createRunScenario(suite: InitialContextSuite) {
       },
       get finalView() {
         return finalView;
+      },
+      get usageProbe() {
+        return usageProbe;
       },
       get progressAuthorization() {
         return progressAuthorization;
@@ -4281,7 +4285,6 @@ export function createRunScenario(suite: InitialContextSuite) {
       suite.sessionFor(service),
     );
     expect(submitted, JSON.stringify(submitted)).toMatchObject({ status: 'COMMITTED' });
-    await usageProbe?.('SUBMITTED', runRef);
     expect(
       await scanControlledFinalCandidates(
         guardedTeDb,
@@ -4846,9 +4849,11 @@ export function createRunScenario(suite: InitialContextSuite) {
       acceptanceTarget = winnerEnvelope.targetRef;
       acceptEnvelope = winnerEnvelope;
     } else {
+      await usageProbe?.('SUBMITTED', runRef);
       accepted = await firstRunEntry.acceptAgentResult(acceptEnvelope, suite.sessionFor(service));
     }
     expect(accepted, JSON.stringify(accepted)).toMatchObject({ status: 'COMMITTED' });
+    await usageProbe?.('ACCEPTED', runRef);
     if (exercisePreparationMatrix) {
       const secondAcceptance = await firstRunEnvelope(
         'execution.accept_agent_result',
