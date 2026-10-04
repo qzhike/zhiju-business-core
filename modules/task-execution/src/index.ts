@@ -26,6 +26,7 @@ export type {
 export {
   createTaskExecutionDatabase,
   withTaskExecutionTransaction,
+  withTaskExecutionSnapshotTransaction,
   digestCanonicalPayload,
   CANONICALIZATION_VERSION,
   PAYLOAD_HASH_ALGORITHM,
@@ -387,3 +388,17 @@ export * from './business/output-creation-binding.js';
 export type { DependencyCompletionPort } from './business/task-readiness-plan.js';
 
 export * from './business/task-completed-dispatch.js';
+
+// IM-06 (#246): `execution.get_usage_and_provenance@1.0`, the Human-operated
+// Usage and execution Provenance readback (Spec 003 §13). The handler reads one
+// dedicated REPEATABLE READ TE snapshot and consumes the IdentityPolicy-owned
+// six-mapping authorization plus the IntegrationGateway-owned historical
+// integrity reads; it writes nothing.
+export {
+  handleGetUsageAndProvenance,
+  validateUsageSafetyProfile,
+  GET_USAGE_AND_PROVENANCE_QUERY,
+  GET_USAGE_AND_PROVENANCE_VERSION,
+  USAGE_PROVENANCE_PROFILE,
+} from './business/usage-provenance-read.js';
+export type { UsageProvenancePorts, UsageReasonCode } from './business/usage-provenance-read.js';

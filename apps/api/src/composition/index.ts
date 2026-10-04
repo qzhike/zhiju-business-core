@@ -58,6 +58,11 @@ export type {
   ControlledFirstRunEntryConfig,
   ControlledFirstRunSession,
 } from './controlled-first-run-entry.js';
+export { createUsageProvenanceEntry } from './usage-provenance-entry.js';
+export type {
+  UsageProvenanceEntryConfig,
+  UsageProvenanceSession,
+} from './usage-provenance-entry.js';
 export {
   ControlledFinalRecoveryWorker,
   createControlledFinalRecoveryWorker,

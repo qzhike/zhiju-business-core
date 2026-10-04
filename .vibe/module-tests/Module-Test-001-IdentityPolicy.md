@@ -323,3 +323,15 @@ authority 为 [Spec 001 §15.17](../module-specs/Module-Spec-001-IdentityPolicy.
 | IP-CANCEL-D-003 | 执行 Bundle/Policy 已到期但有有效独立 expiry/late-isolation 权限；对照 cleanup Grant 不可用 | 有效 cleanup 只验证原历史完整性即可终结/隔离，不恢复执行；无 cleanup 当前权限仍拒绝，IP 不可用 fail closed | PASS（#244 真实 PostgreSQL，见 PR）：执行 Bundle 过期时有效 cleanup 权限仍可终结/隔离，无 cleanup 权限 fail closed 且不恢复执行资格 |
 
 新/旧 expiry 和 state 映射兼容单独断言；实际 Grant PolicySnapshot lifecycle、外部与独立人工验收的历史 NOT RUN/延后边界不变。实现 configured full 包含对应真实 owning/PostgreSQL 证据。
+
+## IM06-USAGE 独立历史读取授权设计验收
+
+状态：`T2 DETAILED DESIGN APPROVED 2026-10-04 / DESIGN TECHNICAL REVIEW PASSED 2026-10-04 / HUMAN DESIGN APPROVED 2026-10-04 / IMPLEMENTED 2026-10-04 (Issue #246) / PARTIAL RUNTIME EVIDENCE`。authority 为 [Spec 001 §15.18](../module-specs/Module-Spec-001-IdentityPolicy.md#1518-im06-usage-历史读取的独立授权组成提案)；关联 TE USAGE-D-005/007。旧授权与真实 PolicySnapshot lifecycle 延后边界保持。真实 PostgreSQL 证据在 `tests/persistence/usage-provenance.test.ts` USAGE-D-005；未执行变体保持 NOT RUN。
+
+| ID | 输入 / 层级 | 必需预期 | 当前结果 |
+|---|---|---|---|
+| IP-USAGE-D-001 | Contract/Unit + owning/PG；六项 mapping 各自合法 Grant，分别缺一 Grant/config；错 operation/version/Purpose/action、principalKind/actingFor、target/Scope/payloadHash/Actor/session | 精确 Human Query 与 SERVICE source/Contract/三个 IG Decision 各自绑定；不借旧 start/cancel/state/final action、不合并相同 Purpose；缺一 required authority 保护读取0、整 Query no data；无 start 不调用不存在 Attempt 的三项读取，不虚造 target | PARTIAL（PG：六项 mapping 各自缺 Grant 时整 Query 拒绝且对应 protected read 为 0；Human Decision 签发后撤销当前 Grant → 整 Query AUTHORIZATION_REVOKED 且 protected read 为 0；Agent/SERVICE 无法获得 Human Query Decision；错 target Decision 拒绝。Contract/Unit：六项 binding 精确值与 fail-closed 单测。未执行：错 operation/version/Purpose/action/hash/session、actingFor、无 start 不调用三项读取的 PG 断言） |
+| IP-USAGE-D-002 | PG；真实 read Grant 撤销、Decision 到期、TE 快照建立后与依赖返回后撤权、池复用/并发批次当前读取 | 下一个 IP READ COMMITTED 检查点能看到撤权并拒绝；最终 Human/source/Contract/所用 IG 批次重验通过才返回，旧 TE MVCC 和旧成功缓存不能放行；授权错误/数据库不可用不被转 UNKNOWN | PARTIAL（PG：Human Decision 签发后撤销当前 Human Grant，返回前重验在同一批次失败并整 Query 拒绝；Query 拒绝时 protected read 为 0。未执行：Decision 到期、TE 快照建立后/依赖返回后撤权、池复用/并发批次、数据库不可用分类） |
+| IP-USAGE-D-003 | Owning/PG；合法历史 Result 或取消 Observation 的 execution lease/Bundle 已失效，当前独立 read Grant 有效；对照撤销 read Grant、试图以 query Decision 签发执行/清 blocker | 可读历史且 Actor/来源绑定准确；执行能力仍失效，Query Decision 不能替换 create/start/finalize/cleanup；read Grant 失效仍拒绝。IP Decision/拒绝 Audit 技术效果与 TE/IG 业务无写分别断言 | PARTIAL（PG：取消/隔离后的 Run 历史在有效独立 read Grant 下可读；read Grant 撤销后拒绝。未执行：lease/Bundle 到期时刻的对照、Query Decision 不能签发执行/清 blocker 的直接断言、拒绝 Audit 技术效果单列） |
+
+使用 owning IP 当前签发与 revalidate 入口验证真实 Grant 撤销/有效期；纯 mapping/hash 负例单列 Contract/Unit，不能代替 PostgreSQL 撤权。required implementation full；docs 不改变上述结果。

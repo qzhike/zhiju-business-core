@@ -192,3 +192,15 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | IG-CANCEL-D-003 | IG Observation 提交后 TE Audit 写失败/依赖不可用，原 source 重试与 worker 重启 | 源保持不可变、读回同原 bytes/Hash，不重新调用 Driver；未实际提交隔离 Audit 不宣称已处理，TE 业务无接纳 | PASS（#244 真实 PostgreSQL，见 PR）：Audit 写失败后原 source 仍按原身份读回并可重试，Driver 不重新调用、TE 无接纳 |
 
 原 Query/Observation Schema、公开契约与现行 runtime 证据保持；#244 的 IG-CANCEL-D 行结果记录在对应 Issue/PR，外部/人工维持各自 NOT RUN。
+
+## IM06-USAGE 历史原调用来源设计验收
+
+状态：`T2 DETAILED DESIGN APPROVED 2026-10-04 / DESIGN TECHNICAL REVIEW PASSED 2026-10-04 / HUMAN DESIGN APPROVED 2026-10-04 / IMPLEMENTED 2026-10-04 (Issue #246) / PARTIAL RUNTIME EVIDENCE`。authority 为 [Spec 007 IM06-USAGE](../module-specs/Module-Spec-007-IntegrationGateway.md#im06-usage-原调用来源的只读消费提案)，当前 mapping 唯一见 Spec 001 §15.18；关联 TE USAGE-D-001/003/004/006。严格读单测在 `modules/integration-gateway/src/runtime/controlled-runtime-dispatch.test.ts`；未执行变体保持 NOT RUN。
+
+| ID | 输入 / 层级 | 必需预期 | 当前结果 |
+|---|---|---|---|
+| IG-USAGE-D-001 | Owning/PG/controlled；原 actual invoke/ack/start，无 final 与实际原 final 已封存，expiry/ABANDONED 后原历史、Run-2 独立来源 | 原 Binding/RawReceipt/ack/Adapter identity/Observation 的完整 Ref/hash/Scope/fencing/session 精确读回，synthetic source 不冒充 Provider；无 final 只在当前读权有效的确定 not-found 下成立，不再 invoke/readBack/readFinal，不补任何业务行，Run-2 不用 Run-1 来源 | PARTIAL（PG：真实 synthetic invoke/ack/start 与取消隔离后的 Run，Usage 读回原 Binding/RawReceipt/ack/Adapter identity/Observation 的精确 Ref/hash/Scope；无 final 只在 owning 确定 not-found 下成立。未执行：expiry/ABANDONED 后对照、Run-2 独立来源） |
+| IG-USAGE-D-002 | Unit/Contract + PG；原 identity/Observation canonical/hash/mirror、body/header hash、ack session 与 Adapter instance 单字段冲突；错 target/Scope/caller DTO，预分配未 ack | canonical Observation Hash 与 Result Header payload Hash 分别校验，错值不提升为真实来源；无真实 ack 不返实际 identity；库内非法镜像触发 guard 的证据与 owning helper 的冲突拒绝分层，不通过直接写表制造 positive source | PARTIAL（Unit：`controlled-runtime-dispatch.test.ts` 对 request/binding/identity payload/identity mirror/ack observation hash/final result hash/final mirror 单字段冲突逐项拒绝，canonical Observation Hash 与 Result Header payload Hash 分别校验，预分配未 ack 不返 identity，owning not-found 与 integrity failure 分离。PG：真实读回正例。未执行：PostgreSQL 直接注入库内非法镜像的 guard 分层证据） |
+| IG-USAGE-D-003 | Security/PG；Binding/identity/final 三项分别缺当前 Grant/错 consumer action、读取后撤权、IP/DB/网络故障与合法 final-not-found 对照 | 先授权再保护读取，缺一 protected read 为0；返前撤权/依赖故障安全失败，不伪装无 final；SERVICE body 只到受信 TE composition，Human 输出无 session/Prompt/token/stdout/客户正文；既有 Query/Driver/Worker/Renderer 语义与 Schema 保持 | PARTIAL（PG：三项 IG read 各自缺当前 Grant 时整 Query 拒绝且对应 owning read 为 0；Human 输出无 session/Prompt/token/stdout/客户正文；既有 Query/Driver/Worker/Renderer 语义与 Schema 由 `pnpm verify:code` 全量保持。未执行：错 consumer action、读取后撤权、IP/DB/网络故障与合法 final-not-found 的 PG 对照） |
+
+未来实现 required full，实际原 Driver invocation、immutable sources、权限与数据库 guard 结果分别记录在 Issue/PR；旧 FINAL/REC/COMP/CANCEL 证据和外部/人工 NOT RUN 不因本设计重标。

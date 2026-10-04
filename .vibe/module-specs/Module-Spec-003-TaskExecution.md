@@ -794,22 +794,76 @@ Board 的 COMPLETED 是历史状态展示。进入操作前重新读取权威 Ta
 
 ## 13. TD-06 Usage / Provenance 补充设计
 
-状态：`PROPOSED / NOT IMPLEMENTED`。复用 `get_usage_and_provenance@1.0`；不新增 Runtime Usage 写命令，不改变 AgentResult Core Schema。
+状态：`T2 DETAILED DESIGN APPROVED 2026-10-04 / DESIGN TECHNICAL REVIEW PASSED 2026-10-04 / HUMAN DESIGN APPROVED 2026-10-04 / IMPLEMENTED 2026-10-04 (Issue #246) / RUNTIME EVIDENCE: USAGE-D-001 PASS, USAGE-D-002..007 PARTIAL`。决定与代价见 [Usage/Provenance 提案](../decisions/task-execution-usage-provenance.md)，验收见 [USAGE-D 矩阵](../module-tests/Module-Test-003-TaskExecution.md#usageprovenance-按-run-读取设计验收)。本节拥有拟议 TE 字段解释和算法；IP 映射唯一见 Spec 001 §15.18，IG 历史读取唯一见 Spec 007 的 IM06-USAGE 段。本节不是 TD-05/TD-07 的批准，现有 Handler 支持集不变。实现为 `modules/task-execution/src/business/usage-provenance-read.ts` 的 Handler 与 `withTaskExecutionSnapshotTransaction` 查询快照；其余未执行验收保持 NOT RUN。
 
-| 可验证输入 | 首版返回规则 |
+### 13.1 公开兼容与首版支持
+
+复用 AUTHORITATIVE-only `execution.get_usage_and_provenance@1.0`；payload 仍为 closed `{runRef:ObjectRef<Run>}`，公开 Purpose 精确 `task.execution.get_usage_and_provenance`。既有 result 仍为 `{runRef,runtimeUsageRef?,agentDeclaredUsage,authoritativeSource,provenance,reconciliationStatus}`。不增改注册 Schema、metadata、AgentResult 或旧合法 fixture；只定义 CanonicalJson 响应中的安全 profile。Registry/TaskExecution/历史基线保持 239/63/200，无新 public operation/objectType。
+
+输入完整 Ref 必须为 OBJECT / `execution.run` / UUIDv7 / exact Enterprise+Project Scope，并与 Query Envelope 和当前授权 target 一致。Handler 只支持 §23/§24 的 `te.human_operated.synthetic@1.0` 与 §25 的 `te.human_operated.synthetic.formal@1.0` 已交付冻结来源：RuntimeBinding 的 adapterCode/version、harnessId/version、provider/modelId、modelConfigHash 与其原冻结 Contract 精确绑定，静态 Adapter selector 按这些章节的既有精确 Ref 匹配。maxAttempts=1/2 均可读合法历史；取消来源仍只可能由 §27 的两次执行 profile 产生，不回填旧 reservation。其他合法 Runtime/profile 返回 `EXECUTION_CRITERION_UNSUPPORTED`。
+
+CREATED/STARTING 且未提交 `start_attempt_ref` 时返回尚未观察到来源；不能按 Run id 扫描 IG 或借未提交 ack 推造 Attempt。已提交 start 之后只读 Run 固定的原 Attempt/Adapter identity；同一 WorkOrder 的其他 Run 不参与查询。已接受历史的读取不要求执行 lease、Bundle、Controls Policy 或 Artifact 当前仍可用，也不触发它们的当前业务资格计算。
+
+### 13.2 Usage 映射与未知原因
+
+Core Schema 已有闭合 `agentDeclaredUsage`，不是自由 metadata。本节直接采用 `measurementSource=AGENT_DECLARED` 和可选 `inputTokens/outputTokens/reasoningTokens/toolCalls/estimatedCost`；后者为 `{amountDecimal,currency}`，原 token/tool 数值约束与 decimal/currency 校验照旧。缺省项保持缺省，禁止计算、币种换算、四舍五入、补零或从 stdout/humanSummary 猜值。measurementSource-only 是合法 Core 声明，但不能表示已知计量。
+
+| 本次已授权且通过 §13.4 校验的历史来源 | agentDeclaredUsage | authoritativeSource / reconciliationStatus |
+|---|---|---|
+| 尚无 Run.start 或 final | UNKNOWN，reasonCode=SOURCE_NOT_OBSERVED，无 value，evidenceRefs=[] | UNAVAILABLE / `execution.usage.unavailable` |
+| final/Result 已有，但尚无 ACCEPTED Acceptance | UNKNOWN，reasonCode=RESULT_NOT_ACCEPTED，无 value，evidenceRefs=[] | UNAVAILABLE / `execution.usage.unavailable` |
+| exact Result/ACCEPTED 已验证，但无声明或只有 measurementSource | UNKNOWN，reasonCode=USAGE_NOT_DECLARED，无 value；evidenceRefs 为该 exact Result 与 Acceptance | UNAVAILABLE / `execution.usage.unavailable` |
+| exact Result/ACCEPTED 已验证，且至少一个既有计量字段存在 | PRESENT，value 原样复制该闭合声明；evidenceRefs 为该 exact Result 与 Acceptance | AGENT_DECLARED / `execution.usage.agent_declared_only` |
+| 该 original final 已有精确匹配的 LATE_RESULT 审计，且该快照不存在原已接纳 Result | UNKNOWN，reasonCode=LATE_RESULT，无 value，evidenceRefs=[] | UNAVAILABLE / `execution.usage.unavailable` |
+| 可证明的来源缺失或绑定冲突 | UNKNOWN，reasonCode=SOURCE_CONFLICT，无 value，evidenceRefs=[] | UNAVAILABLE / `execution.usage.source_conflict` |
+
+所有成功返回都省略 runtimeUsageRef；ack、attemptCount 和 elapsed budget 不产生 Provider/Runtime 计量。合法的已声明零金额仅作为 Agent 自报原值返回，不与缺失补零混淆；token/tool 字段仍依 Core 的正整数约束。AGENT_DECLARED 指展示来源，不表示 Provider 权威性或完成对账。历史 ACCEPTED 不因执行资格到期而被改写，也不证明 Run/WorkOrder/Task/DeliveryItem 完成或当前 Completion USABLE。
+
+source_conflict 优先；合法已接纳历史按原声明解释；无原已接纳历史时 LATE_RESULT 优先于未接纳。一次迟到重交的 REJECTED 审计不能撤销早先 ACCEPTED 的不可变 Result/Acceptance 或抹去其历史声明，也不能恢复执行资格。reasonCode 是本 profile 的固定安全解释集合 `SOURCE_NOT_OBSERVED|RESULT_NOT_ACCEPTED|USAGE_NOT_DECLARED|SOURCE_CONFLICT|LATE_RESULT`，不是新增 Command 错误码。UNKNOWN/UNAVAILABLE 不携带 value；不得携带 caller reason/任意错误正文。
+
+### 13.3 安全 provenance profile
+
+`provenance` 固定 closed profile `execution.provenance.human_operated.v1`。所有下列顶层字段必填，未知字段拒绝；它是返回值解释，不收紧任何旧请求 Schema。
+
+| 字段 | 类型 / 来源 |
 |---|---|
-| 尚无可用 final Result，或无任何 Usage 声明 | 不返回 runtimeUsageRef；agentDeclaredUsage 为 UNKNOWN 且无 value；authoritativeSource=UNAVAILABLE |
-| final Result 含可定位的 Agent 声明 | agentDeclaredUsage=PRESENT，evidenceRefs 指向 exact Result；authoritativeSource=AGENT_DECLARED，仅指当前可展示来源，不是 Provider 权威计量 |
-| 已隔离/拒绝的 Result 含声明 | 不提升为可用 Usage；返回 UNKNOWN 及安全原因，Provenance 可展示隔离 fact ref；不合计其数值 |
-| Provider/Runtime 计量尚未实现 | runtimeUsageRef 省略；不依据 Driver 执行次数估算 token/cost，不用 PRESENT 0 替代 UNKNOWN |
+| profile | const `execution.provenance.human_operated.v1` |
+| runRef | 本次完整 OBJECT / execution.run，与外层 runRef 相等 |
+| aggregateVersion | 本 TE 快照 Run.aggregate_version，按既有 NonNegativeInt 无损输出，禁止 bigint 强转后丢精度 |
+| runStatus | 本 TE 快照 Run.status，既有 RunStatus；不是 Completion 判断 |
+| snapshotAt | TE 事务的 PostgreSQL transaction_timestamp()；与共享 QueryResult.snapshotAt 一致，表示本次 TE 事务观测基线，不表示跨 Owner 全局原子时点 |
+| workOrderContractRef / contextSnapshotRef / capabilityGrantRef | 从 Run 不可变创建事实读取的完整 Ref；Run-2 用自己的 Context-2，不替换成 Contract 中 Context-1 |
+| runtimeBinding | 既有 RuntimeBindingSummary 七字段：adapterCode/adapterVersion/harnessId/harnessVersion/provider/modelId/modelConfigHash；从 Run 取值，不含 executionNodeRef |
+| attemptEvidence | 本节限定的 ValueEnvelope<CanonicalJson> |
+| resultEvidence | 本节限定的 ValueEnvelope<CanonicalJson> |
 
-当前 AgentResult 没有统一计量字段；仅当存在经后续明确 profile 解释的合法声明时才采用表中 PRESENT 分支，IM-06 默认路径为 UNKNOWN，不从自由文本、stdout 或任意 metadata 猜值。本轮不添加或收紧 AgentResult 请求字段；执行前 Budget 检查照常，无法满足的强制计量/预算 Policy 拒绝 dispatch，不能把未知当无消耗。
+PRESENT attemptEvidence.value closed 为 `{attemptRef,bindingHash,ackObservationId,runtimeAdapterIdentityRef,source}`，source const SYNTHETIC_DRIVER；可选 observationRef 与 resultPayloadHash **同时存在或同时省略**。前四项来自已提交 IG Binding/成功 ack/Adapter identity 并关联 Run.start；可选对来自 IG 唯一 final Observation。evidenceRefs 恰为原 Attempt、原 ack 的 RawReceipt Ref、实际 Adapter identity Ref，加可选 Observation Ref，去重。lastVerifiedAt 若给出，只使用本次受信检查时间，不复用旧 Driver 时间冒充当前检查。
 
-Query 的既有 `provenance: CanonicalJson` 输出使用安全 profile `execution.provenance.human_operated.v1`：`{profile, runRef, workOrderContractRef, contextSnapshotRef, capabilityGrantRef, runtimeBinding, attemptEvidence, resultEvidence}`。后两项使用 ValueEnvelope<CanonicalJson>；PRESENT 的 attemptEvidence 只含 exact Attempt、bindingHash、Observation/receipt refs 与 source=SYNTHETIC_DRIVER，resultEvidence 只含 exact Result、Acceptance ref（若已形成）、受验证的 Core provenance 安全字段。未知为 UNKNOWN，不造占位Ref。缺少可校验的跨模块查询时用 UNAVAILABLE 原因，不能降级信任 caller 的 provenance。
+PRESENT resultEvidence.value closed 为 `{agentResultRef,acceptanceRecordRef,resultPayloadHash}`；来源为该 Run 的 final reservation、Result、ACCEPTED Acceptance 与同一个 IG final。evidenceRefs 恰为这两个 TE exact Ref 和原 IG Observation Ref，去重。Acceptance 已提交但 Run 尚未 finalize 时可以展示历史，不伪造 Run.acceptance_ref 或成功状态。
 
-从已持久化 Run、IG binding/observation 与 immutable Result 分别取证，不把 Result 自述当作 Invocation Observation。声明与实际绑定不一致保留拒绝/隔离事实，不合成新的可信 provenance；Runtime Binding 不包含 token、secret handle、stdout、Prompt、客户正文或 continuation secret。合成 Driver 使用版本化的明确 synthetic 身份，不冒充真实 Provider/Model；不存在的 Execution Package、execution node/session 不编造 hash/ref。
+未提交 Run.start 时，attemptEvidence 为 UNKNOWN/SOURCE_NOT_OBSERVED、evidenceRefs=[]；已有可验证 ack/identity 而尚无 final 时 attemptEvidence 为 PRESENT，但省略 observationRef/resultPayloadHash 可选对。尚未 ACCEPTED 时 resultEvidence 为 UNKNOWN/RESULT_NOT_ACCEPTED、evidenceRefs=[]，若 final 亦未观察到则使用 SOURCE_NOT_OBSERVED。已验证 LATE_RESULT 且无原已接纳历史时 resultEvidence 为 UNKNOWN/LATE_RESULT、无 value，evidenceRefs 仅含原 IG Observation；不创造 Audit TypedRef。来源缺失/冲突时，受影响 evidence 为 UNAVAILABLE/SOURCE_CONFLICT、无 value、evidenceRefs=[]；如 Result 已存在而原 final 缺失，resultEvidence 与 Usage 一并不可用。其他已独立验证的历史调用证据可保留，不能提升可疑来源。
 
-`reconciliationStatus` 首版 profile 值为 `execution.usage.unavailable`、`execution.usage.agent_declared_only` 或 `execution.usage.source_conflict`；它们不表示 Provider 对账完成。Run-2 不覆盖 Run-1 的 Result/Usage/来源，每次查询按 runRef 返回独立事实，不跨 Run 汇总费用。将来增加真实计量仍须 IM-DG-006 及独立契约设计。
+不返回完整 AgentResult、自由 provenance、humanSummary、客户成果/答案正文、skill/policy/template 正文、runtimeSessionExternalRef、executionNodeRef、Prompt、token、secret handle、stdout、workspace locator 或 continuation secret。synthetic provider/modelId 原样标 synthetic，不编造 execution package/session/Provider 计量 Ref/Hash。
+
+### 13.4 来源算法、快照与当前授权
+
+1. 验证公开 Envelope/Schema、AUTHORITATIVE、Ref、Purpose 与 Human 当前 Decision；再以独立 SERVICE source Decision 对同一 Run 授权。只有两者有效才能建立 TE 查询专用的 REPEATABLE READ 事务，SERVICE context 绑定 source Decision；读取 Run、run_final_submission_claim、agent_result、agent_result_acceptance 和受限 audit_record。source Decision 也明确覆盖此 Run Root，不能借 Human context 读取服务来源。所有业务 SELECT 均限制 exact Run、Enterprise/Project。
+2. 在该快照内校验 Run 本地 shape/mirrors：start/实例字段完整性、source Scope、final Claim 唯一/Result/hash/observation 镜像、Result Core/header hash、Acceptance canonical hash/agentResultRef/disposition。若 Root 已有 result_ref/acceptance_ref，必须相等；Root 指针尚未写入不反向制造指针。本地损坏拒绝 `INTERNAL_CONTRACT_VIOLATION`，省略 data。无损 bigint 输出不能成立时同样拒绝，不静默舍入。
+3. 以独立 Contract-read Decision 调用 owning 冻结 Contract 读取，Ref/Scope/hash 必须等于 Run 的 work_order_contract_ref；用于限定首版 selector 与 task/project/WorkOrder 身份。只消费不可变 Contract，不消费当前 Readiness、Completion、Bundle/Policy eligibility。
+4. 有 start 时，以三个各自独立的当前 SERVICE Decision 读取原 IG Binding、Adapter identity、final；三个 target 都从已授权 Run.start_attempt_ref 取得。验证 Binding SUCCEEDED/成功 ack、完整 invocation 的 Run/Contract/Context/Capability/RuntimeBinding/leaseId/fencing/leaseExpiresAt，与 Adapter identity 同 Attempt/Run/Scope/bindingHash/ackObservationId，并精确等于 Run.runtime_adapter_identity_ref。不只比较 id、selector、hash 尾缀或 caller 声明。
+5. final 存在时验证原 Attempt/Run/Adapter/bindingHash/fencing/ack、runtimeSubmissionRef、observedAt、Core/header Scope、submittedByRuntime、task/project/WorkOrder/Run、Context/Contract/Capability、原 ack 的完整 session Ref、冻结 runtimeAdapterContractRef 与 synthetic harness/provider/model。由 hashContractPayload 重算 Result Header payloadHash 与 resultPayloadHash；IG Observation ref 的 Hash 由 IG owning Port 重算 canonical observation 和 mirrors，不能用 Result body Hash 冒充 Observation Hash。提交时间满足原 start≤submittedAt≤observedAt，但**不以现在超过 lease 拒绝读取合法历史**。
+6. reservation/Result 的原 observationRef、attemptRef、adapter_identity_ref、runtime_submission_ref、fencing、body Hash 与上述 final 逐项相等；ACCEPTED 的 Result 身份/Hash 与五项已提交判断历史保持既有本地约束，不重跑当前业务 Output/Policy 校验。LATE_RESULT 只匹配本 Run 的 command_type=`execution.run.late_final.isolate`、outcome=REJECTED、error_code=LATE_RESULT，以及 runtime_ref 中完整 observationRef/attemptRef/bindingHash 和 result_payload_hash。其他 DENIED/REJECTED 审计不被推断为合法隔离；多次同源审计不重复计量。
+7. 按 §13.2/13.3 组装，仅返回 allowlist；校验旧公开 result Schema 和本安全 profile，返回前对 Human、source、Contract 与实际调用的各 IG Decision 做当前批次重验。IP 每个检查点独立 READ COMMITTED，新检查点必须能看到真实撤权；禁止在 TE REPEATABLE READ 快照内重用旧授权成功。权限/依赖错误优先于数据返回。
+
+TE 查询专用事务保持现有 Context/RLS 建立流程；该流程对 platform_security.tx_context 有既有 INSERT/DELETE，因此不得直接套 PostgreSQL READ ONLY 使其无法建立 Context。“只读”限定 TE/IG 业务和来源表无 DML、无 Driver 调用、无 Receipt/Outbox/状态推进；IP 签发读取 Decision 与平台事务 Context housekeeping 的既有技术写入单独记录。不改变原 command helper 的默认 isolation，不给所有业务事务提高隔离级别；存储设计见 PostgreSQL §43。
+
+### 13.5 故障外观与证据范围
+
+合法无 Run 依共享安全 Policy 折叠 NOT_FOUND/FORBIDDEN，省略 data；无权限、错 Ref/Scope/Purpose/当前 Decision 不返回任何来源。真实网络/数据库/IP 不可用、未知 owning 错误或当前权限失效使整个查询失败，依既有 DEPENDENCY_UNAVAILABLE/授权错误和安全折叠处理，不返回 OK+UNKNOWN 冒充无 Usage。
+
+仅 `INTEGRATION_RUNTIME_FINAL_NOT_FOUND` 在有效 final-read 权限与确定 owning 读回下可解释为尚无 final；如果本 TE 快照已有 Result/ACCEPTED 或匹配 late Audit，则该缺失成为 SOURCE_CONFLICT。已 start 而合法 owning 读回缺成功 ack/identity 同样是 SOURCE_CONFLICT；不是 SOURCE_NOT_OBSERVED。IG 提交比 TE 快照更新时可展示已提交调用观察，TE Result/Acceptance 仍严格来自原快照，下一查询才观察新事实，不保证跨 Owner 原子快照。
+
+返回值不使用 Board、Projection 或 cached export；权威来源检查成功不改变 Board freshness。首版沿用现有组成入口返回 operation result data 的边界，验证公开 data Schema 与本安全 profile，不新增通用 QueryResult transport wrapper 或 public HTTP。未来包装为共享 QueryResult 时 snapshotAt 必须与本 profile 一致，sourceWatermarks 无适用事件水位则使用合法空数组、不伪造 sequence，resultHash 依共享契约；包装层的运行验收独立保持 NOT RUN，不能把 data validation 当作完整 Envelope 验证。本 profile 的 aggregateVersion/snapshotAt 和 exact Ref 表达本次读取边界，不被用作执行/Completion 权限。外部、人工与旧 PARTIAL/NOT RUN 保留；未来实现 required target full，本轮 docs 仅验证文档。
 
 ## 14. TD-07 受控退出 Fixture 与恢复设计
 

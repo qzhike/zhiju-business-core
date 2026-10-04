@@ -2722,6 +2722,156 @@ export function createControlledFirstRunAuthorizationPort(
   };
 }
 
+// IM06-USAGE historical readback composition (Spec 001 §15.18, issue #246).
+// The Human Query entry and the five SERVICE dependency reads each carry their
+// own exact operation, Purpose, action, target set and trusted configuration
+// key. No entry inherits another's Purpose, action, target or config key, and
+// the two internal operations are trusted type/Purpose tokens only: they enter
+// no public Catalog and are never resolved as a caller-chosen string.
+
+export type UsageProvenanceCapabilityKey =
+  | 'runUsageProvenanceReadHumanV1'
+  | 'runUsageProvenanceSourceReadV1'
+  | 'usageProvenanceContractReadV1'
+  | 'usageProvenanceBindingReadV1'
+  | 'usageProvenanceAdapterIdentityReadV1'
+  | 'usageProvenanceFinalReadV1';
+
+export type UsageProvenanceBinding = AuthorizationEntryBinding & {
+  readonly capabilityConfigKey: UsageProvenanceCapabilityKey;
+};
+
+const usageProvenanceBindings: readonly UsageProvenanceBinding[] = Object.freeze([
+  Object.freeze({
+    capabilityConfigKey: 'runUsageProvenanceReadHumanV1',
+    commandType: 'execution.get_usage_and_provenance',
+    commandVersion: '1.0',
+    authorizationPurpose: 'task.execution.get_usage_and_provenance',
+    requiredGrantAction: 'execution.run.usage_provenance.read.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['execution.run']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'HUMAN',
+    forbidActingFor: true,
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'runUsageProvenanceSourceReadV1',
+    commandType: 'execution.run.usage_provenance.source.read.v1',
+    commandVersion: '1.0',
+    authorizationPurpose: 'execution.run.usage_provenance.source.read.v1',
+    requiredGrantAction: 'execution.run.usage_provenance.source.read.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['execution.run']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'usageProvenanceContractReadV1',
+    commandType: 'execution.get_work_order_contract',
+    commandVersion: '1.0',
+    authorizationPurpose: 'task.execution.get_work_order_contract',
+    requiredGrantAction: 'execution.work_order.contract.read.for_usage_provenance.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['zhiju.execution.work_order']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'usageProvenanceBindingReadV1',
+    commandType: 'integration.get_runtime_attempt_binding',
+    commandVersion: '1.0',
+    authorizationPurpose: 'integration.runtime.binding.read',
+    requiredGrantAction: 'integration.runtime.binding.read.for_usage_provenance.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['integration.runtime_attempt']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'usageProvenanceAdapterIdentityReadV1',
+    commandType: 'integration.runtime.adapter_identity.read.for_usage_provenance.v1',
+    commandVersion: '1.0',
+    authorizationPurpose: 'integration.runtime.adapter_identity.read.for_usage_provenance.v1',
+    requiredGrantAction: 'integration.runtime.adapter_identity.read.for_usage_provenance.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['integration.runtime_attempt']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'usageProvenanceFinalReadV1',
+    commandType: 'integration.get_runtime_final_observation',
+    commandVersion: '1.0',
+    authorizationPurpose: 'integration.runtime.final_observation.read',
+    requiredGrantAction: 'integration.runtime.final.read.for_usage_provenance.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['integration.runtime_attempt']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+]);
+
+export const USAGE_PROVENANCE_BINDINGS: readonly UsageProvenanceBinding[] = usageProvenanceBindings;
+
+export type UsageProvenanceCapabilityCodes = Readonly<Record<UsageProvenanceCapabilityKey, string>>;
+
+export interface UsageProvenanceAuthorizationConfig {
+  readonly capabilityCodes: UsageProvenanceCapabilityCodes;
+  readonly now?: (() => Date) | undefined;
+}
+
+export function createUsageProvenanceAuthorizationPort(config: UsageProvenanceAuthorizationConfig) {
+  const now = config.now ?? (() => new Date());
+  const commonConfig = config as unknown as WorkOrderValidationAuthorizationConfig;
+  function bindingFor(key: string, operation: string, version: string) {
+    const binding = usageProvenanceBindings.find(
+      (candidate) => candidate.capabilityConfigKey === key,
+    );
+    if (binding?.commandType !== operation || binding.commandVersion !== version)
+      throw new SnapshotBoundaryError(
+        IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
+        'usage provenance authorization key is unsupported',
+      );
+    return binding;
+  }
+  return {
+    authorize: async (
+      deps: IdentityCommandDeps,
+      key: UsageProvenanceCapabilityKey,
+      input: ControlledFirstRunAuthorizationInput,
+    ) => {
+      const binding = bindingFor(key, input.commandType, input.commandVersion);
+      return issueEntryDecision(
+        commonConfig,
+        now,
+        undefined,
+        deps,
+        input,
+        input.targetRef,
+        binding,
+      );
+    },
+    revalidateBatch: (deps: IdentityCommandDeps, requests: readonly EntryDecisionRevalidation[]) =>
+      revalidateEntryBatch(commonConfig, now, bindingFor, deps, requests),
+    revalidate: async (
+      deps: IdentityCommandDeps,
+      key: UsageProvenanceCapabilityKey,
+      input: ControlledFirstRunRevalidationInput,
+    ) => {
+      const binding = bindingFor(key, input.expectedCommandType, input.expectedCommandVersion);
+      return revalidateEntryDecision(
+        commonConfig,
+        now,
+        undefined,
+        deps,
+        input,
+        input.expectedTargetRef,
+        binding,
+      );
+    },
+  };
+}
+
 /** Explicit approved recovery bindings; no runtime wildcard expansion. */
 export const BLOCKED_INPUT_RECOVERY_BINDINGS: readonly AuthorizationEntryBinding[] = Object.freeze([
   {

@@ -618,3 +618,13 @@ Hash域必须分开：TEstoredPayload含scopeMirror，publicTaskCompletedpayload
 新 cancellation/expiry/late-isolation 入口只支持 Spec 003 §27.1 中已有 creation reservation 的两次执行 profile，不生成历史 reservation、不放宽原预算 guard；单次 profile 保持旧入口支持，作为新入口的 unsupported 负例。
 
 隔离审计不能返回 submit COMMITTED、制造 agentResultRef/Acceptance 或伪装 Runtime ACK；旧 Result/Receipt 的历史重放不授予新的执行资格。自身当前命令/Query 权限与历史 source integrity 在到期 cleanup 时仍需通过，过期 execution Bundle 不被要求重新有效。共用公共 Envelope/CAS/幂等/Error/受限 Scope 语义，不引入新的公开错误族。旧 Contract/Context/Result/Observation/Event Hash 与历史 200 项基线不重写，新 runtime 矩阵全部 NOT RUN。
+
+### IM06-USAGE 既有 Query 的安全返回解释（提案）
+
+状态：`T2 DETAILED DESIGN APPROVED 2026-10-04 / DESIGN TECHNICAL REVIEW PASSED 2026-10-04 / HUMAN DESIGN APPROVED 2026-10-04 / IMPLEMENTED 2026-10-04 (Issue #246)`。字段与映射唯一见 [Spec 003 §13](../module-specs/Module-Spec-003-TaskExecution.md#13-td-06-usage--provenance-补充设计) 和 Spec 001 §15.18；本段只说明共享兼容和 Query 语义。未执行验收保持 NOT RUN。
+
+execution.get_usage_and_provenance@1.0 仍为 AUTHORITATIVE-only；其 payload/result Schema、Purpose task.execution.get_usage_and_provenance、metadata、合法旧 fixture 均逐字节保留。execution.provenance.human_operated.v1 是既有 CanonicalJson 返回字段的闭合解释，不是 public operation/schema version 或请求 PayloadGuard；旧合法结果 fixture 不被本新 Handler 的有限响应解释反向判为 Registry 非法。239/63/200 集合不变，未来真实 Provider 计量另行设计。
+
+本 profile 在 provenance 中给出同一 TE 快照 aggregateVersion/runStatus/snapshotAt 和 exact refs，遵循 §6.3 可变对象版本要求。首版组成入口沿用现有 operation result data 返回边界，只交付公开 data Schema 与安全 profile 校验；通用 QueryResult transport wrapper、public HTTP 不属于本切片，包装层运行验收仍 NOT RUN。未来形成完整 QueryResult 时 snapshotAt 必须与该值一致，resultHash 按共享契约；没有适用事件水位则 sourceWatermarks=[]，不能制造 sequence 或 Board freshness。data/profile/envelope 是不同验证层，公开 result data 合法不等于 Envelope 已实现、当前权限或跨模块来源真实。
+
+已授权 owning final 明确 not-found 可以表示尚无观察；权限拒绝/依赖故障使用既有安全错误，不转换为 OK+UNKNOWN。可验证的来源冲突按 owning profile 的安全 UNAVAILABLE/UNKNOWN 表达，既有公开 schema 仍可接受；本地 Root/source storage integrity 错误不返回 data。合法历史读取不产生 TE/IG 业务写入、调用 Driver 或推进完成；既有 IP 读取 Decision 与平台 Context 技术写入独立记录，不以此声称 Query 改变了业务事实。

@@ -2450,3 +2450,15 @@ Run 新增合法 CANCELLING/ABANDONED 形状：CANCELLING 来自 RUNNING 的当�
 复用 task_execution.audit_record，不新建可用失败 AgentResult、quarantine Aggregate、公共 Query 或正文表。合法 LATE_RESULT 的 runtime_ref 为原已验证 IG Observation exact Ref，result_payload_hash 为原 body Hash，target 为原 Run；request Hash、Principal/Actor/Decision、固定脱敏 safe_summary 与受信 recorded_at 保留。每次真实拒绝尝试可追加审计；不承诺 Audit exactly-once。IG 原 Observation 是独立已提交历史源，无跨 Owner 原子写；TE Audit 写失败保留该源以原身份重试。
 
 新表 FORCE RLS、显式 Enterprise/Project scope、context_allows_project、owner INSERT guard、最小 app 读写 ACL、禁止 runtime UPDATE/DELETE 与 PUBLIC 执行；不扩大 dispatcher/table 通读权。隔离只由有独立当前授权的 owning 内部边界写审计，不能借 cleanup 修改业务 Root/Result/Claim。无 Context、跨 Project/Enterprise、pool 复用、来源 Receipt/Hash 篡改及每个写点故障必须在真实 PostgreSQL 验证。#244 / PR #245 已交付对应真实 PostgreSQL 验证，required full 包含空库/合法历史升级/二次 no-op；ActorSnapshot 来源篡改负例与真实 Human 正对照已执行，具体修订、分层结果与限制见 Issue/PR 及正式审查记录，不以本文结构检查冒充持久化 PASS。
+
+## 43. Usage/Provenance 的查询快照与存储复用（提案）
+
+状态：`T2 DETAILED DESIGN APPROVED 2026-10-04 / DESIGN TECHNICAL REVIEW PASSED 2026-10-04 / HUMAN DESIGN APPROVED 2026-10-04 / IMPLEMENTED 2026-10-04 (Issue #246)`。TE 解释唯一见 Spec 003 §13；当前读取授权唯一见 Spec 001 §15.18；IG integrity 唯一见 Spec 007 的 IM06-USAGE 段。这里不声明新表或新 migration，不变更已应用文件/历史数据、ACL/RLS、基线或跨 Owner 边界。实现为 `withTaskExecutionSnapshotTransaction`（`setIsolationLevel('repeatable read')` + `transaction_timestamp()`）与 TE Handler；未执行验收保持 NOT RUN。
+
+TE 只在自身 Schema 读取 exact Run 及其 run_final_submission_claim、agent_result、agent_result_acceptance；audit_record 只读取该 Run、Scope、固定 isolation command/error/outcome 的必要列（runtime_ref、result_payload_hash 等），不能自由按 caller filters 查其他 Audit/正文。冻结 work_order_contract 由独立 Contract Decision 的 owning Query 精确读取，不绕过权限跨 Schema join。IG 原 Attempt/ack/Receipt/Adapter identity/final 必须经 owning Query/Port 读取，TE 不持有可查 IG 表的 SQL/Repository。
+
+TE 新查询边界使用专用 REPEATABLE READ 事务，从一个快照取得 Root/version、reservation、Result/Acceptance 与同源隔离关联；不使用 FOR UPDATE，不改写业务事实，不复用 command helper 的默认 READ COMMITTED 语义来假称一致性快照，也不改变其他命令事务隔离。query context 由平台 establisher 依现有流程写入 tx_context 后切到 task_execution_app；V0004 中该流程有合法 Context INSERT/DELETE，因此不设置 PostgreSQL READ ONLY。只读指业务/source 表无 DML；现有平台 Context housekeeping 和 IP 读取 Decision 签发独立列为技术写入。
+
+本次 snapshotAt 从同事务 transaction_timestamp() 取得，Run.aggregate_version 按既有输出标量无损编码；若公开 NonNegativeInt 无法无损表示，拒绝 INTERNAL_CONTRACT_VIOLATION，不做精度截断。串行语句和并发 Acceptance/Audit 提交只能呈现一个 TE 快照；外部 IG 事实依自身已提交不可变版本关联，不宣称跨 Schema 全局快照。IP 当前重验在独立 READ COMMITTED 检查点完成，不使用 TE 的旧 MVCC 快照缓存当前 Grant/Policy。
+
+复用 task_execution_app 和 integration_gateway_app 的现有 scoped SELECT、FORCE RLS、Context/最小 ACL，不新增 schema/table/index、migration、GRANT 或 audit_reader 扩权；来源读取验证 canonical hash/mirror、Scope/Run/Attempt/Receipt 关系，SQL 约束不能替代真实 Driver owning 证据。实现若发现必须新增持久化权限或结构，应先回到本节及 owning Spec 的设计审查，不静默加权限。真实 PostgreSQL 必须验证无 Context/跨 Scope/连接池复用、两连接快照与当前撤权，以及查询前后业务表无变化；required full 中既有迁移空库/升级/no-op 证据保持，docs PASS 不算本节运行通过。

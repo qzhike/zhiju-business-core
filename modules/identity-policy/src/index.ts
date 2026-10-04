@@ -12,11 +12,21 @@ export {
   createControlledFirstRunAuthorizationPort,
   CONTROLLED_FIRST_RUN_BINDINGS,
 } from './commands/work-order-validation-authorization.js';
+export {
+  createUsageProvenanceAuthorizationPort,
+  USAGE_PROVENANCE_BINDINGS,
+} from './commands/work-order-validation-authorization.js';
 export type {
   ControlledFirstRunAuthorizationConfig,
   ControlledFirstRunAuthorizationInput,
   ControlledFirstRunRevalidationInput,
   ControlledFirstRunCapabilityCodes,
+} from './commands/work-order-validation-authorization.js';
+export type {
+  UsageProvenanceAuthorizationConfig,
+  UsageProvenanceBinding,
+  UsageProvenanceCapabilityCodes,
+  UsageProvenanceCapabilityKey,
 } from './commands/work-order-validation-authorization.js';
 export type { ExecutionCapabilityBundlePorts } from './commands/execution-capability-bundle.js';
 

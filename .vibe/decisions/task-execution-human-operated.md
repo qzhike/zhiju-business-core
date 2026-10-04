@@ -298,6 +298,8 @@ TD-05 选择从 owning 模块一致性快照重建，不假设所有字段变化
 
 TD-06 不增加 `record_run_usage`，受控 Driver 固定可辨认的合成 Adapter/Harness/Provider/Model 身份；不存在的 Provider 计量与会话不能填造。查询仍可解释 Run/Attempt/Result 来源，Usage 缺失不阻断已满足的业务 Completion，也不免除冻结 Budget/Policy 的执行前检查。
 
+TD-06 详细化（2026-10-04）：[Usage/Provenance 增量提案](task-execution-usage-provenance.md) 已将现有结构化 AgentDeclaredUsage、精确历史来源、六项独立读取授权、TE 查询快照和失败语义同步为 owning Spec/Test 的 `DETAILED DESIGN APPROVED`。Spec 003 §13 取代本候选旧“无统一计量字段”的文字，不变更 Core/旧请求 Schema；设计技术审查已完成且无阻断 finding；用户于 2026-10-04 明确“批准设计”，批准绑定见该决定 §6；尚未实现。TD-05/TD-07 保持原提案，不由此追认。
+
 TD-07 的可执行 Fixture 使用生产 Application Command/Query、同一授权与事务路径、真实 PostgreSQL 和实际被调用的确定性 Driver。只有外部 Runtime 被受控 Driver 替换；不能替代 Policy、Receipt、Validation、Acceptance、Completion 或 TE→EP Producer。人工审核 Fixture 输出与真正独立人工业务验收分开记录。
 
 实施顺序仍从 #151 开始；TD-01–04 的 Schema/API 和 owning 存储先行。TD-05–07 批准与独立审查后，在所需基础能力实际交付时再生成 Query/Projection、受控退出的 NOW + READY 实现 Issue。现有 #152–#154 不扩写成包含所有后续实现的总任务。本次设计不会将 IM-06 或其退出 Gate 标为完成。

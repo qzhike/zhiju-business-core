@@ -267,6 +267,10 @@ export function createRunScenario(suite: InitialContextSuite) {
     deliveryRequiredRelease = false,
     deliverySchedule?: DeliveryScheduleHooks,
     cancelVariant?: CancelVariant,
+    usageProbe?: (
+      stage: 'CREATED' | 'STARTED' | 'SUBMITTED' | 'FINALIZED',
+      runRef: Common.ObjectRef,
+    ) => Promise<void>,
   ) => {
     const stageDependencies: VerifyPreparationValidationContext &
       VerifyRecoverySqlContext &
@@ -3217,6 +3221,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       expect(runtimeDriver.invokedAttemptIds).toEqual([]);
     }
     if (await verifyRunCreation(stageDependencies)) return;
+    await usageProbe?.('CREATED', runRef);
     const dispatchEnvelope = await firstRunEnvelope(
       'integration.request_runtime_dispatch',
       attemptRef,
@@ -3368,6 +3373,7 @@ export function createRunScenario(suite: InitialContextSuite) {
         )
       ).rows,
     ).toEqual([{ status: 'RUNNING', aggregate_version: '2' }]);
+    await usageProbe?.('STARTED', runRef);
     if (formal && !bounded && terminalScenario !== 'FORMAL_EMPTY')
       await createAndReleaseFormalOutput(runRef, attemptRef);
     if (terminalScenario === 'FORMAL_LATE') {
@@ -4275,6 +4281,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       suite.sessionFor(service),
     );
     expect(submitted, JSON.stringify(submitted)).toMatchObject({ status: 'COMMITTED' });
+    await usageProbe?.('SUBMITTED', runRef);
     expect(
       await scanControlledFinalCandidates(
         guardedTeDb,
@@ -5575,6 +5582,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       }
     }
     if (await verifyHistoricalReadPermissions(stageDependencies)) return;
+    await usageProbe?.('FINALIZED', runRef);
     observeValidations?.({ ...finalValidations, acceptanceRecordRef } as CanonicalJsonObject);
   };
   return runScenario;

@@ -18,6 +18,10 @@ import type { Kysely, Selectable } from 'kysely';
 
 import {
   type IntegrationRendererDb,
+  type RawExternalReceiptTable,
+  type RuntimeAdapterIdentityTable,
+  type RuntimeAttemptObservationTable,
+  type RuntimeAttemptTable,
   type RuntimeFinalObservationTable,
   type RenderTransaction,
   type RenderTransactionContext,
@@ -29,6 +33,13 @@ import type { RenderObjectStoragePort } from '../renderer/in-memory-render-objec
 const registry = getContractRegistry();
 const ATTEMPT = 'integration.runtime_attempt';
 const RECEIPT = 'integration.raw_external_receipt';
+const USAGE_CODES = {
+  attemptNotFound: 'INTEGRATION_RUNTIME_ATTEMPT_NOT_FOUND',
+  bindingInvalid: 'INTEGRATION_RUNTIME_BINDING_INVALID',
+  identityInvalid: 'INTEGRATION_RUNTIME_IDENTITY_INVALID',
+  finalNotFound: 'INTEGRATION_RUNTIME_FINAL_NOT_FOUND',
+  finalInvalid: 'INTEGRATION_RUNTIME_FINAL_INVALID',
+} as const;
 const RUNTIME = {
   adapterCode: 'te.human_operated.synthetic',
   adapterVersion: '1.0',
@@ -141,6 +152,14 @@ function object(value: unknown): CanonicalJsonObject {
 }
 function stringValue(value: unknown): string {
   if (typeof value !== 'string') invalid();
+  return value;
+}
+function objectWith(code: string, value: unknown): CanonicalJsonObject {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) invalid(code);
+  return value as CanonicalJsonObject;
+}
+function stringWith(code: string, value: unknown): string {
+  if (typeof value !== 'string') invalid(code);
   return value;
 }
 function hash(digest: string): Common.ContentHash {
@@ -884,6 +903,403 @@ export class ControlledRuntimeDispatchService {
       await this.ports.revalidateAuthorization();
       return result;
     });
+  }
+
+  /**
+   * Strict usage read of the original committed runtime binding.
+   * Throws `INTEGRATION_RUNTIME_ATTEMPT_NOT_FOUND` when the owning attempt row is absent or out of
+   * scope; `INTEGRATION_RUNTIME_BINDING_INVALID` on any canonical hash/mirror/receipt failure.
+   * A non-SUCCEEDED attempt is a valid state and is returned without an invented acknowledgement.
+   */
+  async getUsageRuntimeBinding(
+    context: RenderTransactionContext,
+    ref: Common.ObjectRef,
+  ): Promise<Result> {
+    await this.ports.revalidateAuthorization();
+    const subjectScope = scope(context);
+    if (ref.objectType !== ATTEMPT || !same(ref.scope, subjectScope))
+      invalid(USAGE_CODES.attemptNotFound);
+    return withRenderTransaction(this.db, context, async (trx) => {
+      const row = await trx
+        .selectFrom('integration_gateway.runtime_attempt')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if (row === undefined) invalid(USAGE_CODES.attemptNotFound);
+      if (
+        row.enterprise_id !== subjectScope.enterpriseId ||
+        row.project_id !== subjectScope.projectId
+      )
+        invalid(USAGE_CODES.attemptNotFound);
+      const { request, invocationBinding } = this.validateUsageAttempt(
+        USAGE_CODES.bindingInvalid,
+        ref,
+        row,
+      );
+      const bindingHash = hash(row.binding_hash.toString('hex'));
+      const observation = await trx
+        .selectFrom('integration_gateway.runtime_attempt_observation')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if ((row.status === 'SUCCEEDED') !== (observation !== undefined))
+        invalid(USAGE_CODES.bindingInvalid);
+      let acknowledgement: Result['acknowledgement'];
+      if (observation !== undefined) {
+        const receipt = await this.validateUsageAcknowledgement(
+          trx,
+          ref,
+          subjectScope,
+          USAGE_CODES.bindingInvalid,
+          observation,
+        );
+        acknowledgement = {
+          observationId: observation.observation_id,
+          rawReceiptRef: receiptRef(
+            receipt.receipt_id,
+            receipt.receipt_content_hash.toString('hex'),
+            subjectScope,
+          ),
+          runtimeSessionRef: objectWith(
+            USAGE_CODES.bindingInvalid,
+            observation.runtime_session_ref,
+          ) as unknown as Common.ExternalRef,
+          acknowledgedAt: observation.acknowledged_at.toISOString(),
+          source: observation.acknowledgement_source,
+        };
+      }
+      const result: Result = {
+        attemptRef: ref as Result['attemptRef'],
+        status: row.status,
+        request: request as unknown as IntegrationGateway.RuntimeDispatchRequest,
+        requestPayloadHash: hash(row.request_payload_hash.toString('hex')),
+        invocationBinding,
+        bindingHash,
+        ...(acknowledgement === undefined ? {} : { acknowledgement }),
+      };
+      if (
+        !registry.validateOperationResult('integration.get_runtime_attempt_binding', '1.0', result)
+          .valid
+      )
+        invalid(USAGE_CODES.bindingInvalid);
+      await this.ports.revalidateAuthorization();
+      return result;
+    });
+  }
+
+  /**
+   * Strict usage read of the actual adapter identity. Returns `undefined` exactly when the attempt
+   * row exists but has no committed SUCCEEDED acknowledgement / no identity row (a legitimate
+   * "not yet observed"). Throws `INTEGRATION_RUNTIME_ATTEMPT_NOT_FOUND` when the attempt row is
+   * absent/out of scope and `INTEGRATION_RUNTIME_IDENTITY_INVALID` on integrity failures.
+   */
+  async getUsageRuntimeAdapterIdentity(
+    context: RenderTransactionContext,
+    ref: Common.ObjectRef,
+  ): Promise<CanonicalJsonObject | undefined> {
+    await this.ports.revalidateAuthorization();
+    const subjectScope = scope(context);
+    if (ref.objectType !== ATTEMPT || !same(ref.scope, subjectScope))
+      invalid(USAGE_CODES.attemptNotFound);
+    return withRenderTransaction(this.db, context, async (trx) => {
+      const attempt = await trx
+        .selectFrom('integration_gateway.runtime_attempt')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if (attempt === undefined) invalid(USAGE_CODES.attemptNotFound);
+      if (
+        attempt.enterprise_id !== subjectScope.enterpriseId ||
+        attempt.project_id !== subjectScope.projectId
+      )
+        invalid(USAGE_CODES.attemptNotFound);
+      const { invocationBinding } = this.validateUsageAttempt(
+        USAGE_CODES.identityInvalid,
+        ref,
+        attempt,
+      );
+      if (attempt.status !== 'SUCCEEDED') {
+        await this.ports.revalidateAuthorization();
+        return undefined;
+      }
+      const identity = await trx
+        .selectFrom('integration_gateway.runtime_adapter_identity')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if (identity === undefined) {
+        await this.ports.revalidateAuthorization();
+        return undefined;
+      }
+      await this.validateUsageIdentity(
+        trx,
+        ref,
+        subjectScope,
+        USAGE_CODES.identityInvalid,
+        attempt,
+        invocationBinding,
+        identity,
+      );
+      const result = {
+        runtimeAdapterIdentityRef: {
+          kind: 'OBJECT',
+          objectType: 'zhiju.runtime.runtime',
+          objectId: identity.instance_id,
+          scope: subjectScope,
+        },
+        attemptRef: ref,
+        runRef: objectWith(USAGE_CODES.identityInvalid, invocationBinding.runRef),
+        bindingHash: hash(attempt.binding_hash.toString('hex')),
+        runtimeBinding: objectWith(USAGE_CODES.identityInvalid, invocationBinding.runtimeBinding),
+        ackObservationId: identity.ack_observation_id,
+        source: identity.source,
+      } as unknown as CanonicalJsonObject;
+      await this.ports.revalidateAuthorization();
+      return result;
+    });
+  }
+
+  /**
+   * Strict usage read of the original final observation. Throws
+   * `INTEGRATION_RUNTIME_FINAL_NOT_FOUND` exactly when the owning read proves no committed final
+   * row exists (or it is out of scope); `INTEGRATION_RUNTIME_FINAL_INVALID` on any integrity,
+   * mirror or hash failure.
+   */
+  async getUsageFinalObservation(
+    context: RenderTransactionContext,
+    ref: Common.ObjectRef,
+  ): Promise<CanonicalJsonObject> {
+    await this.ports.revalidateAuthorization();
+    const subjectScope = scope(context);
+    if (ref.objectType !== ATTEMPT || !same(ref.scope, subjectScope))
+      invalid(USAGE_CODES.finalNotFound);
+    return withRenderTransaction(this.db, context, async (trx) => {
+      const row = await trx
+        .selectFrom('integration_gateway.runtime_final_observation')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if (row === undefined) invalid(USAGE_CODES.finalNotFound);
+      if (row.enterprise_id !== context.enterpriseId || row.project_id !== subjectScope.projectId)
+        invalid(USAGE_CODES.finalNotFound);
+      const fail = USAGE_CODES.finalInvalid;
+      const recomputedPayloadHash = sha256CanonicalJson(objectWith(fail, row.canonical_payload));
+      if (recomputedPayloadHash !== row.payload_hash.toString('hex')) invalid(fail);
+      const agentResultContract = objectWith(fail, row.result_payload);
+      const recomputedResultHash = hashContractPayload(agentResultContract);
+      if (recomputedResultHash !== row.result_payload_hash.toString('hex')) invalid(fail);
+      if (
+        !registry.validateCoreContract(
+          'https://schemas.zhiju.local/core/agent-result/1.0',
+          agentResultContract,
+        ).valid
+      )
+        invalid(fail);
+      const header = objectWith(fail, agentResultContract.header);
+      if (
+        stringWith(fail, objectWith(fail, header.payloadHash).digest) !== recomputedResultHash ||
+        !same(header.scopeRef, subjectScope)
+      )
+        invalid(fail);
+      const attempt = await trx
+        .selectFrom('integration_gateway.runtime_attempt')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if (attempt?.status !== 'SUCCEEDED') invalid(fail);
+      if (
+        attempt.enterprise_id !== subjectScope.enterpriseId ||
+        attempt.project_id !== subjectScope.projectId
+      )
+        invalid(fail);
+      const { invocationBinding } = this.validateUsageAttempt(fail, ref, attempt);
+      const runRef = objectWith(fail, invocationBinding.runRef);
+      const runFencingToken = Number(row.fencing_token);
+      if (
+        !same(agentResultContract.runRef, runRef) ||
+        !Number.isSafeInteger(runFencingToken) ||
+        runFencingToken !== objectWith(fail, invocationBinding).fencingToken ||
+        !row.binding_hash.equals(attempt.binding_hash) ||
+        attempt.planned_runtime_instance_id === null ||
+        attempt.planned_runtime_instance_id !== row.runtime_adapter_identity_id
+      )
+        invalid(fail);
+      const identity = await trx
+        .selectFrom('integration_gateway.runtime_adapter_identity')
+        .selectAll()
+        .where('attempt_id', '=', ref.objectId)
+        .executeTakeFirst();
+      if (identity === undefined) invalid(fail);
+      const observation = await this.validateUsageIdentity(
+        trx,
+        ref,
+        subjectScope,
+        fail,
+        attempt,
+        invocationBinding,
+        identity,
+      );
+      const identityRef = {
+        kind: 'OBJECT',
+        objectType: 'zhiju.runtime.runtime',
+        objectId: identity.instance_id,
+        scope: subjectScope,
+      };
+      if (
+        identity.ack_observation_id !== row.ack_observation_id ||
+        !same(agentResultContract.submittedByRuntime, identityRef) ||
+        !same(
+          objectWith(
+            fail,
+            objectWith(fail, agentResultContract.provenance).runtimeSessionExternalRef,
+          ),
+          objectWith(fail, observation.runtime_session_ref),
+        )
+      )
+        invalid(fail);
+      const submission = objectWith(fail, row.runtime_submission_ref);
+      const instant = stringWith(fail, submission.observedAt);
+      if (
+        !stringWith(fail, submission.system) ||
+        !stringWith(fail, submission.resourceType) ||
+        !stringWith(fail, submission.externalId) ||
+        !Number.isFinite(Date.parse(instant))
+      )
+        invalid(fail);
+      const result = {
+        observationRef: {
+          kind: 'CONTENT_ADDRESSED',
+          objectType: 'zhiju.integration.runtime_final_observation',
+          objectId: row.observation_id,
+          scope: subjectScope,
+          contentHash: hash(recomputedPayloadHash),
+        },
+        attemptRef: ref,
+        runRef,
+        runtimeSubmissionRef: submission,
+        resultPayloadHash: hash(recomputedResultHash),
+        bindingHash: hash(attempt.binding_hash.toString('hex')),
+        runFencingToken,
+        ackObservationId: row.ack_observation_id,
+        runtimeAdapterIdentityRef: identityRef,
+        agentResultContract,
+        observedAt: row.observed_at.toISOString(),
+        source: row.source,
+      };
+      if (
+        !registry.validateOperationResult(
+          'integration.get_runtime_final_observation',
+          '1.0',
+          result,
+        ).valid
+      )
+        invalid(fail);
+      await this.ports.revalidateAuthorization();
+      return result as unknown as CanonicalJsonObject;
+    });
+  }
+
+  private validateUsageAttempt(
+    code: string,
+    ref: Common.ObjectRef,
+    row: Selectable<RuntimeAttemptTable>,
+  ): { request: CanonicalJsonObject; invocationBinding: InvocationBinding } {
+    const request = objectWith(code, row.request_payload);
+    const invocationBinding = objectWith(
+      code,
+      row.invocation_binding,
+    ) as unknown as InvocationBinding;
+    if (
+      sha256CanonicalJson(request) !== row.request_payload_hash.toString('hex') ||
+      sha256CanonicalJson({
+        attemptRef: ref,
+        request,
+        invocationBinding,
+      } as unknown as CanonicalJsonValue) !== row.binding_hash.toString('hex')
+    )
+      invalid(code);
+    return { request, invocationBinding };
+  }
+
+  private async validateUsageAcknowledgement(
+    trx: RenderTransaction,
+    ref: Common.ObjectRef,
+    subjectScope: Common.ScopeRef,
+    code: string,
+    observation: Selectable<RuntimeAttemptObservationTable>,
+  ): Promise<Selectable<RawExternalReceiptTable>> {
+    if (
+      observation.attempt_id !== ref.objectId ||
+      observation.enterprise_id !== subjectScope.enterpriseId ||
+      observation.project_id !== subjectScope.projectId ||
+      observation.acknowledgement_source !== 'SYNTHETIC_DRIVER' ||
+      sha256CanonicalJson(objectWith(code, observation.observation_payload)) !==
+        observation.observation_hash.toString('hex')
+    )
+      invalid(code);
+    const receipt = await trx
+      .selectFrom('integration_gateway.raw_external_receipt')
+      .selectAll()
+      .where('receipt_id', '=', observation.raw_receipt_id)
+      .executeTakeFirst();
+    if (receipt === undefined) invalid(code);
+    if (
+      receipt.attempt_kind !== 'RUNTIME' ||
+      receipt.runtime_attempt_id !== ref.objectId ||
+      receipt.observed_outcome !== 'SUCCEEDED' ||
+      receipt.enterprise_id !== subjectScope.enterpriseId ||
+      receipt.project_id !== subjectScope.projectId ||
+      sha256CanonicalJson({
+        attemptRef: ref,
+        providerReceiptRef: objectWith(code, receipt.provider_receipt_ref),
+        receiptPayloadRef: receipt.receipt_payload_ref,
+        receiptPayloadHash: hash(receipt.receipt_payload_hash.toString('hex')),
+        recordedAt: receipt.recorded_at.toISOString(),
+      } as unknown as CanonicalJsonValue) !== receipt.receipt_content_hash.toString('hex')
+    )
+      invalid(code);
+    return receipt;
+  }
+
+  private async validateUsageIdentity(
+    trx: RenderTransaction,
+    ref: Common.ObjectRef,
+    subjectScope: Common.ScopeRef,
+    code: string,
+    attempt: Selectable<RuntimeAttemptTable>,
+    invocationBinding: InvocationBinding,
+    identity: Selectable<RuntimeAdapterIdentityTable>,
+  ): Promise<Selectable<RuntimeAttemptObservationTable>> {
+    const runtimeBinding = objectWith(code, invocationBinding.runtimeBinding);
+    const canonicalIdentity = objectWith(code, identity.canonical_payload);
+    const bindingHex = attempt.binding_hash.toString('hex');
+    if (
+      sha256CanonicalJson(canonicalIdentity) !== identity.payload_hash.toString('hex') ||
+      canonicalIdentity.instanceId !== identity.instance_id ||
+      canonicalIdentity.attemptId !== ref.objectId ||
+      canonicalIdentity.ackObservationId !== identity.ack_observation_id ||
+      canonicalIdentity.bindingHash !== bindingHex ||
+      canonicalIdentity.adapterCode !== identity.adapter_code ||
+      canonicalIdentity.adapterVersion !== identity.adapter_version ||
+      canonicalIdentity.source !== identity.source ||
+      identity.instance_id !== attempt.planned_runtime_instance_id ||
+      identity.instance_id === ref.objectId ||
+      identity.attempt_id !== ref.objectId ||
+      identity.enterprise_id !== subjectScope.enterpriseId ||
+      identity.project_id !== subjectScope.projectId ||
+      !identity.binding_hash.equals(attempt.binding_hash) ||
+      identity.adapter_code !== stringWith(code, runtimeBinding.adapterCode) ||
+      identity.adapter_version !== stringWith(code, runtimeBinding.adapterVersion)
+    )
+      invalid(code);
+    const observation = await trx
+      .selectFrom('integration_gateway.runtime_attempt_observation')
+      .selectAll()
+      .where('observation_id', '=', identity.ack_observation_id)
+      .executeTakeFirst();
+    if (observation === undefined) invalid(code);
+    await this.validateUsageAcknowledgement(trx, ref, subjectScope, code, observation);
+    return observation;
   }
 
   private finalFromRow(

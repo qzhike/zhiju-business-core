@@ -966,3 +966,26 @@ v1既有授权/接受集不改，v1不能解释新profile；本节新增SERVICE�
 `get_run_state@1.0` 的公开 read Purpose、Schema 与现有 SERVICE 映射保持不变；当前 `runStateReadV1` 组成映射明确为 SERVICE，不能直接拿 Human Grant 通过它。本提案增加独立 HUMAN read 映射和 Human 组成入口，绑定同一精确 Run target；取消授权不授予读回权限，也不将原 SERVICE 映射改成两主体共用。WorkOrder/Task/DeliveryItem 的完成与取消不由本事务推进；取消 Run 的执行事实不产生 SATISFIED，原 Completion 仍按自己的有限支持集判断。真实 Runtime ACK、六项 Runtime Command 与 IM-DG-006 不被本提案批准。
 
 late-isolation、late-Bundle-inspect 是内部 owning action，Purpose/type 取表中精确 action，operation version 为 1.0；取消、expiry、state 与 IG/Policy Query 使用表列公开版本及其既有 registered Purpose。各 config key 绑定受信 capability code，caller 不能指定 action、capability 或把 SERVICE kind 当授权。公开取消 Purpose 与内部 action 是不同字段，不能改旧 metadata 或接受两个 Purpose 互换。业务消费者先有自身授权再检查 Spec 003 §27.1 的已有预算 profile 支持集，cleanup 只验冻结来源与原 reservation 完整性，不要求执行 Bundle/Controls Policy 当前有效。每个 action/target/config key 分别签发 Decision；依赖 Ref 的完整 identity/Scope/hash 必须与该次 target 匹配。历史返回与隔离 Audit 提交前仍复验自身当前权限；过期执行资格不能被当作 cleanup 权限，cleanup 自身有效也不恢复执行资格。
+
+### 15.18 IM06-USAGE 历史读取的独立授权组成（提案）
+
+状态：`T2 DETAILED DESIGN APPROVED 2026-10-04 / DESIGN TECHNICAL REVIEW PASSED 2026-10-04 / HUMAN DESIGN APPROVED 2026-10-04 / IMPLEMENTED 2026-10-04 (Issue #246)`。服务 [Spec 003 §13](Module-Spec-003-TaskExecution.md#13-td-06-usage--provenance-补充设计)，本节唯一维护六项受信 mapping；场景见 Module-Test-001 的 IP-USAGE-D 矩阵。现有 start/final/cancel/service-state mapping 和公开授权 API 不变。实现为 `createUsageProvenanceAuthorizationPort` 与 `USAGE_PROVENANCE_BINDINGS`；未执行验收保持 NOT RUN。
+
+| 边界 / 主体 | 精确 operation / version / Purpose | action / config key | target / kind / selector |
+|---|---|---|---|
+| Human Usage Query / HUMAN | `execution.get_usage_and_provenance` / 1.0 / `task.execution.get_usage_and_provenance` | `execution.run.usage_provenance.read.v1` / `runUsageProvenanceReadHumanV1` | exact Run / OBJECT `execution.run` / TARGET_TYPE |
+| TE source read / 查询组成 SERVICE | `execution.run.usage_provenance.source.read.v1` / 1.0 / 同 operation | 同 operation / `runUsageProvenanceSourceReadV1` | 同一 exact Run / OBJECT `execution.run` / TARGET_TYPE |
+| 冻结 Contract read / 同一 SERVICE | `execution.get_work_order_contract` / 1.0 / `task.execution.get_work_order_contract` | `execution.work_order.contract.read.for_usage_provenance.v1` / `usageProvenanceContractReadV1` | 已授权 Run.workOrderRef / OBJECT `zhiju.execution.work_order` / TARGET_TYPE |
+| IG Binding read / 同一 SERVICE | `integration.get_runtime_attempt_binding` / 1.0 / `integration.runtime.binding.read` | `integration.runtime.binding.read.for_usage_provenance.v1` / `usageProvenanceBindingReadV1` | 已授权 Run.start_attempt_ref / OBJECT `integration.runtime_attempt` / TARGET_TYPE |
+| IG Adapter identity read / 同一 SERVICE | `integration.runtime.adapter_identity.read.for_usage_provenance.v1` / 1.0 / 同 operation | 同 operation / `usageProvenanceAdapterIdentityReadV1` | 同一 exact Attempt / OBJECT `integration.runtime_attempt` / TARGET_TYPE |
+| IG final read / 同一 SERVICE | `integration.get_runtime_final_observation` / 1.0 / `integration.runtime.final_observation.read` | `integration.runtime.final.read.for_usage_provenance.v1` / `usageProvenanceFinalReadV1` | 同一 exact Attempt / OBJECT `integration.runtime_attempt` / TARGET_TYPE |
+
+两项 internal operation 仅为 owning Port 的受信 type/Purpose，不进入公共 Catalog。六个 config key 分别绑定受信 capability code，禁止外部选择 code/action、通配替代或按字符串插值展开；复用当前 IP 独立签发/当前重验机制和 single covering Grant，不构造新的授权模型。Human 入口拒绝 Agent、SERVICE、actingFor；SERVICE 依赖使用自己的 Actor/session、独立配置与各 target-bound Decision，不借 Human Decision、start/cancel Decision、历史 Receipt 或其他 consumer 的相同 Purpose。
+
+公开 payloadHash 对 `{runRef}` canonical hash；internal source-read payload 也 closed `{runRef}`。Contract dependency payload 为既有 `{workOrderRef}`，必须在返回后与 Run 固定 Contract exact Ref/hash 关联；IG 三项 payload 均为 closed `{attemptRef}`，只从已授权 Run.start 字段取得，不扫描、不接受 caller source JSON。Decision 的完整 operation/version/Purpose/action、target/kind/Scope、payloadHash、principalKind、ActorSnapshot、session authentication hash、current covering Grant/Policy proof 全部按表重验，target id 相等不能替代完整 Scope/Ref/hash。
+
+Human 与 source 两项在任何 TE protected read 前成立。source Decision 限定读取该 Run Root 及其 `run_final_submission_claim/agent_result/agent_result_acceptance`、同 Run 脱敏 LATE_RESULT 关联；不覆盖 WorkOrder/Task/Artifact 当前资格、其他 Run 或自由 Audit search。Contract Decision 只读取已授权 WorkOrder 的不可变冻结 Contract，绑定 Run.work_order_contract_ref 后才能采用；IG 每个 Port 在自身 protected read 前重验，不跨三项共享 Decision。有 start 时，缺任意 required Grant/配置使查询拒绝；无 start 时不调用三项 IG Port，不要求尚不存在的 target 授权。
+
+当前撤权、过期、错 session/Scope/Purpose/target/hash 或依赖不可用使查询 fail closed。每次 Port 读取与最终返回前重验所用当前 Decision；最终批次包括 Human/source/Contract 和实际调用的 IG 三项。沿用 §15.17 前已有的批次检查机制：每个新检查点在 IP 独立 READ COMMITTED 事务读取，不能由 TE REPEATABLE READ 快照或上一检查点的缓存遮蔽撤权；组内一致性不承诺跨 Owner 全局瞬时撤权原子性。
+
+历史读取只要求当前 read authority 与不可变来源完整性，不要求原 execution Bundle/Controls Policy/lease 当前可执行，不签发新执行能力。旧 execution 权限失效不会重写旧 Acceptance，读权失效仍安全拒绝。IP 签发 read Decision/拒绝审计与平台 Context 的技术写入单独计为授权证据，不能混成 TE/IG 业务 Query 副作用。真实 Grant PolicySnapshot 取代继续保留原 NOT RUN/延后；实际 Grant 撤销与有效期跨越仍必须验证。
