@@ -143,6 +143,35 @@ CREATE INDEX task_board_failure_recorded_idx
     ON projection.task_board_failure
         (enterprise_id, project_id, recorded_at);
 
+CREATE FUNCTION projection.guard_task_board_generation_insert() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+BEGIN
+    -- The promoted mirrors must equal the canonical manifest exactly, so an
+    -- arbitrary row set can never be stored as a published generation.
+    IF NEW.manifest->>'exportId' IS DISTINCT FROM NEW.export_id::text
+       OR (NEW.manifest->>'snapshotAt')::timestamptz IS DISTINCT FROM NEW.snapshot_at
+       OR (NEW.manifest->>'rowCount')::integer IS DISTINCT FROM NEW.row_count
+       OR NEW.manifest->>'rowsHash' IS DISTINCT FROM encode(NEW.rows_hash, 'hex')
+       OR NEW.manifest->>'sourceFingerprint'
+          IS DISTINCT FROM encode(NEW.source_fingerprint, 'hex')
+       OR jsonb_array_length(NEW.manifest->'rows') IS DISTINCT FROM NEW.row_count
+       OR NEW.manifest->'projectRef' IS DISTINCT FROM NEW.project_ref
+       OR NEW.project_ref->>'objectId' IS DISTINCT FROM NEW.project_id::text
+       OR NEW.project_ref->'scope'->>'enterpriseId' IS DISTINCT FROM NEW.enterprise_id::text
+       OR NEW.project_ref->'scope'->>'projectId' IS DISTINCT FROM NEW.project_id::text
+    THEN
+        RAISE EXCEPTION 'task_board_generation manifest mirror mismatch'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END $guard$;
+REVOKE ALL ON FUNCTION projection.guard_task_board_generation_insert() FROM PUBLIC;
+CREATE TRIGGER task_board_generation_insert_guard
+    BEFORE INSERT ON projection.task_board_generation
+    FOR EACH ROW EXECUTE FUNCTION projection.guard_task_board_generation_insert();
+
 CREATE FUNCTION projection.guard_task_board_generation_mutation() RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog

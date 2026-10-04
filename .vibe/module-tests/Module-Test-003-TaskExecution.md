@@ -647,7 +647,7 @@ authority 为 [Spec 003 §27](../module-specs/Module-Spec-003-TaskExecution.md#2
 
 ## IM06-BOARD 首版实现验收
 
-状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / 下表端到端与外部/人工 NOT RUN`。authority Spec003 §12、IP §15.19、PostgreSQL IM06-BOARD、共享API IM06-BOARD。本矩阵保留并精确化旧TE-TD-027–032、039–042，旧表结果不升级。
+状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / 下表端到端与外部/人工 NOT RUN（修订后新增 owning Task→AUTHORITATIVE 读取、撤权、export/publish→PROJECTION_OK 的 focused 证据见 PR #249）`。authority Spec003 §12、IP §15.19、PostgreSQL IM06-BOARD、共享API IM06-BOARD。本矩阵保留并精确化旧TE-TD-027–032、039–042，旧表结果不升级。
 
 | ID/关联 | 可观察输入与必要预期 | 当前结果 |
 |---|---|---|

@@ -36,7 +36,9 @@ export function same(a: unknown, b: unknown): boolean {
   );
 }
 export function fail(code: string): never {
-  throw new CommandExecutionError(code, 'WorkOrder validation dependency or plan is unavailable');
+  // The owning code is the stable identity of the failure; carrying it in the
+  // message keeps a thrown error diagnosable without a second lookup.
+  throw new CommandExecutionError(code, `task execution rejected: ${code}`);
 }
 export function requireThat(value: unknown, code = 'REFERENCE_INVALID'): asserts value {
   if (!value) fail(code);

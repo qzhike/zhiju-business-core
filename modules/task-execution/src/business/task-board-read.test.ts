@@ -95,7 +95,7 @@ function projectionState(withRows = rows): TaskBoardProjectionState {
 function ports(overrides: Partial<TaskBoardReadPorts> = {}): TaskBoardReadPorts {
   const base: TaskBoardReadPorts = {
     now: () => new Date('2026-10-05T00:10:00.000Z'),
-    cursorKey: { keyId: 'k', secret: Buffer.alloc(32, 3) },
+    cursorKey: { keyId: 3, secret: Buffer.alloc(32, 3) },
     authorizationSourceHash: 'b'.repeat(64),
     resolveBoardPolicy: () =>
       Promise.resolve({
@@ -231,6 +231,89 @@ describe('Task Board handler', () => {
     expect(result.status).toBe('STALE');
     expect(result.stalenessStatus).toBe('STALE');
     expect(result.data).toBeUndefined();
+  });
+
+  it('continues AUTHORITATIVE paging from the cursor last task id', async () => {
+    const first = await handleGetTaskBoardSlice(
+      {
+        queryId: '0199b600-0000-7000-8000-000000000601',
+        consistency: 'AUTHORITATIVE',
+        payload: query().payload,
+      },
+      ports(),
+    );
+    const firstPage = first.data as Record<string, unknown>;
+    expect((firstPage.items as unknown[]).length).toBe(2);
+    const cursor = String(firstPage.nextCursor);
+    const second = await handleGetTaskBoardSlice(
+      {
+        queryId: '0199b600-0000-7000-8000-000000000601',
+        consistency: 'AUTHORITATIVE',
+        payload: { ...query().payload, page: { pageSize: 2, cursor } },
+      },
+      ports(),
+    );
+    const secondPage = second.data as Record<string, unknown>;
+    expect((secondPage.items as unknown[]).length).toBe(1);
+    expect(secondPage.nextCursor).toBeUndefined();
+    const seen = [
+      ...(firstPage.items as Record<string, unknown>[]),
+      ...(secondPage.items as Record<string, unknown>[]),
+    ].map((item) => (item.taskRef as Record<string, unknown>).objectId);
+    expect(new Set(seen).size).toBe(3);
+    expect(cursor).toMatch(/^[A-Za-z0-9_-]{16,512}$/u);
+  });
+
+  it('reports a retained historical generation as at least STALE', async () => {
+    const historicalSnapshotAt = new Date('2026-10-04T00:00:00.000Z');
+    const result = await handleGetTaskBoardSlice(
+      {
+        queryId: '0199b600-0000-7000-8000-000000000601',
+        consistency: 'PROJECTION_OK',
+        asOf: historicalSnapshotAt.toISOString(),
+        payload: query().payload,
+      },
+      ports({
+        findGenerationBySnapshotAt: () => {
+          const state = projectionState();
+          const generation = state.generation;
+          if (generation === undefined) return Promise.resolve(state);
+          return Promise.resolve({
+            ...state,
+            generation: { ...generation, snapshotAt: historicalSnapshotAt },
+          });
+        },
+      }),
+    );
+    expect(result.status).toBe('STALE');
+    expect(result.stalenessStatus).toBe('STALE');
+  });
+
+  it('reports a recent export failure as FAILED until a newer generation publishes', async () => {
+    const failed = await handleGetTaskBoardSlice(
+      query(),
+      ports({
+        readLatestFailure: () =>
+          Promise.resolve({
+            failureCode: 'TASK_BOARD_EXPORT_BUDGET_EXCEEDED',
+            recordedAt: new Date('2026-10-05T00:05:00.000Z'),
+          }),
+      }),
+    );
+    expect(failed.status).toBe('ERROR');
+    expect(failed.stalenessStatus).toBe('FAILED');
+    const cleared = await handleGetTaskBoardSlice(
+      query(),
+      ports({
+        readLatestFailure: () =>
+          Promise.resolve({
+            failureCode: 'TASK_BOARD_EXPORT_BUDGET_EXCEEDED',
+            recordedAt: new Date('2020-01-01T00:00:00.000Z'),
+          }),
+      }),
+    );
+    expect(cleared.status).toBe('OK');
+    expect(cleared.stalenessStatus).toBe('FRESH');
   });
 
   it('reads the owning source for an AUTHORITATIVE request', async () => {

@@ -19,11 +19,14 @@ import {
   type TaskBoardProjectionTransaction,
 } from './task-execution-db.js';
 import { CommandExecutionError } from './command-runner.js';
+import { sql } from 'kysely';
 import { object, textValue } from '../business/work-order-validation-plan.js';
-import type {
-  TaskBoardPolicyObservation,
-  TaskBoardSnapshotManifest,
-  TaskBoardSnapshotRow,
+import {
+  taskBoardManifestHash,
+  taskBoardRowsHash,
+  type TaskBoardPolicyObservation,
+  type TaskBoardSnapshotManifest,
+  type TaskBoardSnapshotRow,
 } from '../business/task-board-types.js';
 
 export interface TaskBoardFenceRegistration {
@@ -99,6 +102,22 @@ function hex(value: string): Buffer {
   return Buffer.from(value, 'hex');
 }
 
+/**
+ * Reverify the stored row mirror against the generation before any row is
+ * returned, so a damaged stored generation cannot be read as a valid one.
+ */
+function assertStoredRows(
+  generation: { readonly rows_hash: Buffer; readonly row_count: number },
+  rows: readonly { readonly row: unknown }[],
+): void {
+  const combined = taskBoardRowsHash(rows.map((record) => record.row as TaskBoardSnapshotRow));
+  if (combined !== generation.rows_hash.toString('hex') || rows.length !== generation.row_count)
+    projectionError(
+      'INTERNAL_CONTRACT_VIOLATION',
+      'stored Board generation rows do not match its rows hash or count',
+    );
+}
+
 async function readFence(
   trx: TaskBoardProjectionTransaction,
   enterpriseId: string,
@@ -137,10 +156,70 @@ async function readFence(
  * caller's claim is still current. Only a strictly higher token, or the same
  * token/owner extending its own lease, is accepted.
  */
+/**
+ * Verify the complete manifest mirrors before anything is persisted: the
+ * canonical row and manifest hashes, the row count, the export identity and
+ * the Project Scope are recomputed from the rows themselves, so a single
+ * damaged field, mirror or row can never be published as a successful
+ * generation.
+ */
+function verifyManifestMirrors(input: PublishTaskBoardGenerationInput): void {
+  const manifest = input.manifest;
+  if (manifest.exportId !== input.exportId)
+    projectionError(
+      'TASK_BOARD_MANIFEST_CONFLICT',
+      'manifest export id does not match the request',
+    );
+  if (manifest.rowCount !== manifest.rows.length)
+    projectionError('TASK_BOARD_MANIFEST_CONFLICT', 'manifest row count does not match its rows');
+  if (taskBoardRowsHash(manifest.rows) !== input.rowsHash)
+    projectionError('TASK_BOARD_MANIFEST_CONFLICT', 'rows hash does not match the canonical rows');
+  if (taskBoardManifestHash(manifest) !== input.manifestHash)
+    projectionError(
+      'TASK_BOARD_MANIFEST_CONFLICT',
+      'manifest hash does not match the canonical manifest',
+    );
+  if (Date.parse(manifest.snapshotAt) !== input.snapshotAt.getTime())
+    projectionError('TASK_BOARD_MANIFEST_CONFLICT', 'manifest snapshot time does not match');
+  const projectRef = object(manifest.projectRef);
+  const scope = object(projectRef.scope);
+  if (
+    projectRef.kind !== 'OBJECT' ||
+    projectRef.objectId !== input.projectId ||
+    scope.enterpriseId !== input.enterpriseId ||
+    scope.projectId !== input.projectId
+  )
+    projectionError('TASK_BOARD_MANIFEST_CONFLICT', 'manifest Project reference is out of scope');
+  const seen = new Set<string>();
+  for (const row of manifest.rows) {
+    const taskRef = object(object(row.item).taskRef);
+    const taskScope = object(taskRef.scope);
+    const taskId = typeof taskRef.objectId === 'string' ? taskRef.objectId : '';
+    if (
+      taskRef.kind !== 'OBJECT' ||
+      typeof taskRef.objectType !== 'string' ||
+      taskRef.objectType.length === 0 ||
+      taskId.length === 0 ||
+      taskScope.enterpriseId !== input.enterpriseId ||
+      taskScope.projectId !== input.projectId ||
+      seen.has(taskId)
+    )
+      projectionError(
+        'TASK_BOARD_MANIFEST_CONFLICT',
+        'manifest row identity is invalid or duplicated',
+      );
+    seen.add(taskId);
+  }
+}
+
 async function registerFence(
   trx: TaskBoardProjectionTransaction,
   input: PublishTaskBoardGenerationInput,
 ): Promise<void> {
+  const stamp = await sql<{ readonly now: Date }>`SELECT clock_timestamp() AS now`.execute(trx);
+  const trustedNow = stamp.rows[0]?.now;
+  if (!(trustedNow instanceof Date))
+    projectionError('DEPENDENCY_UNAVAILABLE', 'projection clock unavailable');
   const current = await readFence(trx, input.enterpriseId, input.projectId);
   const token = Number(current.token);
   const monotonic =
@@ -150,7 +229,7 @@ async function registerFence(
       input.fence.leaseUntil.getTime() >= (current.leaseUntil?.getTime() ?? 0));
   if (!monotonic)
     projectionError('TASK_BOARD_FENCE_REJECTED', 'projection fence token is not current');
-  if (input.fence.leaseUntil.getTime() <= input.now.getTime())
+  if (input.fence.leaseUntil.getTime() <= trustedNow.getTime())
     projectionError('TASK_BOARD_FENCE_REJECTED', 'projection lease has already expired');
   await trx
     .updateTable('projection.task_board_fence')
@@ -192,6 +271,7 @@ export async function publishTaskBoardGeneration(
   input: PublishTaskBoardGenerationInput,
 ): Promise<PublishTaskBoardGenerationResult> {
   return withTaskBoardProjectionTransaction(db, context, async (trx) => {
+    verifyManifestMirrors(input);
     await registerFence(trx, input);
     const manifestHash = hex(input.manifestHash);
     const existing = await trx
@@ -334,6 +414,7 @@ export async function readTaskBoardGenerationById(
       .where('generation_id', '=', generationId)
       .orderBy('task_id')
       .execute();
+    assertStoredRows(generation, rows);
     const alias = await trx
       .selectFrom('projection.task_board_alias')
       .selectAll()
@@ -469,6 +550,7 @@ export async function readTaskBoardProjection(
             .where('generation_id', '=', generation.generation_id)
             .orderBy('task_id')
             .execute();
+    if (generation !== undefined) assertStoredRows(generation, rowRecords);
     return {
       ...(alias === undefined
         ? {}

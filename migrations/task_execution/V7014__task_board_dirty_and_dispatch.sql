@@ -312,6 +312,53 @@ CREATE TRIGGER task_board_manifest_immutable
   FOR EACH ROW EXECUTE FUNCTION task_execution.guard_task_board_manifest_immutable();
 
 -- ---------------------------------------------------------------------------
+-- 4b. Publication proof: the immutable record that one export manifest was
+--     published as an exact Projection generation/sequence by the *current*
+--     export lease. A dirty confirmation must present this record, so a
+--     manifest that was never published can never be acknowledged.
+-- ---------------------------------------------------------------------------
+CREATE TABLE task_execution.task_board_export_publication (
+  export_id uuid PRIMARY KEY,
+  enterprise_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  manifest_hash bytea NOT NULL,
+  generation_id uuid NOT NULL,
+  publish_sequence bigint NOT NULL,
+  lease_token bigint NOT NULL,
+  recorded_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT task_board_export_publication_hash_len CHECK (octet_length(manifest_hash) = 32),
+  CONSTRAINT task_board_export_publication_sequence_range
+    CHECK (publish_sequence >= 1 AND publish_sequence <= 9007199254740991),
+  CONSTRAINT task_board_export_publication_lease_positive CHECK (lease_token >= 1),
+  CONSTRAINT task_board_export_publication_scope_unique
+    UNIQUE (enterprise_id, project_id, export_id, manifest_hash)
+);
+
+GRANT SELECT ON task_execution.task_board_export_publication TO task_execution_app;
+REVOKE INSERT, UPDATE, DELETE ON task_execution.task_board_export_publication FROM task_execution_app;
+ALTER TABLE task_execution.task_board_export_publication ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_execution.task_board_export_publication FORCE ROW LEVEL SECURITY;
+CREATE POLICY task_board_export_publication_app_select ON task_execution.task_board_export_publication
+  FOR SELECT TO task_execution_app
+  USING (platform_security.context_allows_project(enterprise_id, project_id));
+CREATE POLICY task_board_export_publication_owner_select ON task_execution.task_board_export_publication
+  FOR SELECT TO task_execution_owner
+  USING (platform_security.context_allows_project(enterprise_id, project_id));
+CREATE POLICY task_board_export_publication_owner_insert ON task_execution.task_board_export_publication
+  FOR INSERT TO task_execution_owner
+  WITH CHECK (platform_security.context_allows_project(enterprise_id, project_id));
+
+CREATE FUNCTION task_execution.guard_task_board_publication_immutable() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog AS $guard$
+BEGIN
+  RAISE EXCEPTION 'Task Board export publication is immutable' USING ERRCODE = '23514';
+END $guard$;
+REVOKE ALL ON FUNCTION task_execution.guard_task_board_publication_immutable() FROM PUBLIC;
+CREATE TRIGGER task_board_publication_immutable
+  BEFORE UPDATE OR DELETE ON task_execution.task_board_export_publication
+  FOR EACH ROW EXECUTE FUNCTION task_execution.guard_task_board_publication_immutable();
+
+-- ---------------------------------------------------------------------------
 -- 5. SECURITY DEFINER export/dispatch helpers. Each first validates the
 --    Scope and the SERVICE principal kind exactly like dispatch_scope; the
 --    helpers are executable only by task_execution_app.
@@ -413,9 +460,59 @@ BEGIN
 END $fn$;
 REVOKE ALL ON FUNCTION task_execution.task_board_manifest_read(uuid, uuid, uuid) FROM PUBLIC;
 
+CREATE FUNCTION task_execution.task_board_dispatch_record_publication(
+  p_export_id uuid, p_enterprise uuid, p_project uuid, p_manifest_hash bytea,
+  p_generation_id uuid, p_publish_sequence bigint, p_lease_token bigint) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $fn$
+DECLARE d task_execution.task_board_export_dispatch%ROWTYPE;
+BEGIN
+  PERFORM task_execution.dispatch_scope(p_enterprise, p_project);
+  SELECT * INTO d FROM task_execution.task_board_export_dispatch
+    WHERE enterprise_id = p_enterprise AND project_id = p_project
+    FOR UPDATE;
+  -- Only the live lease that produced the export may record its publication,
+  -- judged against the database clock rather than a caller time.
+  IF d.lease_token IS DISTINCT FROM p_lease_token
+     OR d.lease_until IS NULL
+     OR d.lease_until <= clock_timestamp() THEN
+    RAISE EXCEPTION 'TASK_BOARD_LEASE_NOT_CURRENT' USING ERRCODE = '42501';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM task_execution.task_board_export_manifest m
+    WHERE m.export_id = p_export_id
+      AND m.enterprise_id = p_enterprise
+      AND m.project_id = p_project
+      AND m.manifest_hash = p_manifest_hash
+  ) THEN
+    RAISE EXCEPTION 'TASK_BOARD_MANIFEST_CONFLICT' USING ERRCODE = '23514';
+  END IF;
+  INSERT INTO task_execution.task_board_export_publication
+    (export_id, enterprise_id, project_id, manifest_hash, generation_id,
+     publish_sequence, lease_token)
+  VALUES
+    (p_export_id, p_enterprise, p_project, p_manifest_hash, p_generation_id,
+     p_publish_sequence, p_lease_token)
+  ON CONFLICT (export_id) DO NOTHING;
+  IF NOT FOUND THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM task_execution.task_board_export_publication x
+      WHERE x.export_id = p_export_id
+        AND x.enterprise_id = p_enterprise
+        AND x.project_id = p_project
+        AND x.manifest_hash = p_manifest_hash
+        AND x.generation_id = p_generation_id
+        AND x.publish_sequence = p_publish_sequence
+    ) THEN
+      RAISE EXCEPTION 'TASK_BOARD_PUBLICATION_CONFLICT' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+END $fn$;
+REVOKE ALL ON FUNCTION task_execution.task_board_dispatch_record_publication(uuid, uuid, uuid, bytea, uuid, bigint, bigint) FROM PUBLIC;
+
 CREATE FUNCTION task_execution.task_board_dispatch_confirm(
   p_export_id uuid, p_enterprise uuid, p_project uuid, p_manifest_hash bytea,
-  p_publish_sequence bigint, p_dirty_ids uuid[], p_principal uuid) RETURNS void
+  p_generation_id uuid, p_publish_sequence bigint, p_dirty_ids uuid[],
+  p_principal uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $fn$
 BEGIN
   PERFORM task_execution.dispatch_scope(p_enterprise, p_project);
@@ -427,6 +524,19 @@ BEGIN
       AND m.manifest_hash = p_manifest_hash
   ) THEN
     RAISE EXCEPTION 'TASK_BOARD_MANIFEST_CONFLICT' USING ERRCODE = '23514';
+  END IF;
+  -- A marker may only be acknowledged once this exact manifest was published
+  -- as this exact generation/sequence under a recorded live lease.
+  IF NOT EXISTS (
+    SELECT 1 FROM task_execution.task_board_export_publication x
+    WHERE x.export_id = p_export_id
+      AND x.enterprise_id = p_enterprise
+      AND x.project_id = p_project
+      AND x.manifest_hash = p_manifest_hash
+      AND x.generation_id = p_generation_id
+      AND x.publish_sequence = p_publish_sequence
+  ) THEN
+    RAISE EXCEPTION 'TASK_BOARD_NOT_PUBLISHED' USING ERRCODE = '23514';
   END IF;
   -- Only identities the published manifest explicitly covered may be confirmed.
   IF EXISTS (
@@ -454,7 +564,7 @@ BEGIN
     RAISE EXCEPTION 'TASK_BOARD_DISPATCH_MISSING' USING ERRCODE = '23514';
   END IF;
 END $fn$;
-REVOKE ALL ON FUNCTION task_execution.task_board_dispatch_confirm(uuid, uuid, uuid, bytea, bigint, uuid[], uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION task_execution.task_board_dispatch_confirm(uuid, uuid, uuid, bytea, uuid, bigint, uuid[], uuid) FROM PUBLIC;
 
 CREATE FUNCTION task_execution.task_board_dirty_read(p_enterprise uuid, p_project uuid)
 RETURNS SETOF task_execution.task_board_dirty
@@ -488,7 +598,8 @@ GRANT EXECUTE ON FUNCTION
   task_execution.task_board_dispatch_state(uuid, uuid),
   task_execution.task_board_manifest_record(uuid, uuid, uuid, jsonb, bytea, timestamptz, jsonb, integer, bytea, bytea, uuid[], uuid),
   task_execution.task_board_manifest_read(uuid, uuid, uuid),
-  task_execution.task_board_dispatch_confirm(uuid, uuid, uuid, bytea, bigint, uuid[], uuid),
+  task_execution.task_board_dispatch_record_publication(uuid, uuid, uuid, bytea, uuid, bigint, bigint),
+  task_execution.task_board_dispatch_confirm(uuid, uuid, uuid, bytea, uuid, bigint, uuid[], uuid),
   task_execution.task_board_dirty_read(uuid, uuid),
   task_execution.task_board_health(uuid, uuid)
 TO task_execution_app;

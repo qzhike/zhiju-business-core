@@ -23,12 +23,8 @@
 import { getContractRegistry, type Common } from '@zhiju/contracts';
 import {
   AUTHORIZATION_REVOKED,
-  SnapshotBoundaryError,
-  authorizeCommand,
   createTaskBoardAuthorizationPort,
-  resolvePolicy,
   taskBoardAuthorizationSourceHash,
-  validateAuthorizationDecision,
   type IdentityCommandDeps,
   type IdentityTransactionContext,
   type TaskBoardAuthorizationSourceEntry,
@@ -43,7 +39,6 @@ import {
   readTaskBoardGenerationById,
   readTaskBoardHealth,
   readTaskBoardProjection,
-  validateTaskBoardPolicy,
   withTaskExecutionSnapshotTransaction,
   type TaskBoardConsistency,
   type TaskBoardPolicyResolution,
@@ -51,22 +46,20 @@ import {
   type TaskExecutionDb,
   type TaskExecutionTransactionContext,
 } from '@zhiju/task-execution';
-import { newUuidV7, sha256CanonicalJson, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import { sha256CanonicalJson, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import type { Kysely } from 'kysely';
 import {
-  AUTHORIZATION_DECISION_OBJECT_TYPE,
   assertActorBinding,
-  contentHash,
   createDecisionBoundary,
   decisionReference,
   entryError,
   payloadHashOf,
-  policySnapshotReference,
   record,
   sessionAuthenticationContextHash,
   type DecisionRow,
   type IdentityBoundaryConfig,
 } from './decision-boundary.js';
+import { resolveTaskBoardPolicy } from './task-board-policy.js';
 import type { InitialContextSession } from './initial-context-entry.js';
 
 /** Trusted handles plus one capability code per approved Board boundary. */
@@ -74,7 +67,7 @@ export interface TaskBoardEntryConfig extends IdentityBoundaryConfig {
   readonly taskExecutionDb: Kysely<TaskExecutionDb>;
   readonly capabilityCodes: TaskBoardCapabilityCodes;
   /** Trusted server cursor secret; never a Decision hash. */
-  readonly cursorKey: { readonly keyId: string; readonly secret: Buffer };
+  readonly cursorKey: { readonly keyId: number; readonly secret: Buffer };
   /** Trusted fixed Project-scoped Board Policy selector of one Project. */
   readonly boardPolicyRef: (projectId: string) => Common.VersionedRef | undefined;
   readonly capabilityCodeResolvePolicy: string;
@@ -95,7 +88,17 @@ const QUERY_PURPOSE = 'task.execution.get_task_board_slice';
 const SOURCE_OPERATION = 'execution.task_board.source.read.v1';
 const HEALTH_OPERATION = 'execution.task_board.health.read.v1';
 const RESOLVE_POLICY_COMMAND = 'identity.resolve_policy';
-const RESOLVE_POLICY_PURPOSE = 'identity.policy.resolve_policy';
+
+/** Exact owning operation of every Board mapping (Spec 001 §15.19). */
+const BOARD_OPERATIONS: Readonly<Record<TaskBoardCapabilityKey, string>> = {
+  taskBoardReadHumanV1: QUERY,
+  taskBoardSourceReadV1: SOURCE_OPERATION,
+  taskBoardHealthReadV1: HEALTH_OPERATION,
+  taskBoardDispatchManageV1: 'execution.task_board.dispatch.manage.v1',
+  taskBoardProjectionPublishV1: 'execution.task_board.projection.publish.v1',
+  taskBoardProjectionMaintainV1: 'execution.task_board.projection.maintain.v1',
+  taskBoardPolicyReadV1: RESOLVE_POLICY_COMMAND,
+};
 
 const CONSISTENCY_VALUES: Readonly<Record<string, TaskBoardConsistency>> = {
   AUTHORITATIVE: 'AUTHORITATIVE',
@@ -170,114 +173,22 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
     };
   }
 
-  async function resolveBoardPolicy(
+  function resolveBoardPolicy(
     policyRef: Common.VersionedRef,
     row: DecisionRow,
     session: TaskBoardSession,
     serviceSessionHash: Buffer,
     deps: IdentityCommandDeps,
   ): Promise<TaskBoardPolicyResolution> {
-    const scopeValue = record(policyRef.scope);
-    const authorized = await authorizeCommand(deps, {
+    return resolveTaskBoardPolicy({
+      deps,
+      row,
+      policyRef,
       actorSnapshotRef: session.serviceSession.resolutionActorSnapshotRef,
-      intent: {
-        commandType: RESOLVE_POLICY_COMMAND,
-        commandVersion: '1.0',
-        scopeKind: 'PROJECT',
-        enterpriseId: row.enterprise_id,
-        ...(row.project_id === null ? {} : { projectId: row.project_id }),
-        purpose: RESOLVE_POLICY_PURPOSE,
-        requestedCapability: config.capabilityCodeResolvePolicy,
-        commandPayloadHash: payloadHashOf({ policyRef }),
-        requestedAt: now(),
-        highRiskAction: false,
-      },
       authenticationContextHash: serviceSessionHash,
-      policySnapshotRef: policySnapshotReference(row),
+      capabilityCode: config.capabilityCodeResolvePolicy,
+      now,
     });
-    if (authorized.outcome !== 'ALLOW')
-      entryError(AUTHORIZATION_REVOKED, 'Board Policy resolution was denied');
-    const resolveContext: IdentityTransactionContext = {
-      ...identityContext(row, session.serviceSession.resolutionActorSnapshotRef.snapshotId),
-      authorizationDecisionId: authorized.authorizationDecisionRef.objectId,
-      authorizationDecisionHash: Buffer.from(
-        authorized.authorizationDecisionRef.contentHash.digest,
-        'hex',
-      ),
-      authorizationDecisionExpiresAt: new Date(authorized.expiresAt),
-    };
-    const envelope = {
-      queryId: newUuidV7(),
-      queryType: RESOLVE_POLICY_COMMAND,
-      queryVersion: '1.0',
-      scopeRef: scopeValue,
-      requester: {
-        kind: 'OBJECT',
-        objectType: 'zhiju.identity.principal',
-        objectId: row.principal_id,
-        scope: scopeValue,
-      },
-      authenticationContextRef: {
-        kind: 'CONTENT_ADDRESSED',
-        objectType: 'zhiju.identity.authentication_context',
-        objectId: row.actor_snapshot_id,
-        scope: scopeValue,
-        contentHash: contentHash(serviceSessionHash.toString('hex')),
-      },
-      authorizationDecisionRef: {
-        kind: 'CONTENT_ADDRESSED',
-        objectType: AUTHORIZATION_DECISION_OBJECT_TYPE,
-        objectId: authorized.authorizationDecisionRef.objectId,
-        scope: scopeValue,
-        contentHash: authorized.authorizationDecisionRef
-          .contentHash as unknown as CanonicalJsonObject,
-      },
-      consistencyRequirement: 'AUTHORITATIVE',
-      correlationId: row.authorization_decision_id,
-      requestedAt: now().toISOString(),
-      payload: { policyRef },
-    } as unknown as CanonicalJsonObject;
-    let view: Awaited<ReturnType<typeof resolvePolicy>>;
-    try {
-      view = await resolvePolicy(boundary.identityDeps(resolveContext), {
-        envelope,
-        asOf: now(),
-      });
-    } catch (error) {
-      if (error instanceof SnapshotBoundaryError)
-        entryError('DEPENDENCY_UNAVAILABLE', 'Board Policy resolution is unavailable');
-      throw error;
-    }
-    if (view.useStatus !== 'USABLE')
-      entryError(AUTHORIZATION_REVOKED, 'the Board Policy is not currently usable');
-    if (
-      view.policyRef.objectId !== policyRef.objectId ||
-      view.policyRef.versionId !== policyRef.versionId ||
-      view.scopeRef.enterpriseId !== row.enterprise_id ||
-      view.scopeRef.projectId !== (row.project_id ?? undefined)
-    )
-      entryError('SCOPE_MISMATCH', 'the resolved Board Policy is not the configured one');
-    const validated = validateTaskBoardPolicy({
-      policySchemaRefs: view.policySchemaRefs,
-      policyDocument: view.policyDocument,
-    });
-    if (!validated.valid)
-      entryError('EXECUTION_CRITERION_UNSUPPORTED', 'the Board Policy profile is not supported');
-    const observationPolicyRef = view.policyRef as unknown as CanonicalJsonObject;
-    const observationVersionRef = view.policyVersionRef as unknown as CanonicalJsonObject;
-    return {
-      policyRef: observationPolicyRef,
-      policyVersionRef: observationVersionRef,
-      policyContentHash: view.contentHash.digest,
-      policyObservation: {
-        policyRef: observationPolicyRef,
-        policyVersionRef: observationVersionRef,
-        contentHash: view.contentHash.digest,
-        effectiveFrom: view.effectiveFrom,
-        ...(view.supersededAt === undefined ? {} : { supersededAt: view.supersededAt }),
-      },
-      rules: validated.rules,
-    };
   }
 
   return {
@@ -320,20 +231,39 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
       assertActorBinding(envelope.requester, humanRow);
       assertActorBinding(session.resolutionActorSnapshotRef, humanRow);
       const humanDeps = boundary.identityDeps(identityContext(humanRow));
-      const validateHuman = async (): Promise<void> => {
-        const validation = await validateAuthorizationDecision(humanDeps, {
-          decisionRef: humanDecisionRef,
-          expectedCommandType: QUERY,
+      // The owning mapping revalidation proves the *current* covering Grant of
+      // the exact Board entry (config code, required action, HUMAN +
+      // forbidActingFor, complete Project target), not just the stored
+      // Decision, so a revoked Grant can never be honoured by an unexpired
+      // Decision.
+      const revalidateBoardDecision = async (
+        key: TaskBoardCapabilityKey,
+        deps: IdentityCommandDeps,
+        decisionRef: Common.ContentAddressedRef,
+        authenticationContextHash: Buffer,
+        commandPayloadHash: Buffer,
+        targetRef: CanonicalJsonObject,
+      ): Promise<void> => {
+        const result = await auth.revalidate(deps, key, {
+          decisionRef,
+          expectedCommandType: BOARD_OPERATIONS[key],
           expectedCommandVersion: QUERY_VERSION,
-          expectedScope: { scopeKind: 'PROJECT', enterpriseId, projectId },
-          expectedPurpose: QUERY_PURPOSE,
-          expectedCommandPayloadHash: payloadHash,
-          expectedAuthenticationContextHash: humanSessionHash,
-          now: now(),
+          expectedCommandPayloadHash: commandPayloadHash,
+          expectedAuthenticationContextHash: authenticationContextHash,
+          expectedTargetRef: targetRef as unknown as Common.ObjectRef,
         });
-        if (!validation.valid || validation.outcome !== 'ALLOW')
-          entryError(AUTHORIZATION_REVOKED, 'Human Board read authority is no longer current');
+        if (!result.valid)
+          entryError(AUTHORIZATION_REVOKED, 'Board authority is no longer current');
       };
+      const validateHuman = (): Promise<void> =>
+        revalidateBoardDecision(
+          'taskBoardReadHumanV1',
+          humanDeps,
+          humanDecisionRef,
+          humanSessionHash,
+          payloadHash,
+          projectRef,
+        );
       await validateHuman();
 
       const serviceSessionHash = sessionAuthenticationContextHash(session.serviceSession);
@@ -348,25 +278,19 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
       assertActorBinding(session.serviceSession.resolutionActorSnapshotRef, sourceRow);
       const serviceDeps = boundary.identityDeps(identityContext(sourceRow));
 
-      const proofInput = (
-        decisionRef: Common.ContentAddressedRef,
-        key: TaskBoardCapabilityKey,
-      ) => ({
-        decisionRef,
-        expectedCommandType: key === 'taskBoardHealthReadV1' ? HEALTH_OPERATION : SOURCE_OPERATION,
-        expectedCommandVersion: QUERY_VERSION,
-        expectedCommandPayloadHash: payloadHashOf({ projectRef }),
-        expectedAuthenticationContextHash: serviceSessionHash,
-        expectedTargetRef: projectRef as unknown as Common.ObjectRef,
-      });
-      const revalidateDependency = async (
+      const dependencyPayloadHash = payloadHashOf({ projectRef });
+      const revalidateDependency = (
         decisionRef: Common.ContentAddressedRef,
         key: 'taskBoardSourceReadV1' | 'taskBoardHealthReadV1',
-      ): Promise<void> => {
-        const result = await auth.revalidate(serviceDeps, key, proofInput(decisionRef, key));
-        if (!result.valid)
-          entryError(AUTHORIZATION_REVOKED, 'Board dependency read authority is no longer current');
-      };
+      ): Promise<void> =>
+        revalidateBoardDecision(
+          key,
+          serviceDeps,
+          decisionRef,
+          serviceSessionHash,
+          dependencyPayloadHash,
+          projectRef,
+        );
       await revalidateDependency(sourceDecisionRef, 'taskBoardSourceReadV1');
 
       const healthDecision = await auth.authorize(serviceDeps, 'taskBoardHealthReadV1', {

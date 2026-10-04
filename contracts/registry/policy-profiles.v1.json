@@ -477,14 +477,17 @@
         ],
         "properties": {
           "maxPageSize": {
+            "type": "number",
             "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger",
             "maximum": 100
           },
           "maxSnapshotRows": {
+            "type": "number",
             "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger",
             "maximum": 1000
           },
           "maxSnapshotBytes": {
+            "type": "number",
             "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger",
             "maximum": 4194304
           },
@@ -492,6 +495,7 @@
             "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger"
           },
           "cursorTtlSeconds": {
+            "type": "number",
             "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger",
             "maximum": 3600
           },

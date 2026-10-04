@@ -64,6 +64,9 @@ export interface TaskBoardManifestRecord {
 
 const DISPATCH_DOMAIN_CODES = [
   'TASK_BOARD_LEASE_INVALID',
+  'TASK_BOARD_LEASE_NOT_CURRENT',
+  'TASK_BOARD_PUBLICATION_CONFLICT',
+  'TASK_BOARD_NOT_PUBLISHED',
   'TASK_BOARD_MANIFEST_CONFLICT',
   'TASK_BOARD_DIRTY_NOT_COVERED',
   'TASK_BOARD_DISPATCH_MISSING',
@@ -233,13 +236,43 @@ export async function confirmTaskBoardExport(
     readonly projectId: string;
     readonly exportId: string;
     readonly manifestHash: Buffer;
+    readonly generationId: string;
     readonly publishSequence: number;
     readonly dirtyIds: readonly string[];
   },
 ): Promise<void> {
   try {
     await withTaskExecutionTransaction(db, context, async (trx) => {
-      await sql`SELECT task_execution.task_board_dispatch_confirm(${input.exportId}::uuid,${input.enterpriseId}::uuid,${input.projectId}::uuid,${input.manifestHash},${input.publishSequence},${[...input.dirtyIds]}::uuid[],${context.principalId}::uuid)`.execute(
+      await sql`SELECT task_execution.task_board_dispatch_confirm(${input.exportId}::uuid,${input.enterpriseId}::uuid,${input.projectId}::uuid,${input.manifestHash},${input.generationId}::uuid,${input.publishSequence},${[...input.dirtyIds]}::uuid[],${context.principalId}::uuid)`.execute(
+        trx,
+      );
+    });
+  } catch (error) {
+    mapDispatchError(error);
+  }
+}
+
+/**
+ * Record the immutable publication proof of one manifest under the live
+ * export lease. Confirmation requires this exact record, so an export that was
+ * never published can never acknowledge its dirty identities.
+ */
+export async function recordTaskBoardPublication(
+  db: Kysely<TaskExecutionDb>,
+  context: TaskExecutionTransactionContext,
+  input: {
+    readonly enterpriseId: string;
+    readonly projectId: string;
+    readonly exportId: string;
+    readonly manifestHash: Buffer;
+    readonly generationId: string;
+    readonly publishSequence: number;
+    readonly leaseToken: number;
+  },
+): Promise<void> {
+  try {
+    await withTaskExecutionTransaction(db, context, async (trx) => {
+      await sql`SELECT task_execution.task_board_dispatch_record_publication(${input.exportId}::uuid,${input.enterpriseId}::uuid,${input.projectId}::uuid,${input.manifestHash},${input.generationId}::uuid,${input.publishSequence},${input.leaseToken})`.execute(
         trx,
       );
     });

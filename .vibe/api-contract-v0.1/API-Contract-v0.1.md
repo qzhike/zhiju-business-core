@@ -631,7 +631,7 @@ execution.get_usage_and_provenance@1.0 仍为 AUTHORITATIVE-only；其 payload/r
 
 ## IM06-BOARD 完整 QueryResult 与兼容边界
 
-状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED 2026-10-05 (Issue #248) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / REAL OWNING-PRODUCER END-TO-END, IP GRANT LIFECYCLE, MANUAL NOT RUN`。既有execution.get_task_board_slice@1.0保持P consistency、Purpose task.execution.get_task_board_slice、payload/result data Schema/metadata/旧fixture与239/63/200不变。来源/业务支持集唯一见Spec003 §12；IP mapping唯一见Spec001 §15.19。此切片提供应用组成入口的完整QueryResult，不扩展所有Query的HTTP transport。
+状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 R1–R10) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN`。既有execution.get_task_board_slice@1.0保持P consistency、Purpose task.execution.get_task_board_slice、payload/result data Schema/metadata/旧fixture与239/63/200不变。来源/业务支持集唯一见Spec003 §12；IP mapping唯一见Spec001 §15.19。此切片提供应用组成入口的完整QueryResult，不扩展所有Query的HTTP transport。
 
 | Contract/字段全集 | Required/optional与语义 |
 |---|---|

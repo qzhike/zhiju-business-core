@@ -465,6 +465,7 @@ export {
   claimTaskBoardLease,
   readTaskBoardDispatch,
   recordTaskBoardManifest,
+  recordTaskBoardPublication,
   readTaskBoardManifest,
   confirmTaskBoardExport,
   readTaskBoardDirtyMarkers,

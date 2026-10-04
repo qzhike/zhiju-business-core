@@ -332,8 +332,9 @@ async function authorityRead(
   await ports.revalidateAuthorization();
   const snapshot = await ports.readAuthoritativeRows(context.scope, context.projectRef);
   let snapshotAt = snapshot.snapshotAt;
+  let decoded: TaskBoardDecodedCursor | undefined;
   if (context.cursorValue !== undefined) {
-    const decoded = decodeTaskBoardCursor(context.cursorValue, ports.cursorKey);
+    decoded = decodeTaskBoardCursor(context.cursorValue, ports.cursorKey, ports.now());
     requireThat(decoded.mode === 'AUTHORITY', 'QUERY_CURSOR_SCOPE_MISMATCH');
     assertTaskBoardCursorBinding(
       decoded,
@@ -354,6 +355,7 @@ async function authorityRead(
           ...(input.asOf === undefined ? {} : { asOf: input.asOf }),
         },
       ),
+      ports.cursorKey,
     );
     if (input.asOf !== undefined && Date.parse(input.asOf) !== Date.parse(decoded.snapshotAt))
       fail('QUERY_CURSOR_SCOPE_MISMATCH');
@@ -362,7 +364,7 @@ async function authorityRead(
     boardError('API_VALUE_INVALID', 'asOf requires a fixed cursor snapshot');
   }
   const filtered = applyFilters(snapshot.rows, context.statuses, context.deliveryItemRef);
-  const window = pageRows(filtered, context.pageSize, undefined);
+  const window = pageRows(filtered, context.pageSize, decoded?.lastTaskId);
   const lastRow = window.page.at(-1);
   const lastTaskId =
     window.hasMore && lastRow !== undefined
@@ -423,7 +425,7 @@ async function projectionRead(
   let decoded: TaskBoardDecodedCursor | undefined;
   let target: TaskBoardProjectionState | undefined;
   if (context.cursorValue !== undefined) {
-    decoded = decodeTaskBoardCursor(context.cursorValue, ports.cursorKey);
+    decoded = decodeTaskBoardCursor(context.cursorValue, ports.cursorKey, ports.now());
     requireThat(decoded.mode === 'GENERATION', 'QUERY_CURSOR_SCOPE_MISMATCH');
     const generationId = textValue(decoded.generationId);
     const cursorTarget = await ports.readGeneration(context.scope, generationId);
@@ -451,6 +453,7 @@ async function projectionRead(
             : { minimumWatermark: input.minimumWatermark }),
         },
       ),
+      ports.cursorKey,
     );
     target = cursorTarget;
   } else {
@@ -465,18 +468,29 @@ async function projectionRead(
   )
     fail('QUERY_CURSOR_SCOPE_MISMATCH');
   const generation = target?.generation;
+  // The freshness of a page is decided against the generation actually read,
+  // so a retained historical generation (cursor or `asOf`) is never the alias.
+  const readsCurrentAlias =
+    generation !== undefined && p1.alias?.generationId === generation.generationId;
   const aliasChanged =
-    decoded === undefined
-      ? p1.alias !== undefined && p2.alias?.generationId !== p1.alias.generationId
-      : p2.alias?.generationId !== decoded.generationId;
+    (p1.alias !== undefined && p2.alias?.generationId !== p1.alias.generationId) ||
+    (generation !== undefined && !readsCurrentAlias) ||
+    (decoded !== undefined && p2.alias?.generationId !== decoded.generationId);
+  // A failure only describes the current state until a newer generation is
+  // published; a later successful publication clears it.
+  const failureActive =
+    failure !== undefined &&
+    (generation === undefined || failure.recordedAt.getTime() > generation.publishedAt.getTime());
 
   let staleness: TaskBoardStalenessStatus;
-  if (health === undefined || failure?.failureCode === 'TASK_BOARD_FAILED') staleness = 'FAILED';
+  if (health === undefined) staleness = 'FAILED';
   else if (
-    failure?.failureCode === 'TASK_BOARD_REBUILD' ||
-    failure?.failureCode === 'TASK_BOARD_PAUSED'
+    failureActive &&
+    failure.failureCode !== 'TASK_BOARD_REBUILD' &&
+    failure.failureCode !== 'TASK_BOARD_PAUSED'
   )
-    staleness = 'REBUILDING';
+    staleness = 'FAILED';
+  else if (failureActive) staleness = 'REBUILDING';
   else if (generation === undefined) staleness = 'REBUILDING';
   else if (aliasChanged) staleness = 'STALE';
   else if (health.pendingDirtyCount > 0) staleness = 'STALE';

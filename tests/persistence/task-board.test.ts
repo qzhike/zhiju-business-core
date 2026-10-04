@@ -2,10 +2,11 @@
 // real PostgreSQL.
 //
 // The cases drive the owning dispatch functions and the Projection writer
-// directly with a synthetic SERVICE context, so the lease/fence, the
-// INSERT-only generation, the idempotent replay, the exact dirty confirmation
-// and the retention cleanup are exercised against the real V7014/V7015 objects
-// (RLS, guards, sequences) rather than an in-memory stand-in.
+// directly with a synthetic SERVICE context, so the lease/fence, the INSERT
+// integrity guard, the canonical hash/mirror verification, the idempotent
+// replay, the publication-gated dirty confirmation and the retention cleanup
+// are exercised against the real V7014/V7015 objects (RLS, guards, sequences)
+// rather than an in-memory stand-in.
 
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import {
@@ -17,6 +18,9 @@ import {
   readTaskBoardGenerationById,
   readTaskBoardProjection,
   recordTaskBoardManifest,
+  recordTaskBoardPublication,
+  taskBoardManifestHash,
+  taskBoardRowsHash,
   type TaskBoardPolicyObservation,
   type TaskBoardSnapshotManifest,
   type TaskBoardSnapshotRow,
@@ -58,12 +62,6 @@ afterAll(async () => {
 const enterpriseId = '0199b600-0000-7000-8000-000000000701';
 const projectId = '0199b600-0000-7000-8000-000000000702';
 const scope = { enterpriseId, projectId };
-const projectRef: CanonicalJsonObject = {
-  kind: 'OBJECT',
-  objectType: 'zhiju.project.project',
-  objectId: projectId,
-  scope,
-};
 const policyRef: CanonicalJsonObject = {
   kind: 'VERSIONED',
   objectType: 'zhiju.identity.policy',
@@ -85,7 +83,7 @@ const policyObservation: TaskBoardPolicyObservation = {
   effectiveFrom: '2026-10-04T00:00:00.000Z',
 };
 
-function context(): TaskExecutionTransactionContext {
+function contextFor(target: { readonly projectId: string }): TaskExecutionTransactionContext {
   return {
     kind: 'REQUEST',
     principalId: newUuidV7(),
@@ -96,15 +94,36 @@ function context(): TaskExecutionTransactionContext {
     authorizationDecisionExpiresAt: new Date(Date.now() + 3_600_000),
     policySnapshotId: newUuidV7(),
     enterpriseId,
-    allowedProjectIds: [projectId],
+    allowedProjectIds: [target.projectId],
     correlationId: newUuidV7(),
   };
 }
 
-function row(taskId: string): TaskBoardSnapshotRow {
+function scopeFor(targetProjectId: string): {
+  readonly enterpriseId: string;
+  readonly projectId: string;
+} {
+  return { enterpriseId, projectId: targetProjectId };
+}
+
+function projectRefFor(targetProjectId: string): CanonicalJsonObject {
+  return {
+    kind: 'OBJECT',
+    objectType: 'zhiju.project.project',
+    objectId: targetProjectId,
+    scope: scopeFor(targetProjectId),
+  };
+}
+
+function row(taskId: string, targetProjectId: string): TaskBoardSnapshotRow {
   return {
     item: {
-      taskRef: { kind: 'OBJECT', objectType: 'zhiju.execution.task', objectId: taskId, scope },
+      taskRef: {
+        kind: 'OBJECT',
+        objectType: 'zhiju.execution.task',
+        objectId: taskId,
+        scope: scopeFor(targetProjectId),
+      },
       aggregateVersion: 1,
       title: `Task ${taskId.slice(-4)}`,
       status: 'READY',
@@ -115,19 +134,46 @@ function row(taskId: string): TaskBoardSnapshotRow {
   };
 }
 
-function manifest(exportId: string, coveredDirtyIds: readonly string[]): TaskBoardSnapshotManifest {
-  const rows = [row('0199b600-0000-7000-8000-000000000801')];
+function manifest(
+  exportId: string,
+  coveredDirtyIds: readonly string[],
+  targetProjectId: string = projectId,
+): TaskBoardSnapshotManifest {
+  const rows = [row('0199b600-0000-7000-8000-000000000801', targetProjectId)];
   return {
     exportId,
-    projectRef,
+    projectRef: projectRefFor(targetProjectId),
     snapshotAt: new Date().toISOString(),
     policyRef,
     policyObservation,
     rows,
     rowCount: rows.length,
-    rowsHash: 'b'.repeat(64),
+    rowsHash: taskBoardRowsHash(rows),
     sourceFingerprint: 'c'.repeat(64),
     coveredDirtyIds,
+  };
+}
+
+function publishInput(
+  value: TaskBoardSnapshotManifest,
+  fence: { readonly token: number; readonly ownerPrincipalId: string; readonly leaseUntil: Date },
+  now: Date,
+  retentionSeconds = 3600,
+  targetProjectId: string = projectId,
+) {
+  return {
+    ...scopeFor(targetProjectId),
+    projectRef: projectRefFor(targetProjectId),
+    exportId: value.exportId,
+    manifest: value,
+    manifestHash: taskBoardManifestHash(value),
+    rowsHash: value.rowsHash,
+    sourceFingerprint: value.sourceFingerprint,
+    policyObservation,
+    snapshotAt: new Date(value.snapshotAt),
+    retentionSeconds,
+    fence,
+    now,
   };
 }
 
@@ -136,7 +182,7 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
   // advances far enough that the previous Project lease has expired, so
   // takeover is deterministic without waiting, and a zero-length retention
   // still produces an already-expired generation for the cleanup case.
-  let clock = Date.now() - 600_000;
+  let booking = Date.now();
   let admin: pg.Client;
   let pool: pg.Pool;
   let db: ReturnType<typeof createTaskExecutionDatabase>;
@@ -168,22 +214,22 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
   });
 
   it('leases per Project, rejects a live owner, and allows takeover after expiry', async () => {
-    const now = new Date((clock += 120_000));
-    const first = await claimTaskBoardLease(db, context(), {
+    const now = new Date(booking + 60_000);
+    const first = await claimTaskBoardLease(db, contextFor(scope), {
       ...scope,
       owner: 'worker-a',
       leaseSeconds: 30,
       now,
     });
     expect(first?.leaseToken).toBe(1);
-    const busy = await claimTaskBoardLease(db, context(), {
+    const busy = await claimTaskBoardLease(db, contextFor(scope), {
       ...scope,
       owner: 'worker-b',
       leaseSeconds: 30,
       now,
     });
     expect(busy).toBeUndefined();
-    const takeover = await claimTaskBoardLease(db, context(), {
+    const takeover = await claimTaskBoardLease(db, contextFor(scope), {
       ...scope,
       owner: 'worker-b',
       leaseSeconds: 30,
@@ -192,25 +238,23 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
     expect(takeover?.leaseToken).toBe(2);
   });
 
-  it('publishes a generation, replays it idempotently and rejects a stale fence', async () => {
-    const publishContext = context();
-    const now = new Date((clock += 120_000));
+  it('publishes a verified generation, replays it idempotently and rejects stale fences', async () => {
+    const publishContext = contextFor(scope);
+    const now = new Date((booking += 600_000));
     const lease = await claimTaskBoardLease(db, publishContext, {
       ...scope,
       owner: 'worker-c',
       leaseSeconds: 60,
       now,
     });
-    expect(lease).toBeDefined();
     if (lease === undefined) throw new Error('the export lease was not taken');
-    const token = lease.leaseToken;
     const exportId = newUuidV7();
     const first = manifest(exportId, []);
     await recordTaskBoardManifest(db, publishContext, {
       ...scope,
       exportId,
       manifest: first,
-      manifestHash: Buffer.from(first.rowsHash, 'hex'),
+      manifestHash: Buffer.from(taskBoardManifestHash(first), 'hex'),
       snapshotAt: new Date(first.snapshotAt),
       policyObservation,
       rowCount: first.rowCount,
@@ -218,81 +262,105 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
       sourceFingerprint: Buffer.from(first.sourceFingerprint, 'hex'),
       coveredDirtyIds: [],
     });
-    const published = await publishTaskBoardGeneration(db, publishContext, {
-      ...scope,
-      projectRef,
-      exportId,
-      manifest: first,
-      manifestHash: first.rowsHash,
-      rowsHash: first.rowsHash,
-      sourceFingerprint: first.sourceFingerprint,
-      policyObservation,
-      snapshotAt: new Date(first.snapshotAt),
-      retentionSeconds: 3600,
-      fence: { token, ownerPrincipalId: publishContext.principalId, leaseUntil: lease.leaseUntil },
-      now,
-    });
-    expect(published.publishSequence).toBe(1);
-    expect(published.replayed).toBe(false);
-
-    const replay = await publishTaskBoardGeneration(db, publishContext, {
-      ...scope,
-      projectRef,
-      exportId,
-      manifest: first,
-      manifestHash: first.rowsHash,
-      rowsHash: first.rowsHash,
-      sourceFingerprint: first.sourceFingerprint,
-      policyObservation,
-      snapshotAt: new Date(first.snapshotAt),
-      retentionSeconds: 3600,
-      fence: { token, ownerPrincipalId: publishContext.principalId, leaseUntil: lease.leaseUntil },
-      now,
-    });
-    expect(replay.generationId).toBe(published.generationId);
-    expect(replay.publishSequence).toBe(1);
-    expect(replay.replayed).toBe(true);
-
-    const state = await readTaskBoardProjection(db, publishContext, scope);
-    expect(state.alias?.generationId).toBe(published.generationId);
-    expect(state.alias?.publishSequence).toBe(1);
-    expect(state.rows).toHaveLength(1);
-    expect(state.checkpoint?.lastPublishSequence).toBe(1);
-
-    await expect(
-      publishTaskBoardGeneration(db, publishContext, {
-        ...scope,
-        projectRef,
-        exportId: newUuidV7(),
-        manifest: manifest(newUuidV7(), []),
-        manifestHash: 'd'.repeat(64),
-        rowsHash: 'd'.repeat(64),
-        sourceFingerprint: 'e'.repeat(64),
-        policyObservation,
-        snapshotAt: new Date(),
-        retentionSeconds: 3600,
-        fence: {
-          token: Math.max(0, token - 1),
+    const published = await publishTaskBoardGeneration(
+      db,
+      publishContext,
+      publishInput(
+        first,
+        {
+          token: lease.leaseToken,
           ownerPrincipalId: publishContext.principalId,
           leaseUntil: lease.leaseUntil,
         },
         now,
+      ),
+    );
+    expect(published.publishSequence).toBe(1);
+    expect(published.replayed).toBe(false);
+
+    const replay = await publishTaskBoardGeneration(
+      db,
+      publishContext,
+      publishInput(
+        first,
+        {
+          token: lease.leaseToken,
+          ownerPrincipalId: publishContext.principalId,
+          leaseUntil: lease.leaseUntil,
+        },
+        now,
+      ),
+    );
+    expect(replay.generationId).toBe(published.generationId);
+    expect(replay.replayed).toBe(true);
+
+    const state = await readTaskBoardProjection(db, publishContext, scope);
+    expect(state.alias?.generationId).toBe(published.generationId);
+    expect(state.rows).toHaveLength(1);
+    expect(state.checkpoint?.lastPublishSequence).toBe(1);
+
+    // A damaged row hash is refused before anything is persisted and the alias
+    // stays on the previously published generation.
+    const damaged = manifest(newUuidV7(), []);
+    await expect(
+      publishTaskBoardGeneration(db, publishContext, {
+        ...publishInput(
+          damaged,
+          {
+            token: lease.leaseToken,
+            ownerPrincipalId: publishContext.principalId,
+            leaseUntil: lease.leaseUntil,
+          },
+          now,
+        ),
+        rowsHash: '0'.repeat(64),
+        manifestHash: '1'.repeat(64),
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_BOARD_MANIFEST_CONFLICT' });
+    const afterDamage = await readTaskBoardProjection(db, publishContext, scope);
+    expect(afterDamage.alias?.generationId).toBe(published.generationId);
+
+    // A stale token is rejected by the Projection fence.
+    await expect(
+      publishTaskBoardGeneration(db, publishContext, {
+        ...publishInput(
+          manifest(newUuidV7(), []),
+          {
+            token: Math.max(0, lease.leaseToken - 1),
+            ownerPrincipalId: publishContext.principalId,
+            leaseUntil: lease.leaseUntil,
+          },
+          now,
+        ),
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_BOARD_FENCE_REJECTED' });
+
+    // An already-expired lease can never publish, whatever the caller's clock.
+    await expect(
+      publishTaskBoardGeneration(db, publishContext, {
+        ...publishInput(
+          manifest(newUuidV7(), []),
+          {
+            token: lease.leaseToken,
+            ownerPrincipalId: publishContext.principalId,
+            leaseUntil: new Date(Date.now() - 60_000),
+          },
+          now,
+        ),
       }),
     ).rejects.toMatchObject({ code: 'TASK_BOARD_FENCE_REJECTED' });
   });
 
-  it('confirms exactly the covered dirty identities and cleans up only expired non-alias generations', async () => {
-    const dispatchContext = context();
-    const now = new Date((clock += 120_000));
+  it('refuses to acknowledge a manifest that was never published', async () => {
+    const dispatchContext = contextFor(scope);
+    const now = new Date((booking += 600_000));
     const lease = await claimTaskBoardLease(db, dispatchContext, {
       ...scope,
       owner: 'worker-d',
-      leaseSeconds: 300,
+      leaseSeconds: 120,
       now,
     });
     if (lease === undefined) throw new Error('the export lease was not taken');
-    const token = lease.leaseToken;
-    const leaseUntil = lease.leaseUntil;
     const early = newUuidV7();
     const late = newUuidV7();
     await admin.query(
@@ -303,32 +371,88 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
     );
     const exportId = newUuidV7();
     const value = manifest(exportId, [early, late]);
+    const manifestHash = Buffer.from(taskBoardManifestHash(value), 'hex');
     await recordTaskBoardManifest(db, dispatchContext, {
       ...scope,
       exportId,
       manifest: value,
-      manifestHash: Buffer.from(value.rowsHash, 'hex'),
-      snapshotAt: new Date(),
+      manifestHash,
+      snapshotAt: new Date(value.snapshotAt),
       policyObservation,
       rowCount: value.rowCount,
       rowsHash: Buffer.from(value.rowsHash, 'hex'),
       sourceFingerprint: Buffer.from(value.sourceFingerprint, 'hex'),
       coveredDirtyIds: [early, late],
     });
+
+    // Recorded but never published: the confirmation and the marker deletion
+    // are refused.
     await expect(
       confirmTaskBoardExport(db, dispatchContext, {
         ...scope,
         exportId,
-        manifestHash: Buffer.from(value.rowsHash, 'hex'),
-        publishSequence: 2,
-        dirtyIds: [newUuidV7()],
+        manifestHash,
+        generationId: newUuidV7(),
+        publishSequence: 1,
+        dirtyIds: [early, late],
       }),
-    ).rejects.toMatchObject({ code: 'TASK_BOARD_DIRTY_NOT_COVERED' });
+    ).rejects.toMatchObject({ code: 'TASK_BOARD_NOT_PUBLISHED' });
+    const untouched = await admin.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM task_execution.task_board_dirty WHERE project_id = $1`,
+      [projectId],
+    );
+    expect(untouched.rows[0]?.count).toBe('2');
+
+    // A publication recorded under a dead lease is refused.
+    await expect(
+      recordTaskBoardPublication(db, dispatchContext, {
+        ...scope,
+        exportId,
+        manifestHash,
+        generationId: newUuidV7(),
+        publishSequence: 1,
+        leaseToken: lease.leaseToken + 10,
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_BOARD_LEASE_NOT_CURRENT' });
+
+    const published = await publishTaskBoardGeneration(
+      db,
+      dispatchContext,
+      publishInput(
+        value,
+        {
+          token: lease.leaseToken,
+          ownerPrincipalId: dispatchContext.principalId,
+          leaseUntil: lease.leaseUntil,
+        },
+        now,
+      ),
+    );
+    await recordTaskBoardPublication(db, dispatchContext, {
+      ...scope,
+      exportId,
+      manifestHash,
+      generationId: published.generationId,
+      publishSequence: published.publishSequence,
+      leaseToken: lease.leaseToken,
+    });
+    // A publication proof for another generation or sequence is still refused.
+    await expect(
+      confirmTaskBoardExport(db, dispatchContext, {
+        ...scope,
+        exportId,
+        manifestHash,
+        generationId: published.generationId,
+        publishSequence: published.publishSequence + 1,
+        dirtyIds: [early, late],
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_BOARD_NOT_PUBLISHED' });
     await confirmTaskBoardExport(db, dispatchContext, {
       ...scope,
       exportId,
-      manifestHash: Buffer.from(value.rowsHash, 'hex'),
-      publishSequence: 2,
+      manifestHash,
+      generationId: published.generationId,
+      publishSequence: published.publishSequence,
       dirtyIds: [early, late],
     });
     const remaining = await admin.query<{ count: string }>(
@@ -336,92 +460,64 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
       [projectId],
     );
     expect(remaining.rows[0]?.count).toBe('0');
+  });
 
-    // One short-retention generation becomes the alias, a second one replaces
-    // it; only the expired non-alias generation may be cleaned up.
-    const expiring = newUuidV7();
-    const expiringManifest = manifest(expiring, []);
-    await recordTaskBoardManifest(db, dispatchContext, {
-      ...scope,
-      exportId: expiring,
-      manifest: expiringManifest,
-      manifestHash: Buffer.from('f'.repeat(64), 'hex'),
-      snapshotAt: new Date(),
-      policyObservation,
-      rowCount: expiringManifest.rowCount,
-      rowsHash: Buffer.from(expiringManifest.rowsHash, 'hex'),
-      sourceFingerprint: Buffer.from(expiringManifest.sourceFingerprint, 'hex'),
-      coveredDirtyIds: [],
+  it('cleans up only expired non-alias generations and keeps the publication proof', async () => {
+    // A dedicated Project keeps the alias switch order independent from the
+    // other cases, so an already-expired generation can be produced without
+    // moving the alias switch time backwards.
+    const cleanupProjectId = '0199b600-0000-7000-8000-000000000799';
+    const cleanupScope = scopeFor(cleanupProjectId);
+    const dispatchContext = contextFor(cleanupScope);
+    const claimedAt = new Date(Date.now() - 300_000);
+    const lease = await claimTaskBoardLease(db, dispatchContext, {
+      ...cleanupScope,
+      owner: 'worker-e',
+      leaseSeconds: 86_400,
+      now: claimedAt,
     });
-    // A past `published_at` with a zero-length retention makes this generation
-    // immediately expired without depending on a real-clock delay.
-    const shortLived = await publishTaskBoardGeneration(db, dispatchContext, {
-      ...scope,
-      projectRef,
-      exportId: expiring,
-      manifest: expiringManifest,
-      manifestHash: 'f'.repeat(64),
-      rowsHash: expiringManifest.rowsHash,
-      sourceFingerprint: expiringManifest.sourceFingerprint,
-      policyObservation,
-      snapshotAt: new Date(),
-      retentionSeconds: 0,
-      fence: { token, ownerPrincipalId: dispatchContext.principalId, leaseUntil },
-      now,
-    });
-    const current = newUuidV7();
-    const currentManifest = manifest(current, []);
-    await recordTaskBoardManifest(db, dispatchContext, {
-      ...scope,
-      exportId: current,
-      manifest: currentManifest,
-      manifestHash: Buffer.from('a'.repeat(64), 'hex'),
-      snapshotAt: new Date(),
-      policyObservation,
-      rowCount: currentManifest.rowCount,
-      rowsHash: Buffer.from(currentManifest.rowsHash, 'hex'),
-      sourceFingerprint: Buffer.from(currentManifest.sourceFingerprint, 'hex'),
-      coveredDirtyIds: [],
-    });
-    const replacement = await publishTaskBoardGeneration(db, dispatchContext, {
-      ...scope,
-      projectRef,
-      exportId: current,
-      manifest: currentManifest,
-      manifestHash: 'a'.repeat(64),
-      rowsHash: currentManifest.rowsHash,
-      sourceFingerprint: currentManifest.sourceFingerprint,
-      policyObservation,
-      snapshotAt: new Date(),
-      retentionSeconds: 3600,
-      fence: { token, ownerPrincipalId: dispatchContext.principalId, leaseUntil },
-      now,
-    });
+    if (lease === undefined) throw new Error('the export lease was not taken');
+    const fence = {
+      token: lease.leaseToken,
+      ownerPrincipalId: dispatchContext.principalId,
+      leaseUntil: lease.leaseUntil,
+    };
+    const expiring = manifest(newUuidV7(), [], cleanupProjectId);
+    const shortLived = await publishTaskBoardGeneration(
+      db,
+      dispatchContext,
+      publishInput(expiring, fence, new Date(Date.now() - 120_000), 0, cleanupProjectId),
+    );
+    const current = manifest(newUuidV7(), [], cleanupProjectId);
+    const replacement = await publishTaskBoardGeneration(
+      db,
+      dispatchContext,
+      publishInput(current, fence, new Date(Date.now() - 60_000), 3600, cleanupProjectId),
+    );
     expect(replacement.publishSequence).toBeGreaterThan(shortLived.publishSequence);
     const cleanup = await cleanupTaskBoardGenerations(db, dispatchContext, {
-      ...scope,
+      ...cleanupScope,
       now: new Date(),
     });
     expect(cleanup.removedGenerations).toBe(1);
     const kept = await readTaskBoardGenerationById(
       db,
       dispatchContext,
-      scope,
+      cleanupScope,
       replacement.generationId,
     );
     expect(kept.generation?.generationId).toBe(replacement.generationId);
     const gone = await readTaskBoardGenerationById(
       db,
       dispatchContext,
-      scope,
+      cleanupScope,
       shortLived.generationId,
     );
     expect(gone.generation).toBeUndefined();
     const outcome = await admin.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM projection.task_board_publication_outcome WHERE export_id = $1`,
-      [expiring],
+      [expiring.exportId],
     );
     expect(outcome.rows[0]?.count).toBe('1');
-    expect(token).toBeGreaterThan(0);
   });
 });

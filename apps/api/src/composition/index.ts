@@ -94,9 +94,21 @@ export * from './task-completed-delivery-entry.js';
 // export/publish and retention-maintenance passes.
 export { createTaskBoardEntry, verifyBoardResult } from './task-board-entry.js';
 export type { TaskBoardEntryConfig, TaskBoardSession } from './task-board-entry.js';
-export { runTaskBoardExportPass, runTaskBoardMaintenancePass } from './task-board-dispatcher.js';
-export type {
-  TaskBoardDispatcherConfig,
-  TaskBoardDispatcherProject,
-  TaskBoardExportResult,
+export {
+  TaskBoardDispatcherError,
+  createTaskBoardDispatcher,
+  runTaskBoardExportPass,
+  runTaskBoardMaintenancePass,
 } from './task-board-dispatcher.js';
+export type {
+  PreparedTaskBoardProject,
+  TaskBoardDispatcherConfig,
+  TaskBoardDispatcherFactoryConfig,
+  TaskBoardDispatcherPorts,
+  TaskBoardDispatcherProject,
+  TaskBoardDispatcherTarget,
+  TaskBoardExportResult,
+  TaskBoardTechnicalBoundary,
+} from './task-board-dispatcher.js';
+export { resolveTaskBoardPolicy } from './task-board-policy.js';
+export type { BoardPolicyResolutionContext } from './task-board-policy.js';

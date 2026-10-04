@@ -137,12 +137,16 @@ export async function assembleTaskBoardRows(
       definition.payload_hash.equals(digestCanonicalPayload(body).hash),
       'INTERNAL_CONTRACT_VIOLATION',
     );
-    const title = textValue(body.title);
+    // The immutable snapshot stores the complete creation payload; the Task
+    // definition (and therefore the title and the DeliveryItem binding) lives
+    // in its `definition` member.
+    const definitionBody = object(body.definition);
+    const title = textValue(definitionBody.title);
     requireThat(title.length > 0, 'INTERNAL_CONTRACT_VIOLATION');
 
     let deliveryItemRef: CanonicalJsonObject | undefined;
-    if (body.deliveryItemRef !== undefined) {
-      const ref = object(body.deliveryItemRef);
+    if (definitionBody.deliveryItemRef !== undefined) {
+      const ref = object(definitionBody.deliveryItemRef);
       requireThat(
         ref.kind === 'VERSIONED' &&
           typeof ref.objectType === 'string' &&
