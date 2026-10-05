@@ -1,6 +1,50 @@
 # PR #249 正式审查记录
 
-## 第七轮复审（当前结论，新 head）
+## 第八轮复审（当前结论，新 head）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`9b0adfaded9314fdafcc949f4320030f6e89e2ad`；日期：2026-10-06。
+- 本地与远端 head 一致；PR OPEN、非 Draft；起始工作区干净。Issue #248 Acceptance 未调整，无 Issue comments/finding 回复。
+- 非盲审：已有历史上下文，独立以 Issue 的完整 Board 验收、Spec003 §12/Spec001 §15.19 与当前 BOARD-D/IP-BOARD-D 预期核对实际修订。新增内容只有两项 entry PG 测试、Module-Test 状态和历史 review；没有产品代码变更。
+- 预期：真实 owning 状态与完整身份、固定分页/一致性、当前独立权限、导出快照与发布/确认覆盖、真实并发/崩溃恢复同时满足原 Acceptance。保持外部/人工及明确延后边界。
+
+### 第八轮证据
+
+- [CI run 37339116040](https://github.com/qzhike/zhiju-business-core/actions/runs/37339116040) headSha 精确匹配本轮 SHA，select/checks/persistence/verify SUCCESS；Verify code 和真实 PostgreSQL gate PASS，沿用未变化的 full workflow 覆盖。复用，不重复本地 full。
+- 当前新增真实 owning WO @1.1 引用用例认可；createWorkOrder helper 未传 commandVersion，默认 @1.1，不能提升为两类 WO 创建身份均已验证。
+- 当前新增 dirty serial refresh 用例认可：先完整 export/confirm，再由 admin 直接插入 marker，Projection 返回 STALE，下一 export 确认 marker。该用例没有相互重叠的两个事务或 reached 屏障，created_at 回拨不能证明 marker 在 export 快照时因尚未提交而不可见，不提升为 Issue/BOARD-D-005 的真实晚提交验收。
+- 本轮没有新增本地 Unit/PG/controlled runs；产品代码未变化，当前 full CI 已包含新 PG 用例，不重复前轮 fix probes。已关闭旧代码反例保持关闭，无相关回退证据。
+- BOARD-D-001–007 与 IP-BOARD-D-001–003 的完整矩阵仍 NOT RUN。正常完成/BLOCKED_INPUT/恢复/取消/current Evaluation、返回前 Policy/依赖撤权、两连接 Export RR、P1→H/H→P2、真实 late commit 与实际 worker/marker crash recovery 尚未交付。上一轮 source 未变的两页例和 coveredDirtyIds=[] 的 storage recovery 例仍不能证明完整验收。
+- Module-Test 新状态明确列出部分未交付项，这是有效分层进展；其中“晚提交 dirty”应收窄到当前 serial insert/refresh 证据，不把时间戳回拨当并发。
+- 既有 HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot 取代 lifecycle、TD-07 延后边界不变。
+- 本地配置 docs 仍沿用已查明但未恢复的固定 pnpm dependency-status/非TTY install 限制（ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY；此前 Vibe exit21/子命令1），不重复确定性失败，当前记录的配置 docs 未完成、非 PASS。Prettier API check/`git diff --check` 是独立窄诊断，不替代 configured gate。
+
+### 上轮 finding 对账
+
+| Finding           | 第八轮判断               | 当前依据                                                                                                                          |
+| ----------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| R10               | 部分修复，必要验收仍阻断 | 新增 WO @1.1 引用与 serial dirty refresh 认可；未证明 concurrent late commit，完整状态链/当前权限/确定性并发/实际 worker 恢复仍缺 |
+| 其余历史 findings | 维持原报告缺陷关闭       | 本 head 无产品代码修改，无相关回退证据                                                                                            |
+
+### 第八轮阻断 comment
+
+#### R10 [P1] 用真实并发 owning 事务补齐剩余验收
+
+位置：`tests/persistence/task-board-entry.test.ts:522`。
+
+新增用例在 await 完整 export/confirm 后才直接插入 dirty 行，仅回拨 created_at；没有 writer 持有未提交 owning 变更/marker，也没有证明 export reached 快照读取边界，不能代表尚未提交的 dirty identity 在旧快照中不可见、确认后才提交的竞态。请用 owning producer 与第二连接：保持 writer 未提交→证明 export reached 快照/读取点→旧 export 发布/确认且不覆盖该 identity→提交 writer→marker 仍待处理→下一 export 覆盖。当前 identity 确认模型保持，不要求引入 marker sequence 列。
+
+其余原 Acceptance 仍缺完整 completion/BLOCKED_INPUT/恢复/取消/current Evaluation、两种 WO 创建事实、最终返回前 Policy/依赖撤权及七项独立 mapping 正反例、Export RR/P1→H/H→P2 reached 屏障、source 更新下完整 G1 分页、带非空 marker 的实际 worker crash recovery。current CI 绿色不能替代必要验收。请按实际 focused/PARTIAL 粒度对齐 Module-Test 状态，继续排除明确延后的外部/人工/lifecycle 支持集。
+
+### 第八轮交付
+
+已发布并读回 [COMMENT review 5421775172](https://github.com/qzhike/zhiju-business-core/pull/249#pullrequestreview-5421775172)，state=`COMMENTED`、commit_id 精确匹配本轮 SHA；[R10 P1 comment 4189810784](https://github.com/qzhike/zhiju-business-core/pull/249#discussion_r4189810784) 已存在。发布后 head 未变化，PR 仍 OPEN。正式文档 Prettier API check 与 `git diff --check` PASS；配置 docs 未完成，限制如上。
+
+当前账号为 PR 作者，技术 outcome REQUEST_CHANGES 与 GitHub COMMENTED 状态分开。仅更新本正式记录及发布 comments；不修改产品代码，不 commit/push/merge。
+
+---
+
+## 第七轮复审（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`328b5c499a19d5b8f098ce817b7a0727cff7546c`；日期：2026-10-05。
