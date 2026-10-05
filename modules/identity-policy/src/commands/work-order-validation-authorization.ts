@@ -81,7 +81,7 @@
 // acceptance set. TaskExecution consumes this port; it never reads these
 // tables or this Repository.
 
-import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import { newUuidV7, type CanonicalJsonObject, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 import type { Common } from '@zhiju/contracts';
 import {
   withIdentityTransaction,
@@ -477,6 +477,8 @@ interface WorkOrderValidationRevalidationAllow {
   readonly valid: true;
   readonly authorizationDecisionRef: Common.ContentAddressedRef;
   readonly policySnapshotRef: Common.SnapshotRef;
+  /** The exact covering Grant the revalidation selected, when available. */
+  readonly selectedGrant?: SelectedAuthorizationGrant;
   readonly expiresAt: Common.UtcInstant;
 }
 
@@ -627,8 +629,41 @@ interface WorkOrderValidationGrantQuery {
 }
 
 type WorkOrderValidationGrantFinding =
-  | { readonly policySnapshot: SelectedPolicySnapshot }
+  | { readonly policySnapshot: SelectedPolicySnapshot; readonly grant: SelectedCapabilityGrant }
   | { readonly denial: WorkOrderValidationDenialReason };
+
+/**
+ * The exact selected covering Grant facts of one allowed mapping. The Grant
+ * carries no payload hash of its own; its immutable identity is covered by the
+ * id, the owning Policy Snapshot binding and the aggregate version.
+ */
+export interface SelectedAuthorizationGrant {
+  readonly grantId: string;
+  readonly capabilityCode: string;
+  readonly scopeKind: 'ENTERPRISE' | 'PROJECT';
+  readonly enterpriseId: string;
+  readonly projectId: string | null;
+  readonly actions: readonly string[];
+  readonly resourceSelectors: readonly CanonicalJsonValue[];
+  readonly grantPolicySnapshotId: string;
+  readonly grantPolicySnapshotHash: string;
+  readonly aggregateVersion: string;
+}
+
+function selectedGrantFacts(grant: SelectedCapabilityGrant): SelectedAuthorizationGrant {
+  return {
+    grantId: grant.id,
+    capabilityCode: grant.capability_code,
+    scopeKind: grant.scope_kind,
+    enterpriseId: grant.enterprise_id,
+    projectId: grant.project_id ?? null,
+    actions: [...grant.actions],
+    resourceSelectors: [...(grant.resource_selectors as readonly CanonicalJsonValue[])],
+    grantPolicySnapshotId: grant.grant_policy_snapshot_id,
+    grantPolicySnapshotHash: grant.grant_policy_snapshot_hash.toString('hex'),
+    aggregateVersion: grant.aggregate_version,
+  };
+}
 
 type IssuedEntryDecision =
   | { readonly outcome: 'DENY'; readonly reasons: readonly string[] }
@@ -645,6 +680,7 @@ type RevalidatedEntryDecision =
       readonly valid: true;
       readonly authorizationDecisionRef: Common.ContentAddressedRef;
       readonly policySnapshotRef: Common.SnapshotRef;
+      readonly selectedGrant?: SelectedAuthorizationGrant;
       readonly expiresAt: Common.UtcInstant;
     }
   | WorkOrderValidationRevalidationDeny;
@@ -1199,6 +1235,7 @@ async function revalidateEntryDecision(
         scope: {},
         contentHash: contentHash(finding.policySnapshot.payload_hash),
       },
+      selectedGrant: selectedGrantFacts(finding.grant),
       expiresAt: row.expires_at.toISOString(),
     };
   };
@@ -1818,7 +1855,7 @@ async function coveringValidationGrant(
       sawStalePolicy = true;
       continue;
     }
-    return { policySnapshot };
+    return { policySnapshot, grant };
   }
   return {
     denial: sawInvalidPolicy

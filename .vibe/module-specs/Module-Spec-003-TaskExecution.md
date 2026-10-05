@@ -762,7 +762,7 @@ TaskStateView另返回 `completionUseStatus: Closed<NOT_EVALUATED|USABLE|STALE|R
 
 ## 12. TD-05 Query / Task Board 补充设计
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DETAILED BINDINGS / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 R1–R10) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN`。批准与来源见 [Task Board 决定](../decisions/task-execution-task-board.md)。§12.4–12.7 是本切片的精确化，取代本节旧提案中不一致的空 statuses、指派、Policy 和仅 Projection 读取描述；TD-07 不被追认。公开 Schema/metadata/fixture 未修改，所有新运行验收 NOT RUN。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DETAILED BINDINGS / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 两轮共 17 项) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY+SQL GUARD+FENCE BARRIER PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN`。批准与来源见 [Task Board 决定](../decisions/task-execution-task-board.md)。§12.4–12.7 是本切片的精确化，取代本节旧提案中不一致的空 statuses、指派、Policy 和仅 Projection 读取描述；TD-07 不被追认。公开 Schema/metadata/fixture 未修改，所有新运行验收 NOT RUN。
 
 ### 12.1 权威读取与公开兼容
 

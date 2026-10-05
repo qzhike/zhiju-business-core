@@ -23,10 +23,8 @@
 //   50   8     minimumWatermark                (uint64, 0 when absent)
 //   58   16    lastTaskId                      (uuid bytes)
 //   74   16    generationId                    (uuid bytes, zero for authority)
-//   90   16    digestA: queryType, queryVersion, complete ProjectRef
-//   106  16    digestB: requesterPurposeHash, authorizationSourceHash, normalizedFilterHash
-//   122  16    digestC: policyRef, policyContentHash, policyVersionRef
-//   138  16    digestD: manifestHash (generation) | sourceFingerprint (authority)
+//   90   32    requestBindingHash: sha256/cv1 over the complete request binding
+//   122  32    manifestHash (generation) | sourceFingerprint (authority), full bytes
 //   154  12    reserved (zero) — format headroom
 //   166  32    HMAC-SHA256(secret) over bytes 0..165
 //
@@ -74,14 +72,12 @@ const OFF = {
   minimumWatermark: 50,
   lastTaskId: 58,
   generationId: 74,
-  digestA: 90,
-  digestB: 106,
-  digestC: 122,
-  digestD: 138,
+  requestBindingHash: 90,
+  evidenceHash: 122,
 } as const;
 
-function bindingDigest(value: CanonicalJsonValue): Buffer {
-  return createHash('sha256').update(canonicalize(value), 'utf8').digest().subarray(0, 16);
+function bindingHash(value: CanonicalJsonValue): Buffer {
+  return createHash('sha256').update(canonicalize(value), 'utf8').digest();
 }
 
 function uuidBytes(value: string): Buffer {
@@ -168,7 +164,8 @@ export interface TaskBoardDecodedCursor {
   readonly lastTaskId: string;
   readonly issuedAt: string;
   readonly expiresAt: string;
-  readonly digests: readonly Buffer[];
+  readonly requestBindingHash: Buffer;
+  readonly evidenceHash: Buffer;
 }
 
 function payloadFor(claims: TaskBoardCursorClaims, keyId: number): Buffer {
@@ -201,31 +198,34 @@ function payloadFor(claims: TaskBoardCursorClaims, keyId: number): Buffer {
   if (claims.minimumWatermark !== undefined)
     writeCount(payload, OFF.minimumWatermark, claims.minimumWatermark);
   uuidBytes(claims.lastTaskId).copy(payload, OFF.lastTaskId);
-  let digestD: Buffer;
+  let evidenceHash: Buffer;
   if (claims.generationId === undefined) {
     if (claims.sourceFingerprint === undefined) fail('API_VALUE_INVALID');
-    digestD = bindingDigest({ sourceFingerprint: claims.sourceFingerprint });
+    evidenceHash = Buffer.from(claims.sourceFingerprint, 'hex');
   } else {
     if (claims.manifestHash === undefined) fail('API_VALUE_INVALID');
     uuidBytes(claims.generationId).copy(payload, OFF.generationId);
-    digestD = bindingDigest({ manifestHash: claims.manifestHash });
+    evidenceHash = Buffer.from(claims.manifestHash, 'hex');
   }
-  bindingDigest({
+  if (evidenceHash.length !== 32) fail('API_VALUE_INVALID');
+  // One complete-canonicalization hash binds the whole request binding; the
+  // generation/fingerprint evidence is carried in full beside it.
+  bindingHash({
     queryType: claims.queryType,
     queryVersion: claims.queryVersion,
     projectRef: claims.projectRef,
-  }).copy(payload, OFF.digestA);
-  bindingDigest({
     requesterPurposeHash: claims.requesterPurposeHash,
     authorizationSourceHash: claims.authorizationSourceHash,
     normalizedFilterHash: claims.normalizedFilterHash,
-  }).copy(payload, OFF.digestB);
-  bindingDigest({
+    pageSize: claims.pageSize,
+    consistency: claims.consistency,
     policyRef: claims.policyRef,
     policyContentHash: claims.policyContentHash,
     policyVersionRef: claims.policyVersionRef,
-  }).copy(payload, OFF.digestC);
-  digestD.copy(payload, OFF.digestD);
+    asOf: claims.asOf ?? null,
+    minimumWatermark: claims.minimumWatermark ?? null,
+  }).copy(payload, OFF.requestBindingHash);
+  evidenceHash.copy(payload, OFF.evidenceHash);
   return payload;
 }
 
@@ -278,12 +278,10 @@ export function decodeTaskBoardCursor(
   const expiresAt = readMilliseconds(payload, OFF.expiresAt);
   if (expiresAt <= issuedAt) fail('QUERY_CURSOR_INVALID');
   if (now.getTime() >= expiresAt) fail('QUERY_CURSOR_EXPIRED');
-  const digests = [
-    Buffer.from(payload.subarray(OFF.digestA, OFF.digestA + 16)),
-    Buffer.from(payload.subarray(OFF.digestB, OFF.digestB + 16)),
-    Buffer.from(payload.subarray(OFF.digestC, OFF.digestC + 16)),
-    Buffer.from(payload.subarray(OFF.digestD, OFF.digestD + 16)),
-  ];
+  const requestBindingHash = Buffer.from(
+    payload.subarray(OFF.requestBindingHash, OFF.requestBindingHash + 32),
+  );
+  const evidenceHash = Buffer.from(payload.subarray(OFF.evidenceHash, OFF.evidenceHash + 32));
   return {
     mode,
     pageSize: payload.readUInt16BE(OFF.pageSize),
@@ -298,7 +296,8 @@ export function decodeTaskBoardCursor(
     lastTaskId: uuidText(payload.subarray(OFF.lastTaskId, OFF.lastTaskId + 16)),
     issuedAt: new Date(issuedAt).toISOString(),
     expiresAt: new Date(expiresAt).toISOString(),
-    digests,
+    requestBindingHash,
+    evidenceHash,
   };
 }
 
@@ -323,16 +322,15 @@ export function assertTaskBoardCursorBinding(
   if (decoded.asOf !== asOf || decoded.minimumWatermark !== claims.minimumWatermark)
     fail('QUERY_CURSOR_SCOPE_MISMATCH');
   const expected = payloadFor(claims, key.keyId);
-  const expectedDigests = [
-    expected.subarray(OFF.digestA, OFF.digestA + 16),
-    expected.subarray(OFF.digestB, OFF.digestB + 16),
-    expected.subarray(OFF.digestC, OFF.digestC + 16),
-    expected.subarray(OFF.digestD, OFF.digestD + 16),
-  ];
-  for (let index = 0; index < expectedDigests.length; index += 1) {
-    const actual = decoded.digests[index];
-    const wanted = expectedDigests[index];
-    if (actual === undefined || wanted === undefined || !timingSafeEqual(actual, wanted))
-      fail('QUERY_CURSOR_SCOPE_MISMATCH');
-  }
+  if (
+    !timingSafeEqual(
+      decoded.requestBindingHash,
+      expected.subarray(OFF.requestBindingHash, OFF.requestBindingHash + 32),
+    ) ||
+    !timingSafeEqual(
+      decoded.evidenceHash,
+      expected.subarray(OFF.evidenceHash, OFF.evidenceHash + 32),
+    )
+  )
+    fail('QUERY_CURSOR_SCOPE_MISMATCH');
 }

@@ -462,6 +462,191 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
     expect(remaining.rows[0]?.count).toBe('0');
   });
 
+  it('rejects a forged publication proof for an export that was never published', async () => {
+    const dispatchContext = contextFor(scope);
+    const now = new Date((booking += 600_000));
+    const lease = await claimTaskBoardLease(db, dispatchContext, {
+      ...scope,
+      owner: 'worker-f',
+      leaseSeconds: 120,
+      now,
+    });
+    if (lease === undefined) throw new Error('the export lease was not taken');
+    const exportId = newUuidV7();
+    const value = manifest(exportId, []);
+    const manifestHash = Buffer.from(taskBoardManifestHash(value), 'hex');
+    await recordTaskBoardManifest(db, dispatchContext, {
+      ...scope,
+      exportId,
+      manifest: value,
+      manifestHash,
+      snapshotAt: new Date(value.snapshotAt),
+      policyObservation,
+      rowCount: value.rowCount,
+      rowsHash: Buffer.from(value.rowsHash, 'hex'),
+      sourceFingerprint: Buffer.from(value.sourceFingerprint, 'hex'),
+      coveredDirtyIds: [],
+    });
+    // A live lease is not enough: the publication must already be committed by
+    // the Projection owner with this exact generation and sequence.
+    await expect(
+      recordTaskBoardPublication(db, dispatchContext, {
+        ...scope,
+        exportId,
+        manifestHash,
+        generationId: newUuidV7(),
+        publishSequence: 1,
+        leaseToken: lease.leaseToken,
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_BOARD_NOT_PUBLISHED' });
+  });
+
+  it('rejects SQL-level generation and row tampering that bypasses the application', async () => {
+    const publishContext = contextFor(scope);
+    const now = new Date((booking += 600_000));
+    const lease = await claimTaskBoardLease(db, publishContext, {
+      ...scope,
+      owner: 'worker-g',
+      leaseSeconds: 300,
+      now,
+    });
+    if (lease === undefined) throw new Error('the export lease was not taken');
+    const value = manifest(newUuidV7(), []);
+    const manifestHash = taskBoardManifestHash(value);
+    const published = await publishTaskBoardGeneration(
+      db,
+      publishContext,
+      publishInput(
+        value,
+        {
+          token: lease.leaseToken,
+          ownerPrincipalId: publishContext.principalId,
+          leaseUntil: lease.leaseUntil,
+        },
+        now,
+      ),
+    );
+    const generationRow = (
+      await admin.query<Record<string, unknown>>(
+        `SELECT * FROM projection.task_board_generation WHERE generation_id = $1`,
+        [published.generationId],
+      )
+    ).rows[0];
+    if (generationRow === undefined) throw new Error('the generation was not stored');
+    const insertGeneration = (overrides: Record<string, unknown>): Promise<unknown> => {
+      const columns = { ...generationRow, ...overrides };
+      const names = Object.keys(columns);
+      return admin.query(
+        `INSERT INTO projection.task_board_generation (${names.join(',')})
+         VALUES (${names.map((_, index) => `$${index + 1}`).join(',')})`,
+        names.map((name) => columns[name]),
+      );
+    };
+    // A manifest that is internally intact but bound to another manifest hash
+    // is refused by the SQL guard, even though the application was bypassed.
+    await expect(
+      insertGeneration({
+        generation_id: newUuidV7(),
+        export_id: newUuidV7(),
+        publish_sequence: '9001',
+        manifest_hash: Buffer.alloc(32, 9),
+      }),
+    ).rejects.toMatchObject({ code: '23514' });
+    // A row whose promoted identity does not mirror its stored row is refused.
+    await expect(
+      admin.query(
+        `INSERT INTO projection.task_board_row
+           (generation_id, task_id, enterprise_id, project_id, row, delivery_item_ref)
+         VALUES ($1,$2,$3,$4,$5::jsonb,NULL)`,
+        [
+          published.generationId,
+          newUuidV7(),
+          enterpriseId,
+          projectId,
+          JSON.stringify(value.rows[0]),
+        ],
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
+    void manifestHash;
+  });
+
+  it('rejects a publisher whose lease expires while it waits on the fence lock', async () => {
+    // A dedicated Project keeps this barrier independent from the booked clock
+    // of the other cases, so the lease can really elapse during the wait.
+    const barrierProjectId = '0199b600-0000-7000-8000-000000000798';
+    const barrierScope = scopeFor(barrierProjectId);
+    const publishContext = contextFor(barrierScope);
+    const warmup = new Date();
+    const warmupLease = await claimTaskBoardLease(db, publishContext, {
+      ...barrierScope,
+      owner: 'worker-h',
+      leaseSeconds: 300,
+      now: warmup,
+    });
+    if (warmupLease === undefined) throw new Error('the warm-up lease was not taken');
+    // The first publication creates the Project's fence row the holder locks.
+    await publishTaskBoardGeneration(
+      db,
+      publishContext,
+      publishInput(
+        manifest(newUuidV7(), [], barrierProjectId),
+        {
+          token: warmupLease.leaseToken,
+          ownerPrincipalId: publishContext.principalId,
+          leaseUntil: warmupLease.leaseUntil,
+        },
+        warmup,
+        3600,
+        barrierProjectId,
+      ),
+    );
+    const now = new Date();
+    const lease = await claimTaskBoardLease(db, publishContext, {
+      ...barrierScope,
+      owner: 'worker-h',
+      leaseSeconds: 1,
+      now,
+    });
+    if (lease === undefined) throw new Error('the export lease was not taken');
+    const holder = new pg.Client({ connectionString: databaseUrl });
+    await holder.connect();
+    let publishing: Promise<unknown> | undefined;
+    try {
+      await holder.query('BEGIN');
+      const locked = await holder.query(
+        `SELECT token FROM projection.task_board_fence
+          WHERE enterprise_id = $1 AND project_id = $2 FOR UPDATE`,
+        [enterpriseId, barrierProjectId],
+      );
+      expect(locked.rowCount).toBe(1);
+      const value = manifest(newUuidV7(), [], barrierProjectId);
+      publishing = publishTaskBoardGeneration(
+        db,
+        publishContext,
+        publishInput(
+          value,
+          {
+            token: lease.leaseToken,
+            ownerPrincipalId: publishContext.principalId,
+            leaseUntil: lease.leaseUntil,
+          },
+          now,
+          3600,
+          barrierProjectId,
+        ),
+      );
+      // Genuine integration barrier: the publish must observe the lease end
+      // through the database clock *after* the fence lock wait, which requires
+      // real elapsed time on the platform clock.
+      await new Promise((resolve) => setTimeout(resolve, 1_400));
+      await holder.query('COMMIT');
+      await expect(publishing).rejects.toMatchObject({ code: 'TASK_BOARD_FENCE_REJECTED' });
+    } finally {
+      await holder.end().catch(() => undefined);
+      void publishing;
+    }
+  });
+
   it('cleans up only expired non-alias generations and keeps the publication proof', async () => {
     // A dedicated Project keeps the alias switch order independent from the
     // other cases, so an already-expired generation can be produced without

@@ -239,13 +239,11 @@ describe.skipIf(!gateEnabled)(
         capabilityCodes,
         cursorKey: { keyId: 11, secret: Buffer.alloc(32, 0x31) },
         boardPolicyRef: (candidate) => (candidate === projectId ? boardPolicyRef : undefined),
-        capabilityCodeResolvePolicy: capabilityCodes.taskBoardPolicyReadV1,
       });
       const dispatcher = createTaskBoardDispatcher({
         identity: { db: suite.identityDb, repo: suite.identityRepo, crypto: suite.crypto },
         taskExecutionDb: suite.teDb,
         capabilityCodes,
-        capabilityCodeResolvePolicy: capabilityCodes.taskBoardPolicyReadV1,
         workerOwner: 'wi248-board-worker',
         boardPolicyRef: (candidate) => (candidate === projectId ? boardPolicyRef : undefined),
         targets: [

@@ -15,6 +15,7 @@
 
 import type { Common } from '@zhiju/contracts';
 import {
+  AUTHORIZATION_REVOKED,
   createTaskBoardAuthorizationPort,
   type IdentityTransactionContext,
   type TaskBoardCapabilityCodes,
@@ -271,6 +272,9 @@ export async function runTaskBoardMaintenancePass(
   ports: TaskBoardDispatcherPorts,
 ): Promise<number> {
   await ports.authorize('taskBoardProjectionMaintainV1', project.projectRef);
+  // Retention maintenance still proves the Project's Board Policy is current
+  // before touching the store, so a superseded Policy stops the pass.
+  await ports.resolvePolicy();
   const result = await cleanupTaskBoardGenerations(
     config.taskExecutionDb,
     project.maintainContext,
@@ -297,7 +301,6 @@ export interface TaskBoardDispatcherTarget {
 export interface TaskBoardDispatcherFactoryConfig extends IdentityBoundaryConfig {
   readonly taskExecutionDb: Kysely<TaskExecutionDb>;
   readonly capabilityCodes: TaskBoardCapabilityCodes;
-  readonly capabilityCodeResolvePolicy: string;
   readonly workerOwner: string;
   readonly boardPolicyRef: (projectId: string) => Common.VersionedRef | undefined;
   readonly targets: readonly TaskBoardDispatcherTarget[];
@@ -414,14 +417,31 @@ export function createTaskBoardDispatcher(config: TaskBoardDispatcherFactoryConf
     const configuredPolicy = config.boardPolicyRef(projectId);
     if (configuredPolicy === undefined)
       entryError('DEPENDENCY_UNAVAILABLE', 'no Board Policy is configured for this Project');
-    const policyInput = {
-      deps: serviceDeps,
-      row: bootstrap,
-      policyRef: configuredPolicy,
-      actorSnapshotRef: target.serviceSession.resolutionActorSnapshotRef,
-      authenticationContextHash: serviceSessionHash,
-      capabilityCode: config.capabilityCodeResolvePolicy,
-      now,
+    /**
+     * Each step that depends on the Policy resolves it again under a fresh
+     * owning `taskBoardPolicyReadV1` Decision, so a superseded Policy or a
+     * revoked Policy Grant fails that step instead of reusing a stored view.
+     */
+    const resolveCurrentPolicy = async (): Promise<TaskBoardPolicyResolution> => {
+      const issued = await auth.authorize(serviceDeps, 'taskBoardPolicyReadV1', {
+        actorSnapshotRef: target.serviceSession.resolutionActorSnapshotRef,
+        commandType: 'identity.resolve_policy',
+        commandVersion: '1.0',
+        commandPayloadHash: payloadHashOf({ policyRef: configuredPolicy }),
+        authenticationContextHash: serviceSessionHash,
+        targetRef: configuredPolicy,
+      });
+      if (issued.outcome !== 'ALLOW')
+        entryError(AUTHORIZATION_REVOKED, 'Board Policy read was denied');
+      return resolveTaskBoardPolicy({
+        deps: serviceDeps,
+        row: bootstrap,
+        policyRef: configuredPolicy,
+        actorSnapshotRef: target.serviceSession.resolutionActorSnapshotRef,
+        authenticationContextHash: serviceSessionHash,
+        policyDecisionRef: issued.authorizationDecisionRef,
+        now,
+      });
     };
     const ports: TaskBoardDispatcherPorts = {
       authorize: async (key, ref) => {
@@ -446,7 +466,7 @@ export function createTaskBoardDispatcher(config: TaskBoardDispatcherFactoryConf
         if (!result.valid)
           entryError('AUTHORIZATION_REVOKED', `Board ${key} authority is no longer current`);
       },
-      resolvePolicy: () => resolveTaskBoardPolicy(policyInput),
+      resolvePolicy: resolveCurrentPolicy,
     };
     return {
       projectRef,

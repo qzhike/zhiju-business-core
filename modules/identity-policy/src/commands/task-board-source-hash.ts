@@ -10,6 +10,9 @@
 // IdentityPolicy table or invents its own fingerprint shape.
 
 import { canonicalize, sha256CanonicalJson, type CanonicalJsonValue } from '@zhiju/shared-kernel';
+import type { SelectedAuthorizationGrant } from './work-order-validation-authorization.js';
+
+export type { SelectedAuthorizationGrant };
 
 /** One actually-used authorization mapping of the current Board access. */
 export interface TaskBoardAuthorizationSourceEntry {
@@ -26,6 +29,12 @@ export interface TaskBoardAuthorizationSourceEntry {
   readonly projectId: string | null;
   readonly policySnapshotId: string;
   readonly policySnapshotPayloadHash: string;
+  /**
+   * The exact Grant the current revalidation selected for this mapping, so a
+   * Grant replacement under the same actor/Scope/config/Policy changes the
+   * fingerprint and invalidates an old cursor.
+   */
+  readonly grant: SelectedAuthorizationGrant;
 }
 
 export interface TaskBoardAuthorizationSource {
@@ -50,6 +59,7 @@ export function taskBoardAuthorizationSourceHash(source: TaskBoardAuthorizationS
       enterpriseId: entry.enterpriseId,
       policySnapshotId: entry.policySnapshotId,
       policySnapshotPayloadHash: entry.policySnapshotPayloadHash,
+      grant: entry.grant as unknown as CanonicalJsonValue,
       principalId: entry.principalId,
       principalKind: entry.principalKind,
       projectId: entry.projectId,

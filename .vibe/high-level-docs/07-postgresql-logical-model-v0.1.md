@@ -2234,7 +2234,7 @@ Freeze 锁 Root 并核验 Root/Snapshot/candidate 期限完全一致且未到期
 
 ## 34. IM-06 TD-05 Task Board 存储提案
 
-状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 R1–R10) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN`，精确化见本文IM06-BOARD段，详细语义见 [Spec 003 §12](../module-specs/Module-Spec-003-TaskExecution.md#12-td-05-query--task-board-补充设计)。本节不改变 §33 TD-01–04 批准状态，不分配 migration 编号，不修改既有 EnterpriseProject Board 表。
+状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 两轮共 17 项) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY+SQL GUARD+FENCE BARRIER PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN`，精确化见本文IM06-BOARD段，详细语义见 [Spec 003 §12](../module-specs/Module-Spec-003-TaskExecution.md#12-td-05-query--task-board-补充设计)。本节不改变 §33 TD-01–04 批准状态，不分配 migration 编号，不修改既有 EnterpriseProject Board 表。
 
 | Owner / 逻辑存储 | 内容与约束 |
 |---|---|
@@ -2465,7 +2465,7 @@ TE 新查询边界使用专用 REPEATABLE READ 事务，从一个快照取得 Ro
 
 ## IM06-BOARD TD-05 存储精确化
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 R1–R10) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN (V7014/V7015)`。本段精确化§34并取代其过时的Policy/retention/fence概括；字段算法见Spec003 §12，授权唯一见Spec001 §15.19。未来forward-only migration，不分配编号、不改已应用DDL/EP Board。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 两轮共 17 项) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY+SQL GUARD+FENCE BARRIER PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN (V7014/V7015)`。本段精确化§34并取代其过时的Policy/retention/fence概括；字段算法见Spec003 §12，授权唯一见Spec001 §15.19。未来forward-only migration，不分配编号、不改已应用DDL/EP Board。
 
 | Owner/逻辑表 | 精确约束 |
 |---|---|

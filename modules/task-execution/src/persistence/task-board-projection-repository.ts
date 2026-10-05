@@ -212,15 +212,25 @@ function verifyManifestMirrors(input: PublishTaskBoardGenerationInput): void {
   }
 }
 
+/** The database clock read inside the current transaction. */
+async function trustedDatabaseNow(trx: TaskBoardProjectionTransaction): Promise<Date> {
+  const stamp = await sql<{ readonly now: Date }>`SELECT clock_timestamp() AS now`.execute(trx);
+  const now = stamp.rows[0]?.now;
+  if (!(now instanceof Date))
+    projectionError('DEPENDENCY_UNAVAILABLE', 'projection clock unavailable');
+  return now;
+}
+
 async function registerFence(
   trx: TaskBoardProjectionTransaction,
   input: PublishTaskBoardGenerationInput,
 ): Promise<void> {
-  const stamp = await sql<{ readonly now: Date }>`SELECT clock_timestamp() AS now`.execute(trx);
-  const trustedNow = stamp.rows[0]?.now;
-  if (!(trustedNow instanceof Date))
-    projectionError('DEPENDENCY_UNAVAILABLE', 'projection clock unavailable');
+  // The fence row lock serializes every publication of this Project, so the
+  // trusted clock must be read *after* taking it: a transaction that waited
+  // past the lease end while another owner held the lock must not be allowed
+  // to publish with a pre-wait timestamp.
   const current = await readFence(trx, input.enterpriseId, input.projectId);
+  const trustedNow = await trustedDatabaseNow(trx);
   const token = Number(current.token);
   const monotonic =
     input.fence.token > token ||
@@ -338,6 +348,12 @@ export async function publishTaskBoardGeneration(
           })),
         )
         .execute();
+    // Re-check the lease immediately before the alias switch: the lock is
+    // held for the whole transaction, so this is the actual publication
+    // boundary.
+    const boundaryNow = await trustedDatabaseNow(trx);
+    if (input.fence.leaseUntil.getTime() <= boundaryNow.getTime())
+      projectionError('TASK_BOARD_FENCE_REJECTED', 'projection lease has already expired');
     await trx
       .insertInto('projection.task_board_alias')
       .values({

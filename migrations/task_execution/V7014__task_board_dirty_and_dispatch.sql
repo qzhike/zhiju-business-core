@@ -486,6 +486,31 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'TASK_BOARD_MANIFEST_CONFLICT' USING ERRCODE = '23514';
   END IF;
+  -- The proof is only accepted when the independent Projection owner has
+  -- actually committed this exact export/hash/generation/sequence and its
+  -- current alias still points at that generation: a caller cannot invent a
+  -- publication for an export that was never published.
+  IF NOT EXISTS (
+    SELECT 1
+    FROM projection.task_board_publication_outcome o
+    JOIN projection.task_board_generation g
+      ON g.generation_id = o.generation_id
+     AND g.export_id = o.export_id
+     AND g.manifest_hash = o.manifest_hash
+     AND g.publish_sequence = o.publish_sequence
+    JOIN projection.task_board_alias a
+      ON a.enterprise_id = g.enterprise_id
+     AND a.project_id = g.project_id
+     AND a.generation_id = g.generation_id
+    WHERE o.export_id = p_export_id
+      AND o.manifest_hash = p_manifest_hash
+      AND o.generation_id = p_generation_id
+      AND o.publish_sequence = p_publish_sequence
+      AND o.enterprise_id = p_enterprise
+      AND o.project_id = p_project
+  ) THEN
+    RAISE EXCEPTION 'TASK_BOARD_NOT_PUBLISHED' USING ERRCODE = '23514';
+  END IF;
   INSERT INTO task_execution.task_board_export_publication
     (export_id, enterprise_id, project_id, manifest_hash, generation_id,
      publish_sequence, lease_token)

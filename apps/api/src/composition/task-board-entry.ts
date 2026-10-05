@@ -27,6 +27,7 @@ import {
   taskBoardAuthorizationSourceHash,
   type IdentityCommandDeps,
   type IdentityTransactionContext,
+  type SelectedAuthorizationGrant,
   type TaskBoardAuthorizationSourceEntry,
   type TaskBoardCapabilityCodes,
   type TaskBoardCapabilityKey,
@@ -70,7 +71,6 @@ export interface TaskBoardEntryConfig extends IdentityBoundaryConfig {
   readonly cursorKey: { readonly keyId: number; readonly secret: Buffer };
   /** Trusted fixed Project-scoped Board Policy selector of one Project. */
   readonly boardPolicyRef: (projectId: string) => Common.VersionedRef | undefined;
-  readonly capabilityCodeResolvePolicy: string;
 }
 
 /** The trusted Board session: one Human session plus its SERVICE bootstrap. */
@@ -88,6 +88,7 @@ const QUERY_PURPOSE = 'task.execution.get_task_board_slice';
 const SOURCE_OPERATION = 'execution.task_board.source.read.v1';
 const HEALTH_OPERATION = 'execution.task_board.health.read.v1';
 const RESOLVE_POLICY_COMMAND = 'identity.resolve_policy';
+const RESOLVE_POLICY_PURPOSE = 'identity.policy.resolve_policy';
 
 /** Exact owning operation of every Board mapping (Spec 001 §15.19). */
 const BOARD_OPERATIONS: Readonly<Record<TaskBoardCapabilityKey, string>> = {
@@ -132,8 +133,12 @@ function authorizationEntry(
   commandType: string,
   purpose: string,
   row: DecisionRow,
+  grant: SelectedAuthorizationGrant | undefined,
 ): TaskBoardAuthorizationSourceEntry {
+  if (grant === undefined)
+    entryError(AUTHORIZATION_REVOKED, 'the Board authorization source has no selected Grant');
   return {
+    grant,
     capabilityConfigKey: configKey,
     capabilityCode,
     commandType,
@@ -173,22 +178,41 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
     };
   }
 
-  function resolveBoardPolicy(
+  /**
+   * Mint the owning `taskBoardPolicyReadV1` Decision for the exact VERSIONED
+   * Policy target under the SERVICE bootstrap, then resolve the Policy through
+   * the owning entry with that Decision.
+   */
+  async function resolveBoardPolicy(
     policyRef: Common.VersionedRef,
     row: DecisionRow,
     session: TaskBoardSession,
     serviceSessionHash: Buffer,
     deps: IdentityCommandDeps,
-  ): Promise<TaskBoardPolicyResolution> {
-    return resolveTaskBoardPolicy({
+  ): Promise<{
+    readonly resolution: TaskBoardPolicyResolution;
+    readonly decisionRef: Common.ContentAddressedRef;
+  }> {
+    const issued = await auth.authorize(deps, 'taskBoardPolicyReadV1', {
+      actorSnapshotRef: session.serviceSession.resolutionActorSnapshotRef,
+      commandType: RESOLVE_POLICY_COMMAND,
+      commandVersion: '1.0',
+      commandPayloadHash: payloadHashOf({ policyRef }),
+      authenticationContextHash: serviceSessionHash,
+      targetRef: policyRef,
+    });
+    if (issued.outcome !== 'ALLOW')
+      entryError(AUTHORIZATION_REVOKED, 'Board Policy read was denied');
+    const resolution = await resolveTaskBoardPolicy({
       deps,
       row,
       policyRef,
       actorSnapshotRef: session.serviceSession.resolutionActorSnapshotRef,
       authenticationContextHash: serviceSessionHash,
-      capabilityCode: config.capabilityCodeResolvePolicy,
+      policyDecisionRef: issued.authorizationDecisionRef,
       now,
     });
+    return { resolution, decisionRef: issued.authorizationDecisionRef };
   }
 
   return {
@@ -243,7 +267,7 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
         authenticationContextHash: Buffer,
         commandPayloadHash: Buffer,
         targetRef: CanonicalJsonObject,
-      ): Promise<void> => {
+      ): Promise<SelectedAuthorizationGrant | undefined> => {
         const result = await auth.revalidate(deps, key, {
           decisionRef,
           expectedCommandType: BOARD_OPERATIONS[key],
@@ -254,8 +278,9 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
         });
         if (!result.valid)
           entryError(AUTHORIZATION_REVOKED, 'Board authority is no longer current');
+        return result.selectedGrant;
       };
-      const validateHuman = (): Promise<void> =>
+      const validateHuman = (): Promise<SelectedAuthorizationGrant | undefined> =>
         revalidateBoardDecision(
           'taskBoardReadHumanV1',
           humanDeps,
@@ -264,7 +289,7 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
           payloadHash,
           projectRef,
         );
-      await validateHuman();
+      const humanGrant = await validateHuman();
 
       const serviceSessionHash = sessionAuthenticationContextHash(session.serviceSession);
       const sourceDecisionRef = decisionReference(session.serviceSession.sourceDecisionRef);
@@ -282,7 +307,7 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
       const revalidateDependency = (
         decisionRef: Common.ContentAddressedRef,
         key: 'taskBoardSourceReadV1' | 'taskBoardHealthReadV1',
-      ): Promise<void> =>
+      ): Promise<SelectedAuthorizationGrant | undefined> =>
         revalidateBoardDecision(
           key,
           serviceDeps,
@@ -291,7 +316,7 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
           dependencyPayloadHash,
           projectRef,
         );
-      await revalidateDependency(sourceDecisionRef, 'taskBoardSourceReadV1');
+      const sourceGrant = await revalidateDependency(sourceDecisionRef, 'taskBoardSourceReadV1');
 
       const healthDecision = await auth.authorize(serviceDeps, 'taskBoardHealthReadV1', {
         actorSnapshotRef: session.serviceSession.resolutionActorSnapshotRef,
@@ -304,13 +329,25 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
       if (healthDecision.outcome !== 'ALLOW')
         entryError(AUTHORIZATION_REVOKED, 'Board health read was denied');
       const healthRef = healthDecision.authorizationDecisionRef;
+      const healthGrant = await revalidateDependency(healthRef, 'taskBoardHealthReadV1');
 
-      const policyResolution = await resolveBoardPolicy(
+      const policyRead = await resolveBoardPolicy(
         configuredPolicy,
         sourceRow,
         session,
         serviceSessionHash,
         serviceDeps,
+      );
+      const policyResolution = policyRead.resolution;
+      // The Policy read revalidates at the same boundary, so its selected
+      // Grant also enters the authorization source fingerprint.
+      const policyGrant = await revalidateBoardDecision(
+        'taskBoardPolicyReadV1',
+        serviceDeps,
+        policyRead.decisionRef,
+        serviceSessionHash,
+        payloadHashOf({ policyRef: configuredPolicy }),
+        configuredPolicy as unknown as CanonicalJsonObject,
       );
 
       const correlationId = String(envelope.correlationId);
@@ -328,6 +365,17 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
         await validateHuman();
         await revalidateDependency(sourceDecisionRef, 'taskBoardSourceReadV1');
         await revalidateDependency(healthRef, 'taskBoardHealthReadV1');
+        // The Policy read is a protected read too: a Grant revoked after the
+        // owning source read must fail the whole query instead of returning
+        // data under a stale Policy.
+        await revalidateBoardDecision(
+          'taskBoardPolicyReadV1',
+          serviceDeps,
+          policyRead.decisionRef,
+          serviceSessionHash,
+          payloadHashOf({ policyRef: configuredPolicy }),
+          configuredPolicy as unknown as CanonicalJsonObject,
+        );
       };
       const ports: TaskBoardReadPorts = {
         now,
@@ -340,6 +388,7 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
               QUERY,
               QUERY_PURPOSE,
               humanRow,
+              humanGrant,
             ),
             authorizationEntry(
               'taskBoardSourceReadV1',
@@ -347,6 +396,7 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
               SOURCE_OPERATION,
               SOURCE_OPERATION,
               sourceRow,
+              sourceGrant,
             ),
             authorizationEntry(
               'taskBoardHealthReadV1',
@@ -354,6 +404,15 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
               HEALTH_OPERATION,
               HEALTH_OPERATION,
               sourceRow,
+              healthGrant,
+            ),
+            authorizationEntry(
+              'taskBoardPolicyReadV1',
+              config.capabilityCodes.taskBoardPolicyReadV1,
+              RESOLVE_POLICY_COMMAND,
+              RESOLVE_POLICY_PURPOSE,
+              sourceRow,
+              policyGrant,
             ),
           ],
           boardPolicyRef: policyResolution.policyRef,

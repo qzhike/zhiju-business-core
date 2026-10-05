@@ -11,7 +11,6 @@ import type { Common } from '@zhiju/contracts';
 import {
   AUTHORIZATION_REVOKED,
   SnapshotBoundaryError,
-  authorizeCommand,
   resolvePolicy,
   type IdentityCommandDeps,
   type IdentityTransactionContext,
@@ -22,8 +21,6 @@ import {
   AUTHORIZATION_DECISION_OBJECT_TYPE,
   contentHash,
   entryError,
-  payloadHashOf,
-  policySnapshotReference,
   record,
   type DecisionRow,
 } from './decision-boundary.js';
@@ -38,7 +35,12 @@ export interface BoardPolicyResolutionContext {
   /** Actor snapshot of the SERVICE principal that resolves the Policy. */
   readonly actorSnapshotRef: Common.SnapshotRef;
   readonly authenticationContextHash: Buffer;
-  readonly capabilityCode: string;
+  /**
+   * The Decision minted by the owning Board `taskBoardPolicyReadV1` mapping for
+   * this exact VERSIONED Policy target and payload; the read is never performed
+   * under a generic authorization.
+   */
+  readonly policyDecisionRef: Common.ContentAddressedRef;
   readonly now: () => Date;
 }
 
@@ -62,36 +64,11 @@ export async function resolveTaskBoardPolicy(
     allowedProjectIds: context.row.project_id === null ? [] : [context.row.project_id],
     correlationId: context.row.authorization_decision_id,
   };
-  const authorized = await authorizeCommand(
-    { ...context.deps, context: base },
-    {
-      actorSnapshotRef: context.actorSnapshotRef,
-      intent: {
-        commandType: 'identity.resolve_policy',
-        commandVersion: '1.0',
-        scopeKind: 'PROJECT',
-        enterpriseId: context.row.enterprise_id,
-        ...(context.row.project_id === null ? {} : { projectId: context.row.project_id }),
-        purpose: 'identity.policy.resolve_policy',
-        requestedCapability: context.capabilityCode,
-        commandPayloadHash: payloadHashOf({ policyRef: context.policyRef }),
-        requestedAt: context.now(),
-        highRiskAction: false,
-      },
-      authenticationContextHash: context.authenticationContextHash,
-      policySnapshotRef: policySnapshotReference(context.row),
-    },
-  );
-  if (authorized.outcome !== 'ALLOW')
-    entryError(AUTHORIZATION_REVOKED, 'Board Policy resolution was denied');
   const resolveContext: IdentityTransactionContext = {
     ...base,
-    authorizationDecisionId: authorized.authorizationDecisionRef.objectId,
-    authorizationDecisionHash: Buffer.from(
-      authorized.authorizationDecisionRef.contentHash.digest,
-      'hex',
-    ),
-    authorizationDecisionExpiresAt: new Date(authorized.expiresAt),
+    authorizationDecisionId: context.policyDecisionRef.objectId,
+    authorizationDecisionHash: Buffer.from(context.policyDecisionRef.contentHash.digest, 'hex'),
+    authorizationDecisionExpiresAt: context.row.expires_at,
   };
   const envelope = {
     queryId: newUuidV7(),
@@ -114,10 +91,9 @@ export async function resolveTaskBoardPolicy(
     authorizationDecisionRef: {
       kind: 'CONTENT_ADDRESSED',
       objectType: AUTHORIZATION_DECISION_OBJECT_TYPE,
-      objectId: authorized.authorizationDecisionRef.objectId,
+      objectId: context.policyDecisionRef.objectId,
       scope: scopeValue,
-      contentHash: authorized.authorizationDecisionRef
-        .contentHash as unknown as CanonicalJsonObject,
+      contentHash: context.policyDecisionRef.contentHash as unknown as CanonicalJsonObject,
     },
     consistencyRequirement: 'AUTHORITATIVE',
     correlationId: context.row.authorization_decision_id,
@@ -167,5 +143,6 @@ export async function resolveTaskBoardPolicy(
       ...(view.supersededAt === undefined ? {} : { supersededAt: view.supersededAt }),
     },
     rules: validated.rules,
+    policyDecisionRef: context.policyDecisionRef as unknown as CanonicalJsonObject,
   };
 }

@@ -35,6 +35,7 @@ export {
 } from './commands/work-order-validation-authorization.js';
 export { taskBoardAuthorizationSourceHash } from './commands/task-board-source-hash.js';
 export type {
+  SelectedAuthorizationGrant,
   TaskBoardAuthorizationSource,
   TaskBoardAuthorizationSourceEntry,
 } from './commands/task-board-source-hash.js';

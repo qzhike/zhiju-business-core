@@ -150,7 +150,11 @@ AS $guard$
 BEGIN
     -- The promoted mirrors must equal the canonical manifest exactly, so an
     -- arbitrary row set can never be stored as a published generation.
-    IF NEW.manifest->>'exportId' IS DISTINCT FROM NEW.export_id::text
+    IF NEW.manifest_hash IS DISTINCT FROM task_execution.recovery_payload_hash(NEW.manifest)
+       OR NEW.rows_hash IS DISTINCT FROM task_execution.recovery_payload_hash(NEW.manifest->'rows')
+       OR NEW.policy_observation IS DISTINCT FROM NEW.manifest->'policyObservation'
+       OR NEW.policy_observation->'policyRef' IS DISTINCT FROM NEW.manifest->'policyRef'
+       OR NEW.manifest->>'exportId' IS DISTINCT FROM NEW.export_id::text
        OR (NEW.manifest->>'snapshotAt')::timestamptz IS DISTINCT FROM NEW.snapshot_at
        OR (NEW.manifest->>'rowCount')::integer IS DISTINCT FROM NEW.row_count
        OR NEW.manifest->>'rowsHash' IS DISTINCT FROM encode(NEW.rows_hash, 'hex')
@@ -171,6 +175,72 @@ REVOKE ALL ON FUNCTION projection.guard_task_board_generation_insert() FROM PUBL
 CREATE TRIGGER task_board_generation_insert_guard
     BEFORE INSERT ON projection.task_board_generation
     FOR EACH ROW EXECUTE FUNCTION projection.guard_task_board_generation_insert();
+
+-- The projection integrity guards reuse the owning canonical cv1 hasher
+-- instead of duplicating a second JSON canonicalization in this schema.
+GRANT USAGE ON SCHEMA task_execution TO projection_app;
+GRANT EXECUTE ON FUNCTION task_execution.recovery_payload_hash(jsonb) TO projection_app;
+
+-- The TaskExecution owner (the SECURITY DEFINER owner of the export dispatch
+-- helpers) may read the committed publication outcome and generation to prove
+-- a publication before recording it; the projection runtime role still holds
+-- no TaskExecution access.
+GRANT USAGE ON SCHEMA projection TO task_execution_owner;
+GRANT SELECT ON projection.task_board_publication_outcome TO task_execution_owner;
+GRANT SELECT ON projection.task_board_alias TO task_execution_owner;
+GRANT SELECT ON projection.task_board_generation TO task_execution_owner;
+
+-- FORCE RLS also applies to the TaskExecution owner, so proving a publication
+-- needs an explicit owner-scoped SELECT policy on the mirrored facts.
+CREATE POLICY task_board_publication_outcome_owner_select
+  ON projection.task_board_publication_outcome
+  FOR SELECT TO task_execution_owner
+  USING (platform_security.context_allows_project(enterprise_id, project_id));
+CREATE POLICY task_board_generation_owner_select
+  ON projection.task_board_generation
+  FOR SELECT TO task_execution_owner
+  USING (platform_security.context_allows_project(enterprise_id, project_id));
+CREATE POLICY task_board_alias_owner_select
+  ON projection.task_board_alias
+  FOR SELECT TO task_execution_owner
+  USING (platform_security.context_allows_project(enterprise_id, project_id));
+
+CREATE FUNCTION projection.guard_task_board_row_insert() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $guard$
+BEGIN
+    -- The stored internal row must be the exact manifest row of its
+    -- generation, with its promoted identity, Scope and filter mirrors equal.
+    IF NEW.row->'item'->'taskRef'->>'kind' IS DISTINCT FROM 'OBJECT'
+       OR NEW.row->'item'->'taskRef'->>'objectId' IS DISTINCT FROM NEW.task_id::text
+       OR NEW.row->'item'->'taskRef'->'scope'->>'enterpriseId'
+          IS DISTINCT FROM NEW.enterprise_id::text
+       OR NEW.row->'item'->'taskRef'->'scope'->>'projectId' IS DISTINCT FROM NEW.project_id::text
+       OR (NEW.row->'filterKeys' ? 'deliveryItemRef')
+          IS DISTINCT FROM (NEW.delivery_item_ref IS NOT NULL)
+       OR (NEW.delivery_item_ref IS NOT NULL
+           AND NEW.row->'filterKeys'->'deliveryItemRef' IS DISTINCT FROM NEW.delivery_item_ref)
+    THEN
+        RAISE EXCEPTION 'task_board_row identity mirror mismatch' USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM projection.task_board_generation AS g
+        WHERE g.generation_id = NEW.generation_id
+          AND g.enterprise_id = NEW.enterprise_id
+          AND g.project_id = NEW.project_id
+          AND g.manifest->'rows' @> jsonb_build_array(NEW.row)
+    ) THEN
+        RAISE EXCEPTION 'task_board_row is not part of its generation manifest'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END $guard$;
+REVOKE ALL ON FUNCTION projection.guard_task_board_row_insert() FROM PUBLIC;
+CREATE TRIGGER task_board_row_insert_guard
+    BEFORE INSERT ON projection.task_board_row
+    FOR EACH ROW EXECUTE FUNCTION projection.guard_task_board_row_insert();
 
 CREATE FUNCTION projection.guard_task_board_generation_mutation() RETURNS trigger
 LANGUAGE plpgsql

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { handleGetTaskBoardSlice, type TaskBoardReadPorts } from './task-board-read.js';
+import { decodeTaskBoardCursor } from './task-board-cursor.js';
+import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
 import { taskBoardRowsHash, type TaskBoardSnapshotRow } from './task-board-types.js';
 import type { TaskBoardProjectionState } from '../persistence/task-board-projection-repository.js';
 
@@ -107,6 +109,17 @@ function ports(overrides: Partial<TaskBoardReadPorts> = {}): TaskBoardReadPorts 
           policyVersionRef,
           contentHash: 'a'.repeat(64),
           effectiveFrom: '2026-10-04T00:00:00.000Z',
+        },
+        policyDecisionRef: {
+          kind: 'CONTENT_ADDRESSED',
+          objectType: 'identity.authorization_decision',
+          objectId: '0199b600-0000-7000-8000-000000000307',
+          scope: { enterpriseId, projectId },
+          contentHash: {
+            algorithm: 'SHA-256',
+            canonicalizationVersion: '1',
+            digest: 'b'.repeat(64),
+          },
         },
         rules: {
           maxPageSize: 100,
@@ -314,6 +327,62 @@ describe('Task Board handler', () => {
     );
     expect(cleared.status).toBe('OK');
     expect(cleared.stalenessStatus).toBe('FRESH');
+  });
+
+  it('never extends the pagination session deadline across pages', async () => {
+    const key = { keyId: 3, secret: Buffer.alloc(32, 3) };
+    const trusted = new Date('2026-10-05T00:10:00.000Z');
+    const many = Array.from({ length: 5 }, (_, index) => {
+      const taskId = `0199b600-0000-7000-8000-00000000001${index}`;
+      return {
+        item: {
+          taskRef: {
+            kind: 'OBJECT',
+            objectType: 'zhiju.execution.task',
+            objectId: taskId,
+            scope: { enterpriseId, projectId },
+          },
+          aggregateVersion: 1,
+          title: `Task ${index}`,
+          status: 'READY',
+          blockerRefs: [],
+          activeWorkOrderRefs: [],
+        },
+        filterKeys: {},
+      };
+    });
+    const run = async (page: CanonicalJsonObject): Promise<CanonicalJsonObject> =>
+      handleGetTaskBoardSlice(
+        {
+          queryId: '0199b600-0000-7000-8000-000000000601',
+          consistency: 'AUTHORITATIVE',
+          payload: { ...query().payload, page },
+        },
+        ports({
+          cursorKey: key,
+          now: () => trusted,
+          readAuthoritativeRows: () =>
+            Promise.resolve({
+              rows: many,
+              sources: [],
+              sourceFingerprint: 'c'.repeat(64),
+              snapshotAt,
+            }),
+        }),
+      );
+    const first = await run({ pageSize: 2 });
+    const firstCursor = String((first.data as Record<string, unknown>).nextCursor);
+    const firstDecoded = decodeTaskBoardCursor(firstCursor, key, trusted);
+    const second = await run({ pageSize: 2, cursor: firstCursor });
+    const secondCursor = String((second.data as Record<string, unknown>).nextCursor);
+    const secondDecoded = decodeTaskBoardCursor(secondCursor, key, trusted);
+    expect(secondDecoded.expiresAt).toBe(firstDecoded.expiresAt);
+    expect(secondDecoded.issuedAt).toBe(firstDecoded.issuedAt);
+    // Once the original deadline passes, the continuation is expired even
+    // though a fresh page was just served.
+    expect(() =>
+      decodeTaskBoardCursor(secondCursor, key, new Date(Date.parse(firstDecoded.expiresAt) + 1000)),
+    ).toThrow(expect.objectContaining({ code: 'QUERY_CURSOR_EXPIRED' }));
   });
 
   it('reads the owning source for an AUTHORITATIVE request', async () => {

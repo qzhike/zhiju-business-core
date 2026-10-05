@@ -67,6 +67,8 @@ export interface TaskBoardPolicyResolution {
   readonly policyContentHash: string;
   readonly policyObservation: TaskBoardPolicyObservation;
   readonly rules: TaskBoardPolicyRules;
+  /** The owning `taskBoardPolicyReadV1` Decision that authorized this read. */
+  readonly policyDecisionRef: CanonicalJsonObject;
 }
 
 export interface TaskBoardReadPorts {
@@ -333,6 +335,8 @@ async function authorityRead(
   const snapshot = await ports.readAuthoritativeRows(context.scope, context.projectRef);
   let snapshotAt = snapshot.snapshotAt;
   let decoded: TaskBoardDecodedCursor | undefined;
+  let issuedAt = ports.now();
+  let expiresAt = new Date(issuedAt.getTime() + context.policy.rules.cursorTtlSeconds * 1000);
   if (context.cursorValue !== undefined) {
     decoded = decodeTaskBoardCursor(context.cursorValue, ports.cursorKey, ports.now());
     requireThat(decoded.mode === 'AUTHORITY', 'QUERY_CURSOR_SCOPE_MISMATCH');
@@ -360,6 +364,10 @@ async function authorityRead(
     if (input.asOf !== undefined && Date.parse(input.asOf) !== Date.parse(decoded.snapshotAt))
       fail('QUERY_CURSOR_SCOPE_MISMATCH');
     snapshotAt = new Date(decoded.snapshotAt);
+    // A continuation keeps the original session window: the TTL is never
+    // re-issued, so the session still expires at its first deadline.
+    issuedAt = new Date(decoded.issuedAt);
+    expiresAt = new Date(decoded.expiresAt);
   } else if (input.asOf !== undefined) {
     boardError('API_VALUE_INVALID', 'asOf requires a fixed cursor snapshot');
   }
@@ -370,8 +378,6 @@ async function authorityRead(
     window.hasMore && lastRow !== undefined
       ? textValue(object(lastRow.item.taskRef).objectId)
       : undefined;
-  const issuedAt = ports.now();
-  const expiresAt = new Date(issuedAt.getTime() + context.policy.rules.cursorTtlSeconds * 1000);
   const nextCursor =
     lastTaskId === undefined
       ? undefined
@@ -533,10 +539,14 @@ async function projectionRead(
     window.hasMore && lastRow !== undefined
       ? textValue(object(lastRow.item.taskRef).objectId)
       : undefined;
-  const issuedAt = ports.now();
+  // A continuation keeps the original session window (clamped by the
+  // generation retention), so no page can extend the first deadline.
+  const issuedAt = decoded === undefined ? ports.now() : new Date(decoded.issuedAt);
   const expiresAt = new Date(
     Math.min(
-      issuedAt.getTime() + context.policy.rules.cursorTtlSeconds * 1000,
+      decoded === undefined
+        ? issuedAt.getTime() + context.policy.rules.cursorTtlSeconds * 1000
+        : Date.parse(decoded.expiresAt),
       generation.retentionUntil.getTime(),
     ),
   );
