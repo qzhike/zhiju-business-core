@@ -197,6 +197,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'task_board_export_dispatch',
     'task_board_export_manifest',
     'task_board_export_publication',
+    'task_board_export_confirmation',
+    'task_board_export_retirement',
   ],
   artifact: [
     'execution_revision_command_receipt',

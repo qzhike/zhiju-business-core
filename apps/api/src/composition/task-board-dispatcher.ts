@@ -26,8 +26,9 @@ import {
   cleanupTaskBoardGenerations,
   confirmTaskBoardExport,
   publishTaskBoardGeneration,
-  readPendingTaskBoardManifest,
   readTaskBoardDispatch,
+  readTaskBoardRecoveryTarget,
+  retireTaskBoardExport,
   recordTaskBoardManifest,
   recordTaskBoardPublication,
   recordTaskBoardProjectionFailure,
@@ -105,6 +106,8 @@ export interface TaskBoardDispatcherPorts {
 export interface TaskBoardDispatcherProject {
   readonly projectRef: CanonicalJsonObject;
   readonly scope: { readonly enterpriseId: string; readonly projectId: string };
+  /** Service principal whose Decision context publishes the generation. */
+  readonly publishPrincipalId: string;
 }
 
 export interface TaskBoardDispatcherConfig {
@@ -138,6 +141,7 @@ export async function runTaskBoardExportPass(
   const claimContext = await ports.authorize('taskBoardDispatchManageV1', project.projectRef, {
     projectRef: project.projectRef,
     operation: 'CLAIM',
+    owner: config.workerOwner,
     leaseSeconds: policy.rules.workerLeaseSeconds,
   });
   const lease = await claimTaskBoardLease(config.taskExecutionDb, claimContext, {
@@ -149,26 +153,80 @@ export async function runTaskBoardExportPass(
   });
   if (lease === undefined) return undefined;
 
-  // Recovery出口: a persisted manifest without a committed publication proof is
-  // replayed exactly as it was persisted instead of being replaced.
-  const pending = await readPendingTaskBoardManifest(
+  // Recovery: an export that was published but never acknowledged only owes
+  // its confirmation, and one that was never published is replayed as it was
+  // persisted (or retired when its Policy is no longer current).
+  const recovery = await readTaskBoardRecoveryTarget(
     config.taskExecutionDb,
     claimContext,
     project.scope,
   );
+  const recoveryGenerationId = recovery?.generationId ?? null;
+  const recoveryPublishSequence = recovery?.publishSequence ?? null;
+  if (recovery !== undefined && recoveryGenerationId !== null && recoveryPublishSequence !== null) {
+    const exportId = recovery.exportId;
+    const manifestHash = recovery.manifestHash.toString('hex');
+    const generationId = recoveryGenerationId;
+    const publishSequence = recoveryPublishSequence;
+    const confirmContext = await ports.authorize('taskBoardDispatchManageV1', project.projectRef, {
+      projectRef: project.projectRef,
+      operation: 'CONFIRM',
+      exportId,
+      manifestHash,
+      generationId,
+      publishSequence,
+      leaseToken: lease.leaseToken,
+      coveredDirtyIds: [...recovery.coveredDirtyIds],
+    });
+    await recordTaskBoardPublication(config.taskExecutionDb, confirmContext, {
+      enterpriseId: project.scope.enterpriseId,
+      projectId: project.scope.projectId,
+      exportId,
+      manifestHash: recovery.manifestHash,
+      generationId,
+      publishSequence,
+      leaseToken: lease.leaseToken,
+    });
+    await confirmTaskBoardExport(config.taskExecutionDb, confirmContext, {
+      enterpriseId: project.scope.enterpriseId,
+      projectId: project.scope.projectId,
+      exportId,
+      manifestHash: recovery.manifestHash,
+      generationId,
+      publishSequence,
+      dirtyIds: recovery.coveredDirtyIds,
+    });
+    return { exportId, publishSequence, replayed: true };
+  }
+
+  let reuse = recovery;
+  if (reuse !== undefined && reuse.policyObservation.contentHash !== policy.policyContentHash) {
+    // The persisted export belongs to an obsolete Policy: retire it so a fresh
+    // export under the current Policy can replace it instead of being blocked
+    // forever by the same pending row.
+    await retireTaskBoardExport(config.taskExecutionDb, claimContext, {
+      enterpriseId: project.scope.enterpriseId,
+      projectId: project.scope.projectId,
+      exportId: reuse.exportId,
+      reasonCode: 'POLICY_SUPERSEDED',
+      leaseToken: lease.leaseToken,
+    });
+    reuse = undefined;
+  }
+
   let manifest: TaskBoardSnapshotManifest;
   let manifestHash: string;
   let rowsHash: string;
   let sourceFingerprint: string;
   let coveredDirtyIds: readonly string[];
   let exportId: string;
-  if (pending !== undefined) {
-    manifest = pending.manifest as unknown as TaskBoardSnapshotManifest;
-    exportId = pending.exportId;
-    manifestHash = pending.manifestHash.toString('hex');
-    rowsHash = pending.rowsHash.toString('hex');
-    sourceFingerprint = pending.sourceFingerprint.toString('hex');
-    coveredDirtyIds = [...pending.coveredDirtyIds];
+  if (reuse !== undefined) {
+    manifest = reuse.manifest as unknown as TaskBoardSnapshotManifest;
+    exportId = reuse.exportId;
+    manifestHash = reuse.manifestHash.toString('hex');
+    rowsHash = reuse.rowsHash.toString('hex');
+    sourceFingerprint = reuse.sourceFingerprint.toString('hex');
+    coveredDirtyIds = [...reuse.coveredDirtyIds];
   } else {
     exportId = newUuidV7();
     const sourceContext = await ports.authorize('taskBoardSourceReadV1', project.projectRef, {
@@ -221,6 +279,7 @@ export async function runTaskBoardExportPass(
       exportId,
       manifestHash,
       rowCount: manifest.rowCount,
+      coveredDirtyIds: [...coveredDirtyIds],
     });
     await recordTaskBoardManifest(config.taskExecutionDb, manifestContext, {
       enterpriseId: project.scope.enterpriseId,
@@ -252,10 +311,17 @@ export async function runTaskBoardExportPass(
     });
     return undefined;
   }
+  // The publish Decision binds this step's actual fields, including the exact
+  // fence the caller is about to use.
   const publishContext = await ports.authorize('taskBoardProjectionPublishV1', project.projectRef, {
     projectRef: project.projectRef,
     exportId,
     manifestHash,
+    policyRef: policy.policyRef,
+    retentionSeconds: policy.rules.cursorTtlSeconds,
+    fenceToken: lease.leaseToken,
+    fenceOwnerPrincipalId: project.publishPrincipalId,
+    fenceLeaseUntil: lease.leaseUntil.toISOString(),
   });
   const control = await readTaskBoardDispatch(config.taskExecutionDb, claimContext, project.scope);
   const leaseIsCurrent =
@@ -281,7 +347,7 @@ export async function runTaskBoardExportPass(
     retentionSeconds: policy.rules.cursorTtlSeconds,
     fence: {
       token: lease.leaseToken,
-      ownerPrincipalId: publishContext.principalId,
+      ownerPrincipalId: project.publishPrincipalId,
       leaseUntil: lease.leaseUntil,
     },
     now,
@@ -291,6 +357,9 @@ export async function runTaskBoardExportPass(
     operation: 'CONFIRM',
     exportId,
     manifestHash,
+    generationId: published.generationId,
+    publishSequence: published.publishSequence,
+    leaseToken: lease.leaseToken,
     coveredDirtyIds: [...coveredDirtyIds],
   });
   await recordTaskBoardPublication(config.taskExecutionDb, confirmContext, {
@@ -483,7 +552,12 @@ export function createTaskBoardDispatcher(config: TaskBoardDispatcherFactoryConf
       },
       resolvePolicy: resolveCurrentPolicy,
     };
-    return { projectRef, scope: { enterpriseId, projectId }, ports };
+    return {
+      projectRef,
+      scope: { enterpriseId, projectId },
+      publishPrincipalId: bootstrap.principal_id,
+      ports,
+    };
   }
 
   return {

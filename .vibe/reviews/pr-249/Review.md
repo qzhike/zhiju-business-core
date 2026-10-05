@@ -1,6 +1,78 @@
 # PR #249 正式审查记录
 
-## 第四轮复核（当前结论，同一 revision）
+## 第五轮复审（当前结论，新 head）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`8403eecd0a347ab0895de6bf1c4321f5bf848ad8`；日期：2026-10-05。
+- 最新 PR OPEN、非 Draft；Issue #248 原 Acceptance 未调整，无 finding 回复。工作区起始干净。
+- 预期与范围：继续以当前 Issue、Spec003 §12、Spec001 §15.19、API 字段矩阵/PG IM06-BOARD 判断真实完整 Board、当前独立权限、有限配置、固定分页、精确导出/发布/确认恢复与明确必要验收；公开 Schema、Set/数组及旧 registry/fixture 不改。外部/人工及明确延后范围不扩大。
+- 非盲审：已有历史审查上下文，重新从权威标准、当前 diff 和 revision 证据独立判断；未承担实现或修改产品代码。
+
+### 第五轮证据
+
+- [CI run 37270134991](https://github.com/qzhike/zhiju-business-core/actions/runs/37270134991) 的 headSha 等于上述被审 SHA；select/checks/persistence/verify 全部 SUCCESS，code 与真实 PostgreSQL gate 完整覆盖 full；复用，不重复本地 full。
+- Focused Unit：`node node_modules/vitest/vitest.mjs run modules/task-execution/src/business/task-board-read.test.ts modules/task-execution/src/business/task-board-cursor.test.ts modules/identity-policy/src/commands/task-board-authorization.test.ts modules/identity-policy/src/commands/task-board-source-hash.test.ts`：4 files / 31 tests PASS。
+- 独立 probe：`node node_modules/vitest/vitest.mjs run .review-pr249-round5-probe.test.ts`：1 file / 5 cases PASS。验证前118-byte来源字段/key offset改善、uint32边界负例、AUTH非零序号仍接受；确认旧 R2 撤权时不再 publish；不同完整 versionRef 的 pending Policy A + current Policy B 会产生不一致 publish 输入；同一 pending export/hash 更换实际 fence token，publish Decision payload 不变。
+- worker probe 使用 mocked dependencies，只证明真实 composition 调用次序/输出参数，不声称实际 Grant lifecycle、SQL publication 或 PG 恢复已经执行。断言缺陷存在的 PASS 不升级业务验收。临时诊断移出产品集合。
+- 本 head 新增 publisher reached 信号与 pending manifest 读取的 CI PG 证据认可；本轮没有新增本地 PG。R14 两次已提交技术事务之间的恢复问题由当前 SQL/function/composition 直接核对。
+- 完整 BOARD-D/IP-BOARD-D owning 状态链/三 consistency/返回前撤权/Export RR/late dirty/崩溃恢复矩阵仍 NOT RUN；HTTP/UI/Provider/性能/人工和既有延后边界保持。
+- 本地配置 docs：以已安装项目固定 pnpm 路径运行 `vibe verify docs --json`，仍在 dependency status 要求 install 后以 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY` 中止（Vibe exit 21，子命令 exit 1）。未改依赖、锁文件或 verifier，docs 不记 PASS；Prettier 和 `git diff --check` 独立文档诊断不替代配置门禁。
+
+### 与上一轮对账
+
+| Finding | 第五轮判断 | 当前依据 |
+|---|---|---|
+| R1/R5/R6/R8/R9/R11 | 维持原缺陷关闭 | 无相关回退证据 |
+| R2 | 原撤权 publish 反例已修复；pending Policy 恢复仍阻断 | publish 前二次 owning Policy 解析有效；未核对 pending 原 Policy/提供失效后新导出出口 |
+| R3 | 关闭包含关系缺陷 | SQL manifest element 改用全 row JSONB 相等；相应真实单字段负例覆盖归 R10 |
+| R4 | 关闭当前 alias/retained generation 依赖 | proof 仅核对独立不可变 outcome；实际崩溃恢复缺口另见 R14/R10 |
+| R7 | 部分修复 | 前118-byte/完整源字段/部分AUTH零值规则修正；uint32序号与尾部布局不符批准契约 |
+| R10 | 部分修复、必要出口仍未完成 | 新增 reached信号/manifest读取认可；真实入口文件未新增完整状态链及恢复验收 |
+| R12 | 关闭 AUTH health 耦合 | 签发、最终重验和来源hash只在实际 health 路径使用 |
+| R13 | 部分修复 | 各步 own Decision/source预分配exportId已实现；完整fence/owner/confirm结果尚未绑定 |
+| R14 | 新增阻断 | publication proof commit 后但 dirty confirm 前的崩溃被 pending reader 漏选 |
+
+### 第五轮阻断 comments
+
+#### R2 [P1] 对 pending manifest 的原 Policy 判定资格并提供重新导出出口
+
+位置：`apps/api/src/composition/task-board-dispatcher.ts:244`。
+
+新增的第二次 resolvePolicy 已挡住上一轮“record manifest 后撤权仍 publish”的反例，应认可修复。但 pending 分支取出的 manifest 可能属于旧 Policy A；这里比较的却只是本次两次解析得到的当前 Policy B，未与 pending.policyObservation/policyRef 比较。之后 publish 输入沿用 A 的 manifest/hash，同时传 B 的 policyObservation（279 行）和 TTL。独立 controlled probe 使用不同完整 versionRef 的 A/B，确认两次 resolver 均返回 B 时仍进入 publish，输入 manifest 为 A、promoted observation 为 B；V7015 的完整镜像 guard 将拒绝它。pending SQL 又会在每次 pass 继续选中同一未发布 A，worker 无法按新合法 B 重新导出，Project 长期停在旧 alias/dirty。请按 Spec003 §12.7 先核对持久 manifest 的完整原 Policy observation/current 资格；失效时保留失败/dirty，但用新合法 Policy 和新 exportId 重导，避免永久复选。补正常同 Policy 重放与旧 Policy 失效后的实际 owning/PG 恢复正反例。
+
+#### R7 [P2] 保留批准的 uint64 安全序号范围与字节布局
+
+位置：`modules/task-execution/src/business/task-board-cursor.ts:104`。
+
+keyId/requestBindingHash/sourceFingerprint/generation/manifest 的前 118 bytes 已修正，Projection 完整来源字段和 AUTH generation/hash 零值检查也已新增。但这里把 publish sequence 缩为 uint32，直接拒绝合法安全整数 4294967296；SQL 允许序号直到 9007199254740991，Spec003 §12.6 明确 watermarkSequence:uint64。独立配对 probe：4294967295 往返成功，4294967296 编码报 API_VALUE_INVALID；有更多 filtered rows 的该 generation 将无法返回合法 Page。尾部还塞入 pageSize/consistency/flags并重排时间，仍不是批准的 sequence[118..125]/snapshotAt[126..133]/lastTaskId[134..149]/issuedAt[150..157]/expiresAt[158..165] 布局；这些请求字段已绑定在 requestBindingHash，无需挤掉 uint64。另外 AUTH watermark=1 的合法签名编码仍被接受，违反 AUTH sequence 全零规则。请落实完整批准格式及安全整数边界/全零负例，不能用同为 198 bytes 替代协议一致。
+
+#### R10 [P1] 交付 Issue 的真实状态链和完整恢复验收
+
+位置：`tests/persistence/task-board-entry.test.ts:368`。
+
+认可新增 publisher reached 信号与 pending manifest 读取的同 head CI 证据；撤回上一轮“只有固定 sleep”和“worker 完全没有 persisted manifest 路径”的描述。但 entry 测试本轮没有新增，仍只有 Task v2 DRAFT/READY、Projection、首页 Human revoke 三例。#248 明确要求的真实 v1/v2+WO 两类创建身份、正常完成/BLOCKED_INPUT/恢复/取消/current Evaluation、G1→G2 多页、SNAPSHOT_AT_LEAST、返回前撤权、Export RR、低序号 dirty 晚提交及崩溃后原 export/generation/sequence 重放尚未交付。新的 PG pending 例只验证 reader 前后返回值，不驱动 dispatcher 从崩溃中恢复；也没有独立覆盖新 SQL 精确行相等 guard 的单字段删除负例。BOARD-D/IP-BOARD-D 仍 NOT RUN，Issue Acceptance 未调整。请补当前任务必要 owning 正链、确定性并发和恢复验收并准确分层记录；不扩大 HTTP/UI/Provider/性能/人工或既有延后范围。
+
+#### R13 [P1] publish 和 confirm 的 Decision 仍需绑定实际 fence 与完整步骤字段
+
+位置：`apps/api/src/composition/task-board-dispatcher.ts:255`。
+
+按步骤签发 Decision、source 预分配 exportId、manifestHash/coveredDirtyIds 入 hash 是有效修复；原先“四项共用一个 {projectRef} hash”已不成立。但 publish payload 此处仍只有 projectRef/exportId/manifestHash，实际 fence.token/ownerPrincipalId/leaseUntil、固定 policyRef 与 retention 均未绑定；CLAIM 缺实际 owner，CONFIRM 的 payload 也缺实际 generationId/publishSequence/leaseToken。独立 controlled probe 用同一合法 pending export/hash、token 1 和 token 2 分别执行，实际 publish fence 不同而签发 payload 完全相同。Spec001 §15.19 要求这些操作实际使用字段的完整闭合意图，不能在签发后添加未绑定的 fence。请先形成实际技术输入再签发/重验自己的完整 payload，补仅替换 fence/owner/publication result 时 protected write 为 0 的 owning 负例；同 operation/target 与新签发 Decision 不能代替完整输入绑定。
+
+#### R14 [P1] publication proof 已提交但 dirty 尚未确认的 export 仍需恢复
+
+位置：`migrations/task_execution/V7014__task_board_dirty_and_dispatch.sql:475`。
+
+新 pending selector 把 task_board_export_publication 是否存在当成恢复完成，但 dispatcher 的 recordTaskBoardPublication 与 confirmTaskBoardExport 是两个独立已提交事务。合法崩溃点：publish G1→record publication proof 成功→confirm 之前崩溃。此时 covered dirty 仍存在，该 NOT EXISTS 却已排除 E1；下次 worker 进入 fresh export 分支，生成 E2/G2，不能按 #248/Spec003 §12.7 规定重放原 E1/hash/generation/sequence 来完成确认。新的测试只在完整 confirm 后断言不再 pending，没有覆盖这个两步间窗口。请分别持久化/判断“已发布”和“已确认”进度，让 proof 存在但 ack 未完成的 manifest 仍可恢复确认；用在 proof commit 后 reached 的实际 PG/dispatcher 崩溃恢复证明同 export/sequence、alias 不回退、marker 不丢。当前恢复出口只能覆盖 proof 提交前的中断。
+
+### 第五轮交付
+
+已发布并读回 [COMMENT review 5411063583](https://github.com/qzhike/zhiju-business-core/pull/249#pullrequestreview-5411063583)，state=`COMMENTED`，commit_id 等于被审 SHA；R2/R7/R10/R13/R14 共 5 条代码 comments（4 项 P1、1 项 P2）已存在。发布后 head 未变化，PR 仍 OPEN。正式文档 Prettier 与 `git diff --check` PASS，配置 docs 运行限制如上，未记 PASS。
+
+当前账号为 PR 作者，`REQUEST_CHANGES` 是 Reviewer 技术结论，与 GitHub COMMENTED 状态区分。仅更新本正式记录与 GitHub comments，不改产品代码，不 commit/push/merge。修复后按最新 head 复审。
+
+---
+
+## 第四轮复核（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`5ac169d420fa15507e77227f90e79608945680bb`；日期：2026-10-05。

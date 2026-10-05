@@ -464,7 +464,8 @@ export type {
 export {
   claimTaskBoardLease,
   readTaskBoardDispatch,
-  readPendingTaskBoardManifest,
+  readTaskBoardRecoveryTarget,
+  retireTaskBoardExport,
   recordTaskBoardManifest,
   recordTaskBoardPublication,
   readTaskBoardManifest,
@@ -479,6 +480,7 @@ export type {
   TaskBoardDirtyMarker,
   TaskBoardHealth,
   TaskBoardManifestRecord,
+  TaskBoardRecoveryTarget,
 } from './persistence/task-board-dispatch-repository.js';
 export {
   publishTaskBoardGeneration,

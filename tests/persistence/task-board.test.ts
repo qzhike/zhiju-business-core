@@ -15,7 +15,8 @@ import {
   confirmTaskBoardExport,
   createTaskExecutionDatabase,
   publishTaskBoardGeneration,
-  readPendingTaskBoardManifest,
+  readTaskBoardRecoveryTarget,
+  retireTaskBoardExport,
   readTaskBoardGenerationById,
   type TaskExecutionDb,
   readTaskBoardProjection,
@@ -413,8 +414,9 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
 
     // The persisted manifest is the recovery出口: it stays pending until a
     // publication proof exists.
-    const pendingBefore = await readPendingTaskBoardManifest(db, dispatchContext, scope);
+    const pendingBefore = await readTaskBoardRecoveryTarget(db, dispatchContext, scope);
     expect(pendingBefore?.exportId).toBe(exportId);
+    expect(pendingBefore?.generationId).toBeNull();
     // A publication recorded under a dead lease is refused.
     await expect(
       recordTaskBoardPublication(db, dispatchContext, {
@@ -473,7 +475,7 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
     );
     expect(remaining.rows[0]?.count).toBe('0');
     // Once published, the same export is no longer a pending recovery target.
-    const pendingAfter = await readPendingTaskBoardManifest(db, dispatchContext, scope);
+    const pendingAfter = await readTaskBoardRecoveryTarget(db, dispatchContext, scope);
     expect(pendingAfter?.exportId).not.toBe(exportId);
   });
 
@@ -687,6 +689,186 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
       await holder.end().catch(() => undefined);
       void publishing;
     }
+  });
+
+  it('recovers an export that was published but not yet acknowledged', async () => {
+    const dispatchContext = contextFor(scope);
+    const now = new Date((booking += 600_000));
+    const lease = await claimTaskBoardLease(db, dispatchContext, {
+      ...scope,
+      owner: 'worker-i',
+      leaseSeconds: 300,
+      now,
+    });
+    if (lease === undefined) throw new Error('the export lease was not taken');
+    const exportId = newUuidV7();
+    const value = manifest(exportId, []);
+    const manifestHash = Buffer.from(taskBoardManifestHash(value), 'hex');
+    await recordTaskBoardManifest(db, dispatchContext, {
+      ...scope,
+      exportId,
+      manifest: value,
+      manifestHash,
+      snapshotAt: new Date(value.snapshotAt),
+      policyObservation,
+      rowCount: value.rowCount,
+      rowsHash: Buffer.from(value.rowsHash, 'hex'),
+      sourceFingerprint: Buffer.from(value.sourceFingerprint, 'hex'),
+      coveredDirtyIds: [],
+    });
+    const published = await publishTaskBoardGeneration(
+      db,
+      dispatchContext,
+      publishInput(
+        value,
+        {
+          token: lease.leaseToken,
+          ownerPrincipalId: dispatchContext.principalId,
+          leaseUntil: lease.leaseUntil,
+        },
+        now,
+      ),
+    );
+    // The crash window: the proof is committed, the acknowledgement is not.
+    await recordTaskBoardPublication(db, dispatchContext, {
+      ...scope,
+      exportId,
+      manifestHash,
+      generationId: published.generationId,
+      publishSequence: published.publishSequence,
+      leaseToken: lease.leaseToken,
+    });
+    const target = await readTaskBoardRecoveryTarget(db, dispatchContext, scope);
+    expect(target?.exportId).toBe(exportId);
+    expect(target?.generationId).toBe(published.generationId);
+    expect(target?.publishSequence).toBe(published.publishSequence);
+    await confirmTaskBoardExport(db, dispatchContext, {
+      ...scope,
+      exportId,
+      manifestHash,
+      generationId: published.generationId,
+      publishSequence: published.publishSequence,
+      dirtyIds: [],
+    });
+    const after = await readTaskBoardRecoveryTarget(db, dispatchContext, scope);
+    expect(after?.exportId).not.toBe(exportId);
+  });
+
+  it('retires an obsolete unpublished export and refuses to retire a published one', async () => {
+    const dispatchContext = contextFor(scope);
+    const now = new Date((booking += 600_000));
+    const lease = await claimTaskBoardLease(db, dispatchContext, {
+      ...scope,
+      owner: 'worker-j',
+      leaseSeconds: 300,
+      now,
+    });
+    if (lease === undefined) throw new Error('the export lease was not taken');
+    const obsolete = newUuidV7();
+    const value = manifest(obsolete, []);
+    const manifestHash = Buffer.from(taskBoardManifestHash(value), 'hex');
+    await recordTaskBoardManifest(db, dispatchContext, {
+      ...scope,
+      exportId: obsolete,
+      manifest: value,
+      manifestHash,
+      snapshotAt: new Date(value.snapshotAt),
+      policyObservation,
+      rowCount: value.rowCount,
+      rowsHash: Buffer.from(value.rowsHash, 'hex'),
+      sourceFingerprint: Buffer.from(value.sourceFingerprint, 'hex'),
+      coveredDirtyIds: [],
+    });
+    await retireTaskBoardExport(db, dispatchContext, {
+      ...scope,
+      exportId: obsolete,
+      reasonCode: 'POLICY_SUPERSEDED',
+      leaseToken: lease.leaseToken,
+    });
+    const retired = await admin.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM task_execution.task_board_export_retirement WHERE export_id = $1`,
+      [obsolete],
+    );
+    expect(retired.rows[0]?.count).toBe('1');
+    const publishedValue = manifest(newUuidV7(), []);
+    const publishedHash = Buffer.from(taskBoardManifestHash(publishedValue), 'hex');
+    await recordTaskBoardManifest(db, dispatchContext, {
+      ...scope,
+      exportId: publishedValue.exportId,
+      manifest: publishedValue,
+      manifestHash: publishedHash,
+      snapshotAt: new Date(publishedValue.snapshotAt),
+      policyObservation,
+      rowCount: publishedValue.rowCount,
+      rowsHash: Buffer.from(publishedValue.rowsHash, 'hex'),
+      sourceFingerprint: Buffer.from(publishedValue.sourceFingerprint, 'hex'),
+      coveredDirtyIds: [],
+    });
+    await publishTaskBoardGeneration(
+      db,
+      dispatchContext,
+      publishInput(
+        publishedValue,
+        {
+          token: lease.leaseToken,
+          ownerPrincipalId: dispatchContext.principalId,
+          leaseUntil: lease.leaseUntil,
+        },
+        now,
+      ),
+    );
+    await expect(
+      retireTaskBoardExport(db, dispatchContext, {
+        ...scope,
+        exportId: publishedValue.exportId,
+        reasonCode: 'POLICY_SUPERSEDED',
+        leaseToken: lease.leaseToken,
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_BOARD_EXPORT_ALREADY_PUBLISHED' });
+  });
+
+  it('rejects a row whose stored item drops a required field', async () => {
+    const publishContext = contextFor(scope);
+    const now = new Date((booking += 600_000));
+    const lease = await claimTaskBoardLease(db, publishContext, {
+      ...scope,
+      owner: 'worker-k',
+      leaseSeconds: 300,
+      now,
+    });
+    if (lease === undefined) throw new Error('the export lease was not taken');
+    const value = manifest(newUuidV7(), []);
+    const published = await publishTaskBoardGeneration(
+      db,
+      publishContext,
+      publishInput(
+        value,
+        {
+          token: lease.leaseToken,
+          ownerPrincipalId: publishContext.principalId,
+          leaseUntil: lease.leaseUntil,
+        },
+        now,
+      ),
+    );
+    const source = value.rows[0];
+    if (source === undefined) throw new Error('the manifest lost its row');
+    const trimmed = structuredClone(source) as unknown as { item: Record<string, unknown> };
+    delete trimmed.item.title;
+    await expect(
+      admin.query(
+        `INSERT INTO projection.task_board_row
+           (generation_id, task_id, enterprise_id, project_id, row, delivery_item_ref)
+         VALUES ($1,$2,$3,$4,$5::jsonb,NULL)`,
+        [
+          published.generationId,
+          (source.item.taskRef as Record<string, unknown>).objectId,
+          enterpriseId,
+          projectId,
+          JSON.stringify(trimmed),
+        ],
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
   });
 
   it('cleans up only expired non-alias generations and keeps the publication proof', async () => {

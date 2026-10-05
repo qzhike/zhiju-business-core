@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   TASK_BOARD_CURSOR_BYTES,
@@ -96,8 +97,6 @@ describe('Task Board cursor codec', () => {
     expect(decoded.snapshotAt).toBe(original.snapshotAt);
     expect(decoded.watermarkSequence).toBe(3);
     expect(decoded.lastTaskId).toBe(original.lastTaskId);
-    expect(decoded.pageSize).toBe(20);
-    expect(decoded.consistency).toBe('PROJECTION_OK');
     expect(() => {
       assertTaskBoardCursorBinding(decoded, original, key);
     }).not.toThrow();
@@ -123,6 +122,47 @@ describe('Task Board cursor codec', () => {
         );
       }),
     ).toBe('QUERY_CURSOR_SCOPE_MISMATCH');
+  });
+
+  it('keeps the approved uint64 sequence range and byte offsets', () => {
+    const claimsAt = (watermarkSequence: number) => claims({ watermarkSequence });
+    const maxSafe = 9_007_199_254_740_991;
+    expect(
+      decodeTaskBoardCursor(encodeTaskBoardCursor(claimsAt(maxSafe), key), key, NOW)
+        .watermarkSequence,
+    ).toBe(maxSafe);
+    expect(
+      decodeTaskBoardCursor(encodeTaskBoardCursor(claimsAt(4_294_967_296), key), key, NOW)
+        .watermarkSequence,
+    ).toBe(4_294_967_296);
+    // The approved offsets: keyId@2, requestBindingHash@6, sourceFingerprint@38,
+    // generationId@70, manifestHash@86, sequence@118, snapshotAt@126,
+    // lastTaskId@134, issuedAt@150, expiresAt@158.
+    const raw = Buffer.from(encodeTaskBoardCursor(claimsAt(7), key), 'base64url');
+    expect(raw.readUInt32BE(2)).toBe(key.keyId);
+    expect(raw.subarray(70, 86).equals(Buffer.alloc(16))).toBe(false);
+    expect(raw.readBigUInt64BE(118)).toBe(7n);
+    expect(raw.readBigInt64BE(126)).toBe(BigInt(Date.parse(claims().snapshotAt)));
+    expect(raw.subarray(134, 150).toString('hex')).toBe(claims().lastTaskId.replaceAll('-', ''));
+    expect(raw.readBigInt64BE(150)).toBe(BigInt(Date.parse(claims().issuedAt)));
+    expect(raw.readBigInt64BE(158)).toBe(BigInt(Date.parse(claims().expiresAt)));
+  });
+
+  it('rejects an authority cursor carrying generation evidence', () => {
+    const authority = authorityClaims();
+    const raw = Buffer.from(encodeTaskBoardCursor(authority, key), 'base64url');
+    const withGeneration = Buffer.from(raw);
+    Buffer.alloc(16, 7).copy(withGeneration, 70);
+    const resign = (body: Buffer): string => {
+      const tag = createHmac('sha256', key.secret).update(body.subarray(0, 166)).digest();
+      return Buffer.concat([body.subarray(0, 166), tag]).toString('base64url');
+    };
+    expect(failureCode(() => void decodeTaskBoardCursor(resign(withGeneration), key, NOW))).toBe(
+      'QUERY_CURSOR_INVALID',
+    );
+    expect(
+      failureCode(() => void decodeTaskBoardCursor(resign(Buffer.from(raw)), key, NOW)),
+    ).toBeUndefined();
   });
 
   it('preserves millisecond instants and binds the key id', () => {

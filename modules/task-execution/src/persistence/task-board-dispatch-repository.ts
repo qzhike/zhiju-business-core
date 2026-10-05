@@ -67,6 +67,7 @@ const DISPATCH_DOMAIN_CODES = [
   'TASK_BOARD_LEASE_NOT_CURRENT',
   'TASK_BOARD_PUBLICATION_CONFLICT',
   'TASK_BOARD_NOT_PUBLISHED',
+  'TASK_BOARD_EXPORT_ALREADY_PUBLISHED',
   'TASK_BOARD_MANIFEST_CONFLICT',
   'TASK_BOARD_DIRTY_NOT_COVERED',
   'TASK_BOARD_DISPATCH_MISSING',
@@ -252,16 +253,32 @@ export async function confirmTaskBoardExport(
   }
 }
 
+/** One recoverable export: unpublished, or published but not acknowledged. */
+export interface TaskBoardRecoveryTarget {
+  readonly exportId: string;
+  readonly manifest: CanonicalJsonObject;
+  readonly manifestHash: Buffer;
+  readonly snapshotAt: Date;
+  readonly policyObservation: CanonicalJsonObject;
+  readonly rowCount: number;
+  readonly rowsHash: Buffer;
+  readonly sourceFingerprint: Buffer;
+  readonly coveredDirtyIds: readonly string[];
+  readonly generationId: string | null;
+  readonly publishSequence: number | null;
+}
+
 /**
- * Read the newest persisted manifest of one Project that has no committed
- * publication proof yet, so an interrupted export is replayed as it was
- * persisted instead of being replaced by a fresh export.
+ * Read the newest export of one Project that is neither confirmed nor retired,
+ * together with its exact publication tuple when it was already published. A
+ * publication proof alone is not completion, so an export that crashed between
+ * the proof and the dirty acknowledgement is still returned.
  */
-export async function readPendingTaskBoardManifest(
+export async function readTaskBoardRecoveryTarget(
   db: Kysely<TaskExecutionDb>,
   context: TaskExecutionTransactionContext,
   project: { readonly enterpriseId: string; readonly projectId: string },
-): Promise<(TaskBoardManifestRecord & { readonly manifest: CanonicalJsonObject }) | undefined> {
+): Promise<TaskBoardRecoveryTarget | undefined> {
   return withTaskExecutionTransaction(db, context, async (trx) => {
     const row = (
       await sql<{
@@ -274,7 +291,9 @@ export async function readPendingTaskBoardManifest(
         rows_hash: Buffer;
         source_fingerprint: Buffer;
         covered_dirty_ids: string[];
-      }>`SELECT export_id,manifest,manifest_hash,snapshot_at,policy_observation,row_count,rows_hash,source_fingerprint,covered_dirty_ids FROM task_execution.task_board_manifest_pending(${project.enterpriseId}::uuid,${project.projectId}::uuid)`.execute(
+        generation_id: string | null;
+        publish_sequence: string | null;
+      }>`SELECT export_id,manifest,manifest_hash,snapshot_at,policy_observation,row_count,rows_hash,source_fingerprint,covered_dirty_ids,generation_id,publish_sequence FROM task_execution.task_board_manifest_recovery(${project.enterpriseId}::uuid,${project.projectId}::uuid)`.execute(
         trx,
       )
     ).rows[0];
@@ -289,8 +308,37 @@ export async function readPendingTaskBoardManifest(
       rowsHash: row.rows_hash,
       sourceFingerprint: row.source_fingerprint,
       coveredDirtyIds: row.covered_dirty_ids,
+      generationId: row.generation_id,
+      publishSequence:
+        row.publish_sequence === null ? null : safeNumber(row.publish_sequence, 'publish_sequence'),
     };
   }).catch(mapDispatchError);
+}
+
+/**
+ * Retire a manifest that can no longer be published under the current Policy,
+ * so a fresh export can replace it and the worker does not re-select it.
+ */
+export async function retireTaskBoardExport(
+  db: Kysely<TaskExecutionDb>,
+  context: TaskExecutionTransactionContext,
+  input: {
+    readonly enterpriseId: string;
+    readonly projectId: string;
+    readonly exportId: string;
+    readonly reasonCode: string;
+    readonly leaseToken: number;
+  },
+): Promise<void> {
+  try {
+    await withTaskExecutionTransaction(db, context, async (trx) => {
+      await sql`SELECT task_execution.task_board_export_retire(${input.exportId}::uuid,${input.enterpriseId}::uuid,${input.projectId}::uuid,${input.reasonCode},${input.leaseToken})`.execute(
+        trx,
+      );
+    });
+  } catch (error) {
+    mapDispatchError(error);
+  }
 }
 
 /**

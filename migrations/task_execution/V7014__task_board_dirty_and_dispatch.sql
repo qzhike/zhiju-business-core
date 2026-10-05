@@ -348,6 +348,38 @@ CREATE POLICY task_board_export_publication_owner_insert ON task_execution.task_
   FOR INSERT TO task_execution_owner
   WITH CHECK (platform_security.context_allows_project(enterprise_id, project_id));
 
+-- ---------------------------------------------------------------------------
+-- 4c. Export confirmation and retirement: the two progress marks that decide
+--     whether a persisted manifest still needs recovery. A publication proof
+--     alone is not completion (the confirmation is a separate committed
+--     transaction), and a manifest whose Policy was superseded before it could
+--     be published is retired so a fresh export can replace it.
+-- ---------------------------------------------------------------------------
+CREATE TABLE task_execution.task_board_export_confirmation (
+  export_id uuid PRIMARY KEY,
+  enterprise_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  manifest_hash bytea NOT NULL,
+  generation_id uuid NOT NULL,
+  publish_sequence bigint NOT NULL,
+  confirmed_dirty_ids uuid[] NOT NULL,
+  confirmed_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT task_board_export_confirmation_hash_len CHECK (octet_length(manifest_hash) = 32),
+  CONSTRAINT task_board_export_confirmation_scope_unique
+    UNIQUE (enterprise_id, project_id, export_id)
+);
+
+CREATE TABLE task_execution.task_board_export_retirement (
+  export_id uuid PRIMARY KEY,
+  enterprise_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  reason_code text NOT NULL,
+  retired_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT task_board_export_retirement_reason CHECK (length(reason_code) > 0),
+  CONSTRAINT task_board_export_retirement_scope_unique
+    UNIQUE (enterprise_id, project_id, export_id)
+);
+
 CREATE FUNCTION task_execution.guard_task_board_publication_immutable() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog AS $guard$
 BEGIN
@@ -363,6 +395,29 @@ CREATE TRIGGER task_board_publication_immutable
 --    Scope and the SERVICE principal kind exactly like dispatch_scope; the
 --    helpers are executable only by task_execution_app.
 -- ---------------------------------------------------------------------------
+GRANT SELECT ON task_execution.task_board_export_confirmation TO task_execution_app;
+REVOKE INSERT, UPDATE, DELETE ON task_execution.task_board_export_confirmation FROM task_execution_app;
+GRANT SELECT ON task_execution.task_board_export_retirement TO task_execution_app;
+REVOKE INSERT, UPDATE, DELETE ON task_execution.task_board_export_retirement FROM task_execution_app;
+ALTER TABLE task_execution.task_board_export_confirmation ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_execution.task_board_export_confirmation FORCE ROW LEVEL SECURITY;
+ALTER TABLE task_execution.task_board_export_retirement ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_execution.task_board_export_retirement FORCE ROW LEVEL SECURITY;
+CREATE POLICY task_board_export_confirmation_app_select ON task_execution.task_board_export_confirmation
+  FOR SELECT TO task_execution_app
+  USING (platform_security.context_allows_project(enterprise_id, project_id));
+CREATE POLICY task_board_export_retirement_app_select ON task_execution.task_board_export_retirement
+  FOR SELECT TO task_execution_app
+  USING (platform_security.context_allows_project(enterprise_id, project_id));
+CREATE POLICY task_board_export_confirmation_owner_all ON task_execution.task_board_export_confirmation
+  FOR ALL TO task_execution_owner
+  USING (platform_security.context_allows_project(enterprise_id, project_id))
+  WITH CHECK (platform_security.context_allows_project(enterprise_id, project_id));
+CREATE POLICY task_board_export_retirement_owner_all ON task_execution.task_board_export_retirement
+  FOR ALL TO task_execution_owner
+  USING (platform_security.context_allows_project(enterprise_id, project_id))
+  WITH CHECK (platform_security.context_allows_project(enterprise_id, project_id));
+
 CREATE FUNCTION task_execution.task_board_dispatch_claim(
   p_enterprise uuid, p_project uuid, p_owner text, p_lease_seconds integer,
   p_now timestamptz) RETURNS TABLE(lease_token bigint, lease_until timestamptz, version bigint)
@@ -460,26 +515,75 @@ BEGIN
 END $fn$;
 REVOKE ALL ON FUNCTION task_execution.task_board_manifest_read(uuid, uuid, uuid) FROM PUBLIC;
 
-CREATE FUNCTION task_execution.task_board_manifest_pending(p_enterprise uuid, p_project uuid)
-RETURNS SETOF task_execution.task_board_export_manifest
+CREATE FUNCTION task_execution.task_board_manifest_recovery(p_enterprise uuid, p_project uuid)
+RETURNS TABLE(
+  export_id uuid, manifest jsonb, manifest_hash bytea, snapshot_at timestamptz,
+  policy_observation jsonb, row_count integer, rows_hash bytea,
+  source_fingerprint bytea, covered_dirty_ids uuid[],
+  generation_id uuid, publish_sequence bigint)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $fn$
 BEGIN
   PERFORM task_execution.dispatch_scope(p_enterprise, p_project);
-  -- The newest persisted manifest that has no committed publication proof yet:
-  -- the recovery出口 replays exactly that export instead of inventing a new one.
+  -- The newest persisted export that is neither confirmed nor retired: it may
+  -- be unpublished (fresh recovery) or already published but not yet
+  -- acknowledged (the two progress marks are separate committed
+  -- transactions), and the publication tuple is returned when it exists.
   RETURN QUERY
-  SELECT m.*
+  SELECT m.export_id, m.manifest, m.manifest_hash, m.snapshot_at, m.policy_observation,
+         m.row_count, m.rows_hash, m.source_fingerprint, m.covered_dirty_ids,
+         p.generation_id, p.publish_sequence
   FROM task_execution.task_board_export_manifest m
+  LEFT JOIN task_execution.task_board_export_publication p ON p.export_id = m.export_id
   WHERE m.enterprise_id = p_enterprise
     AND m.project_id = p_project
     AND NOT EXISTS (
-      SELECT 1 FROM task_execution.task_board_export_publication p
-      WHERE p.export_id = m.export_id
+      SELECT 1 FROM task_execution.task_board_export_confirmation c
+      WHERE c.export_id = m.export_id
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM task_execution.task_board_export_retirement r
+      WHERE r.export_id = m.export_id
     )
   ORDER BY m.created_at DESC, m.export_id
   LIMIT 1;
 END $fn$;
-REVOKE ALL ON FUNCTION task_execution.task_board_manifest_pending(uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION task_execution.task_board_manifest_recovery(uuid, uuid) FROM PUBLIC;
+
+CREATE FUNCTION task_execution.task_board_export_retire(
+  p_export_id uuid, p_enterprise uuid, p_project uuid, p_reason_code text,
+  p_lease_token bigint) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $fn$
+DECLARE d task_execution.task_board_export_dispatch%ROWTYPE;
+BEGIN
+  PERFORM task_execution.dispatch_scope(p_enterprise, p_project);
+  SELECT * INTO d FROM task_execution.task_board_export_dispatch
+    WHERE enterprise_id = p_enterprise AND project_id = p_project
+    FOR UPDATE;
+  IF d.lease_token IS DISTINCT FROM p_lease_token
+     OR d.lease_until IS NULL
+     OR d.lease_until <= clock_timestamp() THEN
+    RAISE EXCEPTION 'TASK_BOARD_LEASE_NOT_CURRENT' USING ERRCODE = '42501';
+  END IF;
+  -- Only an export that was never published may be retired: a published
+  -- manifest still owes its acknowledgement. The committed Projection outcome
+  -- is the publication fact, so a missing TE proof cannot allow retirement.
+  IF EXISTS (
+    SELECT 1 FROM task_execution.task_board_export_publication p
+    WHERE p.export_id = p_export_id
+  ) OR EXISTS (
+    SELECT 1 FROM projection.task_board_publication_outcome o
+    WHERE o.export_id = p_export_id
+      AND o.enterprise_id = p_enterprise
+      AND o.project_id = p_project
+  ) THEN
+    RAISE EXCEPTION 'TASK_BOARD_EXPORT_ALREADY_PUBLISHED' USING ERRCODE = '23514';
+  END IF;
+  INSERT INTO task_execution.task_board_export_retirement
+    (export_id, enterprise_id, project_id, reason_code)
+  VALUES (p_export_id, p_enterprise, p_project, p_reason_code)
+  ON CONFLICT (export_id) DO NOTHING;
+END $fn$;
+REVOKE ALL ON FUNCTION task_execution.task_board_export_retire(uuid, uuid, uuid, text, bigint) FROM PUBLIC;
 
 CREATE FUNCTION task_execution.task_board_dispatch_record_publication(
   p_export_id uuid, p_enterprise uuid, p_project uuid, p_manifest_hash bytea,
@@ -594,6 +698,13 @@ BEGIN
     WHERE marker_id = ANY (COALESCE(p_dirty_ids, ARRAY[]::uuid[]))
       AND enterprise_id = p_enterprise
       AND project_id = p_project;
+  INSERT INTO task_execution.task_board_export_confirmation
+    (export_id, enterprise_id, project_id, manifest_hash, generation_id,
+     publish_sequence, confirmed_dirty_ids)
+  VALUES
+    (p_export_id, p_enterprise, p_project, p_manifest_hash, p_generation_id,
+     p_publish_sequence, COALESCE(p_dirty_ids, ARRAY[]::uuid[]))
+  ON CONFLICT (export_id) DO NOTHING;
   UPDATE task_execution.task_board_export_dispatch
     SET last_export_id = p_export_id,
         last_manifest_hash = p_manifest_hash,
@@ -638,7 +749,8 @@ GRANT EXECUTE ON FUNCTION
   task_execution.task_board_dispatch_state(uuid, uuid),
   task_execution.task_board_manifest_record(uuid, uuid, uuid, jsonb, bytea, timestamptz, jsonb, integer, bytea, bytea, uuid[], uuid),
   task_execution.task_board_manifest_read(uuid, uuid, uuid),
-  task_execution.task_board_manifest_pending(uuid, uuid),
+  task_execution.task_board_manifest_recovery(uuid, uuid),
+  task_execution.task_board_export_retire(uuid, uuid, uuid, text, bigint),
   task_execution.task_board_dispatch_record_publication(uuid, uuid, uuid, bytea, uuid, bigint, bigint),
   task_execution.task_board_dispatch_confirm(uuid, uuid, uuid, bytea, uuid, bigint, uuid[], uuid),
   task_execution.task_board_dirty_read(uuid, uuid),

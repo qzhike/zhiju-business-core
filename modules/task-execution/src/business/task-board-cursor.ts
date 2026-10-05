@@ -16,18 +16,16 @@
 //   38   32    sourceFingerprint               (complete canonical source fingerprint)
 //   70   16    generationId                    (uuid bytes, zero for authority)
 //   86   32    manifestHash                    (complete, zero for authority)
-//   118  2     pageSize                        (uint16)
-//   120  1     consistencyRequirement          (0/1/2)
-//   121  1     flags (bit0 asOf, bit1 minimumWatermark)
-//   122  8     issuedAt                        (int64 ms)
-//   130  8     expiresAt                       (int64 ms)
-//   138  8     snapshotAt                      (int64 ms)
-//   146  4     sourceWatermarks[0].sequence    (uint32)
-//   150  16    lastTaskId                      (uuid bytes)
+//   118  8     sourceWatermarks[0].sequence    (uint64, safe integer)
+//   126  8     snapshotAt                      (int64 ms)
+//   134  16    lastTaskId                      (uuid bytes)
+//   150  8     issuedAt                        (int64 ms)
+//   158  8     expiresAt                       (int64 ms)
 //   166  32    HMAC-SHA256(secret) over bytes 0..165
 //
-// asOf and minimumWatermark are bound (and compared) through the
-// requestBindingHash; their presence is additionally flagged.
+// pageSize, consistencyRequirement, asOf and minimumWatermark are bound (and
+// compared) through the requestBindingHash, so they do not consume payload
+// bytes of their own.
 
 import { Buffer } from 'node:buffer';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
@@ -45,16 +43,6 @@ const TAG_BYTES = 32;
 /** Fixed encoded byte length: payload + full HMAC tag (264 base64url chars). */
 export const TASK_BOARD_CURSOR_BYTES = PAYLOAD_BYTES + TAG_BYTES;
 const MAX_UINT32 = 0xffff_ffff;
-const CONSISTENCY_ORDER: readonly TaskBoardConsistency[] = [
-  'AUTHORITATIVE',
-  'SNAPSHOT_AT_LEAST',
-  'PROJECTION_OK',
-];
-const CONSISTENCY_CODE: Readonly<Record<TaskBoardConsistency, number>> = {
-  AUTHORITATIVE: 0,
-  SNAPSHOT_AT_LEAST: 1,
-  PROJECTION_OK: 2,
-};
 /** Field offsets inside the 166-byte payload (the approved cv1 layout). */
 const OFF = {
   keyId: 2,
@@ -62,14 +50,11 @@ const OFF = {
   sourceFingerprint: 38,
   generationId: 70,
   manifestHash: 86,
-  pageSize: 118,
-  consistency: 120,
-  flags: 121,
-  issuedAt: 122,
-  expiresAt: 130,
-  snapshotAt: 138,
-  watermarkSequence: 146,
-  lastTaskId: 150,
+  watermarkSequence: 118,
+  snapshotAt: 126,
+  lastTaskId: 134,
+  issuedAt: 150,
+  expiresAt: 158,
 } as const;
 const ZERO_UUID = Buffer.alloc(16);
 
@@ -101,12 +86,16 @@ function readMilliseconds(buffer: Buffer, offset: number): number {
 }
 
 function writeCount(buffer: Buffer, offset: number, value: number): void {
-  if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) fail('API_VALUE_INVALID');
-  buffer.writeUInt32BE(value, offset);
+  // Spec 003 §12.6 keeps the publication sequence a uint64 safe integer; the
+  // PostgreSQL column allows up to 9007199254740991.
+  if (!Number.isSafeInteger(value) || value < 0) fail('API_VALUE_INVALID');
+  buffer.writeBigUInt64BE(BigInt(value), offset);
 }
 
 function readCount(buffer: Buffer, offset: number): number {
-  return buffer.readUInt32BE(offset);
+  const value = Number(buffer.readBigUInt64BE(offset));
+  if (!Number.isSafeInteger(value) || value < 0) fail('QUERY_CURSOR_INVALID');
+  return value;
 }
 
 function hexBytes(value: string, code: string): Buffer {
@@ -155,10 +144,6 @@ export interface TaskBoardCursorClaims {
 /** The decoded cursor: raw session state plus the opaque binding hashes. */
 export interface TaskBoardDecodedCursor {
   readonly mode: 'GENERATION' | 'AUTHORITY';
-  readonly pageSize: number;
-  readonly consistency: TaskBoardConsistency;
-  readonly asOfPresent: boolean;
-  readonly minimumWatermarkPresent: boolean;
   readonly generationId?: string;
   readonly snapshotAt: string;
   readonly watermarkSequence: number;
@@ -174,10 +159,6 @@ function payloadFor(claims: TaskBoardCursorClaims, keyId: number): Buffer {
   const payload = Buffer.alloc(PAYLOAD_BYTES);
   payload[0] = FORMAT_VERSION;
   payload[1] = claims.generationId === undefined ? 1 : 0;
-  payload.writeUInt16BE(claims.pageSize, OFF.pageSize);
-  payload[OFF.consistency] = CONSISTENCY_CODE[claims.consistency];
-  payload[OFF.flags] =
-    (claims.asOf === undefined ? 0 : 1) | (claims.minimumWatermark === undefined ? 0 : 2);
   payload.writeUInt32BE(keyId, OFF.keyId);
   writeMilliseconds(
     payload,
@@ -267,10 +248,6 @@ export function decodeTaskBoardCursor(
   const mode = payload[1] === 0 ? 'GENERATION' : payload[1] === 1 ? 'AUTHORITY' : undefined;
   if (mode === undefined) fail('QUERY_CURSOR_INVALID');
   if (payload.readUInt32BE(OFF.keyId) !== key.keyId) fail('QUERY_CURSOR_INVALID');
-  const consistency = CONSISTENCY_ORDER[payload[OFF.consistency] ?? -1];
-  if (consistency === undefined) fail('QUERY_CURSOR_INVALID');
-  const flags = payload[OFF.flags] ?? 0;
-  if ((flags & ~3) !== 0) fail('QUERY_CURSOR_INVALID');
   const generationIdBytes = payload.subarray(OFF.generationId, OFF.generationId + 16);
   const manifestHashBytes = Buffer.from(payload.subarray(OFF.manifestHash, OFF.manifestHash + 32));
   // An authority cursor must not carry generation evidence, and vice versa.
@@ -291,10 +268,6 @@ export function decodeTaskBoardCursor(
   );
   return {
     mode,
-    pageSize: payload.readUInt16BE(OFF.pageSize),
-    consistency,
-    asOfPresent: (flags & 1) !== 0,
-    minimumWatermarkPresent: (flags & 2) !== 0,
     ...(mode === 'GENERATION' ? { generationId: uuidText(generationIdBytes) } : {}),
     snapshotAt: new Date(readMilliseconds(payload, OFF.snapshotAt)).toISOString(),
     watermarkSequence: readCount(payload, OFF.watermarkSequence),
@@ -321,13 +294,8 @@ export function assertTaskBoardCursorBinding(
   if (decoded.mode !== (claims.generationId === undefined ? 'AUTHORITY' : 'GENERATION'))
     fail('QUERY_CURSOR_SCOPE_MISMATCH');
   if (decoded.generationId !== claims.generationId) fail('QUERY_CURSOR_SCOPE_MISMATCH');
-  if (decoded.pageSize !== claims.pageSize || decoded.consistency !== claims.consistency)
-    fail('QUERY_CURSOR_SCOPE_MISMATCH');
-  if (
-    decoded.asOfPresent !== (claims.asOf !== undefined) ||
-    decoded.minimumWatermarkPresent !== (claims.minimumWatermark !== undefined)
-  )
-    fail('QUERY_CURSOR_SCOPE_MISMATCH');
+  // pageSize/consistency/asOf/minimumWatermark are compared through the
+  // requestBindingHash below.
   const expected = payloadFor(claims, key.keyId);
   if (
     !timingSafeEqual(
