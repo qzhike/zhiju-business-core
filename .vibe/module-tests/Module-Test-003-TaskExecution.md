@@ -647,7 +647,7 @@ authority 为 [Spec 003 §27](../module-specs/Module-Spec-003-TaskExecution.md#2
 
 ## IM06-BOARD 首版实现验收
 
-状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY PASS / 下表端到端与外部/人工 NOT RUN（修订后新增 owning Task→AUTHORITATIVE 读取、撤权、export/publish→PROJECTION_OK、SQL guard 精确行相等反例、伪造 publication 反例、fence 锁等待跨期限 reached 屏障（publisher reached 信号）与 pending manifest 恢复读取的 focused 证据见 PR #249）`。authority Spec003 §12、IP §15.19、PostgreSQL IM06-BOARD、共享API IM06-BOARD。本矩阵保留并精确化旧TE-TD-027–032、039–042，旧表结果不升级。
+状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / CONTRACT+UNIT PASS / PG 分层证据：存储边界（lease/fence/replay/确认/cleanup）、SQL guard（canonical hash、精确行相等、镜像）、伪造 publication 拒绝、fence 锁等待跨期限 reached 屏障、proof→confirm 与 publish→proof 崩溃恢复、真实 owning v1/v2 Task 身份、WO 身份、SNAPSHOT_AT_LEAST 满足/不可达、G1→G2 分页、晚提交 dirty。下表端到端行中仍未交付：正常完成/BLOCKED_INPUT/一次恢复/取消后的 blocker 与 current Evaluation 状态链、返回前 Policy/依赖撤权的 reached 屏障、Export RR 两连接、P1→H/H→P2 确定性屏障；外部/人工保持 NOT RUN`。
 
 | ID/关联 | 可观察输入与必要预期 | 当前结果 |
 |---|---|---|

@@ -1,6 +1,50 @@
 # PR #249 正式审查记录
 
-## 第六轮复审（当前结论，新 head）
+## 第七轮复审（当前结论，新 head）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`328b5c499a19d5b8f098ce817b7a0727cff7546c`；日期：2026-10-05。
+- PR OPEN、非 Draft；Issue #248 Acceptance 未调整、无 comments/finding 回复。本地与远端 head 一致，起始工作区干净。
+- 非盲审：已有历史上下文，按当前 Issue、Spec003 §12、Spec001 §15.19、API/PG IM06-BOARD 和实际 diff 独立核对。旧问题关闭以本轮具体反例和证据为准，范围不扩大。
+
+### 第七轮证据
+
+- [CI run 37313254182](https://github.com/qzhike/zhiju-business-core/actions/runs/37313254182) headSha 精确匹配本轮 SHA；select/checks/persistence/verify SUCCESS。Verify code 包含 clean，Verify persistence 经过 clean/build prerequisites，覆盖 required full 的 code 与真实 PG gate；复用，不重复本地 full。
+- Focused Unit：`node node_modules/vitest/vitest.mjs run modules/task-execution/src/business/task-board-read.test.ts modules/task-execution/src/business/task-board-cursor.test.ts modules/identity-policy/src/commands/task-board-authorization.test.ts modules/identity-policy/src/commands/task-board-source-hash.test.ts`：4 files / 33 tests PASS。
+- 独立 fix probe：`node node_modules/vitest/vitest.mjs run .review-pr249-round7-probe.test.ts`：1 file / 3 cases PASS。有效 AUTH zero sequence 往返；前轮合法签名 AUTH sequence=1 现在报 QUERY_CURSOR_INVALID；outcome-derived 原 A publication tuple 在当前 B 下确认原 export/generation/sequence，retire/publish 为0。
+- composition probe 的 recovery tuple 为 mocked input；只证明真实 worker 的控制流。tuple 来自 Projection outcome 且没有 TE proof 的实际 storage 读取/记录/确认，由本 head 新增 PG 测试及 exact CI 另行证明；不合并宣称真实 worker crash、Policy lifecycle 或 dirty 恢复已验收。临时诊断移出产品集合。
+- 新增真实 v1/v2 Task 身份、SNAPSHOT_AT_LEAST 成功/最低水位未达、alias 变更后两页无重复的 focused entry PG 用例认可。分页例没有 G1→G2 间 owning source 变化，未遍历完整 G1 集合；因此不提升为完整无漏项验收。
+- 完整 BOARD-D/IP-BOARD-D 状态链、返回前当前权限、确定性 Export RR/late dirty/worker 与 marker crash recovery 仍未完成。完整矩阵仍 NOT RUN；本轮未新增本地 PG。HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot 取代 lifecycle 和 TD-07 等延后边界保持。
+- 本地配置 docs 沿用已查明但未恢复的固定 pnpm dependency-status/非TTY install 限制（ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY；此前 Vibe exit21/子命令1），不重复确定性失败，当前记录的配置 docs 未完成、非 PASS。Prettier API check/`git diff --check` 是独立窄诊断。
+
+### 第六轮 findings 对账
+
+| Finding           | 第七轮判断                               | 当前依据                                                                                                                                                   |
+| ----------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R7                | 关闭原非法 AUTH sequence 接受反例        | decode 新增 sequence=0 检查；合法零值正例与前轮签名非零负例独立通过                                                                                        |
+| R14               | 关闭原 publish→proof + Policy 更新死循环 | SQL recovery 加入精确 Project/export/hash 的不可变 Projection outcome；已有 tuple 的 worker confirmation 路径不退役、不重发布；实际 storage 正例由 CI 证明 |
+| R10               | 部分修复，必要出口仍阻断                 | 新增两项 entry 与 proof-gap storage 例认可；剩余真实状态链、确定性并发、当前权限及 worker/marker 恢复未交付                                                |
+| 其余历史 findings | 维持原报告缺陷关闭                       | 当前修订无相关回退证据；不据此声称完整业务矩阵通过                                                                                                         |
+
+### 第七轮阻断 comment
+
+#### R10 [P1] 补齐剩余必要 owning/并发/恢复验收
+
+位置：`tests/persistence/task-board-entry.test.ts:465`。
+
+新增真实 v1/v2 Task、SNAPSHOT_AT_LEAST 成功/未达水位、alias-change 两页与实际 Projection outcome 无 TE proof 的 PG 用例有效，撤回“entry 只有三例”的前轮描述。当前 #248 仍要求完成/BLOCKED_INPUT/恢复/取消/current Evaluation 与两种 WO 创建事实、七项 mapping 正反例及最终返回前依赖/Policy 撤权、reached 两连接 Export RR、低序号 dirty 晚提交、实际 dispatcher crash 原 export/hash/generation/sequence 与 covered marker 恢复；完整 BOARD-D/IP-BOARD-D 未完成，Acceptance 未变。
+
+当前分页例只是源未变时重导并断言两页无重叠，未证明 source 更新后的完整 G1 无漏项遍历；新增 proof-gap storage 用例 coveredDirtyIds=[]，直接 reader/proof/confirm，未驱动 worker/Policy 变化/dirty 恢复。请补剩余确定性 owning/PG 场景，按真实执行粒度维护 PASS/PARTIAL；exact CI 与 focused 正例不可替代必要验收。不扩大外部/人工或既有延后 lifecycle 范围。
+
+### 第七轮交付
+
+已发布并读回 [COMMENT review 5417021454](https://github.com/qzhike/zhiju-business-core/pull/249#pullrequestreview-5417021454)，state=`COMMENTED`、commit_id 精确匹配本轮 SHA；[R10 P1 comment 4185822811](https://github.com/qzhike/zhiju-business-core/pull/249#discussion_r4185822811) 已存在。发布后 head 未变化、PR 仍 OPEN。正式文档 Prettier API check 与 `git diff --check` PASS；配置 docs 未完成、限制如上。
+
+当前账号是 PR 作者，技术 outcome REQUEST_CHANGES 与 GitHub COMMENTED 状态分开。仅更新本正式记录及发布 comments；未改产品代码，不 commit/push/merge。
+
+---
+
+## 第六轮复审（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`34c832fd577734841a69c85a20a01acba2ebf39d`；日期：2026-10-05。

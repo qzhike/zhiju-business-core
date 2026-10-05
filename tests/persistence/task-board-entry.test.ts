@@ -489,6 +489,53 @@ describe.skipIf(!gateEnabled)(
       expect(continuedIds.some((id) => firstIds.includes(id))).toBe(false);
     });
 
+    it('binds the WorkOrder identity of a real owning WorkOrder', async () => {
+      const board = await boardHarness();
+      const taskId = await suite.createExecutableTask('2.0');
+      const workOrderId = await suite.createWorkOrder({ taskId, taskMajor: '2.0' });
+      const result = await board.runAuthoritative({
+        projectRef: board.projectRef,
+        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+        page: { pageSize: 50 },
+      });
+      const items = (result.data as Record<string, unknown>).items as Record<string, unknown>[];
+      const item = items.find(
+        (candidate) => (candidate.taskRef as Record<string, unknown>).objectId === taskId,
+      );
+      expect(item).toBeDefined();
+      const workOrders = item?.activeWorkOrderRefs as Record<string, unknown>[];
+      expect(
+        workOrders.some(
+          (ref) => ref.objectId === workOrderId && ref.objectType === 'zhiju.execution.work_order',
+        ),
+      ).toBe(true);
+    });
+
+    it('keeps a late-committing dirty marker visible and covered by the next export', async () => {
+      const board = await boardHarness();
+      await board.exportPass();
+      expect(await board.dirtyCount()).toBe(0);
+      // A writer whose transaction commits after the export (a lower sequence
+      // that lands late) must not be lost: it stays pending and is covered by
+      // the next export.
+      const scope = board.projectRef.scope as Record<string, unknown>;
+      await suite.admin.query(
+        `INSERT INTO task_execution.task_board_dirty
+           (marker_id, enterprise_id, project_id, source_type, source_id, created_at)
+         VALUES ($1,$2,$3,'task',$4, now() - interval '1 hour')`,
+        [newUuidV7(), scope.enterpriseId, scope.projectId, newUuidV7()],
+      );
+      expect(await board.dirtyCount()).toBe(1);
+      const stale = await board.runProjection({
+        projectRef: board.projectRef,
+        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+        page: { pageSize: 50 },
+      });
+      expect(stale.stalenessStatus).toBe('STALE');
+      await board.exportPass();
+      expect(await board.dirtyCount()).toBe(0);
+    });
+
     it('refuses the read once the Human Grant is revoked', async () => {
       const board = await boardHarness();
       await expect(
