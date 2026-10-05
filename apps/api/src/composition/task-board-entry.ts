@@ -318,18 +318,29 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
         );
       const sourceGrant = await revalidateDependency(sourceDecisionRef, 'taskBoardSourceReadV1');
 
-      const healthDecision = await auth.authorize(serviceDeps, 'taskBoardHealthReadV1', {
-        actorSnapshotRef: session.serviceSession.resolutionActorSnapshotRef,
-        commandType: HEALTH_OPERATION,
-        commandVersion: QUERY_VERSION,
-        commandPayloadHash: payloadHashOf({ projectRef }),
-        authenticationContextHash: serviceSessionHash,
-        targetRef: projectRef as unknown as Common.ObjectRef,
-      });
-      if (healthDecision.outcome !== 'ALLOW')
-        entryError(AUTHORIZATION_REVOKED, 'Board health read was denied');
-      const healthRef = healthDecision.authorizationDecisionRef;
-      const healthGrant = await revalidateDependency(healthRef, 'taskBoardHealthReadV1');
+      // Source health is only read by the Projection-based branches, so an
+      // AUTHORITATIVE read neither needs nor binds the health mapping
+      // (Spec 001 §15.19 keeps the AUTH path free of Projection/health
+      // authority).
+      const usesSourceHealth = consistency !== 'AUTHORITATIVE';
+      let healthRef: Common.ContentAddressedRef | undefined;
+      let healthExpiresAt = '';
+      let healthGrant: SelectedAuthorizationGrant | undefined;
+      if (usesSourceHealth) {
+        const healthDecision = await auth.authorize(serviceDeps, 'taskBoardHealthReadV1', {
+          actorSnapshotRef: session.serviceSession.resolutionActorSnapshotRef,
+          commandType: HEALTH_OPERATION,
+          commandVersion: QUERY_VERSION,
+          commandPayloadHash: payloadHashOf({ projectRef }),
+          authenticationContextHash: serviceSessionHash,
+          targetRef: projectRef as unknown as Common.ObjectRef,
+        });
+        if (healthDecision.outcome !== 'ALLOW')
+          entryError(AUTHORIZATION_REVOKED, 'Board health read was denied');
+        healthRef = healthDecision.authorizationDecisionRef;
+        healthExpiresAt = healthDecision.expiresAt;
+        healthGrant = await revalidateDependency(healthRef, 'taskBoardHealthReadV1');
+      }
 
       const policyRead = await resolveBoardPolicy(
         configuredPolicy,
@@ -356,15 +367,20 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
         hash: sourceRow.payload_hash,
         expiresAt: sourceRow.expires_at,
       });
-      const healthContext = serviceContext(sourceRow, correlationId, {
-        id: healthRef.objectId,
-        hash: Buffer.from(healthRef.contentHash.digest, 'hex'),
-        expiresAt: new Date(healthDecision.expiresAt),
-      });
+      // The health context is only needed when a Projection branch actually
+      // reads source health.
+      const healthContext =
+        healthRef === undefined
+          ? projectionContext
+          : serviceContext(sourceRow, correlationId, {
+              id: healthRef.objectId,
+              hash: Buffer.from(healthRef.contentHash.digest, 'hex'),
+              expiresAt: new Date(healthExpiresAt),
+            });
       const revalidateAll = async (): Promise<void> => {
         await validateHuman();
         await revalidateDependency(sourceDecisionRef, 'taskBoardSourceReadV1');
-        await revalidateDependency(healthRef, 'taskBoardHealthReadV1');
+        if (healthRef !== undefined) await revalidateDependency(healthRef, 'taskBoardHealthReadV1');
         // The Policy read is a protected read too: a Grant revoked after the
         // owning source read must fail the whole query instead of returning
         // data under a stale Policy.
@@ -398,14 +414,18 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
               sourceRow,
               sourceGrant,
             ),
-            authorizationEntry(
-              'taskBoardHealthReadV1',
-              config.capabilityCodes.taskBoardHealthReadV1,
-              HEALTH_OPERATION,
-              HEALTH_OPERATION,
-              sourceRow,
-              healthGrant,
-            ),
+            ...(usesSourceHealth
+              ? [
+                  authorizationEntry(
+                    'taskBoardHealthReadV1',
+                    config.capabilityCodes.taskBoardHealthReadV1,
+                    HEALTH_OPERATION,
+                    HEALTH_OPERATION,
+                    sourceRow,
+                    healthGrant,
+                  ),
+                ]
+              : []),
             authorizationEntry(
               'taskBoardPolicyReadV1',
               config.capabilityCodes.taskBoardPolicyReadV1,

@@ -253,6 +253,47 @@ export async function confirmTaskBoardExport(
 }
 
 /**
+ * Read the newest persisted manifest of one Project that has no committed
+ * publication proof yet, so an interrupted export is replayed as it was
+ * persisted instead of being replaced by a fresh export.
+ */
+export async function readPendingTaskBoardManifest(
+  db: Kysely<TaskExecutionDb>,
+  context: TaskExecutionTransactionContext,
+  project: { readonly enterpriseId: string; readonly projectId: string },
+): Promise<(TaskBoardManifestRecord & { readonly manifest: CanonicalJsonObject }) | undefined> {
+  return withTaskExecutionTransaction(db, context, async (trx) => {
+    const row = (
+      await sql<{
+        export_id: string;
+        manifest: CanonicalJsonObject;
+        manifest_hash: Buffer;
+        snapshot_at: Date;
+        policy_observation: CanonicalJsonObject;
+        row_count: number;
+        rows_hash: Buffer;
+        source_fingerprint: Buffer;
+        covered_dirty_ids: string[];
+      }>`SELECT export_id,manifest,manifest_hash,snapshot_at,policy_observation,row_count,rows_hash,source_fingerprint,covered_dirty_ids FROM task_execution.task_board_manifest_pending(${project.enterpriseId}::uuid,${project.projectId}::uuid)`.execute(
+        trx,
+      )
+    ).rows[0];
+    if (row === undefined) return undefined;
+    return {
+      exportId: row.export_id,
+      manifest: row.manifest,
+      manifestHash: row.manifest_hash,
+      snapshotAt: row.snapshot_at,
+      policyObservation: row.policy_observation,
+      rowCount: row.row_count,
+      rowsHash: row.rows_hash,
+      sourceFingerprint: row.source_fingerprint,
+      coveredDirtyIds: row.covered_dirty_ids,
+    };
+  }).catch(mapDispatchError);
+}
+
+/**
  * Record the immutable publication proof of one manifest under the live
  * export lease. Confirmation requires this exact record, so an export that was
  * never published can never acknowledge its dirty identities.

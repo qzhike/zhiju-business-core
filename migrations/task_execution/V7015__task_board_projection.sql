@@ -227,10 +227,13 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1
         FROM projection.task_board_generation AS g
+        CROSS JOIN LATERAL jsonb_array_elements(g.manifest->'rows') AS element
         WHERE g.generation_id = NEW.generation_id
           AND g.enterprise_id = NEW.enterprise_id
           AND g.project_id = NEW.project_id
-          AND g.manifest->'rows' @> jsonb_build_array(NEW.row)
+          -- Exact full-row equality: an element that merely contains the
+          -- stored row (a dropped field) must not satisfy the guard.
+          AND element = NEW.row
     ) THEN
         RAISE EXCEPTION 'task_board_row is not part of its generation manifest'
             USING ERRCODE = '23514';

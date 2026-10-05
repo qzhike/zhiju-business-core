@@ -11,26 +11,23 @@
 //   off  size  field
 //   0    1     format version
 //   1    1     mode (0 = fixed generation, 1 = authority snapshot)
-//   2    2     pageSize                       (uint16)
-//   4    1     consistencyRequirement          (0/1/2)
-//   5    1     flags (bit0 asOf, bit1 minimumWatermark)
-//   6    4     keyId                           (uint32)
-//   10   8     issuedAt                        (int64 ms)
-//   18   8     expiresAt                       (int64 ms)
-//   26   8     snapshotAt                      (int64 ms)
-//   34   8     sourceWatermarks[0].sequence    (uint64)
-//   42   8     asOf                            (int64 ms, 0 when absent)
-//   50   8     minimumWatermark                (uint64, 0 when absent)
-//   58   16    lastTaskId                      (uuid bytes)
-//   74   16    generationId                    (uuid bytes, zero for authority)
-//   90   32    requestBindingHash: sha256/cv1 over the complete request binding
-//   122  32    manifestHash (generation) | sourceFingerprint (authority), full bytes
-//   154  12    reserved (zero) — format headroom
+//   2    4     keyId                           (uint32)
+//   6    32    requestBindingHash: sha256/cv1 over the complete request binding
+//   38   32    sourceFingerprint               (complete canonical source fingerprint)
+//   70   16    generationId                    (uuid bytes, zero for authority)
+//   86   32    manifestHash                    (complete, zero for authority)
+//   118  2     pageSize                        (uint16)
+//   120  1     consistencyRequirement          (0/1/2)
+//   121  1     flags (bit0 asOf, bit1 minimumWatermark)
+//   122  8     issuedAt                        (int64 ms)
+//   130  8     expiresAt                       (int64 ms)
+//   138  8     snapshotAt                      (int64 ms)
+//   146  4     sourceWatermarks[0].sequence    (uint32)
+//   150  16    lastTaskId                      (uuid bytes)
 //   166  32    HMAC-SHA256(secret) over bytes 0..165
 //
-// The HMAC key is a trusted startup secret plus its numeric `keyId`; a Decision
-// hash is never the signing key, and neither the secret nor the key material is
-// stored in a database, a cursor or an audit row.
+// asOf and minimumWatermark are bound (and compared) through the
+// requestBindingHash; their presence is additionally flagged.
 
 import { Buffer } from 'node:buffer';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
@@ -58,23 +55,23 @@ const CONSISTENCY_CODE: Readonly<Record<TaskBoardConsistency, number>> = {
   SNAPSHOT_AT_LEAST: 1,
   PROJECTION_OK: 2,
 };
-/** Field offsets inside the 166-byte payload. */
+/** Field offsets inside the 166-byte payload (the approved cv1 layout). */
 const OFF = {
-  pageSize: 2,
-  consistency: 4,
-  flags: 5,
-  keyId: 6,
-  issuedAt: 10,
-  expiresAt: 18,
-  snapshotAt: 26,
-  watermarkSequence: 34,
-  asOf: 42,
-  minimumWatermark: 50,
-  lastTaskId: 58,
-  generationId: 74,
-  requestBindingHash: 90,
-  evidenceHash: 122,
+  keyId: 2,
+  requestBindingHash: 6,
+  sourceFingerprint: 38,
+  generationId: 70,
+  manifestHash: 86,
+  pageSize: 118,
+  consistency: 120,
+  flags: 121,
+  issuedAt: 122,
+  expiresAt: 130,
+  snapshotAt: 138,
+  watermarkSequence: 146,
+  lastTaskId: 150,
 } as const;
+const ZERO_UUID = Buffer.alloc(16);
 
 function bindingHash(value: CanonicalJsonValue): Buffer {
   return createHash('sha256').update(canonicalize(value), 'utf8').digest();
@@ -104,14 +101,18 @@ function readMilliseconds(buffer: Buffer, offset: number): number {
 }
 
 function writeCount(buffer: Buffer, offset: number, value: number): void {
-  if (!Number.isSafeInteger(value) || value < 0) fail('API_VALUE_INVALID');
-  buffer.writeBigUInt64BE(BigInt(value), offset);
+  if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) fail('API_VALUE_INVALID');
+  buffer.writeUInt32BE(value, offset);
 }
 
 function readCount(buffer: Buffer, offset: number): number {
-  const value = Number(buffer.readBigUInt64BE(offset));
-  if (!Number.isSafeInteger(value)) fail('QUERY_CURSOR_INVALID');
-  return value;
+  return buffer.readUInt32BE(offset);
+}
+
+function hexBytes(value: string, code: string): Buffer {
+  const bytes = Buffer.from(value, 'hex');
+  if (bytes.length !== 32) fail(code);
+  return bytes;
 }
 
 function instantToMilliseconds(value: string, code: string): number {
@@ -151,13 +152,13 @@ export interface TaskBoardCursorClaims {
   readonly expiresAt: string;
 }
 
-/** The decoded cursor: raw paging state plus the opaque binding digests. */
+/** The decoded cursor: raw session state plus the opaque binding hashes. */
 export interface TaskBoardDecodedCursor {
   readonly mode: 'GENERATION' | 'AUTHORITY';
   readonly pageSize: number;
   readonly consistency: TaskBoardConsistency;
-  readonly asOf?: number;
-  readonly minimumWatermark?: number;
+  readonly asOfPresent: boolean;
+  readonly minimumWatermarkPresent: boolean;
   readonly generationId?: string;
   readonly snapshotAt: string;
   readonly watermarkSequence: number;
@@ -165,7 +166,8 @@ export interface TaskBoardDecodedCursor {
   readonly issuedAt: string;
   readonly expiresAt: string;
   readonly requestBindingHash: Buffer;
-  readonly evidenceHash: Buffer;
+  readonly sourceFingerprint: Buffer;
+  readonly manifestHash: Buffer;
 }
 
 function payloadFor(claims: TaskBoardCursorClaims, keyId: number): Buffer {
@@ -193,21 +195,17 @@ function payloadFor(claims: TaskBoardCursorClaims, keyId: number): Buffer {
     instantToMilliseconds(claims.snapshotAt, 'API_VALUE_INVALID'),
   );
   writeCount(payload, OFF.watermarkSequence, claims.watermarkSequence);
-  if (claims.asOf !== undefined)
-    writeMilliseconds(payload, OFF.asOf, instantToMilliseconds(claims.asOf, 'API_VALUE_INVALID'));
-  if (claims.minimumWatermark !== undefined)
-    writeCount(payload, OFF.minimumWatermark, claims.minimumWatermark);
   uuidBytes(claims.lastTaskId).copy(payload, OFF.lastTaskId);
-  let evidenceHash: Buffer;
+  if (claims.sourceFingerprint === undefined) fail('API_VALUE_INVALID');
+  hexBytes(claims.sourceFingerprint, 'API_VALUE_INVALID').copy(payload, OFF.sourceFingerprint);
   if (claims.generationId === undefined) {
-    if (claims.sourceFingerprint === undefined) fail('API_VALUE_INVALID');
-    evidenceHash = Buffer.from(claims.sourceFingerprint, 'hex');
+    ZERO_UUID.copy(payload, OFF.generationId);
+    Buffer.alloc(32).copy(payload, OFF.manifestHash);
   } else {
     if (claims.manifestHash === undefined) fail('API_VALUE_INVALID');
     uuidBytes(claims.generationId).copy(payload, OFF.generationId);
-    evidenceHash = Buffer.from(claims.manifestHash, 'hex');
+    hexBytes(claims.manifestHash, 'API_VALUE_INVALID').copy(payload, OFF.manifestHash);
   }
-  if (evidenceHash.length !== 32) fail('API_VALUE_INVALID');
   // One complete-canonicalization hash binds the whole request binding; the
   // generation/fingerprint evidence is carried in full beside it.
   bindingHash({
@@ -225,7 +223,6 @@ function payloadFor(claims: TaskBoardCursorClaims, keyId: number): Buffer {
     asOf: claims.asOf ?? null,
     minimumWatermark: claims.minimumWatermark ?? null,
   }).copy(payload, OFF.requestBindingHash);
-  evidenceHash.copy(payload, OFF.evidenceHash);
   return payload;
 }
 
@@ -274,6 +271,14 @@ export function decodeTaskBoardCursor(
   if (consistency === undefined) fail('QUERY_CURSOR_INVALID');
   const flags = payload[OFF.flags] ?? 0;
   if ((flags & ~3) !== 0) fail('QUERY_CURSOR_INVALID');
+  const generationIdBytes = payload.subarray(OFF.generationId, OFF.generationId + 16);
+  const manifestHashBytes = Buffer.from(payload.subarray(OFF.manifestHash, OFF.manifestHash + 32));
+  // An authority cursor must not carry generation evidence, and vice versa.
+  if (
+    (mode === 'AUTHORITY' && !generationIdBytes.equals(ZERO_UUID)) ||
+    (mode === 'AUTHORITY' && !manifestHashBytes.equals(Buffer.alloc(32)))
+  )
+    fail('QUERY_CURSOR_INVALID');
   const issuedAt = readMilliseconds(payload, OFF.issuedAt);
   const expiresAt = readMilliseconds(payload, OFF.expiresAt);
   if (expiresAt <= issuedAt) fail('QUERY_CURSOR_INVALID');
@@ -281,23 +286,24 @@ export function decodeTaskBoardCursor(
   const requestBindingHash = Buffer.from(
     payload.subarray(OFF.requestBindingHash, OFF.requestBindingHash + 32),
   );
-  const evidenceHash = Buffer.from(payload.subarray(OFF.evidenceHash, OFF.evidenceHash + 32));
+  const sourceFingerprint = Buffer.from(
+    payload.subarray(OFF.sourceFingerprint, OFF.sourceFingerprint + 32),
+  );
   return {
     mode,
     pageSize: payload.readUInt16BE(OFF.pageSize),
     consistency,
-    ...(flags & 1 ? { asOf: readMilliseconds(payload, OFF.asOf) } : {}),
-    ...(flags & 2 ? { minimumWatermark: readCount(payload, OFF.minimumWatermark) } : {}),
-    ...(mode === 'GENERATION'
-      ? { generationId: uuidText(payload.subarray(OFF.generationId, OFF.generationId + 16)) }
-      : {}),
+    asOfPresent: (flags & 1) !== 0,
+    minimumWatermarkPresent: (flags & 2) !== 0,
+    ...(mode === 'GENERATION' ? { generationId: uuidText(generationIdBytes) } : {}),
     snapshotAt: new Date(readMilliseconds(payload, OFF.snapshotAt)).toISOString(),
     watermarkSequence: readCount(payload, OFF.watermarkSequence),
     lastTaskId: uuidText(payload.subarray(OFF.lastTaskId, OFF.lastTaskId + 16)),
     issuedAt: new Date(issuedAt).toISOString(),
     expiresAt: new Date(expiresAt).toISOString(),
     requestBindingHash,
-    evidenceHash,
+    sourceFingerprint,
+    manifestHash: manifestHashBytes,
   };
 }
 
@@ -317,9 +323,10 @@ export function assertTaskBoardCursorBinding(
   if (decoded.generationId !== claims.generationId) fail('QUERY_CURSOR_SCOPE_MISMATCH');
   if (decoded.pageSize !== claims.pageSize || decoded.consistency !== claims.consistency)
     fail('QUERY_CURSOR_SCOPE_MISMATCH');
-  const asOf =
-    claims.asOf === undefined ? undefined : instantToMilliseconds(claims.asOf, 'API_VALUE_INVALID');
-  if (decoded.asOf !== asOf || decoded.minimumWatermark !== claims.minimumWatermark)
+  if (
+    decoded.asOfPresent !== (claims.asOf !== undefined) ||
+    decoded.minimumWatermarkPresent !== (claims.minimumWatermark !== undefined)
+  )
     fail('QUERY_CURSOR_SCOPE_MISMATCH');
   const expected = payloadFor(claims, key.keyId);
   if (
@@ -328,8 +335,12 @@ export function assertTaskBoardCursorBinding(
       expected.subarray(OFF.requestBindingHash, OFF.requestBindingHash + 32),
     ) ||
     !timingSafeEqual(
-      decoded.evidenceHash,
-      expected.subarray(OFF.evidenceHash, OFF.evidenceHash + 32),
+      decoded.sourceFingerprint,
+      expected.subarray(OFF.sourceFingerprint, OFF.sourceFingerprint + 32),
+    ) ||
+    !timingSafeEqual(
+      decoded.manifestHash,
+      expected.subarray(OFF.manifestHash, OFF.manifestHash + 32),
     )
   )
     fail('QUERY_CURSOR_SCOPE_MISMATCH');

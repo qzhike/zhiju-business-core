@@ -464,6 +464,7 @@ export type {
 export {
   claimTaskBoardLease,
   readTaskBoardDispatch,
+  readPendingTaskBoardManifest,
   recordTaskBoardManifest,
   recordTaskBoardPublication,
   readTaskBoardManifest,

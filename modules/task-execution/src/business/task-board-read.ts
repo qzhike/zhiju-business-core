@@ -453,6 +453,7 @@ async function projectionRead(
           expiresAt: decoded.expiresAt,
           generationId,
           manifestHash: cursorTarget.generation.manifestHash.toString('hex'),
+          sourceFingerprint: cursorTarget.generation.sourceFingerprint.toString('hex'),
           ...(input.asOf === undefined ? {} : { asOf: input.asOf }),
           ...(input.minimumWatermark === undefined
             ? {}
@@ -569,6 +570,7 @@ async function projectionRead(
               expiresAt: expiresAt.toISOString(),
               generationId: generation.generationId,
               manifestHash: generation.manifestHash.toString('hex'),
+              sourceFingerprint: generation.sourceFingerprint.toString('hex'),
               ...(input.asOf === undefined ? {} : { asOf: input.asOf }),
               ...(input.minimumWatermark === undefined
                 ? {}

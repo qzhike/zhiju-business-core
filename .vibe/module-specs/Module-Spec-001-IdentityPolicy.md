@@ -992,7 +992,7 @@ Human 与 source 两项在任何 TE protected read 前成立。source Decision �
 
 ### 15.19 IM06-BOARD 独立读取与技术发布授权
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 两轮共 17 项) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY+SQL GUARD+FENCE BARRIER PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN`。服务Spec003 §12；本节拥有精确mapping，不新增公开授权API或Catalog条目。version均1.0，selector均TARGET_TYPE，内部operation的Purpose/action均与其完整operation token逐字相同。受信config key绑定本Project配置的capability code，禁止caller指定code/action或通配覆盖。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 三轮共 24 项) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY+SQL GUARD+REACHED FENCE BARRIER+RECOVERY READ PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN`。服务Spec003 §12；本节拥有精确mapping，不新增公开授权API或Catalog条目。version均1.0，selector均TARGET_TYPE，内部operation的Purpose/action均与其完整operation token逐字相同。受信config key绑定本Project配置的capability code，禁止caller指定code/action或通配覆盖。
 
 | 边界/实际主体 | operation / Purpose | action / config key | 完整target |
 |---|---|---|---|

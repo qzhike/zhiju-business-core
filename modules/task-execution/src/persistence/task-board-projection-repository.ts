@@ -82,6 +82,7 @@ export interface TaskBoardProjectionState {
   readonly generation?: {
     readonly generationId: string;
     readonly manifestHash: Buffer;
+    readonly sourceFingerprint: Buffer;
     readonly rowsHash: Buffer;
     readonly rowCount: number;
     readonly publishSequence: number;
@@ -465,6 +466,7 @@ export async function readTaskBoardGenerationById(
       generation: {
         generationId: generation.generation_id,
         manifestHash: generation.manifest_hash,
+        sourceFingerprint: generation.source_fingerprint,
         rowsHash: generation.rows_hash,
         rowCount: generation.row_count,
         publishSequence: Number(generation.publish_sequence),
@@ -602,6 +604,7 @@ export async function readTaskBoardProjection(
             generation: {
               generationId: generation.generation_id,
               manifestHash: generation.manifest_hash,
+              sourceFingerprint: generation.source_fingerprint,
               rowsHash: generation.rows_hash,
               rowCount: generation.row_count,
               publishSequence: Number(generation.publish_sequence),

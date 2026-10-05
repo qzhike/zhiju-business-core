@@ -1,6 +1,6 @@
 # IM-06 Task Board 首版 Spec Delta 提案
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DETAILED BINDINGS / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 两轮共 17 项) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY+SQL GUARD+FENCE BARRIER PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN`。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DETAILED BINDINGS / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 三轮共 24 项) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY+SQL GUARD+REACHED FENCE BARRIER+RECOVERY READ PASS / FULL BOARD-D 与 IP-BOARD-D 端到端矩阵、外部与人工验收 NOT RUN`。
 
 本提案基于 `main@917723f54757a5f17209095d4c68b6d5959f855e`，承接 [roadmap](../product/roadmap.md) 中 Usage/Provenance 交付后的下一目标。它定义 TD-05 的当前切片，不追认 TD-07，不修改现行可执行 Contract。用户于 2026-10-05 批准已呈现设计并授权发布 implementation Issue；批准绑定见 §5，Git 交付与业务实现不由此授权。字段、授权及存储的正式归属仍分别是 owning Module Spec、IdentityPolicy、共享 API 和 PostgreSQL 基准；以下 B-01–05 保留已呈现决定，精确化字段与规则由 owning 文档维护。
 

@@ -1,6 +1,101 @@
 # PR #249 正式审查记录
 
-## 第二轮复审（当前结论）
+## 第四轮复核（当前结论，同一 revision）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`5ac169d420fa15507e77227f90e79608945680bb`；日期：2026-10-05。
+- 本次重新读取远端 PR head、Issue #248 与评论、审查 comments 和相关当前代码。head 与第三轮相同，无新的实现提交或 finding 回复；工作区仅有本正式审查记录的未提交更新。
+- 重新核对 R2/R3/R4/R7/R10/R12/R13：仍为 5 项 P1、2 项 P2。具体边界与修复要求见下面第三轮记录及其 GitHub 逐行 comments；本次未发现或发布新的独立 finding。
+- 同 revision [CI run 37253911056](https://github.com/qzhike/zhiju-business-core/actions/runs/37253911056) 仍 SUCCESS。复用第三轮 4 files/31 Unit 与 1 file/3 focused probe 证据，本次不重复运行；新增 PG/端到端验收 NOT RUN，既有本地 docs 工具链限制未变化，不重试或记为 PASS。
+- GitHub 交付：已发布并读回 [复核 PR comment 5987906055](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-5987906055)，包含 reviewed SHA、REQUEST_CHANGES 和已有 7 条逐行 comments 链接。发布后 head 未变化，PR 仍 OPEN。未修改产品代码，不 commit/push/merge。
+
+---
+
+## 第三轮复审（历史记录，以下结论绑定同一 SHA）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`5ac169d420fa15507e77227f90e79608945680bb`。
+- 日期：2026-10-05；Issue #248，T2；PR 为 OPEN、非 Draft。
+- 范围与预期：按最新 Issue 的稳定验收及 Spec003 §12、Spec001 §15.19、API/PG IM06-BOARD 独立核对最新修订。真实 Task/WO/blocker/Completion 分层、完整 QueryResult、精确过滤与固定分页、实际使用 mapping 的当前授权、当前 Policy、完整导出/发布/确认/恢复应同时成立。公开契约与旧基线保持；HTTP/UI/Provider/性能/人工与明确延后范围不扩大。
+- 非盲审：已有两轮上下文，重新以当前权威和 actual diff 评判；未承担实现或修改产品代码。
+
+### 本轮验证证据
+
+- [CI run 37253911056](https://github.com/qzhike/zhiju-business-core/actions/runs/37253911056)：headSha 精确等于上述被审 SHA；select/checks/persistence/verify 均 SUCCESS。workflow 选择 full，code 与 PostgreSQL gate 已覆盖；复用证据，不重复本地 full。
+- Focused Unit：`node node_modules/vitest/vitest.mjs run modules/task-execution/src/business/task-board-read.test.ts modules/task-execution/src/business/task-board-cursor.test.ts modules/identity-policy/src/commands/task-board-authorization.test.ts modules/identity-policy/src/commands/task-board-source-hash.test.ts`：4 files / 31 tests PASS。
+- 独立 focused probe：`node node_modules/vitest/vitest.mjs run .review-pr249-round3-probe.test.ts`：1 file / 3 cases PASS。确认毫秒与受信 expiry；直接验证 keyId 不在批准 offset；验证合法签名但 AUTH generation bytes 非零的编码被接受；controlled source-level worker 在 record manifest 后 Policy resolver 失效仍 publish/confirm，解析只有一次。mocked dependency 只证明实际 composition 调用次序，不是实际 Grant lifecycle/PG 撤权证据；断言缺陷成立的 PASS 也不是业务验收 PASS。
+- 新增 hash/mirror、未发布 proof 与锁到期负例认可为该 head CI 的实际 PostgreSQL focused 证据；锁等待用例只有固定 sleep，没有 publisher reached 证明，不提升为确定性 reached-barrier 验收。
+- R3/R4/R12/R13 的具体边界由当前 source/SQL/契约核对；本轮未新增本地 PostgreSQL 运行。完整 BOARD-D/IP-BOARD-D 正链、确定性并发/恢复及外部/人工仍按实际 NOT RUN。
+- 临时诊断已移出产品测试集合，工作区只交付正式审查文档。
+- 本地正式文档：Prettier check 与 `git diff --check` PASS；配置 `vibe verify docs --json` 未完成：默认 pnpm 的 11.19.0 切换在 registry fetch/signature 阶段失败（Vibe exit 21，子命令 exit 1）。只读 preflight 找到可执行固定版本后，将其加入本次 PATH 重试；pnpm 在 dependency status 检查时要求 install，并以 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY` 中止（同样 exit 21/1）。该失败为本地工具链/依赖运行限制，未修改依赖、锁文件或 verifier；不记作 docs PASS，也不替代/否定被审 head 的完整 CI。
+
+### 上轮 finding 对账
+
+| Finding | 第三轮判断 | 本轮依据 |
+|---|---|---|
+| R1/R6/R8/R9 | 维持原缺陷已修复 | 当前修订无相关回退证据 |
+| R2 | 部分修复 | 专用 Policy mapping、Query 最终 Decision 重验及 maintenance 解析新增；worker protected publish 前仍不重验 Policy，payload 另见 R13 |
+| R3 | 部分修复 | SQL canonical hash 与 promoted mirror 新增；row 使用包含判断，非完整相等 |
+| R4 | 原伪造反例已修复；恢复仍阻断 | 独立 outcome 校验新增；当前 alias/generation JOIN 拒绝合法历史重放 |
+| R5 | 关闭原锁等待取时缺陷 | 数据库时间移至 fence 锁之后且切 alias 前再次检查；reached 验收缺口归 R10 |
+| R7 | 期限与完整 digest 缺陷关闭；协议仍部分修复 | authority/Projection 保留原期限，完整 HMAC/binding/evidence；字节布局及 Projection sourceFingerprint 仍不符批准格式 |
+| R10 | 未完成 | 新增 focused PG 不代替 Issue 完整 owning/恢复验收 |
+| R11 | 关闭原 selected Grant 身份缺失 | owning revalidation 返回实际 selectedGrant，grant id/Scope/actions/selectors/Policy snapshot/aggregateVersion 纳入 hash；更换 Grant 与同来源稳定性有 Unit |
+| R12/R13 | 新增相关阻断 | AUTH health 权限耦合；技术步骤 Decision 未绑定完整实际 payload |
+
+### 本轮阻断 comments
+
+#### R2 [P1] 每次实际 publish 前重新证明 Policy 当前资格
+
+位置：`apps/api/src/composition/task-board-dispatcher.ts:139`。
+
+专用 taskBoardPolicyReadV1 mapping、Query 最终 Policy Decision 重验以及 maintenance 的解析已接入，应认可这些修复。但 export pass 仍只在这里解析一次 Policy，后续 assemble/record manifest/publish/confirm 没有再次解析或重验该 Policy Decision。若 source 读取之后 Policy Grant 被撤销或版本被 supersede，publish mapping 的重验不会检查另一项 Policy authority，仍会发布和确认旧 Policy 的 manifest。独立 controlled source-level probe 在 record manifest 时使 Policy resolver 失效，实际 runTaskBoardExportPass 仍 publish+confirm，resolvePolicy 调用仅 1 次；这不是实际 PG 撤权证据。请在 protected publish 边界重新精确解析并验证原 observation 仍合法，失效时保留 dirty/旧 alias。Spec003 §12.5/12.7 要求每次 Query/Export/publish/cleanup 当前 Policy，不是仅 pass 开始检查。
+
+#### R3 [P1] 用精确 JSONB 相等校验 manifest row，不能使用包含关系
+
+位置：`migrations/task_execution/V7015__task_board_projection.sql:233`。
+
+canonical manifest/rows hash 和新增 mirror guard 修复了原先的损坏 hash/身份遗漏，但这里的 @> 是递归包含判断，不是注释承诺的 exact manifest row 相等。对一个合法未插入 row 的 generation，仅从 NEW.row.item 删除 title（其余字段、taskRef、Scope、filterKeys 和 promoted columns 保持原值），上方 identity guard 全部通过，而 manifest.rows @> [NEW.row] 仍为 true；SQL 会接受缺必填 title 的 row。删掉 blockerRefs/current completion 字段也有同类问题，读回完整 rowsHash 才报错已太晚。请从 manifest.rows 选择相同完整 Task 身份的元素并使用 JSONB = 做全行相等验证，配合法 baseline/单字段删除的实际 SQL 负例；不能用同时换 generation/exportId/hash 的负例代替这条 guard 的证明。违反 PostgreSQL IM06-BOARD 和 BOARD-D-002/005/007 的独立 SQL 完整性边界。
+
+#### R4 [P1] 确认已发布 export 不应依赖当前 alias 或仍保留的 generation
+
+位置：`migrations/task_execution/V7014__task_board_dirty_and_dispatch.sql:501`。
+
+新检查可以拒绝伪造未发布 publication，应关闭旧 head 的该反例；但 JOIN 当前 alias 新增了恢复错误。合法顺序为：E1/G1 已提交 publication outcome→确认前崩溃→新 lease 下发布 E2/G2→按持久 manifest 重放 E1，Projection 正确返回原 G1/sequence 且不回退 alias；这里因 alias 已指向 G2 返回 TASK_BOARD_NOT_PUBLISHED，E1 无法登记/重放确认。即使 E1 曾登记，函数也是先查 alias 再走 ON CONFLICT，重放仍失败。JOIN generation 还使保留 outcome、清理过期 G1 后的证明失效。请通过独立 owning 的不可变 publication outcome 验证同 Project/export/hash/generation/sequence，不能要求其仍是当前 alias/retained generation；增加 alias 前进和 cleanup 后恢复的实际 PG 正例，继续保留伪造负例。Spec003 §12.7/#248 明确要求此重放语义。
+
+#### R7 [P2] 实现批准的 cv1 字节布局和两项完整来源字段
+
+位置：`modules/task-execution/src/business/task-board-cursor.ts:66`。
+
+原期限保留、32-byte request binding/evidence 与完整 HMAC 已修复，不能再报告自动续期或四个截断 digest。但该 OFF 布局仍不是 Spec003 §12.6 的批准格式：规定 keyId 在 offset 2、requestBindingHash 在 6、sourceFingerprint 在 38、generationId 在 70、manifestHash 在 86；实际 keyId 在 6、binding 在 90，且 sourceFingerprint/manifestHash 被合并为互斥 evidenceHash，Projection cursor 没有完整 sourceFingerprint。独立 codec probe 确认合法输出在规定 keyId offset 读不到实际 keyId；AUTH 编码中非零 generation bytes 重新合法签名后 decoder 也未拒绝（不是攻击者无 Secret 可以伪造签名）。请按已批准格式实现和对照 byte fixtures 校验，包含 AUTH generation/manifest/sequence 全零及完整时间/安全整数规则。198 bytes/264 chars 相同不是协议一致；若要变更设计需先取得相应 owning 决定。
+
+#### R10 [P1] 补齐当前 Issue 已约定的真实来源与恢复验收
+
+位置：`tests/persistence/task-board-entry.test.ts:371`。
+
+认可同 head CI 的三项真实 entry 测试，以及新增 SQL/伪造 publication/lease 到期拒绝案例。但 entry 文件本轮只移除两个配置字段，仍只有 Task v2 DRAFT/READY、Projection、首页 Human revoke；#248 已要求的真实 v1/v2+WO 创建身份、正常完成/BLOCKED_INPUT/恢复/取消、current Evaluation、G1→G2 多页、SNAPSHOT_AT_LEAST、返回前 Policy/依赖撤权、P1→H/H→P2、Export RR、低序号 dirty 晚提交和崩溃重放没有交付。runTaskBoardExportPass 仍总是生成新 exportId，未使用已持久 manifest 恢复未完成 export。此外新增锁等待测试仅 setTimeout(1400)，没有证明 publisher 已 reached fence 等待点；延迟启动至到期后也会通过，不能标为 reached-barrier 证据。BOARD-D/IP-BOARD-D 矩阵仍 NOT RUN，Issue Acceptance 未调整。请补必要 owning 正链/确定性并发与恢复出口，准确更新证据；HTTP/UI/Provider/性能/人工和明确延后边界继续排除。
+
+#### R12 [P2] AUTHORITATIVE 路径不应要求 health 权限
+
+位置：`apps/api/src/composition/task-board-entry.ts:321`。
+
+该 health authorize/revalidate 无条件发生在 consistency 分支之前，且 health Grant 无条件进入 authorizationSourceHash 和 revalidateAll。配置合法 Human/source/Policy 权限但没有 taskBoardHealthReadV1 Grant 时，AUTHORITATIVE 在真正读取源之前就返回 AUTHORIZATION_REVOKED；即使最初有 health 权限，权威多页期间只更换 health Grant 也会使 cursor scope mismatch。authorityRead 本身完全不使用 source-health。Spec001 §15.19 明确 AUTH 路径不需要 Projection/health/publish/maintenance 权限，fingerprint 只应绑定实际使用 mapping。请根据 consistency 仅签发/重验实际读取依赖，并用真实缺 health Grant 的 AUTHORITATIVE 正例及 Projection 拒绝负例证明权限不耦合。
+
+#### R13 [P1] 将技术 Decision 绑定到该步骤的完整实际 payload
+
+位置：`apps/api/src/composition/task-board-dispatcher.ts:405`。
+
+四项技术 mapping 虽各自签发 Decision，但全部使用 prepare 中同一个 payloadHashOf({projectRef})，后续 authorize 又按该常量重验；exportId 直到 source snapshot 结束才生成，publish/confirm 时传入的 manifestHash、coveredDirtyIds、fence、操作类型均未进入各自 Decision。因而同 Project 下换 export/manifest/fence 或把 dispatch claim Decision 用来确认另一组 ids，都不会触发 payload binding 拒绝。Spec001 §15.19 已明确 source Export 预分配 exportId、完整 projectRef/policyRef 以及 dispatch/publish/maintain 各操作实际字段的 closed payload Hash。请改为在每个实际步骤形成受信 closed payload 并签发/重验自己的 Decision，source 在读取前绑定预分配 exportId；添加仅换 export/hash/fence/confirm ids 时 protected write 为 0 的负例。不能以 operation/target 相同代替完整意图绑定。
+
+### 第三轮交付
+
+已发布并逐条读回 [COMMENT review 5409641736](https://github.com/qzhike/zhiju-business-core/pull/249#pullrequestreview-5409641736)，state=`COMMENTED`，commit_id 等于被审 SHA。R2/R3/R4/R7/R10/R12/R13 共 7 条代码 comments 均存在（5 项 P1、2 项 P2）。发布后 PR head 未变化，仍为 OPEN。
+
+当前账号为 PR 作者，`REQUEST_CHANGES` 为 Reviewer 技术结论，与 GitHub COMMENTED 状态区分。本轮仅更新此正式审查记录及提交 GitHub comments；不修改产品代码、不 commit/push/merge。修复后按最新 head 复审。
+
+---
+
+## 第二轮复审（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`ebfb3f1d8cd562c137e8bcda2328a7553825e40a`。

@@ -26,6 +26,7 @@ import {
   cleanupTaskBoardGenerations,
   confirmTaskBoardExport,
   publishTaskBoardGeneration,
+  readPendingTaskBoardManifest,
   readTaskBoardDispatch,
   recordTaskBoardManifest,
   recordTaskBoardPublication,
@@ -86,11 +87,17 @@ const BOUNDARY_OPERATION: Readonly<Record<TaskBoardTechnicalBoundary, string>> =
 };
 
 export interface TaskBoardDispatcherPorts {
-  /** Re-proves the current authority of one technical boundary. */
+  /**
+   * Signs one own Decision for this exact step payload and immediately proves
+   * it is still current, returning the transaction Context bound to that
+   * Decision. A swapped export/manifest/fence/operation cannot reuse another
+   * step's Decision because the closed payload is part of the binding.
+   */
   readonly authorize: (
     boundary: TaskBoardTechnicalBoundary,
     projectRef: CanonicalJsonObject,
-  ) => Promise<void>;
+    payload: CanonicalJsonObject,
+  ) => Promise<TaskExecutionTransactionContext>;
   /** Resolves the current fixed Board Policy of the Project. */
   readonly resolvePolicy: () => Promise<TaskBoardPolicyResolution>;
 }
@@ -98,14 +105,6 @@ export interface TaskBoardDispatcherPorts {
 export interface TaskBoardDispatcherProject {
   readonly projectRef: CanonicalJsonObject;
   readonly scope: { readonly enterpriseId: string; readonly projectId: string };
-  /** SERVICE context of `execution.task_board.dispatch.manage.v1`. */
-  readonly dispatchContext: TaskExecutionTransactionContext;
-  /** SERVICE context of `execution.task_board.source.read.v1`. */
-  readonly sourceContext: TaskExecutionTransactionContext;
-  /** SERVICE context of `execution.task_board.projection.publish.v1`. */
-  readonly publishContext: TaskExecutionTransactionContext;
-  /** SERVICE context of `execution.task_board.projection.maintain.v1`. */
-  readonly maintainContext: TaskExecutionTransactionContext;
 }
 
 export interface TaskBoardDispatcherConfig {
@@ -135,9 +134,13 @@ export async function runTaskBoardExportPass(
   ports: TaskBoardDispatcherPorts,
 ): Promise<TaskBoardExportResult | undefined> {
   const now = new Date();
-  await ports.authorize('taskBoardDispatchManageV1', project.projectRef);
   const policy = await ports.resolvePolicy();
-  const lease = await claimTaskBoardLease(config.taskExecutionDb, project.dispatchContext, {
+  const claimContext = await ports.authorize('taskBoardDispatchManageV1', project.projectRef, {
+    projectRef: project.projectRef,
+    operation: 'CLAIM',
+    leaseSeconds: policy.rules.workerLeaseSeconds,
+  });
+  const lease = await claimTaskBoardLease(config.taskExecutionDb, claimContext, {
     enterpriseId: project.scope.enterpriseId,
     projectId: project.scope.projectId,
     owner: config.workerOwner,
@@ -146,69 +149,115 @@ export async function runTaskBoardExportPass(
   });
   if (lease === undefined) return undefined;
 
-  await ports.authorize('taskBoardSourceReadV1', project.projectRef);
-  const snapshot = await withTaskExecutionSnapshotTransaction(
+  // Recovery出口: a persisted manifest without a committed publication proof is
+  // replayed exactly as it was persisted instead of being replaced.
+  const pending = await readPendingTaskBoardManifest(
     config.taskExecutionDb,
-    project.sourceContext,
-    async (trx, snapshotAt) => ({
-      ...(await assembleTaskBoardRows(trx, project.scope, project.projectRef)),
-      snapshotAt,
-      dirty: await selectTaskBoardDirtyMarkers(trx, project.scope),
-    }),
+    claimContext,
+    project.scope,
   );
-  const exportId = newUuidV7();
-  const rowsHash = taskBoardRowsHash(snapshot.rows);
-  const coveredDirtyIds = snapshot.dirty.map((marker) => marker.markerId);
-  const manifest: TaskBoardSnapshotManifest = {
-    exportId,
-    projectRef: project.projectRef,
-    snapshotAt: snapshot.snapshotAt.toISOString(),
-    policyRef: policy.policyRef,
-    policyObservation: policy.policyObservation,
-    rows: snapshot.rows,
-    rowCount: snapshot.rows.length,
-    rowsHash,
-    sourceFingerprint: snapshot.sourceFingerprint,
-    coveredDirtyIds,
-  };
-  if (
-    manifest.rowCount > policy.rules.maxSnapshotRows ||
-    taskBoardManifestBytes(manifest) > policy.rules.maxSnapshotBytes
-  ) {
-    await recordTaskBoardProjectionFailure(config.taskExecutionDb, project.publishContext, {
+  let manifest: TaskBoardSnapshotManifest;
+  let manifestHash: string;
+  let rowsHash: string;
+  let sourceFingerprint: string;
+  let coveredDirtyIds: readonly string[];
+  let exportId: string;
+  if (pending !== undefined) {
+    manifest = pending.manifest as unknown as TaskBoardSnapshotManifest;
+    exportId = pending.exportId;
+    manifestHash = pending.manifestHash.toString('hex');
+    rowsHash = pending.rowsHash.toString('hex');
+    sourceFingerprint = pending.sourceFingerprint.toString('hex');
+    coveredDirtyIds = [...pending.coveredDirtyIds];
+  } else {
+    exportId = newUuidV7();
+    const sourceContext = await ports.authorize('taskBoardSourceReadV1', project.projectRef, {
+      projectRef: project.projectRef,
+      exportId,
+      policyRef: policy.policyRef,
+    });
+    const snapshot = await withTaskExecutionSnapshotTransaction(
+      config.taskExecutionDb,
+      sourceContext,
+      async (trx, snapshotAt) => ({
+        ...(await assembleTaskBoardRows(trx, project.scope, project.projectRef)),
+        snapshotAt,
+        dirty: await selectTaskBoardDirtyMarkers(trx, project.scope),
+      }),
+    );
+    rowsHash = taskBoardRowsHash(snapshot.rows);
+    sourceFingerprint = snapshot.sourceFingerprint;
+    coveredDirtyIds = snapshot.dirty.map((marker) => marker.markerId);
+    manifest = {
+      exportId,
+      projectRef: project.projectRef,
+      snapshotAt: snapshot.snapshotAt.toISOString(),
+      policyRef: policy.policyRef,
+      policyObservation: policy.policyObservation,
+      rows: snapshot.rows,
+      rowCount: snapshot.rows.length,
+      rowsHash,
+      sourceFingerprint,
+      coveredDirtyIds,
+    };
+    if (
+      manifest.rowCount > policy.rules.maxSnapshotRows ||
+      taskBoardManifestBytes(manifest) > policy.rules.maxSnapshotBytes
+    ) {
+      await recordTaskBoardProjectionFailure(config.taskExecutionDb, claimContext, {
+        enterpriseId: project.scope.enterpriseId,
+        projectId: project.scope.projectId,
+        exportId: null,
+        failureCode: 'TASK_BOARD_EXPORT_BUDGET_EXCEEDED',
+        safeSummary: 'the complete Board export exceeded the declared Policy budget',
+        now,
+      });
+      return undefined;
+    }
+    manifestHash = taskBoardManifestHash(manifest);
+    const manifestContext = await ports.authorize('taskBoardDispatchManageV1', project.projectRef, {
+      projectRef: project.projectRef,
+      operation: 'MANIFEST',
+      exportId,
+      manifestHash,
+      rowCount: manifest.rowCount,
+    });
+    await recordTaskBoardManifest(config.taskExecutionDb, manifestContext, {
       enterpriseId: project.scope.enterpriseId,
       projectId: project.scope.projectId,
-      exportId: null,
-      failureCode: 'TASK_BOARD_EXPORT_BUDGET_EXCEEDED',
-      safeSummary: 'the complete Board export exceeded the declared Policy budget',
+      exportId,
+      manifest,
+      manifestHash: Buffer.from(manifestHash, 'hex'),
+      snapshotAt: new Date(manifest.snapshotAt),
+      policyObservation: policy.policyObservation,
+      rowCount: manifest.rowCount,
+      rowsHash: Buffer.from(rowsHash, 'hex'),
+      sourceFingerprint: Buffer.from(sourceFingerprint, 'hex'),
+      coveredDirtyIds,
+    });
+  }
+
+  // The protected publish boundary re-resolves the Policy: a Policy Grant
+  // revoked or a Policy superseded after the source read stops the publication
+  // instead of publishing and confirming an obsolete manifest.
+  const currentPolicy = await ports.resolvePolicy();
+  if (currentPolicy.policyContentHash !== policy.policyContentHash) {
+    await recordTaskBoardProjectionFailure(config.taskExecutionDb, claimContext, {
+      enterpriseId: project.scope.enterpriseId,
+      projectId: project.scope.projectId,
+      exportId,
+      failureCode: 'TASK_BOARD_POLICY_STALE',
+      safeSummary: 'the Board Policy changed before this export could be published',
       now,
     });
     return undefined;
   }
-  const manifestHash = taskBoardManifestHash(manifest);
-  await recordTaskBoardManifest(config.taskExecutionDb, project.dispatchContext, {
-    enterpriseId: project.scope.enterpriseId,
-    projectId: project.scope.projectId,
+  const publishContext = await ports.authorize('taskBoardProjectionPublishV1', project.projectRef, {
+    projectRef: project.projectRef,
     exportId,
-    manifest,
-    manifestHash: Buffer.from(manifestHash, 'hex'),
-    snapshotAt: snapshot.snapshotAt,
-    policyObservation: policy.policyObservation,
-    rowCount: manifest.rowCount,
-    rowsHash: Buffer.from(rowsHash, 'hex'),
-    sourceFingerprint: Buffer.from(snapshot.sourceFingerprint, 'hex'),
-    coveredDirtyIds,
+    manifestHash,
   });
-
-  await ports.authorize('taskBoardProjectionPublishV1', project.projectRef);
-  // The publication boundary re-reads the current TE control and refuses a
-  // lease that was taken over (or expired) while the export was assembled, so
-  // an old worker can never publish through the takeover window.
-  const control = await readTaskBoardDispatch(
-    config.taskExecutionDb,
-    project.dispatchContext,
-    project.scope,
-  );
+  const control = await readTaskBoardDispatch(config.taskExecutionDb, claimContext, project.scope);
   const leaseIsCurrent =
     control?.leaseToken === lease.leaseToken &&
     control.leaseOwner === config.workerOwner &&
@@ -218,33 +267,33 @@ export async function runTaskBoardExportPass(
       'TASK_BOARD_FENCE_REJECTED',
       'the export lease is no longer current',
     );
-  const published = await publishTaskBoardGeneration(
-    config.taskExecutionDb,
-    project.publishContext,
-    {
-      enterpriseId: project.scope.enterpriseId,
-      projectId: project.scope.projectId,
-      projectRef: project.projectRef,
-      exportId,
-      manifest,
-      manifestHash,
-      rowsHash,
-      sourceFingerprint: snapshot.sourceFingerprint,
-      policyObservation: policy.policyObservation,
-      snapshotAt: snapshot.snapshotAt,
-      retentionSeconds: policy.rules.cursorTtlSeconds,
-      fence: {
-        token: lease.leaseToken,
-        ownerPrincipalId: project.publishContext.principalId,
-        leaseUntil: lease.leaseUntil,
-      },
-      now,
+  const published = await publishTaskBoardGeneration(config.taskExecutionDb, publishContext, {
+    enterpriseId: project.scope.enterpriseId,
+    projectId: project.scope.projectId,
+    projectRef: project.projectRef,
+    exportId,
+    manifest,
+    manifestHash,
+    rowsHash,
+    sourceFingerprint,
+    policyObservation: policy.policyObservation,
+    snapshotAt: new Date(manifest.snapshotAt),
+    retentionSeconds: policy.rules.cursorTtlSeconds,
+    fence: {
+      token: lease.leaseToken,
+      ownerPrincipalId: publishContext.principalId,
+      leaseUntil: lease.leaseUntil,
     },
-  );
-  // The publication proof is recorded under the same live lease before any
-  // dirty identity is acknowledged.
-  await ports.authorize('taskBoardDispatchManageV1', project.projectRef);
-  await recordTaskBoardPublication(config.taskExecutionDb, project.dispatchContext, {
+    now,
+  });
+  const confirmContext = await ports.authorize('taskBoardDispatchManageV1', project.projectRef, {
+    projectRef: project.projectRef,
+    operation: 'CONFIRM',
+    exportId,
+    manifestHash,
+    coveredDirtyIds: [...coveredDirtyIds],
+  });
+  await recordTaskBoardPublication(config.taskExecutionDb, confirmContext, {
     enterpriseId: project.scope.enterpriseId,
     projectId: project.scope.projectId,
     exportId,
@@ -253,7 +302,7 @@ export async function runTaskBoardExportPass(
     publishSequence: published.publishSequence,
     leaseToken: lease.leaseToken,
   });
-  await confirmTaskBoardExport(config.taskExecutionDb, project.dispatchContext, {
+  await confirmTaskBoardExport(config.taskExecutionDb, confirmContext, {
     enterpriseId: project.scope.enterpriseId,
     projectId: project.scope.projectId,
     exportId,
@@ -271,19 +320,18 @@ export async function runTaskBoardMaintenancePass(
   project: TaskBoardDispatcherProject,
   ports: TaskBoardDispatcherPorts,
 ): Promise<number> {
-  await ports.authorize('taskBoardProjectionMaintainV1', project.projectRef);
-  // Retention maintenance still proves the Project's Board Policy is current
-  // before touching the store, so a superseded Policy stops the pass.
+  const now = new Date();
   await ports.resolvePolicy();
-  const result = await cleanupTaskBoardGenerations(
-    config.taskExecutionDb,
-    project.maintainContext,
-    {
-      enterpriseId: project.scope.enterpriseId,
-      projectId: project.scope.projectId,
-      now: new Date(),
-    },
+  const maintainContext = await ports.authorize(
+    'taskBoardProjectionMaintainV1',
+    project.projectRef,
+    { projectRef: project.projectRef, cutoff: now.toISOString() },
   );
+  const result = await cleanupTaskBoardGenerations(config.taskExecutionDb, maintainContext, {
+    enterpriseId: project.scope.enterpriseId,
+    projectId: project.scope.projectId,
+    now,
+  });
   return result.removedGenerations;
 }
 
@@ -372,55 +420,13 @@ export function createTaskBoardDispatcher(config: TaskBoardDispatcherFactoryConf
       entryError('AUTHORIZATION_REVOKED', 'Board technical passes require a Service principal');
     assertActorBinding(target.serviceSession.resolutionActorSnapshotRef, bootstrap);
     const serviceDeps = boundary.identityDeps(identityContext(bootstrap));
-    const payloadHash = payloadHashOf({ projectRef });
-    const boundaryContexts: Record<TaskBoardTechnicalBoundary, TaskExecutionTransactionContext> = {
-      taskBoardDispatchManageV1: serviceContext(bootstrap, {
-        id: bootstrap.authorization_decision_id,
-        hash: bootstrap.payload_hash,
-        expiresAt: bootstrap.expires_at,
-      }),
-      taskBoardSourceReadV1: serviceContext(bootstrap, {
-        id: bootstrap.authorization_decision_id,
-        hash: bootstrap.payload_hash,
-        expiresAt: bootstrap.expires_at,
-      }),
-      taskBoardProjectionPublishV1: serviceContext(bootstrap, {
-        id: bootstrap.authorization_decision_id,
-        hash: bootstrap.payload_hash,
-        expiresAt: bootstrap.expires_at,
-      }),
-      taskBoardProjectionMaintainV1: serviceContext(bootstrap, {
-        id: bootstrap.authorization_decision_id,
-        hash: bootstrap.payload_hash,
-        expiresAt: bootstrap.expires_at,
-      }),
-    };
-    // Mint and prove one independent Decision per technical boundary from the
-    // trusted bootstrap; each step re-proves its own mapping afterwards.
-    for (const key of Object.keys(boundaryContexts) as TaskBoardTechnicalBoundary[]) {
-      const issued = await auth.authorize(serviceDeps, key, {
-        actorSnapshotRef: target.serviceSession.resolutionActorSnapshotRef,
-        commandType: BOUNDARY_OPERATION[key],
-        commandVersion: '1.0',
-        commandPayloadHash: payloadHash,
-        authenticationContextHash: serviceSessionHash,
-        targetRef: projectRef as unknown as Common.ObjectRef,
-      });
-      if (issued.outcome !== 'ALLOW')
-        entryError('AUTHORIZATION_REVOKED', `Board ${key} was denied`);
-      boundaryContexts[key] = serviceContext(bootstrap, {
-        id: issued.authorizationDecisionRef.objectId,
-        hash: Buffer.from(issued.authorizationDecisionRef.contentHash.digest, 'hex'),
-        expiresAt: new Date(issued.expiresAt),
-      });
-    }
     const configuredPolicy = config.boardPolicyRef(projectId);
     if (configuredPolicy === undefined)
       entryError('DEPENDENCY_UNAVAILABLE', 'no Board Policy is configured for this Project');
     /**
-     * Each step that depends on the Policy resolves it again under a fresh
-     * owning `taskBoardPolicyReadV1` Decision, so a superseded Policy or a
-     * revoked Policy Grant fails that step instead of reusing a stored view.
+     * Each step resolves/re-proves under its own Decision whose closed payload
+     * carries that step's actual fields, so a swapped export/manifest/fence or
+     * another step's authority cannot satisfy it.
      */
     const resolveCurrentPolicy = async (): Promise<TaskBoardPolicyResolution> => {
       const issued = await auth.authorize(serviceDeps, 'taskBoardPolicyReadV1', {
@@ -444,39 +450,40 @@ export function createTaskBoardDispatcher(config: TaskBoardDispatcherFactoryConf
       });
     };
     const ports: TaskBoardDispatcherPorts = {
-      authorize: async (key, ref) => {
-        const result = await auth.revalidate(serviceDeps, key, {
-          decisionRef: {
-            kind: 'CONTENT_ADDRESSED',
-            objectType: 'identity.authorization_decision',
-            objectId: boundaryContexts[key].authorizationDecisionId,
-            scope: { enterpriseId, projectId },
-            contentHash: {
-              algorithm: 'SHA-256',
-              canonicalizationVersion: '1',
-              digest: boundaryContexts[key].authorizationDecisionHash.toString('hex'),
-            },
-          },
+      authorize: async (key, ref, payload) => {
+        const stepHash = payloadHashOf(payload);
+        const issued = await auth.authorize(serviceDeps, key, {
+          actorSnapshotRef: target.serviceSession.resolutionActorSnapshotRef,
+          commandType: BOUNDARY_OPERATION[key],
+          commandVersion: '1.0',
+          commandPayloadHash: stepHash,
+          authenticationContextHash: serviceSessionHash,
+          targetRef: ref as unknown as Common.ObjectRef,
+        });
+        if (issued.outcome !== 'ALLOW')
+          entryError('AUTHORIZATION_REVOKED', `Board ${key} was denied`);
+        const context = serviceContext(bootstrap, {
+          id: issued.authorizationDecisionRef.objectId,
+          hash: Buffer.from(issued.authorizationDecisionRef.contentHash.digest, 'hex'),
+          expiresAt: new Date(issued.expiresAt),
+        });
+        // Prove the freshly signed Decision still covers this exact step
+        // before it is used for the protected read/write.
+        const proof = await auth.revalidate(serviceDeps, key, {
+          decisionRef: issued.authorizationDecisionRef,
           expectedCommandType: BOUNDARY_OPERATION[key],
           expectedCommandVersion: '1.0',
-          expectedCommandPayloadHash: payloadHash,
+          expectedCommandPayloadHash: stepHash,
           expectedAuthenticationContextHash: serviceSessionHash,
           expectedTargetRef: ref as unknown as Common.ObjectRef,
         });
-        if (!result.valid)
+        if (!proof.valid)
           entryError('AUTHORIZATION_REVOKED', `Board ${key} authority is no longer current`);
+        return context;
       },
       resolvePolicy: resolveCurrentPolicy,
     };
-    return {
-      projectRef,
-      scope: { enterpriseId, projectId },
-      dispatchContext: boundaryContexts.taskBoardDispatchManageV1,
-      sourceContext: boundaryContexts.taskBoardSourceReadV1,
-      publishContext: boundaryContexts.taskBoardProjectionPublishV1,
-      maintainContext: boundaryContexts.taskBoardProjectionMaintainV1,
-      ports,
-    };
+    return { projectRef, scope: { enterpriseId, projectId }, ports };
   }
 
   return {

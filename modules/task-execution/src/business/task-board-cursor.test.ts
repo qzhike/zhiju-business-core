@@ -62,6 +62,7 @@ function claims(overrides: Partial<TaskBoardCursorClaims> = {}): TaskBoardCursor
     },
     generationId: '0199b600-0000-7000-8000-000000000207',
     manifestHash: 'e'.repeat(64),
+    sourceFingerprint: 'c'.repeat(64),
     snapshotAt: new Date(now - 60_000).toISOString(),
     watermarkSequence: 3,
     lastTaskId: '0199b600-0000-7000-8000-000000000208',

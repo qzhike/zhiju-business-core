@@ -460,6 +460,27 @@ BEGIN
 END $fn$;
 REVOKE ALL ON FUNCTION task_execution.task_board_manifest_read(uuid, uuid, uuid) FROM PUBLIC;
 
+CREATE FUNCTION task_execution.task_board_manifest_pending(p_enterprise uuid, p_project uuid)
+RETURNS SETOF task_execution.task_board_export_manifest
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $fn$
+BEGIN
+  PERFORM task_execution.dispatch_scope(p_enterprise, p_project);
+  -- The newest persisted manifest that has no committed publication proof yet:
+  -- the recovery出口 replays exactly that export instead of inventing a new one.
+  RETURN QUERY
+  SELECT m.*
+  FROM task_execution.task_board_export_manifest m
+  WHERE m.enterprise_id = p_enterprise
+    AND m.project_id = p_project
+    AND NOT EXISTS (
+      SELECT 1 FROM task_execution.task_board_export_publication p
+      WHERE p.export_id = m.export_id
+    )
+  ORDER BY m.created_at DESC, m.export_id
+  LIMIT 1;
+END $fn$;
+REVOKE ALL ON FUNCTION task_execution.task_board_manifest_pending(uuid, uuid) FROM PUBLIC;
+
 CREATE FUNCTION task_execution.task_board_dispatch_record_publication(
   p_export_id uuid, p_enterprise uuid, p_project uuid, p_manifest_hash bytea,
   p_generation_id uuid, p_publish_sequence bigint, p_lease_token bigint) RETURNS void
@@ -490,18 +511,12 @@ BEGIN
   -- actually committed this exact export/hash/generation/sequence and its
   -- current alias still points at that generation: a caller cannot invent a
   -- publication for an export that was never published.
+  -- The immutable publication outcome is the proof: it is independent of the
+  -- current alias and survives the retention cleanup of the generation, so a
+  -- legitimate recovery replay of an older export still confirms.
   IF NOT EXISTS (
     SELECT 1
     FROM projection.task_board_publication_outcome o
-    JOIN projection.task_board_generation g
-      ON g.generation_id = o.generation_id
-     AND g.export_id = o.export_id
-     AND g.manifest_hash = o.manifest_hash
-     AND g.publish_sequence = o.publish_sequence
-    JOIN projection.task_board_alias a
-      ON a.enterprise_id = g.enterprise_id
-     AND a.project_id = g.project_id
-     AND a.generation_id = g.generation_id
     WHERE o.export_id = p_export_id
       AND o.manifest_hash = p_manifest_hash
       AND o.generation_id = p_generation_id
@@ -623,6 +638,7 @@ GRANT EXECUTE ON FUNCTION
   task_execution.task_board_dispatch_state(uuid, uuid),
   task_execution.task_board_manifest_record(uuid, uuid, uuid, jsonb, bytea, timestamptz, jsonb, integer, bytea, bytea, uuid[], uuid),
   task_execution.task_board_manifest_read(uuid, uuid, uuid),
+  task_execution.task_board_manifest_pending(uuid, uuid),
   task_execution.task_board_dispatch_record_publication(uuid, uuid, uuid, bytea, uuid, bigint, bigint),
   task_execution.task_board_dispatch_confirm(uuid, uuid, uuid, bytea, uuid, bigint, uuid[], uuid),
   task_execution.task_board_dirty_read(uuid, uuid),

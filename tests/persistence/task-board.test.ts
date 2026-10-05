@@ -15,7 +15,9 @@ import {
   confirmTaskBoardExport,
   createTaskExecutionDatabase,
   publishTaskBoardGeneration,
+  readPendingTaskBoardManifest,
   readTaskBoardGenerationById,
+  type TaskExecutionDb,
   readTaskBoardProjection,
   recordTaskBoardManifest,
   recordTaskBoardPublication,
@@ -27,6 +29,12 @@ import {
   type TaskExecutionTransactionContext,
 } from '@zhiju/task-execution';
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import {
+  Kysely,
+  PostgresDialect,
+  type PluginTransformQueryArgs,
+  type PluginTransformResultArgs,
+} from 'kysely';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { postgresImageReference } from '../../tools/persistence/baseline.mjs';
@@ -403,6 +411,10 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
     );
     expect(untouched.rows[0]?.count).toBe('2');
 
+    // The persisted manifest is the recovery出口: it stays pending until a
+    // publication proof exists.
+    const pendingBefore = await readPendingTaskBoardManifest(db, dispatchContext, scope);
+    expect(pendingBefore?.exportId).toBe(exportId);
     // A publication recorded under a dead lease is refused.
     await expect(
       recordTaskBoardPublication(db, dispatchContext, {
@@ -460,6 +472,9 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
       [projectId],
     );
     expect(remaining.rows[0]?.count).toBe('0');
+    // Once published, the same export is no longer a pending recovery target.
+    const pendingAfter = await readPendingTaskBoardManifest(db, dispatchContext, scope);
+    expect(pendingAfter?.exportId).not.toBe(exportId);
   });
 
   it('rejects a forged publication proof for an export that was never published', async () => {
@@ -610,6 +625,27 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
     if (lease === undefined) throw new Error('the export lease was not taken');
     const holder = new pg.Client({ connectionString: databaseUrl });
     await holder.connect();
+    // A reached signal replaces a blind sleep: the probe resolves the moment
+    // the publisher issues its fence lock statement.
+    const reached = Promise.withResolvers<boolean>();
+    let signalled = false;
+    const probeDb = new Kysely<TaskExecutionDb>({
+      dialect: new PostgresDialect({ pool }),
+      plugins: [
+        {
+          transformQuery(args: PluginTransformQueryArgs) {
+            if (!signalled && JSON.stringify(args.node).includes('task_board_fence')) {
+              signalled = true;
+              reached.resolve(true);
+            }
+            return args.node;
+          },
+          transformResult(args: PluginTransformResultArgs) {
+            return Promise.resolve(args.result);
+          },
+        },
+      ],
+    });
     let publishing: Promise<unknown> | undefined;
     try {
       await holder.query('BEGIN');
@@ -621,7 +657,7 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
       expect(locked.rowCount).toBe(1);
       const value = manifest(newUuidV7(), [], barrierProjectId);
       publishing = publishTaskBoardGeneration(
-        db,
+        probeDb,
         publishContext,
         publishInput(
           value,
@@ -635,10 +671,16 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
           barrierProjectId,
         ),
       );
-      // Genuine integration barrier: the publish must observe the lease end
-      // through the database clock *after* the fence lock wait, which requires
-      // real elapsed time on the platform clock.
-      await new Promise((resolve) => setTimeout(resolve, 1_400));
+      // Only release the lock once the publisher has actually reached the
+      // fence step *and* the lease deadline has passed on the platform clock.
+      await reached.promise;
+      const deadline = lease.leaseUntil.getTime() + 100;
+      let remaining = deadline - Date.now();
+      while (remaining > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remaining));
+        remaining = deadline - Date.now();
+      }
+      expect(signalled).toBe(true);
       await holder.query('COMMIT');
       await expect(publishing).rejects.toMatchObject({ code: 'TASK_BOARD_FENCE_REJECTED' });
     } finally {

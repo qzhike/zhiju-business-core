@@ -77,6 +77,7 @@ function projectionState(withRows = rows): TaskBoardProjectionState {
     generation: {
       generationId: '0199b600-0000-7000-8000-000000000501',
       manifestHash: Buffer.alloc(32, 1),
+      sourceFingerprint: Buffer.from('c'.repeat(64), 'hex'),
       rowsHash: Buffer.from(taskBoardRowsHash(withRows), 'hex'),
       rowCount: withRows.length,
       publishSequence: 1,
