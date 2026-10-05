@@ -531,9 +531,19 @@ BEGIN
   RETURN QUERY
   SELECT m.export_id, m.manifest, m.manifest_hash, m.snapshot_at, m.policy_observation,
          m.row_count, m.rows_hash, m.source_fingerprint, m.covered_dirty_ids,
-         p.generation_id, p.publish_sequence
+         -- The published tuple comes from the immutable Projection outcome
+         -- (the owning publication fact) and falls back to the TE proof, so a
+         -- crash between the Projection commit and the TE proof still recovers
+         -- the exact generation/sequence instead of trying to retire it.
+         COALESCE(p.generation_id, o.generation_id),
+         COALESCE(p.publish_sequence, o.publish_sequence)
   FROM task_execution.task_board_export_manifest m
   LEFT JOIN task_execution.task_board_export_publication p ON p.export_id = m.export_id
+  LEFT JOIN projection.task_board_publication_outcome o
+    ON o.export_id = m.export_id
+   AND o.manifest_hash = m.manifest_hash
+   AND o.enterprise_id = m.enterprise_id
+   AND o.project_id = m.project_id
   WHERE m.enterprise_id = p_enterprise
     AND m.project_id = p_project
     AND NOT EXISTS (

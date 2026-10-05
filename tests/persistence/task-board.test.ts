@@ -754,6 +754,71 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
     expect(after?.exportId).not.toBe(exportId);
   });
 
+  it('recovers the committed Projection outcome even without a TE publication proof', async () => {
+    const dispatchContext = contextFor(scope);
+    const now = new Date((booking += 600_000));
+    const lease = await claimTaskBoardLease(db, dispatchContext, {
+      ...scope,
+      owner: 'worker-l',
+      leaseSeconds: 300,
+      now,
+    });
+    if (lease === undefined) throw new Error('the export lease was not taken');
+    const exportId = newUuidV7();
+    const value = manifest(exportId, []);
+    const manifestHash = Buffer.from(taskBoardManifestHash(value), 'hex');
+    await recordTaskBoardManifest(db, dispatchContext, {
+      ...scope,
+      exportId,
+      manifest: value,
+      manifestHash,
+      snapshotAt: new Date(value.snapshotAt),
+      policyObservation,
+      rowCount: value.rowCount,
+      rowsHash: Buffer.from(value.rowsHash, 'hex'),
+      sourceFingerprint: Buffer.from(value.sourceFingerprint, 'hex'),
+      coveredDirtyIds: [],
+    });
+    // Crash window: the Projection commit happened, the TE proof did not.
+    const published = await publishTaskBoardGeneration(
+      db,
+      dispatchContext,
+      publishInput(
+        value,
+        {
+          token: lease.leaseToken,
+          ownerPrincipalId: dispatchContext.principalId,
+          leaseUntil: lease.leaseUntil,
+        },
+        now,
+      ),
+    );
+    const target = await readTaskBoardRecoveryTarget(db, dispatchContext, scope);
+    expect(target?.exportId).toBe(exportId);
+    // The owning outcome supplies the exact generation/sequence, so the
+    // recovery path can finish the acknowledgement instead of retiring.
+    expect(target?.generationId).toBe(published.generationId);
+    expect(target?.publishSequence).toBe(published.publishSequence);
+    await recordTaskBoardPublication(db, dispatchContext, {
+      ...scope,
+      exportId,
+      manifestHash,
+      generationId: published.generationId,
+      publishSequence: published.publishSequence,
+      leaseToken: lease.leaseToken,
+    });
+    await confirmTaskBoardExport(db, dispatchContext, {
+      ...scope,
+      exportId,
+      manifestHash,
+      generationId: published.generationId,
+      publishSequence: published.publishSequence,
+      dirtyIds: [],
+    });
+    const after = await readTaskBoardRecoveryTarget(db, dispatchContext, scope);
+    expect(after?.exportId).not.toBe(exportId);
+  });
+
   it('retires an obsolete unpublished export and refuses to retire a published one', async () => {
     const dispatchContext = contextFor(scope);
     const now = new Date((booking += 600_000));

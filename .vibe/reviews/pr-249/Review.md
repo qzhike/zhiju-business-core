@@ -1,6 +1,66 @@
 # PR #249 正式审查记录
 
-## 第五轮复审（当前结论，新 head）
+## 第六轮复审（当前结论，新 head）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`34c832fd577734841a69c85a20a01acba2ebf39d`；日期：2026-10-05。
+- 最新 PR OPEN、非 Draft；Issue #248 的 Acceptance 未调整，无新 finding 回复。工作区起始干净。
+- 范围：按 Issue 的完整 Board 交付、Spec003 §12、Spec001 §15.19、API/PG IM06-BOARD 独立审查修订。认可可证实修复，保留必要 owning/分页/三 consistency/权限/恢复验收，不扩大公开 Schema、HTTP/UI/Provider/性能/人工或明确延后范围。
+- 非盲审：已有历史上下文，重新以当前权威、实际 diff 和 exact-revision 证据判断。没有修复产品代码。
+
+### 第六轮证据
+
+- [CI run 37279832242](https://github.com/qzhike/zhiju-business-core/actions/runs/37279832242) 的 headSha 精确匹配本轮 SHA；select/checks/persistence/verify 全部 SUCCESS，Verify code 与真实 PostgreSQL gate 完整覆盖 required full。复用，不重复本地 full。
+- Focused Unit：`node node_modules/vitest/vitest.mjs run modules/task-execution/src/business/task-board-read.test.ts modules/task-execution/src/business/task-board-cursor.test.ts modules/identity-policy/src/commands/task-board-authorization.test.ts modules/identity-policy/src/commands/task-board-source-hash.test.ts`：4 files / 33 tests PASS。
+- 独立 probe：`node node_modules/vitest/vitest.mjs run .review-pr249-round6-probe.test.ts`：最终 1 file / 6 cases PASS。证明批准的全部 byte offsets/最大安全 sequence 往返；AUTH sequence=1 仍签发并接受；旧未发布 Policy A 退役后按 B 新导出；实际 fence token/owner/deadline 及 confirm 结果绑定；已有 TE proof 的旧 Policy export 只确认、不重发布；Projection outcome 已提交但 TE proof 缺失且 Policy 更新时连续两次 forbidden retirement、publish/confirm 均为 0。
+- probe 初次运行因审查 fixture 缺当前 reader 返回的顶层 policyObservation，3 cases 失败；补齐该 fixture 后重跑全部通过。该失败不是产品 finding。临时诊断移出产品测试集合。
+- worker probe 使用 mocked dependencies，只证明真实 composition 的调用次序/参数；不声称真实 Grant lifecycle 或 PG crash recovery 已执行。断言缺陷存在的 PASS 不是业务验收 PASS。
+- 当前 PG 用例认可：proof 已登记但 ack 未完成的 recovery tuple/confirm、未发布退役与拒绝退役已发布 export、删除 title 的精确 SQL-row guard 负例。最后一项关闭前轮对该具体 SQL 负例的证据要求。已发布但未登记 TE proof 的 retirement 拒绝也由当前 PG 用例直接覆盖，反向支持 R14 的 crash-window 诊断。
+- 完整 BOARD-D/IP-BOARD-D owning 状态链、三 consistency、返回前撤权、Export RR/late dirty、worker 崩溃与 marker 恢复矩阵仍 NOT RUN。本轮未新增本地 PG；外部/人工与明确延后边界保持。
+- 本地配置 docs 沿用已查明的环境限制：固定 pnpm 11.19.0 的 dependency status 要求 install，非 TTY 触发 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`（既有 Vibe exit 21、子命令 exit 1）；本轮依赖配置/运行环境未恢复，不重复确定性失败，当前记录的配置 docs 仍未完成、非 PASS。独立 Prettier/`git diff --check` 不替代该 gate。
+
+### 第五轮 findings 对账
+
+| Finding                      | 第六轮判断                                                  | 当前依据                                                                                                         |
+| ---------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| R1/R3/R4/R5/R6/R8/R9/R11/R12 | 维持已关闭                                                  | 无相关回退证据；新增精确 SQL-row title 删除负例认可                                                              |
+| R2                           | 关闭上一轮未发布旧 Policy 复选问题                          | current hash 不同则退役未发布旧 export 并新导出；已发布但 proof 缺失的剩余窗口归 R14                             |
+| R7                           | 布局与安全 uint64 范围关闭；AUTH 全零规则部分修复           | 最大安全 sequence 与全部批准 offsets 成立；AUTH 非零 sequence 仍接受                                             |
+| R10                          | 部分修复、必要验收仍未完成                                  | 新增三项 focused PG 认可；entry 文件仍仅三例，完整矩阵 NOT RUN                                                   |
+| R13                          | 关闭上一轮实际字段遗漏                                      | CLAIM owner、publish Policy/retention/完整 fence、CONFIRM generation/sequence/token 均绑定；关闭仅针对原报告缺陷 |
+| R14                          | proof→confirm 漏选已修复；publish→proof + Policy 更新仍阻断 | recovery 只看 TE proof，retirement 却正确看独立 Projection outcome，组合产生永久复选失败                         |
+
+### 第六轮阻断 comments
+
+#### R14 [P1] 恢复实际已发布但 TE proof 缺失的 export
+
+位置：`apps/api/src/composition/task-board-dispatcher.ts:207`。
+
+上一轮 proof commit→confirm 前的窗口已通过独立 confirmation 状态修复，应撤回该原反例。剩余合法顺序：Policy A 下 E1/G1 的 Projection outcome 提交→worker 在 TE recordTaskBoardPublication 前崩溃→Policy B 生效→新 pass 读取 E1。V7014:536 的 recovery reader 仅 LEFT JOIN TE proof，返回 generationId/publishSequence=null，worker 因旧 A 与当前 B 不同进入 retire；但 SQL 574–579 正确读取 Projection outcome，拒绝 `TASK_BOARD_EXPORT_ALREADY_PUBLISHED`。manifest 未确认、未退役，后续 pass 永远选中同一 E1，无法确认原 covered dirty 或开始新导出。
+
+controlled composition probe 连续两次重现 retire 报错，publish/confirm 均 0；当前 PG retirement 用例还直接证明没有 TE proof 的实际已发布 export 不可退役。请通过 owning 边界恢复独立不可变 publication outcome，沿用原 E1/hash/G1/sequence 完成 proof/确认；用实际 PG/dispatcher publish commit 后、TE proof 前的 reached 崩溃及 Policy replacement 正例证明恢复。继续禁止退役已发布 export，保持 Spec003 §12.7/#248 的 alias 与 dirty 保证。
+
+#### R7 [P2] AUTH sequence 仍需全零
+
+位置：`modules/task-execution/src/business/task-board-cursor.ts:255`。
+
+批准 offsets 与 uint64 安全整数范围已修复，不再报告旧布局/uint32 问题。但 AUTH decoder 只校验 generation/hash 全零；encoder 在 offset118 无条件写 claims.watermarkSequence。独立 codec probe 以 AUTHORITATIVE、无 generation/hash、sequence=1 签发后，成功 decode 为 AUTHORITY/sequence=1。Spec003 §12.6 明确 AUTH generationId/manifestHash/sequence 均全零且还原空水位。请编码拒绝矛盾 AUTH claims，解码拒绝合法签名的非零 AUTH sequence，保留零值正例与 Projection 安全整数边界。该结论是协议 canonical 规则违背，不声称无 Secret 客户端能伪造签名。
+
+#### R10 [P1] 完成原 Issue 的必要 owning 与恢复验收
+
+位置：`tests/persistence/task-board-entry.test.ts:369`。
+
+本轮三项新增 PG focused 正反例和 exact-head CI 有效；撤回该单字段 SQL-row 负例缺失的前轮描述。entry 文件与第五轮 head 相同，仍仅 Task v2 DRAFT/READY 的 AUTHORITATIVE、export/PROJECTION_OK 和初始 Human revoke 三例。#248 已要求的真实 v1/v2 Task 与两种 WO 创建身份、完成/BLOCKED_INPUT/恢复/取消/current Evaluation、G1→G2 多页、SNAPSHOT_AT_LEAST、最终返回前依赖/Policy 撤权、两连接 reached Export RR、低序号 dirty 晚提交和实际 dispatcher 崩溃重放尚未交付。新的 storage recovery 用例 coveredDirtyIds=[] 且直接 reader/confirm，没有证明 worker/marker 恢复。完整 BOARD-D/IP-BOARD-D 仍 NOT RUN，Acceptance 未调整。请补现有必要 owning 正链、确定性并发与恢复，分开记录 Application/PG/controlled；不扩大明确排除的外部/人工与延后范围。
+
+### 第六轮交付
+
+已发布并读回 [COMMENT review 5412105288](https://github.com/qzhike/zhiju-business-core/pull/249#pullrequestreview-5412105288)，state=`COMMENTED`、commit_id 等于本轮 SHA；共 3 条代码 comments（2 项 P1、1 项 P2）：[R14](https://github.com/qzhike/zhiju-business-core/pull/249#discussion_r4182237071)、[R7](https://github.com/qzhike/zhiju-business-core/pull/249#discussion_r4182237084)、[R10](https://github.com/qzhike/zhiju-business-core/pull/249#discussion_r4182237097)。发布后 head 未变化，PR 仍 OPEN。正式文档 Prettier API check 与 `git diff --check` PASS；配置 docs 未完成，限制如上。
+
+当前账号为 PR 作者，以 COMMENT review 保留技术 outcome `REQUEST_CHANGES`，不混同 GitHub Request changes 状态。仅更新正式记录和 GitHub comments，不改产品代码，不 commit/push/merge。
+
+---
+
+## 第五轮复审（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`8403eecd0a347ab0895de6bf1c4321f5bf848ad8`；日期：2026-10-05。
@@ -20,17 +80,17 @@
 
 ### 与上一轮对账
 
-| Finding | 第五轮判断 | 当前依据 |
-|---|---|---|
-| R1/R5/R6/R8/R9/R11 | 维持原缺陷关闭 | 无相关回退证据 |
-| R2 | 原撤权 publish 反例已修复；pending Policy 恢复仍阻断 | publish 前二次 owning Policy 解析有效；未核对 pending 原 Policy/提供失效后新导出出口 |
-| R3 | 关闭包含关系缺陷 | SQL manifest element 改用全 row JSONB 相等；相应真实单字段负例覆盖归 R10 |
-| R4 | 关闭当前 alias/retained generation 依赖 | proof 仅核对独立不可变 outcome；实际崩溃恢复缺口另见 R14/R10 |
-| R7 | 部分修复 | 前118-byte/完整源字段/部分AUTH零值规则修正；uint32序号与尾部布局不符批准契约 |
-| R10 | 部分修复、必要出口仍未完成 | 新增 reached信号/manifest读取认可；真实入口文件未新增完整状态链及恢复验收 |
-| R12 | 关闭 AUTH health 耦合 | 签发、最终重验和来源hash只在实际 health 路径使用 |
-| R13 | 部分修复 | 各步 own Decision/source预分配exportId已实现；完整fence/owner/confirm结果尚未绑定 |
-| R14 | 新增阻断 | publication proof commit 后但 dirty confirm 前的崩溃被 pending reader 漏选 |
+| Finding            | 第五轮判断                                           | 当前依据                                                                             |
+| ------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| R1/R5/R6/R8/R9/R11 | 维持原缺陷关闭                                       | 无相关回退证据                                                                       |
+| R2                 | 原撤权 publish 反例已修复；pending Policy 恢复仍阻断 | publish 前二次 owning Policy 解析有效；未核对 pending 原 Policy/提供失效后新导出出口 |
+| R3                 | 关闭包含关系缺陷                                     | SQL manifest element 改用全 row JSONB 相等；相应真实单字段负例覆盖归 R10             |
+| R4                 | 关闭当前 alias/retained generation 依赖              | proof 仅核对独立不可变 outcome；实际崩溃恢复缺口另见 R14/R10                         |
+| R7                 | 部分修复                                             | 前118-byte/完整源字段/部分AUTH零值规则修正；uint32序号与尾部布局不符批准契约         |
+| R10                | 部分修复、必要出口仍未完成                           | 新增 reached信号/manifest读取认可；真实入口文件未新增完整状态链及恢复验收            |
+| R12                | 关闭 AUTH health 耦合                                | 签发、最终重验和来源hash只在实际 health 路径使用                                     |
+| R13                | 部分修复                                             | 各步 own Decision/source预分配exportId已实现；完整fence/owner/confirm结果尚未绑定    |
+| R14                | 新增阻断                                             | publication proof commit 后但 dirty confirm 前的崩溃被 pending reader 漏选           |
 
 ### 第五轮阻断 comments
 
@@ -103,17 +163,17 @@ keyId/requestBindingHash/sourceFingerprint/generation/manifest 的前 118 bytes 
 
 ### 上轮 finding 对账
 
-| Finding | 第三轮判断 | 本轮依据 |
-|---|---|---|
-| R1/R6/R8/R9 | 维持原缺陷已修复 | 当前修订无相关回退证据 |
-| R2 | 部分修复 | 专用 Policy mapping、Query 最终 Decision 重验及 maintenance 解析新增；worker protected publish 前仍不重验 Policy，payload 另见 R13 |
-| R3 | 部分修复 | SQL canonical hash 与 promoted mirror 新增；row 使用包含判断，非完整相等 |
-| R4 | 原伪造反例已修复；恢复仍阻断 | 独立 outcome 校验新增；当前 alias/generation JOIN 拒绝合法历史重放 |
-| R5 | 关闭原锁等待取时缺陷 | 数据库时间移至 fence 锁之后且切 alias 前再次检查；reached 验收缺口归 R10 |
-| R7 | 期限与完整 digest 缺陷关闭；协议仍部分修复 | authority/Projection 保留原期限，完整 HMAC/binding/evidence；字节布局及 Projection sourceFingerprint 仍不符批准格式 |
-| R10 | 未完成 | 新增 focused PG 不代替 Issue 完整 owning/恢复验收 |
-| R11 | 关闭原 selected Grant 身份缺失 | owning revalidation 返回实际 selectedGrant，grant id/Scope/actions/selectors/Policy snapshot/aggregateVersion 纳入 hash；更换 Grant 与同来源稳定性有 Unit |
-| R12/R13 | 新增相关阻断 | AUTH health 权限耦合；技术步骤 Decision 未绑定完整实际 payload |
+| Finding     | 第三轮判断                                 | 本轮依据                                                                                                                                                  |
+| ----------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1/R6/R8/R9 | 维持原缺陷已修复                           | 当前修订无相关回退证据                                                                                                                                    |
+| R2          | 部分修复                                   | 专用 Policy mapping、Query 最终 Decision 重验及 maintenance 解析新增；worker protected publish 前仍不重验 Policy，payload 另见 R13                        |
+| R3          | 部分修复                                   | SQL canonical hash 与 promoted mirror 新增；row 使用包含判断，非完整相等                                                                                  |
+| R4          | 原伪造反例已修复；恢复仍阻断               | 独立 outcome 校验新增；当前 alias/generation JOIN 拒绝合法历史重放                                                                                        |
+| R5          | 关闭原锁等待取时缺陷                       | 数据库时间移至 fence 锁之后且切 alias 前再次检查；reached 验收缺口归 R10                                                                                  |
+| R7          | 期限与完整 digest 缺陷关闭；协议仍部分修复 | authority/Projection 保留原期限，完整 HMAC/binding/evidence；字节布局及 Projection sourceFingerprint 仍不符批准格式                                       |
+| R10         | 未完成                                     | 新增 focused PG 不代替 Issue 完整 owning/恢复验收                                                                                                         |
+| R11         | 关闭原 selected Grant 身份缺失             | owning revalidation 返回实际 selectedGrant，grant id/Scope/actions/selectors/Policy snapshot/aggregateVersion 纳入 hash；更换 Grant 与同来源稳定性有 Unit |
+| R12/R13     | 新增相关阻断                               | AUTH health 权限耦合；技术步骤 Decision 未绑定完整实际 payload                                                                                            |
 
 ### 本轮阻断 comments
 
@@ -184,19 +244,19 @@ canonical manifest/rows hash 和新增 mirror guard 修复了原先的损坏 has
 
 ### 上轮 finding 对账
 
-| 上轮 finding | 第二轮状态 | 依据/剩余边界 |
-|---|---|---|
-| R1 | 原缺陷已修复 | Human 使用 owning Board mapping；真实首页 Grant revoke PG 负例；更完整返回前撤权证据归 R10 |
-| R2 | 部分修复 | 技术 mapping 已接线；Policy mapping、最终/current 重验与实际 payload 仍不足 |
-| R3 | 部分修复 | 应用 hash/count 与读回校验新增；SQL hash/row mirror 仍缺 |
-| R4 | 部分修复 | confirm 要求 publication 记录，但记录自身未验证 Projection 结果 |
-| R5 | 部分修复 | 使用 DB clock 且读 TE control，但取时在 fence 锁等待之前 |
-| R6 | 原缺陷已修复 | authority 使用 lastTaskId 继续；独立多页反例复核成功 |
-| R7 | 部分修复 | 毫秒/key/HMAC/trusted expiry 修复；会话自动续期、编码布局仍不符合契约 |
-| R8 | 原缺陷已修复 | 历史 asOf 与实际 alias 比较，独立 probe 为 STALE |
-| R9 | 原缺陷已修复 | budget failure 为 FAILED，后续成功发布解除失败有 Unit 覆盖 |
-| R10 | 部分修复 | 新增三项 real owning entry PG；其余明确验收仍缺 |
-| R11 | 新增阻断 | selected Grant 完整来源身份未进入 authorizationSourceHash |
+| 上轮 finding | 第二轮状态   | 依据/剩余边界                                                                              |
+| ------------ | ------------ | ------------------------------------------------------------------------------------------ |
+| R1           | 原缺陷已修复 | Human 使用 owning Board mapping；真实首页 Grant revoke PG 负例；更完整返回前撤权证据归 R10 |
+| R2           | 部分修复     | 技术 mapping 已接线；Policy mapping、最终/current 重验与实际 payload 仍不足                |
+| R3           | 部分修复     | 应用 hash/count 与读回校验新增；SQL hash/row mirror 仍缺                                   |
+| R4           | 部分修复     | confirm 要求 publication 记录，但记录自身未验证 Projection 结果                            |
+| R5           | 部分修复     | 使用 DB clock 且读 TE control，但取时在 fence 锁等待之前                                   |
+| R6           | 原缺陷已修复 | authority 使用 lastTaskId 继续；独立多页反例复核成功                                       |
+| R7           | 部分修复     | 毫秒/key/HMAC/trusted expiry 修复；会话自动续期、编码布局仍不符合契约                      |
+| R8           | 原缺陷已修复 | 历史 asOf 与实际 alias 比较，独立 probe 为 STALE                                           |
+| R9           | 原缺陷已修复 | budget failure 为 FAILED，后续成功发布解除失败有 Unit 覆盖                                 |
+| R10          | 部分修复     | 新增三项 real owning entry PG；其余明确验收仍缺                                            |
+| R11          | 新增阻断     | selected Grant 完整来源身份未进入 authorizationSourceHash                                  |
 
 ### 本轮阻断 comments
 
@@ -251,7 +311,6 @@ record_publication 只验证 live lease token 和 TE manifest 是否存在，然
 ---
 
 ## 第一轮审查（历史记录，以下结论绑定旧 SHA）
-
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`c9c2e03a2cd9d623787cc9928fe8ac25d8887241`。

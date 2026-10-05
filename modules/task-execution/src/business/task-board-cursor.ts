@@ -250,10 +250,13 @@ export function decodeTaskBoardCursor(
   if (payload.readUInt32BE(OFF.keyId) !== key.keyId) fail('QUERY_CURSOR_INVALID');
   const generationIdBytes = payload.subarray(OFF.generationId, OFF.generationId + 16);
   const manifestHashBytes = Buffer.from(payload.subarray(OFF.manifestHash, OFF.manifestHash + 32));
-  // An authority cursor must not carry generation evidence, and vice versa.
+  // An authority cursor must not carry generation evidence nor a publication
+  // watermark; a generation cursor carries both.
+  const watermarkSequence = readCount(payload, OFF.watermarkSequence);
   if (
     (mode === 'AUTHORITY' && !generationIdBytes.equals(ZERO_UUID)) ||
-    (mode === 'AUTHORITY' && !manifestHashBytes.equals(Buffer.alloc(32)))
+    (mode === 'AUTHORITY' && !manifestHashBytes.equals(Buffer.alloc(32))) ||
+    (mode === 'AUTHORITY' && watermarkSequence !== 0)
   )
     fail('QUERY_CURSOR_INVALID');
   const issuedAt = readMilliseconds(payload, OFF.issuedAt);
@@ -270,7 +273,7 @@ export function decodeTaskBoardCursor(
     mode,
     ...(mode === 'GENERATION' ? { generationId: uuidText(generationIdBytes) } : {}),
     snapshotAt: new Date(readMilliseconds(payload, OFF.snapshotAt)).toISOString(),
-    watermarkSequence: readCount(payload, OFF.watermarkSequence),
+    watermarkSequence,
     lastTaskId: uuidText(payload.subarray(OFF.lastTaskId, OFF.lastTaskId + 16)),
     issuedAt: new Date(issuedAt).toISOString(),
     expiresAt: new Date(expiresAt).toISOString(),
@@ -294,6 +297,8 @@ export function assertTaskBoardCursorBinding(
   if (decoded.mode !== (claims.generationId === undefined ? 'AUTHORITY' : 'GENERATION'))
     fail('QUERY_CURSOR_SCOPE_MISMATCH');
   if (decoded.generationId !== claims.generationId) fail('QUERY_CURSOR_SCOPE_MISMATCH');
+  if (claims.generationId === undefined && claims.watermarkSequence !== 0)
+    fail('QUERY_CURSOR_SCOPE_MISMATCH');
   // pageSize/consistency/asOf/minimumWatermark are compared through the
   // requestBindingHash below.
   const expected = payloadFor(claims, key.keyId);

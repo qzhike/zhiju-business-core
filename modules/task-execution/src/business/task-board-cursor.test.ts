@@ -78,6 +78,8 @@ function authorityClaims(): TaskBoardCursorClaims {
     generationId: undefined,
     manifestHash: undefined,
     sourceFingerprint: 'f'.repeat(64),
+    // An authority cursor carries no publication watermark.
+    watermarkSequence: 0,
   });
 }
 

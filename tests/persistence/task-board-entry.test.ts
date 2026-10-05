@@ -82,6 +82,10 @@ describe.skipIf(!gateEnabled)(
         options?: { readonly revokeHuman?: boolean },
       ) => Promise<CanonicalJsonObject>;
       readonly runProjection: (payload: CanonicalJsonObject) => Promise<CanonicalJsonObject>;
+      readonly runSnapshotAtLeast: (
+        payload: CanonicalJsonObject,
+        minimumWatermark: number,
+      ) => Promise<CanonicalJsonObject>;
       readonly exportPass: () => Promise<unknown>;
       readonly projectRef: CanonicalJsonObject;
       readonly dirtyCount: () => Promise<number>;
@@ -278,6 +282,7 @@ describe.skipIf(!gateEnabled)(
         payload: CanonicalJsonObject,
         consistency: string,
         revokeHuman = false,
+        minimumWatermark?: number,
       ): Promise<CanonicalJsonObject> => {
         const humanDecisionRef = await mint(
           humanDeps,
@@ -323,6 +328,7 @@ describe.skipIf(!gateEnabled)(
             },
             authorizationDecisionRef: humanDecisionRef as unknown as CanonicalJsonObject,
             consistencyRequirement: consistency,
+            ...(minimumWatermark === undefined ? {} : { minimumWatermark }),
             correlationId: newUuidV7(),
             requestedAt: new Date().toISOString(),
             payload,
@@ -342,6 +348,8 @@ describe.skipIf(!gateEnabled)(
         runAuthoritative: (payload, options) =>
           runBoard(payload, 'AUTHORITATIVE', options?.revokeHuman === true),
         runProjection: (payload) => runBoard(payload, 'PROJECTION_OK'),
+        runSnapshotAtLeast: (payload, minimumWatermark) =>
+          runBoard(payload, 'SNAPSHOT_AT_LEAST', false, minimumWatermark),
         exportPass: () =>
           dispatcher.runExportPass({
             projectRef,
@@ -408,6 +416,79 @@ describe.skipIf(!gateEnabled)(
       expect(watermarks[0]?.sourceModule).toBe('task_execution');
       expect(watermarks[0]?.sequence).toBe(published?.publishSequence);
     });
+    it('keeps both Task creation identities and serves SNAPSHOT_AT_LEAST', async () => {
+      const board = await boardHarness();
+      const legacyTaskId = await suite.createExecutableTask('1.0');
+      const authoritative = await board.runAuthoritative({
+        projectRef: board.projectRef,
+        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+        page: { pageSize: 50 },
+      });
+      const items = (authoritative.data as Record<string, unknown>).items as Record<
+        string,
+        unknown
+      >[];
+      const legacy = items.find(
+        (item) => (item.taskRef as Record<string, unknown>).objectId === legacyTaskId,
+      );
+      expect((legacy?.taskRef as Record<string, unknown>).objectType).toBe('execution.task');
+      expect(
+        items.some(
+          (item) => (item.taskRef as Record<string, unknown>).objectType === 'zhiju.execution.task',
+        ),
+      ).toBe(true);
+      // SNAPSHOT_AT_LEAST at or above the published watermark serves data, and
+      // an unreachable watermark is a data-less STALE page.
+      const published = (await board.exportPass()) as { publishSequence: number } | undefined;
+      const atLeast = await board.runSnapshotAtLeast(
+        {
+          projectRef: board.projectRef,
+          statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+          page: { pageSize: 50 },
+        },
+        0,
+      );
+      expect(atLeast.status).toBe('OK');
+      expect(atLeast.data).toBeDefined();
+      const unmet = await board.runSnapshotAtLeast(
+        {
+          projectRef: board.projectRef,
+          statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+          page: { pageSize: 50 },
+        },
+        (published?.publishSequence ?? 0) + 5,
+      );
+      expect(unmet.status).toBe('STALE');
+      expect(unmet.data).toBeUndefined();
+    });
+
+    it('keeps reading the original generation while a newer one is published', async () => {
+      const board = await boardHarness();
+      const first = await board.runProjection({
+        projectRef: board.projectRef,
+        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+        page: { pageSize: 1 },
+      });
+      const cursor = String((first.data as Record<string, unknown>).nextCursor);
+      await board.exportPass();
+      const continued = await board.runProjection({
+        projectRef: board.projectRef,
+        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+        page: { pageSize: 1, cursor },
+      });
+      // The original generation is still served from the cursor, and the page
+      // is reported as at least STALE because the alias moved on.
+      expect(continued.stalenessStatus).toBe('STALE');
+      expect(continued.data).toBeDefined();
+      const continuedIds = (
+        (continued.data as Record<string, unknown>).items as Record<string, unknown>[]
+      ).map((item) => (item.taskRef as Record<string, unknown>).objectId);
+      const firstIds = (
+        (first.data as Record<string, unknown>).items as Record<string, unknown>[]
+      ).map((item) => (item.taskRef as Record<string, unknown>).objectId);
+      expect(continuedIds.some((id) => firstIds.includes(id))).toBe(false);
+    });
+
     it('refuses the read once the Human Grant is revoked', async () => {
       const board = await boardHarness();
       await expect(
