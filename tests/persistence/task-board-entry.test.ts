@@ -127,6 +127,12 @@ describe.skipIf(!gateEnabled)(
         readonly exportId: string;
         readonly dirtyIds: readonly string[];
       }>;
+      /** Runs the read through an entry bound to the supplied Task Execution handle. */
+      readonly runWithProbe: (
+        payload: CanonicalJsonObject,
+        consistency: string,
+        db: Kysely<TaskExecutionDb>,
+      ) => Promise<CanonicalJsonObject>;
       readonly pool: pg.Pool;
       readonly projectRef: CanonicalJsonObject;
       readonly dirtyCount: () => Promise<number>;
@@ -333,6 +339,7 @@ describe.skipIf(!gateEnabled)(
         consistency: string,
         revokeHuman = false,
         minimumWatermark?: number,
+        db?: Kysely<TaskExecutionDb>,
       ): Promise<CanonicalJsonObject> => {
         const humanDecisionRef = await mint(
           humanDeps,
@@ -353,7 +360,18 @@ describe.skipIf(!gateEnabled)(
           });
           expect(result.status).toBe('COMMITTED');
         }
-        return entry.getTaskBoardSlice(
+        const activeEntry =
+          db === undefined
+            ? entry
+            : createTaskBoardEntry({
+                identity: { db: suite.identityDb, repo: suite.identityRepo, crypto: suite.crypto },
+                taskExecutionDb: db,
+                capabilityCodes,
+                cursorKey: { keyId: 11, secret: Buffer.alloc(32, 0x31) },
+                boardPolicyRef: (candidate) =>
+                  candidate === projectId ? boardPolicyRef : undefined,
+              });
+        return activeEntry.getTaskBoardSlice(
           {
             queryId: newUuidV7(),
             queryType: 'execution.get_task_board_slice',
@@ -528,6 +546,8 @@ describe.skipIf(!gateEnabled)(
           return captured;
         },
         exportPass: () => dispatcher.runExportPass(target),
+        runWithProbe: (payload, consistency, db) =>
+          runBoard(payload, consistency, false, undefined, db),
         pool: suite.tePool,
         projectRef,
         dirtyCount: async () =>
@@ -855,6 +875,88 @@ describe.skipIf(!gateEnabled)(
       );
       expect(g2Ids).toContain(newTaskId);
       expect(g2Ids.length).toBeGreaterThan(after.ids.length);
+    });
+
+    it('does not report FRESH when the alias is replaced between the projection reads', async () => {
+      const board = await boardHarness();
+      // A published, clean generation is the FRESH baseline for the same query.
+      await board.exportPass();
+      const query = {
+        projectRef: board.projectRef,
+        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+        page: { pageSize: 50 },
+      };
+      const baseline = await board.runProjection(query);
+      expect(baseline.stalenessStatus).toBe('FRESH');
+      // A real owning write and a real export pass run while the read is in
+      // flight, so the alias advances between its projection reads.
+      let healthSeen = false;
+      let replaced = false;
+      const probeDb = new Kysely<TaskExecutionDb>({
+        dialect: new PostgresDialect({ pool: board.pool }),
+        plugins: [
+          {
+            transformQuery(args: PluginTransformQueryArgs) {
+              if (!healthSeen && JSON.stringify(args.node).includes('task_board_health'))
+                healthSeen = true;
+              return args.node;
+            },
+            async transformResult(args: PluginTransformResultArgs) {
+              if (healthSeen && !replaced) {
+                replaced = true;
+                await suite.createExecutableTask('2.0');
+                await board.exportPass();
+              }
+              return args.result;
+            },
+          },
+        ],
+      });
+      try {
+        const result = await board.runWithProbe(query, 'PROJECTION_OK', probeDb);
+        expect(replaced).toBe(true);
+        expect(result.stalenessStatus).not.toBe('FRESH');
+      } finally {
+        // The handle shares the suite pool, so only the plugin is discarded.
+      }
+    });
+
+    it('does not report FRESH when the owning source changes between the projection and health reads', async () => {
+      const board = await boardHarness();
+      await board.exportPass();
+      const query = {
+        projectRef: board.projectRef,
+        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+        page: { pageSize: 50 },
+      };
+      expect((await board.runProjection(query)).stalenessStatus).toBe('FRESH');
+      // A real owning command commits a produced identity after the read has
+      // already projected its published generation, so the health read must
+      // observe a pending marker the projection it returned does not cover.
+      let projectionSeen = false;
+      let produced = false;
+      const probeDb = new Kysely<TaskExecutionDb>({
+        dialect: new PostgresDialect({ pool: board.pool }),
+        plugins: [
+          {
+            transformQuery(args: PluginTransformQueryArgs) {
+              if (!projectionSeen && JSON.stringify(args.node).includes('task_board_generation'))
+                projectionSeen = true;
+              return args.node;
+            },
+            async transformResult(args: PluginTransformResultArgs) {
+              if (projectionSeen && !produced) {
+                produced = true;
+                await suite.createExecutableTask('2.0');
+              }
+              return args.result;
+            },
+          },
+        ],
+      });
+      const result = await board.runWithProbe(query, 'PROJECTION_OK', probeDb);
+      expect(produced).toBe(true);
+      expect(result.stalenessStatus).not.toBe('FRESH');
     });
 
     it('does not cover an owning write that commits after the export read its dirty boundary', async () => {
