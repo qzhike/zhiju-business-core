@@ -1,6 +1,43 @@
 # PR #249 正式审查记录
 
-## 第十四轮复审（当前结论）
+## 第十五轮复审（当前结论）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`73378adc4da773b257d4c2bf945cafae36a657ca`；日期：2026-10-06。
+- `vibe repo --json` 确认本地 repository/branch/revision；起始工作区干净。GitHub CLI GraphQL/REST 暂时连接超时后，浏览器备用通道成功读取 PR：OPEN、非 Draft，最新第13个 commit 的完整 SHA 与本地一致；Issue #248 当前 Acceptance/required full 未调整。
+- 非盲审：按当前 Issue #248 原 Acceptance、Spec003 §12/Spec001 §15.19、BOARD-D/IP-BOARD-D 核对本轮实际 diff。相对第十四轮，只有新增未配置 Board Policy 的 PG 测试、Module-Test 状态与历史正式记录；产品代码未变，当前 owning authority 未变。
+
+### 第十五轮实现证据与 finding 对账
+
+- **认可 Board Policy 缺配置入口反例。** `runWithoutConfiguredPolicy` 使用真实 owning Human Decision，给 entry 的 `boardPolicyRef` 返回 undefined；新测试断言 `DEPENDENCY_UNAVAILABLE`。当前 entry 在该配置检查点同步抛错，早于 Human Decision/Policy/source 的 protected read；此控制流支持当前实现不读取受保护来源。
+- **证据粒度仍需准确。** 新测试只有错误码断言，没有 protected-read/write 计数探针。若错误实现先读 source 再抛同一错误，本测试仍会通过，因此 Module-Test 不能据此宣称已执行证明“protected read 为0”。Board Policy ref 缺失是一个配置反例，也不是七项 capability mapping 各自缺 config/Grant 的完整反例。认可已补子项，不把它写成完整配置矩阵闭合。
+- 当前恢复的原 export/sequence、hash/covered-identities、crash 后新 marker、恢复前 generation 计数与后续 export 断言保持认可；WO 两种身份、入口 source revoke、完整 G1 分页和 executed dirty read 后 owning 提交的既有实现不重开。无新的产品回退证据。
+- Module-Test 仍明确列出正常完成/BLOCKED_INPUT/恢复/取消状态链、七项 mapping、源读取已到达后最终返回前撤权、Export RR 两连接、P1→H/H→P2 freshness 屏障未交付；完整 BOARD-D/IP-BOARD-D 行仍 NOT RUN。上述未交付条件足以维持 R10。
+
+### 第十五轮阻断 finding
+
+#### R10 [P1] 完成剩余原验收，并准确证明缺配置时的受保护访问边界
+
+依据：Issue #248 当前原 Acceptance；`.vibe/module-tests/Module-Test-003-TaskExecution.md:650`；`tests/persistence/task-board-entry.test.ts:885`；BOARD-D-001/004/005/006、IP-BOARD-D-001–003；Spec003 §12、Spec001 §15.19。
+
+- **完整 owning 状态链：** 正常完成、BLOCKED_INPUT/一次恢复、已有有限取消后准确 Task/WO/blocker/current Evaluation，包含保守未解除窗口。
+- **独立当前权限：** 七项 mapping 必要正反例，缺 Grant/config 的对应 protected read/write 为0；新增 Board Policy ref 缺失测试只闭合该错误路径。为0的运行证据须有访问计数/拒绝访问探针及合法对照，不能只有错误码。首屏/翻页/最终返回前真实撤权/到期需 reached 屏障证明 IP 当前复验拒绝，不能用新 Query 前 revoke 代替。
+- **业务快照/freshness：** 两连接 reached Export RR 对比完整 Task/child 旧事实与下一 Export 新事实；P1→H source 变化和 H→P2 alias 变化不得假 FRESH。
+- **当前最终 SHA required full：** 浏览器已核实 [CI run 37450952125](https://github.com/qzhike/zhiju-business-core/actions/runs/37450952125)，与 PR 最新 `73378ad` commit 对应；PR 当前 select/checks 成功、persistence/verify 失败。持久化 job 在 `PostgreSQL startup and image verification` 阶段发现 `postgres:18.6` 当前 digest `sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf` 与固定 digest `sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722` 不一致，子命令 exit1。失败在 PG 测试之前，不归因于新增测试/产品逻辑；本 SHA required full 无 PASS，新增 PG 用例未执行。需镜像基线条件恢复后的最终被审 SHA 完整成功证据，不能复用旧 SHA 的结果代替。
+
+本轮无新增本地 Unit/PG/controlled/full runs。本地既有固定 pnpm dependency-status/非TTY install 限制未恢复，configured docs 未完成、不记 PASS；正式记录的 Prettier API check/`git diff --check` 仅为独立窄诊断。保持 HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot replacement lifecycle 与 TD-07 既有排除/延后边界。
+
+### 第十五轮交付
+
+GitHub CLI GraphQL 与 REST 读取均报 `dial tcp 198.18.0.26:443: i/o timeout`（exit1）；有限重试后改用 Edge 原生 UI，成功核对 PR 最新完整 SHA、当前 Issue 与持久化失败日志，不把失败 CLI 请求当作证据。
+
+已通过浏览器发布 [第十五轮普通 PR comment 6014770295](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6014770295)，页面显示本轮完整记录、被审 SHA 和 R10；通过评论 Edit 入口读回原始 Markdown，与准备的完整正文逐字一致（3010 字符），随后 Cancel 退出，不提交额外编辑。发布后 PR 页面最新 commit 仍为 `73378ad`，状态 OPEN。正式记录 Prettier API check 与 `git diff --check` PASS；configured docs 限制如上。
+
+本次为普通 PR comment，技术 outcome REQUEST_CHANGES 不等于 GitHub 正式 Request changes review；未重复发布旧 inline findings。仅更新正式记录与发布 comments，不修改产品代码，不 commit/push/merge。
+
+---
+
+## 第十四轮复审（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`908fa210a2107ebc42a6e481d6ea107f52188fb1`；日期：2026-10-06。

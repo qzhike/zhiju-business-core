@@ -115,10 +115,14 @@ describe.skipIf(!gateEnabled)(
       /** Runs the real pass but aborts at the confirm authorization. */
       /** Revokes the Service source-read authority of this Project. */
       readonly revokeSourceAuthority: () => Promise<void>;
-      /** Runs the entry configured without a Board Policy for the Project. */
-      readonly runWithoutConfiguredPolicy: (
+      /**
+       * Runs the entry with the supplied Board Policy resolution, counting every
+       * statement the entry issues against the Task Execution pool.
+       */
+      readonly runWithPolicyProbe: (
         payload: CanonicalJsonObject,
-      ) => Promise<CanonicalJsonObject>;
+        configured: boolean,
+      ) => Promise<{ outcome: unknown; queries: number }>;
       readonly runExportPassCrashingBeforeConfirm: () => Promise<{
         readonly exportId: string;
         readonly dirtyIds: readonly string[];
@@ -404,13 +408,27 @@ describe.skipIf(!gateEnabled)(
             prepared.ports,
           );
         },
-        runWithoutConfiguredPolicy: async (payload) => {
-          const unconfigured = createTaskBoardEntry({
+        runWithPolicyProbe: async (payload, configured) => {
+          const counter = { queries: 0 };
+          const countingDb = new Kysely<TaskExecutionDb>({
+            dialect: new PostgresDialect({ pool: suite.tePool }),
+            plugins: [
+              {
+                transformQuery: (args: PluginTransformQueryArgs) => {
+                  counter.queries += 1;
+                  return args.node;
+                },
+                transformResult: (args: PluginTransformResultArgs) => Promise.resolve(args.result),
+              },
+            ],
+          });
+          const probed = createTaskBoardEntry({
             identity: { db: suite.identityDb, repo: suite.identityRepo, crypto: suite.crypto },
-            taskExecutionDb: suite.teDb,
+            taskExecutionDb: countingDb,
             capabilityCodes,
             cursorKey: { keyId: 11, secret: Buffer.alloc(32, 0x31) },
-            boardPolicyRef: () => undefined,
+            boardPolicyRef: (candidate) =>
+              configured && candidate === projectId ? boardPolicyRef : undefined,
           });
           const humanDecisionRef = await mint(
             humanDeps,
@@ -420,45 +438,51 @@ describe.skipIf(!gateEnabled)(
             AUTH_HASH,
             payload,
           );
-          return unconfigured.getTaskBoardSlice(
-            {
-              queryId: newUuidV7(),
-              queryType: 'execution.get_task_board_slice',
-              queryVersion: '1.0',
-              scopeRef: scope,
-              requester: {
-                kind: 'OBJECT',
-                objectType: 'zhiju.identity.principal',
-                objectId: OPERATOR,
-                scope,
+          const outcome = await probed
+            .getTaskBoardSlice(
+              {
+                queryId: newUuidV7(),
+                queryType: 'execution.get_task_board_slice',
+                queryVersion: '1.0',
+                scopeRef: scope,
+                requester: {
+                  kind: 'OBJECT',
+                  objectType: 'zhiju.identity.principal',
+                  objectId: OPERATOR,
+                  scope,
+                },
+                authenticationContextRef: {
+                  kind: 'CONTENT_ADDRESSED',
+                  objectType: 'zhiju.identity.authentication_context',
+                  objectId: humanActorSnapshotRef.snapshotId,
+                  scope,
+                  contentHash: {
+                    algorithm: 'SHA-256',
+                    canonicalizationVersion: '1',
+                    digest: AUTH_HASH.toString('hex'),
+                  },
+                },
+                authorizationDecisionRef: humanDecisionRef as unknown as CanonicalJsonObject,
+                consistencyRequirement: 'AUTHORITATIVE',
+                correlationId: newUuidV7(),
+                requestedAt: new Date().toISOString(),
+                payload,
               },
-              authenticationContextRef: {
-                kind: 'CONTENT_ADDRESSED',
-                objectType: 'zhiju.identity.authentication_context',
-                objectId: humanActorSnapshotRef.snapshotId,
-                scope,
-                contentHash: {
-                  algorithm: 'SHA-256',
-                  canonicalizationVersion: '1',
-                  digest: AUTH_HASH.toString('hex'),
+              {
+                authenticationContextHash: AUTH_HASH,
+                resolutionActorSnapshotRef: humanActorSnapshotRef,
+                serviceSession: {
+                  authenticationContextHash: SERVICE_AUTH,
+                  resolutionActorSnapshotRef: serviceActorRef,
+                  sourceDecisionRef: bootstrapSourceDecision,
                 },
               },
-              authorizationDecisionRef: humanDecisionRef as unknown as CanonicalJsonObject,
-              consistencyRequirement: 'AUTHORITATIVE',
-              correlationId: newUuidV7(),
-              requestedAt: new Date().toISOString(),
-              payload,
-            },
-            {
-              authenticationContextHash: AUTH_HASH,
-              resolutionActorSnapshotRef: humanActorSnapshotRef,
-              serviceSession: {
-                authenticationContextHash: SERVICE_AUTH,
-                resolutionActorSnapshotRef: serviceActorRef,
-                sourceDecisionRef: bootstrapSourceDecision,
-              },
-            },
-          );
+            )
+            .then(
+              (value) => value as unknown,
+              (error: unknown) => error,
+            );
+          return { outcome, queries: counter.queries };
         },
         revokeSourceAuthority: async () => {
           const sourceGrantId = grantIds.get('taskBoardSourceReadV1:service');
@@ -882,15 +906,20 @@ describe.skipIf(!gateEnabled)(
       expect(producedTaskId.length).toBeGreaterThan(0);
     });
 
-    it('fails closed with no data when the Project has no configured Board Policy', async () => {
+    it('fails closed with no data and no protected read when the Project has no configured Board Policy', async () => {
       const board = await boardHarness();
-      await expect(
-        board.runWithoutConfiguredPolicy({
-          projectRef: board.projectRef,
-          statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
-          page: { pageSize: 50 },
-        }),
-      ).rejects.toMatchObject({ code: 'DEPENDENCY_UNAVAILABLE' });
+      const payload = {
+        projectRef: board.projectRef,
+        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+        page: { pageSize: 50 },
+      };
+      const missing = await board.runWithPolicyProbe(payload, false);
+      expect(missing.outcome).toMatchObject({ code: 'DEPENDENCY_UNAVAILABLE' });
+      expect(missing.queries).toBe(0);
+
+      const control = await board.runWithPolicyProbe(payload, true);
+      expect(control.queries).toBeGreaterThan(0);
+      expect(control.outcome).toMatchObject({ status: 'OK' });
     });
 
     it('refuses an AUTHORITATIVE read once the Service source Grant is revoked', async () => {
