@@ -89,6 +89,17 @@ describe.skipIf(!gateEnabled)(
       container === undefined ? {} : { databaseUrl: container.getConnectionUri() },
     );
 
+    function boardScope(board: { readonly projectRef: CanonicalJsonObject }): {
+      readonly enterpriseId: string;
+      readonly projectId: string;
+    } {
+      const scope = board.projectRef.scope as Record<string, unknown> | undefined;
+      return {
+        enterpriseId: String(scope?.enterpriseId),
+        projectId: String(scope?.projectId),
+      };
+    }
+
     interface Harness {
       readonly runAuthoritative: (
         payload: CanonicalJsonObject,
@@ -101,6 +112,13 @@ describe.skipIf(!gateEnabled)(
       ) => Promise<CanonicalJsonObject>;
       readonly exportPass: () => Promise<unknown>;
       readonly runExportPassWith: (db: Kysely<TaskExecutionDb>) => Promise<unknown>;
+      /** Runs the real pass but aborts at the confirm authorization. */
+      /** Revokes the Service source-read authority of this Project. */
+      readonly revokeSourceAuthority: () => Promise<void>;
+      readonly runExportPassCrashingBeforeConfirm: () => Promise<{
+        readonly exportId: string;
+        readonly dirtyIds: readonly string[];
+      }>;
       readonly pool: pg.Pool;
       readonly projectRef: CanonicalJsonObject;
       readonly dirtyCount: () => Promise<number>;
@@ -382,6 +400,49 @@ describe.skipIf(!gateEnabled)(
             prepared.ports,
           );
         },
+        revokeSourceAuthority: async () => {
+          const sourceGrantId = grantIds.get('taskBoardSourceReadV1:service');
+          if (sourceGrantId === undefined) throw new Error('the source Grant is missing');
+          const result = await suite.revokeCapabilityTracked(serviceDeps, {
+            targetId: sourceGrantId,
+            expectedAggregateVersion: '1',
+            scope: { scopeKind: 'PROJECT', enterpriseId, projectId },
+            reasonCode: 'WI248_REVIEW',
+            effectiveAt: new Date(),
+            idempotencyKey: `wi248-revoke-source-${newUuidV7()}`,
+          });
+          expect(result.status).toBe('COMMITTED');
+        },
+        runExportPassCrashingBeforeConfirm: async () => {
+          const prepared = await dispatcher.prepare(target);
+          let captured: { exportId: string; dirtyIds: readonly string[] } | undefined;
+          const crashingPorts = {
+            resolvePolicy: prepared.ports.resolvePolicy,
+            authorize: async (
+              boundary: Parameters<typeof prepared.ports.authorize>[0],
+              ref: Parameters<typeof prepared.ports.authorize>[1],
+              payload: Parameters<typeof prepared.ports.authorize>[2],
+            ) => {
+              if (boundary === 'taskBoardDispatchManageV1' && payload.operation === 'CONFIRM') {
+                captured = {
+                  exportId: typeof payload.exportId === 'string' ? payload.exportId : '',
+                  dirtyIds: (payload.coveredDirtyIds ?? []) as readonly string[],
+                };
+                throw new Error('simulated worker crash before the confirmation');
+              }
+              return prepared.ports.authorize(boundary, ref, payload);
+            },
+          };
+          await expect(
+            runTaskBoardExportPass(
+              { taskExecutionDb: suite.teDb, workerOwner: 'wi248-board-worker' },
+              prepared,
+              crashingPorts,
+            ),
+          ).rejects.toThrow('simulated worker crash before the confirmation');
+          if (captured === undefined) throw new Error('the crash point was not reached');
+          return captured;
+        },
         exportPass: () => dispatcher.runExportPass(target),
         pool: suite.tePool,
         projectRef,
@@ -508,6 +569,96 @@ describe.skipIf(!gateEnabled)(
       ).toBe(true);
     });
 
+    it('binds both WorkOrder creation facts (1.0 and 1.1)', async () => {
+      const board = await boardHarness();
+      const legacyTaskId = await suite.createExecutableTask('1.0');
+      const canonicalTaskId = await suite.createExecutableTask('2.0');
+      const legacyWorkOrderId = await suite.createWorkOrder({
+        taskId: legacyTaskId,
+        taskMajor: '1.0',
+        commandVersion: '1.0',
+      });
+      const canonicalWorkOrderId = await suite.createWorkOrder({
+        taskId: canonicalTaskId,
+        taskMajor: '2.0',
+        commandVersion: '1.1',
+      });
+      const result = await board.runAuthoritative({
+        projectRef: board.projectRef,
+        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+        page: { pageSize: 50 },
+      });
+      const items = (result.data as Record<string, unknown>).items as Record<string, unknown>[];
+      const refs = items.flatMap(
+        (item) => (item.activeWorkOrderRefs ?? []) as Record<string, unknown>[],
+      );
+      expect(
+        refs.some(
+          (ref) => ref.objectId === legacyWorkOrderId && ref.objectType === 'execution.work_order',
+        ),
+      ).toBe(true);
+      expect(
+        refs.some(
+          (ref) =>
+            ref.objectId === canonicalWorkOrderId &&
+            ref.objectType === 'zhiju.execution.work_order',
+        ),
+      ).toBe(true);
+    });
+
+    it('replays the original export, generation and sequence after a crash before the confirmation', async () => {
+      const board = await boardHarness();
+      // A real owning write produces the dirty identity this export must cover.
+      await suite.createExecutableTask('2.0');
+      const pending = await board.dirtyCount();
+      expect(pending).toBeGreaterThan(0);
+      const crashed = await board.runExportPassCrashingBeforeConfirm();
+      expect(crashed.dirtyIds.length).toBeGreaterThan(0);
+      // The crash happened after the Projection commit: the dirty identities
+      // are still pending and the alias must not have moved past the published
+      // generation.
+      expect(await board.dirtyCount()).toBe(pending);
+      const published = await suite.admin.query<{
+        generation_id: string;
+        export_id: string;
+        publish_sequence: string;
+      }>(
+        `SELECT g.generation_id, g.export_id, g.publish_sequence
+           FROM projection.task_board_generation g
+           JOIN projection.task_board_publication_outcome o ON o.generation_id = g.generation_id
+          WHERE g.project_id = $1 AND o.export_id = $2`,
+        [boardScope(board).projectId, crashed.exportId],
+      );
+      expect(published.rowCount).toBe(1);
+      const before = published.rows[0];
+      if (before === undefined) throw new Error('the crashed export was not published');
+      // A later pass replays exactly that export and finishes the
+      // acknowledgement.
+      const recovered = (await board.exportPass()) as
+        { exportId: string; publishSequence: number; replayed: boolean } | undefined;
+      expect(recovered?.exportId).toBe(crashed.exportId);
+      expect(String(recovered?.publishSequence)).toBe(before.publish_sequence);
+      expect(recovered?.replayed).toBe(true);
+      expect(await board.dirtyCount()).toBe(0);
+      // No new generation replaced the alias during the recovery.
+      const after = await suite.admin.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM projection.task_board_generation WHERE project_id = $1`,
+        [boardScope(board).projectId],
+      );
+      const generationCountBefore = await suite.admin.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM projection.task_board_generation WHERE project_id = $1 AND generation_id <> $2`,
+        [boardScope(board).projectId, before.generation_id],
+      );
+      expect(after.rows[0]?.count).toBe(
+        String(Number(generationCountBefore.rows[0]?.count ?? '0') + 1),
+      );
+      const alias = await suite.admin.query<{ generation_id: string }>(
+        `SELECT generation_id FROM projection.task_board_alias WHERE project_id = $1`,
+        [boardScope(board).projectId],
+      );
+      expect(alias.rows[0]?.generation_id).toBe(before.generation_id);
+    });
+
     it('walks the complete old cursor after the source changes and G2 replaces the alias', async () => {
       const board = await boardHarness();
       const query = (page: CanonicalJsonObject): CanonicalJsonObject => ({
@@ -626,6 +777,27 @@ describe.skipIf(!gateEnabled)(
       await board.exportPass();
       expect(await board.dirtyCount()).toBe(0);
       expect(producedTaskId.length).toBeGreaterThan(0);
+    });
+
+    it('refuses an AUTHORITATIVE read once the Service source Grant is revoked', async () => {
+      const board = await boardHarness();
+      // The first read succeeds under the current source authority.
+      const ok = await board.runAuthoritative({
+        projectRef: board.projectRef,
+        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+        page: { pageSize: 50 },
+      });
+      expect(ok.status).toBe('OK');
+      await board.revokeSourceAuthority();
+      // The owning source mapping is no longer current: the read fails closed
+      // with no data instead of serving a stale run.
+      await expect(
+        board.runAuthoritative({
+          projectRef: board.projectRef,
+          statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+          page: { pageSize: 50 },
+        }),
+      ).rejects.toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
     });
 
     it('refuses the read once the Human Grant is revoked', async () => {

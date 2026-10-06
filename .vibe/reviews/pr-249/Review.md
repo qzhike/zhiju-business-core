@@ -1,6 +1,70 @@
 # PR #249 正式审查记录
 
-## 第十轮复审（当前结论，新 head）
+## 第十二轮复核（当前结论，head 未变化）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`b0806c40c0c71fcd9b8b53ed8fc7308435ba881b`；日期：2026-10-06。
+- 重新读取远端 PR head/状态、Issue #248/评论、PR 普通 comments、finding 回复与当前验收矩阵。head 与第十一轮一致，无新实现提交或 finding 回复；工作区仅有上一轮本正式记录的未提交更新。
+- 本轮复核当前权威预期与证据，未声称盲审；原 Issue Acceptance 未调整，完整状态链、两种 WO 身份、当前独立权限、确定性快照/freshness 及实际 worker/非空 dirty 崩溃恢复仍未交付，R10 继续为 P1。
+- 具体必要验收、已关闭分页反例和 evidence 分层沿用 [第十一轮完整 PR comment](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6009415557)。无新的独立 finding，不重复相同 inline comments。
+- 同 revision [CI run 37410374941](https://github.com/qzhike/zhiju-business-core/actions/runs/37410374941) 的 select/checks/persistence/verify 仍 SUCCESS；复用第十一轮已核实的 code/真实 PG full 覆盖，本次无新增本地 Unit/PG/controlled/full runs。
+- 已关闭旧缺陷维持关闭。外部/人工、真实 Grant PolicySnapshot replacement lifecycle、TD-07 排除/延后范围不变。
+- 本地 configured docs 的既有固定 pnpm dependency-status/非TTY install 限制未恢复，不重复失败、不记 PASS；本记录的 Prettier API check/`git diff --check` 仅为独立窄诊断。
+- 已发布并读回 [第十二轮 PR comment 6012408108](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6012408108)，完整正文与准备内容逐字一致；发布后 head 仍为被审 SHA，PR OPEN。正式文档 Prettier API check 与 `git diff --check` PASS；configured docs 限制如上。
+- 仅更新本正式记录与发布复核结论，不修改产品代码，不 commit/push/merge。
+
+---
+
+## 第十一轮复审（历史记录，以下结论绑定同一 SHA）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`b0806c40c0c71fcd9b8b53ed8fc7308435ba881b`；日期：2026-10-06。
+- 本地与远端 head 一致；PR OPEN、非 Draft；起始工作区干净。Issue #248 Acceptance 未调整，无 Issue comments/finding 回复。
+- 非盲审：按当前 Issue、Spec003 §12/Spec001 §15.19 和 BOARD-D/IP-BOARD-D 预期独立核对实际测试/状态文档修订。产品代码未变；原完整 owning/权限/快照/恢复验收不因局部修订改变，排除范围保持。
+- 本轮继续按用户要求将完整复审记录发布为普通 PR comment，不重复发布已关闭分页反例的逐行 comment。
+
+### 第十一轮证据
+
+- [CI run 37410374941](https://github.com/qzhike/zhiju-business-core/actions/runs/37410374941) headSha 精确匹配本轮 SHA；select/checks/persistence/verify SUCCESS；Verify code 与真实 PostgreSQL gate PASS，覆盖未变化的 required full workflow。复用，不重复本地 full。
+- 当前 walk 逐页要求非空，baseline/after 均断言 exhausted=true，after.ids 与 baseline.ids.slice(1) 逐元素顺序相等，并排除新 Task。因此关闭前轮“空 continuation 仍通过”“漏掉 G1 剩余行仍通过”“循环 cap 未断言耗尽”的具体反例；旧分页缺口不再阻断。
+- 当前真实 owning 命令在 export 已执行 dirty read 后提交、原 export 不清该 marker、下一 export 覆盖的证据保持认可。
+- 本轮没有新增本地 Unit/PG/controlled runs；当前 exact CI 已覆盖修改后的 PG 用例，产品代码未变，不重复前轮 fix probes。已关闭代码缺陷保持关闭，无相关回退证据。
+- 当前 Module-Test 仍明确列出完整状态链、返回前权限与七项 mapping、Export RR/P1→H/H→P2、非空 dirty 的实际 worker crash recovery 未交付，完整 BOARD-D/IP-BOARD-D 矩阵仍 NOT RUN。Issue 原 Acceptance 未调整，分页证据闭合不等于完整任务验收。
+- HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot replacement lifecycle、TD-07 的既有排除/延后边界保持。
+- 本地配置 docs 沿用此前确认且未恢复的固定 pnpm dependency-status/非TTY install 限制（ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY；此前 Vibe exit21/子命令1），不重复确定性失败、不记配置 docs PASS；Prettier API check/`git diff --check` 为独立窄诊断。
+
+### 上轮 finding 对账
+
+| Finding           | 第十一轮判断           | 当前依据                                                                                                  |
+| ----------------- | ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| R10 分页子项      | 关闭第十轮具体断言反例 | 非空逐页、明确耗尽、baseline remainder 精确顺序比较均存在，current PG CI PASS                             |
+| R10 剩余必要验收  | 仍为 P1 阻断           | 原 Issue 的状态链、当前独立权限、确定性业务快照/freshness、实际 worker/marker crash recovery 仍明确未交付 |
+| 其余历史 findings | 维持原报告缺陷关闭     | 无产品代码修改或相关回退证据                                                                              |
+
+### 第十一轮阻断 finding
+
+#### R10 [P1] 交付剩余原 Acceptance，不再以分页子项代替完整验收
+
+依据：`.vibe/module-tests/Module-Test-003-TaskExecution.md:650`、BOARD-D-001/004/005/006 与 IP-BOARD-D-001–003；Issue #248 原 Acceptance。
+
+认可本轮分页断言修复；剩余阻断只保留尚未交付的必要场景：
+
+- **真实 owning 状态与身份。** 完成/BLOCKED_INPUT/一次恢复/有限取消后，准确 Task/WO/blocker/current Evaluation；两种 WO 创建事实均覆盖，当前仅 WO@1.1 正例不代替 WO@1.0。
+- **当前独立权限。** 七项 mapping 的必要正反例、缺 Grant/config protected read/write 为0；首屏/翻页/最终返回前真实 Policy/依赖撤权及期限跨越，旧 TE 快照不能遮蔽 IP 当前变化。
+- **确定性快照与 freshness。** 两连接 reached Export RR 证明 Task/child 完整旧事实及下一 Export 新事实；P1→H source 变化和 H→P2 alias 变化均不假 FRESH。现有 owning dirty 计数正例不能代替这些业务行与 freshness 判定。
+- **实际 worker 崩溃恢复。** 发布提交后/确认前中断并在新 pass 重放原 export/hash/generation/sequence，非空 covered dirty 精确确认、不清新 marker、不退 alias。已有 storage proof/confirm 与旧 controlled probes 保持其证据粒度，不升级为实际 worker 恢复。
+
+这些是原 Task 的必要 Acceptance；current CI 绿色不能替代未交付场景。请按场景逐项交付并准确维护 PARTIAL/PASS/NOT RUN。无需扩大外部/人工或既有延后 lifecycle 支持集，也无需重开已经关闭的分页反例。
+
+### 第十一轮交付
+
+已发布并读回 [第十一轮普通 PR comment 6009415557](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6009415557)，完整正文与准备记录逐字一致（3252 字符）。发布后 head 仍为本轮 SHA，PR OPEN。正式文档 Prettier API check 与 `git diff --check` PASS；配置 docs 未完成，限制如上。
+
+技术 outcome REQUEST_CHANGES 与 GitHub review 状态分开。本轮为普通 PR comment，未重复提交已关闭分页反例的 inline comments。仅更新正式记录和发布 comments；不修改产品代码，不 commit/push/merge。
+
+---
+
+## 第十轮复审（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`ed15fa35085190cd52a347cea388d6f2779ec33e`；日期：2026-10-06。
