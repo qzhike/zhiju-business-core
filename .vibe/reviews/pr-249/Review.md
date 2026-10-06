@@ -1,6 +1,49 @@
 # PR #249 正式审查记录
 
-## 第八轮复审（当前结论，新 head）
+## 第九轮复审（当前结论，新 head）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`80cc763abd44c9fc04d5bd643c55a89609a96844`；日期：2026-10-06。
+- 本地与远端 head 一致；PR OPEN、非 Draft；起始工作区干净。Issue #248 Acceptance 未调整，无 Issue comments/finding 回复。
+- 非盲审：从当前 Issue、Spec003 §12/Spec001 §15.19 和 BOARD-D/IP-BOARD-D 预期独立核对测试/证据修订。产品代码未变；完整 owning 状态、权限、分页、快照/发布/确认及恢复验收仍是预期，不扩大外部/人工或既有延后支持集。
+
+### 第九轮证据
+
+- [CI run 37388375857](https://github.com/qzhike/zhiju-business-core/actions/runs/37388375857) headSha 精确匹配本轮 SHA；select/checks/persistence/verify SUCCESS；Verify code 与真实 PostgreSQL gate PASS，覆盖未变化 full workflow。复用，不重复本地 full。
+- 认可本轮真实 PG 双连接技术 dirty 边界：writer BEGIN 并插入 marker 保持未提交，实际 export 查询编译信号 reached 后完成 publish/confirm，然后 writer COMMIT，marker 待处理且下一 export 覆盖。撤回前轮“只是首次 export 结束后才插入、没有并发事务”的描述。
+- writer 直接 INSERT 技术 marker，并未驱动 owning business producer/child 写入；该测试是实际 PG marker/确认边界，不提升为完整 owning 业务状态及 Export RR 不混读验收。信号来自 transformQuery，记录其粒度，不当作 SQL 执行后的显式业务读取屏障。
+- 分页新增真实 source Task 与 G2 发布，比较一页 resumed IDs 有效。但完整 g1Seen 在 source 变化前已经遍历完；G2 后只查询一次 resumed page，最后排除 newTaskId 的断言仍只看旧 baseline。尚未证明 G2 后原 cursor 全链无漏项/混页/重复；Module-Test“源变化后 G1 全量遍历”应收窄。
+- 本轮没有新增本地 Unit/PG/controlled runs；当前 exact CI 已覆盖新 PG 测试，产品代码未修改，不重复前轮 fix probes。已关闭代码反例保持关闭。
+- 当前 Module-Test 明示完整状态链、最终返回前 Policy/依赖撤权/七项 mapping、Export RR、P1→H/H→P2 与非空 marker 的实际 worker crash recovery 尚未交付；BOARD-D-001–007/IP-BOARD-D-001–003 完整行仍 NOT RUN。
+- HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot replacement lifecycle、TD-07 的既有排除/延后边界保持。
+- 本地配置 docs 仍受此前确认且未恢复的固定 pnpm dependency-status/非TTY install 限制（ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY；此前 Vibe exit21/子命令1），不重复确定性失败，不记当前配置 docs PASS。Prettier API check/`git diff --check` 为独立窄诊断。
+
+### 上轮 finding 对账
+
+| Finding           | 第九轮判断                              | 当前依据                                                                                            |
+| ----------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| R10               | 技术 dirty 并发部分改善，必要验收仍阻断 | 两连接未提交 marker 窗口认可；G2 后仍只重读一页，完整状态/当前权限/确定性快照与 worker 恢复尚未交付 |
+| 其余历史 findings | 维持原报告缺陷关闭                      | 本 head 无产品代码修改，无相关回退证据                                                              |
+
+### 第九轮阻断 comment
+
+#### R10 [P1] G2 发布后遍历完整原 G1 cursor，并补剩余必要验收
+
+位置：`tests/persistence/task-board-entry.test.ts:562`。
+
+529–543 行在 source 变化前就遍历完 baseline；547–548 创建新 Task 并发布 G2 后只重读一页，562 排除 newTaskId 仍只检查旧 baseline。若错误 reader 在更后页混入新 Task，这个测试仍会通过。请保留 baseline，在 G2 后从原首屏 cursor 跟随所有 nextCursor 到结束，完整有序 IDs 与 G1 相等、无重复/漏项/新 Task，且 metadata 正确。当前 Module-Test 全量遍历描述应与该执行粒度对齐。
+
+本轮双连接未提交 dirty 确認正例认可，旧 serial 描述撤回；直接技术 marker 写入不替代真实 owning producer/child Export RR。原 #248 仍缺 completion/BLOCKED_INPUT/恢复/取消/current Evaluation、两种 WO 身份、最终返回前 Policy/依赖撤权与七项 mapping 反例、Export RR/P1→H/H→P2 reached 屏障、实际 worker crash 的原 export/generation/sequence 和非空 dirty coverage 重放。继续补必要验收，保持外部/人工及延后 lifecycle 边界。
+
+### 第九轮交付
+
+已发布并读回 [COMMENT review 5422444197](https://github.com/qzhike/zhiju-business-core/pull/249#pullrequestreview-5422444197)，state=`COMMENTED`、commit_id 精确匹配本轮 SHA；[R10 P1 comment 4190347129](https://github.com/qzhike/zhiju-business-core/pull/249#discussion_r4190347129) 已存在。发布后 head 未变化，PR 仍 OPEN。正式文档 Prettier API check 与 `git diff --check` PASS；配置 docs 未完成，限制如上。
+
+当前账号为 PR 作者，技术 outcome REQUEST_CHANGES 与 GitHub COMMENTED 状态分开。仅更新本正式记录及发布 comments；不修改产品代码，不 commit/push/merge。
+
+---
+
+## 第八轮复审（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`9b0adfaded9314fdafcc949f4320030f6e89e2ad`；日期：2026-10-06。

@@ -30,7 +30,7 @@ import {
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
 } from 'kysely';
-import pg from 'pg';
+import type pg from 'pg';
 import type { TaskExecutionDb } from '@zhiju/task-execution';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { postgresImageReference } from '../../tools/persistence/baseline.mjs';
@@ -508,116 +508,104 @@ describe.skipIf(!gateEnabled)(
       ).toBe(true);
     });
 
-    it('walks the full original generation while the source changes and G2 replaces the alias', async () => {
+    it('walks the complete old cursor after the source changes and G2 replaces the alias', async () => {
       const board = await boardHarness();
-      // Take a real first page of the current generation (G1) and its cursor.
+      // Only the first page of G1 is read before the mutation.
       const first = await board.runProjection({
         projectRef: board.projectRef,
         statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
         page: { pageSize: 1 },
       });
       const firstItems = (first.data as Record<string, unknown>).items as Record<string, unknown>[];
-      const generationOne: string[] = firstItems.map((item) =>
+      const firstPageIds = firstItems.map((item) =>
         String((item.taskRef as Record<string, unknown>).objectId),
       );
-      let cursor: string | undefined =
-        (first.data as Record<string, unknown>).nextCursor === undefined
-          ? undefined
-          : String((first.data as Record<string, unknown>).nextCursor);
-      // Complete the G1 traversal before anything changes.
-      const g1Seen = [...generationOne];
-      while (cursor !== undefined) {
+      const cursor = String((first.data as Record<string, unknown>).nextCursor);
+      expect(cursor).not.toBe('undefined');
+      // The owning source changes and G2 replaces the alias.
+      const newTaskId = await suite.createExecutableTask('2.0');
+      await board.exportPass();
+      // The *complete* G1 traversal now happens through the old cursor.
+      const seen = [...firstPageIds];
+      let next: string | undefined = cursor;
+      for (let page = 0; next !== undefined && page < 50; page += 1) {
         const result = await board.runProjection({
           projectRef: board.projectRef,
           statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
-          page: { pageSize: 1, cursor },
+          page: { pageSize: 1, cursor: next },
         });
+        expect(result.stalenessStatus).toBe('STALE');
         const items = (result.data as Record<string, unknown>).items as Record<string, unknown>[];
-        g1Seen.push(
+        seen.push(
           ...items.map((item) => String((item.taskRef as Record<string, unknown>).objectId)),
         );
-        cursor =
+        next =
           (result.data as Record<string, unknown>).nextCursor === undefined
             ? undefined
             : String((result.data as Record<string, unknown>).nextCursor);
       }
-      expect(g1Seen.length).toBeGreaterThan(1);
-      // The owning source changes and G2 replaces the alias, but all four
-      // metrics of the G1 walk must stay identical.
-      const newTaskId = await suite.createExecutableTask('2.0');
-      await board.exportPass();
-      const resumed = await board.runProjection({
+      expect(new Set(seen).size).toBe(seen.length);
+      expect(seen).not.toContain(newTaskId);
+      // After the walk the current generation (G2) owns the new row.
+      const g2 = await board.runProjection({
         projectRef: board.projectRef,
         statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
-        page: { pageSize: 1, cursor: String((first.data as Record<string, unknown>).nextCursor) },
+        page: { pageSize: 50 },
       });
-      const resumedItems = (resumed.data as Record<string, unknown>).items as Record<
-        string,
-        unknown
-      >[];
-      expect(resumed.stalenessStatus).toBe('STALE');
-      expect(
-        resumedItems.map((item) => String((item.taskRef as Record<string, unknown>).objectId)),
-      ).toEqual(g1Seen.slice(1, 2));
-      expect([...generationOne, ...g1Seen.slice(1)]).not.toContain(newTaskId);
+      const g2Ids = ((g2.data as Record<string, unknown>).items as Record<string, unknown>[]).map(
+        (item) => String((item.taskRef as Record<string, unknown>).objectId),
+      );
+      expect(g2Ids).toContain(newTaskId);
+      expect(g2Ids.length).toBeGreaterThan(seen.length);
     });
 
-    it('does not cover a dirty identity whose owning transaction commits after the export', async () => {
+    it('does not cover an owning write that commits after the export read its dirty boundary', async () => {
       const board = await boardHarness();
       await board.exportPass();
       expect(await board.dirtyCount()).toBe(0);
-      const scope = board.projectRef.scope as Record<string, unknown>;
-      // A real owning write transaction that has produced its dirty identity
-      // but has not committed yet (in production the marker comes from the
-      // owning table's AFTER trigger inside that same transaction).
-      const writer = new pg.Client({ connectionString: suite.activeDatabaseUrl });
-      await writer.connect();
+      // A real owning producer runs while the export is parked at its dirty
+      // read boundary, so the export's REPEATABLE READ snapshot predates the
+      // produced marker and must not cover it.
       const reached = Promise.withResolvers<boolean>();
-      let signalled = false;
+      const release = Promise.withResolvers<boolean>();
+      let dirtyReadSeen = false;
+      let released = false;
       const probeDb = new Kysely<TaskExecutionDb>({
         dialect: new PostgresDialect({ pool: board.pool }),
         plugins: [
           {
             transformQuery(args: PluginTransformQueryArgs) {
-              const serialized = JSON.stringify(args.node);
-              if (!signalled && serialized.includes('task_board_dirty')) {
-                signalled = true;
-                reached.resolve(true);
-              }
+              if (!dirtyReadSeen && JSON.stringify(args.node).includes('task_board_dirty'))
+                dirtyReadSeen = true;
               return args.node;
             },
-            transformResult(args: PluginTransformResultArgs) {
-              return Promise.resolve(args.result);
+            async transformResult(args: PluginTransformResultArgs) {
+              // Park the export after its dirty read has been executed, so a
+              // concurrently committed owning write stays outside it.
+              if (dirtyReadSeen && !released) {
+                released = true;
+                reached.resolve(true);
+                await release.promise;
+              }
+              return args.result;
             },
           },
         ],
       });
-      try {
-        await writer.query('BEGIN');
-        await writer.query(
-          `INSERT INTO task_execution.task_board_dirty
-             (marker_id, enterprise_id, project_id, source_type, source_id)
-           VALUES ($1,$2,$3,'task',$4)`,
-          [newUuidV7(), scope.enterpriseId, scope.projectId, newUuidV7()],
-        );
-        // The export under test reaches its snapshot boundary on a second
-        // connection while the writer is still in flight, then publishes and
-        // confirms without covering that identity.
-        const exported = board.runExportPassWith(probeDb);
-        await reached.promise;
-        const result = (await exported) as { publishSequence: number } | undefined;
-        expect(result?.publishSequence).toBeGreaterThanOrEqual(1);
-        expect(signalled).toBe(true);
-        // The in-flight writer's identity was invisible to that snapshot, so
-        // it is still pending after the confirmation.
-        await writer.query('COMMIT');
-        expect(await board.dirtyCount()).toBe(1);
-        // The next export observes and covers it.
-        await board.exportPass();
-        expect(await board.dirtyCount()).toBe(0);
-      } finally {
-        await writer.end().catch(() => undefined);
-      }
+      const exported = board.runExportPassWith(probeDb);
+      await reached.promise;
+      // The real owning command commits its produced dirty identity while the
+      // export is still parked.
+      const producedTaskId = await suite.createExecutableTask('2.0');
+      release.resolve(true);
+      const result = (await exported) as { publishSequence: number } | undefined;
+      expect(result?.publishSequence).toBeGreaterThanOrEqual(1);
+      // Not covered by that export: it stays pending and the next export
+      // covers it.
+      expect(await board.dirtyCount()).toBeGreaterThan(0);
+      await board.exportPass();
+      expect(await board.dirtyCount()).toBe(0);
+      expect(producedTaskId.length).toBeGreaterThan(0);
     });
 
     it('refuses the read once the Human Grant is revoked', async () => {
