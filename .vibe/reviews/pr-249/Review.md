@@ -1,6 +1,52 @@
 # PR #249 正式审查记录
 
-## 第十二轮复核（当前结论，head 未变化）
+## 第十三轮复审（当前结论）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`a3c9fdda04ff68363312570c381f0ce2946a5530`；日期：2026-10-06。
+- 本地与远端 head 一致；PR OPEN、非 Draft；起始工作区干净。重新核对 Issue #248 原 Acceptance、Spec003 §12/Spec001 §15.19、当前测试 diff 与 exact-revision CI。Issue Acceptance 未调整。
+- 非盲审：本轮有历史 finding 上下文，但判断以当前权威预期和实际实现/断言为依据。新增修改仅为 PG 测试、Module-Test 状态与历史正式记录，产品代码未变。
+
+### 第十三轮证据与 finding 对账
+
+| 子项                       | 本轮判断                       | 依据与证据边界                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WO 两种创建事实            | 已补必要实现断言，运行证据待补 | owning 创建 WO@1.0/1.1，AUTHORITATIVE 返回分别核对实际 id 与 `execution.work_order` / `zhiju.execution.work_order`；撤回旧“仅 WO@1.1 正例”的描述                                                                                                                                                                                               |
+| 实际 worker crash recovery | 已补实际 pass，验收 PARTIAL    | 在真实 `runTaskBoardExportPass` 的 CONFIRM 授权点抛错；该点位于 Projection publish 提交之后、TE publication proof/dirty confirm 之前。查询已提交 publication outcome，非空 covered dirty 保持 pending；新 pass 断言原 exportId/sequence、replayed=true、dirty 清零、alias 保持原 generation。撤回旧“实际 worker/非空 dirty 场景完全缺失”的描述 |
+| Service source Grant 撤销  | 已补入口撤权反例，运行证据待补 | 先成功读取，经 owning revoke 后发起新 AUTHORITATIVE Query，断言 AUTHORIZATION_REVOKED；不是 source 读取已到达后、最终返回前的撤权屏障                                                                                                                                                                                                          |
+| 旧分页和 owning dirty 边界 | 维持先前具体缺陷关闭           | G2 后旧 cursor 完整顺序比较/耗尽，executed dirty read 后真实 owning 命令提交的测试保持；不重新发布已关闭分页反例                                                                                                                                                                                                                               |
+| R10 剩余原 Acceptance      | 仍为 P1                        | 完整业务状态链、返回前当前权限/七项 mapping、业务 Export RR 与 freshness 屏障尚未交付；当前 SHA 无 passing full/PG 证据                                                                                                                                                                                                                        |
+| 其余历史 findings          | 维持原缺陷关闭                 | 无产品代码修改或相关回退证据                                                                                                                                                                                                                                                                                                                   |
+
+[CI run 37437130006](https://github.com/qzhike/zhiju-business-core/actions/runs/37437130006) 的 headSha 精确匹配本轮 SHA。select 选择 full；checks/Verify code SUCCESS、Build persistence prerequisites SUCCESS；persistence/Verify persistence 与汇总 verify FAILURE。失败发生于 `PostgreSQL startup and image verification`：`postgres:18.6` 当前解析 digest `sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf`，固定 digest 为 `sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722`；persistence 子命令 exit1。当前 head 的 run list 只有此完成失败记录。
+
+这是镜像基线校验失败，不能归因于新增测试/产品逻辑；PG 测试尚未执行，也不能升级为 PASS。旧 SHA 的成功 full 不替代本 SHA。未修改固定镜像/门禁或重试同一失败；本轮无新增本地 Unit/PG/controlled/full runs。本地既有固定 pnpm dependency-status/非TTY install 限制未恢复，不重复确定性失败；configured docs 未完成、不记 PASS。正式记录的 Prettier API check/`git diff --check` 仅为独立窄诊断。
+
+### 第十三轮阻断 finding
+
+#### R10 [P1] 补齐剩余必要验收并取得当前 SHA 的 passing full
+
+依据：Issue #248 原 Acceptance；`.vibe/module-tests/Module-Test-003-TaskExecution.md:650`、BOARD-D-001/004/005/006；IP-BOARD-D-001–003；Spec003 §12.2/12.7、Spec001 §15.19。
+
+本轮 WO 身份、实际发布后 crash/new-pass 与入口 source revoke 认可为已补实现。仍需交付：
+
+- **完整 owning 状态链：** 正常完成、BLOCKED_INPUT/一次恢复、已有有限取消后准确 Task/WO/blocker/current Evaluation；新 WO 身份用例只覆盖创建事实。
+- **当前独立权限：** 七项 mapping 的必要正反例及缺 Grant/config 时 protected read/write 为0；首屏/翻页/最终返回前真实撤权、Policy/依赖变化与期限跨越。此次 revoke 在新 Query 之前，不能证明读取中途撤权会在最终返回前由 IP 当前 READ COMMITTED 拒绝。
+- **确定性快照与 freshness：** 两连接 reached Export RR 验证完整 Task/child 旧事实及下一 Export 新事实；P1→H source 变化、H→P2 alias 变化不得假 FRESH。既有 dirty marker 边界是有效子证据，不能代替业务行及 freshness 判定。
+- **恢复验收收尾：** 新 actual pass 已存在，但需核对原 manifest hash/covered identities，安排 crash 后新增 marker 与更新 alias 的情形，证明只确认原覆盖 identities、不清新 marker、不退已前进 alias。当前仅断言 dirty 总数与原 alias；`generationCountBefore` 和 `after` 均在 recovery 后查询，其 count 等式不能证明 recovery 没有新增 generation。保留已有实际恢复正例，补必要 identity/hash 与竞争断言，不再把它描述为完全未实现。
+- **当前运行证据与状态：** 在镜像基线条件恢复后取得本 SHA 或修订后的最终 SHA 的 required full SUCCESS，准确分层记录 PG 结果。Module-Test 状态同时宣称 crash 原 hash/精确 dirty 已有证据、又列 worker crash/非空 dirty 为未交付，与本轮实际 PARTIAL 粒度不一致，应对齐并区分新增测试与已执行验收。
+
+剩余条件来自原验收，不扩大 HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot replacement lifecycle 或 TD-07。仅更新正式记录并发布 PR comment；不修改产品代码，不 commit/push/merge。
+
+### 第十三轮交付
+
+已发布并读回 [第十三轮普通 PR comment 6013876453](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6013876453)，完整正文与准备内容逐字一致（5632 字符）。发布后远端 head 仍为本轮 SHA，PR OPEN、非 Draft。正式记录的 Prettier API check 与 `git diff --check` PASS；configured docs 未完成，限制如上。
+
+技术 outcome REQUEST_CHANGES 与 GitHub review 状态分开：本次为普通 PR comment，未提交正式 Request changes review，也未重复发布历史 inline comments。仅更新本正式记录与发布 comments；不修改产品代码，不 commit/push/merge。
+
+---
+
+## 第十二轮复核（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`b0806c40c0c71fcd9b8b53ed8fc7308435ba881b`；日期：2026-10-06。

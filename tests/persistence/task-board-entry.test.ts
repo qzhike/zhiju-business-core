@@ -608,55 +608,98 @@ describe.skipIf(!gateEnabled)(
 
     it('replays the original export, generation and sequence after a crash before the confirmation', async () => {
       const board = await boardHarness();
-      // A real owning write produces the dirty identity this export must cover.
+      const projectId = boardScope(board).projectId;
+      const generations = async (): Promise<number> =>
+        Number(
+          (
+            await suite.admin.query<{ count: string }>(
+              `SELECT count(*)::text AS count FROM projection.task_board_generation WHERE project_id = $1`,
+              [projectId],
+            )
+          ).rows[0]?.count ?? '0',
+        );
+      const confirmationOf = async (
+        exportId: string,
+      ): Promise<{ manifest_hash: string; confirmed_dirty_ids: string[] } | undefined> =>
+        (
+          await suite.admin.query<{ manifest_hash: string; confirmed_dirty_ids: string[] }>(
+            `SELECT encode(manifest_hash,'hex') AS manifest_hash, confirmed_dirty_ids
+               FROM task_execution.task_board_export_confirmation WHERE export_id = $1`,
+            [exportId],
+          )
+        ).rows[0];
+      // A real owning write produces the dirty identity the export must cover.
       await suite.createExecutableTask('2.0');
-      const pending = await board.dirtyCount();
-      expect(pending).toBeGreaterThan(0);
+      const pendingBefore = await board.dirtyCount();
+      expect(pendingBefore).toBeGreaterThan(0);
+      const generationsBefore = await generations();
       const crashed = await board.runExportPassCrashingBeforeConfirm();
       expect(crashed.dirtyIds.length).toBeGreaterThan(0);
-      // The crash happened after the Projection commit: the dirty identities
-      // are still pending and the alias must not have moved past the published
-      // generation.
-      expect(await board.dirtyCount()).toBe(pending);
+      // The crash happened after the Projection commit: nothing is confirmed
+      // yet, the dirty identities stay pending and no generation was added
+      // beyond the published one.
+      expect(await confirmationOf(crashed.exportId)).toBeUndefined();
+      expect(await board.dirtyCount()).toBe(pendingBefore);
+      expect(await generations()).toBe(generationsBefore + 1);
       const published = await suite.admin.query<{
         generation_id: string;
-        export_id: string;
         publish_sequence: string;
       }>(
-        `SELECT g.generation_id, g.export_id, g.publish_sequence
-           FROM projection.task_board_generation g
-           JOIN projection.task_board_publication_outcome o ON o.generation_id = g.generation_id
-          WHERE g.project_id = $1 AND o.export_id = $2`,
-        [boardScope(board).projectId, crashed.exportId],
+        `SELECT generation_id, publish_sequence FROM projection.task_board_generation
+          WHERE project_id = $1 AND export_id = $2`,
+        [projectId, crashed.exportId],
       );
-      expect(published.rowCount).toBe(1);
-      const before = published.rows[0];
-      if (before === undefined) throw new Error('the crashed export was not published');
-      // A later pass replays exactly that export and finishes the
-      // acknowledgement.
+      const crashedGeneration = published.rows[0];
+      if (crashedGeneration === undefined) throw new Error('the crashed export was not published');
+      const aliasAfterCrash = await suite.admin.query<{ generation_id: string }>(
+        `SELECT generation_id FROM projection.task_board_alias WHERE project_id = $1`,
+        [projectId],
+      );
+      expect(aliasAfterCrash.rows[0]?.generation_id).toBe(crashedGeneration.generation_id);
+
+      // A newer owning write lands while the crashed export is still
+      // unconfirmed: the recovery must confirm only the identities that
+      // export covered and must not clear the newer marker.
+      await suite.createExecutableTask('2.0');
+      const pendingWithNewMarker = await board.dirtyCount();
+      expect(pendingWithNewMarker).toBeGreaterThan(crashed.dirtyIds.length);
+
+      // The recovery pass replays exactly the crashed export and confirms only
+      // the identities that export covered.
       const recovered = (await board.exportPass()) as
         { exportId: string; publishSequence: number; replayed: boolean } | undefined;
       expect(recovered?.exportId).toBe(crashed.exportId);
-      expect(String(recovered?.publishSequence)).toBe(before.publish_sequence);
+      expect(String(recovered?.publishSequence)).toBe(crashedGeneration.publish_sequence);
       expect(recovered?.replayed).toBe(true);
-      expect(await board.dirtyCount()).toBe(0);
-      // No new generation replaced the alias during the recovery.
-      const after = await suite.admin.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM projection.task_board_generation WHERE project_id = $1`,
-        [boardScope(board).projectId],
+      const confirmation = await confirmationOf(crashed.exportId);
+      const storedManifest = await suite.admin.query<{ manifest_hash: string }>(
+        `SELECT encode(manifest_hash,'hex') AS manifest_hash
+           FROM task_execution.task_board_export_manifest WHERE export_id = $1`,
+        [crashed.exportId],
       );
-      const generationCountBefore = await suite.admin.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM projection.task_board_generation WHERE project_id = $1 AND generation_id <> $2`,
-        [boardScope(board).projectId, before.generation_id],
+      expect(confirmation?.manifest_hash).toBe(storedManifest.rows[0]?.manifest_hash);
+      expect([...(confirmation?.confirmed_dirty_ids ?? [])].sort()).toEqual(
+        [...crashed.dirtyIds].sort(),
       );
-      expect(after.rows[0]?.count).toBe(
-        String(Number(generationCountBefore.rows[0]?.count ?? '0') + 1),
-      );
-      const alias = await suite.admin.query<{ generation_id: string }>(
+      // The newer marker is untouched and no generation was added by the
+      // recovery; the alias still points at the crashed export's generation.
+      expect(await board.dirtyCount()).toBe(pendingWithNewMarker - crashed.dirtyIds.length);
+      expect(await generations()).toBe(generationsBefore + 1);
+      const aliasAfterRecovery = await suite.admin.query<{ generation_id: string }>(
         `SELECT generation_id FROM projection.task_board_alias WHERE project_id = $1`,
-        [boardScope(board).projectId],
+        [projectId],
       );
-      expect(alias.rows[0]?.generation_id).toBe(before.generation_id);
+      expect(aliasAfterRecovery.rows[0]?.generation_id).toBe(crashedGeneration.generation_id);
+      // Only a later export covers the new marker and advances the alias.
+      const advanced = (await board.exportPass()) as
+        { exportId: string; publishSequence: number } | undefined;
+      expect(advanced?.exportId).not.toBe(crashed.exportId);
+      expect(await board.dirtyCount()).toBe(0);
+      const aliasAfterAdvance = await suite.admin.query<{ generation_id: string }>(
+        `SELECT generation_id FROM projection.task_board_alias WHERE project_id = $1`,
+        [projectId],
+      );
+      expect(aliasAfterAdvance.rows[0]?.generation_id).not.toBe(crashedGeneration.generation_id);
     });
 
     it('walks the complete old cursor after the source changes and G2 replaces the alias', async () => {
