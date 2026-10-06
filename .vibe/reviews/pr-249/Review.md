@@ -1,6 +1,48 @@
 # PR #249 正式审查记录
 
-## 第十三轮复审（当前结论）
+## 第十四轮复审（当前结论）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`908fa210a2107ebc42a6e481d6ea107f52188fb1`；日期：2026-10-06。
+- `vibe repo --json`、本地与远端 head 一致；PR OPEN、非 Draft；起始工作区干净。Issue #248 Acceptance 未调整、无 Issue comments。
+- 非盲审：按当前 Issue 原验收、Spec003 §12.2/12.7、Spec001 §15.19、BOARD-D/IP-BOARD-D 预期独立核对本轮实际 diff/测试和 exact-revision CI。相对第十三轮，修改仅涉及 crash recovery 测试、Module-Test 状态和历史正式记录，产品代码未变。
+
+### 第十四轮证据与 finding 对账
+
+- **关闭上一轮 generation 计数的具体断言缺陷。** `generationsBefore` 已在 crash/recovery 前保存；crash 后与 recovery 后都要求基线加1，不能再通过两个 recovery 后查询的恒等式伪证明没有新增 generation。
+- **认可恢复验收的新增实现。** crash 后要求无 confirmation、dirty 保持 pending 且 alias 指向已发布 generation；新 owning Task 在未确认窗口产生额外 marker。真实新 pass 重放原 exportId/sequence、replayed=true，确认记录 hash 与持久化 manifest hash 相等，`confirmed_dirty_ids` 与 crash 捕获的非空 covered identities 精确集合相等；剩余 dirty 数量保留额外 marker、generation 数量不增加、alias 保持。后续新 export 才清剩余 dirty 并推进 alias。这些是对实际 worker/非空 dirty 恢复的重要补足，不再把第十三轮已修复的 count/hash/covered-identities 问题列为未实现。
+- 当前场景的 alias 是 recovery 后才由下一 export 推进；“alias 已前进再重放旧 export”的证据粒度仍应与既有存储层重放分开，不把本测试扩写为该竞争已经执行。新 PG 用例尚未运行，以上是实现/断言认可，不声称 PG PASS。
+- **认可 Module-Test 状态修订。** 已标为 PG PARTIAL，移除重复“worker crash/非空 dirty 未交付”的旧描述，明确剩余状态链、mapping/config、读取中途撤权、Export RR/freshness 与 current full 限制；仍须区分历史已执行子证据和本 SHA 未执行新增 PG 用例。
+- 两种 WO 身份、入口 source revoke、先前分页及 executed dirty read 后 owning 提交的既有实现认可保持；已关闭产品缺陷不重开。本轮无新的独立 finding，R10 只保留剩余必要验收及当前运行证据。
+
+[CI run 37448453921](https://github.com/qzhike/zhiju-business-core/actions/runs/37448453921) 的 headSha 精确匹配本轮 SHA；select 选择 full，checks/Verify code 与 Build persistence prerequisites SUCCESS。persistence/Verify persistence、汇总 verify FAILURE：`PostgreSQL startup and image verification` 阶段发现 `postgres:18.6` 当前 digest 为 `sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf`，固定 digest 为 `sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722`；子命令 exit1。失败在 PG 测试之前，属于镜像基线校验，不能归因于新增恢复测试或产品逻辑，也不证明它们已通过。
+
+当前 SHA required full 未取得 PASS，旧 SHA 成功记录不能替代。本轮没有新增本地 Unit/PG/controlled/full runs；未改变固定镜像或削弱门禁，不重复相同未恢复条件下的失败。本地既有固定 pnpm dependency-status/非TTY install 限制未恢复，configured docs 未完成、不记 PASS；正式记录的 Prettier API check/`git diff --check` 仅为独立窄诊断。
+
+### 第十四轮阻断 finding
+
+#### R10 [P1] 交付剩余原 Acceptance，并取得当前最终 SHA 的 passing full
+
+依据：Issue #248；`.vibe/module-tests/Module-Test-003-TaskExecution.md:650`、BOARD-D-001/004/005/006；IP-BOARD-D-001–003；Spec003 §12 与 Spec001 §15.19。
+
+本轮恢复断言与状态描述的具体修订认可。剩余阻断仍为：
+
+- **完整 owning 状态链。** 正常完成、BLOCKED_INPUT/一次恢复、已有有限取消后，Board 准确返回 Task/WO/blocker/current Evaluation，保持保守未解除窗口；当前创建身份与 crash 用例不能替代这些状态。
+- **独立当前权限。** 七项 mapping 的必要正反例、缺 Grant/config 时 protected read/write 为0；首屏/翻页/最终返回前真实撤权/到期。需要 source read 已到达后的 reached 屏障，证明最终返回前 IP 独立 READ COMMITTED 复验拒绝，无 data；现有新 Query 前 source revoke 不是该场景。
+- **确定性业务快照与 freshness。** 两连接 reached Export RR 比较完整 Task/child 旧事实与下一 Export 新事实；P1→H source 变化、H→P2 alias 变化均不能假 FRESH。已有 dirty marker/稳定分页/恢复子证据不替代这些明确场景。
+- **当前 required full。** 镜像基线条件恢复后提交最终被审 SHA 的完整成功验证证据，并逐场景记录 PG/PARTIAL/NOT RUN。code 成功与静态断言认可均不能替代 full。
+
+这些条件为原任务必要验收；不扩大 HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot replacement lifecycle 或 TD-07。无需重开已修复的计数断言、WO 身份、分页和历史产品缺陷。
+
+### 第十四轮交付
+
+已发布并读回 [第十四轮普通 PR comment 6014350064](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6014350064)，完整正文与准备内容逐字一致（3313 字符）。发布后远端 head 仍为本轮 SHA，PR OPEN、非 Draft。正式记录的 Prettier API check 与 `git diff --check` PASS；configured docs 未完成，限制如上。
+
+本次为普通 PR comment，技术 outcome REQUEST_CHANGES 不等于 GitHub 正式 Request changes review；未重复发布旧 inline findings。仅更新正式记录与发布 comments，不修改产品代码，不 commit/push/merge。
+
+---
+
+## 第十三轮复审（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`a3c9fdda04ff68363312570c381f0ce2946a5530`；日期：2026-10-06。

@@ -115,6 +115,10 @@ describe.skipIf(!gateEnabled)(
       /** Runs the real pass but aborts at the confirm authorization. */
       /** Revokes the Service source-read authority of this Project. */
       readonly revokeSourceAuthority: () => Promise<void>;
+      /** Runs the entry configured without a Board Policy for the Project. */
+      readonly runWithoutConfiguredPolicy: (
+        payload: CanonicalJsonObject,
+      ) => Promise<CanonicalJsonObject>;
       readonly runExportPassCrashingBeforeConfirm: () => Promise<{
         readonly exportId: string;
         readonly dirtyIds: readonly string[];
@@ -398,6 +402,62 @@ describe.skipIf(!gateEnabled)(
             { taskExecutionDb: db, workerOwner: 'wi248-board-worker' },
             prepared,
             prepared.ports,
+          );
+        },
+        runWithoutConfiguredPolicy: async (payload) => {
+          const unconfigured = createTaskBoardEntry({
+            identity: { db: suite.identityDb, repo: suite.identityRepo, crypto: suite.crypto },
+            taskExecutionDb: suite.teDb,
+            capabilityCodes,
+            cursorKey: { keyId: 11, secret: Buffer.alloc(32, 0x31) },
+            boardPolicyRef: () => undefined,
+          });
+          const humanDecisionRef = await mint(
+            humanDeps,
+            'taskBoardReadHumanV1',
+            'execution.get_task_board_slice',
+            humanActorSnapshotRef,
+            AUTH_HASH,
+            payload,
+          );
+          return unconfigured.getTaskBoardSlice(
+            {
+              queryId: newUuidV7(),
+              queryType: 'execution.get_task_board_slice',
+              queryVersion: '1.0',
+              scopeRef: scope,
+              requester: {
+                kind: 'OBJECT',
+                objectType: 'zhiju.identity.principal',
+                objectId: OPERATOR,
+                scope,
+              },
+              authenticationContextRef: {
+                kind: 'CONTENT_ADDRESSED',
+                objectType: 'zhiju.identity.authentication_context',
+                objectId: humanActorSnapshotRef.snapshotId,
+                scope,
+                contentHash: {
+                  algorithm: 'SHA-256',
+                  canonicalizationVersion: '1',
+                  digest: AUTH_HASH.toString('hex'),
+                },
+              },
+              authorizationDecisionRef: humanDecisionRef as unknown as CanonicalJsonObject,
+              consistencyRequirement: 'AUTHORITATIVE',
+              correlationId: newUuidV7(),
+              requestedAt: new Date().toISOString(),
+              payload,
+            },
+            {
+              authenticationContextHash: AUTH_HASH,
+              resolutionActorSnapshotRef: humanActorSnapshotRef,
+              serviceSession: {
+                authenticationContextHash: SERVICE_AUTH,
+                resolutionActorSnapshotRef: serviceActorRef,
+                sourceDecisionRef: bootstrapSourceDecision,
+              },
+            },
           );
         },
         revokeSourceAuthority: async () => {
@@ -820,6 +880,17 @@ describe.skipIf(!gateEnabled)(
       await board.exportPass();
       expect(await board.dirtyCount()).toBe(0);
       expect(producedTaskId.length).toBeGreaterThan(0);
+    });
+
+    it('fails closed with no data when the Project has no configured Board Policy', async () => {
+      const board = await boardHarness();
+      await expect(
+        board.runWithoutConfiguredPolicy({
+          projectRef: board.projectRef,
+          statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
+          page: { pageSize: 50 },
+        }),
+      ).rejects.toMatchObject({ code: 'DEPENDENCY_UNAVAILABLE' });
     });
 
     it('refuses an AUTHORITATIVE read once the Service source Grant is revoked', async () => {
