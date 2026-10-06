@@ -1,6 +1,53 @@
 # PR #249 正式审查记录
 
-## 第九轮复审（当前结论，新 head）
+## 第十轮复审（当前结论，新 head）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`ed15fa35085190cd52a347cea388d6f2779ec33e`；日期：2026-10-06。
+- 本地与远端 head 一致；PR OPEN、非 Draft；起始工作区干净。Issue #248 Acceptance 未调整，无 Issue comments/finding 回复。
+- 非盲审：按当前 Issue、Spec003 §12/Spec001 §15.19 和 BOARD-D/IP-BOARD-D 预期核对测试与证据 diff。产品代码未变化。原完整状态链、当前权限、固定分页/快照、发布/确认与恢复验收仍有效，排除范围不扩大。
+
+### 第十轮证据
+
+- [CI run 37395864509](https://github.com/qzhike/zhiju-business-core/actions/runs/37395864509) headSha 精确匹配本轮 SHA，select/checks/persistence/verify SUCCESS；Verify code 与真实 PostgreSQL gate PASS，覆盖未变化的 required full workflow。复用，不重复本地 full。
+- 分页现在在 G2 发布后跟随旧 cursor 的每个 nextCursor，撤回前轮“G2 后只读一页”的描述。检查无重复、新 Task 不混入和逐页 STALE 是有效进展。
+- 当前 assertions 没有期望的完整 G1 IDs/count/order，相比 G2 只要求行数更多。逻辑反例：first continuation 返回 STALE、items=[]、无 nextCursor，seen 仅含首屏；unique/excludes-new/G2含new且更多均通过，剩余 G1 全丢也无法识别。50-page cap 后没有断言 next 消失。该反例为对测试断言的直接独立推导，未执行为产品故障，不声称真实实现正在漏行。
+- dirty 测试改为 transformResult 在已执行 dirty read 后暂停，真实 createExecutableTask owning 命令提交后释放，旧 export 完成时 dirty 仍 pending、下一 export 覆盖。认可当前实际 PG owning-producer/dirty 边界，撤回前轮 direct-marker-insert 描述；未由该单 marker 断言升级为业务 Task/child 行 Export RR 完整不混读。
+- 本轮没有新增本地 Unit/PG/controlled runs，current exact CI 已覆盖修改后的 PG 用例；产品代码未变，不重复前轮已关闭 fix probes。
+- 当前 Module-Test 仍明示完整正常完成/BLOCKED_INPUT/恢复/取消/current Evaluation、最终返回前 Policy/依赖撤权与七项 mapping、Export RR、P1→H/H→P2、非空 dirty 的实际 worker crash recovery 尚未交付；BOARD-D/IP-BOARD-D 完整行仍 NOT RUN。只补分页断言不会关闭这些必要验收。
+- HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot replacement lifecycle、TD-07 的既有排除/延后边界保持。
+- 本地配置 docs 仍受此前确认且未恢复的固定 pnpm dependency-status/非TTY install 限制（ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY；此前 Vibe exit21/子命令1），不重复确定性失败，当前配置 docs 未完成、不记 PASS。Prettier API check/`git diff --check` 为独立窄诊断。
+
+### 上轮 finding 对账
+
+| Finding           | 第十轮判断                                       | 当前依据                                                                                                                   |
+| ----------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| R10               | 分页循环与 owning dirty 部分改善，必要验收仍阻断 | G2 后真实多页循环与 executed-read owning 提交认可；分页未断言完整期望集合/耗尽，完整状态/权限/确定性快照与 worker 恢复仍缺 |
+| 其余历史 findings | 维持原报告缺陷关闭                               | 无产品代码修改或相关回退证据                                                                                               |
+
+### 第十轮阻断 comment
+
+#### R10 [P1] 精确证明 G1 无漏项，并完成剩余原验收
+
+位置：`tests/persistence/task-board-entry.test.ts:547`。
+
+当前 loop 结束后只断言 unique/excludes new，再以 G2 行数更多比较；第一次 continuation 空页并停止仍能通过。请由受控 owning 来源或独立 pinned-G1 baseline 保存完整有序期望 IDs，G2 后遍历集合与该列表精确相等，并断言 cap 退出时 next=undefined，保留 duplicate/new/staleness 规则。
+
+认可 G2 后多页循环和真实 owning producer 在已执行 dirty read 后提交，不再使用旧一页/direct INSERT 描述。#248 的完整 completion/BLOCKED_INPUT/恢复/取消/current Evaluation、两种 WO、返回前 Policy/依赖撤权及七 mapping 负例、Export RR/P1→H/H→P2、原 export/hash/generation/sequence 和非空 dirty 的实际 worker crash recovery 仍须交付。current CI 绿色与本轮局部修订不能替代这些必要场景；保持外部/人工与延后 lifecycle 边界。
+
+### 第十轮交付
+
+已发布并读回 [COMMENT review 5423477118](https://github.com/qzhike/zhiju-business-core/pull/249#pullrequestreview-5423477118)，state=`COMMENTED`、commit_id 精确匹配本轮 SHA；[R10 P1 comment 4191251048](https://github.com/qzhike/zhiju-business-core/pull/249#discussion_r4191251048) 已存在。发布后 REST 读回 head 未变化，PR 仍 OPEN。正式文档 Prettier API check 与 `git diff --check` PASS；配置 docs 未完成，限制如上。
+
+发布前 GraphQL/REST/user 读取曾连接超时（dial tcp 198.18.0.26:443: i/o timeout，exit1），浏览器备用通道不可用。有限重试后 POST review 成功，随后 review/comments/head 全部成功读回；未把失败尝试当作发布证据。
+
+用户随后要求将复审记录提交至 PR comment；已将本轮完整记录发布到 [PR comment 6008778177](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6008778177)，逐字读回比对一致（3788 字符）。发布前远端 head 仍为本轮被审 SHA。此交付为普通 PR comment，原 review 与逐行 R10 comment 均保留。
+
+当前账号为 PR 作者，技术 outcome REQUEST_CHANGES 与 GitHub COMMENTED 状态分开。仅更新本正式记录及发布 comments；不修改产品代码，不 commit/push/merge。
+
+---
+
+## 第九轮复审（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`80cc763abd44c9fc04d5bd643c55a89609a96844`；日期：2026-10-06。

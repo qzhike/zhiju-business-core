@@ -510,53 +510,73 @@ describe.skipIf(!gateEnabled)(
 
     it('walks the complete old cursor after the source changes and G2 replaces the alias', async () => {
       const board = await boardHarness();
-      // Only the first page of G1 is read before the mutation.
-      const first = await board.runProjection({
+      const query = (page: CanonicalJsonObject): CanonicalJsonObject => ({
         projectRef: board.projectRef,
         statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
-        page: { pageSize: 1 },
+        page,
       });
-      const firstItems = (first.data as Record<string, unknown>).items as Record<string, unknown>[];
-      const firstPageIds = firstItems.map((item) =>
-        String((item.taskRef as Record<string, unknown>).objectId),
-      );
-      const cursor = String((first.data as Record<string, unknown>).nextCursor);
-      expect(cursor).not.toBe('undefined');
+      /** Walk one generation to exhaustion and return its ordered row ids. */
+      const walk = async (
+        expectStaleOnResume: boolean,
+        from?: string,
+      ): Promise<{
+        readonly ids: readonly string[];
+        readonly exhausted: boolean;
+        readonly firstCursor?: string;
+      }> => {
+        const ids: string[] = [];
+        let cursor = from;
+        let firstPage = true;
+        let firstCursor: string | undefined;
+        for (let page = 0; page < 50; page += 1) {
+          const result = await board.runProjection(
+            query(cursor === undefined ? { pageSize: 1 } : { pageSize: 1, cursor }),
+          );
+          const items = (result.data as Record<string, unknown>).items as Record<string, unknown>[];
+          // A continuation must never come back empty while it still owes rows.
+          expect(items.length).toBeGreaterThan(0);
+          ids.push(
+            ...items.map((item) => String((item.taskRef as Record<string, unknown>).objectId)),
+          );
+          const next =
+            (result.data as Record<string, unknown>).nextCursor === undefined
+              ? undefined
+              : String((result.data as Record<string, unknown>).nextCursor);
+          if (firstPage && next !== undefined) firstCursor = next;
+          if (next === undefined)
+            return { ids, exhausted: true, ...(firstCursor === undefined ? {} : { firstCursor }) };
+          // Once the alias has moved on, every resumed page of the old cursor
+          // reports at least STALE.
+          if (!firstPage && expectStaleOnResume) expect(result.stalenessStatus).toBe('STALE');
+          firstPage = false;
+          cursor = next;
+        }
+        return { ids, exhausted: false, ...(firstCursor === undefined ? {} : { firstCursor }) };
+      };
+      // Exact ordered baseline of G1 (traversed before anything changes) plus
+      // the first-page cursor that a resumed session would hold.
+      const baseline = await walk(false);
+      expect(baseline.exhausted).toBe(true);
+      expect(baseline.ids.length).toBeGreaterThan(1);
+      expect(new Set(baseline.ids).size).toBe(baseline.ids.length);
+      expect(baseline.firstCursor).toBeDefined();
       // The owning source changes and G2 replaces the alias.
       const newTaskId = await suite.createExecutableTask('2.0');
       await board.exportPass();
-      // The *complete* G1 traversal now happens through the old cursor.
-      const seen = [...firstPageIds];
-      let next: string | undefined = cursor;
-      for (let page = 0; next !== undefined && page < 50; page += 1) {
-        const result = await board.runProjection({
-          projectRef: board.projectRef,
-          statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
-          page: { pageSize: 1, cursor: next },
-        });
-        expect(result.stalenessStatus).toBe('STALE');
-        const items = (result.data as Record<string, unknown>).items as Record<string, unknown>[];
-        seen.push(
-          ...items.map((item) => String((item.taskRef as Record<string, unknown>).objectId)),
-        );
-        next =
-          (result.data as Record<string, unknown>).nextCursor === undefined
-            ? undefined
-            : String((result.data as Record<string, unknown>).nextCursor);
-      }
-      expect(new Set(seen).size).toBe(seen.length);
-      expect(seen).not.toContain(newTaskId);
-      // After the walk the current generation (G2) owns the new row.
-      const g2 = await board.runProjection({
-        projectRef: board.projectRef,
-        statuses: ['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED'],
-        page: { pageSize: 50 },
-      });
+      // The complete old-cursor traversal must reproduce the exact ordered G1
+      // sequence and must exhaust rather than hit the loop cap.
+      const after = await walk(true, baseline.firstCursor);
+      expect(after.exhausted).toBe(true);
+      // The resumed session replays the same ordered remainder of G1.
+      expect(after.ids).toEqual(baseline.ids.slice(1));
+      expect(after.ids).not.toContain(newTaskId);
+      // The current generation (G2) is the one that owns the new row.
+      const g2 = await board.runProjection(query({ pageSize: 50 }));
       const g2Ids = ((g2.data as Record<string, unknown>).items as Record<string, unknown>[]).map(
         (item) => String((item.taskRef as Record<string, unknown>).objectId),
       );
       expect(g2Ids).toContain(newTaskId);
-      expect(g2Ids.length).toBeGreaterThan(seen.length);
+      expect(g2Ids.length).toBeGreaterThan(after.ids.length);
     });
 
     it('does not cover an owning write that commits after the export read its dirty boundary', async () => {
