@@ -46,6 +46,7 @@ import {
   WORK_ORDER_V11,
 } from './initial-context-fixtures.js';
 import type {
+  ScenarioBoardProbe,
   ScenarioFinalView,
   ScenarioFirstRunEnvelope,
   ScenarioFirstRunQuery,
@@ -75,6 +76,7 @@ import {
   type VerifySecondRunCreationFaultsContext,
 } from './initial-context-verify-second-run-creation-faults.js';
 export interface VerifyBoundedRecoveryContext {
+  readonly boardProbe?: ScenarioBoardProbe | undefined;
   readonly bounded: boolean;
   readonly phase: InitialContextSuite['phase'];
   processEnabled: boolean;
@@ -593,6 +595,7 @@ export async function verifyBoundedRecovery(
         } as unknown as CanonicalJsonObject,
       );
     }
+    await scenarioState.boardProbe?.('REQUEST_OPEN', scenarioState.runRef);
     const requestQuery = async () =>
       scenarioState.recoveryEntry.read(
         await scenarioState.recoveryEnvelope(
@@ -1235,6 +1238,7 @@ export async function verifyBoundedRecovery(
       aggregateVersion: 3,
       resolutionRef,
     });
+    await scenarioState.boardProbe?.('REQUEST_RESOLVED', scenarioState.runRef);
     let historicalProof:
       | {
           input: RecoveryHumanEligibilityInput;
@@ -2468,6 +2472,7 @@ export async function verifyBoundedRecovery(
         status: scenarioState.otherChildId ? 'WAITING_INPUT' : 'COMPLETION_PENDING',
       },
     });
+    await scenarioState.boardProbe?.('RECOVERY_SUCCEEDED', run2);
     const woState = await scenarioState.recoveryEntry.read(
       await scenarioState.recoveryEnvelope(
         'workOrderExecutionStateReadV1',

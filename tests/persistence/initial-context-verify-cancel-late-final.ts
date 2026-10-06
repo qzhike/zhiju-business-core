@@ -86,6 +86,7 @@ async function ageingOrder(state: VerifyRunCancellationContext, abandoned: boole
       state.sessionFor(operator),
     ),
   ).toMatchObject({ status: 'COMMITTED' });
+  await state.boardProbe?.('CANCELLING', state.runRef);
   if (abandoned) {
     const wait = Math.max(0, state.runDeadline.getTime() - Date.now() + 100);
     if (wait > 0) await state.waitForDeadline(wait, 'server deadline/lateFinalAgeing');

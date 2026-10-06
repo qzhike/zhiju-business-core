@@ -390,3 +390,16 @@ export type ScenarioProgressEnvelope = (
   targetType: string;
   targetId: string;
 };
+
+/** Observe committed owning milestones without changing scenario behavior. */
+export type ScenarioBoardProbe = (
+  stage:
+    | 'FINAL_RESERVED'
+    | 'RUN_FINALIZED'
+    | 'REQUEST_OPEN'
+    | 'REQUEST_RESOLVED'
+    | 'RECOVERY_SUCCEEDED'
+    | 'COMPLETED'
+    | 'CANCELLING',
+  runRef: Common.ObjectRef,
+) => Promise<void>;

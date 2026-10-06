@@ -21,14 +21,18 @@ import {
   withIdentityTransaction,
   type IdentityCommandDeps,
   type TaskBoardCapabilityCodes,
+  type TaskBoardCapabilityKey,
+  type IdentityPolicyDb,
 } from '@zhiju/identity-policy';
 import { digestCanonicalPayload } from '@zhiju/task-execution';
-import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import { canonicalize, newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   Kysely,
   PostgresDialect,
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
+  type KyselyPlugin,
+  type QueryId,
 } from 'kysely';
 import type pg from 'pg';
 import type { TaskExecutionDb } from '@zhiju/task-execution';
@@ -43,10 +47,25 @@ import {
   type Principal,
 } from './initial-context-fixtures.js';
 import { createInitialContextSuite } from './initial-context-suite.js';
+import { createRunScenario } from './initial-context-scenario.js';
+import type { ScenarioBoardProbe } from './initial-context-scenario-types.js';
 
 const SERVICE_PRINCIPAL = 'cc01cc01-cc01-7c01-8c01-cc01cc01cc09';
 const SERVICE_ACTOR = 'cc02cc02-cc02-7c02-8c02-cc02cc02cc09';
 const SERVICE_AUTH = Buffer.alloc(32, 0x39);
+const BOARD_STATUSES = [
+  'DRAFT',
+  'BACKLOG',
+  'READY',
+  'IN_PROGRESS',
+  'WAITING_INPUT',
+  'BLOCKED',
+  'IN_REVIEW',
+  'CHANGES_REQUIRED',
+  'COMPLETION_PENDING',
+  'COMPLETED',
+  'CANCELLED',
+];
 const BOARD_PROFILE_KEY = 'execution.task_board.policy@1.0';
 const BOARD_PROFILE_REGISTRY_VERSION = 'im06-static-v1';
 
@@ -101,6 +120,16 @@ describe.skipIf(!gateEnabled)(
     }
 
     interface Harness {
+      readonly probeMapping: (
+        key: TaskBoardCapabilityKey,
+        missing?: 'GRANT' | 'CONFIG',
+      ) => Promise<{ outcome: unknown; protectedQueries: readonly string[] }>;
+      readonly readAtBoundary: (
+        payload: CanonicalJsonObject,
+        consistency: string,
+        change: TaskBoardCapabilityKey | 'EXPIRE' | 'POLICY_SUPERSEDED',
+      ) => Promise<{ outcome: unknown; reached: boolean; currentIdentityReads: number }>;
+
       readonly runAuthoritative: (
         payload: CanonicalJsonObject,
         options?: { readonly revokeHuman?: boolean },
@@ -246,7 +275,7 @@ describe.skipIf(!gateEnabled)(
         BOARD_PROFILE_KEY,
       );
       if (profileRef === undefined) throw new Error('the Board profile is not registered');
-      const boardPolicyRef: Common.VersionedRef = {
+      let boardPolicyRef: Common.VersionedRef = {
         kind: 'VERSIONED',
         objectType: 'zhiju.identity.policy',
         objectId: newUuidV7(),
@@ -284,13 +313,6 @@ describe.skipIf(!gateEnabled)(
         if (issued.outcome !== 'ALLOW') throw new Error(`Board ${key} was denied`);
         return issued.authorizationDecisionRef;
       };
-      const entry = createTaskBoardEntry({
-        identity: { db: suite.identityDb, repo: suite.identityRepo, crypto: suite.crypto },
-        taskExecutionDb: suite.teDb,
-        capabilityCodes,
-        cursorKey: { keyId: 11, secret: Buffer.alloc(32, 0x31) },
-        boardPolicyRef: (candidate) => (candidate === projectId ? boardPolicyRef : undefined),
-      });
       const dispatcher = createTaskBoardDispatcher({
         identity: { db: suite.identityDb, repo: suite.identityRepo, crypto: suite.crypto },
         taskExecutionDb: suite.teDb,
@@ -317,7 +339,7 @@ describe.skipIf(!gateEnabled)(
         ],
       });
       const humanActorSnapshotRef = humanActorRef;
-      const bootstrapSourceDecision = await mint(
+      let bootstrapSourceDecision = await mint(
         serviceDeps,
         'taskBoardSourceReadV1',
         'execution.task_board.source.read.v1',
@@ -340,6 +362,12 @@ describe.skipIf(!gateEnabled)(
         revokeHuman = false,
         minimumWatermark?: number,
         db?: Kysely<TaskExecutionDb>,
+        options: {
+          readonly codes?: TaskBoardCapabilityCodes;
+          readonly identityDb?: Kysely<IdentityPolicyDb>;
+          readonly now?: () => Date;
+          readonly beforeEntry?: (decision: Common.ContentAddressedRef) => Promise<void>;
+        } = {},
       ): Promise<CanonicalJsonObject> => {
         const humanDecisionRef = await mint(
           humanDeps,
@@ -360,17 +388,19 @@ describe.skipIf(!gateEnabled)(
           });
           expect(result.status).toBe('COMMITTED');
         }
-        const activeEntry =
-          db === undefined
-            ? entry
-            : createTaskBoardEntry({
-                identity: { db: suite.identityDb, repo: suite.identityRepo, crypto: suite.crypto },
-                taskExecutionDb: db,
-                capabilityCodes,
-                cursorKey: { keyId: 11, secret: Buffer.alloc(32, 0x31) },
-                boardPolicyRef: (candidate) =>
-                  candidate === projectId ? boardPolicyRef : undefined,
-              });
+        await options.beforeEntry?.(humanDecisionRef);
+        const activeEntry = createTaskBoardEntry({
+          identity: {
+            db: options.identityDb ?? suite.identityDb,
+            repo: suite.identityRepo,
+            crypto: suite.crypto,
+          },
+          taskExecutionDb: db ?? suite.teDb,
+          capabilityCodes: options.codes ?? capabilityCodes,
+          cursorKey: { keyId: 11, secret: Buffer.alloc(32, 0x31) },
+          boardPolicyRef: (candidate) => (candidate === projectId ? boardPolicyRef : undefined),
+          ...(options.now === undefined ? {} : { now: options.now }),
+        });
         return activeEntry.getTaskBoardSlice(
           {
             queryId: newUuidV7(),
@@ -412,7 +442,206 @@ describe.skipIf(!gateEnabled)(
           },
         );
       };
+      const bindingOf = (key: TaskBoardCapabilityKey) => {
+        const binding = TASK_BOARD_BINDINGS.find(
+          (candidate) => candidate.capabilityConfigKey === key,
+        );
+        if (binding === undefined) throw new Error(`missing Board binding ${key}`);
+        return binding;
+      };
+      const grantKey = (key: TaskBoardCapabilityKey) =>
+        key === 'taskBoardReadHumanV1' ? key : `${key}:service`;
+      const revokeGrant = async (key: TaskBoardCapabilityKey): Promise<void> => {
+        const binding = bindingOf(key);
+        expect(
+          await suite.revokeCapabilityTracked(
+            binding.expectedPrincipalKind === 'HUMAN' ? humanDeps : serviceDeps,
+            {
+              targetId: grantIds.get(grantKey(key)) ?? '',
+              expectedAggregateVersion: '1',
+              scope: { scopeKind: 'PROJECT', enterpriseId, projectId },
+              reasonCode: 'WI248_BOARD_BOUNDARY_REVOKE',
+              effectiveAt: new Date(),
+              idempotencyKey: newUuidV7(),
+            },
+          ),
+        ).toMatchObject({ status: 'COMMITTED' });
+      };
+      const restoreGrant = async (key: TaskBoardCapabilityKey): Promise<void> => {
+        const binding = bindingOf(key);
+        grantIds.set(
+          grantKey(key),
+          await suite.grant({
+            principal:
+              binding.expectedPrincipalKind === 'HUMAN' ? humanPrincipal : servicePrincipal,
+            capabilityCode: capabilityCodes[key],
+            action: binding.requiredGrantAction,
+            selectorType: binding.selectorType,
+            targetObjectType: binding.targetObjectTypes[0] ?? '',
+            targetObjectTypes: binding.targetObjectTypes,
+          }),
+        );
+        if (key === 'taskBoardSourceReadV1') {
+          bootstrapSourceDecision = await mint(
+            serviceDeps,
+            key,
+            'execution.task_board.source.read.v1',
+            serviceActorRef,
+            SERVICE_AUTH,
+            { projectRef },
+          );
+        }
+      };
+      const capture = async (execute: () => Promise<unknown>): Promise<unknown> =>
+        execute().then(
+          (value) => value,
+          (error: unknown) => error,
+        );
+      const query = { projectRef, statuses: BOARD_STATUSES, page: { pageSize: 50 } };
+      const queryLog = (statements: string[]): KyselyPlugin => ({
+        transformQuery(args) {
+          statements.push(
+            JSON.stringify(args.node, (key, value: unknown) =>
+              key === 'value' || key === 'values' ? undefined : value,
+            ),
+          );
+          return args.node;
+        },
+        transformResult: (args) => Promise.resolve(args.result),
+      });
+      const protectedBy = (key: TaskBoardCapabilityKey, statements: readonly string[]) => {
+        // Count only this mapping's protected statements, including attempted
+        // writes. Context setup and other independently authorized steps are
+        // deliberately outside this counter.
+        const table = {
+          taskBoardReadHumanV1: 'task_execution',
+          taskBoardSourceReadV1: 'task_execution',
+          taskBoardHealthReadV1: 'task_board_health',
+          taskBoardPolicyReadV1: 'policy_version',
+          taskBoardDispatchManageV1: 'task_board_dispatch_',
+          taskBoardProjectionPublishV1: 'projection',
+          taskBoardProjectionMaintainV1: 'task_board_generation',
+        }[key];
+        return statements.filter((statement) => statement.includes(table));
+      };
       harness = {
+        probeMapping: async (key, missing) => {
+          const statements: string[] = [];
+          const plugin = queryLog(statements);
+          const db = suite.teDb.withPlugin(plugin);
+          const identityDb = suite.identityDb.withPlugin(plugin);
+          const codes = missing === 'CONFIG' ? { ...capabilityCodes, [key]: '' } : capabilityCodes;
+          const technical = [
+            'taskBoardDispatchManageV1',
+            'taskBoardProjectionPublishV1',
+            'taskBoardProjectionMaintainV1',
+          ].includes(key);
+          const activeDispatcher = createTaskBoardDispatcher({
+            identity: { db: identityDb, repo: suite.identityRepo, crypto: suite.crypto },
+            taskExecutionDb: db,
+            capabilityCodes: codes,
+            workerOwner: 'wi248-board-worker',
+            boardPolicyRef: (candidate) => (candidate === projectId ? boardPolicyRef : undefined),
+            targets: [target],
+          });
+          if (missing === 'GRANT' && key !== 'taskBoardReadHumanV1') await revokeGrant(key);
+          try {
+            const outcome = await capture(() =>
+              technical
+                ? key === 'taskBoardProjectionMaintainV1'
+                  ? activeDispatcher.runMaintenancePass(target)
+                  : activeDispatcher.runExportPass(target)
+                : runBoard(
+                    query,
+                    key === 'taskBoardHealthReadV1' ? 'PROJECTION_OK' : 'AUTHORITATIVE',
+                    false,
+                    undefined,
+                    db,
+                    {
+                      codes,
+                      identityDb,
+                      ...(missing === 'GRANT' && key === 'taskBoardReadHumanV1'
+                        ? { beforeEntry: () => revokeGrant(key) }
+                        : {}),
+                    },
+                  ),
+            );
+            return { outcome, protectedQueries: protectedBy(key, statements) };
+          } finally {
+            if (missing === 'GRANT') await restoreGrant(key);
+          }
+        },
+        readAtBoundary: async (payload, consistency, change) => {
+          const statements: string[] = [];
+          let queryId: QueryId | undefined;
+          const state = { reached: false };
+          let clock: number | undefined;
+          let expiry = Date.now();
+          let replacement: Common.VersionedRef | undefined;
+          const db = suite.teDb.withPlugin({
+            transformQuery(args) {
+              const node = JSON.stringify(args.node);
+              const table =
+                consistency === 'AUTHORITATIVE'
+                  ? '"name":"task"'
+                  : '"name":"task_board_generation"';
+              if (!state.reached && node.includes(table)) queryId = args.queryId;
+              return args.node;
+            },
+            async transformResult(args) {
+              if (queryId === args.queryId && !state.reached) {
+                state.reached = true;
+                queryId = undefined;
+                // This result hook is reached after a business SELECT has
+                // established the TE snapshot. Revocation commits through an
+                // independent owning IP transaction before returning its rows.
+                if (change === 'EXPIRE') clock = expiry;
+                else if (change === 'POLICY_SUPERSEDED') {
+                  replacement = { ...boardPolicyRef, versionId: newUuidV7() };
+                  await suite.registerPolicyVersionAs({
+                    key: replacement,
+                    factId: newUuidV7(),
+                    idempotencyKey: newUuidV7(),
+                    effectiveFrom: new Date(),
+                    supersedesRef: boardPolicyRef,
+                    policySchemaRefs: [profileRef],
+                    policyDocument: BOARD_POLICY_DOCUMENT,
+                  });
+                } else await revokeGrant(change);
+                statements.length = 0;
+              }
+              return args.result;
+            },
+          });
+          try {
+            const outcome = await capture(() =>
+              runBoard(payload, consistency, false, undefined, db, {
+                identityDb: suite.identityDb.withPlugin(queryLog(statements)),
+                now: () => new Date(clock ?? Date.now()),
+                beforeEntry: async (decision) => {
+                  const row = (
+                    await suite.admin.query<{ expires_at: Date }>(
+                      'SELECT expires_at FROM identity_policy.authorization_decision WHERE authorization_decision_id=$1',
+                      [decision.objectId],
+                    )
+                  ).rows[0];
+                  if (row === undefined) throw new Error('missing Human Decision expiry');
+                  expiry = row.expires_at.getTime() + 1;
+                },
+              }),
+            );
+            return {
+              outcome,
+              reached: state.reached,
+              currentIdentityReads: statements.filter((node) => node.includes('capability_grant'))
+                .length,
+            };
+          } finally {
+            if (replacement !== undefined) boardPolicyRef = replacement;
+            else if (state.reached && change !== 'EXPIRE' && change !== 'POLICY_SUPERSEDED')
+              await restoreGrant(change);
+          }
+        },
         runAuthoritative: (payload, options) =>
           runBoard(payload, 'AUTHORITATIVE', options?.revokeHuman === true),
         runProjection: (payload) => runBoard(payload, 'PROJECTION_OK'),
@@ -562,6 +791,345 @@ describe.skipIf(!gateEnabled)(
       };
       return harness;
     }
+
+    const runScenario = createRunScenario(suite);
+    const boardPayload = (board: Harness): CanonicalJsonObject => ({
+      projectRef: board.projectRef,
+      statuses: BOARD_STATUSES,
+      page: { pageSize: 50 },
+    });
+    const sortedRefs = (refs: CanonicalJsonObject[]) =>
+      refs.sort((left, right) =>
+        Buffer.compare(Buffer.from(canonicalize(left)), Buffer.from(canonicalize(right))),
+      );
+
+    /** Independent expected public row from the committed owning mirrors. */
+    async function expectedItem(taskId: string, blocked: boolean): Promise<CanonicalJsonObject> {
+      const scope = suite.scope();
+      const task = (
+        await suite.admin.query<{
+          status: string;
+          aggregate_version: string;
+          schema_version: string;
+          canonical_payload: CanonicalJsonObject;
+          current_completion_evaluation_id: string | null;
+          evaluation_hash: string | null;
+        }>(
+          `SELECT t.status,t.aggregate_version,d.schema_version,d.canonical_payload,
+        t.current_completion_evaluation_id,encode(t.current_completion_evaluation_hash,'hex') AS evaluation_hash
+        FROM task_execution.task t JOIN task_execution.task_definition_snapshot d
+        ON d.snapshot_id=t.current_definition_snapshot_id WHERE t.task_id=$1`,
+          [taskId],
+        )
+      ).rows[0];
+      if (task === undefined) throw new Error('missing owning Task');
+      const ref = (objectType: string, objectId: string): CanonicalJsonObject => ({
+        kind: 'OBJECT',
+        objectType,
+        objectId,
+        scope,
+      });
+      const workOrders = (
+        await suite.admin.query<{
+          work_order_id: string;
+          work_order_object_type: string;
+          status: string;
+        }>(
+          'SELECT work_order_id,work_order_object_type,status FROM task_execution.work_order WHERE task_id=$1 ORDER BY work_order_id',
+          [taskId],
+        )
+      ).rows;
+      const requests = (
+        await suite.admin.query<{ request_id: string }>(
+          `SELECT q.request_id FROM task_execution.information_request q
+        JOIN task_execution.work_order w USING(work_order_id) WHERE w.task_id=$1
+        AND q.status<>'RESOLVED' AND q.definition->>'blocking'='true' ORDER BY q.request_id`,
+          [taskId],
+        )
+      ).rows;
+      const blockers = requests.map((row) => ref('execution.information_request', row.request_id));
+      if (blocked) {
+        expect(workOrders).toHaveLength(1);
+        for (const row of workOrders)
+          blockers.push(ref(row.work_order_object_type, row.work_order_id));
+      }
+      const title = (task.canonical_payload.definition as CanonicalJsonObject).title;
+      if (typeof title !== 'string') throw new Error('missing owning Task title');
+      return {
+        taskRef: ref(
+          task.schema_version === '1.0' ? 'execution.task' : 'zhiju.execution.task',
+          taskId,
+        ),
+        aggregateVersion: Number(task.aggregate_version),
+        title,
+        status: task.status,
+        activeWorkOrderRefs: sortedRefs(
+          workOrders
+            .filter((row) =>
+              [
+                'DRAFT',
+                'READY',
+                'QUEUED',
+                'RUNNING',
+                'WAITING_INPUT',
+                'COMPLETION_PENDING',
+                'RETRY_PENDING',
+              ].includes(row.status),
+            )
+            .map((row) => ref(row.work_order_object_type, row.work_order_id)),
+        ),
+        blockerRefs: sortedRefs(blockers),
+        ...(task.current_completion_evaluation_id === null
+          ? {}
+          : {
+              completionEvaluationRef: {
+                kind: 'CONTENT_ADDRESSED',
+                objectType: 'zhiju.execution.completion_evaluation',
+                objectId: task.current_completion_evaluation_id,
+                scope,
+                contentHash: {
+                  algorithm: 'SHA-256',
+                  canonicalizationVersion: '1',
+                  digest: task.evaluation_hash,
+                },
+              },
+            }),
+      };
+    }
+    async function taskForRun(runRef: Common.ObjectRef): Promise<string> {
+      const row = (
+        await suite.admin.query<{ task_id: string }>(
+          'SELECT w.task_id FROM task_execution.run r JOIN task_execution.work_order w USING(work_order_id) WHERE r.run_id=$1',
+          [runRef.objectId],
+        )
+      ).rows[0];
+      if (row === undefined) throw new Error('missing Run owning Task');
+      return row.task_id;
+    }
+    async function assertBoardItem(board: Harness, taskId: string, blocked: boolean) {
+      const expected = await expectedItem(taskId, blocked);
+      const result = await board.runAuthoritative(boardPayload(board));
+      expect(result.status).toBe('OK');
+      const items = (result.data as CanonicalJsonObject).items as CanonicalJsonObject[];
+      expect(
+        items.find((item) => (item.taskRef as CanonicalJsonObject).objectId === taskId),
+      ).toEqual(expected);
+      return expected;
+    }
+
+    suite.itIntegration(
+      'BOARD-D-001 real DRAFT/READY, normal completion and current Evaluation',
+      async () => {
+        const board = await boardHarness();
+        for (const major of ['1.0', '2.0'] as const) {
+          const draftId = await suite.createExecutableTask(major, false, undefined, true);
+          expect((await assertBoardItem(board, draftId, false)).status).toBe('DRAFT');
+        }
+        const readyId = await suite.createExecutableTask('2.0', true);
+        expect((await assertBoardItem(board, readyId, false)).status).toBe('READY');
+        const seen: string[] = [];
+        const probe: ScenarioBoardProbe = async (stage, runRef) => {
+          const taskId = await taskForRun(runRef);
+          const item = await assertBoardItem(board, taskId, false);
+          seen.push(stage);
+          if (stage === 'RUN_FINALIZED') {
+            expect(item.status).not.toBe('COMPLETED');
+            expect(item.completionEvaluationRef).toBeUndefined();
+            expect(item.activeWorkOrderRefs).toHaveLength(1);
+          }
+          if (stage === 'COMPLETED') {
+            expect(item.status).toBe('COMPLETED');
+            expect(item.activeWorkOrderRefs).toEqual([]);
+            expect(item.blockerRefs).toEqual([]);
+            expect(item.completionEvaluationRef).toBeDefined();
+            // The Board exposes only the current immutable reference, never a
+            // derived USABLE claim or the full Completion judgment.
+            expect(item).not.toHaveProperty('useStatus');
+          }
+        };
+        await runScenario(
+          'FORMAL_NORMAL',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'NORMAL',
+          false,
+          undefined,
+          undefined,
+          undefined,
+          probe,
+        );
+        expect(seen).toEqual(['FINAL_RESERVED', 'RUN_FINALIZED', 'COMPLETED']);
+      },
+    );
+
+    suite.itIntegration(
+      'BOARD-D-001/005 real BLOCKED_INPUT recovery and complete Export RR rows',
+      async () => {
+        const board = await boardHarness();
+        const seen: string[] = [];
+        let oldItems: CanonicalJsonObject[] = [];
+        let pendingExport: ReturnType<Harness['runExportPassWith']> | undefined;
+        let release: (() => void) | undefined;
+        let reached = false;
+        let queryId: QueryId | undefined;
+        const probe: ScenarioBoardProbe = async (stage, runRef) => {
+          const taskId = await taskForRun(runRef);
+          const blocked = !['RECOVERY_SUCCEEDED', 'COMPLETED'].includes(stage);
+          const item = await assertBoardItem(board, taskId, blocked);
+          seen.push(stage);
+          if (stage === 'FINAL_RESERVED') {
+            const requests = await suite.admin.query(
+              'SELECT request_id FROM task_execution.information_request WHERE work_order_id=(SELECT work_order_id FROM task_execution.run WHERE run_id=$1)',
+              [runRef.objectId],
+            );
+            expect(requests.rows).toEqual([]);
+            expect(item.blockerRefs).toHaveLength(1);
+          }
+          if (stage === 'REQUEST_OPEN') {
+            expect(item.blockerRefs).toHaveLength(2);
+            oldItems = (
+              (await board.runAuthoritative(boardPayload(board))).data as CanonicalJsonObject
+            ).items as CanonicalJsonObject[];
+            const barrier = Promise.withResolvers<boolean>();
+            const gate = Promise.withResolvers<boolean>();
+            release = () => {
+              gate.resolve(true);
+            };
+            const db = suite.teDb.withPlugin({
+              transformQuery(args) {
+                if (!reached && JSON.stringify(args.node).includes('"name":"task"'))
+                  queryId = args.queryId;
+                return args.node;
+              },
+              async transformResult(args) {
+                if (queryId === args.queryId && !reached) {
+                  reached = true;
+                  queryId = undefined;
+                  barrier.resolve(true);
+                  await gate.promise;
+                }
+                return args.result;
+              },
+            });
+            pendingExport = board.runExportPassWith(db);
+            await Promise.race([
+              barrier.promise,
+              pendingExport.then(() => {
+                throw new Error('Export never reached the Task SELECT');
+              }),
+            ]);
+          }
+          if (stage === 'REQUEST_RESOLVED') {
+            expect(item.blockerRefs).toHaveLength(1);
+            release?.();
+            const exported = (await pendingExport) as { exportId: string };
+            expect(reached).toBe(true);
+            const manifest = (
+              await suite.admin.query<{ manifest: { rows: { item: CanonicalJsonObject }[] } }>(
+                'SELECT manifest FROM task_execution.task_board_export_manifest WHERE export_id=$1',
+                [exported.exportId],
+              )
+            ).rows[0];
+            expect(manifest?.manifest.rows.map((row) => row.item)).toEqual(oldItems);
+            // The next real export must contain the new Request fact and its
+            // exact public Task/child rows, including the conservative WO block.
+            const newItems = (
+              (await board.runAuthoritative(boardPayload(board))).data as CanonicalJsonObject
+            ).items;
+            expect(newItems).not.toEqual(oldItems);
+            const next = (await board.exportPass()) as { exportId: string };
+            const nextManifest = (
+              await suite.admin.query<{ manifest: { rows: { item: CanonicalJsonObject }[] } }>(
+                'SELECT manifest FROM task_execution.task_board_export_manifest WHERE export_id=$1',
+                [next.exportId],
+              )
+            ).rows[0];
+            expect(nextManifest?.manifest.rows.map((row) => row.item)).toEqual(newItems);
+          }
+          if (stage === 'RECOVERY_SUCCEEDED') {
+            expect(item.blockerRefs).toEqual([]);
+            expect(item.status).toBe('COMPLETION_PENDING');
+            expect(item.completionEvaluationRef).toBeUndefined();
+          }
+          if (stage === 'COMPLETED') {
+            expect(item.status).toBe('COMPLETED');
+            expect(item.activeWorkOrderRefs).toEqual([]);
+            expect(item.completionEvaluationRef).toBeDefined();
+          }
+        };
+        try {
+          await runScenario(
+            'FORMAL_RECOVERED',
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            'NORMAL',
+            false,
+            undefined,
+            undefined,
+            undefined,
+            probe,
+          );
+        } finally {
+          release?.();
+          await pendingExport;
+        }
+        expect(seen).toEqual([
+          'FINAL_RESERVED',
+          'RUN_FINALIZED',
+          'REQUEST_OPEN',
+          'REQUEST_RESOLVED',
+          'RECOVERY_SUCCEEDED',
+          'COMPLETED',
+        ]);
+      },
+    );
+
+    suite.itIntegration(
+      'BOARD-D-001 finite cancellation keeps Task/WO facts and never invents completion',
+      async () => {
+        const board = await boardHarness();
+        const stages: string[] = [];
+        let taskId = '';
+        const usageProbe: NonNullable<Parameters<typeof runScenario>[10]> = async (
+          stage,
+          runRef,
+        ) => {
+          taskId = await taskForRun(runRef);
+          const item = await assertBoardItem(board, taskId, false);
+          stages.push(stage);
+          expect(item.status).not.toBe('COMPLETED');
+          expect(item.completionEvaluationRef).toBeUndefined();
+          expect(item.activeWorkOrderRefs).toHaveLength(1);
+        };
+        await runScenario(
+          'RUN_CANCEL',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'NORMAL',
+          false,
+          undefined,
+          { row: 'IG-CANCEL-D-001', bounded: true, phase: 'ABANDONED' },
+          usageProbe,
+          async (stage, runRef) => {
+            if (stage === 'CANCELLING') {
+              stages.push(stage);
+              await assertBoardItem(board, await taskForRun(runRef), false);
+            }
+          },
+        );
+        expect(stages).toEqual(['CREATED', 'STARTED', 'CANCELLING', 'CANCELLED', 'ISOLATED']);
+        expect((await assertBoardItem(board, taskId, false)).status).not.toBe('COMPLETED');
+      },
+    );
 
     it('reads a real owning Task through the AUTHORITATIVE Board entry', async () => {
       const board = await boardHarness();
@@ -1023,6 +1591,78 @@ describe.skipIf(!gateEnabled)(
       expect(control.queries).toBeGreaterThan(0);
       expect(control.outcome).toMatchObject({ status: 'OK' });
     });
+
+    for (const binding of TASK_BOARD_BINDINGS) {
+      it(`IP-BOARD-D-001 independent ${binding.capabilityConfigKey} requires its Grant and config`, async () => {
+        const board = await boardHarness();
+        const key = binding.capabilityConfigKey;
+        for (const missing of ['CONFIG', 'GRANT'] as const) {
+          const denied = await board.probeMapping(key, missing);
+          expect(denied.outcome).toBeInstanceOf(Error);
+          expect(denied.outcome).not.toHaveProperty('data');
+          expect(denied.protectedQueries).toEqual([]);
+          const control = await board.probeMapping(key);
+          expect(control.outcome).not.toBeInstanceOf(Error);
+          expect(control.protectedQueries.length).toBeGreaterThan(0);
+        }
+      });
+    }
+
+    for (const consistency of ['AUTHORITATIVE', 'PROJECTION_OK']) {
+      for (const change of [
+        'taskBoardReadHumanV1',
+        'taskBoardSourceReadV1',
+        'taskBoardPolicyReadV1',
+        ...(consistency === 'PROJECTION_OK' ? (['taskBoardHealthReadV1'] as const) : []),
+        'EXPIRE',
+        'POLICY_SUPERSEDED',
+      ] as const) {
+        it(`IP-BOARD-D-002 ${consistency} rechecks ${change} after the reached source SELECT`, async () => {
+          const board = await boardHarness();
+          await board.exportPass();
+          const payload = boardPayload(board);
+          const baseline =
+            consistency === 'AUTHORITATIVE'
+              ? await board.runAuthoritative(payload)
+              : await board.runProjection(payload);
+          expect(baseline.status).toBe('OK');
+          const denied = await board.readAtBoundary(payload, consistency, change);
+          expect(denied.reached).toBe(true);
+          expect(denied.outcome).toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+          expect(denied.outcome).not.toHaveProperty('data');
+          if (change !== 'EXPIRE') expect(denied.currentIdentityReads).toBeGreaterThan(0);
+        });
+      }
+    }
+    for (const change of [
+      'taskBoardReadHumanV1',
+      'taskBoardSourceReadV1',
+      'taskBoardHealthReadV1',
+      'taskBoardPolicyReadV1',
+      'EXPIRE',
+      'POLICY_SUPERSEDED',
+    ] as const) {
+      it(`IP-BOARD-D-002 rechecks ${change} on a pinned-generation continuation`, async () => {
+        const board = await boardHarness();
+        await board.exportPass();
+        const payload = {
+          projectRef: board.projectRef,
+          statuses: BOARD_STATUSES,
+          page: { pageSize: 1 },
+        };
+        const first = await board.runProjection(payload);
+        if (typeof first.nextCursor !== 'string') throw new Error('missing first-page cursor');
+        const denied = await board.readAtBoundary(
+          { ...payload, page: { pageSize: 1, cursor: first.nextCursor } },
+          'PROJECTION_OK',
+          change,
+        );
+        expect(denied.reached).toBe(true);
+        expect(denied.outcome).toMatchObject({ code: 'AUTHORIZATION_REVOKED' });
+        expect(denied.outcome).not.toHaveProperty('data');
+        if (change !== 'EXPIRE') expect(denied.currentIdentityReads).toBeGreaterThan(0);
+      });
+    }
 
     it('refuses an AUTHORITATIVE read once the Service source Grant is revoked', async () => {
       const board = await boardHarness();

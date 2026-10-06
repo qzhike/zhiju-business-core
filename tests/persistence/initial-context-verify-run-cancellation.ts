@@ -22,6 +22,7 @@ import {
   record,
 } from './initial-context-fixtures.js';
 import type {
+  ScenarioBoardProbe,
   ScenarioProgressAuthorization,
   ScenarioProgressEnvelope,
   ScenarioProgressListAuthorization,
@@ -76,6 +77,7 @@ export interface CancelVariant {
 }
 
 export interface VerifyRunCancellationContext extends VerifyTerminalExpiryContext {
+  readonly boardProbe?: ScenarioBoardProbe | undefined;
   readonly cancelVariant: CancelVariant | undefined;
   readonly operator: InitialContextSuite['operator'];
   readonly teDb: InitialContextSuite['teDb'];
@@ -371,6 +373,7 @@ async function cancelRow002(state: VerifyRunCancellationContext): Promise<void> 
 
   const run = await readRunRow(state);
   expect(run).toMatchObject({ status: 'CANCELLING', ended_at: null });
+  await state.boardProbe?.('CANCELLING', state.runRef);
   expect(run.aggregate_version).toBe('3');
   expect(
     await countWhere(state, 'run_cancellation_intent', 'run_id=$1', [state.runRef.objectId]),

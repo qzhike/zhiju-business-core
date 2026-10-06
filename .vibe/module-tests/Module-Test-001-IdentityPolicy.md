@@ -338,12 +338,12 @@ authority 为 [Spec 001 §15.17](../module-specs/Module-Spec-001-IdentityPolicy.
 
 ## IM06-BOARD 独立读取与技术权限验收
 
-状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / MAPPING+UNIT PASS / REAL GRANT LIFECYCLE NOT RUN`，authority Spec001 §15.19；关联BOARD-D-003/006。
+状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / MAPPING+UNIT PASS / PG CURRENT GRANT AND POLICYVERSION CHECKS PARTIAL / GRANT POLICYSNAPSHOT REPLACEMENT LIFECYCLE NOT RUN`，authority Spec001 §15.19；关联BOARD-D-003/006。
 
 | ID | 可观察输入与预期 | 当前结果 |
 |---|---|---|
-| IP-BOARD-D-001 | 七项mapping完整字段逐项对照，合法Grant正例与各项缺config/Grant、operation/version/Purpose/action/Actor/session/完整target/hash错值；缺权限对应protected read/write为0。Human禁Agent/SERVICE/actingFor，Project两个拼写不互换，Policy完整VERSIONED身份绑定 | NOT RUN |
-| IP-BOARD-D-002 | 首页/翻页/最终返回检查点的真实撤权、Decision过期、TE旧MVCC之后当前IP READ COMMITTED；旧缓存不能放行，无data且授权错误不降级freshness；新短期同源Decision指纹相同，Grant/Policy配置变化指纹不同并要求重新查询 | NOT RUN |
-| IP-BOARD-D-003 | source不能publish/cleanup，publish不能读业务source，health不能清blocker，worker无Human权不能得到Human响应；Policy失效无新成功导出/读取。scoped SQL/RLS与IP技术签发Audit证据分别记录，不借旧create/start/finalize权限 | NOT RUN |
+| IP-BOARD-D-001 | 七项mapping完整字段逐项对照，合法Grant正例与各项缺config/Grant、operation/version/Purpose/action/Actor/session/完整target/hash错值；缺权限对应protected read/write为0。Human禁Agent/SERVICE/actingFor，Project两个拼写不互换，Policy完整VERSIONED身份绑定 | PARTIAL（PG：七项各自缺配置/真实撤 Grant 的 protected statement 为 0、同路径合法对照非零；完整 mapping 字段及其他变体保持 Unit/未执行分层） |
+| IP-BOARD-D-002 | 首页/翻页/最终返回检查点的真实撤权、Decision过期、TE旧MVCC之后当前IP READ COMMITTED；旧缓存不能放行，无data且授权错误不降级freshness；新短期同源Decision指纹相同，Grant/Policy配置变化指纹不同并要求重新查询 | PARTIAL（PG：AUTHORITATIVE/PROJECTION 首屏及 Projection 翻页在实际源/P1 SELECT 完成后撤销实际使用 Grant、跨 Decision 期限或取代 Board PolicyVersion，独立当前 IP 检查拒绝且无 data；Grant PolicySnapshot replacement lifecycle 延后保持 NOT RUN） |
+| IP-BOARD-D-003 | source不能publish/cleanup，publish不能读业务source，health不能清blocker，worker无Human权不能得到Human响应；Policy失效无新成功导出/读取。scoped SQL/RLS与IP技术签发Audit证据分别记录，不借旧create/start/finalize权限 | PARTIAL（PG：其余权限保留时，缺 publish/maintain/dispatch/source/health/Human/Policy 的对应动作各自拒绝且无 protected statement；Board PolicyVersion 在读途中被取代拒绝成功结果；其他 SQL/RLS/身份变体不升级） |
 
-implementation configured full；实际Grant PolicySnapshot取代原延后保持，纯mapping反例不替代PG当前撤权/expiry。以上是新增设计验收，不宣称已实现。
+implementation configured full；实际Grant PolicySnapshot取代原延后保持，纯mapping反例不替代PG当前撤权/expiry。当前分层结果见本矩阵；运行证据来自 `tests/persistence/task-board-entry.test.ts`，完整矩阵不因聚焦 PG 通过而提升为全量 PASS。

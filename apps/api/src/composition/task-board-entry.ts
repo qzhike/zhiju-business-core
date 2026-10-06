@@ -392,6 +392,17 @@ export function createTaskBoardEntry(config: TaskBoardEntryConfig) {
           payloadHashOf({ policyRef: configuredPolicy }),
           configuredPolicy as unknown as CanonicalJsonObject,
         );
+        // A current read Grant does not prove the PolicyVersion is still
+        // usable: its owning successor may have committed during the TE read.
+        await resolveTaskBoardPolicy({
+          deps: serviceDeps,
+          row: sourceRow,
+          policyRef: configuredPolicy,
+          actorSnapshotRef: session.serviceSession.resolutionActorSnapshotRef,
+          authenticationContextHash: serviceSessionHash,
+          policyDecisionRef: policyRead.decisionRef,
+          now,
+        });
       };
       const ports: TaskBoardReadPorts = {
         now,
