@@ -83,6 +83,7 @@ import {
   CORRELATION,
   definedValue,
   type DeliveryScheduleHooks,
+  type ControlledExitHooks,
   dependencyCapabilities,
   DRAFT_SNAPSHOT_OBJECT,
   objectRef,
@@ -274,6 +275,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       runRef: Common.ObjectRef,
     ) => Promise<void>,
     boardProbe?: ScenarioBoardProbe,
+    exitHooks?: ControlledExitHooks,
   ) => {
     const stageDependencies: VerifyPreparationValidationContext &
       VerifyRecoverySqlContext &
@@ -661,6 +663,9 @@ export function createRunScenario(suite: InitialContextSuite) {
       set outputProof(value: typeof outputProof) {
         outputProof = value;
       },
+      get exitStage() {
+        return exitHooks?.stage;
+      },
       get phase() {
         return suite.phase;
       },
@@ -695,7 +700,7 @@ export function createRunScenario(suite: InitialContextSuite) {
         return suite.track;
       },
       get verifyDeliveryTail() {
-        return suite.verifyDeliveryTail;
+        return exitHooks?.deliveryTail ?? suite.verifyDeliveryTail;
       },
       get formalFixture() {
         return formalFixture;
@@ -1414,6 +1419,7 @@ export function createRunScenario(suite: InitialContextSuite) {
         : undefined,
       false,
       preallocatedTask,
+      exitHooks?.stage,
     );
     revised.taskRef = objectRef(TASK_V2, taskId, suite.scope());
     revised.projectRef = objectRef('zhiju.project.project', suite.fixture.projectId, suite.scope());
@@ -2139,6 +2145,10 @@ export function createRunScenario(suite: InitialContextSuite) {
       ).rows,
     ).toEqual([{ n: 1 }]);
 
+    await exitHooks?.stage?.('WORK_ORDER_READY', {
+      taskId,
+      contract: read,
+    });
     let otherChildContract: Record<string, unknown> | undefined;
     let otherChildContractRef: unknown;
     let otherChildContextRef: unknown;
@@ -2495,7 +2505,19 @@ export function createRunScenario(suite: InitialContextSuite) {
                 expect(record(race[0]).resultPayload).toEqual(record(race[1]).resultPayload);
                 return definedValue(race.find((result) => record(result).status === 'COMMITTED'));
               }
-              return commandInvoke();
+              const committed = await commandInvoke();
+              if (record(committed).status === 'COMMITTED')
+                await exitHooks?.afterCommit?.(command, committed, () => {
+                  const rebuilt = firstRun
+                    ? createControlledFirstRunEntry(firstRunConfig)
+                    : createBlockedInputRecoveryEntry(recoveryConfig);
+                  const method: unknown = Reflect.get(rebuilt, key);
+                  if (typeof method !== 'function') throw new Error('missing rebuilt method');
+                  return Promise.resolve(
+                    Reflect.apply(method, rebuilt, [command, ...args.slice(1)]) as unknown,
+                  );
+                });
+              return committed;
             };
             if (
               processEnabled &&
@@ -2742,7 +2764,7 @@ export function createRunScenario(suite: InitialContextSuite) {
             terminalScenario === 'UNSUPPORTED_FINAL' && negativeFinalCase === 'FOLLOW_UP_PROPOSAL'
               ? [example('followUpProposals')]
               : [],
-          ...(positiveFinalScenario
+          ...(positiveFinalScenario || exitHooks?.declareUsage === true
             ? { agentDeclaredUsage: { measurementSource: 'AGENT_DECLARED', inputTokens: 17 } }
             : {}),
           ...(terminalScenario === 'UNSUPPORTED_FINAL' && negativeFinalCase === 'RUNTIME_USAGE'
@@ -2863,6 +2885,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       capabilities: dependencyCapabilities,
       now: () => new Date(suite.clock),
     } satisfies Parameters<typeof createControlledFirstRunEntry>[0];
+    exitHooks?.runtime?.(runtimeDriver);
     const firstRunEntryRaw = createControlledFirstRunEntry(firstRunConfig);
     const firstRunEntry = suite.observeEntry(withRecoveryReceiptFaults(firstRunEntryRaw, true));
     let replayFormalCreation: (() => Promise<unknown>) | undefined;
@@ -4286,10 +4309,9 @@ export function createRunScenario(suite: InitialContextSuite) {
     await finalReceiptRollback(submitEnvelope, (value) =>
       firstRunEntry.submitAgentResult(value, suite.sessionFor(service)),
     );
-    const submitted = await restartedEntry.submitAgentResult(
-      submitEnvelope,
-      suite.sessionFor(service),
-    );
+    const submitted = await (
+      exitHooks ? withRecoveryReceiptFaults(restartedEntry, true) : restartedEntry
+    ).submitAgentResult(submitEnvelope, suite.sessionFor(service));
     expect(submitted, JSON.stringify(submitted)).toMatchObject({ status: 'COMMITTED' });
     expect(
       await scanControlledFinalCandidates(

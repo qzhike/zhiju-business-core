@@ -903,7 +903,9 @@ TE 查询专用事务保持现有 Context/RLS 建立流程；该流程对 platfo
 
 ## 14. TD-07 受控退出 Fixture 与恢复设计
 
-状态：`PROPOSED / NOT IMPLEMENTED`。使用同一公开 Application Port、正式 AuthorizationDecision/ActorSnapshot、真实 PostgreSQL 与可控时钟/故障点；测试 Human identity 是测试环境授权主体，不伪造生产审批。Policy/Evaluator/Adapter fixture 固定版本与 canonical hash，由正常注册/装载边界解析；unknown、过期或 Hash 不匹配直接拒绝，不能为了通过链路跳过判据。测试依赖和业务初始化分别走各 owning 入口。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-07 / INDEPENDENT DESIGN REVIEW NOT RUN / UNIFIED FIXTURE IMPLEMENTED (#250) / REVISION-BOUND VERIFICATION IN ISSUE/PR`。当前切片与取舍见 [TD-07 统一受控退出决定](../decisions/task-execution-controlled-exit.md)。normal/recovered delivery、各 owning 恢复、取消、Usage、Board 已分别实现；其原矩阵证据保留；本节统一 Fixture 由 `tests/persistence/controlled-exit.test.ts` 实现，逐 revision 的运行结果与动态来源证据见 #250 及其 PR。以下详细化已获人类设计批准，绑定见统一受控退出决定 §5；独立设计审查仍 NOT RUN，不追认旧 TD-07 提案，也不改变已批准业务支持集。
+
+使用同一公开 Application Port、正式 AuthorizationDecision/ActorSnapshot、真实 PostgreSQL 与可控时钟/故障点；测试 Human identity 是测试环境授权主体，不伪造生产审批。Policy/Evaluator/Adapter fixture 固定版本与 canonical hash，由正常注册/装载边界解析；unknown、过期或 Hash 不匹配直接拒绝，不能为了通过链路跳过判据。测试依赖和业务初始化分别走各 owning 入口。
 
 | 阶段 | 正常正式输出链 | BLOCKED_INPUT 恢复链 |
 |---|---|---|
@@ -915,9 +917,35 @@ TE 查询专用事务保持现有 Context/RLS 建立流程；该流程对 platfo
 
 正式 Revision 的业务修改只由已授权 owning Command 发生；Driver 不直接写 Artifact 表。TD-02 所限 Proposal/结果驱动副作用须在匹配 Acceptance finalize 后处理；预置输入 Revision 与本次 WO 创建的输出不能混淆。Quality 条件通过真实 owning Gate/Approval 路径产生当前 RAS/ABS，不注入 READY 布尔值。DeliveryItem Fixture 先选满足已批准首版 Task profile、且其自身 criteria 可由本范围事实证明的受控对象；另设要求 Release 的负例，必须保持未完成，不能为过 Gate 扩展 Task RELEASED criterion。
 
-恢复 Process 只保存当前 step/source exact ref、稳定幂等键、attemptCount、nextAttemptAt、安全 lastError；每步调用 owning Command 后再确认进度。提交成功但确认进度前崩溃重放同键；结果不明先查询 Receipt，不换键重做外部动作。临时不可用按版本化 retry Policy 有限重试，到预算上限保留失败与待处理源，不清 blocker、不写业务成功；输入/授权/Hash 错误为需处理失败，不无限重试。处理后的新合法输入生成新的 source fingerprint，旧失败与原事实仍可追溯。scan/worker 重启恢复规则沿用 §11.5，Query 不承担补偿。
+恢复分别复用 §23 final Process、§24 blocked-input recovery Process 和 §26 TaskCompleted dispatcher 的真实持久化进度、命令身份与有限失败规则；本详细化取代旧提案要求统一 step/retry Policy/source fingerprint 的描述，不新增总 Process。每步 owning Command 提交后才确认各自进度。提交成功但响应或进度确认丢失重放原命令 bytes/target/commandId/幂等键；结果不明沿原授权 Receipt/同键重放路径确认，不换键重做外部动作。临时不可用按各 owning 既有规则有限重试，到预算上限保留失败与待处理源，不清 blocker、不写业务成功；输入/授权/Hash 错误不无限重试。Human 答复、采纳、retry 调度通过显式当前授权动作重试；过期 Context 沿合法新 identity 重建，不改旧快照。Query 不承担补偿。
 
 退出报告在 GitHub Issue/PR 给出两条链的真实 identity/hash 与 CommandReceipt/Outbox/Inbox/Evaluation 引用，分别列 Design、Schema、Application、PostgreSQL、controlled cross-module、Provider/HTTP/Manual 结果。至少在 Result提交、Acceptance提交、Run终结、Request resolution、TaskCompleted投递后各注入一次故障，恢复前后核对 Receipt/事件数量与旧 Hash。外部 Provider、Feishu、CLI、公开 HTTP、生产与独立人工业务验收保持各自 NOT RUN，除非另有实际执行证据。
+
+### 14.1 当前支持集与阶段观察
+
+每条 normal/recovered 链分别从迁移后的空 TE 业务库开始，复用 `delivery-completion/normal.json`、`recovered.json` 及已交付 owning composition/Driver；每条链另建合法 Task+Release Item 负例。不得用直写业务表或 caller 提供的可信 Receipt/Event 产生正向来源。静态 Fixture 只含输入与预期，动态 Ref/Hash 从真实提交读回。
+
+阶段至少覆盖：Task DRAFT/READY、WO FROZEN/READY、实际 Run start、final reservation、ACCEPTED、Run terminal、WO Completion、Task Completion、EP consume 尚未 Evaluation、独立 EP Evaluation/readExact。恢复增加 Request OPEN/ANSWERED/RESOLVED、Context-2、retry intent、Run-2 start/final；Request 建立前和 RESOLVED 尚无合法成功后继 Run 的 blocker 必须保留。原 Contract/Context-1/Run-1/Result-1/Acceptance-1 完整 bytes/hash 不变，新 Context/Run/Attempt/Bundle/fencing 独立且累计预算不重置。
+
+各阶段生产权威 Query/Port 对照真实 owning 事实；必要 scoped SQL 只补充约束/计数/不变性证据，不代替可用的生产读取。Run SUCCEEDED 不自动推进 WO/Task；TE TaskCompleted 被 EP 消费也不自动成为 DeliveryItem SATISFIED。历史完成事实、current Evaluation 和 Board 是不同观察，各 owning 查询不承诺跨模块原子快照。
+
+### 14.2 Usage 与 Board 关联
+
+对同链的各 Run 用独立 Human 当前读权调用 §13 Query，逐项关联原 Context/Contract/Attempt/Adapter/Observation/Result/Acceptance 与 Hash。只有合法原已接纳声明 PRESENT/AGENT_DECLARED；缺声明 UNKNOWN 且无 value，不造零值、Provider 计量或 runtimeUsageRef，不跨 Run 求和。保存查询前后的 Driver invocation 次数和 TE/EP 业务事实计数及 Root versions，读操作不得推进业务；IP Decision、审计及技术观测单独记录。
+
+Board AUTHORITATIVE 在阶段写入已停稳后与独立 owning 预期逐字段比较；PROJECTION_OK 先合法发布，再暂停刷新并推进影响行的真实业务写入，在没有更高优先级 FAILED/REBUILDING 的该受控条件下为 STALE。WO/Task/EP Completion 仍由独立 owning 入口成立。显式受权 export/publish 后核对新 generation 完整行和 freshness，Query 不隐式刷新。Item 的 Ref、status/version、activeWorkOrderRefs、blockerRefs、completionEvaluationRef 遵循 §12；存在 Evaluation Ref 不推断 USABLE。这里只扩充同链的组合观察，不改 §12/§13 字段或授权规则。
+
+### 14.3 故障点、恢复与取消
+
+normal 链分别在 Result submit、Acceptance、Run finalize 的真实 COMMITTED 之后丢响应/进度；recovered 链在真实 Resolution COMMITTED 之后丢响应/进度；至少一条链在 EP consume COMMITTED 后、TE confirm 前丢响应。hook 必须证明已到达指定提交边界；五个边界分别有真实断言，不能用统一 mock 替代。重建对应 worker/entry，以原命令/事件材料重放并走到独立最终读回；同 payload 原 Receipt、历史 bytes/hash 与单业务效果保持，允许技术 attempt/Audit/进度增加。正常实际 invocation 一次、恢复两次，重试不得重新 invoke 原 Driver。既有可执行 SUSPENDED/DEAD/耗尽、权限/Hash 拒绝和并发唯一反例可复用，但应绑定最终被测 revision、收集入口和实际执行证据，不把静态复用标为 PASS。
+
+取消单独沿 §27 支持集：创建时已有 reservation 的两次执行 profile，真实 ack/start 后 Human cancel，原 lease 实际到期，@2.0 expiry 到 ABANDONED，释放并隔离原 final。权威读回、UNKNOWN/LATE_RESULT Usage 和 Board 的实际 activeWorkOrderRefs/blockerRefs 对同一来源解释，不从取消状态推造 Request 或非空 blocker；无 ACK/CANCELLED、无可用新 Acceptance/正式输出/Completion，已有 final Process 停止，不再次 invoke、不创建第三 Run。旧单次/无 reservation 仍是拒绝边界。
+
+### 14.4 验证与范围
+
+本统一目标验收见 Module-Test 003 `EXIT-D-001–006`。现有矩阵的 PASS/PARTIAL/NOT RUN 及真实 Grant PolicySnapshot lifecycle 延后不整体升级，不要求为统一 Fixture 复制全部模块反例。既有适用 Quality、active Run/final 唯一、并发与权限/Hash/RLS 反例必须仍被最终 `full` 收集执行。required target 为 `vibe verify full --json`，新/变化容器环境先 `environment`；原设计 Delta 的 `docs` 证据不替代实施 `full`。
+
+不新增 operation/Schema/Purpose/profile/表/migration 或生产恢复机制；239/63/200 不变。发现需改变 owning 业务语义时先处理相应 Delta 与批准，Fixture 不能绕过。外部 HTTP/UI/CLI/Provider/Feishu、生产/性能及独立人工分别 NOT RUN。独立设计审查、人类设计批准、实现 NOW + READY、Issue 发布授权和交付后的 IM-06 退出对账分别成立，文档通过或 PR 合并不能代替后续 Gate。
 
 ## 15. 创建 Purpose 兼容性 Spec Delta（#190）
 

@@ -416,7 +416,9 @@ async function cancelRow002(state: VerifyRunCancellationContext): Promise<void> 
 
 /** CANCEL-D-003: lease-expiry abandonment plus late-final isolation. */
 async function cancelRow003(state: VerifyRunCancellationContext): Promise<void> {
+  if (state.cancelVariant?.phase === 'SUPPORTED') await prepareCancelFinalProgress(state);
   await cancelRow002(state);
+  if (state.cancelVariant?.phase === 'SUPPORTED') await suspendCancelFinalProgress(state);
 
   const wait = Math.max(0, state.runDeadline.getTime() - Date.now() + 100);
   if (wait > 0) await state.waitForDeadline(wait, 'server deadline/cancelLeaseWait');
@@ -555,6 +557,7 @@ async function cancelRow003(state: VerifyRunCancellationContext): Promise<void> 
       state.sessionFor(state.service),
     ),
   ).toEqual(bindingBefore);
+  if (state.cancelVariant?.phase === 'SUPPORTED') await suspendCancelFinalProgress(state);
 }
 
 /** CANCEL-D-005 supported half: premature @2.0 and @1.0 on a CANCELLING Run. */
@@ -732,8 +735,7 @@ async function cancelRow007(state: VerifyRunCancellationContext): Promise<void> 
 }
 
 /** CANCEL-D-008: existing Process progress is suspended, Driver not re-invoked. */
-async function cancelRow008(state: VerifyRunCancellationContext): Promise<void> {
-  const principal = state.operator();
+async function prepareCancelFinalProgress(state: VerifyRunCancellationContext): Promise<void> {
   // Persist the real final observation, then create the owning Process progress
   // row while the Run is still RUNNING and a scan candidate.
   const lateDriver = new LocalSyntheticRuntimeDriver(
@@ -787,14 +789,10 @@ async function cancelRow008(state: VerifyRunCancellationContext): Promise<void> 
       state.scanProof,
     ),
   ).toMatchObject({ status: 'COMMITTED' });
+}
 
-  expect(
-    await state.firstRunEntry.cancelRun(
-      await buildCancelEnvelope(state, principal, 2),
-      state.sessionFor(principal),
-    ),
-  ).toMatchObject({ status: 'COMMITTED' });
-  expect((await readRunRow(state)).status).toBe('CANCELLING');
+async function suspendCancelFinalProgress(state: VerifyRunCancellationContext): Promise<void> {
+  const processId = controlledFinalProcessId(state.runRef.objectId);
   const invocationsBefore = [...state.runtimeDriver.invokedAttemptIds];
 
   const recoveryPorts: Parameters<typeof recoverControlledFinalRuns>[2] = {
@@ -876,6 +874,19 @@ async function cancelRow008(state: VerifyRunCancellationContext): Promise<void> 
   expect(process).toEqual({ state: 'SUSPENDED', blocked_reason_code: 'RUN_CANCELLING' });
   expect(await recoveryPorts.listProgress()).toEqual([]);
   expect(state.runtimeDriver.invokedAttemptIds).toEqual(invocationsBefore);
+}
+
+async function cancelRow008(state: VerifyRunCancellationContext): Promise<void> {
+  const principal = state.operator();
+  await prepareCancelFinalProgress(state);
+  expect(
+    await state.firstRunEntry.cancelRun(
+      await buildCancelEnvelope(state, principal, 2),
+      state.sessionFor(principal),
+    ),
+  ).toMatchObject({ status: 'COMMITTED' });
+  expect((await readRunRow(state)).status).toBe('CANCELLING');
+  await suspendCancelFinalProgress(state);
 }
 
 export async function verifyRunCancellation(

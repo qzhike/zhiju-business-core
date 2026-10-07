@@ -39,6 +39,8 @@ import type {
 } from './initial-context-scenario-types.js';
 import type { InitialContextSuite } from './initial-context-suite.js';
 export interface VerifyFormalCompletionContext {
+  readonly exitStage?:
+    ((stage: string, material: CanonicalJsonObject) => Promise<void>) | undefined;
   readonly phase: InitialContextSuite['phase'];
   readonly terminalScenario: ScenarioTerminalScenario;
   replayFormalCreation: (() => Promise<unknown>) | undefined;
@@ -432,6 +434,10 @@ export async function verifyFormalCompletion(
     status: 'COMMITTED',
     resultPayload: { outcome: 'SATISFIED', transitioned: true },
   });
+  await scenarioState.exitStage?.('WORK_ORDER_COMPLETED', {
+    taskId: scenarioState.taskId,
+    committed: woResult,
+  } as unknown as CanonicalJsonObject);
   if (scenarioState.terminalScenario === 'FORMAL_NORMAL') {
     const readRows = (context: TaskExecutionTransactionContext) =>
       withTaskExecutionTransaction(scenarioState.teDb, context, (trx) =>
