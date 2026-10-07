@@ -1,3 +1,5 @@
+import type { CanonicalJsonObject } from '@zhiju/shared-kernel';
+import type { InitialContextSuite } from './initial-context-suite.js';
 import type {
   createFormalCompletionEntry,
   InitialContextCapabilityCodes,
@@ -376,6 +378,21 @@ export interface DeliveryScheduleHooks {
   plan?: PreparedDeliverySource['plan'];
   additionalTaskIds?: readonly string[];
   onPrepared: (source: PreparedDeliverySource) => void;
+}
+
+/** Test-only transport boundary; the callback receives an already committed target. */
+export interface ControlledExitHooks {
+  declareUsage?: boolean;
+  stage?: (stage: string, material: CanonicalJsonObject) => Promise<void>;
+  afterCommit?: (command: CanonicalJsonObject, committed: unknown) => Promise<void>;
+  invokeCommand?: (
+    command: CanonicalJsonObject,
+    invokeEntry: () => Promise<unknown>,
+    replayWithNewEntry: () => Promise<unknown>,
+  ) => Promise<unknown>;
+  commandStatus?: (commandId: unknown) => 'COMMITTED' | 'DUPLICATE';
+  runtime?: (driver: LocalSyntheticRuntimeDriver) => void;
+  deliveryTail?: InitialContextSuite['verifyDeliveryTail'];
 }
 
 export interface RecoveryFixture {

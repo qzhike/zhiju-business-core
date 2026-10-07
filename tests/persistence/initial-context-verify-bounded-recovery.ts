@@ -76,6 +76,7 @@ import {
   type VerifySecondRunCreationFaultsContext,
 } from './initial-context-verify-second-run-creation-faults.js';
 export interface VerifyBoundedRecoveryContext {
+  readonly exitCommandStatus?: ((commandId: unknown) => 'COMMITTED' | 'DUPLICATE') | undefined;
   readonly boardProbe?: ScenarioBoardProbe | undefined;
   readonly bounded: boolean;
   readonly phase: InitialContextSuite['phase'];
@@ -1226,8 +1227,14 @@ export async function verifyBoundedRecovery(
       );
     }
     const resolved = await scenarioState.recoveryEntry.command(resolve, scenarioState.sessionFor());
-    expect(resolved).toMatchObject({ status: 'COMMITTED' });
-    const resolutionRef = record(scenarioState.committedPayload(resolved)).resolutionRef;
+    expect(resolved).toMatchObject({
+      status: scenarioState.exitCommandStatus?.(resolve.commandId) ?? 'COMMITTED',
+    });
+    const resolutionRef = record(
+      scenarioState.exitCommandStatus && resolved.status === 'DUPLICATE'
+        ? resolved.resultPayload
+        : scenarioState.committedPayload(resolved),
+    ).resolutionRef;
     expect(
       await scenarioState.recoveryEntry.command(resolve, scenarioState.sessionFor()),
     ).toMatchObject({

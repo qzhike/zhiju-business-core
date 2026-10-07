@@ -1505,6 +1505,7 @@ export function createInitialContextSuite(
     formalDefinition?: Record<string, unknown>,
     deferReadiness = false,
     preallocatedId?: string,
+    observe?: (stage: string, material: CanonicalJsonObject) => Promise<void>,
   ): Promise<string> {
     const payload = payloadOf(commandVersion === '1.0' ? V1_TASK_FIXTURE : V2_TASK_FIXTURE);
     rewriteFixtureScopes(payload, fixture);
@@ -1574,9 +1575,14 @@ export function createInitialContextSuite(
       ),
     );
     expect(result, JSON.stringify(result)).toMatchObject({ status: 'COMMITTED' });
+    await observe?.('TASK_DRAFT', {
+      taskId: targetId,
+      committed: result,
+    } as unknown as CanonicalJsonObject);
     if (deferReadiness) return targetId;
     if (owningReady) {
       await readyTaskForValidation(targetId);
+      await observe?.('TASK_READY', { taskId: targetId });
       return targetId;
     }
     await track(

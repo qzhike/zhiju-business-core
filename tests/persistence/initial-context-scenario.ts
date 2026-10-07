@@ -83,6 +83,7 @@ import {
   CORRELATION,
   definedValue,
   type DeliveryScheduleHooks,
+  type ControlledExitHooks,
   dependencyCapabilities,
   DRAFT_SNAPSHOT_OBJECT,
   objectRef,
@@ -274,7 +275,14 @@ export function createRunScenario(suite: InitialContextSuite) {
       runRef: Common.ObjectRef,
     ) => Promise<void>,
     boardProbe?: ScenarioBoardProbe,
+    exitHooks?: ControlledExitHooks,
   ) => {
+    const expectedCommandStatus = (command: { commandId: unknown }) =>
+      exitHooks?.commandStatus?.(command.commandId) ?? 'COMMITTED';
+    const firstRunPayload = (result: CommandResult) =>
+      exitHooks && result.status === 'DUPLICATE'
+        ? result.resultPayload
+        : suite.committedPayload(result);
     const stageDependencies: VerifyPreparationValidationContext &
       VerifyRecoverySqlContext &
       VerifyRecoveryRollbackContext &
@@ -661,6 +669,12 @@ export function createRunScenario(suite: InitialContextSuite) {
       set outputProof(value: typeof outputProof) {
         outputProof = value;
       },
+      get exitStage() {
+        return exitHooks?.stage;
+      },
+      get exitCommandStatus() {
+        return exitHooks?.commandStatus;
+      },
       get phase() {
         return suite.phase;
       },
@@ -695,7 +709,7 @@ export function createRunScenario(suite: InitialContextSuite) {
         return suite.track;
       },
       get verifyDeliveryTail() {
-        return suite.verifyDeliveryTail;
+        return exitHooks?.deliveryTail ?? suite.verifyDeliveryTail;
       },
       get formalFixture() {
         return formalFixture;
@@ -1414,6 +1428,7 @@ export function createRunScenario(suite: InitialContextSuite) {
         : undefined,
       false,
       preallocatedTask,
+      exitHooks?.stage,
     );
     revised.taskRef = objectRef(TASK_V2, taskId, suite.scope());
     revised.projectRef = objectRef('zhiju.project.project', suite.fixture.projectId, suite.scope());
@@ -2139,6 +2154,10 @@ export function createRunScenario(suite: InitialContextSuite) {
       ).rows,
     ).toEqual([{ n: 1 }]);
 
+    await exitHooks?.stage?.('WORK_ORDER_READY', {
+      taskId,
+      contract: read,
+    });
     let otherChildContract: Record<string, unknown> | undefined;
     let otherChildContractRef: unknown;
     let otherChildContextRef: unknown;
@@ -2495,7 +2514,10 @@ export function createRunScenario(suite: InitialContextSuite) {
                 expect(record(race[0]).resultPayload).toEqual(record(race[1]).resultPayload);
                 return definedValue(race.find((result) => record(result).status === 'COMMITTED'));
               }
-              return commandInvoke();
+              const committed = await commandInvoke();
+              if (record(committed).status === 'COMMITTED')
+                await exitHooks?.afterCommit?.(command, committed);
+              return committed;
             };
             if (
               processEnabled &&
@@ -2527,8 +2549,34 @@ export function createRunScenario(suite: InitialContextSuite) {
         },
       });
     }
+    // This test caller sits OUTSIDE the faulting entry. It receives the rejected
+    // entry invocation and continues only with the rebuilt entry's actual reply.
+    function withExitResponseRecovery<T extends object>(entry: T, firstRun = false): T {
+      if (exitHooks?.invokeCommand === undefined) return entry;
+      return new Proxy(entry, {
+        get(target, key, receiver) {
+          const value: unknown = Reflect.get(target, key, receiver);
+          if (typeof value !== 'function') return value;
+          return (...args: unknown[]) => {
+            const command = record(args[0]) as CanonicalJsonObject;
+            const invoke = () => Promise.resolve(Reflect.apply(value, target, args) as unknown);
+            if (typeof command.commandType !== 'string') return invoke();
+            return exitHooks.invokeCommand?.(command, invoke, () => {
+              const rebuilt = firstRun
+                ? createControlledFirstRunEntry(firstRunConfig)
+                : createBlockedInputRecoveryEntry(recoveryConfig);
+              const method: unknown = Reflect.get(rebuilt, key);
+              if (typeof method !== 'function') throw new Error('missing rebuilt method');
+              return Promise.resolve(
+                Reflect.apply(method, rebuilt, [command, ...args.slice(1)]) as unknown,
+              );
+            });
+          };
+        },
+      });
+    }
     const recoveryEntryRaw = createBlockedInputRecoveryEntry(recoveryConfig);
-    const recoveryEntry = withRecoveryReceiptFaults(recoveryEntryRaw);
+    const recoveryEntry = withExitResponseRecovery(withRecoveryReceiptFaults(recoveryEntryRaw));
     async function recoveryEnvelope(
       key: string,
       target: Common.ObjectRef,
@@ -2742,7 +2790,7 @@ export function createRunScenario(suite: InitialContextSuite) {
             terminalScenario === 'UNSUPPORTED_FINAL' && negativeFinalCase === 'FOLLOW_UP_PROPOSAL'
               ? [example('followUpProposals')]
               : [],
-          ...(positiveFinalScenario
+          ...(positiveFinalScenario || exitHooks?.declareUsage === true
             ? { agentDeclaredUsage: { measurementSource: 'AGENT_DECLARED', inputTokens: 17 } }
             : {}),
           ...(terminalScenario === 'UNSUPPORTED_FINAL' && negativeFinalCase === 'RUNTIME_USAGE'
@@ -2863,8 +2911,12 @@ export function createRunScenario(suite: InitialContextSuite) {
       capabilities: dependencyCapabilities,
       now: () => new Date(suite.clock),
     } satisfies Parameters<typeof createControlledFirstRunEntry>[0];
+    exitHooks?.runtime?.(runtimeDriver);
     const firstRunEntryRaw = createControlledFirstRunEntry(firstRunConfig);
-    const firstRunEntry = suite.observeEntry(withRecoveryReceiptFaults(firstRunEntryRaw, true));
+    const firstRunEntry = withExitResponseRecovery(
+      suite.observeEntry(withRecoveryReceiptFaults(firstRunEntryRaw, true)),
+      true,
+    );
     let replayFormalCreation: (() => Promise<unknown>) | undefined;
     let actualFormalOutput: CanonicalJsonObject | undefined;
     let actualFormalArtifact: Common.ObjectRef | undefined;
@@ -4286,11 +4338,14 @@ export function createRunScenario(suite: InitialContextSuite) {
     await finalReceiptRollback(submitEnvelope, (value) =>
       firstRunEntry.submitAgentResult(value, suite.sessionFor(service)),
     );
-    const submitted = await restartedEntry.submitAgentResult(
-      submitEnvelope,
-      suite.sessionFor(service),
-    );
-    expect(submitted, JSON.stringify(submitted)).toMatchObject({ status: 'COMMITTED' });
+    const submitted = await (
+      exitHooks
+        ? withExitResponseRecovery(withRecoveryReceiptFaults(restartedEntry, true), true)
+        : restartedEntry
+    ).submitAgentResult(submitEnvelope, suite.sessionFor(service));
+    expect(submitted, JSON.stringify(submitted)).toMatchObject({
+      status: expectedCommandStatus(submitEnvelope),
+    });
     expect(
       await scanControlledFinalCandidates(
         guardedTeDb,
@@ -4366,7 +4421,7 @@ export function createRunScenario(suite: InitialContextSuite) {
         )
       ).rows,
     ).toEqual([{ count: '1' }]);
-    const resultRef = record(suite.committedPayload(submitted as CommandResult))
+    const resultRef = record(firstRunPayload(submitted as CommandResult))
       .agentResultRef as Common.ContentAddressedRef;
     if (exercisePreparationMatrix) {
       const resultOnlyFinalize = await firstRunEnvelope(
@@ -4859,7 +4914,9 @@ export function createRunScenario(suite: InitialContextSuite) {
       await usageProbe?.('SUBMITTED', runRef);
       accepted = await firstRunEntry.acceptAgentResult(acceptEnvelope, suite.sessionFor(service));
     }
-    expect(accepted, JSON.stringify(accepted)).toMatchObject({ status: 'COMMITTED' });
+    expect(accepted, JSON.stringify(accepted)).toMatchObject({
+      status: expectedCommandStatus(acceptEnvelope),
+    });
     await usageProbe?.('ACCEPTED', runRef);
     if (exercisePreparationMatrix) {
       const secondAcceptance = await firstRunEnvelope(
@@ -4893,7 +4950,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       resultRef,
     });
     const acceptanceRecordRef = record(
-      suite.committedPayload(accepted as CommandResult),
+      firstRunPayload(accepted as CommandResult),
     ).acceptanceRecordRef;
     if (bounded) {
       // ACCEPTED alone is insufficient: the source Run has not committed terminal state.
@@ -5172,7 +5229,9 @@ export function createRunScenario(suite: InitialContextSuite) {
       expect(outcomes[1].status).toBe('rejected');
       expect(await suite.receiptRows(competing.idempotencyKey)).toEqual([]);
     } else finalized = await firstRunEntry.finalizeRun(finalizeEnvelope, suite.sessionFor(service));
-    expect(finalized, JSON.stringify(finalized)).toMatchObject({ status: 'COMMITTED' });
+    expect(finalized, JSON.stringify(finalized)).toMatchObject({
+      status: expectedCommandStatus(finalizeEnvelope),
+    });
     if (recoveryVariant === 'BUDGET_EXHAUSTED') {
       expect(budgetFinalizationWaitAt).toBeUndefined();
       const consumption = definedValue(
@@ -5256,7 +5315,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       await firstRunEntry.finalizeRun(replayFinalize, suite.sessionFor(service)),
     ).toMatchObject({
       status: 'COMMITTED',
-      resultPayload: suite.committedPayload(finalized as CommandResult),
+      resultPayload: firstRunPayload(finalized as CommandResult),
     });
     const replaySubmit = await firstRunEnvelope(
       'execution.submit_agent_result',
@@ -5272,7 +5331,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       await firstRunEntry.submitAgentResult(replaySubmit, suite.sessionFor(service)),
     ).toMatchObject({
       status: 'COMMITTED',
-      resultPayload: suite.committedPayload(submitted as CommandResult),
+      resultPayload: firstRunPayload(submitted as CommandResult),
     });
     const replayRecord = await firstRunEnvelope(
       'execution.record_run_result',
@@ -5309,7 +5368,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       await firstRunEntry.acceptAgentResult(replayAccept, suite.sessionFor(service)),
     ).toMatchObject({
       status: 'COMMITTED',
-      resultPayload: suite.committedPayload(accepted as CommandResult),
+      resultPayload: firstRunPayload(accepted as CommandResult),
     });
     const prematureExpire = await firstRunEnvelope(
       'execution.expire_run',
