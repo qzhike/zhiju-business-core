@@ -183,19 +183,77 @@ describe('Task Board handler', () => {
     expect(new Set(seen).size).toBe(3);
   });
 
-  it('filters by an exact DeliveryItem version before paging', async () => {
-    const result = await handleGetTaskBoardSlice(
-      query({ deliveryItemRef, page: { pageSize: 10 } }),
-      ports(),
-    );
-    expect(((result.data as Record<string, unknown>).items as unknown[]).length).toBe(3);
-    const other = { ...deliveryItemRef, versionId: '0199b600-0000-7000-8000-000000000499' };
-    const empty = await handleGetTaskBoardSlice(
-      query({ deliveryItemRef: other, page: { pageSize: 10 } }),
-      ports(),
-    );
-    expect(((empty.data as Record<string, unknown>).items as unknown[]).length).toBe(0);
-  });
+  it.each(['AUTHORITATIVE', 'PROJECTION_OK'] as const)(
+    'filters mixed exact DeliveryItem refs and statuses before every %s page',
+    async (consistency) => {
+      const otherVersion = { ...deliveryItemRef, versionId: projectId };
+      const otherSpelling = { ...deliveryItemRef, objectType: 'project.delivery_item' };
+      const bindings = [
+        undefined,
+        otherVersion,
+        deliveryItemRef,
+        otherSpelling,
+        deliveryItemRef,
+        deliveryItemRef,
+        otherVersion,
+        deliveryItemRef,
+      ];
+      const mixed = bindings.map((binding, index): TaskBoardSnapshotRow => ({
+        item: {
+          ...row(0, index === 4 ? 'DRAFT' : 'READY').item,
+          taskRef: {
+            ...(row(0, 'READY').item.taskRef as CanonicalJsonObject),
+            objectId: `0199b600-0000-7000-8000-00000000001${index}`,
+          },
+        },
+        filterKeys: binding === undefined ? {} : { deliveryItemRef: binding },
+      }));
+      const state = projectionState(mixed);
+      const readPorts = ports({
+        readProjection: () => Promise.resolve(state),
+        readGeneration: () => Promise.resolve(state),
+        readAuthoritativeRows: () =>
+          Promise.resolve({
+            rows: [...mixed].reverse(),
+            sources: [],
+            sourceFingerprint: 'c'.repeat(64),
+            snapshotAt,
+          }),
+      });
+      const walk = async (filter: Record<string, unknown>, expectedIndexes: number[]) => {
+        const seen: unknown[] = [];
+        let cursor: string | undefined;
+        for (let pageIndex = 0; pageIndex < 10; pageIndex += 1) {
+          const result = await handleGetTaskBoardSlice(
+            {
+              ...query({
+                statuses: ['READY'],
+                ...filter,
+                page: { pageSize: 1, ...(cursor === undefined ? {} : { cursor }) },
+              }),
+              consistency,
+            },
+            readPorts,
+          );
+          expect(result.status).toBe('OK');
+          const page = result.data as Record<string, unknown>;
+          const items = page.items as CanonicalJsonObject[];
+          expect(items.length).toBe(expectedIndexes.length === 0 ? 0 : 1);
+          for (const item of items) expect(item).not.toHaveProperty('filterKeys');
+          seen.push(...items);
+          cursor = page.nextCursor as string | undefined;
+          if (cursor === undefined) break;
+        }
+        expect(cursor).toBeUndefined();
+        expect(seen).toEqual(expectedIndexes.map((index) => mixed[index]?.item));
+      };
+      await walk({ deliveryItemRef }, [2, 5, 7]);
+      await walk({ deliveryItemRef: otherVersion }, [1, 6]);
+      await walk({ deliveryItemRef: otherSpelling }, [3]);
+      await walk({ deliveryItemRef: { ...deliveryItemRef, versionId: enterpriseId } }, []);
+      await walk({}, [0, 1, 2, 3, 5, 6, 7]);
+    },
+  );
 
   it('rejects the unsupported assignee filter instead of returning a fake empty page', async () => {
     await expect(

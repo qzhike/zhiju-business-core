@@ -587,6 +587,215 @@ describe.skipIf(!gateEnabled)('Task Board export/dispatch and Projection (real P
     void manifestHash;
   });
 
+  it('rejects application filter-key hash and row-count conflicts without changing the alias', async () => {
+    const publishContext = contextFor(scope);
+    const now = new Date((booking += 600_000));
+    const lease = await claimTaskBoardLease(db, publishContext, {
+      ...scope,
+      owner: 'worker-integrity',
+      leaseSeconds: 300,
+      now,
+    });
+    if (lease === undefined) throw new Error('the export lease was not taken');
+    const original = manifest(newUuidV7(), []);
+    const deliveryItemRef: CanonicalJsonObject = {
+      kind: 'VERSIONED',
+      objectType: 'zhiju.project.delivery_item',
+      objectId: newUuidV7(),
+      versionId: newUuidV7(),
+      scope,
+    };
+    const source = original.rows[0];
+    if (source === undefined) throw new Error('missing baseline row');
+    const rows = [{ ...source, filterKeys: { deliveryItemRef } }];
+    const value = { ...original, rows, rowsHash: taskBoardRowsHash(rows) };
+    const fence = {
+      token: lease.leaseToken,
+      ownerPrincipalId: publishContext.principalId,
+      leaseUntil: lease.leaseUntil,
+    };
+    const published = await publishTaskBoardGeneration(
+      db,
+      publishContext,
+      publishInput(value, fence, now),
+    );
+    expect(
+      (
+        await readTaskBoardGenerationById(db, publishContext, scope, published.generationId)
+      ).rows.map((row) => row.row),
+    ).toEqual(rows);
+    const before = await readTaskBoardProjection(db, publishContext, scope);
+    const changed = {
+      ...value,
+      exportId: newUuidV7(),
+      rows: [
+        {
+          ...source,
+          filterKeys: {
+            deliveryItemRef: { ...deliveryItemRef, versionId: newUuidV7() },
+          },
+        },
+      ],
+    };
+    // Only the private version binding changes; its retained rowsHash is now
+    // wrong. The enclosing manifest hash is recomputed and otherwise valid.
+    expect(taskBoardRowsHash(changed.rows)).not.toBe(value.rowsHash);
+    await expect(
+      publishTaskBoardGeneration(db, publishContext, publishInput(changed, fence, now)),
+    ).rejects.toMatchObject({
+      code: 'TASK_BOARD_MANIFEST_CONFLICT',
+      message: 'rows hash does not match the canonical rows',
+    });
+    const wrongCount = { ...value, exportId: newUuidV7(), rowCount: value.rowCount + 1 };
+    await expect(
+      publishTaskBoardGeneration(db, publishContext, publishInput(wrongCount, fence, now)),
+    ).rejects.toMatchObject({
+      code: 'TASK_BOARD_MANIFEST_CONFLICT',
+      message: 'manifest row count does not match its rows',
+    });
+    expect(await readTaskBoardProjection(db, publishContext, scope)).toEqual(before);
+    expect(
+      (
+        await admin.query(
+          'SELECT export_id FROM projection.task_board_generation WHERE export_id=ANY($1::uuid[])',
+          [[changed.exportId, wrongCount.exportId]],
+        )
+      ).rows,
+    ).toEqual([]);
+  });
+
+  it('rejects independent SQL filter mirrors and counts against an otherwise-valid INSERT baseline', async () => {
+    const template = (
+      await admin.query<Record<string, unknown>>(
+        'SELECT * FROM projection.task_board_generation WHERE enterprise_id=$1 AND project_id=$2 ORDER BY publish_sequence DESC LIMIT 1',
+        [enterpriseId, projectId],
+      )
+    ).rows[0];
+    if (template === undefined) throw new Error('missing valid generation template');
+    const value = manifest(newUuidV7(), []);
+    const source = value.rows[0];
+    if (source === undefined) throw new Error('missing baseline row');
+    const deliveryItemRef: CanonicalJsonObject = {
+      kind: 'VERSIONED',
+      objectType: 'zhiju.project.delivery_item',
+      objectId: newUuidV7(),
+      versionId: newUuidV7(),
+      scope,
+    };
+    const baselineRow = { ...source, filterKeys: { deliveryItemRef } };
+    const rows = [baselineRow];
+    const complete = { ...value, rows, rowsHash: taskBoardRowsHash(rows) };
+    const generationId = newUuidV7();
+    const baseline = {
+      ...template,
+      generation_id: generationId,
+      export_id: complete.exportId,
+      manifest: JSON.stringify(complete),
+      manifest_hash: Buffer.from(taskBoardManifestHash(complete), 'hex'),
+      rows_hash: Buffer.from(complete.rowsHash, 'hex'),
+      row_count: complete.rowCount,
+      snapshot_at: new Date(complete.snapshotAt),
+      publish_sequence: '900000',
+    };
+    const insertGeneration = async (overrides: Record<string, unknown> = {}) => {
+      const columns: Record<string, unknown> = { ...baseline, ...overrides };
+      const names = Object.keys(columns);
+      await admin.query(
+        `INSERT INTO projection.task_board_generation (${names.join(',')})
+        VALUES (${names.map((_, index) => `$${index + 1}`).join(',')})`,
+        names.map((name) => columns[name]),
+      );
+    };
+    const insertRow = (stored = baselineRow, mirror = deliveryItemRef) =>
+      admin.query(
+        `INSERT INTO projection.task_board_row (generation_id,task_id,enterprise_id,project_id,row,delivery_item_ref)
+       VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)`,
+        [
+          generationId,
+          (source.item.taskRef as CanonicalJsonObject).objectId,
+          enterpriseId,
+          projectId,
+          JSON.stringify(stored),
+          JSON.stringify(mirror),
+        ],
+      );
+    const rollback = async (run: () => Promise<void>) => {
+      await admin.query('BEGIN');
+      try {
+        await run();
+      } finally {
+        await admin.query('ROLLBACK');
+      }
+    };
+    // Every probe uses the very same unused identities and coherent hashes.
+    // Rollback lets the legal baseline and each isolated mutation stand alone.
+    await rollback(async () => {
+      await insertGeneration();
+      await insertRow();
+      expect(
+        (
+          await admin.query(
+            'SELECT count(*)::int AS n FROM projection.task_board_row WHERE generation_id=$1',
+            [generationId],
+          )
+        ).rows,
+      ).toEqual([{ n: 1 }]);
+    });
+    const changedRef = { ...deliveryItemRef, versionId: newUuidV7() };
+    await rollback(async () => {
+      await insertGeneration();
+      await expect(insertRow(baselineRow, changedRef)).rejects.toMatchObject({
+        code: '23514',
+        message: 'task_board_row identity mirror mismatch',
+      });
+    });
+    await rollback(async () => {
+      await insertGeneration();
+      await expect(
+        insertRow({ ...baselineRow, filterKeys: { deliveryItemRef: changedRef } }),
+      ).rejects.toMatchObject({
+        code: '23514',
+        message: 'task_board_row identity mirror mismatch',
+      });
+    });
+    await rollback(async () => {
+      await insertGeneration();
+      await expect(
+        insertRow({ ...baselineRow, filterKeys: { deliveryItemRef: changedRef } }, changedRef),
+      ).rejects.toMatchObject({
+        code: '23514',
+        message: 'task_board_row is not part of its generation manifest',
+      });
+    });
+    await rollback(async () => {
+      await expect(insertGeneration({ row_count: complete.rowCount + 1 })).rejects.toMatchObject({
+        code: '23514',
+        message: 'task_board_generation manifest mirror mismatch',
+      });
+    });
+    await rollback(async () => {
+      const wrongCount = { ...complete, rowCount: complete.rowCount + 1 };
+      await expect(
+        insertGeneration({
+          manifest: JSON.stringify(wrongCount),
+          manifest_hash: Buffer.from(taskBoardManifestHash(wrongCount), 'hex'),
+          row_count: wrongCount.rowCount,
+        }),
+      ).rejects.toMatchObject({
+        code: '23514',
+        message: 'task_board_generation manifest mirror mismatch',
+      });
+    });
+    expect(
+      (
+        await admin.query(
+          'SELECT generation_id FROM projection.task_board_generation WHERE generation_id=$1',
+          [generationId],
+        )
+      ).rows,
+    ).toEqual([]);
+  });
+
   it('rejects a publisher whose lease expires while it waits on the fence lock', async () => {
     // A dedicated Project keeps this barrier independent from the booked clock
     // of the other cases, so the lease can really elapse during the wait.

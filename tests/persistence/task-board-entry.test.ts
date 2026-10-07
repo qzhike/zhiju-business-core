@@ -24,7 +24,11 @@ import {
   type TaskBoardCapabilityKey,
   type IdentityPolicyDb,
 } from '@zhiju/identity-policy';
-import { digestCanonicalPayload } from '@zhiju/task-execution';
+import {
+  digestCanonicalPayload,
+  taskBoardManifestBytes,
+  type TaskBoardSnapshotManifest,
+} from '@zhiju/task-execution';
 import { canonicalize, newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
 import {
   Kysely,
@@ -49,6 +53,7 @@ import {
 import { createInitialContextSuite } from './initial-context-suite.js';
 import { createRunScenario } from './initial-context-scenario.js';
 import type { ScenarioBoardProbe } from './initial-context-scenario-types.js';
+import { createDeliveryCompletionPlanFixture } from './delivery-completion-plan-fixture.js';
 
 const SERVICE_PRINCIPAL = 'cc01cc01-cc01-7c01-8c01-cc01cc01cc09';
 const SERVICE_ACTOR = 'cc02cc02-cc02-7c02-8c02-cc02cc02cc09';
@@ -141,6 +146,7 @@ describe.skipIf(!gateEnabled)(
       ) => Promise<CanonicalJsonObject>;
       readonly exportPass: () => Promise<unknown>;
       readonly runExportPassWith: (db: Kysely<TaskExecutionDb>) => Promise<unknown>;
+      readonly setSnapshotByteBudget: (bytes: number) => Promise<void>;
       /** Runs the real pass but aborts at the confirm authorization. */
       /** Revokes the Service source-read authority of this Project. */
       readonly revokeSourceAuthority: () => Promise<void>;
@@ -654,6 +660,19 @@ describe.skipIf(!gateEnabled)(
             prepared,
             prepared.ports,
           );
+        },
+        setSnapshotByteBudget: async (bytes) => {
+          const replacement = { ...boardPolicyRef, versionId: newUuidV7() };
+          await suite.registerPolicyVersionAs({
+            key: replacement,
+            factId: newUuidV7(),
+            idempotencyKey: newUuidV7(),
+            effectiveFrom: new Date(),
+            supersedesRef: boardPolicyRef,
+            policySchemaRefs: [profileRef],
+            policyDocument: { ...BOARD_POLICY_DOCUMENT, maxSnapshotBytes: bytes },
+          });
+          boardPolicyRef = replacement;
         },
         runWithPolicyProbe: async (payload, configured) => {
           const counter = { queries: 0 };
@@ -1173,6 +1192,233 @@ describe.skipIf(!gateEnabled)(
       expect(watermarks[0]?.sourceModule).toBe('task_execution');
       expect(watermarks[0]?.sequence).toBe(published?.publishSequence);
     });
+
+    it('filters owning versions, spellings and unbound Tasks before small-page traversal', async () => {
+      const board = await boardHarness();
+      const ids = Array.from({ length: 8 }, () => newUuidV7()).sort();
+      const itemId = newUuidV7();
+      const planCapabilities = new Set<string>();
+      const authorizePlan = async (type: string, payload: CanonicalJsonObject) => {
+        const capability = `wi248.plan.${type.replaceAll('.', '_')}.${itemId.replaceAll('-', '')}`;
+        if (!planCapabilities.has(capability)) {
+          await suite.grantGeneric(capability);
+          planCapabilities.add(capability);
+        }
+        const decision = await suite.authorizeCommandTracked(
+          suite.identityDeps([suite.fixture.projectId]),
+          {
+            actorSnapshotRef: suite.operatorActorRef,
+            intent: {
+              commandType: type,
+              commandVersion: '1.0',
+              scopeKind: 'PROJECT',
+              enterpriseId: suite.fixture.enterpriseId,
+              projectId: suite.fixture.projectId,
+              purpose: type,
+              requestedCapability: capability,
+              commandPayloadHash: digestCanonicalPayload(payload).hash,
+              requestedAt: new Date(suite.clock),
+              highRiskAction: false,
+            },
+            authenticationContextHash: AUTH_HASH,
+            policySnapshotRef: suite.grantPolicySnapshotReference(),
+            ttlSeconds: 900,
+          },
+        );
+        expect(decision.outcome, JSON.stringify(decision)).toBe('ALLOW');
+        return {
+          ...suite.runnerContext(),
+          authorizationDecisionId: decision.authorizationDecisionRef.objectId,
+          authorizationDecisionHash: Buffer.from(
+            decision.authorizationDecisionRef.contentHash.digest,
+            'hex',
+          ),
+          authorizationDecisionExpiresAt: new Date(decision.expiresAt),
+        };
+      };
+      const createPlan = () =>
+        createDeliveryCompletionPlanFixture(
+          suite.enterpriseProjectDb,
+          suite.runnerContext(),
+          ids[2] ?? '',
+          false,
+          () => new Date(suite.clock),
+          authorizePlan,
+          [],
+          itemId,
+        );
+      const firstPlan = await createPlan();
+      const firstRef = firstPlan.deliveryItemRef as unknown as CanonicalJsonObject;
+      const legacyRef = { ...firstRef, objectType: 'project.delivery_item' };
+      await suite.createExecutableTask('2.0', false, undefined, true, ids[0]);
+      for (const index of [2, 3, 4, 5, 7]) {
+        await suite.createExecutableTask(
+          index === 3 ? '1.0' : '2.0',
+          index === 4,
+          { deliveryItemRef: index === 3 ? legacyRef : firstRef },
+          index !== 4,
+          ids[index],
+        );
+      }
+      // The second owning Plan commits another exact version of the same Item.
+      // Existing Task definitions retain their original full Ref unchanged.
+      const secondPlan = await createPlan();
+      const secondRef = secondPlan.deliveryItemRef as unknown as CanonicalJsonObject;
+      expect(secondRef.objectId).toBe(firstRef.objectId);
+      expect(secondRef.versionId).not.toBe(firstRef.versionId);
+      for (const index of [1, 6])
+        await suite.createExecutableTask(
+          '2.0',
+          false,
+          { deliveryItemRef: secondRef },
+          true,
+          ids[index],
+        );
+      expect(await board.exportPass()).toBeDefined();
+
+      const allDrafts = (
+        await suite.admin.query<{ task_id: string }>(
+          `SELECT task_id FROM task_execution.task WHERE enterprise_id=$1 AND project_id=$2 AND status='DRAFT' ORDER BY task_id`,
+          [suite.fixture.enterpriseId, suite.fixture.projectId],
+        )
+      ).rows.map((row) => row.task_id);
+      expect(allDrafts).toContain(ids[0]);
+      const cases = [
+        { ref: firstRef, statuses: ['DRAFT'], expected: [ids[2], ids[5], ids[7]] },
+        { ref: firstRef, statuses: ['READY'], expected: [ids[4]] },
+        { ref: firstRef, statuses: ['READY', 'DRAFT'], expected: [ids[2], ids[4], ids[5], ids[7]] },
+        { ref: secondRef, statuses: ['DRAFT'], expected: [ids[1], ids[6]] },
+        { ref: legacyRef, statuses: ['DRAFT'], expected: [ids[3]] },
+        { ref: undefined, statuses: ['DRAFT'], expected: allDrafts },
+      ];
+      for (const run of [board.runAuthoritative, board.runProjection]) {
+        for (const sample of cases) {
+          const seen: CanonicalJsonObject[] = [];
+          let cursor: string | undefined;
+          for (let pageIndex = 0; pageIndex < 50; pageIndex += 1) {
+            const result = await run({
+              projectRef: board.projectRef,
+              statuses: sample.statuses,
+              ...(sample.ref === undefined ? {} : { deliveryItemRef: sample.ref }),
+              page: { pageSize: 1, ...(cursor === undefined ? {} : { cursor }) },
+            });
+            expect(result.status).toBe('OK');
+            const page = result.data as CanonicalJsonObject;
+            const items = page.items as CanonicalJsonObject[];
+            expect(items).toHaveLength(1);
+            for (const item of items) expect(item).not.toHaveProperty('filterKeys');
+            seen.push(...items);
+            cursor = page.nextCursor as string | undefined;
+            if (cursor === undefined) break;
+          }
+          expect(cursor).toBeUndefined();
+          expect(seen.map((item) => (item.taskRef as CanonicalJsonObject).objectId)).toEqual(
+            sample.expected,
+          );
+          expect(seen).toEqual(
+            await Promise.all(sample.expected.map((id) => expectedItem(id ?? '', false))),
+          );
+        }
+        await expect(
+          run({ projectRef: board.projectRef, statuses: [], page: { pageSize: 1 } }),
+        ).rejects.toMatchObject({ code: 'API_VALUE_INVALID' });
+      }
+    }, 120_000);
+
+    it('rejects a complete UTF-8 export over the owning Policy budget and preserves the old alias', async () => {
+      const board = await boardHarness();
+      const taskId = await suite.createExecutableTask(
+        '2.0',
+        true,
+        { title: '界'.repeat(1000) },
+        true,
+      );
+      const baseline = (await board.exportPass()) as { exportId: string };
+      expect(baseline).toBeDefined();
+      const old = (
+        await suite.admin.query<{ manifest: TaskBoardSnapshotManifest }>(
+          'SELECT manifest FROM task_execution.task_board_export_manifest WHERE export_id=$1',
+          [baseline.exportId],
+        )
+      ).rows[0]?.manifest;
+      if (old === undefined) throw new Error('the valid baseline manifest is missing');
+      const before = (
+        await suite.admin.query(
+          'SELECT * FROM projection.task_board_alias WHERE enterprise_id=$1 AND project_id=$2',
+          [suite.fixture.enterpriseId, suite.fixture.projectId],
+        )
+      ).rows;
+      await suite.readyTaskForValidation(taskId);
+      const dirty = (
+        await suite.admin.query<{ marker_id: string }>(
+          'SELECT marker_id FROM task_execution.task_board_dirty WHERE enterprise_id=$1 AND project_id=$2 ORDER BY marker_id',
+          [suite.fixture.enterpriseId, suite.fixture.projectId],
+        )
+      ).rows.map((row) => row.marker_id);
+      expect(dirty.length).toBeGreaterThan(0);
+      const candidate = {
+        ...old,
+        coveredDirtyIds: dirty,
+        rows: await Promise.all(
+          old.rows.map(async (row) => ({
+            ...row,
+            item: await expectedItem((row.item.taskRef as { objectId: string }).objectId, false),
+          })),
+        ),
+      };
+      const characters = canonicalize(candidate as unknown as CanonicalJsonObject).length;
+      const bytes = taskBoardManifestBytes(candidate);
+      const budget = Math.floor((characters + bytes) / 2);
+      expect(characters).toBeLessThan(budget);
+      expect(bytes).toBeGreaterThan(budget);
+      const counts = async () =>
+        (
+          await suite.admin.query<{ generations: number; manifests: number }>(
+            `SELECT (SELECT count(*) FROM projection.task_board_generation WHERE project_id=$1)::int AS generations,
+                (SELECT count(*) FROM task_execution.task_board_export_manifest WHERE project_id=$1)::int AS manifests`,
+            [suite.fixture.projectId],
+          )
+        ).rows;
+      const originalCounts = await counts();
+      try {
+        await board.setSnapshotByteBudget(budget);
+        expect(await board.exportPass()).toBeUndefined();
+        expect(await counts()).toEqual(originalCounts);
+        expect(
+          (
+            await suite.admin.query(
+              'SELECT * FROM projection.task_board_alias WHERE enterprise_id=$1 AND project_id=$2',
+              [suite.fixture.enterpriseId, suite.fixture.projectId],
+            )
+          ).rows,
+        ).toEqual(before);
+        expect(
+          (
+            await suite.admin.query<{ marker_id: string }>(
+              'SELECT marker_id FROM task_execution.task_board_dirty WHERE enterprise_id=$1 AND project_id=$2 ORDER BY marker_id',
+              [suite.fixture.enterpriseId, suite.fixture.projectId],
+            )
+          ).rows.map((row) => row.marker_id),
+        ).toEqual(dirty);
+        expect(
+          (
+            await suite.admin.query(
+              `SELECT failure_code FROM projection.task_board_failure WHERE project_id=$1 ORDER BY recorded_at DESC LIMIT 1`,
+              [suite.fixture.projectId],
+            )
+          ).rows,
+        ).toEqual([{ failure_code: 'TASK_BOARD_EXPORT_BUDGET_EXCEEDED' }]);
+      } finally {
+        await board.setSnapshotByteBudget(Number(BOARD_POLICY_DOCUMENT.maxSnapshotBytes));
+      }
+      expect(await board.exportPass()).toBeDefined();
+      expect(await board.dirtyCount()).toBe(0);
+      const restored = await board.runProjection(boardPayload(board));
+      expect(restored.status).toBe('OK');
+      expect((restored.data as CanonicalJsonObject).items).toEqual(
+        candidate.rows.map((row) => row.item),
+      );
+    }, 30_000);
     it('keeps both Task creation identities and serves SNAPSHOT_AT_LEAST', async () => {
       const board = await boardHarness();
       const legacyTaskId = await suite.createExecutableTask('1.0');
