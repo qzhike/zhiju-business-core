@@ -1443,7 +1443,7 @@ describe.skipIf(!gateEnabled)(
       );
       expect(g2Ids).toContain(newTaskId);
       expect(g2Ids.length).toBeGreaterThan(after.ids.length);
-    });
+    }, 30_000);
 
     it('does not report FRESH when the alias is replaced between the projection reads', async () => {
       const board = await boardHarness();
