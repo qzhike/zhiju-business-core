@@ -231,7 +231,7 @@ TaskBoardItem
 | `execution.get_agent_result@1.0` | A | `agentResultRef: ContentAddressedRef<AgentResult>` | `AgentResultContract` + 独立 Acceptance Record；不得把 acceptance 写回 Payload |
 | `execution.get_information_request@1.0` | A | `informationRequestRef: ObjectRef<InformationRequest>` | `InformationRequestView` |
 | `execution.get_usage_and_provenance@1.0` | A | `runRef: ObjectRef<Run>` | `UsageAndProvenanceView`；未知 Usage 不是 0 |
-| `execution.get_task_board_slice@1.0` | P | `projectRef: ObjectRef<Project>; statuses: Set<TaskStatus>; assigneeRef?: PrincipalRef; deliveryItemRef?: VersionedRef<DeliveryItem>; page: PageRequest` | `Page<TaskBoardItem>`；Projection 不用于完成判定 |
+| `execution.get_task_board_slice@1.0` | P | `projectRef: ObjectRef<Project>; statuses: NonEmptySet<TaskStatus>; assigneeRef?: PrincipalRef; deliveryItemRef?: VersionedRef<DeliveryItem>; page: PageRequest` | `Page<TaskBoardItem>`；Projection 不用于完成判定 |
 
 ## 5. Event Payload Contract
 
@@ -762,7 +762,7 @@ TaskStateView另返回 `completionUseStatus: Closed<NOT_EVALUATED|USABLE|STALE|R
 
 ## 12. TD-05 Query / Task Board 补充设计
 
-状态：`PROPOSED / NOT IMPLEMENTED`，见[设计增量](../decisions/task-execution-human-operated.md#11-剩余设计增量-td-05–07)。本节与 §13–14 待审核，§11 的 TD-01–04 仍为已批准基准。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DETAILED BINDINGS / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 五轮共 32 项) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY+SQL GUARD+REACHED FENCE BARRIER+PROOF/CONFIRM RECOVERY PASS / 真实 v1+v2 身份、SNAPSHOT_AT_LEAST 入口与 G1→G2 分页 PASS / 其余 BOARD-D 与 IP-BOARD-D 矩阵、外部与人工验收 NOT RUN`。批准与来源见 [Task Board 决定](../decisions/task-execution-task-board.md)。§12.4–12.7 是本切片的精确化，取代本节旧提案中不一致的空 statuses、指派、Policy 和仅 Projection 读取描述；TD-07 不被追认。公开 Schema/metadata/fixture 未修改，所有新运行验收 NOT RUN。
 
 ### 12.1 权威读取与公开兼容
 
@@ -772,25 +772,61 @@ TaskStateView另返回 `completionUseStatus: Closed<NOT_EVALUATED|USABLE|STALE|R
 
 ### 12.2 owning Snapshot Export 与发布
 
-新增内部只读 `TaskBoardSnapshotExportPort`，仅授予指定 Projection Service；输入 `{projectRef, exportPolicyRef, authorizationContext}`，输出不可变 manifest `{exportId, projectRef, snapshotAt, policyRef, rows, rowCount, rowsHash, coveredDirtyIds}`。rows 使用内部 `TaskBoardSnapshotRow = {item: TaskBoardItem, filterKeys: {deliveryItemRef?: VersionedRef<DeliveryItem>}}`，按 item.taskRef 的 Task id 的 UTF-8 字节序排序；同一 REPEATABLE READ 快照中读取 Task、child WorkOrder、blocking Request 与已提交内部 dirty marker。业务对象含完整 Enterprise/Project Scope，未解决 BLOCKED_INPUT 与 §11.5 的 reconcile 阻塞规则一致；export 不推进这些 Root。内部 Port 不接收自由过滤 SQL，不对 Human/Agent 开放，Projection writer 不直接访问 task_execution 表。
+新增内部只读 `TaskBoardSnapshotExportPort`，仅授予配置的 dispatcher SERVICE；authority 查询由 TE 内部只读 source assembler 复用同一 row 算法，在独立 taskBoardSourceReadV1 Decision 下读取，不要求生成 exportId 或 manifest；输入 `{exportId, projectRef, policyObservation, authorizationContext}`（exportId 由已授权 dispatcher 预分配并绑定本次 source-read Decision，Query 不生成持久状态），输出不可变 manifest `{exportId, projectRef, snapshotAt, policyRef, policyObservation, rows, rowCount, rowsHash, sourceFingerprint, coveredDirtyIds}`。rows 使用内部 `TaskBoardSnapshotRow = {item: TaskBoardItem, filterKeys: {deliveryItemRef?: VersionedRef<DeliveryItem>}}`，按 item.taskRef 的 Task id 的 UTF-8 字节序排序；同一 REPEATABLE READ 快照中读取 Task、child WorkOrder、blocking Request 与已提交内部 dirty marker。业务对象含完整 Enterprise/Project Scope，未解决 BLOCKED_INPUT 与 §11.5 的 reconcile 阻塞规则一致；export 不推进这些 Root。内部 Port 不接收自由过滤 SQL，不对 Human/Agent 开放，Projection writer 不直接访问 task_execution 表。
 
 `filterKeys` 必填，其 deliveryItemRef 从该快照内 Task definition 的同名字段原样取得；源字段不存在时省略，不填 null、不按最新 DeliveryPlan 推断。item 与 filterKeys 必须从同一来源快照组装，受同一 Scope 校验。rowsHash 对完整有序 TaskBoardSnapshotRow 数组做 canonical hash，包含 filterKeys、精确 Ref 及字段有无；manifest hash 同样覆盖完整 rows。相同展示字段而筛选引用不同必须产生不同 Hash。公开 Page 仅投影 row.item，禁止把 filterKeys 加入严格的 TaskBoardItem v1。
 
 每个影响 Board 的 owning 写事务同时追加 Scope 内 dirty marker（Task 创建/状态/字段及任何已授权的 deliveryItemRef 来源变更、WO 状态、Request/Resolution、影响 blocker 的 Result 等）；只读 Export 不写 marker、checkpoint 或派发状态。worker 在独立技术事务领取每 Project 的带 fencing 的单一 export lease，读取 owning manifest，再发布 generation。旧 worker 失去 lease 后不能切换 alias。worker 在派发技术事务中持久化完整安全 manifest 后才能发布；同一 exportId 重放必须使用原 manifest，新读快照必须使用新 exportId。消费者仅确认 manifest 明确覆盖的 dirty identities，不能以 `MAX(sequence)` 确认尚未提交的更小序号；并发晚提交 marker 会再次触发刷新。启动、恢复和定期完整导出兜底，不能依赖一次性唤醒。
 
-每个发布 generation 保存 canonical manifest hash、行数、策略版本、来源 snapshotAt。Projection 在一事务写新 generation/rows、校验 count/hash、更新 checkpoint 并切换 alias；任一失败保留旧 alias。发布顺序由该 Project 的 fenced worker 串行分配持久化 sequence，相同 exportId/hash 重放复用，异 hash 拒绝。Board SourceWatermark 为 `sourceModule=task_execution`、`partition=task_board:<projectId>`、generation 发布 sequence；它只表示这个导出流的消费进度，不冒充 Domain Event 全局提交位置，不能传给 §10.3 的 EP Completion consumer。observedAt 是真实导出观测时间，不能用查询当前时间把旧快照变新。
+每个发布 generation 保存 canonical manifest hash、行数、策略版本、来源 snapshotAt。Projection 在一事务写新 generation/rows、校验 count/hash、更新 checkpoint 并切换 alias；任一失败保留旧 alias。发布顺序由 Projection 的该 Project fence/checkpoint 锁串行分配持久化 sequence，相同 exportId/hash 重放复用，异 hash 拒绝。Board SourceWatermark 为 `sourceModule=task_execution`、`partition=task_board:<projectId>`、generation 发布 sequence；它只表示这个导出流的消费进度，不冒充 Domain Event 全局提交位置，不能传给 §10.3 的 EP Completion consumer。observedAt 是真实导出观测时间，不能用查询当前时间把旧快照变新。
 
 这是 §07 Snapshot Export 方案的首版完整刷新实现；不需要无限保留公共 Outbox，不把 Event payload 当完整状态。导出失败、越权、无法校验的 manifest 进入脱敏 failure；不能空集合替换成功 generation。worker 崩溃于 alias 切换后、dirty 确认前，可重复相同导出/刷新，但不得漏掉新 marker。
 
 ### 12.3 过滤、分页与 freshness
 
-过滤先约束当前授权 Enterprise/Project，再在 cursor 固定的 generation 内应用 statuses、assigneeRef、精确 deliveryItemRef；前两者读取 row.item，后者只读取 row.filterKeys.deliveryItemRef。指定 deliveryItemRef 时，只有存有同一完整规范化 VersionedRef 的行匹配，必须包含版本及 Ref 内的 Scope/其他限定字段，不能仅比较对象 id；未绑定或不同版本均不匹配。未指定该过滤器时不排除未绑定行。所有过滤先于稳定排序与分页截取，不能先取一页再过滤。禁止回查最新 Task/DeliveryPlan 补充筛选关系；当前权限仍独立重验。空 statuses 表示不限制状态。assignee 仅导出规范 PrincipalRef 的安全表示，不复制任意主体属性。首版筛选、排序和分页规则须以既有 Query payload Schema 为输入，不静默改类型。固定排序为 Task id 升序，无 offset 翻页。
+过滤先约束当前授权 Enterprise/Project，再在 cursor 固定的 generation 内应用 statuses、精确 deliveryItemRef；前者读取 row.item，后者只读取 row.filterKeys.deliveryItemRef。指定 deliveryItemRef 时，只有存有同一完整规范化 VersionedRef 的行匹配，必须包含版本及 Ref 内的 Scope/其他限定字段，不能仅比较对象 id；未绑定或不同版本均不匹配。未指定该过滤器时不排除未绑定行。所有过滤先于稳定排序与分页截取，不能先取一页再过滤。禁止回查最新 Task/DeliveryPlan 补充筛选关系；当前权限仍独立重验。statuses 必须非空且唯一，查看全部状态传现有完整闭集。首版省略 assignee，initialAssignee 不表示有效 Assignment；显式 assigneeRef 返回 EXECUTION_CRITERION_UNSUPPORTED、无 data。首版筛选、排序和分页规则须以既有 Query payload Schema 为输入，不静默改类型。固定排序为 Task id 升序，无 offset 翻页。
 
 Cursor 按共享 API §6.2 防篡改，绑定 query/version、Scope、requester/当前授权策略、Purpose、规范 filter hash、generationId、snapshotAt/watermarks、sort、last Task id、expiresAt。下一页读相同不可变 generation；alias 已换新也不能混读。每页仍重新授权；权限/Policy 改变时拒绝旧 cursor 并重新查询，不沿用旧授权或返回部分旧行。旧 generation 保留至所签发 cursor 的最大有效期，过期返回 QUERY_CURSOR_EXPIRED；参数/Scope/Purpose 不匹配返回 QUERY_CURSOR_SCOPE_MISMATCH。过期清理独立于只读 Query。
 
 本 profile 的共享 Envelope `stalenessStatus` 使用 FRESH/STALE/REBUILDING/FAILED；它们是待注册的响应语义，不增改旧 data Schema。FRESH 要求所读 generation 仍是当前 alias、当前检查能确认没有未覆盖 dirty marker、无失败/重建且快照年龄在版本化 freshness Policy 阈值内；这仅是观测时点新鲜，不能授权下一条写操作。无法读 source health 为 FAILED；有待处理 marker 或超过阈值为 STALE；新版本构建中为 REBUILDING。后两者与 FAILED 可附带仍在保留期且通过当前授权检查的旧 generation，分别使用共享 status STALE/ERROR；没有可用 generation 时省略 data，禁止 OK+空 Page 掩盖故障。状态优先 FAILED > REBUILDING > STALE > FRESH。刷新阈值、cursor TTL 与保留期限从版本化 Policy 读取，缺失配置不能自称 FRESH。
 
 Board 的 COMPLETED 是历史状态展示。进入操作前重新读取权威 TaskState 和适用 Judgment/Decision；禁止 Board blockerRefs=[]、历史 Evaluation 或 FRESH 成为 readiness/completion/授权证明。即使独立权威查询成功，也不能把同页 Board 改标 FRESH。
+
+### 12.4 首版身份与完整来源
+
+Board projectRef 只接受 OBJECT 的 `project.project` 或 `zhiju.project.project`，UUIDv7、完整 Project Scope，objectId==scope.projectId==受信 Project；两种拼写分别作为完整授权 target，不相互转换 Grant/Decision。拒绝裸 Project、前缀补全、错 kind/id/Scope（REFERENCE_INVALID，越权外观按安全规则）。Board 不新增 EP Project 生命周期查询，不把创建期 ACTIVE 约束套在历史 Board 读取上；合法空 Project 只能来自当前 Project-scoped covering Grant/配置，空页不证明 Project 业务存在/ACTIVE。两个拼写均可查看同 Scope 内两类 Task 的已提交来源；创建时的逐版本 Project 校验与 fixture 不变。
+
+Task output Ref 严格按 §16.1 的 definition schema_version：1.0 → execution.task，2.0 → zhiju.execution.task；旧提案裸 Task 是引用错误，不是允许别名。WorkOrder 按 §18.2 的创建 Receipt：1.0 → execution.work_order，1.1 → zhiju.execution.work_order。Item filter 支持 VERSIONED project.delivery_item 或 zhiju.project.delivery_item，完整同 Project Scope，逐字段匹配原 definition 中的 Ref；不同拼写即不同 Ref，不做等价替换。
+
+每项 root/version、definition/title、所有关联 WorkOrder、当前 completion pointer、Request 与 recovery 来源从同一 TE REPEATABLE READ 快照读取。activeWorkOrderRefs 是状态 DRAFT/READY/QUEUED/RUNNING/WAITING_INPUT/COMPLETION_PENDING/RETRY_PENDING 的集合，按完整 Ref canonical 字节序排序去重；COMPLETED/FAILED/CANCELLED/EXPIRED 不在其中。blockerRefs 读取未 RESOLVED 的已交付 blocking Request，并对每一 child 使用既有 recovery_work_order_blocked 的保守来源规则，blocked 时加入其按创建事实派生的 WO Ref。该规则也保留 final reservation 已提交但尚未完成接受/Request 生产的阻塞窗口，不能为 Board 放宽现行 helper。未来非 blocking Request 不纳入此闭集；新增 Request profile 须另行对账。
+
+源校验覆盖完整创建 Receipt/definition/pointer mirror、所引用 Request/Result/Acceptance/恢复关系的 Scope/id/hash；使用现有 owning 本地事实而非 Completion Port 的 Quality/Bundle 当前资格调用。current Evaluation pointer 存在时核验完整不可变事实后返回，无 pointer 则省略，不追认 SATISFIED/USABLE。sourceFingerprint 对完整安全 row 数组与排序后的本地来源身份/版本/hash向量 canonical hash；该向量包含创建身份、定义、child/root版本及改变阻塞谓词的已提交来源，不含 snapshotAt/dirty/授权当前时间，避免每次读取必然变化。损坏为 INTERNAL_CONTRACT_VIOLATION/EXECUTION_JUDGMENT_INVALID、无 data；aggregateVersion 转 Number 前检验安全整数，不进行有损转换。
+
+### 12.5 Policy 的既有 owning 来源与有限配置
+
+受信每 Project 配置固定一个完整 Project-scoped VersionedRef<zhiju.identity.policy>，caller不能指定或覆盖。经独立授权 identity.resolve_policy@1.0 当前精确解析，要求返回 USABLE、同完整 Ref/Scope、规范 Hash/mirror、effectiveFrom<=now、now<supersededAt（若有），并含 profile `execution.task_board.policy@1.0` 的精确构建期 selector。该 selector 在未来实现中一次性加入 contracts/registry/policy-profiles.v1.json，owner=task-execution、Platform identity.contract_schema 的固定 VERSIONED Ref，按现有生成/漂移检查保留已有条目；身份分配是注册实现细节，不伪造已提交 Policy。
+
+closed policyDocument 必需七个正安全整数字段：maxPageSize、maxSnapshotRows、maxSnapshotBytes、freshnessMaxAgeSeconds、cursorTtlSeconds、refreshIntervalSeconds、workerLeaseSeconds；拒绝缺失/未知字段、零/负值/非整数。maxPageSize<=maxSnapshotRows、maxSnapshotBytes 必须覆盖完整 canonical manifest 实际 UTF-8 字节（不是 JS 字符数）。maxPageSize 上界100、maxSnapshotRows上界1000、maxSnapshotBytes上界4194304、cursorTtlSeconds上界3600；具体部署取值由合法 Policy 明示，测试使用有限 fixture，不设置无限默认值。字符串/Ref/数组已有 Schema 约束保持；运行资源限制作为 owning profile Guard，不修改旧公开请求/data Schema 或 metadata。未知profile用 EXECUTION_CRITERION_UNSUPPORTED，非法参数 API_VALUE_INVALID，实际资源超限 API_PAYLOAD_LIMIT_EXCEEDED。
+
+每次 Query/Export/publish/cleanup 重新精确解析固定版本并按当次 IP 权限核验；PolicyHash/版本改变使旧 cursor 不再匹配，不继续旧权限。历史 generation 保留原 policyObservation `{policyRef,policyVersionRef,contentHash,effectiveFrom,supersededAt?}`，不是当前资格；Query 不回写观察。Policy 读取失败时无新成功结果；generation source-health 不可用与权限/Policy失效是不同路径，后者不降级为返回旧 data。
+
+### 12.6 三种一致性、cursor 与 freshness
+
+完整 QueryResult 字段和 status/data 组合归属共享 API 的 IM06-BOARD 段。PROJECTION_OK 固定不可变 generation；SNAPSHOT_AT_LEAST 使用同一机制且 sequence>=minimumWatermark（缺省0），未达则 STALE无data；水位只属于 task_board:<projectId> 导出发布流，不能消费 TaskCompleted→EP sequence。AUTHORITATIVE 从 owning TE 快照直接组装同 profile，sourceWatermarks=[]；minimumWatermark 不适用时 API_VALUE_INVALID，不把 Projection data当权威。所有 Query 不触发刷新或等待写入。
+
+AUTHORITATIVE 第一页 cursor 保存 sourceFingerprint、第一页 snapshotAt 与最后Task id；下一页当前独立 source读取必须重算指纹相同，才能保留原 snapshotAt继续，变化则 QUERY_CURSOR_SCOPE_MISMATCH无data并要求重启。不持久化 Query 生成的历史快照。PROJECTION_OK/SNAPSHOT_AT_LEAST 下一页只读原generation，alias变化使其至少STALE而不换页。asOf只精确匹配保留generation的snapshotAt或authority cursor的固定snapshotAt；多个generation有同一时间时第一页选满足其他条件的最高发布sequence。找不到合法asOf为 QUERY_CURSOR_SCOPE_MISMATCH，无cursor的authority请求带asOf一律API_VALUE_INVALID。不提供任意时间历史重建。
+
+cursor采用受信服务端secret与keyId的HMAC-SHA256，固定编码/constant-time验证；密钥来自受信启动配置/Secret port，不是Decision Hash，不存入PG/cursor/Audit。逻辑绑定字段为closed：queryType/queryVersion、完整ProjectRef、requesterPurposeHash、authorizationSourceHash、normalizedFilterHash、pageSize、consistencyRequirement、asOf?、minimumWatermark?、policyRef/policyContentHash、generationId/manifestHash?（Projection成对存在，authority省略）、sourceFingerprint、snapshotAt/sourceWatermarks、lastTaskId、issuedAt/expiresAt、keyId。它们不是逐字段JSON直接嵌入cursor：共享OpaqueCursor要求单一base64url串、16–512字符，不能使用dot分段或超长claims。按cv1对query/version/完整Scope+ProjectRef/requester+Purpose/当前authorizationSourceHash/filterHash/pageSize/固定sortDefinition=TASK_ID_ASC_UTF8/consistency/asOf及watermark有无与值/PolicyRef+Hash合并为requestBindingHash；每页按当前受信输入重算比较。编码固定198bytes：profileVersion:uint8、mode:uint8、keyId:uint32、requestBindingHash:32bytes、sourceFingerprint:32bytes、generationId:16bytes、manifestHash:32bytes、watermarkSequence:uint64、snapshotAtEpochMs:int64、lastTaskId:16bytes、issuedAtEpochMs:int64、expiresAtEpochMs:int64、HMAC-SHA256:32bytes；网络字节序、无padding的base64url为264字符。AUTH模式generationId/manifestHash/sequence必须全零且还原空水位，Projection模式要求真实值，watermark sourceModule/partition按本profile与绑定Project派生、observedAt=该snapshotAt；服务端snapshotAt一律规范为UTC毫秒ISO字符串，与编码epochMs无损往返。HMAC覆盖前166bytes含profileVersion/mode/keyId，禁unknown版本/mode/非canonical编码/非法时间与越安全整数的sequence。keyId是uint32索引映射到受信密钥，不把Secret放cursor。无raw Secret/外部ID或源正文。filterHash含排序statuses集合及完整optional Ref/有无，不含cursor；分页重复入口存在时必须与payload.page逐字段相同。scope/query/Purpose/filter/Policy绑定错误是QUERY_CURSOR_SCOPE_MISMATCH，编码/signature/key错误QUERY_CURSOR_INVALID，trusted now>=expiresAt或已合法清理generation是QUERY_CURSOR_EXPIRED。签发expiresAt<=min(now+Policy TTL, retainedGeneration.retentionUntil)，authority仅now+TTL；新Decision不得自动延长旧cursor。公开data可含空items，nextCursor仅有更多已过滤行时产生；不能先取页再过滤。
+
+freshness检查顺序：P1 projection一致性读固定generation、alias/发布checkpoint及version；H独立source-health快照读取当前未确认dirty集合/技术失败/重建状态，按精确project+exportId+manifestHash+coveredDirtyIds判断覆盖；P2新projection读重验alias/checkpoint/fence。P1/P2别名或checkpoint改变、H显示任何未覆盖marker，均至少STALE；源health不可取得FAILED，正在重建REBUILDING，年龄超过Policy阈值STALE，优先FAILED>REBUILDING>STALE>FRESH。健康时间记录在来源观测中，Board sourceWatermark.observedAt始终为原导出snapshotAt，不用H/P2当前时间刷新旧快照。仅FRESH允许status OK；STALE/REBUILDING用STALE；FAILED用ERROR。返回前再验所有实际使用authority。H之后的新提交不属于已记录观测，本profile不声称跨Owner瞬时新鲜；确定性测试在P1→H、H→P2间分别变更源/alias，反例不得假FRESH。
+
+### 12.7 Dispatcher、fence 与恢复出口
+
+在独立当前dispatch authority下扫描/领取/续约/持久化完整manifest/确认coveredDirtyIds；Project lease只允许未过期同owner/token续约，接管只能在旧lease到期后生成更大token，不通过caller时间提前接管。Projection自身先注册同Project的 `{token,owner,leaseUntil}`，仅允许更高token接管或相同token/owner延长lease；注册前由TE只读control校验对应已提交claim，Projection事务中用受信时间校验期限。发布再次验注册tuple/当前时间与TEcontrol当前资格；过期、旧token或异owner拒绝。保持两个Owner事务分离的观测约定，旧worker在新TE接管而Projection未注册的窗口也因旧lease过期不能发布。
+
+Projection在同事务登记exportId/hash唯一结果、分配安全整数发布sequence、插入generation/rows、原子切alias/checkpoint；同exportId/hash重放即使alias已前进也只返回原结果，不回退alias。异hash拒绝，不重新读取同exportId来源。未完成发布重试沿用manifest；Policy已失效时保存失败/待处理dirty，以新合法Policy/新exportId重新导出，不能绕过当前authority。所有retry有限，在当前Policy配置的lease/定期scan内重放技术步骤，长期失败不写业务成功。retentionUntil=publishedAt+该generation的cursorTtlSeconds，Query不续期。cleanup需要独立maintain authority，只删除非当前alias且到期的generation/rows，不删除业务历史、manifest唯一发布结果或当前alias。
+
+设计审批与审查绑定见Task Board决定；完整实现required full，其他旧Query通用重写、Runtime/HTTP/UI和TD-07均非此切片。
 
 ## 13. TD-06 Usage / Provenance 补充设计
 

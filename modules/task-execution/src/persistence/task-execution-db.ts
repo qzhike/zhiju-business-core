@@ -666,6 +666,19 @@ export interface TaskExecutionDb {
   'task_execution.audit_record': AuditRecordTable;
   'task_execution.reference_edge': ReferenceEdgeTable;
   'task_execution.contract_violation': ContractViolationTable;
+  // IM-06 TD-05 (#248): Task Board dirty markers, export dispatch/manifest
+  // control (owned `task_execution` schema) and the rebuilt Board projection
+  // (shared `projection` schema, written/read as `projection_app`).
+  'task_execution.task_board_dirty': TaskBoardDirtyTable;
+  'task_execution.task_board_export_dispatch': TaskBoardExportDispatchTable;
+  'task_execution.task_board_export_manifest': TaskBoardExportManifestTable;
+  'projection.task_board_generation': TaskBoardGenerationTable;
+  'projection.task_board_row': TaskBoardRowTable;
+  'projection.task_board_alias': TaskBoardAliasTable;
+  'projection.task_board_checkpoint': TaskBoardCheckpointTable;
+  'projection.task_board_fence': TaskBoardFenceTable;
+  'projection.task_board_publication_outcome': TaskBoardPublicationOutcomeTable;
+  'projection.task_board_failure': TaskBoardFailureTable;
 }
 
 export const CANONICALIZATION_VERSION = '1';
@@ -800,5 +813,188 @@ export async function withTaskExecutionSnapshotTransaction<T>(
         }
         return fn(trx, snapshotAt);
       }),
+  );
+}
+
+// =============================================================================
+// IM-06 TD-05 (#248): Task Board persistence shapes.
+//
+// Two owners share this Kysely schema:
+//
+// 1. `task_execution.task_board_dirty` / `_export_dispatch` /
+//    `_export_manifest` live in the owned `task_execution` schema and are
+//    touched only inside a `task_execution_app` transaction through the
+//    V7014 owning SECURITY DEFINER functions.
+// 2. `projection.task_board_*` live in the shared `projection` schema and are
+//    read/written as `projection_app`
+//    ({@link withTaskBoardProjectionTransaction}). That role has no
+//    `task_execution` access at all, so a projection read can never fall back
+//    to the owning rows.
+// =============================================================================
+
+type NullableInt8 = ColumnType<
+  string | null,
+  string | number | null | undefined,
+  string | number | undefined
+>;
+
+/** One scoped marker proving that an owning Board write happened. */
+export interface TaskBoardDirtyTable {
+  marker_id: string;
+  enterprise_id: string;
+  project_id: string;
+  source_type: string;
+  source_id: string;
+  source_version: NullableInt8;
+  source_hash: Buffer | null;
+  created_at: Generated<Date>;
+}
+
+/** Per-Project export lease/control row (single row per Project). */
+export interface TaskBoardExportDispatchTable {
+  enterprise_id: string;
+  project_id: string;
+  lease_token: Int8Default;
+  lease_owner: string | null;
+  lease_until: Date | null;
+  version: Int8Default;
+  last_export_id: string | null;
+  last_manifest_hash: Buffer | null;
+  last_publish_sequence: NullableInt8;
+  updated_at: Generated<Date>;
+}
+
+/** Immutable persisted manifest of one pre-allocated `exportId`. */
+export interface TaskBoardExportManifestTable {
+  export_id: string;
+  enterprise_id: string;
+  project_id: string;
+  manifest: Json;
+  manifest_hash: Buffer;
+  snapshot_at: Date;
+  policy_observation: Json;
+  row_count: number;
+  rows_hash: Buffer;
+  source_fingerprint: Buffer;
+  covered_dirty_ids: string[];
+  created_at: Generated<Date>;
+  created_by_principal_id: string;
+}
+
+/** One INSERT-only published Board generation. */
+export interface TaskBoardGenerationTable {
+  generation_id: string;
+  export_id: string;
+  enterprise_id: string;
+  project_id: string;
+  project_ref: Json;
+  manifest: Json;
+  manifest_hash: Buffer;
+  rows_hash: Buffer;
+  row_count: number;
+  source_fingerprint: Buffer;
+  policy_observation: Json;
+  snapshot_at: Date;
+  publish_sequence: Int8Default;
+  published_at: Date;
+  retention_until: Date;
+  created_by_principal_id: string;
+}
+
+/** One INSERT-only internal Board row; `row` is the full snapshot row. */
+export interface TaskBoardRowTable {
+  generation_id: string;
+  task_id: string;
+  enterprise_id: string;
+  project_id: string;
+  row: Json;
+  delivery_item_ref: Json | null;
+}
+
+/** The single active generation alias of a Project. */
+export interface TaskBoardAliasTable {
+  enterprise_id: string;
+  project_id: string;
+  generation_id: string;
+  publish_sequence: Int8Default;
+  switched_at: Date;
+  switched_by_principal_id: string;
+}
+
+/** Publication-stream progress (`task_board:<projectId>`). */
+export interface TaskBoardCheckpointTable {
+  enterprise_id: string;
+  project_id: string;
+  last_generation_id: string;
+  last_publish_sequence: Int8Default;
+  last_export_id: string;
+  updated_at: Date;
+}
+
+/** Projection-owned monotonic publication fence registration. */
+export interface TaskBoardFenceTable {
+  enterprise_id: string;
+  project_id: string;
+  token: Int8Default;
+  owner_principal_id: string | null;
+  lease_until: Date | null;
+  version: Int8Default;
+}
+
+/** Idempotent publication outcome, kept even after row cleanup. */
+export interface TaskBoardPublicationOutcomeTable {
+  export_id: string;
+  manifest_hash: Buffer;
+  enterprise_id: string;
+  project_id: string;
+  generation_id: string;
+  publish_sequence: Int8Default;
+  recorded_at: Date;
+}
+
+/** Safe publication failure record; never carries a body or secret. */
+export interface TaskBoardFailureTable {
+  failure_id: string;
+  enterprise_id: string;
+  project_id: string;
+  export_id: string | null;
+  failure_code: string;
+  safe_summary: string;
+  recorded_at: Date;
+  recorded_by_principal_id: string;
+}
+
+export type TaskBoardProjectionTransaction = Transaction<TaskExecutionDb>;
+
+/**
+ * Runs one Board projection transaction on one connection as
+ * `projection_app`. The RLS context is established exactly like the owning
+ * helpers, but the runtime role is the shared projection role, which holds no
+ * `task_execution` privilege: a projection read/write cannot reach the owning
+ * Board source.
+ */
+export async function withTaskBoardProjectionTransaction<T>(
+  db: Kysely<TaskExecutionDb>,
+  context: TaskExecutionTransactionContext,
+  fn: (trx: TaskBoardProjectionTransaction) => Promise<T>,
+): Promise<T> {
+  return db.connection().execute(async (connection) =>
+    connection.transaction().execute(async (trx) => {
+      await sql.raw('SET LOCAL ROLE platform_context_establisher').execute(trx);
+      await sql`SELECT platform_security.establish_transaction_context(
+          ${context.kind},
+          ${context.principalId},
+          ${context.principalKind},
+          ${context.actorSnapshotId},
+          ${context.authorizationDecisionId},
+          ${context.authorizationDecisionHash},
+          ${context.authorizationDecisionExpiresAt},
+          ${context.enterpriseId},
+          ${[...context.allowedProjectIds]},
+          ${context.correlationId},
+          ${context.sourceEventId ?? null})`.execute(trx);
+      await sql.raw('SET LOCAL ROLE projection_app').execute(trx);
+      return fn(trx);
+    }),
   );
 }

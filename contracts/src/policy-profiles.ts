@@ -112,6 +112,28 @@ const approvedEntries: readonly ApprovedEntry[] = [
     requiredFields: ['maxReadinessValiditySeconds'],
   },
   {
+    registryKey: 'execution.task_board.policy@1.0',
+    owner: 'task-execution',
+    fields: [
+      'maxPageSize',
+      'maxSnapshotRows',
+      'maxSnapshotBytes',
+      'freshnessMaxAgeSeconds',
+      'cursorTtlSeconds',
+      'refreshIntervalSeconds',
+      'workerLeaseSeconds',
+    ],
+    requiredFields: [
+      'maxPageSize',
+      'maxSnapshotRows',
+      'maxSnapshotBytes',
+      'freshnessMaxAgeSeconds',
+      'cursorTtlSeconds',
+      'refreshIntervalSeconds',
+      'workerLeaseSeconds',
+    ],
+  },
+  {
     registryKey: 'execution.work_order_validation.policy@1.0',
     owner: 'task-execution',
     fields: ['maxValidationValiditySeconds', 'mandatoryCriterionTypes'],

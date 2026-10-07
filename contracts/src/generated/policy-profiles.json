@@ -451,6 +451,62 @@
           }
         }
       }
+    },
+    {
+      "registryKey": "execution.task_board.policy@1.0",
+      "owner": "task-execution",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "0199b600-0000-7000-8000-000000000103",
+        "versionId": "0199b600-0000-7000-8000-000000000113",
+        "scope": {}
+      },
+      "documentSchema": {
+        "description": "First-version finite Task Board policy profile owned by task-execution; deployment values are explicit and every bound is finite.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "maxPageSize",
+          "maxSnapshotRows",
+          "maxSnapshotBytes",
+          "freshnessMaxAgeSeconds",
+          "cursorTtlSeconds",
+          "refreshIntervalSeconds",
+          "workerLeaseSeconds"
+        ],
+        "properties": {
+          "maxPageSize": {
+            "type": "number",
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger",
+            "maximum": 100
+          },
+          "maxSnapshotRows": {
+            "type": "number",
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger",
+            "maximum": 1000
+          },
+          "maxSnapshotBytes": {
+            "type": "number",
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger",
+            "maximum": 4194304
+          },
+          "freshnessMaxAgeSeconds": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger"
+          },
+          "cursorTtlSeconds": {
+            "type": "number",
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger",
+            "maximum": 3600
+          },
+          "refreshIntervalSeconds": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger"
+          },
+          "workerLeaseSeconds": {
+            "$ref": "https://schemas.zhiju.local/common/1.0#/$defs/positiveInteger"
+          }
+        }
+      }
     }
   ]
 }

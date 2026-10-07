@@ -4117,6 +4117,10 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
       'completion_root_guard',
       'completion_work_order_membership',
       'first_run_work_order_transition_guard',
+      // IM-06 TD-05 (#248): the Board dirty-capture triggers land on the
+      // WorkOrder Root and its immutable Draft snapshot (V7014).
+      'task_board_dirty_work_order',
+      'task_board_dirty_work_order_draft_snapshot',
       'work_order_draft_snapshot_creation_identity_guard',
       'work_order_draft_snapshot_immutable_guard',
       'work_order_draft_snapshot_mirror_guard',

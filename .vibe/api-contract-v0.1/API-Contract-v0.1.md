@@ -628,3 +628,22 @@ execution.get_usage_and_provenance@1.0 仍为 AUTHORITATIVE-only；其 payload/r
 本 profile 在 provenance 中给出同一 TE 快照 aggregateVersion/runStatus/snapshotAt 和 exact refs，遵循 §6.3 可变对象版本要求。首版组成入口沿用现有 operation result data 返回边界，只交付公开 data Schema 与安全 profile 校验；通用 QueryResult transport wrapper、public HTTP 不属于本切片，包装层运行验收仍 NOT RUN。未来形成完整 QueryResult 时 snapshotAt 必须与该值一致，resultHash 按共享契约；没有适用事件水位则 sourceWatermarks=[]，不能制造 sequence 或 Board freshness。data/profile/envelope 是不同验证层，公开 result data 合法不等于 Envelope 已实现、当前权限或跨模块来源真实。
 
 已授权 owning final 明确 not-found 可以表示尚无观察；权限拒绝/依赖故障使用既有安全错误，不转换为 OK+UNKNOWN。可验证的来源冲突按 owning profile 的安全 UNAVAILABLE/UNKNOWN 表达，既有公开 schema 仍可接受；本地 Root/source storage integrity 错误不返回 data。合法历史读取不产生 TE/IG 业务写入、调用 Driver 或推进完成；既有 IP 读取 Decision 与平台 Context 技术写入独立记录，不以此声称 Query 改变了业务事实。
+
+## IM06-BOARD 完整 QueryResult 与兼容边界
+
+状态：`HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 五轮共 32 项) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY+SQL GUARD+REACHED FENCE BARRIER+PROOF/CONFIRM RECOVERY PASS / 真实 v1+v2 身份、SNAPSHOT_AT_LEAST 入口与 G1→G2 分页 PASS / 其余 BOARD-D 与 IP-BOARD-D 矩阵、外部与人工验收 NOT RUN`。既有execution.get_task_board_slice@1.0保持P consistency、Purpose task.execution.get_task_board_slice、payload/result data Schema/metadata/旧fixture与239/63/200不变。来源/业务支持集唯一见Spec003 §12；IP mapping唯一见Spec001 §15.19。此切片提供应用组成入口的完整QueryResult，不扩展所有Query的HTTP transport。
+
+| Contract/字段全集 | Required/optional与语义 |
+|---|---|
+| payload | required projectRef,statuses,page；optional assigneeRef,deliveryItemRef；statuses非空唯一；page required pageSize、optional cursor；不以共享Set允许空集的概括覆盖该已发布operation Schema。assignee首版不支持是Handler有限接受集，不能修改Schema或忽略filter |
+| TaskBoardItem | required taskRef,aggregateVersion,title,status,blockerRefs,activeWorkOrderRefs；optional assignee,completionEvaluationRef。首版省略assignee；Ref/版本由真实source派生，集合按既有唯一约束，不新增字段 |
+| TaskBoardPage | required items,snapshotAt,sourceWatermarks；optional nextCursor。items普通数组，不给既有Schema新增uniqueItems；sourceWatermarks为完整typed数组；Projection路径恰有该export发布流一项，authority路径为空数组 |
+| QueryResult | required queryId,status,snapshotAt,sourceWatermarks,stalenessStatus,redactions,resultHash；optional data,nextCursor。无data时nextCursor必须省略；有data时Page的元数据与Envelope完全一致。redactions=[]，assignee未生产是支持集限制，不伪造被隐藏的Assignment |
+
+status组合：FRESH→OK+data（可以是合法空items）；STALE/REBUILDING→STALE，可在PROJECTION_OK且当前authority有效时附带保留的旧data；FAILED→ERROR，可在同一允许条件下附带旧data；无有效generation无data、nextCursor省略，snapshotAt为受信查询检查时间、sourceWatermarks=[]且绝不FRESH。SNAPSHOT_AT_LEAST未满足minimumWatermark时STALE无data，不能附带不满足条件的旧Page；AUTHORITATIVE使用真实TEsource snapshotAt、[]水位/FRESH读时点，不形成generation。authentication/authorization/Policy、输入/cursor错误用既有共享ErrorEnvelope/ApiError返回且无QueryResult data，不给QueryResult私加error字段。
+
+resultHash=SHA-256/cv1对完整规范QueryResult去掉自身resultHash后计算，包含queryId/status/data有无、所有元数据/cursor/redactions；Page与Envelope的同值字段均参与，禁止Hash自引用。完整Envelope须单独做closed字段/status/data组合校验，registry.validateOperationResult只验证data，不能冒充Envelope验证。生成新有限Board Policy profile与Handler技术Guard不修改旧operation的metadata/Schema，不增加公共Catalog operation/objectType。
+
+scope/Purpose/ref验证、page/filter/asOf/consistency/pagination双入口、有限HMAC cursor与稳定错误按Spec003 §12.4–12.6。Cursor绑定完整合法支持集，不依赖可读DecisionHash签名；maxPageSize/UTF-8资源限额必须实际执行。新增fixture覆盖三种一致性与data/Envelope两层，包括同generation分页、最低水位、错scope/filter、expiry/asOf与故障无data；旧合法fixture保持字节兼容。
+
+Cursor公开表示严格遵守共享OpaqueCursor正则`^[A-Za-z0-9_-]{16,512}$`；Spec003 §12.6的固定二进制compact编码绑定全部逻辑字段，不能直接拼长JSON或dot分段。Task Board旧Schema的普通string不被修改，但新Handler输出/输入profile必须满足共享cursor边界。

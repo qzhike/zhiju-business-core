@@ -989,3 +989,25 @@ Human 与 source 两项在任何 TE protected read 前成立。source Decision �
 当前撤权、过期、错 session/Scope/Purpose/target/hash 或依赖不可用使查询 fail closed。每次 Port 读取与最终返回前重验所用当前 Decision；最终批次包括 Human/source/Contract 和实际调用的 IG 三项。沿用 §15.17 前已有的批次检查机制：每个新检查点在 IP 独立 READ COMMITTED 事务读取，不能由 TE REPEATABLE READ 快照或上一检查点的缓存遮蔽撤权；组内一致性不承诺跨 Owner 全局瞬时撤权原子性。
 
 历史读取只要求当前 read authority 与不可变来源完整性，不要求原 execution Bundle/Controls Policy/lease 当前可执行，不签发新执行能力。旧 execution 权限失效不会重写旧 Acceptance，读权失效仍安全拒绝。IP 签发 read Decision/拒绝审计与平台 Context 的技术写入单独计为授权证据，不能混成 TE/IG 业务 Query 副作用。真实 Grant PolicySnapshot 取代继续保留原 NOT RUN/延后；实际 Grant 撤销与有效期跨越仍必须验证。
+
+### 15.19 IM06-BOARD 独立读取与技术发布授权
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-05 (B-01–05) / DESIGN TECHNICAL REVIEW PASSED 2026-10-05 / IMPLEMENTED AND REVIEW-REVISED 2026-10-05 (Issue #248; PR #249 五轮共 32 项) / CONTRACT+UNIT PASS / PG STORAGE-BOUNDARY+SQL GUARD+REACHED FENCE BARRIER+PROOF/CONFIRM RECOVERY PASS / 真实 v1+v2 身份、SNAPSHOT_AT_LEAST 入口与 G1→G2 分页 PASS / 其余 BOARD-D 与 IP-BOARD-D 矩阵、外部与人工验收 NOT RUN`。服务Spec003 §12；本节拥有精确mapping，不新增公开授权API或Catalog条目。version均1.0，selector均TARGET_TYPE，内部operation的Purpose/action均与其完整operation token逐字相同。受信config key绑定本Project配置的capability code，禁止caller指定code/action或通配覆盖。
+
+| 边界/实际主体 | operation / Purpose | action / config key | 完整target |
+|---|---|---|---|
+| Human public Query / HUMAN，forbidActingFor | execution.get_task_board_slice / task.execution.get_task_board_slice | execution.task_board.read.v1 / taskBoardReadHumanV1 | OBJECT project.project 或 zhiju.project.project |
+| owning source Export/authority read / 受信查询或dispatcher SERVICE | execution.task_board.source.read.v1 / 同operation | 同operation / taskBoardSourceReadV1 | 同一完整ProjectRef，OBJECT上述两种闭集 |
+| source health / 查询SERVICE | execution.task_board.health.read.v1 / 同operation | 同operation / taskBoardHealthReadV1 | 同一完整ProjectRef，OBJECT上述闭集 |
+| dispatch scan/lease/manifest/confirm / dispatcher SERVICE | execution.task_board.dispatch.manage.v1 / 同operation | 同operation / taskBoardDispatchManageV1 | 同一完整ProjectRef，OBJECT上述闭集 |
+| fence注册/发布/control proof / dispatcher SERVICE | execution.task_board.projection.publish.v1 / 同operation | 同operation / taskBoardProjectionPublishV1 | 同一完整ProjectRef，OBJECT上述闭集 |
+| retention cleanup / maintenance SERVICE | execution.task_board.projection.maintain.v1 / 同operation | 同operation / taskBoardProjectionMaintainV1 | 同一完整ProjectRef，OBJECT上述闭集 |
+| 当前Board Policy解析 / 实际消费SERVICE | identity.resolve_policy / identity.policy.resolve_policy | execution.task_board.policy.read.v1 / taskBoardPolicyReadV1 | VERSIONED zhiju.identity.policy，同Project配置的完整objectId/versionId/Scope |
+
+source只读取Spec003 §12声明的本Project安全来源，不授予Quality/Bundle当前资格/自由Audit读取；health只读dirty/dispatch状态及有限coverage结果，不返回源行；dispatch只控制TE技术进度，publish只读对应TE已提交control proof并控制Projection fence/publication；maintain只清理过期非aliasgeneration。不能用publish读取TE业务来源，也不能用query/health清blocker或创建generation。Policy current-read复用既有identity.resolve_policy的自身Decision，不借别项或历史PolicySnapshot。内部payload由受信composition形成closed记录，Hash必需覆盖完整projectRef、policyRef；export另外覆盖预分配exportId，health覆盖固定exportId/manifestHash，dispatch覆盖操作类型与owner/token/exportId/manifestHash/coveredDirtyIds中该操作实际使用字段，publish/maintain覆盖相应完整manifest/fence或截止/目标generation。没有适用字段时省略，不能接受自由caller source JSON。
+
+每项签发/重验使用自己的实际principal/ActorSnapshot/session、完整operation/version/Purpose/action/target/Scope/payloadHash、ALLOW与single covering Grant/其Policy当前事实。版本化Policy的target在Decision canonical保存完整VERSIONED Ref，promoted OBJECT镜像不替代完整比较。Project两拼写分别按原target匹配Grant selector，不互转、不剥前缀。任一scope缺少enterpriseId/projectId、projectRef.objectId!=scope.projectId或非UUIDv7拒绝。
+
+Human Query前先重验Human，才能签发必要SERVICE dependency Decision；依赖每次protected read前重验，最后返回再按IP独立READ COMMITTED事务批次重验所有实际使用条目。AUTH路径不需要Projection/health/publish/maintenance权限；Projection query不需dispatch/publish/maintenance权限；worker无Human read权限仍只能完成其技术工作，不能取得Human响应。Grant当前撤销、Decision过期、Session/Actor/Target/Scope漂移、Policy失效或依赖不可用fail closed，不把权限失败折叠为UNKNOWN/FRESH/空Page。
+
+cursor authorizationSourceHash由IP owning Port返回：canonical排序后的actual principal/kind、ActorSnapshot/session身份Hash、Human及实际使用读取mapping/config code、各selected Grant完整id+payloadHash+Scope/selector/action、Grant PolicySnapshot exact Ref/hash，另含当前配置Board policyRef/contentHash；不含新Decision id/issuedAt/expiresAt/检查当前时间。新短期Decision但同一来源不会使cursor失效，来源变更则必须重新查询；当前失效仍先安全拒绝，不等cursor比较。不得由TE自行复制IP表或凭缓存生成指纹。IP签发/拒绝Audit技术写入与TE业务Query无写分别记录，既有真实Grant PolicySnapshot生命周期延后边界不变。

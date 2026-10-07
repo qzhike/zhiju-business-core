@@ -105,6 +105,7 @@ import {
   type PrepareRecoveryAuthoritiesContext,
 } from './initial-context-prepare-recovery-authorities.js';
 import type { InitialContextSuite } from './initial-context-suite.js';
+import type { ScenarioBoardProbe } from './initial-context-scenario-types.js';
 import {
   verifyBoundedRecovery,
   type VerifyBoundedRecoveryContext,
@@ -272,6 +273,7 @@ export function createRunScenario(suite: InitialContextSuite) {
         'CREATED' | 'STARTED' | 'SUBMITTED' | 'ACCEPTED' | 'FINALIZED' | 'CANCELLED' | 'ISOLATED',
       runRef: Common.ObjectRef,
     ) => Promise<void>,
+    boardProbe?: ScenarioBoardProbe,
   ) => {
     const stageDependencies: VerifyPreparationValidationContext &
       VerifyRecoverySqlContext &
@@ -787,6 +789,9 @@ export function createRunScenario(suite: InitialContextSuite) {
       },
       get finalView() {
         return finalView;
+      },
+      get boardProbe() {
+        return boardProbe;
       },
       get usageProbe() {
         return usageProbe;
@@ -2871,7 +2876,8 @@ export function createRunScenario(suite: InitialContextSuite) {
       return createFormalOutput(stageDependencies, actualRun, actualAttempt);
     }
     async function completeFormal() {
-      return verifyFormalCompletion(stageDependencies);
+      await verifyFormalCompletion(stageDependencies);
+      await boardProbe?.('COMPLETED', runRef);
     }
     async function firstRunEnvelope(
       commandType: string,
@@ -4849,6 +4855,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       acceptanceTarget = winnerEnvelope.targetRef;
       acceptEnvelope = winnerEnvelope;
     } else {
+      await boardProbe?.('FINAL_RESERVED', runRef);
       await usageProbe?.('SUBMITTED', runRef);
       accepted = await firstRunEntry.acceptAgentResult(acceptEnvelope, suite.sessionFor(service));
     }
@@ -5189,6 +5196,7 @@ export function createRunScenario(suite: InitialContextSuite) {
       });
       expect(consumption.ended_at.getTime()).toBeLessThan(consumption.execution_deadline.getTime());
     }
+    await boardProbe?.('RUN_FINALIZED', runRef);
     if (await verifyBoundedRecovery(stageDependencies)) return;
     if (formal) {
       await completeFormal();

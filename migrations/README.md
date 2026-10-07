@@ -25,6 +25,10 @@ Issue #239 reserves exactly `V7011` for the TaskExecution TaskCompleted dispatch
 
 Issue #244 reserves exactly `V7013` for the TaskExecution Run cancellation, lease-expiry abandonment and late-final isolation slice, as authorized by the user on 2026-10-03 through the implementation Issue. The file remains in `task_execution/` and modifies only that owning Schema. No other directory, including IntegrationGateway, may reuse the version. This bounded allocation continues the shared history after `V7012`; applied migrations and other ranges remain unchanged, and out-of-order execution remains disabled.
 
+Issue #248 reserves exactly `V7014` for the TaskExecution Task Board dirty-marker capture and export/dispatch slice, as authorized by the user on 2026-10-05 through the implementation Issue. The file remains in `task_execution/` and modifies only that owning Schema. No other directory, including IntegrationGateway, may reuse the version. This bounded allocation continues the shared history after `V7013`; applied migrations and other ranges remain unchanged, and out-of-order execution remains disabled.
+
+This implementation Issue reserves exactly `V7015` for the TaskExecution Task Board projection slice (generation / row / alias / checkpoint / fence / publication outcome / failure), as authorized by the user on 2026-10-05 through the implementation Issue. The file remains in `task_execution/` and modifies only that owning Schema; it publishes its objects into the shared `projection` Schema, which by design owns no version range of its own, and grants no cross-schema or other-module access. No other directory, including IntegrationGateway, may reuse the version. This bounded allocation continues the shared history after `V7013`; applied migrations and other ranges remain unchanged, and out-of-order execution remains disabled.
+
 命名规则：`V<4位版本>__<snake_case_description>.sql`。projection 的可重建对象随各模块区间发布，不单独拥有版本区间。
 
 `V0003` 的 Context 写入口只授予 NOLOGIN 的 `platform_context_establisher`；七模块

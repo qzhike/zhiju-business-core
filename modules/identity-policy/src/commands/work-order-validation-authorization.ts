@@ -81,7 +81,7 @@
 // acceptance set. TaskExecution consumes this port; it never reads these
 // tables or this Repository.
 
-import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import { newUuidV7, type CanonicalJsonObject, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 import type { Common } from '@zhiju/contracts';
 import {
   withIdentityTransaction,
@@ -477,6 +477,8 @@ interface WorkOrderValidationRevalidationAllow {
   readonly valid: true;
   readonly authorizationDecisionRef: Common.ContentAddressedRef;
   readonly policySnapshotRef: Common.SnapshotRef;
+  /** The exact covering Grant the revalidation selected, when available. */
+  readonly selectedGrant?: SelectedAuthorizationGrant;
   readonly expiresAt: Common.UtcInstant;
 }
 
@@ -627,8 +629,41 @@ interface WorkOrderValidationGrantQuery {
 }
 
 type WorkOrderValidationGrantFinding =
-  | { readonly policySnapshot: SelectedPolicySnapshot }
+  | { readonly policySnapshot: SelectedPolicySnapshot; readonly grant: SelectedCapabilityGrant }
   | { readonly denial: WorkOrderValidationDenialReason };
+
+/**
+ * The exact selected covering Grant facts of one allowed mapping. The Grant
+ * carries no payload hash of its own; its immutable identity is covered by the
+ * id, the owning Policy Snapshot binding and the aggregate version.
+ */
+export interface SelectedAuthorizationGrant {
+  readonly grantId: string;
+  readonly capabilityCode: string;
+  readonly scopeKind: 'ENTERPRISE' | 'PROJECT';
+  readonly enterpriseId: string;
+  readonly projectId: string | null;
+  readonly actions: readonly string[];
+  readonly resourceSelectors: readonly CanonicalJsonValue[];
+  readonly grantPolicySnapshotId: string;
+  readonly grantPolicySnapshotHash: string;
+  readonly aggregateVersion: string;
+}
+
+function selectedGrantFacts(grant: SelectedCapabilityGrant): SelectedAuthorizationGrant {
+  return {
+    grantId: grant.id,
+    capabilityCode: grant.capability_code,
+    scopeKind: grant.scope_kind,
+    enterpriseId: grant.enterprise_id,
+    projectId: grant.project_id ?? null,
+    actions: [...grant.actions],
+    resourceSelectors: [...(grant.resource_selectors as readonly CanonicalJsonValue[])],
+    grantPolicySnapshotId: grant.grant_policy_snapshot_id,
+    grantPolicySnapshotHash: grant.grant_policy_snapshot_hash.toString('hex'),
+    aggregateVersion: grant.aggregate_version,
+  };
+}
 
 type IssuedEntryDecision =
   | { readonly outcome: 'DENY'; readonly reasons: readonly string[] }
@@ -645,6 +680,7 @@ type RevalidatedEntryDecision =
       readonly valid: true;
       readonly authorizationDecisionRef: Common.ContentAddressedRef;
       readonly policySnapshotRef: Common.SnapshotRef;
+      readonly selectedGrant?: SelectedAuthorizationGrant;
       readonly expiresAt: Common.UtcInstant;
     }
   | WorkOrderValidationRevalidationDeny;
@@ -1199,6 +1235,7 @@ async function revalidateEntryDecision(
         scope: {},
         contentHash: contentHash(finding.policySnapshot.payload_hash),
       },
+      selectedGrant: selectedGrantFacts(finding.grant),
       expiresAt: row.expires_at.toISOString(),
     };
   };
@@ -1818,7 +1855,7 @@ async function coveringValidationGrant(
       sawStalePolicy = true;
       continue;
     }
-    return { policySnapshot };
+    return { policySnapshot, grant };
   }
   return {
     denial: sawInvalidPolicy
@@ -2856,6 +2893,212 @@ export function createUsageProvenanceAuthorizationPort(config: UsageProvenanceAu
     revalidate: async (
       deps: IdentityCommandDeps,
       key: UsageProvenanceCapabilityKey,
+      input: ControlledFirstRunRevalidationInput,
+    ) => {
+      const binding = bindingFor(key, input.expectedCommandType, input.expectedCommandVersion);
+      return revalidateEntryDecision(
+        commonConfig,
+        now,
+        undefined,
+        deps,
+        input,
+        input.expectedTargetRef,
+        binding,
+      );
+    },
+  };
+}
+
+// IM06-BOARD independent reads and technical publication authorization
+// (Spec 001 §15.19, issue B-01–B-05). Seven mutually non-substitutable entries:
+//
+// - the Human public Task Board Query entry,
+// - the owning source Export/authority read,
+// - the source health read,
+// - the dispatch scan/lease/manifest/confirm control,
+// - the fence registration/publication/control proof,
+// - the retention cleanup/maintenance, and
+// - the current Board Policy resolution.
+//
+// Every entry carries its own exact operation, version, Purpose, Grant action,
+// target kind, accepted target object types, selector type, expected principal
+// kind and trusted configuration key; no entry inherits another's Purpose,
+// action, target, selector or config key. The six `execution.task_board.…`
+// internal operations and the reused `identity.resolve_policy` entry are
+// trusted type/Purpose tokens only: they enter no public Catalog and are never
+// resolved from a caller-chosen string. All rows are version `1.0` with
+// selector `TARGET_TYPE` and an exact closed target set (§15.19): the Project
+// OBJECT targets accept both the canonical `project.project` and the
+// `zhiju.project.project` spelling without normalizing one into the other, and
+// the Board Policy entry binds a complete `VERSIONED` `zhiju.identity.policy`
+// reference.
+
+/**
+ * Trusted configuration key of one IM06-BOARD entry. The seven keys are
+ * independent: no entry ever reads another entry's code.
+ */
+export type TaskBoardCapabilityKey =
+  | 'taskBoardReadHumanV1'
+  | 'taskBoardSourceReadV1'
+  | 'taskBoardHealthReadV1'
+  | 'taskBoardDispatchManageV1'
+  | 'taskBoardProjectionPublishV1'
+  | 'taskBoardProjectionMaintainV1'
+  | 'taskBoardPolicyReadV1';
+
+/**
+ * The published Purpose indexed by the trusted configuration key, so a drift
+ * between the binding table and the exact §15.19 Purpose of each row fails
+ * closed instead of signing a Decision under a Purpose no caller expects.
+ */
+export const TASK_BOARD_PURPOSES: Readonly<Record<TaskBoardCapabilityKey, string>> = Object.freeze({
+  taskBoardReadHumanV1: 'task.execution.get_task_board_slice',
+  taskBoardSourceReadV1: 'execution.task_board.source.read.v1',
+  taskBoardHealthReadV1: 'execution.task_board.health.read.v1',
+  taskBoardDispatchManageV1: 'execution.task_board.dispatch.manage.v1',
+  taskBoardProjectionPublishV1: 'execution.task_board.projection.publish.v1',
+  taskBoardProjectionMaintainV1: 'execution.task_board.projection.maintain.v1',
+  taskBoardPolicyReadV1: 'identity.policy.resolve_policy',
+});
+
+export type TaskBoardBinding = AuthorizationEntryBinding & {
+  readonly capabilityConfigKey: TaskBoardCapabilityKey;
+};
+
+const taskBoardBindings: readonly TaskBoardBinding[] = Object.freeze([
+  Object.freeze({
+    capabilityConfigKey: 'taskBoardReadHumanV1',
+    commandType: 'execution.get_task_board_slice',
+    commandVersion: '1.0',
+    authorizationPurpose: TASK_BOARD_PURPOSES.taskBoardReadHumanV1,
+    requiredGrantAction: 'execution.task_board.read.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['project.project', 'zhiju.project.project']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'HUMAN',
+    forbidActingFor: true,
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'taskBoardSourceReadV1',
+    commandType: 'execution.task_board.source.read.v1',
+    commandVersion: '1.0',
+    authorizationPurpose: TASK_BOARD_PURPOSES.taskBoardSourceReadV1,
+    requiredGrantAction: 'execution.task_board.source.read.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['project.project', 'zhiju.project.project']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'taskBoardHealthReadV1',
+    commandType: 'execution.task_board.health.read.v1',
+    commandVersion: '1.0',
+    authorizationPurpose: TASK_BOARD_PURPOSES.taskBoardHealthReadV1,
+    requiredGrantAction: 'execution.task_board.health.read.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['project.project', 'zhiju.project.project']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'taskBoardDispatchManageV1',
+    commandType: 'execution.task_board.dispatch.manage.v1',
+    commandVersion: '1.0',
+    authorizationPurpose: TASK_BOARD_PURPOSES.taskBoardDispatchManageV1,
+    requiredGrantAction: 'execution.task_board.dispatch.manage.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['project.project', 'zhiju.project.project']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'taskBoardProjectionPublishV1',
+    commandType: 'execution.task_board.projection.publish.v1',
+    commandVersion: '1.0',
+    authorizationPurpose: TASK_BOARD_PURPOSES.taskBoardProjectionPublishV1,
+    requiredGrantAction: 'execution.task_board.projection.publish.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['project.project', 'zhiju.project.project']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'taskBoardProjectionMaintainV1',
+    commandType: 'execution.task_board.projection.maintain.v1',
+    commandVersion: '1.0',
+    authorizationPurpose: TASK_BOARD_PURPOSES.taskBoardProjectionMaintainV1,
+    requiredGrantAction: 'execution.task_board.projection.maintain.v1',
+    targetKind: 'OBJECT',
+    targetObjectTypes: Object.freeze(['project.project', 'zhiju.project.project']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+  Object.freeze({
+    capabilityConfigKey: 'taskBoardPolicyReadV1',
+    commandType: 'identity.resolve_policy',
+    commandVersion: '1.0',
+    authorizationPurpose: TASK_BOARD_PURPOSES.taskBoardPolicyReadV1,
+    requiredGrantAction: 'execution.task_board.policy.read.v1',
+    targetKind: 'VERSIONED',
+    targetObjectTypes: Object.freeze(['zhiju.identity.policy']),
+    selectorType: 'TARGET_TYPE',
+    expectedPrincipalKind: 'SERVICE',
+  }),
+]);
+
+export const TASK_BOARD_BINDINGS: readonly TaskBoardBinding[] = taskBoardBindings;
+
+export type TaskBoardCapabilityCodes = Readonly<Record<TaskBoardCapabilityKey, string>>;
+
+export interface TaskBoardAuthorizationConfig {
+  readonly capabilityCodes: TaskBoardCapabilityCodes;
+  readonly now?: (() => Date) | undefined;
+}
+
+export function createTaskBoardAuthorizationPort(config: TaskBoardAuthorizationConfig) {
+  // Trusted configuration key ↔ published Purpose drift fails closed before any
+  // request is resolved: nothing may sign a Decision under a Purpose the
+  // owning boundary does not expect.
+  for (const binding of taskBoardBindings) {
+    if (TASK_BOARD_PURPOSES[binding.capabilityConfigKey] !== binding.authorizationPurpose)
+      throw new SnapshotBoundaryError(
+        IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
+        'task board binding Purpose does not match the published Purpose',
+      );
+  }
+  const now = config.now ?? (() => new Date());
+  const commonConfig = config as unknown as WorkOrderValidationAuthorizationConfig;
+  function bindingFor(key: string, operation: string, version: string) {
+    const binding = taskBoardBindings.find((candidate) => candidate.capabilityConfigKey === key);
+    if (binding?.commandType !== operation || binding.commandVersion !== version)
+      throw new SnapshotBoundaryError(
+        IDENTITY_WORK_ORDER_VALIDATION_AUTHORIZATION_UNSUPPORTED,
+        'task board authorization key is unsupported',
+      );
+    return binding;
+  }
+  return {
+    authorize: async (
+      deps: IdentityCommandDeps,
+      key: TaskBoardCapabilityKey,
+      input: ControlledFirstRunAuthorizationInput,
+    ) => {
+      const binding = bindingFor(key, input.commandType, input.commandVersion);
+      return issueEntryDecision(
+        commonConfig,
+        now,
+        undefined,
+        deps,
+        input,
+        input.targetRef,
+        binding,
+      );
+    },
+    revalidateBatch: (deps: IdentityCommandDeps, requests: readonly EntryDecisionRevalidation[]) =>
+      revalidateEntryBatch(commonConfig, now, bindingFor, deps, requests),
+    revalidate: async (
+      deps: IdentityCommandDeps,
+      key: TaskBoardCapabilityKey,
       input: ControlledFirstRunRevalidationInput,
     ) => {
       const binding = bindingFor(key, input.expectedCommandType, input.expectedCommandVersion);

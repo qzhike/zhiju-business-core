@@ -402,3 +402,100 @@ export {
   USAGE_PROVENANCE_PROFILE,
 } from './business/usage-provenance-read.js';
 export type { UsageProvenancePorts, UsageReasonCode } from './business/usage-provenance-read.js';
+
+// IM-06 TD-05 (#248): the Human Project Task Board read slice. The owning
+// source assembler and the export/dispatch, Projection and cursor pieces are
+// exported so the trusted composition layer can wire the handler, the
+// dispatcher worker and the Projection maintenance pass.
+export {
+  TASK_BOARD_POLICY_PROFILE_KEY,
+  TASK_BOARD_SOURCE_MODULE,
+  TASK_BOARD_PROJECT_OBJECT_TYPES,
+  TASK_BOARD_ACTIVE_WORK_ORDER_STATUSES,
+  compareTaskBoardTaskId,
+  taskBoardRowsHash,
+  taskBoardManifestHash,
+  taskBoardSourceFingerprint,
+  taskBoardFilterHash,
+  taskBoardManifestBytes,
+  taskBoardSameVersionedRef,
+} from './business/task-board-types.js';
+export type {
+  TaskBoardConsistency,
+  TaskBoardStalenessStatus,
+  TaskBoardPolicyRules,
+  TaskBoardPolicyObservation,
+  TaskBoardSnapshotRow,
+  TaskBoardSourceIdentity,
+  TaskBoardSnapshotManifest,
+} from './business/task-board-types.js';
+export {
+  assembleTaskBoardRows,
+  taskBoardRowMatchesDeliveryItem,
+} from './business/task-board-source.js';
+export type {
+  TaskBoardSourceScope,
+  TaskBoardSourceSnapshot,
+} from './business/task-board-source.js';
+export {
+  TASK_BOARD_CURSOR_BYTES,
+  encodeTaskBoardCursor,
+  decodeTaskBoardCursor,
+  assertTaskBoardCursorBinding,
+} from './business/task-board-cursor.js';
+export type {
+  TaskBoardCursorKey,
+  TaskBoardCursorClaims,
+  TaskBoardDecodedCursor,
+} from './business/task-board-cursor.js';
+export { validateTaskBoardPolicy } from './business/policy-profiles.js';
+export {
+  handleGetTaskBoardSlice,
+  GET_TASK_BOARD_SLICE_QUERY,
+  GET_TASK_BOARD_SLICE_VERSION,
+  TASK_BOARD_QUERY_PURPOSE,
+} from './business/task-board-read.js';
+export type {
+  TaskBoardReadPorts,
+  TaskBoardQueryInput,
+  TaskBoardProjectScope,
+  TaskBoardPolicyResolution,
+} from './business/task-board-read.js';
+export {
+  claimTaskBoardLease,
+  readTaskBoardDispatch,
+  readTaskBoardRecoveryTarget,
+  retireTaskBoardExport,
+  recordTaskBoardManifest,
+  recordTaskBoardPublication,
+  readTaskBoardManifest,
+  confirmTaskBoardExport,
+  readTaskBoardDirtyMarkers,
+  readTaskBoardHealth,
+  selectTaskBoardDirtyMarkers,
+} from './persistence/task-board-dispatch-repository.js';
+export type {
+  TaskBoardDispatchLease,
+  TaskBoardDispatchState,
+  TaskBoardDirtyMarker,
+  TaskBoardHealth,
+  TaskBoardManifestRecord,
+  TaskBoardRecoveryTarget,
+} from './persistence/task-board-dispatch-repository.js';
+export {
+  publishTaskBoardGeneration,
+  readTaskBoardProjection,
+  readTaskBoardGenerationById,
+  findTaskBoardGenerationBySnapshotAt,
+  readLatestTaskBoardFailure,
+  recordTaskBoardProjectionFailure,
+  cleanupTaskBoardGenerations,
+} from './persistence/task-board-projection-repository.js';
+export type {
+  PublishTaskBoardGenerationInput,
+  PublishTaskBoardGenerationResult,
+  TaskBoardFenceRegistration,
+  TaskBoardProjectionRow,
+  TaskBoardProjectionState,
+} from './persistence/task-board-projection-repository.js';
+export { withTaskBoardProjectionTransaction } from './persistence/task-execution-db.js';

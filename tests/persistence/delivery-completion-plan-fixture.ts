@@ -34,6 +34,7 @@ export async function createDeliveryCompletionPlanFixture(
   now: () => Date,
   authorize: (type: string, payload: Ref) => Promise<ep.EnterpriseProjectTransactionContext>,
   additionalTaskIds: readonly string[] = [],
+  firstItemId: ReturnType<typeof newUuidV7> = newUuidV7(),
 ) {
   context = { ...context };
   const scope = {
@@ -428,8 +429,8 @@ export async function createDeliveryCompletionPlanFixture(
     inputs;
   const planId = newUuidV7(),
     releaseRef = ref('OBJECT', 'release.release');
-  const taskItems = [taskId, ...additionalTaskIds].map((id) => ({
-    itemId: newUuidV7(),
+  const taskItems = [taskId, ...additionalTaskIds].map((id, index) => ({
+    itemId: index === 0 ? firstItemId : newUuidV7(),
     completionCriteria: {
       profile: 'ep.delivery_item.exact_task_completion@1.0',
       allOf: [
