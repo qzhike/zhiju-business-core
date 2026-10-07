@@ -384,11 +384,13 @@ export interface DeliveryScheduleHooks {
 export interface ControlledExitHooks {
   declareUsage?: boolean;
   stage?: (stage: string, material: CanonicalJsonObject) => Promise<void>;
-  afterCommit?: (
+  afterCommit?: (command: CanonicalJsonObject, committed: unknown) => Promise<void>;
+  invokeCommand?: (
     command: CanonicalJsonObject,
-    committed: unknown,
+    invokeEntry: () => Promise<unknown>,
     replayWithNewEntry: () => Promise<unknown>,
-  ) => Promise<void>;
+  ) => Promise<unknown>;
+  commandStatus?: (commandId: unknown) => 'COMMITTED' | 'DUPLICATE';
   runtime?: (driver: LocalSyntheticRuntimeDriver) => void;
   deliveryTail?: InitialContextSuite['verifyDeliveryTail'];
 }

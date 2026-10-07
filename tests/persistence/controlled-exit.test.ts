@@ -22,8 +22,9 @@ import { createInitialContextSuite } from './initial-context-suite.js';
 // Each primary chain owns a migrated empty TE database. The Release-required
 // counterexample uses an additional legal chain and is counted independently.
 describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
-  for (const profile of ['normal', 'recovered', 'cancel'] as const)
+  for (const profile of ['normal', 'recovered', 'cancel', 'cancel-progress'] as const)
     it(`EXIT-D-${profile === 'normal' ? '001/003/006' : profile === 'recovered' ? '002/003/006' : '005/006'} ${profile} unified owning chain`, async () => {
+      const cancellation = profile === 'cancel' || profile === 'cancel-progress';
       const container = await new PostgreSqlContainer(postgresImageReference())
         .withDatabase('zhiju_core')
         .withUsername('postgres')
@@ -57,6 +58,17 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
           ).toEqual([{ n: 0 }]);
         const queries = await createExitQueries(suite);
         const reached = new Set<string>();
+        const recoveredCommands = new Set<unknown>();
+        const pendingResponses = new Map<
+          unknown,
+          {
+            bytes: string;
+            committed: unknown;
+            receipts: unknown;
+            before: unknown;
+            invoked: readonly string[];
+          }
+        >();
         const required =
           profile === 'normal'
             ? [
@@ -148,9 +160,10 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
           runtime: (value) => {
             driver = value;
           },
-          afterCommit: async (command, committed, replay) => {
+          afterCommit: async (command, committed) => {
             if (
               typeof command.commandType !== 'string' ||
+              typeof command.commandId !== 'string' ||
               typeof command.idempotencyKey !== 'string'
             )
               throw new Error('invalid command identity');
@@ -188,13 +201,40 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
             expect(receipts[0]).toMatchObject({ outcome: 'COMMITTED', command_type: type });
             const before = await queries.snapshot();
             const invoked = [...definedValue(driver).invokedAttemptIds];
-            // This transport error occurs only AFTER the real owning commit and
-            // independently readable Receipt. Rebuild the entry, not the Driver.
-            await expect(
-              Promise.resolve().then(() => {
-                throw new Error(`EXIT_RESPONSE_LOST:${type}`);
-              }),
-            ).rejects.toThrow(`EXIT_RESPONSE_LOST:${type}`);
+            pendingResponses.set(command.commandId, {
+              bytes,
+              committed,
+              receipts,
+              before,
+              invoked,
+            });
+            // Reject the actual entry invocation after its owning commit. The
+            // outside test caller must observe failure before rebuilding it.
+            throw new Error(`EXIT_RESPONSE_LOST:${command.commandId}`);
+          },
+          commandStatus: (commandId) =>
+            recoveredCommands.has(commandId) ? 'DUPLICATE' : 'COMMITTED',
+          invokeCommand: async (command, invokeEntry, replay) => {
+            if (typeof command.commandId !== 'string' || typeof command.idempotencyKey !== 'string')
+              throw new Error('invalid recovery command identity');
+            let failure: unknown;
+            try {
+              return await invokeEntry();
+            } catch (error) {
+              failure = error;
+            }
+            const pending = pendingResponses.get(command.commandId);
+            if (pending === undefined) throw failure;
+            expect(failure).toMatchObject({
+              message: `EXIT_RESPONSE_LOST:${command.commandId}`,
+            });
+            const { bytes, committed, receipts, before, invoked } = pending;
+            expect(canonicalize(command)).toBe(bytes);
+            // The caller has no successful reply, while the committed business
+            // rows and original Receipt remain independently readable.
+            expect(await queries.snapshot()).toEqual(before);
+            expect(await suite.receiptRows(command.idempotencyKey)).toEqual(receipts);
+            expect(definedValue(driver).invokedAttemptIds).toEqual(invoked);
             const duplicate = await replay();
             expect(record(duplicate)).toMatchObject({
               status: 'DUPLICATE',
@@ -205,7 +245,9 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
             expect(await queries.snapshot()).toEqual(before);
             expect(definedValue(driver).invokedAttemptIds).toEqual(invoked);
             faults.push({
-              boundary: type,
+              boundary: command.commandType,
+              callerObserved: 'REJECTED',
+              replayStatus: record(duplicate).status,
               reached: 'COMMITTED',
               commandId: command.commandId,
               targetRef: command.targetRef,
@@ -216,6 +258,9 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
               receipts,
               replay: duplicate,
             });
+            pendingResponses.delete(command.commandId);
+            recoveredCommands.add(command.commandId);
+            return duplicate;
           },
           deliveryTail: async (plan, taskId, _service, requiresRelease) => {
             const { entry, roles, session, projectRef, config } =
@@ -333,7 +378,7 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
         };
         const runScenario = createRunScenario(suite);
         await runScenario(
-          profile === 'cancel'
+          cancellation
             ? 'RUN_CANCEL'
             : profile === 'normal'
               ? 'FORMAL_DELIVERY_NORMAL'
@@ -346,8 +391,12 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
           'NORMAL',
           false,
           undefined,
-          profile === 'cancel'
-            ? { row: 'CANCEL-D-003', bounded: true, phase: 'SUPPORTED' }
+          cancellation
+            ? {
+                row: profile === 'cancel' ? 'CANCEL-D-003' : 'CANCEL-D-008',
+                bounded: true,
+                phase: 'SUPPORTED',
+              }
             : undefined,
           async (stage, runRef) => {
             const { usage } = await readOnly(
@@ -368,11 +417,13 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
         );
         for (const type of required)
           expect(reached.has(type), `unreached committed fault ${type}`).toBe(true);
+        expect(pendingResponses.size).toBe(0);
+        expect(recoveredCommands.size).toBe(required.length);
         invocations.primary = [...definedValue(driver).invokedAttemptIds];
         expect(invocations.primary).toHaveLength(profile === 'recovered' ? 2 : 1);
         for (const ref of runs.values()) await readOnly(ref, false, 'FINAL_READBACK');
         evidence.invocations = invocations;
-        if (profile !== 'cancel') {
+        if (!cancellation) {
           expect(delivery).toHaveLength(1);
           // Fresh legal Task+Release Item: its own actual calls are not charged
           // to the primary WorkOrder and no Release fact is fabricated.
@@ -411,7 +462,21 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
                 "SELECT state,blocked_reason_code FROM task_execution.process_instance WHERE process_type='controlled-final@1'",
               )
             ).rows,
-          ).toEqual([{ state: 'SUSPENDED', blocked_reason_code: 'RUN_CANCELLING' }]);
+          ).toEqual(
+            profile === 'cancel-progress'
+              ? [{ state: 'SUSPENDED', blocked_reason_code: 'RUN_CANCELLING' }]
+              : [],
+          );
+          evidence.finalProgress = (
+            await suite.admin.query(
+              "SELECT process_id,state,blocked_reason_code,controlled_final_attempt_ref,controlled_final_source_ref FROM task_execution.process_instance WHERE process_type='controlled-final@1'",
+            )
+          ).rows;
+          evidence.finalTiming = (
+            await suite.admin.query(
+              "SELECT r.run_id,r.status,r.ended_at,o.attempt_id,o.observation_id,o.observed_at,o.result_payload->>'submittedAt' submitted_at,encode(o.result_payload_hash,'hex') result_hash FROM task_execution.run r JOIN integration_gateway.runtime_final_observation o ON o.attempt_id::text=r.start_attempt_ref->>'objectId'",
+            )
+          ).rows;
           evidence.lateAudits = (
             await suite.admin.query(
               "SELECT audit_id,runtime_ref,encode(result_payload_hash,'hex') result_hash FROM task_execution.audit_record WHERE error_code='LATE_RESULT'",
@@ -436,6 +501,8 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
             sources: evidence.sources,
             budgets: evidence.budgets,
             lateAudits: evidence.lateAudits,
+            finalProgress: evidence.finalProgress,
+            finalTiming: evidence.finalTiming,
             stages: stages.map((stage) => {
               const value = record(stage);
               return {
@@ -455,6 +522,8 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
               return {
                 boundary: value.boundary,
                 reached: value.reached,
+                callerObserved: value.callerObserved,
+                replayStatus: value.replayStatus,
                 commandId: value.commandId,
                 targetRef: value.targetRef,
                 idempotencyKey: value.idempotencyKey,

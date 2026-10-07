@@ -939,7 +939,7 @@ Board AUTHORITATIVE 在阶段写入已停稳后与独立 owning 预期逐字段�
 
 normal 链分别在 Result submit、Acceptance、Run finalize 的真实 COMMITTED 之后丢响应/进度；recovered 链在真实 Resolution COMMITTED 之后丢响应/进度；至少一条链在 EP consume COMMITTED 后、TE confirm 前丢响应。hook 必须证明已到达指定提交边界；五个边界分别有真实断言，不能用统一 mock 替代。重建对应 worker/entry，以原命令/事件材料重放并走到独立最终读回；同 payload 原 Receipt、历史 bytes/hash 与单业务效果保持，允许技术 attempt/Audit/进度增加。正常实际 invocation 一次、恢复两次，重试不得重新 invoke 原 Driver。既有可执行 SUSPENDED/DEAD/耗尽、权限/Hash 拒绝和并发唯一反例可复用，但应绑定最终被测 revision、收集入口和实际执行证据，不把静态复用标为 PASS。
 
-取消单独沿 §27 支持集：创建时已有 reservation 的两次执行 profile，真实 ack/start 后 Human cancel，原 lease 实际到期，@2.0 expiry 到 ABANDONED，释放并隔离原 final。权威读回、UNKNOWN/LATE_RESULT Usage 和 Board 的实际 activeWorkOrderRefs/blockerRefs 对同一来源解释，不从取消状态推造 Request 或非空 blocker；无 ACK/CANCELLED、无可用新 Acceptance/正式输出/Completion，已有 final Process 停止，不再次 invoke、不创建第三 Run。旧单次/无 reservation 仍是拒绝边界。
+取消单独沿 §27 支持集：创建时已有 reservation 的两次执行 profile，真实 ack/start 后 Human cancel，原 lease 实际到期，@2.0 expiry 到 ABANDONED，释放并隔离原 final。权威读回、UNKNOWN/LATE_RESULT Usage 和 Board 的实际 activeWorkOrderRefs/blockerRefs 对同一来源解释，不从取消状态推造 Request 或非空 blocker；无 ACK/CANCELLED、无可用新 Acceptance/正式输出/Completion，不再次 invoke、不创建第三 Run。取消主链在取消、到期前明确验证原 final/Observation 尚不存在，ABANDONED 后首次释放；该来源没有既有 final Progress，恢复 tick 不得新建或执行进度。已有 final Process 停止由另一个独立 Run/数据库、相同支持 profile 的场景验证：合法预先观察 final 并建立进度，再 Human cancel、重建恢复 tick，原进度 SUSPENDED 且不再次 invoke。两个场景分别保留 Run/Attempt/Observation/状态证据，不合并为同一 Run 的时序；此验收组合澄清已获用户批准，见 TD-07 决定 §8。旧单次/无 reservation 仍是拒绝边界。
 
 ### 14.4 验证与范围
 

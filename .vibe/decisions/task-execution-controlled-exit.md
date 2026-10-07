@@ -52,7 +52,7 @@ Result/Acceptance/finalize 故障嵌入 normal 正式链，Resolution 故障嵌�
 
 ### X-04 取消采用已批准的有限支持集
 
-单独使用创建时已有 reservation 的两次执行 profile；真实 Driver ack/start 后延迟原 final，Human cancel 到 CANCELLING，等待原 lease 实际到期后 `expire_run@2.0` 到 ABANDONED，再释放并隔离原 final。保留原 Attempt/Observation/LATE_RESULT Audit 身份与 Hash，无 Cancel ACK/CANCELLED 声称；无新可用 Acceptance、正式输出或 Completion，原 final Process 停止且不再次 invoke。权威 Query、Usage 的 UNKNOWN/LATE_RESULT 与 Board 的实际 activeWorkOrderRefs/blockerRefs 对同一 Run 读回；不从取消状态推造 Request 或非空 blocker。旧单次/无 reservation 支持集仍拒绝，不做取消后 retry。
+单独使用创建时已有 reservation 的两次执行 profile；真实 Driver ack/start 后延迟原 final，Human cancel 到 CANCELLING，等待原 lease 实际到期后 `expire_run@2.0` 到 ABANDONED，再释放并隔离原 final。保留原 Attempt/Observation/LATE_RESULT Audit 身份与 Hash，无 Cancel ACK/CANCELLED 声称；无新可用 Acceptance、正式输出或 Completion，无进度的迟到主链不创建或执行 final Progress；已有 final Process 停止由同支持 profile 的另一个独立场景验证，来源不合并（批准澄清见 §8）。两场景均不再次 invoke。权威 Query、Usage 的 UNKNOWN/LATE_RESULT 与 Board 的实际 activeWorkOrderRefs/blockerRefs 对同一 Run 读回；不从取消状态推造 Request 或非空 blocker。旧单次/无 reservation 支持集仍拒绝，不做取消后 retry。
 
 ### X-05 验收和交付边界
 
@@ -78,8 +78,16 @@ Result/Acceptance/finalize 故障嵌入 normal 正式链，Resolution 故障嵌�
 
 ## 7. 实施组成与证据边界（#250）
 
-统一入口为 `tests/persistence/controlled-exit.test.ts`，分别为 normal、recovered、cancel 启动独立迁移数据库，复用 owning 场景和真实 synthetic Driver。`controlled-exit-queries.ts` 只负责独立授权 Query、同来源读回、业务全行/版本不变与技术记录分层；Board 的独立预期与原 owning 矩阵共用 `controlled-exit-board-expectation.ts`。原 owning 场景仅增加可选观察/提交后响应丢失接线，未增加生产总 Process、公开契约、Policy/profile 或 migration。
+统一入口为 `tests/persistence/controlled-exit.test.ts`，分别为 normal、recovered、cancel、cancel-progress 启动独立迁移数据库，复用 owning 场景和真实 synthetic Driver。`controlled-exit-queries.ts` 只负责独立授权 Query、同来源读回、业务全行/版本不变与技术记录分层；Board 的独立预期与原 owning 矩阵共用 `controlled-exit-board-expectation.ts`。原 owning 场景仅增加可选观察/提交后响应丢失接线，未增加生产总 Process、公开契约、Policy/profile 或 migration。
 
-正常链提交 Result 的既有重建入口也经过故障接线。Result/Acceptance/finalize/Resolution 在真实 COMMITTED 后读 Receipt，模拟响应丢失，再由重建入口以原命令 bytes/身份/键重放；EP consume 的真实提交后丢响应沿原 dispatcher 有限重试，重建 entry 后核对原事件/binding/hash/watermark 与唯一业务事实，再独立 Evaluation/readExact。正常链合法原 Agent 声明为 AGENT_DECLARED，恢复链缺声明为 UNKNOWN，各 Run 分开查询。取消复用现有 final Progress 来源，暂停原 final 的后续消费；真实 cancel/原 lease 到期/ABANDONED/隔离后再次执行恢复 tick，原进度停止且 Driver 不重新 invoke。
+正常链提交 Result 的既有重建入口也经过故障接线。Result/Acceptance/finalize/Resolution 在真实 COMMITTED 后读 Receipt，模拟响应丢失，再由重建入口以原命令 bytes/身份/键重放；EP consume 的真实提交后丢响应沿原 dispatcher 有限重试，重建 entry 后核对原事件/binding/hash/watermark 与唯一业务事实，再独立 Evaluation/readExact。正常链合法原 Agent 声明为 AGENT_DECLARED，恢复链缺声明为 UNKNOWN，各 Run 分开查询。取消验收按 §8 的批准澄清分为迟到 final 主链与已有 final Progress 停止场景；两者独立来源，不通过提前释放主链 final 建立进度。
 
 运行证据、精确 revision、动态 Ref/Hash/Receipt/事件、命令和实际结果维护在 Issue/PR 与 CI；本文件不保存平行执行日志。独立设计/实现审查、适用人类技术审查和 IM-06 原退出 Gate 仍分别成立，未执行的外部/人工及已接受延后维持原边界。
+
+## 8. 取消验收组合澄清与批准（PR #251 R2，2026-10-07）
+
+Spec §23 的 final Progress 创建要求真实 IG final Observation，§27 又禁止为 CANCELLING/ABANDONED Run 重建进度。因而“ABANDONED 后首次释放 final”与“同 Run 在取消前已有 final Progress”不能同时成立；原实现提前释放 final 的证据不满足迟到主链验收。用户在获知该冲突后明确批准分为两个场景，保持生产契约不变。
+
+EXIT-D-005 的主链保留真实 ack/start→Human cancel→原 lease 实际到期→ABANDONED→首次释放/观察/隔离原 Attempt final，核对 final/Observation 在取消和到期前不存在、提交/观察时间不早于 ABANDONED、Usage/Board/Hash 与无 Completion；该来源无 final Progress，恢复 tick 不得新建或再次 invoke。另一个独立数据库/Run、相同 reservation/two-attempt profile 的场景，沿 CANCEL-D-008 合法预先观察 final、建立 owning Progress，再取消并重建恢复 tick，验证原 Progress SUSPENDED、来源不变且不再执行或 invoke。二者分别记录完整来源和调用次数，不把两 Run 合称同一来源；旧 CANCEL-D-003 的迟到时序恢复并加不提前释放的断言。
+
+本批准仅澄清受控验收组合，不改变 §23/§27 生产支持集、API/profile/migration 或其它退出 Gate。旧 reviewed head 的 R1/R2 PASS 声明不足；修复后的运行、revision 与独立复审分别记录在 PR，未执行的证据不沿用旧 PASS。
