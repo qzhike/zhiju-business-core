@@ -907,7 +907,7 @@ async function cancelRow008(state: VerifyRunCancellationContext): Promise<void> 
   await prepareCancelFinalProgress(state);
   const sourceRows = async () =>
     (
-      await state.admin.query(
+      await state.admin.query<Record<string, unknown>>(
         'SELECT controlled_final_source_ref,controlled_final_attempt_ref,controlled_final_policy_ref FROM task_execution.process_instance WHERE process_id=$1',
         [controlledFinalProcessId(state.runRef.objectId)],
       )
