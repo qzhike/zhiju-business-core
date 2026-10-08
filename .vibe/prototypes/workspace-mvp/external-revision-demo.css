@@ -1,0 +1,30 @@
+/* Keep attachments and version context in the existing feedback column. */
+.external-revision-input{margin-top:12px;font-size:11px}
+.external-revision-entry{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+.external-revision-entry button,.external-revision-card button,.external-revision-result button{font-size:11px;padding:5px 8px}
+.external-revision-entry small{font-size:10px;color:var(--muted)}
+.external-revision-card{border:1px solid #d9d3ed;background:#fbfaff;border-radius:7px;padding:10px;margin-top:10px}
+.external-revision-card>strong{display:block;font-size:12px;font-weight:500;overflow-wrap:anywhere}
+.external-revision-card label{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:400;margin-top:9px}
+.external-revision-card select{font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:white;max-width:155px}
+.external-revision-card p{font-size:10px;color:var(--muted);margin-top:6px;line-height:1.8}
+.external-revision-card .row{gap:6px;margin-top:8px}
+.external-revision-old{margin-top:9px;padding:9px;border-left:3px solid #c99333;background:#fff5e3;color:#80520c}
+.external-revision-old strong{display:block;font-size:11px;font-weight:600}
+.external-revision-old p{color:#80520c}
+.external-revision-result{margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:7px;font-size:11px;background:#f8f8fc}
+.external-revision-result>strong{display:block;font-weight:600;line-height:1.8}
+.external-revision-result p{font-size:10px;color:var(--muted);margin:6px 0;line-height:1.8}
+.external-revision-result.needs-judgment{border-color:#e9d4ac;background:#fff7e8}
+.external-revision-result.needs-judgment>strong{color:#80520c}
+.external-revision-result details{margin-top:8px}
+.external-revision-result summary{cursor:pointer;font-size:10px;color:var(--purple)}
+.external-revision-result pre,.external-revision-preview{font:11px/1.8 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:30dvh;overflow:auto;margin-top:8px}
+.external-revision-preview{max-height:55dvh;padding:12px;border:1px solid var(--line);background:#fafafe}
+.external-revision-error{margin-top:9px;color:#9b3c30;font-size:11px;line-height:1.8}
+.external-revision-demo{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
+.external-revision-demo>small{font-size:10px}
+.execution-review-feedback .external-revision-entry button:focus-visible,.external-revision-card select:focus-visible{outline:2px solid #9a92e5;outline-offset:2px}
+.execution-review-feedback:has(.external-revision-card)>textarea{min-height:115px}
+.external-revision-candidate-note{margin-top:18px;border-left:3px solid var(--purple);padding:10px 13px;background:var(--soft)}
+.external-revision-candidate-note p{margin-top:7px;font-size:12px;line-height:1.9}

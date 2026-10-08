@@ -1,0 +1,907 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:zhiju:design:workspace-startup-review:0.1.0",
+  "title": "启动信息核对 DTO v0.1.0（设计草案，未注册公共 API）",
+  "description": "前端投影、确认意图和多步回执；引用解析、权限、CAS、状态组合必须由 owning 服务校验。",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/startupReview"
+    },
+    {
+      "$ref": "#/$defs/confirmationRequest"
+    },
+    {
+      "$ref": "#/$defs/receipt"
+    },
+    {
+      "$ref": "#/$defs/recoveryRequest"
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:'-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "objectRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "objectType",
+        "objectId",
+        "scope"
+      ],
+      "properties": {
+        "kind": {
+          "const": "OBJECT"
+        },
+        "objectType": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "objectId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "scope": {
+          "$ref": "#/$defs/scopeRef"
+        }
+      }
+    },
+    "namespaceCode": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+    },
+    "uuidV7": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "scopeRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "dependentRequired": {
+        "projectId": [
+          "enterpriseId"
+        ]
+      },
+      "properties": {
+        "enterpriseId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "projectId": {
+          "$ref": "#/$defs/uuidV7"
+        }
+      }
+    },
+    "snapshotRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "objectType",
+        "objectId",
+        "snapshotId",
+        "scope",
+        "contentHash"
+      ],
+      "properties": {
+        "kind": {
+          "const": "SNAPSHOT"
+        },
+        "objectType": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "objectId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "scope": {
+          "$ref": "#/$defs/scopeRef"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/contentHash"
+        }
+      }
+    },
+    "contentHash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "digest",
+        "canonicalizationVersion"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "SHA-256"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "canonicalizationVersion": {
+          "const": "1"
+        }
+      }
+    },
+    "versionedRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "objectType",
+        "objectId",
+        "versionId",
+        "scope"
+      ],
+      "properties": {
+        "kind": {
+          "const": "VERSIONED"
+        },
+        "objectType": {
+          "$ref": "#/$defs/namespaceCode"
+        },
+        "objectId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "versionId": {
+          "$ref": "#/$defs/uuidV7"
+        },
+        "scope": {
+          "$ref": "#/$defs/scopeRef"
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectRef",
+        "projectVersion",
+        "reportRef",
+        "reportJsonSha256",
+        "candidateSetRef",
+        "inputManifestSha256",
+        "ruleBundleRef",
+        "planRef"
+      ],
+      "properties": {
+        "projectRef": {
+          "$ref": "#/$defs/objectRef"
+        },
+        "projectVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reportRef": {
+          "$ref": "#/$defs/snapshotRef"
+        },
+        "reportJsonSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "candidateSetRef": {
+          "$ref": "#/$defs/snapshotRef"
+        },
+        "inputManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "ruleBundleRef": {
+          "$ref": "#/$defs/snapshotRef"
+        },
+        "planRef": {
+          "$ref": "#/$defs/snapshotRef"
+        }
+      }
+    },
+    "displayField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "label",
+        "value"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": ".*\\S.*"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "candidateReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateId",
+        "kind",
+        "valueState",
+        "summary",
+        "displayFields",
+        "alternatives",
+        "evidenceIds"
+      ],
+      "properties": {
+        "candidateId": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "ENTERPRISE_FACT",
+            "PRODUCT",
+            "QMS_APPLICABILITY",
+            "QMS_MANAGEMENT_CHOICE",
+            "QMS_PROFESSIONAL_DECISION"
+          ]
+        },
+        "valueState": {
+          "enum": [
+            "EVIDENCED",
+            "UNKNOWN",
+            "CONFLICT"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "displayFields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/displayField"
+          },
+          "minItems": 1
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "displayFields",
+              "evidenceIds"
+            ],
+            "properties": {
+              "displayFields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/displayField"
+                },
+                "minItems": 1
+              },
+              "evidenceIds": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/id"
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            }
+          },
+          "minItems": 0
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      }
+    },
+    "informationGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "group",
+        "summary",
+        "candidateIds"
+      ],
+      "properties": {
+        "group": {
+          "enum": [
+            "PROFILE",
+            "QMS",
+            "PRODUCT_SCOPE"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "candidateIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      }
+    },
+    "evidenceView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceId",
+        "sourceRef",
+        "role",
+        "displayName",
+        "locator",
+        "quote"
+      ],
+      "properties": {
+        "evidenceId": {
+          "$ref": "#/$defs/id"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/objectRef"
+        },
+        "role": {
+          "enum": [
+            "CUSTOMER_MATERIAL",
+            "TEMPLATE",
+            "TRUSTED_DECISION_INPUT",
+            "PRIOR_REPORT"
+          ]
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": ".*\\S.*"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "plannedFileView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plannedFileId",
+        "title",
+        "customerCode",
+        "chapter",
+        "processingCondition",
+        "reason",
+        "changeIds"
+      ],
+      "properties": {
+        "plannedFileId": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "customerCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": ".*\\S.*"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chapter": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "processingCondition": {
+          "enum": [
+            "ELIGIBLE",
+            "BLOCKED",
+            "ALREADY_REQUESTED"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "changeIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "reason",
+        "candidateIds",
+        "plannedFileIds",
+        "attentionItemIds"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "PROJECT_START",
+            "FILE"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "candidateIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "plannedFileIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "attentionItemIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      }
+    },
+    "startupReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "binding",
+        "projectState",
+        "informationGroups",
+        "candidateReviews",
+        "requiredCandidateIds",
+        "confirmationCandidateIds",
+        "evidenceViews",
+        "plannedFiles",
+        "blockers",
+        "allowedActions"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "0.1.0"
+        },
+        "kind": {
+          "const": "STARTUP_REVIEW"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "projectState": {
+          "enum": [
+            "PREPARING",
+            "ACTIVE"
+          ]
+        },
+        "informationGroups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/informationGroup"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "candidateReviews": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/candidateReview"
+          },
+          "minItems": 0
+        },
+        "requiredCandidateIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "confirmationCandidateIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "evidenceViews": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceView"
+          },
+          "minItems": 0
+        },
+        "plannedFiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/plannedFileView"
+          },
+          "minItems": 0
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/blocker"
+          },
+          "minItems": 0
+        },
+        "allowedActions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "CONFIRM_AND_START",
+              "RECOVER_ORIGINAL_REQUEST",
+              "VIEW_ONLY"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "confirmationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "binding",
+        "idempotencyKey",
+        "confirmedCandidateIds",
+        "selectedPlannedFileIds"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "0.1.0"
+        },
+        "kind": {
+          "const": "STARTUP_CONFIRMATION_REQUEST"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "idempotencyKey": {
+          "$ref": "#/$defs/id"
+        },
+        "confirmedCandidateIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "selectedPlannedFileIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "startSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enterpriseProfileSnapshotRef",
+        "qmsConfigurationRef",
+        "productScopeSnapshotRef"
+      ],
+      "properties": {
+        "enterpriseProfileSnapshotRef": {
+          "$ref": "#/$defs/snapshotRef"
+        },
+        "qmsConfigurationRef": {
+          "$ref": "#/$defs/versionedRef"
+        },
+        "productScopeSnapshotRef": {
+          "$ref": "#/$defs/snapshotRef"
+        }
+      }
+    },
+    "informationStep": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "NOT_CONFIRMED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "decisionRefs"
+          ],
+          "properties": {
+            "state": {
+              "const": "CONFIRMED"
+            },
+            "decisionRefs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/objectRef"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          }
+        }
+      ]
+    },
+    "startupStep": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "NOT_STARTED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "startSnapshot"
+          ],
+          "properties": {
+            "state": {
+              "const": "STARTED"
+            },
+            "startSnapshot": {
+              "$ref": "#/$defs/startSnapshot"
+            }
+          }
+        }
+      ]
+    },
+    "scopeStep": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "NOT_RECEIVED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "workScopeRef"
+          ],
+          "properties": {
+            "state": {
+              "const": "RECEIVED"
+            },
+            "workScopeRef": {
+              "$ref": "#/$defs/snapshotRef"
+            }
+          }
+        }
+      ]
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestRef",
+        "binding",
+        "idempotencyKey",
+        "confirmedCandidateIds",
+        "selectedPlannedFileIds",
+        "projectState",
+        "status",
+        "information",
+        "startup",
+        "scope",
+        "reasons",
+        "allowedRecoveryActions"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "0.1.0"
+        },
+        "kind": {
+          "const": "STARTUP_CONFIRMATION_RECEIPT"
+        },
+        "requestRef": {
+          "$ref": "#/$defs/objectRef"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "idempotencyKey": {
+          "$ref": "#/$defs/id"
+        },
+        "confirmedCandidateIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "selectedPlannedFileIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "projectState": {
+          "enum": [
+            "PREPARING",
+            "ACTIVE"
+          ]
+        },
+        "status": {
+          "enum": [
+            "PENDING",
+            "ACCEPTED",
+            "FAILED",
+            "UNKNOWN",
+            "STALE",
+            "PARTIAL"
+          ]
+        },
+        "information": {
+          "$ref": "#/$defs/informationStep"
+        },
+        "startup": {
+          "$ref": "#/$defs/startupStep"
+        },
+        "scope": {
+          "$ref": "#/$defs/scopeStep"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*"
+          },
+          "minItems": 0
+        },
+        "allowedRecoveryActions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "READ_ORIGINAL",
+              "RETRY_INCOMPLETE_STEP",
+              "RECHECK_CURRENT_INPUTS"
+            ]
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      }
+    },
+    "recoveryRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestRef",
+        "idempotencyKey",
+        "action"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "0.1.0"
+        },
+        "kind": {
+          "const": "STARTUP_RECOVERY_REQUEST"
+        },
+        "requestRef": {
+          "$ref": "#/$defs/objectRef"
+        },
+        "idempotencyKey": {
+          "$ref": "#/$defs/id"
+        },
+        "action": {
+          "enum": [
+            "READ_ORIGINAL",
+            "RETRY_INCOMPLETE_STEP"
+          ]
+        }
+      }
+    }
+  }
+}

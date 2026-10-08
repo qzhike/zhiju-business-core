@@ -1,0 +1,48 @@
+/* A quiet two-step start uses the established upload surface and project context. */
+.project-start-shell{max-width:880px}
+.project-start-steps{display:flex;gap:28px;list-style:none;margin:0 0 18px;padding:0;color:var(--muted);font-size:12px}
+.project-start-steps li{display:flex;align-items:center;gap:8px}
+.project-start-steps li>span{width:25px;height:25px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;background:white;font-size:11px}
+.project-start-steps [aria-current=step]{color:var(--purple);font-weight:600}
+.project-start-steps [aria-current=step]>span{background:var(--soft);border-color:#d3cdeb}
+.project-start-form>label{display:block;font-size:13px;font-weight:600;margin-bottom:8px}
+.project-start-form>label:not(:first-child){margin-top:25px}
+.project-start-form>input{display:block;width:100%;font:inherit;font-size:14px;background:#fcfcfe;border:1px solid #d7d3e7;border-radius:7px;padding:12px}
+.project-start-form>small{display:block;margin-top:6px;font-size:11px;color:var(--muted)}
+.project-start-preset{margin:25px 0 18px;padding:13px 14px;background:#f7f7fc;border-left:3px solid #b2ace3;font-size:12px;line-height:1.7}
+.project-start-preset strong{font-size:12px;font-weight:500}
+.project-start-preset p{font-size:11px;color:var(--muted);margin-top:4px}
+.project-start-demo-note{font-size:10px;color:var(--muted);line-height:1.7;margin:13px 4px;overflow-wrap:anywhere}
+.project-start-context{padding-bottom:16px;margin-bottom:18px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.project-start-context>small{display:block;font-size:10px;color:var(--muted);margin-bottom:5px}
+.project-start-context>strong{display:block;font-size:16px;font-weight:600}
+.project-start-context>span{display:block;font-size:12px;color:var(--muted);margin-top:4px}
+.project-start-submitted-note{font-size:12px;margin:14px 0;color:var(--muted)}
+.project-start-submitted-note summary{cursor:pointer}
+.project-start-submitted-note p{white-space:pre-wrap;margin-top:8px;overflow-wrap:anywhere}
+.project-start-form input:focus-visible,.project-start-submitted-note summary:focus-visible{outline:3px solid #9a92e5;outline-offset:2px}
+@media(max-width:700px){.project-start-steps{gap:15px;font-size:11px}.project-start-form>input{font-size:13px}.project-start-context>strong{font-size:15px}.project-start-form .initial-analysis-submit button{align-self:stretch}.project-start-shell .initial-analysis-upload-zone h2{overflow-wrap:anywhere}}
+
+/* Long project labels cannot stretch the workbench beyond its viewport. */
+.simple-board .toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;max-width:100%;min-width:0}
+.simple-board .toolbar select{min-width:0;max-width:min(440px,100%);text-overflow:ellipsis;font-size:12px}
+@media(max-width:700px){.simple-board .toolbar{width:100%}.simple-board .toolbar select{flex:1 1 100%;width:100%;max-width:100%}}
+
+/* One client field handles explicit existing-client selection and new-client intent. */
+.project-start-client-field{position:relative;min-width:0}
+.project-start-client-field>input{display:block;width:100%;font:inherit;font-size:14px;background:#fcfcfe;border:1px solid #d7d3e7;border-radius:7px;padding:12px 36px 12px 12px}
+.project-start-client-arrow{position:absolute;right:14px;top:11px;color:var(--muted);pointer-events:none}
+.project-start-client-help{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:8px;min-height:24px;font-size:11px;line-height:1.7;color:var(--muted)}
+.project-start-client-help>span{min-width:0;overflow-wrap:anywhere}
+.project-start-client-help>button{border:0;padding:0;background:transparent;color:var(--purple);white-space:nowrap;font:inherit;line-height:1.7}
+.project-start-client-panel{position:absolute;z-index:30;top:calc(100% + 5px);left:0;right:0;border:1px solid #d7d3e7;border-radius:8px;background:white;box-shadow:0 7px 18px #29224b12;overflow:hidden}
+.project-start-client-panel[hidden]{display:none}
+.project-start-client-list{max-height:210px;overflow:auto;padding:4px}
+.project-start-client-list>button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;width:100%;padding:10px 12px;border:0;border-radius:5px;text-align:left;background:white;font:inherit}
+.project-start-client-list>button:hover,.project-start-client-list>button.active{background:var(--soft)}
+.project-start-client-list strong{font-size:13px;font-weight:500;overflow-wrap:anywhere}
+.project-start-client-list small{font-size:10px;color:var(--muted)}
+.project-start-client-empty{font-size:12px;color:var(--muted);padding:14px 12px}
+.project-start-client-add{display:block;width:100%;font:inherit;font-size:12px;color:var(--purple);padding:12px 16px;border:0;border-top:1px solid var(--line);border-radius:0;background:#faf9fe;text-align:left;overflow-wrap:anywhere}
+.project-start-client-panel button:focus-visible,.project-start-client-help button:focus-visible{outline:3px solid #9a92e5;outline-offset:-3px}
+@media(max-width:700px){.project-start-client-field>input{font-size:13px}.project-start-client-help{gap:8px}.project-start-client-list{max-height:170px}}

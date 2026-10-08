@@ -1,0 +1,17 @@
+{
+  "fixtureFormat": "DESIGN_ONLY_SOURCE_SET_V1",
+  "sources": [
+    {
+      "sourceId": "C-STARTUP",
+      "role": "CUSTOMER_MATERIAL",
+      "relativePath": "runner-analysis-report-v0.2.customer.example.md",
+      "sha256": "00da215447ba16212f469021350bf80cbfdd66dadb19ba9fdfe09b130b8269cf"
+    },
+    {
+      "sourceId": "T-UPGRADE",
+      "role": "TEMPLATE",
+      "relativePath": "runner-analysis-report-v0.2.template.example.md",
+      "sha256": "cd42564082db09de74362944dbc81b3fd3812cae17975cc94239f3d65259a287"
+    }
+  ]
+}

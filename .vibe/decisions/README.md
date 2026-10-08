@@ -4,6 +4,11 @@
 
 | 主题                          | 文档                                                       | 执行关联 / 状态                                                                                                                                                                                                |
 | ----------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Human + Agent 工作台 MVP | [正式设计提案](workspace-mvp-human-agent.md) | 已批准产品方向和交互布局；D14/RD-01 字段仍为草案，未注册/实现 |
+| UI 首版工程基线 | [工程决策基线](workspace-ui-engineering-baseline.md) | USER APPROVED 2026-10-08；独立审查/安装/正式实现尚未执行 |
+| Runner 分析报告 | [Schema v0.1 设计](runner-analysis-report-v0.1.md) | 基于独立测试报告的设计草案，未注册 Core/Runtime 接纳 |
+| Runner 启动候选字段 | [报告 v0.2 草案](runner-analysis-report-v0.2.md) | D14 字段细化；保留 v0.1，未接入生产 Runner |
+| 启动核对数据与回执 | [DTO v0.1 草案](workspace-startup-review-v0.1.md) | 已批准布局、匿名样例；公共字段/操作尚待 owning 冻结 |
 | IM-06 Human-operated          | [设计提案](task-execution-human-operated.md)               | TD-01–04 APPROVED 2026-09-08；TD-05–07 PROPOSED，实现未开始                                                                                                                                                      |
 | Canonical Content / Renderer  | [IM-DG-005 决策](canonical-content-renderer.md)            | 用户批准路线；[#89](https://github.com/qzhike/zhiju-business-core/issues/89)、[#90](https://github.com/qzhike/zhiju-business-core/issues/90)、[#125](https://github.com/qzhike/zhiju-business-core/issues/125) |
 | EnterpriseProject 能力        | [Capability 决策](enterprise-project-capabilities.md)      | [#57](https://github.com/qzhike/zhiju-business-core/issues/57)                                                                                                                                                 |
