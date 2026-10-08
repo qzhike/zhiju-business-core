@@ -207,6 +207,48 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 ## 12. 当前状态
 
 - IM-UI-01 里程碑、依赖、范围和边界已由用户于 2026-08-28 批准。
-- UI-DG-001、UI-DG-002 尚为 `USER DECISION REQUIRED`；UI-DG-003 只有高层安全边界，具体设计未完成。
+- 用户于 2026-10-08 批准 UI-DG-001～003 的[工程技术基线](../decisions/workspace-ui-engineering-baseline.md)，并要求收口、准备正式开工。人类设计批准已完成；独立审查、安装、正式实现及运行验收尚未执行。D14 字段草案仍未注册。
 - 前端工程、BFF、OIDC、页面、组件、Browser Test、Security Test、Accessibility Test 和 Manual Acceptance 均未实现或运行，状态为 `NOT RUN`。
 - 本文 `DESIGN VERIFIED` 只表示 Experience 层职责、依赖和失败边界与现有 Core 权威文档一致，不代表 UI 可用。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+1. 新建入口保持客户企业名称与项目名称两个主要输入；已有客户在同一框中搜索并明确选择，新客户原位切换。创建准备项目后直接进入该项目 ZIP 页，身份和权限由公开 Core 能力返回。
+2. 报告总览及逐章节文件选择保持原设计。在首轮范围面板紧凑展示“企业基础信息、体系与规则、产品范围”三类必要信息摘要和可展开客户依据；具体字段由正式服务给出，三类摘要不代替 owning 事实模型。
+3. 文件默认均不选；底部同一“确认信息与范围并开始”操作明确同时确认必要信息及所选完整计划。界面不增加企业画像录入页或 Web Agent；BFF 只转交已注册公开能力，跨模块协调由受控 owning Application/Process 执行，不在 BFF 同步写多模块。
+4. 必要启动信息缺失时突出原因并禁用开始，保留文件选择；有误可回总览提交说明/依据。普通缺口、未决职责保护冲突仍整份等待，其他独立文件在正式启动成功后可先做。
+5. 核验中、已接收待安排、失败、UNKNOWN 和报告过时分别呈现；UNKNOWN 回读原提交，不自动换键；报告过时重看受影响信息再确认。关闭、刷新或失败保留草稿/所选内容，新反馈不强制导航。
+6. #startup-review 为独立固定匿名原型入口，复用现有范围面板布局；选择和回执仅在本标签页专用演示键保存，不调用 Core/Runner，不修改其他项目、报告、执行轮次、批准或交付包。原型的启动信息来自新增匿名示例，不冒充现有 v0.1 报告的提取结果。2026-10-08 用户明确“保留当前布局”，三类摘要、可展开依据、章节文件清单与单一确认操作作为已批准交互基线；字段级合同、真实服务及独立人工业务验收仍待完成。
+
+字段细化参见[启动核对 DTO v0.1 草案](../decisions/workspace-startup-review-v0.1.md)与[Runner v0.2 候选草案](../decisions/runner-analysis-report-v0.2.md)。保持当前布局；未注册字段不得直接成为私有 BFF 业务入口。匿名样例/定向设计检查不改变本节 NOT IMPLEMENTED 或正式 Module-Test 的 NOT RUN 状态。
+
+## Workspace UI 首版工程 Spec Delta（已批准未来设计）
+
+分类与选择见[工程决策提案](../decisions/workspace-ui-engineering-baseline.md)。人类技术批准已完成，在适用独立审查与工程前置条件满足后落实：
+
+1. 独立 SPA/Web 与 NestJS/Fastify BFF，同源发布；公开 wire DTO 经审查后进入 Browser，无私有模块导入或直接数据库/Provider 访问。
+2. 已批准布局由语义组件和 token 实现；Chrome/Edge 类别已确认，具体支持窗口、可访问性与视觉验收见提案。页面路径是 Experience 标识，不注册公共业务操作。
+3. Session 代次与精确 Scope/版本隔离 Query 缓存，取消请求之外还拦截迟到响应；后台轮询不自动换候选，Command 不自动重试，UNKNOWN 查询原稳定意图。
+4. 技术 Session 内存丢失要求重登；业务草稿与提交恢复须由 owning 公开能力持久化，不能依赖技术 Session 或原型 sessionStorage。真实 OIDC 与 CSRF/CSP/错误/日志方案按提案验证后才宣称可用。
+5. 首个真实目标为 ZIP → 受控 Runner 分析/报告接纳 → 启动信息核对和整份文件选择 → 原请求回执与真实进度。D14/RD-01 公共字段及业务 HTTP 尚未 READY，未注册草案不能由 BFF 私有接口绕过。
+
+状态为 `USER APPROVED 2026-10-08 / INDEPENDENT REVIEW NOT RUN / NOT IMPLEMENTED`。Mock/静态草案检查只证明对应设计行为；正式安全、API、Runner、Persistence、Browser、Manual 验收分别保持 NOT RUN。
+
+
+## 首个工程交付目标
+
+目标：在当前 Core 基线内交付可独立构建的 Web/BFF 工程外壳，使开发者可通过明确的开发样例模式走通“工作台 → 首轮 ZIP → 报告总览 → 启动核对/文件选择 → 本轮进度”的已批准页面导航。此阶段是工程进展，不是客户文档已被分析、请求已提交或 Runner 已执行的业务证明。
+
+范围为 `apps/workspace-web`、`apps/workspace-bff` 及必要的 workspace/build/typecheck/lint/architecture/测试接线；不改七个业务模块、数据库迁移或 Catalog。页面复用已有布局、匿名报告及 DTO 草案，开发替身严格隔离；生产模式无有效 Session/公开服务时拒绝业务动作，不自动回退到样例。BFF 首版启动/健康与配置错误边界可先完成，真实 OIDC 及公开业务代理按后续实际接入验证，不用假身份代替授权。
+
+必须在此工程阶段同时保证：
+
+1. Web/BFF 构建彼此独立，使用批准版本及 lockfile，Core 既有构建/工具链保持有效；共享提取仅在实际重复需求出现时进行。
+2. 开发模式的深链接刷新、前进后退、空/加载/安全错误状态可操作，沿用默认不选整份文件、显式确认和新结果保留当前页等已批准行为；样例回执明确为演示，不写成真实业务成功。
+3. Web/BFF 不导入业务模块/Repository、Provider SDK 或执行器配置；Browser 不含 OIDC token/客户端凭据。与服务相关的 URL、Scope 和 DTO 必须来自受控边界，不造私有业务 Command。
+4. 架构检查覆盖 `.ts`/`.tsx` 与应用 manifest，拒绝 Web/BFF 的禁止依赖和私有路径；静态/动态 import 的必要反例以实际代码形态验证。现有只扫描 `.ts` 的 PASS 不足以验收。
+5. 开发替身不能出现在正式模式可执行入口。所用 Runner 报告/启动字段继续是未注册草案，不假装为生产 HTTP 返回类型。
+
+开工依赖：适用独立审查、基于当前 Core 的工作区、可运行的配置门禁及设计 authority 可供后续执行任务访问。此目标不要求 D14/RD-01 及全部后续文件检查/批准/交付合同先完成；那些依赖约束各自真实接入。实施仍须走有效配置的验证目标，Browser 与真实服务、人验的证据分别保留。第一项工程任务不宣告整个 IM-UI-01 或 UI-WI-02 完成。

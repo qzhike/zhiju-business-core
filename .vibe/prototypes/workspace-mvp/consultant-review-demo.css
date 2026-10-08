@@ -1,0 +1,31 @@
+/* Keep the report, the consultant's reply, and the Runner feedback in one workspace. */
+.consultant-review-detail{margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+.consultant-review-detail>button{margin-top:12px;font-size:12px}
+.consultant-review-empty{font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:8px}
+.consultant-review-composer{max-height:min(400px,55dvh);overflow:auto;overscroll-behavior:contain}
+.consultant-review-composer .analysis-compose-context small{display:block;color:var(--muted);font-size:10px;line-height:1.6;margin-top:3px;overflow-wrap:anywhere}
+.consultant-review-composer .analysis-compose-row textarea{height:70px;min-height:70px;max-height:140px;resize:vertical}
+.consultant-review-receipt{border-left:3px solid #b9b0e5;background:#f3f1fc;padding:8px 11px;margin-bottom:10px;font-size:11px;line-height:1.7;overflow-wrap:anywhere}
+.consultant-review-receipt>strong{display:block;font-size:12px;font-weight:650;color:#43376c}
+.consultant-review-receipt>p{margin-top:3px;color:#52556a;line-height:1.75}
+.consultant-review-receipt>button{border:0;background:transparent;color:var(--purple);padding:3px 0 0;font-size:10px}
+.consultant-review-waiting{border-left-color:#b98030;background:#fbf5e9}
+.consultant-review-waiting>strong{color:#815417}
+.consultant-review-overview-note{border-left:2px solid #b98030;padding-left:8px;margin-top:7px;font-size:11px;line-height:1.6;color:#815417}
+.consultant-review-record-result{border-left:3px solid #b98030;background:#fbf5e9;padding:9px 12px;font-size:12px;color:#664b23}
+.consultant-review-composer .analysis-demo-options>div{position:fixed;right:40px;bottom:130px;max-height:60dvh;overflow:auto}
+.consultant-review-composer .analysis-demo-options a{font-size:11px;color:var(--purple)}
+.consultant-review-composer .analysis-demo-options button[hidden]{display:none}
+@media(max-width:700px){
+ .analysis-overview-shell:has(.consultant-review-composer){overflow-y:auto;overscroll-behavior:contain}
+ .analysis-overview-shell:has(.consultant-review-composer) .analysis-overview{flex:0 0 auto;max-height:none;overflow:visible}
+ .analysis-overview-shell:has(.consultant-review-composer) .consultant-review-composer{flex:0 0 auto;max-height:none;overflow:visible}
+ .consultant-review-composer{max-height:57dvh}
+ .consultant-review-composer .analysis-compose-context{align-items:flex-start;gap:8px}
+ .consultant-review-composer .analysis-compose-context>button{font-size:10px}
+ .consultant-review-composer .analysis-compose-status{gap:6px}
+ .consultant-review-composer .analysis-demo-options>div{right:25px;bottom:130px;width:min(240px,calc(100vw - 60px))}
+ .consultant-review-receipt{padding:7px 9px;font-size:11px}
+ .consultant-review-receipt>strong{font-size:11px}
+ .consultant-review-detail{margin-top:14px;padding-top:12px}
+}

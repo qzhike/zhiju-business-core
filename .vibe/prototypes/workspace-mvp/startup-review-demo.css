@@ -1,0 +1,59 @@
+/* Compact startup evidence above the existing bounded scope ledger. */
+.startup-review-dialog{height:min(850px,calc(100dvh - 30px))}
+.startup-review-workspace{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.startup-review-information{padding:15px 25px 14px;background:#fcfcff;border-bottom:1px solid var(--line);flex-shrink:0}
+.startup-review-info-heading{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:10px}
+.startup-review-info-heading h3{font-size:13px;font-weight:650;margin:0 0 3px}
+.startup-review-info-heading p{font-size:10px;color:var(--muted);line-height:1.65;margin:0}
+.startup-review-info-heading>span{font-size:10px;color:var(--purple);white-space:nowrap;padding-top:2px}
+.startup-review-info-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
+.startup-review-info-item{min-width:0;border:1px solid var(--line);border-radius:7px;background:white;font-size:11px}
+.startup-review-info-item summary{display:flex;flex-direction:column;gap:4px;padding:10px 12px;cursor:pointer;list-style:none}
+.startup-review-info-label{color:var(--muted);font-size:10px}
+.startup-review-info-item summary strong{font-size:11px;font-weight:600;line-height:1.7;overflow-wrap:anywhere}
+.startup-review-evidence{font-size:10px;color:var(--purple);margin-top:2px}
+.startup-review-source{border-top:1px solid var(--line);padding:10px 12px;line-height:1.75}
+.startup-review-source strong{font-size:10px;color:#526076}
+.startup-review-source p{font-size:11px;margin:6px 0;color:var(--ink)}
+.startup-review-source a{font-size:10px;color:var(--purple)}
+.startup-review-info-item.is-missing{border-color:#dba759;background:#fffaf0}
+.startup-review-info-item.is-missing summary strong{color:#83531a}
+.startup-review-blocker{background:#fff2dc;border-left:3px solid #bd7922;margin-top:10px;padding:9px 12px;font-size:11px;line-height:1.6}
+.startup-review-blocker p{margin:3px 0 0}
+.startup-review-message{padding:11px 25px;background:#f0f7f3;border-top:1px solid var(--line);font-size:11px;line-height:1.6;flex-shrink:0}
+.startup-review-message p{margin:3px 0 0}
+.startup-review-message.is-error{background:#fff4e2;color:#704919}
+.startup-review-footer>div>button{border:0;background:transparent;color:var(--purple);padding:3px 0 0;font-size:10px;text-align:left}
+.startup-review-options{border-top:1px solid var(--line);background:#fafafe;flex-shrink:0;font-size:10px;padding:7px 25px;color:var(--muted)}
+.startup-review-options summary{cursor:pointer}
+.startup-review-options>div{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding-top:8px}
+.startup-review-options label{display:flex;align-items:center;gap:5px}
+.startup-review-options input{accent-color:var(--purple)}
+.startup-review-options select{font:inherit;color:var(--ink);padding:3px 5px;max-width:125px}
+.startup-review-options button{font-size:10px;padding:4px 7px}
+.startup-review-background{padding-top:24px}
+.startup-review-background>a{font-size:12px;color:var(--purple)}
+.startup-review-background>div{max-width:680px;margin:50px auto;padding:28px;border:1px solid var(--line);border-radius:12px;background:white}
+.startup-review-background small{font-size:11px;color:var(--muted)}
+.startup-review-background h1{font-size:26px;margin:8px 0}
+.startup-review-background p{font-size:12px;line-height:1.8;color:var(--muted)}
+.startup-review-info-item summary:focus-visible{outline:2px solid #9a92e5;outline-offset:2px;border-radius:5px}
+@media(max-width:760px){
+ .startup-review-dialog{height:calc(100dvh - 12px)}
+ .startup-review-information{padding:12px 14px}
+ .startup-review-info-heading{gap:8px}
+ .startup-review-info-heading h3{font-size:12px}
+ .startup-review-info-heading>span{font-size:9px}
+ .startup-review-info-grid{grid-template-columns:1fr;gap:6px}
+ .startup-review-info-item summary{display:grid;grid-template-columns:85px minmax(0,1fr);align-items:start;padding:7px 9px;gap:2px 8px}
+ .startup-review-evidence{grid-column:2;margin:0}
+ .startup-review-source{padding:8px 10px}
+ .startup-review-workspace{overflow:auto;overscroll-behavior:contain}
+ .startup-review-workspace>.analysis-scope-body{min-height:350px;flex:1 0 350px}
+ .startup-review-message{padding:9px 14px}
+ .startup-review-options{padding:7px 14px}
+ .startup-review-footer{align-items:flex-start}
+ .startup-review-footer>div{min-width:0;flex:1}
+ .startup-review-footer>button{max-width:155px;white-space:normal;line-height:1.5;flex-shrink:0}
+ .startup-review-background>div{margin:26px 0;padding:20px}
+}

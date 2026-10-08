@@ -84,9 +84,9 @@ IM-DG-001/002 的精确记录见 [`Technology-Baseline-v0.1.md`](Technology-Base
 
 | Gate | 必须冻结 | 当前状态 |
 |---|---|---|
-| UI-DG-001 | 前端框架、构建/包管理、SSR/SPA 边界、版本与升级策略 | `USER DECISION REQUIRED` |
-| UI-DG-002 | Design System、支持浏览器/视口、可访问性目标、国际化与视觉验收方法 | `USER DECISION REQUIRED` |
-| UI-DG-003 | BFF 部署拓扑、OIDC Session、CSRF/CSP、API 代理和前端可观测性 | `BOUNDARY FROZEN / CONCRETE DESIGN REQUIRED` |
+| UI-DG-001 | 前端框架、构建/包管理、SSR/SPA 边界、版本与升级策略 | `USER APPROVED 2026-10-08 / INDEPENDENT REVIEW NOT RUN`：SPA、路由/读取库、首装版本与升级策略见[工程基线](../decisions/workspace-ui-engineering-baseline.md)；尚未安装/实现/验证 |
+| UI-DG-002 | Design System、支持浏览器/视口、可访问性目标、国际化与视觉验收方法 | `USER APPROVED 2026-10-08 / INDEPENDENT REVIEW NOT RUN`：基础组件、Chrome/Edge 窗口/视口、中文与可访问性/视觉验收见[工程基线](../decisions/workspace-ui-engineering-baseline.md)；尚未安装/实现/验证 |
+| UI-DG-003 | BFF 部署拓扑、OIDC Session、CSRF/CSP、API 代理和前端可观测性 | `USER APPROVED 2026-10-08 / INDEPENDENT REVIEW NOT RUN`：独立同源 BFF、技术 Session/重启、OIDC/CSRF/CSP/代理/日志见[工程基线](../decisions/workspace-ui-engineering-baseline.md)；尚未安装/实现/验证 |
 
 ---
 
@@ -225,7 +225,7 @@ GitHub 任务基线：Parent Exit Gate [#120](https://github.com/qzhike/zhiju-bu
 
 ### IM-UI-01 Workspace UI MVP
 
-前置：IM-06 已完成；UI-DG-001 至 UI-DG-003 已审核；IdentityPolicy、EnterpriseProject、Artifact、QualityGovernance、ReleasePublication、TaskExecution 的适用公开 Command/Query、Projection freshness 和错误语义稳定可用。
+前置：IM-06 已完成；UI-DG-001 至 UI-DG-003 已批准并完成适用审查；各真实页面接入时所需 owning 公开能力、Projection freshness 和错误语义稳定可用。工程外壳可在审查及当前 Core 基线满足后先交付，边界与退出条件见 [UI01 首个工程交付目标](../module-specs/Module-Spec-UI01-WorkspaceUI.md#首个工程交付目标)；该阶段不代替 UI-WI-02 的真实会话/授权验收。
 
 产出：
 
