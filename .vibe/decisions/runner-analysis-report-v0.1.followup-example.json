@@ -1,0 +1,554 @@
+{
+  "schemaVersion": "0.1.0",
+  "stage": "ANALYSIS",
+  "context": {
+    "analysisRequestKey": "EXAMPLE-ANALYSIS-001",
+    "inputManifestSha256": "474289b96f4b47c49373c262f2e83e6e73ee1f6e46ad72cad1348303b685b7f4",
+    "previousReportSha256": "f026ff916b100524bd117f32070f650ed2d6819a56675bd260aadd693e49ee6f",
+    "sourceReportIds": []
+  },
+  "title": "补充职责资料后的复核分析（匿名合成示例）",
+  "analysisCompleteness": "PARTIAL",
+  "summary": "新增职责资料依据；同一项客户需求的两条报告事项建议已解决，待核对。组织图和软件事实仍待补充，组织职责冲突保留。",
+  "narrative": {
+    "relativePath": "runner-analysis-report-v0.1.followup-example.md",
+    "sha256": "5a3a6497612fb6ddd4c2b696de455e63d5e15efecc7462f56a8ac5ce21a3a77b"
+  },
+  "limitations": [
+    "匿名合成的七份输入示例，不代表真实执行或服务端接纳。",
+    "补充职责文本不能确认尚未可靠读取的组织图。",
+    "Runner 仅提出历史事项解决建议，正式关闭、事实确认和计划批准仍需 owning 流程。"
+  ],
+  "readCoverage": [
+    {
+      "sourceId": "C-MANUAL",
+      "readState": "PARTIAL",
+      "scopeDescription": "已读正文，组织图读取受限",
+      "limitations": [
+        "组织图未可靠读取，无法确认图中隶属关系"
+      ]
+    },
+    {
+      "sourceId": "C-CORRECTION",
+      "readState": "READ",
+      "scopeDescription": "本示例相关正文已读",
+      "limitations": []
+    },
+    {
+      "sourceId": "C-PREVENTION",
+      "readState": "READ",
+      "scopeDescription": "本示例相关正文已读",
+      "limitations": []
+    },
+    {
+      "sourceId": "T-ROLE",
+      "readState": "READ",
+      "scopeDescription": "本示例相关正文已读",
+      "limitations": []
+    },
+    {
+      "sourceId": "T-CAPA",
+      "readState": "READ",
+      "scopeDescription": "本示例相关正文已读",
+      "limitations": []
+    },
+    {
+      "sourceId": "T-SOFTWARE",
+      "readState": "READ",
+      "scopeDescription": "本示例相关正文已读",
+      "limitations": []
+    },
+    {
+      "sourceId": "C-ROLE",
+      "readState": "READ",
+      "scopeDescription": "本示例新增职责条款已读",
+      "limitations": [
+        "组织隶属关系和保护影响仍待核对"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E-ROLE",
+      "sourceId": "C-MANUAL",
+      "representation": "EXTRACTED",
+      "locator": {
+        "kind": "SECTION",
+        "value": "示例 §5 职责"
+      },
+      "quote": null,
+      "note": "首轮读取发现手册引用独立职责文件，当时该文件尚未提供；本轮新增依据另见现行岗位职责文件。",
+      "extractedText": {
+        "relativePath": "runner-analysis-report-v0.1.example-extracted.md",
+        "sha256": "8cdabd126ec2cb9633abedd027a96b814c1a09e392ee7bdd121b3548995173d3"
+      }
+    },
+    {
+      "id": "E-ORG",
+      "sourceId": "C-MANUAL",
+      "representation": "EXTRACTED",
+      "locator": {
+        "kind": "SECTION",
+        "value": "示例 §3 组织"
+      },
+      "quote": null,
+      "note": "文字可读，组织图未可靠提取；提取件章节定位不能代替原 DOCX 图形核验。",
+      "extractedText": {
+        "relativePath": "runner-analysis-report-v0.1.example-extracted.md",
+        "sha256": "8cdabd126ec2cb9633abedd027a96b814c1a09e392ee7bdd121b3548995173d3"
+      }
+    },
+    {
+      "id": "E-CORR",
+      "sourceId": "C-CORRECTION",
+      "representation": "ORIGINAL",
+      "locator": {
+        "kind": "SECTION",
+        "value": "示例 §5 工作程序"
+      },
+      "quote": null,
+      "note": "客户保留独立纠正程序。",
+      "extractedText": null
+    },
+    {
+      "id": "E-PREV",
+      "sourceId": "C-PREVENTION",
+      "representation": "ORIGINAL",
+      "locator": {
+        "kind": "SECTION",
+        "value": "示例 §5 工作程序"
+      },
+      "quote": null,
+      "note": "客户保留独立预防程序。",
+      "extractedText": null
+    },
+    {
+      "id": "E-TROLE",
+      "sourceId": "T-ROLE",
+      "representation": "ORIGINAL",
+      "locator": {
+        "kind": "SECTION",
+        "value": "示例 §4 职责要求"
+      },
+      "quote": null,
+      "note": "模板中的岗位职责写法需适配企业，不作为企业事实。",
+      "extractedText": null
+    },
+    {
+      "id": "E-TCAPA",
+      "sourceId": "T-CAPA",
+      "representation": "ORIGINAL",
+      "locator": {
+        "kind": "WHOLE_DOCUMENT",
+        "value": "示例纠正与预防模板"
+      },
+      "quote": null,
+      "note": "一个模板功能可由两份客户程序承载。",
+      "extractedText": null
+    },
+    {
+      "id": "E-TSW",
+      "sourceId": "T-SOFTWARE",
+      "representation": "ORIGINAL",
+      "locator": {
+        "kind": "SECTION",
+        "value": "示例 §2 范围"
+      },
+      "quote": null,
+      "note": "需先确认客户软件使用事实，不能因未提供软件文件就判为不适用。",
+      "extractedText": null
+    },
+    {
+      "id": "E-ROLE-NEW",
+      "sourceId": "C-ROLE",
+      "representation": "ORIGINAL",
+      "extractedText": null,
+      "locator": {
+        "kind": "SECTION",
+        "value": "职责条款示例"
+      },
+      "quote": "质量负责人组织质量资料的维护与核对；生产负责人维护本部门已有记录。",
+      "note": "匿名合成的新增职责依据；不确认组织隶属关系或授权调整企业安排。"
+    }
+  ],
+  "protectedFacts": [
+    {
+      "id": "P-ORG",
+      "title": "企业组织与职责",
+      "category": "ORGANIZATION",
+      "statement": "保留企业现有组织职责；组织图中的隶属关系尚未可靠读取。",
+      "sourceState": "UNCONFIRMED",
+      "evidenceIds": [
+        "E-ORG"
+      ],
+      "legacyLabels": [
+        "P03"
+      ]
+    },
+    {
+      "id": "P-PROCESS",
+      "title": "纠正与预防分别承载",
+      "category": "PROCESS",
+      "statement": "企业分别使用纠正措施程序和预防措施程序。",
+      "sourceState": "OBSERVED",
+      "evidenceIds": [
+        "E-CORR",
+        "E-PREV"
+      ],
+      "legacyLabels": [
+        "K05"
+      ]
+    }
+  ],
+  "attentionItems": [
+    {
+      "id": "U-ORG-READ",
+      "title": "组织图已提供但读取受限",
+      "kind": "UNREADABLE_MATERIAL",
+      "audience": "CUSTOMER",
+      "reason": "已上传手册中的组织图没有被可靠读取。",
+      "question": "请补充可阅读的组织图或关系说明。",
+      "effect": "BEFORE_AFFECTED_GENERATION",
+      "affectedPlannedFileIds": [
+        "F-MANUAL",
+        "F-ROLE"
+      ],
+      "relatedChangeIds": [
+        "M01",
+        "M33"
+      ],
+      "protectedFactIds": [
+        "P-ORG"
+      ],
+      "evidenceIds": [
+        "E-ORG"
+      ],
+      "material": {
+        "expectedMaterial": "可阅读的现行组织图",
+        "searchedSourceIds": [
+          "C-MANUAL"
+        ],
+        "providedSourceIds": [
+          "C-MANUAL"
+        ],
+        "searchScopeNote": "原手册已提供；受限的是其中图形内容。"
+      },
+      "customerRequest": {
+        "key": "REQ-ORG",
+        "title": "组织图的可读版本",
+        "text": "已收到手册，其中组织图暂未能可靠读取，请补充可阅读版本或说明部门隶属关系。"
+      },
+      "legacyLabels": []
+    },
+    {
+      "id": "U09",
+      "title": "确认软件与电子记录适用情况",
+      "kind": "FACT_QUESTION",
+      "audience": "CUSTOMER",
+      "reason": "需要企业事实才能判断相关模板是否适用。",
+      "question": "目前是否使用相关软件或电子记录？请说明实际使用情况。",
+      "effect": "BEFORE_AFFECTED_GENERATION",
+      "affectedPlannedFileIds": [],
+      "relatedChangeIds": [],
+      "protectedFactIds": [],
+      "evidenceIds": [
+        "E-TSW"
+      ],
+      "material": null,
+      "customerRequest": {
+        "key": "REQ-SOFTWARE",
+        "title": "软件使用情况",
+        "text": "请说明目前相关软件及电子记录的使用情况，以便确认本次文件适用范围。"
+      },
+      "legacyLabels": [
+        "U09"
+      ]
+    },
+    {
+      "id": "P03",
+      "title": "新制度不得擅自改变组织职责",
+      "kind": "PROTECTION_CONFLICT",
+      "audience": "CONSULTANT",
+      "reason": "模板中的职责条款可能引入企业尚未确认的安排。",
+      "question": "补齐企业依据后，哪些条款可按现状适配，哪些需要专项决定？",
+      "effect": "BEFORE_AFFECTED_GENERATION",
+      "affectedPlannedFileIds": [
+        "F-ROLE"
+      ],
+      "relatedChangeIds": [
+        "M33"
+      ],
+      "protectedFactIds": [
+        "P-ORG"
+      ],
+      "evidenceIds": [
+        "E-ORG",
+        "E-TROLE"
+      ],
+      "material": null,
+      "customerRequest": null,
+      "legacyLabels": [
+        "P03"
+      ]
+    }
+  ],
+  "resolutionProposals": [
+    {
+      "previousAttentionItemId": "U16",
+      "outcome": "RESOLVED_PROPOSED",
+      "reason": "本轮已补充独立岗位职责文件及条款依据，建议不再将该资料列为缺失；组织图和保护冲突仍未解决。",
+      "evidenceIds": [
+        "E-ROLE-NEW"
+      ],
+      "replacementAttentionItemIds": []
+    },
+    {
+      "previousAttentionItemId": "U17",
+      "outcome": "RESOLVED_PROPOSED",
+      "reason": "本轮已补充独立岗位职责文件及条款依据，建议不再将该资料列为缺失；组织图和保护冲突仍未解决。",
+      "evidenceIds": [
+        "E-ROLE-NEW"
+      ],
+      "replacementAttentionItemIds": []
+    }
+  ],
+  "plannedFiles": [
+    {
+      "id": "F-ROLE",
+      "title": "岗位职责制度",
+      "customerCode": null,
+      "category": "POLICY",
+      "origin": "CUSTOMER_REVISION",
+      "customerSourceIds": [
+        "C-MANUAL",
+        "C-ROLE"
+      ],
+      "templateSourceIds": [
+        "T-ROLE"
+      ],
+      "proposedOutputPath": "正文/制度/岗位职责制度.md",
+      "attentionItemIds": [
+        "U-ORG-READ",
+        "P03"
+      ]
+    },
+    {
+      "id": "F-MANUAL",
+      "title": "质量手册",
+      "customerCode": null,
+      "category": "MANUAL",
+      "origin": "CUSTOMER_REVISION",
+      "customerSourceIds": [
+        "C-MANUAL"
+      ],
+      "templateSourceIds": [],
+      "proposedOutputPath": "正文/手册/质量手册.md",
+      "attentionItemIds": [
+        "U-ORG-READ"
+      ]
+    },
+    {
+      "id": "F-CORR",
+      "title": "纠正措施程序",
+      "customerCode": "QP22",
+      "category": "PROCEDURE",
+      "origin": "CUSTOMER_CONVERSION",
+      "customerSourceIds": [
+        "C-CORRECTION"
+      ],
+      "templateSourceIds": [
+        "T-CAPA"
+      ],
+      "proposedOutputPath": "正文/程序/纠正措施程序.md",
+      "attentionItemIds": []
+    },
+    {
+      "id": "F-PREV",
+      "title": "预防措施程序",
+      "customerCode": "QP23",
+      "category": "PROCEDURE",
+      "origin": "CUSTOMER_CONVERSION",
+      "customerSourceIds": [
+        "C-PREVENTION"
+      ],
+      "templateSourceIds": [
+        "T-CAPA"
+      ],
+      "proposedOutputPath": "正文/程序/预防措施程序.md",
+      "attentionItemIds": []
+    }
+  ],
+  "templateCoverage": [
+    {
+      "templateSourceId": "T-ROLE",
+      "disposition": "ADAPT_EXISTING",
+      "customerSourceIds": [
+        "C-MANUAL",
+        "C-ROLE"
+      ],
+      "plannedFileIds": [
+        "F-ROLE"
+      ],
+      "explanation": "建议改为适配本轮补充的客户职责文件；组织关系与保护影响仍需核对。",
+      "evidenceIds": [
+        "E-ROLE",
+        "E-TROLE",
+        "E-ROLE-NEW"
+      ],
+      "attentionItemIds": [
+        "U-ORG-READ",
+        "P03"
+      ]
+    },
+    {
+      "templateSourceId": "T-CAPA",
+      "disposition": "EXISTING_EQUIVALENT",
+      "customerSourceIds": [
+        "C-CORRECTION",
+        "C-PREVENTION"
+      ],
+      "plannedFileIds": [
+        "F-CORR",
+        "F-PREV"
+      ],
+      "explanation": "保留两份客户程序承载一个模板功能；分析判断仍待业务审核。",
+      "evidenceIds": [
+        "E-CORR",
+        "E-PREV",
+        "E-TCAPA"
+      ],
+      "attentionItemIds": []
+    },
+    {
+      "templateSourceId": "T-SOFTWARE",
+      "disposition": "PENDING",
+      "customerSourceIds": [],
+      "plannedFileIds": [],
+      "explanation": "软件事实未确认，不能判为不适用或从范围中消失。",
+      "evidenceIds": [
+        "E-TSW"
+      ],
+      "attentionItemIds": [
+        "U09"
+      ]
+    }
+  ],
+  "changes": [
+    {
+      "id": "M01",
+      "title": "升级企业手册",
+      "action": "REVISE",
+      "description": "在已确认企业安排内补充本次要求，组织图相关部分等待资料。",
+      "reason": "企业资料先行，保留已有实质安排。",
+      "targetPlannedFileIds": [
+        "F-MANUAL"
+      ],
+      "evidenceIds": [
+        "E-ORG"
+      ],
+      "protectedFactIds": [
+        "P-ORG"
+      ],
+      "protectedImpact": "POTENTIAL",
+      "attentionItemIds": [
+        "U-ORG-READ"
+      ],
+      "dependsOnChangeIds": [],
+      "legacyLabels": [
+        "M01"
+      ]
+    },
+    {
+      "id": "M33",
+      "title": "适配企业现有岗位职责文件",
+      "action": "REVISE",
+      "description": "依据补充的职责文本适配模板；组织图相关内容与职责的实质调整继续等待核对。",
+      "reason": "独立职责文件已在本轮补充，拟由新建改为升级现有文件；尚未确认执行范围。",
+      "targetPlannedFileIds": [
+        "F-ROLE"
+      ],
+      "evidenceIds": [
+        "E-ROLE",
+        "E-TROLE",
+        "E-ROLE-NEW"
+      ],
+      "protectedFactIds": [
+        "P-ORG"
+      ],
+      "protectedImpact": "EXCEPTION_PROPOSED",
+      "attentionItemIds": [
+        "U-ORG-READ",
+        "P03"
+      ],
+      "dependsOnChangeIds": [],
+      "legacyLabels": [
+        "M33"
+      ]
+    },
+    {
+      "id": "K-CAPA",
+      "title": "保持纠正与预防分立",
+      "action": "KEEP",
+      "description": "转换为 Markdown 审核稿时保留两份文件及既有流程。",
+      "reason": "模板功能已有客户文件组合承载。",
+      "targetPlannedFileIds": [
+        "F-CORR",
+        "F-PREV"
+      ],
+      "evidenceIds": [
+        "E-CORR",
+        "E-PREV",
+        "E-TCAPA"
+      ],
+      "protectedFactIds": [
+        "P-PROCESS"
+      ],
+      "protectedImpact": "NONE_DECLARED",
+      "attentionItemIds": [],
+      "dependsOnChangeIds": [],
+      "legacyLabels": [
+        "K05"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "CHECK-READ",
+      "title": "输入读取范围",
+      "result": "LIMITED",
+      "method": "Runner 声明的读取清单",
+      "scope": "本示例七份输入",
+      "limitations": [
+        "组织图读取受限"
+      ],
+      "evidenceIds": [
+        "E-ORG"
+      ],
+      "authority": "RUNNER_DECLARED"
+    },
+    {
+      "id": "CHECK-REG",
+      "title": "法规现行性核验",
+      "result": "NOT_RUN",
+      "method": "未执行",
+      "scope": "本轮依据现行性",
+      "limitations": [
+        "本示例未执行官方核验"
+      ],
+      "evidenceIds": [],
+      "authority": "RUNNER_DECLARED"
+    },
+    {
+      "id": "CHECK-HUMAN",
+      "title": "人工业务审核",
+      "result": "NOT_RUN",
+      "method": "未执行",
+      "scope": "职责与流程语义",
+      "limitations": [
+        "需另有可信人工审核记录"
+      ],
+      "evidenceIds": [],
+      "authority": "RUNNER_DECLARED"
+    }
+  ]
+}

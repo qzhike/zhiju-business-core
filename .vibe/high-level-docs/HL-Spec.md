@@ -397,3 +397,8 @@ BLOCKED
 <a id="im-03-合成-reference-project-技术验收边界2026-08-27"></a>
 
 历史锚点的内容见 [实施基线补充](../decisions/implementation-baseline-notes.md)。
+
+
+## Workspace MVP D14 设计路由
+
+2026-10-08 用户批准[项目准备与正式启动方向](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)：同一 Project 先接纳 ZIP、受控 Runner 分析，再核对必要启动信息并进入文件升级。对应 EP/IP/TE/IG/UI owning Spec/Test、Domain、Core/Catalog、PostgreSQL 与 Runtime 专节已同步设计约束。状态为 `INITIALIZATION DIRECTION USER APPROVED / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`；不改变当前公开接受集、冻结历史合同、七模块所有权或 Human-only 规则。正式可执行字段/profile/权限/持久化仍须技术闭合，不能由 BFF 或界面布尔值补造。

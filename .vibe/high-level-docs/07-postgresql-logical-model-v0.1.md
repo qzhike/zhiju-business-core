@@ -2172,3 +2172,11 @@ completion facts可各自保存在既有Task/WorkOrder evaluation表；只读 ju
 来源 manifest 在 TE 的一致性只读快照内形成；Projection 的存储事务独立。首版完整重建替代字段级 Delta，只把 Domain Event 当唤醒提示。内部 dirty 保证没有公共 Event 的相关更新也可刷新；dispatcher确认和alias发布之间允许至少一次重复，禁止业务和Projection组成跨Root提交。
 
 所有行保留 Enterprise/Project Scope 并启用 FORCE RLS、最小角色权限与 Scope/hash 镜像校验；不引入跨 Schema FK。Scope/Purpose 与 worker fence 需在 Application 和持久化边界重复校验。board watermark 只属于 `task_board:<projectId>` 导出流，与 TaskCompleted→EP 的源事件 watermark 分离。缓存/旧 generation 清理失败不修改权威状态；其空间成本与定期完整导出成本在实现切片做有界负载验证后配置 Policy。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+待注册实现须使用 forward migration：区分合法新准备创建与旧完整创建，Scope/memberPolicy 自创建起不可变，PREPARING 无正式启动绑定，ACTIVE 必须有合法唯一 PROJECT_START。从可验证历史绑定确认旧创建模式，损坏旧项目不得因缺绑定被默认转成准备项目。
+
+同一 EP owning 事务提交启动绑定、状态 CAS、Receipt/Audit 及最小事件；FORCE RLS/最小 ACL/镜像及并发单赢家验证覆盖直 SQL 旁路。准备来源/分析报告保留 INSERT-only 来源和实际输入/结果绑定；不复制 TE/IG 状态、不建跨 Schema FK或跨模块共享写事务。本轮不分配 migration 编号、不修改已应用 SQL。

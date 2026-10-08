@@ -132,3 +132,15 @@ WI-10 fixture 修复要求：测试登录使用 `NOINHERIT`，并以 `INHERIT FA
 修复要求：Gate 必须隔离文件级 Persistence 测试执行，保留 `IP-WI10-U-006` 的真实权限失败反例；PR #52 已满足连续独立 Gate、直接 digest main Gate 和 exact-head CI 条件。Runbook 文档口径修订不改变本项运行时结论。
 
 最终默认分支的 Agent-executed local Runbook 结果（WI-02/03/04/09）以及 WI-06/07/10 Probe 输出见 [`Runbook-Manual-Acceptance-2026-08-24.md`](../archive/im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)。该记录不替代外部 Provider 或生产人工验收。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+新增矩阵是方向批准后的前瞻要求；固定匿名原型及窄检查不证明公开 API、真实持久化、Runtime 或独立人工业务验收。执行证据按项目规则进入对应 GitHub Issue/PR，不在本表伪填 PASS。
+
+| ID | 输入 | 预期 | 正式实现/验收结果 |
+|---|---|---|---|
+| IP-D14-001 | 准备 ScopeClaim 有效但未获文档修改能力 | 只允许已授权资料/分析；scope 有效不等于修改许可 | `NOT RUN` |
+| IP-D14-002 | Runner/AGENT/actingFor 请求确认、批准或发布 | Human-only 拒绝；报告来源或转述不赋予 Human 身份 | `NOT RUN` |
+| IP-D14-003 | 撤权、过期、跨项目来源及幂等回读 | 每个新动作独立当前授权；来源复用显式核验，旧 Receipt 不恢复资格 | `NOT RUN` |

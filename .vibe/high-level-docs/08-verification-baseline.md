@@ -506,3 +506,11 @@ WI-08 的验收对象是“证据是否可以沿精确引用重建”和“父�
 - ReleasePublication：V6002 Handler 的完整授权/Attempt/Failure/Receipt/Completion/Recall 场景和 `tests/fixtures/runtime/rel-801-late-receipt-timeline.json` 受控时间线。后者的 `RELEASE_RECEIPT_STALE`、`RELEASE_RECEIPT_ALREADY_RECORDED`、`PARTIALLY_RELEASED` 是可重放的本地 Runtime 结果，不是外部 Provider 结果。
 
 WI-08 复核命令和实际输出见 [`Synthetic-QMS-REL-801-Exit-Report.md`](../archive/codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)。`pnpm clean && pnpm verify`、空库/二次 no-op Migration、精确 head/CI 和文档同步可以形成技术 `PASS`；统一跨模块业务 E2E、公开 HTTP、生产、真实 Provider、外部收件人确认、Workspace UI、CLI runtime、IM-09 和独立人工客户验收必须保持 `NOT RUN`。父 Issue #120 不由 WI-08 自动关闭。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。本节同步用户已批准的初始化方向；完整依据、兼容边界与后续字段合同见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。不改变本分支历史正文的实施状态，不将原型演示作为后台接入证据。
+
+1. D14 字段/profile 闭合后的首版验证须贯通真实身份/权限、受控 ZIP 来源、准备 Context/Task/执行与报告绑定、总览、可信 Human 核对和一次性启动；按配置的 full target 覆盖真实 PostgreSQL/RLS、CAS、唯一绑定及回滚。原型的本地状态与匿名回执不能代替这些证明。
+2. 必须覆盖必要依据缺失、保护冲突、跨 Scope/Hash 错误、未经许可输入路径、旧报告确认、并发/撤权、重复提交/UNKNOWN、客户创建成功而项目失败、启动成功而后续请求失败和既有完整创建路径回归。D14 前瞻场景由 EP/IP/TE/IG/UI 与 Runtime Test 专节维护，实际未跑均为 NOT RUN。
+3. 原型交互检查、静态文档核对、自动技术检查、真实 Runtime/公开 HTTP/持久化及独立人工业务验收分开报告。目录内既有历史数量与结果保持原记录；新增 D14 场景不因设计方向批准或原型运行而批量标为 PASS。

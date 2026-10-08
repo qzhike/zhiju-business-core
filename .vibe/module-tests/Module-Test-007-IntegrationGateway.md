@@ -119,3 +119,15 @@ review 同时指出本次 PR 不足以声称 Issue #6 全部 8 条验收完成�
 | IG-TD-002 | synthetic Driver未调用，fixture伪造SUCCEEDED/Receipt | owning写入拒绝；真实合成调用可保存source=SYNTHETIC_DRIVER | NOT RUN |
 | IG-TD-003 | 超时UNKNOWN同键重放/真实reconciliation | 无二次dispatch；追加Observation不改request/binding | NOT RUN |
 | IG-TD-004 | 跨Scope Query或试图读取Token/Continuation Secret | 拒绝或最小化投影；不存在敏感字段 | NOT RUN |
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+新增矩阵是方向批准后的前瞻要求；固定匿名原型及窄检查不证明公开 API、真实持久化、Runtime 或独立人工业务验收。执行证据按项目规则进入对应 GitHub Issue/PR，不在本表伪填 PASS。
+
+| ID | 输入 | 预期 | 正式实现/验收结果 |
+|---|---|---|---|
+| IG-D14-001 | 路径逃逸 ZIP、任意运行时/Skill/MCP 或宿主路径 | 受控物化/配置；解包失败不 dispatch，不能用文件内容改 Host 权限 | `NOT RUN` |
+| IG-D14-002 | JSON/Markdown Hash、来源清单或原 Invocation 不匹配 | 隔离不合法报告；自然语言成功和进程退出不证明报告接纳 | `NOT RUN` |
+| IG-D14-003 | 真实 CLI timeout / 同键重试 / 新材料 | UNKNOWN 仅回读；新输入新请求，真实 conformance 单列，固定四运行时目标不冒充实现 | `NOT RUN` |

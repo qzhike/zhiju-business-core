@@ -1,0 +1,26 @@
+/* Receipt reconciliation stays beside the existing single opinion field. */
+.receipt-status{border:1px solid #dcd8eb;border-left:3px solid var(--purple);background:#f8f7fc;border-radius:7px;padding:12px;margin-bottom:12px;font-size:12px;line-height:1.7}
+.receipt-status strong{display:block;font-size:13px}
+.receipt-status p{margin-top:5px;font-size:11px;color:#646178}
+.receipt-status.is-unknown{border-color:#e8d7b9;border-left-color:#a87620;background:#fff8ed}
+.receipt-status.is-unknown p{color:#806640}
+.receipt-status.is-confirmed{border-color:#c9ded1;border-left-color:var(--green);background:#f0f7f2}
+.receipt-status.is-confirmed p{color:#587362}
+.receipt-status button{font-size:11px;margin-top:9px;padding:6px 10px}
+.receipt-query-note{font-weight:500}
+.receipt-original{margin:0 0 14px;font-size:11px;color:var(--muted)}
+.receipt-original summary{cursor:pointer;padding:3px 0}
+.receipt-original p{margin-top:8px;overflow-wrap:anywhere}
+.receipt-original pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.7;border:1px solid var(--line);background:#fafafd;padding:9px;margin-top:8px;max-height:150px;overflow:auto;color:var(--ink)}
+.receipt-original small{display:block;font-size:10px;line-height:1.6;margin-top:7px}
+.receipt-attachment:not(:empty){border:1px solid var(--line);border-radius:7px;padding:9px;margin-top:10px;overflow-wrap:anywhere}
+.receipt-attachment strong,.receipt-attachment small{display:block;font-size:11px}
+.receipt-attachment small{font-size:10px;color:var(--muted);margin-top:3px}
+.receipt-attachment button{font-size:10px;padding:4px 7px;margin-top:7px}
+.receipt-submit-note{line-height:1.6}
+.receipt-controls label{font-size:11px}
+.receipt-controls select{display:block;max-width:100%;width:100%;font:inherit;margin:7px 0 10px;padding:7px;border:1px solid var(--line);border-radius:6px;background:white}
+.receipt-controls p{line-height:1.7;margin-top:8px;overflow-wrap:anywhere}
+.receipt-controls button{margin-top:8px}
+.receipt-status button:focus-visible,.receipt-original summary:focus-visible,.receipt-controls select:focus-visible{outline:2px solid #9a92e5;outline-offset:3px}
+@media(min-width:1001px){.submission-preview-shell .execution-review-grid{grid-template-columns:150px minmax(0,1fr) 305px}}

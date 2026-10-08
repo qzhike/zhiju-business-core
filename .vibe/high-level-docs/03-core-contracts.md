@@ -1225,3 +1225,11 @@ Human、Agent、飞书、Runtime 和未来 API 可以使用不同呈现方式，
 状态：TECHNICAL DESIGN APPROVED 2026-09-08。#152–#154 的已批准选择见 [TD-01–04](../decisions/task-execution-human-operated.md#7-技术增量与决定边界152154)。本轮保持 ProjectContext/WorkOrder/AgentResult v1.0 本体、Hash规则和七类WorkOrder Criterion名称不变。首次Context的Draft Snapshot与build metadata位于Core本体外，Context不反向引用未来frozen Contract；旧build_context_snapshot仍需要精确ContractRef。
 
 TaskDefinition的开放CanonicalJson若收敛为首版typed criteria，采用execution.create_task@2.0，不能收窄旧@1.0。Core §4.9 的inputBindings/expectedCondition/profile机械形状设计在[Spec 003 §11.6](../module-specs/Module-Spec-003-TaskExecution.md#116-workorder-criterion-与-task-v2)，作为已批准的注册Evaluator适配器设计，不改写本Core当前Schema。Readiness/Validation的新事实外壳引用精确Core输入，不能用bool替代Core验证或用bundleHash形成循环引用。新增字段与首版类型限制已获批准，运行验收NOT RUN。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+准备阶段不能满足现有 ProjectContext v1.0 的 Profile/QMS 必填 SourceManifest。推荐显式新增 PreparationContext，保留原合同及 Hash 域；它绑定真实 Enterprise/Project、Task/WorkOrder、精确准备来源/输入清单、实际模板/规则版本、用途/受众/有效期、水位、读取覆盖及 UNKNOWN/omission/redaction。
+
+PreparationContext 是待注册设计类型，不是当前 Core Schema。其 kind/objectType/schemaVersion/规范 Hash、Builder 输入输出、WorkOrder versionPins/Validator 接受集及 Runtime Package 消费必须同时闭合；报告附件 Hash 不替代 Context/Contract Hash，也不以占位引用满足旧合同。

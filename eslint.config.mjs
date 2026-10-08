@@ -17,6 +17,8 @@ export default tseslint.config(
       // It is deliberately TypeScript-only and is not part of the compiled
       // workspace, so we exclude it from the typed project service.
       'tools/contracts/lib/**',
+      // The unregistered design DTO is verified separately with tsc --noEmit.
+      '.vibe/decisions/workspace-startup-review-v0.1.types.ts',
     ],
   },
   eslint.configs.recommended,

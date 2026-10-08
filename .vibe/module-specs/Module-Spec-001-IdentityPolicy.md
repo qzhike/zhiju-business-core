@@ -249,3 +249,12 @@ WI-10 的 `Audit INSERT` 失败场景需要临时撤销共享角色权限，而 
 PR #52 合并后的默认分支已通过直接锁定 digest 的 `12 files / 177 tests` Persistence 运行、二次 migrate no-op 和 WI-02/03/04/09 Runbook 级本地探测；PR #53 已收口 Runbook 文档口径，合并后的 main 完整 verify 仍为 PASS。
 
 最终默认分支的 WI-09 Decision 脱敏追踪和本地 Runbook 角色/RLS/技术表探测已记录于 [`Runbook-Manual-Acceptance-2026-08-24.md`](../archive/im-02-acceptance-issue-28/Runbook-Manual-Acceptance-2026-08-24.md)；外部 Provider、生产环境和真实用户外部验收仍为 `NOT RUN`，不影响本地 scoped IM-02 COMPLETE。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+1. 资料准备不是降低授权要求：客户隔离、Project Scope、成员可见性在接纳 ZIP 前已建立。名称、ZIP 文件名、Runner 文本和 runtime session 都不授予身份或权限。
+2. 分别授权 Human 新建/选择客户与准备项目、提交资料/核对必要事实；SERVICE 准备源清单、调度分析、接纳报告与回读。ScopeClaim 的有效性只证明归属，不赋予文件修改、确认、批准或发布能力。
+3. PREPARATION_ANALYSIS 只读客户输入与模板、允许写本次报告输出目录；禁止修改原件、模板、正式成果，以及拥有 Human-only Fact/QMS/Approval/Release 权限。具体 Purpose/profile/Policy 版本与覆盖关系须逐项闭合，不能接受未注册用途或宽泛“Agent 可用”权限。
+4. 所有新动作及幂等返回前独立核验认证主体、精确 Scope、当前 grant/Decision 和时效；撤权后旧回执可审计，但不能恢复新动作资格。界面集中确认不把不同 owning Human 决定合为一个未经验证的布尔值。

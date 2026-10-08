@@ -1417,3 +1417,12 @@ EnterpriseProject / Artifact
 状态：TECHNICAL DESIGN APPROVED 2026-09-08，未实现。具体流程见[设计§9–10](../decisions/task-execution-human-operated.md#9-wi-03-事务序列与竞态裁决)及Spec 003设计命令。Process从已提交Result/Acceptance/Resolution/Event恢复固定步骤，每一步调用owning公开Command，进度单独提交；响应/进度丢失通过稳定Command Receipt重放恢复。不能把Run、WO、Task、DeliveryItem放进一个写事务。
 
 TaskCompleted沿用现有v1.0事件字段，由TE Task事务的Outbox真实派发至既有EP DeliveryCompletionEventInput，SourceWatermark来自持久游标。EP只消费事实，不同步回查TE形成依赖环。跨模块即时Query与本模块CAS不能保证分布式同一时刻的撤销原子性；只声明可审计观测时点，失效事件推动Impact/重评估，当前权威Query阻止后续误用。需要跨模块原子授权reservation时另立设计，不把当前方案误称强一致。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。本节同步用户已批准的初始化方向；完整依据、兼容边界与后续字段合同见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。不改变本分支历史正文的实施状态，不将原型演示作为后台接入证据。
+
+1. 客户创建、准备项目创建、可信事实确认、Project 一次性启动和本轮升级请求分别保留 owning 事务及精确回执。前一步成功、后一步失败时保留已提交事实，从真实阶段回读继续，不伪装全失败、自动删除客户或重复新建。
+2. 同一意图稳定键、原 payload 和来源快照贯穿恢复；UNKNOWN 先回读，不换键重试。材料/模板/报告变化形成新快照；启动核验重验当前权限、项目 CAS、报告/输入及候选引用，旧输入不可无声替换。
+3. 准备项目没有占位 PROJECT_START；Human 必要信息确认后由 EP 一次性建立完整绑定并转 ACTIVE。只有启动已提交且所选整份计划满足条件，才允许进入既有升级路径；阻塞文件不随其他文件提交而解除。
+4. 准备报告接纳、项目正式启动、范围请求接收、Runner 执行、文件候选、批准和交付是不同事实。迟到报告、旧请求与成功回执保留历史；刷新和关闭不取消真实执行，也不能由页面推断执行或业务完成。

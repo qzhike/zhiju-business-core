@@ -70,3 +70,13 @@
 - 32 个用例：4 Design、8 Unit、8 Contract、8 E2E、4 Manual。
 - 4 个 Design Gate 已完成静态 `DESIGN VERIFIED`；其余 28 个 Unit/Contract/E2E/Manual 保持 `NOT RUN`。
 - 不存在 Runtime Adapter、Process Driver、Schema、Fixture 或真实 CLI 执行；CLI 安装和认证是部署前提，不由本项目实现。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+| ID | 输入 | 预期 | 结果 |
+|---|---|---|---|
+| RT-D14-001 | 一个已批准真实 CLI 的准备分析 Package | 读客户/模板、受限写报告；实际原 Invocation、来源清单/JSON/Markdown bytes 与 Hash 可核验 | `NOT RUN` |
+| RT-D14-002 | 错 Context/profile/Scope、过期 lease/fencing、超限或混合输出 | 拒绝/隔离；无伪造成功或文件修改权限 | `NOT RUN` |
+| RT-D14-003 | timeout、原调用回读与新材料新分析 | 稳定键不重复 invoke；旧输入不偷换；四 Runtime 各自 conformance 不混填 | `NOT RUN` |

@@ -635,3 +635,11 @@ MVP 必须建设完整双向飞书 Agent Channel；但业务逻辑不得写入�
 > 以 Zhiju Core 承载长期业务事实和正式状态，以可替换 Agent Harness 执行具体任务，以确定性验证、独立 Review 和 Human Approval 控制质量，以飞书和专业 Workspace 提供符合员工习惯的使用体验。
 
 本报告是 [`02-zhiju-core-architecture.md`](02-zhiju-core-architecture.md) 的业务输入，不应被 Agent Runtime、UI 或数据库设计反向覆盖。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。本节同步用户已批准的初始化方向；完整依据、兼容边界与后续字段合同见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。不改变本分支历史正文的实施状态，不将原型演示作为后台接入证据。
+
+1. 首轮顾问操作为：明确选择或新建客户、填写项目名 → 同一项目提交客户 ZIP → 服务器 Runner 先读客户文件再比公司模板 → 查看缺失资料优先的分析总览 → 在现有范围面板核对必要信息并逐份选择 → 明确确认后启动本轮升级。创建和上传不表示正式启动或授权修改文件。
+2. 三类必要信息以企业基础信息、体系与规则、产品范围的紧凑摘要展示，客户依据按需展开，不增加企业画像维护页或 Web 分析 Agent。模板不能替代客户事实；质量方针、目标、组织与职责、产品及现行业务流程继续按保护规则处理。
+3. 必要启动依据缺失时可继续查看报告、补资料和复制索取清单，但不能启动。正式启动成功后可先处理不受缺口影响的独立文件；未决保护冲突仍阻塞受影响的整份文件。既有完整创建及 Human-operated 路径保留。

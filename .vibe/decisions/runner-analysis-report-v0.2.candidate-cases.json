@@ -1,0 +1,111 @@
+{
+  "fixtureFormat": "DESIGN_ONLY_CANDIDATE_CASES_V1",
+  "partialProduct": {
+    "candidateId": "SC-PRODUCT",
+    "kind": "PRODUCT",
+    "title": "系列甲产品范围",
+    "valueState": "UNKNOWN",
+    "value": {
+      "productType": "demo.device",
+      "displayName": "系列甲",
+      "intendedUse": "示例用途，限合同样例。",
+      "productScope": {
+        "productFamily": "示例产品族",
+        "variants": [
+          "甲一",
+          "甲二"
+        ]
+      }
+    },
+    "evidenceIds": [
+      "E-PRODUCT"
+    ],
+    "reason": "按客户依据保留现状，等待顾问确认。",
+    "relatedAttentionItemIds": [
+      "U-PRODUCT"
+    ],
+    "missingFields": [
+      "productScope.markets"
+    ],
+    "conflictingFields": [],
+    "alternatives": []
+  },
+  "managementConflict": {
+    "candidateId": "SC-MANAGEMENT",
+    "kind": "QMS_MANAGEMENT_CHOICE",
+    "title": "保留两份独立程序",
+    "valueState": "CONFLICT",
+    "value": null,
+    "evidenceIds": [
+      "E-MANAGEMENT",
+      "E-ALTERNATE"
+    ],
+    "reason": "按客户依据保留现状，等待顾问确认。",
+    "relatedAttentionItemIds": [
+      "U-MANAGEMENT-CONFLICT"
+    ],
+    "missingFields": [],
+    "conflictingFields": [
+      "selectedOption"
+    ],
+    "alternatives": [
+      {
+        "value": {
+          "choiceKey": "demo.capa_organization",
+          "selectedOption": "纠正措施与预防措施使用两份独立程序，分别保持现行审批流程。",
+          "rationale": "按现行客户文件保持分立。"
+        },
+        "evidenceIds": [
+          "E-MANAGEMENT"
+        ]
+      },
+      {
+        "value": {
+          "choiceKey": "demo.capa_organization",
+          "selectedOption": "纠正与预防措施统一使用一份程序。",
+          "rationale": "另一份客户说明。"
+        },
+        "evidenceIds": [
+          "E-ALTERNATE"
+        ]
+      }
+    ]
+  },
+  "professionalProposal": {
+    "candidateId": "SC-PROFESSIONAL",
+    "kind": "QMS_PROFESSIONAL_DECISION",
+    "title": "保持现行流程的判断建议",
+    "valueState": "EVIDENCED",
+    "value": {
+      "decisionType": "demo.preserve_process",
+      "outcome": "保持现行流程",
+      "rationale": "客户现行流程没有获准调整。"
+    },
+    "evidenceIds": [
+      "E-MANAGEMENT"
+    ],
+    "reason": "按客户依据保留现状，等待顾问确认。",
+    "relatedAttentionItemIds": [],
+    "missingFields": [],
+    "conflictingFields": [],
+    "alternatives": []
+  },
+  "additionalEvidence": {
+    "id": "E-ALTERNATE",
+    "sourceId": "C-ALTERNATE",
+    "representation": "ORIGINAL",
+    "locator": {
+      "kind": "SECTION",
+      "value": "客户说明"
+    },
+    "quote": "本说明写为：纠正与预防措施统一使用一份程序。",
+    "note": "只作为相互冲突的来源。",
+    "extractedText": null
+  },
+  "additionalSource": {
+    "sourceId": "C-ALTERNATE",
+    "role": "CUSTOMER_MATERIAL",
+    "relativePath": "runner-analysis-report-v0.2.alternate.example.md",
+    "sha256": "02ceeb3cb6b0627b68735ffbb7ec0e024e260cea6d2442dac18cafbd4f42f83d"
+  }
+}

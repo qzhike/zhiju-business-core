@@ -581,3 +581,13 @@ Provider authentication/resource/policy 错误映射到共享 `ApiError` 的 `AU
 关联#153/TD-02，状态TECHNICAL DESIGN APPROVED 2026-09-08。当前§15.1六项命令仍待独立决定；本轮不把它们纳入Catalog。设计Run record/finalize/expire与WO/Task reconcile由[Spec 003 §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)定义；完整Runtime Attempt binding由[Spec 007](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)拥有。
 
 受控Driver通过真实合成调用/ack建立SYNTHETIC_DRIVER Observation，Input/Output是可重复技术Fixture，不宣称Provider/CLI/Feishu验收。先提交Attempt再调用，UNKNOWN只调和原Attempt；start_run必须exact绑定且lease有效。result提交、record、validation、acceptance、finalize为独立owning事务，late/cancel/expiry在Run锁上裁决；lease到期的无ACK取消为ABANDONED，不是CANCELLED。未知Usage继续ValueEnvelope UNKNOWN/UNAVAILABLE，独立权威Usage写入本轮不实现。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+准备分析 profile 须明确消费新的 PreparationContext 及其精确 Schema/输入清单，Host 受控物化 ZIP 成员、客户源和公司模板/规则，Runner 先读客户再比较模板。允许本次受控目录内写 JSON/Markdown 报告，不允许改原件、模板、成果或执行 Human-only 确认/批准/发布。
+
+Runtime 目标为 oh-my-pi、pi、qoder-cli、Claude Code；本文旧 CLI profile 不因此被重新命名或宣称 conformance。首发真实 Runtime/版本、提示词/Skill/MCP 精确版本及 Parser/输出来源规则须按 IM-DG-006 闭合。UNKNOWN 回读原 Invocation，实际 bytes/Hash/Session/lease/fencing 证据才供 TE/EP 接纳；synthetic 技术结果与真实 Provider 分开。
+
+下一版输出字段草案见[Runner 分析报告 v0.2](../decisions/runner-analysis-report-v0.2.md)。现有 v0.1 固定校验器与渲染器尚未实现该候选扩展，必须通过版本化 outputProfile 和新 Renderer/接纳规则闭合后再接入，不覆盖既有报告或宣称四类 Runtime 已通过生产验收。

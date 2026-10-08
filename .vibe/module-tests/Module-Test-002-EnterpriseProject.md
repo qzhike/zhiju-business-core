@@ -346,3 +346,17 @@ pnpm persistence:gate
 | EP-TD-002 | 错Scope/Purpose/Audience或已撤销授权读取Slice | fail closed；旧payload不改写 | NOT RUN |
 | EP-TD-003 | 真实confirm_customer_material Receipt及candidate/result/Source/Decision | 窄Attestation精确匹配实际提交，TE可核验；不泄露客户正文 | NOT RUN |
 | EP-TD-004 | REJECTED或其他command Receipt、同correlation错材料、旧材料不足以backfill | 不可用，不用current Root猜历史确认 | NOT RUN |
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+新增矩阵是方向批准后的前瞻要求；固定匿名原型及窄检查不证明公开 API、真实持久化、Runtime 或独立人工业务验收。执行证据按项目规则进入对应 GitHub Issue/PR，不在本表伪填 PASS。
+
+| ID | 输入 | 预期 | 正式实现/验收结果 |
+|---|---|---|---|
+| EP-D14-001 | 缺 StartSnapshot 的两项名称入口 | 仅新准备入口建立正式隔离；旧完整创建保持三个必填引用，不造假快照 | `NOT RUN` |
+| EP-D14-002 | 合法 ZIP / 损坏、同名、不支持成员 | 逐件来源/Hash；受控失败不调 Runner；同名不合并，不支持不算已读 | `NOT RUN` |
+| EP-D14-003 | 报告与真实 Result/输入绑定错或晚到 | 不接纳错绑定；历史保留，不覆盖新报告/草稿，不自动确认事实 | `NOT RUN` |
+| EP-D14-004 | 并发正式启动、直 SQL、旧损坏项目 | 唯一完整 PROJECT_START 与 ACTIVE 原子提交；拒绝伪造和隐式回退 | `NOT RUN` |
+| EP-D14-005 | 新客户已建、项目步骤失败/UNKNOWN | 按原键回读/继续，不重复客户或项目、不自动删除客户 | `NOT RUN` |

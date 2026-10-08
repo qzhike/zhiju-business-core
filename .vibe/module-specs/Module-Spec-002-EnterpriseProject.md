@@ -765,3 +765,14 @@ ResolutionReceiptAttestation payload：`commandReceiptRef, commandType, commandV
 Receipt Ref 的 Hash 对应持久化规范 Receipt payload（command identity/type/version、完整 Scope/target、request hash、结果引用、outcome、actor/decision、committedAt），不使用原命令 requestHash冒充 Receipt Hash。若现有 Receipt未存该规范投影，后续实现须 forward migration/backfill精确可重算材料，不能凭 current Root猜历史结果；无法恢复时 fail closed。Query可以返回脱敏 typed projection，但 Hash验证基于完整受控 canonical receipt。TE仅消费允许字段。
 
 新增 Slice表、Receipt canonical material的存储要求由 PostgreSQL技术设计附录拥有；不修改旧 V2007/历史Receipt，不创建跨 Schema FK。此设计不自动支持 Fact/Approval/Policy Exception答案采纳。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+1. Project 增加受控 PREPARING 阶段，创建时建立真实 Enterprise/Project 身份、ScopeClaim、精确成员策略及回执；可接纳原始资料和只读分析，不填造三个 ProjectStartSnapshot 引用。现有 create_project@1.0 保持完整创建语义。
+2. 原始 ZIP 与解包成员保留独立来源、Hash、逐件接纳状态；SourceMaterial 接纳不要求顾问提前确认整套 CustomerBaseline。同名、同内容来源不自动合并；跨项目复用须显式选择并核验来源和权限。
+3. 新的 Preparation Source Slice 只含已接纳客户源对象、精确公司模板/规则、历史报告和可信决定，保存用途、受众、时效及水位；不直接放宽现有依赖 PROJECT_START 的 Query/capture。机器报告的 READ/检查声明不提升为语义正确。
+4. EP 拥有准备分析报告的不可变业务快照、精确输入/真实 Result 绑定和查询；它不等于正式 ACCEPTED GapAnalysis、ACTIVE DeliveryPlan 或已批准成果。Runner 提出的 EnterpriseFact/Product/QMS 候选须带来源，不能从模板复制企业事实。
+5. 有权限的 Human 核对必要信息后，新增一次性启动入口按 CAS 验证并提交唯一 PROJECT_START 绑定及 PREPARING → ACTIVE；Scope、memberPolicy 与绑定不可替换。新材料产生新报告/影响评估。项目级启动条件与逐文件缺口/保护条件分开，整份有保护冲突的文件等待。
+6. 新建 Enterprise 与准备 Project 分属 Aggregate，逐步持久化和按原键恢复，不承诺跨 Aggregate 原子性；旧完整项目与历史合同不回退、不改写。新创建/启动的操作、事件、错误和回读合同须 additive 注册后才实现。

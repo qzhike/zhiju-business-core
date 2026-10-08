@@ -4,7 +4,11 @@
 
 | 主题                          | 文档                                                       | 执行关联 / 状态                                                                                                                                                                                                |
 | ----------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Human + Agent 工作台 MVP | [正式设计提案](workspace-mvp-human-agent.md) | 产品理念已确认；Spec Delta、技术选型及上传政策等待决；独立前端设计分支，不变更 IM-06 当前执行范围 |
+| Human + Agent 工作台 MVP | [正式设计提案](workspace-mvp-human-agent.md) | 产品理念、技术栈、草稿/改稿策略、DOCX/ZIP 输入、四类服务器 Runtime、Runner 先分析与缺口索取复制已确认；跨模块 Spec Delta 待审查；独立前端分支，不变更 IM-06 当前执行范围 |
+| UI 首版工程收口 | [工程决策提案](workspace-ui-engineering-baseline.md) | 用户于 2026-10-08 批准工程方案；首装版本、组件/BFF/会话与验收方向冻结；独立审查与正式实现尚未完成 |
+| Runner 分析报告 | [Schema v0.1 设计](runner-analysis-report-v0.1.md) | 基于独立测试报告形成 T2 待审草案、JSON Schema 与匿名示例；尚未注册或实现 Core/Runtime 接纳 |
+| Runner 启动候选字段 | [报告 v0.2 草案](runner-analysis-report-v0.2.md) | D14 字段细化；保留 v0.1；未注册、未接入生产 Runner |
+| 启动核对数据与回执 | [DTO v0.1 草案](workspace-startup-review-v0.1.md) | 保留已批准布局；合成样例与设计检查，不代表 Core/API 实现 |
 | IM-06 Human-operated          | [设计提案](task-execution-human-operated.md)               | TD-01–04 APPROVED 2026-09-08；TD-05–07 PROPOSED，实现未开始                                                                                                                                                      |
 | Canonical Content / Renderer  | [IM-DG-005 决策](canonical-content-renderer.md)            | 用户批准路线；[#89](https://github.com/qzhike/zhiju-business-core/issues/89)、[#90](https://github.com/qzhike/zhiju-business-core/issues/90)、[#125](https://github.com/qzhike/zhiju-business-core/issues/125) |
 | EnterpriseProject 能力        | [Capability 决策](enterprise-project-capabilities.md)      | [#57](https://github.com/qzhike/zhiju-business-core/issues/57)                                                                                                                                                 |

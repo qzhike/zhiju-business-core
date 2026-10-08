@@ -1123,3 +1123,11 @@ Issue #57 已为 Product、QMSConfiguration、EnterpriseProfileSnapshot、Produc
 ## IM-06 未注册设计路由
 
 当前Catalog保持201项；本节不注册任何新操作或Type。#152–#154技术增量的精确字段与名称在[TaskExecution Spec §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)、[IntegrationGateway Runtime Binding](../module-specs/Module-Spec-007-IntegrationGateway.md#im-06-runtime-binding-query-设计)、[EnterpriseProject Source/Receipt](../module-specs/Module-Spec-002-EnterpriseProject.md#im-06-source-slice-与-resolution-receipt-设计)、[Quality当前资格](../module-specs/Module-Spec-005-QualityGovernance.md#im-06-revision-当前执行资格-query-设计)。TD-01–04已获批准；选定operation type/version/Owner与新增Ref类型将在对应实现修订纳入可执行Catalog并生成Schema，批准设计与运行时注册状态分别记录。Runtime专项六项提案保持独立未注册状态，不能混入本轮设计计数。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+本轮只同步 additive 设计范围，不注册或增加任何可执行 Catalog 项。准备项目创建、一次性启动、准备来源捕获/读取、准备分析 Task/Context、分析报告接纳/查询及相应状态恢复能力须由 EP/IP/TE/IG owning 规格先确定精确字段、Purpose、Ref kind/objectType、版本与错误面，再进行统一 Catalog/Schema 注册。
+
+已发布 create_project@1.0、create_task 两个 Major、ProjectContext v1.0 与历史 compatibility baseline 不通过新增 UI 被静默放宽；设计词 PREPARING/PreparationContext 不等于已注册公共引用。

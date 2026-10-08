@@ -310,3 +310,12 @@ Runtime Worker 从 TaskExecution 权威 Run lease/binding Port 读取 lease/fenc
 Attempt invocationBinding 创建后不可变；success observation 必须复验 invocationHash、稳定键和 session来源，原 request、Receipt、lease绑定全部同 Scope。超时 UNKNOWN、重放返回原 Attempt；允许对原 Attempt 独立真实读回并追加 reconciliation Observation，但不得二次 dispatch同键或反向由待验证 Receipt 构造 Query View。记录成功不意味着当前 lease仍有效，TE start/finalize 必须重新判断时效。
 
 拥有关系、物理表和 guard 见 PostgreSQL 技术设计附录。旧 Renderer/FormalReceipt 行为保持原基准；本设计不授权 Runtime 六项控制命令。Runtime成功与 synthetic 技术证据必须分别标记。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+1. ZIP 提交在正式 Project Scope 内接纳，Host 受控解包并物化客户输入、公司模板/规则及来源别名。用户文本和 ZIP 条目不得指定宿主路径、Runtime 可执行文件、模型、Skill 或 MCP；解包失败不 dispatch。
+2. 分析 Driver 明确消费 PreparationContext/profile 与同一 Run/Attempt/lease/fencing；允许写受限报告输出根，客户源和模板只读。当前 synthetic profile 不证明真实 CLI 已兼容。
+3. 原始报告 JSON、Markdown bytes/Hash 和文件声明从实际原 Invocation 观察；不凭自然语言猜成功、不向 EP 复制 Runtime 状态。EP/TE 独立校验和接纳，缺来源或绑定错的输出隔离。
+4. Runtime 目标名单为 oh-my-pi、pi、qoder-cli、Claude Code；首版实际所用 Driver/版本/profile 由部署及技术决定固定。UNKNOWN 只回读原调用，显式重试和新输入创建受控新尝试，不同键不得无意重复执行。

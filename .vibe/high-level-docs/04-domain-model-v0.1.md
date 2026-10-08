@@ -5707,3 +5707,11 @@ DeliveryItem Completion 是由 EnterpriseProject owning Evaluator 根据冻结 `
 #152–#154 的具体设计方向批准与新增决定边界见[IM-06设计](../decisions/task-execution-human-operated.md)。本轮设计保留Task/WorkOrder/Run/AgentResult/InformationRequest独立Aggregate以及§18–22的完成层级；提出Result接收reservation、Run record/finalize/expire、WO/Task reconcile的公开映射与竞态裁决，见[Spec 003 §11](../module-specs/Module-Spec-003-TaskExecution.md#11-im-06-技术设计)。这些入口尚未注册，不把本Domain内部命令表直接当现有API。
 
 新增设计明确COMPLETED为历史完成事实，当前useStatus/Impact与历史分开；依赖Readiness必须检查当前有效性。final BLOCKED_INPUT的Run可SUCCEEDED但WorkOrder仍阻塞，答案后新Context/Run；Runtime取消未确认不能CANCELLED。Task typed criteria首版、答案CustomerMaterial限制与具体控制入口属于TD-01–04已批准增量。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+Project 的准备阶段属于现有 EnterpriseProject 模块及同一个 Project identity，不新增客户接纳工作区或业务内核模块。PREPARING 建立隔离和权限但没有 PROJECT_START；正式启动一次性提交精确绑定并转 ACTIVE。原始资料与准备报告均独立于 Root 保存不可变来源/快照，历史 Scope、成员策略、启动绑定和已提交成果不搬迁、不改写。
+
+初始化方向已批准；对象/类型字段及 forward migration 尚待技术闭合。正式准备报告只表示可供审阅，不替代 CustomerBaseline 确认、正式 GapAnalysis 接受、DeliveryPlan 激活、Artifact 批准或 Project 完成。

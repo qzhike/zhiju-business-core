@@ -1,0 +1,83 @@
+/* A bounded chapter list keeps selection and the batch action visible. */
+.project-delivery-shell .delivery-heading>a{font-size:12px;white-space:nowrap}
+.project-delivery-panel{flex:1;min-height:150px;overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;background:white}
+.project-delivery-toolbar{display:flex;justify-content:space-between;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);flex-shrink:0;flex-wrap:wrap}
+.project-delivery-toolbar>div{display:flex;gap:8px;flex-wrap:wrap}
+.project-delivery-toolbar button{font-size:12px;padding:6px 9px;border-color:transparent}
+.project-delivery-toolbar button[aria-pressed=true]{color:var(--purple);background:var(--soft);border-color:#d6d0ee}
+.project-delivery-toolbar button span{margin-left:8px;font-variant-numeric:tabular-nums;font-size:11px}
+.project-delivery-toolbar input{font-size:12px;min-width:180px;width:210px;max-width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+.project-delivery-file-scroll{flex:1;min-height:0;overflow:auto;padding:0 24px;overscroll-behavior:contain}
+.project-delivery-file-scroll:focus-visible{outline:3px solid #9a92e5;outline-offset:-3px}
+.project-delivery-chapter{margin-top:22px}
+.project-delivery-chapter:last-child{margin-bottom:20px}
+.project-delivery-chapter h2{display:flex;align-items:baseline;gap:10px;font-size:13px;font-weight:600;border-bottom:1px solid var(--line);padding-bottom:12px}
+.project-delivery-chapter h2>span{font-variant-numeric:tabular-nums;color:var(--purple);font-size:12px}
+.project-delivery-chapter h2>small{font-weight:400;color:var(--muted);font-size:11px;margin-left:auto}
+.project-delivery-file{display:grid;grid-template-columns:22px minmax(0,1fr) 110px auto;gap:16px;align-items:center;padding:18px 0;border-bottom:1px solid var(--line)}
+.project-delivery-file input{width:17px;height:17px;accent-color:var(--purple);cursor:pointer}
+.project-delivery-file input:disabled{cursor:default}
+.project-delivery-file-main>strong{display:block;font-size:14px;font-weight:500}
+.project-delivery-file-main>small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+.project-delivery-file button{font-size:11px;padding:5px 10px}
+.project-delivery-file.waiting{align-items:start}
+.project-delivery-file.waiting input,.project-delivery-file.waiting button,.project-delivery-file.waiting .delivery-file-version{margin-top:2px}
+.project-delivery-reason{margin:12px 0 0;padding:11px 13px;border-left:3px solid #c99333;background:#fff7e8;color:#80520c;border-radius:0 5px 5px 0;font-size:12px;line-height:1.8}
+.project-delivery-reason>strong{display:block;font-size:12px;font-weight:600;margin-bottom:3px}
+.project-delivery-list-foot{border-top:1px solid var(--line);color:var(--muted);font-size:11px;padding:10px 24px;flex-shrink:0}
+.project-delivery-example{padding:8px 12px;background:var(--soft);border:1px solid #e3dff0;border-radius:6px;color:var(--purple);font-size:11px;flex-shrink:0;margin:0 0 12px}
+.project-delivery-shell .delivery-demo-tools>a{font-size:10px;margin-left:10px}
+.project-delivery-confirm-list{max-height:40dvh;overflow:auto;border:1px solid var(--line);border-radius:7px;padding:0 14px;margin:15px 0}
+.project-delivery-confirm-list>p{padding:12px 0;border-bottom:1px solid var(--line)}
+.project-delivery-confirm-list>p:last-child{border:0}
+.project-delivery-confirm-list strong{display:block;font-size:13px;font-weight:500}
+.project-delivery-confirm-list small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+@media(max-width:650px){
+ .project-delivery-shell .delivery-heading{flex-direction:column;gap:5px}
+ .project-delivery-shell .delivery-heading>a{font-size:10px}
+ .project-delivery-toolbar{padding:10px 12px;gap:9px}
+ .project-delivery-toolbar>div{gap:2px}
+ .project-delivery-toolbar button{font-size:11px;padding:5px 6px}
+ .project-delivery-toolbar button span{margin-left:4px}
+ .project-delivery-toolbar label,.project-delivery-toolbar input{width:100%}
+ .project-delivery-file-scroll{padding:0 12px}
+ .project-delivery-file{grid-template-columns:18px minmax(0,1fr) auto;gap:7px 10px;padding:14px 0}
+ .project-delivery-file input,.project-delivery-file>.delivery-file-icon{grid-column:1;grid-row:1/3}
+ .project-delivery-file-main{grid-column:2;grid-row:1}
+ .project-delivery-file-main>strong{font-size:12px}
+ .project-delivery-file-main>small{font-size:10px}
+ .project-delivery-file .delivery-file-version{grid-column:2;grid-row:2;text-align:left;display:flex;gap:8px;flex-wrap:wrap}
+ .project-delivery-file .delivery-file-version small{margin-top:0}
+ .project-delivery-file button{grid-column:3;grid-row:1/3;padding:4px 7px;font-size:10px}
+ .project-delivery-list-foot{padding:8px 12px;font-size:10px}
+ .project-delivery-chapter{margin-top:17px}
+ .project-delivery-reason{padding:8px 9px;font-size:11px}
+ .project-delivery-example{font-size:10px}
+}
+
+.simple-project-progress>div{flex-wrap:wrap}
+.simple-project-progress a{font-size:11px;white-space:nowrap}
+
+.project-delivery-footer-actions{display:flex;align-items:center;gap:9px}
+@media(max-width:650px){.project-delivery-footer-actions{flex-direction:column;align-items:stretch}.project-delivery-footer-actions button{width:100%}}
+
+.project-delivery-toolbar .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.project-delivery-file .delivery-file-version strong{display:block;font-size:12px;font-weight:500}
+.project-delivery-file .delivery-file-version small{display:block;font-size:10px;color:var(--muted);margin-top:4px}
+@media(max-width:650px){.project-delivery-file .delivery-file-version strong{font-size:10px}.project-delivery-file .delivery-file-version small{margin-top:0}}
+
+.project-delivery-example-short{display:none}
+@media(max-width:650px){
+ .project-delivery-shell>.intake-back{margin-bottom:8px}
+ .project-delivery-shell .delivery-heading{margin-bottom:8px;gap:0}
+ .project-delivery-shell .delivery-heading p,.project-delivery-shell .delivery-heading>a{display:none}
+ .project-delivery-shell .delivery-heading h1{font-size:20px;margin-top:3px}
+ .project-delivery-shell .delivery-heading .eyebrow{font-size:10px;line-height:1.4}
+ .project-delivery-example{padding:6px 8px;margin-bottom:8px}
+ .project-delivery-example-long{display:none}
+ .project-delivery-example-short{display:inline}
+ .project-delivery-shell .delivery-tabs{margin-bottom:8px}
+ .project-delivery-shell .delivery-footer{padding:9px 0;gap:7px}
+ .project-delivery-shell .delivery-footer p span{font-size:9px;line-height:1.6}
+ .project-delivery-shell .project-delivery-list-foot{font-size:9px;line-height:1.6}
+}

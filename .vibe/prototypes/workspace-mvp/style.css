@@ -23,3 +23,61 @@ body.work-mode{height:100dvh;overflow:hidden;display:flex;flex-direction:column}
 @media(max-width:900px){.change-navigator{padding:9px;margin-bottom:8px}.change-nav-title{font-size:12px}.change-nav-title b{font-size:18px}.change-nav-title button{font-size:11px;padding:6px 8px}.change-current{gap:6px}.change-current strong{font-size:11px}.change-current .row{gap:4px}.change-current button{font-size:10px;padding:5px}.change-directory button{font-size:12px}}
 
 .receipt-brief{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:9px 11px;margin-bottom:12px;background:#f5f4fc;border-left:3px solid var(--purple);font-size:12px}.receipt-brief button{font-size:11px;padding:5px 8px}.receipt-detail{border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px}.receipt-detail details{margin:12px 0}.receipt-detail button{margin:8px 8px 0 0}
+
+/* One input for the next round; prior submissions remain read-only. */
+.submitted-feedback{font-size:12px;margin:12px 0}.submitted-feedback p,.draft-preview{white-space:pre-wrap;overflow-wrap:anywhere;max-height:28dvh;overflow:auto}.draft-note{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;padding:8px;background:var(--soft);border-radius:7px;font-size:11px;margin:10px 0}.draft-note button{font-size:11px;padding:4px 7px}.draft-prototype-note{margin-top:12px;font-size:10px}#draftSaveState{margin:4px 0 10px}
+
+/* The board makes the next action explicit without duplicating project navigation. */
+.simple-board{max-width:1320px;padding-top:24px}
+.simple-board-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px}
+.simple-board-head h1{font-size:26px}
+.simple-board-head p{font-size:12px;color:var(--muted);margin-top:3px}
+.simple-board-head .toolbar{display:flex;align-items:center;gap:12px;margin:0;flex-wrap:wrap}
+.simple-project-progress{display:flex;align-items:center;flex-wrap:wrap;gap:18px 32px;border-bottom:1px solid var(--line);padding-bottom:15px}
+.simple-project-progress>div{display:flex;align-items:center;gap:12px;font-size:12px}
+.simple-project-progress strong{font-weight:550}
+.simple-project-progress>div>span{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.simple-progress-track{display:block;height:4px;width:70px;background:#e7e5f2;border-radius:3px}
+.simple-progress-track i{display:block;height:100%;border-radius:3px;background:#8a83c9}
+.simple-board-context{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:12px 0 18px}
+.simple-board .recent{margin:0;font-size:11px;gap:10px}
+.simple-board-more{position:relative;font-size:11px;color:var(--muted);flex-shrink:0}
+.simple-board-more summary{cursor:pointer;padding:4px 0}
+.simple-board-more>div{position:absolute;right:0;top:calc(100% + 4px);width:200px;border:1px solid var(--line);border-radius:7px;background:white;z-index:3;padding:6px;box-shadow:0 6px 20px #24254412}
+.simple-board-more a,.simple-board-more button{display:block;border:0;background:transparent;border-radius:4px;text-align:left;padding:9px;font-size:11px;width:100%;color:var(--muted)}
+.simple-board-more a:hover,.simple-board-more button:hover{background:var(--soft);color:var(--purple)}
+.simple-board .board{grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr));gap:16px}
+.simple-board .column{min-height:310px;padding:13px;border-radius:9px;background:#efeff5}
+.simple-board .column.attention{background:#eeecf8}
+.simple-board .coltitle{font-size:13px;margin-bottom:12px}
+.simple-board .card{padding:13px 15px;margin-bottom:10px;border-radius:7px}
+.simple-board .card strong{font-size:14px;margin:5px 0}
+.simple-board .card p{margin:5px 0 12px;font-size:11px;line-height:1.8}
+.simple-board .card small{font-size:10px}
+.simple-board .card-next{display:block;color:var(--purple);font-size:12px;font-weight:550}
+.simple-board .card-passive{cursor:default;background:#f8f8fb}
+.simple-board .card-passive:hover{background:#f8f8fb}
+.simple-board .card-passive .card-next{font-size:11px;color:var(--muted);font-weight:400}
+.simple-board-completed{font-size:11px;color:var(--muted);margin-top:16px}
+.simple-board-completed>summary{cursor:pointer}
+.simple-board-completed .column{background:transparent;padding:12px 0;min-height:0;max-width:430px}
+.simple-board-head .intake-board-actions{margin-left:0;flex-shrink:0}
+.simple-board-head select,.simple-board-head .intake-board-actions button{font-size:12px}
+@media(max-width:900px){.simple-board .board{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}.simple-board .column.waiting{grid-column:2}.simple-board .column.attention{grid-row:span 2}.simple-board .column{min-height:160px}}
+@media(max-width:700px){
+ .simple-board{padding-top:17px}
+ .simple-board-head{align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+ .simple-board-head h1{font-size:22px}
+ .simple-board-head p{font-size:11px}
+ .simple-board-head .toolbar{width:100%;justify-content:space-between;gap:8px}
+ .simple-project-progress{gap:8px}
+ .simple-project-progress>div{width:100%;justify-content:space-between;font-size:11px}
+ .simple-project-progress>div>span{font-size:10px}
+ .simple-progress-track{flex-basis:75px}
+ .simple-board .board{grid-template-columns:minmax(0,1fr);gap:12px}
+ .simple-board .column.attention{grid-row:auto}
+ .simple-board .column.waiting{grid-column:auto}
+ .simple-board .column{min-height:0;padding:11px}
+ .simple-board .recent{font-size:10px;gap:5px}
+ .simple-board .card strong{font-size:13px}
+}

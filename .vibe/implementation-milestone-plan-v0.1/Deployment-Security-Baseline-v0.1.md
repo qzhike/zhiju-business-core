@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-17
-状态：`BASELINE / IM-DG-003-004 USER APPROVED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI IMPLEMENTATION NOT STARTED`
+状态：`BASELINE / IM-DG-003-004 USER APPROVED / IM-UI-01 MILESTONE USER APPROVED 2026-08-28 / UI-DG-003 USER APPROVED 2026-10-08 / UI IMPLEMENTATION NOT STARTED`
 
 文档角色：Implementation Milestone Plan 的私有化部署、对象存储、Secret/KMS、认证入口与 Workspace UI 边界的唯一技术决策记录，冻结 IM-DG-003/004。本文不改变 Domain、API、Module、PostgreSQL、Feishu 或 Runtime Contract 语义。
 
@@ -141,6 +141,8 @@ Keycloak 只证明认证主体与 token context，不拥有 Enterprise/Project R
 
 ### 4.4 IM-UI-01 浏览器与 BFF 安全边界
 
+已批准工程方案见[UI 首版工程提案 §5](../decisions/workspace-ui-engineering-baseline.md#5-bff-与安全方案ui-dg-003-提案)：独立同源 BFF、单进程内存技术 Session（重启后重登、业务记录从 Core 恢复）、OIDC 交易与 Cookie、CSRF/Origin/Host、CSP/Markdown、公开操作 allowlist、下载及遥测。用户于 2026-10-08 批准该技术方案，独立审查/实现/验证尚未完成；不改变现行 API stateless、业务身份映射或禁止 BFF 直连基础设施的冻结规则。
+
 1. Browser 只与同源 BFF 或经明确 CORS allowlist 的公开 API 通信；不得访问模块 internal route、数据库或 Provider 管理端点。
 2. Authorization Code + PKCE 的 token exchange、refresh 和 revocation 由 BFF/受信服务边界处理；浏览器不得把 access/refresh token 持久化到 `localStorage`、`sessionStorage`、IndexedDB 或可读 Cookie。
 3. Session Cookie 必须使用 `Secure`、`HttpOnly`、适用的 `SameSite`、明确 Path/Domain 和短生命周期；状态改变请求同时执行 CSRF 与 Origin/Host 校验。
@@ -158,6 +160,6 @@ IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 的最小决策基线完�
 - IM-DG-006 6 个 Runtime Command 与默认 Runtime Policy；
 - MicroCeph/OpenBao/Keycloak 的安装、配置或运行结果；
 - 单机 HA、备份恢复、KMS 兼容、Object Lock、OIDC 或安全测试 PASS；
-- Workspace UI 的具体技术栈与实现结果；IM-UI-01 只完成里程碑建档，Browser/BFF/Security/Accessibility/Manual 均为 `NOT RUN`。
+- Workspace UI 的工程技术选择已于 2026-10-08 批准；实际 Browser/BFF/Security/Accessibility/Manual 仍为 `NOT RUN`，本次不宣称部署或运行可用。
 
 下一里程碑是 IM-01 Repository + Executable Contracts。依赖联网安装与精确 lockfile 仍需在开始 IM-01 时单独授权。

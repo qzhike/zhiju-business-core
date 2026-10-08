@@ -139,3 +139,16 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 | TE-TD-042 | Persistence/Integrity | item 不变而内部 Ref 换版本/Scope、由缺失变存在；保留旧 rowsHash 或篡改索引镜像 | 完整行 Hash 随变更改变，错误 Hash/镜像拒绝发布且保留旧 alias；内部字段不能漏出 TaskBoardItem v1 | NOT RUN |
 
 独立审查须覆盖共享 Envelope 与 data Schema 边界、export dirty 集合的提交可见性、cursor 生命周期、Usage 证据来源以及正常/阻塞链的四层完成反例。独立审查和人类设计批准分别记录；本次自检不替代独立审查。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+新增矩阵是方向批准后的前瞻要求；固定匿名原型及窄检查不证明公开 API、真实持久化、Runtime 或独立人工业务验收。执行证据按项目规则进入对应 GitHub Issue/PR，不在本表伪填 PASS。
+
+| ID | 输入 | 预期 | 正式实现/验收结果 |
+|---|---|---|---|
+| TE-D14-001 | PREPARING 调旧 create_task 与新分析支持集 | 旧入口拒绝；新入口仅确切 PREPARATION_ANALYSIS，EP Port 证明身份 | `NOT RUN` |
+| TE-D14-002 | 缺 Profile/QMS、伪造准备 Context/旧 Context 混用 | 独立注册 Context 可用；旧 ProjectContext 不放宽，精确 profile/versionPins 验证 | `NOT RUN` |
+| TE-D14-003 | 范围确认后输入更新或启动条件缺失 | 保留选择并重核；不偷换 Run 输入或启动受阻文件 | `NOT RUN` |
+| TE-D14-004 | 分析 COMPLETED / 一次旧请求重放 | 报告供审阅，不确认事实/完成项目；UNKNOWN 回读同调用，不重复 dispatch | `NOT RUN` |

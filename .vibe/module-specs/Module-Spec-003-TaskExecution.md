@@ -598,3 +598,13 @@ Query 的既有 `provenance: CanonicalJson` 输出使用安全 profile `executio
 恢复 Process 只保存当前 step/source exact ref、稳定幂等键、attemptCount、nextAttemptAt、安全 lastError；每步调用 owning Command 后再确认进度。提交成功但确认进度前崩溃重放同键；结果不明先查询 Receipt，不换键重做外部动作。临时不可用按版本化 retry Policy 有限重试，到预算上限保留失败与待处理源，不清 blocker、不写业务成功；输入/授权/Hash 错误为需处理失败，不无限重试。处理后的新合法输入生成新的 source fingerprint，旧失败与原事实仍可追溯。scan/worker 重启恢复规则沿用 §11.5，Query 不承担补偿。
 
 退出报告在 GitHub Issue/PR 给出两条链的真实 identity/hash 与 CommandReceipt/Outbox/Inbox/Evaluation 引用，分别列 Design、Schema、Application、PostgreSQL、controlled cross-module、Provider/HTTP/Manual 结果。至少在 Result提交、Acceptance提交、Run终结、Request resolution、TaskCompleted投递后各注入一次故障，恢复前后核对 Receipt/事件数量与旧 Hash。外部 Provider、Feishu、CLI、公开 HTTP、生产与独立人工业务验收保持各自 NOT RUN，除非另有实际执行证据。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。用户批准的范围、主工作区依据及兼容规则见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。本节同步新增设计约束，不宣称本分支较早正文的实施状态等于当前 main，也不改变已发布接口。
+
+1. 新增限定 PREPARATION_ANALYSIS 的创建/验证支持集，旧 create_task@1.0/@2.0 仍拒绝 PREPARING 项目；Project 存在性、身份和资格由 EP owning Port 证明，TE 不直接查 EP 表或自行放宽 ACTIVE 检查。
+2. 新增显式 PreparationContext 与其来源/Builder/Validator 支持，不伪装为仍要求 Profile/QMS 的 ProjectContext v1.0；Scope、Task/WorkOrder、精确输入清单、政策、版本、水位、覆盖和未知项必须可追溯。
+3. WorkOrder/Run/Attempt 的冻结、幂等、租约、fencing、UNKNOWN 和真实 Result 机制复用；新 profile 在 Readiness、Context、Validation、Freeze、Dispatch、Result/Acceptance 每个消费边界显式闭合后才能执行，不能凭新 taskType 标签跳过旧条件。
+4. 分析结果只能供 EP 接纳分析报告及产生带来源的候选；不能让 COMPLETED 声明确认企业事实、激活正式计划、批准成果或推导 Project 完成。启动成功及本轮文件范围、保护、依赖条件满足后才创建文件升级工作。
+5. 材料/报告变更不偷换在途 Run 输入；旧确认过时则保留所选文件/草稿并核对受影响部分。必要启动条件未满足时不能因某文件“可处理”而改写正式文件。

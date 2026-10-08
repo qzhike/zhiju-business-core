@@ -2084,3 +2084,11 @@ Issue #57 的 [`Contract-Decision-Matrix.md`](../decisions/enterprise-project-ca
 WI-08 将 Issue #57 中的 Platform Reference 入口具体化为 EnterpriseProject 内的受控 Application Capability：Reference Admin/Publisher 通过独立 writer role 导入和发布无 Enterprise Scope 的模板/法规版本；Enterprise Runtime 只能读取已发布的精确 hash ref。writer 所使用的保留技术 Scope 仅服务于 RLS Context、Receipt、Audit、Outbox 和 Reference Edge，不代表任何业务 Enterprise。
 
 TemplateBaseline 和 RegulatoryProfile 是 Project-owned immutable version chains。Human 请求必须在可信事务 Context 中完成，Root expected aggregate version CAS 是唯一指针推进机制；新 Platform 版本不会隐式改变旧 Project。模板只能作为 TemplateSelection，不能作为 Regulatory Evidence；监管适用性项目的 Evidence 必须是独立受控引用。Provider、公开 HTTP、跨模块 Process Manager、生产和独立人工验收不随本实现自动提升为 `PASS`。
+
+## Workspace MVP D14：项目资料准备与正式启动
+
+状态：`D14 / INITIALIZATION DIRECTION USER APPROVED 2026-10-08 / FIELD CONTRACT CLOSURE PENDING / NOT REGISTERED / NOT IMPLEMENTED`。本节同步用户已批准的初始化方向；完整依据、兼容边界与后续字段合同见[正式提案 §4.7.1](../decisions/workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。不改变本分支历史正文的实施状态，不将原型演示作为后台接入证据。
+
+1. 保持七个业务模块。准备阶段 Project、Scope/成员策略、一次性启动及准备分析报告业务快照由 EnterpriseProject 拥有；授权由 IdentityPolicy 拥有，Task/Context/WorkOrder/Run/Result 由 TaskExecution 拥有，外部观察与 CLI 适配由 IntegrationGateway/Runtime 边界处理。
+2. Web/BFF 只呈现和转交公开能力；多步骤确认由受控 owning Application/Process 协调，不能在 BFF 同步写多个模块，也不能承诺一次点击产生跨 Aggregate 原子成功。准备分析采用独立、显式注册的来源/上下文/profile 支持集，既有完整 ProjectContext 和 Task 创建守卫不放宽。
+3. Runner 只读本轮已接纳客户输入与锁定公司模板，可写受控报告目录；不能改源件/模板、确认企业事实、批准或发布。oh-my-pi、pi、qoder-cli、Claude Code 的目标名单保留；首发 Runtime 和完整 conformance 另按正式实施决定，不允许员工在此核对面板选择。
