@@ -73,6 +73,13 @@ let bff;
 let web;
 try {
   await run(['--filter', '@zhiju/workspace-bff', 'build']);
+  const { createBff } = await import('../../apps/workspace-bff/dist/app.js');
+  const versionProbe = await createBff();
+  try {
+    assert.equal(versionProbe.getHttpAdapter().getInstance().version, '5.12.0');
+  } finally {
+    await versionProbe.close();
+  }
   await run(['--filter', '@zhiju/workspace-web', 'build'], {
     NODE_ENV: 'production',
     WORKSPACE_FIXTURE_MODE: 'true',

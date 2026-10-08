@@ -3,6 +3,12 @@
 This independent NestJS/Fastify process owns the Experience transport boundary.
 It imports no business packages, repositories, database or provider clients.
 
+The BFF explicitly passes its approved Fastify 5.12.0 instance to Nest 11.2.1.
+Nest's adapter declares against its older transitive Fastify 5.11.3, so a narrow
+constructor type bridge stays at that boundary. Native request hooks retain the
+5.12 types; built-application checks verify the actual version and HTTP behavior.
+Existing Core transport dependencies are unchanged.
+
 ```sh
 pnpm install --frozen-lockfile
 pnpm --filter @zhiju/workspace-bff build

@@ -3,6 +3,7 @@ import { Controller, Get, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import fastify from 'fastify';
 
 @Controller('bff')
 class ShellController {
@@ -22,11 +23,17 @@ class ShellController {
 class ShellModule {}
 
 export async function createBff(): Promise<NestFastifyApplication> {
-  const adapter = new FastifyAdapter({ logger: false, bodyLimit: 16_384 });
+  // Pass the approved direct version rather than Nest's older transitive Fastify.
+  const server = fastify({ logger: false, bodyLimit: 16_384 });
+  // Nest 11.2.1 declares the instance against its transitive Fastify 5.11.3.
+  // Keep native 5.12 types for our hooks and bridge only this adapter boundary;
+  // the built-application gate checks the actual version and request behavior.
+  const adapter = new FastifyAdapter(
+    server as unknown as ConstructorParameters<typeof FastifyAdapter>[0],
+  );
   const app = await NestFactory.create<NestFastifyApplication>(ShellModule, adapter, {
     logger: false,
   });
-  const server = adapter.getInstance();
   server.addHook('onRequest', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
     reply.header('Referrer-Policy', 'no-referrer');
