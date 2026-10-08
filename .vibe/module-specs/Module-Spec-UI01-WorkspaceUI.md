@@ -1,8 +1,8 @@
 # Module-Spec-UI01-WorkspaceUI
 
 版本：v0.1
-日期：2026-08-28
-状态：`CURRENT EXPERIENCE MODULE BASELINE / IM-UI-01 MILESTONE USER APPROVED / DESIGN VERIFIED / IMPLEMENTATION NOT STARTED`
+日期：2026-10-08
+状态：`CURRENT EXPERIENCE MODULE BASELINE / IM-UI-01 MILESTONE USER APPROVED / DESIGN VERIFIED / ENGINEERING SHELL IMPLEMENTED / REAL INTEGRATION NOT RUN`
 
 ## 1. 模块定位与责任
 
@@ -207,8 +207,9 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 ## 12. 当前状态
 
 - IM-UI-01 里程碑、依赖、范围和边界已由用户于 2026-08-28 批准。
-- 用户于 2026-10-08 批准 UI-DG-001～003 的[工程技术基线](../decisions/workspace-ui-engineering-baseline.md)，并要求收口、准备正式开工。人类设计批准已完成；独立审查、安装、正式实现及运行验收尚未执行。D14 字段草案仍未注册。
-- 前端工程、BFF、OIDC、页面、组件、Browser Test、Security Test、Accessibility Test 和 Manual Acceptance 均未实现或运行，状态为 `NOT RUN`。
+- 用户于 2026-10-08 批准 UI-DG-001～003 的[工程技术基线](../decisions/workspace-ui-engineering-baseline.md)，并要求收口、准备正式开工。人类设计批准已完成；Issue #252 记录独立设计审查 APPROVE 绑定 `955461a` 与已保存设计 Hash。D14 字段草案仍未注册。
+- [Issue #252](https://github.com/qzhike/zhiju-business-core/issues/252) 的 Web/BFF 工程外壳已实现：独立构建、固定匿名样例首轮导航、整份选择/确认、精确报告/请求、生产安全拒绝及架构门禁。开发样例使用专用标签页存储，不代表服务器个人草稿或业务持久化。
+- 真实 OIDC/Session、公开业务 HTTP、客户 ZIP 接收/解包、报告接纳、Runner、生产部署、完整平台浏览器矩阵及独立人工业务验收仍为 `NOT RUN`。
 - 本文 `DESIGN VERIFIED` 只表示 Experience 层职责、依赖和失败边界与现有 Core 权威文档一致，不代表 UI 可用。
 
 ## Workspace MVP D14：项目资料准备与正式启动
@@ -234,7 +235,7 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 4. 技术 Session 内存丢失要求重登；业务草稿与提交恢复须由 owning 公开能力持久化，不能依赖技术 Session 或原型 sessionStorage。真实 OIDC 与 CSRF/CSP/错误/日志方案按提案验证后才宣称可用。
 5. 首个真实目标为 ZIP → 受控 Runner 分析/报告接纳 → 启动信息核对和整份文件选择 → 原请求回执与真实进度。D14/RD-01 公共字段及业务 HTTP 尚未 READY，未注册草案不能由 BFF 私有接口绕过。
 
-状态为 `USER APPROVED 2026-10-08 / INDEPENDENT REVIEW NOT RUN / NOT IMPLEMENTED`。Mock/静态草案检查只证明对应设计行为；正式安全、API、Runner、Persistence、Browser、Manual 验收分别保持 NOT RUN。
+工程外壳对应的设计审查已由 Issue #252 确认；本节的真实会话、业务及外部集成尚未实现。开发样例 Browser/安全拒绝证据独立于真实 Session、API、Runner、Persistence、平台矩阵与 Manual 验收。
 
 
 ## 首个工程交付目标
@@ -252,3 +253,13 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 5. 开发替身不能出现在正式模式可执行入口。所用 Runner 报告/启动字段继续是未注册草案，不假装为生产 HTTP 返回类型。
 
 开工依赖：适用独立审查、基于当前 Core 的工作区、可运行的配置门禁及设计 authority 可供后续执行任务访问。此目标不要求 D14/RD-01 及全部后续文件检查/批准/交付合同先完成；那些依赖约束各自真实接入。实施仍须走有效配置的验证目标，Browser 与真实服务、人验的证据分别保留。第一项工程任务不宣告整个 IM-UI-01 或 UI-WI-02 完成。
+
+
+### 工程外壳当前实现边界（#252）
+
+- `apps/workspace-web` 采用批准的 React/Vite/Tailwind、Declarative Router、TanStack Query、Radix AlertDialog 与安全 Markdown。生产构建剔除匿名样例 adapter/报告与演示回执；显式 `build:fixture` 为独立开发制品，静态服务在生产环境拒绝此制品。开发开关不启用生产业务路径。
+- `apps/workspace-bff` 为独立 NestJS/Fastify 进程，只有健康和无身份 bootstrap。未接入认证及公开业务服务时，任何业务请求返回固定安全 JSON 错误，不产生 Human、上传/接纳成功或 Runner 回执。无请求内容日志。
+- 静态服务只对声明页面与 HTML 导航使用 SPA fallback；`/bff/*` 固定转发，API 与不存在的资产不会变为 HTML 200。
+- 开发样例默认不选文件，按精确报告独立保存整份选择，显式确认后才生成合成请求引用；刷新/历史可回读本标签页演示记录。新报告提示不会自动换页或替换当前版本。
+- 工程检查覆盖 TS/TSX、应用 manifest 的四类 dependency 字段、静态/动态 import、require 与 import type 反例；Web/BFF 只允许批准的 Experience 依赖，不改七个业务模块、Catalog、Schema 或 migrations。
+- 所有演示结果显示开发身份、合成报告/回执/进度标识。生产业务入口保持拒绝；真实接入继续由 owning 契约决定。

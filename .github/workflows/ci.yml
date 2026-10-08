@@ -52,6 +52,9 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: pnpm verify:docs
+      - name: Install controlled Chromium
+        if: needs.select.outputs.target == 'code' || needs.select.outputs.target == 'full'
+        run: pnpm exec playwright install --with-deps chromium
       - name: Verify code
         if: needs.select.outputs.target == 'code' || needs.select.outputs.target == 'full'
         run: pnpm clean && pnpm verify:code

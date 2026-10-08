@@ -7,3 +7,6 @@ contracts/src/generated/types/
 contracts/baselines/
 tests/types/.tsbuildinfo
 
+dist-types/
+test-results/
+playwright-report/

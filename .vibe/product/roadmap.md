@@ -13,7 +13,7 @@
 
 IM-06 的有限工程退出已获用户确认。用户于 2026-10-08 批准 [UI-DG-001～003 工程基线](../decisions/workspace-ui-engineering-baseline.md)并要求收口、准备正式开工；当前推进目标为 [Web/BFF 工程外壳](../module-specs/Module-Spec-UI01-WorkspaceUI.md#首个工程交付目标)。保持已批准的产品/布局，使用当前 main 基线的独立前端分支，不沿用早期 frontend 的 Core 快照。
 
-适用独立设计审查尚未执行；设计 authority 仍须保存为执行任务可访问的版本，安装/构建/运行的工程 Gate 必须按有效配置验证。外壳完成只代表工程进展，不宣布真实 OIDC、HTTP、Runner、持久化或人工业务验收完成。只有 NOW + READY 且获发布授权的候选才创建 GitHub Issue。
+[Issue #252](https://github.com/qzhike/zhiju-business-core/issues/252) 已确认独立设计 APPROVE 绑定 `955461a` 的已保存基线；工程外壳进入实施，安装/构建/运行的工程 Gate 按有效配置验证。外壳完成只代表工程进展，不宣布真实 OIDC、HTTP、Runner、持久化或人工业务验收完成。只有 NOW + READY 且获发布授权的候选才创建 GitHub Issue。
 
 下一完整用户目标是 ZIP 接收 → 受控 Runner 分析/报告接纳 → 启动信息核对与整份文件选择 → 原请求回执/真实进度。D14/RD-01 的 owning 字段、准备上下文、可信 Human 决定/恢复查询及 HTTP 接入尚待闭合，约束该链路真实接入；不要求所有后续意见/批准/交付合同先于工程外壳完成。首个公司默认 Runtime/Profile 及真实输入/输出验证仍需明确，界面不增加运行时选择器。
 

@@ -2,6 +2,8 @@
 
 日期：2026-10-08。分类：`T2`。状态：`USER APPROVED 2026-10-08 / FUTURE ENGINEERING BASELINE / INDEPENDENT REVIEW NOT RUN / NOT IMPLEMENTED`。
 
+检查点说明：本文 `INDEPENDENT REVIEW NOT RUN` / 未发表设计 wording 保留当时快照。[Issue #252](https://github.com/qzhike/zhiju-business-core/issues/252) 已确认独立 APPROVE 绑定 `955461a`，83 个保存文件与 reviewed working set 相同，SHA-256 `505c52eb08b3cc780f713cb9c427737b34cfcce84876b881a5f8d0f569daf6cf`。该结论允许 bounded shell 实施，不替代实现审查或真实接入验收；当前实现范围见 UI01 Spec/Test。
+
 本文收口 UI-DG-001～003 的工程选择，不再展开高保真布局探索。已批准的产品方向、启动核对布局及交互继续以[正式产品提案](workspace-mvp-human-agent.md)和 [UI01 Spec](../module-specs/Module-Spec-UI01-WorkspaceUI.md) 为准；字段级草案仍未注册。本文没有新增公共业务操作、改变 Core 状态机或宣布真实 Runner/UI 可用。
 
 ## 1. 已确认与本次批准范围

@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-31
-状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01–WI-09 GIT DELIVERY VERIFIED / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-05 WI-01–WI-06 GIT DELIVERY VERIFIED / ISSUE #121–#126 CLOSED / IM-05 WI-07 GITHUB DELIVERY VERIFIED PR #138 / ISSUE #127 CLOSED / IM-05 WI-08 SYNTHETIC QMS/REL-801 EXIT REVIEW DELIVERED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 CLOSED / PARENT #120 OPEN / #22–#24 OPEN / UI IMPLEMENTATION AND BROWSER TESTS NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
+状态：`CURRENT VERIFICATION BASELINE / IM-00 COMPLETE / IM-01 COMPLETE / IM-02 TECHNICAL BASELINE COMPLETE / IM-03 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-04 WI-01–WI-09 GIT DELIVERY VERIFIED / ISSUE #90–#98 CLOSED / IM-04 SCOPED TECHNICAL ACCEPTANCE COMPLETE / IM-05 WI-01–WI-06 GIT DELIVERY VERIFIED / ISSUE #121–#126 CLOSED / IM-05 WI-07 GITHUB DELIVERY VERIFIED PR #138 / ISSUE #127 CLOSED / IM-05 WI-08 SYNTHETIC QMS/REL-801 EXIT REVIEW DELIVERED PR #139 / EXACT-HEAD CI PASS 2026-08-31 / ISSUE #128 CLOSED / PARENT #120 OPEN / #22–#24 OPEN / UI ENGINEERING SHELL IMPLEMENTED / REAL UI INTEGRATION AND MANUAL NOT RUN / INTEGRATED CROSS-AGGREGATE E2E NOT RUN / MANUAL REFERENCE PROJECT NOT RUN / EXTERNAL NOT RUN`
 
 文档角色：统一定义设计、实现、集成和人工验收的验证口径，并集中保存跨模块验收场景。领域专属基准场景继续靠近其唯一权威设计；从字段级 API 阶段起，每个逻辑模块维护独立 `Module-Test-[ID]-[ModuleName].md`，记录模块 Unit/Contract/E2E/Manual 用例和真实结果，本文负责总索引、跨模块覆盖和结果真实性。
 
@@ -54,6 +54,8 @@ Persistence Gate 使用独立 `vitest.persistence.config.ts` 收集 `tests/persi
 数据库验证必须流式输出文件/测试开始、结束和耗时，长测试及 setup/cleanup 每 30 秒输出当前执行项；等待诊断只允许连接状态、等待事件、阻塞 PID 和事务持续时间，禁止 SQL 文本、连接凭据或业务 payload。`initial-context` 另记录业务准备、Validation/Freeze 矩阵、队列探针、Run/Result 业务边界、正式完成的输入拒绝/原子回滚/评价与竞态/判定失效阶段、恢复链的材料确认/解决/Context-2 构建阶段、真实期限等待、历史升级和 pending-operation drain；测试正常退出前的汇总报告不能替代这些进度。真实队列竞态以指定 PostgreSQL 后端的阻塞关系同步，释放锁后等待后台操作完成；服务端到期测试继续等待实际 deadline，不改变数据库时钟或跳过 cleanup。
 
 CI 的 `select` 先按相同 base-to-head 风险路由选择目标；`checks` 执行 docs 或完整 code 检查，`persistence` 仅在 full 时执行固定镜像 PostgreSQL/Flyway Gate，两者独立 runner 并行。数据库任务先 clean build 自己的 workspace libraries；不重复普通测试、格式、lint、Architecture 或 Contract Gate，也不把数据库文件并行化。本地配置的 full 仍是 code + persistence 的完整顺序验证。原 `verify` 检查作为 always 汇总，必须确认 select/checks 成功，full 的 persistence 成功，docs/code 的 persistence 为预期 skipped；失败、取消、缺失/非法结果、未知目标和意外跳过不能通过。文档任务传入同一 BASE_SHA/GITHUB_SHA 边界；根 `vitest.persistence.config.ts` 单独变化也必须 full。
+
+Workspace 工程外壳的独立 Web/BFF 构建、生产安全拒绝、TS/TSX 与应用依赖边界反例，以及实际构建匿名开发制品的受控 Chromium 旅程，接入 `code/full` 的普通检查。CI 为该检查安装锁定 Playwright 的 Chromium；它不替代真实 OIDC/业务 HTTP/Runner、Windows/macOS Chrome/Edge 支持矩阵、生产或独立人工验收。生成的匿名截图保持本地忽略，执行证据进入 Issue/PR。
 
 ### 2.2 Unit
 
@@ -112,7 +114,7 @@ CI 的 `select` 先按相同 base-to-head 风险路由选择目标；`checks` �
 | Feishu Channel 专项场景 | [`Feishu-Channel-Test-v0.1.md`](../feishu-channel-contract-v0.1/Feishu-Channel-Test-v0.1.md) | 32 | 4 个 Design Gate `DESIGN VERIFIED`；其余 28 个 `NOT RUN`；用户已指示进入下一阶段 |
 | Runtime Adapter 专项场景 | [`Runtime-Adapter-Test-v0.1.md`](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md) | 32 | 4 个 Design Gate `DESIGN VERIFIED`；其余 28 个 `NOT RUN`；用户已指示进入实施计划阶段 |
 | Workspace UI Experience 场景 | [`Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md) | 15 | 1 个 Design Gate `DESIGN VERIFIED`；其余 14 个 `NOT RUN` |
-| 合计 |  | 377 | Workspace UI 新增里程碑仍未实现；静态设计检查不代表运行测试 |
+| 合计 |  | 377 | Workspace UI 工程外壳已实现；真实集成/外部/人工场景仍独立保持 NOT RUN |
 
 数量用于发现遗漏，不代表覆盖率或通过率。后续实现可以拆分出更多测试，但不得删除业务语义等价的失败路径。
 
