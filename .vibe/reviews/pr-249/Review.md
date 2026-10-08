@@ -1,6 +1,186 @@
 # PR #249 正式审查记录
 
-## 第十五轮复审（当前结论）
+## 第十九轮复审（当前结论）
+
+- Reviewer outcome：`APPROVE`。
+- Reviewed SHA：`2e08125c5f38798a03179c628e327d2e06f76569`；日期：2026-10-07。
+- `vibe repo --json`、本地与远端 head 一致；PR OPEN、非 Draft。起始工作区仅有第十八轮正式记录的未提交更新，保留全部历史。重新读取 Issue #248，Acceptance/required full 未调整，无 Issue comments。
+- 非盲审：从 Issue 的精确筛选/完整性要求、Spec003 §12.2–12.6 和 contract-review 的合法基线/独立单字段反例要求重建预期，独立核对相对第十八轮的5份文件 diff、实际 owning fixture/调用链、应用 writer/SQL probes、当前 Module-Test 与 exact-revision CI。产品代码、公开 Schema/metadata、migration、镜像 pin、configured verification budgets 未变；历史已关闭具体缺陷维持关闭。
+
+### 第十九轮 R15 对账
+
+**R15 [P2] 关闭。** 本轮已经交付上一轮要求的最小充分筛选与完整性验收；不再报告 BOARD-D-002 未交付。
+
+| 原具体缺口                             | 独立判断及直接证据                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 全部同Ref/单页单测不能证明先过滤后分页 | 改为两种读取模式的混排版本、完整拼写、status和未绑定行；pageSize=1逐页检查非空/耗尽及完整有序 Item，另有不存在版本的空结果。当前 Handler 的 applyFilters 先于 pageRows，规则与 Spec 一致                                                                                                                                                                                                                |
+| 缺真实owning混合来源与跨页对照         | 通过 EP owning Plan handlers 提交同Item UUID的两版来源；通过 Task v1/v2创建入口及 v2 readiness 产生不同版本/拼写/未绑定及 DRAFT/READY。AUTHORITATIVE/PROJECTION_OK 小页分别完整比对独立 owning Item 预期，兼有组合statuses、无过滤器包含未绑定行、空statuses拒绝、无公开filterKeys。firstItemId是可选测试输入，默认仍随机，原调用兼容；没有直接写业务Root构造正链                                       |
+| 应用filterKey hash/count负例缺失       | 先通过合法manifest发布并读回完整rows；仅改变filter的版本保留原rowsHash、但重算manifestHash，按预期 rows hash 错误拒绝；独立rowCount变体按count错误拒绝。断言整个旧Projection state不变、两个失败export无generation，未以额外错误掩盖目标失败                                                                                                                                                            |
+| 实际SQL filter mirror/count反例缺失    | 同一套unused身份和coherent hashes先成功INSERT generation及完整row，再ROLLBACK；每个负例独立事务/同基线：promoted ref、stored filter ref、两者coherent但与manifest不等、promoted count、coherent declared/promoted count但与完整数组不等。均断言特定23514及guard message，ROLLBACK后无残留，排除duplicate-key等无关失败；既有hash/Task mirror/title反例保留                                              |
+| 完整canonical UTF-8预算反例缺失        | 实际owning Unicode title先完整发布；readiness提交真实dirty；owning PolicyVersion successor将预算设在完整canonical字符数和UTF-8字节数之间。真实dispatcher记录TASK_BOARD_EXPORT_BUDGET_EXCEEDED，manifest/generation计数不增，旧alias完整相等、dirty identities精确不变；finally用另一合法successor恢复预算，完整新Items发布且dirty确认。此为应用/dispatcher Policy预算证据，不冒充SQL独立Policy预算guard |
+
+Module-Test BOARD-D-002 的分层 PASS 与上述实现和执行一致；其他矩阵行保留实际 PARTIAL/NOT RUN。前轮 owning状态链、当前权限/PolicyVersion返回检查、Export RR、G1→G2分页、freshness屏障、late dirty及worker重放认可维持，当前完整CI也执行其回归。没有新独立阻断 finding。
+
+### 第十九轮验证证据
+
+[CI run 37563179631](https://github.com/qzhike/zhiju-business-core/actions/runs/37563179631) 已完成 SUCCESS，headSha 精确匹配本轮 SHA；select/checks/persistence/verify及其必需步骤均 SUCCESS。按已核对的workflow full路径执行clean code、独立clean build与完整PostgreSQL gate，汇总要求所有selected结果成功，满足 Issue 的 required full。复用可信当前CI，不重复本地full。
+
+独立读取 [persistence job 112604929203原始日志](https://github.com/qzhike/zhiju-business-core/actions/runs/37563179631/job/112604929203)：PostgreSQL 18.6 immutable pin `sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf`、server_version=180006、Flyway OSS 11.20.3；新增混合筛选/UTF-8预算/应用完整性/SQL guard四项各自state=passed；Board entry42/42、storage13/13；48 files / 636 tests全通过，second migrate no-op、gate passed、容器清理完成。
+
+独立读取 [checks job 112604929218原始日志](https://github.com/qzhike/zhiju-business-core/actions/runs/37563179631/job/112604929218)：90 files / 1734 tests通过，architecture_boundaries=PASS、source_roots=10，payloads=239、results=79、core_contracts=6，catalog/registry=239全部FULL、历史v1.0 operations=200 compatibility PASS；代码格式、lint、TypeScript及公开契约检查成功。
+
+[执行comment 6029785152](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6029785152)提供聚焦命令、revision binding与完整CI链接；独立计算四份被测文件的SHA-256均与记录相同：Unit `b85671efdfcb09f6eae6120a8f39e706dad8f003c77b3fab5f853e4ad3a6e323`、entry `5216cc870fa7e3392a12e52b92fa41da76312b43b9afb02c111acf3c37efb326`、storage `8d11640f76b067d38380ffa05756bf5ad05c90578bf0463c04ec330d362f7e61`、Plan fixture `11ae0f9ec5eed48dfbaab30bc8b348ffdf2c90a06e8cdfd6cd4cfaf1da96e490`。聚焦、本地声明、历史SHA与当前完整CI分开，不互相替代。
+
+本轮没有新增本地Unit/PG/full runs。正式记录Prettier API check与`git diff --check`为文档窄诊断；未重复第十八轮已确定的混合分支configured docs范围拒绝，不记本轮configured docs PASS。当前PR required full已经独立确认。
+
+### 第十九轮批准边界
+
+APPROVE绑定上述最终被审SHA和当前约定首版支持集；R15关闭、required full通过，未发现剩余阻断。其他矩阵未执行组合继续保留PARTIAL/NOT RUN，不凭本次审查自动改成全矩阵PASS。受信测试时钟跨Decision期限、实际Grant撤销、实际PolicyVersion successor仍分别取证。
+
+HTTP/UI/transport、Provider/生产/性能、独立人工、真实Grant PolicySnapshot replacement lifecycle及TD-07保持排除/延后和NOT RUN。Board历史状态/current Evaluation不变成USABLE或执行授权，技术APPROVE不授权merge/deploy或扩大支持集。
+
+### 第十九轮交付
+
+已发布并读回 [第十九轮普通 PR comment 6030338584](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6030338584)，完整正文与准备内容逐字一致（5610 字符）。发布后远端 head 仍为本轮 SHA，PR OPEN、非 Draft。正式记录 Prettier API check 与 `git diff --check` PASS；本轮未执行 configured docs，不记该目标 PASS。
+
+本次为普通 PR comment，技术 outcome APPROVE 不等于 GitHub 正式 Approve review，也不授权合并。仅更新正式记录与发布 comments，未修改产品代码、未 commit/push/merge。
+
+---
+
+## 第十八轮复审（历史记录，以下结论绑定旧 SHA）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`b9c0887191dc3032b4f625e9f3cd8e1943468c2e`；日期：2026-10-07。
+- `vibe repo --json`、本地与远端 head 一致；PR OPEN、非 Draft。起始工作区仅有第十七轮正式记录的未提交更新，保留全部历史。重新读取 Issue #248，其 Acceptance/required full 未调整，无 Issue comments。
+- 非盲审：从当前 Issue、Spec003 §12.2–12.6 和项目验收政策 §2.8 重建预期，独立检查相对第十七轮的4份文件 diff、分页断言、镜像校验实现、当前 Board 测试和 exact-revision CI。产品代码及公开契约未变；前轮已核对的字段矩阵、来源状态链、当前授权、Export RR、freshness 与恢复实现认可维持。
+
+### 第十八轮修订与关闭项
+
+- **关闭第十七轮 R10 的 required full/执行记录阻断。** 当前 exact-head CI 完整成功；[执行 comment 6027910443](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6027910443) 已提供命令、聚焦输出、测试文件 SHA-256 和最终完整 CI 链接。独立计算当前 `task-board-entry.test.ts` SHA-256 为 `23a4f6f2ff4a274f6c44d95716fb3e1511ec232c67fe891940248ae9698bf56d`，与记录一致。前一 revision 的本地 full 单独保留，不冒充当前本地 full。
+- **认可 immutable pin 更新。** `tools/persistence/baseline.mjs:9` 只把 PostgreSQL 18.6 digest 更新为 `sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf`；符合验证基线 §13 的 registry 漂移恢复规则。tag@digest、tag 当前解析、RepoDigests、server version 检查仍在，Flyway 11.20.3 不变；当前 PG 原始日志证明新 pin、server_version=180006 和门禁成功，未弱化检查。
+- **认可单例30秒预算。** `tests/persistence/task-board-entry.test.ts:1446` 的唯一测试改动是 `30_000`；50页上限、非空页、G1完整基线及精确有序余项、唯一性、新G2行排除、耗尽与 freshness 断言均保留。当前 CI 该测试耗时5847 ms，超过旧5000 ms默认值且正常通过；不是移除断言或扩大全局预算。
+- **认可期限证据纠正。** Module-Test 明确使用受信测试时钟跨过真实存储 Decision 期限，继续与真实 Grant revoke、PolicyVersion successor 提交分开；不声称真实墙钟等待或已交付延后的 Grant PolicySnapshot replacement lifecycle。
+
+### 第十八轮验证证据
+
+[CI run 37550405639](https://github.com/qzhike/zhiju-business-core/actions/runs/37550405639) 已完成 SUCCESS，headSha 精确为本轮 SHA；select/checks/persistence/verify 均 SUCCESS。独立核对 workflow：full 分支执行 clean code、独立 clean build prerequisites、完整 persistence gate，汇总要求全部 selected results 成功；复用该可信 exact-revision required full，不重复本地完整运行。
+
+独立读取 [persistence 原始 job 日志](https://github.com/qzhike/zhiju-business-core/actions/runs/37550405639/job/112564332423)：PostgreSQL tag@新 digest、server_version=180006、Flyway OSS 11.20.3；Board entry 40/40、storage 11/11；48 files / 632 tests 全通过，second migrate no-op、gate passed、容器已清理。checks 原始日志记录90 files / 1733 tests，通过格式/静态与契约基线。当前 CI PG 执行证据得到独立确认，既有状态链、权限计数/真实读取中途撤权、Export RR、完整G1、freshness及worker恢复测试不再仅有静态认可。
+
+本轮未新增本地 Unit/PG/full。使用执行记录中的固定 pnpm 11.19.0 路径运行 `vibe verify docs --json`，Vibe exit21/child exit1：docs verifier 将本分支相对 origin/main 的产品实现路径纳入范围并拒绝 `docs verification cannot cover non-document paths`；不是依赖/非TTY故障，也不是本轮产品测试失败。该混合 PR 的 required target 为 full，已由当前 CI 覆盖；不把本次 docs 失败写成 PASS，不修改 verifier 或重跑相同范围。正式记录 Prettier API check 与 `git diff --check` 仅是文档窄诊断。HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot lifecycle、TD-07 排除/延后边界保持。
+
+### 第十八轮阻断 finding
+
+#### R15 [P2] 补齐 BOARD-D-002 明确要求的精确筛选与完整性验收
+
+依据：Issue #248 Acceptance 的“精确筛选与兼容”“完整性和有限资源”；Spec003 §12.2–12.6；`.vibe/module-tests/Module-Test-003-TaskExecution.md:655` 的 BOARD-D-002 仍为 NOT RUN；项目验收政策 §2.8 不允许绿色门禁静默放宽已约定条件。
+
+直接证据：`modules/task-execution/src/business/task-board-read.test.ts:186` 的筛选用例给三行相同完整 DeliveryItem Ref，以 pageSize=10 检查全部命中与另一个版本零命中。即使实现错误地先分页再过滤，这个用例仍可通过；没有不同版本/拼写/未绑定行混排、多于一页的合法 owning 来源对照。当前40项 PG entry 测试的 query 也未提供 deliveryItemRef 筛选。已执行的 SQL manifest hash、Task身份 mirror、删除 title 反例认可；它们不覆盖本行还要求的 filterKey/delivery_item_ref 单字段镜像冲突、rowCount 与实际rows不等、完整 canonical UTF-8 超预算拒绝且保留旧 alias 的各自反例。
+
+请按原验收补最小充分测试：真实 owning 产生同 Item 的不同版本、两种完整拼写和未绑定 Task，并混排不同 statuses、使用小页跨页，证明先精确过滤再排序分页及无过滤器时未绑定行参与；按当前 authority 分层补缺失的 filterKey mirror/count/UTF-8预算单字段反例，配 otherwise-valid 合法基线，验证错误拒绝、无成功截断或假完整 generation、旧 alias 保留；应用反例与实际 SQL guard 分开报告，绑定最终 SHA 的完整成功验证与 Module-Test 状态。无需重复已有 hash/Task mirror/title 反例或扩大外部/延后范围。
+
+上一轮把“当前不能批准的直接剩余条件”只写成 full 缺证据，收窄过度；本轮按原 Issue 修正这一遗漏。R15 是尚未交付的明确验收，不是已关闭产品缺陷回归，也不把所有 PARTIAL/NOT RUN 组合一律升级为新阻断。当前 gate 已 PASS，但这些明确验收不能由测试总数替代，因此 outcome 仍为 REQUEST_CHANGES。
+
+### 第十八轮交付
+
+已发布并读回 [第十八轮普通 PR comment 6029082760](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6029082760)，完整正文与准备内容逐字一致（3972 字符）。发布后远端 head 仍为本轮 SHA，PR OPEN、非 Draft。正式记录 Prettier API check 与 `git diff --check` PASS；本轮 configured docs 的范围拒绝如上，不记 PASS。
+
+本次为普通 PR comment，技术 outcome REQUEST_CHANGES 不等于 GitHub 正式 Request changes review。仅更新正式记录与发布 comments，未修改产品代码、未 commit/push/merge。
+
+---
+
+## 第十七轮复审（历史记录，以下结论绑定旧 SHA）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`42d82f75f1d8d4245c86af64d0f9fbf2df6f435d`；日期：2026-10-07。
+- `vibe repo --json`、本地与远端 head 一致；PR OPEN、非 Draft。起始工作区仅有第十六轮正式记录的未提交更新，本轮保留其全部历史。Issue #248 Acceptance/required full 未调整，无 Issue comments。
+- 非盲审：按当前 Issue、Spec003 §12.2/12.4 与 Spec001 §15.19 的来源/当前权限预期，独立核对本轮9份文件 diff、组成入口和测试真实调用链。产品变更为返回前增加 owning PolicyVersion 当前解析；其余为既有 scenario 的只读 Board probes、验收测试与分层状态。
+
+### 第十七轮实现对账
+
+| 第十六轮子项                   | 本轮判断与直接依据                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 完整状态链缺失                 | 关闭该具体实现缺口。新增 owning v1/v2 DRAFT、v2 READY、FORMAL_NORMAL、FORMAL_RECOVERED、有限取消链；逐阶段完整 Item 与独立读取的 Task definition/WO/Request/current Evaluation mirrors 相等。FINAL_RESERVED 尚无 Request 时保留 WO blocker；Request RESOLVED 后至合法恢复成功前仍阻塞；终结 Run 不自动完成 Task；完成后有当前 Evaluation Ref、无 USABLE 字段 |
+| 七 mapping 缺权限/配置反例缺失 | 关闭该具体实现缺口。逐项 CONFIG/GRANT 反例，经真实 revoke 拒绝，按该 mapping 的受保护语句分类计数为0；同路径合法对照非零。其余独立权限保留，Technical mapping 实际执行 export/maintenance；不扩写为全部字段/跨 Scope 变体已执行                                                                                                                              |
+| 读取中途撤权缺失               | 关闭真实撤权屏障的具体实现缺口。AUTHORITATIVE Task SELECT/Projection generation SELECT 完成后，通过独立 owning IP 事务撤销 Human/source/适用 health/Policy Grant；首屏和 pinned-generation continuation 均要求 reached=true、AUTHORIZATION_REVOKED、无 data，变更后当前 IP Grant 读取非零                                                                    |
+| PolicyVersion 当前检查         | 认可修订。真实 record_policy_version 在读取中途提交 successor；`revalidateAll` 现在除独立 mapping/Grant 检查，还经 owning resolveTaskBoardPolicy 重查原固定版本是否仍 USABLE，防止把仍有效 read Grant 当作 PolicyVersion 当前资格                                                                                                                            |
+| Export RR 完整业务事实比较缺失 | 关闭该具体实现缺口。在 Request OPEN 保存完整旧 Item 基线；实际 Export 首个 Task SELECT 完成后 reached/gate 暂停，另一 owning 连接完成 Request resolution；释放后持久化 manifest 全部 Item 数组与旧基线逐项相等，下一 Export 精确等于新事实数组且与旧数组不同。finally 释放/await，未伪造业务 Root 或来源                                                     |
+
+新增 EXPIRE 分支读取 Human Decision 原 expires_at，并在 reached SELECT 后注入受信 entry `now` 到该期限之后；这是 PostgreSQL 事实配合 controlled clock 的期限反例，不是等待真实墙钟期限跨越。与真实 Grant revoke、真实 PolicyVersion successor、真实 owning 状态及两连接 Export RR 分开记录，不把所有分支统一称为实际时间验收。
+
+现有 WO 两种身份、完整 G1 分页、P1→H/H→P2 freshness、late dirty、actual worker crash/hash/identities/new marker 子项保持实现认可。未发现本轮产品修改的新独立阻断缺陷，已关闭历史缺陷不重开。上述结论为当前实现/断言对账，不等于 required full 或完整矩阵 APPROVE。
+
+### 第十七轮验证证据
+
+[CI run 37507159286](https://github.com/qzhike/zhiju-business-core/actions/runs/37507159286) headSha 精确匹配本轮 SHA，已完成且 conclusion FAILURE。最终 select、checks/Verify code、persistence/Build persistence prerequisites SUCCESS；persistence/Verify persistence、verify/Require all selected verification results FAILURE。已独立读取 persistence job 日志：在 `PostgreSQL startup and image verification` 阶段，`postgres:18.6` 当前 digest `sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf` 与固定 digest `sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722` 不一致，子命令 exit1。失败先于 PG 测试，不归因于新增测试或产品逻辑；当前 SHA required full 无 PASS。
+
+Module-Test 记录固定 digest 缓存下的新增聚焦 PG PASS，BOARD-D/IP-BOARD-D 按覆盖保留 PARTIAL/NOT RUN；本轮实际读取的 PR/Issue comments 尚未提供该聚焦执行的 revision-bound 原始结果。文档状态与实现者声明不能代替独立可核实的执行记录，本轮没有复跑或将其升级为 Reviewer 验证 PASS；也不把它误写成从未执行。完整 CI 没有运行新增 PG，聚焦结果不替代 full。
+
+本轮无新增本地 Unit/PG/controlled/full runs。镜像基线条件未恢复，不重复相同失败；本地既有固定 pnpm dependency-status/非TTY install 限制未有恢复证据，configured docs 未完成、不记 PASS。正式记录 Prettier API check/`git diff --check` 是独立窄诊断。
+
+### 第十七轮阻断 finding
+
+#### R10 [P1] 取得最终被审 SHA 的 required full 成功证据，并补齐聚焦执行记录
+
+依据：Issue #248 Verify 明确要求 `vibe verify full --json`；`.vibe/project.yaml` full 包括 clean build 和 Docker/PostgreSQL persistence gate；当前 exact-revision CI persistence FAILURE。
+
+上一轮列出的状态链、逐 mapping 零访问/对照、读取中途撤权和完整 Export RR 比较已经有对应实现，撤回它们“仍未交付测试”的旧描述。当前不能批准的直接剩余条件是 required full 没有成功证据：请按项目镜像基线流程恢复可验证条件，取得最终 SHA 的 full SUCCESS；把聚焦 PG 的命令、被测 revision/字节绑定、运行结果与未执行边界放入 Issue/PR，和完整 gate 分开记录。聚焦缓存 PG 通过、code 成功或 PARTIAL 文档均不能替代 required target。
+
+剩余矩阵保持真实覆盖粒度，不把 PARTIAL/NOT RUN 自动改为 PASS，也不以本轮静态对账扩大支持集或重开已修复子项。HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot replacement lifecycle 与 TD-07 既有排除/延后边界保持。
+
+### 第十七轮交付
+
+已发布并读回 [第十七轮普通 PR comment 6022348773](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6022348773)，完整正文与准备内容逐字一致（5073 字符）。发布后远端 head 仍为本轮 SHA，PR OPEN、非 Draft。正式记录 Prettier API check 与 `git diff --check` PASS；configured docs 限制如上。
+
+本次为普通 PR comment，技术 outcome REQUEST_CHANGES 不等于 GitHub 正式 Request changes review；未重复发布旧 inline findings。仅更新正式记录与发布 comments，不修改产品代码，不 commit/push/merge。
+
+---
+
+## 第十六轮复审（历史记录，以下结论绑定旧 SHA）
+
+- Reviewer outcome：`REQUEST_CHANGES`。
+- Reviewed SHA：`6df452c84fdfc8f5fd18f066ed8890be92b5638c`；日期：2026-10-06。
+- `vibe repo --json`、本地与远端 head 一致；PR OPEN、非 Draft；起始工作区干净。重新读取 Issue #248，Acceptance/required full 未调整，无 Issue comments。
+- 非盲审：按当前 Issue、Spec003 §12 的读取/freshness/Export 规则、Spec001 §15.19 与 BOARD-D/IP-BOARD-D 核对实际 diff、当前组成入口和存储读取顺序及 CI。相对第十五轮，只修改测试、Module-Test 状态和历史正式记录；产品代码未变。
+
+### 第十六轮证据与 finding 对账
+
+- **关闭缺 Board Policy 反例没有 TE 访问计数/合法对照的具体缺口。** `runWithPolicyProbe` 给 entry 注入带 Kysely 查询计数的 TE handle；同一 payload 缺配置时断言 DEPENDENCY_UNAVAILABLE、queries=0，有配置时断言 status=OK、queries>0。认可该路径的计数探针与合法对照，不再要求重补同一子项。计数范围明确为 entry 的 TaskExecution 语句，不扩写为 IP/所有 mapping 的完整验证。
+- **认可 source/freshness 竞态新增实现。** 同 payload 先断言 FRESH 基线；实际 P1 generation SELECT 的 result hook 到达后，用真实 owning Task 命令提交新 marker，再继续 H；断言 produced=true、结果不是 FRESH。该 hook 位于 P1 内部 generation SELECT 完成后，P1 后续 row 读取/事务返回尚未完成，证据应按此到达粒度描述，不声称整个 P1 Port 已返回。
+- **认可 alias/freshness 竞态新增实现。** 实际 H SQL result hook 到达后，执行真实 owning Task 命令和实际 export pass，再继续 P2；断言 replaced=true、结果不是 FRESH。当前 Handler 的 P1→H→P2 是顺序 await，P1 内部 fence/alias/checkpoint/generation/rows 也是顺序读取；这些 hooks 结合当前调用顺序覆盖必要变更时点，不使用 sleep 或伪造成功来源。撤回旧“P1→H/H→P2 反例完全未实现”的描述。
+- 以上是静态实现/断言认可；本 SHA PG 门禁在镜像校验阶段失败，新增用例尚未执行，不声称 PG PASS。Module-Test 保持 PARTIAL 并准确列出剩余验收，继续区分历史已执行子项与新增未执行测试。
+- 恢复原 export/hash/covered-identities、新 marker、generation 基线、WO 两种身份、入口 source revoke、完整 G1 分页及 owning dirty 边界维持此前实现认可；历史具体缺陷不重开。本轮没有新的独立产品 finding，R10 继续收窄为剩余原验收及当前运行证据。
+
+### 第十六轮验证证据
+
+[CI run 37455016097](https://github.com/qzhike/zhiju-business-core/actions/runs/37455016097) headSha 精确匹配本轮 SHA。读取时 select SUCCESS、persistence FAILURE，checks 仍 IN_PROGRESS，汇总 verify 尚未完成；不能把运行中检查记为 PASS。
+
+已独立读取失败的 persistence job 日志：`PostgreSQL startup and image verification` 阶段发现 `postgres:18.6` 当前 digest `sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf` 与固定 digest `sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722` 不一致，子命令 exit1。失败在 PG 测试前，不能归因于新增测试/产品逻辑；当前 required full 不通过，旧 SHA 证据不能替代。
+
+本轮无新增本地 Unit/PG/controlled/full runs，不修改镜像 pin 或弱化门禁，不重复未恢复条件下的失败。本地既有固定 pnpm dependency-status/非TTY install 限制未恢复，configured docs 未完成、不记 PASS；正式记录 Prettier API check/`git diff --check` 仅为独立窄诊断。
+
+### 第十六轮阻断 finding
+
+#### R10 [P1] 完成剩余状态、独立权限与 Export RR 原验收，取得最终 SHA 的 passing full
+
+依据：Issue #248 原 Acceptance；`.vibe/module-tests/Module-Test-003-TaskExecution.md:650`、BOARD-D-001/005/006；IP-BOARD-D-001–003；Spec003 §12、Spec001 §15.19。
+
+- **完整 owning 状态链：** 正常完成、BLOCKED_INPUT/一次恢复、已有有限取消后准确 Task/WO/blocker/current Evaluation，保留 final reservation 至后续合法覆盖的保守阻塞窗口。
+- **七项独立权限与当前返回检查：** mapping 各自必要正反例、缺 Grant/config 时对应 protected read/write 为0；首屏/翻页/最终返回前真实撤权/到期，source read 已到达后用 reached 屏障证明 IP 独立 READ COMMITTED 当前复验拒绝，无 data。Board Policy ref 缺失的 TE 计数子项已补，不代替其余 mapping 或读取中途撤权。
+- **完整业务 Export RR：** 两连接 reached 屏障逐项比较 Task/child 的完整旧事实及下一 Export 新事实。新 freshness 反例与已有 dirty marker 边界认可，不能代替 Export 内部业务行不混读的验收。
+- **当前运行证据：** 镜像基线条件恢复后取得最终被审 SHA 的 required full SUCCESS，并准确分层记录新增 PG 用例及完整矩阵的 PARTIAL/PASS/NOT RUN。
+
+这些是原任务必要验收；无需重补已修复的计数/合法对照、已新增 freshness 反例或已关闭历史缺陷。HTTP/UI/Provider/生产/性能/独立人工、真实 Grant PolicySnapshot replacement lifecycle 与 TD-07 排除/延后边界保持。
+
+### 第十六轮交付
+
+已发布并读回 [第十六轮普通 PR comment 6015111489](https://github.com/qzhike/zhiju-business-core/pull/249#issuecomment-6015111489)，完整正文与准备内容逐字一致（3364 字符）。发布后远端 head 仍为本轮 SHA，PR OPEN、非 Draft。正式记录 Prettier API check 与 `git diff --check` PASS；configured docs 限制如上。
+
+本次为普通 PR comment，技术 outcome REQUEST_CHANGES 不等于 GitHub 正式 Request changes review；未重复发布旧 inline findings。仅更新正式记录与发布 comments，不修改产品代码，不 commit/push/merge。
+
+---
+
+## 第十五轮复审（历史记录，以下结论绑定旧 SHA）
 
 - Reviewer outcome：`REQUEST_CHANGES`。
 - Reviewed SHA：`73378adc4da773b257d4c2bf945cafae36a657ca`；日期：2026-10-06。

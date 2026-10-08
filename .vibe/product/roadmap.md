@@ -9,7 +9,9 @@
 
 接受范围为 scoped engineering；真实 Provider/Feishu、公开 HTTP、生产、统一跨模块业务 E2E、外部收件人确认和独立人工业务验收仍为 `NOT RUN`。不得用 Issue 关闭扩大验收范围。
 
-## Current — IM-06 TaskExecution Human-operated Core
+## Completed — IM-06 TaskExecution Human-operated Core
+
+状态：**SCOPED ENGINEERING ACCEPTANCE COMPLETE / USER CONFIRMED 2026-10-07**。用户已明确确认“IM-06完成验收”，接受下述基于 `main@b6e1f93d7a79e6334622c55b94f124750143949e` 的有限支持集工程退出结论。IM-06 已退出；真实外部、公开 HTTP/UI、生产/性能和独立人工验收，以及既有 PARTIAL/NOT RUN 和 Grant PolicySnapshot lifecycle 延后保持原边界。以下保留各交付时点的规划与证据引用，其中旧 Current、待退出和待确认表述由本验收结论取代。
 
 当前推进意图（2026-10-04）：#239 / PR #240 已交付正常与一次 BLOCKED_INPUT 恢复的 TaskCompleted 实际派发、独立 DeliveryItem Completion 与权威读回。[Issue #244](https://github.com/qzhike/zhiju-business-core/issues/244) 已关闭，[PR #245](https://github.com/qzhike/zhiju-business-core/pull/245) 已合并至 `main@e1b201ef85f0e75d3f816d94600f9810116b22ab`，交付 **Human 请求 Run 取消 → CANCELLING → 无 ACK 到期 ABANDONED → 迟到 final 隔离审计与权威状态读回**；最终 reviewed head `8a4ac92f267bd476bda80dbab3426d5fc35855b1` 的独立复审无剩余 finding、人类技术批准与完整 CI 见 [PR #245 Review](../reviews/pr-245/Review.md)，支持集见 [取消决定](../decisions/task-execution-cancellation.md)。公开取消 Purpose 保留旧 metadata，首版取消/新 expiry/隔离限定为创建时已有 reservation 的两次执行 profile，不回填历史预算、不引入 Runtime ACK。
 
@@ -19,7 +21,9 @@
 
 Task Board 交付后的下一步（2026-10-07）：[Issue #248](https://github.com/qzhike/zhiju-business-core/issues/248) 已关闭，[PR #249](https://github.com/qzhike/zhiju-business-core/pull/249) 已按用户明确授权合入 `main@b243ce850d9927af3fa1ca8e93158fddc59d89d0`；最终实现 head `2e08125c5f38798a03179c628e327d2e06f76569` 的独立 APPROVE 与 exact-head full 见 [正式审查记录](../reviews/pr-249/Review.md)及 PR。已交付 Human Project Task Board 的 owning 来源、精确筛选/固定分页、当前独立授权、三种一致性/freshness、有限 Export/发布与恢复；BOARD-D-002 按其命名层级 PASS，其余矩阵保留各自 PARTIAL/NOT RUN。下一独立目标为基于当前实现复核 TD-07 统一退出/恢复证据与 IM-06 退出条件：先对账已执行来源、未执行场景及实质性契约缺口，必要设计批准后再发布 NOW + READY 工作。IM-06 保持 Current；真实 Grant PolicySnapshot lifecycle、HTTP/UI/Provider/生产/性能和独立人工边界保持原 NOT RUN/延后，不因本次合并扩大验收。
 
-TD-07 当前交付候选（2026-10-07）：[统一受控退出 Spec Delta](../decisions/task-execution-controlled-exit.md) 的 X-01–X-05 已获人类设计批准，现由 [Issue #250](https://github.com/qzhike/zhiju-business-core/issues/250) 承接完整工程目标。统一 normal/recovered/cancel Fixture 已落盘，组合阶段权威 Query、独立 Usage、Board/freshness、五个提交后故障重放与最终 EP 读回；分别复用既有 owning Process/dispatcher，不新增总 Workflow、API、profile 或 migration。逐 revision 验收与 Git 交付以实际 Issue/PR/CI 为准，独立设计/实现审查和适用人类技术审查不由测试替代。交付后仍须单独按原退出 Gate 对账 IM-06；IM-06 保持 Current，既有 owning 矩阵的 PARTIAL/NOT RUN 和外部/人工/PolicySnapshot 延后不整体升级。
+TD-07 交付与退出复核（2026-10-07）：[Issue #250](https://github.com/qzhike/zhiju-business-core/issues/250) 已完成并关闭，[PR #251](https://github.com/qzhike/zhiju-business-core/pull/251) 已按用户明确授权合入 `main@b6e1f93d7a79e6334622c55b94f124750143949e`；最终实现 head `be7c871b789ac3ed6806d10742a32ecc10a590ed` 的独立 APPROVE 与 exact-head full 见 [正式审查记录](../reviews/pr-251/Review.md)及 PR。已交付 normal/recovered/cancel/cancel-progress 四个独立受控 PostgreSQL 场景，组合阶段权威 Query、独立 Usage、Board/freshness、五个提交后故障恢复与最终 EP 读回；迟到 final 与已有进度挂起按[批准澄清](../decisions/task-execution-controlled-exit.md#8-取消验收组合澄清与批准pr-251-r22026-10-07)分别保留来源，不新增生产总 Workflow、API、profile 或 migration。
+
+基于上述合并后 main 的 Planner 复核结论：已批准有限支持集满足 [IM-06 原工程退出 Gate](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md#im-06-taskexecution-human-operated-core)。WorkOrder 范围和 READY 后冻结由 owning Validation/Freeze 与持久化约束保持；[EXIT-D-001–006](../module-tests/Module-Test-003-TaskExecution.md#td-07-统一受控退出验收250)及关联 owning 矩阵覆盖独立 Run/Result/WorkOrder/Task/DeliveryItem 判断、BLOCKED_INPUT 后新 Context/Run、有限 Human Cancel request 与 late final 隔离，真实 synthetic Driver 不依赖 Agent。证据复用 PR #251 同一最终 head 的完整 CI；该 head 与合并 commit 的文件树无差异。未发现需要新增 IM-06 实现工作的实质性退出缺口；用户已于 2026-10-07 接受为 **scoped engineering completion**，不宣称产品入口或外部/人工可用性。独立设计审查的历史 NOT RUN、现有 owning 矩阵 PARTIAL/NOT RUN、真实 Grant PolicySnapshot lifecycle 延后及 HTTP/UI/CLI/Provider/Feishu、生产/性能、独立人工验收边界保留，不整行升级，也不改原 Gate。该确认满足 [Milestone Plan §8](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md#8-每个里程碑的-definition-of-done) 第 9 项中的本阶段验收确认；后续阶段选择及 Git 交付仍按各自授权执行。
 
 开始实现前：
 
@@ -69,8 +73,9 @@ final 交付基线（2026-09-27，历史）：[Issue #224](https://github.com/qz
 
 正式 Completion 交付后的推进意图（2026-10-01）：受控 final 的 #224 已关闭，其既有证据继续保持 20 tiered PASS / 3 PARTIAL；[Issue #231](https://github.com/qzhike/zhiju-business-core/issues/231) / [PR #232](https://github.com/qzhike/zhiju-business-core/pull/232) 的有限 BLOCKED_INPUT 恢复 owning 链保持。基于已批准的 [#233 正式输出与独立 Completion 设计](../decisions/task-execution-formal-completion.md)，[Issue #235](https://github.com/qzhike/zhiju-business-core/issues/235) 已关闭，[PR #236](https://github.com/qzhike/zhiju-business-core/pull/236) 已合入 `main@93822fae63ae69b909635c81768760d0057c241f`。正常与一次恢复路径已有正式 Artifact 输出 → 独立 WorkOrder/Task Completion → 不可变历史/current 读回、refresh 与依赖 Readiness 消费的受控 owning-entry/PostgreSQL 证据；Registry / TaskExecution / 兼容基线为 237 / 62 / 200。独立复审、人类技术批准及最终 head 完整 CI 见 PR 与[正式审查记录](../reviews/pr-236/Review.md)，分层验收和未执行子项继续由 owning Module-Test 保留。下一候选为 TaskCompleted 到 EnterpriseProject 的实际 dispatch 与 DeliveryItem completion；须先在届时 main 复核语义与 NOW + READY，不预先发布实现 Issue。Board/Usage 与 TD-05–07 未批准边界不扩张；真实 Grant PolicySnapshot lifecycle、外部及独立人工业务验收继续保留原 NOT RUN/延后边界。Cancel/late-result 退出要求仍须对账，IM-06 保持 Current。
 
-## Next / Later — 后续顺序
+## Current / Next / Later — 后续阶段选择与顺序
 
+- IM-06 工程退出已获用户确认；下一阶段尚未选定。建议先开展 IM-UI-01 的 UI-DG-001–003 设计与入口 readiness 对账，形成可审核的 Experience 层方案及一个完整 Human 操作目标；具体 UI 技术栈、Session/安全设计与公开 HTTP 接线仍未闭合，UI 实现为 NOT_READY。本次确认仅接受 IM-06 验收，不授权新阶段实施、Issue 发布或 Git 交付；IM-07 的 Feishu readiness 可作为另一后续方向，仍须先收敛 #27 的所属范围。
 - [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 仍开放，承接 IntegrationGateway 的剩余 Handler/Adapter/Persistence 与外部验收。其旧正文包含早期 23-operation 与 Renderer 未实现描述，不能直接作为下一项完整实现任务；需先与已交付 Renderer slice 和当前 Module-Spec-007 对账，再按所属阶段收敛验收范围。
 - IM-06 后可启动 IM-UI-01；IM-07 Feishu → IM-08 CLI Runtime 保持既有依赖。IM-UI-01 可与该窗口并行，IM-09 等待三者适用 Gate。
 - UI-DG-001/002 及 UI-DG-003 具体设计、IM-DG-006 仍须按 [阶段决策 Gate](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md#4-开始编码前的决策-gate) 获得明确决定。本规划不选择 UI 技术栈或批准未决 Runtime 方案。

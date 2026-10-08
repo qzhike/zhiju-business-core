@@ -217,7 +217,9 @@ GitHub 任务基线：Parent Exit Gate [#120](https://github.com/qzhike/zhiju-bu
 
 ### IM-06 TaskExecution Human-operated Core
 
-产出：Task、WorkOrder、ContextSnapshot、Run、AgentResult、InformationRequest、Usage/Provenance 的 Human-operated 流程。阶段启动基线的 TaskExecution 范围为 19 Command、7 Query、11 Event，当时全仓 Catalog 为 201 项；原 200 项兼容基线保持不变，当前全仓 Catalog/Registry 为 213 项，实时模块范围见 owning Module Spec 与 roadmap。IM-06 不自动批准 Runtime 专项的 6 个新增 Command；任何必要 API Delta 必须先经正式设计决定。
+验收状态：`SCOPED ENGINEERING ACCEPTANCE COMPLETE / USER CONFIRMED 2026-10-07`。已批准有限支持集通过原工程退出 Gate，用户已确认 IM-06 完成验收；复核依据与边界见 [roadmap](../product/roadmap.md#completed--im-06-taskexecution-human-operated-core)。外部/公开 HTTP/UI/生产/性能/独立人工验收及既有 PARTIAL/NOT RUN、真实 Grant PolicySnapshot lifecycle 延后保持原边界。
+
+产出：Task、WorkOrder、ContextSnapshot、Run、AgentResult、InformationRequest、Usage/Provenance 的 Human-operated 流程。阶段启动基线的 TaskExecution 范围为 19 Command、7 Query、11 Event，当时全仓 Catalog 为 201 项；原 200 项兼容基线保持不变，验收基线的全仓 Catalog/Registry 为 239 项，实时模块范围见 owning Module Spec 与 roadmap。IM-06 不自动批准 Runtime 专项的 6 个新增 Command；任何必要 API Delta 必须先经正式设计决定。
 
 退出 Gate：WorkOrder 范围、Run/Result/Completion 四层状态不混淆；BLOCKED_INPUT、新 Run Retry、Cancel request 和 late result 语义可测试；不依赖真实 Agent。
 
