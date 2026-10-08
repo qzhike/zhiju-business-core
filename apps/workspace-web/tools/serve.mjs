@@ -2,7 +2,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('../dist/', import.meta.url)));
 const fixture = await stat(resolve(root, 'fixture-build.json')).then(
