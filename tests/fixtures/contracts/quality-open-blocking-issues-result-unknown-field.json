@@ -1,0 +1,58 @@
+{
+  "items": [
+    {
+      "reviewIssueRef": {
+        "kind": "OBJECT",
+        "objectType": "zhiju.quality.review_issue",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d611",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        }
+      },
+      "originRevisionRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.artifact.artifact_revision",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d612",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1919191919191919191919191919191919191919191919191919191919191919",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "severity": "MAJOR",
+      "blockingClassification": "zhiju.issue.blocking.optional",
+      "status": "OPEN",
+      "secretNote": "internal-only-note-must-not-leak"
+    }
+  ],
+  "evaluatedAt": "2026-08-17T00:00:00Z",
+  "revisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.artifact.artifact_revision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d612",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1919191919191919191919191919191919191919191919191919191919191919",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "qualityProfileRef": {
+    "kind": "VERSIONED",
+    "objectType": "zhiju.quality.quality_profile",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d613",
+    "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d613",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  }
+}

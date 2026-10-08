@@ -1,0 +1,66 @@
+{
+  "eventId": "018f22e2-7c15-7b2e-8d86-2de956a9d641",
+  "eventType": "quality.EvidenceVerified",
+  "eventVersion": "1.0",
+  "producerModule": "quality-governance",
+  "aggregateType": "zhiju.quality.evidence",
+  "aggregateId": "018f22e2-7c15-7b2e-8d86-2de956a9d642",
+  "aggregateVersion": 1,
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d643",
+  "causationId": "018f22e2-7c15-7b2e-8d86-2de956a9d644",
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d645",
+  "actorRef": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "occurredAt": "2026-08-17T00:00:00Z",
+  "dataClassification": "INTERNAL",
+  "payload": {
+    "evidenceRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.quality.evidence",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d642",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "2727272727272727272727272727272727272727272727272727272727272727",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "verificationRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.quality.evidence_verification",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d646",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "2828282828282828282828282828282828282828282828282828282828282828",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "authority": "zhiju.authority.regulator.cn_nmpa",
+    "verifiedAt": "2026-08-17T00:00:00Z"
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "2929292929292929292929292929292929292929292929292929292929292929",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

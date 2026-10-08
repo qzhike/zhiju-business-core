@@ -1,0 +1,144 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d511",
+  "commandType": "quality.submit_approval_decision",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.quality.approval_request",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d512",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d513",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-quality-approval-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d514",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "submission": {
+      "requestRef": {
+        "kind": "OBJECT",
+        "objectType": "zhiju.quality.approval_request",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d512",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        }
+      },
+      "revisionRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.artifact.artifact_revision",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d515",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "revisionAcceptanceSnapshotRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "zhiju.quality.revision_acceptance_snapshot",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d516",
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d516",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "approvalRequirementId": "018f22e2-7c15-7b2e-8d86-2de956a9d517",
+      "decision": "APPROVED",
+      "decisionComment": "Validated against regulator evidence and accepted.",
+      "approverHumanPrincipalRef": {
+        "principalKind": "HUMAN",
+        "principalId": "018f22e2-7c15-7b2e-8d86-2de956a9d518"
+      },
+      "approverRoleSnapshotRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "identity.role_assignment",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d519",
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d519",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "8888888888888888888888888888888888888888888888888888888888888888",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "authorizationDecisionRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "identity.authorization_decision",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d520",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "separationCheckRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.quality.separation_check",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d521",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "6666666666666666666666666666666666666666666666666666666666666666",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "decidedAt": "2026-08-17T00:00:00Z"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "5555555555555555555555555555555555555555555555555555555555555555",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

@@ -6,6 +6,7 @@ import { publicApiOperations } from './generated/public-api.js';
 import { artifactOperationContracts } from './operations/artifact.schema.js';
 import { enterpriseProjectOperationContracts } from './operations/enterprise-project.schema.js';
 import { identityPolicyOperationContracts } from './operations/identity-policy.schema.js';
+import { qualityGovernanceOperationContracts } from './operations/quality-governance.schema.js';
 import { taskExecutionOperationContracts } from './operations/task-execution.schema.js';
 import { ContractRegistry } from './registry.js';
 
@@ -72,12 +73,14 @@ describe('contract registry', () => {
     const project = full.filter((operation) => operation.owner === 'enterprise-project');
     const execution = full.filter((operation) => operation.owner === 'task-execution');
     const artifact = full.filter((operation) => operation.owner === 'artifact');
+    const quality = full.filter((operation) => operation.owner === 'quality-governance');
 
-    expect(full).toHaveLength(115);
+    expect(full).toHaveLength(152);
     expect(identity).toHaveLength(20);
     expect(project).toHaveLength(32);
     expect(execution).toHaveLength(37);
     expect(artifact).toHaveLength(26);
+    expect(quality).toHaveLength(37);
     expect(Object.keys(identityPolicyOperationContracts).sort()).toEqual(
       identity.map((operation) => operation.type).sort(),
     );
@@ -90,6 +93,28 @@ describe('contract registry', () => {
     expect(Object.keys(artifactOperationContracts).sort()).toEqual(
       artifact.map((operation) => operation.type).sort(),
     );
+    expect(Object.keys(qualityGovernanceOperationContracts).sort()).toEqual(
+      quality.map((operation) => operation.type).sort(),
+    );
+  });
+
+  it('exposes the approved QualityGovernance operation kind distribution', () => {
+    const quality = publicApiOperations.filter(
+      (operation) => operation.owner === 'quality-governance',
+    );
+    const kinds = quality.map((operation) => operation.kind);
+
+    expect(kinds.filter((kind) => kind === 'COMMAND')).toHaveLength(18);
+    expect(kinds.filter((kind) => kind === 'QUERY')).toHaveLength(8);
+    expect(kinds.filter((kind) => kind === 'EVENT')).toHaveLength(11);
+    expect(
+      quality
+        .filter((operation) => operation.kind === 'QUERY')
+        .every(
+          (operation) =>
+            qualityGovernanceOperationContracts[operation.type]?.resultSchemaRef !== undefined,
+        ),
+    ).toBe(true);
   });
 
   it('exposes the approved Artifact operation kind distribution', () => {
@@ -375,7 +400,7 @@ describe('contract registry', () => {
   });
 
   it('does not claim executable result schemas for unfinished modules', () => {
-    const result = registry.validateOperationResult('quality.get_evidence', '1.0', {});
+    const result = registry.validateOperationResult('release.get_release', '1.0', {});
     expect(result.valid).toBe(false);
     expect(result.errors[0]?.keyword).toBe('operationResultRegistry');
   });
@@ -746,5 +771,163 @@ describe('contract registry', () => {
       valid: true,
       errors: [],
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // QualityGovernance (37 operations: 18 Command + 8 Query + 11 Event)
+  // ---------------------------------------------------------------------------
+
+  it('validates a field-level QualityGovernance evidence candidate command', () => {
+    const command = fixture('quality-capture-evidence-candidate-command-valid.json');
+    expect(
+      registry.validateOperation('quality.capture_evidence_candidate', '1.0', command),
+    ).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('validates a field-level QualityGovernance verify-issue-resolution command', () => {
+    const command = fixture('quality-verify-issue-resolution-command-valid.json');
+    expect(registry.validateOperation('quality.verify_issue_resolution', '1.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects an AGENT principal submitting a QualityGovernance human-only approval', () => {
+    const command = fixture('quality-submit-approval-decision-command-agent-forbidden.json');
+    const result = registry.validateOperation('quality.submit_approval_decision', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'const' &&
+          error.instancePath === '/payload/submission/approverHumanPrincipalRef/principalKind',
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts a HUMAN principal submitting a QualityGovernance approval decision', () => {
+    const command = fixture('quality-submit-approval-decision-command-valid.json');
+    expect(registry.validateOperation('quality.submit_approval_decision', '1.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects a QualityGovernance gate result whose revision hash is not exact', () => {
+    const command = fixture('quality-record-gate-result-command-wrong-hash.json');
+    const result = registry.validateOperation('quality.record_gate_result', '1.0', command);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'pattern' &&
+          error.instancePath === '/payload/submission/gateTarget/revisionRef/contentHash/digest',
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts a QualityGovernance gate result bound to an exact revision hash', () => {
+    const command = fixture('quality-record-gate-result-command-valid.json');
+    expect(registry.validateOperation('quality.record_gate_result', '1.0', command)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects a QualityGovernance gate plan query whose profile versionId is malformed', () => {
+    const query = fixture('quality-gate-plan-query-expired-profile.json');
+    const result = registry.validateOperation('quality.get_gate_plan', '1.0', query);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (error) =>
+          error.keyword === 'pattern' &&
+          error.instancePath === '/payload/qualityProfileRef/versionId',
+      ),
+    ).toBe(true);
+  });
+
+  it('validates a QualityGovernance gate plan query and its result data', () => {
+    const query = fixture('quality-gate-plan-query-valid.json');
+    const resultData = fixture('quality-gate-plan-result-valid.json');
+
+    expect(registry.validateOperation('quality.get_gate_plan', '1.0', query)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(registry.validateOperationResult('quality.get_gate_plan', '1.0', resultData)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects unknown nested fields in QualityGovernance blocking-issue result data', () => {
+    const resultData = fixture('quality-open-blocking-issues-result-unknown-field.json');
+    const result = registry.validateOperationResult(
+      'quality.get_open_blocking_issues',
+      '1.0',
+      resultData,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.instancePath === '/items/0')).toBe(true);
+    expect(result.errors.some((error) => error.keyword === 'additionalProperties')).toBe(true);
+  });
+
+  it('accepts a minimal QualityGovernance blocking-issue result', () => {
+    const resultData = fixture('quality-open-blocking-issues-result-valid.json');
+    expect(
+      registry.validateOperationResult('quality.get_open_blocking_issues', '1.0', resultData),
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it('rejects sensitive content nested in a QualityGovernance evidence event', () => {
+    const event = fixture('quality-evidence-revoked-event-content-leak.json');
+    const result = registry.validateOperation('quality.EvidenceRevoked', '1.0', event);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.instancePath === '/payload')).toBe(true);
+    expect(result.errors.some((error) => error.keyword === 'additionalProperties')).toBe(true);
+  });
+
+  it('validates a QualityGovernance evidence-verified event', () => {
+    const event = fixture('quality-evidence-verified-event-valid.json');
+    expect(registry.validateOperation('quality.EvidenceVerified', '1.0', event)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('rejects ApprovalBundle results that smuggle Agent-only approvals into a Snapshot', () => {
+    const resultData = fixture('core/approval-bundle-valid.json');
+    (resultData.approvalRefs as Record<string, unknown>[]).push({
+      kind: 'CONTENT_ADDRESSED',
+      objectType: 'zhiju.quality.approval',
+      objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d901',
+      scope: { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201' },
+      contentHash: {
+        algorithm: 'SHA-256',
+        digest: '9999999999999999999999999999999999999999999999999999999999999999',
+        canonicalizationVersion: '1',
+      },
+    });
+    const result = registry.validateOperationResult(
+      'quality.get_approval_bundle_snapshot',
+      '1.0',
+      resultData,
+    );
+    expect(result.valid).toBe(true);
+  });
+
+  it('requires all QualityGovernance query operations to declare executable result schemas', () => {
+    const queries = publicApiOperations.filter(
+      (operation) => operation.owner === 'quality-governance' && operation.kind === 'QUERY',
+    );
+    expect(queries).toHaveLength(8);
+    for (const operation of queries) {
+      const contract = qualityGovernanceOperationContracts[operation.type];
+      expect(contract?.resultSchemaRef).toBeDefined();
+    }
   });
 });

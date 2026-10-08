@@ -1,0 +1,112 @@
+{
+  "commandId": "018f22e2-7c15-7b2e-8d86-2de956a9d561",
+  "commandType": "quality.record_gate_result",
+  "commandVersion": "1.0",
+  "scopeRef": {
+    "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+    "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+  },
+  "targetRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.artifact.artifact",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d552",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "actor": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    }
+  },
+  "authorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d563",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "1616161616161616161616161616161616161616161616161616161616161616",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "idempotencyKey": "fixture-quality-gate-wrong-hash-001",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d564",
+  "requestedAt": "2026-08-17T00:00:00Z",
+  "payload": {
+    "submission": {
+      "artifactRef": {
+        "kind": "OBJECT",
+        "objectType": "zhiju.artifact.artifact",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d552",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        }
+      },
+      "gateTarget": {
+        "kind": "REVISION",
+        "revisionRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.artifact.artifact_revision",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d555",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "latest-must-not-pass",
+            "canonicalizationVersion": "1"
+          }
+        }
+      },
+      "evaluationStage": "REVISION_ACCEPTANCE",
+      "qualityProfileRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.quality.quality_profile",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d556",
+        "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d556",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        }
+      },
+      "gateSpecId": "018f22e2-7c15-7b2e-8d86-2de956a9d557",
+      "gateVersion": "1.0.0",
+      "evaluationAttempt": 1,
+      "inputSnapshotRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "zhiju.quality.gate_input",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d558",
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d558",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1414141414141414141414141414141414141414141414141414141414141414",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "outcome": "PASS",
+      "startedAt": "2026-08-17T00:00:00Z",
+      "completedAt": "2026-08-17T00:00:05Z"
+    }
+  },
+  "integrity": {
+    "canonicalizationVersion": "1",
+    "payloadHash": {
+      "algorithm": "SHA-256",
+      "digest": "1717171717171717171717171717171717171717171717171717171717171717",
+      "canonicalizationVersion": "1"
+    }
+  }
+}

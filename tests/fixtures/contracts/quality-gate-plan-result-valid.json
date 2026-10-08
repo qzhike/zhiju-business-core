@@ -1,0 +1,42 @@
+{
+  "target": {
+    "kind": "REVISION",
+    "revisionRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.artifact.artifact_revision",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d624",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "2121212121212121212121212121212121212121212121212121212121212121",
+        "canonicalizationVersion": "1"
+      }
+    }
+  },
+  "qualityProfileRef": {
+    "kind": "VERSIONED",
+    "objectType": "zhiju.quality.quality_profile",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d625",
+    "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d625",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d302"
+    }
+  },
+  "applicableGateSpecs": [
+    {
+      "gateSpecId": "018f22e2-7c15-7b2e-8d86-2de956a9d626",
+      "evaluationStage": "REVISION_ACCEPTANCE"
+    }
+  ],
+  "dependencyOrder": ["018f22e2-7c15-7b2e-8d86-2de956a9d626"],
+  "reuseDecisions": [],
+  "planHash": {
+    "algorithm": "SHA-256",
+    "digest": "2323232323232323232323232323232323232323232323232323232323232323",
+    "canonicalizationVersion": "1"
+  }
+}
