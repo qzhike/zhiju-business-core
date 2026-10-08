@@ -171,16 +171,26 @@ function scanSourceFile(path) {
 
 export function checkManifestData(path, packageJson) {
   const kind = packageKind(path);
-  const dependencies = [
-    'dependencies',
-    'devDependencies',
-    'peerDependencies',
-    'optionalDependencies',
-  ].flatMap((field) => Object.keys(packageJson[field] ?? {}));
-  return dependencies.flatMap((specifier) =>
-    evaluateImport({ importerKind: kind, specifier }).map(
-      (reason) => `${relative(repositoryRoot, path)} declares ${specifier}: ${reason}`,
-    ),
+  return ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'].flatMap(
+    (field) =>
+      Object.entries(packageJson[field] ?? {}).flatMap(([specifier, target]) => {
+        const reasons = evaluateImport({ importerKind: kind, specifier });
+        // Alias and path declarations can hide a prohibited target behind an approved name.
+        if (
+          experienceLibraries[kind] &&
+          (typeof target !== 'string' ||
+            (target !== 'catalog:' &&
+              !/^\d+\.\d+\.\d+(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/u.test(target)))
+        ) {
+          reasons.push(
+            'Web/BFF dependency targets must be exact registry versions or the default catalog, not aliases, paths or other sources',
+          );
+        }
+        return reasons.map(
+          (reason) =>
+            `${relative(repositoryRoot, path)} declares ${field}.${specifier} = ${JSON.stringify(target)}: ${reason}`,
+        );
+      }),
   );
 }
 

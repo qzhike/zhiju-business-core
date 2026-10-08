@@ -8,6 +8,12 @@ import {
 
 describe('UI-SHELL-004 experience boundaries', () => {
   const file = resolve('apps/workspace-web/src/Counterexample.tsx');
+  const manifestFields = [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ];
   it.each([
     "import { Repository } from '@zhiju/artifact'; const element = <div />;",
     "export { Repository } from '@zhiju/identity-policy';",
@@ -33,25 +39,55 @@ describe('UI-SHELL-004 experience boundaries', () => {
       ),
     ).toEqual([]);
   });
-  it.each(['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'])(
-    'checks application manifest %s',
-    (field) => {
-      expect(
-        checkManifestData(resolve('apps/workspace-web/package.json'), {
-          [field]: { '@zhiju/contracts': 'workspace:*' },
-        }).length,
-      ).toBeGreaterThan(0);
-      expect(
-        checkManifestData(resolve('apps/workspace-bff/package.json'), { [field]: { pg: '8.23.0' } })
-          .length,
-      ).toBeGreaterThan(0);
-      expect(
-        checkManifestData(resolve('apps/workspace-web/package.json'), {
-          [field]: { react: '19.3.0' },
-        }),
-      ).toEqual([]);
-    },
-  );
+  it.each(manifestFields)('checks application manifest %s', (field) => {
+    expect(
+      checkManifestData(resolve('apps/workspace-web/package.json'), {
+        [field]: { '@zhiju/contracts': 'workspace:*' },
+      }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      checkManifestData(resolve('apps/workspace-bff/package.json'), { [field]: { pg: '8.23.0' } })
+        .length,
+    ).toBeGreaterThan(0);
+    expect(
+      checkManifestData(resolve('apps/workspace-web/package.json'), {
+        [field]: { react: '19.3.0' },
+      }),
+    ).toEqual([]);
+  });
+  describe.each([
+    { application: 'workspace-web', dependency: 'react', version: '19.3.0' },
+    { application: 'workspace-bff', dependency: 'fastify', version: '5.12.0' },
+  ])('$application manifest targets', ({ application, dependency, version }) => {
+    const manifest = resolve(`apps/${application}/package.json`);
+    describe.each(manifestFields)('%s', (field) => {
+      it.each([
+        'npm:pg@8.23.0',
+        'workspace:@zhiju/artifact@*',
+        'file:../../modules/artifact',
+        'link:../../modules/artifact',
+        '../../modules/artifact',
+        '/private/repo/modules/artifact',
+        'https://example.com/private-package.tgz',
+        'git+https://example.com/private-package.git',
+      ])('rejects an approved name pointing to %s', (target) => {
+        const violations = checkManifestData(manifest, { [field]: { [dependency]: target } });
+        expect(violations.length).toBeGreaterThan(0);
+        expect(violations.join('\n')).toContain(field);
+        expect(violations.join('\n')).toContain(target);
+      });
+      it('accepts the approved exact registry version', () => {
+        expect(checkManifestData(manifest, { [field]: { [dependency]: version } })).toEqual([]);
+      });
+    });
+  });
+  it.each(manifestFields)('accepts the BFF default catalog in %s', (field) => {
+    expect(
+      checkManifestData(resolve('apps/workspace-bff/package.json'), {
+        [field]: { fastify: 'catalog:' },
+      }),
+    ).toEqual([]);
+  });
   it.each([
     '@zhiju/api',
     'kysely',

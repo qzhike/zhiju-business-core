@@ -114,7 +114,7 @@ reviewer and timestamp
 | UI-SHELL-001 | 干净安装批准 lockfile 后构建 Web/BFF 与 Core | 两个应用可独立构建，Core 既有构建仍通过；正式构建无 token/凭据/私有业务包 | `PASS`：#252 的配置门禁与受控匿名制品检查；执行证据见 Issue/PR |
 | UI-SHELL-002 | 明确开发模式与匿名报告，执行首轮导航、刷新、返回与加载/失败 | 已批准布局与默认不选/显式确认保持；刷新/历史与错误可恢复，样例动作不会伪称真实执行 | `PASS`：#252 的配置门禁与受控匿名制品检查；执行证据见 Issue/PR |
 | UI-SHELL-003 | 生产模式缺 Session/公开服务或注入开发开关 | 业务动作安全拒绝，无假身份/假回执或 mock fallback；配置错误有可理解反馈 | `PASS`：#252 的配置门禁与受控匿名制品检查；执行证据见 Issue/PR |
-| UI-SHELL-004 | `.tsx` 引入禁止业务/私有依赖，应用 manifest 声明禁止依赖，以及允许库的对照 | 架构检查拒绝必要负向反例，允许批准依赖；未遗漏 React 源码或 apps manifest | `PASS`：#252 的配置门禁与受控匿名制品检查；执行证据见 Issue/PR |
+| UI-SHELL-004 | `.tsx` 引入禁止业务/私有依赖，应用 manifest 四类 dependency 字段中的禁止名称、npm/workspace 别名、file/link 与其他路径/来源，以及精确版本和 BFF `catalog:` 的允许对照 | 架构检查同时拒绝禁止依赖名称及声明目标，允许批准依赖；未遗漏 React 源码或 apps manifest | `PASS`：#252 的配置门禁与受控匿名制品检查；执行证据见 Issue/PR |
 
 
 ### #252 工程外壳可复现检查与证据边界

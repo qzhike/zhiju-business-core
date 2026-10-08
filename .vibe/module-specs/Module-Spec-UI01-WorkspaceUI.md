@@ -261,5 +261,5 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 - `apps/workspace-bff` 为独立 NestJS/Fastify 进程，只有健康和无身份 bootstrap。未接入认证及公开业务服务时，任何业务请求返回固定安全 JSON 错误，不产生 Human、上传/接纳成功或 Runner 回执。无请求内容日志。
 - 静态服务只对声明页面与 HTML 导航使用 SPA fallback；`/bff/*` 固定转发，API 与不存在的资产不会变为 HTML 200。
 - 开发样例默认不选文件，按精确报告独立保存整份选择，显式确认后才生成合成请求引用；刷新/历史可回读本标签页演示记录。新报告提示不会自动换页或替换当前版本。
-- 工程检查覆盖 TS/TSX、应用 manifest 的四类 dependency 字段、静态/动态 import、require 与 import type 反例；Web/BFF 只允许批准的 Experience 依赖，不改七个业务模块、Catalog、Schema 或 migrations。
+- 工程检查覆盖 TS/TSX、应用 manifest 的四类 dependency 字段、静态/动态 import、require 与 import type 反例；manifest 同时检查依赖名称与声明目标，只允许精确 registry 版本或默认 `catalog:`，拒绝别名、本地路径与其他来源借允许名称引入禁止目标。Web/BFF 只允许批准的 Experience 依赖，不改七个业务模块、Catalog、Schema 或 migrations。
 - 所有演示结果显示开发身份、合成报告/回执/进度标识。生产业务入口保持拒绝；真实接入继续由 owning 契约决定。
