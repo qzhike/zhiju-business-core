@@ -1048,7 +1048,7 @@ Issue #224 实现会话中，用户对“本 Issue 新增定时 worker 宿主，
 
 ## 23. BLOCKED_INPUT 恢复设计闭合提案（#229）
 
-状态：`T2 DESIGN ONLY / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / IMPLEMENTATION READINESS REVIEW PENDING / NOT IMPLEMENTED`。执行对账基线为 `main@9d00d01db5abe024e333cbc72f435ef284665e5c`；#224 已随 #226/#228 关闭，其最终证据仍为 **20 tiered PASS / 3 PARTIAL**。§22.8 的 actual grant PolicySnapshot lifecycle 延后、首 Run 同界 lease/deadline、Usage/Completion/外部/人工 NOT RUN 均保留，本设计不提升这些结论。
+状态：`T2 DESIGN ONLY / DESIGN APPROVED / INDEPENDENT DESIGN REVIEW PASSED 2026-09-27 / HUMAN DESIGN APPROVED 2026-09-27 / PLANNER READINESS PASSED 2026-09-27 / IMPLEMENTATION ISSUE #231 PUBLISHED / NOT IMPLEMENTED`。执行对账基线为 `main@9d00d01db5abe024e333cbc72f435ef284665e5c`；#224 已随 #226/#228 关闭，其最终证据仍为 **20 tiered PASS / 3 PARTIAL**。§22.8 的 actual grant PolicySnapshot lifecycle 延后、首 Run 同界 lease/deadline、Usage/Completion/外部/人工 NOT RUN 均保留，本设计不提升这些结论。
 
 ### 23.1 有限目标与取舍
 

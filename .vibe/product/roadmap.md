@@ -11,7 +11,7 @@
 
 ## Current — IM-06 TaskExecution Human-operated Core
 
-当前 IM-06 技术基础已交付，继续推进业务切片的 readiness 检查。目标是 Human 发起、owning Service 执行的 Task/WorkOrder/Context/Run/Result/InformationRequest 流程，以及独立 Completion 与 Usage/Provenance；不提前引入真实 Agent 自动化。
+当前 IM-06 已交付首次受控执行与空输出 Result 接纳/Run 终结，#229 的有限 BLOCKED_INPUT 恢复设计已获批准并合并；下一波次实现该完整 Human 材料确认与 Context-2/Run-2 恢复动作。目标是 Human 发起、owning Service 执行的 Task/WorkOrder/Context/Run/Result/InformationRequest 流程，以及独立 Completion 与 Usage/Provenance；不提前引入真实 Agent 自动化。
 
 开始实现前：
 
@@ -58,6 +58,8 @@
 下一项工作是“受控 final `AgentResult` → 独立 Acceptance → terminal Run 与权威读回”。基于已批准 TD-02/03 和 #222 当前 Run/Attempt 实现，T2 增量提案已形成于[决定 §22](../decisions/task-execution-human-operated.md#22-受控-final-agentresult-到-terminal-run-的增量设计提案)、Spec 001 §15.13、Spec 003 §23、Spec 007 final 增量、Catalog、PostgreSQL §38 与对应 Module-Test：只支持 synthetic FINAL/COMPLETED 空业务输出正链，明确 IG 真实 final 观察、独立授权、五项 Validation/Acceptance、唯一 final reservation、Run/Claim 原子终结与迟到/冲突失败语义；不把 Result 接纳当成 WorkOrder/Task 完成。人类设计批准与独立复审 `APPROVE` 均于 2026-09-23 记录（决定 §22.5–§22.6）；权威设计文档已由 [PR #223](https://github.com/qzhike/zhiju-business-core/pull/223) 合入 `main@6538003949b6202211fc3786ab82de4bacf015a5`。Planner 于 2026-09-24 对 §22 的受控首版实现候选复核为 `NOW + READY`：#222 的 RUNNING Run/Attempt 前置、已批准的字段与授权/持久化边界、可观察的 `*-FINAL-D-*` 正反例和 `full` 验证目标均已具备；实现 [Issue #224](https://github.com/qzhike/zhiju-business-core/issues/224) 已发布；新注册、Handler、migration 与运行矩阵仍为 `NOT RUN`。InformationRequest/新 Context 与 Run Retry、Completion、TD-05–07 按实际依赖继续滚动复核。
 
 #229 设计批准后的推进意图（2026-09-27）：受控 final 的 #224 已关闭，已交付证据仍为 20 tiered PASS / 3 PARTIAL。[PR #230](https://github.com/qzhike/zhiju-business-core/pull/230) 的有限 BLOCKED_INPUT → Human 确认/答案 → Context-2 / Run-2 设计已通过独立检查并获显式人类设计批准，批准范围与正式审查见[决定 §23.4](../decisions/task-execution-human-operated.md#234-人类批准与设计交付2026-09-27)。下一候选是完整交付该有限 Human 恢复动作及 owning 读回；Planner 在设计合并后复核 NOW + READY，再按授权发布实现 Issue。该候选包含所需 TE/IP/EP/IG 接线、契约与前向持久化，不拆成不可使用的注册-only 交付。当前只完成设计批准，恢复运行矩阵、Completion、TD-05–07、外部及人工业务验收仍 NOT RUN；IM-06 继续保持 Current。
+
+#229 合并后 readiness（2026-09-27）：Planner 基于 `main@84d1bd4d92ddb5aa7c337960d380a03fb511fbd5` 与 #229/#230 最新关闭、审查、批准和 exact-head docs CI 记录完成对账。产品实现相对 #228 未变；Task/WorkOrder/首次 Context/READY、首次 Run/final、IP 授权和 EP 材料/Source/#191 Receipt 前置已具备，新增内部读取 Port 及契约/存储均在获批 §24/§15.14/PostgreSQL §39 中闭合并纳入同一实现目标，未发现必须先另行决定的实质设计依赖。有限恢复实现为 `NOW + READY`，已发布 [Issue #231](https://github.com/qzhike/zhiju-business-core/issues/231)：新 Controls @1.1 的两次尝试计划、真实 Run-1 BLOCKED_INPUT、Human 确认/答案/Resolution、原 Contract 下 Context-2 与新 Bundle/Run-2、独立 Root 协调及权威读回；四项公开增量实现后 Catalog/Registry 226→230、TaskExecution 53→57，历史 200 Baseline 不变。最终要求 `full` 与 owning `*-REC-D-*` 分层验收；两个 Root 最终仅到 COMPLETION_PENDING，不实现正式输出/Completion。当前只有设计与规划交付，恢复 Handler/Registry/migration 和新增运行矩阵仍 `NOT RUN`，#224 的分层结果及 §22.8 延后边界不变；Issue 发布不授权 commit/push/PR/merge/部署。
 
 ## Next / Later — 后续顺序
 
