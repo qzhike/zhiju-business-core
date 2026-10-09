@@ -656,3 +656,11 @@ Runner 固定先读客户、后比模板，仅可写报告/提取件根。首版
 真实 dispatch/ack/final 原 invocation bindings 经 IG 新内部 profile producer/observer→TE→EP；原 Runtime synthetic-only Query 不接受 PROVIDER 分支。JSON/MD/output root hash、readCoverage、extraction ceilings、startup candidates 和 alias mapping 必须分别通过 Host acceptance。官方 CLI 非交互能力仅是候选依据，版本/认证/隔离/取消/原请求 readback/UNKNOWN/晚报告均需新 conformance。首版不支持 session resume：有权且已确认失败的新 Run 重试；UNKNOWN 原 dispatch 不重复；cancel request 不是真实 ACK，terminal/过期结果只留历史。
 
 PreparationContext phase=INITIAL_SCOPE_RECOVERY 的新 Package 分支只绑定原 frozen start，在 PREPARATION 模式 ACTIVE 且 TE 初轮未接收窗口补料/分析；Task/Context/Package 全精确绑定该 phase/start ref，并在 dispatch、final/业务报告接纳重验窗口。窗口关闭后的原输出可保存 immutable observation/history，不成为可操作报告。此分支不重复 Human 信息确认/start，不开放 scope 后的通用文档工作。
+
+## D14 Runner 首发执行锁增量（#256）
+
+状态：`T2 / PROPOSED / HUMAN SELECTED 2026-10-09 / TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。明确人类选择及四目标证据见 [首发选择](../decisions/d14-rd01-runner-profile-lock.md#1-首发选择与证据)，不从Claude候选或只读安装观察推批准。配置选择、安装观察、完整Run物化锁严格分离；唯一版本化内部 `d14.runner_execution_lock@1.0` 的闭合字段/hash域见 [锁合同](../decisions/d14-rd01-runner-profile-lock.md#2-一个版本化锁合同与三个不同证据层)。Package@1.1 preparation materialization以lockId/version/hash绑定CLI/Host/model/prompt/全部工具及规则/output/evidence pins；旧@1.0/三个CLI/synthetic支持集不变。
+
+六项IM-DG-006控制在 [TE owning专节](../module-specs/Module-Spec-003-TaskExecution.md#d14-runner-首发六项控制提案256)逐项确定首发支持/拒绝；IG原不可变观察与readback见 [IG专节](../module-specs/Module-Spec-007-IntegrationGateway.md#d14-runner-物化锁与原调用观察提案256)，每项独立授权见 [IP专节](../module-specs/Module-Spec-001-IdentityPolicy.md#d14-runner-锁与控制授权提案256)。heartbeat/progress/usage有界支持，suspend/resume/cancellationACK拒绝；本地进程退出不能证明Provider取消，不能覆盖§13的CANCELLED必要条件。原UNKNOWN不重发，terminal不resume，明确许可新分析才新Run，旧树未知仍不retry；取消后retry首版拒绝。六项是设计处置，不是新增六个已注册操作或已决全Runtime Gate。
+
+进程文件/网络/工具/客户数据隔离由 [Deployment专节](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md#d14-runner-首发进程隔离提案256)强制；CLI permission flag只收窄。v0.1 evidence工具与v0.2 startup输出必须分别固定/回归，旧finalize不能标Host PASS。未来真实invocation→IG observation→TE Acceptance→EP report分别取证，错hash/alias/read ceiling、模型漂移/重复/late/保护客户事实用 [首发验收矩阵](Runtime-Adapter-Test-v0.1.md#d14-runner-首发锁与控制验收256)检验。批准与未运行门禁见 [提案§6](../decisions/d14-rd01-runner-profile-lock.md#6-冻结与实现入口)；本增量不实现/部署/冻结语义或宣告依赖READY。

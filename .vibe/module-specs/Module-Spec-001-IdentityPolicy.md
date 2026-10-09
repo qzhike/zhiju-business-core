@@ -1031,3 +1031,25 @@ Grant/Decision 由 IP 现有 owning 入口形成精确 PolicySnapshot/ActorSnaps
 错误沿用当前安全 AUTHORIZATION_DECISION_INVALID / CAPABILITY_SCOPE_MISMATCH / Human-only 拒绝；无权时 protected reads=0。准备 profile 权限不包含 artifact/document.write、company template/rule WRITE 或任意 host/network/MCP。恢复和同键 replay 重验当前身份，只返回当次许可字段，不通过已保存 Receipt 泄露别的 Scope。
 
 ACTIVE 首轮恢复新增 `project.initial_scope.confirm` / `project.initial_scope.request.read` / `project.initial_scope.request.resume` 和 TE `execution.initial_work_scope.read`；写决定 Human-only，读取独立当前权限，Process 只执行原精确 scope 决定并独立再授权。仅 creationMode=PREPARATION、原冻结 start、TE 初轮未接收；不授予重新信息确认/激活/start 或后续修改资格。scopeRequestRef 与新 CONTENT_ADDRESSED initial_work_scope_decision 的 actor/payloadHash/Scope/当前撤权均重验。
+
+## D14 Runner 锁与控制授权提案（#256）
+
+状态：`T2 / PROPOSED / HUMAN SELECTED 2026-10-09 / TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。仅服务 [首发锁](../decisions/d14-rd01-runner-profile-lock.md)，不创建通用Runtime管理员权限或新的Human代理身份。ApprovedConfiguration/InstallationObservation/MaterializedLock与人类设计批准是不同证据；版本/hash、公司身份与数据policy许可都不能从个人Agent配置、CLI已安装或既有ALLOW推断。
+
+| 拟受信消费边界 / purpose | Actor、独立action与target |
+|---|---|
+| TE heartbeat / `execution.run.heartbeat.record` | SERVICE；`execution.run.heartbeat.record.v1`；TARGET_TYPE `zhiju.execution.run` + exact Run，限新preparation selector |
+| TE progress / `execution.run.progress.record` | SERVICE；`execution.run.progress.record.v1`；同上，不能继承heartbeat续租权 |
+| TE usage / `execution.run.usage.record` | SERVICE；`execution.run.usage.record.v1`；同上，独立历史计量写权，不等于执行资格 |
+| IG control observation read / `integration.preparation.control_observation.read` | 消费方SERVICE；`integration.preparation.control_observation.read.v1`；TARGET_TYPE `integration.runtime_attempt` + 原exact Attempt，完整Observation由该Attempt索引验证 |
+| IG原ack/final与TE资格读 | 每个原owning preparation Port分别当次Decision；不扩大旧synthetic Query或复用producer Decision |
+| IG/Host stop / `integration.preparation.stop.request` | SERVICE；`integration.preparation.stop.request.v1`；原exact Attempt + 同Run已提交Human cancel intent；还需独立TE intent读权与Host控制身份 |
+| TE取消请求、显式新分析retry | 当前认证HUMAN；精确原Run/新分析意图与原payload/hash；Process SERVICE另有当前受限动作授权，不成为Human、不继承其全部Grant |
+
+上述purpose/action为将来新profile metadata/config提案，不是已注册Capability或本次签发Grant。suspension/resume/cancellationACK首发不在允许集；即使有泛Runtime权限也不能绕过支持集，授权后拒绝，零保护读/状态成功。批准技术设计不产生运行时Decision/Capability；实现前须登记静态selector、配置映射与正负fixtures，不能复用任意caller action字符串。
+
+IP每项以服务自身ActorSnapshot/PolicySnapshot当前hash、完整Enterprise+Project/Run/用途/target/mode/version核许可，保护读前与返回/提交前重验期限/撤销；没有IG读权对应read=0。Execution Bundle/模型/Host/工具锁只能收窄已冻结Capabilities，不能扩大到artifact.write、客户事实确认、QMS激活、PROJECT_START、保护例外或Approval/Release。Human runtime选择不变成员工UI selector，Browser/RUNTIME/AGENT/actingFor不能提供Actor/Decision或自由配置。
+
+源材料/previous report/trusted decision/company template/rule逐件获同Run READ和明确Provider/dataDestination许可；脱敏批准绑定实际bytes/hash/用途/期限，不能用Hash或改名当脱敏。WRITE只授本Run报告根，输入/工具只读、Skill/MCP为空；CLI配置发现、个人home、其他Project/Run、Core基础设施与额外网络目的地均不授予。OS边界由Deployment实现，IP授权本身不证明隔离。
+
+历史usage/late-isolation/readback独立当次授权并验证原来源完整性，不要求已失效执行Grant重获有效；其当前cleanup/control权限仍必需且不能读取无关历史。Unknown/no-access统一安全外观，dependency不可达不伪装“没有调用/没有输出”。恢复不扩大旧intent/lock，授权变化须新Run物化；禁止利用已保存Receipt或旧Bundle继续新副作用。
