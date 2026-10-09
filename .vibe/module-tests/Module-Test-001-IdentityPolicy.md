@@ -361,3 +361,15 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 | IP-D14-005 | 当前 allowedActions 后权限变化、客户端替换 actor/Decision | owning 重新授权并拒绝，UI 值不作为资格；服务端认证上下文唯一 | 未执行 / `NOT RUN` |
 
 首轮恢复追加场景（同为 `NOT RUN`）：**IP-D14-006** — ACTIVE初轮恢复新Humanscope决定/撤权/伪original request→start；预期：原start精确、真实decision与当前许可；不授予重start/信息激活，错来源/撤权拒绝。
+
+## D14 Runner 最小权限与锁验收（#256）
+
+状态：`PROPOSED / NOT REGISTERED / NOT IMPLEMENTED / NOT RUN`。对应 [IP首发授权](../module-specs/Module-Spec-001-IdentityPolicy.md#d14-runner-锁与控制授权提案256)，使用真实当次Decision/Grant/Policy及owning依赖读，不以配置/审批文档代替授权。
+
+| ID | 输入 / 故障 | 预期owning判定 | 实际 / 结果 |
+|---|---|---|---|
+| IP-LOCK-001 | 同SERVICE只获heartbeat权，缺progress/usage/IG读权；撤权发生于读后提交前 | 各自独立Decision；缺依赖权保护读0，撤权无新提交，旧ALLOW/Bundle/Receipt不放行 | 未执行 / `NOT RUN` |
+| IP-LOCK-002 | approvedconfig/个人登录态/CLI已安装、callerActor/actingFor声称Human | 不签任意新Grant；选择不等于数据/执行授权，Agent不能确认/激活/start/批准/发布 | 未执行 / `NOT RUN` |
+| IP-LOCK-003 | 错Scope/hash/用途/过期、未批准真实客户或公司模板/规则发送；仅改名/Hash“脱敏” | 逐源sourcehash与目的地许可，安全拒绝，零Providercall/越权源读；scope完整Enterprise+Project | 未执行 / `NOT RUN` |
+| IP-LOCK-004 | reportrootWRITE试写inputs/tools或另一Run，发现客户Skill/MCP/个人config | Capability不扩大，OS强制拒绝另取真实证据；Skill/MCP为空，无artifact.write或额外network许可 | 未执行 / `NOT RUN` |
+| IP-LOCK-005 | terminalusage/late/historyreadback，原执行Grant已到期、当前历史读/stop权有无 | 原历史完整性与当次权限分别校验；可以历史取证但不续执行，缺当前权不读/不stop，不借旧Receipt漏别Scope | 未执行 / `NOT RUN` |

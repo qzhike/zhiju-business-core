@@ -219,3 +219,15 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | IG-D14-006 | timeout UNKNOWN/重放、lease过期/取消后晚报告、锁定 CLI 不可用 | 原 readback 禁重复 invoke；late 历史，profile unavailable 明确失败；不 silent fallback，不重写 inputs | 未执行 / `NOT RUN` |
 
 首轮恢复追加场景（同为 `NOT RUN`）：**IG-D14-007** — ACTIVE初轮窗口补料分析、窗口关闭后的late report；预期：原start只读、phase/Package/Run绑定；可留原观察，不覆盖可操作报告或重发调用。
+
+## D14 Runner 原调用与锁验收（#256）
+
+状态：`PROPOSED / NOT REGISTERED / NOT IMPLEMENTED / NOT RUN`。对应 [IG owning锁与观察](../module-specs/Module-Spec-007-IntegrationGateway.md#d14-runner-物化锁与原调用观察提案256)。future实际调用、journal、原bytes/hash与当前独立权限必需；只读安装和旧controlledsynthetic证据不能替代。
+
+| ID | 输入 / 故障 | 预期owning判定 | 实际 / 结果 |
+|---|---|---|---|
+| IG-LOCK-001 | approvedconfig、只读Darwinfacts、缺部署pins/未准入客户数据/模型别名 | 不混三层，Ubuntu物化缺值零invoke；actualProvider/model与锁逐字段核验，无fallback | 未执行 / `NOT RUN` |
+| IG-LOCK-002 | 真CLIack与final、spawn前后crash、journal/IG提交后response丢失 | 稳定原Attempt/key/bindings，只readback原调用；gapUNKNOWN，零重复spawn/伪ack/session | 未执行 / `NOT RUN` |
+| IG-LOCK-003 | 原control观察，同ID异Hash/wrongsession/Scope/Run2引用Run1、缺读权 | canonical/source/bindings完整校验；冲突隔离，缺权保护读0，不从caller自洽JSON倒造来源 | 未执行 / `NOT RUN` |
+| IG-LOCK-004 | stop请求、父进程exit、全cgroup停止、ACK未知及迟到输出 | request/signal/localstop/UNKNOWN分别持久；localstop不是ProviderACK，原late历史稳定不改TE状态/业务current | 未执行 / `NOT RUN` |
+| IG-LOCK-005 | 同final同Hash、异Hash第二final、输出停止写前后替换/path/link/inputhash漂移 | 原outputbytes不可变、一finalidentity；冲突隔离，停止写后重新hash，零错来源可用报告；raw观察不等于TE/EP接纳 | 未执行 / `NOT RUN` |

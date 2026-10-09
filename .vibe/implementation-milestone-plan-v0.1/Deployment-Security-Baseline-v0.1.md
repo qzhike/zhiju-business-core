@@ -163,3 +163,20 @@ IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 的最小决策基线完�
 - Workspace UI 的工程技术选择已于 2026-10-08 批准；实际 Browser/BFF/Security/Accessibility/Manual 仍为 `NOT RUN`，本次不宣称部署或运行可用。
 
 下一里程碑是 IM-01 Repository + Executable Contracts。依赖联网安装与精确 lockfile 仍需在开始 IM-01 时单独授权。
+
+## D14 Runner 首发进程隔离提案（#256）
+
+状态：`T2 / PROPOSED / HUMAN SELECTED 2026-10-09 / TECHNICAL APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`。承接Ubuntu私有化基准；首个Runtime/provider/model/数据选择、完整lock及资源上限见 [首发提案](../decisions/d14-rd01-runner-profile-lock.md)。本节只拥有Host进程执行边界，不用CLI权限flag代替隔离，不改Browser/BFF或Core所有权。
+
+| 边界 | 必需强制措施 / 拒绝条件 |
+|---|---|
+| 受信launcher | 每Run独立非root UID、mount/PID/network namespace、drop capabilities/no-new-privileges、只读rootfs、强制MAC/seccomp/cgroup；Host OCI/CLI/build/OS/kernel/arch exact pins。禁止privileged、宿主PID/网络、Docker socket、ptrace/mount/任意exec；缺机制不dispatch |
+| 输入与配置 | source/template/rule/prompt/manifest/evidence工具与依赖只读mount，前后逐件hash；空cwd/个人配置视图，无客户可自动发现路径。OMP实际工具仅read/grep/glob/write，前三项仅受控根内普通文件，禁URL/内部URI；Skill/MCP/hooks/plugins/extensions/subagents/memory/advisor/辅助模型禁用。no-extensions不禁止显式加载，tools名单不证明额外发现面已关闭；设置被忽略或能力无法验证不回落默认 |
+| 输出与隔离 | 只允许本Run输出根写；scratch在该根非发布子目录，另一Enterprise/Project/Run不可见。受控根句柄解析与普通文件验证，拒绝穿越/link/device/FIFO/碰撞；结束停止写入后重新hash、不可变封存，不按客户名/ZIP原路径落宿主 |
+| 网络与数据 | 仅公司批准Provider TLS inference allowlist，经受控egress与DNS/目的地校验；无自动遥测/升级/反馈、任意代理、公网搜索/下载、MCP、loopback管理面/metadata。Runner不接Core/DB/OpenBao/Ceph；对象物化与封存由另有授权的Host服务完成，不把存储凭据给CLI |
+| 凭据与证据 | 仅部署方预配置CLI公司身份；私有最小CLI环境、禁proc/env读取/调试/core dump/secret fd继承，无Bash/插件执行工具；外层证据工具不继承凭据。无个人home或认证文件拷贝；秘密不进argv/prompt/报告/日志，Host只核可用性证据与绑定ref |
+| 生命周期 | invoke-once journal受Host保护且不在Runner可写根；stop观察覆盖整个cgroup和egress封闭，不能只杀父PID。TERM/KILL和LOCAL_PROCESS_STOPPED与ProviderACK分开；不确定继续UNKNOWN，TE独立到期，旧树未证停不允许retry |
+
+客户AGENTS.md/CLAUDE.md、Skill/MCP/Agent配置按entryId只作为资料读取，不能触发配置加载。company配置也必须来自锁定发布源，模板/规则/旧报告的发送许可逐件核验；真实客户原文未获明确数据批准时零Provider调用。脱敏的质量/产品/职责秘密同样要批准，不能只删人名。
+
+Ubuntu release/kernel/architecture、镜像/二进制digest、MAC策略、Provider组织与驻留/保留、credential provisioning及retention policy本次没有部署证明，不填默认或虚构值。未来在真实Host按 [Runtime验收](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md#d14-runner-首发锁与控制验收256)执行越界、跨Scope、输入不可变、secret/网络和全树停止反例；容器声明、CLI help和当前Darwin观察不充当生产PASS。
