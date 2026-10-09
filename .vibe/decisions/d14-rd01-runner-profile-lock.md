@@ -1,6 +1,6 @@
 # D14 / RD-01 首个 Runner 与执行锁提案
 
-状态：`T2 / PROPOSED / HUMAN SELECTED 2026-10-09 / INDEPENDENT REVIEW NOT RUN / TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。
+状态：`T2 / PROPOSED / HUMAN SELECTED 2026-10-09 / INDEPENDENT REVIEW NOT RUN / TECHNICAL APPROVAL PENDING / NOT REGISTERED / DEPLOYMENT NOT IMPLEMENTED / INTERNAL SCHEMA+PRODUCER+VALIDATOR+PREFLIGHT IMPLEMENTED 2026-10-09 (#264, CONTRACT-ONLY)`。
 
 本提案对应 [Issue #256](https://github.com/qzhike/zhiju-business-core/issues/256)，基于 `main@15c085354056ab327e03352c32020010cc11285b`；承接已批准 [D14 / RD-01](d14-rd01-first-customer-flow.md)，只闭合首个分析 profile 的选择、锁接口与控制支持集。注册、实现、安装、凭据读取、Provider 调用及真实客户任务不在本次授权内。本文拥有配置选择与锁描述；IG 拥有调用/观察，TE 拥有 Run 控制与接纳，IP 拥有授权，Deployment 拥有进程隔离。业务规则内容由独立启动规则设计发布，本文不填其强制清单。
 
@@ -39,7 +39,7 @@ Ubuntu OMP CLI/build digest、Host image/OS/kernel/arch、OMP Adapter revision/b
 
 ## 2. 一个版本化锁合同与三个不同证据层
 
-拟内部闭合描述 `d14.runner_execution_lock@1.0`，由 IG/Runtime 承载，不注册为公开 Command 或让员工上传 JSON。未知字段、未知版本或任意 executable/argv/endpoint 覆盖均拒绝；后续机器 Schema/producer/validator 必须按本合同独立注册。本文件是 Markdown 设计，当前不存在可运行 lock 文件。
+拟内部闭合描述 `d14.runner_execution_lock@1.0`，由 IG/Runtime 承载，不注册为公开 Command 或让员工上传 JSON。未知字段、未知版本或任意 executable/argv/endpoint 覆盖均拒绝；机器 Schema/producer/validator 已按本合同作为**内部描述符**实现（Issue #264，`contracts/src/d14-runner-execution-lock.ts` 与 `modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts`），仍不注册公开 Command/TypedReference，且物化边界只接受调用方提供的可信来源事实。本文件其余部分是设计合同；真实部署物化锁仍不存在。
 
 | 层 | 必须保存 | 放行含义 |
 |---|---|---|
@@ -121,3 +121,5 @@ v0.1 基准工具按观察 pins仅验证原 v0.1 证据结构；必须另提供 
 本次明确的人类 Runtime/provider/model/条件性客户数据出网选择已记录§1；选择证据进入 PR并绑定所选配置内容及精确修订，公司模板/规则等实际发送许可仍逐源核验。独立 Reviewer核全部 owning Delta与用例，形成 `.vibe/reviews/pr-<number>/Review.md`；人类技术批准必须绑定该 reviewed SHA，后续实质修改重新审查/批准。独立审查和技术批准仍待取得，本文不预写批准，不把 Issue 的 NOW+READY设计状态扩大为依赖实现 READY；部署的数据前提尚未达成时不能物化可执行锁。
 
 本次只执行 `vibe verify docs --json` 和 focused owner/ref/field/transition 对账，其结果只覆盖 Markdown设计交付。真实 OIDC/HTTP、PostgreSQL、Host/Runner/Provider、Browser/platform及独立人工验收均 `NOT RUN`。即使未来首个锁 conformance通过，也只覆盖该 bounded profile；all-four-runtime、生成/反馈、业务规则发布和首条真实客户链仍有自己的门禁。
+
+后续 [Issue #264](https://github.com/qzhike/zhiju-business-core/issues/264) 在本合同之上实现了内部锁的闭合 Schema、静态类型、producer/validator 与物化 preflight（`contracts/src/d14-runner-execution-lock.ts`、`modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts`），并执行 `vibe verify code --json` 的 contract 级用例；该实现仍不注册公开 Command/TypedReference、不接线真实 dispatcher、不制造 §1 未取得的部署事实，因此本节的真实运行与人工验收门禁不变。

@@ -96,7 +96,7 @@
 
 ## D14 Runner 首发锁与控制验收（#256）
 
-状态：`PROPOSED / HUMAN SELECTED 2026-10-09 / TECHNICAL APPROVAL PENDING / NOT RUN`。采用 [首发提案§5](../decisions/d14-rd01-runner-profile-lock.md#5-可复现-conformance-计划)的具名、批准脱敏DOCX/Markdown输入；实际bytes/hash/部署lock/原invocation/owningreceipts与独立Human核对是必需制品。表中均为未来计划，不因为只读version/help、旧standalone finalize或Markdown Gate改成平台PASS。
+状态：`PROPOSED / HUMAN SELECTED 2026-10-09 / TECHNICAL APPROVAL PENDING / NOT RUN / INTERNAL CONTRACT-ONLY CASE SET EXECUTED (#264)`。采用 [首发提案§5](../decisions/d14-rd01-runner-profile-lock.md#5-可复现-conformance-计划)的具名、批准脱敏DOCX/Markdown输入；实际bytes/hash/部署lock/原invocation/owningreceipts与独立Human核对是必需制品。表中均为未来计划，不因为只读version/help、旧standalone finalize或Markdown Gate改成平台PASS。#264 只执行了内部 lock/producer/validator/preflight 的 contract 级用例（`contracts/src/d14-runner-execution-lock.test.ts`、`modules/integration-gateway/src/runtime/d14-runner-lock-preflight.test.ts`，含 RA-LOCK-001/003 的配置/观察/部署分层、固定版本证据与工具面拒绝语义）；本表任何一行都保持 `NOT RUN`。
 
 | ID | 输入 / 必需执行 | 可观察判定 | 实际 / 结果 |
 |---|---|---|---|
