@@ -977,16 +977,11 @@
       "scope": {
         "enterprise": {
           "ref": {
-            "kind": "CONTENT_ADDRESSED",
-            "objectType": "zhiju.enterprise.enterprise",
+            "kind": "OBJECT",
+            "objectType": "zhiju.project.enterprise",
             "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d291",
             "scope": {
               "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
-            },
-            "contentHash": {
-              "algorithm": "SHA-256",
-              "canonicalizationVersion": "1",
-              "digest": "00000000000000000000000000000000000000000000000000000000000003fa"
             }
           },
           "contentHash": {
@@ -997,17 +992,12 @@
         },
         "project": {
           "ref": {
-            "kind": "CONTENT_ADDRESSED",
+            "kind": "OBJECT",
             "objectType": "zhiju.project.project",
             "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d292",
             "scope": {
               "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
               "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
-            },
-            "contentHash": {
-              "algorithm": "SHA-256",
-              "canonicalizationVersion": "1",
-              "digest": "0000000000000000000000000000000000000000000000000000000000000401"
             }
           },
           "contentHash": {
@@ -1018,17 +1008,12 @@
         },
         "task": {
           "ref": {
-            "kind": "CONTENT_ADDRESSED",
+            "kind": "OBJECT",
             "objectType": "zhiju.execution.task",
             "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d293",
             "scope": {
               "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
               "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
-            },
-            "contentHash": {
-              "algorithm": "SHA-256",
-              "canonicalizationVersion": "1",
-              "digest": "0000000000000000000000000000000000000000000000000000000000000408"
             }
           },
           "contentHash": {
@@ -1039,17 +1024,12 @@
         },
         "workOrder": {
           "ref": {
-            "kind": "CONTENT_ADDRESSED",
+            "kind": "OBJECT",
             "objectType": "zhiju.execution.work_order",
             "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d294",
             "scope": {
               "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
               "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
-            },
-            "contentHash": {
-              "algorithm": "SHA-256",
-              "canonicalizationVersion": "1",
-              "digest": "000000000000000000000000000000000000000000000000000000000000040f"
             }
           },
           "contentHash": {
@@ -1081,17 +1061,12 @@
         },
         "run": {
           "ref": {
-            "kind": "CONTENT_ADDRESSED",
-            "objectType": "zhiju.execution.run",
+            "kind": "OBJECT",
+            "objectType": "execution.run",
             "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d296",
             "scope": {
               "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
               "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
-            },
-            "contentHash": {
-              "algorithm": "SHA-256",
-              "canonicalizationVersion": "1",
-              "digest": "000000000000000000000000000000000000000000000000000000000000041d"
             }
           },
           "contentHash": {
@@ -1102,17 +1077,12 @@
         },
         "attempt": {
           "ref": {
-            "kind": "CONTENT_ADDRESSED",
-            "objectType": "zhiju.integration.runtime_attempt",
+            "kind": "OBJECT",
+            "objectType": "integration.runtime_attempt",
             "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d297",
             "scope": {
               "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
               "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
-            },
-            "contentHash": {
-              "algorithm": "SHA-256",
-              "canonicalizationVersion": "1",
-              "digest": "0000000000000000000000000000000000000000000000000000000000000424"
             }
           },
           "contentHash": {
@@ -1146,7 +1116,7 @@
       "analysisRequestKey": "d14-analysis-0001",
       "inputManifestBytesSha256": "0000000000000000000000000000000000000000000000000000000000000432",
       "leaseId": "018f22e2-7c15-7b2e-8d86-2de956a9d20a",
-      "fencingToken": "fence-0001",
+      "fencingToken": 1,
       "issuedAt": "2026-10-09T10:00:00Z",
       "validUntil": "2026-10-09T09:00:00Z",
       "phase": "PREPARING",

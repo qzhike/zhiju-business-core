@@ -1,5 +1,11 @@
 import { validateMaterializedLock } from '@zhiju/contracts';
-import type { D14MaterializedLock, D14PinnedRef, D14PolicyKey, D14ToolPin } from '@zhiju/contracts';
+import type {
+  Common,
+  D14MaterializedLock,
+  D14PinnedRef,
+  D14PolicyKey,
+  D14ToolPin,
+} from '@zhiju/contracts';
 
 // =============================================================================
 // D14 Runner lock materialization preflight (Issue #264, Draft slice)
@@ -13,13 +19,14 @@ import type { D14MaterializedLock, D14PinnedRef, D14PolicyKey, D14ToolPin } from
 //
 // The rejection surface is deliberately split so an operator can tell *why* a
 // materialization is refused: a missing owning readback, placeholder/floating
-// evidence, a copied historic record, or a real value mismatch against the pins
-// the lock already committed to.
+// evidence, a copied historic record, an expired lock window, or a real value
+// mismatch against the pins the lock already committed to.
 // =============================================================================
 
 /** Rejection codes of the materialization preflight boundary. */
 export type D14PreflightRejectionCode =
   | 'D14_PREFLIGHT_LOCK_INVALID'
+  | 'D14_PREFLIGHT_LOCK_NOT_ELIGIBLE'
   | 'D14_PREFLIGHT_POLICY_EVIDENCE_MISSING'
   | 'D14_PREFLIGHT_IO_PINS_MISSING'
   | 'D14_PREFLIGHT_PUBLICATION_MISSING'
@@ -32,6 +39,12 @@ export type D14PreflightRejectionCode =
   | 'D14_PREFLIGHT_FLOATING_ALIAS_REJECTED'
   | 'D14_PREFLIGHT_EVIDENCE_NOT_CURRENT'
   | 'D14_PREFLIGHT_DATA_AUTHORIZATION_EXPIRED';
+
+/** Scope anchor of a trusted readback: both members absent or both present. */
+export interface D14TrustedScope {
+  readonly enterpriseId?: string;
+  readonly projectId?: string;
+}
 
 /** One published fact read back from its owning registry. */
 export interface D14TrustedFact {
@@ -49,6 +62,16 @@ export interface D14TrustedToolPin {
   readonly version: string;
   readonly bytesSha256: string;
   readonly buildSha256: string;
+  readonly codeRef: {
+    readonly kind: string;
+    readonly objectType: string;
+    readonly objectId: string;
+    readonly scope: D14TrustedScope;
+    readonly contentDigest: string;
+  };
+  readonly runtime: { readonly runtimeCode: string; readonly runtimeVersion: string };
+  readonly dependencyLockBytesSha256: string;
+  readonly commandTemplate: string;
   readonly provenance: 'V0_2';
 }
 
@@ -58,9 +81,18 @@ export interface D14TrustedDeploymentEvidence {
   readonly osRelease: string;
   readonly kernelVersion: string;
   readonly architecture: string;
+  readonly executableCode: string;
+  readonly resolvedExecutablePath: string;
+  readonly observedCliVersion: string;
   readonly cliBinarySha256: string;
+  readonly cliBuildSha256: string;
+  readonly cliDependencyLockBytesSha256: string;
   readonly adapterSourceSha256: string;
   readonly adapterBuildSha256: string;
+  readonly launcherVersion: string;
+  readonly launcherDigest: string;
+  readonly parserVersion: string;
+  readonly parserDigest: string;
   readonly provenance: 'DEPLOYMENT';
 }
 
@@ -71,6 +103,11 @@ export interface D14TrustedProviderBinding {
   readonly approvedModelVersion: string;
   readonly fixedVersionDigest: string;
   readonly invocationVerificationDigest: string;
+  readonly modelConfigDigest: string;
+  readonly identityBindingPolicyDigest: string;
+  readonly apiTransportDigest: string;
+  readonly apiEndpointDigest: string;
+  readonly networkPolicyDigest: string;
   readonly provenance: 'PROVIDER';
 }
 
@@ -87,6 +124,7 @@ export interface D14TrustedPolicyEvidence {
   readonly registryKey: string;
   readonly version: string;
   readonly contentDigest: string;
+  readonly scope: D14TrustedScope;
   readonly provenance: 'PUBLISHED';
 }
 
@@ -103,8 +141,27 @@ export interface D14TrustedOwningObject {
   readonly registryKey: string;
   readonly version: string;
   readonly contentDigest: string;
-  readonly bytesSha256: string;
+  readonly bytesSha256?: string;
+  readonly scope: D14TrustedScope;
   readonly provenance: 'OWNING';
+}
+
+/** One trusted readback of an owning prompt/tool-permission object. */
+export interface D14TrustedPromptReadback {
+  readonly registryKey: string;
+  readonly version: string;
+  readonly contentDigest: string;
+  readonly bytesSha256?: string;
+  readonly scope: D14TrustedScope;
+  readonly provenance: 'OWNING';
+}
+
+/** Trusted readbacks of the locked prompt/tool-permission surface. */
+export interface D14TrustedPromptTools {
+  readonly systemPrompt: D14TrustedPromptReadback;
+  readonly taskPrompt: D14TrustedPromptReadback;
+  readonly effectiveSettingsDigest: string;
+  readonly toolPermissionRules: D14TrustedPromptReadback;
 }
 
 /** Every member is `undefined` when the owning readback does not exist yet. */
@@ -112,8 +169,10 @@ export interface D14MaterializationSources {
   readonly policies: Readonly<Record<string, D14TrustedPolicyEvidence>> | undefined;
   readonly inputOutputPins:
     Readonly<Record<D14InputOutputSlot, D14TrustedOwningObject>> | undefined;
+  readonly promptTools: D14TrustedPromptTools | undefined;
   readonly templates: readonly D14TrustedFact[] | undefined;
   readonly ruleBundle: D14TrustedFact | undefined;
+  readonly startupRules: D14TrustedFact | undefined;
   readonly vocabulary: D14TrustedFact | undefined;
   readonly evidenceTools: readonly D14TrustedToolPin[] | undefined;
   readonly deployment: D14TrustedDeploymentEvidence | undefined;
@@ -165,7 +224,8 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
   const floating: string[] = [];
   const stale: string[] = [];
 
-  const inspectDigest = (path: string, value: string): void => {
+  const inspectDigest = (path: string, value: string | undefined): void => {
+    if (value === undefined) return;
     const hex = value.startsWith(SHA256_PREFIX) ? value.slice(SHA256_PREFIX.length) : value;
     if (!DIGEST_HEX_PATTERN.test(hex) || UNIFORM_TEXT_PATTERN.test(hex) || hex === ZERO_DIGEST) {
       placeholder.push(`${path} is not a distinct 64-character lowercase-hex digest.`);
@@ -193,6 +253,16 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
     inspectVersion(`${path}.version`, fact.version);
     inspectProvenance(`${path}.provenance`, fact.provenance, PUBLISHED_PROVENANCE);
   };
+  const inspectReadback = (
+    path: string,
+    readback: D14TrustedOwningObject | D14TrustedPromptReadback,
+  ): void => {
+    inspectDigest(`${path}.contentDigest`, readback.contentDigest);
+    inspectDigest(`${path}.bytesSha256`, readback.bytesSha256);
+    inspectKey(`${path}.registryKey`, readback.registryKey);
+    inspectVersion(`${path}.version`, readback.version);
+    inspectProvenance(`${path}.provenance`, readback.provenance, OWNING_PROVENANCE);
+  };
 
   Object.entries(sources.policies ?? {}).forEach(([key, evidence]) => {
     const path = `sources.policies.${key}`;
@@ -203,53 +273,82 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
   });
 
   Object.entries(sources.inputOutputPins ?? {}).forEach(([key, owning]) => {
-    const path = `sources.inputOutputPins.${key}`;
-    inspectDigest(`${path}.contentDigest`, owning.contentDigest);
-    inspectDigest(`${path}.bytesSha256`, owning.bytesSha256);
-    inspectKey(`${path}.registryKey`, owning.registryKey);
-    inspectVersion(`${path}.version`, owning.version);
-    inspectProvenance(`${path}.provenance`, owning.provenance, OWNING_PROVENANCE);
+    inspectReadback(`sources.inputOutputPins.${key}`, owning);
   });
+
+  if (sources.promptTools !== undefined) {
+    inspectReadback('sources.promptTools.systemPrompt', sources.promptTools.systemPrompt);
+    inspectReadback('sources.promptTools.taskPrompt', sources.promptTools.taskPrompt);
+    inspectReadback(
+      'sources.promptTools.toolPermissionRules',
+      sources.promptTools.toolPermissionRules,
+    );
+    inspectDigest(
+      'sources.promptTools.effectiveSettingsDigest',
+      sources.promptTools.effectiveSettingsDigest,
+    );
+  }
 
   sources.templates?.forEach((fact, index) => {
     inspectFact(`sources.templates[${index}]`, fact);
   });
   if (sources.ruleBundle !== undefined) inspectFact('sources.ruleBundle', sources.ruleBundle);
+  if (sources.startupRules !== undefined) inspectFact('sources.startupRules', sources.startupRules);
   if (sources.vocabulary !== undefined) inspectFact('sources.vocabulary', sources.vocabulary);
 
   sources.evidenceTools?.forEach((pin, index) => {
     const path = `sources.evidenceTools[${index}]`;
     inspectDigest(`${path}.bytesSha256`, pin.bytesSha256);
     inspectDigest(`${path}.buildSha256`, pin.buildSha256);
+    inspectDigest(`${path}.dependencyLockBytesSha256`, pin.dependencyLockBytesSha256);
+    inspectDigest(`${path}.codeRef.contentDigest`, pin.codeRef.contentDigest);
     inspectKey(`${path}.toolCode`, pin.toolCode);
+    inspectKey(`${path}.codeRef.objectType`, pin.codeRef.objectType);
     inspectVersion(`${path}.version`, pin.version);
     inspectProvenance(`${path}.provenance`, pin.provenance, TOOL_PIN_PROVENANCE);
   });
 
   if (sources.deployment !== undefined) {
-    inspectDigest('sources.deployment.hostImageDigest', sources.deployment.hostImageDigest);
-    inspectDigest('sources.deployment.cliBinarySha256', sources.deployment.cliBinarySha256);
-    inspectDigest('sources.deployment.adapterSourceSha256', sources.deployment.adapterSourceSha256);
-    inspectDigest('sources.deployment.adapterBuildSha256', sources.deployment.adapterBuildSha256);
+    const deployment = sources.deployment;
+    inspectDigest('sources.deployment.hostImageDigest', deployment.hostImageDigest);
+    inspectDigest('sources.deployment.cliBinarySha256', deployment.cliBinarySha256);
+    inspectDigest('sources.deployment.cliBuildSha256', deployment.cliBuildSha256);
+    inspectDigest(
+      'sources.deployment.cliDependencyLockBytesSha256',
+      deployment.cliDependencyLockBytesSha256,
+    );
+    inspectDigest('sources.deployment.adapterSourceSha256', deployment.adapterSourceSha256);
+    inspectDigest('sources.deployment.adapterBuildSha256', deployment.adapterBuildSha256);
+    inspectDigest('sources.deployment.launcherDigest', deployment.launcherDigest);
+    inspectDigest('sources.deployment.parserDigest', deployment.parserDigest);
     inspectProvenance(
       'sources.deployment.provenance',
-      sources.deployment.provenance,
+      deployment.provenance,
       DEPLOYMENT_PROVENANCE,
     );
   }
 
   if (sources.providerVersionBinding !== undefined) {
-    inspectDigest(
-      'sources.providerVersionBinding.fixedVersionDigest',
-      sources.providerVersionBinding.fixedVersionDigest,
-    );
+    const binding = sources.providerVersionBinding;
+    inspectDigest('sources.providerVersionBinding.fixedVersionDigest', binding.fixedVersionDigest);
     inspectDigest(
       'sources.providerVersionBinding.invocationVerificationDigest',
-      sources.providerVersionBinding.invocationVerificationDigest,
+      binding.invocationVerificationDigest,
+    );
+    inspectDigest('sources.providerVersionBinding.modelConfigDigest', binding.modelConfigDigest);
+    inspectDigest(
+      'sources.providerVersionBinding.identityBindingPolicyDigest',
+      binding.identityBindingPolicyDigest,
+    );
+    inspectDigest('sources.providerVersionBinding.apiTransportDigest', binding.apiTransportDigest);
+    inspectDigest('sources.providerVersionBinding.apiEndpointDigest', binding.apiEndpointDigest);
+    inspectDigest(
+      'sources.providerVersionBinding.networkPolicyDigest',
+      binding.networkPolicyDigest,
     );
     inspectProvenance(
       'sources.providerVersionBinding.provenance',
-      sources.providerVersionBinding.provenance,
+      binding.provenance,
       PROVIDER_PROVENANCE,
     );
   }
@@ -269,15 +368,16 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
   return { placeholder, floating, stale };
 }
 
+function scopeMatches(trusted: D14TrustedScope, locked: Common.ScopeRef): boolean {
+  return trusted.enterpriseId === locked.enterpriseId && trusted.projectId === locked.projectId;
+}
+
 function templateRefMatchesFact(pin: D14PinnedRef, fact: D14TrustedFact): boolean {
   const receiptMatches =
     pin.publicationReceiptRef === undefined ||
     fact.receiptRefId === pin.publicationReceiptRef.objectId;
-  return (
-    receiptMatches &&
-    fact.contentDigest === pin.contentHash.digest &&
-    fact.bytesSha256 === pin.bytesSha256
-  );
+  const bytesMatch = pin.bytesSha256 === undefined || fact.bytesSha256 === pin.bytesSha256;
+  return receiptMatches && bytesMatch && fact.contentDigest === pin.contentHash.digest;
 }
 
 /** Consume each template pin exactly once; reject both gaps and extras. */
@@ -314,6 +414,39 @@ function matchSingleFact(
   }
 }
 
+/** Compare one owning object readback against the pin the lock committed to. */
+function matchOwningObject(
+  pin: D14PinnedRef,
+  readback: D14TrustedOwningObject | D14TrustedPromptReadback,
+  path: string,
+  reasons: string[],
+): void {
+  const bytesMatch = pin.bytesSha256 === undefined || readback.bytesSha256 === pin.bytesSha256;
+  if (
+    readback.registryKey !== pin.ref.objectType ||
+    !scopeMatches(readback.scope, pin.ref.scope) ||
+    readback.contentDigest !== pin.contentHash.digest ||
+    !bytesMatch
+  ) {
+    reasons.push(`${path} does not match the pin it claims.`);
+  }
+}
+
+function matchPolicyEvidence(
+  pin: D14PinnedRef,
+  evidence: D14TrustedPolicyEvidence,
+  path: string,
+  reasons: string[],
+): void {
+  if (
+    evidence.registryKey !== pin.ref.objectType ||
+    !scopeMatches(evidence.scope, pin.ref.scope) ||
+    evidence.contentDigest !== pin.contentHash.digest
+  ) {
+    reasons.push(`${path} does not match the locked boundary policy.`);
+  }
+}
+
 function matchToolPin(
   pin: D14ToolPin,
   slot: string,
@@ -329,10 +462,21 @@ function matchToolPin(
     reasons.push(`${slot}: trusted pin ${pin.toolCode}@${candidate.version} is not a v0.2 pin.`);
     return;
   }
+  const lockRef = pin.codeRef;
+  const lockRefDigest = 'contentHash' in lockRef ? lockRef.contentHash.digest : undefined;
   if (
     candidate.version !== pin.toolVersion ||
     candidate.bytesSha256 !== pin.codeBytesSha256 ||
-    candidate.buildSha256 !== pin.buildSha256
+    candidate.buildSha256 !== pin.buildSha256 ||
+    candidate.codeRef.kind !== lockRef.kind ||
+    candidate.codeRef.objectType !== lockRef.objectType ||
+    candidate.codeRef.objectId !== lockRef.objectId ||
+    !scopeMatches(candidate.codeRef.scope, lockRef.scope) ||
+    (lockRefDigest !== undefined && candidate.codeRef.contentDigest !== lockRefDigest) ||
+    candidate.runtime.runtimeCode !== pin.runtime.runtimeCode ||
+    candidate.runtime.runtimeVersion !== pin.runtime.runtimeVersion ||
+    candidate.dependencyLockBytesSha256 !== pin.dependencyLockBytesSha256 ||
+    candidate.commandTemplate !== pin.commandTemplate
   ) {
     reasons.push(`${slot}: ${pin.toolCode}@${pin.toolVersion} does not match its trusted pin.`);
   }
@@ -360,8 +504,10 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
   const {
     policies,
     inputOutputPins,
+    promptTools,
     templates,
     ruleBundle,
+    startupRules,
     vocabulary,
     evidenceTools,
     deployment,
@@ -382,10 +528,21 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
     'outputSchema',
     'inputAliasManifest',
   ];
-  if (inputOutputPins === undefined || Object.keys(inputOutputPins).length === 0) {
-    return reject('D14_PREFLIGHT_IO_PINS_MISSING', [
-      'sources.inputOutputPins: no trusted owning input/output readbacks are available.',
-    ]);
+  if (
+    inputOutputPins === undefined ||
+    Object.keys(inputOutputPins).length === 0 ||
+    promptTools === undefined
+  ) {
+    const ioReasons: string[] = [];
+    if (inputOutputPins === undefined || Object.keys(inputOutputPins).length === 0) {
+      ioReasons.push(
+        'sources.inputOutputPins: no trusted owning input/output readbacks are available.',
+      );
+    }
+    if (promptTools === undefined) {
+      ioReasons.push('sources.promptTools: no trusted prompt/tool-permission readbacks exist.');
+    }
+    return reject('D14_PREFLIGHT_IO_PINS_MISSING', ioReasons);
   }
   // Widen to an indexed map so an absent slot stays observable at runtime.
   const ioPins: Readonly<Record<string, D14TrustedOwningObject>> = inputOutputPins;
@@ -401,6 +558,7 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
     templates === undefined ||
     templates.length === 0 ||
     ruleBundle === undefined ||
+    startupRules === undefined ||
     vocabulary === undefined
   ) {
     const publicationReasons: string[] = [];
@@ -409,6 +567,9 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
     }
     if (ruleBundle === undefined) {
       publicationReasons.push('sources.ruleBundle: the published rule bundle is unavailable.');
+    }
+    if (startupRules === undefined) {
+      publicationReasons.push('sources.startupRules: the published startup rules are unavailable.');
     }
     if (vocabulary === undefined) {
       publicationReasons.push('sources.vocabulary: the published vocabulary is unavailable.');
@@ -449,7 +610,6 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
 
   const reasons: string[] = [];
 
-  // The closed schema guarantees exactly these eight keys on the lock.
   const lockedPolicyKeys = Object.keys(lock.boundary.policies) as readonly D14PolicyKey[];
   const missingPolicyKeys = lockedPolicyKeys.filter((key) => policies[key] === undefined);
   if (missingPolicyKeys.length > 0) {
@@ -460,12 +620,8 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
   }
   for (const key of lockedPolicyKeys) {
     const evidence = policies[key];
-    if (
-      evidence !== undefined &&
-      evidence.contentDigest !== lock.boundary.policies[key].contentHash.digest
-    ) {
-      reasons.push(`sources.policies.${key} does not match the locked boundary policy.`);
-    }
+    if (evidence === undefined) continue;
+    matchPolicyEvidence(lock.boundary.policies[key], evidence, `sources.policies.${key}`, reasons);
   }
   for (const key of Object.keys(policies)) {
     if (!(lockedPolicyKeys as readonly string[]).includes(key)) {
@@ -479,22 +635,16 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
     if (slot === 'inputAliasManifest') {
       const manifest = lock.outputTools.inputAliasManifest;
       if (
-        owning.bytesSha256 !== manifest.bytesSha256 ||
+        owning.registryKey !== manifest.schemaRef.objectType ||
+        !scopeMatches(owning.scope, manifest.schemaRef.scope) ||
         owning.version !== manifest.schemaVersion ||
-        owning.registryKey !== manifest.schemaRef.objectType
+        owning.bytesSha256 !== manifest.bytesSha256
       ) {
         reasons.push('sources.inputOutputPins.inputAliasManifest does not match its lock pin.');
       }
       continue;
     }
-    const pin = lock.outputTools[slot];
-    if (owning.contentDigest !== pin.contentHash.digest) {
-      reasons.push(`sources.inputOutputPins.${slot} does not match its lock pin.`);
-      continue;
-    }
-    if (pin.bytesSha256 !== undefined && owning.bytesSha256 !== pin.bytesSha256) {
-      reasons.push(`sources.inputOutputPins.${slot} bytes do not match its lock pin.`);
-    }
+    matchOwningObject(lock.outputTools[slot], owning, `sources.inputOutputPins.${slot}`, reasons);
   }
   for (const key of Object.keys(inputOutputPins)) {
     if (!(ioSlots as readonly string[]).includes(key)) {
@@ -502,8 +652,31 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
     }
   }
 
+  matchOwningObject(
+    lock.promptTools.systemPrompt,
+    promptTools.systemPrompt,
+    'sources.promptTools.systemPrompt',
+    reasons,
+  );
+  matchOwningObject(
+    lock.promptTools.taskPrompt,
+    promptTools.taskPrompt,
+    'sources.promptTools.taskPrompt',
+    reasons,
+  );
+  if (promptTools.effectiveSettingsDigest !== lock.promptTools.effectiveSettingsHash.digest) {
+    reasons.push('sources.promptTools.effectiveSettingsDigest does not match the locked settings.');
+  }
+  matchOwningObject(
+    lock.promptTools.toolPermissionRules,
+    promptTools.toolPermissionRules,
+    'sources.promptTools.toolPermissionRules',
+    reasons,
+  );
+
   matchTemplateFacts(lock.templates.templateRefs, templates, 'templates.templateRefs', reasons);
   matchSingleFact(lock.templates.ruleBundle, ruleBundle, 'templates.ruleBundle', reasons);
+  matchSingleFact(lock.templates.startupRules, startupRules, 'templates.startupRules', reasons);
   matchSingleFact(lock.templates.vocabulary, vocabulary, 'templates.vocabulary', reasons);
 
   matchToolPin(lock.outputTools.reader, 'outputTools.reader', evidenceTools, reasons);
@@ -511,17 +684,34 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
   matchToolPin(lock.outputTools.renderer, 'outputTools.renderer', evidenceTools, reasons);
 
   const runtimePairs: readonly (readonly [string, string, string])[] = [
-    ['runtime.hostImageDigest', lock.runtime.hostImageDigest, deployment.hostImageDigest],
-    ['runtime.hostOsRelease', lock.runtime.hostOsRelease, deployment.osRelease],
-    ['runtime.hostKernelVersion', lock.runtime.hostKernelVersion, deployment.kernelVersion],
-    ['runtime.hostArchitecture', lock.runtime.hostArchitecture, deployment.architecture],
+    ['runtime.executableCode', lock.runtime.executableCode, deployment.executableCode],
+    [
+      'runtime.resolvedExecutablePath',
+      lock.runtime.resolvedExecutablePath,
+      deployment.resolvedExecutablePath,
+    ],
+    ['runtime.observedCliVersion', lock.runtime.observedCliVersion, deployment.observedCliVersion],
     ['runtime.cliBinarySha256', lock.runtime.cliBinarySha256, deployment.cliBinarySha256],
+    ['runtime.cliBuildSha256', lock.runtime.cliBuildSha256, deployment.cliBuildSha256],
+    [
+      'runtime.cliDependencyLockBytesSha256',
+      lock.runtime.cliDependencyLockBytesSha256,
+      deployment.cliDependencyLockBytesSha256,
+    ],
     [
       'runtime.adapterSourceSha256',
       lock.runtime.adapterSourceSha256,
       deployment.adapterSourceSha256,
     ],
     ['runtime.adapterBuildSha256', lock.runtime.adapterBuildSha256, deployment.adapterBuildSha256],
+    ['runtime.hostImageDigest', lock.runtime.hostImageDigest, deployment.hostImageDigest],
+    ['runtime.hostOsRelease', lock.runtime.hostOsRelease, deployment.osRelease],
+    ['runtime.hostKernelVersion', lock.runtime.hostKernelVersion, deployment.kernelVersion],
+    ['runtime.hostArchitecture', lock.runtime.hostArchitecture, deployment.architecture],
+    ['runtime.launcherVersion', lock.runtime.launcherVersion, deployment.launcherVersion],
+    ['runtime.launcherDigest', lock.runtime.launcherDigest, deployment.launcherDigest],
+    ['runtime.parserVersion', lock.runtime.parserVersion, deployment.parserVersion],
+    ['runtime.parserDigest', lock.runtime.parserDigest, deployment.parserDigest],
   ];
   for (const [path, locked, trusted] of runtimePairs) {
     if (locked !== trusted) reasons.push(`${path} does not match the deployment observation.`);
@@ -534,7 +724,13 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
     providerVersionBinding.fixedVersionDigest !==
       lock.model.fixedVersionBinding.contentHash.digest ||
     providerVersionBinding.invocationVerificationDigest !==
-      lock.model.perInvocationVerificationRule.contentHash.digest
+      lock.model.perInvocationVerificationRule.contentHash.digest ||
+    providerVersionBinding.modelConfigDigest !== lock.model.modelConfigHash.digest ||
+    providerVersionBinding.identityBindingPolicyDigest !==
+      lock.model.identityBindingPolicy.contentHash.digest ||
+    providerVersionBinding.apiTransportDigest !== lock.model.apiTransport.contentHash.digest ||
+    providerVersionBinding.apiEndpointDigest !== lock.model.apiEndpoint.contentHash.digest ||
+    providerVersionBinding.networkPolicyDigest !== lock.model.networkPolicy.contentHash.digest
   ) {
     reasons.push('sources.providerVersionBinding does not match the locked model identity.');
   }
@@ -545,19 +741,37 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
 
   if (reasons.length > 0) return reject('D14_PREFLIGHT_EVIDENCE_MISMATCH', reasons);
 
+  const issuedAtMs = Date.parse(lock.boundary.issuedAt);
+  const validUntilMs = Date.parse(lock.boundary.validUntil);
   const trustedNowMs = Date.parse(input.trustedNow);
-  const validUntilMs = Date.parse(customerDataAuthorization.validUntil);
   if (
+    !UTC_INSTANT_PATTERN.test(lock.boundary.issuedAt) ||
+    !UTC_INSTANT_PATTERN.test(lock.boundary.validUntil) ||
     !UTC_INSTANT_PATTERN.test(input.trustedNow) ||
-    !UTC_INSTANT_PATTERN.test(customerDataAuthorization.validUntil) ||
-    Number.isNaN(trustedNowMs) ||
-    Number.isNaN(validUntilMs)
+    Number.isNaN(issuedAtMs) ||
+    Number.isNaN(validUntilMs) ||
+    Number.isNaN(trustedNowMs)
   ) {
-    return reject('D14_PREFLIGHT_DATA_AUTHORIZATION_MISSING', [
-      'sources.customerDataAuthorization.validUntil or trustedNow is not a parseable UTC instant.',
+    return reject('D14_PREFLIGHT_LOCK_INVALID', [
+      'lock.boundary.issuedAt, lock.boundary.validUntil or trustedNow is not a parseable UTC instant.',
     ]);
   }
-  if (trustedNowMs >= validUntilMs) {
+  if (trustedNowMs < issuedAtMs || trustedNowMs >= validUntilMs) {
+    return reject('D14_PREFLIGHT_LOCK_NOT_ELIGIBLE', [
+      'trustedNow is outside the lock boundary window [issuedAt, validUntil).',
+    ]);
+  }
+
+  const validUntilAuthorizationMs = Date.parse(customerDataAuthorization.validUntil);
+  if (
+    !UTC_INSTANT_PATTERN.test(customerDataAuthorization.validUntil) ||
+    Number.isNaN(validUntilAuthorizationMs)
+  ) {
+    return reject('D14_PREFLIGHT_DATA_AUTHORIZATION_MISSING', [
+      'sources.customerDataAuthorization.validUntil is not a parseable UTC instant.',
+    ]);
+  }
+  if (trustedNowMs >= validUntilAuthorizationMs) {
     return reject('D14_PREFLIGHT_DATA_AUTHORIZATION_EXPIRED', [
       'sources.customerDataAuthorization.validUntil is not after trustedNow.',
     ]);

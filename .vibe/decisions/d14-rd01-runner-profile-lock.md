@@ -41,6 +41,8 @@ Ubuntu OMP CLI/build digest、Host image/OS/kernel/arch、OMP Adapter revision/b
 
 拟内部闭合描述 `d14.runner_execution_lock@1.0`，由 IG/Runtime 承载，不注册为公开 Command 或让员工上传 JSON。未知字段、未知版本或任意 executable/argv/endpoint 覆盖均拒绝；机器 Schema/producer/validator 已按本合同作为**内部描述符**实现（Issue #264，`contracts/src/d14-runner-execution-lock.ts` 与 `modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts`），仍不注册公开 Command/TypedReference，且物化边界只接受调用方提供的可信来源事实。本文件其余部分是设计合同；真实部署物化锁仍不存在。
 
+实现按下列规则闭合本合同，不以命名 regex 替代 owning 身份：`boundary.scope` 每个 anchor 校验获批 kind 与 objectType（已发布 canonical 拼写取自 Registry/Contract Catalog：Project=`zhiju.project.project`、Enterprise=`zhiju.project.enterprise`、Task=`execution.task`/`zhiju.execution.task`、WorkOrder=`execution.work_order`/`zhiju.execution.work_order`、Run=`execution.run`、Attempt=`integration.runtime_attempt`；尚无 canonical 拼写的 WorkOrderContract/Package 只接受其 owning 模块 namespace）及必需 Scope；content-addressed/snapshot pin 的 `ref.contentHash` 必须与外层 `contentHash` 一致；preparationSource/preparationContext/outputRoot 必须是锁定 Project Scope 的 owning pin，前两者还固定 `zhiju.project.preparation_source`/`zhiju.execution.preparation_context`；selection/design review/technical approval 与获批配置按完整 pin（kind/type/id/version/snapshot/Scope/hash）相等绑定，而非仅比较 digest；`leaseId`/`fencingToken` 沿用 owning `UuidV7`/`Common.NonNegativeInteger`，不发明字符串 token；物化边界独立重验锁自身 `[issuedAt, validUntil)` 与客户数据授权期限。
+
 | 层 | 必须保存 | 放行含义 |
 |---|---|---|
 | 配置选择 / ApprovedConfiguration | 人类选择的 Runtime、provider/model、数据政策、控制/隔离支持集；配置 version/hash；选择记录、独立 Review 与人类技术批准分别绑定精确 reviewed SHA | 仅批准设计参数；缺批准保持 PROPOSED，缺部署制品仍不可执行 |

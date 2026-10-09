@@ -388,7 +388,7 @@ export interface D14MaterializedLockPayload {
     readonly analysisRequestKey: string;
     readonly inputManifestBytesSha256: string;
     readonly leaseId: string;
-    readonly fencingToken: string;
+    readonly fencingToken: number;
     readonly issuedAt: string;
     readonly validUntil: string;
     readonly phase: 'PREPARING' | 'INITIAL_SCOPE_RECOVERY';
@@ -1101,7 +1101,8 @@ const lockPayloadBase = {
         analysisRequestKey: { type: 'string', pattern: SAFE_TOKEN_PATTERN },
         inputManifestBytesSha256: { type: 'string', pattern: DIGEST_PATTERN },
         leaseId: { type: 'string', pattern: UUID_V7_PATTERN },
-        fencingToken: { type: 'string', pattern: SAFE_TOKEN_PATTERN },
+        // The owning TE/IG fencing fact is `Common.NonNegativeInteger`.
+        fencingToken: { type: 'integer', minimum: 0 },
         issuedAt: { type: 'string', pattern: UTC_INSTANT_PATTERN },
         validUntil: { type: 'string', pattern: UTC_INSTANT_PATTERN },
         phase: { enum: ['PREPARING', 'INITIAL_SCOPE_RECOVERY'] },
@@ -1184,12 +1185,10 @@ function semanticError(path: string, keyword: string, message: string): D14LockV
   return { path, keyword, message };
 }
 
-/** Depth-first walk of any decoded JSON value; never throws on scalars. */
+/** Depth-first walk of any decoded JSON value, visiting every node exactly once. */
 function walkJson(node: unknown, path: string, visit: (node: unknown, path: string) => void): void {
-  if (node === null || typeof node !== 'object') {
-    visit(node, path);
-    return;
-  }
+  visit(node, path);
+  if (node === null || typeof node !== 'object') return;
   if (Array.isArray(node)) {
     node.forEach((item, index) => {
       walkJson(item, `${path}/${index}`, visit);
@@ -1197,7 +1196,6 @@ function walkJson(node: unknown, path: string, visit: (node: unknown, path: stri
     return;
   }
   for (const [key, child] of Object.entries(node)) {
-    visit(child, `${path}/${key}`);
     walkJson(child, `${path}/${key}`, visit);
   }
 }
@@ -1305,6 +1303,153 @@ function sameStringSet(left: readonly string[], right: readonly string[]): boole
   return left.length === right.length && right.every((item) => left.includes(item));
 }
 
+/**
+ * Approved owning identity of one `boundary.scope` anchor. Exact canonical
+ * spellings come from the public Registry / Contract Catalog; a slot whose
+ * owning contract has not published a canonical `objectType` yet accepts only
+ * its owning module's namespace, so an unregistered foreign type can never
+ * masquerade as the Run, Attempt or Package the lock binds.
+ */
+interface D14AnchorRule {
+  readonly kinds: readonly string[];
+  readonly scope: 'ENTERPRISE' | 'PROJECT';
+  readonly objectTypes?: readonly string[];
+  readonly objectTypePrefixes?: readonly string[];
+}
+
+const D14_SCOPE_ANCHOR_RULES: Readonly<Record<D14ScopeAnchorKey, D14AnchorRule>> = {
+  enterprise: {
+    kinds: ['OBJECT'],
+    scope: 'ENTERPRISE',
+    objectTypes: ['zhiju.project.enterprise'],
+  },
+  project: {
+    kinds: ['OBJECT'],
+    scope: 'PROJECT',
+    objectTypes: ['zhiju.project.project'],
+  },
+  task: {
+    kinds: ['OBJECT', 'VERSIONED'],
+    scope: 'PROJECT',
+    objectTypes: ['execution.task', 'zhiju.execution.task'],
+  },
+  workOrder: {
+    kinds: ['OBJECT', 'VERSIONED'],
+    scope: 'PROJECT',
+    objectTypes: ['execution.work_order', 'zhiju.execution.work_order'],
+  },
+  // No canonical `objectType` is published for the WorkOrderContract yet, so the
+  // slot accepts only the TaskExecution namespace of its owning contract.
+  workOrderContract: {
+    kinds: ['VERSIONED', 'CONTENT_ADDRESSED'],
+    scope: 'PROJECT',
+    objectTypePrefixes: ['zhiju.execution.', 'execution.'],
+  },
+  run: { kinds: ['OBJECT'], scope: 'PROJECT', objectTypes: ['execution.run'] },
+  attempt: {
+    kinds: ['OBJECT'],
+    scope: 'PROJECT',
+    objectTypes: ['integration.runtime_attempt'],
+  },
+  // The execution package is owned by the Runtime Contract family; no canonical
+  // `objectType` is published yet.
+  package: {
+    kinds: ['VERSIONED', 'CONTENT_ADDRESSED'],
+    scope: 'PROJECT',
+    objectTypePrefixes: ['zhiju.runtime.'],
+  },
+};
+
+/** Exact canonical owning type of the two preparation input pins. */
+const D14_PREPARATION_PIN_TYPES = {
+  '/outputTools/preparationSource': 'zhiju.project.preparation_source',
+  '/outputTools/preparationContext': 'zhiju.execution.preparation_context',
+} as const;
+
+function anchorRulesAllowType(objectType: string, rule: D14AnchorRule): boolean {
+  if (rule.objectTypes !== undefined) return rule.objectTypes.includes(objectType);
+  return (rule.objectTypePrefixes ?? []).some((prefix) => objectType.startsWith(prefix));
+}
+
+/** Every `boundary.scope` anchor must carry the exact approved owning identity. */
+function anchorErrors(
+  lock: D14MaterializedLockPayload,
+  expected: Common.ScopeRef,
+): D14LockValidationError[] {
+  const errors: D14LockValidationError[] = [];
+  for (const [slot, anchor] of Object.entries(lock.boundary.scope) as readonly [
+    D14ScopeAnchorKey,
+    D14PinnedRef,
+  ][]) {
+    const path = `/boundary/scope/${slot}`;
+    const rule = D14_SCOPE_ANCHOR_RULES[slot];
+    if (!rule.kinds.includes(anchor.ref.kind)) {
+      errors.push(
+        semanticError(path, 'd14Reference', `${slot} must be a ${rule.kinds.join('/')} reference`),
+      );
+    }
+    if (!anchorRulesAllowType(anchor.ref.objectType, rule)) {
+      errors.push(
+        semanticError(
+          `${path}/ref/objectType`,
+          'd14Reference',
+          `${slot} is not an approved owning type`,
+        ),
+      );
+    }
+    const scope = anchor.ref.scope;
+    const scopeMatches =
+      scope.enterpriseId === expected.enterpriseId &&
+      (rule.scope === 'ENTERPRISE'
+        ? scope.projectId === undefined
+        : scope.projectId === expected.projectId);
+    if (!scopeMatches) {
+      errors.push(
+        semanticError(`${path}/ref/scope`, 'd14Scope', `${slot} does not carry the locked scope`),
+      );
+    }
+  }
+  return errors;
+}
+
+function sameContentHash(left: unknown, right: unknown): boolean {
+  if (left === null || typeof left !== 'object' || Array.isArray(left)) return false;
+  if (right === null || typeof right !== 'object' || Array.isArray(right)) return false;
+  // Decoded JSON objects; only the three declared ContentHash members are read.
+  const first = left as Record<string, unknown>;
+  const second = right as Record<string, unknown>;
+  return (
+    first.algorithm === second.algorithm &&
+    first.canonicalizationVersion === second.canonicalizationVersion &&
+    first.digest === second.digest
+  );
+}
+
+/**
+ * A pin must not declare two different canonical hashes: when its `ref` is
+ * content-addressed (or a snapshot), the embedded `ref.contentHash` and the
+ * outer `contentHash` are the same identity.
+ */
+function pinConsistencyErrors(value: unknown): D14LockValidationError[] {
+  const errors: D14LockValidationError[] = [];
+  walkJson(value, '', (node, path) => {
+    if (node === null || typeof node !== 'object' || Array.isArray(node)) return;
+    // Decoded JSON object; only the declared pin members are read.
+    const pin = node as Record<string, unknown>;
+    const ref = pin.ref;
+    const outer = pin.contentHash;
+    if (ref === null || typeof ref !== 'object' || Array.isArray(ref)) return;
+    if (outer === undefined) return;
+    // Decoded JSON reference; only the declared reference members are read.
+    const reference = ref as Record<string, unknown>;
+    if (reference.kind !== 'CONTENT_ADDRESSED' && reference.kind !== 'SNAPSHOT') return;
+    if (!sameContentHash(reference.contentHash, outer)) {
+      errors.push(semanticError(path, 'd14Pin', 'the pin declares two different canonical hashes'));
+    }
+  });
+  return errors;
+}
+
 function missingBytesPinErrors(pin: D14PinnedRef, path: string): D14LockValidationError[] {
   return pin.bytesSha256 === undefined || !DIGEST_REGEX.test(pin.bytesSha256)
     ? [semanticError(path, 'd14Pin', 'missing the actual SHA-256 of the bytes this pin locks')]
@@ -1392,6 +1537,8 @@ function lockSemanticErrors(lock: D14MaterializedLockPayload): D14LockValidation
   const errors: D14LockValidationError[] = customerAndSecretErrors(lock);
   const expectedScope = lock.boundary.scope.project.ref.scope;
   errors.push(...referenceErrors(collectCanonicalReferences(lock), expectedScope));
+  errors.push(...pinConsistencyErrors(lock));
+  errors.push(...anchorErrors(lock, expectedScope));
 
   if (
     expectedScope.enterpriseId === undefined ||
@@ -1406,6 +1553,41 @@ function lockSemanticErrors(lock: D14MaterializedLockPayload): D14LockValidation
         'the lock must carry one exact enterprise/project scope',
       ),
     );
+  }
+
+  // The preparation inputs and the per-Run output root are Project-scoped owning
+  // objects; two of them also have a published canonical owning type.
+  for (const [path, pin] of [
+    ['/outputTools/preparationSource', lock.outputTools.preparationSource],
+    ['/outputTools/preparationContext', lock.outputTools.preparationContext],
+    ['/boundary/outputRoot', lock.boundary.outputRoot],
+  ] as const) {
+    if (
+      pin.ref.scope.enterpriseId !== expectedScope.enterpriseId ||
+      pin.ref.scope.projectId !== expectedScope.projectId
+    ) {
+      errors.push(
+        semanticError(path, 'd14Scope', 'a Project-scoped owning pin must carry the lock scope'),
+      );
+    }
+  }
+  for (const [path, pin, objectType] of [
+    [
+      '/outputTools/preparationSource',
+      lock.outputTools.preparationSource,
+      D14_PREPARATION_PIN_TYPES['/outputTools/preparationSource'],
+    ],
+    [
+      '/outputTools/preparationContext',
+      lock.outputTools.preparationContext,
+      D14_PREPARATION_PIN_TYPES['/outputTools/preparationContext'],
+    ],
+  ] as const) {
+    if (pin.ref.objectType !== objectType) {
+      errors.push(
+        semanticError(`${path}/ref/objectType`, 'd14Reference', 'not the approved owning type'),
+      );
+    }
   }
 
   errors.push(...missingBytesPinErrors(lock.promptTools.systemPrompt, '/promptTools/systemPrompt'));
@@ -1551,6 +1733,14 @@ function contentHashOf(value: unknown): Common.ContentHash {
   };
 }
 
+/** Structural equality by canonical JSON: a whole ref/evidence binding, not a digest. */
+function sameJsonValue(left: unknown, right: unknown): boolean {
+  return (
+    sha256CanonicalJson(left as CanonicalJsonValue) ===
+    sha256CanonicalJson(right as CanonicalJsonValue)
+  );
+}
+
 function hashExcluding(value: object, excluded: string): Common.ContentHash {
   const payload = Object.fromEntries(Object.entries(value).filter(([key]) => key !== excluded));
   return contentHashOf(payload);
@@ -1674,12 +1864,8 @@ export function produceD14RunnerExecutionLock(input: D14LockProductionInput): D1
   if (payload.identity.reviewedRevision !== configuration.reviewedRevision) {
     reasons.push('identity.reviewedRevision does not match the approved configuration');
   }
-  for (const [field, expected] of [
-    ['selectionEvidence', configuration.selectionEvidence],
-    ['designReview', configuration.designReview],
-    ['technicalApproval', configuration.technicalApproval],
-  ] as const) {
-    if (payload.identity[field].contentHash.digest !== expected.contentHash.digest) {
+  for (const field of ['selectionEvidence', 'designReview', 'technicalApproval'] as const) {
+    if (!sameJsonValue(payload.identity[field], configuration[field])) {
       reasons.push(`identity.${field} does not bind the approved ${field} evidence`);
     }
   }
