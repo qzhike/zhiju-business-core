@@ -362,6 +362,33 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 
 首轮恢复追加场景（同为 `NOT RUN`）：**IP-D14-006** — ACTIVE初轮恢复新Humanscope决定/撤权/伪original request→start；预期：原start精确、真实decision与当前许可；不授予重start/信息激活，错来源/撤权拒绝。
 
+## D14 Runner 最小权限与锁验收（#256）
+
+状态：`PROPOSED / NOT REGISTERED / NOT IMPLEMENTED / NOT RUN`。对应 [IP首发授权](../module-specs/Module-Spec-001-IdentityPolicy.md#d14-runner-锁与控制授权提案256)，使用真实当次Decision/Grant/Policy及owning依赖读，不以配置/审批文档代替授权。
+
+| ID | 输入 / 故障 | 预期owning判定 | 实际 / 结果 |
+|---|---|---|---|
+| IP-LOCK-001 | 同SERVICE只获heartbeat权，缺progress/usage/IG读权；撤权发生于读后提交前 | 各自独立Decision；缺依赖权保护读0，撤权无新提交，旧ALLOW/Bundle/Receipt不放行 | 未执行 / `NOT RUN` |
+| IP-LOCK-002 | approvedconfig/个人登录态/CLI已安装、callerActor/actingFor声称Human | 不签任意新Grant；选择不等于数据/执行授权，Agent不能确认/激活/start/批准/发布 | 未执行 / `NOT RUN` |
+| IP-LOCK-003 | 错Scope/hash/用途/过期、未批准真实客户或公司模板/规则发送；仅改名/Hash“脱敏” | 逐源sourcehash与目的地许可，安全拒绝，零Providercall/越权源读；scope完整Enterprise+Project | 未执行 / `NOT RUN` |
+| IP-LOCK-004 | reportrootWRITE试写inputs/tools或另一Run，发现客户Skill/MCP/个人config | Capability不扩大，OS强制拒绝另取真实证据；Skill/MCP为空，无artifact.write或额外network许可 | 未执行 / `NOT RUN` |
+| IP-LOCK-005 | terminalusage/late/historyreadback，原执行Grant已到期、当前历史读/stop权有无 | 原历史完整性与当次权限分别校验；可以历史取证但不续执行，缺当前权不读/不stop，不借旧Receipt漏别Scope | 未执行 / `NOT RUN` |
+
+## Workspace 可信 Human 与目录授权场景（#258）
+
+状态：`HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT RUN`。authority 为 [IP #258](../module-specs/Module-Spec-001-IdentityPolicy.md#workspace-可信-human-入口与目录授权提案258)；跨边界绑定见 [TR-258](../decisions/workspace-trusted-session-public-access.md#7-原意图恢复与设计-trace)。设计表不替代实际 OIDC、公开入口或 PostgreSQL 授权证据。
+
+| ID / 层次 | 输入 / 当次 owner 检查 | 可观察预期 | 实际 / 结果 |
+|---|---|---|---|
+| IP-258-001 / Contract + controlled OIDC | 固定 issuer-sub 当前 link→ACTIVE HUMAN；token/client/audience 正例 | 同一真实 Principal，服务器形成 auth context 与 exact Scope Actor/Decision；无浏览器 actor | 未执行 / `NOT RUN` |
+| IP-258-002 / Security | 缺 link、同 email 不同 sub、冲突/撤 link、SUSPENDED/AGENT/SERVICE、realm admin | 安全403；无 JIT/继承/合并，业务 protected reads/writes=0；Subject 不进入普通错误 | 未执行 / `NOT RUN` |
+| IP-258-003 / Security + Persistence | payload/header 伪 Actor、actingFor、Decision、认证摘要；wrong hash/Scope/token/session binding | trusted entry/schema/IP 拒绝；保留真实 Kind，不能借旧 ALLOW 读写 | 未执行 / `NOT RUN` |
+| IP-258-004 / Bootstrap + Persistence | 并发同 claim；任意 Browser 触发 link/assign；普通受权人工关联 | claim 一 winner；管理命令不在 workspace allowlist；link 冲突不覆盖，首次关联/Grant 有 owning Receipt/Audit | 未执行 / `NOT RUN` |
+| IP-258-005 / Directory + Persistence | self候选、别 Principal请求、Enterprise Grant/通配 selector、未授 discovery 的新 Project | 只枚举实际 Human exact PROJECT 候选；无任意人/跨 Scope数据；不从创建/ScopeClaim推权限 | 未执行 / `NOT RUN` |
+| IP-258-006 / Directory + Persistence | 目录项读前/最终返回/翻页间真实撤 Grant、Policy变化、Decision过期 | 相应受保护读取拒绝/页面绑定失效，无 stale ALLOW；目录权限不能读 board/Evidence 或 confirm | 未执行 / `NOT RUN` |
+| IP-258-007 / Recovery + HTTP | 原 request committed，BFF过期/重启/refresh；同Human重登或换Human | 新认证摘要/当次 read Decision；原intent/历史Actor/Receipt不改；无权者无refs；撤权禁止续步 | 未执行 / `NOT RUN` |
+| IP-258-008 / OIDC | JWT到期、Keycloak撤session、IP link/Grant即时撤销 | 分别验证短token/refresh发现期限与下一IP检查拒绝；不把stateless API称为全局即时撤销 | 未执行 / `NOT RUN` |
+
 ## #257 公司规则发布与读取设计场景
 
 状态：`PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。对应 [IP owning 提案](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案)；公司业务清单与客户适用性归 EP/专业 Human，不能把 IP Hash/profile 检查说成业务正确性。

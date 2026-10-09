@@ -699,3 +699,18 @@ BOARD-D-003/007同时验证compact cursor长度264且满足共享16–512 base64
 | TE-D14-007 | scope 已接收但无 Task/Run；分页进度/Runner自报完成 | RECEIVED/WAITING 实际 owning状态；完整计数水位与分页，不能将 receipt/report/Run 变文件批准或项目完成 | 未执行 / `NOT RUN` |
 
 首轮恢复追加场景（同为 `NOT RUN`）：**TE-D14-008** — 两份 initial-scope intent 竞态、窗口关闭后 dispatch/final、旧FULL_START；预期：最终 UNIQUE INITIAL 一 winner；同原request duplicate稳定refs，不同intent输家非假成功；晚结果仅历史，旧FULL_START/后续批次拒绝。
+
+## D14 Runner 六项控制与结果验收（#256）
+
+状态：`PROPOSED / NOT REGISTERED / NOT IMPLEMENTED / NOT RUN`。仅 [TE首发控制提案](../module-specs/Module-Spec-003-TaskExecution.md#d14-runner-首发六项控制提案256)的新preparation selector；必须走owning入口与真实IG观察，不造Receipt/Run/Acceptance。技术设计静态对账不改下表运行结果。
+
+| ID | 输入 / 故障 | 预期owning判定 | 实际 / 结果 |
+|---|---|---|---|
+| TE-LOCK-001 | 原HOST_HEARTBEAT，有限lease/budget/deadline；同key重放、旧fencing/过期 | 当前独立授权/完整原绑定；有限续租，重复零副作用、late不续；caller时间不能延长期限 | 未执行 / `NOT RUN` |
+| TE-LOCK-002 | 原技术PROGRESS；敏感/任意phase、自报读全/批准/完成 | 仅三项phase与实际tool计数，零续租/Completion/事实确认；非法值拒绝 | 未执行 / `NOT RUN` |
+| TE-LOCK-003 | record_run_suspension/resume_suspended_run/acknowledge_run_cancellation | 首发UNSUPPORTED，保护读/新invoke/新状态事实均0；terminal或session参数不能绕过 | 未执行 / `NOT RUN` |
+| TE-LOCK-004 | 原Providerusage/missing计量/Agent自报，terminal历史计量 | 独立写/读授权与immutable来源；missingUNKNOWN非0，Agent不升级，历史计量不恢复执行资格/Completion | 未执行 / `NOT RUN` |
+| TE-LOCK-005 | cancel与record/expiry真实竞态、localstop冒充ProviderACK、latefinal | 同Runlock/CAS裁决；无ACK不CANCELLED，到期ABANDONED；lateAudit绑定原IG来源，零可用Acceptance/EP新报告 | 未执行 / `NOT RUN` |
+| TE-LOCK-006 | 原UNKNOWN/terminal旧树未知、BLOCKED_INPUT解决后的显式第二分析、第三次/取消后retry | 前两者零invoke；合法新source/Context/Bundle/Run/fencing占剩余预算；旧历史稳定，第三次/取消后retry拒绝 | 未执行 / `NOT RUN` |
+| TE-LOCK-007 | actualv0.2pair、错lock/Package/manifest/hash/session/别名/readceiling、v0.1finalize | TE独立验证和Acceptance；错误不ACCEPTED，finalize成功非证明；合法report不完成Task/WO/Project | 未执行 / `NOT RUN` |
+| TE-LOCK-008 | 旧synthetic与Package@1.0、当前授权撤销、INITIAL_SCOPE_RECOVERY窗口关闭 | 原profilebytes/支持集不扩大；旧入口拒新selector，缺权保护读0，窗口关闭late只历史 | 未执行 / `NOT RUN` |

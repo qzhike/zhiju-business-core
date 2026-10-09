@@ -990,6 +990,26 @@ Human-only `request_startup_confirmation` 先提交不可变意图/认证决定�
 
 TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{projectRef,projectStartBindingRef}`，result `{initialScopeState:NOT_RECEIVED或RECEIVED,workScopeRef?,receiptRef?,sourceWatermarks,currentUsability}`。EP 专用 source/eligibility Port 用它与现有 start 证明生成上述允许分支，Query 本身不是保留资格。TE receive 在自己的最终提交事务以 `(enterprise_id,project_id,initial_scope_purpose)` 唯一约束裁决多个新/旧请求，只允许一份首轮 scope；同 request/hash 返回原 Receipt，不同请求输家 `INITIAL_SCOPE_ALREADY_RECEIVED` 且不把自己的决定伪装为已接纳。分析 dispatch/final/report 接纳也重验该窗口的 TE owning 状态；窗口关闭后已合法 Run 终结结果可留历史但不能覆盖可操作 current report，后继当前范围变化走 impact 而不重接首轮。
 
+## Workspace 授权项目目录提案（#258）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。这是首个 Human 工作台必需的有限 additive Query，不修改既有 project board、D14 request/Receipt、Project状态机或业务 Schema 所有权。技术入口见 [Session Delta](../decisions/workspace-trusted-session-public-access.md#4-授权目录与工作台来源)。
+
+| 拟 operation / consistency / Scope | 封闭 payload | result data / Purpose |
+|---|---|---|
+| `project.find_workspace_projects@1.0` / AUTHORITATIVE / 专用 self-discovery `scopeRef={}` | `enterpriseRef?:ObjectRef<Enterprise>; searchText?:Sensitive<NonEmptyString>; page:PageRequest`，pageSize=1..50；不接 requester/Principal列表/自由Scope集合 | `Page<WorkspaceProjectSummary>`；`project.workspace.discover`，实际 requester由Core验证；空Scope只用于自身目录、不授业务权 |
+
+`WorkspaceProjectSummary={enterpriseRef:ObjectRef<Enterprise>,projectRef:ObjectRef<Project>,enterpriseDisplayName:SafeSummary,displayCode:NonEmptyString,title:SafeSummary,status:owning已注册Project状态,aggregateVersion:AggregateVersion}`。D14 PREPARING 仅在其状态/Schema 已注册后可返回；新目录不扩大旧 operation 的闭集。结果保留 owning ProjectRef 完整类型/Scope，不按名称或前缀改身份；无正文、源材料、外部Subject、权限条款、其他项目计数或“已完成”推断。显示名称仍仅在当次 Project discovery 许可下读取。
+
+执行顺序：Core verified self requester → IP 内部 self候选 Port → 每个候选取得 IP 当前 `project.workspace.discover@1.0` scoped Decision → 本模块在该精确 Enterprise+Project RLS Context 读自己的 Project/必要企业显示摘要 → 返回前当前权限重验。IP Port 字段/mapping 唯一见 [Spec001 #258](Module-Spec-001-IdentityPolicy.md#workspace-可信-human-入口与目录授权提案258)；候选不是 ALLOW，不能以目录空 Scope 扫 EP 全库或跨 Schema join Role/Grant。企业名称只作该已授权 Project 的最小显示字段，不授予企业正文读取权限。
+
+稳定排序 `(enterpriseId,projectId)`；仅对受权摘要执行规范化 search/enterprise filter。目录 Cursor 绑定 query/version、实际 Principal、稳定登录sessionBindingHash/代次（非每次validatedAt）、过滤Hash、IP授权集合指纹、EP/IP sourceWatermarks、last sort key与5分钟期限；不含可读Subject/secret。每页重验当前权限；授权集合/Session/过滤变更拒绝 `QUERY_CURSOR_SCOPE_MISMATCH`，过期 `QUERY_CURSOR_EXPIRED`，前端从第一页重新读取。内部候选扫描单请求最多200项/5秒，输出≤pageSize；尚有候选则返回绑定nextCursor，即使本页过滤为空也不能宣称全目录空。各 Scope 在自己的 Context 下读取，无全局事务/权限；返回 PAGE 的 snapshotAt/watermarks 是读取观察，不是跨 Enterprise 原子快照。
+
+翻页的snapshotAt/asOf与sourceWatermarks固定为首屏观察，不能按翻页时刻漂移。EP/IP相关源水位在逐项读取前后及最终返回检查点变化则拒绝该页 `QUERY_CURSOR_INVALID` 并从首屏重取，不新建目录Snapshot或技术Session业务cache；当前权限仍独立重验，不能以首屏asOf恢复已撤Grant。水位范围只覆盖候选来源和已许可摘要，不暴露未授权项目变化计数。
+
+合法页均返回 `OK + data:Page<WorkspaceProjectSummary>`，包括 `items=[] + nextCursor` 的空中间页；Page 与 QueryResult 的 nextCursor 同值，枚举未完必须返回绑定游标，完整末页才省略。客户端按游标继续分页，不为得到非空页突破200项/5秒扫描预算；只有同一有效游标链枚举完整、末页无nextCursor且累计可见项为零才显示完整EMPTY，空末页不清空之前的非空项。IP/EP依赖失败为 DEPENDENCY_UNAVAILABLE、无部分数据伪装完整目录。不返回未授权项目存在性或全局总数。新准备项目若尚无真实 current discovery Grant 不进入目录，owning preparation request 页面仍按其当前 read权回读，不补权限或伪造卡片。无该 Query 的 handler/注册时工作台目录不可用，BFF不能从旧缓存、匿名原型、Repository或per-project board推导项目集合。
+
+选中项目后的 `project.get_project_board_slice@1.0` 仍只读指定 Project 的 DeliveryItem，`execution.get_task_board_slice@1.0` 仍由 TE 独立拥有；两者各验自身当前权限和consistency。目录项不作为board/data资格、不扩大分页分母。跨项目工作台首版只用本目录的项目卡片和受控单项目看板，不新增跨项目任务Projection/完成判据。
+
 ## #257 公司启动规则与词表字段提案
 
 状态：`T2 / PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。公司清单、范围、来源、理由和支持集选择唯一维护在 [公司规则 Delta §1–2](../decisions/company-startup-rules-v0.1.md#2-提交确认的必需清单与词表)；本节拥有字段及确定性业务校验，IP 拥有政策身份、发布事实/当前性与授权。现有 Product/QMS/Fact/Profile、完整 create_project、D14 技术批准与生产 Catalog 接受集不因提案改变。

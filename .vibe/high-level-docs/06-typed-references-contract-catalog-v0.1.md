@@ -1490,6 +1490,16 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 
 首轮恢复 additive 提案补充（均 @1.0、未注册）：EP `project.request_initial_scope_confirmation`、`project.get_initial_scope_request`、`project.resume_initial_scope_request`；TE `execution.get_initial_work_scope_state`。新增 OBJECT `zhiju.project.initial_scope_request`、CONTENT_ADDRESSED `zhiju.project.initial_work_scope_decision`，均同 Project；producer/field/startBindingMode 与授权唯一维护于 Spec002 ACTIVE 首轮恢复，消费者与唯一 INITIAL scope 约束维护于 Spec003。旧 catalog 计数/bytes 不改。
 
+## Workspace 授权目录名称提案（#258，未注册）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。
+
+| 拟 operation | 唯一 Owner / 字段权威 | 有限用途与注册边界 |
+|---|---|---|
+| `project.find_workspace_projects@1.0` / QUERY | EnterpriseProject / [Spec002 #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258) | AUTHORITATIVE verified-self目录；专用空Scope入口，每项仍受IP exact PROJECT discovery Decision与RLS；无任意身份/跨项目内容目录 |
+
+本提案不计入现有Catalog/Registry/历史200 baseline，不增加Event、业务Root或通用dispatcher。IP身份bootstrap与self候选为受控内部Port，不注册为Browser管理能力；技术auth/session路由与ZIP流也不是新增Business Core Command。现有operation@version仍按各自完整Ref接受集使用，不通用互换legacy/canonical类型。批准后的独立实施须同时注册payload/result/authorizationPurpose/guard/专用Scope接受集与正负fixtures；HTTP可调用还需要owning handler，不能把本文或Registry名称当运行证据。
+
 ## #257 公司启动规则引用提案
 
 状态：`T2 / PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。仅为 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md) 的 owner/reference 导航，不增加当前公开 operation 数、Registry、Schema 或 compatibility baseline。

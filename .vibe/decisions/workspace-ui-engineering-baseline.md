@@ -142,6 +142,8 @@ Markdown 使用 react-markdown + remark-gfm，禁用原始 HTML（skipHtml）、
 
 ## 6. 首条真实链路与接口差距
 
+可信Human/session/public字段的后续收口提案见 [#258 Session Delta](workspace-trusted-session-public-access.md)。它提出EP自身授权项目目录并明确有限路由、受信Envelope生成与恢复绑定；已完成独立设计复审与人类技术批准，注册/实现仍未发生。下表保留工程批准时的缺口观察，不据新设计文档宣告现成HTTP/登录/下载或真实链路可用。
+
 首个用户目标是：顾问提交客户 ZIP → 服务器受控 Runner 读取客户与固定模板 → 返回接纳后的报告 → 原布局核对启动信息与逐份选择 → 明确确认 → 观察本轮真实请求与文件进度。独立 Runner 测试只提供报告设计依据，不能替代平台接纳、授权和持久化。
 
 本轮核查主工作区 `main@b6e1f93d7a79e6334622c55b94f124750143949e`：`apps/api/src/app.module.ts` 仍只注册 HealthController。下表已有操作是 Catalog/module 能力，**均不因此成为现成业务 HTTP endpoint**。

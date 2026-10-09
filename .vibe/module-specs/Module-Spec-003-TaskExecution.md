@@ -2498,3 +2498,24 @@ PREPARATION_ANALYSIS 专用 EP eligibility Port 允许两种闭合分支：`PREP
 receive_initial_work_scope 的 scopeRequestRef 只接受 EP startup_request 或 initial_scope_request，并从 EP owning Query 验证真实 Human scope decision、intentHash、startBindingMode 的原 request→start 链、完整 file/change set 与当前 eligibility。首次 START_FROM_SAME_REQUEST 必须真实已完成一次 start；恢复 EXISTING_FROZEN_START 必须 exact 原冻结 binding，不接受调用者新 start。TE 保存所有 exact refs/Hash，并在同 scope Root 事务 enforce `(enterprise_id,project_id,purpose=INITIAL)` 唯一：相同 request/hash duplicate 返回原 scope，不同 request 竞态一 winner，输家 `EXECUTION_INITIAL_SCOPE_ALREADY_RECEIVED`；失败零 scope Receipt。已有成功 scope 的请求只回读，不开启第二初轮。
 
 恢复 query 进度是 scope 的事实；新的 ACTIVE intent 在尚无成功 scope 时只记录 Human 意图，直到真实 receive 才 RECEIVED。受理后才到达的源/报告变化对 scope 按文件追加 eligibility/impact，不改变旧意图或初轮唯一事实。required-start 依据失效须 EP owning impact review 阻止接收，不能以新候选替换 PROJECT_START。
+
+## D14 Runner 首发六项控制提案（#256）
+
+状态：`T2 / PROPOSED / HUMAN SELECTED 2026-10-09 / TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。限定新的 `te.preparation_analysis@1 / d14.analysis@1`，配置/锁与时限见 [首发提案 §2–3](../decisions/d14-rd01-runner-profile-lock.md#2-一个版本化锁合同与三个不同证据层)。本节拥有六项 IM-DG-006 操作的有界接受集；不是将现有 Handler、synthetic 或旧 public Schema 放宽，也不宣布全 IM-DG-006 已批准。
+
+拟支持操作的共享 Envelope target 是本 Run 的 MUTATE/OBJECT，带 CAS/stable key/payloadHash。封闭 payload 仅 `{attemptRef:ObjectRef<integration.runtime_attempt>, observationRef:ContentAddressedRef<zhiju.integration.preparation_control_observation>, leaseId:UuidV7, fencingToken:NonNegativeInt}`；新 observation 类型是 IG owning 提案，当前未注册。时间、phase、metering、lockHash、主体和 session 从 IG 受权原观察及 frozen Run 读取，不能由 caller 自报字段补足。通用 CommandResult/Receipt 只证明该次 owning 提交。未知字段/版本/类型拒绝；未来公开 metadata/Schema/Catalog需独立登记，当前操作不可调用。
+
+| 拟操作@1.0 | 首发支持 / 原观察与当前资格 | TE 状态 / 拒绝边界 |
+|---|---|---|
+| `execution.record_run_heartbeat` | 支持受信 Host 原进程存活/有限 watchdog 观察；SERVICE自身当次 heartbeat及IG观察读权；RUNNING/ACTIVE claim、同Attempt/lock/lease/fencing、当前Grant/Context/deadline | TE受信接收时刻计算有限续租，不能晚于锁policy与所有有效期/总预算；进程存活不证明业务有进展。过期/旧fencing/terminal/重放不续租，不能把观察时间倒签有效 |
+| `execution.record_runtime_progress` | 支持 IG 原有限技术事件投影，phase闭集 INPUT_READ/REPORT_DRAFT/OUTPUT_GUARD；计数仅实际工具事件，安全code，不含客户名/正文/推理 | 追加技术进度，零完成/接纳/续租；CLI文字“批准/完成/读全”不是可信事实。错来源/任意phase或敏感摘要拒绝 |
+| `execution.record_run_suspension` | 首发拒绝；交互输入/continuation无已验证协议 | `EXECUTION_CRITERION_UNSUPPORTED`，不创建 SUSPENDED 或 InformationRequest 假事实；final BLOCKED_INPUT 仍走独立现有机制 |
+| `execution.resume_suspended_run` | 首发拒绝所有同Run resume，包括非terminal、terminal与CLI session参数 | `EXECUTION_CRITERION_UNSUPPORTED`，零新invoke/lease/Context变更；合法补料与retry只能新Run |
+| `execution.record_run_usage` | 支持原 CLI实际返回的Provider metering；独立当前 usage/IG读权；由IG观察解析既有 RuntimeUsageRecord，各字段 ValueEnvelope 明确来源 | 追加不可变 Usage，missing为UNKNOWN/UNAVAILABLE非0，cost为ESTIMATED且带精确价表才可展示估价；历史terminal只可记录来源完整的历史计量，不能恢复执行资格或续租。Agent自报不能提升权威 |
+| `execution.acknowledge_run_cancellation` | 首发拒绝：OMP + DeepSeek没有已验证的远端Provider取消ACK；OMP abort响应或Host全进程树退出只证明对应本地控制/LOCAL_PROCESS_STOPPED观察 | `EXECUTION_CRITERION_UNSUPPORTED`，不写CANCELLED；signal sent、exit code、网络断开、OMP abort响应和stop request均不是ProviderACK。CANCELLING到期由owning expiry转ABANDONED |
+
+所有支持操作先自身当前 IP授权，再通过独立IG读权取 exact observation/原Attempt/ack/完整Runtime实例；核对同Enterprise+Project、Run/Contract/Context/Package/lock、session、lease/fencing、sourceHash与kind。提交前重验当前权限和Run/CAS；缺授权对应 protected read=0。heartbeat/progress须仍RUNNING且now在有效上界内；usage历史完整性不依赖已到期执行Grant恢复有效，但自身当前计量写/来源读权必需。无权/不可见/wrong Scope返回统一安全错误；依赖故障保持DEPENDENCY_UNAVAILABLE，不转换成“未观察”。同key同hash当前有权返回原Receipt，零新副作用；同key异hash冲突；不支持操作授权后在保护性读取前拒绝，不通过手写库记录补齐。
+
+Human取消沿既有 `execution.request_run_cancel@1.0` 的请求与终结分离语义，未来须新增 preparation selector/producer支持与真实预算事实，现行仅两次synthetic的Handler不会因本提案获新能力。TE提交CANCELLING后，独立受权IG/Host control consumer只向原cgroup发送stop；没有可信ProviderACK不进入CANCELLED。Run到期与final/record共享行锁/CAS，取消先提交则final仅走原IG历史观察+TE late-isolation Audit，零可用Acceptance/新EP report；record先提交则取消拒绝。晚heartbeat/progress不能续执行，晚usage只独立历史计量。
+
+明确新分析/重试要求原Run确定terminal且非取消终结、旧进程树已确认停止、当前同Scope/phase资格/授权及剩余预算有效；最多第二次，不自动重试、不fallback。BLOCKED_INPUT须真实解决，重新source/Context/Bundle/Run/Attempt/lease/fencing；UNKNOWN先readback原Attempt和Host journal，不新spawn；terminal永不resume。新D14内部retry/expiry/late producer须显式受控接受集与owning测试，不借旧schedule/cancel/expire入口的宽松JSON接受新profile。报告ACCEPTED/SUCCEEDED仍不产生Task/WO/文件/项目Completion。
