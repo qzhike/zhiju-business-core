@@ -14,6 +14,9 @@
     { "path": "tools/verification" },
     { "path": "tests/types" },
     { "path": "tests/persistence" },
-    { "path": "tests/business" }
+    { "path": "tests/business" },
+    { "path": "apps/workspace-web" },
+    { "path": "apps/workspace-bff" },
+    { "path": "tests/workspace" }
   ]
 }

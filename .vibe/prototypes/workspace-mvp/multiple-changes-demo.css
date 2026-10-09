@@ -1,0 +1,48 @@
+/* One visible change and a bounded, searchable directory for longer files. */
+.multi-change-navigation{flex-shrink:0;margin-top:12px;padding:12px 14px;background:white;border:1px solid var(--line);border-radius:9px}
+.multi-change-nav-title,.multi-change-current{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.multi-change-nav-title{padding-bottom:10px;border-bottom:1px solid var(--line);font-size:12px}
+.multi-change-nav-title b{color:var(--purple);font-size:18px;margin:0 3px}
+.multi-change-nav-title button,.multi-change-current button,.multi-change-detail button{font-size:11px;padding:6px 9px}
+.multi-change-current{margin-top:10px}
+.multi-change-current>span{min-width:0;flex:1}
+.multi-change-current small{display:block;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;margin-bottom:4px}
+.multi-change-current strong{display:block;font-size:11px;font-weight:500;overflow-wrap:anywhere}
+.multi-change-current .row{flex-shrink:0;gap:5px}
+.multi-change-legend{display:flex;align-items:center;flex-wrap:wrap;gap:10px;font-size:10px;margin-top:14px;color:var(--muted)}
+.multi-change-detail ins,.multi-change-legend ins{background:#d7eee0;color:#226b43;text-decoration:none;padding:0 2px}
+.multi-change-detail del,.multi-change-legend del{background:#fde9e6;color:#944d42;padding:0 2px}
+.multi-change-detail .execution-diff p{font-size:14px;line-height:2.1}
+.multi-change-detail .execution-diff{margin:16px 0 22px}
+.multi-change-context{margin-top:20px;font-size:11px;color:var(--muted)}
+.multi-change-context summary{cursor:pointer;color:var(--purple)}
+.multi-change-context p{font-size:12px;margin-top:12px}
+.multi-change-fixture-note{font-size:10px!important;color:var(--muted);line-height:1.9;margin-top:14px}
+.multi-change-document h4{font-size:12px;margin:16px 0 6px}
+.multi-change-document p{font-size:12px}
+.multi-change-search{display:block;font-size:12px;margin:16px 0}
+.multi-change-search input{display:block;width:100%;font:inherit;margin-top:7px;padding:9px 11px;border:1px solid var(--line);border-radius:7px}
+.multi-change-directory{max-height:52dvh;overflow:auto;border:1px solid var(--line);border-radius:8px;overscroll-behavior:contain}
+.multi-change-directory h3{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 13px;margin:0;font-size:12px;background:#f5f5fa;border-bottom:1px solid var(--line)}
+.multi-change-directory h3 small{color:var(--muted);font-size:10px;font-weight:400}
+.multi-change-directory button{display:flex;width:100%;align-items:center;gap:12px;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:11px 13px;text-align:left;font-size:12px;background:white}
+.multi-change-directory button[aria-current=step]{background:var(--soft);color:var(--purple)}
+.multi-change-directory button>span{color:var(--muted);font-size:11px;min-width:22px;font-variant-numeric:tabular-nums}
+.multi-change-directory button>strong{flex:1;font-weight:400;overflow-wrap:anywhere}
+.multi-change-directory button>small{font-size:10px}
+.multi-change-empty{padding:20px 13px;font-size:12px;color:var(--muted)}
+.multi-preview-entry{display:inline-block;margin-left:14px;font-size:11px}
+.multi-change-directory button:focus-visible,.multi-change-search input:focus-visible,.multi-change-navigation button:focus-visible,.multi-change-detail button:focus-visible{outline:2px solid #9a92e5;outline-offset:-2px}
+@media(max-width:700px){.multi-change-navigation{padding:10px;margin-top:8px}.multi-change-nav-title{gap:8px;font-size:11px}.multi-change-current{align-items:flex-start;gap:7px}.multi-change-current .row{flex-direction:column}.multi-change-current button{padding:5px 7px;font-size:10px}.multi-change-current strong{font-size:10px}.multi-change-fixture-note{display:none}.multi-change-detail .execution-diff p{font-size:13px}.multi-preview-entry{margin:5px 0 0;display:block}}
+
+/* Chapter snippets are navigable locations, not passive summary text. */
+.multi-change-context>button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 12px;margin-top:8px;border:1px solid var(--line);border-radius:7px;background:#fafafd;color:var(--ink)}
+.multi-change-context>button:hover{background:var(--soft);border-color:#d3cdeb}
+.multi-change-context>button[aria-current=step]{background:var(--soft);border-color:#d3cdeb}
+.multi-change-context>button>span:nth-child(2){flex:1;min-width:0}
+.multi-change-context>button strong{display:block;font-size:12px;font-weight:500}
+.multi-change-context>button small{display:block;font-size:10px;color:var(--muted);line-height:1.8;margin-top:4px;overflow-wrap:anywhere}
+.multi-change-context>button>small{flex-shrink:0;color:var(--purple);margin:0;font-size:10px}
+.multi-chapter-number{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:20px}
+.multi-change-context>button:focus-visible{outline:2px solid #9a92e5;outline-offset:2px}
+@media(max-width:700px){.multi-change-context>button{gap:7px;padding:9px}.multi-change-context>button>small{font-size:9px}.multi-change-context>button strong{font-size:11px}}

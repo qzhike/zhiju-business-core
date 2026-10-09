@@ -1,0 +1,1292 @@
+{
+  "fixtureFormat": "DESIGN_ONLY_STARTUP_DTOS_V1",
+  "view": {
+    "schemaVersion": "0.1.0",
+    "kind": "STARTUP_REVIEW",
+    "binding": {
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "design.project",
+        "objectId": "019a0000-0000-7000-8000-000000000002",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        }
+      },
+      "projectVersion": 1,
+      "reportRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.analysis_report",
+        "objectId": "019a0000-0000-7000-8000-000000000003",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000067",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "f9e4dbfd1546c143d331740f6ea7886f6a5e78f22721a3bd3c588ba12a73cadd",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "reportJsonSha256": "91bf4d5bf243f6196a2813fe7ecb4b4378cd360ac257d4114e5577950ab014e6",
+      "candidateSetRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.startup_candidate_set",
+        "objectId": "019a0000-0000-7000-8000-000000000004",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000068",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "699ef0afa8e5fa1a0d5b77b6ccdd5f437e5610cee6e6d06de330b8e2168dbc1f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "inputManifestSha256": "44ca1278c092fc53a95ddee66851da363d099ad99a95bfa8f946568c2412199e",
+      "ruleBundleRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.rule_bundle",
+        "objectId": "019a0000-0000-7000-8000-000000000005",
+        "scope": {},
+        "snapshotId": "019a0000-0000-7000-8000-000000000069",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ddea6a087a5340d54c7c78e5cfecccd30881e261ddd3b1b7a020faa40b39e45f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "planRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.upgrade_plan",
+        "objectId": "019a0000-0000-7000-8000-000000000006",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-00000000006a",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1e414d33f0cf740c0cb1e623e7047df3fd71f02016c144926630b5a556cc8450",
+          "canonicalizationVersion": "1"
+        }
+      }
+    },
+    "projectState": "PREPARING",
+    "informationGroups": [
+      {
+        "group": "PROFILE",
+        "summary": "客户质量方针待确认；现行组织图仍缺失。",
+        "candidateIds": [
+          "SC-POLICY"
+        ]
+      },
+      {
+        "group": "QMS",
+        "summary": "按固定规则升级，保留纠正与预防两份程序。",
+        "candidateIds": [
+          "SC-MANAGEMENT",
+          "SC-APPLICABILITY",
+          "SC-SOFTWARE",
+          "SC-PROFESSIONAL"
+        ]
+      },
+      {
+        "group": "PRODUCT_SCOPE",
+        "summary": "系列甲 · 甲一、甲二 · 示例中国市场。",
+        "candidateIds": [
+          "SC-PRODUCT"
+        ]
+      }
+    ],
+    "candidateReviews": [
+      {
+        "candidateId": "SC-POLICY",
+        "kind": "ENTERPRISE_FACT",
+        "valueState": "EVIDENCED",
+        "summary": "质量方针",
+        "displayFields": [
+          {
+            "path": "factType",
+            "label": "事实类别",
+            "value": "demo.quality_policy"
+          },
+          {
+            "path": "value",
+            "label": "现行内容",
+            "value": "在确认的产品范围内，持续满足客户要求，并改进质量管理体系的有效性。"
+          },
+          {
+            "path": "riskLevel",
+            "label": "风险类别",
+            "value": "demo.risk_high"
+          }
+        ],
+        "alternatives": [],
+        "evidenceIds": [
+          "E-POLICY"
+        ]
+      },
+      {
+        "candidateId": "SC-PRODUCT",
+        "kind": "PRODUCT",
+        "valueState": "EVIDENCED",
+        "summary": "系列甲产品范围",
+        "displayFields": [
+          {
+            "path": "productType",
+            "label": "产品类别",
+            "value": "demo.device"
+          },
+          {
+            "path": "displayName",
+            "label": "产品名称",
+            "value": "系列甲"
+          },
+          {
+            "path": "intendedUse",
+            "label": "预期用途",
+            "value": "示例用途，限合同样例。"
+          },
+          {
+            "path": "productScope.productFamily",
+            "label": "产品族",
+            "value": "示例产品族"
+          },
+          {
+            "path": "productScope.variants",
+            "label": "型号",
+            "value": "甲一、甲二"
+          },
+          {
+            "path": "productScope.markets",
+            "label": "市场",
+            "value": "demo.market_cn"
+          }
+        ],
+        "alternatives": [],
+        "evidenceIds": [
+          "E-PRODUCT"
+        ]
+      },
+      {
+        "candidateId": "SC-MANAGEMENT",
+        "kind": "QMS_MANAGEMENT_CHOICE",
+        "valueState": "EVIDENCED",
+        "summary": "保留两份独立程序",
+        "displayFields": [
+          {
+            "path": "choiceKey",
+            "label": "管理安排类别",
+            "value": "demo.capa_organization"
+          },
+          {
+            "path": "selectedOption",
+            "label": "现行管理安排",
+            "value": "纠正措施与预防措施使用两份独立程序，分别保持现行审批流程。"
+          },
+          {
+            "path": "rationale",
+            "label": "依据说明",
+            "value": "按现行客户文件保持分立。"
+          }
+        ],
+        "alternatives": [],
+        "evidenceIds": [
+          "E-MANAGEMENT"
+        ]
+      },
+      {
+        "candidateId": "SC-APPLICABILITY",
+        "kind": "QMS_APPLICABILITY",
+        "valueState": "EVIDENCED",
+        "summary": "职责条款适用性建议",
+        "displayFields": [
+          {
+            "path": "requirementSourceId",
+            "label": "要求来源",
+            "value": "T-UPGRADE"
+          },
+          {
+            "path": "requirementLocator",
+            "label": "要求位置",
+            "value": "职责与组织"
+          },
+          {
+            "path": "outcome",
+            "label": "判断建议",
+            "value": "APPLICABLE"
+          },
+          {
+            "path": "rationale",
+            "label": "依据说明",
+            "value": "客户有现行体系，需要补齐企业依据。"
+          }
+        ],
+        "alternatives": [],
+        "evidenceIds": [
+          "E-ORG",
+          "E-TEMPLATE"
+        ]
+      },
+      {
+        "candidateId": "SC-SOFTWARE",
+        "kind": "QMS_APPLICABILITY",
+        "valueState": "UNKNOWN",
+        "summary": "软件适用性待补充",
+        "displayFields": [
+          {
+            "path": "requirementSourceId",
+            "label": "要求来源",
+            "value": "T-UPGRADE"
+          },
+          {
+            "path": "requirementLocator",
+            "label": "要求位置",
+            "value": "软件适用性"
+          },
+          {
+            "path": "outcome",
+            "label": "判断建议",
+            "value": null
+          },
+          {
+            "path": "rationale",
+            "label": "依据说明",
+            "value": "缺软件事实，不能判断不适用。"
+          }
+        ],
+        "alternatives": [],
+        "evidenceIds": [
+          "E-TEMPLATE"
+        ]
+      },
+      {
+        "candidateId": "SC-PROFESSIONAL",
+        "kind": "QMS_PROFESSIONAL_DECISION",
+        "valueState": "EVIDENCED",
+        "summary": "保持现行流程的判断建议",
+        "displayFields": [
+          {
+            "path": "decisionType",
+            "label": "判断类别",
+            "value": "demo.preserve_process"
+          },
+          {
+            "path": "outcome",
+            "label": "判断建议",
+            "value": "保持现行流程"
+          },
+          {
+            "path": "rationale",
+            "label": "依据说明",
+            "value": "按客户依据保留两份程序及各自审批流程。"
+          }
+        ],
+        "alternatives": [],
+        "evidenceIds": [
+          "E-MANAGEMENT"
+        ]
+      }
+    ],
+    "requiredCandidateIds": [
+      "SC-POLICY",
+      "SC-PRODUCT",
+      "SC-MANAGEMENT",
+      "SC-APPLICABILITY",
+      "SC-PROFESSIONAL"
+    ],
+    "confirmationCandidateIds": [
+      "SC-POLICY",
+      "SC-PRODUCT",
+      "SC-MANAGEMENT",
+      "SC-APPLICABILITY",
+      "SC-PROFESSIONAL"
+    ],
+    "evidenceViews": [
+      {
+        "evidenceId": "E-POLICY",
+        "sourceRef": {
+          "kind": "OBJECT",
+          "objectType": "design.source",
+          "objectId": "019a0000-0000-7000-8000-00000000000a",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+            "projectId": "019a0000-0000-7000-8000-000000000002"
+          }
+        },
+        "role": "CUSTOMER_MATERIAL",
+        "displayName": "客户现行资料",
+        "locator": "质量方针",
+        "quote": "在确认的产品范围内，持续满足客户要求，并改进质量管理体系的有效性。"
+      },
+      {
+        "evidenceId": "E-PRODUCT",
+        "sourceRef": {
+          "kind": "OBJECT",
+          "objectType": "design.source",
+          "objectId": "019a0000-0000-7000-8000-00000000000a",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+            "projectId": "019a0000-0000-7000-8000-000000000002"
+          }
+        },
+        "role": "CUSTOMER_MATERIAL",
+        "displayName": "客户现行资料",
+        "locator": "产品范围",
+        "quote": "产品族：示例产品族；型号：甲一、甲二；市场代码：demo.market_cn。"
+      },
+      {
+        "evidenceId": "E-MANAGEMENT",
+        "sourceRef": {
+          "kind": "OBJECT",
+          "objectType": "design.source",
+          "objectId": "019a0000-0000-7000-8000-00000000000a",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+            "projectId": "019a0000-0000-7000-8000-000000000002"
+          }
+        },
+        "role": "CUSTOMER_MATERIAL",
+        "displayName": "客户现行资料",
+        "locator": "现行管理安排",
+        "quote": "纠正措施与预防措施使用两份独立程序，分别保持现行审批流程。"
+      },
+      {
+        "evidenceId": "E-ORG",
+        "sourceRef": {
+          "kind": "OBJECT",
+          "objectType": "design.source",
+          "objectId": "019a0000-0000-7000-8000-00000000000a",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+            "projectId": "019a0000-0000-7000-8000-000000000002"
+          }
+        },
+        "role": "CUSTOMER_MATERIAL",
+        "displayName": "客户现行资料",
+        "locator": "现行管理安排",
+        "quote": "组织关系详见独立组织图；该组织图未包含在本次资料中。"
+      },
+      {
+        "evidenceId": "E-TEMPLATE",
+        "sourceRef": {
+          "kind": "OBJECT",
+          "objectType": "design.source",
+          "objectId": "019a0000-0000-7000-8000-00000000000b",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+            "projectId": "019a0000-0000-7000-8000-000000000002"
+          }
+        },
+        "role": "TEMPLATE",
+        "displayName": "固定规则与模板",
+        "locator": "职责与组织",
+        "quote": "升级稿应明确现行职责与组织关系。模板示例岗位不得作为客户事实。"
+      }
+    ],
+    "plannedFiles": [
+      {
+        "plannedFileId": "F-CORR",
+        "title": "纠正措施程序",
+        "customerCode": "QP22",
+        "chapter": "纠正与预防",
+        "processingCondition": "ELIGIBLE",
+        "reason": "可按完整计划处理。",
+        "changeIds": [
+          "CH-F-CORR"
+        ]
+      },
+      {
+        "plannedFileId": "F-PREV",
+        "title": "预防措施程序",
+        "customerCode": "QP23",
+        "chapter": "纠正与预防",
+        "processingCondition": "ELIGIBLE",
+        "reason": "可按完整计划处理。",
+        "changeIds": [
+          "CH-F-PREV"
+        ]
+      },
+      {
+        "plannedFileId": "F-MANUAL",
+        "title": "质量手册",
+        "customerCode": null,
+        "chapter": "职责与组织",
+        "processingCondition": "BLOCKED",
+        "reason": "仍需企业资料或顾问判断。",
+        "changeIds": [
+          "CH-F-MANUAL"
+        ]
+      },
+      {
+        "plannedFileId": "F-ROLE",
+        "title": "岗位职责制度",
+        "customerCode": null,
+        "chapter": "职责与组织",
+        "processingCondition": "BLOCKED",
+        "reason": "仍需企业资料或顾问判断。",
+        "changeIds": [
+          "CH-F-ROLE"
+        ]
+      }
+    ],
+    "blockers": [
+      {
+        "scope": "FILE",
+        "reason": "客户正文引用了未提供的独立组织图。",
+        "candidateIds": [],
+        "plannedFileIds": [
+          "F-MANUAL"
+        ],
+        "attentionItemIds": [
+          "U-ORG"
+        ]
+      },
+      {
+        "scope": "FILE",
+        "reason": "不能用模板示例替代客户实际职责。",
+        "candidateIds": [],
+        "plannedFileIds": [
+          "F-ROLE"
+        ],
+        "attentionItemIds": [
+          "U-ROLE"
+        ]
+      }
+    ],
+    "allowedActions": [
+      "CONFIRM_AND_START"
+    ]
+  },
+  "request": {
+    "schemaVersion": "0.1.0",
+    "kind": "STARTUP_CONFIRMATION_REQUEST",
+    "binding": {
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "design.project",
+        "objectId": "019a0000-0000-7000-8000-000000000002",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        }
+      },
+      "projectVersion": 1,
+      "reportRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.analysis_report",
+        "objectId": "019a0000-0000-7000-8000-000000000003",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000067",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "f9e4dbfd1546c143d331740f6ea7886f6a5e78f22721a3bd3c588ba12a73cadd",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "reportJsonSha256": "91bf4d5bf243f6196a2813fe7ecb4b4378cd360ac257d4114e5577950ab014e6",
+      "candidateSetRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.startup_candidate_set",
+        "objectId": "019a0000-0000-7000-8000-000000000004",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000068",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "699ef0afa8e5fa1a0d5b77b6ccdd5f437e5610cee6e6d06de330b8e2168dbc1f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "inputManifestSha256": "44ca1278c092fc53a95ddee66851da363d099ad99a95bfa8f946568c2412199e",
+      "ruleBundleRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.rule_bundle",
+        "objectId": "019a0000-0000-7000-8000-000000000005",
+        "scope": {},
+        "snapshotId": "019a0000-0000-7000-8000-000000000069",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ddea6a087a5340d54c7c78e5cfecccd30881e261ddd3b1b7a020faa40b39e45f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "planRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.upgrade_plan",
+        "objectId": "019a0000-0000-7000-8000-000000000006",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-00000000006a",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1e414d33f0cf740c0cb1e623e7047df3fd71f02016c144926630b5a556cc8450",
+          "canonicalizationVersion": "1"
+        }
+      }
+    },
+    "idempotencyKey": "STARTUP-DEMO-INTENT-01",
+    "confirmedCandidateIds": [
+      "SC-POLICY",
+      "SC-PRODUCT",
+      "SC-MANAGEMENT",
+      "SC-APPLICABILITY",
+      "SC-PROFESSIONAL"
+    ],
+    "selectedPlannedFileIds": [
+      "F-CORR",
+      "F-PREV"
+    ]
+  },
+  "acceptedReceipt": {
+    "schemaVersion": "0.1.0",
+    "kind": "STARTUP_CONFIRMATION_RECEIPT",
+    "requestRef": {
+      "kind": "OBJECT",
+      "objectType": "design.startup_request",
+      "objectId": "019a0000-0000-7000-8000-00000000001e",
+      "scope": {
+        "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+        "projectId": "019a0000-0000-7000-8000-000000000002"
+      }
+    },
+    "binding": {
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "design.project",
+        "objectId": "019a0000-0000-7000-8000-000000000002",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        }
+      },
+      "projectVersion": 1,
+      "reportRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.analysis_report",
+        "objectId": "019a0000-0000-7000-8000-000000000003",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000067",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "f9e4dbfd1546c143d331740f6ea7886f6a5e78f22721a3bd3c588ba12a73cadd",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "reportJsonSha256": "91bf4d5bf243f6196a2813fe7ecb4b4378cd360ac257d4114e5577950ab014e6",
+      "candidateSetRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.startup_candidate_set",
+        "objectId": "019a0000-0000-7000-8000-000000000004",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000068",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "699ef0afa8e5fa1a0d5b77b6ccdd5f437e5610cee6e6d06de330b8e2168dbc1f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "inputManifestSha256": "44ca1278c092fc53a95ddee66851da363d099ad99a95bfa8f946568c2412199e",
+      "ruleBundleRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.rule_bundle",
+        "objectId": "019a0000-0000-7000-8000-000000000005",
+        "scope": {},
+        "snapshotId": "019a0000-0000-7000-8000-000000000069",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ddea6a087a5340d54c7c78e5cfecccd30881e261ddd3b1b7a020faa40b39e45f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "planRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.upgrade_plan",
+        "objectId": "019a0000-0000-7000-8000-000000000006",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-00000000006a",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1e414d33f0cf740c0cb1e623e7047df3fd71f02016c144926630b5a556cc8450",
+          "canonicalizationVersion": "1"
+        }
+      }
+    },
+    "idempotencyKey": "STARTUP-DEMO-INTENT-01",
+    "confirmedCandidateIds": [
+      "SC-POLICY",
+      "SC-PRODUCT",
+      "SC-MANAGEMENT",
+      "SC-APPLICABILITY",
+      "SC-PROFESSIONAL"
+    ],
+    "selectedPlannedFileIds": [
+      "F-CORR",
+      "F-PREV"
+    ],
+    "projectState": "ACTIVE",
+    "status": "ACCEPTED",
+    "information": {
+      "state": "CONFIRMED",
+      "decisionRefs": [
+        {
+          "kind": "OBJECT",
+          "objectType": "design.human_decision",
+          "objectId": "019a0000-0000-7000-8000-00000000001f",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+            "projectId": "019a0000-0000-7000-8000-000000000002"
+          }
+        }
+      ]
+    },
+    "startup": {
+      "state": "STARTED",
+      "startSnapshot": {
+        "enterpriseProfileSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "design.enterprise_profile",
+          "objectId": "019a0000-0000-7000-8000-000000000015",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001"
+          },
+          "snapshotId": "019a0000-0000-7000-8000-000000000079",
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "9a61b1ce332cc9d7fd1a31856b180db4e342aeb74669dc461158a4670bfea657",
+            "canonicalizationVersion": "1"
+          }
+        },
+        "qmsConfigurationRef": {
+          "kind": "VERSIONED",
+          "objectType": "design.qms",
+          "objectId": "019a0000-0000-7000-8000-000000000017",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001"
+          },
+          "versionId": "019a0000-0000-7000-8000-00000000007b"
+        },
+        "productScopeSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "design.product_scope",
+          "objectId": "019a0000-0000-7000-8000-000000000016",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001"
+          },
+          "snapshotId": "019a0000-0000-7000-8000-00000000007a",
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "03f32ae1d4186e7047aa36c525a23c7b36316fe1763453c200802994f661268f",
+            "canonicalizationVersion": "1"
+          }
+        }
+      }
+    },
+    "scope": {
+      "state": "RECEIVED",
+      "workScopeRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.work_scope",
+        "objectId": "019a0000-0000-7000-8000-000000000020",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000084",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "dad5a6906160be2213912b7a3e063658ad22a9a071771cdf9370aa793955b73a",
+          "canonicalizationVersion": "1"
+        }
+      }
+    },
+    "reasons": [],
+    "allowedRecoveryActions": []
+  },
+  "partialReceipt": {
+    "schemaVersion": "0.1.0",
+    "kind": "STARTUP_CONFIRMATION_RECEIPT",
+    "requestRef": {
+      "kind": "OBJECT",
+      "objectType": "design.startup_request",
+      "objectId": "019a0000-0000-7000-8000-00000000001e",
+      "scope": {
+        "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+        "projectId": "019a0000-0000-7000-8000-000000000002"
+      }
+    },
+    "binding": {
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "design.project",
+        "objectId": "019a0000-0000-7000-8000-000000000002",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        }
+      },
+      "projectVersion": 1,
+      "reportRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.analysis_report",
+        "objectId": "019a0000-0000-7000-8000-000000000003",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000067",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "f9e4dbfd1546c143d331740f6ea7886f6a5e78f22721a3bd3c588ba12a73cadd",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "reportJsonSha256": "91bf4d5bf243f6196a2813fe7ecb4b4378cd360ac257d4114e5577950ab014e6",
+      "candidateSetRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.startup_candidate_set",
+        "objectId": "019a0000-0000-7000-8000-000000000004",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000068",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "699ef0afa8e5fa1a0d5b77b6ccdd5f437e5610cee6e6d06de330b8e2168dbc1f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "inputManifestSha256": "44ca1278c092fc53a95ddee66851da363d099ad99a95bfa8f946568c2412199e",
+      "ruleBundleRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.rule_bundle",
+        "objectId": "019a0000-0000-7000-8000-000000000005",
+        "scope": {},
+        "snapshotId": "019a0000-0000-7000-8000-000000000069",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ddea6a087a5340d54c7c78e5cfecccd30881e261ddd3b1b7a020faa40b39e45f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "planRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.upgrade_plan",
+        "objectId": "019a0000-0000-7000-8000-000000000006",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-00000000006a",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1e414d33f0cf740c0cb1e623e7047df3fd71f02016c144926630b5a556cc8450",
+          "canonicalizationVersion": "1"
+        }
+      }
+    },
+    "idempotencyKey": "STARTUP-DEMO-INTENT-01",
+    "confirmedCandidateIds": [
+      "SC-POLICY",
+      "SC-PRODUCT",
+      "SC-MANAGEMENT",
+      "SC-APPLICABILITY",
+      "SC-PROFESSIONAL"
+    ],
+    "selectedPlannedFileIds": [
+      "F-CORR",
+      "F-PREV"
+    ],
+    "projectState": "ACTIVE",
+    "status": "PARTIAL",
+    "information": {
+      "state": "CONFIRMED",
+      "decisionRefs": [
+        {
+          "kind": "OBJECT",
+          "objectType": "design.human_decision",
+          "objectId": "019a0000-0000-7000-8000-00000000001f",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+            "projectId": "019a0000-0000-7000-8000-000000000002"
+          }
+        }
+      ]
+    },
+    "startup": {
+      "state": "STARTED",
+      "startSnapshot": {
+        "enterpriseProfileSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "design.enterprise_profile",
+          "objectId": "019a0000-0000-7000-8000-000000000015",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001"
+          },
+          "snapshotId": "019a0000-0000-7000-8000-000000000079",
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "9a61b1ce332cc9d7fd1a31856b180db4e342aeb74669dc461158a4670bfea657",
+            "canonicalizationVersion": "1"
+          }
+        },
+        "qmsConfigurationRef": {
+          "kind": "VERSIONED",
+          "objectType": "design.qms",
+          "objectId": "019a0000-0000-7000-8000-000000000017",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001"
+          },
+          "versionId": "019a0000-0000-7000-8000-00000000007b"
+        },
+        "productScopeSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "design.product_scope",
+          "objectId": "019a0000-0000-7000-8000-000000000016",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001"
+          },
+          "snapshotId": "019a0000-0000-7000-8000-00000000007a",
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "03f32ae1d4186e7047aa36c525a23c7b36316fe1763453c200802994f661268f",
+            "canonicalizationVersion": "1"
+          }
+        }
+      }
+    },
+    "scope": {
+      "state": "NOT_RECEIVED"
+    },
+    "reasons": [
+      "项目已启动，本轮范围尚未接收。"
+    ],
+    "allowedRecoveryActions": [
+      "RETRY_INCOMPLETE_STEP"
+    ]
+  },
+  "unknownReceipt": {
+    "schemaVersion": "0.1.0",
+    "kind": "STARTUP_CONFIRMATION_RECEIPT",
+    "requestRef": {
+      "kind": "OBJECT",
+      "objectType": "design.startup_request",
+      "objectId": "019a0000-0000-7000-8000-00000000001e",
+      "scope": {
+        "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+        "projectId": "019a0000-0000-7000-8000-000000000002"
+      }
+    },
+    "binding": {
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "design.project",
+        "objectId": "019a0000-0000-7000-8000-000000000002",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        }
+      },
+      "projectVersion": 1,
+      "reportRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.analysis_report",
+        "objectId": "019a0000-0000-7000-8000-000000000003",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000067",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "f9e4dbfd1546c143d331740f6ea7886f6a5e78f22721a3bd3c588ba12a73cadd",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "reportJsonSha256": "91bf4d5bf243f6196a2813fe7ecb4b4378cd360ac257d4114e5577950ab014e6",
+      "candidateSetRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.startup_candidate_set",
+        "objectId": "019a0000-0000-7000-8000-000000000004",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000068",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "699ef0afa8e5fa1a0d5b77b6ccdd5f437e5610cee6e6d06de330b8e2168dbc1f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "inputManifestSha256": "44ca1278c092fc53a95ddee66851da363d099ad99a95bfa8f946568c2412199e",
+      "ruleBundleRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.rule_bundle",
+        "objectId": "019a0000-0000-7000-8000-000000000005",
+        "scope": {},
+        "snapshotId": "019a0000-0000-7000-8000-000000000069",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ddea6a087a5340d54c7c78e5cfecccd30881e261ddd3b1b7a020faa40b39e45f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "planRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.upgrade_plan",
+        "objectId": "019a0000-0000-7000-8000-000000000006",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-00000000006a",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1e414d33f0cf740c0cb1e623e7047df3fd71f02016c144926630b5a556cc8450",
+          "canonicalizationVersion": "1"
+        }
+      }
+    },
+    "idempotencyKey": "STARTUP-DEMO-INTENT-01",
+    "confirmedCandidateIds": [
+      "SC-POLICY",
+      "SC-PRODUCT",
+      "SC-MANAGEMENT",
+      "SC-APPLICABILITY",
+      "SC-PROFESSIONAL"
+    ],
+    "selectedPlannedFileIds": [
+      "F-CORR",
+      "F-PREV"
+    ],
+    "projectState": "ACTIVE",
+    "status": "UNKNOWN",
+    "information": {
+      "state": "CONFIRMED",
+      "decisionRefs": [
+        {
+          "kind": "OBJECT",
+          "objectType": "design.human_decision",
+          "objectId": "019a0000-0000-7000-8000-00000000001f",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+            "projectId": "019a0000-0000-7000-8000-000000000002"
+          }
+        }
+      ]
+    },
+    "startup": {
+      "state": "STARTED",
+      "startSnapshot": {
+        "enterpriseProfileSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "design.enterprise_profile",
+          "objectId": "019a0000-0000-7000-8000-000000000015",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001"
+          },
+          "snapshotId": "019a0000-0000-7000-8000-000000000079",
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "9a61b1ce332cc9d7fd1a31856b180db4e342aeb74669dc461158a4670bfea657",
+            "canonicalizationVersion": "1"
+          }
+        },
+        "qmsConfigurationRef": {
+          "kind": "VERSIONED",
+          "objectType": "design.qms",
+          "objectId": "019a0000-0000-7000-8000-000000000017",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001"
+          },
+          "versionId": "019a0000-0000-7000-8000-00000000007b"
+        },
+        "productScopeSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "design.product_scope",
+          "objectId": "019a0000-0000-7000-8000-000000000016",
+          "scope": {
+            "enterpriseId": "019a0000-0000-7000-8000-000000000001"
+          },
+          "snapshotId": "019a0000-0000-7000-8000-00000000007a",
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "digest": "03f32ae1d4186e7047aa36c525a23c7b36316fe1763453c200802994f661268f",
+            "canonicalizationVersion": "1"
+          }
+        }
+      }
+    },
+    "scope": {
+      "state": "UNKNOWN"
+    },
+    "reasons": [
+      "范围提交结果暂未核实；保留原请求。"
+    ],
+    "allowedRecoveryActions": [
+      "READ_ORIGINAL"
+    ]
+  },
+  "failedReceipt": {
+    "schemaVersion": "0.1.0",
+    "kind": "STARTUP_CONFIRMATION_RECEIPT",
+    "requestRef": {
+      "kind": "OBJECT",
+      "objectType": "design.startup_request",
+      "objectId": "019a0000-0000-7000-8000-00000000001e",
+      "scope": {
+        "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+        "projectId": "019a0000-0000-7000-8000-000000000002"
+      }
+    },
+    "binding": {
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "design.project",
+        "objectId": "019a0000-0000-7000-8000-000000000002",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        }
+      },
+      "projectVersion": 1,
+      "reportRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.analysis_report",
+        "objectId": "019a0000-0000-7000-8000-000000000003",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000067",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "f9e4dbfd1546c143d331740f6ea7886f6a5e78f22721a3bd3c588ba12a73cadd",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "reportJsonSha256": "91bf4d5bf243f6196a2813fe7ecb4b4378cd360ac257d4114e5577950ab014e6",
+      "candidateSetRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.startup_candidate_set",
+        "objectId": "019a0000-0000-7000-8000-000000000004",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000068",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "699ef0afa8e5fa1a0d5b77b6ccdd5f437e5610cee6e6d06de330b8e2168dbc1f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "inputManifestSha256": "44ca1278c092fc53a95ddee66851da363d099ad99a95bfa8f946568c2412199e",
+      "ruleBundleRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.rule_bundle",
+        "objectId": "019a0000-0000-7000-8000-000000000005",
+        "scope": {},
+        "snapshotId": "019a0000-0000-7000-8000-000000000069",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ddea6a087a5340d54c7c78e5cfecccd30881e261ddd3b1b7a020faa40b39e45f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "planRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.upgrade_plan",
+        "objectId": "019a0000-0000-7000-8000-000000000006",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-00000000006a",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1e414d33f0cf740c0cb1e623e7047df3fd71f02016c144926630b5a556cc8450",
+          "canonicalizationVersion": "1"
+        }
+      }
+    },
+    "idempotencyKey": "STARTUP-DEMO-INTENT-01",
+    "confirmedCandidateIds": [
+      "SC-POLICY",
+      "SC-PRODUCT",
+      "SC-MANAGEMENT",
+      "SC-APPLICABILITY",
+      "SC-PROFESSIONAL"
+    ],
+    "selectedPlannedFileIds": [
+      "F-CORR",
+      "F-PREV"
+    ],
+    "projectState": "PREPARING",
+    "status": "FAILED",
+    "information": {
+      "state": "NOT_CONFIRMED"
+    },
+    "startup": {
+      "state": "NOT_STARTED"
+    },
+    "scope": {
+      "state": "NOT_RECEIVED"
+    },
+    "reasons": [
+      "必要确认未通过。"
+    ],
+    "allowedRecoveryActions": [
+      "RECHECK_CURRENT_INPUTS"
+    ]
+  },
+  "staleReceipt": {
+    "schemaVersion": "0.1.0",
+    "kind": "STARTUP_CONFIRMATION_RECEIPT",
+    "requestRef": {
+      "kind": "OBJECT",
+      "objectType": "design.startup_request",
+      "objectId": "019a0000-0000-7000-8000-00000000001e",
+      "scope": {
+        "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+        "projectId": "019a0000-0000-7000-8000-000000000002"
+      }
+    },
+    "binding": {
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "design.project",
+        "objectId": "019a0000-0000-7000-8000-000000000002",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        }
+      },
+      "projectVersion": 1,
+      "reportRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.analysis_report",
+        "objectId": "019a0000-0000-7000-8000-000000000003",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000067",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "f9e4dbfd1546c143d331740f6ea7886f6a5e78f22721a3bd3c588ba12a73cadd",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "reportJsonSha256": "91bf4d5bf243f6196a2813fe7ecb4b4378cd360ac257d4114e5577950ab014e6",
+      "candidateSetRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.startup_candidate_set",
+        "objectId": "019a0000-0000-7000-8000-000000000004",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-000000000068",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "699ef0afa8e5fa1a0d5b77b6ccdd5f437e5610cee6e6d06de330b8e2168dbc1f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "inputManifestSha256": "44ca1278c092fc53a95ddee66851da363d099ad99a95bfa8f946568c2412199e",
+      "ruleBundleRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.rule_bundle",
+        "objectId": "019a0000-0000-7000-8000-000000000005",
+        "scope": {},
+        "snapshotId": "019a0000-0000-7000-8000-000000000069",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "ddea6a087a5340d54c7c78e5cfecccd30881e261ddd3b1b7a020faa40b39e45f",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "planRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "design.upgrade_plan",
+        "objectId": "019a0000-0000-7000-8000-000000000006",
+        "scope": {
+          "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+          "projectId": "019a0000-0000-7000-8000-000000000002"
+        },
+        "snapshotId": "019a0000-0000-7000-8000-00000000006a",
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "1e414d33f0cf740c0cb1e623e7047df3fd71f02016c144926630b5a556cc8450",
+          "canonicalizationVersion": "1"
+        }
+      }
+    },
+    "idempotencyKey": "STARTUP-DEMO-INTENT-01",
+    "confirmedCandidateIds": [
+      "SC-POLICY",
+      "SC-PRODUCT",
+      "SC-MANAGEMENT",
+      "SC-APPLICABILITY",
+      "SC-PROFESSIONAL"
+    ],
+    "selectedPlannedFileIds": [
+      "F-CORR",
+      "F-PREV"
+    ],
+    "projectState": "PREPARING",
+    "status": "STALE",
+    "information": {
+      "state": "NOT_CONFIRMED"
+    },
+    "startup": {
+      "state": "NOT_STARTED"
+    },
+    "scope": {
+      "state": "NOT_RECEIVED"
+    },
+    "reasons": [
+      "报告已更新，原选择保留，核对后形成新意图。"
+    ],
+    "allowedRecoveryActions": [
+      "RECHECK_CURRENT_INPUTS"
+    ]
+  },
+  "recoveryRequest": {
+    "schemaVersion": "0.1.0",
+    "kind": "STARTUP_RECOVERY_REQUEST",
+    "requestRef": {
+      "kind": "OBJECT",
+      "objectType": "design.startup_request",
+      "objectId": "019a0000-0000-7000-8000-00000000001e",
+      "scope": {
+        "enterpriseId": "019a0000-0000-7000-8000-000000000001",
+        "projectId": "019a0000-0000-7000-8000-000000000002"
+      }
+    },
+    "idempotencyKey": "STARTUP-DEMO-INTENT-01",
+    "action": "READ_ORIGINAL"
+  }
+}

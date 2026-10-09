@@ -1,0 +1,113 @@
+{
+  "classification": "SYNTHETIC_DEMO_ONLY",
+  "fixtureVersion": 1,
+  "projectLabel": "青禾制造有限公司（演示） / 体系文件升级",
+  "reportKey": "DEMO-STARTUP-REPORT-01",
+  "information": [
+    {
+      "id": "profile",
+      "title": "企业基础信息",
+      "summary": "青禾制造有限公司（演示）；质量方针、目标沿用客户原件",
+      "sourceTitle": "匿名质量手册",
+      "locator": "企业概况、质量方针与目标",
+      "excerpt": "企业名称为青禾制造有限公司（演示）。质量方针、质量目标及现行流程以客户现行文件为依据，本次未授权调整；未可靠读取的组织关系继续作为未决事项。",
+      "candidateRef": "DEMO-PROFILE-CANDIDATE-01"
+    },
+    {
+      "id": "qms",
+      "title": "体系与规则",
+      "summary": "沿用现行体系范围；采用公司预设升级规则（演示）",
+      "sourceTitle": "匿名质量手册与项目范围",
+      "locator": "现行体系范围及本次升级目标",
+      "excerpt": "本项目升级一套企业现行体系。参考公司预设本次升级规则，保留企业现行质量方针、目标、职责和产品相关流程；此摘要为候选建议，不代表 QMS 已激活。",
+      "candidateRef": "DEMO-QMS-CANDIDATE-01"
+    },
+    {
+      "id": "product",
+      "title": "产品范围",
+      "summary": "产品系列甲（演示） · 仅中国市场",
+      "sourceTitle": "匿名客户产品范围说明",
+      "locator": "产品及销售市场",
+      "excerpt": "客户资料示例说明：本项目涉及产品系列甲，销售市场为中国。此内容是新增匿名示例，不从实际客户报告或模板推定。",
+      "candidateRef": "DEMO-PRODUCT-SCOPE-CANDIDATE-01"
+    }
+  ],
+  "followup": {
+    "reportKey": "DEMO-STARTUP-REPORT-02",
+    "information": [
+      {
+        "id": "profile",
+        "title": "企业基础信息",
+        "summary": "青禾制造有限公司（演示）；质量方针、目标沿用客户原件",
+        "sourceTitle": "匿名质量手册",
+        "locator": "企业概况、质量方针与目标",
+        "excerpt": "企业名称为青禾制造有限公司（演示）。质量方针、质量目标及现行流程以客户现行文件为依据，本次未授权调整；未可靠读取的组织关系继续作为未决事项。",
+        "candidateRef": "DEMO-PROFILE-CANDIDATE-02"
+      },
+      {
+        "id": "qms",
+        "title": "体系与规则",
+        "summary": "沿用现行体系范围；采用公司预设升级规则（演示）",
+        "sourceTitle": "匿名质量手册与项目范围",
+        "locator": "现行体系范围及本次升级目标",
+        "excerpt": "本项目升级一套企业现行体系。参考公司预设本次升级规则，保留企业现行质量方针、目标、职责和产品相关流程；此摘要为候选建议，不代表 QMS 已激活。",
+        "candidateRef": "DEMO-QMS-CANDIDATE-01"
+      },
+      {
+        "id": "product",
+        "title": "产品范围",
+        "summary": "产品系列甲、乙（演示） · 仅中国市场",
+        "sourceTitle": "匿名客户产品范围补充回复",
+        "locator": "本轮客户范围回复",
+        "excerpt": "新的匿名客户回复说明：产品系列乙也在本项目范围内，销售市场仍为中国。需核对这一变化；旧报告及旧启动请求继续保留。",
+        "candidateRef": "DEMO-PRODUCT-SCOPE-CANDIDATE-02"
+      }
+    ]
+  },
+  "files": [
+    {
+      "id": "DEMO-CORR",
+      "title": "纠正措施程序",
+      "code": "QP22",
+      "category": "程序文件",
+      "chapter": "第 8 章 · 改进",
+      "selectable": true,
+      "reason": "保留客户现行纠正流程，补充本次升级要求。",
+      "plan": "以客户原程序为基础按本轮完整计划整理为 Markdown；不合并预防程序，不调整企业现有审批职责。",
+      "source": "客户纠正措施程序（匿名示例）"
+    },
+    {
+      "id": "DEMO-PREV",
+      "title": "预防措施程序",
+      "code": "QP23",
+      "category": "程序文件",
+      "chapter": "第 8 章 · 改进",
+      "selectable": true,
+      "reason": "保留客户现行预防流程，补充本次升级要求。",
+      "plan": "沿用企业现有单独程序及流程，参考模板补充本次升级所需内容，输出 Markdown 待检查候选。",
+      "source": "客户预防措施程序（匿名示例）"
+    },
+    {
+      "id": "DEMO-MANUAL",
+      "title": "质量手册",
+      "code": "QM01",
+      "category": "质量手册",
+      "chapter": "第 4 章 · 体系",
+      "selectable": false,
+      "reason": "组织图未可靠读取，请先补充可阅读的组织关系依据。",
+      "plan": "组织关系确认后再核对完整手册计划，本轮不处理这份文件。",
+      "source": "客户质量手册（匿名示例）"
+    },
+    {
+      "id": "DEMO-ROLE",
+      "title": "岗位职责制度",
+      "code": "",
+      "category": "管理制度",
+      "chapter": "第 5 章 · 职责",
+      "selectable": false,
+      "reason": "模板职责与企业现行安排有冲突，需顾问意见和 Runner 复核。",
+      "plan": "保留企业现行职责。保护冲突未复核前，不按模板新建或改写该制度。",
+      "source": "客户现行职责说明（匿名示例）"
+    }
+  ]
+}

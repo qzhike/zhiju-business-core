@@ -4,12 +4,13 @@ import tseslint from 'typescript-eslint';
 const typedConfigs = [
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
-].map((config) => ({ ...config, files: ['**/*.ts'] }));
+].map((config) => ({ ...config, files: ['**/*.ts', '**/*.tsx'] }));
 
 export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
+      '**/dist-types/**',
       '**/coverage/**',
       '**/node_modules/**',
       // The emitter library is consumed by the `.mts` generator via Node 24
@@ -17,6 +18,8 @@ export default tseslint.config(
       // It is deliberately TypeScript-only and is not part of the compiled
       // workspace, so we exclude it from the typed project service.
       'tools/contracts/lib/**',
+      // The unregistered design DTO is verified separately with tsc --noEmit.
+      '.vibe/decisions/workspace-startup-review-v0.1.types.ts',
     ],
   },
   eslint.configs.recommended,
@@ -29,7 +32,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.ts'],
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -69,6 +72,10 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-extraneous-class': 'off',
     },
+  },
+  {
+    files: ['apps/workspace-bff/src/app.ts'],
+    rules: { '@typescript-eslint/no-extraneous-class': 'off' },
   },
   {
     // Generated TypeScript types live under `contracts/src/generated/types/`

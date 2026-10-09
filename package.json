@@ -10,8 +10,8 @@
   },
   "scripts": {
     "architecture": "node tools/architecture/check-boundaries.mjs",
-    "build": "tsc -b",
-    "clean": "tsc -b --clean",
+    "build": "tsc -b && pnpm --filter @zhiju/workspace-web build",
+    "clean": "tsc -b --clean && node tools/workspace/clean.mjs",
     "contracts:baseline:generate": "node --experimental-strip-types tools/contracts/generate-baseline.mts",
     "contracts:check": "node tools/contracts/generate-public-api.mjs --check && node --experimental-strip-types tools/contracts/generate-typescript-types.mts --check && node tools/contracts/check-catalog.mjs && node --experimental-strip-types tools/contracts/check-compatibility.mts",
     "contracts:generate": "node tools/contracts/generate-public-api.mjs && node --experimental-strip-types tools/contracts/generate-typescript-types.mts",
@@ -22,10 +22,11 @@
     "typecheck": "tsc -b --pretty false",
     "verify:environment": "node tools/persistence/preflight.mjs",
     "verify:docs": "node --experimental-strip-types tools/verification/check-docs.mts && pnpm format:check",
-    "verify:code": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm architecture && pnpm contracts:check",
+    "verify:code": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm workspace:check && pnpm architecture && pnpm contracts:check",
     "verify": "pnpm verify:code && pnpm persistence:gate",
     "persistence:gate": "node tools/persistence/gate.mjs",
-    "persistence:gate:diagnostics": "node tools/persistence/gate.mjs --diagnostics"
+    "persistence:gate:diagnostics": "node tools/persistence/gate.mjs --diagnostics",
+    "workspace:check": "node tools/workspace/check.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -49,6 +50,8 @@
     "testcontainers": "12.1.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.67.0",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "@playwright/test": "1.64.0",
+    "@axe-core/playwright": "4.13.0"
   }
 }

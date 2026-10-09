@@ -2,7 +2,7 @@
 
 版本：v0.1
 日期：2026-08-28（初版 2026-08-17；IM-UI-01 决策路由增量）
-状态：`BASELINE / USER APPROVED / IM-01 TOOLCHAIN VERIFIED / IM-02 PERSISTENCE VERIFIED / IM-UI-01 FRONTEND STACK NOT SELECTED`
+状态：`BASELINE / USER APPROVED / IM-01 TOOLCHAIN VERIFIED / IM-02 PERSISTENCE VERIFIED / UI-DG-001-003 USER APPROVED 2026-10-08 / UI IMPLEMENTATION NOT STARTED`
 
 文档角色：Implementation Milestone Plan 的技术选型记录，冻结 IM-DG-001 与 IM-DG-002。它只约束实现技术，不改变 Domain、API、Module、PostgreSQL Logical Model、Feishu 或 Runtime Contract 语义。
 
@@ -112,14 +112,14 @@ Migration 文件按 owning Schema 分目录；平台 Role/Schema bootstrap 与�
 
 ### 6.1 IM-UI-01 技术选型边界
 
-用户于 2026-08-28 批准新增 `IM-UI-01 Workspace UI MVP` 里程碑，但未批准任何具体前端框架、设计系统或浏览器运行时依赖。本文第 2～5 节冻结的是 Business Core 后端与工程基线，不得被解释为已经为 Workspace UI 选择技术栈。
+用户已批准 React + TypeScript + Tailwind CSS + Vite / Monorepo，2026-10-08 明确“按这份提案收口，然后准备正式开工”，进一步批准[UI 首版工程基线](../decisions/workspace-ui-engineering-baseline.md)的 UI-DG-001～003 技术选择：SPA、React Router/TanStack Query、首装精确版本及升级策略、基础组件/Chrome-Edge/可访问性目标、独立同源 BFF 和 Session/安全协议。本文第 2～5 节继续约束 Core 工具链；该决定不是版本已安装、Browser/BFF 已实现或测试 PASS。
 
-在 UI-DG-001～003 完成前：
+正式实现前：
 
-1. 不创建或锁定 React、Vue、Svelte、Next.js、Nuxt、Vite 等框架/构建依赖；
-2. 不以 NestJS/Fastify 已冻结为由默认决定 BFF 与 UI 的部署拓扑；
-3. 可以按 [`Module-Spec-UI01-WorkspaceUI.md`](../module-specs/Module-Spec-UI01-WorkspaceUI.md) 细化产品语义和安全边界，但不得声明 Browser/BFF Runtime 已可用；
-4. 所有 UI Unit、Contract、Browser E2E、Security、Accessibility 与 Manual 场景均以 [`Module-Test-UI01-WorkspaceUI.md`](../module-tests/Module-Test-UI01-WorkspaceUI.md) 为权威，并在实际执行前保持 `NOT RUN`。
+1. 完成适用独立设计审查并使用当前 Core 基线工作区；不在旧 frontend Core 快照上直接开发。精确首装版本按工程基线与 lockfile 落地，兼容性在安装后验证。
+2. BFF 拓扑按本次批准的独立进程/同源方案实施，不再重复选择；业务授权、事务、状态和 Completion 继续由 Core owning 能力强制执行。
+3. 工程外壳与真实业务接入的前置条件分开：外壳不要求全部后续业务接口先完成，真实 OIDC/启动/Runner 接入仍需各自依赖 READY。
+4. UI Unit、Contract、Browser E2E、Security、Accessibility 与 Manual 场景以 [UI01 Test](../module-tests/Module-Test-UI01-WorkspaceUI.md) 为权威，实际执行前保持 NOT RUN。批准技术方案不批准字段草案注册或 Git 交付。
 
 ---
 
