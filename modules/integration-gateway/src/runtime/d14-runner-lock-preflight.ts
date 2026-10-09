@@ -96,8 +96,12 @@ export interface D14TrustedDeploymentEvidence {
   readonly cliBinarySha256: string;
   readonly cliBuildSha256: string;
   readonly cliDependencyLockBytesSha256: string;
+  readonly adapterCode: string;
+  readonly adapterVersion: string;
   readonly adapterSourceSha256: string;
   readonly adapterBuildSha256: string;
+  readonly harnessId: string;
+  readonly harnessVersion: string;
   readonly launcherVersion: string;
   readonly launcherDigest: string;
   readonly parserVersion: string;
@@ -207,6 +211,7 @@ const SHA256_PREFIX = 'sha256:';
 const ZERO_DIGEST = '0'.repeat(64);
 const UTC_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/u;
 const LATEST_SEGMENT_PATTERN = /(?:^|[._])latest(?:[._]|$)/u;
+const NAMESPACE_PATTERN = /^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$/u;
 /** Versions that name a moving target rather than one published revision. */
 const FLOATING_VERSION_ALIASES: readonly string[] = ['', 'latest', 'main', 'head', '*'];
 
@@ -243,9 +248,16 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
       placeholder.push(`${path} is not a UUIDv7 identifier.`);
     }
   };
-  const inspectVersion = (path: string, value: string): void => {
+  const inspectVersion = (path: string, value: string | undefined): void => {
+    if (value === undefined) return;
     if (FLOATING_VERSION_ALIASES.includes(value) || value.includes('latest')) {
       floating.push(`${path} is a floating version alias, not an exact published version.`);
+    }
+  };
+  const inspectNamespace = (path: string, value: string | undefined): void => {
+    if (value === undefined) return;
+    if (!NAMESPACE_PATTERN.test(value)) {
+      placeholder.push(`${path} is not a registered-shape namespace code.`);
     }
   };
   const inspectKey = (path: string, value: string): void => {
@@ -342,6 +354,10 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
     );
     inspectDigest('sources.deployment.adapterSourceSha256', deployment.adapterSourceSha256);
     inspectDigest('sources.deployment.adapterBuildSha256', deployment.adapterBuildSha256);
+    inspectNamespace('sources.deployment.adapterCode', deployment.adapterCode);
+    inspectVersion('sources.deployment.adapterVersion', deployment.adapterVersion);
+    inspectNamespace('sources.deployment.harnessId', deployment.harnessId);
+    inspectVersion('sources.deployment.harnessVersion', deployment.harnessVersion);
     inspectDigest('sources.deployment.launcherDigest', deployment.launcherDigest);
     inspectDigest('sources.deployment.parserDigest', deployment.parserDigest);
     inspectProvenance(
@@ -740,6 +756,10 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
       deployment.adapterSourceSha256,
     ],
     ['runtime.adapterBuildSha256', lock.runtime.adapterBuildSha256, deployment.adapterBuildSha256],
+    ['runtime.adapterCode', lock.runtime.adapterCode, deployment.adapterCode],
+    ['runtime.adapterVersion', lock.runtime.adapterVersion, deployment.adapterVersion],
+    ['runtime.harnessId', lock.runtime.harnessId, deployment.harnessId],
+    ['runtime.harnessVersion', lock.runtime.harnessVersion, deployment.harnessVersion],
     ['runtime.hostImageDigest', lock.runtime.hostImageDigest, deployment.hostImageDigest],
     ['runtime.hostOsRelease', lock.runtime.hostOsRelease, deployment.osRelease],
     ['runtime.hostKernelVersion', lock.runtime.hostKernelVersion, deployment.kernelVersion],

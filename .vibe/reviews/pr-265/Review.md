@@ -1,6 +1,6 @@
 # PR #265 独立实现审查
 
-本文件保留三轮审查的独立证据。前两轮记录分别对应 `f42ca47` 与 `a7dfd3b`，已纳入修复提交；其中当时的工作区与交付状态是历史事实。当前结论见文末[第三轮复审](#第三轮复审0dc2402)：`REQUEST_CHANGES`，R1/R2/R3/R5 已关闭，R4 的完整引用比较仍遗漏 `immutableVersionId`。
+本文件保留四轮审查的独立证据。前三轮记录分别对应 `f42ca47`、`a7dfd3b` 与 `0dc2402`，已纳入修复提交；其中当时的工作区与交付状态是历史事实。当前结论见文末[第四轮复审](#第四轮复审37f6ab8)：`REQUEST_CHANGES`，R1/R2/R3/R5 已关闭，R4 的 `immutableVersionId` 遗漏已修复，但必需 adapter/harness 部署身份与版本仍未比较。
 
 ## 审查对象与结论
 
@@ -269,3 +269,80 @@ GitHub comment 已发布并独立读回：[审查评论 issuecomment-6081118264]
 第三轮 comment 已发布并刷新远程永久链接读回：[复审评论 issuecomment-6083422079](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6083422079)。地址栏确认完整永久链接，渲染正文保留精确 reviewed SHA、R1/R2/R3/R5 关闭、R4 P1、三个版本替换反例、21 通过/3 失败、当前 CI 与 NOT RUN；输入框清空，Comment 按钮禁用，Conversation 从五条变为六条，确认本轮仅新增一条。PR 仍 Draft、三个提交，最新 commit 为 `0dc2402`。
 
 首次提交动作未完成时，自动审批拒绝了坐标重试，理由是可能重复发送第三轮评论。先刷新并确认远程仍为五条旧评论、第三轮正文只在草稿输入框后，按新 AX 状态选择 Comment 按钮成功提交；随后再次刷新读回六条评论和永久链接，未形成重复评论。本轮工作区仅此正式记录有改动，未 commit/push。
+
+## 第四轮复审：37f6ab8
+
+### 审查对象与结论
+
+- 用户授权：复审 PR #265 并提交 comments；没有产品修复、commit、push 或 merge 授权。
+- Reviewed SHA：`37f6ab885d281e29c3d2287af18a0645b1b49810`。
+- 上轮 SHA：`0dc24025651ee6051cdea97e43a61b4f6ad3a911`；base 为 `e8d05d6dccfe6034b241a8d0c4b8b49e255e4029`。
+- 审查日期：2026-10-10；独立读回最新 Issue #264、PR head/comments 与当前 CI。PR 为 OPEN / Draft，四个提交、52 个变更文件；`vibe repo --json` 为 PASS，repository/head 精确一致，本轮开始时工作区干净。
+- Reviewer role outcome：`REQUEST_CHANGES`。
+- 剩余实现阻塞：R4，P1，必需部署 readback 未覆盖 adapter/harness 身份和版本；37 项独立诊断中 33 项通过、4 项预期拒绝断言失败。
+
+先按 Issue 的确定版本、必需部署来源、缺失/漂移拒绝与获批锁决策 §2 建立预期，再核对修复增量及完整 PR 的字段矩阵。上轮三个版本替换反例已经修复；复审继续核对第二轮矩阵中已指出的 deployment source 缺字段，不因只修复一个共享 matcher 而关闭整个 R4。该要求属于既定内部 descriptor/preflight 范围，不要求实际部署、OMP Driver 或新增公开接口。直接反例建立后停止扩大缺陷发现范围。
+
+### 原发现关闭状态
+
+| 原发现                   | 当前判断         | 独立证据                                                                                                                                                           |
+| ------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| R1：锁有效期             | 已关闭原发现     | 窗口前和 validUntil 起点拒绝，issuedAt 起点接纳。                                                                                                                  |
+| R2：类型、Scope、双 hash | 已关闭原发现     | 合法注册 Contract 接纳，同 namespace 未知 Contract/Package、未知 Run、缺 Scope、矛盾 Package hash 均拒绝。                                                         |
+| R3：审批 pin             | 已关闭原发现     | 同 digest 替换 technicalApproval.objectId 仍拒绝。                                                                                                                 |
+| R4：必需来源映射与比较   | 部分修复，仍阻塞 | 上轮 24 项 diagnostic 全部通过；immutableVersionId 替换、两种单侧缺字段及非法 UUIDv7 已正确拒绝。必需 adapter/harness 四字段没有可信 readback/comparison，见下文。 |
+| R5：fencingToken 类型    | 已关闭原发现     | 合法整数接纳，负数、小数、字符串拒绝。                                                                                                                             |
+
+### 字段矩阵复审增量
+
+前三轮三个证据层、lock payload 与来源字段矩阵继续保留。本轮核对共享 Ref 的新增可选字段，并把锁的完整 runtime 必填字段与 D14TrustedDeploymentEvidence 的每个声明字段逐项对照。
+
+| 字段                                                                   | required/optional 与实现判断                                                                                                                        |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D14TrustedRef.kind/objectType/objectId/scope                           | 必填，完整 kind/type/id 与 Scope 比较保留。                                                                                                         |
+| D14TrustedRef.versionId/snapshotId/contentDigest                       | 可选，按适用引用分支及缺省值比较；hash 域规则保留。                                                                                                 |
+| D14TrustedRef.immutableVersionId                                       | 新增可选字段；helper 保留，诊断按 UUIDv7 校验，matcher 比较值与有无，两侧都缺字段仍合法。                                                           |
+| deployment.executableCode/resolvedExecutablePath/observedCliVersion    | 必填，与 runtime 同名字段比较。                                                                                                                     |
+| deployment.cliBinarySha256/cliBuildSha256/cliDependencyLockBytesSha256 | 必填，三个实际 bytes/build/dependency digest 进入比较。                                                                                             |
+| deployment.adapterSourceSha256/adapterBuildSha256                      | 必填，与 runtime 对应 digest 比较；未表达 adapterCode/adapterVersion。                                                                              |
+| deployment.hostImageDigest/osRelease/kernelVersion/architecture        | 必填，分别比较 runtime.hostImageDigest/hostOsRelease/hostKernelVersion/hostArchitecture。                                                           |
+| deployment.launcherVersion/launcherDigest/parserVersion/parserDigest   | 必填，四字段均进入比较。                                                                                                                            |
+| deployment.provenance                                                  | 必填 DEPLOYMENT，来源诊断保留；标签不能补齐不存在的身份/版本字段。                                                                                  |
+| runtime.adapterCode/adapterVersion/harnessId/harnessVersion            | 锁与 InstallationObservation 都必填，producer 将二者精确绑定；可信部署类型及 runtimePairs 均未表达/比较四字段。当前来源缺失或声明不同的值仍可接纳。 |
+| 其余 payload 与 source 字段                                            | 本轮未修改，沿用前轮矩阵及受控证据边界；没有扩大旧 synthetic/public 接受集。                                                                        |
+
+### R4 — P1：部署来源遗漏 adapter/harness 身份与版本
+
+位置：[D14TrustedDeploymentEvidence，第 88 行](https://github.com/qzhike/zhiju-business-core/blob/37f6ab885d281e29c3d2287af18a0645b1b49810/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L88)、[runtimePairs，第 722 行](https://github.com/qzhike/zhiju-business-core/blob/37f6ab885d281e29c3d2287af18a0645b1b49810/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L722)。
+
+获批[锁合同 §2](../../decisions/d14-rd01-runner-profile-lock.md#2-一个版本化锁合同与三个不同证据层)明确必填 `adapterCode/version` 与 `harnessId/version`；Issue 要求版本绑定及缺部署/漂移时拒绝。D14 Schema 的 runtime 分组保留这四个必填字段，producer 第 1872–1877 行也核对原安装观察，但新的物化时刻需要独立当前部署 readback；只证明一份 InstallationObservation 曾与候选锁一致不能替代该部署来源。
+
+独立反例使用公开 producer，而非只改锁后绕过 producer：从有效 production input 分别改变以下一个 runtime pin，同时改变 InstallationObservation 对应字段；用公开 helper 重算 observationHash，并更新 payload.identity.installationObservationHash。ApprovedConfiguration、其他 pins、bytes/build digests、Scope 和窗口内时刻保持原样。四次 producer 均正常生成新锁，validateMaterializedLock.valid=true，lockHash 与 observation hash 都不同于原值。
+
+可信部署事实保持原字段和值，并显式附带原 adapterCode/adapterVersion/harnessId/harnessVersion；原锁与该事实的 positive control 先通过。候选新锁没有对应的新部署身份或版本事实，仍全部被接纳：
+
+| 仅改变的运行 pin（及对应安装观察字段） | 新值                             | 契约预期                               | 实际            |
+| -------------------------------------- | -------------------------------- | -------------------------------------- | --------------- |
+| runtime.adapterCode                    | zhiju.runtime.unobserved_adapter | 拒绝与当前部署 readback 不同的 adapter | admissible=true |
+| runtime.adapterVersion                 | 9.9.9                            | 拒绝与当前部署 readback 不同的版本     | admissible=true |
+| runtime.harnessId                      | zhiju.runtime.unobserved_harness | 拒绝与当前部署 readback 不同的 harness | admissible=true |
+| runtime.harnessVersion                 | 9.9.9                            | 拒绝与当前部署 readback 不同的版本     | admissible=true |
+
+当前接口连四个 owning 部署值都无法声明；即使来源在运行时携带这些值，runtimePairs 仍忽略它们。相同 source/build bytes 不消除版本化 adapter/harness 身份的要求，合法新 observation/hash 也不构成当前 DEPLOYMENT 事实。因此原 R4 的完整来源映射与比较仍未闭合，第二轮字段矩阵里记录的这一缺口现在已有直接 producer-to-preflight 反例。
+
+在可信部署 readback 中补齐并要求四个 owning 字段，按合同验证稳定代码/身份及非浮动版本，并在 admission 前逐项比较；缺失或任一漂移须明确拒绝。更新调用方/fixture helpers，保留同一完整部署的正例，并覆盖四字段逐项漂移与缺失。保留此次已修复的完整 Ref/receipt 比较及 UUIDv7 规则，不更改公开 Core 合同或接线真实部署。
+
+### 当前验证证据与边界
+
+- 当前远程 [CI run 37949577506](https://github.com/qzhike/zhiju-business-core/actions/runs/37949577506)独立读回，页面绑定 `37f6ab8`：select/verify failed，checks/persistence skipped，尚未执行验证步骤。GitHub 注释为账户计费/额度门禁阻止任务启动；不能记为代码验证失败，也不能记为 PASS。上轮 `0dc2402` 的绿色 CI 不替代新 head 的配置证据。
+- Reviewer 本地配置验证：执行 `vibe verify code --json`；首次在 pnpm 固定版本 registry 签名核验时 fetch failed，返回终端 exit 21、wrapper `VERIFY_FAIL/target=code/exit_code=1`，尚未启动配置检查。保持签名校验，按同一命令申请正常网络执行后重试，最终取得 `{"status":"PASS","target":"code","command":"pnpm clean && pnpm verify:code","exit_code":0}`，终端 exit 0。94 个测试文件、1955 个测试通过，配置内 1 个 production rejection 与 3 个 controlled fixture browser case 通过；format/lint/typecheck、workspace build、architecture、catalog/types/compatibility 全部通过。这是本 Reviewer 的当前源码配置证据；不把本轮追加记录算入 reviewed SHA，也不冒称远程 CI 通过。
+- 上轮临时 diagnostic 原样运行：`node node_modules/vitest/vitest.mjs run --config /private/tmp/pr265-rereview3.config.mts --reporter verbose`，24/24 passed，exit 0。输出中的旧修订标题是既有测试名称，实际 imports 指向当前 `37f6ab8` 源码。
+- 本轮扩展 diagnostic：`node node_modules/vitest/vitest.mjs run --config /private/tmp/pr265-rereview4.config.mts --reporter verbose`，Node 24.19.0 / Vitest 4.1.10；临时 probe/config 位于仓库外，alias 指向本轮源码。37 项中 33 通过、4 失败，exit 1；原反例、版本有无/非法值及每个部署反例的原锁正例都通过，失败均在预期 preflight 拒绝断言处。该证据不替代配置 Gate。
+- `git diff --check e8d05d6dccfe6034b241a8d0c4b8b49e255e4029..37f6ab885d281e29c3d2287af18a0645b1b49810`：PASS。
+- Implementer 的本地 code PASS 与 focused 118 passed 是远程提供的另一层证据；本 Reviewer 独立配置 PASS 与上述 focused diagnostic 分别保留。
+- 本轮正式记录仅改当前结论指针并追加正文，前三轮历史保留。本轮新增内容未 commit/push，不属于 reviewed SHA 或任何 CI；新增 Markdown、本地链接与工作区范围做 focused 检查。
+- 真实 OMP/DeepSeek、Ubuntu/CLI/adapter/Host 部署及隔离、PostgreSQL、OIDC/public HTTP、IG→TE→EP 实际接纳链、RA-LOCK-001–014/IG-LOCK-001–005、平台及独立人工业务验收仍 `NOT RUN`。既有设计技术批准不解释为当前实现修订批准；实现缺陷先返回 Implementer。
+
+本轮按用户授权发布普通 PR comment 并读回。普通 comment 不等于 GitHub 原生 REQUEST_CHANGES review；正式文档的 Git 交付仍未授权。本 Reviewer 没有修复产品代码、commit、push、merge、关闭/重开 PR 或重跑远程 CI。
+
+第四轮 comment 已发布并刷新远程永久链接读回：[复审评论 issuecomment-6091030113](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6091030113)。地址栏确认完整链接；正文保留精确 reviewed SHA、原发现关闭状态、R4 四个部署字段反例、37 项 diagnostic 的 33 通过/4 失败、Reviewer 本地 code PASS、当前 CI 任务未启动及 NOT RUN 边界。Conversation 从八条增至九条，输入框清空、Comment 按钮禁用，确认只新增一条。PR 仍为 Draft、四个提交，最新 commit 仍为 `37f6ab8`；本轮工作区仅此正式记录有改动，未 commit/push。

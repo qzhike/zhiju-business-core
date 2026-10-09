@@ -185,6 +185,10 @@ function trustedSources(): D14MaterializationSources {
     cliDependencyLockBytesSha256: lock.runtime.cliDependencyLockBytesSha256,
     adapterSourceSha256: lock.runtime.adapterSourceSha256,
     adapterBuildSha256: lock.runtime.adapterBuildSha256,
+    adapterCode: lock.runtime.adapterCode,
+    adapterVersion: lock.runtime.adapterVersion,
+    harnessId: lock.runtime.harnessId,
+    harnessVersion: lock.runtime.harnessVersion,
     launcherVersion: lock.runtime.launcherVersion,
     launcherDigest: lock.runtime.launcherDigest,
     parserVersion: lock.runtime.parserVersion,
@@ -353,6 +357,16 @@ function trustedInputOutputPinsWithSourceVersion(
   const ref: D14TrustedRef =
     immutableVersionId === undefined ? source.ref : { ...source.ref, immutableVersionId };
   return { ...pins, preparationSource: { ...source, ref } };
+}
+
+/** Drop one required deployment field to model a readback that never carried it. */
+function deploymentMissing(
+  deployment: D14TrustedDeploymentEvidence,
+  field: 'adapterCode' | 'adapterVersion' | 'harnessId' | 'harnessVersion',
+): D14TrustedDeploymentEvidence {
+  const entries = Object.entries(deployment).filter(([key]) => key !== field);
+  // Negative fixture: the readback is deliberately incomplete, so its shape is asserted.
+  return Object.fromEntries(entries) as D14TrustedDeploymentEvidence;
 }
 
 /** Run the preflight against an explicit lock plus trusted-source overrides. */
@@ -1175,6 +1189,74 @@ describe('preflightD14RunnerMaterialization', () => {
       preflightWith(lock, {
         inputOutputPins: trustedInputOutputPinsWithSourceVersion(VERSION_A),
       }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('admits a complete deployment readback carrying the adapter and harness identities', () => {
+    expect(preflight().admissible).toBe(true);
+  });
+
+  it('rejects a drifted adapter code', () => {
+    const deployment = required(trustedSources().deployment, 'sources.deployment');
+    expectRejection(
+      preflight({ deployment: { ...deployment, adapterCode: 'zhiju.runtime.other_adapter' } }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a drifted adapter version', () => {
+    const deployment = required(trustedSources().deployment, 'sources.deployment');
+    expectRejection(
+      preflight({ deployment: { ...deployment, adapterVersion: '9.9.9' } }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a drifted harness identity', () => {
+    const deployment = required(trustedSources().deployment, 'sources.deployment');
+    expectRejection(
+      preflight({ deployment: { ...deployment, harnessId: 'zhiju.runtime.other_harness' } }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a drifted harness version', () => {
+    const deployment = required(trustedSources().deployment, 'sources.deployment');
+    expectRejection(
+      preflight({ deployment: { ...deployment, harnessVersion: '9.9.9' } }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a deployment readback missing the adapter code', () => {
+    const deployment = required(trustedSources().deployment, 'sources.deployment');
+    expectRejection(
+      preflight({ deployment: deploymentMissing(deployment, 'adapterCode') }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a deployment readback missing the adapter version', () => {
+    const deployment = required(trustedSources().deployment, 'sources.deployment');
+    expectRejection(
+      preflight({ deployment: deploymentMissing(deployment, 'adapterVersion') }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a deployment readback missing the harness identity', () => {
+    const deployment = required(trustedSources().deployment, 'sources.deployment');
+    expectRejection(
+      preflight({ deployment: deploymentMissing(deployment, 'harnessId') }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a deployment readback missing the harness version', () => {
+    const deployment = required(trustedSources().deployment, 'sources.deployment');
+    expectRejection(
+      preflight({ deployment: deploymentMissing(deployment, 'harnessVersion') }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
     );
   });
