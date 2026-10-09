@@ -51,3 +51,14 @@ STARTED 回执必须返回三类真实启动引用；RECEIVED 返回精确 workS
 复现草案检查需要已安装 `jsonschema` 的 Python 环境：`python3 .vibe/decisions/verify-startup-contract-drafts.py`。DTO 可以单独进行 `tsc --ignoreConfig --noEmit --strict` 类型检查；它们均为定向设计诊断，不替代项目配置的 full 门禁。
 
 字段冻结前需完成：候选类型/词表和 QMS 受控规则、准备状态输入/上下文注册、Human 决定与真实引用形成、公共查询/命令接受集、撤权/CAS/Hash/幂等与持久化故障场景。现有 UI 布局无需重新审批；Core/Runner/BFF 接入及实际业务验收仍为 `NOT RUN`。
+
+## D14 / RD-01 公开操作映射提案
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。旧 DTO/Schema/TS fixture 保留参考；正式字段映射以 [EP Spec D14](../module-specs/Module-Spec-002-EnterpriseProject.md#d14--rd-01-准备报告与启动字段提案)、[TE scope](../module-specs/Module-Spec-003-TaskExecution.md#d14--rd-01-preparationcontext分析与初轮范围提案) 为 owning authority，public transport 见 [Delta §6](d14-rd01-first-customer-flow.md#6-兼容迁移与安全-http-映射)。
+
+- read DTO → `project.get_startup_review@1.0`；binding 必须含 Project CAS 与独立 preparationVersion、report/source/candidateSet/plan/rule/vocabulary 的精确版本/hash，不能用 reportJsonSha256 替代 snapshot canonical hash。
+- confirm DTO → `project.request_startup_confirmation@1.0`；整份默认不选，一次显式 Human 确认，candidate/value 修改不开放。server 保存完整原意图。首次准备项目与企业选择/新建通过 project.request_project_preparation 同样保存原意图。
+- receipt/recovery DTO → `project.get_startup_request@1.0` / `project.resume_startup_request@1.0`；per-step state 固定 NOT_STARTED/PENDING/COMMITTED/FAILED/UNKNOWN/STALE，成功才带真实 ref/receipt。总体状态按 Delta 转换表归纳，STALE/UNKNOWN 也保留已提交 start，原键不可换集合。
+- RECEIVED workScope → `execution.get_work_scope_progress@1.0`；receipt != scheduled != running != completed。所选任何阻塞文件拒绝原集合，保留草稿；用户可重新显式选独立文件，新意图不得暗改旧 request。
+
+allowedActions 只用于展示，写入口再验当前权限。request 查询失败维持 UNKNOWN，不生成新 key。ACTIVE 已有 PROJECT_START 后不再确认替换 start，原 scope 恢复也不能换报告；新后续 scope 需另行绑定冻结 start 与当轮 plan。三组布局、章节清单、复制索取与原位补充保持既有批准；无额外意见区/Runtime 选择器。

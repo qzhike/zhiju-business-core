@@ -642,3 +642,15 @@ AgentResult 的 header/schema/hash、FINAL、executionOutcome、provenance 和 s
 原invocation的template使用 `formal-completed-v1`；恢复使用 `formal-blocked-input-v1`（第一次仍复用现行single CustomerMaterial proposal）与 `formal-recovered-completed-v1`。模板内容/version/hash是未来named standalone fixture与构建输入，Driver通过真实invoke产生ack/身份；release之后才计算submittedAt/Header Hash并固定readFinal bytes。正常与恢复fixture分别走生产owning入口、真实PostgreSQL、真实受控Driver invocation，不可预造Run/Receipt/Evaluation。Invocation/source/body不可变，跨restart重读不invoke第二次。lease以后释放可形成历史观察，但TE不得接纳；缺输出的普通成功Run不能Completion。
 
 新结构Schema/Controls/Evaluator是显式新selector，旧empty-output Runtime profile/bytes/200-contract基线不变。真实CLI/Provider/飞书、Usage、取消ACK与人工业务验收仍NOT RUN，设计不批准IM-DG-006或TD-05–07。
+
+## D14 / RD-01 准备分析 Profile 提案
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。首发候选、lock 与待批准选择见 [Delta §7](../decisions/d14-rd01-first-customer-flow.md#7-首个-runtimeprofile-候选与待批准选择)，不据目标名单决定默认。原三个 CLI 与 synthetic profiles/Package@1.0 接受集不变。
+
+拟 `RuntimeExecutionPackage@1.1 / d14.analysis@1` 独立 preparation 分支：header/version、enterprise/project/task/workOrder/run、WorkOrderContract@1.1、PreparationContext@1.0、capabilityGrant、execution/adapter policy、resultSchema/outputProfile、issuedAt/expiresAt、packageHash；materializationManifest 增加 exact `preparationSourceRef` 与 `inputAliasManifestObject`（opaque controlled locator + actual bytesSha256 + schema/version），其余字段保留 §5。它们属于新版本 producer/validator；旧 @1.0 不接新 context。manifestHash 覆盖 canonical manifest payload，不含自身；输入别名 JSON bytes hash 是单独文件摘要，二者禁止混用。
+
+InputAliasManifest 每源唯一 sourceId，role 闭集 CUSTOMER_MATERIAL/TEMPLATE/RULE/PREVIOUS_REPORT/TRUSTED_DECISION、exactSourceRef、bytesSha256、服务器 materializedRelativePath；scope 为 Project、同 Enterprise 的授权企业 refs 或允许的 Platform 公司 refs。权限/实际源身份从 owning Queries 解析，输入 path 不是授权，客户文件中的 Skill/AGENTS/MCP 不作为配置。fixed source/template/rule/vocabulary/output/tool locks 纳入 Package hash。真实执行前 verify bytes、只读挂载与有限有效期，隔离无法成立不 invoke。
+
+Runner 固定先读客户、后比模板，仅可写报告/提取件根。首版无 MCP、禁止客户配置发现/远程工具，网络只按 approved provider policy；CLI 内工具 allow-list 不能代替 Host 文件系统/网络隔离。固定 reader/validator/renderer 外层执行、不可改写工具或绕过失败；不能升级 dependencies、模板、规则或客户原件。stdout/transcript 是有限诊断，不是正式报告/事实/凭据；secret 不进入 Prompt/output/Event。
+
+真实 dispatch/ack/final 原 invocation bindings 经 IG 新内部 profile producer/observer→TE→EP；原 Runtime synthetic-only Query 不接受 PROVIDER 分支。JSON/MD/output root hash、readCoverage、extraction ceilings、startup candidates 和 alias mapping 必须分别通过 Host acceptance。官方 CLI 非交互能力仅是候选依据，版本/认证/隔离/取消/原请求 readback/UNKNOWN/晚报告均需新 conformance。首版不支持 session resume：有权且已确认失败的新 Run 重试；UNKNOWN 原 dispatch 不重复；cancel request 不是真实 ACK，terminal/过期结果只留历史。

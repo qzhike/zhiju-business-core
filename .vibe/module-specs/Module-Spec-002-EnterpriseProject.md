@@ -930,3 +930,46 @@ derivedStatus由本Item当前pointer和已消费revocation的独立重算给出�
 错误复用：注册/Envelope错误→共享API；unknown profile/grammar/缺条件→PROJECT_DELIVERY_ITEM_CRITERIA_UNSATISFIED；wrong exact Task/Item/Plan/association/fact/hash→PROJECT_DELIVERY_COMPLETION_FACT_NOT_FOUND或PROJECT_DELIVERY_REFERENCE_INVALID，跨Scope/不可见对象统一NOT_FOUND/授权拒绝；水位旧选集→PROJECT_DELIVERY_COMPLETION_WATERMARK_INVALID；CAS→CONCURRENCY_CONFLICT；暂不可用→DEPENDENCY_UNAVAILABLE；Decision/Actor/session/撤权/过期→AUTHORIZATION_DECISION_INVALID；同event冲突→既有QUARANTINED结果。不得在safeSummary区分其他Scope对象存在性、返回客户正文或TE内部状态。
 
 当前taskDefinition不可变关联保证历史一致性，不证明TE当前USABLE；没有Task invalidation事件时不虚称失效闭环。Module-Test 002 #237定义上述正反例、late/replay与事务effects；实现入口为 `createExactDeliveryCompletionConsumer`、`handleEvaluateExactDeliveryItemCompletion`、`createDeliveryItemCompletionReadbackPort`，持久化为 `V7012__exact_delivery_completion.sql`；具体运行层级见该矩阵，未执行子项保持 NOT RUN。
+
+## D14 / RD-01 准备、报告与启动字段提案
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。方案与选择见 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。本节拥有 EP 字段；不修改上文已发布 @1.0、13 个 scope Query 接受名或旧 PROJECT_START 创建条件。
+
+以下 Ref 均使用共享 wire shape：OBJECT `zhiju.project.project`（objectId=scope.projectId）、`zhiju.project.enterprise`；SNAPSHOT `zhiju.project.preparation_source`、`zhiju.project.preparation_report`、`zhiju.project.startup_candidate_set`、`zhiju.project.preparation_file_plan`；OBJECT `zhiju.project.preparation_request`、`zhiju.project.startup_request`；CONTENT_ADDRESSED `zhiju.project.startup_decision`。新增类型全部是提案；EnterpriseRef 仅 Enterprise Scope，其余同一 Project Scope。UUIDv7、exact snapshotId/contentHash、生命周期/来源水位和当前授权必须均可解析；legacy 拼写只能在明确调用旧操作时使用，不能把 wire alias 随意互换。
+
+### EP 操作、输入和结果
+
+所有 Command 沿用 Envelope targetRef、idempotencyKey、payloadHash、Actor/Decision、CREATE 或 CAS；敏感原名/正文不进入 Event/普通错误。Query 都是 AUTHORITATIVE，按当前身份裁剪并返回 sourceWatermarks；不存在或不可见同一外观。
+
+| 拟操作@1.0 / mode | 封闭 payload | Result data / purpose |
+|---|---|---|
+| `project.find_preparation_enterprises` / Query | `searchText: Sensitive<string>; page:{limit:1..50,cursor?}` | `Page<{enterpriseRef,displayName,displayCode}>`，cursor 绑定身份/查询水位；`project.enterprise.select`；只搜当次许可企业，不按名称确立身份 |
+| `project.request_project_preparation` / CREATE preparation_request | `customer: {mode:EXISTING,enterpriseRef}或{mode:NEW,displayName}; projectTitle; preparationPresetRef:VERSIONED` | requestRef + per-step Enterprise/Project receipts + disposition；`project.preparation.request`；NEW 企业创建与项目创建独立，预分配 ID/显示编号/默认 objective/memberPolicy 来自锁定预设 |
+| `project.get_project_preparation_request` / Query | `requestRef; originalKey` | 原 request binding + step facts/current permitted action；`project.preparation.read`；恢复使用 request_project_preparation 原键原 payload，无新企业 |
+| `project.create_preparing_project` / CREATE project | `enterpriseRef; displayCode; title; objective; memberPolicyRef; preparationPresetRef` | projectRef + aggregateVersion=1 + creationMode=PREPARATION/status=PREPARING + receiptRef；`project.project.prepare.create`；单 Project 事务创建 Root/Claim/最小 Event，无 start refs |
+| `project.capture_preparation_source` / CREATE snapshot | `projectRef; intakeManifestRef; templateRefs:NonEmptySet<CONTENT_ADDRESSED>; ruleBundleRef; previousReportRef?; trustedDecisionRefs:Set; purpose:preparation.analysis; audience:PrincipalRef` | preparationSourceRef + bytes manifest binding + coverage/omissions/redactions + validUntil；`project.preparation.source.capture`；只纳当前 ACCEPTED 源与 published refs |
+| `project.get_preparation_source` / Query | `preparationSourceRef; purpose:preparation.analysis; audience:PrincipalRef` | 原不可变 source payload + currentUsability/reasons/validUntil；`project.preparation.source.read` |
+| `project.accept_preparation_report` / CREATE report snapshot | `projectRef; expectedPreparationVersion; analysisResultRef:CONTENT_ADDRESSED; analysisResultAcceptanceRef:CONTENT_ADDRESSED; preparationSourceRef; expectedPreviousReportRef?; outputProfileRef:VERSIONED` | reportRef + candidateSetRef + planRef + becameCurrent + receiptRef；`project.preparation.report.accept`；EP Validator SERVICE，经 TE result Query 取真实 outputs，不接 caller JSON |
+| `project.get_startup_review` / Query | `projectRef; reportRef?` | binding + informationGroups + candidateReviews/evidenceViews + required/confirmationCandidateIds + plannedFiles/blockers + allowedActions + currentUsability；`project.startup.review.read` |
+| `project.request_startup_confirmation` / CREATE startup_request | `binding:StartupBinding; confirmationCandidateIds:NonEmptySet; selectedFileIds:NonEmptySet` | requestRef + immutableIntentHash + per-step refs/disposition + permittedRecoveryActions；`project.startup.confirm`，Human-only；客户端不提交批准人、值修改或 start refs |
+| `project.start_preparing_project` / MUTATE project | `startupRequestRef; informationDecisionRef; startSnapshot:既有完整ProjectStartSnapshot` | projectRef + aggregateVersion + startBindingRef + 三个真实 start refs + receiptRef；`project.project.start`，Human-only，Process 只执行精确 Human 决定，并取得独立当前授权，expectedAggregateVersion 必填 |
+| `project.get_startup_request` / Query | `requestRef; originalKey` | 原 binding/选择 + 每步状态/真实 refs/receiptRef + disposition + currentUsability/reasons；`project.startup.request.read` |
+| `project.resume_startup_request` / MUTATE startup_request | `requestRef; originalKey; action:READBACK或CONTINUE_PENDING_STEP` | 同一请求回执，键/payload 不可改；`project.startup.request.resume`；续写 Human-only、每步独立授权/CAS |
+
+StartupBinding 必填：projectRef、expectedProjectAggregateVersion、expectedPreparationVersion、reportRef、reportJsonBytesSha256、candidateSetRef、planRef、preparationSourceRef、inputManifestBytesSha256、ruleBundleRef、startupRulesRef、vocabularyRef。输入指针变化必须推进 preparationVersion，不能只用 Project CAS；确认提交必须在 EP request 事务锁定该 preparationVersion/current report，并与 source refs/hash/规则当前有效性一致。信息决定记录 candidate ID→确认值/来源/EvidenceRef、ActorSnapshot/AuthorizationDecision、rule refs、原意图 hash，永远不可改。适用性/保护例外/最终批准各自独立，普通确认不具备其授权。
+
+报告 snapshot、候选集合及计划字段/hash 域见 [报告交接提案](../decisions/runner-analysis-report-v0.2.md#d14--rd-01-正式交接提案)。startup Query 使用 [DTO 映射](../decisions/workspace-startup-review-v0.1.md#d14--rd-01-公开操作映射提案)，不是直接采用 design.* fixture。候选 ID 按 UTF-8 排序形成集合 canonical hash；plannedFile 的完整 change/dependency/protection refs 均绑定报告。新报告不能改同 ID 历史内容；需新 snapshot 并明确 supersession/影响。
+
+### 前置对象、决定与一次 start
+
+Human-only `request_startup_confirmation` 先提交不可变意图/认证决定；专用 EP Process 逐步建立既有 propose/confirm_enterprise_fact、Product create/version/activate、QMS create_revision/activate、Profile/ProductScope snapshot 的真实 facts。既有 Capability 的输入/错误/非公开边界继续见 [前置矩阵 §4–6](../decisions/enterprise-project-capabilities.md)。它们由 EP owning Process 调用，不暴露成 BFF 内部业务 API；每个 Aggregate 独立 Receipt/idempotency/CAS，当前撤权不能靠保存旧 Decision 继续写。管理选择 BusinessDecision 由 EP 在真实 Human 决定事务形成，不从 Runner 引用解析。Evidence 使用既有 Quality owning capture/verify/get，不创造 EP Evidence 副本。
+
+同一 Project start 事务：重验当前身份、ScopeClaim、PREPARING、两个版本、原 request/decision、report/source/rule 当前性，验证真实 Fact/Product/QMS 来源及三 start refs 同 Enterprise，插入唯一 PROJECT_START、转 ACTIVE、写 Receipt/Audit/Event，任一失败全回滚。启动后来源/企业版本变化仅产生影响事实，不替换 start binding。start 事件拟 `project.PreparingProjectStarted@1.0`：projectRef、startBindingRef、informationDecisionRef、startedAt；准备创建拟 `project.PreparingProjectCreated@1.0`：projectRef、enterpriseRef、creationMode、createdAt。不复用旧 ProjectCreated 来暗示已经 start。
+
+### 拟错误与安全外观
+
+`PROJECT_PREPARATION_INPUT_STALE`（pointer/水位变化）、`PROJECT_PREPARATION_REPORT_INVALID`（binding/hash/alias/profile）、`PROJECT_STARTUP_INFORMATION_INCOMPLETE`（必要值/代码/结构不足）、`PROJECT_STARTUP_HUMAN_REQUIRED`、`PROJECT_STARTUP_INTENT_CONFLICT`、`PROJECT_START_ALREADY_BOUND`、`PROJECT_WORK_SCOPE_BLOCKED`。Scope/不可见统一 NOT_FOUND/授权拒绝；CAS→CONCURRENCY_CONFLICT；同键异内容→IDEMPOTENCY_PAYLOAD_CONFLICT；owner Port 不可用→DEPENDENCY_UNAVAILABLE。安全 reasons 不回显客户正文、路径、其他 Scope 对象状态。
+
+### EP 正常与恢复 trace
+
+新客户：preparation request→Enterprise Receipt→PREPARING Project→ZIP manifest→source→accepted report→Human decision→Fact/Product/QMS/Profile/ProductScope 独立 receipts→唯一 start→TE scope Receipt。已有客户显式选择 ID 和精确版本走同一链。任一步失败按 [转换表](../decisions/d14-rd01-first-customer-flow.md#5-转换原意图与恢复) 保留成功事实；晚报告不覆盖 current、UNKNOWN 先读原键、撤权不续写。首版范围接收不激活 DeliveryPlan，不以 GapAnalysis 的 ACCEPTED/模板数量代替范围。

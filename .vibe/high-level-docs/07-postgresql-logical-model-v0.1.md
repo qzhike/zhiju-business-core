@@ -2482,3 +2482,20 @@ canonical hash为共享cv1 SHA-256，manifestHash排除仅自身Hash，包含完
 所有新增表FORCE RLS，Project必须同时校验enterprise/project与当前context；所有FK只在owning Schema内。task_execution_app只读所需源/技术查询或执行受限owning函数；marker触发函数固定search_path、最小definer权限、从受控源行导出scope，禁止caller直接执行写marker函数。dispatch技术更新仅经其受限SERVICE函数，不能给app任意Root更新权限。projection_app无TE SELECT，source Export无Projection写权；独立受限publish/maintain函数限制其scope/主体/fence/目标。SQL Context/RLS不替代IP当前Decision。
 
 retentionUntil固定为publishedAt+原Policy TTL；Query不能延长，cleanup仅删非当前alias且到期的generation/rows，并保存publication outcome、TE历史manifest与业务事实。Policy更替不重写旧canonical，新的读取仍按当前Policy/authority判断资格。读技术Context建立与业务Query无写分开。
+
+## D14 / RD-01 持久化与迁移设计提案
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`；本 Issue 不新增 SQL/migration。名称是未来逻辑形态，非已建表。
+
+| owning Schema / 新增或扩展 | 约束与事务事实 |
+|---|---|
+| enterprise_project.project / project_snapshot_binding | creationMode FULL_START/PREPARATION；新 PREPARING 只能 PREPARATION+零 start；ACTIVE 必有完整唯一 PROJECT_START，同 start 事务 CAS；Scope/memberPolicy immutable |
+| enterprise_project preparation_source/report/candidate_set/file_plan | Project Scope + INSERT-only payload/hash + real source/result/observation refs；report current pointer 独立 preparationVersion/CAS，stale/impact 另存 |
+| enterprise_project preparation_request/startup_request/decision | 原 key+payloadHash+immutable bindings/选择，逐步 Receipt/Actor/Decision/step facts；恢复不覆盖原意图，不将某 request 成功替代另一 request |
+| task_execution preparation_context / preparation_analysis_request | 新 type/profile 明确 discriminator/hash 域；Context INSERT-only，无虚构 start；Process steps 与父 Scope 闭合 |
+| task_execution work_scope / scope_file | immutable start/report/plan/full changes 与原 Human decision，按 request unique；eligibility/progress append-only，不按 JSON 自报完成 |
+| integration_gateway customer_zip_intake/entry/manifest/observation | original ZIP+每 entry 原件 bytes hash/身份，source link 与 actual validations/attempt/session/fencing；object locator opaque，原名敏感、普通 Event 无正文 |
+
+全部 Project-owned rows enterprise_id+project_id、FORCE RLS、作用范围与父 Step FK 复合闭合；跨 Schema 只 TypedReference，不 FK/Join 或直接写他方表。原字节入受控 object storage，JSONB+cv1 payload hash 供确定性复验，byte hash 独立。staging/link commit/孤立 cleanup 沿现有边界，不分布式事务。历史表/列/Hash 不复制重建。
+
+forward migration 必须验证旧 binding exact refs/Scope/hash 后赋 FULL_START；缺 binding 的旧 ACTIVE fail closed 为迁移故障，禁止重新归类 PREPARING。新 insert/start 的数据库约束须抵御直 SQL 形成 ACTIVE 无 binding、两份 start、wrong mode、跨 Scope、payload mirror/hash 替换；Handler 之外也需约束/guard。未来 full gate 覆盖清洁迁移、历史读取、失败回滚、并发唯一/CAS、RLS 与 retention；本节只是 FUTURE DESIGN。

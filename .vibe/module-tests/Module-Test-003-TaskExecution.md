@@ -683,3 +683,17 @@ authority 为 [Spec 003 §27](../module-specs/Module-Spec-003-TaskExecution.md#2
 BOARD-D-006/IP-BOARD-D-002 同时覆盖 owning `record_policy_version` 在实际 Task/P1 generation SELECT 完成后取代 Board PolicyVersion：返回前须经独立当前 IP 解析拒绝，不得仅复验 Policy read Grant 后返回旧资格下的 OK/FRESH/data。Board PolicyVersion 的合法取代不提升既有延后的 Grant PolicySnapshot replacement lifecycle。
 
 BOARD-D-003/007同时验证compact cursor长度264且满足共享16–512 base64url模式；合法最小/最大配置、完整Project/PolicyRef均可绑定，分别篡改单字段、未知mode/keyId、截断/非canonical编码/signature失败及logical binding错误。不得因旧TaskBoard字段是string就跳过共享OpaqueCursor规则。
+
+## D14 / RD-01 首条资料链路设计场景
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。
+
+| ID | 输入 / 故障 trace | 预期 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| TE-D14-001 | PREPARING 合法 preparation profile 从 DRAFT/Context 到真实 Result | 新接受集逐层支持；source/template/rule/lease/fencing 绑定；Context 无启动占位，raw report 不自动 Completion | 未执行 / `NOT RUN` |
+| TE-D14-002 | 旧 create_task@1/@2、ProjectContext@1 或旧 synthetic selector 接 preparation | 全部 fail closed；历史 bytes/Hash/ACTIVE 限制不改，未知 selectors 拒绝 | 未执行 / `NOT RUN` |
+| TE-D14-003 | source/template/规则/CAS 变化、错 scope/context、过期/撤权/伪 Runtime ack | Readiness/Freeze/Run/Acceptance 当前校验拒绝，零 QUEUED/ACCEPTED 假成功 | 未执行 / `NOT RUN` |
+| TE-D14-004 | 真实 ACTIVE + 单 start，选独立 eligible 文件 / 选含保护冲突文件 | 前者范围 RECEIVED，后者原集合拒绝且选择保留；不得传 changeId 子集绕整文件保护；后继单文件 BLOCKED 不扩大 | 未执行 / `NOT RUN` |
+| TE-D14-005 | scope Receipt 已提交响应丢失/重启；原 key 异 plan/file 集合 | 原 workScopeRef/stable Receipt，零重复 scope/task/Run；异 payload conflict，原 Scope/hash 不改 | 未执行 / `NOT RUN` |
+| TE-D14-006 | dispatch UNKNOWN、取消/到期 late final、terminal 重试 | 原调用 readback；不第二 invoke；late 仅历史；合法 retry 新 Context/新 Run 与当前授权，terminal 不 resume | 未执行 / `NOT RUN` |
+| TE-D14-007 | scope 已接收但无 Task/Run；分页进度/Runner自报完成 | RECEIVED/WAITING 实际 owning状态；完整计数水位与分页，不能将 receipt/report/Run 变文件批准或项目完成 | 未执行 / `NOT RUN` |

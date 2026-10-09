@@ -1468,3 +1468,22 @@ execution.expire_run@2.0
 cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.request_run_cancel`，内部 Grant action `execution.run.cancel.request.v1` 不作为别名；new expire@2.0、cancel Handler 与 late-isolation 的首版支持集唯一见 Spec 003 §27.1，仅包含真实创建已有 reservation 的两次执行 profile。上述限制不改旧 Schema 或 @1.0 expiry 支持集。
 
 本设计已随 #244 注册 `execution.expire_run@2.0`；当前计数 239/63/200，historical baseline 保持 200。注册、生成产物、version metadata、Result validation 与 standalone 正负 fixtures 必须同修订交付；Intent 与 late isolation/Audit 为内部边界，不能当成已注册操作。IM-DG-006 与六个 Runtime Command/ACK 不因本项获得批准。
+
+## D14 / RD-01 拟议名称与类型（未注册）
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。下表只是 name/Owner proposal，不计入现有 Catalog/Registry/200 compatibility baseline；字段只在对应 owning Spec D14。后续人类批准后才注册 schemas/types/metadata/compatibility fixtures，不以本表存在宣称可调用。
+
+| 拟议 @1.0 操作 | 唯一 Owner / fields |
+|---|---|
+| project.find_preparation_enterprises、project.request_project_preparation、project.get_project_preparation_request、project.create_preparing_project | EnterpriseProject / [Spec 002 D14](../module-specs/Module-Spec-002-EnterpriseProject.md#d14--rd-01-准备报告与启动字段提案) |
+| project.capture_preparation_source、project.get_preparation_source、project.accept_preparation_report、project.get_startup_review | EnterpriseProject / Spec 002 D14 |
+| project.request_startup_confirmation、project.start_preparing_project、project.get_startup_request、project.resume_startup_request | EnterpriseProject / Spec 002 D14 |
+| execution.create_preparation_analysis_task、execution.build_preparation_context、execution.request_preparation_analysis、execution.get_preparation_analysis_result | TaskExecution / [Spec 003 D14](../module-specs/Module-Spec-003-TaskExecution.md#d14--rd-01-preparationcontext分析与初轮范围提案) |
+| execution.receive_initial_work_scope、execution.get_work_scope_progress | TaskExecution / Spec 003 D14 |
+| integration.request_customer_zip_intake、integration.get_customer_zip_intake | IntegrationGateway / [Spec 007 D14](../module-specs/Module-Spec-007-IntegrationGateway.md#d14--rd-01-zip-intake-与真实报告观察提案) |
+| project.PreparingProjectCreated、project.PreparingProjectStarted | EnterpriseProject / Spec 002 D14，最小新 lifecycle facts，不改变旧 ProjectCreated |
+| execution.InitialWorkScopeReceived | TaskExecution / Spec 003 D14，scope receipt 不承诺 Task/DeliveryItem 完成 |
+
+拟新增类型：OBJECT `zhiju.project.preparation_request`、`zhiju.project.startup_request`、`zhiju.execution.preparation_analysis_request`、`zhiju.execution.work_scope`、`zhiju.integration.customer_zip_intake`；SNAPSHOT `zhiju.project.preparation_source`、`zhiju.project.preparation_report`、`zhiju.project.startup_candidate_set`、`zhiju.project.preparation_file_plan`、`zhiju.project.project_start_binding`、`zhiju.execution.preparation_context`、`zhiju.integration.customer_input_manifest`；CONTENT_ADDRESSED `zhiju.project.startup_decision`。均 Project Scope，只有明确 Enterprise/Platform 输入类型可例外；snapshotId+cv1 contentHash 必须精确解析，内部 raw locator 不是 TypedReference。Project/Enterprise 本体用 canonical zhiju.project.*；调用旧操作时依各自旧 identity，禁止通用 alias 互换。
+
+新增 `PreparationContext@1.0`、`WorkOrderContract@1.1` preparation 分支、`RuntimeExecutionPackage@1.1` 与 `d14.analysis@1` 是待批准 producer/validator selectors，接受集分别见 Core03/TE/Runtime owning sections。旧操作不接新 profile；本首版 public request→owning internal handlers 是封闭入口，若将新 profile 公开到旧 Run/Result 操作须明确新版本/接受集审批，不能暗改已发布 grammar。

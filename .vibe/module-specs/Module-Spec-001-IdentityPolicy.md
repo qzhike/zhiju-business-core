@@ -1011,3 +1011,21 @@ source只读取Spec003 §12声明的本Project安全来源，不授予Quality/Bu
 Human Query前先重验Human，才能签发必要SERVICE dependency Decision；依赖每次protected read前重验，最后返回再按IP独立READ COMMITTED事务批次重验所有实际使用条目。AUTH路径不需要Projection/health/publish/maintenance权限；Projection query不需dispatch/publish/maintenance权限；worker无Human read权限仍只能完成其技术工作，不能取得Human响应。Grant当前撤销、Decision过期、Session/Actor/Target/Scope漂移、Policy失效或依赖不可用fail closed，不把权限失败折叠为UNKNOWN/FRESH/空Page。
 
 cursor authorizationSourceHash由IP owning Port返回：canonical排序后的actual principal/kind、ActorSnapshot/session身份Hash、Human及实际使用读取mapping/config code、各selected Grant完整id+payloadHash+Scope/selector/action、Grant PolicySnapshot exact Ref/hash，另含当前配置Board policyRef/contentHash；不含新Decision id/issuedAt/expiresAt/检查当前时间。新短期Decision但同一来源不会使cursor失效，来源变更则必须重新查询；当前失效仍先安全拒绝，不等cursor比较。不得由TE自行复制IP表或凭缓存生成指纹。IP签发/拒绝Audit技术写入与TE业务Query无写分别记录，既有真实Grant PolicySnapshot生命周期延后边界不变。
+
+## D14 / RD-01 准备分析与 Human 决定授权提案
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。字段与流程见 [D14 Delta](../decisions/d14-rd01-first-customer-flow.md)，本节拥有新增 purpose/Principal 接受集。旧 #190/#200 创建绑定不变，不能从准备 ScopeClaim 推导已有 task.execution.create_task 资格。
+
+| 入口 / purpose 提案 | 当次身份 / Scope / 必须证明 |
+|---|---|
+| EP customer selection / `project.enterprise.select`、`project.preparation.request` | HUMAN；查询只返回可见 Enterprise；NEW 在明确企业创建权限下，CREATE 预分配 target 及 scope，不按名称发权限 |
+| EP `project.project.prepare.create` | HUMAN 或执行精确 Human intent 的受限 SERVICE；当前 Enterprise 创建权限、memberPolicy/预设精确版本；创建 Project Context 只允许本预分配 ID |
+| IG `integration.customer_zip.intake` | HUMAN 接纳同 Project 资料；server-issued intake token 仅上传绑定，不等于 Runtime/Human 决策授权 |
+| EP source capture/read、TE preparation create/context、IG dispatch | 各自 SERVICE 当前 Decision，scope 必须同 Enterprise+Project；授予客户来源 READ、公司 template/rule READ、本 Run report root WRITE；有限有效期、resource selectors/hash 与 maxUses |
+| EP `project.startup.confirm` / `project.project.start` / resume write | HUMAN-only；高风险信息/管理/适用性精确动作 + 原 binding + payloadHash + ActorSnapshot/AuthorizationDecision；Process SERVICE 不变成 Human，须另有当前执行许可及真实 Human 决定链 |
+| TE `execution.work_scope.receive` | HUMAN-only，或专用 Process SERVICE 执行该原 Human scope decision；ACTIVE/唯一 start、selected full-file set、plan/hash 都绑定 |
+| Query / report accept / original recovery read | 与写入分别授权；current allowedActions 仅 UI 提示，不是 bearer token；历史读权限不赋予继续执行资格 |
+
+Grant/Decision 由 IP 现有 owning 入口形成精确 PolicySnapshot/ActorSnapshot 身份、payload hash、Scope、purpose/target/mode/version，并在每个保护性读取前检查当前撤销/期限。快照或 Run 内保存旧 ALLOW 不能替代当次授权；再授权不能扩大原已冻结 payload。跨模块 Port 只提供授权证明，无他方 Repository 权限。RUNTIME/AGENT/actingFor 始终不能确认客户事实、激活 QMS/Product、start、批准保护例外、Approval/Release；Prompt/模板/报告自称 Human 或批准均拒绝。
+
+错误沿用当前安全 AUTHORIZATION_DECISION_INVALID / CAPABILITY_SCOPE_MISMATCH / Human-only 拒绝；无权时 protected reads=0。准备 profile 权限不包含 artifact/document.write、company template/rule WRITE 或任意 host/network/MCP。恢复和同键 replay 重验当前身份，只返回当次许可字段，不通过已保存 Receipt 泄露别的 Scope。

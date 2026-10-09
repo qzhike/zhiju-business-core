@@ -124,3 +124,16 @@ reviewer and timestamp
 开发浏览器场景覆盖 1440×900 桌面、360×800 窄屏及 320 CSS px reflow、默认不选、缺必要信息保留选择、显式整份确认、精确报告/请求、刷新/Back/Forward、迟到版本提示、加载/空/失败恢复、键盘/焦点与报告/范围页 axe 诊断。截图仅为合成资料。所有执行结果、exact revision、实际浏览器版本与未执行项在 Issue #252/PR 保存，不在此新增执行日志。
 
 真实 OIDC、公开业务 HTTP、Runner、生产、Windows/macOS 最近两版 Chrome/Edge 支持矩阵、完整 WCAG AA 与独立人工业务验收仍为 `NOT RUN`。旧真实 UI-E/UI-S/UI-A/UI-M、D14 及 UI-ENG-002–008 场景不由外壳演示代替。
+
+## D14 / RD-01 首条资料链路设计场景
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。
+
+| ID | 输入 / 故障 trace | 预期 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| UI-RD01-001 | 新/已有客户，ZIP→真实报告→三摘要整份默认不选 | 布局不变；身份明确；总览缺口/证据/复制与原位补充；仅一次显式信息+整份范围确认 | 未执行 / `NOT RUN` |
+| UI-RD01-002 | 必要 startup UNKNOWN/CONFLICT/unsupported 与单文件保护冲突 | 必要缺口禁开始并保留选择；独立文件合法 start 后可接收，整份保护不由子 action 绕过 | 未执行 / `NOT RUN` |
+| UI-RD01-003 | 提交断网/刷新、PENDING/UNKNOWN、start成功scope失败 | 原 request/key 公共回读；PARTIAL 保留 ACTIVE，只续 scope；响应202不表示执行中 | 未执行 / `NOT RUN` |
+| UI-RD01-004 | 新 report/撤权/CAS stale，STALE 响应有已提交 start | 旧草稿保留，新版重新核对；不回 PREPARING，不换旧 request 文件集合；Session 恢复仍当前授权 | 未执行 / `NOT RUN` |
+| UI-RD01-005 | 公网 actor/header/CLI/path/zip正文处理/恶意Markdown | Core 认证/CSRF/Scope 拒绝；Browser/BFF 无解包/模型/storage写/私有Capability，正文安全编码与受权下载 | 未执行 / `NOT RUN` |
+| UI-RD01-006 | scope已RECEIVED无Run、部分进度分页/迟到report | 阶段真实、水位/完整分母；未执行不标running/完成；无自动切换覆盖正在核对的旧报告 | 未执行 / `NOT RUN` |

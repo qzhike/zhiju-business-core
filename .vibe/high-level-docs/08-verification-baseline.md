@@ -554,3 +554,9 @@ WI-08 复核命令和实际输出见 [`Synthetic-QMS-REL-801-Exit-Report.md`](..
 设计交付仍按现行strictMarkdown`docs`路由，另需独立语义设计审查和revision-bound明确人类设计批准、真实PR编号下的正式Review记录。这里只新增验收场景和证据边界，不改变§2.1.1验证策略/targets。后续实现需`full`及适用首次`environment`，standaloneinput/contractfixtures、实际controlledDriver、正负/并发/commit前与commit后故障、ACL/RLS/immutable/升级证据分层保存。OnlyexternalRuntime可替换；Event/Decision/Receipt/fact不能伪造或direct-table构造positivechain。
 
 EP结论的Task语义是历史正式完成，不宣称TE当前USABLE或尚不存在的Task invalidation follow-up；已有Release/Quality撤销证据单独记录。外部Provider/CLI/飞书/publicHTTP/UI、部署/生产/负载、独立人工、Cancel/late-result和IM-06整体退出仍NOT RUN；Grant PolicySnapshot lifecycle既有延后不泛化。设计批准不等于实现NOW+READY或IM-06关闭。
+
+## D14 / RD-01 设计与真实链路证据边界
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`；保持现有 verify targets/路由/结果协议不变。严格 `.vibe/` Markdown 设计分支用 `vibe verify docs --json`，其 PASS 只表示配置文档检查，不能替代 T2 独立设计审查和精确修订人类技术批准；具体 Runtime/规则 lock 决定前依赖实现不 READY。
+
+新 owning traces 位于 Module-Test 001 `IP-D14-*`、002 `EP-D14-*`、003 `TE-D14-*`、007 `IG-D14-*`、UI01 `UI-RD01-*` 与 Runtime Test `RA-D14-*`。后续分别执行：真实 PostgreSQL/full（历史迁移、唯一 start、RLS/CAS/幂等/rollback/部分提交）、独立 Runner output（只证明该锁定执行实际产物）、Host IG→TE→EP acceptance（真实来源与当前可用性）、公开 OIDC/HTTP/Browser（Session/CSRF/撤权/原意图恢复）和独立顾问业务验收。所有新 runtime/持久化/public/manual 场景仍 NOT RUN；既有 v0.1 standalone/原型/外壳不升级其结果。

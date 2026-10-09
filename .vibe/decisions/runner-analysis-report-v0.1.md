@@ -240,3 +240,7 @@ Schema 与合成示例可做离线形状/引用反例检查。这是设计验证
 首版字段反例须覆盖：从模板填造产品/职责、EVIDENCED 被当 CONFIRMED、产品只有名称但缺必要结构、虚假 Human 决定、报告/候选/计划版本不一致、跨项目 evidence、候选别名悬空、必要值 UNKNOWN、非必要未知影响独立文件的错误扩大、规则版本漂移与多步部分成功。当前均为设计要求；实际新 Schema、接纳器、公开接口、持久化及 Runner 生产验证为 `NOT RUN`。
 
 **字段细化产物链接**：下一版 [Runner v0.2 字段草案](runner-analysis-report-v0.2.md) 和 [启动核对 DTO 草案](workspace-startup-review-v0.1.md) 已另立文件；仍为未注册提案，现有 v0.1 Schema 与样例保持原样。
+
+### D14 / RD-01 owning 闭合入口
+
+后续技术提案见 [首条资料链路 Delta](d14-rd01-first-customer-flow.md) 与 [v0.2 交接](runner-analysis-report-v0.2.md#d14--rd-01-正式交接提案)。本 v0.1 字段/Schema/样例及历史 hashes 保持不变；standalone 输入/输出工具只有独立证据意义，Host→TE→EP、可信 Human 与一次 start 全部仍需后续真实验证。新增 owning 增量是 PROPOSED/FUTURE DESIGN，不再以旧工作树“已同步”作为当前基准事实。

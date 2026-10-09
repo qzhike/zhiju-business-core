@@ -5746,3 +5746,9 @@ DeliveryItem Completion 是由 EnterpriseProject owning Evaluator 根据冻结 `
 ## #233 Completion 与历史状态的未来细化（提案）
 
 状态：`HUMAN DESIGN APPROVED 2026-09-30 / NOT IMPLEMENTED`。Task/WorkOrder只能经owningCompletion Evaluator由全部required正式事实与完整blocker/child集合派生，首次COMPLETION_PENDING→COMPLETED；Run SUCCEEDED或空输出不会自动推进。详细有限支持、单Root/CAS、source collection父锁协议由 [Spec 003 §25](../module-specs/Module-Spec-003-TaskExecution.md#25-正式输出与独立-completion-spec-delta233)拥有。COMPLETED历史不回退，首次completedAt/成功Evaluation/Event不覆盖；授权显式refresh只追加immutable新Evaluation/CAS当前pointer，不发第二Completed事件、不重开执行。current usability与历史状态分开，依赖Readiness重验当前output/适用quality，Board不拥有完成权。现有其他终态规则、Cancel/late-result及DeliveryItem独立完成不被此提案修改。
+
+## D14 / RD-01 Project 生命周期提案
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。新 Project creationMode=PREPARATION 时 PREPARING 即正式隔离身份，有 ScopeClaim/memberPolicy，无 PROJECT_START；只能受控来源接纳/只读分析，不具正式文件修改资格。原 FULL_START 创建继续单事务 ACTIVE+完整 start。PREPARING→ACTIVE 仅一次 Human 授权 start 事务，三类真实 refs、CAS、唯一 binding、Receipt/Event 一起提交；失败不留下半 ACTIVE。Scope/memberPolicy 永不迁移，ACTIVE 不回 PREPARING，后继材料/企业版本追加 impact 不改 frozen start。
+
+EP 新不可变 PreparationReport、CandidateSet、FilePlan snapshots 不等于 GapAnalysis/DeliveryPlan/正式 Fact；Human 信息决定、真实 Fact/Product/QMS 前置版本、Project start、TE 初轮 workScope 独立事实。scope 只表示整份文件意图接收，不自动批准修改/完成。缺必需客户事实阻 start；非必要未知或文件保护/冲突阻整份受影响文件，合法 start 后独立文件可接收。完整状态/recovery 见 [Delta §5](../decisions/d14-rd01-first-customer-flow.md#5-转换原意图与恢复)，owning fields/scenarios 不在本节复制。

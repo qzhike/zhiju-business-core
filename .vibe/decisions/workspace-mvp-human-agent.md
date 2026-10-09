@@ -713,3 +713,7 @@ D04 不能给个人 Agent 伪造 Human 身份；可提议受限请求草稿与�
 
 
 旧设计工作树记录：2026-10-08 用户确认 D14 初始化方向后，在该工作树的未提交文件中同步 EP/IP/TE/IG/UI、Domain/Core/Catalog/PostgreSQL 和 Runtime 相关设计约束及前瞻失败矩阵；当前开工工作树的带入与待同步范围见 §8.1。新增 #startup-review 交互原型沿用原有固定高度范围面板：三类必要启动信息紧凑展示、客户依据按需展开，文件按体系章节查找和逐份勾选，单一显式操作确认信息及完整范围。模拟必要产品依据缺失、核验失败、UNKNOWN 原请求回读、报告更新后重新核对；更新示例有独立报告与候选版本。所有启动信息、请求和回执为新增匿名合成数据，不从既有报告推断，也不改变既有项目、报告、轮次、候选、批准或交付包。用户随后明确“保留当前布局”，此面板布局作为 MVP 交互基线保留；正式字段/profile、公开 API、真实持久化及 Runner 接入均未完成。
+
+### D14 / RD-01 当前 owning 技术提案入口
+
+Issue #253 的 [Spec Delta](d14-rd01-first-customer-flow.md) 已在本提案分支增量写入 EP/IP/TE/IG/UI、Runtime、Domain/Core/Catalog/一致性/持久化和 owning failure scenarios，状态统一 `PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。§8.1 旧工作树及带入清单是此前快照；当前增量以这些 owning D14 专节为准，不复制旧 Core 树、不注册公共 Schema、不声称冻结或真实接入。初始化方向/布局和工程技术选择不复开；字段、受控启动规则、首发 Runtime lock 仍须独立设计审查与精确修订人类技术批准。执行/审批证据在 Issue/PR，未来 READY 不能由本文的“已写入”推出。
