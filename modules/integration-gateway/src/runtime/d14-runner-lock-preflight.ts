@@ -1,6 +1,7 @@
 import { validateMaterializedLock } from '@zhiju/contracts';
 import type {
   Common,
+  D14CanonicalRef,
   D14MaterializedLock,
   D14PinnedRef,
   D14PolicyKey,
@@ -17,10 +18,12 @@ import type {
 // environment, never synthesizes a missing fact and never rewrites a pin. The
 // caller owns every readback; this module owns only the admission decision.
 //
-// The rejection surface is deliberately split so an operator can tell *why* a
+// Every readback carries the *complete* canonical reference it claims, so a
+// same-digest value under a different identity can never satisfy a pin. The
+// rejection surface is deliberately split so an operator can tell *why* a
 // materialization is refused: a missing owning readback, placeholder/floating
-// evidence, a copied historic record, an expired lock window, or a real value
-// mismatch against the pins the lock already committed to.
+// evidence, a copied historic record, an expired lock window, or a real
+// identity/value mismatch against the pins the lock already committed to.
 // =============================================================================
 
 /** Rejection codes of the materialization preflight boundary. */
@@ -46,13 +49,24 @@ export interface D14TrustedScope {
   readonly projectId?: string;
 }
 
+/** The complete canonical reference a readback claims, mirroring the lock's ref. */
+export interface D14TrustedRef {
+  readonly kind: string;
+  readonly objectType: string;
+  readonly objectId: string;
+  readonly versionId?: string;
+  readonly snapshotId?: string;
+  readonly scope: D14TrustedScope;
+  /** Present exactly when the trusted kind is content-addressed or a snapshot. */
+  readonly contentDigest?: string;
+}
+
 /** One published fact read back from its owning registry. */
 export interface D14TrustedFact {
-  readonly registryKey: string;
-  readonly version: string;
+  readonly ref: D14TrustedRef;
   readonly contentDigest: string;
-  readonly bytesSha256: string;
-  readonly receiptRefId: string;
+  readonly bytesSha256?: string;
+  readonly publicationReceiptRef?: D14TrustedRef;
   readonly provenance: 'PUBLISHED';
 }
 
@@ -62,13 +76,7 @@ export interface D14TrustedToolPin {
   readonly version: string;
   readonly bytesSha256: string;
   readonly buildSha256: string;
-  readonly codeRef: {
-    readonly kind: string;
-    readonly objectType: string;
-    readonly objectId: string;
-    readonly scope: D14TrustedScope;
-    readonly contentDigest: string;
-  };
+  readonly codeRef: D14TrustedRef;
   readonly runtime: { readonly runtimeCode: string; readonly runtimeVersion: string };
   readonly dependencyLockBytesSha256: string;
   readonly commandTemplate: string;
@@ -121,10 +129,9 @@ export interface D14TrustedDataAuthorization {
 
 /** One trusted published boundary-policy fact (isolation/network/data policy). */
 export interface D14TrustedPolicyEvidence {
-  readonly registryKey: string;
-  readonly version: string;
+  readonly ref: D14TrustedRef;
   readonly contentDigest: string;
-  readonly scope: D14TrustedScope;
+  readonly version: string;
   readonly provenance: 'PUBLISHED';
 }
 
@@ -138,21 +145,19 @@ export type D14InputOutputSlot =
 
 /** One trusted readback of an owning input/output object. */
 export interface D14TrustedOwningObject {
-  readonly registryKey: string;
-  readonly version: string;
+  readonly ref: D14TrustedRef;
   readonly contentDigest: string;
+  readonly version: string;
   readonly bytesSha256?: string;
-  readonly scope: D14TrustedScope;
   readonly provenance: 'OWNING';
 }
 
 /** One trusted readback of an owning prompt/tool-permission object. */
 export interface D14TrustedPromptReadback {
-  readonly registryKey: string;
-  readonly version: string;
+  readonly ref: D14TrustedRef;
   readonly contentDigest: string;
+  readonly version: string;
   readonly bytesSha256?: string;
-  readonly scope: D14TrustedScope;
   readonly provenance: 'OWNING';
 }
 
@@ -195,6 +200,7 @@ export type D14PreflightResult =
     };
 
 const DIGEST_HEX_PATTERN = /^[0-9a-f]{64}$/u;
+const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const UNIFORM_TEXT_PATTERN = /^(.)\1*$/u;
 const SHA256_PREFIX = 'sha256:';
 const ZERO_DIGEST = '0'.repeat(64);
@@ -231,6 +237,11 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
       placeholder.push(`${path} is not a distinct 64-character lowercase-hex digest.`);
     }
   };
+  const inspectIdentifier = (path: string, value: string): void => {
+    if (!UUID_V7_PATTERN.test(value)) {
+      placeholder.push(`${path} is not a UUIDv7 identifier.`);
+    }
+  };
   const inspectVersion = (path: string, value: string): void => {
     if (FLOATING_VERSION_ALIASES.includes(value) || value.includes('latest')) {
       floating.push(`${path} is a floating version alias, not an exact published version.`);
@@ -246,28 +257,37 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
       stale.push(`${path} carries provenance '${value}', not current '${expected}' evidence.`);
     }
   };
+  const inspectRef = (path: string, ref: D14TrustedRef): void => {
+    inspectKey(`${path}.objectType`, ref.objectType);
+    inspectIdentifier(`${path}.objectId`, ref.objectId);
+    inspectDigest(`${path}.contentDigest`, ref.contentDigest);
+    if (ref.versionId !== undefined) inspectVersion(`${path}.versionId`, ref.versionId);
+    if (ref.snapshotId !== undefined) inspectIdentifier(`${path}.snapshotId`, ref.snapshotId);
+  };
   const inspectFact = (path: string, fact: D14TrustedFact): void => {
+    inspectRef(`${path}.ref`, fact.ref);
     inspectDigest(`${path}.contentDigest`, fact.contentDigest);
     inspectDigest(`${path}.bytesSha256`, fact.bytesSha256);
-    inspectKey(`${path}.registryKey`, fact.registryKey);
-    inspectVersion(`${path}.version`, fact.version);
+    if (fact.publicationReceiptRef !== undefined) {
+      inspectRef(`${path}.publicationReceiptRef`, fact.publicationReceiptRef);
+    }
     inspectProvenance(`${path}.provenance`, fact.provenance, PUBLISHED_PROVENANCE);
   };
   const inspectReadback = (
     path: string,
     readback: D14TrustedOwningObject | D14TrustedPromptReadback,
   ): void => {
+    inspectRef(`${path}.ref`, readback.ref);
     inspectDigest(`${path}.contentDigest`, readback.contentDigest);
     inspectDigest(`${path}.bytesSha256`, readback.bytesSha256);
-    inspectKey(`${path}.registryKey`, readback.registryKey);
     inspectVersion(`${path}.version`, readback.version);
     inspectProvenance(`${path}.provenance`, readback.provenance, OWNING_PROVENANCE);
   };
 
   Object.entries(sources.policies ?? {}).forEach(([key, evidence]) => {
     const path = `sources.policies.${key}`;
+    inspectRef(`${path}.ref`, evidence.ref);
     inspectDigest(`${path}.contentDigest`, evidence.contentDigest);
-    inspectKey(`${path}.registryKey`, evidence.registryKey);
     inspectVersion(`${path}.version`, evidence.version);
     inspectProvenance(`${path}.provenance`, evidence.provenance, PUBLISHED_PROVENANCE);
   });
@@ -298,12 +318,11 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
 
   sources.evidenceTools?.forEach((pin, index) => {
     const path = `sources.evidenceTools[${index}]`;
+    inspectRef(`${path}.codeRef`, pin.codeRef);
     inspectDigest(`${path}.bytesSha256`, pin.bytesSha256);
     inspectDigest(`${path}.buildSha256`, pin.buildSha256);
     inspectDigest(`${path}.dependencyLockBytesSha256`, pin.dependencyLockBytesSha256);
-    inspectDigest(`${path}.codeRef.contentDigest`, pin.codeRef.contentDigest);
     inspectKey(`${path}.toolCode`, pin.toolCode);
-    inspectKey(`${path}.codeRef.objectType`, pin.codeRef.objectType);
     inspectVersion(`${path}.version`, pin.version);
     inspectProvenance(`${path}.provenance`, pin.provenance, TOOL_PIN_PROVENANCE);
   });
@@ -372,12 +391,34 @@ function scopeMatches(trusted: D14TrustedScope, locked: Common.ScopeRef): boolea
   return trusted.enterpriseId === locked.enterpriseId && trusted.projectId === locked.projectId;
 }
 
+/** The complete identity of a trusted reference must equal the locked one. */
+function refMatches(trusted: D14TrustedRef, locked: D14CanonicalRef): boolean {
+  const lockedVersionId = 'versionId' in locked ? locked.versionId : undefined;
+  const lockedSnapshotId = 'snapshotId' in locked ? locked.snapshotId : undefined;
+  const lockedContentDigest = 'contentHash' in locked ? locked.contentHash.digest : undefined;
+  return (
+    trusted.kind === locked.kind &&
+    trusted.objectType === locked.objectType &&
+    trusted.objectId === locked.objectId &&
+    trusted.versionId === lockedVersionId &&
+    trusted.snapshotId === lockedSnapshotId &&
+    trusted.contentDigest === lockedContentDigest &&
+    scopeMatches(trusted.scope, locked.scope)
+  );
+}
+
 function templateRefMatchesFact(pin: D14PinnedRef, fact: D14TrustedFact): boolean {
   const receiptMatches =
     pin.publicationReceiptRef === undefined ||
-    fact.receiptRefId === pin.publicationReceiptRef.objectId;
+    (fact.publicationReceiptRef !== undefined &&
+      refMatches(fact.publicationReceiptRef, pin.publicationReceiptRef));
   const bytesMatch = pin.bytesSha256 === undefined || fact.bytesSha256 === pin.bytesSha256;
-  return receiptMatches && bytesMatch && fact.contentDigest === pin.contentHash.digest;
+  return (
+    receiptMatches &&
+    bytesMatch &&
+    refMatches(fact.ref, pin.ref) &&
+    fact.contentDigest === pin.contentHash.digest
+  );
 }
 
 /** Consume each template pin exactly once; reject both gaps and extras. */
@@ -423,8 +464,7 @@ function matchOwningObject(
 ): void {
   const bytesMatch = pin.bytesSha256 === undefined || readback.bytesSha256 === pin.bytesSha256;
   if (
-    readback.registryKey !== pin.ref.objectType ||
-    !scopeMatches(readback.scope, pin.ref.scope) ||
+    !refMatches(readback.ref, pin.ref) ||
     readback.contentDigest !== pin.contentHash.digest ||
     !bytesMatch
   ) {
@@ -438,11 +478,7 @@ function matchPolicyEvidence(
   path: string,
   reasons: string[],
 ): void {
-  if (
-    evidence.registryKey !== pin.ref.objectType ||
-    !scopeMatches(evidence.scope, pin.ref.scope) ||
-    evidence.contentDigest !== pin.contentHash.digest
-  ) {
+  if (!refMatches(evidence.ref, pin.ref) || evidence.contentDigest !== pin.contentHash.digest) {
     reasons.push(`${path} does not match the locked boundary policy.`);
   }
 }
@@ -462,17 +498,11 @@ function matchToolPin(
     reasons.push(`${slot}: trusted pin ${pin.toolCode}@${candidate.version} is not a v0.2 pin.`);
     return;
   }
-  const lockRef = pin.codeRef;
-  const lockRefDigest = 'contentHash' in lockRef ? lockRef.contentHash.digest : undefined;
   if (
+    !refMatches(candidate.codeRef, pin.codeRef) ||
     candidate.version !== pin.toolVersion ||
     candidate.bytesSha256 !== pin.codeBytesSha256 ||
     candidate.buildSha256 !== pin.buildSha256 ||
-    candidate.codeRef.kind !== lockRef.kind ||
-    candidate.codeRef.objectType !== lockRef.objectType ||
-    candidate.codeRef.objectId !== lockRef.objectId ||
-    !scopeMatches(candidate.codeRef.scope, lockRef.scope) ||
-    (lockRefDigest !== undefined && candidate.codeRef.contentDigest !== lockRefDigest) ||
     candidate.runtime.runtimeCode !== pin.runtime.runtimeCode ||
     candidate.runtime.runtimeVersion !== pin.runtime.runtimeVersion ||
     candidate.dependencyLockBytesSha256 !== pin.dependencyLockBytesSha256 ||
@@ -635,8 +665,7 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
     if (slot === 'inputAliasManifest') {
       const manifest = lock.outputTools.inputAliasManifest;
       if (
-        owning.registryKey !== manifest.schemaRef.objectType ||
-        !scopeMatches(owning.scope, manifest.schemaRef.scope) ||
+        !refMatches(owning.ref, manifest.schemaRef) ||
         owning.version !== manifest.schemaVersion ||
         owning.bytesSha256 !== manifest.bytesSha256
       ) {

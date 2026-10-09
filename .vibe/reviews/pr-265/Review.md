@@ -1,5 +1,7 @@
 # PR #265 独立实现审查
 
+本文件保留两轮审查的独立证据。以下第一轮记录对应 `f42ca47`，已由修复提交纳入 `a7dfd3b`；其中当时的工作区与交付状态是历史事实。当前结论见文末[第二轮复审](#第二轮复审a7dfd3b)：`REQUEST_CHANGES`，R1/R3/R5 已关闭，R2/R4 尚未完整关闭。
+
 ## 审查对象与结论
 
 - Issue：[#264](https://github.com/qzhike/zhiju-business-core/issues/264)，T2 有界工程实现。
@@ -111,3 +113,85 @@ preflight 末尾只比较 trustedNow 与 customerDataAuthorization.validUntil；
 本次用户明确授权 PR comment，评论包含 reviewed SHA、REQUEST_CHANGES、R1–R5、CI 与独立失败证据以及 NOT RUN 范围；发布后须读回。该评论是普通 PR comment，不是 GitHub 原生 REQUEST_CHANGES review。本地正式记录未 commit/push；没有修改业务实现、合并、部署或关闭 Issue。
 
 GitHub comment 已发布并独立读回：[审查评论 issuecomment-6081118264](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6081118264)。读回正文包含 REQUEST_CHANGES、精确 reviewed SHA、R1–R5、配置 CI 与十个独立失败断言、正式记录状态及 NOT RUN 边界；评论提交后输入框已清空。发布前再次读回 PR，仍为 Draft、一个提交且 commit 链接指向 f42ca47b6546bab896f1df9e4bfd3bbabbe68b82。
+
+## 第二轮复审：a7dfd3b
+
+### 审查对象与独立结论
+
+- 用户授权：复审 PR #265 并提交 comments；没有产品修复、commit、push 或 merge 授权。
+- Reviewed SHA：`a7dfd3b02e87f200a8883932a884e0f64d8239f9`。
+- 上轮 SHA：`f42ca47b6546bab896f1df9e4bfd3bbabbe68b82`；本轮同时核对整个 PR 对 base `e8d05d6dccfe6034b241a8d0c4b8b49e255e4029` 的最终差异。
+- 审查日期：2026-10-09；远程 PR 仍为 OPEN / Draft，两个提交。本地 `vibe repo --json` 为 PASS，repository 与 head 精确一致；开始复审时工作区干净。
+- Reviewer role outcome：`REQUEST_CHANGES`。
+- 剩余阻塞：R2、R4，均为 P1。21 项独立 focused diagnostic 中 14 项通过、7 项契约预期失败；不是环境失败。
+
+独立读回最新 Issue、PR head、修复评论与 CI，并先按既有 Catalog、TE owning Contract 及锁合同建立预期。修复评论称 WorkOrderContract 尚无 canonical 拼写，这与既有权威和可执行注册冲突；修复提交新写入锁决策的 namespace 例外不能消除该冲突。本轮没有要求实现真实 OMP dispatch 或增加运行支持集。
+
+### R1–R5 关闭状态
+
+| 原发现                     | 当前判断         | 独立证据                                                                                                                                                                |
+| -------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1：物化时未重验锁有效期   | 已关闭原发现     | preflight 新增自身窗口检查；窗口前与恰到 validUntil 均拒绝，恰到 issuedAt 接纳，客户授权期限仍单独检查。                                                                |
+| R2：类型、Scope、双 hash   | 部分修复，仍阻塞 | 原未知 Run、缺 Project Scope、内外 Package hash 不同均拒绝；WorkOrderContract 白名单拒绝已注册合法类型，Contract/Package 的 namespace fallback 仍接受未知类型，见下文。 |
+| R3：审批 pin 只比 digest   | 已关闭原发现     | producer 按完整 canonical pin 比较三类证据；保留原 digest 而替换 technicalApproval.objectId 已拒绝。                                                                    |
+| R4：必需 pins 缺读回或比较 | 部分修复，仍阻塞 | 原 startupRules hash、reader dependency lock、错 policy registryKey 反例均拒绝；精确引用身份及发布回执仍未完整匹配，见下文。                                            |
+| R5：字符串 fencingToken    | 已关闭原发现     | Schema 为 integer / minimum 0；合法 1 接纳，-1、1.5、字符串 "1" 均拒绝；既有公开 Core 合同没有改动。                                                                    |
+
+### 字段矩阵复审增量
+
+第一轮矩阵继续覆盖三个层与 payload 的 required/optional 字段；本轮核对修复后的形状和语义差异如下。
+
+| 字段组                                                     | 当前修复与剩余限制                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| identity.selectionEvidence/designReview/technicalApproval  | 配置与 payload 的完整 pin 比较已实现；层 hash、reviewedRevision 和不可变生成保持。                                                                                                                                                                             |
+| boundary.scope / outputTools preparation pins / outputRoot | 新增 per-slot kind/type/完整 Scope 与所有节点 pin hash 一致性；WorkOrderContract/Package 的前缀分支不构成类型闭集，合法 Contract fixture 仍使用错误拼写。                                                                                                      |
+| boundary.fencingToken / issuedAt / validUntil              | owning 整数类型已恢复；preflight 独立重验锁窗口，且未移除客户授权期限。                                                                                                                                                                                        |
+| sources.promptTools / startupRules                         | 新增必需来源及缺失拒绝；system/task prompt、有效 settings、permission rules 和 startupRules 有读回入口。拥有来源字段不证明完整 Ref 身份已核验。                                                                                                                |
+| PUBLISHED template/ruleBundle/startupRules/vocabulary      | matching 仍只比较 digest、适用 bytes 和 receipt.objectId，不比 registryKey；读回类型没有完整 Ref/Scope/版本身份或完整 publicationReceiptRef。                                                                                                                  |
+| OWNING input/output/prompt 与 boundary policies            | matching 新增 type/Scope/digest/适用 bytes；读回没有 objectId、kind、versionId/snapshotId/immutableVersionId，不能核对锁内完整引用。content-addressed pin 不含独立版本字段，不把来源 version-only 变化作为本轮新阻塞依据。                                     |
+| tools.codeRef/runtime/dependency/command                   | reader/validator/renderer 的 code kind/type/id/Scope/digest、runtime、dependency、command 已进入比较；codeRef source 仍不能表达 applicable version/snapshot identity。                                                                                         |
+| deployment/provider/data sources                           | 新增 CLI/build/dependency、Host/launcher/parser 与模型配置/策略 digests；deployment source 未表达 adapterCode/version、harnessId/version，provider/data 仍主要是 digest readback。它们不构成真实部署、公司身份或逐源发送许可证据；本轮 R4 以四个直接反例阻塞。 |
+
+### R2 — P1：错误的 WorkOrderContract 白名单及开放 namespace 分支
+
+位置：[anchor rules 1341–1371](https://github.com/qzhike/zhiju-business-core/blob/a7dfd3b02e87f200a8883932a884e0f64d8239f9/contracts/src/d14-runner-execution-lock.ts#L1341)。
+
+[Catalog 唯一名称](../../high-level-docs/06-typed-references-contract-catalog-v0.1.md#im-06-workorder-validation--freezeready-注册提案)、[TE §21](../../module-specs/Module-Spec-003-TaskExecution.md#21-workorder-validation-与-freezeready-设计提案)及 [operation-registration.ts](../../../contracts/src/operation-registration.ts)均已定义并注册 `CONTENT_ADDRESSED / zhiju.contract.work_order`，Owner 为 task-execution；这不是尚待发明的拼写。新规则却只接受 `zhiju.execution.` / `execution.`，且多接受 VERSIONED kind，valid fixture 继续声明 `zhiju.execution.work_order_contract`。
+
+从完整 valid producer 输入只改变 objectType，独立复现：
+
+| 改动                                                                                    | 契约预期                     | 实际                  |
+| --------------------------------------------------------------------------------------- | ---------------------------- | --------------------- |
+| workOrderContract → zhiju.contract.work_order，保留 CONTENT_ADDRESSED 与完整 Scope/hash | 接纳已有合法 owning identity | producer 拒绝         |
+| workOrderContract → zhiju.execution.unregistered_contract                               | 拒绝未注册类型               | producer 接纳并生成锁 |
+| package → zhiju.runtime.unregistered_package                                            | 拒绝未支持类型               | producer 接纳并生成锁 |
+
+实际合法 TE frozen Contract 无法进入此锁，而未知同命名空间身份可冒充 Contract/Package。这仍违反 Issue 的非法/未注册引用拒绝及精确 owning binding。使用已有 Catalog 的 Contract type/kind，修正 valid fixture 和错误的“尚无 canonical 拼写”说明；Package 必须使用获批有界类型支持集，不能把尚未确定的引用放宽为整个 namespace，也不因此注册内部锁为公开 TypedReference。覆盖上述合法对照与同 namespace 未知类型负例。
+
+### R4 — P1：必需来源仍不能证明完整 Ref 与发布关系
+
+位置：[templateRefMatchesFact 375–380](https://github.com/qzhike/zhiju-business-core/blob/a7dfd3b02e87f200a8883932a884e0f64d8239f9/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L375)、[matchOwningObject 418–432](https://github.com/qzhike/zhiju-business-core/blob/a7dfd3b02e87f200a8883932a884e0f64d8239f9/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L418)及可信来源 interfaces。
+
+当前 matching 不比较 PUBLISHED registryKey，publicationReceiptRef 仅核 objectId；OWNING source 缺 objectId 和完整 Ref。保持完整原来源与窗口内时刻，以下四项独立契约预期均失败：
+
+1. 只将 sources.startupRules.registryKey/version 改为 unregistered.foreign/99.0.0，保留原 digest；preflight 接纳。
+2. 只替换 templates.templateRefs[0].ref.objectId 为另一合法 UUIDv7，保留原内容、bytes 与原 receipt；preflight 接纳。
+3. 只替换 outputTools.preparationSource.ref.objectId，保留原 type/Scope/hash；preflight 接纳。
+4. 只替换模板 publicationReceiptRef.contentHash.digest，保留原 receipt objectId；preflight 接纳。
+
+后三项均重算自身 lockHash，并先断言 validateMaterializedLock.valid=true，所以失败不是 tamper/hash 校验跳过导致。来源保持不变，仍然只解析过原身份及原发布关系；这些新引用没有对应精确 owning 事实。相同内容不证明另一个 PreparationSource 或发布回执已存在/已发布，也不证明另一个 Ref 已获许可。新文档对 content-addressed version-only 情况的说明不解决这四个身份替换。
+
+必需 readback 要能表达完整适用 Ref（kind/type/id/version/snapshot/Scope/hash）与发布回执，并在 admission 前核对精确身份、内容/bytes 和发布关联；保留本轮已增加的缺失/漂移拒绝。不能用 provenance 字符串、同 digest 或重新计算 lockHash 代替解析。补充同 digest、不同完整 Ref/receipt 及错误 published registryKey 的负例。
+
+### 当前证据与未运行边界
+
+- [CI run 37935252981](https://github.com/qzhike/zhiju-business-core/actions/runs/37935252981)独立读回：页面与 PR commit 绑定 a7dfd3b，select/checks/verify 成功，persistence 为预期 skipped；94 个测试文件、1932 个测试通过。实际 diff 没有持久化/验证策略变化，PR 仍 Draft，适用 code；复用当前 CI，没有重复执行配置目标。修复评论的本地 vibe verify code PASS 与 focused 95 passed 是 Implementer 提供的另一份证据，不冒称本 Reviewer 重跑。
+- `git diff --check e8d05d6dccfe6034b241a8d0c4b8b49e255e4029 a7dfd3b02e87f200a8883932a884e0f64d8239f9`：PASS。
+- 独立源码 diagnostic：`node node_modules/vitest/vitest.mjs run --config /private/tmp/pr265-rereview.config.mts --reporter verbose`，Node 24.19.0 / Vitest 4.1.10；临时完整输入来源 helper 与断言位于 `/private/tmp/pr265-rereview-probe.test.ts`。直接导入 current source，contracts/shared-kernel alias 指向源码；21 项中 14 通过、7 失败（R2 三项、R4 四项），exit 1。两个对照、第一轮十个反例的修复预期、issuedAt 起点及非法 fencing 组均通过。失败保留为实现缺陷证据，不替代配置 Gate。
+- 本轮只修改正式 Review.md，保留第一轮历史；新增复审正文不属于 reviewed SHA/CI，未 commit/push，做 focused Markdown 格式与链接检查。
+- 真实 OMP/DeepSeek、Ubuntu/CLI/adapter/Host 部署及隔离、PostgreSQL、OIDC/public HTTP、IG→TE→EP、RA-LOCK-001–014/IG-LOCK-001–005、Browser/platform 和独立人工业务验收仍全部 NOT RUN。绿色 code CI 和 controlled fixture 不补齐这些事实。
+- 人类技术设计批准仍绑定既有设计修订；没有把设计批准解释为当前实现修订批准，也未合并 PR。
+
+本轮结论和证据通过用户已授权的普通 PR comment 发布，并在发布后读回。它不等于 GitHub 原生 REQUEST_CHANGES review；本地复审文档的 Git 交付尚未授权。R2/R4 返回 Implementer，在修复后的新 head 再独立审查。
+
+第二轮 comment 已发布并刷新远程页面读回：[复审评论 issuecomment-6082458439](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6082458439)。永久链接点击后的地址栏确认该 ID；正文保留精确 reviewed SHA、R1/R3/R5 关闭、R2/R4 两项 P1、21 项诊断的 14 通过/7 失败、当前 CI 与 NOT RUN。Conversation 为四条评论，输入框清空；PR 仍 Draft、两个提交，最新 commit 仍是 a7dfd3b02e87f200a8883932a884e0f64d8239f9。本轮工作区只有此正式记录新增复审正文，未 commit/push。

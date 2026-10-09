@@ -66,6 +66,8 @@ const INVALID_FIXTURES: Readonly<Record<string, string>> = {
   'installation-observation-darwin.json': 'D14_LOCK_OBSERVATION_NOT_DEPLOYMENT',
   'materialized-lock-anchor-missing-scope.json': 'D14_LOCK_SCOPE_CONFLICT',
   'materialized-lock-anchor-pin-hash-inconsistent.json': 'D14_LOCK_PIN_MISSING',
+  'materialized-lock-anchor-unknown-contract-type.json': 'D14_LOCK_REFERENCE_INVALID',
+  'materialized-lock-anchor-unknown-package-type.json': 'D14_LOCK_REFERENCE_INVALID',
   'materialized-lock-anchor-unregistered-type.json': 'D14_LOCK_REFERENCE_INVALID',
   'materialized-lock-anchor-wrong-kind.json': 'D14_LOCK_REFERENCE_INVALID',
   'materialized-lock-anchor-wrong-type.json': 'D14_LOCK_REFERENCE_INVALID',

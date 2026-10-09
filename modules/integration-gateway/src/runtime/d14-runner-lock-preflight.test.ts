@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { d14MaterializedLockHash } from '@zhiju/contracts';
+import { d14MaterializedLockHash, validateMaterializedLock } from '@zhiju/contracts';
 import type {
   Common,
   D14CanonicalRef,
@@ -21,6 +21,7 @@ import {
   type D14TrustedOwningObject,
   type D14TrustedPolicyEvidence,
   type D14TrustedPromptTools,
+  type D14TrustedRef,
   type D14TrustedScope,
   type D14TrustedToolPin,
 } from './d14-runner-lock-preflight.js';
@@ -37,6 +38,8 @@ const lock = JSON.parse(
 
 /** Inside `lock.boundary`'s [issuedAt, validUntil) window. */
 const TRUSTED_NOW = '2026-10-09T12:00:00Z';
+/** Another well-formed UUIDv7, used only to substitute an identity. */
+const OTHER_UUID = '018f22e2-7c15-7b2e-8d86-2de956a9d2f1';
 
 function required<T>(value: T | undefined, label: string): T {
   if (value === undefined) throw new Error(`missing ${label} fixture value`);
@@ -50,30 +53,58 @@ function trustedScope(scope: Common.ScopeRef): D14TrustedScope {
   return copy;
 }
 
-function trustedFact(pin: D14PinnedRef, registryKey: string): D14TrustedFact {
-  return {
-    registryKey,
-    version: '1.0.0',
+/** Mirror the complete identity of the lock reference this readback claims. */
+function trustedRef(ref: D14CanonicalRef): D14TrustedRef {
+  const trusted: {
+    kind: string;
+    objectType: string;
+    objectId: string;
+    versionId?: string;
+    snapshotId?: string;
+    scope: D14TrustedScope;
+    contentDigest?: string;
+  } = {
+    kind: ref.kind,
+    objectType: ref.objectType,
+    objectId: ref.objectId,
+    scope: trustedScope(ref.scope),
+  };
+  if ('versionId' in ref) trusted.versionId = ref.versionId;
+  if ('snapshotId' in ref) trusted.snapshotId = ref.snapshotId;
+  if ('contentHash' in ref) trusted.contentDigest = ref.contentHash.digest;
+  return trusted;
+}
+
+function trustedFact(pin: D14PinnedRef): D14TrustedFact {
+  const fact: {
+    ref: D14TrustedRef;
+    contentDigest: string;
+    bytesSha256?: string;
+    publicationReceiptRef?: D14TrustedRef;
+    provenance: 'PUBLISHED';
+  } = {
+    ref: trustedRef(pin.ref),
     contentDigest: pin.contentHash.digest,
-    bytesSha256: pin.bytesSha256 ?? pin.contentHash.digest,
-    receiptRefId: pin.publicationReceiptRef?.objectId ?? '',
     provenance: 'PUBLISHED',
   };
+  if (pin.bytesSha256 !== undefined) fact.bytesSha256 = pin.bytesSha256;
+  if (pin.publicationReceiptRef !== undefined) {
+    fact.publicationReceiptRef = trustedRef(pin.publicationReceiptRef);
+  }
+  return fact;
 }
 
 function trustedOwning(pin: D14PinnedRef): D14TrustedOwningObject {
   const readback: {
-    registryKey: string;
-    version: string;
+    ref: D14TrustedRef;
     contentDigest: string;
+    version: string;
     bytesSha256?: string;
-    scope: D14TrustedScope;
     provenance: 'OWNING';
   } = {
-    registryKey: pin.ref.objectType,
-    version: '1.0.0',
+    ref: trustedRef(pin.ref),
     contentDigest: pin.contentHash.digest,
-    scope: trustedScope(pin.ref.scope),
+    version: '1.0.0',
     provenance: 'OWNING',
   };
   if (pin.bytesSha256 !== undefined) readback.bytesSha256 = pin.bytesSha256;
@@ -81,19 +112,12 @@ function trustedOwning(pin: D14PinnedRef): D14TrustedOwningObject {
 }
 
 function trustedToolPin(pin: D14ToolPin): D14TrustedToolPin {
-  const ref = pin.codeRef;
   return {
     toolCode: pin.toolCode,
     version: pin.toolVersion,
     bytesSha256: pin.codeBytesSha256,
     buildSha256: pin.buildSha256,
-    codeRef: {
-      kind: ref.kind,
-      objectType: ref.objectType,
-      objectId: ref.objectId,
-      scope: trustedScope(ref.scope),
-      contentDigest: 'contentHash' in ref ? ref.contentHash.digest : pin.codeBytesSha256,
-    },
+    codeRef: trustedRef(pin.codeRef),
     runtime: { runtimeCode: pin.runtime.runtimeCode, runtimeVersion: pin.runtime.runtimeVersion },
     dependencyLockBytesSha256: pin.dependencyLockBytesSha256,
     commandTemplate: pin.commandTemplate,
@@ -105,10 +129,9 @@ function trustedPolicies(): Record<string, D14TrustedPolicyEvidence> {
   const policies: Record<string, D14TrustedPolicyEvidence> = {};
   for (const [key, pin] of Object.entries(lock.boundary.policies)) {
     policies[key] = {
-      registryKey: pin.ref.objectType,
-      version: '1.0.0',
+      ref: trustedRef(pin.ref),
       contentDigest: pin.contentHash.digest,
-      scope: trustedScope(pin.ref.scope),
+      version: '1.0.0',
       provenance: 'PUBLISHED',
     };
   }
@@ -124,12 +147,11 @@ function trustedInputOutputPins(): Record<D14InputOutputSlot, D14TrustedOwningOb
     outputProfile: trustedOwning(lock.outputTools.outputProfile),
     outputSchema: trustedOwning(lock.outputTools.outputSchema),
     inputAliasManifest: {
-      registryKey: schemaRef.objectType,
-      version: manifest.schemaVersion,
+      ref: trustedRef(schemaRef),
       contentDigest:
         'contentHash' in schemaRef ? schemaRef.contentHash.digest : manifest.bytesSha256,
+      version: manifest.schemaVersion,
       bytesSha256: manifest.bytesSha256,
-      scope: trustedScope(schemaRef.scope),
       provenance: 'OWNING',
     },
   };
@@ -169,18 +191,12 @@ function trustedSources(): D14MaterializationSources {
     inputOutputPins: trustedInputOutputPins(),
     promptTools: trustedPromptTools(),
     templates: [
-      trustedFact(
-        required(lock.templates.templateRefs[0], 'templates.templateRefs[0]'),
-        'zhiju.platform.d14_template_a',
-      ),
-      trustedFact(
-        required(lock.templates.templateRefs[1], 'templates.templateRefs[1]'),
-        'zhiju.platform.d14_template_b',
-      ),
+      trustedFact(required(lock.templates.templateRefs[0], 'templates.templateRefs[0]')),
+      trustedFact(required(lock.templates.templateRefs[1], 'templates.templateRefs[1]')),
     ],
-    ruleBundle: trustedFact(lock.templates.ruleBundle, 'zhiju.platform.d14_rule_bundle'),
-    startupRules: trustedFact(lock.templates.startupRules, 'zhiju.platform.d14_startup_rules'),
-    vocabulary: trustedFact(lock.templates.vocabulary, 'zhiju.platform.d14_vocabulary'),
+    ruleBundle: trustedFact(lock.templates.ruleBundle),
+    startupRules: trustedFact(lock.templates.startupRules),
+    vocabulary: trustedFact(lock.templates.vocabulary),
     evidenceTools: [
       trustedToolPin(lock.outputTools.reader),
       trustedToolPin(lock.outputTools.validator),
@@ -236,7 +252,7 @@ function relocked(mutated: D14MaterializedLock): D14MaterializedLock {
   return { ...payload, lockHash: d14MaterializedLockHash(payload) };
 }
 
-/** Replace a content-addressed reference's digest, keeping both hash slots. */
+/** Replace a content-addressed reference's digest, keeping the identity. */
 function withRefDigest(ref: D14CanonicalRef, digest: string): D14CanonicalRef {
   if (!('contentHash' in ref)) throw new Error('fixture reference is not content-addressed');
   return { ...ref, contentHash: { ...ref.contentHash, digest } };
@@ -320,14 +336,31 @@ describe('preflightD14RunnerMaterialization', () => {
     );
   });
 
-  it('rejects a wrong boundary-policy registry key and version', () => {
+  it('rejects a wrong boundary-policy registry key', () => {
     const policies = trustedPolicies();
     const network = required(policies.network, 'policies.network');
     expectRejection(
       preflight({
         policies: {
           ...policies,
-          network: { ...network, registryKey: 'zhiju.platform.other_policy', version: '9.9.9' },
+          network: {
+            ...network,
+            ref: { ...network.ref, objectType: 'zhiju.platform.other_policy' },
+          },
+        },
+      }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a substituted boundary-policy object identity', () => {
+    const policies = trustedPolicies();
+    const network = required(policies.network, 'policies.network');
+    expectRejection(
+      preflight({
+        policies: {
+          ...policies,
+          network: { ...network, ref: { ...network.ref, objectId: OTHER_UUID } },
         },
       }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
@@ -343,7 +376,10 @@ describe('preflightD14RunnerMaterialization', () => {
           ...policies,
           network: {
             ...network,
-            scope: { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201' },
+            ref: {
+              ...network.ref,
+              scope: { enterpriseId: '018f22e2-7c15-7b2e-8d86-2de956a9d201' },
+            },
           },
         },
       }),
@@ -359,10 +395,15 @@ describe('preflightD14RunnerMaterialization', () => {
         policies: {
           ...policies,
           extra: {
-            registryKey: 'zhiju.platform.d14_extra_policy',
-            version: '1.0.0',
+            ref: {
+              kind: 'CONTENT_ADDRESSED',
+              objectType: 'zhiju.platform.d14_extra_policy',
+              objectId: OTHER_UUID,
+              scope: {},
+              contentDigest: distinctDigest(filesystem.contentDigest),
+            },
             contentDigest: distinctDigest(filesystem.contentDigest),
-            scope: {},
+            version: '1.0.0',
             provenance: 'PUBLISHED',
           },
         },
@@ -444,7 +485,10 @@ describe('preflightD14RunnerMaterialization', () => {
       preflight({
         inputOutputPins: {
           ...inputOutputPins,
-          outputProfile: { ...profile, registryKey: 'zhiju.platform.other_profile' },
+          outputProfile: {
+            ...profile,
+            ref: { ...profile.ref, objectType: 'zhiju.platform.other_profile' },
+          },
         },
       }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
@@ -456,7 +500,10 @@ describe('preflightD14RunnerMaterialization', () => {
     const source = required(inputOutputPins.preparationSource, 'inputOutputPins.preparationSource');
     expectRejection(
       preflight({
-        inputOutputPins: { ...inputOutputPins, preparationSource: { ...source, scope: {} } },
+        inputOutputPins: {
+          ...inputOutputPins,
+          preparationSource: { ...source, ref: { ...source.ref, scope: {} } },
+        },
       }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
     );
@@ -567,10 +614,9 @@ describe('preflightD14RunnerMaterialization', () => {
 
   it('rejects a floating latest version alias', () => {
     const templates = required(trustedSources().templates, 'sources.templates');
+    const first = required(templates[0], 'templates[0]');
     expectRejection(
-      preflight({
-        templates: [{ ...required(templates[0], 'templates[0]'), version: 'latest' }],
-      }),
+      preflight({ templates: [{ ...first, ref: { ...first.ref, versionId: 'latest' } }] }),
       'D14_PREFLIGHT_FLOATING_ALIAS_REJECTED',
     );
   });
@@ -601,6 +647,62 @@ describe('preflightD14RunnerMaterialization', () => {
     );
   });
 
+  it('rejects a trusted fact with a substituted object identity', () => {
+    const templates = required(trustedSources().templates, 'sources.templates');
+    const first = required(templates[0], 'templates[0]');
+    expectRejection(
+      preflight({
+        templates: [
+          { ...first, ref: { ...first.ref, objectId: OTHER_UUID } },
+          required(templates[1], 'templates[1]'),
+        ],
+      }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a trusted fact with an unregistered same-namespace type', () => {
+    const templates = required(trustedSources().templates, 'sources.templates');
+    const first = required(templates[0], 'templates[0]');
+    expectRejection(
+      preflight({
+        templates: [
+          { ...first, ref: { ...first.ref, objectType: 'zhiju.execution.unregistered_contract' } },
+          required(templates[1], 'templates[1]'),
+        ],
+      }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a trusted publication receipt with a different identity', () => {
+    const templates = required(trustedSources().templates, 'sources.templates');
+    const first = required(templates[0], 'templates[0]');
+    const receipt = required(first.publicationReceiptRef, 'publicationReceiptRef');
+    expectRejection(
+      preflight({
+        templates: [
+          { ...first, publicationReceiptRef: { ...receipt, objectId: OTHER_UUID } },
+          required(templates[1], 'templates[1]'),
+        ],
+      }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a startup-rules readback under an unregistered key', () => {
+    const startupRules = required(trustedSources().startupRules, 'sources.startupRules');
+    expectRejection(
+      preflight({
+        startupRules: {
+          ...startupRules,
+          ref: { ...startupRules.ref, objectType: 'unregistered.foreign' },
+        },
+      }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
   it('rejects an unconsumed extra template fact', () => {
     const templates = required(trustedSources().templates, 'sources.templates');
     const first = required(templates[0], 'templates[0]');
@@ -608,11 +710,7 @@ describe('preflightD14RunnerMaterialization', () => {
       preflight({
         templates: [
           ...templates,
-          {
-            ...first,
-            registryKey: 'zhiju.platform.d14_template_c',
-            contentDigest: distinctDigest(first.contentDigest),
-          },
+          { ...first, ref: { ...first.ref, objectType: 'zhiju.platform.d14_template_c' } },
         ],
       }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
@@ -626,6 +724,21 @@ describe('preflightD14RunnerMaterialization', () => {
       preflight({
         evidenceTools: [
           { ...current, buildSha256: distinctDigest(current.buildSha256) },
+          required(tools[1], 'tools[1]'),
+          required(tools[2], 'tools[2]'),
+        ],
+      }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a tool pin with a substituted code reference', () => {
+    const tools = required(trustedSources().evidenceTools, 'sources.evidenceTools');
+    const current = required(tools[0], 'tools[0]');
+    expectRejection(
+      preflight({
+        evidenceTools: [
+          { ...current, codeRef: { ...current.codeRef, objectId: OTHER_UUID } },
           required(tools[1], 'tools[1]'),
           required(tools[2], 'tools[2]'),
         ],
@@ -689,6 +802,61 @@ describe('preflightD14RunnerMaterialization', () => {
       ),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
     );
+  });
+
+  it('rejects a mutated template reference object identity', () => {
+    const templateRefs = lock.templates.templateRefs;
+    const first = required(templateRefs[0], 'templateRefs[0]');
+    const mutated = relocked({
+      ...lock,
+      templates: {
+        ...lock.templates,
+        templateRefs: [
+          { ...first, ref: { ...first.ref, objectId: OTHER_UUID } },
+          required(templateRefs[1], 'templateRefs[1]'),
+        ],
+      },
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('rejects a mutated publication-receipt digest', () => {
+    const templateRefs = lock.templates.templateRefs;
+    const first = required(templateRefs[0], 'templateRefs[0]');
+    const receipt = required(first.publicationReceiptRef, 'publicationReceiptRef');
+    if (!('contentHash' in receipt)) throw new Error('fixture receipt is not content-addressed');
+    const mutated = relocked({
+      ...lock,
+      templates: {
+        ...lock.templates,
+        templateRefs: [
+          {
+            ...first,
+            publicationReceiptRef: withRefDigest(
+              receipt,
+              distinctDigest(receipt.contentHash.digest),
+            ),
+          },
+          required(templateRefs[1], 'templateRefs[1]'),
+        ],
+      },
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('rejects a mutated preparation-source object identity', () => {
+    const source = lock.outputTools.preparationSource;
+    const mutated = relocked({
+      ...lock,
+      outputTools: {
+        ...lock.outputTools,
+        preparationSource: { ...source, ref: { ...source.ref, objectId: OTHER_UUID } },
+      },
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
   });
 
   it('rejects a mutated reader dependency-lock digest', () => {

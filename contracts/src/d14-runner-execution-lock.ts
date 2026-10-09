@@ -1304,17 +1304,15 @@ function sameStringSet(left: readonly string[], right: readonly string[]): boole
 }
 
 /**
- * Approved owning identity of one `boundary.scope` anchor. Exact canonical
- * spellings come from the public Registry / Contract Catalog; a slot whose
- * owning contract has not published a canonical `objectType` yet accepts only
- * its owning module's namespace, so an unregistered foreign type can never
- * masquerade as the Run, Attempt or Package the lock binds.
+ * Approved owning identity of one `boundary.scope` anchor. Every slot accepts an
+ * exact canonical spellings set from the public Registry / Contract Catalog, so
+ * an unresolved or unregistered type can never masquerade as the Project, Run,
+ * Attempt, WorkOrderContract or Package the lock binds.
  */
 interface D14AnchorRule {
   readonly kinds: readonly string[];
   readonly scope: 'ENTERPRISE' | 'PROJECT';
-  readonly objectTypes?: readonly string[];
-  readonly objectTypePrefixes?: readonly string[];
+  readonly objectTypes: readonly string[];
 }
 
 const D14_SCOPE_ANCHOR_RULES: Readonly<Record<D14ScopeAnchorKey, D14AnchorRule>> = {
@@ -1338,12 +1336,11 @@ const D14_SCOPE_ANCHOR_RULES: Readonly<Record<D14ScopeAnchorKey, D14AnchorRule>>
     scope: 'PROJECT',
     objectTypes: ['execution.work_order', 'zhiju.execution.work_order'],
   },
-  // No canonical `objectType` is published for the WorkOrderContract yet, so the
-  // slot accepts only the TaskExecution namespace of its owning contract.
+  // The registered CONTENT_ADDRESSED identity of the frozen WorkOrderContract.
   workOrderContract: {
-    kinds: ['VERSIONED', 'CONTENT_ADDRESSED'],
+    kinds: ['CONTENT_ADDRESSED'],
     scope: 'PROJECT',
-    objectTypePrefixes: ['zhiju.execution.', 'execution.'],
+    objectTypes: ['zhiju.contract.work_order'],
   },
   run: { kinds: ['OBJECT'], scope: 'PROJECT', objectTypes: ['execution.run'] },
   attempt: {
@@ -1351,12 +1348,11 @@ const D14_SCOPE_ANCHOR_RULES: Readonly<Record<D14ScopeAnchorKey, D14AnchorRule>>
     scope: 'PROJECT',
     objectTypes: ['integration.runtime_attempt'],
   },
-  // The execution package is owned by the Runtime Contract family; no canonical
-  // `objectType` is published yet.
+  // The bounded Runtime Contract package identity; not the whole namespace.
   package: {
-    kinds: ['VERSIONED', 'CONTENT_ADDRESSED'],
+    kinds: ['CONTENT_ADDRESSED', 'VERSIONED'],
     scope: 'PROJECT',
-    objectTypePrefixes: ['zhiju.runtime.'],
+    objectTypes: ['zhiju.runtime.execution_package'],
   },
 };
 
@@ -1365,11 +1361,6 @@ const D14_PREPARATION_PIN_TYPES = {
   '/outputTools/preparationSource': 'zhiju.project.preparation_source',
   '/outputTools/preparationContext': 'zhiju.execution.preparation_context',
 } as const;
-
-function anchorRulesAllowType(objectType: string, rule: D14AnchorRule): boolean {
-  if (rule.objectTypes !== undefined) return rule.objectTypes.includes(objectType);
-  return (rule.objectTypePrefixes ?? []).some((prefix) => objectType.startsWith(prefix));
-}
 
 /** Every `boundary.scope` anchor must carry the exact approved owning identity. */
 function anchorErrors(
@@ -1388,7 +1379,7 @@ function anchorErrors(
         semanticError(path, 'd14Reference', `${slot} must be a ${rule.kinds.join('/')} reference`),
       );
     }
-    if (!anchorRulesAllowType(anchor.ref.objectType, rule)) {
+    if (!rule.objectTypes.includes(anchor.ref.objectType)) {
       errors.push(
         semanticError(
           `${path}/ref/objectType`,

@@ -1046,7 +1046,7 @@
         "workOrderContract": {
           "ref": {
             "kind": "CONTENT_ADDRESSED",
-            "objectType": "zhiju.execution.work_order_contract",
+            "objectType": "zhiju.contract.work_order",
             "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d295",
             "scope": {
               "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",

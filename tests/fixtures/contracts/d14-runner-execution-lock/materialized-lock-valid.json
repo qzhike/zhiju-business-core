@@ -818,7 +818,7 @@
       "workOrderContract": {
         "ref": {
           "kind": "CONTENT_ADDRESSED",
-          "objectType": "zhiju.execution.work_order_contract",
+          "objectType": "zhiju.contract.work_order",
           "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d295",
           "scope": {
             "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
@@ -922,6 +922,6 @@
   "lockHash": {
     "algorithm": "SHA-256",
     "canonicalizationVersion": "1",
-    "digest": "18ccf06a0d580065ef8eb1f05a7e146b140cca6be3d79559a1b99eb9035dc02d"
+    "digest": "2c02658a99932bc828be6dd69e5bc1b422d55b89c29ba8dded8ae846f512c872"
   }
 }
