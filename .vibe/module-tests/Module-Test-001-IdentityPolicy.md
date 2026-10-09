@@ -388,3 +388,19 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 | IP-258-006 / Directory + Persistence | 目录项读前/最终返回/翻页间真实撤 Grant、Policy变化、Decision过期 | 相应受保护读取拒绝/页面绑定失效，无 stale ALLOW；目录权限不能读 board/Evidence 或 confirm | 未执行 / `NOT RUN` |
 | IP-258-007 / Recovery + HTTP | 原 request committed，BFF过期/重启/refresh；同Human重登或换Human | 新认证摘要/当次 read Decision；原intent/历史Actor/Receipt不改；无权者无refs；撤权禁止续步 | 未执行 / `NOT RUN` |
 | IP-258-008 / OIDC | JWT到期、Keycloak撤session、IP link/Grant即时撤销 | 分别验证短token/refresh发现期限与下一IP检查拒绝；不把stateless API称为全局即时撤销 | 未执行 / `NOT RUN` |
+
+## #257 公司规则发布与读取设计场景
+
+状态：`DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。对应 [IP owning 提案](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案)；公司业务清单与客户适用性归 EP/专业 Human，不能把 IP Hash/profile 检查说成业务正确性。
+
+| ID | 输入 / trace | 预期 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| IP-257-001 | 公司具权限 Human 精确批准清单/范围，已注册新 registry/SchemaRefs，EP 校验真实 outer/child refs，新 producer 保存、新 resolver 精确读回后发布；SERVICE续接原意图 | 独立不可变 publication绑定真实 ActorSnapshot/AuthorizationDecision、definition/range/完整snapshot payload hashes；三个refs/profile/SchemaRef匹配，USABLE；snapshot保存自身不等于发布，服务身份不创造Human批准 | 未执行 / `NOT RUN` |
+| IP-257-002 | AGENT/RUNTIME/actingFor、Enterprise普通publisher或正文“已批准”尝试发布/withdraw；Human发布前撤权；普通读取许可尝试start/保护例外 | 当前Platform Human-only/Scope检查拒绝，protected reads=0，零发布/撤回/客户决定；读取规则不授予客户写能力 | 未执行 / `NOT RUN` |
+| IP-257-003 | registry未加载、profile未注册、snapshot无publication、错id/hash/child/profile/SchemaRef、伪EP校验、不同业务范围批准、scoped PolicyVersion伪装Platform、读取无许可 | fail closed；不走resolve_policy或历史reader绕过新接受集、不回退别版/重算Hash；依赖不可用与真实不存在区分，安全外观不泄露保护数据 | 未执行 / `NOT RUN` |
+| IP-257-004 | 新发布无取代；未来生效后继；真实取代/withdrawal；循环、不同code或同一旧publication两个后继 | 无取代可并存；未来NOT_YET_EFFECTIVE，旧版在取代到期前仍USABLE；到期只追加当前性事实，历史payload不改；非法取代边拒绝；EP按实际失效处理STALE/impact | 未执行 / `NOT RUN` |
+| IP-257-005 | 同code/version异payload或错definition/range Hash；发布响应丢失重试；合法发布后发布者撤权；旧Receipt/allowedActions重放 | 身份冲突拒绝；原意图/键回读真实publication，无重复发布；撤权阻新写但不抹掉历史，停用需明确withdrawal；每次读取/续写重验当前权限，无客户正文进入Platform配置 | 未执行 / `NOT RUN` |
+| IP-257-006 | 新 registry 三项均已批准注册；按精确 key/SchemaRef/closed字段和当前 record Decision 保存 rules/vocabulary，再保存绑定真实child refs的bundle；使用独立 read Decision经新resolver读回，再发布 | 新Platform存储/producer/validator/reader闭合；Ref 为 native identity.policy_snapshot、scope={}、objectId=snapshotId，Hash对完整payload；读回原值/selector/hash一致，发布仍须独立真实Human批准；旧库/registry零修改，未发布保存不产生USABLE | 未执行 / `NOT RUN` |
+| IP-257-007 | 新三个profile输入旧record_policy_snapshot@1.0；新snapshot Ref输入旧get_policy_snapshot@1.0；旧schema/Ref输入新producer/resolver；新registry合法但key/SchemaRef或存储registry不匹配；对照旧三项读回 | 旧writer继续按im02-static-v1拒新schema且零snapshot写入，旧reader不路由新存储；新路径拒历史/generic/scoped或错selector，零降级；旧三项仍按原接受集读回，原refs/canonical payload/hash不变 | 未执行 / `NOT RUN` |
+
+本任务仅维护设计场景，配置化 docs 与定向字段/引用对账不执行以上授权、发布生命周期或持久化行为；独立设计审查、人类技术批准及真实平台/外部/人工验收分别取证。

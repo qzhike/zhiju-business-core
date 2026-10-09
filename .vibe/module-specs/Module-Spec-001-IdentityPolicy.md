@@ -1082,3 +1082,53 @@ IP每项以服务自身ActorSnapshot/PolicySnapshot当前hash、完整Enterprise
 | 目录 payloadHash | server closed `{directoryQueryId,projectRef,normalizedFilter,pageBindingHash}` 的 cv1 hash | 与当次 HUMAN/Actor/认证摘要、query@version/Scope、当前 covering Grant/Policy 一起重验；不是通用 board 或 content Decision |
 
 目录自身 Query 是 EP 声明的 `scopeRef={}` self-discovery 入口，由 verifier 确立 requester；每个结果仍有上述 scoped Decision。空 Scope 不生成 PLATFORM 业务授权，不修改既有 scoped Port 接受集。撤权/Grant 或 Policy 变化使翻页绑定失效；换 Session/Principal 必重新从第一页查询。发现权限只允许 EP 安全摘要；board、Evidence、D14 confirm/resume 各依 owning 的现行独立 mapping，缺任一权限对应 protected reads/writes=0。新准备项目只有 owning memberPolicy/provisioning 已产生该精确 discovery 权限时才进入目录，ScopeClaim/创建成功本身不代替 Grant。
+
+## #257 公司规则发布与精确读取提案
+
+状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。业务清单及取代约束见 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md)，payload 语义由 [EP owning profile](Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 定义。本节只拥有政策身份、发布证明、授权和当前 useStatus；不接管客户 facts、模板/requirement 或 QMS 适用性判断。
+
+### Platform 身份、不可变发布与内部 Port
+
+`ruleBundleRef/startupRulesRef/vocabularyRef` 只复用 Platform `SNAPSHOT / identity.policy_snapshot` 原生 wire identity，**不复用**冻结的 `record_policy_snapshot/get_policy_snapshot@1.0` producer/reader。后两者继续只处理历史 `im02-static-v1` 三项；§13.5 的 scoped PolicyVersion registry/path 也不接受本提案的 Platform 定义。公司 snapshots 由下述独立受控内部 `CompanyRuleSnapshotProducer@1.0` / `CompanyRuleSnapshotResolver@1.0` 保存和精确读回，发布/解析 Port 必须依赖它们，不能通过旧 Handler、generic schema、scoped resolve_policy 或 latest 回退。平台文件不含客户材料、Evidence、人员、任职或其他企业敏感内容。
+
+### 独立 Platform profile registry、producer 与 exact resolver
+
+拟构建期 registryVersion 为 `im-ui-company-startup-v1`，接受集**仅为下表三项**，不合并/替换 `im02-static-v1` 或 `im06-static-v1`。制品的每项固定 `{registryKey,owner,reference,documentSchema}`；IP 和 EP 共同加载同一批准版本，IP 核对 canonical 身份并执行共享 closed 字段 validator，EP 拥有 documentSchema 与业务语义。重复 key/身份、漏项、生成物漂移或任一边未加载该版本均 fail closed；不得在线补注册、复用旧 generic schema 或接受仅同名 Ref。
+
+每项 canonical SchemaRef 固定为 `{kind:VERSIONED,objectType:identity.contract_schema,objectId,versionId,scope:{}}`，不携带 contentHash。下表 UUIDv7 是**拟固定的构建期 schema 身份**，不是已注册条目、数据库行或运行时发布/客户事实；只有独立技术批准及后续注册制品完整交付后才可使用。
+
+| registryKey / profile selector（owner 均为 enterprise-project） | SchemaRef.objectId | SchemaRef.versionId | policyDocument validator |
+|---|---|---|---|
+| `ep.company_startup_bundle@1.0` | `01a11df5-a400-7000-8000-000000257001` | `01a11df5-a400-7000-8000-000000257011` | Spec 002 #257 的 bundle closed 字段 |
+| `ep.company_startup_rules@1.0` | `01a11df5-a400-7000-8000-000000257002` | `01a11df5-a400-7000-8000-000000257012` | Spec 002 #257 的 rules closed 字段 |
+| `ep.company_startup_vocabulary@1.0` | `01a11df5-a400-7000-8000-000000257003` | `01a11df5-a400-7000-8000-000000257013` | Spec 002 #257 的 vocabulary closed 字段 |
+
+新 snapshot 的 canonical `payload` 封闭为 `{registryVersion,profileKey,policySetVersion,policySchemaRefs:[该项唯一 canonical SchemaRef],effectiveFrom,policyDocument}`。profileKey 必须与该 SchemaRef、registryVersion、EP validator 和用途逐字段匹配；三个角色分别要求表内 bundle/rules/vocabulary key。policySetVersion 由服务器按 `profileKey + ':' + 该 document 的 code + '@' + version` 唯一派生，其中 code/version 分别为 bundleCode/bundleVersion、rulesCode/rulesVersion、vocabularyCode/vocabularyVersion，不能自由覆盖。effectiveFrom 使用毫秒精度 canonical UTC；`contentHash=SHA-256(cv1(payload))` 包含 registry/profile/schema 身份与全部正文，不含自身 Ref、snapshotId、publication 或可变当前性。
+
+`CompanyRuleSnapshotProducer@1.0` 的封闭请求为 `{snapshotId,payload}`，snapshotId 为服务器预分配 UUIDv7；先校验上述接受集/字段和当前写权，再由 EP 校验同一 payloadHash/profile/精确来源与 child refs，成功结果 `{policySnapshotRef,payload}`。IP 在**独立 owning Platform 不可变事实存储**中原子追加 snapshot、真实 ActorSnapshot/Decision provenance 和成功 Receipt；不写旧 `policy_snapshot` 或 scoped `policy_version`，不更改旧表/Handler/registry/hashes。新事实以 snapshotId 和 `(registryVersion,profileKey,document code,version)` 唯一绑定；异 payload 冲突拒绝，结果校验失败整体回滚。同键同请求重放在当前授权重验后返回原 Ref/hash，不重新记录或发布。
+
+`CompanyRuleSnapshotResolver@1.0` 的封闭请求为 `{policySnapshotRef,registryVersion,profileKey,policySchemaRef}`，selector 来自受信 owning 用途；请求不能由浏览器自由改为其他 profile。只在该独立存储按完整 native Ref（objectId=snapshotId、scope={}、id+hash）读取，验证已存 payload 的 registry/profile/唯一 SchemaRef、closed 字段及重算 Hash，逐字段原样返回 `{policySnapshotRef,payload}`。错 ID/hash/schema/version/Scope、未知接受集或 mirror/payload 不一致拒绝；存储不可用返回依赖失败，不回退历史库、scoped 版本或重算为新 Ref。读取本身不发布、不更新、不证明当前 USABLE；公司解析 Port 另读取不可变 publication 和当前性。
+
+两项新内部 operation/version/purpose/action 与 snapshot target/完整请求 Hash 的当前授权映射见下表。注册 schema 不是授予能力；producer 的 EP 校验和 resolver 的受保护读取前必须重验实际主体的当前 Decision/Grant，返回或提交前再验。后续实现须注册这些 internal 接受集与独立存储接线，不修改公开 @1.0 Catalog/Schema；本 PR 只定义设计，所有新路径仍 `NOT REGISTERED / NOT IMPLEMENTED`。
+
+### 不可变发布与公司解析
+
+新增提案为 `CONTENT_ADDRESSED / zhiju.identity.company_rule_publication / Platform scope`。发布事实 payload 固定：`bundleCode; bundleVersion; ruleBundleRef; startupRulesRef; vocabularyRef; approvedDefinitionHash; approvedRangeHash; semanticValidation:{validatorProfileRef,validatedPayloadHash,validatedChildRefs,validatedAt}; actorSnapshotRef; authorizationDecisionRef; effectiveFrom; recordedAt; supersedesPublicationRef?`。`approvedDefinitionHash=SHA-256(cv1(startupRulesSnapshot.payload.policyDocument))`，`approvedRangeHash=SHA-256(cv1(bundleSnapshot.payload.policyDocument.supportedRange))`；validatedPayloadHash 对应整份待发布 IP bundle snapshot canonical payload（即 ruleBundleRef.contentHash）。词表/模板/requirement 经 outer payload 的 exact refs 全部受批准绑定；所有 Ref 和 hash 由 owning 路径实取/重算，不能仅比较 caller 提交的相同字符串。
+
+拟 `CompanyRulePublicationCapability` 和 `CompanyRuleResolutionPort` 是受控内部能力，不是已注册新公开 API 或 BFF 管理入口。二者均以 CompanyRuleSnapshotResolver 和上述 registry/profile/SchemaRef 闭集精确取三 snapshots；发布前由 EP 当前有权的语义校验 Port 校验完整定义，IP 重验 snapshot/profile/hash、同业务 code/version 唯一性和发布决定。Human 明确批准整份具体清单与范围才可发布；SERVICE 仅执行精确原 Human 意图并取得独立当前许可，不能创造批准。publication 在已确定的 bundle 后形成，bundle 不包含 publication 自引用。新 producer 保存 snapshot 但无真实 publication 只能历史读取，不能被称为 PUBLISHED。
+
+解析 Port 输入精确 `ruleBundleRef/startupRulesRef/vocabularyRef/publicationRef`，结果 `{snapshots,publication,currentUseStatus:USABLE|NOT_YET_EFFECTIVE|SUPERSEDED|WITHDRAWN,checkedAt,sourceWatermarks,reasons}`。相同 ID 错 Hash、错 child/profile、无发布证明、未来 effectiveFrom、撤回或实际取代生效均不可用于 startup。不存在/不可见使用统一安全外观，依赖不可用不伪装成缺失。历史读取仍重验当前独立读权；不能通过旧 startup Receipt 或 allowedActions 取得发布/续写权限。
+
+发布当前性来自拟追加不可变事实：首版同 code/version 只一 publication；真实 supersession 只允许同 code、后继至多一个、无环、以新 publication effectiveFrom 生效，supersedesPublicationRef 必须指向 bundle.supersedesBundleRef 的真实发布；withdrawal 明确绑定原 publication、理由、Human ActorSnapshot/AuthorizationDecision 与生效时间。新发布无 supersedes 允许并存。发布者授权撤销阻止其后续动作，但不自动抹掉先前合法发布；若需停用 bundle，须独立明确 withdrawal/impact 事实。Query 给历史 payload 和独立当前性，不对原 snapshot 进行 UPDATE，不把 scoped PolicyVersion 的旧 lifecycle 直接套到 Platform。
+
+### 授权边界
+
+| 动作 / 拟内部 purpose | 当次必须满足 |
+|---|---|
+| snapshot record / `identity.company_rule.snapshot.record`（operation/purpose/action 同此 token，version=1.0） | Platform scope；target 为预分配 snapshotId 的 `OBJECT identity.policy_snapshot`，请求 Hash 为 SHA-256(cv1({snapshotId,payload}))，绑定完整 registry/profile/SchemaRef/正文。具权限 HUMAN，或执行精确 Human record intent 的受限 SERVICE 并使用自身独立当前 Decision/Grant；AGENT/RUNTIME/actingFor 拒绝 |
+| snapshot read / `identity.company_rule.snapshot.read`（operation/purpose/action 同此 token，version=1.0） | Platform scope；target 为同 snapshotId 的 `OBJECT identity.policy_snapshot`，完整 SNAPSHOT Ref/hash 与 registry/profile/SchemaRef 参加封闭读取请求 Hash并逐字段重验。HUMAN 或 SERVICE 的当前 READ；不以 OBJECT target 镜像替代完整 Ref 比较，不借 publication/start Decision |
+| 公司 publish / `identity.company_rule.publish`；withdraw / `identity.company_rule.withdraw` | PLATFORM scope，具权限 HUMAN、精确 bundle payloadHash/范围/发布证明、ActorSnapshot/AuthorizationDecision；普通 Enterprise publisher/Runtime 权限不包含公司写入 |
+| 公司读取/解析 / `identity.company_rule.read` | SERVICE 或 HUMAN 的当次 Platform READ，有限 resource selectors、exact refs/hash、期限；仅返回公司数据，不附客户事实 |
+| EP startup confirm/start/initial-scope | 保持 D14 各自 Human-only 与 Project Scope；读取规则的许可不替代客户证据读取、Human 判断、启动或保护例外许可 |
+
+这些 purpose 和接受集是提案，当前无注册/部署许可即 fail closed；不改变当前旧 Purpose 值或 AgentPrincipal 边界。每次受保护读取/新写/replay 重验 current Decision；protected reads 前拒绝不泄露内容，历史合法事实不回改。独立证据规则继续复用 QualityGovernance，不建立 IP Evidence 副本。定义/身份/期限/Scope 验证失败按现行授权安全外观处理，不冒充已通过业务规则。owning 场景见 [IP-257](../module-tests/Module-Test-001-IdentityPolicy.md#257-公司规则发布与读取设计场景)。

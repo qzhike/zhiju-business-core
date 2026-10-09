@@ -579,3 +579,22 @@ pnpm persistence:gate
 | EP-258-004 / Dependency | IP/EP首屏或中途失败；完整零可见Project及过滤空中间页对照 | 失败503/无data且ERROR，不冒充EMPTY或枚举结束；空中间页仍OK+nextCursor并继续分页；仅完整无cursor且累计零项为EMPTY；未注册目录拒绝，无BFF扫库/demo fallback | 未执行 / `NOT RUN` |
 | EP-258-005 / Preparing + Recovery | 创建已提交但缺discovery Grant、准备请求响应丢失/expiry | 不补Grant/卡片；同原requestRef/key当前read权限回读，成功Enterprise/Project/Receipt保留，不重建 | 未执行 / `NOT RUN` |
 | EP-258-006 / Isolation + Board | exact双ScopeRLS、目录显示字段、EP/TE不同水位及分页分母 | 每Scope独立受权读取；无跨Schema授权join；看板保留自己的真实状态/水位，不拿局部和当全项目数 | 未执行 / `NOT RUN` |
+
+## #257 公司启动规则与词表设计场景
+
+状态：`DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。依据 [EP owning 字段](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 和 [公司清单/来源 Delta](../decisions/company-startup-rules-v0.1.md)。下表是必要设计 trace，不是已执行测试；真实正链须取得批准/发布/客户来源后通过 owning 入口建立，不使用 demo codes、空必需集合或合成 refs 代替。
+
+| ID | 输入 / trace | 预期 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| EP-257-001 | §1受支持范围、已注册新registry及三个canonical SchemaRefs、新IP producer/resolver合法形成/精确读回并发布bundle；9模板/12要求及 normative refs；完整方针 TEXT/全部完整 Product、4类保护 Evidence、12项适用性/2项管理/3项专业决定；Human 确认后 start→独立所选整文件 | EP closed validator/profile映射与新IP存储/读回、逐项 source/完整payload Hash/Quality verification/当前授权通过；真实 Fact/Product/QMS/Profile/ProductScope；唯一 PROJECT_START+ACTIVE；scope receipt 只表示接收，不自动 dispatch/完成 | 未执行 / `NOT RUN` |
+| EP-257-002 | 分别缺完整方针、Product 的任一必需字段/纳入产品、保护依据、12/2/3组任一项；NOT_PROVIDED、MISSING_CONFIRMED、UNREADABLE/READ_LIMITED、UNKNOWN | 合法报告可审阅；逐项保留真实原因/部分值，缺候选也显示必需 code；PREPARING/零 start，不以三数组非空、COMPLETE或一个文件可做放行 | 未执行 / `NOT RUN` |
+| EP-257-003 | 公司必需规则采用 SD257-SUPPORT 的结构化目标/组织/运营/产品流程 Fact，当前只接受 TEXT | 明确 UNSUPPORTED_CANDIDATE 和所需类型；零扁平化/伪造 Fact/启动；没有单独批准和完整接受集不自扩；保护 Evidence 不能替代必需结构化 Fact | 未执行 / `NOT RUN` |
+| EP-257-004 | 两来源方针/用途不同；强制要求与客户实际安排冲突；旧 CONFLICT 被批量同意 | 两组原值/证据/差异保留，普通确认拒绝；新证据和合法 Human 判断后新候选/版本，不默认取模板或最新文件，不弱化强制要求 | 未执行 / `NOT RUN` |
+| EP-257-005 | 未知/错版 productType/market/choice/outcome、未发布 requirement、重复/错误 sourceId+locator、相同ID错 bytes/canonical hash、他项目 Evidence、独立软件强映射 active_device | 确定性映射/接纳或资格拒绝；无越权读取/新 Fact/start；不同 hash 域不能互换，已有版本也核对语义和范围 | 未执行 / `NOT RUN` |
+| EP-257-006 | S1非无菌/不适用示例、S3示例部门/签字栏、S6 QMS/ERP示例被当客户值；TEMPLATE alias/路径直接用作 EvidenceRef | 不形成客户事实/人员/实施或适用性结论；要求来源与客户 Evidence 分开；不提供不等于不存在，不存在不等于不适用 | 未执行 / `NOT RUN` |
+| EP-257-007 | 准备旧 report/request 绑定规则，被真实 supersession 到期、当前输入模板绑定变更、withdrawal；仅新发布无取代；future effectiveFrom；原键换 refs | 分别核对当前性；真实失效追加 STALE/preparationVersion，原意图不变，重 capture/analysis/显式新确认；无取代新版不自动使旧版 stale；未来版本不可提前用 | 未执行 / `NOT RUN` |
+| EP-257-008 | 必需启动依据齐全，文件A计划新增客户质量目标数值/职责/审批步骤但无保护专项许可；文件B无依赖且全条件成立 | PREPARING 初次选A+B拒原集合且零start；Human 明确新选B后 lawful start→仅B接收，A整文件等待；ACTIVE尚未scope时按有界新意图处理；禁止删A的某 changeId、普通启动确认代替保护许可或scope自动执行 | 未执行 / `NOT RUN` |
+| EP-257-009 | 新 bundle/新材料在 ACTIVE 首轮scope前使必要依据失效；历史 FULL_START 使用旧规则 | ACTIVE/原PROJECT_START、三引用/Hash与已成功事实不改；INITIAL_SCOPE_RECOVERY 等待 owning impact，独立文件也不能绕过；FULL_START不转准备/重start | 未执行 / `NOT RUN` |
+| EP-257-010 | 三个角色分别选择新registry/key/canonical SchemaRef；错SchemaRef.versionId、bundle用rules key、旧generic Schema承载同样正文、合法新Ref仅通过旧reader或scoped resolve_policy取得 | EP producer前语义校验和公司解析/消费均要求新IP路径完整selector及真实结果；错误身份/角色/路径拒绝，不能只看JSON字段或业务清单已确认；正确路径逐项读回后才能进入发布/启动检查，旧refs/hashes不改 | 未执行 / `NOT RUN` |
+
+公司已确认四类保护 Evidence + TEXT/Product/QMS 满足首版业务清单，首版不选择结构化 Fact 扩展；真实代表性客户项目是否完成约定目标仍待独立验收。docs/定向静态对账只证明文档形状/关系；PostgreSQL、真实 HTTP/OIDC、Host/Runner、浏览器和独立人工验收仍 `NOT RUN`。

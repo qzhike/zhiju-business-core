@@ -1009,3 +1009,44 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 合法页均返回 `OK + data:Page<WorkspaceProjectSummary>`，包括 `items=[] + nextCursor` 的空中间页；Page 与 QueryResult 的 nextCursor 同值，枚举未完必须返回绑定游标，完整末页才省略。客户端按游标继续分页，不为得到非空页突破200项/5秒扫描预算；只有同一有效游标链枚举完整、末页无nextCursor且累计可见项为零才显示完整EMPTY，空末页不清空之前的非空项。IP/EP依赖失败为 DEPENDENCY_UNAVAILABLE、无部分数据伪装完整目录。不返回未授权项目存在性或全局总数。新准备项目若尚无真实 current discovery Grant 不进入目录，owning preparation request 页面仍按其当前 read权回读，不补权限或伪造卡片。无该 Query 的 handler/注册时工作台目录不可用，BFF不能从旧缓存、匿名原型、Repository或per-project board推导项目集合。
 
 选中项目后的 `project.get_project_board_slice@1.0` 仍只读指定 Project 的 DeliveryItem，`execution.get_task_board_slice@1.0` 仍由 TE 独立拥有；两者各验自身当前权限和consistency。目录项不作为board/data资格、不扩大分页分母。跨项目工作台首版只用本目录的项目卡片和受控单项目看板，不新增跨项目任务Projection/完成判据。
+
+## #257 公司启动规则与词表字段提案
+
+状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。公司清单、范围、来源、理由和支持集选择唯一维护在 [公司规则 Delta §1–2](../decisions/company-startup-rules-v0.1.md#2-提交确认的必需清单与词表)；本节拥有字段及确定性业务校验，IP 拥有政策身份、发布事实/当前性与授权。现有 Product/QMS/Fact/Profile、完整 create_project、D14 技术批准与生产 Catalog 接受集不因提案改变。
+
+### 规则、词表和精确 requirement
+
+三个拟 profile 的 policyDocument 都是封闭结构；代码全集/文字含义引用上述 Delta，不在此复制第二套业务清单。业务清单已逐项确认，精确修订已完成独立复审及人类技术批准；生产接受集仍须另行注册。IP owning 的 [独立 Platform registry/producer/resolver](Module-Spec-001-IdentityPolicy.md#独立-platform-profile-registryproducer-与-exact-resolver) 定义外层 canonical snapshot payload；EP 定义下表正文和消费所需 selector，不使用历史 @1.0 保存/读取路径。
+
+| profile / 对象 | 必填字段与约束 |
+|---|---|
+| `ep.company_startup_bundle@1.0` / IP Platform PolicySnapshot.policyDocument | `bundleCode; bundleVersion; supportedRange:{rangeCode,productTypeCodes,marketCodes,standardTargets,upgradeTargetRef,targetImplementationDate}; startupRulesRef; vocabularyRef; templateBindings:NonEmptySet<{templateCode,templateRef,sourceBytesSha256}>; requirementBindings:NonEmptySet<{requirementCode,requirementRef}>; compatibility:{reportProfile,ruleProfile,vocabularyProfile,requiredFactValueTypes}; supersedesBundleRef?`；业务身份首版 `zhiju.startup.cn_active_device_qms_upgrade / 1.0.0`，日期拟 `2026-11-01`；standardTargets/upgradeTargetRef 是 PUBLISHED RegulatoryReferenceVersion 精确 refs，不是裸标准名称 |
+| `ep.company_startup_rules@1.0` / IP Platform PolicySnapshot.policyDocument | `rulesCode; rulesVersion; mandatoryFactTypes:NonEmptySet; requiredProductFields:NonEmptySet; minimumProductVersions:PositiveInt; protectionEvidenceRequirements:NonEmptySet; mandatoryRequirementCodes:NonEmptySet; mandatoryChoiceKeys:NonEmptySet; mandatoryDecisionTypes:NonEmptySet; allowedStartupOutcomes; supportSet`；首版分别为 Delta 的1类 TEXT Fact、全部 Product 字段/至少1版、4类保护依据、12/2/3组及当前 TEXT/Product/QMS 支持集；任何条目缺失、重复或自由通配均拒绝 |
+| `ep.company_startup_vocabulary@1.0` / IP Platform PolicySnapshot.policyDocument | `vocabularyCode; vocabularyVersion; entries:NonEmptySet<{domain,code,label,meaning,sourceBindings,ownerMapping}>`；domain 闭集 `fact_type/product_type/market/risk_level/requirement/choice/choice_option/decision/decision_outcome`；同 domain+code 唯一，代码/含义/映射随精确版本冻结；Product 原名、用途、产品族及型号不是受控代码 |
+| `CONTENT_ADDRESSED / zhiju.project.company_startup_requirement` / Platform | `requirementCode; definitionVersion; text; applicabilityConditions; templateSourceBindings:NonEmptySet<{templateRef,locator,sourceBytesSha256}>; normativeReferenceRefs:Set<RegulatoryReferenceVersion>`；涉及标准/法规判断时 normativeReferenceRefs 必须非空、PUBLISHED、含核验/有效期；由 EP Platform Reference Owner 的拟受控 import/publish Capability 形成，不能直接用 TEMPLATE/evidence alias 或整文件 Ref 代替条款身份 |
+
+上述三个 Rule/Vocabulary/Bundle Ref 只复用 IP 原生 `SNAPSHOT / identity.policy_snapshot / Platform scope` wire shape；由新 CompanyRuleSnapshotProducer 与 CompanyRuleSnapshotResolver 和独立 `im-ui-company-startup-v1` registry 保存/读回。EP 为 bundle/rules/vocabulary 分别固定同名 profileKey 与 IP 表内唯一 canonical `VERSIONED identity.contract_schema` Ref；按完整 registryVersion/key/SchemaRef 校验，共享已批准构建期制品，不能用 generic identity.PolicySnapshot、historical registry 或 scoped VersionedRef 替代。旧 `record_policy_snapshot/get_policy_snapshot@1.0` 保持 `im02-static-v1`，不因注册新制品而扩大接受集。
+
+每个 requirement payload 和新 IP snapshot 完整 payload 使用 `SHA-256(cv1(payload))`；后者包含 registryVersion/profileKey/policySetVersion/唯一 policySchemaRefs/effectiveFrom/policyDocument，不能仅 hash 正文或省略 selector。返回 view 为 `{policySnapshotRef,payload}`，业务字段从 payload.policyDocument 取得。所有业务字段/精确来源参加 hash；本对象的 Ref/hash、snapshotId、发布证明与可变 current status 不参与自己的 snapshot payload。发布证明在后续 IP 不可变事实中引用已确定的 bundle，避免 hash 循环。集合按 code（词表按 domain+code）稳定排序；相同 code/version 异 payload 拒绝，未知 alias 不猜测。
+
+`protectionEvidenceRequirements` 的四个域固定为 `quality_objectives / organization_responsibilities / operational_processes / product_processes`，分别引用报告既有 QUALITY_OBJECTIVE、ORGANIZATION+RESPONSIBILITY、PROCESS、PROCESS+PRODUCT_RULE 分类及原始 Evidence。报告摘要不是完整保护内容；专业 Human 决定与 Quality Evidence verification 证明本项目所需原条款/关系已覆盖，服务器只校验真实 refs/状态和集合。复杂数据不能转成 TEXT Fact；若规则需要结构化 Fact，按 Delta §5 明确 unsupported blocker。
+
+### 发布校验与读取边界
+
+拟内部 `CompanyStartupDefinitionValidationPort` 由 EP 执行确定性校验：完整 `im-ui-company-startup-v1` registry/profile/canonical SchemaRef 与 closed policyDocument、精确词表映射、§1范围条件、9份模板和12项 requirement 绑定、必需集合及完整 Product/QMS、source locator 唯一性、标准/法规引用状态。它返回绑定完整 snapshot payloadHash/profile/SchemaRef/child refs 的校验结果；producer 保存前校验各 profile，Publisher 发布前再次校验 outer/child 的完整定义，不修改 IP facts，不证明客户适用性。child refs 只通过新 IP resolver 在自身当前授权下精确读取；IP Publisher 保存该结果与真实 Human 批准后才能生成发布证明，不存在结果/证明则不可用于 startup。
+
+EP 准备 source、报告接纳、startup review/confirmation/start 通过 IP CompanyRuleResolutionPort 取得三个 snapshots、publicationRef 和当前 useStatus；该 Port 使用独立 CompanyRuleSnapshotResolver，并按各角色传入上述受信 exact selector，不调用旧 get_policy_snapshot 或 scoped resolve_policy。EP 的 Platform reference resolver 另校验 template/requirement/normative refs；不共享 Repository。历史可读与当前可用分开。公司发布材料不含客户正文、Evidence 或人员名单；客户来源和所有正式 Fact/Product/QMS 引用必须另行在本 Enterprise/Project 的许可范围解析。
+
+拟 `capture_preparation_source` 输入与保存的准备来源绑定增加必填 `companyRulePublicationRef`；服务器核对它与 ruleBundleRef、child refs 和同一 template/requirement 集合，不让浏览器传入自由定义。后续 Context/Run/report 使用该精确 source，不因 current pointer 变化偷换输入；对应新 producer/validator 接受集留待注册实现。旧操作/旧 Source shape 不获得新字段。PROJECT_START 的三引用形状不增加规则字段，规则历史从同一原 request→informationDecision→source/report 的不可变 provenance 链追溯。
+
+`project.get_startup_review@1.0` 在既有拟 result 中返回以下细化（仍未注册）：`binding` 保留全部 D14 字段并增加 `companyRulePublicationRef`；`companyRequirements` 返回当前许可的范围/目标、四类保护依据要求、各必需 code→requirementRef→候选/证据的精确映射；`startupEligibility:{eligible,blockers}` 与每个 plannedFile 的 eligibility 分开；`currentUsability` 含规则/模板发布当前性及 sourceWatermarks。缺候选时用必需 requirement/code 的 blocker 表示，不能因无 candidateId 从必需集合消失。`requiredCandidateIds` 为已映射的必要候选，`confirmationCandidateIds` 包含全部本次需确认的有依据候选；12项适用性、2项 Human 管理选择、3项 Human 专业决定不得省略。
+
+Runner sourceId+requirementLocator 只能通过 bundle 的 sourceBindings 唯一映射到该 requirementRef；Host 验证别名、客户依据和词表，不作第二次业务推断。已有 Enterprise 精确版本复用也须匹配当前 bundle 必需语义、项目范围与真实 Human 核对，不能只检查 QMS 三数组非空。普通 startup confirm 不授予保护例外。
+
+### 当前性、错误与转换
+
+公司发布 profile 尚不可解析、未发布/撤回、错 code/hash/ref/locator 时 fail closed：结构/来源违反报告绑定使用 `PROJECT_PREPARATION_REPORT_INVALID`；可审阅但必要值/证据/支持缺口使用 `PROJECT_STARTUP_INFORMATION_INCOMPLETE` 并返回对应 owner 的安全 reason；已绑定 source/report 的规则或模板失效使用 `PROJECT_PREPARATION_INPUT_STALE`；IP 读取/授权不可用沿用 `DEPENDENCY_UNAVAILABLE`/安全授权外观，不输出其他 Scope 或客户正文。
+
+同一准备意图锁定 `ruleBundleRef + startupRulesRef + vocabularyRef + companyRulePublicationRef + template/requirement set`。部署允许集/真实 supersession 生效、模板变更或必需信息变化推进 preparationVersion；原 request 不改，重新 capture/analysis/显式 Human 新意图。新发布无真实取代/撤回不会自动使旧版 stale。start 事务继续重验当前权限、所有真实三 start refs 与唯一 PROJECT_START，保持 PREPARING→ACTIVE 原子性。
+
+已 start 后任何公司更新只形成 impact，旧绑定/Hash/current 企业版本不自动改。INITIAL_SCOPE_RECOVERY 的必要启动依据失效则范围待 impact；纯 file-only 保护冲突阻整份受影响文件，独立文件须 lawful start 和自己的全部条件后才可接收。后续生成/修改仍属另行批准的执行合同。owner traces 见 [EP-257 场景](../module-tests/Module-Test-002-EnterpriseProject.md#257-公司启动规则与词表设计场景)。

@@ -1499,3 +1499,17 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 | `project.find_workspace_projects@1.0` / QUERY | EnterpriseProject / [Spec002 #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258) | AUTHORITATIVE verified-self目录；专用空Scope入口，每项仍受IP exact PROJECT discovery Decision与RLS；无任意身份/跨项目内容目录 |
 
 本提案不计入现有Catalog/Registry/历史200 baseline，不增加Event、业务Root或通用dispatcher。IP身份bootstrap与self候选为受控内部Port，不注册为Browser管理能力；技术auth/session路由与ZIP流也不是新增Business Core Command。现有operation@version仍按各自完整Ref接受集使用，不通用互换legacy/canonical类型。批准后的独立实施须同时注册payload/result/authorizationPurpose/guard/专用Scope接受集与正负fixtures；HTTP可调用还需要owning handler，不能把本文或Registry名称当运行证据。
+
+## #257 公司启动规则引用提案
+
+状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。仅为 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md) 的 owner/reference 导航，不增加当前公开 operation 数、Registry、Schema 或 compatibility baseline。
+
+| 拟引用 / profile | 唯一 Owner / Scope / fields |
+|---|---|
+| `ruleBundleRef / startupRulesRef / vocabularyRef` | 只复用 IP 原生 Platform `SNAPSHOT / identity.policy_snapshot` wire identity；三个 EP-owned profile `ep.company_startup_bundle@1.0`、`ep.company_startup_rules@1.0`、`ep.company_startup_vocabulary@1.0` 未注册；[Spec 002 #257](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案)；由独立 producer/resolver 保存/读取，不扩大旧 @1.0 接受集，不让 scoped resolve_policy 读 Platform |
+| `im-ui-company-startup-v1` / 三个 canonical SchemaRef | 独立构建期 registry，接受集仅上述三项；`VERSIONED / identity.contract_schema / scope={}` 的固定拟 objectId/versionId、closed validator、完整 snapshot payload 唯一维护于 [IP 新路径](../module-specs/Module-Spec-001-IdentityPolicy.md#独立-platform-profile-registryproducer-与-exact-resolver)。不并入/替换历史 im02/im06 registry；EP 拥有正文语义 |
+| `CompanyRuleSnapshotProducer@1.0` / `CompanyRuleSnapshotResolver@1.0` / internal | IdentityPolicy / Platform；record/read 的 closed 请求、snapshot target、完整 selector/ref/hash、当前主体 Decision/Grant 与独立不可变存储见 IP #257；拟内部 operation/purpose/action 分别 `identity.company_rule.snapshot.record` 和 `identity.company_rule.snapshot.read`（各 version=1.0）。不是旧 record/get_policy_snapshot 的新 profile 或公开操作；publication/resolution Port 必须通过新 resolver |
+| `CONTENT_ADDRESSED / zhiju.project.company_startup_requirement` | EnterpriseProject / Platform；精确公司要求定义、模板/正式规范来源与发布；Spec 002 #257；不是客户 Evidence |
+| `CONTENT_ADDRESSED / zhiju.identity.company_rule_publication` | IdentityPolicy / Platform；具体 bundle/清单/范围/EP校验/真实Human批准与发布、取代/撤回当前性；[Spec 001 #257](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案) |
+
+上述发布/解析只提案受控 owning internal Capability/Port，不伪装为已存在的公开 Command/Query。后续批准并注册类型/profile/purpose/实现后，EP startup Query/Source/Binding 才能接受 publicationRef 和精确 requirement 集合；历史 D14、Platform snapshot 与 PROJECT_START 接受集/Hash 不自动升级。
