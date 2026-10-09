@@ -655,3 +655,11 @@ Cursor公开表示严格遵守共享OpaqueCursor正则`^[A-Za-z0-9_-]{16,512}$`�
 多步骤 response data 可以有 PENDING/PARTIAL/UNKNOWN/FAILED/STALE/ACCEPTED，但必须保留每 step 实际 status 与成功 refs/receipts；整体 transport 202 不是 Command COMMITTED。UNKNOWN 缺成功凭证不填 placeholder；相同稳定键异 payload 拒绝，恢复查原保存 payload，并重验当前授权。raw bytes SHA 与 cv1 ContentHash 分域验证；design fixture 的 demo.* / design.* / synthetic Hash 不注册为生产值。
 
 [安全 HTTP 映射](../decisions/d14-rd01-first-customer-flow.md#6-兼容迁移与安全-http-映射) 是未来 transport proposal，未改变本 API Contract 的传输无关定位；BFF 只能组合已注册 owner 操作。新增 schema/type/result/event、selector/compatibility approval 与正负 fixtures 留给获批后实施，旧 @1.0/@2.0、Catalog/200 历史 bytes 保持。
+
+## Workspace public transport 与 self-discovery 提案（#258）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。[Session Delta §5](../decisions/workspace-trusted-session-public-access.md#5-有限公开路由与-envelope-映射) 定义有限operation@version allowlist及Browser输入到受信Core Envelope的字段投影。Browser/BFF不能提交actor/requester/authenticationContextRef/authorizationDecisionRef；Core独立验证实际token、解析IP身份，产生当次授权后补全共享Envelope。未知身份字段拒绝而非接受后替换。已有完整Command/Query Envelope、Result、cv1 payloadHash、target/CAS、幂等及安全错误Schema不改，transport projection不是第八模块业务合同。
+
+唯一新public operation提案 `project.find_workspace_projects@1.0` 的payload/result/分页见 [EP owning Spec](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)。它显式接受 `scopeRef={}` 的verified self-discovery，requester只从Core身份解析；不生成空Scope业务Actor/Decision，每个返回项目仍独立取得IP当前Project Decision并按双Scope RLS读取。此例外须新Query注册及实际可信入口，不把现有identity scoped Port/board接受集放宽。
+
+HTTP200/202不增加CommandResult status；202须owning durable admission，已commit request的数据可仍PENDING/UNKNOWN/PARTIAL。pre-auth/CSRF错误属于技术层，断网不伪造业务REJECTED。未注册D14/目录或缺handler不可调用，Registry声明不等于HTTP实现。依据摘录使用现有exact Evidence查询；没有owning公开bytes transport时下载不启用，新增stream须单独批准/注册有限路由，不以ObjectLocator或metadata绕过。

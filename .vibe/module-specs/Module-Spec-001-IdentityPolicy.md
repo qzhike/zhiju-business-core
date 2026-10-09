@@ -1053,3 +1053,32 @@ IP每项以服务自身ActorSnapshot/PolicySnapshot当前hash、完整Enterprise
 源材料/previous report/trusted decision/company template/rule逐件获同Run READ和明确Provider/dataDestination许可；脱敏批准绑定实际bytes/hash/用途/期限，不能用Hash或改名当脱敏。WRITE只授本Run报告根，输入/工具只读、Skill/MCP为空；CLI配置发现、个人home、其他Project/Run、Core基础设施与额外网络目的地均不授予。OS边界由Deployment实现，IP授权本身不证明隔离。
 
 历史usage/late-isolation/readback独立当次授权并验证原来源完整性，不要求已失效执行Grant重获有效；其当前cleanup/control权限仍必需且不能读取无关历史。Unknown/no-access统一安全外观，dependency不可达不伪装“没有调用/没有输出”。恢复不扩大旧intent/lock，授权变化须新Run物化；禁止利用已保存Receipt或旧Bundle继续新副作用。
+
+## Workspace 可信 Human 入口与目录授权提案（#258）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。技术配置、会话和 trust traces 见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。本节拥有身份映射/授权接受集，不把 OIDC login 或 BFF Session 当成 Zhiju Role/Capability。现有 register/link/ActorSnapshot/Decision Port 的约束保留；当前 scoped Actor/Decision 实现只支持 Enterprise/Project，不因本提案获得无 Scope 业务授权。
+
+### 身份 bootstrap 与可信 Actor
+
+受控内部 `resolveVerifiedHuman(VerifiedOidcContext)` 只接受 Core verifier 在固定 issuer/audience/client/TLS peer 下产生的上下文。Keycloak `identityKey.providerCode` 取注册配置，`accountExternalId=verified iss`、`subjectExternalId=verified sub`，逐字匹配；原值使用既有加密与密钥化 lookup，不以 email、displayName、realm role、Browser PrincipalRef 或 actingFor 查人。返回 `{principalRef,resolvedByLinkRef,principalKind,status}` 必须为当前 ACTIVE HUMAN 和当前有效 link；无 link、冲突、撤销/非 HUMAN 统一安全拒绝，依赖不可用不是“没有人”。此 Port 是首次 requester 建立的内部认证桥，不暴露任意 lookup，不依赖尚未建立的 Browser Actor/Decision。
+
+首 Principal 和首 Role 使用既有单次限期 bootstrap claim；操作者、真实身份验证依据、目的与审计分别保存，基础设施 bootstrap admin 不继承业务权限。后续 register/link/assign/grant 由已有受权操作者分别执行，登录不自动注册、合并或发权限。link 原唯一键冲突保持原记录；撤销映射在下一受保护请求解析时拒绝。
+
+`AuthenticationContext` 提案的 canonical 摘要字段为 `{trustConfigHash,issuerConfigHash,subjectLookupHash,clientId,apiAudience,tokenSha256,issuedAt,expiresAt,validatedAt,sessionBindingHash,authTime?,sidLookupHash?}`；不保存原 token、subject、Cookie/secret。实际 provider lookup 的算法/keyVersion 由既有加密 Port 管理，不由 Browser 选择。摘要的 cv1 hash 与精确 ref 由受信 Core/IP 形成，技术 session binding 只接受固定 BFF peer；token refresh/重新登录产生新的认证摘要，旧摘要不授权新请求。
+
+每个 Enterprise/Project 请求从同一实际 Principal 与本次摘要产生真实 ActorSnapshot，Kind 从 Principal 读取、无 actingFor，Scope 形状和精确 ID 不可改。IdentityPolicy 当次 Decision 绑定实际 operation/version/Purpose/action/完整 target/Scope/payloadHash、ActorSnapshot hash、authenticationContext hash、当前 Policy/Grant；期限不晚于 token/Decision 较短有效期。owning entry 在幂等 replay 前、保护读写及最终返回检查点复验当前权限；目录或 allowedActions 的 ALLOW 不能替代下一操作。Process SERVICE 继续按原 Human 决定链及自身当次执行许可工作，BFF 重启/重登不改原决定身份。
+
+### 自身项目候选与目录 Decision
+
+`discoverWorkspaceProjectScopes` 是新增**内部只读** IP Port，输入 `{verifiedHumanContext,purpose:project.workspace.discover,page:{pageSize:1..50,cursor?}}`，禁止 caller 指定其他 Principal。它只返回该已验证 Human 的当前 exact PROJECT Scope 候选、完整 ProjectRef、IP source watermark 和不透明 nextCursor，不输出 Role/Grant 条件、其他 Principal、名字或客户内容。候选来自当前未撤销/未过期 Grant 及当前 Policy 的明确项目资源 selector，不展开 Enterprise Grant/通配 selector，不从 EP/BFF 页面记录推导资格；没有候选返回空页，IP 不可用拒绝而非空成功。
+
+授权集合指纹/IP来源水位只覆盖实际候选所用的Grant、当前Policy、link/Principal生命周期；每次签发Actor/Decision、验证时间、技术Audit不推进它，避免正常翻页自行失效。到期/撤销/取代导致有效集合变化时必须更新指纹，即使只是受信时钟跨过validTo、尚无新Event；不通过旧MVCC/asOf继续使用过期权限。
+
+首次可信身份查找读取 IP 的平台 Principal/link；候选读取使用独立、受控、self-only 的 IP 读权限，见 [07 的提案](../high-level-docs/07-postgresql-logical-model-v0.1.md#workspace-self-discovery-读取边界提案258)。内部 self-discovery 不是空 Scope Actor/Decision，不放开现有 API/数据库 RLS。EP 可接收候选但须对每个候选独立授权，且只读自身项目表；IP 不同步依赖 EP。
+
+| mapping / 主体 | operation@version / Purpose / action | target 与当前绑定 |
+|---|---|---|
+| EP 目录逐项 / 实际 HUMAN，无 actingFor | 内部 `project.workspace.discover@1.0` / `project.workspace.discover` / `project.workspace.discover.v1`；受信配置 key `workspaceProjectDiscoveryHumanV1` 映射到实际 capability code | OBJECT ProjectRef，允许 owning 的 `project.project`、`zhiju.project.project` 两种完整身份，各按原形匹配，禁止互转；PROJECT Scope enterprise/project 必全，project objectId=projectId |
+| 目录 payloadHash | server closed `{directoryQueryId,projectRef,normalizedFilter,pageBindingHash}` 的 cv1 hash | 与当次 HUMAN/Actor/认证摘要、query@version/Scope、当前 covering Grant/Policy 一起重验；不是通用 board 或 content Decision |
+
+目录自身 Query 是 EP 声明的 `scopeRef={}` self-discovery 入口，由 verifier 确立 requester；每个结果仍有上述 scoped Decision。空 Scope 不生成 PLATFORM 业务授权，不修改既有 scoped Port 接受集。撤权/Grant 或 Policy 变化使翻页绑定失效；换 Session/Principal 必重新从第一页查询。发现权限只允许 EP 安全摘要；board、Evidence、D14 confirm/resume 各依 owning 的现行独立 mapping，缺任一权限对应 protected reads/writes=0。新准备项目只有 owning memberPolicy/provisioning 已产生该精确 discovery 权限时才进入目录，ScopeClaim/创建成功本身不代替 Grant。

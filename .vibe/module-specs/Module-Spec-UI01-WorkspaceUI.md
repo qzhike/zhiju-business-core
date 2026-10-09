@@ -275,3 +275,16 @@ UI 新建/已有客户都使用精确公开 preparation request；同名企业�
 客户端将稳定 key/requestRef 与原 binding/选择关联，刷新先公开查询原请求；PENDING 不重发，UNKNOWN 核实，PARTIAL 仅续未完成步骤，STALE 保留草稿读取当前版本再显式新意图。已启动项目不回退 PREPARING。HTTP 503/空查询不是失败证明；过期 Session 重新认证后仍查原意图并重验权限。安全 HTML/Markdown 编码、下载授权、CSRF/Session 等沿 UI-DG-003；BFF 不接受公网 Actor/Decision，不落业务 Process、不调用未注册 Capability。
 
 ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 confirmationMode=INITIAL_SCOPE_ONLY 清楚表明原启动信息已冻结，按钮只确认当次整份文件范围。原 startup request STALE/阻塞不修改旧选择；未成功接收初轮时可显式新 intent，通过 project.request_initial_scope_confirmation/get_initial_scope_request/resume_initial_scope_request 回读，引用原 PROJECT_START。必要补料仅有界 INITIAL_SCOPE_RECOVERY 分析；TE 已接收首轮后关闭这条入口，不重复显示信息激活/启动，也不自动建下一批次。
+
+## 可信 Human Session 与公开 Workspace 接入提案（#258）
+
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。字段、封闭技术配置、Session转换、有限public operation/version表、CSRF/流/内容协议与TR-258验收trace唯一见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。已批准 UI-DG-003 架构/会话期限和当前布局不变，工程外壳匿名证据不代表本提案实现。
+
+1. Browser Cookie只索引BFF技术会话；token exchange后通过Core受信身份bootstrap桥确认当前link/ACTIVE HUMAN，才能进入工作台。每次受保护请求Core独立校验token，IP形成真实Actor/当次Decision；Browser自报actor/Decision/actingFor/header覆盖拒绝。email/Realm Role和BFF缓存摘要不赋权。
+2. BFF技术Session只存认证字段，业务草稿/原意图/Receipt由owner保存；未经公开能力保存的页面草稿明确“未保存”，不承诺重启/跨设备恢复。单次登录交易绑定发起Browser，多Tab交易独立、并发callback只一winner；成功与安全error回调沿Delta封闭参数表接纳并精确验证响应iss，有限session_state仅校验后丢弃，不代替state/nonce或赋权；缺/错/重复issuer拒绝且零新Session。refresh串行，logout/过期/重启失效后不被迟到refresh复活。
+3. 目录必须来自拟 `project.find_workspace_projects@1.0` 的当次受权项目摘要；它与per-project EP/TE看板分别授权。合法 `OK + items=[] + nextCursor` 是未完成中间页，按绑定游标继续逐页读取；零累计项仍为LOADING，有卡片则保留READY及未完成提示。仅同一有效游标链枚举完整、末页省略nextCursor且累计可见项为零才显示EMPTY，空末页保留之前非空项；不得突破200项/5秒单请求预算，每页沿EP当前授权/水位规则，变化拒绝后从首屏重取。无目录handler/注册则显示服务不可用，不从原型、旧cache或BFF数据库扫描构造项目集合。多Tab按请求精确Scope工作，无Session全局activeProject。
+4. 公开命令输入为共享Envelope的transport projection；Core追加受信Actor/Decision，保留原target UUID、key、payloadHash/CAS。逐字allowlist只消费已注册owner版本；D14proposal缺Registry/handler仍不可用，不调用内部start/source/run或任意Catalog dispatcher。
+5. ZIP仅原流→IG issued intake，大小/累计bytes/backpressure/期限在BFF和IG各自限制；BFF不解包/分析/写对象存储。依据只读EP受权摘录/QG exact Evidence。当前无D14原件bytes transport，下载保持不可用；有owner精确版本/hash/当前权限与公开stream才能单独审查启用，不将locator自行变URL。
+6. 原CREATE request预分配target UUID，稳定key=`operation:1.0:targetUuid`；安全request页面不含客户正文/token。response丢失/401/重启后从Core回读原request/key；新认证只改变当次权限证明，不改原payload/历史Actor，禁止新键自动重发。PENDING/UNKNOWN/PARTIAL/STALE保留真实成功steps，COMMITTED/202不表示running。
+7. 所有POST Query/业务写/上传/登出/技术活动要求精确Origin/Host/CSRF/Content-Type；只有绑定的OIDC callback例外。受保护响应no-store，安全Markdown/CSP与遥测allowlist沿Delta；Scope/Principal变更与失权清DOM/cache/objectURL，generation检查迟到响应、multiTab失效与bfcache恢复。
+8. 独立设计Review和人类技术批准、actual deployment lock/Registry/当前权限/公开HTTP与D14依赖分开确认。真实OIDC/PostgreSQL/Host/Runner/Chrome/Edge/Manual仍NOT RUN，不因docs gate通过宣告可用Session或任务READY。
