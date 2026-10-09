@@ -582,7 +582,7 @@ pnpm persistence:gate
 
 ## #257 公司启动规则与词表设计场景
 
-状态：`PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。依据 [EP owning 字段](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 和 [公司清单/来源 Delta](../decisions/company-startup-rules-v0.1.md)。下表是必要设计 trace，不是已执行测试；真实正链须取得批准/发布/客户来源后通过 owning 入口建立，不使用 demo codes、空必需集合或合成 refs 代替。
+状态：`DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。依据 [EP owning 字段](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 和 [公司清单/来源 Delta](../decisions/company-startup-rules-v0.1.md)。下表是必要设计 trace，不是已执行测试；真实正链须取得批准/发布/客户来源后通过 owning 入口建立，不使用 demo codes、空必需集合或合成 refs 代替。
 
 | ID | 输入 / trace | 预期 owning 结果 | 实际 / 结果 |
 |---|---|---|---|

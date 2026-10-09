@@ -1502,7 +1502,7 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 
 ## #257 公司启动规则引用提案
 
-状态：`T2 / PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。仅为 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md) 的 owner/reference 导航，不增加当前公开 operation 数、Registry、Schema 或 compatibility baseline。
+状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。仅为 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md) 的 owner/reference 导航，不增加当前公开 operation 数、Registry、Schema 或 compatibility baseline。
 
 | 拟引用 / profile | 唯一 Owner / Scope / fields |
 |---|---|

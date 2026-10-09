@@ -1,14 +1,18 @@
 # 公司启动规则与词表 Spec Delta（#257）
 
-状态：`T2 / PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。
+状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。
 
-本提案响应 [Issue #257](https://github.com/qzhike/zhiju-business-core/issues/257)，基于 `main@15c085354056ab327e03352c32020010cc11285b` 的 [D14 §4](d14-rd01-first-customer-flow.md#4-必要启动信息与可信决定)。公司业务清单已取得下述明确人类确认；创建 Issue、提交 PR、模板中的“定稿”或静态检查均不构成批准。既有冻结规则与 PROJECT_START 不变；最终修订的独立设计审查及人类技术批准完成前，不冻结新增语义，不宣布依赖实现 READY。
+本设计响应 [Issue #257](https://github.com/qzhike/zhiju-business-core/issues/257)，基于 `main@15c085354056ab327e03352c32020010cc11285b` 的 [D14 §4](d14-rd01-first-customer-flow.md#4-必要启动信息与可信决定)。公司业务清单已取得下述明确人类确认；创建 Issue、提交 PR、模板中的“定稿”或静态检查均不构成批准。既有冻结规则与 PROJECT_START 不变；本设计的最终修订已完成独立复审及显式人类技术批准，未注册字段与后续实现仍需其自身接受集、验证和 NOW + READY 核验。
 
 ### 业务确认记录
 
 `2026-10-09`，本次请求的用户审阅 §1–2 后明确回复：“确认 §1–2 的范围与全部清单；四类保护 Evidence 满足首版要求”。确认覆盖有界范围、1类质量方针 Fact、全部完整 Product、四类保护依据、12项适用性、2项管理选择和3项专业决定；首版不选择 §5 的结构化 Fact 支持集扩展。
 
 被确认的 §1–2 原始 UTF-8 bytes（从 `## 1. ` 至 `## 3. ` 之前）SHA-256 为 `8cabe2e26d2402660f92e3fec7b59daa595e6d5ae26df7af2560f4b080b5f64b`。此值只标识本次文档业务确认范围，不是 Core canonical bundle Hash、平台发布证明或技术审查 SHA。该确认不批准 §3 的技术字段/发布/兼容设计，不证明具体客户满足启动条件；独立设计审查、人类技术批准及真实客户验收仍各自取证。
+
+### 人类技术批准（4bd1f01）
+
+`2026-10-09`，本次请求的用户在 [PR #262 第二轮复审](https://github.com/qzhike/zhiju-business-core/pull/262#issuecomment-6081763567)明确指出 R1 已闭合、没有新增阻塞设计缺陷且仅待最终修订的人类技术批准后，回复“批准”。该批准绑定 `4bd1f0100a9ea4ddb2db071f153454557ac223cd`，覆盖 §3 的新 Platform registry/SchemaRef/producer/resolver/不可变存储、完整 Hash、授权、发布及兼容/取代设计和对应 owner traces。正式记录见 [Review 技术批准](../reviews/pr-262/Review.md#人类技术批准与最终审查结论2026-10-09)。本次技术批准与上方 §1–2 的业务确认分开；SD257-SUPPORT 继续未选择、未批准，生产注册、平台发布事实和运行/客户验收仍未完成。
 
 ## 1. 拟议首版范围与证据
 
@@ -158,6 +162,6 @@ ACTIVE 的旧 PROJECT_START、Fact/Product/QMS/Profile/ScopeSnapshot、Context �
 | 取代发生在 start 后/初轮scope前，必要启动依据失效 | ACTIVE 与旧 start 保留，范围等待 impact；`EP-257-009` |
 | Agent 发布、Human 已撤权、记录 snapshot 未发布、同业务版本异 payload | 拒绝新写/资格；历史 refs 不改，不因旧 ALLOW 放行；`IP-257-001`、`IP-257-002`、`IP-257-005` |
 
-冻结需要两项不同证明：**公司业务确认**已按上述记录逐项覆盖 §1 范围、§2 的1类 Fact/完整 Product/四类保护依据/12项适用性/2项选择/3项专业决定，并明确首版不选择 SD257-SUPPORT；**独立设计审查及人类技术批准**仍待完成，须绑定最终修订 SHA，覆盖 §3 身份/Hash/发布/兼容和 owner traces。仅同意撰写或提交 PR 不是这些证明。
+冻结的两项不同证明已分别记录：**公司业务确认**逐项覆盖 §1 范围、§2 的1类 Fact/完整 Product/四类保护依据/12项适用性/2项选择/3项专业决定，并明确首版不选择 SD257-SUPPORT；**独立设计审查及人类技术批准**已绑定 `4bd1f0100a9ea4ddb2db071f153454557ac223cd`，覆盖 §3 身份/Hash/发布/兼容和 owner traces。仅同意撰写或提交 PR 不是这些证明；设计批准不替代生产注册、实际发布或客户验收。
 
 本 Issue 只修改 `.vibe/` Markdown，要求 `vibe verify docs --json` 及源 Hash、owner/reference/field/transition 定向对账；执行证据进入 PR，不新建验证日志。真实 OIDC/HTTP、PostgreSQL、Host/Runner、浏览器/平台和独立人工业务验收均 `NOT RUN`。设计获批后仍须按后续实现 Issue 注册 profiles/引用/Schema/fixtures、闭合持久化/发布/解析接线并取得对应 configured gate；本提案不部署、不运行启动或文件升级。

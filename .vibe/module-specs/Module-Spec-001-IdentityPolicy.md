@@ -1085,7 +1085,7 @@ IP每项以服务自身ActorSnapshot/PolicySnapshot当前hash、完整Enterprise
 
 ## #257 公司规则发布与精确读取提案
 
-状态：`T2 / PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。业务清单及取代约束见 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md)，payload 语义由 [EP owning profile](Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 定义。本节只拥有政策身份、发布证明、授权和当前 useStatus；不接管客户 facts、模板/requirement 或 QMS 适用性判断。
+状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。业务清单及取代约束见 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md)，payload 语义由 [EP owning profile](Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 定义。本节只拥有政策身份、发布证明、授权和当前 useStatus；不接管客户 facts、模板/requirement 或 QMS 适用性判断。
 
 ### Platform 身份、不可变发布与内部 Port
 

@@ -1012,11 +1012,11 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 
 ## #257 公司启动规则与词表字段提案
 
-状态：`T2 / PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。公司清单、范围、来源、理由和支持集选择唯一维护在 [公司规则 Delta §1–2](../decisions/company-startup-rules-v0.1.md#2-提交确认的必需清单与词表)；本节拥有字段及确定性业务校验，IP 拥有政策身份、发布事实/当前性与授权。现有 Product/QMS/Fact/Profile、完整 create_project、D14 技术批准与生产 Catalog 接受集不因提案改变。
+状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。公司清单、范围、来源、理由和支持集选择唯一维护在 [公司规则 Delta §1–2](../decisions/company-startup-rules-v0.1.md#2-提交确认的必需清单与词表)；本节拥有字段及确定性业务校验，IP 拥有政策身份、发布事实/当前性与授权。现有 Product/QMS/Fact/Profile、完整 create_project、D14 技术批准与生产 Catalog 接受集不因提案改变。
 
 ### 规则、词表和精确 requirement
 
-三个拟 profile 的 policyDocument 都是封闭结构；代码全集/文字含义引用上述 Delta，不在此复制第二套业务清单。业务清单已逐项确认；精确修订仍需独立设计审查及人类技术批准后另行注册。IP owning 的 [独立 Platform registry/producer/resolver](Module-Spec-001-IdentityPolicy.md#独立-platform-profile-registryproducer-与-exact-resolver) 定义外层 canonical snapshot payload；EP 定义下表正文和消费所需 selector，不使用历史 @1.0 保存/读取路径。
+三个拟 profile 的 policyDocument 都是封闭结构；代码全集/文字含义引用上述 Delta，不在此复制第二套业务清单。业务清单已逐项确认，精确修订已完成独立复审及人类技术批准；生产接受集仍须另行注册。IP owning 的 [独立 Platform registry/producer/resolver](Module-Spec-001-IdentityPolicy.md#独立-platform-profile-registryproducer-与-exact-resolver) 定义外层 canonical snapshot payload；EP 定义下表正文和消费所需 selector，不使用历史 @1.0 保存/读取路径。
 
 | profile / 对象 | 必填字段与约束 |
 |---|---|

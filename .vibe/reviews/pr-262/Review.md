@@ -72,3 +72,70 @@
 补充 CI 原始日志获取曾遇到 GitHub 网络连接失败；已读取的精确 head/job/step 状态是 CI 证据，不将无法取得的原始日志称为已复核。
 
 下一责任方为设计修订者：先闭合 R1，重新审查最终 head。业务清单确认不能替代显式人类技术批准。本记录不授权实现、Git commit/push、合并或部署。
+
+---
+
+## 第二轮复审（2026-10-09）
+
+- Reviewed SHA：`4bd1f0100a9ea4ddb2db071f153454557ac223cd`。
+- Current base SHA：`79c1d55ceb491bb455dc00d1ff6b518d2f313194`。
+- Reviewer outcome：`HUMAN_REVIEW_REQUIRED`。
+- 第一轮 R1：`CLOSED IN DESIGN`；本轮未发现新增阻塞设计缺陷。
+- Human 技术批准：`PENDING / NOT PROVIDED`。
+
+本轮重新读取最新 Issue/PR、当前 base-to-head 的八份 Markdown 差异、新 producer/resolver 字段与 owner traces，以及精确 head CI；没有把修订者的修复说明作为接受证据。第一轮记录及其 reviewed SHA 保留，上述结论只作用于本轮修订。当前未执行的注册、实现与外部验收不成为这份 design-only PR 的新增实现要求。
+
+### R1 闭合证据
+
+[IP 独立 Platform 路径](../../module-specs/Module-Spec-001-IdentityPolicy.md#独立-platform-profile-registryproducer-与-exact-resolver) 已明确：
+
+1. `im-ui-company-startup-v1` 是独立的三项构建期 Registry，分别对应 bundle、rules、vocabulary；每项有唯一拟 canonical SchemaRef，不能并入历史 im02/im06 集合或使用 generic/scoped schema 替代。Schema 的固定拟身份与运行时已发布事实分开。
+2. `CompanyRuleSnapshotProducer@1.0` 与 `CompanyRuleSnapshotResolver@1.0` 使用新的 IP owning Platform 不可变存储，明确不写旧 `policy_snapshot`/scoped `policy_version`，也不使用旧 Handler。生产、读取请求与结果是封闭结构，包含完整 selector、native Ref、Hash 和受信 target。
+3. Hash 覆盖完整 registry/profile/schema 身份、派生 policySetVersion、effectiveFrom 及正文；快照自身 Ref、snapshotId、publication 和可变当前性不进入自己的 payload。业务引用仍由独立发布事实绑定，不产生自引用循环。
+4. record/read 具有独立 operation/version/purpose/action、完整请求 Hash、target 和当前主体 Decision/Grant。EP 在写入前校验 profile/业务语义，IP 在受保护读取前及提交/返回前重验；snapshot 保存成功仍不代表 PUBLISHED/USABLE。
+5. EP producer 校验、公司发布/解析和准备 source/review/confirmation/start 明确消费新 resolver 的结果，业务字段统一从 `payload.policyDocument` 读取。Delta、Catalog 和 owner traces 与新路径一致。
+6. `IP-257-006`、`IP-257-007` 和 `EP-257-010` 覆盖合法新路径、错误 key/SchemaRef/version/角色、旧 writer 继续拒绝新 profile、旧 reader 不路由新存储、新 resolver 不接受历史/generic/scoped 输入及历史 refs/hashes 保留。
+
+上述设计修订直接消除了第一轮“新 profile 依赖冻结旧接受集”的反例。新路径尚未实现是声明的后续工作，不将未来 trace 或静态对账写为生产/持久化 PASS。
+
+### 本轮完整字段对账
+
+| 新边界 | 全部声明字段 / 约束 | 复审结果 |
+|---|---|---|
+| 构建期 Registry entry | registryKey、owner、reference、documentSchema；唯一三项；SchemaRef 的 kind/objectType/objectId/versionId/scope 精确匹配且无 contentHash | 与 EP 三个 profile 及 Catalog 相符；六个拟 UUIDv7 身份唯一；未注册状态明确。 |
+| 新 snapshot payload | registryVersion、profileKey、policySetVersion、policySchemaRefs、effectiveFrom、policyDocument；schema 数组恰一项；code/version 派生 policySetVersion；完整 cv1 Hash | 三个角色与各自 closed policyDocument 一致，Hash 域在 Delta/EP/IP 中统一。 |
+| Producer | 请求 snapshotId/payload；结果 policySnapshotRef/payload；预分配 ID；snapshotId 及业务版本唯一；同键重放与异内容拒绝 | 独立存储、语义校验、当前 record 授权、不可变 provenance 和 Receipt/整体回滚均已声明。 |
+| Resolver | 请求 policySnapshotRef/registryVersion/profileKey/policySchemaRef；结果 policySnapshotRef/payload；objectId=snapshotId、scope={}、精确 id+hash、完整 selector、mirror/hash 校验 | 独立读取、当前 read 授权、原样返回与依赖错误/无 fallback 闭合；不从历史库或 scoped 版本取代。 |
+| Publication / resolution | 原 outer/child refs、definition/range/semantic validation Hash、Human Actor/Decision、生效/取代/撤回和当前性字段 | 明确依赖新 resolver；正文位置已改为 payload.policyDocument；发布与保存、历史可读与当前可用继续分开。 |
+| D14 消费与失败 trace | source/review/intent 的精确 publication/rule/template 集合、启动条件、文件条件和原意图恢复 | R1 修订没有削弱 1 类 TEXT Fact、完整 Product、四类保护 Evidence、12/2/3 必需集合或冻结 PROJECT_START；17 项设计 trace 均保持 NOT RUN。 |
+
+### 本轮证据与剩余门禁
+
+| 证据 | 实际结果 / 边界 |
+|---|---|
+| 最新 Issue/PR 与 `vibe repo --json` | Issue #257 仍为 T2 design-only；本地与远端 head 均为本轮 reviewed SHA；当前 base 已读回，复审开始时工作区干净。 |
+| [CI run 37933759152](https://github.com/qzhike/zhiju-business-core/actions/runs/37933759152) | GitHub readback headSha 与本轮 SHA 相同；select/checks/Verify documentation/verify SUCCESS；Verify code 与 persistence 按纯文档路由 SKIPPED。复用该 revision-bound 配置目标证据。 |
+| 定向静态诊断 | 八文件 Markdown 范围、base-to-head whitespace、三项 profile/six UUIDv7 唯一性、旧 registry/writer/reader 与当前 base 字节一致、IP 七项/EP 十项 trace 唯一且全部 NOT RUN 均通过。 |
+| 业务确认与历史来源证据 | §1–2 与第一轮修订逐字节相同，确认范围 Hash 仍为 `8cabe2e26d2402660f92e3fec7b59daa595e6d5ae26df7af2560f4b080b5f64b`。因此保留第一轮实际模板读取/Hash 证据，不将其重新标为本轮客户、发布或运行验收。 |
+| 运行 / 外部 / 人工 | 十七项行为 trace、真实 OIDC/HTTP、PostgreSQL、Host/Runner、浏览器/平台发布和独立人工客户验收全部 NOT RUN。 |
+
+本轮 agent 设计对账没有剩余阻塞缺陷，但 [Issue #257 Verify](https://github.com/qzhike/zhiju-business-core/issues/257) 明确要求“Independent design review and explicit human technical approval”完成后才可冻结语义或宣布依赖实现 READY；当前 PR/owning Spec 仍注明 HUMAN TECHNICAL APPROVAL PENDING。因此角色结论为 HUMAN_REVIEW_REQUIRED，下一责任方是人类技术审查者，须明确批准本轮最终 SHA 的新 Platform 存储/registry/授权/发布与兼容边界。它不要求本设计 PR 提前实现这些后续能力，也不把业务清单确认或其他 PR 的批准继承为 #257 的技术批准。
+
+第二轮记录是本地新增复审内容，不属于本轮 reviewed SHA；第一轮 REQUEST_CHANGES 记录继续仅描述原 SHA。本次仅更新正式审查记录并按用户授权提交复审 comment。
+
+---
+
+## 人类技术批准与最终审查结论（2026-10-09）
+
+- Approved / reviewed SHA：`4bd1f0100a9ea4ddb2db071f153454557ac223cd`。
+- Current base SHA：`79c1d55ceb491bb455dc00d1ff6b518d2f313194`。
+- 批准来源：本次请求的用户在第二轮复审及剩余技术批准门禁已明确后，于当前对话回复“批准”。
+- 独立复审：[PR #262 第二轮 comment](https://github.com/qzhike/zhiju-business-core/pull/262#issuecomment-6081763567)；R1 CLOSED IN DESIGN，本轮没有新增阻塞设计缺陷。
+- Human 技术批准：`APPROVED 2026-10-09`。
+- 最终 Reviewer outcome：`APPROVE`，作用于上述 design-only 修订；第一轮 REQUEST_CHANGES 与第二轮 HUMAN_REVIEW_REQUIRED 保留为各自时点记录。
+
+记录批准前，已通过 `vibe repo --json` 和 GitHub PR readback 确认本地及远端仍为同一 approved SHA。本次批准覆盖该修订的新 Platform registry、canonical SchemaRef、producer/resolver、不可变存储、完整 Hash 域、当前授权、公司发布/解析与兼容/取代设计及 owner traces。§1–2 业务确认范围继续由原 bytes Hash 单独标识；SD257-SUPPORT 未选择、未批准。其他 PR 的批准不在本记录中继承或扩展。
+
+本次已同步公司 Delta、D14 导航、Catalog 及 EP/IP Spec/Test 的真实设计批准状态；未改变 approved SHA 的业务清单、字段、Schema 身份、授权、Hash、转换或场景预期。新增复审/批准记录和这些状态元数据是尚未提交的本地改动，不属于 approved SHA。该设计的独立审查与人类技术批准门禁现已闭合，后续实现仍需其自身 NOW + READY、注册/持久化/执行接线和适用验证证据。
+
+生产 Registry/Schema 未注册、能力未实现、实际公司 bundle/template/requirement/publication 未由本次批准形成；十七项行为 trace、真实 OIDC/HTTP、PostgreSQL、Host/Runner、浏览器/平台发布与独立人工客户验收仍为 NOT RUN。本次批准的动作范围为已复审技术设计及其批准记录。

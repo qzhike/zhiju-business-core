@@ -391,7 +391,7 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 
 ## #257 公司规则发布与读取设计场景
 
-状态：`PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。对应 [IP owning 提案](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案)；公司业务清单与客户适用性归 EP/专业 Human，不能把 IP Hash/profile 检查说成业务正确性。
+状态：`DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / NOT REGISTERED / NOT IMPLEMENTED`。对应 [IP owning 提案](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案)；公司业务清单与客户适用性归 EP/专业 Human，不能把 IP Hash/profile 检查说成业务正确性。
 
 | ID | 输入 / trace | 预期 owning 结果 | 实际 / 结果 |
 |---|---|---|---|
