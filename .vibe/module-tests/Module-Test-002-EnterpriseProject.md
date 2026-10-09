@@ -566,3 +566,21 @@ pnpm persistence:gate
 | EP-D14-009 | Evidence alias 当 EvidenceRef / requirement 只有模板 / 既有客户 latest | 须真实 Quality capture/verify/get 与客户依据；固定必需 QMS 三组非空；精确既有版本 Human 核对，不猜来源 | 未执行 / `NOT RUN` |
 
 首轮恢复追加场景（同为 `NOT RUN`）：**EP-D14-010** — start 已提交，原集合保护阻塞/补料stale，Human 新选独立子集；预期：ACTIVE/PREPARATION+初轮未收才允许新 scope intent/独立决定；原 start/企业版本不改；有界补料报告与当前 plan，必需 start 依据失效须 impact review。
+
+## #257 公司启动规则与词表设计场景
+
+状态：`PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。依据 [EP owning 字段](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 和 [公司清单/来源 Delta](../decisions/company-startup-rules-v0.1.md)。下表是必要设计 trace，不是已执行测试；真实正链须取得批准/发布/客户来源后通过 owning 入口建立，不使用 demo codes、空必需集合或合成 refs 代替。
+
+| ID | 输入 / trace | 预期 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| EP-257-001 | §1受支持范围、公司精确批准/已发布 bundle/9模板/12要求及 normative refs；完整方针 TEXT/全部完整 Product、4类保护 Evidence、12项适用性/2项管理/3项专业决定；Human 确认后 start→独立所选整文件 | 逐项 source/Hash/Quality verification/当前授权通过；真实 Fact/Product/QMS/Profile/ProductScope；唯一 PROJECT_START+ACTIVE；scope receipt 只表示接收，不自动 dispatch/完成 | 未执行 / `NOT RUN` |
+| EP-257-002 | 分别缺完整方针、Product 的任一必需字段/纳入产品、保护依据、12/2/3组任一项；NOT_PROVIDED、MISSING_CONFIRMED、UNREADABLE/READ_LIMITED、UNKNOWN | 合法报告可审阅；逐项保留真实原因/部分值，缺候选也显示必需 code；PREPARING/零 start，不以三数组非空、COMPLETE或一个文件可做放行 | 未执行 / `NOT RUN` |
+| EP-257-003 | 公司必需规则采用 SD257-SUPPORT 的结构化目标/组织/运营/产品流程 Fact，当前只接受 TEXT | 明确 UNSUPPORTED_CANDIDATE 和所需类型；零扁平化/伪造 Fact/启动；没有单独批准和完整接受集不自扩；保护 Evidence 不能替代必需结构化 Fact | 未执行 / `NOT RUN` |
+| EP-257-004 | 两来源方针/用途不同；强制要求与客户实际安排冲突；旧 CONFLICT 被批量同意 | 两组原值/证据/差异保留，普通确认拒绝；新证据和合法 Human 判断后新候选/版本，不默认取模板或最新文件，不弱化强制要求 | 未执行 / `NOT RUN` |
+| EP-257-005 | 未知/错版 productType/market/choice/outcome、未发布 requirement、重复/错误 sourceId+locator、相同ID错 bytes/canonical hash、他项目 Evidence、独立软件强映射 active_device | 确定性映射/接纳或资格拒绝；无越权读取/新 Fact/start；不同 hash 域不能互换，已有版本也核对语义和范围 | 未执行 / `NOT RUN` |
+| EP-257-006 | S1非无菌/不适用示例、S3示例部门/签字栏、S6 QMS/ERP示例被当客户值；TEMPLATE alias/路径直接用作 EvidenceRef | 不形成客户事实/人员/实施或适用性结论；要求来源与客户 Evidence 分开；不提供不等于不存在，不存在不等于不适用 | 未执行 / `NOT RUN` |
+| EP-257-007 | 准备旧 report/request 绑定规则，被真实 supersession 到期、当前输入模板绑定变更、withdrawal；仅新发布无取代；future effectiveFrom；原键换 refs | 分别核对当前性；真实失效追加 STALE/preparationVersion，原意图不变，重 capture/analysis/显式新确认；无取代新版不自动使旧版 stale；未来版本不可提前用 | 未执行 / `NOT RUN` |
+| EP-257-008 | 必需启动依据齐全，文件A计划新增客户质量目标数值/职责/审批步骤但无保护专项许可；文件B无依赖且全条件成立 | PREPARING 初次选A+B拒原集合且零start；Human 明确新选B后 lawful start→仅B接收，A整文件等待；ACTIVE尚未scope时按有界新意图处理；禁止删A的某 changeId、普通启动确认代替保护许可或scope自动执行 | 未执行 / `NOT RUN` |
+| EP-257-009 | 新 bundle/新材料在 ACTIVE 首轮scope前使必要依据失效；历史 FULL_START 使用旧规则 | ACTIVE/原PROJECT_START、三引用/Hash与已成功事实不改；INITIAL_SCOPE_RECOVERY 等待 owning impact，独立文件也不能绕过；FULL_START不转准备/重start | 未执行 / `NOT RUN` |
+
+公司已确认四类保护 Evidence + TEXT/Product/QMS 满足首版业务清单，首版不选择结构化 Fact 扩展；真实代表性客户项目是否完成约定目标仍待独立验收。docs/定向静态对账只证明文档形状/关系；PostgreSQL、真实 HTTP/OIDC、Host/Runner、浏览器和独立人工验收仍 `NOT RUN`。

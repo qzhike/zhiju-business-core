@@ -1031,3 +1031,29 @@ Grant/Decision 由 IP 现有 owning 入口形成精确 PolicySnapshot/ActorSnaps
 错误沿用当前安全 AUTHORIZATION_DECISION_INVALID / CAPABILITY_SCOPE_MISMATCH / Human-only 拒绝；无权时 protected reads=0。准备 profile 权限不包含 artifact/document.write、company template/rule WRITE 或任意 host/network/MCP。恢复和同键 replay 重验当前身份，只返回当次许可字段，不通过已保存 Receipt 泄露别的 Scope。
 
 ACTIVE 首轮恢复新增 `project.initial_scope.confirm` / `project.initial_scope.request.read` / `project.initial_scope.request.resume` 和 TE `execution.initial_work_scope.read`；写决定 Human-only，读取独立当前权限，Process 只执行原精确 scope 决定并独立再授权。仅 creationMode=PREPARATION、原冻结 start、TE 初轮未接收；不授予重新信息确认/激活/start 或后续修改资格。scopeRequestRef 与新 CONTENT_ADDRESSED initial_work_scope_decision 的 actor/payloadHash/Scope/当前撤权均重验。
+
+## #257 公司规则发布与精确读取提案
+
+状态：`T2 / PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。业务清单及取代约束见 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md)，payload 语义由 [EP owning profile](Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 定义。本节只拥有政策身份、发布证明、授权和当前 useStatus；不接管客户 facts、模板/requirement 或 QMS 适用性判断。
+
+### Platform 身份、不可变发布与内部 Port
+
+`ruleBundleRef/startupRulesRef/vocabularyRef` 拟复用既有 Platform `SNAPSHOT / identity.policy_snapshot` 原生 wire identity，通过当前 `record_policy_snapshot/get_policy_snapshot@1.0` 的 owning 路径保存/读取完整 payload。三个 EP profile 均未注册；现行 Registry 不认识时必须拒绝，不能绕过注册或改 `identity.resolve_policy@1.0` 的 Enterprise/Project Scope。平台文件不含客户材料、Evidence、人员、任职或其他企业敏感内容。
+
+新增提案为 `CONTENT_ADDRESSED / zhiju.identity.company_rule_publication / Platform scope`。发布事实 payload 固定：`bundleCode; bundleVersion; ruleBundleRef; startupRulesRef; vocabularyRef; approvedDefinitionHash; approvedRangeHash; semanticValidation:{validatorProfileRef,validatedPayloadHash,validatedChildRefs,validatedAt}; actorSnapshotRef; authorizationDecisionRef; effectiveFrom; recordedAt; supersedesPublicationRef?`。`approvedDefinitionHash=SHA-256(cv1(startupRulesSnapshot.policyDocument))`，`approvedRangeHash=SHA-256(cv1(bundleSnapshot.policyDocument.supportedRange))`；validatedPayloadHash 对应整份待发布 IP bundle snapshot canonical payload（即 ruleBundleRef.contentHash）。词表/模板/requirement 经 outer payload 的 exact refs 全部受批准绑定；所有 Ref 和 hash 由 owning 路径实取/重算，不能仅比较 caller 提交的相同字符串。
+
+拟 `CompanyRulePublicationCapability` 和 `CompanyRuleResolutionPort` 是受控内部能力，不是已注册新公开 API 或 BFF 管理入口。发布前由 EP 当前有权的语义校验 Port 校验完整定义；IP 重验 snapshot/profile/hash、同业务 code/version 唯一性和发布决定。Human 明确批准整份具体清单与范围才可发布；SERVICE 仅执行精确原 Human 意图并取得独立当前许可，不能创造批准。publication 在已确定的 bundle 后形成，bundle 不包含 publication 自引用。Policy snapshot 已记录但无真实 publication 只能历史读取，不能被称为 PUBLISHED。
+
+解析 Port 输入精确 `ruleBundleRef/startupRulesRef/vocabularyRef/publicationRef`，结果 `{snapshots,publication,currentUseStatus:USABLE|NOT_YET_EFFECTIVE|SUPERSEDED|WITHDRAWN,checkedAt,sourceWatermarks,reasons}`。相同 ID 错 Hash、错 child/profile、无发布证明、未来 effectiveFrom、撤回或实际取代生效均不可用于 startup。不存在/不可见使用统一安全外观，依赖不可用不伪装成缺失。历史读取仍重验当前独立读权；不能通过旧 startup Receipt 或 allowedActions 取得发布/续写权限。
+
+发布当前性来自拟追加不可变事实：首版同 code/version 只一 publication；真实 supersession 只允许同 code、后继至多一个、无环、以新 publication effectiveFrom 生效，supersedesPublicationRef 必须指向 bundle.supersedesBundleRef 的真实发布；withdrawal 明确绑定原 publication、理由、Human ActorSnapshot/AuthorizationDecision 与生效时间。新发布无 supersedes 允许并存。发布者授权撤销阻止其后续动作，但不自动抹掉先前合法发布；若需停用 bundle，须独立明确 withdrawal/impact 事实。Query 给历史 payload 和独立当前性，不对原 snapshot 进行 UPDATE，不把 scoped PolicyVersion 的旧 lifecycle 直接套到 Platform。
+
+### 授权边界
+
+| 动作 / 拟内部 purpose | 当次必须满足 |
+|---|---|
+| 公司 publish / `identity.company_rule.publish`；withdraw / `identity.company_rule.withdraw` | PLATFORM scope，具权限 HUMAN、精确 bundle payloadHash/范围/发布证明、ActorSnapshot/AuthorizationDecision；普通 Enterprise publisher/Runtime 权限不包含公司写入 |
+| 公司读取/解析 / `identity.company_rule.read` | SERVICE 或 HUMAN 的当次 Platform READ，有限 resource selectors、exact refs/hash、期限；仅返回公司数据，不附客户事实 |
+| EP startup confirm/start/initial-scope | 保持 D14 各自 Human-only 与 Project Scope；读取规则的许可不替代客户证据读取、Human 判断、启动或保护例外许可 |
+
+这些 purpose 和接受集是提案，当前无注册/部署许可即 fail closed；不改变当前旧 Purpose 值或 AgentPrincipal 边界。每次受保护读取/新写/replay 重验 current Decision；protected reads 前拒绝不泄露内容，历史合法事实不回改。独立证据规则继续复用 QualityGovernance，不建立 IP Evidence 副本。定义/身份/期限/Scope 验证失败按现行授权安全外观处理，不冒充已通过业务规则。owning 场景见 [IP-257](../module-tests/Module-Test-001-IdentityPolicy.md#257-公司规则发布与读取设计场景)。

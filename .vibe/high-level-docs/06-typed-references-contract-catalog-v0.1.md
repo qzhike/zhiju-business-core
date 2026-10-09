@@ -1489,3 +1489,15 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 新增 `PreparationContext@1.0`、`WorkOrderContract@1.1` preparation 分支、`RuntimeExecutionPackage@1.1` 与 `d14.analysis@1` 是待批准 producer/validator selectors，接受集分别见 Core03/TE/Runtime owning sections。旧操作不接新 profile；本首版 public request→owning internal handlers 是封闭入口，若将新 profile 公开到旧 Run/Result 操作须明确新版本/接受集审批，不能暗改已发布 grammar。
 
 首轮恢复 additive 提案补充（均 @1.0、未注册）：EP `project.request_initial_scope_confirmation`、`project.get_initial_scope_request`、`project.resume_initial_scope_request`；TE `execution.get_initial_work_scope_state`。新增 OBJECT `zhiju.project.initial_scope_request`、CONTENT_ADDRESSED `zhiju.project.initial_work_scope_decision`，均同 Project；producer/field/startBindingMode 与授权唯一维护于 Spec002 ACTIVE 首轮恢复，消费者与唯一 INITIAL scope 约束维护于 Spec003。旧 catalog 计数/bytes 不改。
+
+## #257 公司启动规则引用提案
+
+状态：`T2 / PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。仅为 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md) 的 owner/reference 导航，不增加当前公开 operation 数、Registry、Schema 或 compatibility baseline。
+
+| 拟引用 / profile | 唯一 Owner / Scope / fields |
+|---|---|
+| `ruleBundleRef / startupRulesRef / vocabularyRef` | 复用 IP 原生 Platform `SNAPSHOT / identity.policy_snapshot`；三个 EP-owned profile `ep.company_startup_bundle@1.0`、`ep.company_startup_rules@1.0`、`ep.company_startup_vocabulary@1.0` 未注册；[Spec 002 #257](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案)；不改旧 identity.get_policy_snapshot 的 wire spelling，不让 scoped resolve_policy 读 Platform |
+| `CONTENT_ADDRESSED / zhiju.project.company_startup_requirement` | EnterpriseProject / Platform；精确公司要求定义、模板/正式规范来源与发布；Spec 002 #257；不是客户 Evidence |
+| `CONTENT_ADDRESSED / zhiju.identity.company_rule_publication` | IdentityPolicy / Platform；具体 bundle/清单/范围/EP校验/真实Human批准与发布、取代/撤回当前性；[Spec 001 #257](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案) |
+
+上述发布/解析只提案受控 owning internal Capability/Port，不伪装为已存在的公开 Command/Query。后续批准并注册类型/profile/purpose/实现后，EP startup Query/Source/Binding 才能接受 publicationRef 和精确 requirement 集合；历史 D14、Platform snapshot 与 PROJECT_START 接受集/Hash 不自动升级。

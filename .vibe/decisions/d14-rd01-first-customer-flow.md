@@ -70,6 +70,8 @@ EP `candidateSetRef` 与 `planRef` 由已接纳报告派生，包含该报告精
 
 首版拟 `startup-rules@1` 支持集限定为：有客户依据的完整质量方针 TEXT、至少一个完整 ProductVersion、QMS 三组必需条目及可信 Human 决定。具体 factType、productType/market 词表、requirement/choice/decision 精确 ID 与强制清单必须由公司发布为不可变 rule bundle 并在人类批准中逐项确认；不存在可解析 bundle 或某必需字段超出上述支持集时 fail closed，不能用匿名 demo.* 码、空数组或通用默认规则启动。已有客户可显式选择同 Enterprise、仍有效且适用本项目的精确 Fact/Product/QMS 版本，不能自动采用 latest。
 
+[Issue #257 公司规则与词表提案](company-startup-rules-v0.1.md)提交真实模板来源、具体有界范围/必需清单、精确发布与取代条件以及支持集不足时的独立 Delta；公司业务清单于 `2026-10-09` 逐项确认，四类保护 Evidence 满足首版要求，不选择结构化 Fact 扩展。独立设计审查/技术批准仍待完成，未注册、未实现；该新确认单独留痕，不回写为本 D14 原批准。
+
 `EVIDENCED / UNKNOWN / CONFLICT` 是 Runner 候选状态，未变为 CONFIRMED。UNKNOWN 保留已知部分和封闭 missingFields；CONFLICT 值为空并保留至少两组带依据 alternatives 与 conflictingFields；缺失、读取失败、未提供、Human 明确没有分别保留。非必需 UNKNOWN 不写入正式版本；若影响文件则整文件等待，独立文件不受牵连。Human 自身的答复经认证和来源接纳后可以成为候选证据；冲突解决须新证据/精确候选版本重新核对，不能在旧 CONFLICT 上点批量同意。
 
 证据别名不是 `EvidenceRef`。使用既有 QualityGovernance `quality.capture_evidence_candidate@1.0` / `quality.verify_evidence@1.0` / `quality.get_evidence@1.0`，建立真实、精确 source snapshot、locator、captured content/hash、verification 与 claim 的 EvidenceRef；此为复用现有所有权，不新增 Quality 合同或放宽验证。Host 来源完整性只可支持确定性验证，专业结论需 Human；template ref/原路径不能直接填到 EvidenceRef。若 Evidence 生产/验证不能合法完成，信息确认停在 PARTIAL/明确缺口，不伪造 QMS/Fact refs。

@@ -361,3 +361,17 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 | IP-D14-005 | 当前 allowedActions 后权限变化、客户端替换 actor/Decision | owning 重新授权并拒绝，UI 值不作为资格；服务端认证上下文唯一 | 未执行 / `NOT RUN` |
 
 首轮恢复追加场景（同为 `NOT RUN`）：**IP-D14-006** — ACTIVE初轮恢复新Humanscope决定/撤权/伪original request→start；预期：原start精确、真实decision与当前许可；不授予重start/信息激活，错来源/撤权拒绝。
+
+## #257 公司规则发布与读取设计场景
+
+状态：`PROPOSED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。对应 [IP owning 提案](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案)；公司业务清单与客户适用性归 EP/专业 Human，不能把 IP Hash/profile 检查说成业务正确性。
+
+| ID | 输入 / trace | 预期 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| IP-257-001 | 公司具权限 Human 精确批准清单/范围，EP 校验真实 outer/child refs，记录snapshots后发布；SERVICE续接原意图 | 独立不可变 publication绑定真实 ActorSnapshot/AuthorizationDecision、definition/range/整bundle hashes；三个refs匹配，USABLE；snapshot保存自身不等于发布，服务身份不创造Human批准 | 未执行 / `NOT RUN` |
+| IP-257-002 | AGENT/RUNTIME/actingFor、Enterprise普通publisher或正文“已批准”尝试发布/withdraw；Human发布前撤权；普通读取许可尝试start/保护例外 | 当前Platform Human-only/Scope检查拒绝，protected reads=0，零发布/撤回/客户决定；读取规则不授予客户写能力 | 未执行 / `NOT RUN` |
+| IP-257-003 | profile未注册、snapshot无publication、错id/hash/child/profile、伪EP校验、不同业务范围批准、scoped PolicyVersion伪装Platform、读取无许可 | fail closed；不走resolve_policy绕过Platform身份、不回退别版/重算Hash；依赖不可用与真实不存在区分，安全外观不泄露保护数据 | 未执行 / `NOT RUN` |
+| IP-257-004 | 新发布无取代；未来生效后继；真实取代/withdrawal；循环、不同code或同一旧publication两个后继 | 无取代可并存；未来NOT_YET_EFFECTIVE，旧版在取代到期前仍USABLE；到期只追加当前性事实，历史payload不改；非法取代边拒绝；EP按实际失效处理STALE/impact | 未执行 / `NOT RUN` |
+| IP-257-005 | 同code/version异payload或错definition/range Hash；发布响应丢失重试；合法发布后发布者撤权；旧Receipt/allowedActions重放 | 身份冲突拒绝；原意图/键回读真实publication，无重复发布；撤权阻新写但不抹掉历史，停用需明确withdrawal；每次读取/续写重验当前权限，无客户正文进入Platform配置 | 未执行 / `NOT RUN` |
+
+本任务仅维护设计场景，配置化 docs 与定向字段/引用对账不执行以上授权、发布生命周期或持久化行为；独立设计审查、人类技术批准及真实平台/外部/人工验收分别取证。
