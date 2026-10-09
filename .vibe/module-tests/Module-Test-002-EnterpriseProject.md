@@ -575,7 +575,7 @@ pnpm persistence:gate
 |---|---|---|---|
 | EP-258-001 / Contract + HTTP | verified Human，自身目录、两个Enterprise下明确授权Project | EP public Query仅返回当前受权精确refs/安全摘要/版本与水位；每项有独立IP discovery检查，无空Scope业务Decision/全库EP查询 | 未执行 / `NOT RUN` |
 | EP-258-002 / Security + Persistence | A授权、B拒绝/撤权；改requester/filter/ProjectRef，目录后访问board | B无protected read/无数据或计数泄露；选A后board仍单独授权；同名不合并/赋权 | 未执行 / `NOT RUN` |
-| EP-258-003 / Pagination | 50项页、过滤空页仍有候选、200项扫描预算、篡改/过期/换Session/Grant变化cursor | 限额/稳定排序/nextCursor与完整性正确；无未授权总数；拒绝错绑定并从首屏重读 | 未执行 / `NOT RUN` |
-| EP-258-004 / Dependency | IP/EP失败与真实零可见Project对照 | 失败503/无data；只有完整零项是EMPTY；未注册目录拒绝，无BFF扫库/demo fallback | 未执行 / `NOT RUN` |
+| EP-258-003 / Pagination | 50项页；201个当前获权候选，前200不匹配searchText、第201匹配；200项/5秒扫描预算；前页非空/末页空；篡改/过期/换Session/Grant或水位变化cursor | 首请求 `OK + items=[] + nextCursor`，Page/Envelope游标同值且不超预算；下一页沿稳定排序返回第201项。末页省略游标，空末页不丢前页结果；无未授权总数；拒绝错绑定/变化并从首屏重读 | 未执行 / `NOT RUN` |
+| EP-258-004 / Dependency | IP/EP首屏或中途失败；完整零可见Project及过滤空中间页对照 | 失败503/无data且ERROR，不冒充EMPTY或枚举结束；空中间页仍OK+nextCursor并继续分页；仅完整无cursor且累计零项为EMPTY；未注册目录拒绝，无BFF扫库/demo fallback | 未执行 / `NOT RUN` |
 | EP-258-005 / Preparing + Recovery | 创建已提交但缺discovery Grant、准备请求响应丢失/expiry | 不补Grant/卡片；同原requestRef/key当前read权限回读，成功Enterprise/Project/Receipt保留，不重建 | 未执行 / `NOT RUN` |
 | EP-258-006 / Isolation + Board | exact双ScopeRLS、目录显示字段、EP/TE不同水位及分页分母 | 每Scope独立受权读取；无跨Schema授权join；看板保留自己的真实状态/水位，不拿局部和当全项目数 | 未执行 / `NOT RUN` |

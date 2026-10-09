@@ -281,8 +281,8 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。字段、封闭技术配置、Session转换、有限public operation/version表、CSRF/流/内容协议与TR-258验收trace唯一见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。已批准 UI-DG-003 架构/会话期限和当前布局不变，工程外壳匿名证据不代表本提案实现。
 
 1. Browser Cookie只索引BFF技术会话；token exchange后通过Core受信身份bootstrap桥确认当前link/ACTIVE HUMAN，才能进入工作台。每次受保护请求Core独立校验token，IP形成真实Actor/当次Decision；Browser自报actor/Decision/actingFor/header覆盖拒绝。email/Realm Role和BFF缓存摘要不赋权。
-2. BFF技术Session只存认证字段，业务草稿/原意图/Receipt由owner保存；未经公开能力保存的页面草稿明确“未保存”，不承诺重启/跨设备恢复。单次登录交易绑定发起Browser，多Tab交易独立、并发callback只一winner；refresh串行，logout/过期/重启失效后不被迟到refresh复活。
-3. 目录必须来自拟 `project.find_workspace_projects@1.0` 的当次受权项目摘要；它与per-project EP/TE看板分别授权。无目录handler/注册则显示服务不可用，不从原型、旧cache或BFF数据库扫描构造项目集合。多Tab按请求精确Scope工作，无Session全局activeProject。
+2. BFF技术Session只存认证字段，业务草稿/原意图/Receipt由owner保存；未经公开能力保存的页面草稿明确“未保存”，不承诺重启/跨设备恢复。单次登录交易绑定发起Browser，多Tab交易独立、并发callback只一winner；成功与安全error回调沿Delta封闭参数表接纳并精确验证响应iss，有限session_state仅校验后丢弃，不代替state/nonce或赋权；缺/错/重复issuer拒绝且零新Session。refresh串行，logout/过期/重启失效后不被迟到refresh复活。
+3. 目录必须来自拟 `project.find_workspace_projects@1.0` 的当次受权项目摘要；它与per-project EP/TE看板分别授权。合法 `OK + items=[] + nextCursor` 是未完成中间页，按绑定游标继续逐页读取；零累计项仍为LOADING，有卡片则保留READY及未完成提示。仅同一有效游标链枚举完整、末页省略nextCursor且累计可见项为零才显示EMPTY，空末页保留之前非空项；不得突破200项/5秒单请求预算，每页沿EP当前授权/水位规则，变化拒绝后从首屏重取。无目录handler/注册则显示服务不可用，不从原型、旧cache或BFF数据库扫描构造项目集合。多Tab按请求精确Scope工作，无Session全局activeProject。
 4. 公开命令输入为共享Envelope的transport projection；Core追加受信Actor/Decision，保留原target UUID、key、payloadHash/CAS。逐字allowlist只消费已注册owner版本；D14proposal缺Registry/handler仍不可用，不调用内部start/source/run或任意Catalog dispatcher。
 5. ZIP仅原流→IG issued intake，大小/累计bytes/backpressure/期限在BFF和IG各自限制；BFF不解包/分析/写对象存储。依据只读EP受权摘录/QG exact Evidence。当前无D14原件bytes transport，下载保持不可用；有owner精确版本/hash/当前权限与公开stream才能单独审查启用，不将locator自行变URL。
 6. 原CREATE request预分配target UUID，稳定key=`operation:1.0:targetUuid`；安全request页面不含客户正文/token。response丢失/401/重启后从Core回读原request/key；新认证只改变当次权限证明，不改原payload/历史Actor，禁止新键自动重发。PENDING/UNKNOWN/PARTIAL/STALE保留真实成功steps，COMMITTED/202不表示running。

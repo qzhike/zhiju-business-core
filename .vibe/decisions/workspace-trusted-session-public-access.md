@@ -51,14 +51,24 @@ Core 每次解析当前 link/Principal，不能仅相信 BFF 缓存的 principal
 
 | 技术状态 / 路由 | 绑定和转换 |
 |---|---|
-| `GET /bff/auth/login?returnTo=…` | 校验 Host/安全 returnTo。随机 login transaction、state、nonce、PKCE verifier/challenge S256；5 分钟 TTL。`__Host-zhiju_login; Secure; HttpOnly; SameSite=Lax; Path=/` 仅含随机 browser-binding ID；每个 state 对应独立 transaction，不让多 Tab 共用 nonce/verifier |
-| `GET /bff/auth/callback` | 固定 callback，仅 query code/state 或安全 error；验证 browser Cookie+state+期限+issuer，原子消费 transaction 后 exchange。缺 Cookie、重复/串 state/nonce 拒绝且零 Session；exchange 超时不重用已消费 code，重新登录。callback 是唯一无需 Session/CSRF 的认证回调例外 |
+| `GET /bff/auth/login?returnTo=…` | 校验 Host/安全 returnTo。随机 login transaction、state、nonce、PKCE verifier/challenge S256；5 分钟 TTL，记录本交易的 expectedIssuer/trustConfigHash。`__Host-zhiju_login; Secure; HttpOnly; SameSite=Lax; Path=/` 仅含随机 browser-binding ID；每个 state 对应独立 transaction，不让多 Tab 共用 nonce/verifier |
+| `GET /bff/auth/callback` | 固定 callback，仅接受下述成功/失败 query 形状；先验证 browser Cookie+state+期限+响应 iss 与交易/config 绑定，原子消费 transaction，成功才 exchange 并验证 ID token nonce。缺 Cookie、缺/错/重复 issuer、重复/串 state/nonce 拒绝且零 Session；exchange 超时不重用已消费 code，重新登录。callback 是唯一无需 Session/CSRF 的认证回调例外 |
 | Core identity bootstrap | BFF token exchange 后调用固定 `POST /api/workspace/session-bootstrap` 技术认证桥，仅固定BFF peer+实际access token+技术binding，无Browser身份字段；Core→IP resolveVerifiedHuman 返回当前安全Principal摘要。不是Business Catalog操作、不创建Role/Grant；无关联403，依赖503，不建立可进入业务的Session |
 | `AUTHENTICATED` | token与Core身份bootstrap均成功后替换 Session ID、旧 ID 作废；并发 callback 对同一 browser 代次只接受一 winner，另一重新登录，不相互覆盖用户。session bootstrap 只返回安全 Principal 摘要、sessionGeneration、CSRF token、期限；随后通过目录 Query 进入工作台，后续仍重新解析当前身份 |
 | `GET /bff/session`；`POST /bff/session/activity` | GET no-store，轮询不续空闲期；显式用户活动受 CSRF/Origin 保护，最多每分钟一次续空闲，不能延长 8 小时绝对期或更短 IdP 期限；不信任客户端时间 |
 | `REFRESHING` | 同 Session 一个 in-flight promise，其他请求等待最多 10 秒；refresh 前检查 idle/absolute expiry。原子换 access/refresh token 并重验主体和 claim；auth context 更新，后续重新签 Actor/Decision，不延长绝对期。失败/invalid_grant/超时使 Session 失效，禁止重放不确定 refresh token；后台结果检查代次，不能复活已登出的 Session |
 | `POST /bff/auth/logout` | CSRF/Origin/Host 校验后先删除本地 Session、清 Cookie，取消 refresh；再尽力固定 revocation endpoint。需要 IdP SSO 退出时仅用标准 RP-initiated end-session 固定client_id/redirect，可由IdP要求用户确认；不把id_token_hint/token放进Browser URL，不调用legacy logout。失败不恢复本地 Session，不取消已提交业务请求 |
 | `EXPIRED / RESTARTED` | 30 分钟空闲、8 小时绝对期、更短 IdP 期限或进程重启后 401 + UI_REAUTH_REQUIRED；旧 Cookie/transaction 不可恢复。重新登录换 Session ID/代次，读取原 Core 请求与当前权限，不能重建/重新提交业务 intent |
+
+回调 profile 固定 `response_type=code`、`response_mode=query`、scope 含 `openid`，要求 discovery 的 `authorization_response_iss_parameter_supported=true`。Keycloak 默认响应含 [iss](https://www.keycloak.org/docs/latest/upgrading/index.html#added-iss-parameter-to-oauth-2-0openid-connect-authentication-response) 和 [session_state](https://www.keycloak.org/docs/latest/upgrading/index.html#added-session_state-parameter-to-openid-connect-authentication-response)；不以关闭这两个标准参数的兼容开关完成接入。接受集如下，不接受 form body、fragment 或 JARM：
+
+| callback query 形状 / 参数 | 接受与处理 |
+|---|---|
+| 成功：`code; state; iss; session_state?` | code/state/iss 各一个非空值；先完成交易绑定和 iss 校验，再单次消费交易、PKCE exchange、token/nonce 验证与 Core bootstrap；其他 error 字段不得出现 |
+| 失败：`error; state; iss; error_description?; error_uri?; session_state?` | error/state/iss 各一个非空值，code 不得出现；仍须相同 Cookie/state/期限/iss 校验并单次消费交易。零 token exchange、零 Core bootstrap、零新 Session；error 只映射固定安全“登录未完成”提示，不展示/记录原 error、description 或 URI，不导航/请求 error_uri |
+| `iss` | 按 [RFC 9207 §2.4](https://www.rfc-editor.org/rfc/rfc9207.html#section-2.4) 仅做一次 application/x-www-form-urlencoded 解码，字符串精确等于发起交易的 expectedIssuer 及固定 discovery/config issuer；大小写/尾斜杠不归一化。成功与失败均必填；缺失、空值、重复（即使值相同）、不匹配或交易 config 已变直接拒绝，不 exchange、不信任该 error、不建立 Session |
+| `session_state` | 可缺省；出现时仅一个非空 opaque 值，解码后 UTF-8 ≤1024 bytes；校验长度/重复后丢弃，不持久化、不当作 state、nonce、token sid、Session ID 或认证/授权依据 |
+| 通用解析边界 | raw query ≤16 KiB；解码后 code ≤4096 bytes，state/error ≤256 bytes，iss/error_description/error_uri 各 ≤2048 bytes；可选 description 可为空，error_uri 若出现须非空但始终丢弃。任何未知键、重复键（含解码后同名）、必填空值、非法编码、控制字符或超限均安全 400，零 exchange/bootstrap/新 Session；按键收集后校验，禁止取第一个/最后一个值或二次解码。响应及 redirect 沿 no-store/no-referrer，诊断不保留 callback query |
 
 技术 `SessionRecord` 仅含 opaque ID、generation/browser binding、OIDC tokens、CSRF secret、created/lastActivity/absolute expiry、refresh lock；`LoginTransaction` 仅含认证字段与安全 return route。业务 payload、草稿、selectedFileIds、requestRef/原键、Receipt 和 Process 步骤禁止进入此存储。草稿若尚无 owning 公共持久化能力，只在当前页面内存保留并明确未保存；跨设备/重启恢复从 Core 已提交意图查询，不伪称恢复未提交草稿。refresh 单次消费与失效策略是项目提案，参考 [OAuth Security BCP 的 refresh token 保护](https://www.rfc-editor.org/rfc/rfc9700.html#section-4.14)。
 
@@ -67,6 +77,8 @@ Core 每次解析当前 link/Principal，不能仅相信 BFF 缓存的 principal
 新增唯一公共业务能力提案为 EP `project.find_workspace_projects@1.0`：AUTHORITATIVE、自身身份的有限目录；字段与分页唯一维护于 EP Spec。它返回当次许可的精确 Enterprise/Project ref、安全名称/编号、项目状态和版本，不返回别人的授权集合、客户材料、全局总数或业务完成判断。该新 Query 尚未注册；没有它时首版工作台入口不可用，不用 demo 列表或 BFF 扫库替代。
 
 Core 自身目录入口以 `scopeRef={}` 的专用 self-discovery 接受集处理已验证 Human，不能把空 Scope 解释成任意业务访问。IP 内部 `discoverWorkspaceProjectScopes` 只从该 Principal 的当前 exact PROJECT Grant/Policy 得到候选引用，不读 EP；EP 对每个候选取得独立 `project.workspace.discover` 当前 Decision，再在该 Enterprise+Project RLS Context 读取自己的项目摘要并在返回前重验。无空 Scope ActorSnapshot/业务 Decision、无全库 EP transaction、无 Enterprise→Project 权限继承。首次 identity bootstrap 和这个专用入口不能假装现有 scoped Port 已经支持无 Scope；具体实现需独立注册、权限/持久化测试。分页绑定稳定的登录 sessionBindingHash/代次，不能绑定每次验证变化的 validatedAt；每次IP Decision仍绑定本次完整认证摘要。
+
+目录合法分页一律为 `OK + Page`：达到 200 项/5 秒扫描预算时允许 `items=[] + nextCursor`，表示本页无匹配但枚举未完。Browser 以该绑定游标继续逐页读取，零累计项时保留 LOADING，不显示完整 EMPTY，不为凑非空页突破单请求预算。仅同一有效游标链枚举完整、末页省略 nextCursor 且累计可见项为零才显示 EMPTY；空末页不清空之前的非空项。每页保持当前授权、固定观察水位和变更拒绝规则，错误不能当作枚举结束；业务字段及完整规则以 EP Spec 为准。
 
 目录权限不包含 board/content/start 权限。BFF 只把目录结果展示为选项；选中后用各自当前授权的 `project.get_project_board_slice@1.0`、`execution.get_task_board_slice@1.0` 组合指定 Project 的安全看板，保留各自 consistency、水位、freshness、完整分母。首版跨项目工作台先显示项目卡片，按显式选择/可见卡片有限读取，不把分页的几项 Task 加起来称为全部项目总数。卡片标题不匹配名称搜索不赋新权限，PREPARING 只有相应 D14 可用动作。依赖失败为 ERROR/503，不冒充 EMPTY。
 

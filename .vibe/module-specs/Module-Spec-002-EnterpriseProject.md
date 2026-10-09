@@ -1006,6 +1006,6 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 
 翻页的snapshotAt/asOf与sourceWatermarks固定为首屏观察，不能按翻页时刻漂移。EP/IP相关源水位在逐项读取前后及最终返回检查点变化则拒绝该页 `QUERY_CURSOR_INVALID` 并从首屏重取，不新建目录Snapshot或技术Session业务cache；当前权限仍独立重验，不能以首屏asOf恢复已撤Grant。水位范围只覆盖候选来源和已许可摘要，不暴露未授权项目变化计数。
 
-无可见项且枚举完整才是 `OK + items=[]`；IP/EP依赖失败为 DEPENDENCY_UNAVAILABLE、无部分数据伪装完整目录。不返回未授权项目存在性或全局总数。新准备项目若尚无真实 current discovery Grant 不进入目录，owning preparation request 页面仍按其当前 read权回读，不补权限或伪造卡片。无该 Query 的 handler/注册时工作台目录不可用，BFF不能从旧缓存、匿名原型、Repository或per-project board推导项目集合。
+合法页均返回 `OK + data:Page<WorkspaceProjectSummary>`，包括 `items=[] + nextCursor` 的空中间页；Page 与 QueryResult 的 nextCursor 同值，枚举未完必须返回绑定游标，完整末页才省略。客户端按游标继续分页，不为得到非空页突破200项/5秒扫描预算；只有同一有效游标链枚举完整、末页无nextCursor且累计可见项为零才显示完整EMPTY，空末页不清空之前的非空项。IP/EP依赖失败为 DEPENDENCY_UNAVAILABLE、无部分数据伪装完整目录。不返回未授权项目存在性或全局总数。新准备项目若尚无真实 current discovery Grant 不进入目录，owning preparation request 页面仍按其当前 read权回读，不补权限或伪造卡片。无该 Query 的 handler/注册时工作台目录不可用，BFF不能从旧缓存、匿名原型、Repository或per-project board推导项目集合。
 
 选中项目后的 `project.get_project_board_slice@1.0` 仍只读指定 Project 的 DeliveryItem，`execution.get_task_board_slice@1.0` 仍由 TE 独立拥有；两者各验自身当前权限和consistency。目录项不作为board/data资格、不扩大分页分母。跨项目工作台首版只用本目录的项目卡片和受控单项目看板，不新增跨项目任务Projection/完成判据。

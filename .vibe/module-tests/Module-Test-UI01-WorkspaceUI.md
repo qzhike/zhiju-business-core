@@ -147,12 +147,12 @@ reviewer and timestamp
 | ID / 层次 | 输入 / 关联 trace | 可观察预期 | 实际 / 结果 |
 |---|---|---|---|
 | UI-258-001 / Config + Security | 缺固定issuer/audience/client/callback/peer、用户URL、伪Forwarded/Host、TLS/endpoint变化 | fail closed，无回调Host推导/外站redirect/任意upstream；无dev/mock fallback | 未执行 / `NOT RUN` |
-| UI-258-002 / OIDC + HTTP | 合法code+PKCE、错iss/aud/azp/alg/type/期限/nonce，ID token当API token | 双端独立验证，只有真实当前HUMAN关联可进入；非法token零业务调用，TR-258-01/02/04 | 未执行 / `NOT RUN` |
-| UI-258-003 / OIDC | 未绑定Cookie/state、重放/串交易、多Tabcallback、5分钟过期与容量满 | 交易single use；并发只一登录winner；限额503/无活跃Session驱逐，TR-258-05 | 未执行 / `NOT RUN` |
+| UI-258-002 / OIDC + HTTP | 同一合法交易的 `?code=…&state=…&iss=…&session_state=…` + PKCE；session_state缺省对照；错token iss/aud/azp/alg/type/期限/nonce，ID token当API token | 正确响应iss精确绑定交易/config后单次exchange、nonce验证与Core bootstrap；有限session_state校验后丢弃。双端独立验证，只有真实当前HUMAN关联可进入；非法token零业务调用，TR-258-01/02/04 | 未执行 / `NOT RUN` |
+| UI-258-003 / OIDC | `?error=access_denied&state=…&iss=…`，可选session_state/恶意error_description/error_uri；成功/失败均缺/错/空/重复iss；code/error并存、未知/重复/超限/非法编码参数；未绑定Cookie/state、重放/串交易、多Tabcallback、5分钟过期与容量满 | 合法error仍验证绑定并single use，零exchange/bootstrap/新Session，只展示固定安全提示且不记录原参数/跟随URI；错误issuer/参数前置拒绝，重复同值也拒绝。交易single use；并发只一登录winner；限额503/无活跃Session驱逐，TR-258-05 | 未执行 / `NOT RUN` |
 | UI-258-004 / Session + OIDC | 多Tab并发refresh、rotated refresh token、timeout/logout竞态、idle/absolute期/BFF重启 | single-flight/期限有效；迟到结果不复活；Cookie轮换/清理，轮询不续idle，TR-258-06/08 | 未执行 / `NOT RUN` |
 | UI-258-005 / Security + HTTP | GET业务写、所有POST Query/Command/PUT/activity/logout缺/错CSRF、null/错Origin/Host/Content-Type、公网actor/header | 前置拒绝且Core calls=0；仅已绑定OIDC callback例外；合法对照进入owner校验，TR-258-04/05 | 未执行 / `NOT RUN` |
 | UI-258-006 / Contract + Registry | finite表逐项正例；未知operation/version、未注册D14、管理/worker操作、CREATE target/CAS/hash错值 | 只exact允许的已注册handler；Core形成共享Envelope身份字段，完整Result/code/retryDisposition保留，无私有dispatch | 未执行 / `NOT RUN` |
-| UI-258-007 / Directory + Browser | 授权A/无权B、目录/board分权、翻页Grant变化、B deep link与旧A迟到响应 | 有限owner目录，B统一不可见；current grant/RLS拒绝；EP/TE水位与分母不混，TR-258-03 | 未执行 / `NOT RUN` |
+| UI-258-007 / Directory + Browser | 授权A/无权B、目录/board分权；201候选前200不匹配、第201匹配；完整零项与前页非空/末页空对照；翻页Grant/水位变化、B deep link与旧A迟到响应 | 空中间Page为OK且继续nextCursor，零累计项LOADING，后页显示匹配项目；仅完整无cursor且累计零项显示EMPTY，空末页不丢已有卡片，预算不变。有限owner目录，B统一不可见；current grant/RLS拒绝与变化从首屏重取；EP/TE水位与分母不混，TR-258-03 | 未执行 / `NOT RUN` |
 | UI-258-008 / Stream + HTTP | 合法100MiB边界ZIP、chunked超限/错hash/压缩HTTP body/断流/timeout/token过期、换Scope | 有界backpressure，零BFF解包/全包buffer/storage写；IG独立核验；同原intake查询，零新键/假FAILED | 未执行 / `NOT RUN` |
 | UI-258-009 / Content + Security | exact Evidence/EP依据摘录；别名/hash/Scope错值、未授权下载、恶意文件名/Markdown | owner当前权限/精确引用；无原件stream时下载不可用；不将locator/metadata转bytes权，CSP/编码且无脚本执行 | 未执行 / `NOT RUN` |
 | UI-258-010 / Recovery + HTTP + PG | request已commit/start成功scope失败时断网/Session过期/重启；原requestRef/key重登回读 | 原intent/成功steps/Receipt不变；新auth仅当前read/续步证明，UNKNOWN依赖失败不推未提交，零重复事实/dispatch，TR-258-06/07 | 未执行 / `NOT RUN` |
