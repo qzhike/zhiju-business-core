@@ -102,13 +102,13 @@
 |---|---|---|---|
 | RA-LOCK-001 | 明确人类选择、exact reviewed SHA批准；配置、Darwin观察和真实Ubuntu物化lock各自取证 | 三层不互相替代；缺CLI/Host/Adapter/prompt/rule/tool digest或当前数据许可零invoke；不填latest/虚构hash | 未执行 / `NOT RUN` |
 | RA-LOCK-002 | 一次真实lockedCLI、固定reader/v0.2validator/renderer、原JSON/MD/extraction进入IG→TE→EP | invocation次数/模型/原ack/outputs与各层refs/receipts分别可读；inputs前后hash相同；report可审阅不自动start/Completion | 未执行 / `NOT RUN` |
-| RA-LOCK-003 | Provider/model别名、实际事件模型变化、默认config忽略、额外模型/fallback/MCP/Skill | capability/config不足不dispatch；运行中漂移隔离不接纳，零自动替换/第二CLI调用 | 未执行 / `NOT RUN` |
+| RA-LOCK-003 | OMP精确selector与DeepSeek API ID/批准版本分列；缺固定版本证据、同deepseek-flash底层版本变化或不可核验；默认config忽略、辅助模型/context promotion/retry fallback/MCP/Skill/显式extension及工具URL/URI | 名称相同不证明版本固定；capability/config/版本绑定不足不dispatch，运行中漂移隔离不接纳；实际仅read/grep/glob/write且根内普通文件，零额外模型调用/自动替换/第二CLI调用 | 未执行 / `NOT RUN` |
 | RA-LOCK-004 | 客户AGENTS/CLAUDE/Skill/MCP注入与模板同名、试改原件/规则/工具 | 客户内容仅证据；发现/执行禁用，kernel/MAC拒绝写，前后hash不变；不能靠flag自报安全 | 未执行 / `NOT RUN` |
 | RA-LOCK-005 | 输出穿越/link/FIFO/device/碰撞；跨Enterprise/Project/Run读写；secret/proc/Core/metadata/外网/代理访问 | 强制隔离实际拒绝，零越界bytes/泄密/不准入Provider调用；日志无正文/秘密/推理 | 未执行 / `NOT RUN` |
 | RA-LOCK-006 | spawn前后崩溃、ack/IG提交后响应丢失、Worker重启且原journal存在/不存在 | 只readback原Attempt；可证补交相同ack/output，不能证实维持UNKNOWN；同键零第二spawn | 未执行 / `NOT RUN` |
 | RA-LOCK-007 | Host真实heartbeat/progress、重复key、旧fencing、deadline/lease/授权到期 | TE有限续租不越policy/预算/有效期；progress零完成/续租；late/replay不获新执行资格 | 未执行 / `NOT RUN` |
 | RA-LOCK-008 | 调用全部六项控制，含suspend/resume/cancelACK及CLI自报批准/Usage | 三项有限支持、三项UNSUPPORTED；无SUSPENDED/RESUMED/CANCELLED假事实，missingUsage不填0，Agent声明不升级权威 | 未执行 / `NOT RUN` |
-| RA-LOCK-009 | Humancancel、只发signal/父进程退出/全树退出/无ProviderACK；期限与final竞态 | intent/request/localstop分列；无ACK不CANCELLED；cancel/expiry先赢则late仅历史，record先赢cancel拒绝 | 未执行 / `NOT RUN` |
+| RA-LOCK-009 | Humancancel、OMP abort响应、只发signal/父进程退出/全树退出/无DeepSeek远端ProviderACK；期限与final竞态 | intent/request/localstop分列；OMP abort或本地退出不当ProviderACK，无ACK不CANCELLED；cancel/expiry先赢则late仅历史，record先赢cancel拒绝 | 未执行 / `NOT RUN` |
 | RA-LOCK-010 | UNKNOWN重试、已terminal但旧树未知、合法第二Run、第三次/取消后retry | 前两者拒绝invoke；合法新Context/Bundle/Run/Attempt/fencing最多第二次，旧历史不改；第三次/取消后retry/同Runresume拒绝 | 未执行 / `NOT RUN` |
 | RA-LOCK-011 | 各层错manifest/source/output/canonical hash、wrongScope/session/fencing、source/evidence别名交换且自洽重算 | 对应IG/TE/EP独立拒绝，原bytes不修补；零可用Acceptance/currentreport/start；sourcealias不是EvidenceRef | 未执行 / `NOT RUN` |
 | RA-LOCK-012 | 同final同Hash重复、异Hash第二final、late输出及ACTIVE初轮窗口关闭 | 原观察稳定，冲突隔离；一Run一final，late不覆盖EPcurrent或启动，窗口关闭不再执行新分析 | 未执行 / `NOT RUN` |

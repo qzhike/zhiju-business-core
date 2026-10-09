@@ -2512,7 +2512,7 @@ receive_initial_work_scope 的 scopeRequestRef 只接受 EP startup_request 或 
 | `execution.record_run_suspension` | 首发拒绝；交互输入/continuation无已验证协议 | `EXECUTION_CRITERION_UNSUPPORTED`，不创建 SUSPENDED 或 InformationRequest 假事实；final BLOCKED_INPUT 仍走独立现有机制 |
 | `execution.resume_suspended_run` | 首发拒绝所有同Run resume，包括非terminal、terminal与CLI session参数 | `EXECUTION_CRITERION_UNSUPPORTED`，零新invoke/lease/Context变更；合法补料与retry只能新Run |
 | `execution.record_run_usage` | 支持原 CLI实际返回的Provider metering；独立当前 usage/IG读权；由IG观察解析既有 RuntimeUsageRecord，各字段 ValueEnvelope 明确来源 | 追加不可变 Usage，missing为UNKNOWN/UNAVAILABLE非0，cost为ESTIMATED且带精确价表才可展示估价；历史terminal只可记录来源完整的历史计量，不能恢复执行资格或续租。Agent自报不能提升权威 |
-| `execution.acknowledge_run_cancellation` | 首发拒绝：现有Claude候选没有已验证的远端Provider取消ACK；Host全进程树退出只保存 LOCAL_PROCESS_STOPPED 观察 | `EXECUTION_CRITERION_UNSUPPORTED`，不写CANCELLED；signal sent、exit code、网络断开和stop request均不是ProviderACK。CANCELLING到期由owning expiry转ABANDONED |
+| `execution.acknowledge_run_cancellation` | 首发拒绝：OMP + DeepSeek没有已验证的远端Provider取消ACK；OMP abort响应或Host全进程树退出只证明对应本地控制/LOCAL_PROCESS_STOPPED观察 | `EXECUTION_CRITERION_UNSUPPORTED`，不写CANCELLED；signal sent、exit code、网络断开、OMP abort响应和stop request均不是ProviderACK。CANCELLING到期由owning expiry转ABANDONED |
 
 所有支持操作先自身当前 IP授权，再通过独立IG读权取 exact observation/原Attempt/ack/完整Runtime实例；核对同Enterprise+Project、Run/Contract/Context/Package/lock、session、lease/fencing、sourceHash与kind。提交前重验当前权限和Run/CAS；缺授权对应 protected read=0。heartbeat/progress须仍RUNNING且now在有效上界内；usage历史完整性不依赖已到期执行Grant恢复有效，但自身当前计量写/来源读权必需。无权/不可见/wrong Scope返回统一安全错误；依赖故障保持DEPENDENCY_UNAVAILABLE，不转换成“未观察”。同key同hash当前有权返回原Receipt，零新副作用；同key异hash冲突；不支持操作授权后在保护性读取前拒绝，不通过手写库记录补齐。
 

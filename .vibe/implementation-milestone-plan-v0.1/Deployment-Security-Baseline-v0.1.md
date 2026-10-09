@@ -171,7 +171,7 @@ IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 的最小决策基线完�
 | 边界 | 必需强制措施 / 拒绝条件 |
 |---|---|
 | 受信launcher | 每Run独立非root UID、mount/PID/network namespace、drop capabilities/no-new-privileges、只读rootfs、强制MAC/seccomp/cgroup；Host OCI/CLI/build/OS/kernel/arch exact pins。禁止privileged、宿主PID/网络、Docker socket、ptrace/mount/任意exec；缺机制不dispatch |
-| 输入与配置 | source/template/rule/prompt/manifest/evidence工具与依赖只读mount，前后逐件hash；空cwd/个人配置视图，无客户可自动发现路径。Skill/MCP/hooks/plugins/memory禁用，锁定实际工具Read/Grep/Glob/Write；设置被忽略或能力无法验证不回落默认 |
+| 输入与配置 | source/template/rule/prompt/manifest/evidence工具与依赖只读mount，前后逐件hash；空cwd/个人配置视图，无客户可自动发现路径。OMP实际工具仅read/grep/glob/write，前三项仅受控根内普通文件，禁URL/内部URI；Skill/MCP/hooks/plugins/extensions/subagents/memory/advisor/辅助模型禁用。no-extensions不禁止显式加载，tools名单不证明额外发现面已关闭；设置被忽略或能力无法验证不回落默认 |
 | 输出与隔离 | 只允许本Run输出根写；scratch在该根非发布子目录，另一Enterprise/Project/Run不可见。受控根句柄解析与普通文件验证，拒绝穿越/link/device/FIFO/碰撞；结束停止写入后重新hash、不可变封存，不按客户名/ZIP原路径落宿主 |
 | 网络与数据 | 仅公司批准Provider TLS inference allowlist，经受控egress与DNS/目的地校验；无自动遥测/升级/反馈、任意代理、公网搜索/下载、MCP、loopback管理面/metadata。Runner不接Core/DB/OpenBao/Ceph；对象物化与封存由另有授权的Host服务完成，不把存储凭据给CLI |
 | 凭据与证据 | 仅部署方预配置CLI公司身份；私有最小CLI环境、禁proc/env读取/调试/core dump/secret fd继承，无Bash/插件执行工具；外层证据工具不继承凭据。无个人home或认证文件拷贝；秘密不进argv/prompt/报告/日志，Host只核可用性证据与绑定ref |

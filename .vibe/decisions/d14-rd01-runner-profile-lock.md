@@ -6,36 +6,36 @@
 
 ## 1. 首发选择与证据
 
-2026-10-09 人类在本任务会话明确选择：**Claude Code / Anthropic 商业 API / `claude-sonnet-5-5` / `d14.analysis@1` / 单 Ubuntu Host 的非交互 LOCAL_PROCESS**。数据边界选择为**拟允许真实客户资料出网；部署前补齐合同、驻留、保留期与客户授权证据**。这是公司首发设计参数选择；不是技术设计冻结、部署许可或本次真实客户调用授权。个人订阅、代理的默认模型及已有 CLI 登录态都不证明公司身份或数据授权。四目标比较后的该选择与已批准 D14 的固定员工执行计划相容，不新增 UI Runtime selector。
+2026-10-09 人类在本任务会话订正首发默认选择：**OMP（Oh-My-Pi / oh-my-pi）+ DeepSeek 官方 API + DeepSeek-V4.1-Flash / `d14.analysis@1` / 单 Ubuntu Host 的非交互 LOCAL_PROCESS**。本次订正取代先前 Claude Code / Anthropic / Sonnet 的配置选择；数据边界继续为**拟允许真实客户资料出网；部署前补齐合同、驻留、保留期与客户授权证据**，须按新 Provider 重新取证。这是公司首发设计参数选择；不是技术设计冻结、部署许可或本次真实客户调用授权。个人订阅、代理的默认模型及已有 CLI 登录态都不证明公司身份或数据授权。该选择与已批准 D14 的固定员工执行计划相容，不新增 UI Runtime selector。
 
-人类选择证据为本会话对上述 Runtime/provider/model 组合的明确答复：“采用同一 Runtime/model，拟允许真实客户资料出网；部署前补齐合同、驻留、保留期与客户授权证据”。交付时在 PR 将这份选择及配置内容绑定到实际 head SHA；后续独立 Review 和技术批准必须另外绑定精确 reviewed SHA，不能用选择答复代替。
+当前 Runtime/model 选择证据为本会话的明确订正：“默认Profile改成OMP(Oh-My-Pi) + DeepSeek v4.1-Flash.”；数据边界沿用此前答复：“拟允许真实客户资料出网；部署前补齐合同、驻留、保留期与客户授权证据”。交付时在 PR 将订正后的选择及配置内容绑定到实际 head SHA；后续独立 Review 和技术批准必须另外绑定精确 reviewed SHA，不能用选择答复代替。
 
 以下官方资料于 2026-10-09 查阅；它们证明文档能力，不证明指定安装、认证、隔离或业务质量。四个目标保留，旧 Codex/OpenClaw 和 synthetic profile 不删除。
 
 | 目标 | 有依据的能力 / 采用成本 | 本轮选择理由与未验证项 |
 |---|---|---|
-| Claude Code | 既有 Runtime Contract 已定义 `claude -p` 映射；[CLI](https://code.claude.com/docs/en/cli-reference) / [程序模式](https://code.claude.com/docs/en/headless)说明结构化事件、固定模型、工具/配置限制 | 建议首发以复用已定义映射；仍须新真实 Driver、原调用 journal、隔离与 v0.2 接纳。没有四目标性能比较结论 |
-| oh-my-pi | [官方仓库](https://github.com/can1357/oh-my-pi) / [模型配置](https://github.com/can1357/oh-my-pi/blob/main/docs/models.md)提供多 Provider 和具体 provider/model 身份，也包含 fallback、额外工具和配置发现 | 保留候选；须证明关闭回退/额外模型与个人配置、定义新事件 mapper；本轮不做 conformance |
+| OMP / oh-my-pi | [官方仓库](https://github.com/can1357/oh-my-pi)提供 print/JSON/RPC；[模型配置](https://github.com/can1357/oh-my-pi/blob/main/docs/models.md)支持 DeepSeek、精确 provider/model selector，也包含 fallback、额外模型和配置发现 | 人类订正后的首发默认；须新增 OMP 事件 mapper、原调用 journal，并证明关闭回退/额外模型与个人配置。本轮不做 conformance，没有四目标性能比较结论 |
+| Claude Code | 既有 Runtime Contract 已定义 `claude -p` 映射；[CLI](https://code.claude.com/docs/en/cli-reference) / [程序模式](https://code.claude.com/docs/en/headless)说明结构化事件、固定模型、工具/配置限制 | 保留候选与既有映射；不再作为本轮默认，也不作为 OMP 失败后的自动替代 |
 | pi | [官方 coding-agent 文档](https://github.com/earendil-works/pi/tree/main/packages/coding-agent)提供 print/JSON/RPC、工具名单及关闭 context/Skill/extension 发现 | 保留候选；进程容器隔离仍是部署责任，需新增映射和真实锁；没有本地安装证据 |
 | qoder-cli | [官方 CLI](https://docs.qoder.com/cli/cli-reference)提供非交互、JSON、tools；模型选项包含 auto/lite/performance 与 BYOK | 保留候选；档位不是本提案认可的固定底层模型身份；需证明精确 Provider/model、数据边界及关闭模型路由；没有本地安装证据 |
 
-[模型清单](https://platform.claude.com/docs/en/models/overview)列出 `claude-sonnet-5-5`；[版本规则](https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions)区分固定 model ID 与便利别名，固定 ID 不一定含日期。选择 Sonnet 是本提案对有界资料分析的起点建议，不是质量基准测试胜出。拒绝 `sonnet`、`opus`、`auto`、`latest`、模糊匹配、动态 model routing 和 fallback；真实事件中的模型不等于锁定 ID 时拒绝接纳，不能只比启动 argv。
+[DeepSeek 更新日志](https://api-docs.deepseek.com/updates/)确认 V4.1-Flash 发布及当前 API 名称 `deepseek-flash`；[模型详情](https://api-docs.deepseek.com/quick_start/pricing/)与[模型列表说明](https://api-docs.deepseek.com/api/list-models/)区分 API ID 和展示版本 `DeepSeek-V4.1-Flash`。拟使用 OMP 精确 selector `deepseek/deepseek-flash`；不能自行编造 `deepseek-v4.1-flash` 为已确认 API ID。官方使用“最新”模型表述，当前映射不证明底层版本永不变化：配置选择记录 API ID 与批准版本，部署仍须取得 Provider 固定版本绑定及实际调用版本可核验的证据。当前尚未取得；只有 argv、catalog/name 或响应回显 `deepseek-flash` 不足以物化可运行锁。若无法固定并核验 V4.1-Flash，拒绝 dispatch/接纳，不改用其他模型、Provider 或自托管部署。旧 `deepseek-v4-flash` / `deepseek-v4-flash-vision-exp` 的兼容路由、裸名称、`auto`、`latest`、模糊匹配、动态 routing 和 fallback 均不放行。
 
-[Claude Code 数据说明](https://code.claude.com/docs/en/data-usage)、[ZDR 范围](https://code.claude.com/docs/en/zero-data-retention)、[API 保留政策](https://platform.claude.com/docs/en/manage-claude/api-and-data-retention)与[驻留控制](https://platform.claude.com/docs/en/manage-claude/data-residency)须按实际账号、产品、功能分别核对；商业账号不自动证明 ZDR 或指定地域。本提案不从公共文档推定公司合同、可用区域或 CLI 实际请求参数。人类选择的条件性出网边界要求部署前提供精确客户授权、数据类别/目的、Provider 组织、处理与存储地域、保留/删除及工具目的地批准；缺一就拒绝该类输入，不能用脱敏测试结果替代。当前合同、地域、保留期数值与客户授权都未取证，保持未物化；conformance仍只使用先经批准脱敏的DOCX/Markdown。
+[DeepSeek 隐私政策](https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html)是公共政策来源；须另按实际公司 API 账号、合同、产品和功能核对数据处理、驻留、保留/删除及缓存范围，不能沿用 Anthropic 的政策、ZDR 或地域证据。公共资料不证明公司已签合同、零保留或 CLI 实际请求参数。人类选择的条件性出网边界要求部署前提供精确客户授权、数据类别/目的、Provider 组织、处理与存储地域、保留/删除及工具目的地批准；缺一就拒绝该类输入，不能用脱敏测试结果替代。当前合同、地域、保留期数值与客户授权都未取证，保持未物化；conformance仍只使用先经批准脱敏的DOCX/Markdown。
 
 ### 只读观察与未决事实
 
-2026-10-09 在当前开发机执行 `--version`、Claude `--help`、可执行文件 bytes SHA-256 与系统查询；没有调用模型、读取认证文件或修改安装。
+2026-10-09 在当前开发机执行 `--version`、Claude / OMP `--help`、可执行文件 bytes SHA-256 与系统查询；没有调用模型、读取认证文件或修改安装。
 
 | 观察对象 | 实际观察 | 可证明 / 不可证明 |
 |---|---|---|
 | 开发机 | Darwin 25.6.0 / arm64 | 不证明 Ubuntu 版本、内核、架构或服务器可用性 |
 | Claude Code | `2.1.236`；binary SHA-256 `6bc4ba992d2786cbf0237c4453ca53c1fdf0c3b3d83ffa0025c0d8190ed27848` | help 显示 print/stream-json、bare、tools、disable-slash-commands、strict-mcp-config、no-session-persistence；不证明登录、模型可用或隔离 |
-| oh-my-pi | `omp/18.5.0`；binary SHA-256 `5608ba1705ae8081f4bced9b54b583752d05926ff9c63779aa866a4c13d43aad` | 本机安装观察，不是被选中的部署制品 |
+| OMP / oh-my-pi | `omp/18.5.0`；binary SHA-256 `5608ba1705ae8081f4bced9b54b583752d05926ff9c63779aa866a4c13d43aad`；help 显示 print/json、no-session、tools、no-extensions/no-skills/no-rules/no-lsp/no-title | 首发候选的本机安装/能力观察，不证明 Ubuntu 部署制品、DeepSeek 模型可用或配置已生效；no-extensions 仍允许显式扩展，工具默认全集不合本提案 |
 | pi / qodercli / qoder | 当前 PATH 未解析到 | 只说明本次 PATH，不推断全机未安装 |
 | 外部 evidence 工具 | `runner_evidence/analysis.py`、`reader.py`、`common.py` 的实际 SHA-256 与 [D14 §7](d14-rd01-first-customer-flow.md#7-首个-runtimeprofile-候选与待批准选择)三值相同 | 只读代码确认当前 finalize/renderer 为 v0.1；没有运行旧报告，不是 v0.2 或 Host acceptance |
 
-Ubuntu CLI/build digest、Host image/OS/kernel/arch、Adapter revision/build、公司 Provider 组织/账号策略、模型可用性、prompt、发布模板/规则、v0.2 证据工具/依赖及 conformance 都缺少部署事实。保留缺失，不用上述 Darwin hash、历史报告、浮动 tag 或虚构 digest 补齐。
+Ubuntu OMP CLI/build digest、Host image/OS/kernel/arch、OMP Adapter revision/build、公司 DeepSeek 组织/账号策略、模型可用性与固定版本绑定、prompt、发布模板/规则、v0.2 证据工具/依赖及 conformance 都缺少部署事实。保留缺失，不用上述 Darwin hash、历史报告、浮动 tag 或虚构 digest 补齐。
 
 ## 2. 一个版本化锁合同与三个不同证据层
 
@@ -53,8 +53,8 @@ MaterializedLock 的封闭 payload 分组如下；所有必需 digest 都来自�
 |---|---|
 | identity / approval | lockId、lockVersion=`1.0`、profileCode=`d14.analysis@1`、approvedConfigurationVersion/hash、installationObservationHash、reviewedRevision 与真实 selection/review/technicalApproval 证据；审批记录引用 payload/revision，审批本身不进入自身被签 hash |
 | CLI / adapter / Host | executableCode、受信解析路径、observedCliVersion、CLI binary/build/dependency digest；adapterCode/version + source SHA/build digest；harnessId/version；Host OCI **digest**、OS release、kernel version、architecture、launcher/parser version/digest。当前 none，不把产品名当 pin |
-| model / data | provider、完整固定 modelId、公司身份绑定策略 ref/hash（无凭据）、endpoint/network/dataPolicy refs/hash；modelConfigHash 覆盖显式 effort、context/output/turn/budget 上限、禁 fallback/auxiliary model、所有实际生效参数与默认值。无法观察实际模型/配置或与批准不符则不运行/不接纳 |
-| prompt / tools | company system/task prompt refs + bytes hashes、完整有效 settings hash、Skill allowlist=`[]`、MCP allowlist=`[]`、hooks/plugins/subagents/memory=`DISABLED`、工具闭集 `Read/Grep/Glob/Write` 与其版本化权限规则；禁止 Bash/Edit/Browser/Web/外部消息/安装。公司规则作为锁定输入，客户配置永不进入该列表 |
+| model / data | provider=`deepseek`、modelId=`deepseek-flash`、approvedModelVersion=`DeepSeek-V4.1-Flash`、固定版本绑定证据 ref/hash及逐调用核验规则；公司身份绑定策略 ref/hash（无凭据）、精确 API transport/endpoint/network/dataPolicy refs/hash。modelConfigHash 覆盖显式 effort、context/output/turn/budget 上限、禁 fallback/auxiliary model、所有实际生效参数与默认值。当前 API ID 不是固定版本证据；缺固定绑定、无法观察实际模型/配置或与批准不符则不运行/不接纳 |
+| prompt / tools | company system/task prompt refs + bytes hashes、完整有效 settings hash、Skill allowlist=`[]`、MCP allowlist=`[]`、hooks/plugins/extensions/subagents/memory=`DISABLED`、OMP 工具闭集 `read/grep/glob/write` 与版本化权限规则；前三项仅锁定根内普通文件，不准 URL/内部 URI scheme。禁止 bash/edit/python/eval/browser/computer/web_search/task/外部消息/安装及其他工具。公司规则作为锁定输入，客户配置永不进入该列表 |
 | templates / startup rules | NonEmpty exact PUBLISHED template refs + publication receipts + bytes hashes；ruleBundleRef/version/hash/publication receipt、startupRulesRef 与 vocabularyRef/version/hash。其结构接口引用 [EP StartupBinding](../module-specs/Module-Spec-002-EnterpriseProject.md#ep-操作输入和结果)，业务内容由独立规则设计提供；尚未发布即不可物化，但不阻止本锁设计评审 |
 | input / output / evidence tools | InputAliasManifest schema/version/actual bytes hash；PreparationSource/Context exact refs/hash；outputProfile/schema refs/version/hash，固定 reader/validator/renderer 的代码、runtime 与 dependency-lock/build digests、完整命令模板。v0.1 reader 只有经兼容性回归后可复用，v0.1 finalize/renderer 不充当 v0.2 实现 |
 | isolation / controls / validity | filesystem/network/tool/data policy refs/hash、资源和六项控制 policy refs/hash、retention/cleanup policy；完整 enterprise/project/task/WO/Run/Attempt/Contract/Package refs/hash、analysisRequestKey、input manifest bytes hash、leaseId/fencingToken、issuedAt/validUntil、phase 与必要 frozen start ref；每 Run 输出根单独生成 |
@@ -67,7 +67,9 @@ Lock payload 使用 `SHA-256(cv1(payload))`，排除自身 lockHash；引用已�
 
 六项 IM-DG-006 的字段、授权、支持/拒绝和状态不变量唯一在 [TE 首发控制](../module-specs/Module-Spec-003-TaskExecution.md#d14-runner-首发六项控制提案256)。首版建议支持 heartbeat、有限 progress、原 Provider usage；拒绝 suspension、same-Run resume 与取消确认写入。拒绝后仍有 deadline/UNKNOWN、Human stop request 和新 Run retry 的完整路径；不是用未实现控制冒充可用。
 
-以下参数为待审核的首版 policy 提案，不是既有默认或已部署事实：每次 wall clock ≤900s，整 WorkOrder ≤1800s、maxAttempts=2；dispatch 观察窗口30s；Host heartbeat15s、Run lease60s，TE 自身续租不得越 Context/Grant/Policy/总预算/deadline；stop 先 TERM，5s 后 KILL 并核对整个 cgroup；lease 到期不等待 kill 结果继续延长期限。CLI 费用 cap 建议每 Run 5 USD/总10 USD，仅是估算限额，实际账单可能超出；审批必须接受这一差异或先配置独立 Provider 硬配额。内存2GiB、pids32、总报告/提取输出32MiB，解析器独立限量；合法输入超过本 profile 能力时明确 READ_LIMITED/拒绝，不偷偷放宽。
+以下参数为待审核的首版 policy 提案，不是既有默认或已部署事实：每次 wall clock ≤900s，整 WorkOrder ≤1800s、maxAttempts=2；dispatch 观察窗口30s；Host heartbeat15s、Run lease60s，TE 自身续租不得越 Context/Grant/Policy/总预算/deadline；stop 先 TERM，5s 后 KILL 并核对整个 cgroup；lease 到期不等待 kill 结果继续延长期限。费用预算建议每 Run 5 USD/总10 USD，由 Host/Provider 预算策略约束；不能推定 OMP 存在相同的 CLI cost-cap 参数。OMP catalog 估价不是账单硬限额，实际账单可能超出；审批必须接受这一差异或先配置独立 Provider 硬配额。价表版本/hash与请求时间须固定以处理 DeepSeek 峰/谷费率。内存2GiB、pids32、总报告/提取输出32MiB，解析器独立限量；合法输入超过本 profile 能力时明确 READ_LIMITED/拒绝，不偷偷放宽。
+
+OMP 首发拟采用 `omp -p --mode json --no-session`，配合精确 `--model deepseek/deepseek-flash`、固定公司 prompt/settings 与 `--tools read,grep,glob,write`；这些只是待物化命令模板的已观察参数，不是可直接执行的完整批准 argv。Adapter 须固定 OMP JSON 事件版本/parser并独立映射 ack、有限 progress、原 Provider usage、final/error；不能复用 Claude stream-json parser 或将 JSON 模式当成业务报告 v0.2 Schema。缺事件/模型版本证明仍 UNKNOWN/拒绝。OMP RPC abort 即使返回成功也不证明 DeepSeek 远端取消 ACK，本 profile 不因此开放 cancellation acknowledgement。
 
 | 事件 / 故障 | 原 invocation 与 TE 处理 |
 |---|---|
@@ -85,7 +87,7 @@ Lock payload 使用 `SHA-256(cv1(payload))`，排除自身 lockHash；引用已�
 
 具体执行责任见 [Deployment 首发隔离](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md#d14-runner-首发进程隔离提案256)与 [IP 最小权限](../module-specs/Module-Spec-001-IdentityPolicy.md#d14-runner-锁与控制授权提案256)。Ubuntu 受信 launcher 必须以每 Run 独立 UID/mount/PID/network namespace、非 root、drop capabilities、no-new-privileges、只读 rootfs 与强制 MAC/seccomp/cgroup 建立边界；任一机制缺失即拒绝 dispatch。
 
-原件、manifest、模板、规则、prompt、证据代码与依赖只读，前/后逐件复核 hashes。客户按 server entryId 物化，不以 AGENTS.md/CLAUDE.md、`.claude`/`.pi`/`.omp`/`.qoder`、Skill/MCP 设置或原 ZIP 路径建立自动发现目录；正文作为客户证据阅读，不能当指令。cwd 和个人配置视图为空，明确禁 skills/hooks/plugins/memory；`--bare` 仍可能解析 Skill，必须同时关闭 slash commands 与配置发现，并验证实际工具集合。配置解析失败/静默忽略不能回落默认。
+原件、manifest、模板、规则、prompt、证据代码与依赖只读，前/后逐件复核 hashes。客户按 server entryId 物化，不以 AGENTS.md/CLAUDE.md、`.claude`/`.pi`/`.omp`/`.qoder`、Skill/MCP 设置或原 ZIP 路径建立自动发现目录；正文作为客户证据阅读，不能当指令。cwd 和个人配置视图为空；OMP 使用已观察的 `--no-extensions --no-skills --no-rules --no-lsp --no-pty --no-title --no-prewalk` 收窄，并禁显式 extension/hook/plugin 加载。必须另关闭 MCP、memory、advisor、自动压缩/标题/辅助模型、context promotion 与 retry fallback，校验有效配置与实际工具全集；不能只凭 tools/no-extensions 或 profile 目录隔离宣称全禁用。公司规则仅作为锁定 prompt/input 提供，不借规则发现加载；配置解析失败/静默忽略不能回落默认。
 
 只准 Write 本 Run output 根；scratch 也置于该根的非发布子目录，不能写原件、模板、规则、工具、另一 Run 或宿主。拒绝路径逃逸、symlink/hardlink/设备/FIFO、输出碰撞和继承文件描述符；Host 用受控根句柄解析、按实际 bytes 封存普通文件，不以 caller 路径授权。CLI root 工具限制仅是第二层收窄，必须另做 kernel/MAC 越界反例。
 
@@ -112,7 +114,7 @@ Runner 网络仅准锁定的公司 Provider TLS inference 目的地，经受控 
 
 v0.1 基准工具按观察 pins仅验证原 v0.1 证据结构；必须另提供 v0.2 schema/candidate validator/renderer 与相同读取约束回归。覆盖五类 startupCandidates、UNKNOWN/missingFields、CONFLICT/alternatives、词表/required规则及确定性 MD 完整性；只换 Schema不能算升级。详见 [Runtime conformance 矩阵](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md#d14-runner-首发锁与控制验收256)。
 
-必要负例至少包括错 source/manifest/output/canonical hash、跨 Scope、sourceId/evidenceId换别名且重算合法 Hash、READ超 extraction ceiling、客户事实仅取模板、遗漏 protected fact、重复 final/异 Hash replay、late/旧 fencing、原 UNKNOWN重发、取消无ACK/本地kill冒充ProviderACK、输出根越界、输入漂移、模型别名/回退、v0.1冒充v0.2、首次scope窗口关闭。每例保留真实拒绝与**零新 invoke/Acceptance/current report/start**中适用的计数，禁止只列预期。
+必要负例至少包括错 source/manifest/output/canonical hash、跨 Scope、sourceId/evidenceId换别名且重算合法 Hash、READ超 extraction ceiling、客户事实仅取模板、遗漏 protected fact、重复 final/异 Hash replay、late/旧 fencing、原 UNKNOWN重发、取消无ACK/OMP abort或本地kill冒充ProviderACK、输出根越界、输入漂移、模型别名/回退、同一API ID底层版本漂移或无法核验、OMP额外工具/配置/辅助模型加载、v0.1冒充v0.2、首次scope窗口关闭。每例保留真实拒绝与**零新 invoke/Acceptance/current report/start**中适用的计数，禁止只列预期。
 
 ## 6. 冻结与实现入口
 

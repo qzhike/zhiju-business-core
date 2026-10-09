@@ -659,7 +659,9 @@ PreparationContext phase=INITIAL_SCOPE_RECOVERY 的新 Package 分支只绑定�
 
 ## D14 Runner 首发执行锁增量（#256）
 
-状态：`T2 / PROPOSED / HUMAN SELECTED 2026-10-09 / TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。明确人类选择及四目标证据见 [首发选择](../decisions/d14-rd01-runner-profile-lock.md#1-首发选择与证据)，不从Claude候选或只读安装观察推批准。配置选择、安装观察、完整Run物化锁严格分离；唯一版本化内部 `d14.runner_execution_lock@1.0` 的闭合字段/hash域见 [锁合同](../decisions/d14-rd01-runner-profile-lock.md#2-一个版本化锁合同与三个不同证据层)。Package@1.1 preparation materialization以lockId/version/hash绑定CLI/Host/model/prompt/全部工具及规则/output/evidence pins；旧@1.0/三个CLI/synthetic支持集不变。
+状态：`T2 / PROPOSED / HUMAN SELECTED 2026-10-09 / TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。人类订正后的默认为OMP（Oh-My-Pi）+ DeepSeek官方API + DeepSeek-V4.1-Flash；选择证据及四目标比较见 [首发选择](../decisions/d14-rd01-runner-profile-lock.md#1-首发选择与证据)，不从既有候选映射或只读安装观察推批准。配置选择、安装观察、完整Run物化锁严格分离；唯一版本化内部 `d14.runner_execution_lock@1.0` 的闭合字段/hash域见 [锁合同](../decisions/d14-rd01-runner-profile-lock.md#2-一个版本化锁合同与三个不同证据层)。Package@1.1 preparation materialization以lockId/version/hash绑定CLI/Host/model/prompt/全部工具及规则/output/evidence pins；旧@1.0/三个CLI/synthetic支持集不变。
+
+首发OMP拟采用print/JSON/no-session，具体命令模板与事件映射约束见 [提案§3](../decisions/d14-rd01-runner-profile-lock.md#3-有界控制与原调用恢复)；须新OMP parser/mapper，不能复用Claude stream-json或将CLI JSON当作v0.2报告Schema。精确OMP selector=`deepseek/deepseek-flash`、API ID=`deepseek-flash`与批准版本=`DeepSeek-V4.1-Flash`分列；缺Provider固定版本绑定/逐调用版本证明不得物化或dispatch，同API ID不能证明底层版本固定。公司数据政策须按DeepSeek取证，原Provider政策不自动迁移。
 
 六项IM-DG-006控制在 [TE owning专节](../module-specs/Module-Spec-003-TaskExecution.md#d14-runner-首发六项控制提案256)逐项确定首发支持/拒绝；IG原不可变观察与readback见 [IG专节](../module-specs/Module-Spec-007-IntegrationGateway.md#d14-runner-物化锁与原调用观察提案256)，每项独立授权见 [IP专节](../module-specs/Module-Spec-001-IdentityPolicy.md#d14-runner-锁与控制授权提案256)。heartbeat/progress/usage有界支持，suspend/resume/cancellationACK拒绝；本地进程退出不能证明Provider取消，不能覆盖§13的CANCELLED必要条件。原UNKNOWN不重发，terminal不resume，明确许可新分析才新Run，旧树未知仍不retry；取消后retry首版拒绝。六项是设计处置，不是新增六个已注册操作或已决全Runtime Gate。
 

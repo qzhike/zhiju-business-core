@@ -122,14 +122,14 @@ HTTP status 不替代共享 Result Envelope 或 per-step owning Receipt；响应
 
 ## 7. 首个 Runtime/Profile 候选与待批准选择
 
-#256 的后续 [首发选择与执行锁提案](d14-rd01-runner-profile-lock.md)细化四目标证据、配置/安装观察/可运行锁三层、六项控制及真实conformance计划。人类已于2026-10-09明确选择Claude Code / Anthropic商业API / claude-sonnet-5-5，拟允许真实客户资料出网，但部署前必须补齐合同、驻留、保留期与客户授权证据。独立审查/技术批准仍待取得；#253的精确修订批准不自动覆盖这一新提案，下面历史候选与缺失部署事实不因此成为已批准可运行profile。
+#256 的后续 [首发选择与执行锁提案](d14-rd01-runner-profile-lock.md)细化四目标证据、配置/安装观察/可运行锁三层、六项控制及真实conformance计划。人类已于2026-10-09订正首发默认为OMP（Oh-My-Pi）+ DeepSeek官方API + DeepSeek-V4.1-Flash；拟允许真实客户资料出网，但部署前必须按新Provider补齐合同、驻留、保留期与客户授权证据。独立审查/技术批准仍待取得；#253的精确修订批准不自动覆盖这一新提案，默认设计选择与缺失部署事实不因此成为已批准可运行profile。
 
-**提交人类选择的候选：Claude Code / `d14.analysis@1`，公司控制的单 Host 非交互 LOCAL_PROCESS，仅分析 DOCX/Markdown、输出 v0.2 完整报告；不开放 UI selector、不自动 fallback、不支持 session resume。** 理由是现有 Runtime authority 已有 Claude Code 映射，官方 [CLI reference](https://code.claude.com/docs/en/cli-reference) 与 [programmatic mode](https://code.claude.com/docs/en/headless) 提供非交互调用、输出格式和工具限制说明（2026-10-09 查阅）；这只支持候选可行性，不证明本地/服务器真实 conformance。oh-my-pi、pi、qoder-cli、Claude Code 四目标保留，候选不成为默认，也不据独立测试猜它用过哪个 Harness。
+**人类订正后的首发默认提案：OMP + DeepSeek-V4.1-Flash / `d14.analysis@1`，公司控制的单 Host 非交互 LOCAL_PROCESS，仅分析 DOCX/Markdown、输出 v0.2 完整报告；不开放 UI selector、不自动 fallback、不支持 session resume。** [OMP官方仓库](https://github.com/can1357/oh-my-pi)提供print/JSON和多Provider能力，[DeepSeek更新日志](https://api-docs.deepseek.com/updates/)给出当前API名称`deepseek-flash`（2026-10-09查阅）；OMP事件mapper与底层固定版本证据仍须独立取得，当前名称不能替代版本锁。oh-my-pi、pi、qoder-cli、Claude Code四目标和既有映射保留；人类选择不证明本地/服务器真实conformance，也不据独立测试猜它用过哪个Harness。
 
 | lock / 待决定项 | 放行所需证据；缺失行为 |
 |---|---|
 | CLI、adapter、Host | exact observedCliVersion、binary/build digest、adapterCode/version、harnessId/version、Host image digest + OS/arch；只读探测非交互/认证能力，禁止输出凭据；未取得精确值为 NOT RUN，不用 latest |
-| 模型与数据边界 | provider/model人类选择见#256；仍需精确modelConfigHash、数据合同/驻留/保留期/客户授权/预算/期限证明与精确修订技术批准；别名漂移拒绝，不因选择放行实际客户调用 |
+| 模型与数据边界 | provider=`deepseek`、API ID=`deepseek-flash`、批准版本=`DeepSeek-V4.1-Flash`；仍需固定版本绑定/实际调用版本证明、精确modelConfigHash、新Provider数据合同/驻留/保留期/客户授权/预算/期限证明与精确修订技术批准；同ID不能核验底层版本或漂移时拒绝，不因选择放行实际客户调用 |
 | Prompt / Skill / MCP | 公司 prompt hash、Skill 全集 refs/version/hash、工具与只读规则；首版 MCP 集合拟为空、禁止客户配置发现和远程工具；需要 MCP 时新 profile 与评审 |
 | 模板 / 规则 / 词表 | PUBLISHED 精确 template refs/hash；rule bundle、startup mandatory list、product/market/fact vocabulary versions/hash，独立发布证明；缺一不形成可运行 profile |
 | 输出与证据工具 | outputProfile/schema/renderer/reader/validator 版本与 digest；v0.2 与当前 v0.1 工具差异单独回归；`d14.analysis@1` 版本只是拟议，不代表 installed |
