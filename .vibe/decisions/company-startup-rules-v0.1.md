@@ -90,13 +90,13 @@ requirement 是公司要求客户在启动前作出有依据的范围判断，�
 
 ## 3. 不可变公司 bundle、发布与精确引用
 
-拟 bundleCode 为 `zhiju.startup.cn_active_device_qms_upgrade`，首版 bundleVersion 为 `1.0.0`。技术形状和 owner 校验只在 [EP Spec 公司规则专节](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 与 [IP Spec 公司发布专节](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案) 定义；当前不存在可用发布实例，不提供虚构 UUID/Hash。
+拟 bundleCode 为 `zhiju.startup.cn_active_device_qms_upgrade`，首版 bundleVersion 为 `1.0.0`。技术形状和 owner 校验只在 [EP Spec 公司规则专节](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 与 [IP Spec 公司发布专节](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案) 定义；当前不存在可用发布实例，不提供虚构运行时 bundle/snapshot/publication UUID/Hash。IP 的拟构建期 schema 身份与运行事实分开，尚未注册。
 
-- `ruleBundleRef / startupRulesRef / vocabularyRef` 拟复用 IP 既有 Platform `SNAPSHOT / identity.policy_snapshot` 的精确 id + canonical contentHash；三个不同 EP-owned profile 为 `ep.company_startup_bundle@1.0`、`ep.company_startup_rules@1.0`、`ep.company_startup_vocabulary@1.0`，均未注册。不把 scoped `identity.resolve_policy` 的 Enterprise PolicyVersion 改成 Platform，也不改写历史 canonical/legacy 拼写。
+- `ruleBundleRef / startupRulesRef / vocabularyRef` 只复用 IP Platform `SNAPSHOT / identity.policy_snapshot` 的原生 wire identity；三个 EP-owned profile 为 `ep.company_startup_bundle@1.0`、`ep.company_startup_rules@1.0`、`ep.company_startup_vocabulary@1.0`，均未注册。保存/精确读取拟由独立 CompanyRuleSnapshotProducer 与 CompanyRuleSnapshotResolver 和 `im-ui-company-startup-v1` registry 完成，canonical SchemaRef、selector、完整 payload 与授权绑定唯一维护于 [IP 独立路径](../module-specs/Module-Spec-001-IdentityPolicy.md#独立-platform-profile-registryproducer-与-exact-resolver)。旧 record_policy_snapshot/get_policy_snapshot@1.0 保持 `im02-static-v1` 接受集；scoped PolicyVersion/resolve_policy 不接受 Platform，不改写历史 spelling、Refs 或 Hash。
 - 外层 bundle payload 绑定上述业务身份/版本、两个 child refs、明确范围、非空精确 template/requirement 绑定、兼容约束及可选 supersedesBundleRef；每个 child 有独立不可变 Hash。正式模板需由 EP Platform Reference Publisher import/publish，分别绑定 S1–S9 的确切 bytes 和版本。sourceId/本地路径/文件名/源 SHA 不替代正式引用。
 - 每个公司 requirement 拟使用 EP owning Platform `CONTENT_ADDRESSED / zhiju.project.company_startup_requirement`；payload 为 requirementCode、definitionVersion、完整要求/适用条件、templateRefs + source locators/bytes hashes、必要 normativeReferenceRefs。不同章节不能仅复用同一整文件 TemplateRef 当不同 requirementRef。来源定位映射必须唯一；S6/S7 的拟版须先补足发布决定。
-- `contentHash=SHA-256(cv1(完整 owning snapshot/requirement payload))`，沿用既有 canonicalization；公司业务 identity/version 位于 policyDocument，完整 refs 与作用于业务的限制参加 hash。集合按声明的稳定 code/ID 排序；文字、证据条件、源定位、版本或某一 child ref 变化均产生新版本。原文件的 bytes SHA 单独校验，不和 canonical hash 混用；不得把 computedHash 从另一个域填入 Ref。
-- 公司指定具权限 Human 为业务清单批准人与 Publisher；IP 保存独立、不可变 `CONTENT_ADDRESSED / zhiju.identity.company_rule_publication` 发布事实，绑定 outer/child refs、批准的具体清单/范围 Hash、ActorSnapshot/AuthorizationDecision、EP 语义校验结果及 effectiveFrom。批准/发布证明不参与它所引用的 bundle hash，避免互相 hash 的循环；record_policy_snapshot 成功本身不等于 PUBLISHED。模板/requirement 由 EP 发布，IP 不解释或重写其业务内容。
+- `contentHash=SHA-256(cv1(完整 owning snapshot/requirement payload))`，沿用既有 canonicalization；公司业务 identity/version 位于 policyDocument，新 snapshot 的 registryVersion/profileKey/唯一 canonical SchemaRef、派生 policySetVersion、effectiveFrom 及全部 policyDocument 一起参加 hash；view 返回 `{policySnapshotRef,payload}`。完整 refs 与作用于业务的限制参加 hash。集合按声明的稳定 code/ID 排序；文字、证据条件、源定位、版本或某一 child ref 变化均产生新版本。原文件的 bytes SHA 单独校验，不和 canonical hash 混用；不得把 computedHash 从另一个域填入 Ref。
+- 公司指定具权限 Human 为业务清单批准人与 Publisher；IP 保存独立、不可变 `CONTENT_ADDRESSED / zhiju.identity.company_rule_publication` 发布事实，绑定新 producer 实际形成并经新 resolver 精确读回的 outer/child refs、批准的具体清单/范围 Hash、ActorSnapshot/AuthorizationDecision、EP 语义校验结果及 effectiveFrom。批准/发布证明不参与它所引用的 bundle hash，避免互相 hash 的循环；新 snapshot 保存成功本身不等于 PUBLISHED。模板/requirement 由 EP 发布，IP 不解释或重写其业务内容。
 - 模板、requirement、publication 新类型及 profiles 都是待批准 additive 接受集；[Catalog 提案入口](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#257-公司启动规则引用提案) 不改变当前注册数。这里只定义 owning internal 发布/解析 Port，不新增可调用 HTTP、BFF 私有业务 API、Schema、迁移或管理页面。
 
 EP 确认发布语义时检查精确源绑定、全部必需条目、支持映射及标准/法规引用；IP 确认身份/授权/Hash/profile 与不可变发布事实。SERVICE 只能执行该精确 Human 发布意图；AGENT/RUNTIME 不能出版。两 Owner 不共享 Repository，任一证据不可取得则 fail closed。Query 返回可验证历史 payload 与独立当前 useStatus，不把历史可读取解释为当前可启动。
@@ -142,11 +142,12 @@ ACTIVE 的旧 PROJECT_START、Fact/Product/QMS/Profile/ScopeSnapshot、Context �
 
 ## 6. 正负设计 trace 与冻结条件
 
-正链（设计场景，`NOT RUN`）：公司逐项批准 §1–2 → EP 发布精确模板/12项公司 requirement 及经核验 normative refs → IP 记录三 snapshots 并以真实 Human 决定发布 → 同 Project 准备源/报告映射出完整方针、全部 Product、四类保护 Evidence、12项适用性、2项管理选择及3项专业决定 → Quality 验证、Human 分别确认/激活 → Profile/ProductScope → EP 单事务唯一 PROJECT_START + ACTIVE → TE 接收 Human 所选独立 eligible 整文件。符号表示尚待实际取得的事实，不使用合成 UUID、demo code 或假发布 hash 证明通过。
+正链（设计场景，`NOT RUN`）：公司逐项批准 §1–2 → EP 发布精确模板/12项公司 requirement 及经核验 normative refs → 新 registry/三个 canonical SchemaRef 与 EP validator 均已批准注册 → IP 新 producer 保存 rules/vocabulary，再绑定真实 child refs 保存 bundle → 新 resolver 逐项以完整 selector/id/hash 精确读回，真实 Human 决定发布 → 同 Project 准备源/报告映射出完整方针、全部 Product、四类保护 Evidence、12项适用性、2项管理选择及3项专业决定 → Quality 验证、Human 分别确认/激活 → Profile/ProductScope → EP 单事务唯一 PROJECT_START + ACTIVE → TE 接收 Human 所选独立 eligible 整文件。符号表示尚待实际取得的事实，不使用合成运行时 UUID、demo code 或假发布 hash 证明通过。
 
 | 反例 trace | 必须可观察的结果 / owning 场景 |
 |---|---|
 | 正链所有项完整且引用/授权当前 | 唯一 lawful start，真实分步 refs；只有完整合格所选文件接收；`EP-257-001` |
+| 三个新 profile 保存/精确读回/发布；旧 @1.0 接受新 profile 或旧 refs 转送新 reader | 新内部路径在批准注册及真实授权后成立；旧 writer 仍拒新 schema、旧 reader 不回退新存储，新 resolver 不接受历史 profile；旧 refs/hashes 不变；`IP-257-006`、`IP-257-007`、`EP-257-010` |
 | 缺完整方针、一个产品字段或12/2/3任一项；NOT_PROVIDED/已确认不存在/未读/UNKNOWN | 分别展示缺口和原因，保留合法报告，PREPARING/零 start；`EP-257-002` |
 | 公司必需结构化目标/组织/流程，现有 TEXT 不支持 | 可读报告与显式 UNSUPPORTED_CANDIDATE；零伪造 Fact，零 start；`EP-257-003` |
 | 两份客户方针/用途矛盾，或强制要求与客户安排冲突 | 保留两组依据；新证据/合法 Human 判断前不确认；`EP-257-004` |

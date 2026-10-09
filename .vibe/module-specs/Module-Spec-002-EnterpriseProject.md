@@ -996,7 +996,7 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 
 ### 规则、词表和精确 requirement
 
-三个拟 profile 的 payload 都是封闭结构；代码全集/文字含义引用上述 Delta，不在此复制第二套业务清单。业务清单已逐项确认；精确修订仍需独立设计审查及人类技术批准后另行注册。
+三个拟 profile 的 policyDocument 都是封闭结构；代码全集/文字含义引用上述 Delta，不在此复制第二套业务清单。业务清单已逐项确认；精确修订仍需独立设计审查及人类技术批准后另行注册。IP owning 的 [独立 Platform registry/producer/resolver](Module-Spec-001-IdentityPolicy.md#独立-platform-profile-registryproducer-与-exact-resolver) 定义外层 canonical snapshot payload；EP 定义下表正文和消费所需 selector，不使用历史 @1.0 保存/读取路径。
 
 | profile / 对象 | 必填字段与约束 |
 |---|---|
@@ -1005,15 +1005,17 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 | `ep.company_startup_vocabulary@1.0` / IP Platform PolicySnapshot.policyDocument | `vocabularyCode; vocabularyVersion; entries:NonEmptySet<{domain,code,label,meaning,sourceBindings,ownerMapping}>`；domain 闭集 `fact_type/product_type/market/risk_level/requirement/choice/choice_option/decision/decision_outcome`；同 domain+code 唯一，代码/含义/映射随精确版本冻结；Product 原名、用途、产品族及型号不是受控代码 |
 | `CONTENT_ADDRESSED / zhiju.project.company_startup_requirement` / Platform | `requirementCode; definitionVersion; text; applicabilityConditions; templateSourceBindings:NonEmptySet<{templateRef,locator,sourceBytesSha256}>; normativeReferenceRefs:Set<RegulatoryReferenceVersion>`；涉及标准/法规判断时 normativeReferenceRefs 必须非空、PUBLISHED、含核验/有效期；由 EP Platform Reference Owner 的拟受控 import/publish Capability 形成，不能直接用 TEMPLATE/evidence alias 或整文件 Ref 代替条款身份 |
 
-上述三个 Rule/Vocabulary/Bundle Ref 均为 IP 原生 `SNAPSHOT / identity.policy_snapshot / Platform scope`，按 IP 既有 wire shape 验证，不转换为 `zhiju.identity.policy` 的 scoped VersionedRef。每个 requirement payload 和 IP snapshot 使用 `SHA-256(cv1(payload))`，所有业务字段/精确来源参加 hash；本对象的 Ref/hash、发布证明与可变 current status 不参与自己的 payload。发布证明在后续 IP 不可变事实中引用已确定的 bundle，避免 hash 循环。集合按 code（词表按 domain+code）稳定排序；相同 code/version 异 payload 拒绝，未知 alias 不猜测。
+上述三个 Rule/Vocabulary/Bundle Ref 只复用 IP 原生 `SNAPSHOT / identity.policy_snapshot / Platform scope` wire shape；由新 CompanyRuleSnapshotProducer 与 CompanyRuleSnapshotResolver 和独立 `im-ui-company-startup-v1` registry 保存/读回。EP 为 bundle/rules/vocabulary 分别固定同名 profileKey 与 IP 表内唯一 canonical `VERSIONED identity.contract_schema` Ref；按完整 registryVersion/key/SchemaRef 校验，共享已批准构建期制品，不能用 generic identity.PolicySnapshot、historical registry 或 scoped VersionedRef 替代。旧 `record_policy_snapshot/get_policy_snapshot@1.0` 保持 `im02-static-v1`，不因注册新制品而扩大接受集。
+
+每个 requirement payload 和新 IP snapshot 完整 payload 使用 `SHA-256(cv1(payload))`；后者包含 registryVersion/profileKey/policySetVersion/唯一 policySchemaRefs/effectiveFrom/policyDocument，不能仅 hash 正文或省略 selector。返回 view 为 `{policySnapshotRef,payload}`，业务字段从 payload.policyDocument 取得。所有业务字段/精确来源参加 hash；本对象的 Ref/hash、snapshotId、发布证明与可变 current status 不参与自己的 snapshot payload。发布证明在后续 IP 不可变事实中引用已确定的 bundle，避免 hash 循环。集合按 code（词表按 domain+code）稳定排序；相同 code/version 异 payload 拒绝，未知 alias 不猜测。
 
 `protectionEvidenceRequirements` 的四个域固定为 `quality_objectives / organization_responsibilities / operational_processes / product_processes`，分别引用报告既有 QUALITY_OBJECTIVE、ORGANIZATION+RESPONSIBILITY、PROCESS、PROCESS+PRODUCT_RULE 分类及原始 Evidence。报告摘要不是完整保护内容；专业 Human 决定与 Quality Evidence verification 证明本项目所需原条款/关系已覆盖，服务器只校验真实 refs/状态和集合。复杂数据不能转成 TEXT Fact；若规则需要结构化 Fact，按 Delta §5 明确 unsupported blocker。
 
 ### 发布校验与读取边界
 
-拟内部 `CompanyStartupDefinitionValidationPort` 由 EP 执行确定性校验：精确 profile/词表映射、§1范围条件、9份模板和12项 requirement 绑定、必需集合及完整 Product/QMS、source locator 唯一性、标准/法规引用状态。它返回绑定整份 draft payloadHash/child refs 的校验结果，不修改 IP facts，不证明客户适用性。IP Publisher 保存该结果与真实 Human 批准后才能生成发布证明；不存在结果/证明则不可用于 startup。
+拟内部 `CompanyStartupDefinitionValidationPort` 由 EP 执行确定性校验：完整 `im-ui-company-startup-v1` registry/profile/canonical SchemaRef 与 closed policyDocument、精确词表映射、§1范围条件、9份模板和12项 requirement 绑定、必需集合及完整 Product/QMS、source locator 唯一性、标准/法规引用状态。它返回绑定完整 snapshot payloadHash/profile/SchemaRef/child refs 的校验结果；producer 保存前校验各 profile，Publisher 发布前再次校验 outer/child 的完整定义，不修改 IP facts，不证明客户适用性。child refs 只通过新 IP resolver 在自身当前授权下精确读取；IP Publisher 保存该结果与真实 Human 批准后才能生成发布证明，不存在结果/证明则不可用于 startup。
 
-EP 准备 source、报告接纳、startup review/confirmation/start 通过 IP 拟精确解析 Port 取得三个 snapshots、publicationRef 和当前 useStatus，并通过 EP 的 Platform reference resolver 校验 template/requirement/normative refs；不共享 Repository。历史可读与当前可用分开。公司发布材料不含客户正文、Evidence 或人员名单；客户来源和所有正式 Fact/Product/QMS 引用必须另行在本 Enterprise/Project 的许可范围解析。
+EP 准备 source、报告接纳、startup review/confirmation/start 通过 IP CompanyRuleResolutionPort 取得三个 snapshots、publicationRef 和当前 useStatus；该 Port 使用独立 CompanyRuleSnapshotResolver，并按各角色传入上述受信 exact selector，不调用旧 get_policy_snapshot 或 scoped resolve_policy。EP 的 Platform reference resolver 另校验 template/requirement/normative refs；不共享 Repository。历史可读与当前可用分开。公司发布材料不含客户正文、Evidence 或人员名单；客户来源和所有正式 Fact/Product/QMS 引用必须另行在本 Enterprise/Project 的许可范围解析。
 
 拟 `capture_preparation_source` 输入与保存的准备来源绑定增加必填 `companyRulePublicationRef`；服务器核对它与 ruleBundleRef、child refs 和同一 template/requirement 集合，不让浏览器传入自由定义。后续 Context/Run/report 使用该精确 source，不因 current pointer 变化偷换输入；对应新 producer/validator 接受集留待注册实现。旧操作/旧 Source shape 不获得新字段。PROJECT_START 的三引用形状不增加规则字段，规则历史从同一原 request→informationDecision→source/report 的不可变 provenance 链追溯。
 

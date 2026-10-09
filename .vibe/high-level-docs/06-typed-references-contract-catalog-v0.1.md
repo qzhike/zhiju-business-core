@@ -1496,7 +1496,9 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 
 | 拟引用 / profile | 唯一 Owner / Scope / fields |
 |---|---|
-| `ruleBundleRef / startupRulesRef / vocabularyRef` | 复用 IP 原生 Platform `SNAPSHOT / identity.policy_snapshot`；三个 EP-owned profile `ep.company_startup_bundle@1.0`、`ep.company_startup_rules@1.0`、`ep.company_startup_vocabulary@1.0` 未注册；[Spec 002 #257](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案)；不改旧 identity.get_policy_snapshot 的 wire spelling，不让 scoped resolve_policy 读 Platform |
+| `ruleBundleRef / startupRulesRef / vocabularyRef` | 只复用 IP 原生 Platform `SNAPSHOT / identity.policy_snapshot` wire identity；三个 EP-owned profile `ep.company_startup_bundle@1.0`、`ep.company_startup_rules@1.0`、`ep.company_startup_vocabulary@1.0` 未注册；[Spec 002 #257](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案)；由独立 producer/resolver 保存/读取，不扩大旧 @1.0 接受集，不让 scoped resolve_policy 读 Platform |
+| `im-ui-company-startup-v1` / 三个 canonical SchemaRef | 独立构建期 registry，接受集仅上述三项；`VERSIONED / identity.contract_schema / scope={}` 的固定拟 objectId/versionId、closed validator、完整 snapshot payload 唯一维护于 [IP 新路径](../module-specs/Module-Spec-001-IdentityPolicy.md#独立-platform-profile-registryproducer-与-exact-resolver)。不并入/替换历史 im02/im06 registry；EP 拥有正文语义 |
+| `CompanyRuleSnapshotProducer@1.0` / `CompanyRuleSnapshotResolver@1.0` / internal | IdentityPolicy / Platform；record/read 的 closed 请求、snapshot target、完整 selector/ref/hash、当前主体 Decision/Grant 与独立不可变存储见 IP #257；拟内部 operation/purpose/action 分别 `identity.company_rule.snapshot.record` 和 `identity.company_rule.snapshot.read`（各 version=1.0）。不是旧 record/get_policy_snapshot 的新 profile 或公开操作；publication/resolution Port 必须通过新 resolver |
 | `CONTENT_ADDRESSED / zhiju.project.company_startup_requirement` | EnterpriseProject / Platform；精确公司要求定义、模板/正式规范来源与发布；Spec 002 #257；不是客户 Evidence |
 | `CONTENT_ADDRESSED / zhiju.identity.company_rule_publication` | IdentityPolicy / Platform；具体 bundle/清单/范围/EP校验/真实Human批准与发布、取代/撤回当前性；[Spec 001 #257](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案) |
 
