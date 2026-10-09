@@ -13,6 +13,8 @@
 
 IM-06 的有限工程退出已获用户确认。[UI-DG-001～003 工程基线](../decisions/workspace-ui-engineering-baseline.md)和产品/布局保持已批准范围；[Issue #252](https://github.com/qzhike/zhiju-business-core/issues/252) / [PR #254](https://github.com/qzhike/zhiju-business-core/pull/254) 已交付 Web/BFF 工程外壳，当前 Core 基线为其合并后的 `b66beb0afcf3e71143c348348fcc41cfc7819cbb`。工程外壳不代表真实 OIDC、业务 HTTP、Runner、持久化或人工业务验收完成。
 
+首条业务链的当前接入前置为“可信 Human 登录 → 自身当前获权项目目录 → 选中项目的安全看板”。[#258 可信会话与公开接入设计](../decisions/workspace-trusted-session-public-access.md)已完成独立复审与人类技术批准，先按这一可独立使用的目标贯通 Web/BFF/Core/IP/EP；逐请求当前授权、目录分页和看板分权保持批准边界。D14/Runner/公司规则尚未实现的操作明确不可用，不为完成登录入口而扩展未注册操作或宣称整条 ZIP/启动链可用。
+
 下一完整用户目标仍是 ZIP 接收 → 受控 Runner 分析/报告接纳 → 启动信息核对与整份文件选择 → 原请求回执/真实进度。[Issue #253](https://github.com/qzhike/zhiju-business-core/issues/253) 的 [D14/RD-01 技术设计](../decisions/d14-rd01-first-customer-flow.md)已形成 owning 字段、准备来源/Context、可信 Human 决定、一次 start、初轮范围及有界 ACTIVE 恢复、公开 HTTP 和必要失败场景；独立审查未发现剩余阻塞缺陷，人类技术批准绑定 `a4da30706c12b3b351fc471c8ac5f99b2ab38873`，见 [PR #255 批准记录](https://github.com/qzhike/zhiju-business-core/pull/255#issuecomment-6075169806)与[正式 Review](../reviews/pr-255/Review.md)。Git 交付状态以该 PR 为准，字段/profile 仍未注册或实现。
 
 接入前仍须明确首发公司 Runtime/Profile、精确 model/数据边界、公司强制启动规则/词表与完整执行锁，并按 IM-DG-006 和真实 conformance 要求复核。Claude Code 仅是候选，界面不增加 Runtime selector；设计批准不填造这些缺失决定，也不自动把依赖实现标为 READY。Planner 基于当时 main 与明确选择完成 NOW + READY 复核后，才按发布授权创建贯通首条真实目标的实现 Issue。后续文档修改/反馈/批准/交付和 Excel 转换维持原边界；真实 API、持久化、Host/Runner、Browser 与人工验收保持 NOT RUN。

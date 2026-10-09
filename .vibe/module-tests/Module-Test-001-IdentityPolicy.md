@@ -376,7 +376,7 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 
 ## Workspace 可信 Human 与目录授权场景（#258）
 
-状态：`PROPOSED / NOT RUN`。authority 为 [IP #258](../module-specs/Module-Spec-001-IdentityPolicy.md#workspace-可信-human-入口与目录授权提案258)；跨边界绑定见 [TR-258](../decisions/workspace-trusted-session-public-access.md#7-原意图恢复与设计-trace)。设计表不替代实际 OIDC、公开入口或 PostgreSQL 授权证据。
+状态：`HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT RUN`。authority 为 [IP #258](../module-specs/Module-Spec-001-IdentityPolicy.md#workspace-可信-human-入口与目录授权提案258)；跨边界绑定见 [TR-258](../decisions/workspace-trusted-session-public-access.md#7-原意图恢复与设计-trace)。设计表不替代实际 OIDC、公开入口或 PostgreSQL 授权证据。
 
 | ID / 层次 | 输入 / 当次 owner 检查 | 可观察预期 | 实际 / 结果 |
 |---|---|---|---|

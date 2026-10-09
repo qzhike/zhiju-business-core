@@ -1,10 +1,12 @@
 # Workspace 可信 Human 会话与公开接入 Spec Delta
 
-日期：2026-10-09。状态：`T2 / PROPOSED / INDEPENDENT REVIEW NOT RUN / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。
+日期：2026-10-09。状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。
 
 本文交付 [Issue #258](https://github.com/qzhike/zhiju-business-core/issues/258) 的字段级设计。对照 `main@15c085354056ab327e03352c32020010cc11285b`：API 只有 HealthController，Web/BFF 只有工程外壳；Catalog 注册不等于 HTTP handler 存在。保留已批准的 [UI-DG-003](workspace-ui-engineering-baseline.md#5-bff-与安全方案ui-dg-003-提案)、Keycloak、同源 BFF、单进程有界技术 Session、30 分钟空闲/8 小时绝对期限与现有布局。本文新增的接口、参数和目录能力须经精确修订的独立设计审查及人类技术批准才能冻结；不宣布任何依赖实现 READY。
 
 唯一业务权威仍为 [IP Spec](../module-specs/Module-Spec-001-IdentityPolicy.md#workspace-可信-human-入口与目录授权提案258)、[EP Spec](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258) 和既有 [D14 Delta](d14-rd01-first-customer-flow.md)。本文拥有技术认证、transport 字段映射和跨边界 trace，不重新定义 TE/IG 的 Run、上传接纳、业务 Process 或 Receipt。实际部署地址、Keycloak patch/digest、凭据和 handler 均未提供，不使用占位配置证明真实接入。
+
+独立设计复审与明确人类技术批准均绑定 `6bb86edbdf9af32fde86b8f86d88cb87f5bcb511`，依据见 [正式 Review](../reviews/pr-263/Review.md#人类技术批准与最终结论6bb86edb) 和 [批准 comment](https://github.com/qzhike/zhiju-business-core/pull/263#issuecomment-6081005384)。本设计已获批准；注册、实现及运行证据仍分别保持未交付/NOT RUN。
 
 ## 1. 信任入口与配置接口
 

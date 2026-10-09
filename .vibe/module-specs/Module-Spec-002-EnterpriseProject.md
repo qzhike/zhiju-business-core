@@ -992,7 +992,7 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 
 ## Workspace 授权项目目录提案（#258）
 
-状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。这是首个 Human 工作台必需的有限 additive Query，不修改既有 project board、D14 request/Receipt、Project状态机或业务 Schema 所有权。技术入口见 [Session Delta](../decisions/workspace-trusted-session-public-access.md#4-授权目录与工作台来源)。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。这是首个 Human 工作台必需的有限 additive Query，不修改既有 project board、D14 request/Receipt、Project状态机或业务 Schema 所有权。技术入口见 [Session Delta](../decisions/workspace-trusted-session-public-access.md#4-授权目录与工作台来源)。
 
 | 拟 operation / consistency / Scope | 封闭 payload | result data / Purpose |
 |---|---|---|

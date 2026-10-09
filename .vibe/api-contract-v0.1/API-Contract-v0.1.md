@@ -658,7 +658,7 @@ Cursor公开表示严格遵守共享OpaqueCursor正则`^[A-Za-z0-9_-]{16,512}$`�
 
 ## Workspace public transport 与 self-discovery 提案（#258）
 
-状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。[Session Delta §5](../decisions/workspace-trusted-session-public-access.md#5-有限公开路由与-envelope-映射) 定义有限operation@version allowlist及Browser输入到受信Core Envelope的字段投影。Browser/BFF不能提交actor/requester/authenticationContextRef/authorizationDecisionRef；Core独立验证实际token、解析IP身份，产生当次授权后补全共享Envelope。未知身份字段拒绝而非接受后替换。已有完整Command/Query Envelope、Result、cv1 payloadHash、target/CAS、幂等及安全错误Schema不改，transport projection不是第八模块业务合同。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。[Session Delta §5](../decisions/workspace-trusted-session-public-access.md#5-有限公开路由与-envelope-映射) 定义有限operation@version allowlist及Browser输入到受信Core Envelope的字段投影。Browser/BFF不能提交actor/requester/authenticationContextRef/authorizationDecisionRef；Core独立验证实际token、解析IP身份，产生当次授权后补全共享Envelope。未知身份字段拒绝而非接受后替换。已有完整Command/Query Envelope、Result、cv1 payloadHash、target/CAS、幂等及安全错误Schema不改，transport projection不是第八模块业务合同。
 
 唯一新public operation提案 `project.find_workspace_projects@1.0` 的payload/result/分页见 [EP owning Spec](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)。它显式接受 `scopeRef={}` 的verified self-discovery，requester只从Core身份解析；不生成空Scope业务Actor/Decision，每个返回项目仍独立取得IP当前Project Decision并按双Scope RLS读取。此例外须新Query注册及实际可信入口，不把现有identity scoped Port/board接受集放宽。
 

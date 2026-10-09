@@ -1056,7 +1056,7 @@ IP每项以服务自身ActorSnapshot/PolicySnapshot当前hash、完整Enterprise
 
 ## Workspace 可信 Human 入口与目录授权提案（#258）
 
-状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。技术配置、会话和 trust traces 见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。本节拥有身份映射/授权接受集，不把 OIDC login 或 BFF Session 当成 Zhiju Role/Capability。现有 register/link/ActorSnapshot/Decision Port 的约束保留；当前 scoped Actor/Decision 实现只支持 Enterprise/Project，不因本提案获得无 Scope 业务授权。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。技术配置、会话和 trust traces 见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。本节拥有身份映射/授权接受集，不把 OIDC login 或 BFF Session 当成 Zhiju Role/Capability。现有 register/link/ActorSnapshot/Decision Port 的约束保留；当前 scoped Actor/Decision 实现只支持 Enterprise/Project，不因本提案获得无 Scope 业务授权。
 
 ### 身份 bootstrap 与可信 Actor
 

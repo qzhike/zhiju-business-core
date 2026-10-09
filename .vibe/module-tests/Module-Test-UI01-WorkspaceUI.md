@@ -142,7 +142,7 @@ reviewer and timestamp
 
 ## 可信 Session 与公开接入验收场景（#258）
 
-状态：`PROPOSED / NOT RUN`。对应 [UI01 #258](../module-specs/Module-Spec-UI01-WorkspaceUI.md#可信-human-session-与公开-workspace-接入提案258) 和 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。本地确定性替身、真实controlled Keycloak/HTTP/PG、浏览器制品、实际Windows/macOS Chrome/Edge与独立人验分别记录；所有场景尚未执行，不用shell或mock回执填PASS。
+状态：`HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT RUN`。对应 [UI01 #258](../module-specs/Module-Spec-UI01-WorkspaceUI.md#可信-human-session-与公开-workspace-接入提案258) 和 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。本地确定性替身、真实controlled Keycloak/HTTP/PG、浏览器制品、实际Windows/macOS Chrome/Edge与独立人验分别记录；所有场景尚未执行，不用shell或mock回执填PASS。
 
 | ID / 层次 | 输入 / 关联 trace | 可观察预期 | 实际 / 结果 |
 |---|---|---|---|

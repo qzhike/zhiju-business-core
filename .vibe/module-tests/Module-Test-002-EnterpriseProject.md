@@ -569,7 +569,7 @@ pnpm persistence:gate
 
 ## Workspace 授权目录场景（#258）
 
-状态：`PROPOSED / NOT RUN`。对应 [EP #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)，以公开入口及真实IP权限/RLS取证，不能直接写中间业务行或拿匿名board作授权集合。
+状态：`HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT RUN`。对应 [EP #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)，以公开入口及真实IP权限/RLS取证，不能直接写中间业务行或拿匿名board作授权集合。
 
 | ID / 层次 | 输入与 owner 检查 | 可观察预期 | 实际 / 结果 |
 |---|---|---|---|

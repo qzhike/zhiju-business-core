@@ -1492,7 +1492,7 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 
 ## Workspace 授权目录名称提案（#258，未注册）
 
-状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。
 
 | 拟 operation | 唯一 Owner / 字段权威 | 有限用途与注册边界 |
 |---|---|---|

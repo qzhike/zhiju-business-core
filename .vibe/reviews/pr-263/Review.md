@@ -60,3 +60,48 @@
 - 真实 OIDC/HTTP、当前 IP Grant/Policy/RLS 的 PostgreSQL 集成、Host/Runner、实际 Windows/macOS Chrome/Edge 平台矩阵及独立人工验收：`NOT RUN`。
 
 先修复 R1/R2，再独立审查新精确 head。Issue #258 仍要求精确修订的人类技术批准后才冻结语义或声明依赖实现 READY；此次 REQUEST_CHANGES 不代替该门禁，也不授权 commit、push、合并或部署。用户授权提交 PR comment；本地正式记录尚未 commit/push，不声称已进入远端 PR。
+
+## 最新 head 独立复审：6bb86edb
+
+- Reviewed SHA：`6bb86edbdf9af32fde86b8f86d88cb87f5bcb511`。
+- Base SHA：`e8d05d6dccfe6034b241a8d0c4b8b49e255e4029`。
+- 前次 Reviewed SHA：`5a6d55ed678be7c0325fc47bcfd627ab94919ddf`。
+- 复审日期：2026-10-09。
+- Reviewer outcome：`HUMAN_REVIEW_REQUIRED`。
+- 独立代理设计语义复审：`PASS / NO NEW BLOCKING FINDING`；R1、R2 均 `RESOLVED AT REVIEWED SHA`。
+- Human 技术批准：`PENDING / NOT PROVIDED`。
+
+上述 REQUEST_CHANGES 记录保留为前次 SHA 的历史结论；本节定义新 reviewed SHA 的复审结论。已重新读取最新 Issue/PR、实际 head/base、上轮到本轮的完整修订、受影响的 owning 契约和验收场景，并核对精确 head 的 CI。当前 PR 共 13 份 `.vibe/` Markdown，包含已纳入 head 的前次正式审查记录；没有实现、Registry/Schema、SQL、迁移或验证工具改动。复审不以 PR 自述或上轮结论代替新 head 核对。
+
+### 原发现闭合
+
+| 发现 | 新 head 的闭合依据 | 结论 |
+|---|---|---|
+| R1 / P1 | [Delta §3](../../decisions/workspace-trusted-session-public-access.md#3-登录刷新登出与重启)固定 code/query/openid 与支持响应 iss 的 profile，分别定义成功和安全 error 形状。两分支均将解码一次的 iss 与发起交易 expectedIssuer 和固定 discovery/config 精确比较；缺/错/空/重复 issuer 拒绝，合法 session_state 有界校验后丢弃。Cookie/state/期限/config 绑定先于原子交易消费；失败零 exchange/bootstrap/新 Session。未知/重复/非法编码/控制字符/超限参数拒绝，error 文本/URI 不展示、记录或导航。UI Spec 与 UI-258-002/003 同步覆盖原合法回调反例及两分支负向场景。 | `RESOLVED` |
+| R2 / P2 | [EP 目录](../../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)、Delta 和 UI Spec 一致允许 `OK + items=[] + nextCursor`；Page 与 Envelope 游标同值，未完成时继续绑定分页。仅完整游标链结束且累计零项为 EMPTY，空末页保留已有卡片；依赖错误不能冒充结束。保留 200 项/5 秒预算、当前授权与固定水位变更拒绝。EP-258-003 明确前 200 候选不匹配、第 201 项匹配的原反例；EP-258-004/UI-258-007 同步中间空页、真实 EMPTY、已有卡片和中途错误场景。 | `RESOLVED` |
+
+原 R1 的协议预期继续依据 [RFC 9207 §2.4](https://www.rfc-editor.org/rfc/rfc9207.html#section-2.4)及 [Keycloak 官方升级指南](https://www.keycloak.org/docs/latest/upgrading/index.html)。上述闭合是设计接受集和场景一致性结论，不是实际 OIDC、分页或 Browser 测试通过声明。
+
+### 其余边界与证据
+
+- 新 head 保留固定受信配置、Core 实际 token verifier、IP 当前 link/ACTIVE HUMAN、逐请求 Actor/Decision 与返回前当前授权复验；self-discovery 不放宽空 Scope 的业务访问，不扩大目录到 board/content/start 权限。技术 Session 不存业务原意图，重认证后按原 request/key/target/hash/CAS 与当前 read 权恢复，不因 UNKNOWN 自动换键重发。
+- 有限公开候选仍为 18 个唯一操作（R=3、P=14、N=1）；未注册/缺 handler 不可用，管理/worker 操作不暴露。原 Command 13 项、Query 11 项非可信顶层字段及 Core 追加身份/授权边界保持不变。流、Evidence/原件内容、CSRF、缓存清理及迟到响应边界未放宽。
+- [CI run 37928593208](https://github.com/qzhike/zhiju-business-core/actions/runs/37928593208)的 headSha 精确匹配本次 reviewed SHA；select/checks/verify 均 SUCCESS，persistence 为文档路由预期 SKIPPED。Verify documentation 日志包含上述 BASE_SHA、`[docs-verification] PASS files=13` 和 Prettier PASS；复用当前 CI，不为重复取证重跑该修订的配置目标。
+- 独立 `git diff --check <base> <head>`：PASS。补充静态诊断确认 13 份 Markdown 范围、18 个唯一候选及分类、8 条唯一 trace、26 条唯一未来验收行（IP=8、EP=6、UI=12）均保持 NOT RUN，并确认原 R1/R2 反例进入 owning 场景。
+- 本节是 reviewed SHA 之外的本地正式记录追加；其配置 docs 验证及新 comment 发布/读回结果由本次 GitHub comment 交付，不预写未执行结果。未修改提案或产品代码，未 commit/push。
+- 真实 OIDC/HTTP、IP Grant/Policy/RLS 的 PostgreSQL 集成、Host/Runner、实际 Windows/macOS Chrome/Edge 平台矩阵与独立人工验收：`NOT RUN`。
+
+本次未发现新的设计阻塞缺陷，但 Issue #258 的 Verify 明确要求独立设计审查和人类技术批准。当前未提供针对本次精确修订的人类技术批准，因此最终 outcome 为 HUMAN_REVIEW_REQUIRED；不得据此冻结语义、将依赖实现标为 READY 或合并。用户已授权发布复审 comment；该 comment 与正式人类批准仍是不同证据。
+
+## 人类技术批准与最终结论：6bb86edb
+
+- 批准日期：2026-10-09。
+- 批准来源：当前会话用户在上述精确 SHA 的复审结论后明确回复“批准”。
+- 批准对象：PR #263 / Issue #258 的 T2 设计，Reviewed SHA `6bb86edbdf9af32fde86b8f86d88cb87f5bcb511`。
+- 已核对远端 head/base 与上述 reviewed SHA/base 一致，PR 仍为 OPEN / Draft。
+- Human 技术批准：`APPROVED / EXPLICIT USER INSTRUCTION`。
+- 最终 Reviewer outcome：`APPROVE`。
+
+批准到达前的 HUMAN_REVIEW_REQUIRED 保留为历史记录；本节记录该人类门禁已满足后的最终结论。独立设计复审、R1/R2 闭合及精确 head 的 CI 证据沿用上节，本次未更改受审设计。实际 OIDC/HTTP、PostgreSQL 授权集成、Host/Runner、浏览器平台和人工运行验收仍为 NOT RUN，批准是设计判断，不将这些场景改写为 PASS。
+
+当前授权覆盖正式审查记录追加及 PR comment 中的批准证据交付；本地记录的配置 docs 验证和 comment 发布/读回事实在交付 comment 中记录。本地追加未 commit/push，APPROVE 不构成合并授权。

@@ -278,7 +278,7 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 
 ## 可信 Human Session 与公开 Workspace 接入提案（#258）
 
-状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。字段、封闭技术配置、Session转换、有限public operation/version表、CSRF/流/内容协议与TR-258验收trace唯一见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。已批准 UI-DG-003 架构/会话期限和当前布局不变，工程外壳匿名证据不代表本提案实现。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。字段、封闭技术配置、Session转换、有限public operation/version表、CSRF/流/内容协议与TR-258验收trace唯一见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。已批准 UI-DG-003 架构/会话期限和当前布局不变，工程外壳匿名证据不代表本提案实现。
 
 1. Browser Cookie只索引BFF技术会话；token exchange后通过Core受信身份bootstrap桥确认当前link/ACTIVE HUMAN，才能进入工作台。每次受保护请求Core独立校验token，IP形成真实Actor/当次Decision；Browser自报actor/Decision/actingFor/header覆盖拒绝。email/Realm Role和BFF缓存摘要不赋权。
 2. BFF技术Session只存认证字段，业务草稿/原意图/Receipt由owner保存；未经公开能力保存的页面草稿明确“未保存”，不承诺重启/跨设备恢复。单次登录交易绑定发起Browser，多Tab交易独立、并发callback只一winner；成功与安全error回调沿Delta封闭参数表接纳并精确验证响应iss，有限session_state仅校验后丢弃，不代替state/nonce或赋权；缺/错/重复issuer拒绝且零新Session。refresh串行，logout/过期/重启失效后不被迟到refresh复活。
