@@ -139,3 +139,22 @@ reviewer and timestamp
 | UI-RD01-006 | scope已RECEIVED无Run、部分进度分页/迟到report | 阶段真实、水位/完整分母；未执行不标running/完成；无自动切换覆盖正在核对的旧报告 | 未执行 / `NOT RUN` |
 
 首轮恢复追加场景（同为 `NOT RUN`）：**UI-RD01-007** — start成功scope失败，原选择阻塞/报告stale，新选独立文件；预期：INITIAL_SCOPE_ONLY 使用原start与新intent，清楚只确认范围；原请求immutable、刷新查新key；首轮已收到后入口关闭。
+
+## 可信 Session 与公开接入验收场景（#258）
+
+状态：`PROPOSED / NOT RUN`。对应 [UI01 #258](../module-specs/Module-Spec-UI01-WorkspaceUI.md#可信-human-session-与公开-workspace-接入提案258) 和 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。本地确定性替身、真实controlled Keycloak/HTTP/PG、浏览器制品、实际Windows/macOS Chrome/Edge与独立人验分别记录；所有场景尚未执行，不用shell或mock回执填PASS。
+
+| ID / 层次 | 输入 / 关联 trace | 可观察预期 | 实际 / 结果 |
+|---|---|---|---|
+| UI-258-001 / Config + Security | 缺固定issuer/audience/client/callback/peer、用户URL、伪Forwarded/Host、TLS/endpoint变化 | fail closed，无回调Host推导/外站redirect/任意upstream；无dev/mock fallback | 未执行 / `NOT RUN` |
+| UI-258-002 / OIDC + HTTP | 合法code+PKCE、错iss/aud/azp/alg/type/期限/nonce，ID token当API token | 双端独立验证，只有真实当前HUMAN关联可进入；非法token零业务调用，TR-258-01/02/04 | 未执行 / `NOT RUN` |
+| UI-258-003 / OIDC | 未绑定Cookie/state、重放/串交易、多Tabcallback、5分钟过期与容量满 | 交易single use；并发只一登录winner；限额503/无活跃Session驱逐，TR-258-05 | 未执行 / `NOT RUN` |
+| UI-258-004 / Session + OIDC | 多Tab并发refresh、rotated refresh token、timeout/logout竞态、idle/absolute期/BFF重启 | single-flight/期限有效；迟到结果不复活；Cookie轮换/清理，轮询不续idle，TR-258-06/08 | 未执行 / `NOT RUN` |
+| UI-258-005 / Security + HTTP | GET业务写、所有POST Query/Command/PUT/activity/logout缺/错CSRF、null/错Origin/Host/Content-Type、公网actor/header | 前置拒绝且Core calls=0；仅已绑定OIDC callback例外；合法对照进入owner校验，TR-258-04/05 | 未执行 / `NOT RUN` |
+| UI-258-006 / Contract + Registry | finite表逐项正例；未知operation/version、未注册D14、管理/worker操作、CREATE target/CAS/hash错值 | 只exact允许的已注册handler；Core形成共享Envelope身份字段，完整Result/code/retryDisposition保留，无私有dispatch | 未执行 / `NOT RUN` |
+| UI-258-007 / Directory + Browser | 授权A/无权B、目录/board分权、翻页Grant变化、B deep link与旧A迟到响应 | 有限owner目录，B统一不可见；current grant/RLS拒绝；EP/TE水位与分母不混，TR-258-03 | 未执行 / `NOT RUN` |
+| UI-258-008 / Stream + HTTP | 合法100MiB边界ZIP、chunked超限/错hash/压缩HTTP body/断流/timeout/token过期、换Scope | 有界backpressure，零BFF解包/全包buffer/storage写；IG独立核验；同原intake查询，零新键/假FAILED | 未执行 / `NOT RUN` |
+| UI-258-009 / Content + Security | exact Evidence/EP依据摘录；别名/hash/Scope错值、未授权下载、恶意文件名/Markdown | owner当前权限/精确引用；无原件stream时下载不可用；不将locator/metadata转bytes权，CSP/编码且无脚本执行 | 未执行 / `NOT RUN` |
+| UI-258-010 / Recovery + HTTP + PG | request已commit/start成功scope失败时断网/Session过期/重启；原requestRef/key重登回读 | 原intent/成功steps/Receipt不变；新auth仅当前read/续步证明，UNKNOWN依赖失败不推未提交，零重复事实/dispatch，TR-258-06/07 | 未执行 / `NOT RUN` |
+| UI-258-011 / Cache + Diagnostics | logout/401/撤权/切用户Scope、多Tab、bfcache；callback/token/body/file探针 | 敏感DOM/cache/objectURL清理，迟到响应不能复填；no-store；日志/trace字段allowlist无token/Subject/客户正文 | 未执行 / `NOT RUN` |
+| UI-258-012 / Actual Browser + Accessibility + Manual | 固定脱敏资料，Windows/macOS实际两稳定版Chrome/Edge；顾问登录→目录→已注册D14→原intent恢复 | 已批准布局/默认不选/键盘焦点/深链接真实可用；允许及拒绝链可追溯；记录build/环境/实际版本/独立审核人，不拿Chromium/axe代人验 | 未执行 / `NOT RUN` |

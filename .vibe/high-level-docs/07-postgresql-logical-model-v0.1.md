@@ -2501,3 +2501,13 @@ retentionUntil固定为publishedAt+原Policy TTL；Query不能延长，cleanup�
 forward migration 必须验证旧 binding exact refs/Scope/hash 后赋 FULL_START；缺 binding 的旧 ACTIVE fail closed 为迁移故障，禁止重新归类 PREPARING。新 insert/start 的数据库约束须抵御直 SQL 形成 ACTIVE 无 binding、两份 start、wrong mode、跨 Scope、payload mirror/hash 替换；Handler 之外也需约束/guard。未来 full gate 覆盖清洁迁移、历史读取、失败回滚、并发唯一/CAS、RLS 与 retention；本节只是 FUTURE DESIGN。
 
 首轮恢复拟新增 EP initial_scope_request / initial_work_scope_decision（原 intent/hash、Actor/Decision、固定 startBindingMode 与 refs，INSERT-only），TE work_scope 增加 `(enterprise_id,project_id,purpose=INITIAL)` 唯一约束。新准备路径 ACTIVE 的资格还须 immutable creationMode=PREPARATION，不把旧 FULL_START 项目放入窗口。startup_request→已提交 PROJECT_START 的 owning association 不回填改写旧 scope decision payload；current-state 查询不能替代 final receive 的唯一事务约束。
+
+## Workspace self-discovery 读取边界提案（#258）
+
+状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT IMPLEMENTED`。不新增业务目录表/Projection/Session Repository，不在本 Issue 写SQL。身份/目录字段唯一见 [IP #258](../module-specs/Module-Spec-001-IdentityPolicy.md#workspace-可信-human-入口与目录授权提案258) 与 [EP #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)。
+
+首次身份解析只在IP受控Port读取平台Principal/ExternalIdentityLink；self候选需后续独立注册的 `identity_workspace_discovery_reader` 受限SELECT权限/RLS policy，仅允许受信认证Context的principalId读取其当前Project Grant/Policy候选Scope。该Context由Core实际token verifier和固定technical peer建立，不能从Browser指定principalId。对现有IP FORCE RLS新增的读policy仅作用此专用role与自身候选字段；禁止BYPASSRLS、任意用户枚举、Grant正文对Browser输出、写权限或EP表权限，其他现有app/audit/dispatcher/projection角色不获得该权限。Port内部输入不能自由选择Principal，结果只供受控EP目录入口逐项再授权。
+
+EP每项独立取得IP当前PROJECT Decision后，在精确enterprise_id+project_id Context读取自身摘要；无全库空Scope事务、跨Schema SQL join或共享Repository。目录cursor/source watermark仅为读取证据，不写客户业务事实或授权限；EP名字摘要输出范围为此新Query已批准的最小展示字段。未来实现须用真实PostgreSQL证明专用role/Context不能读别主体、旧role无权限、新role不能写/读EP、逐项目RLS与撤权/翻页拒绝，并运行 `full`。
+
+OIDC token、Cookie、CSRF、refresh锁仅在批准的BFF有界技术内存中；业务意图/草稿/Receipt不进入它。IP历史Actor/Decision只保存认证摘要及hash、当前Scope与授权绑定，无raw token/Subject或跨模块FK。重启/换Session不删除或回填原业务意图、历史Actor、Receipt，禁止通过改RLS/伪snapshot解决无身份入口。

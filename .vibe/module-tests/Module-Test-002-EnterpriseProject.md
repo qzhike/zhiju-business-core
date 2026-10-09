@@ -566,3 +566,16 @@ pnpm persistence:gate
 | EP-D14-009 | Evidence alias 当 EvidenceRef / requirement 只有模板 / 既有客户 latest | 须真实 Quality capture/verify/get 与客户依据；固定必需 QMS 三组非空；精确既有版本 Human 核对，不猜来源 | 未执行 / `NOT RUN` |
 
 首轮恢复追加场景（同为 `NOT RUN`）：**EP-D14-010** — start 已提交，原集合保护阻塞/补料stale，Human 新选独立子集；预期：ACTIVE/PREPARATION+初轮未收才允许新 scope intent/独立决定；原 start/企业版本不改；有界补料报告与当前 plan，必需 start 依据失效须 impact review。
+
+## Workspace 授权目录场景（#258）
+
+状态：`PROPOSED / NOT RUN`。对应 [EP #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)，以公开入口及真实IP权限/RLS取证，不能直接写中间业务行或拿匿名board作授权集合。
+
+| ID / 层次 | 输入与 owner 检查 | 可观察预期 | 实际 / 结果 |
+|---|---|---|---|
+| EP-258-001 / Contract + HTTP | verified Human，自身目录、两个Enterprise下明确授权Project | EP public Query仅返回当前受权精确refs/安全摘要/版本与水位；每项有独立IP discovery检查，无空Scope业务Decision/全库EP查询 | 未执行 / `NOT RUN` |
+| EP-258-002 / Security + Persistence | A授权、B拒绝/撤权；改requester/filter/ProjectRef，目录后访问board | B无protected read/无数据或计数泄露；选A后board仍单独授权；同名不合并/赋权 | 未执行 / `NOT RUN` |
+| EP-258-003 / Pagination | 50项页、过滤空页仍有候选、200项扫描预算、篡改/过期/换Session/Grant变化cursor | 限额/稳定排序/nextCursor与完整性正确；无未授权总数；拒绝错绑定并从首屏重读 | 未执行 / `NOT RUN` |
+| EP-258-004 / Dependency | IP/EP失败与真实零可见Project对照 | 失败503/无data；只有完整零项是EMPTY；未注册目录拒绝，无BFF扫库/demo fallback | 未执行 / `NOT RUN` |
+| EP-258-005 / Preparing + Recovery | 创建已提交但缺discovery Grant、准备请求响应丢失/expiry | 不补Grant/卡片；同原requestRef/key当前read权限回读，成功Enterprise/Project/Receipt保留，不重建 | 未执行 / `NOT RUN` |
+| EP-258-006 / Isolation + Board | exact双ScopeRLS、目录显示字段、EP/TE不同水位及分页分母 | 每Scope独立受权读取；无跨Schema授权join；看板保留自己的真实状态/水位，不拿局部和当全项目数 | 未执行 / `NOT RUN` |

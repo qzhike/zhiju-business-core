@@ -143,6 +143,8 @@ Keycloak 只证明认证主体与 token context，不拥有 Enterprise/Project R
 
 已批准工程方案见[UI 首版工程提案 §5](../decisions/workspace-ui-engineering-baseline.md#5-bff-与安全方案ui-dg-003-提案)：独立同源 BFF、单进程内存技术 Session（重启后重登、业务记录从 Core 恢复）、OIDC 交易与 Cookie、CSRF/Origin/Host、CSP/Markdown、公开操作 allowlist、下载及遥测。用户于 2026-10-08 批准该技术方案，独立审查/实现/验证尚未完成；不改变现行 API stateless、业务身份映射或禁止 BFF 直连基础设施的冻结规则。
 
+字段级补充提案见 [#258 Session Delta](../decisions/workspace-trusted-session-public-access.md)：固定issuer/client/API audience/callback/endpoint与technical peer配置、JWKS轮换、有界交易/Session、Core可信身份bootstrap、当前IP授权、有限public routes和原intent恢复。状态仍 `PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT IMPLEMENTED`；未提供实际部署值、patch/digest或凭据。本补充不改变Keycloak/React/Vite/同源BFF/单进程选择，不赋予stateless API全局即时撤销能力，也不把未注册目录/D14/原件下载宣布可用。
+
 1. Browser 只与同源 BFF 或经明确 CORS allowlist 的公开 API 通信；不得访问模块 internal route、数据库或 Provider 管理端点。
 2. Authorization Code + PKCE 的 token exchange、refresh 和 revocation 由 BFF/受信服务边界处理；浏览器不得把 access/refresh token 持久化到 `localStorage`、`sessionStorage`、IndexedDB 或可读 Cookie。
 3. Session Cookie 必须使用 `Secure`、`HttpOnly`、适用的 `SameSite`、明确 Path/Domain 和短生命周期；状态改变请求同时执行 CSRF 与 Origin/Host 校验。
