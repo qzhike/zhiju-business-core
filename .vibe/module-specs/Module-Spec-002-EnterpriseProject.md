@@ -973,3 +973,19 @@ Human-only `request_startup_confirmation` 先提交不可变意图/认证决定�
 ### EP 正常与恢复 trace
 
 新客户：preparation request→Enterprise Receipt→PREPARING Project→ZIP manifest→source→accepted report→Human decision→Fact/Product/QMS/Profile/ProductScope 独立 receipts→唯一 start→TE scope Receipt。已有客户显式选择 ID 和精确版本走同一链。任一步失败按 [转换表](../decisions/d14-rd01-first-customer-flow.md#5-转换原意图与恢复) 保留成功事实；晚报告不覆盖 current、UNKNOWN 先读原键、撤权不续写。首版范围接收不激活 DeliveryPlan，不以 GapAnalysis 的 ACCEPTED/模板数量代替范围。
+
+### ACTIVE 首轮范围重核对与精确 Human scope 决定
+
+本分支只覆盖同一 Project 已 start 但**从未成功接收初轮 workScope** 的恢复，不开放后续生成/反馈/普通批次，也不重复确认或激活 Fact/Product/QMS。EP/TE 各自拥有资格事实：EP 唯一 PROJECT_START，TE 当前初轮 scope 接收证明；无 TE 权威证明或依赖不可用 fail closed。第一次 startup request 的 Human 信息决定与范围决定是两个不同不可变对象，服务端在同一原 Human 显式确认事务分别产生：informationDecisionRef 指向 startup_decision；humanScopeDecisionRef 指向 CONTENT_ADDRESSED `zhiju.project.initial_work_scope_decision`，后者绑定 decisionId、projectRef、originalRequestRef、immutableIntentHash、projectStartBindingRef（初次 start 完成后由不可变 request→start 事实关联，不改写决定 payload）、reportRef、planRef、完整 selectedFileIds/fullChangeIds/dependency/protection refs、ActorSnapshot/AuthorizationDecision、scopeDecisionPolicyRef 与 recordedAt。首次决定在 start 前不填写不存在的 start ref，明确 `startBindingMode:START_FROM_SAME_REQUEST`；ACTIVE 恢复固定 `startBindingMode:EXISTING_FROZEN_START` 与真实 binding ref。TE 必须验证该分支及实际 owning request→start 链，禁止自洽伪造。
+
+| 拟操作@1.0 / mode | 封闭 payload | result / purpose |
+|---|---|---|
+| `project.request_initial_scope_confirmation` / CREATE OBJECT `zhiju.project.initial_scope_request` | `binding:{projectRef,expectedProjectAggregateVersion,expectedPreparationVersion,projectStartBindingRef,reportRef,reportJsonBytesSha256,preparationSourceRef,inputManifestBytesSha256,planRef,ruleBundleRef}; selectedFileIds:NonEmptySet` | requestRef + immutableIntentHash + humanScopeDecisionRef + information:NOT_APPLICABLE/start:EXISTING + scope step state/Receipt + disposition；`project.initial_scope.confirm`，Human-only，ACTIVE、creationMode=PREPARATION 且未收到首轮 scope |
+| `project.get_initial_scope_request` / Query A | `requestRef; originalKey` | 原 binding/选择、真实 Human scope decision/TE scope Receipt、currentUsability/permittedRecoveryActions；`project.initial_scope.request.read` |
+| `project.resume_initial_scope_request` / MUTATE | `requestRef; originalKey; action:READBACK或CONTINUE_PENDING_STEP` | 相同 request/decision/scope refs；`project.initial_scope.request.resume`，续写重验当前授权；不允许换文件/report/key |
+
+原 startup 或 initial-scope 请求 STALE/阻塞时保留全部历史；读当前 EP review 后，Human 显式提交新的 initial-scope intent，可只选择独立 eligible 子集。旧 request 不改，旧 info/start 仅引用真实已提交事实；新的 scope decision 不重新启动/激活企业版本。GET startup_review 对该 ACTIVE 恢复分支返回既有 start refs、`confirmationMode:INITIAL_SCOPE_ONLY`、当前 report/plan/阻塞和 allowedActions，不把新 startupCandidates 设成待再次确认启动字段。
+
+若首轮接收前补料使旧 report stale，EP 新 source capture/accept report 与 TE preparation profile 有界允许 `PREPARING` 或 `ACTIVE + creationMode=PREPARATION + 初轮scope未接收 + 精确已有start binding`。ACTIVE source/Context/报告附 `phase:INITIAL_SCOPE_RECOVERY` 和 `projectStartBindingRef`，冻结 start 作为只读参考，不重新生成信息版本。报告必须结合该冻结 start 保留已确认客户保护事实，候选冲突由 owning eligibility 显式阻相应整文件；任何变化使必要启动依据失效，则报告可审阅但初轮范围不能接收，须 owning impact review，不用这条恢复替换 start。已成功接收初轮范围后，该分析/确认入口拒绝；后续分析/批次由另行设计合同承担。
+
+TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{projectRef,projectStartBindingRef}`，result `{initialScopeState:NOT_RECEIVED或RECEIVED,workScopeRef?,receiptRef?,sourceWatermarks,currentUsability}`。EP 专用 source/eligibility Port 用它与现有 start 证明生成上述允许分支，Query 本身不是保留资格。TE receive 在自己的最终提交事务以 `(enterprise_id,project_id,initial_scope_purpose)` 唯一约束裁决多个新/旧请求，只允许一份首轮 scope；同 request/hash 返回原 Receipt，不同请求输家 `INITIAL_SCOPE_ALREADY_RECEIVED` 且不把自己的决定伪装为已接纳。分析 dispatch/final/report 接纳也重验该窗口的 TE owning 状态；窗口关闭后已合法 Run 终结结果可留历史但不能覆盖可操作 current report，后继当前范围变化走 impact 而不重接首轮。

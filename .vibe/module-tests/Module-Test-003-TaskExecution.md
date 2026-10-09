@@ -697,3 +697,5 @@ BOARD-D-003/007同时验证compact cursor长度264且满足共享16–512 base64
 | TE-D14-005 | scope Receipt 已提交响应丢失/重启；原 key 异 plan/file 集合 | 原 workScopeRef/stable Receipt，零重复 scope/task/Run；异 payload conflict，原 Scope/hash 不改 | 未执行 / `NOT RUN` |
 | TE-D14-006 | dispatch UNKNOWN、取消/到期 late final、terminal 重试 | 原调用 readback；不第二 invoke；late 仅历史；合法 retry 新 Context/新 Run 与当前授权，terminal 不 resume | 未执行 / `NOT RUN` |
 | TE-D14-007 | scope 已接收但无 Task/Run；分页进度/Runner自报完成 | RECEIVED/WAITING 实际 owning状态；完整计数水位与分页，不能将 receipt/report/Run 变文件批准或项目完成 | 未执行 / `NOT RUN` |
+
+首轮恢复追加场景（同为 `NOT RUN`）：**TE-D14-008** — 两份 initial-scope intent 竞态、窗口关闭后 dispatch/final、旧FULL_START；预期：最终 UNIQUE INITIAL 一 winner；同原request duplicate稳定refs，不同intent输家非假成功；晚结果仅历史，旧FULL_START/后续批次拒绝。

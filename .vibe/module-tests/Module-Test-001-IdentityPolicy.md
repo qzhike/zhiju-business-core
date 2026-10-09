@@ -359,3 +359,5 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 | IP-D14-003 | 同 Enterprise 别 Project evidence/source、过期/撤销 grant、错 PolicySnapshot hash | 当前权限与双 Scope 失败，安全错误；不靠 ScopeClaim/旧 ALLOW 放行 | 未执行 / `NOT RUN` |
 | IP-D14-004 | 信息决定提交后撤权，原请求 resume/replay | 历史不改，续步拒绝；Receipt 仅按当前读权返回，不越权泄露 | 未执行 / `NOT RUN` |
 | IP-D14-005 | 当前 allowedActions 后权限变化、客户端替换 actor/Decision | owning 重新授权并拒绝，UI 值不作为资格；服务端认证上下文唯一 | 未执行 / `NOT RUN` |
+
+首轮恢复追加场景（同为 `NOT RUN`）：**IP-D14-006** — ACTIVE初轮恢复新Humanscope决定/撤权/伪original request→start；预期：原start精确、真实decision与当前许可；不授予重start/信息激活，错来源/撤权拒绝。

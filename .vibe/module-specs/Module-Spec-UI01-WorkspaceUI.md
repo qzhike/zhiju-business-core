@@ -273,3 +273,5 @@ UI 新建/已有客户都使用精确公开 preparation request；同名企业�
 保持三类紧凑启动摘要、依据展开、章节文件列表、默认不选和一个“确认信息与范围并开始”。必要值未知/冲突/超出结构支持集明确禁止 start；选文件使用精确 planRef 的整份内容，不传 changeId 子集绕保护。请求提交后逐步显示信息确认/start/scope owning receipts；STARTED 才显示 ACTIVE，RECEIVED 不展示执行中。所选集合阻塞时保留草稿，Human 可明确重选独立 eligible 文件；合法 start 后逐文件新阻塞不扩大到独立文件。
 
 客户端将稳定 key/requestRef 与原 binding/选择关联，刷新先公开查询原请求；PENDING 不重发，UNKNOWN 核实，PARTIAL 仅续未完成步骤，STALE 保留草稿读取当前版本再显式新意图。已启动项目不回退 PREPARING。HTTP 503/空查询不是失败证明；过期 Session 重新认证后仍查原意图并重验权限。安全 HTML/Markdown 编码、下载授权、CSRF/Session 等沿 UI-DG-003；BFF 不接受公网 Actor/Decision，不落业务 Process、不调用未注册 Capability。
+
+ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 confirmationMode=INITIAL_SCOPE_ONLY 清楚表明原启动信息已冻结，按钮只确认当次整份文件范围。原 startup request STALE/阻塞不修改旧选择；未成功接收初轮时可显式新 intent，通过 project.request_initial_scope_confirmation/get_initial_scope_request/resume_initial_scope_request 回读，引用原 PROJECT_START。必要补料仅有界 INITIAL_SCOPE_RECOVERY 分析；TE 已接收首轮后关闭这条入口，不重复显示信息激活/启动，也不自动建下一批次。

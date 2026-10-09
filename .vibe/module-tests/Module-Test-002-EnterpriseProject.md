@@ -564,3 +564,5 @@ pnpm persistence:gate
 | EP-D14-007 | start 成功 scope 失败；STALE/撤权含成功 start；originalKey 被改集合 | 保留 ACTIVE/绑定；仅原 scope 续接；不同文件/报告/键拒绝；新意图重新确认不替旧 start | 未执行 / `NOT RUN` |
 | EP-D14-008 | 旧 FULL_START/ACTIVE 回归、旧 ACTIVE 缺 binding forward migration | 旧 create_project 三 refs 与 Hash 不变；损坏旧行使迁移失败，禁止归类新 PREPARING；直 SQL 无 binding ACTIVE 拒绝 | 未执行 / `NOT RUN` |
 | EP-D14-009 | Evidence alias 当 EvidenceRef / requirement 只有模板 / 既有客户 latest | 须真实 Quality capture/verify/get 与客户依据；固定必需 QMS 三组非空；精确既有版本 Human 核对，不猜来源 | 未执行 / `NOT RUN` |
+
+首轮恢复追加场景（同为 `NOT RUN`）：**EP-D14-010** — start 已提交，原集合保护阻塞/补料stale，Human 新选独立子集；预期：ACTIVE/PREPARATION+初轮未收才允许新 scope intent/独立决定；原 start/企业版本不改；有界补料报告与当前 plan，必需 start 依据失效须 impact review。

@@ -654,3 +654,5 @@ InputAliasManifest 每源唯一 sourceId，role 闭集 CUSTOMER_MATERIAL/TEMPLAT
 Runner 固定先读客户、后比模板，仅可写报告/提取件根。首版无 MCP、禁止客户配置发现/远程工具，网络只按 approved provider policy；CLI 内工具 allow-list 不能代替 Host 文件系统/网络隔离。固定 reader/validator/renderer 外层执行、不可改写工具或绕过失败；不能升级 dependencies、模板、规则或客户原件。stdout/transcript 是有限诊断，不是正式报告/事实/凭据；secret 不进入 Prompt/output/Event。
 
 真实 dispatch/ack/final 原 invocation bindings 经 IG 新内部 profile producer/observer→TE→EP；原 Runtime synthetic-only Query 不接受 PROVIDER 分支。JSON/MD/output root hash、readCoverage、extraction ceilings、startup candidates 和 alias mapping 必须分别通过 Host acceptance。官方 CLI 非交互能力仅是候选依据，版本/认证/隔离/取消/原请求 readback/UNKNOWN/晚报告均需新 conformance。首版不支持 session resume：有权且已确认失败的新 Run 重试；UNKNOWN 原 dispatch 不重复；cancel request 不是真实 ACK，terminal/过期结果只留历史。
+
+PreparationContext phase=INITIAL_SCOPE_RECOVERY 的新 Package 分支只绑定原 frozen start，在 PREPARATION 模式 ACTIVE 且 TE 初轮未接收窗口补料/分析；Task/Context/Package 全精确绑定该 phase/start ref，并在 dispatch、final/业务报告接纳重验窗口。窗口关闭后的原输出可保存 immutable observation/history，不成为可操作报告。此分支不重复 Human 信息确认/start，不开放 scope 后的通用文档工作。

@@ -91,3 +91,5 @@
 | RA-D14-004 | actual output 进入 IG→TE→EP；错 manifest/path/hash/session/lease/fencing | 三段各有真实事实与安全拒绝；独立 finalize 成功不足以 Host acceptance | 未执行 / `NOT RUN` |
 | RA-D14-005 | dispatch UNKNOWN、取消/超时/重启readback、terminal重试 | 原键不重复 invoke，真实停止观察非伪 ACK，late仅历史，许可 retry 新 Run，首版不 session resume | 未执行 / `NOT RUN` |
 | RA-D14-006 | observed CLI/version/model/provider 漂移、缺公司 mandatory规则/词表、profile不可用 | 不 ready/invoke，无默认/fallback/API直连；明确 IM-DG-006 决定与 conformance缺口 | 未执行 / `NOT RUN` |
+
+首轮恢复追加场景（`NOT RUN`）：**RA-D14-007** — ACTIVE/PREPARATION + frozen start + 未收首轮 scope 的 supplemental analysis；核对 INITIAL_SCOPE_RECOVERY Context/Package binding 和输入只读，窗口关闭后 late outputs 仅历史；不第二次启动、不产生后续批次资格。

@@ -5752,3 +5752,5 @@ DeliveryItem Completion 是由 EnterpriseProject owning Evaluator 根据冻结 `
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。新 Project creationMode=PREPARATION 时 PREPARING 即正式隔离身份，有 ScopeClaim/memberPolicy，无 PROJECT_START；只能受控来源接纳/只读分析，不具正式文件修改资格。原 FULL_START 创建继续单事务 ACTIVE+完整 start。PREPARING→ACTIVE 仅一次 Human 授权 start 事务，三类真实 refs、CAS、唯一 binding、Receipt/Event 一起提交；失败不留下半 ACTIVE。Scope/memberPolicy 永不迁移，ACTIVE 不回 PREPARING，后继材料/企业版本追加 impact 不改 frozen start。
 
 EP 新不可变 PreparationReport、CandidateSet、FilePlan snapshots 不等于 GapAnalysis/DeliveryPlan/正式 Fact；Human 信息决定、真实 Fact/Product/QMS 前置版本、Project start、TE 初轮 workScope 独立事实。scope 只表示整份文件意图接收，不自动批准修改/完成。缺必需客户事实阻 start；非必要未知或文件保护/冲突阻整份受影响文件，合法 start 后独立文件可接收。完整状态/recovery 见 [Delta §5](../decisions/d14-rd01-first-customer-flow.md#5-转换原意图与恢复)，owning fields/scenarios 不在本节复制。
+
+新准备路径 ACTIVE、首轮 workScope 尚未接收时，允许独立 Human scope intent/initial_work_scope_decision 绑定原 start+当前 plan；有界 INITIAL_SCOPE_RECOVERY 分析只读该 frozen start，不能再次确认/激活/启动。TE 每 Project/purpose=INITIAL 唯一成功接收，窗口关闭；原 intent immutable，必须影响必需启动依据的变化先 owning impact review。旧 FULL_START 项目与后续批次不属于此入口。

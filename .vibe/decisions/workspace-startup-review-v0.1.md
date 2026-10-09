@@ -62,3 +62,5 @@ STARTED 回执必须返回三类真实启动引用；RECEIVED 返回精确 workS
 - RECEIVED workScope → `execution.get_work_scope_progress@1.0`；receipt != scheduled != running != completed。所选任何阻塞文件拒绝原集合，保留草稿；用户可重新显式选独立文件，新意图不得暗改旧 request。
 
 allowedActions 只用于展示，写入口再验当前权限。request 查询失败维持 UNKNOWN，不生成新 key。ACTIVE 已有 PROJECT_START 后不再确认替换 start，原 scope 恢复也不能换报告；新后续 scope 需另行绑定冻结 start 与当轮 plan。三组布局、章节清单、复制索取与原位补充保持既有批准；无额外意见区/Runtime 选择器。
+
+ACTIVE 且 creationMode=PREPARATION 的首轮 scope 尚未接收时，read DTO confirmationMode=INITIAL_SCOPE_ONLY，显示原 frozen start 与当前 report/plan；提交改用 EP request_initial_scope_confirmation，原请求 get/resume 保持原意图。新 Human scope decision 不重新确认/激活企业信息；原请求 stale/blocked 可显式新选独立文件。补料分析仅 INITIAL_SCOPE_RECOVERY 窗口；TE authoritative initial-scope-state 与最终唯一接收约束防重复。scope 已 RECEIVED 后本入口关闭，后续批次不使用 startup DTO 偷启。

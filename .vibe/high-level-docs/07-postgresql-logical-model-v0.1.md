@@ -2499,3 +2499,5 @@ retentionUntil固定为publishedAt+原Policy TTL；Query不能延长，cleanup�
 全部 Project-owned rows enterprise_id+project_id、FORCE RLS、作用范围与父 Step FK 复合闭合；跨 Schema 只 TypedReference，不 FK/Join 或直接写他方表。原字节入受控 object storage，JSONB+cv1 payload hash 供确定性复验，byte hash 独立。staging/link commit/孤立 cleanup 沿现有边界，不分布式事务。历史表/列/Hash 不复制重建。
 
 forward migration 必须验证旧 binding exact refs/Scope/hash 后赋 FULL_START；缺 binding 的旧 ACTIVE fail closed 为迁移故障，禁止重新归类 PREPARING。新 insert/start 的数据库约束须抵御直 SQL 形成 ACTIVE 无 binding、两份 start、wrong mode、跨 Scope、payload mirror/hash 替换；Handler 之外也需约束/guard。未来 full gate 覆盖清洁迁移、历史读取、失败回滚、并发唯一/CAS、RLS 与 retention；本节只是 FUTURE DESIGN。
+
+首轮恢复拟新增 EP initial_scope_request / initial_work_scope_decision（原 intent/hash、Actor/Decision、固定 startBindingMode 与 refs，INSERT-only），TE work_scope 增加 `(enterprise_id,project_id,purpose=INITIAL)` 唯一约束。新准备路径 ACTIVE 的资格还须 immutable creationMode=PREPARATION，不把旧 FULL_START 项目放入窗口。startup_request→已提交 PROJECT_START 的 owning association 不回填改写旧 scope decision payload；current-state 查询不能替代 final receive 的唯一事务约束。

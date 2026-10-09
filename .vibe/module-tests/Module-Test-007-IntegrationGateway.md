@@ -217,3 +217,5 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | IG-D14-004 | staging object 成功 link 失败、entry EP commit 后 worker crash | 孤立对象可审计；原 intake/key/Receipt 续接零重复 root，已 link/retention 资料不 cleanup，未 manifest commit 不 READY | 未执行 / `NOT RUN` |
 | IG-D14-005 | 真实 profile 原 ack/final，改 manifest/narrative/extraction hash/session/fencing | 原调用只观察实际 bytes；绑定错误拒绝；IG raw!=TE acceptance!=EP accepted report，各证据分列 | 未执行 / `NOT RUN` |
 | IG-D14-006 | timeout UNKNOWN/重放、lease过期/取消后晚报告、锁定 CLI 不可用 | 原 readback 禁重复 invoke；late 历史，profile unavailable 明确失败；不 silent fallback，不重写 inputs | 未执行 / `NOT RUN` |
+
+首轮恢复追加场景（同为 `NOT RUN`）：**IG-D14-007** — ACTIVE初轮窗口补料分析、窗口关闭后的late report；预期：原start只读、phase/Package/Run绑定；可留原观察，不覆盖可操作报告或重发调用。

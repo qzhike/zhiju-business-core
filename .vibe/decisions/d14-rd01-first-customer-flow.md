@@ -21,6 +21,7 @@
 | 单次显式确认 | EP 拟 `project.request_startup_confirmation@1.0` | 保存原意图，专用 Process 驱动 Human 决定、真实前置版本、一次 start，再接范围；无跨 Aggregate 原子承诺 |
 | 一次正式启动 | EP 拟 `project.start_preparing_project@1.0` | 唯一 PROJECT_START + PREPARING→ACTIVE 同 Project 事务；失败不留下半份 binding |
 | 本轮整份范围接收 | TE 拟 `execution.receive_initial_work_scope@1.0` | 精确 workScopeRef / Receipt；只接范围，不自动 READY、dispatch、批准 DeliveryPlan 或完成文件 |
+| ACTIVE 首轮接收前重新核对 | EP 拟 `project.request_initial_scope_confirmation@1.0` / get/resume；TE 拟 `execution.get_initial_work_scope_state@1.0` | 独立 Human scope decision，保留原 start；仅尚未收到首轮 scope，有界补料分析，不重复信息确认/激活 |
 | 原意图恢复 / 进度 | EP 拟 `project.get_startup_request@1.0` / `project.resume_startup_request@1.0`；TE 拟 `execution.get_work_scope_progress@1.0`；IG intake Query | owning Receipt / step facts / 水位；原键原内容，未执行保持 NOT RUN |
 
 EP/IP/TE/IG/UI 的字段、授权与失败场景分别在 owning Spec/Test 的 D14 专节；[Core 03](../high-level-docs/03-core-contracts.md)、[Domain 04](../high-level-docs/04-domain-model-v0.1.md)、[一致性 05](../high-level-docs/05-cross-aggregate-consistency-module-boundary-v0.1.md)、[Catalog 06](../high-level-docs/06-typed-references-contract-catalog-v0.1.md)、[持久化 07](../high-level-docs/07-postgresql-logical-model-v0.1.md) 只维护各自权威。本文件维护方案选择与跨步骤导航，不复制生产 Schema。
@@ -92,7 +93,8 @@ EP `candidateSetRef` 与 `planRef` 由已接纳报告派生，包含该报告精
 | report/material/rule/CAS 变化或撤权 | 原请求的 current eligibility 失效，历史成功不变 | STALE + 完整 step facts；保留草稿，当前读后显式新意图；已 ACTIVE 不回 PREPARING |
 | scope RECEIVED、未安排 Run | 真实 workScopeRef/Receipt；每文件仍 RECEIVED/WAITING | ACCEPTED 只表示确认、启动、范围接收均成立；进度从 TE owning 查询 |
 | 同项目并发两次 start | 唯一 PROJECT_START + Project CAS | 一 winner；另一 STALE/冲突，可读已有真实 start；不得隐式把另一确认当成功 |
-| 旧 ACTIVE / 迟到报告 / 新补料 | 历史 PROJECT_START/Context/Result 不改 | 当前新 scope 要显式绑定冻结 start 与新报告；旧 intent 不替换报告或文件集合 |
+| 新准备路径已 ACTIVE、首轮接收前报告 stale/所选阻塞 | 原 start 不变；旧 intent 不改；EP initial-scope-confirmation 新 Human 决定绑定当前整份合法子集 | 有界 INITIAL_SCOPE_RECOVERY 可补料分析；新意图不再次确认/激活启动信息；收到首轮 scope 后关闭本入口 |
+| 历史 FULL_START ACTIVE / 迟到报告 / 后续批次 | 历史 PROJECT_START/Context/Result 不改；旧项目不转准备路径 | 历史项目/后续批次不进入首轮恢复支持集，另行合同；迟到结果仅历史 |
 
 `FAILED` 仅在确认、启动、范围均无已提交成功时使用；`STALE` 和 `UNKNOWN` 可携带先前成功步骤，不能重新显示“未启动”。resume 只接 requestRef、originalKey、允许的 `READBACK / CONTINUE_PENDING_STEP`，服务器查原 payload；不同 candidate/file/binding 或 new key 拒绝。安全查无 Receipt 只有在 owning 查询完整且确定时才是未提交；依赖不可用维持 UNKNOWN。成功后重复 resume 返回原 refs，不重复写/dispatch。权限撤销停止新步骤但不篡改已有事实，对无权读取者不泄露 refs。
 
@@ -147,3 +149,7 @@ HTTP status 不替代共享 Result Envelope 或 per-step owning Receipt；响应
 | Human | 顾问从新/已有客户到同 Project ZIP、报告/缺口、三组核对/整份默认不选、原意图恢复；必要事实阻启动、保护冲突仅阻整份，独立文件可接收 | NOT RUN |
 
 本设计分支只用 `vibe verify docs --json`；它验证 Markdown 和变更范围，不替代上述语义门禁。随后实现须注册 additive Schema/Registry/fixture 与版本 selector，并由新的完整工作项覆盖首条真实目标，不能仅以页面或独立脚本通过宣告 READY。范围接收后的生成、反馈、内部批准、发布、Excel 转换和全 Runtime 接入保持各自后续合同。
+
+### 首轮范围恢复的有界闭合
+
+EP [ACTIVE 首轮恢复字段](../module-specs/Module-Spec-002-EnterpriseProject.md#active-首轮范围重核对与精确-human-scope-决定) 和 TE [唯一接收事实](../module-specs/Module-Spec-003-TaskExecution.md#active-首轮恢复接受集与唯一接收事实) 定义：初次显式确认分别产生 informationDecision 与独立 initial_work_scope_decision；start 已提交但 scope 失败/STALE 时，只要尚无成功初轮 scope，Human 可经 request_initial_scope_confirmation 建新原意图，引用不变的 PROJECT_START 与当前 report/plan，选独立 eligible 整文件。必要补料分析仅在新准备路径 ACTIVE、初轮未收到的 INITIAL_SCOPE_RECOVERY 窗口，按冻结 start 分析；必需启动依据失效须 impact review，不能改写 start。TE current Query+最终唯一约束裁决，受理/Query 本身不占成功资格，竞态只一 scope。旧 request/key/binding/选择、已提交 start 及所有成功事实保持。成功接收后关闭此分支，后续生成/反馈/批次仍另行设计。

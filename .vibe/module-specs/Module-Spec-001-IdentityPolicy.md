@@ -1029,3 +1029,5 @@ cursor authorizationSourceHash由IP owning Port返回：canonical排序后的act
 Grant/Decision 由 IP 现有 owning 入口形成精确 PolicySnapshot/ActorSnapshot 身份、payload hash、Scope、purpose/target/mode/version，并在每个保护性读取前检查当前撤销/期限。快照或 Run 内保存旧 ALLOW 不能替代当次授权；再授权不能扩大原已冻结 payload。跨模块 Port 只提供授权证明，无他方 Repository 权限。RUNTIME/AGENT/actingFor 始终不能确认客户事实、激活 QMS/Product、start、批准保护例外、Approval/Release；Prompt/模板/报告自称 Human 或批准均拒绝。
 
 错误沿用当前安全 AUTHORIZATION_DECISION_INVALID / CAPABILITY_SCOPE_MISMATCH / Human-only 拒绝；无权时 protected reads=0。准备 profile 权限不包含 artifact/document.write、company template/rule WRITE 或任意 host/network/MCP。恢复和同键 replay 重验当前身份，只返回当次许可字段，不通过已保存 Receipt 泄露别的 Scope。
+
+ACTIVE 首轮恢复新增 `project.initial_scope.confirm` / `project.initial_scope.request.read` / `project.initial_scope.request.resume` 和 TE `execution.initial_work_scope.read`；写决定 Human-only，读取独立当前权限，Process 只执行原精确 scope 决定并独立再授权。仅 creationMode=PREPARATION、原冻结 start、TE 初轮未接收；不授予重新信息确认/激活/start 或后续修改资格。scopeRequestRef 与新 CONTENT_ADDRESSED initial_work_scope_decision 的 actor/payloadHash/Scope/当前撤权均重验。

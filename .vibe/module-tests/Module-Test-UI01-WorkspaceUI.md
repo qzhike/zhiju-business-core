@@ -137,3 +137,5 @@ reviewer and timestamp
 | UI-RD01-004 | 新 report/撤权/CAS stale，STALE 响应有已提交 start | 旧草稿保留，新版重新核对；不回 PREPARING，不换旧 request 文件集合；Session 恢复仍当前授权 | 未执行 / `NOT RUN` |
 | UI-RD01-005 | 公网 actor/header/CLI/path/zip正文处理/恶意Markdown | Core 认证/CSRF/Scope 拒绝；Browser/BFF 无解包/模型/storage写/私有Capability，正文安全编码与受权下载 | 未执行 / `NOT RUN` |
 | UI-RD01-006 | scope已RECEIVED无Run、部分进度分页/迟到report | 阶段真实、水位/完整分母；未执行不标running/完成；无自动切换覆盖正在核对的旧报告 | 未执行 / `NOT RUN` |
+
+首轮恢复追加场景（同为 `NOT RUN`）：**UI-RD01-007** — start成功scope失败，原选择阻塞/报告stale，新选独立文件；预期：INITIAL_SCOPE_ONLY 使用原start与新intent，清楚只确认范围；原请求immutable、刷新查新key；首轮已收到后入口关闭。
