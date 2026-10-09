@@ -83,6 +83,12 @@ const TASK_BOARD_ALLOCATIONS = new Map([
   [7015, 'task_execution'],
 ]);
 
+// Issue #267 requires two owning forward migrations for company prerequisites.
+const COMPANY_STARTUP_ALLOCATIONS = new Map([
+  [7016, 'identity_policy'],
+  [7017, 'enterprise_project'],
+]);
+
 const MIGRATION_NAME_PATTERN = /^V(\d{4})__[a-z][a-z0-9_]*\.sql$/;
 const MIGRATION_ROOT_FILES = new Set(['README.md']);
 
@@ -109,6 +115,14 @@ export function validateMigrationEntry(directory: string, fileName: string): str
   const range = MIGRATION_VERSION_RANGES[directory] ?? [0, 0];
   const [min, max] = range;
   const recoveryAllocation = TASK_EXECUTION_RECOVERY_VERSIONS.has(version);
+  const companyOwner = COMPANY_STARTUP_ALLOCATIONS.get(version);
+  if (companyOwner) {
+    return directory === companyOwner
+      ? []
+      : [
+          `'${directory}/${fileName}': version ${version} reserved for ${companyOwner} company startup`,
+        ];
+  }
   const cancellationOwner = RUN_CANCELLATION_ALLOCATIONS.get(version);
   if (cancellationOwner) {
     return directory === cancellationOwner
@@ -287,6 +301,15 @@ describe('migration layout follows the frozen directory/version contract', () =>
       ))
         expect(validateMigrationEntry(directory, `V${version}__cancellation.sql`)).toEqual([
           `'${directory}/V${version}__cancellation.sql': version ${version} reserved for ${owner} run cancellation`,
+        ]);
+    }
+    for (const [version, owner] of COMPANY_STARTUP_ALLOCATIONS) {
+      expect(validateMigrationEntry(owner, `V${version}__company_startup.sql`)).toEqual([]);
+      for (const directory of Object.keys(MIGRATION_VERSION_RANGES).filter(
+        (value) => value !== owner,
+      ))
+        expect(validateMigrationEntry(directory, `V${version}__company_startup.sql`)).toEqual([
+          `'${directory}/V${version}__company_startup.sql': version ${version} reserved for ${owner} company startup`,
         ]);
     }
     expect(validateMigrationEntry('identity_policy', '.gitkeep')).toEqual([]);

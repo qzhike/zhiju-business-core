@@ -9,6 +9,7 @@
     "src/**/*.ts",
     "src/generated/payload-guard-policies.json",
     "src/generated/policy-profiles.json",
+    "src/generated/company-startup-profiles.json",
     "src/generated/evaluator-profiles.json",
     "src/generated/task-execution-creation-purposes.json",
     "src/generated/work-order-ready-profiles.json",

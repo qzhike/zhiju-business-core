@@ -112,3 +112,5 @@ export type {
 } from './task-board-dispatcher.js';
 export { resolveTaskBoardPolicy } from './task-board-policy.js';
 export type { BoardPolicyResolutionContext } from './task-board-policy.js';
+
+export * from './company-rule-entry.js';

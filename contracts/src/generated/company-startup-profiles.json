@@ -1,0 +1,47 @@
+{
+  "registryVersion": "im-ui-company-startup-v1",
+  "profiles": [
+    {
+      "registryKey": "ep.company_startup_bundle@1.0",
+      "owner": "enterprise-project",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "01a11df5-a400-7000-8000-000000257001",
+        "versionId": "01a11df5-a400-7000-8000-000000257011",
+        "scope": {}
+      },
+      "documentSchema": {
+        "$ref": "https://schemas.zhiju.local/internal/company-startup/1.0#/$defs/bundle"
+      }
+    },
+    {
+      "registryKey": "ep.company_startup_rules@1.0",
+      "owner": "enterprise-project",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "01a11df5-a400-7000-8000-000000257002",
+        "versionId": "01a11df5-a400-7000-8000-000000257012",
+        "scope": {}
+      },
+      "documentSchema": {
+        "$ref": "https://schemas.zhiju.local/internal/company-startup/1.0#/$defs/rules"
+      }
+    },
+    {
+      "registryKey": "ep.company_startup_vocabulary@1.0",
+      "owner": "enterprise-project",
+      "reference": {
+        "kind": "VERSIONED",
+        "objectType": "identity.contract_schema",
+        "objectId": "01a11df5-a400-7000-8000-000000257003",
+        "versionId": "01a11df5-a400-7000-8000-000000257013",
+        "scope": {}
+      },
+      "documentSchema": {
+        "$ref": "https://schemas.zhiju.local/internal/company-startup/1.0#/$defs/vocabulary"
+      }
+    }
+  ]
+}

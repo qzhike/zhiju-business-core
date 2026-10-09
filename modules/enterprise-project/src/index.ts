@@ -545,3 +545,7 @@ export {
   type ExactTaskCompletionMaterial,
   type ExactDeliveryCompletionRequest,
 } from './business/delivery-item-completion-handlers.js';
+
+export * from './persistence/company-startup-db.js';
+export * from './business/company-startup-definition.js';
+export * from './business/company-startup-handlers.js';

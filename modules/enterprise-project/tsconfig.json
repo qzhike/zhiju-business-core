@@ -5,6 +5,6 @@
     "rootDir": "src",
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/business/company-startup-definition.json"],
   "references": [{ "path": "../../packages/shared-kernel" }, { "path": "../../contracts" }]
 }

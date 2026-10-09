@@ -36,3 +36,4 @@ export * from './work-order-ready-profiles.js';
 export * from './formal-output-profile.js';
 
 export * from './delivery-completion-profile.js';
+export * from './company-startup.js';

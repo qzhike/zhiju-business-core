@@ -11,6 +11,7 @@ import { loadWorkOrderReadyProfileRegistry } from '../../contracts/src/work-orde
 import { loadArtifactExecutionSchema } from '../../contracts/src/formal-output-profile.ts';
 import { loadEvaluatorProfileRegistry } from '../../contracts/src/evaluator-profiles.ts';
 import { loadPolicyProfileRegistry } from '../../contracts/src/policy-profiles.ts';
+import { loadCompanyStartupRegistry } from '../../contracts/src/company-startup.ts';
 import {
   assertPolicyVersionCompatibilityMetadata,
   assertPolicyVersionOperationRegistrations,
@@ -58,6 +59,17 @@ const guardSource = readFileSync(
 );
 const guardPolicies = loadPayloadGuardPolicies(JSON.parse(guardSource));
 const guardOutputPath = join(root, 'contracts/src/generated/payload-guard-policies.json');
+
+// Company profiles use an independent closed registry and byte-identical mirror.
+const companyRegistrySource = readFileSync(
+  join(root, 'contracts/registry/company-startup-profiles.v1.json'),
+  'utf8',
+);
+loadCompanyStartupRegistry(JSON.parse(companyRegistrySource));
+const companyRegistryOutputPath = join(
+  root,
+  'contracts/src/generated/company-startup-profiles.json',
+);
 
 // The IM-06 profile registry is a build artifact too: the generated copy is a
 // byte-for-byte mirror of the registry source, and loading it here rejects a
@@ -200,6 +212,7 @@ if (process.argv.includes('--check')) {
   const current = readFileSync(outputPath, 'utf8').replaceAll('\r\n', '\n');
   if (
     current !== generated ||
+    readFileSync(companyRegistryOutputPath, 'utf8') !== companyRegistrySource ||
     readFileSync(schemaRegistryOutputPath, 'utf8') !== schemaRegistrySource ||
     readFileSync(readyRegistryOutputPath, 'utf8') !== readyRegistrySource ||
     readFileSync(guardOutputPath, 'utf8') !== guardSource ||
@@ -215,6 +228,7 @@ if (process.argv.includes('--check')) {
     );
   }
 } else {
+  writeFileSync(companyRegistryOutputPath, companyRegistrySource, 'utf8');
   writeFileSync(schemaRegistryOutputPath, schemaRegistrySource, 'utf8');
   writeFileSync(outputPath, generated, 'utf8');
   writeFileSync(readyRegistryOutputPath, readyRegistrySource, 'utf8');

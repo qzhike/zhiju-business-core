@@ -1,0 +1,122 @@
+{
+  "businessConfirmationBytesSha256": "8cabe2e26d2402660f92e3fec7b59daa595e6d5ae26df7af2560f4b080b5f64b",
+  "bundleCode": "zhiju.startup.cn_active_device_qms_upgrade",
+  "templates": [
+    {
+      "code": "S1",
+      "path": "template/质量手册/[公司代号]-QM 质量手册（批次24定稿·B3）.md",
+      "versionLabel": "B/3",
+      "bytesSha256": "47f7a48ad5ebbd4bb413874e0be5ca3c39dd66af685f592e12c93c99b4bc4a75"
+    },
+    {
+      "code": "S2",
+      "path": "template/管理制度/[公司代号]-GL-5.4-01 质量目标考核管理规定（批次17定稿·A3）.md",
+      "versionLabel": "A/3",
+      "bytesSha256": "d0a18937d701027e2d256b5cd03880886481fb0e615524a441db403940f6a51d"
+    },
+    {
+      "code": "S3",
+      "path": "template/管理制度/[公司代号]-GL-6.2-01 岗位职责与任职资格管理规定（2025版GMP修订·20260708修订）.md",
+      "versionLabel": "A/2",
+      "bytesSha256": "23281fd2ddcb6d9c14baccbfab5e4fab61172d80a971e7174c6f6a9f21f25364"
+    },
+    {
+      "code": "S4",
+      "path": "template/控制程序/[公司代号]-PD-7.3 设计和开发控制程序（批次19定稿·V2）.md",
+      "versionLabel": "V2",
+      "bytesSha256": "c96258c912cab886ef4becd1970a680578c3e6f286e3e676680ec5169b14f100"
+    },
+    {
+      "code": "S5",
+      "path": "template/控制程序/[公司代号]-PD-7.5.1 生产和服务提供控制程序（批次19定稿·A3）.md",
+      "versionLabel": "A/3",
+      "bytesSha256": "31ecfb287068ad4900d42999f305edfd74a2248116740068571f5299f8e629be"
+    },
+    {
+      "code": "S6",
+      "path": "template/控制程序/[公司代号]-PD-4.1.6 应用软件确认控制程序（批次20定稿·B1）.md",
+      "versionLabel": "B/1",
+      "bytesSha256": "1d006f63cde644df823d4a96928e8444046f6d14449da4167e3ef310ef35f616"
+    },
+    {
+      "code": "S7",
+      "path": "template/控制程序/[公司代号]-PD-7.3-01 软件生存周期过程控制程序（批次20定稿·A1）.md",
+      "versionLabel": "A/1",
+      "bytesSha256": "a8ee5f64bc01c0558422c23a3bf1a412589271caffb552d0ddc7255a58b0c1a7"
+    },
+    {
+      "code": "S8",
+      "path": "template/控制程序/[公司代号]-PD-7.5.13 委托生产与外协加工控制程序（2025版GMP修订·20260705修订）.md",
+      "versionLabel": "B/0",
+      "bytesSha256": "822aece31717a35e421f45b01bb99d0ccf2a7e2ffb042f5f70bb48365e836e06"
+    },
+    {
+      "code": "S9",
+      "path": "template/控制程序/[公司代号]-PD-6.4 工作环境和污染控制程序（2025版GMP修订·20260622修订）.md",
+      "versionLabel": "B/1",
+      "bytesSha256": "c1f3833bf34f694afc75a55f57fa44bd3068b2f73b229a2cba54c0788a9ce4e0"
+    }
+  ],
+  "requirements": [
+    {
+      "code": "zhiju.requirement.qms.scope",
+      "text": "项目产品、过程及标准/升级目标范围；S1 §1.2/4.3.3",
+      "conditions": "产品范围、客户体系范围、目标日期和精确标准/法规目标引用；本 bundle 下必须 APPLICABLE"
+    },
+    {
+      "code": "zhiju.requirement.qms.design_development",
+      "text": "设计开发过程边界；S1 §7.3、S4 §1–2",
+      "conditions": "客户设计责任及生命周期活动；不能因没有新设计项目就自动不适用"
+    },
+    {
+      "code": "zhiju.requirement.qms.product_cleanliness",
+      "text": "产品清洁；S1 §1.3/7.5.2、S5 §5.2",
+      "conditions": "客户产品/清洁过程；S1 的非无菌示例与 S5 清洁包装流程不能替客户裁定，矛盾须核对"
+    },
+    {
+      "code": "zhiju.requirement.qms.sterile_device",
+      "text": "无菌器械专用要求；S1 §7.5.5",
+      "conditions": "客户交付状态证据；本有界范围须有依据的 NOT_APPLICABLE，APPLICABLE 表示超出范围"
+    },
+    {
+      "code": "zhiju.requirement.qms.sterilization_validation",
+      "text": "灭菌/无菌屏障过程确认；S1 §7.5.7",
+      "conditions": "客户产品/过程证据；本范围须有依据的 NOT_APPLICABLE，不从文件缺失推出结论"
+    },
+    {
+      "code": "zhiju.requirement.qms.implant_traceability",
+      "text": "植入器械专用追溯；S1 §7.5.9.2",
+      "conditions": "客户用途/产品证据；本范围须有依据的 NOT_APPLICABLE，未知阻启动"
+    },
+    {
+      "code": "zhiju.requirement.qms.contamination_control",
+      "text": "工作环境/污染控制；S1 §1.3、S9 §2/5.3",
+      "conditions": "环境与产品/工艺依据；非无菌不自动不适用"
+    },
+    {
+      "code": "zhiju.requirement.qms.process_validation",
+      "text": "特殊过程及生产过程确认；S1 §7.5.6、S5 §3.3/5.6",
+      "conditions": "客户工艺及可后续检验性；按实际过程裁定，不能由模板特殊过程名称补造"
+    },
+    {
+      "code": "zhiju.requirement.qms.qms_software",
+      "text": "非产品质量管理软件确认；S1 §4.1.6、S6 §2/5.2",
+      "conditions": "实际软件清单/版本/用途与失效影响；未知必需，不能将示例 QMS/ERP 当客户安装事实"
+    },
+    {
+      "code": "zhiju.requirement.qms.product_software",
+      "text": "器械软件组件生命周期；S4 §5、S7 §2/5.1",
+      "conditions": "客户产品软件组成/用途依据；独立软件超出首版范围，未提供不是不适用"
+    },
+    {
+      "code": "zhiju.requirement.qms.external_processes",
+      "text": "委托研发、生产、外协、检验的责任边界；S1 §4.2.3、S4 §5.12、S8 §2",
+      "conditions": "客户合同/工艺/责任依据，四类活动分别解释；没有受权依据则不能声明均不存在"
+    },
+    {
+      "code": "zhiju.requirement.qms.sample_retention",
+      "text": "留样要求与承载；S1 §1.3 第6项",
+      "conditions": "客户产品和经核验的具体要求；模板中的指导原则编号不证明现行性，正式引用缺失则阻启动"
+    }
+  ]
+}
