@@ -1434,3 +1434,11 @@ TaskCompleted沿用现有v1.0事件字段，由TE Task事务的Outbox真实派�
 sequence为partition分配/观察序，不承诺全局producercommit序或完整消费checkpoint；晚提交低键仍扫到、迟到低序保留历史，只有同exactTask/Item/PlanVersion关联的新旧水位可比较，别的Item不被Projectmax跳过。lease/fencing只裁决TE metadata owner，不能撤销EP已合法commit；两worker最多一个当前confirm，重复传输由EP业务幂等吸收。
 
 历史TaskCompleted不等于当前TECompletion USABLE。当前可用性失效事件推动EPImpact的原则需要对应真实producer；本bounded首版尚无Task invalidation事件，不能声称存在该闭环。EP读取明确HISTORICAL_COMPLETION/UNKNOWN，只证明自己已消费ledger及独立评估，不查询TE制造依赖环，不用Projection/直接execution_status作为Completion。
+
+## D14 / RD-01 原请求与部分提交提案
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。EP 专用 preparation/startup Process 持久化原 intent/binding/hash/稳定键，逐步消费 owning Receipt 驱动 Enterprise→Project、Human→Fact/Product/QMS/Profile/ProductScope→Project start→TE scope。每个 Root 独立事务/授权/CAS；IG ZIP/staging/CLI 副作用只在原请求/Attempt 提交后执行。下游 key=request UUID+step+exact object ID，response 丢失查原 key/Receipt，不产生新意图。新资料/规则形成新 snapshot/request，旧 payload 不更新。
+
+成功事实只追加，不因下游失败删除企业、已确认版本/start 或已接纳来源。PENDING 等待，PARTIAL 保留已成功且仅续未完成，UNKNOWN 先查真实事实，FAILED 无已完成步骤，STALE 保留历史/草稿重新核对；组合时 unknown/stale 不能清除已成功 step refs。start 后 scope 失败只恢复 scope，不重 start；撤权禁止继续，即使原 Receipt 是 COMMITTED。projection/HTTP202/Run 自报均不是 owning 成功。完整转换在 [Delta §5](../decisions/d14-rd01-first-customer-flow.md#5-转换原意图与恢复)，Process 不持有他方 Repository。
+
+首轮 scope 未接收而原 startup request 失效时，EP 新 initial_scope_request 只驱动 Human scope decision→TE receive，不重复 info/start。TE get_initial_work_scope_state 是当次观测，不是跨模块锁；最终 receive 的同 Project INITIAL 唯一约束裁决竞争，输家读取成功 owning scope，不把自身不同 intent 当成功。原 request→start 事实及 decision 两种 startBindingMode 必须精确验证。

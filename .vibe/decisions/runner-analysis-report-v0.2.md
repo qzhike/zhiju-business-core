@@ -41,3 +41,24 @@
 [设计检查脚本](verify-startup-contract-drafts.py) 只验证草案形状和匿名样例的确定性关系，不是生产 Host 接纳器，也不证明 READ、监管适用性或业务语义正确。它不替代现有 Runner 的逐类读取、DOCX/提取件核验、词表注册和 finalize-analysis。
 
 下一步技术闭合由 EP/TE/IG/UI owning 规格共同完成：准备状态来源与 PreparationContext、正式输出 profile、别名映射和可信 Human 决定、CAS/回执/查询及持久化。实际 Runner、Core API、数据库和业务验收均为 `NOT RUN`。
+
+## D14 / RD-01 正式交接提案
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。本节收口前述草案缺口，方案选择见 [D14 Delta §3–4](d14-rd01-first-customer-flow.md#3-原始报告与已接纳业务快照)，EP 操作及正式快照字段归 [Spec 002 D14](../module-specs/Module-Spec-002-EnterpriseProject.md#d14--rd-01-准备报告与启动字段提案)。现有 v0.1/v0.2 JSON Schema、匿名 fixtures、Python/TS 设计检查不在本 Markdown Issue 修改；它们是较早草案，不能直接注册为本提案的生产接受集。
+
+| 字段 / 新 outputProfile 规则 | 精确解释与失败条件 |
+|---|---|
+| schemaVersion / stage | 固定 v0.2 / ANALYSIS；outputProfile=`d14.analysis@1` 由 Host 锁定并在 Package 中保存，Runner 不自选 |
+| context.analysisRequestKey / inputManifestSha256 / previousReportSha256 | 真实服务器 key、实际物化 manifest bytes hash、前一 accepted report 原 JSON bytes hash；首轮 previous=null，不能把 stable JSON/hash 域当 Core snapshot hash |
+| narrative / extraction | 实际 output-root 内文件+bytes hash；MD 由锁定 renderer 从同 JSON 确定性生成，允许报告写、不改 originals/templates；未知路径/未产生文件/Hash 不符拒绝 |
+| sourceId / evidenceId | 本授权 manifest 别名；Host 映射 exactSourceRef、role/hash/locator/表示；原件与提取件分别保留 hash，技术 READ ceiling 与限制，不能生成不存在 EvidenceRef |
+| startupCandidates | 五个封闭分支，字段沿上文；每个有值客户事实来自客户/可信答复，模板仅支持要求来源；UNKNOWN/CONFLICT 合法但阻止必要事实启动 |
+| ENTERPRISE_FACT.value | TEXT 首版。结构化组织/指标/表格必须显式 unsupported，不编码进 string 假装可解析 Fact；启动 mandatory set 需要它时明确 blocker |
+| PRODUCT.value | productType/displayName/intendedUse/productScope(productFamily,variants,markets) 全结构；code 经锁定词表映射，demo.* 不注册；部分值不得成为 ProductVersion |
+| QMS 三分支 | 封闭 requirement/choice/decision 受控 ID，全必需条目；管理选择 decisionRef 仅由 EP 可信 Human 写事实；固定规则、模板示例不能证明客户适用性 |
+| missingFields/conflictingFields | 版本化封闭字段路径；与实际值/不同 alternatives 一致；无证据待询问不变成有依据的客户值 |
+| plannedFiles / changes | fileId 去重、整份 full change set、真实 dependencies、保护事项双向关联；path 是计划，非 Artifact/下载路径 |
+| checks / analysisCompleteness | RUNNER_DECLARED 与 COMPLETE/PARTIAL 只说明分析声明，非 readiness、Human confirmation、Gate/Completion |
+| resolutionProposals | 对旧开放事项逐项保留/建议替换/建议解决，exact 前版 ID 与新依据；Host 不凭 omission 或上传成功关闭旧项 |
+
+EP acceptedReport payload 绑定 outputProfile/schema、TE Result+Acceptance、IG raw observation、PreparationSource、actual manifest JSON/MD hashes、前版 refs、完整 report body/alias map 与水位；candidateSet/plan 是派生不可变 snapshots，引用 reportRef 并有独立 canonical hash。业务当前性/STALE 另存，不写回 raw JSON；byte hash 与 `SHA-256(cv1(payload))` 双验证，不能相互替代。v0.1 历史可读但不能进入新 startup 确认；旧工具 finalize-analysis 不具 v0.2/授权/lease/EP acceptance 能力，后续需真实 profile 回归。

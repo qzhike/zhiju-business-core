@@ -647,3 +647,11 @@ resultHash=SHA-256/cv1对完整规范QueryResult去掉自身resultHash后计算�
 scope/Purpose/ref验证、page/filter/asOf/consistency/pagination双入口、有限HMAC cursor与稳定错误按Spec003 §12.4–12.6。Cursor绑定完整合法支持集，不依赖可读DecisionHash签名；maxPageSize/UTF-8资源限额必须实际执行。新增fixture覆盖三种一致性与data/Envelope两层，包括同generation分页、最低水位、错scope/filter、expiry/asOf与故障无data；旧合法fixture保持字节兼容。
 
 Cursor公开表示严格遵守共享OpaqueCursor正则`^[A-Za-z0-9_-]{16,512}$`；Spec003 §12.6的固定二进制compact编码绑定全部逻辑字段，不能直接拼长JSON或dot分段。Task Board旧Schema的普通string不被修改，但新Handler输出/输入profile必须满足共享cursor边界。
+
+## D14 / RD-01 additive 操作与结果边界提案
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。新操作/typed refs 按 [Catalog D14](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#d14--rd-01-拟议名称与类型未注册) 与 owning Module Spec 注册后才可 public call。共享 Envelope 的 target/Scope/version/payloadHash/stable key/CAS、Result/Receipt、当前权限、有限时间、null/absence 不变。非业务 upload stream mapping 也须绑定已提交 IG intake，无自选 locator。
+
+多步骤 response data 可以有 PENDING/PARTIAL/UNKNOWN/FAILED/STALE/ACCEPTED，但必须保留每 step 实际 status 与成功 refs/receipts；整体 transport 202 不是 Command COMMITTED。UNKNOWN 缺成功凭证不填 placeholder；相同稳定键异 payload 拒绝，恢复查原保存 payload，并重验当前授权。raw bytes SHA 与 cv1 ContentHash 分域验证；design fixture 的 demo.* / design.* / synthetic Hash 不注册为生产值。
+
+[安全 HTTP 映射](../decisions/d14-rd01-first-customer-flow.md#6-兼容迁移与安全-http-映射) 是未来 transport proposal，未改变本 API Contract 的传输无关定位；BFF 只能组合已注册 owner 操作。新增 schema/type/result/event、selector/compatibility approval 与正负 fixtures 留给获批后实施，旧 @1.0/@2.0、Catalog/200 历史 bytes 保持。

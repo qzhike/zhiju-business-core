@@ -263,3 +263,15 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 - 开发样例默认不选文件，按精确报告独立保存整份选择，显式确认后才生成合成请求引用；刷新/历史可回读本标签页演示记录。新报告提示不会自动换页或替换当前版本。
 - 工程检查覆盖 TS/TSX、应用 manifest 的四类 dependency 字段、静态/动态 import、require 与 import type 反例；manifest 同时检查依赖名称与声明目标，只允许精确 registry 版本或默认 `catalog:`，拒绝别名、本地路径与其他来源借允许名称引入禁止目标。Web/BFF 只允许批准的 Experience 依赖，不改七个业务模块、Catalog、Schema 或 migrations。
 - 所有演示结果显示开发身份、合成报告/回执/进度标识。生产业务入口保持拒绝；真实接入继续由 owning 契约决定。
+
+## D14 / RD-01 公开接入与回执提案
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。当前工程外壳/开发样例不属于此设计的真实接入证据。公开操作与字段由 [EP owning D14](Module-Spec-002-EnterpriseProject.md#d14--rd-01-准备报告与启动字段提案)、[TE owning D14](Module-Spec-003-TaskExecution.md#d14--rd-01-preparationcontext分析与初轮范围提案)、[IG owning D14](Module-Spec-007-IntegrationGateway.md#d14--rd-01-zip-intake-与真实报告观察提案) 定义；[DTO 映射](../decisions/workspace-startup-review-v0.1.md#d14--rd-01-公开操作映射提案) 只组合许可结果。
+
+UI 新建/已有客户都使用精确公开 preparation request；同名企业不合并，搜索只返回当前可见数据。上传一次 server-issued intake 的原 ZIP，Browser/BFF 不解压、不读取正文做分析、不指定 storage locator/Host path。总览基于 EP accepted report，突出 missing/read limits/protection conflicts/customer evidence，复制选定去重索取文本不自动发送；原位补充产生新输入/报告，不凭上传关闭事项。
+
+保持三类紧凑启动摘要、依据展开、章节文件列表、默认不选和一个“确认信息与范围并开始”。必要值未知/冲突/超出结构支持集明确禁止 start；选文件使用精确 planRef 的整份内容，不传 changeId 子集绕保护。请求提交后逐步显示信息确认/start/scope owning receipts；STARTED 才显示 ACTIVE，RECEIVED 不展示执行中。所选集合阻塞时保留草稿，Human 可明确重选独立 eligible 文件；合法 start 后逐文件新阻塞不扩大到独立文件。
+
+客户端将稳定 key/requestRef 与原 binding/选择关联，刷新先公开查询原请求；PENDING 不重发，UNKNOWN 核实，PARTIAL 仅续未完成步骤，STALE 保留草稿读取当前版本再显式新意图。已启动项目不回退 PREPARING。HTTP 503/空查询不是失败证明；过期 Session 重新认证后仍查原意图并重验权限。安全 HTML/Markdown 编码、下载授权、CSRF/Session 等沿 UI-DG-003；BFF 不接受公网 Actor/Decision，不落业务 Process、不调用未注册 Capability。
+
+ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 confirmationMode=INITIAL_SCOPE_ONLY 清楚表明原启动信息已冻结，按钮只确认当次整份文件范围。原 startup request STALE/阻塞不修改旧选择；未成功接收初轮时可显式新 intent，通过 project.request_initial_scope_confirmation/get_initial_scope_request/resume_initial_scope_request 回读，引用原 PROJECT_START。必要补料仅有界 INITIAL_SCOPE_RECOVERY 分析；TE 已接收首轮后关闭这条入口，不重复显示信息激活/启动，也不自动建下一批次。

@@ -204,3 +204,18 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | IG-USAGE-D-003 | Security/PG；Binding/identity/final 三项分别缺当前 Grant/错 consumer action、读取后撤权、IP/DB/网络故障与合法 final-not-found 对照 | 先授权再保护读取，缺一 protected read 为0；返前撤权/依赖故障安全失败，不伪装无 final；SERVICE body 只到受信 TE composition，Human 输出无 session/Prompt/token/stdout/客户正文；既有 Query/Driver/Worker/Renderer 语义与 Schema 保持 | PARTIAL（PG：三项 IG read 各自缺当前 Grant 时整 Query 拒绝且对应 owning read 为 0；Human 输出无 session/Prompt/token/stdout/客户正文；既有 Query/Driver/Worker/Renderer 语义与 Schema 由 `pnpm verify:code` 全量保持。未执行：错 consumer action、读取后撤权、IP/DB/网络故障与合法 final-not-found 的 PG 对照） |
 
 未来实现 required full，实际原 Driver invocation、immutable sources、权限与数据库 guard 结果分别记录在 Issue/PR；旧 FINAL/REC/COMP/CANCEL 证据和外部/人工 NOT RUN 不因本设计重标。
+
+## D14 / RD-01 首条资料链路设计场景
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。
+
+| ID | 输入 / 故障 trace | 预期 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| IG-D14-001 | 合法 ZIP 含 DOCX/UTF-8 MD、同 bytes 不同 entries、非支持文件 | 原包/原条目 bytes/hash 与独立 entry identities；EP accepted source refs；PARTIAL 不静默全读，合法源才可 dispatch | 未执行 / `NOT RUN` |
+| IG-D14-002 | zip-slip/驱动器/NUL/link/碰撞/加密/分卷/CRC/外层及 DOCX bomb | 受控 stream 累计上限/限时；整体隔离 zero dispatch，零越界读写；安全错误无正文/host path | 未执行 / `NOT RUN` |
+| IG-D14-003 | 损坏 DOCX/非 UTF-8 MD/图片或嵌入读取上限/零可读源 | 逐 entry CORRUPT/UNSUPPORTED/READ_LIMITED；零可分析源拒绝，不空成功；Reader ceiling 限 READ，不证明语义 | 未执行 / `NOT RUN` |
+| IG-D14-004 | staging object 成功 link 失败、entry EP commit 后 worker crash | 孤立对象可审计；原 intake/key/Receipt 续接零重复 root，已 link/retention 资料不 cleanup，未 manifest commit 不 READY | 未执行 / `NOT RUN` |
+| IG-D14-005 | 真实 profile 原 ack/final，改 manifest/narrative/extraction hash/session/fencing | 原调用只观察实际 bytes；绑定错误拒绝；IG raw!=TE acceptance!=EP accepted report，各证据分列 | 未执行 / `NOT RUN` |
+| IG-D14-006 | timeout UNKNOWN/重放、lease过期/取消后晚报告、锁定 CLI 不可用 | 原 readback 禁重复 invoke；late 历史，profile unavailable 明确失败；不 silent fallback，不重写 inputs | 未执行 / `NOT RUN` |
+
+首轮恢复追加场景（同为 `NOT RUN`）：**IG-D14-007** — ACTIVE初轮窗口补料分析、窗口关闭后的late report；预期：原start只读、phase/Package/Run绑定；可留原观察，不覆盖可操作报告或重发调用。

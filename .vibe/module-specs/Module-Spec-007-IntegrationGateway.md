@@ -386,3 +386,20 @@ late consumer 的两个 Query 各以自身 current IP Decision 读取 exact Atte
 三个读取各以原 Attempt 为唯一 target，不根据 Runtime session、Provider/Model 名称、caller final、TaskBoard 或其他 Run 推导 source。只有 final 未产生且本次确实有当前读权的确定 not-found 使用 `INTEGRATION_RUNTIME_FINAL_NOT_FOUND`；未知依赖/数据库/权限错误不得转换为“没有 final”。已 start 的消费者读到 ack/identity 不完整，按来源冲突向 TE 安全报告；不得补建 identity、Observation、Receipt 或调用 readBack/readFinal/invoke。每个 owning read 保持自己的来源一致性，跨三个 Port 仅合并已验证不可变事实；遇到并发 final 新提交，可留待下一读取，不返回虚构的原子全局快照。
 
 历史读回不验证原 Run 当前执行资格，因此合法 expiry/ABANDONED 后仍能返回原 Observation；执行资格仍由 TE 自己判断。原 accepted Result 的迟到重交审计不改写 IG 原 source。返回给 TE 的源 DTO 只能在受信 composition 内消费，再由 TE allowlist 输出 summary/evidence；不扩大 IG public body 到 Human 的权限。复用原 app SELECT/RLS，无新的 schema/table/index/role/grant；SQL/角色边界见 PostgreSQL §43。
+
+## D14 / RD-01 ZIP intake 与真实报告观察提案
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。本模块只拥有受控外部传输/物化/调用与原始观察；source custody 与报告业务快照属 EP，Run/Result 属 TE。限制与路径规则见 [ZIP handoff](../decisions/d14-rd01-first-customer-flow.md#2-zipstaging-与-host-的交接)。
+
+| 拟操作@1.0 | 封闭 input | result / 当次 purpose |
+|---|---|---|
+| `integration.request_customer_zip_intake` / CREATE | `projectRef; originalName:Sensitive; declaredByteLength; zipBytesSha256; intakePolicyRef` | OBJECT `zhiju.integration.customer_zip_intake` intakeRef + opaque one-intake upload token/expiry + receiptRef；`integration.customer_zip.intake`；不接受 locator/CLI/path，当前 HUMAN 接纳权 |
+| `integration.get_customer_zip_intake` / Query A | `intakeRef` | original request hash、status RECEIVING/STAGED/EXTRACTING/READY/PARTIAL/FAILED/UNKNOWN、逐 entry states/accepted source refs、安全 reasons、manifestRef?、Receipt refs、current allowedActions；`integration.customer_zip.read`；许可范围，无 storage locator/host path |
+
+worker 使用 original intakeId/key/payload，依次原 bytes 写 staging、验证→EP register/accept ZIP→受控提取→逐合法 entry validate/register/accept→commit immutable `SNAPSHOT/zhiju.integration.customer_input_manifest`。每行 entryId/ordinal/sourceRef/bytes hash/status，manifest 包括原 intake/ZIP ref、policy/extractor versions、实际不支持/损坏/读限。只在这些事实提交后 READY/PARTIAL；失败不能把未 link 的对象算 accepted。工序状态可变但 manifest/Entry validation/Receipt 不可改；resume 先同 intake Query/owner Receipt，重复上传异 bytes 拒绝；原包安全失败 zero dispatch。网络/解包不进入 EP 数据库事务。
+
+Runtime real-profile 由公司选择锁定，specification 与 profile 接受集在 [Runtime 专节](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md#d14--rd-01-准备分析-profile-提案)。IG 使用新的内部 preparation dispatch/readback/ingest producer，不扩展现有 public synthetic-only get_runtime_attempt_binding/get_runtime_final_observation 接受集。先存 Attempt 原 request+RuntimeBinding/Package hash+稳定键+lease/fencing，提交后调用原 CLI。真实 ack/session/CLI版本/Adapter身份由 Driver 原 invocation 观察形成，不能从报告 body 反推。timeout=UNKNOWN；原键禁止第二 invoke；当前 readback 若不能证实则保持 UNKNOWN，禁止用空 Result 补齐。
+
+final outputs 保存原 JSON/Markdown/提取件 bytes 和 bounded immutable observation，绑定 original Attempt/Run/Contract/PreparationContext/Package/outputProfile/lease/fencing/session/actual observedAt。IG 内部 `readPreparationFinalObservation(attemptRef)` 在当前 SERVICE 授权下供 TE 读取精确 bytes/ref/hash/source=PROVIDER；TE 再判断当前可接纳性，EP 再判断业务报告。错来源/改 hash/错 Scope 拒绝且安全隔离，不以 new self-consistent JSON 修补；取消/lease 过期后 late observation 仅留历史，不显示 Run/report 成功。当前 v0.1 standalone 工具没有 Host acceptance，不能跳过 IG→TE→EP。
+
+拟错误：`INTEGRATION_ZIP_LIMIT_EXCEEDED`、`INTEGRATION_ZIP_UNSAFE`、`INTEGRATION_ZIP_CORRUPT`、`INTEGRATION_NO_ANALYZABLE_SOURCE`、`INTEGRATION_PREPARATION_PROFILE_UNAVAILABLE`、`INTEGRATION_REPORT_BINDING_INVALID`；entry unsupported/read-limited 是合法部分输入，不伪装全读或全包安全成功。

@@ -2095,3 +2095,7 @@ TemplateBaseline 和 RegulatoryProfile 是 Project-owned immutable version chain
 状态：`T2 / HUMAN DESIGN APPROVED 2026-10-01 / DESIGN REVIEW PASSED / IMPLEMENTED IN #239 PROPOSED REVISION / RUNTIME EVIDENCE IN MODULE-TEST`。TE拥有已提交TaskCompleted的窄Dispatcher、Project游标/immutable binding/lease与确认；EP拥有Inbox/FormalFact/精确Task-Item-Version关联、新profile/@2.0独立Evaluation及内部authoritative Readback；IP提供分别授权的静态composition映射。字段唯一见Spec003 §26、Spec002 §23、Spec001 §15.16和PostgreSQL §41；概要见[决定](../decisions/task-completed-delivery-completion.md)。
 
 应用composition顺序调用TE owning已提交材料Port和EP owningConsumer，不共享Repository/事务、不令EP同步回查TE。sidecar不成为公共TaskCompleted字段，不建立新反向同步依赖。EP结论是已消费历史Task完成满足其冻结标准，TE当前USABLE未知；没有Task invalidation事件闭环时禁止把此结论提升为执行/审批/发布资格。Release要求仍独立满足。首版使用真实controlledDriver的owning链，不新增Runtime交付目标/通用Workflow/Event框架；七模块所有权不变。
+
+## D14 / RD-01 模块协作提案
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`，见 [Delta](../decisions/d14-rd01-first-customer-flow.md)。EP 拥有 PREPARING Project/ScopeClaim、SourceMaterial、准备来源切片、accepted report/候选/计划和 Human 决定/一次 start；IP 拥有当次授权；TE 拥有独立 PreparationContext、分析 Task/WO/Run/Result 与初轮 scope 事实；IG/Runtime 拥有 ZIP 传输/安全解包、受控物化、原 invocation/raw observations；UI/BFF 只调用公开能力和呈现。Quality 的真实 Evidence capture/verify/get 按既有合同复用，原 source alias 不伪装 EvidenceRef。七模块不变，EP Process 协调多 Root 而不共享 Repository/跨 Schema Join；原件/模板只读、commit 后副作用、权限分离和 owner Completion 保持。

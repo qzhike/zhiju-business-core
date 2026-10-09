@@ -2445,3 +2445,56 @@ Run terminal、ACTIVE→EXPIRED Claim、唯一预算 consumption、Receipt/Audit
 ### 27.4 交付范围与证据
 
 取消 Run 不直接取消或完成 WorkOrder/Task/DeliveryItem；本首版不加入取消后 retry 或自动 Runtime stop/ACK。独立权威状态与必要隔离审计构成完整 Run 取消结果，既有 Completion 不能由取消/ABANDONED 推断 SATISFIED。批准前已有正常/一次 BLOCKED_INPUT 恢复及 #239 的证据保持其原层级与 PARTIAL/NOT RUN。实现 required target 为 full；新/变化容器先 environment；外部/人工及 TD-05–07/IM-DG-006 未批准边界不扩张。
+
+## D14 / RD-01 PreparationContext、分析与初轮范围提案
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。这是独立 `PREPARATION_ANALYSIS / d14.analysis@1` 支持集，旧 create_task@1.0/@2.0 仍只允许 ACTIVE；旧 first-context、synthetic empty/formal-output selector 和已冻结 bytes 不扩展。
+
+### 新公开入口字段
+
+新 Ref：OBJECT `zhiju.execution.preparation_analysis_request`、`zhiju.execution.work_scope`；SNAPSHOT `zhiju.execution.preparation_context`。其余 Task/WorkOrder/Run 使用 canonical zhiju.execution.*，全部同 Enterprise/Project。共享 Envelope 负责 stable key/payloadHash/CAS，actor/time 不由 caller 声明。
+
+| 拟操作@1.0 / mode | 封闭 payload | result / purpose |
+|---|---|---|
+| `execution.create_preparation_analysis_task` / CREATE task | `projectRef; preparationSourceRef; analysisProfileRef; definition:{kind:PREPARATION_ANALYSIS,objective,inputRefs,expectedReportProfileRef}` | taskRef + definitionSnapshotRef + Receipt；`execution.preparation.task.create`；EP 专用 Port 证明 PREPARING 或有界 ACTIVE 初轮恢复（下节）、当前 source/Scope，仅 DRAFT；无 deliveryItem/Artifact output/任意 evaluator |
+| `execution.build_preparation_context` / CREATE snapshot | `taskRef; workOrderRef; preparationSourceRef; builderPolicyRef; purpose:preparation.analysis; audience:PrincipalRef` | PreparationContextRef + sourceWatermarks + coverage/validUntil；`execution.preparation.context.build`；逐字段同 Scope/hash/source/profile，不填启动 refs |
+| `execution.request_preparation_analysis` / CREATE preparation_analysis_request | `taskRef; taskDefinitionSnapshotRef; preparationSourceRef; expectedTaskAggregateVersion; analysisProfileRef` | analysisRequestRef + 每步 WorkOrder/Context/Validation/frozenContract/Run/Attempt refs/Receipts + disposition；`execution.preparation.analysis.request`；TE 专用 Process 分步创建 WO 与上下文、readiness、freeze、queue/run，不是跨 Root 事务 |
+| `execution.get_preparation_analysis_result` / Query A | `agentResultRef; acceptanceRef; preparationSourceRef` | exact Result/Acceptance、runRef/contractRef/contextRef、IG observation/outputs/hash、profileRef、currentUsability/reasons/watermarks；`execution.preparation.result.read`；只返回真实已提交 ACCEPTED 的本 profile Result |
+| `execution.receive_initial_work_scope` / CREATE work_scope | `projectRef; projectStartBindingRef; scopeRequestRef:startup_request或initial_scope_request; humanScopeDecisionRef:CONTENT_ADDRESSED<zhiju.project.initial_work_scope_decision>; reportRef; planRef; selectedFileIds:NonEmptySet` | workScopeRef + scopeIntentHash + per-file RECEIVED + receiptRef；`execution.work_scope.receive`；原 Human 全文件集合不允许 changeId 子集 |
+| `execution.get_work_scope_progress` / Query A | `workScopeRef; page:{limit:1..100,cursor?}` | exact start/report/plan、每 fileId 的 RECEIVED/WAITING/BLOCKED/STALE 及已存在 task/run/result refs、reasonCodes、sourceWatermarks、nextCursor；`execution.work_scope.progress.read`；没有 Run 时不显示执行中 |
+
+重复 request_preparation_analysis 原 key/payload 只读同 process/step facts；UNKNOWN 先查询 IG 原 Attempt 与 TE Receipt，不再次 dispatch。同 source/profile 新分析（补料）必须新 snapshot/request/Run，旧终态不恢复。内部 Process 重启通过 owning Receipts 续接，不用 Browser 状态作为执行依据。
+
+### 逐层接受集与版本隔离
+
+| 层次 | 新 profile 的必要支持与拒绝边界 |
+|---|---|
+| EP scope/source | 专用 preparation Port 与 source snapshot Query，仅 PREPARING 或有界 ACTIVE 初轮恢复、当前 accepted inputs、exact template/rule set。旧 ACTIVE CreationProjectScopePort 和 ProjectContextSource 查询不放宽 |
+| DRAFT / Readiness | definition 固定分析目的，ExpectedOutput 为完整 raw report pair；新 evaluator 只评价“报告可接纳”，无文件修改/DeliveryItem criteria；允许资料缺失/读限作为合法分析输入，必须至少一个可分析客户源 |
+| WorkOrder DRAFT | 拟新内部 preparation draft producer（公开 request_preparation_analysis 驱动），定义 profile/version pins、read-only capability/budget/deadline、source snapshot；旧 create_work_order@1.0/@1.1 payload/producer 不扩大 |
+| Context | Core 拟 `PreparationContext@1.0`，单独 builder/validator/source grammar；EP 企业 refs 可显式列为 EXISTING 已授权来源，但无必填占位启动快照 |
+| Validation / Freeze | 拟 `WorkOrderContract@1.1` preparation 分支 + 新 `te.preparation_analysis@1` Validation/Controls/Readiness selectors；producer 通过新的内部 prepare/freeze handlers，不改旧公开 freeze 输入 Schema；五类 Validation、Policy/Actor/Decision/Context 有效期独立复核，sealed specificationHash 不可改 |
+| Queue / Run / Dispatch | 同 Project/WO active claim、attempt 单调、lease/fencing；新 profile 的内部 queue/create/start handlers 消费真实新 contract，不让旧 selector 漏过未知 context；IG real provider binding 是新分支，原 synthetic 不变 |
+| final / Acceptance | 一 Run 一 final；IG 真正原 invocation bytes/session/identity、lease/fencing 全绑定；新 output validator 检查 v0.2 pair/extraction refs，raw report 仍 WorkspaceOutput/diagnosticOnly，不伪造 Artifact BusinessOutput |
+| Completion | executionOutcome=COMPLETED/ACCEPTED/SUCCEEDED 不能完成 Task/WO/项目。首版仅 report acceptance 与 scope receipt，未实现独立 Completion evaluator 则 Completion NOT RUN，不能复用旧输出 profile 偷过 |
+| Cancel / retry | 原 request UNKNOWN 先 readback；确定 FAILED/terminal 后服务器许可新 Run，重新 Context/授权/预算；cancel request 与真实进程 ACK 分离，迟到 final 按既有历史隔离规则，新 preparation selector 须有独立反例 |
+
+上述 internal producer/handlers 是明确提案的受控 Application 支持集，不是已交付能力或 BFF 私有 API；后续注册必须同步新 Core schemas/selector metadata/正负 fixtures。既有公共 Run/Result 操作若要接新 context/contract，必须显式新版/接受集提案再批准，不能在 @1.0 开放 CanonicalJson 中暗加新 selector。本首版 public request→owning internal profile 是有界入口，其他旧入口对它 fail closed。
+
+### Scope 的独立事实与授权
+
+EP owning start Port 返回真实 ACTIVE、唯一 PROJECT_START 与当前可用性；EP report/plan Port 返回原集合的 full changes、依赖/保护条件及当前 preparationVersion。TE 不读 EP 表。scope 创建前独立 IP 当次许可、原 Human decision/request/hash、所有 file ID/依赖检查；任何所选阻塞文件拒绝该集合，零 scope Receipt，Human 可选独立文件形成新意图。接收成功事务只写 work_scope Root、不可变 intent/files、Receipt/Audit/Event，拟 `execution.InitialWorkScopeReceived@1.0`：workScopeRef、projectRef、projectStartBindingRef、planRef、receivedAt；不自动创建修改任务或批准/激活 DeliveryPlan。
+
+历史 scope intent 不可改，变化通过追加文件 eligibility/impact 表达。进度的 source watermark 属于 owning 事实；未绑定 Task 为 WAITING、Run 真实 RUNNING 才能执行中，Result 不代表文件批准/完成。Pagination 不得把一页当全部分母；每个文件保持完整计划，逐文件 protection/conflict 阻整份，独立文件在合法 start 后不受无关未知阻断。
+
+拟错误：`EXECUTION_PREPARATION_PROFILE_UNSUPPORTED`、`EXECUTION_PREPARATION_CONTEXT_INVALID`、`EXECUTION_PREPARATION_SOURCE_STALE`、`EXECUTION_WORK_SCOPE_BLOCKED`、`EXECUTION_WORK_SCOPE_INTENT_CONFLICT`；CAS、同键异内容、依赖不可用、不可见按共享安全码。Scope receipt 成功但 response 丢失返回原 workScopeRef，不新建 scope/task/run。
+
+### ACTIVE 首轮恢复接受集与唯一接收事实
+
+EP [ACTIVE 首轮恢复](Module-Spec-002-EnterpriseProject.md#active-首轮范围重核对与精确-human-scope-决定) 定义新 Human 意图/decision producer。新增 `execution.get_initial_work_scope_state@1.0`，AUTHORITATIVE Query，payload `{projectRef,projectStartBindingRef}`，purpose `execution.initial_work_scope.read`；data `{initialScopeState:NOT_RECEIVED或RECEIVED,workScopeRef?,receiptRef?,sourceWatermarks,currentUsability}`，未收时不填成功 refs，范围、当前许可/真实 start 不符统一安全拒绝。读结果不锁定未来资格，最终 receive 自身约束裁决。
+
+PREPARATION_ANALYSIS 专用 EP eligibility Port 允许两种闭合分支：`PREPARING`（无 start），或 `INITIAL_SCOPE_RECOVERY`（ACTIVE、creationMode=PREPARATION、exact frozen PROJECT_START、TE 未接收初轮 scope）。新 source/PreparationContext 包含 phase 和仅恢复分支必填 startBindingRef；所有 DRAFT/Readiness/Context/Freeze/dispatch/final/report 接纳通过该分支独立验证，不依赖旧 ACTIVE Task 资格。不重启信息确认、不授予 document.write；收到初轮 scope 后新建/dispatch 拒绝，晚 final 仅历史。旧 Task/Context/synthetic selector 不扩展。
+
+receive_initial_work_scope 的 scopeRequestRef 只接受 EP startup_request 或 initial_scope_request，并从 EP owning Query 验证真实 Human scope decision、intentHash、startBindingMode 的原 request→start 链、完整 file/change set 与当前 eligibility。首次 START_FROM_SAME_REQUEST 必须真实已完成一次 start；恢复 EXISTING_FROZEN_START 必须 exact 原冻结 binding，不接受调用者新 start。TE 保存所有 exact refs/Hash，并在同 scope Root 事务 enforce `(enterprise_id,project_id,purpose=INITIAL)` 唯一：相同 request/hash duplicate 返回原 scope，不同 request 竞态一 winner，输家 `EXECUTION_INITIAL_SCOPE_ALREADY_RECEIVED`；失败零 scope Receipt。已有成功 scope 的请求只回读，不开启第二初轮。
+
+恢复 query 进度是 scope 的事实；新的 ACTIVE intent 在尚无成功 scope 时只记录 Human 意图，直到真实 receive 才 RECEIVED。受理后才到达的源/报告变化对 scope 按文件追加 eligibility/impact，不改变旧意图或初轮唯一事实。required-start 依据失效须 EP owning impact review 阻止接收，不能以新候选替换 PROJECT_START。

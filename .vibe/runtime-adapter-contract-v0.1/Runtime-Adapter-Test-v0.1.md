@@ -78,3 +78,18 @@
 |---|---|---|---|---|
 | RT-COMP-D-001 | Controlled Application + PostgreSQL / 三份实际调用的versioned模板及normal/recovered owning fixture | 调用前固定模板Hash，Artifact提交后才计算Result Header/提交时间；无虚构receipt或先引用未来Result，Run-2独立Context/invocation | OWNING/PG/CONTROLLED PASS：normal/recovered独立fixture和三个固定versioned模板被实际调用；真实新Artifact Receipt提交后才冻结原invocation final，Run-2新Context/实例/session；Core合法空COMPLETED负例独立执行。 |
 | RT-COMP-D-002 | Controlled Application + PostgreSQL / release错误身份/Ref、readFinal跨restart/期限后释放 | protected依赖读先授权，同键稳定原文，第二final拒绝，expiry由TE决定；不是Provider conformance或manual business acceptance | APPLICATION/PG/CONTROLLED PASS（已执行）：Human-only、未提交Ref/Receipt、冲突第二final、restart原文与无再invoke；实际deadline赢后sealed output不救late Result/Completion。期限后首次release子项NOT RUN；External Provider/manual仍NOT RUN。 |
+
+## D14 / RD-01 真实 Profile conformance 场景提案
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。候选不是默认，lock/批准要求见 [Delta §7](../decisions/d14-rd01-first-customer-flow.md#7-首个-runtimeprofile-候选与待批准选择)。standalone Runner、Host acceptance、公网/Browser 各自出证，不能互相替代。
+
+| ID | 输入 / 故障 | 可观察预期 | 实际 / 结果 |
+|---|---|---|---|
+| RA-D14-001 | exact CLI/model/prompt/Skill/MCP/template/rule/output locks，脱敏 DOCX/MD | 原 invocation trace/ack/output hashes 可绑定；输出 v0.2 完整快照，固定 renderer 数量一致；CLI/version/认证/预算证据分列 | 未执行 / `NOT RUN` |
+| RA-D14-002 | 客户含恶意 Skill/AGENTS/CLI/模板同名；尝试改原件/模板、越输出根/网络 | 公司配置不被替换；Host 隔离拒绝，结束输入 hashes 不变；CLI permission allow-list 不是隔离证明 | 未执行 / `NOT RUN` |
+| RA-D14-003 | 模板填客户事实、组织图读限、M25悬空、17/18数量、多对多映射 | 无虚构依据/全读；来源/候选缺口明确，逐 ID 对账；READ/checks 不证明业务正确或批准 | 未执行 / `NOT RUN` |
+| RA-D14-004 | actual output 进入 IG→TE→EP；错 manifest/path/hash/session/lease/fencing | 三段各有真实事实与安全拒绝；独立 finalize 成功不足以 Host acceptance | 未执行 / `NOT RUN` |
+| RA-D14-005 | dispatch UNKNOWN、取消/超时/重启readback、terminal重试 | 原键不重复 invoke，真实停止观察非伪 ACK，late仅历史，许可 retry 新 Run，首版不 session resume | 未执行 / `NOT RUN` |
+| RA-D14-006 | observed CLI/version/model/provider 漂移、缺公司 mandatory规则/词表、profile不可用 | 不 ready/invoke，无默认/fallback/API直连；明确 IM-DG-006 决定与 conformance缺口 | 未执行 / `NOT RUN` |
+
+首轮恢复追加场景（`NOT RUN`）：**RA-D14-007** — ACTIVE/PREPARATION + frozen start + 未收首轮 scope 的 supplemental analysis；核对 INITIAL_SCOPE_RECOVERY Context/Package binding 和输入只读，窗口关闭后 late outputs 仅历史；不第二次启动、不产生后续批次资格。

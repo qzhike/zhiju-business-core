@@ -347,3 +347,17 @@ authority 为 [Spec 001 §15.17](../module-specs/Module-Spec-001-IdentityPolicy.
 | IP-BOARD-D-003 | source不能publish/cleanup，publish不能读业务source，health不能清blocker，worker无Human权不能得到Human响应；Policy失效无新成功导出/读取。scoped SQL/RLS与IP技术签发Audit证据分别记录，不借旧create/start/finalize权限 | PARTIAL（PG：其余权限保留时，缺 publish/maintain/dispatch/source/health/Human/Policy 的对应动作各自拒绝且无 protected statement；Board PolicyVersion 在读途中被取代拒绝成功结果；其他 SQL/RLS/身份变体不升级） |
 
 implementation configured full；实际Grant PolicySnapshot取代原延后保持，纯mapping反例不替代PG当前撤权/expiry。当前分层结果见本矩阵；运行证据来自 `tests/persistence/task-board-entry.test.ts`，完整矩阵不因聚焦 PG 通过而提升为全量 PASS。
+
+## D14 / RD-01 首条资料链路设计场景
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。
+
+| ID | 输入 / 故障 trace | 预期 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| IP-D14-001 | Human 准备创建，SERVICE 同 Project 只读分析，Human 核对/start | 分别当次授权；Grant 有限 scope/hash/期限；分析无 artifact.write/确认/发布能力 | 未执行 / `NOT RUN` |
+| IP-D14-002 | AGENT/RUNTIME/actingFor/报告自报 Human 确认或 QMS 激活 | 拒绝 Human-only，protected reads=0，零 Decision/start/scope 成功事实 | 未执行 / `NOT RUN` |
+| IP-D14-003 | 同 Enterprise 别 Project evidence/source、过期/撤销 grant、错 PolicySnapshot hash | 当前权限与双 Scope 失败，安全错误；不靠 ScopeClaim/旧 ALLOW 放行 | 未执行 / `NOT RUN` |
+| IP-D14-004 | 信息决定提交后撤权，原请求 resume/replay | 历史不改，续步拒绝；Receipt 仅按当前读权返回，不越权泄露 | 未执行 / `NOT RUN` |
+| IP-D14-005 | 当前 allowedActions 后权限变化、客户端替换 actor/Decision | owning 重新授权并拒绝，UI 值不作为资格；服务端认证上下文唯一 | 未执行 / `NOT RUN` |
+
+首轮恢复追加场景（同为 `NOT RUN`）：**IP-D14-006** — ACTIVE初轮恢复新Humanscope决定/撤权/伪original request→start；预期：原start精确、真实decision与当前许可；不授予重start/信息激活，错来源/撤权拒绝。

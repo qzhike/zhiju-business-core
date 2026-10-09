@@ -548,3 +548,21 @@ pnpm persistence:gate
 追加Release/Quality撤销反例必须经既有真正owningproducer产生可达事实，或明确保留已有EPsyntheticfixture作为受控局部ledger算法证据；后者不能标真实跨模块PASS。新正链只替换外部Runtime为实际调用的controlledDriver。所有unreachable/unexecuted子项保留NOT RUN，独立人工/外部另列，不把整行覆盖默认为PASS。
 
 #239 当前执行位置：`tests/persistence/initial-context.test.ts` 的两个 `isolated normal/recovered owning delivery fixture` 及 `isolated late-commit and cross-Item out-of-order schedule`；legacy正例在 `delivery-plan.test.ts` 的 `EP-WI12-P-005`，criteria/Envelope fixtures见 `tests/fixtures/contracts/delivery-completion/`。定向诊断使用缓存的固定digest PostgreSQL/Flyway镜像，独立environment preflight当前为PIN_MATCH；定向诊断不等于configured full，required full及exact-revision CI证据记录在PR。`PARTIAL`行剩余子项保持NOT RUN；外部Runtime/Provider/CLI/飞书、publicHTTP、生产/负载和独立人工业务验收均NOT RUN。
+
+## D14 / RD-01 首条资料链路设计场景
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。
+
+| ID | 输入 / 故障 trace | 预期 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| EP-D14-001 | 新客户/已有客户→PREPARING，合法部分资料→报告→真实必需信息→start | 同 Project/Scope；零占位快照；各 Root receipts，唯一 PROJECT_START+ACTIVE 原子提交 | 未执行 / `NOT RUN` |
+| EP-D14-002 | Enterprise 创建已提交、Project 回滚/响应丢失 | PARTIAL/UNKNOWN；原 intent/key 回读，只续 Project；零第二企业、不删除成功企业 | 未执行 / `NOT RUN` |
+| EP-D14-003 | 合法 UNKNOWN/CONFLICT/结构化 unsupported 候选，模板填客户产品/职责 | 报告可审阅；必要值阻启动；不能以 READ/COMPLETE/schema 成功放行；非必要未知不扩阻独立文件 | 未执行 / `NOT RUN` |
+| EP-D14-004 | 错 alias/Scope/source bytes hash/canonical hash/前版/ResultAcceptance | 隔离；零 accepted report/current pointer/start；保留原 bytes，不能用自洽重算新报告替换原 invocation | 未执行 / `NOT RUN` |
+| EP-D14-005 | 同 CAS 两次 start、start 任一写点故障、已 ACTIVE 新报告 | 一 winner；失败 Root/binding/Receipt/Event 全回滚；旧 start 不替换，迟到报告仅历史 | 未执行 / `NOT RUN` |
+| EP-D14-006 | Human 决定/部分 Product/QMS refs 已提交，后续步骤失败/超时 | PARTIAL/UNKNOWN 有真实 per-step refs；查原 owning receipts，恢复零重复版本/决定；撤权停续步 | 未执行 / `NOT RUN` |
+| EP-D14-007 | start 成功 scope 失败；STALE/撤权含成功 start；originalKey 被改集合 | 保留 ACTIVE/绑定；仅原 scope 续接；不同文件/报告/键拒绝；新意图重新确认不替旧 start | 未执行 / `NOT RUN` |
+| EP-D14-008 | 旧 FULL_START/ACTIVE 回归、旧 ACTIVE 缺 binding forward migration | 旧 create_project 三 refs 与 Hash 不变；损坏旧行使迁移失败，禁止归类新 PREPARING；直 SQL 无 binding ACTIVE 拒绝 | 未执行 / `NOT RUN` |
+| EP-D14-009 | Evidence alias 当 EvidenceRef / requirement 只有模板 / 既有客户 latest | 须真实 Quality capture/verify/get 与客户依据；固定必需 QMS 三组非空；精确既有版本 Human 核对，不猜来源 | 未执行 / `NOT RUN` |
+
+首轮恢复追加场景（同为 `NOT RUN`）：**EP-D14-010** — start 已提交，原集合保护阻塞/补料stale，Human 新选独立子集；预期：ACTIVE/PREPARATION+初轮未收才允许新 scope intent/独立决定；原 start/企业版本不改；有界补料报告与当前 plan，必需 start 依据失效须 impact review。

@@ -397,3 +397,7 @@ BLOCKED
 <a id="im-03-合成-reference-project-技术验收边界2026-08-27"></a>
 
 历史锚点的内容见 [实施基线补充](../decisions/implementation-baseline-notes.md)。
+
+## D14 / RD-01 未来设计入口
+
+[首条客户资料链路 Spec Delta](../decisions/d14-rd01-first-customer-flow.md) 为 Issue #253 的 `T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED` 提案，owning fields/场景在 EP/IP/TE/IG/UI 和 Runtime Spec/Test 的 D14 专节。只同步已批准初始化方向所需技术提案，不冻结新字段/Runtime 默认，不改变旧 create_project、ACTIVE Task、ProjectContext@1.0、七模块和 Human-only 规则。独立设计审查与精确修订人类技术批准前，依赖实现不 READY；static/prototype 不等于 API/持久化/Runner/人验 PASS。
