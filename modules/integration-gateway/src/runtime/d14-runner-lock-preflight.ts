@@ -56,6 +56,7 @@ export interface D14TrustedRef {
   readonly objectId: string;
   readonly versionId?: string;
   readonly snapshotId?: string;
+  readonly immutableVersionId?: string;
   readonly scope: D14TrustedScope;
   /** Present exactly when the trusted kind is content-addressed or a snapshot. */
   readonly contentDigest?: string;
@@ -263,6 +264,9 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
     inspectDigest(`${path}.contentDigest`, ref.contentDigest);
     if (ref.versionId !== undefined) inspectVersion(`${path}.versionId`, ref.versionId);
     if (ref.snapshotId !== undefined) inspectIdentifier(`${path}.snapshotId`, ref.snapshotId);
+    if (ref.immutableVersionId !== undefined) {
+      inspectIdentifier(`${path}.immutableVersionId`, ref.immutableVersionId);
+    }
   };
   const inspectFact = (path: string, fact: D14TrustedFact): void => {
     inspectRef(`${path}.ref`, fact.ref);
@@ -395,6 +399,8 @@ function scopeMatches(trusted: D14TrustedScope, locked: Common.ScopeRef): boolea
 function refMatches(trusted: D14TrustedRef, locked: D14CanonicalRef): boolean {
   const lockedVersionId = 'versionId' in locked ? locked.versionId : undefined;
   const lockedSnapshotId = 'snapshotId' in locked ? locked.snapshotId : undefined;
+  const lockedImmutableVersionId =
+    'immutableVersionId' in locked ? locked.immutableVersionId : undefined;
   const lockedContentDigest = 'contentHash' in locked ? locked.contentHash.digest : undefined;
   return (
     trusted.kind === locked.kind &&
@@ -402,6 +408,7 @@ function refMatches(trusted: D14TrustedRef, locked: D14CanonicalRef): boolean {
     trusted.objectId === locked.objectId &&
     trusted.versionId === lockedVersionId &&
     trusted.snapshotId === lockedSnapshotId &&
+    trusted.immutableVersionId === lockedImmutableVersionId &&
     trusted.contentDigest === lockedContentDigest &&
     scopeMatches(trusted.scope, locked.scope)
   );

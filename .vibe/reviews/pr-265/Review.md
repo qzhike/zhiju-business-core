@@ -1,6 +1,6 @@
 # PR #265 独立实现审查
 
-本文件保留两轮审查的独立证据。以下第一轮记录对应 `f42ca47`，已由修复提交纳入 `a7dfd3b`；其中当时的工作区与交付状态是历史事实。当前结论见文末[第二轮复审](#第二轮复审a7dfd3b)：`REQUEST_CHANGES`，R1/R3/R5 已关闭，R2/R4 尚未完整关闭。
+本文件保留三轮审查的独立证据。前两轮记录分别对应 `f42ca47` 与 `a7dfd3b`，已纳入修复提交；其中当时的工作区与交付状态是历史事实。当前结论见文末[第三轮复审](#第三轮复审0dc2402)：`REQUEST_CHANGES`，R1/R2/R3/R5 已关闭，R4 的完整引用比较仍遗漏 `immutableVersionId`。
 
 ## 审查对象与结论
 
@@ -195,3 +195,77 @@ GitHub comment 已发布并独立读回：[审查评论 issuecomment-6081118264]
 本轮结论和证据通过用户已授权的普通 PR comment 发布，并在发布后读回。它不等于 GitHub 原生 REQUEST_CHANGES review；本地复审文档的 Git 交付尚未授权。R2/R4 返回 Implementer，在修复后的新 head 再独立审查。
 
 第二轮 comment 已发布并刷新远程页面读回：[复审评论 issuecomment-6082458439](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6082458439)。永久链接点击后的地址栏确认该 ID；正文保留精确 reviewed SHA、R1/R3/R5 关闭、R2/R4 两项 P1、21 项诊断的 14 通过/7 失败、当前 CI 与 NOT RUN。Conversation 为四条评论，输入框清空；PR 仍 Draft、两个提交，最新 commit 仍是 a7dfd3b02e87f200a8883932a884e0f64d8239f9。本轮工作区只有此正式记录新增复审正文，未 commit/push。
+
+## 第三轮复审：0dc2402
+
+### 审查对象与结论
+
+- 用户授权：再次复审 PR #265 并提交 comments；没有产品修复、commit、push 或 merge 授权。
+- Reviewed SHA：`0dc24025651ee6051cdea97e43a61b4f6ad3a911`。
+- 上轮 SHA：`a7dfd3b02e87f200a8883932a884e0f64d8239f9`；base 仍为 `e8d05d6dccfe6034b241a8d0c4b8b49e255e4029`。
+- 审查日期：2026-10-09；最新远程 PR 为 OPEN / Draft，三个提交、52 个变更文件。本地 `vibe repo --json` 为 PASS，repository/head 精确一致；本轮开始时工作区干净。
+- Reviewer role outcome：`REQUEST_CHANGES`。
+- 剩余阻塞：R4，P1；共享引用比较缺少 Core 已声明的可选不可变版本身份。24 项独立诊断中 21 项通过、3 项契约预期失败。
+
+本轮独立读回最新 Issue #264、PR head/comments 和当前修订 CI，核对整个 PR 的差异及修复增量。验收预期仍来自 Issue 的精确版本绑定与缺失/漂移拒绝、获批锁决策 §2 的完整 type/version/Scope/hash、Core 引用合同和 owning IG 规格；不要求本任务实现真实 dispatch 或扩大公开支持集。已建立直接阻塞反例后停止扩大缺陷发现范围。
+
+### 原发现关闭状态
+
+| 原发现                         | 当前判断         | 本轮独立证据                                                                                                                                                                  |
+| ------------------------------ | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1：物化时未重验锁有效期       | 已关闭原发现     | 窗口前、恰到 validUntil 拒绝；issuedAt 起点接纳。                                                                                                                             |
+| R2：类型、Scope、双 hash       | 已关闭原发现     | 注册的 `CONTENT_ADDRESSED / zhiju.contract.work_order` 接纳；Contract/Package 同 namespace 未知类型拒绝。原未知 Run、缺 Scope、矛盾 Package hash 仍拒绝；前缀允许分支已删除。 |
+| R3：审批 pin 只比 digest       | 已关闭原发现     | 保留 digest 替换 technicalApproval.objectId 的 producer 反例仍拒绝，完整配置绑定比较保留。                                                                                    |
+| R4：必需 pins 缺读回或完整比较 | 部分修复，仍阻塞 | 上轮四个直接反例均正确拒绝：错 published 类型、模板 objectId、PreparationSource objectId、receipt digest。新共享 matcher 仍忽略 `immutableVersionId`，见下文。                |
+| R5：字符串 fencingToken        | 已关闭原发现     | 合法整数接纳；负数、小数、字符串拒绝。                                                                                                                                        |
+
+### 字段矩阵复审增量
+
+前两轮的三个证据层、lock payload 和 source 字段矩阵继续保留。本轮逐字段核对新声明及其实际比较，required/optional 不混为一谈。
+
+| 字段组                                             | required/optional 与本轮判断                                                                                                                                                                                                                              |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D14TrustedRef.kind / objectType / objectId / scope | 必填；kind/type/id 与 Scope 两个成员均进入 `refMatches`。                                                                                                                                                                                                 |
+| D14TrustedRef.versionId / snapshotId               | 可选，对应 VERSIONED / SNAPSHOT；与锁内适用字段及其缺省值逐项比较。                                                                                                                                                                                       |
+| D14TrustedRef.contentDigest                        | 可选，对应 CONTENT_ADDRESSED / SNAPSHOT；与锁内 canonical digest 比较。Schema 已限定 hash algorithm/canonicalization，实际 bytes 仍单独比较。                                                                                                             |
+| Core.ContentAddressedRef.immutableVersionId        | Core 与 D14 Schema 都声明为可选 UUIDv7；D14TrustedRef 未声明，来源诊断和共享 matcher 均遗漏。当存在时仍须保留并核验精确不可变版本，不能因可选而忽略其值。                                                                                                 |
+| PUBLISHED fact.ref / contentDigest / provenance    | 必填；完整身份比较依赖共享 matcher，受上述遗漏影响；contentDigest 与 PUBLISHED provenance 检查保留。                                                                                                                                                      |
+| PUBLISHED fact.bytesSha256 / publicationReceiptRef | 可选；锁声明 bytes/receipt 时要求对应读回与匹配。receipt 复用 D14TrustedRef，因此不可变版本身份同样未比较。                                                                                                                                               |
+| OWNING / prompt / policy readback.ref              | 由完整 Ref 替代旧 registryKey/Scope 字段；kind/type/id/versionId/snapshotId/Scope/digest 有比较，CONTENT_ADDRESSED 的 immutableVersionId 没有比较。contentDigest、version、provenance 与适用 bytes 的既有规则保留；不把显示 version-only 变化当作新缺陷。 |
+| tool.codeRef 与 inputAliasManifest.schemaRef       | 已统一使用共享 matcher；同样不能证明适用不可变版本身份，runtime/dependency/command/bytes/schemaVersion 比较仍在。                                                                                                                                         |
+| 其余 deployment/provider/data sources              | 本轮未修改，其字段与受控证据边界沿用前轮记录；不把 fixture 或 code CI 当成实际来源/部署验收。                                                                                                                                                             |
+
+### R4 — P1：完整引用比较遗漏 immutableVersionId
+
+位置：[D14TrustedRef，第 53 行](https://github.com/qzhike/zhiju-business-core/blob/0dc24025651ee6051cdea97e43a61b4f6ad3a911/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L53)、[来源诊断，第 260 行](https://github.com/qzhike/zhiju-business-core/blob/0dc24025651ee6051cdea97e43a61b4f6ad3a911/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L260)、[refMatches，第 395 行](https://github.com/qzhike/zhiju-business-core/blob/0dc24025651ee6051cdea97e43a61b4f6ad3a911/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L395)。
+
+[Catalog §3.4](../../high-level-docs/06-typed-references-contract-catalog-v0.1.md#34-contentaddressedref)、[Core 静态类型](../../../contracts/src/generated/types/common.ts)与 D14 Schema 第 517 行允许 `ContentAddressedRef.immutableVersionId?: UuidV7`。获批[锁决策 §2](../../decisions/d14-rd01-runner-profile-lock.md#2-一个版本化锁合同与三个不同证据层)要求引用完整 type/version/Scope/hash；当前 [IG 物化规则](../../module-specs/Module-Spec-007-IntegrationGateway.md#d14-runner-物化锁与原调用观察提案256)也声明逐字段比较完整 canonical Ref 和 receipt。
+
+可信类型却只能表达 kind/type/id/versionId/snapshotId/Scope/digest，`refMatches` 不读取 `immutableVersionId`。因此只要其他身份字段与 digest 相同，锁可声明未经该 owning readback 解析的另一个不可变版本。可选只表示允许不携带该字段，不代表已携带的版本身份可被忽略。
+
+独立诊断对下列三个 CONTENT_ADDRESSED Ref 分别建立 matched-version 正例：锁与可信来源都携带合法 UUIDv7 `immutableVersionId=A`，有效锁通过且 preflight 接纳。随后只把锁的该字段改为另一合法 UUIDv7 `B`，可信来源仍为 `A`，其余 kind/type/id/Scope/contentHash/bytes/receipt 保持原样；用公开 helper 重算 lockHash，并先断言 `validateMaterializedLock.valid=true`。
+
+| 仅替换锁内的字段                                                   | 契约预期                             | 实际            |
+| ------------------------------------------------------------------ | ------------------------------------ | --------------- |
+| templates.templateRefs[0].ref.immutableVersionId                   | 拒绝与 published readback 不同的版本 | admissible=true |
+| templates.templateRefs[0].publicationReceiptRef.immutableVersionId | 拒绝与读回不同的 receipt 版本        | admissible=true |
+| outputTools.preparationSource.ref.immutableVersionId               | 拒绝与 owning readback 不同的版本    | admissible=true |
+
+三次失败均在预期拒绝断言处，而非 Schema、hash、positive control 或环境错误。原四个 R4 反例已修复，但同一完整引用不变量仍不成立；该遗漏同时影响复用 matcher 的其他 CONTENT_ADDRESSED pins。
+
+修复应在可信读回类型与构造 helper 中保留可选 `immutableVersionId`，按 owning UUIDv7 规则检查，并在共享 matcher 中比较字段值与 presence/absence。补充同内容/同对象、不同不可变版本及单侧缺字段的负例；覆盖 published Ref、publication receipt 和 owning Ref，保留 matched-version 与两侧都缺字段的合法对照。不要求所有内容寻址引用必须携带版本，也不通过删除 Core 已接受字段来规避比较。
+
+### 当前证据与交付边界
+
+- [CI run 37943536607](https://github.com/qzhike/zhiju-business-core/actions/runs/37943536607)独立读回：run 页面绑定 `0dc2402`，PR commit 对应完整 reviewed SHA；select/checks/verify 成功，persistence 为预期 skipped。summary 为 94 个测试文件、1943 个测试全部通过。实际 diff 与未变更 CI 配置确认适用 `code`；复用当前配置证据，没有重复本地配置目标。
+- `git diff --check e8d05d6dccfe6034b241a8d0c4b8b49e255e4029..0dc24025651ee6051cdea97e43a61b4f6ad3a911`：PASS。
+- 独立 focused diagnostic：`node node_modules/vitest/vitest.mjs run --config /private/tmp/pr265-rereview3.config.mts --reporter verbose`，Node 24.19.0 / Vitest 4.1.10；`/private/tmp/pr265-rereview3-probe.test.ts` 与配置都在仓库外，contracts/shared-kernel alias 指向本轮源码。24 项中 21 通过、3 失败，exit 1。每个新增版本反例的 matched-version 正例均先通过；失败是完整版本绑定缺陷，不替代配置 Gate。
+- Implementer 的本地 `vibe verify code` PASS 与 focused 106 passed 是远程评论提供的另一层证据，不冒称本 Reviewer 重跑。
+- 正式记录保留前两轮历史，仅更新当前结论指针并追加本轮；本轮新增内容未 commit/push，不属于 reviewed SHA/CI。新增 Markdown 格式、本地链接和工作区范围做 focused 检查。
+- 真实 OMP/DeepSeek、Ubuntu/CLI/adapter/Host 部署及隔离、PostgreSQL、OIDC/public HTTP、IG→TE→EP 实际接纳链、RA-LOCK-001–014/IG-LOCK-001–005、平台与独立人工业务验收仍为 `NOT RUN`。既有设计批准不解释为当前实现修订的技术批准。
+
+用户已授权本轮普通 PR comment；本轮结论、关闭状态和直接反例已发布并读回。普通 comment 不等于 GitHub 原生 REQUEST_CHANGES review。本 Reviewer 没有修复产品代码、commit、push 或 merge；R4 返回 Implementer，在新 head 上再次独立审查。
+
+第三轮 comment 已发布并刷新远程永久链接读回：[复审评论 issuecomment-6083422079](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6083422079)。地址栏确认完整永久链接，渲染正文保留精确 reviewed SHA、R1/R2/R3/R5 关闭、R4 P1、三个版本替换反例、21 通过/3 失败、当前 CI 与 NOT RUN；输入框清空，Comment 按钮禁用，Conversation 从五条变为六条，确认本轮仅新增一条。PR 仍 Draft、三个提交，最新 commit 为 `0dc2402`。
+
+首次提交动作未完成时，自动审批拒绝了坐标重试，理由是可能重复发送第三轮评论。先刷新并确认远程仍为五条旧评论、第三轮正文只在草稿输入框后，按新 AX 状态选择 Comment 按钮成功提交；随后再次刷新读回六条评论和永久链接，未形成重复评论。本轮工作区仅此正式记录有改动，未 commit/push。

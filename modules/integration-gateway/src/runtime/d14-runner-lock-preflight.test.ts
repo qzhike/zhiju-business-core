@@ -40,6 +40,9 @@ const lock = JSON.parse(
 const TRUSTED_NOW = '2026-10-09T12:00:00Z';
 /** Another well-formed UUIDv7, used only to substitute an identity. */
 const OTHER_UUID = '018f22e2-7c15-7b2e-8d86-2de956a9d2f1';
+/** Two well-formed immutable version UUIDv7s used by the identity negatives. */
+const VERSION_A = '018f22e2-7c15-7b2e-8d86-2de956a9d2a1';
+const VERSION_B = '018f22e2-7c15-7b2e-8d86-2de956a9d2b2';
 
 function required<T>(value: T | undefined, label: string): T {
   if (value === undefined) throw new Error(`missing ${label} fixture value`);
@@ -61,6 +64,7 @@ function trustedRef(ref: D14CanonicalRef): D14TrustedRef {
     objectId: string;
     versionId?: string;
     snapshotId?: string;
+    immutableVersionId?: string;
     scope: D14TrustedScope;
     contentDigest?: string;
   } = {
@@ -71,6 +75,7 @@ function trustedRef(ref: D14CanonicalRef): D14TrustedRef {
   };
   if ('versionId' in ref) trusted.versionId = ref.versionId;
   if ('snapshotId' in ref) trusted.snapshotId = ref.snapshotId;
+  if ('immutableVersionId' in ref) trusted.immutableVersionId = ref.immutableVersionId;
   if ('contentHash' in ref) trusted.contentDigest = ref.contentHash.digest;
   return trusted;
 }
@@ -262,6 +267,104 @@ function withRefDigest(ref: D14CanonicalRef, digest: string): D14CanonicalRef {
 function distinctDigest(seed: string): string {
   const last = seed.endsWith('0') ? '1' : '0';
   return `${seed.slice(0, -1)}${last}`;
+}
+
+/** Set the optional immutable version on a content-addressed reference. */
+function withImmutableVersion(ref: D14CanonicalRef, immutableVersionId: string): D14CanonicalRef {
+  if (ref.kind !== 'CONTENT_ADDRESSED') {
+    throw new Error('fixture reference is not content-addressed');
+  }
+  return { ...ref, immutableVersionId };
+}
+
+/** The valid lock with a template reference carrying one immutable version. */
+function lockWithTemplateImmutableVersion(immutableVersionId: string): D14MaterializedLock {
+  const templateRefs = lock.templates.templateRefs;
+  const first = required(templateRefs[0], 'templateRefs[0]');
+  return relocked({
+    ...lock,
+    templates: {
+      ...lock.templates,
+      templateRefs: [
+        { ...first, ref: withImmutableVersion(first.ref, immutableVersionId) },
+        required(templateRefs[1], 'templateRefs[1]'),
+      ],
+    },
+  });
+}
+
+/** The valid lock with a publication receipt carrying one immutable version. */
+function lockWithReceiptImmutableVersion(immutableVersionId: string): D14MaterializedLock {
+  const templateRefs = lock.templates.templateRefs;
+  const first = required(templateRefs[0], 'templateRefs[0]');
+  const receipt = required(first.publicationReceiptRef, 'publicationReceiptRef');
+  return relocked({
+    ...lock,
+    templates: {
+      ...lock.templates,
+      templateRefs: [
+        { ...first, publicationReceiptRef: withImmutableVersion(receipt, immutableVersionId) },
+        required(templateRefs[1], 'templateRefs[1]'),
+      ],
+    },
+  });
+}
+
+/** The valid lock with the preparation source carrying one immutable version. */
+function lockWithSourceImmutableVersion(immutableVersionId: string): D14MaterializedLock {
+  const source = lock.outputTools.preparationSource;
+  return relocked({
+    ...lock,
+    outputTools: {
+      ...lock.outputTools,
+      preparationSource: { ...source, ref: withImmutableVersion(source.ref, immutableVersionId) },
+    },
+  });
+}
+
+/** Trusted templates with the first ref's immutable version set or omitted. */
+function trustedTemplatesWithVersion(
+  immutableVersionId: string | undefined,
+): readonly D14TrustedFact[] {
+  const templates = required(trustedSources().templates, 'sources.templates');
+  const first = required(templates[0], 'templates[0]');
+  const ref: D14TrustedRef =
+    immutableVersionId === undefined ? first.ref : { ...first.ref, immutableVersionId };
+  return [{ ...first, ref }, required(templates[1], 'templates[1]')];
+}
+
+/** Trusted templates with the first receipt's immutable version set or omitted. */
+function trustedTemplatesWithReceiptVersion(
+  immutableVersionId: string | undefined,
+): readonly D14TrustedFact[] {
+  const templates = required(trustedSources().templates, 'sources.templates');
+  const first = required(templates[0], 'templates[0]');
+  const receipt = required(first.publicationReceiptRef, 'publicationReceiptRef');
+  const updated = immutableVersionId === undefined ? receipt : { ...receipt, immutableVersionId };
+  return [{ ...first, publicationReceiptRef: updated }, required(templates[1], 'templates[1]')];
+}
+
+/** Trusted owning pins with the preparation source's version set or omitted. */
+function trustedInputOutputPinsWithSourceVersion(
+  immutableVersionId: string | undefined,
+): Record<D14InputOutputSlot, D14TrustedOwningObject> {
+  const pins = trustedInputOutputPins();
+  const source = required(pins.preparationSource, 'inputOutputPins.preparationSource');
+  const ref: D14TrustedRef =
+    immutableVersionId === undefined ? source.ref : { ...source.ref, immutableVersionId };
+  return { ...pins, preparationSource: { ...source, ref } };
+}
+
+/** Run the preflight against an explicit lock plus trusted-source overrides. */
+function preflightWith(
+  lockValue: D14MaterializedLock,
+  overrides: Partial<D14MaterializationSources>,
+): D14PreflightResult {
+  return preflightD14RunnerMaterialization({
+    lock: lockValue,
+    sources: { ...trustedSources(), ...overrides },
+    trustedNow: TRUSTED_NOW,
+  });
 }
 
 function expectRejection(result: D14PreflightResult, code: D14PreflightRejectionCode): void {
@@ -962,6 +1065,116 @@ describe('preflightD14RunnerMaterialization', () => {
           },
         }),
       ),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('admits a template reference whose immutable version matches on both sides', () => {
+    const versionedLock = lockWithTemplateImmutableVersion(VERSION_A);
+    expect(validateMaterializedLock(versionedLock).valid).toBe(true);
+    expect(
+      preflightWith(versionedLock, { templates: trustedTemplatesWithVersion(VERSION_A) })
+        .admissible,
+    ).toBe(true);
+  });
+
+  it('rejects a template reference whose immutable version differs', () => {
+    const versionedLock = lockWithTemplateImmutableVersion(VERSION_A);
+    expect(validateMaterializedLock(versionedLock).valid).toBe(true);
+    expectRejection(
+      preflightWith(versionedLock, { templates: trustedTemplatesWithVersion(VERSION_B) }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a template reference whose immutable version is only on the lock side', () => {
+    const versionedLock = lockWithTemplateImmutableVersion(VERSION_A);
+    expect(validateMaterializedLock(versionedLock).valid).toBe(true);
+    expectRejection(
+      preflightWith(versionedLock, { templates: trustedTemplatesWithVersion(undefined) }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a template reference whose immutable version is only on the trusted side', () => {
+    expectRejection(
+      preflightWith(lock, { templates: trustedTemplatesWithVersion(VERSION_A) }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('admits a publication receipt whose immutable version matches on both sides', () => {
+    const versionedLock = lockWithReceiptImmutableVersion(VERSION_A);
+    expect(validateMaterializedLock(versionedLock).valid).toBe(true);
+    expect(
+      preflightWith(versionedLock, {
+        templates: trustedTemplatesWithReceiptVersion(VERSION_A),
+      }).admissible,
+    ).toBe(true);
+  });
+
+  it('rejects a publication receipt whose immutable version differs', () => {
+    const versionedLock = lockWithReceiptImmutableVersion(VERSION_A);
+    expect(validateMaterializedLock(versionedLock).valid).toBe(true);
+    expectRejection(
+      preflightWith(versionedLock, { templates: trustedTemplatesWithReceiptVersion(VERSION_B) }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a publication receipt whose immutable version is only on the lock side', () => {
+    const versionedLock = lockWithReceiptImmutableVersion(VERSION_A);
+    expect(validateMaterializedLock(versionedLock).valid).toBe(true);
+    expectRejection(
+      preflightWith(versionedLock, { templates: trustedTemplatesWithReceiptVersion(undefined) }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a publication receipt whose immutable version is only on the trusted side', () => {
+    expectRejection(
+      preflightWith(lock, { templates: trustedTemplatesWithReceiptVersion(VERSION_A) }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('admits a preparation source whose immutable version matches on both sides', () => {
+    const versionedLock = lockWithSourceImmutableVersion(VERSION_A);
+    expect(validateMaterializedLock(versionedLock).valid).toBe(true);
+    expect(
+      preflightWith(versionedLock, {
+        inputOutputPins: trustedInputOutputPinsWithSourceVersion(VERSION_A),
+      }).admissible,
+    ).toBe(true);
+  });
+
+  it('rejects a preparation source whose immutable version differs', () => {
+    const versionedLock = lockWithSourceImmutableVersion(VERSION_A);
+    expect(validateMaterializedLock(versionedLock).valid).toBe(true);
+    expectRejection(
+      preflightWith(versionedLock, {
+        inputOutputPins: trustedInputOutputPinsWithSourceVersion(VERSION_B),
+      }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a preparation source whose immutable version is only on the lock side', () => {
+    const versionedLock = lockWithSourceImmutableVersion(VERSION_A);
+    expect(validateMaterializedLock(versionedLock).valid).toBe(true);
+    expectRejection(
+      preflightWith(versionedLock, {
+        inputOutputPins: trustedInputOutputPinsWithSourceVersion(undefined),
+      }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a preparation source whose immutable version is only on the trusted side', () => {
+    expectRejection(
+      preflightWith(lock, {
+        inputOutputPins: trustedInputOutputPinsWithSourceVersion(VERSION_A),
+      }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
     );
   });
