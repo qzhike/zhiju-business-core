@@ -9,13 +9,13 @@
 
 接受范围为 scoped engineering；真实 Provider/Feishu、公开 HTTP、生产、统一跨模块业务 E2E、外部收件人确认和独立人工业务验收仍为 `NOT RUN`。不得用 Issue 关闭扩大验收范围。
 
-## Current — IM-UI-01 工程开工准备
+## Current — IM-UI-01 首条真实链路接入准备
 
-IM-06 的有限工程退出已获用户确认。用户于 2026-10-08 批准 [UI-DG-001～003 工程基线](../decisions/workspace-ui-engineering-baseline.md)并要求收口、准备正式开工；当前推进目标为 [Web/BFF 工程外壳](../module-specs/Module-Spec-UI01-WorkspaceUI.md#首个工程交付目标)。保持已批准的产品/布局，使用当前 main 基线的独立前端分支，不沿用早期 frontend 的 Core 快照。
+IM-06 的有限工程退出已获用户确认。[UI-DG-001～003 工程基线](../decisions/workspace-ui-engineering-baseline.md)和产品/布局保持已批准范围；[Issue #252](https://github.com/qzhike/zhiju-business-core/issues/252) / [PR #254](https://github.com/qzhike/zhiju-business-core/pull/254) 已交付 Web/BFF 工程外壳，当前 Core 基线为其合并后的 `b66beb0afcf3e71143c348348fcc41cfc7819cbb`。工程外壳不代表真实 OIDC、业务 HTTP、Runner、持久化或人工业务验收完成。
 
-[Issue #252](https://github.com/qzhike/zhiju-business-core/issues/252) 已确认独立设计 APPROVE 绑定 `955461a` 的已保存基线；工程外壳进入实施，安装/构建/运行的工程 Gate 按有效配置验证。外壳完成只代表工程进展，不宣布真实 OIDC、HTTP、Runner、持久化或人工业务验收完成。只有 NOW + READY 且获发布授权的候选才创建 GitHub Issue。
+下一完整用户目标仍是 ZIP 接收 → 受控 Runner 分析/报告接纳 → 启动信息核对与整份文件选择 → 原请求回执/真实进度。[Issue #253](https://github.com/qzhike/zhiju-business-core/issues/253) 的 [D14/RD-01 技术设计](../decisions/d14-rd01-first-customer-flow.md)已形成 owning 字段、准备来源/Context、可信 Human 决定、一次 start、初轮范围及有界 ACTIVE 恢复、公开 HTTP 和必要失败场景；独立审查未发现剩余阻塞缺陷，人类技术批准绑定 `a4da30706c12b3b351fc471c8ac5f99b2ab38873`，见 [PR #255 批准记录](https://github.com/qzhike/zhiju-business-core/pull/255#issuecomment-6075169806)与[正式 Review](../reviews/pr-255/Review.md)。Git 交付状态以该 PR 为准，字段/profile 仍未注册或实现。
 
-下一完整用户目标是 ZIP 接收 → 受控 Runner 分析/报告接纳 → 启动信息核对与整份文件选择 → 原请求回执/真实进度。D14/RD-01 的 owning 字段、准备上下文、可信 Human 决定/恢复查询及 HTTP 接入尚待闭合，约束该链路真实接入；不要求所有后续意见/批准/交付合同先于工程外壳完成。首个公司默认 Runtime/Profile 及真实输入/输出验证仍需明确，界面不增加运行时选择器。
+接入前仍须明确首发公司 Runtime/Profile、精确 model/数据边界、公司强制启动规则/词表与完整执行锁，并按 IM-DG-006 和真实 conformance 要求复核。Claude Code 仅是候选，界面不增加 Runtime selector；设计批准不填造这些缺失决定，也不自动把依赖实现标为 READY。Planner 基于当时 main 与明确选择完成 NOW + READY 复核后，才按发布授权创建贯通首条真实目标的实现 Issue。后续文档修改/反馈/批准/交付和 Excel 转换维持原边界；真实 API、持久化、Host/Runner、Browser 与人工验收保持 NOT RUN。
 
 ## Completed — IM-06 TaskExecution Human-operated Core
 

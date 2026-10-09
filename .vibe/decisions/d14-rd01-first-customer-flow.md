@@ -2,6 +2,8 @@
 
 状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。
 
+技术设计已于 2026-10-09 获人类明确批准，绑定独立审查的 `a4da30706c12b3b351fc471c8ac5f99b2ab38873`，见 [PR 批准记录](https://github.com/qzhike/zhiju-business-core/pull/255#issuecomment-6075169806)与[正式 Review](../reviews/pr-255/Review.md#人类技术设计批准a4da307)。该批准覆盖已闭合的技术设计；§7 未决 Runtime/model/数据边界、公司强制规则/词表与完整执行锁仍需明确选择，未注册字段/profile 保持未来设计，依赖实现须重新核验 NOW + READY。
+
 本提案交付 [Issue #253](https://github.com/qzhike/zhiju-business-core/issues/253) 的技术设计，保留 [D14 已批准初始化方向与布局](workspace-mvp-human-agent.md#471-项目资料准备与正式启动的-spec-delta-提案d14)。对照基线为 UI authority `955461abff2f0b694fe08676e83d1f702f3cab03` 和当前 Core `b66beb0afcf3e71143c348348fcc41cfc7819cbb`。当前 API 只注册 HealthController；下文均为拟议公开操作和未来接受集，不是可调用 HTTP 或生产注册。现有 Schema、200 项历史兼容基线、Catalog 实际计数及样例 bytes 不变。
 
 独立审查、精确修订的人类技术批准及 IM-DG-006 决定是冻结门禁；提交 PR 不代表已批准。审查证据在 PR 与 `.vibe/reviews/pr-<number>/Review.md`；未决选择见 §7。不能把依赖实现任务标为 READY。本提案不冻结文档修改、批准、发布或项目完成合同。

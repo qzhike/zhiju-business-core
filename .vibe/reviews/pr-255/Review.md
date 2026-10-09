@@ -82,3 +82,49 @@ IP、UI、Core Context、Domain、跨 Aggregate 一致性、Catalog、PostgreSQL
 - 真实 PostgreSQL/full、OIDC/public HTTP、Host/Runner conformance、Browser 支持矩阵与独立人工业务验收仍全部 `NOT RUN`。
 
 Issue #253 明确要求独立审查和精确修订 Human 技术批准后才冻结或使依赖实现 READY；公司 Runtime/model/模板/强制 rule bundle 等锁定选择仍需 Human 决定。Reviewer 角色不在尚有必需 Human 技术审查门禁时输出 `APPROVE`，因此本次角色结论为 `HUMAN_REVIEW_REQUIRED`，不是新的提案修复请求。可继续提交和展示 Draft 供 Human 审阅；此记录不批准冻结、开工、合并或部署。主 Implementer 纳入记录后的新 commit 若只增加审查交付文本，需要保留 reviewed SHA 与证明其提案内容未变，并完成适用 docs 检查。Reviewer 未修改提案、commit、push 或发布 GitHub 消息。
+
+## 最新 PR head 独立审查：a4da307
+
+- Reviewed SHA：`a4da30706c12b3b351fc471c8ac5f99b2ab38873`。
+- Base SHA：`b66beb0afcf3e71143c348348fcc41cfc7819cbb`。
+- 审查日期：2026-10-09；Issue #253 与 PR #255 均为 OPEN，PR 为 Draft。
+- Reviewer outcome：`HUMAN_REVIEW_REQUIRED`。
+- 阻塞性设计缺陷：本次未发现；历史 R1 在当前修订中的 owning 路径已闭合。
+- 精确修订 Human 技术批准、公司 Runtime/model/规则锁定选择：`PENDING / NOT PROVIDED`。
+
+本次重新从最新 Issue、HL 冻结规则、相关 owning 契约和必要失败边界建立预期，再检查 base-to-head 的全部 27 份 Markdown 差异。此前审查记录只作为历史发现核对，不替代当前修订的独立判断。实际变更没有代码、Schema/Registry 注册或 SQL/migration；设计与执行结果仍分开。
+
+| 验收边界 | 当前修订的独立判断 |
+|---|---|
+| 所有权、公开操作与引用 | Catalog 的拟议操作、类型、字段及 purpose 与 EP/IP/TE/IG/UI、Core/Runtime 专节对应；Quality Evidence 复用 capture/verify/get，source/evidence alias 不直接成为正式 EvidenceRef。 |
+| 准备身份与版本隔离 | 同 Project PREPARING 创建不制造 start；独立 PreparationContext、WorkOrderContract/Package 分支逐层列出支持与拒绝规则，旧 create_project、ACTIVE Task、ProjectContext 和历史 bytes 接受集保持。 |
+| ZIP 与报告来源 | 有界流式提取及 DOCX 累计预算、逐 entry 身份、原件保留、只读公司输入、byte/cv1 双 Hash 域、真实 invocation→IG observation→TE Acceptance→EP snapshot 分别明确；合法缺失/冲突可审阅。 |
+| 必要启动事实与 Human 决定 | TEXT 支持限制、完整 Product、QMS 三组强制清单与真实 Evidence/决定先于一次 start；模板、READ、COMPLETE 不提升为客户事实，缺失公司规则时 fail closed。 |
+| 历史 R1、原意图与首次范围 | EP 新 initial-scope request/独立 Human scope decision 绑定原冻结 start 与当前完整计划；START_FROM_SAME_REQUEST 与 EXISTING_FROZEN_START 各有真实来源证明。INITIAL_SCOPE_RECOVERY 只开放首轮未收窗口；TE 最终 INITIAL 唯一约束裁决竞态，同原请求回读保持真实 refs。旧请求/决定/已提交 start 不改。 |
+| 恢复、迁移与未来场景 | PENDING/PARTIAL/UNKNOWN/FAILED/STALE 保留真实 per-step facts、原键恢复与当前授权；旧 ACTIVE 缺 binding 是迁移故障。owning 正负/撤权/并发/迟到/恢复 trace 齐备，新运行场景保持 NOT RUN。 |
+
+### 当前证据与人类门禁
+
+- 已独立读回 [CI run 37884710810](https://github.com/qzhike/zhiju-business-core/actions/runs/37884710810)：headSha 精确等于本次 reviewed SHA；select、checks、verify 均 SUCCESS，Verify documentation step SUCCESS，日志为 `[docs-verification] PASS files=27` 与格式检查通过；persistence 为文档路由预期 SKIPPED。复用该证据，不重复运行同一修订的配置目标。
+- 独立 `git diff --check`：PASS；新增 Markdown 本地链接及目标标题检查：52 项、零未解析目标。这些只证明静态一致性。
+- 只读复核独立 evidence 工具 analysis.py、reader.py、common.py 的实际 SHA-256，与 Delta §7 所列一致；源码确认 manifest/extraction-index 绑定、v0.1 validator 和确定性 renderer。未重跑客户任务，未将其提升为 v0.2 或平台接纳能力。
+- 核对官方 [CLI reference](https://code.claude.com/docs/en/cli-reference) 与 [programmatic mode](https://code.claude.com/docs/en/headless)：非交互、结构化输出与工具限制支持候选可行性；不能证明部署 lock、Host 隔离、真实 conformance 或客户业务正确性。
+- 真实 PostgreSQL/full、OIDC/public HTTP、Host/Runner conformance、Browser 支持矩阵和独立人工业务验收：全部 `NOT RUN`，符合本设计 Issue 的证据边界。
+
+Issue #253 Acceptance 与 owning 验证基准明确保留精确修订 Human 技术批准；Runtime/model/数据边界、公司强制规则/词表、完整执行锁及 IM-DG-006 决定尚未提供。因此当前结论不能升级为 APPROVE、设计冻结、依赖实现 READY 或 Issue 关闭。此次用户授权发布 PR 评论；发布结果与本节追加后的配置 docs 验证证据由该评论交付。本节本身是本地审查记录追加，尚不属于 reviewed SHA 或上述 CI，未获 commit/push 授权。
+
+## 人类技术设计批准：a4da307
+
+- 批准日期：2026-10-09。
+- Approved SHA：`a4da30706c12b3b351fc471c8ac5f99b2ab38873`；批准时读回 PR head 与 reviewed SHA 一致。
+- 批准来源：用户在本次审查结论后明确回复“批准”；本记录保存当前会话中的人类决定，不伪装为 GitHub 原生 APPROVED review。
+- Human 技术设计批准：`APPROVED`，适用于该精确修订的 D14/RD-01 技术设计及已闭合的历史 R1。
+- 独立审查证据：[本次 PR 审查评论](https://github.com/qzhike/zhiju-business-core/pull/255#issuecomment-6075019798)，未发现新的阻塞性设计缺陷。
+
+上述 HUMAN_REVIEW_REQUIRED/PENDING 保留为批准前的历史结论；本次明确批准满足精确修订的人类技术设计审查门禁。仍未给出具体值或明确选择的 Runtime/model/数据边界、公司强制规则/词表、完整执行锁和 IM-DG-006 决定继续单列为待确认，不由“批准”制造缺失值或已部署事实；本批准不将依赖实现自动标为 READY。
+
+本次只更新正式审查记录并在同一 PR 发布批准补充评论，保持实现、生产注册及外部/人工验证 NOT RUN。PR/Issue 状态、commit/push 与后续交付按其各自授权处理；本记录追加尚未包含于 Approved SHA。
+
+## 本次交付授权与审批记录纳入
+
+2026-10-09 用户明确要求“合并PR，关闭issue及local/remote branch”，授权交付 PR #255、关闭 #253 和清理其任务分支。纳入上方已发表的独立审查与精确修订人类批准记录；另同步设计入口的批准范围与 roadmap 的真实接入前置条件。此项更新只陈述既有审查/批准和推进意图，未改变获批合同语义或制造 Runtime/规则缺失值。最终 head 仍须独立核对与配置 docs/CI 通过后才合并；合并与清理事实读回 GitHub/Git，不预写执行成功。
