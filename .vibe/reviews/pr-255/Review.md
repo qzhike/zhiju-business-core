@@ -48,3 +48,37 @@
 - 真实 PostgreSQL、OIDC/public HTTP、Host/Runner conformance、Browser 支持矩阵与独立人工业务验收：`NOT RUN`。
 
 R1 修复后必须独立审查新精确 head；本结论不覆盖未来修订。明确人类技术批准和公司 Runtime/规则锁定选择仍待完成，#253 不应因文档或 agent 审查结果自动关闭。GitHub 审查发布由主 Implementer 按已授权范围处理，本 Reviewer 未发布消息、commit 或 push。
+
+## 新修订独立复审：5a231858
+
+- Reviewed SHA：`5a2318585b30ee08ae6e4fc862ba56a392546e8a`。
+- Base SHA：`b66beb0afcf3e71143c348348fcc41cfc7819cbb`。
+- 前次 reviewed SHA：`4616482822ea4899a37366eb0d48e030b4a5ee76`；上述 R1 及 `REQUEST_CHANGES` 保留为该历史修订结论。
+- 复审日期：2026-10-09。
+- 独立 agent 设计语义审查：`PASS / NO BLOCKING DEFECT FOUND`；R1：`RESOLVED AT REVIEWED SHA`。
+- Reviewer role outcome：`HUMAN_REVIEW_REQUIRED`。
+- Human 技术批准与 Runtime/规则锁定决定：`PENDING / NOT PROVIDED`。
+
+最新 Issue 的设计 scope/acceptance 未变；已重新读回 Issue/PR、`vibe repo --json`、新旧修订实际差异及受影响 owning 合同。此时整体差异仍仅包含 27 份 `.vibe/` Markdown，包括本正式记录；没有实现/注册/migration。本节新增记录本身尚不属于本次 reviewed SHA。
+
+### R1 反例的独立复核
+
+| 原反例 / 必要边界 | 新修订中可解析的 owning 路径与结论 |
+|---|---|
+| start 已提交、原集合某文件阻塞，新选独立合法子集 | [EP ACTIVE 首轮恢复](../../module-specs/Module-Spec-002-EnterpriseProject.md#active-首轮范围重核对与精确-human-scope-决定) 新 `request_initial_scope_confirmation` 仅接受 PREPARATION 模式 ACTIVE 且首次范围尚未接收；记录新 intent 和独立 `initial_work_scope_decision`，绑定原 start/当前 report/plan/整文件集合。旧 request/info/start 不改；路径闭合。 |
+| 新范围决定的真实 producer 与 start 引用 | 初次 startup 同事务独立产生 information 与 scope 两份决定；`START_FROM_SAME_REQUEST` 不提前引用未来 start，由真实不可变 request→start 事实验证。ACTIVE 恢复用 `EXISTING_FROZEN_START` 和真实精确 binding，不再激活信息或 start；消除了不存在/自洽伪造引用。 |
+| start 后、首次范围前补料令旧 report stale | EP/TE source、PreparationContext/Package 增加 `INITIAL_SCOPE_RECOVERY`，仅该 ACTIVE/PREPARATION 窗口读取冻结 start 并做新分析；旧 Task/Context 接受集不扩展。必要 start 依据失效须 impact review 阻接收，不能以新候选改冻结绑定。 |
+| 新范围写响应丢失 / PARTIAL / UNKNOWN / STALE | 新 EP get/resume 从原保存 intent/key 读取，不能换 report/文件；当前权限独立校验。TE 原 request/hash duplicate 返回同一真实 scope/Receipt，不重复 scope、启动或派发；旧成功事实保留。 |
+| 新旧 intent 同时竞争 / 初轮资格查询后变化 | [TE 唯一首次接收](../../module-specs/Module-Spec-003-TaskExecution.md#active-首轮恢复接受集与唯一接收事实) 定义 AUTHORITATIVE state Query 及最终 `(enterprise_id,project_id,purpose=INITIAL)` 唯一事务约束；Query 不保留资格，不同 intent 一 winner，输家不能把自身决定当成功。 |
+| 首轮已收到、旧 FULL_START、跨 Scope、伪决定、撤权、晚输出 | 窗口及 creationMode 明确拒绝，Human decision/Actor/current authorization 与 request→start 链精确验证；已关闭窗口输出只保留 observation/history，不覆盖可操作 current report，不授予后续批次或文件修改资格。 |
+
+IP、UI、Core Context、Domain、跨 Aggregate 一致性、Catalog、PostgreSQL 逻辑约束和 Runtime proposal 均与新增有界恢复分支对齐；EP-D14-010、TE-D14-008、IP-D14-006、IG-D14-007、UI-RD01-007、RA-D14-007 增加相应未来正负/竞态 trace，原 UNKNOWN、同键异 payload、跨 Project、撤权和 response-loss trace 继续适用。此次未发现新的阻塞语义缺陷，也未将实现策略偏好或后续能力作为 blocker。
+
+### 新修订验证及剩余门禁
+
+- 复用该实际工作集的 configured `vibe verify docs --json`：PASS（exit 0；27 Markdown 文件）。109 个链接/锚点检查为补充静态证据；不替代设计语义审查。
+- 独立新 head `git diff --check`：PASS。
+- 独立读回 [CI run 37884529676](https://github.com/qzhike/zhiju-business-core/actions/runs/37884529676)：headSha 为本次 reviewed SHA；此次读回时 `select` SUCCESS、`checks` / `Verify documentation` IN_PROGRESS、`persistence` SKIPPED。未把未完成 CI 当 PASS；上述本地 configured docs 证据满足此设计修订要求。
+- 真实 PostgreSQL/full、OIDC/public HTTP、Host/Runner conformance、Browser 支持矩阵与独立人工业务验收仍全部 `NOT RUN`。
+
+Issue #253 明确要求独立审查和精确修订 Human 技术批准后才冻结或使依赖实现 READY；公司 Runtime/model/模板/强制 rule bundle 等锁定选择仍需 Human 决定。Reviewer 角色不在尚有必需 Human 技术审查门禁时输出 `APPROVE`，因此本次角色结论为 `HUMAN_REVIEW_REQUIRED`，不是新的提案修复请求。可继续提交和展示 Draft 供 Human 审阅；此记录不批准冻结、开工、合并或部署。主 Implementer 纳入记录后的新 commit 若只增加审查交付文本，需要保留 reviewed SHA 与证明其提案内容未变，并完成适用 docs 检查。Reviewer 未修改提案、commit、push 或发布 GitHub 消息。
