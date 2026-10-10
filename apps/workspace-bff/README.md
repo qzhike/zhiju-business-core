@@ -16,13 +16,22 @@ pnpm --filter @zhiju/workspace-bff start
 ```
 
 `PORT` defaults to 3101; the server listens on loopback for a same-origin reverse
-proxy. `GET /bff/health` reports process health and unconfigured business integration.
-`GET /bff/bootstrap` reports reauthentication required and business actions disabled;
-it returns no identity, tokens or credentials. All other requests return a safe
-503 JSON error. Development switches cannot enable a fixture execution route.
+proxy. `GET /bff/health` reports process health and whether the trusted session
+integration is configured. `GET /bff/bootstrap` reports reauthentication required
+and business actions disabled; it returns no identity, tokens or credentials.
 
-OIDC certification, sessions, CSRF-protected writes and allowlisted public business
-proxies require later integration work. Merely providing environment URLs or a
-client secret does not activate them. The shell does not upload files, accept
-reports or fabricate Runner receipts. Request logging is disabled and error
-responses use a fixed safe message.
+With a valid `ZHIJU_WORKSPACE_TRUST_CONFIG` deployment document the BFF is the
+trusted Human session boundary: OIDC Authorization Code + PKCE sign-in with the
+closed callback acceptance set, separate ID/access-token validation, bounded
+single-process sessions with CSRF/Origin/Host protection, single-flight refresh,
+logout and the finite allowlisted query proxy to the fixed Core origin. Without
+that configuration it keeps the shell contract: every business request returns a
+safe 503 JSON error, no session or identity is produced and development switches
+cannot enable a fixture execution route. Missing production values are startup
+rejections, never guessed defaults.
+
+The BFF never uploads files, accepts reports or fabricates Runner receipts, and it
+holds no business drafts, original intents or receipts. Request logging is
+disabled and error responses use a fixed safe message with a random correlation
+id; tokens, cookies, the external subject and customer content are never logged
+or echoed. Real Keycloak, Core HTTP and manual acceptance remain `NOT RUN`.
