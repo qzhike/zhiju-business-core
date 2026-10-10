@@ -222,7 +222,7 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 
 ## D14 Runner 原调用与锁验收（#256）
 
-状态：`PROPOSED / NOT REGISTERED / NOT IMPLEMENTED / NOT RUN`。对应 [IG owning锁与观察](../module-specs/Module-Spec-007-IntegrationGateway.md#d14-runner-物化锁与原调用观察提案256)。future实际调用、journal、原bytes/hash与当前独立权限必需；只读安装和旧controlledsynthetic证据不能替代。
+状态：`PROPOSED / NOT REGISTERED / NOT RUN / INTERNAL CONTRACT CASE SET EXECUTED (#264)`。对应 [IG owning锁与观察](../module-specs/Module-Spec-007-IntegrationGateway.md#d14-runner-物化锁与原调用观察提案256)。future实际调用、journal、原bytes/hash与当前独立权限必需；只读安装和旧controlledsynthetic证据不能替代。#264 只覆盖内部 lock 契约与 `preflightD14RunnerMaterialization` 的 contract 级用例（`modules/integration-gateway/src/runtime/d14-runner-lock-preflight.test.ts`）；本表 IG-LOCK 行全部保持 `NOT RUN`，因为尚无真实 invocation/journal/独立权限证据。
 
 | ID | 输入 / 故障 | 预期owning判定 | 实际 / 结果 |
 |---|---|---|---|

@@ -582,7 +582,7 @@ pnpm persistence:gate
 
 ## #257 公司启动规则与词表设计场景
 
-状态：`DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / INTERNAL FOUNDATION AND TESTS IMPLEMENTED (#267) / D14 CONSUMER NOT IMPLEMENTED / IMPLEMENTATION REVIEW PENDING / PRODUCTION NOT RUN`。依据 [EP owning 字段](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 和 [公司清单/来源 Delta](../decisions/company-startup-rules-v0.1.md)。下表保留完整必要 trace；#267 只实现定义/发布/精确解析基础子迹。受控正链使用真实 owning 授权/导入/发布/持久化入口及全部已确认业务 codes，测试来源/批准不代替实际公司或客户来源；完整客户 start trace 仍未执行。
+状态：`DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / INTERNAL FOUNDATION AND TESTS IMPLEMENTED (#267) / D14 CONSUMER NOT IMPLEMENTED / IMPLEMENTATION REVIEW APPROVE / HUMAN IMPLEMENTATION TECHNICAL APPROVED 2026-10-10 / PRODUCTION NOT RUN`。实现批准绑定 `b834f072cd3b199693723131096abd8f2a8d4266`，见 [PR #268 正式记录](../reviews/pr-268/Review.md)。依据 [EP owning 字段](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案) 和 [公司清单/来源 Delta](../decisions/company-startup-rules-v0.1.md)。下表保留完整必要 trace；#267 只实现定义/发布/精确解析基础子迹。受控正链使用真实 owning 授权/导入/发布/持久化入口及全部已确认业务 codes，测试来源/批准不代替实际公司或客户来源；完整客户 start trace 仍未执行。
 
 | ID | 输入 / trace | 预期 owning 结果 | 实际 / 结果 |
 |---|---|---|---|

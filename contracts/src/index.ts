@@ -37,3 +37,5 @@ export * from './formal-output-profile.js';
 
 export * from './delivery-completion-profile.js';
 export * from './company-startup.js';
+
+export * from './d14-runner-execution-lock.js';

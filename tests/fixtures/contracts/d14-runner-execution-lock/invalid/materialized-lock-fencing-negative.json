@@ -1,0 +1,1147 @@
+{
+  "approvedConfiguration": {
+    "configurationVersion": "d14.runner.configuration@1.0",
+    "profileCode": "d14.analysis@1",
+    "runtime": {
+      "runtimeCode": "omp",
+      "productName": "Oh-My-Pi",
+      "invocationMode": "LOCAL_PROCESS",
+      "interactive": false
+    },
+    "model": {
+      "provider": "deepseek",
+      "modelId": "deepseek-flash",
+      "approvedModelVersion": "DeepSeek-V4.1-Flash",
+      "effort": "EXPLICIT",
+      "maxOutputTokens": 8192,
+      "maxContextTokens": 131072,
+      "maxTurns": 24,
+      "costBudgetUsdMax": 5
+    },
+    "toolSurface": {
+      "allowedTools": ["read", "grep", "glob", "write"],
+      "uriOrSchemeToolArguments": "DENIED",
+      "rootPlainFilesOnly": true,
+      "permissionRules": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_tool_permission_rules",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d221",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000000ea"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000000ea"
+        }
+      }
+    },
+    "skillAllowlist": [],
+    "mcpAllowlist": [],
+    "disabledCapabilities": {
+      "configurationDiscovery": "DISABLED",
+      "extensions": "DISABLED",
+      "hooks": "DISABLED",
+      "plugins": "DISABLED",
+      "subagents": "DISABLED",
+      "memory": "DISABLED",
+      "advisor": "DISABLED",
+      "auxiliaryModels": "DISABLED",
+      "fallback": "DISABLED",
+      "contextPromotion": "DISABLED",
+      "autoCompression": "DISABLED",
+      "autoTitle": "DISABLED"
+    },
+    "isolationPolicy": {
+      "perRunUid": true,
+      "perRunMountNamespace": true,
+      "perRunPidNamespace": true,
+      "perRunNetworkNamespace": true,
+      "nonRoot": true,
+      "dropCapabilities": true,
+      "noNewPrivileges": true,
+      "readOnlyRootfs": true,
+      "mandatoryAccessControl": true,
+      "seccompProfile": true,
+      "cgroupLimits": true
+    },
+    "dataPolicy": {
+      "customerMaterialEgress": "CONDITIONAL_APPROVAL_REQUIRED",
+      "requiresCustomerDataApproval": true,
+      "policy": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_data_policy",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d222",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000000f1"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000000f1"
+        }
+      }
+    },
+    "controlPolicy": {
+      "wallClockSecondsMax": 900,
+      "workOrderSecondsMax": 1800,
+      "maxAttempts": 2,
+      "dispatchObservationWindowSeconds": 30,
+      "hostHeartbeatSeconds": 15,
+      "runLeaseSeconds": 60,
+      "stopGraceSeconds": 5,
+      "runCostBudgetUsdMax": 5,
+      "totalCostBudgetUsdMax": 10,
+      "memoryBytesMax": 2147483648,
+      "pidsMax": 32,
+      "outputBytesMax": 33554432,
+      "supportedControls": ["HOST_HEARTBEAT", "CLI_PROGRESS", "PROVIDER_USAGE"],
+      "unsupportedControls": [
+        "record_run_suspension",
+        "resume_suspended_run",
+        "acknowledge_run_cancellation"
+      ]
+    },
+    "selectionEvidence": {
+      "ref": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.platform.runner_selection_evidence",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d223",
+        "scope": {},
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000000f8"
+        }
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "00000000000000000000000000000000000000000000000000000000000000f8"
+      }
+    },
+    "designReview": {
+      "ref": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.platform.runner_design_review",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d224",
+        "scope": {},
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000000ff"
+        }
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "00000000000000000000000000000000000000000000000000000000000000ff"
+      }
+    },
+    "technicalApproval": {
+      "ref": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.platform.runner_technical_approval",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d225",
+        "scope": {},
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000106"
+        }
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000106"
+      }
+    },
+    "reviewedRevision": "8e8d2715b815179e92a18f444fb0eca13d58d466",
+    "configurationHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "b1504c6e97a2d688824d39138b0ec37438b80083f4546a70d8e5a038b42872fd"
+    }
+  },
+  "installationObservation": {
+    "observationId": "018f22e2-7c15-7b2e-8d86-2de956a9d20b",
+    "observationVersion": "d14.runner.observation@1.0",
+    "observedAt": "2026-10-09T11:40:00Z",
+    "platform": {
+      "osFamily": "linux",
+      "osRelease": "Ubuntu 24.04.1 LTS",
+      "kernelVersion": "6.8.0-47-generic",
+      "architecture": "x64"
+    },
+    "cli": {
+      "executableCode": "omp",
+      "resolvedExecutablePath": "/opt/zhiju/runner/omp/18.5.0/omp",
+      "observedCliVersion": "omp/18.5.0",
+      "cliBinarySha256": "000000000000000000000000000000000000000000000000000000000000007a"
+    },
+    "adapter": {
+      "adapterCode": "zhiju.runtime.omp_adapter",
+      "adapterVersion": "1.0",
+      "sourceSha256": "000000000000000000000000000000000000000000000000000000000000008f",
+      "buildSha256": "0000000000000000000000000000000000000000000000000000000000000096"
+    },
+    "harness": {
+      "harnessId": "zhiju.runtime.omp",
+      "harnessVersion": "1.0"
+    },
+    "observedCapabilities": [
+      "OMP_PRINT",
+      "OMP_JSON",
+      "OMP_NO_SESSION",
+      "OMP_TOOLS_SELECTOR",
+      "OMP_NO_EXTENSIONS",
+      "OMP_NO_SKILLS",
+      "OMP_NO_RULES"
+    ],
+    "unprobedItems": [
+      "PROVIDER_MODEL_VERSION_BINDING",
+      "CUSTOMER_DATA_AUTHORIZATION",
+      "PUBLISHED_TEMPLATES",
+      "STARTUP_RULES",
+      "V02_EVIDENCE_TOOLS"
+    ],
+    "observationHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "22fc5122d19407c8820cba3a285a2abfc8dd7b2e0ffa6d229c798dbbe2b9c967"
+    }
+  },
+  "lockPayload": {
+    "lockId": "018f22e2-7c15-7b2e-8d86-2de956a9d20c",
+    "lockVersion": "1.0",
+    "profileCode": "d14.analysis@1",
+    "identity": {
+      "approvedConfigurationVersion": "d14.runner.configuration@1.0",
+      "approvedConfigurationHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "b1504c6e97a2d688824d39138b0ec37438b80083f4546a70d8e5a038b42872fd"
+      },
+      "installationObservationId": "018f22e2-7c15-7b2e-8d86-2de956a9d20b",
+      "installationObservationHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "22fc5122d19407c8820cba3a285a2abfc8dd7b2e0ffa6d229c798dbbe2b9c967"
+      },
+      "reviewedRevision": "8e8d2715b815179e92a18f444fb0eca13d58d466",
+      "selectionEvidence": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.runner_selection_evidence",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d223",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000000f8"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000000f8"
+        }
+      },
+      "designReview": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.runner_design_review",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d224",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000000ff"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000000ff"
+        }
+      },
+      "technicalApproval": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.runner_technical_approval",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d225",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000106"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000106"
+        }
+      }
+    },
+    "runtime": {
+      "executableCode": "omp",
+      "resolvedExecutablePath": "/opt/zhiju/runner/omp/18.5.0/omp",
+      "observedCliVersion": "omp/18.5.0",
+      "cliBinarySha256": "000000000000000000000000000000000000000000000000000000000000007a",
+      "cliBuildSha256": "0000000000000000000000000000000000000000000000000000000000000081",
+      "cliDependencyLockBytesSha256": "0000000000000000000000000000000000000000000000000000000000000088",
+      "adapterCode": "zhiju.runtime.omp_adapter",
+      "adapterVersion": "1.0",
+      "adapterSourceSha256": "000000000000000000000000000000000000000000000000000000000000008f",
+      "adapterBuildSha256": "0000000000000000000000000000000000000000000000000000000000000096",
+      "harnessId": "zhiju.runtime.omp",
+      "harnessVersion": "1.0",
+      "hostImageDigest": "sha256:000000000000000000000000000000000000000000000000000000000000009d",
+      "hostOsRelease": "Ubuntu 24.04.1 LTS",
+      "hostKernelVersion": "6.8.0-47-generic",
+      "hostArchitecture": "x64",
+      "launcherVersion": "1.0",
+      "launcherDigest": "00000000000000000000000000000000000000000000000000000000000000a4",
+      "parserVersion": "1.0",
+      "parserDigest": "00000000000000000000000000000000000000000000000000000000000000ab"
+    },
+    "model": {
+      "provider": "deepseek",
+      "modelId": "deepseek-flash",
+      "approvedModelVersion": "DeepSeek-V4.1-Flash",
+      "modelConfigHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "000000000000000000000000000000000000000000000000000000000000015a"
+      },
+      "fixedVersionBinding": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.deepseek_flash_version_binding",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d232",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000161"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000161"
+        }
+      },
+      "perInvocationVerificationRule": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.deepseek_invocation_verification",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d233",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000168"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000168"
+        }
+      },
+      "identityBindingPolicy": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.company_identity_binding",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d234",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000016f"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "000000000000000000000000000000000000000000000000000000000000016f"
+        }
+      },
+      "apiTransport": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.deepseek_api_transport",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d235",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000176"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000176"
+        }
+      },
+      "apiEndpoint": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.deepseek_api_endpoint",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d236",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000017d"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "000000000000000000000000000000000000000000000000000000000000017d"
+        }
+      },
+      "networkPolicy": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_network_policy",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d237",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000184"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000184"
+        }
+      },
+      "dataPolicy": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_data_policy",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d222",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000000f1"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000000f1"
+        }
+      }
+    },
+    "promptTools": {
+      "systemPrompt": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_system_prompt",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d241",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000001ca"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000001ca"
+        },
+        "bytesSha256": "00000000000000000000000000000000000000000000000000000000000001ca"
+      },
+      "taskPrompt": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_task_prompt",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d242",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000001d1"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000001d1"
+        },
+        "bytesSha256": "00000000000000000000000000000000000000000000000000000000000001d1"
+      },
+      "effectiveSettingsHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "00000000000000000000000000000000000000000000000000000000000001d8"
+      },
+      "toolPermissionRules": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_tool_permission_rules",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d221",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000000ea"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000000ea"
+        }
+      },
+      "toolAllowlist": ["read", "grep", "glob", "write"],
+      "skillAllowlist": [],
+      "mcpAllowlist": [],
+      "disabledCapabilities": {
+        "configurationDiscovery": "DISABLED",
+        "extensions": "DISABLED",
+        "hooks": "DISABLED",
+        "plugins": "DISABLED",
+        "subagents": "DISABLED",
+        "memory": "DISABLED",
+        "advisor": "DISABLED",
+        "auxiliaryModels": "DISABLED",
+        "fallback": "DISABLED",
+        "contextPromotion": "DISABLED",
+        "autoCompression": "DISABLED",
+        "autoTitle": "DISABLED"
+      }
+    },
+    "templates": {
+      "templateRefs": [
+        {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.d14_template_a",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d251",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "000000000000000000000000000000000000000000000000000000000000023a"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000023a"
+          },
+          "bytesSha256": "000000000000000000000000000000000000000000000000000000000000023a",
+          "publicationReceiptRef": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.publication_receipt",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d252",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "0000000000000000000000000000000000000000000000000000000000000241"
+            }
+          }
+        },
+        {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.d14_template_b",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d253",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "0000000000000000000000000000000000000000000000000000000000000248"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000248"
+          },
+          "bytesSha256": "0000000000000000000000000000000000000000000000000000000000000248",
+          "publicationReceiptRef": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.publication_receipt",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d254",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "000000000000000000000000000000000000000000000000000000000000024f"
+            }
+          }
+        }
+      ],
+      "ruleBundle": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_rule_bundle",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d255",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000256"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000256"
+        },
+        "bytesSha256": "0000000000000000000000000000000000000000000000000000000000000256",
+        "publicationReceiptRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.publication_receipt",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d256",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000025d"
+          }
+        }
+      },
+      "startupRules": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_startup_rules",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d257",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000264"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000264"
+        }
+      },
+      "vocabulary": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_vocabulary",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d258",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000026b"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "000000000000000000000000000000000000000000000000000000000000026b"
+        },
+        "bytesSha256": "000000000000000000000000000000000000000000000000000000000000026b"
+      }
+    },
+    "outputTools": {
+      "inputAliasManifest": {
+        "schemaRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.input_alias_manifest_schema",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d261",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000002aa"
+          }
+        },
+        "schemaVersion": "0.2.0",
+        "bytesSha256": "00000000000000000000000000000000000000000000000000000000000002b1"
+      },
+      "preparationSource": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.project.preparation_source",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d263",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000002b8"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000002b8"
+        }
+      },
+      "preparationContext": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.execution.preparation_context",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d264",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000002bf"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000002bf"
+        }
+      },
+      "outputProfile": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_output_profile",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d265",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000002c6"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000002c6"
+        }
+      },
+      "outputSchema": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.d14_startup_report_schema",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d266",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000002cd"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000002cd"
+        }
+      },
+      "reader": {
+        "toolCode": "zhiju.d14.reader",
+        "toolVersion": "0.2.0",
+        "codeRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.zhiju_d14_reader",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d271",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000031a"
+          }
+        },
+        "codeBytesSha256": "0000000000000000000000000000000000000000000000000000000000000321",
+        "runtime": {
+          "runtimeCode": "zhiju.runtime.python",
+          "runtimeVersion": "3.12.0"
+        },
+        "dependencyLockBytesSha256": "0000000000000000000000000000000000000000000000000000000000000328",
+        "buildSha256": "000000000000000000000000000000000000000000000000000000000000032f",
+        "commandTemplate": "zhiju.d14.reader --input <manifest> --output <root>"
+      },
+      "validator": {
+        "toolCode": "zhiju.d14.validator",
+        "toolVersion": "0.2.0",
+        "codeRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.zhiju_d14_validator",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d275",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000336"
+          }
+        },
+        "codeBytesSha256": "000000000000000000000000000000000000000000000000000000000000033d",
+        "runtime": {
+          "runtimeCode": "zhiju.runtime.python",
+          "runtimeVersion": "3.12.0"
+        },
+        "dependencyLockBytesSha256": "0000000000000000000000000000000000000000000000000000000000000344",
+        "buildSha256": "000000000000000000000000000000000000000000000000000000000000034b",
+        "commandTemplate": "zhiju.d14.validator --input <manifest> --output <root>"
+      },
+      "renderer": {
+        "toolCode": "zhiju.d14.renderer",
+        "toolVersion": "0.2.0",
+        "codeRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.platform.zhiju_d14_renderer",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d279",
+          "scope": {},
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000352"
+          }
+        },
+        "codeBytesSha256": "0000000000000000000000000000000000000000000000000000000000000359",
+        "runtime": {
+          "runtimeCode": "zhiju.runtime.python",
+          "runtimeVersion": "3.12.0"
+        },
+        "dependencyLockBytesSha256": "0000000000000000000000000000000000000000000000000000000000000360",
+        "buildSha256": "0000000000000000000000000000000000000000000000000000000000000367",
+        "commandTemplate": "zhiju.d14.renderer --input <manifest> --output <root>"
+      }
+    },
+    "boundary": {
+      "policies": {
+        "filesystem": {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.d14_filesystem_policy",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d281",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "000000000000000000000000000000000000000000000000000000000000038a"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000038a"
+          }
+        },
+        "network": {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.d14_network_policy",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d282",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "0000000000000000000000000000000000000000000000000000000000000391"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000391"
+          }
+        },
+        "tool": {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.d14_tool_policy",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d283",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "0000000000000000000000000000000000000000000000000000000000000398"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000398"
+          }
+        },
+        "data": {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.d14_data_policy",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d284",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "000000000000000000000000000000000000000000000000000000000000039f"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000039f"
+          }
+        },
+        "resource": {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.d14_resource_policy",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d285",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "00000000000000000000000000000000000000000000000000000000000003a6"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000003a6"
+          }
+        },
+        "control": {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.d14_control_policy",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d286",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "00000000000000000000000000000000000000000000000000000000000003ad"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000003ad"
+          }
+        },
+        "retention": {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.d14_retention_policy",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d287",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "00000000000000000000000000000000000000000000000000000000000003b4"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000003b4"
+          }
+        },
+        "cleanup": {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.platform.d14_cleanup_policy",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d288",
+            "scope": {},
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "00000000000000000000000000000000000000000000000000000000000003bb"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000003bb"
+          }
+        }
+      },
+      "scope": {
+        "enterprise": {
+          "ref": {
+            "kind": "OBJECT",
+            "objectType": "zhiju.project.enterprise",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d291",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "00000000000000000000000000000000000000000000000000000000000003fa"
+          }
+        },
+        "project": {
+          "ref": {
+            "kind": "OBJECT",
+            "objectType": "zhiju.project.project",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d292",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000401"
+          }
+        },
+        "task": {
+          "ref": {
+            "kind": "OBJECT",
+            "objectType": "zhiju.execution.task",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d293",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000408"
+          }
+        },
+        "workOrder": {
+          "ref": {
+            "kind": "OBJECT",
+            "objectType": "zhiju.execution.work_order",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d294",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000040f"
+          }
+        },
+        "workOrderContract": {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.contract.work_order",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d295",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "0000000000000000000000000000000000000000000000000000000000000416"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000416"
+          }
+        },
+        "run": {
+          "ref": {
+            "kind": "OBJECT",
+            "objectType": "execution.run",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d296",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000041d"
+          }
+        },
+        "attempt": {
+          "ref": {
+            "kind": "OBJECT",
+            "objectType": "integration.runtime_attempt",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d297",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000424"
+          }
+        },
+        "package": {
+          "ref": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "zhiju.runtime.execution_package",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d298",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "000000000000000000000000000000000000000000000000000000000000042b"
+            }
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "000000000000000000000000000000000000000000000000000000000000042b"
+          }
+        }
+      },
+      "analysisRequestKey": "d14-analysis-0001",
+      "inputManifestBytesSha256": "0000000000000000000000000000000000000000000000000000000000000432",
+      "leaseId": "018f22e2-7c15-7b2e-8d86-2de956a9d20a",
+      "fencingToken": -1,
+      "issuedAt": "2026-10-09T10:00:00Z",
+      "validUntil": "2026-10-10T00:00:00Z",
+      "phase": "PREPARING",
+      "outputRoot": {
+        "ref": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "zhiju.integration.run_output_root",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d29a",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "0000000000000000000000000000000000000000000000000000000000000439"
+          }
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000439"
+        }
+      }
+    }
+  },
+  "trustedNow": "2026-10-09T12:00:00Z"
+}

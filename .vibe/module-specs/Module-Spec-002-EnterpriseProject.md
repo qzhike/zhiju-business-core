@@ -1012,7 +1012,7 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 
 ## #257 公司启动规则与词表字段提案
 
-状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / INTERNAL FOUNDATION IMPLEMENTED (#267) / D14 CONSUMER NOT IMPLEMENTED / IMPLEMENTATION REVIEW PENDING / PRODUCTION NOT RUN`。公司清单、范围、来源、理由和支持集选择唯一维护在 [公司规则 Delta §1–2](../decisions/company-startup-rules-v0.1.md#2-提交确认的必需清单与词表)；本节拥有字段及确定性业务校验，IP 拥有政策身份、发布事实/当前性与授权。现有 Product/QMS/Fact/Profile、完整 create_project、D14 技术批准与生产 Catalog 接受集不因本内部基础改变。
+状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / INTERNAL FOUNDATION IMPLEMENTED (#267) / D14 CONSUMER NOT IMPLEMENTED / IMPLEMENTATION REVIEW APPROVE / HUMAN IMPLEMENTATION TECHNICAL APPROVED 2026-10-10 / PRODUCTION NOT RUN`。实现批准绑定 `b834f072cd3b199693723131096abd8f2a8d4266`，见 [PR #268 正式记录](../reviews/pr-268/Review.md)。公司清单、范围、来源、理由和支持集选择唯一维护在 [公司规则 Delta §1–2](../decisions/company-startup-rules-v0.1.md#2-提交确认的必需清单与词表)；本节拥有字段及确定性业务校验，IP 拥有政策身份、发布事实/当前性与授权。现有 Product/QMS/Fact/Profile、完整 create_project、D14 技术批准与生产 Catalog 接受集不因本内部基础改变。
 
 ### 规则、词表和精确 requirement
 

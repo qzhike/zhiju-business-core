@@ -10,3 +10,4 @@ export * from './renderer/deterministic-ooxml-renderer.js';
 export * from './renderer/in-memory-render-object-storage.js';
 export * from './renderer/render-attempt-service.js';
 export * from './runtime/controlled-runtime-dispatch.js';
+export * from './runtime/d14-runner-lock-preflight.js';

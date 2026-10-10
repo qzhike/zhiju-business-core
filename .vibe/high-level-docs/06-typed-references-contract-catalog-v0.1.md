@@ -1502,7 +1502,7 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 
 ## #257 公司启动规则引用提案
 
-状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / INTERNAL FOUNDATION REGISTERED AND IMPLEMENTED (#267) / D14 CONSUMER NOT IMPLEMENTED / IMPLEMENTATION REVIEW PENDING / PRODUCTION NOT RUN`。本节为 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md) 的 owner/reference 导航；#267 增加独立内部 registry/closed validator 和 owning 接线，公开 operation 数、公开 Registry/Schema 与 compatibility baseline 不变。
+状态：`T2 / DESIGN APPROVED / HUMAN BUSINESS CONFIRMED 2026-10-09 / INDEPENDENT DESIGN REVIEW PASSED 2026-10-09 / HUMAN TECHNICAL APPROVED 2026-10-09 / INTERNAL FOUNDATION REGISTERED AND IMPLEMENTED (#267) / D14 CONSUMER NOT IMPLEMENTED / IMPLEMENTATION REVIEW APPROVE / HUMAN IMPLEMENTATION TECHNICAL APPROVED 2026-10-10 / PRODUCTION NOT RUN`。实现批准绑定 `b834f072cd3b199693723131096abd8f2a8d4266`，见 [PR #268 正式记录](../reviews/pr-268/Review.md)。本节为 [公司规则 Delta](../decisions/company-startup-rules-v0.1.md) 的 owner/reference 导航；#267 增加独立内部 registry/closed validator 和 owning 接线，公开 operation 数、公开 Registry/Schema 与 compatibility baseline 不变。
 
 | 引用 / profile | 唯一 Owner / Scope / fields |
 |---|---|
