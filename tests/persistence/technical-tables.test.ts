@@ -65,6 +65,13 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     // IM-06 (#186) scoped PolicyVersion facts landed by V1005.
     'policy_version',
     'execution_capability_bundle',
+    // IM-UI-01 T2 (#267): independently owned Platform company-rule facts.
+    'company_rule_authority',
+    'company_rule_snapshot',
+    'company_rule_publication',
+    'company_rule_withdrawal',
+    'company_rule_receipt',
+    'company_rule_audit',
   ],
   enterprise_project: [
     'business_probe',
@@ -117,6 +124,10 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'regulatory_profile',
     'regulatory_profile_version',
     'regulatory_profile_item',
+    // IM-UI-01 T2 (#267): independently owned company-startup requirements.
+    'company_startup_requirement',
+    'company_startup_requirement_publication',
+    'company_startup_receipt',
     // IM-03 WI-09 (issue #65): Project-owned GapAnalysis input, version,
     // finding and Human decision facts.
     'gap_analysis',

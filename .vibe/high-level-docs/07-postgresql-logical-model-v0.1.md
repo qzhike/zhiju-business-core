@@ -2511,3 +2511,14 @@ forward migration 必须验证旧 binding exact refs/Scope/hash 后赋 FULL_STAR
 EP每项独立取得IP当前PROJECT Decision后，在精确enterprise_id+project_id Context读取自身摘要；无全库空Scope事务、跨Schema SQL join或共享Repository。目录cursor/source watermark仅为读取证据，不写客户业务事实或授权限；EP名字摘要输出范围为此新Query已批准的最小展示字段。未来实现须用真实PostgreSQL证明专用role/Context不能读别主体、旧role无权限、新role不能写/读EP、逐项目RLS与撤权/翻页拒绝，并运行 `full`。
 
 OIDC token、Cookie、CSRF、refresh锁仅在批准的BFF有界技术内存中；业务意图/草稿/Receipt不进入它。IP历史Actor/Decision只保存认证摘要及hash、当前Scope与授权绑定，无raw token/Subject或跨模块FK。重启/换Session不删除或回填原业务意图、历史Actor、Receipt，禁止通过改RLS/伪snapshot解决无身份入口。
+
+
+## #267 公司启动规则 Platform 持久化
+
+依据已批准 [IP #257](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案) 与 [EP #257](../module-specs/Module-Spec-002-EnterpriseProject.md#257-公司启动规则与词表字段提案)，公司快照、publication/withdrawal 和 Platform 授权 provenance 使用 IP owning 独立表，requirement 定义/发布使用 EP owning 独立表。与历史 policy_snapshot/policy_version 和 Enterprise/Project 数据分表，无跨 Schema FK 或共享 Repository。
+
+新表完整 canonical JSONB/hash 和 promoted identity 镜像由 owning 写入路径及数据库 guard 校验；不可变事实 REVOKE UPDATE/DELETE，触发器拒绝重写。snapshotId 与 registry/profile/code/version、publication code/version、supersession predecessor 单后继、requirement code/version 分别唯一。成功 Receipt 与业务事实/审计在同一 owning 事务提交，结果契约失败全部回滚；replay 先重验当次权限，返回原结果。独立 Platform 角色需要显式部署 membership，RLS FORCE 验证有效技术控制上下文；普通 app、dispatcher 和 projection 不取得公司内容访问。当前撤权检查使用 IP owning READ COMMITTED Port，历史发布事实不随 Grant 撤销 UPDATE。
+
+迁移 `V7016__company_rule_platform.sql` 创建 IP authority/snapshot/publication/withdrawal/receipt/audit；`V7017__company_startup_requirement.sql` 创建 EP requirement/publication/receipt。业务事实与成功 Receipt 使用同 owner deferred FK 闭合，provenance 必须匹配当前技术上下文的 Actor/Decision/ref hash；IP guard 另核对实际 Decision 的 operation/target/完整请求 Hash。EP 新角色仅 SELECT 既有 Template/Regulatory 四表，不继承其发布写角色；任何跨 owner 的当前授权仍经 IP Port 完成。
+
+#267 明确要求的 forward-only 持久化使用上述两个精确编号：V7016 仅属 identity_policy，V7017 仅属 enterprise_project，位于共用 history 的 V7015 之后。编号接受集同步于 `migrations/README.md` 与 `tests/business/migration-isolation.test.ts`，其它目录含 IntegrationGateway 均不得重用；其它号段、已应用 migration 与禁用 out-of-order 的规则不变。

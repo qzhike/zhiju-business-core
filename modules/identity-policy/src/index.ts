@@ -451,3 +451,7 @@ export {
   taskCompletedDeliveryBindings,
   type TaskCompletedDeliveryAuthorizationConfig,
 } from './commands/work-order-validation-authorization.js';
+
+export * from './persistence/company-rule-db.js';
+export * from './commands/company-rule-authorization.js';
+export * from './commands/company-rule-handlers.js';
