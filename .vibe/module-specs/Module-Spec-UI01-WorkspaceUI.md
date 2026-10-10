@@ -289,6 +289,8 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 7. 所有POST Query/业务写/上传/登出/技术活动要求精确Origin/Host/CSRF/Content-Type；只有绑定的OIDC callback例外。受保护响应no-store，安全Markdown/CSP与遥测allowlist沿Delta；Scope/Principal变更与失权清DOM/cache/objectURL，generation检查迟到响应、multiTab失效与bfcache恢复。
 8. 独立设计Review和人类技术批准、actual deployment lock/Registry/当前权限/公开HTTP与D14依赖分开确认。真实OIDC/PostgreSQL/Host/Runner/Chrome/Edge/Manual仍NOT RUN，不因docs gate通过宣告可用Session或任务READY。
 
+实现事实（#266）：上述 1–8 条的 BFF/Web 路径、封闭 Core 技术配置（`ZHIJU_WORKSPACE_TRUST_CONFIG`）与部署锁定值（capability code 映射、`ZHIJU_WORKSPACE_BOARD_CURSOR_KEY`、`ZHIJU_WORKSPACE_BOARD_POLICY_REFS`）已实现并有确定性本地、一次性 PostgreSQL、真实公开 HTTP 与 Chromium 制品旅程证据。首版 `execution.get_task_board_slice@1.0` 仍要求部署为该 Project 配置精确 Board Policy 版本引用：未配置时 owning 入口按既有语义返回 `DEPENDENCY_UNAVAILABLE` 并由 UI 诚实显示不可用，不伪造看板数据；`project.get_project_board_slice@1.0` 只需该 Project 的独立 board 读授权。目录页的 EP 水位是首屏受权摘要的读取观察，不是全局计数、未授权项目计数或完成度。受控 Keycloak 部署、实际 Chrome/Edge 平台矩阵、生产与人工验收仍 `NOT RUN`。
+
 ## D12 / Q11 项目交付与原意图恢复提案（#260）
 
 状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。owning字段/Hash/操作候选见 [REL §14](Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260)，跨轮次/失败trace见 [Spec Delta](../decisions/project-delivery-controlled-export.md#5-设计-trace-与必要反例)。已批准 #project-delivery/#delivery/#execution-review 布局与中文产品文案保留，原型sessionStorage/合成ZIP不成为生产事实。
