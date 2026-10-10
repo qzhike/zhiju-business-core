@@ -1141,6 +1141,7 @@ IP每项以服务自身ActorSnapshot/PolicySnapshot当前hash、完整Enterprise
 |---|---|
 | execution.file_constraint_review.prepare/read | HUMAN_ONLY；exactProject+已接收workScope/full file/plan及原准备request/key/hash；先当前Human与逐owner源/模板/保护内容读权，不要求未来Root/Revision/constraints；不可读则protected reads=0，Query不prepare/confirm/dispatch |
 | artifact.file_constraint_review.prepare/read | 固定TE/ART专用SERVICE各自当前producer/read权限及TE原准备意图、exact源/map/proposal读权；Human公开内容可读性独立检查，service许可不能提升Human权限；不授constraints.confirm或生成/Root创建权 |
+| execution.file_constraint_review_binding.read | 仅专用ART SERVICE读取TE原准备请求及Receipt，exactScope/file/plan/Hash；独立于Human公开prepare/read及ART自身producer权限，不借旧Human/Run Grant，不触发任何写入 |
 | artifact.file_constraints.confirm、execution.file_generation.request、execution.file_edit.submit、execution.file_request.resume | HUMAN_ONLY；exactProject+完整file/plan/current base/原intent+payload hash；当前Project成员/能力、ActorSnapshot/Decision；Scope receipt、草稿或历史Human Decision不等于当次执行授权 |
 | execution.file_draft.create/save/read | 当前HUMAN且draft.authorRef=trusted principal；同Enterprise+Project/workScope/file/base；Project read/admin权不能替代本人谓词；AGENT/SERVICE/RUNTIME/另一Human/actingFor全部拒绝私稿读取，protected reads=0 |
 | execution.file_request.read、execution.file_review.read、execution.file_directory.read、artifact.file_candidate.read/file_review.read/file_diff.read/file_locations.read | 当前Human或声明用途的专用SERVICE；exactScope及每个owner原source读权；原intent作者信息按项目权限裁剪，未提交私稿永不加入共享结果 |

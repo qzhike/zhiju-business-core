@@ -454,7 +454,7 @@ rangeProposal是对原plan每个change/KEEP/protected项的具体source locator�
 
 protectedBindings 每项为 protectedFactId、exact EvidenceRef/必要 Fact/Product/QMS version refs、sourceSnapshotRef/locator/capturedContentHash、claimUnitIds、claimHash、relationshipBindings（父子/字段角色/客户职责关系的精确 stable IDs+hash）、requiredUnchanged=true。方针、目标、组织职责、既有流程及产品要求保留完整原文和关系；结构化依据不转换为 TEXT Fact。任何 protectedImpact/exception/conflict 未解决、claimed unit缺失、同名映射歧义或必要 Evidence 当前不可用均 BLOCKED。旧源→新结构无法严格校验时先人工核对映射，不用 Runner “无影响”声明替代保护证据。
 
-确认前Human公开入口为[TE §28.0](Module-Spec-003-TaskExecution.md#280-确认前的提案准备与公开读回)的prepare Command和get Query组合。ART内部readFileConstraintReview Port只接受专用TE SERVICE的当前artifact.file_constraint_review.read权限及本request真实mapping/proposal refs，返回完整上述payload/精确Ref/cv1 Hash、currentEligibility/sourceWatermarks；逐项核TE原准备意图、同Scope/file/plan和当前源/保护读权，缺Root/Revision不影响新文件读取。新的range请求可显式引用前一准备请求仍有效的exact mapping，proposal.preparationRequestRef指新请求、mapping.preparationRequestRef保留原来源，TE/ART核两个请求同file/plan/源水位而不改旧hash。读回及Browser均不触发producer；无完整提案不能confirm，来源/CAS变动提交时拒STALE。
+确认前Human公开入口为[TE §28.0](Module-Spec-003-TaskExecution.md#280-确认前的提案准备与公开读回)的prepare Command和get Query组合。ART producer/read Port经TE内部readFileConstraintReviewRequest与自身当前SERVICE binding-read权限核验真实准备意图/Receipt，不能调用Human-only公开Query或仅信caller payload。ART内部readFileConstraintReview Port只接受专用TE SERVICE的当前artifact.file_constraint_review.read权限及本request真实mapping/proposal refs，返回完整上述payload/精确Ref/cv1 Hash、currentEligibility/sourceWatermarks；逐项核TE原准备意图、同Scope/file/plan和当前源/保护读权，缺Root/Revision不影响新文件读取。新的range请求可显式引用前一准备请求仍有效的exact mapping，proposal.preparationRequestRef指新请求、mapping.preparationRequestRef保留原来源，TE/ART核两个请求同file/plan/源水位而不改旧hash。读回及Browser均不触发producer；无完整提案不能confirm，来源/CAS变动提交时拒STALE。
 
 以下操作均为拟 @1.0、共享 Envelope、同 Project：
 
