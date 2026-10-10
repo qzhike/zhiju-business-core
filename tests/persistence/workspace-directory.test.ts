@@ -975,7 +975,14 @@ describe.skipIf(!databaseUrl)(
       const firstData = expectOk(asRecord(first.payload));
       const cursor = String(firstData.nextCursor);
 
-      const tampered = `${cursor.slice(0, -1)}${cursor.endsWith('A') ? 'B' : 'A'}`;
+      // Tamper with a decoded payload byte: flipping the last base64 character
+      // can leave the decoded bytes untouched when it only carries padding bits,
+      // which would make this counter-example flaky instead of deterministic.
+      const cursorBytes = Buffer.from(cursor, 'base64url');
+      const firstByte = cursorBytes.at(0);
+      if (firstByte === undefined) throw new Error('the served cursor is empty');
+      cursorBytes.set([firstByte ^ 0xff], 0);
+      const tampered = cursorBytes.toString('base64url');
       const tamperedResult = await localDispatch.execute(
         requestFor(PRINCIPAL_T, directoryBody({ pageSize: 1, cursor: tampered })),
       );
