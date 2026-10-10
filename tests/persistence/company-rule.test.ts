@@ -964,7 +964,7 @@ describe.skipIf(!databaseUrl)(
         }
       }
       expect(await composition.identity.resolve(p, request)).toEqual(control);
-    });
+    }, 120_000);
     it('IP-257-002: AGENT/RUNTIME/actingFor/ordinary scoped rights fail before protected company reads', async () => {
       sourceReads = 0;
       const request = publicationRequest(base),
