@@ -1,6 +1,6 @@
 # PR #265 独立实现审查
 
-本文件保留五轮审查的独立证据。前四轮记录分别对应 `f42ca47`、`a7dfd3b`、`0dc2402` 与 `37f6ab8`，已纳入修复提交；其中当时的工作区与交付状态是历史事实。当前结论见文末[第五轮复审](#第五轮复审b2e57ec)：`REQUEST_CHANGES`，R1/R2/R3/R5 已关闭，R4 的 `immutableVersionId` 与 adapter/harness 子问题已修复，Provider/data 的必需 pin 仍缺完整引用身份读回与比较。
+本文件保留六轮审查的独立证据。前五轮记录分别对应 `f42ca47`、`a7dfd3b`、`0dc2402`、`37f6ab8` 与 `b2e57ec`，已纳入修复提交；其中当时的工作区与交付状态是历史事实。当前结论见文末[第六轮复审](#第六轮复审1c72b2d)：`REQUEST_CHANGES`，R1–R5 的原发现已关闭；本轮新增 R6（P2），Provider/data 的必需嵌套读回或 ref 缺失时抛出 TypeError，未形成显式拒绝结果。
 
 ## 审查对象与结论
 
@@ -421,3 +421,82 @@ GitHub comment 已发布并独立读回：[审查评论 issuecomment-6081118264]
 本轮按用户授权发布普通 PR comment 并读回，记录 Reviewed SHA、关闭状态、剩余 R4、当前配置证据与 NOT RUN 边界。普通 comment 不等于 GitHub 原生 REQUEST_CHANGES review；正式文档的 Git 交付仍未授权。本 Reviewer 没有修复产品代码、commit、push、merge、关闭/重开 PR 或重跑远程 CI。
 
 第五轮 comment 已通过 GitHub CLI 发布并从服务端独立读回：[复审评论 issuecomment-6091592887](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6091592887)。API 读回的完整 body 与准备的英文评论逐字一致，作者为 galendai，created_at 为 `2026-10-10T00:26:00Z`；首 token 为 REQUEST_CHANGES，永久链接一致。正文保留精确 reviewed SHA、已关闭子问题、剩余 R4 三个引用身份反例、52 项 diagnostic 的 49 通过/3 失败、Reviewer 本地 code PASS、当前 CI attempt #2 PASS 与 NOT RUN 边界。再次读回 PR，head 仍为 `b2e57ec59fb28abcf643e4fcb24c35db3279b0a4`、isDraft=true，评论从十条增至十一条，最新 comment URL 与本轮发布一致，确认仅新增一条。浏览器内容显示异常时改用恢复可用的 CLI，没有从未显示成功的 UI 推断已发布；本轮工作区仅此正式记录有改动，未 commit/push。
+
+
+## 第六轮复审：1c72b2d
+
+### 审查对象与结论
+
+- 用户授权：复审 PR #265 并提交 comments；本轮仅审查与更新正式记录。
+- Reviewed SHA：`1c72b2d926b0c6111f54e76abec5893eb0a82edb`，与 `vibe repo --json` 的 PASS 结果和 GitHub 最新 head 一致；开始时工作区干净。
+- 上轮 SHA：`b2e57ec59fb28abcf643e4fcb24c35db3279b0a4`；本轮实际复核这两个 head 之间的四文件增量及受影响源码/测试。远程 PR 的当前 baseRefOid 为 `5ddf79d4940fd3d049e5d86c0ac4692e0e587b90`；原始设计合并基点保留在历史记录中，不当作当前远程 base。
+- 审查日期：2026-10-10；最新 Issue #264 为 OPEN、无 comments，PR 为 OPEN / Draft。
+- Reviewer role outcome：`REQUEST_CHANGES`。
+- 原 R1–R5 已关闭；新阻塞 R6，P2：Provider/data 必需嵌套 readback 或 ref 缺失时，preflight 抛出 TypeError 而没有返回明确拒绝结果。
+
+本轮沿用 Issue #264 的完整必需 pin、未解析 authority 拒绝和物化前显式拒绝条件，以及获批[锁合同 §2](../../decisions/d14-rd01-runner-profile-lock.md#2-一个版本化锁合同与三个不同证据层)和[IG 物化边界](../../module-specs/Module-Spec-007-IntegrationGateway.md#d14-runner-物化锁与原调用观察提案256)。先确认新增七个完整 pin 读回对上一轮反例的修复，再核对必需来源缺失路径。四个缺失反例建立后停止扩大缺陷发现范围。这里评审内部 admission 的失败结果，不要求本任务增加真实 dispatcher 或 Provider 调用。
+
+### 原发现关闭状态
+
+| 原发现                     | 当前判断     | 本轮证据                                                                                                                                                                                             |
+| -------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1：锁有效期               | 已关闭       | issuedAt 起点接纳，窗口前及 validUntil 起点拒绝。                                                                                                                                                    |
+| R2：类型、Scope、双 hash   | 已关闭       | 注册 Contract 正例与未知 Contract/Package/Run、缺 Scope、矛盾 hash 负例通过。                                                                                                                        |
+| R3：审批 pin               | 已关闭       | 保留 digest 替换 technicalApproval.objectId 拒绝。                                                                                                                                                   |
+| R4：必需来源身份及部署映射 | 已关闭原发现 | 完整 template/receipt/owning Ref、immutableVersionId、四个部署字段诊断均通过；上一轮三个 model pin objectId 替换现在均拒绝。另四个 Provider pin 由同一完整匹配函数消费，仓库新增负例及当前 CI 覆盖。 |
+| R5：fencingToken 类型      | 已关闭       | 整数正例与负数、小数、字符串负例通过。                                                                                                                                                               |
+
+### 本轮字段矩阵与可选字段判定
+
+前五轮的 descriptor/schema 和 source 矩阵保留；本轮 descriptor Schema、producer 与 validator 未改变。以下覆盖新 source contract 的全部字段及共享 matcher 改动。
+
+| Contract / 字段                                                                                   | required / optional               | 实现与独立判断                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D14TrustedPinnedRef.ref                                                                           | required D14TrustedRef            | 与锁的 kind/objectType/objectId/versionId/snapshotId/immutableVersionId/scope/contentDigest 逐项相等；比较成立，但 runtime absent 未在 diagnostics 前检查，见 R6。 |
+| D14TrustedPinnedRef.contentDigest                                                                 | required string                   | 与 D14PinnedRef.contentHash.digest 相等；保留内容诊断。                                                                                                            |
+| D14TrustedPinnedRef.bytesSha256                                                                   | optional string                   | 锁声明 bytes 时必须读回且相等；锁未声明时额外 source bytes 不构成新的锁 pin。                                                                                      |
+| D14TrustedPinnedRef.publicationReceiptRef                                                         | optional D14TrustedRef            | 锁声明 receipt 时必须完整读回并比较全部 Ref 身份；锁未声明时允许额外 receipt 元数据。                                                                              |
+| D14TrustedProviderBinding.provider/modelId/approvedModelVersion                                   | 三个 required string              | 与 model 三项固定身份/版本逐字段比较，原职责保留。                                                                                                                 |
+| D14TrustedProviderBinding.modelConfigDigest                                                       | required string                   | 与 modelConfigHash.digest 比较；该字段不声明 Ref，不发明 Ref 要求。                                                                                                |
+| D14TrustedProviderBinding.fixedVersionBinding/perInvocationVerificationRule/identityBindingPolicy | 三个 required D14TrustedPinnedRef | 均调用 inspectPinnedRef 和 pinnedReadbackMatches，完整引用替换已拒绝；嵌套缺失保护未实现。                                                                         |
+| D14TrustedProviderBinding.apiTransport/apiEndpoint/networkPolicy                                  | 三个 required D14TrustedPinnedRef | 共享同一诊断与完整 pin 比较路径；嵌套缺失保护未实现。                                                                                                              |
+| D14TrustedProviderBinding.provenance                                                              | required PROVIDER                 | 来源诊断保留。                                                                                                                                                     |
+| D14TrustedDataAuthorization.approvalRefId                                                         | required string                   | 原字段保留；该授权标识不代替新增 dataPolicy Ref，本轮不改变其来源职责。                                                                                            |
+| D14TrustedDataAuthorization.dataPolicy                                                            | required D14TrustedPinnedRef      | 完整 pin 比较已补齐；readback/ref absent 仍抛出异常。                                                                                                              |
+| D14TrustedDataAuthorization.validUntil/provenance                                                 | required string / CUSTOMER        | 当前授权期限与来源独立核验保留。                                                                                                                                   |
+| 共享 published/owning/prompt matcher                                                              | 原字段 required/optional 保留     | 改为共享 pinnedReadbackMatches，声明 bytes/receipt 必须匹配；原完整 Ref 与 immutableVersionId 负例仍通过。                                                         |
+
+本轮对 Implementer 提出的可选字段问题作出明确判定：Ref 内 versionId/snapshotId/immutableVersionId 是身份的一部分，值与有无必须一致；bytesSha256/publicationReceiptRef 是 D14PinnedRef 的可选附加证明，当前锁只承诺其声明的项目，锁未声明时 source 的额外证明可以存在。该解释保留完整 Ref 的对称匹配和锁声明证明的强制匹配，不新增所有可选元数据严格对称的要求，不将额外 source 证明作为阻塞。
+
+### R6 — P2：缺失的 Provider/data 必需读回未返回显式拒绝
+
+位置：[inspectPinnedRef，第 292 行](https://github.com/qzhike/zhiju-business-core/blob/1c72b2d926b0c6111f54e76abec5893eb0a82edb/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L292)、[Provider 六项读回诊断，第 382 行](https://github.com/qzhike/zhiju-business-core/blob/1c72b2d926b0c6111f54e76abec5893eb0a82edb/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L382)、[客户 dataPolicy 诊断，第 405 行](https://github.com/qzhike/zhiju-business-core/blob/1c72b2d926b0c6111f54e76abec5893eb0a82edb/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L405)、[进入 diagnostics 的前置检查，第 653 行](https://github.com/qzhike/zhiju-business-core/blob/1c72b2d926b0c6111f54e76abec5893eb0a82edb/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L653)。
+
+Issue 与 IG 合同要求缺失/未解析的必需来源显式拒绝。新 source 接口将六个 Provider pin 与客户 dataPolicy 标为 required，但 runtime 仅检查两个外层组是否 undefined，然后直接调用 inspectPinnedRef。该 helper 立即读取 readback.ref，inspectRef 随即读取 ref.objectType；缺失一个嵌套读回或其引用时均在返回 D14PreflightResult 前异常退出。已有 inputOutputPins 路径会专门检查 required 槽位缺失，新 model/data pin 没有相应处理。
+
+独立反例从有效 materialized-lock fixture、窗口内 trustedNow 与完整对应可信来源开始，每例先断言原组合 admissible=true；锁、hash、其余 pin、部署、Provider 固定身份、客户授权期限与来源保持不变，仅删除表中的一个 source 字段，模拟 owning 对象尚未解析的缺失状态。没有替换锁 payload 或使用另一个无效条件污染负例。
+
+| 唯一缺失字段                                           | 契约预期                           | 实际                                                                  |
+| ------------------------------------------------------ | ---------------------------------- | --------------------------------------------------------------------- |
+| sources.providerVersionBinding.fixedVersionBinding     | 明确不可接纳，reasons 指向缺失 pin | TypeError: Cannot read properties of undefined (reading 'ref')        |
+| sources.providerVersionBinding.fixedVersionBinding.ref | 明确不可接纳，reasons 指向缺失 Ref | TypeError: Cannot read properties of undefined (reading 'objectType') |
+| sources.customerDataAuthorization.dataPolicy           | 明确不可接纳，reasons 指向缺失 pin | TypeError: Cannot read properties of undefined (reading 'ref')        |
+| sources.customerDataAuthorization.dataPolicy.ref       | 明确不可接纳，reasons 指向缺失 Ref | TypeError: Cannot read properties of undefined (reading 'objectType') |
+
+这是拒绝结果与可靠性缺口，级别 P2；反例没有证明错误放行或实际 Provider 调用。静态 required 类型不补足契约已经要求的 runtime 缺失拒绝。调用方按结果 code/reasons 分类的失败路径会被异常中断，无法得到缺失来源的明确原因。
+
+修复应在 diagnostics/matcher 前检查七个必需 readback 及 ref，返回适当 missing/mismatch code 和字段路径；补充完整来源正例与缺失 readback/缺失 ref 负例。保留已修复的完整身份比较及声明 bytes/receipt 匹配，不扩大公开合同或真实部署范围。
+
+### 当前验证证据与边界
+
+- 独立通过 GitHub CLI 读回 [CI run 38009605052](https://github.com/qzhike/zhiju-business-core/actions/runs/38009605052)：headSha=`1c72b2d926b0c6111f54e76abec5893eb0a82edb`，attempt=1，status=completed，conclusion=success。select/checks/verify 成功，checks 的 Verify code 步骤成功，persistence 为预期 skipped。Draft 非持久化实现采用配置 code 目标；当前精确 head 的可信 CI 已覆盖该目标，本 Reviewer 没有重复执行配置验证或触发远程重跑。
+- 独立源码诊断：`node node_modules/vitest/vitest.mjs run --config /private/tmp/pr265-rereview6.config.mts --reporter verbose`，Vitest 4.1.10，56 项中 52 通过、4 失败，exit 1。前 52 项包含完整来源正例、既有各轮反例及上一轮三个身份替换；四项失败仅为新 required Provider/data 读回或 ref 缺失，抛异常位置分别为第 292/282 行。probe/config 在仓库外，imports/aliases 指向 reviewed SHA 的源码；诊断不替代配置 Gate。
+- `git diff --check b2e57ec59fb28abcf643e4fcb24c35db3279b0a4..1c72b2d926b0c6111f54e76abec5893eb0a82edb`：PASS。
+- 本轮第一次默认环境最小 gh 只读探针成功；后续 Actions 读取发生 i/o timeout，按 AGENTS.md 执行 host 最小只读探针成功，再在 host 完成精确 CI 读取。失败命令为默认环境的 `gh run view 38009605052 --repo qzhike/zhiju-business-core --json headSha,conclusion,status,attempt,jobs`；API 443 连接超时仅作为该环境失败记录，不归因为凭据无效，没有转用 UI。
+- 本轮正式记录更新当前结论指针并追加正文，前五轮历史保留。新增正文单独检查格式、链接与工作区范围；该本地增量不属于 reviewed SHA 或 CI，未 commit/push。
+- 真实 OMP/DeepSeek、Ubuntu/CLI/adapter/Host 部署与隔离、真实 dispatch 和 IG→TE→EP 接纳链、PostgreSQL 及外部/独立人工验收仍 NOT RUN，不以本次 source fixture 和 code CI 代替。
+- 既有设计批准仍绑定 `8e8d2715b815179e92a18f444fb0eca13d58d466`，见 [PR #261 正式记录](../pr-261/Review.md#人类技术设计批准8e8d271)。本轮不把 Issue 的历史设计 PENDING 快照当作新阻塞；存在可修复的 R6，当前返回 Implementer，后续交付继续遵循实际适用的精确修订技术批准要求。
+
+本轮按用户授权提交普通英文 PR comment；发布与服务端读回结果追加在本节末尾。普通 comment 与 GitHub 原生 review 区分。Reviewer 没有修改产品代码，也没有 commit、push 或 merge。
+
+第六轮 comment 已通过 GitHub CLI 发布并从服务端独立读回：[复审评论 issuecomment-6091834147](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6091834147)。API 读回正文与准备的英文评论逐字一致，作者 galendai，created_at=`2026-10-10T00:51:36Z`，首 token 为 REQUEST_CHANGES，永久链接一致。再次读回 PR，head 仍为 `1c72b2d926b0c6111f54e76abec5893eb0a82edb`、state=OPEN、isDraft=true；评论从十二条增至十三条，最新链接与本次发布一致，确认只新增一条。评论明确关闭 R1–R5、单列 R6/P2 四个异常反例、可选证据的判定、当前精确 head CI PASS 与 56 项 diagnostic 的 52 通过/4 失败。本轮工作区仅此正式记录有改动，未 commit/push。

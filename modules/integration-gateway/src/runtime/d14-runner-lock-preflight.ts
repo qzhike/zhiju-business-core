@@ -292,7 +292,7 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
     inspectRef(`${path}.ref`, readback.ref);
     inspectDigest(`${path}.contentDigest`, readback.contentDigest);
     inspectDigest(`${path}.bytesSha256`, readback.bytesSha256);
-    if (readback.publicationReceiptRef !== undefined) {
+    if (readback.publicationReceiptRef) {
       inspectRef(`${path}.publicationReceiptRef`, readback.publicationReceiptRef);
     }
   };
@@ -444,10 +444,10 @@ function refMatches(trusted: D14TrustedRef, locked: D14CanonicalRef): boolean {
  * ref identity, content digest, declared bytes and the declared receipt.
  */
 function pinnedReadbackMatches(pin: D14PinnedRef, readback: D14TrustedPinnedRef): boolean {
+  const receipt = readback.publicationReceiptRef;
   const receiptMatches =
     pin.publicationReceiptRef === undefined ||
-    (readback.publicationReceiptRef !== undefined &&
-      refMatches(readback.publicationReceiptRef, pin.publicationReceiptRef));
+    (receipt ? refMatches(receipt, pin.publicationReceiptRef) : false);
   const bytesMatch = pin.bytesSha256 === undefined || readback.bytesSha256 === pin.bytesSha256;
   return (
     receiptMatches &&
@@ -545,6 +545,36 @@ function matchToolPin(
   ) {
     reasons.push(`${slot}: ${pin.toolCode}@${pin.toolVersion} does not match its trusted pin.`);
   }
+}
+
+/** Source paths of readbacks a decoded source object did not carry, by `ref`. */
+function absentRefPaths(
+  entries: readonly (readonly [string, { readonly ref?: D14TrustedRef } | undefined])[],
+): readonly string[] {
+  const absent: string[] = [];
+  for (const [path, readback] of entries) {
+    if (!readback) {
+      absent.push(path);
+    } else if (!readback.ref) {
+      absent.push(`${path}.ref`);
+    }
+  }
+  return absent;
+}
+
+/** Source paths of tool pins whose `codeRef` a decoded source object did not carry. */
+function absentCodeRefPaths(
+  entries: readonly (readonly [string, Partial<D14TrustedToolPin> | undefined])[],
+): readonly string[] {
+  const absent: string[] = [];
+  for (const [path, pin] of entries) {
+    if (!pin) {
+      absent.push(path);
+    } else if (!pin.codeRef) {
+      absent.push(`${path}.codeRef`);
+    }
+  }
+  return absent;
 }
 
 function reject(code: D14PreflightRejectionCode, reasons: readonly string[]): D14PreflightResult {
@@ -662,6 +692,90 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
     ]);
   }
 
+  // Presence of every nested readback and its claimed reference, checked before
+  // any diagnostic or comparison dereferences a decoded source object.
+  const providerPinEntries: readonly (readonly [string, D14TrustedPinnedRef | undefined])[] = [
+    [
+      'sources.providerVersionBinding.fixedVersionBinding',
+      providerVersionBinding.fixedVersionBinding,
+    ],
+    [
+      'sources.providerVersionBinding.perInvocationVerificationRule',
+      providerVersionBinding.perInvocationVerificationRule,
+    ],
+    [
+      'sources.providerVersionBinding.identityBindingPolicy',
+      providerVersionBinding.identityBindingPolicy,
+    ],
+    ['sources.providerVersionBinding.apiTransport', providerVersionBinding.apiTransport],
+    ['sources.providerVersionBinding.apiEndpoint', providerVersionBinding.apiEndpoint],
+    ['sources.providerVersionBinding.networkPolicy', providerVersionBinding.networkPolicy],
+  ];
+  const absentProviderPins = absentRefPaths(providerPinEntries);
+  if (absentProviderPins.length > 0) {
+    return reject(
+      'D14_PREFLIGHT_PROVIDER_VERSION_BINDING_MISSING',
+      absentProviderPins.map((path) => `${path} is missing.`),
+    );
+  }
+
+  const absentDataPolicy = absentRefPaths([
+    ['sources.customerDataAuthorization.dataPolicy', customerDataAuthorization.dataPolicy],
+  ]);
+  if (absentDataPolicy.length > 0) {
+    return reject(
+      'D14_PREFLIGHT_DATA_AUTHORIZATION_MISSING',
+      absentDataPolicy.map((path) => `${path} is missing.`),
+    );
+  }
+
+  const lockedPolicyKeys = Object.keys(lock.boundary.policies) as readonly D14PolicyKey[];
+  const absentPolicies = absentRefPaths(
+    lockedPolicyKeys.map((key) => [`sources.policies.${key}`, policies[key]] as const),
+  );
+  if (absentPolicies.length > 0) {
+    return reject(
+      'D14_PREFLIGHT_POLICY_EVIDENCE_MISSING',
+      absentPolicies.map((path) => `${path} is missing.`),
+    );
+  }
+
+  const absentIoReadbacks = absentRefPaths([
+    ...ioSlots.map((slot) => [`sources.inputOutputPins.${slot}`, ioPins[slot]] as const),
+    ['sources.promptTools.systemPrompt', promptTools.systemPrompt],
+    ['sources.promptTools.taskPrompt', promptTools.taskPrompt],
+    ['sources.promptTools.toolPermissionRules', promptTools.toolPermissionRules],
+  ]);
+  if (absentIoReadbacks.length > 0) {
+    return reject(
+      'D14_PREFLIGHT_IO_PINS_MISSING',
+      absentIoReadbacks.map((path) => `${path} is missing.`),
+    );
+  }
+
+  const absentFacts = absentRefPaths([
+    ...templates.map((fact, index) => [`sources.templates[${index}]`, fact] as const),
+    ['sources.ruleBundle', ruleBundle],
+    ['sources.startupRules', startupRules],
+    ['sources.vocabulary', vocabulary],
+  ]);
+  if (absentFacts.length > 0) {
+    return reject(
+      'D14_PREFLIGHT_PUBLICATION_MISSING',
+      absentFacts.map((path) => `${path} is missing.`),
+    );
+  }
+
+  const absentToolPins = absentCodeRefPaths(
+    evidenceTools.map((pin, index) => [`sources.evidenceTools[${index}]`, pin] as const),
+  );
+  if (absentToolPins.length > 0) {
+    return reject(
+      'D14_PREFLIGHT_TOOL_PINS_MISSING',
+      absentToolPins.map((path) => `${path} is missing.`),
+    );
+  }
+
   const diagnostics = collectEvidenceDiagnostics(input.sources);
   if (diagnostics.placeholder.length > 0) {
     return reject('D14_PREFLIGHT_PLACEHOLDER_EVIDENCE_REJECTED', diagnostics.placeholder);
@@ -675,14 +789,6 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
 
   const reasons: string[] = [];
 
-  const lockedPolicyKeys = Object.keys(lock.boundary.policies) as readonly D14PolicyKey[];
-  const missingPolicyKeys = lockedPolicyKeys.filter((key) => policies[key] === undefined);
-  if (missingPolicyKeys.length > 0) {
-    return reject(
-      'D14_PREFLIGHT_POLICY_EVIDENCE_MISSING',
-      missingPolicyKeys.map((key) => `sources.policies.${key} is missing.`),
-    );
-  }
   for (const key of lockedPolicyKeys) {
     const evidence = policies[key];
     if (evidence === undefined) continue;

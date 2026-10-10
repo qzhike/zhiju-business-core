@@ -22,6 +22,7 @@ import {
   type D14TrustedPinnedRef,
   type D14TrustedPolicyEvidence,
   type D14TrustedPromptTools,
+  type D14TrustedProviderBinding,
   type D14TrustedRef,
   type D14TrustedScope,
   type D14TrustedToolPin,
@@ -44,6 +45,15 @@ const OTHER_UUID = '018f22e2-7c15-7b2e-8d86-2de956a9d2f1';
 /** Two well-formed immutable version UUIDv7s used by the identity negatives. */
 const VERSION_A = '018f22e2-7c15-7b2e-8d86-2de956a9d2a1';
 const VERSION_B = '018f22e2-7c15-7b2e-8d86-2de956a9d2b2';
+/** The six required model pins carried by the provider binding readback. */
+const PROVIDER_PIN_FIELDS = [
+  'fixedVersionBinding',
+  'perInvocationVerificationRule',
+  'identityBindingPolicy',
+  'apiTransport',
+  'apiEndpoint',
+  'networkPolicy',
+] as const;
 
 function required<T>(value: T | undefined, label: string): T {
   if (value === undefined) throw new Error(`missing ${label} fixture value`);
@@ -360,14 +370,54 @@ function trustedInputOutputPinsWithSourceVersion(
   return { ...pins, preparationSource: { ...source, ref } };
 }
 
-/** Drop one required deployment field to model a readback that never carried it. */
-function deploymentMissing(
-  deployment: D14TrustedDeploymentEvidence,
-  field: 'adapterCode' | 'adapterVersion' | 'harnessId' | 'harnessVersion',
-): D14TrustedDeploymentEvidence {
-  const entries = Object.entries(deployment).filter(([key]) => key !== field);
+/** Drop one field to model a decoded readback that never carried it. */
+function withoutField<T extends object>(value: T, field: string): T {
+  const entries = Object.entries(value).filter(([key]) => key !== field);
   // Negative fixture: the readback is deliberately incomplete, so its shape is asserted.
-  return Object.fromEntries(entries) as D14TrustedDeploymentEvidence;
+  return Object.fromEntries(entries) as T;
+}
+
+/** The provider binding with one pin's reference removed at runtime. */
+function providerBindingWithoutPinRef(
+  binding: D14TrustedProviderBinding,
+  field: (typeof PROVIDER_PIN_FIELDS)[number],
+): D14TrustedProviderBinding {
+  const pin = withoutField(binding[field], 'ref');
+  switch (field) {
+    case 'fixedVersionBinding':
+      return { ...binding, fixedVersionBinding: pin };
+    case 'perInvocationVerificationRule':
+      return { ...binding, perInvocationVerificationRule: pin };
+    case 'identityBindingPolicy':
+      return { ...binding, identityBindingPolicy: pin };
+    case 'apiTransport':
+      return { ...binding, apiTransport: pin };
+    case 'apiEndpoint':
+      return { ...binding, apiEndpoint: pin };
+    case 'networkPolicy':
+      return { ...binding, networkPolicy: pin };
+  }
+}
+
+/** Run the preflight and assert that no exception escapes the boundary. */
+function preflightSafely(overrides: Partial<D14MaterializationSources>): D14PreflightResult {
+  let result: D14PreflightResult | undefined;
+  expect(() => {
+    result = preflight(overrides);
+  }).not.toThrow();
+  return required(result, 'preflight result');
+}
+
+/** Assert a structured missing-source rejection that names the source path. */
+function expectMissingSource(
+  result: D14PreflightResult,
+  code: D14PreflightRejectionCode,
+  path: string,
+): void {
+  expect(result.admissible).toBe(false);
+  if (result.admissible) return;
+  expect(result.code).toBe(code);
+  expect(result.reasons.join(' ')).toContain(path);
 }
 
 /** Run the preflight against an explicit lock plus trusted-source overrides. */
@@ -1233,7 +1283,7 @@ describe('preflightD14RunnerMaterialization', () => {
   it('rejects a deployment readback missing the adapter code', () => {
     const deployment = required(trustedSources().deployment, 'sources.deployment');
     expectRejection(
-      preflight({ deployment: deploymentMissing(deployment, 'adapterCode') }),
+      preflight({ deployment: withoutField(deployment, 'adapterCode') }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
     );
   });
@@ -1241,7 +1291,7 @@ describe('preflightD14RunnerMaterialization', () => {
   it('rejects a deployment readback missing the adapter version', () => {
     const deployment = required(trustedSources().deployment, 'sources.deployment');
     expectRejection(
-      preflight({ deployment: deploymentMissing(deployment, 'adapterVersion') }),
+      preflight({ deployment: withoutField(deployment, 'adapterVersion') }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
     );
   });
@@ -1249,7 +1299,7 @@ describe('preflightD14RunnerMaterialization', () => {
   it('rejects a deployment readback missing the harness identity', () => {
     const deployment = required(trustedSources().deployment, 'sources.deployment');
     expectRejection(
-      preflight({ deployment: deploymentMissing(deployment, 'harnessId') }),
+      preflight({ deployment: withoutField(deployment, 'harnessId') }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
     );
   });
@@ -1257,7 +1307,7 @@ describe('preflightD14RunnerMaterialization', () => {
   it('rejects a deployment readback missing the harness version', () => {
     const deployment = required(trustedSources().deployment, 'sources.deployment');
     expectRejection(
-      preflight({ deployment: deploymentMissing(deployment, 'harnessVersion') }),
+      preflight({ deployment: withoutField(deployment, 'harnessVersion') }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
     );
   });
@@ -1424,5 +1474,111 @@ describe('preflightD14RunnerMaterialization', () => {
         },
       }).admissible,
     ).toBe(true);
+  });
+
+  for (const field of PROVIDER_PIN_FIELDS) {
+    it(`rejects an absent ${field} readback without throwing`, () => {
+      const binding = required(
+        trustedSources().providerVersionBinding,
+        'sources.providerVersionBinding',
+      );
+      expectMissingSource(
+        preflightSafely({ providerVersionBinding: withoutField(binding, field) }),
+        'D14_PREFLIGHT_PROVIDER_VERSION_BINDING_MISSING',
+        `sources.providerVersionBinding.${field}`,
+      );
+    });
+
+    it(`rejects an absent ${field} reference without throwing`, () => {
+      const binding = required(
+        trustedSources().providerVersionBinding,
+        'sources.providerVersionBinding',
+      );
+      expectMissingSource(
+        preflightSafely({ providerVersionBinding: providerBindingWithoutPinRef(binding, field) }),
+        'D14_PREFLIGHT_PROVIDER_VERSION_BINDING_MISSING',
+        `sources.providerVersionBinding.${field}.ref`,
+      );
+    });
+  }
+
+  it('rejects an absent data-policy readback without throwing', () => {
+    const authorization = required(
+      trustedSources().customerDataAuthorization,
+      'sources.customerDataAuthorization',
+    );
+    expectMissingSource(
+      preflightSafely({ customerDataAuthorization: withoutField(authorization, 'dataPolicy') }),
+      'D14_PREFLIGHT_DATA_AUTHORIZATION_MISSING',
+      'sources.customerDataAuthorization.dataPolicy',
+    );
+  });
+
+  it('rejects an absent data-policy reference without throwing', () => {
+    const authorization = required(
+      trustedSources().customerDataAuthorization,
+      'sources.customerDataAuthorization',
+    );
+    expectMissingSource(
+      preflightSafely({
+        customerDataAuthorization: {
+          ...authorization,
+          dataPolicy: withoutField(authorization.dataPolicy, 'ref'),
+        },
+      }),
+      'D14_PREFLIGHT_DATA_AUTHORIZATION_MISSING',
+      'sources.customerDataAuthorization.dataPolicy.ref',
+    );
+  });
+
+  it('rejects a policy readback without a reference without throwing', () => {
+    const policies = trustedPolicies();
+    const network = required(policies.network, 'policies.network');
+    expectMissingSource(
+      preflightSafely({ policies: { ...policies, network: withoutField(network, 'ref') } }),
+      'D14_PREFLIGHT_POLICY_EVIDENCE_MISSING',
+      'sources.policies.network.ref',
+    );
+  });
+
+  it('rejects an owning readback without a reference without throwing', () => {
+    const inputOutputPins = trustedInputOutputPins();
+    const profile = required(inputOutputPins.outputProfile, 'inputOutputPins.outputProfile');
+    expectMissingSource(
+      preflightSafely({
+        inputOutputPins: { ...inputOutputPins, outputProfile: withoutField(profile, 'ref') },
+      }),
+      'D14_PREFLIGHT_IO_PINS_MISSING',
+      'sources.inputOutputPins.outputProfile.ref',
+    );
+  });
+
+  it('rejects a tool pin without a code reference without throwing', () => {
+    const tools = required(trustedSources().evidenceTools, 'sources.evidenceTools');
+    expectMissingSource(
+      preflightSafely({
+        evidenceTools: [
+          withoutField(required(tools[0], 'tools[0]'), 'codeRef'),
+          required(tools[1], 'tools[1]'),
+          required(tools[2], 'tools[2]'),
+        ],
+      }),
+      'D14_PREFLIGHT_TOOL_PINS_MISSING',
+      'sources.evidenceTools[0].codeRef',
+    );
+  });
+
+  it('rejects a template fact without a reference without throwing', () => {
+    const templates = required(trustedSources().templates, 'sources.templates');
+    expectMissingSource(
+      preflightSafely({
+        templates: [
+          withoutField(required(templates[0], 'templates[0]'), 'ref'),
+          required(templates[1], 'templates[1]'),
+        ],
+      }),
+      'D14_PREFLIGHT_PUBLICATION_MISSING',
+      'sources.templates[0].ref',
+    );
   });
 });
