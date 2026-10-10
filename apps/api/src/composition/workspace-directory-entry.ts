@@ -733,6 +733,12 @@ export function createWorkspaceDirectoryEntry(
         }
       }
 
+      // Every served summary keeps its own candidate identity: the candidate
+      // object type is carried, never re-derived from the project id and never
+      // converted into another spelling.
+      const objectTypeByProject = new Map(
+        used.map((entry) => [entry.scope.projectId, entry.candidate.objectType] as const),
+      );
       const summaries = items.map((view) => ({
         enterpriseRef: {
           kind: 'OBJECT',
@@ -742,7 +748,7 @@ export function createWorkspaceDirectoryEntry(
         },
         projectRef: {
           kind: 'OBJECT',
-          objectType: objectTypeOfProject(scan, view.projectId),
+          objectType: projectIdentityOf(view.projectId),
           objectId: view.projectId,
           scope: { enterpriseId: view.enterpriseId, projectId: view.projectId },
         },
@@ -798,6 +804,17 @@ export function createWorkspaceDirectoryEntry(
         );
       }
 
+      function projectIdentityOf(projectId: string): string {
+        const objectType = objectTypeByProject.get(projectId);
+        if (objectType === undefined) {
+          entryError(
+            DEPENDENCY_UNAVAILABLE,
+            'the directory page no longer carries its candidate identity',
+          );
+        }
+        return objectType;
+      }
+
       const pageObject: Record<string, unknown> = { items: summaries };
       if (nextCursor !== undefined) pageObject.nextCursor = nextCursor;
       pageObject.snapshotAt = snapshotAt.toISOString();
@@ -838,12 +855,4 @@ export function createWorkspaceDirectoryEntry(
       };
     },
   };
-}
-
-/**
- * The owning Project object type the scan reported for one served project.
- */
-function objectTypeOfProject(scan: WorkspaceProjectDiscoveryScanResult, projectId: string): string {
-  const match = scan.items.find((item) => item.projectRef.objectId === projectId);
-  return match?.projectRef.objectType ?? 'zhiju.project.project';
 }
