@@ -414,4 +414,4 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 | IP-MF-001 / MF-08原request/receipt、撤权后replay/readback/resume与新认证 | 历史Actor/Decision不改，新步骤/查询仍当次Decision；依赖owner读各自授权，DENY在protected read前，非权限成功不能据此重发 | 未执行 / NOT RUN |
 | IP-MF-002 / MF-09同Human两设备、另一Human/Project Admin/Agent/Runtime/Service/actingFor读写私稿与pending快照 | 私稿仅同trusted Human+精确Scope/base，其他主体protected read=0、masked不可见；Project read权限不泄露草稿 | 未执行 / NOT RUN |
 | IP-MF-003 / MF-04/05伪Actor、跨Scope location/suggestion、ticket猜测/过期/撤权及stream中途失权 | Browser字段不造Human；精确bytes/read与文件generation/write分权，token不赋权，流终止且无假下载成功，旧history不改 | 未执行 / NOT RUN |
-| IP-MF-004 / 合法TE/ART/IG服务及错service/profile/hash，Agent submit/Approval对照 | 服务各用自身Decision/实际target，不能借Human/Run Grant；Human-only submit/constraints/Approval仍拒Agent，即使actingFor | 未执行 / NOT RUN |
+| IP-MF-004 / 无Root/Revision的Human prepare/get与合法TE/ART SERVICE；失权/错Scope/plan/map/proposal Hash、错service/profile及Agent actingFor | Human同完整file/plan/源/模板/保护读权与服务自身Decision分别成立，服务许可不提升Human读取；拒绝在protected reads前且不泄露proposal，get不写入；Human-only prepare/get/submit/constraints/Approval拒Agent，即使actingFor | 未执行 / NOT RUN |

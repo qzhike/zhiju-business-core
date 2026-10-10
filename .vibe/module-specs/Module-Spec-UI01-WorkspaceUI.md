@@ -293,6 +293,8 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 
 状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。沿用[已批准交互](../decisions/workspace-mvp-human-agent.md#44-已确认的逐文件检查交互)，字段/流程见 [Markdown Delta](../decisions/markdown-file-feedback.md)。不新增聊天助手、逐change输入框、批量改稿或第二次“开始修改”动作。
 
+首份文件在无Root/Revision/constraints时使用TE §28.0的确认前入口：在已有整份计划核对页显式prepare，按原request/key/hash只读查询，展示完整基线Canonical/nodeMap、精确来源/Hash、完整change/KEEP/allowed/protected提案和当前资格。MAPPING_REQUIRED时在同核对页明确已有位置映射后以新准备意图提交，READY且mayConfirm才确认exact proposalRef；失权、错Scope/hash、过期或未知准备状态不得盲确认。prepare/get/confirm都不自动generation或dispatch，确认后另显式生成。此时不调用要求current Revision的review_basis，也不暴露service producer或以Browser Diff代替完整映射。
+
 1. 固定高度桌面文件列表/阅读区/唯一意见区，窄屏在文档与意见视图切换。server精确file directory支持200+文件、搜索/状态筛选与完整游标链；未加载页不能作分母。变化默认显示一处，36变化/9章能上一处/下一处/章节展开直接跳，保留当前展开、阅读与意见。全文/来源/摘要按需切换；宽表横向滚动全部列，空cell/0/复选符号/标题编号/签批不丢失。
 2. 内容来自ART exact Revision/Hash+server change-directory/Location。源行号、DOM/highlight、chapter label只展示，不能提交其为stable identity或批准证据。新增无旧位置、删除保留旧版入口、移动给两端；旧引用REMOVED/AMBIGUOUS醒目保留，不自动移附近行。切新版后需Human核对新位置、显式引用/移除才提交。
 3. 本文件“提交并修改”冻结reviewBasis/current+原文/位置/附件、原request target/key/payloadHash。普通edit看旧版时新current已到→STALE且保留草稿；一份Markdown建议保留明确B/M/S，Human切到并核对S后在同意见区明确复核。上传只显示intake真实状态，不直接改Revision/批准，也不从filename猜base。跨文件/保护例外/不明确范围返回原意见区具体澄清，不自动执行。

@@ -258,7 +258,7 @@ authority为Spec 004 §12；#235当前有限owning/PG证据如下，历史已交
 
 | ID / 层次 | 输入 / 故障 | 可核验预期 | 实际 / 结果 |
 |---|---|---|---|
-| ART-MF-001 / Contract + Integration | MF-01完整采购申请单→映射/整份constraints→IG/TE真实来源→ART first candidate | exactFile/source/template/protection/Result Acceptance逐项核；Parent=[]、完整Canonical、独立sealed Revision/acceptance/Receipt；没有Quality或Completion事实 | 未执行 / NOT RUN |
+| ART-MF-001 / Contract + Integration | MF-01无Root/Revision/constraints→TE prepare/ART mapping→Human公开get完整map→new range prepare/完整proposal→confirm→IG/TE真实来源→ART first candidate | request/Scope/file/plan/Ref/cv1 Hash及当前读权逐项核；prepare/get不创建Root/Revision或盲确认，过期/失权/错hash不能confirm；exactFile/source/template/protection/Result Acceptance逐项核；Parent=[]、完整Canonical、独立sealed Revision/acceptance/Receipt，没有Quality或Completion事实 | 未执行 / NOT RUN |
 | ART-MF-002 / Unit + Golden | blank、0、□/☑/√、两个H1、标题编号、alignment、br/硬换行、转义pipe、长中文、CRLF/BOM | raw bytes hash与canonical Hash分域；全部语义/身份render→parse相同；空cell text省略，0为TEXT，无Unicode/空格/字段默认替换 | 未执行 / NOT RUN |
 | ART-MF-003 / Negative + Integration | MF-02合法数量改12对照MF-05添金额审批/删总经理栏/改人员/跨file/改KEEP | C2 Parent=C1、完整Diff含metadata/移动/新删Unit且只授权范围；保护关系/原文不变；非法zero content staging/Revision | 未执行 / NOT RUN |
 | ART-MF-004 / Contract + Template | 采购程序A/5表1三列表头/五列行、未知HTML/合并单元格/footnote/extension | 原template/source preserved，整文件UNSUPPORTED，不补列/裁表/删历史；独立申请单/评价记录不阻 | 未执行 / NOT RUN |
@@ -269,6 +269,6 @@ authority为Spec 004 §12；#235当前有限owning/PG证据如下，历史已交
 | ART-MF-009 / Old-base + History | MF-07 B/M/S，S无关变化、同row冲突、current已S2 | 新Parent=S，完整S→C范围校验；冲突待判断无直接merge；若S2到达新candidate仅历史、不覆盖Head | 未执行 / NOT RUN |
 | ART-MF-010 / Evidence + Provenance | MF-11真Evidence但source/locator/capturedHash/claim关系错配、旧Run新session | 独立owner读权、精确源/claim核验拒绝；不能用只匹配Evidence ID或Runner自报补齐 | 未执行 / NOT RUN |
 | ART-MF-011 / PostgreSQL + Fault | source/bytes readback、link/finalize UNKNOWN；seal事务各点故障、同键/异hash、Head CAS竞争 | FROZEN前不seal；seal/acceptance/Receipt原子；原键不重复；Head失败保留不可变历史、零覆盖winner | 未执行 / NOT RUN |
-| ART-MF-012 / Representation + HTTP | MF-12 exactrender→registration→download；wrongRevision/profile/renderer/checksum、UNKNOWN、撤权/stream中断 | 只真实successful Binding登记，raw非Representation；当前权限+ticket+实际bytes完整；safe attachment/no-store、下载不Approval/Release | 未执行 / NOT RUN |
+| ART-MF-012 / Representation + HTTP | MF-12 request_markdown_render@1.0 exactrender→registration→download；wrong originalOperation/Revision/profile/renderer/checksum、UNKNOWN、撤权/stream中断 | 只核真实新operation的successful Binding登记，旧request_render来源或自报operation拒绝，raw非Representation；当前权限+ticket+实际bytes完整；safe attachment/no-store、下载不Approval/Release | 未执行 / NOT RUN |
 
 ART-MF-001/003补充：首次scope校验使用完整sourceMapping→candidate而非EMPTY diff；template-derived空白表无内容变化但有完整CREATE计划可建立首Revision。C1→C2/C3复用同Artifact合法lineage的稳定约束，不因原NEW起点再创建Root；current已S2时旧S请求STALE，锚/范围/保护改变需显式新constraints确认。此补充仍NOT RUN。

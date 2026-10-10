@@ -2524,6 +2524,23 @@ Human取消沿既有 `execution.request_run_cancel@1.0` 的请求与终结分离
 
 状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。方案和状态trace见 [Markdown Delta](../decisions/markdown-file-feedback.md)。TE拥有原执行意图、专用有限Process、来源/Context/Run/Result事实与私稿技术支持记录，不新增领域Feedback Aggregate，不把普通修改塞入§24 CustomerMaterial answer或Quality ReviewIssue。
 
+### 28.0 确认前的提案准备与公开读回
+
+首份文件尚无Artifact Root、Branch、Revision或constraints时，Human从已有整份计划核对页显式发起准备；不能先调用要求current Revision的get_file_review_basis。新增操作均拟@1.0、同Project、共享Envelope：
+
+| 操作 / mode | closed payload | closed data / purpose |
+|---|---|---|
+| execution.prepare_file_constraint_review / CREATE，OBJECT/zhiju.execution.file_constraint_review_request | workScopeRef、fileId、planRef、rangeProposal?:{baselineMappingRef,items}；items闭集沿ART §13.1 | requestRef、requestPayloadHash、receiptRef、preparationState:RECEIVED；execution.file_constraint_review.prepare / HUMAN_ONLY；仅接纳不可变准备意图，不确认范围或启动执行 |
+| execution.get_file_constraint_review / AUTHORITATIVE Query | requestRef、originalIdempotencyKey、requestPayloadHash | requestRef、originalPayload、requestPayloadHash、receiptRef、preparationState、baselineMappingRef?/baselineMappingPayload?/baselineMappingHash?、proposalRef?/proposalPayload?/proposalHash?、currentEligibility:{mayConfirm,reasonCodes,validUntil?}、sourceWatermarks；execution.file_constraint_review.read / HUMAN_ONLY；仅受权读回，不触发producer或推进步骤 |
+
+准备请求技术记录固定requestRef、originalCommandId、originalIdempotencyKey、requestPayloadHash、originalPayload、actorSnapshotRef、authorizationDecisionRef、sourceWatermarks、submittedAt。target预分配且与原key/hash绑定，intent/Receipt/Audit在一个TE事务提交；它不是fileSourceBinding、file_submitted_intent或生成request，不要求已确认constraints。先核Human对同workScope完整file/plan及全部源/模板/保护内容的当前读权；再通过EP owning Port核真实已接收集合、原report/plan/start、完整changes/KEEP、精确fileIdentity和当前资格。缺来源或身份则BLOCKED，不猜文件名或创建Root。
+
+原请求提交后，无rangeProposal时TE专用SERVICE以自身当前权限调用ART §13.1的prepareFileSourceMapping；有rangeProposal时先受权读回其exact baselineMappingRef并核原请求/源水位，不重建或换成新映射，再调用prepareFileConstraintProposal。每个写调用使用requestId+固定阶段的稳定key并保存真实owning refs/Receipt。无rangeProposal仅准备完整基线映射，返回MAPPING_REQUIRED；不启动诊断Runner或把自然语言计划变通配范围。Human可在同整份核对页查看映射并明确位置，用新key提交携带该exact baselineMappingRef/items的新准备意图；TE从本request及trusted Context填写内部rangeProposal的planRef/fileId/proposalSourceRef，Browser不得填写来源证明或Actor。另行授权的诊断提案只有经owning exact source读回和同plan/map验证才能使用。新准备不回填旧请求或旧映射。
+
+Query先当前Human自身及逐owner依赖读权，再由TE专用SERVICE经ART readFileConstraintReview Port读回本request实际准备的完整映射/提案；服务自身授权不能替代Human内容可读性。ART核request/plan/file/Scope及各Ref的cv1 Hash；baselineMappingHash/proposalHash分别等于其exact Ref的contentHash，不能以原bytes hash代替。TE不读取ART Repository。状态闭集RECEIVED/PREPARING/MAPPING_REQUIRED/BLOCKED/READY/STALE/UNKNOWN；有映射时三个baselineMapping字段一起返回，有提案时三个proposal字段一起返回且必须包含完整映射。READY且mayConfirm=true只在精确源/保护/计划仍可用、映射/提案完整且未到validUntil时成立；其他状态mayConfirm=false。UNKNOWN保留已确定refs，不伪MAPPING_REQUIRED或零接收；Query不重试producer、confirm、dispatch或创建任何业务事实。原command同键同hash的重放核当次权限、只返回原Receipt；内部准备仅按原阶段Receipt续接，源/范围变动须Human新准备意图。
+
+Browser取得完整proposalRef/payload/hash和baselineMappingRef/payload/hash后，才可调用artifact.confirm_file_edit_constraints确认整份原快照；ART提交时重新核资格/CAS，读回不锁定未来确认。确认成功后，Human另行显式request_file_generation；准备、读取或确认均不自动创建Task/WorkOrder/Context/Run/Artifact。
+
 ### 28.1 精确来源与执行接受集
 
 内部 captureFileSourceBinding producer 只由已授权的整份生成/意见请求过程调用。输入为workScopeRef/fileId/planRef与ART已确认constraintsRef，EP/ART/QG各自当前授权读回，形成 SNAPSHOT/zhiju.execution.file_source_binding；payload闭集：

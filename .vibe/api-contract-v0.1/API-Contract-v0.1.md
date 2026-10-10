@@ -668,7 +668,9 @@ HTTP200/202不增加CommandResult status；202须owning durable admission，已c
 
 状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。[名称/唯一Owner](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#markdown-逐文件处理名称提案259)和各owning Spec定义新增closedpayload/data，不改共享Command/Query/Result、currentauthorization、target/CAS、cv1 Hash或历史兼容基线。
 
-Browser只finite已批准/注册Human操作与受权Query的transportprojection：约束整份确认、显式generation/fileedit、原request查询/resume、本人draft/create/save/read/find、目录/阅读/diff/定位、单建议intake、registeredMarkdown下载。mapping/binding producer、candidate acceptance、Result ingestion、render/Representation注册仅专用service入口，不放进Browser/MCP通用dispatcher。Actor/Decision由受信Core形成，不能caller声明Human/作者/权限。
+Browser只finite已批准/注册Human操作与受权Query的transportprojection：确认前execution.prepare_file_constraint_review@1.0及execution.get_file_constraint_review@1.0组合、约束整份确认、显式generation/fileedit、原request查询/resume、本人draft/create/save/read/find、目录/阅读/diff/定位、单建议intake、registeredMarkdown下载。确认前两个入口的closed payload/data及无Root/Revision正链见TE §28.0；Command先持久化原准备意图，Query只组合owning受权读回完整proposal/mapping及精确Refs/Hash/当前资格，不产生写入或触发producer。mapping/binding producer、candidate acceptance、Result ingestion、render/Representation注册仅专用service入口，不放进Browser/MCP通用dispatcher。Actor/Decision由受信Core形成，不能caller声明Human/作者/权限。
+
+integration.request_markdown_render@1.0是独立新操作，closed flat请求及binding由IG #259拥有；不以不兼容request_render@1.1承载必填字段/shape/格式变化。原request_render@1.0的{request:RenderRequest}与旧消费者接受集不变。两个入口拒绝对方shape，不自动转换；注册/fixtures须分别证明legacy正链、新Markdown正链及wrong profile/hash反例。
 
 新PUT /api/markdown-suggestion-intakes/{intakeId}/content是IG-issued one-intake原流，10MiB/实际hash/UTF-8及same-originSession/CSRF当前权限，BFF只boundedstream不写objects。新GET /api/markdown-representations/{representationId}/content是ART exact注册表示的只读stream，downloadTicket置header且≤60秒，重新授权并核实际checksum；sharedRepresentationRef所有identity字段精确比较，opaque storage locator不等于bytes权限或URL。无注册handler/stream时不可用，不由BFF取得private库权限补齐。
 

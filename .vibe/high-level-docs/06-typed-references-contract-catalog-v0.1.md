@@ -1520,6 +1520,7 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 
 | 拟 operation / version | 唯一 Owner / 字段权威 |
 |---|---|
+| execution.prepare_file_constraint_review@1.0、execution.get_file_constraint_review@1.0 | TaskExecution / [Spec003 §28.0](../module-specs/Module-Spec-003-TaskExecution.md#280-确认前的提案准备与公开读回)，COMMAND CREATE / AUTHORITATIVE QUERY、Human-only；无Root/Revision时准备及完整受权读回，不confirm/dispatch |
 | execution.request_file_generation@1.0、execution.submit_file_edit_request@1.0 | TaskExecution / [Spec003 §28.2](../module-specs/Module-Spec-003-TaskExecution.md#282-原意图与公共操作)，COMMAND/CREATE、Human-only |
 | execution.get_file_processing_request@1.0、execution.resume_file_processing_request@1.0 | TaskExecution / §28.2，AUTHORITATIVE QUERY / COMMAND MUTATE |
 | execution.get_work_scope_file_directory@1.0、execution.get_file_review_basis@1.0、execution.get_file_candidate_acceptance_binding@1.0 | TaskExecution / §28.2，AUTHORITATIVE QUERY；candidate-binding仅ART专用SERVICE |
@@ -1529,11 +1530,11 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 | artifact.get_file_review_content@1.0、artifact.get_file_change_directory@1.0、artifact.resolve_file_review_locations@1.0 | Artifact / [§13.4](../module-specs/Module-Spec-004-Artifact.md#134-公共变化目录与-stable-location)，AUTHORITATIVE QUERY |
 | artifact.register_markdown_representation@1.0、artifact.get_markdown_download@1.0 | Artifact / [§13.5](../module-specs/Module-Spec-004-Artifact.md#135-markdown-representation-与下载)，CREATE/QUERY |
 | integration.request_markdown_suggestion_intake@1.0、integration.get_markdown_suggestion_intake@1.0、integration.get_markdown_render_binding@1.0 | IntegrationGateway / [Spec007 #259](../module-specs/Module-Spec-007-IntegrationGateway.md#markdown-建议生成原输出与渲染提案259)，CREATE/QUERY/QUERY |
-| integration.request_render@1.1 | IntegrationGateway / 同节，独立Markdown分支，旧@1.0接受集不变 |
+| integration.request_markdown_render@1.0 | IntegrationGateway / 同节，独立新操作；旧request_render@1.0及{request:RenderRequest}接受集不变，不提出不兼容Minor |
 
 | 拟 Ref identity | Owner / Scope / Hash域 |
 |---|---|
-| OBJECT/zhiju.execution.file_processing_request、zhiju.execution.file_personal_draft | TE / Project；请求和私稿技术支持记录，没有新领域Feedback Aggregate；CAS不是历史版本 |
+| OBJECT/zhiju.execution.file_constraint_review_request、zhiju.execution.file_processing_request、zhiju.execution.file_personal_draft | TE / Project；确认前准备、原处理请求和私稿技术支持记录，没有新领域Feedback Aggregate；CAS不是历史版本 |
 | SNAPSHOT/zhiju.execution.file_source_binding、file_generation_context、file_review_basis、file_submitted_intent、file_personal_draft_snapshot（均完整前缀zhiju.execution.） | TE / Project；真实snapshotId+cv1完整payload Hash，字段唯一Spec003 §28 |
 | CONTENT_ADDRESSED/zhiju.execution.file_candidate_result | TE / Project；原accepted Result/observation/output绑定canonical payload，不是Revision |
 | OBJECT/artifact.file_edit_constraints；SNAPSHOT/artifact.markdown_source_mapping、artifact.file_constraint_proposal、artifact.file_edit_constraints | ART / Project；source mapping/整份Human确认cv1 payload，原件bytes SHA单独，不把计划行号当Unit |

@@ -165,7 +165,7 @@ reviewer and timestamp
 
 | ID / 输入 | 可核验预期 | 实际 / 结果 |
 |---|---|---|
-| UI-MF-001 / MF-01/02正文/表格blank/0/签批、natural comment+location→提交→新candidate | exactfile/version/changes，唯一意见区一次submit；新candidate保留页/版本/输入，主动切版后复核；filled不是approved | 未执行 / NOT RUN |
+| UI-MF-001 / MF-01无Root/Revision→同整份核对页prepare/get完整map与proposal/Hash→confirm；MF-02正文/表格blank/0/签批、natural comment+location→提交→新candidate | 不调用需current的review_basis或service producer；MAPPING_REQUIRED/失权/STALE/UNKNOWN禁盲确认、READY才确认exact proposal，准备/读取/确认不dispatch；exactfile/version/changes与唯一意见区一次submit，新candidate保留页/版本/输入，主动切版后复核；filled不是approved | 未执行 / NOT RUN |
 | UI-MF-002 / MF-06 36changes/9章/201files、宽表、移动/删除、搜索/跨页/键盘 | 固定高度、逐处替换、章节点击保持展开/草稿；server total与stable locators，横滚全部列、旧删除引用明确，浏览不批准 | 未执行 / NOT RUN |
 | UI-MF-003 / MF-07 one old-base suggestion B/M/S、错base/current变化/冲突 | 同区上传/声明base/显式复核，不guess/rebase；原请求/问题保留，新current提示而不换view；重新提交前核对新版位置 | 未执行 / NOT RUN |
 | UI-MF-004 / MF-08 submit UNKNOWN/refresh/close/relogin、3次/10秒后手动查询、错Receipt/失权 | private pending snapshot与原key恢复、预算不重置；状态在原意见区顶部，无重发/假失败/自动批准；下一轮草稿可写 | 未执行 / NOT RUN |

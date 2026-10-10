@@ -2518,8 +2518,8 @@ OIDC token、Cookie、CSRF、refresh锁仅在批准的BFF有界技术内存中�
 
 | owning Schema / 未来支持记录 | 必需约束 |
 |---|---|
-| task_execution / file source/basis/原intent/request固定steps、私稿pointer+snapshots | 显式enterprise_id+project_id；文件唯一active request与request/intent/Receipt同事务；同key/hash幂等；immutable submitted/source/draft snapshots；private rows额外trusted author predicate，Project admin/read不放行；draft CAS/fork/原pending传输快照/恢复索引，BFF Session不拥有业务数据 |
-| artifact / source mapping/constraints与candidate acceptance | 沿已有Canonical对象FROZEN/Revision/Branch/Representation生命周期；source/constraint/acceptance immutable；seal+acceptance/Receipt/Audit/Edges/Event单ART事务；Head独立CAS；内容仍对象存储，raw hash/canonical hash/Receipt hash不混 |
+| task_execution / 确认前准备request、file source/basis/原intent/request固定steps、私稿pointer+snapshots | 显式enterprise_id+project_id；准备intent/Receipt原子、原key/hash与各阶段owning refs可恢复且不要求Root/constraints；文件唯一active生成request与request/intent/Receipt同事务；同key/hash幂等；immutable submitted/source/draft snapshots；private rows额外trusted author predicate，Project admin/read不放行；draft CAS/fork/原pending传输快照/恢复索引，BFF Session不拥有业务数据 |
+| artifact / source mapping/constraint proposal/constraints与candidate acceptance | 准备阶段mapping/proposal及其preparationRequestRef不可变，分阶段owning Receipt/幂等、请求→精确snapshot refs索引，不创建未来Root/Revision；读Query只读索引及原快照，不能补写缺提案；沿已有Canonical对象FROZEN/Revision/Branch/Representation生命周期；source/constraint/acceptance immutable；seal+acceptance/Receipt/Audit/Edges/Event单ART事务；Head独立CAS；内容仍对象存储，raw hash/canonical hash/Receipt hash不混 |
 | integration_gateway / one-file suggestion intake/rawobjects、生成原observation/Attempt、Markdown render binding | 外部invoke前commit、原Attempt/session/lease/fencing+稳定key，raw bytes在受控对象存储，snapshot/观察不可改；staging/finalize/UNKNOWN与受审计orphan cleanup保留；不cascade删除已link历史 |
 | quality_governance / 现有Evidence/Issue/Gate/Approval | 无Feedback新表；原问题/来源不可变、新候选不自动Close/Approved，当前impact另追加，不回写历史 |
 

@@ -25,13 +25,13 @@ TE 保存私有草稿和提交 Process 的技术支持记录；它们没有新�
 ## 2. 从完整计划到下一候选
 
 1. EP 授权读回本轮 workScope 所绑定的 reportRef、planRef、PROJECT_START、整份 change/KEEP 集合、真正前置依赖、来源及保护项。fileId 是原计划内的稳定别名，以 workScopeRef + fileId 绑定，不按文件名、路径或模板数认定身份。
-2. ART 的受控 source-mapping Port 读取精确主基线和模板。基线为已有 sealed Revision，或已接纳、可无损映射的 Markdown 来源；DOCX 原件只能作为 D14 已接纳的证据/派生来源，原件与提取件 hash/locator 分别固定，读取受限的结构不能伪装成无损 Markdown 基线。每个 change、KEEP 和保护项都须映射到具体 Unit/subtree/新建锚及完整 claim。自然语言计划、报告 evidenceId 或行号不能直接成为 allowedUnitRefs。
-3. ART 只确定性核验rangeProposal/结构/源绑定，不猜自然语言范围；Human 在已有整份计划核对动作中确认完整映射快照。缺映射、重复标题无法唯一对应、保护依据缺失/冲突、ragged table 或源结构有损时，只阻该文件。已有 D14 scope Receipt 没有本步骤的授权含义；映射确认不自动安排 Run，也不扩大已选集合。后续反馈可沿该Artifact已接纳lineage复用仍有效的stable范围，但每次冻结新的current；锚或保护变更须显式新约束确认，不迁移旧意见。
+2. Human先在已有整份计划核对页调用[TE确认前准备Command](../module-specs/Module-Spec-003-TaskExecution.md#280-确认前的提案准备与公开读回)，TE提交原request/Receipt后以独立SERVICE权限调用ART source-mapping Port读取精确主基线和模板。此时不要求Root/Branch/Revision/constraints。基线为已有sealed Revision，或已接纳、可无损映射的Markdown来源；DOCX原件只能作为D14已接纳的证据/派生来源，原件与提取件hash/locator分别固定，读取受限的结构不能伪装成无损Markdown基线。每个change、KEEP和保护项都须映射到具体Unit/subtree/新建锚及完整claim。自然语言计划、报告evidenceId或行号不能直接成为allowedUnitRefs。
+3. Human以原request/key/hash调用TE get_file_constraint_review只读Query，取得完整baselineMapping/提案及精确Refs/cv1 Hash/当前资格；Query不运行producer、不暴露SERVICE入口。MAPPING_REQUIRED时在同整份核对页明确原映射位置，以新准备意图携带exact mapping/items；ART确定性核验rangeProposal/结构/源绑定，不猜自然语言范围。完整提案READY且mayConfirm时Human才确认exact proposalRef，ART提交重验源/保护/CAS。缺映射、重复标题无法唯一对应、保护依据缺失/冲突、ragged table或源结构有损时，只阻该文件。已有D14 scope Receipt没有确认授权含义；prepare/get/confirm均不自动安排Run或创建Root，也不扩大已选集合。后续反馈可沿该Artifact已接纳lineage复用仍有效的stable范围，但每次冻结新的current；锚或保护变更须显式新约束确认，不迁移旧意见。
 4. TE 由当前 owning 来源构建 fileSourceBinding；显式首次生成请求或一次“提交并修改”冻结独立原意图。受理仅表示持久化请求。专用有限 Process 独立推进新 Task、DRAFT WorkOrder、真实 Context、Validation/Freeze、Run、IG dispatch；每步有自身权限、稳定键和 Receipt。不把这些步骤做成一个跨模块事务。
 5. Runner 只读所锁定原件/模板/保护证据/原提交快照，输出整份 candidate Markdown、结构身份映射和逐意见处理报告。IG 先封存原 bytes；TE 核原调用、Run/Contract/Context、输出 profile/schema/hash、lease/fencing 和结果格式，保存 immutable Result/Validation/Acceptance。此 profile 的 raw proposal 属 WorkspaceOutput，不冒充已有 #233 的 creationRequired BusinessOutput。
 6. 首份文件先由TE原Process独立调用既有ART create_artifact/Query建立确认identity的Root和实际main Branch，不能预造branch事实；现有文件复用合法Root。ART 经 TE 权威 candidate-binding Query 消费已经接纳的提案，独立 parse/canonicalize/round-trip、完整 Diff、scope/protection/evidence/locator 检查；通过才 stage→readback→link→finalize→FROZEN→seal 新 Revision。首次 Parent=[]；修改 Parent=[提交时 current Revision]。Revision provenance 可引用已存在的 AgentResult，不补未来引用。ART 接纳事实绑定原请求、Result Acceptance、raw bytes、约束、内容 Hash 与创建 Receipt。
 7. 新 Revision 创建与 Branch Head 前进分开。只有既有 move_working_head 的当前授权/CAS 成功才成为当前候选；Head 冲突保留已封存历史及 PARTIAL/STALE 回执，不能覆盖并发成果。旧 Revision、已批准/发布绑定、原提交与未提交草稿均不改写。
-8. IG 从该 exact Canonical Revision 确定性 render Markdown，ART 核真实 render binding 后登记 Representation。阅读候选来自已封存 Canonical Content；Markdown 下载还须 exact REGISTERED Representation 与当前 bytes 权限。任何一个步骤都不产生 RAS、Human Approval、Release、EffectiveBinding 或 Completion。
+8. IG经独立新operation integration.request_markdown_render@1.0从该exact Canonical Revision确定性render Markdown，ART核原operation及真实render binding后登记Representation。旧request_render@1.0的{request:RenderRequest}不变；不声明不兼容Minor。阅读候选来自已封存Canonical Content；Markdown下载还须exact REGISTERED Representation与当前bytes权限。任何一个步骤都不产生RAS、Human Approval、Release、EffectiveBinding或Completion。
 
 允许“可检查候选已建立，但 Markdown 导出失败”；状态分别显示 Revision/Head/Representation 事实。不为了下载失败回滚 Revision，不把 raw output 下载成正式候选。文件数量仅从完整目录的 owning facts 派生；其他独立文件持续处理。
 
@@ -112,7 +112,7 @@ resume_file_processing_request 只接受原 ref/key/requestPayloadHash 与 CONTI
 
 | Trace | 输入、步骤与可核验预期 | owning 场景 / 执行状态 |
 |---|---|---|
-| MF-01 首份候选 | [采购申请单 A/0](../prototypes/workspace-mvp/templates/application.md)全标题/三表/空签批→完整计划映射与保护确认→TE request/新 Run→IG原输出→TE Acceptance→ART C1 Parent=[]/Head CAS；blank与“0”分别可读→exact Markdown Representation/download | ART-MF-001/002、TE-MF-001、IG-MF-001；NOT RUN |
+| MF-01 首份候选 | [采购申请单 A/0](../prototypes/workspace-mvp/templates/application.md)全标题/三表/空签批；无Root/Revision/constraints→Human prepare→只读get完整baselineMapping/MAPPING_REQUIRED→明确range的新prepare→get exact proposal/map/Hash/资格→整份confirm→显式generation request/新Run→IG原输出→TE Acceptance→ART C1 Parent=[]/Head CAS；blank与“0”分别可读→exact Markdown Representation/download；每次读回均当前Human+SERVICE独立授权，prepare/get/confirm不dispatch | ART-MF-001/002、TE-MF-001、IP-MF-004、UI-MF-001、IG-MF-001；NOT RUN |
 | MF-02 单文件改稿 | C1 数量为空、库存量“0”；原意见“数量补12，保留库存0”+数量 exact location→新 immutable intent→C2 Parent=[C1]；Diff只列授权字段，顾问主动换版，C1签批仍空 | ART-MF-003、TE-MF-002、UI-MF-001；NOT RUN |
 | MF-03 真实模板结构 | [采购程序 A/5](../prototypes/workspace-mvp/templates/procedure.md)两个 H1、表1=3列表头/5列行、br换行、维护历史；可保存原来源但 ragged 阻该整文件，不能 pad/merge/去历史；[评价记录 A/0](../prototypes/workspace-mvp/templates/evaluation.md)5评价维度、审批栏与编制说明#4差异仍可见，独立候选不受牵连 | ART-MF-004/005、QG-MF-001；NOT RUN |
 | MF-04 有损/恶意 Markdown | 多/少列、重复伪身份、未知扩展、非UTF-8、HTML属性/脚本、外链、超限；或 render→parse 改编号/空白/0/复选状态/换行→拒整个 candidate，原bytes/raw validation仍在 | ART-MF-004/006、IG-MF-002、IP-MF-003；NOT RUN |
@@ -123,7 +123,7 @@ resume_file_processing_request 只接受原 ref/key/requestPayloadHash 与 CONTI
 | MF-09 两设备私稿 | 同author同C3两设备CAS；一winner、另一保留recovery fork；运行中新的文字/附件始终不发原请求，新C4返回不切页/绑位置；另一Human/Agent/Admin不可读 | TE-MF-008/009、IP-MF-002、UI-MF-005；NOT RUN |
 | MF-10 部分处理/Issue | 两意见一HANDLED一NEEDS_JUDGMENT；候选/处理报告分别完整，未处理不伪完成；linked Blocking Issue仍OPEN，作者自验/Agent Approval拒绝，后续Quality另行精确验证 | TE-MF-010、QG-MF-002/003、UI-MF-006；NOT RUN |
 | MF-11 Evidence/locator错配 | EvidenceRef存在但captured source/version/claimHash不等、原提取hash换掉、同名Unit或新Run拿旧session；来源/保护/locator拒绝，旧Evidence/Revision/raw留历史 | ART-MF-010、IG-MF-003、QG-MF-001；NOT RUN |
-| MF-12 seal后故障 | ART创建提交后Head CAS失败；另一文件可继续。Head成功而render UNKNOWN：页面读C2，下载等待真实Representation；重放原键只返回同Receipt/Revision | ART-MF-011/012、TE-MF-007、UI-MF-007；NOT RUN |
+| MF-12 seal后故障 | ART创建提交后Head CAS失败；另一文件可继续。Head成功而request_markdown_render@1.0 UNKNOWN：页面读C2，下载等待真实Representation；重放原键只返回同Receipt/Revision。legacy {request:RenderRequest}在旧request_render@1.0仍合法，在新入口拒绝；新flat Markdown请求只走新入口，wrong profile/hash无successful binding | ART-MF-011/012、TE-MF-007、IG-MF-004、UI-MF-007；NOT RUN |
 
 ## 9. 兼容、取舍与验收门禁
 
