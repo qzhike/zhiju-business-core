@@ -155,8 +155,11 @@ async function startStack(): Promise<Stack> {
   });
   const coreRequests: { method: string; url: string }[] = [];
   const server = fastify({ logger: false, bodyLimit: WORKSPACE_BODY_LIMIT_BYTES });
-  server.addHook('onRequest', (request) => {
-    coreRequests.push({ method: request.method, url: request.url });
+  // Observe every request that reaches the Core listener without touching the
+  // Fastify hook chain: a Node 'request' listener counts requests even when a
+  // transport guard rejects them before routing.
+  server.server.on('request', (request) => {
+    coreRequests.push({ method: request.method ?? 'GET', url: request.url ?? '/' });
   });
   const adapter = new FastifyAdapter(server);
   const coreApp = await NestFactory.create(AppModule.register(runtime), adapter, { logger: false });
@@ -210,579 +213,426 @@ async function readSession(stack: Stack, session: string): Promise<Record<string
   return (await response.json()) as Record<string, unknown>;
 }
 
-describe.skipIf(!databaseUrl)('workspace trusted Human HTTP journey #266 (real processes)', () => {
-  let stack: Stack;
+// These cases drive real Core/BFF/OIDC HTTP processes on top of PostgreSQL; the
+// default 5s per-test budget is not enough for a cold first login, so the suite
+// declares an explicit bounded budget instead of weakening any assertion.
+describe.skipIf(!databaseUrl)(
+  'workspace trusted Human HTTP journey #266 (real processes)',
+  { timeout: 60_000 },
+  () => {
+    let stack: Stack;
 
-  beforeAll(async () => {
-    stack = await startStack();
-  }, 60_000);
+    beforeAll(async () => {
+      stack = await startStack();
+    }, 60_000);
 
-  afterAll(async () => {
-    await stack.stop();
-  });
+    afterAll(async () => {
+      await stack.stop();
+    }, 60_000);
 
-  it('logs in over the real OIDC provider and reads the safe session summary', async () => {
-    const login = await fetch(
-      `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
-      { method: 'GET', redirect: 'manual' },
-    );
-    expect(login.status).toBe(302);
-    const authorizeUrl = login.headers.get('location');
-    expect(authorizeUrl).toBeTruthy();
-    expect(authorizeUrl ?? '').toContain(stack.provider.url('/authorize'));
-    const loginCookie = cookieValue(login, LOGIN_COOKIE);
-    expect(loginCookie).toBeTruthy();
-
-    const authorize = await fetch(authorizeUrl ?? '', { method: 'GET', redirect: 'manual' });
-    expect(authorize.status).toBe(302);
-    const callbackUrl = authorize.headers.get('location');
-    expect(callbackUrl).toBeTruthy();
-    const callback = await fetch(callbackUrl ?? '', {
-      method: 'GET',
-      headers: loginCookieHeader(loginCookie ?? ''),
-      redirect: 'manual',
-    });
-    expect(callback.status).toBe(302);
-    expect(callback.headers.get('location')).toBe('/workbench');
-    const session = cookieValue(callback, SESSION_COOKIE);
-    expect(session).toBeTruthy();
-
-    const summary = await readSession(stack, session ?? '');
-    expect(summary.accessState).toBe('ALLOWED');
-    expect(summary.businessActionsEnabled).toBe(true);
-    expect(typeof summary.sessionGeneration).toBe('string');
-    expect(summary.sessionGeneration).not.toBe('');
-    expect(typeof summary.csrfToken).toBe('string');
-    expect(summary.csrfToken).not.toBe('');
-    expect(typeof summary.expiresAt).toBe('string');
-    expect(typeof summary.idleExpiresAt).toBe('string');
-    expect(summary.principal).toMatchObject({
-      principalId: stack.workspace.principalId,
-      principalKind: 'HUMAN',
-      displayName: 'Trusted Human',
-    });
-
-    const sessionResponse = await fetch(`${stack.publicOrigin}/bff/session`, {
-      method: 'GET',
-      headers: sessionCookieHeader(session ?? ''),
-    });
-    expect(sessionResponse.headers.get('cache-control')).toBe('no-store');
-  });
-
-  it('returns the authorized directory cards from the real Core', async () => {
-    const login = await fetch(
-      `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
-      { method: 'GET', redirect: 'manual' },
-    );
-    const authorize = await fetch(login.headers.get('location') ?? '', {
-      method: 'GET',
-      redirect: 'manual',
-    });
-    const callback = await fetch(authorize.headers.get('location') ?? '', {
-      method: 'GET',
-      headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
-      redirect: 'manual',
-    });
-    const session = cookieValue(callback, SESSION_COOKIE) ?? '';
-    const summary = await readSession(stack, session);
-
-    const response = await fetch(
-      `${stack.publicOrigin}/bff/queries/project.find_workspace_projects/1.0`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          origin: stack.publicOrigin,
-          'x-csrf-token': String(summary.csrfToken),
-          ...sessionCookieHeader(session),
-        },
-        body: JSON.stringify(
-          queryEnvelope({
-            type: 'project.find_workspace_projects',
-            scopeRef: {},
-            payload: { page: { pageSize: 25 } },
-          }),
-        ),
-      },
-    );
-    const text = await response.text();
-    const body = JSON.parse(text) as Record<string, unknown>;
-    expect(response.status, text).toBe(200);
-    expect(body.status).toBe('OK');
-    const data = body.data as Record<string, unknown>;
-    const items = data.items as Record<string, unknown>[];
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({
-      enterpriseDisplayName: stack.workspace.enterpriseDisplayName,
-      displayCode: stack.workspace.projectDisplayCode,
-      title: stack.workspace.projectTitle,
-      status: 'ACTIVE',
-    });
-    expect((items[0]?.projectRef as Record<string, unknown>).objectId).toBe(
-      stack.workspace.projectId,
-    );
-    expect((items[0]?.enterpriseRef as Record<string, unknown>).objectId).toBe(
-      stack.workspace.enterpriseId,
-    );
-    expect(body.stalenessStatus).toBe('FRESH');
-  });
-
-  it('returns the owning Project Board slice with its consistency and freshness fields', async () => {
-    const login = await fetch(
-      `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
-      { method: 'GET', redirect: 'manual' },
-    );
-    const authorize = await fetch(login.headers.get('location') ?? '', {
-      method: 'GET',
-      redirect: 'manual',
-    });
-    const callback = await fetch(authorize.headers.get('location') ?? '', {
-      method: 'GET',
-      headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
-      redirect: 'manual',
-    });
-    const session = cookieValue(callback, SESSION_COOKIE) ?? '';
-    const summary = await readSession(stack, session);
-
-    const projectRef = {
-      kind: 'OBJECT',
-      objectType: 'project.project',
-      objectId: stack.workspace.projectId,
-      scope: {
-        enterpriseId: stack.workspace.enterpriseId,
-        projectId: stack.workspace.projectId,
-      },
-    };
-    const response = await fetch(
-      `${stack.publicOrigin}/bff/queries/project.get_project_board_slice/1.0`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          origin: stack.publicOrigin,
-          'x-csrf-token': String(summary.csrfToken),
-          ...sessionCookieHeader(session),
-        },
-        body: JSON.stringify(
-          queryEnvelope({
-            type: 'project.get_project_board_slice',
-            scopeRef: {
-              enterpriseId: stack.workspace.enterpriseId,
-              projectId: stack.workspace.projectId,
-            },
-            payload: { projectRef, statuses: [], itemTypes: [], page: { pageSize: 25 } },
-          }),
-        ),
-      },
-    );
-    const text = await response.text();
-    const body = JSON.parse(text) as Record<string, unknown>;
-    expect(response.status, text).toBe(200);
-    expect(body.status).toBe('OK');
-    expect(body.stalenessStatus).toBe('FRESH');
-    const data = body.data as Record<string, unknown>;
-    expect(data.projectionStatus).toBe('READY');
-    expect(Array.isArray(data.sourceWatermarks)).toBe(true);
-    const items = data.items as Record<string, unknown>[];
-    expect(items.map((entry) => entry.itemKey)).toEqual([stack.workspace.boardItemKey]);
-  });
-
-  it('answers the Task Board slice and any command with the configured 503 dependency result', async () => {
-    const login = await fetch(
-      `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
-      { method: 'GET', redirect: 'manual' },
-    );
-    const authorize = await fetch(login.headers.get('location') ?? '', {
-      method: 'GET',
-      redirect: 'manual',
-    });
-    const callback = await fetch(authorize.headers.get('location') ?? '', {
-      method: 'GET',
-      headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
-      redirect: 'manual',
-    });
-    const session = cookieValue(callback, SESSION_COOKIE) ?? '';
-    const summary = await readSession(stack, session);
-    const headers = {
-      'content-type': 'application/json',
-      origin: stack.publicOrigin,
-      'x-csrf-token': String(summary.csrfToken),
-      ...sessionCookieHeader(session),
-    };
-    const scopeRef = {
-      enterpriseId: stack.workspace.enterpriseId,
-      projectId: stack.workspace.projectId,
-    };
-    const projectRef = {
-      kind: 'OBJECT',
-      objectType: 'project.project',
-      objectId: stack.workspace.projectId,
-      scope: scopeRef,
-    };
-
-    // The deployment maps no Task Board Policy ref for this Project, so the
-    // owning read fails closed with the frozen DEPENDENCY_UNAVAILABLE code.
-    const taskBoard = await fetch(
-      `${stack.publicOrigin}/bff/queries/execution.get_task_board_slice/1.0`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(
-          queryEnvelope({
-            type: 'execution.get_task_board_slice',
-            scopeRef,
-            payload: { projectRef, statuses: ['READY'], page: { pageSize: 25 } },
-          }),
-        ),
-      },
-    );
-    expect(taskBoard.status).toBe(503);
-    expect(((await taskBoard.json()) as Record<string, unknown>).code).toBe(
-      'DEPENDENCY_UNAVAILABLE',
-    );
-
-    const command = await fetch(
-      `${stack.publicOrigin}/bff/commands/project.request_startup_confirmation/1.0`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(
-          commandEnvelope({
-            type: 'project.request_startup_confirmation',
-            scopeRef,
-            targetRef: projectRef,
-          }),
-        ),
-      },
-    );
-    expect(command.status).toBe(503);
-    expect(((await command.json()) as Record<string, unknown>).code).toBe('DEPENDENCY_UNAVAILABLE');
-  });
-
-  it('creates no session for an error callback and only shows the fixed safe code', async () => {
-    stack.provider.authorizeError = true;
-    const tokensBefore = stack.provider.tokenRequests.length;
-    const coreBefore = stack.coreRequests.length;
-    const login = await fetch(
-      `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
-      { method: 'GET', redirect: 'manual' },
-    );
-    const authorize = await fetch(login.headers.get('location') ?? '', {
-      method: 'GET',
-      redirect: 'manual',
-    });
-    const callback = await fetch(authorize.headers.get('location') ?? '', {
-      method: 'GET',
-      headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
-      redirect: 'manual',
-    });
-    expect(callback.status).toBe(302);
-    expect(callback.headers.get('location')).toBe('/workbench?error=UI_REAUTH_REQUIRED');
-    expect(cookieValue(callback, SESSION_COOKIE)).toBeUndefined();
-    expect(stack.provider.tokenRequests.length).toBe(tokensBefore);
-    expect(stack.coreRequests.length).toBe(coreBefore);
-    stack.provider.authorizeError = false;
-  });
-
-  it('rejects callbacks with a missing, wrong or duplicate iss with zero session and zero Core calls', async () => {
-    const coreBefore = stack.coreRequests.length;
-
-    const withIss = async (
-      issValues: readonly string[],
-    ): Promise<{ status: number; session: string | undefined }> => {
+    it('logs in over the real OIDC provider and reads the safe session summary', async () => {
       const login = await fetch(
         `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
         { method: 'GET', redirect: 'manual' },
       );
-      const authorizeUrl = new URL(login.headers.get('location') ?? '');
-      const state = authorizeUrl.searchParams.get('state') ?? '';
-      const url = new URL(`${stack.publicOrigin}/bff/auth/callback`);
-      url.searchParams.set('code', 'synthetic-code');
-      url.searchParams.set('state', state);
-      for (const value of issValues) url.searchParams.append('iss', value);
-      const response = await fetch(url.toString(), {
+      expect(login.status).toBe(302);
+      const authorizeUrl = login.headers.get('location');
+      expect(authorizeUrl).toBeTruthy();
+      expect(authorizeUrl ?? '').toContain(stack.provider.url('/authorize'));
+      const loginCookie = cookieValue(login, LOGIN_COOKIE);
+      expect(loginCookie).toBeTruthy();
+
+      const authorize = await fetch(authorizeUrl ?? '', { method: 'GET', redirect: 'manual' });
+      expect(authorize.status).toBe(302);
+      const callbackUrl = authorize.headers.get('location');
+      expect(callbackUrl).toBeTruthy();
+      const callback = await fetch(callbackUrl ?? '', {
+        method: 'GET',
+        headers: loginCookieHeader(loginCookie ?? ''),
+        redirect: 'manual',
+      });
+      expect(callback.status).toBe(302);
+      expect(callback.headers.get('location')).toBe('/workbench');
+      const session = cookieValue(callback, SESSION_COOKIE);
+      expect(session).toBeTruthy();
+
+      const summary = await readSession(stack, session ?? '');
+      expect(summary.accessState).toBe('ALLOWED');
+      expect(summary.businessActionsEnabled).toBe(true);
+      expect(typeof summary.sessionGeneration).toBe('string');
+      expect(summary.sessionGeneration).not.toBe('');
+      expect(typeof summary.csrfToken).toBe('string');
+      expect(summary.csrfToken).not.toBe('');
+      expect(typeof summary.expiresAt).toBe('string');
+      expect(typeof summary.idleExpiresAt).toBe('string');
+      expect(summary.principal).toMatchObject({
+        principalId: stack.workspace.principalId,
+        principalKind: 'HUMAN',
+        displayName: 'Trusted Human',
+      });
+
+      const sessionResponse = await fetch(`${stack.publicOrigin}/bff/session`, {
+        method: 'GET',
+        headers: sessionCookieHeader(session ?? ''),
+      });
+      expect(sessionResponse.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('returns the authorized directory cards from the real Core', async () => {
+      const login = await fetch(
+        `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
+        { method: 'GET', redirect: 'manual' },
+      );
+      const authorize = await fetch(login.headers.get('location') ?? '', {
+        method: 'GET',
+        redirect: 'manual',
+      });
+      const callback = await fetch(authorize.headers.get('location') ?? '', {
         method: 'GET',
         headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
         redirect: 'manual',
       });
-      return { status: response.status, session: cookieValue(response, SESSION_COOKIE) };
-    };
+      const session = cookieValue(callback, SESSION_COOKIE) ?? '';
+      const summary = await readSession(stack, session);
 
-    const missing = await withIss([]);
-    expect(missing.status).toBe(400);
-    expect(missing.session).toBeUndefined();
-
-    const wrong = await withIss(['http://127.0.0.1:1/realms/other']);
-    expect(wrong.status).toBe(400);
-    expect(wrong.session).toBeUndefined();
-
-    const duplicate = await withIss([stack.provider.issuer, stack.provider.issuer]);
-    expect(duplicate.status).toBe(400);
-    expect(duplicate.session).toBeUndefined();
-
-    expect(stack.coreRequests.length).toBe(coreBefore);
-  });
-
-  it('rejects a business POST without CSRF or with a null/mismatched Origin before any Core call', async () => {
-    const login = await fetch(
-      `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
-      { method: 'GET', redirect: 'manual' },
-    );
-    const authorize = await fetch(login.headers.get('location') ?? '', {
-      method: 'GET',
-      redirect: 'manual',
+      const response = await fetch(
+        `${stack.publicOrigin}/bff/queries/project.find_workspace_projects/1.0`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            origin: stack.publicOrigin,
+            'x-csrf-token': String(summary.csrfToken),
+            ...sessionCookieHeader(session),
+          },
+          body: JSON.stringify(
+            queryEnvelope({
+              type: 'project.find_workspace_projects',
+              scopeRef: {},
+              payload: { page: { pageSize: 25 } },
+            }),
+          ),
+        },
+      );
+      const text = await response.text();
+      const body = JSON.parse(text) as Record<string, unknown>;
+      expect(response.status, text).toBe(200);
+      expect(body.status).toBe('OK');
+      const data = body.data as Record<string, unknown>;
+      const items = data.items as Record<string, unknown>[];
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({
+        enterpriseDisplayName: stack.workspace.enterpriseDisplayName,
+        displayCode: stack.workspace.projectDisplayCode,
+        title: stack.workspace.projectTitle,
+        status: 'ACTIVE',
+      });
+      expect((items[0]?.projectRef as Record<string, unknown>).objectId).toBe(
+        stack.workspace.projectId,
+      );
+      expect((items[0]?.enterpriseRef as Record<string, unknown>).objectId).toBe(
+        stack.workspace.enterpriseId,
+      );
+      expect(body.stalenessStatus).toBe('FRESH');
     });
-    const callback = await fetch(authorize.headers.get('location') ?? '', {
-      method: 'GET',
-      headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
-      redirect: 'manual',
-    });
-    const session = cookieValue(callback, SESSION_COOKIE) ?? '';
-    const summary = await readSession(stack, session);
-    const url = `${stack.publicOrigin}/bff/queries/project.find_workspace_projects/1.0`;
-    const body = JSON.stringify(
-      queryEnvelope({
-        type: 'project.find_workspace_projects',
-        scopeRef: {},
-        payload: { page: { pageSize: 25 } },
-      }),
-    );
 
-    const coreBefore = stack.coreRequests.length;
-    const noCsrf = await fetch(url, {
-      method: 'POST',
-      headers: {
+    it('returns the owning Project Board slice with its consistency and freshness fields', async () => {
+      const login = await fetch(
+        `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
+        { method: 'GET', redirect: 'manual' },
+      );
+      const authorize = await fetch(login.headers.get('location') ?? '', {
+        method: 'GET',
+        redirect: 'manual',
+      });
+      const callback = await fetch(authorize.headers.get('location') ?? '', {
+        method: 'GET',
+        headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
+        redirect: 'manual',
+      });
+      const session = cookieValue(callback, SESSION_COOKIE) ?? '';
+      const summary = await readSession(stack, session);
+
+      const projectRef = {
+        kind: 'OBJECT',
+        objectType: 'project.project',
+        objectId: stack.workspace.projectId,
+        scope: {
+          enterpriseId: stack.workspace.enterpriseId,
+          projectId: stack.workspace.projectId,
+        },
+      };
+      const response = await fetch(
+        `${stack.publicOrigin}/bff/queries/project.get_project_board_slice/1.0`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            origin: stack.publicOrigin,
+            'x-csrf-token': String(summary.csrfToken),
+            ...sessionCookieHeader(session),
+          },
+          body: JSON.stringify(
+            queryEnvelope({
+              type: 'project.get_project_board_slice',
+              scopeRef: {
+                enterpriseId: stack.workspace.enterpriseId,
+                projectId: stack.workspace.projectId,
+              },
+              payload: { projectRef, statuses: [], itemTypes: [], page: { pageSize: 25 } },
+            }),
+          ),
+        },
+      );
+      const text = await response.text();
+      const body = JSON.parse(text) as Record<string, unknown>;
+      expect(response.status, text).toBe(200);
+      expect(body.status).toBe('OK');
+      expect(body.stalenessStatus).toBe('FRESH');
+      const data = body.data as Record<string, unknown>;
+      expect(data.projectionStatus).toBe('READY');
+      expect(Array.isArray(data.sourceWatermarks)).toBe(true);
+      const items = data.items as Record<string, unknown>[];
+      expect(items.map((entry) => entry.itemKey)).toEqual([stack.workspace.boardItemKey]);
+    });
+
+    it('answers the Task Board slice and any command with the configured 503 dependency result', async () => {
+      const login = await fetch(
+        `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
+        { method: 'GET', redirect: 'manual' },
+      );
+      const authorize = await fetch(login.headers.get('location') ?? '', {
+        method: 'GET',
+        redirect: 'manual',
+      });
+      const callback = await fetch(authorize.headers.get('location') ?? '', {
+        method: 'GET',
+        headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
+        redirect: 'manual',
+      });
+      const session = cookieValue(callback, SESSION_COOKIE) ?? '';
+      const summary = await readSession(stack, session);
+      const headers = {
         'content-type': 'application/json',
         origin: stack.publicOrigin,
-        ...sessionCookieHeader(session),
-      },
-      body,
-    });
-    expect(noCsrf.status).toBe(403);
-    expect(((await noCsrf.json()) as Record<string, unknown>).code).toBe('UI_CSRF_REJECTED');
-
-    const nullOrigin = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        origin: 'null',
         'x-csrf-token': String(summary.csrfToken),
         ...sessionCookieHeader(session),
-      },
-      body,
-    });
-    expect(nullOrigin.status).toBe(403);
-    expect(((await nullOrigin.json()) as Record<string, unknown>).code).toBe('UI_ORIGIN_REJECTED');
+      };
+      const scopeRef = {
+        enterpriseId: stack.workspace.enterpriseId,
+        projectId: stack.workspace.projectId,
+      };
+      const projectRef = {
+        kind: 'OBJECT',
+        objectType: 'project.project',
+        objectId: stack.workspace.projectId,
+        scope: scopeRef,
+      };
 
-    const mismatchedOrigin = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        origin: 'http://127.0.0.1:9',
-        'x-csrf-token': String(summary.csrfToken),
-        ...sessionCookieHeader(session),
-      },
-      body,
-    });
-    expect(mismatchedOrigin.status).toBe(403);
-    expect(((await mismatchedOrigin.json()) as Record<string, unknown>).code).toBe(
-      'UI_ORIGIN_REJECTED',
-    );
+      // The deployment maps no Task Board Policy ref for this Project, so the
+      // owning read fails closed with the frozen DEPENDENCY_UNAVAILABLE code.
+      const taskBoard = await fetch(
+        `${stack.publicOrigin}/bff/queries/execution.get_task_board_slice/1.0`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(
+            queryEnvelope({
+              type: 'execution.get_task_board_slice',
+              scopeRef,
+              payload: { projectRef, statuses: ['READY'], page: { pageSize: 25 } },
+            }),
+          ),
+        },
+      );
+      expect(taskBoard.status).toBe(503);
+      expect(((await taskBoard.json()) as Record<string, unknown>).code).toBe(
+        'DEPENDENCY_UNAVAILABLE',
+      );
 
-    expect(stack.coreRequests.length).toBe(coreBefore);
-  });
-
-  it('refuses an override header and an override body field with 400', async () => {
-    const login = await fetch(
-      `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
-      { method: 'GET', redirect: 'manual' },
-    );
-    const authorize = await fetch(login.headers.get('location') ?? '', {
-      method: 'GET',
-      redirect: 'manual',
+      const command = await fetch(
+        `${stack.publicOrigin}/bff/commands/project.request_startup_confirmation/1.0`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(
+            commandEnvelope({
+              type: 'project.request_startup_confirmation',
+              scopeRef,
+              targetRef: projectRef,
+            }),
+          ),
+        },
+      );
+      expect(command.status).toBe(503);
+      expect(((await command.json()) as Record<string, unknown>).code).toBe(
+        'DEPENDENCY_UNAVAILABLE',
+      );
     });
-    const callback = await fetch(authorize.headers.get('location') ?? '', {
-      method: 'GET',
-      headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
-      redirect: 'manual',
-    });
-    const session = cookieValue(callback, SESSION_COOKIE) ?? '';
-    const summary = await readSession(stack, session);
-    const url = `${stack.publicOrigin}/bff/queries/project.find_workspace_projects/1.0`;
-    const baseHeaders = {
-      'content-type': 'application/json',
-      origin: stack.publicOrigin,
-      'x-csrf-token': String(summary.csrfToken),
-      ...sessionCookieHeader(session),
-    };
 
-    const coreBefore = stack.coreRequests.length;
-    const overrideHeader = await fetch(url, {
-      method: 'POST',
-      headers: { ...baseHeaders, 'x-actor': stack.workspace.principalId },
-      body: JSON.stringify(
+    it('creates no session for an error callback and only shows the fixed safe code', async () => {
+      stack.provider.authorizeError = true;
+      const tokensBefore = stack.provider.tokenRequests.length;
+      const coreBefore = stack.coreRequests.length;
+      const login = await fetch(
+        `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
+        { method: 'GET', redirect: 'manual' },
+      );
+      const authorize = await fetch(login.headers.get('location') ?? '', {
+        method: 'GET',
+        redirect: 'manual',
+      });
+      const callback = await fetch(authorize.headers.get('location') ?? '', {
+        method: 'GET',
+        headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
+        redirect: 'manual',
+      });
+      expect(callback.status).toBe(302);
+      expect(callback.headers.get('location')).toBe('/workbench?error=UI_REAUTH_REQUIRED');
+      expect(cookieValue(callback, SESSION_COOKIE)).toBeUndefined();
+      expect(stack.provider.tokenRequests.length).toBe(tokensBefore);
+      expect(stack.coreRequests.length).toBe(coreBefore);
+      stack.provider.authorizeError = false;
+    });
+
+    it('rejects callbacks with a missing, wrong or duplicate iss with zero session and zero Core calls', async () => {
+      const coreBefore = stack.coreRequests.length;
+
+      const withIss = async (
+        issValues: readonly string[],
+      ): Promise<{ status: number; session: string | undefined }> => {
+        const login = await fetch(
+          `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
+          { method: 'GET', redirect: 'manual' },
+        );
+        const authorizeUrl = new URL(login.headers.get('location') ?? '');
+        const state = authorizeUrl.searchParams.get('state') ?? '';
+        const url = new URL(`${stack.publicOrigin}/bff/auth/callback`);
+        url.searchParams.set('code', 'synthetic-code');
+        url.searchParams.set('state', state);
+        for (const value of issValues) url.searchParams.append('iss', value);
+        const response = await fetch(url.toString(), {
+          method: 'GET',
+          headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
+          redirect: 'manual',
+        });
+        return { status: response.status, session: cookieValue(response, SESSION_COOKIE) };
+      };
+
+      const missing = await withIss([]);
+      expect(missing.status).toBe(400);
+      expect(missing.session).toBeUndefined();
+
+      const wrong = await withIss(['http://127.0.0.1:1/realms/other']);
+      expect(wrong.status).toBe(400);
+      expect(wrong.session).toBeUndefined();
+
+      const duplicate = await withIss([stack.provider.issuer, stack.provider.issuer]);
+      expect(duplicate.status).toBe(400);
+      expect(duplicate.session).toBeUndefined();
+
+      expect(stack.coreRequests.length).toBe(coreBefore);
+    });
+
+    it('rejects a business POST without CSRF or with a null/mismatched Origin before any Core call', async () => {
+      const login = await fetch(
+        `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
+        { method: 'GET', redirect: 'manual' },
+      );
+      const authorize = await fetch(login.headers.get('location') ?? '', {
+        method: 'GET',
+        redirect: 'manual',
+      });
+      const callback = await fetch(authorize.headers.get('location') ?? '', {
+        method: 'GET',
+        headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
+        redirect: 'manual',
+      });
+      const session = cookieValue(callback, SESSION_COOKIE) ?? '';
+      const summary = await readSession(stack, session);
+      const url = `${stack.publicOrigin}/bff/queries/project.find_workspace_projects/1.0`;
+      const body = JSON.stringify(
         queryEnvelope({
           type: 'project.find_workspace_projects',
           scopeRef: {},
           payload: { page: { pageSize: 25 } },
         }),
-      ),
-    });
-    expect(overrideHeader.status).toBe(400);
-    expect(((await overrideHeader.json()) as Record<string, unknown>).code).toBe(
-      'UI_CLIENT_STATE_INVALID',
-    );
+      );
 
-    const requester = {
-      ...queryEnvelope({
-        type: 'project.find_workspace_projects',
-        scopeRef: {},
-        payload: { page: { pageSize: 25 } },
-      }),
-      requester: { kind: 'OBJECT', objectType: 'identity.principal', objectId: newUuidV7() },
-    };
-    const overrideBody = await fetch(url, {
-      method: 'POST',
-      headers: baseHeaders,
-      body: JSON.stringify(requester),
-    });
-    expect(overrideBody.status).toBe(400);
-    expect(((await overrideBody.json()) as Record<string, unknown>).code).toBe(
-      'UI_CLIENT_STATE_INVALID',
-    );
-
-    expect(stack.coreRequests.length).toBe(coreBefore);
-  });
-
-  it('answers an unknown operation or version with 404', async () => {
-    const login = await fetch(
-      `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
-      { method: 'GET', redirect: 'manual' },
-    );
-    const authorize = await fetch(login.headers.get('location') ?? '', {
-      method: 'GET',
-      redirect: 'manual',
-    });
-    const callback = await fetch(authorize.headers.get('location') ?? '', {
-      method: 'GET',
-      headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
-      redirect: 'manual',
-    });
-    const session = cookieValue(callback, SESSION_COOKIE) ?? '';
-    const summary = await readSession(stack, session);
-    const headers = {
-      'content-type': 'application/json',
-      origin: stack.publicOrigin,
-      'x-csrf-token': String(summary.csrfToken),
-      ...sessionCookieHeader(session),
-    };
-    const coreBefore = stack.coreRequests.length;
-
-    const unknownOperation = await fetch(
-      `${stack.publicOrigin}/bff/queries/project.no_such_operation/1.0`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(
-          queryEnvelope({
-            type: 'project.no_such_operation',
-            scopeRef: {},
-            payload: { page: { pageSize: 25 } },
-          }),
-        ),
-      },
-    );
-    expect(unknownOperation.status).toBe(404);
-
-    const unknownVersion = await fetch(
-      `${stack.publicOrigin}/bff/queries/project.find_workspace_projects/9.9`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(
-          queryEnvelope({
-            type: 'project.find_workspace_projects',
-            scopeRef: {},
-            payload: { page: { pageSize: 25 } },
-          }),
-        ),
-      },
-    );
-    expect(unknownVersion.status).toBe(400);
-
-    expect(stack.coreRequests.length).toBe(coreBefore);
-  });
-
-  it('invalidates the session on logout and requires re-authentication', async () => {
-    const login = await fetch(
-      `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
-      { method: 'GET', redirect: 'manual' },
-    );
-    const authorize = await fetch(login.headers.get('location') ?? '', {
-      method: 'GET',
-      redirect: 'manual',
-    });
-    const callback = await fetch(authorize.headers.get('location') ?? '', {
-      method: 'GET',
-      headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
-      redirect: 'manual',
-    });
-    const session = cookieValue(callback, SESSION_COOKIE) ?? '';
-    const summary = await readSession(stack, session);
-
-    const logout = await fetch(`${stack.publicOrigin}/bff/auth/logout`, {
-      method: 'POST',
-      headers: {
-        origin: stack.publicOrigin,
-        'x-csrf-token': String(summary.csrfToken),
-        ...sessionCookieHeader(session),
-      },
-    });
-    expect(logout.status).toBe(200);
-    expect(((await logout.json()) as Record<string, unknown>).accessState).toBe('REAUTH_REQUIRED');
-
-    const anonymous = await fetch(`${stack.publicOrigin}/bff/session`, { method: 'GET' });
-    expect(anonymous.status).toBe(200);
-    expect(((await anonymous.json()) as Record<string, unknown>).accessState).toBe(
-      'REAUTH_REQUIRED',
-    );
-
-    const stale = await fetch(`${stack.publicOrigin}/bff/session`, {
-      method: 'GET',
-      headers: sessionCookieHeader(session),
-    });
-    expect(stale.status).toBe(200);
-    const staleBody = (await stale.json()) as Record<string, unknown>;
-    expect(staleBody.accessState).not.toBe('ALLOWED');
-    expect(staleBody.principal).toBeUndefined();
-  });
-
-  it('never echoes a token, the client secret, the external subject or a customer payload', async () => {
-    const login = await fetch(
-      `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
-      { method: 'GET', redirect: 'manual' },
-    );
-    const authorize = await fetch(login.headers.get('location') ?? '', {
-      method: 'GET',
-      redirect: 'manual',
-    });
-    const callback = await fetch(authorize.headers.get('location') ?? '', {
-      method: 'GET',
-      headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
-      redirect: 'manual',
-    });
-    const session = cookieValue(callback, SESSION_COOKIE) ?? '';
-    const summary = await readSession(stack, session);
-    const directory = await fetch(
-      `${stack.publicOrigin}/bff/queries/project.find_workspace_projects/1.0`,
-      {
+      const coreBefore = stack.coreRequests.length;
+      const noCsrf = await fetch(url, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           origin: stack.publicOrigin,
+          ...sessionCookieHeader(session),
+        },
+        body,
+      });
+      expect(noCsrf.status).toBe(403);
+      expect(((await noCsrf.json()) as Record<string, unknown>).code).toBe('UI_CSRF_REJECTED');
+
+      const nullOrigin = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'null',
           'x-csrf-token': String(summary.csrfToken),
           ...sessionCookieHeader(session),
         },
+        body,
+      });
+      expect(nullOrigin.status).toBe(403);
+      expect(((await nullOrigin.json()) as Record<string, unknown>).code).toBe(
+        'UI_ORIGIN_REJECTED',
+      );
+
+      const mismatchedOrigin = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'http://127.0.0.1:9',
+          'x-csrf-token': String(summary.csrfToken),
+          ...sessionCookieHeader(session),
+        },
+        body,
+      });
+      expect(mismatchedOrigin.status).toBe(403);
+      expect(((await mismatchedOrigin.json()) as Record<string, unknown>).code).toBe(
+        'UI_ORIGIN_REJECTED',
+      );
+
+      expect(stack.coreRequests.length).toBe(coreBefore);
+    });
+
+    it('refuses an override header and an override body field with 400', async () => {
+      const login = await fetch(
+        `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
+        { method: 'GET', redirect: 'manual' },
+      );
+      const authorize = await fetch(login.headers.get('location') ?? '', {
+        method: 'GET',
+        redirect: 'manual',
+      });
+      const callback = await fetch(authorize.headers.get('location') ?? '', {
+        method: 'GET',
+        headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
+        redirect: 'manual',
+      });
+      const session = cookieValue(callback, SESSION_COOKIE) ?? '';
+      const summary = await readSession(stack, session);
+      const url = `${stack.publicOrigin}/bff/queries/project.find_workspace_projects/1.0`;
+      const baseHeaders = {
+        'content-type': 'application/json',
+        origin: stack.publicOrigin,
+        'x-csrf-token': String(summary.csrfToken),
+        ...sessionCookieHeader(session),
+      };
+
+      const coreBefore = stack.coreRequests.length;
+      const overrideHeader = await fetch(url, {
+        method: 'POST',
+        headers: { ...baseHeaders, 'x-actor': stack.workspace.principalId },
         body: JSON.stringify(
           queryEnvelope({
             type: 'project.find_workspace_projects',
@@ -790,27 +640,193 @@ describe.skipIf(!databaseUrl)('workspace trusted Human HTTP journey #266 (real p
             payload: { page: { pageSize: 25 } },
           }),
         ),
-      },
-    );
+      });
+      expect(overrideHeader.status).toBe(400);
+      expect(((await overrideHeader.json()) as Record<string, unknown>).code).toBe(
+        'UI_CLIENT_STATE_INVALID',
+      );
 
-    const observed: string[] = [
-      login.headers.get('location') ?? '',
-      authorize.headers.get('location') ?? '',
-      callback.headers.get('location') ?? '',
-      JSON.stringify(summary),
-      await directory.text(),
-      ...callback.headers.getSetCookie(),
-    ];
-    for (const text of observed) {
-      expect(text).not.toContain(CLIENT_SECRET);
-      expect(text).not.toContain(SUBJECT_EXTERNAL_ID);
-      expect(text).not.toContain('eyJ');
-      expect(text).not.toContain('Bearer ');
-    }
-    // The external subject is never an identity key on the wire, and the raw
-    // PKCE verifier / authorization code never come back to the browser.
-    expect(observed.join('\n')).not.toContain(
-      createHash('sha256').update(SUBJECT_EXTERNAL_ID).digest('hex'),
-    );
-  });
-});
+      const requester = {
+        ...queryEnvelope({
+          type: 'project.find_workspace_projects',
+          scopeRef: {},
+          payload: { page: { pageSize: 25 } },
+        }),
+        requester: { kind: 'OBJECT', objectType: 'identity.principal', objectId: newUuidV7() },
+      };
+      const overrideBody = await fetch(url, {
+        method: 'POST',
+        headers: baseHeaders,
+        body: JSON.stringify(requester),
+      });
+      expect(overrideBody.status).toBe(400);
+      expect(((await overrideBody.json()) as Record<string, unknown>).code).toBe(
+        'UI_CLIENT_STATE_INVALID',
+      );
+
+      expect(stack.coreRequests.length).toBe(coreBefore);
+    });
+
+    it('answers an unknown operation or version with 404', async () => {
+      const login = await fetch(
+        `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
+        { method: 'GET', redirect: 'manual' },
+      );
+      const authorize = await fetch(login.headers.get('location') ?? '', {
+        method: 'GET',
+        redirect: 'manual',
+      });
+      const callback = await fetch(authorize.headers.get('location') ?? '', {
+        method: 'GET',
+        headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
+        redirect: 'manual',
+      });
+      const session = cookieValue(callback, SESSION_COOKIE) ?? '';
+      const summary = await readSession(stack, session);
+      const headers = {
+        'content-type': 'application/json',
+        origin: stack.publicOrigin,
+        'x-csrf-token': String(summary.csrfToken),
+        ...sessionCookieHeader(session),
+      };
+      const coreBefore = stack.coreRequests.length;
+
+      const unknownOperation = await fetch(
+        `${stack.publicOrigin}/bff/queries/project.no_such_operation/1.0`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(
+            queryEnvelope({
+              type: 'project.no_such_operation',
+              scopeRef: {},
+              payload: { page: { pageSize: 25 } },
+            }),
+          ),
+        },
+      );
+      expect(unknownOperation.status).toBe(404);
+
+      const unknownVersion = await fetch(
+        `${stack.publicOrigin}/bff/queries/project.find_workspace_projects/9.9`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(
+            queryEnvelope({
+              type: 'project.find_workspace_projects',
+              scopeRef: {},
+              payload: { page: { pageSize: 25 } },
+            }),
+          ),
+        },
+      );
+      expect(unknownVersion.status).toBe(400);
+
+      expect(stack.coreRequests.length).toBe(coreBefore);
+    });
+
+    it('invalidates the session on logout and requires re-authentication', async () => {
+      const login = await fetch(
+        `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
+        { method: 'GET', redirect: 'manual' },
+      );
+      const authorize = await fetch(login.headers.get('location') ?? '', {
+        method: 'GET',
+        redirect: 'manual',
+      });
+      const callback = await fetch(authorize.headers.get('location') ?? '', {
+        method: 'GET',
+        headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
+        redirect: 'manual',
+      });
+      const session = cookieValue(callback, SESSION_COOKIE) ?? '';
+      const summary = await readSession(stack, session);
+
+      const logout = await fetch(`${stack.publicOrigin}/bff/auth/logout`, {
+        method: 'POST',
+        headers: {
+          origin: stack.publicOrigin,
+          'x-csrf-token': String(summary.csrfToken),
+          ...sessionCookieHeader(session),
+        },
+      });
+      expect(logout.status).toBe(200);
+      expect(((await logout.json()) as Record<string, unknown>).accessState).toBe(
+        'REAUTH_REQUIRED',
+      );
+
+      const anonymous = await fetch(`${stack.publicOrigin}/bff/session`, { method: 'GET' });
+      expect(anonymous.status).toBe(200);
+      expect(((await anonymous.json()) as Record<string, unknown>).accessState).toBe(
+        'REAUTH_REQUIRED',
+      );
+
+      const stale = await fetch(`${stack.publicOrigin}/bff/session`, {
+        method: 'GET',
+        headers: sessionCookieHeader(session),
+      });
+      expect(stale.status).toBe(200);
+      const staleBody = (await stale.json()) as Record<string, unknown>;
+      expect(staleBody.accessState).not.toBe('ALLOWED');
+      expect(staleBody.principal).toBeUndefined();
+    });
+
+    it('never echoes a token, the client secret, the external subject or a customer payload', async () => {
+      const login = await fetch(
+        `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
+        { method: 'GET', redirect: 'manual' },
+      );
+      const authorize = await fetch(login.headers.get('location') ?? '', {
+        method: 'GET',
+        redirect: 'manual',
+      });
+      const callback = await fetch(authorize.headers.get('location') ?? '', {
+        method: 'GET',
+        headers: loginCookieHeader(cookieValue(login, LOGIN_COOKIE) ?? ''),
+        redirect: 'manual',
+      });
+      const session = cookieValue(callback, SESSION_COOKIE) ?? '';
+      const summary = await readSession(stack, session);
+      const directory = await fetch(
+        `${stack.publicOrigin}/bff/queries/project.find_workspace_projects/1.0`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            origin: stack.publicOrigin,
+            'x-csrf-token': String(summary.csrfToken),
+            ...sessionCookieHeader(session),
+          },
+          body: JSON.stringify(
+            queryEnvelope({
+              type: 'project.find_workspace_projects',
+              scopeRef: {},
+              payload: { page: { pageSize: 25 } },
+            }),
+          ),
+        },
+      );
+
+      const observed: string[] = [
+        login.headers.get('location') ?? '',
+        authorize.headers.get('location') ?? '',
+        callback.headers.get('location') ?? '',
+        JSON.stringify(summary),
+        await directory.text(),
+        ...callback.headers.getSetCookie(),
+      ];
+      for (const text of observed) {
+        expect(text).not.toContain(CLIENT_SECRET);
+        expect(text).not.toContain(SUBJECT_EXTERNAL_ID);
+        expect(text).not.toContain('eyJ');
+        expect(text).not.toContain('Bearer ');
+      }
+      // The external subject is never an identity key on the wire, and the raw
+      // PKCE verifier / authorization code never come back to the browser.
+      expect(observed.join('\n')).not.toContain(
+        createHash('sha256').update(SUBJECT_EXTERNAL_ID).digest('hex'),
+      );
+    });
+  },
+);
