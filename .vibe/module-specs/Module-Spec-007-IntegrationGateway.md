@@ -415,3 +415,12 @@ final outputs 保存原 JSON/Markdown/提取件 bytes 和 bounded immutable obse
 每次观察绑定原成功ack/session/身份与原invocation的完整Scope/hash；支持原eventId同Hash重放，异Hash隔离。同Run多个真实control观察可以存在，但final仍最多一个identity；相同final/output hash重复返回原事实，异Hash第二final拒绝不覆盖。原JSON/MD/extraction bytes在工具成功后由Host停止写入、重新hash并不可变封存，IG保存实际objects/byte hashes和manifest/lock/outputProfile绑定；不从report中的self-ref或新计算的自洽JSON倒推来源。输出正文只在受控证据对象，不进入普通Event/日志；不持久化隐藏推理/system prompt/transcript。wronghash/alias等确定性拒绝由适用validator分层保存，IG不宣称业务理解正确。
 
 取消control先验证TE已提交原Human CANCELLING intent、当前独立control与依赖读权，再对原Run sandbox操作；分别保存stop request、实际signal/全树观察。ACK不明维持STOP_UNKNOWN并让TE按自己期限裁决，IG不写TE表、不造CANCELLED。原lease到期后合法late final只封存历史，不成为可用Result/EP current report；消费历史观察需自身当前授权和完整原来源，不需恢复原执行Grant。run2的session/Context/fencing不得消费run1 final。原句柄不可证、依赖不通或无读权时fail closed，UNKNOWN不被重启/fallback/空final掩盖。
+
+## D12 / Q11 Markdown 与导出技术边界提案（#260）
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。所有业务清单/资格/许可只由 [REL §14](Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 拥有，不增加客户发送能力，不修改现有PublicationReceipt来源链。
+
+1. 拟additive登记精确Markdown Renderer profile（document.markdown / text/markdown / UTF-8），按ART D12受支持的完整STRUCTURED_DOCUMENT输出，沿既有request_render/RenderAttempt/Binding/RawReceipt。未登记rendererId/version、未知required结构或input/output绑定不一致均在成功登记前拒绝；现有OOXML profile不扩成任意格式/Runtime。
+2. 受控ZIP技术Port只接受已提交REL PackageRequest/Batch的精确输入和稳定Attempt identity；IG或存储Adapter只能报告staging/readback/finalize/UNKNOWN。生成清单、来源checksum、entry路径及ZIP版本遵守REL冻结输入，不能自行拼候选或改Manifest。lease/fence过期不能返回可晋升AVAILABLE的结果；UNKNOWN按同Attempt/object/version重读，不以新键盲目重建。
+3. 对象存储写入与REL业务Link分开；API/BFF不直连存储，Adapter不写REL/QMS/ART Repository。原对象bytes/media/大小/version/CRC/checksum均须权威回读，URL/Token/raw Provider诊断不进入公开事件、日志或Descriptor。合法孤儿清理须先确认无业务reverse Link及满足retention/legal hold Policy。
+4. Browser/服务器流响应不是formal Adapter Attempt + ExternalDeliveryRequest +成功RawReceipt链；不得调用record_publication_receipt，不产生PublicationSucceeded/ReleaseCompleted。真实HTTP/Renderer/对象存储/download和人工交付验收均NOT RUN，技术Attempt不拥有业务完成解释权。

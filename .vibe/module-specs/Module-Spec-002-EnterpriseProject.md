@@ -1061,3 +1061,15 @@ EP 新增内部公司 requirement import/publish/exact-read 与 CompanyStartupDe
 源字节通过受信内容读取 Port 取得，分别核对实际 SHA-256、TemplateVersion 的精确内容 hash、公司 source pin/页内版本与 locator；定位符必须唯一且存在。生产 pin 使用公司 Delta S1–S9；受控测试可在显式 CONTROLLED_TEST 配置中使用有 test provenance 的独立源字节和对应 pins，保持全部已确认业务代码/范围/强制集合，不把测试材料标为生产公司来源。正式规范必须 PUBLISHED、含 verification/authority/jurisdiction/effectivePeriod，过期或未取得拒绝；未来升级目标可保留其正式施行日期，不冒充当前已生效要求。
 
 已保存 snapshot 不等于发布。outer 校验通过受权 IP resolver 精确读回两 child，并逐项核对九模板、十二 requirement、标准/升级目标与词表来源/映射，返回绑定完整 payloadHash/profile/SchemaRef/child refs 的语义结果；IP Publisher 发布前再执行此校验。后续 D14 source/report/start/STALE/impact 转换仍 NOT IMPLEMENTED。
+
+## D12 / Q11 项目交付关联只读提案（#260）
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。批次由 [REL §14](Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 拥有，EP只提供计划/交付项及依赖来源，不新建Batch/Release/Completion能力。
+
+拟内部 ProjectDeliveryAssociationPort：独立当前授权的HUMAN或显式登记Release Reader SERVICE；输入 `{projectRef,deliveryPlanRef,deliveryItemRefs:Set<VersionedRef<DeliveryItem>>}`，Ref必须exact同Project。省略条目集合的枚举模式须使用共享受Scope/水位绑定的分页；explicit集合模式仅验证所请求集合，不能扩大范围。输入Artifact关联来自REL受权读取的ART.definition.deliveryItemRefs，EP不读取ART Repository、不因caller声称“文件属于计划”认定成功。
+
+只从EP已提交当前ACTIVE、经Human批准的exact Plan与owning Item/Requirement/Dependency、Project/QMS与计划QualityPolicy版本读回。closed结果 `{projectRef,deliveryPlanRef,planUsable:boolean,items:[{deliveryItemRef,criteriaHash,qualityProfileRef,targetArtifactTypes,dependencyItemIds,chapterBindings}],chapterMappingRef:VersionedRef<Policy>,planQualityPolicyRef,associationSetHash,checkedAt,sourceWatermarks}`；chapterBindings结构沿REL §14.2，chapterMappingRef必须是被批准的同Plan适用有限章节映射（QualityPolicy关联的完整版本，不是Runner报告或标准号字符串），无映射则不可用。associationSetHash覆盖项目/计划/两Policy完整Ref、planUsable与规范排序的items，不含自身Hash/时间/水位。该Proof与ART实际deliveryItemRefs/Revision provenance一起由REL形成每文件associationProofHash，不伪造已提交Snapshot。
+
+依赖取真实dependencyItemIds和targetArtifact requirements；交付配套/optional/execution-only分类由版本化Plan/Quality release规则给出，不能把所有共用事项机械阻断或将全部依赖视为可省略。共享文件须逐个满足所关联项Artifact类型/质量pin；无合法关联、错计划版本/Item Hash、unknown分类、章节缺失/Plan被替代时阻断。计划改变产生新Version与影响事实，不重写已确认Batch；本首版要求当前ACTIVE版本，新候选本身不改计划。初轮workScope Receipt或Runner拟交付清单不等于ACTIVE DeliveryPlan，无合法计划保持不可用，不要求先实现另一新设计Issue。
+
+批次确认/生成/下载不调用evaluate_delivery_item_completion，不新增“已交付”或“已发送”字段，也不消耗下载观察作为现有ReleaseCompleted事实。首版允许独立未就绪项继续执行，配套闭包之外的项目项不进入本批分母。

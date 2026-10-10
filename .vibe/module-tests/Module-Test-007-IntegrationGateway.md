@@ -231,3 +231,13 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | IG-LOCK-003 | 原control观察，同ID异Hash/wrongsession/Scope/Run2引用Run1、缺读权 | canonical/source/bindings完整校验；冲突隔离，缺权保护读0，不从caller自洽JSON倒造来源 | 未执行 / `NOT RUN` |
 | IG-LOCK-004 | stop请求、父进程exit、全cgroup停止、ACK未知及迟到输出 | request/signal/localstop/UNKNOWN分别持久；localstop不是ProviderACK，原late历史稳定不改TE状态/业务current | 未执行 / `NOT RUN` |
 | IG-LOCK-005 | 同final同Hash、异Hash第二final、输出停止写前后替换/path/link/inputhash漂移 | 原outputbytes不可变、一finalidentity；冲突隔离，停止写后重新hash，零错来源可用报告；raw观察不等于TE/EP接纳 | 未执行 / `NOT RUN` |
+
+## D12 / Q11 Markdown 与受控导出技术设计场景（#260）
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 [IG D12](../module-specs/Module-Spec-007-IntegrationGateway.md#d12--q11-markdown-与导出技术边界提案260)；旧OOXML/Provider证据不覆盖本增量。
+
+| ID | 输入 | 预期 | 当前实际输出 / 结果 |
+|---|---|---|---|
+| IG-D12-001 | 新登记Markdown profile及完整支持Canonical Document；错version/input/Binding/输出checksum | 同input/version确定bytes；失败/UNKNOWN不能伪造成功Binding/Representation，旧OOXML profile不变 | 未登记/实现Markdown profile / NOT RUN |
+| IG-D12-002 | exact已提交Batch请求、staging/readback、DB rollback、finalize timeout、双Worker/过期fence、有Link orphan | Attempt稳定、UNKNOWN读原object/version、不盲目重做；过期Worker不发布AVAILABLE；关联对象不误删，技术诊断不泄密 | 无新ZIP Adapter/存储流程 / NOT RUN |
+| IG-D12-003 | 服务器下载响应/浏览器click冒充RawExternalReceipt，或新导出Attempt冒充formal Adapter Attempt | 不晋升FormalReceipt/成功发布/Completion；未调用客户发送Provider | 无新受控流组合 / NOT RUN |

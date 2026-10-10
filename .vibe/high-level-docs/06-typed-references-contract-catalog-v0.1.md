@@ -1515,3 +1515,9 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 | `CONTENT_ADDRESSED / identity.company_rule_grant` / internal | IdentityPolicy / Platform；只由受信公司 Grant 管理者形成的不可变 operation@1.0/target/PolicySnapshot/期限许可；ActorSnapshot/AuthorizationDecision 仍用原生 `identity.actor_snapshot` / `identity.authorization_decision` wire identity，并存在独立 authority 存储 |
 
 上述发布/解析通过受控 owning internal Capability/Port 实现，类型/profile/purpose 的内部接受集已注册。EP requirement 的 import/publish/read 与 definition.validate 使用独立当前授权；IP snapshot.record/read、publish/withdraw/read 同样独立绑定 operation@1.0、Purpose/action、完整 Platform target 和请求 Hash。它们不增加公开 Command/Query。后续 D14 EP startup Query/Source/Binding 的接纳与消费仍 NOT IMPLEMENTED；历史 D14、Platform snapshot 与 PROJECT_START 接受集/Hash 不自动升级。
+
+## D12 / Q11 批次类型与操作候选路由（#260）
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。完整字段、Hash域和8个additive操作候选及purpose唯一见 [REL §14](../module-specs/Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260)。它们不是本Catalog现行注册项，不改变现行operation count、旧ReleasePackageRef/RepresentationRef或历史compatibility baseline。
+
+拟类型均Owner release-publication、完整Project Scope：OBJECT CREATE target与CONTENT_ADDRESSED immutable身份 `release.project_delivery_batch`；OBJECT `release.project_delivery_package_request` / `release.project_delivery_download_request` / `release.project_delivery_export_attempt`；OBJECT archive identity及CONTENT_ADDRESSED Descriptor身份 `release.project_delivery_archive`；CONTENT_ADDRESSED `release.project_delivery_archive_validation`为生成Attempt/对象/清单/entry校验事实。batchRef.contentHash为batchManifestHash，archiveRef.contentHash为archiveDescriptorHash；这些Hash不能代替旧packageHash、Representation checksum或zipChecksum。Source/Quality/Release refs仍各归原Owner；QG/ART/EP拟内部只读Port不是public operation。HTTP/stream route与许可Token不进入此Catalog。

@@ -663,3 +663,9 @@ Cursor公开表示严格遵守共享OpaqueCursor正则`^[A-Za-z0-9_-]{16,512}$`�
 唯一新public operation提案 `project.find_workspace_projects@1.0` 的payload/result/分页见 [EP owning Spec](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)。它显式接受 `scopeRef={}` 的verified self-discovery，requester只从Core身份解析；不生成空Scope业务Actor/Decision，每个返回项目仍独立取得IP当前Project Decision并按双Scope RLS读取。此例外须新Query注册及实际可信入口，不把现有identity scoped Port/board接受集放宽。
 
 HTTP200/202不增加CommandResult status；202须owning durable admission，已commit request的数据可仍PENDING/UNKNOWN/PARTIAL。pre-auth/CSRF错误属于技术层，断网不伪造业务REJECTED。未注册D14/目录或缺handler不可调用，Registry声明不等于HTTP实现。依据摘录使用现有exact Evidence查询；没有owning公开bytes transport时下载不启用，新增stream须单独批准/注册有限路由，不以ObjectLocator或metadata绕过。
+
+## D12 / Q11 受控导出兼容与结果提案（#260）
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。候选操作/type/Hash/result字段唯一见 [REL §14](../module-specs/Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260)，类型路由见 [Catalog D12](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#d12--q11-批次类型与操作候选路由260)。这是additive未来设计，不修改旧单Revision Package、publication/receipt字段、required属性、接受集合或package hash domain。
+
+拟CREATE/Query沿共享Envelope、当前独立授权、安全错误、原target/idempotency/payloadHash和operation-specific CommandResult data规则；Batch成功Ref须与CREATE target type/id/完整Scope相等，Query纯读selection observation不能制造Snapshot。短期stream许可仅在经审查安全transport消费，不能加入旧Event或公共业务Receipt；Request/ResponseObservation不是FormalReceipt。候选Schema/Registry/生成类型/fixture/Result校验/公开route均须批准后单独实施，此提案或docs PASS不赋予路由与下游READY。
