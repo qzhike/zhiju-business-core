@@ -1,0 +1,174 @@
+{
+  "configurationVersion": "d14.runner.configuration@1.0",
+  "profileCode": "d14.analysis@1",
+  "runtime": {
+    "runtimeCode": "omp",
+    "productName": "Oh-My-Pi",
+    "invocationMode": "LOCAL_PROCESS",
+    "interactive": false
+  },
+  "model": {
+    "provider": "deepseek",
+    "modelId": "deepseek-flash",
+    "approvedModelVersion": "DeepSeek-V4.1-Flash",
+    "effort": "EXPLICIT",
+    "maxOutputTokens": 8192,
+    "maxContextTokens": 131072,
+    "maxTurns": 24,
+    "costBudgetUsdMax": 5
+  },
+  "toolSurface": {
+    "allowedTools": ["read", "grep", "glob", "write"],
+    "uriOrSchemeToolArguments": "DENIED",
+    "rootPlainFilesOnly": true,
+    "permissionRules": {
+      "ref": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.platform.d14_tool_permission_rules",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d221",
+        "scope": {},
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000000ea"
+        }
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "00000000000000000000000000000000000000000000000000000000000000ea"
+      }
+    }
+  },
+  "skillAllowlist": [],
+  "mcpAllowlist": [],
+  "disabledCapabilities": {
+    "configurationDiscovery": "DISABLED",
+    "extensions": "DISABLED",
+    "hooks": "DISABLED",
+    "plugins": "DISABLED",
+    "subagents": "DISABLED",
+    "memory": "DISABLED",
+    "advisor": "DISABLED",
+    "auxiliaryModels": "DISABLED",
+    "fallback": "DISABLED",
+    "contextPromotion": "DISABLED",
+    "autoCompression": "DISABLED",
+    "autoTitle": "DISABLED"
+  },
+  "isolationPolicy": {
+    "perRunUid": true,
+    "perRunMountNamespace": true,
+    "perRunPidNamespace": true,
+    "perRunNetworkNamespace": true,
+    "nonRoot": true,
+    "dropCapabilities": true,
+    "noNewPrivileges": true,
+    "readOnlyRootfs": true,
+    "mandatoryAccessControl": true,
+    "seccompProfile": true,
+    "cgroupLimits": true
+  },
+  "dataPolicy": {
+    "customerMaterialEgress": "CONDITIONAL_APPROVAL_REQUIRED",
+    "requiresCustomerDataApproval": true,
+    "policy": {
+      "ref": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.platform.d14_data_policy",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d222",
+        "scope": {},
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "00000000000000000000000000000000000000000000000000000000000000f1"
+        }
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "00000000000000000000000000000000000000000000000000000000000000f1"
+      }
+    }
+  },
+  "controlPolicy": {
+    "wallClockSecondsMax": 900,
+    "workOrderSecondsMax": 1800,
+    "maxAttempts": 2,
+    "dispatchObservationWindowSeconds": 30,
+    "hostHeartbeatSeconds": 15,
+    "runLeaseSeconds": 60,
+    "stopGraceSeconds": 5,
+    "runCostBudgetUsdMax": 5,
+    "totalCostBudgetUsdMax": 10,
+    "memoryBytesMax": 2147483648,
+    "pidsMax": 32,
+    "outputBytesMax": 33554432,
+    "supportedControls": ["HOST_HEARTBEAT", "CLI_PROGRESS", "PROVIDER_USAGE"],
+    "unsupportedControls": [
+      "record_run_suspension",
+      "resume_suspended_run",
+      "acknowledge_run_cancellation"
+    ]
+  },
+  "selectionEvidence": {
+    "ref": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.platform.runner_selection_evidence",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d223",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "00000000000000000000000000000000000000000000000000000000000000f8"
+      }
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "00000000000000000000000000000000000000000000000000000000000000f8"
+    }
+  },
+  "designReview": {
+    "ref": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.platform.runner_design_review",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d224",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "00000000000000000000000000000000000000000000000000000000000000ff"
+      }
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "00000000000000000000000000000000000000000000000000000000000000ff"
+    }
+  },
+  "technicalApproval": {
+    "ref": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.platform.runner_technical_approval",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d225",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "0000000000000000000000000000000000000000000000000000000000000106"
+      }
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000106"
+    }
+  },
+  "reviewedRevision": "8e8d2715b815179e92a18f444fb0eca13d58d466",
+  "configurationHash": {
+    "algorithm": "SHA-256",
+    "canonicalizationVersion": "1",
+    "digest": "b1504c6e97a2d688824d39138b0ec37438b80083f4546a70d8e5a038b42872fd"
+  }
+}

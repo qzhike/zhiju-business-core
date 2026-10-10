@@ -1,0 +1,48 @@
+{
+  "observationId": "018f22e2-7c15-7b2e-8d86-2de956a9d20b",
+  "observationVersion": "d14.runner.observation@1.0",
+  "observedAt": "2026-10-09T11:40:00Z",
+  "platform": {
+    "osFamily": "linux",
+    "osRelease": "Ubuntu 24.04.1 LTS",
+    "kernelVersion": "6.8.0-47-generic",
+    "architecture": "x64"
+  },
+  "cli": {
+    "executableCode": "omp",
+    "resolvedExecutablePath": "/opt/zhiju/runner/omp/18.5.0/omp",
+    "observedCliVersion": "omp/18.5.0",
+    "cliBinarySha256": "000000000000000000000000000000000000000000000000000000000000007a"
+  },
+  "adapter": {
+    "adapterCode": "zhiju.runtime.omp_adapter",
+    "adapterVersion": "1.0",
+    "sourceSha256": "000000000000000000000000000000000000000000000000000000000000008f",
+    "buildSha256": "0000000000000000000000000000000000000000000000000000000000000096"
+  },
+  "harness": {
+    "harnessId": "zhiju.runtime.omp",
+    "harnessVersion": "1.0"
+  },
+  "observedCapabilities": [
+    "OMP_PRINT",
+    "OMP_JSON",
+    "OMP_NO_SESSION",
+    "OMP_TOOLS_SELECTOR",
+    "OMP_NO_EXTENSIONS",
+    "OMP_NO_SKILLS",
+    "OMP_NO_RULES"
+  ],
+  "unprobedItems": [
+    "PROVIDER_MODEL_VERSION_BINDING",
+    "CUSTOMER_DATA_AUTHORIZATION",
+    "PUBLISHED_TEMPLATES",
+    "STARTUP_RULES",
+    "V02_EVIDENCE_TOOLS"
+  ],
+  "observationHash": {
+    "algorithm": "SHA-256",
+    "canonicalizationVersion": "1",
+    "digest": "22fc5122d19407c8820cba3a285a2abfc8dd7b2e0ffa6d229c798dbbe2b9c967"
+  }
+}
