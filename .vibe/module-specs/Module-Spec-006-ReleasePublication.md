@@ -394,7 +394,7 @@ ProjectDeliveryArchiveValidation
 
 批次 OBJECT target 与返回 CONTENT_ADDRESSED batchRef 的 type/id/Scope 必须相等；archiveDescriptor 同样使用 OBJECT identity，不能把自身 CONTENT_ADDRESSED ref/hash放入 Hash 输入。确认 Actor/Decision/Receipt 是归因，不重复塞入 Manifest；正常过期的历史命令 Decision 不改写确认事实，新的当前读取/下载必须另有有效 Decision。
 
-associationProofHash由REL对受权ART/EP实际结果计算：SHA-256(cv1({artifactRef,revisionRef,revisionProvenance,deliveryItemRefs,epAssociationSetHash}))，deliveryItemRefs为ART真实完整关联中本Plan适用集合，epAssociationSetHash为EP D12返回的实际Hash；不得信任客户端声明。dependencyProof.ruleRefs只容纳真实Policy版本（含PlanQualityPolicy与exportPolicy），不把QualityProfile伪装成Policy；requirementSetHash覆盖这些Policy及各entry.qualityProfileRef解析出的完整交付配套规则，associationSetHash覆盖本批所用EP关联与各entry.associationProofHash。依赖证明的Hash均不含自身Hash/观测时间。
+associationProofHash由REL对受权ART/EP实际结果计算：SHA-256(cv1({artifactRef,revisionRef,revisionProvenance,deliveryItemRefs,epAssociationSetHash}))，deliveryItemRefs为ART真实完整关联中本Plan适用集合，epAssociationSetHash为EP D12 VERIFY对此exact集合返回的associationSetHash，不能用ENUMERATE的pageAssociationHash；不得信任客户端声明。dependencyProof.ruleRefs只容纳真实Policy版本（含PlanQualityPolicy与exportPolicy），不把QualityProfile伪装成Policy；requirementSetHash覆盖这些Policy及各entry.qualityProfileRef解析出的完整交付配套规则，associationSetHash覆盖本批所用EP关联与各entry.associationProofHash。依赖证明的Hash均不含自身Hash/观测时间。
 
 ArchiveValidation Hash只覆盖上述完整校验payload，不含自身Ref/Hash或最终Descriptor；entry/checksum/大小字段类型与Descriptor相同。因此依赖图为Manifest →清单/文件bytes→ZIP→Validation→Descriptor，不能让Validation反向引用待生成的Descriptor Hash。exportPolicyRef须解析为明确允许本首版导出的真实版本，且与所有Destination.deliveryPolicyRef一致；未有受审查受控导出配置、不能解析Policy或目标不绑定指定Human/接收范围则阻断，不能由fixture或浏览器默认值填补。
 
@@ -402,11 +402,18 @@ ArchiveValidation Hash只覆盖上述完整校验payload，不含自身Ref/Hash�
 
 ### 14.3 选择 Query 与确认判据
 
-拟项目候选 Query 按 projectRef + exact ACTIVE deliveryPlanRef，通过 EP 的 D12 关联 Port 获得可读的文件/章节/配套映射，再读取 ART approvedRevisionRefs/Revision provenance 与 Quality 的 D12 proof。多个仍可用获批版本逐个显式列出，默认不选；每个 Artifact 最多选一个，不暗用最大 revisionNumber。没有 exact RAS/ABS/Representation/Release 关联的条目只显示等待原因；Query 不自动 render/prepare/authorize。
+拟项目候选 Query 仅需projectRef + exact ACTIVE deliveryPlanRef、filters与PageRequest，不要求调用方先知道Artifact refs。合法发现链如下，各模块只读自己的Repository或受权owning Query/Port：
 
-候选条目返回 exact entry 可用字段、`eligibility=INTERNALLY_APPROVED|EXPORT_ELIGIBLE|BLOCKED|UNKNOWN`、reasonCodes、checkedAt/sourceWatermarks；只有 EXPORT_ELIGIBLE 可确认。分页沿共享 Page/Cursor Scope/Filter/水位规则，不把空中间页当项目无成果，不从无权项泄漏名称或数量。
+1. EP ProjectDeliveryAssociationPort的ENUMERATE分支返回当前计划的可读Item/章节/配套映射及共享Page；EP不返回文件identity。依nextCursor续页，所需依赖从真实ItemRef解析；读切面或Plan变化拒绝，不能拿一页当整个计划。
+2. ART [ProjectDeliveryArtifactDiscoveryPort](Module-Spec-004-Artifact.md#项目候选的只读发现来源)按Project分页发现ArtifactView及精确Markdown登记View。REL以get_artifact实际deliveryItemRefs与EP枚举的Plan Item身份匹配，并由EP VERIFY验证适用exact关联；同ID而版本/Hash不同阻断，不替换Ref。某实际关联是否适用本Plan无法证明、或所需关联/依赖不可读时该候选BLOCKED/UNKNOWN，不以可见子集宣称完整。发现页与当前get_artifact.aggregateVersion/登记事实不一致则STALE，不消费过时索引。无Release的获批成果也须进入此链，不能仅枚举REL已有Release或接受客户端任意清单补足文件来源。
+3. 对实际approvedRevisionRefs逐个读取get_revision_snapshot/provenance及QG D12当前Proof；Markdown refs来自ART发现结果，再经get_representation逐项权威重验。REL按精确Artifact/Revision在自有Release/Package事实中关联逐文件CONTROLLED_EXPORT及RRS/授权；无该Release仍显示可读文件、已知exact批准版本与等待发布授权原因，不伪造Package/RRS/AUTH。缺RAS/ABS/Markdown等也只返回真实已知字段及等待原因，Query不自动render/prepare/authorize。
+4. 多个仍可用获批版本逐个显式列出，默认不选；每个Artifact最多选一个，不暗用最大revisionNumber。ART共享文件只发现一次，REL合并同Plan的实际Item/章节关联；跨轮次不拆查询或复制文件。候选条目的artifactRef必填，其余exact entry字段仅在真实可解析时提供，未知Ref省略，不把未就绪候选假充完整ProjectDeliveryEntry。`eligibility=INTERNALLY_APPROVED|EXPORT_ELIGIBLE|BLOCKED|UNKNOWN`及安全reasonCodes、checkedAt/sourceWatermarks按当前证明返回；只有EXPORT_ELIGIBLE可确认。
+
+REL返回共享Page<候选条目>并拥有自己的opaque cursor，不能把内部EP/ART的cursor直接当外层续页。外层游标按共享规则绑定Query版本、Project Scope、requester/purpose、exact Plan、规范化filters、稳定Artifact/Revision位置、内部续页位置与各Owner实际观测的水位/读切面；技术续页状态须有有限预算，不形成业务Aggregate。EP/ART页边界不等于候选页边界，多个版本/共享文件经过稳定排序后不得漏项或跨页重复。内部空页有nextCursor继续，外层空页有nextCursor也不表示项目无成果；仅当前授权扫描结束才省略nextCursor，不能泄漏隐藏名称/数量。Scope/Plan/筛选/权限或源读切面变化时安全拒绝旧cursor并要求从首请求刷新，不拼接不一致页面，不改既有选择或Batch。
 
 核对 Query 输入为 projectRef、deliveryPlanRef、接收/目标/Policy 配置与显式 exact entry 集合，输出 `{selectionHash, dependencyProof, entries, eligible, reasonCodes, checkedAt, sourceWatermarks}`。selectionHash 覆盖上述 manifestVersion/项目/计划/接收/目标/Policy/依赖/entry 的规范化语义字段，但不含尚未分配的 batchRef、自身 Hash、checkedAt、水位时刻或当前展示状态；所有实际关联证明和精确 Quality/Release refs 均参与。Query 是纯读取，selectionHash 是观测证据而非已提交 SnapshotRef。
+
+核对/确认须对ART实际关联与全部所需配套闭包执行EP VERIFY，要求返回集合与请求exact集合一致；逐文件证明和完整依赖证明消费该分支的associationSetHash。枚举的pageAssociationHash、最后页或空页不能证明完整闭包；枚举仅提供真实Ref来源。Guard超限或隐藏/失效的required关联不能通过分批验证、忽略空页或省略条目放宽确认条件。
 
 确认以预分配 Batch UUID、原 idempotency key、expectedSelectionHash 和全部 exact 输入提交；服务端重新证明当次 HUMAN/Scope/purpose/payload，重读同一集合并比较 selectionHash。逐项 ART ACTIVE/可读内容/Representation、RAS/ABS current eligibility、独立角色、RRS requireCurrentForAuthorization=true、Release AUTHORIZED/未 Recall/授权仍可用、EP ACTIVE Plan/关联/依赖及每个 Hash 全部成立才生成 Manifest。新 Snapshot 即使 READY 也不能静默替换传入 ref。所有强制交付配套传递闭合且各项 EXPORT_ELIGIBLE；execution-only/optional 依赖按已版本化规则区分，无法分类则阻断。首版不接受先前包/下载作为配套替代，不要求无关项目项完成。
 

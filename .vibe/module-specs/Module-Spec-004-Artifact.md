@@ -447,3 +447,27 @@ closed CommandResult.data `{revisionRef:CONTENT_ADDRESSED/artifact.artifact_revi
 3. 批次 entry 的artifactRef/revisionRef必须与 get_artifact.definition.deliveryItemRefs、get_revision_snapshot的immutable provenance及EP当前计划关联相符；approvedRevisionRefs只用于发现候选，仍须Quality当前证明。多个可用批准版本显式列出，不以workingHeads/new candidate/文件名选“最新”；Human-only来源保留原principal，不伪造Run/AgentResult/报告。
 4. 拟内部 ControlledRepresentationBytesPort独立授权：输入 `{representationRef:RepresentationRef,purpose:artifact.representation.controlled_export.read}`；仅当前Scope有权HUMAN或显式登记Release export SERVICE。先从自有登记事实确认exact Revision/Scope/checksum/renderer/registration与合法对象version，返回受控stream及 `{representationRef,registrationRef,storageVersion,byteSize,mediaType,checkedAt}`；每次readback bytes重算checksum。公开metadata Query不是bytes授权，locator不自动变URL；旧API/Port仍保持原用途。
 5. 包装原始已登记bytes不能替换内容、补客户签名、填空白业务表单或重渲染成新版本。源表示checksum不同、对象不可读/被隔离或Revision withdrawn/invalidated/Artifact archived时拒绝；旧批次及历史原文保留，新副作用停止。ZIP为REL集合对象，不登记为任一Artifact的Representation；下载不新增ApprovedBinding/EffectiveBinding。
+
+### 项目候选的只读发现来源
+
+拟内部 `ProjectDeliveryArtifactDiscoveryPort` 由ART拥有，AUTHORITATIVE纯读取；输入不要求已知Artifact/Revision/Release，也不接受客户端成果清单：
+
+```text
+ProjectDeliveryArtifactDiscoveryRequest
+  projectRef: ObjectRef<Project>
+  page: PageRequest
+
+ProjectDeliveryArtifactDiscoveryItem
+  artifact: ArtifactView
+  markdownRepresentations: Set<RepresentationView>
+
+ProjectDeliveryArtifactDiscoveryResult
+  projectRef: ObjectRef<Project>
+  artifacts: Page<ProjectDeliveryArtifactDiscoveryItem>
+```
+
+独立当前授权的HUMAN或显式登记Release Reader SERVICE消费，拟purpose为`artifact.project_delivery.discovery.read`；服务调用的结果还须在发起HUMAN当前可读范围内。只从ART自有成果、ApprovedRevisionBinding、Representation登记事实发现同enterpriseId+projectId的PROJECT_DELIVERABLE；不把Enterprise-owned成果补projectId混入。本Port无Plan/章节/质量/发布资格裁决，REL按EP owning事实核对所属exact Plan。跨执行轮次、无Run来源、尚无CONTROLLED_EXPORT Release或没有获批版本的可读成果均不因缺Release被过滤；ArtifactView完整字段沿§4，approvedRevisionRefs仍只是候选指针，不替代QG当前Proof。
+
+markdownRepresentations为该Artifact的approvedRevisionRefs对应、当前获准读取且已登记的精确Markdown RepresentationView集合，按完整representationRef稳定排序；没有登记则为空，不造RepresentationRef。它提供调用既有get_representation所需的完整identity，不以Release存在为前提，不返回bytes/凭证/公共URL。ART索引即使用于定位也须逐项从owning事实读回ArtifactView及完整登记绑定；REL随后重验get_artifact/get_revision_snapshot/get_representation与当前QG/EP/REL事实，不能将发现页当eligibility、Snapshot或授权。一个Artifact在枚举中出现一次，共享Item关联由其实际definition.deliveryItemRefs保存，不按Item或Run复制；多个获批Revision/表示保留完整exact选择，不选“最新”。超有限Page/结果/集合Guard则拒绝，不静默漏掉版本或截断单个成果。
+
+artifacts沿共享Page，显式items、可选nextCursor、snapshotAt/sourceWatermarks，按完整ArtifactRef稳定排序。ART游标绑定Port版本、Project Scope、requester/purpose、固定Project筛选、已扫描位置、真实ART源水位和有效期；源读切面覆盖definition/获批绑定/表示登记，Scope/主体/purpose/筛选不符或过期拒绝，当前授权范围/相关源变化或固定读切面不可恢复时拒绝续页，不能拼接新旧源。每页仍验当前权限；无权成果/表示不携带名称、占位或隐藏总数。权限裁剪可产生items=[]且有nextCursor的中间页，游标须前进，REL继续读取而不判定项目无成果。SourceWatermark仅用真实owning来源，不能以页数/扫描计数制造sequence。

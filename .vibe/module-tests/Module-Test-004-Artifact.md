@@ -262,3 +262,5 @@ authority为Spec 004 §12；#235当前有限owning/PG证据如下，历史已交
 | AF-D12-002 | caller自报.md、错Revision/renderer/checksum/对象version、篡改bytes、unsupported Workbook/opaque/required结构 | 不登记/不供stream、不生成AVAILABLE；已登记旧Revision/Representation历史保留 | 无新Markdown/bytes Port / NOT RUN |
 | AF-D12-003 | bytes读取无权/错purpose/Agent、withdrawn/invalidated/archived、metadata locator直接改URL | owning当前授权拒绝；无额外正文泄漏；元数据Query不是下载许可；本系统无法撤回已复制bytes | 无真实stream/安全验收 / NOT RUN |
 | AF-D12-004 | shared Artifact映射多个Item、多个批准版本、Human-only来源无Run/报告，新候选到达 | 文件只一entry，Profile/Scope兼容；显式选一个exact批准版本；来源原样、不伪造执行；新候选不改旧Batch | 无新项目关联消费 / NOT RUN |
+| AF-D12-005 | Contract；TR-260-09，仅ProjectRef/Page、零已知文件refs；跨轮次/shared/Human文件、内部获批但无Release、未登记Markdown、无权/跨Project/Enterprise-owned成果 | ART owning发现真实ArtifactView/批准指针/精确登记View，共享文件只一次；无Release仍返回，无表示为空且不造Ref；按当前Human及Reader权限裁剪，无名称/数量泄漏，不读取EP/REL Repository | 无新发现Port / NOT RUN |
+| AF-D12-006 | Pagination/Race；多页/空中间页、多个批准版本与表示、伪造/过期cursor、获批绑定或表示登记水位变化、发现索引过时、Guard超限 | 共享Page元数据及稳定身份顺序，有cursor继续；实际owning读回后再由REL逐项重验；读切面变化拒绝旧cursor，不能遗漏版本/复制shared成果或静默截断，不新增批准/发布事实 | 无新发现分页/重验实现 / NOT RUN |

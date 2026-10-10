@@ -18,7 +18,7 @@
 |---|---|---|
 | ReleasePublication | 拟 ProjectDeliveryBatch、不可变清单、导出生成请求、受控下载请求/响应观察；逐文件 Release 关联及当前可用性裁决 | 旧 Release/Package/PublicationAttempt/FormalReceipt/Completion 完整保留；批次不冒充旧 Package |
 | QualityGovernance | exact RAS/ABS、mandatory Gate/独立角色、当前 eligibility、逐文件冻结 Package 的 RRS；版本化配套要求 | 内部批准不授予 Release/下载授权；历史 Snapshot 不改写 |
-| Artifact | immutable Revision、来源、已验证的 Markdown Representation 及受权精确 bytes 读取 | 不把 ZIP 登记成某个文件的 Representation，不写审批或发布事实 |
+| Artifact | 受权Project成果发现及获批版本/登记表示来源、immutable Revision、来源、已验证的 Markdown Representation 及受权精确 bytes 读取 | 不裁决Plan/质量/发布资格，不把 ZIP 登记成某个文件的 Representation，不写审批或发布事实 |
 | EnterpriseProject | 当前计划及逐文件项目/交付项关联、章节与依赖来源证明 | 只提供关联事实，不因批次或下载评价 Completion |
 | IdentityPolicy | 每次读取/确认/授权/下载的当前 Scope、purpose、Actor/Decision；撤权 | 项目负责人/顾问称谓不替代 capability 与职责分离 |
 | IntegrationGateway | 精确 RenderAttempt/Binding；存储与导出技术 Adapter 的 Attempt/UNKNOWN | 不拥有批次业务决定，技术响应不晋升 Formal Receipt |
@@ -35,6 +35,8 @@
 完整拟字段、Hash 域、操作名/授权目的及转换只在 [REL §14](../module-specs/Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 定义；Quality、Artifact、EP、IG、UI 的对应 D12 专节约束各自输入与消费。新名称均 NOT REGISTERED，不扩展现行 Schema、Catalog 接受集合、Registry、数据库或 HTTP route。
 
 批次清单包含同计划的逐文件关联/章节、完整 exact Revision/Representation/Quality/Release refs、版本化配套规则和来源。不同轮次只保存来源，不能要求按轮分别打包。清单、清单 Markdown bytes、每份 Markdown checksum、ZIP checksum 和旧 packageHash 分域，无自引用；再次下载读取同一已验证归档，不能按实时候选重新渲染。
+
+候选入口从零已知Artifact refs开始：[EP关联Port](../module-specs/Module-Spec-002-EnterpriseProject.md#d12--q11-项目交付关联只读提案260)以ENUMERATE/Page提供真实Plan Item/章节/依赖；[ART发现Port](../module-specs/Module-Spec-004-Artifact.md#项目候选的只读发现来源)以Project/Page提供ArtifactView与已登记Markdown View；REL重读实际关联/获批Revision/QG证明及自己拥有的Release关联。内部获批但无Release的文件仍显示等待原因，不能只查询已有Release。共享文件按Artifact identity合并，当前无权项安全裁剪；内部与外层游标各由Owner绑定Scope/筛选/真实水位，空中间页不代表扫描结束。EP的pageAssociationHash只证明一页；逐文件及完整所需配套集合Hash由VERIFY精确验证生成，空VERIFY不等于枚举全部。核对/确认不把分页结果当完整闭包证明。
 
 当前代码仅有 OOXML Renderer 与 Artifact 的 PDF/DOCX/XLSX 格式映射。Markdown 通过拟 additive document.markdown + text/markdown 配置沿原 RenderAttempt → authoritative Binding → Representation 登记链进入；首版只有被登记 Renderer 版本无损支持的 Canonical Document。未支持的结构或已有 Workbook/opaque 内容阻断；本设计不选择生成 Runtime，也不以另一设计 Issue 或真实 Runner 为前置。
 
@@ -61,6 +63,8 @@
 | TR-260-06 | 核对后 selected exact row 被新合法选择取代、计划/关联/配套改变；确认后新候选到达 | 旧未确认选择显式 STALE 并阻断；有效选择保留；旧 CONFIRMED 清单与包不改；新候选本身不撤销仍有效旧批准 | RP-D12-005、UI-D12-003 |
 | TR-260-07 | 确认响应丢失；同键异 payload；生成上传后 DB fault、finalize timeout、Worker lease 过期 | 回读原 target/key；同键异输入拒绝；无部分批次/可下载 Link；孤儿受审计清理；UNKNOWN 恢复同 Attempt，不触碰独立工作 | RP-D12-007、IG-D12-002、UI-D12-004 |
 | TR-260-08 | 下载无 Session/错主体/Scope/过期许可；流中断或成功观察写入失败；Browser a.click/复制数据 | 无权/过期不发 bytes；已开始流保存真实部分/UNKNOWN；仅请求与服务端可证明事实可展示；FormalReceipt、ReleaseCompleted、DeliveryItem/Project Completion、EffectiveBinding 均无新事实 | RP-D12-009/010、UI-D12-005/006 |
+| TR-260-09 | 仅有Project-A/Plan-A，无已知Artifact refs；ART中跨R1/R2的P/E/F及共享文件，另有内部获批但无Release的N、无Run的Human成果和无权成果 | EP只发现真实Item，ART发现文件/批准版本/Markdown refs；REL逐项权威重验后展示N的等待原因，共享文件一次且保存全部适用关联；隐藏项不泄漏，不依赖客户端refs或已存在Release | RP-D12-011、AF-D12-005、UI-D12-001 |
+| TR-260-10 | Plan超过一页，EP ENUMERATE与ART发现出现空中间页；VERIFY空集合或完整required集合；续页换Scope/Plan/筛选或源水位变化 | 有nextCursor继续且无漏项/重复；空VERIFY只证明空集；一页Hash不能替代完整VERIFY；旧cursor安全拒绝，刷新不改选择/Batch，不将隐藏required关联排除后确认 | EP-D12-004/005、AF-D12-006、RP-D12-012 |
 
 ## 6. 验收与冻结 Gate
 

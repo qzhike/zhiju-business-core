@@ -165,7 +165,7 @@ reviewer and timestamp
 
 | ID | 层级 / 输入 | 预期 | 当前实际输出 / 结果 |
 |---|---|---|---|
-| UI-D12-001 | Browser E2E；TR-260-01、chapter/search/filter、R1/R2与无Run的Human文件、移动详情 | 初始不选，章节汇总且逐文件显示来源/精确版本/等待原因；集中核对一次；共享文件不重复；处理中M及旧#delivery包保留 | 未接真实API / NOT RUN |
+| UI-D12-001 | Browser E2E；TR-260-01/09、仅Project/Plan进入、chapter/search/filter、R1/R2与无Run的Human文件、无Release的获批文件、移动详情 | 初始不选，章节汇总且逐文件显示来源/精确版本/等待原因，不要求先提供文件refs；集中核对一次；共享文件不重复；处理中M及旧#delivery包保留 | 未接真实API / NOT RUN |
 | UI-D12-002 | Contract/Browser；APPROVED COMMITTED exact回读、PARTIAL ABS、拒绝、UNKNOWN、顾问缺独立角色 | 仅确定当前决策成功后接续下一可检查文件；其他角色仍待办/不可交付；拒绝/UNKNOWN留当前并回读原键，不批量批准 | 无真实Approval组合 / NOT RUN |
 | UI-D12-003 | Race；确认dialog打开后新selected row/配套/Scope/Plan/RRS变化，旧Batch后新候选 | 显式STALE/阻断，其他有效选择不丢；重选需Human；旧Manifest/ZIP/来源不改，后台不切换当前文件 | 无真实qualification/query / NOT RUN |
 | UI-D12-004 | Recovery；确认/生成timeout、401、BFF重启、未提交新草稿、late响应 | 原target/key/payloadHash读回单一原intent；未保存草稿不承诺跨设备；成功steps保留、UNKNOWN不新意图重发，late Scope/generation不串页 | 无生产保存/请求恢复 / NOT RUN |

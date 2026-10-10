@@ -608,3 +608,5 @@ pnpm persistence:gate
 | EP-D12-001 | 当前ACTIVE approved Plan、ART真实deliveryItemRefs、exact Item requirements/QualityPolicy/章节映射；R1/R2共享文件 | EP proof只读本模块，REL合并ART事实；章节/多个关联可追溯；轮次不拆包；proofHash稳定且保留观测水位 | 无新关联Port / NOT RUN |
 | EP-D12-002 | 缺传递required companion、无依赖分类、只有startup workScope/Runner拟清单、无合法章节映射、wrong Plan/Item Hash/Scope | 当前不可用/安全拒绝，不发明ACTIVE Plan/章节；不以下载满足先前交付；不机械暂停无关项 | 无新配套消费 / NOT RUN |
 | EP-D12-003 | inspect后Plan替代、共享文件不满足某Item类型/Profile、输入相同ID但内容Hash不同 | STALE/拒绝且不能修补为新Plan；原批次/计划历史保留；下载/Batch不写Completion或已发送状态 | 无新批次/项目组合 / NOT RUN |
+| EP-D12-004 | Contract/Pagination；TR-260-10，ENUMERATE必填PageRequest、Plan多页、权限裁剪空中间页、最后页；页Hash代替完整闭包 | tagged分支只接受自身字段；Page返回nextCursor/snapshotAt/真实水位，稳定切面逐页读完；空中间页有cursor须继续；pageAssociationHash仅本页，完整集合须VERIFY，不泄漏隐藏总数 | 无新枚举/分页实现 / NOT RUN |
+| EP-D12-005 | Contract/Security；VERIFY空集合、完整exact集合、错版本/无权项、超Guard；续页错Scope/Plan/筛选/主体/purpose、expiry/水位/ACTIVE pointer变化 | 空VERIFY items=[]不枚举；成功结果与请求一一对应，失败不返回部分Proof；VERIFY拒绝page，ENUMERATE拒绝deliveryItemRefs；旧cursor拒绝且不拼接新切面；required集合不得截断 | 无新验证/游标实现 / NOT RUN |
