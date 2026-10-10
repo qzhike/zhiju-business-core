@@ -5,6 +5,7 @@ import type { CanonicalJson, Common } from './common.js';
 import type { Core } from './core.js';
 
 export namespace EnterpriseProject {
+  export type DirectoryCursor = string;
   export type EnterpriseStatus = "ACTIVE" | "SUSPENDED" | "ARCHIVED";
   export type FactStatus = "PROPOSED" | "CONFIRMED" | "DISPUTED" | "SUPERSEDED";
   export type MaterialCompleteness = "COMPLETE" | "PARTIAL" | "UNKNOWN" | "UNREADABLE";
@@ -237,7 +238,7 @@ export namespace EnterpriseProject {
 }
   export interface WorkspaceProjectPage {
   readonly items: readonly EnterpriseProject.WorkspaceProjectSummary[];
-  readonly nextCursor?: Common.OpaqueCursor;
+  readonly nextCursor?: EnterpriseProject.DirectoryCursor;
   readonly snapshotAt: Common.UtcInstant;
   readonly sourceWatermarks: readonly EnterpriseProject.SourceWatermark[];
 }
@@ -614,7 +615,7 @@ export namespace EnterpriseProject {
   readonly searchText?: Common.NonEmptyString;
   readonly page: {
   readonly pageSize: number;
-  readonly cursor?: Common.OpaqueCursor;
+  readonly cursor?: EnterpriseProject.DirectoryCursor;
 };
 }
   /** Result of `project.find_workspace_projects` (QUERY). */

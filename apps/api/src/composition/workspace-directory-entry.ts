@@ -28,13 +28,19 @@
 //      candidate, so no undelivered card is skipped;
 //   7. the cursor is an opaque HMAC value keyed by the request session binding
 //      and binding the principal, session, filter, authorization fingerprint,
-//      IP source watermark and last sort key with a 5-minute expiry;
-//   8. the cursor additionally binds two *real* EnterpriseProject change
-//      observations — the digest of the summaries the chain's first page served
-//      and the digest of the summaries the page that emitted it served — so a
-//      continuation re-observes every served summary no later than the next
-//      request (and the chain's first page on every request) and restarts with
-//      `QUERY_CURSOR_INVALID` when one of them changed.
+//      IP source watermark, last sort key and chain snapshot instant with a
+//      5-minute expiry;
+//   8. the cursor additionally carries the chain's *whole* served set — the
+//      registered Project identity spelling and the Enterprise+Project ids plus
+//      the observed `aggregateVersion`/`status` of every summary the chain has
+//      served so far — so every continuation re-reads *every* served project in
+//      its exact Enterprise+Project scope (a fresh per-candidate Decision, its
+//      revalidation and the owning EnterpriseProject read) and restarts with
+//      `QUERY_CURSOR_INVALID` when one of them changed, lost its Decision or
+//      disappeared. The carried set is bounded by this Query's declared cursor
+//      bound (`^[A-Za-z0-9_-]{16,8192}$`, R5 option (a)); a chain whose served
+//      set outgrows that capacity fails closed with `QUERY_CURSOR_INVALID`
+//      rather than dropping a carried observation.
 //
 // A legal page is always `OK + Page<WorkspaceProjectSummary>` — including an
 // empty intermediate page (`items=[] + nextCursor`) when the filter or the scan
@@ -53,6 +59,7 @@ import {
   SCOPE_MISMATCH,
   SnapshotBoundaryError,
   WORKSPACE_PROJECT_DISCOVERY_BINDINGS,
+  WORKSPACE_PROJECT_OBJECT_TYPES,
   createActorSnapshot,
   createWorkspaceProjectDiscoveryPort,
   discoverWorkspaceProjectScopes,
@@ -91,16 +98,42 @@ const QUERY_CURSOR_EXPIRED = 'QUERY_CURSOR_EXPIRED';
 const QUERY_CURSOR_INVALID = 'QUERY_CURSOR_INVALID';
 
 const CURSOR_TTL_MS = 5 * 60 * 1000;
-const CURSOR_PATTERN = /^[A-Za-z0-9_-]{16,512}$/u;
+/**
+ * This Query's *declared* cursor bound (R5 option (a)): the same closed alphabet
+ * as the shared `opaqueCursor`, with `minLength 16` and `maxLength 8192` instead
+ * of the shared 512, because the cursor carries the chain's whole served set.
+ * The bound applies to the request `page.cursor` and to the result page cursor
+ * alike; every other Query keeps the shared `opaqueCursor` unchanged.
+ */
+const CURSOR_MIN_CHARS = 16;
+const CURSOR_MAX_CHARS = 8192;
+const CURSOR_PATTERN = /^[A-Za-z0-9_-]{16,8192}$/u;
 const MAC_BYTES = 32;
 
 /** Binary cursor body layout version; a foreign body is `QUERY_CURSOR_INVALID`. */
-const CURSOR_FORMAT_VERSION = 1;
-const CURSOR_FLAG_HAS_PREVIOUS_WINDOW = 1;
+const CURSOR_FORMAT_VERSION = 2;
 const CURSOR_MAX_OPERATION_BYTES = 64;
 const CURSOR_MAX_VERSION_BYTES = 16;
 /** 48-bit chain-stable projection of a served-observation digest. */
 const CURSOR_WATERMARK_HEX_CHARS = 12;
+/**
+ * Structural cap on one cursor's carried served set. The declared character
+ * bound already caps a legitimate cursor far below this — the shortest carried
+ * observation is 42 bytes, so 8192 characters cannot carry more than ~140 of
+ * them — and the cap only keeps a malformed body from driving an unbounded
+ * decode loop.
+ */
+const CURSOR_MAX_SERVED_OBSERVATIONS = 1024;
+
+/**
+ * The one failure message of a cursor that cannot carry the chain's served set
+ * within this Query's declared bound. The client restarts at page one: dropping a
+ * carried observation instead would let a card stay served after it changed.
+ */
+const CURSOR_CAPACITY_MESSAGE = 'the chain served set exceeded the declared cursor capacity';
+
+/** The closed EnterpriseProject status enum of one carried observation. */
+const DIRECTORY_STATUS_CODES = Object.freeze(['ACTIVE', 'SUSPENDED', 'ARCHIVED'] as const);
 
 const MIN_PAGE_SIZE = 1;
 const MAX_PAGE_SIZE = 50;
@@ -163,25 +196,43 @@ interface DirectorySortKey {
 }
 
 /**
+ * One carried served observation: the identity of a card the chain has already
+ * served plus the two owning EnterpriseProject facts a continuation re-observes.
+ *
+ * The Project identity spelling travels with the card because a continuation
+ * re-mints the fresh per-candidate Decision over the *same* candidate identity
+ * the serving page authorized: the owning Grant selector must equal the
+ * presented target object type exactly, so re-deriving the spelling from the
+ * project id (or canonicalising it) would deny a legitimate continuation whose
+ * Grant is registered under the other accepted Project spelling.
+ */
+interface DirectoryServedObservation {
+  readonly objectType: string;
+  readonly enterpriseId: string;
+  readonly projectId: string;
+  readonly aggregateVersion: number;
+  readonly status: WorkspaceProjectSummaryView['status'];
+}
+
+/**
  * The decoded cursor.
  *
  * The body is a compact, fixed-layout binary (see `encodeCursor`/`parseCursorBody`)
- * rather than JSON: a chain has to carry two 32-byte observation digests, two
- * packed sort keys (the first window's end key and the previous window's start
- * key) and two page sizes, and JSON plus a second base64url layer for each
- * 32-byte value would exceed the shared 512-character opaque-cursor bound.
+ * rather than JSON: a chain has to carry every served card's identity and its two
+ * re-observed EnterpriseProject facts, and JSON plus a second base64url layer for
+ * each 32-byte digest would waste the declared 8192-character cursor bound.
  *
  * Besides the unchanged IP watermark, grant-set and
- * principal/session/filter binding, the cursor binds three real EnterpriseProject
+ * principal/session/filter binding, the cursor binds two real EnterpriseProject
  * observations to the continuation:
  *
- *   * `firstPageSize` / `firstEndKey` / `firstDigest` — the chain's first page
- *     window and the digest of the summaries it served, so the first page stays
- *     re-derivable on every continuation;
- *   * `previous` — the window the page that emitted this cursor served (its page
- *     size, its start key and its digest), so the immediately preceding page is
- *     re-derivable on the next continuation. It is absent exactly when that page
- *     is the chain's first page, which `firstDigest` already covers.
+ *   * `firstDigest` — the digest of the summaries the chain's first page served,
+ *     carried verbatim so the chain-stable EnterpriseProject watermark never
+ *     becomes a copied page count; and
+ *   * `served` — *every* summary the chain has served so far, in chain order, so
+ *     a continuation re-reads all of them (not just the first page and the
+ *     immediately preceding page) and rejects the whole page as soon as one of
+ *     them changed, lost its Decision or disappeared.
  */
 interface DirectoryCursorBody {
   readonly operation: string;
@@ -194,20 +245,10 @@ interface DirectoryCursorBody {
   readonly ipSequence: number;
   /** Last candidate this page examined; the next page scans strictly after it. */
   readonly lastSortKey: DirectorySortKey;
-  /** Page size of the chain's first page, so its window stays re-derivable. */
-  readonly firstPageSize: number;
-  /** Last candidate the chain's first page examined; bounds its re-derivation. */
-  readonly firstEndKey: DirectorySortKey;
   /** Digest of the summaries the chain's first page served. */
   readonly firstDigest: string;
-  /** The window the emitting page served, when it is not the chain's first page. */
-  readonly previous:
-    | {
-        readonly pageSize: number;
-        readonly startKey: DirectorySortKey;
-        readonly digest: string;
-      }
-    | undefined;
+  /** Every summary the chain has served so far, in chain order. */
+  readonly served: readonly DirectoryServedObservation[];
   /** First-page snapshot instant, in epoch milliseconds. */
   readonly snapshotMs: number;
   /** Expiry instant, in epoch milliseconds. */
@@ -318,6 +359,15 @@ function formatUuid(hex32: string): string {
   return `${hex32.slice(0, 8)}-${hex32.slice(8, 12)}-${hex32.slice(12, 16)}-${hex32.slice(16, 20)}-${hex32.slice(20)}`;
 }
 
+/** Packs one dashed UUID into the 16 bytes the owning Project identity uses. */
+function packUuid(value: string): Buffer {
+  const bytes = Buffer.from(value.replaceAll('-', ''), 'hex');
+  if (bytes.length !== 16) {
+    entryError(DEPENDENCY_UNAVAILABLE, 'a directory identity is not a UUID value');
+  }
+  return bytes;
+}
+
 function digestBytesOf(hex: string): Buffer {
   const bytes = Buffer.from(hex, 'hex');
   if (bytes.length !== 32) {
@@ -351,6 +401,29 @@ function uint64Bytes(value: number): Buffer {
   return bytes;
 }
 
+/**
+ * Packs one carried served observation. It is the widest part of a cursor, so it
+ * uses the closed one-byte codes of the registered Project identity spellings and
+ * of the EnterpriseProject status enum instead of their text.
+ */
+function encodeServedObservation(observation: DirectoryServedObservation): Buffer {
+  const objectTypeCode = WORKSPACE_PROJECT_OBJECT_TYPES.indexOf(observation.objectType);
+  if (objectTypeCode === -1) {
+    entryError(DEPENDENCY_UNAVAILABLE, 'a directory card carries an unregistered Project spelling');
+  }
+  const statusCode = DIRECTORY_STATUS_CODES.indexOf(observation.status);
+  if (statusCode === -1) {
+    entryError(DEPENDENCY_UNAVAILABLE, 'a directory card carries an unregistered status');
+  }
+  return Buffer.concat([
+    Buffer.from([objectTypeCode]),
+    packUuid(observation.enterpriseId),
+    packUuid(observation.projectId),
+    uint64Bytes(observation.aggregateVersion),
+    Buffer.from([statusCode]),
+  ]);
+}
+
 function encodeCursor(body: DirectoryCursorBody, macKey: Buffer): string {
   const operation = Buffer.from(body.operation, 'utf8');
   const version = Buffer.from(body.version, 'utf8');
@@ -362,25 +435,26 @@ function encodeCursor(body: DirectoryCursorBody, macKey: Buffer): string {
   ) {
     entryError(DEPENDENCY_UNAVAILABLE, 'the directory operation tag does not fit its cursor');
   }
+  if (body.served.length > CURSOR_MAX_SERVED_OBSERVATIONS) {
+    // Not reachable through the declared character bound, but the two-byte count
+    // must never wrap a carried served set.
+    entryError(QUERY_CURSOR_INVALID, CURSOR_CAPACITY_MESSAGE);
+  }
+  const servedCount = Buffer.alloc(2);
+  servedCount.writeUInt16BE(body.served.length);
   const parts: Buffer[] = [
     Buffer.from([CURSOR_FORMAT_VERSION, operation.length]),
     operation,
     Buffer.from([version.length]),
     version,
-    Buffer.from([body.previous === undefined ? 0 : CURSOR_FLAG_HAS_PREVIOUS_WINDOW]),
     digestBytesOf(body.binding),
     digestBytesOf(body.authorizationFingerprint),
     packSortKey(body.lastSortKey),
     digestBytesOf(body.firstDigest),
-    packSortKey(body.firstEndKey),
-    Buffer.from([body.firstPageSize]),
+    servedCount,
   ];
-  if (body.previous !== undefined) {
-    parts.push(
-      packSortKey(body.previous.startKey),
-      digestBytesOf(body.previous.digest),
-      Buffer.from([body.previous.pageSize]),
-    );
+  for (const observation of body.served) {
+    parts.push(encodeServedObservation(observation));
   }
   parts.push(
     uint64Bytes(body.ipSequence),
@@ -393,9 +467,26 @@ function encodeCursor(body: DirectoryCursorBody, macKey: Buffer): string {
 }
 
 /**
+ * Encodes one cursor and enforces this Query's *declared* cursor bound
+ * (`^[A-Za-z0-9_-]{16,8192}$`). The carried served set grows with every page, so
+ * a long chain can outgrow the declared capacity: that page then fails closed
+ * instead of silently dropping carried observations the next continuation must
+ * re-observe — a dropped observation would let a stale card stay served — and the
+ * client restarts at page one.
+ */
+function encodeBoundedCursor(body: DirectoryCursorBody, macKey: Buffer): string {
+  const token = encodeCursor(body, macKey);
+  if (token.length < CURSOR_MIN_CHARS || token.length > CURSOR_MAX_CHARS) {
+    entryError(QUERY_CURSOR_INVALID, CURSOR_CAPACITY_MESSAGE);
+  }
+  return token;
+}
+
+/**
  * Parses the fixed binary body a verified cursor MAC covers. Every read is
- * bounds-checked, the flags accept only the one known bit and the final length
- * must be exact, so a truncated, extended or re-tagged body never parses.
+ * bounds-checked, the closed code tables reject an unknown Project spelling or
+ * status and the final length must be exact, so a truncated, extended or
+ * re-tagged body never parses.
  */
 function parseCursorBody(payload: Buffer): DirectoryCursorBody {
   let offset = 0;
@@ -417,6 +508,7 @@ function parseCursorBody(payload: Buffer): DirectoryCursorBody {
   };
   const readDigest = (): string => readBytes(32).toString('hex');
   const readSortKey = (): DirectorySortKey => unpackSortKey(readBytes(32));
+  const readUuid = (): string => formatUuid(readBytes(16).toString('hex'));
   const readNumber = (): number => {
     const value = readBytes(8).readBigUInt64BE(0);
     if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
@@ -424,43 +516,45 @@ function parseCursorBody(payload: Buffer): DirectoryCursorBody {
     }
     return Number(value);
   };
-  const readPageSize = (): number => {
-    const value = readByte();
-    if (value < MIN_PAGE_SIZE || value > MAX_PAGE_SIZE) {
-      entryError(QUERY_CURSOR_INVALID, 'cursor page size is out of range');
+  const readServedObservation = (): DirectoryServedObservation => {
+    const objectType = WORKSPACE_PROJECT_OBJECT_TYPES[readByte()];
+    if (objectType === undefined) {
+      entryError(QUERY_CURSOR_INVALID, 'cursor Project spelling is not registered');
     }
-    return value;
+    const enterpriseId = readUuid();
+    const projectId = readUuid();
+    const aggregateVersion = readNumber();
+    const status = DIRECTORY_STATUS_CODES[readByte()];
+    if (status === undefined) {
+      entryError(QUERY_CURSOR_INVALID, 'cursor status is not a registered value');
+    }
+    return { objectType, enterpriseId, projectId, aggregateVersion, status };
   };
 
   if (readByte() !== CURSOR_FORMAT_VERSION) {
     entryError(QUERY_CURSOR_INVALID, 'cursor format is not supported');
   }
   const operationLength = readByte();
-  if (operationLength > CURSOR_MAX_OPERATION_BYTES) {
+  if (operationLength === 0 || operationLength > CURSOR_MAX_OPERATION_BYTES) {
     entryError(QUERY_CURSOR_INVALID, 'cursor operation tag is out of range');
   }
   const operation = readBytes(operationLength).toString('utf8');
   const versionLength = readByte();
-  if (versionLength > CURSOR_MAX_VERSION_BYTES) {
+  if (versionLength === 0 || versionLength > CURSOR_MAX_VERSION_BYTES) {
     entryError(QUERY_CURSOR_INVALID, 'cursor version tag is out of range');
   }
   const version = readBytes(versionLength).toString('utf8');
-  const flags = readByte();
-  if (flags !== 0 && flags !== CURSOR_FLAG_HAS_PREVIOUS_WINDOW) {
-    entryError(QUERY_CURSOR_INVALID, 'cursor flags are invalid');
-  }
   const binding = readDigest();
   const authorizationFingerprint = readDigest();
   const lastSortKey = readSortKey();
   const firstDigest = readDigest();
-  const firstEndKey = readSortKey();
-  const firstPageSize = readPageSize();
-  let previous: DirectoryCursorBody['previous'];
-  if (flags === CURSOR_FLAG_HAS_PREVIOUS_WINDOW) {
-    const startKey = readSortKey();
-    const digest = readDigest();
-    const pageSize = readPageSize();
-    previous = { pageSize, startKey, digest };
+  const servedCount = readBytes(2).readUInt16BE(0);
+  if (servedCount > CURSOR_MAX_SERVED_OBSERVATIONS) {
+    entryError(QUERY_CURSOR_INVALID, 'cursor served set is out of range');
+  }
+  const served: DirectoryServedObservation[] = [];
+  for (let index = 0; index < servedCount; index += 1) {
+    served.push(readServedObservation());
   }
   const ipSequence = readNumber();
   const snapshotMs = readNumber();
@@ -475,10 +569,8 @@ function parseCursorBody(payload: Buffer): DirectoryCursorBody {
     authorizationFingerprint,
     ipSequence,
     lastSortKey,
-    firstPageSize,
-    firstEndKey,
     firstDigest,
-    previous,
+    served,
     snapshotMs,
     expiresMs,
   };
@@ -637,64 +729,69 @@ export function createWorkspaceDirectoryEntry(
   }
 
   /**
-   * Re-derives one window an earlier page of the chain served, by scanning the IP
-   * self-discovery candidates again from the window's recorded start and reading
-   * every authorized candidate's owning summary under the filter this request
-   * repeats. Only the summaries the window would serve *now* are digested, so a
-   * changed `aggregateVersion`/`status`, a Project that vanished, or a candidate
-   * that now resolves to another card changes the digest.
+   * Re-observes one carried served project. It mints a fresh PROJECT-scoped
+   * Decision through the owning discovery Port over the *same* candidate identity
+   * the serving page authorized — the registered Project spelling is carried
+   * verbatim, because the owning Grant selector must equal the presented target
+   * object type exactly — revalidates that Decision, reads the owning
+   * EnterpriseProject summary in the carried exact Enterprise+Project scope and
+   * compares the two facts a continuation must re-observe.
    *
-   * The window is bounded by its recorded page size and its recorded end key (the
-   * last candidate that page examined), so the re-observation is deterministic,
-   * never scans the whole directory, and never exceeds the per-request budget:
-   * the first window and the previous window together are at most two page sizes
-   * (2 x 50) of candidates, leaving room for the served page itself.
+   * The whole page fails on a lost Decision, a missing Project row or a changed
+   * `aggregateVersion`/`status`: a card the chain already served must still be
+   * reproducible before the next card is served.
    */
-  async function reobserveServedWindow(input: {
-    readonly session: WorkspaceDirectorySession;
+  async function reobserveServedObservation(input: {
     readonly resolution: VerifiedHumanResolution;
     readonly directoryQueryId: string;
     readonly normalizedFilter: NormalizedFilter;
     readonly pageBindingHash: string;
     readonly correlationId: string;
-    readonly authorizationFingerprint: string;
-    readonly startKey: DirectorySortKey | undefined;
-    readonly pageSize: number;
-    readonly endKey: DirectorySortKey;
-  }): Promise<string> {
-    const scan = await scanWindow({
-      session: input.session,
+    readonly observation: DirectoryServedObservation;
+  }): Promise<void> {
+    const candidate: Common.ObjectRef = {
+      kind: 'OBJECT',
+      objectType: input.observation.objectType,
+      objectId: input.observation.projectId,
+      scope: {
+        enterpriseId: input.observation.enterpriseId,
+        projectId: input.observation.projectId,
+      },
+    };
+    const authorized = await authorizeCandidate({
       resolution: input.resolution,
-      pageSize: input.pageSize,
-      startKey: input.startKey,
-      authorizationFingerprint: input.authorizationFingerprint,
+      candidate,
+      directoryQueryId: input.directoryQueryId,
+      normalizedFilter: input.normalizedFilter,
+      pageBindingHash: input.pageBindingHash,
     });
-    const served: WorkspaceProjectSummaryView[] = [];
-    for (const candidate of scan.items) {
-      const scope = candidateScope(candidate.projectRef);
-      const authorized = await authorizeCandidate({
-        resolution: input.resolution,
-        candidate: candidate.projectRef,
-        directoryQueryId: input.directoryQueryId,
-        normalizedFilter: input.normalizedFilter,
-        pageBindingHash: input.pageBindingHash,
-      });
-      if (authorized !== undefined) {
-        const view = await readWorkspaceProjectSummary(
-          config.enterpriseProjectDb,
-          boundary.enterpriseProjectContext(authorized.row, authorized.scope, input.correlationId),
-          { enterpriseId: authorized.scope.enterpriseId, projectId: authorized.scope.projectId },
-        );
-        if (view !== undefined && matchesFilter(view, input.normalizedFilter)) served.push(view);
-      }
-      if (
-        scope.enterpriseId === input.endKey.enterpriseId &&
-        scope.projectId === input.endKey.projectId
-      ) {
-        return servedObservationDigest(served);
-      }
+    if (authorized === undefined) {
+      entryError(
+        QUERY_CURSOR_INVALID,
+        'a summary the directory chain served is no longer authorized',
+      );
     }
-    entryError(QUERY_CURSOR_INVALID, 'the previously served window is no longer reproducible');
+    await revalidateCandidate({
+      resolution: input.resolution,
+      decisionRef: authorized.decisionRef,
+      scope: authorized.scope,
+      candidate,
+      directoryQueryId: input.directoryQueryId,
+      normalizedFilter: input.normalizedFilter,
+      pageBindingHash: input.pageBindingHash,
+      actorSnapshotId: authorized.row.actor_snapshot_id,
+    });
+    const observed = await readWorkspaceProjectSummary(
+      config.enterpriseProjectDb,
+      boundary.enterpriseProjectContext(authorized.row, authorized.scope, input.correlationId),
+      { enterpriseId: authorized.scope.enterpriseId, projectId: authorized.scope.projectId },
+    );
+    const observationChanged =
+      observed?.aggregateVersion !== input.observation.aggregateVersion ||
+      observed.status !== input.observation.status;
+    if (observationChanged) {
+      entryError(QUERY_CURSOR_INVALID, 'a summary the directory chain served changed');
+    }
   }
 
   /**
@@ -892,47 +989,23 @@ export function createWorkspaceDirectoryEntry(
         }
 
         // The continuation invariant, enforced before any new card is read:
-        //
-        //   * every summary a page served is re-observed no later than the next
-        //     continuation: the emitting page's window is re-derived from its
-        //     recorded start key and page size up to its recorded end key; and
-        //   * the chain's first page is re-observed on every continuation, from
-        //     the chain start with the first page size and end key it recorded.
-        //
-        // A changed `aggregateVersion`/`status`, a vanished Project or a card that
-        // now resolves differently therefore restarts the client
-        // (`QUERY_CURSOR_INVALID`) instead of letting a stale chain serve on.
-        const chainFirstDigest = await reobserveServedWindow({
-          session,
-          resolution,
-          directoryQueryId: queryId,
-          normalizedFilter,
-          pageBindingHash,
-          correlationId,
-          authorizationFingerprint: cursor.authorizationFingerprint,
-          startKey: undefined,
-          pageSize: cursor.firstPageSize,
-          endKey: cursor.firstEndKey,
-        });
-        if (chainFirstDigest !== cursor.firstDigest) {
-          entryError(QUERY_CURSOR_INVALID, 'a summary served on the chain first page changed');
-        }
-        if (cursor.previous !== undefined) {
-          const previousDigest = await reobserveServedWindow({
-            session,
+        // *every* summary the chain has served is re-read in its exact
+        // Enterprise+Project scope — a fresh per-candidate Decision, its
+        // revalidation and the owning EnterpriseProject read — and compared with
+        // the two facts the emitting page observed. A changed
+        // `aggregateVersion`/`status`, a vanished Project row or a lost Decision
+        // fails the whole page (`QUERY_CURSOR_INVALID`) instead of letting a stale
+        // card stay served; the carried set is re-read in chain order so the check
+        // never depends on how many pages the chain has already served.
+        for (const observation of cursor.served) {
+          await reobserveServedObservation({
             resolution,
             directoryQueryId: queryId,
             normalizedFilter,
             pageBindingHash,
             correlationId,
-            authorizationFingerprint: cursor.authorizationFingerprint,
-            startKey: cursor.previous.startKey,
-            pageSize: cursor.previous.pageSize,
-            endKey: cursor.lastSortKey,
+            observation,
           });
-          if (previousDigest !== cursor.previous.digest) {
-            entryError(QUERY_CURSOR_INVALID, 'a summary served on the previous page changed');
-          }
         }
       }
 
@@ -1048,12 +1121,11 @@ export function createWorkspaceDirectoryEntry(
         aggregateVersion: view.aggregateVersion,
       }));
 
-      // The served-observation digest of this page: the exact EP facts the next
-      // continuation re-observes and compares before it serves anything.
+      // The served-observation digest of this page. It is the chain-stable
+      // EnterpriseProject watermark source of the chain's first page, fixed once
+      // there and carried verbatim from then on, so every page of one chain
+      // reports the same EnterpriseProject watermark.
       const pageDigest = servedObservationDigest(items);
-      // The chain's first-page observation digest is fixed once, on the first
-      // page, and carried verbatim so the whole chain stays bound to the same
-      // first window.
       const chainFirstDigest = cursor?.firstDigest ?? pageDigest;
       const sequence = scan.sourceWatermarks[0]?.sequence ?? 0;
       // The EP watermark is a chain-stable projection of the chain's real
@@ -1076,7 +1148,22 @@ export function createWorkspaceDirectoryEntry(
 
       let nextCursor: string | undefined;
       if (hasMore && lastKey !== undefined) {
-        nextCursor = encodeCursor(
+        // The emitted cursor carries the whole chain's served set: everything the
+        // incoming cursor carried, in chain order, followed by this page's served
+        // items. Nothing is ever dropped from the carried set — each observation
+        // is the exact EnterpriseProject fact the next continuation re-reads
+        // before it serves anything.
+        const carried: DirectoryServedObservation[] = [
+          ...(cursor?.served ?? []),
+          ...items.map((view) => ({
+            objectType: projectIdentityOf(view.projectId),
+            enterpriseId: view.enterpriseId,
+            projectId: view.projectId,
+            aggregateVersion: view.aggregateVersion,
+            status: view.status,
+          })),
+        ];
+        nextCursor = encodeBoundedCursor(
           {
             operation: WORKSPACE_DIRECTORY_QUERY,
             version: WORKSPACE_DIRECTORY_QUERY_VERSION,
@@ -1091,13 +1178,8 @@ export function createWorkspaceDirectoryEntry(
             authorizationFingerprint: scan.authorizationFingerprint,
             ipSequence: sequence,
             lastSortKey: lastKey,
-            firstPageSize: cursor?.firstPageSize ?? pageSize,
-            firstEndKey: cursor?.firstEndKey ?? lastKey,
             firstDigest: chainFirstDigest,
-            previous:
-              cursor === undefined
-                ? undefined
-                : { pageSize, startKey: cursor.lastSortKey, digest: pageDigest },
+            served: carried,
             snapshotMs: snapshotAt.getTime(),
             expiresMs: now().getTime() + CURSOR_TTL_MS,
           },

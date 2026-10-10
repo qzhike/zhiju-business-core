@@ -758,19 +758,32 @@ describe('workspace directory public contracts', () => {
     });
   });
 
-  it('constrains the result nextCursor to the shared opaqueCursor envelope', () => {
-    // R7: the result Page must reuse the shared `^[A-Za-z0-9_-]{16,512}$`
-    // cursor rather than an unrestricted non-empty string. The untouched valid
-    // result fixture is the positive control; too short, dotted and over-long
-    // values are the three alphabet/length negatives.
+  it('bounds the extended directoryCursor and accepts long legal continuations', () => {
+    // #258 R5 option (a): `project.find_workspace_projects@1.0` extends the
+    // cursor past the shared `opaqueCursor` (16..512) to 16..8192 so a
+    // continuation can carry and re-observe the chain's served
+    // identities/observations. The alphabet stays `^[A-Za-z0-9_-]+$` on both
+    // the request `page.cursor` and the result `nextCursor`. The untouched
+    // valid fixtures are the positive controls; the negatives are one too
+    // short (minLength), a dotted value (pattern) and one character past the
+    // declared bound (maxLength).
     const cursorCases = directoryNegativeCases.filter(
       (test) => test.base === 'result' && test.path === '/nextCursor',
     );
-    expect(cursorCases.map((test) => test.value)).toEqual([
-      'x',
-      'opaque.cursor.value.0002',
-      'a'.repeat(513),
+    expect(cursorCases.map((test) => [test.keyword, test.value])).toEqual([
+      ['minLength', 'x'],
+      ['pattern', 'opaque.cursor.value.0002'],
+      ['maxLength', 'a'.repeat(8193)],
     ]);
+    for (const length of [16, 512, 1024, 8192]) {
+      const cursor = 'a'.repeat(length);
+      const query = readDirectoryFixture('query');
+      setDirectoryPath(query, '/payload/page/cursor', cursor);
+      expect(validateDirectory('query', query)).toEqual({ valid: true, errors: [] });
+      const result = readDirectoryFixture('result');
+      setDirectoryPath(result, '/nextCursor', cursor);
+      expect(validateDirectory('result', result)).toEqual({ valid: true, errors: [] });
+    }
     expect(validateDirectory('result', readDirectoryFixture('result'))).toEqual({
       valid: true,
       errors: [],
@@ -781,7 +794,7 @@ describe('workspace directory public contracts', () => {
       const outcome = validateDirectory('result', input);
       expect(outcome.valid).toBe(false);
       expect(outcome.errors).toContainEqual(
-        expect.objectContaining({ keyword: 'pattern', instancePath: '/nextCursor' }),
+        expect.objectContaining({ keyword: test.keyword, instancePath: '/nextCursor' }),
       );
     }
   });

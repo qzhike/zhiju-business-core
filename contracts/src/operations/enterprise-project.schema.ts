@@ -42,7 +42,6 @@ const namespace = { $ref: `${common}namespaceCode` } as const;
 const reasonCode = { $ref: `${common}reasonCode` } as const;
 const text = { $ref: `${common}nonEmptyString` } as const;
 const safeSummary = { $ref: `${common}safeSummary` } as const;
-const opaqueCursor = { $ref: `${common}opaqueCursor` } as const;
 const instant = { $ref: `${common}utcInstant` } as const;
 const contentHash = { $ref: `${common}contentHash` } as const;
 const scope = { $ref: `${common}scopeRef` } as const;
@@ -118,6 +117,17 @@ const authorizationDecisionRef = exactObjectType(
 );
 
 const namedDefinitions = {
+  // #258 R5 option (a): `project.find_workspace_projects@1.0`'s cursor carries
+  // the whole chain's served identities/observations so every continuation can
+  // re-observe them, so its declared bound is deliberately extended past the
+  // shared `opaqueCursor` (16..512). The alphabet and length bound stay closed
+  // (no open NonEmptyString); every other Query keeps the shared `opaqueCursor`.
+  directoryCursor: {
+    type: 'string',
+    minLength: 16,
+    maxLength: 8192,
+    pattern: '^[A-Za-z0-9_-]+$',
+  },
   enterpriseStatus: { enum: ['ACTIVE', 'SUSPENDED', 'ARCHIVED'] },
   factStatus: { enum: ['PROPOSED', 'CONFIRMED', 'DISPUTED', 'SUPERSEDED'] },
   materialCompleteness: { enum: ['COMPLETE', 'PARTIAL', 'UNKNOWN', 'UNREADABLE'] },
@@ -495,7 +505,7 @@ const namedDefinitions = {
   ),
   workspaceProjectPage: object(['items', 'snapshotAt', 'sourceWatermarks'], {
     items: array(localRef('workspaceProjectSummary')),
-    nextCursor: opaqueCursor,
+    nextCursor: localRef('directoryCursor'),
     snapshotAt: instant,
     sourceWatermarks: array(localRef('sourceWatermark')),
   }),
@@ -808,7 +818,7 @@ const operationSchemas = {
       searchText: text,
       page: object(['pageSize'], {
         pageSize: { type: 'integer', minimum: 1, maximum: 50 },
-        cursor: opaqueCursor,
+        cursor: localRef('directoryCursor'),
       }),
     }),
     result: localRef('workspaceProjectPage'),

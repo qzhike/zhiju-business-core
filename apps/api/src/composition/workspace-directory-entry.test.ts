@@ -9,16 +9,18 @@
 // intermediate page versus the terminal page, the candidate budget and the
 // budget-cut chain that must not drop an accumulated match, cursor
 // tamper/expiry/scope-mismatch/watermark-drift error mapping, the
-// fail-the-whole-page revalidation rule, and the chain re-observation of the
-// served EnterpriseProject summaries (first page on every continuation, the
-// previous page on the next one).
+// fail-the-whole-page revalidation rule, the full-chain re-observation of every
+// served EnterpriseProject summary (including a summary served on an earlier page
+// that changed after the next continuation already passed) and the declared
+// cursor capacity that fails a chain closed instead of dropping a carried
+// observation.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Common } from '@zhiju/contracts';
 
 const mockState = vi.hoisted(() => ({
-  authorizeCandidate: (projectId: string): Promise<unknown> =>
-    Promise.resolve(allowOutcome(projectId)),
+  authorizeCandidate: (targetRef: Common.ObjectRef): Promise<unknown> =>
+    Promise.resolve(allowOutcome(targetRef.objectId)),
   revalidateCandidate: (): Promise<unknown> => Promise.resolve({ valid: true }),
   calls: { authorizeCandidate: 0, revalidateCandidate: 0 },
 }));
@@ -43,7 +45,7 @@ vi.mock('@zhiju/identity-policy', async (importOriginal) => {
         input: WorkspaceProjectDiscoveryAuthorizationInput,
       ) => {
         mockState.calls.authorizeCandidate += 1;
-        return mockState.authorizeCandidate(input.targetRef.objectId);
+        return mockState.authorizeCandidate(input.targetRef);
       },
       revalidateCandidate: () => {
         mockState.calls.revalidateCandidate += 1;
@@ -85,10 +87,10 @@ const QUERY_ID = '018f22e2-7c15-7b2e-8d86-2de956a9d401';
 const CORRELATION = '018f22e2-7c15-7b2e-8d86-2de956a9d404';
 const AUTH_REF = '018f22e2-7c15-7b2e-8d86-2de956a9d403';
 
-function candidateRef(projectId: string): Common.ObjectRef {
+function candidateRef(projectId: string, objectType = 'zhiju.project.project'): Common.ObjectRef {
   return {
     kind: 'OBJECT',
-    objectType: 'zhiju.project.project',
+    objectType,
     objectId: projectId,
     scope: { enterpriseId: ENT, projectId },
   };
@@ -187,11 +189,12 @@ function scanPage(input: {
   readonly projectIds: readonly string[];
   readonly nextCursor?: string | undefined;
   readonly sequence?: number;
+  readonly objectType?: string | undefined;
 }) {
   const sequence = input.sequence ?? 4;
   return {
     items: input.projectIds.map((projectId) => ({
-      projectRef: candidateRef(projectId),
+      projectRef: candidateRef(projectId, input.objectType),
       sourceWatermark: watermark(sequence),
     })),
     ...(input.nextCursor === undefined ? {} : { nextCursor: input.nextCursor }),
@@ -210,6 +213,11 @@ function summary(projectId: string, title: string) {
     status: 'ACTIVE' as const,
     aggregateVersion: 3,
   };
+}
+
+/** A distinct Project id per index, for the long-chain cursor capacity fixture. */
+function projectIdAt(index: number): string {
+  return `018f22e2-7c15-7b2e-8d86-${index.toString(16).padStart(12, '0')}`;
 }
 
 /** Runtime narrowing of a result's `data` object (never a blind cast). */
@@ -301,7 +309,7 @@ async function expectCode(
 beforeEach(() => {
   mockState.calls.authorizeCandidate = 0;
   mockState.calls.revalidateCandidate = 0;
-  mockState.authorizeCandidate = (projectId) => Promise.resolve(allowOutcome(projectId));
+  mockState.authorizeCandidate = (targetRef) => Promise.resolve(allowOutcome(targetRef.objectId));
   mockState.revalidateCandidate = () => Promise.resolve({ valid: true });
   vi.mocked(resolveVerifiedHuman).mockReset();
   vi.mocked(createActorSnapshot).mockReset();
@@ -448,9 +456,11 @@ describe('createWorkspaceDirectoryEntry', () => {
           : scanPage({ projectIds: [PRJ_B] }),
       ),
     );
-    mockState.authorizeCandidate = (projectId) =>
+    mockState.authorizeCandidate = (targetRef) =>
       Promise.resolve(
-        projectId === PRJ ? allowOutcome(PRJ) : { outcome: 'DENY', reasons: ['NO_ACTIVE_GRANT'] },
+        targetRef.objectId === PRJ
+          ? allowOutcome(PRJ)
+          : { outcome: 'DENY', reasons: ['NO_ACTIVE_GRANT'] },
       );
     const entry = makeEntry({ maxCandidates: 1 });
 
@@ -554,32 +564,54 @@ describe('createWorkspaceDirectoryEntry', () => {
     );
   });
 
-  it('accepts a continuation whose re-observed served summaries are unchanged', async () => {
-    vi.mocked(discoverWorkspaceProjectScopes).mockImplementation((_deps, _config, input) =>
-      Promise.resolve(
-        scanAfterProjectOf(input) === undefined
-          ? scanPage({ projectIds: [PRJ], nextCursor: 'scan-cursor-1' })
-          : scanPage({ projectIds: [PRJ_B] }),
-      ),
-    );
+  it('completes an unchanged multi-page chain with stable watermarks and bounded cursors', async () => {
+    vi.mocked(discoverWorkspaceProjectScopes).mockImplementation((_deps, _config, input) => {
+      const after = scanAfterProjectOf(input);
+      if (after === undefined) {
+        return Promise.resolve(scanPage({ projectIds: [PRJ], nextCursor: 'scan-cursor-1' }));
+      }
+      if (after === PRJ) {
+        return Promise.resolve(scanPage({ projectIds: [PRJ_B], nextCursor: 'scan-cursor-2' }));
+      }
+      return Promise.resolve(scanPage({ projectIds: [PRJ_C] }));
+    });
     const entry = makeEntry();
+
     const first = await entry.findWorkspaceProjects(
       envelope({ page: { pageSize: 25 } }),
       session(),
     );
-    const cursor = cursorOf(first);
-    expect(projectIdsOf(first)).toEqual([PRJ]);
-    expect(cursor).toMatch(/^[A-Za-z0-9_-]{16,512}$/u);
-
+    const firstCursor = cursorOf(first);
     const second = await entry.findWorkspaceProjects(
-      envelope({ page: { pageSize: 1, cursor } }),
+      envelope({ page: { pageSize: 1, cursor: firstCursor } }),
       session(),
     );
+    const secondCursor = cursorOf(second);
+    const third = await entry.findWorkspaceProjects(
+      envelope({ page: { pageSize: 1, cursor: secondCursor } }),
+      session(),
+    );
+
+    expect(projectIdsOf(first)).toEqual([PRJ]);
     expect(projectIdsOf(second)).toEqual([PRJ_B]);
-    expect(second.nextCursor).toBeUndefined();
+    expect(projectIdsOf(third)).toEqual([PRJ_C]);
+    expect(third.nextCursor).toBeUndefined();
+    // Every cursor of the chain carries its served set inside the declared
+    // 16..8192 bound, and the Page cursor is the envelope cursor.
+    expect(firstCursor).toMatch(/^[A-Za-z0-9_-]{16,8192}$/u);
+    expect(secondCursor).toMatch(/^[A-Za-z0-9_-]{16,8192}$/u);
+    expect(pageOf(second).nextCursor).toBe(secondCursor);
+    expect(pageOf(third).nextCursor).toBeUndefined();
+    // The emitted cursor carries two served observations: 167 fixed payload bytes
+    // (format/operation/version tags, four 32-byte digests, the two-byte count),
+    // 2 * 42 entry bytes, three 8-byte numbers and the 32-byte MAC -> 307 bytes
+    // -> 410 base64url characters, well inside the declared 16..8192 bound.
+    expect(secondCursor).toHaveLength(410);
     // The chain keeps the first page's snapshot instant and watermarks.
     expect(pageOf(second).snapshotAt).toBe(pageOf(first).snapshotAt);
+    expect(pageOf(third).snapshotAt).toBe(pageOf(first).snapshotAt);
     expect(pageOf(second).sourceWatermarks).toEqual(pageOf(first).sourceWatermarks);
+    expect(pageOf(third).sourceWatermarks).toEqual(pageOf(first).sourceWatermarks);
   });
 
   it('rejects a cursor when a summary the chain first page served changed', async () => {
@@ -608,11 +640,11 @@ describe('createWorkspaceDirectoryEntry', () => {
     await expectCode(
       entry.findWorkspaceProjects(envelope({ page: { pageSize: 1, cursor } }), session()),
       'QUERY_CURSOR_INVALID',
-      'a summary served on the chain first page changed',
+      'a summary the directory chain served changed',
     );
   });
 
-  it('rejects a cursor when a summary the previous page served changed', async () => {
+  it('rejects a later continuation when a summary an earlier page served changed', async () => {
     vi.mocked(discoverWorkspaceProjectScopes).mockImplementation((_deps, _config, input) => {
       const after = scanAfterProjectOf(input);
       if (after === undefined) {
@@ -621,35 +653,208 @@ describe('createWorkspaceDirectoryEntry', () => {
       if (after === PRJ) {
         return Promise.resolve(scanPage({ projectIds: [PRJ_B], nextCursor: 'scan-cursor-2' }));
       }
+      if (after === PRJ_B) {
+        return Promise.resolve(scanPage({ projectIds: [PRJ_C], nextCursor: 'scan-cursor-3' }));
+      }
       return Promise.resolve(scanPage({ projectIds: [PRJ_C] }));
     });
-    let previousProjectVersion = 3;
+    let middleProjectVersion = 3;
     vi.mocked(readWorkspaceProjectSummary).mockImplementation((_db, _context, request) =>
       Promise.resolve({
         ...summary(request.projectId, `Project ${request.projectId}`),
-        aggregateVersion: request.projectId === PRJ_B ? previousProjectVersion : 3,
+        aggregateVersion: request.projectId === PRJ_B ? middleProjectVersion : 3,
       }),
     );
     const entry = makeEntry();
 
+    // Three pages are served with the middle page's summary unchanged, so the
+    // continuation that immediately follows it (the third page) still passes.
     const first = await entry.findWorkspaceProjects(envelope({ page: { pageSize: 1 } }), session());
     const second = await entry.findWorkspaceProjects(
       envelope({ page: { pageSize: 1, cursor: cursorOf(first) } }),
       session(),
     );
-    expect(projectIdsOf(second)).toEqual([PRJ_B]);
-    const secondCursor = cursorOf(second);
-    expect(secondCursor).toMatch(/^[A-Za-z0-9_-]{16,512}$/u);
+    const third = await entry.findWorkspaceProjects(
+      envelope({ page: { pageSize: 1, cursor: cursorOf(second) } }),
+      session(),
+    );
+    expect(projectIdsOf(third)).toEqual([PRJ_C]);
+    const thirdCursor = cursorOf(third);
 
-    // The window page two served changed between the two continuations.
-    previousProjectVersion = 4;
+    // R5: the summary page two served changes *after* that continuation passed.
+    // A scheme that re-observes only the first page and the previous page cannot
+    // see it any more; the full carried served set must still fail the chain.
+    middleProjectVersion = 4;
     await expectCode(
       entry.findWorkspaceProjects(
-        envelope({ page: { pageSize: 1, cursor: secondCursor } }),
+        envelope({ page: { pageSize: 1, cursor: thirdCursor } }),
         session(),
       ),
       'QUERY_CURSOR_INVALID',
-      'a summary served on the previous page changed',
+      'a summary the directory chain served changed',
+    );
+  });
+
+  it('rejects a continuation whose carried served project vanished', async () => {
+    vi.mocked(discoverWorkspaceProjectScopes).mockImplementation((_deps, _config, input) =>
+      Promise.resolve(
+        scanAfterProjectOf(input) === undefined
+          ? scanPage({ projectIds: [PRJ], nextCursor: 'scan-cursor-1' })
+          : scanPage({ projectIds: [PRJ_B] }),
+      ),
+    );
+    let vanished = false;
+    vi.mocked(readWorkspaceProjectSummary).mockImplementation((_db, _context, request) =>
+      Promise.resolve(
+        vanished && request.projectId === PRJ
+          ? undefined
+          : summary(request.projectId, `Project ${request.projectId}`),
+      ),
+    );
+    const entry = makeEntry();
+
+    const first = await entry.findWorkspaceProjects(envelope({ page: { pageSize: 1 } }), session());
+    expect(projectIdsOf(first)).toEqual([PRJ]);
+    const cursor = cursorOf(first);
+
+    // The Project row page one served is gone, so the card it produced can no
+    // longer be reproduced by any current read.
+    vanished = true;
+    await expectCode(
+      entry.findWorkspaceProjects(envelope({ page: { pageSize: 1, cursor } }), session()),
+      'QUERY_CURSOR_INVALID',
+      'a summary the directory chain served changed',
+    );
+  });
+
+  it('rejects a continuation whose carried served project lost its Decision', async () => {
+    vi.mocked(discoverWorkspaceProjectScopes).mockImplementation((_deps, _config, input) =>
+      Promise.resolve(
+        scanAfterProjectOf(input) === undefined
+          ? scanPage({ projectIds: [PRJ], nextCursor: 'scan-cursor-1' })
+          : scanPage({ projectIds: [PRJ_B] }),
+      ),
+    );
+    let revoked = false;
+    mockState.authorizeCandidate = (targetRef) =>
+      Promise.resolve(
+        revoked && targetRef.objectId === PRJ
+          ? { outcome: 'DENY', reasons: ['NO_ACTIVE_GRANT'] }
+          : allowOutcome(targetRef.objectId),
+      );
+    const entry = makeEntry();
+
+    const first = await entry.findWorkspaceProjects(envelope({ page: { pageSize: 1 } }), session());
+    expect(projectIdsOf(first)).toEqual([PRJ]);
+    const cursor = cursorOf(first);
+
+    // The grant page one served the card under is gone: the continuation cannot
+    // re-mint the Decision the card was served with.
+    revoked = true;
+    await expectCode(
+      entry.findWorkspaceProjects(envelope({ page: { pageSize: 1, cursor } }), session()),
+      'QUERY_CURSOR_INVALID',
+      'a summary the directory chain served is no longer authorized',
+    );
+  });
+
+  it('re-reads a carried card under the exact Project spelling it was served with', async () => {
+    vi.mocked(discoverWorkspaceProjectScopes).mockImplementation((_deps, _config, input) =>
+      Promise.resolve(
+        scanAfterProjectOf(input) === undefined
+          ? scanPage({
+              projectIds: [PRJ],
+              nextCursor: 'scan-cursor-1',
+              objectType: 'project.project',
+            })
+          : scanPage({ projectIds: [PRJ_B], objectType: 'project.project' }),
+      ),
+    );
+    // This chain's Grants are registered under the legacy Project spelling, so a
+    // continuation that re-minted its carried Decisions over another accepted
+    // spelling would be denied and would fail a legitimate chain.
+    mockState.authorizeCandidate = (targetRef) =>
+      Promise.resolve(
+        targetRef.objectType === 'project.project'
+          ? allowOutcome(targetRef.objectId)
+          : { outcome: 'DENY', reasons: ['NO_COVERING_GRANT'] },
+      );
+    const entry = makeEntry();
+
+    const first = await entry.findWorkspaceProjects(envelope({ page: { pageSize: 1 } }), session());
+    expect(projectIdsOf(first)).toEqual([PRJ]);
+    const second = await entry.findWorkspaceProjects(
+      envelope({ page: { pageSize: 1, cursor: cursorOf(first) } }),
+      session(),
+    );
+    expect(projectIdsOf(second)).toEqual([PRJ_B]);
+    expect(second.nextCursor).toBeUndefined();
+  });
+
+  it('continues a chain whose page served nothing from an empty carried set', async () => {
+    vi.mocked(discoverWorkspaceProjectScopes).mockImplementation((_deps, _config, input) =>
+      Promise.resolve(
+        scanAfterProjectOf(input) === undefined
+          ? scanPage({ projectIds: [PRJ], nextCursor: 'scan-cursor-1' })
+          : scanPage({ projectIds: [PRJ_B] }),
+      ),
+    );
+    const entry = makeEntry();
+
+    const first = await entry.findWorkspaceProjects(
+      envelope({ searchText: 'no-such-title', page: { pageSize: 1 } }),
+      session(),
+    );
+    expect(pageOf(first).items).toHaveLength(0);
+    const second = await entry.findWorkspaceProjects(
+      envelope({ searchText: 'no-such-title', page: { pageSize: 1, cursor: cursorOf(first) } }),
+      session(),
+    );
+    expect(pageOf(second).items).toHaveLength(0);
+    expect(second.nextCursor).toBeUndefined();
+  });
+
+  it('fails a chain closed when the carried served set outgrows the declared cursor capacity', async () => {
+    let scan = 0;
+    vi.mocked(discoverWorkspaceProjectScopes).mockImplementation(() => {
+      const offset = scan * 50;
+      scan += 1;
+      return Promise.resolve(
+        scanPage({
+          projectIds: Array.from({ length: 50 }, (_unused, index) => projectIdAt(offset + index)),
+          nextCursor: `scan-cursor-${scan}`,
+        }),
+      );
+    });
+    const entry = makeEntry();
+
+    const first = await entry.findWorkspaceProjects(
+      envelope({ page: { pageSize: 50 } }),
+      session(),
+    );
+    expect(projectIdsOf(first)).toHaveLength(50);
+    const second = await entry.findWorkspaceProjects(
+      envelope({ page: { pageSize: 50, cursor: cursorOf(first) } }),
+      session(),
+    );
+    expect(projectIdsOf(second)).toHaveLength(50);
+    const secondCursor = cursorOf(second);
+    expect(secondCursor).toMatch(/^[A-Za-z0-9_-]{16,8192}$/u);
+    // 100 carried observations still fit: 167 fixed payload bytes + 100 * 42
+    // entry bytes + three 8-byte numbers + the 32-byte MAC -> 4423 bytes -> 5898
+    // base64url characters.
+    expect(secondCursor).toHaveLength(5898);
+
+    // The third page would carry 150 served observations, which no longer fit
+    // the declared 8192-character bound: the page fails closed and the client
+    // restarts at page one instead of receiving a cursor that dropped a card.
+    await expectCode(
+      entry.findWorkspaceProjects(
+        envelope({ page: { pageSize: 50, cursor: secondCursor } }),
+        session(),
+      ),
+      'QUERY_CURSOR_INVALID',
+      'exceeded the declared cursor capacity',
     );
   });
 });

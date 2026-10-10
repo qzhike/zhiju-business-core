@@ -267,6 +267,8 @@ CursorClaims
 - `asOf` 与分页 Snapshot 必须保持一致，不允许翻页时漂移到新的权威版本；
 - page size 受 `PayloadGuardPolicy` 限制，超限拒绝，不静默截断。
 
+Cursor 的公开表示默认使用共享不透明正则 `^[A-Za-z0-9_-]{16,512}$`。Query 可在 owning Spec 中声明**自己的封闭 cursor 信封**（同一字母表、明确的长度上界与理由），注册 schema 必须使用该声明而不是开放字符串：目前只有 `project.find_workspace_projects@1.0` 声明 `^[A-Za-z0-9_-]{16,8192}$`，因为它的 cursor 携带整条链已返回摘要的身份与观测，以便每次续读复验（EP §258；上界选择见该节），其余 Query/Board cursor 继续使用 16..512。
+
 ### 6.3 QueryResult
 
 使用 `06` 定义的 `QueryResult<T>`。模块规格唯一维护 `T`：
