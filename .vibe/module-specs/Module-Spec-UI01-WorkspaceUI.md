@@ -288,3 +288,17 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 6. 原CREATE request预分配target UUID，稳定key=`operation:1.0:targetUuid`；安全request页面不含客户正文/token。response丢失/401/重启后从Core回读原request/key；新认证只改变当次权限证明，不改原payload/历史Actor，禁止新键自动重发。PENDING/UNKNOWN/PARTIAL/STALE保留真实成功steps，COMMITTED/202不表示running。
 7. 所有POST Query/业务写/上传/登出/技术活动要求精确Origin/Host/CSRF/Content-Type；只有绑定的OIDC callback例外。受保护响应no-store，安全Markdown/CSP与遥测allowlist沿Delta；Scope/Principal变更与失权清DOM/cache/objectURL，generation检查迟到响应、multiTab失效与bfcache恢复。
 8. 独立设计Review和人类技术批准、actual deployment lock/Registry/当前权限/公开HTTP与D14依赖分开确认。真实OIDC/PostgreSQL/Host/Runner/Chrome/Edge/Manual仍NOT RUN，不因docs gate通过宣告可用Session或任务READY。
+
+## Markdown 检查、单意见区与草稿接续提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。沿用[已批准交互](../decisions/workspace-mvp-human-agent.md#44-已确认的逐文件检查交互)，字段/流程见 [Markdown Delta](../decisions/markdown-file-feedback.md)。不新增聊天助手、逐change输入框、批量改稿或第二次“开始修改”动作。
+
+1. 固定高度桌面文件列表/阅读区/唯一意见区，窄屏在文档与意见视图切换。server精确file directory支持200+文件、搜索/状态筛选与完整游标链；未加载页不能作分母。变化默认显示一处，36变化/9章能上一处/下一处/章节展开直接跳，保留当前展开、阅读与意见。全文/来源/摘要按需切换；宽表横向滚动全部列，空cell/0/复选符号/标题编号/签批不丢失。
+2. 内容来自ART exact Revision/Hash+server change-directory/Location。源行号、DOM/highlight、chapter label只展示，不能提交其为stable identity或批准证据。新增无旧位置、删除保留旧版入口、移动给两端；旧引用REMOVED/AMBIGUOUS醒目保留，不自动移附近行。切新版后需Human核对新位置、显式引用/移除才提交。
+3. 本文件“提交并修改”冻结reviewBasis/current+原文/位置/附件、原request target/key/payloadHash。普通edit看旧版时新current已到→STALE且保留草稿；一份Markdown建议保留明确B/M/S，Human切到并核对S后在同意见区明确复核。上传只显示intake真实状态，不直接改Revision/批准，也不从filename猜base。跨文件/保护例外/不明确范围返回原意见区具体澄清，不自动执行。
+4. 草稿自动存TE本人技术记录，权威Receipt匹配editId/hash才“已保存”；显示保存中/未保存/冲突/UNKNOWN。刷新/关页/换设备恢复同file/base、附件和pending snapshot；两个设备CAS冲突保留两个草稿及显式选择，不自动merge。本人撤权/登出清DOM/cache，server历史按retention保存，不能由BFF Session/sessionStorage伪装跨设备成功。
+5. 提交前private pending snapshot先保存，提交只发送一次。原提交/回执为只读折叠信息，新typing/附件写next-round draft；处理报告和部分未处理项在同区显示。UNKNOWN状态位于意见区顶部；最多3次/累计10秒查同一次原request，刷新不重置，随后“重新查询”只读不重发；无权/超时/错context/NOT_FOUND不显示失败或未接收。核验未定时禁重复提交/批准，可继续写未提交稿。
+6. RECEIVED/PENDING/真实RUNNING/accepted当前候选/导出状态分别展示，不从点击/202/日志推断运行/完成。PLAN_OBJECTION只暂停该文件未来安排；other files候选/私稿/批准保留。新候选返回仅更新提示和文件计数，当前页/精确阅读版本/滚动/输入不变，主动切换后重核草稿和位置再显式提交。批准成功才按已有规则进下一份；新候选/反馈回执不触发批准。
+7. Markdown下载必须ART registered Representation与即时授权，ticket放header、短时且不持久化；raw proposal/source下载与受控成果明显区分，未注册public stream则功能不可用。CSP、安全编码/no-store、当前Session/CSRF/Scope、迟到响应generation与失权清理沿既有基线。Quality ReviewIssue/Gate/RAS/Approval/Release分别显示，不把HANDLED或看完changes当已批准。
+
+所需BFF仅finite已注册transport projection和受权Query组合；service-only producer/acceptance/render不进Browser allowlist。原型sessionStorage/36-change导航/UNKNOWN演示仅设计输入；真实server persistence、OIDC/HTTP/browser矩阵、Host/Runner及独立人工内容验收UI-MF-*均NOT RUN。

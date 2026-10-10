@@ -415,3 +415,26 @@ final outputs 保存原 JSON/Markdown/提取件 bytes 和 bounded immutable obse
 每次观察绑定原成功ack/session/身份与原invocation的完整Scope/hash；支持原eventId同Hash重放，异Hash隔离。同Run多个真实control观察可以存在，但final仍最多一个identity；相同final/output hash重复返回原事实，异Hash第二final拒绝不覆盖。原JSON/MD/extraction bytes在工具成功后由Host停止写入、重新hash并不可变封存，IG保存实际objects/byte hashes和manifest/lock/outputProfile绑定；不从report中的self-ref或新计算的自洽JSON倒推来源。输出正文只在受控证据对象，不进入普通Event/日志；不持久化隐藏推理/system prompt/transcript。wronghash/alias等确定性拒绝由适用validator分层保存，IG不宣称业务理解正确。
 
 取消control先验证TE已提交原Human CANCELLING intent、当前独立control与依赖读权，再对原Run sandbox操作；分别保存stop request、实际signal/全树观察。ACK不明维持STOP_UNKNOWN并让TE按自己期限裁决，IG不写TE表、不造CANCELLED。原lease到期后合法late final只封存历史，不成为可用Result/EP current report；消费历史观察需自身当前授权和完整原来源，不需恢复原执行Grant。run2的session/Context/fencing不得消费run1 final。原句柄不可证、依赖不通或无读权时fail closed，UNKNOWN不被重启/fallback/空final掩盖。
+
+## Markdown 建议、生成原输出与渲染提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。仅传输/外部Attempt与真实原观察属于IG；业务意图属于TE，Canonical/Revision/Representation属于ART。支持边界见 [Markdown Delta](../decisions/markdown-file-feedback.md)，不扩展D14分析或已交付synthetic Runtime接口。
+
+| 拟操作 / mode | closed payload | closed data / purpose |
+|---|---|---|
+| integration.request_markdown_suggestion_intake@1.0 / CREATE，OBJECT/zhiju.integration.markdown_suggestion_intake | workScopeRef、fileId、reviewBasisRef、declaredBaseRevisionRef、submittedCurrentRevisionRef、originalName、declaredByteLength、declaredBytesSha256 | intakeRef、单intake opaque uploadToken/expiry、receiptRef；integration.markdown_suggestion.intake / HUMAN_ONLY，绑定可信作者和一个文件，不接受locator/CLI/path |
+| integration.get_markdown_suggestion_intake@1.0 / AUTHORITATIVE Query | intakeRef | originalPayloadHash、状态RECEIVING/SEALED/READY/UNSUPPORTED/UNSAFE/FAILED/UNKNOWN、suggestionRef?、actualByteLength/bytesSha256?、validationRefs、safeReasonCodes、receiptRefs、currentEligibility；integration.markdown_suggestion.read，仅本人Human或自身独立处理授权的TE SERVICE |
+| integration.request_render@1.1 / CREATE，既有RenderAttempt类型 | revisionRef、canonicalContentRef、inputHash、outputFormat:zhiju.markdown、rendererId/rendererVersion、markdownProfileRef、structureSchemaRef、rendererDigest、identityMapHash | attemptRef/receiptRef/status；integration.render.request，专用SERVICE；新Markdown分支，不改变@1.0接受集 |
+| integration.get_markdown_render_binding@1.0 / AUTHORITATIVE Query | attemptRef | attemptRef/status、originalRequest/requestPayloadHash、succeededResult?、rawReceiptRef?、markdownValidation?、sourceWatermarks；integration.markdown_render_binding.read |
+
+Browser只传一个10MiB以内UTF-8 .md/.markdown原流至PUT /api/markdown-suggestion-intakes/{intakeId}/content，token放header；同Session/Origin/CSRF和可信peer边界，BFF不分析/存bytes/写对象存储。IG流式限制长度、原bytes hash、UTF-8、扩展/实际mediaType、安全扫描；断流/超限/不同bytes重放不得READY。原bytes写staging→实际readback→immutable link，object finalize不确定保持SEALED/UNKNOWN；查原intake不重新上传/派生新key。上传token仅传输资格，不代替当次项目/本人授权；文件名仅safe display，不推断Artifact/base身份。
+
+READY产生SNAPSHOT/zhiju.integration.markdown_suggestion，closed {suggestionId,intakeRef,projectRef,workScopeRef,fileId,reviewBasisRef,declaredBaseRevisionRef,submittedCurrentRevisionRef,authorRef,rawObjectRef,byteLength,bytesSha256,mediaType,validationRefs,receivedAt}，Hash=cv1完整payload排除自身Ref/hash。rawObjectRef为内部locator，由当前SERVICE exact readback Port提供，不向Browser返回；suggestionRef不等于Revision。语法/canonical/位置映射最终归ART，READY仅安全完整接收，不证明改稿可无损接纳；UNSUPPORTED/UNSAFE保留隔离原件与明确原因、不安排处理。旧base由Human声明并核ART可见存在性，仍非可信编辑来源证明；传输/后续submit的current变更不能静默改写原snapshot。
+
+生成采用独立拟file-generation profile：dispatch前真实持久化TE request/intent/Run/Contract/FileGenerationContext/Capability/lock、Attempt/key/invoke-once journal；部署的生成lock另行批准，不能从d14.analysis或#256选择推导。固定输入只读/单输出根，禁客户指令文件/工具加载。完成后停止写入并readback整份candidate.md、identity-map.json、processing-report.json；保存各自原bytes/hash/length与outputProfile。JSON拒重复key/尾随内容/非有限数值，身份映射与报告引用逐项绑定；原件md不重写换行后充当raw hash。
+
+原final observation为CONTENT_ADDRESSED/zhiju.integration.file_generation_observation，closed {observationId,attemptRef,runRef,contractRef,contextRef,packageRef,toolchainLockRef,submittedIntentRef,fileSourceBindingRef,runtimeAdapterIdentityRef,runtimeSessionRef,leaseId,fencingToken,outputProfileRef,outputs,rawReceiptRef,observedAt,source:PROVIDER}。outputs恰上述三份对象role/ref/rawBytesSha256/byteLength，不接受自由输出路径。IG授权readFileGenerationObservation(attemptRef,observationRef)只供TE专用SERVICE读取完整原绑定/bytes；错session/Run/Scope/hash隔离，late/cancel/expiry只留历史，不补空Result或成功候选。新profile每Run最多一个final identity，同hash重放原事实、异hash拒绝，不last-write-wins。
+
+Markdown render由已提交RenderAttempt读取exact ART FROZEN Canonical，固定profile/renderer/digest及identity map，确定性输出→再parse/canonicalize→Hash比对。成功Binding的succeededResult沿现有RenderSucceeded形状保持exactRevision/renderer/outputLocator/checksum；markdownValidation闭集 {profileRef,structureSchemaRef,rendererDigest,identityMapHash,inputContentHash,roundTripContentHash,outputBytesSha256,outputByteLength,validatorRef,outcome:PASS}。PASS只表示本profile技术round-trip；错误/UNKNOWN不得有成功binding，不把它当Quality Gate。ART独立核Binding后才register_markdown_representation，IG不能写ART表。
+
+新bytes查询、观察与render绑定都独立当前授权，replay不复活过期执行Grant；日志/Event只存safe code/精确refs，不放客户正文、system prompt、推理或宿主路径。拟错误INTEGRATION_MARKDOWN_INTAKE_INVALID、INTEGRATION_MARKDOWN_UNSAFE、INTEGRATION_FILE_OUTPUT_BINDING_INVALID、INTEGRATION_MARKDOWN_RENDER_INVALID；不可见masked，依赖不可达UNKNOWN。真实Host/Provider/object store/HTTP/browser/人工均NOT RUN。

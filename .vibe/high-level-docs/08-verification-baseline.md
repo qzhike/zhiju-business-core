@@ -560,3 +560,11 @@ EP结论的Task语义是历史正式完成，不宣称TE当前USABLE或尚不存
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`；保持现有 verify targets/路由/结果协议不变。严格 `.vibe/` Markdown 设计分支用 `vibe verify docs --json`，其 PASS 只表示配置文档检查，不能替代 T2 独立设计审查和精确修订人类技术批准；具体 Runtime/规则 lock 决定前依赖实现不 READY。
 
 新 owning traces 位于 Module-Test 001 `IP-D14-*`、002 `EP-D14-*`、003 `TE-D14-*`、007 `IG-D14-*`、UI01 `UI-RD01-*` 与 Runtime Test `RA-D14-*`。后续分别执行：真实 PostgreSQL/full（历史迁移、唯一 start、RLS/CAS/幂等/rollback/部分提交）、独立 Runner output（只证明该锁定执行实际产物）、Host IG→TE→EP acceptance（真实来源与当前可用性）、公开 OIDC/HTTP/Browser（Session/CSRF/撤权/原意图恢复）和独立顾问业务验收。所有新 runtime/持久化/public/manual 场景仍 NOT RUN；既有 v0.1 standalone/原型/外壳不升级其结果。
+
+## Markdown 候选与逐文件反馈设计验收索引（#259）
+
+状态：T2 / PROPOSED / DESIGN ONLY；不改变§2.1.1目标/路由/验证策略。[Spec Delta](../decisions/markdown-file-feedback.md#9-兼容取舍与验收门禁)与owning场景ART-MF-*、TE-MF-*、QG-MF-*、IP-MF-*、IG-MF-*、UI-MF-*、RA-MF-*覆盖整份candidate→一文件revision正链、真实采购快照/宽表/空白与0/已填记录、unsupported/lossy/恶意内容、scope/protection、exactdiff/location/201files、旧B/M/S、UNKNOWN/partial/撤权、私稿跨设备CAS与历史保留。
+
+严格.vibe Markdown设计diff执行vibe verify docs --json，另定向检查唯一Owner、Catalog/proposed字段/Ref/Hash/transition/trace链接；自动docs或静态对账不能替代独立设计Review和精确修订人类技术批准。本节是场景索引，不声称用例已执行或记录普通任务验证日志。后续混合实现仍按现有code/full规则，不以文档目标覆盖code/SQL/registry。
+
+真实生成profile的Runner可行性、Host原invocation→IG→TE→ART接纳、PostgreSQL/RLS/CAS/full、OIDC/HTTP/download、批准Chrome/Edge矩阵及独立Human内容检查/Approval均NOT RUN，需分别取证。原型36changes/旧版改稿/6.5秒UNKNOWN演示仅synthetic交互输入；本提案的10秒/3次预算、Markdown限制与不规则表拒绝也不是生产配置/业务验收。

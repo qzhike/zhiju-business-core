@@ -404,3 +404,14 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 | IP-257-007 | 新三个profile输入旧record_policy_snapshot@1.0；新snapshot Ref输入旧get_policy_snapshot@1.0；旧schema/Ref输入新producer/resolver；新registry合法但key/SchemaRef或存储registry不匹配；对照旧三项读回 | 旧writer继续按im02-static-v1拒新schema且零snapshot写入，旧reader不路由新存储；新路径拒历史/generic/scoped或错selector，零降级；旧三项仍按原接受集读回，原refs/canonical payload/hash不变 | 未执行 / `NOT RUN` |
 
 本任务仅维护设计场景，配置化 docs 与定向字段/引用对账不执行以上授权、发布生命周期或持久化行为；独立设计审查、人类技术批准及真实平台/外部/人工验收分别取证。
+
+## Markdown 本人私稿与处理权限设计场景（#259）
+
+权威为 [IP #259](../module-specs/Module-Spec-001-IdentityPolicy.md#markdown-文件意图本人草稿与下载授权提案259)。以下均SYNTHETIC / DESIGN TRACE；真正的当前授权、RLS/作者谓词、OIDC/HTTP和服务组合分别取证。
+
+| ID / 输入 | 可核验预期 | 实际 / 结果 |
+|---|---|---|
+| IP-MF-001 / MF-08原request/receipt、撤权后replay/readback/resume与新认证 | 历史Actor/Decision不改，新步骤/查询仍当次Decision；依赖owner读各自授权，DENY在protected read前，非权限成功不能据此重发 | 未执行 / NOT RUN |
+| IP-MF-002 / MF-09同Human两设备、另一Human/Project Admin/Agent/Runtime/Service/actingFor读写私稿与pending快照 | 私稿仅同trusted Human+精确Scope/base，其他主体protected read=0、masked不可见；Project read权限不泄露草稿 | 未执行 / NOT RUN |
+| IP-MF-003 / MF-04/05伪Actor、跨Scope location/suggestion、ticket猜测/过期/撤权及stream中途失权 | Browser字段不造Human；精确bytes/read与文件generation/write分权，token不赋权，流终止且无假下载成功，旧history不改 | 未执行 / NOT RUN |
+| IP-MF-004 / 合法TE/ART/IG服务及错service/profile/hash，Agent submit/Approval对照 | 服务各用自身Decision/实际target，不能借Human/Run Grant；Human-only submit/constraints/Approval仍拒Agent，即使actingFor | 未执行 / NOT RUN |

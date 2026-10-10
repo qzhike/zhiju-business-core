@@ -231,3 +231,14 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | IG-LOCK-003 | 原control观察，同ID异Hash/wrongsession/Scope/Run2引用Run1、缺读权 | canonical/source/bindings完整校验；冲突隔离，缺权保护读0，不从caller自洽JSON倒造来源 | 未执行 / `NOT RUN` |
 | IG-LOCK-004 | stop请求、父进程exit、全cgroup停止、ACK未知及迟到输出 | request/signal/localstop/UNKNOWN分别持久；localstop不是ProviderACK，原late历史稳定不改TE状态/业务current | 未执行 / `NOT RUN` |
 | IG-LOCK-005 | 同final同Hash、异Hash第二final、输出停止写前后替换/path/link/inputhash漂移 | 原outputbytes不可变、一finalidentity；冲突隔离，停止写后重新hash，零错来源可用报告；raw观察不等于TE/EP接纳 | 未执行 / `NOT RUN` |
+
+## Markdown 输入、真实原输出与表示设计场景（#259）
+
+权威为 [IG #259](../module-specs/Module-Spec-007-IntegrationGateway.md#markdown-建议生成原输出与渲染提案259)，真实Runner/Host acceptance与内容专业验收独立。
+
+| ID / 输入 | 可核验预期 | 实际 / 结果 |
+|---|---|---|
+| IG-MF-001 / MF-01/02合法生成lock、exactinputs/Intent/Run→真实md/identityMap/report原输出 | Attempt提交后invoke，input只读/独立output；原三份bytes/hash/observations封存，TE/ART后续各自决定，不从exit或selfcheck造candidate | 未执行 / NOT RUN |
+| IG-MF-002 / MF-04单建议UTF-8 .md/.markdown边界10MiB、chunked超限/断流/异bytes重放/恶意HTML/path/伪base | 一个file/B/S/author/token绑定，完整readback后READY；失败/UNKNOWN保留原intake无重复上传/dispatch；安全隔离不变Revision | 未执行 / NOT RUN |
+| IG-MF-003 / MF-11错session/Run/lease/fencing/hash/manifest/JSON重复key、取消/到期late、第二final异hash | 原observation分域完整复验；错来源隔离/迟到仅历史，UNKNOWN不second invoke、不空final、不覆写raw | 未执行 / NOT RUN |
+| IG-MF-004 / MF-12 canonical exactrender与raw Runner md区别、wrong profile/renderer/roundTrip/checksum/UNKNOWN | 新request_render@1.1只支持明确Markdown分支；成功binding技术round-trip可重读，ART才注册；旧@1.0/分析profile不扩大 | 未执行 / NOT RUN |

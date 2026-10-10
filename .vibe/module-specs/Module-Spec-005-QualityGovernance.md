@@ -410,3 +410,15 @@ selectionHash为canonicalization=1 SHA-256，覆盖返回的revisionRef/qualityP
 该Port必须同时覆盖production composition授权、实际Quality创建RAS/ABS的normal/refresh路径与真实PostgreSQL，不能用fixture预置选择结果；不同Profile同时拥有READY RAS/FULLY_APPROVED ABS的负例须证明固定Profile不会漂移。
 
 #235 的有限 Completion 消费额外在既有 owning current-eligibility 事务内重验冻结 Profile 的 ACTIVE/current-version，以及已选择 ABS 引用的实际 Approval 是否 REVOKED。撤销判定只通过内部回调提供给 Completion，用于区分 REVOKED 与 STALE；公开 `RevisionExecutionEligibilityResult` 闭集与历史 #192 解释不变。
+
+## Markdown 逐文件意见与质量事实边界提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT IMPLEMENTED。跨步骤见 [Markdown Delta](../decisions/markdown-file-feedback.md)；本增量复用全部现有Quality公开操作及字段，不注册新Feedback/Approval/Gate操作。
+
+普通自然语言修改、位置引用、Markdown建议与计划异议是TE原意图；不能因为含“问题”“请修改”就创建Blocking ReviewIssue。明确Raise时才调用quality.raise_review_issue@1.0，definition的artifactRef/originRevisionRef/locator/statement/evidenceRefs与该文件exact内容一致，blocking classification受QualityProfile控制，TE/UI不选择默认blocking。现有Issue的关联仅是读取与trace，不修改原statement/locator或状态。
+
+ART/TE读取保护依据使用Quality当前exact Evidence Query；EvidenceRef的ID/hash/Scope、sourceSnapshot/version、locator、capturedContentHash和本次完整claimHash/relationship绑定分别比对。保护原文/图表关系不能用报告摘要、模板、行号或CONTEXT_ONLY替代；UNKNOWN/CONFLICT/READ_LIMITED/撤销或错locator阻受影响整文件。完整性确定性验证与Human专业充分性判断分开，无法证明所需保护范围时不宣布可用。
+
+新candidate、processingReport HANDLED、导航已看完、TE ACCEPTED、Runner自检或render round-trip均不创建GateResult/RAS或解决Issue。linked ReviewIssue仍按现有Propose Resolution→独立Verify→Close追加facts；targetRevisionRef及changedClaimRefs必须指向实际新sealed Revision和真实改变，作者自验/职责分离拒绝照旧。部分意见处理明确未处理项，已有Blocking Issue继续阻approval；未关联的普通意见不能冒充已verified整改。
+
+Approval始终精确绑定新Revision contentHash、当前有效RAS、frozenQualityProfile、要求/真实Human/ActorSnapshot/Decision；不继承旧候选/旧RAS/旧ABS批准，不把服务器生成或private draft当Approval。mandatory Gate不满足、Issue未解、Evidence/当前授权失效则禁止；Agent/Service/actingFor永久不能审批。下载Markdown只授权审阅bytes，不能当Release Readiness/客户签批/正式送达。运行及独立内容批准NOT RUN；用例见QG-MF-*。

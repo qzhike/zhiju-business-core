@@ -714,3 +714,20 @@ BOARD-D-003/007同时验证compact cursor长度264且满足共享16–512 base64
 | TE-LOCK-006 | 原UNKNOWN/terminal旧树未知、BLOCKED_INPUT解决后的显式第二分析、第三次/取消后retry | 前两者零invoke；合法新source/Context/Bundle/Run/fencing占剩余预算；旧历史稳定，第三次/取消后retry拒绝 | 未执行 / `NOT RUN` |
 | TE-LOCK-007 | actualv0.2pair、错lock/Package/manifest/hash/session/别名/readceiling、v0.1finalize | TE独立验证和Acceptance；错误不ACCEPTED，finalize成功非证明；合法report不完成Task/WO/Project | 未执行 / `NOT RUN` |
 | TE-LOCK-008 | 旧synthetic与Package@1.0、当前授权撤销、INITIAL_SCOPE_RECOVERY窗口关闭 | 原profilebytes/支持集不扩大；旧入口拒新selector，缺权保护读0，窗口关闭late只历史 | 未执行 / `NOT RUN` |
+
+## 整份生成、单文件请求与私稿设计场景（#259）
+
+权威为 [TE §28](../module-specs/Module-Spec-003-TaskExecution.md#28-整份生成单文件意见与个人草稿提案259)，[MF traces](../decisions/markdown-file-feedback.md#8-设计-trace-与真实来源)均匿名设计，不提升旧执行证据。
+
+| ID / 层次 | 输入 / trace | 可核验预期 | 实际 / 结果 |
+|---|---|---|---|
+| TE-MF-001 / Contract + Integration | MF-01 scope RECEIVED→完整binding/constraints→显式生成→新Task/WO/Context/Run/IG/TE/ART | 精确源/模板/保护/完整change与依赖绑定，旧profile拒；scope、exit/selfcheck、Result ACCEPTED均不自动candidate/Completion | 未执行 / NOT RUN |
+| TE-MF-002 / Request + Integration | MF-02 natural text+exact locations+one file、suggestion与已接纳附件 | 原transport/intent/Actor/Decision/hash独立冻结，单文件唯一占用、一次动作请求处理；新C2来源可读，普通意见不是Quality Issue | 未执行 / NOT RUN |
+| TE-MF-003 / Negative + Isolation | MF-05超范围/跨file/保护例外/未知位置、plan objection，另一file独立 | zero dispatch或本文件NEEDS_REVIEW/PAUSED_PLAN，不自动取消Run/改plan/暂停别人；KEEP/原scope不扩大 | 未执行 / NOT RUN |
+| TE-MF-004 / Directory | MF-06 201 files、page100/100/1、搜索第201项/中间空页、未selected/水位变化 | 完整total/filtered/counts来自owner、pages不当分母；游标输入/权限绑定，独立文件进度可读，未selected不混入 | 未执行 / NOT RUN |
+| TE-MF-005 / Old-base + Stale | MF-07 B/M/S，viewed旧但current新、samefile current推进/S2先返回 | 普通edit STALE、保留稿；显式old-base例外三快照不改；只新intent才能续内容，原结果不rebase | 未执行 / NOT RUN |
+| TE-MF-006 / UNKNOWN + Recovery | MF-08 response丢失/刷新/重登、查错request/hash/Scope、无权限/依赖不通 | 查原key三次/10秒累计预算；未知不当未提交/失败/运行，零重复dispatch；确定未接收须本人private snapshot+完整索引证明 | 未执行 / NOT RUN |
+| TE-MF-007 / PostgreSQL + Fault | request commit/Task成功后崩溃、IG UNKNOWN、ART seal后Head冲突/render失败 | 全成功refs保留PARTIAL/UNKNOWN/STALE，resume原缺失steps/CAS、key稳定；request与唯一占用/Receipt原子，history不删 | 未执行 / NOT RUN |
+| TE-MF-008 / Private Draft + PostgreSQL | MF-09 refresh/关页/换设备、同draft两设备CAS、save UNKNOWN/限额 | 本人server exact snapshots恢复；一winner/loser保留buffer或fork，零覆盖/merge；匹配editId/hash才已保存，故障明确未保存 | 未执行 / NOT RUN |
+| TE-MF-009 / Processing + Draft | 原请求冻结后新typing/attachment、新candidate返回/原location删除 | 仅next-round private snapshots，原intent/Context不变；新版本不改base/位置，Human复核后新key明确submit | 未执行 / NOT RUN |
+| TE-MF-010 / Partial Feedback | MF-10两意见一handled一待判断、漏item/错proposedLocation、linkedIssue仍open | 处理报告闭集全覆盖；部分处理不伪全成功/批准；不可信location拒，Quality remediation独立 | 未执行 / NOT RUN |

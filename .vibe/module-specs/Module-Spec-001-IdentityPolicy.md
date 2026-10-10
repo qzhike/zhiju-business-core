@@ -1132,3 +1132,23 @@ IP每项以服务自身ActorSnapshot/PolicySnapshot当前hash、完整Enterprise
 | EP startup confirm/start/initial-scope | 保持 D14 各自 Human-only 与 Project Scope；读取规则的许可不替代客户证据读取、Human 判断、启动或保护例外许可 |
 
 这些 purpose 和接受集是提案，当前无注册/部署许可即 fail closed；不改变当前旧 Purpose 值或 AgentPrincipal 边界。每次受保护读取/新写/replay 重验 current Decision；protected reads 前拒绝不泄露内容，历史合法事实不回改。独立证据规则继续复用 QualityGovernance，不建立 IP Evidence 副本。定义/身份/期限/Scope 验证失败按现行授权安全外观处理，不冒充已通过业务规则。owning 场景见 [IP-257](../module-tests/Module-Test-001-IdentityPolicy.md#257-公司规则发布与读取设计场景)。
+
+## Markdown 文件意图、本人草稿与下载授权提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。字段唯一见 [TE §28](Module-Spec-003-TaskExecution.md#28-整份生成单文件意见与个人草稿提案259)、[ART §13](Module-Spec-004-Artifact.md#13-markdown-候选定位与表示提案259)、[IG #259](Module-Spec-007-IntegrationGateway.md#markdown-建议生成原输出与渲染提案259)。下表是新purpose/接受集提案，不改变旧classification或自动授予Grant。
+
+| 动作 / purpose集合 | 主体、target与必要独立检查 |
+|---|---|
+| artifact.file_constraints.confirm、execution.file_generation.request、execution.file_edit.submit、execution.file_request.resume | HUMAN_ONLY；exactProject+完整file/plan/current base/原intent+payload hash；当前Project成员/能力、ActorSnapshot/Decision；Scope receipt、草稿或历史Human Decision不等于当次执行授权 |
+| execution.file_draft.create/save/read | 当前HUMAN且draft.authorRef=trusted principal；同Enterprise+Project/workScope/file/base；Project read/admin权不能替代本人谓词；AGENT/SERVICE/RUNTIME/另一Human/actingFor全部拒绝私稿读取，protected reads=0 |
+| execution.file_request.read、execution.file_review.read、execution.file_directory.read、artifact.file_candidate.read/file_review.read/file_diff.read/file_locations.read | 当前Human或声明用途的专用SERVICE；exactScope及每个owner原source读权；原intent作者信息按项目权限裁剪，未提交私稿永不加入共享结果 |
+| artifact.file_constraints.read、execution.file_candidate_binding.read、artifact.file_candidate.accept | 固定ART/TE专用SERVICE各自当前read/write；跨owner Port分别独立Decision，禁止借原Human/Run授权；来源与目标payload hash、期限和精确selector均参与Decision |
+| integration.markdown_suggestion.intake/read | intake本人Human；消费为自身专用TE SERVICE；exact一个file/B/S/suggestion原bytes绑定；上传token不赋予source/revision/执行权 |
+| integration.render.request、integration.markdown_render_binding.read、artifact.markdown_representation.register | 固定服务自身Render/ART权限及独立Canonical bytes读权；exactRevision/format/profile/renderer/hash/Attempt，不借进程退出或Runner self-check |
+| artifact.markdown_download.read | 当前Human或显式获准的受限Agent读exchange bytes，exactRepresentation/Revision/checksum+Project；ticket≤60秒仍需stream时重新核当前权限；不授Approval/Release或写文件权 |
+
+create/save草稿和提交request各自独立authorize；同键replay/readback/resume也验当前Decision与本人/Scope，不因已有Receipt放过撤权。private pending snapshot可供本人原请求恢复，但其存在不证明请求已受理。公开不存在/错Scope/hash/作者统一安全错误，不通过Query区分别人私稿或隐藏文件；依赖不可用保持UNKNOWN，不能当未提交。
+
+当前权限先于对象/body/locator读取并在提交、Receipt返回或stream前重验；跨模块当前Grant/profile失效停止新步骤，历史Actor/授权/原意图保持。浏览器principal/actor header、Markdown伪签名、文件名、statement或Agent actingFor不能构造Human。Quality专业验证/Approval仍各自现有Human-only及职责分离，本提案不批准保护例外。真实授权/RLS/HTTP/stream及跨设备用例IP-MF-*均NOT RUN。
+
+首次候选的CREATE_ARTIFACT步骤仍须既有artifact.artifact.create自身授权和独立get_artifact读权；预分配identity/约束确认不赋Root创建或Branch写权。move_working_head各自artifact.branch.move_head及当前CAS，不借candidate.accept授权。后续生成profile必须显式覆盖这些受限service步骤，缺任何许可停止PARTIAL而不删已提交Root/Revision。

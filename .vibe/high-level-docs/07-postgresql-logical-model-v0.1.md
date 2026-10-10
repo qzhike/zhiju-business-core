@@ -2511,3 +2511,16 @@ forward migration 必须验证旧 binding exact refs/Scope/hash 后赋 FULL_STAR
 EP每项独立取得IP当前PROJECT Decision后，在精确enterprise_id+project_id Context读取自身摘要；无全库空Scope事务、跨Schema SQL join或共享Repository。目录cursor/source watermark仅为读取证据，不写客户业务事实或授权限；EP名字摘要输出范围为此新Query已批准的最小展示字段。未来实现须用真实PostgreSQL证明专用role/Context不能读别主体、旧role无权限、新role不能写/读EP、逐项目RLS与撤权/翻页拒绝，并运行 `full`。
 
 OIDC token、Cookie、CSRF、refresh锁仅在批准的BFF有界技术内存中；业务意图/草稿/Receipt不进入它。IP历史Actor/Decision只保存认证摘要及hash、当前Scope与授权绑定，无raw token/Subject或跨模块FK。重启/换Session不删除或回填原业务意图、历史Actor、Receipt，禁止通过改RLS/伪snapshot解决无身份入口。
+
+## Markdown 文件处理与个人草稿持久化提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NO SQL / NOT IMPLEMENTED。[Markdown Delta](../decisions/markdown-file-feedback.md)只确定owning边界与未来必要约束，不分配migration编号或预建数据库表；不重写已应用migration、RLS/旧Revision/Receipt/Hash。
+
+| owning Schema / 未来支持记录 | 必需约束 |
+|---|---|
+| task_execution / file source/basis/原intent/request固定steps、私稿pointer+snapshots | 显式enterprise_id+project_id；文件唯一active request与request/intent/Receipt同事务；同key/hash幂等；immutable submitted/source/draft snapshots；private rows额外trusted author predicate，Project admin/read不放行；draft CAS/fork/原pending传输快照/恢复索引，BFF Session不拥有业务数据 |
+| artifact / source mapping/constraints与candidate acceptance | 沿已有Canonical对象FROZEN/Revision/Branch/Representation生命周期；source/constraint/acceptance immutable；seal+acceptance/Receipt/Audit/Edges/Event单ART事务；Head独立CAS；内容仍对象存储，raw hash/canonical hash/Receipt hash不混 |
+| integration_gateway / one-file suggestion intake/rawobjects、生成原observation/Attempt、Markdown render binding | 外部invoke前commit、原Attempt/session/lease/fencing+稳定key，raw bytes在受控对象存储，snapshot/观察不可改；staging/finalize/UNKNOWN与受审计orphan cleanup保留；不cascade删除已link历史 |
+| quality_governance / 现有Evidence/Issue/Gate/Approval | 无Feedback新表；原问题/来源不可变、新候选不自动Close/Approved，当前impact另追加，不回写历史 |
+
+跨owner仅exact TypedReference/受权Port，禁止跨Schema FK/SQL、共享Repository或单事务多Root；所有新记录通过owning function+RLS/ACL/immutable guard，私稿还核作者身份。原文/附件引用属于权限裁剪的敏感数据，不写普通日志/Event；retention/legal hold控制清理，清空草稿是新snapshot不删除提交历史。后续真实PostgreSQL/full需验证CAS/唯一占用/作者隔离/撤权/partial/recovery/fault和既有升级回归，当前NOT RUN。

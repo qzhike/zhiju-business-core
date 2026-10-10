@@ -4,6 +4,8 @@
 
 [完整批准及实施历史](../archive/im-04-startup/Review-Record.md)保留原始第 8 节批准记录。实现状态由 [Artifact Spec](../module-specs/Module-Spec-004-Artifact.md)、[IntegrationGateway Spec](../module-specs/Module-Spec-007-IntegrationGateway.md)及各自 Module Test 维护；执行验收见 [#89](https://github.com/qzhike/zhiju-business-core/issues/89)、[#90](https://github.com/qzhike/zhiju-business-core/issues/90) 和 [#125](https://github.com/qzhike/zhiju-business-core/issues/125)。
 
+[Markdown 候选与反馈 #259](markdown-file-feedback.md)是待独立审查/人类技术批准的additive提案：继续用STRUCTURED_DOCUMENT与本决策Hash/稳定Unit/不可变Revision边界，拟增加独立Markdown mapping/schema、公开server Diff目录和Representation/download接受集。它不改变下方已批准IM-DG-005或旧Human Edit/Renderer行为，未注册/实现，不能把Markdown bytes、Browser diff或上传建议作为Source of Truth。
+
 下面保留原章节编号便于追溯。有关“先实现”“需要新增”等时态描述属于批准时的实施顺序，不表示当前仍未实现；当前 Catalog 已包含 Binding Query。归档不撤销既有冻结约束，也不把历史预期或 NOT RUN 提升为当前 PASS。
 
 ## 3. IM-DG-005 推荐冻结内容

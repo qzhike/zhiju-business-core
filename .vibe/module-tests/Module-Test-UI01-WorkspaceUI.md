@@ -158,3 +158,17 @@ reviewer and timestamp
 | UI-258-010 / Recovery + HTTP + PG | request已commit/start成功scope失败时断网/Session过期/重启；原requestRef/key重登回读 | 原intent/成功steps/Receipt不变；新auth仅当前read/续步证明，UNKNOWN依赖失败不推未提交，零重复事实/dispatch，TR-258-06/07 | 未执行 / `NOT RUN` |
 | UI-258-011 / Cache + Diagnostics | logout/401/撤权/切用户Scope、多Tab、bfcache；callback/token/body/file探针 | 敏感DOM/cache/objectURL清理，迟到响应不能复填；no-store；日志/trace字段allowlist无token/Subject/客户正文 | 未执行 / `NOT RUN` |
 | UI-258-012 / Actual Browser + Accessibility + Manual | 固定脱敏资料，Windows/macOS实际两稳定版Chrome/Edge；顾问登录→目录→已注册D14→原intent恢复 | 已批准布局/默认不选/键盘焦点/深链接真实可用；允许及拒绝链可追溯；记录build/环境/实际版本/独立审核人，不拿Chromium/axe代人验 | 未执行 / `NOT RUN` |
+
+## Markdown 检查与单意见区设计场景（#259）
+
+权威为 [UI #259](../module-specs/Module-Spec-UI01-WorkspaceUI.md#markdown-检查单意见区与草稿接续提案259)，原型入口/合成性质及完整steps见 [MF traces](../decisions/markdown-file-feedback.md#8-设计-trace-与真实来源)。下面均需实际构建、公开owner HTTP、server private drafts和批准浏览器矩阵；不是原型已验收记录。
+
+| ID / 输入 | 可核验预期 | 实际 / 结果 |
+|---|---|---|
+| UI-MF-001 / MF-01/02正文/表格blank/0/签批、natural comment+location→提交→新candidate | exactfile/version/changes，唯一意见区一次submit；新candidate保留页/版本/输入，主动切版后复核；filled不是approved | 未执行 / NOT RUN |
+| UI-MF-002 / MF-06 36changes/9章/201files、宽表、移动/删除、搜索/跨页/键盘 | 固定高度、逐处替换、章节点击保持展开/草稿；server total与stable locators，横滚全部列、旧删除引用明确，浏览不批准 | 未执行 / NOT RUN |
+| UI-MF-003 / MF-07 one old-base suggestion B/M/S、错base/current变化/冲突 | 同区上传/声明base/显式复核，不guess/rebase；原请求/问题保留，新current提示而不换view；重新提交前核对新版位置 | 未执行 / NOT RUN |
+| UI-MF-004 / MF-08 submit UNKNOWN/refresh/close/relogin、3次/10秒后手动查询、错Receipt/失权 | private pending snapshot与原key恢复、预算不重置；状态在原意见区顶部，无重发/假失败/自动批准；下一轮草稿可写 | 未执行 / NOT RUN |
+| UI-MF-005 / MF-09真实server cross-device/CAS/save failure、processing时新text/attachment | 仅本人私稿，saved receipt exact匹配；一winner/fork保留差异，无自动merge/换base/发送；未保存状态真实可见 | 未执行 / NOT RUN |
+| UI-MF-006 / MF-05/10plan objection/partial handling/linked Blocking Issue | 只该文件暂停、其他候选/草稿/批准不改；未处理明确、Issue不自解，反馈/导航不当Approval | 未执行 / NOT RUN |
+| UI-MF-007 / MF-12Head成功但render UNKNOWN、exactdownload/撤权/恶意内容与filename | canonical可看/导出分别表达；未登记不下载raw成果，ticket header/no-store/安全编码/失权清理；下载不送达 | 未执行 / NOT RUN |

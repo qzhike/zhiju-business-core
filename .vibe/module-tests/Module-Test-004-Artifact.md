@@ -251,3 +251,24 @@ authority为Spec 004 §12；#235当前有限owning/PG证据如下，历史已交
 | ART-COMP-D-001 | Contract + Application + PostgreSQL / 授权Human实际root/content创建及新execution revision | 自身/TE独立授权，provenance只用owning Run来源且无未来Result；Revision/binding/真实Receipt同事务，可exact重读canonical内容与current状态 | OWNING/PG PASS：normal/recovered Human真实root/content/stage/link/freeze→execution Revision、creation binding与Receipt；canonical content Hash域保留，exact owning output读回与创建来源镜像独立复验。 |
 | ART-COMP-D-002 | Application + PostgreSQL / 旧normal Revision/复用input/伪造Run/Receipt/actor/hash/Scope/schema、binding过期/锁后撤权 | 不提供execution output资格；masked NOT_FOUND/绑定错误；SEALED不可补ResultRef，不跨Schema查询/写表 | CONTRACT/APPLICATION/PG PASS（已执行）：Human-only实际AGENT/SERVICE/actingFor有Grant仍DENY，借Human Decision protected SQL为0；premature未提交Ref/Receipt拒绝；错误source/Scope/Hash/schema拒绝。逐一锁后撤权与全部旧normal Revision消费子项NOT RUN。 |
 | ART-COMP-D-003 | PostgreSQL / 创建Receipt/binding/Event故障、同键重放、Direct SQL镜像/Hash欺骗、内容withdraw/invalidate | 原子rollback/replay、Hash域分开、RLS/immutable guard；current失效不覆写原snapshot/provenance/receipt | PG/CONTROLLED PASS（已执行）：五个创建原子点故障全rollback，原键replay；actual owning withdraw后Completion REVOKED而历史Revision/Receipt不变；新增有限forward migration。两张新Artifact fact表对真实已存在Revision实际app UPDATE/DELETE 42501、owner immutable 55000、RLS pool跨Scope隐藏/恢复均PASS；全部Direct SQL欺骗置换子项未穷举，NOT RUN；full gate状态见PR。 |
+
+## Markdown 内容、候选与定位设计场景（#259）
+
+字段权威为 [ART §13](../module-specs/Module-Spec-004-Artifact.md#13-markdown-候选定位与表示提案259)，完整步骤及fixture来源见 [MF traces](../decisions/markdown-file-feedback.md#8-设计-trace-与真实来源)。以下是SYNTHETIC / DESIGN TRACE，未写实现测试；历史ART证据不变，实际/结果全部NOT RUN。
+
+| ID / 层次 | 输入 / 故障 | 可核验预期 | 实际 / 结果 |
+|---|---|---|---|
+| ART-MF-001 / Contract + Integration | MF-01完整采购申请单→映射/整份constraints→IG/TE真实来源→ART first candidate | exactFile/source/template/protection/Result Acceptance逐项核；Parent=[]、完整Canonical、独立sealed Revision/acceptance/Receipt；没有Quality或Completion事实 | 未执行 / NOT RUN |
+| ART-MF-002 / Unit + Golden | blank、0、□/☑/√、两个H1、标题编号、alignment、br/硬换行、转义pipe、长中文、CRLF/BOM | raw bytes hash与canonical Hash分域；全部语义/身份render→parse相同；空cell text省略，0为TEXT，无Unicode/空格/字段默认替换 | 未执行 / NOT RUN |
+| ART-MF-003 / Negative + Integration | MF-02合法数量改12对照MF-05添金额审批/删总经理栏/改人员/跨file/改KEEP | C2 Parent=C1、完整Diff含metadata/移动/新删Unit且只授权范围；保护关系/原文不变；非法zero content staging/Revision | 未执行 / NOT RUN |
+| ART-MF-004 / Contract + Template | 采购程序A/5表1三列表头/五列行、未知HTML/合并单元格/footnote/extension | 原template/source preserved，整文件UNSUPPORTED，不补列/裁表/删历史；独立申请单/评价记录不阻 | 未执行 / NOT RUN |
+| ART-MF-005 / Template + Manual | 评价记录五维度、审批“Ⅰ类准入”与编制说明#4、filled record/空签名 | 全部文字/列/适用差异可检查；不可静默专业裁定/模板示例变客户活动或已签批 | 未执行 / NOT RUN |
+| ART-MF-006 / Security + Round-trip | 脚本/HTML属性/外链/伪注释ID/重复ID/超限；renderer改blank/0/换行/编号 | UNSAFE/UNSUPPORTED/IDENTITY_INVALID/LOSSY，拒整个candidate；raw保存与受权原因，零accepted部分删减版本 | 未执行 / NOT RUN |
+| ART-MF-007 / Diff + Browser | MF-06 36变化/9章，ADDED/REMOVED/CHANGED+MOVED、new/delete/context、宽表 | exact inputs/算法/full diffHash与稳定changeId；total entry与distinctUnit计数分开、跨页/章可定位、不裁列、不当批准证据 | 未执行 / NOT RUN |
+| ART-MF-008 / Locator + Security | 删除旧row、同名header、moved unit、错claimHash/Scope/游标/filter或current授权变化 | originalLocation保留；REMOVED/AMBIGUOUS不自动迁移；安全拒绝错绑定、cursor不得续错输入/权限 | 未执行 / NOT RUN |
+| ART-MF-009 / Old-base + History | MF-07 B/M/S，S无关变化、同row冲突、current已S2 | 新Parent=S，完整S→C范围校验；冲突待判断无直接merge；若S2到达新candidate仅历史、不覆盖Head | 未执行 / NOT RUN |
+| ART-MF-010 / Evidence + Provenance | MF-11真Evidence但source/locator/capturedHash/claim关系错配、旧Run新session | 独立owner读权、精确源/claim核验拒绝；不能用只匹配Evidence ID或Runner自报补齐 | 未执行 / NOT RUN |
+| ART-MF-011 / PostgreSQL + Fault | source/bytes readback、link/finalize UNKNOWN；seal事务各点故障、同键/异hash、Head CAS竞争 | FROZEN前不seal；seal/acceptance/Receipt原子；原键不重复；Head失败保留不可变历史、零覆盖winner | 未执行 / NOT RUN |
+| ART-MF-012 / Representation + HTTP | MF-12 exactrender→registration→download；wrongRevision/profile/renderer/checksum、UNKNOWN、撤权/stream中断 | 只真实successful Binding登记，raw非Representation；当前权限+ticket+实际bytes完整；safe attachment/no-store、下载不Approval/Release | 未执行 / NOT RUN |
+
+ART-MF-001/003补充：首次scope校验使用完整sourceMapping→candidate而非EMPTY diff；template-derived空白表无内容变化但有完整CREATE计划可建立首Revision。C1→C2/C3复用同Artifact合法lineage的稳定约束，不因原NEW起点再创建Root；current已S2时旧S请求STALE，锚/范围/保护改变需显式新constraints确认。此补充仍NOT RUN。

@@ -235,3 +235,13 @@ WI-02 非目标：GateResult evaluation、ReviewIssue、Human Approval decision�
 |---|---|---|---|---|
 | QG-COMP-D-001 | Cross-module Application + PostgreSQL / exact正式Revision/RAS、可选ABS与真实current eligibility | 适用criterion才读取、HUMAN与固定TE SERVICE均用自身独立Decision；冻结Profile/P1-P2分离、SelectionPort实际Refs与最新规则一致、同Revision/Profile/anchor且当前usable，未请求ABS为NOT_APPLICABLE | OWNING/PG PASS：真实P1/P2 Profile、Gate/RAS/Approval/ABS，TE只选择frozen P1并消费已有#192 current eligibility；Selection/actual refs来自Quality owning事实，输出无Quality criterion不读取。 |
 | QG-COMP-D-002 | Cross-module Application + PostgreSQL / Gate失效、Approval撤销/new snapshot、错Hash/Scope、quality权限撤销/不可达 | Completion/Readiness current不可用或依赖拒绝；历史Snapshot/Evaluation不改；没有以历史READY覆盖false；current读取不重选Refs，refresh才生成新Evaluation.qualitySelection | OWNING/PG PASS（已执行）：同Profile新RAS/ABS使旧Evaluation STALE，refresh选新Refs；实际Approval revoke/Gate invalidate/Profile successor导致current不可用，历史不变。新TE Selection Grant真实撤销拒绝refresh、重新授予后恢复；新TE层逐项错Hash/Scope/不可达子项NOT RUN；已有#192相应用例单独保留。 |
+
+## Markdown 意见与精确质量事实设计场景（#259）
+
+权威为 [QG #259](../module-specs/Module-Spec-005-QualityGovernance.md#markdown-逐文件意见与质量事实边界提案259)。复用既有owning Contracts，不把设计trace或Runner报告当质量结果。
+
+| ID / 输入 | 可核验预期 | 实际 / 结果 |
+|---|---|---|
+| QG-MF-001 / MF-03/05/11模板适用差异、保护Evidence完整原文/关系；错source/locator/claim/hash或CONTEXT_ONLY | 真Evidence状态与claim分开核；不采模板/摘要当客户事实，不替顾问裁定；无充分当前依据阻本文件，历史Evidence/Revision保留 | 未执行 / NOT RUN |
+| QG-MF-002 / MF-10普通两条意见、linked Blocking Issue、新candidate HANDLED、propose resolution | 普通edit不自动Raise；新candidate不Close，Issue原statement/locator不改，待处理显式；Resolution绑定exact新Revision/changedClaim | 未执行 / NOT RUN |
+| QG-MF-003 / 作者自验/Agent actingFor批准、旧RAS/ABS、新Revision Gate缺失、render round-trip/下载成功 | 职责分离/Human-only拒绝，mandatory Gate仍须满足，新Revision不继承批准；render技术PASS/下载不代表RAS/Approval/Release | 未执行 / NOT RUN |

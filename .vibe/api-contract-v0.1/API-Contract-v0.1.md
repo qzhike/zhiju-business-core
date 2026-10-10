@@ -663,3 +663,13 @@ Cursor公开表示严格遵守共享OpaqueCursor正则`^[A-Za-z0-9_-]{16,512}$`�
 唯一新public operation提案 `project.find_workspace_projects@1.0` 的payload/result/分页见 [EP owning Spec](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)。它显式接受 `scopeRef={}` 的verified self-discovery，requester只从Core身份解析；不生成空Scope业务Actor/Decision，每个返回项目仍独立取得IP当前Project Decision并按双Scope RLS读取。此例外须新Query注册及实际可信入口，不把现有identity scoped Port/board接受集放宽。
 
 HTTP200/202不增加CommandResult status；202须owning durable admission，已commit request的数据可仍PENDING/UNKNOWN/PARTIAL。pre-auth/CSRF错误属于技术层，断网不伪造业务REJECTED。未注册D14/目录或缺handler不可调用，Registry声明不等于HTTP实现。依据摘录使用现有exact Evidence查询；没有owning公开bytes transport时下载不启用，新增stream须单独批准/注册有限路由，不以ObjectLocator或metadata绕过。
+
+## Markdown 单文件提案的 Envelope 与公开传输（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。[名称/唯一Owner](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#markdown-逐文件处理名称提案259)和各owning Spec定义新增closedpayload/data，不改共享Command/Query/Result、currentauthorization、target/CAS、cv1 Hash或历史兼容基线。
+
+Browser只finite已批准/注册Human操作与受权Query的transportprojection：约束整份确认、显式generation/fileedit、原request查询/resume、本人draft/create/save/read/find、目录/阅读/diff/定位、单建议intake、registeredMarkdown下载。mapping/binding producer、candidate acceptance、Result ingestion、render/Representation注册仅专用service入口，不放进Browser/MCP通用dispatcher。Actor/Decision由受信Core形成，不能caller声明Human/作者/权限。
+
+新PUT /api/markdown-suggestion-intakes/{intakeId}/content是IG-issued one-intake原流，10MiB/实际hash/UTF-8及same-originSession/CSRF当前权限，BFF只boundedstream不写objects。新GET /api/markdown-representations/{representationId}/content是ART exact注册表示的只读stream，downloadTicket置header且≤60秒，重新授权并核实际checksum；sharedRepresentationRef所有identity字段精确比较，opaque storage locator不等于bytes权限或URL。无注册handler/stream时不可用，不由BFF取得private库权限补齐。
+
+Command受理成功不推RUNNING或候选，request数据disposition与stepFacts分开；UNKNOWN回读原target/key/requestPayloadHash和原提交，private pending snapshot不当Receipt。确认未接收仅owning完整索引+本人原snapshot证明；统一masked NOT_FOUND/403、依赖503不推未提交，不自动新键重发。Byte SHA、intent/snapshot Hash、Canonical Hash、Diff Hash、Representation checksum分域。所有内容受权/no-store、安全编码与有限日志allowlist，下载不增加Approval/Release/客户收件事实。

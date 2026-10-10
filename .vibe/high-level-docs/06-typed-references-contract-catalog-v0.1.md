@@ -1513,3 +1513,35 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 | `CONTENT_ADDRESSED / zhiju.identity.company_rule_publication` | IdentityPolicy / Platform；具体 bundle/清单/范围/EP校验/真实Human批准与发布、取代/撤回当前性；[Spec 001 #257](../module-specs/Module-Spec-001-IdentityPolicy.md#257-公司规则发布与精确读取提案) |
 
 上述发布/解析只提案受控 owning internal Capability/Port，不伪装为已存在的公开 Command/Query。后续批准并注册类型/profile/purpose/实现后，EP startup Query/Source/Binding 才能接受 publicationRef 和精确 requirement 集合；历史 D14、Platform snapshot 与 PROJECT_START 接受集/Hash 不自动升级。
+
+## Markdown 逐文件处理名称提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。仅为 [Markdown Delta](../decisions/markdown-file-feedback.md) 的唯一name/Owner/reference导航；不加入当前Catalog/Registry计数、200历史兼容bytes或Browser可调用allowlist。批准后实现同时注册closed payload/result/purpose/target/selector与正负fixture。
+
+| 拟 operation / version | 唯一 Owner / 字段权威 |
+|---|---|
+| execution.request_file_generation@1.0、execution.submit_file_edit_request@1.0 | TaskExecution / [Spec003 §28.2](../module-specs/Module-Spec-003-TaskExecution.md#282-原意图与公共操作)，COMMAND/CREATE、Human-only |
+| execution.get_file_processing_request@1.0、execution.resume_file_processing_request@1.0 | TaskExecution / §28.2，AUTHORITATIVE QUERY / COMMAND MUTATE |
+| execution.get_work_scope_file_directory@1.0、execution.get_file_review_basis@1.0、execution.get_file_candidate_acceptance_binding@1.0 | TaskExecution / §28.2，AUTHORITATIVE QUERY；candidate-binding仅ART专用SERVICE |
+| execution.create_file_personal_draft@1.0、execution.save_file_personal_draft@1.0、execution.get_file_personal_draft@1.0、execution.find_file_personal_drafts@1.0 | TaskExecution / [§28.4](../module-specs/Module-Spec-003-TaskExecution.md#284-服务器个人草稿)，CREATE/MUTATE/QUERY/QUERY，仅本人HUMAN |
+| artifact.confirm_file_edit_constraints@1.0、artifact.get_file_edit_constraints@1.0 | Artifact / [Spec004 §13.1](../module-specs/Module-Spec-004-Artifact.md#131-基线映射与完整约束)，CREATE/QUERY、完整映射Human确认 |
+| artifact.accept_file_candidate@1.0、artifact.get_file_candidate@1.0 | Artifact / [§13.3](../module-specs/Module-Spec-004-Artifact.md#133-候选接纳与来源)，CREATE/QUERY；accept仅专用SERVICE |
+| artifact.get_file_review_content@1.0、artifact.get_file_change_directory@1.0、artifact.resolve_file_review_locations@1.0 | Artifact / [§13.4](../module-specs/Module-Spec-004-Artifact.md#134-公共变化目录与-stable-location)，AUTHORITATIVE QUERY |
+| artifact.register_markdown_representation@1.0、artifact.get_markdown_download@1.0 | Artifact / [§13.5](../module-specs/Module-Spec-004-Artifact.md#135-markdown-representation-与下载)，CREATE/QUERY |
+| integration.request_markdown_suggestion_intake@1.0、integration.get_markdown_suggestion_intake@1.0、integration.get_markdown_render_binding@1.0 | IntegrationGateway / [Spec007 #259](../module-specs/Module-Spec-007-IntegrationGateway.md#markdown-建议生成原输出与渲染提案259)，CREATE/QUERY/QUERY |
+| integration.request_render@1.1 | IntegrationGateway / 同节，独立Markdown分支，旧@1.0接受集不变 |
+
+| 拟 Ref identity | Owner / Scope / Hash域 |
+|---|---|
+| OBJECT/zhiju.execution.file_processing_request、zhiju.execution.file_personal_draft | TE / Project；请求和私稿技术支持记录，没有新领域Feedback Aggregate；CAS不是历史版本 |
+| SNAPSHOT/zhiju.execution.file_source_binding、file_generation_context、file_review_basis、file_submitted_intent、file_personal_draft_snapshot（均完整前缀zhiju.execution.） | TE / Project；真实snapshotId+cv1完整payload Hash，字段唯一Spec003 §28 |
+| CONTENT_ADDRESSED/zhiju.execution.file_candidate_result | TE / Project；原accepted Result/observation/output绑定canonical payload，不是Revision |
+| OBJECT/artifact.file_edit_constraints；SNAPSHOT/artifact.markdown_source_mapping、artifact.file_constraint_proposal、artifact.file_edit_constraints | ART / Project；source mapping/整份Human确认cv1 payload，原件bytes SHA单独，不把计划行号当Unit |
+| CONTENT_ADDRESSED/artifact.file_candidate_acceptance | ART / Project；接纳来源/Revision/Receipt独立payload Hash，Revision contentHash只覆盖CanonicalContentPayload |
+| OBJECT/zhiju.integration.markdown_suggestion_intake；SNAPSHOT/zhiju.integration.markdown_suggestion；CONTENT_ADDRESSED/zhiju.integration.file_generation_observation | IG / Project；单file/B/S与原调用绑定cv1 payload，raw对象由opaque locator+实际bytes SHA独立证明 |
+| VERSIONED/artifact.canonical_document_schema，拟artifact.markdown_document.schema@1.0 | ART / Enterprise selector；独立注册精确ID/version，不复用旧structured selector/默认fixture |
+| 拟file-generation profile/toolchain lock/Package selectors | Runtime/TE/IG各自边界；独立随后批准的版本/digest接受集，不从d14.analysis推导可运行；[Runtime提案](../runtime-adapter-contract-v0.1/Runtime-Adapter-Contract-v0.1.md#markdown-整份生成与旧基准复核-profile-提案259) |
+
+RevisionRef继续CONTENT_ADDRESSED/artifact.artifact_revision，Artifact继续artifact.artifact；Markdown沿用完整RepresentationRef（含opaque objectStorageRef的精确身份字段）与RenderAttempt身份，不创造不兼容的简化Ref或由locator生成URL。Location为ART closed Value Object，unitId可非UUID，不能冒充TypedReference；changeId/diffHash是确定性派生读取标识，不是Quality Evidence/Approval。
+
+内部source mapping/constraints提案producer、FileSourceBinding/Context producer、原output readback须独立当前SERVICE授权及closed Port，非Browser公共操作。无新Domain Event名称，沿用已批准各owning成功Event的原shape并仅在相应真实提交点产生；不把上述profile/名称或测试trace登记成已实施事实。

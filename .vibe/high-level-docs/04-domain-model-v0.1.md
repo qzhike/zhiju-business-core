@@ -5754,3 +5754,11 @@ DeliveryItem Completion 是由 EnterpriseProject owning Evaluator 根据冻结 `
 EP 新不可变 PreparationReport、CandidateSet、FilePlan snapshots 不等于 GapAnalysis/DeliveryPlan/正式 Fact；Human 信息决定、真实 Fact/Product/QMS 前置版本、Project start、TE 初轮 workScope 独立事实。scope 只表示整份文件意图接收，不自动批准修改/完成。缺必需客户事实阻 start；非必要未知或文件保护/冲突阻整份受影响文件，合法 start 后独立文件可接收。完整状态/recovery 见 [Delta §5](../decisions/d14-rd01-first-customer-flow.md#5-转换原意图与恢复)，owning fields/scenarios 不在本节复制。
 
 新准备路径 ACTIVE、首轮 workScope 尚未接收时，允许独立 Human scope intent/initial_work_scope_decision 绑定原 start+当前 plan；有界 INITIAL_SCOPE_RECOVERY 分析只读该 frozen start，不能再次确认/激活/启动。TE 每 Project/purpose=INITIAL 唯一成功接收，窗口关闭；原 intent immutable，必须影响必需启动依据的变化先 owning impact review。旧 FULL_START 项目与后续批次不属于此入口。
+
+## Markdown 单文件处理的领域边界提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT IMPLEMENTED。[Markdown Delta](../decisions/markdown-file-feedback.md)不新增领域Feedback Aggregate或通用Workflow。TE原intent/固定steps/本人草稿是模块拥有的技术支持记录，已提交意见不是private draft，普通edit不是Quality ReviewIssue；后者原问题/整改/验证仍归Quality。草稿新snapshot只保存输入，不授权执行或改变Task状态。
+
+整份Human约束确认、scope接收、TE Result Acceptance、ART candidate/Revision、Head前进、Representation、RAS、Human Approval、Release/Completion均是独立事实。首次Revision Parent=[]，单文件修改Parent=[提交时current]；旧base建议保留B/M/S，冲突和原位置不静默移植。已seal历史/原intent/已批准版本不可改写。PLAN_OBJECTION仅该file未来安排暂停，其他独立file及已有history不变；不从运行中typing追加frozen Context。
+
+字段/状态/不变量唯一维护于TE §28、ART §13和QG #259；无当前约束/保护/来源映射或生成profile时fail closed，不能因为有页面/新support record声称业务可执行。

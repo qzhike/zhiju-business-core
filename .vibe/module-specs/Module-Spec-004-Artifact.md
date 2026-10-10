@@ -437,3 +437,96 @@ closed CommandResult.data `{revisionRef:CONTENT_ADDRESSED/artifact.artifact_revi
 新增 `artifact.get_execution_output_fact@1.0`，AUTHORITATIVE/CUSTOMER_CONFIDENTIAL Query，closed payload `{revisionRef:CONTENT_ADDRESSED/artifact.artifact_revision}`；closed data `{revision:RevisionSnapshot,artifactRef:OBJECT/artifact.artifact,artifactAggregateVersion:NonNegativeInt,artifactLifecycle:ArtifactLifecycle,businessScope:ArtifactScope,originProjectRef:OBJECT/zhiju.project.project,contentState:"FROZEN",canonicalContent:CanonicalContentPayload,creationBinding:ExecutionRevisionCreationBinding,creationBindingHash:PayloadHash,creationReceipt:ExecutionRevisionCreationReceipt,observedAt:UtcInstant,useStatus:"USABLE"|"STALE"|"REVOKED",reasonCodes:ReasonCode[]}`。RevisionSnapshot原shape；RevisionRef.contentHash沿用§4.1的CanonicalContentPayload域 `{schemaRef,contentType,canonicalizationVersion,body}`，不把含自身Ref的完整snapshot纳入该Hash域。完整RevisionSnapshot的owning source镜像、CreationBinding Hash与Creation Receipt Hash分别精确复验，不能互相替代；canonicalContent只返回有权的canonical body，不返回object storage凭证。Query重新计算binding/Receipt/source镜像与contentHash、Schema、id/Hash/Scope；ACTIVE Revision+ACTIVE Artifact+完整FROZEN内容为USABLE，归档/superseded为STALE，withdrawn/invalidated为REVOKED。历史完整payload不改写，返回current字段；缺/错hash/Scope、普通Revision无creationBinding统一masked NOT_FOUND。current useStatus解释码限 `ARTIFACT_EXECUTION_OUTPUT_STALE`、`ARTIFACT_EXECUTION_OUTPUT_REVOKED`。
 
 相同command键重放须当前creation授权，但已提交历史Receipt不要求Run重新ACTIVE；返回原Ref，不能重新创建。新键要求有效新binding/新target，重复target按既有Artifact conflict拒绝。自身与TE依赖Decision在受保护读取前及提交/Receipt返回前重验；错误公开映射为既有AUTHORIZATION_DECISION_INVALID、ARTIFACT_STRUCTURE_SCHEMA_INVALID、ARTIFACT_CONTENT_HASH_MISMATCH、ARTIFACT_SCOPE_INVALID；binding无效/过期新稳定码 `ARTIFACT_EXECUTION_BINDING_INVALID`，不泄露Run是否存在。immutable Row/Hash/Receipt/Edges/既有RevisionSealed Event原子提交，失败无部分正式事实。Module-Test 004 新矩阵分别记录 #235 的实际 owning/受控 PostgreSQL 证据与未执行子项；不改变历史 Artifact/Renderer 证据。
+
+## 13. Markdown 候选、定位与表示提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。跨步骤选择与 trace 见 [Spec Delta](../decisions/markdown-file-feedback.md)；本节拥有内容、范围、定位、候选及 Markdown 表示字段。§7.4 内部 Human Edit、§12 初始 execution revision、IM-DG-005 和旧 Renderer 接受集保持原样。
+
+### 13.1 基线映射与完整约束
+
+ART 内部 prepareFileConstraintProposal Port 只接受受信 TE 的当前 SERVICE 授权，以及同 Project 的 workScopeRef、fileId、exact reportRef/planRef、完整 change/KEEP IDs、精确主来源/模板 refs+bytes hashes、可选 baseRevisionRef、Quality verified protection Evidence/claims、EP 启动绑定、已确认fileIdentity（ArtifactRef/documentId/title/metadata）和rangeProposal。先独立解析 EP/QG/ART owning refs，后读取对象；不接受 Browser locator、自由正文、模型给出的未确认allowedUnitRefs或任意Evidence alias。
+
+rangeProposal是对原plan每个change/KEEP/protected项的具体source locator→Unit/新锚对应，closed {planRef,fileId,baselineMappingRef,items,proposalSourceRef}，items每项changeId/完整sourceLocators/候选unitIds或newAnchor。它可来自顾问明确位置或另行授权的Runner诊断，但均仅提案，不能作为已确认范围；ART只验证同plan/源/结构/ID全覆盖、KEEP/保护关系，不分析自然语言来猜可修改范围。旧D14报告没有该字段时不能自动补成整文件通配；先显示MAPPING_REQUIRED，由Human在已有整份计划检查中确认完整有界提案，缺合格提案则该文件等待。未修改EP旧报告Schema/Hash，也不因本Port存在声称Runtime已能产映射。
+
+主基线已有 Revision 时沿用其稳定身份；新文件来源通过本节固定 parser 形成不可变 SNAPSHOT/artifact.markdown_source_mapping。payload 闭集为 mappingId、projectRef、workScopeRef、fileId、sourceRefs（每项 exact ref/role/rawBytesSha256/可选 derivedSourceRef+derivedBytesSha256）、parserProfileRef、structureSchemaRef、canonicalPayload、canonicalContentHash、nodeMap、readLimits、createdAt。nodeMap 每项为 sourceRef、sourceLocator（已验证的段落/表/row/cell 身份及原 excerpt hash）、unitId、unitType、parentUnitId、ordinal；源行号仅 displayHint。canonicalPayload 不含 mapping 自身 Ref/hash；Hash 按 cv1 覆盖上述完整 payload。原件完整性不证明结构无损；存在未读/有损/不支持必要结构则 proposal=BLOCKED，不给可确认映射。
+
+约束提案为 SNAPSHOT/artifact.file_constraint_proposal，payload 闭集：proposalId、scopeRef/workScopeRef/fileId/reportRef/planRef、baselineMappingRef、baseRevisionRef?、artifactIdentity（artifactRef、branchMode:EXISTING或NEW_OWNING_MAIN；仅EXISTING有真实branchId）、documentIdentity（documentId/title/metadata）、allChangeIds、keepChangeIds、allowedChanges、protectedBindings、templateRefs、sourceWatermarks、profileRef、createdAt/validUntil。allowedChanges 每项为 changeId、allowedKinds 非空集合 ADDED/REMOVED/CHANGED/MOVED、existingUnitIds、newContentAnchors（parentUnitId+beforeUnitId?/afterUnitId?；空根仅首次 CREATE）、subtreeCoverage 显式布尔值。每个整份计划 change 必须出现一次；KEEP 仅冻结其完整 Unit/subtree 不变，不进入写集合。REORGANIZE/CREATE 也必须有具体锚，不能把“整份同意”扩大为任意修改。
+
+protectedBindings 每项为 protectedFactId、exact EvidenceRef/必要 Fact/Product/QMS version refs、sourceSnapshotRef/locator/capturedContentHash、claimUnitIds、claimHash、relationshipBindings（父子/字段角色/客户职责关系的精确 stable IDs+hash）、requiredUnchanged=true。方针、目标、组织职责、既有流程及产品要求保留完整原文和关系；结构化依据不转换为 TEXT Fact。任何 protectedImpact/exception/conflict 未解决、claimed unit缺失、同名映射歧义或必要 Evidence 当前不可用均 BLOCKED。旧源→新结构无法严格校验时先人工核对映射，不用 Runner “无影响”声明替代保护证据。
+
+以下操作均为拟 @1.0、共享 Envelope、同 Project：
+
+| 操作 / target mode | closed payload | closed data / purpose |
+|---|---|---|
+| artifact.confirm_file_edit_constraints / CREATE，OBJECT/artifact.file_edit_constraints | proposalRef:SNAPSHOT/artifact.file_constraint_proposal | constraintsRef:SNAPSHOT/artifact.file_edit_constraints、receiptRef；artifact.file_constraints.confirm / HUMAN_ONLY；完整提案逐字段确认、当前 source/plan/CAS eligibility 重验，不接正文/子集/保护例外 |
+| artifact.get_file_edit_constraints / AUTHORITATIVE Query | constraintsRef | payload（原proposalRef、完整已确认约束、ActorSnapshot/Decision/Receipt/confirmedAt）、currentUsability:USABLE/STALE/REVOKED、reasonCodes、sourceWatermarks；artifact.file_constraints.read |
+
+Constraints Hash 按 cv1 覆盖独立完整确认 payload，排除自身 Ref/hash；确认不改 proposal，不启动 Run。映射/提案的 exact 内容由 constraints Query 一并受权返回给 TE，不新增 Browser 私有 SQL 或跨 Schema Repository。
+
+constraints的baseRevision/sourceMapping与branchMode是确认时的起点，不是随Head变化的pointer。同一plan后续反馈可沿同Artifact已接纳lineage复用原stable范围和保护约束，TE每次另捕获真实current/Branch；NEW_OWNING_MAIN起点已产生Root后不得再创建新Root。ART必须证明current属于该起点的合法lineage，范围/KEEP/protected stable IDs仍可唯一解析且原保护完整；删除/重建锚、无法覆盖新增身份或范围语义变化则STALE/MAPPING_REQUIRED，在同整份核对中显式确认新约束快照。原constraints/Location不改，不把复用stable授权范围当迁移用户旧意见。
+
+### 13.2 Markdown 到 STRUCTURED_DOCUMENT
+
+拟 artifact.markdown_document@1.0 与 artifact.markdown_document.schema@1.0 为独立 registered selector 接受集，SchemaRef 为 VERSIONED/artifact.canonical_document_schema、Enterprise Scope；注册时分配精确 objectId/versionId，不复用 §12 selector 或 synthetic 默认 Ref。生成冻结时必须拿到实际 selector 与 tool digests；未注册/未知 selector fail closed。
+
+CanonicalDocument/Unit 五种类型、父子双向关系、唯一 unitId/同父 ordinal、无环、现行排序与 CanonicalContentPayload Hash 不变。documentMetadata 的本 profile 闭集为 fileKind:PROCEDURE/MANUAL/POLICY/BLANK_FORM/FILLED_RECORD、fileCode、templateVersionText?；不接客户业务结论或 execution status。原客户编号/目录标题/维护记录都作为正文保留；删除模板维护历史必须是显式获准的 change，不将模板维护人/日期当客户修订活动。
+
+Unit.semanticMetadata 只允许一个 markdown 对象，按 unitType 采用下表闭集。未列出的 key/结构拒绝，不向旧 Schema 偷加 required 字段。Evidence refs 仍按现有精确引用规则由 owning 服务核验，不从 Markdown 文字造 refs。
+
+| Unit | markdown 元数据 / text 规则 |
+|---|---|
+| SECTION | headingLevel:1..6、inlineSpans；text 是完整逻辑标题；两个 H1 是两个独立 SECTION，document title 由已确认 documentIdentity 指定；标题层级栈只决定实际结构，不合并同名标题 |
+| PARAGRAPH | blockKind:TEXT/LIST_ITEM/THEMATIC_BREAK；TEXT/LIST_ITEM 的 inlineSpans 见下段；LIST_ITEM 必填 listId/listKind:ORDERED或UNORDERED/listOrdinal/listDepth:1..6/orderedMarker?，ordinal marker 原编号字符串保留；THEMATIC_BREAK text省略且无inlineSpans |
+| TABLE | columns 非空数组，每项 columnId、ordinal、alignment:NONE/LEFT/CENTER/RIGHT；headerRowUnitId 必须引用本表真实首行；captionUnitId? 仅指真实同章节正文 |
+| TABLE_ROW | rowRole:HEADER/DATA；实际 header 与每一空行都有稳定身份；所有行 cell 数等于 columns，列序固定，无跨行/跨列合并 |
+| TABLE_CELL | columnId、valueState:BLANK/TEXT、inlineSpans；BLANK 的 text省略且spans=[]；TEXT 的 text为非空逻辑文字，“0”保留TEXT，不根据数字/签名栏解析成确认事实 |
+
+inlineSpans 是闭合非嵌套有序数组，每项 start/end（逻辑 Unicode code point 的半开区间）及 kind:STRONG/EMPHASIS/CODE/HARD_BREAK；STRONG/EMPHASIS 可同区间组合，其余重叠/交叉拒绝。HARD_BREAK 覆盖 text 中一个 LF code point。inline code 内只按文字处理，其他位置允许反斜线转义 punctuation、强/斜体 marker；无法按封闭规则配对的 marker 按 literal text 保留，不猜格式。软换行映射一个空格；正文内部空格不压缩。列表支持独立 item 与缩进续行/子列表，目录中的 5.1 等原文不解析成章节身份。引用块/代码块/链接/图片/脚注/HTML（除三种纯 br token）/front matter/HTML注释/未知syntax被识别后返回 UNSUPPORTED，不落为已接受的“纯文本替代”。
+
+pipe tables 仅未转义竖线分列，首尾边界 pipe 不生成额外 cell；分隔行每列至少一个连字符、两端可带 alignment colon，采购申请单的两连字符分隔cell合法，renderer固定三连字符不改变语义。只去每 cell 外围语法 padding，保留转义后内部文字；相邻空 cell、全空 DATA row 均保留。列数不等拒绝；不能对采购程序表1自动填空列、合并 header 或裁尾列。br allowlist 只在正文/单元格中产生 HARD_BREAK，带属性/大小写变体/其他HTML拒绝。CRLF/BOM 的派生规范化、限制和危险结构见 Delta §3。
+
+Canonical text、spans、list marker、table alignment、row/cell状态与原编号均进入 contentHash。render 使用 LF、固定 escape/marker/column padding；每个完整 canonical tree 必须满足 parse(render(tree), authoritativeIdentityMap)=tree（按现行Canonical排序比较）且 Hash相等。Markdown原始 bytes 的hash始终独立；byte formatting不等价不代表内容变化，无法证明语义等价则 ART_MARKDOWN_LOSSY。
+
+身份映射 sidecar 不嵌入 Markdown 注释：closed {profileRef,artifactRef,documentId,baseRevisionRef?,baselineMappingRef?,candidateOutputId,markdownBytesSha256,nodes,columns}，nodes 每项 sourceNodePath/unitId/type/parentUnitId/ordinal，columns绑定tableUnitId/columnId/ordinal。现有身份仅从受信基线/map继承；sidecar caller声明须与本次绑定复验。新 ID 由 ART 从 originalIntentRef+candidateOutputId+newNodePath 派生，不从标题/行号/文字hash生成，不得借新ID绕过 REMOVED/ADDED 的scope检查。任意跨Artifact、重复ID、错type/parent/bytes或不完整映射拒绝。
+
+### 13.3 候选接纳与来源
+
+| 拟 @1.0 操作 / target | closed payload | data / purpose |
+|---|---|---|
+| artifact.accept_file_candidate / CREATE，OBJECT/artifact.artifact_revision | acceptedFileResultRef、candidateOutputId | revisionRef、candidateAcceptanceRef:CONTENT_ADDRESSED/artifact.file_candidate_acceptance、creationReceiptRef；artifact.file_candidate.accept，仅受信专用 SERVICE |
+| artifact.get_file_candidate / AUTHORITATIVE Query | candidateAcceptanceRef | immutable acceptancePayload、revisionSnapshot、currentUsability、reasonCodes、sourceWatermarks；artifact.file_candidate.read |
+
+先自身写权、独立 TE candidate-binding/source读权，再受权 readback 原 Markdown/sidecar/报告 bytes。TE 返回 Result/Acceptance/Run/Contract/Context/IG observation、fileSourceBinding、原intent、current eligibility与受信acceptedAt；TE当前查询不因Run已terminal而否认合法历史，但新接纳必须尚在binding有效期限、同current base/plan且没有取消/迟到/隔离事实。ART不接受free revision payload/自报完成，不复用旧 create_execution_revision。
+
+范围校验的全文Diff：首次以完整baselineMapping.canonicalPayload→candidate比较，后续以submittedCurrent Canonical→candidate比较；原constraints始终另外核完整KEEP/protected起点。首次公开EMPTY_INITIAL→Revision的“全部新增”是阅读事实，不能替代sourceMapping→candidate的范围检查。每个新/删/改/移Unit（包括父关系、metadata、标题/编号/表列）均检查完整allowedChanges；documentId/title/metadata修改在后续edit首版拒绝，新增文件严格等于确认的documentIdentity。KEEP与protected完整值/关系不变；改动影响保护上下文而无确定覆盖时拒绝人工复核。报告location/Evidence claim与Canonical实际位置不符拒绝。后续NOOP不创建Revision；首次无业务变化但有合法完整CREATE计划可建立首份Revision，不能因与模板内容相等而把文件错误当已存在。部分意见候选仅在所有内容检查成功且未处理项显式保留时接纳，不以报告HANDLED作为质量验证。
+
+新Root先由TE专用步骤通过既有create_artifact创建/读回真实main Branch；ART核actualArtifactCreationFact与自身Root/Branch事实，对NEW_OWNING_MAIN要求同确认identity且空Head，不能用预分配branchId或title猜测。封存沿既有 Content Object 生命周期；finalize UNKNOWN 无FROZEN/Revision。SEALED Revision和acceptance/creationReceipt/来源Edges/Audit/RevisionSealed在同一ART事务提交或回滚。acceptancePayload闭集为 requestRef/submittedIntentRef/fileSourceBindingRef/constraintsRef、fileId、artifactRef/revisionRef/parentRevisionRefs、resultRef/resultAcceptanceRef/validationRef、runRef/contractRef/contextRef/observationRef、rawMarkdownRef/rawBytesSha256/identityMapRef/identityMapBytesSha256/processingReportRef/processingReportBytesSha256、canonicalContentHash/structureSchemaRef/parserProfileRef、creationReceiptRef、actorSnapshotRef/authorizationDecisionRef、acceptedAt。payloadHash按cv1，不含自身Ref/hash；revisionRef.contentHash只覆盖CanonicalContentPayload，不覆盖含自身Ref的snapshot。creationReceipt材料闭集为commandId/type/version、targetRef/scopeRef、requestPayloadHash、revisionRef、actorSnapshotRef/authorizationDecisionRef、committedAt，绑定真实accept_file_candidate提交；不含未来acceptanceRef或自身hash，避免循环Hash，CommandResult中的acceptanceRef另按resultHash证明。
+
+新版本不自动Head前进；既有move_working_head在独立当前授权/CAS成功后才选为当前候选。竞争失败保留sealed Revision与历史acceptance，TE展示STALE而不覆盖current。已接纳来源/内容变无效时追加currentUsability/impact，不改原payload。相同键/相同payload且当前有权返回原Ref；新键同target不得复制候选。
+
+### 13.4 公共变化目录与 stable location
+
+| 拟 @1.0 Query / purpose | closed payload | closed data |
+|---|---|---|
+| artifact.get_file_review_content / artifact.file_review.read | revisionRef、location? | revisionRef/canonicalContentHash/profileRef、完整受权CanonicalDocument或location上下文、authoritativeIdentityMap、currentUsability/sourceWatermarks；不返回storage locator或批准结论 |
+| artifact.get_file_change_directory / artifact.file_diff.read | toRevisionRef、fromRevisionRef?、baselineKind:REVISION/EMPTY_INITIAL、filter:{chapterUnitId?,text?}、page:{limit:1..100,cursor?} | exact inputs、algorithmRef、diffHash、totalChanges、filteredChanges、chapterGroups、entries、nextCursor?、sourceWatermarks；EMPTY_INITIAL仅无Parent初始Revision |
+| artifact.resolve_file_review_locations / artifact.file_locations.read | fromRevisionRef、toRevisionRef、locations:1..100 | 每项 originalLocation、resolution:UNCHANGED/MOVED/CHANGED/REMOVED/AMBIGUOUS/UNSUPPORTED、suggestedLocation?、reasonCodes；只给建议不改绑定 |
+
+Location closed {revisionRef,unitId,unitType,path,claimHash}；path为按root→unit的完整稳定unitId数组；TABLE_CELL另必填tableUnitId/rowUnitId/columnId。claimHash=SHA256(cv1({unit自身所有Canonical字段,按结构顺序的完整子树}))；不会把raw行号/DOM offset/summary当claim。字段组合与实际Canonical图逐项精确校验；权限/hash/Scope/对象不可见统一安全错误。新旧Location不会有相同version，迁移必须显式引用新Location。
+
+entry closed {changeId,unitId,kind:ADDED/REMOVED/CHANGED/MOVED,beforeLocation?,afterLocation?,beforeValue?,afterValue?,chapterUnitIds,contextUnitIds}；changeId=SHA256(cv1({exactInputs,algorithmRef,unitId,kind}))。ADDED无before，REMOVED无after；MOVED保留两端；值含全部Canonical语义字段，宽表完整列及text入口可受权按location读取。同Unit CHANGED+MOVED分两entry；totalChanges数的是entry，changedUnitCount按unit去重，不混用。排序按to树序（deleted用from树序）、unitId UTF-8、kind，章节组只导航，不能合并独立真实change。
+
+cursor为server opaque/authenticated token，绑定input refs/hash、algorithm/filter/sort、权限watermark、lastStableKey和到期；任一变化拒绝，不用browser顺序或offset猜身份。完整diffHash不受filter/page/浏览影响。返回authoritative输入与当前可读性，Diff自身仍可重建、无持久化Gate/Approval/Receipt事实。
+
+### 13.5 Markdown Representation 与下载
+
+| 拟 @1.0 操作 | closed payload | closed data / purpose |
+|---|---|---|
+| artifact.register_markdown_representation / CREATE，OBJECT/artifact.representation | revisionRef、renderAttemptRef | representationRef、registrationRef、receiptRef；artifact.markdown_representation.register，专用SERVICE；依IG Markdown binding真实成功登记 |
+| artifact.get_markdown_download / AUTHORITATIVE Query | representationRef | representationRef/revisionRef、checksum、byteLength、mediaType、safeFilename、downloadTicket、expiresAt；artifact.markdown_download.read |
+
+format固定zhiju.markdown，mediaType固定text/markdown; charset=utf-8。注册核IG精确Request/Revision/Canonical inputHash、structure/profile/renderer版本与digest、identityMapHash、实际输出checksum/length、rawReceipt、roundTrip验证；canonical内容与render回读Hash一致。仍由IG提交Attempt后render、ART单Root登记；旧register_representation@1.0的pdf/docx/xlsx映射不放宽。同Attempt唯一、所有identity/bytes相同才幂等；渲染失败不登记，不以Runner原md为Representation。
+
+downloadTicket有效≤60秒、只绑定当前principal、完整Scope/exactRepresentation+Revision+checksum+format和bytes-read purpose；无任意URL/路径，Browser使用same-origin GET /api/markdown-representations/{representationId}/content，ticket放专用header。沿用完整shared RepresentationRef（包括opaque objectStorageRef作为identity），不能删字段变简化Ref或将opaque locator变URL/读权。server重新验当前Session/权限、exact绑定、REGISTERED/current可用性及对象实际checksum后stream；长流撤权/故障停止，不伪成功。返回Content-Disposition attachment安全文件名、nosniff/no-store；不额外返回宿主路径/storage secret，不执行内容，不把ticket存草稿/日志。下载是审阅/修改交换，不证明Approval/Release/客户送达，多文件发布包另行合同。
+
+拟稳定内容错误：ART_MARKDOWN_UNSUPPORTED、ART_MARKDOWN_UNSAFE、ART_MARKDOWN_LIMIT、ART_MARKDOWN_LOSSY、ART_MARKDOWN_IDENTITY_INVALID、ART_FILE_CONSTRAINTS_INVALID、ART_FILE_PROTECTION_CHANGED、ART_FILE_CANDIDATE_BINDING_INVALID、ART_FILE_LOCATION_INVALID；stale/CAS/noop沿既有语义。公开不可见错Scope/hash/locator统一masked，详细原因只在受权安全Audit。相关运行/人工结果全部NOT RUN。
