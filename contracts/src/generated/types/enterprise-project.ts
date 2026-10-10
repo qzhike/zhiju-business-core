@@ -237,7 +237,7 @@ export namespace EnterpriseProject {
 }
   export interface WorkspaceProjectPage {
   readonly items: readonly EnterpriseProject.WorkspaceProjectSummary[];
-  readonly nextCursor?: Common.NonEmptyString;
+  readonly nextCursor?: Common.OpaqueCursor;
   readonly snapshotAt: Common.UtcInstant;
   readonly sourceWatermarks: readonly EnterpriseProject.SourceWatermark[];
 }

@@ -4,6 +4,7 @@ import {
   INVALIDATION_SIGNAL,
   acceptsResponse,
   bindGuard,
+  createReadBoundary,
   invalidateGuard,
   isInvalidationSignal,
   scopeGuard,
@@ -93,5 +94,47 @@ describe('session generation and late-response guard', () => {
     expect(isInvalidationSignal('invalidate-session-token-abc')).toBe(false);
     expect(isInvalidationSignal({ token: 'secret', csrfToken: 'secret' })).toBe(false);
     expect(isInvalidationSignal(null)).toBe(false);
+  });
+});
+
+describe('in-flight protected read cancellation', () => {
+  it('aborts every read tracked under the retired generation', () => {
+    const boundary = createReadBoundary();
+    const directory = new AbortController();
+    const board = new AbortController();
+    boundary.track(directory);
+    boundary.track(board);
+    expect(directory.signal.aborted).toBe(false);
+    expect(board.signal.aborted).toBe(false);
+
+    boundary.abort();
+
+    expect(directory.signal.aborted).toBe(true);
+    expect(board.signal.aborted).toBe(true);
+  });
+
+  it('tracks reads of the next binding independently after an abort', () => {
+    const boundary = createReadBoundary();
+    const first = new AbortController();
+    boundary.track(first);
+    boundary.abort();
+
+    const next = new AbortController();
+    boundary.track(next);
+    expect(next.signal.aborted).toBe(false);
+
+    boundary.abort();
+    expect(next.signal.aborted).toBe(true);
+  });
+
+  it('releases a completed read so a later logout cannot touch it', () => {
+    const boundary = createReadBoundary();
+    const completed = new AbortController();
+    const release = boundary.track(completed);
+    release();
+
+    boundary.abort();
+
+    expect(completed.signal.aborted).toBe(false);
   });
 });

@@ -21,15 +21,25 @@
 //      in the exact Enterprise+Project context of its Decision, and a summary
 //      that is `undefined` is skipped;
 //   6. every used candidate Decision is revalidated before the result leaves;
-//      one failed revalidation fails the whole page (never a partial page);
+//      one failed revalidation fails the whole page (never a partial page). A
+//      page that the per-request budget cut still delivers every summary it
+//      accumulated: only a page with no accumulated match may be an empty
+//      intermediate page, and its cursor continues after the last examined
+//      candidate, so no undelivered card is skipped;
 //   7. the cursor is an opaque HMAC value keyed by the request session binding
 //      and binding the principal, session, filter, authorization fingerprint,
-//      source watermarks and last sort key with a 5-minute expiry.
+//      IP source watermark and last sort key with a 5-minute expiry;
+//   8. the cursor additionally binds two *real* EnterpriseProject change
+//      observations — the digest of the summaries the chain's first page served
+//      and the digest of the summaries the page that emitted it served — so a
+//      continuation re-observes every served summary no later than the next
+//      request (and the chain's first page on every request) and restarts with
+//      `QUERY_CURSOR_INVALID` when one of them changed.
 //
 // A legal page is always `OK + Page<WorkspaceProjectSummary>` — including an
 // empty intermediate page (`items=[] + nextCursor`) when the filter or the scan
-// budget left candidates unread. No global total, no foreign count and no
-// unauthorized existence signal is ever produced.
+// budget left candidates unread and nothing matched. No global total, no foreign
+// count and no unauthorized existence signal is ever produced.
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Kysely } from 'kysely';
@@ -80,10 +90,17 @@ const QUERY_CURSOR_SCOPE_MISMATCH = 'QUERY_CURSOR_SCOPE_MISMATCH';
 const QUERY_CURSOR_EXPIRED = 'QUERY_CURSOR_EXPIRED';
 const QUERY_CURSOR_INVALID = 'QUERY_CURSOR_INVALID';
 
-const CURSOR_VERSION = '1';
 const CURSOR_TTL_MS = 5 * 60 * 1000;
 const CURSOR_PATTERN = /^[A-Za-z0-9_-]{16,512}$/u;
 const MAC_BYTES = 32;
+
+/** Binary cursor body layout version; a foreign body is `QUERY_CURSOR_INVALID`. */
+const CURSOR_FORMAT_VERSION = 1;
+const CURSOR_FLAG_HAS_PREVIOUS_WINDOW = 1;
+const CURSOR_MAX_OPERATION_BYTES = 64;
+const CURSOR_MAX_VERSION_BYTES = 16;
+/** 48-bit chain-stable projection of a served-observation digest. */
+const CURSOR_WATERMARK_HEX_CHARS = 12;
 
 const MIN_PAGE_SIZE = 1;
 const MAX_PAGE_SIZE = 50;
@@ -137,25 +154,92 @@ export interface WorkspaceDirectoryEntry {
 }
 
 /**
- * The decoded cursor. Digests are hex internally; the wire form stores each as
- * the base64url of its 32 raw bytes and the sort key as the base64url of the two
- * packed UUIDs, so one cursor stays well under the shared 512-character bound.
+ * The sort-key boundary of one candidate or one served window: the packed
+ * Enterprise+Project UUIDs in the exact order the IP self-discovery scan returns.
+ */
+interface DirectorySortKey {
+  readonly enterpriseId: string;
+  readonly projectId: string;
+}
+
+/**
+ * The decoded cursor.
+ *
+ * The body is a compact, fixed-layout binary (see `encodeCursor`/`parseCursorBody`)
+ * rather than JSON: a chain has to carry two 32-byte observation digests, two
+ * packed sort keys (the first window's end key and the previous window's start
+ * key) and two page sizes, and JSON plus a second base64url layer for each
+ * 32-byte value would exceed the shared 512-character opaque-cursor bound.
+ *
+ * Besides the unchanged IP watermark, grant-set and
+ * principal/session/filter binding, the cursor binds three real EnterpriseProject
+ * observations to the continuation:
+ *
+ *   * `firstPageSize` / `firstEndKey` / `firstDigest` — the chain's first page
+ *     window and the digest of the summaries it served, so the first page stays
+ *     re-derivable on every continuation;
+ *   * `previous` — the window the page that emitted this cursor served (its page
+ *     size, its start key and its digest), so the immediately preceding page is
+ *     re-derivable on the next continuation. It is absent exactly when that page
+ *     is the chain's first page, which `firstDigest` already covers.
  */
 interface DirectoryCursorBody {
-  readonly o: string;
-  readonly ver: string;
+  readonly operation: string;
+  readonly version: string;
   /** Composite binding over principal/session/filter/authorization fingerprint. */
-  readonly b: string;
+  readonly binding: string;
   /** Authorization fingerprint of the page chain (verbatim IP scan binding). */
-  readonly af: string;
+  readonly authorizationFingerprint: string;
   /** IP source watermark sequence (partition derives from the principal). */
-  readonly n: number;
-  /** EP source watermark sequence (authorized summaries read on the chain's first page). */
-  readonly q: number;
-  readonly lastSortKey: { readonly enterpriseId: string; readonly projectId: string };
+  readonly ipSequence: number;
+  /** Last candidate this page examined; the next page scans strictly after it. */
+  readonly lastSortKey: DirectorySortKey;
+  /** Page size of the chain's first page, so its window stays re-derivable. */
+  readonly firstPageSize: number;
+  /** Last candidate the chain's first page examined; bounds its re-derivation. */
+  readonly firstEndKey: DirectorySortKey;
+  /** Digest of the summaries the chain's first page served. */
+  readonly firstDigest: string;
+  /** The window the emitting page served, when it is not the chain's first page. */
+  readonly previous:
+    | {
+        readonly pageSize: number;
+        readonly startKey: DirectorySortKey;
+        readonly digest: string;
+      }
+    | undefined;
   /** First-page snapshot instant, in epoch milliseconds. */
-  readonly t: number;
-  readonly x: number;
+  readonly snapshotMs: number;
+  /** Expiry instant, in epoch milliseconds. */
+  readonly expiresMs: number;
+}
+
+/**
+ * The canonical (cv1) digest of the summaries a page actually served, in order.
+ * `aggregateVersion` and `status` are the owning EnterpriseProject facts a
+ * continuation must re-observe; `enterpriseId`/`projectId` bind the digest to the
+ * exact cards it covers, so a Project that disappears or a card that resolves
+ * differently also changes the digest.
+ */
+function servedObservationDigest(summaries: readonly WorkspaceProjectSummaryView[]): string {
+  return sha256CanonicalJson({
+    observations: summaries.map((summary) => ({
+      enterpriseId: summary.enterpriseId,
+      projectId: summary.projectId,
+      aggregateVersion: summary.aggregateVersion,
+      status: summary.status,
+    })),
+  });
+}
+
+/**
+ * The chain-stable EnterpriseProject watermark: a 48-bit projection of the
+ * chain's first-page served-observation digest. It is derived from the EP facts
+ * the chain observed (never a copied page count) and stays constant for the whole
+ * chain, because every continuation carries the first-page digest verbatim.
+ */
+function enterpriseProjectWatermarkSequence(firstPageDigest: string): number {
+  return Number.parseInt(firstPageDigest.slice(0, CURSOR_WATERMARK_HEX_CHARS), 16);
 }
 
 interface NormalizedFilter {
@@ -230,52 +314,174 @@ function bindingDigest(input: {
   });
 }
 
-/** Compact a 32-byte digest for the wire cursor. */
-function toWireDigest(hex: string): string {
-  return Buffer.from(hex, 'hex').toString('base64url');
-}
-
-function fromWireDigest(value: string): string | undefined {
-  const buffer = Buffer.from(value, 'base64url');
-  return buffer.length === 32 ? buffer.toString('hex') : undefined;
-}
-
 function formatUuid(hex32: string): string {
   return `${hex32.slice(0, 8)}-${hex32.slice(8, 12)}-${hex32.slice(12, 16)}-${hex32.slice(16, 20)}-${hex32.slice(20)}`;
 }
 
-function packSortKey(enterpriseId: string, projectId: string): string {
-  return Buffer.concat([
-    Buffer.from(enterpriseId.replaceAll('-', ''), 'hex'),
-    Buffer.from(projectId.replaceAll('-', ''), 'hex'),
-  ]).toString('base64url');
+function digestBytesOf(hex: string): Buffer {
+  const bytes = Buffer.from(hex, 'hex');
+  if (bytes.length !== 32) {
+    entryError(DEPENDENCY_UNAVAILABLE, 'a directory digest is not a SHA-256 value');
+  }
+  return bytes;
 }
 
-function unpackSortKey(
-  packed: string,
-): { readonly enterpriseId: string; readonly projectId: string } | undefined {
-  const buffer = Buffer.from(packed, 'base64url');
-  if (buffer.length !== 32) return undefined;
-  const hex = buffer.toString('hex');
+function packSortKey(key: DirectorySortKey): Buffer {
+  const bytes = Buffer.from(
+    `${key.enterpriseId.replaceAll('-', '')}${key.projectId.replaceAll('-', '')}`,
+    'hex',
+  );
+  if (bytes.length !== 32) {
+    entryError(DEPENDENCY_UNAVAILABLE, 'a directory sort key is not a pair of UUIDs');
+  }
+  return bytes;
+}
+
+function unpackSortKey(bytes: Buffer): DirectorySortKey {
+  const hex = bytes.toString('hex');
   return { enterpriseId: formatUuid(hex.slice(0, 32)), projectId: formatUuid(hex.slice(32)) };
 }
 
+function uint64Bytes(value: number): Buffer {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    entryError(DEPENDENCY_UNAVAILABLE, 'a directory cursor number is out of range');
+  }
+  const bytes = Buffer.alloc(8);
+  bytes.writeBigUInt64BE(BigInt(value));
+  return bytes;
+}
+
 function encodeCursor(body: DirectoryCursorBody, macKey: Buffer): string {
-  const wire = {
-    v: CURSOR_VERSION,
-    o: body.o,
-    ver: body.ver,
-    b: toWireDigest(body.b),
-    af: toWireDigest(body.af),
-    n: body.n,
-    q: body.q,
-    k: packSortKey(body.lastSortKey.enterpriseId, body.lastSortKey.projectId),
-    t: body.t,
-    x: body.x,
-  };
-  const payload = Buffer.from(JSON.stringify(wire), 'utf8');
+  const operation = Buffer.from(body.operation, 'utf8');
+  const version = Buffer.from(body.version, 'utf8');
+  if (
+    operation.length === 0 ||
+    operation.length > CURSOR_MAX_OPERATION_BYTES ||
+    version.length === 0 ||
+    version.length > CURSOR_MAX_VERSION_BYTES
+  ) {
+    entryError(DEPENDENCY_UNAVAILABLE, 'the directory operation tag does not fit its cursor');
+  }
+  const parts: Buffer[] = [
+    Buffer.from([CURSOR_FORMAT_VERSION, operation.length]),
+    operation,
+    Buffer.from([version.length]),
+    version,
+    Buffer.from([body.previous === undefined ? 0 : CURSOR_FLAG_HAS_PREVIOUS_WINDOW]),
+    digestBytesOf(body.binding),
+    digestBytesOf(body.authorizationFingerprint),
+    packSortKey(body.lastSortKey),
+    digestBytesOf(body.firstDigest),
+    packSortKey(body.firstEndKey),
+    Buffer.from([body.firstPageSize]),
+  ];
+  if (body.previous !== undefined) {
+    parts.push(
+      packSortKey(body.previous.startKey),
+      digestBytesOf(body.previous.digest),
+      Buffer.from([body.previous.pageSize]),
+    );
+  }
+  parts.push(
+    uint64Bytes(body.ipSequence),
+    uint64Bytes(body.snapshotMs),
+    uint64Bytes(body.expiresMs),
+  );
+  const payload = Buffer.concat(parts);
   const mac = createHmac('sha256', macKey).update(payload).digest();
   return Buffer.concat([payload, mac]).toString('base64url');
+}
+
+/**
+ * Parses the fixed binary body a verified cursor MAC covers. Every read is
+ * bounds-checked, the flags accept only the one known bit and the final length
+ * must be exact, so a truncated, extended or re-tagged body never parses.
+ */
+function parseCursorBody(payload: Buffer): DirectoryCursorBody {
+  let offset = 0;
+  const readByte = (): number => {
+    if (offset >= payload.length) {
+      entryError(QUERY_CURSOR_INVALID, 'cursor body is truncated');
+    }
+    const value = payload[offset];
+    offset += 1;
+    return value ?? 0;
+  };
+  const readBytes = (length: number): Buffer => {
+    if (length <= 0 || offset + length > payload.length) {
+      entryError(QUERY_CURSOR_INVALID, 'cursor body is truncated');
+    }
+    const value = payload.subarray(offset, offset + length);
+    offset += length;
+    return value;
+  };
+  const readDigest = (): string => readBytes(32).toString('hex');
+  const readSortKey = (): DirectorySortKey => unpackSortKey(readBytes(32));
+  const readNumber = (): number => {
+    const value = readBytes(8).readBigUInt64BE(0);
+    if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
+      entryError(QUERY_CURSOR_INVALID, 'cursor number is out of range');
+    }
+    return Number(value);
+  };
+  const readPageSize = (): number => {
+    const value = readByte();
+    if (value < MIN_PAGE_SIZE || value > MAX_PAGE_SIZE) {
+      entryError(QUERY_CURSOR_INVALID, 'cursor page size is out of range');
+    }
+    return value;
+  };
+
+  if (readByte() !== CURSOR_FORMAT_VERSION) {
+    entryError(QUERY_CURSOR_INVALID, 'cursor format is not supported');
+  }
+  const operationLength = readByte();
+  if (operationLength > CURSOR_MAX_OPERATION_BYTES) {
+    entryError(QUERY_CURSOR_INVALID, 'cursor operation tag is out of range');
+  }
+  const operation = readBytes(operationLength).toString('utf8');
+  const versionLength = readByte();
+  if (versionLength > CURSOR_MAX_VERSION_BYTES) {
+    entryError(QUERY_CURSOR_INVALID, 'cursor version tag is out of range');
+  }
+  const version = readBytes(versionLength).toString('utf8');
+  const flags = readByte();
+  if (flags !== 0 && flags !== CURSOR_FLAG_HAS_PREVIOUS_WINDOW) {
+    entryError(QUERY_CURSOR_INVALID, 'cursor flags are invalid');
+  }
+  const binding = readDigest();
+  const authorizationFingerprint = readDigest();
+  const lastSortKey = readSortKey();
+  const firstDigest = readDigest();
+  const firstEndKey = readSortKey();
+  const firstPageSize = readPageSize();
+  let previous: DirectoryCursorBody['previous'];
+  if (flags === CURSOR_FLAG_HAS_PREVIOUS_WINDOW) {
+    const startKey = readSortKey();
+    const digest = readDigest();
+    const pageSize = readPageSize();
+    previous = { pageSize, startKey, digest };
+  }
+  const ipSequence = readNumber();
+  const snapshotMs = readNumber();
+  const expiresMs = readNumber();
+  if (offset !== payload.length) {
+    entryError(QUERY_CURSOR_INVALID, 'cursor body has trailing bytes');
+  }
+  return {
+    operation,
+    version,
+    binding,
+    authorizationFingerprint,
+    ipSequence,
+    lastSortKey,
+    firstPageSize,
+    firstEndKey,
+    firstDigest,
+    previous,
+    snapshotMs,
+    expiresMs,
+  };
 }
 
 function decodeCursor(token: string, macKey: Buffer): DirectoryCursorBody {
@@ -292,45 +498,7 @@ function decodeCursor(token: string, macKey: Buffer): DirectoryCursorBody {
   if (mac.length !== expected.length || !timingSafeEqual(mac, expected)) {
     entryError(QUERY_CURSOR_INVALID, 'cursor MAC does not verify');
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(payload.toString('utf8'));
-  } catch {
-    entryError(QUERY_CURSOR_INVALID, 'cursor body is malformed');
-  }
-  const body = record(parsed);
-  const binding = typeof body.b === 'string' ? fromWireDigest(body.b) : undefined;
-  const fingerprint = typeof body.af === 'string' ? fromWireDigest(body.af) : undefined;
-  const sortKey = typeof body.k === 'string' ? unpackSortKey(body.k) : undefined;
-  if (
-    body.v !== CURSOR_VERSION ||
-    typeof body.o !== 'string' ||
-    typeof body.ver !== 'string' ||
-    binding === undefined ||
-    fingerprint === undefined ||
-    typeof body.n !== 'number' ||
-    !Number.isSafeInteger(body.n) ||
-    typeof body.q !== 'number' ||
-    !Number.isSafeInteger(body.q) ||
-    sortKey === undefined ||
-    typeof body.t !== 'number' ||
-    !Number.isSafeInteger(body.t) ||
-    typeof body.x !== 'number' ||
-    !Number.isSafeInteger(body.x)
-  ) {
-    entryError(QUERY_CURSOR_INVALID, 'cursor shape is invalid');
-  }
-  return {
-    o: body.o,
-    ver: body.ver,
-    b: binding,
-    af: fingerprint,
-    n: body.n,
-    q: body.q,
-    lastSortKey: sortKey,
-    t: body.t,
-    x: body.x,
-  };
+  return parseCursorBody(payload);
 }
 
 function normalizeFilter(payload: Record<string, unknown>): NormalizedFilter {
@@ -404,11 +572,17 @@ export function createWorkspaceDirectoryEntry(
     );
   }
 
-  async function runScan(input: {
+  /**
+   * One IP self-discovery scan window. `startKey` positions the window strictly
+   * after one candidate (the IP port's own opaque cursor, reconstructed from the
+   * chain binding); `undefined` scans from the chain start.
+   */
+  async function scanWindow(input: {
     readonly session: WorkspaceDirectorySession;
     readonly resolution: VerifiedHumanResolution;
     readonly pageSize: number;
-    readonly cursor: DirectoryCursorBody | undefined;
+    readonly startKey: DirectorySortKey | undefined;
+    readonly authorizationFingerprint: string | undefined;
   }): Promise<WorkspaceProjectDiscoveryScanResult> {
     const deps = identityDeps(
       bootstrapContext({
@@ -419,15 +593,14 @@ export function createWorkspaceDirectoryEntry(
       }),
     );
     let scanCursor: string | undefined;
-    if (input.cursor !== undefined) {
-      const after = input.cursor.lastSortKey;
+    if (input.startKey !== undefined && input.authorizationFingerprint !== undefined) {
       scanCursor = Buffer.from(
         JSON.stringify({
           v: '1',
-          fingerprint: input.cursor.af,
+          fingerprint: input.authorizationFingerprint,
           principalId: input.resolution.principalRef.objectId,
           capabilityCode: config.capabilityCodes.workspaceProjectDiscoveryHumanV1,
-          after,
+          after: input.startKey,
         }),
         'utf8',
       ).toString('base64url');
@@ -453,7 +626,7 @@ export function createWorkspaceDirectoryEntry(
       if (
         error instanceof SnapshotBoundaryError &&
         error.code === IDENTITY_WORKSPACE_PROJECT_DISCOVERY_CURSOR_INVALID &&
-        input.cursor !== undefined
+        scanCursor !== undefined
       ) {
         // A valid-MAC cursor whose discovery authorization set changed: the
         // client must restart from page one.
@@ -461,6 +634,67 @@ export function createWorkspaceDirectoryEntry(
       }
       throw error;
     }
+  }
+
+  /**
+   * Re-derives one window an earlier page of the chain served, by scanning the IP
+   * self-discovery candidates again from the window's recorded start and reading
+   * every authorized candidate's owning summary under the filter this request
+   * repeats. Only the summaries the window would serve *now* are digested, so a
+   * changed `aggregateVersion`/`status`, a Project that vanished, or a candidate
+   * that now resolves to another card changes the digest.
+   *
+   * The window is bounded by its recorded page size and its recorded end key (the
+   * last candidate that page examined), so the re-observation is deterministic,
+   * never scans the whole directory, and never exceeds the per-request budget:
+   * the first window and the previous window together are at most two page sizes
+   * (2 x 50) of candidates, leaving room for the served page itself.
+   */
+  async function reobserveServedWindow(input: {
+    readonly session: WorkspaceDirectorySession;
+    readonly resolution: VerifiedHumanResolution;
+    readonly directoryQueryId: string;
+    readonly normalizedFilter: NormalizedFilter;
+    readonly pageBindingHash: string;
+    readonly correlationId: string;
+    readonly authorizationFingerprint: string;
+    readonly startKey: DirectorySortKey | undefined;
+    readonly pageSize: number;
+    readonly endKey: DirectorySortKey;
+  }): Promise<string> {
+    const scan = await scanWindow({
+      session: input.session,
+      resolution: input.resolution,
+      pageSize: input.pageSize,
+      startKey: input.startKey,
+      authorizationFingerprint: input.authorizationFingerprint,
+    });
+    const served: WorkspaceProjectSummaryView[] = [];
+    for (const candidate of scan.items) {
+      const scope = candidateScope(candidate.projectRef);
+      const authorized = await authorizeCandidate({
+        resolution: input.resolution,
+        candidate: candidate.projectRef,
+        directoryQueryId: input.directoryQueryId,
+        normalizedFilter: input.normalizedFilter,
+        pageBindingHash: input.pageBindingHash,
+      });
+      if (authorized !== undefined) {
+        const view = await readWorkspaceProjectSummary(
+          config.enterpriseProjectDb,
+          boundary.enterpriseProjectContext(authorized.row, authorized.scope, input.correlationId),
+          { enterpriseId: authorized.scope.enterpriseId, projectId: authorized.scope.projectId },
+        );
+        if (view !== undefined && matchesFilter(view, input.normalizedFilter)) served.push(view);
+      }
+      if (
+        scope.enterpriseId === input.endKey.enterpriseId &&
+        scope.projectId === input.endKey.projectId
+      ) {
+        return servedObservationDigest(served);
+      }
+    }
+    entryError(QUERY_CURSOR_INVALID, 'the previously served window is no longer reproducible');
   }
 
   /**
@@ -619,21 +853,27 @@ export function createWorkspaceDirectoryEntry(
       if (incomingCursor !== undefined) {
         cursor = decodeCursor(incomingCursor, session.sessionBinding);
         if (
-          cursor.o !== WORKSPACE_DIRECTORY_QUERY ||
-          cursor.ver !== WORKSPACE_DIRECTORY_QUERY_VERSION
+          cursor.operation !== WORKSPACE_DIRECTORY_QUERY ||
+          cursor.version !== WORKSPACE_DIRECTORY_QUERY_VERSION
         ) {
           entryError(QUERY_CURSOR_INVALID, 'cursor belongs to another operation or version');
         }
-        if (cursor.x <= now().getTime()) {
+        if (cursor.expiresMs <= now().getTime()) {
           entryError(QUERY_CURSOR_EXPIRED, 'cursor has expired');
         }
       }
 
-      const scan = await runScan({ session, resolution, pageSize, cursor });
-      const snapshotAt = cursor === undefined ? now() : new Date(cursor.t);
+      const scan = await scanWindow({
+        session,
+        resolution,
+        pageSize,
+        startKey: cursor?.lastSortKey,
+        authorizationFingerprint: cursor?.authorizationFingerprint,
+      });
+      const snapshotAt = cursor === undefined ? now() : new Date(cursor.snapshotMs);
       if (cursor !== undefined) {
         const observedSequence = scan.sourceWatermarks[0]?.sequence;
-        if (observedSequence !== cursor.n) {
+        if (observedSequence !== cursor.ipSequence) {
           entryError(QUERY_CURSOR_INVALID, 'the IP source watermark advanced');
         }
         const expectedBinding = bindingDigest({
@@ -642,10 +882,57 @@ export function createWorkspaceDirectoryEntry(
           principalBindingHash: principalBindingHash(resolution),
           sessionBindingHash,
           filterHash,
-          authorizationFingerprint: cursor.af,
+          authorizationFingerprint: cursor.authorizationFingerprint,
         });
-        if (scan.authorizationFingerprint !== cursor.af || cursor.b !== expectedBinding) {
+        if (
+          scan.authorizationFingerprint !== cursor.authorizationFingerprint ||
+          cursor.binding !== expectedBinding
+        ) {
           entryError(QUERY_CURSOR_SCOPE_MISMATCH, 'the cursor binding is no longer current');
+        }
+
+        // The continuation invariant, enforced before any new card is read:
+        //
+        //   * every summary a page served is re-observed no later than the next
+        //     continuation: the emitting page's window is re-derived from its
+        //     recorded start key and page size up to its recorded end key; and
+        //   * the chain's first page is re-observed on every continuation, from
+        //     the chain start with the first page size and end key it recorded.
+        //
+        // A changed `aggregateVersion`/`status`, a vanished Project or a card that
+        // now resolves differently therefore restarts the client
+        // (`QUERY_CURSOR_INVALID`) instead of letting a stale chain serve on.
+        const chainFirstDigest = await reobserveServedWindow({
+          session,
+          resolution,
+          directoryQueryId: queryId,
+          normalizedFilter,
+          pageBindingHash,
+          correlationId,
+          authorizationFingerprint: cursor.authorizationFingerprint,
+          startKey: undefined,
+          pageSize: cursor.firstPageSize,
+          endKey: cursor.firstEndKey,
+        });
+        if (chainFirstDigest !== cursor.firstDigest) {
+          entryError(QUERY_CURSOR_INVALID, 'a summary served on the chain first page changed');
+        }
+        if (cursor.previous !== undefined) {
+          const previousDigest = await reobserveServedWindow({
+            session,
+            resolution,
+            directoryQueryId: queryId,
+            normalizedFilter,
+            pageBindingHash,
+            correlationId,
+            authorizationFingerprint: cursor.authorizationFingerprint,
+            startKey: cursor.previous.startKey,
+            pageSize: cursor.previous.pageSize,
+            endKey: cursor.lastSortKey,
+          });
+          if (previousDigest !== cursor.previous.digest) {
+            entryError(QUERY_CURSOR_INVALID, 'a summary served on the previous page changed');
+          }
         }
       }
 
@@ -663,13 +950,15 @@ export function createWorkspaceDirectoryEntry(
       let lastKey = cursor === undefined ? undefined : cursor.lastSortKey;
 
       for (const candidate of scan.items) {
+        // The per-request budget stops the read, but never discards a summary
+        // this page already matched and is about to deliver: dropping them here
+        // while the cursor advances past them would skip a card the client can
+        // see. Only a page that accumulated no match may be an empty
+        // intermediate page. At least one candidate is always examined, so a
+        // request that still has candidates always produces a cursor.
         const budgetExhausted =
-          examined >= maxCandidates || now().getTime() - startedAt > wallBudgetMs;
+          examined > 0 && (examined >= maxCandidates || now().getTime() - startedAt > wallBudgetMs);
         if (budgetExhausted) {
-          // The budget is exhausted with candidates remaining: the page is
-          // legally empty and the bound cursor lets the client continue.
-          items.length = 0;
-          used.length = 0;
           hasMore = true;
           break;
         }
@@ -759,11 +1048,17 @@ export function createWorkspaceDirectoryEntry(
         aggregateVersion: view.aggregateVersion,
       }));
 
+      // The served-observation digest of this page: the exact EP facts the next
+      // continuation re-observes and compares before it serves anything.
+      const pageDigest = servedObservationDigest(items);
+      // The chain's first-page observation digest is fixed once, on the first
+      // page, and carried verbatim so the whole chain stays bound to the same
+      // first window.
+      const chainFirstDigest = cursor?.firstDigest ?? pageDigest;
       const sequence = scan.sourceWatermarks[0]?.sequence ?? 0;
-      // The EP owning read exposes no per-read watermark, so the page records
-      // the count of authorized summaries it actually observed; the first-page
-      // value is carried across the chain so later pages never drift it.
-      const epSequence = cursor === undefined ? used.length : cursor.q;
+      // The EP watermark is a chain-stable projection of the chain's real
+      // first-page EnterpriseProject observation digest — never a copied count.
+      const epSequence = enterpriseProjectWatermarkSequence(chainFirstDigest);
       const sourceWatermarks: Common.SourceWatermark[] = [
         {
           sourceModule: 'identity_policy',
@@ -783,9 +1078,9 @@ export function createWorkspaceDirectoryEntry(
       if (hasMore && lastKey !== undefined) {
         nextCursor = encodeCursor(
           {
-            o: WORKSPACE_DIRECTORY_QUERY,
-            ver: WORKSPACE_DIRECTORY_QUERY_VERSION,
-            b: bindingDigest({
+            operation: WORKSPACE_DIRECTORY_QUERY,
+            version: WORKSPACE_DIRECTORY_QUERY_VERSION,
+            binding: bindingDigest({
               operation: WORKSPACE_DIRECTORY_QUERY,
               version: WORKSPACE_DIRECTORY_QUERY_VERSION,
               principalBindingHash: principalBindingHash(resolution),
@@ -793,12 +1088,18 @@ export function createWorkspaceDirectoryEntry(
               filterHash,
               authorizationFingerprint: scan.authorizationFingerprint,
             }),
-            af: scan.authorizationFingerprint,
-            n: sequence,
-            q: epSequence,
+            authorizationFingerprint: scan.authorizationFingerprint,
+            ipSequence: sequence,
             lastSortKey: lastKey,
-            t: snapshotAt.getTime(),
-            x: now().getTime() + CURSOR_TTL_MS,
+            firstPageSize: cursor?.firstPageSize ?? pageSize,
+            firstEndKey: cursor?.firstEndKey ?? lastKey,
+            firstDigest: chainFirstDigest,
+            previous:
+              cursor === undefined
+                ? undefined
+                : { pageSize, startKey: cursor.lastSortKey, digest: pageDigest },
+            snapshotMs: snapshotAt.getTime(),
+            expiresMs: now().getTime() + CURSOR_TTL_MS,
           },
           session.sessionBinding,
         );

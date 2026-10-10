@@ -105,5 +105,26 @@
     "keyword": "minimum",
     "expectedPath": "/sourceWatermarks/0/sequence",
     "value": -1
+  },
+  {
+    "base": "result",
+    "path": "/nextCursor",
+    "keyword": "pattern",
+    "expectedPath": "/nextCursor",
+    "value": "x"
+  },
+  {
+    "base": "result",
+    "path": "/nextCursor",
+    "keyword": "pattern",
+    "expectedPath": "/nextCursor",
+    "value": "opaque.cursor.value.0002"
+  },
+  {
+    "base": "result",
+    "path": "/nextCursor",
+    "keyword": "pattern",
+    "expectedPath": "/nextCursor",
+    "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   }
 ]

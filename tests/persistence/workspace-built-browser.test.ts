@@ -79,6 +79,8 @@ const DIRECTORY_PATH = '/bff/queries/project.find_workspace_projects/1.0';
 /** Distinctive strings that only the development anonymous fixture shell renders. */
 const FIXTURE_MARKERS = ['DEMO-PROJECT-01', '演示'] as const;
 const SESSION_COOKIE = '__Host-zhiju_session';
+/** Upper bound on the whole teardown so a stuck close cannot wedge the suite. */
+const TEARDOWN_TIMEOUT_MS = 30_000;
 
 interface ArtifactServer {
   readonly origin: string;
@@ -299,19 +301,34 @@ describe.skipIf(!databaseUrl)(
     let browser: Browser;
     let context: BrowserContext;
     let page: Page;
+    /**
+     * Teardown is registered as each real resource comes up, newest first, so a
+     * startup failure (for example a missing Chromium executable) never leaves a
+     * created browser or stack running and never closes an uncreated context.
+     */
+    const teardown: (() => Promise<unknown>)[] = [];
 
     beforeAll(async () => {
       stack = await startBuiltStack();
+      teardown.push(() => stack.stop());
       browser = await chromium.launch({ headless: true });
+      teardown.push(() => browser.close());
       context = await browser.newContext({ viewport: { ...VIEWPORT } });
+      teardown.push(() => context.close());
       page = await context.newPage();
     }, 180_000);
 
+    // The vitest hook timeout bounds the whole cleanup, so no wall-clock timer is
+    // needed here; each step is attempted even when an earlier one throws.
     afterAll(async () => {
-      await context.close();
-      await browser.close();
-      await stack.stop();
-    });
+      for (const step of teardown.reverse()) {
+        try {
+          await step();
+        } catch {
+          // A failing cleanup must not mask the journey failure or skip the rest.
+        }
+      }
+    }, TEARDOWN_TIMEOUT_MS);
 
     it('completes login -> directory -> selected-project board against the built artifact', async () => {
       // The real directory read is held open once so the honest LOADING state can

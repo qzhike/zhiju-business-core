@@ -9,6 +9,8 @@ export interface LoginTransaction {
   codeVerifier: string;
   codeChallenge: string;
   browserBindingId: string;
+  /** The binding generation this attempt must still be on to win. */
+  bindingGeneration: number;
   expectedIssuer: string;
   trustConfigHash: string;
   returnTo: string;

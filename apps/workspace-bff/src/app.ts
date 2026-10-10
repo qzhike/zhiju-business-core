@@ -87,6 +87,9 @@ export async function createBff(options: CreateBffOptions = {}): Promise<NestFas
             maxSessions: trust.loaded.config.maxSessions,
             idleMs: options.sessionIdleMs ?? SESSION_IDLE_MS,
             absoluteMs: options.sessionAbsoluteMs ?? SESSION_ABSOLUTE_MS,
+            // A generation is claimable for exactly as long as the login
+            // transaction and login cookie that carry it can be replayed.
+            bindingTtlMs: options.loginTransactionTtlMs ?? LOGIN_TRANSACTION_TTL_MS,
             now: clock,
           }),
           now: clock,

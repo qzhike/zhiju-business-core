@@ -758,6 +758,34 @@ describe('workspace directory public contracts', () => {
     });
   });
 
+  it('constrains the result nextCursor to the shared opaqueCursor envelope', () => {
+    // R7: the result Page must reuse the shared `^[A-Za-z0-9_-]{16,512}$`
+    // cursor rather than an unrestricted non-empty string. The untouched valid
+    // result fixture is the positive control; too short, dotted and over-long
+    // values are the three alphabet/length negatives.
+    const cursorCases = directoryNegativeCases.filter(
+      (test) => test.base === 'result' && test.path === '/nextCursor',
+    );
+    expect(cursorCases.map((test) => test.value)).toEqual([
+      'x',
+      'opaque.cursor.value.0002',
+      'a'.repeat(513),
+    ]);
+    expect(validateDirectory('result', readDirectoryFixture('result'))).toEqual({
+      valid: true,
+      errors: [],
+    });
+    for (const test of cursorCases) {
+      const input = readDirectoryFixture('result');
+      setDirectoryPath(input, test.path, test.value, test.remove);
+      const outcome = validateDirectory('result', input);
+      expect(outcome.valid).toBe(false);
+      expect(outcome.errors).toContainEqual(
+        expect.objectContaining({ keyword: 'pattern', instancePath: '/nextCursor' }),
+      );
+    }
+  });
+
   it.each(directoryNegativeCases)('rejects $base $path ($keyword)', (test) => {
     const input = readDirectoryFixture(test.base);
     expect(validateDirectory(test.base, input)).toEqual({ valid: true, errors: [] });

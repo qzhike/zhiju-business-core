@@ -39,6 +39,14 @@ export class FakeCore {
   queryDelayMs = 0;
   requests: RecordedCoreRequest[] = [];
   private server: ReturnType<typeof createServer> | undefined;
+  private pendingQueryArrival: ((value: undefined) => void) | undefined;
+
+  /** Resolves once the next protected query has been received (before any delay). */
+  nextQueryArrival(): Promise<void> {
+    const { promise, resolve } = Promise.withResolvers<undefined>();
+    this.pendingQueryArrival = resolve;
+    return promise;
+  }
 
   async start(): Promise<void> {
     const server = createServer((request, response) => {
@@ -86,6 +94,11 @@ export class FakeCore {
     if (path.endsWith('/workspace/session-bootstrap')) {
       this.respond(response, this.bootstrapStatus, this.bootstrapBody);
       return;
+    }
+    if (path.includes('/queries/')) {
+      const arrival = this.pendingQueryArrival;
+      this.pendingQueryArrival = undefined;
+      arrival?.(undefined);
     }
     if (this.queryDelayMs > 0) {
       const delay = Promise.withResolvers<undefined>();

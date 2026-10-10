@@ -25,7 +25,15 @@ import {
   type DirectoryQueryArgs,
 } from './trusted/protocol.js';
 import { postLogout } from './trusted/client.js';
-import { bindGuard, invalidateGuard, scopeGuard, type LiveGuard } from './trusted/guard.js';
+import {
+  bindGuard,
+  createReadBoundary,
+  invalidateGuard,
+  scopeGuard,
+  type LiveGuard,
+  type ReadBoundary,
+} from './trusted/guard.js';
+import { runLogout } from './trusted/logout.js';
 import {
   publishInvalidation,
   useIdleRenewal,
@@ -85,14 +93,23 @@ function observationText(
 export function TrustedApp() {
   const location = useLocation();
   const heading = useRef<HTMLElement>(null);
-  const session = useTrustedSession();
+  const [readBoundary] = useState(createReadBoundary);
+  const session = useTrustedSession(readBoundary);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [retiredProbe, setRetiredProbe] = useState<SessionProbe | null>(null);
   const [callbackFailed] = useState(() => hasCallbackFailure(window.location.search));
   const guardRef = useRef<LiveGuard>({ generation: 0, principalId: null, scopes: [] });
   const boundSession = useRef<string | null>(null);
 
   const probe = session.probe;
-  const live = session.phase === 'READY' && probe.state === 'ALLOWED' && probe.session !== null;
+  // True from the moment logout retires this tab until the re-probe replaces
+  // the probe that was live when logout started.
+  const logoutPending = retiredProbe !== null && probe === retiredProbe;
+  const live =
+    session.phase === 'READY' &&
+    probe.state === 'ALLOWED' &&
+    probe.session !== null &&
+    !logoutPending;
   const principalId = probe.session?.principal.principalId ?? null;
   const sessionGeneration = probe.session?.sessionGeneration ?? '';
   const csrfToken = probe.session?.csrfToken ?? '';
@@ -126,6 +143,12 @@ export function TrustedApp() {
   }, [live]);
 
   useEffect(() => {
+    // The re-probe produced a new summary object: drop the retired one so the
+    // tab never keeps a stale principal/csrf summary alive.
+    if (retiredProbe !== null && probe !== retiredProbe) setRetiredProbe(null);
+  }, [probe, retiredProbe]);
+
+  useEffect(() => {
     if (!hasCallbackFailure(window.location.search)) return;
     const clean = stripCallbackParams(window.location.search);
     window.history.replaceState(
@@ -154,14 +177,25 @@ export function TrustedApp() {
   }, [location.pathname, session.phase, probe.state]);
 
   const logout = useCallback(() => {
-    setSelectedKey(null);
-    publishInvalidation();
-    void postLogout(csrfToken)
-      .catch(() => 0)
-      .then(() => {
-        reload();
-      });
-  }, [csrfToken, reload]);
+    // Session Delta §6: advance the generation, cancel old reads and clear the
+    // protected view *before* the awaited (best-effort IdP revocation) call.
+    void runLogout({
+      retireIdentity: () => {
+        guardRef.current = invalidateGuard(guardRef.current);
+        boundSession.current = null;
+        setRetiredProbe(probe);
+      },
+      cancelReads: () => {
+        readBoundary.abort();
+      },
+      clearView: () => {
+        setSelectedKey(null);
+      },
+      notifyPeers: publishInvalidation,
+      requestLogout: () => postLogout(csrfToken),
+      reprobe: reload,
+    });
+  }, [csrfToken, probe, readBoundary, reload]);
 
   const principal = probe.session?.principal ?? null;
   return (
@@ -175,7 +209,9 @@ export function TrustedApp() {
           <strong>制巨</strong>
           <span>质量体系工作空间</span>
         </Link>
-        {principal === null ? (
+        {logoutPending ? (
+          <span className="muted">正在退出登录…</span>
+        ) : principal === null ? (
           <span className="muted">尚未登录</span>
         ) : (
           <span className="muted">
@@ -208,6 +244,8 @@ export function TrustedApp() {
           <ContentBoundary>
             {session.phase === 'LOADING' ? (
               <LoadingPanel />
+            ) : logoutPending ? (
+              <LogoutPanel />
             ) : live ? (
               <Routes>
                 <Route path="/" element={<Navigate to="/workbench" replace />} />
@@ -220,6 +258,7 @@ export function TrustedApp() {
                       csrfToken={csrfToken}
                       generation={guard.generation}
                       guardRef={guardRef}
+                      readBoundary={readBoundary}
                       onSessionFailure={onSessionFailure}
                       selectedKey={selectedKey}
                       onSelect={setSelectedKey}
@@ -297,6 +336,16 @@ function LoadingPanel() {
   );
 }
 
+function LogoutPanel() {
+  return (
+    <section className="panel" role="status">
+      <h1 tabIndex={-1}>正在退出登录</h1>
+      <p>已清除本标签页的会话身份与受保护内容，正在等待服务端完成退出与撤销…</p>
+      <p className="muted">退出完成前不会显示任何项目、看板或会话摘要</p>
+    </section>
+  );
+}
+
 function AccessGate({
   probe,
   callbackFailed,
@@ -352,6 +401,7 @@ function DirectoryWorkbench({
   csrfToken,
   generation,
   guardRef,
+  readBoundary,
   onSessionFailure,
   selectedKey,
   onSelect,
@@ -361,6 +411,7 @@ function DirectoryWorkbench({
   csrfToken: string;
   generation: number;
   guardRef: { readonly current: LiveGuard };
+  readBoundary: ReadBoundary;
   onSessionFailure: () => void;
   selectedKey: string | null;
   onSelect: (key: string | null) => void;
@@ -375,6 +426,7 @@ function DirectoryWorkbench({
     csrfToken,
     enabled: true,
     guardRef,
+    readBoundary,
     buildBody: buildDirectoryQueryInput,
     parsePage: parseDirectoryPage,
     keyOf: cardKey,
@@ -406,6 +458,7 @@ function DirectoryWorkbench({
           csrfToken={csrfToken}
           generation={generation}
           guardRef={guardRef}
+          readBoundary={readBoundary}
           onSessionFailure={onSessionFailure}
         />
       )}
@@ -535,6 +588,7 @@ function ProjectBoards({
   csrfToken,
   generation,
   guardRef,
+  readBoundary,
   onSessionFailure,
 }: {
   card: DirectoryCard;
@@ -543,6 +597,7 @@ function ProjectBoards({
   csrfToken: string;
   generation: number;
   guardRef: { readonly current: LiveGuard };
+  readBoundary: ReadBoundary;
   onSessionFailure: () => void;
 }) {
   const shared = {
@@ -553,6 +608,7 @@ function ProjectBoards({
     csrfToken,
     enabled: true,
     guardRef,
+    readBoundary,
     keyOf: boardRowKey,
     onSessionFailure,
   };

@@ -10,6 +10,7 @@ import {
   headerValue,
   login,
 } from './testing/harness.js';
+import type { TestStack } from './testing/harness.js';
 
 const QUERY_ID = '01920000-0000-7000-8000-000000000001';
 const CORRELATION_ID = '01920000-0000-7000-8000-000000000002';
@@ -40,25 +41,19 @@ function queryBody(overrides: Record<string, unknown> = {}): Record<string, unkn
   };
 }
 
+/** Follows an authorizationUrl one hop without a browser and returns the redirect. */
+async function callbackUrlFrom(authorizeUrl: string): Promise<string> {
+  const response = await fetch(authorizeUrl, { redirect: 'manual' });
+  return response.headers.get('location') ?? '';
+}
+
 interface SessionState {
   sessionCookie: string;
   csrfToken: string;
   sessionGeneration: string;
 }
 
-async function establishSession(
-  stack: Awaited<ReturnType<typeof createTestStack>>,
-  returnTo = '/workbench',
-): Promise<SessionState> {
-  const started = await login(stack, returnTo);
-  const callback = await stack.inject({
-    method: 'GET',
-    url: pathOf(started.callbackUrl),
-    cookie: cookieHeader(LOGIN_COOKIE, started.loginCookie),
-  });
-  expect(callback.status).toBe(302);
-  const sessionCookie = cookieFrom(callback, SESSION_COOKIE);
-  expect(sessionCookie.length).toBeGreaterThan(0);
+async function sessionStateFor(stack: TestStack, sessionCookie: string): Promise<SessionState> {
   const session = await stack.inject({
     method: 'GET',
     url: '/bff/session',
@@ -72,6 +67,19 @@ async function establishSession(
     csrfToken: String(body.csrfToken),
     sessionGeneration: String(body.sessionGeneration),
   };
+}
+
+async function establishSession(stack: TestStack, returnTo = '/workbench'): Promise<SessionState> {
+  const started = await login(stack, returnTo);
+  const callback = await stack.inject({
+    method: 'GET',
+    url: pathOf(started.callbackUrl),
+    cookie: cookieHeader(LOGIN_COOKIE, started.loginCookie),
+  });
+  expect(callback.status).toBe(302);
+  const sessionCookie = cookieFrom(callback, SESSION_COOKIE);
+  expect(sessionCookie.length).toBeGreaterThan(0);
+  return sessionStateFor(stack, sessionCookie);
 }
 
 function businessHeaders(session: SessionState, extra: Record<string, string> = {}) {
@@ -628,11 +636,12 @@ describe('trusted human session', () => {
       );
       expect(nonPeerIgnored.status).toBe(200);
 
-      // An allowlisted peer resolves the effective origin/host from the pair.
+      // An allowlisted peer resolves the effective Host from the pair, while the
+      // request's own Origin is still checked exactly against publicOrigin.
       const peerHonored = await activity(
         {
           host: 'internal:9999',
-          origin: 'http://internal:9999',
+          origin: PUBLIC_ORIGIN,
           'x-forwarded-host': PUBLIC_HOST,
           'x-forwarded-proto': 'http',
         },
@@ -644,13 +653,27 @@ describe('trusted human session', () => {
       const mappedPeer = await activity(
         {
           host: 'internal:9999',
-          origin: 'http://internal:9999',
+          origin: PUBLIC_ORIGIN,
           'x-forwarded-host': PUBLIC_HOST,
           'x-forwarded-proto': 'http',
         },
         '::ffff:127.0.0.1',
       );
       expect(mappedPeer.status).toBe(200);
+
+      // A forwarded destination never substitutes for the actual Origin: the
+      // peer honours the Host pair but a non-public Origin stays rejected.
+      const peerForeignOrigin = await activity(
+        {
+          host: 'internal:9999',
+          origin: 'http://internal:9999',
+          'x-forwarded-host': PUBLIC_HOST,
+          'x-forwarded-proto': 'http',
+        },
+        '127.0.0.1',
+      );
+      expect(peerForeignOrigin.status).toBe(403);
+      expect((peerForeignOrigin.json as Record<string, unknown>).code).toBe('UI_ORIGIN_REJECTED');
 
       // A forwarded value pointing at another origin is still rejected.
       const otherOrigin = await activity(
@@ -686,6 +709,51 @@ describe('trusted human session', () => {
         '127.0.0.1',
       );
       expect(noProto.status).toBe(200);
+    } finally {
+      await stack.close();
+    }
+  });
+
+  itSlow('never derives Origin from trusted forwarding metadata', async () => {
+    const stack = await createTestStack({
+      now: { value: Date.now() },
+      trustOverrides: { trustedProxyPeers: ['127.0.0.1/32'] },
+    });
+    try {
+      const session = await establishSession(stack);
+      const cookie = cookieHeader(SESSION_COOKIE, session.sessionCookie);
+      const proxiedQuery = (origin: string | undefined) =>
+        stack.inject({
+          method: 'POST',
+          url: `/bff/queries/${DISCOVERY_OPERATION}/1.0`,
+          cookie,
+          headers: {
+            host: 'internal:9999',
+            'content-type': 'application/json',
+            'x-csrf-token': session.csrfToken,
+            'x-forwarded-host': PUBLIC_HOST,
+            'x-forwarded-proto': 'http',
+            ...(origin === undefined ? {} : { origin }),
+          },
+          remoteAddress: '127.0.0.1',
+          payload: JSON.stringify(queryBody()),
+        });
+
+      const before = stack.core.requests.length;
+      for (const origin of ['https://untrusted.example', 'null', undefined]) {
+        const rejected = await proxiedQuery(origin);
+        expect(rejected.status).toBe(403);
+        expect((rejected.json as Record<string, unknown>).code).toBe('UI_ORIGIN_REJECTED');
+      }
+      // The forwarded destination never substitutes for the caller's Origin:
+      // no rejected request reaches Core.
+      expect(stack.core.requests.length).toBe(before);
+
+      // The same trusted-proxy request with the real public Origin succeeds.
+      const accepted = await proxiedQuery(PUBLIC_ORIGIN);
+      expect(accepted.status).toBe(200);
+      expect((accepted.json as Record<string, unknown>).status).toBe('OK');
+      expect(stack.core.requests.length).toBe(before + 1);
     } finally {
       await stack.close();
     }
@@ -1058,6 +1126,232 @@ describe('trusted human session', () => {
         correlationId: CORRELATION_ID,
       });
       expect(response.headers['x-correlation-id']).toBe(CORRELATION_ID);
+    } finally {
+      await stack.close();
+    }
+  });
+
+  itSlow('elects exactly one callback winner per browser binding generation', async () => {
+    const stack = await createTestStack({ now: { value: Date.now() } });
+    try {
+      const first = await login(stack);
+      // A second attempt issued while already holding the browser binding
+      // cookie stays on the same binding, so both attempts share a generation.
+      const second = await stack.inject({
+        method: 'GET',
+        url: '/bff/auth/login?returnTo=%2Fworkbench',
+        cookie: cookieHeader(LOGIN_COOKIE, first.loginCookie),
+      });
+      expect(second.status).toBe(302);
+      expect(cookieFrom(second, LOGIN_COOKIE)).toBe(first.loginCookie);
+      const secondCallbackUrl = await callbackUrlFrom(headerValue(second, 'location'));
+      expect(pathOf(secondCallbackUrl)).not.toBe(pathOf(first.callbackUrl));
+
+      const loginCookie = cookieHeader(LOGIN_COOKIE, first.loginCookie);
+      const callbacks = await Promise.all([
+        stack.inject({ method: 'GET', url: pathOf(first.callbackUrl), cookie: loginCookie }),
+        stack.inject({ method: 'GET', url: pathOf(secondCallbackUrl), cookie: loginCookie }),
+      ]);
+      expect(callbacks.filter((response) => response.status === 302)).toHaveLength(1);
+      const issuedCookies = callbacks
+        .map((response) => cookieFrom(response, SESSION_COOKIE))
+        .filter((value) => value.length > 0);
+      expect(issuedCookies).toHaveLength(1);
+      const refused = callbacks.find((response) => response.status !== 302);
+      expect(refused?.status).toBe(400);
+      expect((refused?.json as Record<string, unknown>).code).toBe('UI_REAUTH_REQUIRED');
+
+      const session = await stack.inject({
+        method: 'GET',
+        url: '/bff/session',
+        cookie: cookieHeader(SESSION_COOKIE, issuedCookies.at(0) ?? ''),
+      });
+      expect((session.json as Record<string, unknown>).accessState).toBe('ALLOWED');
+    } finally {
+      await stack.close();
+    }
+  });
+
+  itSlow('invalidates the session a new login on its own browser replaces', async () => {
+    const stack = await createTestStack({ now: { value: Date.now() } });
+    try {
+      const first = await establishSession(stack);
+      const firstCookie = cookieHeader(SESSION_COOKIE, first.sessionCookie);
+
+      // The browser starts a fresh login while presenting its old session
+      // cookie: the login stays on that binding and must replace the session.
+      const started = await stack.inject({
+        method: 'GET',
+        url: '/bff/auth/login?returnTo=%2Fworkbench',
+        cookie: firstCookie,
+      });
+      expect(started.status).toBe(302);
+      const callback = await stack.inject({
+        method: 'GET',
+        url: pathOf(await callbackUrlFrom(headerValue(started, 'location'))),
+        cookie: cookieHeader(LOGIN_COOKIE, cookieFrom(started, LOGIN_COOKIE)),
+      });
+      expect(callback.status).toBe(302);
+      const replacement = cookieFrom(callback, SESSION_COOKIE);
+      expect(replacement.length).toBeGreaterThan(20);
+      expect(replacement).not.toBe(first.sessionCookie);
+
+      // The superseded session cookie must never resolve to ALLOWED again.
+      const superseded = await stack.inject({
+        method: 'GET',
+        url: '/bff/session',
+        cookie: firstCookie,
+      });
+      expect((superseded.json as Record<string, unknown>).accessState).toBe('SESSION_EXPIRED');
+      const supersededRead = await stack.inject({
+        method: 'POST',
+        url: `/bff/queries/${DISCOVERY_OPERATION}/1.0`,
+        cookie: firstCookie,
+        headers: businessHeaders(first),
+        payload: JSON.stringify(queryBody()),
+      });
+      expect(supersededRead.status).toBe(401);
+      expect((supersededRead.json as Record<string, unknown>).code).toBe('UI_SESSION_EXPIRED');
+
+      const current = await stack.inject({
+        method: 'GET',
+        url: '/bff/session',
+        cookie: cookieHeader(SESSION_COOKIE, replacement),
+      });
+      expect((current.json as Record<string, unknown>).accessState).toBe('ALLOWED');
+    } finally {
+      await stack.close();
+    }
+  });
+
+  itSlow('keeps distinct browser bindings and principals independent', async () => {
+    const stack = await createTestStack({ now: { value: Date.now() } });
+    try {
+      const first = await establishSession(stack);
+
+      // A different browser (no shared cookie) signing in as another HUMAN
+      // must not disturb or collapse the first binding's session.
+      stack.core.bootstrapBody = {
+        principalRef: {
+          kind: 'OBJECT',
+          objectType: 'identity.principal',
+          objectId: '01920000-0000-7000-8000-0000000000bb',
+          scope: { enterpriseId: '01920000-0000-7000-8000-0000000000ee' },
+        },
+        principalKind: 'HUMAN',
+        status: 'ACTIVE',
+        displayName: 'Other Human',
+      };
+      stack.provider.idTokenTemplate = { header: {}, claims: { sub: 'human-2' } };
+      stack.provider.accessTokenTemplate = { header: {}, claims: { sub: 'human-2' } };
+      const second = await establishSession(stack);
+      expect(second.sessionCookie).not.toBe(first.sessionCookie);
+
+      const firstSession = await stack.inject({
+        method: 'GET',
+        url: '/bff/session',
+        cookie: cookieHeader(SESSION_COOKIE, first.sessionCookie),
+      });
+      expect(firstSession.json).toMatchObject({
+        accessState: 'ALLOWED',
+        principal: { principalId: '01920000-0000-7000-8000-0000000000aa' },
+      });
+      const secondSession = await stack.inject({
+        method: 'GET',
+        url: '/bff/session',
+        cookie: cookieHeader(SESSION_COOKIE, second.sessionCookie),
+      });
+      expect(secondSession.json).toMatchObject({
+        accessState: 'ALLOWED',
+        principal: { principalId: '01920000-0000-7000-8000-0000000000bb' },
+      });
+      expect(second.sessionGeneration).not.toBe(first.sessionGeneration);
+    } finally {
+      await stack.close();
+    }
+  });
+
+  itSlow('still completes a legitimate login after logout on the same binding', async () => {
+    const stack = await createTestStack({ now: { value: Date.now() } });
+    try {
+      const first = await login(stack);
+      const loginCookie = cookieHeader(LOGIN_COOKIE, first.loginCookie);
+      const callback = await stack.inject({
+        method: 'GET',
+        url: pathOf(first.callbackUrl),
+        cookie: loginCookie,
+      });
+      expect(callback.status).toBe(302);
+      const session = await sessionStateFor(stack, cookieFrom(callback, SESSION_COOKIE));
+      const logout = await stack.inject({
+        method: 'POST',
+        url: '/bff/auth/logout',
+        cookie: cookieHeader(SESSION_COOKIE, session.sessionCookie),
+        headers: businessHeaders(session),
+      });
+      expect(logout.status).toBe(200);
+
+      // The replayed binding cookie still names an open generation: a new login
+      // must win it instead of being locked out by the earlier completion.
+      const replay = await stack.inject({
+        method: 'GET',
+        url: '/bff/auth/login?returnTo=%2Fworkbench',
+        cookie: loginCookie,
+      });
+      expect(replay.status).toBe(302);
+      const replayCallback = await stack.inject({
+        method: 'GET',
+        url: pathOf(await callbackUrlFrom(headerValue(replay, 'location'))),
+        cookie: loginCookie,
+      });
+      expect(replayCallback.status).toBe(302);
+      const after = await stack.inject({
+        method: 'GET',
+        url: '/bff/session',
+        cookie: cookieHeader(SESSION_COOKIE, cookieFrom(replayCallback, SESSION_COOKIE)),
+      });
+      expect((after.json as Record<string, unknown>).accessState).toBe('ALLOWED');
+    } finally {
+      await stack.close();
+    }
+  });
+
+  itSlow('rechecks the session before returning an awaited protected read', async () => {
+    const stack = await createTestStack({ now: { value: Date.now() } });
+    try {
+      const session = await establishSession(stack);
+      const cookie = cookieHeader(SESSION_COOKIE, session.sessionCookie);
+      stack.core.queryBody = {
+        status: 'OK',
+        data: {
+          items: [{ card: 'PROTECTED_CARD_PAYLOAD' }],
+          snapshotAt: '2026-10-10T00:00:00.000Z',
+        },
+      };
+      stack.core.queryDelayMs = 300;
+      const arrival = stack.core.nextQueryArrival();
+      const inFlight = stack.inject({
+        method: 'POST',
+        url: `/bff/queries/${DISCOVERY_OPERATION}/1.0`,
+        cookie,
+        headers: businessHeaders(session),
+        payload: JSON.stringify(queryBody()),
+      });
+      // Wait for the protected Core read to be genuinely in flight, then log
+      // out while the BFF is still awaiting it.
+      await arrival;
+      const logout = await stack.inject({
+        method: 'POST',
+        url: '/bff/auth/logout',
+        cookie,
+        headers: businessHeaders(session),
+      });
+      expect(logout.status).toBe(200);
+
+      const late = await inFlight;
+      expect(late.status).toBe(401);
+      expect((late.json as Record<string, unknown>).code).toBe('UI_REAUTH_REQUIRED');
+      expect(late.text).not.toContain('PROTECTED_CARD_PAYLOAD');
     } finally {
       await stack.close();
     }

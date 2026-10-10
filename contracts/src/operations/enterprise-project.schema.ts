@@ -495,7 +495,7 @@ const namedDefinitions = {
   ),
   workspaceProjectPage: object(['items', 'snapshotAt', 'sourceWatermarks'], {
     items: array(localRef('workspaceProjectSummary')),
-    nextCursor: text,
+    nextCursor: opaqueCursor,
     snapshotAt: instant,
     sourceWatermarks: array(localRef('sourceWatermark')),
   }),

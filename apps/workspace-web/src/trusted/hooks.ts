@@ -23,6 +23,7 @@ import {
   isInvalidationSignal,
   scopeGuard,
   type LiveGuard,
+  type ReadBoundary,
   type ResponseTag,
 } from './guard.js';
 import {
@@ -46,9 +47,11 @@ export interface TrustedSession {
 /**
  * Boot read. A failed or malformed probe is never retried into a fabricated
  * session: the shell degrades to UNAVAILABLE and keeps the legacy unconfigured
- * wording when that probe still answers.
+ * wording when that probe still answers. The read is tracked in the tab's read
+ * boundary, so a logout cancels a probe that is still in flight instead of
+ * letting a late (pre-invalidation) session summary re-bind identity.
  */
-export function useTrustedSession(): TrustedSession {
+export function useTrustedSession(readBoundary: ReadBoundary): TrustedSession {
   const [token, setToken] = useState(0);
   const [state, setState] = useState<{
     phase: 'LOADING' | 'READY';
@@ -57,6 +60,7 @@ export function useTrustedSession(): TrustedSession {
   }>({ phase: 'LOADING', probe: UNAVAILABLE_PROBE, legacy: false });
   useEffect(() => {
     const controller = new AbortController();
+    const release = readBoundary.track(controller);
     setState({ phase: 'LOADING', probe: UNAVAILABLE_PROBE, legacy: false });
     void (async () => {
       let probe: SessionProbe;
@@ -84,9 +88,10 @@ export function useTrustedSession(): TrustedSession {
       });
     })();
     return () => {
+      release();
       controller.abort();
     };
-  }, [token]);
+  }, [token, readBoundary]);
   const reload = useCallback(() => {
     setToken((current) => current + 1);
   }, []);
@@ -188,6 +193,7 @@ export interface PageChainOptions<T> {
   readonly csrfToken: string;
   readonly enabled: boolean;
   readonly guardRef: { readonly current: LiveGuard };
+  readonly readBoundary: ReadBoundary;
   readonly buildBody: PageQueryArgs<T>['buildBody'];
   readonly parsePage: (data: unknown) => ParsedPage<T>;
   readonly keyOf: (item: T) => string;
@@ -219,6 +225,7 @@ export function usePageChain<T>(options: PageChainOptions<T>): PageChain<T> {
     onSessionFailure,
   } = options;
   const guardRef = options.guardRef;
+  const readBoundary = options.readBoundary;
   const [state, dispatch] = useReducer(
     (current: PageState<T>, action: PageAction<T>) => pageReducer(current, action, keyOf),
     undefined,
@@ -243,6 +250,7 @@ export function usePageChain<T>(options: PageChainOptions<T>): PageChain<T> {
       const run = runRef.current + 1;
       runRef.current = run;
       const controller = new AbortController();
+      const release = readBoundary.track(controller);
       const accept = (tag: ResponseTag) =>
         run === runRef.current && acceptsResponse(guardRef.current, tag);
       let cursor = startCursor;
@@ -263,7 +271,7 @@ export function usePageChain<T>(options: PageChainOptions<T>): PageChain<T> {
               parsePage,
             });
           } catch (error) {
-            if (run !== runRef.current) return;
+            if (controller.signal.aborted || run !== runRef.current) return;
             const api = failureFromUnknown(error, 'DEPENDENCY_UNAVAILABLE');
             const kind = classifyFailure(api);
             if (kind === 'SESSION') {
@@ -295,10 +303,20 @@ export function usePageChain<T>(options: PageChainOptions<T>): PageChain<T> {
           cursor = page.nextCursor;
         }
       } finally {
+        release();
         controller.abort();
       }
     },
-    [identity, generation, csrfToken, buildBody, parsePage, guardRef, onSessionFailure],
+    [
+      identity,
+      generation,
+      csrfToken,
+      buildBody,
+      parsePage,
+      guardRef,
+      readBoundary,
+      onSessionFailure,
+    ],
   );
 
   useEffect(() => {

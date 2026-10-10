@@ -35,3 +35,21 @@ holds no business drafts, original intents or receipts. Request logging is
 disabled and error responses use a fixed safe message with a random correlation
 id; tokens, cookies, the external subject and customer content are never logged
 or echoed. Real Keycloak, Core HTTP and manual acceptance remain `NOT RUN`.
+
+Three session invariants are enforced structurally:
+
+- `X-Forwarded-Proto`/`X-Forwarded-Host` are accepted only as a single
+  well-formed pair from an allowlisted proxy peer, and they resolve the served
+  destination's Host alone. The request's own `Origin` header is never replaced;
+  a missing, `null` or foreign Origin is rejected with 403 and zero Core calls
+  even through an allowlisted proxy.
+- Each login transaction carries the generation of its browser binding. A
+  callback completes that generation by compare-and-set, so concurrent callbacks
+  issued under one browser binding elect exactly one winner; the winner advances
+  the generation and invalidates the session it replaces, so the superseded
+  session cookie never resolves to `ALLOWED` again. Distinct browser bindings and
+  principals stay independent.
+- Every awaited protected read rechecks the exact session record's identity,
+  generation and expiry after the Core call and before any body is written; a
+  logout completing mid-flight turns the response into a safe `401`
+  `UI_REAUTH_REQUIRED` with no payload.

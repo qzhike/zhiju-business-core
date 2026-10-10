@@ -119,27 +119,31 @@ export function createRequestHandler(
   const { config } = loaded;
 
   /**
-   * The effective Origin/Host. Forwarded rewriting is honored only from an
-   * allowlisted proxy peer, and only as single well-formed values; the result
-   * is still compared exactly against publicOrigin/allowedHosts afterwards, so
-   * a forwarded value can never widen the accepted Host/Origin set.
+   * The effective Host and the request's own Origin.
+   *
+   * Forwarded rewriting is honored only from an allowlisted proxy peer and only
+   * as a single well-formed proto/host pair, and it resolves the *destination*
+   * the proxy served (the value still compared against allowedHosts). It never
+   * supplies the Origin: `X-Forwarded-Proto`/`X-Forwarded-Host` describe where
+   * the request was addressed, not who initiated it, so the browser's actual
+   * Origin header is kept and checked exactly against publicOrigin on its own.
    */
   function effectiveTarget(request: FastifyRequest): {
     origin: string | undefined;
     host: string | undefined;
   } {
-    const directOrigin = request.headers.origin;
+    const requestOrigin = request.headers.origin;
     const directHost = request.headers.host;
     const remoteAddress = request.raw.socket.remoteAddress;
     if (remoteAddress === undefined || !peerListAllows(config.trustedProxyPeers, remoteAddress)) {
-      return { origin: directOrigin, host: directHost };
+      return { origin: requestOrigin, host: directHost };
     }
     const proto = forwardedProto(request.headers['x-forwarded-proto']);
     const host = forwardedHost(request.headers['x-forwarded-host']);
     if (proto === undefined || host === undefined) {
-      return { origin: directOrigin, host: directHost };
+      return { origin: requestOrigin, host: directHost };
     }
-    return { origin: `${proto}://${host}`, host };
+    return { origin: requestOrigin, host };
   }
 
   function lookupSession(request: FastifyRequest): SessionLookup {
@@ -154,6 +158,22 @@ export function createRequestHandler(
       return { status: 'dead' };
     }
     return { status: 'active', record };
+  }
+
+  /**
+   * The browser binding of the session the caller is already presenting, if
+   * any. Reusing it means a fresh login on this browser replaces (and so
+   * invalidates) the session it supersedes instead of leaving the old session
+   * cookie usable. The cookie is host-prefixed, so it is only ever the caller's
+   * own record; a different device still starts from its own binding.
+   */
+  function presentedSessionBinding(request: FastifyRequest): string | undefined {
+    const cookie = readSingleCookie(request.headers.cookie, SESSION_COOKIE);
+    if (cookie.status !== 'ok' || cookie.value === undefined) return undefined;
+    const record = sessions.get(cookie.value);
+    if (record === undefined) return undefined;
+    if (record.trustConfigHash !== loaded.configHash) return undefined;
+    return record.browserBindingId;
   }
 
   function guardSessionRead(reply: FastifyReply, lookup: SessionLookup): true | undefined {
@@ -297,7 +317,7 @@ export function createRequestHandler(
         false,
       );
     }
-    const browserBindingId = cookie.value ?? randomToken(32);
+    const browserBindingId = cookie.value ?? presentedSessionBinding(request) ?? randomToken(32);
     let authorizationEndpoint: string;
     try {
       authorizationEndpoint = (await provider.metadata()).authorizationEndpoint;
@@ -320,6 +340,7 @@ export function createRequestHandler(
         codeVerifier,
         codeChallenge: createHash('sha256').update(codeVerifier).digest('base64url'),
         browserBindingId,
+        bindingGeneration: sessions.bindingGeneration(browserBindingId),
         expectedIssuer: config.issuer,
         trustConfigHash: loaded.configHash,
         returnTo,
@@ -386,8 +407,8 @@ export function createRequestHandler(
     }
     const consumed = transactions.consume(parsed.state, cookie.value);
     if (consumed === undefined) return rejected();
-    appendSetCookie(reply, clearCookie(LOGIN_COOKIE));
     if (parsed.kind === 'oidc-error') {
+      appendSetCookie(reply, clearCookie(LOGIN_COOKIE));
       // The IdP message, description and URI are discarded: never echoed, never
       // logged, never followed, and the browser only learns a fixed safe code.
       return redirect(reply, safeReturnRedirect(consumed.returnTo, UI_ERROR.REAUTH_REQUIRED));
@@ -441,6 +462,14 @@ export function createRequestHandler(
         );
       }
       const refreshToken = tokens.refreshToken;
+      // Atomic per-browser generation boundary: exactly one callback issued
+      // under this binding generation reaches the session store, and the
+      // session it replaces is invalidated here. A sibling callback that lost
+      // the race stops with a safe failure, no session and no cookie.
+      if (!sessions.claimBindingGeneration(cookie.value, consumed.bindingGeneration)) {
+        return rejected();
+      }
+      appendSetCookie(reply, clearCookie(LOGIN_COOKIE));
       const record = sessions.create({
         browserBindingId: cookie.value,
         sessionBinding,
@@ -759,6 +788,13 @@ export function createRequestHandler(
         'Upstream dependency unavailable.',
         true,
       );
+    }
+    // The awaited Core read may outlive the session it started under (for
+    // example a logout completing mid-flight). Recheck the exact record's
+    // identity, generation and expiry immediately before any protected body
+    // leaves the BFF, and fail closed with no payload if it is gone.
+    if (!sessions.isCurrent(fresh)) {
+      return sendSafeError(reply, 401, UI_ERROR.REAUTH_REQUIRED, 'Sign-in required.', true);
     }
     reply.status(result.status);
     reply.header('content-type', 'application/json');

@@ -68,6 +68,37 @@ export function acceptsResponse(guard: LiveGuard, tag: ResponseTag): boolean {
   );
 }
 
+/**
+ * Registry of every protected read still in flight in this tab, so logout (or
+ * a scope/user change) cancels them synchronously instead of waiting for a
+ * React effect cleanup. A response that still arrives is dropped by
+ * `acceptsResponse`, but cancelling stops the work and releases the socket.
+ *
+ * `abort()` retires the current set; reads tracked afterwards belong to the
+ * next binding (a fresh login, or a new scope after the guard is rebound).
+ */
+export interface ReadBoundary {
+  readonly track: (controller: AbortController) => () => void;
+  readonly abort: () => void;
+}
+
+export function createReadBoundary(): ReadBoundary {
+  const controllers = new Set<AbortController>();
+  return {
+    track: (controller) => {
+      controllers.add(controller);
+      return () => {
+        controllers.delete(controller);
+      };
+    },
+    abort: () => {
+      const pending = [...controllers];
+      controllers.clear();
+      for (const controller of pending) controller.abort();
+    },
+  };
+}
+
 /** A cross-tab message is acted on only when it is exactly the fixed signal. */
 export function isInvalidationSignal(data: unknown): boolean {
   return data === INVALIDATION_SIGNAL;

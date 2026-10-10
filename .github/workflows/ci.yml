@@ -74,6 +74,12 @@ jobs:
           node-version: 24.19.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The persistence gate now collects the built-browser acceptance suite
+      # (#266), which launches the controlled Chromium against the real Core +
+      # BFF + built SPA stack, so this runner needs the same pinned browser and
+      # system dependencies that the checks job installs.
+      - name: Install controlled Chromium
+        run: pnpm exec playwright install --with-deps chromium
       # Independent runners need fresh workspace libraries for owning entries.
       # Static checks and ordinary tests execute only in the checks job.
       - name: Build persistence prerequisites
