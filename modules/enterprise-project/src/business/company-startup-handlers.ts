@@ -108,8 +108,6 @@ export interface CompanyStartupConfig {
 function invalid(code = 'COMPANY_RULE_DEFINITION_INVALID'): never {
   throw new CompanyStartupError(code);
 }
-const sorted = <T>(items: T[], key: (item: T) => string): T[] =>
-  [...items].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
 export function createCompanyStartupCapabilities(config: CompanyStartupConfig) {
   const { db, authorization: auth } = config;
   const now = config.clock ?? (() => new Date());
@@ -288,20 +286,13 @@ export function createCompanyStartupCapabilities(config: CompanyStartupConfig) {
       !p.normativeReferenceRefs.length
     )
       invalid();
-    if (
-      !sameCompanyValue(
-        p.templateSourceBindings,
-        sorted(p.templateSourceBindings, (s) => `${s.templateRef.objectId}:${s.locator}`),
-      )
-    )
-      invalid();
     const bindings = [];
     for (const b of p.templateSourceBindings)
       bindings.push((await sourceBinding(trx, b, guard)).key);
     const expectedKeys = (COMPANY_REQUIREMENT_LOCATORS[p.requirementCode] ?? [])
       .map(([code, loc]) => `${code}:${loc}`)
       .sort();
-    if (!sameCompanyValue(bindings.sort(), expectedKeys)) invalid();
+    if (!sameCompanyValue(bindings, expectedKeys)) invalid();
     const codes = [];
     for (const ref of p.normativeReferenceRefs) {
       await guard();

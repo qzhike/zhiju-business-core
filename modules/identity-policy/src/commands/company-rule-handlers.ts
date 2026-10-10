@@ -86,6 +86,14 @@ export interface CompanyRuleSnapshotConfig {
 function invalid(code = 'COMPANY_RULE_INVALID'): never {
   throw new CompanyStartupError(code);
 }
+async function dependency<T>(invoke: () => Promise<T>): Promise<T> {
+  try {
+    return await invoke();
+  } catch (error) {
+    if (error instanceof CompanyStartupError) throw error;
+    invalid('DEPENDENCY_UNAVAILABLE');
+  }
+}
 function publicationRef(id: string, payload: unknown): Common.ContentAddressedRef {
   return {
     kind: 'CONTENT_ADDRESSED',
@@ -241,7 +249,7 @@ export function createCompanyRuleCapabilities(config: CompanyRuleSnapshotConfig)
     profile: (typeof COMPANY_STARTUP_PROFILES)[keyof typeof COMPANY_STARTUP_PROFILES],
   ): Promise<CompanyRuleSnapshotView> {
     const request = companySnapshotReadRequest(ref, profile);
-    return read(await config.readAuthorization(request), request);
+    return read(await dependency(() => config.readAuthorization(request)), request);
   }
   async function bundleViews(refs: CompanyRuleReferences, guard: () => Promise<void>) {
     await guard();
@@ -327,7 +335,7 @@ export function createCompanyRuleCapabilities(config: CompanyRuleSnapshotConfig)
         key,
         request,
         async (trx, commandId) => {
-          const validation = await config.validateDefinition(request);
+          const validation = await dependency(() => config.validateDefinition(request));
           validateSemantic(validation, request.payload);
           const role =
             request.payload.profileKey === COMPANY_STARTUP_PROFILES.bundle
@@ -452,10 +460,12 @@ export function createCompanyRuleCapabilities(config: CompanyRuleSnapshotConfig)
             snapshots.vocabulary.payload.effectiveFrom !== request.effectiveFrom
           )
             invalid();
-          const semanticValidation = await config.validateDefinition({
-            snapshotId: request.ruleBundleRef.snapshotId,
-            payload: snapshots.bundle.payload,
-          });
+          const semanticValidation = await dependency(() =>
+            config.validateDefinition({
+              snapshotId: request.ruleBundleRef.snapshotId,
+              payload: snapshots.bundle.payload,
+            }),
+          );
           validateSemantic(semanticValidation, snapshots.bundle.payload);
           if (
             (request.supersedesPublicationRef === undefined) !==
@@ -654,10 +664,12 @@ export function createCompanyRuleCapabilities(config: CompanyRuleSnapshotConfig)
         auth.check(proof, 'identity.company_rule.read', target, request),
       );
       // Exact semantic/source checks are current; historical payloads are never recomputed.
-      const semantic = await config.validateDefinition({
-        snapshotId: request.ruleBundleRef.snapshotId,
-        payload: snapshots.bundle.payload,
-      });
+      const semantic = await dependency(() =>
+        config.validateDefinition({
+          snapshotId: request.ruleBundleRef.snapshotId,
+          payload: snapshots.bundle.payload,
+        }),
+      );
       validateSemantic(semantic, snapshots.bundle.payload);
       await auth.check(proof, 'identity.company_rule.read', target, request);
       const result = await withCompanyRuleTransaction(db, proof.session, proof, async (trx) => {

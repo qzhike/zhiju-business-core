@@ -586,7 +586,8 @@ describe.skipIf(!databaseUrl)(
           })
         ).status,
       ).toBe('COMMITTED');
-      for (const t of COMPANY_STARTUP_DEFINITION.templates) {
+      // Creation order intentionally differs from canonical template-code order.
+      for (const t of [...COMPANY_STARTUP_DEFINITION.templates].reverse()) {
         const bytes = readFileSync(
             new URL(`../fixtures/company-startup/${t.code}.md`, import.meta.url),
           ),
@@ -675,6 +676,7 @@ describe.skipIf(!databaseUrl)(
           sourceBytesSha256: hash.digest,
         });
       }
+      templates.sort((a, b) => a.templateCode.localeCompare(b.templateCode, 'en'));
       for (const code of ['GB/T 42061-2022', 'ISO 13485:2016', 'NMPA-2025-107']) {
         normativeRefs.push(await regulatoryFixture(code));
       }
@@ -729,14 +731,11 @@ describe.skipIf(!databaseUrl)(
             definitionVersion: '1.0.0',
             text: r.text,
             applicabilityConditions: r.conditions,
-            templateSourceBindings: (COMPANY_REQUIREMENT_LOCATORS[r.code] ?? [])
-              .map(([code, loc]) => sourceBinding(code, loc))
-              .sort((a, b) =>
-                `${a.templateRef.objectId}:${a.locator}`.localeCompare(
-                  `${b.templateRef.objectId}:${b.locator}`,
-                  'en',
-                ),
-              ),
+            templateSourceBindings: [...(COMPANY_REQUIREMENT_LOCATORS[r.code] ?? [])]
+              .sort(([code, loc], [otherCode, otherLoc]) =>
+                `${code}:${loc}`.localeCompare(`${otherCode}:${otherLoc}`, 'en'),
+              )
+              .map(([code, loc]) => sourceBinding(code, loc)),
             normativeReferenceRefs: normativeRefs,
           };
         const request = { requirementId: id, payload },
@@ -814,6 +813,158 @@ describe.skipIf(!databaseUrl)(
         companyHash(basePublication.payload),
       );
     }, 120_000);
+    it('PR268 R1: requirement sources use code/locator order independent of template creation order', async () => {
+      const definition = COMPANY_STARTUP_DEFINITION.requirements.find(
+        (r) => r.code === 'zhiju.requirement.qms.design_development',
+      );
+      if (!definition) throw new Error('requirement definition missing');
+      const codeOrdered = (COMPANY_REQUIREMENT_LOCATORS[definition.code] ?? []).map(
+        ([code, locator]) => sourceBinding(code, locator),
+      );
+      expect(codeOrdered.map((binding) => binding.locator)).toEqual(['7.3', '1-2']);
+      const [first, second] = codeOrdered;
+      if (!first || !second) throw new Error('requirement source pair missing');
+      expect(second.templateRef.objectId < first.templateRef.objectId).toBe(true);
+      const requirementId = newUuidV7();
+      const payload: CompanyRequirementDefinition = {
+        requirementCode: definition.code,
+        definitionVersion: '1.0.101',
+        text: definition.text,
+        applicabilityConditions: definition.conditions,
+        templateSourceBindings: codeOrdered,
+        normativeReferenceRefs: normativeRefs,
+      };
+      const request = { requirementId, payload };
+      const original = structuredClone(request);
+      const requestHash = companyHash(request);
+      const target = companyObjectTarget(
+        'zhiju.project.company_startup_requirement',
+        requirementId,
+      );
+      const imported = await composition.enterprise.importRequirement(
+        await proof(root, 'project.company_startup.requirement.import', target, request),
+        requirementId,
+        request,
+      );
+      expect(request).toEqual(original);
+      expect(imported.payload).toEqual(payload);
+      expect(imported.requirementRef.contentHash).toEqual(companyHash(payload));
+      const receipt = await admin.query<{ request_hash: Buffer }>(
+        'SELECT request_hash FROM enterprise_project.company_startup_receipt WHERE operation=$1 AND idempotency_key=$2',
+        ['project.company_startup.requirement.import', requirementId],
+      );
+      expect(receipt.rows[0]?.request_hash.toString('hex')).toBe(requestHash.digest);
+      const publishRequest = { requirementId, requirementRef: imported.requirementRef };
+      expect(
+        await composition.enterprise.publishRequirement(
+          await proof(root, 'project.company_startup.requirement.publish', target, publishRequest),
+          requirementId,
+          publishRequest,
+        ),
+      ).toEqual(imported);
+      const readRequest = { requirementRef: imported.requirementRef };
+      expect(
+        await composition.enterprise.readRequirement(
+          await proof(root, 'project.company_startup.requirement.read', target, readRequest),
+          readRequest,
+        ),
+      ).toEqual(imported);
+
+      const rejectedId = newUuidV7();
+      const wrongOrder = {
+        requirementId: rejectedId,
+        payload: {
+          ...payload,
+          definitionVersion: '1.0.102',
+          templateSourceBindings: [...codeOrdered].reverse(),
+        },
+      };
+      const rejectedHash = companyHash(wrongOrder);
+      await expect(
+        composition.enterprise.importRequirement(
+          await proof(
+            root,
+            'project.company_startup.requirement.import',
+            companyObjectTarget('zhiju.project.company_startup_requirement', rejectedId),
+            wrongOrder,
+          ),
+          rejectedId,
+          wrongOrder,
+        ),
+      ).rejects.toMatchObject({ code: 'COMPANY_RULE_DEFINITION_INVALID' });
+      expect(companyHash(wrongOrder)).toEqual(rejectedHash);
+      expect(
+        (
+          await admin.query(
+            'SELECT id FROM enterprise_project.company_startup_requirement WHERE id=$1',
+            [rejectedId],
+          )
+        ).rowCount,
+      ).toBe(0);
+      expect(
+        (
+          await admin.query(
+            'SELECT id FROM enterprise_project.company_startup_receipt WHERE idempotency_key=$1',
+            [rejectedId],
+          )
+        ).rowCount,
+      ).toBe(0);
+    });
+    it('PR268 R2: exact resolution normalizes dependency-session failures and preserves owning errors', async () => {
+      const b = await bundle('1.0.103');
+      const published = await publish(b);
+      const request = {
+        ruleBundleRef: b.bundle.policySnapshotRef,
+        startupRulesRef: b.rules.policySnapshotRef,
+        vocabularyRef: b.vocabulary.policySnapshotRef,
+        publicationRef: published.publicationRef,
+      };
+      const p = await proof(
+        service,
+        'identity.company_rule.read',
+        companyObjectTarget(
+          'zhiju.identity.company_rule_publication',
+          request.publicationRef.objectId,
+        ),
+        request,
+      );
+      const control = await composition.identity.resolve(p, request);
+      expect(control.currentUseStatus).toBe('USABLE');
+      expect(control.snapshots).toEqual(b);
+      // Calls 1-3 authorize exact snapshot reads; call 4 authorizes EP validation.
+      for (const failAt of [1, 4]) {
+        for (const error of [
+          new Error('PRIVATE_COMPANY_DEPENDENCY_SESSION_DETAIL'),
+          new CompanyStartupError('AUTHORIZATION_DECISION_INVALID'),
+        ]) {
+          let calls = 0;
+          const failed = createCompanyRuleComposition({
+            ...compositionConfig,
+            dependencySession: () => {
+              calls++;
+              return calls === failAt ? Promise.reject(error) : Promise.resolve(service);
+            },
+          });
+          sourceReads = 0;
+          const failure = await failed.identity.resolve(p, request).then(
+            () => null,
+            (reason: unknown) => reason,
+          );
+          expect(calls).toBe(failAt);
+          if (error instanceof CompanyStartupError) expect(failure).toBe(error);
+          else {
+            expect(failure).toBeInstanceOf(CompanyStartupError);
+            expect(failure).toMatchObject({
+              code: 'DEPENDENCY_UNAVAILABLE',
+              message: 'DEPENDENCY_UNAVAILABLE',
+            });
+            expect(failure).not.toHaveProperty('cause');
+          }
+          expect(sourceReads).toBe(0);
+        }
+      }
+      expect(await composition.identity.resolve(p, request)).toEqual(control);
+    });
     it('IP-257-002: AGENT/RUNTIME/actingFor/ordinary scoped rights fail before protected company reads', async () => {
       sourceReads = 0;
       const request = publicationRequest(base),
