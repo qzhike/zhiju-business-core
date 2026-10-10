@@ -1,6 +1,6 @@
 # PR #265 独立实现审查
 
-本文件保留六轮审查的独立证据。前五轮记录分别对应 `f42ca47`、`a7dfd3b`、`0dc2402`、`37f6ab8` 与 `b2e57ec`，已纳入修复提交；其中当时的工作区与交付状态是历史事实。当前结论见文末[第六轮复审](#第六轮复审1c72b2d)：`REQUEST_CHANGES`，R1–R5 的原发现已关闭；本轮新增 R6（P2），Provider/data 的必需嵌套读回或 ref 缺失时抛出 TypeError，未形成显式拒绝结果。
+本文件保留七轮审查的独立证据。前六轮记录分别对应 `f42ca47`、`a7dfd3b`、`0dc2402`、`37f6ab8`、`b2e57ec` 与 `1c72b2d`，已纳入修复提交；其中当时的工作区与交付状态是历史事实。当前结论见文末[第七轮复审](#第七轮复审bcac607)：`APPROVE`，R1–R6 均已关闭；本轮精确 head 的 code CI 与 86 项独立源码诊断通过，结论限定内部合同与 preflight 的 Draft 切片。
 
 ## 审查对象与结论
 
@@ -500,3 +500,66 @@ Issue 与 IG 合同要求缺失/未解析的必需来源显式拒绝。新 sourc
 本轮按用户授权提交普通英文 PR comment；发布与服务端读回结果追加在本节末尾。普通 comment 与 GitHub 原生 review 区分。Reviewer 没有修改产品代码，也没有 commit、push 或 merge。
 
 第六轮 comment 已通过 GitHub CLI 发布并从服务端独立读回：[复审评论 issuecomment-6091834147](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6091834147)。API 读回正文与准备的英文评论逐字一致，作者 galendai，created_at=`2026-10-10T00:51:36Z`，首 token 为 REQUEST_CHANGES，永久链接一致。再次读回 PR，head 仍为 `1c72b2d926b0c6111f54e76abec5893eb0a82edb`、state=OPEN、isDraft=true；评论从十二条增至十三条，最新链接与本次发布一致，确认只新增一条。评论明确关闭 R1–R5、单列 R6/P2 四个异常反例、可选证据的判定、当前精确 head CI PASS 与 56 项 diagnostic 的 52 通过/4 失败。本轮工作区仅此正式记录有改动，未 commit/push。
+
+
+## 第七轮复审：bcac607
+
+### 审查对象与结论
+
+- 用户授权：复审 PR #265 并提交 comments；没有产品修复或 Git/merge 交付授权。
+- Reviewed SHA：`bcac607073c24d62ae779e56691fb975e4d4f8a8`，与 `vibe repo --json` 的 PASS 结果及 GitHub 最新 head 一致；开始时工作区干净。
+- 上轮 SHA：`1c72b2d926b0c6111f54e76abec5893eb0a82edb`；本轮实际复核两者之间四文件增量及受影响 source/test。远程 baseRefOid 仍为 `5ddf79d4940fd3d049e5d86c0ac4692e0e587b90`。
+- 审查日期：2026-10-10；最新 Issue #264 为 OPEN、无 comments，PR 为 OPEN / Draft。
+- Reviewer role outcome：`APPROVE`。
+- 原 R1–R6 均已关闭，未发现该内部合同/preflight 切片的剩余阻塞。
+
+本轮先按最新 Issue #264、获批[锁合同 §2](../../decisions/d14-rd01-runner-profile-lock.md#2-一个版本化锁合同与三个不同证据层)及[IG 物化边界](../../module-specs/Module-Spec-007-IntegrationGateway.md#d14-runner-物化锁与原调用观察提案256)重建预期：完整对应来源正例接纳，缺失必需读回或引用时返回明确拒绝、来源路径且不抛异常，身份/内容/声明 bytes/receipt 的原匹配规则保持；多重错误的先后没有已冻结的顺序要求。再独立核对 diff、实际 helpers/matchers 与新增负例，直接重放上一轮反例。Implementer 的修复说明没有作为通过证据，当前配置证据独立从 Actions API 读回。
+
+### 验收与原发现关闭状态
+
+| 范围 / 发现                                                                     | 当前判断与证据                                                                                                                                                                             |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 闭合内部 descriptor、三证据层、producer/validator、cv1/bytes 分域及不可变旧输入 | 本轮无 Schema、producer 或 validator 改动；前六轮字段矩阵与修复结论保留，当前完整 producer/lock/preflight 正例和相关负例通过。没有 public Command/TypedReference 或 synthetic 接受集扩展。 |
+| R1：锁窗口                                                                      | issuedAt 起点接纳，窗口前及 validUntil 起点拒绝，继续关闭。                                                                                                                                |
+| R2：精确类型、Scope、双 hash                                                    | 注册 Contract 正例以及未知 Contract/Package/Run、缺 Scope、矛盾 hash 负例通过，继续关闭。                                                                                                  |
+| R3：审批完整 pin                                                                | 保留 digest 替换 technicalApproval.objectId 拒绝，继续关闭。                                                                                                                               |
+| R4：完整必需来源身份与部署字段                                                  | 既有 published/receipt/owning/immutableVersionId、四项 adapter/harness 字段及三个 Provider/data 身份替换反例通过；七个 model pin 共用的完整比较规则没有改变，继续关闭。                    |
+| R5：fencingToken 类型                                                           | 整数正例与负数、小数、字符串负例通过，继续关闭。                                                                                                                                           |
+| R6：必需嵌套 readback/ref 缺失                                                  | 上一轮四个异常反例全部变为结构化拒绝；七个 pin 的 readback/ref 分别为 undefined 或 null 的 28 项检查均返回 owning code 和精确路径，已关闭。                                                |
+| 模型、工具、控制、业务配置和 secret 边界                                        | 本轮无策略支持集变化；当前 code CI 继续覆盖既有 contract/negative fixtures。真实公司发布、Provider/Host 和数据许可仍作为运行前依赖，本任务只验证其内部拒绝边界。                           |
+
+### 字段矩阵复审增量
+
+本轮 source 静态契约的 required/optional 列表与上一轮相同；变化是其既有字段的 runtime 缺失处理。前六轮矩阵继续保留，下面逐项对账新 presence scan 消费的字段和返回路径。
+
+| 来源字段 / 共享路径                                                                                                                   | 缺失检查与返回行为                                                                                                                         | 判定                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| providerVersionBinding.fixedVersionBinding/perInvocationVerificationRule/identityBindingPolicy/apiTransport/apiEndpoint/networkPolicy | 六项 readback 和各自 ref 先进入 absentRefPaths；undefined/null 返回 PROVIDER_VERSION_BINDING_MISSING，reasons 指向 source pin 或 pin.ref。 | 六项 required 字段均覆盖，诊断和 matcher 前拒绝；独立 24 项检查通过。                                         |
+| customerDataAuthorization.dataPolicy                                                                                                  | readback/ref 先检查，undefined/null 返回 DATA_AUTHORIZATION_MISSING 和完整来源路径。                                                       | required 字段覆盖；独立四项检查通过，授权期限/provenance 职责保留。                                           |
+| policies 八个 locked keys 及其 ref                                                                                                    | 先检查必需 key 的 readback/ref，再执行 placeholder/floating/current 诊断。                                                                 | 返回 POLICY_EVIDENCE_MISSING；完整 ref/content 比较保留，缺 key 与浮动 deployment 共存时先返回缺 key。        |
+| inputOutputPins 五项及 promptTools 三项 owning readback/ref                                                                           | 既有五项 IO 槽位检查保留，随后统一检查 owning/prompt ref 的 presence。                                                                     | 返回 IO_PINS_MISSING 和来源路径；Ref/content/声明 bytes 比较保留。                                            |
+| templates 每项、ruleBundle/startupRules/vocabulary 的 readback/ref                                                                    | 顶层必需发布事实检查保留，逐项 presence scan 在 diagnostics 前运行。                                                                       | 返回 PUBLICATION_MISSING 和来源路径，模板逐项消费/拒绝未消费事实的规则保留。                                  |
+| evidenceTools 每项及 codeRef                                                                                                          | absentCodeRefPaths 在诊断前检查 pin/codeRef。                                                                                              | 返回 TOOL_PINS_MISSING 和来源路径；v0.2 code/runtime/dependency/command 全量比较未变。                        |
+| publicationReceiptRef                                                                                                                 | 仍为可选 source 证明；诊断以 truthy 值进入 Ref 检查，matcher 对锁声明 receipt 的 undefined/null 返回 false。                               | 锁声明的必需 receipt 缺失返回结构化 EVIDENCE_MISMATCH，不冒称返回每组 MISSING code；独立缺 receipt 检查通过。 |
+| 其余 provider/modelConfig、customer、deployment 与 Ref 字段                                                                           | required/optional、完整 identity 比较和内容/声明 bytes 规则不变。                                                                          | 既有 diagnostic 全部通过；不扩大 raw unknown JSON 或真实 runtime 的支持范围。                                 |
+
+错误优先顺序变化不构成阻塞：契约要求多重缺失/漂移情况下拒绝并提供可分类的结果，没有规定不同错误之间的全局顺序。独立组合反例确认缺失 network policy 与 floating adapterVersion 同时存在时返回 POLICY_EVIDENCE_MISSING 并指明 sources.policies.network，仍不可接纳。
+
+可选字段判定沿用第六轮：Ref 内 versionId/snapshotId/immutableVersionId 的值和有无必须一致；锁声明 bytes/receipt 时相应 source 必须匹配，锁未声明时额外 source 证明可以存在。新增 null 保护不改变这些匹配规则。
+
+### 当前验证证据与边界
+
+- 当前 [CI run 38011593402](https://github.com/qzhike/zhiju-business-core/actions/runs/38011593402)由 GitHub CLI 独立读回：headSha=`bcac607073c24d62ae779e56691fb975e4d4f8a8`，attempt=1，status=completed，conclusion=success。select/checks/verify 成功，checks 的 Verify code 步骤成功；persistence 为该 Draft 非持久化 code 路由的预期 skipped。依据项目 exact-revision CI 复用规则，本 Reviewer 没有重复执行本地配置 code Gate或重跑 CI。
+- 独立源码 diagnostic：`node node_modules/vitest/vitest.mjs run --config /private/tmp/pr265-rereview7.config.mts --reporter verbose`，Vitest 4.1.10，86 项全部通过，exit 0。包含前 56 项（上一轮四个异常反例现通过）、七个 pin 的 28 项 undefined/null presence/code/path 检查、一个必需 receipt 缺失组合检查和一个错误优先顺序组合检查。probe/config 位于仓库外，imports/aliases 指向 reviewed SHA 源码；该 evidence 与配置 Gate 分开记录。
+- `git diff --check 1c72b2d926b0c6111f54e76abec5893eb0a82edb..bcac607073c24d62ae779e56691fb975e4d4f8a8`：PASS。
+- 本轮新的默认环境最小 gh 只读探针成功，最新 PR/Issue 与精确 CI 读取均成功，无需沿用上一轮网络失败或改用 UI。
+- 本轮正式记录只更新当前结论指针、追加第七轮正文及 comment 读回；前六轮历史保留，新增 Markdown 格式、链接与工作区范围单独检查。该本地增量不属于 reviewed SHA 或 CI，未 commit/push。
+- 真实 OMP/DeepSeek、Ubuntu/CLI/adapter/Host 部署与隔离、真实 dispatch/IG→TE→EP 接纳链、PostgreSQL、OIDC/public HTTP、RA-LOCK-001–014/IG-LOCK-001–005、平台和独立人工业务验收仍 NOT RUN。code CI 中实际执行的 controlled fixture 检查不能扩大为这些运行证据。
+
+### 审查适用范围与后续门禁
+
+既有必需人类设计批准绑定 `8e8d2715b815179e92a18f444fb0eca13d58d466`，见 [PR #261 正式记录](../pr-261/Review.md#人类技术设计批准8e8d271)，批准设计的选择、支持集与接口未在本实现中改变。本轮维持 T2 分类，完成其独立实现审查；Issue 要求适用的精确修订人类技术批准，不把 T2 标签或旧设计快照的 PENDING 自动解释成另一项普遍的实现批准门禁。当前仅内部 descriptor 与纯 trusted-source preflight，不触及实际认证、dispatch/Provider、数据出网准入或迁移，也没有绕过尚未具备的生产许可，因此本切片可返回 APPROVE。
+
+APPROVE 是精确 reviewed SHA 的独立 agent-review 结论。PR 转 ready 或后续 merge 仍须当时的 configured full、正式文档交付及适用授权；该结论不声明 runnable lock 或生产 conformance 已成立，也不自动授权 merge。普通英文 PR comment 的发布/读回将在本节末尾记录。
+
+第七轮 comment 已通过 GitHub CLI 发布并从服务端独立读回：[复审评论 issuecomment-6092174726](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6092174726)。API 读回正文与准备的英文评论逐字一致，作者 galendai，created_at=`2026-10-10T01:27:25Z`，首 token 为 APPROVE，永久链接一致。再次读回 PR，head 仍为 `bcac607073c24d62ae779e56691fb975e4d4f8a8`、state=OPEN、isDraft=true；评论从十四条增至十五条，最新链接与本次发布一致，确认只新增一条。正文关闭 R1–R6，记录当前精确 head CI PASS、86/86 独立 diagnostic PASS、错误顺序与必需 receipt 结果，并保留 Draft 审查适用范围和 NOT RUN/交付门禁。本轮工作区仅此正式记录有改动，未 commit/push。
