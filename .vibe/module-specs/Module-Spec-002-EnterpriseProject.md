@@ -1061,3 +1061,46 @@ EP 新增内部公司 requirement import/publish/exact-read 与 CompanyStartupDe
 源字节通过受信内容读取 Port 取得，分别核对实际 SHA-256、TemplateVersion 的精确内容 hash、公司 source pin/页内版本与 locator；定位符必须唯一且存在。生产 pin 使用公司 Delta S1–S9；受控测试可在显式 CONTROLLED_TEST 配置中使用有 test provenance 的独立源字节和对应 pins，保持全部已确认业务代码/范围/强制集合，不把测试材料标为生产公司来源。正式规范必须 PUBLISHED、含 verification/authority/jurisdiction/effectivePeriod，过期或未取得拒绝；未来升级目标可保留其正式施行日期，不冒充当前已生效要求。
 
 已保存 snapshot 不等于发布。outer 校验通过受权 IP resolver 精确读回两 child，并逐项核对九模板、十二 requirement、标准/升级目标与词表来源/映射，返回绑定完整 payloadHash/profile/SchemaRef/child refs 的语义结果；IP Publisher 发布前再执行此校验。后续 D14 source/report/start/STALE/impact 转换仍 NOT IMPLEMENTED。
+
+## D12 / Q11 项目交付关联只读提案（#260）
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。批次由 [REL §14](Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 拥有，EP只提供计划/交付项及依赖来源，不新建Batch/Release/Completion能力。
+
+拟内部 ProjectDeliveryAssociationPort：独立当前授权的HUMAN或显式登记Release Reader SERVICE；服务调用还须限制在发起HUMAN的当前可读范围内。Ref必须exact同Project。两个分支为closed tagged union，不再以省略必填集合区分模式：
+
+```text
+ProjectDeliveryAssociationRequest =
+  {mode: ENUMERATE, projectRef: ObjectRef<Project>,
+   deliveryPlanRef: VersionedRef<DeliveryPlan>, page: PageRequest}
+  | {mode: VERIFY, projectRef: ObjectRef<Project>,
+     deliveryPlanRef: VersionedRef<DeliveryPlan>,
+     deliveryItemRefs: Set<VersionedRef<DeliveryItem>>}
+
+ProjectDeliveryAssociationItem
+  deliveryItemRef: VersionedRef<DeliveryItem>
+  criteriaHash: PayloadHash; qualityProfileRef: VersionedRef<QualityProfile>
+  targetArtifactTypes: NonEmptySet<NamespaceCode>; dependencyItemIds: Set<UuidV7>
+  chapterBindings: NonEmptySet<{chapterCode: NamespaceCode, ordinal: NonNegativeInt}>
+
+ProjectDeliveryAssociationContext
+  projectRef: ObjectRef<Project>; deliveryPlanRef: VersionedRef<DeliveryPlan>
+  planUsable: boolean; chapterMappingRef: VersionedRef<Policy>
+  planQualityPolicyRef: VersionedRef<Policy>
+  checkedAt: UtcInstant; sourceWatermarks: SourceWatermark[]
+
+ProjectDeliveryAssociationResult =
+  {mode: ENUMERATE, context: ProjectDeliveryAssociationContext,
+   page: Page<ProjectDeliveryAssociationItem>, pageAssociationHash: PayloadHash}
+  | {mode: VERIFY, context: ProjectDeliveryAssociationContext,
+     items: ProjectDeliveryAssociationItem[], associationSetHash: PayloadHash}
+```
+
+ENUMERATE必填共享PageRequest（pageSize及可选cursor），禁止deliveryItemRefs；VERIFY必填deliveryItemRefs，禁止page/cursor，不分页、不扩大集合。VERIFY成功的items与输入完整Ref集合一一对应，错Scope/版本/Hash或不可读项安全拒绝整个验证，不返回可误认为完整的部分集合。合法空VERIFY集合返回items=[]及该空集合的Hash，仍重验Project/Plan/Policy；它不枚举任何Item。输入Artifact关联来自REL受权读取的ART.definition.deliveryItemRefs，EP不提供artifactRef、不读取ART Repository、不因caller声称“文件属于计划”认定成功。
+
+只从EP已提交当前ACTIVE、经Human批准的exact Plan与owning Item/Requirement/Dependency、Project/QMS与计划QualityPolicy版本读回。chapterMappingRef必须是被批准的同Plan适用有限章节映射（QualityPolicy关联的完整版本，不是Runner报告或标准号字符串），缺失时安全返回不可用，不制造required Ref。枚举的page显式包含items、可选nextCursor、snapshotAt、sourceWatermarks；水位与context一致，snapshotAt在同次枚举固定，checkedAt为当次当前权限/计划重验时间。本首版无额外枚举filters字段，固定筛选为Project/精确Plan及当前可读范围；游标按共享§6.2绑定mode/Port版本、Scope、requester/purpose、规范化Project/Plan筛选、稳定完整ItemRef排序位置、源水位和有效期。Scope/Plan/筛选/主体或purpose不符、过期、当前授权范围/Plan当前性或相关EP源水位变化均拒绝续页；不能漂移到新权威版本或拼接两个读切面。没有真实水位或无法恢复固定读切面时不能伪造sequence/完整性。items=[]但有nextCursor是合法中间页，须推进已扫描位置并继续；无nextCursor仅说明当前授权枚举结束，不返回隐藏项名称/数量。
+
+pageAssociationHash仅覆盖本页；associationSetHash仅由VERIFY证明所请求的完整exact集合。两Hash各覆盖mode、context中的项目/计划/两Policy完整Ref、planUsable与规范排序的items（枚举取page.items），排除自身Hash、checkedAt、snapshotAt、水位和cursor。REL不能拿一页Hash、最后页Hash或分页Hash拼接冒充完整集合Proof；它从枚举读回所需Item/依赖的真实Ref后，对ART实际关联和配套闭包的完整所需集合执行VERIFY。超共享Guard预算拒绝，不截断或按部分验证宣称闭包成立。每文件associationProofHash使用其exact关联集合的VERIFY.associationSetHash与ART实际关联/Revision provenance；这些Hash是只读观测，不伪造已提交Snapshot。
+
+依赖取真实dependencyItemIds和targetArtifact requirements；交付配套/optional/execution-only分类由版本化Plan/Quality release规则给出，不能把所有共用事项机械阻断或将全部依赖视为可省略。共享文件须逐个满足所关联项Artifact类型/质量pin；无合法关联、错计划版本/Item Hash、unknown分类、章节缺失/Plan被替代时阻断。计划改变产生新Version与影响事实，不重写已确认Batch；本首版要求当前ACTIVE版本，新候选本身不改计划。初轮workScope Receipt或Runner拟交付清单不等于ACTIVE DeliveryPlan，无合法计划保持不可用，不要求先实现另一新设计Issue。
+
+批次确认/生成/下载不调用evaluate_delivery_item_completion，不新增“已交付”或“已发送”字段，也不消耗下载观察作为现有ReleaseCompleted事实。首版允许独立未就绪项继续执行，配套闭包之外的项目项不进入本批分母。

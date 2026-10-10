@@ -235,3 +235,15 @@ WI-02 非目标：GateResult evaluation、ReviewIssue、Human Approval decision�
 |---|---|---|---|---|
 | QG-COMP-D-001 | Cross-module Application + PostgreSQL / exact正式Revision/RAS、可选ABS与真实current eligibility | 适用criterion才读取、HUMAN与固定TE SERVICE均用自身独立Decision；冻结Profile/P1-P2分离、SelectionPort实际Refs与最新规则一致、同Revision/Profile/anchor且当前usable，未请求ABS为NOT_APPLICABLE | OWNING/PG PASS：真实P1/P2 Profile、Gate/RAS/Approval/ABS，TE只选择frozen P1并消费已有#192 current eligibility；Selection/actual refs来自Quality owning事实，输出无Quality criterion不读取。 |
 | QG-COMP-D-002 | Cross-module Application + PostgreSQL / Gate失效、Approval撤销/new snapshot、错Hash/Scope、quality权限撤销/不可达 | Completion/Readiness current不可用或依赖拒绝；历史Snapshot/Evaluation不改；没有以历史READY覆盖false；current读取不重选Refs，refresh才生成新Evaluation.qualitySelection | OWNING/PG PASS（已执行）：同Profile新RAS/ABS使旧Evaluation STALE，refresh选新Refs；实际Approval revoke/Gate invalidate/Profile successor导致current不可用，历史不变。新TE Selection Grant真实撤销拒绝refresh、重新授予后恢复；新TE层逐项错Hash/Scope/不可达子项NOT RUN；已有#192相应用例单独保留。 |
+
+## D12 / Q11 内部批准及当前导出资格设计场景（#260）
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 [Quality D12](../module-specs/Module-Spec-005-QualityGovernance.md#d12--q11-逐文件批准与受控导出资格提案260)；既有#192证据不覆盖新批次消费。
+
+| ID | 输入 | 预期 | 当前实际输出 / 结果 |
+|---|---|---|---|
+| QG-D12-001 | exact RAS/current mandatory PASS、独立Reviewer、满足全角色/count的ABS、逐文件Render Gate/PKG/RRS | 内部获批与EXPORT_ELIGIBLE分层；只有完整Release链才能导出；Quality Proof只读不修改任何Snapshot | 无导出组合 / NOT RUN |
+| QG-D12-002 | mandatory FAIL/ERROR/missing、blocking Issue、作者自验、顾问项目负责人缺独立角色、Agent/actingFor、只一角色APPROVED | 拒绝绕过；部分ABS仍不可交付，身份称谓不授予角色；单份决策成功才接续，拒绝/UNKNOWN不前进 | 无新UI/QG组合 / NOT RUN |
+| QG-D12-003 | historical READY/FULLY_APPROVED后Gate失效、Approval/Decision/Role撤销、新RAS/ABS/RRS或Profile变化 | confirmation/AVAILABLE/许可/流消费旧exact refs不可用；历史Query不重写，不自动找新Snapshot修补；新未批准候选独立 | 无新消费/Impact链 / NOT RUN |
+| QG-D12-004 | 独立导出Proof调用方无对应purpose、TE-only Port冒用、wrong Profile/Scope/Hash、缺ABS/NOT_APPLICABLE | 新Port独立授权并fail-closed，不扩大#192/TE allowlist；Quality proofHash域稳定，缺ABS不能true | 无新Port/注册 / NOT RUN |
+| QG-D12-005 | Quality/Plan配套规则冲突、未知classification、跨Plan/Profile借批准、使用旧下载当required companion | 拒绝或明确不可用；规则/完整Ref及语义Hash绑定闭包；不同Owner水位不宣称全局原子快照 | 无有限配套规则消费 / NOT RUN |

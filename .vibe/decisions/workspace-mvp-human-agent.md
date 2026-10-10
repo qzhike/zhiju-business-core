@@ -326,7 +326,7 @@ Web 提交意见后无需再次复制回个人 Agent。点击“提交并修改�
 
 用户进一步选择 B：MVP 只记录交付包与下载情况，实际发送继续在外部渠道管理，不增加“标记已发送”、发送人/发送时间登记、客户收件或验收状态。界面必须区分可核实的服务端下载响应与浏览器下载请求；只能证明发起请求时，显示“已请求下载”，不能显示已保存完成。该选择收敛前端范围，不删除既有正式发布回执能力。
 
-当前契约存在需要明确处理的边界：本轮核对本地主工作区的 [ReleasePublication Spec](../module-specs/Module-Spec-006-ReleasePublication.md) §2、§7、§11.2，现有 Release/ReleasePackage 绑定一个 Artifact/精确 canonicalRevisionRef，可包含该版本的多种 Representation 及多个 Destination；其 representations 不是任意多份文件的版本清单。多文件下载包的集合、清单、授权与可追溯关系需要按 D12 补充设计，不能直接改写既有 Package Hash 域、将多个版本装入单 Revision 契约，或用浏览器压缩下载绕过正式发布条件。
+当前契约存在需要明确处理的边界：本轮核对本地主工作区的 [ReleasePublication Spec](../module-specs/Module-Spec-006-ReleasePublication.md) §2、§7、§11.2，现有 Release/ReleasePackage 绑定一个 Artifact/精确 canonicalRevisionRef，可包含该版本的多种 Representation 及多个 Destination；其 representations 不是任意多份文件的版本清单。Issue #260 的 [D12/Q11 Spec Delta](project-delivery-controlled-export.md) 提出 ReleasePublication-owned Batch 引用逐文件已授权 CONTROLLED_EXPORT Release/Package、独立Manifest/ZIP Hash及请求/响应观察；仍为 PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED，待独立设计审查及精确修订人类技术批准。不能直接改写既有 Package Hash 域、将多个版本装入单 Revision 契约，或用浏览器压缩下载绕过正式发布条件。
 
 现有 Package 还要求精确接收方/目标及正式发布回执来源；人工离线发送不能被伪造为 PublicationReceipt。正式实现前，需明确受控导出路径、面向客户的多文件下载集合与逐文件 Release 的映射，以及此阶段能够证明的事实。该产品选择不冻结新 Aggregate/API，也不删除既有对外发布能力； owning Spec/Test/Contract 的增量按后续设计审查同步。
 
@@ -546,7 +546,7 @@ UI-DG-003 的技术 Session、Cookie/OIDC、超时/刷新、CSRF/CSP/Markdown、
 | D09 模板接入与文件关系 | 已有 TemplateBaseline/精确引用；需细化模板用途、归口、编号替代、示例隔离与解析歧义处理 | 产品发现、EnterpriseProject/Artifact/IntegrationGateway Spec/Test、相关输入 Contract | Markdown 填写及交付方向按 P11/P12 确认；元数据、准入及兼容规则待定；工作簿设计后置 |
 | D10 适用性与批准含义 | 原型展示待确认阻断；实际事实、角色、证据和重评条件尚未冻结 | EnterpriseProject/QualityGovernance/TaskExecution、UI Spec/Test、批准快照 | 内部批准不替代客户签批；阻断与确认契约待定 |
 | D11 真实模板验收 | 最小 Renderer 和合成业务 Fixture 不证明复杂真实模板已支持 | 验证基线、Canonical 决策、相关 Module Test | 需覆盖宽表、混合表单、引用影响与格式损失；业务验收 NOT RUN |
-| D12 交付包下载与人工发送 | 现有 ReleasePackage 绑定单份 ArtifactRevision，含该版本的 Representation 与精确 Destination；不等于多文件交付集合，也没有把人工离线发送视为 Formal Receipt 的权限 | ReleasePublication/QualityGovernance/Artifact/UI Spec/Test、受控导出及相关 Package/下载 Contract | 用户已确认 MVP 按阶段分批生成下载包，由顾问自行发送；只记录包与可核实的下载情况，不增加人工发送标记。多文件汇总与受控导出映射待设计，不修改历史 Hash 或伪造发送/收件事实 |
+| D12 交付包下载与人工发送 | 现有 ReleasePackage 绑定单份 ArtifactRevision，含该版本的 Representation 与精确 Destination；不等于多文件交付集合，也没有把人工离线发送视为 Formal Receipt 的权限 | ReleasePublication/QualityGovernance/Artifact/UI Spec/Test、受控导出及相关 Package/下载 Contract；EP关联与IG技术边界 | 用户已确认 MVP 项目汇总、按阶段分批下载、自行发送及不设发送标记。[#260技术提案](project-delivery-controlled-export.md) 与owning Spec/Test已提供映射、配套闭包及失败trace；未冻结/注册/实现，历史Hash与正式回执不变，依赖实现未READY |
 | D13 Runner 分析报告 | 独立测试产物为多个 Markdown 报告和有限检查 JSON，尚无平台可接纳的统一业务分析格式 | [报告 Schema v0.1 设计](runner-analysis-report-v0.1.md)、Runtime/IntegrationGateway、EP/TaskExecution、UI owning Spec/Test | 已按用户要求形成待审设计与匿名示例；不注册公共 Contract，不赋予报告批准或完成权 |
 | D14 项目准备与一次性正式启动 | 当前项目、Task 与来源/上下文创建要求启动快照先存在，与两项名称后 ZIP 分析的已批准交互顺序冲突；v0.1 报告尚非结构化启动输入 | 本文 §4.7.1；EnterpriseProject/IdentityPolicy/TaskExecution/IntegrationGateway/UI Spec/Test、Domain、Core/Catalog、PostgreSQL、报告及 Runtime 专题 | 推荐同一 Project 的 PREPARING → ACTIVE、独立准备分析上下文及可信 Human 一次性启动；初始化方向已批准；旧设计工作树有未提交 owning 增量，当前已带入 UI01 与相关草案，其余 owning 同步范围见 §8.1；字段合同与技术审阅待闭合、后台未实现，旧完整创建路径不变 |
 
@@ -595,7 +595,7 @@ D04 不能给个人 Agent 伪造 Human 身份；可提议受限请求草稿与�
 | Q08 | Markdown 模板准入、用途分类、字段填写、稳定定位及不支持内容的处置 | P11/P12 已确认 MVP Markdown 范围；具体设计在输入管线前冻结，禁止将示例直接采信为客户事实；逐模板 Excel 转换与结构迁移后置 |
 | Q09 | 归口、多重引用、旧编号替代与条款映射 | 模板目录和关联查询实现前冻结，保留已有精确引用基础 |
 | Q10 | 适用性问题的确认角色、证据、阻断及重评条件 | 与 owning Gate/Approval 契约一起冻结；原型模拟按钮不是业务接口 |
-| Q11 | 正式交付下载包与发送边界 | 2026-09-22 已确认：满足发布条件并确认文件/版本后下载，由顾问沿用现有渠道发送；下载不等于客户收到。允许按阶段分批交付已确认，每批固定范围与版本，配套完整性要求不变；只记录交付包与下载情况、不增加人工发送标记已确认；单 Revision 发布包与多文件集合的映射及受控导出契约待收敛 |
+| Q11 | 正式交付下载包与发送边界 | 2026-09-22 已确认：满足发布条件并确认文件/版本后下载，由顾问沿用现有渠道发送；下载不等于客户收到。2026-10-07 项目汇总/跨轮次章节组织已确认；分批固定范围与版本、配套完整性及不增加发送标记不变。[#260技术映射](project-delivery-controlled-export.md) 为PROPOSED，须独立设计审查及精确修订人类技术批准；不声明已冻结/注册/实现 |
 | Q12 | 两项名称后 ZIP 分析的正式初始化顺序 | §4.7.2 客户选择/新建交互已批准；D14 推荐同一项目准备阶段、独立受限分析与 Human 一次性正式启动。初始化方向已于 2026-10-08 批准；旧设计工作树有未提交 owning Spec/Test 增量，当前已带入 UI01 与相关草案，其余 owning 同步见 §8.1。字段合同、profile 与技术审阅闭合后才能形成 READY 后台实现工作；不复开已批准入口 |
 
 ## 10. 正式业务验收场景（前瞻要求，均为 NOT RUN）

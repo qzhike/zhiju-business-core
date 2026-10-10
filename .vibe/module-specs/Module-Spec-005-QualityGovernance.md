@@ -410,3 +410,16 @@ selectionHash为canonicalization=1 SHA-256，覆盖返回的revisionRef/qualityP
 该Port必须同时覆盖production composition授权、实际Quality创建RAS/ABS的normal/refresh路径与真实PostgreSQL，不能用fixture预置选择结果；不同Profile同时拥有READY RAS/FULLY_APPROVED ABS的负例须证明固定Profile不会漂移。
 
 #235 的有限 Completion 消费额外在既有 owning current-eligibility 事务内重验冻结 Profile 的 ACTIVE/current-version，以及已选择 ABS 引用的实际 Approval 是否 REVOKED。撤销判定只通过内部回调提供给 Completion，用于区分 REVOKED 与 STALE；公开 `RevisionExecutionEligibilityResult` 闭集与历史 #192 解释不变。
+
+## D12 / Q11 逐文件批准与受控导出资格提案（#260）
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。批次字段/Hash只由 [REL §14](Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 定义；本节不扩展现行 Quality Operation 或改写历史 RAS/ABS/RRS。
+
+1. **内部获批**：同 exact Artifact/Revision/Scope/QualityProfile 的 RAS 必须当前 READY，适用 mandatory REVISION_ACCEPTANCE Gate有效 PASS、无 blocking Issue/失效 Evidence；ABS 必须当前 FULLY_APPROVED，每项 Approval exact锚定同一 RAS、Human/Role/count/ordering/assurance/separation 全满足且未撤销。项目负责人任顾问仍不能覆盖 Profile 的 independent reviewer/approver 要求；有权提交自己的 Approval 不等于能代签其他角色。APPROVED Decision 成功但 ABS 仍 PARTIALLY_APPROVED时显示“待其他必需角色”，不能标内部全部获批或可交付。
+2. **当前性输入**：沿现行 quality.get_revision_execution_eligibility 的 exact/current 判据复用 owning 检查；执行用途的 #192 Query 与 TE CompletionQualitySelectionPort allowlist/purpose 不扩大。拟内部 ControlledExportQualityProofPort 另行独立授权，只允许 Scope内当前有相应 Quality读取权的 HUMAN 或显式登记的 Release evaluator SERVICE，不使用 actingFor提权。输入 closed `{revisionRef,qualityProfileRef,revisionAcceptanceSnapshotRef?,approvalBundleSnapshotRef?}`；Profile来自 EP exact item/规则 pin，多个item必须兼容，不能由客户端任挑。未传 Snapshot 时仅从本 Owner 同 Revision/Profile 的真实当前指针发现 exact Ref；传入时只检验原Ref，不能替换。
+3. **只读 Proof**：closed返回 `{revisionRef,qualityProfileRef,revisionAcceptanceSnapshotRef?,approvalBundleSnapshotRef?,revisionAcceptanceUsable:boolean,approvalBundleUsable:ValueEnvelope<boolean>,proofHash:PayloadHash,reasonCodes:ReasonCode[],checkedAt:UtcInstant,sourceWatermarks:SourceWatermark[]}`。缺 Profile/RAS/ABS为明确不可用；本导出用途必需 ABS，因此 UNKNOWN/NOT_APPLICABLE/NOT_PROVIDED 都不通过。proofHash覆盖返回的完整Ref与可用性/reasonCodes，不含自身Hash/观测时间/水位；缺省Ref采用omission。该Port不创建Snapshot、不重跑Gate、不签Approval；原 #192 返回结构保持不变。不存在或隐藏Scope安全折叠，内部服务身份本身不授予数据权限。
+4. **可受控导出**：内部获批还须 exact Markdown Representation 已登记、单文件冻结 Package 与 purpose/recipient/destination/Policy匹配、mandatory RELEASE_READINESS/Render Gate成立；RRS使用原 get_release_readiness_snapshot(requireCurrentForAuthorization=true)，仍是该 Release/Package 当前 READY_FOR_AUTHORIZATION。RAS/ABS/Proof不能代替RRS；RRS不能代替Human ReleaseAuthorization；新Package/renderer/checksum/purpose/接收范围不得复用旧RRS。
+5. **强制配套**：配套来自 EP Plan/QualityPolicy与本模块 QualityProfile.releaseRequirements 的精确版本，首版只支持能列出同Plan交付项、required Artifact roles/counts与交付依赖分类的有限规则；不执行任意Policy脚本。REL将各规则的完整引用及语义Hash合成requirementSetHash并取强制依赖闭包。optional/execution-only 与交付配套区别不明、规则冲突、所需项只有旧历史批准或缺RRS/授权即阻断；顾问不能临时豁免。每份文件自身qualityProfileRef须与关联项pin兼容，不能从另Profile借批准。
+6. **撤销与消费**：confirmation、Worker开始/Link发布AVAILABLE、下载许可及流前均以原exact refs重验。Gate/Approval撤销、RAS/ABS/RRS替代、Profile失效或Recall blocker使消费不可用，旧Snapshot仍可受权历史读取。不因已确认批次把历史FULLY_APPROVED/READY当当前票据；也不因新未批准候选到达自动撤销仍有效旧Approval。同步当前检查和异步Impact互补，跨模块水位不声称全局原子性。
+
+单份审批交互只消费 quality.submit_approval_decision 原Command Receipt及exact回读。成功提交当前文件的 APPROVED 决定后接续下一份当前可检查文件；必要其他角色仍单独待办。REJECTED/业务拒绝不前进；timeout为UNKNOWN，先读原request/key，确认成功才前进。该接续不批量批准其他文件，不写Release/Completion。

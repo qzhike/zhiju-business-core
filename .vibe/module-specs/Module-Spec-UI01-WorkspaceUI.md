@@ -288,3 +288,25 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 6. 原CREATE request预分配target UUID，稳定key=`operation:1.0:targetUuid`；安全request页面不含客户正文/token。response丢失/401/重启后从Core回读原request/key；新认证只改变当次权限证明，不改原payload/历史Actor，禁止新键自动重发。PENDING/UNKNOWN/PARTIAL/STALE保留真实成功steps，COMMITTED/202不表示running。
 7. 所有POST Query/业务写/上传/登出/技术活动要求精确Origin/Host/CSRF/Content-Type；只有绑定的OIDC callback例外。受保护响应no-store，安全Markdown/CSP与遥测allowlist沿Delta；Scope/Principal变更与失权清DOM/cache/objectURL，generation检查迟到响应、multiTab失效与bfcache恢复。
 8. 独立设计Review和人类技术批准、actual deployment lock/Registry/当前权限/公开HTTP与D14依赖分开确认。真实OIDC/PostgreSQL/Host/Runner/Chrome/Edge/Manual仍NOT RUN，不因docs gate通过宣告可用Session或任务READY。
+
+## D12 / Q11 项目交付与原意图恢复提案（#260）
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。owning字段/Hash/操作候选见 [REL §14](Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260)，跨轮次/失败trace见 [Spec Delta](../decisions/project-delivery-controlled-export.md#5-设计-trace-与必要反例)。已批准 #project-delivery/#delivery/#execution-review 布局与中文产品文案保留，原型sessionStorage/合成ZIP不成为生产事实。
+
+| 入口/事实 | 呈现与操作 | 权威边界 |
+|---|---|---|
+| 单份审批 | 当前精确文件/版本的APPROVED决定权威COMMITTED并回读后自动接续下一份待检查文件；其他角色仍待办则明确显示 | 按Quality角色/职责分离；REJECTED/拒绝/UNKNOWN不前进，UNKNOWN先回读原request/key |
+| 准备项目交付 | 固定高度章节清单/详情、搜索/资格筛选，汇总所有轮次，初始不选；每行保留原轮次/报告及阻断原因 | Candidate Query的EXPORT_ELIGIBLE才可确认；内部获批、Page READY及原型fixture不等于发布就绪 |
+| 核对本批版本 | 一个确认对话显示全部exact版本/配套及接收范围；不暗选新文件、不替换Hash | 单文件Release Human授权若未满足，显示“待发布授权”，不能复用内部批准按钮代签 |
+| 确认成功 | “本批版本已确认，待生成交付包” | CONFIRMED不等于AVAILABLE；生成请求响应与包可用分别回读 |
+| 生成中/失败/UNKNOWN | “正在生成交付包”/“交付包未能生成”/“生成结果待核实”；已有包保留 | 只恢复原Batch/PackageRequest/Attempt，不自动新建Batch或改版本；技术失败不会重置独立文件 |
+| 选择变化/撤销 | 失效行明确“版本或交付条件已变化，请重新核对”；保留其他有效选择，由Human清除或重新选择 | 服务端重验原集合，旧确认/包不可变；新候选不自动替换仍有效批准 |
+| 已请求下载 | Browser主动请求与服务端接受请求可分别标明，缺响应时“下载结果待核实” | a.click/HTTP accepted不证明保存成功；没有请求Receipt时只显示本地请求未核实 |
+| 服务端流 | 可显示“服务端已开始下载响应”/“服务端已发送下载响应”/“下载响应中断” | 只映射可靠持久化ResponseObservation，完整响应也不标“已保存”“已发送”“客户已收到” |
+| 过期/失权 | “下载链接已过期”/安全的“当前无法下载”，有权时重新请求同一包 | 新Decision/许可，不延长旧Token，不从对象locator拼URL；禁用入口不替代Core授权 |
+
+未提交selection只算页面草稿；没有owner保存能力不承诺跨设备恢复。CREATE前固定operation/version/target UUID/key/payloadHash与exact Scope；response丢失、401或重启后先登录再回读原request/Command Receipt，不换key自动提交。后续新草稿不加入旧intent，原Actor不因新Session改写。已保存Batch/PackageRequest/DownloadRequest可在当前权限下恢复，读回COMMITTED/UNKNOWN/FAILED/STALE的实际边界，不以toast推定成功。
+
+下载只消费owning公开能力批准后的受控短期stream，BFF传bytes/backpressure，不生成ZIP、拥有Batch或调用存储。Session/Project/Principal变更清理敏感DOM/cache/objectURL及许可；迟到响应需按request generation与Scope检查，不带回失效主体的内容。短期Token/URL不得进入持久storage、分享链接、日志/telemetry。
+
+桌面批准限制和手机查看/反馈/包详情沿已批准原型；不新增移动端审批。响应式滚动、键盘确认/焦点回收及真实Chrome/Edge验收分别验证。无发送人/时间登记、手动sent marker、客户验收入口或自动项目完成；复制或下载的旧bytes无法回滚，不把本系统观察当外部渠道事实。

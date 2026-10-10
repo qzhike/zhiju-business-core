@@ -136,3 +136,22 @@ WI-07 的最小可交付验证顺序为：先执行 Contract/Unit 的 Human-only
 | RP-WI08-M-001 | Manual | 包含 DOCX/XLSX checksum、Representation binding、Package/Attempt/Receipt/Recall exact refs 的复核报告 | 可审阅合成技术事实并看到 fidelity/Provider/业务人工边界 | [`Synthetic-QMS-REL-801-Exit-Report.md`](../archive/codex-issue-128-delivery/Synthetic-QMS-REL-801-Exit-Report.md)；PR #135 的 Word/Excel openability 结果可引用；本地不保留生成文件 | `PARTIAL — TECHNICAL REPORT / INDEPENDENT BUSINESS ACCEPTANCE NOT RUN` |
 
 2026-08-31 GitHub exact-head 验证：WI-08 最终审阅 head `306cdbc3b8c8201994a57097038c4c3f784b0412` 已随 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139) 合入 `main`，GitHub Actions `verify` run `33355948473` 通过，merge commit 为 `07fc6a083897c01924f842d12dffe06fd6068261`，Issue #128 已关闭。该结果覆盖仓库 Gate，不扩大 RP-WI08-E-002 的统一跨模块业务 E2E 或 RP-WI08-M-001 的独立人工验收范围。
+
+## D12 / Q11 批次与受控下载设计场景（#260）
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 [REL §14](../module-specs/Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 与 [TR-260](../decisions/project-delivery-controlled-export.md#5-设计-trace-与必要反例)。这些是未来运行用例，当前无新运行输出；docs/static只检查定义，不能借用旧REL-801 PASS。
+
+| ID | 层级 / 输入 | 预期输出与必须保留的事实 | 当前实际输出 / 结果 |
+|---|---|---|---|
+| RP-D12-001 | Contract/E2E；TR-260-01 三份跨轮次exact获批表示及逐文件PKG/RRS/AUTH，独立M处理中 | 一个Project/Plan章节批次与三个单Revision Package；一次确认全部精确refs；M不受影响，无Release/Project Completion | 无Batch实现 / NOT RUN |
+| RP-D12-002 | Unit/Contract；缺强制F、配套跨Project、unknown依赖分类、F只有ABS或缺独立Release授权 | 确认拒绝；零新Batch/归档/许可，不自动选项/放宽required；先前下载不满足配套 | 无配套Evaluator / NOT RUN |
+| RP-D12-003 | Contract/Compatibility；wrong Scope/Hash/RRS/renderer；将多Revision装入旧ReleasePackageDefinition | 逐层masked/绑定拒绝；旧package-hash golden与Schema接受集完全不变；新batch/archive类型不能冒充ReleasePackageRef | 无新Schema/fixture / NOT RUN |
+| RP-D12-004 | Unit/Persistence；确认前、Worker开始、Link→AVAILABLE及许可/流前撤Approval/Gate/Role/Decision、Recall或新RRS | 各新边界fail-closed；原CONFIRMED/历史Snapshot/旧响应保留；新AVAILABLE/许可/后续bytes禁止，无失败连带重置 | 无新Current/Impact组合 / NOT RUN |
+| RP-D12-005 | Unit/Race；inspect后Plan/关联/selected entry/配套或current Snapshot变化；确认后新未批准候选 | 前者selectionHash不符/STALE；不换新Ref；后者不改旧清单/ZIP，不凭新候选自动撤销仍有效旧Approval | 无selection/recheck实现 / NOT RUN |
+| RP-D12-006 | Unit/Hash；集合重排、同Hash不同kind/Scope；preparedAt变化；自Hash、URL/下载时间；篡改任一ZIP entry | 按每域固定排序得唯一Hash；旧Hash域不混入批次；重复拒绝；文件/清单/ZIP/Descriptor分别验；错误bytes不得AVAILABLE | 仅设计公式 / NOT RUN |
+| RP-D12-007 | Persistence/Race；确认timeout、同键同/异payload、双Worker、staging后DB fault、finalize UNKNOWN/lease失效 | 同意图一Batch/固定archive；异输入冲突；Receipt/Audit/Link原子；UNKNOWN按原Attempt恢复；过期fence零成功发布；有Link不当orphan删 | 无新表/Worker / NOT RUN |
+| RP-D12-008 | Integration；AVAILABLE后重复下载、更新其他候选、再次新批次 | 原archive对象version/三份bytes/manifest/ZIP checksum不变；新批次独立；新renderer/checksum不得改旧archive | 无真实存储/renderer / NOT RUN |
+| RP-D12-009 | Security/HTTP；wrong Human/Session/Scope、Agent/actingFor、过期许可、撤权、stream failure/观察写失败/Range | 流前拒绝零bytes；流中失权停止并保留真实部分事实；expiry≤5分钟且≤Session/Decision；UNKNOWN不伪造RESPONSE_SENT；Range不支持 | 无OIDC/HTTP/stream / NOT RUN |
+| RP-D12-010 | E2E/Manual；click、复制、响应已发送、外部人工发送与旧正式发布链对照 | 新受控观察均不进入FormalReceipt/PublicationSucceeded/ReleaseCompleted/EffectiveBinding/DeliveryItem/Project Completion；无sent marker | 无独立人验/客户送达证据 / NOT RUN |
+| RP-D12-011 | Contract/E2E；TR-260-09，仅Project/Plan入口，经EP ENUMERATE→ART发现→EP VERIFY→exact ART/QG及REL关联；无Release的内部获批文件、shared/R1/R2/Human来源、无权文件 | 零预知Artifact refs也能列出真实文件及精确版本/Markdown；缺Release显示内部获批与等待原因，不伪造PKG/RRS/AUTH；shared合并，隐藏项不泄漏；权威重验不符则阻断，不从客户端清单/他方Repository补数据 | 无新候选组合 / NOT RUN |
+| RP-D12-012 | Pagination/Contract；TR-260-10，EP/ART与外层候选不同页边界、多个Revision、空中间页、游标Scope/Plan/filters/源变化；页Hash或部分VERIFY冒充全required集合 | REL own cursor沿稳定Artifact/Revision位置续页，全部合法候选无漏项/重复；有nextCursor不判空；旧cursor拒绝刷新且保留选择/Batch；确认只接受完整exact VERIFY闭包，隐藏/失效required项不能省略 | 无新候选游标/闭包组合 / NOT RUN |

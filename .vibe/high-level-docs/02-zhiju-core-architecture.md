@@ -1867,6 +1867,8 @@ BusinessCore
 
 验收锚点：REL-801 冻结 DOCX/PDF 和飞书 Destination，经 Human 授权；逐项 Receipt 可查，部分失败可重试，客户交付不切换内部有效版本。
 
+D12/Q11 的 [项目批次受控导出提案（#260）](../decisions/project-delivery-controlled-export.md) 为 PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED：集合/Manifest/生成与下载事实拟由ReleasePublication拥有，每文件仍保留单Revision Package、current RRS与Human授权；ART/QG只提供owning精确事实，EP关联/IG技术传输/UI呈现不接管批次。新Batch不冒充现行ReleasePackage，下载不改变FormalReceipt/Completion；本节现行模块责任及上述冻结不变量不变，提案须独立设计审查与人类技术批准。
+
 ### 20.11 IntegrationGateway
 
 职责：把飞书、Runtime、Renderer 和未来外部系统协议转换为已认证 Core Command 或可审计 Attempt/Raw Receipt；它是 Anti-Corruption Layer。

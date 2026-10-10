@@ -598,3 +598,15 @@ pnpm persistence:gate
 | EP-257-010 | 三个角色分别选择新registry/key/canonical SchemaRef；错SchemaRef.versionId、bundle用rules key、旧generic Schema承载同样正文、合法新Ref仅通过旧reader或scoped resolve_policy取得 | EP producer前语义校验和公司解析/消费均要求新IP路径完整selector及真实结果；错误身份/角色/路径拒绝，不能只看JSON字段或业务清单已确认；正确路径逐项读回后才能进入发布/启动检查，旧refs/hashes不改 | 仅三个 profile 的共享 registry/closed fields、canonical SchemaRef、真实新 resolver/语义校验、旧路径拒绝及完整 hash 子迹已有用例；D14 consumer/启动检查 `NOT RUN` |
 
 公司已确认四类保护 Evidence + TEXT/Product/QMS 满足首版业务清单，首版不选择结构化 Fact 扩展；真实代表性客户项目是否完成约定目标仍待独立验收。定义与规则清单的静态对应由 `modules/enterprise-project/src/business/company-startup-definition.test.ts` 核对已确认 Delta §1–2 字节与完整代码集；基础 owning PostgreSQL 用例为 `tests/persistence/company-rule.test.ts`。具体运行证据保存于 #267 关联 PR。表内任何 broader row 不因基础子迹被整体标 PASS；真实公司发布/客户适用性、HTTP/OIDC、Host/Runner、浏览器/生产和独立人工验收仍 `NOT RUN`。
+
+## D12 / Q11 项目关联与配套闭包设计场景（#260）
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 [EP D12](../module-specs/Module-Spec-002-EnterpriseProject.md#d12--q11-项目交付关联只读提案260)。
+
+| ID | 输入 | 预期 | 当前实际输出 / 结果 |
+|---|---|---|---|
+| EP-D12-001 | 当前ACTIVE approved Plan、ART真实deliveryItemRefs、exact Item requirements/QualityPolicy/章节映射；R1/R2共享文件 | EP proof只读本模块，REL合并ART事实；章节/多个关联可追溯；轮次不拆包；proofHash稳定且保留观测水位 | 无新关联Port / NOT RUN |
+| EP-D12-002 | 缺传递required companion、无依赖分类、只有startup workScope/Runner拟清单、无合法章节映射、wrong Plan/Item Hash/Scope | 当前不可用/安全拒绝，不发明ACTIVE Plan/章节；不以下载满足先前交付；不机械暂停无关项 | 无新配套消费 / NOT RUN |
+| EP-D12-003 | inspect后Plan替代、共享文件不满足某Item类型/Profile、输入相同ID但内容Hash不同 | STALE/拒绝且不能修补为新Plan；原批次/计划历史保留；下载/Batch不写Completion或已发送状态 | 无新批次/项目组合 / NOT RUN |
+| EP-D12-004 | Contract/Pagination；TR-260-10，ENUMERATE必填PageRequest、Plan多页、权限裁剪空中间页、最后页；页Hash代替完整闭包 | tagged分支只接受自身字段；Page返回nextCursor/snapshotAt/真实水位，稳定切面逐页读完；空中间页有cursor须继续；pageAssociationHash仅本页，完整集合须VERIFY，不泄漏隐藏总数 | 无新枚举/分页实现 / NOT RUN |
+| EP-D12-005 | Contract/Security；VERIFY空集合、完整exact集合、错版本/无权项、超Guard；续页错Scope/Plan/筛选/主体/purpose、expiry/水位/ACTIVE pointer变化 | 空VERIFY items=[]不枚举；成功结果与请求一一对应，失败不返回部分Proof；VERIFY拒绝page，ENUMERATE拒绝deliveryItemRefs；旧cursor拒绝且不拼接新切面；required集合不得截断 | 无新验证/游标实现 / NOT RUN |

@@ -158,3 +158,16 @@ reviewer and timestamp
 | UI-258-010 / Recovery + HTTP + PG | request已commit/start成功scope失败时断网/Session过期/重启；原requestRef/key重登回读 | 原intent/成功steps/Receipt不变；新auth仅当前read/续步证明，UNKNOWN依赖失败不推未提交，零重复事实/dispatch，TR-258-06/07 | 未执行 / `NOT RUN` |
 | UI-258-011 / Cache + Diagnostics | logout/401/撤权/切用户Scope、多Tab、bfcache；callback/token/body/file探针 | 敏感DOM/cache/objectURL清理，迟到响应不能复填；no-store；日志/trace字段allowlist无token/Subject/客户正文 | 未执行 / `NOT RUN` |
 | UI-258-012 / Actual Browser + Accessibility + Manual | 固定脱敏资料，Windows/macOS实际两稳定版Chrome/Edge；顾问登录→目录→已注册D14→原intent恢复 | 已批准布局/默认不选/键盘焦点/深链接真实可用；允许及拒绝链可追溯；记录build/环境/实际版本/独立审核人，不拿Chromium/axe代人验 | 未执行 / `NOT RUN` |
+
+## D12 / Q11 项目交付交互与恢复设计场景（#260）
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 [UI D12](../module-specs/Module-Spec-UI01-WorkspaceUI.md#d12--q11-项目交付与原意图恢复提案260)；保留已批准原型布局/中文文案，以下不借用合成演示或工程外壳的浏览器结果。
+
+| ID | 层级 / 输入 | 预期 | 当前实际输出 / 结果 |
+|---|---|---|---|
+| UI-D12-001 | Browser E2E；TR-260-01/09、仅Project/Plan进入、chapter/search/filter、R1/R2与无Run的Human文件、无Release的获批文件、移动详情 | 初始不选，章节汇总且逐文件显示来源/精确版本/等待原因，不要求先提供文件refs；集中核对一次；共享文件不重复；处理中M及旧#delivery包保留 | 未接真实API / NOT RUN |
+| UI-D12-002 | Contract/Browser；APPROVED COMMITTED exact回读、PARTIAL ABS、拒绝、UNKNOWN、顾问缺独立角色 | 仅确定当前决策成功后接续下一可检查文件；其他角色仍待办/不可交付；拒绝/UNKNOWN留当前并回读原键，不批量批准 | 无真实Approval组合 / NOT RUN |
+| UI-D12-003 | Race；确认dialog打开后新selected row/配套/Scope/Plan/RRS变化，旧Batch后新候选 | 显式STALE/阻断，其他有效选择不丢；重选需Human；旧Manifest/ZIP/来源不改，后台不切换当前文件 | 无真实qualification/query / NOT RUN |
+| UI-D12-004 | Recovery；确认/生成timeout、401、BFF重启、未提交新草稿、late响应 | 原target/key/payloadHash读回单一原intent；未保存草稿不承诺跨设备；成功steps保留、UNKNOWN不新意图重发，late Scope/generation不串页 | 无生产保存/请求恢复 / NOT RUN |
+| UI-D12-005 | HTTP/Security；点击下载、202、STARTED/RESPONSE_SENT/FAILED/UNKNOWN、许可过期/撤权/错主体/Range | 文案区分请求和服务端响应；不显示保存/发送/收件/验收/完成；有权重新请求同包，撤权清敏感cache/许可、无URL泄漏 | 无OIDC/stream/Browser安全验收 / NOT RUN |
+| UI-D12-006 | Accessibility/Manual；键盘核对/失效回焦、窄屏包详情、连续下载/外部发送 | 保留布局和内部滚动、焦点可恢复；无移动审批/人工sent标记；不改变项目完成率/其他候选，真实客户送达另验 | Windows/macOS Chrome/Edge及独立人验 NOT RUN |

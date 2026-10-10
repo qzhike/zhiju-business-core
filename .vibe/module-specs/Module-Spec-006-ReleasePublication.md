@@ -317,3 +317,162 @@ WI-08 不新增 ReleasePublication Contract、业务表或 Migration；它复用
 报告模式只输出合成技术事实，不连接真实 Feishu/email/对象存储/Provider，也不将 `messageId`、PII、token 或原始 Provider 结果当作 Formal Receipt 依据。统一 Quality→Renderer→Release 编排器、公开 HTTP、生产数据库、真实外部收件人、部署后验证和独立人工业务验收继续为 `NOT RUN`。
 
 2026-08-31 GitHub 交付状态：WI-08 报告与测试变化已随 [PR #139](https://github.com/qzhike/zhiju-business-core/pull/139) 合入 `main`；最终审阅 head `306cdbc3b8c8201994a57097038c4c3f784b0412` 的 GitHub Actions `verify` run `33355948473` 通过，merge commit 为 `07fc6a083897c01924f842d12dffe06fd6068261`，Issue #128 已关闭。真实 Provider、公开 HTTP、生产和独立人工验收仍为 `NOT RUN`。
+
+## 14. D12 / Q11 项目交付批次与受控导出提案（#260）
+
+状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。目标、所有权选择与跨模块 trace 见 [Spec Delta](../decisions/project-delivery-controlled-export.md)。本节只定义拟增量，不改 §2–§12 现行 Release/Package/授权/PublicationReceipt/Completion，不使依赖实现 READY。
+
+### 14.1 单文件授权链与批次边界
+
+拟 ProjectDeliveryBatch 由 ReleasePublication 拥有，保存一次 HUMAN 明确确认的同 Project 文件集合；确认后内容不可变，包生成/下载请求和观察为独立 append-only 事实。Batch 不是 Release、DeliveryPlan 或 BFF Aggregate，不接受调用者完成状态。
+
+每个 entry 必须引用独立、已提交的 CONTROLLED_EXPORT Release、唯一旧 ReleasePackageRef、同 Revision 的 FULLY_APPROVED ABS、当前 RRS 和 ReleaseAuthorization。各 Release 按原 DRAFT → PREPARED → validate_readiness → HUMAN authorize 顺序完成；未授权项不可确认，Batch 不替它调用批准或授权。原子确认只写本模块 Batch；其他模块只经独立受权 owning Query/Port读取，不能读他方 Repository/Schema。
+
+拟版本化受控导出 Profile 明确允许对指定 HUMAN 下载人导出这组接收范围的内容，保留 QualityProfile 中适用的客户/传播限制和 mandatory Release Gate。每份 Package 的 recipientScopeSnapshotRef、Destination/DeliveryPolicy 必须与 Batch 配置精确一致；Destination 为受控导出 opaque 目标，不是任意 URL。Policy 仍要求未满足的客户批准/正式回执才能导出则拒绝；客户端不能声明豁免。Package 的 requiredReceiptKind/required 字段原样保留，下载观察不满足旧 complete_release 所需 Formal Receipt，也不将旧 Release 推进 RELEASED/PARTIALLY_RELEASED。
+
+### 14.2 拟闭合类型与完整引用
+
+以下 Ref 均沿用 Common 的完整引用结构，不能以 digest、UUID 或标题代替：Project/Artifact/Release 用 OBJECT；Revision/ReleaseAuthorization 用 CONTENT_ADDRESSED；DeliveryPlan/QualityProfile/Policy 用 VERSIONED；RAS/ABS/RRS/RecipientScope 用 SNAPSHOT；RepresentationRef 和 ReleasePackageRef 沿用原完整复合结构。所有 Project-owned Ref 必须同 enterpriseId + projectId；Enterprise-owned Profile/Policy 只有 enterpriseId，平台配置采用其合法 Scope，不能硬填 projectId。
+
+```text
+ProjectDeliveryEntry
+  artifactRef, revisionRef, representationRef
+  deliveryItemIds: NonEmptySet<UuidV7>
+  associationProofHash: PayloadHash
+  chapterBindings: NonEmptySet<{chapterCode: NamespaceCode, ordinal: NonNegativeInt}>
+  provenance: {revisionProvenance: RevisionProvenance,
+               sourceReportRefs: SnapshotRef<AcceptedAnalysisReport>[]}
+  qualityProfileRef, revisionAcceptanceSnapshotRef, approvalBundleSnapshotRef
+  releaseRef, releasePackageRef, releaseReadinessSnapshotRef, releaseAuthorizationRef
+  archivePath: NonEmptyString
+
+ProjectDeliveryManifest
+  manifestVersion = project-delivery-batch-manifest/1.0
+  batchRef: ObjectRef<release.project_delivery_batch>
+  projectRef, deliveryPlanRef
+  recipientScopeSnapshotRef, destinations: NonEmptySet<ReleaseDestinationDefinition>
+  exportPolicyRef: VersionedRef<Policy>
+  dependencyProof: {ruleRefs: NonEmptySet<VersionedRef<Policy>>,
+                    requiredItemIds: Set<UuidV7>, coveredItemIds: Set<UuidV7>,
+                    associationSetHash: PayloadHash, requirementSetHash: PayloadHash}
+  entries: NonEmptySet<ProjectDeliveryEntry>
+
+ProjectDeliveryBatchRef
+  kind = CONTENT_ADDRESSED; objectType = release.project_delivery_batch
+  objectId, scope, contentHash = batchManifestHash
+
+ProjectDeliveryBatchView
+  batchRef: ProjectDeliveryBatchRef; manifest: ProjectDeliveryManifest
+  status = CONFIRMED; confirmedAt: UtcInstant
+  confirmingActorSnapshotRef, confirmingAuthorizationDecisionRef, confirmationReceiptRef
+  generationRequestRefs: ObjectRef<release.project_delivery_package_request>[]
+  currentUse: {status: USABLE | BLOCKED | UNKNOWN, reasonCodes: ReasonCode[],
+               checkedAt: UtcInstant, sourceWatermarks: SourceWatermark[]}
+
+ProjectDeliveryArchiveRef
+  kind = CONTENT_ADDRESSED; objectType = release.project_delivery_archive
+  objectId, scope, contentHash = archiveDescriptorHash
+
+ProjectDeliveryArchiveDescriptor
+  descriptorVersion = project-delivery-archive/1.0
+  archiveRef: ObjectRef<release.project_delivery_archive>; batchRef: ProjectDeliveryBatchRef
+  batchManifestHash, manifestMarkdownChecksum, zipChecksum: ContentHash
+  entryChecksums: NonEmptySet<{archivePath: NonEmptyString, checksum: ContentHash}>
+  zipByteSize: NonNegativeInt; mediaType = application/zip
+  objectRef: ObjectLocator; storageVersion: NonEmptyString
+  archiveProfileVersion = project-delivery-zip/1.0
+  validationFactRef: ContentAddressedRef<release.project_delivery_archive_validation>
+  linkedAt: UtcInstant; availableAt: UtcInstant
+
+ProjectDeliveryArchiveValidation
+  attemptRef: ObjectRef<release.project_delivery_export_attempt>
+  batchRef: ProjectDeliveryBatchRef
+  objectRef: ObjectLocator; storageVersion: NonEmptyString
+  archiveProfileVersion, entryChecksums, manifestMarkdownChecksum, zipChecksum, zipByteSize
+  outcome = VERIFIED; validatorVersion: NonEmptyString; validatedAt: UtcInstant
+```
+
+批次 OBJECT target 与返回 CONTENT_ADDRESSED batchRef 的 type/id/Scope 必须相等；archiveDescriptor 同样使用 OBJECT identity，不能把自身 CONTENT_ADDRESSED ref/hash放入 Hash 输入。确认 Actor/Decision/Receipt 是归因，不重复塞入 Manifest；正常过期的历史命令 Decision 不改写确认事实，新的当前读取/下载必须另有有效 Decision。
+
+associationProofHash由REL对受权ART/EP实际结果计算：SHA-256(cv1({artifactRef,revisionRef,revisionProvenance,deliveryItemRefs,epAssociationSetHash}))，deliveryItemRefs为ART真实完整关联中本Plan适用集合，epAssociationSetHash为EP D12 VERIFY对此exact集合返回的associationSetHash，不能用ENUMERATE的pageAssociationHash；不得信任客户端声明。dependencyProof.ruleRefs只容纳真实Policy版本（含PlanQualityPolicy与exportPolicy），不把QualityProfile伪装成Policy；requirementSetHash覆盖这些Policy及各entry.qualityProfileRef解析出的完整交付配套规则，associationSetHash覆盖本批所用EP关联与各entry.associationProofHash。依赖证明的Hash均不含自身Hash/观测时间。
+
+ArchiveValidation Hash只覆盖上述完整校验payload，不含自身Ref/Hash或最终Descriptor；entry/checksum/大小字段类型与Descriptor相同。因此依赖图为Manifest →清单/文件bytes→ZIP→Validation→Descriptor，不能让Validation反向引用待生成的Descriptor Hash。exportPolicyRef须解析为明确允许本首版导出的真实版本，且与所有Destination.deliveryPolicyRef一致；未有受审查受控导出配置、不能解析Policy或目标不绑定指定Human/接收范围则阻断，不能由fixture或浏览器默认值填补。
+
+每个 Artifact 恰有一个 entry/Revision/Markdown；shared Artifact 的 deliveryItemIds 合并，集合重复拒绝。章节来自 EP exact 关联证明，不用 Runner report 字段、文件名或原型章节推断；chapterBindings 只分组展示，不能增加副本或分母。provenance 从 ART immutable Revision 与 EP 关联读回：有 workOrderRef/runRef/agentResultRef/sourceReportRef 时保存完整 Ref；sourceReportRefs仅接受EP owning已接纳的精确报告Snapshot，D14来源的拟objectType为zhiju.project.preparation_report，须实际注册/可解析才可消费；不把原始Runner JSON Hash当报告Ref。HUMAN-only来源可无执行轮次/报告，以空report数组表达无报告而不造Run；其他来源无报告也不能伪造。轮次不进入包拆分规则。首版安全路径按 Artifact UUID + Revision UUID 派生为 files/<artifactId>/<revisionId>.md；禁止绝对路径、..、重复路径、symlink、任意附件和以客户文件名替代身份。
+
+### 14.3 选择 Query 与确认判据
+
+拟项目候选 Query 仅需projectRef + exact ACTIVE deliveryPlanRef、filters与PageRequest，不要求调用方先知道Artifact refs。合法发现链如下，各模块只读自己的Repository或受权owning Query/Port：
+
+1. EP ProjectDeliveryAssociationPort的ENUMERATE分支返回当前计划的可读Item/章节/配套映射及共享Page；EP不返回文件identity。依nextCursor续页，所需依赖从真实ItemRef解析；读切面或Plan变化拒绝，不能拿一页当整个计划。
+2. ART [ProjectDeliveryArtifactDiscoveryPort](Module-Spec-004-Artifact.md#项目候选的只读发现来源)按Project分页发现ArtifactView及精确Markdown登记View。REL以get_artifact实际deliveryItemRefs与EP枚举的Plan Item身份匹配，并由EP VERIFY验证适用exact关联；同ID而版本/Hash不同阻断，不替换Ref。某实际关联是否适用本Plan无法证明、或所需关联/依赖不可读时该候选BLOCKED/UNKNOWN，不以可见子集宣称完整。发现页与当前get_artifact.aggregateVersion/登记事实不一致则STALE，不消费过时索引。无Release的获批成果也须进入此链，不能仅枚举REL已有Release或接受客户端任意清单补足文件来源。
+3. 对实际approvedRevisionRefs逐个读取get_revision_snapshot/provenance及QG D12当前Proof；Markdown refs来自ART发现结果，再经get_representation逐项权威重验。REL按精确Artifact/Revision在自有Release/Package事实中关联逐文件CONTROLLED_EXPORT及RRS/授权；无该Release仍显示可读文件、已知exact批准版本与等待发布授权原因，不伪造Package/RRS/AUTH。缺RAS/ABS/Markdown等也只返回真实已知字段及等待原因，Query不自动render/prepare/authorize。
+4. 多个仍可用获批版本逐个显式列出，默认不选；每个Artifact最多选一个，不暗用最大revisionNumber。ART共享文件只发现一次，REL合并同Plan的实际Item/章节关联；跨轮次不拆查询或复制文件。候选条目的artifactRef必填，其余exact entry字段仅在真实可解析时提供，未知Ref省略，不把未就绪候选假充完整ProjectDeliveryEntry。`eligibility=INTERNALLY_APPROVED|EXPORT_ELIGIBLE|BLOCKED|UNKNOWN`及安全reasonCodes、checkedAt/sourceWatermarks按当前证明返回；只有EXPORT_ELIGIBLE可确认。
+
+REL返回共享Page<候选条目>并拥有自己的opaque cursor，不能把内部EP/ART的cursor直接当外层续页。外层游标按共享规则绑定Query版本、Project Scope、requester/purpose、exact Plan、规范化filters、稳定Artifact/Revision位置、内部续页位置与各Owner实际观测的水位/读切面；技术续页状态须有有限预算，不形成业务Aggregate。EP/ART页边界不等于候选页边界，多个版本/共享文件经过稳定排序后不得漏项或跨页重复。内部空页有nextCursor继续，外层空页有nextCursor也不表示项目无成果；仅当前授权扫描结束才省略nextCursor，不能泄漏隐藏名称/数量。Scope/Plan/筛选/权限或源读切面变化时安全拒绝旧cursor并要求从首请求刷新，不拼接不一致页面，不改既有选择或Batch。
+
+核对 Query 输入为 projectRef、deliveryPlanRef、接收/目标/Policy 配置与显式 exact entry 集合，输出 `{selectionHash, dependencyProof, entries, eligible, reasonCodes, checkedAt, sourceWatermarks}`。selectionHash 覆盖上述 manifestVersion/项目/计划/接收/目标/Policy/依赖/entry 的规范化语义字段，但不含尚未分配的 batchRef、自身 Hash、checkedAt、水位时刻或当前展示状态；所有实际关联证明和精确 Quality/Release refs 均参与。Query 是纯读取，selectionHash 是观测证据而非已提交 SnapshotRef。
+
+核对/确认须对ART实际关联与全部所需配套闭包执行EP VERIFY，要求返回集合与请求exact集合一致；逐文件证明和完整依赖证明消费该分支的associationSetHash。枚举的pageAssociationHash、最后页或空页不能证明完整闭包；枚举仅提供真实Ref来源。Guard超限或隐藏/失效的required关联不能通过分批验证、忽略空页或省略条目放宽确认条件。
+
+确认以预分配 Batch UUID、原 idempotency key、expectedSelectionHash 和全部 exact 输入提交；服务端重新证明当次 HUMAN/Scope/purpose/payload，重读同一集合并比较 selectionHash。逐项 ART ACTIVE/可读内容/Representation、RAS/ABS current eligibility、独立角色、RRS requireCurrentForAuthorization=true、Release AUTHORIZED/未 Recall/授权仍可用、EP ACTIVE Plan/关联/依赖及每个 Hash 全部成立才生成 Manifest。新 Snapshot 即使 READY 也不能静默替换传入 ref。所有强制交付配套传递闭合且各项 EXPORT_ELIGIBLE；execution-only/optional 依赖按已版本化规则区分，无法分类则阻断。首版不接受先前包/下载作为配套替代，不要求无关项目项完成。
+
+本模块事务只提交一次 immutable Manifest/Batch、归因、Command Receipt、Audit、Reference Edge；一项失败则无新 Batch。上游 Query 观测分别保存 checkedAt/sourceWatermarks，不声称跨模块全局事务；确认前重观测指纹，变化即拒绝。确认后每个新副作用边界再次观测；迟到失效只追加影响/阻断，不重写历史或撤回已传输数据。
+
+### 14.4 Hash 域与固定 ZIP
+
+所有 JSON Hash 用 shared-kernel canonicalize（canonicalizationVersion=1）后 SHA-256；字符串/集合顺序使用 UTF-8 字节序，不使用 localeCompare。entries 按 archivePath；deliveryItemIds、chapterBindings、report refs、ruleRefs、dependency IDs 与 entryChecksums 各按完整 canonical identity 排序；destinations 沿旧 destinationId 排序。重复 identity/path 拒绝，不能用排序隐式消重。
+
+| Hash | 唯一输入 | 排除项 |
+|---|---|---|
+| 旧 packageHash / packagePayloadHash | §11.2 原 manifest / 完整旧 PackageDefinition | Batch、ZIP、下载事实不能进入旧域 |
+| batchManifestHash | 完整 ProjectDeliveryManifest（包含 OBJECT batchRef） | 自身 CONTENT_ADDRESSED Ref/Hash、确认时间/Actor、生成/下载事实、URL |
+| Manifest Markdown checksum | 从固定 Manifest 派生的 UTF-8 清单 bytes；清单可显示 batchManifestHash | 清单自身 checksum、ZIP checksum、Descriptor、下载观察不能反向写入清单 |
+| 文件 checksum | 已登记 Markdown Representation 原始 bytes | Canonical Revision Hash不能代替；不按新候选渲染或包装修改 |
+| zipChecksum | 固定 ZIP 完整 bytes | 归档自身 Hash/Descriptor、下载时刻不能写入 ZIP |
+| archiveDescriptorHash | 完整 ProjectDeliveryArchiveDescriptor | 自身 CONTENT_ADDRESSED archiveRef/Hash、短期许可/URL、下载观察 |
+
+拟 project-delivery-zip/1.0：UTF-8 路径排序、store-only ZIP、固定 1980-01-01 ZIP timestamp、固定权限、无 extra/comment；不支持ZIP64，entry数量/大小/累计大小超非ZIP64表示范围或部署已批准的更小预算则拒绝。唯一额外 entry 为 manifest.md，其行尾 LF、UTF-8 无 BOM，列名/转义/输出顺序由该版本化清单模板固定。文件 bytes 原样保存；ZIP 外 Descriptor 保存 zipChecksum，杜绝 ZIP 自 Hash 环。源 checksum、清单完整列与 entry 路径集合/数量/大小/CRC 必须全部复验，不能只校验 ZIP magic。首次 AVAILABLE 后再次下载原对象/version；新 renderer/bytes/路径/refs 必须新批次，不覆盖原归档。
+
+### 14.5 导出请求、Staging/Link 与 UNKNOWN
+
+拟 PackageRequest 为独立 CREATE target，closed业务intent `{batchRef, archiveProfileVersion}`，保存original key/payloadHash/Receipt；请求主体/ActorSnapshot/AuthorizationDecision从当次trusted Envelope取得并单独永久归因，不由caller填入业务intent。Server控制Attempt identity、lease/fence与时间；可读View返回 `{requestRef,batchRef,status,attemptRefs,archiveRef?,reasonCodes}`，status为REQUESTED/BUILDING/LINKED/AVAILABLE/FAILED/UNKNOWN，AVAILABLE才有可下载archiveRef。
+
+export Attempt为REL拥有的技术执行事实，绑定requestRef/batchRef/archiveProfileVersion，稳定key域为完整Project Scope + batchManifestHash + archiveProfileVersion；attemptNumber/lease/fencingToken由服务器控制，immutable身份与append-only观察分离。原UNKNOWN先reconcile同Attempt，只有可证明原Attempt终结/无待确认副作用且同固定输入仍合法才显式后继Attempt；不能在未知副作用下换identity。IG/存储Adapter不拥有Batch状态，也不能以其通用Attempt替代本REL绑定。
+
+1. CREATE 事务仅保存原请求/Receipt/Audit/已提交工作意图，提交后技术 Worker 才处理；同 batch/profile 同时生成只允许一个活跃归档 identity，其他合法请求引用既有结果，不创建不同 ZIP。
+2. Worker 重验当前资格并从 ART 受权精确 bytes Port读取。Staging 上传/权威 readback 验证在数据库事务外；对象 locator由已提交 Attempt 派生，不信客户端路径/metadata/checksum。
+3. Link Commit 在本模块事务内保存 immutable 校验事实、Descriptor 的冻结输入及对象关联，推进 LINKED；外部 finalize 成功、原 storage version readback、再次资格重验后才以 CAS/fence 发布 immutable 最终 Descriptor 与 AVAILABLE。失败不能留下可下载引用。
+4. DB rollback 后对象成为可审计 orphan；无 committed reverse Link/retention/legal hold 才按既有受控清理 Policy 处理。finalize timeout 保持 UNKNOWN 与原 Link，重读同 Attempt/object，不猜成功或直接删有 Link 的对象。
+5. FAILED/UNKNOWN 恢复只继续原 batch/profile/Attempt 输入；已可验证对象复用，lease/fence 过期 Worker不能发布 AVAILABLE。原请求重放返回原事实，当前资格不足只阻断新副作用，不能自动换 revision/新请求。原 manifest不可用需 HUMAN重新选择新 Batch。
+
+### 14.6 受权下载与观察
+
+拟 DownloadRequest 为独立CREATE target，closed业务intent `{batchRef,archiveRef}`，当前trusted Envelope的HUMAN/ActorSnapshot/AuthorizationDecision另存为原请求归因。服务器在当前HUMAN/Project/逐文件资格通过后保存request/Receipt/Audit，生成仅用于该请求的短期opaque流许可；许可绑定原request的principal、当次Session、batchManifestHash、archiveDescriptorHash、zipChecksum与exact Scope，返回安全transport投影 `{requestRef,batchRef,archiveRef,opaqueToken,expiresAt}`。Token不进入业务持久事实。expiry为Session/当次Decision/签发后5分钟最早者；实际流预算还须在受审查transport配置中显式给出，无配置则不可用，不选择默认公网对象URL。
+
+不提供绕过 Core 的可直接访问对象存储 URL；技术流入口无业务 route 在本提案注册，必须消费该许可且流前重验权利、资格、Hash/version。BFF仅传流和 backpressure，无 Ceph client/业务 ZIP。许可重放不产生另一个下载事实；重复主动下载用新的 request UUID/key，短期链接不得缓存、写公开 Event/错误/日志、发给其他主体。过期后允许当前仍有权的 Human 新请求同一 archive；新认证不改变原批次或历史 Actor。
+
+每个请求的 append-only ResponseObservation 精确绑定 requestRef/batchRef/archiveRef/principal/Scope/streamAttemptId，字段为 `{outcome: STARTED|RESPONSE_SENT|FAILED|UNKNOWN, bytesWritten: NonNegativeInt, expectedBytes: NonNegativeInt, observedAt: UtcInstant, reasonCodes: ReasonCode[]}`。RESPONSE_SENT 仅当本服务器实际写完该 exact ZIP 且长度匹配，并成功持久化观察；这不是本地文件保存或外部 Receipt。断线/日志写入失败只能留 FAILED/UNKNOWN/已有 STARTED，不伪造发送成功；多次连接使用独立 streamAttemptId，不能合计 Range/部分响应充当成功。首版不支持 Range/resume。
+
+流前撤权拒绝零 bytes；已开始流出现明确撤权/失效时停止后续服务并保存可证明字节，无法撤回此前已复制数据。不得承诺撤权与跨模块读取的全局原子性；每次新许可/流均重验，服务器可见的撤销须 fail-closed。历史 AUTHORIZE Decision 的正常到期仅约束原命令时点；已提交 ReleaseAuthorization 保留历史，但 Recall/授权撤销/上游失效使新消费不可用，下载另需当前 Decision，不复用原授权当长期访问票据。
+
+### 14.7 拟 owning 操作、目的与恢复
+
+下列只是 additive 候选名，均未注册；公开 HTTP/stream route 另受审查，不创建 BFF 私有 Command。操作使用共享 Envelope/CommandResult；CREATE target预分配 UUID，稳定 key为 operation:version:targetUuid；payloadHash保持原意图。
+
+| 候选 @1.0 | kind / Owner | purpose | Payload / 返回 |
+|---|---|---|---|
+| release.find_project_delivery_candidates | A Query / ReleasePublication | release.project_delivery.read | projectRef, deliveryPlanRef, filters, PageRequest → Page<候选条目> |
+| release.inspect_project_delivery_selection | A Query / ReleasePublication | release.project_delivery.read | §14.3 exact集合/配置 → selection observation |
+| release.confirm_project_delivery_batch | CREATE / ReleasePublication | release.project_delivery.confirm（HUMAN_ONLY） | §14.3集合/配置/expectedSelectionHash → batchRef；Actor/Decision由trusted Envelope归因 |
+| release.get_project_delivery_batch | A Query / ReleasePublication | release.project_delivery.read | exact batchRef → ProjectDeliveryBatchView |
+| release.request_project_delivery_package | CREATE / ReleasePublication | release.project_delivery.package.create | §14.5 intent → requestRef/status |
+| release.get_project_delivery_package_request | A Query / ReleasePublication | release.project_delivery.read | exact requestRef → §14.5 View及可用Descriptor |
+| release.request_project_delivery_download | CREATE / ReleasePublication | release.project_delivery.download（HUMAN_ONLY） | §14.6 intent → requestRef；短期流许可只在安全 transport 返回 |
+| release.get_project_delivery_download_request | A Query / ReleasePublication | release.project_delivery.read | exact requestRef → 原intent与ResponseObservation[]安全投影 |
+
+查询/确认/请求/Worker/流分别证明当前权限；Package Worker仅受信固定技术SERVICE，不能作Human Approval/Release Authorization/批次确认或下载人。相同key同业务payload在当前读取权限下返回原提交结果，异payload为IDEMPOTENCY_PAYLOAD_CONFLICT；未知CREATE回读原target/key与Command Receipt，NOT_FOUND不证明先前无执行，原键可在许可条件下重放，不能自动新建意图。重认证只能为同一原请求主体提供新Envelope授权，不改target/key/业务payloadHash、Manifest或首次提交Actor/Decision；若原请求已提交，只读其历史Receipt并另验当前使用资格，不重复业务提交。DownloadRequest重放只返回原请求/观察，不续签已过期或丢失Token；仍有权时由Human明确新建下载请求，不能把恢复读取变成下载副作用。
+
+拟稳定拒绝：PROJECT_DELIVERY_SELECTION_STALE、PROJECT_DELIVERY_COMPANION_MISSING、PROJECT_DELIVERY_NOT_ELIGIBLE、PROJECT_DELIVERY_HASH_MISMATCH、PROJECT_DELIVERY_PACKAGE_UNAVAILABLE、PROJECT_DELIVERY_DOWNLOAD_EXPIRED；Scope/无权安全折叠沿共享 Contract，不回显隐藏项或 Provider 诊断。它们也是提案，不视为已注册错误。
+
+CONFIRMED/AVAILABLE 只标各自已完成事实；新候选仅刷新准备页。现行引用撤销/计划替代时追加 BLOCKED observation；复用不能换引用，同 Hash当前仍可用才能继续。所有边界失败均保留旧 Batch/Package/ResponseObservation，与 Task/Run/个人草稿隔离；不新增 sent/received/accepted/completed flag、PublicationSucceeded/ReleaseCompleted Event 或 Completion 事实。

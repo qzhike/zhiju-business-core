@@ -251,3 +251,16 @@ authority为Spec 004 §12；#235当前有限owning/PG证据如下，历史已交
 | ART-COMP-D-001 | Contract + Application + PostgreSQL / 授权Human实际root/content创建及新execution revision | 自身/TE独立授权，provenance只用owning Run来源且无未来Result；Revision/binding/真实Receipt同事务，可exact重读canonical内容与current状态 | OWNING/PG PASS：normal/recovered Human真实root/content/stage/link/freeze→execution Revision、creation binding与Receipt；canonical content Hash域保留，exact owning output读回与创建来源镜像独立复验。 |
 | ART-COMP-D-002 | Application + PostgreSQL / 旧normal Revision/复用input/伪造Run/Receipt/actor/hash/Scope/schema、binding过期/锁后撤权 | 不提供execution output资格；masked NOT_FOUND/绑定错误；SEALED不可补ResultRef，不跨Schema查询/写表 | CONTRACT/APPLICATION/PG PASS（已执行）：Human-only实际AGENT/SERVICE/actingFor有Grant仍DENY，借Human Decision protected SQL为0；premature未提交Ref/Receipt拒绝；错误source/Scope/Hash/schema拒绝。逐一锁后撤权与全部旧normal Revision消费子项NOT RUN。 |
 | ART-COMP-D-003 | PostgreSQL / 创建Receipt/binding/Event故障、同键重放、Direct SQL镜像/Hash欺骗、内容withdraw/invalidate | 原子rollback/replay、Hash域分开、RLS/immutable guard；current失效不覆写原snapshot/provenance/receipt | PG/CONTROLLED PASS（已执行）：五个创建原子点故障全rollback，原键replay；actual owning withdraw后Completion REVOKED而历史Revision/Receipt不变；新增有限forward migration。两张新Artifact fact表对真实已存在Revision实际app UPDATE/DELETE 42501、owner immutable 55000、RLS pool跨Scope隐藏/恢复均PASS；全部Direct SQL欺骗置换子项未穷举，NOT RUN；full gate状态见PR。 |
+
+## D12 / Q11 Markdown 表示与bytes读取设计场景（#260）
+
+状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 [Artifact D12](../module-specs/Module-Spec-004-Artifact.md#d12--q11-精确-markdown-表示与导出读取提案260)。
+
+| ID | 输入 | 预期 | 当前实际输出 / 结果 |
+|---|---|---|---|
+| AF-D12-001 | exact Canonical Document→登记Markdown Renderer→成功Binding→Representation；跨R1/R2集合 | format/media/UTF-8/input/checksum/renderer/Scope全部权威相等；包使用同一表示bytes，既有contentHash域不变 | 现行Renderer/映射未支持Markdown / NOT RUN |
+| AF-D12-002 | caller自报.md、错Revision/renderer/checksum/对象version、篡改bytes、unsupported Workbook/opaque/required结构 | 不登记/不供stream、不生成AVAILABLE；已登记旧Revision/Representation历史保留 | 无新Markdown/bytes Port / NOT RUN |
+| AF-D12-003 | bytes读取无权/错purpose/Agent、withdrawn/invalidated/archived、metadata locator直接改URL | owning当前授权拒绝；无额外正文泄漏；元数据Query不是下载许可；本系统无法撤回已复制bytes | 无真实stream/安全验收 / NOT RUN |
+| AF-D12-004 | shared Artifact映射多个Item、多个批准版本、Human-only来源无Run/报告，新候选到达 | 文件只一entry，Profile/Scope兼容；显式选一个exact批准版本；来源原样、不伪造执行；新候选不改旧Batch | 无新项目关联消费 / NOT RUN |
+| AF-D12-005 | Contract；TR-260-09，仅ProjectRef/Page、零已知文件refs；跨轮次/shared/Human文件、内部获批但无Release、未登记Markdown、无权/跨Project/Enterprise-owned成果 | ART owning发现真实ArtifactView/批准指针/精确登记View，共享文件只一次；无Release仍返回，无表示为空且不造Ref；按当前Human及Reader权限裁剪，无名称/数量泄漏，不读取EP/REL Repository | 无新发现Port / NOT RUN |
+| AF-D12-006 | Pagination/Race；多页/空中间页、多个批准版本与表示、伪造/过期cursor、获批绑定或表示登记水位变化、发现索引过时、Guard超限 | 共享Page元数据及稳定身份顺序，有cursor继续；实际owning读回后再由REL逐项重验；读切面变化拒绝旧cursor，不能遗漏版本/复制shared成果或静默截断，不新增批准/发布事实 | 无新发现分页/重验实现 / NOT RUN |
