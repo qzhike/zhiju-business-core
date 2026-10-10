@@ -19,6 +19,7 @@ import {
   type D14TrustedDeploymentEvidence,
   type D14TrustedFact,
   type D14TrustedOwningObject,
+  type D14TrustedPinnedRef,
   type D14TrustedPolicyEvidence,
   type D14TrustedPromptTools,
   type D14TrustedRef,
@@ -80,40 +81,30 @@ function trustedRef(ref: D14CanonicalRef): D14TrustedRef {
   return trusted;
 }
 
-function trustedFact(pin: D14PinnedRef): D14TrustedFact {
-  const fact: {
+/** Mirror one pinned object: complete ref plus declared bytes and receipt. */
+function trustedPinnedRef(pin: D14PinnedRef): D14TrustedPinnedRef {
+  const readback: {
     ref: D14TrustedRef;
     contentDigest: string;
     bytesSha256?: string;
     publicationReceiptRef?: D14TrustedRef;
-    provenance: 'PUBLISHED';
   } = {
     ref: trustedRef(pin.ref),
     contentDigest: pin.contentHash.digest,
-    provenance: 'PUBLISHED',
   };
-  if (pin.bytesSha256 !== undefined) fact.bytesSha256 = pin.bytesSha256;
+  if (pin.bytesSha256 !== undefined) readback.bytesSha256 = pin.bytesSha256;
   if (pin.publicationReceiptRef !== undefined) {
-    fact.publicationReceiptRef = trustedRef(pin.publicationReceiptRef);
+    readback.publicationReceiptRef = trustedRef(pin.publicationReceiptRef);
   }
-  return fact;
+  return readback;
+}
+
+function trustedFact(pin: D14PinnedRef): D14TrustedFact {
+  return { ...trustedPinnedRef(pin), provenance: 'PUBLISHED' };
 }
 
 function trustedOwning(pin: D14PinnedRef): D14TrustedOwningObject {
-  const readback: {
-    ref: D14TrustedRef;
-    contentDigest: string;
-    version: string;
-    bytesSha256?: string;
-    provenance: 'OWNING';
-  } = {
-    ref: trustedRef(pin.ref),
-    contentDigest: pin.contentHash.digest,
-    version: '1.0.0',
-    provenance: 'OWNING',
-  };
-  if (pin.bytesSha256 !== undefined) readback.bytesSha256 = pin.bytesSha256;
-  return readback;
+  return { ...trustedPinnedRef(pin), version: '1.0.0', provenance: 'OWNING' };
 }
 
 function trustedToolPin(pin: D14ToolPin): D14TrustedToolPin {
@@ -216,18 +207,18 @@ function trustedSources(): D14MaterializationSources {
       provider: lock.model.provider,
       modelId: lock.model.modelId,
       approvedModelVersion: lock.model.approvedModelVersion,
-      fixedVersionDigest: lock.model.fixedVersionBinding.contentHash.digest,
-      invocationVerificationDigest: lock.model.perInvocationVerificationRule.contentHash.digest,
       modelConfigDigest: lock.model.modelConfigHash.digest,
-      identityBindingPolicyDigest: lock.model.identityBindingPolicy.contentHash.digest,
-      apiTransportDigest: lock.model.apiTransport.contentHash.digest,
-      apiEndpointDigest: lock.model.apiEndpoint.contentHash.digest,
-      networkPolicyDigest: lock.model.networkPolicy.contentHash.digest,
+      fixedVersionBinding: trustedPinnedRef(lock.model.fixedVersionBinding),
+      perInvocationVerificationRule: trustedPinnedRef(lock.model.perInvocationVerificationRule),
+      identityBindingPolicy: trustedPinnedRef(lock.model.identityBindingPolicy),
+      apiTransport: trustedPinnedRef(lock.model.apiTransport),
+      apiEndpoint: trustedPinnedRef(lock.model.apiEndpoint),
+      networkPolicy: trustedPinnedRef(lock.model.networkPolicy),
       provenance: 'PROVIDER',
     },
     customerDataAuthorization: {
       approvalRefId: '018f22e2-7c15-7b2e-8d86-2de956a9d2ff',
-      contentDigest: lock.model.dataPolicy.contentHash.digest,
+      dataPolicy: trustedPinnedRef(lock.model.dataPolicy),
       validUntil: '2027-01-01T00:00:00Z',
       provenance: 'CUSTOMER',
     },
@@ -261,6 +252,11 @@ function relocked(mutated: D14MaterializedLock): D14MaterializedLock {
   return { ...payload, lockHash: d14MaterializedLockHash(payload) };
 }
 
+/** Relock a lock whose model block was rebuilt by a mutation. */
+function relockedModel(model: D14MaterializedLock['model']): D14MaterializedLock {
+  return relocked({ ...lock, model });
+}
+
 /** Replace a content-addressed reference's digest, keeping the identity. */
 function withRefDigest(ref: D14CanonicalRef, digest: string): D14CanonicalRef {
   if (!('contentHash' in ref)) throw new Error('fixture reference is not content-addressed');
@@ -271,6 +267,11 @@ function withRefDigest(ref: D14CanonicalRef, digest: string): D14CanonicalRef {
 function distinctDigest(seed: string): string {
   const last = seed.endsWith('0') ? '1' : '0';
   return `${seed.slice(0, -1)}${last}`;
+}
+
+/** Substitute only the object identity of a pinned reference. */
+function withObjectId(pin: D14PinnedRef, objectId: string): D14PinnedRef {
+  return { ...pin, ref: { ...pin.ref, objectId } };
 }
 
 /** Set the optional immutable version on a content-addressed reference. */
@@ -1259,5 +1260,169 @@ describe('preflightD14RunnerMaterialization', () => {
       preflight({ deployment: deploymentMissing(deployment, 'harnessVersion') }),
       'D14_PREFLIGHT_EVIDENCE_MISMATCH',
     );
+  });
+
+  it('rejects a substituted fixed-version-binding object identity', () => {
+    const mutated = relockedModel({
+      ...lock.model,
+      fixedVersionBinding: withObjectId(lock.model.fixedVersionBinding, OTHER_UUID),
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expect(mutated.lockHash.digest).not.toBe(lock.lockHash.digest);
+    expect(mutated.model.fixedVersionBinding.contentHash.digest).toBe(
+      lock.model.fixedVersionBinding.contentHash.digest,
+    );
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('rejects a substituted api-endpoint object identity', () => {
+    const mutated = relockedModel({
+      ...lock.model,
+      apiEndpoint: withObjectId(lock.model.apiEndpoint, OTHER_UUID),
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expect(mutated.lockHash.digest).not.toBe(lock.lockHash.digest);
+    expect(mutated.model.apiEndpoint.contentHash.digest).toBe(
+      lock.model.apiEndpoint.contentHash.digest,
+    );
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('rejects a substituted data-policy object identity', () => {
+    const mutated = relockedModel({
+      ...lock.model,
+      dataPolicy: withObjectId(lock.model.dataPolicy, OTHER_UUID),
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expect(mutated.lockHash.digest).not.toBe(lock.lockHash.digest);
+    expect(mutated.model.dataPolicy.contentHash.digest).toBe(
+      lock.model.dataPolicy.contentHash.digest,
+    );
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('rejects a substituted per-invocation verification identity', () => {
+    const mutated = relockedModel({
+      ...lock.model,
+      perInvocationVerificationRule: withObjectId(
+        lock.model.perInvocationVerificationRule,
+        OTHER_UUID,
+      ),
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('rejects a substituted identity-binding-policy identity', () => {
+    const mutated = relockedModel({
+      ...lock.model,
+      identityBindingPolicy: withObjectId(lock.model.identityBindingPolicy, OTHER_UUID),
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('rejects a substituted api-transport identity', () => {
+    const mutated = relockedModel({
+      ...lock.model,
+      apiTransport: withObjectId(lock.model.apiTransport, OTHER_UUID),
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('rejects a substituted network-policy identity', () => {
+    const mutated = relockedModel({
+      ...lock.model,
+      networkPolicy: withObjectId(lock.model.networkPolicy, OTHER_UUID),
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('rejects a trusted model readback with a substituted object identity', () => {
+    const binding = required(
+      trustedSources().providerVersionBinding,
+      'sources.providerVersionBinding',
+    );
+    expectRejection(
+      preflight({
+        providerVersionBinding: {
+          ...binding,
+          fixedVersionBinding: {
+            ...binding.fixedVersionBinding,
+            ref: { ...binding.fixedVersionBinding.ref, objectId: OTHER_UUID },
+          },
+        },
+      }),
+      'D14_PREFLIGHT_EVIDENCE_MISMATCH',
+    );
+  });
+
+  it('rejects a model pin declaring bytes the readback omits', () => {
+    const mutated = relockedModel({
+      ...lock.model,
+      fixedVersionBinding: {
+        ...lock.model.fixedVersionBinding,
+        bytesSha256: distinctDigest(lock.model.fixedVersionBinding.contentHash.digest),
+      },
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('rejects a model pin declaring a receipt the readback omits', () => {
+    const templateRefs = lock.templates.templateRefs;
+    const receipt = required(
+      required(templateRefs[0], 'templateRefs[0]').publicationReceiptRef,
+      'publicationReceiptRef',
+    );
+    const mutated = relockedModel({
+      ...lock.model,
+      fixedVersionBinding: { ...lock.model.fixedVersionBinding, publicationReceiptRef: receipt },
+    });
+    expect(validateMaterializedLock(mutated).valid).toBe(true);
+    expectRejection(preflightAgainst(mutated), 'D14_PREFLIGHT_EVIDENCE_MISMATCH');
+  });
+
+  it('ignores readback bytes when the model pin declares none', () => {
+    const binding = required(
+      trustedSources().providerVersionBinding,
+      'sources.providerVersionBinding',
+    );
+    expect(
+      preflight({
+        providerVersionBinding: {
+          ...binding,
+          fixedVersionBinding: {
+            ...binding.fixedVersionBinding,
+            bytesSha256: distinctDigest(binding.fixedVersionBinding.contentDigest),
+          },
+        },
+      }).admissible,
+    ).toBe(true);
+  });
+
+  it('ignores a readback receipt when the model pin declares none', () => {
+    const binding = required(
+      trustedSources().providerVersionBinding,
+      'sources.providerVersionBinding',
+    );
+    const templateRefs = lock.templates.templateRefs;
+    const receipt = required(
+      required(templateRefs[0], 'templateRefs[0]').publicationReceiptRef,
+      'publicationReceiptRef',
+    );
+    expect(
+      preflight({
+        providerVersionBinding: {
+          ...binding,
+          fixedVersionBinding: {
+            ...binding.fixedVersionBinding,
+            publicationReceiptRef: trustedRef(receipt),
+          },
+        },
+      }).admissible,
+    ).toBe(true);
   });
 });

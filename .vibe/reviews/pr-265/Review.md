@@ -1,6 +1,6 @@
 # PR #265 独立实现审查
 
-本文件保留四轮审查的独立证据。前三轮记录分别对应 `f42ca47`、`a7dfd3b` 与 `0dc2402`，已纳入修复提交；其中当时的工作区与交付状态是历史事实。当前结论见文末[第四轮复审](#第四轮复审37f6ab8)：`REQUEST_CHANGES`，R1/R2/R3/R5 已关闭，R4 的 `immutableVersionId` 遗漏已修复，但必需 adapter/harness 部署身份与版本仍未比较。
+本文件保留五轮审查的独立证据。前四轮记录分别对应 `f42ca47`、`a7dfd3b`、`0dc2402` 与 `37f6ab8`，已纳入修复提交；其中当时的工作区与交付状态是历史事实。当前结论见文末[第五轮复审](#第五轮复审b2e57ec)：`REQUEST_CHANGES`，R1/R2/R3/R5 已关闭，R4 的 `immutableVersionId` 与 adapter/harness 子问题已修复，Provider/data 的必需 pin 仍缺完整引用身份读回与比较。
 
 ## 审查对象与结论
 
@@ -346,3 +346,78 @@ GitHub comment 已发布并独立读回：[审查评论 issuecomment-6081118264]
 本轮按用户授权发布普通 PR comment 并读回。普通 comment 不等于 GitHub 原生 REQUEST_CHANGES review；正式文档的 Git 交付仍未授权。本 Reviewer 没有修复产品代码、commit、push、merge、关闭/重开 PR 或重跑远程 CI。
 
 第四轮 comment 已发布并刷新远程永久链接读回：[复审评论 issuecomment-6091030113](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6091030113)。地址栏确认完整链接；正文保留精确 reviewed SHA、原发现关闭状态、R4 四个部署字段反例、37 项 diagnostic 的 33 通过/4 失败、Reviewer 本地 code PASS、当前 CI 任务未启动及 NOT RUN 边界。Conversation 从八条增至九条，输入框清空、Comment 按钮禁用，确认只新增一条。PR 仍为 Draft、四个提交，最新 commit 仍为 `37f6ab8`；本轮工作区仅此正式记录有改动，未 commit/push。
+
+## 第五轮复审：b2e57ec
+
+### 审查对象与结论
+
+- 用户授权：复审 PR #265 并提交 comments；没有产品修复、commit、push 或 merge 授权。
+- Reviewed SHA：`b2e57ec59fb28abcf643e4fcb24c35db3279b0a4`。
+- 上轮 SHA：`37f6ab885d281e29c3d2287af18a0645b1b49810`；base 为 `e8d05d6dccfe6034b241a8d0c4b8b49e255e4029`。
+- 审查日期：2026-10-10；独立读回最新 Issue #264、PR head/comments 与当前 CI。PR 为 OPEN / Draft，五个提交、52 个变更文件；`vibe repo --json` 为 PASS，repository/head 精确一致，本轮开始时工作区干净。
+- Reviewer role outcome：`REQUEST_CHANGES`。
+- 剩余实现阻塞：R4，P1，Provider/data 的必需引用只比较 digest，缺完整 owning Ref；52 项独立 diagnostic 中 49 项通过、3 项预期拒绝断言失败。
+
+本轮按 Issue 的确定版本、必需来源、缺失或漂移拒绝，以及获批锁决策 §2 的完整 type/version/Scope/hash 绑定重建验收预期。先核对最新部署修复，再完成第二轮矩阵已经指出的 Provider/data digest-only 来源对账。上一轮四个 producer→preflight 部署反例已修复；这不关闭其他尚未有完整引用映射的必需 pin。范围仍是内部 descriptor/preflight，不要求实际 Provider 调用或部署。三个直接身份替换反例成立后停止扩大缺陷发现范围。
+
+### 原发现关闭状态
+
+| 原发现                   | 当前判断         | 本轮独立证据                                                                                                                    |
+| ------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| R1：锁有效期             | 已关闭原发现     | 窗口前与 validUntil 起点拒绝，issuedAt 起点接纳。                                                                               |
+| R2：类型、Scope、双 hash | 已关闭原发现     | 合法注册 Contract 接纳；同 namespace 未知 Contract/Package、未知 Run、缺 Scope、矛盾 Package hash 拒绝。                        |
+| R3：审批 pin             | 已关闭原发现     | 保留 digest 替换 technicalApproval.objectId 仍拒绝；完整配置与 payload 证据绑定保留。                                           |
+| R4：必需来源映射与比较   | 部分修复，仍阻塞 | 已有完整 Ref/receipt/immutableVersionId 检查与部署四字段反例均通过；Provider/data pin 的完整 Ref 仍没有来源字段或比较，见下文。 |
+| R5：fencingToken 类型    | 已关闭原发现     | 合法整数接纳，负数、小数、字符串拒绝。                                                                                          |
+
+### 字段矩阵复审增量
+
+前四轮的三个证据层、lock payload 与 source 字段矩阵继续保留。此表覆盖最新改变的部署字段及已声明但尚未绑定的完整 model pin 来源；纯 digest 字段不要求凭空增加 Ref。
+
+| 字段                                                                      | required/optional 与实现判断                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| deployment.adapterCode/adapterVersion/harnessId/harnessVersion            | 新增四个必填 string 字段；两项身份按 namespace 形状诊断，两项版本拒绝空值与浮动别名；runtimePairs 逐项比较，缺失或漂移为 EVIDENCE_MISMATCH。四个既有 producer→preflight 反例、四个缺失反例、六个版本别名负例及两个非法身份负例均通过。 |
+| 其余 deployment 十六个值字段与 provenance                                 | 原有 CLI、bytes/build/dependency、Host、launcher/parser 比较保留，四字段加入后共二十个 runtime 值进入比较；provenance 仍要求 DEPLOYMENT。                                                                                              |
+| provider.provider/modelId/approvedModelVersion                            | 三个必填字符串，与 lock.model 对应固定身份/版本比较。                                                                                                                                                                                  |
+| model.fixedVersionBinding / source.fixedVersionDigest                     | model 必填 D14PinnedRef；source 必填 digest，缺 Ref identity/Scope/version 与适用 bytes/receipt，comparison 仅 digest。                                                                                                                |
+| model.perInvocationVerificationRule / source.invocationVerificationDigest | model 必填 D14PinnedRef；source 只有必填 digest，完整 pin 身份没有比较。                                                                                                                                                               |
+| model.identityBindingPolicy / source.identityBindingPolicyDigest          | model 必填 D14PinnedRef；source 只有必填 digest，完整 pin 身份没有比较。                                                                                                                                                               |
+| model.apiTransport/apiEndpoint/networkPolicy / source 对应三个 digest     | model 三项均为必填 D14PinnedRef；source 三个 digest 必填，完整 pin 身份没有比较。                                                                                                                                                      |
+| model.modelConfigHash / source.modelConfigDigest                          | 两侧都是必填 canonical digest，现有 digest 比较成立；锁未声明该字段的 Ref，不要求发明一个。                                                                                                                                            |
+| provider.provenance                                                       | 必填 PROVIDER，来源诊断保留；provenance 标签不补齐被引用对象身份。                                                                                                                                                                     |
+| model.dataPolicy / customerDataAuthorization.contentDigest                | model 必填 D14PinnedRef；source 只有必填 contentDigest、approvalRefId、validUntil 与 CUSTOMER provenance，缺 dataPolicy 的完整 Ref，匹配仅 contentDigest；期限仍单独核验。                                                             |
+| 其余 payload 与来源字段                                                   | 本轮未修改；既有完整 Ref/receipt/immutableVersionId 检查及旧 synthetic/public 接受集保留。                                                                                                                                             |
+
+### R4 — P1：Provider/data 来源不能绑定必需 pin 的完整引用身份
+
+位置：[D14TrustedProviderBinding，第 113 行](https://github.com/qzhike/zhiju-business-core/blob/b2e57ec59fb28abcf643e4fcb24c35db3279b0a4/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L113)、[D14TrustedDataAuthorization，第 128 行](https://github.com/qzhike/zhiju-business-core/blob/b2e57ec59fb28abcf643e4fcb24c35db3279b0a4/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L128)、[model 来源匹配，第 776 行](https://github.com/qzhike/zhiju-business-core/blob/b2e57ec59fb28abcf643e4fcb24c35db3279b0a4/modules/integration-gateway/src/runtime/d14-runner-lock-preflight.ts#L776)。
+
+获批[锁合同 §2](../../decisions/d14-rd01-runner-profile-lock.md#2-一个版本化锁合同与三个不同证据层)声明固定版本证据、逐调用核验规则、公司身份策略、API transport/endpoint/network/dataPolicy 的精确 refs/hash，已有引用采用完整 type/version/Scope/hash；[IG 物化合同](../../module-specs/Module-Spec-007-IntegrationGateway.md#d14-runner-物化锁与原调用观察提案256)进一步要求每条适用 readback 的完整 canonical Ref 逐字段相等，未解析或身份不同的必需 pin 拒绝。Issue #264 同样要求拒绝缺失或不可解析的 authority 和精确 Provider/data-policy 来源。
+
+当前 model 七个必需 D14PinnedRef 的来源仍没有对应完整 Ref：Provider 六个必需 pin 只比较 contentHash.digest，客户来源只比较第七个 dataPolicy.contentHash.digest；source 接口无法表达所解析的 kind/type/id/version/snapshot/immutableVersionId/Scope。这里不是 content-addressed pin 不带独立版本字符串的问题，而是已有 objectId 等引用字段没有被读回或比较。
+
+三个独立反例使用完整有效的 materialized-lock fixture 和同一组原可信来源。在窗口内先断言原锁 admissible=true；分别只改以下一个 model pin 的 ref.objectId 为另一合法 UUIDv7 `018f22e2-7c15-7b2e-8d86-2de956a9d2fe`。保留全部 content/bytes hash、其他 pins、Provider 三项身份/版本、客户授权与来源，调用公开 d14MaterializedLockHash 重算自身 hash，并先断言 validateMaterializedLock.valid=true、新 lockHash 不同、该 pin contentHash 未变：
+
+| 仅替换的字段                           | 契约预期                                          | 实际            |
+| -------------------------------------- | ------------------------------------------------- | --------------- |
+| model.fixedVersionBinding.ref.objectId | 拒绝未被当前 Provider 来源解析的固定版本证据身份  | admissible=true |
+| model.apiEndpoint.ref.objectId         | 拒绝与当前精确 endpoint 引用不同的身份            | admissible=true |
+| model.dataPolicy.ref.objectId          | 拒绝与当前客户许可来源不同的 data-policy 引用身份 | admissible=true |
+
+失败均位于 preflight 应拒绝的断言，原锁正例与 lock validator 先通过；这是独立 validator→preflight 的身份替换反例，不冒称这些改变后的锁经过 producer 或真实 Provider。合法自身 hash 不能证明替换引用存在或被许可，同内容也不能代替必需版本证据及政策对象的精确身份。这是第二轮矩阵记录的剩余 digest-only 映射缺口，并非新建实际部署范围。
+
+在 Provider/data readback 中表达并要求七个必需 D14PinnedRef 的完整适用身份，将完整 Ref、content hash、声明 bytes 与适用 receipt/发布关系纳入 admission 的共享比较；缺 Ref、同 digest 不同身份/版本/Scope 及单侧可选字段缺失均明确拒绝。保留 Provider 三项固定身份/版本、modelConfigDigest、CUSTOMER approvalRefId/期限/provenance 的现有职责，不把标签或任意额外 UUID 当成 dataPolicy Ref，不改变公开 Core 合同。至少覆盖这三个直接反例和完整对应来源的正例，并逐字段对账同一 digest-only 路径消费的其余四个 model pins，避免只补被 fixture 选中的三个字段。
+
+### 当前验证证据与边界
+
+- 当前远程 [CI run 38005897085](https://github.com/qzhike/zhiju-business-core/actions/runs/38005897085)独立读回，页面绑定 `b2e57ec`。首次 attempt 的 select/verify failed、checks/persistence skipped，GitHub 注释为账户计费或额度门禁导致任务未启动。2026-10-10 08:19（GMT+8）由 galendai 触发 Latest #2；本轮先读回重跑进行中，再在发布前通过恢复可用的 GitHub CLI 确认终态：`headSha=b2e57ec59fb28abcf643e4fcb24c35db3279b0a4 / attempt=2 / status=completed / conclusion=success`，select/checks/verify 成功，checks 的 Verify code 步骤成功，persistence 为预期 skipped。首次启动失败、重跑中间状态及最终 CI PASS 分别记录，不再把计费门禁表述为当前阻塞。Reviewer 未触发远程重跑；本地配置 PASS 已在重跑完成前取得，和当前远程证据分别保留，没有再重复运行配置目标。
+- Reviewer 本地配置验证：按项目要求执行 `vibe verify code --json`，保留正常 pnpm 签名/供应链核验，取得 `{"status":"PASS","target":"code","command":"pnpm clean && pnpm verify:code","exit_code":0}`，终端 exit 0。94 个测试文件、1964 个测试通过；format/lint/typecheck、workspace build、architecture、catalog/types/compatibility 通过；配置内 1 个 production rejection 与 3 个 controlled fixture browser case 通过。运行时工作区产品代码等于 reviewed SHA，正式复审正文在验证后追加，不计入此 head 的配置证据。
+- 独立源码 diagnostic：`node node_modules/vitest/vitest.mjs run --config /private/tmp/pr265-rereview5.config.mts --reporter verbose`，Node 24.19.0 / Vitest 4.1.10；probe/config 位于仓库外，imports/aliases 指向本轮源码。先执行 49 项既有反例及部署扩展检查全部通过；增加三个剩余 model Ref 检查后，最终 52 项中 49 通过、3 失败，exit 1。该证据不替代配置 Gate；配置 PASS 也不消除已经复现的合同失败。
+- `git diff --check e8d05d6dccfe6034b241a8d0c4b8b49e255e4029..b2e57ec59fb28abcf643e4fcb24c35db3279b0a4`：PASS。
+- 本轮正式记录仅修改当前结论指针并追加正文，前四轮历史保留；新增 Markdown、本地链接与工作区范围做 focused 检查。本轮新增内容未 commit/push，不属于 reviewed SHA 或任何 CI。
+- 真实 OMP/DeepSeek、Ubuntu/CLI/adapter/Host 部署及隔离、PostgreSQL、OIDC/public HTTP、IG→TE→EP 实际接纳链、RA-LOCK-001–014/IG-LOCK-001–005、平台及独立人工业务验收仍 `NOT RUN`。配置内已执行的 controlled workspace browser 用例单独记录。
+- 既有精确设计批准绑定 `8e8d2715b815179e92a18f444fb0eca13d58d466`；Issue 的设计快照 PENDING 已由该正式批准记录取代，不把旧状态当成缺失设计批准。该批准不自动赋予当前实现修订技术批准。当前先返回 Implementer 修复已知合同失败，交付前仍遵循适用的精确修订人类门禁。
+
+本轮按用户授权发布普通 PR comment 并读回，记录 Reviewed SHA、关闭状态、剩余 R4、当前配置证据与 NOT RUN 边界。普通 comment 不等于 GitHub 原生 REQUEST_CHANGES review；正式文档的 Git 交付仍未授权。本 Reviewer 没有修复产品代码、commit、push、merge、关闭/重开 PR 或重跑远程 CI。
+
+第五轮 comment 已通过 GitHub CLI 发布并从服务端独立读回：[复审评论 issuecomment-6091592887](https://github.com/qzhike/zhiju-business-core/pull/265#issuecomment-6091592887)。API 读回的完整 body 与准备的英文评论逐字一致，作者为 galendai，created_at 为 `2026-10-10T00:26:00Z`；首 token 为 REQUEST_CHANGES，永久链接一致。正文保留精确 reviewed SHA、已关闭子问题、剩余 R4 三个引用身份反例、52 项 diagnostic 的 49 通过/3 失败、Reviewer 本地 code PASS、当前 CI attempt #2 PASS 与 NOT RUN 边界。再次读回 PR，head 仍为 `b2e57ec59fb28abcf643e4fcb24c35db3279b0a4`、isDraft=true，评论从十条增至十一条，最新 comment URL 与本轮发布一致，确认仅新增一条。浏览器内容显示异常时改用恢复可用的 CLI，没有从未显示成功的 UI 推断已发布；本轮工作区仅此正式记录有改动，未 commit/push。

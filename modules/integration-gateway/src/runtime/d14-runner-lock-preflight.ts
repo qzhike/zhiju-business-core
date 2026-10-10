@@ -109,25 +109,33 @@ export interface D14TrustedDeploymentEvidence {
   readonly provenance: 'DEPLOYMENT';
 }
 
+/** One shared readback of a pinned object: complete ref plus its content. */
+export interface D14TrustedPinnedRef {
+  readonly ref: D14TrustedRef;
+  readonly contentDigest: string;
+  readonly bytesSha256?: string;
+  readonly publicationReceiptRef?: D14TrustedRef;
+}
+
 /** Trusted provider/model version binding observation. */
 export interface D14TrustedProviderBinding {
   readonly provider: string;
   readonly modelId: string;
   readonly approvedModelVersion: string;
-  readonly fixedVersionDigest: string;
-  readonly invocationVerificationDigest: string;
   readonly modelConfigDigest: string;
-  readonly identityBindingPolicyDigest: string;
-  readonly apiTransportDigest: string;
-  readonly apiEndpointDigest: string;
-  readonly networkPolicyDigest: string;
+  readonly fixedVersionBinding: D14TrustedPinnedRef;
+  readonly perInvocationVerificationRule: D14TrustedPinnedRef;
+  readonly identityBindingPolicy: D14TrustedPinnedRef;
+  readonly apiTransport: D14TrustedPinnedRef;
+  readonly apiEndpoint: D14TrustedPinnedRef;
+  readonly networkPolicy: D14TrustedPinnedRef;
   readonly provenance: 'PROVIDER';
 }
 
 /** Trusted customer data-authorization observation. */
 export interface D14TrustedDataAuthorization {
   readonly approvalRefId: string;
-  readonly contentDigest: string;
+  readonly dataPolicy: D14TrustedPinnedRef;
   readonly validUntil: string;
   readonly provenance: 'CUSTOMER';
 }
@@ -280,22 +288,23 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
       inspectIdentifier(`${path}.immutableVersionId`, ref.immutableVersionId);
     }
   };
-  const inspectFact = (path: string, fact: D14TrustedFact): void => {
-    inspectRef(`${path}.ref`, fact.ref);
-    inspectDigest(`${path}.contentDigest`, fact.contentDigest);
-    inspectDigest(`${path}.bytesSha256`, fact.bytesSha256);
-    if (fact.publicationReceiptRef !== undefined) {
-      inspectRef(`${path}.publicationReceiptRef`, fact.publicationReceiptRef);
+  const inspectPinnedRef = (path: string, readback: D14TrustedPinnedRef): void => {
+    inspectRef(`${path}.ref`, readback.ref);
+    inspectDigest(`${path}.contentDigest`, readback.contentDigest);
+    inspectDigest(`${path}.bytesSha256`, readback.bytesSha256);
+    if (readback.publicationReceiptRef !== undefined) {
+      inspectRef(`${path}.publicationReceiptRef`, readback.publicationReceiptRef);
     }
+  };
+  const inspectFact = (path: string, fact: D14TrustedFact): void => {
+    inspectPinnedRef(path, fact);
     inspectProvenance(`${path}.provenance`, fact.provenance, PUBLISHED_PROVENANCE);
   };
   const inspectReadback = (
     path: string,
     readback: D14TrustedOwningObject | D14TrustedPromptReadback,
   ): void => {
-    inspectRef(`${path}.ref`, readback.ref);
-    inspectDigest(`${path}.contentDigest`, readback.contentDigest);
-    inspectDigest(`${path}.bytesSha256`, readback.bytesSha256);
+    inspectPinnedRef(path, readback);
     inspectVersion(`${path}.version`, readback.version);
     inspectProvenance(`${path}.provenance`, readback.provenance, OWNING_PROVENANCE);
   };
@@ -369,22 +378,22 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
 
   if (sources.providerVersionBinding !== undefined) {
     const binding = sources.providerVersionBinding;
-    inspectDigest('sources.providerVersionBinding.fixedVersionDigest', binding.fixedVersionDigest);
-    inspectDigest(
-      'sources.providerVersionBinding.invocationVerificationDigest',
-      binding.invocationVerificationDigest,
-    );
     inspectDigest('sources.providerVersionBinding.modelConfigDigest', binding.modelConfigDigest);
-    inspectDigest(
-      'sources.providerVersionBinding.identityBindingPolicyDigest',
-      binding.identityBindingPolicyDigest,
+    inspectPinnedRef(
+      'sources.providerVersionBinding.fixedVersionBinding',
+      binding.fixedVersionBinding,
     );
-    inspectDigest('sources.providerVersionBinding.apiTransportDigest', binding.apiTransportDigest);
-    inspectDigest('sources.providerVersionBinding.apiEndpointDigest', binding.apiEndpointDigest);
-    inspectDigest(
-      'sources.providerVersionBinding.networkPolicyDigest',
-      binding.networkPolicyDigest,
+    inspectPinnedRef(
+      'sources.providerVersionBinding.perInvocationVerificationRule',
+      binding.perInvocationVerificationRule,
     );
+    inspectPinnedRef(
+      'sources.providerVersionBinding.identityBindingPolicy',
+      binding.identityBindingPolicy,
+    );
+    inspectPinnedRef('sources.providerVersionBinding.apiTransport', binding.apiTransport);
+    inspectPinnedRef('sources.providerVersionBinding.apiEndpoint', binding.apiEndpoint);
+    inspectPinnedRef('sources.providerVersionBinding.networkPolicy', binding.networkPolicy);
     inspectProvenance(
       'sources.providerVersionBinding.provenance',
       binding.provenance,
@@ -393,9 +402,9 @@ function collectEvidenceDiagnostics(sources: D14MaterializationSources): Evidenc
   }
 
   if (sources.customerDataAuthorization !== undefined) {
-    inspectDigest(
-      'sources.customerDataAuthorization.contentDigest',
-      sources.customerDataAuthorization.contentDigest,
+    inspectPinnedRef(
+      'sources.customerDataAuthorization.dataPolicy',
+      sources.customerDataAuthorization.dataPolicy,
     );
     inspectProvenance(
       'sources.customerDataAuthorization.provenance',
@@ -430,18 +439,26 @@ function refMatches(trusted: D14TrustedRef, locked: D14CanonicalRef): boolean {
   );
 }
 
-function templateRefMatchesFact(pin: D14PinnedRef, fact: D14TrustedFact): boolean {
+/**
+ * The single comparison path for a readback claiming a pinned object: complete
+ * ref identity, content digest, declared bytes and the declared receipt.
+ */
+function pinnedReadbackMatches(pin: D14PinnedRef, readback: D14TrustedPinnedRef): boolean {
   const receiptMatches =
     pin.publicationReceiptRef === undefined ||
-    (fact.publicationReceiptRef !== undefined &&
-      refMatches(fact.publicationReceiptRef, pin.publicationReceiptRef));
-  const bytesMatch = pin.bytesSha256 === undefined || fact.bytesSha256 === pin.bytesSha256;
+    (readback.publicationReceiptRef !== undefined &&
+      refMatches(readback.publicationReceiptRef, pin.publicationReceiptRef));
+  const bytesMatch = pin.bytesSha256 === undefined || readback.bytesSha256 === pin.bytesSha256;
   return (
     receiptMatches &&
     bytesMatch &&
-    refMatches(fact.ref, pin.ref) &&
-    fact.contentDigest === pin.contentHash.digest
+    refMatches(readback.ref, pin.ref) &&
+    readback.contentDigest === pin.contentHash.digest
   );
+}
+
+function templateRefMatchesFact(pin: D14PinnedRef, fact: D14TrustedFact): boolean {
+  return pinnedReadbackMatches(pin, fact);
 }
 
 /** Consume each template pin exactly once; reject both gaps and extras. */
@@ -485,12 +502,7 @@ function matchOwningObject(
   path: string,
   reasons: string[],
 ): void {
-  const bytesMatch = pin.bytesSha256 === undefined || readback.bytesSha256 === pin.bytesSha256;
-  if (
-    !refMatches(readback.ref, pin.ref) ||
-    readback.contentDigest !== pin.contentHash.digest ||
-    !bytesMatch
-  ) {
+  if (!pinnedReadbackMatches(pin, readback)) {
     reasons.push(`${path} does not match the pin it claims.`);
   }
 }
@@ -773,26 +785,55 @@ export function preflightD14RunnerMaterialization(input: D14PreflightInput): D14
     if (locked !== trusted) reasons.push(`${path} does not match the deployment observation.`);
   }
 
+  const modelReadbackPairs: readonly (readonly [string, D14PinnedRef, D14TrustedPinnedRef])[] = [
+    [
+      'sources.providerVersionBinding.fixedVersionBinding',
+      lock.model.fixedVersionBinding,
+      providerVersionBinding.fixedVersionBinding,
+    ],
+    [
+      'sources.providerVersionBinding.perInvocationVerificationRule',
+      lock.model.perInvocationVerificationRule,
+      providerVersionBinding.perInvocationVerificationRule,
+    ],
+    [
+      'sources.providerVersionBinding.identityBindingPolicy',
+      lock.model.identityBindingPolicy,
+      providerVersionBinding.identityBindingPolicy,
+    ],
+    [
+      'sources.providerVersionBinding.apiTransport',
+      lock.model.apiTransport,
+      providerVersionBinding.apiTransport,
+    ],
+    [
+      'sources.providerVersionBinding.apiEndpoint',
+      lock.model.apiEndpoint,
+      providerVersionBinding.apiEndpoint,
+    ],
+    [
+      'sources.providerVersionBinding.networkPolicy',
+      lock.model.networkPolicy,
+      providerVersionBinding.networkPolicy,
+    ],
+  ];
+  for (const [path, pin, readback] of modelReadbackPairs) {
+    if (!pinnedReadbackMatches(pin, readback)) {
+      reasons.push(`${path} does not match the locked model pin.`);
+    }
+  }
+
   if (
     providerVersionBinding.provider !== lock.model.provider ||
     providerVersionBinding.modelId !== lock.model.modelId ||
     providerVersionBinding.approvedModelVersion !== lock.model.approvedModelVersion ||
-    providerVersionBinding.fixedVersionDigest !==
-      lock.model.fixedVersionBinding.contentHash.digest ||
-    providerVersionBinding.invocationVerificationDigest !==
-      lock.model.perInvocationVerificationRule.contentHash.digest ||
-    providerVersionBinding.modelConfigDigest !== lock.model.modelConfigHash.digest ||
-    providerVersionBinding.identityBindingPolicyDigest !==
-      lock.model.identityBindingPolicy.contentHash.digest ||
-    providerVersionBinding.apiTransportDigest !== lock.model.apiTransport.contentHash.digest ||
-    providerVersionBinding.apiEndpointDigest !== lock.model.apiEndpoint.contentHash.digest ||
-    providerVersionBinding.networkPolicyDigest !== lock.model.networkPolicy.contentHash.digest
+    providerVersionBinding.modelConfigDigest !== lock.model.modelConfigHash.digest
   ) {
     reasons.push('sources.providerVersionBinding does not match the locked model identity.');
   }
 
-  if (customerDataAuthorization.contentDigest !== lock.model.dataPolicy.contentHash.digest) {
-    reasons.push('sources.customerDataAuthorization does not match the locked data policy.');
+  if (!pinnedReadbackMatches(lock.model.dataPolicy, customerDataAuthorization.dataPolicy)) {
+    reasons.push('sources.customerDataAuthorization.dataPolicy does not match the locked policy.');
   }
 
   if (reasons.length > 0) return reject('D14_PREFLIGHT_EVIDENCE_MISMATCH', reasons);
