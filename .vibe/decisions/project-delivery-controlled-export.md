@@ -1,10 +1,10 @@
 # 项目交付批次与受控下载 Spec Delta（D12 / Q11）
 
 日期：2026-10-10
-状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`
+状态：`T2 / DESIGN APPROVED / INDEPENDENT REVIEW PASSED / HUMAN DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`
 工作项：[Issue #260](https://github.com/qzhike/zhiju-business-core/issues/260)。
 
-本增量承接已批准的[项目汇总、分批交付和外部发送边界](workspace-mvp-human-agent.md#410-正式交付包与人工发送)。发现基线为 Issue 指定的 main@15c085354056ab327e03352c32020010cc11285b；当前工作基线 main@9611faff0af25a7d256e6cba7538e3fb71dabfe1 保留相同单 Revision 发布与 Human-only 不变量。本文提出技术映射，不冻结新语义；独立设计审查及精确修订的人类技术批准前，依赖实现不 READY。
+本增量承接已批准的[项目汇总、分批交付和外部发送边界](workspace-mvp-human-agent.md#410-正式交付包与人工发送)。发现基线为 Issue 指定的 main@15c085354056ab327e03352c32020010cc11285b；设计工作基线 main@9611faff0af25a7d256e6cba7538e3fb71dabfe1 保留相同单 Revision 发布与 Human-only 不变量。独立设计复审及明确的人类技术设计批准均绑定 e87e9610a2524ff7317f59d0f76f68a27388dc84，见[正式审查记录](../reviews/pr-271/Review.md)及[批准证据](https://github.com/qzhike/zhiju-business-core/pull/271#issuecomment-6094594569)；[PR #271](https://github.com/qzhike/zhiju-business-core/pull/271) 已合并。本文作为已批准的后续实现设计基线，操作/类型仍未注册、运行链路仍未实现；设计批准不自动使整条依赖实现 READY。[Issue #272](https://github.com/qzhike/zhiju-business-core/issues/272) 仅承接当前独立可执行的封闭类型、引用校验与 Hash 基础，完整 owning Handler/Policy/Renderer/存储/公开流接入仍须按 §6 复核实施范围与门禁。
 
 ## 1. 交付目标与首版限制
 
