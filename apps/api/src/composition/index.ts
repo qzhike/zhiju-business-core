@@ -113,4 +113,36 @@ export type {
 export { resolveTaskBoardPolicy } from './task-board-policy.js';
 export type { BoardPolicyResolutionContext } from './task-board-policy.js';
 
+// IM-UI-01 (#266/#258): the workspace trusted-Human directory entry and the two
+// R-row board adapters (Session Delta §4/§5).
+export {
+  WORKSPACE_DIRECTORY_MAX_CANDIDATES,
+  WORKSPACE_DIRECTORY_QUERY,
+  WORKSPACE_DIRECTORY_QUERY_VERSION,
+  WORKSPACE_DIRECTORY_WALL_BUDGET_MS,
+  createWorkspaceDirectoryEntry,
+} from './workspace-directory-entry.js';
+export type {
+  WorkspaceDirectoryCapabilityCodes,
+  WorkspaceDirectoryEntry,
+  WorkspaceDirectoryEntryConfig,
+  WorkspaceDirectorySession,
+} from './workspace-directory-entry.js';
+export {
+  PROJECT_BOARD_SLICE_QUERY,
+  PROJECT_BOARD_SLICE_QUERY_VERSION,
+  TASK_BOARD_SLICE_QUERY,
+  TASK_BOARD_SLICE_QUERY_VERSION,
+  WORKSPACE_BOARD_SERVICE_PURPOSE,
+  createWorkspaceProjectBoardEntry,
+  createWorkspaceTaskBoardEntry,
+} from './workspace-board-entries.js';
+export type {
+  WorkspaceBoardCapabilityCodes,
+  WorkspaceBoardEntryConfig,
+  WorkspaceBoardSession,
+  WorkspaceProjectBoardEntry,
+  WorkspaceTaskBoardEntry,
+} from './workspace-board-entries.js';
+
 export * from './company-rule-entry.js';

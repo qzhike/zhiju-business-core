@@ -1,0 +1,39 @@
+{
+  "queryId": "018f22e2-7c15-7b2e-8d86-2de956a9d401",
+  "queryType": "project.find_workspace_projects",
+  "queryVersion": "1.0",
+  "scopeRef": {},
+  "requester": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.identity.principal",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d402",
+    "scope": {}
+  },
+  "authenticationContextRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.identity.authentication_context",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d403",
+    "scope": {},
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "consistencyRequirement": "AUTHORITATIVE",
+  "correlationId": "018f22e2-7c15-7b2e-8d86-2de956a9d404",
+  "requestedAt": "2026-10-10T00:00:00Z",
+  "payload": {
+    "enterpriseRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.project.enterprise",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d405",
+      "scope": {}
+    },
+    "searchText": "升级",
+    "page": {
+      "pageSize": 25,
+      "cursor": "opaque-cursor-value-0001"
+    }
+  }
+}

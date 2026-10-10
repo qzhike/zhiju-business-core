@@ -20,11 +20,16 @@ const MODULES = [
   'integration_gateway',
 ] as const;
 
+// V1008 adds the self-only workspace self-discovery read role. It is not an
+// owning/app/dispatcher role, so it stays out of the suffix-pattern check, but
+// it still belongs to the authoritative NOLOGIN/no-BYPASSRLS inventory.
+const DISCOVERY_READER_ROLE = 'identity_workspace_discovery_reader';
+
 const EXPECTED_ROLES = MODULES.flatMap((module) => [
   `${module}_owner`,
   `${module}_app`,
   `${module}_dispatcher`,
-]).concat(['projection_app', 'audit_reader', 'migration_runner']);
+]).concat(['projection_app', 'audit_reader', 'migration_runner', DISCOVERY_READER_ROLE]);
 
 interface StatementOutcome {
   allowed: boolean;

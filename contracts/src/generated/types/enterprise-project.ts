@@ -225,6 +225,22 @@ export namespace EnterpriseProject {
   readonly projectionLag?: number;
   readonly projectionStatus?: "READY" | "STALE" | "REBUILDING" | "FAILED";
 };
+  export type ProjectStatus = "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+  export interface WorkspaceProjectSummary {
+  readonly enterpriseRef: Common.ObjectRef;
+  readonly projectRef: Common.ObjectRef;
+  readonly enterpriseDisplayName: Common.SafeSummary;
+  readonly displayCode: Common.NonEmptyString;
+  readonly title: Common.SafeSummary;
+  readonly status: EnterpriseProject.ProjectStatus;
+  readonly aggregateVersion: number;
+}
+  export interface WorkspaceProjectPage {
+  readonly items: readonly EnterpriseProject.WorkspaceProjectSummary[];
+  readonly nextCursor?: Common.NonEmptyString;
+  readonly snapshotAt: Common.UtcInstant;
+  readonly sourceWatermarks: readonly EnterpriseProject.SourceWatermark[];
+}
   export type ResolutionReceiptAttestation = {
   readonly commandReceiptRef: Common.ContentAddressedRef & {
   readonly objectType?: "zhiju.project.command_receipt";
@@ -592,4 +608,15 @@ export namespace EnterpriseProject {
   readonly contentHash: Common.ContentHash;
 };
 };
+  /** Payload of `project.find_workspace_projects` (QUERY). */
+  export interface ProjectFindWorkspaceProjectsPayload {
+  readonly enterpriseRef?: Common.ObjectRef;
+  readonly searchText?: Common.NonEmptyString;
+  readonly page: {
+  readonly pageSize: number;
+  readonly cursor?: Common.OpaqueCursor;
+};
+}
+  /** Result of `project.find_workspace_projects` (QUERY). */
+  export type ProjectFindWorkspaceProjectsResult = EnterpriseProject.WorkspaceProjectPage;
 }

@@ -83,8 +83,8 @@ describe('contract registry', () => {
     expect(first.operationCount).toBe(registry.operationCount);
   });
 
-  it('registers exactly the current 239 public operations', () => {
-    expect(registry.operationCount).toBe(239);
+  it('registers exactly the current 240 public operations', () => {
+    expect(registry.operationCount).toBe(240);
   });
 
   it('exposes implemented module operations as matching FULL schemas', () => {
@@ -98,9 +98,9 @@ describe('contract registry', () => {
     const release = full.filter((operation) => operation.owner === 'release-publication');
     const integration = full.filter((operation) => operation.owner === 'integration-gateway');
 
-    expect(full).toHaveLength(239);
+    expect(full).toHaveLength(240);
     expect(identity).toHaveLength(23);
-    expect(project).toHaveLength(36);
+    expect(project).toHaveLength(37);
     expect(execution).toHaveLength(63);
     expect(artifact).toHaveLength(28);
     expect(quality).toHaveLength(38);

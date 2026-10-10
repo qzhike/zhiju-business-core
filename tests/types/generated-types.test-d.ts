@@ -927,3 +927,68 @@ function persistentSourceSliceTypes(
   return { namedSource, principal, capture, missingPolicy, status, slice, missingCheckedAt };
 }
 void persistentSourceSliceTypes;
+
+// =============================================================================
+// EnterpriseProject QUERY — `project.find_workspace_projects` (#258)
+// =============================================================================
+
+const workspaceProjectSummary: EnterpriseProject.WorkspaceProjectSummary = {
+  enterpriseRef: objectReference,
+  projectRef: { ...objectReference, objectType: 'zhiju.project.project' },
+  enterpriseDisplayName: '示例企业',
+  displayCode: 'ENT-0001',
+  title: '升级项目',
+  status: 'ACTIVE',
+  aggregateVersion: 1,
+};
+expectType<EnterpriseProject.WorkspaceProjectSummary>(workspaceProjectSummary);
+
+const workspaceProjectPage: EnterpriseProject.WorkspaceProjectPage = {
+  items: [workspaceProjectSummary],
+  nextCursor: 'opaque-cursor-value-0001',
+  snapshotAt: '2026-10-10T00:00:00Z',
+  sourceWatermarks: [
+    { sourceModule: 'enterprise-project', sequence: 1, observedAt: '2026-10-10T00:00:00Z' },
+  ],
+};
+expectType<EnterpriseProject.ProjectFindWorkspaceProjectsResult>(workspaceProjectPage);
+
+const findWorkspaceProjects: EnterpriseProject.ProjectFindWorkspaceProjectsPayload = {
+  enterpriseRef: objectReference,
+  searchText: '升级',
+  page: { pageSize: 25, cursor: 'opaque-cursor-value-0002' },
+};
+expectType<EnterpriseProject.ProjectFindWorkspaceProjectsPayload>(findWorkspaceProjects);
+
+// Negative case — the owning Project status stays a closed enum.
+{
+  const badSummary: EnterpriseProject.WorkspaceProjectSummary = {
+    ...workspaceProjectSummary,
+    // @ts-expect-error — `status` is the registered Project lifecycle enum.
+    status: 'DELETED',
+  };
+  void badSummary;
+}
+
+// Negative case — a directory summary never carries an extra field.
+{
+  const leakedSummary: EnterpriseProject.WorkspaceProjectSummary = {
+    ...workspaceProjectSummary,
+    // @ts-expect-error — customer text is outside the directory summary contract.
+    customerName: 'leaked',
+  };
+  void leakedSummary;
+}
+
+// Negative case — the bounded directory payload always declares `page`.
+{
+  // @ts-expect-error — page is required even for a self-discovery directory Query.
+  const missingPage: EnterpriseProject.ProjectFindWorkspaceProjectsPayload = {};
+  void missingPage;
+}
+
+// Negative case — the empty ScopeRef self-discovery exception stays a plain ScopeRef.
+{
+  const emptyScope: Common.ScopeRef = {};
+  expectType<Common.ScopeRef>(emptyScope);
+}

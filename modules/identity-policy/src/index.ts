@@ -455,3 +455,52 @@ export {
 export * from './persistence/company-rule-db.js';
 export * from './commands/company-rule-authorization.js';
 export * from './commands/company-rule-handlers.js';
+
+// IM-UI-01 (#258): workspace trusted-Human identity bridge and project
+// self-discovery directory Port.
+export {
+  AUTHENTICATION_CONTEXT_OBJECT_TYPE,
+  IDENTITY_WORKSPACE_HUMAN_NOT_LINKED,
+  WorkspaceHumanIdentityError,
+  assertSessionBindingHash,
+  authenticationContextSummary,
+  authenticationContextHash,
+  resolveVerifiedHuman,
+} from './commands/workspace-human-identity.js';
+export type {
+  WorkspaceHumanIdentityErrorCode,
+  VerifiedOidcContextInput,
+  AuthenticationContextSummary,
+  AuthenticationContextHashResult,
+  VerifiedHumanResolution,
+} from './commands/workspace-human-identity.js';
+export {
+  IDENTITY_WORKSPACE_PROJECT_DISCOVERY_UNSUPPORTED,
+  IDENTITY_WORKSPACE_PROJECT_DISCOVERY_CAPABILITY_CONFIG_INVALID,
+  IDENTITY_WORKSPACE_PROJECT_DISCOVERY_INPUT_INVALID,
+  IDENTITY_WORKSPACE_PROJECT_DISCOVERY_CURSOR_INVALID,
+  WORKSPACE_PROJECT_DISCOVERY_PURPOSE,
+  PROJECT_BOARD_SLICE_READ_PURPOSE,
+  WORKSPACE_PROJECT_OBJECT_TYPES,
+  WORKSPACE_PROJECT_DISCOVERY_SCAN_BUDGET,
+  WORKSPACE_PROJECT_DISCOVERY_BINDINGS,
+  PROJECT_BOARD_SLICE_READ_BINDINGS,
+  WORKSPACE_PROJECT_DISCOVERY_PURPOSES,
+  createWorkspaceProjectDiscoveryPort,
+  computeWorkspaceProjectDiscoveryPage,
+  discoverWorkspaceProjectScopes,
+} from './commands/workspace-project-discovery.js';
+export type {
+  WorkspaceProjectDiscoveryCapabilityKey,
+  WorkspaceProjectDiscoveryBinding,
+  WorkspaceProjectDiscoveryCapabilityCodes,
+  WorkspaceProjectDiscoveryPortConfig,
+  WorkspaceProjectDiscoveryAuthorizationPort,
+  WorkspaceProjectDiscoveryAuthorizationInput,
+  WorkspaceProjectDiscoveryRevalidationInput,
+  WorkspaceProjectDiscoveryGrantRow,
+  WorkspaceProjectDiscoveryScanInput,
+  WorkspaceProjectDiscoveryScanConfig,
+  WorkspaceProjectDiscoveryCandidate,
+  WorkspaceProjectDiscoveryScanResult,
+} from './commands/workspace-project-discovery.js';

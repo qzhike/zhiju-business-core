@@ -78,15 +78,26 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
+/** Object types a registry-valid `Project` ObjectRef may carry (shared `objectRef` grammar). */
+const PROJECT_OBJECT_TYPES: Readonly<Record<string, true>> = {
+  'project.project': true,
+  'zhiju.project.project': true,
+};
+
 function exactProjectRef(
   value: unknown,
   context: EnterpriseProjectTransactionContext,
 ): { readonly enterpriseId: string; readonly projectId: string } {
   const ref = record(value);
   const scope = record(ref.scope);
+  // The registered payload schema uses the shared `objectRef` (lowercase dotted
+  // namespace), so a Project reference arrives as `project.project` or
+  // `zhiju.project.project`; the legacy internal `Project` spelling stays
+  // accepted for the existing owning tests. Each spelling is matched as-is.
   if (
     ref.kind !== 'OBJECT' ||
-    ref.objectType !== 'Project' ||
+    typeof ref.objectType !== 'string' ||
+    (!(PROJECT_OBJECT_TYPES[ref.objectType] === true) && ref.objectType !== 'Project') ||
     typeof ref.objectId !== 'string' ||
     !isUuidV7(ref.objectId) ||
     scope.enterpriseId !== context.enterpriseId ||

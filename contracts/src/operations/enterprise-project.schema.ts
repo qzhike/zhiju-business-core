@@ -41,6 +41,8 @@ const uuid = { $ref: `${common}uuidV7` } as const;
 const namespace = { $ref: `${common}namespaceCode` } as const;
 const reasonCode = { $ref: `${common}reasonCode` } as const;
 const text = { $ref: `${common}nonEmptyString` } as const;
+const safeSummary = { $ref: `${common}safeSummary` } as const;
+const opaqueCursor = { $ref: `${common}opaqueCursor` } as const;
 const instant = { $ref: `${common}utcInstant` } as const;
 const contentHash = { $ref: `${common}contentHash` } as const;
 const scope = { $ref: `${common}scopeRef` } as const;
@@ -466,6 +468,37 @@ const namedDefinitions = {
     projectionLag: { type: 'integer', minimum: 0 },
     projectionStatus: { enum: ['READY', 'STALE', 'REBUILDING', 'FAILED'] },
   }),
+  // #258 workspace directory: the owning registered Project lifecycle status
+  // (ProjectStatus), not the Enterprise status enum of the same spellings.
+  projectStatus: { enum: ['ACTIVE', 'SUSPENDED', 'ARCHIVED'] },
+  // #258 workspace directory summary: only the minimal display fields read under
+  // the caller's per-Project `project.workspace.discover` current authorization.
+  workspaceProjectSummary: object(
+    [
+      'enterpriseRef',
+      'projectRef',
+      'enterpriseDisplayName',
+      'displayCode',
+      'title',
+      'status',
+      'aggregateVersion',
+    ],
+    {
+      enterpriseRef: objectReference,
+      projectRef: objectReference,
+      enterpriseDisplayName: safeSummary,
+      displayCode: text,
+      title: safeSummary,
+      status: localRef('projectStatus'),
+      aggregateVersion: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+    },
+  ),
+  workspaceProjectPage: object(['items', 'snapshotAt', 'sourceWatermarks'], {
+    items: array(localRef('workspaceProjectSummary')),
+    nextCursor: text,
+    snapshotAt: instant,
+    sourceWatermarks: array(localRef('sourceWatermark')),
+  }),
   // IM-06 (#191): the narrow attestation returned for one committed
   // CustomerMaterial confirmation Receipt. Every field is a fact the owning
   // confirmation recorded immutably; the caller's claimed outcome, candidate,
@@ -764,6 +797,21 @@ const operationSchemas = {
       page: localRef('pageRequest'),
     }),
     result: localRef('projectBoardPage'),
+  },
+  // #258: the additive public directory Query. Its declared self-discovery
+  // exception means an empty scopeRef is accepted (see operationScopeSchema());
+  // the EP-local page declares the bounded 1..50 pageSize explicitly because
+  // the shared PageRequest leaves pageSize unbounded.
+  'project.find_workspace_projects': {
+    payload: object(['page'], {
+      enterpriseRef: objectReference,
+      searchText: text,
+      page: object(['pageSize'], {
+        pageSize: { type: 'integer', minimum: 1, maximum: 50 },
+        cursor: opaqueCursor,
+      }),
+    }),
+    result: localRef('workspaceProjectPage'),
   },
   'project.SourceMaterialAccepted': {
     payload: object(['sourceMaterialRef', 'projectRef', 'originRef', 'acceptedAt'], {

@@ -1,6 +1,6 @@
 # Workspace 可信 Human 会话与公开接入 Spec Delta
 
-日期：2026-10-09。状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。
+日期：2026-10-09。状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / REGISTERED AND IMPLEMENTED (#266) / EXECUTION EVIDENCE IN ISSUE-PR / CONTROLLED KEYCLOAK DEPLOYMENT, PRODUCTION, BROWSER MATRIX AND MANUAL ACCEPTANCE NOT RUN`。
 
 本文交付 [Issue #258](https://github.com/qzhike/zhiju-business-core/issues/258) 的字段级设计。对照 `main@15c085354056ab327e03352c32020010cc11285b`：API 只有 HealthController，Web/BFF 只有工程外壳；Catalog 注册不等于 HTTP handler 存在。保留已批准的 [UI-DG-003](workspace-ui-engineering-baseline.md#5-bff-与安全方案ui-dg-003-提案)、Keycloak、同源 BFF、单进程有界技术 Session、30 分钟空闲/8 小时绝对期限与现有布局。本文新增的接口、参数和目录能力须经精确修订的独立设计审查及人类技术批准才能冻结；不宣布任何依赖实现 READY。
 
