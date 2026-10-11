@@ -2522,3 +2522,16 @@ OIDC token、Cookie、CSRF、refresh锁仅在批准的BFF有界技术内存中�
 迁移 `V7016__company_rule_platform.sql` 创建 IP authority/snapshot/publication/withdrawal/receipt/audit；`V7017__company_startup_requirement.sql` 创建 EP requirement/publication/receipt。业务事实与成功 Receipt 使用同 owner deferred FK 闭合，provenance 必须匹配当前技术上下文的 Actor/Decision/ref hash；IP guard 另核对实际 Decision 的 operation/target/完整请求 Hash。EP 新角色仅 SELECT 既有 Template/Regulatory 四表，不继承其发布写角色；任何跨 owner 的当前授权仍经 IP Port 完成。
 
 #267 明确要求的 forward-only 持久化使用上述两个精确编号：V7016 仅属 identity_policy，V7017 仅属 enterprise_project，位于共用 history 的 V7015 之后。编号接受集同步于 `migrations/README.md` 与 `tests/business/migration-isolation.test.ts`，其它目录含 IntegrationGateway 均不得重用；其它号段、已应用 migration 与禁用 out-of-order 的规则不变。
+
+## Markdown 文件处理与个人草稿持久化提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NO SQL / NOT IMPLEMENTED。[Markdown Delta](../decisions/markdown-file-feedback.md)只确定owning边界与未来必要约束，不分配migration编号或预建数据库表；不重写已应用migration、RLS/旧Revision/Receipt/Hash。
+
+| owning Schema / 未来支持记录 | 必需约束 |
+|---|---|
+| task_execution / 确认前准备request、file source/basis/原intent/request固定steps、私稿pointer+snapshots | 显式enterprise_id+project_id；准备intent/Receipt原子、原key/hash与各阶段owning refs可恢复且不要求Root/constraints；文件唯一active生成request与request/intent/Receipt同事务；同key/hash幂等；immutable submitted/source/draft snapshots；private rows额外trusted author predicate，Project admin/read不放行；draft CAS/fork/原pending传输快照/恢复索引，BFF Session不拥有业务数据 |
+| artifact / source mapping/constraint proposal/constraints与candidate acceptance | 准备阶段mapping/proposal及其preparationRequestRef不可变，分阶段owning Receipt/幂等、请求→精确snapshot refs索引，不创建未来Root/Revision；读Query只读索引及原快照，不能补写缺提案；沿已有Canonical对象FROZEN/Revision/Branch/Representation生命周期；source/constraint/acceptance immutable；seal+acceptance/Receipt/Audit/Edges/Event单ART事务；Head独立CAS；内容仍对象存储，raw hash/canonical hash/Receipt hash不混 |
+| integration_gateway / one-file suggestion intake/rawobjects、生成原observation/Attempt、Markdown render binding | 外部invoke前commit、原Attempt/session/lease/fencing+稳定key，raw bytes在受控对象存储，snapshot/观察不可改；staging/finalize/UNKNOWN与受审计orphan cleanup保留；不cascade删除已link历史 |
+| quality_governance / 现有Evidence/Issue/Gate/Approval | 无Feedback新表；原问题/来源不可变、新候选不自动Close/Approved，当前impact另追加，不回写历史 |
+
+跨owner仅exact TypedReference/受权Port，禁止跨Schema FK/SQL、共享Repository或单事务多Root；所有新记录通过owning function+RLS/ACL/immutable guard，私稿还核作者身份。原文/附件引用属于权限裁剪的敏感数据，不写普通日志/Event；retention/legal hold控制清理，清空草稿是新snapshot不删除提交历史。后续真实PostgreSQL/full需验证CAS/唯一占用/作者隔离/撤权/partial/recovery/fault和既有升级回归，当前NOT RUN。

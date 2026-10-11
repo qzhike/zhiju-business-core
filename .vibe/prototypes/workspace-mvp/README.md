@@ -26,6 +26,8 @@ Client identity, candidate revisions, before-text omissions, progress and qualit
 
 The manual scenario controls are intentionally labeled as demonstrations. They are not proposed production controls. Static checks and browser walkthroughs are not evidence of real business authorization, quality gates, runtime execution, or approval integration.
 
+The proposed [Markdown candidate and per-file feedback contract (#259)](../../decisions/markdown-file-feedback.md) uses these snapshots and the multiple-change, old-baseline and uncertain-receipt scenarios as design inputs. It preserves STRUCTURED_DOCUMENT as canonical content and requires server-owned locations, candidate acceptance and private drafts. The raw procedure snapshot has a three-column header and five-column data rows in table 1; the proposed bounded parser rejects that irregular table until an explicit correction is reviewed. The prototype preview does not establish lossless import, server persistence, controlled generation or content approval.
+
 ## Inspection context prototype
 
 The work page identifies the template edition, synthetic candidate revision, blank-form purpose, applicability and explicit cross-document references. References outside the current three-file scope are not opened or modified. Chapter/table locators insert a version-bound quotation into the existing feedback field; their source-line identifiers are local preview positions, not production canonical IDs. Wide tables scroll within a keyboard-focusable region.

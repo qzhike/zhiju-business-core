@@ -25,6 +25,8 @@ IM-06 的有限工程退出已获用户确认。[UI-DG-001～003 工程基线](.
 
 [项目交付批次与受控导出设计](../decisions/project-delivery-controlled-export.md)已完成独立复审及明确的人类技术设计批准，批准绑定 e87e9610a2524ff7317f59d0f76f68a27388dc84，见[PR #271 正式记录](../reviews/pr-271/Review.md)；设计 PR 已合并。当前选定的独立工程前置由 [#272](https://github.com/qzhike/zhiju-business-core/issues/272) 实现 D12 封闭类型、精确引用结构校验与不可变 Hash 域，为下一步精确批次确认及固定 Markdown 包下载提供基础，不交付当前资格裁决、业务持久化或顾问下载入口。#270 的 Markdown 解析/身份/往返、#266 的可信入口维持各自范围；实际表示登记、有限导出 Policy/Renderer、owning Handler/Attempt、对象存储与公开流接入须再作 NOW + READY 复核，不从设计批准或结构/Hash PASS 推导运行、发送或 Completion。IM-UI-01 保持 Current，未执行的运行/外部/Browser/人工验收保持 NOT RUN。
 
+[#270](https://github.com/qzhike/zhiju-business-core/issues/270) 已交付 #259 §3 的封闭技术管线：`artifact.markdown_document@1.0`/`artifact.markdown_document.schema@1.0` 与 `artifact.markdown_limits@1.0` 注册、Artifact 的 Markdown 解析/canonical 元数据与身份 sidecar 校验/派生/round-trip 验证、IntegrationGateway 的确定性 Markdown renderer，连同已检入采购快照与聚焦正反例 fixture。同 revision 导入了 #259 的批准设计章节与 PR #269 正式审查记录。TE 准备/确认、公开 Diff/目录、逐文件意见、私人草稿、表示登记/下载、真实 Host/Runner、OIDC/HTTP、Browser 与独立人工内容验收仍未实现/`NOT RUN`。
+
 ## Completed — IM-06 TaskExecution Human-operated Core
 
 状态：**SCOPED ENGINEERING ACCEPTANCE COMPLETE / USER CONFIRMED 2026-10-07**。用户已明确确认“IM-06完成验收”，接受下述基于 `main@b6e1f93d7a79e6334622c55b94f124750143949e` 的有限支持集工程退出结论。IM-06 已退出；真实外部、公开 HTTP/UI、生产/性能和独立人工验收，以及既有 PARTIAL/NOT RUN 和 Grant PolicySnapshot lifecycle 延后保持原边界。以下保留各交付时点的规划与证据引用，其中旧 Current、待退出和待确认表述由本验收结论取代。

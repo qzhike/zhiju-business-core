@@ -5,6 +5,11 @@ const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
 
 export const artifactCanonicalContentPayloadSchemaRef = `${schemaId}#/$defs/canonicalContentPayload`;
 export const artifactCanonicalContentManifestSchemaRef = `${schemaId}#/$defs/canonicalContentManifest`;
+// #270 closed Markdown document profile ($defs registered by
+// contracts/registry/artifact-markdown-schemas.v1.json as
+// `artifact.markdown_document.schema@1.0`).
+export const artifactMarkdownDocumentContentSchemaRef = `${schemaId}#/$defs/markdownDocumentContent`;
+export const artifactMarkdownIdentityMapSchemaRef = `${schemaId}#/$defs/markdownIdentityMap`;
 
 type SchemaProperties = Readonly<Record<string, unknown>>;
 
@@ -620,6 +625,243 @@ const namedDefinitions = {
     pattern: '^[a-z0-9][a-z0-9._-]*(?:/[A-Za-z0-9._-]+)+$',
   },
   mediaType: { type: 'string', pattern: '^[^/\\s]+/[^/\\s]+$' },
+  // --- #270 Markdown document profile (artifact.markdown_document.schema@1.0) ---
+  // Closed inline span over logical Unicode code points; STRONG/EMPHASIS may
+  // share one interval, every other overlap/crossing is rejected by the
+  // markdown document invariant validator.
+  markdownInlineSpan: object(['start', 'end', 'kind'], {
+    start: nonNegativeInteger,
+    end: positiveInteger,
+    kind: { enum: ['STRONG', 'EMPHASIS', 'CODE', 'HARD_BREAK'] },
+  }),
+  markdownInlineSpans: array(localRef('markdownInlineSpan')),
+  markdownSectionMetadata: object(['markdown'], {
+    markdown: object(['headingLevel', 'inlineSpans'], {
+      headingLevel: { type: 'integer', minimum: 1, maximum: 6 },
+      inlineSpans: localRef('markdownInlineSpans'),
+    }),
+  }),
+  markdownParagraphTextMetadata: object(['markdown'], {
+    markdown: object(['blockKind', 'inlineSpans'], {
+      blockKind: { const: 'TEXT' },
+      inlineSpans: localRef('markdownInlineSpans'),
+    }),
+  }),
+  markdownListItemMetadata: object(['markdown'], {
+    markdown: object(
+      ['blockKind', 'inlineSpans', 'listId', 'listKind', 'listOrdinal', 'listDepth'],
+      {
+        blockKind: { const: 'LIST_ITEM' },
+        inlineSpans: localRef('markdownInlineSpans'),
+        listId: text,
+        listKind: { enum: ['ORDERED', 'UNORDERED'] },
+        listOrdinal: nonNegativeInteger,
+        listDepth: { type: 'integer', minimum: 1, maximum: 6 },
+        orderedMarker: text,
+      },
+    ),
+  }),
+  markdownThematicBreakMetadata: object(['markdown'], {
+    markdown: object(['blockKind'], { blockKind: { const: 'THEMATIC_BREAK' } }),
+  }),
+  markdownTableColumn: object(['columnId', 'ordinal', 'alignment'], {
+    columnId: text,
+    ordinal: nonNegativeInteger,
+    alignment: { enum: ['NONE', 'LEFT', 'CENTER', 'RIGHT'] },
+  }),
+  markdownTableMetadata: object(['markdown'], {
+    markdown: object(['columns', 'headerRowUnitId'], {
+      columns: array(localRef('markdownTableColumn'), { nonEmpty: true }),
+      headerRowUnitId: text,
+      captionUnitId: text,
+    }),
+  }),
+  markdownTableRowMetadata: object(['markdown'], {
+    markdown: object(['rowRole'], { rowRole: { enum: ['HEADER', 'DATA'] } }),
+  }),
+  markdownBlankTableCellMetadata: object(['markdown'], {
+    markdown: object(['columnId', 'valueState', 'inlineSpans'], {
+      columnId: text,
+      valueState: { const: 'BLANK' },
+      inlineSpans: { type: 'array', maxItems: 0 },
+    }),
+  }),
+  markdownTextTableCellMetadata: object(['markdown'], {
+    markdown: object(['columnId', 'valueState', 'inlineSpans'], {
+      columnId: text,
+      valueState: { const: 'TEXT' },
+      inlineSpans: localRef('markdownInlineSpans'),
+    }),
+  }),
+  markdownDocumentMetadata: object(['fileKind', 'fileCode'], {
+    fileKind: { enum: ['PROCEDURE', 'MANUAL', 'POLICY', 'BLANK_FORM', 'FILLED_RECORD'] },
+    fileCode: text,
+    templateVersionText: text,
+  }),
+  markdownSectionUnit: object(
+    ['unitId', 'unitType', 'ordinal', 'childUnitIds', 'text', 'semanticMetadata'],
+    {
+      unitId: text,
+      parentUnitId: text,
+      unitType: { const: 'SECTION' },
+      ordinal: nonNegativeInteger,
+      text,
+      childUnitIds: array(text, { unique: true }),
+      semanticMetadata: localRef('markdownSectionMetadata'),
+      evidenceRefs: array(contentAddressedReference, { unique: true }),
+    },
+  ),
+  markdownParagraphTextUnit: object(
+    ['unitId', 'unitType', 'ordinal', 'childUnitIds', 'text', 'semanticMetadata'],
+    {
+      unitId: text,
+      parentUnitId: text,
+      unitType: { const: 'PARAGRAPH' },
+      ordinal: nonNegativeInteger,
+      text,
+      childUnitIds: array(text, { unique: true }),
+      semanticMetadata: localRef('markdownParagraphTextMetadata'),
+      evidenceRefs: array(contentAddressedReference, { unique: true }),
+    },
+  ),
+  markdownListItemUnit: object(
+    ['unitId', 'unitType', 'ordinal', 'childUnitIds', 'text', 'semanticMetadata'],
+    {
+      unitId: text,
+      parentUnitId: text,
+      unitType: { const: 'PARAGRAPH' },
+      ordinal: nonNegativeInteger,
+      text,
+      childUnitIds: array(text, { unique: true }),
+      semanticMetadata: localRef('markdownListItemMetadata'),
+      evidenceRefs: array(contentAddressedReference, { unique: true }),
+    },
+  ),
+  markdownThematicBreakUnit: object(
+    ['unitId', 'unitType', 'ordinal', 'childUnitIds', 'semanticMetadata'],
+    {
+      unitId: text,
+      parentUnitId: text,
+      unitType: { const: 'PARAGRAPH' },
+      ordinal: nonNegativeInteger,
+      childUnitIds: array(text, { unique: true }),
+      semanticMetadata: localRef('markdownThematicBreakMetadata'),
+      evidenceRefs: array(contentAddressedReference, { unique: true }),
+    },
+  ),
+  markdownParagraphUnit: {
+    oneOf: [
+      localRef('markdownParagraphTextUnit'),
+      localRef('markdownListItemUnit'),
+      localRef('markdownThematicBreakUnit'),
+    ],
+  },
+  markdownTableUnit: object(['unitId', 'unitType', 'ordinal', 'childUnitIds', 'semanticMetadata'], {
+    unitId: text,
+    parentUnitId: text,
+    unitType: { const: 'TABLE' },
+    ordinal: nonNegativeInteger,
+    childUnitIds: array(text, { unique: true }),
+    semanticMetadata: localRef('markdownTableMetadata'),
+    evidenceRefs: array(contentAddressedReference, { unique: true }),
+  }),
+  markdownTableRowUnit: object(
+    ['unitId', 'unitType', 'ordinal', 'childUnitIds', 'semanticMetadata'],
+    {
+      unitId: text,
+      parentUnitId: text,
+      unitType: { const: 'TABLE_ROW' },
+      ordinal: nonNegativeInteger,
+      childUnitIds: array(text, { unique: true }),
+      semanticMetadata: localRef('markdownTableRowMetadata'),
+      evidenceRefs: array(contentAddressedReference, { unique: true }),
+    },
+  ),
+  markdownBlankTableCellUnit: object(
+    ['unitId', 'unitType', 'ordinal', 'childUnitIds', 'semanticMetadata'],
+    {
+      unitId: text,
+      parentUnitId: text,
+      unitType: { const: 'TABLE_CELL' },
+      ordinal: nonNegativeInteger,
+      childUnitIds: array(text, { unique: true }),
+      semanticMetadata: localRef('markdownBlankTableCellMetadata'),
+      evidenceRefs: array(contentAddressedReference, { unique: true }),
+    },
+  ),
+  markdownTextTableCellUnit: object(
+    ['unitId', 'unitType', 'ordinal', 'childUnitIds', 'text', 'semanticMetadata'],
+    {
+      unitId: text,
+      parentUnitId: text,
+      unitType: { const: 'TABLE_CELL' },
+      ordinal: nonNegativeInteger,
+      text,
+      childUnitIds: array(text, { unique: true }),
+      semanticMetadata: localRef('markdownTextTableCellMetadata'),
+      evidenceRefs: array(contentAddressedReference, { unique: true }),
+    },
+  ),
+  markdownTableCellUnit: {
+    oneOf: [localRef('markdownBlankTableCellUnit'), localRef('markdownTextTableCellUnit')],
+  },
+  markdownDocumentUnit: {
+    oneOf: [
+      localRef('markdownSectionUnit'),
+      localRef('markdownParagraphUnit'),
+      localRef('markdownTableUnit'),
+      localRef('markdownTableRowUnit'),
+      localRef('markdownTableCellUnit'),
+    ],
+  },
+  markdownDocument: object(['documentId', 'title', 'units', 'metadata'], {
+    documentId: uuid,
+    title: text,
+    units: array(localRef('markdownDocumentUnit'), { nonEmpty: true }),
+    metadata: localRef('markdownDocumentMetadata'),
+  }),
+  markdownDocumentContent: object(['schemaRef', 'contentType', 'canonicalizationVersion', 'body'], {
+    schemaRef: versionedReference,
+    contentType: { const: 'STRUCTURED_DOCUMENT' },
+    canonicalizationVersion: { const: '1' },
+    body: localRef('markdownDocument'),
+  }),
+  // Closed identity sidecar: existing identities are inherited from the exact
+  // trusted base/source mapping, new identities are derived by Artifact.
+  markdownIdentityMapNode: object(['sourceNodePath', 'unitId', 'type', 'ordinal'], {
+    sourceNodePath: text,
+    unitId: text,
+    type: { enum: ['SECTION', 'PARAGRAPH', 'TABLE', 'TABLE_ROW', 'TABLE_CELL'] },
+    parentUnitId: text,
+    ordinal: nonNegativeInteger,
+  }),
+  markdownIdentityMapColumn: object(['tableUnitId', 'columnId', 'ordinal'], {
+    tableUnitId: text,
+    columnId: text,
+    ordinal: nonNegativeInteger,
+  }),
+  markdownIdentityMap: object(
+    [
+      'profileRef',
+      'artifactRef',
+      'documentId',
+      'candidateOutputId',
+      'markdownBytesSha256',
+      'nodes',
+      'columns',
+    ],
+    {
+      profileRef: versionedReference,
+      artifactRef: objectReference,
+      documentId: uuid,
+      baseRevisionRef: contentAddressedReference,
+      baselineMappingRef: snapshotReference,
+      candidateOutputId: text,
+      markdownBytesSha256: contentHash,
+      nodes: array(localRef('markdownIdentityMapNode')),
+      columns: array(localRef('markdownIdentityMapColumn')),
+    },
+  ),
   effectivePeriod: object([], { validFrom: instant, validTo: instant }),
   evidenceRef: object(['evidence', 'relation'], {
     evidence: contentAddressedReference,

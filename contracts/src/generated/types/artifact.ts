@@ -192,6 +192,190 @@ export namespace Artifact {
 };
   export type ObjectLocator = string;
   export type MediaType = string;
+  export type MarkdownInlineSpan = {
+  readonly start: Common.NonNegativeInteger;
+  readonly end: Common.PositiveInteger;
+  readonly kind: "STRONG" | "EMPHASIS" | "CODE" | "HARD_BREAK";
+};
+  export type MarkdownInlineSpans = readonly Artifact.MarkdownInlineSpan[];
+  export interface MarkdownSectionMetadata {
+  readonly markdown: {
+  readonly headingLevel: number;
+  readonly inlineSpans: Artifact.MarkdownInlineSpans;
+};
+}
+  export interface MarkdownParagraphTextMetadata {
+  readonly markdown: {
+  readonly blockKind: "TEXT";
+  readonly inlineSpans: Artifact.MarkdownInlineSpans;
+};
+}
+  export type MarkdownListItemMetadata = {
+  readonly markdown: {
+  readonly blockKind: "LIST_ITEM";
+  readonly inlineSpans: Artifact.MarkdownInlineSpans;
+  readonly listId: Common.NonEmptyString;
+  readonly listKind: "ORDERED" | "UNORDERED";
+  readonly listOrdinal: Common.NonNegativeInteger;
+  readonly listDepth: number;
+  readonly orderedMarker?: Common.NonEmptyString;
+};
+};
+  export interface MarkdownThematicBreakMetadata {
+  readonly markdown: {
+  readonly blockKind: "THEMATIC_BREAK";
+};
+}
+  export type MarkdownTableColumn = {
+  readonly columnId: Common.NonEmptyString;
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly alignment: "NONE" | "LEFT" | "CENTER" | "RIGHT";
+};
+  export interface MarkdownTableMetadata {
+  readonly markdown: {
+  readonly columns: readonly Artifact.MarkdownTableColumn[];
+  readonly headerRowUnitId: Common.NonEmptyString;
+  readonly captionUnitId?: Common.NonEmptyString;
+};
+}
+  export type MarkdownTableRowMetadata = {
+  readonly markdown: {
+  readonly rowRole: "HEADER" | "DATA";
+};
+};
+  export interface MarkdownBlankTableCellMetadata {
+  readonly markdown: {
+  readonly columnId: Common.NonEmptyString;
+  readonly valueState: "BLANK";
+  readonly inlineSpans: readonly unknown[];
+};
+}
+  export interface MarkdownTextTableCellMetadata {
+  readonly markdown: {
+  readonly columnId: Common.NonEmptyString;
+  readonly valueState: "TEXT";
+  readonly inlineSpans: Artifact.MarkdownInlineSpans;
+};
+}
+  export type MarkdownDocumentMetadata = {
+  readonly fileKind: "PROCEDURE" | "MANUAL" | "POLICY" | "BLANK_FORM" | "FILLED_RECORD";
+  readonly fileCode: Common.NonEmptyString;
+  readonly templateVersionText?: Common.NonEmptyString;
+};
+  export interface MarkdownSectionUnit {
+  readonly unitId: Common.NonEmptyString;
+  readonly parentUnitId?: Common.NonEmptyString;
+  readonly unitType: "SECTION";
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly text: Common.NonEmptyString;
+  readonly childUnitIds: readonly Common.NonEmptyString[];
+  readonly semanticMetadata: Artifact.MarkdownSectionMetadata;
+  readonly evidenceRefs?: readonly Common.ContentAddressedRef[];
+}
+  export interface MarkdownParagraphTextUnit {
+  readonly unitId: Common.NonEmptyString;
+  readonly parentUnitId?: Common.NonEmptyString;
+  readonly unitType: "PARAGRAPH";
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly text: Common.NonEmptyString;
+  readonly childUnitIds: readonly Common.NonEmptyString[];
+  readonly semanticMetadata: Artifact.MarkdownParagraphTextMetadata;
+  readonly evidenceRefs?: readonly Common.ContentAddressedRef[];
+}
+  export interface MarkdownListItemUnit {
+  readonly unitId: Common.NonEmptyString;
+  readonly parentUnitId?: Common.NonEmptyString;
+  readonly unitType: "PARAGRAPH";
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly text: Common.NonEmptyString;
+  readonly childUnitIds: readonly Common.NonEmptyString[];
+  readonly semanticMetadata: Artifact.MarkdownListItemMetadata;
+  readonly evidenceRefs?: readonly Common.ContentAddressedRef[];
+}
+  export interface MarkdownThematicBreakUnit {
+  readonly unitId: Common.NonEmptyString;
+  readonly parentUnitId?: Common.NonEmptyString;
+  readonly unitType: "PARAGRAPH";
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly childUnitIds: readonly Common.NonEmptyString[];
+  readonly semanticMetadata: Artifact.MarkdownThematicBreakMetadata;
+  readonly evidenceRefs?: readonly Common.ContentAddressedRef[];
+}
+  export type MarkdownParagraphUnit = (Artifact.MarkdownParagraphTextUnit | Artifact.MarkdownListItemUnit | Artifact.MarkdownThematicBreakUnit);
+  export interface MarkdownTableUnit {
+  readonly unitId: Common.NonEmptyString;
+  readonly parentUnitId?: Common.NonEmptyString;
+  readonly unitType: "TABLE";
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly childUnitIds: readonly Common.NonEmptyString[];
+  readonly semanticMetadata: Artifact.MarkdownTableMetadata;
+  readonly evidenceRefs?: readonly Common.ContentAddressedRef[];
+}
+  export interface MarkdownTableRowUnit {
+  readonly unitId: Common.NonEmptyString;
+  readonly parentUnitId?: Common.NonEmptyString;
+  readonly unitType: "TABLE_ROW";
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly childUnitIds: readonly Common.NonEmptyString[];
+  readonly semanticMetadata: Artifact.MarkdownTableRowMetadata;
+  readonly evidenceRefs?: readonly Common.ContentAddressedRef[];
+}
+  export interface MarkdownBlankTableCellUnit {
+  readonly unitId: Common.NonEmptyString;
+  readonly parentUnitId?: Common.NonEmptyString;
+  readonly unitType: "TABLE_CELL";
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly childUnitIds: readonly Common.NonEmptyString[];
+  readonly semanticMetadata: Artifact.MarkdownBlankTableCellMetadata;
+  readonly evidenceRefs?: readonly Common.ContentAddressedRef[];
+}
+  export interface MarkdownTextTableCellUnit {
+  readonly unitId: Common.NonEmptyString;
+  readonly parentUnitId?: Common.NonEmptyString;
+  readonly unitType: "TABLE_CELL";
+  readonly ordinal: Common.NonNegativeInteger;
+  readonly text: Common.NonEmptyString;
+  readonly childUnitIds: readonly Common.NonEmptyString[];
+  readonly semanticMetadata: Artifact.MarkdownTextTableCellMetadata;
+  readonly evidenceRefs?: readonly Common.ContentAddressedRef[];
+}
+  export type MarkdownTableCellUnit = (Artifact.MarkdownBlankTableCellUnit | Artifact.MarkdownTextTableCellUnit);
+  export type MarkdownDocumentUnit = (Artifact.MarkdownSectionUnit | Artifact.MarkdownParagraphUnit | Artifact.MarkdownTableUnit | Artifact.MarkdownTableRowUnit | Artifact.MarkdownTableCellUnit);
+  export interface MarkdownDocument {
+  readonly documentId: Common.UuidV7;
+  readonly title: Common.NonEmptyString;
+  readonly units: readonly Artifact.MarkdownDocumentUnit[];
+  readonly metadata: Artifact.MarkdownDocumentMetadata;
+}
+  export interface MarkdownDocumentContent {
+  readonly schemaRef: Common.VersionedRef;
+  readonly contentType: "STRUCTURED_DOCUMENT";
+  readonly canonicalizationVersion: "1";
+  readonly body: Artifact.MarkdownDocument;
+}
+  export type MarkdownIdentityMapNode = {
+  readonly sourceNodePath: Common.NonEmptyString;
+  readonly unitId: Common.NonEmptyString;
+  readonly type: "SECTION" | "PARAGRAPH" | "TABLE" | "TABLE_ROW" | "TABLE_CELL";
+  readonly parentUnitId?: Common.NonEmptyString;
+  readonly ordinal: Common.NonNegativeInteger;
+};
+  export interface MarkdownIdentityMapColumn {
+  readonly tableUnitId: Common.NonEmptyString;
+  readonly columnId: Common.NonEmptyString;
+  readonly ordinal: Common.NonNegativeInteger;
+}
+  export interface MarkdownIdentityMap {
+  readonly profileRef: Common.VersionedRef;
+  readonly artifactRef: Common.ObjectRef;
+  readonly documentId: Common.UuidV7;
+  readonly baseRevisionRef?: Common.ContentAddressedRef;
+  readonly baselineMappingRef?: Common.SnapshotRef;
+  readonly candidateOutputId: Common.NonEmptyString;
+  readonly markdownBytesSha256: Common.ContentHash;
+  readonly nodes: readonly Artifact.MarkdownIdentityMapNode[];
+  readonly columns: readonly Artifact.MarkdownIdentityMapColumn[];
+}
   export interface EffectivePeriod {
   readonly validFrom?: Common.UtcInstant;
   readonly validTo?: Common.UtcInstant;

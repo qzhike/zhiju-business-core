@@ -423,3 +423,15 @@ selectionHash为canonicalization=1 SHA-256，覆盖返回的revisionRef/qualityP
 6. **撤销与消费**：confirmation、Worker开始/Link发布AVAILABLE、下载许可及流前均以原exact refs重验。Gate/Approval撤销、RAS/ABS/RRS替代、Profile失效或Recall blocker使消费不可用，旧Snapshot仍可受权历史读取。不因已确认批次把历史FULLY_APPROVED/READY当当前票据；也不因新未批准候选到达自动撤销仍有效旧Approval。同步当前检查和异步Impact互补，跨模块水位不声称全局原子性。
 
 单份审批交互只消费 quality.submit_approval_decision 原Command Receipt及exact回读。成功提交当前文件的 APPROVED 决定后接续下一份当前可检查文件；必要其他角色仍单独待办。REJECTED/业务拒绝不前进；timeout为UNKNOWN，先读原request/key，确认成功才前进。该接续不批量批准其他文件，不写Release/Completion。
+
+## Markdown 逐文件意见与质量事实边界提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT IMPLEMENTED。跨步骤见 [Markdown Delta](../decisions/markdown-file-feedback.md)；本增量复用全部现有Quality公开操作及字段，不注册新Feedback/Approval/Gate操作。
+
+普通自然语言修改、位置引用、Markdown建议与计划异议是TE原意图；不能因为含“问题”“请修改”就创建Blocking ReviewIssue。明确Raise时才调用quality.raise_review_issue@1.0，definition的artifactRef/originRevisionRef/locator/statement/evidenceRefs与该文件exact内容一致，blocking classification受QualityProfile控制，TE/UI不选择默认blocking。现有Issue的关联仅是读取与trace，不修改原statement/locator或状态。
+
+ART/TE读取保护依据使用Quality当前exact Evidence Query；EvidenceRef的ID/hash/Scope、sourceSnapshot/version、locator、capturedContentHash和本次完整claimHash/relationship绑定分别比对。保护原文/图表关系不能用报告摘要、模板、行号或CONTEXT_ONLY替代；UNKNOWN/CONFLICT/READ_LIMITED/撤销或错locator阻受影响整文件。完整性确定性验证与Human专业充分性判断分开，无法证明所需保护范围时不宣布可用。
+
+新candidate、processingReport HANDLED、导航已看完、TE ACCEPTED、Runner自检或render round-trip均不创建GateResult/RAS或解决Issue。linked ReviewIssue仍按现有Propose Resolution→独立Verify→Close追加facts；targetRevisionRef及changedClaimRefs必须指向实际新sealed Revision和真实改变，作者自验/职责分离拒绝照旧。部分意见处理明确未处理项，已有Blocking Issue继续阻approval；未关联的普通意见不能冒充已verified整改。
+
+Approval始终精确绑定新Revision contentHash、当前有效RAS、frozenQualityProfile、要求/真实Human/ActorSnapshot/Decision；不继承旧候选/旧RAS/旧ABS批准，不把服务器生成或private draft当Approval。mandatory Gate不满足、Issue未解、Evidence/当前授权失效则禁止；Agent/Service/actingFor永久不能审批。下载Markdown只授权审阅bytes，不能当Release Readiness/客户签批/正式送达。运行及独立内容批准NOT RUN；用例见QG-MF-*。

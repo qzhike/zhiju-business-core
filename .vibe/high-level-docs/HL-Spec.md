@@ -126,6 +126,7 @@ Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contr
 | API 与字段 | 对应 Module Spec/Test、共享 API Contract；03 的被引用 Core 类型、06 的 Reference/Envelope/操作条目 |
 | 数据库与事务 | 07 对应 Schema、Migration/事务约束；对应模块及 05 相关一致性规则 |
 | 飞书或 Runtime | 对应专项 Contract/Test、所使用 Core 类型和接口 |
+| Markdown 整份候选、Diff/定位、逐文件意见与个人草稿 | [#259 待审 Spec Delta](../decisions/markdown-file-feedback.md)，ART §13、TE §28、QG/IP/IG/UI01 与 Runtime 的 #259 owning Spec/Test；不改变已冻结 IM-DG-005、Approval 或模块边界 |
 | 验证与审查 | 08 第 1–2 节、对应 Module-Test 场景、当前 PR 检查 |
 | 里程碑规划 | roadmap、Implementation Milestone Plan 对应阶段及依赖/Gate |
 

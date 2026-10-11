@@ -666,3 +666,17 @@ PreparationContext phase=INITIAL_SCOPE_RECOVERY 的新 Package 分支只绑定�
 六项IM-DG-006控制在 [TE owning专节](../module-specs/Module-Spec-003-TaskExecution.md#d14-runner-首发六项控制提案256)逐项确定首发支持/拒绝；IG原不可变观察与readback见 [IG专节](../module-specs/Module-Spec-007-IntegrationGateway.md#d14-runner-物化锁与原调用观察提案256)，每项独立授权见 [IP专节](../module-specs/Module-Spec-001-IdentityPolicy.md#d14-runner-锁与控制授权提案256)。heartbeat/progress/usage有界支持，suspend/resume/cancellationACK拒绝；本地进程退出不能证明Provider取消，不能覆盖§13的CANCELLED必要条件。原UNKNOWN不重发，terminal不resume，明确许可新分析才新Run，旧树未知仍不retry；取消后retry首版拒绝。六项是设计处置，不是新增六个已注册操作或已决全Runtime Gate。
 
 进程文件/网络/工具/客户数据隔离由 [Deployment专节](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md#d14-runner-首发进程隔离提案256)强制；CLI permission flag只收窄。v0.1 evidence工具与v0.2 startup输出必须分别固定/回归，旧finalize不能标Host PASS。未来真实invocation→IG observation→TE Acceptance→EP report分别取证，错hash/alias/read ceiling、模型漂移/重复/late/保护客户事实用 [首发验收矩阵](Runtime-Adapter-Test-v0.1.md#d14-runner-首发锁与控制验收256)检验。批准与未运行门禁见 [提案§6](../decisions/d14-rd01-runner-profile-lock.md#6-冻结与实现入口)；内部锁 Schema/producer/validator/preflight 已在 #264 以 contract-only 方式实现，本增量仍不部署、不冻结语义或宣告依赖 READY。
+
+## Markdown 整份生成与旧基准复核 Profile 提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。这是 [Markdown Delta](../decisions/markdown-file-feedback.md) 的执行交接边界，不复用d14.analysis、synthetic formal或现有CLI profile的可运行资格，不选择Harness/模型/Provider。
+
+拟独立file-generation Package/profile selector；输入闭集为TE原request/submittedIntent/fileSourceBinding、frozenWorkOrder/真实FileGenerationContext、Capability/lease/deadline/fencing、公司executionLock、ART完整constraints与baseline mapping、精确source/template/protection/附件。旧基准分支显式B原Canonical+M原suggestion bytes+S提交时currentCanonical及原位置，metadata分别保留完整refs/hashes。仅本Project一个file/Artifact可写候选输出，旧Contract/Context/Result不补新字段、不改Hash。
+
+Company lock必须另行批准并固定实际CLI/adapter/Host/Provider/model及数据边界、Prompt/Skill/MCP权限全集、source reader、Markdown parser/canonical mapper/renderer/validator/profile/schema和bytes digests、output schema、attempt/deadline/cancel/late/UNKNOWN/readback政策。只有配置批准、实际部署观察和真实generation conformance都齐备才可执行；#256分析Runtime选择/contract-only preflight、独立finalize或页面导航不证明本profile可运行。
+
+Host先提交原Attempt/invoke-once journal再spawn，真实ack/session与所有输入Hash/完整Scope/Run绑定；输入原件/模板/保护/用户建议只读，不加载客户指令、HTML/链接/个人Agent配置或工具。仅写隔离输出根三份closed产物candidate.md、identity-map.json、processing-report.json，schema/fields分别由ART §13、TE §28和IG #259拥有。输入前后实际hash复验，输出停写readback后封存原bytes；完成自检/exit0不接受Canonical/Revision、不代表业务正确。
+
+IG原不可变observation→TE自己的Result/Validation/Acceptance→ART独立范围/保护/位置/round-trip接纳→独立Head CAS/Representation，各层Receipt分别取证；profile raw提案是WorkspaceOutput，businessOutputs=[]，不倒填先于ART建立的Revision或creationReceipt。任何运行/结果不产生Quality/Approval/Completion。partial意见报告保留待判断项，超范围/跨file/保护冲突不得自动merge/rebase。
+
+UNKNOWN仅原Attempt/journal/Receipt readback，不second invoke/新key/fallback；明确允许再次执行才新intent/Context/Run，terminal不resume。取消/过期late仅历史，不能接纳为当前candidate。公司profile尚未批准的budget/cancel/retry具体参数不由本设计猜补；相应能力NOT RUN，并非从既有Runtime默认继承。正负conformance见RA-MF-*，后续真实Runner feasibility、Host acceptance、Human内容验收分别独立。

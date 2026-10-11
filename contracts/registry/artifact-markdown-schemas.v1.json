@@ -1,0 +1,20 @@
+{
+  "profileKey": "artifact.markdown_document@1.0",
+  "registryKey": "artifact.markdown_document.schema@1.0",
+  "owner": "artifact",
+  "objectType": "artifact.canonical_document_schema",
+  "objectId": "0199b600-0000-7000-8000-000000000402",
+  "versionId": "0199b600-0000-7000-8000-000000000412",
+  "schemaId": "https://schemas.zhiju.local/modules/artifact/1.0#/$defs/markdownDocumentContent",
+  "limitsProfileKey": "artifact.markdown_limits@1.0",
+  "limits": {
+    "maxFileBytes": 10485760,
+    "maxUnits": 100000,
+    "maxBlockDepth": 6,
+    "maxTableColumns": 128,
+    "maxTableRows": 10000,
+    "maxLogicalTextCodePoints": 65536,
+    "maxParseMilliseconds": 10000,
+    "maxParseHeapBytes": 268435456
+  }
+}

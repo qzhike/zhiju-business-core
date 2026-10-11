@@ -7,7 +7,8 @@ const schemaPath =
 
 type UnknownRecord = Record<string, unknown>;
 
-function isRecord(value: unknown): value is UnknownRecord {
+/** Canonical object guard for the contracts JSON packages. */
+export function isRecord(value: unknown): value is UnknownRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
@@ -50,7 +51,7 @@ function assertUniqueIds(
   return firstById;
 }
 
-function validateDocument(body: UnknownRecord): ErrorObject[] {
+export function canonicalDocumentInvariantErrors(body: UnknownRecord): ErrorObject[] {
   const errors: ErrorObject[] = [];
   const units = body.units;
   if (!Array.isArray(units)) return errors;
@@ -231,7 +232,7 @@ export function canonicalContentInvariantErrors(input: unknown): readonly ErrorO
   if (!isRecord(input) || !isRecord(input.body)) return [];
   const errors =
     input.contentType === 'STRUCTURED_DOCUMENT'
-      ? validateDocument(input.body)
+      ? canonicalDocumentInvariantErrors(input.body)
       : input.contentType === 'WORKBOOK_SPEC'
         ? validateWorkbook(input.body)
         : [];
